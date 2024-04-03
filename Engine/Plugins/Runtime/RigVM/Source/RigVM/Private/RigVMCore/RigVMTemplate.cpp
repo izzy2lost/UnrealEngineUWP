@@ -39,12 +39,6 @@ FRigVMTemplateArgument::FRigVMTemplateArgument(const FName& InName, ERigVMPinDir
 	, Direction(InDirection)
 {}
 
-FRigVMTemplateArgument::FRigVMTemplateArgument(FProperty* InProperty):
-	FRigVMTemplateArgument(InProperty, FRigVMRegistry_NoLock::GetForWrite())
-{
-	
-}
-
 FRigVMTemplateArgument::FRigVMTemplateArgument(FProperty* InProperty, FRigVMRegistry_NoLock& InRegistry)
 	: Name(InProperty->GetFName())
 {
@@ -92,8 +86,18 @@ FRigVMTemplateArgument::FRigVMTemplateArgument(FProperty* InProperty, FRigVMRegi
 
 FRigVMTemplateArgument FRigVMTemplateArgument::Make(FProperty* InProperty)
 {
-	const FRigVMRegistryWriteLock _;
-	return FRigVMTemplateArgument(InProperty);
+	FRigVMRegistryWriteLock WriteLock;
+	return Make_NoLock(InProperty, WriteLock.GetRegistry());
+}
+
+FRigVMTemplateArgument FRigVMTemplateArgument::Make_NoLock(FProperty* InProperty)
+{
+	return Make_NoLock(InProperty, FRigVMRegistry_NoLock::GetForWrite());
+}
+
+FRigVMTemplateArgument FRigVMTemplateArgument::Make_NoLock(FProperty* InProperty, FRigVMRegistry_NoLock& InRegistry)
+{
+	return FRigVMTemplateArgument(InProperty, InRegistry);
 }
 
 FRigVMTemplateArgument::FRigVMTemplateArgument(const FName& InName, ERigVMPinDirection InDirection, TRigVMTypeIndex InTypeIndex)
@@ -281,9 +285,14 @@ bool FRigVMTemplateArgument::IsSingleton_NoLock(const TArray<int32>& InPermutati
 bool FRigVMTemplateArgument::IsExecute() const
 {
 	const FRigVMRegistry_NoLock& Registry = FRigVMRegistry_NoLock::GetForRead();
-	const int32 FoundAnyNotExec = IndexOfByPredicate([&](const TRigVMTypeIndex Type)
+	return IsExecute_NoLock(Registry);
+}
+
+bool FRigVMTemplateArgument::IsExecute_NoLock(const FRigVMRegistry_NoLock& InRegistry) const
+{
+	const int32 FoundAnyNotExec = IndexOfByPredicate([&InRegistry](const TRigVMTypeIndex Type)
 	{
-		return !Registry.IsExecuteType_NoLock(Type);
+		return !InRegistry.IsExecuteType_NoLock(Type);
 	});
 	return FoundAnyNotExec == INDEX_NONE;
 }
@@ -807,6 +816,7 @@ FRigVMTemplate::FRigVMTemplate(UScriptStruct* InStruct, const FString& InTemplat
 	, Notation(NAME_None)
 	, Hash(UINT32_MAX)
 {
+	FRigVMRegistry_NoLock& Registry = FRigVMRegistry_NoLock::GetForWrite(); 
 	TArray<FString> ArgumentNotations;
 
 	// create the arguments sorted by super -> child struct.
@@ -816,10 +826,10 @@ FRigVMTemplate::FRigVMTemplate(UScriptStruct* InStruct, const FString& InTemplat
 		// only iterate on this struct's fields, not the super structs'
 		for (TFieldIterator<FProperty> It(Struct, EFieldIterationFlags::None); It; ++It)
 		{
-			FRigVMTemplateArgument Argument(*It);
+			FRigVMTemplateArgument Argument = FRigVMTemplateArgument::Make_NoLock(*It, Registry);
 			Argument.Index = Arguments.Num();
 
-			if(!Argument.IsExecute() && IsValidArgumentForTemplate(Argument.GetDirection()) && Argument.GetDirection() != ERigVMPinDirection::Hidden)
+			if(!Argument.IsExecute_NoLock(Registry) && IsValidArgumentForTemplate(Argument.GetDirection()) && Argument.GetDirection() != ERigVMPinDirection::Hidden)
 			{
 				Arguments.Add(Argument);
 			}
@@ -832,7 +842,7 @@ FRigVMTemplate::FRigVMTemplate(UScriptStruct* InStruct, const FString& InTemplat
 	{
 		if(const FRigVMTemplateArgument* Argument = FindArgument(It->GetFName()))
 		{
-			if(!Argument->IsExecute() && Argument->GetDirection() != ERigVMPinDirection::Hidden)
+			if(!Argument->IsExecute_NoLock(Registry) && Argument->GetDirection() != ERigVMPinDirection::Hidden)
 			{
 				ArgumentNotations.Add(GetArgumentNotation(Argument->Name, Argument->Direction));
 			}
@@ -1456,7 +1466,8 @@ const TArray<FRigVMExecuteArgument>& FRigVMTemplate::GetExecuteArguments(const F
 {
 	if(ExecuteArguments.IsEmpty())
 	{
-		const FRigVMRegistryWriteLock _;
+		FRigVMRegistryWriteLock WriteLock;
+		FRigVMRegistry_NoLock& Registry = WriteLock.GetRegistry();
 
 		if(UsesDispatch())
 		{
@@ -1475,7 +1486,7 @@ const TArray<FRigVMExecuteArgument>& FRigVMTemplate::GetExecuteArguments(const F
 					// only iterate on this struct's fields, not the super structs'
 					for (TFieldIterator<FProperty> It(Struct, EFieldIterationFlags::None); It; ++It)
 					{
-						FRigVMTemplateArgument Argument(*It);
+						FRigVMTemplateArgument Argument = FRigVMTemplateArgument::Make_NoLock(*It, Registry);
 						if(Argument.IsExecute())
 						{
 							ExecuteArguments.Emplace(Argument.Name, Argument.Direction, Argument.GetTypeIndex_NoLock(0));

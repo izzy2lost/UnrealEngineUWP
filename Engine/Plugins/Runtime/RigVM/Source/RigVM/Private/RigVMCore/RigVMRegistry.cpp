@@ -751,7 +751,7 @@ TRigVMTypeIndex FRigVMRegistry_NoLock::FindOrAddType_NoLock(const FRigVMTemplate
 				{
 					// by creating a template argument for the child property
 					// the type will be added by calling ::FindOrAddType_Internal recursively.
-					FRigVMTemplateArgument DummyArgument(Property, *this);
+					(void)FRigVMTemplateArgument::Make_NoLock(Property, *this);
 				}
 #if WITH_EDITOR
 				else
@@ -1294,7 +1294,7 @@ void FRigVMRegistry_NoLock::Register_NoLock(const TCHAR* InName, FRigVMFunctionP
 	for (TFieldIterator<FProperty> It(InStruct); It; ++It)
 	{
 		// creating the argument causes the registration
-		FRigVMTemplateArgument Argument(*It);
+		(void)FRigVMTemplateArgument::Make_NoLock(*It, *this);
 	}
 
 #if WITH_EDITOR
@@ -1384,7 +1384,7 @@ const FRigVMDispatchFactory* FRigVMRegistry_NoLock::RegisterFactory_NoLock(UScri
 	InFactoryStruct->InitializeStruct(Factory, 1);
 	Factory->FactoryScriptStruct = InFactoryStruct;
 	Factories.Add(Factory);
-	Factory->RegisterDependencyTypes_NoLock();
+	Factory->RegisterDependencyTypes_NoLock(*this);
 	return Factory;
 }
 
@@ -1869,7 +1869,9 @@ FRigVMRegistry_RWLock::FRigVMRegistry_RWLock()
 
 void FRigVMRegistry_RWLock::Initialize(bool bLockRegistry)
 {
-	LockType.store(LockType_Invalid);
+	LockType = LockType_Invalid;
+	LockCount = 0;
+	
 	const FConditionalWriteScopeLock _(*this, bLockRegistry);
 	
 	Initialize_NoLock();

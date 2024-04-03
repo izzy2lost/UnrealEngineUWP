@@ -41,7 +41,7 @@ struct RIGVM_API FRigVMRegistry_NoLock : public FGCObject
 {
 public:
 
-	enum ELockType
+	enum ELockType : uint8
 	{
 		LockType_Read,
 		LockType_Write,
@@ -439,26 +439,34 @@ protected:
 	{
 	public:
 		UE_NODISCARD_CTOR explicit FConditionalScopeLock(const FRigVMRegistry_RWLock& InRegistry, ELockType InLockType, bool bInLockEnabled = true)
-		: Registry(InRegistry)
-		, LockType(InLockType)
+		: Registry(const_cast<FRigVMRegistry_RWLock*>(&InRegistry))
+		, DesiredLockType(InLockType)
 		, bLockEnabled(bInLockEnabled)
-		, bResetLockType(false)
 		{
 			if(bLockEnabled)
 			{
-				if(LockType == LockType_Read)
+				int32 CurrentLockCount = 0;
+				if(DesiredLockType == LockType_Read)
 				{
-					Registry.Lock.ReadLock();
+					Registry->Lock.ReadLock();
+
+					// fetch_add returns the value preceding the modification
+					// so we have to add one manually to get the current value
+					CurrentLockCount = Registry->LockCount.fetch_add(1) + 1;
 				}
-				else if(LockType == LockType_Write)
+				else if(DesiredLockType == LockType_Write)
 				{
-					Registry.Lock.WriteLock();
+					Registry->Lock.WriteLock();
+
+					// fetch_add returns the value preceding the modification
+					// so we have to add one manually to get the current value
+					CurrentLockCount = Registry->LockCount.fetch_add(1) + 1;
+					ensure(CurrentLockCount == 1);
 				}
 
-				ELockType InvalidLockType = LockType_Invalid;
-				if(Registry.LockType.compare_exchange_strong(InvalidLockType, InLockType))
+				if(CurrentLockCount == 1)
 				{
-					bResetLockType = true;
+					Registry->LockType.store(DesiredLockType);
 				}
 			}
 		}
@@ -467,26 +475,44 @@ protected:
 		{
 			if(bLockEnabled)
 			{
-				if(bResetLockType)
+				if(DesiredLockType == LockType_Read)
 				{
-					Registry.LockType.store(LockType_Invalid);
+					// fetch_sub returns the value preceding the modification
+					// so we have to subtract one manually to get the current value
+					const int32 CurrentLockCount = Registry->LockCount.fetch_sub(1) - 1;
+					ensure(CurrentLockCount >= 0);
+					if(CurrentLockCount == 0)
+					{
+						Registry->LockType.store(LockType_Invalid);
+					}
+      				Registry->Lock.ReadUnlock();
 				}
-				if(LockType == LockType_Read)
+				else if(DesiredLockType == LockType_Write)
 				{
-					Registry.Lock.ReadUnlock();
-				}
-				else if(LockType == LockType_Write)
-				{
-					Registry.Lock.WriteUnlock();
+					// fetch_sub returns the value preceding the modification
+					// so we have to subtract one manually to get the current value
+					const int32 CurrentLockCount = Registry->LockCount.fetch_sub(1) - 1;
+					ensure(CurrentLockCount == 0);
+					Registry->LockType.store(LockType_Invalid);
+					Registry->Lock.WriteUnlock();
 				}
 			}
 		}
 
+		FRigVMRegistry_NoLock& GetRegistry()
+		{
+			return *Registry;
+		}
+
+		const FRigVMRegistry_NoLock& GetRegistry() const
+		{
+			return *Registry;
+		}
+
 	private:
-		const FRigVMRegistry_RWLock& Registry;
-		ELockType LockType;
+		FRigVMRegistry_RWLock* Registry;
+		ELockType DesiredLockType;
 		const bool bLockEnabled;
-		bool bResetLockType;
 
 		UE_NONCOPYABLE(FConditionalScopeLock);
 	};
@@ -560,9 +586,9 @@ public:
 
 	// Refreshes the list and finds the function pointers
 	// based on the names.
-	void RefreshEngineTypes(bool bLockRegistry = true)
+	void RefreshEngineTypes()
 	{
-		FConditionalWriteScopeLock _(*this, bLockRegistry);
+		FConditionalWriteScopeLock _(*this);
 		Super::RefreshEngineTypes_NoLock();
 	}
 
@@ -577,21 +603,21 @@ public:
 	// Update the registry when types are renamed
 	void OnAssetRenamed(const FAssetData& InAssetData, const FString& InOldObjectPath)
 	{
-		FWriteScopeLock _(Lock);
+		FConditionalWriteScopeLock _(*this);
 		Super::OnAssetRenamed_NoLock(InAssetData, InOldObjectPath);
 	}
 	
 	// Update the registry when old types are removed
     void OnAssetRemoved(const FAssetData& InAssetData)
 	{
-		FWriteScopeLock _(Lock);
+		FConditionalWriteScopeLock _(*this);
 		Super::OnAssetRemoved_NoLock(InAssetData);
 	}
 
 	// Removes all types associated with a plugin that's being unloaded. 
 	void OnPluginUnloaded(IPlugin& InPlugin)
 	{
-		FWriteScopeLock _(Lock);
+		FConditionalWriteScopeLock _(*this);
 		Super::OnPluginUnloaded_NoLock(InPlugin);
 	}
 	
@@ -599,7 +625,7 @@ public:
 	// on Attribute Nodes
 	void OnAnimationAttributeTypesChanged(const UScriptStruct* InStruct, bool bIsAdded)
 	{
-		FWriteScopeLock _(Lock);
+		FConditionalWriteScopeLock _(*this);
 		Super::OnAnimationAttributeTypesChanged_NoLock(InStruct, bIsAdded);
 	}
 	
@@ -1247,6 +1273,7 @@ private:
 
 	mutable FRWLock Lock;
 	mutable std::atomic<ELockType> LockType;
+	mutable std::atomic<int32> LockCount;
 	
 	friend struct FRigVMStruct;
 	friend struct FRigVMTemplate;

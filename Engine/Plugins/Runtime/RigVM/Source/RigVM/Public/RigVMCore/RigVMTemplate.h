@@ -270,7 +270,8 @@ struct RIGVM_API FRigVMTemplateArgument
 
 	// returns true if this argument is an execute
 	bool IsExecute() const;
-
+	bool IsExecute_NoLock(const FRigVMRegistry_NoLock& InRegistry) const;
+	
 	// returns true if the argument uses an array container
 	EArrayType GetArrayType(const bool bLockRegistry = true) const;
 	EArrayType GetArrayType_NoLock() const;
@@ -295,13 +296,15 @@ protected:
 	TFunction<bool(const TRigVMTypeIndex&)> FilterType;
 	mutable TOptional<EArrayType> CachedArrayType;
 
-	FRigVMTemplateArgument(FProperty* InProperty);
-
 	// constructor from a property. this forces the type to be created
 	FRigVMTemplateArgument(FProperty* InProperty, FRigVMRegistry_NoLock& InRegistry);
 
 	// static make function using a lock to create it
 	static FRigVMTemplateArgument Make(FProperty* InProperty);
+
+	// static make function using a lock to create it
+	static FRigVMTemplateArgument Make_NoLock(FProperty* InProperty);
+	static FRigVMTemplateArgument Make_NoLock(FProperty* InProperty, FRigVMRegistry_NoLock& InRegistry);
 
 	void EnsureValidExecuteType_NoLock(FRigVMRegistry_NoLock& InRegistry);
 	void UpdateTypeToPermutations();

@@ -262,12 +262,11 @@ void FRigDispatch_SetAnimAttribute::SetAnimAttributeDispatch(FRigVMExtendedExecu
 	}	
 }
 
-void FRigDispatch_AnimAttributeBase::RegisterDependencyTypes_NoLock() const
+void FRigDispatch_AnimAttributeBase::RegisterDependencyTypes_NoLock(FRigVMRegistry_NoLock& InRegistry) const
 {
-	Super::RegisterDependencyTypes_NoLock();
+	Super::RegisterDependencyTypes_NoLock(InRegistry);
 
-	FRigVMRegistry_NoLock& Registry = FRigVMRegistry_NoLock::GetForWrite();
-	Registry.FindOrAddType_NoLock(FRigVMTemplateArgumentType(), true);
+	InRegistry.FindOrAddType_NoLock(FRigVMTemplateArgumentType(), true);
 	
 	TArray<TWeakObjectPtr<const UScriptStruct>> AttributeTypes = UE::Anim::AttributeTypes::GetRegisteredTypes();
 	for (TWeakObjectPtr<const UScriptStruct> Type : AttributeTypes)
@@ -275,7 +274,7 @@ void FRigDispatch_AnimAttributeBase::RegisterDependencyTypes_NoLock() const
 		UScriptStruct* TypePtr = const_cast<UScriptStruct*>(Type.Get());
 		if (TypePtr)
 		{
-			Registry.FindOrAddType_NoLock(FRigVMTemplateArgumentType(TypePtr));
+			InRegistry.FindOrAddType_NoLock(FRigVMTemplateArgumentType(TypePtr));
 		}
 	}
 }

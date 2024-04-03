@@ -141,7 +141,7 @@ public:
 	// registered needed types during registration of the factory.
 	// this is called within a NoLock code path - so make sure to access
 	// the FRigVMRegistry_NoLock within as needed.
-	virtual void RegisterDependencyTypes_NoLock() const {}
+	virtual void RegisterDependencyTypes_NoLock(FRigVMRegistry_NoLock& InRegistry) const {}
 
 	// returns the arguments of the template
 	RIGVM_API virtual const TArray<FRigVMTemplateArgumentInfo>& GetArgumentInfos() const;
