@@ -497,9 +497,20 @@ struct FTextureSource
 		ENGINE_API FSharedBuffer GetMipData(int32 BlockIndex, int32 LayerIndex, int32 MipIndex) const;
 		ENGINE_API FSharedBuffer GetMipDataWithInfo(int32 InBlockIndex, int32 InLayerIndex, int32 InMipIndex, FImageInfo& OutMipImageInfo) const;
 
+		// note: FImageView does not hold a ref on the FSharedBuffer memory it points at
+		//	you must keep the FMipData around or hold a ref on the FSharedBuffer elsewhere
+		inline FImageView GetMipDataImageView(int32 BlockIndex, int32 LayerIndex, int32 MipIndex) const
+		{
+			FImageInfo Info;
+			FSharedBuffer Buffer = GetMipDataWithInfo(BlockIndex,LayerIndex,MipIndex,Info);
+			return FImageView(Info,const_cast<void *>(Buffer.GetData()));
+		}
+
 		inline bool IsValid() const { return !MipData.IsNull(); }
 
 		inline void ResetData() { MipData.Reset(); }
+
+		inline FSharedBuffer GetData() const { return MipData; }
 
 	private:
 		// We only want to allow FTextureSource to create FMipData objects
@@ -612,15 +623,7 @@ private:
 
 	// Internal implementation for locking the mip data, called by LockMipReadOnly or LockMip.
 	FMutableMemoryView LockMipInternal(int32 BlockIndex, int32 LayerIndex, int32 MipIndex, ELockState RequestedLockState);
-	
-	// As per UpdateChannelLinearMinMax(), except acts on incoming new data rather than locking existing mips.
-	// InNewTextureData must be uncompressed
-	// UpdateChannelMinMaxFromIncomingTextureData does not use the BulkData or CompressionFormat on the TextureSource
-	//	but it does use the dimensions/blocks/etc. they must be set before calling this.
-	// returns true/false for success/failure.
-	// failure may occur if the size of InNewTextureData does not match the dimensions set in the Texturesource
-	bool UpdateChannelMinMaxFromIncomingTextureData(FMemoryView InNewTextureData);
-	
+		
 	/** Returns the source data fully decompressed */
 	// ImageWrapperModule is not used
 	FSharedBuffer Decompress(class IImageWrapperModule* ImageWrapperModule = nullptr) const;
@@ -662,23 +665,35 @@ private:
 	bool EnsureBlocksAreSorted();
 
 public:
-	// Runs FImageCore::ComputeChannelLinearMinMax on all blocks and layers (but only mip0), returns false
-	// if the source was unable to be locked and leaves the channel minmax as unknown. Compute just gets
-	// the values and leaves the source untouched.
+	// UpdateChannelLinearMinMax runs FImageCore::ComputeChannelLinearMinMax on all blocks and layers (but only mip0), returns false
+	//   if the source was unable to be locked and leaves the channel minmax as unknown. 
+	// Compute just gets the values and leaves the cached minax in the Source untouched.
 	ENGINE_API bool UpdateChannelLinearMinMax();
 	ENGINE_API bool ComputeChannelLinearMinMax(int32 InLayerIndex, FLinearColor& OutMinColor, FLinearColor& OutMaxColor) const;
-	ENGINE_API const TArray<FTextureSourceLayerColorInfo>& GetLayerColorInfo() const { return LayerColorInfo; }
+
+	ENGINE_API void GetLayerColorInfo(TArray<FTextureSourceLayerColorInfo> & OutLayerColorInfo) const;
+	ENGINE_API void SetLayerColorInfo(const TArray<FTextureSourceLayerColorInfo> & InLayerColorInfo);
+	ENGINE_API void ResetLayerColorInfo();
+	ENGINE_API bool HasLayerColorInfo() const;
+
+	// As per UpdateChannelLinearMinMax(), except acts on incoming new data rather than locking existing mips.
+	// InNewTextureData must be uncompressed
+	// UpdateChannelMinMaxFromIncomingTextureData does not use the BulkData or CompressionFormat on the TextureSource
+	//	but it does use the dimensions/blocks/etc. they must be set before calling this.
+	// returns true/false for success/failure.
+	// failure may occur if the size of InNewTextureData does not match the dimensions set in the Texturesource
+	ENGINE_API bool UpdateChannelMinMaxFromIncomingTextureData(FMemoryView InNewTextureData);
 
 	/** Uses a hash as the GUID, useful to prevent creating new GUIDs on load for legacy assets.
 	This is automatically done by Init() and Mip Lock/Unlock.  New textures should always have the data hash as Id. */
 	ENGINE_API void UseHashAsGuid();
 
-	void ReleaseSourceMemory(); // release the memory from the mips (does almost the same as remove source data except doesn't rebuild the guid)
+	ENGINE_API void ReleaseSourceMemory(); // release the memory from the mips (does almost the same as remove source data except doesn't rebuild the guid)
 	FORCEINLINE bool HasHadBulkDataCleared() const { return bHasHadBulkDataCleared; }
 private:
 	/** Used while cooking to clear out unneeded memory after compression */
 	bool bHasHadBulkDataCleared;
-#endif
+#endif // WITH_EDITOR
 
 #if WITH_EDITORONLY_DATA
 	/** GUID used to track changes to the source data.
@@ -736,9 +751,10 @@ private:
 	UPROPERTY(VisibleAnywhere, Category=TextureSource)
 	bool bGuidIsHash;
 
-	/** Per layer color info. If this is empty we don't have the data, otherwise count is == NumLayers. */
+	/** Per layer color info. If this is empty we don't have the data, otherwise count is == NumLayers.
+	Protected by BulkDataLock for thread safety.  Use Get/Set accessors which do the locking for you.*/
 	UPROPERTY(VisibleAnywhere, Category=TextureSource)
-	TArray<FTextureSourceLayerColorInfo> LayerColorInfo;
+	TArray<FTextureSourceLayerColorInfo> LayerColorInfo_LockProtected;
 
 	/** Format in which the source data is stored. */
 	UPROPERTY(VisibleAnywhere, Category=TextureSource)

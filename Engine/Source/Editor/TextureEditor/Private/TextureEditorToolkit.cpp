@@ -751,10 +751,14 @@ void FTextureEditorToolkit::PopulateQuickInfo( )
 		} // end if results metadata valid
 
 		if (Texture->Source.IsValid() &&
-			Texture->Source.GetLayerColorInfo().Num())
+			Texture->Source.HasLayerColorInfo())
 		{
-			// Make a 1x1 image with our max colors to use for alpha detection.
-			FImageView View(&Texture->Source.GetLayerColorInfo()[0].ColorMin, 1, 1);
+			// Make a 1x1 image with our min color to use for alpha detection.
+			
+			TArray<FTextureSourceLayerColorInfo> LayerColorInfo;
+			Texture->Source.GetLayerColorInfo(LayerColorInfo);
+
+			FImageView View(&LayerColorInfo[0].ColorMin, 1, 1);
 
 			bool bSourceAlphaDetected = FImageCore::DetectAlphaChannel(View);
 			SourceMipsAlphaDetectedText->SetText(FText::Format(NSLOCTEXT("TextureEditor", "QuickInfo_SourceAlphaDetected", "Source Alpha Detected: {0}"),

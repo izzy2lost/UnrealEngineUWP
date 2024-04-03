@@ -402,7 +402,7 @@ void UInterchangeGenericTexturePipeline::PostImportTextureAssetImport(UObject* C
 	bool bRunNormapMapDetection = !bIsAReimport && bDetectNormalMapTexture && !Texture->IsNormalMap();
 
 	 // we probably got the info via Init() - if we didn't it's because it's compressed. Here we can decompress, so do it if needed.
-	bool bRunChannelScan = Source.GetLayerColorInfo().Num() == 0;
+	bool bRunChannelScan = !Source.HasLayerColorInfo();
 
 	bool bNeedLockedMip = bRunChannelScan || bRunNormapMapDetection;
 	if (!bNeedLockedMip)

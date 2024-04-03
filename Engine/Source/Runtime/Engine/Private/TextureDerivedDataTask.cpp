@@ -194,24 +194,26 @@ void FTextureSourceData::Init(UTexture& InTexture, TextureMipGenSettings InMipGe
 {
 	check( bValid == false ); // we set to true at the end, acts as our return value
 
-	// Copy the channel min/max if we have it to avoid redoing it.
-	if (InTexture.Source.GetLayerColorInfo().Num())
-	{
-		LayerChannelMinMax.Reset();
-		for (const FTextureSourceLayerColorInfo& LayerColorInfo : InTexture.Source.GetLayerColorInfo())
-		{
-			TPair<FLinearColor, FLinearColor>& MinMax = LayerChannelMinMax.AddDefaulted_GetRef();
-			MinMax.Key = LayerColorInfo.ColorMin;
-			MinMax.Value = LayerColorInfo.ColorMax;
-		}
-	}
-
 	const int32 NumBlocks = InTexture.Source.GetNumBlocks();
 	const int32 NumLayers = InTexture.Source.GetNumLayers();
 	if (NumBlocks < 1 || NumLayers < 1)
 	{
 		UE_LOG(LogTexture, Warning, TEXT("Texture has no source data: %s"), *InTexture.GetPathName());
 		return;
+	}
+	
+	// Copy the channel min/max if we have it already
+	// if Texture Source did not already have SourceLayerColorInfo, we will update it in GetSourceMips (when we have decompressed data)
+	
+	TArray<FTextureSourceLayerColorInfo> SourceLayerColorInfo;
+	InTexture.Source.GetLayerColorInfo(SourceLayerColorInfo);
+
+	check( SourceLayerColorInfo.Num() == 0 || SourceLayerColorInfo.Num() == NumLayers );
+	LayerChannelMinMax.SetNum( SourceLayerColorInfo.Num() );
+	for(int32 i=0;i<SourceLayerColorInfo.Num();i++)
+	{
+		LayerChannelMinMax[i].Key   = SourceLayerColorInfo[i].ColorMin;
+		LayerChannelMinMax[i].Value = SourceLayerColorInfo[i].ColorMax;
 	}
 
 	Layers.Reserve(NumLayers);
@@ -292,6 +294,22 @@ void FTextureSourceData::GetSourceMips(FTextureSource& Source, IImageWrapperModu
 {
 	if (bValid)
 	{
+		const int32 NumBlocks = Source.GetNumBlocks();
+		const int32 NumLayers = Source.GetNumLayers();
+		
+		// these arrays were sized in Init but not fully filled out :
+		check( Blocks.Num() == NumBlocks );
+		check( Layers.Num() == NumLayers );
+
+		check( NumBlocks > 0 && NumLayers > 0 )
+		
+		if ( Blocks[0].MipsPerLayer[0].Num() > 0 )
+		{
+			// If we already got valid data, nothing to do. (GetSourceMips was called before now it's being called again)
+			// @@ is this ever hit ? how?
+ 			return;
+		}
+
 		if (Source.HasHadBulkDataCleared())
 		{	// don't do any work we can't reload this
 			UE_LOG(LogTexture, Error, TEXT("Unable to get texture source mips because its bulk data was released. %s"), *TextureFullName);
@@ -316,88 +334,77 @@ void FTextureSourceData::GetSourceMips(FTextureSource& Source, IImageWrapperModu
 			bValid = false;
 			return;
 		}
+		
 
 		// If we didn't get ChannelMinMax from the texture source, then compute it now. As time goes on this will get hit less and less.
-		if (LayerChannelMinMax.Num() != Layers.Num())
+		if (LayerChannelMinMax.Num() != NumLayers)
 		{
 			TRACE_CPUPROFILER_EVENT_SCOPE(FTextureSourceData::GetSourceMips_ChannelMinMax);
 
-			// @@ can we do this on the Texture instead so it's cached for next time?
-			//	I think you can just call Source.UpdateChannelMinMaxFromIncomingTextureData(ScopedMipData) here
-
-			LayerChannelMinMax.Reset();
-			for (int32 LayerIndex = 0; LayerIndex < Layers.Num(); ++LayerIndex)
+			// Update MipMax if it wasn't found before
+			// do this after GetMipData() so we do it on decompressed data
+			
+			if ( Source.UpdateChannelMinMaxFromIncomingTextureData(ScopedMipData.GetData().GetView()) )
 			{
-				TPair<FLinearColor, FLinearColor>& LayerInfo = LayerChannelMinMax.AddDefaulted_GetRef();
+				TArray<FTextureSourceLayerColorInfo> SourceLayerColorInfo;
+				Source.GetLayerColorInfo(SourceLayerColorInfo);
 
-				FLinearColor TotalMin(FLT_MAX, FLT_MAX, FLT_MAX, FLT_MAX);
-				FLinearColor TotalMax(-FLT_MAX, -FLT_MAX, -FLT_MAX, -FLT_MAX);
-
-				for (int32 BlockIndex = 0; BlockIndex < Blocks.Num(); BlockIndex++)
+				check( SourceLayerColorInfo.Num() == 0 || SourceLayerColorInfo.Num() == NumLayers );
+				LayerChannelMinMax.SetNum( SourceLayerColorInfo.Num() );
+				for(int32 i=0;i<SourceLayerColorInfo.Num();i++)
 				{
-					FImageView MipImageView;
-					FSharedBuffer MipData = ScopedMipData.GetMipDataWithInfo(BlockIndex, LayerIndex, 0, MipImageView);
-
-					MipImageView.RawData = (void*)MipData.GetData();
-
-					FLinearColor MinColor, MaxColor;
-					FImageCore::ComputeChannelLinearMinMax(MipImageView, MinColor, MaxColor);
-
-					TotalMin.R = FMath::Min(MinColor.R, TotalMin.R);
-					TotalMin.G = FMath::Min(MinColor.G, TotalMin.G);
-					TotalMin.B = FMath::Min(MinColor.B, TotalMin.B);
-					TotalMin.A = FMath::Min(MinColor.A, TotalMin.A);
-
-					TotalMax.R = FMath::Max(MaxColor.R, TotalMax.R);
-					TotalMax.G = FMath::Max(MaxColor.G, TotalMax.G);
-					TotalMax.B = FMath::Max(MaxColor.B, TotalMax.B);
-					TotalMax.A = FMath::Max(MaxColor.A, TotalMax.A);
+					LayerChannelMinMax[i].Key   = SourceLayerColorInfo[i].ColorMin;
+					LayerChannelMinMax[i].Value = SourceLayerColorInfo[i].ColorMax;
 				}
-
-				LayerInfo.Key = TotalMin;
-				LayerInfo.Value = TotalMax;
+			}
+			else
+			{
+				UE_LOG(LogTexture, Warning, TEXT("Unexpected failure in UpdateChannelMinMaxFromIncomingTextureData on %s"), *TextureFullName);
 			}
 		}
 
 		{
 			TRACE_CPUPROFILER_EVENT_SCOPE(FTextureSourceData::GetSourceMips_CopyMips);
 
-			check( Blocks.Num() == Source.GetNumBlocks() );
-
-			for (int32 BlockIndex = 0; BlockIndex < Blocks.Num(); ++BlockIndex)
+			for (int32 BlockIndex = 0; BlockIndex < NumBlocks; ++BlockIndex)
 			{
 				FTextureSourceBlock SourceBlock;
 				Source.GetBlock(BlockIndex, SourceBlock);
 
 				FTextureSourceBlockData& BlockData = Blocks[BlockIndex];
-				check( BlockData.MipsPerLayer.Num() == Source.GetNumLayers() );
-				check( Layers.Num() == Source.GetNumLayers() );
+				check( BlockData.MipsPerLayer.Num() == NumLayers );
 
-				for (int32 LayerIndex = 0; LayerIndex < Layers.Num(); ++LayerIndex)
+				for (int32 LayerIndex = 0; LayerIndex < NumLayers; ++LayerIndex)
 				{
 					const FTextureSourceLayerData& LayerData = Layers[LayerIndex];
-					if ( BlockData.MipsPerLayer[LayerIndex].Num() == 0 ) // If we already got valid data, nothing to do. (@@ this is weird, should detect this and early out sooner, before GetMipData)
+
+					check( BlockData.MipsPerLayer[LayerIndex].Num() == 0 );
+					//if Source had existing mips but TMGS was not LeaveExisting, then BlockData.NumMips is set to 1
+					check( BlockData.NumMips > 0 && ( BlockData.NumMips == SourceBlock.NumMips || ( BlockData.NumMips == 1 && SourceBlock.NumMips > 1 ) ) );
+
+					BlockData.MipsPerLayer[LayerIndex].SetNum( BlockData.NumMips );
+
+					for (int32 MipIndex = 0; MipIndex < BlockData.NumMips; ++MipIndex)
 					{
-						BlockData.MipsPerLayer[LayerIndex].SetNum( BlockData.NumMips );
-
-						for (int32 MipIndex = 0; MipIndex < BlockData.NumMips; ++MipIndex)
-						{
-							FImageInfo MipImageInfo;
-							FSharedBuffer MipData = ScopedMipData.GetMipDataWithInfo(BlockIndex, LayerIndex, MipIndex, MipImageInfo);
+						FImageView MipView = ScopedMipData.GetMipDataImageView(BlockIndex, LayerIndex, MipIndex);
 							
-							check(MipImageInfo.GammaSpace == LayerData.SourceGammaSpace);
-							check(MipImageInfo.Format == LayerData.ImageFormat);
+						check(MipView.GammaSpace == LayerData.SourceGammaSpace);
+						check(MipView.Format == LayerData.ImageFormat);
 
-							FImageView MipView( MipImageInfo, const_cast<void *>(MipData.GetData()) );
-							
-							// allocates the destination FImage and copies into it :
-							MipView.CopyTo( BlockData.MipsPerLayer[LayerIndex][MipIndex] );
+						// allocates the destination FImage and copies into it :
+						MipView.CopyTo( BlockData.MipsPerLayer[LayerIndex][MipIndex] );
 
-							// this copy takes a while, and potentially we could just point at the FSharedBuffer from the ScopedMipData
-							//   (like MipView here does)
-							// at the moment that's not easy because all the code around TextureCompressorModule expects FImage, not FImageView
-							//	perhaps ideally we'd have an FImage variant that's COW
-						}
+						// CB notes 04/02/2024 :
+
+						// this copy takes a while, and potentially we could just instead point at the FSharedBuffer from the ScopedMipData
+						//   (like MipView here does)
+						// at the moment that's not easy because all the code around TextureCompressorModule/Formats expects FImage, not FImageView
+						//	perhaps ideally we'd have an FImage variant that's COW
+
+						// fundamentally, this whole alloc and copy is totally unecessary, so it would be great to get rid of it
+						//	but practically we need a better way to have FImage point at FSharedBuffer
+						// one issue is there's no way to MoveTemp into a TArray from Shared/Unique buffer.
+						// also at the moment the TextureCompressorModule/Formats assume the FImage is mutable, that would have to be cleaned up
 					}
 				}
 			}

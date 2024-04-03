@@ -2336,7 +2336,7 @@ void FTextureSource::RemoveCompression()
 
 		FSharedBuffer Buffer = Decompress();
 		
-		if (LayerColorInfo.Num() == 0 )
+		if ( ! HasLayerColorInfo() )
 		{
 			// since we're changing compression, go ahead and also update channel minmax now if not done
 			UpdateChannelMinMaxFromIncomingTextureData(Buffer.GetView());
@@ -2380,7 +2380,7 @@ void FTextureSource::Compress()
 			
 			FSharedBuffer Buffer = Decompress();
 		
-			if (LayerColorInfo.Num() == 0 )
+			if ( ! HasLayerColorInfo() )
 			{
 				// since we're changing compression, go ahead and also update channel minmax now if not done
 				UpdateChannelMinMaxFromIncomingTextureData(Buffer.GetView());
@@ -3269,7 +3269,7 @@ void FTextureSource::ImportCustomProperties(const TCHAR* SourceText, FFeedbackCo
 				// Data changed - we don't know the bounds anymore.
 				// This seems very suspicious - expected data size doesn't seem to be checked at all? When is this used? Is then input data
 				// compressed? If its uncompressed then we can run the color analysis on it..?
-				LayerColorInfo.Empty();
+				ResetLayerColorInfo();
 
 				BulkData.UpdatePayload(Buffer.MoveToShared(), Owner);
 			}
@@ -3353,7 +3353,7 @@ void FTextureSource::RemoveSourceData()
 	NumLockedMips = 0u;
 	LockState = ELockState::None;
 	
-	LayerColorInfo.Empty();
+	ResetLayerColorInfo();
 
 	BulkData.UnloadData();
 
@@ -4367,11 +4367,14 @@ bool UTexture::ComputeTextureSourceChannelMinMax(FLinearColor & OutColorMin, FLi
 	OutColorMax = FLinearColor(ForceInit);
 
 #if WITH_EDITORONLY_DATA
-	if (Source.LayerColorInfo.Num())
+	if (Source.HasLayerColorInfo())
 	{
+		TArray<FTextureSourceLayerColorInfo> LayerColorInfo;
+		Source.GetLayerColorInfo(LayerColorInfo);
+
 		// This function only operates on layer 1. 
-		OutColorMin = Source.LayerColorInfo[0].ColorMin;
-		OutColorMax = Source.LayerColorInfo[0].ColorMax;
+		OutColorMin = LayerColorInfo[0].ColorMin;
+		OutColorMax = LayerColorInfo[0].ColorMax;
 		return true;
 	}
 	else if (Source.ComputeChannelLinearMinMax(0 /* layer index */, OutColorMin, OutColorMax))
@@ -4567,6 +4570,32 @@ bool FTextureSource::ComputeChannelLinearMinMax(int32 InLayerIndex, FLinearColor
 	return true;
 }
 
+void FTextureSource::GetLayerColorInfo(TArray<FTextureSourceLayerColorInfo> & OutLayerColorInfo) const
+{
+	FScopeLock BulkDataExclusiveScope(&const_cast<FCriticalSection &>(BulkDataLock.Get()));
+	OutLayerColorInfo = LayerColorInfo_LockProtected;
+}
+void FTextureSource::SetLayerColorInfo(const TArray<FTextureSourceLayerColorInfo> & InLayerColorInfo)
+{
+	FScopeLock BulkDataExclusiveScope(&BulkDataLock.Get());
+	int32 Num = InLayerColorInfo.Num();
+	check( Num == 0 || Num == GetNumLayers() );
+	LayerColorInfo_LockProtected = InLayerColorInfo;
+}
+void FTextureSource::ResetLayerColorInfo()
+{
+	FScopeLock BulkDataExclusiveScope(&BulkDataLock.Get());
+	LayerColorInfo_LockProtected.Empty();
+}
+bool FTextureSource::HasLayerColorInfo() const
+{
+	FScopeLock BulkDataExclusiveScope(&const_cast<FCriticalSection &>(BulkDataLock.Get()));
+	int32 Num = LayerColorInfo_LockProtected.Num();
+	check( Num == 0 || Num == GetNumLayers() );
+	return Num != 0;
+}
+
+
 // UpdateChannelMinMaxFromIncomingTextureData does not use the BulkData or CompressionFormat on the TextureSource
 //	but it does use the dimensions/blocks/etc. they must be set before calling this
 bool FTextureSource::UpdateChannelMinMaxFromIncomingTextureData(FMemoryView InNewTextureData)
@@ -4574,6 +4603,7 @@ bool FTextureSource::UpdateChannelMinMaxFromIncomingTextureData(FMemoryView InNe
 	// InNewTextureData must be uncompressed
 	//	if it's not, will likely hit the check on mip size below
 	
+	TArray<FTextureSourceLayerColorInfo> LayerColorInfo;
 	LayerColorInfo.SetNum(NumLayers);
 
 	for (int32 LayerIndex = 0; LayerIndex < NumLayers; LayerIndex++)
@@ -4596,7 +4626,6 @@ bool FTextureSource::UpdateChannelMinMaxFromIncomingTextureData(FMemoryView InNe
 			int64 MipSize = CalcMipSize(BlockIndex, LayerIndex, 0);
 
 			FMemoryView MipView = InNewTextureData.Mid(MipOffset, MipSize);
-			check(MipView.GetSize() == MipSize);
 
 			if (MipView.GetSize() == MipSize)
 			{
@@ -4624,7 +4653,7 @@ bool FTextureSource::UpdateChannelMinMaxFromIncomingTextureData(FMemoryView InNe
 			else
 			{
 				UE_LOG(LogTexture, Error, TEXT("Invalid mip size in texture source init: passed in size doesn't accomodate all mips!"));
-				LayerColorInfo.Empty();
+				ResetLayerColorInfo();
 				return false;
 			}
 		} // end each block
@@ -4632,6 +4661,8 @@ bool FTextureSource::UpdateChannelMinMaxFromIncomingTextureData(FMemoryView InNe
 		LayerInfo.ColorMax = TotalMax;
 		LayerInfo.ColorMin = TotalMin;
 	} // end each layer
+
+	SetLayerColorInfo(LayerColorInfo);
 
 	return true;
 }
@@ -4643,21 +4674,25 @@ bool FTextureSource::UpdateChannelLinearMinMax()
 	FTextureSource::FMipLock LockedMip0(ELockState::ReadOnly, const_cast<FTextureSource*>(this), 0);
 	if (LockedMip0.IsValid() == false)
 	{
-		LayerColorInfo.Empty();
+		ResetLayerColorInfo();
 		return false;
 	}
-
+	
+	TArray<FTextureSourceLayerColorInfo> LayerColorInfo;
 	LayerColorInfo.SetNum(NumLayers);
+
 	for (int32 LayerIndex = 0; LayerIndex < NumLayers; LayerIndex++)
 	{
 		FTextureSourceLayerColorInfo& LayerInfo = LayerColorInfo[LayerIndex];
 
 		if ( ! ComputeChannelLinearMinMax(LayerIndex, LayerInfo.ColorMin, LayerInfo.ColorMax) )
 		{
-			LayerColorInfo.Empty();
+			ResetLayerColorInfo();
 			return false;
 		}
 	}
+	
+	SetLayerColorInfo(LayerColorInfo);
 
 	return true;
 }
