@@ -41,7 +41,7 @@ public:
 	FNiagaraGPUProfiler(uintptr_t InOwnerContext);
 	~FNiagaraGPUProfiler();
 
-	void BeginFrame(FRHICommandListImmediate& RHICmdList);
+	void BeginFrame(FRHICommandList& RHICmdList);
 	void EndFrame(FRHICommandList& RHICmdList);
 
 	void BeginDispatch(FRHICommandList& RHICmdList, const FNiagaraGpuProfileEvent& Event);
@@ -50,7 +50,7 @@ public:
 private:
 	FGpuFrameData* GetReadFrame() { check(CurrentReadFrame >= 0 && CurrentReadFrame < UE_ARRAY_COUNT(GpuFrames)); return GpuFrames[CurrentReadFrame].CanRead() ? &GpuFrames[CurrentReadFrame] : nullptr; }
 	FGpuFrameData* GetWriteFrame() { check(CurrentWriteFrame >= 0 && CurrentWriteFrame < UE_ARRAY_COUNT(GpuFrames)); return GpuFrames[CurrentWriteFrame].CanWrite() ? &GpuFrames[CurrentWriteFrame] : nullptr; }
-	bool ProcessFrame(FRHICommandListImmediate& RHICmdList, FGpuFrameData& ReadFrame);
+	bool ProcessFrame(FRHICommandList& RHICmdList, FGpuFrameData& ReadFrame);
 
 private:
 	uintptr_t				OwnerContext = 0;

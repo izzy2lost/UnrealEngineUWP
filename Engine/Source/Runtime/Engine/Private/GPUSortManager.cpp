@@ -202,7 +202,7 @@ void FCopyUIntBufferCS::End(FRHICommandList& RHICmdList)
 
 //*****************************************************************************
 
-void CopyUIntBufferToTargets(FRHICommandListImmediate& RHICmdList, ERHIFeatureLevel::Type FeatureLevel,  FRHIShaderResourceView* SourceSRV, FRHIUnorderedAccessView*const* TargetUAVs, int32* TargetSizes, int32 StartingOffset, int32 NumTargets)
+void CopyUIntBufferToTargets(FRHICommandList& RHICmdList, ERHIFeatureLevel::Type FeatureLevel,  FRHIShaderResourceView* SourceSRV, FRHIUnorderedAccessView*const* TargetUAVs, int32* TargetSizes, int32 StartingOffset, int32 NumTargets)
 {
 	// No that resource transition must be made outside this call as we don't know how the content of those have been generated, and will be used.
 

@@ -34,7 +34,7 @@ FNiagaraGPUProfiler::~FNiagaraGPUProfiler()
 	}
 }
 
-void FNiagaraGPUProfiler::BeginFrame(FRHICommandListImmediate& RHICmdList)
+void FNiagaraGPUProfiler::BeginFrame(FRHICommandList& RHICmdList)
 {
 	// Process all frames until we run out
 	while (FGpuFrameData* ReadFrame = GetReadFrame())
@@ -105,7 +105,7 @@ void FNiagaraGPUProfiler::EndDispatch(FRHICommandList& RHICmdList)
 	RHICmdList.EndRenderQuery(DispatchTimer.EndQuery.GetQuery());
 }
 
-bool FNiagaraGPUProfiler::ProcessFrame(FRHICommandListImmediate& /*RHICmdList*/, FGpuFrameData& ReadFrame)
+bool FNiagaraGPUProfiler::ProcessFrame(FRHICommandList& /*RHICmdList*/, FGpuFrameData& ReadFrame)
 {
 	// Frame ready to process?
 	//-OPT: We can just look at the last write stage end timer here, but that relies on the batcher always executing

@@ -1029,7 +1029,7 @@ void FNiagaraGpuComputeDispatch::ExecuteTicks(FRDGBuilder& GraphBuilder, TConstS
 			GraphBuilder.AddPass(
 				RDG_EVENT_NAME("Niagara::ExecuteTicksPre"),
 				ERDGPassFlags::None,
-				[this, TickStage, NumDispatchGroups = DispatchListPerStage[TickStage].DispatchGroups.Num(), GPUIndex](FRHICommandListImmediate& RHICmdList)
+				[this, TickStage, NumDispatchGroups = DispatchListPerStage[TickStage].DispatchGroups.Num(), GPUIndex](FRHICommandList& RHICmdList)
 				{
 					WaitForMultiGPUBuffers(RHICmdList, GPUIndex);
 				}
@@ -1042,7 +1042,7 @@ void FNiagaraGpuComputeDispatch::ExecuteTicks(FRDGBuilder& GraphBuilder, TConstS
 			GraphBuilder.AddPass(
 				RDG_EVENT_NAME("Niagara::MultiViewPreviousDataClear"),
 				ERDGPassFlags::None,
-				[this](FRHICommandListImmediate& RHICmdList)
+				[this](FRHICommandList& RHICmdList)
 				{
 					// Handle bookkeeping for multi-view, clearing MultiViewPreviousDataToRender pointer and running a couple bits of cleanup logic,
 					// which we had to skip earlier to keep necessary values valid when generating render data for additional view families.
@@ -1187,7 +1187,7 @@ void FNiagaraGpuComputeDispatch::ExecuteTicks(FRDGBuilder& GraphBuilder, TConstS
  		GraphBuilder.AddPass(
 			{},//RDG_EVENT_NAME("Niagara::ExecuteTicks::DispatchGroupPre"),
 			ERDGPassFlags::None,
-			[this, PreStageTransitions=MoveTemp(PreStageTransitions), PreStageIDToIndexInit=MoveTemp(PreStageIDToIndexInit), DispatchInstances=MakeArrayView(DispatchGroup.DispatchInstances)](FRHICommandListImmediate& RHICmdList)
+			[this, PreStageTransitions=MoveTemp(PreStageTransitions), PreStageIDToIndexInit=MoveTemp(PreStageIDToIndexInit), DispatchInstances=MakeArrayView(DispatchGroup.DispatchInstances)](FRHICommandList& RHICmdList)
 			{
 				// Execute Before Transitions
 				RHICmdList.Transition(PreStageTransitions);
@@ -1228,7 +1228,7 @@ void FNiagaraGpuComputeDispatch::ExecuteTicks(FRDGBuilder& GraphBuilder, TConstS
  		GraphBuilder.AddPass(
 			{},//RDG_EVENT_NAME("Niagara::ExecuteTicks::DispatchGroupPost"),
 			ERDGPassFlags::None,
-			[this, PostStageTransitions=MoveTemp(PostStageTransitions), DispatchInstances=MakeArrayView(DispatchGroup.DispatchInstances)](FRHICommandListImmediate& RHICmdList)
+			[this, PostStageTransitions=MoveTemp(PostStageTransitions), DispatchInstances=MakeArrayView(DispatchGroup.DispatchInstances)](FRHICommandList& RHICmdList)
 			{
 				RHICmdList.EndUAVOverlap(GPUInstanceCounterManager.GetInstanceCountBuffer().UAV);
 
@@ -1324,7 +1324,7 @@ void FNiagaraGpuComputeDispatch::ExecuteTicks(FRDGBuilder& GraphBuilder, TConstS
  			GraphBuilder.AddPass(
 				{},//RDG_EVENT_NAME("Niagara::ExecuteTicks::FreeIDUpdates"),
 				ERDGPassFlags::None,
-				[this, FreeIDUpdates=MakeArrayView(DispatchGroup.FreeIDUpdates)](FRHICommandListImmediate& RHICmdList)
+				[this, FreeIDUpdates=MakeArrayView(DispatchGroup.FreeIDUpdates)](FRHICommandList& RHICmdList)
 				{
 					const uint32 NumFreeIDUpdates = FreeIDUpdates.Num();
 
@@ -1373,16 +1373,12 @@ void FNiagaraGpuComputeDispatch::ExecuteTicks(FRDGBuilder& GraphBuilder, TConstS
 	}
 
 	const int32 StageTotalDispatches = TotalDispatchesThisFrame - StageStartTotalDispatches;
-	GraphBuilder.AddPass(
-		RDG_EVENT_NAME("Niagara::ExecuteTicksPost"),
-		ERDGPassFlags::None,
-		[this, StageTotalDispatches, TickStage, DispatchListPtr=&DispatchList](FRHICommandListImmediate& RHICmdList)
-		{
-			// Clear dispatch groups
-			// We do not release the counts as we won't do that until we finish the dispatches
-			DispatchListPtr->DispatchGroups.Empty();
-		}
-	);
+	GraphBuilder.AddPostExecuteCallback([&DispatchList]
+	{
+		// Clear dispatch groups
+		// We do not release the counts as we won't do that until we finish the dispatches
+		DispatchList.DispatchGroups.Empty();
+	});
 
 	// Tear down for tick pass
 	SimulationSceneViews = TConstStridedView<FSceneView>();
@@ -1672,7 +1668,7 @@ void FNiagaraGpuComputeDispatch::DispatchStage(FRDGBuilder& GraphBuilder, const 
 			ShaderParametersMetadata,
 			DispatchParameters,
 			ERDGPassFlags::Compute | ERDGPassFlags::NeverCull,
-			[this, ShaderParametersMetadata, DispatchParameters, ComputeShader, TickPtr=&Tick, InstanceDataPtr=&InstanceData, SimStageDataPtr=&SimStageData](FRHICommandListImmediate& RHICmdList)		//-TODO:RDG: When legacy is removed this can be FRHIComputeCommandList
+			[this, ShaderParametersMetadata, DispatchParameters, ComputeShader, TickPtr=&Tick, InstanceDataPtr=&InstanceData, SimStageDataPtr=&SimStageData](FRHICommandList& RHICmdList)
 			{
 				FRHIComputeShader* RHIComputeShader = ComputeShader.GetComputeShader();
 				SetComputePipelineState(RHICmdList, RHIComputeShader);
@@ -1765,7 +1761,7 @@ void FNiagaraGpuComputeDispatch::DispatchStage(FRDGBuilder& GraphBuilder, const 
 			ShaderParametersMetadata,
 			DispatchParameters,
 			ERDGPassFlags::Compute | ERDGPassFlags::NeverCull,
-			[this, ShaderParametersMetadata, DispatchParameters, ComputeShader, ThreadGroupCount, TickPtr=&Tick, InstanceDataPtr=&InstanceData, SimStageDataPtr=&SimStageData](FRHICommandListImmediate& RHICmdList)		//-TODO:RDG: When legacy is removed this can be FRHIComputeCommandList
+			[this, ShaderParametersMetadata, DispatchParameters, ComputeShader, ThreadGroupCount, TickPtr=&Tick, InstanceDataPtr=&InstanceData, SimStageDataPtr=&SimStageData](FRHICommandList& RHICmdList)
 			{
 				FRHIComputeShader* RHIComputeShader = ComputeShader.GetComputeShader();
 				SetComputePipelineState(RHICmdList, RHIComputeShader);
@@ -1781,8 +1777,6 @@ void FNiagaraGpuComputeDispatch::DispatchStage(FRDGBuilder& GraphBuilder, const 
 					check(InstanceDataPtr->Context->HasInterpolationParameters);
 					BatchedParameters.SetShaderUniformBuffer(ComputeShader->ExternalConstantBufferParam[1].GetBaseIndex(), TickPtr->GetExternalUniformBuffer(*InstanceDataPtr, true));
 				}
-
-				FNiagaraEmptyUAVPoolScopedAccess UAVPoolAccessScope(GetEmptyUAVPool());
 
 				FNiagaraGpuProfileScope GpuProfileDispatchScope(RHICmdList, this, FNiagaraGpuProfileEvent(*InstanceDataPtr, *SimStageDataPtr, InstanceDataPtr == &TickPtr->GetInstances()[0]));
 
@@ -1885,10 +1879,7 @@ void FNiagaraGpuComputeDispatch::PreInitViews(FRDGBuilder& GraphBuilder, bool bA
 #endif
 	if ((ViewFamilies.Num() > 1) && bIsFirstViewFamily)
 	{
-		AddPass(GraphBuilder, RDG_EVENT_NAME("Niagara::CopyToMultiViewCountBuffer"), [this](FRHICommandListImmediate& RHICmdList)
-		{
-			GPUInstanceCounterManager.CopyToMultiViewCountBuffer(RHICmdList);
-		});
+		GPUInstanceCounterManager.CopyToMultiViewCountBuffer(GraphBuilder.RHICmdList);
 	}
 
 	EmptyUAVPoolPtr->Tick();
@@ -2063,8 +2054,6 @@ void FNiagaraGpuComputeDispatch::PostRenderOpaque(FRDGBuilder& GraphBuilder, TCo
 			{
 				if (bAllowGPUParticleUpdate)
 				{
-					FinishDispatches();
-
 					AsyncGpuTraceHelper->EndFrame(RHICmdList, this, PassParameters->Scene->GetRHIRef());
 				}
 
@@ -2082,6 +2071,15 @@ void FNiagaraGpuComputeDispatch::PostRenderOpaque(FRDGBuilder& GraphBuilder, TCo
 			}
 		);
 	}
+
+	if (bAllowGPUParticleUpdate)
+	{
+		GraphBuilder.AddPostExecuteCallback([this]
+		{
+			FinishDispatches();
+		});
+	}
+
 	bRequiresReadback = false;
 
 	OnPostRenderEvent.Broadcast(GraphBuilder);
@@ -2092,7 +2090,7 @@ void FNiagaraGpuComputeDispatch::PostRenderOpaque(FRDGBuilder& GraphBuilder, TCo
 	}
 }
 
-void FNiagaraGpuComputeDispatch::ProcessDebugReadbacks(FRHICommandListImmediate& RHICmdList, bool bWaitCompletion)
+void FNiagaraGpuComputeDispatch::ProcessDebugReadbacks(FRHICommandList& RHICmdList, bool bWaitCompletion)
 {
 #if !UE_BUILD_SHIPPING
 	// Execute any pending readbacks as the ticks have now all been processed
@@ -2149,7 +2147,7 @@ void FNiagaraGpuComputeDispatch::ProcessDebugReadbacks(FRHICommandListImmediate&
 
 	if (bWaitCompletion)
 	{
-		GpuReadbackManagerPtr->WaitCompletion(RHICmdList);
+		GpuReadbackManagerPtr->WaitCompletion(RHICmdList.GetAsImmediate());
 	}
 #endif
 }

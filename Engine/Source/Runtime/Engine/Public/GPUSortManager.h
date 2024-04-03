@@ -30,7 +30,7 @@
  * @param StartingOffset - The starting position at which the copy starts. Applies for both the source and targets.
  * @param NumTargets - The number of elements in TargetUAVs and TargetSizes.
  */
-ENGINE_API void CopyUIntBufferToTargets(FRHICommandListImmediate& RHICmdList, ERHIFeatureLevel::Type FeatureLevel, FRHIShaderResourceView* SourceSRV, FRHIUnorderedAccessView*const* TargetUAVs, int32* TargetSizes, int32 StartingOffset, int32 NumTargets);
+ENGINE_API void CopyUIntBufferToTargets(FRHICommandList& RHICmdList, ERHIFeatureLevel::Type FeatureLevel, FRHIShaderResourceView* SourceSRV, FRHIUnorderedAccessView*const* TargetUAVs, int32* TargetSizes, int32 StartingOffset, int32 NumTargets);
 
 struct FGPUSortBuffers;
 

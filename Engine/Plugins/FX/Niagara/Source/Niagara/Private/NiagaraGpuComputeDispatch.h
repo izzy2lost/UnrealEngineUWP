@@ -139,7 +139,7 @@ public:
 	void ProcessPendingTicksFlush(FRHICommandListImmediate& RHICmdList, bool bForceFlush);
 
 	/** Processes all pending readbacks */
-	virtual void ProcessDebugReadbacks(FRHICommandListImmediate& RHICmdList, bool bWaitCompletion) override;
+	virtual void ProcessDebugReadbacks(FRHICommandList& RHICmdList, bool bWaitCompletion) override;
 
 	virtual bool AddSortedGPUSimulation(FRHICommandListBase& RHICmdList, FNiagaraGPUSortInfo& SortInfo) override;
 	virtual const FGlobalDistanceFieldParameterData* GetGlobalDistanceFieldData() const override;
