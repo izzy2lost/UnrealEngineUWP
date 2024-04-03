@@ -7,6 +7,8 @@
 #include "GenericPlatform/GenericPlatformHostCommunication.h"
 #include "GenericPlatform/GenericPlatformHostSocket.h"
 
+#if !UE_BUILD_SHIPPING
+
 class FConnectionCircularBuffer
 {
 public:
@@ -171,3 +173,5 @@ private:
 
 	TAnsiStringBuilder<1024> Hostname;
 };
+
+#endif // !UE_BUILD_SHIPPING

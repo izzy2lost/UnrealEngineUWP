@@ -4,6 +4,8 @@
 
 #include "StorageServerConnection.h"
 
+#if !UE_BUILD_SHIPPING
+
 class FStorageConnectionSocketFSocket : public IStorageConnectionSocket
 {
 public:
@@ -48,3 +50,5 @@ private:
 	TArray<IStorageConnectionSocket*> SocketPool;
 	FCriticalSection SocketPoolCS;
 };
+
+#endif // !UE_BUILD_SHIPPING

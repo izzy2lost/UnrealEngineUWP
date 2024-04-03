@@ -9,6 +9,8 @@
 #include "SocketSubsystem.h"
 #include "Sockets.h"
 
+#if !UE_BUILD_SHIPPING
+
 DEFINE_LOG_CATEGORY_STATIC(LogStorageSocketBackend, Log, All);
 
 static TArray<TSharedPtr<FInternetAddr>> GetAddressFromString(ISocketSubsystem& SocketSubsystem, TArrayView<const FString> HostAddresses, const int32 Port)
@@ -331,3 +333,5 @@ void FStorageSocketConnectionBackend::SortHostAddressesByLocalSubnet(TArrayView<
 		SortedHostAddresses.Push(RegularAddr);
 	}
 }
+
+#endif // !UE_BUILD_SHIPPING

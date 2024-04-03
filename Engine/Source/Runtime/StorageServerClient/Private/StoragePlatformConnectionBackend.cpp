@@ -6,6 +6,8 @@
 #include "Serialization/CompactBinarySerialization.h"
 #include "HAL/PlatformProcess.h"
 
+#if !UE_BUILD_SHIPPING
+
 DEFINE_LOG_CATEGORY_STATIC(LogStorageServerPlatformBackend, Log, All);
 
 FStorageConnectionPlatformSocket::FStorageConnectionPlatformSocket(IPlatformHostCommunication* HostCommunication, IPlatformHostSocketPtr InSocket, int32 InProtocolNumber)
@@ -252,3 +254,5 @@ int32 FStorageServerPlatformConnectionBackend::HandshakeRequest(TArrayView<const
 
 	return -1;
 }
+
+#endif // !UE_BUILD_SHIPPING
