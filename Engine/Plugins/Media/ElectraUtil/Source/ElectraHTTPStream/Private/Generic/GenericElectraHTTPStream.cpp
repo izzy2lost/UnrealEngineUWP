@@ -501,7 +501,14 @@ void FElectraHTTPStreamRequestGeneric::OnProcessRequestComplete(FHttpRequestPtr 
 	{
 		if (Response->HTTPResponseCode)
 		{
-			Response->SetErrorMessage(FString::Printf(TEXT("Failed with HTTP status %d"), Response->HTTPResponseCode));
+			if (Response->HTTPResponseCode >= 400)
+			{
+				Response->SetErrorMessage(FString::Printf(TEXT("Failed with HTTP status %d"), Response->HTTPResponseCode));
+			}
+			else
+			{
+				Response->SetErrorMessage(FString::Printf(TEXT("Failed due to connection error")));
+			}
 		}
 		else
 		{
