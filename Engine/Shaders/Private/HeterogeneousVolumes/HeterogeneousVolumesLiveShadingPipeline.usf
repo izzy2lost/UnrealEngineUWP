@@ -315,7 +315,7 @@ void RenderSingleScatteringWithLiveShadingCS(
 	uint2 PixelCoord = DispatchThreadId.xy + View.ViewRectMin.xy;
 
 	float3 Radiance = 0.0;
-	float3 Transmittance = 1.0 - RWLightingTexture[PixelCoord].a;
+	float3 Transmittance = RWLightingTexture[PixelCoord].a;
 	float PrevOpacity = Luminance(1.0 - Transmittance);
 
 	// Extract depth
@@ -390,7 +390,7 @@ void RenderSingleScatteringWithLiveShadingCS(
 		if (bApplyEmissionAndTransmittance)
 		{
 			float Opacity = Luminance(1.0 - Transmittance);
-			RWLightingTexture[PixelCoord].a = Opacity;
+			RWLightingTexture[PixelCoord].a = Transmittance;
 
 #if DIM_WRITE_VELOCITY
 			bool bWriteVelocity =

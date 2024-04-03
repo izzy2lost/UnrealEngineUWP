@@ -592,6 +592,5 @@ RAY_TRACING_ENTRY_RAYGEN(RenderSingleScatteringWithPreshadingRGS)
 	}
 
 	// Output..
-	float3 Opacity = bApplyEmissionAndTransmittance ? 1.0 - Transmittance : 0.0;
-	RWLightingTexture[PixelCoord] += float4(Radiance * View.PreExposure, Luminance(Opacity));
+	RWLightingTexture[PixelCoord] += float4(Radiance * View.PreExposure, Luminance(Transmittance));
 }

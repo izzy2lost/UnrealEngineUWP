@@ -763,6 +763,5 @@ void RenderTransmittanceWithVoxelGridCS(
 #endif // DEBUG_MODE_DDA_MAJORANT
 
 	// Output..
-	float3 Opacity = 1.0 - Transmittance;
-	RWLightingTexture[PixelCoord] += float4(Radiance, Luminance(Opacity));
+	RWLightingTexture[PixelCoord] += float4(Radiance, Luminance(Transmittance));
 }

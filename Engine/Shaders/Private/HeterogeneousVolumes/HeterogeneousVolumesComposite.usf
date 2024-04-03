@@ -18,7 +18,7 @@ void HeterogeneousVolumesCompositeCS(
 	uint2 PixelCoord = DispatchThreadId.xy + View.ViewRectMin.xy;
 
 	float4 Result;
-	float HeterogeneousVolumeTransmittance = saturate(1.0 - HeterogeneousVolumeRadiance[PixelCoord].a);
+	float HeterogeneousVolumeTransmittance = HeterogeneousVolumeRadiance[PixelCoord].a;
 	Result.rgb = HeterogeneousVolumeRadiance[PixelCoord].rgb + RWColorTexture[PixelCoord].rgb * HeterogeneousVolumeTransmittance;
 	Result.a = RWColorTexture[PixelCoord].a * HeterogeneousVolumeTransmittance;
 

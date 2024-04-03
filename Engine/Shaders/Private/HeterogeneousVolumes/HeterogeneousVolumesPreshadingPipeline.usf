@@ -517,7 +517,7 @@ void RenderSingleScatteringWithPreshadingCS(
 	float2 PixelCoord = RayMarchingTile.PixelOffset + TileCoord;
 
 	float3 Radiance = 0.0;
-	float3 Transmittance = 1.0 - RWLightingTexture[PixelCoord].a;
+	float3 Transmittance = RWLightingTexture[PixelCoord].a;
 	float PrevOpacity = Luminance(1.0 - Transmittance);
 
 	// Create screen ray
@@ -628,31 +628,35 @@ void RenderSingleScatteringWithPreshadingCS(
 	}
 
 	// Radiance
-	float Opacity = bApplyEmissionAndTransmittance ? Luminance(1.0 - Transmittance) : 0.0;
-	RWLightingTexture[PixelCoord] = float4(RWLightingTexture[PixelCoord].rgb + (Radiance * View.PreExposure), Opacity);
+	RWLightingTexture[PixelCoord].rgb += Radiance * View.PreExposure;
+	if (bApplyEmissionAndTransmittance)
+	{
+		float Opacity = Luminance(1.0 - Transmittance);
+		RWLightingTexture[PixelCoord].a = Transmittance;
 
 #if DIM_WRITE_VELOCITY
-	bool bWriteVelocity =
-		(WorldHitTMin < WorldRayLength) &&
-		(PrevOpacity < 0.5) &&
-		(Opacity > 0.5);
+		bool bWriteVelocity =
+			(WorldHitTMin < WorldRayLength) &&
+			(PrevOpacity < 0.5) &&
+			(Opacity > 0.5);
 
-	if (bWriteVelocity)
-	{
-		float3 Velocity = Calculate3DVelocityAtWorldPos(WorldRayOrigin, WorldRayDirection, WorldHitTMin);
-		RWVelocityTexture[PixelCoord] = EncodeVelocityToTexture(Velocity);
-	}
+		if (bWriteVelocity)
+		{
+			float3 Velocity = Calculate3DVelocityAtWorldPos(WorldRayOrigin, WorldRayDirection, WorldHitTMin);
+			RWVelocityTexture[PixelCoord] = EncodeVelocityToTexture(Velocity);
+		}
 #endif // DIM_WRITE_VELOCITY
 
 #if DIM_DEBUG
-	//if (!all(DispatchThreadId))
-	if (GroupId == 0 && GroupThreadId == 0)
-	{
-		RWVoxelOutputBuffer[0].MipLevel = GetNumVoxels();
-		for (uint VoxelIndex = 0; VoxelIndex < GetNumVoxels(); ++VoxelIndex)
+		//if (!all(DispatchThreadId))
+		if (GroupId == 0 && GroupThreadId == 0)
 		{
-			RWVoxelOutputBuffer[VoxelIndex + 1] = GetVoxelDataPacked(VoxelIndex);
+			RWVoxelOutputBuffer[0].MipLevel = GetNumVoxels();
+			for (uint VoxelIndex = 0; VoxelIndex < GetNumVoxels(); ++VoxelIndex)
+			{
+				RWVoxelOutputBuffer[VoxelIndex + 1] = GetVoxelDataPacked(VoxelIndex);
+			}
 		}
-	}
 #endif
+	}
 }
