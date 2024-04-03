@@ -206,6 +206,19 @@ FMassArchetypeHandle FMassEntityManager::CreateArchetype(const TSharedPtr<FMassA
 	return CreateArchetype(Composition, CreationParams);
 }
 
+FMassArchetypeHandle FMassEntityManager::GetOrCreateSuitableArchetype(const FMassArchetypeHandle& ArchetypeHandle, const FMassSharedFragmentBitSet& SharedFragmentBitSet
+	, const FMassArchetypeCreationParams& CreationParams)
+{
+	FMassArchetypeData& ArchetypeData = FMassArchetypeHelper::ArchetypeDataFromHandleChecked(ArchetypeHandle);
+	if (SharedFragmentBitSet != ArchetypeData.GetSharedFragmentBitSet())
+	{
+		FMassArchetypeCompositionDescriptor NewDescriptor = ArchetypeData.GetCompositionDescriptor();
+		NewDescriptor.SharedFragments = SharedFragmentBitSet;
+		return CreateArchetype(NewDescriptor);
+	}
+	return ArchetypeHandle;
+}
+
 FMassArchetypeHandle FMassEntityManager::CreateArchetype(const FMassArchetypeCompositionDescriptor& Composition, const FMassArchetypeCreationParams& CreationParams)
 {
 	const uint32 TypeHash = Composition.CalculateHash();
@@ -470,6 +483,17 @@ void FMassEntityManager::BuildEntity(FMassEntityHandle Entity, TConstArrayView<F
 	EntityData.CurrentArchetype->SetFragmentsData(Entity, FragmentInstanceList);
 }
 
+TConstArrayView<FMassEntityHandle> FMassEntityManager::BatchReserveEntities(const int32 Count, TArray<FMassEntityHandle>& InOutEntities)
+{
+	int32 Index = InOutEntities.Num();
+	InOutEntities.Reserve(Index + Count);
+	for (int32 Counter = 0; Counter < Count; ++Counter)
+	{
+		InOutEntities.Add(ReserveEntity());
+	}
+	return MakeArrayView(InOutEntities.GetData() + Index, Count);
+}
+
 void FMassEntityManager::BatchBuildEntities(const FMassArchetypeEntityCollectionWithPayload& EncodedEntitiesWithPayload
 	, const FMassFragmentBitSet& FragmentsAffected, const FMassArchetypeSharedFragmentValues& SharedFragmentValues, const FMassArchetypeCreationParams& CreationParams)
 {
@@ -548,37 +572,23 @@ TSharedRef<FMassEntityManager::FEntityCreationContext> FMassEntityManager::Batch
 	checkf(IsProcessing() == false, TEXT("Synchronous API function %hs called during mass processing. Use asynchronous API instead."), __FUNCTION__);
 	checkf(!ReservedEntities.IsEmpty(), TEXT("No reserved entities given to batch create."));
 
-	// verify that SharedFragmentValues contains all the data needed for the archetype indicated by ArchetypeHandle
-	FMassArchetypeData& ArchetypeData = FMassArchetypeHelper::ArchetypeDataFromHandleChecked(ArchetypeHandle);
-	if (!ensureMsgf(SharedFragmentValues.HasAllRequiredFragmentTypes(ArchetypeData.GetSharedFragmentBitSet())
-		, TEXT("Trying to create entities with mismatching shared fragments collection. This would have lead to crashes, so we're bailing out. Make sure you pass in values for all the shared fragments declared in archetype's composition.")))
-	{
-		return MakeShareable(new FEntityCreationContext(0));
-	}
-
-	return InternalBatchCreateReservedEntities(ArchetypeHandle, SharedFragmentValues, ReservedEntities);
+	return InternalBatchCreateReservedEntities(GetOrCreateSuitableArchetype(ArchetypeHandle, SharedFragmentValues.GetSharedFragmentBitSet())
+		, SharedFragmentValues, ReservedEntities);
 }
 
 TSharedRef<FMassEntityManager::FEntityCreationContext> FMassEntityManager::BatchCreateEntities(const FMassArchetypeHandle& ArchetypeHandle
-	, const FMassArchetypeSharedFragmentValues& SharedFragmentValues, const int32 Count, TArray<FMassEntityHandle>& OutEntities)
+	, const FMassArchetypeSharedFragmentValues& SharedFragmentValues, const int32 Count, TArray<FMassEntityHandle>& InOutEntities)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(Mass_BatchCreateEntities);
 
-	FMassArchetypeData& ArchetypeData = FMassArchetypeHelper::ArchetypeDataFromHandleChecked(ArchetypeHandle);
-	if (!ensureMsgf(SharedFragmentValues.HasAllRequiredFragmentTypes(ArchetypeData.GetSharedFragmentBitSet())
-		, TEXT("Trying to create entities with mismatching shared fragments collection. This would have lead to crashes, so we're bailing out. Make sure you pass in values for all the shared fragments declared in archetype's composition.")))
-	{
-		return MakeShareable(new FEntityCreationContext(0));
-	}
+	checkf(IsProcessing() == false, TEXT("Synchronous API function %hs called during mass processing. Use asynchronous API instead."), __FUNCTION__);
+	testableCheckfReturn(ArchetypeHandle.IsValid(), return MakeShareable(new FEntityCreationContext(0))
+		, TEXT("%hs expecting a valid ArchetypeHandle"), __FUNCTION__);
 
-	int32 Index = OutEntities.Num();
-	OutEntities.Reserve(Index + Count);
-	for (int32 Counter = 0; Counter < Count; ++Counter)
-	{
-		OutEntities.Add(ReserveEntity());
-	}
+	TConstArrayView<FMassEntityHandle> ReservedEntities = BatchReserveEntities(Count, InOutEntities);
 	
-	return InternalBatchCreateReservedEntities(ArchetypeHandle, SharedFragmentValues, MakeArrayView(OutEntities.GetData() + Index, Count));
+	return InternalBatchCreateReservedEntities(GetOrCreateSuitableArchetype(ArchetypeHandle, SharedFragmentValues.GetSharedFragmentBitSet())
+		, SharedFragmentValues, ReservedEntities);
 }
 
 TSharedRef<FMassEntityManager::FEntityCreationContext> FMassEntityManager::InternalBatchCreateReservedEntities(const FMassArchetypeHandle& ArchetypeHandle
@@ -1009,6 +1019,55 @@ void FMassEntityManager::RemoveTagFromEntity(FMassEntityHandle Entity, const USc
 	}
 }
 
+bool FMassEntityManager::AddConstSharedFragmentToEntity(const FMassEntityHandle Entity, const FConstSharedStruct& InConstSharedFragment)
+{
+	if (!ensureMsgf(InConstSharedFragment.IsValid(), TEXT("%hs parameter Fragment is expected to be valid"), __FUNCTION__))
+	{
+		return false;
+	}
+
+	CheckIfEntityIsActive(Entity);
+
+	FEntityData& EntityData = Entities[Entity.Index];
+	FMassArchetypeData* CurrentArchetype = EntityData.CurrentArchetype.Get();
+	check(CurrentArchetype);
+
+	const UScriptStruct* StructType = InConstSharedFragment.GetScriptStruct();
+	CA_ASSUME(StructType);
+	if (CurrentArchetype->GetCompositionDescriptor().SharedFragments.Contains(*StructType))
+	{
+		const FMassArchetypeSharedFragmentValues& SharedFragmentValues = CurrentArchetype->GetSharedFragmentValues(Entity);
+		FConstSharedStruct ExistingConstSharedStruct = SharedFragmentValues.GetConstSharedFragmentStruct(StructType);
+		if (ExistingConstSharedStruct == InConstSharedFragment || ExistingConstSharedStruct.CompareStructValues(InConstSharedFragment))
+		{
+			// nothing to do
+			return true;
+		}
+		UE_LOG(LogMass, Warning, TEXT("Changing shared fragment value of entities is not supported"));
+		return false;
+	}
+	
+	FMassArchetypeCompositionDescriptor NewComposition(CurrentArchetype->GetCompositionDescriptor());
+	NewComposition.SharedFragments.Add(*StructType);
+	const FMassArchetypeHandle NewArchetypeHandle = CreateArchetype(NewComposition);
+	check(NewArchetypeHandle.IsValid());
+	FMassArchetypeData* NewArchetype = NewArchetypeHandle.DataPtr.Get();
+	check(NewArchetype);
+
+	const FMassArchetypeSharedFragmentValues& OldSharedFragmentValues = CurrentArchetype->GetSharedFragmentValues(Entity.Index);
+	check(!OldSharedFragmentValues.ContainsType(StructType));
+	FMassArchetypeSharedFragmentValues NewSharedFragmentValues(OldSharedFragmentValues);
+	NewSharedFragmentValues.AddConstSharedFragment(InConstSharedFragment);
+	NewSharedFragmentValues.Sort();
+
+	CurrentArchetype->MoveEntityToAnotherArchetype(Entity, *NewArchetype, &NewSharedFragmentValues);
+
+	// Change the entity archetype
+	EntityData.CurrentArchetype = NewArchetypeHandle.DataPtr;
+
+	return true;
+}
+
 void FMassEntityManager::BatchChangeTagsForEntities(TConstArrayView<FMassArchetypeEntityCollection> EntityCollections, const FMassTagBitSet& TagsToAdd, const FMassTagBitSet& TagsToRemove)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(Mass_BatchChangeTagsForEntities);
@@ -1188,6 +1247,42 @@ void FMassEntityManager::BatchAddFragmentInstancesForEntities(TConstArrayView<FM
 		else 
 		{
 			BatchBuildEntities(EntityRangesWithPayload, FragmentsAffected, FMassArchetypeSharedFragmentValues());
+		}
+	}
+}
+
+void FMassEntityManager::BatchAddSharedFragmentsForEntities(TConstArrayView<FMassArchetypeEntityCollection> EntityCollections
+	, const FMassArchetypeSharedFragmentValues& AddedFragmentValues)
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(Mass_BatchAddConstSharedFragmentForEntities);
+
+	for (const FMassArchetypeEntityCollection& Collection : EntityCollections)
+	{
+		FMassArchetypeData* CurrentArchetype = Collection.GetArchetype().DataPtr.Get();
+		testableCheckfReturn(CurrentArchetype, continue, TEXT("Adding shared fragments to archetype-less entities is not supported"));
+
+		FMassArchetypeCompositionDescriptor NewComposition(CurrentArchetype->GetCompositionDescriptor());
+		NewComposition.SharedFragments += AddedFragmentValues.GetSharedFragmentBitSet();
+
+		const FMassArchetypeHandle NewArchetypeHandle = CreateArchetype(NewComposition);
+		check(NewArchetypeHandle.IsValid());
+		FMassArchetypeData* NewArchetype = NewArchetypeHandle.DataPtr.Get();
+		check(NewArchetype);
+		if (!testableEnsureMsgf(CurrentArchetype != NewArchetype, TEXT("Setting shared fragment values without archetype change is not supported")))
+		{
+			UE_LOG(LogMass, Warning, TEXT("Trying to set shared fragment values, without adding new shared fragments, is not supported."));
+			continue;
+		}
+
+		TArray<FMassEntityHandle> EntitiesBeingMoved;
+		CurrentArchetype->BatchMoveEntitiesToAnotherArchetype(Collection, *NewArchetype, EntitiesBeingMoved, /*OutNewChunks=*/nullptr, &AddedFragmentValues);
+
+		for (const FMassEntityHandle& Entity : EntitiesBeingMoved)
+		{
+			check(Entities.IsValidIndex(Entity.Index));
+
+			FEntityData& EntityData = Entities[Entity.Index];
+			EntityData.CurrentArchetype = NewArchetypeHandle.DataPtr;
 		}
 	}
 }
