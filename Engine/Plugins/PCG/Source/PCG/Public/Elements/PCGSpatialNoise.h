@@ -3,7 +3,6 @@
 #pragma once
 
 #include "PCGSettings.h"
-#include "Elements/PCGPointProcessingElementBase.h"
 #include "Metadata/PCGAttributePropertySelector.h"
 
 #include "PCGSpatialNoise.generated.h"
@@ -156,7 +155,7 @@ private:
 	bool bForceNoUseSeed = false;
 };
 
-class FPCGSpatialNoise : public FPCGPointProcessingElementBase
+class FPCGSpatialNoise : public IPCGElement
 {
 protected:
 	virtual bool ExecuteInternal(FPCGContext* Context) const override;

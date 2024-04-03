@@ -2,7 +2,6 @@
 #pragma once
 
 #include "PCGSettings.h"
-#include "Elements/PCGPointProcessingElementBase.h"
 
 #include "PCGDistance.generated.h"
 
@@ -87,7 +86,7 @@ public:
 #endif // WITH_EDITORONLY_DATA
 };
 
-class FPCGDistanceElement : public FPCGPointProcessingElementBase
+class FPCGDistanceElement : public IPCGElement
 {
 protected:
 	virtual bool ExecuteInternal(FPCGContext* Context) const override;
