@@ -503,7 +503,7 @@ public:
 	FDisplayClusterConfigurationPostRender_Override Replace;
 
 	// Media settings
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = NDisplay, meta = (DisplayName = "Media"))
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = NDisplay, meta = (DisplayName = "Media"))
 	FDisplayClusterConfigurationMediaICVFX Media;
 
 	UPROPERTY()
