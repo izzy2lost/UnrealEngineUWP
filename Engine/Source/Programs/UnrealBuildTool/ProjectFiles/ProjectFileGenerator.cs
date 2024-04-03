@@ -2231,7 +2231,7 @@ namespace UnrealBuildTool
 			foreach (UnrealTargetPlatform Platform in UnrealTargetPlatform.GetValidPlatforms())
 			{
 				// project is in the explicit platform list or we include them all, we add the valid desktop platforms as they are required
-				bool bInProjectPlatformsList = (ProjectPlatforms.Count > 0) ? (IsValidDesktopPlatform(Platform) || ProjectPlatforms.Contains(Platform)) : true;
+				bool bInProjectPlatformsList = ProjectPlatforms.Count <= 0 || (IsValidDesktopPlatform(Platform) || ProjectPlatforms.Contains(Platform));
 
 				// project is a desktop platform or we have specified some platforms explicitly
 				bool IsRequiredPlatform = (IsValidDesktopPlatform(Platform) || ProjectPlatforms.Count > 0);
@@ -3008,7 +3008,10 @@ namespace UnrealBuildTool
 								ProjectFile = FindOrAddProject(GetProjectLocation($"{ProjectName}{TargetTypeSuffix}"), ContentOnlyGameProject.Directory, IncludeInGeneratedProjects: true, bAlreadyExisted: out _);
 							}
 							else
+							{
 								ProjectFile ??= FindOrAddProject(GetProjectLocation(ProjectName), ContentOnlyGameProject.Directory, IncludeInGeneratedProjects: true, bAlreadyExisted: out _);
+							}
+
 							ProjectFile.IsForeignProject = true;
 							ProjectFile.IsGeneratedProject = true;
 							ProjectFile.IsStubProject = false;
@@ -3340,7 +3343,7 @@ namespace UnrealBuildTool
 					// them un-useable.
 					// To fix this we explicitly define UTF8 Encoding without BOM for all platform
 					// if another encoding is not specified in the call
-					File.WriteAllText(FileName, NewFileContents, InEncoding != null ? InEncoding : new UTF8Encoding(false));
+					File.WriteAllText(FileName, NewFileContents, InEncoding ?? new UTF8Encoding(false));
 					Logger.LogDebug("Saved {Path}", Path.GetFileName(FileName));
 				}
 				catch (Exception ex)

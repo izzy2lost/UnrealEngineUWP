@@ -31,7 +31,6 @@ namespace UnrealBuildTool
 			return DeploymentTarget;
 		}
 
-
 		/// <summary>
 		/// Get the default build target version for the given target type. This will be passed to clang when compiling/linking
 		/// Will be in the format AA.BB

@@ -590,7 +590,7 @@ namespace UnrealBuildTool
 				case UnrealTargetConfiguration.Debug:
 				default:
 					return true;
-			};
+			}
 		}
 
 		/// <summary>

@@ -179,7 +179,6 @@ namespace UnrealBuildTool
 				SingleTargetName = Arguments.GetString("-SingleTarget=");
 			}
 
-
 			// Create each project generator and run it
 			Dictionary<ProjectFileFormat, ProjectFileGenerator> Generators = new();
 			foreach (ProjectFileFormat ProjectFileFormat in ProjectFileFormats.Distinct())

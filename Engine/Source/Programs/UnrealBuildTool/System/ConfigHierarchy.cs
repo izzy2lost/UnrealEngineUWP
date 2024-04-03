@@ -508,7 +508,6 @@ namespace UnrealBuildTool
 			return false;
 		}
 
-
 		/// <summary>
 		/// Parse a string as a boolean value
 		/// </summary>

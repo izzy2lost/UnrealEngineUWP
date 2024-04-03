@@ -398,18 +398,7 @@ namespace UnrealBuildTool
 			List<string> GlobalArguments = new List<string>();
 
 			// Build target string. No comma on last
-			string TargetString = "";
-			foreach (string Target in CompileTargets)
-			{
-				if (Target == CompileTargets[CompileTargets.Count - 1]) // .Last()
-				{
-					TargetString += Target;
-				}
-				else
-				{
-					TargetString += Target + ",";
-				}
-			}
+			string TargetString = String.Join(',', CompileTargets);
 
 			string ISPCArch = GetISPCArchTarget(CompileEnvironment.Platform, null);
 
@@ -546,7 +535,7 @@ namespace UnrealBuildTool
 			string TargetString = "";
 			foreach (string Target in CompileTargets)
 			{
-				if (Target == CompileTargets[CompileTargets.Count - 1]) // .Last()
+				if (Target == CompileTargets[^1]) // .Last()
 				{
 					TargetString += Target;
 				}

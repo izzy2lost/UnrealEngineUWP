@@ -117,7 +117,7 @@ namespace UnrealBuildTool
 			{
 				if (Descriptor.bEnabledByDefault.Value)
 				{
-					return (LoadedFrom == PluginLoadedFrom.Project ? true : bAllowEnginePluginsEnabledByDefault);
+					return (LoadedFrom == PluginLoadedFrom.Project || bAllowEnginePluginsEnabledByDefault);
 				}
 				else
 				{
@@ -632,7 +632,7 @@ namespace UnrealBuildTool
 				return false;
 			}
 
-			bool bAllowEnginePluginsEnabledByDefault = (Project == null ? true : !Project.DisableEnginePluginsByDefault);
+			bool bAllowEnginePluginsEnabledByDefault = (Project == null || !Project.DisableEnginePluginsByDefault);
 			bool bEnabled = Plugin.IsEnabledByDefault(bAllowEnginePluginsEnabledByDefault);
 			if (Project != null && Project.Plugins != null)
 			{

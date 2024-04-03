@@ -253,9 +253,6 @@ namespace UnrealBuildTool
 			}
 		}
 
-
-
-
 		/// <summary>
 		/// Attempts to parse the given line as the given template type
 		/// </summary>

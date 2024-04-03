@@ -231,10 +231,7 @@ namespace UnrealBuildTool
 			{
 				case CycleMode.Fail:
 					// We stop further processing and fail the whole sort.
-					if (Logger != null)
-					{
-						Logger.LogError("TopologicalSorter: Cycle found in graph ({NodesInCycle})", GetNodesInCycleString());
-					}
+					Logger?.LogError("TopologicalSorter: Cycle found in graph ({NodesInCycle})", GetNodesInCycleString());
 					return false;
 
 				case CycleMode.Break:
@@ -243,10 +240,7 @@ namespace UnrealBuildTool
 
 				case CycleMode.BreakWithInfo:
 					// As in Break but output log information about the cycle.
-					if (Logger != null)
-					{
-						Logger.LogWarning("TopologicalSorter: Cycle found in graph ({NodesInCycle})", GetNodesInCycleString());
-					}
+					Logger?.LogWarning("TopologicalSorter: Cycle found in graph ({NodesInCycle})", GetNodesInCycleString());
 					return true;
 			}
 

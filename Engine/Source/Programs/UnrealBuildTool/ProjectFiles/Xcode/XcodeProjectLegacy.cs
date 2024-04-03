@@ -315,10 +315,7 @@ namespace UnrealBuildTool.XcodeProjectLegacy
 				}
 
 				XcodeFileGroup? Group = FindGroupByAbsolutePath(ref Groups, SourceFile.Reference.Directory.FullName);
-				if (Group != null)
-				{
-					Group.Files.Add(SourceFile);
-				}
+				Group?.Files.Add(SourceFile);
 			}
 
 			PBXFileReferenceSection.Append(String.Format("\t\t{0} /* {1} */ = {{isa = PBXFileReference; explicitFileType = {2}; path = {1}; sourceTree = BUILT_PRODUCTS_DIR; }};" + ProjectFileGenerator.NewLine, TargetAppGuid, TargetName, bIsAppBundle ? "wrapper.application" : "\"compiled.mach-o.executable\""));

@@ -802,10 +802,7 @@ namespace UnrealBuildTool
 		/// </summary>
 		public void Dispose()
 		{
-			if (_cpuUtilizationTimer != null)
-			{
-				_cpuUtilizationTimer.Dispose();
-			}
+			_cpuUtilizationTimer?.Dispose();
 			ProcessGroup.Dispose();
 		}
 

@@ -39,10 +39,10 @@ namespace UnrealBuildTool
 		/// <summary>
 		/// Instance where a CPP file doesn't include the expected header as the first include.
 		/// </summary>
-		public struct InvalidIncludeDirective
+		public readonly struct InvalidIncludeDirective
 		{
-			public readonly FileReference CppFile;
-			public readonly FileReference HeaderFile;
+			public FileReference CppFile { get; }
+			public FileReference HeaderFile { get; }
 
 			public InvalidIncludeDirective(FileReference cppFile, FileReference headerFile)
 			{
@@ -1980,7 +1980,7 @@ namespace UnrealBuildTool
 					return false;
 				case ModuleRules.CodeOptimization.Default:
 				case ModuleRules.CodeOptimization.InNonDebugBuilds:
-					return (Configuration == UnrealTargetConfiguration.Debug) ? false : (Configuration != UnrealTargetConfiguration.DebugGame || bIsEngineModule);
+					return Configuration != UnrealTargetConfiguration.Debug && (Configuration != UnrealTargetConfiguration.DebugGame || bIsEngineModule);
 				case ModuleRules.CodeOptimization.InShippingBuildsOnly:
 					return (Configuration == UnrealTargetConfiguration.Shipping);
 				default:

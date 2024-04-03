@@ -167,10 +167,7 @@ namespace UnrealBuildTool
 			IList<string> ExtraPlatformArguments = new List<string>();
 
 			ClangToolChain? ClangToolChain = TargetToolChain as ClangToolChain;
-			if (ClangToolChain != null)
-			{
-				ClangToolChain.AddExtraToolArguments(ExtraPlatformArguments);
-			}
+			ClangToolChain?.AddExtraToolArguments(ExtraPlatformArguments);
 
 			return ExtraPlatformArguments;
 		}

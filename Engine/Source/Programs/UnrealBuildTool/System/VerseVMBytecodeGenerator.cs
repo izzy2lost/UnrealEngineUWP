@@ -325,9 +325,13 @@ namespace UnrealBuildTool
 							if (Arg.Role == Role.Immediate)
 							{
 								if (Arg.CppTypeName == "VValue")
+								{
 									return $"{Arg.DefCppType()} {Arg.Name}";
+								}
 								else
+								{
 									return $"{Arg.DefCppType()}& {Arg.Name}";
+								}
 							}
 							else
 							{
@@ -454,9 +458,13 @@ namespace UnrealBuildTool
 								if (Arg.Role == Role.Immediate)
 								{
 									if (Arg.CppTypeName == "VValue")
+									{
 										return $"{Arg.DefCppType()} {Arg.Name}";
+									}
 									else
+									{
 										return $"{Arg.DefCppType()}& {Arg.Name}";
+									}
 								}
 								else
 								{
@@ -637,9 +645,13 @@ namespace UnrealBuildTool
 							if (Arg.Role == Role.Immediate)
 							{
 								if (Arg.CppTypeName == "VValue")
+								{
 									S.Append($", Op.{Arg.Name}.Get()");
+								}
 								else
+								{
 									S.Append($", *Op.{Arg.Name}");
+								}
 							}
 							else
 							{

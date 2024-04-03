@@ -194,10 +194,7 @@ namespace UnrealBuildTool
 		{
 			TerminateBackgroundProcess();
 
-			if (Inner != null)
-			{
-				Inner.Dispose();
-			}
+			Inner?.Dispose();
 		}
 
 		/// <summary>

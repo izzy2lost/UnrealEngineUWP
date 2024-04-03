@@ -807,10 +807,7 @@ namespace UnrealBuildTool
 				Trace.Close();
 
 				// Write any trace logs
-				if (Tracer != null)
-				{
-					Tracer.Flush();
-				}
+				Tracer?.Flush();
 
 				// Delete the ubt run file
 				if (RunFile != null)
@@ -837,10 +834,7 @@ namespace UnrealBuildTool
 				}
 
 				// Dispose of the mutex. Must be done last to ensure that another process does not startup and start trying to write to the same log file.
-				if (Mutex != null)
-				{
-					Mutex.Dispose();
-				}
+				Mutex?.Dispose();
 			}
 		}
 	}

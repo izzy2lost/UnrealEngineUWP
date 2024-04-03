@@ -182,7 +182,6 @@ namespace UnrealBuildTool.Modes
 		}
 	}
 
-
 	/// <summary>
 	/// PipEnv helper class for setting up a self-contained pip environment and running pip commands (particularly pip install) within that env.
 	/// </summary>
@@ -694,9 +693,8 @@ namespace UnrealBuildTool.Modes
 		{
 			List<PluginInfo> AllPlugins = Plugins.ReadAvailablePlugins(Unreal.EngineDirectory, null, null);
 			PluginInfo? ScriptPlugin = AllPlugins.Find(x => x.Name == "PythonScriptPlugin");
-			return (ScriptPlugin != null) ? ScriptPlugin.File : null;
+			return ScriptPlugin?.File;
 		}
-
 
 		static FileReference GetVenvInterpreter(DirectoryReference VenvDir, UnrealTargetPlatform InPlatform)
 		{
@@ -738,7 +736,6 @@ namespace UnrealBuildTool.Modes
 		public IBaseCmdProgressLogger Create(string Message, int GuessSteps);
 	}
 
-
 	/// <summary>
 	/// Simple factory types so that users don't need to implement the factory
 	/// </summary>
@@ -763,7 +760,6 @@ namespace UnrealBuildTool.Modes
 			return new PipProgressLogger(Logger, Message, GuessSteps);
 		}
 	}
-
 
 	/// <summary>
 	/// Basic command logger which just echos output/errors to Logger (indent stdout data by 2 spaces)
@@ -924,7 +920,6 @@ namespace UnrealBuildTool.Modes
 		public void FinishProgress() { }
 	}
 
-
 	/// <summary>
 	/// Simple interface for logging command stdout/stderr with progress tags if supported
 	/// </summary>
@@ -981,7 +976,9 @@ namespace UnrealBuildTool.Modes
 		{
 			// Currently we assume only one pip command so it should be finished on (null)
 			if (String.IsNullOrEmpty(DataLine.Data))
+			{
 				return;
+			}
 
 			string CheckStr = DataLine.Data.Trim();
 			bool ShouldUpdate = CheckUpdateStr(CheckStr);

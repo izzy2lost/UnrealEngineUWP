@@ -434,7 +434,6 @@ namespace UnrealBuildTool
 			return bEnablePlugin;
 		}
 
-
 		public virtual void SetUpSpecificEnvironment(ReadOnlyTargetRules Target, CppCompileEnvironment CompileEnvironment, LinkEnvironment LinkEnvironment, ILogger Logger)
 		{
 			string NDKPath = Environment.GetEnvironmentVariable("NDKROOT")!;
@@ -566,7 +565,7 @@ namespace UnrealBuildTool
 				case UnrealTargetConfiguration.Debug:
 				default:
 					return true;
-			};
+			}
 		}
 
 		public static ClangToolChainOptions CreateToolChainOptions(AndroidTargetRules TargetRules)

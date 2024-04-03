@@ -658,10 +658,7 @@ namespace UnrealBuildTool
 
 		public void SaveXML(string Filename)
 		{
-			if (XDoc != null)
-			{
-				XDoc.Save(Filename);
-			}
+			XDoc?.Save(Filename);
 		}
 
 		private string DumpContext(UPLContext Context)
@@ -1058,10 +1055,7 @@ namespace UnrealBuildTool
 				Attribute = Element.Attribute(Name);
 			}
 
-			if (Attribute != null)
-			{
-				Attribute.Remove();
-			}
+			Attribute?.Remove();
 		}
 
 		private void AddElements(XElement Target, XElement Source)
@@ -2635,7 +2629,7 @@ namespace UnrealBuildTool
 			GlobalContext.IntVariables["EnginePatchVersion"] = Version.PatchVersion;
 			GlobalContext.IntVariables["EngineChangelist"] = Version.Changelist;
 			GlobalContext.StringVariables["EngineVersion"] = Version.MajorVersion.ToString() + "." + Version.MinorVersion.ToString() + "." + Version.PatchVersion.ToString();
-			GlobalContext.StringVariables["EngineBranchName"] = (Version.BranchName != null) ? Version.BranchName : "";
+			GlobalContext.StringVariables["EngineBranchName"] = Version.BranchName ?? "";
 
 			if (GlobalContext.StringVariables["EngineDir"].Length < 1)
 			{

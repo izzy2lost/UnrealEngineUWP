@@ -1013,8 +1013,8 @@ namespace UnrealBuildTool
 			}
 
 			ProjectConfigAndTargetCombination? FoundCombo = ProjectConfigAndTargetCombinations.FirstOrDefault(combo => combo != null && combo.ProjectTarget != null && combo.ProjectTarget.TargetRules != null);
-			TargetRules? DefaultRules = FoundCombo != null ? FoundCombo.ProjectTarget?.TargetRules : null;
-			bool IsTestTarget = (DefaultRules != null ? DefaultRules.IsTestTarget : false);
+			TargetRules? DefaultRules = FoundCombo?.ProjectTarget?.TargetRules;
+			bool IsTestTarget = (DefaultRules != null && DefaultRules.IsTestTarget);
 
 			// Project globals (project GUID, project type, SCC bindings, etc)
 			{
@@ -1846,13 +1846,13 @@ namespace UnrealBuildTool
 			// Create dictionaries with key == Condition of each <PropertyGroup> and value == <PropertyGroup> XElement itself for both current and new document.
 			Dictionary<string, XElement> CurrentPropertyGroups = CurrentContent
 				.Descendants(NS + "PropertyGroup")
-				.Select(Element => (Attribute: Element.Attribute("Condition"), Element: Element))
+				.Select(Element => (Attribute: Element.Attribute("Condition"), Element))
 				.Where(Pair => Pair.Attribute != null)
 				.ToDictionary(Pair => Pair.Attribute!.Value, Pair => Pair.Element);
 
 			Dictionary<string, XElement> NewPropertyGroups = NewContent
 				.Descendants(NS + "PropertyGroup")
-				.Select(Element => (Attribute: Element.Attribute("Condition"), Element: Element))
+				.Select(Element => (Attribute: Element.Attribute("Condition"), Element))
 				.Where(Pair => Pair.Attribute != null)
 				.ToDictionary(Pair => Pair.Attribute!.Value, Pair => Pair.Element);
 

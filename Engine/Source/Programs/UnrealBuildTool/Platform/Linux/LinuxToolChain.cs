@@ -1176,7 +1176,9 @@ namespace UnrealBuildTool
 			LinkAction.bCanExecuteInUBA = !LinkEnvironment.bPGOProfile && !LinkEnvironment.bPGOOptimize && !LinkEnvironment.bAllowLTCG;
 
 			if (!OperatingSystem.IsWindows())
+			{
 				LinkAction.bCanExecuteInUBA = false; // Linker on native linux uses vfork/exec which is not handled in uba right now
+			}
 
 			// because the logic choosing between lld and ld is somewhat messy atm (lld fails to link .DSO due to bugs), make the name of the linker clear
 			LinkAction.CommandDescription += (LinkCommandString.Contains("-fuse-ld=lld")) ? " (lld)" : " (ld)";
@@ -1484,7 +1486,7 @@ namespace UnrealBuildTool
 					LinkWriter.WriteLine(LinkCommandString);
 					LinkWriter.WriteLine(GetDumpEncodeDebugCommand(LinkEnvironment, OutputFile));
 				}
-			};
+			}
 
 			LinkAction.CommandPath = ShellBinary;
 

@@ -254,7 +254,6 @@ namespace UnrealBuildTool
 				AppXResources!.AddCultures(UEStageIdToAppXCultureId.Values);
 			}
 
-
 			// add per culture strings
 			if (EngineIni.GetArray(IniSection_PlatformTargetSettings, "PerCultureResources", out List<string>? PerCultureResources))
 			{

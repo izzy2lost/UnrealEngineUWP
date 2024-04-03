@@ -191,7 +191,7 @@ namespace UnrealBuildTool
 
 			public void EndObject()
 			{
-				Lines[Lines.Count - 1] = Lines[Lines.Count - 1].TrimEnd(',');
+				Lines[^1] = Lines[^1].TrimEnd(',');
 				TabString = TabString.Remove(TabString.Length - 1);
 				Lines.Add(TabString + "},");
 			}
@@ -205,7 +205,7 @@ namespace UnrealBuildTool
 
 			public void EndArray()
 			{
-				Lines[Lines.Count - 1] = Lines[Lines.Count - 1].TrimEnd(',');
+				Lines[^1] = Lines[^1].TrimEnd(',');
 				TabString = TabString.Remove(TabString.Length - 1);
 				Lines.Add(TabString + "],");
 			}
@@ -227,7 +227,7 @@ namespace UnrealBuildTool
 
 			public void Write(FileReference File)
 			{
-				Lines[Lines.Count - 1] = Lines[Lines.Count - 1].TrimEnd(',');
+				Lines[^1] = Lines[^1].TrimEnd(',');
 				FileReference.WriteAllLines(File, Lines.ToArray());
 			}
 

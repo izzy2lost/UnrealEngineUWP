@@ -939,7 +939,6 @@ namespace UnrealBuildTool
 
 		internal VCEnvironment? Environment => Inner.Environment;
 
-
 		public string? ToolChainDir => Inner.Environment?.ToolChainDir.FullName ?? null;
 
 		public string? ToolChainVersion => Inner.Environment?.ToolChainVersion.ToString() ?? null;
@@ -961,7 +960,6 @@ namespace UnrealBuildTool
 		public int MaxNumTlsSlots => Inner.MaxNumTlsSlots;
 
 		public int MaxNumThreadsWithTlsSlots => Inner.MaxNumThreadsWithTlsSlots;
-
 
 #pragma warning restore CS1591
 		#endregion
@@ -1770,7 +1768,7 @@ namespace UnrealBuildTool
 				case UnrealTargetConfiguration.Debug:
 				default:
 					return true;
-			};
+			}
 		}
 
 		/// <summary>

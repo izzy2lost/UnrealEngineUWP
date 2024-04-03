@@ -81,10 +81,7 @@ namespace UnrealBuildTool
 				{
 					Logger.LogInformation("@progress '{Message}' {ProgressString}", Message, ProgressString);
 				}
-				if (Status != null)
-				{
-					Status.SetProgress(ProgressString);
-				}
+				Status?.SetProgress(ProgressString);
 			}
 		}
 	}

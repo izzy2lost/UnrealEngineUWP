@@ -312,18 +312,9 @@ namespace UnrealBuildTool
 			}
 
 			// Write the custom build steps
-			if (InitSteps != null)
-			{
-				InitSteps.Write(Writer, "InitSteps");
-			}
-			if (PreBuildSteps != null)
-			{
-				PreBuildSteps.Write(Writer, "PreBuildSteps");
-			}
-			if (PostBuildSteps != null)
-			{
-				PostBuildSteps.Write(Writer, "PostBuildSteps");
-			}
+			InitSteps?.Write(Writer, "InitSteps");
+			PreBuildSteps?.Write(Writer, "PreBuildSteps");
+			PostBuildSteps?.Write(Writer, "PostBuildSteps");
 		}
 	}
 }

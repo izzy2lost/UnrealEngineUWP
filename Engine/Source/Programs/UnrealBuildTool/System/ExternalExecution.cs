@@ -1075,7 +1075,7 @@ namespace UnrealBuildTool
 					{
 						foreach (string Arg in Makefile.UHTAdditionalArguments)
 						{
-							if (Arg[0] == '"' && Arg[Arg.Length - 1] == '"')
+							if (Arg[0] == '"' && Arg[^1] == '"')
 							{
 								CmdArgs.Add(Arg.Substring(1, Arg.Length - 2));
 							}

@@ -84,7 +84,6 @@ namespace UnrealBuildTool
 			return Enumerable.Empty<Type>();
 		}
 
-
 		/// <summary>
 		/// The base directories for this assembly
 		/// </summary>
@@ -306,10 +305,7 @@ namespace UnrealBuildTool
 		/// <param name="ModuleNames">List to receive the module names</param>
 		public void GetAllModuleNames(List<string> ModuleNames)
 		{
-			if (Parent != null)
-			{
-				Parent.GetAllModuleNames(ModuleNames);
-			}
+			Parent?.GetAllModuleNames(ModuleNames);
 			if (CompiledAssembly != null)
 			{
 				ModuleNames.AddRange(CompiledAssembly.GetTypes().Where(x => x.IsClass && x.IsSubclassOf(typeof(ModuleRules)) && ModuleNameToModuleFile.ContainsKey(x.Name)).Select(x => x.Name));
@@ -382,7 +378,7 @@ namespace UnrealBuildTool
 			}
 			else
 			{
-				return (Parent == null) ? null : Parent.GetModuleFileName(ModuleName);
+				return Parent?.GetModuleFileName(ModuleName);
 			}
 		}
 
@@ -399,7 +395,7 @@ namespace UnrealBuildTool
 			}
 			else
 			{
-				return (Parent == null) ? null : Parent.GetModuleRulesType(ModuleName);
+				return Parent?.GetModuleRulesType(ModuleName);
 			}
 		}
 
@@ -435,7 +431,7 @@ namespace UnrealBuildTool
 			}
 			else
 			{
-				return (Parent == null) ? null : Parent.GetTargetFileName(TargetName);
+				return Parent?.GetTargetFileName(TargetName);
 			}
 		}
 
@@ -513,7 +509,7 @@ namespace UnrealBuildTool
 			}
 
 			// Figure out the best rules object to use
-			Type? RulesObjectType = PlatformRulesObjectType != null ? PlatformRulesObjectType : BaseRulesObjectType;
+			Type? RulesObjectType = PlatformRulesObjectType ?? BaseRulesObjectType;
 			if (RulesObjectType == null)
 			{
 				throw new CompilationResultException(CompilationResult.RulesError, "Expecting to find a type to be declared in a module rules named '{ModuleTypeName}' in '{AssemblyName}'.  This type must derive from the 'ModuleRules' type defined by UnrealBuildTool.",
@@ -819,7 +815,6 @@ namespace UnrealBuildTool
 				}
 			}
 		}
-
 
 		/// <summary>
 		/// Creates a target rules object for the specified target name.

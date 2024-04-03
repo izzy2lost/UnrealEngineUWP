@@ -282,7 +282,6 @@ namespace UnrealBuildTool
 			// Create the import library if needed
 			OutputFiles.AddRange(ToolChain.LinkImportLibrary(BinaryLinkEnvironment, Graph));
 
-
 			// Override the build to be a console app (i.e. only build a console app)
 			if (bBuildConsoleAppOnly)
 			{
@@ -309,8 +308,6 @@ namespace UnrealBuildTool
 					OutputFiles.AddRange(ToolChain.PostBuild(Target, Executable, ConsoleAppLinkEnvironment, Graph));
 				}
 			}
-
-
 
 			// Link the binary.
 			FileItem[] Executables = ToolChain.LinkAllFiles(BinaryLinkEnvironment, false, Graph);

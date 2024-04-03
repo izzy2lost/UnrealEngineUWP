@@ -2889,14 +2889,11 @@ namespace UnrealBuildTool
 				{
 					List<DirectoryReference> RootDirectories = new List<DirectoryReference>();
 					RootDirectories.Add(Unreal.EngineDirectory);
-					if (ProjectFile != null)
+					DirectoryReference? ProjectDir = DirectoryReference.FromFile(ProjectFile);
+					if (ProjectDir != null)
 					{
-						DirectoryReference ProjectDir = DirectoryReference.FromFile(ProjectFile);
 						RootDirectories.Add(ProjectDir);
-						if (ProjectDescriptor != null)
-						{
-							ProjectDescriptor.AddAdditionalPaths(RootDirectories, ProjectDir);
-						}
+						ProjectDescriptor?.AddAdditionalPaths(RootDirectories, ProjectDir);
 					}
 
 					Dictionary<UEBuildModule, Dictionary<RestrictedFolder, DirectoryReference>> ModuleRestrictedFolderCache = new Dictionary<UEBuildModule, Dictionary<RestrictedFolder, DirectoryReference>>();
@@ -4730,10 +4727,7 @@ namespace UnrealBuildTool
 					}
 				}
 
-				if (EnabledUhtPlugins != null)
-				{
-					EnabledUhtPlugins.SortBy(P => P.FullName);
-				}
+				EnabledUhtPlugins?.SortBy(P => P.FullName);
 			}
 		}
 

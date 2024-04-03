@@ -259,7 +259,6 @@ namespace UnrealBuildTool
 							// Ensure the intermediate environment does not conflict with normal builds
 							TargetDescriptors[0].IntermediateEnvironment = UnrealIntermediateEnvironment.Query;
 
-
 							UEBuildTarget CurrentTarget;
 							using (GlobalTracer.Instance.BuildSpan("UEBuildTarget.Create()").StartActive())
 							{
@@ -299,9 +298,8 @@ namespace UnrealBuildTool
 
 				var Reply = new
 				{
-					Targets = Targets,
-
-					DefaultTarget = DefaultTarget,
+					Targets,
+					DefaultTarget,
 					DefaultPlatform = Platforms[0].ToString(),
 					DefaultConfiguration = UnrealTargetConfiguration.Development.ToString(),
 				};

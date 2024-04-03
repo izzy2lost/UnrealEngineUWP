@@ -347,7 +347,7 @@ namespace UnrealBuildTool
 			if (RawObject.TryGetBoolField("CanBeUsedWithUnrealHeaderTool", out bCanBeUsedWithUnrealHeaderTool) && bCanBeUsedWithUnrealHeaderTool)
 			{
 				Array.Resize(ref SupportedPrograms, (SupportedPrograms == null) ? 1 : SupportedPrograms.Length + 1);
-				SupportedPrograms[SupportedPrograms.Length - 1] = "UnrealHeaderTool";
+				SupportedPrograms[^1] = "UnrealHeaderTool";
 			}
 
 			RawObject.TryGetBoolField("RequiresBuildPlatform", out bRequiresBuildPlatform);
@@ -516,15 +516,9 @@ namespace UnrealBuildTool
 
 			LocalizationTargetDescriptor.WriteArray(Writer, "LocalizationTargets", LocalizationTargets);
 
-			if (PreBuildSteps != null)
-			{
-				PreBuildSteps.Write(Writer, "PreBuildSteps");
-			}
+			PreBuildSteps?.Write(Writer, "PreBuildSteps");
 
-			if (PostBuildSteps != null)
-			{
-				PostBuildSteps.Write(Writer, "PostBuildSteps");
-			}
+			PostBuildSteps?.Write(Writer, "PostBuildSteps");
 
 			if (Plugins != null && Plugins.Count > 0)
 			{

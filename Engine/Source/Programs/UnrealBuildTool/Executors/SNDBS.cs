@@ -279,9 +279,7 @@ namespace UnrealBuildTool
 						// Look for any prerequisite actions that produce .pch files and add any .cpp files they depend on
 						List<Dictionary<string, object>>? ExplicitInputFiles = Job["explicit_input_files"] as List<Dictionary<string, object>>;
 
-						if (ExplicitInputFiles != null)
-						{
-							ExplicitInputFiles.AddRange(a.PrerequisiteActions
+						ExplicitInputFiles?.AddRange(a.PrerequisiteActions
 								.Where(Prereq => Prereq.ProducedItems.Any(Produced => Produced.AbsolutePath.EndsWith(".gch")))
 								.SelectMany(Prereq => Prereq.PrerequisiteItems, (_, PrereqFile) => PrereqFile.AbsolutePath)
 								.Where(Path => Path.EndsWith(".cpp"))
@@ -289,7 +287,6 @@ namespace UnrealBuildTool
 								{
 									["filename"] = Path
 								}));
-						}
 					}
 
 					string CommandDescription = String.IsNullOrWhiteSpace(a.CommandDescription) ? a.ActionType.ToString() : a.CommandDescription;

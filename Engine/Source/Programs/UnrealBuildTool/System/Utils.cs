@@ -525,7 +525,6 @@ namespace UnrealBuildTool
 			return UEBuildPlatform.GetPlatformsInGroup(Group);
 		}
 
-
 		/// <summary>
 		/// Given a list of supported platforms, returns a list of names of platforms that should not be supported
 		/// </summary>
@@ -643,10 +642,7 @@ namespace UnrealBuildTool
 					bCanCheckDoubleSeparators = true;
 				}
 
-				if (CleanPath != null)
-				{
-					CleanPath.Append(C);
-				}
+				CleanPath?.Append(C);
 				PrevC = C;
 			}
 			return CleanPath != null ? CleanPath.ToString() : FilePath;
@@ -853,11 +849,8 @@ namespace UnrealBuildTool
 			}
 			finally
 			{
-				if (XmlStream != null)
-				{
-					// Done with the file so close it
-					XmlStream.Close();
-				}
+				// Done with the file so close it
+				XmlStream?.Close();
 			}
 
 			return Instance;
@@ -906,11 +899,8 @@ namespace UnrealBuildTool
 			}
 			finally
 			{
-				if (XmlStream != null)
-				{
-					// Done with the file so close it
-					XmlStream.Close();
-				}
+				// Done with the file so close it
+				XmlStream?.Close();
 			}
 
 			return (bSuccess);

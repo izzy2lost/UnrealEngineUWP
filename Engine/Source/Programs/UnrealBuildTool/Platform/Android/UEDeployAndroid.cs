@@ -1464,7 +1464,10 @@ namespace UnrealBuildTool
 				{
 					DebugVulkanLayerDirectory = Environment.ExpandEnvironmentVariables(DebugVulkanLayerDirectory);
 					if (!Path.IsPathRooted(DebugVulkanLayerDirectory))
+					{
 						DebugVulkanLayerDirectory = Path.Combine(Unreal.RootDirectory.ToString(), DebugVulkanLayerDirectory);
+					}
+
 					string LayersDir = Path.Combine(DebugVulkanLayerDirectory, NDKArch);
 
 					if (Directory.Exists(LayersDir))
@@ -4338,7 +4341,7 @@ namespace UnrealBuildTool
 			File.WriteAllText(BuildTypeFilename, BuildTypeID);
 
 			// cache if we want data in the Apk
-			bool bPackageDataInsideApk = bDisallowPackagingDataInApk ? false : GetPackageDataInsideApk();
+			bool bPackageDataInsideApk = !bDisallowPackagingDataInApk && GetPackageDataInsideApk();
 			bool bDisableVerifyOBBOnStartUp = DisableVerifyOBBOnStartUp();
 			bool bUseExternalFilesDir = UseExternalFilesDir(bDisallowExternalFilesDir);
 
@@ -6362,10 +6365,7 @@ import java.util.Collection;
 							}
 						}
 
-						if (UseSDKNode != null)
-						{
-							UseSDKNode.Remove();
-						}
+						UseSDKNode?.Remove();
 
 						// rewrite the manifest if different
 						string NewManifestText = ManifestXML.ToString();

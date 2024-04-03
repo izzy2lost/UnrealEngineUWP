@@ -419,7 +419,6 @@ namespace UnrealBuildTool
 			return ProjectDirectory;
 		}
 
-
 		/// <inheritdoc/>
 		protected override string EscapePreprocessorDefinition(string Definition)
 		{

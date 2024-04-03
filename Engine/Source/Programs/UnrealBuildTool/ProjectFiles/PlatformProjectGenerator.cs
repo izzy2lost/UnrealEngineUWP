@@ -292,10 +292,14 @@ namespace UnrealBuildTool
 			public void PatchProperty(string PropertyName, bool bPreserveExistingValue = false)
 			{
 				if (!PropertiesToPatchContainer.Contains(PropertyName))
+				{
 					PropertiesToPatchContainer.Add(PropertyName);
+				}
 
 				if (bPreserveExistingValue && !PropertiesToPatchOrderButPreserveValueContainer.Contains(PropertyName))
+				{
 					PropertiesToPatchOrderButPreserveValueContainer.Add(PropertyName);
+				}
 			}
 
 			private HashSet<string> PropertiesToPatchContainer = new();

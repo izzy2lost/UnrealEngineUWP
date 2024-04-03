@@ -1141,10 +1141,7 @@ namespace UnrealBuildTool
 			foreach (UnrealTargetPlatform SupportedPlatform in SupportedPlatforms)
 			{
 				PlatformProjectGenerator? ProjGenerator = PlatformProjectGenerators.GetPlatformProjectGenerator(SupportedPlatform, true);
-				if (ProjGenerator != null)
-				{
-					ProjGenerator.GetUnrealVSConfigurationEntries(UnrealVSContent);
-				}
+				ProjGenerator?.GetUnrealVSConfigurationEntries(UnrealVSContent);
 			}
 			if (UnrealVSContent.Length > 0)
 			{

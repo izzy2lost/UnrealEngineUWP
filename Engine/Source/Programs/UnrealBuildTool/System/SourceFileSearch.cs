@@ -80,10 +80,7 @@ namespace UnrealBuildTool
 
 		static void FindFilesInternal(DirectoryReference Directory, string[] ExcludedDirectorySuffixes, List<FileReference> FoundFiles, HashSet<DirectoryReference>? SearchedDirectories)
 		{
-			if (SearchedDirectories != null)
-			{
-				SearchedDirectories.Add(Directory);
-			}
+			SearchedDirectories?.Add(Directory);
 
 			foreach (FileReference File in DirectoryLookupCache.EnumerateFiles(Directory))
 			{

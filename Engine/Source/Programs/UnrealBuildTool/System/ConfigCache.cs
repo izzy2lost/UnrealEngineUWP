@@ -349,7 +349,7 @@ namespace UnrealBuildTool
 			if (bDumpIniLoads)
 			{
 				Logger = Log.Logger;
-			};
+			}
 
 			// Try to get the cached hierarchy with this key
 			Logger.LogInformation($"Requested Hierarchy: {Type},{ProjectDir},{Platform},{CustomConfig}");

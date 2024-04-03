@@ -1251,11 +1251,11 @@ namespace UnrealBuildTool
 				// Allow partial PDBs for faster linking on Clang and Intel
 				if (Target.WindowsPlatform.Compiler.IsClang() && Target.WindowsPlatform.bAllowClangLinker)
 				{
-					Arguments[Arguments.Count - 1] = "/DEBUG:GHASH";
+					Arguments[^1] = "/DEBUG:GHASH";
 				}
 				else
 				{
-					Arguments[Arguments.Count - 1] = "/DEBUG:FASTLINK";
+					Arguments[^1] = "/DEBUG:FASTLINK";
 				}
 			}
 
@@ -1558,7 +1558,9 @@ namespace UnrealBuildTool
 
 					// If we are building without unity files the multithread part balances out with the start/exit of all the actions
 					if (!CompileEnvironment.bUseUnity)
+					{
 						BaseCompileAction.Weight = 1.0f + (BaseCompileAction.Weight - 1.0f) * 0.5f;
+					}
 				}
 			}
 			else if (Target.WindowsPlatform.Compiler.IsClang())

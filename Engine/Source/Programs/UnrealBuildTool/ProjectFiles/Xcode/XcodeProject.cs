@@ -1698,7 +1698,6 @@ namespace UnrealBuildTool.XcodeProjectXcconfig
 							Logger.LogInformation("Copying project's provision '{SourceProvision}' to your libary: '{TargetProvision}'", ProfileFile, InstalledProfileFile);
 						}
 
-
 						SigningName = UUID;
 					}
 					else
@@ -1776,7 +1775,6 @@ namespace UnrealBuildTool.XcodeProjectXcconfig
 			PlatformIni.TryGetValue("/Script/MacTargetPlatform.XcodeProjectSettings", $"{Platform}SigningIdentity", out SigningIdentity);
 			PlatformIni.TryGetValue("/Script/MacTargetPlatform.XcodeProjectSettings", "AppCategory", out AppCategory);
 			PlatformIni.TryGetValue("/Script/MacTargetPlatform.XcodeProjectSettings", "ApplicationDisplayName", out ApplicationDisplayName);
-
 
 			if (Platform == UnrealTargetPlatform.Mac)
 			{

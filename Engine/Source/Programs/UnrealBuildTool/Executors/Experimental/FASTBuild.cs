@@ -1012,7 +1012,7 @@ namespace UnrealBuildTool
 
 				if (PrefferedMSVCRedistPath == null)
 				{
-					PrefferedMSVCRedistPath = PotentialMSVCRedistPaths[PotentialMSVCRedistPaths.Count - 2];
+					PrefferedMSVCRedistPath = PotentialMSVCRedistPaths[^2];
 
 					if (MsvcCRTRedistVersion.Length > 0)
 					{

@@ -79,7 +79,6 @@ namespace UnrealBuildTool
 			return AGDEInstalled;
 		}
 
-
 		/// <inheritdoc/>
 		public override string GetVisualStudioPlatformName(VSSettings InVSSettings)
 		{
