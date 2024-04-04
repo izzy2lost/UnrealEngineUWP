@@ -87,6 +87,8 @@ bool IStreamedCompressedInfo::ReadCompressedInfo(const uint8* InSrcBufferData, u
 	// Parse the format header, this is done different for each format
 	if (!ParseHeader(InSrcBufferData, InSrcBufferDataSize, QualityInfo))
 	{
+		UE_LOG(LogAudio, Error, TEXT("IStreamedCompressedInfo::ReadCompressedInfo: Failed to Parse Header"));
+		bHasError = true;
 		return false;
 	}
 
