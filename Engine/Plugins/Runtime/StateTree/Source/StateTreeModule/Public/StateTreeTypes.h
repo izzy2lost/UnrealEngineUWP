@@ -597,6 +597,12 @@ USTRUCT()
 struct STATETREEMODULE_API FCompactStateTreeState
 {
 	GENERATED_BODY()
+
+	FCompactStateTreeState()
+		: bHasTransitionTasks(false)
+		, bEnabled(true)
+	{
+	}
 	
 	/** @return Index to the next sibling state. */
 	uint16 GetNextSibling() const { return ChildrenEnd; }
@@ -690,15 +696,11 @@ struct STATETREEMODULE_API FCompactStateTreeState
 
 	/** True if the state contains tasks that should be called during transition handling. */
 	UPROPERTY()
-	uint8 bHasTransitionTasks : 1 = false;
-
-	/** Should state's required event and enter conditions be evaluated when transition leads directly to it's child. */
-	UPROPERTY()
-	uint8 bCheckPrerequisitesWhenActivatingChildDirectly : 1 = false;
+	uint8 bHasTransitionTasks : 1;
 
 	/** True if the state is Enabled (i.e. not explicitly marked as disabled). */
 	UPROPERTY()
-	uint8 bEnabled : 1 = true;
+	uint8 bEnabled : 1;
 };
 
 USTRUCT()

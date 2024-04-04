@@ -587,7 +587,7 @@ protected:
 		const FStateTreeExecutionFrame* CurrentParentFrame,
 		FStateTreeExecutionFrame& CurrentFrame,
 		const FStateTreeExecutionFrame* CurrentFrameInActiveFrames,
-		TConstArrayView<FStateTreeStateHandle> PathToNextState,
+		const FStateTreeStateHandle NextStateHandle,
 		FStateSelectionResult& OutSelectionResult,
 		const FStateTreeSharedEvent* TransitionEvent = nullptr);
 
