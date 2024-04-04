@@ -76,42 +76,48 @@ void FSourceControlViewportToolTips::UpdateCanvas(float DeltaTime)
 		if (TSharedPtr<SLevelViewport> ViewportWidgetPtr = ViewportWidget.Pin())
 		{
 			FViewport* Viewport = ViewportWidgetPtr->GetViewportClient()->Viewport;
-			check(Viewport);
-
-			int32 MouseX = Viewport->GetMouseX();
-			int32 MouseY = Viewport->GetMouseY();
-			if (ActorMouseX != MouseX || ActorMouseY != MouseY)
+			if (Viewport && Viewport->GetRenderTargetTexture())
 			{
-				Actor.Reset();
-				UpdateToolTip();
-
-				ActorMouseX = MouseX;
-				ActorMouseY = MouseY;
-			}
-
-			HActor* ActorHitProxy = HitProxyCast<HActor>(Viewport->GetHitProxy(MouseX, MouseY));
-			if (ActorHitProxy == nullptr)
-			{
-				Actor.Reset();
-				UpdateToolTip();
-			}
-			if (ActorHitProxy != nullptr && ActorHitProxy->Actor != Actor)
-			{
-				Actor.Reset();
-				UpdateToolTip();
-
-				Actor = MakeWeakObjectPtr(ActorHitProxy->Actor);
-				ActorTime = FPlatformTime::Seconds();
-				DelayTime = 0;
-			}
-
-			if (Actor.IsValid())
-			{
-				DelayTime += DeltaTime;
-				if (DelayTime >= 0.15f) // See: Slate.TooltipSummonDelay
+				int32 MouseX = Viewport->GetMouseX();
+				int32 MouseY = Viewport->GetMouseY();
+				if (ActorMouseX != MouseX || ActorMouseY != MouseY)
 				{
+					Actor.Reset();
+					UpdateToolTip();
+
+					ActorMouseX = MouseX;
+					ActorMouseY = MouseY;
+				}
+
+				HActor* ActorHitProxy = HitProxyCast<HActor>(Viewport->GetHitProxy(MouseX, MouseY));
+				if (ActorHitProxy == nullptr)
+				{
+					Actor.Reset();
 					UpdateToolTip();
 				}
+				if (ActorHitProxy != nullptr && ActorHitProxy->Actor != Actor)
+				{
+					Actor.Reset();
+					UpdateToolTip();
+
+					Actor = MakeWeakObjectPtr(ActorHitProxy->Actor);
+					ActorTime = FPlatformTime::Seconds();
+					DelayTime = 0;
+				}
+
+				if (Actor.IsValid())
+				{
+					DelayTime += DeltaTime;
+					if (DelayTime >= 0.15f) // See: Slate.TooltipSummonDelay
+					{
+						UpdateToolTip();
+					}
+				}
+			}
+			else
+			{
+				Actor.Reset();
+				UpdateToolTip();
 			}
 		}
 	}
