@@ -175,6 +175,10 @@ static bool IsSceneNodeASocket(const UInterchangeSceneNode* SceneNode)
 
 bool FInterchangePipelineMeshesUtilitiesContext::IsStaticMeshInstance(const FInterchangeMeshInstance& MeshInstance, UInterchangeBaseNodeContainer* BaseNodeContainer)
 {
+	if (bIgnoreStaticMeshes)
+	{
+		return false;
+	}
 	return !IsSkeletalMeshInstance(MeshInstance, BaseNodeContainer);
 }
 
@@ -215,6 +219,10 @@ bool FInterchangePipelineMeshesUtilitiesContext::IsSkeletalMeshInstance(const FI
 
 bool FInterchangePipelineMeshesUtilitiesContext::IsStaticMeshGeometry(const FInterchangeMeshGeometry& MeshGeometry)
 {
+	if (bIgnoreStaticMeshes)
+	{
+		return false;
+	}
 	if (bQueryGeometryOnlyIfNoInstance && MeshGeometry.ReferencingMeshInstanceUids.Num() > 0)
 	{
 		return false;

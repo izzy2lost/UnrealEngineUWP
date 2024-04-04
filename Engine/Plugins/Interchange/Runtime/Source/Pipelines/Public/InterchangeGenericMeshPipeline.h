@@ -229,8 +229,7 @@ public:
 #endif
 
 	static UInterchangePipelineMeshesUtilities* CreateMeshPipelineUtilities(UInterchangeBaseNodeContainer* InBaseNodeContainer
-		, const UInterchangeGenericMeshPipeline* Pipeline
-		, const bool bAutoDetectType);
+		, const UInterchangeGenericMeshPipeline* Pipeline);
 
 protected:
 	virtual void ExecutePipeline(UInterchangeBaseNodeContainer* InBaseNodeContainer, const TArray<UInterchangeSourceData*>& InSourceDatas, const FString& ContentBasePath) override;
@@ -347,6 +346,16 @@ private:
 
 	/* Static mesh API END                                                */
 	/************************************************************************/
+
+	/**
+	 * Fill all reference parameter from the translated node found in the container
+	 */
+	void GetMeshesInformationFromTranslatedData(const UInterchangeBaseNodeContainer* InBaseNodeContainer
+		, bool& bAutoDetectConvertStaticMeshToSkeletalMesh
+		, bool& bContainStaticMesh
+		, bool& bContainSkeletalMesh
+		, bool& bContainStaticMeshAnimationNode
+		, bool& bIgnoreStaticMeshes) const;
 
 private:
 
