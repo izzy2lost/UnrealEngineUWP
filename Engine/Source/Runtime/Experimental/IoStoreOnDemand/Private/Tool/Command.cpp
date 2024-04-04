@@ -15,7 +15,7 @@
 #	include "Windows/HideWindowsPlatformTypes.h"
 #endif
 
-namespace UE::IO::IAS::Tool {
+namespace UE::IoStore::Tool {
 
 ////////////////////////////////////////////////////////////////////////////////
 namespace Error
@@ -578,6 +578,6 @@ void CommandTest()
 	}
 }
 
-} // namespace UE::IO::IAS::Tool
+} // namespace UE::IoStore::Tool
 
 #endif // UE_WITH_IAS_TOOL

@@ -8,7 +8,7 @@
 #include "HAL/PlatformTime.h"
 #include "IO/IoStoreOnDemand.h"
 
-namespace UE::IO::IAS
+namespace UE::IoStore
 {
 
 static int32 GIasHttpFailTimeOutMs = 4 * 1000;
@@ -107,7 +107,7 @@ TUniquePtr<FHttpClient> FHttpClient::Create(FHttpClientConfig&& ClientConfig)
 		}
 
 		//TODO: Get rid of all string conversions
-		if (UE::IO::IAS::HTTP::FConnectionPool::IsValidHostUrl(StringCast<ANSICHAR>(*Ep, Ep.Len())) == false)
+		if (UE::IoStore::HTTP::FConnectionPool::IsValidHostUrl(StringCast<ANSICHAR>(*Ep, Ep.Len())) == false)
 		{
 			return TUniquePtr<FHttpClient>();
 		}
@@ -125,7 +125,7 @@ TUniquePtr<FHttpClient> FHttpClient::Create(const FString& Endpoint)
 
 void FHttpClient::IssueRequest(FRequestParams&& Params)
 {
-	using namespace UE::IO::IAS::HTTP;
+	using namespace UE::IoStore::HTTP;
 
 	//TODO: Remove string conversion
 	const auto Url = StringCast<ANSICHAR>(*Params.Url, Params.Url.Len());
@@ -263,4 +263,4 @@ const FString& FHttpClient::GetEndpointUrl(int32 Endpoint)
 	return Endpoint == INDEX_NONE ? None : Config.Endpoints[Endpoint];
 }
 
-} //namespace UE::IO::IAS
+} //namespace UE::IoStore

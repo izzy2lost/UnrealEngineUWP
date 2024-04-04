@@ -81,7 +81,7 @@ static const SocketType InvalidSocket = ~SocketType(0);
 
 // }}}
 
-namespace UE::IO::IAS::HTTP
+namespace UE::IoStore::HTTP
 {
 
 // {{{1 trace ..................................................................
@@ -4119,4 +4119,4 @@ IOSTOREONDEMAND_API void IasHttpTest(const ANSICHAR* TestHost="localhost")
 
 // }}}
 
-} // namespace UE::IO::IAS::HTTP
+} // namespace UE::IoStore::HTTP

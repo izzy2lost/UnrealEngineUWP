@@ -15,7 +15,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 class FIoBuffer;
 
-namespace UE::IO::IAS::HTTP
+namespace UE::IoStore::HTTP
 {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -215,7 +215,7 @@ private:
 	FEventLoop&				operator = (FEventLoop&&)		= delete;
 };
 
-} // namespace UE::IO::IAS::HTTP
+} // namespace UE::IoStore::HTTP
 
 #undef UE_API
 

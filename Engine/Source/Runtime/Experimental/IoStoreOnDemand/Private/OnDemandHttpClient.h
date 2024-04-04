@@ -11,7 +11,7 @@
 #include "Templates/Function.h"
 #include "Templates/UniquePtr.h"
 
-namespace UE::IO::IAS
+namespace UE::IoStore
 {
 
 struct FHttpClientConfig
@@ -67,4 +67,4 @@ private:
 	int32 CurrentEndpoint = INDEX_NONE;
 };
 
-} // namespace UE::IO::IAS
+} // namespace UE::IoStore

@@ -5,9 +5,9 @@
 #include "Containers/ArrayView.h"
 #include "Containers/StringFwd.h"
 
-namespace UE::IO::IAS::HTTP
+namespace UE::IoStore::HTTP
 {
 
 void LatencyTest(FStringView InUrl, FStringView InPath, uint32 InTimeOutMs, TArrayView<int32> OutResults);
 
-} // namespace UE::IO::IAS::HTTP
+} // namespace UE::IoStore::HTTP

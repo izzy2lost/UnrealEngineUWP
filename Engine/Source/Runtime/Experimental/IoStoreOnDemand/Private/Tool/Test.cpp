@@ -9,7 +9,7 @@
 #include <Containers/UnrealString.h>
 #include <Misc/CommandLine.h>
 
-namespace UE::IO::IAS {
+namespace UE::IoStore {
 
 ////////////////////////////////////////////////////////////////////////////////
 namespace IasJournaledFileCacheTest { void Tests(const TCHAR*);				}
@@ -74,6 +74,6 @@ static FCommand TestCommand(
 );
 
 } // namespace Tool
-} // namespace UE::IO::IAS
+} // namespace UE::IoStore
 
 #endif // UE_WITH_IAS_TOOL

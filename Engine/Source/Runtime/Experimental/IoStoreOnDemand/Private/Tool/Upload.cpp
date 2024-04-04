@@ -10,7 +10,8 @@
 #include <Misc/Paths.h>
 #include <Misc/PathViews.h>
 
-namespace UE::IO::IAS::Tool {
+namespace UE::IoStore::Tool
+{
 
 ////////////////////////////////////////////////////////////////////////////////
 static FKeyChain LoadKeys(const FContext& Context)
@@ -150,6 +151,6 @@ static FCommand UploadCommand(
 	}
 );
 
-} // namespace UE::IO::IAS::Tool
+} // namespace UE::IoStore::Tool
 
 #endif // UE_WITH_IAS_TOOL

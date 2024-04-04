@@ -8,7 +8,7 @@
 class IIasCache;
 struct FAnalyticsEventAttribute;
 
-namespace UE::IO::IAS
+namespace UE::IoStore
 {
 
 struct FDistributedEndpointUrl
@@ -65,4 +65,4 @@ public:
 
 TSharedPtr<IOnDemandIoDispatcherBackend> MakeOnDemandIoDispatcherBackend(TUniquePtr<IIasCache>&& Cache);
 
-} // namespace UE::IO::IAS
+} // namespace UE::IoStore

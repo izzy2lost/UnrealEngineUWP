@@ -4,7 +4,7 @@
 
 #include "Command.h"
 
-namespace UE::IO::IAS::Tool {
+namespace UE::IoStore::Tool {
 
 ////////////////////////////////////////////////////////////////////////////////
 FArgumentSet S3Arguments = {
@@ -24,6 +24,6 @@ int32 Main(int32 ArgC, TCHAR* ArgV[])
 	return FCommand::Main(ArgC, ArgV);
 }
 
-} // namespace UE::IO::IAS::Tool
+} // namespace UE::IoStore::Tool
 
 #endif // UE_WITH_IAS_TOOL

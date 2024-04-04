@@ -27,7 +27,7 @@ class IIoStoreWriter;
 struct FAnalyticsEventAttribute;
 struct FIoContainerSettings;
 struct FIoStoreWriterSettings;
-namespace UE::IO::IAS { struct FOnDemandEndpoint; }
+namespace UE::IoStore { struct FOnDemandEndpoint; }
 using FIoBlockHash = uint32;
 
 // Custom initialization allows users to control when
@@ -38,7 +38,7 @@ using FIoBlockHash = uint32;
 
 UE_API DECLARE_LOG_CATEGORY_EXTERN(LogIas, Log, All);
 
-namespace UE::IO::IAS
+namespace UE::IoStore
 {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -369,6 +369,6 @@ public:
 #endif //UE_IAS_CUSTOM_INITIALIZATION
 };
 
-} // namespace UE::IO::IAS
+} // namespace UE::IoStore
 
 #undef UE_API

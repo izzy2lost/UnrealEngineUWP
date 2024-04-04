@@ -55,7 +55,7 @@
 /** When enabled the IAS system can add additional debug console commands for development use */
 #define UE_IAS_DEBUG_CONSOLE_CMDS (1 && !NO_CVARS && !UE_BUILD_SHIPPING)
 
-namespace UE::IO::IAS
+namespace UE::IoStore
 {
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -230,7 +230,7 @@ static void LatencyTest(FStringView Url, FStringView Path)
 	TRACE_CPUPROFILER_EVENT_SCOPE(IasBackend::LatencyTest);
 
 	int32 Results[4] = {};
-	UE::IO::IAS::HTTP::LatencyTest(Url, Path, GIasHttpTimeOutMs, MakeArrayView(Results));
+	UE::IoStore::HTTP::LatencyTest(Url, Path, GIasHttpTimeOutMs, MakeArrayView(Results));
 	UE_LOG(LogIas, Log, TEXT("Endpoint '%s' latency test (ms): %d %d %d %d"),
 		Url.GetData(), Results[0], Results[1], Results[2], Results[3]);
 }
@@ -267,7 +267,7 @@ static int32 LatencyTest(TConstArrayView<FString> Urls, FStringView Path, std::a
 	for (int32 Idx = 0; Idx < Urls.Num() && !bCancel.load(std::memory_order_relaxed); ++Idx)
 	{
 		int32 LatencyMs = -1;
-		UE::IO::IAS::HTTP::LatencyTest(Urls[Idx], Path, GIasHttpTimeOutMs, MakeArrayView(&LatencyMs, 1));
+		UE::IoStore::HTTP::LatencyTest(Urls[Idx], Path, GIasHttpTimeOutMs, MakeArrayView(&LatencyMs, 1));
 		if (LatencyMs > 0)
 		{
 			return Idx;
@@ -2597,6 +2597,6 @@ TSharedPtr<IOnDemandIoDispatcherBackend> MakeOnDemandIoDispatcherBackend(TUnique
 	return MakeShareable<IOnDemandIoDispatcherBackend>(new FOnDemandIoBackend(MoveTemp(Cache)));
 }
 
-} // namespace UE::IO::IAS
+} // namespace UE::IoStore
 
 #undef UE_IAS_DEBUG_CONSOLE_CMDS

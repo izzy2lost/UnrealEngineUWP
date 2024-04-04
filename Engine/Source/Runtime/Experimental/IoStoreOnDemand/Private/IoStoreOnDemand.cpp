@@ -47,7 +47,7 @@
 
 DEFINE_LOG_CATEGORY(LogIas);
 
-namespace UE::IO::IAS
+namespace UE::IoStore
 {
 
 FString GIasOnDemandTocExt = TEXT(".uondemandtoc");
@@ -2651,8 +2651,8 @@ EOnDemandInitResult FIoStoreOnDemandModule::Initialize()
 
 #endif // UE_IAS_CUSTOM_INITIALIZATION
 
-} // namespace UE::IO::IAS
+} // namespace UE::IoStore
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IMPLEMENT_MODULE(UE::IO::IAS::FIoStoreOnDemandModule, IoStoreOnDemand);
+IMPLEMENT_MODULE(UE::IoStore::FIoStoreOnDemandModule, IoStoreOnDemand);

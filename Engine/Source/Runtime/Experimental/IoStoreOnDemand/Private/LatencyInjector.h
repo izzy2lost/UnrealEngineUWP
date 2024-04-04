@@ -5,7 +5,7 @@
 #include "HAL/Platform.h"
 #include "Misc/Build.h"
 
-namespace UE::IO::IAS
+namespace UE::IoStore
 {
 
 #if !UE_BUILD_SHIPPING
@@ -26,4 +26,4 @@ struct FLatencyInjector
 	static bool HasExpired(uint32 Param)			IAS_DISABLED_IMPL(return true);
 };
 
-} // namespace UE::IO::IAS
+} // namespace UE::IoStore

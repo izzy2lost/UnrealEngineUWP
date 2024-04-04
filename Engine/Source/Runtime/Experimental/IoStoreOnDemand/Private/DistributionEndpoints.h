@@ -8,7 +8,7 @@
 #include "HAL/CriticalSection.h"
 #include "HttpFwd.h"
 
-namespace UE::IO::IAS
+namespace UE::IoStore
 {
 
 class FDistributionEndpoints
@@ -45,4 +45,4 @@ private:
 	FDistributionEndpoints::EResult ParseResponse(FHttpResponsePtr HttpResponse, TArray<FString>& OutUrls);
 };
 
-} // namespace UE::IO::IAS
+} // namespace UE::IoStore

@@ -12,11 +12,11 @@
 IMPLEMENT_APPLICATION(IasTool, "IasTool");
 
 ////////////////////////////////////////////////////////////////////////////////
-namespace UE::IO::IAS::Tool {
+namespace UE::IoStore::Tool {
 
 int32 Main(int32, TCHAR*[]);
 
-} // namespace UE::IO::IAS
+} // namespace UE::IoStore
 
 ////////////////////////////////////////////////////////////////////////////////
 INT32_MAIN_INT32_ARGC_TCHAR_ARGV()
@@ -36,5 +36,5 @@ INT32_MAIN_INT32_ARGC_TCHAR_ARGV()
 		FEngineLoop::AppExit();
 	};
 
-	return UE::IO::IAS::Tool::Main(ArgC, ArgV);
+	return UE::IoStore::Tool::Main(ArgC, ArgV);
 }

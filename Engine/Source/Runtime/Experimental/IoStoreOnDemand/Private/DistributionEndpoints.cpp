@@ -14,7 +14,7 @@
 #include "Serialization/JsonSerializer.h"
 #include "Statistics.h"
 
-namespace UE::IO::IAS
+namespace UE::IoStore
 {
 
 static int32 GDistributedEndpointTimeout = 30;
@@ -119,4 +119,4 @@ FDistributionEndpoints::EResult FDistributionEndpoints::ParseResponse(FHttpRespo
 	return EResult::Failure;
 }
 
-} // namespace UE::IO::IAS
+} // namespace UE::IoStore

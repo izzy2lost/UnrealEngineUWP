@@ -10,7 +10,7 @@
 #include "Misc/StringBuilder.h"
 #include "Templates/Function.h"
 
-namespace UE::IO::IAS::HTTP
+namespace UE::IoStore::HTTP
 {
 
 void LatencyTest(FStringView InUrl, FStringView InPath, uint32 InTimeOutMs, TArrayView<int32> OutResults)
@@ -66,4 +66,4 @@ void LatencyTest(FStringView InUrl, FStringView InPath, uint32 InTimeOutMs, TArr
 	UE_LOG(LogIas, Log, TEXT("Testing endpoint %s"), ANSI_TO_TCHAR(ConnectionDesc.ToString()));
 }
 
-} // namespace UE::IO::IAS::HTTP
+} // namespace UE::IoStore::HTTP

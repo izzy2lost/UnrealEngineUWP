@@ -284,7 +284,7 @@ void FStudioTelemetryEditor::RecordEvent_IAS(const FString& Context, TArray<FAna
 	// Gather the summary stats
 	FDerivedDataCacheSummaryStats SummaryStats;
 
-	using namespace UE::IO::IAS;
+	using namespace UE::IoStore;
 	if (FIoStoreOnDemandModule* OnDemandModule = FModuleManager::Get().GetModulePtr<FIoStoreOnDemandModule>("IoStoreOnDemand"))
 	{
 		if (OnDemandModule->IsEnabled())

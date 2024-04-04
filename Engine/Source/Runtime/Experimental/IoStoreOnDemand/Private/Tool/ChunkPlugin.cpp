@@ -18,7 +18,7 @@
 #include "Misc/StringBuilder.h"
 #include "Serialization/LargeMemoryWriter.h"
 
-namespace UE::IO::IAS::Tool
+namespace UE::IoStore::Tool
 {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -314,6 +314,6 @@ static FCommand ChunkPluginCommand(
 	}
 );
 
-} // namespace UE::IO::IAS::Tool
+} // namespace UE::IoStore::Tool
 
 #endif // UE_WITH_IAS_TOOL

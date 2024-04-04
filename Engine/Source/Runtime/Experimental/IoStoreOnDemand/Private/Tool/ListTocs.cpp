@@ -6,7 +6,7 @@
 
 #include <IO/IoStoreOnDemand.h>
 
-namespace UE::IO::IAS::Tool {
+namespace UE::IoStore::Tool {
 
 ////////////////////////////////////////////////////////////////////////////////
 static FIoStoreListTocsParams BuildListTocsParams(const FContext& Context)
@@ -113,6 +113,6 @@ static FCommand ListTocsCommand(
 	}
 );
 
-} // namespace UE::IO::IAS::Tool
+} // namespace UE::IoStore::Tool
 
 #endif // UE_WITH_IAS_TOOL

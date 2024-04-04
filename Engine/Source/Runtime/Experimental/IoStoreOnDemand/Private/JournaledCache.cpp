@@ -43,7 +43,7 @@ writing of data (and journal) to disk depending on how full the memory cache
 is. They are expressed as percentages.
 */
 
-namespace UE::IO::IAS::JournaledCache
+namespace UE::IoStore::JournaledCache
 {
 
 // {{{1 misc ...................................................................
@@ -2073,11 +2073,11 @@ uint32 FServiceThread::UpdateCache(FCache* Cache)
 
 // }}}
 
-} // namespace UE::IO::IAS::JournaledCache
+} // namespace UE::IoStore::JournaledCache
 
 
 
-namespace UE::IO::IAS {
+namespace UE::IoStore {
 
 // {{{1 journaled-cache ........................................................
 
@@ -2998,6 +2998,6 @@ IOSTOREONDEMAND_API void Tests(const TCHAR* CacheDir=nullptr)
 
 // }}}
 
-} // namespace UE::IO::IAS
+} // namespace UE::IoStore
 
 /* vim: set noet foldlevel=1 : */

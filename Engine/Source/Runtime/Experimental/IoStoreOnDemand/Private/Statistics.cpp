@@ -15,7 +15,7 @@ LLM_DEFINE_TAG(Ias);
 
 #if IAS_WITH_STATISTICS
 
-namespace UE::IO::IAS
+namespace UE::IoStore
 {
 
 float GIasStatisticsLogInterval = 30.f;
@@ -661,6 +661,6 @@ void FOnDemandIoBackendStats::OnHttpError()
 	GHttpErrorCount.Add(1);
 }
 
-} // namespace UE::IO::IAS
+} // namespace UE::IoStore
 
 #endif // IAS_WITH_STATISTICS

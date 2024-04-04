@@ -11,7 +11,7 @@
 
 #include <initializer_list>
 
-namespace UE::IO::IAS::Tool {
+namespace UE::IoStore::Tool {
 
 ////////////////////////////////////////////////////////////////////////////////
 struct FArgument
@@ -125,6 +125,6 @@ private:
 	EntryFunc*			Entry;
 };
 
-} // namespace UE::IO::IAS::Tool
+} // namespace UE::IoStore::Tool
 
 #endif // UE_WITH_IAS_TOOL

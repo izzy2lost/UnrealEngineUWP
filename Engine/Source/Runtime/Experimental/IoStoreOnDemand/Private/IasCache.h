@@ -12,7 +12,8 @@ class FIoBuffer;
 class FIoReadOptions;
 struct FIoHash;
 
-namespace UE::IO::IAS {
+namespace UE::IoStore
+{
 
 /** Cache for binary blobs with a 20 byte cache key. */
 class IIasCache
@@ -76,4 +77,4 @@ struct FIasCacheConfig
 
 TUniquePtr<IIasCache> MakeIasCache(const TCHAR* RootDir, const FIasCacheConfig& Config);
 
-} // namespace UE::IO::IAS
+} // namespace UE::IoStore
