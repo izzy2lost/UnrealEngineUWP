@@ -42,6 +42,45 @@ void FAnimNode_PoseSearchHistoryCollector_Base::Initialize_AnyThread(const FAnim
 	Super::Initialize_AnyThread(Context);
 
 	PoseHistory.Initialize_AnyThread(PoseCount, SamplingInterval);
+
+	if (bInitializeWithRefPose)
+	{
+		// initializing PoseHistory with a ref pose at FAnimInstanceProxy location/facing
+		FMemMark Mark(FMemStack::Get());
+		FCSPose<FCompactPose> ComponentSpacePose;
+		ComponentSpacePose.InitPose(&Context.AnimInstanceProxy->GetRequiredBones());
+		PoseHistory.EvaluateComponentSpace_AnyThread(0.f, ComponentSpacePose, bStoreScales, RootBoneRecoveryTime, true, true, GetRequiredBones(Context.AnimInstanceProxy));
+	}
+}
+
+TArray<FBoneIndexType> FAnimNode_PoseSearchHistoryCollector_Base::GetRequiredBones(const FAnimInstanceProxy* AnimInstanceProxy) const
+{
+	check(AnimInstanceProxy);
+
+	TArray<FBoneIndexType> RequiredBones;
+	if (!CollectedBones.IsEmpty())
+	{
+		if (const USkeletalMeshComponent* SkeletalMeshComponent = AnimInstanceProxy->GetSkelMeshComponent())
+		{
+			if (const USkinnedAsset* SkinnedAsset = SkeletalMeshComponent->GetSkinnedAsset())
+			{
+				if (const USkeleton* Skeleton = SkinnedAsset->GetSkeleton())
+				{
+					RequiredBones.Reserve(CollectedBones.Num());
+					for (const FBoneReference& BoneReference : CollectedBones)
+					{
+						FBoneReference BoneReferenceCopy = BoneReference;
+						if (BoneReferenceCopy.Initialize(Skeleton))
+						{
+							RequiredBones.AddUnique(BoneReferenceCopy.BoneIndex);
+						}
+					}
+				}
+			}
+		}
+	}
+
+	return RequiredBones;
 }
 
 void FAnimNode_PoseSearchHistoryCollector_Base::CacheBones_AnyThread(const FAnimationCacheBonesContext& Context)
@@ -51,40 +90,7 @@ void FAnimNode_PoseSearchHistoryCollector_Base::CacheBones_AnyThread(const FAnim
 
 	Super::CacheBones_AnyThread(Context);
 
-	TArray<FBoneIndexType> RequiredBones;
-	if (!CollectedBones.IsEmpty())
-	{
-		if (const USkeletalMeshComponent* SkeletalMeshComponent = Context.AnimInstanceProxy->GetSkelMeshComponent())
-		{
-			if (const USkinnedAsset* SkinnedAsset = SkeletalMeshComponent->GetSkinnedAsset())
-			{
-				if (const USkeleton* Skeleton = SkinnedAsset->GetSkeleton())
-				{
-					RequiredBones.Reserve(CollectedBones.Num());
-					for (FBoneReference& BoneReference : CollectedBones)
-					{
-						if (BoneReference.Initialize(Skeleton))
-						{
-							RequiredBones.AddUnique(BoneReference.BoneIndex);
-						}
-					}
-				}
-			}
-		}
-	}
-
-	PoseHistory.CacheBones_AnyThread(RequiredBones);
-
-	if (bInitializeWithRefPose)
-	{
-		// initializing PoseHistory with a ref pose at FAnimInstanceProxy location/facing
-		FMemMark Mark(FMemStack::Get());
-		FCompactPose Pose;
-		Pose.SetBoneContainer(&Context.AnimInstanceProxy->GetRequiredBones());
-		FCSPose<FCompactPose> ComponentSpacePose;
-		ComponentSpacePose.InitPose(Pose);
-		PoseHistory.EvaluateComponentSpace_AnyThread(0.f, ComponentSpacePose, bStoreScales, RootBoneRecoveryTime);
-	}
+	bCacheBones = true;
 }
 
 void FAnimNode_PoseSearchHistoryCollector_Base::Update_AnyThread(const FAnimationUpdateContext& Context)
@@ -100,16 +106,18 @@ void FAnimNode_PoseSearchHistoryCollector_Base::PreUpdate(const UAnimInstance* I
 {
 	Super::PreUpdate(InAnimInstance);
 	
-	const bool bNeedsReset = bResetOnBecomingRelevant && UpdateCounter.HasEverBeenUpdated() && !UpdateCounter.WasSynchronizedCounter(InAnimInstance->GetUpdateCounter());
-	const float DeltaTime = InAnimInstance->GetDeltaSeconds();
+	if (bGenerateTrajectory)
+	{
+		FPoseSearchTrajectoryData::FSampling TrajectoryDataSampling;
+		TrajectoryDataSampling.NumHistorySamples = FMath::Max(PoseCount, TrajectoryHistoryCount);
+		TrajectoryDataSampling.SecondsPerHistorySample = SamplingInterval;
+		TrajectoryDataSampling.NumPredictionSamples = TrajectoryPredictionCount;
+		TrajectoryDataSampling.SecondsPerPredictionSample = PredictionSamplingInterval;
 
-	FPoseSearchTrajectoryData::FSampling TrajectoryDataSampling;
-	TrajectoryDataSampling.NumHistorySamples = FMath::Max(PoseCount, TrajectoryHistoryCount);
-	TrajectoryDataSampling.SecondsPerHistorySample = SamplingInterval;
-	TrajectoryDataSampling.NumPredictionSamples = TrajectoryPredictionCount;
-	TrajectoryDataSampling.SecondsPerPredictionSample = PredictionSamplingInterval;
+		PoseHistory.GenerateTrajectory(InAnimInstance, InAnimInstance->GetDeltaSeconds(), TrajectoryData, TrajectoryDataSampling);
+	}
 
-	PoseHistory.PreUpdate(InAnimInstance, DeltaTime, bGenerateTrajectory, TrajectoryData, TrajectoryDataSampling, bNeedsReset);
+	PoseHistory.PreUpdate();
 }
 
 /////////////////////////////////////////////////////
@@ -139,9 +147,21 @@ void FAnimNode_PoseSearchHistoryCollector::Evaluate_AnyThread(FPoseContext& Outp
 	Super::Evaluate_AnyThread(Output);
 	Source.Evaluate(Output);
 
+	const bool bNeedsReset = bResetOnBecomingRelevant && UpdateCounter.HasEverBeenUpdated() && !UpdateCounter.WasSynchronizedCounter(Output.AnimInstanceProxy->GetUpdateCounter());
+
 	FCSPose<FCompactPose> ComponentSpacePose;
 	ComponentSpacePose.InitPose(Output.Pose);
-	PoseHistory.EvaluateComponentSpace_AnyThread(Output.AnimInstanceProxy->GetDeltaSeconds(), ComponentSpacePose, bStoreScales, RootBoneRecoveryTime);
+
+	TArray<FBoneIndexType> RequiredBones;
+	if (bCacheBones)
+	{
+		RequiredBones = GetRequiredBones(Output.AnimInstanceProxy);
+	}
+
+	PoseHistory.EvaluateComponentSpace_AnyThread(Output.AnimInstanceProxy->GetDeltaSeconds(), ComponentSpacePose,
+		bStoreScales, RootBoneRecoveryTime, bNeedsReset, bCacheBones, RequiredBones);
+
+	bCacheBones = false;
 
 #if ENABLE_DRAW_DEBUG && ENABLE_ANIM_DEBUG
 	FColor Color;
@@ -195,7 +215,18 @@ void FAnimNode_PoseSearchComponentSpaceHistoryCollector::EvaluateComponentSpace_
 	Super::EvaluateComponentSpace_AnyThread(Output);
 	Source.EvaluateComponentSpace(Output);
 
-	PoseHistory.EvaluateComponentSpace_AnyThread(Output.AnimInstanceProxy->GetDeltaSeconds(), Output.Pose, bStoreScales, RootBoneRecoveryTime);
+	const bool bNeedsReset = bResetOnBecomingRelevant && UpdateCounter.HasEverBeenUpdated() && !UpdateCounter.WasSynchronizedCounter(Output.AnimInstanceProxy->GetUpdateCounter());
+
+	TArray<FBoneIndexType> RequiredBones;
+	if (bCacheBones)
+	{
+		RequiredBones = GetRequiredBones(Output.AnimInstanceProxy);
+	}
+
+	PoseHistory.EvaluateComponentSpace_AnyThread(Output.AnimInstanceProxy->GetDeltaSeconds(), Output.Pose,
+		bStoreScales, RootBoneRecoveryTime, bNeedsReset, bCacheBones, RequiredBones);
+	
+	bCacheBones = false;
 
 #if ENABLE_DRAW_DEBUG && ENABLE_ANIM_DEBUG
 	FColor Color;

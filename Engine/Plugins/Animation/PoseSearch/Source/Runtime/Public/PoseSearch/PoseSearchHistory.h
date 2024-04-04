@@ -106,11 +106,11 @@ struct FPoseHistory : public IPoseHistory
 	FPoseHistory& operator=(const FPoseHistory& Other);
 	FPoseHistory& operator=(FPoseHistory&& Other);
 
-	void PreUpdate(const UAnimInstance* AnimInstance, float DeltaTime, bool bGenerateTrajectory, const FPoseSearchTrajectoryData& TrajectoryData, const FPoseSearchTrajectoryData::FSampling& TrajectoryDataSampling, bool bNeedsReset);
+	void GenerateTrajectory(const UAnimInstance* AnimInstance, float DeltaTime, const FPoseSearchTrajectoryData& TrajectoryData, const FPoseSearchTrajectoryData::FSampling& TrajectoryDataSampling);
+	void PreUpdate();
 
 	void Initialize_AnyThread(int32 InNumPoses, float InSamplingInterval);
-	void CacheBones_AnyThread(const TArray<FBoneIndexType>& RequiredBones);
-	void EvaluateComponentSpace_AnyThread(float DeltaTime, FCSPose<FCompactPose>& ComponentSpacePose, bool bStoreScales, float RootBoneRecoveryTime);
+	void EvaluateComponentSpace_AnyThread(float DeltaTime, FCSPose<FCompactPose>& ComponentSpacePose, bool bStoreScales, float RootBoneRecoveryTime, bool bNeedsReset, bool bCacheBones, const TArray<FBoneIndexType>& RequiredBones);
 
 	// IPoseHistory interface
 	virtual bool GetTransformAtTime(float Time, FTransform& OutBoneTransform, const USkeleton* BoneIndexSkeleton = nullptr, FBoneIndexType BoneIndexType = RootBoneIndexType, FBoneIndexType ReferenceBoneIndexType = ComponentSpaceIndexType, bool bExtrapolate = false) const override;
@@ -141,26 +141,35 @@ private:
 	// @todo: deprecate this member and expose it via blue print logic or as global query scaling multiplier
 	float TrajectorySpeedMultiplier = 1.f;
 
-	struct FData
+	struct FPoseData
 	{
 		// skeleton from the last Update, to keep tracking skeleton changes, and support compatible skeletons
 		TWeakObjectPtr<const USkeleton> LastUpdateSkeleton;
 
 		// map of FBoneIndexType(s) to collect. If Empty all the bones get collected
 		FBoneToTransformMap BoneToTransformMap;
+		
+		// GetTypeHash for BoneToTransformMap
+		uint32 BoneToTransformMapTypeHash = 0;
 
 		// ring buffer of collected bones
 		TRingBuffer<FPoseHistoryEntry> Entries;
 	};
 
-	FData ReadData;
-	FData WriteData;
+	
+	typedef TStaticArray<FPoseData, 2> FDoubleBufferedPoseData;
+	FDoubleBufferedPoseData DoubleBufferedPoseData;
+	int32 ReadPoseDataIndex = 0;
+
+	int32 GetWritePoseDataIndex() const { return (ReadPoseDataIndex + 1) % 2; }
+	const FPoseData& GetReadPoseData() const { return DoubleBufferedPoseData[ReadPoseDataIndex]; }
+	FPoseData& EditWritePoseData() { return DoubleBufferedPoseData[GetWritePoseDataIndex()]; }
 
 #if ENABLE_ANIM_DEBUG
 	
 	// used to analyze thread safety
-	mutable FThreadSafeCounter ReadDataThreadSafeCounter = 0;
-	mutable FThreadSafeCounter WriteDataThreadSafeCounter = 0;
+	mutable FThreadSafeCounter ReadPoseDataThreadSafeCounter = 0;
+	mutable FThreadSafeCounter WritePoseDataThreadSafeCounter = 0;
 
 #endif // ENABLE_ANIM_DEBUG
 };

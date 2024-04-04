@@ -78,6 +78,8 @@ public:
 	UPROPERTY(EditAnywhere, Category = Experimental, meta=(EditCondition="bGenerateTrajectory", EditConditionHides))
 	FPoseSearchTrajectoryData TrajectoryData;
 
+	bool bCacheBones = false;
+
 	// FAnimNode_Base interface
 	virtual void Initialize_AnyThread(const FAnimationInitializeContext& Context) override;
 	virtual void CacheBones_AnyThread(const FAnimationCacheBonesContext& Context) override;
@@ -90,6 +92,8 @@ public:
 	UE::PoseSearch::FPoseHistory& GetPoseHistory() { return PoseHistory; }
 
 protected:
+	TArray<FBoneIndexType> GetRequiredBones(const FAnimInstanceProxy* AnimInstanceProxy) const;
+
 	UE::PoseSearch::FPoseHistory PoseHistory;
 };
 
