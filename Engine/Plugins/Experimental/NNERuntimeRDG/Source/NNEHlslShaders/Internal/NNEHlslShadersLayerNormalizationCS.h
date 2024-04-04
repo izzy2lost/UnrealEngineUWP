@@ -24,14 +24,14 @@ namespace UE::NNEHlslShaders::Internal
 
 		class FLayerNormalizationNumDimensions : SHADER_PERMUTATION_RANGE_INT("NUM_DIMENSIONS", 1, FLayerNormalizationConstants::MAX_NUM_DIMENSIONS);
 		class FLayerNormalizationHasB : SHADER_PERMUTATION_BOOL("HAS_B");
-		class FLayerNormalizationWriteMean : SHADER_PERMUTATION_BOOL("WRITE_MEAN");
-		class FLayerNormalizationWriteInvStdDev : SHADER_PERMUTATION_BOOL("WRITE_INVSTDDEV");
-		using FPermutationDomain = TShaderPermutationDomain<FLayerNormalizationNumDimensions, FLayerNormalizationHasB, FLayerNormalizationWriteMean, FLayerNormalizationWriteInvStdDev>;
+		using FPermutationDomain = TShaderPermutationDomain<FLayerNormalizationNumDimensions, FLayerNormalizationHasB>;
 
 	public:
 
 		BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
+			SHADER_PARAMETER(uint32, Num)
 			SHADER_PARAMETER(uint32, Axis)
+			SHADER_PARAMETER(uint32, ThreadCountX)
 			SHADER_PARAMETER(float, Epsilon)
 			SHADER_PARAMETER(uint32, LayerSize)
 			SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<float>, Input)
@@ -40,9 +40,9 @@ namespace UE::NNEHlslShaders::Internal
 			SHADER_PARAMETER_ARRAY(FUintVector4, ScaleTensorInfo, [FLayerNormalizationConstants::MAX_NUM_DIMENSIONS])
 			SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<float>, InputBias)
 			SHADER_PARAMETER_ARRAY(FUintVector4, BiasTensorInfo, [FLayerNormalizationConstants::MAX_NUM_DIMENSIONS])
+			SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<float>, InputMean)
+			SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<float>, InputInvStdDev)
 			SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<float>, Output)
-			SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<float>, OutputMean)
-			SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<float>, OutputInvStdDev)
 			END_SHADER_PARAMETER_STRUCT()
 
 			static void FillInParameters(TConstArrayView<uint32> Shape, int32 Axis, float Epsilon, FParameters* Parameters);

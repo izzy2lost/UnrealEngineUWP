@@ -2,6 +2,7 @@
 
 #include "NNERuntimeRDGLayerNormalization.h"
 #include "NNEHlslShadersLayerNormalizationCS.h"
+#include "NNEHlslShadersReduceCS.h"
 #include "NNERuntimeRDGHlslHelper.h"
 #include "NNETensor.h"
 #include "NNETypes.h"
@@ -150,19 +151,64 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 			RDG_EVENT_SCOPE(GraphBuilder, "NNE.Operator.Hlsl.LayerNormalization");
 			RDG_GPU_STAT_SCOPE(GraphBuilder, FNNEOperatorLayerNormalization);
 
-			TLayerNormalizationCS::FParameters* LayerNormParameters = GraphBuilder.AllocParameters<TLayerNormalizationCS::FParameters>();
-			
 			const FTensorRDG& Input = *InputTensors[0];
 			const NNE::FTensorShape& InputShape = Input.GetShape();
+			
+			// First apply Reduction() to temp buffers getting Mean and InvStdDev
+			TReduceCS::FParameters* ReduceParameters = GraphBuilder.AllocParameters<TReduceCS::FParameters>();
+			// Need to feed a shape such that the last dimension corresponds to the slice to reduce
+			TArray<uint32> ReductionShape;
+			ReductionShape.Init(1, Axis + 1);
+			for(int Idx = 0; Idx < InputShape.Rank(); ++Idx)
+			{
+				if(Idx < Axis)
+				{
+					ReductionShape[Idx] = InputShape.GetData()[Idx];
+				}
+				else
+				{
+					ReductionShape[Axis] *= InputShape.GetData()[Idx];
+				}
+			}
 
+			TReduceCS::FillInParameters(ReductionShape, Axis, ReduceParameters);
+			ReduceParameters->Epsilon = Epsilon;
+			// NOTE: once have support for more datatypes, make this depend on stash_type attribute
+			uint32 BytesPerElementTemp = Input.GetElementByteSize(); 
+			const FRDGBufferDesc LayerNormTempBufferDesc = FRDGBufferDesc::CreateBufferDesc(BytesPerElementTemp, ReduceParameters->NumElemBeforeAxis);
+
+			FRDGBufferRef MeanBuffer;
+			if(bWriteMean)
+			{
+				const FTensorRDG& OutputMean = *OutputTensors[1];
+				MeanBuffer = OutputMean.GetBuffer();
+			}
+			else
+			{
+				MeanBuffer = GraphBuilder.CreateBuffer(LayerNormTempBufferDesc, TEXT("NNE.Operator.Hlsl.LayerNormalization.TempMeanBuffer"), ERDGBufferFlags::None);
+			}
+
+			FRDGBufferRef InvStdDevBuffer;
+			if(bWriteInvStdDev)
+			{
+				const FTensorRDG& OutputInvStdDev = *OutputTensors[2];
+				InvStdDevBuffer = OutputInvStdDev.GetBuffer();
+			}
+			else
+			{
+				InvStdDevBuffer = GraphBuilder.CreateBuffer(LayerNormTempBufferDesc, TEXT("NNE.Operator.Hlsl.LayerNormalization.TempInvStdDevBuffer"), ERDGBufferFlags::None);
+			}
+
+			TReduceCS::EnqueueRDG(GraphBuilder, ReduceParameters, Input.GetBuffer(), MeanBuffer, EReduceOperatorType::AverageInvStdDev, InvStdDevBuffer);
+
+			// Then LayerNormalization
+			TLayerNormalizationCS::FParameters* LayerNormParameters = GraphBuilder.AllocParameters<TLayerNormalizationCS::FParameters>();
 			TLayerNormalizationCS::FillInParameters(InputShape.GetData(), Axis, Epsilon, LayerNormParameters);
 
 			const uint32 NumElements = Input.GetVolume();
-			const FIntVector ThreadGroupCount = {
-				(int32) (NumElements / LayerNormParameters->LayerSize),
-				1,
-				1
-			};
+			LayerNormParameters->Num = NumElements;
+			const FIntVector ThreadGroupCount = ComputeElementWiseThreadGroups(NumElements, FLayerNormalizationConstants::NUM_GROUP_THREADS);;
+			LayerNormParameters->ThreadCountX = ThreadGroupCount.X * FLayerNormalizationConstants::NUM_GROUP_THREADS;
 
 			FillTensorStrideShaderParameters(Input, LayerNormParameters->InputTensorInfo, /*Idx*/ 0);
 			LayerNormParameters->Input = GraphBuilder.CreateSRV(FRDGBufferSRVDesc(Input.GetBuffer(), PF_R32_FLOAT));
@@ -178,24 +224,15 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 				LayerNormParameters->InputBias = GraphBuilder.CreateSRV(FRDGBufferSRVDesc(Bias.GetBuffer(), PF_R32_FLOAT));
 			}
 
+			LayerNormParameters->InputMean = GraphBuilder.CreateSRV(FRDGBufferSRVDesc(MeanBuffer, PF_R32_FLOAT));
+			LayerNormParameters->InputInvStdDev = GraphBuilder.CreateSRV(FRDGBufferSRVDesc(InvStdDevBuffer, PF_R32_FLOAT));
+
 			const FTensorRDG& Output = *OutputTensors[0];
 			LayerNormParameters->Output = GraphBuilder.CreateUAV(FRDGBufferUAVDesc(Output.GetBuffer(), PF_R32_FLOAT));
-			if(bWriteMean)
-			{
-				const FTensorRDG& OutputMean = *OutputTensors[1];
-				LayerNormParameters->OutputMean = GraphBuilder.CreateUAV(FRDGBufferUAVDesc(OutputMean.GetBuffer(), PF_R32_FLOAT));
-			}
-			if(bWriteInvStdDev)
-			{
-				const FTensorRDG& OutputInvStdDev = *OutputTensors[2];
-				LayerNormParameters->OutputInvStdDev = GraphBuilder.CreateUAV(FRDGBufferUAVDesc(OutputInvStdDev.GetBuffer(), PF_R32_FLOAT));
-			}
 
 			TLayerNormalizationCS::FPermutationDomain PermutationVector;
 			PermutationVector.Set<TLayerNormalizationCS::FLayerNormalizationNumDimensions>(InputShape.Rank());
 			PermutationVector.Set<TLayerNormalizationCS::FLayerNormalizationHasB>(bHasBias);
-			PermutationVector.Set<TLayerNormalizationCS::FLayerNormalizationWriteMean>(bWriteMean);
-			PermutationVector.Set<TLayerNormalizationCS::FLayerNormalizationWriteInvStdDev>(bWriteInvStdDev);
 
 			TShaderMapRef<TLayerNormalizationCS> ComputeShader(GetGlobalShaderMap(GMaxRHIFeatureLevel), PermutationVector);
 
