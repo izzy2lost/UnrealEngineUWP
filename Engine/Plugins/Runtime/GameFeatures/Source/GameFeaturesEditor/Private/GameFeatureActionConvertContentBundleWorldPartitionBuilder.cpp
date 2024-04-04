@@ -30,7 +30,6 @@ DEFINE_LOG_CATEGORY_STATIC(LogConvertContentBundleBuilder, All, All);
 UGameFeatureActionConvertContentBundleWorldPartitionBuilder::UGameFeatureActionConvertContentBundleWorldPartitionBuilder(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 	, bReportOnly(false)
-	, bSkipDelete(false)
 {}
 
 bool UGameFeatureActionConvertContentBundleWorldPartitionBuilder::PreRun(UWorld* World, FPackageSourceControlHelper& PackageHelper)
@@ -42,7 +41,6 @@ bool UGameFeatureActionConvertContentBundleWorldPartitionBuilder::PreRun(UWorld*
 	FString const* DestFolderPtr = CommandLineParams.Find(TEXT("DestinationFolder"));
 	DestinationFolder = DestFolderPtr ? *DestFolderPtr : FString();
 	bReportOnly = Switches.Contains(TEXT("ReportOnly"));
-	bSkipDelete = Switches.Contains(TEXT("SkipDelete"));
 
 	if (FString const* ContentBundlesToConvertString = CommandLineParams.Find(TEXT("ContentBundles")))
 	{
@@ -105,7 +103,7 @@ bool UGameFeatureActionConvertContentBundleWorldPartitionBuilder::RunInternal(UW
 	for (TSharedPtr<FContentBundleEditor>& ContentBundle : ContentBundlesToProcess)
 	{
 		TSet<UPackage*> PackagesToSave;
-		TSet<FString> PackagesToDelete;
+		TSet<UPackage*> PackagesToDelete;
 
 		TSharedPtr<FContentBundleClient> ContentBundleClient = ContentBundle->GetClient().Pin();
 		if (!ContentBundleClient.IsValid())
@@ -182,6 +180,10 @@ bool UGameFeatureActionConvertContentBundleWorldPartitionBuilder::RunInternal(UW
 			UE_LOG(LogConvertContentBundleBuilder, Log, TEXT("Added new Action of type 'GameFeatureAction_AddWorldPartitionContent' to GameFeatureData %s using External Data Layer Asset %s while converting Content Bundle %s."), *GameFeatureData->GetName(), *ExternalDataLayerAsset->GetPathName(), *ContentBundle->GetDisplayName());
 		}
 		
+		// Backup the source ContentBundle Guid (to facilitate potential revert operation)
+		AddWorldPartitionContent->ConvertedContentBundleGuid = ContentBundleDescriptor->GetGuid();
+		PackagesToSave.Add(GameFeatureData->GetPackage());
+		
 		// Manually call OnExternalDataLayerAssetChanged to register the newly created GameFeatureAction_AddWorldPartitionContent
 		AddWorldPartitionContent->OnExternalDataLayerAssetChanged(nullptr, ExternalDataLayerAsset);
 
@@ -238,58 +240,11 @@ bool UGameFeatureActionConvertContentBundleWorldPartitionBuilder::RunInternal(UW
 			ActorReferences.Add(ActorRef);
 			AActor* Actor = ActorRef.GetActor();
 			UPackage* OldActorPackage = Actor->GetExternalPackage();
-			const FString OldActorPackageName = OldActorPackage->GetName();
-			if (!bSkipDelete)
-			{
-				PackagesToDelete.Add(OldActorPackageName);
-			}
 
-			// Clear Actor CB Guid
-			FSetActorContentBundleGuid(Actor, FGuid());
-
-			// Verify that the actor can be assigned to the External Data Layer
 			FText FailureReason;
-			if (!ExternalDataLayerInstance->CanAddActor(Actor, &FailureReason))
+			if (!FExternalDataLayerHelper::MoveActorsToExternalDataLayer({ Actor }, ExternalDataLayerInstance, &FailureReason))
 			{
 				UE_LOG(LogConvertContentBundleBuilder, Error, TEXT("Can't create package for actor %s. %s"), *ExternalDataLayerAsset->GetName(), *Actor->GetActorNameOrLabel(), *FailureReason.ToString());
-				bContentBundleActorConversionSuccess = false;
-				break;
-			}
-
-			// Remove actor from it's old package
-			Actor->SetPackageExternal(false);
-
-			// Get all other dependant objects in the old actor package
-			TArray<UObject*> DependantObjects;
-			ForEachObjectWithPackage(OldActorPackage, [&DependantObjects](UObject* Object)
-			{
-				if (!Cast<UMetaData>(Object))
-				{
-					DependantObjects.Add(Object);
-				}
-				return true;
-			}, false);
-
-			// Create a new external package and assign it to the actor
-			ULevel* DestinationLevel = Actor->GetLevel();
-			UPackage* NewActorPackage = ULevel::CreateActorPackage(DestinationLevel->GetPackage(), DestinationLevel->GetActorPackagingScheme(), Actor->GetName(), ExternalDataLayerAsset);
-			Actor->SetPackageExternal(true, true, NewActorPackage);
-
-			// Validation
-			check(NewActorPackage == Actor->GetExternalPackage());
-			check(NewActorPackage->GetName() == ExternalDataLayerManager->GetActorPackageName(ExternalDataLayerAsset, DestinationLevel, Actor->GetPathName()));
-			check(NewActorPackage->GetName() != OldActorPackageName);
-
-			// Move dependant objects into the new actor package
-			for (UObject* DependantObject : DependantObjects)
-			{
-				DependantObject->Rename(nullptr, NewActorPackage, REN_NonTransactional | REN_DontCreateRedirectors | REN_ForceNoResetLoaders | REN_DoNotDirty);
-			}
-			
-			// Set External Data Layer Asset
-			if (!UDataLayerEditorSubsystem::Get()->AddActorToDataLayer(Actor, ExternalDataLayerInstance))
-			{
-				UE_LOG(LogConvertContentBundleBuilder, Error, TEXT("Failed to add actor %s(%s) to external data layer %s. Actor won't be converted."), *It->GetActorLabelOrName().ToString(), *It->GetActorPackage().ToString(), *ExternalDataLayerAsset->GetName());
 				bContentBundleActorConversionSuccess = false;
 				break;
 			}
@@ -298,7 +253,10 @@ bool UGameFeatureActionConvertContentBundleWorldPartitionBuilder::RunInternal(UW
 			check(!Actor->GetContentBundleGuid().IsValid());
 			UPackage* NewPackage = Actor->GetPackage();
 			PackagesToSave.Add(NewPackage);
-			check(OldActorPackageName != NewPackage->GetName());
+
+			check(OldActorPackage->GetName() != NewPackage->GetName());
+			PackagesToDelete.Add(OldActorPackage);
+			
 			UE_LOG(LogConvertContentBundleBuilder, Log, TEXT("Converted Actor %s(%s) to %s."), *Actor->GetName(), *NewPackage->GetName(), *ExternalDataLayerAsset->GetName());
 
 			ConvertedActorGuids.Add(It->GetGuid());
@@ -329,9 +287,10 @@ bool UGameFeatureActionConvertContentBundleWorldPartitionBuilder::RunInternal(UW
 			UE_LOG(LogConvertContentBundleBuilder, Log, TEXT("Package to save: %s"), *PackageToSave->GetPathName());
 		}
 
-		for (const FString& PackageToDelete : PackagesToDelete)
+		for (UPackage* PackageToDelete : PackagesToDelete)
 		{
-			UE_LOG(LogConvertContentBundleBuilder, Log, TEXT("Package to delete: %s"), *PackageToDelete);
+			UE_LOG(LogConvertContentBundleBuilder, Log, TEXT("Package to delete: %s"), *PackageToDelete->GetPathName());
+			ResetLoaders(PackageToDelete);
 		}
 
 		if (bContentBundleActorConversionSuccess && !bReportOnly)
@@ -363,9 +322,9 @@ bool UGameFeatureActionConvertContentBundleWorldPartitionBuilder::RunInternal(UW
 			if (PackagesToDelete.Num())
 			{
 				FinalReport.Add(FString::Printf(TEXT("[+] Deleted %d packages: "), PackagesToDelete.Num()));
-				for (const FString& PackageToDelete : PackagesToDelete)
+				for (UPackage* PackageToDelete : PackagesToDelete)
 				{
-					FinalReport.Add(FString::Printf(TEXT(" |- %s"), *PackageToDelete));
+					FinalReport.Add(FString::Printf(TEXT(" |- %s"), *PackageToDelete->GetPathName()));
 				}
 			}
 		}

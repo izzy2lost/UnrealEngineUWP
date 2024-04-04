@@ -70,6 +70,7 @@ private:
 	friend class UDataLayerEditorSubsystem;
 	friend class UExternalDataLayerEngineSubsystem;
 	friend class UContentBundleEditingSubmodule;
+	friend class UGameFeatureActionConvertContentBundleWorldPartitionBuilder;
 #endif
 	static constexpr FStringView GetExternalDataLayerFolder() { return ExternalDataLayerFolder; }
 	static constexpr FStringView ExternalDataLayerFolder = TEXTVIEW("/EDL/");

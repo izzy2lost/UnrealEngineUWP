@@ -47,5 +47,11 @@ private:
 	UPROPERTY(EditAnywhere, Category = DataLayer)
 	TObjectPtr<const UExternalDataLayerAsset> ExternalDataLayerAsset;
 
+#if WITH_EDITORONLY_DATA
+	/** Only used when converting from UGameFeatureAction_AddWPContent */
+	UPROPERTY()
+	FGuid ConvertedContentBundleGuid;
+#endif
+
 	friend class UGameFeatureActionConvertContentBundleWorldPartitionBuilder;
 };

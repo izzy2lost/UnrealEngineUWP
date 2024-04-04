@@ -9,9 +9,11 @@
 #include "AssetRegistry/ARFilter.h"
 #include "ExternalPackageHelper.h"
 #include "UObject/Object.h"
+#include "UObject/MetaData.h"
 #include "UObject/AssetRegistryTagsContext.h"
 #include "Subsystems/EditorActorSubsystem.h"
 #include "WorldPartition/DataLayer/ExternalDataLayerManager.h"
+#include "DeletedObjectPlaceholder.h"
 #include "ReferencedAssetsUtils.h"
 #include "Editor.h"
 #endif
@@ -239,12 +241,24 @@ bool FExternalDataLayerHelper::CanMoveActorsToExternalDataLayer(const TArray<AAc
 
 bool FExternalDataLayerHelper::MoveActorsToExternalDataLayer(const TArray<AActor*>& InActors, const UExternalDataLayerInstance* InExternalDataLayerInstance, FText* OutFailureReason)
 {
-	auto MoveActorToExternalDataLayer = [](AActor * InActor, const UExternalDataLayerInstance* InExternalDataLayerInstance)
+	auto MoveActorToExternalDataLayer = [](AActor* InActor, const UExternalDataLayerInstance* InExternalDataLayerInstance)
 	{
+		const UPackage* OldActorPackage = InActor->GetExternalPackage();
 		const UExternalDataLayerAsset* NewExternalDataLayerAsset = InExternalDataLayerInstance ? InExternalDataLayerInstance->GetExternalDataLayerAsset() : nullptr;
 		const bool bShouldDirty = true;
-		bool bLevelPackageWasDirty = InActor->GetLevel()->GetPackage()->IsDirty();
+		const bool bLevelPackageWasDirty = InActor->GetLevel()->GetPackage()->IsDirty();
 		InActor->SetPackageExternal(false, bShouldDirty);
+
+		// Get all other dependant objects in the old actor package
+		TArray<UObject*> DependantObjects;
+		ForEachObjectWithPackage(OldActorPackage, [&DependantObjects](UObject* Object)
+		{
+			if (!Cast<UMetaData>(Object) && !Cast<UDeletedObjectPlaceholder>(Object))
+			{
+				DependantObjects.Add(Object);
+			}
+			return true;
+		}, false);
 
 		// Clear Content Bundle Guid
 		FSetActorContentBundleGuid(InActor, FGuid());
@@ -270,6 +284,14 @@ bool FExternalDataLayerHelper::MoveActorsToExternalDataLayer(const TArray<AActor
 		}
 
 		InActor->SetPackageExternal(true, bShouldDirty);
+
+		// Move dependant objects into the new actor package
+		UPackage* NewActorPackage = InActor->GetExternalPackage();
+		for (UObject* DependantObject : DependantObjects)
+		{
+			DependantObject->Rename(nullptr, NewActorPackage, REN_NonTransactional | REN_DontCreateRedirectors | REN_ForceNoResetLoaders | REN_DoNotDirty);
+		}
+
 		if (!bLevelPackageWasDirty)
 		{
 			InActor->GetLevel()->GetPackage()->SetDirtyFlag(false);

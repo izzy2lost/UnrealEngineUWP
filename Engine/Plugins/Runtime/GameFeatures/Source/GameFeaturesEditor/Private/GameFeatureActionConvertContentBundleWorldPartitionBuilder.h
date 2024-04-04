@@ -32,5 +32,4 @@ private:
 	TArray<FString> ContentBundlesToConvert;
 	FString DestinationFolder;
 	bool bReportOnly;
-	bool bSkipDelete;
 };

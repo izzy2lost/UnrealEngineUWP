@@ -827,8 +827,7 @@ void UExternalDataLayerManager::ForEachExternalStreamingObjects(TFunctionRef<boo
 
 FString UExternalDataLayerManager::GetActorPackageName(const UExternalDataLayerAsset* InExternalDataLayerAsset, const ULevel* InDestinationLevel, const FString& InActorPath) const
 {
-	const FString ContainerRootPath = GetExternalDataLayerLevelRootPath(InExternalDataLayerAsset);
-	const FString ActorPackageName = ULevel::GetActorPackageName(ULevel::GetExternalActorsPath(ContainerRootPath), InDestinationLevel->GetActorPackagingScheme(), InActorPath);
+	const FString ActorPackageName = ULevel::GetActorPackageName(InDestinationLevel->GetPackage(), InDestinationLevel->GetActorPackagingScheme(), InActorPath, InExternalDataLayerAsset);
 	return ActorPackageName;
 }
 
