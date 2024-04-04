@@ -3986,6 +3986,7 @@ class FRealtimeGC : public FGarbageCollectionTracer
 
 	TConstArrayView<UObject**> GetInitialReferences(EGCOptions Options)
 	{
+		const double StartTime = FPlatformTime::Seconds();
 		if (!!(Options & EGCOptions::Parallel))
 		{
 			InitialCollection.Wait();
@@ -3994,6 +3995,7 @@ class FRealtimeGC : public FGarbageCollectionTracer
 		{
 			FGCObject::GGCObjectReferencer->AddInitialReferences(InitialReferences);
 		}
+		GGCStats.InitialReferenceCollectionTime += FPlatformTime::Seconds() - StartTime;
 
 		return InitialReferences;
 	}
@@ -4437,7 +4439,9 @@ PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		// because it may require tracing objects (via FGarbageCollectionTracer) multiple times
 		if (!GReachabilityState.IsSuspended())
 		{
+			const double StartTime = FPlatformTime::Seconds();
 			FCoreUObjectDelegates::TraceExternalRootsForReachabilityAnalysis.Broadcast(*this, KeepFlags, !(Options & EGCOptions::Parallel));
+			GGCStats.TraceExternalRootsTime += FPlatformTime::Seconds() - StartTime;
 		}
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}

@@ -73,7 +73,9 @@ struct FStats
 	double VerifyNoUnreachableTime = 0.0;
 	double GarbageTrackingTime = 0.0;
 
+	double InitialReferenceCollectionTime = 0.0;
 	double MarkObjectsAsUnreachableTime = 0.0;
+	double TraceExternalRootsTime = 0.0;
 	double NotifyUnreachableTime = 0.0;
 	double DissolveUnreachableClustersTime = 0.0;
 
