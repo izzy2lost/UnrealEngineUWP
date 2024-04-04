@@ -262,7 +262,8 @@ groupshared float3 VertexCache_PointWorld_NoOffset[64];
 groupshared float4 VertexCache_PointClip[64];
 groupshared half3  VertexCache_NormalPostDeform[64];
 groupshared float4 VertexCache_NormalClip[64];
-groupshared float4 VertexCache_TangentX_AndSign[64];
+groupshared half4  VertexCache_TangentXAndSignPostDeform[64];
+groupshared half4  VertexCache_TangentXAndSign[64];
 groupshared float3 VertexCache_TangentZ[64];
 groupshared float4 VertexCache_Color[64];
 groupshared float2 VertexCache_TexCoords0[64];
@@ -275,26 +276,27 @@ groupshared float2 VertexCache_CustomizedUVs2[64];
 groupshared float2 VertexCache_CustomizedUVs3[64];
 groupshared float4 VertexCache_PointSubpixelClip[64];
 
-HLSL_STATIC_ASSERT( sizeof( FCachedVertex ) == 204 + 8 * NUM_TEX_COORD_INTERPOLATORS, "Unexpected size of FCachedVertex. Update StoreVertexToLDS to reflect changes." );
+HLSL_STATIC_ASSERT( sizeof( FCachedVertex ) == 220 + 8 * NUM_TEX_COORD_INTERPOLATORS, "Unexpected size of FCachedVertex. Update StoreVertexToLDS to reflect changes." );
 void StoreVertexToLDS( uint VertexIndex, FCachedVertex Vertex )
 {
 	const uint CacheIndex = VertexIndex & 63u;
 
-	VertexCache_PointLocal[CacheIndex]			= Vertex.TransformedVert.PointLocal;
-	VertexCache_PointPostDeform[CacheIndex]		= Vertex.TransformedVert.PointPostDeform;
-	VertexCache_PrevPointPostDeform[CacheIndex]	= Vertex.TransformedVert.PrevPointPostDeform;
-	VertexCache_PointWorld[CacheIndex]			= Vertex.TransformedVert.PointWorld;
-	VertexCache_PointWorld_NoOffset[CacheIndex]	= Vertex.TransformedVert.PointWorld_NoOffset;
-	VertexCache_PointClip[CacheIndex]			= Vertex.TransformedVert.PointClip;
-	VertexCache_NormalPostDeform[CacheIndex]	= Vertex.TransformedVert.NormalPostDeform;
-	VertexCache_NormalClip[CacheIndex]			= Vertex.TransformedVert.NormalClip;
-	VertexCache_TangentX_AndSign[CacheIndex]	= Vertex.TransformedVert.RawAttributeData.TangentX_AndSign;
-	VertexCache_TangentZ[CacheIndex]			= Vertex.TransformedVert.RawAttributeData.TangentZ;
-	VertexCache_Color[CacheIndex]				= Vertex.TransformedVert.RawAttributeData.Color;
-	VertexCache_TexCoords0[CacheIndex]			= Vertex.TransformedVert.RawAttributeData.TexCoords[0];
-	VertexCache_TexCoords1[CacheIndex]			= Vertex.TransformedVert.RawAttributeData.TexCoords[1];
-	VertexCache_TexCoords2[CacheIndex]			= Vertex.TransformedVert.RawAttributeData.TexCoords[2];
-	VertexCache_TexCoords3[CacheIndex]			= Vertex.TransformedVert.RawAttributeData.TexCoords[3];
+	VertexCache_PointLocal[CacheIndex]					= Vertex.TransformedVert.PointLocal;
+	VertexCache_PointPostDeform[CacheIndex]				= Vertex.TransformedVert.PointPostDeform;
+	VertexCache_PrevPointPostDeform[CacheIndex]			= Vertex.TransformedVert.PrevPointPostDeform;
+	VertexCache_PointWorld[CacheIndex]					= Vertex.TransformedVert.PointWorld;
+	VertexCache_PointWorld_NoOffset[CacheIndex]			= Vertex.TransformedVert.PointWorld_NoOffset;
+	VertexCache_PointClip[CacheIndex]					= Vertex.TransformedVert.PointClip;
+	VertexCache_NormalClip[CacheIndex]					= Vertex.TransformedVert.NormalClip;
+	VertexCache_NormalPostDeform[CacheIndex]			= Vertex.TransformedVert.TangentBasis.TangentZ;
+	VertexCache_TangentXAndSignPostDeform[CacheIndex]	= Vertex.TransformedVert.TangentBasis.TangentXAndSign;
+	VertexCache_TangentXAndSign[CacheIndex]				= Vertex.TransformedVert.RawAttributeData.TangentXAndSign;
+	VertexCache_TangentZ[CacheIndex]					= Vertex.TransformedVert.RawAttributeData.TangentZ;
+	VertexCache_Color[CacheIndex]						= Vertex.TransformedVert.RawAttributeData.Color;
+	VertexCache_TexCoords0[CacheIndex]					= Vertex.TransformedVert.RawAttributeData.TexCoords[0];
+	VertexCache_TexCoords1[CacheIndex]					= Vertex.TransformedVert.RawAttributeData.TexCoords[1];
+	VertexCache_TexCoords2[CacheIndex]					= Vertex.TransformedVert.RawAttributeData.TexCoords[2];
+	VertexCache_TexCoords3[CacheIndex]					= Vertex.TransformedVert.RawAttributeData.TexCoords[3];
 
 #if NUM_TEX_COORD_INTERPOLATORS > 0
 	VertexCache_CustomizedUVs0[CacheIndex]		= Vertex.TransformedVert.CustomizedUVs[0];
@@ -312,7 +314,7 @@ void StoreVertexToLDS( uint VertexIndex, FCachedVertex Vertex )
 	VertexCache_PointSubpixelClip[CacheIndex]	= Vertex.PointSubpixelClip;
 }
 
-HLSL_STATIC_ASSERT( sizeof( FCachedVertex ) == 204 + 8 * NUM_TEX_COORD_INTERPOLATORS, "Unexpected size of FCachedVertex. Update LoadVertexFromLDS to reflect changes." );
+HLSL_STATIC_ASSERT( sizeof( FCachedVertex ) == 220 + 8 * NUM_TEX_COORD_INTERPOLATORS, "Unexpected size of FCachedVertex. Update LoadVertexFromLDS to reflect changes." );
 FCachedVertex LoadVertexFromLDS( uint VertexIndex )
 {	
 	const uint CacheIndex = VertexIndex & 63u;
@@ -325,9 +327,10 @@ FCachedVertex LoadVertexFromLDS( uint VertexIndex )
 	Result.TransformedVert.PointWorld						= VertexCache_PointWorld[CacheIndex];
 	Result.TransformedVert.PointWorld_NoOffset				= VertexCache_PointWorld_NoOffset[CacheIndex];
 	Result.TransformedVert.PointClip						= VertexCache_PointClip[CacheIndex];
-	Result.TransformedVert.NormalPostDeform					= VertexCache_NormalPostDeform[CacheIndex];
 	Result.TransformedVert.NormalClip						= VertexCache_NormalClip[CacheIndex];
-	Result.TransformedVert.RawAttributeData.TangentX_AndSign= VertexCache_TangentX_AndSign[CacheIndex];
+	Result.TransformedVert.TangentBasis.TangentZ			= VertexCache_NormalPostDeform[CacheIndex];
+	Result.TransformedVert.TangentBasis.TangentXAndSign		= VertexCache_TangentXAndSignPostDeform[CacheIndex];
+	Result.TransformedVert.RawAttributeData.TangentXAndSign	= VertexCache_TangentXAndSign[CacheIndex];
 	Result.TransformedVert.RawAttributeData.TangentZ		= VertexCache_TangentZ[CacheIndex];
 	Result.TransformedVert.RawAttributeData.Color			= VertexCache_Color[CacheIndex];
 	Result.TransformedVert.RawAttributeData.TexCoords[0]	= VertexCache_TexCoords0[CacheIndex];

@@ -179,18 +179,16 @@ half3x3 CalcVertexTangentToLocal(FPrimitiveSceneData PrimitiveData, FInstanceSce
 	half3x3 TangentToLocal;
 
 	BRANCH
-	if(Vert.RawAttributeData.TangentX_AndSign.w != 0.0f)
+	if(Vert.TangentBasis.TangentXAndSign.w != 0.0f)
 	{
-		TangentToLocal = NaniteTangentToLocal(Vert.RawAttributeData.TangentX_AndSign, Vert.RawAttributeData.TangentZ);
+		TangentToLocal = NaniteTangentToLocal(Vert.TangentBasis.TangentXAndSign, Vert.TangentBasis.TangentZ);
 	}
 	else
 	{
-		TangentToLocal = GetTangentBasis(Vert.RawAttributeData.TangentZ);
+		TangentToLocal = GetTangentBasis(Vert.TangentBasis.TangentZ);
 	}
 
-#if USE_SKINNING
-	// TODO: Nanite-Skinning
-#elif USE_SPLINEDEFORM
+#if USE_SPLINEDEFORM
 	BRANCH
 	if ((PrimitiveData.Flags & PRIMITIVE_SCENE_DATA_FLAG_SPLINE_MESH) != 0 &&
 		(InstanceData.Flags & INSTANCE_SCENE_DATA_FLAG_HAS_PAYLOAD_EXTENSION) != 0)
@@ -269,8 +267,8 @@ struct FNaniteTransformedVert
 	float3 PointWorld;
 	float3 PointWorld_NoOffset;
 	float4 PointClip;
-	half3 NormalPostDeform;
 	float4 NormalClip;
+	FNaniteTangentBasis TangentBasis;
 	FNaniteRawAttributeData RawAttributeData;
 	float SplineDist;
 #if NUM_TEX_COORD_INTERPOLATORS
@@ -329,10 +327,10 @@ FNaniteVertTransforms WaveReadLaneAt(FNaniteVertTransforms In, uint SrcIndex)
 	FNaniteVertTransforms Result;
 
 	Result.LocalToTranslatedWorld		= WaveReadLaneAtMatrix(In.LocalToTranslatedWorld,		SrcIndex);
-	Result.PrevLocalToTranslatedWorld	= WaveReadLaneAtMatrix(In.PrevLocalToTranslatedWorld, SrcIndex);
+	Result.PrevLocalToTranslatedWorld	= WaveReadLaneAtMatrix(In.PrevLocalToTranslatedWorld,	SrcIndex);
 	Result.TranslatedWorldToClip		= WaveReadLaneAtMatrix(In.TranslatedWorldToClip,		SrcIndex);
-	Result.LocalToWorldNoScale			= WaveReadLaneAtMatrix(In.LocalToWorldNoScale,		SrcIndex);
-	Result.PrevLocalToWorldNoScale		= WaveReadLaneAtMatrix(In.PrevLocalToWorldNoScale,	SrcIndex);
+	Result.LocalToWorldNoScale			= WaveReadLaneAtMatrix(In.LocalToWorldNoScale,			SrcIndex);
+	Result.PrevLocalToWorldNoScale		= WaveReadLaneAtMatrix(In.PrevLocalToWorldNoScale,		SrcIndex);
 	Result.WorldToLocalVector			= WaveReadLaneAtMatrix(In.WorldToLocalVector,			SrcIndex);
 	Result.PrevWorldToLocalVector		= WaveReadLaneAtMatrix(In.PrevWorldToLocalVector,		SrcIndex);
 
@@ -371,13 +369,13 @@ FNaniteTransformedTri TransformNaniteTriangle(FPrimitiveSceneData PrimitiveData,
 			const float3 PrevWorldPositionOffset = GetMaterialPreviousWorldPositionOffset(PrevVertexParameters);
 			const float3 LocalOffset = mul(WorldPositionOffset, Transforms.WorldToLocalVector);
 			const float3 PrevLocalOffset = mul(PrevWorldPositionOffset, Transforms.PrevWorldToLocalVector);
-			const float3 NormalWorld = mul(float4(InVerts[i].Normal, 0), Transforms.LocalToTranslatedWorld).xyz;
+			const float3 NormalWorld = mul(float4(InVerts[i].TangentBasis.TangentZ, 0), Transforms.LocalToTranslatedWorld).xyz;
 
 			Tri.Verts[i].VertIndex				= InVerts[i].VertIndex;
 			Tri.Verts[i].RawAttributeData		= InVerts[i].RawAttributeData;
 			Tri.Verts[i].SplineDist				= InVerts[i].SplineDist;
-			Tri.Verts[i].NormalPostDeform		= InVerts[i].Normal;
 			Tri.Verts[i].NormalClip				= mul(float4(NormalWorld, 0), Transforms.TranslatedWorldToClip);
+			Tri.Verts[i].TangentBasis			= InVerts[i].TangentBasis;
 			Tri.Verts[i].PointLocal				= InVerts[i].PointLocal;
 			Tri.Verts[i].PointPostDeform		= InVerts[i].Position + LocalOffset;
 			Tri.Verts[i].PrevPointPostDeform	= InVerts[i].Position + PrevLocalOffset;
@@ -397,13 +395,13 @@ FNaniteTransformedTri TransformNaniteTriangle(FPrimitiveSceneData PrimitiveData,
 		UNROLL_N(3)
 		for (int i = 0; i < 3; ++i)
 		{
-			const float3 NormalWorld			= mul(float4(InVerts[i].Normal, 0), Transforms.LocalToTranslatedWorld).xyz;
+			const float3 NormalWorld			= mul(float4(InVerts[i].TangentBasis.TangentZ, 0), Transforms.LocalToTranslatedWorld).xyz;
 
 			Tri.Verts[i].VertIndex				= InVerts[i].VertIndex;
 			Tri.Verts[i].RawAttributeData		= InVerts[i].RawAttributeData;
 			Tri.Verts[i].SplineDist				= InVerts[i].SplineDist;
-			Tri.Verts[i].NormalPostDeform		= InVerts[i].Normal;
 			Tri.Verts[i].NormalClip				= mul(float4(NormalWorld, 0), Transforms.TranslatedWorldToClip);
+			Tri.Verts[i].TangentBasis			= InVerts[i].TangentBasis;
 			Tri.Verts[i].PointLocal				= InVerts[i].PointLocal;
 			Tri.Verts[i].PointPostDeform		= InVerts[i].Position;
 			Tri.Verts[i].PrevPointPostDeform	= InVerts[i].Position;
@@ -440,13 +438,13 @@ FNaniteTransformedVert TransformNaniteVertex(FPrimitiveSceneData PrimitiveData, 
 {
 	FNaniteTransformedVert Vert = (FNaniteTransformedVert)0;
 
-	Vert.VertIndex = InVert.VertIndex;
-	Vert.RawAttributeData = InVert.RawAttributeData;
-	Vert.NormalPostDeform = InVert.Normal;
-	Vert.PointLocal = InVert.PointLocal;
-	Vert.SplineDist = InVert.SplineDist;
+	Vert.VertIndex			= InVert.VertIndex;
+	Vert.RawAttributeData	= InVert.RawAttributeData;
+	Vert.TangentBasis		= InVert.TangentBasis;
+	Vert.PointLocal			= InVert.PointLocal;
+	Vert.SplineDist			= InVert.SplineDist;
 
-	const float3 NormalWorld = mul(float4(InVert.Normal, 0), Transforms.LocalToTranslatedWorld).xyz;
+	const float3 NormalWorld = mul(float4(InVert.TangentBasis.TangentZ, 0), Transforms.LocalToTranslatedWorld).xyz;
 	Vert.NormalClip = mul(float4(NormalWorld, 0), Transforms.TranslatedWorldToClip);
 
 #if USES_WORLD_POSITION_OFFSET
@@ -517,7 +515,7 @@ FNaniteTransformedVert FetchTransformedNaniteVertex(FPrimitiveSceneData Primitiv
 	return TransformNaniteVertex(PrimitiveData, InstanceData, Transforms, Vert, bEvaluateWPO);
 }
 
-HLSL_STATIC_ASSERT(sizeof(FNaniteTransformedVert) == (112 + sizeof(FNaniteRawAttributeData) + 8 * NUM_TEX_COORD_INTERPOLATORS), "Unexpected size of FNaniteTransformedVert. WaveReadLaneAt implementation needs to be updated.");
+HLSL_STATIC_ASSERT(sizeof(FNaniteTransformedVert) == (128 + sizeof(FNaniteRawAttributeData) + 8 * NUM_TEX_COORD_INTERPOLATORS), "Unexpected size of FNaniteTransformedVert. WaveReadLaneAt implementation needs to be updated.");
 FNaniteTransformedVert WaveReadLaneAt(FNaniteTransformedVert Vert, uint SrcIndex)
 {
 	FNaniteTransformedVert Result;
@@ -531,7 +529,7 @@ FNaniteTransformedVert WaveReadLaneAt(FNaniteTransformedVert Vert, uint SrcIndex
 	Result.PointWorld_NoOffset	= WaveReadLaneAt( Vert.PointWorld_NoOffset,	SrcIndex );
 	Result.PointClip			= WaveReadLaneAt( Vert.PointClip,			SrcIndex );
 	Result.SplineDist			= WaveReadLaneAt( Vert.SplineDist,			SrcIndex );
-	Result.NormalPostDeform		= WaveReadLaneAt( Vert.NormalPostDeform,	SrcIndex );
+	Result.TangentBasis			= WaveReadLaneAt( Vert.TangentBasis,		SrcIndex );
 	Result.NormalClip			= WaveReadLaneAt( Vert.NormalClip,			SrcIndex );
 #if NUM_TEX_COORD_INTERPOLATORS
 	UNROLL
@@ -571,9 +569,7 @@ FMaterialPixelParameters FetchNaniteMaterialPixelParameters(FPrimitiveSceneData 
 		0, 0, 1
 	};
 
-#if USE_SKINNING
-	// TODO: Nanite-Skinning
-#elif USE_SPLINEDEFORM
+#if USE_SPLINEDEFORM
 	BRANCH
 	if ((PrimitiveData.Flags & PRIMITIVE_SCENE_DATA_FLAG_SPLINE_MESH) != 0 &&
 		(InstanceData.Flags & INSTANCE_SCENE_DATA_FLAG_HAS_PAYLOAD_EXTENSION) != 0)
@@ -596,6 +592,9 @@ FMaterialPixelParameters FetchNaniteMaterialPixelParameters(FPrimitiveSceneData 
 		Tri.Verts[0].RawAttributeData,
 		Tri.Verts[1].RawAttributeData,
 		Tri.Verts[2].RawAttributeData,
+		Tri.Verts[0].TangentBasis,
+		Tri.Verts[1].TangentBasis,
+		Tri.Verts[2].TangentBasis,
 		Barycentrics,
 		InstanceData,
 		NumAttributeDataCoords,

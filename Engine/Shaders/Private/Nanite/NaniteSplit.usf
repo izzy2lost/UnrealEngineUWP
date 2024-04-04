@@ -164,9 +164,9 @@ uint FSplitTask::Run()
 		PointView[i] = mul( float4( PointTranslatedWorld, 1 ), NaniteView.TranslatedWorldToView ).xyz;
 
 		NormalLocal[i] = 
-			Verts[0].Normal * Patch.Barycentrics[i].x +
-			Verts[1].Normal * Patch.Barycentrics[i].y +
-			Verts[2].Normal * Patch.Barycentrics[i].z;
+			Verts[0].TangentBasis.TangentZ * Patch.Barycentrics[i].x +
+			Verts[1].TangentBasis.TangentZ * Patch.Barycentrics[i].y +
+			Verts[2].TangentBasis.TangentZ * Patch.Barycentrics[i].z;
 		NormalLocal[i] = normalize( NormalLocal[i] );
 
 		AvgNormal += NormalLocal[i];

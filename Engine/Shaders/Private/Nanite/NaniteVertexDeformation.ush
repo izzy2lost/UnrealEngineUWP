@@ -60,8 +60,8 @@ struct FNanitePostDeformVertex
 	float3 Position;
 	// Decoded vertex position (BEFORE deformation)
 	float3 PointLocal;
-	// Post-deformed normal of the vertex
-	half3 Normal;
+	// Post-deformed tangent basis of the vertex
+	FNaniteTangentBasis TangentBasis;
 	// Normalized distance along the spline (spline meshes only)
 	half SplineDist;
 	// Decoded vertex attribute data
@@ -72,11 +72,12 @@ FNanitePostDeformVertex DeformLocalNaniteVertex(FPrimitiveSceneData PrimitiveDat
 {
 	FNanitePostDeformVertex Output;
 	Output.VertIndex			= Input.VertIndex;
-	Output.Normal				= half3(Input.RawAttributeData.TangentZ);
+	Output.TangentBasis			= MakeTangentBasis(Input.RawAttributeData);
 	Output.SplineDist			= 0.0f;
 	Output.RawAttributeData		= Input.RawAttributeData;
 
 	Output.PointLocal = Input.Position;
+	Output.Position   = Input.Position;
 
 #if USE_SKINNING
 	BRANCH
@@ -86,6 +87,7 @@ FNanitePostDeformVertex DeformLocalNaniteVertex(FPrimitiveSceneData PrimitiveDat
 
 		float3 SkinnedPosition = float3(0.0f, 0.0f, 0.0f);
 		float3 SkinnedNormal = float3(0.0f, 0.0f, 0.0f);
+		float3 SkinnedTangent = float3(0.0f, 0.0f, 0.0f);
 
 		LOOP
 		for (uint InfluenceIndex = 0; InfluenceIndex < Cluster.NumBones; ++InfluenceIndex)
@@ -95,16 +97,21 @@ FNanitePostDeformVertex DeformLocalNaniteVertex(FPrimitiveSceneData PrimitiveDat
 			DecodeBoneInfluence(Cluster, Input.VertIndex, InfluenceIndex, BoneIndex, BoneWeight);
 
 			const float3x4 BoneTransform = LoadNaniteBoneTransform(SkinningHeader.TransformBufferOffset + BoneIndex);
-			SkinnedPosition += mul(BoneTransform, float4(Input.Position, 1.0f)) * BoneWeight;
-			SkinnedNormal += mul(BoneTransform, float4(Output.Normal, 1.0f)) * BoneWeight;
+			SkinnedPosition	+= mul(BoneTransform, float4(Input.Position, 1.0f)) * BoneWeight;
+			SkinnedNormal	+= mul((float3x3)BoneTransform, float4(Output.TangentBasis.TangentZ, 1.0f)) * BoneWeight;
+			SkinnedTangent	+= mul((float3x3)BoneTransform, float4(Output.TangentBasis.TangentXAndSign.xyz, 1.0f)) * BoneWeight;
 		}
 
-		Input.Position = SkinnedPosition;
-		Output.Normal = SkinnedNormal;
+		Output.TangentBasis.TangentZ = SkinnedNormal;
+		Output.TangentBasis.TangentXAndSign.xyz = SkinnedTangent;
+
+	#if 0
+		Output.TangentBasis.RecalculateTangentX();
+	#endif
+
+		Output.Position = SkinnedPosition;
 	}
 #endif
-
-	Output.Position = Input.Position;
 
 #if USE_SPLINEDEFORM
 	BRANCH
@@ -114,7 +121,7 @@ FNanitePostDeformVertex DeformLocalNaniteVertex(FPrimitiveSceneData PrimitiveDat
 		// Deform the local position along the spline
 		// NOTE: Storing off the spline distance for use later when calculating tangent frame.
 		FSplineMeshShaderParams SplineMeshParams = SplineMeshLoadParamsFromInstancePayload(InstanceData);
-		Output.SplineDist = SplineMeshDeformLocalPosAndNormal(SplineMeshParams, Output.Position, Output.Normal);
+		Output.SplineDist = SplineMeshDeformLocalPosAndNormal(SplineMeshParams, Output.Position, Output.TangentBasis.TangentZ);
 	}
 #endif
 

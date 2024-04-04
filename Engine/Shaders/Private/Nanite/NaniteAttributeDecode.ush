@@ -19,17 +19,60 @@ struct FNaniteAttributeData
 
 struct FNaniteRawAttributeData
 {
-	float4 TangentX_AndSign;
+	float4 TangentXAndSign;
 	float3 TangentZ;
 	float4 Color;
 	float2 TexCoords[NANITE_MAX_UVS];
 };
 
-HLSL_STATIC_ASSERT(sizeof(FNaniteRawAttributeData) == 44 + 8 * NANITE_MAX_UVS, "Unexpected size of FNaniteRawAttributeData. Update StoreVertexToLDS to reflect changes.");
+struct FNaniteTangentBasis
+{
+	float4 TangentXAndSign; // Tangent and Bitangent Sign Bit
+	float3 TangentZ; // Normal
+
+	float3 DeriveTangentY()
+	{
+		// Bitangent
+		return cross(TangentZ, TangentXAndSign.xyz) * TangentXAndSign.w;
+	}
+
+	void RecalculateTangentX()
+	{
+		// Recalculate TangentX from the other two vectors - This can correct some quantization errors.
+		// The error shows up most in specular off of a mesh with a smoothed UV seam (normal is smooth, but tangents vary across the seam)
+		const float3 TangentY = DeriveTangentY();
+		TangentXAndSign.xyz = cross(TangentY, TangentZ) * TangentXAndSign.w;
+	}
+
+	void Normalize()
+	{
+		TangentXAndSign.xyz = normalize(TangentXAndSign.xyz);
+		TangentZ = normalize(TangentZ);
+	}
+};
+
+FNaniteTangentBasis MakeTangentBasis(FNaniteRawAttributeData RawAttributeData)
+{
+	FNaniteTangentBasis TangentBasis;
+	TangentBasis.TangentXAndSign = RawAttributeData.TangentXAndSign;
+	TangentBasis.TangentZ = RawAttributeData.TangentZ;
+	return TangentBasis;
+}
+
+HLSL_STATIC_ASSERT(sizeof(FNaniteTangentBasis) == 28, "Unexpected size of FNaniteTangentBasis. Update WaveReadLaneAt to reflect changes.");
+FNaniteTangentBasis WaveReadLaneAt(FNaniteTangentBasis In, uint SrcIndex)
+{
+	FNaniteTangentBasis Out;
+	Out.TangentXAndSign = WaveReadLaneAt(In.TangentXAndSign, SrcIndex);
+	Out.TangentZ = WaveReadLaneAt(In.TangentZ, SrcIndex);
+	return Out;
+}
+
+HLSL_STATIC_ASSERT(sizeof(FNaniteRawAttributeData) == 44 + 8 * NANITE_MAX_UVS, "Unexpected size of FNaniteRawAttributeData. Update WaveReadLaneAt to reflect changes.");
 FNaniteRawAttributeData WaveReadLaneAt(FNaniteRawAttributeData In, uint SrcIndex)
 {
 	FNaniteRawAttributeData Out;
-	Out.TangentX_AndSign = WaveReadLaneAt(In.TangentX_AndSign, SrcIndex);
+	Out.TangentXAndSign = WaveReadLaneAt(In.TangentXAndSign, SrcIndex);
 	Out.TangentZ = WaveReadLaneAt(In.TangentZ, SrcIndex);
 	Out.Color = WaveReadLaneAt(In.Color, SrcIndex);
 	UNROLL
@@ -523,7 +566,7 @@ void GetRawAttributeDataN(inout FNaniteRawAttributeData RawAttributeData[3],
 		ReadOffset[i] += 12;
 		if(Cluster.bHasTangents)
 		{
-			RawAttributeData[i].TangentX_AndSign = asfloat(ClusterPageData.Load4(ReadOffset[i]));
+			RawAttributeData[i].TangentXAndSign = asfloat(ClusterPageData.Load4(ReadOffset[i]));
 			ReadOffset[i] += 16;
 		}
 		RawAttributeData[i].Color = float4(UnpackToUint4(ClusterPageData.Load(ReadOffset[i]), 8)) * (1.0f / 255.0f);
@@ -575,11 +618,11 @@ void GetRawAttributeDataN(inout FNaniteRawAttributeData RawAttributeData[3],
 		{
 			const bool bTangentYSign = (TangentAngleAndSignBits & (1u << Cluster.TangentPrecision)) != 0;
 			const uint TangentAngleBits = BitFieldExtractU32(TangentAngleAndSignBits, Cluster.TangentPrecision, 0);
-			RawAttributeData[i].TangentX_AndSign = float4(UnpackTangentX(TangentZ, TangentAngleBits, Cluster.TangentPrecision), bTangentYSign ? -1.0f : 1.0f);
+			RawAttributeData[i].TangentXAndSign = float4(UnpackTangentX(TangentZ, TangentAngleBits, Cluster.TangentPrecision), bTangentYSign ? -1.0f : 1.0f);
 		}
 		else
 		{
-			RawAttributeData[i].TangentX_AndSign = 0.0f;
+			RawAttributeData[i].TangentXAndSign = 0.0f;
 		}
 
 		const uint4 ColorDelta = BitStreamReader_Read4_RO(ClusterPageData, AttributeStream[i], NumComponentBits, NANITE_MAX_COLOR_QUANTIZATION_BITS);
@@ -643,10 +686,10 @@ FNaniteRawAttributeData GetRawAttributeData(
 	return RawAttributeData[0];
 }
 
-half3x3 NaniteTangentToLocal(float4 TangentX_AndSign, float3 UnnormalizedTangentZ)
+half3x3 NaniteTangentToLocal(float4 TangentXAndSign, float3 UnnormalizedTangentZ)
 {
-	const float3 TangentY = cross(UnnormalizedTangentZ.xyz, TangentX_AndSign.xyz) * TangentX_AndSign.w;
-	return float3x3(TangentX_AndSign.xyz, TangentY, UnnormalizedTangentZ);
+	const float3 TangentY = cross(UnnormalizedTangentZ.xyz, TangentXAndSign.xyz) * TangentXAndSign.w;
+	return float3x3(TangentXAndSign.xyz, TangentY, UnnormalizedTangentZ);
 }
 
 FNaniteAttributeData GetAttributeData(
@@ -657,6 +700,9 @@ FNaniteAttributeData GetAttributeData(
 	FNaniteRawAttributeData RawAttributeData0,
 	FNaniteRawAttributeData RawAttributeData1,
 	FNaniteRawAttributeData RawAttributeData2,
+	FNaniteTangentBasis TangentBasis0,
+	FNaniteTangentBasis TangentBasis1,
+	FNaniteTangentBasis TangentBasis2,
 	FBarycentrics Barycentrics,
 	FInstanceSceneData InstanceData,
 	uint CompileTimeMaxTexCoords,
@@ -668,7 +714,7 @@ FNaniteAttributeData GetAttributeData(
 	// Always process first UV set. Even if it isn't used, we might still need TangentToWorld.
 	CompileTimeMaxTexCoords = max(1, min(NANITE_MAX_UVS, CompileTimeMaxTexCoords));
 
-	const float3 UnnormalizedTangentZ = Lerp( RawAttributeData0.TangentZ, RawAttributeData1.TangentZ, RawAttributeData2.TangentZ, Barycentrics ).Value;
+	const float3 UnnormalizedTangentZ = Lerp(TangentBasis0.TangentZ, TangentBasis1.TangentZ, TangentBasis2.TangentZ, Barycentrics).Value;
 	const float3 TangentZ = normalize(UnnormalizedTangentZ);
 
 	// Decode vertex color
@@ -704,9 +750,9 @@ FNaniteAttributeData GetAttributeData(
 				BRANCH
 				if (Cluster.bHasTangents)
 				{
-					float4 TangentX_AndSign = Lerp( RawAttributeData0.TangentX_AndSign, RawAttributeData1.TangentX_AndSign, RawAttributeData2.TangentX_AndSign, Barycentrics ).Value;
-					TangentToLocal = NaniteTangentToLocal(TangentX_AndSign, UnnormalizedTangentZ);
-					AttributeData.UnMirrored = TangentX_AndSign.w;
+					float4 TangentXAndSign = Lerp(TangentBasis0.TangentXAndSign, TangentBasis1.TangentXAndSign, TangentBasis2.TangentXAndSign, Barycentrics).Value;
+					TangentToLocal = NaniteTangentToLocal(TangentXAndSign, UnnormalizedTangentZ);
+					AttributeData.UnMirrored = TangentXAndSign.w;
 				}
 				else
 				{
@@ -786,6 +832,9 @@ FNaniteAttributeData GetAttributeData(
 	FNaniteRawAttributeData RawAttributeData0,
 	FNaniteRawAttributeData RawAttributeData1,
 	FNaniteRawAttributeData RawAttributeData2,
+	FNaniteTangentBasis TangentBasis0,
+	FNaniteTangentBasis TangentBasis1,
+	FNaniteTangentBasis TangentBasis2,
 	FBarycentrics Barycentrics,
 	FInstanceSceneData InstanceData,
 	uint CompileTimeMaxTexCoords
@@ -805,6 +854,9 @@ FNaniteAttributeData GetAttributeData(
 		RawAttributeData0,
 		RawAttributeData1,
 		RawAttributeData2,
+		TangentBasis0,
+		TangentBasis1,
+		TangentBasis2,
 		Barycentrics,
 		InstanceData,
 		CompileTimeMaxTexCoords,

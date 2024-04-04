@@ -232,6 +232,11 @@ void VisualizeCS(uint3 DTID : SV_DispatchThreadID, uint3 GID : SV_GroupID)
 		FNaniteRawAttributeData RawAttributeData[3];
 		GetRawAttributeData3(RawAttributeData, Cluster, TriIndices, NANITE_MAX_UVS);
 
+		// TODO: Nanite-Skinning (Provide skinned TSB?)
+		const FNaniteTangentBasis TangentBasis0 = MakeTangentBasis(RawAttributeData[0]);
+		const FNaniteTangentBasis TangentBasis1 = MakeTangentBasis(RawAttributeData[1]);
+		const FNaniteTangentBasis TangentBasis2 = MakeTangentBasis(RawAttributeData[2]);
+
 		const FNaniteAttributeData AttributeData = GetAttributeData(
 			Cluster,
 			PointLocal0,
@@ -240,6 +245,9 @@ void VisualizeCS(uint3 DTID : SV_DispatchThreadID, uint3 GID : SV_GroupID)
 			RawAttributeData[0],
 			RawAttributeData[1],
 			RawAttributeData[2],
+			TangentBasis0,
+            TangentBasis1,
+            TangentBasis2,
 			Barycentrics,
 			InstanceData,
 			NANITE_MAX_UVS
