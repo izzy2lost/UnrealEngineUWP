@@ -244,8 +244,6 @@ void UTypedElementRevisionControlFactory::RegisterApplyOverlays(ITypedElementDat
 				);
 			}
 		)
-		.Where()
-			.Any<FSCCNotCurrentTag, FSCCLockedTag>()
 		.DependsOn()
 			.SubQuery(ApplyOverlaysObjectToSCC)
 		.Compile()
