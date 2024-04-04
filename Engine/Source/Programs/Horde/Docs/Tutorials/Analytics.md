@@ -25,46 +25,49 @@ make sure it is enabled. It should be enabled by default.
 the following lines:
 
     ```ini
+    [StudioTelemetry.Config] 
+    SendTelemetry=true
+    SendUserData=false
+    SendHardwareData=true
+    SendOSData=true
+
     [StudioTelemetry.Provider.HordeAnalytics]
     Name=HordeAnalytics
     ProviderModule=AnalyticsET
     UsageType=EditorAndClient
     APIKeyET=HordeAnalytics.Dev
-    APIServerET="http://localhost:13340/" # Set your Horde Server URL here
-    APIEndpointET="api/v1/telemetry"
+    APIServerET="http://localhost:13340/"
+    APIEndpointET="api/v1/telemetry/engine"
     ```
 
     Make sure to replace the value for `APIServerET` with the address of your Horde Server.
 
 3. Configure a telemetry store to aggregate metrics from your
-   telemetry events. There are some default metrics defined in a file included
+   telemetry events. There are some default metrics and charts included
    with the Horde installation, which can be added by adding the following snippet to your
    [globals.json](../Config/Orientation.md) file:
 
     ```json
+    // Define the 'Engine' telemetry store and create some standard metrics within it.
     "telemetryStores": [
         {
-            "id": "default",
+            "id": "engine",
             "include": [
                 {
                     "path": "$(HordeDir)/Defaults/default-metrics.telemetry.json"
                 }
             ]
         }
-    ]
-    ```
+    ],
 
-4. Configure the analytics dashboard to render your metrics. A default dashboard is included in the Horde installation, and
-can be included by adding the following snippet to your [globals.json](../Config/Orientation.md) file:
-
-    ```json
+    // Configure a default dashboard to render them
     "dashboard": {
         "include": [
             {
                 "path": "$(HordeDir)/Defaults/default-analytics.dashboard.json"
             }
         ]
-    }
+    },
     ```
 
 ## See Also

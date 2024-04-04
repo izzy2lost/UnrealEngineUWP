@@ -2,33 +2,20 @@
 	"analytics": [
 		{
 			"id": "engine",
-			"name": "UE5",
+			"name": "Engine",
 			"telemetryStoreId": "engine",
 			"variables": [
 				{
 					"name": "Stream",
-					"group": "Build_BranchName",
-					"defaults": [
-						"++fortnite+main"
-					]
+					"group": "Build_BranchName"
 				},
 				{
 					"name": "Project",
-					"group": "ProjectName",
-					"defaults": [
-						"AncientWorld",
-						"CitySample",
-						"Lyra"
-					]
+					"group": "ProjectName"
 				},
 				{
 					"name": "Map",
-					"group": "MapName",
-					"defaults": [
-						"AncientWorld",
-						"Big_City_LVL",
-						"L_DefaultEditorOverview"
-					]
+					"group": "MapName"
 				},
 				{
 					"name": "LoadingName",
@@ -57,11 +44,7 @@
 				},
 				{
 					"name": "StreamId",
-					"group": "StreamId",
-					"defaults": [
-						"fortnite-main",
-						"ue5-main"
-					]
+					"group": "StreamId"
 				},
 				{
 					"name": "JobName",
