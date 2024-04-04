@@ -25,6 +25,7 @@ namespace UnrealBuildTool.Rules
 					"DataflowEngine",
 					"MeshDescription",
 					"StaticMeshDescription",
+					"SkeletalMeshDescription",
 				}
 				);
 			PrivateDependencyModuleNames.AddRange(

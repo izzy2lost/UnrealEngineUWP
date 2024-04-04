@@ -1,17 +1,22 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "GeometryCollection/GeometryCollectionEngineUtility.h"
+
+#include "Chaos/Utilities.h"
+#include "DynamicMesh/DynamicMesh3.h"
+#include "Engine/SkeletalMesh.h"
 #include "GeometryCollection/GeometryCollection.h"
 #include "GeometryCollection/GeometryCollectionCache.h"
 #include "GeometryCollection/GeometryCollectionAlgo.h"
+#include "Rendering/SkeletalMeshRenderData.h"
+#include "MeshDescriptionToDynamicMesh.h"
+#include "MeshDescription.h"
+#include "Modules/ModuleInterface.h"
+#include "Modules/ModuleManager.h"
 
 #if WITH_EDITOR
 #include "MeshUtilities.h"
 #endif
-
-#include "Modules/ModuleInterface.h"
-#include "Modules/ModuleManager.h"
-
 
 DEFINE_LOG_CATEGORY_STATIC(LogGeoemtryCollectionClean, Verbose, All);
 
@@ -443,3 +448,109 @@ void GeometryCollectionEngineUtility::ComputeTangents(FGeometryCollection* Geome
 #endif
 }
 
+class FSortableIntVector2 : public UE::Math::TIntVector2<int32>
+{
+public:
+	FSortableIntVector2()
+	{
+		X = INT_MAX;
+		Y = -INT_MAX;
+	}
+
+	bool operator < (const FIntVector2& Other) const
+	{
+		return X < Other.X;
+	}
+};
+
+void GeometryCollectionEngineUtility::GenerateConnectedComponents(const USkeletalMesh* InSkeletalMesh,
+	TArray<TArray<FIntVector>>& SourceTriangleVertices,
+	TArray<TArray<FIntVector2>>& SourceTriangleIndex,
+	TArray<int32>& VertexComponentMap,
+	int32& TriangleCount, int32& VertexCount)
+{
+#if WITH_EDITOR
+	constexpr int32 LODIndex = 0;
+	if (InSkeletalMesh->HasMeshDescription(LODIndex))
+	{
+		FMeshDescription SourceMesh;
+		UE::Geometry::FDynamicMesh3 DynamicMesh;
+		FMeshDescriptionToDynamicMesh Converter;
+		InSkeletalMesh->CloneMeshDescription(LODIndex, SourceMesh);
+		Converter.Convert(&SourceMesh, DynamicMesh);
+
+		TArray<int32> VertexComponentID;
+		VertexComponentID.Init(INDEX_NONE, DynamicMesh.MaxVertexID());
+
+		int32 MaxComponentID = INDEX_NONE;
+		for (int VisitedVertexIdx = 0; VisitedVertexIdx < VertexComponentID.Num(); VisitedVertexIdx++)
+		{
+			if (VertexComponentID[VisitedVertexIdx] == INDEX_NONE)
+			{
+				MaxComponentID++;
+				TArray<int32> Neighbors;
+				Neighbors.Push(VisitedVertexIdx);
+
+				while (!Neighbors.IsEmpty())
+				{
+					int32 CurrentVertex = Neighbors.Pop();
+					for (int32 EdgeID : DynamicMesh.VtxEdgesItr(CurrentVertex))
+					{
+						const FDynamicMesh3::FEdge& Edge = DynamicMesh.GetEdge(EdgeID);
+						int NewVertex = Edge.Vert[0] == CurrentVertex ? Edge.Vert[1] : Edge.Vert[0];
+						if (VertexComponentID[NewVertex] == INDEX_NONE)
+						{
+							Neighbors.Push(NewVertex);
+						}
+					}
+					VertexComponentID[CurrentVertex] = MaxComponentID;
+				}
+			}
+		}
+
+		// Build Component Triangles
+		TriangleCount = 0;
+		SourceTriangleIndex.Init(TArray< FIntVector2 >(), MaxComponentID + 1);
+		SourceTriangleVertices.Init(TArray<FIntVector>(), MaxComponentID + 1);
+		for (int32 TriangleID : DynamicMesh.TriangleIndicesItr())
+		{
+			const FIntVector3& Triangle = DynamicMesh.GetTriangle(TriangleID);
+			int32 ComponentID = VertexComponentID[Triangle[0]];
+			for (int k = 1; k < 3; k++)
+			{
+				if (!ensure(VertexComponentID[Triangle[0]] == ComponentID))
+				{
+					return;
+				}
+			}
+			SourceTriangleVertices[ComponentID].Add(Triangle);
+			SourceTriangleIndex[ComponentID].Add(FIntVector2(TriangleID, INDEX_NONE));
+			TriangleCount++;
+		}
+
+		// Build Remapping
+		int32 CurrentRemapIndex = 0;
+		VertexComponentMap.Init(INDEX_NONE, DynamicMesh.MaxVertexID());
+		for (TArray<FIntVector>& Component : SourceTriangleVertices)
+		{
+			for (FIntVector& Triangle : Component)
+			{
+				for (int k = 0; k < 3; k++)
+				{
+					int32 Index = Triangle[k];
+					if (VertexComponentMap[Index] == INDEX_NONE)
+					{
+						VertexComponentMap[Index] = CurrentRemapIndex++;
+					}
+				}
+			}
+		}
+		VertexCount = CurrentRemapIndex;
+		if (!ensure(CurrentRemapIndex <= VertexComponentMap.Num()))
+		{
+			return;
+		}
+		return;
+	}
+#endif
+}
