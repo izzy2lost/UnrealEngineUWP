@@ -9,6 +9,7 @@
 #include "TypedElementOutlinerItem.h"
 #include "Elements/Columns/TypedElementCompatibilityColumns.h"
 #include "Elements/Columns/TypedElementHiearchyColumns.h"
+#include "Elements/Columns/TypedElementLabelColumns.h"
 #include "Elements/Columns/TypedElementTypeInfoColumns.h"
 
 FTypedElementOutlinerHierarchy::FTypedElementOutlinerHierarchy(FTypedElementOutlinerMode* InMode, TypedElementDataStorage::FQueryDescription InInitialQueryDescription)
@@ -212,13 +213,11 @@ void FTypedElementOutlinerHierarchy::RecompileQueries()
 	FQueryDescription RowAdditionQueryDescription =
 		Select(
 				TEXT("Add Row to Outliner"),
-				FObserver::OnAdd<FTypedElementClassTypeInfoColumn>().ForceToGameThread(true),
+				FObserver::OnAdd<FTypedElementLabelColumn>().ForceToGameThread(true),
 				[this](IQueryContext& Context, TypedElementRowHandle Row)
 				{
 					OnItemAdded(Row);
 				})
-		.Where()
-			.All<FTypedElementUObjectColumn>()
 			.Compile();
 
 	// Add the conditions from FinalQueryDescription to ensure we are tracking addition of the rows the user requested
@@ -228,13 +227,11 @@ void FTypedElementOutlinerHierarchy::RecompileQueries()
 	FQueryDescription RowRemovalQueryDescription =
 		Select(
 				TEXT("Remove Row from Outliner"),
-				FObserver::OnRemove<FTypedElementClassTypeInfoColumn>().ForceToGameThread(true),
+				FObserver::OnRemove<FTypedElementLabelColumn>().ForceToGameThread(true),
 				[this](IQueryContext& Context, TypedElementRowHandle Row)
 				{
 					OnItemRemoved(Row);
 				})
-		.Where()
-			.All<FTypedElementUObjectColumn>()
 			.Compile();
 
 	// Add the conditions from FinalQueryDescription to ensure we are tracking removal of the rows the user requested
@@ -259,8 +256,6 @@ void FTypedElementOutlinerHierarchy::RecompileQueries()
 						{
 							OnItemMoved(Row);
 						})
-						.Where()
-							.All<FTypedElementUObjectColumn>()
 						.Compile();
 
 	// Add the conditions from FinalQueryDescription to ensure we are the rows the user requested
@@ -275,8 +270,6 @@ void FTypedElementOutlinerHierarchy::RecompileQueries()
 						{
 							OnItemMoved(Row);
 						})
-						.Where()
-							.All<FTypedElementUObjectColumn>()
 						.Compile();
 
 	// Add the conditions from FinalQueryDescription to ensure we are the rows the user requested

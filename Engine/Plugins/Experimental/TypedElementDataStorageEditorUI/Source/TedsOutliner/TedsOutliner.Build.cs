@@ -31,6 +31,8 @@ public class TedsOutliner : ModuleRules
 			PrivateDependencyModuleNames.AddRange(
 				new string[]
 				{
+					"WorkspaceMenuStructure",
+					"UnrealEd", // FEditorUndoClient used by SSceneOutliner
 				});
 
 			DynamicallyLoadedModuleNames.AddRange(new string[] {});

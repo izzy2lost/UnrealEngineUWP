@@ -11,6 +11,7 @@
 #include "Elements/Columns/TypedElementMiscColumns.h"
 #include "Elements/Columns/TypedElementSelectionColumns.h"
 #include "FolderTreeItem.h"
+#include "Elements/Columns/TypedElementLabelColumns.h"
 #include "Elements/Columns/TypedElementTypeInfoColumns.h"
 
 #define LOCTEXT_NAMESPACE "TEDSOutlinerMode"
@@ -397,8 +398,6 @@ void FTypedElementOutlinerMode::RecompileQueries()
 						{
 							bSelectionDirty = true;
 						})
-	.					Where()
-							.All<FTypedElementUObjectColumn>()
 						.Compile();
 
 	// Add the conditions from FinalQueryDescription to ensure we are the rows the user requested
@@ -413,8 +412,6 @@ void FTypedElementOutlinerMode::RecompileQueries()
 						{
 							bSelectionDirty = true;
 						})
-						.Where()
-							.All<FTypedElementUObjectColumn>()
 						.Compile();
 
 	// Add the conditions from FinalQueryDescription to ensure we are the rows the user requested

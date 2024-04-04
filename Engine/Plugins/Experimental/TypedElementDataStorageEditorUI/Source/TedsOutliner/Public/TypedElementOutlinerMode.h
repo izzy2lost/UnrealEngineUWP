@@ -36,6 +36,7 @@ struct FTypedElementOutlinerModeParams
 {
 	FTypedElementOutlinerModeParams(SSceneOutliner* InSceneOutliner)
 		: SceneOutliner(InSceneOutliner)
+		, QueryDescription()
 		, bUseDefaultTEDSFilters(false)
 	{}
 
