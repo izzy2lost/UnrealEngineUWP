@@ -1901,10 +1901,7 @@ void FNiagaraGpuComputeDispatch::PreInitViews(FRDGBuilder& GraphBuilder, bool bA
 
 	// Add pass to begin the gpu profiler frame
 #if WITH_NIAGARA_GPU_PROFILER
-	AddPass(GraphBuilder, RDG_EVENT_NAME("Niagara::GPUProfiler_BeginFrame"), [this](FRHICommandListImmediate& RHICmdList)
-	{
-		GPUProfilerPtr->BeginFrame(RHICmdList);
-	});
+	GPUProfilerPtr->BeginFrame(GraphBuilder.RHICmdList);
 #endif
 
 	// Reset the list of GPUSort tasks and release any resources they hold on to.
@@ -2064,21 +2061,23 @@ void FNiagaraGpuComputeDispatch::PostRenderOpaque(FRDGBuilder& GraphBuilder, TCo
 					check(!GPUInstanceCounterManager.HasPendingGPUReadback());
 					GPUInstanceCounterManager.EnqueueGPUReadback(RHICmdList);
 				}
-
-			#if WITH_NIAGARA_GPU_PROFILER
-				GPUProfilerPtr->EndFrame(RHICmdList);
-			#endif
 			}
 		);
 	}
 
-	if (bAllowGPUParticleUpdate)
-	{
-		GraphBuilder.AddPostExecuteCallback([this]
+	GraphBuilder.AddPostExecuteCallback(
+		[this, &RHICmdList=GraphBuilder.RHICmdList, bAllowGPUParticleUpdate]
 		{
-			FinishDispatches();
-		});
-	}
+		#if WITH_NIAGARA_GPU_PROFILER
+			GPUProfilerPtr->EndFrame(RHICmdList);
+		#endif
+		
+			if (bAllowGPUParticleUpdate)
+			{
+				FinishDispatches();
+			}
+		}
+	);
 
 	bRequiresReadback = false;
 

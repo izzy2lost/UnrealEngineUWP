@@ -53,16 +53,17 @@ private:
 	bool ProcessFrame(FRHICommandList& RHICmdList, FGpuFrameData& ReadFrame);
 
 private:
-	uintptr_t				OwnerContext = 0;
+	uintptr_t					OwnerContext = 0;
 
-	int32					CurrentReadFrame = 0;					// Index of the next frame to read from
-	int32					CurrentWriteFrame = 0;					// Index of the next frame to write into
-	FGpuFrameData			GpuFrames[NumBufferFrames];
+	int32						CurrentReadFrame = 0;					// Index of the next frame to read from
+	int32						CurrentWriteFrame = 0;					// Index of the next frame to write into
+	FGpuFrameData				GpuFrames[NumBufferFrames];
 
-	FGpuFrameData*			ActiveWriteFrame = nullptr;				// Not null while we are generating a frame of data, otherwise null
-	bool					bDispatchRecursionGuard = false;		// We don't support timing dispatches inside one another
+	FGpuFrameData*				ActiveWriteFrame = nullptr;				// Not null while we are generating a frame of data, otherwise null
+	static thread_local uint32	ActiveQueryIndex;					// We don't support timing dispatches inside one another
+	UE::FMutex					Mutex;
 
-	FRenderQueryPoolRHIRef	QueryPool;
+	FRenderQueryPoolRHIRef		QueryPool;
 };
 
 #endif //WITH_NIAGARA_GPU_PROFILER

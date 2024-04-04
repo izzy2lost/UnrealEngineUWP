@@ -14,6 +14,8 @@ static FAutoConsoleVariableRef CVarNiagaraGpuProfilingEnabled(
 
 #if WITH_NIAGARA_GPU_PROFILER
 
+thread_local uint32 FNiagaraGPUProfiler::ActiveQueryIndex = INDEX_NONE;
+
 FNiagaraGPUProfiler::FNiagaraGPUProfiler(uintptr_t InOwnerContext)
 	: OwnerContext(InOwnerContext)
 {
@@ -82,9 +84,11 @@ void FNiagaraGPUProfiler::BeginDispatch(FRHICommandList& RHICmdList, const FNiag
 	{
 		return;
 	}
-	check(bDispatchRecursionGuard == false);
-	bDispatchRecursionGuard = true;
 
+
+	UE::TScopeLock Lock(Mutex);
+	check(ActiveQueryIndex == INDEX_NONE);
+	ActiveQueryIndex = ActiveWriteFrame->DispatchTimers.Num();
 	FGpuDispatchTimer& DispatchTimer = ActiveWriteFrame->DispatchTimers.Emplace_GetRef(Event);
 
 	DispatchTimer.StartQuery = QueryPool->AllocateQuery();
@@ -97,12 +101,15 @@ void FNiagaraGPUProfiler::EndDispatch(FRHICommandList& RHICmdList)
 	{
 		return;
 	}
-	check(bDispatchRecursionGuard == true);
-	bDispatchRecursionGuard = false;
+	
+	UE::TScopeLock Lock(Mutex);
+	check(ActiveWriteFrame->DispatchTimers.IsValidIndex(ActiveQueryIndex));
 
-	FGpuDispatchTimer& DispatchTimer = ActiveWriteFrame->DispatchTimers.Last();
+	FGpuDispatchTimer& DispatchTimer = ActiveWriteFrame->DispatchTimers[ActiveQueryIndex];
 	DispatchTimer.EndQuery = QueryPool->AllocateQuery();
 	RHICmdList.EndRenderQuery(DispatchTimer.EndQuery.GetQuery());
+
+	ActiveQueryIndex = INDEX_NONE;
 }
 
 bool FNiagaraGPUProfiler::ProcessFrame(FRHICommandList& /*RHICmdList*/, FGpuFrameData& ReadFrame)
