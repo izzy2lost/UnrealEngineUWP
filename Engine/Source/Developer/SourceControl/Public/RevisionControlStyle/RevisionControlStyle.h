@@ -56,6 +56,12 @@ protected:
 
 	/** The specific color we use for all the "Branched" icons */
 	FLinearColor BranchedColor;
+
+	/** The specific colors we use for all the "Status" icons */
+	FLinearColor StatusCheckedOutColor;
+	FLinearColor StatusCheckedOutByOtherUserColor;
+	FLinearColor StatusNotAtHeadRevisionColor;
+	FLinearColor StatusOpenForAddColor;
 	
 private:
 	static FName StyleName;

@@ -73,7 +73,7 @@ static FColor DetermineOverlayColor(const TypedElementDataStorage::IQueryContext
 			if (CVarEnableOverlayNotAtHeadRevision.GetValueOnGameThread())
 			{
 				// Yellow.
-				return FColor(255, 255, 61, CVarOverlayAlpha.GetValueOnGameThread());
+				return FColor(225, 255, 61, CVarOverlayAlpha.GetValueOnGameThread());
 			}
 		}
 
@@ -83,7 +83,7 @@ static FColor DetermineOverlayColor(const TypedElementDataStorage::IQueryContext
 			if (CVarEnableOverlayCheckedOutByOtherUser.GetValueOnGameThread())
 			{
 				// Red.
-				return FColor(255, 64, 64, CVarOverlayAlpha.GetValueOnGameThread());
+				return FColor(239, 53, 53, CVarOverlayAlpha.GetValueOnGameThread());
 			}
 		}
 
@@ -96,8 +96,8 @@ static FColor DetermineOverlayColor(const TypedElementDataStorage::IQueryContext
 				{
 					if (StatusColumn->Modification == ESCCModification::Added)
 					{
-						// Green.
-						return FColor(134, 194, 74, CVarOverlayAlpha.GetValueOnGameThread());
+						// Blue.
+						return FColor(0, 112, 224, CVarOverlayAlpha.GetValueOnGameThread());
 					}
 				}
 			}
@@ -108,8 +108,8 @@ static FColor DetermineOverlayColor(const TypedElementDataStorage::IQueryContext
 		{
 			if (CVarEnableOverlayCheckedOut.GetValueOnGameThread())
 			{
-				// Blue.
-				return FColor(0, 112, 224, CVarOverlayAlpha.GetValueOnGameThread());
+				// Green.
+				return FColor(31, 228, 75, CVarOverlayAlpha.GetValueOnGameThread());
 			}
 		}
 	}
