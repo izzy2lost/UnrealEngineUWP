@@ -51,6 +51,8 @@ struct STATETREEMODULE_API FStateTreeCustomVersion
 		StoringGlobalParametersInInstanceStorage,
 		// Added binding to events
 		AddedBindingToEvents,
+		// Added checking parent states' prerequisites when activating child state directly.
+		AddedCheckingParentsPrerequisites,
 
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,

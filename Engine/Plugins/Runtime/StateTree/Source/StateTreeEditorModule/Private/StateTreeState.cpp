@@ -393,6 +393,11 @@ void UStateTreeState::PostLoad()
 			}
 		}
 	}
+
+	if (CurrentVersion < FStateTreeCustomVersion::AddedCheckingParentsPrerequisites)
+	{
+		bCheckPrerequisitesWhenActivatingChildDirectly = false;
+	}
 	
 #endif // WITH_EDITORONLY_DATA
 

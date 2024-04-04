@@ -343,6 +343,10 @@ public:
 	UPROPERTY(EditDefaultsOnly, Category = "State")
 	TObjectPtr<UStateTree> LinkedAsset = nullptr;
 
+	/** Should state's required event and enter conditions be evaluated when transition leads directly to it's child. */
+	UPROPERTY(EditDefaultsOnly, Category = "State")
+	bool bCheckPrerequisitesWhenActivatingChildDirectly = true;
+
 	/** Parameters of this state. If the state is linked to another state or asset, the parameters are for the linked state. */
 	UPROPERTY(EditDefaultsOnly, Category = "State")
 	FStateTreeStateParameters Parameters;
