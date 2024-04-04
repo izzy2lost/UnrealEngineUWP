@@ -16,16 +16,19 @@
 #include "Elements/Framework/TypedElementIndexHasher.h"
 #include "Elements/Framework/TypedElementQueryBuilder.h"
 #include "MassActorSubsystem.h"
+#include "Memento/TypedElementMementoRowTypes.h"
+#include "TypedElementDatabase.h"
 #include "TypedElementDataStorageProfilingMacros.h"
 
-void UTypedElementDatabaseCompatibility::Initialize(ITypedElementDataStorageInterface* StorageInterface)
+void UTypedElementDatabaseCompatibility::Initialize(UTypedElementDatabase* InStorage)
 {
-	checkf(StorageInterface, TEXT("Typed Element's Database compatibility manager is being initialized with an invalid storage target."));
+	checkf(InStorage, TEXT("Typed Element's Database compatibility manager is being initialized with an invalid storage target."));
 	
-	Storage = StorageInterface;
+	Storage = InStorage;
+	Environment = InStorage->GetEnvironment();
 	Prepare();
 
-	StorageInterface->OnUpdate().AddUObject(this, &UTypedElementDatabaseCompatibility::Tick);
+	InStorage->OnUpdate().AddUObject(this, &UTypedElementDatabaseCompatibility::Tick);
 
 	PreEditChangePropertyDelegateHandle = FCoreUObjectDelegates::OnPreObjectPropertyChanged.AddUObject(this, &UTypedElementDatabaseCompatibility::OnPrePropertyChanged);
 	PostEditChangePropertyDelegateHandle = FCoreUObjectDelegates::OnObjectPropertyChanged.AddUObject(this, &UTypedElementDatabaseCompatibility::OnPostEditChangeProperty);
@@ -272,7 +275,7 @@ TypedElementRowHandle UTypedElementDatabaseCompatibility::AddCompatibleObjectExp
 		{
 			if (GUndo)
 			{
-				GUndo->StoreUndo(this, MakeUnique<FRegistrationCommandChange>(Object));
+				GUndo->StoreUndo(this, MakeUnique<FRegistrationCommandChange>(this, Object));
 			}
 		}
 	}
@@ -301,7 +304,7 @@ void UTypedElementDatabaseCompatibility::RemoveCompatibleObjectExplicitTransacti
 			{
 				if (GUndo)
 				{
-					GUndo->StoreUndo(this, MakeUnique<FDeregistrationCommandChange>(Object));
+					GUndo->StoreUndo(this, MakeUnique<FDeregistrationCommandChange>(this, Object));
 				}
 			}
 		}
@@ -769,29 +772,54 @@ SIZE_T GetTypeHash(const UTypedElementDatabaseCompatibility::FSyncTagInfo& Colum
 // UTypedElementDatabaseCompatibility::FRegistrationCommandChange
 //
 
-UTypedElementDatabaseCompatibility::FRegistrationCommandChange::FRegistrationCommandChange(UObject* InTargetObject)
-	: TargetObject(InTargetObject)
+UTypedElementDatabaseCompatibility::FRegistrationCommandChange::FRegistrationCommandChange(
+	UTypedElementDatabaseCompatibility* InOwner, UObject* InTargetObject)
+	: Owner(InOwner)
+	, TargetObject(InTargetObject)
 {
+}
+
+UTypedElementDatabaseCompatibility::FRegistrationCommandChange::~FRegistrationCommandChange()
+{
+	// If there has been no revert operation, there's also no memento.
+	if (UTypedElementDatabaseCompatibility* DataStorageCompat = Owner.Get(); 
+		DataStorageCompat && DataStorageCompat->Storage->IsRowAvailable(MementoRow))
+	{
+		DataStorageCompat->Environment->GetMementoSystem().DestroyMemento(MementoRow);
+	}
 }
 
 void UTypedElementDatabaseCompatibility::FRegistrationCommandChange::Apply(UObject* Object)
 {
-	if (UTypedElementDatabaseCompatibility* CompatibilityLayer = Cast<UTypedElementDatabaseCompatibility>(Object))
+	using namespace TypedElementDataStorage;
+
+	checkf(Owner.IsValid() && Owner.Get() == Object, 
+		TEXT("Applying registration transaction command within TEDS Compat was called after TEDS is not longer available."));
+	UTypedElementDatabaseCompatibility* DataStorageCompat = Owner.Get();
+	if (UObject* TargetRetrieved = TargetObject.Get(/*bEvenIfPendingKill=*/ true))
 	{
-		if (UObject* TargetRetrieved = TargetObject.Get(/*bEvenIfPendingKill=*/ true))
-		{
-			CompatibilityLayer->AddCompatibleObjectExplicitTransactionable<false>(TargetRetrieved);
-		}
+		RowHandle ObjectRow = DataStorageCompat->AddCompatibleObjectExplicitTransactionable<false>(TargetRetrieved);
+		DataStorageCompat->Environment->GetMementoSystem().RestoreMemento(MementoRow, ObjectRow);
 	}
 }
 
 void UTypedElementDatabaseCompatibility::FRegistrationCommandChange::Revert(UObject* Object)
 {
-	if (UTypedElementDatabaseCompatibility* CompatibilityLayer = Cast<UTypedElementDatabaseCompatibility>(Object))
+	using namespace TypedElementDataStorage;
+	
+	checkf(Owner.IsValid() && Owner.Get() == Object,
+		TEXT("Reverting registration transaction command within TEDS Compat was called after TEDS is not longer available."));
+
+	if (UObject* TargetRetrieved = TargetObject.Get(/*bEvenIfPendingKill=*/ true))
 	{
-		if (UObject* TargetRetrieved = TargetObject.Get(/*bEvenIfPendingKill=*/ true))
+		UTypedElementDatabaseCompatibility* DataStorageCompat = Owner.Get(); 
+		ITypedElementDataStorageInterface* DataStorage = DataStorageCompat->Storage;
+			
+		RowHandle ObjectRow = DataStorageCompat->FindRowWithCompatibleObjectExplicit(TargetRetrieved);
+		if (DataStorage->IsRowAvailable(ObjectRow))
 		{
-			CompatibilityLayer->RemoveCompatibleObjectExplicitTransactionable<false>(TargetRetrieved);
+			MementoRow = DataStorageCompat->Environment->GetMementoSystem().CreateMemento(ObjectRow);
+			DataStorageCompat->RemoveCompatibleObjectExplicitTransactionable<false>(TargetRetrieved);
 		}
 	}
 }
@@ -806,30 +834,57 @@ FString UTypedElementDatabaseCompatibility::FRegistrationCommandChange::ToString
 // UTypedElementDatabaseCompatibility::FDeregistrationCommandChange
 //
 
-UTypedElementDatabaseCompatibility::FDeregistrationCommandChange::FDeregistrationCommandChange(UObject* InTargetObject)
-	: TargetObject(InTargetObject)
+UTypedElementDatabaseCompatibility::FDeregistrationCommandChange::FDeregistrationCommandChange(
+	UTypedElementDatabaseCompatibility* InOwner, UObject* InTargetObject)
+	: Owner(InOwner)
+	, TargetObject(InTargetObject)
 {
+	using namespace TypedElementDataStorage;
+
+	ITypedElementDataStorageInterface* DataStorage = InOwner->Storage;
+
+	RowHandle ObjectRow = InOwner->FindRowWithCompatibleObjectExplicit(InTargetObject);
+	if (DataStorage->IsRowAvailable(ObjectRow))
+	{
+		MementoRow = InOwner->Environment->GetMementoSystem().CreateMemento(ObjectRow);
+	}
+}
+
+UTypedElementDatabaseCompatibility::FDeregistrationCommandChange::~FDeregistrationCommandChange()
+{
+	// There's no memento row if target object was never registered with TEDS Compat.
+	if (UTypedElementDatabaseCompatibility* DataStorageCompat = Owner.Get();
+		DataStorageCompat && DataStorageCompat->Storage->IsRowAvailable(MementoRow))
+	{
+		DataStorageCompat->Environment->GetMementoSystem().DestroyMemento(MementoRow);
+	}
 }
 
 void UTypedElementDatabaseCompatibility::FDeregistrationCommandChange::Apply(UObject* Object)
 {
-	if (UTypedElementDatabaseCompatibility* CompatibilityLayer = Cast<UTypedElementDatabaseCompatibility>(Object))
+	using namespace TypedElementDataStorage;
+
+	checkf(Owner.IsValid() && Owner.Get() == Object,
+		TEXT("Applying deregistration transaction command within TEDS Compat was called after TEDS is not longer available."));
+	UTypedElementDatabaseCompatibility* DataStorageCompat = Owner.Get();
+	if (UObject* TargetRetrieved = TargetObject.Get(/*bEvenIfPendingKill=*/ true))
 	{
-		if (UObject* TargetRetrieved = TargetObject.Get(/*bEvenIfPendingKill=*/ true))
-		{
-			CompatibilityLayer->RemoveCompatibleObjectExplicitTransactionable<false>(TargetRetrieved);
-		}
+		DataStorageCompat->RemoveCompatibleObjectExplicitTransactionable<false>(TargetRetrieved);
 	}
 }
 
 void UTypedElementDatabaseCompatibility::FDeregistrationCommandChange::Revert(UObject* Object)
 {
-	if (UTypedElementDatabaseCompatibility* CompatibilityLayer = Cast<UTypedElementDatabaseCompatibility>(Object))
+	using namespace TypedElementDataStorage;
+
+	checkf(Owner.IsValid() && Owner.Get() == Object,
+		TEXT("Reverting deregistration transaction command within TEDS Compat was called after TEDS is not longer available."));
+	
+	UTypedElementDatabaseCompatibility* DataStorageCompat = Owner.Get();
+	if (UObject* TargetRetrieved = TargetObject.Get(/*bEvenIfPendingKill=*/ true))
 	{
-		if (UObject* TargetRetrieved = TargetObject.Get(/*bEvenIfPendingKill=*/ true))
-		{
-			CompatibilityLayer->AddCompatibleObjectExplicitTransactionable<false>(TargetRetrieved);
-		}
+		RowHandle ObjectRow = DataStorageCompat->AddCompatibleObjectExplicitTransactionable<false>(TargetRetrieved);
+		DataStorageCompat->Environment->GetMementoSystem().RestoreMemento(MementoRow, ObjectRow);
 	}
 }
 

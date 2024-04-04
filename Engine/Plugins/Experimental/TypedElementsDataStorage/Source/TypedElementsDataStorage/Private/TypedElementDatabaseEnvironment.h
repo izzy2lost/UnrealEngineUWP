@@ -7,12 +7,14 @@
 #include "TypedElementDatabaseCommandBuffer.h"
 #include "TypedElementDatabaseScratchBuffer.h"
 #include "TypedElementDatabaseIndexTable.h"
+#include "Memento/TypedElementMementoSystem.h"
 #include "Queries/TypedElementExtendedQueryStore.h"
 
 class FTypedElementDatabaseEnvironment final
 {
 public:
-	FTypedElementDatabaseEnvironment(FMassEntityManager& InMassEntityManager, FMassProcessingPhaseManager& InMassPhaseManager);
+	FTypedElementDatabaseEnvironment(ITypedElementDataStorageInterface& DataStorage, 
+		FMassEntityManager& InMassEntityManager, FMassProcessingPhaseManager& InMassPhaseManager);
 
 	FTypedElementDatabaseCommandBuffer& GetDirectDeferredCommands();
 	const FTypedElementDatabaseCommandBuffer& GetDirectDeferredCommands() const;
@@ -25,6 +27,9 @@ public:
 
 	FTypedElementExtendedQueryStore& GetQueryStore();
 	const FTypedElementExtendedQueryStore& GetQueryStore() const;
+
+	UTypedElementMementoSystem& GetMementoSystem();
+	const UTypedElementMementoSystem& GetMementoSystem() const;
 
 	FMassEntityManager& GetMassEntityManager();
 	const FMassEntityManager& GetMassEntityManager() const;
@@ -40,7 +45,8 @@ private:
 	FTypedElementDatabaseIndexTable IndexTable;
 	FTypedElementDatabaseScratchBuffer ScratchBuffer;
 	FTypedElementExtendedQueryStore Queries;
-	
+	UTypedElementMementoSystem MementoSystem;
+
 	FMassEntityManager& MassEntityManager;
 	FMassProcessingPhaseManager& MassPhaseManager;
 

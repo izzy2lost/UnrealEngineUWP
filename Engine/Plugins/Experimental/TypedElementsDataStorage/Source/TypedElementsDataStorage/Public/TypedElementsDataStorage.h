@@ -12,7 +12,6 @@ class UTypedElementDatabase;
 class UTypedElementDatabaseCompatibility;
 class UTypedElementDatabaseUi;
 class UTypedElementObjectReinstancingManager;
-class UTypedElementMementoSystem;
 
 class FTypedElementsDataStorageModule : public IModuleInterface, public FGCObject
 {
@@ -38,7 +37,6 @@ private:
 	TObjectPtr<UTypedElementDatabase> Database;
 	TObjectPtr<UTypedElementDatabaseCompatibility> DatabaseCompatibility;
 	TObjectPtr<UTypedElementDatabaseUi> DatabaseUi;
-	TObjectPtr<UTypedElementMementoSystem> MementoSystem;
 	TObjectPtr<UTypedElementObjectReinstancingManager> ObjectReinstancingManager;
 	bool bInitialized{ false };
 };

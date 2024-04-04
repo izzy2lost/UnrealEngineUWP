@@ -1,32 +1,25 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
-#include "Elements/Interfaces/TypedElementDataStorageFactory.h"
-#include "Elements/Columns/TypedElementSelectionColumns.h"
-#include "UObject/UObjectGlobals.h"
-
-#include "TypedElementMementoSystem.generated.h"
+#include "Containers/Array.h"
+#include "Elements/Common/TypedElementHandles.h"
 
 class ITypedElementDataStorageInterface;
-class IConsoleVariable;
-struct FTypedElementDatabaseCompatibilityObjectTypeInfo;
 class UTypedElementDatabase;
-
-UCLASS()
-class UTypedElementMementoSystem : public UObject
+class UTypedElementMementoTranslatorBase;
+	
+class UTypedElementMementoSystem
 {
-	GENERATED_BODY()
 public:
-
-	void Initialize(UTypedElementDatabase& DataStorage);
-	void Deinitialize();
-
-	TypedElementRowHandle CreateMemento(ITypedElementDataStorageInterface* DataStorage);
+	explicit UTypedElementMementoSystem(ITypedElementDataStorageInterface& InDataStorage);
+	
+	TypedElementDataStorage::RowHandle CreateMemento(TypedElementDataStorage::RowHandle SourceRow);
+	void RestoreMemento(TypedElementDataStorage::RowHandle MementoRow,  TypedElementDataStorage::RowHandle TargetRow);
+	void DestroyMemento(TypedElementDataStorage::RowHandle MementoRow);
 
 private:
-	void RegisterQueries(UTypedElementDatabase& DataStorage) const;
-	void RegisterTables(UTypedElementDatabase& DataStorage);
-	
-	TypedElementTableHandle MementoRowBaseTable;
+	TArray<const UTypedElementMementoTranslatorBase*> MementoTranslators;
+	TypedElementDataStorage::TableHandle MementoRowBaseTable;
+	ITypedElementDataStorageInterface& DataStorage;
 };

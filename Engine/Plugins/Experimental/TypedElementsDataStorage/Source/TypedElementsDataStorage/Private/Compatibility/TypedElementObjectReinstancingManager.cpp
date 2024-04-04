@@ -7,7 +7,6 @@
 #include "Memento/TypedElementMementoRowTypes.h"
 #include "TypedElementDatabase.h"
 #include "TypedElementDatabaseCompatibility.h"
-#include "Memento/TypedElementMementoInterface.h"
 
 DECLARE_LOG_CATEGORY_CLASS(LogTedsObjectReinstancing, Log, Log)
 
@@ -16,82 +15,49 @@ UTypedElementObjectReinstancingManager::UTypedElementObjectReinstancingManager()
 {
 }
 
-void UTypedElementObjectReinstancingManager::Initialize(UTypedElementDatabase& InDatabase, UTypedElementDatabaseCompatibility& InDataStorageCompatibility, UTypedElementMementoSystem& InMementoSystem)
+void UTypedElementObjectReinstancingManager::Initialize(UTypedElementDatabase& InDatabase, UTypedElementDatabaseCompatibility& InDataStorageCompatibility)
 {
 	Database = &InDatabase;
 	DataStorageCompatibility = &InDataStorageCompatibility;
-	MementoSystem = &InMementoSystem;
-
-	ReinstancingCallbackHandle = FCoreUObjectDelegates::OnObjectsReinstanced.AddUObject(this, &UTypedElementObjectReinstancingManager::HandleOnObjectsReinstanced);
-	ObjectRemovedCallbackHandle = DataStorageCompatibility->RegisterObjectRemovedCallback([this](const void* Object, const FTypedElementDatabaseCompatibilityObjectTypeInfo& TypeInfo, TypedElementRowHandle Row)
-	{
-		HandleOnObjectPreRemoved(Object, TypeInfo, Row);
-	});
 	
-	RegisterQueries();
+	UpdateCompletedCallbackHandle = 
+		Database->OnUpdateCompleted().AddUObject(this, &UTypedElementObjectReinstancingManager::UpdateCompleted);
+	ReinstancingCallbackHandle = 
+		FCoreUObjectDelegates::OnObjectsReinstanced.AddUObject(this, &UTypedElementObjectReinstancingManager::HandleOnObjectsReinstanced);
+	ObjectRemovedCallbackHandle = DataStorageCompatibility->RegisterObjectRemovedCallback(
+		[this](const void* Object, const FTypedElementDatabaseCompatibilityObjectTypeInfo& TypeInfo, TypedElementRowHandle Row)
+		{
+			HandleOnObjectPreRemoved(Object, TypeInfo, Row);
+		});
 }
 
 void UTypedElementObjectReinstancingManager::Deinitialize()
 {
-	UnregisterQueries();
-	
 	FCoreUObjectDelegates::OnObjectsReinstanced.Remove(ReinstancingCallbackHandle);
 	DataStorageCompatibility->UnregisterObjectRemovedCallback(ObjectRemovedCallbackHandle);
+	Database->OnUpdateCompleted().Remove(UpdateCompletedCallbackHandle);
 
-	MementoSystem = nullptr;
 	DataStorageCompatibility = nullptr;
 	Database = nullptr;
 }
 
-void UTypedElementObjectReinstancingManager::RegisterQueries()
+void UTypedElementObjectReinstancingManager::UpdateCompleted()
 {
-	using namespace TypedElementQueryBuilder;
-	using DSI = ITypedElementDataStorageInterface;
+	using namespace TypedElementDataStorage;
 
+	UTypedElementMementoSystem& MementoSystem = Database->GetEnvironment()->GetMementoSystem();
+	for (TMap<const void*, RowHandle>::TConstIterator It = OldObjectToMementoMap.CreateConstIterator(); It; ++It)
 	{
-		TypedElementQueryHandle QueryHandle = Database->RegisterQuery(
-		Select(
-		TEXT("Memento cleanup"),
-		FProcessor(DSI::EQueryTickPhase::FrameEnd, Database->GetQueryTickGroupName(DSI::EQueryTickGroups::Default)),
-			[this](TypedElementDataStorage::IQueryContext& Context, const TypedElementRowHandle* Row, const FTypedElementsReinstanceableSourceObject*)
-			{
-				Context.RemoveRows(Context.GetRowHandles());
-				
-				TConstArrayView<const FTypedElementsReinstanceableSourceObject> ReinstanceableArray = MakeArrayView(Context.GetColumn<FTypedElementsReinstanceableSourceObject>(), Context.GetRowCount());
-				for (const FTypedElementsReinstanceableSourceObject& Reinstanceable : ReinstanceableArray)
-				{
-					OldObjectToMementoMap.Remove(Reinstanceable.Object);
-				}
-				
-			})
-			.Where().All<FTypedElementMementoTag, FTypedElementMementoPopulated>()
-			.Compile()
-		);
-		check(QueryHandle != TypedElementInvalidQueryHandle);
+		MementoSystem.DestroyMemento(It.Value());
 	}
+	OldObjectToMementoMap.Reset();
 }
 
-void UTypedElementObjectReinstancingManager::UnregisterQueries()
-{
-	// TODO: Observer queries cannot be unregistered in Mass at this time
-}
-
-void UTypedElementObjectReinstancingManager::HandleOnObjectPreRemoved(const void* Object, const FTypedElementDatabaseCompatibilityObjectTypeInfo& TypeInfo, TypedElementRowHandle ObjectRow)
+void UTypedElementObjectReinstancingManager::HandleOnObjectPreRemoved(
+	const void* Object, const FTypedElementDatabaseCompatibilityObjectTypeInfo& TypeInfo, TypedElementRowHandle ObjectRow)
 {
 	// This is the chance to record the old object to memento
-	TypedElementRowHandle Memento = MementoSystem->CreateMemento(Database.Get());
-	
-	if (!ensureMsgf(Database->HasColumns(Memento, TConstArrayView<const UScriptStruct*>({FTypedElementMementoTag::StaticStruct()})),
-		TEXT("Memento System should create rows with the MementoTag")))
-	{
-		Database->RemoveRow(Memento);
-		return;
-	}
-
-	ITypedElementDataStorageInterface* Interface = Database.Get();
-	Interface->AddColumn(ObjectRow, FTypedElementMementoOnDelete{ .Memento = Memento });
-	Interface->AddColumn(Memento, FTypedElementsReinstanceableSourceObject{.Object = Object});
-
+	TypedElementRowHandle Memento = Database->GetEnvironment()->GetMementoSystem().CreateMemento(ObjectRow);
 	OldObjectToMementoMap.Add(Object, Memento);
 }
 
@@ -109,8 +75,6 @@ void UTypedElementObjectReinstancingManager::HandleOnObjectsReinstanced(
 			UObject* NewInstanceObject = Iter->Value;
 			if (NewInstanceObject == nullptr)
 			{
-				// Reinstancing resulted in no target object.  Delete the memento.
-				Interface->AddColumn<FTypedElementMementoReinstanceAborted>(Memento);
 				continue;
 			}
 			
@@ -123,7 +87,7 @@ void UTypedElementObjectReinstancingManager::HandleOnObjectsReinstanced(
 			}
 
 			// Kick off re-instantiation of NewObjectRow from the Memento
-			Interface->AddColumn(Memento, FTypedElementMementoReinstanceTarget{ .Target = NewObjectRow });
+			Database->GetEnvironment()->GetMementoSystem().RestoreMemento(Memento, NewObjectRow);
 		}
 	}
 }

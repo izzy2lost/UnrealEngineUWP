@@ -19,6 +19,8 @@
 
 class ITypedElementDataStorageInterface;
 struct FMassActorManager;
+class FTypedElementDatabaseEnvironment;
+class UTypedElementMementoSystem;
 
 enum class ETypedElementDatabaseCompatibilityObjectType : uint8;
 struct FTypedElementDatabaseCompatibilityObjectTypeInfo;
@@ -35,7 +37,7 @@ public:
 	
 	~UTypedElementDatabaseCompatibility() override = default;
 
-	void Initialize(ITypedElementDataStorageInterface* StorageInterface);
+	void Initialize(UTypedElementDatabase* InStorage);
 	void Deinitialize();
 
 	void RegisterRegistrationFilter(ObjectRegistrationFilter Filter) override;
@@ -63,26 +65,32 @@ private:
 	class FRegistrationCommandChange final : public FCommandChange
 	{
 	public:
-		explicit FRegistrationCommandChange(UObject* InTargetObject);
+		FRegistrationCommandChange(UTypedElementDatabaseCompatibility* InOwner, UObject* InTargetObject);
+		~FRegistrationCommandChange() override;
 
 		void Apply(UObject* Object) override;
 		void Revert(UObject* Object) override;
 		FString ToString() const override;
 
 	private:
+		TWeakObjectPtr<UTypedElementDatabaseCompatibility> Owner;
 		TWeakObjectPtr<UObject> TargetObject;
+		TypedElementDataStorage::RowHandle MementoRow = TypedElementDataStorage::InvalidRowHandle;
 	};
 	class FDeregistrationCommandChange final : public FCommandChange
 	{
 	public:
-		explicit FDeregistrationCommandChange(UObject* InTargetObject);
+		FDeregistrationCommandChange(UTypedElementDatabaseCompatibility* InOwner, UObject* InTargetObject);
+		~FDeregistrationCommandChange() override;
 
 		void Apply(UObject* Object) override;
 		void Revert(UObject* Object) override;
 		FString ToString() const override;
 
 	private:
+		TWeakObjectPtr<UTypedElementDatabaseCompatibility> Owner;
 		TWeakObjectPtr<UObject> TargetObject;
+		TypedElementDataStorage::RowHandle MementoRow = TypedElementDataStorage::InvalidRowHandle;
 	};
 
 	void Prepare();
@@ -212,7 +220,8 @@ private:
 	FDelegateHandle PostWorldInitializationDelegateHandle;
 	FDelegateHandle PreWorldFinishDestroyDelegateHandle;
 	FDelegateHandle ObjectReinstancedDelegateHandle;
-
+	
+	TSharedPtr<FTypedElementDatabaseEnvironment> Environment;
 	TypedElementDataStorage::QueryHandle ClassTypeInfoQuery;
 	TypedElementDataStorage::QueryHandle ScriptStructTypeInfoQuery;
 };

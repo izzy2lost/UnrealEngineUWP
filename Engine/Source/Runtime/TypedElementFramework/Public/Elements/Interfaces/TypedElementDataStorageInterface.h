@@ -88,16 +88,20 @@ public:
 	 */
 
 	/** Creates a new table for with the provided columns. Optionally a name can be given which is useful for retrieval later. */
-	virtual TypedElementTableHandle RegisterTable(TConstArrayView<const UScriptStruct*> ColumnList, const FName Name) = 0;
+	virtual TypedElementDataStorage::TableHandle RegisterTable(TConstArrayView<const UScriptStruct*> ColumnList, const FName Name) = 0;
+	template<TypedElementDataStorage::TColumnType... Columns>
+	TypedElementDataStorage::TableHandle RegisterTable(const FName Name);
 	/** 
 	 * Copies the column information from the provided table and creates a new table for with the provided columns. Optionally a 
 	 * name can be given which is useful for retrieval later.
 	 */
-	virtual TypedElementTableHandle RegisterTable(TypedElementTableHandle SourceTable, 
+	virtual TypedElementDataStorage::TableHandle RegisterTable(TypedElementDataStorage::TableHandle SourceTable,
 		TConstArrayView<const UScriptStruct*> ColumnList, const FName Name) = 0;
+	template<TypedElementDataStorage::TColumnType... Columns>
+	TypedElementDataStorage::TableHandle RegisterTable(TypedElementDataStorage::TableHandle SourceTable, const FName Name);
 
 	/** Returns a previously created table with the provided name or TypedElementInvalidTableHandle if not found. */
-	virtual TypedElementTableHandle FindTable(const FName Name) = 0;
+	virtual TypedElementDataStorage::TableHandle FindTable(const FName Name) = 0;
 	
 	/**
 	 * @section Row management
@@ -312,6 +316,11 @@ public:
 	 * for the data storage.
 	 */
 	virtual FTypedElementOnDataStorageUpdate& OnUpdate() = 0;
+	/**
+	 * Called periodically when the storage is available. This provides an opportunity clean up after processing and
+	 * to get ready for the next batch up updates.
+	 */
+	virtual FTypedElementOnDataStorageUpdate& OnUpdateCompleted() = 0;
 
 	/**
 	 * Whether or not the data storage is available. The data storage is available most of the time, but can be
@@ -335,6 +344,19 @@ template <typename FactoryT>
 const FactoryT* ITypedElementDataStorageInterface::FindFactory() const
 {
 	return static_cast<const FactoryT*>(FindFactory(FactoryT::StaticClass()));
+}
+
+template<TypedElementDataStorage::TColumnType... Columns>
+TypedElementDataStorage::TableHandle ITypedElementDataStorageInterface::RegisterTable(const FName Name)
+{
+	return RegisterTable({ Columns::StaticStruct()... }, Name);
+}
+
+template<TypedElementDataStorage::TColumnType... Columns>
+TypedElementDataStorage::TableHandle ITypedElementDataStorageInterface::RegisterTable(
+	TypedElementDataStorage::TableHandle SourceTable, const FName Name)
+{
+	return RegisterTable(SourceTable, { Columns::StaticStruct()... }, Name);
 }
 
 template<TypedElementDataStorage::TColumnType Column>

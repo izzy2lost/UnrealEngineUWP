@@ -2,9 +2,10 @@
 
 #include "TypedElementDatabaseEnvironment.h"
 
-FTypedElementDatabaseEnvironment::FTypedElementDatabaseEnvironment(
+FTypedElementDatabaseEnvironment::FTypedElementDatabaseEnvironment(ITypedElementDataStorageInterface& DataStorage,
 	FMassEntityManager& InMassEntityManager, FMassProcessingPhaseManager& InMassPhaseManager)
 	: DirectDeferredCommands(*this)
+	, MementoSystem(DataStorage)
 	, MassEntityManager(InMassEntityManager)
 	, MassPhaseManager(InMassPhaseManager)
 {
@@ -48,6 +49,16 @@ FTypedElementExtendedQueryStore& FTypedElementDatabaseEnvironment::GetQueryStore
 const FTypedElementExtendedQueryStore& FTypedElementDatabaseEnvironment::GetQueryStore() const
 {
 	return Queries;
+}
+
+UTypedElementMementoSystem& FTypedElementDatabaseEnvironment::GetMementoSystem()
+{
+	return MementoSystem;
+}
+
+const UTypedElementMementoSystem& FTypedElementDatabaseEnvironment::GetMementoSystem() const
+{
+	return MementoSystem;
 }
 
 FMassEntityManager& FTypedElementDatabaseEnvironment::GetMassEntityManager()

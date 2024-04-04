@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -21,41 +21,26 @@ class UTypedElementObjectReinstancingManager : public UObject
 public:
 	UTypedElementObjectReinstancingManager();
 
-	void Initialize(UTypedElementDatabase& InDatabase, UTypedElementDatabaseCompatibility& InDataStorageCompatibility, UTypedElementMementoSystem& InMementoSystem);
+	void Initialize(UTypedElementDatabase& InDatabase, UTypedElementDatabaseCompatibility& InDataStorageCompatibility);
 	void Deinitialize();
 
 private:
-	void RegisterQueries();
-	void UnregisterQueries();
-	void HandleOnObjectPreRemoved(const void* Object, const FTypedElementDatabaseCompatibilityObjectTypeInfo& TypeInfo, TypedElementRowHandle ObjectRow);
+	void UpdateCompleted();
+	void HandleOnObjectPreRemoved(
+		const void* Object, const FTypedElementDatabaseCompatibilityObjectTypeInfo& TypeInfo, TypedElementDataStorage::RowHandle ObjectRow);
 	void HandleOnObjectsReinstanced(const FCoreUObjectDelegates::FReplacementObjectMap& ObjectReplacementMap);
 
 	UPROPERTY()
 	TObjectPtr<UTypedElementDatabase> Database = nullptr;
 	UPROPERTY()
 	TObjectPtr<UTypedElementDatabaseCompatibility> DataStorageCompatibility = nullptr;
-	UPROPERTY()
-	TObjectPtr<UTypedElementMementoSystem> MementoSystem = nullptr;
-
+	
 	// Reverse lookup that holds all populated mementos for recently deleted objects
 	// Entry removed when the memento is removed
-	TMap<const void*, TypedElementRowHandle> OldObjectToMementoMap;
+	TMap<const void*, TypedElementDataStorage::RowHandle> OldObjectToMementoMap;
 	
-	TypedElementTableHandle MementoRowBaseTable;
+	TypedElementDataStorage::TableHandle MementoRowBaseTable;
+	FDelegateHandle UpdateCompletedCallbackHandle;
 	FDelegateHandle ReinstancingCallbackHandle;
 	FDelegateHandle ObjectRemovedCallbackHandle;
-};
-
-USTRUCT()
-struct FTypedElementsReinstanceableSourceObject : public FTypedElementDataStorageColumn
-{
-	GENERATED_BODY()
-
-	const void* Object;
-};
-
-USTRUCT()
-struct FTypedElementsObjectReinstanceSourceColumnInitialized : public FTypedElementDataStorageTag
-{
-	GENERATED_BODY()
 };

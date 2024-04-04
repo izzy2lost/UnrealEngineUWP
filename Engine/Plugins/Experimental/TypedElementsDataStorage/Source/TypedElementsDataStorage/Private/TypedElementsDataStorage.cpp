@@ -91,11 +91,8 @@ void FTypedElementsDataStorageModule::StartupModule()
 				DatabaseUi = NewObject<UTypedElementDatabaseUi>();
 				DatabaseUi->Initialize(Database.Get(), DatabaseCompatibility.Get());
 
-				MementoSystem = NewObject<UTypedElementMementoSystem>();
-				MementoSystem->Initialize(*Database.Get());
-
 				ObjectReinstancingManager = NewObject<UTypedElementObjectReinstancingManager>();
-				ObjectReinstancingManager->Initialize(*Database, *DatabaseCompatibility, *MementoSystem);
+				ObjectReinstancingManager->Initialize(*Database, *DatabaseCompatibility);
 
 				// Register the various database instances.
 				UTypedElementRegistry* Registry = UTypedElementRegistry::GetInstance();
@@ -162,7 +159,6 @@ void FTypedElementsDataStorageModule::ShutdownModule()
 		if (UObjectInitialized())
 		{
 			ObjectReinstancingManager->Deinitialize();
-			MementoSystem->Deinitialize();
 			DatabaseUi->Deinitialize();
 			DatabaseCompatibility->Deinitialize();
 			Database->Deinitialize();
@@ -179,7 +175,6 @@ void FTypedElementsDataStorageModule::AddReferencedObjects(FReferenceCollector& 
 		Collector.AddReferencedObject(Database);
 		Collector.AddReferencedObject(DatabaseCompatibility);
 		Collector.AddReferencedObject(DatabaseUi);
-		Collector.AddReferencedObject(MementoSystem);
 		Collector.AddReferencedObject(ObjectReinstancingManager);
 	}
 }

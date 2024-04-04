@@ -111,7 +111,7 @@ void UTypedElementDatabase::Initialize()
 	ActiveEditorPhaseManager = Mass->GetMutablePhaseManager();
 	if (ActiveEditorEntityManager && ActiveEditorPhaseManager)
 	{
-		Environment = MakeUnique<FTypedElementDatabaseEnvironment>(*ActiveEditorEntityManager, *ActiveEditorPhaseManager);
+		Environment = MakeShared<FTypedElementDatabaseEnvironment>(*this, *ActiveEditorEntityManager, *ActiveEditorPhaseManager);
 
 		using PhaseType = std::underlying_type_t<EQueryTickPhase>;
 		for (PhaseType PhaseId = 0; PhaseId < static_cast<PhaseType>(EQueryTickPhase::Max); ++PhaseId)
@@ -248,6 +248,7 @@ void UTypedElementDatabase::OnPostMassTick(float DeltaTime)
 	checkf(IsAvailable(), TEXT("Typed Element Database was ticked while it's not ready."));
 	
 	Environment->NextUpdateCycle();
+	OnUpdateCompletedDelegate.Broadcast();
 }
 
 TSharedPtr<FMassEntityManager> UTypedElementDatabase::GetActiveMutableEditorEntityManager()
@@ -918,6 +919,11 @@ FTypedElementOnDataStorageUpdate& UTypedElementDatabase::OnUpdate()
 	return OnUpdateDelegate;
 }
 
+FTypedElementOnDataStorageUpdate& UTypedElementDatabase::OnUpdateCompleted()
+{
+	return OnUpdateCompletedDelegate;
+}
+
 bool UTypedElementDatabase::IsAvailable() const
 {
 	return bool(ActiveEditorEntityManager);
@@ -967,6 +973,16 @@ void UTypedElementDatabase::Reset()
 	Environment.Reset();
 	ActiveEditorPhaseManager.Reset();
 	ActiveEditorEntityManager.Reset();
+}
+
+TSharedPtr<FTypedElementDatabaseEnvironment> UTypedElementDatabase::GetEnvironment()
+{
+	return Environment;
+}
+
+TSharedPtr<const FTypedElementDatabaseEnvironment> UTypedElementDatabase::GetEnvironment() const
+{
+	return Environment;
 }
 
 void UTypedElementDatabase::DebugPrintQueryCallbacks(FOutputDevice& Output)

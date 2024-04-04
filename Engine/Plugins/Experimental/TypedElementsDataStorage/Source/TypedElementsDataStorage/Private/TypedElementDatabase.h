@@ -135,8 +135,12 @@ public:
 	void RemoveIndex(TypedElementDataStorage::IndexHash Index) override;
 
 	FTypedElementOnDataStorageUpdate& OnUpdate() override;
+	FTypedElementOnDataStorageUpdate& OnUpdateCompleted() override;
 	bool IsAvailable() const override;
 	void* GetExternalSystemAddress(UClass* Target) override;
+	
+	TSharedPtr<FTypedElementDatabaseEnvironment> GetEnvironment();
+	TSharedPtr<const FTypedElementDatabaseEnvironment> GetEnvironment() const;
 
 	void DebugPrintQueryCallbacks(FOutputDevice& Output);
 
@@ -167,9 +171,10 @@ private:
 	// Ordered array of factories by the return value of GetOrder()
 	TArray<FFactoryTypePair> Factories;
 
-	TUniquePtr<FTypedElementDatabaseEnvironment> Environment;
+	TSharedPtr<FTypedElementDatabaseEnvironment> Environment;
 	
 	FTypedElementOnDataStorageUpdate OnUpdateDelegate;
+	FTypedElementOnDataStorageUpdate OnUpdateCompletedDelegate;
 	FDelegateHandle OnPreMassTickHandle;
 	FDelegateHandle OnPostMassTickHandle;
 
