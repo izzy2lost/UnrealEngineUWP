@@ -2404,11 +2404,17 @@ void FDynamicSkelMeshObjectDataGPUSkin::InitDynamicSkelMeshObjectDataGPUSkin(
 	#endif
 		break;
 	case EPreviousBoneTransformUpdateMode::DuplicateCurrentToPrevious:
-		UpdateRefToLocalMatrices(PreviousReferenceToLocal, InMeshComponent, InSkeletalMeshRenderData, LODIndex, ExtraRequiredBoneIndices);
+		for (int32 Index = 0; Index < ReferenceToLocal.Num(); ++Index)
+		{
+			PreviousReferenceToLocal[Index] = ReferenceToLocal[Index];
+		}
 	#if RHI_RAYTRACING
 		if (RayTracingLODIndex != LODIndex)
 		{
-			UpdateRefToLocalMatrices(PreviousReferenceToLocalForRayTracing, InMeshComponent, InSkeletalMeshRenderData, RayTracingLODIndex, ExtraRequiredBoneIndices);
+			for (int32 Index = 0; Index < ReferenceToLocalForRayTracing.Num(); ++Index)
+			{
+				PreviousReferenceToLocalForRayTracing[Index] = ReferenceToLocalForRayTracing[Index];
+			}
 		}
 	#endif
 		break;
