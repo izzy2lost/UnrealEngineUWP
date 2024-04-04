@@ -340,11 +340,14 @@ namespace FAnimUpdateRateManager
 		const TArray<USkinnedMeshComponent*>& SkinnedComponents = Tracker->RegisteredComponents;
 		for (USkinnedMeshComponent* Component : SkinnedComponents)
 		{
-			bRecentlyRendered |= Component->bRecentlyRendered;
-			MaxDistanceFactor = FMath::Max(MaxDistanceFactor, Component->MaxDistanceFactor);
-			bPlayingNetworkedRootMotionMontage |= Component->IsPlayingNetworkedRootMotionMontage();
-			bUsingRootMotionFromEverything &= Component->IsPlayingRootMotionFromEverything();
-			MinLod = FMath::Min(MinLod, Tracker->UpdateRateParameters.bShouldUseMinLod ? Component->MinLodModel : Component->GetPredictedLODLevel());
+			if (Component->IsVisible())
+			{
+				bRecentlyRendered |= Component->bRecentlyRendered;
+				MaxDistanceFactor = FMath::Max(MaxDistanceFactor, Component->MaxDistanceFactor);
+				bPlayingNetworkedRootMotionMontage |= Component->IsPlayingNetworkedRootMotionMontage();
+				bUsingRootMotionFromEverything &= Component->IsPlayingRootMotionFromEverything();
+				MinLod = FMath::Min(MinLod, Tracker->UpdateRateParameters.bShouldUseMinLod ? Component->MinLodModel : Component->GetPredictedLODLevel());
+			}
 		}
 
 		bNeedsValidRootMotion &= bPlayingNetworkedRootMotionMontage;
