@@ -153,7 +153,7 @@ const FPlacementCategoryInfo* FMediaPlateEditorModule::GetMediaCategoryRegistere
 	const IPlacementModeModule& PlacementModeModule = IPlacementModeModule::Get();
 	const FName PlacementModeCategoryHandle = TEXT("MediaPlate");
 
-	if (const FPlacementCategoryInfo* RegisteredInfo = 
+	if (const FPlacementCategoryInfo* RegisteredInfo =
 		PlacementModeModule.GetRegisteredPlacementCategory(PlacementModeCategoryHandle))
 	{
 		return RegisteredInfo;
@@ -252,14 +252,14 @@ void FMediaPlateEditorModule::UnregisterPlacementModeItems()
 
 void FMediaPlateEditorModule::OnPostEngineInit()
 {
-	UEditorAssetSubsystem* EditorAssetSubsystem = GEditor->GetEditorSubsystem<UEditorAssetSubsystem>();
-	if (EditorAssetSubsystem != nullptr)
-	{
-		EditorAssetSubsystem->GetOnExtractAssetFromFile().AddRaw(this, &FMediaPlateEditorModule::ExtractAssetDataFromFiles);
-	}
-
 	if (GEditor)
 	{
+		UEditorAssetSubsystem* EditorAssetSubsystem = GEditor->GetEditorSubsystem<UEditorAssetSubsystem>();
+		if (EditorAssetSubsystem != nullptr)
+		{
+			EditorAssetSubsystem->GetOnExtractAssetFromFile().AddRaw(this, &FMediaPlateEditorModule::ExtractAssetDataFromFiles);
+		}
+
 		GEditor->OnLevelActorAdded().AddRaw(this, &FMediaPlateEditorModule::OnLevelActorAdded);
 	}
 }
@@ -374,7 +374,7 @@ TSharedRef<FExtender> FMediaPlateEditorModule::ExtendLevelViewportContextMenuFor
 									}
 
 									const FScopedTransaction Transaction(LOCTEXT("ResetDefaultMats", "Reset Default Materials"));
-									
+
 									InMediaPlateActor->Modify();
 									InMediaPlateActor->UseDefaultMaterial();
 
@@ -413,7 +413,7 @@ void FMediaPlateEditorModule::RegisterContextMenuExtender()
 {
 	// Extend the level viewport context menu to add an option to copy the object path.
 	LevelViewportContextMenuRemoteControlExtender = FLevelEditorModule::FLevelViewportMenuExtender_SelectedActors::CreateRaw(this, &FMediaPlateEditorModule::ExtendLevelViewportContextMenuForMediaPlate);
-	
+
 	FLevelEditorModule& LevelEditorModule = FModuleManager::Get().LoadModuleChecked<FLevelEditorModule>("LevelEditor");
 	TArray<FLevelEditorModule::FLevelViewportMenuExtender_SelectedActors>& MenuExtenders = LevelEditorModule.GetAllLevelViewportContextMenuExtenders();
 	MenuExtenders.Add(LevelViewportContextMenuRemoteControlExtender);
