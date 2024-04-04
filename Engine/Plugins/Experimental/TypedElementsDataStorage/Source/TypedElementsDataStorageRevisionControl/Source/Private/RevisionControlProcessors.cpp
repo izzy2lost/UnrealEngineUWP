@@ -18,7 +18,7 @@
 
 extern TYPEDELEMENTSDATASTORAGE_API FAutoConsoleVariableRef CVarAutoPopulateState;
 
-static bool gEnableOverlays = true;
+static bool gEnableOverlays = false;
 TAutoConsoleVariable<bool> CVarEnableOverlays(
 	TEXT("SourceControl.Overlays.Enable"),
 	gEnableOverlays,
@@ -64,9 +64,8 @@ static FColor DetermineOverlayColor(const TypedElementDataStorage::IQueryContext
 {
 	check(IsInGameThread());
 
-	bool bEnabled = CVarEnableOverlays.GetValueOnGameThread();
 	bool bSelected = ObjectContext.HasColumn<FTypedElementSelectionColumn>();
-	if (bEnabled && !bSelected)
+	if (!bSelected)
 	{
 		// Check if the package is outdated because there is a newer version available.
 		if (SCCContext.HasColumn<FSCCNotCurrentTag>())
@@ -129,47 +128,7 @@ void UTypedElementRevisionControlFactory::RegisterTables(ITypedElementDataStorag
 
 void UTypedElementRevisionControlFactory::RegisterQueries(ITypedElementDataStorageInterface& DataStorage)
 {
-	using namespace TypedElementQueryBuilder;
-	using DSI = ITypedElementDataStorageInterface;
 
-	TypedElementQueryHandle ObjectToSCCQuery = DataStorage.RegisterQuery(
-		Select()
-			.ReadOnly<FTypedElementPackagePathColumn>()
-			.ReadOnly<FSCCStatusColumn, FSCCExternallyLockedColumn>(EOptional::Yes)
-		.Compile());
-
-	DataStorage.RegisterQuery(
-		Select(
-			TEXT("Change selection outline colors based on SCC status"),
-			// This is in PrePhysics because the outline->actor query is in DuringPhysics and contexts don't flush changes between tick groups
-			FProcessor(DSI::EQueryTickPhase::PrePhysics, DataStorage.GetQueryTickGroupName(DSI::EQueryTickGroups::SyncExternalToDataStorage))
-				.ForceToGameThread(true),
-			[](DSI::IQueryContext& Context, TypedElementRowHandle ObjectRow, const FTypedElementPackageReference& PackageReference)
-			{
-				Context.RunSubquery(0, PackageReference.Row, CreateSubqueryCallbackBinding(
-					[&Context, &ObjectRow](DSI::ISubqueryContext& SubQueryContext)
-					{
-						FColor Color = DetermineOverlayColor(Context, SubQueryContext);
-						if (Color.Bits != 0)
-						{
-							Context.AddColumn<FTypedElementViewportOverlayColorColumn>(ObjectRow, { .OverlayColor = Color });
-						}
-						else
-						{
-							Context.RemoveColumns<FTypedElementViewportOverlayColorColumn>(ObjectRow);
-						}
-						Context.AddColumns<FTypedElementSyncBackToWorldTag>(ObjectRow);
-					})
-				);
-			}
-		)
-		.Where()
-			.Any<FSCCNotCurrentTag, FSCCLockedTag>()
-		.DependsOn()
-			.SubQuery(ObjectToSCCQuery)
-		.Compile()
-	);
-	
 	CVarAutoPopulateState->AsVariable()->OnChangedDelegate().AddLambda(
 		[this, &DataStorage](IConsoleVariable* AutoPopulate)
 		{
@@ -182,11 +141,31 @@ void UTypedElementRevisionControlFactory::RegisterQueries(ITypedElementDataStora
 				DataStorage.UnregisterQuery(FetchUpdates);
 			}
 		}
-	); 
+	);
+
+	CVarEnableOverlays->AsVariable()->OnChangedDelegate().AddLambda(
+		[this, &DataStorage](IConsoleVariable* EnableOverlays)
+		{
+			if (EnableOverlays->GetBool())
+			{
+				RegisterApplyOverlays(DataStorage);
+			}
+			else
+			{
+				DataStorage.UnregisterQuery(ApplyOverlays);
+				DataStorage.UnregisterQuery(ApplyOverlaysObjectToSCC);
+			}
+		}
+	);
 	
 	if (CVarAutoPopulateState->GetBool())
 	{
 		RegisterFetchUpdates(DataStorage);
+	}
+
+	if (CVarEnableOverlays->GetBool())
+	{
+		RegisterApplyOverlays(DataStorage);
 	}
 }
 
@@ -225,6 +204,50 @@ void UTypedElementRevisionControlFactory::RegisterFetchUpdates(ITypedElementData
 				}
 			}
 		)
+		.Compile()
+	);
+}
+
+void UTypedElementRevisionControlFactory::RegisterApplyOverlays(ITypedElementDataStorageInterface& DataStorage) const
+{
+	using namespace TypedElementQueryBuilder;
+	using DSI = ITypedElementDataStorageInterface;
+
+	ApplyOverlaysObjectToSCC = DataStorage.RegisterQuery(
+		Select()
+			.ReadOnly<FTypedElementPackagePathColumn>()
+			.ReadOnly<FSCCStatusColumn, FSCCExternallyLockedColumn>(EOptional::Yes)
+		.Compile());
+
+	ApplyOverlays = DataStorage.RegisterQuery(
+		Select(
+			TEXT("Change selection outline colors based on SCC status"),
+			// This is in PrePhysics because the outline->actor query is in DuringPhysics and contexts don't flush changes between tick groups
+			FProcessor(DSI::EQueryTickPhase::PrePhysics, DataStorage.GetQueryTickGroupName(DSI::EQueryTickGroups::SyncExternalToDataStorage))
+				.ForceToGameThread(true),
+			[](DSI::IQueryContext& Context, TypedElementRowHandle ObjectRow, const FTypedElementPackageReference& PackageReference)
+			{
+				Context.RunSubquery(0, PackageReference.Row, CreateSubqueryCallbackBinding(
+					[&Context, &ObjectRow](DSI::ISubqueryContext& SubQueryContext)
+					{
+						FColor Color = DetermineOverlayColor(Context, SubQueryContext);
+						if (Color.Bits != 0)
+						{
+							Context.AddColumn<FTypedElementViewportOverlayColorColumn>(ObjectRow, { .OverlayColor = Color });
+						}
+						else
+						{
+							Context.RemoveColumns<FTypedElementViewportOverlayColorColumn>(ObjectRow);
+						}
+						Context.AddColumns<FTypedElementSyncBackToWorldTag>(ObjectRow);
+					})
+				);
+			}
+		)
+		.Where()
+			.Any<FSCCNotCurrentTag, FSCCLockedTag>()
+		.DependsOn()
+			.SubQuery(ApplyOverlaysObjectToSCC)
 		.Compile()
 	);
 }
