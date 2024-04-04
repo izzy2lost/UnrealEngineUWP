@@ -505,10 +505,27 @@ void UNiagaraEmitter::Serialize(FArchive& Ar)
 			}
 		}
 	}
+
+	// When cooking an emitter that's not an asset, clear out the thumbnail image to prevent issues
+	// with cooked editor data.
+	bool bCookingNonAssetEmitter = Ar.IsCooking() && this->IsAsset() == false;
+	UTexture2D* CachedThumbnail = nullptr;
+	if (bCookingNonAssetEmitter)
+	{
+		CachedThumbnail = ThumbnailImage;
+		ThumbnailImage = nullptr;
+	}
 	
 #endif
 	Super::Serialize(Ar);
-	
+
+#if WITH_EDITORONLY_DATA
+	// Restore the thumbnail image that was cleared before serialize.
+	if (bCookingNonAssetEmitter)
+	{
+		ThumbnailImage = CachedThumbnail;
+	}
+#endif
 
 	Ar.UsingCustomVersion(FNiagaraCustomVersion::GUID);
 	Ar.UsingCustomVersion(FUE5MainStreamObjectVersion::GUID);
@@ -650,13 +667,10 @@ void UNiagaraEmitter::PostLoad()
 		MessageKeyToMessageMap_DEPRECATED.Empty();
 	}
 
-	if(UPackage* Package = GetPackage())
+	if (this->GetOuter()->IsA<UNiagaraSystem>() || this->GetOuter()->IsA<UNiagaraEmitter>())
 	{
-		if(Package->HasAnyPackageFlags(PKG_Cooked))
-		{
-			// We remove the thumbnail for cooked emitters as it can cause issues with cooked emitter being put into uncooked systems
-			ThumbnailImage = nullptr;
-		}
+		// Remove thunbnails for non-asset emitters to prevent problems with cooked for editor emitters being referenced by uncooked emitters and systems.
+		ThumbnailImage = nullptr;
 	}
 #endif
 
