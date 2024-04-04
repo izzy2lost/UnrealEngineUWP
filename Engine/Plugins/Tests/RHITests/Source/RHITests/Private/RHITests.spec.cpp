@@ -150,6 +150,12 @@ void FAutomationRHITest::Define()
 			TestEqual("Create Reserved Texture failed", bResult, 1);
 		});
 
+		It("Create Reserved Texture With Mips", [this]()
+		{
+			bool bResult = RunOnRenderThreadSynchronous(FRHIReservedResourceTests::Test_ReservedResource_CreateTextureWithMips);
+			TestEqual("Create Reserved Texture With Mips failed", bResult, 1);
+		});
+
 		It("Create Reserved Buffer", [this]()
 		{
 			bool bResult = RunOnRenderThreadSynchronous(FRHIReservedResourceTests::Test_ReservedResource_CreateBuffer);

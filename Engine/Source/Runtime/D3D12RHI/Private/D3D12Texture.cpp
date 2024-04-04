@@ -351,11 +351,9 @@ FD3D12ResourceDesc FD3D12DynamicRHI::GetResourceDesc(const FRHITextureDesc& Text
 		ResourceDesc.Flags |= D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
 	}
 
-	// Only 2D textures without mips are implemented/supported, to avoid the complexity associated with packed mips
 	if (EnumHasAllFlags(TextureDesc.Flags, TexCreate_ReservedResource))
 	{
 		checkf(GRHIGlobals.ReservedResources.Supported, TEXT("Reserved resources resources are not supported on this machine"));
-		checkf(TextureDesc.NumMips == 1, TEXT("Reserved resources with mips are not supported"));
 		checkf(TextureDesc.IsTexture2D() || TextureDesc.IsTexture3D(), TEXT("Only 2D and 3D textures can be created as reserved resources"));
 		checkf(!TextureDesc.IsTexture3D() || GRHIGlobals.ReservedResources.SupportsVolumeTextures, TEXT("Current RHI does not support reserved volume textures"));
 

@@ -191,25 +191,39 @@ void FD3D12Resource::CommitReservedResource(ID3D12CommandQueue* D3DCommandQueue,
 			TEXT("Current RHI does not support reserved volume textures"));
 	}
 
-	if (Desc.Dimension != D3D12_RESOURCE_DIMENSION_BUFFER)
-	{
-		checkf(Desc.MipLevels == 1, TEXT("CommitReservedResource is currently only implemented for textures without mips"));
-	}
-
 	uint32 D3DResourceNumTiles = 0;
 	D3D12_PACKED_MIP_INFO PackedMipDesc = {};
 	D3D12_TILE_SHAPE TileShape = {};
 	const uint32 FirstSubresource = 0;
-	const uint32 NumSubresources = SubresourceCount;
 
-	// We assume that all subresources in a 2D texture array are identical, so only query the tiling config for the first
-	uint32 NumSubresourceTilings = 1;
-	D3D12_SUBRESOURCE_TILING SubresourceTiling = {}; 
+	const bool bBuffer = Desc.Dimension == D3D12_RESOURCE_DIMENSION_BUFFER;
+
+	const uint32 NumSubresources = SubresourceCount;
+	const uint32 NumMipLevels = GetMipLevels();
+	const uint32 NumArraySlices = GetArraySize();
+
+	uint32 NumSubresourceTilings = NumMipLevels;
+	TArray<D3D12_SUBRESOURCE_TILING, TInlineAllocator<16>> MipTilingInfo;
+	
+	check(NumSubresourceTilings >= 1);
+	MipTilingInfo.SetNum(NumSubresourceTilings);
 
 	ID3D12Device* D3DDevice = GetParentDevice()->GetDevice();
 	FD3D12Adapter* Adapter = GetParentDevice()->GetParentAdapter();
 
-	D3DDevice->GetResourceTiling(GetResource(), &D3DResourceNumTiles, &PackedMipDesc, &TileShape, &NumSubresourceTilings, FirstSubresource, &SubresourceTiling);
+	D3DDevice->GetResourceTiling(GetResource(), &D3DResourceNumTiles, &PackedMipDesc, &TileShape, &NumSubresourceTilings, FirstSubresource, MipTilingInfo.GetData());
+
+	if (bBuffer)
+	{
+		// Buffers obviously don't have mips, but we can pretend they do to make the code below agnostic to resource type
+		PackedMipDesc.NumStandardMips = 1;
+	}
+
+	check(MipTilingInfo.Num() == PackedMipDesc.NumStandardMips + PackedMipDesc.NumPackedMips);
+
+	const uint32 NumPackedTilesPerArraySlice = PackedMipDesc.NumTilesForPackedMips;
+	const uint32 NumTotalPackedMipTiles = NumPackedTilesPerArraySlice * NumArraySlices;
+	const uint32 NumTotalStandardMipTiles = D3DResourceNumTiles - NumTotalPackedMipTiles;
 
 	const uint64 TotalSize = D3DResourceNumTiles * TileSizeInBytes;
 
@@ -225,7 +239,8 @@ void FD3D12Resource::CommitReservedResource(ID3D12CommandQueue* D3DCommandQueue,
 
 	// Set high residency priority based on the same heuristics as D3D12 committed resources,
 	// i.e. normal priority unless it's a UAV/RT/DS texture.
-	const bool bHighPriorityResource = EnumHasAnyFlags(Desc.Flags, D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET | D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL | D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
+	const bool bRenderOrDepthTarget = EnumHasAnyFlags(Desc.Flags, D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET | D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL);
+	const bool bHighPriorityResource = bRenderOrDepthTarget || EnumHasAnyFlags(Desc.Flags, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
 	const uint32 GPUIndex = GetParentDevice()->GetGPUIndex();
 
 	D3D12_HEAP_PROPERTIES BackingHeapProps = {};
@@ -235,63 +250,86 @@ void FD3D12Resource::CommitReservedResource(ID3D12CommandQueue* D3DCommandQueue,
 	BackingHeapProps.CreationNodeMask = GetGPUMask().GetNative();
 	BackingHeapProps.VisibleNodeMask = GetVisibilityMask().GetNative();
 
-	uint32 NumStandardTilesPerSubresource = 0;
+	uint32 NumStandardTilesPerArraySlice = 0;
 	uint32 NumTotalTiles = 0;
 
-	if (Desc.Dimension == D3D12_RESOURCE_DIMENSION_BUFFER)
+	if (bBuffer)
 	{
-		NumTotalTiles = NumStandardTilesPerSubresource = D3DResourceNumTiles;
-		checkf(D3DResourceNumTiles == SubresourceTiling.WidthInTiles,
+		NumTotalTiles = NumStandardTilesPerArraySlice = D3DResourceNumTiles;
+		checkf(D3DResourceNumTiles == MipTilingInfo[0].WidthInTiles,
 			TEXT("Reserved buffers are expected to have trivial tiling configuration: single 1D subresource that contains all tiles."));
 	}
-	else if (PackedMipDesc.NumStandardMips != 0)
+	else
 	{
-		NumStandardTilesPerSubresource = SubresourceTiling.WidthInTiles * SubresourceTiling.HeightInTiles * SubresourceTiling.DepthInTiles;
-		NumTotalTiles = NumStandardTilesPerSubresource * NumSubresources;
+		NumStandardTilesPerArraySlice = NumTotalStandardMipTiles / NumArraySlices;
+		NumTotalTiles = (NumStandardTilesPerArraySlice + NumPackedTilesPerArraySlice) * NumArraySlices;
 	}
-	else // packed mip case
-	{
-		checkf(PackedMipDesc.NumPackedMips != 0, TEXT("It is expected that reserved resources have at least one standard or one packed tile mip level"));
-		NumTotalTiles = PackedMipDesc.NumTilesForPackedMips * NumSubresources;
-	}
+
+	const uint32 NumTotalTilesPerArraySlice = NumStandardTilesPerArraySlice + NumPackedTilesPerArraySlice;
 
 	checkf(D3DResourceNumTiles == NumTotalTiles,
 		TEXT("D3D resource size in tiles: %d, computed size in tiles: %d"),
 		D3DResourceNumTiles, NumTotalTiles);
 
 	const uint32 NumRequiredCommitTiles = RequiredCommitSizeInBytes / TileSizeInBytes;
-	const uint32 NumTilesPerSlice = SubresourceTiling.WidthInTiles * SubresourceTiling.HeightInTiles;
 
-	auto GetTiledResourceCoordinate = [SubresourceTiling, NumStandardTilesPerSubresource, NumSubresources, NumTilesPerSlice, MaxTilesPerHeap]
-		(uint32 OffsetInTiles, uint32 NumTiles) -> D3D12_TILED_RESOURCE_COORDINATE 
+	auto GetTiledResourceCoordinate = [&MipTilingInfo, &PackedMipDesc, D3DResourceNumTiles, NumTotalTilesPerArraySlice, NumSubresources, MaxTilesPerHeap]
+		(uint32 OffsetInTiles, uint32 NumTiles) -> D3D12_TILED_RESOURCE_COORDINATE
 	{
-		D3D12_TILED_RESOURCE_COORDINATE ResourceCoordinate = {}; // Coordinates are in tiles, not pixels
-		if (NumStandardTilesPerSubresource)
-		{
-			const uint32 TileIndexInSubresource = OffsetInTiles % NumStandardTilesPerSubresource;
-			ResourceCoordinate.X = TileIndexInSubresource % SubresourceTiling.WidthInTiles;
-			ResourceCoordinate.Y = (TileIndexInSubresource / SubresourceTiling.WidthInTiles) % SubresourceTiling.HeightInTiles;
-			ResourceCoordinate.Z = TileIndexInSubresource / NumTilesPerSlice;
+		check(OffsetInTiles < D3DResourceNumTiles);
 
-			ResourceCoordinate.Subresource = OffsetInTiles / NumStandardTilesPerSubresource;
-			check(ResourceCoordinate.Subresource <= NumSubresources);
+		const uint32 ArraySliceIndex = OffsetInTiles / NumTotalTilesPerArraySlice;
+		const uint32 TileIndexInArraySlice = OffsetInTiles % NumTotalTilesPerArraySlice;
+		const uint32 NumTotalMips = MipTilingInfo.Num();
+
+		uint32 MipLevel = 0;
+
+		{
+			uint32 NextMipTileThreshold = 0;
+			while (MipLevel < PackedMipDesc.NumStandardMips)
+			{
+				const D3D12_SUBRESOURCE_TILING& CurrentMipTiling = MipTilingInfo[MipLevel];
+				NextMipTileThreshold += CurrentMipTiling.WidthInTiles * CurrentMipTiling.HeightInTiles * CurrentMipTiling.DepthInTiles;
+
+				if (TileIndexInArraySlice < NextMipTileThreshold)
+				{
+					break;
+				}
+
+				MipLevel += 1;
+			}
+		}
+
+		D3D12_TILED_RESOURCE_COORDINATE ResourceCoordinate = {}; // Coordinates are in tiles, not pixels
+
+		ResourceCoordinate.Subresource = MipLevel + ArraySliceIndex * NumTotalMips;
+
+		const D3D12_SUBRESOURCE_TILING& CurrentMipTiling = MipTilingInfo[MipLevel];
+
+		if (MipLevel < PackedMipDesc.NumStandardMips)
+		{
+			// Standard mip level case
+
+			check(CurrentMipTiling.StartTileIndexInOverallResource != ~0u)
+
+			const uint32 NumTilesPerVolumeSlice = CurrentMipTiling.WidthInTiles * CurrentMipTiling.HeightInTiles;
+
+			const uint32 TileIndexInMipLevel = TileIndexInArraySlice - CurrentMipTiling.StartTileIndexInOverallResource;
+
+			ResourceCoordinate.X = TileIndexInMipLevel % CurrentMipTiling.WidthInTiles;
+			ResourceCoordinate.Y = (TileIndexInMipLevel / CurrentMipTiling.WidthInTiles) % CurrentMipTiling.HeightInTiles;
+			ResourceCoordinate.Z = TileIndexInMipLevel / NumTilesPerVolumeSlice;
 		}
 		else
 		{
-			// Packed mip level case:
-			// - Only simple textures are expected (single subresource, no arrays)
-			// - Entire packed mip level must be covered in one map operation, so mapping origin is always 0
-
-			checkf(NumSubresources == 1,
-			       TEXT("Reserved textures with packed mips and multiple subresources are not supported. Current subresource count: %d"),
-			       NumSubresources);
+			// Packed mip level case
 
 			checkf(NumTiles <= MaxTilesPerHeap,
 			       TEXT("Reserved texture packed mip level requires tiles: %d, maximum supported tiles: %d. ")
 			       TEXT("Increase d3d12.ReservedResourceHeapSizeMB or avoid packed mips by using a larger texture dimensions."),
 			       NumTiles, MaxTilesPerHeap);
 
-			ResourceCoordinate.Subresource = 0; // Packed mips are currently supported for single subresource textures
+			// Entire packed mip chain must be covered in one map operation, so mapping origin is always 0
 			ResourceCoordinate.X = 0;
 			ResourceCoordinate.Y = 0;
 			ResourceCoordinate.Z = 0;
@@ -303,7 +341,7 @@ void FD3D12Resource::CommitReservedResource(ID3D12CommandQueue* D3DCommandQueue,
 	TArray<FD3D12UpdateTileMappingsParams> MappingParams;
 	TArray<FD3D12ResidencyHandle*> UsedResidencyHandles;
 
-	if (ReservedResourceData->NumCommittedTiles > NumRequiredCommitTiles)
+	if (ReservedResourceData->NumCommittedTiles > NumRequiredCommitTiles) // Decommit / shrink case
 	{
 		check(!ReservedResourceData->BackingHeaps.IsEmpty());
 
@@ -362,7 +400,7 @@ void FD3D12Resource::CommitReservedResource(ID3D12CommandQueue* D3DCommandQueue,
 			ReservedResourceData->NumCommittedTiles -= RegionSize.NumTiles;
 		}
 	}
-	else
+	else // Commit / grow case
 	{
 		while (ReservedResourceData->NumCommittedTiles < NumRequiredCommitTiles)
 		{
@@ -407,11 +445,14 @@ void FD3D12Resource::CommitReservedResource(ID3D12CommandQueue* D3DCommandQueue,
 				const TCHAR* HeapNameChars = TEXT("ReservedResourceBackingHeap");
 #endif // NAME_OBJECTS
 
-				const D3D12_HEAP_FLAGS HeapFlags = Desc.Dimension == D3D12_RESOURCE_DIMENSION_BUFFER
-					? D3D12_HEAP_FLAG_ALLOW_ONLY_BUFFERS
+				const D3D12_HEAP_FLAGS TextureHeapFlags = bRenderOrDepthTarget
+					? D3D12_HEAP_FLAG_ALLOW_ONLY_RT_DS_TEXTURES 
 					: D3D12_HEAP_FLAG_ALLOW_ONLY_NON_RT_DS_TEXTURES;
 
+				const D3D12_HEAP_FLAGS HeapFlags = bBuffer ? D3D12_HEAP_FLAG_ALLOW_ONLY_BUFFERS : TextureHeapFlags;
+
 				static_assert((D3D12_HEAP_FLAG_DENY_BUFFERS | D3D12_HEAP_FLAG_DENY_RT_DS_TEXTURES) == D3D12_HEAP_FLAG_ALLOW_ONLY_NON_RT_DS_TEXTURES);
+				static_assert((D3D12_HEAP_FLAG_DENY_BUFFERS | D3D12_HEAP_FLAG_DENY_NON_RT_DS_TEXTURES) == D3D12_HEAP_FLAG_ALLOW_ONLY_RT_DS_TEXTURES);
 
 				const uint32 ThisHeapSize = RegionSize.NumTiles * TileSizeInBytes;
 				D3D12_HEAP_DESC NewHeapDesc = {};

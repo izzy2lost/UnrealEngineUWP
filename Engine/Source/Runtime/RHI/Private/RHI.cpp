@@ -1735,19 +1735,18 @@ bool FRHITextureDesc::Validate(const FRHITextureCreateInfo& Desc, const TCHAR* N
 				Name, GetTextureDimensionString(Desc.Dimension));
 		}
 
-		ValidateResourceDesc(Desc.NumMips == 1,
-			TEXT("Reserved Texture %s's NumMips=%d is invalid. Expected only 1 mip level."),
-			Name, Desc.NumMips);
-
 		if (Desc.Dimension == ETextureDimension::Texture2DArray)
 		{
-			ValidateResourceDesc(Desc.Extent.X >= GRHIGlobals.ReservedResources.TextureArrayMinimumMipDimension,
-				TEXT("Reserved Texture array %s's Desc.Extent.X=%d is invalid. It is required to be be no less than %d."),
-				Name, Desc.Extent.X, GRHIGlobals.ReservedResources.TextureArrayMinimumMipDimension);
+			const uint32 MipShift = FMath::Max<uint32>(1u, Desc.NumMips) - 1;
+			const FIntPoint SmallestMipExtent = Desc.Extent / (1 << MipShift);
 
-			ValidateResourceDesc(Desc.Extent.Y >= GRHIGlobals.ReservedResources.TextureArrayMinimumMipDimension,
-				TEXT("Reserved Texture array %s's Desc.Extent.Y=%d is invalid. It is required to be be no less than %d."),
-				Name, Desc.Extent.Y, GRHIGlobals.ReservedResources.TextureArrayMinimumMipDimension);
+			ValidateResourceDesc(SmallestMipExtent.X >= GRHIGlobals.ReservedResources.TextureArrayMinimumMipDimension,
+				TEXT("Reserved Texture array %s's SmallestMipExtent.X=%d is invalid. It is required to be be no less than %d."),
+				Name, SmallestMipExtent.X, GRHIGlobals.ReservedResources.TextureArrayMinimumMipDimension);
+
+			ValidateResourceDesc(SmallestMipExtent.Y >= GRHIGlobals.ReservedResources.TextureArrayMinimumMipDimension,
+				TEXT("Reserved Texture array %s's SmallestMipExtent.Y=%d is invalid. It is required to be be no less than %d."),
+				Name, SmallestMipExtent.Y, GRHIGlobals.ReservedResources.TextureArrayMinimumMipDimension);
 		}
 	}
 
