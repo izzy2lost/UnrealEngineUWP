@@ -179,6 +179,7 @@ FGraphActionNode::FGraphActionNode(int32 InGrouping, int32 InSectionID)
 	, Grouping(InGrouping)
 	, bPendingRenameRequest(false)
 	, InsertOrder(0)
+	, TotalLeafs(0)
 {
 }
 
@@ -189,6 +190,7 @@ FGraphActionNode::FGraphActionNode(TArray< TSharedPtr<FEdGraphSchemaAction> > co
 	, Actions(ActionList)
 	, bPendingRenameRequest(false)
 	, InsertOrder(0)
+	, TotalLeafs(0)
 {
 }
 
@@ -198,16 +200,26 @@ TSharedPtr<FGraphActionNode> FGraphActionNode::AddChild(FGraphActionListBuilderB
 	const TArray<FString>& CategoryStack = ActionSet.GetCategoryChain();
 
 	TSharedPtr<FGraphActionNode> ActionNode = FGraphActionNode::NewActionNode(ActionSet.Actions);
+	if (!ActionNode->IsCategoryNode() && !ActionNode->IsSectionHeadingNode())
+	{
+		++TotalLeafs;
+	}
+
 	AddChildRecursively(CategoryStack, 0, ActionNode);
 	
 	return ActionNode;
 }
 
 //------------------------------------------------------------------------------
-void FGraphActionNode::AddChildAlphabetical(FGraphActionListBuilderBase::ActionGroup const& ActionSet)
+TSharedPtr<FGraphActionNode> FGraphActionNode::AddChildAlphabetical(FGraphActionListBuilderBase::ActionGroup const& ActionSet)
 {
 	TSharedPtr<FGraphActionNode> ActionNode = FGraphActionNode::NewActionNode(ActionSet.Actions);
 	check(ActionNode->SectionID == INVALID_SECTION_ID); // this method does not support sections, those should be built statically
+
+	if (!ActionNode->IsCategoryNode() && !ActionNode->IsSectionHeadingNode())
+	{
+		++TotalLeafs;
+	}
 
 	// if a divider hasn't been created for the grouping, create one:
 	AddChildGrouping(ActionNode, this->AsShared());
@@ -229,6 +241,7 @@ void FGraphActionNode::AddChildAlphabetical(FGraphActionListBuilderBase::ActionG
 
 	// finally insert the leaf:
 	OwningCategory->InsertChildAlphabetical(ActionNode);
+	return ActionNode;
 }
 
 //------------------------------------------------------------------------------
@@ -311,6 +324,11 @@ void FGraphActionNode::GetLeafNodes(TArray< TSharedPtr<FGraphActionNode> >& OutL
 	}
 }
 
+int32 FGraphActionNode::GetTotalLeafNodes() const 
+{ 
+	return TotalLeafs; 
+}
+
 //------------------------------------------------------------------------------
 void FGraphActionNode::ExpandAllChildren(TSharedPtr< STreeView< TSharedPtr<FGraphActionNode> > > TreeView, bool bRecursive/*= true*/)
 {
@@ -334,6 +352,7 @@ void FGraphActionNode::ExpandAllChildren(TSharedPtr< STreeView< TSharedPtr<FGrap
 //------------------------------------------------------------------------------
 void FGraphActionNode::ClearChildren()
 {
+	TotalLeafs = 0;
 	Children.Empty();
 	CategoryNodes.Empty();
 	ChildGroupings.Empty();

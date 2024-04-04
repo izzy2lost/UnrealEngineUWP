@@ -61,8 +61,9 @@ public:
 	 * the provided ActionSet. Inserts in alphabetical order.
 	 *
 	 * @param  ActionSet	A list of actions that you want the node to execute when picked.
+	 * @return The new action node.
 	 */
-	void AddChildAlphabetical(FGraphActionListBuilderBase::ActionGroup const& ActionSet);
+	TSharedPtr<FGraphActionNode> AddChildAlphabetical(FGraphActionListBuilderBase::ActionGroup const& ActionSet);
 
 	TSharedPtr<FGraphActionNode> AddSection(int32 Grouping, int32 InSectionID);
 
@@ -101,6 +102,9 @@ public:
 	 * @param  OutLeafArray	The array to fill out with decendent leaf nodes.
 	 */
 	void GetLeafNodes(TArray< TSharedPtr<FGraphActionNode> >& OutLeafArray) const;
+
+	/** Returns the number of leaf nodes */
+	int32 GetTotalLeafNodes() const;
 
 	/**
 	 * Takes the tree view and expands its elements for each child.
@@ -298,5 +302,7 @@ private:
 
 	friend struct FGraphActionNodeImpl;
 	/** For sorting, when we don't alphabetically sort (so menu items don't jump around). */
-	int32 InsertOrder;	
+	int32 InsertOrder;
+	/** Root entry only, counts the total leaf entries in this tree */
+	int32 TotalLeafs;
 };

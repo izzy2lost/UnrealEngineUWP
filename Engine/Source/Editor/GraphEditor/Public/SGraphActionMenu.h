@@ -215,8 +215,8 @@ protected:
 	/** List of all actions we can browser */
 	TSharedPtr<FGraphActionListBuilderBase> AllActions;
 
-	/** Flattened list of all actions passing the filter */
-	TArray< TSharedPtr<FGraphActionNode> > FilteredActionNodes; 
+	/** Flattened list of all actions passing the filter - access via GetFilteredActionNodes to ensure it's up to date */
+	TArray< TSharedPtr<FGraphActionNode> > FilteredActionNodes;
 
 	/** Root of filtered actions tree */
 	TSharedPtr<FGraphActionNode> FilteredRootAction;
@@ -225,8 +225,9 @@ protected:
 	float SelectedSuggestionScore;
 	/** Stored index in the AllActions list builder that we think is the best fit */
 	int32 SelectedSuggestionSourceIndex;
-	/** Used to track selected action for keyboard interaction */
-	int32 SelectedSuggestion;
+	/** The actual item selected - possibly redundant to selection information in the treeview, but the tree is rebuilt requently */
+	TSharedPtr<FGraphActionNode> SelectedAction;
+
 	/** Allows us to set selection (via keyboard) without triggering action */
 	bool bIgnoreUIUpdate;
 	/** Should we auto-expand categories */
@@ -324,7 +325,7 @@ public:
 
 	/** Updates the displayed list starting from IdxStart, useful for async building the display list of actions */
 	void UpdateForNewActions(int32 IdxStart);
-	/** Regenerated filtered results (FilteredRootAction and FilteredActionNodes) based on filter text  */ 
+	/** Regenerated filtered results (FilteredRootAction) based on filter text  */ 
 	void GenerateFilteredItems(bool bPreserveExpansion);
 
 	/** The last typed action within the graph action menu */
@@ -385,14 +386,17 @@ protected:
 	/** Callback for expanding tree items recursively */
 	void OnSetExpansionRecursive(TSharedPtr<FGraphActionNode> InTreeNode, bool bInIsItemExpanded);
 	/** Helper function for adding and scoring actions from our builder */
-	struct FScoreResults
-	{
-		int32 BestMatchIndex;
-		float BestMatchScore;
-	};
-	FScoreResults ScoreAndAddActions(int32 StartingIndex = INDEX_NONE);
-	/** Helper function to update the active selection after updating the displayed tree */
-	void UpdateActiveSelection(FScoreResults ForResults);
+	void ScoreAndAddActions(int32 StartingIndex = INDEX_NONE);
+
+	/** Helper functions for keyboard interaction */
+	void SelectPreviousAction(int32 Num = 1);
+	void SelectNextAction(int32 Num = 1);
+	void SelectFirstAction();
+	void SelectLastAction();
+	/** General helper functions for accessing the filtered tree */
+	TSharedPtr<FGraphActionNode> GetFirstAction();
+	const TArray< TSharedPtr<FGraphActionNode> >& GetFilteredActionNodes(int32* OutSelectedIndex = nullptr);
+	int32 GetTotalLeafNodes() const;
 private:
 	/** The pins that have been dragged off of to prompt the creation of this action menu. */
 	TArray<UEdGraphPin*> DraggedFromPins;
