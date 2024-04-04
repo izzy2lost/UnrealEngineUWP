@@ -803,9 +803,9 @@ FMaterialPixelParameters FetchNaniteMaterialPixelParameters(FNaniteView NaniteVi
 				Tri.Verts[0].PointPostDeform,
 				Tri.Verts[1].PointPostDeform,
 				Tri.Verts[2].PointPostDeform,
-				Tri.Verts[0].NormalPostDeform,
-				Tri.Verts[1].NormalPostDeform,
-				Tri.Verts[2].NormalPostDeform );
+				Tri.Verts[0].TangentBasis.TangentZ,
+				Tri.Verts[1].TangentBasis.TangentZ,
+				Tri.Verts[2].TangentBasis.TangentZ );
 		#else
 			Barycentrics = CalculateTriangleBarycentrics(PixelClip, Tri.Verts[0].PointClip, Tri.Verts[1].PointClip, Tri.Verts[2].PointClip, NaniteView.ViewSizeAndInvSize.zw);
 		#endif
