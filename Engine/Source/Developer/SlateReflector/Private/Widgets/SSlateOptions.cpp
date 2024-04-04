@@ -62,6 +62,7 @@ void SSlateOptions::Construct( const FArguments& InArgs )
 			AddMenuEntry(MenuBuilder, Icon, LOCTEXT("EnableToolTips", "Enable Tooltips"), TEXT("Slate.EnableTooltips"));
 			AddMenuEntry(MenuBuilder, Icon, LOCTEXT("GlobalInvalidation", "Global Invalidation"), TEXT("Slate.EnableGlobalInvalidation"));
 			AddMenuEntry(MenuBuilder, Icon, LOCTEXT("DisabledEffect", "Transparent Disabled Effect"), TEXT("Slate.ApplyDisabledEffectOnWidgets"));
+			AddMenuEntry(MenuBuilder, Icon, LOCTEXT("FocusOnPick", "Focus On Pick"), TEXT("Slate.EnableFocusOnPick"));
 
 			return MenuBuilder.MakeWidget();
 		}

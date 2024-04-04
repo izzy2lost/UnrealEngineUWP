@@ -71,6 +71,16 @@
  * Widget reflector user widget.
  */
 
+namespace WidgetReflectorCVars
+{
+	static bool bEnableFocusOnPick = true;
+	static FAutoConsoleVariableRef EnableFocusOnPick(
+		TEXT("Slate.EnableFocusOnPick"),
+		bEnableFocusOnPick,
+		TEXT("If true, Widget Reflector window will be automatically focused when a pick is made.")
+	);
+}
+
 /* Local helpers
  *****************************************************************************/
  
@@ -2020,7 +2030,11 @@ void SWidgetReflector::HandleReflectorTreeSelectionChanged( TSharedPtr<FWidgetRe
 
 	if (GIsEditor && SelectedWidgetObjects.Num() > 0)
 	{
-		TabManager->TryInvokeTab(WidgetReflectorTabID::WidgetDetails);
+		if (WidgetReflectorCVars::bEnableFocusOnPick)
+		{
+			TabManager->TryInvokeTab(WidgetReflectorTabID::WidgetDetails);
+		}
+
 		if (PropertyViewPtr.IsValid())
 		{
 			PropertyViewPtr->SetObjects(SelectedWidgetObjects);
