@@ -55,6 +55,8 @@
 
 struct FExpressionInput;
 struct FExtraShaderCompilerSettings;
+class FCbFieldView;
+class FCbWriter;
 class FMaterial;
 class FMaterialCompiler;
 class FMaterialRenderProxy;
@@ -91,6 +93,7 @@ class FMaterialHLSLGenerator;
 class FShaderMapLayout;
 #if WITH_EDITOR
 class FMaterialCachedHLSLTree;
+class FMaterialKeyGeneratorContext;
 #endif
 
 enum EMaterialDomain : int;
@@ -979,6 +982,19 @@ struct FMaterialShaderParameters
 	};
 
 	FMaterialShaderParameters(const FMaterial* InMaterial=nullptr);
+
+private:
+#if WITH_EDITOR
+	// Compact binary API with hidden friend operator<<
+	ENGINE_API void Save(FCbWriter& Writer) const;
+	bool TryLoad(FCbFieldView Field);
+	friend inline FCbWriter& operator<<(FCbWriter& Writer, const FMaterialShaderParameters& Value)
+	{
+		Value.Save(Writer);
+		return Writer;
+	}
+	friend ENGINE_API bool LoadFromCompactBinary(FCbFieldView Field, FMaterialShaderParameters& OutValue);
+#endif
 };
 
 /** Contains all the information needed to uniquely identify a FMaterialShaderMap. */
@@ -1170,8 +1186,8 @@ public:
 	/** Appends string representations of this Id to a key string. */
 	void AppendKeyString(FString& KeyString, bool bIncludeSourceAndMaterialState = true,
 		bool bIncludeKeyStringShaderDependencies = true) const;
-	void Append(FShaderKeyGenerator& KeyGen, bool bIncludeSourceAndMaterialState = true,
-		bool bIncludeKeyStringShaderDependencies = true) const;
+	void RecordAndEmit(FMaterialKeyGeneratorContext& Context);
+
 	UE_DEPRECATED(5.5, "Internal function only, called through AppendKeyString.")
 	void AppendStaticParametersString(FString& ParamsString) const;
 

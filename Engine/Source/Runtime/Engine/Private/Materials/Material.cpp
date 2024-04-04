@@ -46,6 +46,7 @@
 #include "Materials/MaterialExpressionMaterialFunctionCall.h"
 #include "Materials/MaterialExpressionSingleLayerWaterMaterialOutput.h"
 #include "Materials/MaterialExpressionMultiply.h"
+#include "Materials/MaterialSharedPrivate.h"
 
 #include "SceneManagement.h"
 #include "SceneView.h"
@@ -1058,6 +1059,15 @@ void UMaterial::PreSave(FObjectPreSaveContext ObjectSaveContext)
 	Super::PreSave(ObjectSaveContext);
 #if WITH_EDITOR
 	GMaterialsWithDirtyUsageFlags.RemoveAnnotation(this);
+	if (ObjectSaveContext.IsCooking())
+	{
+		const ITargetPlatform* TargetPlatform = ObjectSaveContext.GetTargetPlatform();
+		check(TargetPlatform);
+
+		TArray<FMaterialResourceForCooking>* Resources = CachedMaterialResourcesForCooking.Find(TargetPlatform);
+		UE::MaterialInterface::Private::RecordMaterialDependenciesForCook(ObjectSaveContext,
+			Resources ? *Resources : TArray<FMaterialResourceForCooking>());
+	}
 #endif
 }
 

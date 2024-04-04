@@ -402,6 +402,9 @@ public:
 	UE_DEPRECATED(5.4, "Implement the version that takes FAssetRegistryTagsContext instead.")
 	ENGINE_API virtual void GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const override;
 #endif // WITH_EDITOR
+#if WITH_EDITOR
+	static ENGINE_API void AppendToClassSchema(FAppendToClassSchemaContext& Context);
+#endif
 	//~ End UObject Interface.
 
 	//~ Begin Begin Interface IBlendableInterface

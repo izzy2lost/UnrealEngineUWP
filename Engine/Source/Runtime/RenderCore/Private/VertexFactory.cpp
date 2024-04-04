@@ -10,6 +10,10 @@
 #include "ShaderCompilerCore.h"
 #include "RenderUtils.h"
 #include "DataDrivenShaderPlatformInfo.h"
+#if WITH_EDITOR
+#include "Serialization/CompactBinary.h"
+#include "Serialization/CompactBinaryWriter.h"
+#endif
 
 IMPLEMENT_TYPE_LAYOUT(FVertexFactoryShaderParameters);
 
@@ -194,6 +198,47 @@ FVertexFactoryType* FindVertexFactoryType(const FHashedName& TypeName)
 {
 	return FVertexFactoryType::GetVFByName(TypeName);
 }
+
+void FVertexFactoryTypeDependency::RefreshCachedSourceHash(EShaderPlatform ShaderPlatform)
+{
+	const FVertexFactoryType* VertexFactory = FindVertexFactoryType(VertexFactoryTypeName);
+	if (!VertexFactory)
+	{
+		VFSourceHash = FSHAHash();
+		return;
+	}
+	VFSourceHash = VertexFactory->GetSourceHash(ShaderPlatform);
+}
+
+#if WITH_EDITOR
+void FVertexFactoryTypeDependency::Save(FCbWriter& Writer) const
+{
+	Writer.BeginArray();
+	Writer << VertexFactoryTypeName;
+	Writer << VFSourceHash;
+	Writer.EndArray();
+}
+
+bool FVertexFactoryTypeDependency::TryLoad(FCbFieldView Field)
+{
+	*this = FVertexFactoryTypeDependency();
+	FCbFieldViewIterator ElementField(Field.CreateViewIterator());
+	if (!LoadFromCompactBinary(ElementField++, VertexFactoryTypeName))
+	{
+		return false;
+	}
+	if (!LoadFromCompactBinary(ElementField++, VFSourceHash))
+	{
+		return false;
+	}
+	return true;
+}
+
+bool LoadFromCompactBinary(FCbFieldView Field, FVertexFactoryTypeDependency& OutValue)
+{
+	return OutValue.TryLoad(Field);
+}
+#endif // WITH_EDITOR
 
 void FVertexFactory::GetStreams(ERHIFeatureLevel::Type InFeatureLevel, EVertexInputStreamType VertexStreamType, FVertexInputStreamArray& OutVertexStreams) const
 {

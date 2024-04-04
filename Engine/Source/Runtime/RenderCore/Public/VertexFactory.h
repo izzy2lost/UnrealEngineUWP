@@ -34,6 +34,8 @@
 
 #include <atomic>
 
+class FCbFieldView;
+class FCbWriter;
 class FMaterial;
 class FMeshDrawSingleShaderBindings;
 class FPrimitiveSceneProxy;
@@ -601,6 +603,22 @@ public:
 	{
 		return !(*this == Reference);
 	}
+
+	/** Call GetShaderFileHash to get the cached value for the filename's hash in the current process. */
+	RENDERCORE_API void RefreshCachedSourceHash(EShaderPlatform ShaderPlatform);
+
+private:
+#if WITH_EDITOR
+	// Compact binary API with hidden friend operator<<
+	RENDERCORE_API void Save(FCbWriter& Writer) const;
+	bool TryLoad(FCbFieldView Field);
+	friend inline FCbWriter& operator<<(FCbWriter& Writer, const FVertexFactoryTypeDependency& Value)
+	{
+		Value.Save(Writer);
+		return Writer;
+	}
+	friend RENDERCORE_API bool LoadFromCompactBinary(FCbFieldView Field, FVertexFactoryTypeDependency& OutValue);
+#endif
 };
 
 /** Used to compare two Vertex Factory types by name. */

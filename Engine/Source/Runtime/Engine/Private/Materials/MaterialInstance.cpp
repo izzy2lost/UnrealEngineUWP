@@ -31,6 +31,7 @@
 #include "Materials/MaterialInstanceConstant.h"
 #include "Materials/MaterialInstanceUpdateParameterSet.h"
 #include "Materials/MaterialInstanceSupport.h"
+#include "Materials/MaterialSharedPrivate.h"
 #include "Engine/SubsurfaceProfile.h"
 #include "Engine/SpecularProfile.h"
 #include "ProfilingDebugging/CookStats.h"
@@ -4671,6 +4672,16 @@ void UMaterialInstance::PreSave(FObjectPreSaveContext ObjectSaveContext)
 {
 	// @TODO : Remove any duplicate data from parent? Aims at improving change propagation (if controlled by parent)
 	Super::PreSave(ObjectSaveContext);
+#if WITH_EDITOR
+	if (ObjectSaveContext.IsCooking())
+	{
+		const ITargetPlatform * TargetPlatform = ObjectSaveContext.GetTargetPlatform();
+		check(TargetPlatform);
+		TArray<FMaterialResourceForCooking>* Resources = CachedMaterialResourcesForCooking.Find(TargetPlatform);
+		UE::MaterialInterface::Private::RecordMaterialDependenciesForCook(ObjectSaveContext,
+			Resources ? *Resources : TArray<FMaterialResourceForCooking>());
+	}
+#endif
 }
 
 float UMaterialInstance::GetTextureDensity(FName TextureName, const struct FMeshUVChannelInfo& UVChannelData) const

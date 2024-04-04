@@ -29,6 +29,8 @@
 #include "Traits/IsCharType.h"
 #include "UObject/NameTypes.h"
 
+class FCbFieldView;
+class FCbWriter;
 template <typename T> struct TIsContiguousContainer;
 
 #if defined(WITH_RTTI) || defined(_CPPRTTI) || defined(__GXX_RTTI) || WITH_EDITOR
@@ -895,6 +897,18 @@ public:
 private:
 	LAYOUT_FIELD(uint64, Hash);
 	LAYOUT_FIELD_EDITORONLY(FHashedNameDebugString, DebugString);
+
+#if WITH_EDITOR
+	// Compact binary API with hidden friend operator<<
+	CORE_API void Save(FCbWriter& Writer) const;
+	bool TryLoad(FCbFieldView Field);
+	friend inline FCbWriter& operator<<(FCbWriter& Writer, const FHashedName& Value)
+	{
+		Value.Save(Writer);
+		return Writer;
+	}
+	friend CORE_API bool LoadFromCompactBinary(FCbFieldView Field, FHashedName& OutValue);
+#endif
 };
 
 namespace Freeze

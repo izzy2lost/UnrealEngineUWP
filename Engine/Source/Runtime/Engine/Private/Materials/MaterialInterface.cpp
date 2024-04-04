@@ -12,6 +12,7 @@
 #include "PrimitiveViewRelevance.h"
 #include "MaterialShared.h"
 #include "Materials/Material.h"
+#include "Materials/MaterialSharedPrivate.h"
 #include "UObject/AssetRegistryTagsContext.h"
 #include "UObject/ObjectSaveContext.h"
 #include "UObject/PropertyPortFlags.h"
@@ -791,6 +792,15 @@ void UMaterialInterface::GetAssetRegistryTags(FAssetRegistryTagsContext Context)
 	Super::GetAssetRegistryTags(Context);
 }
 #endif // WITH_EDITOR
+
+#if WITH_EDITOR
+void UMaterialInterface::AppendToClassSchema(FAppendToClassSchemaContext& Context)
+{
+	Super::AppendToClassSchema(Context);
+
+	UE::MaterialInterface::Private::HashMaterialStaticClassDependenciesForCook(Context);
+}
+#endif
 
 void UMaterialInterface::GetLightingGuidChain(bool bIncludeTextures, TArray<FGuid>& OutGuids) const
 {

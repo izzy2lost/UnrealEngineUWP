@@ -36,6 +36,16 @@
 #include "PSOPrecacheValidation.h"
 
 #if WITH_EDITOR
+#include "Algo/Sort.h"
+#include "Containers/AnsiString.h"
+#include "Cooker/CookDependency.h"
+#include "Interfaces/ITargetPlatform.h"
+#include "MaterialCachedData.h"
+#include "MaterialKeyGeneratorContext.h"
+#include "Materials/MaterialSharedPrivate.h"
+#include "Misc/ConfigCacheIni.h"
+#include "Serialization/CompactBinarySerialization.h"
+#include "Serialization/CompactBinaryWriter.h"
 #include "Serialization/MemoryReader.h"
 #endif
 
@@ -195,74 +205,104 @@ FString GetMaterialShaderMapKeyString(const FMaterialShaderMapId& ShaderMapId,
 {
 	FString ShaderMapKeyString;
 	ShaderMapKeyString.Reserve(16384);
-	FShaderKeyGenerator KeyGen(ShaderMapKeyString);
-	GetMaterialShaderMapKey(KeyGen, ShaderMapId, ShaderParameters, Platform,
-		bIncludeKeyStringShaderDependencies);
+	FMaterialKeyGeneratorContext Context(ShaderMapKeyString, Platform);
+	Context.SetFlags(EMaterialKeyInclude::ShaderDependencies, bIncludeKeyStringShaderDependencies);
+	RecordOrEmitMaterialShaderMapKey(Context, ShaderMapId, ShaderParameters);
+
 	return ShaderMapKeyString;
 }
 
-void GetMaterialShaderMapKey(FShaderKeyGenerator& KeyGen, const FMaterialShaderMapId& ShaderMapId,
-	const FMaterialShaderParameters& ShaderParameters, EShaderPlatform Platform,
-	bool bIncludeKeyStringShaderDependencies)
+void RecordOrEmitMaterialShaderMapKey(FMaterialKeyGeneratorContext& Context,
+	const FMaterialShaderMapId& ShaderMapId, const FMaterialShaderParameters& ShaderParameters)
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE(GetMaterialShaderMapKeyString);
+	check(!Context.IsLoading());
+	RecordOrEmitMaterialShaderMapKey(Context, const_cast<FMaterialShaderMapId&>(ShaderMapId),
+		const_cast<FMaterialShaderParameters&>(ShaderParameters));
+}
 
-	FName Format = LegacyShaderPlatformToShaderFormat(Platform);
+/**
+ * Creates a ShaderKey for a given a shader map id, or saves and loads the fields of the ShaderMapId
+ * for creating the ShaderKey later.
+ */
+void RecordOrEmitMaterialShaderMapKey(FMaterialKeyGeneratorContext& Context,
+	FMaterialShaderMapId& ShaderMapId, FMaterialShaderParameters& ShaderParameters)
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(RecordOrEmitMaterialShaderMapKey);
+
+	FName Format = Context.GetShaderFormat();
+	EShaderPlatform Platform = Context.GetShaderPlatform();
+
+	// Emitting and recording are mutually exclusive and we rely on that
+	check(!(Context.IsRecording() && Context.IsEmitting()));
 	
-	KeyGen.AppendDebugText(TEXTVIEW("MATSM_"));
-	KeyGen.Append(GetMaterialShaderMapDDCGuid());
-	KeyGen.AppendSeparator();
-
-	KeyGen.Append(Format);
-	KeyGen.AppendSeparator();
-	KeyGen.Append(GetTargetPlatformManagerRef().ShaderFormatVersion(Format));
-	KeyGen.AppendSeparator();
-
-	ShaderMapAppendKey(Platform, KeyGen);
-	ShaderMapId.Append(KeyGen, true, bIncludeKeyStringShaderDependencies);
-
-
-	FMemoryHasherBlake3 EnvHasher;
-
-	// Hash any modifications applied to the compilation environment for each shadertype that will be compiled.
-	// When the shadermap ID is constructed, individual shadertype dependencies are added for any pipelines, hence
-	// we don't need to have equivalent hashing code for the pipeline dependencies.
-	for (const FShaderTypeDependency& TypeDep : ShaderMapId.ShaderTypeDependencies)
+	if (Context.IsRecording())
 	{
-		const FShaderType* ShaderType = FindShaderTypeByName(TypeDep.ShaderTypeName);
-		if (const FMaterialShaderType* MatShaderType = ShaderType->GetMaterialShaderType())
+		Context.RecordObjectStart("ShaderMapId");
+		ShaderMapId.RecordAndEmit(Context);
+		Context.RecordObjectEnd();
+		Context.Record("ShaderParameters", ShaderParameters);
+	}
+	else
+	{
+		FShaderKeyGenerator& KeyGen = Context.GetKeyGenIfEmittingChecked();
+
+		KeyGen.AppendDebugText(TEXTVIEW("MATSM_"));
+		KeyGen.Append(GetMaterialShaderMapDDCGuid());
+		KeyGen.AppendSeparator();
+
+		KeyGen.Append(Format);
+		KeyGen.AppendSeparator();
+		KeyGen.Append(GetTargetPlatformManagerRef().ShaderFormatVersion(Format));
+		KeyGen.AppendSeparator();
+
+		ShaderMapAppendKey(Platform, KeyGen);
+		ShaderMapId.RecordAndEmit(Context);
+
+		FMemoryHasherBlake3 EnvHasher;
+
+		// Hash any modifications applied to the compilation environment for each shadertype that will be compiled.
+		// When the shadermap ID is constructed, individual shadertype dependencies are added for any pipelines, hence
+		// we don't need to have equivalent hashing code for the pipeline dependencies.
+		for (const FShaderTypeDependency& TypeDep : ShaderMapId.ShaderTypeDependencies)
 		{
-			if (MatShaderType->ShouldCompilePermutation(Platform, ShaderParameters, TypeDep.PermutationId, ShaderMapId.GetPermutationFlags()))
+			const FShaderType* ShaderType = FindShaderTypeByName(TypeDep.ShaderTypeName);
+			if (const FMaterialShaderType* MatShaderType = ShaderType->GetMaterialShaderType())
 			{
-				FShaderCompilerEnvironment EnvModifications(EnvHasher);
-				MatShaderType->SetupCompileEnvironment(Platform, ShaderParameters, TypeDep.PermutationId, ShaderMapId.GetPermutationFlags(), EnvModifications);
-				EnvModifications.SerializeEverythingButFiles(EnvHasher);
-			}
-		}
-		else if (const FMeshMaterialShaderType* MeshMatShaderType = ShaderType->GetMeshMaterialShaderType())
-		{
-			for (const FVertexFactoryTypeDependency& VFDep : ShaderMapId.VertexFactoryTypeDependencies)
-			{
-				const FVertexFactoryType* VFType = FindVertexFactoryType(VFDep.VertexFactoryTypeName);
-				const bool bVFShouldCache = FMeshMaterialShaderType::ShouldCompileVertexFactoryPermutation(Platform, ShaderParameters, VFType, ShaderType, ShaderMapId.GetPermutationFlags());
-				const bool bShaderShouldCache = MeshMatShaderType->ShouldCompilePermutation(Platform, ShaderParameters, VFType, TypeDep.PermutationId, ShaderMapId.GetPermutationFlags());
-				if (bVFShouldCache && bShaderShouldCache)
+				if (MatShaderType->ShouldCompilePermutation(Platform, ShaderParameters, TypeDep.PermutationId, ShaderMapId.GetPermutationFlags()))
 				{
 					FShaderCompilerEnvironment EnvModifications(EnvHasher);
-					VFType->ModifyCompilationEnvironment(FVertexFactoryShaderPermutationParameters(Platform, ShaderParameters, VFType, ShaderType, ShaderMapId.GetPermutationFlags()), EnvModifications);
-					MeshMatShaderType->SetupCompileEnvironment(Platform, ShaderParameters, VFType, TypeDep.PermutationId, ShaderMapId.GetPermutationFlags(), EnvModifications);
+					MatShaderType->SetupCompileEnvironment(Platform, ShaderParameters, TypeDep.PermutationId, ShaderMapId.GetPermutationFlags(), EnvModifications);
 					EnvModifications.SerializeEverythingButFiles(EnvHasher);
 				}
 			}
+			else if (const FMeshMaterialShaderType* MeshMatShaderType = ShaderType->GetMeshMaterialShaderType())
+			{
+				for (const FVertexFactoryTypeDependency& VFDep : ShaderMapId.VertexFactoryTypeDependencies)
+				{
+					const FVertexFactoryType* VFType = FindVertexFactoryType(VFDep.VertexFactoryTypeName);
+					const bool bVFShouldCache = FMeshMaterialShaderType::ShouldCompileVertexFactoryPermutation(Platform, ShaderParameters, VFType, ShaderType, ShaderMapId.GetPermutationFlags());
+					const bool bShaderShouldCache = MeshMatShaderType->ShouldCompilePermutation(Platform, ShaderParameters, VFType, TypeDep.PermutationId, ShaderMapId.GetPermutationFlags());
+					if (bVFShouldCache && bShaderShouldCache)
+					{
+						FShaderCompilerEnvironment EnvModifications(EnvHasher);
+						VFType->ModifyCompilationEnvironment(FVertexFactoryShaderPermutationParameters(Platform, ShaderParameters, VFType, ShaderType, ShaderMapId.GetPermutationFlags()), EnvModifications);
+						MeshMatShaderType->SetupCompileEnvironment(Platform, ShaderParameters, VFType, TypeDep.PermutationId, ShaderMapId.GetPermutationFlags(), EnvModifications);
+						EnvModifications.SerializeEverythingButFiles(EnvHasher);
+					}
+				}
+			}
 		}
-	}
-	KeyGen.AppendDebugText(TEXTVIEW("_EMH_"));
-	KeyGen.Append(EnvHasher.Finalize());
-	KeyGen.AppendSeparator();
+		KeyGen.AppendDebugText(TEXTVIEW("_EMH_"));
+		KeyGen.Append(EnvHasher.Finalize());
+		KeyGen.AppendSeparator();
 
-	FMaterialAttributeDefinitionMap::AppendDDCKey(KeyGen);
-	FShaderCompileUtilities::AppendGBufferDDCKey(Platform, KeyGen);
-	FHLSLMaterialTranslator::AppendVersion(KeyGen, Platform);
+		if (Context.HasAllFlags(EMaterialKeyInclude::Globals))
+		{
+			FMaterialAttributeDefinitionMap::AppendDDCKey(KeyGen);
+		}
+		FShaderCompileUtilities::AppendGBufferDDCKey(Platform, KeyGen);
+		FHLSLMaterialTranslator::AppendVersion(KeyGen, Platform);
+	}
 }
 
 static UE::DerivedData::FCacheKey GetMaterialShaderMapKey(const FStringView MaterialShaderMapKey)
@@ -281,6 +321,209 @@ static UE::DerivedData::FSharedString GetMaterialShaderMapName(const FStringView
 		TEXTVIEW(", "), LexToString(ShaderMapId.QualityLevel),
 		TEXTVIEW("]")));
 }
+
+
+FCbWriter& operator<<(FCbWriter& Writer, const EShaderPermutationFlags& PermutationFlags)
+{
+	Writer << static_cast<uint32>(PermutationFlags);
+	return Writer;
+}
+
+bool LoadFromCompactBinary(FCbFieldView Field, EShaderPermutationFlags& OutPermutationFlags)
+{
+	OutPermutationFlags = EShaderPermutationFlags::None;
+	uint32 IntValue = Field.AsUInt32();
+	if (Field.HasError())
+	{
+		return false;
+	}
+	OutPermutationFlags = static_cast<EShaderPermutationFlags>(IntValue);
+	return true;
+}
+
+#endif // WITH_EDITOR
+
+#if WITH_EDITOR
+
+namespace UE::MaterialInterface::Private
+{
+
+void FRecordedMaterialResourceForCooking::Save(FCbWriter& Writer) const
+{
+	Writer.BeginArray();
+	Writer << ShaderPlatform;
+	Writer << ExpressionIncludes;
+	Writer.BeginObject();
+	FMaterialKeyGeneratorContext KeyGenContext(Writer, ShaderPlatform);
+	KeyGenContext.RemoveFlags(EMaterialKeyInclude::Globals | EMaterialKeyInclude::UObjectData);
+	RecordOrEmitMaterialShaderMapKey(KeyGenContext, ShaderMapId, ShaderParameters);
+	Writer.EndObject();
+	Writer.EndArray();
+}
+
+bool FRecordedMaterialResourceForCooking::TryLoad(FCbFieldView Field)
+{
+	*this = FRecordedMaterialResourceForCooking();
+
+	FCbFieldViewIterator ElementIter = Field.CreateViewIterator();
+	if (!LoadFromCompactBinary(ElementIter++, ShaderPlatform))
+	{
+		return false;
+	}
+	if (!LoadFromCompactBinary(ElementIter++, ExpressionIncludes))
+	{
+		return false;
+	}
+	FCbObjectView ObjectView = ElementIter.AsObjectView();
+	if ((ElementIter++).HasError())
+	{
+		return false;
+	}
+	FMaterialKeyGeneratorContext KeyGenContext(ObjectView, ShaderPlatform);
+	KeyGenContext.RemoveFlags(EMaterialKeyInclude::Globals | EMaterialKeyInclude::UObjectData);
+	RecordOrEmitMaterialShaderMapKey(KeyGenContext, ShaderMapId, ShaderParameters);
+	if (KeyGenContext.HasLoadError())
+	{
+		return false;
+	}
+	return true;
+}
+
+} // namespace UE::MaterialInterface::Private
+
+bool LoadFromCompactBinary(FCbFieldView Field,
+	UE::MaterialInterface::Private::FRecordedMaterialResourceForCooking& OutValue)
+{
+	return OutValue.TryLoad(Field);
+}
+
+namespace UE::MaterialInterface::Private
+{
+
+void HashMaterialStaticClassDependenciesForCook(FAppendToClassSchemaContext& Context)
+{
+	Context.Update(&GetMaterialShaderMapDDCGuid(), sizeof(GetMaterialShaderMapDDCGuid()));
+
+	FShaderKeyGenerator KeyGen([&Context](const void* Data, uint64 Size) { Context.Update(Data, Size); });
+	FMaterialAttributeDefinitionMap::AppendDDCKey(KeyGen);
+
+	// Record the data used by all FPlatformTypeLayoutParameters by appending a default-constructed one.
+	FPlatformTypeLayoutParameters LayoutParams;
+	LayoutParams.Append(KeyGen);
+
+	bool bSupportCookedEditorConfigValue = false;
+	GConfig->GetBool(TEXT("CookedEditorSettings"), TEXT("bSupportCookedEditor"), bSupportCookedEditorConfigValue, GGameIni);
+	uint8 Byte = bSupportCookedEditorConfigValue ? 1 : 0;
+	Context.Update(&Byte, sizeof(Byte));
+
+	for (EMaterialQualityLevel::Type QualityLevel = static_cast<EMaterialQualityLevel::Type>(0);
+		QualityLevel < EMaterialQualityLevel::Type::Num;
+		QualityLevel = static_cast<EMaterialQualityLevel::Type>(static_cast<uint32>(QualityLevel) + 1))
+	{
+		TStringBuilder<32> QualityLevelName(InPlace, GetMaterialQualityLevelFName(QualityLevel));
+		Context.Update(*QualityLevelName, QualityLevelName.Len() * sizeof((*QualityLevelName)[0]));
+	}
+	for (ERHIFeatureLevel::Type FeatureLevel = static_cast<ERHIFeatureLevel::Type>(0);
+		FeatureLevel < ERHIFeatureLevel::Type::Num;
+		FeatureLevel = static_cast<ERHIFeatureLevel::Type>(static_cast<uint32>(FeatureLevel) + 1))
+	{
+		FName FeatureLevelName;
+		GetFeatureLevelName(FeatureLevel, FeatureLevelName);
+		TStringBuilder<32> FeatureLevelNameStr(InPlace, FeatureLevelName);
+		Context.Update(*FeatureLevelNameStr, FeatureLevelNameStr.Len() * sizeof((*FeatureLevelNameStr)[0]));
+	}
+}
+
+constexpr int32 HashMaterialDependenciesForCookArgsVersion = 1;
+void HashMaterialDependenciesForCook(FCbFieldViewIterator Args, UE::Cook::FCookDependencyContext& Context)
+{
+	int32 ArgsVersion = -1;
+	bool bValid = false;
+
+	TArray<FRecordedMaterialResourceForCooking> CookResources;
+	FCbFieldViewIterator ArgField(Args);
+	ArgsVersion = (ArgField++).AsInt32();
+	if (ArgsVersion == HashMaterialDependenciesForCookArgsVersion)
+	{
+		bValid = LoadFromCompactBinary(ArgField++, CookResources);
+	}
+	if (!bValid)
+	{
+		Context.LogError(FString::Printf(TEXT("Unsupported arguments version %d."), ArgsVersion));
+		return;
+	}
+
+	for (FRecordedMaterialResourceForCooking& Resource : CookResources)
+	{
+		FMaterialKeyGeneratorContext KeyGenContext([&Context](const void* Data, uint64 Size)
+			{
+				Context.Update(Data, Size);
+			}, Resource.ShaderPlatform);
+		KeyGenContext.RemoveFlags(EMaterialKeyInclude::Globals | EMaterialKeyInclude::UObjectData);
+		RecordOrEmitMaterialShaderMapKey(KeyGenContext, Resource.ShaderMapId, Resource.ShaderParameters);
+		for (const FString& FileName : Resource.ExpressionIncludes)
+		{
+			const FSHAHash* Hash = TryGetShaderFileHash(*FileName, Resource.ShaderPlatform);
+			if (!Hash)
+			{
+				Context.LogError(FString::Printf(TEXT("Could not find file %s for hashing."), *FileName));
+				continue;
+			}
+			Context.Update(&Hash->Hash, sizeof(Hash->Hash));
+		}
+	}
+}
+
+UE_COOK_DEPENDENCY_FUNCTION(HashMaterialDependenciesForCook, UE::MaterialInterface::Private::HashMaterialDependenciesForCook);
+
+void RecordMaterialDependenciesForCook(FObjectPreSaveContext ObjectSaveContext,
+	TConstArrayView<FMaterialResourceForCooking> Resources)
+{
+	const ITargetPlatform* TargetPlatform = ObjectSaveContext.GetTargetPlatform();
+	check(TargetPlatform); // Caller should call only when cooking
+
+	TArray<FRecordedMaterialResourceForCooking> RecordedResources;
+	RecordedResources.Reserve(Resources.Num());
+
+	// Sort the array of resources for determinism
+	TArray<FMaterialResourceForCooking> SortedResources(Resources);
+	Algo::Sort(SortedResources, [](const FMaterialResourceForCooking& A, const FMaterialResourceForCooking& B)
+		{
+			return static_cast<uint32>(A.Platform) < static_cast<uint32>(B.Platform);
+		});
+
+	// Calculate the ShaderMapId for each resource and save it into an array of FRecordedMaterialResourceForCooking
+	// that is suitable for persistent saving as parameters of HashMaterialDependenciesForCook.
+	for (const FMaterialResourceForCooking& ResourceForCooking : SortedResources)
+	{
+		const FMaterialResource& Resource = *ResourceForCooking.Resource;
+
+		FRecordedMaterialResourceForCooking& RecordedResource = RecordedResources.Emplace_GetRef();
+		RecordedResource.ShaderPlatform = ResourceForCooking.Platform;
+		RecordedResource.ShaderParameters = FMaterialShaderParameters(&Resource);
+		Resource.GetShaderMapId(RecordedResource.ShaderPlatform, TargetPlatform, RecordedResource.ShaderMapId);
+
+		TSet<FString>& ExpressionIncludes = Resource.GetCachedExpressionData().EditorOnlyData->ExpressionIncludeFilePaths;
+		// ExpressionIncludeFilePaths is already deterministically sorted, so no need to sort it here.
+		RecordedResource.ExpressionIncludes.Reserve(ExpressionIncludes.Num());
+		for (const FString& FilePath : ExpressionIncludes)
+		{
+			RecordedResource.ExpressionIncludes.Add(FilePath);
+		}
+	}
+
+	// Store the FRecordedMaterialResourceForCooking in compact binary and pass them to the cooker to save in 
+	// ObjectSaveContext's list of dependencies for our package.
+	FCbWriter Writer;
+	Writer << HashMaterialDependenciesForCookArgsVersion;
+	Writer << RecordedResources;
+
+	ObjectSaveContext.AddCookDependency(
+		UE::Cook::FCookDependency::Function(
+			UE_COOK_DEPENDENCY_FUNCTION_CALL(HashMaterialDependenciesForCook), Writer.Save()));
+}
+
+} // namespace UE::MaterialInterface::Private
 
 #endif // WITH_EDITOR
 
@@ -1219,90 +1462,136 @@ void FMaterialShaderMapId::AppendStaticParameters(FShaderKeyGenerator& KeyGen) c
 
 void FMaterialShaderMapId::AppendKeyString(FString& KeyString, bool bIncludeSourceAndMaterialState, bool bIncludeKeyStringShaderDependencies) const
 {
-	FShaderKeyGenerator KeyGen(KeyString);
-	Append(KeyGen, bIncludeSourceAndMaterialState, bIncludeKeyStringShaderDependencies);
+	FMaterialKeyGeneratorContext Context(KeyString, EShaderPlatform::SP_NumPlatforms);
+	Context.SetFlags(EMaterialKeyInclude::SourceAndMaterialState, bIncludeSourceAndMaterialState);
+	Context.SetFlags(EMaterialKeyInclude::ShaderDependencies, bIncludeKeyStringShaderDependencies);
+	const_cast<FMaterialShaderMapId&>(*this).RecordAndEmit(Context);
 }
 
-void FMaterialShaderMapId::Append(FShaderKeyGenerator& KeyGen, bool bIncludeSourceAndMaterialState, bool bIncludeKeyStringShaderDependencies) const
+void FMaterialShaderMapId::RecordAndEmit(FMaterialKeyGeneratorContext& Context)
 {
-	check(IsContentValid());
-	if (bIncludeSourceAndMaterialState)
+	check(Context.IsLoading() || IsContentValid());
+	if (Context.HasAllFlags(EMaterialKeyInclude::SourceAndMaterialState | EMaterialKeyInclude::UObjectData))
 	{
-		KeyGen.Append(BaseMaterialId);
+		Context.RecordAndEmit("BaseMaterialId", BaseMaterialId);
+		Context.EmitSeparator();
+	}
+
+	if (Context.HasAllFlags(EMaterialKeyInclude::UObjectData))
+	{
+		Context.Record("QualityLevel", QualityLevel);
+		Context.Emit(GetMaterialQualityLevelFName(QualityLevel));
+		Context.EmitSeparator();
+
+		Context.Record("FeatureLevel", FeatureLevel);
+		FName FeatureLevelName;
+		GetFeatureLevelName(FeatureLevel, FeatureLevelName);
+		Context.Emit(FeatureLevelName);
+		Context.EmitSeparator();
+	}
+
+	Context.RecordAndEmit("LayoutParams", LayoutParams);
+
+	// Recording of some fields necessary for IncludeUObjectData is not yet implemented; we only support emitting them
+	check(!Context.HasAllFlags(EMaterialKeyInclude::UObjectData) || !Context.IsRecording());
+	if (Context.HasAllFlags(EMaterialKeyInclude::UObjectData) && Context.IsEmitting())
+	{
+		FShaderKeyGenerator& KeyGen = Context.GetKeyGenIfEmittingChecked();
+		AppendStaticParameters(KeyGen);
+
+		if (MaterialLayersId)
+		{
+			MaterialLayersId->Append(KeyGen);
+		}
+
 		KeyGen.AppendSeparator();
-	}
-
-	KeyGen.Append(GetMaterialQualityLevelFName(QualityLevel));
-	KeyGen.AppendSeparator();
-
-	FName FeatureLevelName;
-	GetFeatureLevelName(FeatureLevel, FeatureLevelName);
-	KeyGen.Append(FeatureLevelName);
-	KeyGen.AppendSeparator();
-
-	LayoutParams.Append(KeyGen);
-
-	AppendStaticParameters(KeyGen);
-
-	if (MaterialLayersId)
-	{
-		MaterialLayersId->Append(KeyGen);
-	}
-
-	KeyGen.AppendSeparator();
-	KeyGen.Append(static_cast<int32>(Usage));
-	KeyGen.AppendSeparator();
-
-	if (Usage == EMaterialShaderMapUsage::MaterialExportCustomOutput)
-	{
-		KeyGen.Append(UsageCustomOutput);
+		KeyGen.Append(static_cast<int32>(Usage));
 		KeyGen.AppendSeparator();
+
+		if (Usage == EMaterialShaderMapUsage::MaterialExportCustomOutput)
+		{
+			KeyGen.Append(UsageCustomOutput);
+			KeyGen.AppendSeparator();
+		}
+
+		if (Context.HasAllFlags(EMaterialKeyInclude::SourceAndMaterialState))
+		{
+			// Add any referenced functions to the key so that we will recompile when they are changed
+			::Append(KeyGen, ReferencedFunctions);
+		}
 	}
 
-	if (bIncludeSourceAndMaterialState)
-	{
-		::Append(KeyGen, ReferencedFunctions);
-	}
-
+	if (Context.HasAllFlags(EMaterialKeyInclude::Globals))
 	{
 		const FSHAHash LayoutHash = GetShaderTypeLayoutHash(StaticGetTypeLayoutDesc<FMaterialShaderMapContent>(), LayoutParams);
-		KeyGen.AppendSeparator();
-		KeyGen.Append(LayoutHash);
-		KeyGen.AppendSeparator();
+		Context.EmitSeparator();
+		Context.Emit(LayoutHash);
+		Context.EmitSeparator();
 	}
 
-	KeyGen.AppendSeparator();
+	Context.EmitSeparator();
 
-	if (bIncludeSourceAndMaterialState)
+	if (Context.HasAllFlags(EMaterialKeyInclude::SourceAndMaterialState | EMaterialKeyInclude::UObjectData))
 	{
-		::Append(KeyGen, ReferencedParameterCollections);
+		Context.RecordAndEmit("ReferencedParameterCollections", ReferencedParameterCollections);
 	}
 
 	// Add the inputs for any shaders that are stored inline in the shader map
-	if (bIncludeKeyStringShaderDependencies)
+	// Callers can use the Dependencies arrays, so record them all even if not HasAllFlags(ShaderDependencies)
+	Context.Record("ShaderTypeDependencies", ShaderTypeDependencies);
+	Context.Record("ShaderPipelineTypeDependencies", ShaderPipelineTypeDependencies);
+	Context.Record("VertexFactoryTypeDependencies", VertexFactoryTypeDependencies);
+	Context.PostLoad([this, ShaderPlatform=Context.GetShaderPlatform()]()
+		{
+			for (FShaderTypeDependency& Value : ShaderTypeDependencies)
+			{
+				Value.RefreshCachedSourceHash(ShaderPlatform);
+			}
+			for (FShaderPipelineTypeDependency& Value : ShaderPipelineTypeDependencies)
+			{
+				Value.RefreshCachedSourceHash(ShaderPlatform);
+			}
+			for (FVertexFactoryTypeDependency& Value : VertexFactoryTypeDependencies)
+			{
+				Value.RefreshCachedSourceHash(ShaderPlatform);
+			}
+		});
+	if (Context.HasAllFlags(EMaterialKeyInclude::ShaderDependencies) && Context.IsEmitting())
 	{
+		FShaderKeyGenerator& KeyGen = Context.GetKeyGenIfEmittingChecked();
 		AppendShaderDependencies(
 			KeyGen,
 			MakeArrayView(ShaderTypeDependencies),
 			MakeArrayView(ShaderPipelineTypeDependencies),
 			MakeArrayView(VertexFactoryTypeDependencies),
 			LayoutParams,
-			bIncludeSourceAndMaterialState);
+			Context.HasAllFlags(EMaterialKeyInclude::SourceAndMaterialState));
 	}
 
-	KeyGen.Append(TextureReferencesHash);
+	// Recording of these hashes is not useful, because the hashes do not include the list of files that contributed
+	// to the hash.
+	check(!Context.HasAllFlags(EMaterialKeyInclude::UObjectData) || !Context.IsRecording());
+	if (Context.HasAllFlags(EMaterialKeyInclude::UObjectData))
+	{
+		Context.RecordAndEmit("TextureReferencesHash", TextureReferencesHash);
+		Context.RecordAndEmit("ExpressionIncludesHash", ExpressionIncludesHash);
+		Context.RecordAndEmit("BasePropertyOverridesHash", BasePropertyOverridesHash);
+	}
 
-	KeyGen.Append(ExpressionIncludesHash);
-
-	KeyGen.Append(BasePropertyOverridesHash);
-
+	Context.Record("bUsingNewHLSLGenerator", bUsingNewHLSLGenerator);
 	if (bUsingNewHLSLGenerator)
 	{
-		KeyGen.AppendDebugText(TEXT("_NewHLSL"));
-		KeyGen.Append(FMaterialHLSLGenerator::Version);
+		Context.EmitDebugText(TEXTVIEW("_NewHLSL"));
+		Context.Emit(FMaterialHLSLGenerator::Version);
 	}
 
-	SubstrateCompilationConfig.Append(KeyGen);
+	// Recording of some fields necessary for IncludeUObjectData is not yet implemented; we only support emitting them
+	check(!Context.HasAllFlags(EMaterialKeyInclude::UObjectData) || !Context.IsRecording());
+	if (Context.HasAllFlags(EMaterialKeyInclude::UObjectData) && Context.IsEmitting())
+	{
+		FShaderKeyGenerator& KeyGen = Context.GetKeyGenIfEmittingChecked();
+		SubstrateCompilationConfig.Append(KeyGen);
+	}
 }
 
 void FMaterialShaderMapId::SetShaderDependencies(const TArray<FShaderType*>& ShaderTypes, const TArray<const FShaderPipelineType*>& ShaderPipelineTypes, const TArray<FVertexFactoryType*>& VFTypes, EShaderPlatform ShaderPlatform)

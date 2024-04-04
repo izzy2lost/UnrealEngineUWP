@@ -14,6 +14,8 @@
 #include "Templates/Models.h"
 #include "Templates/UnrealTemplate.h"
 
+class FCbFieldView;
+class FCbWriter;
 class FHashedName;
 class FShaderKeyGenerator;
 class FSHA1;
@@ -863,6 +865,17 @@ private:
 	{
 		Value.Append(KeyGen);
 	}
+#if WITH_EDITOR
+	// Compact binary API with hidden friend operator<<
+	CORE_API void Save(FCbWriter& Writer) const;
+	bool TryLoad(FCbFieldView Field);
+	friend inline FCbWriter& operator<<(FCbWriter& Writer, const FPlatformTypeLayoutParameters& Value)
+	{
+		Value.Save(Writer);
+		return Writer;
+	}
+	friend CORE_API bool LoadFromCompactBinary(FCbFieldView Field, FPlatformTypeLayoutParameters& OutValue);
+#endif
 };
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5

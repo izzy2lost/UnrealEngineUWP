@@ -62,6 +62,8 @@
 #endif
 
 class ITargetPlatform;
+class FCbFieldView;
+class FCbWriter;
 class FComputeKernelShaderType;
 class FGlobalShaderType;
 class FMaterialShaderType;
@@ -1906,6 +1908,9 @@ public:
 		return !(*this == Reference);
 	}
 
+	/** Call GetShaderFileHash to get the cached value for the filename's hash in the current process. */
+	RENDERCORE_API void RefreshCachedSourceHash(EShaderPlatform ShaderPlatform);
+
 	/** Shader type */
 	LAYOUT_FIELD(FHashedName, ShaderTypeName);
 
@@ -1914,6 +1919,19 @@ public:
 
 	/** Used to detect changes to the shader source files. This is always present, as this type is sometimes frozen. */
 	LAYOUT_FIELD(FSHAHash, SourceHash);
+
+private:
+#if WITH_EDITOR
+	// Compact binary API with hidden friend operator<<
+	RENDERCORE_API void Save(FCbWriter& Writer) const;
+	bool TryLoad(FCbFieldView Field);
+	friend inline FCbWriter& operator<<(FCbWriter& Writer, const FShaderTypeDependency& Value)
+	{
+		Value.Save(Writer);
+		return Writer;
+	}
+	friend RENDERCORE_API bool LoadFromCompactBinary(FCbFieldView Field, FShaderTypeDependency& OutValue);
+#endif
 };
 
 
@@ -1952,6 +1970,22 @@ public:
 	{
 		return !(*this == Reference);
 	}
+
+	/** Call GetShaderFileHash to get the cached value for the filename's hash in the current process. */
+	RENDERCORE_API void RefreshCachedSourceHash(EShaderPlatform ShaderPlatform);
+
+private:
+#if WITH_EDITOR
+	// Compact binary API with hidden friend operator<<
+	RENDERCORE_API void Save(FCbWriter& Writer) const;
+	bool TryLoad(FCbFieldView Field);
+	friend inline FCbWriter& operator<<(FCbWriter& Writer, const FShaderPipelineTypeDependency& Value)
+	{
+		Value.Save(Writer);
+		return Writer;
+	}
+	friend RENDERCORE_API bool LoadFromCompactBinary(FCbFieldView Field, FShaderPipelineTypeDependency& OutValue);
+#endif
 };
 
 /** Used to compare two shader types by name. */

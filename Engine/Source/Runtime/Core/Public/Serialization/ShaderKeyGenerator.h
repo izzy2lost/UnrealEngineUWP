@@ -32,6 +32,7 @@ public:
 	inline FShaderKeyGenerator(TUniqueFunction<void(const void* Data, uint64 Size)>&& InResultFunc);
 	/** Constructor that writes the appended data to a long human-readable debug string. */
 	inline FShaderKeyGenerator(FString& InResultString);
+	inline ~FShaderKeyGenerator();
 
 	/**
 	 * True iff the KeyGen is writing to a hash function. Writing to a hash function also implies that debugtext and
@@ -131,6 +132,9 @@ inline FShaderKeyGenerator::FShaderKeyGenerator(FString& InResultString)
 	, OutputType(EOutputType::Text)
 {
 }
+
+// This destructor needs to be defined so that it can be called manually from union destructors.
+inline FShaderKeyGenerator::~FShaderKeyGenerator() = default;
 
 inline bool FShaderKeyGenerator::IsBinary() const
 {

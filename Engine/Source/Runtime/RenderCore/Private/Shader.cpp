@@ -31,6 +31,11 @@
 #include "Interfaces/IShaderFormat.h"
 #endif
 
+#if WITH_EDITOR
+#include "Serialization/CompactBinary.h"
+#include "Serialization/CompactBinaryWriter.h"
+#endif
+
 #if RHI_RAYTRACING
 #include "RayTracingPayloadType.h"
 #endif
@@ -1186,6 +1191,95 @@ EShaderPermutationPrecacheRequest FShaderPipelineType::ShouldPrecachePermutation
 	}
 	return Result;
 }
+
+void FShaderTypeDependency::RefreshCachedSourceHash(EShaderPlatform ShaderPlatform)
+{
+	const FShaderType*const* ShaderTypePtr = FShaderType::GetNameToTypeMap().Find(ShaderTypeName);
+	const FShaderType* ShaderType = ShaderTypePtr ? *ShaderTypePtr : nullptr;
+	if (!ShaderType)
+	{
+		SourceHash = FSHAHash();
+		return;
+	}
+	SourceHash = ShaderType->GetSourceHash(ShaderPlatform);
+}
+
+void FShaderPipelineTypeDependency::RefreshCachedSourceHash(EShaderPlatform ShaderPlatform)
+{
+	const FShaderPipelineType* ShaderPipelineType =
+		FShaderPipelineType::GetShaderPipelineTypeByName(ShaderPipelineTypeName);
+	if (!ShaderPipelineType)
+	{
+		StagesSourceHash = FSHAHash();
+		return;
+	}
+	StagesSourceHash = ShaderPipelineType->GetSourceHash(ShaderPlatform);
+}
+
+#if WITH_EDITOR
+
+void FShaderTypeDependency::Save(FCbWriter& Writer) const
+{
+	Writer.BeginArray();
+	Writer << ShaderTypeName;
+	Writer << SourceHash;
+	Writer << PermutationId;
+	Writer.EndArray();
+}
+
+bool FShaderTypeDependency::TryLoad(FCbFieldView Field)
+{
+	*this = FShaderTypeDependency();
+	FCbFieldViewIterator ElementField(Field.CreateViewIterator());
+	if (!LoadFromCompactBinary(ElementField++, ShaderTypeName))
+	{
+		return false;
+	}
+	if (!LoadFromCompactBinary(ElementField++, SourceHash))
+	{
+		return false;
+	}
+	PermutationId = ElementField.AsInt32();
+	if ((ElementField++).HasError())
+	{
+		return false;
+	}
+	return true;
+}
+
+bool LoadFromCompactBinary(FCbFieldView Field, FShaderTypeDependency& OutValue)
+{
+	return OutValue.TryLoad(Field);
+}
+
+void FShaderPipelineTypeDependency::Save(FCbWriter& Writer) const
+{
+	Writer.BeginArray();
+	Writer << ShaderPipelineTypeName;
+	Writer << StagesSourceHash;
+	Writer.EndArray();
+}
+
+bool FShaderPipelineTypeDependency::TryLoad(FCbFieldView Field)
+{
+	*this = FShaderPipelineTypeDependency();
+	FCbFieldViewIterator ElementField(Field.CreateViewIterator());
+	if (!LoadFromCompactBinary(ElementField++, ShaderPipelineTypeName))
+	{
+		return false;
+	}
+	if (!LoadFromCompactBinary(ElementField++, StagesSourceHash))
+	{
+		return false;
+	}
+	return true;
+}
+
+bool LoadFromCompactBinary(FCbFieldView Field, FShaderPipelineTypeDependency& OutValue)
+{
+	return OutValue.TryLoad(Field);
+}
+#endif // WITH_EDITOR
 
 void FShaderPipeline::AddShader(FShader* Shader, int32 PermutationId)
 {

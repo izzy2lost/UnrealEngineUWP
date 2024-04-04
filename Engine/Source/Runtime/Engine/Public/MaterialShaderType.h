@@ -37,6 +37,10 @@ struct FMaterialShadingModelField;
 enum EBlendMode : int;
 enum EMaterialShadingModel : int;
 enum class EShaderCompileJobPriority : uint8;
+#if WITH_EDITOR
+class FMaterialKeyGeneratorContext;
+#endif
+
 
 DECLARE_DELEGATE_RetVal_OneParam(FString, FShadingModelToStringDelegate, EMaterialShadingModel)
 
@@ -65,12 +69,25 @@ extern ENGINE_API FString GetMaterialShaderMapKeyString(
 	const FMaterialShaderParameters& ShaderParameters,
 	EShaderPlatform Platform,
 	bool bIncludeKeyStringShaderDependencies = true);
-extern ENGINE_API void GetMaterialShaderMapKey(
-	FShaderKeyGenerator& KeyGen,
+
+extern ENGINE_API void RecordOrEmitMaterialShaderMapKey(
+	FMaterialKeyGeneratorContext& Context,
+	FMaterialShaderMapId& ShaderMapId,
+	FMaterialShaderParameters& ShaderParameters);
+
+// Alternate arguments for RecordOrEmitMaterialShaderMapKey: Support being called with const&
+// when emitting or saving.
+extern ENGINE_API void RecordOrEmitMaterialShaderMapKey(
+	FMaterialKeyGeneratorContext& Context,
 	const FMaterialShaderMapId& ShaderMapId,
-	const FMaterialShaderParameters& ShaderParameters,
-	EShaderPlatform Platform,
-	bool bIncludeKeyStringShaderDependencies = true);
+	const FMaterialShaderParameters& ShaderParameters);
+inline void RecordOrEmitMaterialShaderMapKey(
+	FMaterialKeyGeneratorContext& Context,
+	FMaterialShaderMapId& ShaderMapId,
+	FMaterialShaderParameters&& ShaderParameters)
+{
+	RecordOrEmitMaterialShaderMapKey(Context, ShaderMapId, ShaderParameters);
+}
 #endif
 
 /** Called for every material shader to update the appropriate stats. */

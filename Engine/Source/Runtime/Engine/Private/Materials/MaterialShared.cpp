@@ -48,6 +48,8 @@
 #include "MaterialHLSLGenerator.h"
 #include "MaterialHLSLEmitter.h"
 #include "HLSLTree/HLSLTreeCommon.h"
+#include "Serialization/CompactBinary.h"
+#include "Serialization/CompactBinaryWriter.h"
 #include "Shader/PreshaderEvaluate.h"
 #endif
 #if WITH_ODSC
@@ -5501,5 +5503,29 @@ FMaterialShaderParameters::FMaterialShaderParameters(const FMaterial* InMaterial
 	bIsMobileSeparateTranslucencyEnabled = InMaterial->IsMobileSeparateTranslucencyEnabled();
 	bAlwaysEvaluateWorldPositionOffset = InMaterial->ShouldAlwaysEvaluateWorldPositionOffset();
 }
+
+#if WITH_EDITOR
+void FMaterialShaderParameters::Save(FCbWriter& Writer) const
+{
+	Writer.AddBinary(FMemoryView(this, sizeof(*this)));
+}
+
+bool FMaterialShaderParameters::TryLoad(FCbFieldView Field)
+{
+	*this = FMaterialShaderParameters();
+	FMemoryView MemoryView = Field.AsBinaryView();
+	if (Field.HasError() || MemoryView.GetSize() != sizeof(*this))
+	{
+		return false;
+	}
+	FMemory::Memcpy(this, MemoryView.GetData(), sizeof(*this));
+	return true;
+}
+
+bool LoadFromCompactBinary(FCbFieldView Field, FMaterialShaderParameters& OutValue)
+{
+	return OutValue.TryLoad(Field);
+}
+#endif // WITH_EDITOR
 
 #undef LOCTEXT_NAMESPACE
