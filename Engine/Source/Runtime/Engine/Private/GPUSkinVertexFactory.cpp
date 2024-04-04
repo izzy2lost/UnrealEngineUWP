@@ -291,7 +291,7 @@ void FGPUBaseSkinVertexFactory::FShaderDataType::UpdateBoneData(FRHICommandList&
 				FMatrix3x4& BoneMat = ChunkMatrices[BoneIdx];
 				const FMatrix44f& RefToLocal = ReferenceToLocalMatrices[RefToLocalIdx];
 				// Explicit SIMD implementation seems to be faster than standard implementation
-			#if PLATFORM_ENABLE_VECTORINTRINSICS
+#if PLATFORM_ENABLE_VECTORINTRINSICS
 				VectorRegister4Float InRow0 = VectorLoadAligned(&(RefToLocal.M[0][0]));
 				VectorRegister4Float InRow1 = VectorLoadAligned(&(RefToLocal.M[1][0]));
 				VectorRegister4Float InRow2 = VectorLoadAligned(&(RefToLocal.M[2][0]));
@@ -302,12 +302,17 @@ void FGPUBaseSkinVertexFactory::FShaderDataType::UpdateBoneData(FRHICommandList&
 				VectorRegister4Float Temp2 = VectorShuffle(InRow0, InRow1, 2, 3, 2, 3);
 				VectorRegister4Float Temp3 = VectorShuffle(InRow2, InRow3, 2, 3, 2, 3);
 
-				VectorStoreAligned(VectorShuffle(Temp0, Temp1, 0, 2, 0, 2), &(BoneMat.M[0][0]));
-				VectorStoreAligned(VectorShuffle(Temp0, Temp1, 1, 3, 1, 3), &(BoneMat.M[1][0]));
-				VectorStoreAligned(VectorShuffle(Temp2, Temp3, 0, 2, 0, 2), &(BoneMat.M[2][0]));
-			#else
+				Temp0 = VectorSwizzle(Temp0, 0, 2, 1, 3);
+				Temp1 = VectorSwizzle(Temp1, 0, 2, 1, 3);
+				Temp2 = VectorSwizzle(Temp2, 0, 2, 1, 3);
+				Temp3 = VectorSwizzle(Temp3, 0, 2, 1, 3);
+
+				VectorStoreAligned(VectorShuffle(Temp0, Temp1, 0, 1, 0, 1), &(BoneMat.M[0][0]));
+				VectorStoreAligned(VectorShuffle(Temp0, Temp1, 2, 3, 2, 3), &(BoneMat.M[1][0]));
+				VectorStoreAligned(VectorShuffle(Temp2, Temp3, 0, 1, 0, 1), &(BoneMat.M[2][0]));
+#else
 				RefToLocal.To3x4MatrixTranspose((float*)BoneMat.M);
-			#endif
+#endif
 			}
 		}
 	}
