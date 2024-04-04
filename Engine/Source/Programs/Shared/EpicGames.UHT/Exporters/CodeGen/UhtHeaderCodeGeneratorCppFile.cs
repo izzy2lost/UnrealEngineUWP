@@ -123,6 +123,20 @@ namespace EpicGames.UHT.Exporters.CodeGen
 							{
 								AddIncludeForProperty(property, requireIncludeForClasses, addedIncludes, includesToAdd);
 							}
+
+							foreach (UhtType parameter in function.ParameterProperties.Span)
+							{
+								if (parameter is UhtProperty property
+										&& property.NeedsGCBarrierWhenPassedToFunction(function)
+										&& property is UhtObjectProperty objectProperty)
+								{
+									UhtClass uhtClass = objectProperty.Class;
+									if (!uhtClass.HeaderFile.IsNoExportTypes && addedIncludes.Add(uhtClass.HeaderFile))
+									{
+										includesToAdd.Add(HeaderInfos[uhtClass.HeaderFile.HeaderFileTypeIndex].IncludePath);
+									}
+								}
+							}
 						}
 
 						// Properties
