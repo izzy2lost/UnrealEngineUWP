@@ -113,8 +113,7 @@ namespace UnrealBuildTool
 				}
 			}
 
-			// Clang 17 suffers from https://github.com/llvm/llvm-project/issues/71976 and should not be used as a preferred version until resolved
-			if (ClangVersion >= new VersionNumber(17))
+			if (ClangVersion >= new VersionNumber(17) && ClangVersion < new VersionNumber(18, 1, 3))
 			{
 				Arguments.Add("-Wno-shadow");
 			}
