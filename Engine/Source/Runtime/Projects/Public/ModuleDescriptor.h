@@ -186,6 +186,12 @@ struct FModuleDescriptor
 	/** List of disallowed programs */
 	TArray<FString> ProgramDenyList;
 
+	/** List of allowed game targets */
+	TArray<FString> GameTargetAllowList;
+
+	/** List of disallowed game targets */
+	TArray<FString> GameTargetDenyList;
+	
 	/** List of additional dependencies for building this module. */
 	TArray<FString> AdditionalDependencies;
 

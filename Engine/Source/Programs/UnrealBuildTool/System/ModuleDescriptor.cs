@@ -211,6 +211,16 @@ namespace UnrealBuildTool
 		/// List of disallowed programs
 		/// </summary>
 		public string[]? ProgramDenyList;
+		
+		/// <summary>
+		/// List of allowed game targets
+		/// </summary>
+		public string[]? GameTargetAllowList;
+
+		/// <summary>
+		/// List of disallowed game targets
+		/// </summary>
+		public string[]? GameTargetDenyList;
 
 		/// <summary>
 		/// List of additional dependencies for building this module.
@@ -331,7 +341,19 @@ namespace UnrealBuildTool
 			{
 				Module.ProgramDenyList = ProgramDenyList;
 			}
+			
+			string[]? GameTargetAllowList;
+			if (InObject.TryGetStringArrayField("GameTargetAllowList", out GameTargetAllowList))
+			{
+				Module.GameTargetAllowList = GameTargetAllowList;
+			}
 
+			string[]? GameTargetDenyList;
+			if (InObject.TryGetStringArrayField("GameTargetDenyList", out GameTargetDenyList))
+			{
+				Module.GameTargetDenyList = GameTargetDenyList;
+			}
+			
 			string[]? AdditionalDependencies;
 			if (InObject.TryGetStringArrayField("AdditionalDependencies", out AdditionalDependencies))
 			{
@@ -422,6 +444,14 @@ namespace UnrealBuildTool
 			{
 				Writer.WriteStringArrayField("ProgramDenyList", ProgramDenyList);
 			}
+			if (GameTargetAllowList != null && GameTargetAllowList.Length > 0)
+			{
+				Writer.WriteStringArrayField("GameTargetAllowList", GameTargetAllowList);
+			}
+			if (GameTargetDenyList != null && GameTargetDenyList.Length > 0)
+			{
+				Writer.WriteStringArrayField("GameTargetDenyList", GameTargetDenyList);
+			}	
 			if (AdditionalDependencies != null && AdditionalDependencies.Length > 0)
 			{
 				Writer.WriteArrayStart("AdditionalDependencies");
@@ -594,7 +624,6 @@ namespace UnrealBuildTool
 				return false;
 			}
 
-			// Special checks just for programs
 			if (TargetType == TargetType.Program)
 			{
 				// Check the program name is on the allow list. Note that this behavior is slightly different to other allow/deny checks; we will allow a module of any type if it's explicitly allowed for this program.
@@ -609,7 +638,21 @@ namespace UnrealBuildTool
 					return false;
 				}
 			}
-
+			else 
+			{
+				// Check that the TargetName is allowed
+				if (GameTargetAllowList != null && GameTargetAllowList.Length > 0 && !GameTargetAllowList.Contains(TargetName))
+				{
+					return false;
+				}
+				
+				// Check that the TargetName is not denied
+				if (GameTargetDenyList != null && GameTargetDenyList.Contains(TargetName))
+				{
+					return false;
+				}
+			}
+			
 			// Check the module is compatible with this target.
 			switch (Type)
 			{
