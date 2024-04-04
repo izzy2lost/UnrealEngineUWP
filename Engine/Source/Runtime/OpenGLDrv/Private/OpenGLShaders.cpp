@@ -2462,11 +2462,11 @@ FOpenGLLinkedProgram::FOpenGLLinkedProgram(FOpenGLVertexShader* VertexShader, FO
 	if (!VerifyLinkedProgram(Program))
 	{
 #if DEBUG_GL_SHADERS
-		if (VertexShader)
+		//if (VertexShader)
 		{
 			UE_LOG(LogRHI, Error, TEXT("Vertex Shader:\n%s"), ANSI_TO_TCHAR(VertexShader->GlslCode.GetData()));
 		}
-		if (PixelShader)
+		//if (PixelShader)
 		{
 			UE_LOG(LogRHI, Error, TEXT("Pixel Shader:\n%s"), ANSI_TO_TCHAR(PixelShader->GlslCode.GetData()));
 		}
