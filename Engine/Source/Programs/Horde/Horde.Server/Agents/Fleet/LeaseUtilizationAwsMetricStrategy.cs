@@ -9,10 +9,10 @@ using System.Threading;
 using System.Threading.Tasks;
 using Amazon.CloudWatch;
 using Amazon.CloudWatch.Model;
+using EpicGames.Core;
 using Horde.Server.Agents.Leases;
 using Horde.Server.Agents.Pools;
 using Horde.Server.Utilities;
-using HordeCommon;
 using Microsoft.Extensions.Logging;
 using OpenTelemetry.Trace;
 

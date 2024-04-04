@@ -10,7 +10,6 @@ using EpicGames.Horde.Logs;
 using EpicGames.Redis;
 using Horde.Server.Logs;
 using Horde.Server.Server;
-using HordeCommon;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;

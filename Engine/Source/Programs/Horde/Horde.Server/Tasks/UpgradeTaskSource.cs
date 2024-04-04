@@ -16,7 +16,6 @@ using Horde.Server.Logs;
 using Horde.Server.Server;
 using Horde.Server.Tools;
 using Horde.Server.Utilities;
-using HordeCommon;
 using HordeCommon.Rpc.Tasks;
 using Microsoft.Extensions.Options;
 

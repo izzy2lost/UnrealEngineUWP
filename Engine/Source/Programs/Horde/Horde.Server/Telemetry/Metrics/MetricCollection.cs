@@ -11,7 +11,6 @@ using EpicGames.Horde.Telemetry;
 using EpicGames.Horde.Telemetry.Metrics;
 using Horde.Server.Server;
 using Horde.Server.Utilities;
-using HordeCommon;
 using Json.Path;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;

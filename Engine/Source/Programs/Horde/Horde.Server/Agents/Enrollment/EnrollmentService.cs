@@ -8,7 +8,6 @@ using EpicGames.Core;
 using EpicGames.Horde.Agents;
 using EpicGames.Redis;
 using Horde.Server.Server;
-using HordeCommon;
 using Microsoft.Extensions.Hosting;
 using StackExchange.Redis;
 

@@ -6,6 +6,7 @@ using System.Net.Http;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using EpicGames.Core;
 using EpicGames.Horde.Telemetry;
 using Horde.Server.Telemetry.Sinks;
 using HordeCommon;

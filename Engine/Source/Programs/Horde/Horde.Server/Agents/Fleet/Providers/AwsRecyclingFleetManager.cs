@@ -12,7 +12,6 @@ using Amazon.EC2.Model;
 using Amazon.Runtime;
 using EpicGames.Core;
 using Horde.Server.Agents.Pools;
-using HordeCommon;
 using Microsoft.Extensions.Logging;
 using OpenTelemetry.Trace;
 
