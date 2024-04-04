@@ -253,9 +253,6 @@
 	// warning V1051: Consider checking for misprints. It's possible that the 'LayerInfo' should be checked here.
 	//-V::1051
 
-	// V016: User annotation was not applied to a virtual function. To force the annotation, use the 'enable_on_virtual' flag.
-	//-V::016
-
 	// Disabling because incorrectly flagging all TStaticArrays
 	// V557: Array overrun is possible
 	//-V::557
