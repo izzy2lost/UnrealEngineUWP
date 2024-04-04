@@ -50,11 +50,6 @@ namespace UnrealBuildTool
 					Arguments.Add("-Wno-invalid-unevaluated-string");   // https://clang.llvm.org/docs/DiagnosticsReference.html#winvalid-unevaluated-string			// new warning for clang 17
 				}
 			}
-			if (ClangVersion >= new VersionNumber(18))
-			{
-				Arguments.Add("-Wno-deprecated-this-capture");          // https://clang.llvm.org/docs/DiagnosticsReference.html#wdeprecated-this-capture
-				Arguments.Add("-Wno-enum-constexpr-conversion");        // https://clang.llvm.org/docs/DiagnosticsReference.html#wenum-constexpr-conversion
-			}
 
 			Arguments.Add("-Wno-gnu-string-literal-operator-template"); // https://clang.llvm.org/docs/DiagnosticsReference.html#wgnu-string-literal-operator-template	// We use this feature to allow static FNames.
 			Arguments.Add("-Wno-inconsistent-missing-override");        // https://clang.llvm.org/docs/DiagnosticsReference.html#winconsistent-missing-override			// ?? no reason given

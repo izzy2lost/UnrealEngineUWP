@@ -267,14 +267,14 @@ FAutoConsoleCommand FlushFilterStateCommand(TEXT("TraceFilter.FlushState"), TEXT
 	);
 
 template<>
-bool ENGINE_API FTraceFilter::IsObjectTraceable</*bForceThreadSafe = */ true>(const UObject* InObject)
+ENGINE_API bool FTraceFilter::IsObjectTraceable</*bForceThreadSafe = */ true>(const UObject* InObject)
 {
 	// Object not found in the AnnotationMap means that it is at the default value, which is bIsTraceable == true
 	return GObjectFilterAnnotations.GetAnnotationMap().Find(InObject) == nullptr;
 }
 
 template<>
-bool ENGINE_API FTraceFilter::IsObjectTraceable</*bForceThreadSafe = */ false>(const UObject* InObject)
+ENGINE_API bool FTraceFilter::IsObjectTraceable</*bForceThreadSafe = */ false>(const UObject* InObject)
 {
 	check(GObjectFilterAnnotations.IsLocked());
 	// Object not found in the AnnotationMap means that it is at the default value, which is bIsTraceable == true
@@ -282,7 +282,7 @@ bool ENGINE_API FTraceFilter::IsObjectTraceable</*bForceThreadSafe = */ false>(c
 }
 
 template<>
-void ENGINE_API FTraceFilter::SetObjectIsTraceable</*bForceThreadSafe = */ true>(const UObject* InObject, bool bIsTraceable)
+ENGINE_API void FTraceFilter::SetObjectIsTraceable</*bForceThreadSafe = */ true>(const UObject* InObject, bool bIsTraceable)
 {
 	ensure(InObject);
 		
@@ -297,7 +297,7 @@ void ENGINE_API FTraceFilter::SetObjectIsTraceable</*bForceThreadSafe = */ true>
 }
 
 template<>
-void ENGINE_API FTraceFilter::SetObjectIsTraceable</*bForceThreadSafe = */ false>(const UObject* InObject, bool bIsTraceable)
+ENGINE_API void FTraceFilter::SetObjectIsTraceable</*bForceThreadSafe = */ false>(const UObject* InObject, bool bIsTraceable)
 {
 	ensure(InObject);
 
@@ -315,7 +315,7 @@ void ENGINE_API FTraceFilter::SetObjectIsTraceable</*bForceThreadSafe = */ false
 }
 
 template<>
-void ENGINE_API FTraceFilter::MarkObjectTraceable</*bForceThreadSafe = */ true>(const UObject* InObject)
+ENGINE_API void FTraceFilter::MarkObjectTraceable</*bForceThreadSafe = */ true>(const UObject* InObject)
 {
 	ensure(InObject);	
 	FTraceFilterObjectAnnotation Annotation;
@@ -324,7 +324,7 @@ void ENGINE_API FTraceFilter::MarkObjectTraceable</*bForceThreadSafe = */ true>(
 }
 
 template<>
-void ENGINE_API FTraceFilter::MarkObjectTraceable</*bForceThreadSafe = */ false>(const UObject* InObject)
+ENGINE_API void FTraceFilter::MarkObjectTraceable</*bForceThreadSafe = */ false>(const UObject* InObject)
 {
 	ensure(InObject);
 	check(GObjectFilterAnnotations.IsLocked());
