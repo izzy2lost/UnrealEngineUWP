@@ -44,7 +44,7 @@ void SWorkspaceView::Construct(const FArguments& InArgs, UWorkspace* InWorkspace
 	AssetPickerConfig.Filter = MakeARFilter();
 	AssetPickerConfig.OnShouldFilterAsset = FOnShouldFilterAsset::CreateLambda([this](const FAssetData& InAsset)
 	{
-		return !Workspace->Assets.Contains(TSoftObjectPtr<UObject>(InAsset.GetSoftObjectPath()));
+		return !Workspace->AssetEntries.ContainsByPredicate([InAsset](const UWorkspaceAssetEntry* Entry)-> bool { return Entry->Asset == TSoftObjectPtr<UObject>(InAsset.GetSoftObjectPath()); });
 	});
 	AssetPickerConfig.AssetShowWarningText = LOCTEXT("EmptyWorkspaceText", "Workspace is empty.\nDrag-drop to add assets to this workspace.");
 

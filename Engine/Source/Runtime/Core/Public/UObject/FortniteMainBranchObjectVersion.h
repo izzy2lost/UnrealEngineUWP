@@ -435,6 +435,9 @@ struct FFortniteMainBranchObjectVersion
 		// Introduce new structure for customizing the landscape edit layer behavior
 		IntroduceLandscapeEditLayerClass,
 
+		// Change workspaces to store asset references as external objects
+		AnimNextWorkspaceEntryConversion,
+
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,
 		LatestVersion = VersionPlusOne - 1

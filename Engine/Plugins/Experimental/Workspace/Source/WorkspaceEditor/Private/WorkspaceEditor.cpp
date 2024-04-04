@@ -270,9 +270,9 @@ void FWorkspaceEditor::GetSaveableObjects(TArray<UObject*>& OutObjects) const
 
 	if(!bSavingWorkspaceOnly)
 	{
-		for(TSoftObjectPtr<UObject>& SoftAsset : Workspace->Assets)
+		for(const UWorkspaceAssetEntry* Entry : Workspace->AssetEntries)
 		{
-			if(UObject* Asset = SoftAsset.Get())
+			if(UObject* Asset = Entry->Asset.Get())
 			{
 				// Add object referenced by workspace
 				OutObjects.Add(Asset);

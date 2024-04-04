@@ -3,7 +3,9 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "AssetDefinitionDefault.h"
 #include "Templates/SubclassOf.h"
+#include "WorkspaceAssetEntry.h"
 #include "Workspace.generated.h"
 
 struct FEditedDocumentInfo;
@@ -110,10 +112,18 @@ class UWorkspace : public UObject
 	virtual void GetAssetRegistryTags(FAssetRegistryTagsContext Context) const override;
 	virtual void PostTransacted(const FTransactionObjectEvent& TransactionEvent) override;
 	virtual bool IsEditorOnly() const override { return true; }
+	virtual void Serialize(FArchive& Ar) override;
 
+protected:
+	void PostLoadExternalPackages();
 	// All of the assets referenced by this workspace
 	UPROPERTY()
-	TArray<TSoftObjectPtr<UObject>> Assets;
+	TArray<TSoftObjectPtr<UObject>> Assets_DEPRECATED;
+
+public:
+	// All of the assets in-directly referenced by this workspace
+	UPROPERTY(transient)
+	TArray<TObjectPtr<UWorkspaceAssetEntry>> AssetEntries;
 
 	// Schema for this workspace
 	UPROPERTY(AssetRegistrySearchable)

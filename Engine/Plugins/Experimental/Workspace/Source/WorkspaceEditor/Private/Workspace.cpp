@@ -2,12 +2,14 @@
 
 #include "Workspace.h"
 
+#include "ExternalPackageHelper.h"
 #include "WorkspaceSchema.h"
 #include "WorkspaceState.h"
 #include "AssetRegistry/AssetData.h"
 #include "UObject/AssetRegistryTagsContext.h"
 #include "UObject/ConstructorHelpers.h"
 #include "UObject/FortniteMainBranchObjectVersion.h"
+
 
 const FName UWorkspace::ExportsAssetRegistryTag = TEXT("Exports");
 
@@ -24,7 +26,27 @@ bool UWorkspace::AddAsset(const FAssetData& InAsset, bool bSetupUndoRedo, bool b
 		Modify();
 	}
 
-	const int32 NewIndex = Assets.AddUnique(TSoftObjectPtr<UObject>(InAsset.GetSoftObjectPath()));
+	int32 NewIndex = INDEX_NONE; 
+	if (!AssetEntries.ContainsByPredicate([&InAsset](const UWorkspaceAssetEntry* AssetEntry)-> bool
+	{
+		return AssetEntry->Asset.ToSoftObjectPath() == InAsset.ToSoftObjectPath();
+	}))
+	{
+		// If we are a transient asset, dont use external packages
+		const UObject* Asset = InAsset.GetAsset();
+		check(Asset);
+		if(!Asset->HasAnyFlags(RF_Transient))
+		{
+			UWorkspaceAssetEntry* NewEntry = NewObject<UWorkspaceAssetEntry>(this, UWorkspaceAssetEntry::StaticClass(), NAME_None, RF_Transactional);
+			FExternalPackageHelper::SetPackagingMode(NewEntry, this, true, true, PKG_None);
+
+			NewEntry->Asset = TSoftObjectPtr<UObject>(InAsset.GetSoftObjectPath());
+			NewIndex = AssetEntries.Add(NewEntry);
+
+			NewEntry->MarkPackageDirty();
+		}
+	}
+	
 	if(NewIndex != INDEX_NONE)
 	{
 		BroadcastModified();
@@ -107,13 +129,21 @@ bool UWorkspace::RemoveAsset(const FAssetData& InAsset, bool bSetupUndoRedo, boo
 		Modify();
 	}
 
-	const int32 NumRemoved = Assets.Remove(TSoftObjectPtr<UObject>(InAsset.GetSoftObjectPath()));
-	if(NumRemoved > 0)
+	const int32 EntryIndex = AssetEntries.IndexOfByPredicate([&InAsset](const UWorkspaceAssetEntry* AssetEntry) -> bool
 	{
+		return AssetEntry->Asset.ToSoftObjectPath() == InAsset.ToSoftObjectPath();
+	});
+
+	if (EntryIndex != INDEX_NONE)
+	{
+		UWorkspaceAssetEntry* EntryToRemove = AssetEntries[EntryIndex];		
+		check(AssetEntries.Remove(EntryToRemove) == 1);
+		EntryToRemove->MarkAsGarbage();
+		
 		BroadcastModified();
 	}
 
-	return NumRemoved > 0;
+	return EntryIndex != INDEX_NONE;
 }
 
 bool UWorkspace::RemoveAsset(UObject* InAsset, bool bSetupUndoRedo, bool bPrintPythonCommand)
@@ -230,6 +260,21 @@ void UWorkspace::PostTransacted(const FTransactionObjectEvent& TransactionEvent)
 	BroadcastModified();
 }
 
+void UWorkspace::PostLoadExternalPackages()
+{
+	FExternalPackageHelper::LoadObjectsFromExternalPackages<UWorkspaceAssetEntry>(this, [this](UWorkspaceAssetEntry* InLoadedEntry)
+	{
+		check(IsValid(InLoadedEntry));
+		AssetEntries.Add(InLoadedEntry);
+	});
+}
+
+void UWorkspace::Serialize(FArchive& Ar)
+{
+	UObject::Serialize(Ar);
+	Ar.UsingCustomVersion(FFortniteMainBranchObjectVersion::GUID);
+}
+
 void UWorkspace::PostLoad()
 {
 	Super::PostLoad();
@@ -238,6 +283,28 @@ void UWorkspace::PostLoad()
 	{
 		Guid = FGuid::NewGuid();
 		SchemaClass = StaticLoadClass(UWorkspaceSchema::StaticClass(), nullptr, TEXT("/Script/AnimNextEditor.AnimNextWorkspaceSchema"));
+	}
+
+	if(GetLinkerCustomVersion(FFortniteMainBranchObjectVersion::GUID) < FFortniteMainBranchObjectVersion::AnimNextWorkspaceEntryConversion)
+	{
+		for (const TSoftObjectPtr<UObject>& SoftAsset : Assets_DEPRECATED)
+		{
+			if (!SoftAsset.IsNull())
+			{
+				UWorkspaceAssetEntry* NewEntry = NewObject<UWorkspaceAssetEntry>(this, UWorkspaceAssetEntry::StaticClass(), NAME_None, RF_Transactional);
+				FExternalPackageHelper::SetPackagingMode(NewEntry, this, true, true, PKG_None);
+
+				NewEntry->Asset = TSoftObjectPtr<UObject>(SoftAsset.ToSoftObjectPath());
+				AssetEntries.Add(NewEntry);				
+				NewEntry->GetPackage()->SetDirtyFlag(true);
+			}
+		}
+	
+		Assets_DEPRECATED.Empty();
+	}
+	else
+	{
+		PostLoadExternalPackages();		
 	}
 }
 
@@ -253,11 +320,15 @@ void UWorkspace::GetAssetRegistryTags(FAssetRegistryTagsContext Context) const
 	Super::GetAssetRegistryTags(Context);
 
 	FWorkspaceAssetRegistryExports Exports;
-	Exports.Assets.Reserve(Assets.Num());
+	Exports.Assets.Reserve(AssetEntries.Num());
 
-	for(const TSoftObjectPtr<UObject>& Asset : Assets)
+	for(const UWorkspaceAssetEntry* AssetEntry : AssetEntries)
 	{
-		Exports.Assets.Emplace(Asset.GetUniqueID());
+		if (AssetEntry)
+		{
+			Exports.Assets.Emplace(AssetEntry->Asset.GetUniqueID());
+		}
+	
 	}
 
 	FString TagValue;
