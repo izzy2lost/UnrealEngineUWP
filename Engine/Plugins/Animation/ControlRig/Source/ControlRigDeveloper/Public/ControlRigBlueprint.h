@@ -310,7 +310,7 @@ public:
 	void RefreshModuleVariables();
 	void RefreshModuleVariables(const FRigModuleReference* InModule);
 	void RefreshModuleConnectors();
-	void RefreshModuleConnectors(const FRigModuleReference* InModule);
+	void RefreshModuleConnectors(const FRigModuleReference* InModule, bool bPropagateHierarchy = true);
 
 	/**
 	* Returns the modified event, which can be used to 

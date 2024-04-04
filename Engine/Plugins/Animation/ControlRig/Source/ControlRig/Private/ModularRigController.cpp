@@ -1602,6 +1602,7 @@ void UModularRigController::RefreshModuleVariables(bool bSetupUndo)
 {
 	Model->ForEachModule([this, bSetupUndo](const FRigModuleReference* Element) -> bool
 	{
+		TGuardValue<bool> NotificationsGuard(bSuspendNotifications, true);
 		RefreshModuleVariables(Element, bSetupUndo);
 		return true;
 	});

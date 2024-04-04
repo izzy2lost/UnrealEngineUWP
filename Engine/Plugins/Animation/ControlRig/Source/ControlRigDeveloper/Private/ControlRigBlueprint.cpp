@@ -2381,14 +2381,20 @@ void UControlRigBlueprint::RefreshModuleConnectors()
 		return;
 	}
 
-	ModularRigModel.ForEachModule([this](const FRigModuleReference* Element) -> bool
+	if (UModularRigController* Controller = GetModularRigController())
 	{
-		RefreshModuleConnectors(Element);
-		return true;
-	});
+		TGuardValue<bool> NotificationsGuard(Controller->bSuspendNotifications, true);
+		ModularRigModel.ForEachModule([this](const FRigModuleReference* Element) -> bool
+		{
+			RefreshModuleConnectors(Element, false);
+			return true;
+		});
+	}
+
+	PropagateHierarchyFromBPToInstances();
 }
 
-void UControlRigBlueprint::RefreshModuleConnectors(const FRigModuleReference* InModule)
+void UControlRigBlueprint::RefreshModuleConnectors(const FRigModuleReference* InModule, bool bPropagateHierarchy)
 {
 	if(!IsModularRig())
 	{
@@ -2469,8 +2475,11 @@ void UControlRigBlueprint::RefreshModuleConnectors(const FRigModuleReference* In
 					}
 				}
 			}
-			
-			PropagateHierarchyFromBPToInstances();
+
+			if (bPropagateHierarchy)
+			{
+				PropagateHierarchyFromBPToInstances();
+			}
 		}
 	}
 }
