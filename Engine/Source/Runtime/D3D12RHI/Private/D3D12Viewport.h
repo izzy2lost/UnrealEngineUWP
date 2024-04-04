@@ -187,6 +187,7 @@ private:
 	EPixelFormat PixelFormat;
 	bool bIsValid;
 	bool bAllowTearing;
+	bool bNeedSwapChain = false;
 
 #if D3D12_VIEWPORT_EXPOSES_SWAP_CHAIN
 	TRefCountPtr<IDXGISwapChain1> SwapChain1;

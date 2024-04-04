@@ -129,12 +129,6 @@ void FD3D12FramePacing::PrePresentQueued(ID3D12CommandQueue* Queue)
 }
 #endif //WITH_MGPU
 
-// TODO: Move this bool into D3D12Viewport.h where it belongs. It's here because it was added as a hotfix for 4.23 and we don't want to touch public headers.
-// Whether to create swap chain and use swap chain's back buffer surface,
-// or don't create swap chain and create an off-screen back buffer surface.
-// Currently used for pixel streaming plugin "windowless" mode to run in the cloud without on screen display.
-bool bNeedSwapChain = true;
-
 /**
  * Creates a FD3D12Surface to represent a swap chain's back buffer.
  */
