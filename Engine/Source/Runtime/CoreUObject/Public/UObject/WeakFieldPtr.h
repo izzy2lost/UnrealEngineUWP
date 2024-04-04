@@ -10,6 +10,8 @@
 #include "UObject/WeakObjectPtr.h"
 #include "UObject/FieldPath.h"
 
+#include <type_traits>
+
 template<class T>
 struct TWeakFieldPtr
 {
@@ -43,10 +45,10 @@ public:
 	* @param Object object to create a weak pointer to
 	**/
 	template <
-		typename U,
-		typename = decltype(ImplicitConv<T*>((U*)nullptr))
-		>
-		FORCEINLINE TWeakFieldPtr(U* InField, EDummy1 = Dummy1)
+		typename U
+		UE_REQUIRES(std::is_convertible_v<U*, T*>)
+	>
+	FORCEINLINE TWeakFieldPtr(U* InField, EDummy1 = Dummy1)
 		: Owner(InField ? InField->GetOwnerUObject() : (UObject*)nullptr)
 		, Field(InField)
 	{

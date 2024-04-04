@@ -96,8 +96,8 @@ public:
 
 	template <
 		typename OtherObjectType,
-		typename OtherReferencerNameProvider,
-		typename = decltype(ImplicitConv<ObjectType*>((OtherObjectType*)nullptr))
+		typename OtherReferencerNameProvider
+		UE_REQUIRES(std::is_convertible_v<OtherObjectType*, ObjectType*>)
 	>
 	FORCEINLINE_DEBUGGABLE TStrongObjectPtr(const TStrongObjectPtr<OtherObjectType, OtherReferencerNameProvider>& InOther)
 	{
@@ -112,8 +112,8 @@ public:
 
 	template <
 		typename OtherObjectType,
-		typename OtherReferencerNameProvider,
-		typename = decltype(ImplicitConv<ObjectType*>((OtherObjectType*)nullptr))
+		typename OtherReferencerNameProvider
+		UE_REQUIRES(std::is_convertible_v<OtherObjectType*, ObjectType*>)
 	>
 	FORCEINLINE_DEBUGGABLE TStrongObjectPtr& operator=(const TStrongObjectPtr<OtherObjectType, OtherReferencerNameProvider>& InOther)
 	{

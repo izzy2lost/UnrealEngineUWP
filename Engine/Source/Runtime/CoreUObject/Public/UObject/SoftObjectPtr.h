@@ -11,6 +11,8 @@
 #include "UObject/PersistentObjectPtr.h"
 #include "UObject/SoftObjectPath.h"
 
+#include <type_traits>
+
 /**
  * TIsSoftObjectPointerType
  * Trait for recognizing 'soft' (path-based) object pointer types
@@ -128,14 +130,20 @@ public:
 	FORCEINLINE TSoftObjectPtr& operator=(TSoftObjectPtr&& Other) = default;
 	
 	/** Construct from another soft pointer */
-	template <class U, class = decltype(ImplicitConv<T*>((U*)nullptr))>
+	template <
+		class U
+		UE_REQUIRES(std::is_convertible_v<U*, T*>)
+	>
 	FORCEINLINE TSoftObjectPtr(const TSoftObjectPtr<U>& Other)
 		: SoftObjectPtr(Other.SoftObjectPtr)
 	{
 	}
 
 	/** Construct from a moveable soft pointer */
-	template <class U, class = decltype(ImplicitConv<T*>((U*)nullptr))>
+	template <
+		class U
+		UE_REQUIRES(std::is_convertible_v<U*, T*>)
+	>
 	FORCEINLINE TSoftObjectPtr(TSoftObjectPtr<U>&& Other)
 		: SoftObjectPtr(MoveTemp(Other.SoftObjectPtr))
 	{
@@ -210,7 +218,10 @@ public:
 	}
 
 	/** Copy from a weak pointer to an object already in memory */
-	template <class U, class = decltype(ImplicitConv<T*>((U*)nullptr))>
+	template <
+		class U
+		UE_REQUIRES(std::is_convertible_v<U*, T*>)
+	>
 	FORCEINLINE TSoftObjectPtr& operator=(const TWeakObjectPtr<U>& Other)
 	{
 		SoftObjectPtr = Other;
@@ -218,7 +229,10 @@ public:
 	}
 
 	/** Copy from another soft pointer */
-	template <class U, class = decltype(ImplicitConv<T*>((U*)nullptr))>
+	template <
+		class U
+		UE_REQUIRES(std::is_convertible_v<U*, T*>)
+	>
 	FORCEINLINE TSoftObjectPtr& operator=(TSoftObjectPtr<U> Other)
 	{
 		SoftObjectPtr = MoveTemp(Other.SoftObjectPtr);
@@ -465,7 +479,10 @@ public:
 	FORCEINLINE TSoftClassPtr& operator=(TSoftClassPtr&& Other) = default;
 		
 	/** Construct from another soft pointer */
-	template <class TClassA, class = decltype(ImplicitConv<TClass*>((TClassA*)nullptr))>
+	template <
+		class TClassA
+		UE_REQUIRES(std::is_convertible_v<TClassA*, TClass*>)
+	>
 	FORCEINLINE TSoftClassPtr(const TSoftClassPtr<TClassA>& Other)
 		: SoftObjectPtr(Other.SoftObjectPtr)
 	{
@@ -508,7 +525,10 @@ public:
 	}
 
 	/** Copy from a weak pointer already in memory */
-	template<class TClassA, class = decltype(ImplicitConv<TClass*>((TClassA*)nullptr))>
+	template <
+		class TClassA
+		UE_REQUIRES(std::is_convertible_v<TClassA*, TClass*>)
+	>
 	FORCEINLINE TSoftClassPtr& operator=(const TWeakObjectPtr<TClassA>& Other)
 	{
 		SoftObjectPtr = Other;
@@ -516,7 +536,10 @@ public:
 	}
 
 	/** Copy from another soft pointer */
-	template<class TClassA, class = decltype(ImplicitConv<TClass*>((TClassA*)nullptr))>
+	template <
+		class TClassA
+		UE_REQUIRES(std::is_convertible_v<TClassA*, TClass*>)
+	>
 	FORCEINLINE TSoftClassPtr& operator=(const TSoftObjectPtr<TClassA>& Other)
 	{
 		SoftObjectPtr = Other.SoftObjectPtr;
