@@ -82,6 +82,11 @@ private:
 		FObjectReferenceTracker UnresolvedObjectReferences;
 		FObjectReferenceTracker ResolvedDynamicObjectReferences;
 
+		// These maps provide a O(1) lookup for the number of handles referenced in 
+		// UnresolvedObjectReferences and ResolvedDynamicObjectReferences.
+		TMap<FNetRefHandle, int16> UnresolvedHandleCount;
+		TMap<FNetRefHandle, int16> ResolvedDynamicHandleCount;
+
 		// Baselines
 		uint8* StoredBaselines[2];
 
@@ -103,6 +108,9 @@ private:
 				uint32 Padding : 7;
 			};
 		};
+
+		bool RemoveUnresolvedHandleCount(FNetRefHandle RefHandle);
+		bool RemoveResolvedDynamicHandleCount(FNetRefHandle RefHandle);
 	};
 
 	// Temporary Data to dispatch
@@ -181,6 +189,9 @@ private:
 
 	// Update reference tracking maps for the current object
 	void UpdateObjectReferenceTracking(FReplicatedObjectInfo* ReplicationInfo, FNetBitArrayView ChangeMask, bool bIncludeInitState, FResolvedNetRefHandlesArray& OutNewResolvedRefHandles, const FObjectReferenceTracker& NewUnresolvedReferences, const FObjectReferenceTracker& NewMappedDynamicReferences);
+	
+	// An optimized version of UpdateObjectReferenceTracking().
+	void UpdateObjectReferenceTracking_Fast(FReplicatedObjectInfo* ReplicationInfo, FNetBitArrayView ChangeMask, bool bIncludeInitState, FResolvedNetRefHandlesArray& OutNewResolvedRefHandles, const FObjectReferenceTracker& NewUnresolvedReferences, const FObjectReferenceTracker& NewMappedDynamicReferences);
 
 	// Remove all references for object
 	void CleanupReferenceTracking(FReplicatedObjectInfo* ObjectInfo);
@@ -259,6 +270,11 @@ private:
 
 	// Used during receive and processing of pending batches
 	TArray<FNetRefHandle> TempMustBeMappedReferences;
+
+	// Preallocate the arrays used by BuildUnresolvedChangeMaskAndUpdateObjectReferenceTracking() to 
+	// avoid memory allocations during the frame.
+	FObjectReferenceTracker UnresolvedReferencesCache;
+	FObjectReferenceTracker MappedDynamicReferencesCache;
 
 	FNetBlobHandlerManager* NetBlobHandlerManager;
 	FNetBlobType NetObjectBlobType;
