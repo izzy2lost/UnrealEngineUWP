@@ -70,11 +70,8 @@ void SRCBehaviourPanel::OnControllerSelectionChanged(TSharedPtr<FRCControllerMod
 	TArray<TSharedPtr<FRCBehaviourModel>> CurrentSelectedItems;
 	if (BehaviourPanelList.IsValid() && InSelectInfo == ESelectInfo::Direct)
 	{
-		if (InSelectInfo == ESelectInfo::Direct)
-		{
-			CurrentSelectedItems = BehaviourPanelList->GetSelectedBehaviourItems();
-			bShouldRestoreSelection = true;
-		}
+		CurrentSelectedItems = BehaviourPanelList->GetSelectedBehaviourItems();
+		bShouldRestoreSelection = true;
 	}
 
 	UpdateWrappedWidget(InControllerItem);
