@@ -1857,6 +1857,40 @@ TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Request can time out during ret
 	HttpRequest->ProcessRequest();
 }
 
+TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Request will not retry", HTTP_TAG)
+{
+	if (!bRetryEnabled)
+	{
+		return;
+	}
+
+	DisableWarningsInThisTest();
+
+	TSharedRef<IHttpRequest> HttpRequest = HttpRetryManager->CreateRequest(1/*InRetryLimitCountOverride*/);
+	SECTION("When response code is not listed for retry")
+	{
+		HttpRequest->SetURL(UrlMockStatus(EHttpResponseCodes::TooManyRequests));
+		// Will be forwarded back in response
+		HttpRequest->SetHeader(TEXT("Retry-After"), FString::Format(TEXT("{0}"), { 2 }));
+	}
+	SECTION("When there is any response and timed out during streaming download")
+	{
+		HttpRequest->SetURL(UrlStreamDownload(3/*Chunks*/, HTTP_TEST_TIMEOUT_CHUNK_SIZE, 2/*ChunkLatency*/));
+		HttpRequest->SetTimeout(3.0f);
+
+		HttpRequest->OnProcessRequestComplete().BindLambda([](FHttpRequestPtr HttpRequest, FHttpResponsePtr HttpResponse, bool bSucceeded) {
+			CHECK(HttpRequest->GetStatus() == EHttpRequestStatus::Failed);
+			CHECK(HttpRequest->GetFailureReason() == EHttpFailureReason::TimedOut);
+		});
+	}
+
+	HttpRequest->OnRequestWillRetry().BindLambda([this](FHttpRequestPtr Request, FHttpResponsePtr Response, float LockoutPeriod) {
+		CHECK(false);
+	});
+
+	HttpRequest->ProcessRequest();
+}
+
 TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Retry immediately without lock out if connect failed and there are alt domains", HTTP_TAG)
 {
 	if (!bRetryEnabled)

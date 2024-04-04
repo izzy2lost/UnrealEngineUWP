@@ -375,42 +375,40 @@ TSharedRef<FHttpRetrySystem::FRequest, ESPMode::ThreadSafe> FHttpRetrySystem::FM
 
 bool FHttpRetrySystem::FManager::ShouldRetry(const FHttpRetryRequestEntry& HttpRetryRequestEntry)
 {
-    bool bResult = false;
-
 	FHttpResponsePtr Response = HttpRetryRequestEntry.Request->GetResponse();
-	// invalid response means connection or network error but we need to know which one
-	if (!Response.IsValid())
+	if (Response)
 	{
-		// ONLY retry bad responses if they are connection errors (NOT protocol errors or unknown) otherwise request may be sent (and processed!) twice
-		if (HttpRetryRequestEntry.Request->GetStatus() == EHttpRequestStatus::Failed)
-		{
-			if (HttpRetryRequestEntry.Request->GetFailureReason() == EHttpFailureReason::ConnectionError)
-			{
-				bResult = true;
-			}
-			else
-			{
-				const FName Verb = FName(*HttpRetryRequestEntry.Request->GetVerb());
-
-				// Be default, we will also allow retry for GET and HEAD requests even if they may duplicate on the server
-				static const TSet<FName> DefaultRetryVerbs(TArray<FName>({ FName(TEXT("GET")), FName(TEXT("HEAD")) }));
-
-				const TSet<FName>* RetryVerbsContainer = (
-					HttpRetryRequestEntry.Request->RetryVerbs.Num() == 0
-					? &DefaultRetryVerbs // Use the default list of retry verbs if the request doesn't have a specific set
-					: &HttpRetryRequestEntry.Request->RetryVerbs // Otherwise use the specific set on the request
-				);
-				bResult = RetryVerbsContainer->Contains(Verb);
-			}
-		}
-	}
-	else
-	{
-		// this may be a successful response with one of the explicitly listed response codes we want to retry on
-		bResult = HttpRetryRequestEntry.Request->RetryResponseCodes.Contains(Response->GetResponseCode());
+		return HttpRetryRequestEntry.Request->RetryResponseCodes.Contains(Response->GetResponseCode());
 	}
 
-    return bResult;
+	// ONLY continue to check retry if no response. If there is any response, it means at least the http 
+	// connection was established, we shouldn't attempt to retry. Otherwise request may be sent (and 
+	// processed) twice
+
+	// Safe check
+	if (HttpRetryRequestEntry.Request->GetStatus() != EHttpRequestStatus::Failed)
+	{
+		// This shouldn't happen when response is null, but just in case
+		return false;
+	}
+
+	// Should retry if couldn't connect at all
+	if (HttpRetryRequestEntry.Request->GetFailureReason() == EHttpFailureReason::ConnectionError)
+	{
+		return true;
+	}
+
+	// Should retry for idempotent verbs if there is network error
+	const FName Verb = FName(*HttpRetryRequestEntry.Request->GetVerb());
+
+	if (!HttpRetryRequestEntry.Request->RetryVerbs.IsEmpty())
+	{
+		return HttpRetryRequestEntry.Request->RetryVerbs.Contains(Verb);
+	}
+
+	// Be default, we will also allow retry for GET and HEAD requests even if they may duplicate on the server
+	static const TSet<FName> DefaultRetryVerbs(TArray<FName>({ FName(TEXT("GET")), FName(TEXT("HEAD")) }));
+	return DefaultRetryVerbs.Contains(Verb);
 }
 
 bool FHttpRetrySystem::FManager::RetryLimitForConnectionErrorIsSet(const FHttpRetryRequestEntry& HttpRetryRequestEntry)
