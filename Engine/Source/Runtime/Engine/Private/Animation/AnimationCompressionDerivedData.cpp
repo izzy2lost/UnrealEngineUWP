@@ -117,7 +117,7 @@ void FAnimationSequenceAsyncCacheTask::EndCache(UE::DerivedData::FCacheGetValueR
 
 			{
 				// Release execution resource as soon as the task is done
-				ON_SCOPE_EXIT{ ExecutionResource = nullptr; };
+				ON_SCOPE_EXIT{ if (bIsDataValid) { ExecutionResource = nullptr; } };
 
 				if (UAnimSequence* AnimSequence = WeakAnimSequence.Get())
 				{
