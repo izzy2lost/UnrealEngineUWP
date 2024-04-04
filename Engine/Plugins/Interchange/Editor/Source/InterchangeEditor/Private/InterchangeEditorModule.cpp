@@ -12,6 +12,7 @@
 #include "Misc/App.h"
 #include "Misc/CoreDelegates.h"
 #include "Modules/ModuleManager.h"
+#include "Settings/EditorLoadingSavingSettings.h"
 
 #define LOCTEXT_NAMESPACE "InterchangeEditorModule"
 
@@ -19,6 +20,7 @@ DEFINE_LOG_CATEGORY(LogInterchangeEditor);
 
 namespace UE::Interchange::InterchangeEditorModule
 {
+	static bool bOldAutoSaveState = false;
 	bool HasErrorsOrWarnings(TStrongObjectPtr<UInterchangeResultsContainer> InResultsContainer)
 	{
 		for (UInterchangeResult* Result : InResultsContainer->GetResults())
@@ -65,6 +67,22 @@ namespace UE::Interchange::InterchangeEditorModule
 			LogListing->NotifyIfAnyMessages(NSLOCTEXT("Interchange", "LogAndNotify", "There were issues with the import."), EMessageSeverity::Info);
 		}
 	}
+
+	void ImportStarted()
+	{
+		//Store AutoSave setting and Set autosave to false:
+		UEditorLoadingSavingSettings* LoadingSavingSettings = GetMutableDefault<UEditorLoadingSavingSettings>();
+		// Disable autosaving while the Interchange is in progress.
+		bOldAutoSaveState = LoadingSavingSettings->bAutoSaveEnable;
+		LoadingSavingSettings->bAutoSaveEnable = false;
+	}
+
+	void ImportFinished()
+	{
+		//Reinstate AutoSave
+		UEditorLoadingSavingSettings* LoadingSavingSettings = GetMutableDefault<UEditorLoadingSavingSettings>();
+		LoadingSavingSettings->bAutoSaveEnable = bOldAutoSaveState;
+	}
 }
 
 FInterchangeEditorModule& FInterchangeEditorModule::Get()
@@ -84,15 +102,21 @@ void FInterchangeEditorModule::StartupModule()
 	auto RegisterItems = [this]()
 	{
 		FDelegateHandle InterchangeEditorModuleDelegate;
+		FDelegateHandle InterchangeEditorModuleDelegateOnImportStarted;
+		FDelegateHandle InterchangeEditorModuleDelegateOnImportFinished;
 
 		UInterchangeManager& InterchangeManager = UInterchangeManager::GetInterchangeManager();
 		InterchangeEditorModuleDelegate = InterchangeManager.OnBatchImportComplete.AddStatic(&InterchangeEditorModule::LogErrors);
+		InterchangeEditorModuleDelegateOnImportStarted = InterchangeManager.OnImportStarted.AddStatic(&InterchangeEditorModule::ImportStarted);
+		InterchangeEditorModuleDelegateOnImportFinished = InterchangeManager.OnImportFinished.AddStatic(&InterchangeEditorModule::ImportFinished);
 		InterchangeManager.RegisterImportDataConverter(UInterchangeFbxAssetImportDataConverter::StaticClass());
 
-		auto UnregisterItems = [InterchangeEditorModuleDelegate]()
+		auto UnregisterItems = [InterchangeEditorModuleDelegate, InterchangeEditorModuleDelegateOnImportStarted, InterchangeEditorModuleDelegateOnImportFinished]()
 		{
 			UInterchangeManager& InterchangeManager = UInterchangeManager::GetInterchangeManager();
 			InterchangeManager.OnBatchImportComplete.Remove(InterchangeEditorModuleDelegate);
+			InterchangeManager.OnImportStarted.Remove(InterchangeEditorModuleDelegateOnImportStarted);
+			InterchangeManager.OnImportFinished.Remove(InterchangeEditorModuleDelegateOnImportFinished);
 		};
 
 		InterchangeManager.OnPreDestroyInterchangeManager.AddLambda(UnregisterItems);

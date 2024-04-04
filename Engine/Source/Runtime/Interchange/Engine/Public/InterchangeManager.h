@@ -43,6 +43,11 @@ DECLARE_DELEGATE_OneParam(FOnObjectImportDoneNative, UObject*);
 DECLARE_DYNAMIC_DELEGATE_OneParam(FOnImportDoneDynamic, const TArray<UObject*>&, Objects);
 DECLARE_DELEGATE_OneParam(FOnImportDoneNative, const TArray<UObject*>&);
 
+/** Delegate Type that is fired when Interchange starts importing. Won't fire when a new import process starts while one is already in progress. Primarily Used for AutoSave setting. */
+DECLARE_MULTICAST_DELEGATE(FOnImportStarted);
+/** Delegate Type that is fired when Interchange finished importing. Won't fire when an import process finishes while one is still in progress. Primarily Used for AutoSave setting. */
+DECLARE_MULTICAST_DELEGATE(FOnImportFinished);
+
 namespace UE
 {
 	namespace Interchange
@@ -197,10 +202,7 @@ namespace UE
 		public:
 			FImportAsyncHelper();
 
-			~FImportAsyncHelper()
-			{
-				CleanUp();
-			}
+			~FImportAsyncHelper();
 
 			/* FGCObject interface */
 			virtual void AddReferencedObjects(FReferenceCollector& Collector) override;
@@ -432,6 +434,9 @@ public:
 	/** Set the CVar that enables or disables Interchange. */
 	static INTERCHANGEENGINE_API void SetInterchangeImportEnabled(bool bEnabled);
 
+	/** Checks if there are any imports in progress.*/
+	static INTERCHANGEENGINE_API bool IsImporting();
+
 	/** Delegate type that is fired when new assets have been imported. Note: InCreatedObject can be NULL if the import failed. Params: UFactory* InFactory, UObject* InCreatedObject. */
 	DECLARE_MULTICAST_DELEGATE_OneParam(FInterchangeOnAssetPostImport, UObject*);
 	/** Delegate type that is fired when new assets have been reimported. Note: InCreatedObject can be NULL if the import failed. Params: UObject* InCreatedObject. */
@@ -444,6 +449,10 @@ public:
 	FInterchangeOnAssetPostImport OnAssetPostImport;
 	FInterchangeOnAssetPostReimport OnAssetPostReimport;
 	FInterchangeOnBatchImportComplete OnBatchImportComplete;
+	//Fires when the first import process starts.
+	FOnImportStarted OnImportStarted;
+	//Fires when the last import process finishes.
+	FOnImportFinished OnImportFinished;
 	// Called when before the application is exiting.
 	FSimpleMulticastDelegate OnPreDestroyInterchangeManager;
 

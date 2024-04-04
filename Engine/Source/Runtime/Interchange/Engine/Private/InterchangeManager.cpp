@@ -61,6 +61,8 @@ bool UInterchangeManager::bIsCreatingSingleton = false;
 
 namespace UE::Interchange::Private
 {
+	static TAtomic<uint64> AsyncHelperCounter = 0;
+
 	const FLogCategoryBase* GetLogInterchangePtr()
 	{
 #if NO_LOGGING
@@ -217,6 +219,23 @@ UE::Interchange::FImportAsyncHelper::FImportAsyncHelper()
 	, SceneImportResult(MakeShared<FImportResult>())
 {
 	bCancel = false;
+
+	if (UE::Interchange::Private::AsyncHelperCounter == 0)
+	{
+		UInterchangeManager::GetInterchangeManager().OnImportStarted.Broadcast();
+	}
+	UE::Interchange::Private::AsyncHelperCounter++;
+}
+
+UE::Interchange::FImportAsyncHelper::~FImportAsyncHelper()
+{
+	CleanUp();
+
+	UE::Interchange::Private::AsyncHelperCounter--;
+	if (UE::Interchange::Private::AsyncHelperCounter == 0)
+	{
+		UInterchangeManager::GetInterchangeManager().OnImportFinished.Broadcast();
+	}
 }
 
 void UE::Interchange::FImportAsyncHelper::AddReferencedObjects(FReferenceCollector& Collector)
@@ -2150,6 +2169,11 @@ bool UInterchangeManager::IsInterchangeImportEnabled()
 void UInterchangeManager::SetInterchangeImportEnabled(bool bEnabled)
 {
 	CCvarInterchangeImportEnable->Set(bEnabled);
+}
+
+bool UInterchangeManager::IsImporting()
+{
+	return UE::Interchange::Private::AsyncHelperCounter > 0;
 }
 
 bool UInterchangeManager::ExportAsset(const UObject* Asset, bool bIsAutomated)
