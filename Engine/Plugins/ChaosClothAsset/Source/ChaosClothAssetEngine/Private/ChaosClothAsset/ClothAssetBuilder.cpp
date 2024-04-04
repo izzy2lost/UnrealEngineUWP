@@ -480,9 +480,21 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	// Ensure parent exists with incoming active bone indices, and the result should be sorted
 	ClothAsset.GetRefSkeleton().EnsureParentsExistAndSort(LODModel.ActiveBoneIndices);
+	LODModel.ActiveBoneIndices.Shrink();
 
-	// Compute the required bones for this model.
-	USkeletalMesh::CalculateRequiredBones(LODModel, ClothAsset.GetRefSkeleton(), nullptr);
+	// Add the extra simulation bones to the list of required bones if any
+	LODModel.RequiredBones = LODModel.ActiveBoneIndices;
+
+	if (const TSharedPtr<const FChaosClothSimulationModel> ClothSimulationModel = ClothAsset.GetClothSimulationModel())
+	{
+		if (ensure(ClothSimulationModel->IsValidLodIndex(LodIndex)))
+		{
+			LODModel.RequiredBones.Append(ClothSimulationModel->ClothSimulationLodModels[LodIndex].RequiredExtraBoneIndices);
+
+			ClothAsset.GetRefSkeleton().EnsureParentsExistAndSort(LODModel.RequiredBones);
+			LODModel.RequiredBones.Shrink();
+		}
+	}
 }
 
 #undef LOCTEXT_NAMESPACE

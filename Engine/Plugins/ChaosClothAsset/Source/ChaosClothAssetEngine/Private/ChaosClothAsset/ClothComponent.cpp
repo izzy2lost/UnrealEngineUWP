@@ -400,6 +400,9 @@ void UChaosClothComponent::SetSkinnedAssetAndUpdate(USkinnedAsset* InSkinnedAsse
 
 void UChaosClothComponent::GetAdditionalRequiredBonesForLeader(int32 LeaderLODIndex, TArray<FBoneIndexType>& InOutRequiredBones) const
 {
+	TArray<FBoneIndexType> RequiredBones;
+
+	// Add the follower's bones (including sim and render mesh bones, both stored in the LODRenderData RequiredBones array)
 	if (const FSkeletalMeshRenderData* const SkeletalMeshRenderData = GetSkeletalMeshRenderData())
 	{
 		const int32 MinLODIndex = ComputeMinLOD();
@@ -409,8 +412,6 @@ void UChaosClothComponent::GetAdditionalRequiredBonesForLeader(int32 LeaderLODIn
 
 		if (SkeletalMeshRenderData->LODRenderData.IsValidIndex(LODIndex))
 		{
-			// Gather the follower's bones
-			TArray<FBoneIndexType> RequiredBones;
 			RequiredBones.Reserve(SkeletalMeshRenderData->LODRenderData[LODIndex].RequiredBones.Num());
 
 			for (const FBoneIndexType RequiredBone : SkeletalMeshRenderData->LODRenderData[LODIndex].RequiredBones)
@@ -427,10 +428,22 @@ void UChaosClothComponent::GetAdditionalRequiredBonesForLeader(int32 LeaderLODIn
 
 			// Then sort array of required bones in hierarchy order
 			RequiredBones.Sort();
-
-			// Make sure all of these are in RequiredBones.
-			MergeInBoneIndexArrays(InOutRequiredBones, RequiredBones);
 		}
+	}
+
+	// Merge the physics asset bones (the leader's physics asset can be different to this component's cloth asset)
+	if (const UPhysicsAsset* const PhysicsAsset = GetClothAsset() ? GetClothAsset()->GetPhysicsAsset() : nullptr)
+	{
+		if (const USkinnedAsset* const LeaderSkinnedAsset = ensure(LeaderPoseComponent.IsValid()) ? LeaderPoseComponent->GetSkinnedAsset() : nullptr)  // Needs the leader SkinnedAsset for the correct RefSkeleton
+		{
+			USkinnedMeshComponent::GetPhysicsRequiredBones(LeaderSkinnedAsset, PhysicsAsset, RequiredBones);
+		}
+	}
+
+	if (RequiredBones.Num())
+	{
+		// Make sure all of these are in RequiredBones.
+		MergeInBoneIndexArrays(InOutRequiredBones, RequiredBones);
 	}
 }
 
