@@ -268,6 +268,136 @@ void FTestWorldWrapper::ForwardErrorMessages(FAutomationTestBase* AutomationTest
 }
 
 ///////////////////////////////////////////////////////////////////////
+// FTestConsoleVariable
+
+FTestConsoleVariable::FTestConsoleVariable(const FString& InConsoleVariableName)
+	: bModified(false)
+	, ConsoleVariableName(InConsoleVariableName)
+{
+}
+
+FTestConsoleVariable::FTestConsoleVariable(FTestConsoleVariable&& Other)
+	: bModified(MoveTemp(Other.bModified))
+	, ConsoleVariableName(MoveTemp(Other.ConsoleVariableName))
+	, OriginalValue(MoveTemp(Other.OriginalValue))
+{
+	// Reset our other's modified flag to avoid triggering a reset of the CVar
+	Other.bModified = false;
+}
+
+FTestConsoleVariable::~FTestConsoleVariable()
+{
+	Restore();
+}
+
+void FTestConsoleVariable::Set(const FString& Value)
+{
+	IConsoleVariable* ConsoleVariable = IConsoleManager::Get().FindConsoleVariable(*ConsoleVariableName);
+	if (ensure(ConsoleVariable))
+	{
+		if (!bModified)
+		{
+			bModified = true;
+			OriginalValue = ConsoleVariable->GetString();
+		}
+
+		ConsoleVariable->AsVariable()->SetWithCurrentPriority(*Value);
+	}
+}
+
+FString FTestConsoleVariable::Get()
+{
+	IConsoleVariable* ConsoleVariable = IConsoleManager::Get().FindConsoleVariable(*ConsoleVariableName);
+	if (ensure(ConsoleVariable))
+	{
+		return ConsoleVariable->GetString();
+	}
+
+	return FString{};
+}
+
+void FTestConsoleVariable::Restore()
+{
+	if (bModified)
+	{
+		IConsoleVariable* ConsoleVariable = IConsoleManager::Get().FindConsoleVariable(*ConsoleVariableName);
+		if (ensure(ConsoleVariable))
+		{
+			ConsoleVariable->AsVariable()->SetWithCurrentPriority(*OriginalValue);
+		}
+
+		bModified = false;
+	}
+}
+
+///////////////////////////////////////////////////////////////////////
+// FScopedTestEnvironment
+
+TWeakPtr<FScopedTestEnvironment> FScopedTestEnvironment::EnvironmentInstance = nullptr;
+
+FScopedTestEnvironment::~FScopedTestEnvironment()
+{
+	Restore();
+}
+
+TSharedPtr<FScopedTestEnvironment> FScopedTestEnvironment::Get()
+{
+	check(IsInGameThread());
+
+	TSharedPtr<FScopedTestEnvironment> Instance = EnvironmentInstance.Pin();
+	if (!Instance.IsValid())
+	{
+		Instance = MakeShareable(new FScopedTestEnvironment());
+		EnvironmentInstance = Instance;
+	}
+
+	check(Instance.IsValid());
+	return Instance;
+}
+
+void FScopedTestEnvironment::SetConsoleVariableValue(const FString& ConsoleVariableName, const FString& Value)
+{
+	check(IsInGameThread());
+
+	if (FTestConsoleVariable* Variable = Variables.Find(ConsoleVariableName))
+	{
+		Variable->Set(Value);
+	}
+	else
+	{
+		FTestConsoleVariable NewVariable(ConsoleVariableName);
+		NewVariable.Set(Value);
+		Variables.Emplace(ConsoleVariableName, MoveTemp(NewVariable));
+	}
+}
+
+bool FScopedTestEnvironment::TryGetConsoleVariableValue(const FString& ConsoleVariableName, FString* OutValue)
+{
+	check(IsInGameThread());
+
+	if (FTestConsoleVariable* Variable = Variables.Find(ConsoleVariableName))
+	{
+		if (OutValue)
+		{
+			*OutValue = Variable->Get();
+		}
+		return true;
+	}
+
+	return false;
+}
+
+void FScopedTestEnvironment::Restore()
+{
+	if (!Variables.IsEmpty())
+	{
+		check(IsInGameThread());
+
+		Variables.Empty();
+	}
+}
+
+///////////////////////////////////////////////////////////////////////
 // Common Latent commands
 
 namespace AutomationCommon

@@ -235,7 +235,7 @@ bool AFunctionalTest::RunTest(const TArray<FString>& Params)
 	SCOPE_CYCLE_COUNTER(STAT_FunctionalTest_RunTest);
 	UWorld* World = GetWorld();
 	ensure(World->HasBegunPlay());
-
+	
 	FFunctionalTestBase* FunctionalTest = static_cast<FFunctionalTestBase*>(FAutomationTestFramework::Get().GetCurrentTest());
 
 	// Set handling of warnings/errors based on this test. Tests can either specify an explicit option or choose to go with the
@@ -443,7 +443,7 @@ void AFunctionalTest::FinishTest(EFunctionalTestResult TestResult, const FString
 
 	TestFinishedObserver.ExecuteIfBound(this);
 
-	EnvSetup.Restore();
+	EnvSetup = nullptr;
 }
 
 void AFunctionalTest::EndPlay(const EEndPlayReason::Type EndPlayReason)
@@ -537,22 +537,27 @@ FName AFunctionalTest::GetCurrentRerunReason()const
 
 void AFunctionalTest::SetConsoleVariable(const FString& Name, const FString& InValue)
 {
-	EnvSetup.SetVariable(Name, InValue);
+	// Initialize our Scoped Test Environment to be used during the duration of the test
+	if (!EnvSetup.IsValid())
+	{
+		EnvSetup = FScopedTestEnvironment::Get();
+	}
+	EnvSetup->SetConsoleVariableValue(Name, InValue);
 }
 
 void AFunctionalTest::SetConsoleVariableFromInteger(const FString& Name, const int32 InValue)
 {
-	EnvSetup.SetVariable(Name, FString::FromInt(InValue));
+	SetConsoleVariable(Name, FString::FromInt(InValue));
 }
 
 void AFunctionalTest::SetConsoleVariableFromFloat(const FString& Name, const float InValue)
 {
-	EnvSetup.SetVariable(Name, FString::SanitizeFloat(InValue));
+	SetConsoleVariable(Name, FString::SanitizeFloat(InValue));
 }
 
 void AFunctionalTest::SetConsoleVariableFromBoolean(const FString& Name, const bool InValue)
 {
-	EnvSetup.SetVariable(Name, FString::FromInt(InValue));
+	SetConsoleVariable(Name, FString::FromInt(InValue));
 }
 
 void AFunctionalTest::RegisterAutoDestroyActor(AActor* ActorToAutoDestroy)
@@ -1711,96 +1716,5 @@ void UAutomationPerformaceHelper::EndStatsFile()
 	if (UWorld* World = GetWorld())
 	{
 		GEngine->Exec(World, TEXT("Stat StopFile"));
-	}
-}
-
-FConsoleVariableBPSetter::FConsoleVariableBPSetter(FString InConsoleVariableName)
-	: bModified(false)
-	, ConsoleVariableName(InConsoleVariableName)
-{
-}
-
-void FConsoleVariableBPSetter::Set(const FString& Value)
-{
-	IConsoleVariable* ConsoleVariable = IConsoleManager::Get().FindConsoleVariable(*ConsoleVariableName);
-	if (ensure(ConsoleVariable))
-	{
-		if (bModified == false)
-		{
-			bModified = true;
-			OriginalValue = ConsoleVariable->GetString();
-		}
-
-		ConsoleVariable->AsVariable()->SetWithCurrentPriority(*Value);
-	}
-}
-
-FString FConsoleVariableBPSetter::Get()
-{
-	IConsoleVariable* ConsoleVariable = IConsoleManager::Get().FindConsoleVariable(*ConsoleVariableName);
-
-	if (ensure(ConsoleVariable))
-	{
-		return ConsoleVariable->GetString();
-	}
-
-	return FString{};
-}
-
-void FConsoleVariableBPSetter::Restore()
-{
-	if (bModified)
-	{
-		IConsoleVariable* ConsoleVariable = IConsoleManager::Get().FindConsoleVariable(*ConsoleVariableName);
-		if (ensure(ConsoleVariable))
-		{
-			ConsoleVariable->AsVariable()->SetWithCurrentPriority(*OriginalValue);
-		}
-
-		bModified = false;
-	}
-}
-
-FAutomationFunctionalTestEnvSetup::~FAutomationFunctionalTestEnvSetup()
-{
-	Restore();
-}
-
-void FAutomationFunctionalTestEnvSetup::SetVariable(const FString& VariableName, const FString& Value)
-{
-	check(IsInGameThread());
-
-	FConsoleVariableBPSetter Variable(VariableName);
-	Variable.Set(Value);
-	Variables.Add(MoveTemp(Variable));
-}
-
-FString FAutomationFunctionalTestEnvSetup::GetVariable(const FString& VariableName)
-{
-	check(IsInGameThread());
-
-	for (auto& Variable : Variables)
-	{
-		if (Variable.ConsoleVariableName == VariableName)
-		{
-			return Variable.Get();
-		}
-	}
-
-	return FString{};
-}
-
-void FAutomationFunctionalTestEnvSetup::Restore()
-{
-	if (!Variables.IsEmpty())
-	{
-		check(IsInGameThread());
-
-		for (auto& Variable : Variables)
-		{
-			Variable.Restore();
-		}
-
-		Variables.Empty();
 	}
 }

@@ -71,6 +71,83 @@ protected:
 	TArray<FString> FailureErrors;
 };
 
+/**
+ * Utility for setting and restoring of a Console Variable (CVar).
+ * 
+ * Note that race conditions are possible when multiple `FTestConsoleVariable` objects refer to the same Console Variable and get restored/destroyed in an order different than they were set.
+ * Please use `FScopedTestEnvironment` to manage multiple `FTestConsoleVariable` objects.
+ */
+struct FTestConsoleVariable
+{
+	ENGINE_API FTestConsoleVariable(const FString& InConsoleVariableName);
+	ENGINE_API FTestConsoleVariable(FTestConsoleVariable&& Other);
+
+	ENGINE_API ~FTestConsoleVariable();
+
+	/**
+	 * Sets a Console Variable to the specified value. Will keep a reference to the original value regardless of how many times the value has been set.
+	 * @param Value		Value to set on the Console Variable
+	 */
+	ENGINE_API void Set(const FString& Value);
+
+	/** Returns the current value of the Console Variable */
+	ENGINE_API FString Get();
+
+	/** Returns the Console Variable to the original value */
+	ENGINE_API void Restore();
+
+private:
+	bool bModified;
+	FString ConsoleVariableName;
+	FString OriginalValue;
+};
+
+/**
+ * Utility for setting and management of the test environment
+ * Will handle restoring the Console Variables (CVars) back to the original state on destruction.
+ */
+struct FScopedTestEnvironment
+{
+	/** Restores all set Console Variables back to the original value */
+	ENGINE_API ~FScopedTestEnvironment();
+
+	/**
+	 * Returns a shared pointer to current instance of the scoped test environment. Will create an instance if current instance is invalid.
+	 * @return the shared pointer to the instance
+	 */
+	static ENGINE_API TSharedPtr<FScopedTestEnvironment> Get();
+
+	/**
+	 * Sets a Console Variable to the specified value. Will keep a reference to the original value regardless of how many times the value has been set.
+	 * @param VariableName	Name of the Console Variable to set
+	 * @param Value			Value to be applied
+	 */
+	ENGINE_API void SetConsoleVariableValue(const FString& ConsoleVariableName, const FString& Value);
+
+	/**
+	 * Gets the current overridden value for the specified Console Variable
+	 * @param VariableName	Name of the Console Variable to fetch the current value from
+	 * @param OutValue		Current value of the Console Variable if it was overridden.
+	 * @return true if the Console Variable was overridden.
+	 */
+	ENGINE_API bool TryGetConsoleVariableValue(const FString& ConsoleVariableName, FString* OutValue);
+
+	/** Restores all set Console Variables back to the original value */
+	ENGINE_API void Restore();
+
+private:
+	FScopedTestEnvironment() = default;
+
+	FScopedTestEnvironment(FScopedTestEnvironment&&) = delete;
+	FScopedTestEnvironment(const FScopedTestEnvironment&) = delete;
+	FScopedTestEnvironment& operator=(FScopedTestEnvironment&&) = delete;
+	FScopedTestEnvironment& operator=(const FScopedTestEnvironment&) = delete;
+
+	TMap<FString, FTestConsoleVariable> Variables;
+
+	static TWeakPtr<struct FScopedTestEnvironment> EnvironmentInstance;
+};
+
 /** Common automation functions */
 namespace AutomationCommon
 {

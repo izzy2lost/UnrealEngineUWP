@@ -11,6 +11,7 @@
 #include "GameFramework/Actor.h"
 #include "ProfilingDebugging/ExternalProfiler.h"
 #include "Math/StatisticalFloat.h"
+#include "Tests/AutomationCommon.h"
 #include "FunctionalTest.generated.h"
 
 class Error;
@@ -219,43 +220,6 @@ enum class EFunctionalTestLogHandling : uint8
 	OutputIsError,
 	OutputIgnored
 };
-
-
-class FConsoleVariableBPSetter
-{
-	friend class FAutomationFunctionalTestEnvSetup;
-
-public:
-	FConsoleVariableBPSetter(FString InConsoleVariableName);
-
-	void Set(const FString& Value);
-	FString Get();
-	void Restore();
-
-private:
-	bool bModified;
-	FString ConsoleVariableName;
-
-	FString OriginalValue;
-};
-
-class FAutomationFunctionalTestEnvSetup
-{
-public:
-	FAutomationFunctionalTestEnvSetup() = default;
-	~FAutomationFunctionalTestEnvSetup();
-
-	void SetVariable(const FString& VariableName, const FString& Value);
-
-	FString GetVariable(const FString& VariableName);
-
-	/** Restore the old settings. */
-	void Restore();
-
-private:
-	TArray<FConsoleVariableBPSetter> Variables;
-};
-
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FFunctionalTestEventSignature);
 DECLARE_DELEGATE_OneParam(FFunctionalTestDoneSignature, class AFunctionalTest*);
@@ -796,7 +760,7 @@ protected:
 public:
 	FFunctionalTestDoneSignature TestFinishedObserver;
 
-	// AG TEMP - solving a compile issue in a temp way to unblock the bui.d
+	// AG TEMP - solving a compile issue in a temp way to unblock the build
 	UPROPERTY(Transient)
 	bool bIsRunning;
 
@@ -813,7 +777,7 @@ public:
 
 private:
 	bool bIsReady;
-	FAutomationFunctionalTestEnvSetup EnvSetup;
+	TSharedPtr<FScopedTestEnvironment> EnvSetup;
 
 public:
 	/** Returns SpriteComponent subobject **/

@@ -227,6 +227,133 @@ bool FSaveGameTest::RunTest(const FString& Parameters)
 	return LoadedData == SavedData;
 }
 
+/**
+ * FCVarEnvironmentTest
+ * Test makes sure that CVars are set and restore properly
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FCVarEnvironmentTest, "System.Engine.Automation.Environment.CVar", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter)
+
+/**
+ * Set and restore a CVar
+ *
+ * @param Parameters - Unused for this test
+ * @return	TRUE if the test was successful, FALSE otherwise
+ */
+bool FCVarEnvironmentTest::RunTest(const FString& Parameters)
+{
+	const FString DummyTestName = TEXT("Automation.DummyTestVariable");
+	const int32 TestValue = 12345;
+
+	TAutoConsoleVariable<int32> CVarDummyTestVariable(
+		*DummyTestName,
+		111,
+		TEXT("Used for the purposes of testing if the CVar is getting set and reset."),
+		ECVF_Default);
+
+	IConsoleVariable* ConsoleVariable = IConsoleManager::Get().FindConsoleVariable(*DummyTestName);
+	if (!ConsoleVariable)
+	{
+		AddError(FString::Format(TEXT("Could not find CVar for '{0}'"), { DummyTestName }));
+		return false;
+	}
+
+	int32 InitialValue = ConsoleVariable->GetInt();
+	if (InitialValue == TestValue)
+	{
+		AddError(FString::Format(TEXT("Initial and values to test are the same '{0}'"), { InitialValue }));
+		return false;
+	}
+
+	// Because we're testing that the CVar is properly restored, we want to create our FTestEnvironment object inside a scope to be destructed
+	{
+		TSharedPtr<FScopedTestEnvironment> TestCVarEnvironment = FScopedTestEnvironment::Get();
+		TestCVarEnvironment->SetConsoleVariableValue(DummyTestName, FString::FromInt(TestValue));
+
+		// Verify that setting the CVar through our test environment actually sets the Console Variable
+		int32 CurrentValue = ConsoleVariable->GetInt();
+		if (CurrentValue == InitialValue)
+		{
+			AddError(FString::Format(TEXT("CVar was not set as the current value matches the initial value of '{0}'"), { InitialValue }));
+			return false;
+		}
+
+		// Verify that retrieving the CVar from our test environment matches the value fetched directly from the CVar
+		FString ConsoleVariableValue;
+		bool bWasCVarSet = TestCVarEnvironment->TryGetConsoleVariableValue(DummyTestName, &ConsoleVariableValue);
+		if (!bWasCVarSet)
+		{
+			AddError(TEXT("CVar was not found as being set in the ScopedTestEnvironment."));
+			return false;
+		}
+
+		if (ConsoleVariableValue != FString::FromInt(CurrentValue))
+		{
+			AddError(FString::Format(TEXT("CVar value of '{0}' does not match the CVar value fetched from ScopedTestEnvironment '{1}'"), { CurrentValue, ConsoleVariableValue }));
+			return false;
+		}
+	}
+
+	int32 CurrentValue = ConsoleVariable->GetInt();
+	AddErrorIfFalse(CurrentValue == InitialValue, FString::Format(TEXT("CVar was not reset as the current value of '{0}' does not match the initial value of '{1}'"), { CurrentValue, InitialValue }));
+
+	return !HasAnyErrors();
+}
+
+/**
+ * FCVarEnvironmentReuseTest
+ * Test makes sure that a CVar can be set multiple times before restoring back to the original value prior to being set
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FCVarEnvironmentReuseTest, "System.Engine.Automation.Environment.CVar Reuse", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter)
+
+/**
+ * Set a CVar multiple times before restoring to the original value
+ *
+ * @param Parameters - Unused for this test
+ * @return	TRUE if the test was successful, FALSE otherwise
+ */
+bool FCVarEnvironmentReuseTest::RunTest(const FString& Parameters)
+{
+	const FString DummyTestName = TEXT("Automation.DummyTestVariable");
+
+	TAutoConsoleVariable<int32> CVarDummyTestVariable(
+		*DummyTestName,
+		111,
+		TEXT("Used for the purposes of testing if the CVar is getting set and reset."),
+		ECVF_Default);
+
+	IConsoleVariable* ConsoleVariable = IConsoleManager::Get().FindConsoleVariable(*DummyTestName);
+	if (!ConsoleVariable)
+	{
+		AddError(FString::Format(TEXT("Could not find CVar for '{0}'"), { DummyTestName }));
+		return false;
+	}
+
+	int32 InitialValue = ConsoleVariable->GetInt();
+
+	// Because we're testing that the CVar is properly restored, we want to create our FTestEnvironment object inside a scope to be destructed
+	{
+		TSharedPtr<FScopedTestEnvironment> TestCVarEnvironment = FScopedTestEnvironment::Get();
+
+		// Loop through a range of values to set our CVar
+		for (int32 TestValue = 0; TestValue < 5; ++TestValue)
+		{
+			TestCVarEnvironment->SetConsoleVariableValue(DummyTestName, FString::FromInt(TestValue));
+			
+			int32 CurrentValue = ConsoleVariable->GetInt();
+			if (TestValue != CurrentValue)
+			{
+				AddError(FString::Format(TEXT("CVar was not set as the current value '{0}' does not match the expected value of '{1}'"), { CurrentValue, TestValue }));
+				return false;
+			}
+		}
+	}
+
+	int32 CurrentValue = ConsoleVariable->GetInt();
+	AddErrorIfFalse(CurrentValue == InitialValue, FString::Format(TEXT("CVar was not reset as the current value of '{0}' does not match the initial value of '{1}'"), { CurrentValue, InitialValue }));
+
+	return !HasAnyErrors();
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAutomationLogAddMessage, "TestFramework.Log.Add Log Message", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter)
 
 bool FAutomationLogAddMessage::RunTest(const FString& Parameters)
