@@ -36,6 +36,10 @@ struct FDeterminismTestResult
 {
 	GENERATED_BODY()
 
+	/** The test result index. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Determinism)
+	int64 Index = INDEX_NONE;
+
 	/** The node's title */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Determinism)
 	FName TestResultTitle = TEXT("Untitled");

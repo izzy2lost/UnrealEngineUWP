@@ -40,7 +40,6 @@ class SPCGEditorGraphDeterminismRow final : public SMultiColumnTableRow<FPCGNode
 
 protected:
 	FPCGNodeTestResultPtr CurrentItem;
-	int32 CurrentIndex = -1;
 };
 
 class SPCGEditorGraphDeterminismListView final : public SCompoundWidget
@@ -72,12 +71,19 @@ private:
 	void ClearColumns();
 	/** Generate the row widget */
 	TSharedRef<ITableRow> OnGenerateRow(const FPCGNodeTestResultPtr Item, const TSharedRef<STableViewBase>& OwnerTable) const;
+	void OnSortColumnHeader(const EColumnSortPriority::Type SortPriority, const FName& ColumnId, const EColumnSortMode::Type NewSortMode);
+	EColumnSortMode::Type GetColumnSortMode(const FName ColumnId) const;
+
 	TSharedPtr<SHeaderRow> GeneratedHeaderRow;
 
 	TWeakPtr<FPCGEditor> PCGEditorPtr;
 
 	TSharedPtr<SListView<FPCGNodeTestResultPtr>> ListView;
 	TArray<FPCGNodeTestResultPtr> ListViewItems;
+
+	// To allow sorting
+	FName SortingColumn = NAME_None;
+	EColumnSortMode::Type SortMode = EColumnSortMode::Type::None;
 
 	bool bIsConstructed = false;
 	mutable int32 ItemIndexCounter = -1;

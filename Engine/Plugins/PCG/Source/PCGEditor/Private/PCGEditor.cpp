@@ -973,6 +973,7 @@ void FPCGEditor::OnDeterminismNodeTest()
 	DeterminismWidget->ClearItems();
 	DeterminismWidget->BuildBaseColumns();
 
+	int64 TestIndex = 0;
 	for (UObject* Object : GraphEditorWidget->GetSelectedNodes())
 	{
 		check(Object);
@@ -996,6 +997,7 @@ void FPCGEditor::OnDeterminismNodeTest()
 				check(PCGNode && PCGNode->GetSettings());
 
 				TSharedPtr<FDeterminismTestResult> NodeResult = MakeShared<FDeterminismTestResult>();
+				NodeResult->Index = TestIndex++;
 				NodeResult->TestResultTitle = FName(*PCGNode->GetNodeTitle(EPCGNodeTitleType::ListView).ToString());
 				NodeResult->TestResultName = PCGNode->GetName();
 				NodeResult->Seed = PCGNode->GetSettings()->GetSeed();
@@ -1085,6 +1087,7 @@ void FPCGEditor::OnDeterminismGraphTest()
 	DeterminismWidget->AddColumn(ColumnInfo);
 
 	TSharedPtr<FDeterminismTestResult> TestResult = MakeShared<FDeterminismTestResult>();
+	TestResult->Index = 0;
 	TestResult->TestResultTitle = TEXT("Full Graph Test");
 	TestResult->TestResultName = PCGGraphBeingEdited->GetName();
 	TestResult->Seed = PCGComponentBeingInspected->Seed;
