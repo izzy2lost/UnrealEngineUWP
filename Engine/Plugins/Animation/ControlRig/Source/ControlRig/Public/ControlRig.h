@@ -140,6 +140,13 @@ public:
 	virtual void InitializeVMs(bool bInitRigUnits = true) { Super::Initialize(bInitRigUnits); }
 	virtual bool InitializeVMs(const FName& InEventName) { return Super::InitializeVM(InEventName); }
 
+#if WITH_EDITOR
+protected:
+	bool bIsRunningInPIE;
+#endif
+	
+public:
+
 	/** Evaluates the ControlRig */
 	virtual void Evaluate_AnyThread() override;
 
