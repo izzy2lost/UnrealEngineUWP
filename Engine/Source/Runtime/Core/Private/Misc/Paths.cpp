@@ -163,7 +163,10 @@ bool FPaths::IsStaged()
 	{
 		UE::Paths::bIsComputingStaged = true;
 
-		bIsStaged = FPlatformProperties::RequiresCookedData() ||
+		bIsStaged =
+#if !IS_PROGRAM
+			FPlatformProperties::RequiresCookedData() ||
+#endif
 			FileExists(Combine(EngineConfigDir(), FString::Printf(TEXT("StagedBuild_%s.ini"), FApp::GetProjectName())));
 
 		UE::Paths::bIsComputingStaged = false;
