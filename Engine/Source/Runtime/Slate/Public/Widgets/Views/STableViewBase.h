@@ -363,6 +363,7 @@ protected:
 	/** @return how many pinned items are in the table */
 	SLATE_API int32 GetNumPinnedItems() const;
 
+	UE_DEPRECATED(5.5, "The Pinned items visibility is no more an attribute.")
 	SLATE_API EVisibility GetPinnedItemsVisiblity() const;
 
 	enum class EScrollIntoViewResult

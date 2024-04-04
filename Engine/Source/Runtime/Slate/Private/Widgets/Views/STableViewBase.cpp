@@ -78,7 +78,7 @@ void STableViewBase::ConstructChildren( const TAttribute<float>& InItemWidth, co
 		.NumDesiredItems(this, &STableViewBase::GetNumPinnedItems)
 		.ItemAlignment(InItemAlignment)
 		.ListOrientation(Orientation)
-		.Visibility(this, &STableViewBase::GetPinnedItemsVisiblity);
+		.Visibility(EVisibility::Collapsed);
 
 	TSharedPtr<SWidget> ListAndScrollbar;
 	if (InScrollBar)
@@ -978,6 +978,7 @@ void STableViewBase::InsertPinnedWidget( const TSharedRef<SWidget> & WidgetToIns
 	[
 		WidgetToInset
 	];
+	PinnedItemsPanel->SetVisibility(EVisibility::Visible);
 }
 
 void STableViewBase::AppendPinnedWidget( const TSharedRef<SWidget>& WidgetToAppend )
@@ -986,10 +987,12 @@ void STableViewBase::AppendPinnedWidget( const TSharedRef<SWidget>& WidgetToAppe
 	[
 		WidgetToAppend
 	];
+	PinnedItemsPanel->SetVisibility(EVisibility::Visible);
 }
 
 void STableViewBase::ClearPinnedWidgets()
 {
+	PinnedItemsPanel->SetVisibility(EVisibility::Collapsed);
 	PinnedItemsPanel->ClearItems();
 }
 
