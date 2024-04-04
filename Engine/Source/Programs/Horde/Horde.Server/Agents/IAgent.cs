@@ -453,6 +453,16 @@ namespace Horde.Server.Agents
 		public const string Ram = "RAM";
 
 		/// <summary>
+		/// IP address used for sending compute task payloads
+		/// </summary>
+		public const string ComputeIp = "ComputeIp";
+		
+		/// <summary>
+		/// Port used for sending compute task payloads
+		/// </summary>
+		public const string ComputePort = "ComputePort";
+
+		/// <summary>
 		/// AWS: Instance ID
 		/// </summary>
 		public const string AwsInstanceId = "aws-instance-id";
@@ -815,15 +825,23 @@ namespace Horde.Server.Agents
 		/// <param name="agent">The agent to create a lease for</param>
 		/// <param name="requirements">Requirements for the lease</param>
 		/// <param name="assignedResources">Receives the allocated resources</param>
+		/// <param name="conditions">Condition to check in addition to those in requirements</param>
 		/// <returns>True if the new lease can be granted</returns>
-		public static bool MeetsRequirements(this IAgent agent, Requirements requirements, Dictionary<string, int> assignedResources)
+		public static bool MeetsRequirements(this IAgent agent, Requirements requirements, Dictionary<string, int> assignedResources, List<Condition> conditions)
 		{
 			PoolId? poolId = null;
 			if (!String.IsNullOrEmpty(requirements.Pool))
 			{
 				poolId = new PoolId(requirements.Pool);
 			}
-			return MeetsRequirements(agent, poolId, requirements.Condition, requirements.Resources, requirements.Exclusive, assignedResources);
+
+			List<Condition> combinedConditions = [];
+			if (requirements.Condition != null)
+			{
+				combinedConditions.Add(requirements.Condition);
+			}
+			combinedConditions.AddRange(conditions);
+			return MeetsRequirements(agent, poolId, combinedConditions, requirements.Resources, requirements.Exclusive, assignedResources);
 		}
 
 		/// <summary>
@@ -831,12 +849,12 @@ namespace Horde.Server.Agents
 		/// </summary>
 		/// <param name="agent">The agent to create a lease for</param>
 		/// <param name="poolId">Pool to take the machine from</param>
-		/// <param name="condition">Condition to satisfy</param>
+		/// <param name="conditions">Conditions to satisfy</param>
 		/// <param name="resources">Resources required to execute</param>
 		/// <param name="exclusive">Whether the lease needs to be executed exclusively on the machine</param>
 		/// <param name="assignedResources">Resources allocated to the task</param>
 		/// <returns>True if the new lease can be granted</returns>
-		public static bool MeetsRequirements(this IAgent agent, PoolId? poolId, Condition? condition, Dictionary<string, ResourceRequirements>? resources, bool exclusive, Dictionary<string, int> assignedResources)
+		public static bool MeetsRequirements(this IAgent agent, PoolId? poolId, List<Condition> conditions, Dictionary<string, ResourceRequirements>? resources, bool exclusive, Dictionary<string, int> assignedResources)
 		{
 			if (!agent.Enabled || agent.Status != AgentStatus.Ok)
 			{
@@ -854,7 +872,7 @@ namespace Horde.Server.Agents
 			{
 				return false;
 			}
-			if (condition != null && !agent.SatisfiesCondition(condition))
+			if (conditions.Any(condition => !agent.SatisfiesCondition(condition)))
 			{
 				return false;
 			}

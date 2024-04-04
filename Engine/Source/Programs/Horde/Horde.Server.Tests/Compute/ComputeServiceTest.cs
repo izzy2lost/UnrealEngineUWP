@@ -210,6 +210,23 @@ namespace Horde.Server.Tests.Compute
 		}
 
 		[TestMethod]
+		public async Task Assignment_RequesterAlsoRunsAgent_IsNotAssignedAsync()
+		{
+			AllocateResourceParams CreateParams(string ip)
+			{
+				return new AllocateResourceParams(new ClusterId("default"), ComputeProtocol.Latest, new Requirements { Pool = "foo" }) { RequesterIp = IPAddress.Parse(ip) };
+			}
+
+			IAgent agent = await CreateAgentAsync(new PoolId("foo"), properties: ["ComputeIp=11.0.0.1", "ComputePort=5000"]);
+			
+			ComputeResource? resource1 = await ComputeService.TryAllocateResourceAsync(CreateParams("11.0.0.1"), CancellationToken.None);
+			Assert.IsNull(resource1);
+			
+			ComputeResource? resource2 = await ComputeService.TryAllocateResourceAsync(CreateParams("11.0.0.2"), CancellationToken.None);
+			Assert.AreEqual(agent.Id, resource2!.AgentId);
+		}
+
+		[TestMethod]
 		public async Task Connection_Direct_IpConnection_Async()
 		{
 			ComputeResource? cr = await AllocateAsync(ConnectionMode.Direct);

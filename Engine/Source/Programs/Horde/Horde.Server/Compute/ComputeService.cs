@@ -32,6 +32,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using OpenTelemetry.Trace;
 using StackExchange.Redis;
+using Condition = EpicGames.Horde.Common.Condition;
 
 namespace Horde.Server.Compute
 {
@@ -369,6 +370,15 @@ namespace Horde.Server.Compute
 				certificate = GenerateCert(arp.Encryption); // A no-op if certificate is not required	
 			}
 
+			List<Condition> conditions = [];
+			if (arp.RequesterIp != null)
+			{
+				// Do not assign a compute resource hosted on the same machine as requester
+				// This is often the case when a user is offering their local workstation to participate in a shared compute pool
+				// With UnrealBuildAccelerator, it already makes full use of the local machine.
+				conditions.Add(Condition.Parse($"{KnownPropertyNames.ComputeIp} != '{arp.RequesterIp.ToString()}'"));
+			}
+
 			try
 			{
 				IReadOnlyList<IAgent> agents = await _agentCollection.FindAsync(cancellationToken: cancellationToken);
@@ -376,7 +386,7 @@ namespace Horde.Server.Compute
 				{
 					Dictionary<string, int> assignedResources = new Dictionary<string, int>();
 
-					bool match = agent.MeetsRequirements(arp.Requirements, assignedResources);
+					bool match = agent.MeetsRequirements(arp.Requirements, assignedResources, conditions);
 					if (match)
 					{
 						using TelemetrySpan matchSpan = _tracer.StartActiveSpan("Found match");

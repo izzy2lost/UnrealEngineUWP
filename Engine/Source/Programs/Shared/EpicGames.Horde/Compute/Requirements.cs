@@ -8,7 +8,7 @@ using EpicGames.Serialization;
 namespace EpicGames.Horde.Compute
 {
 	/// <summary>
-	/// Stores information about a directory in an action's workspace
+	/// Requirements for a compute task to be assigned an agent
 	/// </summary>
 	public class Requirements
 	{
