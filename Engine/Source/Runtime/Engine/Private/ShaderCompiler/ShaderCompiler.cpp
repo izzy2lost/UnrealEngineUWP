@@ -10453,9 +10453,6 @@ void RecompileShadersForRemote(
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(RecompileShadersForRemote);
 
-	CVarAreShaderErrorsFatal->Set(0, ECVF_SetByCode);
-	ON_SCOPE_EXIT{ CVarAreShaderErrorsFatal->Unset(ECVF_SetByCode); };
-
 	// figure out what shader platforms to recompile
 	ITargetPlatformManagerModule* TPM = GetTargetPlatformManager();
 	ITargetPlatform* TargetPlatform = TPM->FindTargetPlatform(Args.PlatformName);
