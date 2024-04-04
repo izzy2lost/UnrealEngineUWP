@@ -310,6 +310,7 @@ void FTraceInsightsModule::CreateSessionBrowser(const FCreateSessionBrowserParam
 			FTabManager::NewStack()
 			->AddTab(FInsightsManagerTabs::TraceStoreTabId, ETabState::OpenedTab)
 			->AddTab(FInsightsManagerTabs::ConnectionTabId, ETabState::OpenedTab)
+			->AddTab(FName("SessionFrontend"), ETabState::OpenedTab)
 			//->AddTab(FInsightsManagerTabs::LauncherTabId, ETabState::ClosedTab)
 			->SetForegroundTab(FInsightsManagerTabs::TraceStoreTabId)
 		)

@@ -14,7 +14,7 @@
 	"CanContainContent" : false,
 	"IsBetaVersion" : false,
 	"Installed" : false,
-	"SupportedPrograms": [ "UnrealFrontend" ],
+	"SupportedPrograms": [ "UnrealFrontend" , "UnrealInsights" ],
 	"Modules" :
 	[
 		{
@@ -24,7 +24,7 @@
 			"PlatformDenyList" :
 			[
 			],
-			"ProgramAllowList" : [ "UnrealFrontend" ]
+			"ProgramAllowList": [ "UnrealFrontend", "UnrealInsights" ]
 	    }
 	]
 }

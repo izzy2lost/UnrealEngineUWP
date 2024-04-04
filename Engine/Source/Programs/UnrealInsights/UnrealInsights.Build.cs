@@ -26,6 +26,17 @@ public class UnrealInsights : ModuleRules
 			}
 		);
 
+		// For Session Frontend and Message Bus
+		PrivateDependencyModuleNames.AddRange(
+			new string[] {
+				"OutputLog",
+				"SessionFrontend",
+				"TargetDeviceServices",
+				"TcpMessaging",
+				"UdpMessaging",
+			}
+		);
+
 		PrivateIncludePathModuleNames.AddRange(
 			new string[] {
 				"SlateReflector"

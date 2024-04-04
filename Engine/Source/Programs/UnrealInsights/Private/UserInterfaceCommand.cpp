@@ -179,6 +179,8 @@ void FUserInterfaceCommand::Run()
 	delete[] TraceFile;
 	TraceFile = nullptr;
 
+	IPluginManager::Get().LoadModulesForEnabledPlugins(ELoadingPhase::PostDefault);
+
 	// Initialize source code access.
 	// Load the source code access module.
 	ISourceCodeAccessModule& SourceCodeAccessModule = FModuleManager::LoadModuleChecked<ISourceCodeAccessModule>(FName("SourceCodeAccess"));
@@ -335,6 +337,18 @@ void FUserInterfaceCommand::InitializeSlateApplication(bool bOpenTraceFile, cons
 	}
 	else // browser mode
 	{
+		// ensure target platform manager is referenced early as it must be created on the main thread
+		FModuleManager::Get().LoadModuleChecked("DesktopPlatform");
+		FConfigCacheIni::InitializeConfigSystem();
+		GetTargetPlatformManager();
+
+		FModuleManager::Get().LoadModuleChecked("Messaging");
+		FModuleManager::Get().LoadModuleChecked("OutputLog");
+
+		// load optional modules
+		FModuleManager::Get().LoadModule("DeviceManager");
+		FModuleManager::Get().LoadModule("SessionFrontend");
+
 		FString Cmd;
 		bool bExecuteCommand = false;
 		if (FParse::Value(FCommandLine::Get(), TEXT("-ExecBrowserAutomationTest="), Cmd, false))
