@@ -1584,6 +1584,20 @@ bool UModularRigController::SwapModuleClass(const FString& InModulePath, TSubcla
 	return true;
 }
 
+bool UModularRigController::SwapModulesOfClass(TSubclassOf<UControlRig> InOldClass, TSubclassOf<UControlRig> InNewClass, bool bSetupUndo)
+{
+	Model->ForEachModule([this, InOldClass, InNewClass, bSetupUndo](const FRigModuleReference* Module) -> bool
+	{
+		if (Module->Class.Get() == InOldClass)
+		{
+			SwapModuleClass(Module->GetPath(), InNewClass, bSetupUndo);
+		}
+		return true;
+	});
+	
+	return true;
+}
+
 void UModularRigController::RefreshModuleVariables(bool bSetupUndo)
 {
 	Model->ForEachModule([this, bSetupUndo](const FRigModuleReference* Element) -> bool
