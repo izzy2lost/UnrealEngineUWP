@@ -281,7 +281,8 @@ public:
 		int VertexID,
 		const TArray<FGeometryScriptBoneWeight>& BoneWeights,
 		bool& bIsValidVertexID,
-		FGeometryScriptBoneWeightProfile Profile = FGeometryScriptBoneWeightProfile() );
+		FGeometryScriptBoneWeightProfile Profile = FGeometryScriptBoneWeightProfile(),
+		UGeometryScriptDebug* Debug = nullptr);
 
 	/**
 	 * Set all vertices of the TargetMesh to the given Bone/Skin Weights
@@ -293,7 +294,8 @@ public:
 	SetAllVertexBoneWeights( 
 		UDynamicMesh* TargetMesh,
 		const TArray<FGeometryScriptBoneWeight>& BoneWeights,
-		FGeometryScriptBoneWeightProfile Profile = FGeometryScriptBoneWeightProfile() );
+		FGeometryScriptBoneWeightProfile Profile = FGeometryScriptBoneWeightProfile(),
+		UGeometryScriptDebug* Debug = nullptr);
 
 	/** 
 	 *  Computes a smooth skin binding for the given mesh to the skeleton provided.

@@ -241,7 +241,8 @@ UDynamicMesh* UGeometryScriptLibrary_MeshBoneWeightFunctions::SetVertexBoneWeigh
 	int VertexID,
 	const TArray<FGeometryScriptBoneWeight>& BoneWeights,
 	bool& bHasValidBoneWeights,
-	FGeometryScriptBoneWeightProfile Profile)
+	FGeometryScriptBoneWeightProfile Profile,
+	UGeometryScriptDebug* Debug)
 {
 	bool bHasBoneWeightProfile = false;
 	bHasValidBoneWeights = SimpleMeshBoneWeightEdit<bool>(TargetMesh, Profile, bHasBoneWeightProfile, false,
@@ -253,12 +254,17 @@ UDynamicMesh* UGeometryScriptLibrary_MeshBoneWeightFunctions::SetVertexBoneWeigh
 			TArray<FBoneWeight> NewWeightsList;
 			for (int32 k = 0; k < Num; ++k)
 			{
+				if (BoneWeights[k].BoneIndex < 0)
+				{
+					AppendWarning(Debug, EGeometryScriptErrorType::InvalidInputs, LOCTEXT("SetVertexBoneWeights_InvalidInput", "SetVertexBoneWeights: Invalid bone index provided; falling back to 0 as bone index."));
+				}
+
 				FBoneWeight NewWeight;
-				NewWeight.SetBoneIndex(BoneWeights[k].BoneIndex);
+				NewWeight.SetBoneIndex(FMath::Max(0, BoneWeights[k].BoneIndex));
 				NewWeight.SetWeight(BoneWeights[k].Weight);
 				NewWeightsList.Add(NewWeight);
 			}
-			FBoneWeights NewBoneWeights = FBoneWeights::Create(NewWeightsList);
+			const FBoneWeights NewBoneWeights = FBoneWeights::Create(NewWeightsList);
 			SkinWeights.SetValue(VertexID, NewBoneWeights);
 			return true;
 		}
@@ -272,7 +278,8 @@ UDynamicMesh* UGeometryScriptLibrary_MeshBoneWeightFunctions::SetVertexBoneWeigh
 UDynamicMesh* UGeometryScriptLibrary_MeshBoneWeightFunctions::SetAllVertexBoneWeights(
 	UDynamicMesh* TargetMesh,
 	const TArray<FGeometryScriptBoneWeight>& BoneWeights, 
-	FGeometryScriptBoneWeightProfile Profile
+	FGeometryScriptBoneWeightProfile Profile,
+	UGeometryScriptDebug* Debug
 	)
 {
 	bool bHasBoneWeightProfile = false;
@@ -280,8 +287,13 @@ UDynamicMesh* UGeometryScriptLibrary_MeshBoneWeightFunctions::SetAllVertexBoneWe
 	TArray<FBoneWeight> NewWeightsList;
 	for (int32 k = 0; k < Num; ++k)
 	{
+		if (BoneWeights[k].BoneIndex < 0)
+		{
+			AppendWarning(Debug, EGeometryScriptErrorType::InvalidInputs, LOCTEXT("SetAllVertexBoneWeights_InvalidInput", "SetAllVertexBoneWeights: Invalid bone index provided; falling back to 0 as bone index."));
+		}
+		
 		FBoneWeight NewWeight;
-		NewWeight.SetBoneIndex(BoneWeights[k].BoneIndex);
+		NewWeight.SetBoneIndex(FMath::Max(0, BoneWeights[k].BoneIndex));
 		NewWeight.SetWeight(BoneWeights[k].Weight);
 		NewWeightsList.Add(NewWeight);
 	}

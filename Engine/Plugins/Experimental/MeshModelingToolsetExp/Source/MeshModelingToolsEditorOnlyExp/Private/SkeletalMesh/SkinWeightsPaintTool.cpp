@@ -337,7 +337,12 @@ void FSkinToolWeights::InitializeSkinWeights(
 		for (UE::AnimationCore::FBoneWeight BoneWeight: VertexSkinWeights.Get(VertexID))
 		{
 			check(InfluenceIndex < MAX_TOTAL_INFLUENCES);
-			const int32 BoneIndex = BoneWeight.GetBoneIndex();
+			int32 BoneIndex = BoneWeight.GetBoneIndex();
+			if (!ensure(Deformer.InvCSRefPoseTransforms.IsValidIndex(BoneIndex)))
+			{
+				UE_LOG(LogMeshModelingToolsEditor, Warning, TEXT("InitializeSkinWeights: Invalid bone index provided (%d); falling back to 0 as bone index."), BoneIndex);
+				BoneIndex = 0;
+			}
 			const float Weight = BoneWeight.GetWeight();
 			const FVector& RefPoseVertexPosition = Deformer.RefPoseVertexPositions[VertexIndex];
 			const FTransform& InvRefPoseTransform = Deformer.InvCSRefPoseTransforms[BoneIndex];

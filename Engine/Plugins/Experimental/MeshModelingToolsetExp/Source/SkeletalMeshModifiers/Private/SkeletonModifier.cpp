@@ -343,10 +343,17 @@ bool USkeletonModifier::CommitSkeletonToSkeletalMesh()
 					{
 						const FBoneWeight& OldBoneWeight = BoneWeights[Idx];
 						const int32 BoneIndex = OldBoneWeight.GetBoneIndex();
-					
-						check(BoneIndexTracker.IsValidIndex(BoneIndex));
-					
-						const int32 NewBoneIndex = BoneIndexTracker[BoneIndex];
+
+						int32 NewBoneIndex = 0;
+						if (ensure(BoneIndexTracker.IsValidIndex(BoneIndex)))
+						{
+							NewBoneIndex = BoneIndexTracker[BoneIndex];							
+						}
+						else
+						{
+							UE_LOG(LogAnimation, Warning, TEXT("Skeleton Modifier - Commit: Invalid bone index provided (%d); falling back to 0 as bone index."), BoneIndex);
+						}
+
 						if (NewBoneIndex != INDEX_NONE)
 						{
 							NewWeights.Add(FBoneWeight(NewBoneIndex, OldBoneWeight.GetRawWeight()));
