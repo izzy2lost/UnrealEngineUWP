@@ -27,6 +27,11 @@ public:
 		EState_ForcedBroken	= 1 << 2,
 	};
 
+	/** Returns true if the custom renderer can't render for the given state, and requires native rendering instead. */
+	virtual bool ShouldUseNativeFallback(uint32 InStateFlags) const { return false; }
+	/** Returns true if this renderer can ever return true for ShouldUseNativeFallback(). */
+	virtual bool CanEverUseNativeFallback() const { return false; }
+
 	/** Called on geometry collection component registration. */
 	virtual void OnRegisterGeometryCollection(UGeometryCollectionComponent& InComponent) = 0;
 	/** Called on geometry collection component unregistration. */
@@ -40,13 +45,13 @@ public:
 
 	/**
 	 * Update the root bone transform of the geometry collection.
-	 * if the geometry collection is using of multiple proxy root meshes this transform applies to all of them.
+	 * If the geometry collection is using of multiple proxy root meshes this transform applies to all of them.
 	 */
 	virtual void UpdateRootTransform(UGeometryCollection const& InGeometryCollection, FTransform const& InRootTransform) = 0;
 
 	/**
 	 * Update the root proxy transforms of the geometry collection.
-	 * if the geometry collection is using of multiple proxy root meshes, InRootTransforms is expected to contain an entry for each of them .
+	 * If the geometry collection is using of multiple proxy root meshes, InRootTransforms is expected to contain an entry for each of them .
 	 * @param InRootTransform		Component space root transform
 	 * @param InRootLocalTransforms	Root space local transforms
 	 */
@@ -56,18 +61,6 @@ public:
 	 * Update all the bones transforms.
 	 */
 	virtual void UpdateTransforms(UGeometryCollection const& InGeometryCollection, TArrayView<const FTransform3f> InTransforms) = 0;
-
-	/** Returns true if the custom renderer can't render for the given state, and requires native rendering instead. */
-	virtual bool ShouldUseNativeFallback(uint32 InStateFlags) const { return false; }
-	
-	/** Returns true if this renderer can ever return true for ShouldUseNativeFallback(). */
-	virtual bool CanEverUseNativeFallback() const { return false; }
-
-	/**
-	 * Set a custom instance data slot to be used by any instances the renderer is spawning.
-	 * todo: This is a bit of a leaky abstraction for ISMPool renderers. Move this to a separate ISMPool renderer interface? Or is that overengineering?
-	 */ 
-	virtual void SetCustomInstanceData(int32 CustomFloatIndex, float CustomFloatValue) {}
 
 	UE_DEPRECATED(5.4, "Use flags version of UpdateState instead")
 	virtual void UpdateState(UGeometryCollection const& InGeometryCollection, FTransform const& InComponentTransform, bool bInIsBroken, bool bInIsVisible) 
@@ -79,4 +72,23 @@ public:
 	};
 	UE_DEPRECATED(5.3, "Use FTransform version of UpdateTransforms instead")
 	virtual void UpdateTransforms(UGeometryCollection const& InGeometryCollection, TArrayView<const FMatrix> InMatrices) {};
+};
+
+
+UINTERFACE(MinimalAPI)
+class UGeometryCollectionCustomDataInterface : public UInterface
+{
+	GENERATED_BODY()
+};
+
+class IGeometryCollectionCustomDataInterface
+{
+	GENERATED_BODY()
+
+public:
+	/** Set value to a custom instance data slot by index. The value will be set for all instances the renderer is spawning. */
+	virtual void SetCustomInstanceData(int32 CustomDataIndex, float CustomDataValue) = 0;
+
+	/** Set value a custom instance data slot by name. The value will be set for all instances the renderer is spawning. */
+	virtual void SetCustomInstanceData(FName CustomDataName, float CustomDataValue) = 0;
 };

@@ -5,16 +5,39 @@
 #include "GeometryCollection/GeometryCollectionComponent.h"
 #include "GeometryCollection/GeometryCollectionExternalRenderInterface.h"
 
-void UGeometryCollectionBlueprintLibrary::SetISMPoolCustomInstanceData(UGeometryCollectionComponent* GeometryCollectionComponent, int32 CustomFloatIndex, float CustomFloatValue)
+void UGeometryCollectionBlueprintLibrary::SetCustomInstanceDataByIndex(UGeometryCollectionComponent* GeometryCollectionComponent, int32 CustomDataIndex, float CustomDataValue)
 {
 	if (GeometryCollectionComponent == nullptr)
 	{
 		return;
 	}
-	IGeometryCollectionExternalRenderInterface* CustomRenderer = GeometryCollectionComponent->GetCustomRenderer();
+
+	IGeometryCollectionCustomDataInterface* CustomRenderer = Cast<IGeometryCollectionCustomDataInterface>(GeometryCollectionComponent->GetCustomRenderer());
 	if (CustomRenderer == nullptr)
 	{
 		return;
 	}
-	CustomRenderer->SetCustomInstanceData(CustomFloatIndex, CustomFloatValue);
+
+	CustomRenderer->SetCustomInstanceData(CustomDataIndex, CustomDataValue);
+}
+
+void UGeometryCollectionBlueprintLibrary::SetCustomInstanceDataByName(UGeometryCollectionComponent* GeometryCollectionComponent, FName CustomDataName, float CustomDataValue)
+{
+	if (GeometryCollectionComponent == nullptr)
+	{
+		return;
+	}
+
+	IGeometryCollectionCustomDataInterface* CustomRenderer = Cast<IGeometryCollectionCustomDataInterface>(GeometryCollectionComponent->GetCustomRenderer());
+	if (CustomRenderer == nullptr)
+	{
+		return;
+	}
+
+	CustomRenderer->SetCustomInstanceData(CustomDataName, CustomDataValue);
+}
+
+void UGeometryCollectionBlueprintLibrary::SetISMPoolCustomInstanceData(UGeometryCollectionComponent* GeometryCollectionComponent, int32 CustomDataIndex, float CustomDataValue)
+{
+	SetCustomInstanceDataByIndex(GeometryCollectionComponent, CustomDataIndex, CustomDataValue);
 }
