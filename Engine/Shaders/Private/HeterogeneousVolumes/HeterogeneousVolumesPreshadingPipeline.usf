@@ -632,7 +632,7 @@ void RenderSingleScatteringWithPreshadingCS(
 	if (bApplyEmissionAndTransmittance)
 	{
 		float Opacity = Luminance(1.0 - Transmittance);
-		RWLightingTexture[PixelCoord].a = Transmittance;
+		RWLightingTexture[PixelCoord].a = Luminance(Transmittance);
 
 #if DIM_WRITE_VELOCITY
 		bool bWriteVelocity =
