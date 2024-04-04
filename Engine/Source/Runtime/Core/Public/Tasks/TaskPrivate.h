@@ -669,7 +669,64 @@ public:
 			CORE_API bool WaitImpl(FTimeout Timeout);
 
 		private:
+			// the number of times that the task should be unlocked before it can be scheduled or completed
+			// initial count is 1 for launching the task (it can't be scheduled before it's launched)
+			// reaches 0 the task is scheduled for execution.
+			// NumLocks's the most significant bit (see `ExecutionFlag`) is set on task execution start, and indicates that now 
+			// NumLocks is about how many times the task must be unlocked to be completed
+			static constexpr uint32 NumInitialLocks = 1;
+			std::atomic<uint32> NumLocks{ NumInitialLocks };
+
+			FPipe* Pipe{ nullptr };
+
 			EExtendedTaskPriority ExtendedPriority; // internal priorities, if any
+
+			std::atomic<uint32> ExecutingThreadId = FThread::InvalidThreadId;
+
+#if UE_TASK_TRACE_ENABLED
+			std::atomic<TaskTrace::FId> TraceId{ TaskTrace::GenerateTaskId() };
+#endif
+
+			// stores backlinks to prerequsites, either execution prerequisites or nested tasks (completion prerequisites).
+			// It's populated in three stages:
+			// 1) by adding execution prerequisites, before the task is launched.
+			// 2) by piping, when the previous piped task (if any) is added as a prerequisite. can happen concurrently with other threads accessing prerequisites for
+			//		task retraction.
+			// 3) by adding nested tasks. after piping. during task execution.
+			template <typename AllocatorType = FDefaultAllocator>
+			class FPrerequisites
+			{
+			public:
+				void Push(FTaskBase* Prerequisite)
+				{
+					TASKGRAPH_VERBOSE_EVENT_SCOPE(FPrerequisites::Push);
+					UE::TUniqueLock Lock(Mutex);
+					Prerequisites.Emplace(Prerequisite);
+				}
+
+				void PushNoLock(FTaskBase* Prerequisite)
+				{
+					TASKGRAPH_VERBOSE_EVENT_SCOPE(FPrerequisites::PushNoLock);
+					Prerequisites.Emplace(Prerequisite);
+				}
+
+				TArray<FTaskBase*, AllocatorType> PopAll()
+				{
+					TASKGRAPH_VERBOSE_EVENT_SCOPE(FPrerequisites::PopAll);
+					UE::TUniqueLock Lock(Mutex);
+					return MoveTemp(Prerequisites);
+				}
+
+				void Unlock()
+				{
+					Mutex.Unlock();
+				}
+			private:
+				TArray<FTaskBase*, AllocatorType> Prerequisites;
+				UE::FMutex Mutex{ UE::AcquireLock }; // Start locked by default to avoid compare exchange during construction.
+			};
+
+			FPrerequisites<TInlineAllocator<1>> Prerequisites;
 
 			LowLevelTasks::FTask LowLevelTask;
 
@@ -715,62 +772,6 @@ public:
 
 			FSubsequents<TInlineAllocator<1>> Subsequents;
 
-			// stores backlinks to prerequsites, either execution prerequisites or nested tasks (completion prerequisites).
-			// It's populated in three stages:
-			// 1) by adding execution prerequisites, before the task is launched.
-			// 2) by piping, when the previous piped task (if any) is added as a prerequisite. can happen concurrently with other threads accessing prerequisites for
-			//		task retraction.
-			// 3) by adding nested tasks. after piping. during task execution.
-			template <typename AllocatorType = FDefaultAllocator>
-			class FPrerequisites
-			{
-			public:
-				void Push(FTaskBase* Prerequisite)
-				{
-					TASKGRAPH_VERBOSE_EVENT_SCOPE(FPrerequisites::Push);
-					UE::TUniqueLock Lock(Mutex);
-					Prerequisites.Emplace(Prerequisite);
-				}
-
-				void PushNoLock(FTaskBase* Prerequisite)
-				{
-					TASKGRAPH_VERBOSE_EVENT_SCOPE(FPrerequisites::PushNoLock);
-					Prerequisites.Emplace(Prerequisite);
-				}
-
-				TArray<FTaskBase*, AllocatorType> PopAll()
-				{
-					TASKGRAPH_VERBOSE_EVENT_SCOPE(FPrerequisites::PopAll);
-					UE::TUniqueLock Lock(Mutex);
-					return MoveTemp(Prerequisites);
-				}
-
-				void Unlock()
-				{
-					Mutex.Unlock();
-				}
-			private:
-				TArray<FTaskBase*, AllocatorType> Prerequisites;
-				UE::FMutex Mutex { UE::AcquireLock }; // Start locked by default to avoid compare exchange during construction.
-			};
-
-			FPrerequisites<TInlineAllocator<1>> Prerequisites;
-
-			FPipe* Pipe{ nullptr };
-
-#if UE_TASK_TRACE_ENABLED
-			std::atomic<TaskTrace::FId> TraceId{ TaskTrace::GenerateTaskId() };
-#endif
-
-			// the number of times that the task should be unlocked before it can be scheduled or completed
-			// initial count is 1 for launching the task (it can't be scheduled before it's launched)
-			// reaches 0 the task is scheduled for execution.
-			// NumLocks's the most significant bit (see `ExecutionFlag`) is set on task execution start, and indicates that now 
-			// NumLocks is about how many times the task must be unlocked to be completed
-			static constexpr uint32 NumInitialLocks = 1;
-			std::atomic<uint32> NumLocks{ NumInitialLocks };
-
-			std::atomic<uint32> ExecutingThreadId = FThread::InvalidThreadId;
 
 protected:
 			void UnlockPrerequisites()
