@@ -2,6 +2,7 @@
 
 #include "ConversationGraphNode.h"
 #include "ConversationGraphSchema.h"
+#include "ConversationGraphNode_Knot.h"
 
 #include "ConversationGraphTypes.h"
 #include "SConversationGraphNode.h"
@@ -121,6 +122,51 @@ FName UConversationGraphNode::GetNameIcon() const
 	}
 
 	return FName("BTEditor.Graph.BTNode.Icon");
+}
+
+bool UConversationGraphNode::IsOutBoundConnectionAllowed(const UConversationGraphNode* OtherNode, FText& OutErrorMessage) const
+{
+	if (!OtherNode)
+	{
+		return false;
+	}
+
+	if (const UConversationNodeWithLinks* MyTaskNode = GetRuntimeNode<UConversationNodeWithLinks>())
+	{
+		if (const UConversationNodeWithLinks* OtherTaskNode = OtherNode->GetRuntimeNode<UConversationNodeWithLinks>())
+		{
+			return MyTaskNode->IsOutBoundConnectionAllowed(OtherTaskNode, OutErrorMessage);
+		}
+	}
+
+	return true;
+}
+
+bool UConversationGraphNode::IsOutBoundConnectionAllowed(const UConversationGraphNode_Knot* KnotNode, FText& OutErrorMessage) const
+{
+	if (!KnotNode)
+	{
+		return false;
+	}
+
+	if (const UConversationNodeWithLinks* MyTaskNode = GetRuntimeNode<UConversationNodeWithLinks>())
+	{
+		TArray<UConversationGraphNode*> GraphNodes;
+		KnotNode->GatherAllOutBoundGraphNodes(GraphNodes);
+
+		for (const UConversationGraphNode* OtherNode : GraphNodes)
+		{
+			if (const UConversationNodeWithLinks* OtherTaskNode = OtherNode->GetRuntimeNode<UConversationNodeWithLinks>())
+			{
+				if (!MyTaskNode->IsOutBoundConnectionAllowed(OtherTaskNode, OutErrorMessage))
+				{
+					return false;
+				}
+			}
+		}
+	}
+
+	return true;
 }
 
 FText UConversationGraphNode::GetDescription() const

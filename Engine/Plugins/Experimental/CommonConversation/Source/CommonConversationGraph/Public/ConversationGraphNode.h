@@ -7,6 +7,7 @@
 
 namespace ENodeTitleType { enum Type : int; }
 
+class UConversationGraphNode_Knot;
 
 UCLASS()
 class COMMONCONVERSATIONGRAPH_API UConversationGraphNode : public UAIGraphNode
@@ -33,6 +34,9 @@ public:
 
 	/** gets icon resource name for title bar */
 	virtual FName GetNameIcon() const;
+
+	bool IsOutBoundConnectionAllowed(const UConversationGraphNode* OtherNode, FText& OutErrorMessage) const;
+	bool IsOutBoundConnectionAllowed(const UConversationGraphNode_Knot* KnotNode, FText& OutErrorMessage) const;
 
 	template<class T>
 	T* GetRuntimeNode() const

@@ -68,6 +68,65 @@ FGraphNodeClassHelper& GetConversationClassCache()
 	return *ConversationClassCache.Get();
 }
 
+bool IsConnectionAllowed(const UEdGraphPin* PinA, const UEdGraphPin* PinB, FText& OutErrorMessage)
+{
+	if (!PinA || !PinB)
+	{
+		return false;
+	}
+
+	const UConversationGraphNode* PinAGraphNode = Cast<UConversationGraphNode>(PinA->GetOwningNode());
+	const UConversationGraphNode_Knot* PinAKnot = Cast<UConversationGraphNode_Knot>(PinA->GetOwningNode());
+	const UConversationGraphNode* PinBGraphNode = Cast<UConversationGraphNode>(PinB->GetOwningNode());
+	const UConversationGraphNode_Knot* PinBKnot = Cast<UConversationGraphNode_Knot>(PinB->GetOwningNode());
+
+	// If both are GraphNode
+	if(PinAGraphNode && PinBGraphNode)
+	{
+		if (PinA->Direction == EGPD_Output)
+		{
+			return PinAGraphNode->IsOutBoundConnectionAllowed(PinBGraphNode, OutErrorMessage);
+		}
+		else if (PinB->Direction == EGPD_Output)
+		{
+			return PinBGraphNode->IsOutBoundConnectionAllowed(PinAGraphNode, OutErrorMessage);
+		}
+	}
+	// If both are Knot, direction does not matter
+	else if (PinAKnot && PinBKnot)
+	{
+		return PinAKnot->IsOutBoundConnectionAllowed(PinBKnot, OutErrorMessage);
+	}
+	// If one is GraphNode and one is Knot
+	else
+	{
+		if (PinA->Direction == EGPD_Output)
+		{
+			if (PinAGraphNode && PinBKnot)
+			{
+				return PinAGraphNode->IsOutBoundConnectionAllowed(PinBKnot, OutErrorMessage);
+			}
+			else if (PinAKnot && PinBGraphNode)
+			{
+				return PinAKnot->IsOutBoundConnectionAllowed(PinBGraphNode, OutErrorMessage);
+			}
+		}
+		else if (PinB->Direction == EGPD_Output)
+		{
+			if (PinBGraphNode && PinAKnot)
+			{
+				return PinBGraphNode->IsOutBoundConnectionAllowed(PinAKnot, OutErrorMessage);
+			}
+			else if (PinBKnot && PinAGraphNode)
+			{
+				return PinBKnot->IsOutBoundConnectionAllowed(PinAGraphNode, OutErrorMessage);
+			}
+		}
+	}
+
+	return true;
+}
+
 //////////////////////////////////////////////////////////////////////
 //
 
@@ -382,6 +441,17 @@ const FPinConnectionResponse UConversationGraphSchema::CanCreateConnection(const
 		{
 			return FPinConnectionResponse(CONNECT_RESPONSE_DISALLOW, LOCTEXT("PinErrorcycle", "Can't create a graph cycle"));
 		}
+	}
+
+	// Check if the connection is allowed by the tasks
+	FText ErrorMessage;
+	if (!IsConnectionAllowed(PinA, PinB, ErrorMessage))
+	{
+		if (ErrorMessage.IsEmpty())
+		{
+			ErrorMessage = LOCTEXT("DefaultConnectionNotAllowed", "The connection between these nodes is not allowed");
+		}
+		return FPinConnectionResponse(CONNECT_RESPONSE_DISALLOW, MoveTemp(ErrorMessage));
 	}
 
 	const bool bPinASingleLink = bPinAIsSingleComposite || bPinAIsSingleTask || bPinAIsSingleNode;
