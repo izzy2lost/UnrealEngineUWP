@@ -720,6 +720,7 @@ public:
 		bUsesVertexInterpolator(false),
 		bHasRuntimeVirtualTextureOutputNode(false),
 		bUsesAnisotropy(false),
+		bIsLightFunctionAtlasCompatible(false),
 		bUsesDisplacement(false),
 		bUsedWithNeuralNetworks(false)
 	{
