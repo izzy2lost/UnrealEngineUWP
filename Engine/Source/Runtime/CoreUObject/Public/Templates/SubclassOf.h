@@ -50,11 +50,11 @@ public:
 
 	/** Construct from a UClass* (or something implicitly convertible to it) */
 	template <
-		typename U,
-		std::enable_if_t<
-			!TIsTSubclassOf<std::decay_t<U>>::Value,
-			decltype(ImplicitConv<UClass*>(std::declval<U>()))
-		>* = nullptr
+		typename U
+		UE_REQUIRES(
+			!TIsTSubclassOf<std::decay_t<U>>::Value &&
+			std::is_convertible_v<U, UClass*>
+		)
 	>
 	FORCEINLINE TSubclassOf(U&& From)
 		: Class(From)
@@ -63,8 +63,8 @@ public:
 
 	/** Construct from another TSubclassOf, only if types are compatible */
 	template <
-		typename OtherT,
-		decltype(ImplicitConv<T*>((OtherT*)nullptr))* = nullptr
+		typename OtherT
+		UE_REQUIRES(std::is_convertible_v<OtherT*, T*>)
 	>
 	FORCEINLINE TSubclassOf(const TSubclassOf<OtherT>& Other)
 		: Class(Other.Class)
@@ -74,8 +74,8 @@ public:
 
 	/** Assign from another TSubclassOf, only if types are compatible */
 	template <
-		typename OtherT,
-		decltype(ImplicitConv<T*>((OtherT*)nullptr))* = nullptr
+		typename OtherT
+		UE_REQUIRES(std::is_convertible_v<OtherT*, T*>)
 	>
 	FORCEINLINE TSubclassOf& operator=(const TSubclassOf<OtherT>& Other)
 	{
@@ -93,11 +93,11 @@ public:
 
 	/** Assign from a UClass* (or something implicitly convertible to it). */
 	template <
-		typename U,
-		std::enable_if_t<
-			!TIsTSubclassOf<std::decay_t<U>>::Value,
-			decltype(ImplicitConv<UClass*>(std::declval<U>()))
-		>* = nullptr
+		typename U
+		UE_REQUIRES(
+			!TIsTSubclassOf<std::decay_t<U>>::Value &&
+			std::is_convertible_v<U, UClass*>
+		)
 	>
 	FORCEINLINE TSubclassOf& operator=(U&& From)
 	{

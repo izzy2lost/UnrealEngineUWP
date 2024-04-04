@@ -35,8 +35,8 @@ public:
 
 	/** Copy Constructor, will only compile if types are compatible */
 	template <
-		typename U,
-		decltype(ImplicitConv<T*>((U*)nullptr))* = nullptr
+		typename U
+		UE_REQUIRES(std::is_convertible_v<U*, T*>)
 	>
 	FORCEINLINE TNonNullSubclassOf(const TSubclassOf<U>& From)
 		: Super(From)
@@ -46,8 +46,8 @@ public:
 	/** Assignment operator, will only compile if types are compatible */
 	template
 	<
-		typename U,
-		decltype(ImplicitConv<T*>((U*)nullptr))* = nullptr
+		typename U
+		UE_REQUIRES(std::is_convertible_v<U*, T*>)
 	>
 	FORCEINLINE TNonNullSubclassOf& operator=(const TSubclassOf<U>& From)
 	{

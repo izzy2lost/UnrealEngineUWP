@@ -47,11 +47,11 @@ public:
 
 	/** Construct from a FFieldClass* (or something implicitly convertible to it) */
 	template <
-		typename U,
-		std::enable_if_t<
-			!TIsTSubclassOfField<std::decay_t<U>>::Value,
-			decltype(ImplicitConv<FFieldClass*>(std::declval<U>()))
-		>* = nullptr
+		typename U
+		UE_REQUIRES(
+			!TIsTSubclassOfField<std::decay_t<U>>::Value &&
+			std::is_convertible_v<U, FFieldClass*>
+		)
 	>
 	FORCEINLINE TSubclassOfField(U&& From)
 		: Class(From)
@@ -60,8 +60,8 @@ public:
 
 	/** Construct from another TSubclassOfField, only if types are compatible */
 	template <
-		typename OtherT,
-		decltype(ImplicitConv<T*>((OtherT*)nullptr))* = nullptr
+		typename OtherT
+		UE_REQUIRES(std::is_convertible_v<OtherT*, T*>)
 	>
 	FORCEINLINE TSubclassOfField(const TSubclassOfField<OtherT>& Other)
 		: Class(Other.Class)
@@ -70,8 +70,8 @@ public:
 
 	/** Assign from another TSubclassOfField, only if types are compatible */
 	template <
-		typename OtherT,
-		decltype(ImplicitConv<T*>((OtherT*)nullptr))* = nullptr
+		typename OtherT
+		UE_REQUIRES(std::is_convertible_v<OtherT*, T*>)
 	>
 	FORCEINLINE TSubclassOfField& operator=(const TSubclassOfField<OtherT>& Other)
 	{
@@ -88,11 +88,11 @@ public:
 
 	/** Assign from a FFieldClass* (or something implicitly convertible to it). */
 	template <
-		typename U,
-		std::enable_if_t<
-			!TIsTSubclassOfField<std::decay_t<U>>::Value,
-			decltype(ImplicitConv<FFieldClass*>(std::declval<U>()))
-		>* = nullptr
+		typename U
+		UE_REQUIRES(
+			!TIsTSubclassOfField<std::decay_t<U>>::Value &&
+			std::is_convertible_v<U, FFieldClass*>
+		)
 	>
 	FORCEINLINE TSubclassOfField& operator=(U&& From)
 	{
