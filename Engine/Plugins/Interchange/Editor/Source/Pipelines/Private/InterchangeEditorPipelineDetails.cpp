@@ -392,7 +392,7 @@ void FInterchangePipelineBaseDetailsCustomization::CustomizeDetails(IDetailLayou
 
 	const bool bAllowPropertyStatesEdition = InterchangePipeline->CanEditPropertiesStates();
 	const bool bIsReimportContext = InterchangePipeline->IsReimportContext();
-	const bool bISBasicLayout = InterchangePipeline->IsBasicLayout();
+	const bool bIsBasicLayout = InterchangePipeline->IsBasicLayout();
 
 	TArray<FName> AllCategoryNames;
 	CachedDetailBuilder->GetCategoryNames(AllCategoryNames);
@@ -401,8 +401,6 @@ void FInterchangePipelineBaseDetailsCustomization::CustomizeDetails(IDetailLayou
 	
 	AddConflictSection();
 	
-	AddExtraInformationSection();
-
 	for (const TPair<FName, TArray<FName>>& CategoryAndProperties : PropertiesPerCategorys)
 	{
 		//Category meta value Subgroup data
@@ -511,7 +509,7 @@ void FInterchangePipelineBaseDetailsCustomization::CustomizeDetails(IDetailLayou
 				bool IsLocked = false;
 				if (const FInterchangePipelinePropertyStates* PropertyStates = InterchangePipeline->GetPropertyStates(PropertyPath))
 				{
-					if (!PropertyStates->IsPropertyVisible(bIsReimportContext, bISBasicLayout))
+					if (!PropertyStates->IsPropertyVisible(bIsReimportContext, bIsBasicLayout))
 					{
 						continue;
 					}
@@ -783,6 +781,11 @@ void FInterchangePipelineBaseDetailsCustomization::CustomizeDetails(IDetailLayou
 				}
 			}
 		}
+	}
+
+	if (!bIsBasicLayout)
+	{
+		AddExtraInformationSection();
 	}
 }
 
