@@ -708,6 +708,10 @@ bool UDebugSkelMeshComponent::ShouldCPUSkin()
 	return 	GetCPUSkinningEnabled() || bDrawBoneInfluences || bDrawNormals || bDrawTangents || bDrawBinormals || bDrawMorphTargetVerts;
 }
 
+bool UDebugSkelMeshComponent::ShouldNaniteSkin()
+{
+	return false;
+}
 
 void UDebugSkelMeshComponent::PostInitMeshObject(FSkeletalMeshObject* InMeshObject)
 {

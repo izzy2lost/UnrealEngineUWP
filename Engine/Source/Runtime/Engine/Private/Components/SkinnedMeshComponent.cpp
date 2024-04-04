@@ -1014,7 +1014,6 @@ void USkinnedMeshComponent::CreateRenderState_Concurrent(FRegisterComponentConte
 					// Also check if skeletal mesh has too many bones/chunk for GPU skinning.
 					if (ShouldNaniteSkin())
 					{
-						// TODO: Nanite-Skinning, do we need to allow falling back to CPU skinning for certain editor tools?
 						MeshObject = ::new FSkeletalMeshObjectNanite(this, SkelMeshRenderData, SceneFeatureLevel);
 					}
 					else if (bRenderStatic)

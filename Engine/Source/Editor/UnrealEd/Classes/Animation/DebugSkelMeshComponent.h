@@ -376,6 +376,7 @@ class UDebugSkelMeshComponent : public USkeletalMeshComponent
 
 	//~ Begin SkinnedMeshComponent Interface
 	UNREALED_API virtual bool ShouldCPUSkin() override;
+	UNREALED_API virtual bool ShouldNaniteSkin() override;
 	UNREALED_API virtual void PostInitMeshObject(class FSkeletalMeshObject* MeshObject) override;
 	UNREALED_API virtual void RefreshBoneTransforms(FActorComponentTickFunction* TickFunction = NULL) override;
 	virtual int32 GetLODBias() const override { return 0; }
