@@ -433,7 +433,7 @@ protected:
 
 	struct FPerThreadFreeBlockLists
 	{
-		FORCEINLINE static FPerThreadFreeBlockLists* Get()
+		FORCEINLINE static FPerThreadFreeBlockLists* Get() TSAN_SAFE
 		{
 			return FPlatformTLS::IsValidTlsSlot(BinnedTlsSlot) ? (FPerThreadFreeBlockLists*)FPlatformTLS::GetTlsValue(BinnedTlsSlot) : nullptr;
 		}
