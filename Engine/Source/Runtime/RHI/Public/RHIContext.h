@@ -510,7 +510,7 @@ public:
 		return *ExecutingCmdList;
 	}
 
-	// Used within FRHICommandListBase::SwitchPipeline to setup a context for command execution.
+	// Used within FRHICommandListBase::ActivatePipeline to setup a context for command execution.
 	virtual void SetExecutingCommandList(FRHICommandListBase* InCmdList)
 	{
 		ExecutingCmdList = InCmdList;

@@ -1104,11 +1104,11 @@ protected:
 	bool bUsesShaderBundles      = false;
 
 	// The currently selected pipelines that RHI commands are directed to, during command list recording.
-	// This is also adjusted during command list execution based on recorded use of SwitchPipeline().
+	// This is also adjusted during command list execution based on recorded use of ActivatePipeline().
 	ERHIPipeline ActivePipelines = ERHIPipeline::None;
 
 #if DO_CHECK
-	// Used to check for valid pipelines passed to SwitchPipeline().
+	// Used to check for valid pipelines passed to ActivatePipeline().
 	ERHIPipeline AllowedPipelines = ERHIPipeline::All;
 #endif
 
@@ -1132,7 +1132,7 @@ protected:
 	struct FBreadcrumbState
 	{
 		FRHIBreadcrumbNode* Current = FRHIBreadcrumbNode::Sentinel;
-		FRHIBreadcrumbNode* Latest = FRHIBreadcrumbNode::Sentinel;
+		TOptional<FRHIBreadcrumbNode*> Latest {};
 		FRHIBreadcrumbNode* Prev = nullptr;
 		FRHIBreadcrumbRange Range {};
 	};

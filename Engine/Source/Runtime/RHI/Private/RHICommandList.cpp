@@ -225,7 +225,7 @@ void FRHICommandListBase::ActivatePipelines(ERHIPipeline Pipelines)
 
 		for (ERHIPipeline Pipeline : MakeFlagsRange(ActivePipelines))
 		{
-			GPUBreadcrumbState[Pipeline].Latest = FRHIBreadcrumbNode::Sentinel;
+			GPUBreadcrumbState[Pipeline].Latest.Reset();
 		}
 
 		if (IsTopOfPipe())
@@ -732,7 +732,7 @@ void FRHICommandListExecutor::FSubmitState::Dispatch(FRHICommandListBase* CmdLis
 				}
 			}
 
-			// Walk the SwitchPipeline commands, resolve unknown targets, and update per-pipe pointers.
+			// Walk the ActivatePipeline commands, resolve unknown targets, and update per-pipe pointers.
 			for (FRHICommandListBase::FActivatePipelineCommand* Command = CmdList->ActivatePipelineCommands.First; Command; Command = Command->Next)
 			{
 				if (Command->Target == FRHIBreadcrumbNode::Sentinel)
@@ -752,10 +752,18 @@ void FRHICommandListExecutor::FSubmitState::Dispatch(FRHICommandListBase* CmdLis
 
 			for (ERHIPipeline Pipeline : MakeFlagsRange(ERHIPipeline::All))
 			{
-				if (CmdList->GPUBreadcrumbState[Pipeline].Latest != FRHIBreadcrumbNode::Sentinel)
+				if (CmdList->GPUBreadcrumbState[Pipeline].Latest.IsSet())
 				{
-					// A Begin/End happened on this pipeline after the last SwitchPipeline command.
-					GRHICommandList.Breadcrumbs.GPU[Pipeline].Current = CmdList->GPUBreadcrumbState[Pipeline].Latest;
+					// A Begin/End happened on this pipeline after the last ActivatePipeline command.
+					FRHIBreadcrumbNode* Node = CmdList->GPUBreadcrumbState[Pipeline].Latest.GetValue();
+					if (Node != FRHIBreadcrumbNode::Sentinel)
+					{
+						GRHICommandList.Breadcrumbs.GPU[Pipeline].Current = Node;
+					}
+					else
+					{
+						GRHICommandList.Breadcrumbs.GPU[Pipeline].Current = GPUFirst[Pipeline];
+					}
 				}
 
 				// Rewind GPU state
@@ -765,6 +773,10 @@ void FRHICommandListExecutor::FSubmitState::Dispatch(FRHICommandListBase* CmdLis
 			if (CmdList->CPUBreadcrumbState.Current != FRHIBreadcrumbNode::Sentinel)
 			{
 				GRHICommandList.Breadcrumbs.CPU.Current = CmdList->CPUBreadcrumbState.Current;
+			}
+			else
+			{
+				GRHICommandList.Breadcrumbs.CPU.Current = CPUFirst;
 			}
 
 			// Rewind CPU state
@@ -839,7 +851,7 @@ void FRHICommandListExecutor::FTranslateState::Translate(FRHICommandListBase* Cm
 #endif
 
 	// Replay the recorded commands. The Contexts array accumulates any used
-	// contexts depending on the SwitchPipeline commands that were recorded.
+	// contexts depending on the ActivatePipeline commands that were recorded.
 	CmdList->Execute();
 
 #if WITH_RHI_BREADCRUMBS
