@@ -628,6 +628,11 @@ struct FCachedBindingData : public TSharedFromThis<FCachedBindingData>
 
 	bool CanAcceptPropertyOrChildren(const FProperty* SourceProperty, TConstArrayView<FBindingChainElement> InBindingChain)
 	{
+		if (!SourceProperty)
+		{
+			return false;
+		}
+
 		ConditionallyUpdateData();
 
 		if (UE::StateTree::PropertyRefHelpers::IsPropertyRef(*PropertyHandle->GetProperty()))
@@ -641,7 +646,7 @@ struct FCachedBindingData : public TSharedFromThis<FCachedBindingData>
 			}
 		}
 
-		return SourceProperty && IsPropertyBindable(*SourceProperty);
+		return IsPropertyBindable(*SourceProperty);
 	}
 
 	static bool ArePropertyAndContextStructCompatible(const UStruct* SourceStruct, const FProperty* TargetProperty)
