@@ -3355,7 +3355,7 @@ void FTextureSource::RemoveSourceData()
 	
 	ResetLayerColorInfo();
 
-	BulkData.UnloadData();
+	BulkData.Reset();
 
 	ForceGenerateGuid();
 }
