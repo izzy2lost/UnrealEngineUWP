@@ -6,6 +6,8 @@
 #include "UniversalObjectLocatorFwd.h"
 #include "AssetLocatorFragment.generated.h"
 
+struct FAssetData;
+
 /**
  * 32 Bytes (40 in-editor).
  */
@@ -13,6 +15,12 @@ USTRUCT()
 struct FAssetLocatorFragment
 {
 	GENERATED_BODY()
+
+	ENGINE_API FAssetLocatorFragment() = default;
+
+	ENGINE_API explicit FAssetLocatorFragment(const FAssetData& InAssetData);
+
+	ENGINE_API explicit FAssetLocatorFragment(const FTopLevelAssetPath& InPath);
 
 	UPROPERTY()
 	FTopLevelAssetPath Path;
