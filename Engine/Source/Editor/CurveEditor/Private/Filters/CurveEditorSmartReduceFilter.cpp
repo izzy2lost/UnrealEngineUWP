@@ -290,7 +290,7 @@ void UCurveEditorSmartReduceFilter::SmartReduce(FCurveModel* Curve, const FSmart
 	}
 	const float Tolerance = (InParams.TolerancePercentage / 100.0) * (Cache.Max - Cache.Min);
 	TArray<FKeyHandle> HandlesAdded;
-	for (int32 Index = 0; Index < (NewPositions.Num() -2); ++Index)
+	for (int32 Index = 0; Index < (NewPositions.Num() -1); ++Index)
 	{
 		const int32 StartIndex = Cache.GetIndex(NewPositions[Index].InputValue);
 		const int32 EndIndex = Cache.GetIndex(NewPositions[Index + 1].InputValue);

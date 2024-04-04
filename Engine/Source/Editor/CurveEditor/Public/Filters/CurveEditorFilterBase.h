@@ -20,7 +20,7 @@ class FCurveEditor;
 * The CDO is directly edited in the Curve Editor Filter panel so if you wish to save user settings between runs you can
 * add the "config" property to your UPROPERTY() and it will automatically get saved.
 */
-UCLASS(config=EditorSettings)
+UCLASS(BlueprintType, config=EditorSettings)
 class CURVEEDITOR_API UCurveEditorFilterBase : public UObject
 {
 	GENERATED_BODY()

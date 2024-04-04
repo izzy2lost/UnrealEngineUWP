@@ -3751,6 +3751,13 @@ bool UControlRigDetailPanelControlProxies::SelectPropertyInternal(UControlRigCon
 						{
 							if (TrackModel->GetTrack() == Element.WeakTrack.Get())
 							{
+								if (TViewModelPtr<FChannelGroupOutlinerModel> ChannelModel = CastViewModel<FChannelGroupOutlinerModel>(OutlinerExtenstionIt.GetCurrentItem()))
+								{
+									if (ChannelModel->GetChannel(TrackModel->GetTrack()->GetSectionToKey()) == nullptr) //if not section to key we also don't select it.
+									{
+										continue;
+									}
+								}
 								FName ID = OutlinerExtenstionIt->GetIdentifier();
 								FString Name = ID.ToString();
 								TArray<FString> StringArray;
