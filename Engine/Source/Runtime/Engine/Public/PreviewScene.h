@@ -116,6 +116,7 @@ public:
 	class USkyLightComponent* SkyLight = nullptr;;
 
 private:
+	void Uninitialize();
 
 	TArray<TObjectPtr<class UActorComponent>> Components;
 
