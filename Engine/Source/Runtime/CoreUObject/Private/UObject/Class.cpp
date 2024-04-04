@@ -268,8 +268,6 @@ struct FDisplayNameHelper
  */
 FText UField::GetDisplayNameText() const
 {
-	FText LocalizedDisplayName;
-
 	static const FString Namespace = TEXT("UObjectDisplayNames");
 	static const FName NAME_DisplayName(TEXT("DisplayName"));
 
@@ -281,12 +279,7 @@ FText UField::GetDisplayNameText() const
 		NativeDisplayName = FName::NameToDisplayString(FDisplayNameHelper::Get(*this), false);
 	}
 
-	if ( !( FText::FindText( Namespace, Key, /*OUT*/LocalizedDisplayName, &NativeDisplayName ) ) )
-	{
-		LocalizedDisplayName = FText::FromString(NativeDisplayName );
-	}
-
-	return LocalizedDisplayName;
+	return FInternationalization::ForUseOnlyByLocMacroAndGraphNodeTextLiterals_CreateText(*NativeDisplayName, *Namespace, *Key);
 }
 
 /**
@@ -331,7 +324,7 @@ FText UField::GetToolTipText(bool bShortTooltip) const
 		{
 			FormatNativeToolTip(NativeToolTip, true);
 		}
-		LocalizedToolTip = FText::FromString(NativeToolTip);
+		LocalizedToolTip = FInternationalization::ForUseOnlyByLocMacroAndGraphNodeTextLiterals_CreateText(*NativeToolTip, *Namespace, *Key);
 	}
 
 	return LocalizedToolTip;
@@ -474,14 +467,10 @@ FText UField::GetMetaDataText(const TCHAR* MetaDataKey, const FString Localizati
 	}
 
 	FText LocalizedMetaData;
-	if ( !( FText::FindText( LocalizationNamespace, LocalizationKey, /*OUT*/LocalizedMetaData, &DefaultMetaData ) ) )
+	if (!DefaultMetaData.IsEmpty())
 	{
-		if (!DefaultMetaData.IsEmpty())
-		{
-			LocalizedMetaData = FText::AsCultureInvariant(DefaultMetaData);
-		}
+		LocalizedMetaData = FInternationalization::ForUseOnlyByLocMacroAndGraphNodeTextLiterals_CreateText(*DefaultMetaData, *LocalizationNamespace, *LocalizationKey);
 	}
-
 	return LocalizedMetaData;
 }
 
@@ -500,16 +489,11 @@ FText UField::GetMetaDataText(const FName& MetaDataKey, const FString Localizati
 		DefaultMetaData = FName::NameToDisplayString(GetName(), false);
 	}
 	
-
 	FText LocalizedMetaData;
-	if ( !( FText::FindText( LocalizationNamespace, LocalizationKey, /*OUT*/LocalizedMetaData, &DefaultMetaData ) ) )
+	if (!DefaultMetaData.IsEmpty())
 	{
-		if (!DefaultMetaData.IsEmpty())
-		{
-			LocalizedMetaData = FText::AsCultureInvariant(DefaultMetaData);
-		}
+		LocalizedMetaData = FInternationalization::ForUseOnlyByLocMacroAndGraphNodeTextLiterals_CreateText(*DefaultMetaData, *LocalizationNamespace, *LocalizationKey);
 	}
-
 	return LocalizedMetaData;
 }
 
