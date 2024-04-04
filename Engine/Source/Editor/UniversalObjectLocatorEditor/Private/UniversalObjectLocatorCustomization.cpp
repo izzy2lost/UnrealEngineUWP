@@ -198,7 +198,7 @@ void FUniversalObjectLocatorCustomization::CustomizeHeader(TSharedRef<IPropertyH
 	.ValueContent()
 	.MaxDesiredWidth(400.0f)
 	[
-		SNew(SBorder)
+		SAssignNew(RootWidget, SBorder)
 		.ToolTipText_Lambda([this]()
 		{
 			FTextBuilder TextBuilder;
@@ -236,14 +236,29 @@ void FUniversalObjectLocatorCustomization::CustomizeHeader(TSharedRef<IPropertyH
 
 	PropertyHandle->SetOnPropertyValueChanged(FSimpleDelegate::CreateLambda([this]()
 	{
-		Rebuild();
+		RequestRebuild();
 	}));
 
-	Rebuild();
+	RequestRebuild();
 }
 
 void FUniversalObjectLocatorCustomization::CustomizeChildren(TSharedRef<IPropertyHandle> StructPropertyHandle, IDetailChildrenBuilder& StructBuilder, IPropertyTypeCustomizationUtils& StructCustomizationUtils)
 {
+}
+
+void FUniversalObjectLocatorCustomization::RequestRebuild()
+{
+	if(!bRebuildRequested)
+	{
+		bRebuildRequested = true;
+
+		RootWidget->RegisterActiveTimer(0.0f, FWidgetActiveTimerDelegate::CreateSPLambda(this, [this](double, float)
+		{
+			Rebuild();
+			bRebuildRequested = false;
+			return EActiveTimerReturnType::Stop;
+		}));
+	}
 }
 
 void FUniversalObjectLocatorCustomization::Rebuild()
@@ -261,8 +276,8 @@ void FUniversalObjectLocatorCustomization::Rebuild()
 			TSharedRef<FFragmentItem> NewItem = MakeShared<FFragmentItem>();
 			NewItem->FragmentIndex = FragmentIndex;
 			NewItem->FragmentType = Fragment.GetFragmentTypeHandle();
-			NewItem->LocatorEditorType = Fragment.GetFragmentType()->PrimaryEditorType;
-			NewItem->LocatorEditor = ApplicableLocators.FindRef(Fragment.GetFragmentType()->PrimaryEditorType);
+			NewItem->LocatorEditorType = Fragment.GetFragmentType() ? Fragment.GetFragmentType()->PrimaryEditorType : NAME_None;
+			NewItem->LocatorEditor = ApplicableLocators.FindRef(NewItem->LocatorEditorType);
 			NewItem->PropertyHandle = PropertyHandle;
 			NewItem->WeakCustomization = SharedThis(this);
 			NewItem->bIsTail = FragmentIndex == CommonValue->Fragments.Num() - 1;

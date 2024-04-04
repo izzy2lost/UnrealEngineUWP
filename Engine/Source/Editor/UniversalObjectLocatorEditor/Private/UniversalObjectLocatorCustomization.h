@@ -63,6 +63,7 @@ private:
 	virtual void PostUndo(bool bSuccess) override { Rebuild(); }
 	virtual void PostRedo(bool bSuccess) override { Rebuild(); }
 
+	void RequestRebuild();
 	void Rebuild();
 
 	void TrimAbsoluteFragments();
@@ -101,10 +102,13 @@ private:
 
 	mutable TArray<TSharedRef<FFragmentItem>> Fragments;
 
+	TSharedPtr<SWidget> RootWidget;
 	TSharedPtr<SWrapBox> WrapBox;
 
 	TWeakObjectPtr<> WeakContext;
 	TWeakObjectPtr<UClass> WeakContextClass;
+
+	bool bRebuildRequested = false;
 
 	friend struct FFragmentItem;
 };
