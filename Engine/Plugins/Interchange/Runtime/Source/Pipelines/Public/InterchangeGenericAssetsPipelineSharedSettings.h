@@ -53,7 +53,11 @@ class INTERCHANGEPIPELINES_API UInterchangeGenericCommonMeshesProperties : publi
 public:
 	//////	COMMON_MESHES_CATEGORY Properties //////
 
-	/** If set, imports all meshes in the source as either static meshes or skeletal meshes. */
+	/**
+	 * If set, imports all meshes in the source as either static meshes or skeletal meshes.
+	 * For skeletal meshes the conversion will happen only if there is no skinned meshes.
+	 * Mixing rigid skeletal mesh with skinned mesh is not good and will result in multiple skeletal meshes.
+	 */
  	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Common Meshes")
  	EInterchangeForceMeshType ForceAllMeshAsType = EInterchangeForceMeshType::IFMT_None;
 

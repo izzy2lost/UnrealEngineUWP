@@ -1678,7 +1678,7 @@ UInterchangeFactoryBase::FImportAssetResult UInterchangeSkeletalMeshFactory::End
 	FSkinnedAssetAsyncBuildScope AsyncBuildScope(SkeletalMesh);
 
 	//Finish the import in the game thread so we can pop dialog if needed
-	if (ensure(ImportAssetObjectData.IsValid()))
+	if (ImportAssetObjectData.IsValid())
 	{
 		for (FImportAssetObjectLODData& ImportAssetObjectLODData : ImportAssetObjectData.LodDatas)
 		{
