@@ -41,7 +41,6 @@ struct FMetalShaderDebugInfo
 struct FMetalShaderBytecodeJob
 {
 	FName ShaderFormat;
-	FSHAHash Hash;
     FString Defines;
 	FString TmpFolder;
 	FString InputFile;

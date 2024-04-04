@@ -232,7 +232,6 @@ static const int32 Str##PrefixLen = FCStringAnsi::Strlen(Str##Prefix)
 void BuildMetalShaderOutput(
 	FShaderCompilerOutput& ShaderOutput,
 	const FShaderCompilerInput& ShaderInput,
-	FSHAHash const& GUIDHash,
 	const ANSICHAR* InShaderSource,
 	uint32 SourceLen,
 	uint32 SourceCRCLen,
@@ -737,7 +736,6 @@ void BuildMetalShaderOutput(
 			FMetalShaderBytecodeJob Job;
 			Job.IncludeDir = TempDir;
 			Job.ShaderFormat = ShaderInput.ShaderFormat;
-			Job.Hash = GUIDHash;
 			Job.TmpFolder = TempDir;
 			Job.InputFile = MetalFileName;
 			Job.OutputFile = MetallibFileName;
@@ -1066,31 +1064,17 @@ void CompileMetalShader(const FShaderCompilerInput& Input, const FShaderPreproce
 	}
 
 
-	FSHAHash GUIDHash;
-	if (!EnumHasAnyFlags(Input.DebugInfoFlags, EShaderDebugInfoFlags::CompileFromDebugUSF))
-	{
-		TArray<FString> GUIDFiles;
-		GUIDFiles.Add(FPaths::ConvertRelativePathToFull(TEXT("/Engine/Public/Platform/Metal/MetalCommon.ush")));
-		GUIDFiles.Add(FPaths::ConvertRelativePathToFull(TEXT("/Engine/Public/ShaderVersion.ush")));
-		GUIDHash = GetShaderFilesHash(GUIDFiles, Input.Target.GetPlatform());
-	}
-	else
-	{
-		FGuid Guid = FGuid::NewGuid();
-		FSHA1::HashBuffer(&Guid, sizeof(FGuid), GUIDHash.Hash);
-	}
-
 #if UE_METAL_USE_METAL_SHADER_CONVERTER
 	const bool bBindlessEnabled = (Input.Environment.CompilerFlags.Contains(CFLAG_BindlessResources) || Input.Environment.CompilerFlags.Contains(CFLAG_BindlessSamplers));
 	
 	if(bBindlessEnabled && Input.ShaderFormat == NAME_SF_METAL_SM6)
 	{
-		FMetalCompileShaderMSC::DoCompileMetalShader(Input, Output, PreprocessedSource, GUIDHash, VersionEnum, Semantics, MaxUnrollLoops, (EShaderFrequency)Input.Target.Frequency, bDumpDebugInfo, Standard, MinOSVersion);
+		FMetalCompileShaderMSC::DoCompileMetalShader(Input, Output, PreprocessedSource, VersionEnum, Semantics, MaxUnrollLoops, (EShaderFrequency)Input.Target.Frequency, bDumpDebugInfo, Standard, MinOSVersion);
 	}
 	else
 #endif
 	{
-		FMetalCompileShaderSPIRV::DoCompileMetalShader(Input, Output, PreprocessedSource, GUIDHash, VersionEnum, Semantics, MaxUnrollLoops, (EShaderFrequency)Input.Target.Frequency, bDumpDebugInfo, Standard, MinOSVersion);
+		FMetalCompileShaderSPIRV::DoCompileMetalShader(Input, Output, PreprocessedSource, VersionEnum, Semantics, MaxUnrollLoops, (EShaderFrequency)Input.Target.Frequency, bDumpDebugInfo, Standard, MinOSVersion);
 	}
 	ShaderParameterParser.ValidateShaderParameterTypes(Input, bIsMobile, Output);
 }

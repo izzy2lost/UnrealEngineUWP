@@ -17,7 +17,6 @@
 extern void BuildMetalShaderOutput(
 	FShaderCompilerOutput& ShaderOutput,
 	const FShaderCompilerInput& ShaderInput,
-	FSHAHash const& GUIDHash,
 	const ANSICHAR* InShaderSource,
 	uint32 SourceLen,
 	uint32 SourceCRCLen,
@@ -116,7 +115,6 @@ void FMetalCompileShaderSPIRV::DoCompileMetalShader(
 	const FShaderCompilerInput& Input,
 	FShaderCompilerOutput& Output,
 	const FString& InPreprocessedShader,
-	FSHAHash GUIDHash,
 	uint32 VersionEnum,
 	EMetalGPUSemantics Semantics,
 	uint32 MaxUnrollLoops,
@@ -1298,7 +1296,7 @@ void FMetalCompileShaderSPIRV::DoCompileMetalShader(
 	if (Result != 0)
 	{
 		Output.Target = Input.Target;
-		BuildMetalShaderOutput(Output, Input, GUIDHash, MetalSource.c_str(), MetalSource.length(), CRCLen, CRC, VersionEnum, *Standard, *MinOSVersion, Output.Errors, OutputData.TypedBuffers, OutputData.InvariantBuffers, OutputData.TypedUAVs, OutputData.ConstantBuffers, bAllowFastIntrinsics
+		BuildMetalShaderOutput(Output, Input, MetalSource.c_str(), MetalSource.length(), CRCLen, CRC, VersionEnum, *Standard, *MinOSVersion, Output.Errors, OutputData.TypedBuffers, OutputData.InvariantBuffers, OutputData.TypedUAVs, OutputData.ConstantBuffers, bAllowFastIntrinsics
 #if UE_METAL_USE_METAL_SHADER_CONVERTER
 		  , 0, 0, 0, false, nullptr, FMetalShaderBytecode()
 #endif
