@@ -2368,67 +2368,9 @@ void UControlRigBlueprint::RefreshModuleVariables()
 		return;
 	}
 
-	ModularRigModel.ForEachModule([this](const FRigModuleReference* Element) -> bool
-	{
-		RefreshModuleVariables(Element);
-		return true;
-	});
-}
-
-void UControlRigBlueprint::RefreshModuleVariables(const FRigModuleReference* InModule)
-{
-	if(!IsModularRig())
-	{
-		return;
-	}
-
-	// avoid dead class pointers
-	const UClass* ModuleClass = InModule->Class.Get();
-	if(ModuleClass == nullptr)
-	{
-		return;
-	}
-
-	// Make sure the provided module belongs to our ModularRigModel
-	const FString& ModulePath = InModule->GetPath();
-	FRigModuleReference* Module = ModularRigModel.FindModule(ModulePath);
-	if (Module != InModule)
-	{
-		return;
-	}
-
-	Modify();
-
-	for (TFieldIterator<FProperty> PropertyIt(ModuleClass); PropertyIt; ++PropertyIt)
-	{
-		const FProperty* Property = *PropertyIt;
-		
-		// remove advanced, private or not editable properties
-		const bool bIsAdvanced = Property->HasAnyPropertyFlags(CPF_AdvancedDisplay);
-		const bool bIsPublic = Property->HasAnyPropertyFlags(CPF_Edit | CPF_EditConst);
-		const bool bIsInstanceEditable = !Property->HasAnyPropertyFlags(CPF_DisableEditOnInstance);
-		if (bIsAdvanced || !bIsPublic || !bIsInstanceEditable)
-		{
-			Module->ConfigValues.Remove(Property->GetFName());
-			Module->Bindings.Remove(Property->GetFName());
-		}
-	}
-
-	// Make sure all the types are valid
 	if (UModularRigController* Controller = GetModularRigController())
 	{
-		const TMap<FName, FString> ConfigValues = Module->ConfigValues;
-		const TMap<FName, FString> Bindings = Module->Bindings;
-		Module->ConfigValues.Reset();
-		Module->Bindings.Reset();
-		for (const TPair<FName, FString>& Pair : ConfigValues)
-		{
-			Controller->SetConfigValueInModule(ModulePath, Pair.Key, Pair.Value, false);
-		}
-		for (const TPair<FName, FString>& Pair : Bindings)
-		{
-			Controller->BindModuleVariable(ModulePath, Pair.Key, Pair.Value, false);
-		}
+		Controller->RefreshModuleVariables();
 	}
 }
 
@@ -2740,6 +2682,15 @@ void UControlRigBlueprint::HandleRigModulesModified(EModularRigNotification InNo
 			
 			UpdateConnectionMapFromModel();
 			HierarchyModifiedEvent.Broadcast(ERigHierarchyNotification::HierarchyReset, Hierarchy, nullptr);
+			break;
+		}
+		case EModularRigNotification::ModuleClassChanged:
+		{
+			if (InModule)
+			{
+				RefreshModuleConnectors(InModule);
+				UpdateConnectionMapFromModel();
+			}
 			break;
 		}
 		case EModularRigNotification::ModuleShortNameChanged:

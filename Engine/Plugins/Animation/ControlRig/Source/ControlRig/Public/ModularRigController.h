@@ -73,6 +73,12 @@ class CONTROLRIG_API UModularRigController : public UObject
 	bool SetModuleShortName(const FString& InModulePath, const FString& InNewShortName, bool bSetupUndo = true);
 	bool CanSetModuleShortName(const FString& InModulePath, const FString& InNewShortName, FText& OutErrorMessage) const;
 
+	UFUNCTION(BlueprintCallable, Category = "ControlRig | Modules")
+	bool SwapModuleClass(const FString& InModulePath, TSubclassOf<UControlRig> InNewClass, bool bSetupUndo = true);
+
+	void RefreshModuleVariables(bool bSetupUndo = true);
+	void RefreshModuleVariables(const FRigModuleReference* InModule, bool bSetupUndo = true);
+
 	static int32 GetMaxNameLength() { return 100; }
 	static void SanitizeName(FRigName& InOutName, bool bAllowNameSpaces);
 	static FRigName GetSanitizedName(const FRigName& InName, bool bAllowNameSpaces);

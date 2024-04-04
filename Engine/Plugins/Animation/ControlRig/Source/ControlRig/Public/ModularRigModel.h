@@ -30,6 +30,8 @@ enum class EModularRigNotification : uint8
 	
 	InteractionBracketCanceled, // A bracket has been canceled
 
+	ModuleClassChanged, 
+
 	/** MAX - invalid */
 	Max UMETA(Hidden),
 };
