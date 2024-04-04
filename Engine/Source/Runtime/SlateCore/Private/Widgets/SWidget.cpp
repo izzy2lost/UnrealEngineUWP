@@ -201,7 +201,6 @@ SWidget::SWidget()
 	, bNeedsPrepass(true)
 	, bHasRegisteredSlateAttribute(false)
 	, bEnabledAttributesUpdate(true)
-	, bHasPendingAttributesInvalidation(false)
 	, bIsDeclarativeSyntaxConstructionCompleted(false)
 	, bIsHoveredAttributeSet(false)
 	, bHasCustomPrepass(false)
@@ -816,7 +815,7 @@ void SWidget::UpdateWidgetProxy(int32 NewLayerId, FSlateCachedElementsHandle& Ca
 #if UE_SLATE_WITH_INVALIDATIONWIDGETLIST_DEBUGGING
 		MyProxy.bDebug_Updated = true;
 #endif
-		ensureMsgf(MyProxy.Visibility.IsVisibleDirectly() == GetVisibility().IsVisible()
+		ensureMsgf(MyProxy.Visibility.IsVisibleDirectly() == GetVisibility().IsVisible() || EnumHasAnyFlags(MyProxy.CurrentInvalidateReason, EInvalidateWidgetReason::Visibility)
 			, TEXT("The visibility of the widget '%s' changed during Paint")
 			, *FReflectionMetaData::GetWidgetPath(this));
 		if (IsVolatile() && !IsVolatileIndirectly())
@@ -860,12 +859,16 @@ void SWidget::SetFastPathProxyHandle(const FWidgetProxyHandle& Handle, FSlateInv
 
 	bInheritedVolatility = bParentVolatile;
 
-	if (!InvalidationVisibility.IsVisible() && PersistentState.CachedElementHandle.IsValid())
+	if (!InvalidationVisibility.IsVisible())
 	{
-#if WITH_SLATE_DEBUGGING
-		check(PersistentState.CachedElementHandle.IsOwnedByWidget(this));
-#endif
 		PersistentState.CachedElementHandle.RemoveFromCache();
+
+#if WITH_SLATE_DEBUGGING
+		if (PersistentState.CachedElementHandle.IsValid())
+		{
+			check(PersistentState.CachedElementHandle.IsOwnedByWidget(this));
+		}
+#endif
 	}
 
 	if (IsVolatile() && !IsVolatileIndirectly())
@@ -890,7 +893,7 @@ void SWidget::UpdateFastPathVisibility(FSlateInvalidationWidgetVisibility Parent
 	FHittestGrid* HittestGridToRemoveFrom = ParentHittestGrid;
 	if (FastPathProxyHandle.IsValid(this))
 	{	
-		// Try and remove this from the current handles hit test grid.  If we are in a nested invalidation situation the hittest grid may have changed
+		// Try and remove this from the current handles hit test grid. If we are in a nested invalidation situation the hittest grid may have changed
 		HittestGridToRemoveFrom = FastPathProxyHandle.GetInvalidationRoot_NoCheck()->GetHittestGrid();
 		FWidgetProxy& Proxy = FastPathProxyHandle.GetProxy();
 		Proxy.Visibility = NewVisibility;
@@ -1301,17 +1304,9 @@ void SWidget::Invalidate(EInvalidateWidgetReason InvalidateReason)
 		InvalidateReason |= EInvalidateWidgetReason::Layout;
 	}
 
-	const bool bVolatilityChanged = EnumHasAnyFlags(InvalidateReason, EInvalidateWidgetReason::Volatility) ? Advanced_InvalidateVolatility() : false;
-
 	if(FastPathProxyHandle.IsValid(this))
 	{
-		// Current thinking is that visibility and volatility should be updated right away, not during fast path invalidation processing next frame
-		if (EnumHasAnyFlags(InvalidateReason, EInvalidateWidgetReason::Visibility))
-		{
-			SCOPED_NAMED_EVENT(SWidget_UpdateFastPathVisibility, FColor::Red);
-			UpdateFastPathVisibility(FastPathProxyHandle.GetProxy().Visibility.MimicAsParent(), FastPathProxyHandle.GetInvalidationRoot_NoCheck()->GetHittestGrid());
-		}
-
+		const bool bVolatilityChanged = EnumHasAnyFlags(InvalidateReason, EInvalidateWidgetReason::Volatility) ? Advanced_InvalidateVolatility() : false;
 		if (bVolatilityChanged)
 		{
 			SCOPED_NAMED_EVENT(SWidget_UpdateFastPathVolatility, FColor::Red);
@@ -1460,10 +1455,6 @@ int32 SWidget::Paint(const FPaintArgs& Args, const FGeometry& AllottedGeometry, 
 		UE_TRACE_SCOPED_SLATE_WIDGET_UPDATE(this);
 		if (HasAnyUpdateFlags(EWidgetUpdateFlags::NeedsActiveTimerUpdate))
 		{
-			if (bHasPendingAttributesInvalidation)
-			{
-				FSlateAttributeMetaData::ApplyDelayedInvalidation(*MutableThis);
-			}
 
 			SCOPE_CYCLE_COUNTER(STAT_SlateExecuteActiveTimers);
 			MutableThis->ExecuteActiveTimers(Args.GetCurrentTime(), Args.GetDeltaTime());
@@ -1471,22 +1462,12 @@ int32 SWidget::Paint(const FPaintArgs& Args, const FGeometry& AllottedGeometry, 
 
 		if (HasAnyUpdateFlags(EWidgetUpdateFlags::NeedsTick))
 		{
-			if (bHasPendingAttributesInvalidation)
-			{
-				FSlateAttributeMetaData::ApplyDelayedInvalidation(*MutableThis);
-			}
-
 			INC_DWORD_STAT(STAT_SlateNumTickedWidgets);
 
 			SCOPE_CYCLE_COUNTER(STAT_SlateTickWidgets);
 			SCOPE_CYCLE_SWIDGET(this);
 			MutableThis->Tick(DesktopSpaceGeometry, Args.GetCurrentTime(), Args.GetDeltaTime());
 		}
-	}
-
-	if (bHasPendingAttributesInvalidation)
-	{
-		FSlateAttributeMetaData::ApplyDelayedInvalidation(*MutableThis);
 	}
 
 	// the rule our parent has set for us

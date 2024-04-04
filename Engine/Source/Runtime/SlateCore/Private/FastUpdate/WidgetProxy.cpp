@@ -159,7 +159,7 @@ void FWidgetProxy::ProcessLayoutInvalidation(FSlateInvalidationWidgetPostHeap& U
 	}
 
 	// If the desired size changed, invalidate the parent if it is visible
-	if (NewDesiredSize != CurrentDesiredSize || EnumHasAnyFlags(CurrentInvalidateReason, EInvalidateWidgetReason::Visibility | EInvalidateWidgetReason::RenderTransform))
+	if (NewDesiredSize != CurrentDesiredSize || EnumHasAnyFlags(CurrentInvalidateReason, EInvalidateWidgetReason::RenderTransform)) // NB Also, EInvalidateWidgetReason::Visibility. It use the same RenderTransform flag
 	{
 		if (ParentIndex != FSlateInvalidationWidgetIndex::Invalid)
 		{
@@ -208,7 +208,7 @@ bool FWidgetProxy::ProcessPostInvalidation(FSlateInvalidationWidgetPostHeap& Upd
 		}
 		bWidgetNeedsRepaint = true;
 	}
-	else if (EnumHasAnyFlags(CurrentInvalidateReason, EInvalidateWidgetReason::RenderTransform | EInvalidateWidgetReason::Layout | EInvalidateWidgetReason::Visibility))
+	else if (EnumHasAnyFlags(CurrentInvalidateReason, EInvalidateWidgetReason::RenderTransform | EInvalidateWidgetReason::Layout)) // NB Also, EInvalidateWidgetReason::Visibility. It use the same RenderTransform flag
 	{
 		ProcessLayoutInvalidation(UpdateList, FastWidgetPathList, Root);
 		

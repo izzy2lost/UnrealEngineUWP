@@ -17,11 +17,7 @@
 //IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSlateInvalidationWidgetListTest, "Slate.InvalidationWidgetList.AddBuildRemove", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::SmokeFilter)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSlateInvalidationWidgetListTest, "Slate.InvalidationWidgetList.AddBuildRemove", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter)
 
-namespace UE
-{
-namespace Slate
-{
-namespace Private
+namespace UE::Slate::Private
 {
 
 static const bool bUpdateOnlyWhatIsNeeded = false;
@@ -175,9 +171,8 @@ TSharedRef<SVerticalBox> BuildTestUI_Child(TSharedPtr<SVerticalBox>& WidgetA, TA
 	ChildOfWidgetA.Add(AddVerticalBox(WidgetA, TEXT('I')));
 	return WidgetA.ToSharedRef();
 }
-}
-}
-}
+
+} // namespace
 
 
 bool FSlateInvalidationWidgetListTest::RunTest(const FString& Parameters)
@@ -248,7 +243,7 @@ bool FSlateInvalidationWidgetListTest::RunTest(const FString& Parameters)
 					ArgsWithoutAssign.bAssignedWidgetIndex = false;
 					FSlateInvalidationWidgetList TempList = { FSlateInvalidationRootHandle(), ArgsWithoutAssign };
 					TempList.BuildWidgetList(RootChildOrder);
-					if (!TempList.DeapCompare(List))
+					if (!TempList.DeepCompare(List))
 					{
 						AddError(TEXT("Was not able to remove a child of F."));
 					}
@@ -280,7 +275,7 @@ bool FSlateInvalidationWidgetListTest::RunTest(const FString& Parameters)
 					ArgsWithoutAssign.bAssignedWidgetIndex = false;
 					FSlateInvalidationWidgetList TempList = { FSlateInvalidationRootHandle(), ArgsWithoutAssign };
 					TempList.BuildWidgetList(RootChildOrder);
-					if (!TempList.DeapCompare(List))
+					if (!TempList.DeepCompare(List))
 					{
 						AddError(TEXT("Was not able to remove F and C."));
 					}
@@ -298,7 +293,7 @@ bool FSlateInvalidationWidgetListTest::RunTest(const FString& Parameters)
 					ArgsWithoutAssign.bAssignedWidgetIndex = false;
 					FSlateInvalidationWidgetList TempList = { FSlateInvalidationRootHandle(), ArgsWithoutAssign };
 					TempList.BuildWidgetList(RootChildOrder);
-					if (!TempList.DeapCompare(List))
+					if (!TempList.DeepCompare(List))
 					{
 						AddError(TEXT("Was not able to remove the last item of A."));
 					}
@@ -343,7 +338,7 @@ bool FSlateInvalidationWidgetListTest::RunTest(const FString& Parameters)
 						ArgsWithoutAssign.bAssignedWidgetIndex = false;
 						FSlateInvalidationWidgetList TempList = { FSlateInvalidationRootHandle(), ArgsWithoutAssign };
 						TempList.BuildWidgetList(RootChildOrder);
-						if (!TempList.DeapCompare(List))
+						if (!TempList.DeepCompare(List))
 						{
 							AddError(FString::Printf(TEXT("Was not able to process invalidation of widget '%s'."), Message));
 						}

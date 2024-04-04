@@ -451,7 +451,8 @@ FSlateInvalidationWidgetIndex FSlateInvalidationWidgetList::Internal_BuildWidget
 	}
 
 	if (ShouldBeAddedToVolatileUpdateList(Widget))
-	{		// The list is already sorted at this point. Add to the end.
+	{
+		// The list is already sorted at this point. Add to the end.
 		Data[LastestIndex].ElementIndexList_VolatileUpdateWidget.AddUnsorted(NewIndex.ElementIndex);
 	}
 
@@ -1458,6 +1459,7 @@ FSlateInvalidationWidgetList::FCutResult FSlateInvalidationWidgetList::Internal_
 				if (ShouldBeAddedToAttributeList(*Widget))
 				{
 					Data[NewArrayIndex].ElementIndexList_WidgetWithRegisteredSlateAttribute.AddUnsorted(NewElementIndex);
+					EnumRemoveFlags(NewInvalidationWidget.CurrentInvalidateReason, EInvalidateWidgetReason::AttributeRegistration);
 				}
 				if (ShouldBeAddedToVolatileUpdateList(*Widget))
 				{
@@ -1559,7 +1561,7 @@ TArray<TSharedPtr<SWidget>> FSlateInvalidationWidgetList::FindChildren(const SWi
 }
 
 
-bool FSlateInvalidationWidgetList::DeapCompare(const FSlateInvalidationWidgetList& Other) const
+bool FSlateInvalidationWidgetList::DeepCompare(const FSlateInvalidationWidgetList& Other) const
 {
 	if (Root.Pin() != Other.Root.Pin())
 	{
