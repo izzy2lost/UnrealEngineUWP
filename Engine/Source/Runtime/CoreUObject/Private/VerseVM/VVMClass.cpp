@@ -279,130 +279,14 @@ UClass* VClass::CreateUClass(FAllocationContext Context)
 {
 	ensure(!AssociatedUClass && Kind != EKind::Interface); // Only an actual class should be associated with a UClass
 
-	// 1) Create the new UClass object
+	// Create the new UClass object
 
 	IEngineEnvironment* Environment = VerseVM::GetEngineEnvironment();
 	ensure(Environment);
 	UVerseVMClass* NewClass = Environment->CreateUClass(Context, this);
-	NewClass->Class.Set(Context, this);
-#if WITH_EDITOR
-	NewClass->SetMetaData(TEXT("IsBlueprintBase"), TEXT("false"));
-#endif
-
-	VClass* SuperClass = nullptr;
-	if (0 < NumInherited && Inherited[0]->GetKind() == VClass::EKind::Class)
-	{
-		SuperClass = Inherited[0].Get();
-	}
-	UClass* SuperUClass = SuperClass ? SuperClass->GetOrCreateUClass(Context) : UObject::StaticClass();
-	NewClass->SetSuperStruct(SuperUClass);
-	NewClass->ClassConfigName = SuperUClass->ClassConfigName;
-
-	// 2) Generate special shape for it
-
-	VShape::FieldsMap AllFields;
-	for (uint32 Index = 0; Index < Constructor->NumEntries; ++Index)
-	{
-		VConstructor::VEntry& Entry = Constructor->Entries[Index];
-		if (VUniqueString* Field = Entry.Name.Get())
-		{
-			// Store all fields in the UObject, none in the shape
-			AllFields.Add({Context, Entry.Name.Get()}, VShape::VEntry::FProperty());
-		}
-	}
-	VShape* ThisShape = VShape::New(Context, MoveTemp(AllFields));
-	NewClass->Shape.Set(Context, *ThisShape);
-
-	// 3) Populate its properties
-
-	UVerseVMClass* SuperVerseUClass = Cast<UVerseVMClass>(SuperUClass);
-	VShape* SuperShape = SuperVerseUClass ? SuperVerseUClass->Shape.Get() : nullptr;
-	FField** PrevProperty = &NewClass->ChildProperties;
-	for (auto& Pair : ThisShape->Fields)
-	{
-		const VShape::VEntry* SuperField = SuperShape ? SuperShape->GetField(Context, *Pair.Key.Get()) : nullptr;
-		if (SuperField)
-		{
-			// If the super shape has it, recycle the same property
-			Pair.Value.Property = SuperField->Property;
-		}
-		else
-		{
-			// Otherwise create a new property for it
-			const FName FieldName = FName(Pair.Key.Get()->AsCString());
-			FVRestValueProperty* FieldProperty = new FVRestValueProperty(NewClass, FieldName, RF_NoFlags);
-			Pair.Value.Property = FieldProperty;
-
-			*PrevProperty = FieldProperty;
-			PrevProperty = &FieldProperty->Next;
-		}
-	}
-
-	// 4) Finalize class
-
-	NewClass->Bind();
-	NewClass->StaticLink(/*bRelinkExistingProperties =*/true);
-
 	AssociatedUClass.Set(Context, NewClass);
 
-	// Don't create the CDO for native classes until they've been bound.
-	if (!IsNative())
-	{
-		AssembleUClass(Context);
-	}
-
 	return NewClass;
-}
-
-void VClass::AssembleUClass(FAllocationContext Context)
-{
-	ensure(AssociatedUClass);
-	UVerseVMClass* NewClass = Cast<UVerseVMClass>(AssociatedUClass.Get().AsUObject());
-	if (NewClass == nullptr)
-	{
-		return;
-	}
-
-	VShape* ThisShape = NewClass->Shape.Get();
-
-	if (NewClass->ClassDefaultObject != nullptr)
-	{
-		return;
-	}
-
-	if (0 < NumInherited && Inherited[0]->GetKind() == VClass::EKind::Class)
-	{
-		Inherited[0]->AssembleUClass(Context);
-	}
-
-	// 6) Create and initialize CDO
-
-	// Collect all UObjects referenced by FProperties and assemble the GC token stream
-	NewClass->CollectBytecodeAndPropertyReferencedObjectsRecursively();
-	NewClass->AssembleReferenceTokenStream(/*bForce=*/true);
-
-	UObject* CDO = NewClass->GetDefaultObject();
-	V_DIE_UNLESS(CDO);
-	for (uint32 Index = 0; Index < Constructor->NumEntries; ++Index)
-	{
-		VConstructor::VEntry& Entry = Constructor->Entries[Index];
-		if (const VUniqueString* FieldName = Entry.Name.Get())
-		{
-			const VShape::VEntry* Field = ThisShape->GetField(Context, *FieldName);
-			checkSlow(Field && Field->Type == EFieldType::FProperty);
-			if (Entry.bDynamic && !Entry.Value.Get())
-			{
-				// For the editor: This property has no default and therefore must be specified
-				Field->Property->PropertyFlags |= EPropertyFlags::CPF_RequiredParm;
-			}
-			VRestValue* Slot = Field->Property->ContainerPtrToValuePtr<VRestValue>(CDO);
-			new (Slot) VRestValue(0);
-			if (!Entry.bDynamic)
-			{
-				Slot->Set(Context, Entry.Value.Get());
-			}
-		}
-	}
 }
 
 bool VClass::SubsumesImpl(FRunningContext Context, VValue Value)

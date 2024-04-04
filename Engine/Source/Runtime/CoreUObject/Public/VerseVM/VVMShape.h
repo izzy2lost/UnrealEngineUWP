@@ -8,6 +8,7 @@
 #include "VVMUTF8String.h"
 #include "VVMWriteBarrier.h"
 
+class FVerseVMEngineEnvironment;
 class FVRestValueProperty;
 
 namespace Verse
@@ -109,6 +110,7 @@ private:
 
 	uint64 NumIndexedFields;
 
+	friend class ::FVerseVMEngineEnvironment;
 	friend struct VClass;
 	friend struct VObject;
 };

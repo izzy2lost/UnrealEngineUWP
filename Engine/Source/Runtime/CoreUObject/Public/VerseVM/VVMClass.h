@@ -11,7 +11,7 @@
 
 class UObject;
 class UVerseVMClass;
-class FVerseNativeModule;
+class FVerseVMEngineEnvironment;
 
 namespace Verse
 {
@@ -174,8 +174,6 @@ public:
 	/// Creates an associated UClass for this VClass
 	COREUOBJECT_API UClass* CreateUClass(FAllocationContext Context);
 
-	COREUOBJECT_API void AssembleUClass(FAllocationContext Context);
-
 	/**
 	 * Creates a new class.
 	 *
@@ -220,6 +218,8 @@ private:
 	// Super classes and interfaces. The single superclass is always first.
 	uint32 NumInherited;
 	TWriteBarrier<VClass> Inherited[];
+
+	friend class ::FVerseVMEngineEnvironment;
 };
 };     // namespace Verse
 #endif // WITH_VERSE_VM

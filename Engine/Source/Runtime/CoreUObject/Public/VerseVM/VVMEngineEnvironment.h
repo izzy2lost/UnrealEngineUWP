@@ -4,13 +4,14 @@
 
 #if WITH_VERSE_VM || defined(__INTELLISENSE__)
 #include "Containers/StringFwd.h"
-#include "VerseVM/VVMContext.h"
 
+class FString;
 class UPackage;
 class UVerseVMClass;
 
 namespace Verse
 {
+struct FAllocationContext;
 struct VClass;
 struct VPackage;
 enum class EPackageStage : uint8;
@@ -27,6 +28,9 @@ public:
 
 	// Given a UPackage name, adjust the name when the package stage is either DEAD or TEMP.
 	virtual const TCHAR* AdornPackageName(const TCHAR* PackageName, EPackageStage Stage, FString& ScratchSpace) = 0;
+
+	// Convert a verse property name to UE property name
+	virtual FString VerseToUEPropertyName(const char* VerseName, bool* bSetDisplayName = nullptr) = 0;
 };
 } // namespace Verse
 #endif // WITH_VERSE_VM
