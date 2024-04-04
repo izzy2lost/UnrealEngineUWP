@@ -1,11 +1,14 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+using System;
 using System.Collections.Generic;
 using System.Data;
 using System.IO;
 using System.Linq;
 using AutomationTool;
 using Gauntlet;
+using EpicGames.Core;
+using Log = Gauntlet.Log;
 
 namespace UEPerf
 {
@@ -259,6 +262,12 @@ namespace UEPerf
 		[AutoParam]
 		public string RHI { get; set; } = string.Empty;
 
+		/// <summary>
+		/// Log Idle timeout in second
+		/// </summary>
+		[AutoParam]
+		public int LogIdleTimeout { get; set; } = 30 * 60;
+
 		public override void ApplyToConfig(UnrealAppConfig AppConfig, UnrealSessionRole ConfigRole, IEnumerable<UnrealSessionRole> OtherRoles)
 		{
 			if (string.IsNullOrEmpty(Controller))
@@ -291,18 +300,10 @@ namespace UEPerf
 	public class EditorGauntletTestController : UnrealTestNode<EditorGauntletTestControllerConfig>
 	{
 		private int LastLogCount = 0;
+		private DateTime LastAutomationEntryTime = DateTime.MinValue;
 		private bool ValidateResolveMap = false;
 		public EditorGauntletTestController(UnrealTestContext InContext) : base(InContext)
 		{
-		}
-
-		/// <summary>
-		/// Log Channels to listen for activity
-		/// </summary>
-		/// <returns></returns>
-		public override IEnumerable<string> GetHeartbeatLogCategories()
-		{
-			return UnrealLog.EditorBusyChannels;
 		}
 
 		public override EditorGauntletTestControllerConfig GetConfiguration()
@@ -356,17 +357,50 @@ namespace UEPerf
 
 		public override void TickTest(UnrealSessionInstance InInstance)
 		{
-			base.TickTest(InInstance);
-
-			if (ValidateResolveMap)
+			float IdleTimeout = 30 * 60;
+			if (GetConfiguration() is EditorGauntletTestControllerConfig Config && Config.LogIdleTimeout > 0)
 			{
-				var App = InInstance.EditorApp;
-				if (App != null)
+				IdleTimeout = Config.LogIdleTimeout;
+			}
+
+			// We are only interested in what the editor is doing
+			var App = InInstance.EditorApp;
+			if (App != null)
+			{
+				UnrealLogStreamParser Parser = new UnrealLogStreamParser();
+				LastLogCount += Parser.ReadStream(App.StdOut, LastLogCount);
+
+				IEnumerable<string> ChannelEntries = Parser.GetLogFromShortNameChannels(UnrealLog.EditorBusyChannels.Append("Gauntlet"));
+
+				// Any new entries?
+				if (ChannelEntries.Any())
+				{
+					// log new entries so people have something to look at
+					ChannelEntries.ToList().ForEach(S => Log.Info(S));
+					LastAutomationEntryTime = DateTime.Now;
+				}
+				else
+				{
+					// Check for timeouts
+					if (LastAutomationEntryTime == DateTime.MinValue)
+					{
+						LastAutomationEntryTime = DateTime.Now;
+					}
+
+					double ElapsedTime = (DateTime.Now - LastAutomationEntryTime).TotalSeconds;
+
+					// Check for timeout
+					if (ElapsedTime > IdleTimeout)
+					{
+						Log.Warning(KnownLogEvents.Gauntlet_TestEvent, "No activity observed in last {Time:0.00} minutes. Aborting test", IdleTimeout / 60);
+						MarkTestComplete();
+						SetUnrealTestResult(TestResult.TimedOut);
+					}
+				}
+
+				if (ValidateResolveMap)
 				{
 					string Map = GetConfiguration().Map;
-					UnrealLogStreamParser Parser = new UnrealLogStreamParser();
-					LastLogCount += Parser.ReadStream(App.StdOut, LastLogCount);
-
 					string ResolvedMap = Parser.GetLogLinesContaining($"to resolve {Map}.").FirstOrDefault();
 
 					if (!string.IsNullOrEmpty(ResolvedMap))
