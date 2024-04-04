@@ -53,15 +53,7 @@ namespace EpicGames.Horde
 		/// <inheritdoc/>
 		public async Task<bool> ConnectAsync(bool allowLogin, CancellationToken cancellationToken)
 		{
-			if (_authHandlerState.TryGetConfiguredAuthHeader() != null)
-			{
-				return true;
-			}
-
-			_authHandlerState.Invalidate();
-			await _authHandlerState.RefreshAsync(allowLogin, cancellationToken);
-
-			return IsConnected();
+			return await _authHandlerState.LoginAsync(allowLogin, cancellationToken);
 		}
 
 		/// <inheritdoc/>
@@ -69,7 +61,7 @@ namespace EpicGames.Horde
 		{
 			try
 			{
-				return _authHandlerState.IsAuthenticated();
+				return _authHandlerState.IsLoggedIn();
 			}
 			catch
 			{
