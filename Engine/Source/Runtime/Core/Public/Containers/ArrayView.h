@@ -844,8 +844,8 @@ bool operator!=(TArrayView<ElementType, SizeType>, TArrayView<OtherElementType, 
  */
 template <
 	typename RangeType,
-	typename ElementType,
-	typename = decltype(ImplicitConv<const ElementType*>(GetData(DeclVal<RangeType&>())))
+	typename ElementType
+	UE_REQUIRES(std::is_convertible_v<decltype(GetData(std::declval<RangeType&>())), const ElementType*>)
 >
 bool operator==(RangeType&& Lhs, TArrayView<ElementType> Rhs)
 {
@@ -855,8 +855,8 @@ bool operator==(RangeType&& Lhs, TArrayView<ElementType> Rhs)
 
 template <
 	typename RangeType,
-	typename ElementType,
-	typename = decltype(ImplicitConv<const ElementType*>(GetData(DeclVal<RangeType&>())))
+	typename ElementType
+	UE_REQUIRES(std::is_convertible_v<decltype(GetData(std::declval<RangeType&>())), const ElementType*>)
 >
 bool operator==(TArrayView<ElementType> Lhs, RangeType&& Rhs)
 {
@@ -872,8 +872,8 @@ bool operator==(TArrayView<ElementType> Lhs, RangeType&& Rhs)
  */
 template <
 	typename RangeType,
-	typename ElementType,
-	typename = decltype(ImplicitConv<const ElementType*>(GetData(DeclVal<RangeType&>())))
+	typename ElementType
+	UE_REQUIRES(std::is_convertible_v<decltype(GetData(std::declval<RangeType&>())), const ElementType*>)
 >
 bool operator!=(RangeType&& Lhs, TArrayView<ElementType> Rhs)
 {
@@ -882,8 +882,8 @@ bool operator!=(RangeType&& Lhs, TArrayView<ElementType> Rhs)
 
 template <
 	typename RangeType,
-	typename ElementType,
-	typename = decltype(ImplicitConv<const ElementType*>(GetData(DeclVal<RangeType&>())))
+	typename ElementType
+	UE_REQUIRES(std::is_convertible_v<decltype(GetData(std::declval<RangeType&>())), const ElementType*>)
 >
 bool operator!=(TArrayView<ElementType> Lhs, RangeType&& Rhs)
 {

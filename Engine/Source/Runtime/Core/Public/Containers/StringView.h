@@ -396,44 +396,56 @@ public:
 		return Lhs.Compare(Rhs, ESearchCase::IgnoreCase) < 0;
 	}
 
-	template <typename CharRangeType>
+	template <
+		typename CharRangeType
+		UE_REQUIRES(std::is_convertible_v<CharRangeType&&, TStringView>)
+	>
 	friend inline auto operator==(TStringView Lhs, CharRangeType&& Rhs)
-		-> decltype(TStringView::PrivateEquals(Lhs, ImplicitConv<TStringView>(Forward<CharRangeType>(Rhs))))
 	{
 		return TStringView::PrivateEquals(Lhs, ImplicitConv<TStringView>(Forward<CharRangeType>(Rhs)));
 	}
 
-	template <typename CharRangeType>
+	template <
+		typename CharRangeType
+		UE_REQUIRES(std::is_convertible_v<CharRangeType&&, TStringView>)
+	>
 	friend inline auto operator==(CharRangeType&& Lhs, TStringView Rhs)
-		-> decltype(TStringView::PrivateEquals(ImplicitConv<TStringView>(Forward<CharRangeType>(Lhs)), Rhs))
 	{
 		return TStringView::PrivateEquals(ImplicitConv<TStringView>(Forward<CharRangeType>(Lhs)), Rhs);
 	}
 
-	template <typename CharRangeType>
+	template <
+		typename CharRangeType
+		UE_REQUIRES(std::is_convertible_v<CharRangeType&&, TStringView>)
+	>
 	friend inline auto operator!=(TStringView Lhs, CharRangeType&& Rhs)
-		-> decltype(!TStringView::PrivateEquals(Lhs, ImplicitConv<TStringView>(Forward<CharRangeType>(Rhs))))
 	{
 		return !TStringView::PrivateEquals(Lhs, ImplicitConv<TStringView>(Forward<CharRangeType>(Rhs)));
 	}
 
-	template <typename CharRangeType>
+	template <
+		typename CharRangeType
+		UE_REQUIRES(std::is_convertible_v<CharRangeType&&, TStringView>)
+	>
 	friend inline auto operator!=(CharRangeType&& Lhs, TStringView Rhs)
-		-> decltype(!TStringView::PrivateEquals(ImplicitConv<TStringView>(Forward<CharRangeType>(Lhs)), Rhs))
 	{
 		return !TStringView::PrivateEquals(ImplicitConv<TStringView>(Forward<CharRangeType>(Lhs)), Rhs);
 	}
 
-	template <typename CharRangeType>
+	template <
+		typename CharRangeType
+		UE_REQUIRES(std::is_convertible_v<CharRangeType&&, TStringView>)
+	>
 	friend inline auto operator<(TStringView Lhs, CharRangeType&& Rhs)
-		-> decltype(TStringView::PrivateLess(Lhs, ImplicitConv<TStringView>(Forward<CharRangeType>(Rhs))))
 	{
 		return TStringView::PrivateLess(Lhs, ImplicitConv<TStringView>(Forward<CharRangeType>(Rhs)));
 	}
 
-	template <typename CharRangeType>
+	template <
+		typename CharRangeType
+		UE_REQUIRES(std::is_convertible_v<CharRangeType&&, TStringView>)
+	>
 	friend inline auto operator<(CharRangeType&& Lhs, TStringView Rhs)
-		-> decltype(TStringView::PrivateLess(ImplicitConv<TStringView>(Forward<CharRangeType>(Lhs)), Rhs))
 	{
 		return TStringView::PrivateLess(ImplicitConv<TStringView>(Forward<CharRangeType>(Lhs)), Rhs);
 	}

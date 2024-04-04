@@ -36,8 +36,10 @@ public:
 	constexpr TMemoryView() = default;
 
 	/** Construct a view of by copying a view with compatible const/volatile qualifiers. */
-	template <typename OtherDataType,
-		typename TEnableIf<TPointerIsConvertibleFromTo<OtherDataType, DataType>::Value>::Type* = nullptr>
+	template <
+		typename OtherDataType
+		UE_REQUIRES(std::is_convertible_v<OtherDataType*, DataType*>)
+	>
 	constexpr inline TMemoryView(const TMemoryView<OtherDataType>& InView)
 		: Data(InView.Data)
 		, Size(InView.Size)
@@ -52,8 +54,10 @@ public:
 	}
 
 	/** Construct a view starting at InData and ending at InDataEnd. */
-	template <typename DataEndType,
-		decltype(ImplicitConv<DataType*>(DeclVal<DataEndType*>()))* = nullptr>
+	template <
+		typename DataEndType
+		UE_REQUIRES(std::is_convertible_v<DataEndType*, DataType*>)
+	>
 	inline TMemoryView(DataType* InData, DataEndType* InDataEnd)
 		: Data(InData)
 		, Size(static_cast<uint64>(static_cast<ByteType*>(ImplicitConv<DataType*>(InDataEnd)) - static_cast<ByteType*>(InData)))
@@ -289,8 +293,10 @@ template <typename T>
 }
 
 /** Make a non-owning view of the memory of the contiguous container. */
-template <typename ContainerType,
-	typename TEnableIf<TIsContiguousContainer<ContainerType>::Value>::Type* = nullptr>
+template <
+	typename ContainerType
+	UE_REQUIRES(TIsContiguousContainer<ContainerType>::Value)
+>
 [[nodiscard]] constexpr inline auto MakeMemoryView(ContainerType&& Container)
 {
 	using ElementType = typename TRemovePointer<decltype(GetData(DeclVal<ContainerType>()))>::Type;
