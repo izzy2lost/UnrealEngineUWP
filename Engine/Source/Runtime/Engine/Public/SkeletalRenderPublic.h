@@ -148,6 +148,17 @@ public:
 	virtual const TArray<FMatrix44f>& GetReferenceToLocalMatrices() const = 0;
 
 	/**
+	 *	Get the array of previous refpose->local matrices
+	 *	Not safe to hold this reference between frames, because it exists in dynamic data passed from main thread.
+	 */
+	virtual const TArray<FMatrix44f>& GetPrevReferenceToLocalMatrices() const
+	{
+		// Not implemented
+		checkNoEntry();
+		return GetReferenceToLocalMatrices();
+	}
+
+	/**
 	 * If we are caching geometry deformation through skin-cache/mesh-deformers or other, then this returns the currently cached geoemtry.
 	 */
 	virtual bool GetCachedGeometry(FCachedGeometry& OutCachedGeometry) const { return false; }

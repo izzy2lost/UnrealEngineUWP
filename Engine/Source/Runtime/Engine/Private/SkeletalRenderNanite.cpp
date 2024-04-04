@@ -17,11 +17,35 @@
 FDynamicSkelMeshObjectDataNanite::FDynamicSkelMeshObjectDataNanite(
 	USkinnedMeshComponent* InComponent,
 	FSkeletalMeshRenderData* InRenderData,
-	int32 InLODIndex
+	int32 InLODIndex,
+	EPreviousBoneTransformUpdateMode InPreviousBoneTransformUpdateMode
 )
 :	LODIndex(InLODIndex)
 {
 	UpdateRefToLocalMatrices(ReferenceToLocal, InComponent, InRenderData, LODIndex);
+
+	switch (InPreviousBoneTransformUpdateMode)
+	{
+	case EPreviousBoneTransformUpdateMode::None:
+		// Use previously uploaded buffer
+		// TODO: Nanite-Skinning, optimize scene extension upload to keep cached GPU representation using PreviousBoneTransformRevisionNumber
+		// For now we'll just redundantly update and upload previous transforms
+		UpdatePreviousRefToLocalMatrices(PrevReferenceToLocal, InComponent, InRenderData, LODIndex);
+		break;
+
+	case EPreviousBoneTransformUpdateMode::UpdatePrevious:
+		UpdatePreviousRefToLocalMatrices(PrevReferenceToLocal, InComponent, InRenderData, LODIndex);
+		break;
+
+	case EPreviousBoneTransformUpdateMode::DuplicateCurrentToPrevious:
+		// TODO: Nanite-Skinning likely possible we can just return ReferenceToLocal here rather than cloning it into previous
+		// Need to make sure it's safe when next update mode = None
+		for (int32 Index = 0; Index < ReferenceToLocal.Num(); ++Index)
+		{
+			PrevReferenceToLocal[Index] = ReferenceToLocal[Index];
+		}
+		break;
+	}
 
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 	ComponentSpaceTransforms = InComponent->GetComponentSpaceTransforms();
@@ -95,7 +119,7 @@ void FSkeletalMeshObjectNanite::Update(
 	{
 		// Create the new dynamic data for use by the rendering thread
 		// this data is only deleted when another update is sent
-		FDynamicSkelMeshObjectDataNanite* NewDynamicData = new FDynamicSkelMeshObjectDataNanite(InComponent, SkeletalMeshRenderData, LODIndex);
+		FDynamicSkelMeshObjectDataNanite* NewDynamicData = new FDynamicSkelMeshObjectDataNanite(InComponent, SkeletalMeshRenderData, LODIndex, PreviousBoneTransformUpdateMode);
 
 		if (LODIndex != CachedLOD)
 		{
@@ -199,6 +223,11 @@ TArray<FTransform>* FSkeletalMeshObjectNanite::GetComponentSpaceTransforms() con
 const TArray<FMatrix44f>& FSkeletalMeshObjectNanite::GetReferenceToLocalMatrices() const
 {
 	return DynamicData->ReferenceToLocal;
+}
+
+const TArray<FMatrix44f>& FSkeletalMeshObjectNanite::GetPrevReferenceToLocalMatrices() const
+{
+	return DynamicData->PrevReferenceToLocal;
 }
 
 int32 FSkeletalMeshObjectNanite::GetLOD() const

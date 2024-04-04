@@ -404,10 +404,8 @@ void FSkinningSceneExtension::FUpdater::FinalizeSkinningUploads(FRDGBuilder& Gra
 			Data.MaxTransformCount = SkinnedProxy->GetMaxBoneTransformCount();
 			Data.MaxInfluenceCount = SkinnedProxy->GetMaxBoneInfluenceCount();
 
-			//const uint32 TransformDataSizeDwords = sizeof(FMatrix3x4) >> 2u;
-
-			const uint32 NeededSize = Data.MaxTransformCount;
-			if (Data.MaxTransformCount != Data.TransformBufferCount)
+			const uint32 NeededSize = Data.MaxTransformCount * 2u; // Current and Previous
+			if (NeededSize != Data.TransformBufferCount)
 			{
 				if (Data.TransformBufferCount > 0)
 				{
@@ -525,13 +523,20 @@ void FSkinningSceneExtension::FUpdater::FinalizeSkinningUploads(FRDGBuilder& Gra
 
 			// Fetch bone transforms from Nanite mesh object and upload to GPU (3x4 transposed)
 			const TArray<FMatrix44f>& ReferenceToLocal = SkinnedProxy->GetMeshObject()->GetReferenceToLocalMatrices();
-			FMatrix3x4* BoneTransforms = UploadData.GetData();
+			const TArray<FMatrix44f>& PrevReferenceToLocal = SkinnedProxy->GetMeshObject()->GetPrevReferenceToLocalMatrices();
+			check(Data.MaxTransformCount * 2u == Data.TransformBufferCount);
+			check(uint32(ReferenceToLocal.Num() + PrevReferenceToLocal.Num()) <= Data.TransformBufferCount);
+
+			FMatrix3x4* CurrentBoneTransforms = UploadData.GetData();
+			FMatrix3x4* PreviousBoneTransforms = CurrentBoneTransforms + Data.MaxTransformCount;
 	
-			check(ReferenceToLocal.Num() <= Data.MaxTransformCount);
-			for (int32 TransformIndex = 0; TransformIndex < ReferenceToLocal.Num(); ++TransformIndex)
+			const int32 ReferenceToLocalCount = ReferenceToLocal.Num();
+			const FMatrix44f* ReferenceToLocalPtr = ReferenceToLocal.GetData();
+
+			for (int32 TransformIndex = 0; TransformIndex < ReferenceToLocalCount; ++TransformIndex)
 			{
-				const FMatrix44f& SrcTransform = ReferenceToLocal.GetData()[TransformIndex];
-				FMatrix3x4& DstTransform = BoneTransforms[TransformIndex];
+				const FMatrix44f& SrcTransform = ReferenceToLocalPtr[TransformIndex];
+				FMatrix3x4& DstTransform = CurrentBoneTransforms[TransformIndex];
 
 			#if PLATFORM_ENABLE_VECTORINTRINSICS
 				VectorRegister4Float InRow0 = VectorLoadAligned(&(SrcTransform.M[0][0]));
@@ -544,14 +549,35 @@ void FSkinningSceneExtension::FUpdater::FinalizeSkinningUploads(FRDGBuilder& Gra
 				VectorRegister4Float Temp2 = VectorShuffle(InRow0, InRow1, 2, 3, 2, 3);
 				VectorRegister4Float Temp3 = VectorShuffle(InRow2, InRow3, 2, 3, 2, 3);
 
-				Temp0 = VectorSwizzle(Temp0, 0, 2, 1, 3);
-				Temp1 = VectorSwizzle(Temp1, 0, 2, 1, 3);
-				Temp2 = VectorSwizzle(Temp2, 0, 2, 1, 3);
-				Temp3 = VectorSwizzle(Temp3, 0, 2, 1, 3);
+				VectorStoreAligned(VectorShuffle(Temp0, Temp1, 0, 2, 0, 2), &(DstTransform.M[0][0]));
+				VectorStoreAligned(VectorShuffle(Temp0, Temp1, 1, 3, 1, 3), &(DstTransform.M[1][0]));
+				VectorStoreAligned(VectorShuffle(Temp2, Temp3, 0, 2, 0, 2), &(DstTransform.M[2][0]));
+			#else
+				SrcTransform.To3x4MatrixTranspose((float*)DstTransform.M);
+			#endif
+			}
 
-				VectorStoreAligned(VectorShuffle(Temp0, Temp1, 0, 1, 0, 1), &(DstTransform.M[0][0]));
-				VectorStoreAligned(VectorShuffle(Temp0, Temp1, 2, 3, 2, 3), &(DstTransform.M[1][0]));
-				VectorStoreAligned(VectorShuffle(Temp2, Temp3, 0, 1, 0, 1), &(DstTransform.M[2][0]));
+			const int32 PrefReferenceToLocalCount = PrevReferenceToLocal.Num();
+			const FMatrix44f* PrevReferenceToLocalPtr = PrevReferenceToLocal.GetData();
+			for (int32 TransformIndex = 0; TransformIndex < PrefReferenceToLocalCount; ++TransformIndex)
+			{
+				const FMatrix44f& SrcTransform = PrevReferenceToLocalPtr[TransformIndex];
+				FMatrix3x4& DstTransform = PreviousBoneTransforms[TransformIndex];
+
+			#if PLATFORM_ENABLE_VECTORINTRINSICS
+				VectorRegister4Float InRow0 = VectorLoadAligned(&(SrcTransform.M[0][0]));
+				VectorRegister4Float InRow1 = VectorLoadAligned(&(SrcTransform.M[1][0]));
+				VectorRegister4Float InRow2 = VectorLoadAligned(&(SrcTransform.M[2][0]));
+				VectorRegister4Float InRow3 = VectorLoadAligned(&(SrcTransform.M[3][0]));
+
+				VectorRegister4Float Temp0 = VectorShuffle(InRow0, InRow1, 0, 1, 0, 1);
+				VectorRegister4Float Temp1 = VectorShuffle(InRow2, InRow3, 0, 1, 0, 1);
+				VectorRegister4Float Temp2 = VectorShuffle(InRow0, InRow1, 2, 3, 2, 3);
+				VectorRegister4Float Temp3 = VectorShuffle(InRow2, InRow3, 2, 3, 2, 3);
+
+				VectorStoreAligned(VectorShuffle(Temp0, Temp1, 0, 2, 0, 2), &(DstTransform.M[0][0]));
+				VectorStoreAligned(VectorShuffle(Temp0, Temp1, 1, 3, 1, 3), &(DstTransform.M[1][0]));
+				VectorStoreAligned(VectorShuffle(Temp2, Temp3, 0, 2, 0, 2), &(DstTransform.M[2][0]));
 			#else
 				SrcTransform.To3x4MatrixTranspose((float*)DstTransform.M);
 			#endif

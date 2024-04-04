@@ -103,10 +103,26 @@ class FEmitSceneDepthPS : public FNaniteGlobalShader
 	class FLegacyCullingDim : SHADER_PERMUTATION_BOOL("LEGACY_CULLING");
 	class FVelocityExportDim : SHADER_PERMUTATION_BOOL("VELOCITY_EXPORT");
 	class FShadingMaskExportDim : SHADER_PERMUTATION_BOOL("SHADING_MASK_EXPORT");
-	using FPermutationDomain = TShaderPermutationDomain<FLegacyCullingDim, FVelocityExportDim, FShadingMaskExportDim>;
+	class FSkinningDim : SHADER_PERMUTATION_BOOL("USE_SKINNING");
+	using FPermutationDomain = TShaderPermutationDomain<FLegacyCullingDim, FVelocityExportDim, FShadingMaskExportDim, FSkinningDim>;
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
 	{
+		const FPermutationDomain PermutationVector(Parameters.PermutationId);
+		if (PermutationVector.Get<FSkinningDim>())
+		{
+			if (!NaniteSkinnedMeshesSupported())
+			{
+				return false;
+			}
+
+			if (!PermutationVector.Get<FVelocityExportDim>())
+			{
+				// Skinning is only needed when velocity will be exported
+				return false;
+			}
+		}
+
 		return DoesPlatformSupportNanite(Parameters.Platform);
 	}
 
@@ -211,10 +227,26 @@ class FDepthExportCS : public FNaniteGlobalShader
 	class FMaterialDepthExportDim : SHADER_PERMUTATION_BOOL("MATERIAL_DEPTH_EXPORT");
 	class FShadingMaskExportDim : SHADER_PERMUTATION_BOOL("SHADING_MASK_EXPORT");
 	class FLegacyCullingDim : SHADER_PERMUTATION_BOOL("LEGACY_CULLING");
-	using FPermutationDomain = TShaderPermutationDomain<FVelocityExportDim, FMaterialDepthExportDim, FShadingMaskExportDim, FLegacyCullingDim>;
+	class FSkinningDim : SHADER_PERMUTATION_BOOL("USE_SKINNING");
+	using FPermutationDomain = TShaderPermutationDomain<FVelocityExportDim, FMaterialDepthExportDim, FShadingMaskExportDim, FLegacyCullingDim, FSkinningDim>;
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
 	{
+		const FPermutationDomain PermutationVector(Parameters.PermutationId);
+		if (PermutationVector.Get<FSkinningDim>())
+		{
+			if (!NaniteSkinnedMeshesSupported())
+			{
+				return false;
+			}
+
+			if (!PermutationVector.Get<FVelocityExportDim>())
+			{
+				// Skinning is only needed when velocity will be exported
+				return false;
+			}
+		}
+
 		return DoesPlatformSupportNanite(Parameters.Platform);
 	}
 
@@ -383,6 +415,7 @@ void EmitDepthTargets(
 		PermutationVectorCS.Set<FDepthExportCS::FVelocityExportDim>(bEmitVelocity);
 		PermutationVectorCS.Set<FDepthExportCS::FMaterialDepthExportDim>(!UseNaniteComputeMaterials());
 		PermutationVectorCS.Set<FDepthExportCS::FShadingMaskExportDim>(true);
+		PermutationVectorCS.Set<FDepthExportCS::FSkinningDim>(bEmitVelocity && NaniteSkinnedMeshesSupported());
 		auto ComputeShader = View.ShaderMap->GetShader<FDepthExportCS>(PermutationVectorCS);
 
 		FComputeShaderUtils::AddPass(GraphBuilder, RDG_EVENT_NAME("DepthExport"), ComputeShader, PassParameters, DispatchDim);
@@ -402,6 +435,7 @@ void EmitDepthTargets(
 			PermutationVectorPS.Set<FEmitSceneDepthPS::FLegacyCullingDim>(!UseNaniteComputeMaterials());
 			PermutationVectorPS.Set<FEmitSceneDepthPS::FVelocityExportDim>(bEmitVelocity);
 			PermutationVectorPS.Set<FEmitSceneDepthPS::FShadingMaskExportDim>(true);
+			PermutationVectorPS.Set<FEmitSceneDepthPS::FSkinningDim>(bEmitVelocity && NaniteSkinnedMeshesSupported());
 			auto  PixelShader = View.ShaderMap->GetShader<FEmitSceneDepthPS>(PermutationVectorPS);
 			
 			auto* PassParameters = GraphBuilder.AllocParameters<FEmitSceneDepthPS::FParameters>();
@@ -644,6 +678,7 @@ void EmitCustomDepthStencilTargets(
 			PermutationVectorCS.Set<FDepthExportCS::FVelocityExportDim>(false);
 			PermutationVectorCS.Set<FDepthExportCS::FMaterialDepthExportDim>(false);
 			PermutationVectorCS.Set<FDepthExportCS::FShadingMaskExportDim>(false);
+			PermutationVectorCS.Set<FDepthExportCS::FSkinningDim>(false);
 			auto ComputeShader = View.ShaderMap->GetShader<FDepthExportCS>(PermutationVectorCS);
 
 			FComputeShaderUtils::AddPass(
@@ -846,6 +881,7 @@ void EmitMaterialDepthRects(
 	PermutationVectorPS.Set<FEmitSceneDepthPS::FLegacyCullingDim>(true /* Always use legacy culling with Lumen - until refactor to CS */);
 	PermutationVectorPS.Set<FEmitSceneDepthPS::FVelocityExportDim>(false);
 	PermutationVectorPS.Set<FEmitSceneDepthPS::FShadingMaskExportDim>(false);
+	PermutationVectorPS.Set<FEmitSceneDepthPS::FSkinningDim>(false);
 	auto PixelShader = SharedView->ShaderMap->GetShader<FEmitSceneDepthPS>(PermutationVectorPS);
 
 	FPixelShaderUtils::AddRasterizeToRectsPass(GraphBuilder,

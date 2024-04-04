@@ -29,13 +29,17 @@ public:
 	ENGINE_API FDynamicSkelMeshObjectDataNanite(
 		USkinnedMeshComponent* InComponent,
 		FSkeletalMeshRenderData* InRenderData,
-		int32 InLODIndex
+		int32 InLODIndex,
+		EPreviousBoneTransformUpdateMode InPreviousBoneTransformUpdateMode
 	);
 
 	ENGINE_API virtual ~FDynamicSkelMeshObjectDataNanite();
 
-	// Reference pose to local space transforms
+	// Current reference pose to local space transforms
 	TArray<FMatrix44f> ReferenceToLocal;
+
+	// Previous reference pose to local space transforms
+	TArray<FMatrix44f> PrevReferenceToLocal;
 
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST) 
 	// Component space bone transforms
@@ -82,6 +86,7 @@ public:
 	ENGINE_API virtual const FVertexFactory* GetStaticSkinVertexFactory(int32 LODIndex, int32 ChunkIdx, ESkinVertexFactoryMode VFMode = ESkinVertexFactoryMode::Default) const override;
 	ENGINE_API virtual TArray<FTransform>* GetComponentSpaceTransforms() const override;
 	ENGINE_API virtual const TArray<FMatrix44f>& GetReferenceToLocalMatrices() const override;
+	ENGINE_API virtual const TArray<FMatrix44f>& GetPrevReferenceToLocalMatrices() const override;
 
 	virtual int32 GetLOD() const override;
 

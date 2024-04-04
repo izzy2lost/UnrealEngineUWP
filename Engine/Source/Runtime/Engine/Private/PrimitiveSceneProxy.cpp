@@ -790,6 +790,7 @@ void FPrimitiveSceneProxy::BuildUniformShaderParameters(FPrimitiveUniformShaderP
 	);
 
 	bOutputVelocity |= AlwaysHasVelocity();
+	bOutputVelocity |= (IsNaniteMesh() && IsSkinnedMesh());
 
 	FBoxSphereBounds PreSkinnedLocalBounds;
 	GetPreSkinnedLocalBounds(PreSkinnedLocalBounds);
