@@ -4971,18 +4971,37 @@ bool USkinnedMeshComponent::IsUsingSkinWeightProfile() const
 	{		
 		return true;
 	}
-	else
+
+	if (USkinnedAsset* Asset = GetSkinnedAsset())
 	{
-		if (USkinnedAsset* Asset = GetSkinnedAsset())
+		if (const FSkinWeightProfilesData* ProfileData = Asset->GetSkinWeightProfilesData(GetPredictedLODLevel()))
 		{
-			if (const FSkinWeightProfilesData* ProfileData = Asset->GetSkinWeightProfilesData(GetPredictedLODLevel()))
-			{
-				return ProfileData->IsDefaultOverridden() || ProfileData->IsStaticOverridden();
-			}
-		}		
-	}
+			return ProfileData->IsDefaultOverridden() || ProfileData->IsStaticOverridden();
+		}
+	}	
 
 	return false;
+}
+
+FName USkinnedMeshComponent::GetCurrentSkinWeightProfileName() const
+{
+	if (bSkinWeightProfileSet)
+	{
+		return CurrentSkinWeightProfileName;
+	}
+
+	if (USkinnedAsset* Asset = GetSkinnedAsset())
+	{
+		if (const FSkinWeightProfilesData* ProfileData = Asset->GetSkinWeightProfilesData(GetPredictedLODLevel()))
+		{
+			if( ProfileData->IsDefaultOverridden() || ProfileData->IsStaticOverridden())
+			{
+				return ProfileData->GetDefaultProfileName();
+			}
+		}
+	}
+
+	return NAME_None;
 }
 
 void USkinnedMeshComponent::UpdateSkinWeightOverrideBuffer()

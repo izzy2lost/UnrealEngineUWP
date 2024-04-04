@@ -179,6 +179,7 @@ struct FSkinWeightProfilesData
 
 	ENGINE_API bool IsDefaultOverridden() const { return bDefaultOverridden; }
 	ENGINE_API bool IsStaticOverridden() const { return bStaticOverridden; }
+	ENGINE_API FName GetDefaultProfileName() const { return DefaultProfileName; }
 protected:
 	ENGINE_API void ApplyOverrideProfile(FSkinWeightVertexBuffer* OverrideBuffer, const FName& ProfileName);
 

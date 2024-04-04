@@ -1347,7 +1347,7 @@ public:
 
 	/** Return the name of the Skin Weight Profile that is currently set otherwise returns 'None' */
 	UFUNCTION(BlueprintCallable, Category = "Components|SkinnedMesh")
-	FName GetCurrentSkinWeightProfileName() const { return CurrentSkinWeightProfileName; }
+	ENGINE_API FName GetCurrentSkinWeightProfileName() const;
 
 	/** Check whether or not a Skin Weight Profile is currently set */
 	UFUNCTION(BlueprintCallable, Category = "Components|SkinnedMesh")
