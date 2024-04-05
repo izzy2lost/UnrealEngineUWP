@@ -155,6 +155,13 @@ void SChaosVDMainTab::Construct(const FArguments& InArgs, TSharedPtr<FChaosVDEng
 	// Make sure these tabs are always focused at the start
 	TabManager->TryInvokeTab(FChaosVDTabID::SolversTrack);
 	TabManager->TryInvokeTab(FChaosVDTabID::DetailsPanel);
+
+	SetUpDisableCPUThrottlingDelegate();
+}
+
+SChaosVDMainTab::~SChaosVDMainTab()
+{
+	CleanUpDisableCPUThrottlingDelegate();
 }
 
 void SChaosVDMainTab::BringToFront()
@@ -452,6 +459,26 @@ bool SChaosVDMainTab::ConnectToLiveSession(int32 SessionID, const FString Sessio
 	return bSuccess;
 }
 
+void SChaosVDMainTab::SetUpDisableCPUThrottlingDelegate()
+{
+	if (GEditor)
+	{
+		GEditor->ShouldDisableCPUThrottlingDelegates.Add(UEditorEngine::FShouldDisableCPUThrottling::CreateSP(this, &SChaosVDMainTab::ShouldDisableCPUThrottling));
+		DisableCPUThrottleHandle = GEditor->ShouldDisableCPUThrottlingDelegates.Last().GetHandle();
+	}
+}
+
+void SChaosVDMainTab::CleanUpDisableCPUThrottlingDelegate() const
+{
+	if (GEditor)
+	{
+		GEditor->ShouldDisableCPUThrottlingDelegates.RemoveAll([this](const UEditorEngine::FShouldDisableCPUThrottling& Delegate)
+		{
+			return Delegate.GetHandle() == DisableCPUThrottleHandle;
+		});
+	}
+}
+
 void SChaosVDMainTab::RegisterMainTabMenu()
 {
 	const UToolMenus* ToolMenus = UToolMenus::Get();
@@ -569,6 +596,12 @@ void SChaosVDMainTab::BrowseLiveSessionsFromTraceStore() const
 			FMessageDialog::Open(EAppMsgType::Ok, LOCTEXT("FailedToConnectToSessionMessage", "Failed to connect to session"));	
 		}
 	}
+}
+
+bool SChaosVDMainTab::ShouldDisableCPUThrottling() const
+{
+	// If we are playing a live session, it is likely the editor will be in the background, so we need to disable CPU Throttling
+	return ChaosVDEngine && ChaosVDEngine->GetCurrentSessionDescriptor().bIsLiveSession;
 }
 
 FReply SChaosVDMainTab::HandleSessionConnectionClicked()

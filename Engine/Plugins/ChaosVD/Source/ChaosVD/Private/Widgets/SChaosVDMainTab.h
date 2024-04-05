@@ -44,6 +44,8 @@ public:
 
 	void Construct(const FArguments& InArgs, TSharedPtr<FChaosVDEngine> InChaosVDEngine);
 
+	virtual ~SChaosVDMainTab() override;
+
 	TSharedRef<FChaosVDEngine> GetChaosVDEngineInstance() const { return ChaosVDEngine.ToSharedRef(); }
 
 	template<typename TabType>
@@ -71,6 +73,9 @@ public:
 	bool ConnectToLiveSession(int32 SessionID, FString SessionAddress) const;
 
 private:
+	
+	void SetUpDisableCPUThrottlingDelegate();
+	void CleanUpDisableCPUThrottlingDelegate() const;
 
 	void RegisterMainTabMenu();
 
@@ -96,6 +101,8 @@ private:
 
 	void BrowseLiveSessionsFromTraceStore() const;
 
+	bool ShouldDisableCPUThrottling() const;
+
 	TSharedPtr<FChaosVDEngine> ChaosVDEngine;
 
 	FName StatusBarID;
@@ -112,6 +119,8 @@ private:
 	TMap<FName, TWeakPtr<SDockTab>> ActiveTabsByID;
 
 	FOnActiveViewportChanged ViewportChangedDelegate;
+
+	FDelegateHandle DisableCPUThrottleHandle;
 
 	FReply HandleSessionConnectionClicked();
 	FText GetConnectButtonText() const;
