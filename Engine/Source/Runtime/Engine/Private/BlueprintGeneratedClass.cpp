@@ -3078,3 +3078,267 @@ ESoftObjectPathCollectType FImportExportCollector::Union(ESoftObjectPathCollectT
 
 #endif //if WITH_EDITORONLY_DATA
 
+FBlueprintDebugData::FBlueprintDebugData() = default;
+FBlueprintDebugData::FBlueprintDebugData(FBlueprintDebugData&&) = default;
+FBlueprintDebugData::FBlueprintDebugData(const FBlueprintDebugData&) = default;
+FBlueprintDebugData& FBlueprintDebugData::operator=(FBlueprintDebugData&&) = default;
+FBlueprintDebugData& FBlueprintDebugData::operator=(const FBlueprintDebugData&) = default;
+FBlueprintDebugData::~FBlueprintDebugData() = default;
+
+#if WITH_EDITORONLY_DATA
+
+UEdGraphNode* FBlueprintDebugData::FindNodeFromUUID(int32 UUID) const
+{
+	if (const TWeakObjectPtr<UEdGraphNode>* pParentNode = DebugNodesAllocatedUniqueIDsMap.Find(UUID))
+	{
+		return pParentNode->Get();
+	}
+	
+	return nullptr;
+}
+
+bool FBlueprintDebugData::IsValid() const
+{
+	return DebugNodeLineNumbers.Num() > 0;
+}
+
+UEdGraphNode* FBlueprintDebugData::FindSourceNodeFromCodeLocation(UFunction* Function, int32 CodeOffset, bool bAllowImpreciseHit) const
+{
+	if (const FDebuggingInfoForSingleFunction* pFuncInfo = PerFunctionLineNumbers.Find(Function))
+	{
+		UEdGraphNode* Result = pFuncInfo->LineNumberToSourceNodeMap.FindRef(CodeOffset).Get();
+
+		if ((Result == nullptr) && bAllowImpreciseHit)
+		{
+			for (int32 TrialOffset = CodeOffset + 1; (Result == nullptr) && (TrialOffset < Function->Script.Num()); ++TrialOffset)
+			{
+				Result = pFuncInfo->LineNumberToSourceNodeMap.FindRef(TrialOffset).Get();
+			}
+		}
+
+		return Result;
+	}
+
+	return nullptr;
+}
+
+UEdGraphPin* FBlueprintDebugData::FindSourcePinFromCodeLocation(UFunction* Function, int32 CodeOffset) const
+{
+	if (const FDebuggingInfoForSingleFunction* pFuncInfo = PerFunctionLineNumbers.Find(Function))
+	{
+		return pFuncInfo->LineNumberToSourcePinMap.FindRef(CodeOffset).Get();
+	}
+
+	return nullptr;
+}
+
+void FBlueprintDebugData::FindAllCodeLocationsFromSourcePin(UEdGraphPin const* SourcePin, UFunction* InFunction, TArray<int32>& OutPinToCodeAssociations) const
+{
+	OutPinToCodeAssociations.Empty();
+
+	if (const FDebuggingInfoForSingleFunction* pFuncInfo = PerFunctionLineNumbers.Find(InFunction))
+	{
+		pFuncInfo->SourcePinToLineNumbersMap.MultiFind(SourcePin, OutPinToCodeAssociations, true);
+	}
+}
+
+int32 FBlueprintDebugData::FindCodeLocationFromSourcePin(UEdGraphPin const* SourcePin, UFunction* InFunction, FInt32Range InRange) const
+{
+	TArray<int32> PinToCodeAssociations;
+	FindAllCodeLocationsFromSourcePin(SourcePin, InFunction, PinToCodeAssociations);
+
+	for (int32 i = 0; i < PinToCodeAssociations.Num(); ++i)
+	{
+		if (InRange.Contains(PinToCodeAssociations[i]))
+		{
+			return PinToCodeAssociations[i];
+		}
+	}
+
+	return INDEX_NONE;
+}
+
+void FBlueprintDebugData::FindAllCodeLocationsFromSourceNode(UEdGraphNode* SourceNode, UFunction* InFunction, TArray<int32>& OutNodeToCodeAssociations) const
+{
+	OutNodeToCodeAssociations.Empty();
+
+	if (const FDebuggingInfoForSingleFunction* pFuncInfo = PerFunctionLineNumbers.Find(InFunction))
+	{
+		for (auto CodeLocation : pFuncInfo->LineNumberToSourceNodeMap)
+		{
+			if (CodeLocation.Value == SourceNode)
+			{
+				OutNodeToCodeAssociations.Add(CodeLocation.Key);
+			}
+		}
+	}
+}
+
+FInt32Range FBlueprintDebugData::FindPureNodeScriptCodeRangeFromSourceNode(const UEdGraphNode* SourceNode, UFunction* InFunction) const
+{
+	FInt32Range Result = FInt32Range(INDEX_NONE);
+
+	if (const FDebuggingInfoForSingleFunction* DebugInfoPtr = PerFunctionLineNumbers.Find(InFunction))
+	{
+		if (const FInt32Range* ValuePtr = DebugInfoPtr->PureNodeScriptCodeRangeMap.Find(MakeWeakObjectPtr(const_cast<UEdGraphNode*>(SourceNode))))
+		{
+			Result = *ValuePtr;
+		}
+	}
+
+	return Result;
+}
+
+const TArray<TWeakObjectPtr<UEdGraphNode> >* FBlueprintDebugData::FindExpansionSourceNodesFromCodeLocation(UFunction* Function, int32 CodeOffset) const
+{
+	if (const FDebuggingInfoForSingleFunction* pFuncInfo = PerFunctionLineNumbers.Find(Function))
+	{
+		return pFuncInfo->LineNumberToTunnelInstanceSourceNodesMap.Find(CodeOffset);
+	}
+
+	return nullptr;
+}
+
+void FBlueprintDebugData::FindBreakpointInjectionSites(UEdGraphNode* Node, TArray<uint8*>& InstallSites) const
+{
+	TArray<int32> RecordIndices;
+	DebugNodeIndexLookup.MultiFind(Node, RecordIndices, true);
+	for(int i = 0; i < RecordIndices.Num(); ++i)
+	{
+		int32 RecordIndex = RecordIndices[i];
+		if (DebugNodeLineNumbers.IsValidIndex(RecordIndex))
+		{
+			const FNodeToCodeAssociation& Record = DebugNodeLineNumbers[RecordIndex];
+			if (UFunction* Scope = Record.Scope.Get())
+			{
+				if (Scope->Script.IsValidIndex(Record.Offset))
+				{
+					InstallSites.Add(&(Scope->Script[Record.Offset]));
+				}
+			}
+		}
+	}
+}
+
+FProperty* FBlueprintDebugData::FindClassPropertyForPin(const UEdGraphPin* Pin) const
+{
+	if (!Pin)
+	{
+		return nullptr;
+	}
+
+	TFieldPath<FProperty> PropertyPtr = DebugPinToPropertyMap.FindRef(Pin);
+	if ((PropertyPtr == nullptr) && (Pin->LinkedTo.Num() > 0))
+	{
+		// Try checking the other side of the connection
+		PropertyPtr = DebugPinToPropertyMap.FindRef(Pin->LinkedTo[0]);
+	}
+
+	return *PropertyPtr;
+}
+
+FProperty* FBlueprintDebugData::FindClassPropertyForNode(const UEdGraphNode* Node) const
+{
+	return *DebugObjectToPropertyMap.FindRef(MakeWeakObjectPtr(const_cast<UEdGraphNode*>(Node)));
+}
+
+void FBlueprintDebugData::RegisterNodeToCodeAssociation(UEdGraphNode* SourceNode, const TArray<TWeakObjectPtr<UEdGraphNode> >& ExpansionSourceNodes, UFunction* InFunction, int32 CodeOffset, bool bBreakpointSite)
+{
+	//@TODO: Nasty expansion behavior during compile time
+	if (bBreakpointSite)
+	{
+		DebugNodeLineNumbers.Emplace(SourceNode, InFunction, CodeOffset);
+		DebugNodeIndexLookup.Add(SourceNode, DebugNodeLineNumbers.Num() - 1);
+	}
+
+	FDebuggingInfoForSingleFunction& PerFuncInfo = PerFunctionLineNumbers.FindOrAdd(InFunction);
+	PerFuncInfo.LineNumberToSourceNodeMap.Add(CodeOffset, SourceNode);
+
+	if (ExpansionSourceNodes.Num() > 0)
+	{
+		PerFuncInfo.LineNumberToTunnelInstanceSourceNodesMap.Add(CodeOffset, ExpansionSourceNodes);
+	}
+}
+
+void FBlueprintDebugData::RegisterPureNodeScriptCodeRange(UEdGraphNode* SourceNode, UFunction* InFunction, FInt32Range InPureNodeScriptCodeRange)
+{
+	FDebuggingInfoForSingleFunction& PerFuncInfo = PerFunctionLineNumbers.FindOrAdd(InFunction);
+	PerFuncInfo.PureNodeScriptCodeRangeMap.Add(SourceNode, InPureNodeScriptCodeRange);
+}
+
+void FBlueprintDebugData::RegisterPinToCodeAssociation(UEdGraphPin const* SourcePin, UFunction* InFunction, int32 CodeOffset)
+{
+	FDebuggingInfoForSingleFunction& PerFuncInfo = PerFunctionLineNumbers.FindOrAdd(InFunction);
+	PerFuncInfo.LineNumberToSourcePinMap.Add(CodeOffset, SourcePin);
+	PerFuncInfo.SourcePinToLineNumbersMap.Add(SourcePin, CodeOffset);
+}
+
+const TMap<int32, FName>& FBlueprintDebugData::GetEntryPoints() const
+{
+	return EntryPoints;
+}
+
+bool FBlueprintDebugData::IsValidEntryPoint(const int32 LinkId) const
+{
+	return EntryPoints.Contains(LinkId);
+}
+
+void FBlueprintDebugData::RegisterEntryPoint(const int32 ScriptOffset, const FName FunctionName)
+{
+	EntryPoints.Add(ScriptOffset, FunctionName);
+}
+
+void FBlueprintDebugData::RegisterClassPropertyAssociation(class UObject* TrueSourceObject, class FProperty* AssociatedProperty)
+{
+	DebugObjectToPropertyMap.Add(TrueSourceObject, AssociatedProperty);
+}
+
+void FBlueprintDebugData::RegisterClassPropertyAssociation(const UEdGraphPin* TrueSourcePin, class FProperty* AssociatedProperty)
+{
+	if (TrueSourcePin)
+	{
+		DebugPinToPropertyMap.Add(TrueSourcePin, AssociatedProperty);
+	}
+}
+
+void FBlueprintDebugData::RegisterUUIDAssociation(UEdGraphNode* TrueSourceNode, int32 UUID)
+{
+	DebugNodesAllocatedUniqueIDsMap.Add(UUID, TrueSourceNode);
+}
+
+UObject* FBlueprintDebugData::FindObjectThatCreatedProperty(class FProperty* AssociatedProperty) const
+{
+	if (const TWeakObjectPtr<UObject>* pValue = DebugObjectToPropertyMap.FindKey(AssociatedProperty))
+	{
+		return pValue->Get();
+	}
+	else
+	{
+		return nullptr;
+	}
+}
+
+UEdGraphPin* FBlueprintDebugData::FindPinThatCreatedProperty(class FProperty* AssociatedProperty) const
+{
+	if (const FEdGraphPinReference* pValue = DebugPinToPropertyMap.FindKey(AssociatedProperty))
+	{
+		return pValue->Get();
+	}
+	else
+	{
+		return nullptr;
+	}
+}
+
+void FBlueprintDebugData::GenerateReversePropertyMap(TMap<FProperty*, UObject*>& PropertySourceMap)
+{
+	for (TMap<TWeakObjectPtr<UObject>, TFieldPath<FProperty>>::TIterator MapIt(DebugObjectToPropertyMap); MapIt; ++MapIt)
+	{
+		if (UObject* SourceObj = MapIt.Key().Get())
+		{
+			PropertySourceMap.Add(*MapIt.Value(), SourceObj);
+		}
+	}
+}
+
+#endif //if WITH_EDITORONLY_DATA
