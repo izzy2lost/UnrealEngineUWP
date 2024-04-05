@@ -367,7 +367,6 @@ namespace ImmediatePhysics_Chaos
 		DetectorSettings.bFilteringEnabled = false;
 		DetectorSettings.bAllowManifoldReuse = false;
 		DetectorSettings.bDeferNarrowPhase = (ChaosImmediate_Collision_DeferNarrowPhase != 0);
-		DetectorSettings.bAllowManifolds = (ChaosImmediate_Collision_UseManifolds != 0);
 		DetectorSettings.bAllowCCD = false;
 		DetectorSettings.bAllowMACD = false;
 		Implementation->Collisions.SetDetectorSettings(DetectorSettings);
@@ -780,7 +779,7 @@ namespace ImmediatePhysics_Chaos
 		SimSpaceSettings.EulerAlpha = ChaosImmediate_Evolution_SimSpaceEulerAlpha;
 	}
 
-	void FSimulation::SetSolverSettings(const FReal FixedDt, const FReal CullDistance, const FReal MaxDepenetrationVelocity, const int32 UseLinearJointSolver, const int32 PositionIts, const int32 VelocityIts, const int32 ProjectionIts)
+	void FSimulation::SetSolverSettings(const FReal FixedDt, const FReal CullDistance, const FReal MaxDepenetrationVelocity, const int32 UseLinearJointSolver, const int32 PositionIts, const int32 VelocityIts, const int32 ProjectionIts, const bool bUseManifoilds)
 	{
 		if (FixedDt >= FReal(0))
 		{
@@ -816,6 +815,8 @@ namespace ImmediatePhysics_Chaos
 		{
 			Implementation->Joints.SetUseLinearJointSolver(UseLinearJointSolver != 0);
 		}
+
+		Implementation->Collisions.SetAllowManifolds(bUseManifoilds || (ChaosImmediate_Collision_UseManifolds != 0));
 	}
 
 	void FSimulation::DebugDraw()
@@ -867,7 +868,8 @@ namespace ImmediatePhysics_Chaos
 				ChaosImmediate_Joint_UseLinearSolver,
 				ChaosImmediate_Evolution_PositionIterations,
 				ChaosImmediate_Evolution_VelocityIterations,
-				ChaosImmediate_Evolution_ProjectionIterations);
+				ChaosImmediate_Evolution_ProjectionIterations,
+				ChaosImmediate_Collision_UseManifolds != 0);
 
 			FPBDJointSolverSettings JointsSettings = Implementation->Joints.GetSettings();
 			JointsSettings.SwingTwistAngleTolerance = ChaosImmediate_Joint_SwingTwistAngleTolerance;
@@ -913,7 +915,6 @@ namespace ImmediatePhysics_Chaos
 			FCollisionDetectorSettings DetectorSettings = Implementation->Collisions.GetDetectorSettings();
 			DetectorSettings.bAllowManifoldReuse = false;
 			DetectorSettings.bDeferNarrowPhase = (ChaosImmediate_Collision_DeferNarrowPhase != 0);;
-			DetectorSettings.bAllowManifolds = (ChaosImmediate_Collision_UseManifolds != 0);;
 			Implementation->Collisions.SetDetectorSettings(DetectorSettings);
 
 			if (ChaosImmediate_Evolution_StepTime > 0)

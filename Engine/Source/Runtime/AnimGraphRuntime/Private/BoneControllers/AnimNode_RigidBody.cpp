@@ -32,7 +32,7 @@
 
 LLM_DEFINE_TAG(Animation_RigidBody);
 
-//PRAGMA_DISABLE_OPTIMIZATION
+//UE_DISABLE_OPTIMIZATION
 
 /////////////////////////////////////////////////////
 // FAnimNode_RigidBody
@@ -847,7 +847,9 @@ void FAnimNode_RigidBody::EvaluateSkeletalControl_AnyThread(FComponentSpacePoseC
 				SolverSettings.bUseLinearJointSolver,
 				SolverSettings.PositionIterations,
 				SolverSettings.VelocityIterations,
-				SolverSettings.ProjectionIterations);
+				SolverSettings.ProjectionIterations,
+				SolverSettings.bUseManifolds);
+
 
 			if (!bUseDeferredSimulationTask)
 			{
@@ -1296,7 +1298,8 @@ void FAnimNode_RigidBody::InitPhysics(const UAnimInstance* InAnimInstance)
 			SolverSettings.bUseLinearJointSolver,
 			SolverSettings.PositionIterations,
 			SolverSettings.VelocityIterations,
-			SolverSettings.ProjectionIterations);
+			SolverSettings.ProjectionIterations,
+			SolverSettings.bUseManifolds);
 
 		SolverIterations = UsePhysicsAsset->SolverIterations;
 	}

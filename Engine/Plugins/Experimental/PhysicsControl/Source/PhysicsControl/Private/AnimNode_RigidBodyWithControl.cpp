@@ -832,7 +832,8 @@ void FAnimNode_RigidBodyWithControl::EvaluateSkeletalControl_AnyThread(FComponen
 				SolverSettings.bUseLinearJointSolver,
 				SolverSettings.PositionIterations,
 				SolverSettings.VelocityIterations,
-				SolverSettings.ProjectionIterations);
+				SolverSettings.ProjectionIterations,
+				SolverSettings.bUseManifolds);
 
 			if (!bUseDeferredSimulationTask)
 			{
@@ -1257,7 +1258,8 @@ void FAnimNode_RigidBodyWithControl::InitPhysics(const UAnimInstance* InAnimInst
 			SolverSettings.bUseLinearJointSolver,
 			SolverSettings.PositionIterations,
 			SolverSettings.VelocityIterations,
-			SolverSettings.ProjectionIterations);
+			SolverSettings.ProjectionIterations,
+			SolverSettings.bUseManifolds);
 
 		SolverIterations = PhysicsAssetToUse->SolverIterations;
 

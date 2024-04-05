@@ -85,12 +85,19 @@ struct FPhysicsAssetSolverSettings
 	*/
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = SolverSettings)
 	bool bUseLinearJointSolver;
+
+	/**
+	 * RBAN: It enables the use of multi-point contact manifolds, which are created only once at the start of each tick.
+	 * When disabled, a single-point contact is generated in each solver iteration which is more expensive.
+	*/
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = CollisionSettings)
+	bool bUseManifolds;
 };
 
 
 /**
  * Solver settings for use by the Legacy RigidBody AnimNode (RBAN) solver.
- * Thse settings are no longer used by default and will eventually be deprecated and then removed.
+ * These settings are no longer used by default and will eventually be deprecated and then removed.
  * 
  * @note These settings have no effect when the Physics Asset is used in a world simulation (ragdoll).
  */
@@ -227,7 +234,7 @@ public:
 	FSolverIterations SolverIterations;
 
 	/** 
-	 * Solver type used in physics asset editor. This can be used to make what you see in the asset editror more closely resembles what you
+	 * Solver type used in physics asset editor. This can be used to make what you see in the asset editor more closely resembles what you
 	 * see in game (though there will be differences owing to framerate variation etc). If your asset will primarily be used as a ragdoll 
 	 * select "World", but if it will be used in the AnimGraph select "RBAN".
 	*/

@@ -106,7 +106,8 @@ namespace ImmediatePhysics_Chaos
 			const int32 UseLinearJointSolver,
 			const int32 PositionIts,
 			const int32 VelocityIts,
-			const int32 ProjectionIts);
+			const int32 ProjectionIts,
+			const bool bUseManifolds);
 
 		/** Explicit debug draw path if the use case needs it to happen at a point outside of the simulation **/
 		ENGINE_API void DebugDraw();

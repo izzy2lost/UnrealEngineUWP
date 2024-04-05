@@ -38,6 +38,7 @@ FPhysicsAssetSolverSettings::FPhysicsAssetSolverSettings()
 	, MaxDepenetrationVelocity(0.0f)
 	, FixedTimeStep(0.0f)
 	, bUseLinearJointSolver(true)
+	, bUseManifolds(false)
 {
 }
 
