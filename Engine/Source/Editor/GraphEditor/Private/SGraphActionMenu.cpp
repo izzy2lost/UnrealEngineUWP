@@ -1217,7 +1217,8 @@ void SGraphActionMenu::MarkActiveSuggestion()
 	if (SelectedAction.IsValid())
 	{
 		TreeView->SetSelection(SelectedAction);
-		TreeView->RequestScrollIntoView(SelectedAction);
+		int32 Idx = FilteredRootAction->GetLinearizedIndex(SelectedAction);
+		TreeView->SetScrollOffset(FMath::Max(((float)Idx) - 2.f, 0.f));
 	}
 	else
 	{

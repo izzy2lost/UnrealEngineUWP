@@ -198,6 +198,8 @@ public:
 	 */
 	bool IsRenameRequestPending() const;
 
+	/** Returns the 'linearized' index of the node, including category nodes, useful for getting displayed position */
+	int32 GetLinearizedIndex(TSharedPtr<FGraphActionNode> Node) const;
 private:
 	/**
 	 *
@@ -284,6 +286,9 @@ private:
 
 	void AddChildGrouping(TSharedPtr<FGraphActionNode> ActionNode, TWeakPtr<FGraphActionNode> Parent);
 	void InsertChildAlphabetical(TSharedPtr<FGraphActionNode> NodeToAdd);
+
+	/** Recursive implementation helper for GetLinearizedIndex */
+	int32 GetLinearizedIndex(TSharedPtr<FGraphActionNode> Node, int32& Iter) const;
 private:
 	/** The category or action name (depends on what type of node this is) */
 	FText DisplayText;

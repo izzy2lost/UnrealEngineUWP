@@ -465,6 +465,13 @@ bool FGraphActionNode::IsRenameRequestPending() const
 }
 
 //------------------------------------------------------------------------------
+int32 FGraphActionNode::GetLinearizedIndex(TSharedPtr<FGraphActionNode> Node) const
+{
+	int32 Counter = 0;
+	return GetLinearizedIndex(Node, Counter);
+}
+
+//------------------------------------------------------------------------------
 TSharedPtr<FGraphActionNode> FGraphActionNode::NewSectionHeadingNode(TWeakPtr<FGraphActionNode> Parent, int32 Grouping, int32 SectionID)
 {
 	checkSlow(SectionID != INVALID_SECTION_ID);
@@ -722,3 +729,26 @@ void FGraphActionNode::InsertChildAlphabetical(TSharedPtr<FGraphActionNode> Node
 	}
 }
 
+int32 FGraphActionNode::GetLinearizedIndex(TSharedPtr<FGraphActionNode> Node, int32& Counter) const
+{
+	if (Node.Get() == this)
+	{
+		return Counter;
+	}
+
+	// we didn't match, count ourself:
+	++Counter;
+
+	// and check/count each child:
+	for (const TSharedPtr<FGraphActionNode>& Child : Children)
+	{
+		int32 Result = Child->GetLinearizedIndex(Node, Counter);
+		if (Result != INDEX_NONE)
+		{
+			return Result;
+		}
+	}
+
+	// no matches, return INDEX_NONE to indicate we found no valid index, Counter will continue counting
+	return INDEX_NONE;
+}
