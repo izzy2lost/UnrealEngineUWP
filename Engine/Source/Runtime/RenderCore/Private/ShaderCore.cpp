@@ -1499,20 +1499,24 @@ public:
 
 		if (Job.PreprocessOutput.bSucceeded && Job.Input.bCachePreprocessed)
 		{
-			// if the preprocessed job cache is enabled we need to strip the preprocessed code, this removes comments, line directives
-			// and blank lines to improve deduplication (and populates data required to remap diagnostic messages to correct line numbers)
-			Job.PreprocessOutput.StripCode(Job.Input.NeedsOriginalShaderSource());
+			if (!Job.Input.Environment.CompilerFlags.Contains(CFLAG_DisableSourceStripping))
+			{
+				// if the preprocessed job cache is enabled we strip the preprocessed code if not explicitly disabled; this removes comments, 
+				// line directives and blank lines to improve deduplication (and populates data required to remap diagnostic messages to correct
+				// filenames and line numbers)
+				Job.PreprocessOutput.StripCode(Job.Input.NeedsOriginalShaderSource());
 
-			FShaderCompilerInputHash Hash = Job.GetInputHash();
-			// Replace the placeholder debug hash value appended in StripCode with the real job input hash
-			FShaderSource::FViewType DebugHashStr = GetShaderSourceDebugHashPrefix();
-			FShaderSource::FViewType SourceView = Job.PreprocessOutput.GetSourceView();
-			int32 DebugHashLoc = SourceView.Find(DebugHashStr) + DebugHashStr.Len();
-			int32 NewlineLoc = SourceView.Find(SHADER_SOURCE_VIEWLITERAL("\n"), DebugHashLoc);
-			FShaderSource::TStringBuilder<2 * sizeof(FShaderCompilerInputHash::ByteArray) + 1> HashStr;
-			HashStr << Hash;
-			check(NewlineLoc - DebugHashLoc == HashStr.Len());
-			FMemory::Memcpy(Job.PreprocessOutput.EditSource().GetData() + DebugHashLoc, HashStr.GetData(), sizeof(FShaderSource::CharType) * HashStr.Len());
+				FShaderCompilerInputHash Hash = Job.GetInputHash();
+				// Replace the placeholder debug hash value appended in StripCode with the real job input hash
+				FShaderSource::FViewType DebugHashStr = GetShaderSourceDebugHashPrefix();
+				FShaderSource::FViewType SourceView = Job.PreprocessOutput.GetSourceView();
+				int32 DebugHashLoc = SourceView.Find(DebugHashStr) + DebugHashStr.Len();
+				int32 NewlineLoc = SourceView.Find(SHADER_SOURCE_VIEWLITERAL("\n"), DebugHashLoc);
+				FShaderSource::TStringBuilder<2 * sizeof(FShaderCompilerInputHash::ByteArray) + 1> HashStr;
+				HashStr << Hash;
+				check(NewlineLoc - DebugHashLoc == HashStr.Len());
+				FMemory::Memcpy(Job.PreprocessOutput.EditSource().GetData() + DebugHashLoc, HashStr.GetData(), sizeof(FShaderSource::CharType) * HashStr.Len());
+			}
 
 			// always compress the code after stripping to minimize memory footprint
 			Job.PreprocessOutput.CompressCode();
@@ -1577,7 +1581,7 @@ public:
 	static void CompileShaderInternal(const IShaderFormat* Compiler, FShaderCompileJob& Job, const FString& WorkingDirectory, FString& OutExceptionMsg, FString& OutExceptionCallstack, int32* CompileCount)
 	{
 		double TimeStart = FPlatformTime::Seconds();
-		if (!Job.Input.bCachePreprocessed)
+		if (!Job.PreprocessOutput.GetSucceeded())
 		{
 			PreprocessShaderInternal(Compiler, Job);
 		}

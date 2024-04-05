@@ -164,6 +164,8 @@ enum ECompilerFlags
 	CFLAG_ShaderBundle,
 	// Shader contains workgraph nodes that are only intended for linking against other workgraph shaders containing the program entry node.
 	CFLAG_WorkgraphLocalNodes,
+	// Shader code should not be stripped of comments/whitespace/line directives at the end of preprocessing
+	CFLAG_DisableSourceStripping,
 	CFLAG_Max,
 };
 static_assert(CFLAG_Max < 64, "Out of bitfield space! Modify FShaderCompilerFlags");
@@ -234,7 +236,7 @@ using FShaderCompilerInputHash = FBlake3Hash;
 /** Struct that gathers all readonly inputs needed for the compilation of a single shader. */
 struct FShaderCompilerInput
 {
-	FShaderTarget Target;
+	FShaderTarget Target{ SF_NumFrequencies, SP_NumPlatforms };
 	
 	FName ShaderFormat;
 	FName CompressionFormat;
@@ -246,28 +248,28 @@ struct FShaderCompilerInput
 
 	// Skips the preprocessor and instead loads the usf file directly
 	UE_DEPRECATED(5.4, "bSkipPreprocessedCache member is deprecated; set EShaderDebugInfoFlags::CompileFromDebugUSF on DebugInfoFlags instead.")
-	bool bSkipPreprocessedCache;
+	bool bSkipPreprocessedCache = false;
 
 	// Indicates which additional debug outputs should be written for this compile job.
-	EShaderDebugInfoFlags DebugInfoFlags;
+	EShaderDebugInfoFlags DebugInfoFlags = EShaderDebugInfoFlags::Default;
 
 	UE_DEPRECATED(5.4, "bIndependentPreprocessed member no longer used now that all backends have been migrated to the new IShaderFormat API")
 	// True if the backend for this job implements the independent preprocessing API.
-	bool bIndependentPreprocessed;
+	bool bIndependentPreprocessed = true;
 
 	// True if the cache key for this job should be based on preprocessed source. If so,
 	// preprocessing will be executed in the cook process independent of compilation (and
 	// as such this will only ever be set for jobs whose shader format supports independent
 	// preprocessing)
-	bool bCachePreprocessed;
+	bool bCachePreprocessed = true;
 
 	// Array of symbols that should be maintained when deadstripping. If this is empty, entry
 	// point name alone will be used.
 	TArray<FString> RequiredSymbols;
 	
 	// Shader pipeline information
-	bool bCompilingForShaderPipeline;
-	bool bIncludeUsedOutputs;
+	bool bCompilingForShaderPipeline = false;
+	bool bIncludeUsedOutputs = false;
 	TArray<FString> UsedOutputs;
 
 	// Dump debug path (up to platform) e.g. "D:/Project/Saved/ShaderDebugInfo/PCD3D_SM5"
@@ -304,20 +306,11 @@ struct FShaderCompilerInput
 	/** Oodle-specific compression level - used if CompressionFormat is set to NAME_Oodle. */
 	FOodleDataCompression::ECompressionLevel OodleLevel;
 
-	FShaderCompilerInput() :
-		Target(SF_NumFrequencies, SP_NumPlatforms),
-		bSkipPreprocessedCache(false),
-		DebugInfoFlags(EShaderDebugInfoFlags::Default),
-		bCachePreprocessed(false),
-		bCompilingForShaderPipeline(false),
-		bIncludeUsedOutputs(false)
-	{
-	}
-
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	// Explicitly-defaulted copy/move ctors & assignment operators are needed temporarily due to 
+	// Explicitly-defaulted ctors & assignment operators are needed temporarily due to 
 	// deprecation of bSkipPreprocessedCache/bIndependentPreprocessed fields. These can be removed once 
 	// the deprecation window for said fields ends.
+	FShaderCompilerInput() = default;
 	FShaderCompilerInput(FShaderCompilerInput&&) = default;
 	FShaderCompilerInput(const FShaderCompilerInput&) = default;
 	FShaderCompilerInput& operator=(FShaderCompilerInput&&) = default;

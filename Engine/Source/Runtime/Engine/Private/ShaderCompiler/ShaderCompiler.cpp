@@ -221,6 +221,12 @@ static TAutoConsoleVariable<bool> CVarShaderCompilerPerShaderDDCCook(
 	ECVF_Default
 );
 
+static TAutoConsoleVariable<bool> CVarDisableSourceStripping(
+	TEXT("r.ShaderCompiler.DisableSourceStripping"),
+	false,
+	TEXT("If true, the process which strips comments, line directives and whitespace from final preprocessed source is disabled. This results in file associations being maintained and visible in RenderDoc etc., at the cost of less effective deduplication."),
+	ECVF_Default);
+
 static TAutoConsoleVariable<bool> CVarAreShaderErrorsFatal(
 	TEXT("r.AreShaderErrorsFatal"),
 	true,
@@ -8739,6 +8745,11 @@ void GlobalBeginCompileShader(
 	if (CVarShadersRemoveDeadCode.GetValueOnAnyThread())
 	{
 		Input.Environment.CompilerFlags.Add(CFLAG_RemoveDeadCode);
+	}
+
+	if (CVarDisableSourceStripping.GetValueOnAnyThread())
+	{
+		Input.Environment.CompilerFlags.Add(CFLAG_DisableSourceStripping);
 	}
 
 	{

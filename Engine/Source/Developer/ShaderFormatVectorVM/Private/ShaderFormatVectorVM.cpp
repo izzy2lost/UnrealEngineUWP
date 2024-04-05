@@ -69,6 +69,9 @@ public:
 
 		// minifier has not been tested on vector VM; it's possible this could be removed to improve deduplication rate
 		Input.Environment.CompilerFlags.Remove(CFLAG_RemoveDeadCode);
+
+		// source stripping process adds comments which are not handled by this backend
+		Input.Environment.CompilerFlags.Add(CFLAG_DisableSourceStripping);
 	}
 
 	virtual void CompilePreprocessedShader(const FShaderCompilerInput& Input, const FShaderPreprocessOutput& PreprocessOutput, FShaderCompilerOutput& Output, const FString& WorkingDirectory) const override
