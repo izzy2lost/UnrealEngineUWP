@@ -4,9 +4,12 @@
 
 #include "CoreMinimal.h"
 #include "Templates/Casts.h"
+#include "Templates/Requires.h"
 #include "UObject/Object.h"
 #include "UObject/WeakObjectPtr.h"
 #include "UObject/WeakFieldPtr.h"
+
+#include <type_traits>
 
 class UEdGraphNode;
 
@@ -19,7 +22,10 @@ public:
 	FBindingObject()
 		: bIsUObject(false)
 	{}
-	template <typename T, decltype(ImplicitConv<UObject*>(DeclVal<T>()))* = nullptr>
+	template <
+		typename T
+		UE_REQUIRES(std::is_convertible_v<T, UObject*>)
+	>
 	FBindingObject(T InObject)
 		: Object(InObject)
 		, bIsUObject(true)
@@ -40,7 +46,10 @@ public:
 			Field = InFieldOrObject.ToField();
 		}
 	}
-	template <typename T, decltype(ImplicitConv<UObject*>(DeclVal<T>()))* = nullptr>
+	template <
+		typename T
+		UE_REQUIRES(std::is_convertible_v<T, UObject*>)
+	>
 	FBindingObject& operator=(T InObject)
 	{
 		Object = ImplicitConv<UObject*>(InObject);

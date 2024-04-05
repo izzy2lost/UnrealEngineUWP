@@ -3,11 +3,14 @@
 #pragma once
 
 #include "Misc/TVariant.h"
+#include "Templates/Requires.h"
 #include "Templates/SharedPointer.h"
 #include "UObject/StrongObjectPtr.h"
 #include "UObject/WeakObjectPtr.h"
 #include "UnrealTypeTraits.h"
 #include "UnrealTemplate.h"
+
+#include <type_traits>
 
 /*
 * `TWeakPtrVariant` and `TStrongPtrVariant` are particularly useful for "interfaces" in areas where
@@ -52,10 +55,10 @@ namespace UE::Core::Private
 		{
 		}
 
-		template<typename DerivedType,
-			decltype(ImplicitConv<BaseType*>((DerivedType*)nullptr))* = nullptr
-			UE_REQUIRES(std::is_base_of_v<UObject, DerivedType> || IsDerivedFromSharedFromThis<DerivedType>())
-			>
+		template <
+			typename DerivedType
+			UE_REQUIRES(std::is_convertible_v<DerivedType*, BaseType*> && (std::is_base_of_v<UObject, DerivedType> || IsDerivedFromSharedFromThis<DerivedType>()))
+		>
 		constexpr TPtrVariantBase(DerivedType* InDerived)
 		{   
 			// TODO:	Look for a way to move this "smart pointer selection" logic outside of the constructor; then we can remove "TVariant" as a dependency

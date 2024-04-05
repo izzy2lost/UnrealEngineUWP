@@ -29,6 +29,7 @@ Field.h: Declares FField property system fundamentals
 #include "Templates/EnableIf.h"
 #include "Templates/IsAbstract.h"
 #include "Templates/IsEnum.h"
+#include "Templates/Requires.h"
 #include "Templates/TypeHash.h"
 #include "Templates/UnrealTemplate.h"
 #include "Templates/UnrealTypeTraits.h"
@@ -293,8 +294,8 @@ public:
 	}
 
 	template <
-		typename T,
-		decltype(ImplicitConv<const UObject*>(std::declval<T>()))* = nullptr
+		typename T
+		UE_REQUIRES(std::is_convertible_v<T, const UObject*>)
 	>
 	FFieldVariant(T&& InObject)
 	{

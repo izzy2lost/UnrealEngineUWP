@@ -5,7 +5,10 @@
 #include "CoreTypes.h"
 #include "Misc/EnumClassFlags.h"
 #include "Templates/RefCounting.h"
+#include "Templates/Requires.h"
 #include "Templates/SharedPointer.h"
+
+#include <type_traits>
 
 /**
  * Categories of localized text.
@@ -166,13 +169,19 @@ public:
 		check(this->IsValid());
 	}
 
-	template <typename OtherType, typename = decltype(ImplicitConv<ObjectType*>((OtherType*)nullptr))>
+	template <
+		typename OtherType
+		UE_REQUIRES(std::is_convertible_v<OtherType*, ObjectType*>)
+	>
 	TDisplayStringRef(const TDisplayStringRef<OtherType>& InOther)
 		: TDisplayStringPtrBase<ObjectType>(InOther.Private_GetDisplayStringPtr())
 	{
 	}
 
-	template <typename OtherType, typename = decltype(ImplicitConv<ObjectType*>((OtherType*)nullptr))>
+	template <
+		typename OtherType
+		UE_REQUIRES(std::is_convertible_v<OtherType*, ObjectType*>)
+	>
 	TDisplayStringRef& operator=(const TDisplayStringRef<OtherType>& InOther)
 	{
 		if (this->DisplayStringPtr != InOther.Private_GetDisplayStringPtr())
@@ -207,19 +216,28 @@ public:
 	{
 	}
 
-	template <typename OtherType, typename = decltype(ImplicitConv<ObjectType*>((OtherType*)nullptr))>
+	template <
+		typename OtherType
+		UE_REQUIRES(std::is_convertible_v<OtherType*, ObjectType*>)
+	>
 	TDisplayStringPtr(const TDisplayStringPtr<OtherType>& InOther)
 		: TDisplayStringPtrBase<ObjectType>(InOther.Private_GetDisplayStringPtr())
 	{
 	}
 
-	template <typename OtherType, typename = decltype(ImplicitConv<ObjectType*>((OtherType*)nullptr))>
+	template <
+		typename OtherType
+		UE_REQUIRES(std::is_convertible_v<OtherType*, ObjectType*>)
+	>
 	TDisplayStringPtr(const TDisplayStringRef<OtherType>& InOther)
 		: TDisplayStringPtrBase<ObjectType>(InOther.Private_GetDisplayStringPtr())
 	{
 	}
 
-	template <typename OtherType, typename = decltype(ImplicitConv<ObjectType*>((OtherType*)nullptr))>
+	template <
+		typename OtherType
+		UE_REQUIRES(std::is_convertible_v<OtherType*, ObjectType*>)
+	>
 	TDisplayStringPtr& operator=(const TDisplayStringPtr<OtherType>& InOther)
 	{
 		if (this->DisplayStringPtr != InOther.Private_GetDisplayStringPtr())
@@ -229,7 +247,10 @@ public:
 		return *this;
 	}
 
-	template <typename OtherType, typename = decltype(ImplicitConv<ObjectType*>((OtherType*)nullptr))>
+	template <
+		typename OtherType
+		UE_REQUIRES(std::is_convertible_v<OtherType*, ObjectType*>)
+	>
 	TDisplayStringPtr& operator=(const TDisplayStringRef<OtherType>& InOther)
 	{
 		if (this->DisplayStringPtr != InOther.Private_GetDisplayStringPtr())

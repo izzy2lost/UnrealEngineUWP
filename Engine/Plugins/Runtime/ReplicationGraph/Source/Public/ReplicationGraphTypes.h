@@ -7,7 +7,11 @@
 #include "Net/DataBunch.h"
 #include "ProfilingDebugging/CsvProfiler.h"
 #include "Templates/Greater.h"
+#include "Templates/Requires.h"
 #include "UObject/Package.h"
+
+#include <type_traits>
+
 #include "ReplicationGraphTypes.generated.h"
 
 class AActor;
@@ -126,8 +130,8 @@ struct FActorRepListType
 
 	// to support conversion from TObjectPtr<ASubclassOfActor>
 	template <
-		typename T,
-		decltype(ImplicitConv<AActor*>(std::declval<const T&>())) = nullptr
+		typename T
+		UE_REQUIRES(std::is_convertible_v<const T&, AActor*>)
 	>
 	FActorRepListType(const T& InActor)
 		: ActorRaw(InActor)

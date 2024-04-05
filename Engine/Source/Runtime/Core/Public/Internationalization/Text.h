@@ -21,6 +21,9 @@
 #include "Misc/Optional.h"
 #include "Templates/UniquePtr.h"
 #include "Templates/IsConstructible.h"
+#include "Templates/Requires.h"
+
+#include <type_traits>
 
 class FText;
 class FTextHistory;
@@ -766,7 +769,10 @@ public:
 #endif
 
 private:
-	template <typename HistoryType, typename = decltype(ImplicitConv<ITextData*>((HistoryType*)nullptr))>
+	template <
+		typename HistoryType
+		UE_REQUIRES(std::is_convertible_v<HistoryType*, ITextData*>)
+	>
 	explicit FText( TRefCountPtr<HistoryType>&& InTextData )
 		: TextData(MoveTemp(InTextData))
 		, Flags(0)

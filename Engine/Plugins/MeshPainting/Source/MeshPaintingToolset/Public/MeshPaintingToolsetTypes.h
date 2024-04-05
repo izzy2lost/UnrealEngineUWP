@@ -2,6 +2,9 @@
 
 #pragma once
 
+#include "Templates/Requires.h"
+
+#include <type_traits>
 
 #include "MeshPaintingToolsetTypes.generated.h"
 
@@ -106,7 +109,10 @@ struct FPaintableTexture
 		, UVChannelIndex(0)
 	{}
 
-	template<typename T, decltype(ImplicitConv<UTexture*>(DeclVal<T>()))* = nullptr>
+	template <
+		typename T
+		UE_REQUIRES(std::is_convertible_v<T, UTexture*>)
+	>
 	FPaintableTexture(T InTexture = nullptr, uint32 InUVChannelIndex = 0)
 		: Texture(InTexture)
 		, UVChannelIndex(InUVChannelIndex)

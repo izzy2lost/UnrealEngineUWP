@@ -7,8 +7,11 @@
 #include "CoreMinimal.h"
 #include "Containers/ArrayView.h"
 #include "Logging/LogMacros.h"
+#include "Templates/Requires.h"
 #include "UObject/Field.h"
 #include "UObject/FieldIterator.h"
+
+#include <type_traits>
 
 DECLARE_LOG_CATEGORY_EXTERN(LogPython, Log, All);
 
@@ -119,8 +122,8 @@ namespace PyUtil
 		TPropOnScope& operator=(const TPropOnScope&) = delete;
 
 		template <
-			typename TOtherPropType,
-			typename = decltype(ImplicitConv<TPropType*>((TOtherPropType*)nullptr))
+			typename TOtherPropType
+			UE_REQUIRES(std::is_convertible_v<TOtherPropType*, TPropType*>)
 		>
 		TPropOnScope(TPropOnScope<TOtherPropType>&& Other)
 		{
@@ -131,8 +134,8 @@ namespace PyUtil
 		}
 
 		template <
-			typename TOtherPropType,
-			typename = decltype(ImplicitConv<TPropType*>((TOtherPropType*)nullptr))
+			typename TOtherPropType
+			UE_REQUIRES(std::is_convertible_v<TOtherPropType*, TPropType*>)
 		>
 		TPropOnScope& operator=(TPropOnScope<TOtherPropType>&& Other)
 		{

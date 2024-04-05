@@ -3,8 +3,11 @@
 #pragma once
 
 #include "Templates/Function.h"
+#include "Templates/Requires.h"
 #include "Templates/SharedPointer.h"
 #include "Templates/UnrealTemplate.h"
+
+#include <type_traits>
 
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 #define METASOUND_FRONTEND_ACCESSPTR_DEBUG_INFO 1
@@ -135,8 +138,8 @@ namespace Metasound
 
 			/** Creates an access pointer from another using a static cast. */
 			template <
-				typename OtherType,
-				typename = decltype(ImplicitConv<Type*>((OtherType*)nullptr))
+				typename OtherType
+				UE_REQUIRES(std::is_convertible_v<ObjectType*, Type*>)
 			>
 			TAccessPtr(const TAccessPtr<OtherType>& InOther, EDerivedCopy InTag=EDerivedCopy::Tag)
 			{

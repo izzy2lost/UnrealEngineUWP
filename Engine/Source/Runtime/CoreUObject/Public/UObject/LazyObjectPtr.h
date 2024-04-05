@@ -14,9 +14,12 @@
 #include "Serialization/Archive.h"
 #include "Serialization/StructuredArchive.h"
 #include "Templates/Casts.h"
+#include "Templates/Requires.h"
 #include "Templates/UnrealTemplate.h"
 #include "UObject/Object.h"
 #include "UObject/PersistentObjectPtr.h"
+
+#include <type_traits>
 
 template <typename T> struct TIsPODType;
 template <typename T> struct TIsWeakPointerType;
@@ -193,14 +196,20 @@ public:
 	TLazyObjectPtr<T>& operator=(const TLazyObjectPtr<T>&) = default;
 
 	/** Construct from another lazy pointer with implicit upcasting allowed */
-	template<typename U, typename = decltype(ImplicitConv<T*>((U*)nullptr))>
+	template <
+		typename U
+		UE_REQUIRES(std::is_convertible_v<U*, T*>)
+	>
 	FORCEINLINE TLazyObjectPtr(const TLazyObjectPtr<U>& Other) :
 		FLazyObjectPtr((const FLazyObjectPtr&)Other)
 	{
 	}
 	
 	/** Assign from another lazy pointer with implicit upcasting allowed */
-	template<typename U, typename = decltype(ImplicitConv<T*>((U*)nullptr))>
+	template <
+		typename U
+		UE_REQUIRES(std::is_convertible_v<U*, T*>)
+	>
 	FORCEINLINE TLazyObjectPtr<T>& operator=(const TLazyObjectPtr<U>& Other)
 	{
 		FLazyObjectPtr::operator=((const FLazyObjectPtr&)Other);

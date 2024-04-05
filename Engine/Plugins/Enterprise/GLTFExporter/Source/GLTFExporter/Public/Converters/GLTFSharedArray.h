@@ -3,6 +3,9 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Templates/Requires.h"
+
+#include <type_traits>
 
 template <typename ElementType, typename ArrayType = TArray<ElementType>, ESPMode Mode = ESPMode::ThreadSafe>
 class TGLTFSharedArray : public TSharedRef<ArrayType, Mode>
@@ -14,7 +17,10 @@ public:
 	{
 	}
 
-	template <typename OtherType, typename = decltype(ImplicitConv<ArrayType*>(static_cast<OtherType*>(nullptr)))>
+	template <
+		typename OtherType
+		UE_REQUIRES(std::is_convertible_v<OtherType*, ArrayType*>)
+	>
 	TGLTFSharedArray(const TSharedRef<OtherType, Mode>& SharedRef)
 	: TSharedRef<ArrayType, Mode>(SharedRef)
 	{

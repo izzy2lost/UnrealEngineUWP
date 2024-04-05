@@ -748,8 +748,8 @@ FORCEINLINE T ImplicitConv(typename TIdentity<T>::Type Obj)
  */
 template <
 	typename T,
-	typename Base,
-	decltype(ImplicitConv<const volatile Base*>((std::remove_reference_t<T>*)nullptr))* = nullptr
+	typename Base
+	UE_REQUIRES(std::is_convertible_v<std::remove_reference_t<T>*, const volatile Base*>)
 >
 UE_INTRINSIC_CAST FORCEINLINE decltype(auto) ForwardAsBase(std::remove_reference_t<T>& Obj)
 {
@@ -758,8 +758,8 @@ UE_INTRINSIC_CAST FORCEINLINE decltype(auto) ForwardAsBase(std::remove_reference
 
 template <
 	typename T,
-	typename Base,
-	decltype(ImplicitConv<const volatile Base*>((std::remove_reference_t<T>*)nullptr))* = nullptr
+	typename Base
+	UE_REQUIRES(std::is_convertible_v<std::remove_reference_t<T>*, const volatile Base*>)
 >
 UE_INTRINSIC_CAST FORCEINLINE decltype(auto) ForwardAsBase(std::remove_reference_t<T>&& Obj)
 {

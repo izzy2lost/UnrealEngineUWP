@@ -15,6 +15,7 @@
 #include "Templates/EnableIf.h"
 #include "Templates/LosesQualifiersFromTo.h"
 #include "Templates/PointerIsConvertibleFromTo.h"
+#include "Templates/Requires.h"
 #include "Templates/TypeHash.h"
 #include "Templates/UnrealTemplate.h"
 #include "UObject/Field.h"
@@ -22,6 +23,8 @@
 #include "UObject/UObjectArray.h"
 #include "UObject/WeakObjectPtr.h"
 #include "UObject/WeakObjectPtrTemplates.h"
+
+#include <type_traits>
 
 class FArchive;
 class FLinkerLoad;
@@ -334,8 +337,8 @@ public:
 	* @param Object object to create a weak pointer to
 	**/
 	template <
-		typename OtherPropertyType,
-		typename = decltype(ImplicitConv<PropertyType*>((OtherPropertyType*)nullptr))
+		typename OtherPropertyType
+		UE_REQUIRES(std::is_convertible_v<OtherPropertyType*, PropertyType*>)
 	>
 	FORCEINLINE TFieldPath(OtherPropertyType* InProperty, EDummy1 = Dummy1)
 		: FFieldPath((FField*)CastField<PropertyType>(InProperty))
