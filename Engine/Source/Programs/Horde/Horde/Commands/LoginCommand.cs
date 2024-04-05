@@ -1,7 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System.ComponentModel;
-using System.Net.Http.Headers;
 using EpicGames.Core;
 using EpicGames.Horde;
 using EpicGames.Horde.Server;
@@ -59,10 +58,10 @@ namespace Horde.Commands
 			{
 				HordeHttpAuthHandlerState state = _serviceProvider.GetRequiredService<HordeHttpAuthHandlerState>();
 
-				AuthenticationHeaderValue? header = await state.TryGetAuthHeaderAsync(CancellationToken.None);
-				if (header != null)
+				string? accessToken = await state.GetAccessTokenAsync(true, CancellationToken.None);
+				if (accessToken != null)
 				{
-					Console.WriteLine("{0} {1}", header.Scheme, header.Parameter);
+					Console.WriteLine($"Bearer {accessToken}");
 				}
 			}
 
