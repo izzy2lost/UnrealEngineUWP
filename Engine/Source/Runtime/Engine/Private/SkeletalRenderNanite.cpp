@@ -232,14 +232,16 @@ const TArray<FMatrix44f>& FSkeletalMeshObjectNanite::GetPrevReferenceToLocalMatr
 
 int32 FSkeletalMeshObjectNanite::GetLOD() const
 {
-	if (DynamicData)
+	// WorkingMinDesiredLODLevel can be a LOD that's not loaded, so need to clamp it to the first loaded LOD
+	return FMath::Max<int32>(WorkingMinDesiredLODLevel, SkeletalMeshRenderData->CurrentFirstLODIdx);
+	/*if (DynamicData)
 	{
 		return DynamicData->LODIndex;
 	}
 	else
 	{
 		return 0;
-	}
+	}*/
 }
 
 void FSkeletalMeshObjectNanite::DrawVertexElements(FPrimitiveDrawInterface* PDI, const FMatrix& ToWorldSpace, bool bDrawNormals, bool bDrawTangents, bool bDrawBinormals) const

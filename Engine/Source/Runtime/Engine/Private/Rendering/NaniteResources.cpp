@@ -705,6 +705,12 @@ bool FSceneProxyBase::SupportsAlwaysVisible() const
 		return false;
 	}
 
+	if (bSkinnedMesh)
+	{
+		// Disallow optimization for skinned meshes (need proper CPU LOD calculation and RecentlyRendered to function)
+		return false;
+	}
+
 	// Always visible
 	return true;
 #endif
@@ -2315,6 +2321,9 @@ FPrimitiveViewRelevance	FSkinnedSceneProxy::GetViewRelevance(const FSceneView* V
 {
 	LLM_SCOPE_BYTAG(Nanite);
 
+	// View relevance is updated once per frame per view across all views in the frame (including shadows) so we update the LOD level for next frame here.
+	MeshObject->UpdateMinDesiredLODLevel(View, GetBounds());
+
 #if WITH_EDITOR
 	const bool bOptimizedRelevance = false;
 #else
@@ -2500,6 +2509,16 @@ uint32 FSkinnedSceneProxy::GetMaxBoneTransformCount() const
 uint32 FSkinnedSceneProxy::GetMaxBoneInfluenceCount() const
 {
 	return MaxBoneInfluenceCount;
+}
+
+FDesiredLODLevel FSkinnedSceneProxy::GetDesiredLODLevel_RenderThread(const FSceneView* View) const
+{
+	return FDesiredLODLevel::CreateFixed(MeshObject->GetLOD());
+}
+
+uint8 FSkinnedSceneProxy::GetCurrentFirstLODIdx_RenderThread() const
+{
+	return RenderData->CurrentFirstLODIdx;
 }
 
 struct FAuditMaterialSlotInfo

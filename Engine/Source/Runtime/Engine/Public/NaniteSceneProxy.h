@@ -633,6 +633,10 @@ public:
 	ENGINE_API uint32 GetMaxBoneTransformCount() const;
 	ENGINE_API uint32 GetMaxBoneInfluenceCount() const;
 
+	ENGINE_API virtual FDesiredLODLevel GetDesiredLODLevel_RenderThread(const FSceneView* View) const final override;
+
+	virtual uint8 GetCurrentFirstLODIdx_RenderThread() const final override;
+
 	inline const FSkeletalMeshObject* GetMeshObject() const
 	{
 		return MeshObject;
@@ -642,7 +646,7 @@ protected:
 	const USkinnedAsset* SkinnedAsset = nullptr;
 	const FResources* Resources = nullptr;
 	const FSkeletalMeshRenderData* RenderData = nullptr;
-	const FSkeletalMeshObject* MeshObject = nullptr;
+	FSkeletalMeshObject* MeshObject = nullptr;
 
 	uint32 NaniteResourceID = INDEX_NONE;
 	uint32 NaniteHierarchyOffset = INDEX_NONE;
