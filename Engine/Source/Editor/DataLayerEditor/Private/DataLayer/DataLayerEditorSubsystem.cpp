@@ -379,7 +379,7 @@ void UDataLayerEditorSubsystem::Deinitialize()
 
 const UExternalDataLayerInstance* UDataLayerEditorSubsystem::GetActorSpawningExternalDataLayerInstance(AActor* InActor) const
 {
-	if (GIsReinstancing || InActor->bIsEditorPreviewActor || !InActor->IsPackageExternal())
+	if (GIsReinstancing || InActor->bIsEditorPreviewActor || !InActor->IsPackageExternal() || !InActor->IsMainPackageActor())
 	{
 		return nullptr;
 	}
@@ -512,7 +512,7 @@ void UDataLayerEditorSubsystem::BeginDestroy()
 
 void UDataLayerEditorSubsystem::ApplyContext(AActor* InActor, bool bInForceTryApply)
 {
-	if (GIsReinstancing || InActor->bIsEditorPreviewActor || !InActor->IsPackageExternal() || (InActor->GetWorld() != GetWorld()))
+	if (GIsReinstancing || InActor->bIsEditorPreviewActor || !InActor->IsPackageExternal() || !InActor->IsMainPackageActor() || (InActor->GetWorld() != GetWorld()))
 	{
 		return;
 	}

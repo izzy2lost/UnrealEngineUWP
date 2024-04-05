@@ -154,6 +154,12 @@ bool FExternalDataLayerHelper::CanMoveActorsToExternalDataLayer(const TArray<AAc
 			return false;
 		}
 
+		if (!InActor->IsMainPackageActor())
+		{
+			OutFailureReason = FText::Format(LOCTEXT("CantMoveActorToEDL_ChildActorNotSupported", "Child Actor {0} cannot be moved to External Data Layer."), FText::FromString(InActor->GetName()));
+			return false;
+		}
+
 		if (!OldExternalDataLayerAsset && !NewExternalDataLayerAsset)
 		{
 			OutFailureReason = FText::Format(LOCTEXT("CantMoveActorToEDL_NoExternalDataLayer", "Actor {0} has already no External Data Layer."), FText::FromString(InActor->GetName()));
@@ -243,6 +249,7 @@ bool FExternalDataLayerHelper::MoveActorsToExternalDataLayer(const TArray<AActor
 {
 	auto MoveActorToExternalDataLayer = [](AActor* InActor, const UExternalDataLayerInstance* InExternalDataLayerInstance)
 	{
+		check(InActor->IsMainPackageActor());
 		const UPackage* OldActorPackage = InActor->GetExternalPackage();
 		const UExternalDataLayerAsset* NewExternalDataLayerAsset = InExternalDataLayerInstance ? InExternalDataLayerInstance->GetExternalDataLayerAsset() : nullptr;
 		const bool bShouldDirty = true;
@@ -258,7 +265,7 @@ bool FExternalDataLayerHelper::MoveActorsToExternalDataLayer(const TArray<AActor
 				DependantObjects.Add(Object);
 			}
 			return true;
-		}, false);
+		}, false, RF_NoFlags, EInternalObjectFlags::Garbage); // Skip garbage objects (like child actors destroyed when de-externalizing the actor)
 
 		// Clear Content Bundle Guid
 		FSetActorContentBundleGuid(InActor, FGuid());
