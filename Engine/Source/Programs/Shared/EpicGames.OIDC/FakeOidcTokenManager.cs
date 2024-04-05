@@ -14,6 +14,8 @@ namespace EpicGames.OIDC;
 /// </summary>
 public class FakeOidcTokenManager : IOidcTokenManager
 {
+	private const string AccessTokenPrefix = "fakeAccessToken";
+	
 	/// <summary>
 	/// Refresh token in use
 	/// </summary>
@@ -23,6 +25,11 @@ public class FakeOidcTokenManager : IOidcTokenManager
 	/// Latest access token
 	/// </summary>
 	public string? AccessToken { get; set; }
+
+	/// <summary>
+	/// Time to live for newly minted access token
+	/// </summary>
+	public TimeSpan AccessTokenTtl { get; set; } = TimeSpan.FromMinutes(15);
 	
 	/// <summary>
 	/// Expiry time for access token
@@ -31,11 +38,19 @@ public class FakeOidcTokenManager : IOidcTokenManager
 	
 	private int _refreshCounter = 1;
 	private int _accessCounter = 1;
-	
+	private readonly Func<DateTimeOffset> _utcNow;
+
+	/// <summary>
+	/// Constructor
+	/// </summary>
+	public FakeOidcTokenManager(Func<DateTimeOffset> utcNow)
+	{
+		_utcNow = utcNow;
+	}
+
 	/// <inheritdoc/>
 	public Task<OidcTokenInfo> LoginAsync(string providerIdentifier, CancellationToken cancellationToken = default)
 	{
-		Console.WriteLine("FakeOidcTokenManager.LoginAsync");
 		RefreshToken = "fakeRefreshToken-" + _refreshCounter++;
 		RefreshAccessToken();
 		return Task.FromResult(GetOidcTokenInfo());
@@ -50,43 +65,76 @@ public class FakeOidcTokenManager : IOidcTokenManager
 	/// <inheritdoc/>
 	public Task<OidcTokenInfo?> TryGetAccessToken(string providerIdentifier, CancellationToken cancellationToken = default)
 	{
-		Console.WriteLine("FakeOidcTokenManager.TryGetAccessToken");
 		if (String.IsNullOrEmpty(RefreshToken))
 		{
 			throw new NotLoggedInException();
 		}
+
+		OidcTokenInfo tokenInfo = GetOidcTokenInfo();
 		
-		bool tokenValid = AccessTokenExpiry.AddMinutes(2) > DateTime.Now || AccessTokenExpiry == DateTimeOffset.MinValue;
-		if (!String.IsNullOrEmpty(AccessToken) && tokenValid)
+		// Ensure token is valid at least for another two minutes
+		if (tokenInfo.IsValid(_utcNow().AddMinutes(-2)))
 		{
-			return Task.FromResult(GetOidcTokenInfo())!;
+			return Task.FromResult<OidcTokenInfo?>(tokenInfo);
 		}
 		
-		// Refresh access token with provider
+		// Access token not valid, simulate a refresh with provider
 		RefreshAccessToken();
 		
 		// Assume the updated access token is valid
-		return Task.FromResult(GetOidcTokenInfo())!;
+		return Task.FromResult<OidcTokenInfo?>(GetOidcTokenInfo());
 	}
 
 	/// <inheritdoc/>
 	public OidcStatus GetStatusForProvider(string providerIdentifier)
 	{
-		Console.WriteLine("FakeOidcTokenManager.GetStatusForProvider");
 		return OidcTokenClient.GetStatus(RefreshToken, AccessToken, AccessTokenExpiry);
 	}
 
-	private OidcTokenInfo GetOidcTokenInfo()
+	/// <summary>
+	/// Validate a fake access token minted by this class
+	/// </summary>
+	/// <param name="token">Token to check</param>
+	/// <exception cref="Exception">If token is malformed or expired</exception>
+	public void ValidateAccessToken(string? token)
 	{
-		return new OidcTokenInfo { RefreshToken = RefreshToken, AccessToken = AccessToken, TokenExpiry = AccessTokenExpiry };
-	}
+		if (String.IsNullOrEmpty(token))
+		{
+			throw new Exception($"Empty or null token: {token}");
+		}
+		
+		string[] parts = token.Split('-');
+		string prefix = parts[0];
+		int id = Convert.ToInt32(parts[1]);
+		long expireUnixTime = Convert.ToInt64(parts[2]);
+		DateTimeOffset expireTime = DateTimeOffset.FromUnixTimeMilliseconds(expireUnixTime);
+		DateTimeOffset utcNow = _utcNow();
 
+		if (prefix != AccessTokenPrefix)
+		{
+			throw new Exception($"Bad prefix for token: {token}");
+		}
+
+		if (utcNow > expireTime)
+		{
+			Console.WriteLine($"_clock.UtcNow: {utcNow}");
+			Console.WriteLine($"   expireTime: {expireTime}");
+			int totalSeconds = (int)(_utcNow() - expireTime).TotalSeconds;
+			throw new Exception($"Access token expired ({totalSeconds} seconds ago). Token: {token}");
+		}
+	}
+	
 	/// <summary>
 	/// Perform fake refresh of the access token
 	/// </summary>
 	private void RefreshAccessToken()
 	{
-		AccessToken = "fakeAccessToken-" + _accessCounter++;;
-		AccessTokenExpiry = DateTimeOffset.UtcNow + TimeSpan.FromHours(1);
+		AccessTokenExpiry = _utcNow() + AccessTokenTtl;
+		AccessToken = $"{AccessTokenPrefix}-{_accessCounter++}-{AccessTokenExpiry.ToUnixTimeMilliseconds()}-{AccessTokenExpiry.ToString()}";
+	}
+	
+	private OidcTokenInfo GetOidcTokenInfo()
+	{
+		return new OidcTokenInfo { RefreshToken = RefreshToken, AccessToken = AccessToken, TokenExpiry = AccessTokenExpiry };
 	}
 }

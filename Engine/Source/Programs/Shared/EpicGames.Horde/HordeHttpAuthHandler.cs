@@ -88,10 +88,14 @@ namespace EpicGames.Horde
 		/// </summary>
 		public const string HttpClientName = "HordeHttpAuthState";
 
-		record class AuthState(AuthMethod Method, OidcTokenInfo? TokenInfo, bool Interactive)
+		record AuthState(IClock Clock, AuthMethod Method, OidcTokenInfo? TokenInfo, bool Interactive)
 		{
 			public bool IsAuthorized()
-				=> (Method == AuthMethod.Anonymous) || (TokenInfo != null && TokenInfo.IsValid);
+			{
+				bool isAnonymousAuth = Method == AuthMethod.Anonymous;
+				bool isTokenValid = TokenInfo != null && TokenInfo.IsValid(Clock.UtcNow);
+				return isAnonymousAuth || isTokenValid;
+			}
 		}
 
 		readonly object _lockObject = new object();
@@ -104,6 +108,7 @@ namespace EpicGames.Horde
 		// Allow these to be overridden in tests
 		readonly ITokenStore? _tokenStore;
 		readonly IOidcTokenManager? _oidcTokenManager;
+		readonly IClock _clock;
 
 		/// <summary>
 		/// Constructor
@@ -113,13 +118,15 @@ namespace EpicGames.Horde
 			IOptions<HordeOptions> options,
 			ILogger<HordeHttpAuthHandler> logger,
 			ITokenStore? tokenStore = null,
-			IOidcTokenManager? oidcTokenManager = null)
+			IOidcTokenManager? oidcTokenManager = null,
+			IClock? clock = null)
 		{
 			_httpClientFactory = httpClientFactory;
 			_options = options;
 			_logger = logger;
 			_tokenStore = tokenStore;
 			_oidcTokenManager = oidcTokenManager;
+			_clock = clock ?? new DefaultClock();
 		}
 
 		/// <inheritdoc/>
@@ -291,7 +298,7 @@ namespace EpicGames.Horde
 
 			if (authConfig.Method == AuthMethod.Anonymous)
 			{
-				return new AuthState(authConfig.Method, null, true);
+				return new AuthState(_clock, authConfig.Method, null, true);
 			}
 
 			string? localRedirectUrl = authConfig.LocalRedirectUrls?.FirstOrDefault();
@@ -323,7 +330,7 @@ namespace EpicGames.Horde
 				result = await oidcTokenManager.LoginAsync(oidcProvider, cancellationToken);
 			}
 
-			return new AuthState(authConfig.Method, result, interactive);
+			return new AuthState(_clock, authConfig.Method, result, interactive);
 		}
 		
 		private ITokenStore CreateTokenStore()

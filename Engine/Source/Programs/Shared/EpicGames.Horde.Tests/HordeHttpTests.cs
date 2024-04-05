@@ -9,6 +9,7 @@ using System.Net.Http;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using EpicGames.Core;
 using EpicGames.Horde.Server;
 using EpicGames.OIDC;
 using Microsoft.Extensions.Logging;
@@ -17,83 +18,111 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace EpicGames.Horde.Tests;
 
-public class StubHttpClientFactory : IHttpClientFactory
+public record StubHttpClientFactory(Func<HttpClient> CreateHttpClient) : IHttpClientFactory
 {
-	private readonly HttpClient _httpClient;
-
-	public StubHttpClientFactory(HttpClient httpClient)
-	{
-		_httpClient = httpClient;
-	}
-
 	public HttpClient CreateClient(string name)
 	{
-		return _httpClient;
+		return CreateHttpClient();
 	}
 }
 
-public class StubMessageHandler : HttpMessageHandler
+public class FakeServerWithAuth : HttpMessageHandler
 {
-	public HttpStatusCode StatusCode { get; }
-	public string Content { get; }
+	public const string ServerUrl = "http://fake-server-test";
+	public const string SuccessResponse = "fakeServerSuccess";
+	
 	public List<HttpRequestMessage> HttpRequests { get; } = new();
+	private readonly GetAuthConfigResponse? _authConfigResponse;
+	private readonly FakeOidcTokenManager _oidcTokenManager;
 
-	public StubMessageHandler(HttpStatusCode statusCode, string content)
+	public FakeServerWithAuth(FakeOidcTokenManager oidcTokenManager, GetAuthConfigResponse? authConfigResponse = null)
 	{
-		StatusCode = statusCode;
-		Content = content;
+		_authConfigResponse = authConfigResponse ?? new GetAuthConfigResponse
+		{
+			Method = AuthMethod.OpenIdConnect, ServerUrl = ServerUrl, LocalRedirectUrls = new[] { ServerUrl }
+		};
+		_oidcTokenManager = oidcTokenManager;
 	}
 	
+	/// <summary>
+	/// Get the access token used by a request received in the fake server
+	/// </summary>
+	/// <returns>Access token</returns>
+	public string GetAccessTokenUsed(int requestNum = -1)
+	{
+		HttpRequestMessage req = requestNum == -1 ? HttpRequests.Last() : HttpRequests[requestNum];
+		return req.Headers.Authorization!.Parameter!;
+	}
+
+	public IHttpClientFactory GetHttpClientFactory()
+	{
+		return new StubHttpClientFactory(() => new HttpClient(this) { BaseAddress = new Uri(ServerUrl) });
+	}
+	
+	/// <inheritdoc/>
 	protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
 	{
+		if (request.RequestUri?.AbsolutePath == "/api/v1/server/auth")
+		{
+			return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(JsonSerializer.Serialize(_authConfigResponse)) });
+		}
+		
 		Console.WriteLine($"Saving request {request.RequestUri} {request.Headers.Authorization}");
 		HttpRequests.Add(request);
-		return Task.FromResult(new HttpResponseMessage(StatusCode) { Content = new StringContent(Content) });
+		try
+		{
+			_oidcTokenManager.ValidateAccessToken(request.Headers.Authorization?.Parameter);
+			return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(SuccessResponse) });
+		}
+		catch (Exception e)
+		{
+			return Task.FromResult(new HttpResponseMessage(HttpStatusCode.Unauthorized) { Content = new StringContent(e.Message) });
+		}
 	}
 }
 
 [TestClass]
 public class HordeHttpAuthHandlerTests
 {
-	const string HordeServerUrl = "http://horde-server-test";
-	const string FakeServerResponse = "fakeServerResponse";
-	
+	private readonly FakeOidcTokenManager _oidc;
+	private readonly StubClock _clock = new();
+
+	public HordeHttpAuthHandlerTests()
+	{
+		_oidc = new FakeOidcTokenManager(() => _clock.UtcNow);
+	}
+
 	[TestMethod]
 	public async Task AccessToken_Valid_IsReusedAsync()
 	{
-		FakeOidcTokenManager oidc = new ();
-		(HttpClient client, StubMessageHandler server) = CreateClientServer(oidc);
+		(HttpClient client, FakeServerWithAuth server) = CreateClientServer(_oidc);
 
 		await SendHttpRequestAsync(client);
-		string firstAccessToken = GetLastUsedAccessToken(server);
-		Assert.AreEqual(oidc.AccessToken, firstAccessToken);
+		Assert.AreEqual(_oidc.AccessToken, server.GetAccessTokenUsed(0));
 		
 		await SendHttpRequestAsync(client);
-		Assert.AreEqual(oidc.AccessToken, GetLastUsedAccessToken(server));
-		Assert.AreEqual(firstAccessToken, GetLastUsedAccessToken(server));
+		Assert.AreEqual(_oidc.AccessToken, server.GetAccessTokenUsed(1));
+		Assert.AreEqual(server.GetAccessTokenUsed(0), server.GetAccessTokenUsed(1));
 	}
 	
 	[TestMethod]
 	public async Task AccessToken_Expired_IsRefreshedAsync()
 	{
-		FakeOidcTokenManager oidc = new ();
-		(HttpClient client, StubMessageHandler server) = CreateClientServer(oidc);
-
-		oidc.RefreshToken = "someRefreshToken";
-		oidc.AccessToken = "expiredAccessToken";
+		(HttpClient client, FakeServerWithAuth server) = CreateClientServer(_oidc);
 		
-		// Set it as expired two hours ago, causing a refresh of access token
-		oidc.AccessTokenExpiry = DateTimeOffset.Now.AddHours(-2);
+		// Send a first request to obtain an access token then advance time so it expires
+		await SendHttpRequestAsync(client);
+		_clock.Advance(TimeSpan.FromMinutes(30));
 		
 		await SendHttpRequestAsync(client);
-		Assert.AreEqual(oidc.AccessToken, GetLastUsedAccessToken(server));
+		Assert.AreEqual(_oidc.AccessToken, server.GetAccessTokenUsed());
+		Assert.AreNotEqual(server.GetAccessTokenUsed(0), server.GetAccessTokenUsed(1));
 	}
 
 	[SuppressMessage("Reliability", "CA2000:Dispose objects before losing scope")]
-	private static (HttpClient client, StubMessageHandler server) CreateClientServer(IOidcTokenManager oidcTokenManager, HordeOptions? hordeOptions = null)
+	private static (HttpClient client, FakeServerWithAuth server) CreateClientServer(FakeOidcTokenManager oidcTokenManager, HordeOptions? hordeOptions = null)
 	{
-		GetAuthConfigResponse authConfig = new () { Method = AuthMethod.OpenIdConnect, ServerUrl = HordeServerUrl, LocalRedirectUrls = new [] { HordeServerUrl } };
-		IHttpClientFactory httpFactory = GetHordeHttpClientFactory(HordeServerUrl, authConfig);
+		FakeServerWithAuth server = new (oidcTokenManager);
 		using ILoggerFactory loggerFactory = LoggerFactory.Create(builder =>
 		{
 			builder.SetMinimumLevel(LogLevel.Debug);
@@ -101,37 +130,21 @@ public class HordeHttpAuthHandlerTests
 		});
 
 		ILogger<HordeHttpAuthHandler> logger = loggerFactory.CreateLogger<HordeHttpAuthHandler>();
-
 		OptionsWrapper<HordeOptions> options = new (hordeOptions ?? new HordeOptions());
 		InMemoryTokenStore inMemoryTokenStore = new ();
-		HordeHttpAuthHandlerState state = new (httpFactory, options, logger, inMemoryTokenStore, oidcTokenManager);
+		HordeHttpAuthHandlerState state = new (server.GetHttpClientFactory(), options, logger, inMemoryTokenStore, oidcTokenManager);
 		HordeHttpAuthHandler authHandler = new (state, options);
-		
-		StubMessageHandler server = new (HttpStatusCode.OK, FakeServerResponse);
+
 		authHandler.InnerHandler = server;
 		HttpClient client = new (authHandler);
 		return (client, server);
 	}
-
-	private static string GetLastUsedAccessToken(StubMessageHandler server)
-	{
-		return server.HttpRequests.Last().Headers.Authorization!.Parameter!;
-	}
 	
 	private static async Task SendHttpRequestAsync(HttpClient client)
 	{
-		using HttpRequestMessage req = new (HttpMethod.Get, HordeServerUrl);
+		using HttpRequestMessage req = new (HttpMethod.Get, FakeServerWithAuth.ServerUrl);
 		HttpResponseMessage res = await client.SendAsync(req);
+		Assert.AreEqual(FakeServerWithAuth.SuccessResponse, await res.Content.ReadAsStringAsync());
 		Assert.AreEqual(HttpStatusCode.OK, res.StatusCode);
-		Assert.AreEqual(FakeServerResponse, await res.Content.ReadAsStringAsync());
-	}
-	
-	private static IHttpClientFactory GetHordeHttpClientFactory(string? baseAddress, GetAuthConfigResponse response)
-	{
-		using StubMessageHandler stubMessageHandler = new (HttpStatusCode.OK, JsonSerializer.Serialize(response));
-		return new StubHttpClientFactory(new HttpClient(stubMessageHandler)
-		{
-			BaseAddress = baseAddress != null ? new Uri(baseAddress) : null,
-		});
 	}
 }

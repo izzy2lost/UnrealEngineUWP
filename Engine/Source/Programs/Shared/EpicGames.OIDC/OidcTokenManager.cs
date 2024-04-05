@@ -199,8 +199,22 @@ namespace EpicGames.OIDC
 		/// </summary>
 		public DateTimeOffset TokenExpiry { get; set; }
 
-		public bool IsValid => RefreshToken != null && AccessToken != null;
-	};
+		public bool IsValid(DateTimeOffset currentTime)
+		{
+			if (String.IsNullOrEmpty(RefreshToken) || String.IsNullOrEmpty(AccessToken))
+			{
+				return false;
+			}
+
+			// An expiry of MinValue means it has no expiration time
+			if (TokenExpiry == DateTimeOffset.MinValue)
+			{
+				return true;
+			}
+
+			return currentTime <= TokenExpiry;
+		}
+	}
 
 	public class OidcTokenClient
 	{
@@ -573,18 +587,17 @@ namespace EpicGames.OIDC
 				throw new NotLoggedInException();
 			}
 
-			// if the token is valid for another few minutes we can use it
-			// we avoid using a token that is about to expire to make sure we can finish the call we expect to do with it before it expires
-			// if a token has infinite lifetime its expiry is set to 0 and is thus always valid
-			bool tokenValid = _tokenExpiry.AddMinutes(2) > DateTime.Now || _tokenExpiry == DateTimeOffset.MinValue;
-			if (!String.IsNullOrEmpty(_accessToken) && tokenValid)
+			OidcTokenInfo tokenInfo = new ()
 			{
-				return new OidcTokenInfo
-				{
-					RefreshToken = _refreshToken,
-					AccessToken = _accessToken,
-					TokenExpiry = _tokenExpiry
-				};
+				RefreshToken = _refreshToken,
+				AccessToken = _accessToken,
+				TokenExpiry = _tokenExpiry
+			};
+
+			// Ensure token is valid for at least another two minutes
+			if (tokenInfo.IsValid(DateTime.Now.AddMinutes(-2)))
+			{
+				return tokenInfo;
 			}
 
 			return await TryDoRefreshTokenAsync(_refreshToken, cancellationToken);
