@@ -604,8 +604,8 @@ void ULineBatchComponent::DrawCapsule(FVector const& Center, float HalfHeight, f
 	// Draw connected lines
 	BatchedLines.Emplace(TopEnd + Radius*XAxis, BottomEnd + Radius*XAxis, Color, LifeTime, Thickness, DepthPriority, BatchID);
 	BatchedLines.Emplace(TopEnd - Radius*XAxis, BottomEnd - Radius*XAxis, Color, LifeTime, Thickness, DepthPriority, BatchID);
-	BatchedLines.Emplace(TopEnd + Radius*XAxis, BottomEnd + Radius*XAxis, Color, LifeTime, Thickness, DepthPriority, BatchID);
-	BatchedLines.Emplace(TopEnd - Radius*XAxis, BottomEnd - Radius*XAxis, Color, LifeTime, Thickness, DepthPriority, BatchID);
+	BatchedLines.Emplace(TopEnd + Radius*YAxis, BottomEnd + Radius*YAxis, Color, LifeTime, Thickness, DepthPriority, BatchID);
+	BatchedLines.Emplace(TopEnd - Radius*YAxis, BottomEnd - Radius*YAxis, Color, LifeTime, Thickness, DepthPriority, BatchID);
 
 	MarkRenderStateDirty();
 }
