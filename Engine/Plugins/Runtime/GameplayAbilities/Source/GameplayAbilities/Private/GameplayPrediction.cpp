@@ -523,6 +523,55 @@ FScopedPredictionWindow::~FScopedPredictionWindow()
 
 // -----------------------------------
 
+FScopedDiscardPredictions::FScopedDiscardPredictions(UAbilitySystemComponent* AbilitySystemComponent, EGasPredictionKeyResult HowToHandlePredictions)
+	: PredictionKeyChainResult(HowToHandlePredictions)
+{
+	if (AbilitySystemComponent && !AbilitySystemComponent->IsOwnerActorAuthoritative())
+	{
+		Owner = AbilitySystemComponent;
+		KeyToRestoreOnOwner = AbilitySystemComponent->ScopedPredictionKey;
+
+		if (HowToHandlePredictions == EGasPredictionKeyResult::SilentlyDrop)
+		{
+			AbilitySystemComponent->ScopedPredictionKey = FPredictionKey{};
+		}
+		else
+		{
+			// Warn here because we're using a behavior that explicitly says Accept or Reject this key, and we could be using a CVar that doesn't behave as the user expects (hopefully this will be removed when fix the behavior and remove this CVar).
+			UE_CLOG(!GIsAutomationTesting && (UE::AbilitySystem::Private::CVarDependentChainBehaviorValue != 3), LogPredictionKey, Warning, TEXT("%hs using EGasPredictionKeyResult = %d (which is != EGasPredicitonKeyResult::SilentlyDrop) with CVarDependentChainBehavior not set to proper value."), __func__, static_cast<int>(HowToHandlePredictions));
+			AbilitySystemComponent->ScopedPredictionKey.GenerateDependentPredictionKey();
+			BaseKeyToAck = AbilitySystemComponent->ScopedPredictionKey;
+		}
+	}
+}
+
+FScopedDiscardPredictions::~FScopedDiscardPredictions()
+{
+	if (UAbilitySystemComponent* ASC = Owner.Get())
+	{
+		ASC->ScopedPredictionKey = KeyToRestoreOnOwner;
+		if (BaseKeyToAck.IsValidKey())
+		{
+			if (PredictionKeyChainResult == EGasPredictionKeyResult::Accept)
+			{
+				UE_LOG(LogPredictionKey, Verbose, TEXT("%hs Accepting chain ending with %s"), __func__, *BaseKeyToAck.ToString());
+				FPredictionKeyDelegates::CatchUpTo(BaseKeyToAck.Current);
+			}
+			else if (PredictionKeyChainResult == EGasPredictionKeyResult::Reject)
+			{
+				UE_LOG(LogPredictionKey, Verbose, TEXT("%hs Rejecting chain starting with %s"), __func__, *BaseKeyToAck.ToString());
+				FPredictionKeyDelegates::Reject(BaseKeyToAck.Current);
+			}
+			else
+			{
+				UE_LOG(LogPredictionKey, Error, TEXT("%hs had a valid BaseKeyToAck (%s) but we were configured to Drop the Key (it should have been invalid)"), __func__, *BaseKeyToAck.ToString());
+			}
+		}
+	}
+}
+
+// -----------------------------------
+
 void FReplicatedPredictionKeyItem::OnRep(const FReplicatedPredictionKeyMap& InArray)
 {
 	using namespace UE::AbilitySystem::Private;

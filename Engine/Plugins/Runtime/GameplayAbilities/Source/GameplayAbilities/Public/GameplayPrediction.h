@@ -492,6 +492,49 @@ private:
 #endif
 };
 
+/**
+ * Possible results when evaluating how to deal with an FPredictionKey
+ */
+enum class EGasPredictionKeyResult : uint8
+{
+	// Silently drop the key (don't acknowledge it at all)
+	SilentlyDrop,
+
+	// Accept the key (e.g. server acknowledges the event happened)
+	Accept,
+
+	// Reject the key (e.g. server says the event never happened)
+	Reject
+};
+
+/**
+ * Discard the predictions that occur within this window.
+ * This is useful in a case where you don't intend to send a chain of generated events (FPredictionKeys) to the server.
+ * For example, we use this in a case where we want to play a Montage locally, and we notify the server unreliably (i.e. it is an optional event).
+ * Note: Nothing stops something within this scope from creating a valid key, then sending that valid key to the server.  This is meant for generated keys that aren't already going to be sent.
+ */
+struct GAMEPLAYABILITIES_API FScopedDiscardPredictions
+{
+	// Pass in the AbilitySystemComponent to discard predictions on.  Optionally, if we want to do something other than just Drop the prediction events you can override that.
+	explicit FScopedDiscardPredictions(UAbilitySystemComponent* AbilitySystemComponent, EGasPredictionKeyResult HowToHandlePredictions = EGasPredictionKeyResult::SilentlyDrop);
+
+	// When the scope ends, we will perform the final drop/ack/nack of the prediction chain
+	~FScopedDiscardPredictions();
+
+private:
+	// Weak pointer to the 'Owning' ASC.  If this ends up being invalid/null we don't do anything.
+	TWeakObjectPtr<UAbilitySystemComponent> Owner;
+
+	// The key that we're going to restore on the Owner
+	FPredictionKey KeyToRestoreOnOwner;
+
+	// How we're going to handle the resulting chain of predictions
+	EGasPredictionKeyResult PredictionKeyChainResult;
+
+	// This is the key that we're going to eventually acknowledge according to PredictionKeyChainResult
+	FPredictionKey BaseKeyToAck;
+};
+
 // -----------------------------------------------------------------
 
 
