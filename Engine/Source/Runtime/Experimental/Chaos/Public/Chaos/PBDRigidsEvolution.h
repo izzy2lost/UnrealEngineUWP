@@ -422,6 +422,8 @@ public:
 			}
 		}
 
+		CVD_TRACE_PARTICLE(Particle);
+
 		// Flag as dirty to update the spatial query acceleration structures
 		DirtyParticle(*Particle);
 	}
@@ -462,6 +464,8 @@ public:
 			// we don't leave a residual value if we get enabled again
 			Rigid->ClearIsMovingKinematic();
 		}
+
+		CVD_TRACE_PARTICLE(Particle);
 	}
 
 	/**

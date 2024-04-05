@@ -16,6 +16,15 @@
 
 #define LOCTEXT_NAMESPACE "ChaosVisualDebugger"
 
+namespace Chaos::VisualDebugger::Cvars
+{
+	static bool bPlayAllPreviousFrameSteps = true;
+	static FAutoConsoleVariableRef CVarChaosVDbPlayAllPreviousFrameSteps(
+		TEXT("p.Chaos.VD.Tool.PlayAllPreviousFrameSteps"),
+		bPlayAllPreviousFrameSteps,
+		TEXT("If true, each time we get playback a solver frame in a specific stage, we will play all the previous steps from that frame in sequence to ensure we have the correct visualization for what happened in that frame."));
+}
+
 FChaosVDPlaybackController::FChaosVDPlaybackController(const TWeakPtr<FChaosVDScene>& InSceneToControl)
 {
 	SceneToControl = InSceneToControl;
@@ -179,6 +188,19 @@ void FChaosVDPlaybackController::HandleFrameRateOverrideSettingsChanged(UChaosVD
 	CurrentFrameRateOverride = CVDSettings->bPlaybackAtRecordedFrameRate ? InvalidFrameRateOverride : CVDSettings->TargetFrameRateOverride;
 }
 
+void FChaosVDPlaybackController::PlaySolverStepData(int32 TrackID, const TSharedRef<FChaosVDScene>& InSceneToControlSharedPtr, const FChaosVDSolverFrameData& InSolverFrameData, int32 StepIndex)
+{
+	if (InSolverFrameData.SolverSteps.IsValidIndex(StepIndex))
+	{
+		InSceneToControlSharedPtr->UpdateFromRecordedStepData(TrackID, InSolverFrameData.SolverSteps[StepIndex], InSolverFrameData);
+	}
+	else
+	{
+		// This is common if we stop PIE, change worlds, and PIE again without stopping the recording
+		UE_LOG(LogChaosVDEditor, Verbose, TEXT("[%s] Tried to scrub to an invalid step | Step Number [%d] ..."), ANSI_TO_TCHAR(__FUNCTION__), StepIndex);
+	}
+}
+
 void FChaosVDPlaybackController::GoToRecordedSolverStep_AssumesLocked(const int32 InTrackID, const int32 FrameNumber, const int32 Step, FGuid InstigatorID, int32 Attempts)
 {
 	if (const TSharedPtr<FChaosVDScene> SceneToControlSharedPtr = SceneToControl.Pin())
@@ -218,35 +240,19 @@ void FChaosVDPlaybackController::GoToRecordedSolverStep_AssumesLocked(const int3
 					PlayFromClosestKeyFrame_AssumesLocked(InTrackID, FrameNumber, *SceneToControlSharedPtr.Get());
 				}
 
-				if (CurrentTrackInfo->LockedOnStep != INDEX_NONE)
+				const int32 StepDiff = Step - CurrentTrackInfo->CurrentStep;
+				const bool bNeedsPlayPreviousSteps = CurrentTrackInfo->CurrentFrame != FrameNumber || StepDiff < 0 || FMath::Abs(StepDiff) > FrameDriftTolerance;
+
+				if (Chaos::VisualDebugger::Cvars::bPlayAllPreviousFrameSteps && bNeedsPlayPreviousSteps)
 				{
-					// If this track is locked to a specific step, we need to play back the previous steps on the current frame, because not all steps capture the same data.
-					// For example, Particles positions are fully captured in the first sub-step and the last one
-					for (int32 StepIndex = 0; StepIndex <= CurrentTrackInfo->LockedOnStep; StepIndex++)
+					for (int32 StepIndex = 0; StepIndex <= Step; StepIndex++)
 					{
-						if (SolverFrameData && SolverFrameData->SolverSteps.IsValidIndex(CurrentTrackInfo->LockedOnStep))
-						{
-							SceneToControlSharedPtr->UpdateFromRecordedStepData(InTrackID, SolverFrameData->SolverSteps[StepIndex], *SolverFrameData);
-						}
-						else
-						{
-							// This is common if we stop PIE, change worlds, and PIE again without stopping the recording
-							UE_LOG(LogChaosVDEditor, Verbose, TEXT("[%s] Tried to scrub to an invalid step | Step Number [%d] ..."), ANSI_TO_TCHAR(__FUNCTION__), CurrentTrackInfo->LockedOnStep);
-							return;
-						}
+						PlaySolverStepData(InTrackID, SceneToControlSharedPtr.ToSharedRef(), *SolverFrameData, StepIndex);
 					}
 				}
 				else
 				{
-					if (SolverFrameData && SolverFrameData->SolverSteps.IsValidIndex(Step))
-					{
-						SceneToControlSharedPtr->UpdateFromRecordedStepData(InTrackID, SolverFrameData->SolverSteps[Step], *SolverFrameData);
-					}
-					else
-					{
-						// This is common if we stop PIE, change worlds, and PIE again without stopping the recording
-						UE_LOG(LogChaosVDEditor, Verbose, TEXT("[%s] Tried to scrub to an invalid step | Step Number [%d] ..."), ANSI_TO_TCHAR(__FUNCTION__), CurrentTrackInfo->LockedOnStep);
-					}
+					PlaySolverStepData(InTrackID, SceneToControlSharedPtr.ToSharedRef(), *SolverFrameData, Step);
 				}
 
 				CurrentTrackInfo->CurrentFrame = FrameNumber;
