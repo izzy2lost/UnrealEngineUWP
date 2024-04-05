@@ -15,13 +15,16 @@
 
 #include "Microsoft/AllowMicrosoftPlatformTypes.h"
 THIRD_PARTY_INCLUDES_START
-	#include RHICORE_PLATFORM_DXGI_H
+#include RHICORE_PLATFORM_DXGI_H
 THIRD_PARTY_INCLUDES_END
 #include "Microsoft/HideMicrosoftPlatformTypes.h"
+
+struct FD3DMemoryStats;
 
 namespace UE::DXGIUtilities
 {
 	RHICORE_API const TCHAR* GetFormatString(DXGI_FORMAT Format);
+	RHICORE_API HRESULT GetD3DMemoryStats(IDXGIAdapter* Adapter, FD3DMemoryStats& OutStats);
 
 	inline DXGI_FORMAT FindSharedResourceFormat(DXGI_FORMAT InFormat, bool bSRGB)
 	{

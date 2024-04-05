@@ -405,17 +405,16 @@ void FD3D12DynamicRHI::RHIGetTextureMemoryStats(FTextureMemoryStats& OutStats)
 #if PLATFORM_WINDOWS
 	if (GAdjustTexturePoolSizeBasedOnBudget)
 	{
-		GetAdapter().UpdateMemoryInfo();
-		const DXGI_QUERY_VIDEO_MEMORY_INFO& LocalVideoMemoryInfo = GetAdapter().GetMemoryInfo().LocalMemoryInfo;
+		const FD3DMemoryStats& MemoryStats = GetAdapter().CollectMemoryStats();
 
 		// Applications must explicitly manage their usage of physical memory and keep usage within the budget 
 		// assigned to the application process. Processes that cannot keep their usage within their assigned budgets 
 		// will likely experience stuttering, as they are intermittently frozen and paged out to allow other processes to run.
-		const int64 TargetBudget = LocalVideoMemoryInfo.Budget * 0.90f;	// Target using 90% of our budget to account for some fragmentation.
+		const int64 TargetBudget = MemoryStats.BudgetLocal * 0.90f;	// Target using 90% of our budget to account for some fragmentation.
 		OutStats.TotalGraphicsMemory = TargetBudget;
 
 		const int64 BudgetPadding = TargetBudget * 0.05f;
-		const int64 AvailableSpace = TargetBudget - int64(LocalVideoMemoryInfo.CurrentUsage);	// Note: AvailableSpace can be negative
+		const int64 AvailableSpace = TargetBudget - int64(MemoryStats.UsedLocal);	// Note: AvailableSpace can be negative
 		const int64 PreviousTexturePoolSize = RequestedTexturePoolSize;
 		const bool bOverbudget = AvailableSpace < 0;
 
@@ -424,12 +423,12 @@ void FD3D12DynamicRHI::RHIGetTextureMemoryStats(FTextureMemoryStats& OutStats)
 		if (bOverbudget)
 		{
 			// Attempt to lower the texture pool size to meet the budget.
-			const bool bOverActualBudget = LocalVideoMemoryInfo.CurrentUsage > LocalVideoMemoryInfo.Budget;
+			const bool bOverActualBudget = MemoryStats.UsedLocal > MemoryStats.BudgetLocal;
 			UE_CLOG(bOverActualBudget, LogD3D12RHI, Warning,
 				TEXT("Video memory usage is overbudget by %llu MB (using %lld MB/%lld MB budget). Usage breakdown: %lld MB (Streaming Textures), %lld MB (Non Streaming Textures). Last requested texture pool size is %lld MB. This can cause stuttering due to paging."),
-				(LocalVideoMemoryInfo.CurrentUsage - LocalVideoMemoryInfo.Budget) / 1024ll / 1024ll,
-				LocalVideoMemoryInfo.CurrentUsage / 1024ll / 1024ll,
-				LocalVideoMemoryInfo.Budget / 1024ll / 1024ll,
+				(MemoryStats.UsedLocal - MemoryStats.BudgetLocal) / 1024ll / 1024ll,
+				MemoryStats.UsedLocal / 1024ll / 1024ll,
+				MemoryStats.BudgetLocal / 1024ll / 1024ll,
 				GRHIGlobals.StreamingTextureMemorySizeInKB / 1024ll,
 				GRHIGlobals.NonStreamingTextureMemorySizeInKB / 1024ll,
 				PreviousTexturePoolSize / 1024ll / 1024ll);
@@ -439,7 +438,7 @@ void FD3D12DynamicRHI::RHIGetTextureMemoryStats(FTextureMemoryStats& OutStats)
 
 			UE_CLOG(bOverActualBudget && (OutStats.TexturePoolSize >= PreviousTexturePoolSize) && (OutStats.TexturePoolSize > MinTexturePoolSize), LogD3D12RHI, Fatal,
 				TEXT("Video memory usage is overbudget by %llu MB and the texture pool size didn't shrink."),
-				(LocalVideoMemoryInfo.CurrentUsage - LocalVideoMemoryInfo.Budget) / 1024ll / 1024ll);
+				(MemoryStats.UsedLocal - MemoryStats.BudgetLocal) / 1024ll / 1024ll);
 		}
 		else if (AvailableSpace > BudgetPadding)
 		{

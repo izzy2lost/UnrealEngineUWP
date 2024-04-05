@@ -4,6 +4,7 @@
 #include "HAL/Platform.h"
 #include "HAL/PlatformAtomics.h"
 #include "Templates/Atomic.h"
+#include "ProfilingDebugging/CsvProfiler.h"
 
 int32 GNumDrawCallsRHI[MAX_NUM_GPUS] = {};
 int32 GNumPrimitivesDrawnRHI[MAX_NUM_GPUS] = {};
@@ -39,3 +40,59 @@ DEFINE_STAT(STAT_BindlessSamplerHeapMemory);
 DEFINE_STAT(STAT_BindlessResourceHeapMemory);
 DEFINE_STAT(STAT_BindlessSamplerDescriptorsAllocated);
 DEFINE_STAT(STAT_BindlessResourceDescriptorsAllocated);
+
+#if PLATFORM_MICROSOFT
+
+// Define D3D memory stats.
+DEFINE_STAT(STAT_D3DUpdateVideoMemoryStats);
+DEFINE_STAT(STAT_D3DTotalVideoMemory);
+DEFINE_STAT(STAT_D3DTotalSystemMemory);
+DEFINE_STAT(STAT_D3DUsedVideoMemory);
+DEFINE_STAT(STAT_D3DUsedSystemMemory);
+DEFINE_STAT(STAT_D3DAvailableVideoMemory);
+DEFINE_STAT(STAT_D3DAvailableSystemMemory);
+DEFINE_STAT(STAT_D3DDemotedVideoMemory);
+DEFINE_STAT(STAT_D3DDemotedSystemMemory);
+
+#if CSV_PROFILER
+CSV_DEFINE_CATEGORY(GPUMem, true);
+#endif
+
+void UpdateD3DMemoryStatsAndCSV(const FD3DMemoryStats& MemoryStats, bool bUpdateCSV)
+{
+#if STATS || CSV_PROFILER
+	SCOPE_CYCLE_COUNTER(STAT_D3DUpdateVideoMemoryStats);
+
+#if STATS
+	SET_MEMORY_STAT(STAT_D3DTotalVideoMemory, MemoryStats.BudgetLocal);	
+	SET_MEMORY_STAT(STAT_D3DUsedVideoMemory, MemoryStats.UsedLocal);
+	SET_MEMORY_STAT(STAT_D3DAvailableVideoMemory, MemoryStats.AvailableLocal);
+	SET_MEMORY_STAT(STAT_D3DDemotedVideoMemory, MemoryStats.DemotedLocal);
+	
+	if (MemoryStats.BudgetSystem > 0)
+	{
+		SET_MEMORY_STAT(STAT_D3DTotalSystemMemory, MemoryStats.BudgetSystem);
+		SET_MEMORY_STAT(STAT_D3DUsedSystemMemory, MemoryStats.UsedSystem);
+		SET_MEMORY_STAT(STAT_D3DAvailableSystemMemory, MemoryStats.AvailableSystem);
+		SET_MEMORY_STAT(STAT_D3DDemotedSystemMemory, MemoryStats.DemotedSystem);
+	}
+#endif // STATS
+
+#if CSV_PROFILER
+	if (bUpdateCSV)
+	{
+		// Just output the two main stats (budget and used) to avoid bloating the CSV, since the rest can be inferred from them.
+		CSV_CUSTOM_STAT(GPUMem, LocalBudgetMB, float(MemoryStats.BudgetLocal / 1024.0 / 1024.0), ECsvCustomStatOp::Set);
+		CSV_CUSTOM_STAT(GPUMem, LocalUsedMB, float(MemoryStats.UsedLocal / 1024.0 / 1024.0), ECsvCustomStatOp::Set);
+
+		if (MemoryStats.BudgetSystem > 0)
+		{
+			CSV_CUSTOM_STAT(GPUMem, SystemBudgetMB, float(MemoryStats.BudgetSystem / 1024.0 / 1024.0), ECsvCustomStatOp::Set);
+			CSV_CUSTOM_STAT(GPUMem, SystemUsedMB, float(MemoryStats.UsedSystem / 1024.0 / 1024.0), ECsvCustomStatOp::Set);
+		}
+	}
+#endif // CSV_PROFILER
+#endif // STATS || CSV_PROFILER
+}
+
+#endif // PLATFORM_MICROSOFT

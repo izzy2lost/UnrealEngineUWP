@@ -772,13 +772,15 @@ void LogPageFaultData(FD3D12Adapter* InAdapter, FD3D12Device* InDevice, D3D12_GP
 
 } // namespace D3D12RHI
 
-void LogMemoryInfo(FD3D12Adapter* InAdapter)
+void LogMemoryStats(FD3D12Adapter* InAdapter)
 {	
-	const FD3D12MemoryInfo& MemoryInfo = InAdapter->GetMemoryInfo();
+	const FD3DMemoryStats& MemoryStats = InAdapter->GetMemoryStats();
 
-	UE_LOG(LogD3D12RHI, Error, TEXT("Memory Info from frame ID %d:"), MemoryInfo.UpdateFrameNumber);
-	UE_LOG(LogD3D12RHI, Error, TEXT("\tBudget:\t%7.2f MB"), MemoryInfo.LocalMemoryInfo.Budget / (1024.0f * 1024));
-	UE_LOG(LogD3D12RHI, Error, TEXT("\tUsed:\t%7.2f MB"), MemoryInfo.LocalMemoryInfo.CurrentUsage / (1024.0f * 1024));
+	UE_LOG(LogD3D12RHI, Error, TEXT("Video Memory Stats from frame ID %d:"), InAdapter->GetMemoryStatsUpdateFrame());
+	UE_LOG(LogD3D12RHI, Error, TEXT("\tLocal Budget:\t%7.2f MB"), MemoryStats.BudgetLocal / (1024.0f * 1024));
+	UE_LOG(LogD3D12RHI, Error, TEXT("\tLocal Used:\t%7.2f MB"), MemoryStats.UsedLocal / (1024.0f * 1024));
+	UE_LOG(LogD3D12RHI, Error, TEXT("\tSystem Budget:\t%7.2f MB"), MemoryStats.BudgetSystem / (1024.0f * 1024));
+	UE_LOG(LogD3D12RHI, Error, TEXT("\tSystem Used:\t%7.2f MB"), MemoryStats.UsedSystem / (1024.0f * 1024));
 }
 
 #endif  // PLATFORM_WINDOWS
@@ -807,8 +809,8 @@ void FD3D12DynamicRHI::TerminateOnOutOfMemory(ID3D12Device* InDevice, HRESULT D3
 
 	if (Adapter)
 	{
-		const auto& MemoryInfo = Adapter->GetMemoryInfo().LocalMemoryInfo;
-		FCoreDelegates::GetGPUOutOfMemoryDelegate().Broadcast(MemoryInfo.Budget, MemoryInfo.CurrentUsage);
+		const auto& MemoryStats = Adapter->GetMemoryStats();
+		FCoreDelegates::GetGPUOutOfMemoryDelegate().Broadcast(MemoryStats.BudgetLocal, MemoryStats.UsedLocal);
 	}
 
 	if (!FApp::IsUnattended())
@@ -833,7 +835,7 @@ void FD3D12DynamicRHI::TerminateOnOutOfMemory(ID3D12Device* InDevice, HRESULT D3
 	ForEachDevice(InDevice, [&](FD3D12Device* IterationDevice)
 	{
 		FD3D12Adapter* Adapter = IterationDevice->GetParentAdapter();
-		LogMemoryInfo(Adapter);
+		LogMemoryStats(Adapter);
 	});
 	
 	UE_LOG(LogD3D12RHI, Fatal, TEXT("Out of video memory trying to allocate a rendering resource"));
@@ -966,7 +968,7 @@ void FD3D12DynamicRHI::OutputGPUCrashReport(FTextBuilder& ErrorMessage)
 
 		FD3D12Adapter* Adapter = Device->GetParentAdapter();
 		LogPageFaultData(Adapter, Device, PageFaultAddress);
-		LogMemoryInfo(Adapter);
+		LogMemoryStats(Adapter);
 	});
 #endif  // PLATFORM_WINDOWS
 
@@ -1999,12 +2001,6 @@ DEFINE_STAT(STAT_D3D12ClearMRT);
 
 DEFINE_STAT(STAT_D3D12ExecuteCommandListTime);
 DEFINE_STAT(STAT_D3D12WaitForFenceTime);
-
-DEFINE_STAT(STAT_D3D12UsedVideoMemory);
-DEFINE_STAT(STAT_D3D12UsedSystemMemory);
-DEFINE_STAT(STAT_D3D12AvailableVideoMemory);
-DEFINE_STAT(STAT_D3D12DemotedVideoMemory);
-DEFINE_STAT(STAT_D3D12TotalVideoMemory);
 
 DEFINE_STAT(STAT_D3D12MemoryCurrentTotal);
 DEFINE_STAT(STAT_D3D12RenderTargets);

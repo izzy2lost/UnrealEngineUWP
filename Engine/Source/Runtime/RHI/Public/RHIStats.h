@@ -239,3 +239,47 @@ DECLARE_MEMORY_STAT_POOL_EXTERN(TEXT("Bindless Resource Heap"), STAT_BindlessRes
 
 DECLARE_DWORD_ACCUMULATOR_STAT_EXTERN(TEXT("Bindless Sampler Descriptors Allocated"), STAT_BindlessSamplerDescriptorsAllocated, STATGROUP_RHI, RHI_API);
 DECLARE_DWORD_ACCUMULATOR_STAT_EXTERN(TEXT("Bindless Resource Descriptors Allocated"), STAT_BindlessResourceDescriptorsAllocated, STATGROUP_RHI, RHI_API);
+
+#if PLATFORM_MICROSOFT
+
+// D3D memory stats.
+struct FD3DMemoryStats
+{
+	// Budget assigned by the OS. This can be considered the total memory
+	// the application should use, but an application can also go over-budget.
+	uint64 BudgetLocal = 0;
+	uint64 BudgetSystem = 0;
+
+	// Used memory.
+	uint64 UsedLocal = 0;
+	uint64 UsedSystem = 0;
+
+	// Over-budget memory. This is Budget - Used if Used > Budget.
+	uint64 DemotedLocal = 0;
+	uint64 DemotedSystem = 0;
+
+	// Available memory within budget. This is Budget - Used clamped to 0 if over-budget.
+	uint64 AvailableLocal = 0;
+	uint64 AvailableSystem = 0;
+
+	bool IsOverBudget() const
+	{
+		return DemotedLocal > 0 || DemotedSystem > 0;
+	}
+};
+
+DECLARE_STATS_GROUP(TEXT("D3D Video Memory"), STATGROUP_D3DMemory, STATCAT_Advanced);
+DECLARE_MEMORY_STAT_EXTERN(TEXT("Total Video Memory (Budget)"), STAT_D3DTotalVideoMemory, STATGROUP_D3DMemory, );
+DECLARE_MEMORY_STAT_EXTERN(TEXT("Total System Memory (Budget)"), STAT_D3DTotalSystemMemory, STATGROUP_D3DMemory, );
+DECLARE_MEMORY_STAT_EXTERN(TEXT("Available Video Memory"), STAT_D3DAvailableVideoMemory, STATGROUP_D3DMemory, );
+DECLARE_MEMORY_STAT_EXTERN(TEXT("Available System Memory"), STAT_D3DAvailableSystemMemory, STATGROUP_D3DMemory, );
+DECLARE_MEMORY_STAT_EXTERN(TEXT("Used Video Memory"), STAT_D3DUsedVideoMemory, STATGROUP_D3DMemory, );
+DECLARE_MEMORY_STAT_EXTERN(TEXT("Used System Memory"), STAT_D3DUsedSystemMemory, STATGROUP_D3DMemory, );
+DECLARE_MEMORY_STAT_EXTERN(TEXT("Demoted Video Memory"), STAT_D3DDemotedVideoMemory, STATGROUP_D3DMemory, );
+DECLARE_MEMORY_STAT_EXTERN(TEXT("Demoted System Memory"), STAT_D3DDemotedSystemMemory, STATGROUP_D3DMemory, );
+DECLARE_CYCLE_STAT_EXTERN(TEXT("Video Memory stats update time"), STAT_D3DUpdateVideoMemoryStats, STATGROUP_D3DMemory, RHI_API);
+
+// Update D3D memory stat counters and CSV profiler stats, if enabled.
+RHI_API void UpdateD3DMemoryStatsAndCSV(const FD3DMemoryStats& MemoryStats, bool bUpdateCSV);
+
+#endif // PLATFORM_MICROSOFT

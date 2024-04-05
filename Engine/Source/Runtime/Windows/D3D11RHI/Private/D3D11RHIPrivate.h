@@ -942,6 +942,8 @@ protected:
 
 	bool SetupDisplayHDRMetaData();
 
+	void UpdateMemoryStats();
+
 	friend struct FD3DGPUProfiler;
 
 };

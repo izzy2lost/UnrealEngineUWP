@@ -1533,73 +1533,41 @@ void FD3D12Adapter::ReleaseTransientUniformBufferAllocator(FTransientUniformBuff
 	verify(TransientUniformBufferAllocators.Remove(InAllocator) == 1);
 }
 
-void FD3D12Adapter::UpdateMemoryInfo()
+const FD3DMemoryStats& FD3D12Adapter::CollectMemoryStats()
 {
 #if PLATFORM_WINDOWS
 	const uint64 UpdateFrame = FrameFence != nullptr ? FrameFence->GetNextFenceToSignal() : 0;
 
-	// Avoid spurious query calls if we have already captured this frame.
-	if (MemoryInfo.UpdateFrameNumber == UpdateFrame)
+	// Avoid spurious query calls if we have already captured stats this frame.
+	if (MemoryStatsUpdateFrame == UpdateFrame)
 	{
-		return;
+		return MemoryStats;
+	}
+	MemoryStatsUpdateFrame = UpdateFrame;
+
+	if (FAILED(UE::DXGIUtilities::GetD3DMemoryStats(GetAdapter(), MemoryStats)))
+	{
+		return MemoryStats;
 	}
 
-	// Update the frame number that the memory is captured from.
-	MemoryInfo.UpdateFrameNumber = UpdateFrame;
-
-	TRefCountPtr<IDXGIAdapter3> Adapter3;
-	VERIFYD3D12RESULT(GetAdapter()->QueryInterface(IID_PPV_ARGS(Adapter3.GetInitReference())));
-
-	VERIFYD3D12RESULT(Adapter3->QueryVideoMemoryInfo(0, DXGI_MEMORY_SEGMENT_GROUP_LOCAL, &MemoryInfo.LocalMemoryInfo));
-	VERIFYD3D12RESULT(Adapter3->QueryVideoMemoryInfo(0, DXGI_MEMORY_SEGMENT_GROUP_NON_LOCAL, &MemoryInfo.NonLocalMemoryInfo));
+	// Update global RHI state (for warning output, etc.)
+	GDemotedLocalMemorySize = MemoryStats.DemotedLocal;
 
 #if ENABLE_RESIDENCY_MANAGEMENT
 	// D3D12 residency manager will only evict resources when the resident set is larger than DXGI reported budget.
 	// However, the DXGI reports high budget even when multiple applications use large amounts of VRAM.
-	// This casuses VidMm to automatically page out allocations out of VRAM based on its own heuristics, which can cause significant 
+	// This causes VidMm to automatically page out allocations out of VRAM based on its own heuristics, which can cause significant 
 	// performance degradation when paged-out resources are used for rendering before VidMm pages them back in (which can take a long time).
 	// By overriding the budget to 0 and stopping rendering at the high-level, we can immediately free VRAM and avoid VidMm paging.
 	const bool bEvictResidentResources = GEnableResidencyManagement && GD3D12EvictAllResidentResourcesInBackground && !FApp::HasFocus();
-	const uint64 LocalMemoryBudgetLimit = bEvictResidentResources ? 0 : MemoryInfo.LocalMemoryInfo.Budget;
+	const uint64 LocalMemoryBudgetLimit = bEvictResidentResources ? 0 : MemoryStats.BudgetLocal;
 	for (uint32 GPUIndex : FRHIGPUMask::All())
 	{
 		GetDevice(GPUIndex)->GetResidencyManager().SetLocalMemoryBudgetLimit(LocalMemoryBudgetLimit);
 	}
 #endif // ENABLE_RESIDENCY_MANAGEMENT
-
-	// Over budget?
-	if (MemoryInfo.LocalMemoryInfo.CurrentUsage > MemoryInfo.LocalMemoryInfo.Budget)
-	{
-		MemoryInfo.AvailableLocalMemory = 0;
-		MemoryInfo.DemotedLocalMemory = MemoryInfo.LocalMemoryInfo.CurrentUsage - MemoryInfo.LocalMemoryInfo.Budget;
-	}
-	else
-	{
-		MemoryInfo.AvailableLocalMemory = MemoryInfo.LocalMemoryInfo.Budget - MemoryInfo.LocalMemoryInfo.CurrentUsage;
-		MemoryInfo.DemotedLocalMemory = 0;
-	}
-
-	// Update global RHI state (for warning output, etc.)
-	GDemotedLocalMemorySize = MemoryInfo.DemotedLocalMemory;
-
-	if (!GVirtualMGPU)
-	{
-		for (uint32 Index = 1; Index < GNumExplicitGPUsForRendering; ++Index)
-		{
-			DXGI_QUERY_VIDEO_MEMORY_INFO TempVideoMemoryInfo;
-			VERIFYD3D12RESULT(Adapter3->QueryVideoMemoryInfo(Index, DXGI_MEMORY_SEGMENT_GROUP_LOCAL, &TempVideoMemoryInfo));
-
-			DXGI_QUERY_VIDEO_MEMORY_INFO TempSystemMemoryInfo;
-			VERIFYD3D12RESULT(Adapter3->QueryVideoMemoryInfo(Index, DXGI_MEMORY_SEGMENT_GROUP_NON_LOCAL, &TempSystemMemoryInfo));
-			
-			MemoryInfo.LocalMemoryInfo.Budget = FMath::Min(MemoryInfo.LocalMemoryInfo.Budget, TempVideoMemoryInfo.Budget);
-			MemoryInfo.LocalMemoryInfo.CurrentUsage = FMath::Min(MemoryInfo.LocalMemoryInfo.CurrentUsage, TempVideoMemoryInfo.CurrentUsage);
-
-			MemoryInfo.NonLocalMemoryInfo.Budget = FMath::Min(MemoryInfo.NonLocalMemoryInfo.Budget, TempSystemMemoryInfo.Budget);
-			MemoryInfo.NonLocalMemoryInfo.CurrentUsage = FMath::Min(MemoryInfo.NonLocalMemoryInfo.CurrentUsage, TempSystemMemoryInfo.CurrentUsage);
-		}
-	}
-#endif
+#endif // PLATFORM_WINDOWS
+	return MemoryStats;
 }
 
 void FD3D12Adapter::BlockUntilIdle()

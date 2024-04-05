@@ -396,8 +396,9 @@ public:
 
 	void BlockUntilIdle();
 
-	void UpdateMemoryInfo();
-	FORCEINLINE const FD3D12MemoryInfo& GetMemoryInfo() const { return MemoryInfo; }
+	const FD3DMemoryStats& CollectMemoryStats();
+	FORCEINLINE const FD3DMemoryStats& GetMemoryStats() const { return MemoryStats; }
+	FORCEINLINE uint64 GetMemoryStatsUpdateFrame() const { return MemoryStatsUpdateFrame; }
 
 	bool IsTrackingAllAllocations() const { return bTrackAllAllocation; }
 	void TrackAllocationData(FD3D12ResourceLocation* InAllocation, uint64 InAllocationSize, bool bCollectCallstack);
@@ -586,7 +587,8 @@ protected:
 	TArray<FReleasedAllocationData> ReleasedAllocationData;
 	FCriticalSection TrackedAllocationDataCS;
 
-	FD3D12MemoryInfo MemoryInfo;
+	FD3DMemoryStats MemoryStats;
+	uint64 MemoryStatsUpdateFrame;
 
 	TArray<FTransientUniformBufferAllocator*> TransientUniformBufferAllocators;
 	FCriticalSection TransientUniformBufferAllocatorsCS;

@@ -331,7 +331,20 @@ void FD3DGPUProfiler::BeginFrame(FD3D11DynamicRHI* InRHI)
 void FD3D11DynamicRHI::RHIEndFrame()
 {
 	GPUProfilingData.EndFrame();
+	UpdateMemoryStats();
 	CurrentComputeShader = nullptr;
+}
+
+void FD3D11DynamicRHI::UpdateMemoryStats()
+{
+#if PLATFORM_WINDOWS && (STATS || CSV_PROFILER)
+	// Some older drivers don't support querying memory stats, so don't do anything if this fails.
+	FD3DMemoryStats MemoryStats;
+	if (SUCCEEDED(UE::DXGIUtilities::GetD3DMemoryStats(GetAdapter().DXGIAdapter, MemoryStats)))
+	{
+		UpdateD3DMemoryStatsAndCSV(MemoryStats, true);
+	}
+#endif // PLATFORM_WINDOWS && (STATS || CSV_PROFILER)
 }
 
 void FD3DGPUProfiler::EndFrame()

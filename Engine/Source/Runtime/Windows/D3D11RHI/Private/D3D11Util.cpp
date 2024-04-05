@@ -134,18 +134,17 @@ static void TerminateOnDeviceRemoved(HRESULT D3DResult, ID3D11Device* Direct3DDe
 	}
 }
 
-void GetAndLogMemoryInfo(const FD3D11Adapter& InAdapter, uint64& OutVRAMBudgetBytes, uint64& OutVRAMUsageBytes)
+void GetAndLogMemoryStats(const FD3D11Adapter& InAdapter, uint64& OutVRAMBudgetBytes, uint64& OutVRAMUsageBytes)
 {
-	TRefCountPtr<IDXGIAdapter3> Adapter3;
-	const HRESULT AdapterHR = InAdapter.DXGIAdapter->QueryInterface(IID_PPV_ARGS(Adapter3.GetInitReference()));
-	if (SUCCEEDED(AdapterHR))
+	FD3DMemoryStats MemoryStats;
+	if (SUCCEEDED(UE::DXGIUtilities::GetD3DMemoryStats(InAdapter.DXGIAdapter, MemoryStats)))
 	{
-		DXGI_QUERY_VIDEO_MEMORY_INFO LocalMemoryInfo{};
-		VERIFYD3D11RESULT(Adapter3->QueryVideoMemoryInfo(0, DXGI_MEMORY_SEGMENT_GROUP_LOCAL, &LocalMemoryInfo));
-		UE_LOG(LogD3D11RHI, Error, TEXT("\tBudget:\t%7.2f MB"), LocalMemoryInfo.Budget / (1024.0f * 1024));
-		UE_LOG(LogD3D11RHI, Error, TEXT("\tUsed:\t%7.2f MB"), LocalMemoryInfo.CurrentUsage / (1024.0f * 1024));
-		OutVRAMBudgetBytes = LocalMemoryInfo.Budget;
-		OutVRAMUsageBytes = LocalMemoryInfo.CurrentUsage;
+		UE_LOG(LogD3D11RHI, Error, TEXT("\tLocal Budget:\t%7.2f MB"), MemoryStats.BudgetLocal / (1024.0f * 1024));
+		UE_LOG(LogD3D11RHI, Error, TEXT("\tLocal Used:\t%7.2f MB"), MemoryStats.UsedLocal / (1024.0f * 1024));
+		UE_LOG(LogD3D11RHI, Error, TEXT("\tSystem Budget:\t%7.2f MB"), MemoryStats.BudgetSystem / (1024.0f * 1024));
+		UE_LOG(LogD3D11RHI, Error, TEXT("\tSystem Used:\t%7.2f MB"), MemoryStats.UsedSystem / (1024.0f * 1024));
+		OutVRAMBudgetBytes = MemoryStats.BudgetLocal;
+		OutVRAMUsageBytes = MemoryStats.UsedLocal;
 	}
 }
 
@@ -154,7 +153,7 @@ static void TerminateOnOutOfMemory(HRESULT D3DResult, bool bCreatingTextures)
 	if (D3DResult == E_OUTOFMEMORY)
 	{
 		uint64 VRAMBudgetBytes = 0, VRAMUsageBytes = 0;
-		GetAndLogMemoryInfo(GD3D11RHI->GetAdapter(), VRAMBudgetBytes, VRAMUsageBytes);
+		GetAndLogMemoryStats(GD3D11RHI->GetAdapter(), VRAMBudgetBytes, VRAMUsageBytes);
 		FCoreDelegates::GetGPUOutOfMemoryDelegate().Broadcast(VRAMBudgetBytes, VRAMUsageBytes);
 
 		if (bCreatingTextures)
