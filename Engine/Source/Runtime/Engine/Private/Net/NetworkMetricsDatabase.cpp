@@ -2,6 +2,7 @@
 
 #include "Net/NetworkMetricsDatabase.h"
 #include "EngineStats.h"
+#include "Logging/LogMacros.h"
 #include "ProfilingDebugging/CsvProfiler.h"
 
 #if USE_SERVER_PERF_COUNTERS
@@ -9,6 +10,8 @@
 #endif
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(NetworkMetricsDatabase)
+
+DEFINE_LOG_CATEGORY_STATIC(LogNetworkMetrics, Error, All);
 
 void UNetworkMetricsDatabase::CreateFloat(const FName MetricName, float DefaultValue)
 {
@@ -34,66 +37,108 @@ void UNetworkMetricsDatabase::CreateInt(const FName MetricName, int64 DefaultVal
 	}
 }
 
-void UNetworkMetricsDatabase::SetFloat(const FName MetricName, float Value)
+bool UNetworkMetricsDatabase::SetFloat(const FName MetricName, float Value)
 {
 	UE::Net::FNetworkMetric<float>* Metric = MetricFloats.Find(MetricName);
-	if (ensureMsgf(Metric, TEXT("Cannot find float metric %s."), *MetricName.ToString()))
+	if (Metric)
 	{
 		Metric->Value = Value;
+		return true;
+	}
+	else
+	{
+		UE_LOG(LogNetworkMetrics, Warning, TEXT("UNetworkMetricsDatabase::SetFloat Cannot find float metric %s."), *MetricName.ToString());
+		return false;
 	}
 }
 
-void UNetworkMetricsDatabase::SetMinFloat(const FName MetricName, float Value)
+bool UNetworkMetricsDatabase::SetMinFloat(const FName MetricName, float Value)
 {
 	UE::Net::FNetworkMetric<float>* Metric = MetricFloats.Find(MetricName);
-	if (ensureMsgf(Metric, TEXT("Cannot find float metric %s."), *MetricName.ToString()))
+	if (Metric)
 	{
 		Metric->Value = FMath::Min<float>(Value, Metric->Value);
+		return true;
+	}
+	else
+	{
+		UE_LOG(LogNetworkMetrics, Warning, TEXT("UNetworkMetricsDatabase::SetMinFloat Cannot find float metric %s."), *MetricName.ToString());
+		return false;
 	}
 }
 
-void UNetworkMetricsDatabase::SetMaxFloat(const FName MetricName, float Value)
+bool UNetworkMetricsDatabase::SetMaxFloat(const FName MetricName, float Value)
 {
 	UE::Net::FNetworkMetric<float>* Metric = MetricFloats.Find(MetricName);
-	if (ensureMsgf(Metric, TEXT("Cannot find float metric %s."), *MetricName.ToString()))
+	if (Metric)
 	{
 		Metric->Value = FMath::Max<float>(Value, Metric->Value);
+		return true;
+	}
+	else
+	{
+		UE_LOG(LogNetworkMetrics, Warning, TEXT("UNetworkMetricsDatabase::SetMaxFloat Cannot find float metric %s."), *MetricName.ToString());
+		return false;
 	}
 }
 
-void UNetworkMetricsDatabase::SetInt(const FName MetricName, int64 Value)
+bool UNetworkMetricsDatabase::SetInt(const FName MetricName, int64 Value)
 {
 	UE::Net::FNetworkMetric<int64>* Metric = MetricInts.Find(MetricName);
-	if (ensureMsgf(Metric, TEXT("Cannot find integer metric %s."), *MetricName.ToString()))
+	if (Metric)
 	{
 		Metric->Value = Value;
+		return true;
+	}
+	else
+	{
+		UE_LOG(LogNetworkMetrics, Warning, TEXT("UNetworkMetricsDatabase::SetInt Cannot find integer metric %s."), *MetricName.ToString());
+		return false;
 	}
 }
 
-void UNetworkMetricsDatabase::SetMinInt(const FName MetricName, int64 Value)
+bool UNetworkMetricsDatabase::SetMinInt(const FName MetricName, int64 Value)
 {
 	UE::Net::FNetworkMetric<int64>* Metric = MetricInts.Find(MetricName);
-	if (ensureMsgf(Metric, TEXT("Cannot find integer metric %s."), *MetricName.ToString()))
+	if (Metric)
 	{
 		Metric->Value = FMath::Min<int64>(Value, Metric->Value);
+		return true;
+	}
+	else
+	{
+		UE_LOG(LogNetworkMetrics, Warning, TEXT("UNetworkMetricsDatabase::SetMinInt Cannot find integer metric %s."), *MetricName.ToString());
+		return false;
 	}
 }
 
-void UNetworkMetricsDatabase::SetMaxInt(const FName MetricName, int64 Value)
+bool UNetworkMetricsDatabase::SetMaxInt(const FName MetricName, int64 Value)
 {
 	UE::Net::FNetworkMetric<int64>* Metric = MetricInts.Find(MetricName);
-	if (ensureMsgf(Metric, TEXT("Cannot find integer metric %s."), *MetricName.ToString()))
+	if (Metric)
 	{
 		Metric->Value = FMath::Max<int64>(Value, Metric->Value);
+		return true;
+	}
+	else
+	{
+		UE_LOG(LogNetworkMetrics, Warning, TEXT("UNetworkMetricsDatabase::SetMaxInt Cannot find integer metric %s."), *MetricName.ToString());
+		return false;
 	}
 }
 
-void UNetworkMetricsDatabase::IncrementInt(const FName MetricName, int64 Value)
+bool UNetworkMetricsDatabase::IncrementInt(const FName MetricName, int64 Value)
 {
 	UE::Net::FNetworkMetric<int64>* Metric = MetricInts.Find(MetricName);
-	if (ensureMsgf(Metric, TEXT("Cannot find integer metric %s."), *MetricName.ToString()))
+	if (Metric)
 	{
 		Metric->Value += Value;
+		return true;
+	}
+	else
+	{
+		UE_LOG(LogNetworkMetrics, Warning, TEXT("UNetworkMetricsDatabase::IncrementInt Cannot find integer metric %s."), *MetricName.ToString());
+		return false;
 	}
 }
 
