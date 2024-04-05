@@ -78,6 +78,7 @@ namespace Chaos
 		{}
 		// An auxiliary particle will be removed from the cluster union if FRigidClustering::HandleConnectivityOnReleaseClusterParticle detects an island made up of only auxiliary particles.
 		uint8 bIsAuxiliaryParticle: 1;
+		// Really just a protection for external users accidentally incurring a perf cost if they try to manually generate edges. We will never do this more than once per particle per cluster union.
 		uint8 bEdgesAreGenerated: 1;
 	};
 
@@ -213,7 +214,10 @@ namespace Chaos
 		// Update the cluster union's properties after its set of particle changes.
 		CHAOS_API void UpdateAllClusterUnionProperties(FClusterUnion& ClusterUnion, EUpdateClusterUnionPropertiesFlags Flags = EUpdateClusterUnionPropertiesFlags::All);
 
-		CHAOS_API  void AddParticleToConnectionGraphInCluster(FClusterUnion& ClusterUnion, FPBDRigidParticleHandle* Particle);
+		CHAOS_API void AddParticleToConnectionGraphInCluster(FClusterUnion& ClusterUnion, FPBDRigidParticleHandle* Particle);
+
+		CHAOS_API void GenerateInterclusterEdgesForParticle(FClusterUnion& ClusterUnion, FPBDRigidParticleHandle* Particle);
+		CHAOS_API void GenerateInterclusterEdgesBetweenParticles(FClusterUnion& ClusterUnion, FPBDRigidParticleHandle* Particle, FPBDRigidParticleHandle* OtherParticle);
 
 		// Returns all cluster unions. Really meant only to be used for debugging.
 		const TMap<FClusterUnionIndex, FClusterUnion>& GetAllClusterUnions() const { return ClusterUnions; }

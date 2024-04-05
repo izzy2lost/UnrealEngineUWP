@@ -1076,48 +1076,6 @@ namespace Chaos
 
 		return ReleaseClusterParticlesImpl(ClusteredParticle, bForceRelease, false /*bCreateNewClusters*/);
 	}
-	
-	void GenerateEdges(FGeometryCollectionPhysicsProxy& ConcreteGCProxy, FPBDRigidClusteredParticleHandle& ClusteredParticle, FClusterUnionManager& ClusterUnionManager)
-	{
-		ConcreteGCProxy.CreateChildrenGeometry_Internal();
-		if (Chaos::FClusterUnion* ClusterUnion = ClusterUnionManager.FindClusterUnionFromParticle(&ClusteredParticle))
-		{
-			bool bHasBuiltAllEdges = false;
-			FClusterUnionParticleProperties* Properties = ClusterUnion->ChildProperties.Find(&ClusteredParticle);
-			if (Properties)
-			{
-				bHasBuiltAllEdges = Properties->bEdgesAreGenerated;
-			}
-
-			bool bAllNeighborsHasBuiltEdges = true;
-			const TArray<Chaos::TConnectivityEdge<Chaos::FReal>> Edges = ClusteredParticle.ConnectivityEdges();
-			for (const Chaos::TConnectivityEdge<Chaos::FReal>& Edge : Edges)
-			{
-				if (Edge.Sibling != nullptr && Edge.Sibling->GetParticleType() == Chaos::EParticleType::Clustered)
-				{
-					Chaos::FPBDRigidClusteredParticleHandle* Sibling = Edge.Sibling->CastToClustered();
-					if (Sibling->PhysicsProxy()->GetType() == FGeometryCollectionPhysicsProxy::ConcreteType())
-					{
-						FGeometryCollectionPhysicsProxy* GCProxy = GetConcreteProxy<FGeometryCollectionPhysicsProxy>(Sibling);
-						GCProxy->CreateChildrenGeometry_Internal();
-						if (FClusterUnionParticleProperties* SiblingProperties = ClusterUnion->ChildProperties.Find(Sibling))
-						{
-							bAllNeighborsHasBuiltEdges &= SiblingProperties->bEdgesAreGenerated;
-						}
-					}
-				}
-			}
-			// If has current GC has built all edges or if all neighbors have build all edges don't need to compute neighbors edges. 
-			if (!(bHasBuiltAllEdges || bAllNeighborsHasBuiltEdges))
-			{
-				ClusterUnionManager.AddParticleToConnectionGraphInCluster(*ClusterUnion, &ClusteredParticle);
-				if (Properties)
-				{
-					Properties->bEdgesAreGenerated = true;
-				}
-			}
-		}
-	}
 
 	TSet<FPBDRigidParticleHandle*> FRigidClustering::ReleaseClusterParticlesImpl(
 		FPBDRigidClusteredParticleHandle* ClusteredParticle,
@@ -1150,7 +1108,7 @@ namespace Chaos
 			
 			if (bBuildGeometryForChildrenOnPT == false)
 			{
-				GenerateEdges(*ConcreteGCProxy, *ClusteredParticle, ClusterUnionManager);
+				ConcreteGCProxy->CreateChildrenGeometry_Internal();
 			}
 		}
 
@@ -1205,9 +1163,17 @@ namespace Chaos
 					const FClusterUnionIndex ClusterUnionIndex = ClusterUnionManager.FindClusterUnionIndexFromParticle(ClusteredParticle);
 					if (ClusterUnionIndex != INDEX_NONE)
 					{
+						// Generating intercluster edges depends on the parent particle's node connections existing. Thus this must go before RemoveNodeConnections.
+						// Our parent particle is being removed from the cluster union - initialize intercluster edges if necessary.
+						if (FClusterUnion* ClusterUnion = ClusterUnionManager.FindClusterUnion(ClusterUnionIndex))
+						{
+							ClusterUnionManager.GenerateInterclusterEdgesForParticle(*ClusterUnion, ClusteredParticle);
+						}
+
 						// Remove node connections here immediately just in case we need to manage connectivity on the cluster union.
 						RemoveNodeConnections(ClusteredParticle);
 						ClusterUnionsToConsiderForConnectivity.Add(ClusterUnionIndex);
+
 						ClusterUnionManager.HandleRemoveOperationWithClusterLookup({ ClusteredParticle }, EClusterUnionOperationTiming::Defer);
 					}
 					bFoundFirstRelease = true;
@@ -2129,7 +2095,7 @@ namespace Chaos
 	DECLARE_CYCLE_STAT(TEXT("TPBDRigidClustering<>::GenerateConnectionGraph"), STAT_GenerateConnectionGraph, STATGROUP_Chaos);
 	void
 	FRigidClustering::GenerateConnectionGraph(
-		TArray<FPBDRigidParticleHandle*> Particles,
+		const TArray<FPBDRigidParticleHandle*>& Particles,
 		const FClusterCreationParameters& Parameters,
 		const TSet<FPBDRigidParticleHandle*>* FromParticles,
 		const TSet<FPBDRigidParticleHandle*>* ToParticles)

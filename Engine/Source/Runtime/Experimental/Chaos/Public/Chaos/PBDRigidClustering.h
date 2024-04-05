@@ -376,7 +376,7 @@ public:
 	FClusterCreationParameters::EConnectionMethod GetClusterUnionConnectionType() const { return MClusterUnionConnectionType; }
 
 	CHAOS_API void GenerateConnectionGraph(
-		TArray<FPBDRigidParticleHandle*> Particles,
+		const TArray<FPBDRigidParticleHandle*>& Particles,
 		const FClusterCreationParameters& Parameters = FClusterCreationParameters(),
 		const TSet<FPBDRigidParticleHandle*>* FromParticles = nullptr,
 		const TSet<FPBDRigidParticleHandle*>* ToParticles = nullptr);
