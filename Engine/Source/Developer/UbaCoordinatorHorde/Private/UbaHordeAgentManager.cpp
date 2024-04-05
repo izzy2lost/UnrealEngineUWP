@@ -298,6 +298,11 @@ void FUbaHordeAgentManager::ThreadAgent(FHordeAgentWrapper& Wrapper)
 
 		Agent = MakeUnique<FUbaHordeAgent>(MachineInfo);
 
+		if (!Agent->IsValid())
+		{
+			return;
+		}
+
 		if (!Agent->BeginCommunication())
 		{
 			return;

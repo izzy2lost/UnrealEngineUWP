@@ -54,6 +54,8 @@ extern "C"
 	UBA_EXPORT uba::Coordinator* UbaCreateCoordinator(const uba::CoordinatorCreateInfo& info)
 	{
 		FCommandLine::Set(TEXT(""));
+		GWarn = FPlatformApplicationMisc::GetFeedbackContext();
+
 		if (info.logging)
 		{
 			FConfigCacheIni::InitializeConfigSystem();
