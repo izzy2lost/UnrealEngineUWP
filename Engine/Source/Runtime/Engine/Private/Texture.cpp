@@ -1925,9 +1925,6 @@ FTextureSource::FTextureSource()
 #endif
 	  NumLockedMips(0u)
 	, LockState(ELockState::None)
-#if WITH_EDITOR
-	, bHasHadBulkDataCleared(false)
-#endif
 #if WITH_EDITORONLY_DATA
 	, BaseBlockX(0)
 	, BaseBlockY(0)
@@ -2314,6 +2311,9 @@ FTextureSource FTextureSource::CopyTornOff() const
 
 static bool ShouldUseUEDeltaForFormat(ETextureSourceFormat Format)
 {
+	// should have been detected earlier in Source.IsValid() check :
+	check( Format != TSF_Invalid && Format != TSF_MAX );
+
 	if ( Format == TSF_RGBA16F || Format == TSF_RGBA32F ||
 		Format == TSF_R16F || Format == TSF_R32F )
 	{
@@ -2444,6 +2444,9 @@ FSharedBuffer FTextureSource::Decompress(IImageWrapperModule* ) const
 		Buffer = BulkData.GetPayload().Get();
 	}
 	
+	// note: you could now do BulkData.UnloadData() , but it currently does not actually cache decompressed data
+	//	so that is usually a nop
+
 	int64 ExpectedTotalSize = CalcTotalSize();
 
 	// validate the size of the FSharedBuffer
@@ -3064,39 +3067,6 @@ FSharedBuffer FTextureSource::DoUEDeltaTransform(FSharedBuffer InBuffer,bool bFo
 				
 				check( Image.GetImageSizeBytes() == MipSize );
 				
-				#if 0
-				{
-					// debug dump
-					const FString DumpPath = TEXT("r:\\dump\\");
-					
-					IFileManager::Get().MakeDirectory(*DumpPath);
-
-					FString FileName = DumpPath;
-			
-					// get a texture name that's usable in a file name :
-					//FString Name = Owner->GetFullName();
-					FString Name = Owner ? Owner->GetName() : *TornOffOwnerName;
-					Name = FPaths::MakeValidFileName(Name, TEXT('_'));
-					Name.ReplaceCharInline(TEXT('.'),TEXT('_'));
-					Name.ReplaceCharInline(TEXT(' '),TEXT('_'));
-					Name.ReplaceInline(TEXT("__"),TEXT("_"));
-					Name.ReplaceInline(TEXT("__"),TEXT("_"));
-
-					FileName += Name;
-
-					// image save doesn't work on slices, so do them one by one
-					for(int64 SliceIndex=0;SliceIndex<Image.NumSlices;SliceIndex++)
-					{
-						FImageView Slice = Image.GetSlice(SliceIndex);
-
-						FileName += FString::Printf(TEXT("_%dx%dx%dx%d_%s"),BlockIndex,LayerIndex,MipIndex,SliceIndex,
-							bForward ? TEXT("fwd") : TEXT("rev"));
-					
-						FImageUtils::SaveImageAutoFormat(*FileName,Slice);
-					}
-				}
-				#endif
-
 				FImageCoreDelta::AddSplitStridedViewsForDelta( ImageViewPortions, Image);
 			}
 		}
@@ -3331,19 +3301,7 @@ void FTextureSource::ForceGenerateGuid()
 	bGuidIsHash = false;
 }
 
-void FTextureSource::ReleaseSourceMemory()
-{
-#if WITH_EDITOR
-	FScopeLock BulkDataExclusiveScope(&BulkDataLock.Get());
-#endif
-
-	check( LockState == ELockState::None && NumLockedMips == 0 );
-
-	bHasHadBulkDataCleared = true;
-	BulkData.UnloadData();
-}
-
-void FTextureSource::RemoveSourceData()
+void FTextureSource::Reset()
 {
 #if WITH_EDITOR
 	FScopeLock BulkDataExclusiveScope(&BulkDataLock.Get());
@@ -3441,12 +3399,11 @@ int64 FTextureSource::CalcLayerSize(const FTextureSourceBlock& Block, int32 Laye
 
 int64 FTextureSource::CalcMipOffset(int32 BlockIndex, int32 LayerIndex, int32 OffsetToMipIndex) const
 {
-#if 0
 	if ( BlockIndex == 0 && LayerIndex == 0 && OffsetToMipIndex == 0 )
 	{
+		// early out common case
 		return 0;
 	}
-#endif
 
 	FTextureSourceBlock Block;
 	GetBlock(BlockIndex, Block);
@@ -3554,8 +3511,25 @@ FGuid FTextureSource::GetId() const
 	return IdBuilder.Build();
 }
 
+FSharedBuffer FTextureSource::GetBulkDataPayload()
+{
+#if WITH_EDITOR
+	FScopeLock BulkDataExclusiveScope(&BulkDataLock.Get());
+#endif
+
+	FSharedBuffer Payload = BulkData.GetPayload().Get();
+	
+	// Payload has the Oodle LZ Decompress done, but not the TSCF compressor
+	//	(use Decompress() for that)
+
+	return Payload;
+}
+
 void FTextureSource::OperateOnLoadedBulkData(TFunctionRef<void(const FSharedBuffer& BulkDataBuffer)> Operation)
 {
+	// ?? why is this operation visitor necessary ? prefer to just return the FSharedBuffer.
+	//	most callers should just use GetBulkDataPayload instead.
+
 #if WITH_EDITOR
 	FScopeLock BulkDataExclusiveScope(&BulkDataLock.Get());
 #endif
@@ -3563,6 +3537,9 @@ void FTextureSource::OperateOnLoadedBulkData(TFunctionRef<void(const FSharedBuff
 	checkf(LockState == ELockState::None, TEXT("OperateOnLoadedBulkData shouldn't be called in-between LockMip/UnlockMip"));
 
 	FSharedBuffer Payload = BulkData.GetPayload().Get();
+
+	//  note: unlike LockMip, the BulkDataLock is held the entire time during this operation
+	//	  (for no reason AFAICT)
 	Operation(Payload);
 }
 
@@ -4736,7 +4713,7 @@ void FTextureSource::InitLayeredImpl(
 	int32 NewNumMips,
 	const ETextureSourceFormat* NewLayerFormat)
 {
-	RemoveSourceData();
+	Reset();
 	SizeX = NewSizeX;
 	SizeY = NewSizeY;
 	NumLayers = NewNumLayers;
@@ -4769,7 +4746,7 @@ void FTextureSource::InitBlockedImpl(const ETextureSourceFormat* InLayerFormats,
 	check(InNumBlocks > 0);
 	check(InNumLayers > 0);
 
-	RemoveSourceData();
+	Reset();
 
 	BaseBlockX = InBlocks[0].BlockX;
 	BaseBlockY = InBlocks[0].BlockY;

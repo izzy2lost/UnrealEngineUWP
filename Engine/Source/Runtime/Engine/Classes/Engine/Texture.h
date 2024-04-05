@@ -265,7 +265,7 @@ struct FTextureSource
 
 	/** Make a copy with a torn-off BulkData that has the same Guid used for DDC as this->BulkData */
 	FTextureSource CopyTornOff() const;
-
+	
 	/** PNG Compresses the source art if possible or tells the bulk data to zlib compress when it saves out to disk. */
 	ENGINE_API void Compress();
 
@@ -382,18 +382,31 @@ struct FTextureSource
 	// returns volume depth, or 1 if not a volume
 	ENGINE_API int GetVolumeSizeZ() const;
 
+	//note: simple queries on BulkData are not taking the BulkDataLock , nor does BulkData internally mutex protect these
 	FORCEINLINE int64 GetSizeOnDisk() const { return BulkData.GetPayloadSize(); }
-	inline bool HasPayloadData() const { return BulkData.HasPayloadData(); }
-	/** Returns true if the texture's bulkdata payload is either already in memory or if the payload is 0 bytes in length. It will return false if the payload needs to load from disk */
-	FORCEINLINE bool IsBulkDataLoaded() const { return BulkData.DoesPayloadNeedLoading(); }
+	FORCEINLINE bool HasPayloadData() const { return BulkData.HasPayloadData(); } // this is the same as GetSizeOnDisk() != 0
+	
+	/** Reset the source to empty, frees all memory. */
+	ENGINE_API void Reset();
 
-	// Apply a visitor to the bulkdata :
+	// Apply a visitor to the bulkdata : prefer GetBulkDataPayload() instead.
 	ENGINE_API void OperateOnLoadedBulkData(TFunctionRef<void (const FSharedBuffer& BulkDataBuffer)> Operation);
+
+	// GetBulkDataPayload returns the raw bulkdata memory in compressed form, not decompressed (use LockMip or GetMipData for that)
+	//	the shared buffer should be treated as read only!
+	//	to modify, make a copy and call Init() on the source with the changed copy
+	ENGINE_API FSharedBuffer GetBulkDataPayload();
+		
+	/** Returns true if the texture's bulkdata payload is either already in memory or if the payload is 0 bytes in length. It will return false if the payload needs to load from disk */
+	//  broken function, did the opposite of its name (was == DoesPayloadNeedLoading, which is usually == HasPayloadData)
+	UE_DEPRECATED(5.5, "IsBulkDataLoaded was broken, do not use")
+	FORCEINLINE bool IsBulkDataLoaded() const { return true; }
 
 	UE_DEPRECATED(5.0, "There is no longer a need to call LoadBulkDataWithFileReader, FTextureSource::BulkData can now load the data on demand without it.")
 	FORCEINLINE bool LoadBulkDataWithFileReader() { return true; }
-
-	FORCEINLINE void RemoveBulkData() { BulkData.UnloadData(); }
+	
+	UE_DEPRECATED(5.5, "RemoveBulkData did not actually remove bulkdata; use ReleaseBulkDataCachedMemory if that's what you wanted")
+	FORCEINLINE void RemoveBulkData() { }
 	
 	/** Sets the GUID to use, and whether that GUID is actually a hash of some data. */
 	ENGINE_API void SetId(const FGuid& InId, bool bInGuidIsHash);
@@ -636,8 +649,6 @@ private:
 
 	/** Return true if the source art is not png compressed but could be. */
 	bool CanPNGCompress() const;
-	/** Removes source data. */
-	void RemoveSourceData();
 	/** Retrieve the size and offset for a source mip. The size includes all slices. */
 	int64 CalcMipOffset(int32 BlockIndex, int32 LayerIndex, int32 MipIndex) const;
 	
@@ -688,12 +699,14 @@ public:
 	This is automatically done by Init() and Mip Lock/Unlock.  New textures should always have the data hash as Id. */
 	ENGINE_API void UseHashAsGuid();
 
-	ENGINE_API void ReleaseSourceMemory(); // release the memory from the mips (does almost the same as remove source data except doesn't rebuild the guid)
-	FORCEINLINE bool HasHadBulkDataCleared() const { return bHasHadBulkDataCleared; }
-private:
-	/** Used while cooking to clear out unneeded memory after compression */
-	bool bHasHadBulkDataCleared;
+	UE_DEPRECATED(5.5, "Remove call to ReleaseSourceMemory.")
+	FORCEINLINE void ReleaseSourceMemory() { }
+
+	UE_DEPRECATED(5.5, "Remove call to HasHadBulkDataCleared.")
+	FORCEINLINE bool HasHadBulkDataCleared() const { return false; }
 #endif // WITH_EDITOR
+
+private:
 
 #if WITH_EDITORONLY_DATA
 	/** GUID used to track changes to the source data.

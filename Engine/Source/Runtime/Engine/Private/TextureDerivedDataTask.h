@@ -95,21 +95,13 @@ struct FTextureSourceData
 	void Init(UTexture& InTexture, TextureMipGenSettings InMipGenSettings, bool bInCubeMap, bool bInTextureArray, bool bInVolumeTexture, bool bAllowAsyncLoading);
 	bool IsValid() const { return bValid; }
 
-	bool HasPayload() const
-	{
-		return AsyncSource.HasPayloadData();
-	}
-	
 	// ImageWrapperModule is not used
 	void GetSourceMips(FTextureSource& Source, IImageWrapperModule* InImageWrapper = nullptr);
-	void GetAsyncSourceMips(IImageWrapperModule* InImageWrapper = nullptr);
 
 	void ReleaseMemory()
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(Texture.ReleaseMemory);
 
-		// Unload BulkData loaded with LoadBulkDataWithFileReader
-		AsyncSource.RemoveBulkData();
 		Blocks.Empty();
 		Layers.Empty();
 		bValid = false;
@@ -118,7 +110,6 @@ struct FTextureSourceData
 	TArray<TPair<FLinearColor, FLinearColor>> LayerChannelMinMax; // Key == Min, Value == Max
 
 	FString TextureFullName;
-	FTextureSource AsyncSource;
 	TArray<FTextureSourceLayerData> Layers;
 	TArray<FTextureSourceBlockData> Blocks;
 	int32 SizeInBlocksX;

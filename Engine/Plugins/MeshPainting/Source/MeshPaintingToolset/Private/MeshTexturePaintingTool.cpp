@@ -898,19 +898,17 @@ void UMeshTexturePaintingTool::StartPaintingTexture(UMeshComponent* InMeshCompon
 	// Check all the materials on the mesh to see if the user texture is there
 	int32 MaterialIndex = 0;
 	UMaterialInterface* MaterialToCheck = InMeshComponent->GetMaterial(MaterialIndex);
-	bool bIsSourceTextureStreamedIn = Texture2D->IsFullyStreamedIn() && Texture2D->Source.IsBulkDataLoaded() && !Texture2D->Source.HasHadBulkDataCleared();
+
+	Texture2D->BlockOnAnyAsyncBuild();
+	bool bIsSourceTextureStreamedIn = Texture2D->IsFullyStreamedIn() && !Texture2D->HasPendingInitOrStreaming();
 
 	// IMeshPaintComponentAdapter::DefaultQueryPaintableTextures already filters out un-used textures
 	if (!bIsSourceTextureStreamedIn)
 	{
-		if (!Texture2D->Source.IsBulkDataLoaded() || Texture2D->Source.HasHadBulkDataCleared())
-		{
-			Texture2D->Modify();
-		}
-
 		Texture2D->SetForceMipLevelsToBeResident(30.0f);
+		Texture2D->bForceMiplevelsToBeResident = true;
 		Texture2D->WaitForStreaming();
-		bIsSourceTextureStreamedIn = Texture2D->IsFullyStreamedIn();
+		bIsSourceTextureStreamedIn = Texture2D->IsFullyStreamedIn() && !Texture2D->HasPendingInitOrStreaming();
 	}
 
 	while (MaterialToCheck != nullptr)
@@ -920,7 +918,7 @@ void UMeshTexturePaintingTool::StartPaintingTexture(UMeshComponent* InMeshCompon
 			const int32 TextureWidth = Texture2D->Source.GetSizeX();
 			const int32 TextureHeight = Texture2D->Source.GetSizeY();
 
-			FTextureCompilingManager::Get().FinishCompilation({ Texture2D });
+			Texture2D->BlockOnAnyAsyncBuild();
 
 			if (TextureData == nullptr)
 			{
@@ -1425,6 +1423,7 @@ void UMeshTexturePaintingTool::FinishPaintingTexture()
 
 			{
 				// For undo
+				// @@ use PreEdit/PostEdit instead
 				TextureData->ScratchTexture->Modify();
 
 				const int32 NumPixels = TexturePixels.Num();
@@ -1662,10 +1661,12 @@ void UMeshTexturePaintingTool::CommitAllPaintedTextures()
 
 				{
 					// For undo
+					// @@ use PreEdit/PostEdit instead
 					TextureData->PaintingTexture2D->SetFlags(RF_Transactional);
 					TextureData->PaintingTexture2D->Modify();
 
 					// Store source art
+					// @@ use FMipLock.Image instead
 					FColor* Colors = (FColor*)TextureData->PaintingTexture2D->Source.LockMip(0);
 					check(TextureData->PaintingTexture2D->Source.CalcMipSize(0) == TexturePixels.Num() * sizeof(FColor));
 					FMemory::Memcpy(Colors, TexturePixels.GetData(), TexturePixels.Num() * sizeof(FColor));

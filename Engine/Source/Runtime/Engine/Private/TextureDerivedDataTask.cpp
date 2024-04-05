@@ -280,12 +280,6 @@ void FTextureSourceData::Init(UTexture& InTexture, TextureMipGenSettings InMipGe
 
 	TextureFullName = InTexture.GetFullName();
 
-	if (bAllowAsyncLoading && !InTexture.Source.IsBulkDataLoaded())
-	{
-		// Prepare the async source to be later able to load it from file if required.
-		AsyncSource = InTexture.Source.CopyTornOff(); // This copies information required to make a safe IO load async.
-	}
-
 	bValid = true;
 }
 
@@ -310,13 +304,6 @@ void FTextureSourceData::GetSourceMips(FTextureSource& Source, IImageWrapperModu
  			return;
 		}
 
-		if (Source.HasHadBulkDataCleared())
-		{	// don't do any work we can't reload this
-			UE_LOG(LogTexture, Error, TEXT("Unable to get texture source mips because its bulk data was released. %s"), *TextureFullName);
-			ReleaseMemory();
-			bValid = false;
-			return;
-		}
 		if (!Source.HasPayloadData())
 		{	// don't do any work we can't reload this
 			UE_LOG(LogTexture, Warning, TEXT("Unable to get texture source mips because its bulk data has no payload. This may happen if it was duplicated from cooked data. %s"), *TextureFullName);
@@ -416,17 +403,19 @@ void FTextureSourceData::GetSourceMips(FTextureSource& Source, IImageWrapperModu
 			ScopedMipData.ResetData();
 		}
 	}
-}
-
-
-void FTextureSourceData::GetAsyncSourceMips(IImageWrapperModule* InImageWrapper)
-{
-	if (bValid && !Blocks[0].MipsPerLayer[0].Num() && AsyncSource.HasPayloadData())
+	
+	#if 0
 	{
-		GetSourceMips(AsyncSource, InImageWrapper);
+		//we have got the source mip data and made a copy of it
+		//	no longer need the BulkData to be in memory
+		// note this is different than ScopedMipData.ResetData ; that frees the decompressed copy
+		//	this frees the compressed copy
+		// (note that BulkData does not cache decompressed payloads so this is usually a nop)
+		TRACE_CPUPROFILER_EVENT_SCOPE(FTextureSourceData::GetSourceMips_FreeBulkData);
+		Source.ReleaseBulkDataCachedMemory();
 	}
+	#endif
 }
-
 
 // When texture streaming is disabled, all of the mips are packed into a single FBulkData/FDerivedData
 // and "inlined", meaning they are saved and loaded as part of the serialized asset data.
@@ -566,6 +555,7 @@ public:
 		{
 			Source.OperateOnLoadedBulkData([&Buffer](const FSharedBuffer& BulkDataBuffer)
 			{
+				// ?? what? this loads compressed data for the TextureSource, decompresses to Payload, and then recompresses it !?
 				Buffer = FCompressedBuffer::Compress(BulkDataBuffer);
 			});
 		}
@@ -1752,46 +1742,21 @@ static bool DDC1_LoadAndValidateTextureData(
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(Texture.DDC1_LoadAndValidateTextureData);
 
-	bool bHasTextureSourceMips = false;
-	bool bNeedsGetSourceMips;
+	// There can be a stall here waiting on the BulkData mutex if it is serializing to the undo buffer on the main thread.
 
-	{
-	// this can be a stall waiting on the BulkData mutex if it is serializing to the undo buffer on the main thread :
-	TRACE_CPUPROFILER_EVENT_SCOPE(Texture.IsBulkDataLoaded);
-	bNeedsGetSourceMips = TextureData.IsValid() && Texture.Source.IsBulkDataLoaded();
-	}
+	bool bNeedsGetSourceMips = TextureData.IsValid() && Texture.Source.HasPayloadData();
 
 	if ( bNeedsGetSourceMips )
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(GetSourceMips);
 		TextureData.GetSourceMips(Texture.Source, ImageWrapper);
-		bHasTextureSourceMips = true;
 	}
 
-	bool bHasCompositeTextureSourceMips = false;
-	if (CompositeTextureData.IsValid() && Texture.GetCompositeTexture() && Texture.GetCompositeTexture()->Source.IsBulkDataLoaded())
+	if (CompositeTextureData.IsValid() && Texture.GetCompositeTexture() && Texture.GetCompositeTexture()->Source.HasPayloadData())
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(GetCompositeSourceMips);
 		check( Texture.GetCompositeTexture()->Source.IsValid() );
 		CompositeTextureData.GetSourceMips(Texture.GetCompositeTexture()->Source, ImageWrapper);
-		bHasCompositeTextureSourceMips = true;
-	}
-
-	if (bAllowAsyncLoading)
-	{
-		if (!bHasTextureSourceMips)
-		{
-			TRACE_CPUPROFILER_EVENT_SCOPE(GetAsyncSourceMips);
-			TextureData.GetAsyncSourceMips(ImageWrapper);
-			TextureData.AsyncSource.RemoveBulkData();
-			}
-
-		if (!bHasCompositeTextureSourceMips)
-		{
-			TRACE_CPUPROFILER_EVENT_SCOPE(GetAsyncCompositeSourceMips);
-			CompositeTextureData.GetAsyncSourceMips(ImageWrapper);
-			CompositeTextureData.AsyncSource.RemoveBulkData();
-		}
 	}
 
 	return DDC1_IsTextureDataValid(TextureData, CompositeTextureData);
@@ -2160,7 +2125,7 @@ void FTextureCacheDerivedDataWorker::Finalize()
 
 	if (!bSucceeded)
 	{
-		if (!TextureData.HasPayload() && !Texture.Source.HasPayloadData())
+		if ( !Texture.Source.HasPayloadData() )
 		{
 			UE_LOG(LogTexture, Warning, TEXT("Unable to build texture source data, no available payload for %s. This may happen if it was duplicated from cooked data."), *TexturePathName);
 			return;
