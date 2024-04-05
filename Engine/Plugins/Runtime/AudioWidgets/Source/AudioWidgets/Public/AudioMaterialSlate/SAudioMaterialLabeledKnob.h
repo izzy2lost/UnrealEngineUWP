@@ -4,6 +4,7 @@
 
 #include "AudioMaterialSlate/AudioMaterialSlateTypes.h"
 #include "Framework/SlateDelegates.h"
+#include "AudioWidgetsEnums.h"
 #include "SAudioInputWidget.h"
 #include "Styling/ISlateStyle.h"
 #include "Styling/SlateWidgetStyleAsset.h"
@@ -23,17 +24,26 @@ public:
 	SLATE_BEGIN_ARGS(SAudioMaterialLabeledKnob)
 	{}
 
+	/** A value representing the normalized linear (0 - 1) knobs value position. */
+	SLATE_ATTRIBUTE(float, Value)
+
 	/** The owner object*/
 	SLATE_ARGUMENT(TWeakObjectPtr<UObject>, Owner)
 
-	/**Value of the Knob*/
-	SLATE_ATTRIBUTE(float, Value)
+	/** The knob's ValueType. */
+	SLATE_ARGUMENT(EAudioUnitsValueType, AudioUnitsValueType)
+
+	/** Will the knob use Linear Output. This is used when ValueType is Volume */
+	SLATE_ARGUMENT(bool, bUseLinearOutput)
 
 	/** The style used to draw the knob. */
 	SLATE_STYLE_ARGUMENT(FAudioMaterialKnobStyle, Style)
 
-	/** Called when the knob's state changes. */
+	/** Called when the knob's value is changed by tuning or typing. */
 	SLATE_EVENT(FOnFloatValueChanged, OnValueChanged)
+
+	/** Called when the value is committed from label's text field */
+	SLATE_EVENT(FOnFloatValueChanged, OnValueTextCommitted)
 
 	/** Invoked when the mouse is pressed and a capture begins. */
 	SLATE_EVENT(FSimpleDelegate, OnMouseCaptureBegin)
@@ -59,7 +69,7 @@ public:
 	 * Set the knob's linear (0-1 normalized) value.
 	 */
 	virtual void SetSliderValue(float InSliderValue) override;
-	virtual void SetOutputRange(const FVector2D Range) override;
+	virtual void SetOutputRange(const FVector2D InRange) override;
 	virtual void SetDesiredSizeOverride(const FVector2D Size) override;
 	virtual void SetLabelBackgroundColor(FSlateColor InColor) override;
 	virtual void SetUnitsText(const FText Units) override;
@@ -71,6 +81,9 @@ public:
 
 	// Holds a delegate that is executed when the knob's value changes.
 	FOnFloatValueChanged OnValueChanged;
+
+	// Holds a delegate that is executed when the value is committed from label's text field
+	FOnFloatValueChanged OnValueTextCommitted;
 
 	// Holds a delegate that is executed when the mouse is pressed and a capture begins.
 	FSimpleDelegate OnMouseCaptureBegin;
@@ -97,6 +110,9 @@ private:
 	//Holds the knobs current Value
 	TAttribute<float> ValueAttribute = 1.0f;
 
+	// Holds the knob's unit value type
+	TAttribute<EAudioUnitsValueType> AudioUnitsValueType;
+
 	// Widget components
 	TSharedPtr<SAudioMaterialKnob> Knob;
 	TSharedPtr<SAudioTextBox> Label;
@@ -107,5 +123,8 @@ private:
 	// Range for output 
 	FVector2D OutputRange = FVector2D(0.0f, 1.0f);
 	const FVector2D NormalizedLinearSliderRange = FVector2D(0.0f, 1.0f);
+
+	/**Hold the ref to the current Unit processor */
+	TSharedPtr<FAudioUnitProcessor> AudioUnitProcessor;
 
 };

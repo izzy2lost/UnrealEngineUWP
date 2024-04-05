@@ -861,6 +861,8 @@ namespace Metasound
 								SAssignNew(InputWidget, SAudioMaterialLabeledKnob)
 									.Owner(GraphMember->GetOwningGraph())
 									.OnValueChanged_Lambda(OnValueChangedLambda)
+									.AudioUnitsValueType(DefaultFloat->WidgetUnitValueType)
+									.bUseLinearOutput(DefaultFloat->VolumeWidgetUseLinearOutput)
 									.OnMouseCaptureBegin_Lambda(OnRadialSliderMouseCaptureBeginLambda)
 									.OnMouseCaptureEnd_Lambda(OnRadialSliderMouseCaptureEndLambda);
 							}

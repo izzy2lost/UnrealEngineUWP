@@ -48,7 +48,7 @@ public:
 	/** Called when the value is changed by slider or typing */
 	SLATE_EVENT(FOnFloatValueChanged, OnValueChanged)
 
-	/** Called when the value is committed by mouse capture ending */
+	/** Called when the value is committed from label's text field */
 	SLATE_EVENT(FOnFloatValueChanged, OnValueCommitted)
 
 	SLATE_END_ARGS()
