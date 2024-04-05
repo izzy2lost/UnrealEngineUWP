@@ -117,7 +117,7 @@ public class AccountControllerTest : IAsyncDisposable
 		Assert.IsTrue(content.Contains("myClaimType2") && content.Contains("myClaimValue2"));
 	}
 
-	private async Task<HttpResponseMessage> LoginAsync(HttpClient httpClient, string username, string password, string? redirectUrl = null)
+	private static async Task<HttpResponseMessage> LoginAsync(HttpClient httpClient, string username, string password, string? redirectUrl = null)
 	{
 		using StringContent sc = new($"username={username}&password={password}", Encoding.UTF8, "application/x-www-form-urlencoded");
 		string url = "account/login/horde";

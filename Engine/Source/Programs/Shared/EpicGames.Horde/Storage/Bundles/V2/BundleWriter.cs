@@ -67,7 +67,7 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 			PendingPacketHandle? _packetHandle;
 			List<(ExportHandle, AliasInfo)>? _pendingExportAliases;
 			RefCountedMemoryWriter? _encodedPacketWriter;
-			HashSet<BlobLocator> _bundleImports = new HashSet<BlobLocator>();
+			readonly HashSet<BlobLocator> _bundleImports = new HashSet<BlobLocator>();
 
 			/// <summary>
 			/// Object used for locking access to this bundle's state

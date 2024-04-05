@@ -1,20 +1,16 @@
 ﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 using System;
-using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Horde.Storage;
 using EpicGames.Horde.Storage.Backends;
 using EpicGames.Horde.Storage.Bundles;
-using Horde.Server.Server;
 using Horde.Server.Storage;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using MongoDB.Bson;
 using MongoDB.Driver;
 
 namespace Horde.Server.Tests.Storage
@@ -48,7 +44,7 @@ namespace Horde.Server.Tests.Storage
 			BlobLocator locator2 = blobRef2.GetLocator();
 
 			StorageService storageService = ServiceProvider.GetRequiredService<StorageService>();
-			IMongoCollection<StorageService.BlobInfo> blobCollection = storageService._blobCollection;
+			IMongoCollection<StorageService.BlobInfo> blobCollection = storageService.BlobCollection;
 
 			StorageService.BlobInfo blob2 = await blobCollection.Find(x => x.Path == locator2.BaseLocator.ToString()).FirstAsync();
 			Assert.IsNotNull(blob2.Imports);

@@ -176,6 +176,7 @@ namespace EpicGames.Horde.Storage.Backends
 					{
 						form.Add(streamContent, "file", "filename");
 					}
+#pragma warning disable CA2000 // Disposed by form
 					if (imports != null)
 					{
 						foreach (BlobLocator import in imports)
@@ -188,6 +189,7 @@ namespace EpicGames.Horde.Storage.Backends
 						}
 					}
 					form.Add(new StringContent(prefix ?? String.Empty), "prefix");
+#pragma warning restore CA2000
 
 					request.Content = form;
 					using (HttpResponseMessage response = await httpClient.SendAsync(request, cancellationToken))

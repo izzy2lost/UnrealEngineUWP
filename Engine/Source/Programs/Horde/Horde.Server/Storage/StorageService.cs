@@ -362,8 +362,8 @@ namespace Horde.Server.Storage
 		readonly Tracer _tracer;
 		readonly ILogger _logger;
 
-		internal readonly IMongoCollection<BlobInfo> _blobCollection;
-		internal readonly IMongoCollection<RefInfo> _refCollection;
+		readonly IMongoCollection<BlobInfo> _blobCollection;
+		readonly IMongoCollection<RefInfo> _refCollection;
 
 		readonly ITicker _blobTicker;
 		readonly ITicker _refTicker;
@@ -375,6 +375,8 @@ namespace Horde.Server.Storage
 
 		string? _lastConfigRevision;
 		State? _lastState;
+
+		internal IMongoCollection<BlobInfo> BlobCollection => _blobCollection;
 
 		/// <summary>
 		/// Constructor
@@ -676,13 +678,13 @@ namespace Horde.Server.Storage
 				List<ObjectId> missing = importInfoIds.Except(blobInfo.Imports).ToList();
 				if (missing.Count > 0)
 				{
-					_logger.LogWarning("Missing imports for blob {Locator}: {Missing}", String.Join(", ", missing.Select(x => x.ToString())));
+					_logger.LogWarning("Missing imports for blob {Locator}: {Missing}", blobInfo.Path, String.Join(", ", missing.Select(x => x.ToString())));
 				}
 
 				List<ObjectId> extra = blobInfo.Imports.Except(importInfoIds).ToList();
 				if (extra.Count > 0)
 				{
-					_logger.LogWarning("Extra imports for blob {Locator}: {Extra}", String.Join(", ", extra.Select(x => x.ToString())));
+					_logger.LogWarning("Extra imports for blob {Locator}: {Extra}", blobInfo.Path, String.Join(", ", extra.Select(x => x.ToString())));
 				}
 			}
 
