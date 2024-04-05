@@ -17,6 +17,9 @@
 #include "Components/InstancedStaticMeshComponent.h"
 #include "Engine/AssetManager.h"
 #include "Engine/StaticMesh.h"
+#if UE_WITH_IRIS
+#include "Iris/ReplicationSystem/ReplicationFragmentUtil.h"
+#endif
 #include "MassActorSubsystem.h"
 #include "MassCommonFragments.h"
 #include "MassEntityConfigAsset.h"
@@ -864,6 +867,13 @@ void UInstancedActorsData::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>&
 
 	DOREPLIFETIME_WITH_PARAMS_FAST(UInstancedActorsData, InstanceDeltas, RepParams);
 }
+
+#if UE_WITH_IRIS
+void UInstancedActorsData::RegisterReplicationFragments(UE::Net::FFragmentRegistrationContext& Context, UE::Net::EFragmentRegistrationFlags RegistrationFlags)
+{
+	UE::Net::FReplicationFragmentUtil::CreateAndRegisterFragmentsForObject(this, Context, RegistrationFlags);
+}
+#endif
 
 void UInstancedActorsData::SetInstanceCurrentLifecyclePhase(FInstancedActorsInstanceIndex InstanceIndex, uint8 InCurrentLifecyclePhaseIndex)
 {

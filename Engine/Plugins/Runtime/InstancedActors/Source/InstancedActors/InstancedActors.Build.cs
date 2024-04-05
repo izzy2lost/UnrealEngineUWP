@@ -46,6 +46,7 @@ namespace UnrealBuildTool.Rules
 			}
 
 			SetupGameplayDebuggerSupport(Target);
+			SetupIrisSupport(Target);
 		}
 	}
 }
