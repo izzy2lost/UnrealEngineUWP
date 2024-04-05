@@ -2179,7 +2179,7 @@ static void UpdateAccelerationStructureFromGeometryCollectionProxy(FGeometryColl
 	auto GetParticleWorldBounds = [](Chaos::FPBDRigidParticle& Particle) -> Chaos::FAABB3
 	{
 		const Chaos::FImplicitObjectRef Geometry = Particle.GetGeometry();
-		check(Geometry != nullptr)
+		ensure(Geometry != nullptr);
 
 		if ((Geometry != nullptr) && Geometry->HasBoundingBox())
 		{
