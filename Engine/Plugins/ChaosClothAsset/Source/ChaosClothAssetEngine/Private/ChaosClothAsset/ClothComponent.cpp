@@ -2,6 +2,7 @@
 
 #include "ChaosClothAsset/ClothComponent.h"
 #include "ChaosClothAsset/ClothAsset.h"
+#include "ChaosClothAsset/ClothAssetInteractor.h"
 #include "ChaosClothAsset/ClothAssetPrivate.h"
 #include "ChaosClothAsset/ClothSimulationModel.h"
 #include "ChaosClothAsset/ClothSimulationProxy.h"
@@ -85,12 +86,15 @@ void UChaosClothComponent::ResetConfigProperties()
 				::Chaos::Softs::FCollectionPropertyMutableFacade CollectionPropertyMutableFacade(PropertyCollection);
 				CollectionPropertyMutableFacade.Copy(*ClothCollection);
 
-				CollectionPropertyFacades.Add(MakeUnique<::Chaos::Softs::FCollectionPropertyFacade>(PropertyCollection));
-
+				CollectionPropertyFacades.Add(MakeShared<::Chaos::Softs::FCollectionPropertyFacade>(PropertyCollection));
 			}
+			check(ClothOutfitInteractor);
+			ClothOutfitInteractor->SetProperties(CollectionPropertyFacades);
 		}
 		else
 		{
+			check(ClothOutfitInteractor);
+			ClothOutfitInteractor->ResetProperties();
 			PropertyCollections.Reset();
 			CollectionPropertyFacades.Reset();
 		}
@@ -195,6 +199,7 @@ void UChaosClothComponent::OnRegister()
 	UpdateComponentSpaceTransforms();
 
 	// Fill up the property collection with the original cloth asset properties
+	ClothOutfitInteractor = NewObject<UChaosClothAssetInteractor>();
 	ResetConfigProperties();
 
 	// Create the proxy to start the simulation
@@ -212,6 +217,7 @@ void UChaosClothComponent::OnUnregister()
 	ClothSimulationProxy.Reset();
 
 	// Release the runtime simulation collection and facade
+	ClothOutfitInteractor->ResetProperties();
 	CollectionPropertyFacades.Empty();
 	PropertyCollections.Empty();
 }
@@ -519,3 +525,10 @@ void UChaosClothComponent::UpdateVisibility()
 		SetVisibility(false);
 	}
 }
+
+UChaosClothAssetInteractor* UChaosClothComponent::GetClothOutfitInteractor()
+{
+	check(IsInGameThread());
+	return ClothOutfitInteractor;
+}
+

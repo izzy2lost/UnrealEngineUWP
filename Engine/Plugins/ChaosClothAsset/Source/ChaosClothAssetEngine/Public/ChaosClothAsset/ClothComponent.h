@@ -7,6 +7,7 @@
 
 class UChaosClothAsset;
 class UChaosClothComponent;
+class UChaosClothAssetInteractor;
 struct FManagedArrayCollection;
 
 namespace Chaos::Softs
@@ -82,13 +83,18 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "ClothComponent", Meta = (Keywords = "Chaos Cloth Simulation Enable"))
 	bool IsSimulationEnabled() const;
 
-	/** Reset all cloth simulation config properties to the values stored in the original cloth asset. */
+	/** Reset all cloth simulation config properties to the values stored in the original cloth asset.*/
 	UFUNCTION(BlueprintCallable, Category = "ClothComponent", Meta = (Keywords = "Chaos Cloth Config Property"))
 	void ResetConfigProperties();
 
 	/** Hard reset the cloth simulation by recreating the proxy. */
 	UFUNCTION(CallInEditor, BlueprintCallable, Category = "ClothComponent", Meta = (DisplayName = "Hard Reset Simulation", Keywords = "Chaos Cloth Recreate Simulation Proxy"))
 	void RecreateClothSimulationProxy();
+
+	/** Get the current interactor for the cloth outfit associated with this cloth component. 
+	 * Interact with solver-level properties as well as all cloth assets within the cloth outfit (once multi-asset outfits exist).*/
+	UFUNCTION(BlueprintCallable, Category = "ClothComponent")
+	UChaosClothAssetInteractor* GetClothOutfitInteractor();
 
 	/**
 	 * Return the property collections holding the runtime properties for this cloth component (one per LOD).
@@ -203,8 +209,11 @@ private:
 	bool bTickOnceInEditor = false;
 #endif
 
+	UPROPERTY(Transient)
+	TObjectPtr<UChaosClothAssetInteractor> ClothOutfitInteractor;
+
 	TArray<TSharedPtr<FManagedArrayCollection>> PropertyCollections;
-	TArray<TUniquePtr<::Chaos::Softs::FCollectionPropertyFacade>> CollectionPropertyFacades;
+	TArray<TSharedPtr<::Chaos::Softs::FCollectionPropertyFacade>> CollectionPropertyFacades;
 
 	TSharedPtr<UE::Chaos::ClothAsset::FClothSimulationProxy> ClothSimulationProxy;
 };
