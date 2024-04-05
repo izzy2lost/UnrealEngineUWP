@@ -46,11 +46,11 @@ namespace Horde.Server.Tools
 		/// Uploads blob data for a new tool deployment.
 		/// </summary>
 		/// <param name="id">Identifier of the tool to upload</param>
-		/// <param name="file">Data to be uploaded. May be null, in which case the server may return a separate url.</param>
+		/// <param name="request">Upload request</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		[HttpPost]
 		[Route("/api/v1/tools/{id}/blobs")]
-		public async Task<ActionResult<WriteBlobResponse>> WriteBlobAsync(ToolId id, IFormFile? file, CancellationToken cancellationToken = default)
+		public async Task<ActionResult<WriteBlobResponse>> WriteBlobAsync(ToolId id, WriteBlobRequest request, CancellationToken cancellationToken = default)
 		{
 			ITool? tool = await _toolCollection.GetAsync(id, _globalConfig.Value, cancellationToken);
 			if (tool == null)
@@ -63,7 +63,7 @@ namespace Horde.Server.Tools
 			}
 
 			IStorageBackend storageBackend = _toolCollection.CreateStorageBackend(tool);
-			return await StorageController.WriteBlobAsync(storageBackend, file, cancellationToken: cancellationToken);
+			return await StorageController.WriteBlobAsync(storageBackend, request, cancellationToken);
 		}
 
 		/// <summary>

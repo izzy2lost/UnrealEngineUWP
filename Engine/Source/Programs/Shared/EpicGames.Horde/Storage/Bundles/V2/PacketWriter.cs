@@ -4,6 +4,7 @@ using System;
 using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
 using System.Runtime.InteropServices;
 using EpicGames.Core;
 
@@ -31,11 +32,18 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 		readonly List<object> _importHandles = new List<object>();
 		readonly Dictionary<object, int> _importMap = new Dictionary<object, int>();
 		readonly List<int> _exportOffsets = new List<int>();
+		readonly HashSet<int> _bundleImportIndices = new HashSet<int>();
 
 		/// <summary>
 		/// Current length of the packet
 		/// </summary>
 		public int Length => _length;
+
+		/// <summary>
+		/// Enumerate all imported bundle locators
+		/// </summary>
+		public IEnumerable<BlobLocator> BundleImports
+			=> _bundleImportIndices.Select(x => GetImportLocator(x));
 
 		/// <summary>
 		/// Constructor
@@ -229,7 +237,10 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 				{
 					throw new NotSupportedException("Referenced blob has not been flushed to storage yet");
 				}
-				return AddImport(-1, locator.Path, handle);
+
+				int bundleImportIdx = AddImport(-1, locator.Path, handle);
+				_bundleImportIndices.Add(bundleImportIdx);
+				return bundleImportIdx;
 			}
 			else if (handle is IBlobHandle blobHandle)
 			{
@@ -251,6 +262,26 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 		/// </summary>
 		public IBlobHandle GetImport(int importIdx)
 			=> (_importHandles[importIdx + PacketImport.Bias] as IBlobHandle) ?? throw new InvalidOperationException("Import is not a blob handle");
+
+		/// <summary>
+		/// Gets the import assigned to a particular index
+		/// </summary>
+		public BlobLocator GetImportLocator(int importIdx)
+		{
+			Utf8StringBuilder builder = new Utf8StringBuilder();
+			BuildImportLocator(importIdx, builder);
+			return new BlobLocator(builder.ToUtf8String());
+		}
+
+		void BuildImportLocator(int importIdx, Utf8StringBuilder builder)
+		{
+			PacketImport import = _imports[importIdx];
+			if (import.BaseIdx != -1)
+			{
+				BuildImportLocator(import.BaseIdx, builder);
+			}
+			builder.Append(import.Fragment);
+		}
 
 		/// <summary>
 		/// Gets data to write new export

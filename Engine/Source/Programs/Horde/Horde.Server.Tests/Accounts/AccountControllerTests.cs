@@ -30,7 +30,7 @@ public class AccountControllerTest : IAsyncDisposable
 		{
 			{ "Horde:AuthMethod", "Horde" },
 		};
-		_app = new FakeHordeWebApp(settings, allowAutoRedirect: false);
+		_app = new FakeHordeWebApp(settings);
 		_accountCollection = _app.ServiceProvider.GetRequiredService<IAccountCollection>();
 	}
 
@@ -54,7 +54,8 @@ public class AccountControllerTest : IAsyncDisposable
 	[TestMethod]
 	public async Task NotLoggedIn_AccountPageShowsLoginLinkAsync()
 	{
-		HttpResponseMessage res = await _app.HttpClient.GetAsync("account");
+		using HttpClient httpClient = _app.CreateHttpClient(allowAutoRedirect: false);
+		HttpResponseMessage res = await httpClient.GetAsync("account");
 		Assert.AreEqual(HttpStatusCode.OK, res.StatusCode);
 		Assert.IsTrue((await res.Content.ReadAsStringAsync()).Contains("<b>Login</b>"));
 	}
@@ -62,7 +63,8 @@ public class AccountControllerTest : IAsyncDisposable
 	[TestMethod]
 	public async Task NotLoggedIn_DefaultLoginRedirectsToUserPassFormAsync()
 	{
-		HttpResponseMessage res = await _app.HttpClient.GetAsync("account/login");
+		using HttpClient httpClient = _app.CreateHttpClient(allowAutoRedirect: false);
+		HttpResponseMessage res = await httpClient.GetAsync("account/login");
 		Assert.AreEqual(HttpStatusCode.Found, res.StatusCode);
 		Assert.AreEqual("/account/login/horde?ReturnUrl=%2Faccount", res.Headers.Location!.PathAndQuery);
 	}
@@ -70,7 +72,8 @@ public class AccountControllerTest : IAsyncDisposable
 	[TestMethod]
 	public async Task NotLoggedIn_UserPassFormAsync()
 	{
-		HttpResponseMessage res = await _app.HttpClient.GetAsync("account/login/horde");
+		using HttpClient httpClient = _app.CreateHttpClient(allowAutoRedirect: false);
+		HttpResponseMessage res = await httpClient.GetAsync("account/login/horde");
 		Assert.AreEqual(HttpStatusCode.OK, res.StatusCode);
 		Assert.IsTrue((await res.Content.ReadAsStringAsync()).Contains("<form action"));
 	}
@@ -78,14 +81,15 @@ public class AccountControllerTest : IAsyncDisposable
 	[TestMethod]
 	public async Task NotLoggedIn_BadCredentialsShowsErrorAsync()
 	{
+		using HttpClient httpClient = _app.CreateHttpClient(allowAutoRedirect: false);
 		{
-			HttpResponseMessage res = await LoginAsync("does-not-exist", "foo");
+			HttpResponseMessage res = await LoginAsync(httpClient, "does-not-exist", "foo");
 			Assert.AreEqual(HttpStatusCode.BadRequest, res.StatusCode);
 			Assert.IsTrue((await res.Content.ReadAsStringAsync()).Contains("Invalid username or password"));
 		}
 
 		{
-			HttpResponseMessage res = await LoginAsync(_account1.Login, "wrong-password");
+			HttpResponseMessage res = await LoginAsync(httpClient, _account1.Login, "wrong-password");
 			Assert.AreEqual(HttpStatusCode.BadRequest, res.StatusCode);
 			Assert.IsTrue((await res.Content.ReadAsStringAsync()).Contains("Invalid username or password"));
 		}
@@ -94,7 +98,8 @@ public class AccountControllerTest : IAsyncDisposable
 	[TestMethod]
 	public async Task NotLoggedIn_CorrectCredentialsLogsInAsync()
 	{
-		HttpResponseMessage res = await LoginAsync(_account1.Login, "pass1");
+		using HttpClient httpClient = _app.CreateHttpClient(allowAutoRedirect: false);
+		HttpResponseMessage res = await LoginAsync(httpClient, _account1.Login, "pass1");
 		Assert.AreEqual(HttpStatusCode.Redirect, res.StatusCode);
 		Assert.AreEqual("/", res.Headers.Location!.ToString());
 	}
@@ -102,8 +107,9 @@ public class AccountControllerTest : IAsyncDisposable
 	[TestMethod]
 	public async Task LoggedIn_ShowsCredentialsAsync()
 	{
-		await LoginAsync(_account1.Login, "pass1");
-		HttpResponseMessage res2 = await _app.HttpClient.GetAsync("account");
+		using HttpClient httpClient = _app.CreateHttpClient(allowAutoRedirect: false);
+		await LoginAsync(httpClient, _account1.Login, "pass1");
+		HttpResponseMessage res2 = await httpClient.GetAsync("account");
 		Assert.AreEqual(HttpStatusCode.OK, res2.StatusCode);
 
 		string content = await res2.Content.ReadAsStringAsync();
@@ -111,7 +117,7 @@ public class AccountControllerTest : IAsyncDisposable
 		Assert.IsTrue(content.Contains("myClaimType2") && content.Contains("myClaimValue2"));
 	}
 
-	private async Task<HttpResponseMessage> LoginAsync(string username, string password, string? redirectUrl = null)
+	private async Task<HttpResponseMessage> LoginAsync(HttpClient httpClient, string username, string password, string? redirectUrl = null)
 	{
 		using StringContent sc = new($"username={username}&password={password}", Encoding.UTF8, "application/x-www-form-urlencoded");
 		string url = "account/login/horde";
@@ -119,7 +125,7 @@ public class AccountControllerTest : IAsyncDisposable
 		{
 			url = QueryHelpers.AddQueryString("account/login/horde", "ReturnUrl", redirectUrl);
 		}
-		HttpResponseMessage response = await _app.HttpClient.PostAsync(url, sc);
+		HttpResponseMessage response = await httpClient.PostAsync(url, sc);
 		return response;
 	}
 }

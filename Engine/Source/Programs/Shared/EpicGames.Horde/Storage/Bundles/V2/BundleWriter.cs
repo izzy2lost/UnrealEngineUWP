@@ -67,6 +67,7 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 			PendingPacketHandle? _packetHandle;
 			List<(ExportHandle, AliasInfo)>? _pendingExportAliases;
 			RefCountedMemoryWriter? _encodedPacketWriter;
+			HashSet<BlobLocator> _bundleImports = new HashSet<BlobLocator>();
 
 			/// <summary>
 			/// Object used for locking access to this bundle's state
@@ -179,6 +180,8 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 					}
 				}
 
+				_bundleImports.UnionWith(_packetWriter.BundleImports);
+
 				_packetWriter.Dispose();
 				_packetWriter = null;
 
@@ -208,7 +211,7 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 				FlushedBundleHandle flushedHandle;
 				using (ReadOnlySequenceStream stream = new ReadOnlySequenceStream(_encodedPacketWriter.AsSequence()))
 				{
-					BlobLocator locator = await _storageClient.Backend.WriteBlobAsync(stream, _basePath, cancellationToken);
+					BlobLocator locator = await _storageClient.Backend.WriteBlobAsync(stream, _bundleImports, _basePath, cancellationToken);
 					flushedHandle = new FlushedBundleHandle(_storageClient, locator);
 				}
 

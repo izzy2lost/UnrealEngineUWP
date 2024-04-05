@@ -436,10 +436,10 @@ namespace EpicGames.Horde.Storage.Bundles.V1
 					(BundleHeader header, List<ReadOnlyMemory<byte>> packets) = CreateBundle();
 
 					// Write the bundle to storage
-					BundleHandle[] imports = new BundleHandle[header.Imports.Count];
-					for (int idx = 0; idx < header.Imports.Count; idx++)
+					HashSet<BlobLocator> imports = new HashSet<BlobLocator>();
+					foreach (BlobLocator import in header.Imports)
 					{
-						imports[idx] = new FlushedBundleHandle(store, new BlobLocator(header.Imports[idx].Path));
+						imports.Add(import.BaseLocator);
 					}
 
 					// Create the output sequence
@@ -455,7 +455,7 @@ namespace EpicGames.Horde.Storage.Bundles.V1
 					BlobLocator locator;
 					using (ReadOnlySequenceStream stream = new ReadOnlySequenceStream(sequence.Construct()))
 					{
-						locator = await store.Backend.WriteBlobAsync(stream, basePath, CancellationToken.None);
+						locator = await store.Backend.WriteBlobAsync(stream, imports, basePath, CancellationToken.None);
 					}
 
 					traceLogger?.LogInformation("Written bundle {BundleId} as {Locator}", BundleId, locator);

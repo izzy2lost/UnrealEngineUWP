@@ -57,39 +57,37 @@ namespace Horde.Server.Storage
 		/// Uploads data to the storage service. 
 		/// </summary>
 		/// <param name="namespaceId">Namespace to fetch from</param>
-		/// <param name="file">Data to be uploaded. May be null, in which case the server may return a separate url.</param>
-		/// <param name="prefix">Prefix for the uploaded file</param>
+		/// <param name="request">Information about the blob to write</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		[HttpPost]
 		[Route("/api/v1/storage/{namespaceId}/blobs")]
-		public async Task<ActionResult<WriteBlobResponse>> WriteBlobAsync(NamespaceId namespaceId, IFormFile? file, [FromForm] string? prefix = default, CancellationToken cancellationToken = default)
+		public async Task<ActionResult<WriteBlobResponse>> WriteBlobAsync(NamespaceId namespaceId, WriteBlobRequest request, CancellationToken cancellationToken = default)
 		{
 			IStorageBackend? storageBackend = _storageService.TryCreateBackend(namespaceId);
 			if (storageBackend == null)
 			{
 				return NotFound(namespaceId);
 			}
-			if (!Authorize(namespaceId, StorageAclAction.WriteBlobs) && !HasPathClaim(User, HordeClaimTypes.WriteNamespace, namespaceId, prefix ?? String.Empty))
+			if (!Authorize(namespaceId, StorageAclAction.WriteBlobs) && !HasPathClaim(User, HordeClaimTypes.WriteNamespace, namespaceId, request.Prefix ?? String.Empty))
 			{
 				return Forbid(StorageAclAction.WriteBlobs, namespaceId);
 			}
 
-			return await WriteBlobAsync(storageBackend, file, prefix, cancellationToken);
+			return await WriteBlobAsync(storageBackend, request, cancellationToken);
 		}
 
 		/// <summary>
 		/// Writes a blob to storage. Exposed as a public utility method to allow other routes with their own authentication methods to wrap their own authentication/redirection.
 		/// </summary>
 		/// <param name="storageBackend">The backend to write to</param>
-		/// <param name="file">File to be written</param>
-		/// <param name="prefix">Prefix for uploaded blobs</param>
+		/// <param name="request">Information about the blob to write</param>
 		/// <param name="cancellationToken">Cancellation token</param>
 		/// <returns>Information about the written blob, or redirect information</returns>
-		public static async Task<ActionResult<WriteBlobResponse>> WriteBlobAsync(IStorageBackend storageBackend, IFormFile? file, [FromForm] string? prefix = default, CancellationToken cancellationToken = default)
+		public static async Task<ActionResult<WriteBlobResponse>> WriteBlobAsync(IStorageBackend storageBackend, WriteBlobRequest request, CancellationToken cancellationToken = default)
 		{
-			if (file == null)
+			if (request.File == null)
 			{
-				(BlobLocator Path, Uri UploadUrl)? result = await storageBackend.TryGetBlobWriteRedirectAsync(prefix ?? String.Empty, cancellationToken);
+				(BlobLocator Path, Uri UploadUrl)? result = await storageBackend.TryGetBlobWriteRedirectAsync(request.Imports, request.Prefix ?? String.Empty, cancellationToken);
 				if (result == null)
 				{
 					return new WriteBlobResponse { SupportsRedirects = false };
@@ -99,8 +97,8 @@ namespace Horde.Server.Storage
 			}
 			else
 			{
-				using Stream stream = file.OpenReadStream();
-				BlobLocator locator = await storageBackend.WriteBlobAsync(stream, prefix, cancellationToken);
+				using Stream stream = request.File.OpenReadStream();
+				BlobLocator locator = await storageBackend.WriteBlobAsync(stream, request.Imports, request.Prefix, cancellationToken);
 				return new WriteBlobResponse { Blob = locator.ToString(), SupportsRedirects = storageBackend.SupportsRedirects };
 			}
 		}
@@ -531,5 +529,39 @@ namespace Horde.Server.Storage
 		static string GetNodeLink(NamespaceId namespaceId, IBlobHandle handle) => GetNodeLink(namespaceId, handle.GetLocator());
 
 		static string GetNodeLink(NamespaceId namespaceId, BlobLocator locator) => $"/api/v1/storage/{namespaceId}/nodes/{locator.BaseLocator}?{locator.Fragment}";
+	}
+
+	/// <summary>
+	/// Request to upload a blob
+	/// </summary>
+	public class WriteBlobRequest
+	{
+		/// <summary>
+		/// Set to indicate that the blob does not have any imports. Used to distinguish from an "unknown" set of imports.
+		/// </summary>
+		[FromForm(Name = "leaf")]
+		public bool Leaf
+		{
+			get => Imports != null && Imports.Count == 0;
+			set => Imports = (value ? new List<BlobLocator>() : Imports);
+		}
+
+		/// <summary>
+		/// Imported blobs
+		/// </summary>
+		[FromForm(Name = "import")]
+		public List<BlobLocator>? Imports { get; set; }
+
+		/// <summary>
+		/// Prefix for the uploaded file
+		/// </summary>
+		[FromForm(Name = "prefix")]
+		public string? Prefix { get; set; }
+
+		/// <summary>
+		/// Data to be uploaded. May be null, in which case the server may return a separate url.
+		/// </summary>
+		[FromForm(Name = "file")]
+		public IFormFile? File { get; set; }
 	}
 }

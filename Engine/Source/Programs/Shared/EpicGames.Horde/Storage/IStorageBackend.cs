@@ -1,6 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System;
+using System.Buffers;
+using System.Collections.Generic;
 using System.IO;
 using System.Text;
 using System.Threading;
@@ -44,11 +46,12 @@ namespace EpicGames.Horde.Storage
 		/// <summary>
 		/// Writes a stream to the storage backend. If the stream throws an exception during read, the write will be aborted.
 		/// </summary>
-		/// <param name="stream">Stream to write</param>
+		/// <param name="stream">Data stream</param>
+		/// <param name="imports">Imported blobs. If omitted, the backend will parse them from the stream data.</param>
 		/// <param name="prefix">Path prefix for the uploaded data</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Path to the uploaded object</returns>
-		Task<BlobLocator> WriteBlobAsync(Stream stream, string? prefix = null, CancellationToken cancellationToken = default);
+		Task<BlobLocator> WriteBlobAsync(Stream stream, IReadOnlyCollection<BlobLocator>? imports = null, string? prefix = null, CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Gets a HTTP redirect for a read request
@@ -61,10 +64,11 @@ namespace EpicGames.Horde.Storage
 		/// <summary>
 		/// Gets a HTTP redirect for a write request
 		/// </summary>
+		/// <param name="imports">Imports for this blob</param>
 		/// <param name="prefix">Prefix for the uploaded data</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Path for retrieval, and URI to upload the data to</returns>
-		ValueTask<(BlobLocator, Uri)?> TryGetBlobWriteRedirectAsync(string? prefix = null, CancellationToken cancellationToken = default);
+		ValueTask<(BlobLocator, Uri)?> TryGetBlobWriteRedirectAsync(IReadOnlyCollection<BlobLocator>? imports = null, string? prefix = null, CancellationToken cancellationToken = default);
 
 		#endregion
 
@@ -209,13 +213,14 @@ namespace EpicGames.Horde.Storage
 		/// </summary>
 		/// <param name="storageBackend">Backend to read from</param>
 		/// <param name="data">Data to be written</param>
+		/// <param name="imports"></param>
 		/// <param name="prefix">Prefix for the uploaded data</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		public static async Task<BlobLocator> WriteBytesAsync(this IStorageBackend storageBackend, ReadOnlyMemory<byte> data, string? prefix = null, CancellationToken cancellationToken = default)
+		public static async Task<BlobLocator> WriteBytesAsync(this IStorageBackend storageBackend, ReadOnlyMemory<byte> data, IReadOnlyCollection<BlobLocator>? imports = null, string? prefix = null, CancellationToken cancellationToken = default)
 		{
 			using (ReadOnlyMemoryStream stream = new ReadOnlyMemoryStream(data))
 			{
-				return await storageBackend.WriteBlobAsync(stream, prefix, cancellationToken);
+				return await storageBackend.WriteBlobAsync(stream, imports, prefix, cancellationToken);
 			}
 		}
 	}

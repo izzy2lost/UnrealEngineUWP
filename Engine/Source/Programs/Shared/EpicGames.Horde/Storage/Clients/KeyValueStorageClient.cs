@@ -177,7 +177,7 @@ namespace EpicGames.Horde.Storage.Clients
 			byte[] encodedData = EncodedBlobData.Create(type, locators, payload);
 
 			using ReadOnlyMemoryStream encodedStream = new ReadOnlyMemoryStream(encodedData);
-			BlobLocator locator = await _backend.WriteBlobAsync(encodedStream, basePath, cancellationToken);
+			BlobLocator locator = await _backend.WriteBlobAsync(encodedStream, locators, basePath, cancellationToken);
 
 			IoHash hash = IoHash.Compute(payload);
 			return BlobRef.Create(hash, CreateBlobHandle(locator));

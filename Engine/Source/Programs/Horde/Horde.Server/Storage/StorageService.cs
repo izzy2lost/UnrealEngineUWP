@@ -77,12 +77,12 @@ namespace Horde.Server.Storage
 				=> _store.ReadAsync(GetObjectKey(locator), offset, length, cancellationToken);
 
 			/// <inheritdoc/>
-			public async Task<BlobLocator> WriteBlobAsync(Stream stream, string? basePath = null, CancellationToken cancellationToken = default)
+			public async Task<BlobLocator> WriteBlobAsync(Stream stream, IReadOnlyCollection<BlobLocator>? imports, string? basePath = null, CancellationToken cancellationToken = default)
 			{
 				BlobLocator locator = StorageHelpers.CreateUniqueLocator(basePath);
 
 				await _store.WriteAsync(GetObjectKey(locator), stream, cancellationToken);
-				await _outer.AddBlobAsync(NamespaceId, locator, null, cancellationToken);
+				await _outer.AddBlobAsync(NamespaceId, locator, imports, null, cancellationToken);
 
 				return locator;
 			}
@@ -94,7 +94,7 @@ namespace Horde.Server.Storage
 			}
 
 			/// <inheritdoc/>
-			public async ValueTask<(BlobLocator, Uri)?> TryGetBlobWriteRedirectAsync(string? prefix = null, CancellationToken cancellationToken = default)
+			public async ValueTask<(BlobLocator, Uri)?> TryGetBlobWriteRedirectAsync(IReadOnlyCollection<BlobLocator>? imports = null, string? prefix = null, CancellationToken cancellationToken = default)
 			{
 				if (!_store.SupportsRedirects)
 				{
@@ -109,7 +109,7 @@ namespace Horde.Server.Storage
 					return null;
 				}
 
-				await _outer.AddBlobAsync(NamespaceId, locator, null, cancellationToken);
+				await _outer.AddBlobAsync(NamespaceId, locator, imports, null, cancellationToken);
 
 				return (locator, url);
 			}
@@ -202,7 +202,7 @@ namespace Horde.Server.Storage
 			}
 		}
 
-		class AliasInfo
+		internal class AliasInfo
 		{
 			[BsonElement("nam")]
 			public string Name { get; set; }
@@ -232,7 +232,7 @@ namespace Horde.Server.Storage
 			}
 		}
 
-		class BlobInfo
+		internal class BlobInfo
 		{
 			public ObjectId Id { get; set; }
 
@@ -264,7 +264,7 @@ namespace Horde.Server.Storage
 			}
 		}
 
-		class RefInfo : ISupportInitialize
+		internal class RefInfo : ISupportInitialize
 		{
 			[BsonIgnoreIfDefault]
 			public ObjectId Id { get; set; }
@@ -362,8 +362,8 @@ namespace Horde.Server.Storage
 		readonly Tracer _tracer;
 		readonly ILogger _logger;
 
-		readonly IMongoCollection<BlobInfo> _blobCollection;
-		readonly IMongoCollection<RefInfo> _refCollection;
+		internal readonly IMongoCollection<BlobInfo> _blobCollection;
+		internal readonly IMongoCollection<RefInfo> _refCollection;
 
 		readonly ITicker _blobTicker;
 		readonly ITicker _refTicker;
@@ -544,11 +544,31 @@ namespace Horde.Server.Storage
 		#region Blobs
 
 		/// <inheritdoc/>
-		async Task AddBlobAsync(NamespaceId namespaceId, BlobLocator locator, List<AliasInfo>? exports = null, CancellationToken cancellationToken = default)
+		async Task AddBlobAsync(NamespaceId namespaceId, BlobLocator locator, IReadOnlyCollection<BlobLocator>? imports = null, List<AliasInfo>? exports = null, CancellationToken cancellationToken = default)
 		{
 			ObjectId id = ObjectId.GenerateNewId(_clock.UtcNow);
 			BlobInfo blobInfo = new BlobInfo(id, namespaceId, locator);
 			blobInfo.Aliases = exports;
+
+			if (imports != null)
+			{
+				if (imports.Count == 0)
+				{
+					blobInfo.Imports = new List<ObjectId>();
+				}
+				else
+				{
+					List<string> paths = imports.Select(x => x.BaseLocator.ToString()).ToList();
+
+					FilterDefinition<BlobInfo> filter =
+						Builders<BlobInfo>.Filter.Eq(x => x.NamespaceId, namespaceId) &
+						Builders<BlobInfo>.Filter.In(x => x.Path, paths);
+
+					blobInfo.Imports = await _blobCollection.Find(filter).Project(x => x.Id).ToListAsync(cancellationToken);
+					blobInfo.Imports.Sort();
+				}
+			}
+
 			await _blobCollection.InsertOneAsync(blobInfo, new InsertOneOptions { }, cancellationToken);
 		}
 
@@ -648,6 +668,24 @@ namespace Horde.Server.Storage
 
 				importInfoIds.Add(blobInfoDoc.Id);
 			}
+
+			importInfoIds.Sort();
+
+			if (blobInfo.Imports != null && !Enumerable.SequenceEqual(importInfoIds, blobInfo.Imports))
+			{
+				List<ObjectId> missing = importInfoIds.Except(blobInfo.Imports).ToList();
+				if (missing.Count > 0)
+				{
+					_logger.LogWarning("Missing imports for blob {Locator}: {Missing}", String.Join(", ", missing.Select(x => x.ToString())));
+				}
+
+				List<ObjectId> extra = blobInfo.Imports.Except(importInfoIds).ToList();
+				if (extra.Count > 0)
+				{
+					_logger.LogWarning("Extra imports for blob {Locator}: {Extra}", String.Join(", ", extra.Select(x => x.ToString())));
+				}
+			}
+
 			await _blobCollection.UpdateOneAsync(x => x.Id == blobInfo.Id, Builders<BlobInfo>.Update.Set(x => x.Imports, importInfoIds), null, cancellationToken);
 
 			AddGcCheckRecord(blobInfo.NamespaceId, blobInfo.Id);

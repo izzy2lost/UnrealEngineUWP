@@ -100,13 +100,13 @@ namespace Horde.Server.Logs
 		/// Uploads a blob for a log file. See /api/v1/storage/XXX/blobs.
 		/// </summary>
 		/// <param name="logFileId">Id of the log file to get information about</param>
-		/// <param name="file">Data for the blob</param>
+		/// <param name="request">Request for the upload</param>
 		/// <param name="cancellationToken">Cancellation token for the request</param>
 		/// <returns>Information about the requested project</returns>
 		[HttpPost]
 		[Route("/api/v1/logs/{logFileId}/blobs")]
 		[ProducesResponseType(typeof(WriteBlobResponse), 200)]
-		public async Task<ActionResult<WriteBlobResponse>> WriteLogBlobAsync(LogId logFileId, IFormFile? file, CancellationToken cancellationToken = default)
+		public async Task<ActionResult<WriteBlobResponse>> WriteLogBlobAsync(LogId logFileId, WriteBlobRequest request, CancellationToken cancellationToken = default)
 		{
 			ILogFile? logFile = await _logFileService.GetLogFileAsync(logFileId, cancellationToken);
 			if (logFile == null)
@@ -117,9 +117,15 @@ namespace Horde.Server.Logs
 			{
 				return Forbid();
 			}
+			if (!String.IsNullOrEmpty(request.Prefix))
+			{
+				return BadRequest("Cannot specify prefix for logs");
+			}
+
+			request.Prefix = $"{logFile.RefName}";
 
 			IStorageBackend storageBackend = _storageService.CreateBackend(Namespace.Logs);
-			return await StorageController.WriteBlobAsync(storageBackend, file, $"{logFile.RefName}", cancellationToken);
+			return await StorageController.WriteBlobAsync(storageBackend, request, cancellationToken);
 		}
 
 		/// <summary>

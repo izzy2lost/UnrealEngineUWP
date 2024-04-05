@@ -88,17 +88,20 @@ public class FakeHordeWebApp : IAsyncDisposable
 {
 	public MongoInstance MongoInstance { get; }
 	public RedisInstance RedisInstance { get; }
-	public HttpClient HttpClient { get; }
 	public IServiceProvider ServiceProvider => Factory.Services;
 	private TestWebApplicationFactory<Startup> Factory { get; }
 
-	public FakeHordeWebApp(Dictionary<string, string>? settings = null, bool allowAutoRedirect = true)
+	public FakeHordeWebApp(Dictionary<string, string>? settings = null)
 	{
 		MongoInstance = new MongoInstance();
 		RedisInstance = new RedisInstance();
 		Factory = new TestWebApplicationFactory<Startup>(MongoInstance, RedisInstance, settings);
+	}
+
+	public HttpClient CreateHttpClient(bool allowAutoRedirect = true)
+	{
 		WebApplicationFactoryClientOptions opts = new() { AllowAutoRedirect = allowAutoRedirect };
-		HttpClient = Factory.CreateClient(opts);
+		return Factory.CreateClient(opts);
 	}
 
 	public async ValueTask DisposeAsync()
@@ -121,7 +124,7 @@ public class FakeHordeWebApp : IAsyncDisposable
 
 public class ControllerIntegrationTest : IAsyncDisposable
 {
-	protected HttpClient Client => _app.HttpClient;
+	protected HttpClient Client { get; }
 	protected IServiceProvider ServiceProvider => _app.ServiceProvider;
 	private readonly Lazy<Task<Fixture>> _fixture;
 	private readonly FakeHordeWebApp _app;
@@ -130,6 +133,7 @@ public class ControllerIntegrationTest : IAsyncDisposable
 	{
 		_app = new FakeHordeWebApp();
 		_fixture = new Lazy<Task<Fixture>>(CreateFixtureAsync);
+		Client = _app.CreateHttpClient();
 	}
 
 	public virtual async ValueTask DisposeAsync()
@@ -137,6 +141,9 @@ public class ControllerIntegrationTest : IAsyncDisposable
 		await _app.DisposeAsync();
 		GC.SuppressFinalize(this);
 	}
+
+	public HttpClient CreateHttpClient(bool allowAutoRedirect = true)
+		=> _app.CreateHttpClient(allowAutoRedirect);
 
 	public Task<Fixture> GetFixtureAsync()
 	{
