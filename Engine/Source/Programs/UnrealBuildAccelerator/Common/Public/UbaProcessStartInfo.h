@@ -6,6 +6,7 @@
 
 namespace uba
 {
+	class ApplicationRules;
 	class ProcessHandle;
 
 	struct ProcessStartInfo
@@ -33,6 +34,7 @@ namespace uba
 		ExitedCallback* exitedFunc = nullptr;	// Callback for when process is done (it has already exited)
 		void* userData = nullptr;				// User data provided to exit callback
 
+		const ApplicationRules* rules = nullptr;// Internal use (for now)
 		int uiLanguage = 1033;					// Internal use
 	};
 }

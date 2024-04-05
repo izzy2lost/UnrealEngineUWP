@@ -144,8 +144,9 @@ namespace uba
 
 	inline u64 GetStringWriteSize(const tchar* str)
 	{
-		u64 actualBytes = GetWrittenBytes(str, TStrlen(str));
-		return Get7BitEncodedCount(actualBytes) + actualBytes;
+		u32 strLen = TStrlen(str);
+		u64 actualBytes = GetWrittenBytes(str, strLen);
+		return Get7BitEncodedCount(strLen) + actualBytes;
 	}
 
 	void BinaryWriter::WriteString(const tchar* str, u64 strLen)
@@ -250,7 +251,7 @@ namespace uba
 
 	void BinaryWriter::Write7BitEncoded(u64 value)
 	{
-		UBA_ASSERT_WRITE(5);
+		UBA_ASSERT_WRITE(Get7BitEncodedCount(value));
 		do
 		{
 			u8 HasMoreBytes = (u8)((value > u64(0x7F)) << 7);

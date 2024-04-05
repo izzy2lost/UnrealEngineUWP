@@ -684,6 +684,8 @@ NTSTATUS NTAPI Shared_NtCreateFile(bool IsCreateFunc, PHANDLE hFileHandle, ACCES
 			return res;
 		if (!isSystemFile && !isWrite && !t_disallowDetour)
 			TrackInput(fileName.data);
+		else
+			SkipTrackInput(fileName.data);
 		return res;
 	}
 
@@ -929,10 +931,17 @@ NTSTATUS NTAPI Shared_NtCreateFile(bool IsCreateFunc, PHANDLE hFileHandle, ACCES
 
 	auto TrackFileInput = [&]()
 		{
-			if (!info.tracked && dwDesiredAccess && (dwDesiredAccess & GENERIC_WRITE) == 0)
+			if (!keepInMemory && dwDesiredAccess && (dwDesiredAccess & GENERIC_WRITE) == 0)
 			{
-				info.tracked = true;
-				TrackInput(fileName.data);
+				if (!info.tracked)
+				{
+					info.tracked = true;
+					TrackInput(fileName.data);
+				}
+			}
+			else
+			{
+				SkipTrackInput(fileName.data);
 			}
 		};
 

@@ -25,15 +25,16 @@ namespace uba
 			delete[] m_knownInputs;
 		}
 
-		virtual const ProcessStartInfo& GetStartInfo() override { return startInfo; }
+		virtual const ProcessStartInfo& GetStartInfo() const override { return startInfo; }
 		virtual u32 GetId() override { return m_processId; }
 		virtual u32 GetExitCode() override { UBA_ASSERT(m_done.IsSet(0)); return m_exitCode; }
 		virtual bool HasExited() override { return m_done.IsSet(0); }
 		virtual bool WaitForExit(u32 millisecondsTimeout) override { return m_done.IsSet(millisecondsTimeout); }
 		virtual u64 GetTotalProcessorTime() const override { return m_processorTime; }
 		virtual u64 GetTotalWallTime() const override { return m_wallTime; }
-		virtual const Vector<ProcessLogLine>& GetLogLines() override { return m_logLines; }
-		virtual const Vector<u8>& GetTrackedInputs() override { return m_trackedInputs; }
+		virtual const Vector<ProcessLogLine>& GetLogLines() const override { return m_logLines; }
+		virtual const Vector<u8>& GetTrackedInputs() const override { return m_trackedInputs; }
+		virtual const Vector<u8>& GetTrackedOutputs() const override { return m_trackedOutputs; };
 		virtual void Cancel(bool terminate) override
 		{
 			if (m_cancelled)
@@ -53,7 +54,7 @@ namespace uba
 
 		virtual const tchar* GetExecutingHost() const override { return m_executingHost.c_str(); }
 		virtual bool IsRemote() const override { return true; }
-		virtual bool IsDetoured() const { return true; }
+		virtual ProcessExecutionType GetExecutionType() const override { return ProcessExecutionType_Detoured; }
 		virtual bool IsChild() override { return false; }
 
 		void CallProcessExit(ProcessHandle& h)
@@ -77,6 +78,7 @@ namespace uba
 		Event m_done;
 		Vector<ProcessLogLine> m_logLines;
 		Vector<u8> m_trackedInputs;
+		Vector<u8> m_trackedOutputs;
 		bool m_cancelled = false;
 		u32 m_clientId = ~0u;
 		u32 m_sessionId = 0;
@@ -409,10 +411,37 @@ namespace uba
 		{
 			ScopedCriticalSection lock(m_remoteProcessAndSessionLock);
 			if (m_activeRemoteProcesses.empty() && m_queuedRemoteProcesses.empty())
-				return;
+				break;
 			lock.Leave();
 			Sleep(200);
 		}
+
+		bool isEmpty = false;
+		while (!isEmpty)
+		{
+			Vector<ProcessHandle> processes;
+			{
+				SCOPED_WRITE_LOCK(m_processesLock, lock);
+				isEmpty = m_processes.empty();
+				processes.reserve(m_processes.size());
+				for (auto& pair : m_processes)
+					processes.push_back(pair.second);
+			}
+
+			#if PLATFORM_WINDOWS
+			if (m_processJobObject != NULL)
+			{
+				SCOPED_WRITE_LOCK(m_processJobObjectLock, lock);
+				CloseHandle(m_processJobObject);
+				m_processJobObject = NULL;
+			}
+			#endif
+
+			for (auto& process : processes)
+				process.WaitForExit(100000);
+		}
+
+		FlushDeadProcesses();
 	}
 
 	void SessionServer::SetMaxRemoteProcessCount(u32 count)
@@ -767,7 +796,7 @@ namespace uba
 			}
 			case SessionMessageType_SendFileToServer:
 			{
-				u32 processId = reader.ReadU32(); (void)processId;
+				u32 processId = reader.ReadU32();
 				StringBuffer<> destination;
 				reader.ReadString(destination);
 				StringKey destinationKey = reader.ReadStringKey();
@@ -828,6 +857,24 @@ namespace uba
 				{
 					m_storage.DropCasFile(casKey, false, destination.data);
 					RegisterCreateFileForWrite(StringKeyZero, destination.data, destination.count, true);
+
+
+					SCOPED_WRITE_LOCK(m_processesLock, lock);
+					auto findIt = m_processes.find(processId);
+					if (findIt != m_processes.end())
+					{
+						ProcessHandle h(findIt->second);
+						lock.Leave();
+						auto& process = *(RemoteProcess*)h.m_process;
+						if (process.startInfo.trackInputs)
+						{
+							u64 bytes = GetStringWriteSize(destination.data);
+							u64 prevSize = process.m_trackedOutputs.size();
+							process.m_trackedOutputs.resize(prevSize + bytes);
+							BinaryWriter w2(process.m_trackedOutputs.data(), prevSize, prevSize + bytes);
+							w2.WriteString(destination);
+						}
+					}
 				}
 				return true;
 			}
@@ -1016,6 +1063,21 @@ namespace uba
 					writer.WriteU32(kv->mappingAlignment);
 				}
 
+				return true;
+			}
+			case SessionMessageType_ProcessInputs:
+			{
+				u32 processId = reader.ReadU32();
+				SCOPED_WRITE_LOCK(m_processesLock, lock);
+				auto findIt = m_processes.find(processId);
+				if (findIt == m_processes.end())
+					return m_logger.Error(TC("Failed to find process for id %u when receiving custom message"), processId);
+				ProcessHandle h(findIt->second);
+				lock.Leave();
+				auto& process = *(RemoteProcess*)h.m_process;
+				u64 size = reader.GetLeft();
+				process.m_trackedInputs.resize(size);
+				reader.ReadBytes(process.m_trackedInputs.data(), size);
 				return true;
 			}
 			case SessionMessageType_ProcessFinished:

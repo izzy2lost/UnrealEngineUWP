@@ -84,6 +84,8 @@ namespace uba
 		void BuildEnvironmentVariables(BinaryReader& reader);
 		bool SendProcessAvailable(Vector<InternalProcessStartInfo>& out, float availableWeight);
 		void SendReturnProcess(u32 processId, const tchar* reason);
+		bool SendProcessInputs(ProcessImpl& process);
+		bool SendProcessFinished(ProcessImpl& process, u32 exitCode);
 		void SendPing(u64 memAvail, u64 memTotal);
 		void SendLogFileToServer(ProcessImpl& pi);
 		void GetLogFileName(StringBufferBase& out, const tchar* logFile, const tchar* arguments);

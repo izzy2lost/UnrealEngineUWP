@@ -163,10 +163,10 @@ namespace uba
 		UBA_ASSERT(m_process);
 		return m_process->IsRemote();
 	}
-	bool ProcessHandle::IsDetoured() const
+	ProcessExecutionType ProcessHandle::GetExecutionType() const
 	{
 		UBA_ASSERT(m_process);
-		return m_process->IsDetoured();
+		return m_process->GetExecutionType();
 	}
 	ProcessHandle::ProcessHandle(Process* process)
 	{
@@ -1208,6 +1208,9 @@ namespace uba
 			si.logFile = logFile.data;
 		}
 
+		if (!si.rules)
+			si.rules = GetRules(si);
+
 		void* env = GetProcessEnvironmentVariables();
 		u32 id = ++m_processIdCounter;
 		auto process = new ProcessImpl(*this, id, parent);
@@ -1303,6 +1306,72 @@ namespace uba
 	Storage& Session::GetStorage() { return m_storage; }
 	Logger& Session::GetLogger() { return m_logger; }
 	LogWriter& Session::GetLogWriter() { return m_logger.m_writer; }
+
+	const ApplicationRules* Session::GetRules(const ProcessStartInfo& si)
+	{
+		u32 exeNameStart = 0;
+		u32 exeNameEnd = TStrlen(si.application);
+		const tchar* lastSeparator = TStrrchr(si.application, PathSeparator);
+		if (lastSeparator)
+			exeNameStart = u32(lastSeparator - si.application + 1);
+		else if (si.application[exeNameStart] == '"')
+			++exeNameStart;
+		if (si.application[exeNameEnd - 1] == '"')
+			--exeNameEnd;
+		StringBuffer<128> exeName;
+		exeName.Append(si.application + exeNameStart, exeNameEnd - exeNameStart);
+		
+		auto rules = GetApplicationRules();
+		
+		while (true)
+		{
+			for (u32 i = 1;; ++i)
+			{
+				const tchar* app = rules[i].app;
+				if (!app)
+					break;
+				if (!exeName.Equals(app))
+					continue;
+				return GetApplicationRules()[i].rules;
+			}
+
+			if (!exeName.Equals(TC("dotnet.exe")))
+				return GetApplicationRules()[0].rules;
+			
+			u32 firstArgumentStart = 0;
+			u32 firstArgumentEnd = 0;
+			bool quoted = false;
+			for (u32 i = 0, e = TStrlen(si.arguments); i != e; ++i)
+			{
+				tchar c = si.arguments[i];
+				if (firstArgumentEnd)
+				{
+					if (c == '\\')
+						firstArgumentStart = i + 1;
+					if ((quoted && c != '"') || (!quoted && c != ' ' && c != '\t'))
+						continue;
+					firstArgumentEnd = i;
+					break;
+				}
+				else
+				{
+					if (c == ' ' || c == '\t')
+					{
+						++firstArgumentStart;
+						continue;
+					}
+					if (c == '"')
+					{
+						++firstArgumentStart;
+						quoted = true;
+					}
+					firstArgumentEnd = firstArgumentStart + 1;
+				}
+			}
+			exeName.Clear().Append(si.arguments + firstArgumentStart, firstArgumentEnd - firstArgumentStart);
+		}
+		return GetApplicationRules()[0].rules;
+	}
 
 	void Session::ProcessAdded(Process& process, u32 sessionId)
 	{
@@ -1500,12 +1569,12 @@ namespace uba
 
 	bool Session::IsRarelyRead(ProcessImpl& process, const StringBufferBase& fileName) const
 	{
-		return GetApplicationRules()[process.m_rulesIndex].rules->IsRarelyRead(fileName);
+		return process.m_startInfo.rules->IsRarelyRead(fileName);
 	}
 
 	bool Session::IsRarelyReadAfterWritten(ProcessImpl& process, const tchar* fileName, u64 fileNameLen) const
 	{
-		return GetApplicationRules()[process.m_rulesIndex].rules->IsRarelyReadAfterWritten(fileName, fileNameLen);
+		return process.m_startInfo.rules->IsRarelyReadAfterWritten(fileName, fileNameLen);
 	}
 
 	bool Session::IsKnownSystemFile(const tchar* applicationName)

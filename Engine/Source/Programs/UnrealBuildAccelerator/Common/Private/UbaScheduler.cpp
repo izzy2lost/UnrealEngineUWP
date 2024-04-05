@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "UbaScheduler.h"
+#include "UbaApplicationRules.h"
 #include "UbaProcess.h"
 #include "UbaProcessStartInfoHolder.h"
 #include "UbaSessionServer.h"
@@ -45,15 +46,15 @@ namespace uba
 		virtual u32 GetExitCode() override { return ProcessCancelExitCode; }
 		virtual bool HasExited() override { return true; }
 		virtual bool WaitForExit(u32 millisecondsTimeout) override{ return true; }
-		virtual const ProcessStartInfo& GetStartInfo() override { return holder.startInfo; }
-		virtual const Vector<ProcessLogLine>& GetLogLines() override { static Vector<ProcessLogLine> v{ProcessLogLine{TC("Skipped"), LogEntryType_Warning}}; return v; }
-		virtual const Vector<u8>& GetTrackedInputs() override { static Vector<u8> v; return v;}
+		virtual const ProcessStartInfo& GetStartInfo() const override { return holder.startInfo; }
+		virtual const Vector<ProcessLogLine>& GetLogLines() const override { static Vector<ProcessLogLine> v{ProcessLogLine{TC("Skipped"), LogEntryType_Warning}}; return v; }
+		virtual const Vector<u8>& GetTrackedInputs() const override { static Vector<u8> v; return v;}
+		virtual const Vector<u8>& GetTrackedOutputs() const override { static Vector<u8> v; return v;}
 		virtual bool IsRemote() const override { return false; }
-		virtual bool IsDetoured() const { return false; }
+		virtual ProcessExecutionType GetExecutionType() const override { return ProcessExecutionType_Native; }
 		ProcessStartInfoHolder holder;
 	};
 
-	
 	Scheduler::Scheduler(const SchedulerCreateInfo& info)
 	:	m_session(info.session)
 	,	m_maxLocalProcessors(info.maxLocalProcessors != ~0u ? info.maxLocalProcessors : GetLogicalProcessorCount())
@@ -124,6 +125,9 @@ namespace uba
 
 		auto info2 = new ProcessStartInfo2(info.info, ki, info.knownInputsCount);
 		info2->weight = info.weight;
+
+		const ApplicationRules* rules = m_session.GetRules(info2->startInfo);
+		info2->startInfo.rules = rules;
 
 		SCOPED_WRITE_LOCK(m_processEntriesLock, lock);
 		u32 index = u32(m_processEntries.size());

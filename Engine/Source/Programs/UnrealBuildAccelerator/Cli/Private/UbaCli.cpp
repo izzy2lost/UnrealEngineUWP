@@ -658,7 +658,7 @@ namespace uba
 					StringBuffer<128> extra;
 					if (ph.IsRemote())
 						extra.Append(TC(" [RemoteExecutor: ")).Append(ph.GetExecutingHost()).Append(']');
-					else if (!ph.IsDetoured())
+					else if (ph.GetExecutionType() == ProcessExecutionType_Native)
 						extra.Append(TC(" (Not detoured)"));
 					logger.Info(TC("[%u/%u] %s%s"), c, queued, desc, extra.data);
 					for (auto& line : ph.GetLogLines())

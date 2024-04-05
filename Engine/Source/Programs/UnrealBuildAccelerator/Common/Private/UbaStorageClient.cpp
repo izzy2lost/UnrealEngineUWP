@@ -598,7 +598,7 @@ namespace uba
 
 							if (!mappingBuffer)
 							{
-								if (!destinationFile.Write(decompressBuffer, uncompressedSize))
+								if (!destinationFile.Write(decompressBuffer, uncompressedSize, actualSize - leftUncompressed))
 									return false;
 							}
 							else

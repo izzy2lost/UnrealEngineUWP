@@ -240,6 +240,16 @@ namespace uba
 		data[count] = 0;
 		return *this;
 	}
+	
+	StringBufferBase& StringBufferBase::Append(const char* str, u32 charCount)
+	{
+		u32 capacityEnd = capacity - 1;
+		for (const char* i = str; *i && charCount; ++i, --charCount)
+			if (count < capacityEnd)
+				data[count++] = *i;
+		data[count] = 0;
+		return *this;
+	}
 	#endif
 
 	StringBufferBase& StringBufferBase::Resize(u64 newSize)

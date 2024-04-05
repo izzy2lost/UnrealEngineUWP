@@ -126,6 +126,10 @@ void TrackInput(const wchar_t* file)
 		g_trackInputsBufPos = u32(w.GetPosition());
 	}
 }
+void SkipTrackInput(const wchar_t* file)
+{
+	// Just here to easily log out what we are ignoring in terms of input
+}
 
 u8 g_emptyMemoryFileMem;
 MemoryFile& g_emptyMemoryFile = *new MemoryFile(&g_emptyMemoryFileMem, true);

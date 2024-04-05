@@ -321,10 +321,10 @@ namespace uba
 		return false;
 	}
 
-	bool FileAccessor::OpenMemoryRead(u64 offset)
+	bool FileAccessor::OpenMemoryRead(u64 offset, bool errorOnFail)
 	{
 		if (!OpenFileSequentialRead(m_logger, m_fileName, m_fileHandle))
-			return m_logger.Error(TC("Failed to open file %s for read"), m_fileName);
+			return errorOnFail ? m_logger.Error(TC("Failed to open file %s for read"), m_fileName) : false;
 
 		FileInformation info;
 		if (!GetFileInformationByHandle(info, m_logger, m_fileName, m_fileHandle))

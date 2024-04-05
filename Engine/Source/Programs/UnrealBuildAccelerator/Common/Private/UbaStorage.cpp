@@ -1494,7 +1494,7 @@ namespace uba
 								mem += sizeof(u64);
 								u8* dest = new u8[decompressedSize];
 								auto g = MakeGuard([dest]() { delete[] dest; });
-								if (!DecompressMemoryToMemory(mem, dest, decompressedSize, TC("")))
+								if (!DecompressMemoryToMemory(mem, dest, decompressedSize, filePath.c_str()))
 									return;
 								checkedKey = CalculateCasKey(dest, decompressedSize, true);
 							}

@@ -2340,9 +2340,12 @@ HMODULE Recursive_LoadLibraryExW(LPCWSTR lpLibFileName, LPCWSTR originalName, DW
 		if (importedModule.isKnown && !g_isRunningWine)
 			continue;
 
-		HMODULE checkModule = GetModuleHandleW(importedModule.name);
-		if (checkModule)
-			continue;
+		{
+			SuppressCreateFileDetourScope cfs;
+			HMODULE checkModule = GetModuleHandleW(importedModule.name); // This function ends up in NtCreateFile when running in wine
+			if (checkModule)
+				continue;
+		}
 
 		if (importedModule.isKnown) // We need to catch dbghelp.dll and imagehlp.dll
 		{

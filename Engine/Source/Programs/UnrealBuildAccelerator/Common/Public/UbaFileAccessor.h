@@ -21,7 +21,7 @@ namespace uba
 		bool Write(const void* data, u64 dataLen, u64 offset = 0);
 
 		bool OpenRead();
-		bool OpenMemoryRead(u64 offset = 0);
+		bool OpenMemoryRead(u64 offset = 0, bool errorOnFail = true);
 
 
 		const tchar* GetFileName() { return m_fileName; }

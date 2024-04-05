@@ -37,6 +37,7 @@ namespace uba
 
 		#if PLATFORM_WINDOWS
 		StringBufferBase& Append(const char* str);
+		StringBufferBase& Append(const char* str, u32 charCount);
 		#endif
 
 		tchar operator[](u64 i) const { return data[i]; }

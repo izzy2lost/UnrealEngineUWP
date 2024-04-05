@@ -10,19 +10,20 @@ namespace uba
 	class Process
 	{
 	public:
-		virtual const ProcessStartInfo& GetStartInfo() = 0;
+		virtual const ProcessStartInfo& GetStartInfo() const = 0;
 		virtual u32 GetId() { UBA_ASSERT(false); return 0; }
 		virtual u32 GetExitCode() { UBA_ASSERT(false); return ~0u; }
 		virtual bool HasExited()  { UBA_ASSERT(false); return false; }
 		virtual bool WaitForExit(u32 millisecondsTimeout) { UBA_ASSERT(false); return false; }
 		virtual u64 GetTotalProcessorTime() const { UBA_ASSERT(false); return 0; }
 		virtual u64 GetTotalWallTime() const { UBA_ASSERT(false); return 0; }
-		virtual const Vector<ProcessLogLine>& GetLogLines() = 0;
-		virtual const Vector<u8>& GetTrackedInputs() = 0;
+		virtual const Vector<ProcessLogLine>& GetLogLines() const = 0;
+		virtual const Vector<u8>& GetTrackedInputs() const = 0;
+		virtual const Vector<u8>& GetTrackedOutputs() const = 0;
 		virtual void Cancel(bool terminate) { UBA_ASSERT(false); }
 		virtual const tchar* GetExecutingHost() const { UBA_ASSERT(false); return nullptr; }
 		virtual bool IsRemote() const { UBA_ASSERT(false); return false; }
-		virtual bool IsDetoured() const { UBA_ASSERT(false); return false; }
+		virtual ProcessExecutionType GetExecutionType() const { UBA_ASSERT(false); return ProcessExecutionType_Native; }
 		virtual bool IsChild() { UBA_ASSERT(false); return false; }
 
 	protected:
@@ -37,19 +38,20 @@ namespace uba
 	{
 	public:
 
-		virtual const ProcessStartInfo& GetStartInfo() override { return m_startInfo; }
+		virtual const ProcessStartInfo& GetStartInfo() const override { return m_startInfo; }
 		virtual u32 GetId() override { return m_id; }
 		virtual u32 GetExitCode() override { return m_exitCode; }
 		virtual bool HasExited() override  { return m_hasExited; }
 		virtual bool WaitForExit(u32 millisecondsTimeout) override;
 		virtual u64 GetTotalProcessorTime() const override;
 		virtual u64 GetTotalWallTime() const override;
-		virtual const Vector<ProcessLogLine>& GetLogLines() override { return m_logLines; }
-		virtual const Vector<u8>& GetTrackedInputs() override { return m_trackedInputs; }
+		virtual const Vector<ProcessLogLine>& GetLogLines() const override { return m_logLines; }
+		virtual const Vector<u8>& GetTrackedInputs() const override { return m_trackedInputs; }
+		virtual const Vector<u8>& GetTrackedOutputs() const override { return m_trackedOutputs; }
 		virtual void Cancel(bool terminate) override;
 		virtual const tchar* GetExecutingHost() const override { return TC(""); }
 		virtual bool IsRemote() const override { return false; }
-		virtual bool IsDetoured() const { return m_detourEnabled; }
+		virtual ProcessExecutionType GetExecutionType() const override { return m_detourEnabled ? ProcessExecutionType_Detoured : ProcessExecutionType_Native; }
 		virtual bool IsChild() override { return m_parentProcess != nullptr; }
 
 		ProcessImpl(Session& session, u32 id, ProcessImpl* parent);
@@ -98,7 +100,6 @@ namespace uba
 		bool OpenTempFile(BinaryReader& reader, BinaryWriter& writer, const tchar* application);
 		bool WriteFilesToDisk();
 
-		void SetRulesIndex(const ProcessStartInfo& si);
 		const tchar* InternalGetChildLogFile(StringBufferBase& temp);
 		
 		#if !PLATFORM_WINDOWS
@@ -143,7 +144,6 @@ namespace uba
 		u32 m_nativeProcessId = 0;
 		u32 m_nativeProcessExitCode = ~0u;
 		u32 m_exitCode = ~0u;
-		u32 m_rulesIndex = 0;
 		u32 m_messageCount = 0;
 		Atomic<bool> m_hasExited;
 		bool m_messageSuccess = true;
@@ -164,6 +164,7 @@ namespace uba
 		ReaderWriterLock m_logLinesLock;
 		Vector<ProcessLogLine> m_logLines;
 		Vector<u8> m_trackedInputs;
+		Vector<u8> m_trackedOutputs;
 		Vector<ProcessHandle> m_childProcesses;
 		ReaderWriterLock& m_writtenFilesLock;
 		UnorderedMap<TString, WrittenFile>& m_writtenFiles;

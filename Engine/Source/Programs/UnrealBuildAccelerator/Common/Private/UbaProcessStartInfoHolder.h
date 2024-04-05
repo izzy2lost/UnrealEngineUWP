@@ -60,6 +60,7 @@ namespace uba
 			writer.WriteString(workingDir);
 			writer.WriteString(logFile);
 			writer.WriteU32(*(u32*)&weight);
+			writer.WriteBool(startInfo.trackInputs);
 			writer.WriteBool(startInfo.writeOutputFilesOnFail);
 			writer.WriteU64(startInfo.outputStatsThresholdMs);
 		}
@@ -77,8 +78,9 @@ namespace uba
 			u32 weight32 = reader.ReadU32();
 			weight = *(float*)&weight32;
 			
-			startInfo.outputStatsThresholdMs = reader.ReadU64();
+			startInfo.trackInputs = reader.ReadBool();
 			startInfo.writeOutputFilesOnFail = reader.ReadBool();
+			startInfo.outputStatsThresholdMs = reader.ReadU64();
 
 			startInfo.description = description.c_str();
 			startInfo.application = application.c_str();

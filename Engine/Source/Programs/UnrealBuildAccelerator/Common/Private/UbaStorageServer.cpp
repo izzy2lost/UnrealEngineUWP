@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "UbaStorageServer.h"
+#include "UbaFileAccessor.h"
 #include "UbaNetworkServer.h"
 #include "UbaTrace.h"
 
@@ -11,6 +12,7 @@ namespace uba
 	,	m_server(info.server)
 	{
 		m_zone = info.zone;
+		m_writeRecievedCasFilesToDisk = info.writeRecievedCasFilesToDisk;
 
 		if (!CreateGuid(m_uid))
 			UBA_ASSERT(false);
@@ -152,6 +154,8 @@ namespace uba
 					if (m_traceStore)
 						m_trace->FileEndStore(clientId, store.casEntry->key);
 				}
+
+				delete store.fileAccessor;
 
 				m_casDataBuffer.UnmapView(store.mappedView, TC("OnDisconnected"));
 				it = m_activeStores.erase(it);
@@ -383,7 +387,7 @@ namespace uba
 
 				CasEntry* casEntry = nullptr;
 				bool has = HasCasFile(casKey, &casEntry); // HasCasFile also writes deferred cas entries if in queue
-				if (!has)
+				if (!has && !EnsureCasFile(casKey, nullptr))
 				{
 					// Last resort.. use hint to load file into cas (hint should be renamed since it is now a critical parameter)
 					// We better check the caskey first to make sure it is matching on the server
@@ -725,11 +729,31 @@ namespace uba
 					return false;
 				}
 
-				auto mappedView = m_casDataBuffer.AllocAndMapView(MappedView_Transient, fileSize, 1, CasKeyString(casKey).str);
-				if (!mappedView.memory)
+				MappedView mappedView;
+				FileAccessor* fileAccessor = nullptr;
+				
+				if (m_writeRecievedCasFilesToDisk)
 				{
-					casEntry.verified = false;
-					return false;
+					StringBuffer<> casKeyName;
+					GetCasFileName(casKeyName, casKey);
+					fileAccessor = new FileAccessor(m_logger, casKeyName.data);
+					if (!fileAccessor->CreateMemoryWrite(false, DefaultAttributes(), fileSize, m_tempPath.data))
+					{
+						delete fileAccessor;
+						m_logger.Error(TC("Failed to create cas file %s"), casKeyName.data);
+						casEntry.verified = false;
+						return false;
+					}
+					mappedView.memory = fileAccessor->GetData();
+				}
+				else
+				{
+					mappedView = m_casDataBuffer.AllocAndMapView(MappedView_Transient, fileSize, 1, CasKeyString(casKey).str);
+					if (!mappedView.memory)
+					{
+						casEntry.verified = false;
+						return false;
+					}
 				}
 
 				casEntry.beingWritten = true;
@@ -742,6 +766,7 @@ namespace uba
 				firstStore->fileSize = fileSize;
 				firstStore->actualSize = actualSize;
 				firstStore->mappedView = mappedView;
+				firstStore->fileAccessor = fileAccessor;
 				firstStore->recvCasTime = GetTime() - start;
 
 				if (m_trace)
@@ -780,6 +805,14 @@ namespace uba
 				if (totalWritten == fileSize)
 				{
 					m_casDataBuffer.UnmapView(activeStore.mappedView, TC("StoreDone"));
+
+					if (activeStore.fileAccessor)
+					{
+						bool success = activeStore.fileAccessor->Close();
+						delete activeStore.fileAccessor;
+						if (!success)
+							return m_logger.Error(TC("REVISIT THIS!"));
+					}
 
 					CasEntry& casEntry = *activeStore.casEntry;
 					{
@@ -844,6 +877,7 @@ namespace uba
 
 					s.fileSize = firstStore->fileSize;
 					s.mappedView = firstStore->mappedView;
+					s.fileAccessor = firstStore->fileAccessor;
 					s.casEntry = firstStore->casEntry;
 					s.totalWritten = firstStore->totalWritten.load();
 					s.recvCasTime = firstStore->recvCasTime.load();

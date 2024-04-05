@@ -68,6 +68,7 @@ namespace uba
 		Storage& GetStorage();		// Storage (only used when remote machines are connected)
 		Logger& GetLogger();			// Logger used for logging 
 		LogWriter& GetLogWriter();		// LogWriter used by logger
+		const ApplicationRules* GetRules(const ProcessStartInfo& si); // Get application rules used for process
 
 		virtual ~Session();
 

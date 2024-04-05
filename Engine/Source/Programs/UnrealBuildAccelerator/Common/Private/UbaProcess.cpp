@@ -180,7 +180,7 @@ namespace uba
 		if (m_parentProcess)
 			m_waitForParent.Create(true);
 
-		SetRulesIndex(startInfo);
+		UBA_ASSERT(m_startInfo.rules);
 
 		m_session.ProcessAdded(*this, 0);
 
@@ -510,8 +510,6 @@ namespace uba
 
 		UBA_ASSERT(!m_parentProcess || !m_parentProcess->m_hasExited);
 
-		m_session.ProcessExited(*this, m_processStats.wallTime);
-
 		m_hasExited = true;
 
 		{
@@ -539,6 +537,9 @@ namespace uba
 			exitedFunc(userData, h);
 			h.m_process = nullptr;
 		}
+
+		// Must be done last to make sure shutdown is not racing
+		m_session.ProcessExited(*this, m_processStats.wallTime);
 	}
 
 	bool ProcessImpl::HandleMessage(BinaryReader& reader, BinaryWriter& writer)
@@ -788,7 +789,7 @@ namespace uba
 		u32 detoursLibLen = u32(m_session.m_detoursLibrary.size());
 
 		writer.WriteU32(childProcessId);
-		writer.WriteU32(process.m_rulesIndex);
+		writer.WriteU32(info.rules->index);
 		writer.WriteU32(detoursLibLen);
 		writer.WriteBytes(detoursLib, detoursLibLen);
 
@@ -924,7 +925,7 @@ namespace uba
 		m_processStats.Add(stats);
 
 		if (!IsCancelled())
-			if (m_startInfo.writeOutputFilesOnFail || GetApplicationRules()[m_rulesIndex].rules->IsExitCodeSuccess(m_nativeProcessExitCode))
+			if (m_startInfo.writeOutputFilesOnFail || m_startInfo.rules->IsExitCodeSuccess(m_nativeProcessExitCode))
 				m_messageSuccess = WriteFilesToDisk() && m_messageSuccess;
 
 		if (m_parentProcess)
@@ -1061,72 +1062,6 @@ namespace uba
 		return true;
 	}
 
-	void ProcessImpl::SetRulesIndex(const ProcessStartInfo& si)
-	{
-		u32 exeNameStart = 0;
-		u32 exeNameEnd = u32(m_virtualApplication.size());
-		size_t lastSeparator = m_virtualApplication.find_last_of(PathSeparator);
-		if (lastSeparator != -1)
-			exeNameStart = u32(lastSeparator + 1);
-		else if (m_virtualApplication[exeNameStart] == '"')
-			++exeNameStart;
-		if (m_virtualApplication[exeNameEnd - 1] == '"')
-			--exeNameEnd;
-		StringBuffer<128> exeName;
-		exeName.Append(m_virtualApplication.c_str() + exeNameStart, exeNameEnd - exeNameStart);
-		
-		auto rules = GetApplicationRules();
-		
-		while (true)
-		{
-			for (u32 i = 1;; ++i)
-			{
-				const tchar* app = rules[i].app;
-				if (!app)
-					break;
-				if (!exeName.Equals(app))
-					continue;
-				m_rulesIndex = i;
-				return;
-			}
-
-			if (!exeName.Equals(TC("dotnet.exe")))
-				return;
-			
-			u32 firstArgumentStart = 0;
-			u32 firstArgumentEnd = 0;
-			bool quoted = false;
-			for (u32 i = 0, e = u32(m_arguments.size()); i != e; ++i)
-			{
-				tchar c = m_arguments[i];
-				if (firstArgumentEnd)
-				{
-					if (c == '\\')
-						firstArgumentStart = i + 1;
-					if ((quoted && c != '"') || (!quoted && c != ' ' && c != '\t'))
-						continue;
-					firstArgumentEnd = i;
-					break;
-				}
-				else
-				{
-					if (c == ' ' || c == '\t')
-					{
-						++firstArgumentStart;
-						continue;
-					}
-					if (c == '"')
-					{
-						++firstArgumentStart;
-						quoted = true;
-					}
-					firstArgumentEnd = firstArgumentStart + 1;
-				}
-			}
-			exeName.Clear().Append(m_arguments.data() + firstArgumentStart, firstArgumentEnd - firstArgumentStart);
-		}
-	}
-
 	bool ProcessImpl::WriteFilesToDisk()
 	{
 		Vector<WrittenFile*> files;
@@ -1141,7 +1076,20 @@ namespace uba
 				files.push_back(&kv.second);
 		}
 
-		return m_session.WriteFilesToDisk(*this, files.data(), u32(files.size()));
+		if (!m_session.WriteFilesToDisk(*this, files.data(), u32(files.size())))
+			return false;
+
+		if (m_startInfo.trackInputs)
+		{
+			u64 totalBytes = 0;
+			for (auto& kv : m_writtenFiles)
+				totalBytes += GetStringWriteSize(kv.second.name.c_str());
+			m_trackedOutputs.resize(totalBytes);
+			BinaryWriter writer(m_trackedOutputs.data(), 0, totalBytes);
+			for (auto& kv : m_writtenFiles)
+				writer.WriteString(kv.second.name);
+		}
+		return true;
 	}
 
 	const tchar* ProcessImpl::InternalGetChildLogFile(StringBufferBase& temp)
@@ -1235,7 +1183,7 @@ namespace uba
 				return ProcessCancelExitCode;
 			}
 
-			bool isDetachedProcess = GetApplicationRules()[m_rulesIndex].rules->AllowDetach() && m_detourEnabled;
+			bool isDetachedProcess = m_startInfo.rules->AllowDetach() && m_detourEnabled;
 
 			HANDLE hJob = CreateJobObject(nullptr, nullptr);
 			JOBOBJECT_EXTENDED_LIMIT_INFORMATION info = { };
@@ -1387,12 +1335,12 @@ namespace uba
 			payload.readEvent = m_readEvent.GetHandle();
 			payload.communicationHandle = communicationHandle.handle;
 			payload.communicationOffset = communicationOffset;
-			payload.rulesIndex = m_rulesIndex;
+			payload.rulesIndex = m_startInfo.rules->index;
 			payload.version = ProcessMessageVersion;
 			payload.runningRemote = runningRemote;
 			payload.isChild = m_parentProcess != nullptr;
 			payload.trackInputs = m_startInfo.trackInputs;
-			payload.useCustomAllocator = m_startInfo.useCustomAllocator && GetApplicationRules()[m_rulesIndex].rules->AllowMiMalloc();
+			payload.useCustomAllocator = m_startInfo.useCustomAllocator && m_startInfo.rules->AllowMiMalloc();
 			payload.isRunningWine = IsRunningWine();
 			payload.storeObjFilesCompressed = m_session.m_storeObjFilesCompressed;
 			payload.uiLanguage = m_startInfo.uiLanguage;
@@ -1560,7 +1508,7 @@ namespace uba
 
 				comIdVar.Append("UBA_COMID=").AppendValue(communicationHandle.uid).Append('+').AppendValue(communicationOffset);
 				workingDir.Append("UBA_CWD=").Append(m_realWorkingDir);
-				rulesStr.Append("UBA_RULES=").AppendValue(m_rulesIndex);
+				rulesStr.Append("UBA_RULES=").AppendValue(m_startInfo.rules->index);
 
 				if (*m_startInfo.logFile)
 				{

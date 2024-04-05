@@ -11,6 +11,7 @@ namespace uba
 	{
 		StorageServerCreateInfo(NetworkServer& s, const tchar* rootDir_, LogWriter& writer) : StorageCreateInfo(rootDir_, writer), server(s) { workManager = &server; }
 		NetworkServer& server;
+		bool writeRecievedCasFilesToDisk = false;
 		const tchar* zone = TC("");
 	};
 
@@ -61,6 +62,7 @@ namespace uba
 		{
 			u32 clientId = ~0u;
 			MappedView mappedView;
+			FileAccessor* fileAccessor = nullptr;
 			CasEntry* casEntry = nullptr;
 			Atomic<u64> totalWritten;
 			Atomic<u64> recvCasTime;
@@ -133,5 +135,7 @@ namespace uba
 		Trace* m_trace = nullptr;
 
 		Vector<TString> m_disallowedPaths;
+
+		bool m_writeRecievedCasFilesToDisk;
 	};
 }

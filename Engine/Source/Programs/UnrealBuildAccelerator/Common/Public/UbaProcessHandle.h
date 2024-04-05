@@ -21,6 +21,11 @@ namespace uba
 		LogEntryType type = LogEntryType_Info;
 	};
 
+	enum ProcessExecutionType : u8
+	{
+		ProcessExecutionType_Native,
+		ProcessExecutionType_Detoured,
+	};
 
 	class ProcessHandle
 	{
@@ -38,7 +43,7 @@ namespace uba
 		void Cancel(bool terminate) const;					// Request to cancel process. Set terminate to true to quickly kill process
 		const tchar* GetExecutingHost() const;				// Host that is executing process.
 		bool IsRemote() const;								// Returns true if process is a remote process
-		bool IsDetoured() const;							// Returns true if process is detoured
+		ProcessExecutionType GetExecutionType() const;		// Returns execution type
 
 		ProcessHandle();
 		ProcessHandle(const ProcessHandle& o);

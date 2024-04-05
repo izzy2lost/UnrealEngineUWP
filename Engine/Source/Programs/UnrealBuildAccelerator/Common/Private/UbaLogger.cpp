@@ -303,7 +303,9 @@ namespace uba
 
 	BytesToText::BytesToText(u64 bytes)
 	{
-		if (bytes < 1000 * 1000)
+		if (bytes < 1000)
+			TSprintf_s(str, 32, TC("%ub"), u32(bytes));
+		else if (bytes < 1000 * 1000)
 			TSprintf_s(str, 32, TC("%.1fkb"), double(bytes) / 1000ull);
 		else if (bytes < 1000ull * 1000 * 1000)
 			TSprintf_s(str, 32, TC("%.1fmb"), double(bytes) / (1000ull * 1000));

@@ -434,7 +434,7 @@ namespace uba
 			if (m_useStorage || memoryMapAlignment == 0)
 			{
 				bool storeUncompressed = memoryMapAlignment == 0;
-				bool allowProxy = GetApplicationRules()[msg.process.m_rulesIndex].rules->AllowStorageProxy(fileName);
+				bool allowProxy = msg.process.m_startInfo.rules->AllowStorageProxy(fileName);
 				if (!RetrieveCasFile(newCasKey, fileSize, casKey, fileName.data, storeUncompressed, allowProxy))
 					return m_logger.Error(TC("Error retrieving cas entry %s (%s)"), CasKeyString(casKey).str, fileName.data);
 
@@ -475,7 +475,7 @@ namespace uba
 					casKey = AsCompressed(casKey, false);
 					entry.handled = true;
 					Storage::RetrieveResult result;
-					bool allowProxy = GetApplicationRules()[msg.process.m_rulesIndex].rules->AllowStorageProxy(fileName);
+					bool allowProxy = msg.process.m_startInfo.rules->AllowStorageProxy(fileName);
 					if (!m_storage.RetrieveCasFile(result, casKey, fileName.data, &m_fileMappingBuffer, memoryMapAlignment, allowProxy))
 						return m_logger.Error(TC("Error retrieving cas entry %s (%s)"), CasKeyString(casKey).str, fileName.data);
 					entry.success = true;
@@ -1229,6 +1229,38 @@ namespace uba
 			return;
 	}
 
+	bool SessionClient::SendProcessInputs(ProcessImpl& process)
+	{
+		StackBinaryWriter<SendMaxSize> writer;
+		NetworkMessage msg(m_client, ServiceId, SessionMessageType_ProcessInputs, writer);
+		writer.WriteU32(process.m_id);
+		auto inputs = process.GetTrackedInputs();
+		writer.WriteBytes(inputs.data(), inputs.size());
+		StackBinaryReader<32> reader;
+		return msg.Send(reader);
+	}
+
+	bool SessionClient::SendProcessFinished(ProcessImpl& process, u32 exitCode)
+	{
+		StackBinaryWriter<SendMaxSize> writer;
+		NetworkMessage msg(m_client, ServiceId, SessionMessageType_ProcessFinished, writer);
+		writer.WriteU32(process.m_id);
+		writer.WriteU32(exitCode);
+		writer.WriteU32(CountLogLines(process));
+		WriteLogLines(writer, process);
+
+		// Must be written last
+		process.m_processStats.Write(writer);
+		process.m_sessionStats.Write(writer);
+		process.m_storageStats.Write(writer);
+		process.m_systemStats.Write(writer);
+
+		StackBinaryReader<16> reader;
+		if (!msg.Send(reader, m_stats.procFinishedMsg) && m_loop)
+			return m_logger.Error(TC("Failed to send ProcessFinished message!"));
+		return true;
+	}
+
 	bool SessionClient::SendUpdateDirectoryTable(StackBinaryReader<SendMaxSize>& reader)
 	{
 		UBA_ASSERT(reader.GetPosition() == 0);
@@ -1503,6 +1535,7 @@ namespace uba
 					startInfo.priorityClass = m_defaultPriorityClass;
 					startInfo.useCustomAllocator = !m_disableCustomAllocator;
 					startInfo.outputStatsThresholdMs = m_outputStatsThresholdMs != 0 ? m_outputStatsThresholdMs : startInfo.outputStatsThresholdMs;
+					startInfo.rules = GetRules(startInfo);
 
 					StringBuffer<> logFile;
 					if (m_logToFile)
@@ -1617,22 +1650,10 @@ namespace uba
 							return;
 						}
 
-						StackBinaryWriter<SendMaxSize> writer;
-						NetworkMessage msg(session.m_client, ServiceId, SessionMessageType_ProcessFinished, writer);
-						writer.WriteU32(process.m_id);
-						writer.WriteU32(exitCode);
-						writer.WriteU32(session.CountLogLines(process));
-						session.WriteLogLines(writer, process);
+						if (startInfo.trackInputs)
+							session.SendProcessInputs(process);
 
-						// Must be written last
-						process.m_processStats.Write(writer);
-						process.m_sessionStats.Write(writer);
-						process.m_storageStats.Write(writer);
-						process.m_systemStats.Write(writer);
-
-						StackBinaryReader<16> reader;
-						if (!msg.Send(reader, session.m_stats.procFinishedMsg) && session.m_loop)
-							session.m_logger.Error(TC("Failed to send ProcessFinished message!"));
+						session.SendProcessFinished(process, exitCode);
 
 						// TODO: These should be removed and instead added in TraceReader (so it will update over time)
 						session.m_stats.stats.Add(process.m_sessionStats);
