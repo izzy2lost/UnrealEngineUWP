@@ -4282,6 +4282,15 @@ bool GameProjectUtils::InsertFeaturePacksIntoINIFile(const FProjectInformation& 
 			FileOutput += PackList[iLine] + LINE_TERMINATOR;
 		}
 
+		// Register 'StartupActions' as a section to save if one of the default value of its entries
+		// is modified. Otherwise, the mechanism which set 'bAddPacks' to 'False' after the
+		// first load will not be persisted and the selected pack files will be loaded on each launch of the editor.
+		FileOutput += LINE_TERMINATOR;
+		FileOutput += TEXT("[SectionsToSave]");
+		FileOutput += LINE_TERMINATOR;
+		FileOutput += TEXT("+Section=StartupActions");
+		FileOutput += LINE_TERMINATOR;
+
 		if (!FFileHelper::SaveStringToFile(FileOutput, *IniFilename))
 		{
 			OutFailReason = LOCTEXT("FailedToWriteIni", "Could not write INI file to insert feature packs");
