@@ -25,7 +25,7 @@ public:
 	virtual bool IsAsset() const override;
 	virtual void PostEditUndo() override;
 	
-	const UObject* GetOriginalObject() const { FSoftObjectPtr ObjPtr(OriginalObject); return ObjPtr.Get(); }
+	const UObject* GetOriginalObject() const { return OriginalObject.Get(); }
 	const FString& GetDisplayName() const { return DisplayName; }
 	const FExternalDataLayerUID GetExternalDataLayerUID() const { return FExternalDataLayerUID(ExternalDataLayerUID); }
 
@@ -50,6 +50,6 @@ private:
 
 	/** Original object that is replaced by the placeholder */
 	UPROPERTY()
-	FSoftObjectPath OriginalObject;
+	TWeakObjectPtr<const UObject> OriginalObject;
 #endif
 };
