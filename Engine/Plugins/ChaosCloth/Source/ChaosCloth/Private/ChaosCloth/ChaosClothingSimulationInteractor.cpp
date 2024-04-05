@@ -60,6 +60,15 @@ void UChaosClothingInteractor::SetMaterial(FVector2D EdgeStiffness, FVector2D Be
 	}));
 }
 
+void UChaosClothingInteractor::SetMaterialBuckling(FVector2D BucklingRatio, FVector2D BucklingStiffness)
+{
+	ConfigCommands.Add(FChaosClothingInteractorConfigCommand::CreateLambda([BucklingRatio, BucklingStiffness](Chaos::FClothingSimulationConfig* Config, int32 LODIndex)
+	{
+		Config->GetProperties(LODIndex).SetValue(TEXT("BucklingRatio"), (float)BucklingRatio[0]);  // TODO: Make BuckingRatio weighted
+		Config->GetProperties(LODIndex).SetWeightedFloatValue(TEXT("BucklingStiffness"), FVector2f(BucklingStiffness));
+	}));
+}
+
 void UChaosClothingInteractor::SetLongRangeAttachmentLinear(float TetherStiffnessLinear, float TetherScale)
 {
 	// Deprecated

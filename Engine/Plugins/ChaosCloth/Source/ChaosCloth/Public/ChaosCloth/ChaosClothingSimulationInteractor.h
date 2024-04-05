@@ -32,6 +32,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category = ClothingSimulation, Meta = (Keywords = "Chaos Edge Bending Area Stiffness"))
 	CHAOSCLOTH_API void SetMaterial(FVector2D EdgeStiffness = FVector2D(1.f, 1.f), FVector2D BendingStiffness = FVector2D(1.f, 1.f), FVector2D AreaStiffness = FVector2D(1.f, 1.f));
 
+	UFUNCTION(BlueprintCallable, Category = ClothingSimulation, Meta = (Keywords = "Chaos Bending Element Buckling Stiffness Ratio"))
+	CHAOSCLOTH_API void SetMaterialBuckling(FVector2D BucklingRatio = FVector2D(0.f, 0.f), FVector2D BucklingStiffness = FVector2D(1.f, 1.f));
+
 	UFUNCTION(BlueprintCallable, Category = ClothingSimulation, Meta = (Keywords = "Chaos Tether Stiffness Scale"))
 	CHAOSCLOTH_API void SetLongRangeAttachmentLinear(float TetherStiffness = 1.f, float TetherScale = 1.f);
 
