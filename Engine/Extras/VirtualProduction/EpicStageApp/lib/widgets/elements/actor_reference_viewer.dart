@@ -95,10 +95,6 @@ class _UnrealActorDisplayState extends State<UnrealActorReferenceViewer>
 
   @override
   void handleOnPropertiesChanged() {
-    setState(() {
-      _actorName = '';
-    });
-
     _updateDisplayName();
   }
 
