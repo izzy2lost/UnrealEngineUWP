@@ -10,12 +10,6 @@
 
 class USkeletalMesh;
 
-UENUM()
-enum EDF_ConversionMethod : int
-{
-	Skinned				UMETA(DisplayName = "Skinned"),
-	StaticComponents	UMETA(DisplayName = "Static Components"),
-};
 
 USTRUCT(meta = (DataflowGeometryCollection))
 struct FSkeletalMeshToCollectionDataflowNode : public FDataflowNode
@@ -26,9 +20,6 @@ struct FSkeletalMeshToCollectionDataflowNode : public FDataflowNode
 
 public:
 	typedef FManagedArrayCollection DataType;
-
-	UPROPERTY(EditAnywhere, Category = "Dataflow")
-	TEnumAsByte<EDF_ConversionMethod> Method = EDF_ConversionMethod::StaticComponents;
 
 	UPROPERTY(EditAnywhere, Category = "Dataflow", meta = (DataflowInput, DisplayName = "SkeletalMesh"))
 	TObjectPtr<const USkeletalMesh> SkeletalMesh = nullptr;
@@ -44,9 +35,5 @@ public:
 	}
 
 	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
-
-private:
-	void AppendSkeletalMeshComponentsToGeometryCollection(const USkeletalMesh* InSkeletalMesh, FGeometryCollection& OutCollection) const;
-
 };
 

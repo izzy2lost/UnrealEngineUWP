@@ -1329,13 +1329,19 @@ bool FGeometryCollectionEngineConversion::AppendSkeletalMesh(const USkeletalMesh
 							TargetVertexVisited[TargetVertexIndex] = true;
 
 							//colors
-							Color[TargetVertexIndex] = FLinearColor::White;
+							Color[TargetVertexIndex] = DefaultColor;
 							if (ColorOverlay)
 							{
-								FVertexInstanceID SourceInstanceID = MeshDescription.GetTriangleVertexInstance(SourceTriangleIndex, k);
-								FVector4f InstColor = InstanceColors.Get(SourceInstanceID);
-								UE::Geometry::LinearColors::SRGBToLinear(InstColor);
-								//Color[TargetVertexIndex] = InstColor;
+								// k : 0 -> 2
+								// SourceTriangleIndex is a TriangleID from the DynamicMesh
+								// TargetVertexIndex is the index for the vertex in the GeometryCollection
+								int32 SourceInstanceID = ColorOverlay->GetTriangle(SourceTriangleIndex)[k];
+								if (ColorOverlay->IsElement(SourceInstanceID))
+								{
+									FVector4f InstColor = ColorOverlay->GetElement(SourceInstanceID);
+									UE::Geometry::LinearColors::SRGBToLinear(InstColor);
+									//Color[TargetVertexIndex] = FLinearColor(InstColor);
+								}
 							}
 
 							// @todo(GeometryCollectionConversion) : Add support for UV's, Normals  

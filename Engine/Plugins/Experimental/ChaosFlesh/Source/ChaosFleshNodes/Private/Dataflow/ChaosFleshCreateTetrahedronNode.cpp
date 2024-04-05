@@ -41,6 +41,7 @@ void FCreateTetrahedronDataflowNode::Evaluate(Dataflow::FContext& Context, const
 {
 	if (Out->IsA<DataType>(&Collection))
 	{
+		FFleshCollection GeneratedTetrahedron;
 		TUniquePtr<FFleshCollection> InCollection(GetValue<DataType>(Context, &Collection).NewCopy<FFleshCollection>());
 
 		// TransformGroup
@@ -49,7 +50,7 @@ void FCreateTetrahedronDataflowNode::Evaluate(Dataflow::FContext& Context, const
 		TManagedArray<int32>* TransformToGeometryIndex = InCollection->FindAttribute<int32>("TransformToGeometryIndex", FTransformCollection::TransformGroup);
 		// Geometry Group
 		int32 NumGeometry = InCollection->NumElements(FGeometryCollection::GeometryGroup);
-		TManagedArray<int32>* GroupTransformIndex = InCollection->FindAttribute<int32>("TransformIndex", FGeometryCollection::GeometryGroup);
+		TManagedArray<int32>* GroupToTransformIndex = InCollection->FindAttribute<int32>("TransformIndex", FGeometryCollection::GeometryGroup);
 		TManagedArray<int32>* VertexCount = InCollection->FindAttribute<int32>("VertexCount", FGeometryCollection::GeometryGroup);
 		TManagedArray<int32>* VertexStart = InCollection->FindAttribute<int32>("VertexStart", FGeometryCollection::GeometryGroup);
 		TManagedArray<int32>* FaceCount = InCollection->FindAttribute<int32>("FaceCount", FGeometryCollection::GeometryGroup);
@@ -61,7 +62,7 @@ void FCreateTetrahedronDataflowNode::Evaluate(Dataflow::FContext& Context, const
 		int32 NumTriangles = InCollection->NumElements(FGeometryCollection::FacesGroup);
 		const TManagedArray<FIntVector>* Faces = InCollection->FindAttribute<FIntVector>("Indices", FGeometryCollection::FacesGroup);
 
-		if (TransformName && TransformToGeometryIndex && GroupTransformIndex && VertexCount && VertexStart && FaceCount && FaceStart
+		if (TransformName && TransformToGeometryIndex && GroupToTransformIndex && VertexCount && VertexStart && FaceCount && FaceStart
 			&& Vertex && Faces)
 		{
 			TArray<int32> ProcessGeometryIndices = Dataflow::GetMatchingMeshIndices(MeshNames, InCollection.Get());
@@ -104,27 +105,49 @@ void FCreateTetrahedronDataflowNode::Evaluate(Dataflow::FContext& Context, const
 					if (VertexToDeleteSet.Num()) TetCollection.RemoveElements(FGeometryCollection::VerticesGroup, SortedVertices);
 				}
 			});
-			for (int32 Gdx = 0; Gdx < NumGeometry; Gdx++)
+
+			auto AppendProcessedGeometry = [&ProcessGeometryIndices, &CollectionBuffer, &InCollection](FFleshCollection& ToCollection)
 			{
-				if (CollectionBuffer[Gdx])
+				TManagedArray<int32>* SourceGroupToTransformIndex = InCollection->FindAttribute<int32>("TransformIndex", FGeometryCollection::GeometryGroup);
+				TManagedArray<FString>* SourceTransformName = InCollection->FindAttribute<FString>("BoneName", FTransformCollection::TransformGroup);
+				TManagedArray<int32>* ToGroupToTransformIndex = ToCollection.FindAttribute<int32>("TransformIndex", FGeometryCollection::GeometryGroup);
+				TManagedArray<FString>* ToTransformName = ToCollection.FindAttribute<FString>("BoneName", FTransformCollection::TransformGroup);
+
+				if (SourceGroupToTransformIndex && SourceTransformName && ToGroupToTransformIndex && ToTransformName)
 				{
-					int32 GeomIndex = InCollection->AppendGeometry(*CollectionBuffer[Gdx]);
-					FString ParentName = FString::Printf(TEXT("%d"), GeomIndex);
-					if (0 <= (*GroupTransformIndex)[Gdx]
-						&& (*GroupTransformIndex)[Gdx] < InCollection->NumElements(FGeometryCollection::GeometryGroup)
-						&& !(*TransformName)[(*GroupTransformIndex)[Gdx]].IsEmpty())
+					for (int32 Sdx = 0; Sdx < ProcessGeometryIndices.Num(); Sdx++)
 					{
-						ParentName = (*TransformName)[(*GroupTransformIndex)[Gdx]];
-					}
-					if (0 <= (*GroupTransformIndex)[GeomIndex]
-						&& (*GroupTransformIndex)[GeomIndex] < InCollection->NumElements(FGeometryCollection::GeometryGroup))
-					{
-						(*TransformName)[(*GroupTransformIndex)[GeomIndex]] = FString::Printf(TEXT("%s_TET"), *ParentName);
+						int32 Gdx = ProcessGeometryIndices[Sdx];
+						if (CollectionBuffer[Gdx])
+						{
+							int32 GeomIndex = ToCollection.NumElements(FGeometryCollection::GeometryGroup);
+							ToCollection.AppendGeometry(*CollectionBuffer[Gdx]);
+							// source data
+							int32 SourceNumTransforms = InCollection->NumElements(FGeometryCollection::TransformGroup);
+							int32 SourceTransformIndex = (*SourceGroupToTransformIndex)[Gdx];
+							// target data
+							int32 ToNumTransforms = ToCollection.NumElements(FGeometryCollection::TransformGroup);
+							int32 ToGeomTransformIndex = (*ToGroupToTransformIndex)[GeomIndex];
+
+							FString TetName = FString::Printf(TEXT("%d_TET"), GeomIndex);
+							if (0 <= SourceTransformIndex && SourceTransformIndex < SourceNumTransforms)
+							{
+								if (!(*SourceTransformName)[SourceTransformIndex].IsEmpty())
+								{
+									TetName = FString::Printf(TEXT("%s_%s"), *(*SourceTransformName)[SourceTransformIndex], *TetName);
+								}
+							}
+							if (0 <= ToGeomTransformIndex && ToGeomTransformIndex < ToNumTransforms)
+							{
+								(*ToTransformName)[ToGeomTransformIndex] = TetName;
+							}
+						}
 					}
 				}
-			}
+			};
+			AppendProcessedGeometry(GeneratedTetrahedron);
 		}
-		SetValue<const DataType&>(Context, *InCollection, &Collection);
+		SetValue<const DataType&>(Context, MoveTemp(GeneratedTetrahedron), &Collection);
 	}
 }
 
