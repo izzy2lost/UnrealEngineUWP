@@ -4209,7 +4209,10 @@ FSpawnableRestoreState::~FSpawnableRestoreState()
 				{
 					if (UMovieSceneSpawnableBindingBase* SpawnableBinding = BindingReference.CustomBinding->AsSpawnable(SharedPlaybackStateToUse.ToSharedRef()))
 					{
-						SpawnableBinding->SpawnOwnership = SpawnOwnershipMap[BindingReference.ID];
+						if (ESpawnOwnership* SpawnOwnership = SpawnOwnershipMap.Find(BindingReference.ID))
+						{
+							SpawnableBinding->SpawnOwnership = *SpawnOwnership;
+						}
 					}
 				}
 			}
