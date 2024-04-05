@@ -329,19 +329,25 @@ FArchive& operator<<(FArchive& Ar, FSharedBuffer& Buffer)
 
 	if (Ar.IsLoading())
 	{
+		Buffer.Reset();
+
 		int64 BufferLength;
 		Ar << BufferLength;
 
 		if (BufferLength >= 0)
 		{
-			FUniqueBuffer MutableBuffer = FUniqueBuffer::Alloc(BufferLength);
-			Ar.Serialize(MutableBuffer.GetData(), BufferLength);
+			if (const int64 SpaceRemaining = Ar.TotalSize() - Ar.Tell(); SpaceRemaining >= BufferLength)
+			{
+				FUniqueBuffer MutableBuffer = FUniqueBuffer::Alloc(BufferLength);
+				Ar.Serialize(MutableBuffer.GetData(), BufferLength);
 
-			Buffer = MutableBuffer.MoveToShared();
-		}
-		else
-		{
-			Buffer.Reset();
+				Buffer = MutableBuffer.MoveToShared();
+			}
+			else
+			{
+				Ar.SetError();
+				UE_LOG(LogSerialization, Error, TEXT("Not enough data remaining in archive (%s) to load the payload. Bytes required: %lld vs bytes remaining %lld"), *Ar.GetArchiveName(), BufferLength, SpaceRemaining);
+			}
 		}
 	}
 	else if (Ar.IsSaving())
@@ -1517,15 +1523,24 @@ bool FEditorBulkData::SerializeData(FArchive& Ar, FCompressedBuffer& InPayload, 
 	{
 		// Loading from old bulkdata format
 		const int64 Size = GetPayloadSize();
-		FUniqueBuffer LoadPayload = FUniqueBuffer::Alloc(Size);
 
+		FUniqueBuffer LoadPayload;
 		if (EnumHasAnyFlags(PayloadFlags, EFlags::LegacyFileIsCompressed))
 		{
+			LoadPayload = FUniqueBuffer::Alloc(Size);
 			Ar.SerializeCompressed(LoadPayload.GetData(), Size, NAME_Zlib, COMPRESS_NoFlags, false);
+		}
+		else if(const int64 SpaceRemaining = Ar.TotalSize() - Ar.Tell(); SpaceRemaining >= Size)
+		{
+			LoadPayload = FUniqueBuffer::Alloc(Size);
+			Ar.Serialize(LoadPayload.GetData(), Size);
 		}
 		else
 		{
-			Ar.Serialize(LoadPayload.GetData(), Size);
+			Ar.SetError();
+			UE_LOG(LogSerialization, Error, TEXT("Not enough data remaining in archive (%s) to load the payload. Bytes required: %lld vs bytes remaining %lld"), *Ar.GetArchiveName(), Size, SpaceRemaining);
+
+			return false;
 		}
 
 		InPayload = FCompressedBuffer::Compress(LoadPayload.MoveToShared(), ECompressedBufferCompressor::NotSet, ECompressedBufferCompressionLevel::None);
