@@ -20,6 +20,7 @@ struct CHOOSER_API FObjectContextProperty : public FChooserParameterObjectBase
 	FChooserObjectPropertyBinding Binding;
 
 	virtual bool GetValue(FChooserEvaluationContext& Context, FSoftObjectPath& OutResult) const override;
+	virtual bool SetValue(FChooserEvaluationContext& Context, UObject* OutResult) const override;
 
 	CHOOSER_PARAMETER_BOILERPLATE();
 

@@ -18,6 +18,7 @@
 #include "MultiEnumColumnEditor.h"
 #include "ObjectColumnEditor.h"
 #include "OutputFloatColumnEditor.h"
+#include "OutputObjectColumnEditor.h"
 #include "OutputStructColumnEditor.h"
 #include "PropertyAccessChainCustomization.h"
 #include "PropertyEditorModule.h"
@@ -43,6 +44,7 @@ void FModule::StartupModule()
 	RegisterEnumWidgets();
 	RegisterMultiEnumWidgets();
 	RegisterObjectWidgets();
+	RegisterOutputObjectWidgets();
 	RegisterStructWidgets();
 	RegisterRandomizeWidgets();
 	
