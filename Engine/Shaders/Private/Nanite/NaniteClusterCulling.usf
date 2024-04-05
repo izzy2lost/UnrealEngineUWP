@@ -175,6 +175,23 @@ void TransformNodeCullingBounds(
 	const bool bEnableWPO = (CullingFlags & NANITE_CULLING_FLAG_ENABLE_WPO) != 0u;
 	const float3 LocalWPOExtent = GetLocalMaxWPOExtent(PrimitiveData, InstanceData, bEnableWPO);
 	Bounds.BoxExtent += LocalWPOExtent + GetAbsMaxMaterialDisplacement(PrimitiveData);
+
+	if ((PrimitiveData.Flags & PRIMITIVE_SCENE_DATA_FLAG_SKINNED_MESH) != 0)
+	{
+		// TODO: Nanite-Skinning - Fun hack to temporarily "fix" broken cluster culling and VSM
+		// Set the cluster bounds for skinned meshes equal to the skinned instance local bounds
+		// for clusters and also node hierarchy slices. This satisfies the constraint that all
+		// clusters in a node hierarchy have bounds fully enclosed in the parent bounds (monotonic).
+
+		// Note: We do not touch the bounding sphere in Bounds because that would break actual
+		// LOD decimation of the Nanite mesh. Instead we leave these in the offline computed ref-pose
+		// so that we get reasonable "small enough to draw" calculations driving the actual LOD.
+
+		// This is not a proper solution, as it hurts culling rate, and also causes VSM to touch far
+		// more pages than necessary. But it's decent in the short term during R&D on a proper calculation.
+		Bounds.BoxExtent = InstanceData.LocalBoundsExtent;
+		Bounds.BoxCenter = InstanceData.LocalBoundsCenter;
+	}
 }
 
 // Get the area of an "inclusive" rect (which means that the max is inside the rect), also guards against negative area (where min > max)
