@@ -1,7 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Dataflow/ChaosFleshImportGEO.h"
-#include "Dataflow/ChaosFleshTetrahedralNodes.h" // for GetSurfaceTriangles()
+#include "Dataflow/ChaosFleshNodesUtility.h"
 #include "ChaosFlesh/TetrahedralCollection.h"
 #include "ChaosFlesh/FleshCollection.h"
 

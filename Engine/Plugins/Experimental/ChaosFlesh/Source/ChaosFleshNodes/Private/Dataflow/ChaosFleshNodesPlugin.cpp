@@ -5,6 +5,7 @@
 
 #include "Dataflow/ChaosFleshBindingsNodes.h"
 #include "Dataflow/ChaosFleshCoreNodes.h"
+#include "Dataflow/ChaosFleshCreateTetrahedronNode.h"
 #include "Dataflow/ChaosFleshEngineAssetNodes.h"
 #include "Dataflow/ChaosFleshFiberDirectionInitializationNodes.h"
 #include "Dataflow/ChaosFleshImportGEO.h"
@@ -32,6 +33,7 @@ void IChaosFleshNodesPlugin::StartupModule()
 	Dataflow::ChaosFleshSkeletalBindingsNode();
 	Dataflow::ChaosFleshRadialTetrahedronNodes();
 	Dataflow::RegisterChaosFleshImportGEONodes();
+	DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FCreateTetrahedronDataflowNode);
 }
 
 void IChaosFleshNodesPlugin::ShutdownModule()

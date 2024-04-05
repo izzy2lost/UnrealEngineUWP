@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "Dataflow/DataflowEngine.h"
 #include "GeometryCollection/ManagedArrayCollection.h"
+#include "Dataflow/ChaosFleshNodesUtility.h"
 
 #include "ChaosFleshTetrahedralNodes.generated.h"
 
@@ -74,12 +75,6 @@ public:
 };
 
 
-UENUM()
-enum TetMeshingMethod : int
-{
-	IsoStuffing		UMETA(DisplayName = "IsoStuffing"),
-	TetWild			UMETA(DisplayName = "TetWild"),
-};
 
 USTRUCT(meta = (DataflowFlesh))
 struct FGenerateTetrahedralCollectionDataflowNodes : public FDataflowNode
@@ -177,7 +172,6 @@ protected:
 
 namespace Dataflow
 {
-	TArray<FIntVector3> GetSurfaceTriangles(const TArray<FIntVector4>& Tets, const bool bKeepInterior);
 	void ChaosFleshTetrahedralNodes();
 
 
