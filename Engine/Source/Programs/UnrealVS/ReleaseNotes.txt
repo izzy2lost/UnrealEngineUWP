@@ -1,3 +1,6 @@
+1.84.4.0
+* Fixed a race condition at initialization time that would make Visual Studio unresponsive.
+
 1.84.3.9
 * Fixed issues with compile single file with profile. Did not work if selected project was a c# project. Should now also work with non-ue projects
 

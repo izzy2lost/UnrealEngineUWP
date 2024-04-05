@@ -222,6 +222,11 @@ namespace UnrealVS
 			Assumes.Present(DTE);
 			Logging.WriteLine("DTE version " + DTE.Version);
 
+			// We previously deferred getting the DTE2 object but there are some cases where it's not running yet, so try here
+			_DTE2 = await GetServiceAsync(typeof(SDTE)) as DTE2;
+			Assumes.Present(_DTE2);
+			Assumes.True(_DTE2.DTE == DTE);
+
 			//TextManager = await GetServiceAsync(typeof(VsTextManagerClass)) as IVsTextManager3;
 
 			var componentModel = (IComponentModel)GetGlobalService(typeof(SComponentModel));
