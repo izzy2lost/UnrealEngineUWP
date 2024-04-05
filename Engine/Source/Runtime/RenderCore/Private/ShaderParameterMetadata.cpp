@@ -483,7 +483,7 @@ void FShaderParametersMetadata::FMember::HashLayout(FMemoryHasherBlake3& Hasher)
 	Hasher.Serialize(const_cast<TCHAR*>(Name), FCString::Strlen(Name));
 	Hasher << NumElements;
 
-	const bool bIsRHIResource = IsShaderParameterTypeRHIResource(BaseType);
+	const bool bIsRHIResource = IsShaderParameterTypeReadOnlyRHIResource(BaseType);
 	const bool bIsRDGResource = IsRDGResourceReferenceShaderParameterType(BaseType);
 
 	if (BaseType == UBMT_INT32 ||
@@ -576,7 +576,7 @@ void FShaderParametersMetadata::InitializeLayout(FRHIUniformBufferLayoutInitiali
 		const TCHAR* ShaderType = CurrentMember.GetShaderType();
 
 		const bool bIsArray = ArraySize > 0;
-		const bool bIsRHIResource = IsShaderParameterTypeRHIResource(BaseType);
+		const bool bIsRHIResource = IsShaderParameterTypeReadOnlyRHIResource(BaseType);
 		const bool bIsRDGResource = IsRDGResourceReferenceShaderParameterType(BaseType);
 		const bool bIsVariableNativeType = CurrentMember.IsVariableNativeType();
 
@@ -823,7 +823,7 @@ void FShaderParametersMetadata::InitializeLayout(FRHIUniformBufferLayoutInitiali
 			MemberHash = HashCombine(MemberHash, FCrc::Strihash_DEPRECATED(CurrentMember.GetName()));
 			MemberHash = HashCombine(MemberHash, GetTypeHash(int32(CurrentMember.GetNumElements())));
 
-			const bool bIsRHIResource = IsShaderParameterTypeRHIResource(BaseType);
+			const bool bIsRHIResource = IsShaderParameterTypeReadOnlyRHIResource(BaseType);
 			const bool bIsRDGResource = IsRDGResourceReferenceShaderParameterType(BaseType);
 
 			if (BaseType == UBMT_INT32 ||
@@ -1083,7 +1083,7 @@ void FShaderParametersMetadata::FindMemberFromOffset(uint16 MemberOffset, const 
 			}
 		}
 		else if (NumElements > 0 && (
-			IsShaderParameterTypeRHIResource(BaseType) ||
+			IsShaderParameterTypeReadOnlyRHIResource(BaseType) ||
 			IsRDGResourceReferenceShaderParameterType(BaseType)))
 		{
 			uint16 ArrayStartOffset = Member.GetOffset();

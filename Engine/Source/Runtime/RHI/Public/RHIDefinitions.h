@@ -1346,14 +1346,20 @@ inline bool IsRDGResourceReferenceShaderParameterType(EUniformBufferBaseType Bas
 	return IsRDGTextureReferenceShaderParameterType(BaseType) || IsRDGBufferReferenceShaderParameterType(BaseType) || BaseType == UBMT_RDG_UNIFORM_BUFFER;
 }
 
-inline bool IsShaderParameterTypeRHIResource(EUniformBufferBaseType BaseType)
+inline bool IsShaderParameterTypeReadOnlyRHIResource(EUniformBufferBaseType BaseType)
 {
 	return
 		BaseType == UBMT_TEXTURE ||
 		BaseType == UBMT_SRV ||
 		BaseType == UBMT_SAMPLER ||
-		BaseType == UBMT_UAV ||
 		BaseType == UBMT_RESOURCE_COLLECTION;
+}
+
+inline bool IsShaderParameterTypeRHIResource(EUniformBufferBaseType BaseType)
+{
+	return
+		IsShaderParameterTypeReadOnlyRHIResource(BaseType) ||
+		BaseType == UBMT_UAV;
 }
 
 /** Returns whether the shader parameter type needs to be passdown to RHI through FRHIUniformBufferLayout when creating an uniform buffer. */
