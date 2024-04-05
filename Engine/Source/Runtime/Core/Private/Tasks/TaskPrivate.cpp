@@ -80,7 +80,7 @@ namespace UE::Tasks
 				return false;
 			}
 
-			if (IsCompleted() || Timeout)
+			if (IsCompleted() || Timeout.IsExpired())
 			{
 				return IsCompleted();
 			}
@@ -132,7 +132,7 @@ namespace UE::Tasks
 				return true;
 			}
 
-			if (Timeout)
+			if (Timeout.IsExpired())
 			{
 				return IsCompleted();
 			}
@@ -182,7 +182,7 @@ namespace UE::Tasks
 
 		bool FTaskBase::Wait(FTimeout Timeout)
 		{
-			if (IsCompleted() || Timeout)
+			if (IsCompleted() || Timeout.IsExpired())
 			{
 				return IsCompleted();
 			}
@@ -218,12 +218,12 @@ namespace UE::Tasks
 
 				// spin for a while with hope the task is getting completed right now, to avoid getting blocked by a pricey syscall
 				const uint32 MaxSpinCount = 40;
-				for (uint32 SpinCount = 0; SpinCount != MaxSpinCount && !IsCompleted() && !Timeout; ++SpinCount)
+				for (uint32 SpinCount = 0; SpinCount != MaxSpinCount && !IsCompleted() && !Timeout.IsExpired(); ++SpinCount)
 				{
 					FPlatformProcess::Yield(); // YieldThread() was much slower on some platforms with low core count and contention for CPU
 				}
 
-				if (IsCompleted() || Timeout)
+				if (IsCompleted() || Timeout.IsExpired())
 				{
 					return IsCompleted();
 				}

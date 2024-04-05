@@ -367,7 +367,7 @@ namespace UE::Tasks
 
 		for (auto& Task : Tasks)
 		{
-			if (Timeout || !Task.BusyWait(Timeout))
+			if (Timeout.IsExpired() || !Task.BusyWait(Timeout))
 			{
 				return false;
 			}

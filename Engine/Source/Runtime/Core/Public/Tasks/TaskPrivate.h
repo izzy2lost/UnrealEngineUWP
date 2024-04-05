@@ -973,7 +973,7 @@ protected:
 					bResult = false;  // do not stop here to let this thread to help in executing tasks as much as possible, as it's waiting for their completion anyway
 				}
 
-				if (Timeout)
+				if (Timeout.IsExpired())
 				{
 					return false;
 				}
