@@ -165,6 +165,16 @@ public:
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	/**
+	* Add a set of enhanced input user settings to the motion controller. This allows the motion controller to support
+	* Enhanced Input actions.
+	*
+	* @param InputConfig		The path to the enhanced user input settings asset
+	*
+	* @return			False if the input config can't be attached to the session, true otherwise
+	*/
+	virtual bool SetEnhancedInputUserSettings(TObjectPtr<class UEnhancedInputUserSettings> InputSettings = nullptr) { return true; };
+
+	/**
 	 * Add input mapping contexts to the motion controller. This allows the motion controller to support
 	 * Enhanced Input actions.
 	 *

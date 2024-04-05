@@ -17,6 +17,7 @@
 #include "InputAction.h"
 #include "InputMappingContext.h"
 #include "PlayerMappableInputConfig.h"
+#include "UserSettings/EnhancedInputUserSettings.h"
 #include "GenericPlatform/GenericPlatformInputDeviceMapper.h"
 #include "Engine/Engine.h"
 
@@ -404,7 +405,7 @@ bool FOpenXRInputPlugin::FOpenXRInput::BuildActions(XrSession Session)
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	// Attempt to load the default input config from the OpenXR input settings.
 	const UEnhancedInputDeveloperSettings* InputSettings = GetDefault<UEnhancedInputDeveloperSettings>();
-	if (InputSettings)
+	if (InputSettings && InputSettings->bEnableDefaultMappingContexts)
 	{
 		for (const auto& Context : InputSettings->DefaultMappingContexts)
 		{
@@ -1477,6 +1478,24 @@ bool FOpenXRInputPlugin::FOpenXRInput::SetPlayerMappableInputConfig(TObjectPtr<c
 	return AttachInputMappingContexts(MappingContexts);
 }
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+bool FOpenXRInputPlugin::FOpenXRInput::SetEnhancedInputUserSettings(TObjectPtr<class UEnhancedInputUserSettings> InputSettings)
+{
+	if (bActionsAttached)
+	{
+		UE_LOG(LogHMD, Error, TEXT("Attempted to attach a set of enhanced user input settings when actions are already attached for the current session."));
+
+		return false;
+	}
+
+	const TSet<TObjectPtr<const UInputMappingContext>>& MappingContexts = InputSettings->GetRegisteredInputMappingContexts();
+
+	for (const auto& Context : MappingContexts)
+	{
+		InputMappingContextToPriorityMap.Add(TStrongObjectPtr<const UInputMappingContext>(Context), 0);
+	}
+	return true;
+}
 
 bool FOpenXRInputPlugin::FOpenXRInput::AttachInputMappingContexts(const TSet<TObjectPtr<UInputMappingContext>>& MappingContexts)
 {
