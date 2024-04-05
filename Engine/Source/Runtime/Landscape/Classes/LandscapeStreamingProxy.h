@@ -47,6 +47,7 @@ public:
 	virtual bool GetReferencedContentObjects(TArray<UObject*>& Objects) const override;
 	virtual bool CanChangeIsSpatiallyLoadedFlag() const override { return AActor::CanChangeIsSpatiallyLoadedFlag(); }
 	virtual bool ShouldIncludeGridSizeInName(UWorld* InWorld, const FActorPartitionIdentifier& InIdentifier) const override;
+	virtual void GetActorDescProperties(FPropertyPairsMap& PropertyPairsMap) const override;
 #endif
 	//~ End UObject Interface
 

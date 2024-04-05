@@ -6320,6 +6320,20 @@ bool ALandscapeStreamingProxy::GetReferencedContentObjects(TArray<UObject*>& Obj
 	return true;
 }
 
+void ALandscapeStreamingProxy::GetActorDescProperties(FPropertyPairsMap& PropertyPairsMap) const
+{
+	Super::GetActorDescProperties(PropertyPairsMap);
+
+	for (URuntimeVirtualTexture* RuntimeVirtualTexture : RuntimeVirtualTextures)
+	{
+		if (RuntimeVirtualTexture)
+		{
+			PropertyPairsMap.AddProperty(UPrimitiveComponent::RVTActorDescProperty);
+			return;
+		}
+	}
+}
+
 bool ALandscapeStreamingProxy::ShouldIncludeGridSizeInName(UWorld* InWorld, const FActorPartitionIdentifier& InIdentifier) const
 {
 	// Always return true if this world setting flag is true
