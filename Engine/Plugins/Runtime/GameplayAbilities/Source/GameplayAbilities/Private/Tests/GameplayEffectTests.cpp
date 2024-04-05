@@ -488,7 +488,7 @@ public: // the tests
 				Test->TestEqual(TEXT("  OwnerTagCount"), DestComponent->GetTagCount(UE::GameplayTags::GameplayCue_Test), ExpectedOwnerTagCount);
 
 				// Now try to remove it
-				DestComponent->RemoveActiveGameplayEffect(ActiveGEHandle);
+				DestComponent->RemoveActiveGameplayEffect_NoReturn(ActiveGEHandle);
 
 				Test->TestFalse(TEXT("  IsGameplayCueActive (After RemoveActiveEffects)"), DestComponent->IsGameplayCueActive(UE::GameplayTags::GameplayCue_Test));
 				Test->TestEqual(TEXT("  OnRemove Calls"), GCNotify_Test_CDO->NumOnRemoveCalls, ExpectedOnRemove);
@@ -547,7 +547,7 @@ public: // the tests
 					for (int Index = 0; Index < ExpectedOnActive; ++Index)
 					{
 						Test->TestEqual(TEXT("  IsGameplayCueActive before RemoveActiveEffects Unstack"), DestComponent->IsGameplayCueActive(UE::GameplayTags::GameplayCue_Test), (ExpectedOnActive > 0));
-						DestComponent->RemoveActiveGameplayEffect(ActiveGEHandle, StacksToRemove);
+						DestComponent->RemoveActiveGameplayEffect_NoReturn(ActiveGEHandle, StacksToRemove);
 					}
 				}
 				else
