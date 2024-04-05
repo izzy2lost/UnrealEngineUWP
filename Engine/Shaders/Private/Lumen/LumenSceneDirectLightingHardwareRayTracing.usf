@@ -64,7 +64,6 @@ Buffer<int> VirtualShadowMapIds;
 
 uint MaxTraversalIterations;
 uint MeshSectionVisibilityTest;
-uint SurfaceCacheAlphaMasking;
 uint ViewIndex;
 
 uint LumenLightType;
@@ -167,8 +166,7 @@ LUMEN_HARDWARE_RAY_TRACING_ENTRY(LumenSceneDirectLightingHardwareRayTracing)
 						CoordInCardTile.x, // dummy coordinate
 						/*CullingMode*/ RAY_FLAG_CULL_FRONT_FACING_TRIANGLES,
 						MaxTraversalIterations,
-						MeshSectionVisibilityTest != 0,
-						SurfaceCacheAlphaMasking != 0);
+						MeshSectionVisibilityTest != 0);
 
 					// Shadows don't need closest hit distance
 					Context.bAcceptFirstHitAndEndSearch = true;
@@ -184,14 +182,11 @@ LUMEN_HARDWARE_RAY_TRACING_ENTRY(LumenSceneDirectLightingHardwareRayTracing)
 
 					#if ENABLE_FAR_FIELD_TRACING
 					{
-						Context.bSurfaceCacheAlphaMasking = false;
 						Context.FarFieldReferencePos = FarFieldReferencePos;
 						Context.FarFieldMaxTraceDistance = FarFieldTMax;
 						
 						FRayTracedLightingResult RayResult = TraceSurfaceCacheFarFieldRay(TLAS, Ray, Context);
 						bRayOccluded = IsRayOccluded(RayResult);
-
-						Context.bSurfaceCacheAlphaMasking = SurfaceCacheAlphaMasking != 0;
 					}
 					#endif
 

@@ -50,7 +50,6 @@ float TanRadiosityRayConeHalfAngle;
 uint MaxTraversalIterations;
 float MinTraceDistanceToSampleSurfaceCache;
 uint MeshSectionVisibilityTest;
-uint SurfaceCacheAlphaMasking;
 
 LUMEN_HARDWARE_RAY_TRACING_ENTRY(LumenRadiosityHardwareRayTracing)
 {	
@@ -108,8 +107,7 @@ LUMEN_HARDWARE_RAY_TRACING_ENTRY(LumenRadiosityHardwareRayTracing)
 					LinearCoord,
 					/*CullingMode*/ RAY_FLAG_CULL_BACK_FACING_TRIANGLES,
 					MaxTraversalIterations,
-					MeshSectionVisibilityTest != 0,
-					SurfaceCacheAlphaMasking != 0);
+					MeshSectionVisibilityTest != 0);
 
 				Context.MinTraceDistanceToSampleSurfaceCache = MinTraceDistanceToSampleSurfaceCache;
 

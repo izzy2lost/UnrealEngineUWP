@@ -25,6 +25,7 @@ namespace LumenHardwareRayTracing
 	bool IsRayGenSupported();
 	float GetFarFieldBias();
 	EAvoidSelfIntersectionsMode GetAvoidSelfIntersectionsMode();
+	bool UseSurfaceCacheAlphaMasking();
 }
 
 #if RHI_RAYTRACING
@@ -74,7 +75,6 @@ public:
 		SHADER_PARAMETER_STRUCT_INCLUDE(FLumenCardTracingParameters, TracingParameters)
 		SHADER_PARAMETER(uint32, MaxTraversalIterations)
 		SHADER_PARAMETER(uint32, MeshSectionVisibilityTest)
-		SHADER_PARAMETER(uint32, SurfaceCacheAlphaMasking)
 		SHADER_PARAMETER(float, MinTraceDistanceToSampleSurfaceCache)
 		SHADER_PARAMETER(float, SurfaceCacheSamplingDepthBias)
 

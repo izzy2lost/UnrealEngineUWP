@@ -3,7 +3,7 @@
 #pragma once
 
 // Change this to force recompilation of all Lumen HWRT shaders
-#pragma message("UESHADERMETADATA_VERSION F687D214-AF44-423E-84C1-BFA5DB4AEB1B")
+#pragma message("UESHADERMETADATA_VERSION AC87D214-C1AC-423E-84C1-BFA5DB4AEB1B")
 
 #define SUPPORT_CONTACT_SHADOWS 0
 #define USE_HAIR_LIGHTING 0
@@ -69,6 +69,11 @@ float3 CalcPrevTranslatedWorldPositionFromGPUSceneInstanceIndex(float3 Translate
 
 #ifndef AVOID_SELF_INTERSECTIONS_MODE
 	#define AVOID_SELF_INTERSECTIONS_MODE AVOID_SELF_INTERSECTIONS_MODE_DISABLED
+#endif
+
+// Whether to retrace ray if surface cache sample returns a transparent surface
+#ifndef SURFACE_CACHE_ALPHA_MASKING
+	#define SURFACE_CACHE_ALPHA_MASKING 0
 #endif
 
 // Helper macro to set common entry point for passes that have both inline (CS) and non-inline (RGS) version.
@@ -156,7 +161,6 @@ struct FRayTracedLightingContext
 	bool bCalculateHitVelocity;
 	bool bUseBookmark;
 	bool bMeshSectionVisibilityTest;
-	bool bSurfaceCacheAlphaMasking;
 };
 
 FRayTracedLightingContext CreateRayTracedLightingContext(
@@ -165,8 +169,7 @@ FRayTracedLightingContext CreateRayTracedLightingContext(
 	in uint LinearCoord,
 	in uint CullingMode,
 	uint MaxTraversalIterations,
-	bool bMeshSectionVisibilityTest,
-	bool bSurfaceCacheAlphaMasking)
+	bool bMeshSectionVisibilityTest)
 {
 	FRayTracedLightingContext Context;
 	Context.RayCone = RayCone;
@@ -191,7 +194,6 @@ FRayTracedLightingContext CreateRayTracedLightingContext(
 	Context.bCalculateHitVelocity = false;
 	Context.bUseBookmark = false;
 	Context.bMeshSectionVisibilityTest = bMeshSectionVisibilityTest;
-	Context.bSurfaceCacheAlphaMasking = bSurfaceCacheAlphaMasking;
 	return Context;
 }
 
@@ -409,7 +411,7 @@ FLumenMinimalRayResult TraceLumenMinimalRay(
 	RayFlags |= Context.bMeshSectionVisibilityTest ? 0 : RAY_FLAG_FORCE_OPAQUE;
 
 	// Alpha masking is done through a re-trace so need to sample surface cache if alpha masking is enabled
-	if (Context.bIsShadowRay && !Context.bSurfaceCacheAlphaMasking)
+	if (Context.bIsShadowRay && !SURFACE_CACHE_ALPHA_MASKING)
 	{
 		RayFlags |= RAY_FLAG_SKIP_CLOSEST_HIT_SHADER;
 	}
@@ -1048,15 +1050,15 @@ FRayTracedLightingResult TraceSurfaceCacheRay(
 	#endif
 
 	FSurfaceCacheSample SurfaceCacheSample = InitSurfaceCacheSample();
-	if (MinimalRayResult.bHit && MinimalRayResult.bCompleted && !(Context.bIsShadowRay && !Context.bSurfaceCacheAlphaMasking))
+	if (MinimalRayResult.bHit && MinimalRayResult.bCompleted && !(Context.bIsShadowRay && !SURFACE_CACHE_ALPHA_MASKING))
 	{
 		SurfaceCacheSample = SampleLumenMinimalRayHit(Ray, Context, MinimalRayResult);
 	}
 
-#if !RECURSIVE_REFRACTION_TRACES
+#if !RECURSIVE_REFRACTION_TRACES && SURFACE_CACHE_ALPHA_MASKING
 	// If we trace for translucent, then we want to consider all the surfaces and not do any Opacity based masking.
 	// If we trace only for opaque, we do a single re-trace when hit masked part of surface cache
-	if (MinimalRayResult.bHit && MinimalRayResult.bCompleted && Context.bSurfaceCacheAlphaMasking && SurfaceCacheSample.bValid && SurfaceCacheSample.Opacity < 0.5f)
+	if (MinimalRayResult.bHit && MinimalRayResult.bCompleted && SurfaceCacheSample.bValid && SurfaceCacheSample.Opacity < 0.5f)
 	{
 		Ray.TMin = MinimalRayResult.HitT + 0.01f;
 		MinimalRayResult = TraceLumenMinimalRay(TLAS, Ray, Context);

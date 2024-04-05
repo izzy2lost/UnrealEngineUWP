@@ -83,8 +83,7 @@ RAY_TRACING_ENTRY_RAYGEN_OR_INLINE(HardwareRayTraceLightSamples)
 			0, // dummy coordinate
 			/*CullingMode*/ RAY_FLAG_CULL_FRONT_FACING_TRIANGLES,
 			MaxTraversalIterations,
-			MeshSectionVisibilityTest != 0,
-			/*SurfaceCacheAlphaMasking*/ false);
+			MeshSectionVisibilityTest != 0);
 
 		// Shadows don't need closest hit distance
 		LightingContext.bAcceptFirstHitAndEndSearch = true;

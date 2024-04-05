@@ -63,7 +63,6 @@ float SkipFirstTwoSidedHitDistance;
 float MinTraceDistanceToSampleSurfaceCache;
 uint MaxTraversalIterations;
 uint MeshSectionVisibilityTest;
-uint SurfaceCacheAlphaMasking;
 
 LUMEN_HARDWARE_RAY_TRACING_ENTRY(LumenScreenProbeGatherHardwareRayTracing)
 {
@@ -118,8 +117,7 @@ LUMEN_HARDWARE_RAY_TRACING_ENTRY(LumenScreenProbeGatherHardwareRayTracing)
 			ScreenTileCoord.y * ScreenProbeViewSize.x + ScreenTileCoord.x,
 			/*CullingMode*/ RAY_FLAG_CULL_BACK_FACING_TRIANGLES,
 			MaxTraversalIterations,
-			MeshSectionVisibilityTest != 0,
-			SurfaceCacheAlphaMasking != 0);
+			MeshSectionVisibilityTest != 0);
 
 		Context.bCalculateHitVelocity = true;
 		Context.MinTraceDistanceToSampleSurfaceCache = MinTraceDistanceToSampleSurfaceCache;

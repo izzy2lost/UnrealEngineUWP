@@ -73,7 +73,8 @@ class FLumenRadianceCacheHardwareRayTracing : public FLumenHardwareRayTracingSha
 	DECLARE_LUMEN_RAYTRACING_SHADER(FLumenRadianceCacheHardwareRayTracing)
 
 	class FRayTracingPass : SHADER_PERMUTATION_ENUM_CLASS("RAY_TRACING_PASS", LumenRadianceCache::ERayTracingPass);
-	using FPermutationDomain = TShaderPermutationDomain<FLumenHardwareRayTracingShaderBase::FBasePermutationDomain, FRayTracingPass>;
+	class FSurfaceCacheAlphaMasking : SHADER_PERMUTATION_BOOL("SURFACE_CACHE_ALPHA_MASKING");
+	using FPermutationDomain = TShaderPermutationDomain<FLumenHardwareRayTracingShaderBase::FBasePermutationDomain, FRayTracingPass, FSurfaceCacheAlphaMasking>;
 
 	// Parameters
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
@@ -125,8 +126,24 @@ class FLumenRadianceCacheHardwareRayTracing : public FLumenHardwareRayTracingSha
 		}
 	}
 
+	static FPermutationDomain RemapPermutation(FPermutationDomain PermutationVector)
+	{
+		if (PermutationVector.Get<FRayTracingPass>() != LumenRadianceCache::ERayTracingPass::Default)
+		{
+			PermutationVector.Set<FSurfaceCacheAlphaMasking>(false);
+		}
+
+		return PermutationVector;
+	}
+
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters, Lumen::ERayTracingShaderDispatchType ShaderDispatchType)
 	{
+		FPermutationDomain PermutationVector(Parameters.PermutationId);
+		if (RemapPermutation(PermutationVector) != PermutationVector)
+		{
+			return false;
+		}
+
 		return FLumenHardwareRayTracingShaderBase::ShouldCompilePermutation(Parameters, ShaderDispatchType);
 	}
 
@@ -261,6 +278,9 @@ void FDeferredShadingSceneRenderer::PrepareLumenHardwareRayTracingRadianceCacheL
 		{
 			FLumenRadianceCacheHardwareRayTracingRGS::FPermutationDomain PermutationVector;
 			PermutationVector.Set<FLumenRadianceCacheHardwareRayTracingRGS::FRayTracingPass>(LumenRadianceCache::ERayTracingPass::Default);
+			PermutationVector.Set<FLumenRadianceCacheHardwareRayTracingRGS::FSurfaceCacheAlphaMasking>(LumenHardwareRayTracing::UseSurfaceCacheAlphaMasking());
+			PermutationVector = FLumenRadianceCacheHardwareRayTracingRGS::RemapPermutation(PermutationVector);
+
 			TShaderRef<FLumenRadianceCacheHardwareRayTracingRGS> RayGenerationShader = View.ShaderMap->GetShader<FLumenRadianceCacheHardwareRayTracingRGS>(PermutationVector);
 
 			OutRayGenShaders.Add(RayGenerationShader.GetRayTracingShader());
@@ -270,6 +290,9 @@ void FDeferredShadingSceneRenderer::PrepareLumenHardwareRayTracingRadianceCacheL
 		{
 			FLumenRadianceCacheHardwareRayTracingRGS::FPermutationDomain PermutationVector;
 			PermutationVector.Set<FLumenRadianceCacheHardwareRayTracingRGS::FRayTracingPass>(LumenRadianceCache::ERayTracingPass::FarField);
+			PermutationVector.Set<FLumenRadianceCacheHardwareRayTracingRGS::FSurfaceCacheAlphaMasking>(LumenHardwareRayTracing::UseSurfaceCacheAlphaMasking());
+			PermutationVector = FLumenRadianceCacheHardwareRayTracingRGS::RemapPermutation(PermutationVector);
+
 			TShaderRef<FLumenRadianceCacheHardwareRayTracingRGS> RayGenerationShader = View.ShaderMap->GetShader<FLumenRadianceCacheHardwareRayTracingRGS>(PermutationVector);
 
 			OutRayGenShaders.Add(RayGenerationShader.GetRayTracingShader());
@@ -435,6 +458,8 @@ void LumenRadianceCache::RenderLumenHardwareRayTracingRadianceCache(
 	{
 		FLumenRadianceCacheHardwareRayTracing::FPermutationDomain PermutationVector;
 		PermutationVector.Set<FLumenRadianceCacheHardwareRayTracing::FRayTracingPass>(ERayTracingPass::Default);
+		PermutationVector.Set<FLumenRadianceCacheHardwareRayTracing::FSurfaceCacheAlphaMasking>(LumenHardwareRayTracing::UseSurfaceCacheAlphaMasking());
+		PermutationVector = FLumenRadianceCacheHardwareRayTracing::RemapPermutation(PermutationVector);
 
 		DispatchRayGenOrComputeShader(GraphBuilder, Scene, View, SceneTextures, TracingParameters, RadianceCacheParameters, PermutationVector,
 			bInlineRayTracing, bUseFarField, TempAtlasNumTraceTiles, ProbeTraceTileAllocator, ProbeTraceTileData, ProbeTraceData, HardwareRayTracingRayAllocatorBuffer, nullptr,
@@ -476,6 +501,8 @@ void LumenRadianceCache::RenderLumenHardwareRayTracingRadianceCache(
 
 		FLumenRadianceCacheHardwareRayTracing::FPermutationDomain PermutationVector;
 		PermutationVector.Set<FLumenRadianceCacheHardwareRayTracing::FRayTracingPass>(ERayTracingPass::FarField);
+		PermutationVector.Set<FLumenRadianceCacheHardwareRayTracing::FSurfaceCacheAlphaMasking>(LumenHardwareRayTracing::UseSurfaceCacheAlphaMasking());
+		PermutationVector = FLumenRadianceCacheHardwareRayTracing::RemapPermutation(PermutationVector);
 
 		DispatchRayGenOrComputeShader(GraphBuilder, Scene, View, SceneTextures, TracingParameters, RadianceCacheParameters, PermutationVector,
 			bInlineRayTracing, bUseFarField, TempAtlasNumTraceTiles, ProbeTraceTileAllocator, ProbeTraceTileData, ProbeTraceData, CompactedTraceTexelAllocator, CompactedTraceTexelData,

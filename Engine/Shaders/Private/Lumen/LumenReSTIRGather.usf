@@ -318,8 +318,7 @@ RAY_TRACING_ENTRY_RAYGEN(LumenValidateReservoirsRGS)
 			LinearCoord,
 			CullingMode,
 			/* MaxTraversalIterations */8192,
-			/*MeshSectionVisibilityTest*/ true,
-			/*SurfaceCacheAlphaMasking*/ true);
+			/*MeshSectionVisibilityTest*/ true);
 
 		FRayTracedLightingResult Result = CreateRayTracedLightingResult();
 
@@ -430,8 +429,7 @@ RAY_TRACING_ENTRY_RAYGEN(LumenInitialSamplingRGS)
 			LinearCoord,
 			CullingMode,
 			/* MaxTraversalIterations */8192,
-			/*MeshSectionVisibilityTest*/ true,
-			/*SurfaceCacheAlphaMasking*/ true);
+			/*MeshSectionVisibilityTest*/ true);
 
 		FRayTracedLightingResult Result = CreateRayTracedLightingResult();
 

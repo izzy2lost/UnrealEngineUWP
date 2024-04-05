@@ -144,6 +144,11 @@ LumenHardwareRayTracing::EAvoidSelfIntersectionsMode LumenHardwareRayTracing::Ge
 		FMath::Clamp(CVarLumenRadiosityHardwareRayTracingAvoidSelfIntersections.GetValueOnRenderThread(), 0, (uint32)LumenHardwareRayTracing::EAvoidSelfIntersectionsMode::MAX - 1);
 }
 
+bool LumenHardwareRayTracing::UseSurfaceCacheAlphaMasking()
+{
+	return CVarLumenHardwareRayTracingSurfaceCacheAlphaMasking.GetValueOnRenderThread() != 0;
+}
+
 bool Lumen::IsUsingRayTracingLightingGrid(const FSceneViewFamily& ViewFamily, const FViewInfo& View, bool bLumenGIEnabled)
 {
 	if (UseHardwareRayTracing(ViewFamily) 
@@ -327,7 +332,6 @@ void SetLumenHardwareRayTracingSharedParameters(
 	SharedParameters->MinTraceDistanceToSampleSurfaceCache = CVarLumenHardwareRayTracingMinTraceDistanceToSampleSurfaceCache.GetValueOnRenderThread();
 	SharedParameters->SurfaceCacheSamplingDepthBias = CVarLumenHardwareRayTracingSurfaceCacheSamplingDepthBias.GetValueOnRenderThread();
 	SharedParameters->MeshSectionVisibilityTest = CVarLumenHardwareRayTracingMeshSectionVisibilityTest.GetValueOnRenderThread();
-	SharedParameters->SurfaceCacheAlphaMasking = CVarLumenHardwareRayTracingSurfaceCacheAlphaMasking.GetValueOnRenderThread();
 }
 
 #endif // RHI_RAYTRACING
