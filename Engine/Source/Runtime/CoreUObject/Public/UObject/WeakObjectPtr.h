@@ -76,8 +76,8 @@ public:
 	 * @param Object object to create a weak pointer to
 	 */
 	template <
-		typename U,
-		decltype(ImplicitConv<const UObject*>(std::declval<U>()))* = nullptr
+		typename U
+		UE_REQUIRES(std::is_convertible_v<U, const UObject*>)
 	>
 	FORCEINLINE FWeakObjectPtr(U&& Object)
 	{
