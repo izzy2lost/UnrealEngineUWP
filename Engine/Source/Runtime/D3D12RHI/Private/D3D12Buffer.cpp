@@ -31,6 +31,79 @@ FD3D12Buffer::~FD3D12Buffer()
 	}
 }
 
+void FD3D12Buffer::UploadResourceData(FD3D12CommandContext& CommandContext, D3D12_RESOURCE_STATES InDestinationState, FD3D12ResourceLocation& DestinationResourceLocation, const FD3D12ResourceLocation& SourceResourceLocation, uint32 Size)
+{
+	FD3D12Resource* Destination = DestinationResourceLocation.GetResource();
+
+	// Copy from the temporary upload heap to the default resource
+
+	// if resource doesn't require state tracking then transition to copy dest here (could have been suballocated from shared resource) - not very optimal and should be batched
+	if (!Destination->RequiresResourceStateTracking())
+	{
+		CommandContext.AddTransitionBarrier(Destination, Destination->GetDefaultResourceState(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES);
+	}
+
+	CommandContext.FlushResourceBarriers();
+
+	CommandContext.GraphicsCommandList()->CopyBufferRegion(
+		Destination->GetResource(),
+		DestinationResourceLocation.GetOffsetFromBaseOfResource(),
+		SourceResourceLocation.GetResource()->GetResource(),
+		SourceResourceLocation.GetOffsetFromBaseOfResource(),
+		Size);
+
+	// Update the resource state after the copy has been done (will take care of updating the residency as well)
+	if (InDestinationState != D3D12_RESOURCE_STATE_COPY_DEST)
+	{
+		CommandContext.AddTransitionBarrier(Destination, D3D12_RESOURCE_STATE_COPY_DEST, InDestinationState, D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES);
+	}
+
+	CommandContext.UpdateResidency(SourceResourceLocation.GetResource());
+
+	CommandContext.ConditionalSplitCommandList();
+
+	// If the resource is untracked, the destination state must match the default state of the resource.
+	check(Destination->RequiresResourceStateTracking() || (Destination->GetDefaultResourceState() == InDestinationState));
+
+	// Buffer is now written and ready, so unlock the block (locked after creation and can be defragmented if needed)
+	DestinationResourceLocation.UnlockPoolData();
+}
+
+void FD3D12Buffer::UploadResourceData(FRHICommandListBase& InRHICmdList, FRHIGPUMask GPUMask, D3D12_RESOURCE_STATES InDestinationState, const void* SourceData, int32 SourceDataSize)
+{
+	FD3D12Device* ParentDevice = GetParentDevice();
+
+	const uint32 BufferSize = GetSize();
+	check(BufferSize == SourceDataSize);
+
+	const bool bOnAsyncThread = !IsInRHIThread() && !IsInRenderingThread();
+
+	// Get an upload heap and initialize data
+	FD3D12ResourceLocation SrcResourceLoc(ParentDevice);
+	void* pData;
+	if (bOnAsyncThread)
+	{
+		pData = ParentDevice->GetParentAdapter()->GetUploadHeapAllocator(ParentDevice->GetGPUIndex()).AllocUploadResource(BufferSize, 4u, SrcResourceLoc);
+	}
+	else
+	{
+		pData = ParentDevice->GetDefaultFastAllocator().Allocate(BufferSize, 4UL, &SrcResourceLoc);
+	}
+	check(pData);
+	FMemory::Memcpy(pData, SourceData, BufferSize);
+
+	InRHICmdList.EnqueueLambda(
+		[this, GPUMask, InDestinationState, SrcResourceLoc = MoveTemp(SrcResourceLoc)](FRHICommandListBase& ExecutingCmdList)
+		{
+			const FRHIGPUMask EffectiveMask = GPUMask & ExecutingCmdList.GetGPUMask();
+			for (uint32 GPUIndex : EffectiveMask)
+			{
+				FD3D12CommandContext& CommandContext = FD3D12CommandContext::Get(ExecutingCmdList, GPUIndex);
+				UploadResourceData(CommandContext, InDestinationState, this->ResourceLocation, SrcResourceLoc, GetSize());
+			}
+		});
+}
+
 void FD3D12Buffer::UploadResourceData(FRHICommandListBase& RHICmdList, FResourceArrayInterface* InResourceArray, D3D12_RESOURCE_STATES InDestinationState, const TCHAR* AssetName, const FName& ClassName, const FName& PackageName)
 {
 	UE_TRACE_METADATA_SCOPE_ASSET_FNAME(AssetName, ClassName, PackageName);
@@ -49,70 +122,7 @@ void FD3D12Buffer::UploadResourceData(FRHICommandListBase& RHICmdList, FResource
 	}
 	else
 	{
-		const bool bOnAsyncThread = !IsInRHIThread() && !IsInRenderingThread();
-
-		// Get an upload heap and initialize data
-		FD3D12ResourceLocation SrcResourceLoc(GetParentDevice());
-		void* pData;
-		if (bOnAsyncThread)
-		{
-			const uint32 GPUIdx = SrcResourceLoc.GetParentDevice()->GetGPUIndex();
-			pData = GetParentDevice()->GetParentAdapter()->GetUploadHeapAllocator(GPUIdx).AllocUploadResource(BufferSize, 4u, SrcResourceLoc);
-		}
-		else
-		{
-			pData = SrcResourceLoc.GetParentDevice()->GetDefaultFastAllocator().Allocate(BufferSize, 4UL, &SrcResourceLoc);
-		}
-		check(pData);
-		FMemory::Memcpy(pData, InResourceArray->GetResourceData(), BufferSize);
-
-		RHICmdList.EnqueueLambda(
-			[
-				  Buffer = static_cast<FRHIBuffer*>(this)
-				, SrcResourceLoc = MoveTemp(SrcResourceLoc)
-				, Size = BufferSize
-				, DestinationState = InDestinationState
-			](FRHICommandListBase& ExecutingCmdList)
-		{
-			for (uint32 GPUIndex : ExecutingCmdList.GetGPUMask())
-			{
-				FD3D12CommandContext& CommandContext = FD3D12CommandContext::Get(ExecutingCmdList, GPUIndex);
-				FD3D12Buffer* CurrentBuffer = FD3D12DynamicRHI::ResourceCast(Buffer, GPUIndex);
-				FD3D12Resource* Destination = CurrentBuffer->ResourceLocation.GetResource();
-
-				// Copy from the temporary upload heap to the default resource
-				
-				// if resource doesn't require state tracking then transition to copy dest here (could have been suballocated from shared resource) - not very optimal and should be batched
-				if (!Destination->RequiresResourceStateTracking())
-				{
-					CommandContext.AddTransitionBarrier(Destination, Destination->GetDefaultResourceState(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES);
-				}
-
-				CommandContext.FlushResourceBarriers();
-
-				CommandContext.GraphicsCommandList()->CopyBufferRegion(
-					Destination->GetResource(),
-					CurrentBuffer->ResourceLocation.GetOffsetFromBaseOfResource(),
-					SrcResourceLoc.GetResource()->GetResource(),
-					SrcResourceLoc.GetOffsetFromBaseOfResource(), Size);
-
-				// Update the resource state after the copy has been done (will take care of updating the residency as well)
-				if (DestinationState != D3D12_RESOURCE_STATE_COPY_DEST)
-				{
-					CommandContext.AddTransitionBarrier(Destination, D3D12_RESOURCE_STATE_COPY_DEST, DestinationState, D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES);
-				}
-
-				CommandContext.UpdateResidency(SrcResourceLoc.GetResource());
-
-				CommandContext.ConditionalSplitCommandList();
-
-				// If the resource is untracked, the destination state must match the default state of the resource.
-				check(Destination->RequiresResourceStateTracking() || (Destination->GetDefaultResourceState() == DestinationState));
-
-				// Buffer is now written and ready, so unlock the block (locked after creation and can be defragmented if needed)
-				CurrentBuffer->ResourceLocation.UnlockPoolData();
-			}
-		});
+		UploadResourceData(RHICmdList, FRHIGPUMask::All(), InDestinationState, InResourceArray->GetResourceData(), BufferSize);
 	}
 
 	// Discard the resource array's contents.
@@ -209,7 +219,7 @@ FD3D12Buffer* FD3D12Adapter::CreateRHIBuffer(
 	FRHIBufferDesc const& BufferDesc,
 	ED3D12ResourceStateMode InResourceStateMode,
 	D3D12_RESOURCE_STATES InCreateState,
-	bool bHasInitialData,
+	bool bKeepUnlocked,
 	const FRHIGPUMask& InGPUMask,
 	ID3D12ResourceAllocator* ResourceAllocator,
 	const TCHAR* InDebugName,
@@ -275,7 +285,7 @@ FD3D12Buffer* FD3D12Adapter::CreateRHIBuffer(
 			AllocateBuffer(Device, InDesc, BufferDesc.Size, BufferDesc.Usage, InResourceStateMode, InCreateState, Alignment, NewBuffer, NewBuffer->ResourceLocation, ResourceAllocator, InDebugName);
 			
 			// Unlock immediately if there is no initial data
-			if (!bHasInitialData)
+			if (!bKeepUnlocked)
 			{
 				NewBuffer->ResourceLocation.UnlockPoolData();
 			}
@@ -407,7 +417,7 @@ FBufferRHIRef FD3D12DynamicRHI::CreateBuffer(FRHICommandListBase& RHICmdList, FR
 	return CreateD3D12Buffer(&RHICmdList, BufferDesc, InResourceState, CreateInfo);
 }
 
-FD3D12Buffer* FD3D12DynamicRHI::CreateD3D12Buffer(class FRHICommandListBase* RHICmdList, FRHIBufferDesc const& BufferDesc, ERHIAccess InResourceState, FRHIResourceCreateInfo& CreateInfo, ID3D12ResourceAllocator* ResourceAllocator)
+FD3D12Buffer* FD3D12DynamicRHI::CreateD3D12Buffer(class FRHICommandListBase* RHICmdList, FRHIBufferDesc const& BufferDesc, ERHIAccess InResourceState, FRHIResourceCreateInfo& CreateInfo, ID3D12ResourceAllocator* ResourceAllocator, bool bForceKeepUnlocked)
 {
 	FName TraceClassName = GetRHIBufferClassName(CreateInfo.GetTraceClassName());
 
@@ -443,7 +453,7 @@ FD3D12Buffer* FD3D12DynamicRHI::CreateD3D12Buffer(class FRHICommandListBase* RHI
 	// Setup the state at which the resource needs to be created - copy dest only supported for placed resources
 	D3D12_RESOURCE_STATES CreateState = (CreateInfo.ResourceArray && bSupportResourceStateTracking) ? D3D12_RESOURCE_STATE_COPY_DEST : DesiredState;
 
-	FD3D12Buffer* Buffer = GetAdapter().CreateRHIBuffer(Desc, Alignment, BufferDesc, StateMode, CreateState, bHasInitialData, CreateInfo.GPUMask, ResourceAllocator, CreateInfo.DebugName, CreateInfo.OwnerName, TraceClassName);
+	FD3D12Buffer* Buffer = GetAdapter().CreateRHIBuffer(Desc, Alignment, BufferDesc, StateMode, CreateState, bHasInitialData || bForceKeepUnlocked, CreateInfo.GPUMask, ResourceAllocator, CreateInfo.DebugName, CreateInfo.OwnerName, TraceClassName);
 	check(Buffer->ResourceLocation.IsValid());
 
 	// Copy the resource data if available 

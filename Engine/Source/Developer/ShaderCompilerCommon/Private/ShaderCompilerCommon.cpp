@@ -42,6 +42,7 @@ int16 GetNumUniformBuffersUsed(const FShaderCompilerResourceTable& InSRT)
 	Num = FMath::Max(Num, (int16)CountLambda(InSRT.ShaderResourceViewMap));
 	Num = FMath::Max(Num, (int16)CountLambda(InSRT.TextureMap));
 	Num = FMath::Max(Num, (int16)CountLambda(InSRT.UnorderedAccessViewMap));
+	Num = FMath::Max(Num, (int16)CountLambda(InSRT.ResourceCollectionMap));
 	return Num;
 }
 
@@ -95,6 +96,7 @@ void UE::ShaderCompilerCommon::BuildShaderResourceTable(const FShaderCompilerRes
 	BuildResourceTableTokenStream(GenericSRT.ShaderResourceViewMap,  GenericSRT.MaxBoundResourceTable, OutSRT.ShaderResourceViewMap,  bGenerateEmptyTokenStreamIfNoResources);
 	BuildResourceTableTokenStream(GenericSRT.SamplerMap,             GenericSRT.MaxBoundResourceTable, OutSRT.SamplerMap,             bGenerateEmptyTokenStreamIfNoResources);
 	BuildResourceTableTokenStream(GenericSRT.UnorderedAccessViewMap, GenericSRT.MaxBoundResourceTable, OutSRT.UnorderedAccessViewMap, bGenerateEmptyTokenStreamIfNoResources);
+	BuildResourceTableTokenStream(GenericSRT.ResourceCollectionMap,  GenericSRT.MaxBoundResourceTable, OutSRT.ResourceCollectionMap,  bGenerateEmptyTokenStreamIfNoResources);
 }
 
 
@@ -162,6 +164,9 @@ bool BuildResourceTableMapping(
 			case UBMT_RDG_TEXTURE_SRV:
 			case UBMT_RDG_BUFFER_SRV:
 				OutSRT.ShaderResourceViewMap.Add(ResourceMap);
+				break;
+			case UBMT_RESOURCE_COLLECTION:
+				OutSRT.ResourceCollectionMap.Add(ResourceMap);
 				break;
 			case UBMT_UAV:
 			case UBMT_RDG_TEXTURE_UAV:

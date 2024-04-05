@@ -97,6 +97,7 @@ template<> struct TResourceTypeStr<FRHISamplerState       > { static constexpr T
 template<> struct TResourceTypeStr<FRHITexture            > { static constexpr TCHAR String[] = TEXT("Texture"); };
 template<> struct TResourceTypeStr<FRHIShaderResourceView > { static constexpr TCHAR String[] = TEXT("Shader Resource View"); };
 template<> struct TResourceTypeStr<FRHIUnorderedAccessView> { static constexpr TCHAR String[] = TEXT("Unordered Access View"); };
+template<> struct TResourceTypeStr<FRHIResourceCollection>  { static constexpr TCHAR String[] = TEXT("Resource Collection"); };
 
 template <typename TResourceType, typename TCallback>
 inline void EnumerateUniformBufferResources(FRHIUniformBuffer* RESTRICT Buffer, int32 BufferIndex, const uint32* RESTRICT ResourceMap, TCallback&& Callback)
@@ -239,6 +240,17 @@ void SetResourcesFromTables(TBinder&& Binder, FRHIShader const& Shader, TBitMask
 #endif
 				Binder.SetSRV(SRV, Index);
 			});
+
+#if PLATFORM_SUPPORTS_BINDLESS_RENDERING
+		EnumerateUniformBufferResources<FRHIResourceCollection>(Buffer, BufferIndex, SRT.ResourceCollectionMap.GetData(),
+			[&](FRHIResourceCollection* ResourceCollection, uint8 Index)
+			{
+#if ENABLE_RHI_VALIDATION
+				// todo: christopher.waters - ResourceCollection validation
+#endif
+				Binder.SetResourceCollection(ResourceCollection, Index);
+			});
+#endif // PLATFORM_SUPPORTS_BINDLESS_RENDERING
 
 		// Samplers
 		EnumerateUniformBufferResources<FRHISamplerState>(Buffer, BufferIndex, SRT.SamplerMap.GetData(),

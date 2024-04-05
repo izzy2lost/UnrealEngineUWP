@@ -28,6 +28,7 @@
 #include "EngineGlobals.h"
 #include "MetalBindlessDescriptors.h"
 #include "DataDrivenShaderPlatformInfo.h"
+#include "MetalResourceCollection.h"
  
 DEFINE_LOG_CATEGORY(LogMetal)
 
@@ -1537,3 +1538,10 @@ void FMetalDynamicRHI::RHIReplaceResources(FRHICommandListBase& RHICmdList, TArr
 
 	RHICmdList.RHIThreadFence(true);
 }
+
+#if PLATFORM_SUPPORTS_BINDLESS_RENDERING
+FRHIResourceCollectionRef FMetalDynamicRHI::RHICreateResourceCollection(FRHICommandListBase& RHICmdList, TConstArrayView<FRHIResourceCollectionMember> InMembers)
+{
+	return new FMetalResourceCollection(RHICmdList, InMembers);
+}
+#endif

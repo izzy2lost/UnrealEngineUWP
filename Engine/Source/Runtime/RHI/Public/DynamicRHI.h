@@ -28,6 +28,7 @@ class IRHITransientResourceAllocator;
 struct FDepthStencilStateInitializerRHI;
 struct FDisplayInformation;
 struct FRasterizerStateInitializerRHI;
+struct FRHIResourceCollectionMember;
 struct FRHIResourceCreateInfo;
 struct FRHIResourceInfo;
 struct FRHIUniformBufferLayout;
@@ -442,6 +443,11 @@ public:
 	// SRV / UAV creation functions
 	virtual FShaderResourceViewRHIRef  RHICreateShaderResourceView (class FRHICommandListBase& RHICmdList, FRHIViewableResource* Resource, FRHIViewDesc const& ViewDesc) = 0;
 	virtual FUnorderedAccessViewRHIRef RHICreateUnorderedAccessView(class FRHICommandListBase& RHICmdList, FRHIViewableResource* Resource, FRHIViewDesc const& ViewDesc) = 0;
+
+	virtual FRHIResourceCollectionRef RHICreateResourceCollection(FRHICommandListBase& RHICmdList, TConstArrayView<FRHIResourceCollectionMember> InMembers)
+	{
+		return FRHIResourceCollectionRef{};
+	}
 
 	/**
 	* Generates mip maps for a texture.

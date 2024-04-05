@@ -778,6 +778,9 @@ struct FShaderResourceTable
 	/** Mapping of bound Textures to their location in resource tables. */
 	TArray<uint32> TextureMap;
 
+	/** Mapping of bound Resource Collections to their location in resource tables. */
+	TArray<uint32> ResourceCollectionMap;
+
 	friend bool operator == (const FShaderResourceTable& A, const FShaderResourceTable& B)
 	{
 		bool bEqual = true;
@@ -787,6 +790,7 @@ struct FShaderResourceTable
 		bEqual &= (A.UnorderedAccessViewMap   .Num() == B.UnorderedAccessViewMap   .Num());
 		bEqual &= (A.ResourceTableLayoutHashes.Num() == B.ResourceTableLayoutHashes.Num());
 		bEqual &= (A.TextureMap               .Num() == B.TextureMap               .Num());
+		bEqual &= (A.ResourceCollectionMap    .Num() == B.ResourceCollectionMap    .Num());
 
 		if (!bEqual)
 		{
@@ -798,6 +802,7 @@ struct FShaderResourceTable
 		bEqual &= (FMemory::Memcmp(A.UnorderedAccessViewMap   .GetData(), B.UnorderedAccessViewMap   .GetData(), A.UnorderedAccessViewMap   .GetTypeSize() * A.UnorderedAccessViewMap   .Num()) == 0);
 		bEqual &= (FMemory::Memcmp(A.ResourceTableLayoutHashes.GetData(), B.ResourceTableLayoutHashes.GetData(), A.ResourceTableLayoutHashes.GetTypeSize() * A.ResourceTableLayoutHashes.Num()) == 0);
 		bEqual &= (FMemory::Memcmp(A.TextureMap               .GetData(), B.TextureMap               .GetData(), A.TextureMap               .GetTypeSize() * A.TextureMap               .Num()) == 0);
+		bEqual &= (FMemory::Memcmp(A.ResourceCollectionMap    .GetData(), B.ResourceCollectionMap    .GetData(), A.ResourceCollectionMap    .GetTypeSize() * A.ResourceCollectionMap    .Num()) == 0);
 		return bEqual;
 	}
 
@@ -809,6 +814,7 @@ struct FShaderResourceTable
 		Ar << SRT.UnorderedAccessViewMap;
 		Ar << SRT.ResourceTableLayoutHashes;
 		Ar << SRT.TextureMap;
+		Ar << SRT.ResourceCollectionMap;
 	
 		return Ar;
 	}

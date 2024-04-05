@@ -21,6 +21,7 @@
 #include "GlobalRenderResources.h"
 #include "D3D12RayTracingDebug.h"
 #include "D3D12ExplicitDescriptorCache.h"
+#include "D3D12ResourceCollection.h"
 
 extern int32 GD3D12ExplicitViewDescriptorHeapSize;
 extern int32 GD3D12ExplicitViewDescriptorHeapOverflowReported;
@@ -4141,6 +4142,12 @@ static bool SetRayTracingShaderResources(
 
 	struct FBindings
 	{
+		FBindings(ResourceBinderType& InBinder, uint32 InGPUIndex)
+			: Binder(InBinder)
+			, GPUIndex(InGPUIndex)
+		{
+		}
+
 		ResourceBinderType& Binder;
 		uint32 GPUIndex;
 
@@ -4216,6 +4223,23 @@ static bool SetRayTracingShaderResources(
 			Binder.AddResourceTransition(SRV);
 		}
 
+		void SetResourceCollection(FRHIResourceCollection* ResourceCollection, uint8 Index)
+		{
+			FD3D12ResourceCollection* D3D12ResourceCollection = FD3D12CommandContext::RetrieveObject<FD3D12ResourceCollection>(ResourceCollection, GPUIndex);
+			FD3D12ShaderResourceView* SRV = D3D12ResourceCollection ? D3D12ResourceCollection->GetShaderResourceView() : nullptr;
+
+			check(SRV != nullptr);
+
+			FD3D12OfflineDescriptor Descriptor = SRV->GetOfflineCpuHandle();
+			LocalSRVs[Index] = Descriptor;
+			SRVVersions[Index] = Descriptor.GetVersion();
+
+			BoundSRVMask |= 1ull << Index;
+
+			ReferencedResources.Add(SRV->GetResource());
+			Binder.AddResourceTransition(SRV);
+		}
+
 		void SetSampler(FRHISamplerState* RHISampler, uint8 Index)
 		{
 			FD3D12SamplerState* Sampler = FD3D12CommandContext::RetrieveObject<FD3D12SamplerState>(RHISampler, GPUIndex);
@@ -4227,8 +4251,8 @@ static bool SetRayTracingShaderResources(
 
 			BoundSamplerMask |= 1ull << Index;
 		}
-
-	} Bindings { Binder, Binder.GetDevice()->GetGPUIndex() };
+	};
+	FBindings Bindings(Binder, Binder.GetDevice()->GetGPUIndex());
 
 	for (uint32 TextureIndex = 0; TextureIndex < InNumTextures; ++TextureIndex)
 	{

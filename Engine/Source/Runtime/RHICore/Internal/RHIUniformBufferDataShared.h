@@ -42,6 +42,12 @@ namespace UE::RHICore
 			return SamplerState ? SamplerState->GetBindlessHandle() : FRHIDescriptorHandle();
 		}
 		break;
+		case UBMT_RESOURCE_COLLECTION:
+		{
+			FRHIResourceCollection* ResourceCollection = Reader.Read<FRHIResourceCollection*>(Resource);
+			return ResourceCollection ? ResourceCollection->GetBindlessHandle() : FRHIDescriptorHandle();
+		}
+		break;
 		case UBMT_RDG_TEXTURE:
 		{
 			FRDGTexture* RDGTexture = Reader.Read<FRDGTexture*>(Resource);
@@ -74,16 +80,9 @@ namespace UE::RHICore
 			return UnorderedAccessView ? UnorderedAccessView->GetBindlessHandle() : FRHIDescriptorHandle();
 		}
 		break;
-		case UBMT_NESTED_STRUCT:
-		case UBMT_INCLUDED_STRUCT:
-		case UBMT_REFERENCED_STRUCT:
-		{
-			// Do nothing?
-		}
-		break;
 
 		default:
-			//checkf(false, TEXT("Unhandled resource type?"));
+			// Do nothing.
 			break;
 		}
 		return FRHIDescriptorHandle();

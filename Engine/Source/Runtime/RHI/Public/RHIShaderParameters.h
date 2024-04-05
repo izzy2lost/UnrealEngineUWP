@@ -4,6 +4,7 @@
 
 #include "Containers/Array.h"
 #include "RHIResources.h"
+#include "RHIResourceCollection.h"
 
 class FRHICommandList;
 class FRHIComputeCommandList;
@@ -34,6 +35,7 @@ struct FRHIShaderParameterResource
 		UnorderedAccessView,
 		Sampler,
 		UniformBuffer,
+		ResourceCollection,
 	};
 
 	FRHIShaderParameterResource() = default;
@@ -61,6 +63,10 @@ struct FRHIShaderParameterResource
 	}
 	FRHIShaderParameterResource(FRHIUniformBuffer* InUniformBuffer, uint16 InIndex)
 		: FRHIShaderParameterResource(FRHIShaderParameterResource::EType::UniformBuffer, InUniformBuffer, InIndex)
+	{
+	}
+	FRHIShaderParameterResource(FRHIResourceCollection* InResourceCollection, uint16 InIndex)
+		: FRHIShaderParameterResource(FRHIShaderParameterResource::EType::ResourceCollection, InResourceCollection, InIndex)
 	{
 	}
 
@@ -118,6 +124,10 @@ struct FRHIBatchedShaderParameters
 	{
 		ResourceParameters.Emplace(UAV, (uint16)Index);
 	}
+	FORCEINLINE_DEBUGGABLE void SetResourceCollection(uint32 Index, FRHIResourceCollection* ResourceCollection)
+	{
+		ResourceParameters.Emplace(ResourceCollection, (uint16)Index);
+	}
 
 	FORCEINLINE_DEBUGGABLE void SetBindlessTexture(uint32 Index, FRHITexture* Texture)
 	{
@@ -134,6 +144,10 @@ struct FRHIBatchedShaderParameters
 	FORCEINLINE_DEBUGGABLE void SetBindlessUAV(uint32 Index, FRHIUnorderedAccessView* UAV)
 	{
 		BindlessParameters.Emplace(UAV, (uint16)Index);
+	}
+	FORCEINLINE_DEBUGGABLE void SetBindlessResourceCollection(uint32 Index, FRHIResourceCollection* ResourceCollection)
+	{
+		BindlessParameters.Emplace(ResourceCollection, (uint16)Index);
 	}
 };
 

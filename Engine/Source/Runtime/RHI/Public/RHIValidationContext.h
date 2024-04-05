@@ -68,6 +68,9 @@ inline void ValidateShaderParameters(FRHIShader* RHIShader, RHIValidation::FTrac
 				StaticUniformBuffers.ValidateSetShaderUniformBuffer(UniformBuffer);
 			}
 			break;
+		case FRHIShaderParameterResource::EType::ResourceCollection:
+			// TODO: christopher.waters - ResourceCollection validation
+			break;
 		default:
 			checkf(false, TEXT("Unhandled resource type?"));
 			break;

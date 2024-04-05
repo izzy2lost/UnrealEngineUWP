@@ -7,6 +7,7 @@ D3D12Commands.cpp: D3D RHI commands implementation.
 #include "D3D12RHIPrivate.h"
 #include "ProfilingDebugging/AssetMetadataTrace.h"
 #include "ProfilingDebugging/RealtimeGPUProfiler.h"
+#include "D3D12ResourceCollection.h"
 
 static int32 GD3D12AllowDiscardResources = 1;
 static FAutoConsoleVariableRef CVarD3D12AllowDiscardResources(
@@ -941,6 +942,23 @@ struct FD3D12ResourceBinder
 			Context.StateCache.SetSamplerState(Frequency, D3D12SamplerState, Index);
 		}
 	}
+
+	void SetResourceCollection(FRHIResourceCollection* ResourceCollection, uint32 Index)
+	{
+#if PLATFORM_SUPPORTS_BINDLESS_RENDERING
+		FD3D12ResourceCollection* D3D12ResourceCollection = FD3D12CommandContext::RetrieveObject<FD3D12ResourceCollection>(ResourceCollection, GpuIndex);
+		FD3D12ShaderResourceView* D3D12ShaderResourceView = D3D12ResourceCollection ? D3D12ResourceCollection->GetShaderResourceView() : nullptr;
+
+		if (bBindlessResources)
+		{
+			Context.StateCache.QueueBindlessSRV(Frequency, D3D12ShaderResourceView);
+		}
+		else
+		{
+			checkNoEntry();
+		}
+#endif // PLATFORM_SUPPORTS_BINDLESS_RENDERING
+	}
 };
 
 static void SetShaderParametersOnContext(
@@ -989,6 +1007,10 @@ static void SetShaderParametersOnContext(
 				Handle = static_cast<FRHISamplerState*>(Resource)->GetBindlessHandle();
 				Binder.SetSampler(static_cast<FRHISamplerState*>(Resource), Parameter.Index);
 				break;
+			case FRHIShaderParameterResource::EType::ResourceCollection:
+				Handle = static_cast<FRHIResourceCollection*>(Resource)->GetBindlessHandle();
+				Binder.SetResourceCollection(static_cast<FRHIResourceCollection*>(Resource), Parameter.Index);
+				break;
 			}
 
 			checkf(Handle.IsValid(), TEXT("D3D12 resource did not provide a valid descriptor handle. Please validate that all D3D12 types can provide this or that the resource is still valid."));
@@ -1029,6 +1051,9 @@ static void SetShaderParametersOnContext(
 			break;
 		case FRHIShaderParameterResource::EType::UniformBuffer:
 			BindUniformBuffer(Context, Shader, ShaderFrequency, Parameter.Index, FD3D12CommandContext::RetrieveObject<FD3D12UniformBuffer>(Parameter.Resource, GpuIndex));
+			break;
+		case FRHIShaderParameterResource::EType::ResourceCollection:
+			Binder.SetResourceCollection(static_cast<FRHIResourceCollection*>(Parameter.Resource), Parameter.Index);
 			break;
 		default:
 			checkf(false, TEXT("Unhandled resource type?"));

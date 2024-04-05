@@ -501,6 +501,8 @@ enum class EShaderCodeResourceBindingType : uint8
 
 	RasterizerOrderedTexture2D,
 
+	ResourceCollection,
+
 	MAX
 };
 
@@ -518,6 +520,7 @@ inline bool IsResourceBindingTypeSRV(EShaderCodeResourceBindingType Type)
 	case EShaderCodeResourceBindingType::StructuredBuffer:
 	case EShaderCodeResourceBindingType::Buffer:
 	case EShaderCodeResourceBindingType::RaytracingAccelerationStructure:
+	case EShaderCodeResourceBindingType::ResourceCollection:
 		return true;
 	case EShaderCodeResourceBindingType::RWTexture2D:
 	case EShaderCodeResourceBindingType::RWTexture2DArray:
@@ -578,6 +581,8 @@ enum EUniformBufferBaseType : uint8
 
 	// Structure dedicated to setup render targets for a rasterizer pass.
 	UBMT_RENDER_TARGET_BINDING_SLOTS,
+
+	UBMT_RESOURCE_COLLECTION,
 
 	EUniformBufferBaseType_Num,
 	EUniformBufferBaseType_NumBits = 5,
@@ -954,6 +959,7 @@ enum ERHIResourceType : uint8
 	RRT_WorkGraphShader,
 	RRT_WorkGraphPipelineState,
 	RRT_StreamSourceSlot,
+	RRT_ResourceCollection,
 
 	RRT_Num
 };
@@ -1340,15 +1346,22 @@ inline bool IsRDGResourceReferenceShaderParameterType(EUniformBufferBaseType Bas
 	return IsRDGTextureReferenceShaderParameterType(BaseType) || IsRDGBufferReferenceShaderParameterType(BaseType) || BaseType == UBMT_RDG_UNIFORM_BUFFER;
 }
 
+inline bool IsShaderParameterTypeRHIResource(EUniformBufferBaseType BaseType)
+{
+	return
+		BaseType == UBMT_TEXTURE ||
+		BaseType == UBMT_SRV ||
+		BaseType == UBMT_SAMPLER ||
+		BaseType == UBMT_UAV ||
+		BaseType == UBMT_RESOURCE_COLLECTION;
+}
+
 /** Returns whether the shader parameter type needs to be passdown to RHI through FRHIUniformBufferLayout when creating an uniform buffer. */
 inline bool IsShaderParameterTypeForUniformBufferLayout(EUniformBufferBaseType BaseType)
 {
 	return
 		// RHI resource referenced in shader parameter structures.
-		BaseType == UBMT_TEXTURE ||
-		BaseType == UBMT_SRV ||
-		BaseType == UBMT_SAMPLER ||
-		BaseType == UBMT_UAV ||
+		IsShaderParameterTypeRHIResource(BaseType) ||
 
 		// RHI is able to access RHI resources from RDG.
 		IsRDGResourceReferenceShaderParameterType(BaseType) ||

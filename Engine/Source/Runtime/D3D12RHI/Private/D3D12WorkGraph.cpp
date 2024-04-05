@@ -6,6 +6,7 @@
 #include "Containers/DynamicRHIResourceArray.h"
 #include "D3D12ExplicitDescriptorCache.h"
 #include "D3D12RHIPrivate.h"
+#include "D3D12ResourceCollection.h"
 #include "D3D12Shader.h"
 #include "PipelineStateCache.h"
 #include "ShaderBundles.h"
@@ -333,6 +334,20 @@ struct FWorkGraphShaderBundleBinder
 			BoundSamplerMask |= 1ull << Index;
 		}
 	}
+
+	void SetResourceCollection(FRHIResourceCollection* ResourceCollection, uint32 Index)
+	{
+#if PLATFORM_SUPPORTS_BINDLESS_RENDERING
+		FD3D12ResourceCollection* D3D12ResourceCollection = FD3D12CommandContext::RetrieveObject<FD3D12ResourceCollection>(ResourceCollection, GPUIndex);
+		FD3D12ShaderResourceView* SRV = D3D12ResourceCollection ? D3D12ResourceCollection->GetShaderResourceView() : nullptr;
+
+		if (bBindlessResources)
+		{
+			checkNoEntry();
+			//Context.StateCache.QueueBindlessSRV(Frequency, SRV);
+		}
+#endif // PLATFORM_SUPPORTS_BINDLESS_RENDERING
+	}
 };
 
 // Record bindings from shader bundle parameters.
@@ -417,6 +432,9 @@ static void RecordBindings(
 		case FRHIShaderParameterResource::EType::UniformBuffer:
 			BundleUniformBuffers[Parameter.Index] = FD3D12CommandContext::RetrieveObject<FD3D12UniformBuffer>(Parameter.Resource, 0 /*GpuIndex*/);
 			UniformBufferMask |= (1 << Parameter.Index);
+			break;
+		case FRHIShaderParameterResource::EType::ResourceCollection:
+			BundleBinder.SetResourceCollection(static_cast<FRHIResourceCollection*>(Parameter.Resource), Parameter.Index);
 			break;
 		default:
 			checkf(false, TEXT("Unhandled resource type?"));

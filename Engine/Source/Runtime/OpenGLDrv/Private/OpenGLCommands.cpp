@@ -1094,6 +1094,13 @@ struct FOpenGLResourceBinder
 	{
 		RHI.InternalSetSamplerStates(FirstTextureUnit + Index, FOpenGLDynamicRHI::ResourceCast(Sampler));
 	}
+
+#if PLATFORM_SUPPORTS_BINDLESS_RENDERING
+	void SetResourceCollection(FRHIResourceCollection* ResourceCollection, uint32 Index)
+	{
+		checkNoEntry();
+	}
+#endif
 };
 
 void FOpenGLDynamicRHI::SetShaderParametersCommon(EShaderFrequency ShaderFrequency, TConstArrayView<uint8> InParametersData, TConstArrayView<FRHIShaderParameter> InParameters, TConstArrayView<FRHIShaderParameterResource> InResourceParameters)

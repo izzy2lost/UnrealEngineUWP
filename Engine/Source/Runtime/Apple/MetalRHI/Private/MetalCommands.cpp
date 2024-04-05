@@ -23,6 +23,7 @@
 #include "RHICoreShader.h"
 #include "RHIShaderParametersShared.h"
 #include "RHIUtilities.h"
+#include "MetalResourceCollection.h"
 
 static const bool GUsesInvertedZ = true;
 
@@ -401,6 +402,14 @@ struct FMetalShaderBinder
         FMetalSamplerState* Sampler = ResourceCast(InSampler);
         StateCache.SetShaderSamplerState(Stage, Sampler, Index);
     }
+
+#if PLATFORM_SUPPORTS_BINDLESS_RENDERING
+	void SetResourceCollection(FRHIResourceCollection* ResourceCollection, uint32 Index)
+	{
+		FMetalResourceCollection* MetalResourceCollection = ResourceCast(ResourceCollection);
+		SetSRV(MetalResourceCollection->GetShaderResourceView(), Index);
+	}
+#endif
 };
 
 static void SetShaderParametersOnContext(
@@ -465,6 +474,9 @@ static void SetShaderParametersOnContext(
             break;
         case FRHIShaderParameterResource::EType::UniformBuffer:
             BindUniformBuffer(Binder.StateCache, Shader, Binder.Stage, Parameter.Index, static_cast<FRHIUniformBuffer*>(Parameter.Resource));
+            break;
+        case FRHIShaderParameterResource::EType::ResourceCollection:
+            Binder.SetResourceCollection(static_cast<FRHIResourceCollection*>(Parameter.Resource), Parameter.Index);
             break;
         default:
             checkf(false, TEXT("Unhandled resource type?"));

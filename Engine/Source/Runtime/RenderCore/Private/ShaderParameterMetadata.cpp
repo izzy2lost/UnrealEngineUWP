@@ -213,6 +213,8 @@ const TCHAR* const kShaderParameterMacroNames[] = {
 
 	// Structure dedicated to setup render targets for a rasterizer pass.
 	TEXT("RENDER_TARGET_BINDING_SLOTS"), // UBMT_RENDER_TARGET_BINDING_SLOTS,
+
+	TEXT("RESOURCE_COLLECTION"), // UBMT_RESOURCE_COLLECTION,
 };
 
 static_assert(UE_ARRAY_COUNT(kShaderParameterMacroNames) == int32(EUniformBufferBaseType_Num), "Shader parameter enum does not match name macro name array.");
@@ -481,10 +483,7 @@ void FShaderParametersMetadata::FMember::HashLayout(FMemoryHasherBlake3& Hasher)
 	Hasher.Serialize(const_cast<TCHAR*>(Name), FCString::Strlen(Name));
 	Hasher << NumElements;
 
-	const bool bIsRHIResource = (
-		BaseType == UBMT_TEXTURE ||
-		BaseType == UBMT_SRV ||
-		BaseType == UBMT_SAMPLER);
+	const bool bIsRHIResource = IsShaderParameterTypeRHIResource(BaseType);
 	const bool bIsRDGResource = IsRDGResourceReferenceShaderParameterType(BaseType);
 
 	if (BaseType == UBMT_INT32 ||
@@ -577,10 +576,7 @@ void FShaderParametersMetadata::InitializeLayout(FRHIUniformBufferLayoutInitiali
 		const TCHAR* ShaderType = CurrentMember.GetShaderType();
 
 		const bool bIsArray = ArraySize > 0;
-		const bool bIsRHIResource = (
-			BaseType == UBMT_TEXTURE ||
-			BaseType == UBMT_SRV ||
-			BaseType == UBMT_SAMPLER);
+		const bool bIsRHIResource = IsShaderParameterTypeRHIResource(BaseType);
 		const bool bIsRDGResource = IsRDGResourceReferenceShaderParameterType(BaseType);
 		const bool bIsVariableNativeType = CurrentMember.IsVariableNativeType();
 
@@ -683,7 +679,8 @@ void FShaderParametersMetadata::InitializeLayout(FRHIUniformBufferLayoutInitiali
 				{
 					bIsValidBindingType = (
 						BaseType == UBMT_SRV ||
-						BaseType == UBMT_RDG_BUFFER_SRV);
+						BaseType == UBMT_RDG_BUFFER_SRV ||
+						BaseType == UBMT_RESOURCE_COLLECTION);
 				}
 				else if (BindingType == EShaderCodeResourceBindingType::RaytracingAccelerationStructure)
 				{
@@ -826,10 +823,7 @@ void FShaderParametersMetadata::InitializeLayout(FRHIUniformBufferLayoutInitiali
 			MemberHash = HashCombine(MemberHash, FCrc::Strihash_DEPRECATED(CurrentMember.GetName()));
 			MemberHash = HashCombine(MemberHash, GetTypeHash(int32(CurrentMember.GetNumElements())));
 
-			const bool bIsRHIResource = (
-				BaseType == UBMT_TEXTURE ||
-				BaseType == UBMT_SRV ||
-				BaseType == UBMT_SAMPLER);
+			const bool bIsRHIResource = IsShaderParameterTypeRHIResource(BaseType);
 			const bool bIsRDGResource = IsRDGResourceReferenceShaderParameterType(BaseType);
 
 			if (BaseType == UBMT_INT32 ||
@@ -1089,9 +1083,7 @@ void FShaderParametersMetadata::FindMemberFromOffset(uint16 MemberOffset, const 
 			}
 		}
 		else if (NumElements > 0 && (
-			BaseType == UBMT_TEXTURE ||
-			BaseType == UBMT_SRV ||
-			BaseType == UBMT_SAMPLER ||
+			IsShaderParameterTypeRHIResource(BaseType) ||
 			IsRDGResourceReferenceShaderParameterType(BaseType)))
 		{
 			uint16 ArrayStartOffset = Member.GetOffset();

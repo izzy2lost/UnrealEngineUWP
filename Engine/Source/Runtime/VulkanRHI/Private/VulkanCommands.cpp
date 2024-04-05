@@ -13,6 +13,7 @@
 #include "GlobalRenderResources.h"
 #include "RHIShaderParametersShared.h"
 #include "RHIUtilities.h"
+#include "VulkanResourceCollection.h"
 #include "RHICoreShader.h"
 
 static TAutoConsoleVariable<int32> GCVarSubmitOnDispatch(
@@ -162,6 +163,14 @@ struct FVulkanResourceBinder
 	{
 		PendingState->SetSamplerStateForUBResource(GlobalRemappingInfo[Index].NewDescriptorSet, GlobalRemappingInfo[Index].NewBindingIndex, ResourceCast(Sampler));
 	}
+
+#if PLATFORM_SUPPORTS_BINDLESS_RENDERING
+	void SetResourceCollection(FRHIResourceCollection* ResourceCollection, uint32 Index)
+	{
+		FVulkanResourceCollection* VulkanResourceCollection = ResourceCast(ResourceCollection);
+		SetSRV(VulkanResourceCollection->GetShaderResourceView(), Index);
+	}
+#endif
 };
 
 template <class ShaderType> 

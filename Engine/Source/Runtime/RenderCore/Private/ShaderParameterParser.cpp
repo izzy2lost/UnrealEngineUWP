@@ -75,14 +75,7 @@ static void IterateShaderParameterMembersInternal(
 		}
 		else
 		{
-			const bool bParametersAreExpanded =
-				NumElements > 0 &&
-				(BaseType == UBMT_TEXTURE ||
-					BaseType == UBMT_SRV ||
-					BaseType == UBMT_UAV ||
-					BaseType == UBMT_SAMPLER ||
-					IsRDGResourceReferenceShaderParameterType(BaseType));
-
+			const bool bParametersAreExpanded = NumElements > 0 && (IsShaderParameterTypeRHIResource(BaseType) || IsRDGResourceReferenceShaderParameterType(BaseType));
 			if (bParametersAreExpanded)
 			{
 				const uint16 ElementSize = SHADER_PARAMETER_POINTER_ALIGNMENT;

@@ -339,6 +339,7 @@ public:
 
 	ObjectType0* GetFirst() const { return Object0; }
 	ObjectType1* GetSecond() const { return Object1; }
+	uint32 GetGPUIndex() const { return *GPUIterator; }
 
 private:
 	FRHIGPUMask::FIterator GPUIterator;

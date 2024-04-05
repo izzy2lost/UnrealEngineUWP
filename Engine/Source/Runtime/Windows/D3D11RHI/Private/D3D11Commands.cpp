@@ -392,6 +392,13 @@ struct FD3D11ResourceBinder
 	{
 		RHI.GetStateCache().SetSamplerState<ShaderFrequency>(FD3D11DynamicRHI::ResourceCast(Sampler)->Resource, Index);
 	}
+
+#if PLATFORM_SUPPORTS_BINDLESS_RENDERING
+	void SetResourceCollection(FRHIResourceCollection* ResourceCollection, uint32 Index)
+	{
+		checkNoEntry();
+	}
+#endif
 };
 
 template<EShaderFrequency ShaderFrequency>

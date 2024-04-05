@@ -965,6 +965,12 @@ public:
 		);
 	}
 
+	FORCEINLINE FRHIResourceCollectionRef CreateResourceCollection(TConstArrayView<FRHIResourceCollectionMember> InMembers)
+	{
+		LLM_SCOPE_BYNAME(TEXT("RHIMisc/CreateResourceCollection"));
+		return GDynamicRHI->RHICreateResourceCollection(*this, InMembers);
+	}
+
 #if RHI_RAYTRACING
 	FORCEINLINE FRayTracingGeometryRHIRef CreateRayTracingGeometry(const FRayTracingGeometryInitializer& Initializer)
 	{

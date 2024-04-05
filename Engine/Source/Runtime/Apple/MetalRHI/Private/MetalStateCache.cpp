@@ -11,6 +11,7 @@
 #include "MetalVertexDeclaration.h"
 #include "MetalBindlessDescriptors.h"
 #include "RHIShaderParametersShared.h"
+#include "MetalResourceCollection.h"
 
 #if PLATFORM_MAC
 	#ifndef UINT128_MAX
@@ -1953,6 +1954,14 @@ void FMetalStateCache::SetResourcesFromTables(ShaderType Shader, CrossCompiler::
 					StateCache.SetShaderSamplerState(Frequency, static_cast<FMetalSamplerState*>(Sampler), Index);
 				}
 			}
+
+#if PLATFORM_SUPPORTS_BINDLESS_RENDERING
+			void SetResourceCollection(FRHIResourceCollection* ResourceCollection, uint32 Index)
+			{
+				FMetalResourceCollection* MetalResourceCollection = ResourceCast(ResourceCollection);
+				SetSRV(MetalResourceCollection->GetShaderResourceView(), Index);
+			}
+#endif
 		};
 
 		UE::RHICore::SetResourcesFromTables(

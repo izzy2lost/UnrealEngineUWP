@@ -190,6 +190,9 @@ struct FShaderCompilerResourceTable
 	/** Mapping of bound UAVs to their location in resource tables. */
 	TArray<uint32> UnorderedAccessViewMap;
 
+	/** Mapping of bound respource collections to their location in resource tables. */
+	TArray<uint32> ResourceCollectionMap;
+
 	/** Hash of the layouts of resource tables at compile time, used for runtime validation. */
 	TArray<uint32> ResourceTableLayoutHashes;
 

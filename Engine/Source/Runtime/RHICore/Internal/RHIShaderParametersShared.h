@@ -16,6 +16,7 @@ namespace UE::RHICore
 			case FRHIShaderParameterResource::EType::ResourceView:        return static_cast<FRHIShaderResourceView*>(Resource)->GetBindlessHandle();
 			case FRHIShaderParameterResource::EType::UnorderedAccessView: return static_cast<FRHIUnorderedAccessView*>(Resource)->GetBindlessHandle();
 			case FRHIShaderParameterResource::EType::Sampler:             return static_cast<FRHISamplerState*>(Resource)->GetBindlessHandle();
+			case FRHIShaderParameterResource::EType::ResourceCollection:  return static_cast<FRHIResourceCollection*>(Resource)->GetBindlessHandle();
 			default:
 				checkf(false, TEXT("Unhandled resource type?"));
 				break;

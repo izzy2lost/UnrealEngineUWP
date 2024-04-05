@@ -20,6 +20,7 @@
 #include "VulkanLLM.h"
 #include "Misc/EngineVersion.h"
 #include "GlobalShader.h"
+#include "VulkanResourceCollection.h"
 #include "RHIValidation.h"
 #include "RHIUtilities.h"
 #include "IHeadMountedDisplayModule.h"
@@ -2290,5 +2291,13 @@ void FVulkanDynamicRHI::RHIReplaceResources(FRHICommandListBase& RHICmdList, TAr
 
 	RHICmdList.RHIThreadFence(true);
 }
+
+#if PLATFORM_SUPPORTS_BINDLESS_RENDERING
+FRHIResourceCollectionRef FVulkanDynamicRHI::RHICreateResourceCollection(FRHICommandListBase& RHICmdList, TConstArrayView<FRHIResourceCollectionMember> InMembers)
+{
+	return new FVulkanResourceCollection(RHICmdList, InMembers);
+}
+#endif
+
 
 #undef LOCTEXT_NAMESPACE
