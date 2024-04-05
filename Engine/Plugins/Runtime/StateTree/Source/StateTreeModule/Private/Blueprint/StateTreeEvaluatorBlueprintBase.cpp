@@ -74,3 +74,13 @@ void FStateTreeBlueprintEvaluatorWrapper::Tick(FStateTreeExecutionContext& Conte
 	Instance->Tick(Context, DeltaTime);
 }
 
+#if WITH_EDITOR
+FText FStateTreeBlueprintEvaluatorWrapper::GetDescription(const FGuid& ID, FStateTreeDataView InstanceDataView, const IStateTreeBindingLookup& BindingLookup, EStateTreeNodeFormatting Formatting) const
+{
+	if (EvaluatorClass)
+	{
+		return EvaluatorClass->GetDisplayNameText();
+	}
+	return FText::GetEmpty();
+}
+#endif

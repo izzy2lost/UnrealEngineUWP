@@ -146,3 +146,13 @@ EStateTreeRunStatus FStateTreeBlueprintTaskWrapper::Tick(FStateTreeExecutionCont
 	return Instance->Tick(Context, DeltaTime);
 }
 
+#if WITH_EDITOR
+FText FStateTreeBlueprintTaskWrapper::GetDescription(const FGuid& ID, FStateTreeDataView InstanceDataView, const IStateTreeBindingLookup& BindingLookup, EStateTreeNodeFormatting Formatting) const
+{
+	if (TaskClass)
+	{
+		return TaskClass->GetDisplayNameText();
+	}
+	return FText::GetEmpty();
+}
+#endif

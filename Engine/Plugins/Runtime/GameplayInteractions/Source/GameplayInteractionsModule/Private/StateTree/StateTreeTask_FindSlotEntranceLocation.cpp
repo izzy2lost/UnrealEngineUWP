@@ -8,6 +8,8 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(StateTreeTask_FindSlotEntranceLocation)
 
+#define LOCTEXT_NAMESPACE "GameplayInteractions"
+
 FStateTreeTask_FindSlotEntranceLocation::FStateTreeTask_FindSlotEntranceLocation()
 {
 	// No tick needed.
@@ -72,3 +74,38 @@ EStateTreeRunStatus FStateTreeTask_FindSlotEntranceLocation::EnterState(FStateTr
 	
 	return EStateTreeRunStatus::Running;
 }
+
+#if WITH_EDITOR
+FText FStateTreeTask_FindSlotEntranceLocation::GetDescription(const FGuid& ID, FStateTreeDataView InstanceDataView, const IStateTreeBindingLookup& BindingLookup, EStateTreeNodeFormatting Formatting) const
+{
+	const FInstanceDataType* InstanceData = InstanceDataView.GetPtr<FInstanceDataType>();
+	check(InstanceData);
+
+	// Slot
+	FText SlotValue = BindingLookup.GetBindingSourceDisplayName(FStateTreePropertyPath(ID, GET_MEMBER_NAME_CHECKED(FInstanceDataType, ReferenceSlot)), Formatting);
+	if (SlotValue.IsEmpty())
+	{
+		SlotValue = LOCTEXT("None", "None");
+	}
+
+	// Actor
+	FText ActorValue = BindingLookup.GetBindingSourceDisplayName(FStateTreePropertyPath(ID, GET_MEMBER_NAME_CHECKED(FInstanceDataType, UserActor)), Formatting);
+	if (ActorValue.IsEmpty())
+	{
+		ActorValue = LOCTEXT("None", "None");
+	}
+
+	const FText LocationTypeText = UEnum::GetDisplayValueAsText(LocationType);
+
+	const FText Format = (Formatting == EStateTreeNodeFormatting::RichText)
+		? LOCTEXT("FindSlotEntranceLocationRich", "<b>Find {EntryOrExit} Location</> <s>for slot</> {Slot} <s>with</> {Actor}")
+		: LOCTEXT("FindSlotEntranceLocation", "Find {EntryOrExit} Location for slot {Slot} with {Actor}");
+
+	return FText::FormatNamed(Format,
+		TEXT("EntryOrExit"), LocationTypeText,
+		TEXT("Slot"), SlotValue,
+		TEXT("Actor"), ActorValue);
+}
+#endif
+
+#undef LOCTEXT_NAMESPACE

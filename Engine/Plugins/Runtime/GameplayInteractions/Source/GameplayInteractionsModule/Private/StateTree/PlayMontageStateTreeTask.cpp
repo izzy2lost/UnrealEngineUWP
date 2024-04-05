@@ -7,9 +7,7 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(PlayMontageStateTreeTask)
 
-struct FDataRegistryLookup;
-struct FDataRegistryId;
-struct FMassEntityHandle;
+#define LOCTEXT_NAMESPACE "GameplayInteractions"
 
 EStateTreeRunStatus FPlayMontageStateTreeTask::EnterState(FStateTreeExecutionContext& Context, const FStateTreeTransitionResult& Transition) const
 {
@@ -45,3 +43,32 @@ EStateTreeRunStatus FPlayMontageStateTreeTask::Tick(FStateTreeExecutionContext& 
 	InstanceData.Time += DeltaTime;
 	return InstanceData.ComputedDuration <= 0.0f ? EStateTreeRunStatus::Running : (InstanceData.Time < InstanceData.ComputedDuration ? EStateTreeRunStatus::Running : EStateTreeRunStatus::Succeeded);
 }
+
+#if WITH_EDITOR
+FText FPlayMontageStateTreeTask::GetDescription(const FGuid& ID, FStateTreeDataView InstanceDataView, const IStateTreeBindingLookup& BindingLookup, EStateTreeNodeFormatting Formatting) const
+{
+	const FInstanceDataType* InstanceData = InstanceDataView.GetPtr<FInstanceDataType>();
+	check(InstanceData);
+
+	// Asset
+	const FText MontageValue = FText::FromString(GetNameSafe(Montage));
+
+	// Actor
+	FText ActorValue = BindingLookup.GetBindingSourceDisplayName(FStateTreePropertyPath(ID, GET_MEMBER_NAME_CHECKED(FInstanceDataType, Actor)), Formatting);
+	if (ActorValue.IsEmpty())
+	{
+		ActorValue = LOCTEXT("None", "None");
+	}
+
+	if (Formatting == EStateTreeNodeFormatting::RichText)
+	{
+		// Rich
+		return FText::Format(LOCTEXT("PlayMontageRich", "<b>Play Montage</> {0} <s>with </>{1}"), MontageValue, ActorValue);
+	}
+	
+	// Plain
+	return FText::Format(LOCTEXT("PlayMontage", "Play Montage {0} with {1}"), MontageValue, ActorValue);
+}
+#endif
+
+#undef LOCTEXT_NAMESPACE

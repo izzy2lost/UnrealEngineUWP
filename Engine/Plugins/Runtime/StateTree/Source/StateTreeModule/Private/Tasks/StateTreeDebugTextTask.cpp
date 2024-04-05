@@ -7,6 +7,8 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(StateTreeDebugTextTask)
 
+#define LOCTEXT_NAMESPACE "StateTree"
+
 EStateTreeRunStatus FStateTreeDebugTextTask::EnterState(FStateTreeExecutionContext& Context, const FStateTreeTransitionResult& Transition) const
 {
 	if (!bEnabled)
@@ -60,3 +62,16 @@ void FStateTreeDebugTextTask::ExitState(FStateTreeExecutionContext& Context, con
 	DrawDebugString(World, Offset, "",	InstanceData.ReferenceActor);
 }
 
+#if WITH_EDITOR
+FText FStateTreeDebugTextTask::GetDescription(const FGuid& ID, FStateTreeDataView InstanceDataView, const IStateTreeBindingLookup& BindingLookup, EStateTreeNodeFormatting Formatting) const
+{
+	const FText Format = (Formatting == EStateTreeNodeFormatting::RichText)
+		? LOCTEXT("DebugTextRich", "<b>Debug Text</> {Text}")
+		: LOCTEXT("DebugText", "Debug Text {Text}");
+
+	return FText::FormatNamed(Format,
+		TEXT("Text"), FText::FromString(Text));
+}
+#endif
+
+#undef LOCTEXT_NAMESPACE

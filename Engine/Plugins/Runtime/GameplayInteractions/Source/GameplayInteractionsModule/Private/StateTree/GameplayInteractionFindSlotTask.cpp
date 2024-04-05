@@ -9,6 +9,8 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(GameplayInteractionFindSlotTask)
 
+#define LOCTEXT_NAMESPACE "GameplayInteractions"
+
 FGameplayInteractionFindSlotTask::FGameplayInteractionFindSlotTask()
 {
 	// No tick needed.
@@ -103,3 +105,29 @@ EStateTreeRunStatus FGameplayInteractionFindSlotTask::EnterState(FStateTreeExecu
 	
 	return EStateTreeRunStatus::Running;
 }
+
+#if WITH_EDITOR
+FText FGameplayInteractionFindSlotTask::GetDescription(const FGuid& ID, FStateTreeDataView InstanceDataView, const IStateTreeBindingLookup& BindingLookup, EStateTreeNodeFormatting Formatting) const
+{
+	const FInstanceDataType* InstanceData = InstanceDataView.GetPtr<FInstanceDataType>();
+	check(InstanceData);
+
+	// Slot
+	FText SlotValue = BindingLookup.GetBindingSourceDisplayName(FStateTreePropertyPath(ID, GET_MEMBER_NAME_CHECKED(FInstanceDataType, ReferenceSlot)), Formatting);
+	if (SlotValue.IsEmpty())
+	{
+		SlotValue = LOCTEXT("None", "None");
+	}
+
+	const FText Format = (Formatting == EStateTreeNodeFormatting::RichText)
+		? LOCTEXT("FindSlotRich", "<b>Find Slot</> <s>{ByActivityTagOrByLinkTag}</> {Tag} <s>from slot</> {Slot}")
+		: LOCTEXT("FindSlot", "Find Slot {ByActivityTagOrByLinkTag} {Tag} from slot {Slot}");
+
+	return FText::FormatNamed(Format,
+		TEXT("ByActivityTagOrByLinkTag"), UEnum::GetDisplayValueAsText(ReferenceType),
+		TEXT("Tag"), FText::FromString(FindByTag.ToString()),
+		TEXT("Slot"), SlotValue);
+}
+#endif
+
+#undef LOCTEXT_NAMESPACE

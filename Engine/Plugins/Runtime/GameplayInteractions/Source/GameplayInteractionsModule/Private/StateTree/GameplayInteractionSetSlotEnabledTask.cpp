@@ -8,6 +8,8 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(GameplayInteractionSetSlotEnabledTask)
 
+#define LOCTEXT_NAMESPACE "GameplayInteractions"
+
 FGameplayInteractionSetSlotEnabledTask::FGameplayInteractionSetSlotEnabledTask()
 {
 	// No tick needed.
@@ -81,3 +83,30 @@ void FGameplayInteractionSetSlotEnabledTask::ExitState(FStateTreeExecutionContex
 		}
 	}
 }
+
+#if WITH_EDITOR
+FText FGameplayInteractionSetSlotEnabledTask::GetDescription(const FGuid& ID, FStateTreeDataView InstanceDataView, const IStateTreeBindingLookup& BindingLookup, EStateTreeNodeFormatting Formatting) const
+{
+	const FInstanceDataType* InstanceData = InstanceDataView.GetPtr<FInstanceDataType>();
+	check(InstanceData);
+
+	// Slot
+	FText SlotValue = BindingLookup.GetBindingSourceDisplayName(FStateTreePropertyPath(ID, GET_MEMBER_NAME_CHECKED(FInstanceDataType, TargetSlot)), Formatting);
+	if (SlotValue.IsEmpty())
+	{
+		SlotValue = LOCTEXT("None", "None");
+	}
+
+	const FText StateValue = bEnableSlot ? LOCTEXT("Enable", "Enable") : LOCTEXT("Disable", "Disable"); 
+
+	const FText Format = (Formatting == EStateTreeNodeFormatting::RichText)
+		? LOCTEXT("SetSlotEnabledRich", "<b>{EnableOrDisable} Slot</> {Slot}")
+		: LOCTEXT("SetSlotEnabled", "{EnableOrDisable} Slot {Slot}");
+
+	return FText::FormatNamed(Format,
+		TEXT("EnableOrDisable"), StateValue,
+		TEXT("Slot"), SlotValue);
+}
+#endif
+
+#undef LOCTEXT_NAMESPACE

@@ -11,7 +11,7 @@ class USmartObjectSubsystem;
 class UNavigationQueryFilter;
 
 USTRUCT()
-struct FStateTreeTask_GetSlotEntranceLocation_InstanceData
+struct FStateTreeTask_GetSlotEntranceTags_InstanceData
 {
 	GENERATED_BODY()
 
@@ -28,20 +28,22 @@ struct FStateTreeTask_GetSlotEntranceLocation_InstanceData
  * Gets Gameplay Tags defined at specified Smart Object slot entrance.
  */
 USTRUCT(meta = (DisplayName = "Get Slot Entrance Tags", Category="Gameplay Interactions|Smart Object"))
-struct FStateTreeTask_GetSlotEntranceLocation : public FGameplayInteractionStateTreeTask
+struct FStateTreeTask_GetSlotEntranceTags : public FGameplayInteractionStateTreeTask
 {
 	GENERATED_BODY()
 
-	FStateTreeTask_GetSlotEntranceLocation();
+	FStateTreeTask_GetSlotEntranceTags();
 	
-	using FInstanceDataType = FStateTreeTask_GetSlotEntranceLocation_InstanceData;
+	using FInstanceDataType = FStateTreeTask_GetSlotEntranceTags_InstanceData;
 
 protected:
 	virtual const UStruct* GetInstanceDataType() const override { return FInstanceDataType::StaticStruct(); }
 
 	virtual bool Link(FStateTreeLinker& Linker) override;
 	virtual EStateTreeRunStatus EnterState(FStateTreeExecutionContext& Context, const FStateTreeTransitionResult& Transition) const override;
-
+#if WITH_EDITOR
+	virtual FText GetDescription(const FGuid& ID, FStateTreeDataView InstanceDataView, const IStateTreeBindingLookup& BindingLookup, EStateTreeNodeFormatting Formatting = EStateTreeNodeFormatting::Text) const override;
+#endif
 	bool UpdateResult(const FStateTreeExecutionContext& Context) const;
 
 	/** Handle to retrieve USmartObjectSubsystem. */

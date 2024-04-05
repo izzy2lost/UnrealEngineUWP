@@ -6,6 +6,8 @@
 #include "EnvironmentQuery/EnvQueryManager.h"
 #include "StateTreeExecutionContext.h"
 
+#define LOCTEXT_NAMESPACE "GameplayStateTree"
+
 EStateTreeRunStatus FStateTreeRunEnvQueryTask::EnterState(FStateTreeExecutionContext& Context, const FStateTreeTransitionResult& Transition) const
 {
 	FInstanceDataType& InstanceData = Context.GetInstanceData(*this);
@@ -113,4 +115,24 @@ void FStateTreeRunEnvQueryTask::PostEditInstanceDataChangeChainProperty(const FP
 		}
 	}
 }
+
+FText FStateTreeRunEnvQueryTask::GetDescription(const FGuid& ID, FStateTreeDataView InstanceDataView, const IStateTreeBindingLookup& BindingLookup, EStateTreeNodeFormatting Formatting) const
+{
+	const FInstanceDataType* InstanceData = InstanceDataView.GetPtr<FInstanceDataType>();
+	check(InstanceData);
+
+	FText QueryTemplateValue = BindingLookup.GetBindingSourceDisplayName(FStateTreePropertyPath(ID, GET_MEMBER_NAME_CHECKED(FInstanceDataType, QueryTemplate)), Formatting);
+	if (QueryTemplateValue.IsEmpty())
+	{
+		QueryTemplateValue = FText::FromString(GetNameSafe(InstanceData->QueryTemplate));
+	}
+
+	if (Formatting == EStateTreeNodeFormatting::RichText)
+	{
+		return FText::Format(LOCTEXT("RunEQSRich", "<b>Run EQS Query</> {0}"), QueryTemplateValue);	
+	}
+	return FText::Format(LOCTEXT("RunEQS", "Run EQS Query {0}"), QueryTemplateValue);
+}
 #endif // WITH_EDITOR
+
+#undef LOCTEXT_NAMESPACE

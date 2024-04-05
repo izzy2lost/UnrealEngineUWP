@@ -44,4 +44,13 @@ bool FStateTreeBlueprintConditionWrapper::TestCondition(FStateTreeExecutionConte
 	return Condition->TestCondition(Context);
 }
 
-
+#if WITH_EDITOR
+FText FStateTreeBlueprintConditionWrapper::GetDescription(const FGuid& ID, FStateTreeDataView InstanceDataView, const IStateTreeBindingLookup& BindingLookup, EStateTreeNodeFormatting Formatting) const
+{
+	if (ConditionClass)
+	{
+		return ConditionClass->GetDisplayNameText();
+	}
+	return FText::GetEmpty();
+}
+#endif

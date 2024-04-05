@@ -4,6 +4,8 @@
 
 #include "StateTreeExecutionContext.h"
 
+#define LOCTEXT_NAMESPACE "StateTree"
+
 FStateTreeRunParallelStateTreeTask::FStateTreeRunParallelStateTreeTask()
 {
 	bShouldCopyBoundPropertiesOnTick = false;
@@ -92,4 +94,25 @@ void FStateTreeRunParallelStateTreeTask::PostLoad(FStateTreeDataView InstanceDat
 		DataType->StateTree.SyncParameters();
 	}
 }
+
+FText FStateTreeRunParallelStateTreeTask::GetDescription(const FGuid& ID, FStateTreeDataView InstanceDataView, const IStateTreeBindingLookup& BindingLookup, EStateTreeNodeFormatting Formatting) const
+{
+	const FInstanceDataType* InstanceData = InstanceDataView.GetPtr<FInstanceDataType>();
+	check(InstanceData);
+
+	FText StateTreeValue = BindingLookup.GetBindingSourceDisplayName(FStateTreePropertyPath(ID, GET_MEMBER_NAME_CHECKED(FInstanceDataType, StateTree)), Formatting);
+	if (StateTreeValue.IsEmpty())
+	{
+		StateTreeValue = FText::FromString(GetNameSafe(InstanceData->StateTree.GetStateTree()));
+	}
+
+	const FText Format = (Formatting == EStateTreeNodeFormatting::RichText)
+		? LOCTEXT("RunParallelRich", "<b>Run Parallel</> {Asset}")
+		: LOCTEXT("RunParallel", "Run Parallel {Asset}");
+
+	return FText::FormatNamed(Format,
+		TEXT("Asset"), StateTreeValue);
+}
 #endif // WITH_EDITOR
+
+#undef LOCTEXT_NAMESPACE

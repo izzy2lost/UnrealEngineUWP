@@ -44,6 +44,9 @@ struct FGameplayInteractionSlotTagsMatchCondition : public FGameplayInteractionS
 	virtual bool Link(FStateTreeLinker& Linker) override;
 	virtual const UStruct* GetInstanceDataType() const override { return FInstanceDataType::StaticStruct(); }
 	virtual bool TestCondition(FStateTreeExecutionContext& Context) const override;
+#if WITH_EDITOR
+	virtual FText GetDescription(const FGuid& ID, FStateTreeDataView InstanceDataView, const IStateTreeBindingLookup& BindingLookup, EStateTreeNodeFormatting Formatting = EStateTreeNodeFormatting::Text) const override;
+#endif
 
 	UPROPERTY(EditAnywhere, Category = "Condition")
 	EGameplayInteractionMatchSlotTagSource Source = EGameplayInteractionMatchSlotTagSource::RuntimeTags;
@@ -86,7 +89,10 @@ struct FGameplayInteractionQuerySlotTagCondition : public FGameplayInteractionSt
 	virtual bool Link(FStateTreeLinker& Linker) override;
 	virtual const UStruct* GetInstanceDataType() const override { return FInstanceDataType::StaticStruct(); }
 	virtual bool TestCondition(FStateTreeExecutionContext& Context) const override;
-
+#if WITH_EDITOR
+	virtual FText GetDescription(const FGuid& ID, FStateTreeDataView InstanceDataView, const IStateTreeBindingLookup& BindingLookup, EStateTreeNodeFormatting Formatting = EStateTreeNodeFormatting::Text) const override;
+#endif
+	
 	UPROPERTY(EditAnywhere, Category = "Condition")
 	EGameplayInteractionMatchSlotTagSource Source = EGameplayInteractionMatchSlotTagSource::RuntimeTags;
 
@@ -124,7 +130,10 @@ struct FGameplayInteractionIsSlotHandleValidCondition : public FGameplayInteract
 	virtual bool Link(FStateTreeLinker& Linker) override;
 	virtual const UStruct* GetInstanceDataType() const override { return FInstanceDataType::StaticStruct(); }
 	virtual bool TestCondition(FStateTreeExecutionContext& Context) const override;
-
+#if WITH_EDITOR
+	virtual FText GetDescription(const FGuid& ID, FStateTreeDataView InstanceDataView, const IStateTreeBindingLookup& BindingLookup, EStateTreeNodeFormatting Formatting = EStateTreeNodeFormatting::Text) const override;
+#endif
+	
 	UPROPERTY(EditAnywhere, Category = "Condition")
 	bool bInvert = false;
 
