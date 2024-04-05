@@ -557,7 +557,7 @@ bool UDataLayerInstance::Validate(IStreamingGenerationErrorHandler* ErrorHandler
 
 bool UDataLayerInstance::CanBeInActorEditorContext() const
 {
-	return !IsReadOnly();
+	return !IsReadOnly() && GetOuterWorldDataLayers()->ContainsDataLayer(this);
 }
 
 bool UDataLayerInstance::IsActorEditorContextCurrentColorized() const
