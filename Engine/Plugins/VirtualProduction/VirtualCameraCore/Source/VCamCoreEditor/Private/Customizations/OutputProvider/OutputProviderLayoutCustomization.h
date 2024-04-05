@@ -58,7 +58,6 @@ namespace UE::VCamCoreEditor::Private
 		FDetailWidgetRow ExtendWidgetsRow(IDetailLayoutBuilder& DetailBuilder, IDetailGroup& WidgetGroup);
 		void RebuildWidgetData();
 		void GenerateWidgetRows(IDetailGroup& RootWidgetGroup, IDetailLayoutBuilder& DetailBuilder);
-		TSharedRef<SHorizontalBox> CreateControlWidgets(const TWeakObjectPtr<UVCamWidget>& Widget) const;
 		
 		void OnActivationChanged(bool bNewIsActivated);
 		void ForceRefreshDetailsIfSafe() const;

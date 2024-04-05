@@ -5,7 +5,6 @@
 #include "Customizations/OutputProvider/ConnectionRemapCustomization_StateSwitcher.h"
 #include "Customizations/OutputProvider/ConnectionRemapCustomization_VCamWidget.h"
 #include "Customizations/OutputProvider/OutputProviderLayoutCustomization.h"
-#include "Customizations/OutputProvider/OutputProviderTypeCustomization.h"
 #include "Customizations/StateSwitcher/VCamStateSwitcherWidgetCustomization.h"
 #include "Customizations/StateSwitcher/WidgetConnectionConfigTypeCustomization.h"
 #include "Customizations/TargetSettings/ConnectionTargetSettingsTypeCustomization.h"
@@ -161,11 +160,6 @@ namespace UE::VCamCoreEditor::Private
 		PropertyModule.RegisterCustomPropertyTypeLayout(
 			FWidgetConnectionConfig::StaticStruct()->GetFName(), 
 			FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FWidgetConnectionConfigTypeCustomization::MakeInstance)
-		);
-		// Must be set up as IPropertyTypeCustomization as well to work on Instanced properties
-		PropertyModule.RegisterCustomPropertyTypeLayout(
-			UVCamOutputProviderBase::StaticClass()->GetFName(), 
-			FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FOutputProviderTypeCustomization::MakeInstance)
 		);
 		PropertyModule.RegisterCustomPropertyTypeLayout(
 			FVCamViewportLocker::StaticStruct()->GetFName(), 

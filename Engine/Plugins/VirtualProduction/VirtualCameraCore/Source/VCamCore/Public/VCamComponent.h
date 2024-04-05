@@ -455,7 +455,7 @@ private:
 	FVCamInputDeviceConfig InputDeviceSettings;
 
 	/** List of Output Providers (executed in order) */
-	UPROPERTY(EditAnywhere, Instanced, Category = "VirtualCamera")
+	UPROPERTY(EditAnywhere, Instanced, Category = "VirtualCamera", meta = (AllowEditInlineCustomization, ShowInnerProperties))
 	TArray<TObjectPtr<UVCamOutputProviderBase>> OutputProviders;
 	
 	/** Modifier Context object that can be accessed by the Modifier Stack */

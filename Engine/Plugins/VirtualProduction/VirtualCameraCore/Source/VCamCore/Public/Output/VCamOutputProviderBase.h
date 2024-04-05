@@ -43,7 +43,7 @@ namespace UE::VCamCore
 }
 
 
-UCLASS(Abstract, BlueprintType, EditInlineNew)
+UCLASS(Abstract, BlueprintType, EditInlineNew, CollapseCategories)
 class VCAMCORE_API UVCamOutputProviderBase : public UObject
 {
 	GENERATED_BODY()
