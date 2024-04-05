@@ -86,12 +86,18 @@ protected:
 	UNREALED_API virtual int32 GetTotalCount() const;
 	UNREALED_API virtual FText GetFirstItemText() const;
 
+	/** Set a custom thumbnail widget to use instead of the default one */
+	UNREALED_API void SetCustomThumbnailWidget(const TSharedRef<SWidget>& InNewThumbnailWidget);
+
 private:
 	/** Data for the assets this item represents */
 	TArray<FAssetData> AssetData;
 
 	/** Data for the asset paths this item represents */
 	TArray<FString> AssetPaths;
+
+	/** Custom thumbnail widget */
+	TAttribute<TSharedPtr<SWidget>> CustomThumbnailWidget;
 
 	/** The factory to use if converting this asset to a placed object */
 	TWeakInterfacePtr<IAssetFactoryInterface> AssetFactory;

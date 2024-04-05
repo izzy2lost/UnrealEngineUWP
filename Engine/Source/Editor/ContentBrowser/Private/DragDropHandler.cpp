@@ -3,6 +3,7 @@
 #include "DragDropHandler.h"
 
 #include "AssetViewUtils.h"
+#include "CollectionViewUtils.h"
 #include "Containers/Array.h"
 #include "Containers/Map.h"
 #include "ContentBrowserDataDragDropOp.h"
@@ -40,6 +41,38 @@
 
 #define LOCTEXT_NAMESPACE "ContentBrowser"
 
+namespace DragDropHandlerUtilsPrivate
+{
+	void RetrieveFolderInformation(const FContentBrowserItem& InFolder, FName& OutFolderBrushName, FName& OutFolderShadowName, FLinearColor& OutFolderOverrideColor)
+	{
+		// We are just dragging folders so add information on the FolderBrush to use and the color
+		if (InFolder.IsValid() && InFolder.IsFolder())
+		{
+			ContentBrowserUtils::TryGetFolderBrushAndShadowName(InFolder, OutFolderBrushName, OutFolderShadowName);
+
+			const bool bCollectionFolder = EnumHasAnyFlags(InFolder.GetItemCategory(), EContentBrowserItemFlags::Category_Collection);
+			if (bCollectionFolder)
+			{
+				FName CollectionName;
+				ECollectionShareType::Type CollectionFolderShareType = ECollectionShareType::CST_All;
+				ContentBrowserUtils::IsCollectionPath(InFolder.GetVirtualPath().ToString(), &CollectionName, &CollectionFolderShareType);
+			
+				if (TOptional<FLinearColor> Color = CollectionViewUtils::GetCustomColor(CollectionName, CollectionFolderShareType))
+				{
+					OutFolderOverrideColor = Color.GetValue();
+				}
+			}
+			else
+			{
+				if (TOptional<FLinearColor> Color = ContentBrowserUtils::GetPathColor(InFolder.GetInvariantPath().ToString()))
+				{
+					OutFolderOverrideColor = Color.GetValue();
+				}
+			}
+		}
+	}
+}
+
 namespace DragDropHandler
 {
 
@@ -75,7 +108,22 @@ TSharedPtr<FDragDropOperation> CreateDragOperation(TArrayView<const FContentBrow
 	}
 
 	// Generic handling
-	return FContentBrowserDataDragDropOp::New(InItems);
+	FName FolderBrushName = NAME_None;
+	FName FolderShadowBrushName = NAME_None;
+	FLinearColor FolderColor = ContentBrowserUtils::GetDefaultColor();
+	// This information will be later used by the ContentBrowserDragAnDropOp in case you are dragging only folders
+	if (InItems.Num() > 0)
+	{
+		DragDropHandlerUtilsPrivate::RetrieveFolderInformation(InItems[0], FolderBrushName, FolderShadowBrushName, FolderColor);
+	}
+
+	FThumbnailOverrideParams FolderThumbnailOverrideParams;
+	FolderThumbnailOverrideParams.FolderBrushName = FolderBrushName;
+	FolderThumbnailOverrideParams.FolderShadowBrushName = FolderShadowBrushName;
+	FolderThumbnailOverrideParams.FolderColorOverride = FolderColor;
+
+	TSharedRef<FContentBrowserDataDragDropOp> ContentBrowserDragAndDrop = FContentBrowserDataDragDropOp::New(InItems, FolderThumbnailOverrideParams);
+	return ContentBrowserDragAndDrop;
 }
 
 template <typename FuncType>

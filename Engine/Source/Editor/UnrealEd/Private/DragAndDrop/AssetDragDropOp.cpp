@@ -79,27 +79,19 @@ TSharedPtr<SWidget> FAssetDragDropOp::GetDefaultDecorator() const
 	const int32 TotalCount = GetTotalCount();
 
 	TSharedPtr<SWidget> ThumbnailWidget;
-	if (AssetThumbnail.IsValid())
+	if (CustomThumbnailWidget.IsSet())
+	{
+		ThumbnailWidget = CustomThumbnailWidget.Get();
+	}
+	else if (AssetThumbnail.IsValid())
 	{
 		ThumbnailWidget = AssetThumbnail->MakeThumbnailWidget();
 	}
 	else if (HasFolders())
 	{
-		ThumbnailWidget = 
-			SNew(SOverlay)
-
-			+SOverlay::Slot()
-			[
-				SNew(SImage)
-				.Image(FAppStyle::GetBrush("ContentBrowser.ListViewFolderIcon.Base"))
-				.ColorAndOpacity(FLinearColor::Gray)
-			]
-		
-			+SOverlay::Slot()
-			[
-				SNew(SImage)
-				.Image(FAppStyle::GetBrush("ContentBrowser.ListViewFolderIcon.Mask"))
-			];
+		ThumbnailWidget = SNew(SImage)
+				.Image(FAppStyle::GetBrush("ContentBrowser.ListViewFolderIcon"))
+				.ColorAndOpacity(FLinearColor::Gray);
 	}
 	else
 	{
@@ -294,4 +286,9 @@ FText FAssetDragDropOp::GetFirstItemText() const
 	}
 
 	return FText::GetEmpty();
+}
+
+void FAssetDragDropOp::SetCustomThumbnailWidget(const TSharedRef<SWidget>& InNewThumbnailWidget)
+{
+	CustomThumbnailWidget = InNewThumbnailWidget;
 }

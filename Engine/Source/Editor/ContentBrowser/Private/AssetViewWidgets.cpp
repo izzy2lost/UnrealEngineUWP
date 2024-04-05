@@ -190,11 +190,10 @@ TSharedRef<SWidget> FAssetViewItemHelper::CreateListTileItemContents(T* const In
 		// TODO: Allow items to customize their widget
 		TSharedPtr<FAssetViewItem>& AssetItem = InTileOrListItem->AssetItem;
 
-		const bool bDeveloperFolder = ContentBrowserUtils::IsItemDeveloperContent(AssetItem->GetItem());
-		const bool bCodeFolder = EnumHasAnyFlags(AssetItem->GetItem().GetItemCategory(), EContentBrowserItemFlags::Category_Class);
-		FContentBrowserItemDataAttributeValue VirtualAttributeValue = AssetItem->GetItem().GetItemAttribute(ContentBrowserItemAttributes::ItemIsCustomVirtualFolder);
-		const bool bVirtualFolder = VirtualAttributeValue.IsValid() && VirtualAttributeValue.GetValue<bool>();
-		const bool bPluginFolder = ContentBrowserUtils::IsItemPluginRootFolder(AssetItem->GetItem());
+		// Default values
+		FName FolderBrushName = TEXT("ContentBrowser.ListViewFolderIcon");
+		FName FolderShadowBrushName = TEXT("ContentBrowser.FolderItem.DropShadow");
+		ContentBrowserUtils::TryGetFolderBrushAndShadowName(AssetItem->GetItem(), FolderBrushName, FolderShadowBrushName);
 		
 		const bool bCollectionFolder = EnumHasAnyFlags(AssetItem->GetItem().GetItemCategory(), EContentBrowserItemFlags::Category_Collection);
 		ECollectionShareType::Type CollectionFolderShareType = ECollectionShareType::CST_All;
@@ -203,29 +202,8 @@ TSharedRef<SWidget> FAssetViewItemHelper::CreateListTileItemContents(T* const In
 			ContentBrowserUtils::IsCollectionPath(AssetItem->GetItem().GetVirtualPath().ToString(), nullptr, &CollectionFolderShareType);
 		}
 
-		const FSlateBrush* FolderBaseImage = nullptr;
-		const FSlateBrush* DropShadowImage = FAppStyle::Get().GetBrush("ContentBrowser.FolderItem.DropShadow");
-		if (bDeveloperFolder)
-		{
-			FolderBaseImage = FAppStyle::GetBrush("ContentBrowser.ListViewDeveloperFolderIcon");
-		}
-		else if (bCodeFolder)
-		{
-			FolderBaseImage = FAppStyle::GetBrush("ContentBrowser.ListViewCodeFolderIcon");
-		}
-		else if (bVirtualFolder && ContentBrowserUtils::ShouldShowCustomVirtualFolderIcon())
-		{
-			FolderBaseImage = FAppStyle::GetBrush("ContentBrowser.ListViewVirtualFolderIcon");
-			DropShadowImage = FAppStyle::GetBrush("None");
-		}
-		else if (bPluginFolder && ContentBrowserUtils::ShouldShowPluginFolderIcon())
-		{
-			FolderBaseImage = FAppStyle::GetBrush("ContentBrowser.ListViewPluginFolderIcon");
-		}
-		else
-		{
-			FolderBaseImage = FAppStyle::GetBrush("ContentBrowser.ListViewFolderIcon");
-		}
+		const FSlateBrush* FolderBaseImage = FAppStyle::GetBrush(FolderBrushName);
+		const FSlateBrush* DropShadowImage = FAppStyle::GetBrush(FolderShadowBrushName);
 
 		// Folder base
 		// clang-format off

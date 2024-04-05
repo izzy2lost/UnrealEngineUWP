@@ -16,11 +16,23 @@
 
 class UActorFactory;
 
-TSharedRef<FContentBrowserDataDragDropOp> FContentBrowserDataDragDropOp::New(TArrayView<const FContentBrowserItem> InDraggedItems)
+TSharedRef<FContentBrowserDataDragDropOp> FContentBrowserDataDragDropOp::New(TArrayView<const FContentBrowserItem> InDraggedItems, FThumbnailOverrideParams InThumbnailOverrideParams)
 {
 	TSharedRef<FContentBrowserDataDragDropOp> Operation = MakeShared<FContentBrowserDataDragDropOp>();
 
 	Operation->Init(MoveTemp(InDraggedItems));
+	Operation->FolderBrushName = InThumbnailOverrideParams.FolderBrushName;
+	Operation->FolderShadowBrushName = InThumbnailOverrideParams.FolderShadowBrushName;
+	Operation->FolderColorOverride = InThumbnailOverrideParams.FolderColorOverride;
+
+	if (Operation->ShouldOverrideThumbnailWidget())
+	{
+		const TSharedPtr<SWidget> CustomThumbnailWidget = Operation->GetFolderWidget();
+		if (CustomThumbnailWidget.IsValid())
+		{
+			Operation->SetCustomThumbnailWidget(CustomThumbnailWidget.ToSharedRef());
+		}
+	}
 
 	Operation->Construct();
 	return Operation;
@@ -162,4 +174,26 @@ FText FContentBrowserDataDragDropOp::GetFirstItemText() const
 	}
 
 	return FText::GetEmpty();
+}
+
+bool FContentBrowserDataDragDropOp::ShouldOverrideThumbnailWidget() const
+{
+	return HasFolders() && DraggedFiles.IsEmpty();
+}
+
+TSharedPtr<SWidget> FContentBrowserDataDragDropOp::GetFolderWidget() const
+{
+	const FSlateBrush* FolderBrush = FAppStyle::GetBrush(FolderShadowBrushName);
+	if (FolderBrush != FAppStyle::GetDefaultBrush())
+	{
+		return SNew(SBorder)
+			.BorderImage(FolderBrush)
+			.Padding(FMargin(0,0,2.0f,2.0f))
+			[
+				SNew(SImage)
+				.Image(FAppStyle::GetBrush(FolderBrushName))
+				.ColorAndOpacity(FolderColorOverride)
+			];
+	}
+	return nullptr;
 }
