@@ -3560,8 +3560,15 @@ void UGeometryCollectionComponent::OnRegister()
 	UClass* Type = bOverrideCustomRenderer ? CustomRendererType : (RestCollection ? RestCollection->CustomRendererType : nullptr);
 	if (Type && Type->ImplementsInterface(UGeometryCollectionExternalRenderInterface::StaticClass()))
 	{
-		CustomRenderer = NewObject<UObject>(this, Type);
+		if (!CustomRenderer || CustomRenderer.GetObject()->GetClass() != Type)
+		{
+			CustomRenderer = NewObject<UObject>(this, Type);
+		}
 		RegisterCustomRenderer();
+	}
+	else
+	{
+		CustomRenderer = nullptr;
 	}
 
 	Super::OnRegister();
@@ -3571,9 +3578,7 @@ void UGeometryCollectionComponent::OnUnregister()
 {
 	Super::OnUnregister();
 
-	// Remove any custom renderer.
 	UnregisterCustomRenderer();
-	CustomRenderer = nullptr;
 }
 
 void UGeometryCollectionComponent::RegisterCustomRenderer()
