@@ -16,7 +16,7 @@ struct FStateTreeRunEnvQueryInstanceData
 	GENERATED_BODY()
 
 	// Result of the query. If an array is binded, it will output all the created values otherwise it will output the best one.
-	UPROPERTY(EditAnywhere, Category = Out, meta = (RefType = "Vector, Actor", CanRefToArray))
+	UPROPERTY(EditAnywhere, Category = Out, meta = (RefType = "/Script/CoreUObject.Vector, /Script/Engine.Actor", CanRefToArray))
 	FStateTreePropertyRef Result;
 
 	// The query will be run with this actor has the owner object.

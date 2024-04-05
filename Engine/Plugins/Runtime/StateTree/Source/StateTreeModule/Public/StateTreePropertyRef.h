@@ -98,15 +98,16 @@ namespace UE::StateTree::PropertyRefHelpers
  *
  * Meta specifiers for the type:
  *  - RefType = "<type>"
- *		- Specifies a comma separated list of type of property to reference.
- *		- Supported types are: bool, byte, int32, int64, float, double, Name, String, Text, UObject pointers, and structs.
- *		- If multiple types are specified, GetMutablePtrTuple can be used to access the correct type.
+ *		- Specifies a comma separated list of type of property to reference
+ *		- Supported types are: bool, byte, int32, int64, float, double, Name, String, Text, UObject pointers, and structs
+ *		- Structs and Objects must use full path name
+ *		- If multiple types are specified, GetMutablePtrTuple can be used to access the correct type
  *  - IsRefToArray
  *		- If specified, the reference is to an TArray<RefType>
  *	- CanRefToArray
  *		- If specified, the reference can bind to a Reftype or TArray<RefType>
  *  - Optional
- *		- If specified, the reference can be left unbound, otherwise the compiler report error if the reference is not bound.
+ *		- If specified, the reference can be left unbound, otherwise the compiler report error if the reference is not bound
  *
  * Example:
  *
@@ -123,7 +124,7 @@ namespace UE::StateTree::PropertyRefHelpers
  *	FStateTreePropertyRef RefToArrayOfTests;
  *
  *  // Reference to Vector, TArray<FVector>, AActor*, TArray<AActor*>
- *	UPROPERTY(EditAnywhere, meta = (RefType = "Vector, AActor", CanRefToArray))
+ *	UPROPERTY(EditAnywhere, meta = (RefType = "/Script/CoreUObject.Vector, /Script/Engine.Actor", CanRefToArray))
  *	FStateTreePropertyRef RefToLocationLikeTypes;
  */
 USTRUCT()

@@ -2937,7 +2937,7 @@ bool FStateTreeExecutionContext::TriggerTransitions()
 					}
 				}
 
-				if (NextTransition.Priority != EStateTreeTransitionPriority::None)
+				if (NextTransition.Priority != EStateTreeTransitionPriority::None) //-V547
 				{
 					break;
 				}
@@ -2945,7 +2945,7 @@ bool FStateTreeExecutionContext::TriggerTransitions()
 		}
 
 		// Handle the case where no transition was found.
-		if (NextTransition.Priority == EStateTreeTransitionPriority::None)
+		if (NextTransition.Priority == EStateTreeTransitionPriority::None) //-V547
 		{
 			STATETREE_LOG_AND_TRACE(Verbose, TEXT("Could not trigger completion transition, jump back to root state."));
 
