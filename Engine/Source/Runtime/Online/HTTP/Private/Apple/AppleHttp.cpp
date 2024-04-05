@@ -927,6 +927,10 @@ void FAppleHttpRequest::FinishRequest()
 				}
 			}
 		}
+		else if (bCanceled)
+		{
+			Reason = EHttpFailureReason::Cancelled;
+		}
 		SetFailureReason(Reason);
 
 		if (GetFailureReason() == EHttpFailureReason::ConnectionError)
@@ -971,6 +975,11 @@ void FAppleHttpRequest::AbortRequest()
 	if (Task != nil)
 	{
 		[Task cancel];
+	}
+	else
+	{
+		// No Task means SetupRequest was not called, so we were not added to the HttpManager yet
+		FinishRequestNotInHttpManager();
 	}
 }
 
