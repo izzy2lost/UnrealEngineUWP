@@ -250,6 +250,73 @@ FORCEINLINE TMatrix<T> TMatrix<T>::GetTransposed() const
 	return Result;
 }
 
+/**
+* Convert this Atom to the 3x4 transpose of the transformation matrix.
+*/
+template<typename T>
+FORCEINLINE void TMatrix<T>::To3x4MatrixTranspose(T* Out) const
+{
+	const T* RESTRICT Src = &(M[0][0]);
+	T* RESTRICT Dest = Out;
+
+	Dest[0] = Src[0];   // [0][0]
+	Dest[1] = Src[4];   // [1][0]
+	Dest[2] = Src[8];   // [2][0]
+	Dest[3] = Src[12];  // [3][0]
+
+	Dest[4] = Src[1];   // [0][1]
+	Dest[5] = Src[5];   // [1][1]
+	Dest[6] = Src[9];   // [2][1]
+	Dest[7] = Src[13];  // [3][1]
+
+	Dest[8] = Src[2];   // [0][2]
+	Dest[9] = Src[6];   // [1][2]
+	Dest[10] = Src[10];  // [2][2]
+	Dest[11] = Src[14];  // [3][2]
+}
+
+template<>
+FORCEINLINE void TMatrix<float>::To3x4MatrixTranspose(float* Out) const
+{
+	const float* RESTRICT Src = &(M[0][0]);
+	float* RESTRICT Dest = Out;
+
+#if PLATFORM_ENABLE_VECTORINTRINSICS
+	VectorRegister4Float InRow0 = VectorLoad(&Src[0]);
+	VectorRegister4Float InRow1 = VectorLoad(&Src[4]);
+	VectorRegister4Float InRow2 = VectorLoad(&Src[8]);
+	VectorRegister4Float InRow3 = VectorLoad(&Src[12]);
+
+	VectorRegister4Float Temp0 = VectorCombineLow( InRow0, InRow1);
+	VectorRegister4Float Temp1 = VectorCombineLow( InRow2, InRow3);
+	VectorRegister4Float Temp2 = VectorCombineHigh(InRow0, InRow1);
+	VectorRegister4Float Temp3 = VectorCombineHigh(InRow2, InRow3);
+
+	VectorRegister4Float Row0, Row1, Row2, Row3;
+	VectorDeinterleave(Row0, Row1, Temp0, Temp1);
+	VectorDeinterleave(Row2, Row3, Temp2, Temp3);
+
+	VectorStore(Row0, &Dest[0]);
+	VectorStore(Row1, &Dest[4]);
+	VectorStore(Row2, &Dest[8]);
+#else
+	Dest[0]  = Src[0];   // [0][0]
+	Dest[1]  = Src[4];   // [1][0]
+	Dest[2]  = Src[8];   // [2][0]
+	Dest[3]  = Src[12];  // [3][0]
+
+	Dest[4]  = Src[1];   // [0][1]
+	Dest[5]  = Src[5];   // [1][1]
+	Dest[6]  = Src[9];   // [2][1]
+	Dest[7]  = Src[13];  // [3][1]
+
+	Dest[8]  = Src[2];   // [0][2]
+	Dest[9]  = Src[6];   // [1][2]
+	Dest[10] = Src[10];  // [2][2]
+	Dest[11] = Src[14];  // [3][2]
+#endif
+}
+
 // Determinant.
 
 template<typename T>

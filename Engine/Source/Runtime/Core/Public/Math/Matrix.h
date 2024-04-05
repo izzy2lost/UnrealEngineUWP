@@ -301,7 +301,6 @@ public:
 	 */
 	inline void SetAxes(const TVector<T>* Axis0 = NULL, const TVector<T>* Axis1 = NULL, const TVector<T>* Axis2 = NULL, const TVector<T>* Origin = NULL);
 
-
 	/**
 	 * get a column of this matrix
 	 *
@@ -327,6 +326,11 @@ public:
 	 * @warning rotation part will need to be unit length for this to be right!
 	 */
 	CORE_API UE::Math::TQuat<T> ToQuat() const;
+
+	/**
+	 * Convert this Atom to the 3x4 transpose of the transformation matrix.
+	 */
+	FORCEINLINE void To3x4MatrixTranspose(T* Out) const;
 
 	// Frustum plane extraction.
 	/** @param OuTPln the near plane of the Frustum of this matrix */
@@ -401,30 +405,6 @@ public:
 	}
 	
 	bool SerializeFromMismatchedTag(FName StructTag, FArchive& Ar);
-
-	/**
-	 * Convert this Atom to the 3x4 transpose of the transformation matrix.
-	 */
-	void To3x4MatrixTranspose(T* Out) const
-	{
-		const T* RESTRICT Src = &(M[0][0]);
-		T* RESTRICT Dest = Out;
-
-		Dest[0] = Src[0];   // [0][0]
-		Dest[1] = Src[4];   // [1][0]
-		Dest[2] = Src[8];   // [2][0]
-		Dest[3] = Src[12];  // [3][0]
-
-		Dest[4] = Src[1];   // [0][1]
-		Dest[5] = Src[5];   // [1][1]
-		Dest[6] = Src[9];   // [2][1]
-		Dest[7] = Src[13];  // [3][1]
-
-		Dest[8] = Src[2];   // [0][2]
-		Dest[9] = Src[6];   // [1][2]
-		Dest[10] = Src[10]; // [2][2]
-		Dest[11] = Src[14]; // [3][2]
-	}
 
 	// Conversion to other type.
 	template<typename FArg, TEMPLATE_REQUIRES(!std::is_same_v<T, FArg>)>
