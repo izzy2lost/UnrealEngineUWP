@@ -1089,7 +1089,7 @@ bool FStateTreeCompiler::CreateCondition(UStateTreeState& State, const FStateTre
 
 	FStateTreeBindableStructDesc StructDesc;
 	StructDesc.ID = CondNode.ID;
-	StructDesc.Name = CondNode.Node.GetScriptStruct()->GetFName();
+	StructDesc.Name = CondNode.GetName();
 	StructDesc.DataSource = EStateTreeBindableStructSource::Condition;
 
 	// Check that item has valid instance initialized.
@@ -1110,6 +1110,9 @@ bool FStateTreeCompiler::CreateCondition(UStateTreeState& State, const FStateTre
 	Cond.Operand = Operand;
 	Cond.DeltaIndent = DeltaIndent;
 
+	// Update condition name as description for runtime.
+	Cond.Name = CondNode.GetName();
+
 	FStateTreeDataView InstanceDataView;
 	
 	if (CondNode.Instance.IsValid())
@@ -1120,7 +1123,6 @@ bool FStateTreeCompiler::CreateCondition(UStateTreeState& State, const FStateTre
 
 		// Create binding source struct descriptor.
 		StructDesc.Struct = CondNode.Instance.GetScriptStruct();
-		StructDesc.Name = Cond.Name;
 
 		if (const auto Validation = UE::StateTree::Compiler::IsValidIndex16(InstanceIndex); Validation.DidFail())
 		{
@@ -1143,7 +1145,6 @@ bool FStateTreeCompiler::CreateCondition(UStateTreeState& State, const FStateTre
 		
 		// Create binding source struct descriptor.
 		StructDesc.Struct = Instance->GetClass();
-		StructDesc.Name = Cond.Name;
 
 		if (const auto Validation = UE::StateTree::Compiler::IsValidIndex16(InstanceIndex); Validation.DidFail())
 		{
@@ -1268,7 +1269,7 @@ bool FStateTreeCompiler::CreateTask(UStateTreeState* State, const FStateTreeEdit
 	// Create binding source struct descriptor.
 	FStateTreeBindableStructDesc StructDesc;
 	StructDesc.ID = TaskNode.ID;
-	StructDesc.Name = TaskNode.Node.GetScriptStruct()->GetFName();
+	StructDesc.Name = TaskNode.GetName();
 	StructDesc.DataSource = EStateTreeBindableStructSource::Task;
 
 	// Check that node has valid instance initialized.
@@ -1287,6 +1288,9 @@ bool FStateTreeCompiler::CreateTask(UStateTreeState* State, const FStateTreeEdit
 	FStateTreeTaskBase& Task = Node.GetMutable<FStateTreeTaskBase>();
 	FStateTreeDataView InstanceDataView;
 
+	// Update task name as description for runtime.
+	Task.Name = TaskNode.GetName();
+	
 	if (TaskNode.Instance.IsValid())
 	{
 		// Struct Instance
@@ -1295,7 +1299,6 @@ bool FStateTreeCompiler::CreateTask(UStateTreeState* State, const FStateTreeEdit
 
 		// Create binding source struct descriptor.
 		StructDesc.Struct = TaskNode.Instance.GetScriptStruct();
-		StructDesc.Name = Task.Name;
 
 		if (const auto Validation = UE::StateTree::Compiler::IsValidIndex16(InstanceIndex); Validation.DidFail())
 		{
@@ -1318,7 +1321,6 @@ bool FStateTreeCompiler::CreateTask(UStateTreeState* State, const FStateTreeEdit
 
 		// Create binding source struct descriptor.
 		StructDesc.Struct = Instance->GetClass();
-		StructDesc.Name = Task.Name;
 
 		if (const auto Validation = UE::StateTree::Compiler::IsValidIndex16(InstanceIndex); Validation.DidFail())
 		{
@@ -1381,7 +1383,7 @@ bool FStateTreeCompiler::CreateEvaluator(const FStateTreeEditorNode& EvalNode, c
 	// Create binding source struct descriptor.
 	FStateTreeBindableStructDesc StructDesc;
     StructDesc.ID = EvalNode.ID;
-    StructDesc.Name = EvalNode.Node.GetScriptStruct()->GetFName();
+	StructDesc.Name = EvalNode.GetName();
 	StructDesc.DataSource = EStateTreeBindableStructSource::Evaluator;
 
     // Check that node has valid instance initialized.
@@ -1399,7 +1401,10 @@ bool FStateTreeCompiler::CreateEvaluator(const FStateTreeEditorNode& EvalNode, c
 	
 	FStateTreeEvaluatorBase& Eval = Node.GetMutable<FStateTreeEvaluatorBase>();
 	FStateTreeDataView InstanceDataView;
-	
+
+	// Update eval name as description for runtime.
+	Eval.Name = EvalNode.GetName();
+
 	if (EvalNode.Instance.IsValid())
 	{
 		// Struct Instance
@@ -1408,7 +1413,6 @@ bool FStateTreeCompiler::CreateEvaluator(const FStateTreeEditorNode& EvalNode, c
 
 		// Create binding source struct descriptor.
 		StructDesc.Struct = EvalNode.Instance.GetScriptStruct();
-		StructDesc.Name = Eval.Name;
 
 		if (const auto Validation = UE::StateTree::Compiler::IsValidIndex16(InstanceIndex); Validation.DidFail())
 		{
@@ -1431,7 +1435,6 @@ bool FStateTreeCompiler::CreateEvaluator(const FStateTreeEditorNode& EvalNode, c
 		
 		// Create binding source struct descriptor.
 		StructDesc.Struct = Instance->GetClass();
-		StructDesc.Name = Eval.Name;
 
 		if (const auto Validation = UE::StateTree::Compiler::IsValidIndex16(InstanceIndex); Validation.DidFail())
 		{

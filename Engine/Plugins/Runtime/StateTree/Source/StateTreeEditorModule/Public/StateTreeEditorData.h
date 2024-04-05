@@ -59,7 +59,17 @@ public:
 	virtual bool GetStructByID(const FGuid StructID, FStateTreeBindableStructDesc& OutStructDesc) const override;
 	virtual bool GetDataViewByID(const FGuid StructID, FStateTreeDataView& OutDataView) const override;
 	virtual FStateTreeEditorPropertyBindings* GetPropertyEditorBindings() override { return &EditorBindings; }
+	virtual const FStateTreeEditorPropertyBindings* GetPropertyEditorBindings() const override { return &EditorBindings; }
+	virtual FStateTreeBindableStructDesc FindContextData(const UStruct* ObjectType, const FString ObjectNameHint) const override;
+
 	// ~IStateTreeEditorPropertyBindingsOwner
+
+	/**
+	 * Returns the description for the node for UI.
+	 * Handles the name override logic, figures out required data for the GetDescription() call, and handles the fallbacks.
+	 * @return description for the node.
+	 */
+	FText GetNodeDescription(const FStateTreeEditorNode& Node, const EStateTreeNodeFormatting Formatting = EStateTreeNodeFormatting::Text) const;
 
 #if WITH_EDITOR
 	using FReplacementObjectMap = TMap<UObject*, UObject*>;
@@ -120,13 +130,6 @@ public:
 	 * @param OutStructDescs Array of nodes accessible on the given path.  
 	 */
 	void GetAccessibleStructs(const TConstArrayView<const UStateTreeState*> Path, const FGuid TargetStructID, TArray<FStateTreeBindableStructDesc>& OutStructDescs) const;
-
-	/**
-	 * Finds a bindable context struct based on name and type.
-	 * @param ObjectType Object type to match
-	 * @param ObjectNameHint Name to use if multiple context objects of same type are found. 
-	 */
-	FStateTreeBindableStructDesc FindContextData(const UStruct* ObjectType, const FString ObjectNameHint) const;
 
 	UE_DEPRECATED(5.3, "Use VisitHierarchyNodes with State, Desc, Value instead.")
 	void VisitHierarchyNodes(TFunctionRef<EStateTreeVisitor(const UStateTreeState* State, const FGuid& ID, const FName& Name, const EStateTreeNodeType NodeType, const UScriptStruct* NodeStruct, const UStruct* InstanceStruct)> InFunc) const;

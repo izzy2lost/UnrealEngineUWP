@@ -31,16 +31,25 @@ struct STATETREEEDITORMODULE_API FStateTreeEditorNode
 		ID = FGuid();
 	}
 
+	/**
+	 * This is used to name nodes for runtime, as well as for error reporting.
+	 * If the node has a specified name, used that, or else of return the display name of the node.
+	 * @return name of the node.
+	 */
 	FName GetName() const
 	{
 		if (const FStateTreeNodeBase* NodePtr = Node.GetPtr<FStateTreeNodeBase>())
 		{
+			if (NodePtr->Name.IsNone())
+			{
+				return FName(Node.GetScriptStruct()->GetDisplayNameText().ToString());
+			}
 			return NodePtr->Name;
 		}
 		return FName();
 	}
 
-	const FStateTreeDataView GetInstance() const
+	FStateTreeDataView GetInstance() const
 	{
 		return InstanceObject ? FStateTreeDataView(InstanceObject) : FStateTreeDataView(const_cast<FInstancedStruct&>(Instance));
 	}

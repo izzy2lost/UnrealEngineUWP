@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "StateTreeNodeBase.h"
 #include "StateTreeTypes.h"
 #include "StateTreePropertyRefHelpers.h"
 #include "StateTreePropertyBindings.generated.h"
@@ -11,6 +12,7 @@ struct FStateTreePropertyPath;
 struct FStateTreePropertyBindingCompiler;
 struct FStateTreePropertyRef;
 class UStateTree;
+enum EStateTreeNodeFormatting : uint8;
 
 UENUM()
 enum class EStateTreeBindableStructSource : uint8
@@ -1017,11 +1019,16 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
  */
 struct STATETREEMODULE_API IStateTreeBindingLookup
 {
+	virtual ~IStateTreeBindingLookup() {} 
+	
 	/** @return Source path for given target path, or null if binding does not exists. */
 	virtual const FStateTreePropertyPath* GetPropertyBindingSource(const FStateTreePropertyPath& InTargetPath) const PURE_VIRTUAL(IStateTreeBindingLookup::GetPropertyBindingSource, return nullptr; );
 
 	/** @return Display name given property path. */
-	virtual FText GetPropertyPathDisplayName(const FStateTreePropertyPath& InPath) const PURE_VIRTUAL(IStateTreeBindingLookup::GetPropertyPathDisplayName, return FText::GetEmpty(); );
+	virtual FText GetPropertyPathDisplayName(const FStateTreePropertyPath& InPath, EStateTreeNodeFormatting Formatting = EStateTreeNodeFormatting::Text) const PURE_VIRTUAL(IStateTreeBindingLookup::GetPropertyPathDisplayName, return FText::GetEmpty(); );
+
+	/** @return Display name of binding source, or empty if binding does not exists. */
+	virtual FText GetBindingSourceDisplayName(const FStateTreePropertyPath& InTargetPath, EStateTreeNodeFormatting Formatting = EStateTreeNodeFormatting::Text) const PURE_VIRTUAL(IStateTreeBindingLookup::GetPropertyPathDisplayName, return FText::GetEmpty(); );
 
 	/** @return Leaf property based on property path. */
 	virtual const FProperty* GetPropertyPathLeafProperty(const FStateTreePropertyPath& InPath) const PURE_VIRTUAL(IStateTreeBindingLookup::GetPropertyPathLeafProperty, return nullptr; );

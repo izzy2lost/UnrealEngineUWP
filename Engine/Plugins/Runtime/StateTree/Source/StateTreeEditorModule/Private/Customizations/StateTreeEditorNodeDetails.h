@@ -15,6 +15,8 @@ class IPropertyUtilities;
 class SComboButton;
 class SWidget;
 class SSearchBox;
+class SWidgetSwitcher;
+class SEditableText;
 class UStateTree;
 class UStateTreeState;
 class UStateTreeEditorData;
@@ -71,13 +73,14 @@ private:
 	EVisibility IsConditionVisible() const;
 	EVisibility IsTaskVisible() const;
 
+	FReply OnDescriptionClicked(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent) const;
+	FText GetNodeDescription() const;
+	EVisibility IsNodeDescriptionVisible() const;
+	
 	FText GetName() const;
-	EVisibility IsNameVisible() const;
 	void OnNameCommitted(const FText& NewText, ETextCommit::Type InTextCommit) const;
-	bool IsNameEnabled() const;
 
-	FText GetDisplayValueString() const;
-	const FSlateBrush* GetDisplayValueIcon() const;
+	FText GetNodePickerTooltip() const;
 
 	TSharedRef<SWidget> GeneratePicker();
 	void OnStructPicked(const UScriptStruct* InStruct) const;
@@ -135,6 +138,8 @@ private:
 	TSharedPtr<SComboButton> ComboButton;
 	TSharedPtr<SSearchBox> SearchBox;
 	TSharedPtr<STreeView<TSharedPtr<FStateTreeNodeTypeItem>>> NodeTypeTree;
+	TSharedPtr<SWidgetSwitcher> NameSwitcher;
+	TSharedPtr<SEditableText> NameEdit;
 	bool bIsRestoringExpansion = false;
 
 	UStateTreeEditorData* EditorData = nullptr;

@@ -104,15 +104,22 @@ FStateTreeEditorStyle::FStateTreeEditorStyle()
 
 	// Task
 	{
-		const FTextBlockStyle TaskTitle = FTextBlockStyle(NormalText)
+		Set("StateTree.Task.Title", FTextBlockStyle(NormalText)
 			.SetFont(DEFAULT_FONT("Regular", 10))
-			.SetColorAndOpacity(FLinearColor(230.0f / 255.0f, 230.0f / 255.0f, 230.0f / 255.0f, 0.85f));
-		Set("StateTree.Task.Title", TaskTitle);
+			.SetColorAndOpacity(FLinearColor(230.0f / 255.0f, 230.0f / 255.0f, 230.0f / 255.0f, 0.85f)));
+
+		Set("StateTree.Task.Title.Bold", FTextBlockStyle(NormalText)
+			.SetFont(DEFAULT_FONT("Bold", 10))
+			.SetColorAndOpacity(FLinearColor(230.0f / 255.0f, 230.0f / 255.0f, 230.0f / 255.0f, 0.85f)));
+
+		Set("StateTree.Task.Title.Subdued", FTextBlockStyle(NormalText)
+			.SetFont(DEFAULT_FONT("Regular", 10))
+			.SetColorAndOpacity(FLinearColor(230.0f / 255.0f, 230.0f / 255.0f, 230.0f / 255.0f, 0.4f)));
 
 		// Tasks to be show up a bit darker than the state
 		Set("StateTree.Task.Rect", new FSlateColorBrush(FLinearColor(FVector3f(0.67f))));
 	}
-	
+
 	// Details rich text
 	{
 		Set("Details.Normal", FTextBlockStyle(NormalText)
@@ -197,11 +204,29 @@ FStateTreeEditorStyle::FStateTreeEditorStyle()
 	
 	Set("StateTree.Node.Indent.ComboBox", FComboButtonStyle(ComboButtonStyle).SetButtonStyle(IndentButton));
 
-	const FEditableTextStyle& NormalEditableText = FCoreStyle::Get().GetWidgetStyle<FEditableTextStyle>("NormalEditableText");
-	FEditableTextStyle NameEditStyle(NormalEditableText);
-	NameEditStyle.Font.Size = 10;
-	Set("StateTree.Node.Name", NameEditStyle);
+	
+	// Node text styles
+	{
+		FEditableTextStyle EditableTextStyle = FEditableTextStyle(FAppStyle::GetWidgetStyle<FEditableTextStyle>("NormalEditableText"));
+		EditableTextStyle.Font = FAppStyle::GetFontStyle(TEXT("PropertyWindow.NormalFont"));
+		EditableTextStyle.Font.Size = 10.0f;
+		Set("StateTree.Node.Editable", EditableTextStyle);
 
+		Set("StateTree.Node.Normal", FTextBlockStyle(NormalText)
+			.SetFont(FAppStyle::GetFontStyle(TEXT("PropertyWindow.NormalFont")))
+			.SetFontSize(10));
+
+		Set("StateTree.Node.Bold", FTextBlockStyle(NormalText)
+			.SetFont(FAppStyle::GetFontStyle(TEXT("PropertyWindow.BoldFont")))
+			.SetFontSize(10));
+
+		Set("StateTree.Node.Subdued", FTextBlockStyle(NormalText)
+			.SetColorAndOpacity(FSlateColor::UseSubduedForeground())
+			.SetFont(FAppStyle::GetFontStyle(TEXT("PropertyWindow.NormalFont")))
+			.SetFontSize(10));
+	}
+
+	
 	// Command icons
 	{
 		// From generic engine

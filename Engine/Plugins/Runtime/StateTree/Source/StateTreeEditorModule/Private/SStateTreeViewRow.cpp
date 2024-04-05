@@ -2,22 +2,20 @@
 
 #include "SStateTreeViewRow.h"
 #include "SStateTreeView.h"
-
-
 #include "EditorFontGlyphs.h"
 #include "StateTreeEditor.h"
 #include "StateTreeEditorData.h"
 #include "StateTreeEditorStyle.h"
-
 #include "Widgets/Text/SInlineEditableTextBlock.h"
 #include "Widgets/Layout/SScrollBox.h"
 #include "Widgets/Layout/SSpacer.h"
-
 #include "StateTree.h"
 #include "StateTreeState.h"
 #include "StateTreeTaskBase.h"
 #include "StateTreeViewModel.h"
 #include "Widgets/Views/SListView.h"
+#include "TextStyleDecorator.h"
+#include "Widgets/Text/SRichTextBlock.h"
 
 #define LOCTEXT_NAMESPACE "StateTreeEditor"
 
@@ -40,7 +38,7 @@ void SStateTreeViewRow::Construct(const FArguments& InArgs, const TSharedRef<STa
 	StateTreeViewModel = InStateTreeViewModel;
 	WeakState = InState;
 	const UStateTreeState* State = InState.Get();
-	WeakTreeData = State != nullptr ? State->GetTypedOuter<UStateTreeEditorData>() : nullptr;
+	WeakEditorData = State != nullptr ? State->GetTypedOuter<UStateTreeEditorData>() : nullptr;
 
 	ConstructInternal(STableRow::FArguments()
 		.Padding(5.0f)
@@ -540,18 +538,24 @@ void SStateTreeViewRow::Construct(const FArguments& InArgs, const TSharedRef<STa
 TSharedRef<SHorizontalBox> SStateTreeViewRow::CreateTasksWidget()
 {
 	const TSharedRef<SHorizontalBox> TasksBox = SNew(SHorizontalBox);
-	
+	const UStateTreeEditorData* EditorData = WeakEditorData.Get();
 	const UStateTreeState* State = WeakState.Get();
-	if (State == nullptr || State->Tasks.IsEmpty())
+	
+	if (!EditorData || !State || State->Tasks.IsEmpty())
 	{
 		return TasksBox;
 	}
 
-	TWeakObjectPtr<UStateTreeEditorData> WeakEditorData = State->GetTypedOuter<UStateTreeEditorData>();
+	const int32 NumTasks = State->Tasks.Num();
 
-	for (int32 TaskIndex = 0; TaskIndex < State->Tasks.Num(); TaskIndex++)
+	// The task descriptions can get long. Make some effort to limit how long they can get. 
+	constexpr float ReferenceWidth = 1000.0f;
+	const float MaxTaskWidth = FMath::RoundToFloat(FMath::Max(150.0f, ReferenceWidth / static_cast<float>(FMath::Max(1, NumTasks))));
+
+	for (int32 TaskIndex = 0; TaskIndex < NumTasks; TaskIndex++)
 	{
-		if (const FStateTreeTaskBase* Task = State->Tasks[TaskIndex].Node.GetPtr<FStateTreeTaskBase>())
+		const FStateTreeEditorNode& TaskNode = State->Tasks[TaskIndex];
+		if (const FStateTreeTaskBase* Task = TaskNode.Node.GetPtr<FStateTreeTaskBase>())
 		{
 			FGuid TaskId = State->Tasks[TaskIndex].ID;
 			auto IsTaskEnabledFunc = [WeakState=WeakState, TaskIndex]
@@ -567,7 +571,7 @@ TSharedRef<SHorizontalBox> SStateTreeViewRow::CreateTasksWidget()
 					return true;
 				};
 
-			auto IsTaskBreakpointEnabledFunc = [WeakEditorData, TaskId]
+			auto IsTaskBreakpointEnabledFunc = [WeakEditorData = WeakEditorData, TaskId]
 				{
 #if WITH_STATETREE_DEBUGGER
 					const UStateTreeEditorData* EditorData = WeakEditorData.Get();
@@ -579,7 +583,7 @@ TSharedRef<SHorizontalBox> SStateTreeViewRow::CreateTasksWidget()
 					return EVisibility::Hidden;
 				};
 			
-			auto GetTaskBreakpointTooltipFunc = [WeakEditorData, TaskId]
+			auto GetTaskBreakpointTooltipFunc = [WeakEditorData = WeakEditorData, TaskId]
 				{
 #if WITH_STATETREE_DEBUGGER
 					if (const UStateTreeEditorData* EditorData = WeakEditorData.Get())
@@ -605,16 +609,6 @@ TSharedRef<SHorizontalBox> SStateTreeViewRow::CreateTasksWidget()
 					return FText::GetEmpty();
 				};
 
-			FText TaskName;
-			if (UE::StateTree::Editor::GbDisplayItemIds)
-			{
-				TaskName = FText::FromString(FString::Printf(TEXT("%s (%s)"), *Task->Name.ToString(), *LexToString(TaskId)));
-			}
-			else
-			{
-				TaskName = FText::FromName(Task->Name);
-			}
-
 			TasksBox->AddSlot()
 				.AutoWidth()
 				.VAlign(VAlign_Fill)
@@ -629,12 +623,19 @@ TSharedRef<SHorizontalBox> SStateTreeViewRow::CreateTasksWidget()
 						SNew(SOverlay)
 						+ SOverlay::Slot()
 						[
-							SNew(STextBlock)
-							.Margin(FMargin(4.f, 0.f))
-							.Text(TaskName)
-							.TextStyle(FStateTreeEditorStyle::Get(), "StateTree.Task.Title")
-							.IsEnabled_Lambda(IsTaskEnabledFunc)
-							.ToolTipText(FText::FromName(Task->Name))
+							SNew(SBox)
+							.MaxDesiredWidth(MaxTaskWidth)
+							[
+								SNew(SRichTextBlock)
+								.Margin(FMargin(6.f, 0.f))
+								.Text(this, &SStateTreeViewRow::GetTaskDesc, TaskId, EStateTreeNodeFormatting::RichText)
+								.ToolTipText(this, &SStateTreeViewRow::GetTaskDesc, TaskId, EStateTreeNodeFormatting::Text)
+								.TextStyle(&FStateTreeEditorStyle::Get().GetWidgetStyle<FTextBlockStyle>("StateTree.Task.Title"))
+								.OverflowPolicy(ETextOverflowPolicy::Ellipsis)
+								+SRichTextBlock::Decorator(FTextStyleDecorator::Create(TEXT(""), FStateTreeEditorStyle::Get().GetWidgetStyle<FTextBlockStyle>("StateTree.Task.Title")))
+								+SRichTextBlock::Decorator(FTextStyleDecorator::Create(TEXT("b"), FStateTreeEditorStyle::Get().GetWidgetStyle<FTextBlockStyle>("StateTree.Task.Title.Bold")))
+								+SRichTextBlock::Decorator(FTextStyleDecorator::Create(TEXT("s"), FStateTreeEditorStyle::Get().GetWidgetStyle<FTextBlockStyle>("StateTree.Task.Title.Subdued")))
+							]
 						]
 						+ SOverlay::Slot()
 						[
@@ -675,7 +676,7 @@ void SStateTreeViewRow::RequestRename() const
 FSlateColor SStateTreeViewRow::GetTitleColor() const
 {
 	const UStateTreeState* State = WeakState.Get();
-	const UStateTreeEditorData* EditorData = WeakTreeData.Get();
+	const UStateTreeEditorData* EditorData = WeakEditorData.Get();
 
 	if (State != nullptr && EditorData != nullptr)
 	{
@@ -755,7 +756,7 @@ EVisibility SStateTreeViewRow::GetStateBreakpointVisibility() const
 {
 #if WITH_STATETREE_DEBUGGER
 	const UStateTreeState* State = WeakState.Get();
-	const UStateTreeEditorData* EditorData = WeakTreeData.Get();
+	const UStateTreeEditorData* EditorData = WeakEditorData.Get();
 	if (State != nullptr && EditorData != nullptr)
 	{
 		return (EditorData != nullptr && EditorData->HasAnyBreakpoint(State->ID)) ? EVisibility::Visible : EVisibility::Hidden;
@@ -768,7 +769,7 @@ FText SStateTreeViewRow::GetStateBreakpointTooltipText() const
 {
 #if WITH_STATETREE_DEBUGGER
 	const UStateTreeState* State = WeakState.Get();
-	const UStateTreeEditorData* EditorData = WeakTreeData.Get();
+	const UStateTreeEditorData* EditorData = WeakEditorData.Get();
 	if (State != nullptr && EditorData != nullptr)
 	{
 		const bool bHasBreakpointOnEnter = EditorData->HasBreakpoint(State->ID, EStateTreeBreakpointType::OnEnter);
@@ -879,6 +880,32 @@ FText SStateTreeViewRow::GetStateTypeTooltip() const
 	return FText::GetEmpty();
 }
 
+FText SStateTreeViewRow::GetTaskDesc(FGuid TaskID, EStateTreeNodeFormatting Formatting) const
+{
+	FText TaskName;
+	const UStateTreeState* State = WeakState.Get();
+	const UStateTreeEditorData* EditorData = WeakEditorData.Get();
+	if (EditorData != nullptr
+		&& State != nullptr)
+	{
+		const FStateTreeEditorNode* TaskNode = State->Tasks.FindByPredicate([&TaskID](const FStateTreeEditorNode& Node)
+		{
+			return Node.ID == TaskID;
+		});
+		if (TaskNode)
+		{
+			if (UE::StateTree::Editor::GbDisplayItemIds)
+			{
+				TaskName = FText::Format(LOCTEXT("TaskNameWithID", "{0} ({1})"), EditorData->GetNodeDescription(*TaskNode, Formatting), FText::AsCultureInvariant(*LexToString(TaskID)));
+			}
+			else
+			{
+				TaskName = EditorData->GetNodeDescription(*TaskNode, Formatting);
+			}
+		}
+	}
+	return TaskName;
+}
 
 EVisibility SStateTreeViewRow::GetTasksVisibility() const
 {
@@ -973,7 +1000,7 @@ FText SStateTreeViewRow::GetLinkDescription(const FStateTreeStateLink& Link)
 FText SStateTreeViewRow::GetTransitionsDesc(const UStateTreeState& State, const EStateTreeTransitionTrigger Trigger, const FTransitionDescFilterOptions FilterOptions) const
 {
 	TArray<FText> DescItems;
-	const UStateTreeEditorData* TreeEditorData = WeakTreeData.Get();
+	const UStateTreeEditorData* TreeEditorData = WeakEditorData.Get();
 
 	for (const FStateTreeTransition& Transition : State.Transitions)
 	{
@@ -1063,7 +1090,7 @@ FText SStateTreeViewRow::GetTransitionsIcon(const UStateTreeState& State, const 
 	};
 	uint8 IconType = IconNone;
 	
-	const UStateTreeEditorData* TreeEditorData = WeakTreeData.Get();
+	const UStateTreeEditorData* EditorData = WeakEditorData.Get();
 	
 	for (const FStateTreeTransition& Transition : State.Transitions)
 	{
@@ -1076,7 +1103,7 @@ FText SStateTreeViewRow::GetTransitionsIcon(const UStateTreeState& State, const 
 
 #if WITH_STATETREE_DEBUGGER
 		// Apply filter for transitions with/without breakpoint
-		const bool bHasBreakpoint = TreeEditorData != nullptr && TreeEditorData->HasBreakpoint(Transition.ID, EStateTreeBreakpointType::OnTransition);
+		const bool bHasBreakpoint = EditorData != nullptr && EditorData->HasBreakpoint(Transition.ID, EStateTreeBreakpointType::OnTransition);
 		if ((FilterOptions.WithBreakpoint == ETransitionDescRequirement::RequiredTrue && bHasBreakpoint == false)
 			|| (FilterOptions.WithBreakpoint == ETransitionDescRequirement::RequiredFalse && bHasBreakpoint))
 		{
@@ -1238,13 +1265,13 @@ EVisibility SStateTreeViewRow::GetTransitionsVisibility(const UStateTreeState& S
 EVisibility SStateTreeViewRow::GetTransitionsBreakpointVisibility(const UStateTreeState& State, const EStateTreeTransitionTrigger Trigger) const
 {
 #if WITH_STATETREE_DEBUGGER
-	if (const UStateTreeEditorData* TreeEditorData = WeakTreeData.Get())
+	if (const UStateTreeEditorData* EditorData = WeakEditorData.Get())
 	{
 		for (const FStateTreeTransition& Transition : State.Transitions)
 		{
 			if (Transition.bTransitionEnabled && EnumHasAnyFlags(Trigger, Transition.Trigger))
 			{
-				if (TreeEditorData->HasBreakpoint(Transition.ID, EStateTreeBreakpointType::OnTransition))
+				if (EditorData->HasBreakpoint(Transition.ID, EStateTreeBreakpointType::OnTransition))
 				{
 					return GetTransitionsVisibility(State, Trigger);
 				}

@@ -8,6 +8,7 @@
 class STableViewBase;
 class UStateTreeState;
 enum class EStateTreeTransitionTrigger : uint8;
+enum EStateTreeNodeFormatting : uint8;
 struct FStateTreeStateLink;
 
 class UStateTreeEditorData;
@@ -44,6 +45,8 @@ private:
 	const FSlateBrush* GetSelectorIcon() const;
 	FText GetSelectorTooltip() const;
 	FText GetStateTypeTooltip() const;
+
+	FText GetTaskDesc(FGuid TaskID, EStateTreeNodeFormatting Formatting) const;
 
 	EVisibility GetTasksVisibility() const;
 
@@ -112,6 +115,6 @@ private:
 	
 	TSharedPtr<FStateTreeViewModel> StateTreeViewModel;
 	TWeakObjectPtr<UStateTreeState> WeakState;
-	TWeakObjectPtr<UStateTreeEditorData> WeakTreeData;
+	TWeakObjectPtr<UStateTreeEditorData> WeakEditorData;
 	TSharedPtr<SInlineEditableTextBlock> NameTextBlock;
 };

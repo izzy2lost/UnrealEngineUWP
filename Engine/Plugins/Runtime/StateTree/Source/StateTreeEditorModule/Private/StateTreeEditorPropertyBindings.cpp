@@ -4,8 +4,11 @@
 #include "StateTreePropertyBindingCompiler.h"
 #include "Misc/EnumerateRange.h"
 #include "PropertyPathHelpers.h"
+#include "StateTreeNodeBase.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(StateTreeEditorPropertyBindings)
+
+#define LOCTEXT_NAMESPACE "StateTreeEditor"
 
 UStateTreeEditorPropertyBindingsOwner::UStateTreeEditorPropertyBindingsOwner(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
@@ -214,7 +217,7 @@ void FStateTreeEditorPropertyBindings::RemoveUnusedBindings(const TMap<FGuid, co
 
 //////////////////////////////////////////////////////////////////////////
 
-FStateTreeBindingLookup::FStateTreeBindingLookup(IStateTreeEditorPropertyBindingsOwner* InBindingOwner)
+FStateTreeBindingLookup::FStateTreeBindingLookup(const IStateTreeEditorPropertyBindingsOwner* InBindingOwner)
 	: BindingOwner(InBindingOwner)
 {
 }
@@ -228,7 +231,7 @@ const FStateTreePropertyPath* FStateTreeBindingLookup::GetPropertyBindingSource(
 	return EditorBindings->GetPropertyBindingSource(InTargetPath);
 }
 
-FText FStateTreeBindingLookup::GetPropertyPathDisplayName(const FStateTreePropertyPath& InPath) const
+FText FStateTreeBindingLookup::GetPropertyPathDisplayName(const FStateTreePropertyPath& InPath, EStateTreeNodeFormatting Formatting) const
 {
 	check(BindingOwner);
 	const FStateTreeEditorPropertyBindings* EditorBindings = BindingOwner->GetPropertyEditorBindings();
@@ -242,9 +245,71 @@ FText FStateTreeBindingLookup::GetPropertyPathDisplayName(const FStateTreeProper
 		Result = Struct.Name.ToString();
 	}
 
-	Result += TEXT(".") + InPath.ToString();
+	if (!InPath.IsPathEmpty())
+	{
+		Result += TEXT(".") + InPath.ToString();
+	}
 
 	return FText::FromString(Result);
+}
+
+FText FStateTreeBindingLookup::GetBindingSourceDisplayName(const FStateTreePropertyPath& InTargetPath, EStateTreeNodeFormatting Formatting) const
+{
+	check(BindingOwner);
+	const FStateTreeEditorPropertyBindings* EditorBindings = BindingOwner->GetPropertyEditorBindings();
+	check(EditorBindings);
+
+	// Check if the target property is bound, if so, return binding description.
+	if (const FStateTreePropertyPath* SourcePath = GetPropertyBindingSource(InTargetPath))
+	{
+		return GetPropertyPathDisplayName(*SourcePath, Formatting);
+	}
+
+	// Check if it's bound to context data.
+	const UStruct* TargetStruct = nullptr;
+	const FProperty* TargetProperty = nullptr;
+	EStateTreePropertyUsage Usage = EStateTreePropertyUsage::Invalid;
+	
+	FStateTreeBindableStructDesc TargetStructDesc;
+	if (BindingOwner->GetStructByID(InTargetPath.GetStructID(), TargetStructDesc))
+	{
+		TArray<FStateTreePropertyPathIndirection> Indirection;
+		if (InTargetPath.ResolveIndirections(TargetStructDesc.Struct, Indirection)
+			&& Indirection.Num() > 0)
+		{
+			const FStateTreePropertyPathIndirection& Leaf = Indirection.Last(); 
+			TargetProperty = Leaf.GetProperty();
+			if (TargetProperty)
+			{
+				Usage = UE::StateTree::GetUsageFromMetaData(TargetProperty);
+			}
+			if (const FStructProperty* StructProperty = CastField<FStructProperty>(TargetProperty))
+			{
+				TargetStruct = StructProperty->Struct;
+			}
+			if (const FObjectPropertyBase* ObjectProperty = CastField<FObjectPropertyBase>(TargetProperty))
+			{
+				TargetStruct = ObjectProperty->PropertyClass;
+			}
+		}
+	}
+
+	if (Usage == EStateTreePropertyUsage::Context)
+	{
+		if (TargetStruct)
+		{
+			const FStateTreeBindableStructDesc Desc = BindingOwner->FindContextData(TargetStruct, TargetProperty->GetName());
+			if (Desc.IsValid())
+			{
+				// Connected
+				return FText::FromName(Desc.Name);
+			}
+		}
+		return LOCTEXT("Unlinked", "???");
+	}
+
+	// Not a binding nor context data.
+	return FText::GetEmpty();
 }
 
 const FProperty* FStateTreeBindingLookup::GetPropertyPathLeafProperty(const FStateTreePropertyPath& InPath) const
@@ -266,3 +331,5 @@ const FProperty* FStateTreeBindingLookup::GetPropertyPathLeafProperty(const FSta
 
 	return Result;
 }
+
+#undef LOCTEXT_NAMESPACE

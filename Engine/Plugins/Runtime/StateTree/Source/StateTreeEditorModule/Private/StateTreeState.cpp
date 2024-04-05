@@ -253,10 +253,6 @@ void UStateTreeState::PostEditChangeChainProperty(FPropertyChangedChainEvent& Pr
 			const int32 ArrayIndex = ChangePropertyPath.GetPropertyArrayIndex(StateTasksPath);
 			if (Tasks.IsValidIndex(ArrayIndex))
 			{
- 				if (FStateTreeTaskBase* Task = Tasks[ArrayIndex].Node.GetMutablePtr<FStateTreeTaskBase>())
-				{
-					Task->Name = FName(Task->Name.ToString() + TEXT(" Duplicate"));
-				}
 				const FGuid OldStructID = Tasks[ArrayIndex].ID; 
 				Tasks[ArrayIndex].ID = FGuid::NewGuid();
 				CopyBindings(OldStructID, Tasks[ArrayIndex].ID);
@@ -269,10 +265,6 @@ void UStateTreeState::PostEditChangeChainProperty(FPropertyChangedChainEvent& Pr
 			const int32 ArrayIndex = ChangePropertyPath.GetPropertyArrayIndex(StateEnterConditionsPath);
 			if (EnterConditions.IsValidIndex(ArrayIndex))
 			{
-				if (FStateTreeConditionBase* Condition = EnterConditions[ArrayIndex].Node.GetMutablePtr<FStateTreeConditionBase>())
-				{
-					Condition->Name = FName(Condition->Name.ToString() + TEXT(" Duplicate"));
-				}
 				const FGuid OldStructID = EnterConditions[ArrayIndex].ID; 
 				EnterConditions[ArrayIndex].ID = FGuid::NewGuid();
 				CopyBindings(OldStructID, EnterConditions[ArrayIndex].ID);
@@ -309,10 +301,6 @@ void UStateTreeState::PostEditChangeChainProperty(FPropertyChangedChainEvent& Pr
 				FStateTreeTransition& Transition = Transitions[TransitionsIndex];
 				if (Transition.Conditions.IsValidIndex(ConditionsIndex))
 				{
-					if (FStateTreeConditionBase* Condition = Transition.Conditions[ConditionsIndex].Node.GetMutablePtr<FStateTreeConditionBase>())
-					{
-						Condition->Name = FName(Condition->Name.ToString() + TEXT(" Duplicate"));
-					}
 					const FGuid OldStructID = Transition.Conditions[ConditionsIndex].ID;
 					Transition.Conditions[ConditionsIndex].ID = FGuid::NewGuid();
 					CopyBindings(OldStructID, Transition.Conditions[ConditionsIndex].ID);

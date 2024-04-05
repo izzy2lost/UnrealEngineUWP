@@ -6,6 +6,8 @@
 #include "StateTreePropertyBindings.h"
 #include "StateTreeEditorPropertyBindings.generated.h"
 
+enum EStateTreeNodeFormatting : uint8;
+
 /**
  * Editor representation of a all property bindings in a StateTree
  */
@@ -117,6 +119,13 @@ class STATETREEEDITORMODULE_API IStateTreeEditorPropertyBindingsOwner
 	virtual bool GetStructByID(const FGuid StructID, FStateTreeBindableStructDesc& OutStructDesc) const PURE_VIRTUAL(IStateTreeEditorPropertyBindingsOwner::GetStructByID, return false; );
 
 	/**
+	 * Finds a bindable context struct based on name and type.
+	 * @param ObjectType Object type to match
+	 * @param ObjectNameHint Name to use if multiple context objects of same type are found. 
+	 */
+	virtual FStateTreeBindableStructDesc FindContextData(const UStruct* ObjectType, const FString ObjectNameHint) const PURE_VIRTUAL(IStateTreeEditorPropertyBindingsOwner::FindContextData, return {}; );
+	
+	/**
 	 * Returns data view based on struct ID.
 	 * @param StructID Target struct ID
 	 * @param OutDataView Result data view.
@@ -126,6 +135,9 @@ class STATETREEEDITORMODULE_API IStateTreeEditorPropertyBindingsOwner
 
 	/** @return Pointer to editor property bindings. */
 	virtual FStateTreeEditorPropertyBindings* GetPropertyEditorBindings() PURE_VIRTUAL(IStateTreeEditorPropertyBindingsOwner::GetPropertyEditorBindings, return nullptr; );
+
+	/** @return Pointer to editor property bindings. */
+	virtual const FStateTreeEditorPropertyBindings* GetPropertyEditorBindings() const PURE_VIRTUAL(IStateTreeEditorPropertyBindingsOwner::GetPropertyEditorBindings, return nullptr; );
 };
 
 // TODO: We should merge this with IStateTreeEditorPropertyBindingsOwner and FStateTreeEditorPropertyBindings.
@@ -134,13 +146,14 @@ class STATETREEEDITORMODULE_API IStateTreeEditorPropertyBindingsOwner
 // and IStateTreeBindingLookup is used in non-editor code and it cannot be in FStateTreeEditorPropertyBindings because bindings don't know about the owner.
 struct STATETREEEDITORMODULE_API FStateTreeBindingLookup : public IStateTreeBindingLookup
 {
-	FStateTreeBindingLookup(IStateTreeEditorPropertyBindingsOwner* InBindingOwner);
+	FStateTreeBindingLookup(const IStateTreeEditorPropertyBindingsOwner* InBindingOwner);
 
-	IStateTreeEditorPropertyBindingsOwner* BindingOwner = nullptr;
+	const IStateTreeEditorPropertyBindingsOwner* BindingOwner = nullptr;
 
 protected:
 	virtual const FStateTreePropertyPath* GetPropertyBindingSource(const FStateTreePropertyPath& InTargetPath) const override;
-	virtual FText GetPropertyPathDisplayName(const FStateTreePropertyPath& InTargetPath) const override;
+	virtual FText GetPropertyPathDisplayName(const FStateTreePropertyPath& InTargetPath, EStateTreeNodeFormatting Formatting) const override;
+	virtual FText GetBindingSourceDisplayName(const FStateTreePropertyPath& InTargetPath, EStateTreeNodeFormatting Formatting) const override;
 	virtual const FProperty* GetPropertyPathLeafProperty(const FStateTreePropertyPath& InPath) const override;
 
 };

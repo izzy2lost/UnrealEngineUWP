@@ -17,6 +17,8 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(StateTreeEditorData)
 
+#define LOCTEXT_NAMESPACE "StateTreeEditor"
+
 UStateTreeEditorData::UStateTreeEditorData()
 {
 	FStateTreeEditorColor DefaultColor;
@@ -196,11 +198,6 @@ void UStateTreeEditorData::PostEditChangeChainProperty(FPropertyChangedChainEven
 				const int32 ArrayIndex = PropertyChangedEvent.GetArrayIndex(MemberProperty->GetFName().ToString());
 				if (Evaluators.IsValidIndex(ArrayIndex))
 				{
-					if (FStateTreeEvaluatorBase* Eval = Evaluators[ArrayIndex].Node.GetMutablePtr<FStateTreeEvaluatorBase>())
-					{
-						Eval->Name = FName(Eval->Name.ToString() + TEXT(" Duplicate"));
-					}
-					
 					const FGuid OldStructID = Evaluators[ArrayIndex].ID;
 					Evaluators[ArrayIndex].ID = FGuid::NewGuid();
 					EditorBindings.CopyBindings(OldStructID, Evaluators[ArrayIndex].ID);
@@ -211,11 +208,6 @@ void UStateTreeEditorData::PostEditChangeChainProperty(FPropertyChangedChainEven
 				const int32 ArrayIndex = PropertyChangedEvent.GetArrayIndex(MemberProperty->GetFName().ToString());
 				if (GlobalTasks.IsValidIndex(ArrayIndex))
 				{
-					if (FStateTreeTaskBase* Task = GlobalTasks[ArrayIndex].Node.GetMutablePtr<FStateTreeTaskBase>())
-					{
-						Task->Name = FName(Task->Name.ToString() + TEXT(" Duplicate"));
-					}
-					
 					const FGuid OldStructID = GlobalTasks[ArrayIndex].ID;
 					GlobalTasks[ArrayIndex].ID = FGuid::NewGuid();
 					EditorBindings.CopyBindings(OldStructID, GlobalTasks[ArrayIndex].ID);
@@ -616,6 +608,38 @@ void UStateTreeEditorData::FixObjectNodes()
 	}
 }
 
+FText UStateTreeEditorData::GetNodeDescription(const FStateTreeEditorNode& Node, const EStateTreeNodeFormatting Formatting) const
+{
+	if (const FStateTreeNodeBase* NodePtr = Node.Node.GetPtr<FStateTreeNodeBase>())
+	{
+		// If the node has name override, return it.
+		if (!NodePtr->Name.IsNone())
+		{
+			return FText::FromName(NodePtr->Name);
+		}
+
+		// If the node has automatic description, return it.
+		const FStateTreeBindingLookup BindingLookup(this);
+		const FStateTreeDataView InstanceData = Node.GetInstance();
+		if (InstanceData.IsValid())
+		{
+			
+			const FText Description = NodePtr->GetDescription(Node.ID, InstanceData, BindingLookup, Formatting);
+			if (!Description.IsEmpty())
+			{
+				return Description;
+			}
+		}
+
+		// As last resort, return node's display name.
+		check(Node.Node.GetScriptStruct());
+		return Node.Node.GetScriptStruct()->GetDisplayNameText();
+	}
+
+	// The node is not initialized.
+	return LOCTEXT("EmptyNode", "None");
+}
+
 void UStateTreeEditorData::FixDuplicateIDs()
 {
 	// Around version 5.1-5.3 we had issue that copy/paste or some duplication methods could create nodes with duplicate IDs.
@@ -918,7 +942,7 @@ EStateTreeVisitor UStateTreeEditorData::VisitStateNodes(const UStateTreeState& S
 			{
 				FStateTreeBindableStructDesc Desc;
 				Desc.Struct = Cond->GetInstanceDataType();
-				Desc.Name = Cond->Name;
+				Desc.Name = Node.GetName();
 				Desc.ID = Node.ID;
 				Desc.DataSource = EStateTreeBindableStructSource::Condition;
 
@@ -939,7 +963,7 @@ EStateTreeVisitor UStateTreeEditorData::VisitStateNodes(const UStateTreeState& S
 			{
 				FStateTreeBindableStructDesc Desc;
 				Desc.Struct = Task->GetInstanceDataType();
-				Desc.Name = Task->Name;
+				Desc.Name = Node.GetName();
 				Desc.ID = Node.ID;
 				Desc.DataSource = EStateTreeBindableStructSource::Task;
 
@@ -957,7 +981,7 @@ EStateTreeVisitor UStateTreeEditorData::VisitStateNodes(const UStateTreeState& S
 		{
 			FStateTreeBindableStructDesc Desc;
 			Desc.Struct = Task->GetInstanceDataType();
-			Desc.Name = Task->Name;
+			Desc.Name = State.SingleTask.GetName();
 			Desc.ID = State.SingleTask.ID;
 			Desc.DataSource = EStateTreeBindableStructSource::Task;
 
@@ -994,7 +1018,7 @@ EStateTreeVisitor UStateTreeEditorData::VisitStateNodes(const UStateTreeState& S
 				{
 					FStateTreeBindableStructDesc Desc;
 					Desc.Struct = Cond->GetInstanceDataType();
-					Desc.Name = Cond->Name;
+					Desc.Name = Node.GetName();
 					Desc.ID = Node.ID;
 					Desc.DataSource = EStateTreeBindableStructSource::Condition;
 
@@ -1109,7 +1133,7 @@ EStateTreeVisitor UStateTreeEditorData::VisitGlobalNodes(TFunctionRef<EStateTree
 		{
 			FStateTreeBindableStructDesc Desc;
 			Desc.Struct = Evaluator->GetInstanceDataType();
-			Desc.Name = Evaluator->Name;
+			Desc.Name = Node.GetName();
 			Desc.ID = Node.ID;
 			Desc.DataSource = EStateTreeBindableStructSource::Evaluator;
 
@@ -1127,7 +1151,7 @@ EStateTreeVisitor UStateTreeEditorData::VisitGlobalNodes(TFunctionRef<EStateTree
 		{
 			FStateTreeBindableStructDesc Desc;
 			Desc.Struct = Task->GetInstanceDataType();
-			Desc.Name = Task->Name;
+			Desc.Name = Node.GetName();
 			Desc.ID = Node.ID;
 			Desc.DataSource = EStateTreeBindableStructSource::GlobalTask;
 
@@ -1214,3 +1238,5 @@ void UStateTreeEditorData::AddPropertyBinding(const FStateTreeEditorPropertyPath
 	EditorBindings.AddPropertyBinding(UE::StateTree::Private::ConvertEditorPath(SourcePath), UE::StateTree::Private::ConvertEditorPath(TargetPath));
 }
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+#undef LOCTEXT_NAMESPACE
