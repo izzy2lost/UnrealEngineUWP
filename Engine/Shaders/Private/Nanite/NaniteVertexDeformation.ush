@@ -98,8 +98,8 @@ FNanitePostDeformVertex DeformLocalNaniteVertex(FPrimitiveSceneData PrimitiveDat
 
 			const float3x4 BoneTransform = LoadNaniteBoneTransform(SkinningHeader.TransformBufferOffset + BoneIndex);
 			SkinnedPosition	+= mul(BoneTransform, float4(Input.Position, 1.0f)) * BoneWeight;
-			SkinnedNormal	+= mul((float3x3)BoneTransform, float4(Output.TangentBasis.TangentZ, 1.0f)) * BoneWeight;
-			SkinnedTangent	+= mul((float3x3)BoneTransform, float4(Output.TangentBasis.TangentXAndSign.xyz, 1.0f)) * BoneWeight;
+			SkinnedNormal	+= mul((float3x3)BoneTransform, Output.TangentBasis.TangentZ) * BoneWeight;
+			SkinnedTangent	+= mul((float3x3)BoneTransform, Output.TangentBasis.TangentXAndSign.xyz) * BoneWeight;
 		}
 
 		Output.TangentBasis.TangentZ = SkinnedNormal;
