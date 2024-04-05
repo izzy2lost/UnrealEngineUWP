@@ -32,30 +32,6 @@ UNiagaraEmitterEditorData::UNiagaraEmitterEditorData(const FObjectInitializer& O
 	PlaybackRangeMax = 10;
 }
 
-void UNiagaraEmitterEditorData::Serialize(FArchive& Ar)
-{
-#if WITH_EDITORONLY_DATA
-	// We cook out the thumbnail texture if we are cooking as cooked textures don't behave well when duplicated into non-cooked systems
-	bool bCookingEmitter = Ar.IsCooking() && GetTypedOuter<UNiagaraEmitter>();
-	UTexture2D* CachedThumbnail = nullptr;
-	if (bCookingEmitter)
-	{
-		CachedThumbnail = EmitterThumbnail;
-		EmitterThumbnail = nullptr;
-	}
-	
-#endif
-	Super::Serialize(Ar);
-
-#if WITH_EDITORONLY_DATA
-	// Restore the thumbnail image that was cleared before serialize.
-	if (bCookingEmitter)
-	{
-		EmitterThumbnail = CachedThumbnail;
-	}
-#endif
-}
-
 void UNiagaraEmitterEditorData::PostLoad_TransferSummaryDataToNewFormat()
 {
 	// ATTENTION
@@ -451,6 +427,15 @@ void UNiagaraEmitterEditorData::PostLoad()
 	if(SummaryViewRoot == nullptr)
 	{
 		SummaryViewRoot = NewObject<UNiagaraHierarchyRoot>(this, TEXT("SummaryViewRoot"), RF_Transactional);
+	}
+
+	if(UPackage* Package = GetPackage())
+	{
+		if(Package->HasAnyPackageFlags(PKG_Cooked))
+		{
+			// We remove the thumbnail for cooked emitters as it can cause issues with cooked emitter being put into uncooked systems
+			EmitterThumbnail = nullptr;
+		}
 	}
 }
 
