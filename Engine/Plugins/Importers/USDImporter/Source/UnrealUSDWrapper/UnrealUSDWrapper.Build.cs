@@ -28,7 +28,6 @@ namespace UnrealBuildTool.Rules
 					"CoreUObject",
 					"Engine",
 					"IntelTBB",
-					"MaterialX", // Needed for the standard data libraries
 					"Projects", // For plugin manager within UnrealUSDWrapper.cpp
 					"USDClasses"
 				}
