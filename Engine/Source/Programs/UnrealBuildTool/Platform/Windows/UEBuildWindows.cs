@@ -522,6 +522,14 @@ namespace UnrealBuildTool
 		public bool bStrictEnumTypesConformance = false;
 
 		/// <summary>
+		/// Volatile Metadata is enabled by default and improves x64 emulation on arm64, but may come at a small perfomance cost (/volatileMetadata-).
+		/// </summary>
+		[RequiresUniqueBuildEnvironment]
+		[XmlConfigFile(Category = "WindowsPlatform")]
+		[CommandLine("-DisableVolatileMetadata")]
+		public bool bDisableVolatileMetadata { get; set; } = false;
+
+		/// <summary>
 		/// Whether to request the linker create a stripped pdb file as part of the build.
 		/// If enabled the full debug pdb will have the extension .full.pdb
 		/// </summary>
@@ -890,6 +898,8 @@ namespace UnrealBuildTool
 		public bool bStrictPreprocessorConformance => Inner.bStrictPreprocessorConformance;
 
 		public bool bStrictEnumTypesConformance => Inner.bStrictEnumTypesConformance;
+
+		public bool bDisableVolatileMetadata => Inner.bDisableVolatileMetadata;
 
 		public bool bStripPrivateSymbols => Inner.bStripPrivateSymbols;
 

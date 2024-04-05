@@ -720,6 +720,12 @@ namespace UnrealBuildTool
 				}
 			}
 
+			// Volatile Metadata is enabled by default and improves x64 emulation on arm64, but may come at a small perfomance cost
+			if (Target.WindowsPlatform.Compiler.IsMSVC() && CompileEnvironment.Architecture == UnrealArch.X64 && Target.WindowsPlatform.bDisableVolatileMetadata)
+			{
+				Arguments.Add("/volatileMetadata-");
+			}
+
 			//
 			// LTCG and PGO
 			//
