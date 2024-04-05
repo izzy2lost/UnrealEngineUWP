@@ -144,7 +144,7 @@ FRHICommandListBase::~FRHICommandListBase()
 
 	checkf(!HasCommands() || IsExecuting(), TEXT("FRHICommandListBase has been deleted while it still contained commands. The command list was not submitted."));
 
-	for (void* Data : QueryBatchData)
+	for (void* Data : PersistentState.QueryBatchData_Occlusion)
 	{
 		check(Data == nullptr);
 	}

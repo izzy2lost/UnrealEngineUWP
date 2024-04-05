@@ -932,6 +932,12 @@ void FRealtimeGPUProfiler::BeginFrame(FRHICommandListImmediate& RHICmdList)
 
 	Frames[WriteBufferIndex]->TimestampCalibrationQuery = new FRHITimestampCalibrationQuery();
 	RHICmdList.CalibrateTimers(Frames[WriteBufferIndex]->TimestampCalibrationQuery);
+
+	check(!bQueryBatchStarted);
+	bQueryBatchStarted = true;
+	// Using GDynamicRHI directly to avoid exposing this as a public API on RHICmdList.
+	// This is a temporary fix until we refactor the GPU profiler.
+	GDynamicRHI->RHIBeginRenderQueryBatch_TopOfPipe(RHICmdList, RQT_AbsoluteTime);
 }
 
 bool AreGPUStatsEnabled()
@@ -971,6 +977,15 @@ bool AreGPUStatsEnabled()
 
 void FRealtimeGPUProfiler::EndFrame(FRHICommandListImmediate& RHICmdList)
 {
+	// Do this before the AreGPUStatsEnabled check, in case the cvar changes mid-frame.
+	if (bQueryBatchStarted)
+	{
+	    // Using GDynamicRHI directly to avoid exposing this as a public API on RHICmdList.
+	    // This is a temporary fix until we refactor the GPU profiler.
+		GDynamicRHI->RHIEndRenderQueryBatch_TopOfPipe(RHICmdList, RQT_AbsoluteTime);
+		bQueryBatchStarted = false;
+	}
+
 	if (!AreGPUStatsEnabled())
 	{
 		return;

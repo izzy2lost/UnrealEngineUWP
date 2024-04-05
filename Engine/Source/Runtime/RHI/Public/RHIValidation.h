@@ -804,14 +804,14 @@ public:
 		return RHI->RHIGetRenderQueryResult(RenderQuery, OutResult, bWait, GPUIndex);
 	}
 
-	virtual void RHIBeginOcclusionQueryBatch_TopOfPipe(FRHICommandListBase& RHICmdList, uint32 NumQueriesInBatch) override final
+	virtual void RHIBeginRenderQueryBatch_TopOfPipe(FRHICommandListBase& RHICmdList, ERenderQueryType QueryType) override final
 	{
-		RHI->RHIBeginOcclusionQueryBatch_TopOfPipe(RHICmdList, NumQueriesInBatch);
+		RHI->RHIBeginRenderQueryBatch_TopOfPipe(RHICmdList, QueryType);
 	}
 
-	virtual void RHIEndOcclusionQueryBatch_TopOfPipe(FRHICommandListBase& RHICmdList) override final
+	virtual void RHIEndRenderQueryBatch_TopOfPipe(FRHICommandListBase& RHICmdList, ERenderQueryType QueryType) override final
 	{
-		RHI->RHIEndOcclusionQueryBatch_TopOfPipe(RHICmdList);
+		RHI->RHIEndRenderQueryBatch_TopOfPipe(RHICmdList, QueryType);
 	}
 
 	virtual void RHIBeginRenderQuery_TopOfPipe(FRHICommandListBase& RHICmdList, FRHIRenderQuery* RenderQuery) override final

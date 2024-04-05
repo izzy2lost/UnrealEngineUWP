@@ -1193,6 +1193,9 @@ protected:
 		TOptional<FRHIDrawStatsCategory const*> CurrentDrawStatsCategory {};
 #endif
 
+		TStaticArray<void*, MAX_NUM_GPUS> QueryBatchData_Timestamp { InPlace, nullptr };
+		TStaticArray<void*, MAX_NUM_GPUS> QueryBatchData_Occlusion { InPlace, nullptr };
+
 		FPersistentState(FRHIGPUMask InInitialGPUMask, bool bInImmediate = false)
 			: bHasFragmentDensityAttachment(0)
 			, bInsideRenderPass(0)
@@ -1231,7 +1234,15 @@ public:
 	}
 #endif
 
-	TStaticArray<void*, MAX_NUM_GPUS> QueryBatchData { InPlace, nullptr };
+	TStaticArray<void*, MAX_NUM_GPUS>& GetQueryBatchData(ERenderQueryType QueryType)
+	{
+		switch (QueryType)
+		{
+		default: checkNoEntry(); [[fallthrough]];
+		case RQT_AbsoluteTime: return PersistentState.QueryBatchData_Timestamp;
+		case RQT_Occlusion:    return PersistentState.QueryBatchData_Occlusion;
+		}
+	}
 
 private:
 	FRHICommandListBase(FPersistentState const& InPersistentState);
@@ -3575,7 +3586,7 @@ public:
 		if (InInfo.NumOcclusionQueries)
 		{
 			PersistentState.bInsideOcclusionQueryBatch = true;
-			GDynamicRHI->RHIBeginOcclusionQueryBatch_TopOfPipe(*this, InInfo.NumOcclusionQueries);
+			GDynamicRHI->RHIBeginRenderQueryBatch_TopOfPipe(*this, RQT_Occlusion);
 		}
 	}
 
@@ -3586,7 +3597,7 @@ public:
 
 		if (PersistentState.bInsideOcclusionQueryBatch)
 		{
-			GDynamicRHI->RHIEndOcclusionQueryBatch_TopOfPipe(*this);
+			GDynamicRHI->RHIEndRenderQueryBatch_TopOfPipe(*this, RQT_Occlusion);
 			PersistentState.bInsideOcclusionQueryBatch = false;
 		}
 

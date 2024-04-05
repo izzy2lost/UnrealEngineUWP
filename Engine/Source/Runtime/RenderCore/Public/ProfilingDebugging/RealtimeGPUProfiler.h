@@ -319,6 +319,7 @@ private:
 	bool bStatGatheringPaused;
 	bool bInBeginEndBlock;
 	bool bLocked = false;
+	bool bQueryBatchStarted = false;
 
 #if GPUPROFILERTRACE_ENABLED
 	FRealtimeGPUProfilerHistoryByDescription HistoryByDescription;

@@ -1773,7 +1773,10 @@ void FRDGBuilder::Execute()
 
 		if (ParallelExecute.bEnabled)
 		{
-			AddSetupTask([this] { SetupParallelExecute(); });
+			AddSetupTask([this, QueryBatchData = RHICmdList.GetQueryBatchData(RQT_AbsoluteTime)]
+			{
+				SetupParallelExecute(QueryBatchData);
+			});
 		}
 
 		UE::Tasks::FTask AllocatePooledBuffersTask;
@@ -2566,7 +2569,7 @@ void FRDGBuilder::SubmitBufferUploads(FRHICommandListBase& RHICmdListUpload, UE:
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
-void FRDGBuilder::SetupParallelExecute()
+void FRDGBuilder::SetupParallelExecute(TStaticArray<void*, MAX_NUM_GPUS> const& QueryBatchData)
 {
 	SCOPED_NAMED_EVENT(SetupParallelExecute, FColor::Emerald);
 	FRDGAllocatorScope AllocatorScope(Allocators.Task);
@@ -2686,6 +2689,11 @@ void FRDGBuilder::SetupParallelExecute()
 	for (FParallelPassSet& ParallelPassSet : ParallelExecute.ParallelPassSets)
 	{
 		FRHICommandList* RHICmdListPass = new FRHICommandList(FRHIGPUMask::All());
+
+		// Propagate the immediate command list's timestamp query batch.
+		// This is a workaround for poor fence batching on some platforms due to the realtime GPU profiler / timestamp query API design.
+		RHICmdListPass->GetQueryBatchData(RQT_AbsoluteTime) = QueryBatchData;
+
 		ParallelPassSet.CmdList = RHICmdListPass;
 
 		ParallelExecute.Tasks.Emplace(UE::Tasks::Launch(TEXT("FRDGBuilder::ParallelExecute"), [this, &ParallelPassSet, RHICmdListPass]

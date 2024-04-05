@@ -954,7 +954,7 @@ private:
 
 	} ParallelExecute;
 
-	void SetupParallelExecute();
+	void SetupParallelExecute(TStaticArray<void*, MAX_NUM_GPUS> const& QueryBatchData);
 
 	/////////////////////////////////////////////////////////////////////////////
 	// Buffer Uploads
