@@ -1061,6 +1061,8 @@ void USkinnedMeshComponent::CreateRenderState_Concurrent(FRegisterComponentConte
 		PreviousMeshObject = nullptr;
 	}
 
+	Super::CreateRenderState_Concurrent(Context);
+
 	if (GetSkinnedAsset())
 	{
 		BoneTransformUpdateMethodQueue.Reset();
@@ -1120,8 +1122,6 @@ void USkinnedMeshComponent::CreateRenderState_Concurrent(FRegisterComponentConte
 		Desc.OwnerName = GetSkinnedAsset() != nullptr ? GetSkinnedAsset()->GetFName() : GetFName();
 		MeshDeformerInstance->EnqueueWork(Desc);
 	}
-
-	Super::CreateRenderState_Concurrent(Context);
 }
 
 void USkinnedMeshComponent::DestroyRenderState_Concurrent()
