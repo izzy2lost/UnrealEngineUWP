@@ -72,17 +72,17 @@ namespace UE::Tasks
 
 		bool FTaskBase::TryRetractAndExecute(FTimeout Timeout, uint32 RecursionDepth/* = 0*/)
 		{
+			if (IsCompleted() || Timeout.IsExpired())
+			{
+				return IsCompleted();
+			}
+
 			TRACE_CPUPROFILER_EVENT_SCOPE(FTaskBase::TryRetractAndExecute);
 
 			if (!IsAwaitable())
 			{
 				UE_LOG(LogTemp, Fatal, TEXT("Deadlock detected! A task can't be waited here, e.g. because it's being executed by the current thread"));
 				return false;
-			}
-
-			if (IsCompleted() || Timeout.IsExpired())
-			{
-				return IsCompleted();
 			}
 
 #if TASKGRAPH_NEW_FRONTEND
