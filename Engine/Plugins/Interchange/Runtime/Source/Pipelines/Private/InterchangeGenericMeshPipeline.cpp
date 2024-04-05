@@ -198,6 +198,11 @@ void UInterchangeGenericMeshPipeline::GetMeshesInformationFromTranslatedData(con
 	, bool& bContainStaticMeshAnimationNode
 	, bool& bIgnoreStaticMeshes) const
 {
+	//Its valid to call GetMeshesInformationFromTranslatedData with a null container
+	if (!InBaseNodeContainer)
+	{
+		return;
+	}
 	bAutoDetectConvertStaticMeshToSkeletalMesh = false;
 	bContainStaticMesh = false;
 	bContainSkeletalMesh = false;
