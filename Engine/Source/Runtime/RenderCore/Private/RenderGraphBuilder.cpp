@@ -2876,6 +2876,7 @@ void FRDGBuilder::AllocateTransientResources(TConstArrayView<FCollectResourceOp>
 					{
 						// This releases the reference without invoking a virtual function call.
 						GRDGTransientResourceAllocator.Release(TRefCountPtr<FRDGTransientRenderTarget>(MoveTemp(Texture->Allocation)), GetDeallocateFences(Texture));
+						SetDiscardPass(Texture, TransientTexture);
 					}
 				}
 				// Texture is using an internal transient texture.
@@ -4180,6 +4181,14 @@ void FRDGBuilder::SetPooledTextureRHI(FRDGTexture* Texture, FRDGPooledTexture* P
 	Owner = Texture;
 }
 
+void FRDGBuilder::SetDiscardPass(FRDGTexture* Texture, FRHITransientTexture* TransientTexture)
+{
+	if (TransientTexture->IsDiscarded())
+	{
+		Texture->DiscardPass = FRDGPassHandle(FMath::Min<uint32>(TransientTexture->GetDiscardPass(), GetEpiloguePassHandle().GetIndex()));
+	}
+}
+
 void FRDGBuilder::SetTransientTextureRHI(FRDGTexture* Texture, FRHITransientTexture* TransientTexture)
 {
 	Texture->SetRHI(TransientTexture->GetRHI());
@@ -4187,10 +4196,7 @@ void FRDGBuilder::SetTransientTextureRHI(FRDGTexture* Texture, FRHITransientText
 	Texture->ViewCache = &TransientTexture->ViewCache;
 	Texture->AliasingOverlaps = TransientTexture->GetAliasingOverlaps();
 
-	if (TransientTexture->IsDiscarded())
-	{
-		Texture->DiscardPass = FRDGPassHandle(FMath::Min<uint32>(TransientTexture->GetDiscardPass(), GetEpiloguePassHandle().GetIndex()));
-	}
+	SetDiscardPass(Texture, TransientTexture);
 }
 
 void FRDGBuilder::SetExternalPooledBufferRHI(FRDGBuffer* Buffer, FRDGPooledBuffer* PooledBuffer)

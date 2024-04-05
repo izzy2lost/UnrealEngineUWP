@@ -1139,7 +1139,10 @@ void FD3D12Adapter::InitializeDevices()
 #endif
 		}
 
-		GRHIGlobals.SupportsAsyncComputeTransientAliasing = GSupportsEfficientAsyncCompute;
+		if (!FPlatformMemory::SupportsFastVRAMMemory() && GSupportsEfficientAsyncCompute)
+		{
+			GRHIGlobals.SupportsAsyncComputeTransientAliasing = true;
+		}
 
 #if PLATFORM_WINDOWS
 		D3D12_FEATURE_DATA_D3D12_OPTIONS2 D3D12Caps2 = {};
