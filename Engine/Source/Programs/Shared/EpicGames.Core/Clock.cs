@@ -87,7 +87,7 @@ public class DefaultClock : IClock
 /// <summary>
 /// A stub implementation of IClock. Intended for testing to override time.
 /// </summary>
-public class StubCoreClock : IClock
+public class StubClock : IClock
 {
 	private DateTime _utcNow = DateTime.UtcNow;
 
@@ -111,6 +111,15 @@ public class StubCoreClock : IClock
 	public ITicker AddSharedTicker(string name, TimeSpan interval, Func<CancellationToken, ValueTask> tickAsync, ILogger logger)
 	{
 		throw new NotImplementedException("Not available in stub implementation");
+	}
+
+	/// <summary>
+	/// Advance the time
+	/// </summary>
+	/// <param name="delta"></param>
+	public void Advance(TimeSpan delta)
+	{
+		_utcNow += delta;
 	}
 }
 
