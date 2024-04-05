@@ -61,7 +61,7 @@ namespace Horde.Commands
 				string? accessToken = await state.GetAccessTokenAsync(true, CancellationToken.None);
 				if (accessToken != null)
 				{
-					Console.WriteLine($"Access token {accessToken}");
+					Console.WriteLine($"Bearer {accessToken}");
 				}
 			}
 
