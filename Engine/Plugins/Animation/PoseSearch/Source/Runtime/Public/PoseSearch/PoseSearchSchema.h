@@ -114,9 +114,14 @@ public:
 	// the original intent is to add UPoseSearchFeatureChannel_Position(s) to help with the complexity of the debug drawing
 	// (the database will have all the necessary positions to draw lines at the right location and time).
 	UPROPERTY(EditAnywhere, Category = "Debug")
-	bool bInjectAdditionalDebugChannels;
+	bool bInjectAdditionalDebugChannels = false;
 
-	//bool IsValid () const;
+#if WITH_EDITORONLY_DATA
+	// if bDrawInjectAdditionalDebugChannels is true, all the channels added for debug purposes with 
+	// bInjectAdditionalDebugChannels (as well as all those channels with an associated zero weight) will be drawn
+	UPROPERTY(EditAnywhere, Category = "Debug")
+	bool bDrawInjectAdditionalDebugChannels = false;
+#endif // WITH_EDITORONLY_DATA
 
 	TConstArrayView<TObjectPtr<UPoseSearchFeatureChannel>> GetChannels() const { return FinalizedChannels; }
 

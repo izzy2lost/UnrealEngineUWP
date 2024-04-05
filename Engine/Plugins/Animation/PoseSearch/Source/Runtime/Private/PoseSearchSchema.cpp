@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "PoseSearch/PoseSearchSchema.h"
+#include "Animation/MirrorDataTable.h"
 #include "AnimationRuntime.h"
 #include "PoseSearch/PoseSearchContext.h"
 #include "PoseSearch/PoseSearchDefines.h"
@@ -305,7 +306,16 @@ void UPoseSearchSchema::Finalize()
 		for (FBoneReference& BoneRef : RoledSkeleton.BoneReferences)
 		{
 			check(BoneRef.HasValidSetup());
-			RoledSkeleton.BoneIndicesWithParents.Add(BoneRef.BoneIndex);
+			RoledSkeleton.BoneIndicesWithParents.AddUnique(BoneRef.BoneIndex);
+
+			if (RoledSkeleton.MirrorDataTable)
+			{
+				const FSkeletonPoseBoneIndex MirroredBoneIndex = RoledSkeleton.MirrorDataTable->BoneToMirrorBoneIndex[BoneRef.BoneIndex];
+				if (MirroredBoneIndex.IsValid())
+				{
+					RoledSkeleton.BoneIndicesWithParents.AddUnique(MirroredBoneIndex.GetInt());
+				}
+			}
 		}
 
 		// Build separate index array with parent indices guaranteed to be present. Sort for EnsureParentsPresent.

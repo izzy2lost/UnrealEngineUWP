@@ -126,6 +126,7 @@ private:
 		float SampleTime = 0.f;
 		bool bClamped = false;
 
+		// RootTransform and ComponentSpacePose are stored mirrored in case SearchIndexAsset.IsMirrored
 		TArray<FTransform> RootTransform;
 		TArray<FCSPose<FCompactHeapPose>> ComponentSpacePose;
 	};

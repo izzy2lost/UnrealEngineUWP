@@ -33,12 +33,13 @@ namespace UE::PoseSearch
 #if ENABLE_ANIM_DEBUG
 static TAutoConsoleVariable<float> CVarDatabasePreviewDebugDrawSamplerSize(TEXT("a.DatabasePreview.DebugDrawSamplerSize"), 0.f, TEXT("Debug Draw Sampler Positions Size"));
 static TAutoConsoleVariable<float> CVarDatabasePreviewDebugDrawSamplerTimeOffset(TEXT("a.DatabasePreview.DebugDrawSamplerTimeOffset"), 0.f, TEXT("Debug Draw Sampler Positions At Time Offset"));
+static TAutoConsoleVariable<float> CVarDatabasePreviewDebugDrawSamplerRootAxisLength(TEXT("a.DatabasePreview.DebugDrawSamplerRootAxisLength"), 0.f, TEXT("Debug Draw Sampler Root Axis Length"));
 #endif
 
-constexpr float StepDeltaTime = 1.0f / 30.0f;
+constexpr float StepDeltaTime = 1.f / 30.f;
 
 // FDatabasePreviewActor
-bool FDatabasePreviewActor::SpawnPreviewActor(UWorld* World, const UPoseSearchDatabase* PoseSearchDatabase, int32 IndexAssetIdx, const FRole& Role, const FTransform& SamplerRootTransformOrigin, const FTransform* PrecalculatedRootTransformOrigin, int32 PoseIdxForTimeOffset)
+bool FDatabasePreviewActor::SpawnPreviewActor(UWorld* World, const UPoseSearchDatabase* PoseSearchDatabase, int32 IndexAssetIdx, const FRole& Role, const FTransform& SamplerRootTransformOrigin, int32 PoseIdxForTimeOffset)
 {
 	check(PoseSearchDatabase && PoseSearchDatabase->Schema);
 	const FSearchIndex& SearchIndex = PoseSearchDatabase->GetSearchIndex();
@@ -60,17 +61,8 @@ bool FDatabasePreviewActor::SpawnPreviewActor(UWorld* World, const UPoseSearchDa
 	}
 
 	ActorRole = Role;
-	Sampler.Init(PreviewAsset, SamplerRootTransformOrigin, IndexAsset.GetBlendParameters());
-	Sampler.Process();
-
 	IndexAssetIndex = IndexAssetIdx;
 	CurrentPoseIndex = INDEX_NONE;
-
-	PlayTimeOffset = 0.f;
-	if (PoseIdxForTimeOffset >= 0)
-	{
-		PlayTimeOffset = PoseSearchDatabase->GetRealAssetTime(PoseIdxForTimeOffset) - IndexAsset.GetFirstSampleTime(PoseSearchDatabase->Schema->SampleRate);
-	}
 
 	FActorSpawnParameters Params;
 	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
@@ -85,13 +77,13 @@ bool FDatabasePreviewActor::SpawnPreviewActor(UWorld* World, const UPoseSearchDa
 	AnimInstance->InitializeAnimation();
 
 	USkeletalMesh* DatabasePreviewMesh = PoseSearchDatabase->PreviewMesh;
-	Mesh->SetSkeletalMesh(DatabasePreviewMesh ? DatabasePreviewMesh : PoseSearchDatabase->Schema->GetSkeleton(Role)->GetPreviewMesh(true));
+	Mesh->SetSkeletalMesh(DatabasePreviewMesh ? DatabasePreviewMesh : Skeleton->GetPreviewMesh(true));
 	Mesh->EnablePreview(true, PreviewAsset);
 		
-	AnimInstance->SetAnimationAsset(PreviewAsset, IndexAsset.IsLooping(), 0.0f);
+	AnimInstance->SetAnimationAsset(PreviewAsset, IndexAsset.IsLooping(), 0.f);
 	AnimInstance->SetBlendSpacePosition(IndexAsset.GetBlendParameters());
 		
-	if (IndexAsset.IsMirrored() && PoseSearchDatabase->Schema)
+	if (IndexAsset.IsMirrored())
 	{
 		const UMirrorDataTable* MirrorDataTable = PoseSearchDatabase->Schema->GetMirrorDataTable(Role);
 		AnimInstance->SetMirrorDataTable(MirrorDataTable);
@@ -99,23 +91,53 @@ bool FDatabasePreviewActor::SpawnPreviewActor(UWorld* World, const UPoseSearchDa
 
 	const FMirrorDataCache MirrorDataCache(AnimInstance->GetMirrorDataTable(), AnimInstance->GetRequiredBonesOnAnyThread());
 	
-	if (PrecalculatedRootTransformOrigin)
+	Sampler.Init(PreviewAsset, SamplerRootTransformOrigin, IndexAsset.GetBlendParameters());
+	Sampler.Process();
+
+	PlayTimeOffset = 0.f;
+	if (PoseIdxForTimeOffset >= 0)
 	{
-		// using the PrecalculatedRootTransformOrigin if provided. useful to synchronize multiple roles preview actors
-		RootTransformOrigin = *PrecalculatedRootTransformOrigin;
-	}
-	else
-	{
-		RootTransformOrigin = MirrorDataCache.MirrorTransform(Sampler.ExtractRootTransform(PlayTimeOffset));
+		PlayTimeOffset = PoseSearchDatabase->GetRealAssetTime(PoseIdxForTimeOffset) - IndexAsset.GetFirstSampleTime(PoseSearchDatabase->Schema->SampleRate);
+		
+		// centering the Sampler RootTransformOrigin at PlayTimeOffset time, to be able to "align" multiple actors from different animation frames when selected by the pose search debugger
+		FTransform NewSamplerRootTransformOrigin = MirrorDataCache.MirrorTransform(Sampler.ExtractRootTransform(0.f));
+		NewSamplerRootTransformOrigin.SetToRelativeTransform(MirrorDataCache.MirrorTransform(Sampler.ExtractRootTransform(PlayTimeOffset)));
+		Sampler.SetRootTransformOrigin(NewSamplerRootTransformOrigin);
 	}
 
-	AnimInstance->PlayAnim(IndexAsset.IsLooping(), 0.0f);
+	AnimInstance->PlayAnim(IndexAsset.IsLooping(), 0.f);
 	if (!ActorPtr->GetRootComponent())
 	{
 		ActorPtr->SetRootComponent(Mesh);
 	}
 
 	AnimInstance->SetPlayRate(0.f);
+
+	// initializing Trajectory and TrajectorySpeed
+	const int NumPoses = IndexAsset.GetNumPoses();
+	Trajectory.Samples.SetNumUninitialized(NumPoses);
+	TrajectorySpeed.SetNumUninitialized(NumPoses);
+
+	if (NumPoses > 1)
+	{
+		for (int32 Index = 0; Index < NumPoses; ++Index)
+		{
+			const int32 IndexAssetPoseIdx = Index + IndexAsset.GetFirstPoseIdx();
+			const float IndexAssetPoseTime = IndexAsset.GetTimeFromPoseIndex(IndexAssetPoseIdx, PoseSearchDatabase->Schema->SampleRate);
+			const FTransform IndexAssetPoseTransform = MirrorDataCache.MirrorTransform(Sampler.ExtractRootTransform(IndexAssetPoseTime));
+
+			Trajectory.Samples[Index].SetTransform(IndexAssetPoseTransform);
+			Trajectory.Samples[Index].AccumulatedSeconds = IndexAssetPoseTime;
+		}
+
+		for (int32 Index = 1; Index < NumPoses; ++Index)
+		{
+			const FVector& Start = Trajectory.Samples[Index - 1].Position;
+			const FVector& End = Trajectory.Samples[Index].Position;
+			TrajectorySpeed[Index] = (Start - End).Length() * PoseSearchDatabase->Schema->SampleRate;
+		}
+		TrajectorySpeed[0] = TrajectorySpeed[1];
+	}
 
 	UE_LOG(LogPoseSearchEditor, Log, TEXT("Spawned preview Actor: %s"), *GetNameSafe(ActorPtr.Get()));
 	return true;
@@ -147,7 +169,7 @@ void FDatabasePreviewActor::UpdatePreviewActor(const UPoseSearchDatabase* PoseSe
 	// time to pose index
 	CurrentPoseIndex = PoseSearchDatabase->GetPoseIndexFromTime(CurrentTime, IndexAsset);
 
-	const float QuantizedTime = CurrentPoseIndex >= 0 ? PoseSearchDatabase->GetRealAssetTime(CurrentPoseIndex) : CurrentTime;
+	QuantizedTime = CurrentPoseIndex >= 0 ? PoseSearchDatabase->GetRealAssetTime(CurrentPoseIndex) : CurrentTime;
 	if (bQuantizeAnimationToPoseData)
 	{
 		CurrentTime = QuantizedTime;
@@ -158,38 +180,8 @@ void FDatabasePreviewActor::UpdatePreviewActor(const UPoseSearchDatabase* PoseSe
 	AnimInstance->SetPlayRate(0.f);
 	AnimInstance->SetBlendSpacePosition(IndexAsset.GetBlendParameters());
 
-	const FMirrorDataCache MirrorDataCache(AnimInstance->GetMirrorDataTable(), AnimInstance->GetRequiredBonesOnAnyThread());
-
-	// updating root transforms
-	RootTransformCurrentQuantizedTime = MirrorDataCache.MirrorTransform(Sampler.ExtractRootTransform(QuantizedTime));
-	RootTransformCurrentQuantizedTime.SetToRelativeTransform(RootTransformOrigin);
-
-	if (CurrentTime == QuantizedTime)
-	{
-		RootTransformCurrent = RootTransformCurrentQuantizedTime;
-	}
-	else
-	{
-		RootTransformCurrent = MirrorDataCache.MirrorTransform(Sampler.ExtractRootTransform(CurrentTime));
-		RootTransformCurrent.SetToRelativeTransform(RootTransformOrigin);
-	}
-
 	check(ActorPtr != nullptr);
-	ActorPtr->SetActorTransform(RootTransformCurrent);
-
-	// @todo: optimize this bone container, since we only need the root bone here...
-	const FBoneContainer& BoneContainer = AnimInstance->GetRequiredBonesOnAnyThread();
-	if (BoneContainer.GetNumBones() > 0)
-	{
-		FMemMark Mark(FMemStack::Get());
-		FCompactPose Pose;
-		Pose.SetBoneContainer(&BoneContainer);
-
-		Sampler.ExtractPose(QuantizedTime, Pose);
-		MirrorDataCache.MirrorPose(Pose);
-
-		RootBoneTransformCurrentQuantizedTime = Pose[FCompactPoseBoneIndex(RootBoneIndexType)];
-	}
+	ActorPtr->SetActorTransform(Trajectory.GetSampleAtTime(CurrentTime).GetTransform());
 }
 
 void FDatabasePreviewActor::Destroy()
@@ -200,7 +192,7 @@ void FDatabasePreviewActor::Destroy()
 	}
 }
 
-bool FDatabasePreviewActor::DrawPreviewActors(TArrayView<FDatabasePreviewActor> PreviewActors, const UPoseSearchDatabase* PoseSearchDatabase, bool bDisplayRootMotionSpeed, bool bDisplayBlockTransition, TConstArrayView<float> QueryVector)
+bool FDatabasePreviewActor::DrawPreviewActors(TConstArrayView<FDatabasePreviewActor> PreviewActors, const UPoseSearchDatabase* PoseSearchDatabase, bool bDisplayRootMotionSpeed, bool bDisplayBlockTransition, TConstArrayView<float> QueryVector)
 {
 	using namespace UE::PoseSearch;
 
@@ -222,7 +214,7 @@ bool FDatabasePreviewActor::DrawPreviewActors(TArrayView<FDatabasePreviewActor> 
 	ArchivedPoseHistories.Reserve(NumPreviewActors);
 	PoseHistories.Reserve(NumPreviewActors);
 
-	for (FDatabasePreviewActor& PreviewActor : PreviewActors)
+	for (const FDatabasePreviewActor& PreviewActor : PreviewActors)
 	{
 		if (!PoseSearchDatabase->GetSearchIndex().IsValidPoseIndex(PreviewActor.GetCurrentPoseIndex()))
 		{
@@ -270,15 +262,14 @@ bool FDatabasePreviewActor::DrawPreviewActors(TArrayView<FDatabasePreviewActor> 
 		RoleToIndex.Add(PreviewActor.ActorRole) = Meshes.Num();
 		Meshes.Add(Mesh);
 
-		const FTransform RootMotionTransform = PreviewActor.RootBoneTransformCurrentQuantizedTime * PreviewActor.RootTransformCurrentQuantizedTime;
-
-		// @todo: reconstruct ArchivedPoseHistory::BoneToTransformMap and ArchivedPoseHistory::Entries if needed
+		// @todo: reconstruct ArchivedPoseHistory::BoneToTransformMap and ArchivedPoseHistory::Entries if needed.
+		//        So far has been unnecessary, becasue all the animations have an identity root bone (root bone lock)
 		FArchivedPoseHistory& ArchivedPoseHistory = ArchivedPoseHistories.AddDefaulted_GetRef();
-		// @todo: reconstruct multiple trajectory samples if needed
-		// reconstructing the FPoseSearchQueryTrajectory with only one sample with AccumulatedSeconds at zero
-		FPoseSearchQueryTrajectorySample& TrajectorySample = ArchivedPoseHistory.Trajectory.Samples.AddDefaulted_GetRef();
-		TrajectorySample.SetTransform(RootMotionTransform);
-		TrajectorySample.AccumulatedSeconds = 0.f;
+		ArchivedPoseHistory.Trajectory = PreviewActor.Trajectory;
+		for (FPoseSearchQueryTrajectorySample& TrajectorySample : ArchivedPoseHistory.Trajectory.Samples)
+		{
+			TrajectorySample.AccumulatedSeconds -= PreviewActor.QuantizedTime;
+		}
 
 		PoseHistories.Add(&ArchivedPoseHistory);
 	}
@@ -291,62 +282,31 @@ bool FDatabasePreviewActor::DrawPreviewActors(TArrayView<FDatabasePreviewActor> 
 		DrawParams.DrawFeatureVector(QueryVector);
 	}
 
-	for (FDatabasePreviewActor& PreviewActor : PreviewActors)
+	for (const FDatabasePreviewActor& PreviewActor : PreviewActors)
 	{
 		const UDebugSkelMeshComponent* Mesh = PreviewActor.GetDebugSkelMeshComponent();
 		const FSearchIndex& SearchIndex = PoseSearchDatabase->GetSearchIndex();
 		const FSearchIndexAsset& IndexAsset = SearchIndex.Assets[PreviewActor.IndexAssetIndex];
-
-		const FMirrorDataCache MirrorDataCache(Mesh->PreviewInstance->GetMirrorDataTable(), Mesh->PreviewInstance->GetRequiredBonesOnAnyThread());
-		if (bDisplayRootMotionSpeed || bDisplayBlockTransition)
-		{
-			// initializing SampledRootMotion if required
-			if (PreviewActor.SampledRootMotion.IsEmpty())
-			{
-				const int NumPoses = IndexAsset.GetNumPoses();
-				if (NumPoses > 1)
-				{
-					PreviewActor.SampledRootMotion.SetNumUninitialized(NumPoses);
-					PreviewActor.SampledRootMotionSpeed.SetNumUninitialized(NumPoses);
-
-					for (int32 Index = 0; Index < NumPoses; ++Index)
-					{
-						const int32 IndexAssetPoseIdx = Index + IndexAsset.GetFirstPoseIdx();
-						const float IndexAssetPoseTime = IndexAsset.GetTimeFromPoseIndex(IndexAssetPoseIdx, PoseSearchDatabase->Schema->SampleRate);
-						FTransform IndexAssetPoseTransform = MirrorDataCache.MirrorTransform(PreviewActor.Sampler.ExtractRootTransform(IndexAssetPoseTime));
-						IndexAssetPoseTransform.SetToRelativeTransform(PreviewActor.RootTransformOrigin);
-
-						PreviewActor.SampledRootMotion[Index] = IndexAssetPoseTransform.GetTranslation();
-					}
-
-					for (int32 Index = 1; Index < NumPoses; ++Index)
-					{
-						const FVector& Start = PreviewActor.SampledRootMotion[Index - 1];
-						const FVector& End = PreviewActor.SampledRootMotion[Index];
-						PreviewActor.SampledRootMotionSpeed[Index] = (Start - End).Length() * PoseSearchDatabase->Schema->PermutationsSampleRate;
-					}
-					PreviewActor.SampledRootMotionSpeed[0] = PreviewActor.SampledRootMotionSpeed[1];
-				}
-			}
-		}
+		const int32 SamplesNum = PreviewActor.Trajectory.Samples.Num();
 
 		if (bDisplayRootMotionSpeed)
 		{
-			// drawing PreviewActor.SampledRootMotion
-			const int32 SampledRootMotionNum = PreviewActor.SampledRootMotion.Num();
-			if (SampledRootMotionNum > 1)
+			// @todo: should we be using PreviewActor.Trajectory.DebugDrawTrajectory instead?
+			// drawing PreviewActor.Trajectory
+			
+			if (SamplesNum > 1)
 			{
-				for (int32 Index = 0; Index < PreviewActor.SampledRootMotion.Num(); ++Index)
+				for (int32 Index = 0; Index < SamplesNum; ++Index)
 				{
-					const FVector& EndDown = PreviewActor.SampledRootMotion[Index];
-					const FVector EndUp = EndDown + (PreviewActor.SampledRootMotionSpeed[Index] * FVector::UpVector);
+					const FVector& EndDown = PreviewActor.Trajectory.Samples[Index].Position;
+					const FVector EndUp = EndDown + (PreviewActor.TrajectorySpeed[Index] * FVector::UpVector);
 
 					DrawParams.DrawLine(EndDown, EndUp, FColor::Black);
 					if (Index > 0)
 					{
 						const FColor RootMotionColor = Index % 2 == 0 ? FColor::Purple : FColor::Orange;
-						const FVector& StartDown = PreviewActor.SampledRootMotion[Index - 1];
-						const FVector StartUp = StartDown + (PreviewActor.SampledRootMotionSpeed[Index - 1] * FVector::UpVector);
+						const FVector& StartDown = PreviewActor.Trajectory.Samples[Index - 1].Position;
+						const FVector StartUp = StartDown + (PreviewActor.TrajectorySpeed[Index - 1] * FVector::UpVector);
 						DrawParams.DrawLine(StartDown, EndDown, RootMotionColor);
 						DrawParams.DrawLine(StartUp, EndUp, RootMotionColor);
 					}
@@ -357,23 +317,22 @@ bool FDatabasePreviewActor::DrawPreviewActors(TArrayView<FDatabasePreviewActor> 
 		if (bDisplayBlockTransition)
 		{
 			const int NumPoses = IndexAsset.GetNumPoses();
-			if (NumPoses == PreviewActor.SampledRootMotion.Num())
+			if (NumPoses == SamplesNum)
 			{
-				for (int32 Index = 0; Index < NumPoses; ++Index)
+				for (int32 Index = 0; Index < SamplesNum; ++Index)
 				{
 					const int32 IndexAssetPoseIdx = Index + IndexAsset.GetFirstPoseIdx();
 					if (SearchIndex.PoseMetadata[IndexAssetPoseIdx].IsBlockTransition())
 					{
-						DrawParams.DrawPoint(PreviewActor.SampledRootMotion[Index], FColor::Red);
+						DrawParams.DrawPoint(PreviewActor.Trajectory.Samples[Index].Position, FColor::Red);
 					}
 					else
 					{
-						DrawParams.DrawPoint(PreviewActor.SampledRootMotion[Index], FColor::Green);
+						DrawParams.DrawPoint(PreviewActor.Trajectory.Samples[Index].Position, FColor::Green);
 					}
 				}
 			}
 		}
-
 
 #if ENABLE_ANIM_DEBUG
 		const float DebugDrawSamplerSize = CVarDatabasePreviewDebugDrawSamplerSize.GetValueOnAnyThread();
@@ -386,6 +345,8 @@ bool FDatabasePreviewActor::DrawPreviewActors(TArrayView<FDatabasePreviewActor> 
 			FMemMark Mark(FMemStack::Get());
 			FCompactPose Pose;
 			FCSPose<FCompactPose> ComponentSpacePose;
+
+			const FMirrorDataCache MirrorDataCache(Mesh->PreviewInstance->GetMirrorDataTable(), Mesh->PreviewInstance->GetRequiredBonesOnAnyThread());
 
 			for (int32 DrawPass = 0; DrawPass < NumDrawPasses; ++DrawPass)
 			{
@@ -400,6 +361,14 @@ bool FDatabasePreviewActor::DrawPreviewActors(TArrayView<FDatabasePreviewActor> 
 				ComponentSpacePose.InitPose(MoveTemp(Pose));
 
 				const FTransform RootTransform = MirrorDataCache.MirrorTransform(PreviewActor.Sampler.ExtractRootTransform(SamplerTime));
+				const float DebugDrawSamplerRootAxisLength = CVarDatabasePreviewDebugDrawSamplerRootAxisLength.GetValueOnAnyThread();
+				if (DebugDrawSamplerRootAxisLength > 0.f)
+				{
+					DrawParams.DrawLine(RootTransform.GetTranslation(), RootTransform.GetTranslation() + RootTransform.GetScaledAxis(EAxis::X) * DebugDrawSamplerRootAxisLength, FColor::Red);
+					DrawParams.DrawLine(RootTransform.GetTranslation(), RootTransform.GetTranslation() + RootTransform.GetScaledAxis(EAxis::Y) * DebugDrawSamplerRootAxisLength, FColor::Green);
+					DrawParams.DrawLine(RootTransform.GetTranslation(), RootTransform.GetTranslation() + RootTransform.GetScaledAxis(EAxis::Z) * DebugDrawSamplerRootAxisLength, FColor::Blue);
+				}
+
 				for (int32 BoneIndex = 0; BoneIndex < ComponentSpacePose.GetPose().GetNumBones(); ++BoneIndex)
 				{
 					const FTransform BoneWorldTransforms = ComponentSpacePose.GetComponentSpaceTransform(FCompactPoseBoneIndex(BoneIndex)) * RootTransform;
@@ -735,24 +704,16 @@ int32 FDatabaseViewModel::SetSelectedNode(int32 PoseIdx, bool bClearSelection, b
 					const FPoseSearchDatabaseAnimationAssetBase* DatabaseAnimationAsset = Database->GetAnimationAssetBase(IndexAsset.GetSourceAssetIdx());
 					check(DatabaseAnimationAsset);
 					int32 PreviewActorGroupIndex = INDEX_NONE;
-					bool bIsSynchronizedRootTransformOriginValid = false;
-					FTransform SynchronizedRootTransformOrigin = FTransform::Identity;
 					for (int32 RoleIndex = 0; RoleIndex < DatabaseAnimationAsset->GetNumRoles(); ++RoleIndex)
 					{
 						FDatabasePreviewActor PreviewActor;
 						const UE::PoseSearch::FRole Role = DatabaseAnimationAsset->GetRole(RoleIndex);
 						const FTransform& RootTransformOrigin = DatabaseAnimationAsset->GetRootTransformOriginForRole(Role);
-						if (PreviewActor.SpawnPreviewActor(GetWorld(), Database, IndexAssetIndex, Role, RootTransformOrigin, bIsSynchronizedRootTransformOriginValid ? &SynchronizedRootTransformOrigin : nullptr, PoseIdx))
+						if (PreviewActor.SpawnPreviewActor(GetWorld(), Database, IndexAssetIndex, Role, RootTransformOrigin, PoseIdx))
 						{
 							if (PreviewActorGroupIndex == INDEX_NONE)
 							{
 								PreviewActorGroupIndex = PreviewActors.AddDefaulted();
-							}
-
-							if (!bIsSynchronizedRootTransformOriginValid)
-							{
-								bIsSynchronizedRootTransformOriginValid = true;
-								SynchronizedRootTransformOrigin = PreviewActor.GetRootTransformOrigin();
 							}
 
 							MaxPreviewPlayLength = FMath::Max(MaxPreviewPlayLength, IndexAsset.GetLastSampleTime(Database->Schema->SampleRate) - PreviewActor.GetPlayTimeOffset());
@@ -806,24 +767,16 @@ void FDatabaseViewModel::SetSelectedNodes(const TArrayView<TSharedPtr<FDatabaseA
 					const FPoseSearchDatabaseAnimationAssetBase* DatabaseAnimationAsset = Database->GetAnimationAssetBase(IndexAsset.GetSourceAssetIdx());
 					check(DatabaseAnimationAsset);
 					int32 PreviewActorGroupIndex = INDEX_NONE;
-					bool bIsSynchronizedRootTransformOriginValid = false;
-					FTransform SynchronizedRootTransformOrigin = FTransform::Identity;
 					for (int32 RoleIndex = 0; RoleIndex < DatabaseAnimationAsset->GetNumRoles(); ++RoleIndex)
 					{
 						FDatabasePreviewActor PreviewActor;
 						const UE::PoseSearch::FRole Role = DatabaseAnimationAsset->GetRole(RoleIndex);
 						const FTransform& RootTransformOrigin = DatabaseAnimationAsset->GetRootTransformOriginForRole(Role);
-						if (PreviewActor.SpawnPreviewActor(GetWorld(), Database, IndexAssetIndex, Role, RootTransformOrigin, bIsSynchronizedRootTransformOriginValid ? &SynchronizedRootTransformOrigin : nullptr))
+						if (PreviewActor.SpawnPreviewActor(GetWorld(), Database, IndexAssetIndex, Role, RootTransformOrigin))
 						{
 							if (PreviewActorGroupIndex == INDEX_NONE)
 							{
 								PreviewActorGroupIndex = PreviewActors.AddDefaulted();
-							}
-
-							if (!bIsSynchronizedRootTransformOriginValid)
-							{
-								bIsSynchronizedRootTransformOriginValid = true;
-								SynchronizedRootTransformOrigin = PreviewActor.GetRootTransformOrigin();
 							}
 
 							MaxPreviewPlayLength = FMath::Max(MaxPreviewPlayLength, IndexAsset.GetLastSampleTime(Database->Schema->SampleRate) - IndexAsset.GetFirstSampleTime(Database->Schema->SampleRate));
@@ -903,7 +856,7 @@ float FDatabaseViewModel::GetPlayTime() const
 void FDatabaseViewModel::SetPlayTime(float NewPlayTime, bool bInTickPlayTime)
 {
 	NewPlayTime = FMath::Clamp(NewPlayTime, MinPreviewPlayLength, MaxPreviewPlayLength);
-	DeltaTimeMultiplier = bInTickPlayTime ? DeltaTimeMultiplier : 0.0f;
+	DeltaTimeMultiplier = bInTickPlayTime ? DeltaTimeMultiplier : 0.f;
 
 	if (!FMath::IsNearlyEqual(PlayTime, NewPlayTime))
 	{

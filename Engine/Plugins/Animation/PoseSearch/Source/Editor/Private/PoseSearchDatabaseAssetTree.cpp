@@ -912,7 +912,7 @@ namespace UE::PoseSearch
 								bModified = true;
 							}
 							
-							const FFloatInterval SamplingRange = FPoseSearchDatabaseAnimationAssetBase::GetEffectiveSamplingRange(AnimSequenceBase, DatabaseAnimationAssetBase->GetSamplingRange());
+							const FFloatInterval SamplingRange = DatabaseAnimationAssetBase->GetEffectiveSamplingRange();
 							const float StartTime = SamplingRange.Min;
 							const float Duration = SamplingRange.Max - SamplingRange.Min;
 							const FName TrackName = "PoseSearch";

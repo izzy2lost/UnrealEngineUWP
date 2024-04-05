@@ -269,18 +269,18 @@ public:
 	}
 };
 
-static void FindValidSequenceIntervals(const UAnimSequenceBase* SequenceBase, FFloatInterval SamplingRange, bool bIsLooping,
-	const FFloatInterval& ExcludeFromDatabaseParameters, TArray<FFloatRange>& ValidRanges)
+static void FindValidSequenceIntervals(const FPoseSearchDatabaseAnimationAssetBase* DatabaseAsset, const FFloatInterval& ExcludeFromDatabaseParameters, TArray<FFloatRange>& ValidRanges)
 {
-	check(SequenceBase);
+	check(DatabaseAsset);
 
-	const float SequenceLength = SequenceBase->GetPlayLength();
+	bool bIsLooping = DatabaseAsset->IsLooping();
+	const float PlayLength = DatabaseAsset->GetPlayLength();
 
-	const FFloatInterval EffectiveSamplingInterval = FPoseSearchDatabaseAnimationAssetBase::GetEffectiveSamplingRange(SequenceBase, SamplingRange);
+	const FFloatInterval EffectiveSamplingInterval = DatabaseAsset->GetEffectiveSamplingRange();
 	FFloatRange EffectiveSamplingRange = FFloatRange::Inclusive(EffectiveSamplingInterval.Min, EffectiveSamplingInterval.Max);
 	if (!bIsLooping)
 	{
-		const FFloatRange ExcludeFromDatabaseRange(ExcludeFromDatabaseParameters.Min, SequenceLength + ExcludeFromDatabaseParameters.Max);
+		const FFloatRange ExcludeFromDatabaseRange(ExcludeFromDatabaseParameters.Min, PlayLength + ExcludeFromDatabaseParameters.Max);
 		EffectiveSamplingRange = FFloatRange::Intersection(EffectiveSamplingRange, ExcludeFromDatabaseRange);
 	}
 
@@ -288,39 +288,51 @@ static void FindValidSequenceIntervals(const UAnimSequenceBase* SequenceBase, FF
 	ValidRanges.Empty();
 	ValidRanges.Add(EffectiveSamplingRange);
 
-	FAnimNotifyContext NotifyContext;
-	SequenceBase->GetAnimNotifies(0.0f, SequenceLength, NotifyContext);
-
-	for (const FAnimNotifyEventReference& EventReference : NotifyContext.ActiveNotifies)
+	for (int32 RoleIndex = 0; RoleIndex < DatabaseAsset->GetNumRoles(); ++RoleIndex)
 	{
-		if (const FAnimNotifyEvent* NotifyEvent = EventReference.GetNotify())
+		const FRole Role = DatabaseAsset->GetRole(RoleIndex);
+		if (UAnimSequenceBase* SequenceBase = Cast<UAnimSequenceBase>(DatabaseAsset->GetAnimationAssetForRole(Role)))
 		{
-			if (const UAnimNotifyState_PoseSearchExcludeFromDatabase* ExclusionNotifyState = Cast<const UAnimNotifyState_PoseSearchExcludeFromDatabase>(NotifyEvent->NotifyStateClass))
+			FAnimNotifyContext NotifyContext;
+			SequenceBase->GetAnimNotifies(0.0f, PlayLength, NotifyContext);
+
+			for (const FAnimNotifyEventReference& EventReference : NotifyContext.ActiveNotifies)
 			{
-				FFloatRange ExclusionRange = FFloatRange::Inclusive(NotifyEvent->GetTime(), NotifyEvent->GetTime() + NotifyEvent->GetDuration());
-
-				// Split every valid range based on the exclusion range just found. Because this might increase the 
-				// number of ranges in ValidRanges, the algorithm iterates from end to start.
-				for (int32 RangeIdx = ValidRanges.Num() - 1; RangeIdx >= 0; --RangeIdx)
+				if (const FAnimNotifyEvent* NotifyEvent = EventReference.GetNotify())
 				{
-					FFloatRange EvaluatedRange = ValidRanges[RangeIdx];
-					ValidRanges.RemoveAt(RangeIdx);
+					if (const UAnimNotifyState_PoseSearchExcludeFromDatabase* ExclusionNotifyState = Cast<const UAnimNotifyState_PoseSearchExcludeFromDatabase>(NotifyEvent->NotifyStateClass))
+					{
+						FFloatRange ExclusionRange = FFloatRange::Inclusive(NotifyEvent->GetTime(), NotifyEvent->GetTime() + NotifyEvent->GetDuration());
 
-					TArray<FFloatRange> Diff = FFloatRange::Difference(EvaluatedRange, ExclusionRange);
-					ValidRanges.Append(Diff);
+						// Split every valid range based on the exclusion range just found. Because this might increase the 
+						// number of ranges in ValidRanges, the algorithm iterates from end to start.
+						for (int32 RangeIdx = ValidRanges.Num() - 1; RangeIdx >= 0; --RangeIdx)
+						{
+							FFloatRange EvaluatedRange = ValidRanges[RangeIdx];
+							ValidRanges.RemoveAt(RangeIdx);
+
+							TArray<FFloatRange> Diff = FFloatRange::Difference(EvaluatedRange, ExclusionRange);
+							ValidRanges.Append(Diff);
+						}
+					}
 				}
 			}
 		}
 	}
 }
 
-static void InitSearchIndexAssets(FSearchIndexBase& SearchIndex, const TArray<FInstancedStruct>& DatabaseAnimationAssets, const UPoseSearchSchema* Schema, const FFloatInterval& ExcludeFromDatabaseParameters)
+// returns false in case of errors
+static bool InitSearchIndexAssets(FSearchIndexBase& SearchIndex, const TArray<FInstancedStruct>& DatabaseAnimationAssets, const UPoseSearchSchema* Schema, const FFloatInterval& ExcludeFromDatabaseParameters)
 {
 	using namespace UE::PoseSearch;
+
+	check(Schema);
 
 	SearchIndex.Assets.Empty();
 	TArray<FFloatRange> ValidRanges;
 	TArray<FBlendSampleData> BlendSamples;
+
+	bool bAnyErrors = false;
 
 	int32 TotalPoses = 0;
 	for (int32 AnimationAssetIndex = 0; AnimationAssetIndex < DatabaseAnimationAssets.Num(); ++AnimationAssetIndex)
@@ -330,6 +342,29 @@ static void InitSearchIndexAssets(FSearchIndexBase& SearchIndex, const TArray<FI
 		{
 			if (!DatabaseAsset->IsEnabled() || !DatabaseAsset->GetAnimationAsset())
 			{
+				continue;
+			}
+
+			if (DatabaseAsset->GetNumRoles() != Schema->GetRoledSkeletons().Num())
+			{
+				UE_LOG(LogPoseSearch, Error, TEXT("DatabaseAsset '%s' Roles don't match Schema '%s' Skeletons Roles"), *DatabaseAsset->GetAnimationAsset()->GetName(), *Schema->GetName());
+				bAnyErrors = true;
+				continue;
+			}
+
+			// checking for valid roles in DatabaseMultiSequence against the Schema
+			bool bAreAllRolesSupported = true;
+			for (const FPoseSearchRoledSkeleton& RoledSkeleton : Schema->GetRoledSkeletons())
+			{
+				if (!DatabaseAsset->GetAnimationAssetForRole(RoledSkeleton.Role))
+				{
+					UE_LOG(LogPoseSearch, Error, TEXT("DatabaseAsset '%s' doesn't support Role '%s' required by Schema '%s' Skeletons"), *DatabaseAsset->GetAnimationAsset()->GetName(), *RoledSkeleton.Role.ToString(), *Schema->GetName());
+					bAreAllRolesSupported = false;
+				}
+			}
+			if (!bAreAllRolesSupported)
+			{
+				bAnyErrors = true;
 				continue;
 			}
 
@@ -383,42 +418,12 @@ static void InitSearchIndexAssets(FSearchIndexBase& SearchIndex, const TArray<FI
 					}
 				}
 			}
-			else if (const FPoseSearchDatabaseMultiSequence* DatabaseMultiSequence = DatabaseAssetStruct.GetPtr<FPoseSearchDatabaseMultiSequence>())
-			{
-				// @todo: support FindValidSequenceIntervals(SequenceBase, DatabaseAsset->GetSamplingRange(), bIsLooping, Database->ExcludeFromDatabaseParameters, ValidRanges);
-				const float PlayLength = DatabaseMultiSequence->GetPlayLength();
-
-				for (int32 PermutationIdx = 0; PermutationIdx < Schema->NumberOfPermutations; ++PermutationIdx)
-				{
-					if (bAddUnmirrored)
-					{
-						const FSearchIndexAsset PoseSearchIndexAsset(AnimationAssetIndex, TotalPoses, false, bIsLooping, 
-							bDisableReselection, FFloatInterval(0.f, PlayLength), Schema->SampleRate, PermutationIdx);
-						if (PoseSearchIndexAsset.GetNumPoses() > 0)
-						{
-							SearchIndex.Assets.Add(PoseSearchIndexAsset);
-							TotalPoses += PoseSearchIndexAsset.GetNumPoses();
-						}
-					}
-
-					if (bAddMirrored)
-					{
-						const FSearchIndexAsset PoseSearchIndexAsset(AnimationAssetIndex, TotalPoses, true, bIsLooping,
-							bDisableReselection, FFloatInterval(0.f, PlayLength), Schema->SampleRate, PermutationIdx);
-						if (PoseSearchIndexAsset.GetNumPoses() > 0)
-						{
-							SearchIndex.Assets.Add(PoseSearchIndexAsset);
-							TotalPoses += PoseSearchIndexAsset.GetNumPoses();
-						}
-					}
-				}
-			}
-			// support for FPoseSearchDatabaseSequence, FPoseSearchDatabaseAnimComposite, FPoseSearchDatabaseAnimMontage
-			else if (const UAnimSequenceBase* SequenceBase = Cast<UAnimSequenceBase>(DatabaseAsset->GetAnimationAsset()))
+			// support for FPoseSearchDatabaseSequence, FPoseSearchDatabaseAnimComposite, FPoseSearchDatabaseAnimMontage, FPoseSearchDatabaseMultiSequence
+			else
 			{
 				ValidRanges.Reset();
 
-				FindValidSequenceIntervals(SequenceBase, DatabaseAsset->GetSamplingRange(), bIsLooping, ExcludeFromDatabaseParameters, ValidRanges);
+				FindValidSequenceIntervals(DatabaseAsset, ExcludeFromDatabaseParameters, ValidRanges);
 				for (const FFloatRange& Range : ValidRanges)
 				{
 					for (int32 PermutationIdx = 0; PermutationIdx < Schema->NumberOfPermutations; ++PermutationIdx)
@@ -447,12 +452,10 @@ static void InitSearchIndexAssets(FSearchIndexBase& SearchIndex, const TArray<FI
 					}
 				}
 			}
-			else
-			{
-				checkNoEntry();
-			}
 		}
 	}
+
+	return !bAnyErrors;
 }
 
 static void PreprocessSearchIndexWeights(FSearchIndex& SearchIndex, const UPoseSearchSchema* Schema, TConstArrayView<float> Deviation)
@@ -1611,7 +1614,12 @@ void FPoseSearchDatabaseAsyncCacheTask::OnGetComplete(UE::DerivedData::FCacheGet
 					}
 
 					// Building all the related FPoseSearchBaseIndex first
-					InitSearchIndexAssets(SearchIndexBase, DependentDatabaseAnimationAssets, DependentDatabaseSchema, DependentExcludeFromDatabaseParameters);
+					if (!InitSearchIndexAssets(SearchIndexBase, DependentDatabaseAnimationAssets, DependentDatabaseSchema, DependentExcludeFromDatabaseParameters))
+					{
+						UE_LOG(LogPoseSearch, Error, TEXT("%s - %s BuildIndex Failed becasue of invalid assets"), *LexToString(FullIndexKey.Hash), *MainDatabaseName);
+						ResetSearchIndex();
+						return;
+					}
 
 					if (Owner.IsCanceled())
 					{

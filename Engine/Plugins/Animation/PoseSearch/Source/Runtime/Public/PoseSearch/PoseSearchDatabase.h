@@ -69,7 +69,7 @@ struct POSESEARCH_API FPoseSearchDatabaseAnimationAssetBase
 	virtual void SetDisableReselection(bool bValue) { bDisableReselection = bValue; }
 	virtual UClass* GetAnimationAssetStaticClass() const { return nullptr; }
 	virtual bool IsLooping() const { return false; }
-	virtual const FString GetName() const { return FString(); }
+	virtual const FString GetName() const;
 	virtual bool IsEnabled() const { return bEnabled; }
 	virtual void SetIsEnabled(bool bValue) { bEnabled = bValue; }
 	virtual bool IsRootMotionEnabled() const { return false; }
@@ -77,7 +77,7 @@ struct POSESEARCH_API FPoseSearchDatabaseAnimationAssetBase
 
 	// [0, 0] represents the entire frame range of the original animation.
 	virtual FFloatInterval GetSamplingRange() const { return FFloatInterval(0.f, 0.f); }
-	static FFloatInterval GetEffectiveSamplingRange(const UAnimSequenceBase* Sequence, const FFloatInterval& RequestedSamplingRange);
+	FFloatInterval GetEffectiveSamplingRange() const;
 
 	virtual int64 GetEditorMemSize() const;
 	virtual int64 GetApproxCookedSize() const { return GetEditorMemSize(); }
@@ -121,7 +121,6 @@ struct POSESEARCH_API FPoseSearchDatabaseSequence : public FPoseSearchDatabaseAn
 
 	virtual UClass* GetAnimationAssetStaticClass() const override;
 	virtual bool IsLooping() const override;
-	virtual const FString GetName() const override;
 	virtual bool IsRootMotionEnabled() const override;
 	virtual FFloatInterval GetSamplingRange() const override { return SamplingRange; }
 #endif // WITH_EDITORONLY_DATA
@@ -167,7 +166,6 @@ struct POSESEARCH_API FPoseSearchDatabaseBlendSpace : public FPoseSearchDatabase
 
 	virtual UClass* GetAnimationAssetStaticClass() const override;
 	virtual bool IsLooping() const override;
-	virtual const FString GetName() const override;
 	virtual bool IsRootMotionEnabled() const override;
 
 	void GetBlendSpaceParameterSampleRanges(int32& HorizontalBlendNum, int32& VerticalBlendNum) const;
@@ -200,7 +198,6 @@ struct POSESEARCH_API FPoseSearchDatabaseAnimComposite : public FPoseSearchDatab
 
 	virtual UClass* GetAnimationAssetStaticClass() const override;
 	virtual bool IsLooping() const override;
-	virtual const FString GetName() const override;
 	virtual bool IsRootMotionEnabled() const override;
 	virtual FFloatInterval GetSamplingRange() const override { return SamplingRange; }
 #endif // WITH_EDITORONLY_DATA
@@ -227,7 +224,6 @@ struct POSESEARCH_API FPoseSearchDatabaseAnimMontage : public FPoseSearchDatabas
 
 	virtual UClass* GetAnimationAssetStaticClass() const override;
 	virtual bool IsLooping() const override;
-	virtual const FString GetName() const override;
 	virtual bool IsRootMotionEnabled() const override;
 	virtual FFloatInterval GetSamplingRange() const override { return SamplingRange; }
 #endif // WITH_EDITORONLY_DATA
@@ -253,7 +249,6 @@ struct POSESEARCH_API FPoseSearchDatabaseMultiSequence : public FPoseSearchDatab
 
 	virtual UClass* GetAnimationAssetStaticClass() const override;
 	virtual bool IsLooping() const override;
-	virtual const FString GetName() const override;
 	virtual bool IsRootMotionEnabled() const override;
 	virtual FFloatInterval GetSamplingRange() const override { return SamplingRange; }
 #endif // WITH_EDITORONLY_DATA

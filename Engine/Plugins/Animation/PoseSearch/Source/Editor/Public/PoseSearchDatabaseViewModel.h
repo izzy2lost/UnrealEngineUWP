@@ -8,6 +8,7 @@
 #include "PoseSearch/PoseSearchAssetSampler.h"
 #include "PoseSearch/PoseSearchMirrorDataCache.h"
 #include "PoseSearch/PoseSearchRole.h"
+#include "PoseSearch/PoseSearchTrajectoryTypes.h"
 #include "PoseSearchDatabasePreviewScene.h"
 #include "UObject/GCObject.h"
 
@@ -29,9 +30,9 @@ namespace UE::PoseSearch
 	struct FDatabasePreviewActor
 	{
 	public:
-		bool SpawnPreviewActor(UWorld* World, const UPoseSearchDatabase* PoseSearchDatabase, int32 IndexAssetIdx, const FRole& Role, const FTransform& SamplerRootTransformOrigin, const FTransform* PrecalculatedRootTransformOrigin, int32 PoseIdxForTimeOffset = INDEX_NONE);
+		bool SpawnPreviewActor(UWorld* World, const UPoseSearchDatabase* PoseSearchDatabase, int32 IndexAssetIdx, const FRole& Role, const FTransform& SamplerRootTransformOrigin, int32 PoseIdxForTimeOffset = INDEX_NONE);
 		void UpdatePreviewActor(const UPoseSearchDatabase* PoseSearchDatabase, float PlayTime, bool bQuantizeAnimationToPoseData);
-		static bool DrawPreviewActors(TArrayView<FDatabasePreviewActor> PreviewActors, const UPoseSearchDatabase* PoseSearchDatabase, bool bDisplayRootMotionSpeed, bool bDisplayBlockTransition, TConstArrayView<float> QueryVector);
+		static bool DrawPreviewActors(TConstArrayView<FDatabasePreviewActor> PreviewActors, const UPoseSearchDatabase* PoseSearchDatabase, bool bDisplayRootMotionSpeed, bool bDisplayBlockTransition, TConstArrayView<float> QueryVector);
 
 		void Destroy();
 
@@ -43,7 +44,6 @@ namespace UE::PoseSearch
 		int32 GetIndexAssetIndex() const { return IndexAssetIndex; }
 		int32 GetCurrentPoseIndex() const { return CurrentPoseIndex; }
 		float GetPlayTimeOffset() const { return PlayTimeOffset; }
-		const FTransform& GetRootTransformOrigin() const { return RootTransformOrigin;  }
 		
 	private:
 		UAnimPreviewInstance* GetAnimPreviewInstanceInternal();
@@ -53,19 +53,11 @@ namespace UE::PoseSearch
 		int32 CurrentPoseIndex = INDEX_NONE;
 		float PlayTimeOffset = 0.f;
 		float CurrentTime = 0.f;
-
-		// world space root transforms
-		FTransform RootTransformCurrentQuantizedTime = FTransform::Identity;
-		FTransform RootTransformCurrent = FTransform::Identity;
-		FTransform RootTransformOrigin = FTransform::Identity;
-
-		// local space root BONE transform
-		FTransform RootBoneTransformCurrentQuantizedTime = FTransform::Identity;
+		float QuantizedTime = 0.f;
 
 		FAnimationAssetSampler Sampler;
-
-		TArray<FVector> SampledRootMotion;
-		TArray<float> SampledRootMotionSpeed;
+		FPoseSearchQueryTrajectory Trajectory;
+		TArray<float> TrajectorySpeed;
 
 		FRole ActorRole = DefaultRole;
 	};

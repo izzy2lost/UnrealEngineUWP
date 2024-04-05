@@ -483,7 +483,7 @@ FAssetIndexer::FCachedEntry& FAssetIndexer::GetEntry(float SampleTime)
 			StackComponentSpacePose.InitPose(MoveTemp(Pose));
 			Entry->ComponentSpacePose[RoleIndex].CopyPose(StackComponentSpacePose);
 
-			Entry->RootTransform[RoleIndex] = SampleRootTransform;
+			Entry->RootTransform[RoleIndex] = MirrorTransform(SampleRootTransform, RoleIndex);
 			Entry->bClamped |= bSampleClamped;
 		}
 	}
@@ -514,7 +514,7 @@ FTransform FAssetIndexer::GetTransform(float SampleTime, const FRole& Role, bool
 
 	const int32 RoleIndex = RoleToIndex[Role];
 	const FBoneReference& BoneReference = Schema.GetBoneReferences(Role)[SchemaBoneIdx];
-	return CalculateComponentSpaceTransform(Entry, BoneReference, RoleIndex) * MirrorTransform(Entry.RootTransform[RoleIndex], RoleIndex);
+	return CalculateComponentSpaceTransform(Entry, BoneReference, RoleIndex) * Entry.RootTransform[RoleIndex];
 }
 
 // returns the transform in animation space for the BoneReference at SampleTime seconds
@@ -522,7 +522,7 @@ FTransform FAssetIndexer::GetTransform(float SampleTime, int32 RoleIndex, bool& 
 {
 	FCachedEntry& Entry = GetEntry(SampleTime);
 	bClamped = Entry.bClamped;
-	return CalculateComponentSpaceTransform(Entry, BoneReference, RoleIndex) * MirrorTransform(Entry.RootTransform[RoleIndex], RoleIndex);
+	return CalculateComponentSpaceTransform(Entry, BoneReference, RoleIndex) * Entry.RootTransform[RoleIndex];
 }
 
 FTransform FAssetIndexer::CalculateComponentSpaceTransform(FAssetIndexer::FCachedEntry& Entry, const FBoneReference& BoneReference, int32 RoleIndex)

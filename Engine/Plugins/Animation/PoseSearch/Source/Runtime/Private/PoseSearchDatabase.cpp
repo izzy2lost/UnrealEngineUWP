@@ -364,6 +364,13 @@ bool FPoseSearchDatabaseAnimationAssetBase::IsSkeletonCompatible(TObjectPtr<cons
 }
 #endif // WITH_EDITOR
 
+#if WITH_EDITORONLY_DATA
+const FString FPoseSearchDatabaseAnimationAssetBase::GetName() const
+{
+	return GetNameSafe(GetAnimationAsset());
+}
+#endif //WITH_EDITORONLY_DATA
+
 UAnimationAsset* FPoseSearchDatabaseAnimationAssetBase::GetAnimationAssetForRole(const UE::PoseSearch::FRole& Role) const
 {
 	check(GetNumRoles() == 1);
@@ -383,13 +390,15 @@ int64 FPoseSearchDatabaseAnimationAssetBase::GetEditorMemSize() const
 	return EditorMemCount.GetNum();
 }
 
-FFloatInterval FPoseSearchDatabaseAnimationAssetBase::GetEffectiveSamplingRange(const UAnimSequenceBase* SequenceBase, const FFloatInterval& RequestedSamplingRange)
+FFloatInterval FPoseSearchDatabaseAnimationAssetBase::GetEffectiveSamplingRange() const
 {
-	const bool bSampleAll = (RequestedSamplingRange.Min == 0.0f) && (RequestedSamplingRange.Max == 0.0f);
-	const float SequencePlayLength = SequenceBase->GetPlayLength();
+	const FFloatInterval SamplingRange = GetSamplingRange();
+
+	const bool bSampleAll = (SamplingRange.Min == 0.0f) && (SamplingRange.Max == 0.0f);
+	const float PlayLength = GetPlayLength();
 	FFloatInterval Range;
-	Range.Min = bSampleAll ? 0.0f : RequestedSamplingRange.Min;
-	Range.Max = bSampleAll ? SequencePlayLength : FMath::Min(SequencePlayLength, RequestedSamplingRange.Max);
+	Range.Min = bSampleAll ? 0.0f : SamplingRange.Min;
+	Range.Max = bSampleAll ? PlayLength : FMath::Min(PlayLength, SamplingRange.Max);
 	return Range;
 }
 #endif // WITH_EDITORONLY_DATA
@@ -413,11 +422,6 @@ bool FPoseSearchDatabaseSequence::IsLooping() const
 		Sequence->bLoop &&
 		SamplingRange.Min == 0.f &&
 		SamplingRange.Max == 0.f;
-}
-
-const FString FPoseSearchDatabaseSequence::GetName() const
-{
-	return Sequence ? Sequence->GetName() : FString();
 }
 
 bool FPoseSearchDatabaseSequence::IsRootMotionEnabled() const
@@ -450,11 +454,6 @@ UClass* FPoseSearchDatabaseBlendSpace::GetAnimationAssetStaticClass() const
 bool FPoseSearchDatabaseBlendSpace::IsLooping() const
 {
 	return BlendSpace && BlendSpace->bLoop;
-}
-
-const FString FPoseSearchDatabaseBlendSpace::GetName() const
-{
-	return BlendSpace ? BlendSpace->GetName() : FString();
 }
 
 bool FPoseSearchDatabaseBlendSpace::IsRootMotionEnabled() const
@@ -566,11 +565,6 @@ bool FPoseSearchDatabaseAnimComposite::IsLooping() const
 		SamplingRange.Max == 0.f;
 }
 
-const FString FPoseSearchDatabaseAnimComposite::GetName() const
-{
-	return AnimComposite ? AnimComposite->GetName() : FString();
-}
-
 bool FPoseSearchDatabaseAnimComposite::IsRootMotionEnabled() const
 {
 	return AnimComposite ? AnimComposite->HasRootMotion() : false;
@@ -596,11 +590,6 @@ bool FPoseSearchDatabaseAnimMontage::IsLooping() const
 		AnimMontage->bLoop &&
 		SamplingRange.Min == 0.f &&
 		SamplingRange.Max == 0.f;
-}
-
-const FString FPoseSearchDatabaseAnimMontage::GetName() const
-{
-	return AnimMontage ? AnimMontage->GetName() : FString();
 }
 
 bool FPoseSearchDatabaseAnimMontage::IsRootMotionEnabled() const
@@ -660,11 +649,6 @@ bool FPoseSearchDatabaseMultiSequence::IsLooping() const
 		MultiSequence->IsLooping() &&
 		SamplingRange.Min == 0.f &&
 		SamplingRange.Max == 0.f;
-}
-
-const FString FPoseSearchDatabaseMultiSequence::GetName() const
-{
-	return MultiSequence ? MultiSequence->GetName() : FString();
 }
 
 bool FPoseSearchDatabaseMultiSequence::IsRootMotionEnabled() const

@@ -51,6 +51,8 @@ struct POSESEARCH_API FAnimationAssetSampler
 
 	static float GetPlayLength(const UAnimationAsset* AnimAsset, const FVector& BlendParameters = FVector::ZeroVector);
 
+	void SetRootTransformOrigin(const FTransform& InRootTransformOrigin) { RootTransformOrigin = InRootTransformOrigin; }
+
 protected:
 	TWeakObjectPtr<const UAnimationAsset> AnimationAssetPtr;
 	FTransform RootTransformOrigin = FTransform::Identity;

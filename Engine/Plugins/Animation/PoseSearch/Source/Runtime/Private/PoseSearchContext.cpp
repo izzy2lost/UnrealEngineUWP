@@ -7,8 +7,9 @@
 #include "PoseSearch/PoseSearchHistory.h"
 #include "PoseSearch/PoseSearchSchema.h"
 #include "PoseSearch/PoseSearchTrajectoryTypes.h"
-#include "PoseSearchFeatureChannel_Position.h"
 #include "PoseSearchFeatureChannel_Heading.h"
+#include "PoseSearchFeatureChannel_PermutationTime.h"
+#include "PoseSearchFeatureChannel_Position.h"
 
 namespace UE::PoseSearch
 {
@@ -55,7 +56,28 @@ const UPoseSearchSchema* FDebugDrawParams::GetSchema() const
 	return Database ? Database->Schema : nullptr;
 }
 
-FVector FDebugDrawParams::ExtractPosition(TConstArrayView<float> PoseVector, float SampleTimeOffset, int8 SchemaBoneIdx, const FRole& Role, EPermutationTimeType PermutationTimeType, int32 SamplingAttributeId) const
+float FDebugDrawParams::ExtractPermutationTime(TConstArrayView<float> PoseVector) const
+{
+	if (const UPoseSearchSchema* Schema = GetSchema())
+	{
+		if (const UPoseSearchFeatureChannel_PermutationTime* FoundPermutationTime = static_cast<const UPoseSearchFeatureChannel_PermutationTime*>(
+			Schema->FindChannel([](const UPoseSearchFeatureChannel* Channel) -> const UPoseSearchFeatureChannel_PermutationTime*
+				{
+					if (const UPoseSearchFeatureChannel_PermutationTime* PermutationTime = Cast<UPoseSearchFeatureChannel_PermutationTime>(Channel))
+					{
+						return PermutationTime;
+					}
+					return nullptr;
+				})))
+		{
+			check(FoundPermutationTime->GetChannelCardinality() == 1);
+			return FFeatureVectorHelper::DecodeFloat(PoseVector, FoundPermutationTime->GetChannelDataOffset());
+		}
+	}
+	return 0.f;
+}
+
+FVector FDebugDrawParams::ExtractPosition(TConstArrayView<float> PoseVector, float SampleTimeOffset, int8 SchemaBoneIdx, const FRole& Role, EPermutationTimeType PermutationTimeType, int32 SamplingAttributeId, float PermutationSampleTimeOffset) const
 {
 	// we don't wanna ask for a SchemaOriginBoneIdx in the future or past
 	check(PermutationTimeType != EPermutationTimeType::UsePermutationTime);
@@ -97,7 +119,7 @@ FVector FDebugDrawParams::ExtractPosition(TConstArrayView<float> PoseVector, flo
 					const FBoneIndexType BoneIndexType = Schema->GetBoneReferences(Role)[SchemaBoneIdx].BoneIndex;
 
 					FTransform WorldBoneTransform;
-					if (PoseHistory->GetTransformAtTime(SampleTimeOffset, WorldBoneTransform, Skeleton, BoneIndexType, WorldSpaceIndexType))
+					if (PoseHistory->GetTransformAtTime(SampleTimeOffset + PermutationSampleTimeOffset, WorldBoneTransform, Skeleton, BoneIndexType, WorldSpaceIndexType))
 					{
 						return WorldBoneTransform.GetTranslation();
 					}
@@ -110,11 +132,13 @@ FVector FDebugDrawParams::ExtractPosition(TConstArrayView<float> PoseVector, flo
 			}
 		}
 	}
-	return GetRootBoneTransform(Role, SampleTimeOffset).GetTranslation();
+	return GetRootBoneTransform(Role, SampleTimeOffset + PermutationSampleTimeOffset).GetTranslation();
 }
 
-FQuat FDebugDrawParams::ExtractRotation(TConstArrayView<float> PoseVector, float SampleTimeOffset, int8 SchemaBoneIdx, const FRole& Role, EPermutationTimeType PermutationTimeType, int32 SamplingAttributeId) const
+FQuat FDebugDrawParams::ExtractRotation(TConstArrayView<float> PoseVector, float SampleTimeOffset, int8 SchemaBoneIdx, const FRole& Role, EPermutationTimeType PermutationTimeType, int32 SamplingAttributeId, float PermutationSampleTimeOffset) const
 {
+	// we don't wanna ask for a SchemaOriginBoneIdx in the future or past
+	check(PermutationTimeType != EPermutationTimeType::UsePermutationTime);
 	if (const UPoseSearchSchema* Schema = GetSchema())
 	{
 		int32 HeadingAxisFoundNum = 0;
@@ -222,7 +246,7 @@ FQuat FDebugDrawParams::ExtractRotation(TConstArrayView<float> PoseVector, float
 					const FBoneIndexType BoneIndexType = Schema->GetBoneReferences(Role)[SchemaBoneIdx].BoneIndex;
 
 					FTransform WorldBoneTransform;
-					if (PoseHistory->GetTransformAtTime(SampleTimeOffset, WorldBoneTransform, Skeleton, BoneIndexType, WorldSpaceIndexType))
+					if (PoseHistory->GetTransformAtTime(SampleTimeOffset + PermutationSampleTimeOffset, WorldBoneTransform, Skeleton, BoneIndexType, WorldSpaceIndexType))
 					{
 						return WorldBoneTransform.GetRotation();
 					}
@@ -236,7 +260,7 @@ FQuat FDebugDrawParams::ExtractRotation(TConstArrayView<float> PoseVector, float
 		}
 	}
 
-	return GetRootBoneTransform(Role, SampleTimeOffset).GetRotation();
+	return GetRootBoneTransform(Role, SampleTimeOffset + PermutationSampleTimeOffset).GetRotation();
 }
 
 FTransform FDebugDrawParams::GetRootBoneTransform(const FRole& Role, float SampleTimeOffset) const
