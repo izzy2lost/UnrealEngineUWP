@@ -475,9 +475,11 @@ static void SetShaderParametersOnContext(
         case FRHIShaderParameterResource::EType::UniformBuffer:
             BindUniformBuffer(Binder.StateCache, Shader, Binder.Stage, Parameter.Index, static_cast<FRHIUniformBuffer*>(Parameter.Resource));
             break;
+#if PLATFORM_SUPPORTS_BINDLESS_RENDERING
         case FRHIShaderParameterResource::EType::ResourceCollection:
             Binder.SetResourceCollection(static_cast<FRHIResourceCollection*>(Parameter.Resource), Parameter.Index);
             break;
+#endif
         default:
             checkf(false, TEXT("Unhandled resource type?"));
             break;
