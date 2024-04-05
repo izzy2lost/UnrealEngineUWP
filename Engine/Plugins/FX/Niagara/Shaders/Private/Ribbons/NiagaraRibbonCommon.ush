@@ -96,7 +96,11 @@ int RibbonLinkOrderDataOffset;
 // Gets the num particles from the indirect buffer if available, or if not from the fallback direct input
 int GetTotalNumParticles()
 {
-	return EmitterParticleCountsBufferOffset != INDEX_NONE? EmitterParticleCountsBuffer[EmitterParticleCountsBufferOffset] : TotalNumParticlesDirect;
+	if (EmitterParticleCountsBufferOffset != INDEX_NONE)
+	{
+		return EmitterParticleCountsBuffer[EmitterParticleCountsBufferOffset];
+	}
+	return TotalNumParticlesDirect;
 }
 
 
