@@ -269,7 +269,7 @@ IMPLEMENT_GLOBAL_SHADER(FInitCompactedTraceTexelIndirectArgsCS, "/Engine/Private
 
 class FHardwareRayTraceLightSamples : public FLumenHardwareRayTracingShaderBase
 {
-	DECLARE_LUMEN_RAYTRACING_SHADER(FHardwareRayTraceLightSamples, Lumen::ERayTracingShaderDispatchSize::DispatchSize1D)
+	DECLARE_LUMEN_RAYTRACING_SHADER(FHardwareRayTraceLightSamples)
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER_STRUCT_INCLUDE(ManyLights::FCompactedTraceParameters, CompactedTraceParameters)

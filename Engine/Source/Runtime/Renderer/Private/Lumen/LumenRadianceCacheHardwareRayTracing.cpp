@@ -70,7 +70,7 @@ namespace LumenRadianceCache
 
 class FLumenRadianceCacheHardwareRayTracing : public FLumenHardwareRayTracingShaderBase
 {
-	DECLARE_LUMEN_RAYTRACING_SHADER(FLumenRadianceCacheHardwareRayTracing, Lumen::ERayTracingShaderDispatchSize::DispatchSize1D)
+	DECLARE_LUMEN_RAYTRACING_SHADER(FLumenRadianceCacheHardwareRayTracing)
 
 	class FRayTracingPass : SHADER_PERMUTATION_ENUM_CLASS("RAY_TRACING_PASS", LumenRadianceCache::ERayTracingPass);
 	using FPermutationDomain = TShaderPermutationDomain<FLumenHardwareRayTracingShaderBase::FBasePermutationDomain, FRayTracingPass>;

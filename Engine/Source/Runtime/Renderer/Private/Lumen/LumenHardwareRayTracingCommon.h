@@ -47,12 +47,6 @@ namespace Lumen
 		uint32 UserData;
 	};
 
-	enum class ERayTracingShaderDispatchSize
-	{
-		DispatchSize1D = 0,
-		DispatchSize2D = 1,
-	};
-
 	enum class ERayTracingShaderDispatchType
 	{
 		RayGen = 0,
@@ -96,13 +90,11 @@ public:
 	using FBasePermutationDomain = TShaderPermutationDomain<FUseThreadGroupSize64>;
 	using FPermutationDomain = TShaderPermutationDomain<FBasePermutationDomain>; // The default that is used if derived classes don't define their own
 
-	static constexpr const Lumen::ERayTracingShaderDispatchSize DispatchSize = Lumen::ERayTracingShaderDispatchSize::DispatchSize2D;
-
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, Lumen::ERayTracingShaderDispatchType ShaderDispatchType, Lumen::ESurfaceCacheSampling SurfaceCacheSampling, FShaderCompilerEnvironment& OutEnvironment);
 
-	static void ModifyCompilationEnvironmentInternal(Lumen::ERayTracingShaderDispatchType ShaderDispatchType, Lumen::ERayTracingShaderDispatchSize Size, bool UseThreadGroupSize64, FShaderCompilerEnvironment& OutEnvironment);
+	static void ModifyCompilationEnvironmentInternal(Lumen::ERayTracingShaderDispatchType ShaderDispatchType, bool UseThreadGroupSize64, FShaderCompilerEnvironment& OutEnvironment);
 
-	static FIntPoint GetThreadGroupSizeInternal(Lumen::ERayTracingShaderDispatchType ShaderDispatchType, Lumen::ERayTracingShaderDispatchSize ShaderDispatchSize, bool UseThreadGroupSize64);
+	static FIntPoint GetThreadGroupSizeInternal(Lumen::ERayTracingShaderDispatchType ShaderDispatchType, bool UseThreadGroupSize64);
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters, Lumen::ERayTracingShaderDispatchType ShaderDispatchType);
 
@@ -110,12 +102,11 @@ public:
 };
 
 
-#define DECLARE_LUMEN_RAYTRACING_SHADER(ShaderClass, ShaderDispatchSize) \
+#define DECLARE_LUMEN_RAYTRACING_SHADER(ShaderClass) \
 	public: \
 	ShaderClass() = default; \
 	ShaderClass(const ShaderMetaType::CompiledShaderInitializerType & Initializer)\
 		: FLumenHardwareRayTracingShaderBase(Initializer) {}\
-	static constexpr const Lumen::ERayTracingShaderDispatchSize DispatchSize = ShaderDispatchSize; \
 	using TComputeShaderType = class ShaderClass##CS; \
 	using TRayGenShaderType = class ShaderClass##RGS;
 
@@ -137,11 +128,11 @@ public:
 		{ \
 			FPermutationDomain PermutationVector(Parameters.PermutationId); \
 			const bool UseThreadGroupSize64 = PermutationVector.Get<FLumenHardwareRayTracingShaderBase::FBasePermutationDomain>().Get<FUseThreadGroupSize64>() ; \
-			FIntPoint Size = GetThreadGroupSizeInternal(Lumen::ERayTracingShaderDispatchType::Inline, DispatchSize, UseThreadGroupSize64); \
+			FIntPoint Size = GetThreadGroupSizeInternal(Lumen::ERayTracingShaderDispatchType::Inline, UseThreadGroupSize64); \
 			OutEnvironment.SetDefine(TEXT("INLINE_RAY_TRACING_THREAD_GROUP_SIZE_X"), Size.X); \
 			OutEnvironment.SetDefine(TEXT("INLINE_RAY_TRACING_THREAD_GROUP_SIZE_Y"), Size.Y); \
 			ShaderClass::ModifyCompilationEnvironment(Parameters, Lumen::ERayTracingShaderDispatchType::Inline, OutEnvironment); \
-			ModifyCompilationEnvironmentInternal(Lumen::ERayTracingShaderDispatchType::Inline, DispatchSize, UseThreadGroupSize64, OutEnvironment); \
+			ModifyCompilationEnvironmentInternal(Lumen::ERayTracingShaderDispatchType::Inline, UseThreadGroupSize64, OutEnvironment); \
 		}\
 		static FPermutationDomain MakePermutationVector(ShaderClass::FPermutationDomain PermutationVector, EShaderPlatform ShaderPlatform) \
 		{ \
@@ -150,7 +141,7 @@ public:
 			PermutationVector.Set<FLumenHardwareRayTracingShaderBase::FBasePermutationDomain>(Base); \
 			return PermutationVector; \
 		} \
-		static FIntPoint GetThreadGroupSize(EShaderPlatform ShaderPlatform) { return GetThreadGroupSizeInternal(Lumen::ERayTracingShaderDispatchType::Inline, DispatchSize, UseThreadGroupSize64(ShaderPlatform)); } \
+		static FIntPoint GetThreadGroupSize(EShaderPlatform ShaderPlatform) { return GetThreadGroupSizeInternal(Lumen::ERayTracingShaderDispatchType::Inline, UseThreadGroupSize64(ShaderPlatform)); } \
 		static ERayTracingPayloadType GetRayTracingPayloadType(const int32 PermutationId) { return static_cast<ERayTracingPayloadType>(0); } \
 		static void AddLumenRayTracingDispatchIndirect(FRDGBuilder& GraphBuilder, FRDGEventName&& EventName, const FViewInfo& View, ShaderClass::FPermutationDomain PermutationVector, \
 			ShaderClass::FParameters* PassParameters, FRDGBufferRef IndirectArgsBuffer, uint32 IndirectArgsOffset, ERDGPassFlags ComputePassFlags) \
@@ -247,9 +238,9 @@ static void AddLumenRayTraceDispatchIndirectPass(
 		static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment) \
 		{ \
 			ShaderClass::ModifyCompilationEnvironment(Parameters, Lumen::ERayTracingShaderDispatchType::RayGen, OutEnvironment); \
-			ModifyCompilationEnvironmentInternal(Lumen::ERayTracingShaderDispatchType::RayGen, DispatchSize, false, OutEnvironment); \
+			ModifyCompilationEnvironmentInternal(Lumen::ERayTracingShaderDispatchType::RayGen, false, OutEnvironment); \
 		} \
-		static FIntPoint GetThreadGroupSize() { return GetThreadGroupSizeInternal(Lumen::ERayTracingShaderDispatchType::RayGen, DispatchSize, false); } \
+		static FIntPoint GetThreadGroupSize() { return GetThreadGroupSizeInternal(Lumen::ERayTracingShaderDispatchType::RayGen, false); } \
 		static void AddLumenRayTracingDispatchIndirect(FRDGBuilder& GraphBuilder, FRDGEventName&& EventName, const FViewInfo& View, ShaderClass::FPermutationDomain PermutationVector, \
 			ShaderClass::FParameters* PassParameters, FRDGBufferRef IndirectArgsBuffer, uint32 IndirectArgsOffset, bool bUseMinimalPayload) \
 		{ \

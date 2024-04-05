@@ -393,7 +393,7 @@ IMPLEMENT_GLOBAL_SHADER(FLumenVisualizeBucketRaysByMaterialIdCS, "/Engine/Privat
 
 class FLumenVisualizeHardwareRayTracing : public FLumenHardwareRayTracingShaderBase
 {
-	DECLARE_LUMEN_RAYTRACING_SHADER(FLumenVisualizeHardwareRayTracing, Lumen::ERayTracingShaderDispatchSize::DispatchSize2D)
+	DECLARE_LUMEN_RAYTRACING_SHADER(FLumenVisualizeHardwareRayTracing)
 
 	class FHitLightingDim : SHADER_PERMUTATION_BOOL("DIM_HIT_LIGHTING");
 	class FHairStrandsOcclusionDim : SHADER_PERMUTATION_BOOL("DIM_HAIRSTRANDS_VOXEL");

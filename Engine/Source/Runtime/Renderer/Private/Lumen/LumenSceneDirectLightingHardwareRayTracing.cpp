@@ -55,7 +55,7 @@ namespace Lumen
 
 class FLumenDirectLightingHardwareRayTracing : public FLumenHardwareRayTracingShaderBase
 {
-	DECLARE_LUMEN_RAYTRACING_SHADER(FLumenDirectLightingHardwareRayTracing, Lumen::ERayTracingShaderDispatchSize::DispatchSize2D)
+	DECLARE_LUMEN_RAYTRACING_SHADER(FLumenDirectLightingHardwareRayTracing)
 
 	class FEnableFarFieldTracing : SHADER_PERMUTATION_BOOL("ENABLE_FAR_FIELD_TRACING");
 	class FEnableHeightfieldProjectionBias : SHADER_PERMUTATION_BOOL("ENABLE_HEIGHTFIELD_PROJECTION_BIAS");

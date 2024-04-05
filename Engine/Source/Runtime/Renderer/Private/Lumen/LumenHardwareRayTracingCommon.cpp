@@ -238,13 +238,8 @@ void FLumenHardwareRayTracingShaderBase::ModifyCompilationEnvironment(const FGlo
 	}
 }
 
-void FLumenHardwareRayTracingShaderBase::ModifyCompilationEnvironmentInternal(Lumen::ERayTracingShaderDispatchType ShaderDispatchType, Lumen::ERayTracingShaderDispatchSize Size, bool UseThreadGroupSize64, FShaderCompilerEnvironment& OutEnvironment)
+void FLumenHardwareRayTracingShaderBase::ModifyCompilationEnvironmentInternal(Lumen::ERayTracingShaderDispatchType ShaderDispatchType, bool UseThreadGroupSize64, FShaderCompilerEnvironment& OutEnvironment)
 {
-	if (DispatchSize == Lumen::ERayTracingShaderDispatchSize::DispatchSize1D)
-	{
-		OutEnvironment.SetDefine(TEXT("UE_RAY_TRACING_DISPATCH_1D"), 1);
-	}
-
 	const bool bInlineRayTracing = ShaderDispatchType == Lumen::ERayTracingShaderDispatchType::Inline;
 	if (bInlineRayTracing && !UseThreadGroupSize64)
 	{
@@ -252,19 +247,13 @@ void FLumenHardwareRayTracingShaderBase::ModifyCompilationEnvironmentInternal(Lu
 	}
 }
 
-FIntPoint FLumenHardwareRayTracingShaderBase::GetThreadGroupSizeInternal(Lumen::ERayTracingShaderDispatchType ShaderDispatchType, Lumen::ERayTracingShaderDispatchSize ShaderDispatchSize, bool UseThreadGroupSize64)
+FIntPoint FLumenHardwareRayTracingShaderBase::GetThreadGroupSizeInternal(Lumen::ERayTracingShaderDispatchType ShaderDispatchType, bool UseThreadGroupSize64)
 {
 	// Current inline ray tracing implementation requires 1:1 mapping between thread groups and waves.
 	const bool bInlineRayTracing = ShaderDispatchType == Lumen::ERayTracingShaderDispatchType::Inline;
 	if (bInlineRayTracing)
 	{
-		switch (ShaderDispatchSize)
-		{
-		case Lumen::ERayTracingShaderDispatchSize::DispatchSize2D: return UseThreadGroupSize64 ? FIntPoint(8, 8) : FIntPoint(8, 4);
-		case Lumen::ERayTracingShaderDispatchSize::DispatchSize1D: return UseThreadGroupSize64 ? FIntPoint(64, 1) : FIntPoint(32, 1);
-		default:
-			checkNoEntry();
-		}
+		return UseThreadGroupSize64 ? FIntPoint(64, 1) : FIntPoint(32, 1);
 	}
 
 	return FIntPoint(1, 1);

@@ -300,7 +300,7 @@ namespace Lumen
 
 class FLumenValidateReservoirs : public FLumenHardwareRayTracingShaderBase
 {
-	DECLARE_LUMEN_RAYTRACING_SHADER(FLumenValidateReservoirs, Lumen::ERayTracingShaderDispatchSize::DispatchSize2D)
+	DECLARE_LUMEN_RAYTRACING_SHADER(FLumenValidateReservoirs)
 
 	class FHitLighting : SHADER_PERMUTATION_BOOL("HIT_LIGHTING");
 	using FPermutationDomain = TShaderPermutationDomain<FLumenHardwareRayTracingShaderBase::FBasePermutationDomain, FHitLighting>;
@@ -350,7 +350,7 @@ IMPLEMENT_GLOBAL_SHADER(FLumenValidateReservoirsRGS, "/Engine/Private/Lumen/Lume
 
 class FLumenInitialSampling : public FLumenHardwareRayTracingShaderBase
 {
-	DECLARE_LUMEN_RAYTRACING_SHADER(FLumenInitialSampling, Lumen::ERayTracingShaderDispatchSize::DispatchSize2D)
+	DECLARE_LUMEN_RAYTRACING_SHADER(FLumenInitialSampling)
 
 	class FHitLighting : SHADER_PERMUTATION_BOOL("HIT_LIGHTING");
 	using FPermutationDomain = TShaderPermutationDomain<FLumenHardwareRayTracingShaderBase::FBasePermutationDomain, FHitLighting>;

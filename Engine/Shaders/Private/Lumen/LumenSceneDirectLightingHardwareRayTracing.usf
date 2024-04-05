@@ -94,9 +94,9 @@ StructuredBuffer<uint> ShadowTraces;
 
 LUMEN_HARDWARE_RAY_TRACING_ENTRY(LumenSceneDirectLightingHardwareRayTracing)
 {
-	uint ShadowTraceIndexOffset = DispatchThreadIndex.x % 64;
-	uint ShadowTraceGroup = DispatchThreadIndex.y;
-	uint ShadowTraceIndex = ShadowTraceGroup * 64 + ShadowTraceIndexOffset;
+	const uint ThreadIndex = DispatchThreadIndex.x;
+	const uint GroupIndex = DispatchThreadIndex.y;
+	const uint ShadowTraceIndex = GroupIndex * 64 + ThreadIndex;
 
 	if (ShadowTraceIndex < ShadowTraceAllocator[0])
 	{
