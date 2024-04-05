@@ -92,7 +92,7 @@ bool UPrimitiveComponent::GetRigidBodyState(FRigidBodyState& OutState, FName Bon
 			OutState.Position = Transform.GetLocation();
 			OutState.Quaternion = Transform.GetRotation();
 			OutState.LinVel = Interface->GetV(PhysicsObject);
-			OutState.AngVel = Interface->GetW(PhysicsObject);
+			OutState.AngVel = FMath::RadiansToDegrees(Interface->GetW(PhysicsObject));
 			OutState.Flags = (Interface->AreAllSleeping({ PhysicsObject }) ? ERigidBodyFlags::Sleeping : ERigidBodyFlags::None);
 			return true;
 		}

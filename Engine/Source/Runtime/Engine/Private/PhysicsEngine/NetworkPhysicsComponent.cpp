@@ -722,7 +722,7 @@ void UNetworkPhysicsComponent::OnRep_SetReplicatedInputs()
 				{
 						if (bCompareInputToTriggerRewind)
 						{
-							int32 ResimFrame = StateHistory->ReceiveNewData(*ReceivedInputs, LocalOffset, /*CompareDataForRewind*/ bCompareInputToTriggerRewind);
+							int32 ResimFrame = InputHistory->ReceiveNewData(*ReceivedInputs, LocalOffset, /*CompareDataForRewind*/ bCompareInputToTriggerRewind);
 							if (ResimFrame != INDEX_NONE)
 							{
 								if (Chaos::FPhysicsSolver* Solver = PhysScene->GetSolver())

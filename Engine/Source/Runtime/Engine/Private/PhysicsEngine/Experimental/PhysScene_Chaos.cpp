@@ -1374,7 +1374,7 @@ void FPhysScene_Chaos::PopulateReplicationCache(const int32 PhysicsStep)
 			ReplicationState.Position = Handle->GetX();
 			ReplicationState.Quaternion = Handle->GetR();
 			ReplicationState.LinVel = Handle->GetV();
-			ReplicationState.AngVel = Handle->GetW();
+			ReplicationState.AngVel = FMath::RadiansToDegrees(Handle->GetW());
 			ReplicationState.Flags = Handle->ObjectState() == Chaos::EObjectStateType::Sleeping ? ERigidBodyFlags::Sleeping : 0;
 			StateWasCached = true;
 		}
