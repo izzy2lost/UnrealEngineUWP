@@ -472,38 +472,40 @@ public:
 	 * @param HashOverride if provided will be used instead of the auto-calculated hash
 	 */
 	template<typename T>
-	const FConstSharedStruct& GetOrCreateConstSharedFragment(const T& Fragment, const uint64 HashOverride = 0)
+	const FConstSharedStruct& GetOrCreateConstSharedFragmentByHash(const uint32 Hash, const T& Fragment)
 	{
-		static_assert(TIsDerivedFrom<T, FMassSharedFragment>::IsDerived, "Given struct doesn't represent a valid const shared fragment type. Make sure to inherit from FMassSharedFragment or one of its child-types.");
-
-		const uint64 Hash = HashOverride ? HashOverride : UE::StructUtils::GetStructHash64(FConstStructView::Make(Fragment));
-		return InternalGetOrCreateConstSharedFragment(Hash, Fragment);
+		static_assert(TIsDerivedFrom<T, FMassSharedFragment>::IsDerived, "Given struct doesn't represent a valid shared fragment type. Make sure to inherit from FMassSharedFragment or one of its child-types.");
+		int32& Index = ConstSharedFragmentsMap.FindOrAddByHash(Hash, Hash, INDEX_NONE);
+		if (Index == INDEX_NONE)
+		{
+			Index = ConstSharedFragments.Add(FSharedStruct::Make(Fragment));
+		}
+		return ConstSharedFragments[Index];
 	}
 
-	/**
-	 * @param HashOverride if provided will be used instead of the auto-calculated hash
-	 */
 	template<typename T>
-	const FSharedStruct& GetOrCreateSharedFragment(const T& Fragment, const uint64 HashOverride = 0)
+	const FConstSharedStruct& GetOrCreateConstSharedFragment(const T& Fragment)
 	{
-		static_assert(TIsDerivedFrom<T, FMassSharedFragment>::IsDerived, "Given struct doesn't represent a valid shared fragment type. Make sure to inherit from FMassSharedFragment or one of its child-types.");
-
-		const uint64 Hash = HashOverride ? HashOverride : UE::StructUtils::GetStructHash64(FConstStructView::Make(Fragment));
-		return InternalGetOrCreateSharedFragment(Hash, Fragment);
+		const uint32 Hash = UE::StructUtils::GetStructCrc32(FConstStructView::Make(Fragment));
+		return GetOrCreateConstSharedFragmentByHash(Hash, Fragment);
 	}
 
-	/**
-	 * Note that this version doesn't let the used override the Hash. Use the other version if you need that functionality
-	 */
 	template<typename T, typename... TArgs>
-	const FSharedStruct& GetOrCreateSharedFragment(TArgs&&... InArgs)
+	const FSharedStruct& GetOrCreateSharedFragmentByHash(const uint32 Hash, TArgs&&... InArgs)
 	{
 		static_assert(TIsDerivedFrom<T, FMassSharedFragment>::IsDerived, "Given struct doesn't represent a valid shared fragment type. Make sure to inherit from FMassSharedFragment or one of its child-types.");
 
-		T Fragment(Forward<TArgs>(InArgs)...);
-		const uint64 Hash = UE::StructUtils::GetStructHash64(FConstStructView::Make(Fragment));
+		int32& Index = SharedFragmentsMap.FindOrAddByHash(Hash, Hash, INDEX_NONE);
+		if (Index == INDEX_NONE)
+		{
+			Index = SharedFragments.Add(FSharedStruct::Make<T>(Forward<TArgs>(InArgs)...));
+			// note that even though we're copying the freshly created FSharedStruct instance it's perfectly fine since 
+			// FSharedStruct do guarantee there's not going to be data duplication (via a member shared pointer to hosted data)
+			TArray<FSharedStruct>& InstancesOfType = SharedFragmentsTypeMap.FindOrAdd(T::StaticStruct(), {});
+			InstancesOfType.Add(SharedFragments[Index]);
+		}
 
-		return InternalGetOrCreateSharedFragment(Hash, MoveTemp(Fragment));
+		return SharedFragments[Index];
 	}
 
 	template<typename T>
@@ -577,35 +579,6 @@ protected:
 	void InternalAppendFragmentsAndTagsToArchetypeCompositionDescriptor(FMassArchetypeCompositionDescriptor& InOutComposition,
 		TConstArrayView<const UScriptStruct*> FragmentsAndTagsList) const;
 
-	template<typename T>
-	const FConstSharedStruct& InternalGetOrCreateConstSharedFragment(const uint64 Hash, const T& Fragment)
-	{
-		static_assert(TIsDerivedFrom<T, FMassSharedFragment>::IsDerived, "Given struct doesn't represent a valid shared fragment type. Make sure to inherit from FMassSharedFragment or one of its child-types.");
-		int32& Index = ConstSharedFragmentsMap.FindOrAdd(Hash, INDEX_NONE);
-		if (Index == INDEX_NONE)
-		{
-			Index = ConstSharedFragments.Add(FSharedStruct::Make(Fragment));
-		}
-		return ConstSharedFragments[Index];
-	}
-
-	template<typename T>
-	const FSharedStruct& InternalGetOrCreateSharedFragment(const uint64 Hash, T&& Fragment)
-	{
-		int32& Index = SharedFragmentsMap.FindOrAdd(Hash, INDEX_NONE);
-		if (Index == INDEX_NONE)
-		{
-			Index = SharedFragments.Num();
-			FSharedStruct& CreatedStruct = SharedFragments.Add_GetRef(FSharedStruct::Make(Fragment));
-			// note that even though we're copying the freshly created FSharedStruct instance it's perfectly fine since 
-			// FSharedStruct do guarantee there's not going to be data duplication (via a member shared pointer to hosted data)
-			TArray<FSharedStruct>& InstancesOfType = SharedFragmentsTypeMap.FindOrAdd(std::remove_const_t<typename TRemoveReference<T>::Type>::StaticStruct(), {});
-			InstancesOfType.Add(CreatedStruct);
-		}
-
-		return SharedFragments[Index];
-	}
-
 private:
 	void InternalBuildEntity(FMassEntityHandle Entity, const FMassArchetypeHandle& ArchetypeHandle, const FMassArchetypeSharedFragmentValues& SharedFragmentValues);
 	void InternalReleaseEntity(FMassEntityHandle Entity);
@@ -647,7 +620,7 @@ private:
 	uint32 ArchetypeDataVersion = 0;
 
 	// Map of hash of sorted fragment list to archetypes with that hash
-	TMap<uint64, TArray<TSharedPtr<FMassArchetypeData>>> FragmentHashToArchetypeMap;
+	TMap<uint32, TArray<TSharedPtr<FMassArchetypeData>>> FragmentHashToArchetypeMap;
 
 	// Map to list of archetypes that contain the specified fragment type
 	TMap<const UScriptStruct*, TArray<TSharedPtr<FMassArchetypeData>>> FragmentTypeToArchetypeMap;
@@ -659,11 +632,11 @@ private:
 	// Shared fragments
 	TArray<FConstSharedStruct> ConstSharedFragments;
 	// Hash/Index in array pair
-	TMap<uint64, int32> ConstSharedFragmentsMap;
+	TMap<uint32, int32> ConstSharedFragmentsMap;
 
 	TArray<FSharedStruct> SharedFragments;
 	// Hash/Index in array pair, indices point at SharedFragments
-	TMap<uint64, int32> SharedFragmentsMap;
+	TMap<uint32, int32> SharedFragmentsMap;
 	// Maps specific struct type to a collection of FSharedStruct instances of that type
 	TMap<const UScriptStruct*, TArray<FSharedStruct>> SharedFragmentsTypeMap;
 
@@ -702,18 +675,6 @@ public:
 	UE_DEPRECATED(5.3, "This Flavor of BatchBuildEntities is deprecated. Use the one with FMassArchetypeCreationParams parameter instead.")
 	void BatchBuildEntities(const FMassArchetypeEntityCollectionWithPayload& EncodedEntitiesWithPayload, FMassArchetypeCompositionDescriptor&& Composition
 		, const FMassArchetypeSharedFragmentValues& SharedFragmentValues, const FName ArchetypeDebugName);
-	template<typename T>
-	UE_DEPRECATED(5.5, "GetOrCreateConstSharedFragmentByHash is deprecated. Use GetOrCreateConstSharedFragment instead.")
-	const FConstSharedStruct& GetOrCreateConstSharedFragmentByHash(const uint64 Hash, const T& Fragment)
-	{
-		return InternalGetOrCreateConstSharedFragment(Hash, Fragment);
-	}
-	template<typename T, typename... TArgs>
-	UE_DEPRECATED(5.5, "GetOrCreateSharedFragmentByHash is deprecated. Use GetOrCreateSharedFragment instead.")
-	const FSharedStruct& GetOrCreateSharedFragmentByHash(const uint32 Hash, TArgs&&... InArgs)
-	{
-		return InternalGetOrCreateSharedFragment(Hash, FSharedStruct::Make<T>(Forward<TArgs>(InArgs)...));
-	}
 };
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2

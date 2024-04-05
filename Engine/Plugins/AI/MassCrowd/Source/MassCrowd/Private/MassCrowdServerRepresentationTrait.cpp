@@ -42,7 +42,8 @@ void UMassCrowdServerRepresentationTrait::BuildTemplate(FMassEntityTemplateBuild
 
 	FMassRepresentationSubsystemSharedFragment SubsystemSharedFragment;
 	SubsystemSharedFragment.RepresentationSubsystem = RepresentationSubsystem;
-	FSharedStruct SubsystemFragment = EntityManager.GetOrCreateSharedFragment<FMassRepresentationSubsystemSharedFragment>(SubsystemSharedFragment);
+	uint32 SubsystemHash = UE::StructUtils::GetStructCrc32(FConstStructView::Make(SubsystemSharedFragment));
+	FSharedStruct SubsystemFragment = EntityManager.GetOrCreateSharedFragmentByHash<FMassRepresentationSubsystemSharedFragment>(SubsystemHash, SubsystemSharedFragment);
 	BuildContext.AddSharedFragment(SubsystemFragment);
 
 	FConstSharedStruct ParamsFragment = EntityManager.GetOrCreateConstSharedFragment(Params);

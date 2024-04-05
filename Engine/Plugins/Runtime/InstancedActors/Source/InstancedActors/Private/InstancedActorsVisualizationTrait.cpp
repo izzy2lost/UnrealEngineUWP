@@ -87,7 +87,9 @@ void UInstancedActorsVisualizationTrait::BuildTemplate(FMassEntityTemplateBuildC
 
 	FInstancedActorsDataSharedFragment ManagerSharedFragment;
 	ManagerSharedFragment.InstanceData = InstanceData;
-	FSharedStruct SubsystemFragment = EntityManager.GetOrCreateSharedFragment<FInstancedActorsDataSharedFragment>(ManagerSharedFragment);
+	const uint32 SubsystemHash = UE::StructUtils::GetStructCrc32(FConstStructView::Make(ManagerSharedFragment));
+	FSharedStruct SubsystemFragment = EntityManager.GetOrCreateSharedFragmentByHash<FInstancedActorsDataSharedFragment>(SubsystemHash, ManagerSharedFragment);
+
 
 	FInstancedActorsDataSharedFragment* AsShared = SubsystemFragment.GetPtr<FInstancedActorsDataSharedFragment>();
 	if (ensure(AsShared))

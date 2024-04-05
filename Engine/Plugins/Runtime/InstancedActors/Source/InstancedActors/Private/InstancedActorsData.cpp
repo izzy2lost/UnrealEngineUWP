@@ -408,7 +408,9 @@ void UInstancedActorsData::DespawnEntities()
 
 	FInstancedActorsDataSharedFragment ManagerFragment;
 	ManagerFragment.InstanceData = this;
-	FSharedStruct SharedFragmentInstance = MassEntityManager.GetOrCreateSharedFragment<FInstancedActorsDataSharedFragment>(ManagerFragment);
+	const uint32 FragmentHash = UE::StructUtils::GetStructCrc32(FConstStructView::Make(ManagerFragment));
+	FSharedStruct SharedFragmentInstance = MassEntityManager.GetOrCreateSharedFragmentByHash<FInstancedActorsDataSharedFragment>(FragmentHash, ManagerFragment);
+
 	FInstancedActorsDataSharedFragment* AsSharedManagerFragment = SharedFragmentInstance.GetPtr<FInstancedActorsDataSharedFragment>();
 	if (ensure(AsSharedManagerFragment) && AsSharedManagerFragment->InstanceData == this)
 	{

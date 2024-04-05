@@ -34,6 +34,7 @@ void UMassReplicationTrait::BuildTemplate(FMassEntityTemplateBuildContext& Build
 	FConstSharedStruct ParamsFragment = EntityManager.GetOrCreateConstSharedFragment(Params);
 	BuildContext.AddConstSharedFragment(ParamsFragment);
 
-	FSharedStruct SharedFragment = EntityManager.GetOrCreateSharedFragment<FMassReplicationSharedFragment>(*ReplicationSubsystem, Params);
+	uint32 ParamsHash = UE::StructUtils::GetStructCrc32(FConstStructView::Make(Params));
+	FSharedStruct SharedFragment = EntityManager.GetOrCreateSharedFragmentByHash<FMassReplicationSharedFragment>(ParamsHash, *ReplicationSubsystem, Params);
 	BuildContext.AddSharedFragment(SharedFragment);
 }

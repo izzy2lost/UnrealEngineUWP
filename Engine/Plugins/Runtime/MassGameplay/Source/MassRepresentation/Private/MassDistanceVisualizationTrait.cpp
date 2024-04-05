@@ -58,7 +58,8 @@ void UMassDistanceVisualizationTrait::BuildTemplate(FMassEntityTemplateBuildCont
 
 	FMassRepresentationSubsystemSharedFragment SubsystemSharedFragment;
 	SubsystemSharedFragment.RepresentationSubsystem = RepresentationSubsystem;
-	FSharedStruct SubsystemFragment = EntityManager.GetOrCreateSharedFragment<FMassRepresentationSubsystemSharedFragment>(SubsystemSharedFragment);
+	uint32 SubsystemHash = UE::StructUtils::GetStructCrc32(FConstStructView::Make(SubsystemSharedFragment));
+	FSharedStruct SubsystemFragment = EntityManager.GetOrCreateSharedFragmentByHash<FMassRepresentationSubsystemSharedFragment>(SubsystemHash, SubsystemSharedFragment);
 	BuildContext.AddSharedFragment(SubsystemFragment);
 
 	if (!Params.RepresentationActorManagementClass)
@@ -80,7 +81,8 @@ void UMassDistanceVisualizationTrait::BuildTemplate(FMassEntityTemplateBuildCont
 	FConstSharedStruct LODParamsFragment = EntityManager.GetOrCreateConstSharedFragment(LODParams);
 	BuildContext.AddConstSharedFragment(LODParamsFragment);
 
-	FSharedStruct LODSharedFragment = EntityManager.GetOrCreateSharedFragment<FMassDistanceLODSharedFragment>(LODParams);
+	uint32 LODParamsHash = UE::StructUtils::GetStructCrc32(FConstStructView::Make(LODParams));
+	FSharedStruct LODSharedFragment = EntityManager.GetOrCreateSharedFragmentByHash<FMassDistanceLODSharedFragment>(LODParamsHash, LODParams);
 	BuildContext.AddSharedFragment(LODSharedFragment);
 
 	BuildContext.AddFragment<FMassRepresentationLODFragment>();
