@@ -1793,7 +1793,7 @@ StartLocalService(const FZenLocalServiceRunContext& Context, const TCHAR* Transi
 		for (::DWORD CreationFlags : CreationFlagsArray)
 		{
 			PROCESS_INFORMATION ProcInfo;
-			if (CreateProcess(NULL, CommandLine.GetCharArray().GetData(), nullptr, nullptr, false, (::DWORD)(NORMAL_PRIORITY_CLASS | DETACHED_PROCESS), nullptr, PlatformWorkingDirectory.GetCharArray().GetData(), &StartupInfo, &ProcInfo))
+			if (CreateProcess(NULL, CommandLine.GetCharArray().GetData(), nullptr, nullptr, false, CreationFlags, nullptr, PlatformWorkingDirectory.GetCharArray().GetData(), &StartupInfo, &ProcInfo))
 			{
 				::CloseHandle(ProcInfo.hThread);
 				Proc = FProcHandle(ProcInfo.hProcess);
