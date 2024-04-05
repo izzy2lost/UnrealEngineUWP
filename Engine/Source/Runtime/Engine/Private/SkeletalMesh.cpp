@@ -2495,7 +2495,7 @@ bool USkeletalMesh::CommitMeshDescription(
 	}
 	
 
-	if (InParams.bMarkPackageDirty)
+	if (IsInGameThread() && InParams.bMarkPackageDirty)
 	{
 		(void)MarkPackageDirty();
 	}
