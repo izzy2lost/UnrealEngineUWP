@@ -545,6 +545,9 @@ public:
 				ReleasePrerequisites();
 
 				TaskTrace::Completed(GetTraceId());
+
+				// In case a thread is waiting on us to perform retraction, now is the time to try retraction again.
+				StateChangeEvent.Notify();
 			}
 
 			CORE_API void ClearPipe();
@@ -678,6 +681,8 @@ public:
 			std::atomic<uint32> NumLocks{ NumInitialLocks };
 
 			FPipe* Pipe{ nullptr };
+
+			FEventCount StateChangeEvent;
 
 			EExtendedTaskPriority ExtendedPriority; // internal priorities, if any
 
