@@ -18,6 +18,22 @@ namespace PCGAttributePropertySelectorConstants
 	static const TCHAR ExtraSeparatorChar = ExtraSeparator[0];
 }
 
+bool FPCGAttributePropertySelector::ExportTextItem(FString& ValueStr, FPCGAttributePropertySelector const& DefaultValue, UObject* Parent, int32 PortFlags, UObject* ExportRootScope) const
+{
+	// Quoted string
+	ValueStr = FString(TEXT("\"")) + ToString() + TEXT("\"");
+	return true;
+}
+
+bool FPCGAttributePropertySelector::ImportTextItem(const TCHAR*& Buffer, int32 PortFlags, UObject* Parent, FOutputDevice* ErrorText)
+{
+	FString Token;
+	int NumCharsRead;
+	FParse::QuotedString(Buffer, Token, &NumCharsRead);
+	Update(Token);
+	return true;
+}
+
 FName FPCGAttributePropertySelector::GetName() const
 {
 	switch (Selection)
@@ -117,7 +133,7 @@ bool FPCGAttributePropertySelector::SetExtraProperty(EPCGExtraProperties InExtra
 	}
 }
 
-FText FPCGAttributePropertySelector::GetDisplayText() const
+FString FPCGAttributePropertySelector::ToString() const
 {
 	FString Res;
 	const FName Name = GetName();
@@ -140,7 +156,7 @@ FText FPCGAttributePropertySelector::GetDisplayText() const
 		Res = FString::Join(AllNames, PCGAttributePropertySelectorConstants::ExtraSeparator);
 	}
 
-	return FText::FromString(Res);
+	return Res;
 }
 
 
@@ -192,6 +208,13 @@ void FPCGAttributePropertySelector::ImportFromOtherSelector(const FPCGAttributeP
 bool FPCGAttributePropertySelector::IsValid() const
 {
 	const FName ThisAttributeName = GetAttributeName();
+	static const FName EmptyName = TEXT("");
+
+	if (!ExtraNames.IsEmpty() && ThisAttributeName == EmptyName)
+	{
+		return false;
+	}
+
 	return (Selection != EPCGAttributePropertySelection::Attribute) || 
 		ThisAttributeName == PCGMetadataAttributeConstants::LastAttributeName ||
 		ThisAttributeName == PCGMetadataAttributeConstants::LastCreatedAttributeName ||
@@ -209,7 +232,23 @@ bool FPCGAttributePropertySelector::Update(const FString& NewValue)
 	}
 	else
 	{
-		NewValue.ParseIntoArray(NewValues, PCGAttributePropertySelectorConstants::ExtraSeparator, /*InCullEmpty=*/ false);
+		TArray<FString> NewValuesTemp;
+		NewValue.ParseIntoArray(NewValuesTemp, PCGAttributePropertySelectorConstants::ExtraSeparator, /*InCullEmpty=*/ false);
+
+		// We can't sanitize the first name because of the `@` and `$` that are valid symbols here, but are not for the sanitizer.
+		// Also if we have parsed nothing, just add a single empty string.
+		NewValues.Emplace(NewValuesTemp.IsEmpty() ? FString() : std::move(NewValuesTemp[0]));
+
+		// Then we make sure extra names are not containing non-alphanumerical chars by sanitizing it
+		for (int i = 1; i < NewValuesTemp.Num(); ++i)
+		{
+			FPCGMetadataAttributeBase::SanitizeName(NewValuesTemp[i]);
+
+			if (!NewValuesTemp[i].IsEmpty())
+			{
+				NewValues.Emplace(std::move(NewValuesTemp[i]));
+			}
+		}
 	}
 
 	const FString& NewName = NewValues[0];

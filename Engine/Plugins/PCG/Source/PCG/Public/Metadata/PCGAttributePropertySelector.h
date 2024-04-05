@@ -65,8 +65,10 @@ public:
 	// Return the name of the selector.
 	FName GetName() const;
 
+	FString ToString() const;
+
 	// Returns the text to display in the widget.
-	FText GetDisplayText() const;
+	FText GetDisplayText() const { return FText::FromString(ToString()); }
 
 	// Return true if the underlying name is valid.
 	bool IsValid() const;
@@ -126,6 +128,9 @@ public:
 
 	friend uint32 GetTypeHash(const FPCGAttributePropertySelector& Selector);
 
+	bool ExportTextItem(FString& ValueStr, FPCGAttributePropertySelector const& DefaultValue, UObject* Parent, int32 PortFlags, UObject* ExportRootScope) const;
+	bool ImportTextItem(const TCHAR*& Buffer, int32 PortFlags, UObject* Parent, FOutputDevice* ErrorText);
+
 protected:
 	UPROPERTY()
 	EPCGAttributePropertySelection Selection = EPCGAttributePropertySelection::Attribute;
@@ -183,22 +188,37 @@ struct PCG_API FPCGAttributePropertyOutputNoSourceSelector : public FPCGAttribut
 	GENERATED_BODY()
 };
 
-// Extra trait to specify to the deserializer that those two classes can be deserialized using the old class.
+
+// All selectors have a custom Export/Import text to use the Update function to serialize/deserialize.
+// It fixes errors of serialization when duplicating/copying.
 template<>
-struct TStructOpsTypeTraits<FPCGAttributePropertyInputSelector> : public TStructOpsTypeTraitsBase2<FPCGAttributePropertyInputSelector>
+struct TStructOpsTypeTraits<FPCGAttributePropertySelector> : public TStructOpsTypeTraitsBase2<FPCGAttributePropertySelector>
 {
 	enum
 	{
-		WithStructuredSerializeFromMismatchedTag = true,
+		WithExportTextItem = true,
+		WithImportTextItem = true,
+	};
+};
+
+template<> struct TStructOpsTypeTraits<FPCGAttributePropertyOutputNoSourceSelector> : public TStructOpsTypeTraits<FPCGAttributePropertySelector>{};
+
+// Also extra trait to specify to the deserializer that those two classes can be deserialized using the old class.
+template<> 
+struct TStructOpsTypeTraits<FPCGAttributePropertyInputSelector> : public TStructOpsTypeTraits<FPCGAttributePropertySelector>
+{
+	enum
+	{
+		WithStructuredSerializeFromMismatchedTag = true
 	};
 };
 
 template<>
-struct TStructOpsTypeTraits<FPCGAttributePropertyOutputSelector> : public TStructOpsTypeTraitsBase2<FPCGAttributePropertyOutputSelector>
+struct TStructOpsTypeTraits<FPCGAttributePropertyOutputSelector> : public TStructOpsTypeTraits<FPCGAttributePropertySelector>
 {
 	enum
 	{
-		WithStructuredSerializeFromMismatchedTag = true,
+		WithStructuredSerializeFromMismatchedTag = true
 	};
 };
 
