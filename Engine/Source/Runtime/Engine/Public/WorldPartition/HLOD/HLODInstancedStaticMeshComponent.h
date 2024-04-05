@@ -8,7 +8,7 @@
 #include "HLODInstancedStaticMeshComponent.generated.h"
 
 
-UCLASS(Hidden, NotPlaceable, MinimalAPI)
+UCLASS(HideDropDown, NotPlaceable, MinimalAPI)
 class UHLODInstancedStaticMeshComponent : public UInstancedStaticMeshComponent
 {
 	GENERATED_UCLASS_BODY()
