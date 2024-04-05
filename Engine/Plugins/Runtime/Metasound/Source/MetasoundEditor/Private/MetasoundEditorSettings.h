@@ -5,8 +5,12 @@
 #include "UObject/NoExportTypes.h"
 #include "UObject/Object.h"
 #include "UObject/ObjectMacros.h"
+#include "UObject/SoftObjectPath.h"
 
 #include "MetasoundEditorSettings.generated.h"
+
+class USlateWidgetStyleAsset;
+struct FAudioMaterialKnobStyle;
 
 UENUM()
 enum class EMetasoundActiveAnalyzerEnvelopeDirection : uint8
@@ -164,4 +168,10 @@ public:
 	/** Determines which details view to show in Metasounds Editor */
 	UPROPERTY(Transient)
 	EMetasoundActiveDetailView DetailView = EMetasoundActiveDetailView::General;
+	
+	UPROPERTY(EditAnywhere, config, Category = MetasoundStyling, meta = (AllowedClasses = "/Script/SlateCore.SlateWidgetStyleAsset", DisplayName = "Knob Style"))
+	FSoftObjectPath KnobStyleOverride;
+	
+	/** Get the AudioMaterialKnob Style. if KnobStyleOverride is not set, returns default style.*/
+	const FAudioMaterialKnobStyle* GetKnobStyle() const;
 };

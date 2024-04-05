@@ -23,6 +23,7 @@
 #include "MetasoundEditorGraphNode.h"
 #include "MetasoundEditorGraphSchema.h"
 #include "MetasoundEditorModule.h"
+#include "MetasoundEditorSettings.h"
 #include "MetasoundFrontendNodeTemplateRegistry.h"
 #include "MetasoundFrontendRegistries.h"
 #include "MetasoundTrace.h"
@@ -66,9 +67,9 @@ namespace Metasound
 		{
 			int32 UseAudioMaterialWidgets = 0;
 			FAutoConsoleVariableRef CVarUseAudioMaterialWidgets(
-				TEXT("au.MetaSound.Editor.EnableAudioMaterialNodes"),
+				TEXT("au.MetaSound.Editor.UseAudioMaterialSlates"),
 				UseAudioMaterialWidgets,
-				TEXT("Are new AudioMaterialWidgets used for visualization for the Metasound nodes, if implemented.\n")
+				TEXT("Are new AudioMaterialWidgets used for visualization in the Metasound editor, if implemented.\n")
 				TEXT("0: Disabled (default), !0: Enabled"),
 				ECVF_Default);
 		}// Metasound::Editor::GraphNodePrivate
@@ -858,8 +859,12 @@ namespace Metasound
 
 							if (Metasound::Editor::GraphNodePrivate::UseAudioMaterialWidgets)
 							{
+								const UMetasoundEditorSettings* MetasoundSettings = GetDefault<UMetasoundEditorSettings>();
+								check(MetasoundSettings)
+
 								SAssignNew(InputWidget, SAudioMaterialLabeledKnob)
 									.Owner(GraphMember->GetOwningGraph())
+									.Style(MetasoundSettings->GetKnobStyle())
 									.OnValueChanged_Lambda(OnValueChangedLambda)
 									.AudioUnitsValueType(DefaultFloat->WidgetUnitValueType)
 									.bUseLinearOutput(DefaultFloat->VolumeWidgetUseLinearOutput)
