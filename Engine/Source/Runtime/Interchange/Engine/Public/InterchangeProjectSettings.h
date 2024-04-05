@@ -134,6 +134,13 @@ public:
 	 */
 	UPROPERTY(EditAnywhere, config, Category = "Editor Generic Pipeline Class")
 	TSoftClassPtr <UInterchangePipelineBase> GenericPipelineClass;
+
+	/**
+	 * Optional, the pipeline asset converters will duplicate to create interchange import data pipeline.
+	 * If not set, converters will duplicate a pipeline class CDO of there choice.
+	 */
+	UPROPERTY(EditAnywhere, config, Category = "Converters", meta = (AllowedClasses = "/Script/InterchangeCore.InterchangePipelineBase, /Script/InterchangeEngine.InterchangeBlueprintPipelineBase, /Script/InterchangeEngine.InterchangePythonPipelineAsset"))
+	FSoftObjectPath ConverterDefaultPipeline;
 };
 
 class FInterchangeProjectSettingsUtils
