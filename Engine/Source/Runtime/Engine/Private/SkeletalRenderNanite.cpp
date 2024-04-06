@@ -13,6 +13,7 @@
 #include "SkeletalMeshSceneProxy.h"
 #include "RenderGraphUtils.h"
 #include "RenderCore.h"
+#include "Engine/SkinnedAssetCommon.h"
 
 FDynamicSkelMeshObjectDataNanite::FDynamicSkelMeshObjectDataNanite(
 	USkinnedMeshComponent* InComponent,
@@ -23,6 +24,7 @@ FDynamicSkelMeshObjectDataNanite::FDynamicSkelMeshObjectDataNanite(
 :	LODIndex(InLODIndex)
 {
 	UpdateRefToLocalMatrices(ReferenceToLocal, InComponent, InRenderData, LODIndex);
+	UpdateBonesRemovedByLOD(ReferenceToLocal, InComponent, ETransformsToUpdate::Current);
 
 	switch (InPreviousBoneTransformUpdateMode)
 	{
@@ -31,10 +33,12 @@ FDynamicSkelMeshObjectDataNanite::FDynamicSkelMeshObjectDataNanite(
 		// TODO: Nanite-Skinning, optimize scene extension upload to keep cached GPU representation using PreviousBoneTransformRevisionNumber
 		// For now we'll just redundantly update and upload previous transforms
 		UpdatePreviousRefToLocalMatrices(PrevReferenceToLocal, InComponent, InRenderData, LODIndex);
+		UpdateBonesRemovedByLOD(PrevReferenceToLocal, InComponent, ETransformsToUpdate::Previous);
 		break;
 
 	case EPreviousBoneTransformUpdateMode::UpdatePrevious:
 		UpdatePreviousRefToLocalMatrices(PrevReferenceToLocal, InComponent, InRenderData, LODIndex);
+		UpdateBonesRemovedByLOD(PrevReferenceToLocal, InComponent, ETransformsToUpdate::Previous);
 		break;
 
 	case EPreviousBoneTransformUpdateMode::DuplicateCurrentToPrevious:
@@ -58,6 +62,92 @@ void FDynamicSkelMeshObjectDataNanite::GetResourceSizeEx(FResourceSizeEx& Cumula
 {
 	CumulativeResourceSize.AddDedicatedSystemMemoryBytes(sizeof(*this));
 	CumulativeResourceSize.AddDedicatedSystemMemoryBytes(ReferenceToLocal.GetAllocatedSize());
+}
+
+void FDynamicSkelMeshObjectDataNanite::UpdateBonesRemovedByLOD(
+	TArray<FMatrix44f>& PoseBuffer,
+	USkinnedMeshComponent* InComponent,
+	ETransformsToUpdate CurrentOrPrevious) const
+{
+	// Why is this necessary?
+	//
+	// When the animation system removes bones at higher LODs, the pose in USkinnedMeshComponent::GetComponentSpaceTransforms()
+	// will leave the LOD'd bone transforms at their last updated position/rotation. This is not a problem for GPU skinning
+	// because the actual weight for those bones is pushed up the hierarchy onto the next non-LOD'd parent; making the transform irrelevant.
+	//
+	// But Nanite skinning only ever uses the LOD-0 weights (it dynamically interpolates weights for higher-LOD clusters)
+	// This means that these "frozen" bone transforms actually affect the skin. Which is bad.
+	//
+	// So we do an FK update here of the frozen branch of transforms...
+
+	const USkinnedAsset* SkinnedAsset = InComponent->GetSkinnedAsset();
+	const TArray<FSkeletalMeshLODInfo>& LODInfoArray = SkinnedAsset->GetLODInfoArray();
+	if (LODInfoArray[LODIndex].BonesToRemove.IsEmpty())
+	{
+		return; // no bones removed in this LOD
+	}
+	
+	// get current OR previous component space pose (possibly from a leader component)
+	// any LOD'd out bones in this pose are "frozen" since their last update
+	const TArray<FTransform>& ComponentSpacePose = [InComponent, CurrentOrPrevious, SkinnedAsset]
+	{
+		const USkinnedMeshComponent* const LeaderComp = InComponent->LeaderPoseComponent.Get();
+		const bool bIsLeaderCompValid = LeaderComp && InComponent->GetLeaderBoneMap().Num() == SkinnedAsset->GetRefSkeleton().GetNum();
+		switch (CurrentOrPrevious)
+		{
+		case ETransformsToUpdate::Current:
+			return bIsLeaderCompValid ? LeaderComp->GetComponentSpaceTransforms() : InComponent->GetComponentSpaceTransforms();
+		case ETransformsToUpdate::Previous:
+			return bIsLeaderCompValid ? LeaderComp->GetPreviousComponentTransformsArray() : InComponent->GetPreviousComponentTransformsArray();
+		default:
+			checkNoEntry();
+			return TArray<FTransform>();
+		}
+	}();
+	
+	// these are inverted ref pose matrices
+	const TArray<FMatrix44f>* RefBasesInvMatrix = &SkinnedAsset->GetRefBasesInvMatrix();
+	TArray<int32> AllChildrenBones;
+	const FReferenceSkeleton& RefSkeleton = SkinnedAsset->GetRefSkeleton();
+	for (const FBoneReference& RemovedBone : LODInfoArray[LODIndex].BonesToRemove)
+	{
+		AllChildrenBones.Reset();
+		// can't use FBoneReference::GetMeshPoseIndex() because rendering operates at lower-level (on USkinnedMeshComponent)
+		// but this call to FindBoneIndex is probably not so bad since there's typically only the parent bone of a branch in "BonesToRemove"
+		const FBoneIndexType BoneIndex = RefSkeleton.FindBoneIndex(RemovedBone.BoneName);
+		AllChildrenBones.Add(BoneIndex);
+		RefSkeleton.GetRawChildrenIndicesRecursiveCached(BoneIndex, AllChildrenBones);
+
+		// first pass to generate component space transforms
+		for (int32 ChildIndex = 0; ChildIndex<AllChildrenBones.Num(); ++ChildIndex)
+		{
+			const FBoneIndexType ChildBoneIndex = AllChildrenBones[ChildIndex];
+			const FBoneIndexType ParentIndex = RefSkeleton.GetParentIndex(ChildBoneIndex);
+
+			FMatrix44f ParentComponentTransform;
+			if (ParentIndex == INDEX_NONE)
+			{
+				ParentComponentTransform = FMatrix44f::Identity; // root bone transform is always component space
+			}
+			else if (ChildIndex == 0)
+			{
+				ParentComponentTransform = static_cast<FMatrix44f>(ComponentSpacePose[ParentIndex].ToMatrixWithScale());
+			}
+			else
+			{
+				ParentComponentTransform = PoseBuffer[ParentIndex];
+			}
+
+			const FMatrix44f RefLocalTransform = static_cast<FMatrix44f>(RefSkeleton.GetRefBonePose()[ChildBoneIndex].ToMatrixWithScale());
+			PoseBuffer[ChildBoneIndex] = RefLocalTransform * ParentComponentTransform;
+		}
+
+		// second pass to make relative to ref pose
+		for (const FBoneIndexType ChildBoneIndex : AllChildrenBones)
+		{
+			PoseBuffer[ChildBoneIndex] = (*RefBasesInvMatrix)[ChildBoneIndex] * PoseBuffer[ChildBoneIndex];
+		}
+	}
 }
 
 FSkeletalMeshObjectNanite::FSkeletalMeshObjectNanite(USkinnedMeshComponent* InComponent, FSkeletalMeshRenderData* InRenderData, ERHIFeatureLevel::Type InFeatureLevel)
@@ -120,13 +210,6 @@ void FSkeletalMeshObjectNanite::Update(
 		// Create the new dynamic data for use by the rendering thread
 		// this data is only deleted when another update is sent
 		FDynamicSkelMeshObjectDataNanite* NewDynamicData = new FDynamicSkelMeshObjectDataNanite(InComponent, SkeletalMeshRenderData, LODIndex, PreviousBoneTransformUpdateMode);
-
-		if (LODIndex != CachedLOD)
-		{
-			// ... TODO: Nanite-Skinning: perform remapping from LOD1...N -> LOD0 skeleton
-
-			CachedLOD = LODIndex;
-		}
 
 		uint64 FrameNumberToPrepare = GFrameCounter;
 		uint32 RevisionNumber = 0;

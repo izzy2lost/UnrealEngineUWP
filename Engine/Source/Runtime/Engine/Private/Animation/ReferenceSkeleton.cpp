@@ -470,6 +470,8 @@ void FReferenceSkeleton::RebuildRefSkeleton(const USkeleton* Skeleton, bool bReb
 
 	RequiredVirtualBones.Reset(NumVirtualBones);
 	UsedVirtualBoneData.Reset(NumVirtualBones);
+	
+	InvalidateEndOfBranchCache();
 
 	if (NumVirtualBones > 0)
 	{
@@ -626,6 +628,39 @@ SIZE_T FReferenceSkeleton::GetDataSize() const
 	return ResourceSize;
 }
 
+void FReferenceSkeleton::GetRawChildrenIndicesCached(const int32 BoneIndex, TArray<int32>& OutChildren) const
+{
+	const int32 LastBranchIndex = GetCachedEndOfBranchIndex(BoneIndex);
+	if (LastBranchIndex == INDEX_NONE)
+	{
+		// no children (leaf bone)
+		return;
+	}
+	
+	for (int32 ChildBoneIndex = BoneIndex + 1; ChildBoneIndex <= LastBranchIndex; ChildBoneIndex++)
+	{
+		if (GetParentIndex(ChildBoneIndex) == BoneIndex)
+		{
+			OutChildren.Add(ChildBoneIndex);
+		}
+	}
+}
+
+void FReferenceSkeleton::GetRawChildrenIndicesRecursiveCached(const int32 BoneIndex, TArray<int32>& OutChildren) const
+{
+	const int32 LastBranchIndex = GetCachedEndOfBranchIndex(BoneIndex);
+	if (LastBranchIndex == INDEX_NONE)
+	{
+		// no children (leaf bone)
+		return;
+	}
+	
+	for (int32 ChildBoneIndex = BoneIndex + 1; ChildBoneIndex <= LastBranchIndex; ChildBoneIndex++)
+	{
+		OutChildren.Add(ChildBoneIndex);
+	}
+}
+
 struct FEnsureParentsExistScratchArea : public TThreadSingleton<FEnsureParentsExistScratchArea>
 {
 	TArray<bool> BoneExists;
@@ -710,6 +745,48 @@ int32 FReferenceSkeleton::GetChildrenInternal(int32 InParentBoneIndex, TArray<in
 	}
 
 	return OutChildren.Num();	
+}
+
+int32 FReferenceSkeleton::GetCachedEndOfBranchIndex(const int32 InBoneIndex) const
+{
+	if (!CachedEndOfBranchIndicesRaw.IsValidIndex(InBoneIndex))
+	{
+		return INDEX_NONE;
+	}
+
+	// already cached
+	if (CachedEndOfBranchIndicesRaw[InBoneIndex] != BRANCH_CACHE_INVALID_INDEX)
+	{
+		return CachedEndOfBranchIndicesRaw[InBoneIndex];
+	}
+	
+	const int32 NumBones = GetRawBoneNum();
+	
+	// if we're asking for root's branch, get the last bone  
+	if (InBoneIndex == 0)
+	{
+		CachedEndOfBranchIndicesRaw[InBoneIndex] = GetRawBoneNum()-1;
+		return CachedEndOfBranchIndicesRaw[InBoneIndex];
+	}
+	
+	const int32 StartParentIndex = GetParentIndex(InBoneIndex);
+	int32 BoneIndex = InBoneIndex + 1;
+	int32 ParentIndex = GetParentIndex(BoneIndex);
+
+	// if next child bone's parent is less than or equal to StartParentIndex,
+	// we are leaving the branch so no need to go further
+	int32 BoneIndexAtEndOfBranch = BRANCH_CACHE_INVALID_INDEX;
+	while (ParentIndex > StartParentIndex && BoneIndex < NumBones)
+	{
+		BoneIndexAtEndOfBranch = BoneIndex;
+		BoneIndex++;
+		ParentIndex = GetParentIndex(BoneIndex);
+	}
+
+	// set once (outside of while loop above) to avoid potential race condition
+	CachedEndOfBranchIndicesRaw[InBoneIndex] = BoneIndexAtEndOfBranch;
+	
+	return CachedEndOfBranchIndicesRaw[InBoneIndex];
 }
 
 int32 FReferenceSkeleton::GetDirectChildBones(int32 ParentBoneIndex, TArray<int32> & Children) const

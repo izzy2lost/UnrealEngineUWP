@@ -51,6 +51,19 @@ public:
 
 	// Returns the size of memory allocated by render data
 	ENGINE_API void GetResourceSizeEx(FResourceSizeEx& CumulativeResourceSize);
+
+private:
+
+	enum class ETransformsToUpdate
+	{
+		Current,
+		Previous,
+	};
+	
+	void UpdateBonesRemovedByLOD(
+		TArray<FMatrix44f>& PoseBuffer,
+		USkinnedMeshComponent* InComponent,
+		ETransformsToUpdate TransformsToUpdate) const;
 };
 
 class FSkeletalMeshObjectNanite : public FSkeletalMeshObject

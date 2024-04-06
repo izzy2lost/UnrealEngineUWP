@@ -131,6 +131,15 @@ private:
 	 */
 	bool bOnlyOneRootAllowed;
 
+	/** One index per-bone. Lazy-filled on request. Stores the last element of the branch below the bone.
+	 * You can iterate between in the indices stored here and the bone in question to iterate over all children recursively */
+	mutable TArray<int32> CachedEndOfBranchIndicesRaw;
+	static constexpr int32 BRANCH_CACHE_INVALID_INDEX = -2;
+	void InvalidateEndOfBranchCache() const
+	{
+		CachedEndOfBranchIndicesRaw.Init(BRANCH_CACHE_INVALID_INDEX, RawRefBonePose.Num());
+	}
+
 	/** Removes the specified bone, so long as it has no children. Returns whether we removed the bone or not */
 	bool RemoveIndividualBone(int32 BoneIndex, TArray<int32>& OutBonesRemoved)
 	{
@@ -161,6 +170,8 @@ private:
 			OutBonesRemoved.Add(BoneIndex);
 			RawRefBonePose.RemoveAt(BoneIndex, 1);
 			RawRefBoneInfo.RemoveAt(BoneIndex, 1);
+			
+			InvalidateEndOfBranchCache();
 		}
 		return bRemoveThisBone;
 	}
@@ -219,6 +230,9 @@ private:
 
 	// very slow search function for all children (raw or final)
 	int32 GetChildrenInternal(int32 InParentBoneIndex, TArray<int32>& OutChildren, const bool bRaw) const;
+
+	// returns the index of the bone at the end of the branch belonging to the given one (uses cached result if there is one)
+	int32 GetCachedEndOfBranchIndex(const int32 InBoneIndex) const;
 	
 public:
 	ENGINE_API void RebuildRefSkeleton(const USkeleton* Skeleton, bool bRebuildNameMap);
@@ -289,6 +303,8 @@ public:
 
 		RawNameToIndexMap.Empty(Size);
 		FinalNameToIndexMap.Empty(Size);
+
+		CachedEndOfBranchIndicesRaw.Empty(Size);
 	}
 
 	/** Find Bone Index from BoneName. Precache as much as possible in speed critical sections! */
@@ -376,7 +392,7 @@ public:
 
 		return INDEX_NONE;
 	}
-
+	
 	bool BoneIsChildOf(const int32 ChildBoneIndex, const int32 ParentBoneIndex) const
 	{
 		if (ParentBoneIndex != INDEX_NONE)
@@ -402,7 +418,6 @@ public:
 	}
 
 	void RemoveDuplicateBones(const UObject* Requester, TArray<FBoneIndexType> & DuplicateBones);
-
 
 	/** Removes the supplied bones from the skeleton, unless they have children that aren't also going to be removed */
 	TArray<int32> RemoveBonesByName(USkeleton* Skeleton, const TArray<FName>& BonesToRemove)
@@ -434,6 +449,10 @@ public:
 	ENGINE_API void EnsureParentsExistAndSort(TArray<FBoneIndexType>& InOutBoneUnsortedArray) const;
 
 	SIZE_T GetDataSize() const;
+
+	// lazy-cached for fast access to children and recursive children
+	void GetRawChildrenIndicesCached(const int32 BoneIndex, TArray<int32>& OutChildren) const;
+	void GetRawChildrenIndicesRecursiveCached(const int32 BoneIndex, TArray<int32>& OutChildren) const;
 
 	// very slow search function for all children
 	ENGINE_API int32 GetDirectChildBones(int32 ParentBoneIndex, TArray<int32> & Children) const;
