@@ -253,7 +253,6 @@ namespace Audio
 		const FAudioPlatformDeviceInfo& GetPlatformDeviceInfo() const { return PlatformInfo; };
 
 		FORCEINLINE int32 GetNumDeviceChannels() const { return PlatformInfo.NumChannels; }
-		FORCEINLINE int32 GetNumDirectOutChannels() const { return PlatformInfo.NumDirectOutChannels; }
 
 		int32 GetNumOutputFrames() const { return PlatformSettings.CallbackBufferFrameSize; }
 

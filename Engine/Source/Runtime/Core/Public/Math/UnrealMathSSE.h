@@ -3464,19 +3464,7 @@ FORCEINLINE VectorRegister4Int VectorFloatToInt(const VectorRegister4Float& A)
 // TODO: LWC: potential loss of data
 FORCEINLINE VectorRegister4Int VectorFloatToInt(const VectorRegister4Double& A)
 {
-	return VectorFloatToInt(MakeVectorRegisterFloatFromDouble(A));
-}
-
-FORCEINLINE VectorRegister4Int VectorDoubleToInt(const VectorRegister4Double& Vec)
-{
-	VectorRegister4Int A = _mm_cvttpd_epi32(Vec.GetXY());
-	VectorRegister4Int B = _mm_cvttpd_epi32(Vec.GetZW());
-	return _mm_xor_si128(A, _mm_shuffle_epi32(B, SHUFFLEMASK(2, 3, 0, 1)));
-}
-
-FORCEINLINE VectorRegister4Int VectorShuffleByte4(const VectorRegister4Int& Vec, const VectorRegister4Int& Mask)
-{
-	return _mm_shuffle_epi8(Vec, Mask);
+	return VectorFloatToInt( MakeVectorRegisterFloatFromDouble(A) );
 }
 
 
@@ -3531,8 +3519,6 @@ FORCEINLINE VectorRegister4Int VectorShuffleByte4(const VectorRegister4Int& Vec,
 #define VectorShiftRightImmLogical(Vec, ImmAmt)     _mm_srli_epi32(Vec, ImmAmt)
 #define VectorCastIntToFloat(Vec)                   _mm_castsi128_ps(Vec)
 #define VectorCastFloatToInt(Vec)                   _mm_castps_si128(Vec)
-#define VectorCastDoubleToInt(Vec)                  _mm_castpd_si128(Vec)
-#define VectorCastIntToDouble(Vec)                  _mm_castsi128_pd(Vec)
 #define VectorShuffleImmediate(Vec, I0, I1, I2, I3) _mm_shuffle_epi32(Vec, _MM_SHUFFLE(I0, I1, I2, I3))
 #define VectorIntExpandLow16To32(V0)				_mm_unpacklo_epi16(V0, _mm_setzero_si128())
 

@@ -281,10 +281,7 @@ FAudioDeviceParams FAudioDeviceManager::GetDefaultParamsForNewWorld()
 FAudioDeviceHandle FAudioDeviceManager::RequestAudioDevice(const FAudioDeviceParams& InParams)
 {
 	FScopeLock ScopeLock(&DeviceMapCriticalSection);
-	
-	// If the device class is not multiclient capable then fall back to sharing the device.
-	// Note that this ignores the bCreateNewAudioDeviceForPlayInEditor editor pref.
-	if (InParams.Scope == EAudioDeviceScope::Unique && AudioDeviceModule->IsAudioDeviceClassMulticlient())
+	if (InParams.Scope == EAudioDeviceScope::Unique)
 	{
 		return CreateNewDevice(InParams);
 	}
