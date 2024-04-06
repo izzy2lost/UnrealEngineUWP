@@ -240,12 +240,16 @@ protected:
 	bool bSortItemsRecursively;
 	/** Should the rows and sections be styled like the details panel? */
 	bool bUseSectionStyling;
+	/** True if the user is using the keyboard to navigatethe list, halting scoring of newly added entries so that selection is stable */
+	bool bIsKeyboardNavigating;
 	/** Whether we allow pre-selected items to be activated with a left-click */
 	bool bAllowPreselectedItemActivation;
 	/** Whether to automatically proceed with an action if it's the only one in the list. */
 	bool bAutomaticallySelectSingleAction;
 	/** The BaseIndentLevel of the default-created row expander. Not used with OnCreateCustomRowExpander. */
 	int32 DefaultRowExpanderBaseIndentLevel;
+	/** The slot that the selected item should be displayed at */
+	int32 DisplayIndex;
 	
 	/** Delegate to call when action is selected */
 	FOnActionSelected OnActionSelected;
