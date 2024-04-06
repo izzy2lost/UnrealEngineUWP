@@ -34,11 +34,16 @@
 #include "ComponentRecreateRenderStateContext.h"
 #include "StaticMeshSceneProxyDesc.h"
 #include "InstancedStaticMeshSceneProxyDesc.h"
+#include "GPUSkinCacheVisualizationData.h"
 
 #if WITH_EDITOR
 #include "DerivedDataCache.h"
 #include "DerivedDataRequestOwner.h"
 #include "Rendering/StaticLightingSystemInterface.h"
+#endif
+
+#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
+#include "SkeletalDebugRendering.h"
 #endif
 
 #if WITH_EDITORONLY_DATA
@@ -141,6 +146,13 @@ static FAutoConsoleVariableRef CVarNaniteCustomDepthStencil(
 	TEXT("Whether to allow Nanite to render in the CustomDepth pass"),
 	ECVF_RenderThreadSafe
 );
+
+#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
+
+extern TAutoConsoleVariable<int32> CVarDebugDrawSimpleBones;
+extern TAutoConsoleVariable<int32> CVarDebugDrawBoneAxes;
+
+#endif
 
 namespace Nanite
 {
@@ -1033,7 +1045,7 @@ FPrimitiveViewRelevance FSceneProxy::GetViewRelevance(const FSceneView* View) co
 #endif
 
 	FPrimitiveViewRelevance Result;
-	Result.bDrawRelevance = IsShown(View) && View->Family->EngineShowFlags.NaniteMeshes;
+	Result.bDrawRelevance = IsShown(View) && !!View->Family->EngineShowFlags.NaniteMeshes;
 	Result.bShadowRelevance = IsShadowCast(View);
 	Result.bRenderCustomDepth = Nanite::GetSupportsCustomDepthRendering() && ShouldRenderCustomDepth();
 	Result.bUsesLightingChannels = GetLightingChannelMask() != GetDefaultLightingChannelMask();
@@ -2194,6 +2206,10 @@ FSkinnedSceneProxy::FSkinnedSceneProxy(USkinnedMeshComponent* InComponent, FSkel
 , Resources(InComponent->GetNaniteResources())
 , RenderData(InRenderData)
 , MeshObject(InComponent->MeshObject)
+#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
+, DebugDrawColor(InComponent->GetDebugDrawColor())
+, bDrawDebugSkeleton(InComponent->ShouldDrawDebugSkeleton())
+#endif
 {
 	LLM_SCOPE_BYTAG(Nanite);
 
@@ -2324,14 +2340,8 @@ FPrimitiveViewRelevance	FSkinnedSceneProxy::GetViewRelevance(const FSceneView* V
 	// View relevance is updated once per frame per view across all views in the frame (including shadows) so we update the LOD level for next frame here.
 	MeshObject->UpdateMinDesiredLODLevel(View, GetBounds());
 
-#if WITH_EDITOR
-	const bool bOptimizedRelevance = false;
-#else
-	const bool bOptimizedRelevance = true;
-#endif
-
 	FPrimitiveViewRelevance Result;
-	Result.bDrawRelevance = IsShown(View) && View->Family->EngineShowFlags.NaniteMeshes;
+	Result.bDrawRelevance = IsShown(View) && !!View->Family->EngineShowFlags.NaniteMeshes;
 	Result.bShadowRelevance = IsShadowCast(View);
 	Result.bRenderCustomDepth = Nanite::GetSupportsCustomDepthRendering() && ShouldRenderCustomDepth();
 	Result.bUsesLightingChannels = GetLightingChannelMask() != GetDefaultLightingChannelMask();
@@ -2342,71 +2352,31 @@ FPrimitiveViewRelevance	FSkinnedSceneProxy::GetViewRelevance(const FSceneView* V
 	// Should always be covered by constructor of Nanite scene proxy.
 	Result.bRenderInMainPass = true;
 
-	if (bOptimizedRelevance) // No dynamic relevance if optimized.
-	{
-		CombinedMaterialRelevance.SetPrimitiveViewRelevance(Result);
-		Result.bVelocityRelevance = DrawsVelocity();
-	}
-	else
-	{
-	#if WITH_EDITOR
-		//only check these in the editor
-		Result.bEditorVisualizeLevelInstanceRelevance = IsEditingLevelInstanceChild();
-		Result.bEditorStaticSelectionRelevance = (IsSelected() || IsHovered());
-	#endif
+	const auto& EngineShowFlags = View->Family->EngineShowFlags;
 
-	#if 0//NANITE_ENABLE_DEBUG_RENDERING
-		bool bDrawSimpleCollision = false, bDrawComplexCollision = false;
-		const bool bInCollisionView = IsCollisionView(View->Family->EngineShowFlags, bDrawSimpleCollision, bDrawComplexCollision);
-	#else
-		bool bInCollisionView = false;
-	#endif
-
-		// Set dynamic relevance for overlays like collision and bounds.
-		bool bSetDynamicRelevance = false;
+	const auto IsDynamic = [&]
+	{
 	#if !(UE_BUILD_SHIPPING) || WITH_EDITOR
-		bSetDynamicRelevance |= (
-			// Nanite doesn't respect rich view enabling dynamic relevancy.
-			//IsRichView(*View->Family) ||
-			View->Family->EngineShowFlags.Collision ||
-			bInCollisionView ||
-			View->Family->EngineShowFlags.Bounds ||
-			View->Family->EngineShowFlags.VisualizeInstanceUpdates
-		);
-	#endif
-	#if WITH_EDITOR
-		// Nanite doesn't render debug vertex colors.
-		//bSetDynamicRelevance |= (IsSelected() && View->Family->EngineShowFlags.VertexColors);
-	#endif
-	#if 0//NANITE_ENABLE_DEBUG_RENDERING
-		bSetDynamicRelevance |= bDrawMeshCollisionIfComplex || bDrawMeshCollisionIfSimple;
-	#endif
-
-		if (bSetDynamicRelevance)
-		{
-			Result.bDynamicRelevance = true;
-
-		#if NANITE_ENABLE_DEBUG_RENDERING
-			// If we want to draw collision, needs to make sure we are considered relevant even if hidden
-			if (View->Family->EngineShowFlags.Collision || bInCollisionView)
-			{
-				Result.bDrawRelevance = true;
-			}
+		return IsRichView(*View->Family)
+			|| EngineShowFlags.Bones
+			|| EngineShowFlags.Collision
+			|| EngineShowFlags.Bounds
+			|| EngineShowFlags.VertexColors
+			|| IsSelected()
+		#if WITH_EDITORONLY_DATA
+			|| MeshObject->SelectedEditorMaterial != -1
+			|| MeshObject->SelectedEditorSection != -1
 		#endif
-		}
+			|| GetGPUSkinCacheVisualizationData().IsActive();
+	#else
+		return false;
+	#endif
+	};
 
-		if (!View->Family->EngineShowFlags.Materials
-		#if NANITE_ENABLE_DEBUG_RENDERING
-			|| bInCollisionView
-		#endif
-			)
-		{
-			Result.bOpaque = true;
-		}
+	Result.bDynamicRelevance = IsDynamic();
 
-		CombinedMaterialRelevance.SetPrimitiveViewRelevance(Result);
-		Result.bVelocityRelevance = Result.bOpaque && Result.bRenderInMainPass && DrawsVelocity();
-	}
+	CombinedMaterialRelevance.SetPrimitiveViewRelevance(Result);
+	Result.bVelocityRelevance = DrawsVelocity();
 
 	return Result;
 }
@@ -2458,6 +2428,124 @@ void FSkinnedSceneProxy::DrawStaticElements(FStaticPrimitiveDrawInterface* PDI)
 {
 	const FLightCacheInterface* LCI = nullptr;
 	DrawStaticElementsInternal(PDI, LCI);
+}
+
+void FSkinnedSceneProxy::GetDynamicMeshElements(const TArray<const FSceneView*>& Views, const FSceneViewFamily& ViewFamily, uint32 VisibilityMap, FMeshElementCollector& Collector) const
+{
+#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
+	if (!MeshObject)
+	{
+		return;
+	}
+
+	TRACE_CPUPROFILER_EVENT_SCOPE(SkeletalMesh);
+
+	const FEngineShowFlags& EngineShowFlags = ViewFamily.EngineShowFlags;
+
+	for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ViewIndex++)
+	{
+		if (VisibilityMap & (1 << ViewIndex))
+		{
+			if (EngineShowFlags.MassProperties && DebugMassData.Num() > 0)
+			{
+				FPrimitiveDrawInterface* PDI = Collector.GetPDI(ViewIndex);
+				if (MeshObject->GetComponentSpaceTransforms())
+				{
+					const TArray<FTransform>& ComponentSpaceTransforms = *MeshObject->GetComponentSpaceTransforms();
+
+					for (const FDebugMassData& DebugMass : DebugMassData)
+					{
+						if (ComponentSpaceTransforms.IsValidIndex(DebugMass.BoneIndex))
+						{
+							const FTransform BoneToWorld = ComponentSpaceTransforms[DebugMass.BoneIndex] * FTransform(GetLocalToWorld());
+							DebugMass.DrawDebugMass(PDI, BoneToWorld);
+						}
+					}
+				}
+			}
+
+			if (ViewFamily.EngineShowFlags.SkeletalMeshes)
+			{
+				RenderBounds(Collector.GetPDI(ViewIndex), ViewFamily.EngineShowFlags, GetBounds(), IsSelected());
+			}
+
+			if (ViewFamily.EngineShowFlags.Bones || bDrawDebugSkeleton)
+			{
+				DebugDrawSkeleton(ViewIndex, Collector, ViewFamily.EngineShowFlags);
+			}
+		}
+	}
+#endif
+}
+
+void FSkinnedSceneProxy::DebugDrawSkeleton(int32 ViewIndex, FMeshElementCollector& Collector, const FEngineShowFlags& EngineShowFlags) const
+{
+#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
+	if (!MeshObject->GetComponentSpaceTransforms())
+	{
+		return;
+	}
+
+	FMatrix ProxyLocalToWorld = GetLocalToWorld();
+
+	if (ProxyLocalToWorld.GetScaledAxis(EAxis::X).IsNearlyZero(UE_SMALL_NUMBER) &&
+		ProxyLocalToWorld.GetScaledAxis(EAxis::Y).IsNearlyZero(UE_SMALL_NUMBER) &&
+		ProxyLocalToWorld.GetScaledAxis(EAxis::Z).IsNearlyZero(UE_SMALL_NUMBER))
+	{
+		// Cannot draw this, world matrix not valid
+		return;
+	}
+
+	FMatrix WorldToLocal = GetLocalToWorld().InverseFast();
+	FTransform LocalToWorldTransform(ProxyLocalToWorld);
+
+	auto MakeRandomColorForSkeleton = [](uint32 InUID)
+	{
+		FRandomStream Stream((int32)InUID);
+		const uint8 Hue = (uint8)(Stream.FRand() * 255.f);
+		return FLinearColor::MakeFromHSV8(Hue, 255, 255);
+	};
+
+	FPrimitiveDrawInterface* PDI = Collector.GetPDI(ViewIndex);
+	TArray<FTransform>& ComponentSpaceTransforms = *MeshObject->GetComponentSpaceTransforms();
+
+	for (int32 Index = 0; Index < ComponentSpaceTransforms.Num(); ++Index)
+	{
+		const int32 ParentIndex = SkinnedAsset->GetRefSkeleton().GetParentIndex(Index);
+		FVector Start, End;
+
+		FLinearColor LineColor = DebugDrawColor.Get(MakeRandomColorForSkeleton(GetPrimitiveComponentId().PrimIDValue));
+		const FTransform Transform = ComponentSpaceTransforms[Index] * LocalToWorldTransform;
+
+		if (ParentIndex >= 0)
+		{
+			Start = (ComponentSpaceTransforms[ParentIndex] * LocalToWorldTransform).GetLocation();
+			End = Transform.GetLocation();
+		}
+		else
+		{
+			Start = LocalToWorldTransform.GetLocation();
+			End = Transform.GetLocation();
+		}
+
+		if (EngineShowFlags.Bones || bDrawDebugSkeleton)
+		{
+			if (CVarDebugDrawSimpleBones.GetValueOnRenderThread() != 0)
+			{
+				PDI->DrawLine(Start, End, LineColor, SDPG_Foreground, 0.0f, 1.0f);
+			}
+			else
+			{
+				SkeletalDebugRendering::DrawWireBone(PDI, Start, End, LineColor, SDPG_Foreground);
+			}
+
+			if (CVarDebugDrawBoneAxes.GetValueOnRenderThread() != 0)
+			{
+				SkeletalDebugRendering::DrawAxes(PDI, Transform, SDPG_Foreground);
+			}
+		}
+	}
+#endif
 }
 
 uint32 FSkinnedSceneProxy::GetMemoryFootprint() const

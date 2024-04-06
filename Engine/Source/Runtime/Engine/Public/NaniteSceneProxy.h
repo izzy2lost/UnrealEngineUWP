@@ -617,6 +617,10 @@ public:
 	virtual HHitProxy* CreateHitProxies(UPrimitiveComponent* Component, TArray<TRefCountPtr<HHitProxy> >& OutHitProxies) override;
 #endif
 	virtual void DrawStaticElements(FStaticPrimitiveDrawInterface* PDI) override;
+	virtual void GetDynamicMeshElements(const TArray<const FSceneView*>& Views, const FSceneViewFamily& ViewFamily, uint32 VisibilityMap, FMeshElementCollector& Collector) const override;
+
+	/** Render the bones of the skeleton for debug display */
+	ENGINE_API void DebugDrawSkeleton(int32 ViewIndex, FMeshElementCollector& Collector, const FEngineShowFlags& EngineShowFlags) const;
 
 	virtual uint32 GetMemoryFootprint() const override;
 
@@ -653,6 +657,11 @@ protected:
 
 	uint16 MaxBoneTransformCount = 0u;
 	uint16 MaxBoneInfluenceCount = 0u;
+
+#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
+	TOptional<FLinearColor> DebugDrawColor;
+	uint8 bDrawDebugSkeleton : 1;
+#endif
 };
 
 } // namespace Nanite

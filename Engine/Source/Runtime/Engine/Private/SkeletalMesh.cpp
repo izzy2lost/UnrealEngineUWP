@@ -70,7 +70,6 @@
 #include "DerivedDataCacheInterface.h"
 #include "DerivedDataCacheKey.h"
 #include "Engine/RendererSettings.h"
-#include "SkeletalDebugRendering.h"
 #include "Misc/DataValidation.h"
 #else
 #include "Interfaces/ITargetPlatform.h"
@@ -7100,10 +7099,10 @@ FPrimitiveViewRelevance FSkeletalMeshSceneProxy::GetViewRelevance(const FSceneVi
 	};
 
 	FPrimitiveViewRelevance Result;
-	Result.bDrawRelevance = IsShown(View) && EngineShowFlags.SkeletalMeshes;
+	Result.bDrawRelevance = IsShown(View) && !!EngineShowFlags.SkeletalMeshes;
 	Result.bShadowRelevance = IsShadowCast(View);
 	Result.bStaticRelevance = (bRenderStatic || GSkeletalMeshUseCachedMDCs) && MeshObject->SupportsStaticRelevance() && !IsDynamic();
-	Result.bDynamicRelevance = !Result.bStaticRelevance;
+	Result.bDynamicRelevance = ~Result.bStaticRelevance;
 	Result.bRenderCustomDepth = ShouldRenderCustomDepth();
 	Result.bRenderInMainPass = ShouldRenderInMainPass();
 	Result.bRenderInDepthPass = ShouldRenderInDepthPass();

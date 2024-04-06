@@ -44,10 +44,7 @@ FDynamicSkelMeshObjectDataNanite::FDynamicSkelMeshObjectDataNanite(
 	case EPreviousBoneTransformUpdateMode::DuplicateCurrentToPrevious:
 		// TODO: Nanite-Skinning likely possible we can just return ReferenceToLocal here rather than cloning it into previous
 		// Need to make sure it's safe when next update mode = None
-		for (int32 Index = 0; Index < ReferenceToLocal.Num(); ++Index)
-		{
-			PrevReferenceToLocal[Index] = ReferenceToLocal[Index];
-		}
+		PrevReferenceToLocal = ReferenceToLocal;
 		break;
 	}
 
@@ -243,36 +240,6 @@ void FSkeletalMeshObjectNanite::UpdateDynamicData_RenderThread(FRHICommandList& 
 	check(DynamicData);
 
 	check(IsInParallelRenderingThread());
-
-	// Source skeletal mesh and static lod model
-	FSkeletalMeshLODRenderData& SourceLOD = SkeletalMeshRenderData->LODRenderData[DynamicData->LODIndex];
-	(void)SourceLOD;
-
-	// Bone matrices
-	FMatrix44f* ReferenceToLocal = DynamicData->ReferenceToLocal.GetData();
-	(void)ReferenceToLocal; // TODO: Nanite-Skinning
-}
-
-void FSkeletalMeshObjectNanite::EnableOverlayRendering(
-	bool bEnabled,
-	const TArray<int32>* InBonesOfInterest,
-	const TArray<UMorphTarget*>* InMorphTargetOfInterest)
-{
-#if 0
-	bRenderOverlayMaterial = bEnabled;
-
-	BonesOfInterest.Reset();
-	MorphTargetOfInterest.Reset();
-
-	if (InBonesOfInterest)
-	{
-		BonesOfInterest.Append(*InBonesOfInterest);
-	}
-	else if (InMorphTargetOfInterest)
-	{
-		MorphTargetOfInterest.Append(*InMorphTargetOfInterest);
-	}
-#endif
 }
 
 const FVertexFactory* FSkeletalMeshObjectNanite::GetSkinVertexFactory(const FSceneView* View, int32 LODIndex, int32 ChunkIdx, ESkinVertexFactoryMode VFMode) const
@@ -325,43 +292,6 @@ int32 FSkeletalMeshObjectNanite::GetLOD() const
 	{
 		return 0;
 	}*/
-}
-
-void FSkeletalMeshObjectNanite::DrawVertexElements(FPrimitiveDrawInterface* PDI, const FMatrix& ToWorldSpace, bool bDrawNormals, bool bDrawTangents, bool bDrawBinormals) const
-{
-#if 0
-	uint32 NumIndices = CachedFinalVertices.Num();
-
-	FMatrix LocalToWorldInverseTranspose = ToWorldSpace.InverseFast().GetTransposed();
-
-	for (uint32 i = 0; i < NumIndices; i++)
-	{
-		FFinalSkinVertex& Vert = CachedFinalVertices[i];
-
-		const FVector WorldPos = ToWorldSpace.TransformPosition(FVector(Vert.Position));
-
-		const FVector Normal = Vert.TangentZ.ToFVector();
-		const FVector Tangent = Vert.TangentX.ToFVector();
-		const FVector Binormal = FVector(Normal) ^ FVector(Tangent);
-
-		const float Len = 1.0f;
-
-		if (bDrawNormals)
-		{
-			PDI->DrawLine(WorldPos, WorldPos + LocalToWorldInverseTranspose.TransformVector((FVector)(Normal)).GetSafeNormal() * Len, FLinearColor(0.0f, 1.0f, 0.0f), SDPG_World);
-		}
-
-		if (bDrawTangents)
-		{
-			PDI->DrawLine(WorldPos, WorldPos + LocalToWorldInverseTranspose.TransformVector(Tangent).GetSafeNormal() * Len, FLinearColor(1.0f, 0.0f, 0.0f), SDPG_World);
-		}
-
-		if (bDrawBinormals)
-		{
-			PDI->DrawLine(WorldPos, WorldPos + LocalToWorldInverseTranspose.TransformVector(Binormal).GetSafeNormal() * Len, FLinearColor(0.0f, 0.0f, 1.0f), SDPG_World);
-		}
-	}
-#endif
 }
 
 bool FSkeletalMeshObjectNanite::HaveValidDynamicData() const

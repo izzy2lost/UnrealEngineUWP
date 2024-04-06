@@ -90,11 +90,6 @@ public:
 		uint32 RevisionNumber
 	);
 
-	ENGINE_API virtual void EnableOverlayRendering(
-		bool bEnabled,
-		const TArray<int32>* InBonesOfInterest,
-		const TArray<UMorphTarget*>* InMorphTargetOfInterest) override;
-
 	ENGINE_API virtual const FVertexFactory* GetSkinVertexFactory(const FSceneView* View, int32 LODIndex, int32 ChunkIdx, ESkinVertexFactoryMode VFMode = ESkinVertexFactoryMode::Default) const override;
 	ENGINE_API virtual const FVertexFactory* GetStaticSkinVertexFactory(int32 LODIndex, int32 ChunkIdx, ESkinVertexFactoryMode VFMode = ESkinVertexFactoryMode::Default) const override;
 	ENGINE_API virtual TArray<FTransform>* GetComponentSpaceTransforms() const override;
@@ -103,8 +98,6 @@ public:
 
 	virtual int32 GetLOD() const override;
 
-	virtual void DrawVertexElements(FPrimitiveDrawInterface* PDI, const FMatrix& ToWorldSpace, bool bDrawNormals, bool bDrawTangents, bool bDrawBinormals) const override;
-	
 	virtual bool HaveValidDynamicData() const override;
 
 	virtual void GetResourceSizeEx(FResourceSizeEx& CumulativeResourceSize) override;
