@@ -130,6 +130,7 @@
 #include "SceneCaptureDetails.h"
 #include "SceneComponentDetails.h"
 #include "SkeletalControlNodeDetails.h"
+#include "SkeletalMeshDetails.h"
 #include "SkeletalMeshComponentDetails.h"
 #include "SkeletalMeshLODSettingsDetails.h"
 #include "SkeletalMeshReductionSettingsDetails.h"
@@ -463,7 +464,7 @@ void FDetailCustomizationsModule::RegisterObjectCustomizations()
 	RegisterCustomClassLayout("MaterialExpressionTextureBase", FOnGetDetailCustomizationInstance::CreateStatic(&FMaterialExpressionTextureBaseDetails::MakeInstance));
 	RegisterCustomClassLayout("MaterialInstanceDynamic", FOnGetDetailCustomizationInstance::CreateStatic(&FMaterialInstanceDynamicDetails::MakeInstance));
 	RegisterCustomClassLayout("SkeletalMeshLODSettings", FOnGetDetailCustomizationInstance::CreateStatic(&FSkeletalMeshLODSettingsDetails::MakeInstance));
-
+	RegisterCustomClassLayout("SkeletalMesh", FOnGetDetailCustomizationInstance::CreateStatic(&FSkeletalMeshDetails::MakeInstance));
 	RegisterCustomClassLayout("Skeleton", FOnGetDetailCustomizationInstance::CreateStatic(&FSkeletonDetails::MakeInstance));
 
 	RegisterCustomClassLayout("MotionControllerComponent", FOnGetDetailCustomizationInstance::CreateStatic(&FMotionControllerDetails::MakeInstance));

@@ -930,10 +930,8 @@ public:
 	TArray<struct FBoneMirrorInfo> SkelMirrorTable;
 #endif
 
-#if 0 // TODO: Nanite-Skinning
 	/** Settings related to building Nanite data. */
-	UPROPERTY(EditAnywhere, Category = NaniteSettings)
-#endif
+	UPROPERTY(EditAnywhere, Category = Mesh)
 	FMeshNaniteSettings NaniteSettings;
 
 #if WITH_EDITORONLY_DATA
