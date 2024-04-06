@@ -212,9 +212,80 @@ void VisualizeCS(uint3 DTID : SV_DispatchThreadID, uint3 GID : SV_GroupID)
 
 		const uint3 TriIndices = DecodeTriangleIndices(Cluster, TriIndex);
 
-		const float3 PointLocal0 = DecodePosition(TriIndices.x, Cluster);
-		const float3 PointLocal1 = DecodePosition(TriIndices.y, Cluster);
-		const float3 PointLocal2 = DecodePosition(TriIndices.z, Cluster);
+		float3 PointLocal0 = DecodePosition(TriIndices.x, Cluster);
+		float3 PointLocal1 = DecodePosition(TriIndices.y, Cluster);
+		float3 PointLocal2 = DecodePosition(TriIndices.z, Cluster);
+
+		FNaniteRawAttributeData RawAttributeData[3];
+		GetRawAttributeData3(RawAttributeData, Cluster, TriIndices, NANITE_MAX_UVS);
+
+		FNaniteTangentBasis TangentBasis0 = MakeTangentBasis(RawAttributeData[0]);
+		FNaniteTangentBasis TangentBasis1 = MakeTangentBasis(RawAttributeData[1]);
+		FNaniteTangentBasis TangentBasis2 = MakeTangentBasis(RawAttributeData[2]);
+
+		BRANCH
+		if (bIsSkinned)
+		{
+			float3 SkinnedPosition[3];
+			SkinnedPosition[0] = float3(0.0f, 0.0f, 0.0f);
+			SkinnedPosition[1] = float3(0.0f, 0.0f, 0.0f);
+			SkinnedPosition[2] = float3(0.0f, 0.0f, 0.0f);
+
+			float3 SkinnedNormal[3];
+			SkinnedNormal[0] = float3(0.0f, 0.0f, 0.0f);
+			SkinnedNormal[1] = float3(0.0f, 0.0f, 0.0f);
+			SkinnedNormal[2] = float3(0.0f, 0.0f, 0.0f);
+
+			float3 SkinnedTangent[3];
+			SkinnedTangent[0] = float3(0.0f, 0.0f, 0.0f);
+			SkinnedTangent[1] = float3(0.0f, 0.0f, 0.0f);
+			SkinnedTangent[2] = float3(0.0f, 0.0f, 0.0f);
+
+			LOOP
+			for (uint InfluenceIndex = 0; InfluenceIndex < Cluster.NumBones; ++InfluenceIndex)
+			{
+				uint BoneIndex0 = 0;
+				float BoneWeight0 = 0.0f;
+				DecodeBoneInfluence(Cluster, TriIndices.x, InfluenceIndex, BoneIndex0, BoneWeight0);
+
+				uint BoneIndex1 = 0;
+				float BoneWeight1 = 0.0f;
+				DecodeBoneInfluence(Cluster, TriIndices.y, InfluenceIndex, BoneIndex1, BoneWeight1);
+
+				uint BoneIndex2 = 0;
+				float BoneWeight2 = 0.0f;
+				DecodeBoneInfluence(Cluster, TriIndices.z, InfluenceIndex, BoneIndex2, BoneWeight2);
+
+				float3x4 CurrentBoneTransform[3];
+				CurrentBoneTransform[0] = LoadNaniteBoneTransform(SkinningHeader.TransformBufferOffset + BoneIndex0);
+				CurrentBoneTransform[1] = LoadNaniteBoneTransform(SkinningHeader.TransformBufferOffset + BoneIndex1);
+				CurrentBoneTransform[2] = LoadNaniteBoneTransform(SkinningHeader.TransformBufferOffset + BoneIndex2);
+
+				SkinnedPosition[0]	+= mul(CurrentBoneTransform[0], float4(PointLocal0, 1.0f)) * BoneWeight0;
+				SkinnedPosition[1]	+= mul(CurrentBoneTransform[1], float4(PointLocal1, 1.0f)) * BoneWeight1;
+				SkinnedPosition[2]	+= mul(CurrentBoneTransform[2], float4(PointLocal2, 1.0f)) * BoneWeight2;
+
+				SkinnedNormal[0]	+= mul((float3x3)CurrentBoneTransform[0], TangentBasis0.TangentZ) * BoneWeight0;
+				SkinnedNormal[1]	+= mul((float3x3)CurrentBoneTransform[1], TangentBasis1.TangentZ) * BoneWeight1;
+				SkinnedNormal[2]	+= mul((float3x3)CurrentBoneTransform[2], TangentBasis2.TangentZ) * BoneWeight2;
+
+				SkinnedTangent[0]	+= mul((float3x3)CurrentBoneTransform[0], TangentBasis0.TangentXAndSign.xyz) * BoneWeight0;
+				SkinnedTangent[1]	+= mul((float3x3)CurrentBoneTransform[1], TangentBasis1.TangentXAndSign.xyz) * BoneWeight1;
+				SkinnedTangent[2]	+= mul((float3x3)CurrentBoneTransform[2], TangentBasis2.TangentXAndSign.xyz) * BoneWeight2;
+			}
+
+			TangentBasis0.TangentZ = SkinnedNormal[0];
+			TangentBasis1.TangentZ = SkinnedNormal[1];
+			TangentBasis2.TangentZ = SkinnedNormal[2];
+
+			TangentBasis0.TangentXAndSign.xyz = SkinnedTangent[0];
+			TangentBasis1.TangentXAndSign.xyz = SkinnedTangent[1];
+			TangentBasis2.TangentXAndSign.xyz = SkinnedTangent[2];
+
+			PointLocal0 = SkinnedPosition[0];
+			PointLocal1 = SkinnedPosition[1];
+			PointLocal2 = SkinnedPosition[2];
+		}
 
 		const float3 PointWorld0 = mul(float4(PointLocal0, 1), InstanceDynamicData.LocalToTranslatedWorld).xyz;
 		const float3 PointWorld1 = mul(float4(PointLocal1, 1), InstanceDynamicData.LocalToTranslatedWorld).xyz;
@@ -229,14 +300,6 @@ void VisualizeCS(uint3 DTID : SV_DispatchThreadID, uint3 GID : SV_GroupID)
 		// Calculate perspective correct barycentric coordinates with screen derivatives
 		const FBarycentrics Barycentrics = CalculateTriangleBarycentrics(PixelClip, PointClip0, PointClip1, PointClip2, View.ViewSizeAndInvSize.zw);
 
-		FNaniteRawAttributeData RawAttributeData[3];
-		GetRawAttributeData3(RawAttributeData, Cluster, TriIndices, NANITE_MAX_UVS);
-
-		// TODO: Nanite-Skinning (Provide skinned TSB?)
-		const FNaniteTangentBasis TangentBasis0 = MakeTangentBasis(RawAttributeData[0]);
-		const FNaniteTangentBasis TangentBasis1 = MakeTangentBasis(RawAttributeData[1]);
-		const FNaniteTangentBasis TangentBasis2 = MakeTangentBasis(RawAttributeData[2]);
-
 		const FNaniteAttributeData AttributeData = GetAttributeData(
 			Cluster,
 			PointLocal0,
@@ -246,8 +309,8 @@ void VisualizeCS(uint3 DTID : SV_DispatchThreadID, uint3 GID : SV_GroupID)
 			RawAttributeData[1],
 			RawAttributeData[2],
 			TangentBasis0,
-            TangentBasis1,
-            TangentBasis2,
+			TangentBasis1,
+			TangentBasis2,
 			Barycentrics,
 			InstanceData,
 			NANITE_MAX_UVS
@@ -695,9 +758,11 @@ void PickingCS(uint3 DTID : SV_DispatchThreadID, uint3 GID : SV_GroupID)
 		FeedbackResults.HierarchyOffset		= InstanceData.NaniteHierarchyOffset;
 		FeedbackResults.RuntimeResourceID	= InstanceData.NaniteRuntimeResourceID;
 
-		const float4 ClusterBoundsColor		= ColorLightGreen;
-		const float4 InstanceBoundsColor	= ColorOrange;
-		const float4 ClusterLODBoundsColor	= ColorYellow;
+		const float4 ApproximateClusterBoundsColor	= ColorTurquoise;
+		const float4 SkinnedClusterBoundsColor		= ColorLightGreen;
+		const float4 ClusterBoundsColor				= ColorLightRed;
+		const float4 InstanceBoundsColor			= ColorOrange;
+		const float4 ClusterLODBoundsColor			= ColorYellow;
 
 		FShaderPrintContext ShaderPrint = InitShaderPrintContext();
 		const float4x4 LocalToTranslatedWorld = DFFastToTranslatedWorld(InstanceData.LocalToWorld, NaniteView.PreViewTranslation);
@@ -709,6 +774,50 @@ void PickingCS(uint3 DTID : SV_DispatchThreadID, uint3 GID : SV_GroupID)
 		float3 ClusterBoxBoundsCenter = Cluster.BoxBoundsCenter;
 		float3 ClusterBoxBoundsExtent = Cluster.BoxBoundsExtent;
 		float4 ClusterLODSphere = Cluster.LODBounds;
+
+		// Pre-Skinned Bounds
+		AddOBBTWS(
+			ShaderPrint,
+			ClusterBoxBoundsCenter - ClusterBoxBoundsExtent,
+			ClusterBoxBoundsCenter + ClusterBoxBoundsExtent,
+			ClusterBoundsColor,
+			LocalToTranslatedWorld
+		);
+
+		const bool bIsSkinned = (PrimitiveData.Flags & PRIMITIVE_SCENE_DATA_FLAG_SKINNED_MESH) != 0;
+
+		FNaniteSkinningHeader SkinningHeader = (FNaniteSkinningHeader)0;
+		BRANCH
+		if (bIsSkinned)
+		{
+			SkinningHeader = LoadNaniteSkinningHeader(InstanceData.PrimitiveId);
+
+			float3 MinBounds = float(9999999.0f).xxx;
+			float3 MaxBounds = float(-9999999.0f).xxx;
+
+			for (uint VertexID = 0; VertexID < Cluster.NumVerts; ++VertexID)
+			{
+				float3 PointLocal = DecodePosition(VertexID, Cluster);
+				float3 PointSkinned = float3(0.0f, 0.0f, 0.0f);
+
+				LOOP
+				for (uint InfluenceIndex = 0; InfluenceIndex < Cluster.NumBones; ++InfluenceIndex)
+				{
+					uint BoneIndex = 0;
+					float BoneWeight = 0.0f;
+					DecodeBoneInfluence(Cluster, VertexID, InfluenceIndex, BoneIndex, BoneWeight);
+
+					float3x4 CurrentBoneTransform = LoadNaniteBoneTransform(SkinningHeader.TransformBufferOffset + BoneIndex);
+					PointSkinned += mul(CurrentBoneTransform, float4(PointLocal, 1.0f)) * BoneWeight;
+				}
+
+				MinBounds = min(MinBounds, PointSkinned);
+				MaxBounds = max(MaxBounds, PointSkinned);
+			}
+
+			ClusterBoxBoundsCenter = (MaxBounds + MinBounds) * 0.5f;
+			ClusterBoxBoundsExtent = (MaxBounds - MinBounds) * 0.5f;
+		}
 
 		BRANCH
 		if ((PrimitiveData.Flags & PRIMITIVE_SCENE_DATA_FLAG_SPLINE_MESH) != 0 &&
@@ -737,13 +846,21 @@ void PickingCS(uint3 DTID : SV_DispatchThreadID, uint3 GID : SV_GroupID)
 		const float3 InstanceBoxBoundsCenter = InstanceData.LocalBoundsCenter;
 		const float3 InstanceBoxBoundsExtent = InstanceData.LocalBoundsExtent; // TODO: Verify WPO and material disp. is baked in already
 
+		// Skinned Bounds
 		AddOBBTWS(
 			ShaderPrint,
 			ClusterBoxBoundsCenter - ClusterBoxBoundsExtent,
 			ClusterBoxBoundsCenter + ClusterBoxBoundsExtent,
-			ClusterBoundsColor,
+			SkinnedClusterBoundsColor,
 			LocalToTranslatedWorld
 		);
+
+		// TODO: Nanite-Skinning: Visualize Approx skinned cluster bounds
+		BRANCH
+		if (bIsSkinned)
+		{
+			// ...
+		}
 
 		AddOBBTWS(
 			ShaderPrint,
