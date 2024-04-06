@@ -195,7 +195,7 @@ namespace EpicGames.Horde.Issues.Handlers
 		{
 			if (issueEvent.EventId != null && IsMatchingEventId(issueEvent.EventId.Value))
 			{
-				IssueEventGroup issue = new IssueEventGroup("Gauntlet", "Gauntlet {Meta:Type} {Severity} {Meta:Context}", IssueChangeFilter.Code);
+				IssueEventGroup issue = new IssueEventGroup("Gauntlet", "Automation {Meta:Type} {Severity} {Meta:Context}", IssueChangeFilter.Code);
 				issue.Events.Add(issueEvent);
 
 				GetNames(issueEvent, issue.Keys, issue.Metadata);
