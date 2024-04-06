@@ -16,7 +16,6 @@ using Horde.Server.Logs;
 using Horde.Server.Notifications;
 using Horde.Server.Streams;
 using Horde.Server.Users;
-using HordeCommon;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.VisualStudio.TestTools.UnitTesting;

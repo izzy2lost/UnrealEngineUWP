@@ -26,7 +26,6 @@ using Horde.Agent.Leases.Handlers;
 using Horde.Agent.Services;
 using Horde.Agent.Utility;
 using Horde.Common.Rpc;
-using HordeCommon;
 using HordeCommon.Rpc;
 using HordeCommon.Rpc.Messages;
 using HordeCommon.Rpc.Tasks;
@@ -197,12 +196,12 @@ namespace Horde.Agent.Tests
 
 			Assert.AreEqual(LeaseOutcome.Success, outcome);
 			Assert.AreEqual(3, client.UpdateStepRequests.Count);
-			Assert.AreEqual(JobStepOutcome.Success, client.UpdateStepRequests[0].Outcome);
-			Assert.AreEqual(JobStepState.Completed, client.UpdateStepRequests[0].State);
-			Assert.AreEqual(JobStepOutcome.Failure, client.UpdateStepRequests[1].Outcome);
-			Assert.AreEqual(JobStepState.Aborted, client.UpdateStepRequests[1].State);
-			Assert.AreEqual(JobStepOutcome.Success, client.UpdateStepRequests[2].Outcome);
-			Assert.AreEqual(JobStepState.Completed, client.UpdateStepRequests[2].State);
+			Assert.AreEqual(JobStepOutcome.Success, (JobStepOutcome)client.UpdateStepRequests[0].Outcome);
+			Assert.AreEqual(JobStepState.Completed, (JobStepState)client.UpdateStepRequests[0].State);
+			Assert.AreEqual(JobStepOutcome.Failure, (JobStepOutcome)client.UpdateStepRequests[1].Outcome);
+			Assert.AreEqual(JobStepState.Aborted, (JobStepState)client.UpdateStepRequests[1].State);
+			Assert.AreEqual(JobStepOutcome.Success, (JobStepOutcome)client.UpdateStepRequests[2].Outcome);
+			Assert.AreEqual(JobStepState.Completed, (JobStepState)client.UpdateStepRequests[2].State);
 		}
 
 		[TestMethod]

@@ -669,7 +669,7 @@ namespace Horde.Agent.Execution
 					}
 					createNode.RunEarly = exportedNode.RunEarly;
 					createNode.Warnings = exportedNode.Warnings;
-					createNode.Priority = Priority.Normal;
+					createNode.Priority = (int)Priority.Normal;
 					createNode.Annotations.Add(exportedNode.Annotations);
 					createGroup.Nodes.Add(createNode);
 				}

@@ -124,8 +124,8 @@ namespace HordeCommon.Rpc
 			JobId = jobId.ToString();
 			BatchId = batchId.ToString();
 			StepId = stepId.ToString();
-			State = state;
-			Outcome = outcome;
+			State = (int)state;
+			Outcome = (int)outcome;
 		}
 	}
 
@@ -143,8 +143,8 @@ namespace HordeCommon.Rpc
 	{
 		public GetStepResponse(JobStepOutcome outcome, JobStepState state, bool abortRequested)
 		{
-			Outcome = outcome;
-			State = state;
+			Outcome = (int)outcome;
+			State = (int)state;
 			AbortRequested = abortRequested;
 		}
 	}

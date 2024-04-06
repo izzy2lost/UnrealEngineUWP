@@ -136,7 +136,7 @@ namespace Horde.Server.Acls
 							IJobStepBatch? batch = job.Batches.FirstOrDefault(x => x.LeaseId == leaseId);
 							if (batch != null && batch.State == JobStepBatchState.Running)
 							{
-								IJobStep? step = batch.Steps.FirstOrDefault(x => x.State == HordeCommon.JobStepState.Running);
+								IJobStep? step = batch.Steps.FirstOrDefault(x => x.State == JobStepState.Running);
 								if (step != null)
 								{
 									return (job, step);

@@ -25,7 +25,6 @@ using Horde.Server.Server;
 using Horde.Server.Streams;
 using Horde.Server.Telemetry;
 using Horde.Server.Utilities;
-using HordeCommon;
 using HordeCommon.Rpc.Tasks;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -352,7 +351,7 @@ namespace Horde.Server.Jobs
 				PreflightDescription = options.PreflightDescription;
 				StartedByUserId = options.StartedByUserId;
 				StartedByBisectTaskId = options.StartedByBisectTaskId;
-				Priority = options.Priority ?? HordeCommon.Priority.Normal;
+				Priority = options.Priority ?? Priority.Normal;
 				AutoSubmit = options.AutoSubmit ?? false;
 				UpdateIssues = options.UpdateIssues ?? (options.StartedByUserId == null && (options.PreflightChange == 0 || options.PreflightChange == null));
 				PromoteIssuesByDefault = options.PromoteIssuesByDefault ?? false;

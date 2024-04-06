@@ -15,7 +15,6 @@ using Horde.Server.Server;
 using Horde.Server.Streams;
 using Horde.Server.Telemetry;
 using Horde.Server.Utilities;
-using HordeCommon;
 using Microsoft.Extensions.Options;
 using MongoDB.Bson.Serialization.Attributes;
 using MongoDB.Driver;

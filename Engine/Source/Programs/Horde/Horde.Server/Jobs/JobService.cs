@@ -30,7 +30,6 @@ using Horde.Server.Server;
 using Horde.Server.Streams;
 using Horde.Server.Users;
 using Horde.Server.Utilities;
-using HordeCommon;
 using Microsoft.Extensions.Logging;
 using MongoDB.Bson;
 using OpenTelemetry.Trace;

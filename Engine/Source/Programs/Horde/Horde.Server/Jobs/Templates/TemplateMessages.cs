@@ -2,7 +2,7 @@
 
 using System.Collections.Generic;
 using EpicGames.Core;
-using HordeCommon;
+using EpicGames.Horde.Jobs;
 
 namespace Horde.Server.Jobs.Templates
 {

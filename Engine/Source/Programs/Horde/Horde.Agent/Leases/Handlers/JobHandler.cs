@@ -14,7 +14,6 @@ using Horde.Agent.Execution;
 using Horde.Agent.Services;
 using Horde.Agent.Utility;
 using Horde.Common.Rpc;
-using HordeCommon;
 using HordeCommon.Rpc;
 using HordeCommon.Rpc.Messages;
 using HordeCommon.Rpc.Tasks;

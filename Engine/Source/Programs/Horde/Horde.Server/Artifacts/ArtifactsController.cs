@@ -114,7 +114,7 @@ namespace Horde.Server.Artifacts
 				List<string> keys = new List<string>(request.Keys);
 				keys.Add(job.GetArtifactKey());
 
-				IJobStep? step = batch.Steps.FirstOrDefault(x => x.State == HordeCommon.JobStepState.Running);
+				IJobStep? step = batch.Steps.FirstOrDefault(x => x.State == JobStepState.Running);
 				if (step != null)
 				{
 					keys.Add(job.GetArtifactKey(step));

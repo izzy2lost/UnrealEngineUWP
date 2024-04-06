@@ -3,7 +3,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using EpicGames.Core;
-using HordeCommon;
+using EpicGames.Horde.Jobs;
 
 namespace Horde.Server.Jobs.Graphs
 {

@@ -7,6 +7,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using EpicGames.Core;
 using EpicGames.Horde.Artifacts;
+using EpicGames.Horde.Jobs;
 using HordeCommon;
 using MongoDB.Bson.Serialization.Attributes;
 

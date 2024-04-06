@@ -8,7 +8,6 @@ using EpicGames.Horde.Storage;
 using Google.Protobuf;
 using Grpc.Core;
 using Horde.Common.Rpc;
-using HordeCommon;
 using HordeCommon.Rpc;
 using Microsoft.Extensions.Logging;
 using static Horde.Common.Rpc.LogRpc;

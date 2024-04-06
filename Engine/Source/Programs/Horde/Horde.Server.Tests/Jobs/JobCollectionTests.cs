@@ -21,7 +21,6 @@ using Horde.Server.Jobs.Graphs;
 using Horde.Server.Jobs.Templates;
 using Horde.Server.Logs;
 using Horde.Server.Utilities;
-using HordeCommon;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Moq;
 

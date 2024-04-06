@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
+using EpicGames.Horde.Jobs;
 using Horde.Server.Agents;
 using Horde.Server.Devices;
 using Horde.Server.Issues;
@@ -12,7 +13,6 @@ using Horde.Server.Jobs.Graphs;
 using Horde.Server.Logs;
 using Horde.Server.Streams;
 using Horde.Server.Users;
-using HordeCommon;
 
 namespace Horde.Server.Notifications
 {
