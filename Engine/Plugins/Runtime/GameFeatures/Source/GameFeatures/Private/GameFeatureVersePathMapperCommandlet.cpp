@@ -319,7 +319,7 @@ namespace GameFeatureVersePathMapper
 		}
 
 		VisitedPlugins.FindChecked(Plugin) = EVisitState::Visited;
-		if (bIncludeVirtualNodes || !PluginInfo.GfpUri.IsEmpty()) // An empty URI means this is virtual node that only exists for verse path resolution
+		if (bIncludeVirtualNodes || !PluginInfo.GfpUri.IsEmpty()) // An empty URI means this is virtual node that only exists for Verse path resolution
 		{
 			AddOutput(Plugin, PluginInfo.GfpUri);
 		}
@@ -399,11 +399,11 @@ namespace GameFeatureVersePathMapper
 
 			Output.VersePathToGfpMap.Add(FPaths::Combine(GameFeatureRootVersePath, PluginNameView), PluginName);
 
-			// Add a virtual GFP to support plugin specified verse paths
+			// Add a virtual GFP to support plugin specified Verse paths
 			if (!Plugin->GetVersePath().IsEmpty() && 
 				Plugin->GetVersePath() != AppDomain) // Filter out references to the root path, we don't wan't to allow resolving all content (and we don't register sub-paths)
 			{
-				// Add a virtual GFP with this verse path that depends on this GFP
+				// Add a virtual GFP with this Verse path that depends on this GFP
 				FName& VirtualGFPName = Output.VersePathToGfpMap.FindOrAdd(Plugin->GetVersePath());
 				if (VirtualGFPName.IsNone())
 				{
