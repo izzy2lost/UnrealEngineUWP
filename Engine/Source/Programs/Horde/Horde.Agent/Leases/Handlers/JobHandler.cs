@@ -24,7 +24,7 @@ using OpenTracing.Util;
 
 namespace Horde.Agent.Leases.Handlers
 {
-	record class JobTaskInfo(string JobName, JobId JobId, JobStepBatchId BatchId, JobOptions JobOptions, string Token, LogId LogId, AgentWorkspace Workspace, AgentWorkspace? AutoSdkWorkspace);
+	record class JobTaskInfo(string JobName, JobId JobId, JobStepBatchId BatchId, RpcJobOptions JobOptions, string Token, LogId LogId, AgentWorkspace Workspace, AgentWorkspace? AutoSdkWorkspace);
 
 	class JobHandler : LeaseHandler<ExecuteJobTask>
 	{
@@ -79,7 +79,7 @@ namespace Horde.Agent.Leases.Handlers
 				CurrentJobId = executeTask.JobId;
 				CurrentBatchId = executeTask.BatchId;
 
-				executeTask.JobOptions ??= new JobOptions();
+				executeTask.JobOptions ??= new RpcJobOptions();
 
 				if (executeTask.JobOptions.RunInSeparateProcess ?? false)
 				{
@@ -155,7 +155,7 @@ namespace Horde.Agent.Leases.Handlers
 		internal async Task<LeaseResult> ExecuteInternalAsync(ISession session, LeaseId leaseId, JobTaskInfo executeTask, ILogger localLogger, CancellationToken cancellationToken)
 		{
 			// Create a storage client for this session
-			JobOptions jobOptions = executeTask.JobOptions;
+			RpcJobOptions jobOptions = executeTask.JobOptions;
 			await using IServerLogger logger = _serverLoggerFactory.CreateLogger(session, executeTask.LogId, localLogger, executeTask.JobId, executeTask.BatchId, null, null);
 
 			logger.LogInformation("Executing job \"{JobName}\", jobId {JobId}, batchId {BatchId}, leaseId {LeaseId}, agentVersion {AgentVersion}", executeTask.JobName, executeTask.JobId, executeTask.BatchId, leaseId, AgentApp.Version);

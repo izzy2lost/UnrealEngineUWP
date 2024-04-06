@@ -66,9 +66,9 @@ namespace Horde.Agent.Execution
 		public JobStepBatchId BatchId { get; }
 		public BeginBatchResponse Batch { get; }
 		public string Token { get; }
-		public JobOptions JobOptions { get; }
+		public RpcJobOptions JobOptions { get; }
 
-		public JobExecutorOptions(ISession session, HttpStorageClientFactory storageFactory, JobId jobId, JobStepBatchId batchId, BeginBatchResponse batch, string token, JobOptions jobOptions)
+		public JobExecutorOptions(ISession session, HttpStorageClientFactory storageFactory, JobId jobId, JobStepBatchId batchId, BeginBatchResponse batch, string token, RpcJobOptions jobOptions)
 		{
 			Session = session;
 			StorageFactory = storageFactory;
@@ -231,7 +231,7 @@ namespace Horde.Agent.Execution
 
 		protected ISession Session { get; }
 		protected HttpStorageClientFactory StorageFactory { get; }
-		protected JobOptions JobOptions { get; }
+		protected RpcJobOptions JobOptions { get; }
 
 		protected IRpcConnection RpcConnection => Session.RpcConnection;
 		protected Dictionary<string, string> _remapAgentTypes = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);

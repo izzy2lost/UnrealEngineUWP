@@ -9,7 +9,6 @@ using EpicGames.Core;
 using EpicGames.Horde.Jobs;
 using Horde.Server.Configuration;
 using Horde.Server.Streams;
-using HordeCommon.Rpc.Tasks;
 
 namespace Horde.Server.Jobs.Templates
 {

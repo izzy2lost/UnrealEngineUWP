@@ -2,15 +2,7 @@
 
 namespace HordeCommon.Rpc.Tasks
 {
-	partial class JobOptions
+	partial class RpcJobOptions
 	{
-		/// <summary>
-		/// Merge settings from another JobOptions object
-		/// </summary>
-		public void MergeDefaults(JobOptions other)
-		{
-			Executor ??= other.Executor;
-			UseNewTempStorage ??= other.UseNewTempStorage;
-		}
 	}
 }

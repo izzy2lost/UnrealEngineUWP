@@ -161,7 +161,7 @@ namespace Horde.Agent.Tests
 			executeJobTask.BatchId = _batchId.ToString();
 			executeJobTask.LogId = _logId.ToString();
 			executeJobTask.JobName = "jobName1";
-			executeJobTask.JobOptions = new JobOptions { Executor = SimpleTestExecutor.Name };
+			executeJobTask.JobOptions = new RpcJobOptions { Executor = SimpleTestExecutor.Name };
 			executeJobTask.AutoSdkWorkspace = new AgentWorkspace();
 			executeJobTask.Workspace = new AgentWorkspace();
 

@@ -903,7 +903,7 @@ namespace Horde.Server.Jobs
 			task.BatchId = batch.Id.ToString();
 			task.LogId = logId.ToString();
 			task.JobName = leaseName.ToString();
-			task.JobOptions = job.JobOptions;
+			task.JobOptions = (job.JobOptions != null)? GetRpcJobOptions(job.JobOptions) : null;
 			task.NamespaceId = namespaceId.ToString();
 			task.StoragePrefix = storagePrefix;
 			task.Token = await _aclService.IssueBearerTokenAsync(claims, null, cancellationToken);
@@ -936,6 +936,31 @@ namespace Horde.Server.Jobs
 			task.Workspace = workspaces.Last();
 
 			return task;
+		}
+
+		static RpcJobOptions GetRpcJobOptions(JobOptions options)
+		{
+			RpcJobOptions rpcOptions = new RpcJobOptions();
+			rpcOptions.Executor = options.Executor;
+			rpcOptions.UseNewTempStorage = options.UseNewTempStorage;
+			rpcOptions.UseWine = options.UseWine;
+			rpcOptions.RunInSeparateProcess = options.RunInSeparateProcess;
+			rpcOptions.WorkspaceMaterializer = options.WorkspaceMaterializer;
+			if (options.Container != null)
+			{
+				rpcOptions.Container = GetRpcJobContainerOptions(options.Container);
+			}
+			return rpcOptions;
+		}
+
+		static RpcJobContainerOptions GetRpcJobContainerOptions(JobContainerOptions options)
+		{
+			RpcJobContainerOptions rpcContainerOptions = new RpcJobContainerOptions();
+			rpcContainerOptions.Enabled = options.Enabled;
+			rpcContainerOptions.ImageUrl = options.ImageUrl;
+			rpcContainerOptions.ContainerEngineExecutable = options.ContainerEngineExecutable;
+			rpcContainerOptions.ExtraArguments = options.ExtraArguments;
+			return rpcContainerOptions;
 		}
 
 		/// <summary>

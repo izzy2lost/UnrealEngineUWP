@@ -28,7 +28,6 @@ using Horde.Server.Logs;
 using Horde.Server.Projects;
 using Horde.Server.Streams;
 using Horde.Server.Utilities;
-using HordeCommon.Rpc.Tasks;
 using JetBrains.Profiler.SelfApi;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;

@@ -14,8 +14,6 @@ using EpicGames.Horde.Streams;
 using EpicGames.Horde.Users;
 using Horde.Server.Jobs.Graphs;
 using Horde.Server.Streams;
-//using HordeCommon;
-using HordeCommon.Rpc.Tasks;
 
 namespace Horde.Server.Jobs
 {
@@ -38,6 +36,78 @@ namespace Horde.Server.Jobs
 		/// All steps have completed
 		/// </summary>
 		Complete,
+	}
+
+	/// <summary>
+	/// Options for executing a job
+	/// </summary>
+	public class JobOptions
+	{
+		/// <summary>
+		/// Name of the executor to use
+		/// </summary>
+		public string? Executor { get; set; }
+
+		/// <summary>
+		/// Whether to use the new temp storage backend
+		/// </summary>
+		public bool? UseNewTempStorage { get; set; }
+
+		/// <summary>
+		/// Whether to execute using Wine emulation on Linux
+		/// </summary>
+		public bool? UseWine { get; set; }
+
+		/// <summary>
+		/// Executes the job lease in a separate process
+		/// </summary>
+		public bool? RunInSeparateProcess { get; set; }
+
+		/// <summary>
+		/// What workspace materializer to use in WorkspaceExecutor. Will override any value from workspace config.
+		/// </summary>
+		public string? WorkspaceMaterializer { get; set; }
+
+		/// <summary>
+		/// Options for executing a job inside a container
+		/// </summary>
+		public JobContainerOptions? Container { get; set; }
+
+		/// <summary>
+		/// Merge defaults from another options object
+		/// </summary>
+		/// <param name="other"></param>
+		public void MergeDefaults(JobOptions other)
+		{
+			Executor ??= other.Executor;
+			UseNewTempStorage ??= other.UseNewTempStorage;
+		}
+	}
+
+	/// <summary>
+	/// Options for executing a job inside a container
+	/// </summary>
+	public class JobContainerOptions
+	{
+		/// <summary>
+		/// Whether to execute job inside a container
+		/// </summary>
+		public bool? Enabled { get; set; }
+
+		/// <summary>
+		/// Image URL to container, such as "quay.io/podman/hello"
+		/// </summary>
+		public string? ImageUrl { get; set; }
+
+		/// <summary>
+		/// Container engine executable (docker or with full path like /usr/bin/podman)
+		/// </summary>
+		public string? ContainerEngineExecutable { get; set; }
+
+		/// <summary>
+		/// Additional arguments to pass to container engine
+		/// </summary>
+		public string? ExtraArguments { get; set; }
 	}
 
 	/// <summary>

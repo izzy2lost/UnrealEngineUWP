@@ -13,9 +13,9 @@ using EpicGames.Horde.Telemetry;
 using Horde.Server.Acls;
 using Horde.Server.Agents.Pools;
 using Horde.Server.Configuration;
+using Horde.Server.Jobs;
 using Horde.Server.Server;
 using Horde.Server.Streams;
-using HordeCommon.Rpc.Tasks;
 
 namespace Horde.Server.Projects
 {

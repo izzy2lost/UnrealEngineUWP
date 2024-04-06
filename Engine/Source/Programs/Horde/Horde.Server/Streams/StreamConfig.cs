@@ -24,6 +24,7 @@ using EpicGames.Horde.Telemetry;
 using Horde.Server.Acls;
 using Horde.Server.Configuration;
 using Horde.Server.Issues;
+using Horde.Server.Jobs;
 using Horde.Server.Jobs.Graphs;
 using Horde.Server.Jobs.Templates;
 using Horde.Server.Perforce;
@@ -31,7 +32,6 @@ using Horde.Server.Projects;
 using Horde.Server.Replicators;
 using Horde.Server.Server;
 using Horde.Server.Utilities;
-using HordeCommon.Rpc.Tasks;
 
 namespace Horde.Server.Streams
 {

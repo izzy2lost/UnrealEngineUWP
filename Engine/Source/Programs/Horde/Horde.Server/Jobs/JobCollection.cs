@@ -25,7 +25,6 @@ using Horde.Server.Server;
 using Horde.Server.Streams;
 using Horde.Server.Telemetry;
 using Horde.Server.Utilities;
-using HordeCommon.Rpc.Tasks;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MongoDB.Bson;
