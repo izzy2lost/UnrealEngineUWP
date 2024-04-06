@@ -58,6 +58,9 @@ public:
 
 	/** The asset registry tag that contains whether it was created from a VCam */
 	static const FName AssetRegistryTag_bIsCreatedFromVCam;
+
+	/* The asset registry tag that contains the post smooth level*/
+	static const FName AssetRegistryTag_PostSmoothLevel;
 	
 public:
 
@@ -108,6 +111,10 @@ public:
 	/** The asset registry tag that contains whether it was created from a VCam */
 	UFUNCTION(BlueprintPure, Category = "VirtualCamera|Clips")
 	static FName GetClipsMetaDataTag_IsCreatedFromVCam() { return AssetRegistryTag_bIsCreatedFromVCam; }
+
+	/** The asset registry tag that contains post smooth level */
+	UFUNCTION(BlueprintPure, Category = "VirtualCamera|Clips")
+	static FName GetClipsMetaDataTag_PostSmoothLevel() { return AssetRegistryTag_PostSmoothLevel; }
 
 	/** Gets all asset registry tags */
 	UFUNCTION(BlueprintPure, Category = "VirtualCamera|Clips")
@@ -273,4 +280,8 @@ private:
 	/** Whether the sequence was created from a VCam */
 	UPROPERTY(EditAnywhere, Category = "Clips", BlueprintReadWrite, meta = (AllowPrivateAccess = "true"))
 	bool bIsCreatedFromVCam = true;
+
+	/* The asset registry tag that contains the post smooth level*/
+	UPROPERTY(EditAnywhere, Category = "Clips", BlueprintReadWrite, meta = (AllowPrivateAccess = "true"))
+	float PostSmoothLevel = 0.0f;
 };
