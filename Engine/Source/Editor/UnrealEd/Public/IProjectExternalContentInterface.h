@@ -14,17 +14,17 @@ public:
 
 	/**
      * Returns whether the specified external content is referenced by the project
-	 * @param ExternalContentId External content identifier (verse path, link code, etc)
+	 * @param ExternalContentId External content identifier (Verse path, link code, etc)
 	 */
 	virtual bool HasExternalContent(const FString& ExternalContentId) const = 0;
 
 	/** 
 	 * Returns whether the specified external content is loaded (and referenced by the project)
-	 * @param ExternalContentId External content identifier (verse path, link code, etc)
+	 * @param ExternalContentId External content identifier (Verse path, link code, etc)
 	 */
 	virtual bool IsExternalContentLoaded(const FString& ExternalContentId) const = 0;
 
-	/** Returns the list of external content referenced by the project (verse paths, link codes, etc) */
+	/** Returns the list of external content referenced by the project (Verse paths, link codes, etc) */
 	virtual TArray<FString> GetExternalContentIds() const = 0;
 
 	/**
@@ -36,7 +36,7 @@ public:
 
 	/**
 	 * Adds a reference to external content to the project and asynchronously downloads/loads the external content
-	 * @param ExternalContentId External content identifier (verse path, link code, etc)
+	 * @param ExternalContentId External content identifier (Verse path, link code, etc)
 	 * @param CompleteCallback See FAddExternalContentComplete
 	 */
 	virtual void AddExternalContent(const FString& ExternalContentId, FAddExternalContentComplete CompleteCallback = FAddExternalContentComplete()) = 0;
@@ -49,7 +49,7 @@ public:
 
 	/**
 	 * Removes references to external content from the project and unloads the external content
-	 * @param ExternalContentIds External content identifiers (verse path, link code, etc)
+	 * @param ExternalContentIds External content identifiers (Verse path, link code, etc)
 	 * @param CompleteCallback See FRemoveExternalContentComplete
 	 */
 	virtual void RemoveExternalContent(TConstArrayView<FString> ExternalContentIds, FRemoveExternalContentComplete CompleteCallback = FRemoveExternalContentComplete()) = 0;
