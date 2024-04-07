@@ -20,6 +20,7 @@ using EpicGames.Horde.Logs;
 using EpicGames.Horde.Streams;
 using EpicGames.Horde.Users;
 using Horde.Server.Agents;
+using Horde.Server.Commits;
 using Horde.Server.Issues;
 using Horde.Server.Jobs.Bisect;
 using Horde.Server.Jobs.Graphs;

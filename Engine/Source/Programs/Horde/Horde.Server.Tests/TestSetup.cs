@@ -29,6 +29,7 @@ using Horde.Server.Agents.Sessions;
 using Horde.Server.Agents.Utilization;
 using Horde.Server.Artifacts;
 using Horde.Server.Auditing;
+using Horde.Server.Commits;
 using Horde.Server.Compute;
 using Horde.Server.Configuration;
 using Horde.Server.Dashboard;

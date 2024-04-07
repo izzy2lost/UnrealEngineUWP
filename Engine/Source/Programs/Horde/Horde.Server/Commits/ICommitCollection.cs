@@ -9,7 +9,7 @@ using EpicGames.Horde.Commits;
 using EpicGames.Perforce;
 using Horde.Server.Jobs.Templates;
 
-namespace Horde.Server.Perforce
+namespace Horde.Server.Commits
 {
 	/// <summary>
 	/// VCS abstraction. Provides information about commits to a particular stream.

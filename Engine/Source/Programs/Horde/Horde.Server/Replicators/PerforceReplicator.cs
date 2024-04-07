@@ -16,6 +16,7 @@ using EpicGames.Horde.Storage.Bundles;
 using EpicGames.Horde.Storage.Nodes;
 using EpicGames.Horde.Streams;
 using EpicGames.Perforce;
+using Horde.Server.Commits;
 using Horde.Server.Perforce;
 using Horde.Server.Server;
 using Horde.Server.Storage;

@@ -10,6 +10,7 @@ using EpicGames.Core;
 using EpicGames.Horde.Commits;
 using EpicGames.Horde.Streams;
 using EpicGames.Horde.Users;
+using Horde.Server.Commits;
 using Horde.Server.Perforce;
 using Horde.Server.Streams;
 using Horde.Server.Users;

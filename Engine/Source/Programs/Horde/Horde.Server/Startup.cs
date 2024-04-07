@@ -53,6 +53,7 @@ using Horde.Server.Artifacts;
 using Horde.Server.Auditing;
 using Horde.Server.Authentication;
 using Horde.Server.Aws;
+using Horde.Server.Commits;
 using Horde.Server.Compute;
 using Horde.Server.Configuration;
 using Horde.Server.Dashboard;

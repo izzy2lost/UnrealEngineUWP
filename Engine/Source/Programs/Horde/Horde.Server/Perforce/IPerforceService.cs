@@ -7,6 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Horde.Commits;
 using EpicGames.Perforce;
+using Horde.Server.Commits;
 using Horde.Server.Streams;
 using Horde.Server.Users;
 

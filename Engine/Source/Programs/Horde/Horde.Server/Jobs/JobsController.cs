@@ -15,6 +15,7 @@ using EpicGames.Horde.Users;
 using Horde.Server.Acls;
 using Horde.Server.Agents;
 using Horde.Server.Artifacts;
+using Horde.Server.Commits;
 using Horde.Server.Jobs.Artifacts;
 using Horde.Server.Jobs.Graphs;
 using Horde.Server.Jobs.Templates;

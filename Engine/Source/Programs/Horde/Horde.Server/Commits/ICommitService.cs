@@ -2,7 +2,7 @@
 
 using Horde.Server.Streams;
 
-namespace Horde.Server.Perforce
+namespace Horde.Server.Commits
 {
 	/// <summary>
 	/// Provides information about commits to a stream

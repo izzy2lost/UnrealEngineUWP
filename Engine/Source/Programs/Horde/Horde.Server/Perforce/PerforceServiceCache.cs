@@ -14,6 +14,7 @@ using EpicGames.Horde.Streams;
 using EpicGames.Horde.Users;
 using EpicGames.Perforce;
 using EpicGames.Redis;
+using Horde.Server.Commits;
 using Horde.Server.Server;
 using Horde.Server.Streams;
 using Horde.Server.Users;
