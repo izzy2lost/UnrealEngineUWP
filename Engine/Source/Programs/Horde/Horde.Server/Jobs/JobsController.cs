@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Horde.Artifacts;
 using EpicGames.Horde.Jobs;
+using EpicGames.Horde.Jobs.Graphs;
 using EpicGames.Horde.Jobs.Templates;
 using EpicGames.Horde.Logs;
 using EpicGames.Horde.Streams;
@@ -719,7 +720,68 @@ namespace Horde.Server.Jobs
 			}
 
 			IGraph graph = await _jobService.GetGraphAsync(job);
-			return PropertyFilter.Apply(new GetGraphResponse(graph), filter);
+			return PropertyFilter.Apply(CreateGetGraphResponse(graph), filter);
+		}
+
+		static GetGraphResponse CreateGetGraphResponse(IGraph graph)
+		{
+			GetGraphResponse response = new GetGraphResponse(graph.Id.ToString());
+			if (graph.Groups.Count > 0)
+			{
+				response.Groups = graph.Groups.ConvertAll(x => CreateGetGroupResponse(x, graph.Groups));
+			}
+			if (graph.Aggregates.Count > 0)
+			{
+				response.Aggregates = graph.Aggregates.ConvertAll(x => CreateGetAggregateResponse(x, graph.Groups));
+			}
+			if (graph.Labels.Count > 0)
+			{
+				response.Labels = graph.Labels.ConvertAll(x => CreateGetLabelResponse(x, graph.Groups));
+			}
+			return response;
+		}
+
+		static GetGroupResponse CreateGetGroupResponse(INodeGroup group, IReadOnlyList<INodeGroup> groups)
+		{
+			GetGroupResponse response = new GetGroupResponse(group.AgentType);
+			response.Nodes.AddRange(group.Nodes.Select(x => CreateGetNodeResponse(x, groups)));
+			return response;
+		}
+
+		static GetNodeResponse CreateGetNodeResponse(INode node, IReadOnlyList<INodeGroup> groups)
+		{
+			GetNodeResponse response = new GetNodeResponse(node.Name);
+			response.Inputs.AddRange(node.Inputs.Select(x => groups[x.NodeRef.GroupIdx].Nodes[x.NodeRef.NodeIdx].OutputNames[x.OutputIdx]));
+			response.Outputs.AddRange(node.OutputNames);
+			response.InputDependencies.AddRange(node.InputDependencies.Select(x => groups[x.GroupIdx].Nodes[x.NodeIdx].Name));
+			response.OrderDependencies.AddRange(node.OrderDependencies.Select(x => groups[x.GroupIdx].Nodes[x.NodeIdx].Name));
+			response.Priority = node.Priority;
+			response.AllowRetry = node.AllowRetry;
+			response.RunEarly = node.RunEarly;
+			response.Warnings = node.Warnings;
+			response.Credentials = node.Credentials;
+			response.Properties = node.Properties;
+			response.Annotations = node.Annotations;
+			return response;
+		}
+
+		static GetAggregateResponse CreateGetAggregateResponse(IAggregate aggregate, IReadOnlyList<INodeGroup> groups)
+		{
+			GetAggregateResponse response = new GetAggregateResponse(aggregate.Name);
+			response.Nodes = aggregate.Nodes.ConvertAll(x => x.ToNode(groups).Name);
+			return response;
+		}
+
+		static GetLabelResponse CreateGetLabelResponse(ILabel label, IReadOnlyList<INodeGroup> groups)
+		{
+			GetLabelResponse response = new GetLabelResponse();
+			response.DashboardName = label.DashboardName;
+			response.DashboardCategory = label.DashboardCategory;
+			response.UgsName = label.UgsName;
+			response.UgsProject = label.UgsProject;
+			response.RequiredNodes = label.RequiredNodes.ConvertAll(x => x.ToNode(groups).Name);
+			response.IncludedNodes = label.IncludedNodes.ConvertAll(x => x.ToNode(groups).Name);
+			return response;
 		}
 
 		/// <summary>
@@ -1100,7 +1162,7 @@ namespace Horde.Server.Jobs
 			}
 
 			IGraph graph = await _jobService.GetGraphAsync(job, cancellationToken);
-			return graph.Groups.ConvertAll(x => new GetGroupResponse(x, graph.Groups).ApplyFilter(filter));
+			return graph.Groups.ConvertAll(x => CreateGetGroupResponse(x, graph.Groups).ApplyFilter(filter));
 		}
 
 		/// <summary>
@@ -1139,7 +1201,7 @@ namespace Horde.Server.Jobs
 				return NotFound(jobId, groupIdx);
 			}
 
-			return new GetGroupResponse(graph.Groups[groupIdx], graph.Groups).ApplyFilter(filter);
+			return CreateGetGroupResponse(graph.Groups[groupIdx], graph.Groups).ApplyFilter(filter);
 		}
 
 		/// <summary>
@@ -1176,7 +1238,7 @@ namespace Horde.Server.Jobs
 				return NotFound(jobId, groupIdx);
 			}
 
-			return graph.Groups[groupIdx].Nodes.ConvertAll(x => new GetNodeResponse(x, graph.Groups).ApplyFilter(filter));
+			return graph.Groups[groupIdx].Nodes.ConvertAll(x => CreateGetNodeResponse(x, graph.Groups).ApplyFilter(filter));
 		}
 
 		/// <summary>
@@ -1218,7 +1280,7 @@ namespace Horde.Server.Jobs
 				return NotFound(jobId, groupIdx, nodeIdx);
 			}
 
-			return new GetNodeResponse(graph.Groups[groupIdx].Nodes[nodeIdx], graph.Groups).ApplyFilter(filter);
+			return CreateGetNodeResponse(graph.Groups[groupIdx].Nodes[nodeIdx], graph.Groups).ApplyFilter(filter);
 		}
 
 		/// <summary>

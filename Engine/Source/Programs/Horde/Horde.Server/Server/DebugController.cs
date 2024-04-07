@@ -13,7 +13,6 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Web;
-using EpicGames.Core;
 using EpicGames.Horde.Agents.Leases;
 using EpicGames.Horde.Compute;
 using EpicGames.Horde.Jobs;
@@ -23,7 +22,6 @@ using Horde.Common.Rpc;
 using Horde.Server.Agents.Relay;
 using Horde.Server.Configuration;
 using Horde.Server.Jobs;
-using Horde.Server.Jobs.Graphs;
 using Horde.Server.Logs;
 using Horde.Server.Projects;
 using Horde.Server.Streams;
@@ -260,7 +258,6 @@ namespace Horde.Server.Server
 		private readonly AgentRelayService _agentRelayService;
 		private readonly JobService _jobService;
 		private readonly JobTaskSource _jobTaskSource;
-		private readonly IGraphCollection _graphCollection;
 		private readonly ILogFileCollection _logFileCollection;
 		private readonly IOptionsSnapshot<GlobalConfig> _globalConfig;
 		private readonly ILogger<SecureDebugController> _logger;
@@ -274,7 +271,6 @@ namespace Horde.Server.Server
 			AgentRelayService agentRelayService,
 			JobService jobService,
 			JobTaskSource jobTaskSource,
-			IGraphCollection graphCollection,
 			ILogFileCollection logFileCollection, IOptionsSnapshot<GlobalConfig> globalConfig, ILogger<SecureDebugController> logger)
 		{
 			_mongoService = mongoService;
@@ -282,7 +278,6 @@ namespace Horde.Server.Server
 			_jobService = jobService;
 			_agentRelayService = agentRelayService;
 			_jobTaskSource = jobTaskSource;
-			_graphCollection = graphCollection;
 			_logFileCollection = logFileCollection;
 			_globalConfig = globalConfig;
 			_logger = logger;
@@ -497,42 +492,6 @@ namespace Horde.Server.Server
 #pragma warning restore CA2254
 
 			return Ok($"Log message generated logLevel={logLevelInternal} messageLen={messageLen} exceptionMessageLen={exceptionMessageLen} argCount={argCount} argLen={argLen}");
-		}
-
-		/// <summary>
-		/// Queries for all graphs
-		/// </summary>
-		/// <returns>The graph definitions</returns>
-		[HttpGet]
-		[Route("/api/v1/debug/graphs")]
-		[ProducesResponseType(200, Type = typeof(GetGraphResponse))]
-		public async Task<ActionResult<List<object>>> GetGraphsAsync([FromQuery] int? index = null, [FromQuery] int? count = null, [FromQuery] PropertyFilter? filter = null)
-		{
-			if (!_globalConfig.Value.Authorize(ServerAclAction.Debug, User))
-			{
-				return Forbid(ServerAclAction.Debug);
-			}
-
-			List<IGraph> graphs = await _graphCollection.FindAllAsync(null, index, count);
-			return graphs.ConvertAll(x => new GetGraphResponse(x).ApplyFilter(filter));
-		}
-
-		/// <summary>
-		/// Queries for a particular graph by hash
-		/// </summary>
-		/// <returns>The graph definition</returns>
-		[HttpGet]
-		[Route("/api/v1/debug/graphs/{GraphId}")]
-		[ProducesResponseType(200, Type = typeof(GetGraphResponse))]
-		public async Task<ActionResult<object>> GetGraphAsync(string graphId, [FromQuery] PropertyFilter? filter = null)
-		{
-			if (!_globalConfig.Value.Authorize(ServerAclAction.Debug, User))
-			{
-				return Forbid(ServerAclAction.Debug);
-			}
-
-			IGraph graph = await _graphCollection.GetAsync(ContentHash.Parse(graphId));
-			return new GetGraphResponse(graph).ApplyFilter(filter);
 		}
 
 		/// <summary>

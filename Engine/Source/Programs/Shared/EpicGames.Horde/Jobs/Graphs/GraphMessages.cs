@@ -3,9 +3,8 @@
 using System.Collections.Generic;
 using System.Linq;
 using EpicGames.Core;
-using EpicGames.Horde.Jobs;
 
-namespace Horde.Server.Jobs.Graphs
+namespace EpicGames.Horde.Jobs.Graphs
 {
 	/// <summary>
 	/// Information required to create a node
@@ -30,12 +29,12 @@ namespace Horde.Server.Jobs.Graphs
 		/// <summary>
 		/// Indices of nodes which must have succeeded for this node to run
 		/// </summary>
-		public List<string> InputDependencies { get; set; }
+		public List<string> InputDependencies { get; set; } = new List<string>();
 
 		/// <summary>
 		/// Indices of nodes which must have completed for this node to run
 		/// </summary>
-		public List<string> OrderDependencies { get; set; }
+		public List<string> OrderDependencies { get; set; } = new List<string>();
 
 		/// <summary>
 		/// The priority of this node
@@ -80,22 +79,10 @@ namespace Horde.Server.Jobs.Graphs
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		/// <param name="node">The node to construct from</param>
-		/// <param name="groups">The groups in the graph</param>
-		public GetNodeResponse(INode node, IReadOnlyList<INodeGroup> groups)
+		/// <param name="name"></param>
+		public GetNodeResponse(string name)
 		{
-			Name = node.Name;
-			Inputs.AddRange(node.Inputs.Select(x => groups[x.NodeRef.GroupIdx].Nodes[x.NodeRef.NodeIdx].OutputNames[x.OutputIdx]));
-			Outputs.AddRange(node.OutputNames);
-			InputDependencies = new List<string>(node.InputDependencies.Select(x => groups[x.GroupIdx].Nodes[x.NodeIdx].Name));
-			OrderDependencies = new List<string>(node.OrderDependencies.Select(x => groups[x.GroupIdx].Nodes[x.NodeIdx].Name));
-			Priority = node.Priority;
-			AllowRetry = node.AllowRetry;
-			RunEarly = node.RunEarly;
-			Warnings = node.Warnings;
-			Credentials = node.Credentials;
-			Properties = node.Properties;
-			Annotations = node.Annotations;
+			Name = name;
 		}
 	}
 
@@ -112,17 +99,14 @@ namespace Horde.Server.Jobs.Graphs
 		/// <summary>
 		/// Nodes in the group
 		/// </summary>
-		public List<GetNodeResponse> Nodes { get; set; }
+		public List<GetNodeResponse> Nodes { get; set; } = new List<GetNodeResponse>();
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		/// <param name="group">The group to construct from</param>
-		/// <param name="groups">Other groups in this graph</param>
-		public GetGroupResponse(INodeGroup group, IReadOnlyList<INodeGroup> groups)
+		public GetGroupResponse(string agentType)
 		{
-			AgentType = group.AgentType;
-			Nodes = group.Nodes.ConvertAll(x => new GetNodeResponse(x, groups));
+			AgentType = agentType;
 		}
 	}
 
@@ -139,17 +123,14 @@ namespace Horde.Server.Jobs.Graphs
 		/// <summary>
 		/// Nodes which must be part of the job for the aggregate to be shown
 		/// </summary>
-		public List<string> Nodes { get; set; }
+		public List<string> Nodes { get; set; } = new List<string>();
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		/// <param name="aggregate">The aggregate to construct from</param>
-		/// <param name="groups">List of groups in this graph</param>
-		public GetAggregateResponse(IAggregate aggregate, IReadOnlyList<INodeGroup> groups)
+		public GetAggregateResponse(string name)
 		{
-			Name = aggregate.Name;
-			Nodes = aggregate.Nodes.ConvertAll(x => x.ToNode(groups).Name);
+			Name = name;
 		}
 	}
 
@@ -191,27 +172,12 @@ namespace Horde.Server.Jobs.Graphs
 		/// <summary>
 		/// Nodes which must be part of the job for the aggregate to be shown
 		/// </summary>
-		public List<string> RequiredNodes { get; set; }
+		public List<string> RequiredNodes { get; set; } = new List<string>();
 
 		/// <summary>
 		/// Nodes to include in the status of this aggregate, if present in the job
 		/// </summary>
-		public List<string> IncludedNodes { get; set; }
-
-		/// <summary>
-		/// Constructor
-		/// </summary>
-		/// <param name="label">The label to construct from</param>
-		/// <param name="groups">List of groups in this graph</param>
-		public GetLabelResponse(ILabel label, IReadOnlyList<INodeGroup> groups)
-		{
-			DashboardName = label.DashboardName;
-			DashboardCategory = label.DashboardCategory;
-			UgsName = label.UgsName;
-			UgsProject = label.UgsProject;
-			RequiredNodes = label.RequiredNodes.ConvertAll(x => x.ToNode(groups).Name);
-			IncludedNodes = label.IncludedNodes.ConvertAll(x => x.ToNode(groups).Name);
-		}
+		public List<string> IncludedNodes { get; set; } = new List<string>();
 	}
 
 	/// <summary>
@@ -242,22 +208,9 @@ namespace Horde.Server.Jobs.Graphs
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		/// <param name="graph">The graph to construct from</param>
-		public GetGraphResponse(IGraph graph)
+		public GetGraphResponse(string hash)
 		{
-			Hash = graph.Id.ToString();
-			if (graph.Groups.Count > 0)
-			{
-				Groups = graph.Groups.ConvertAll(x => new GetGroupResponse(x, graph.Groups));
-			}
-			if (graph.Aggregates.Count > 0)
-			{
-				Aggregates = graph.Aggregates.ConvertAll(x => new GetAggregateResponse(x, graph.Groups));
-			}
-			if (graph.Labels.Count > 0)
-			{
-				Labels = graph.Labels.ConvertAll(x => new GetLabelResponse(x, graph.Groups));
-			}
+			Hash = hash;
 		}
 	}
 }
