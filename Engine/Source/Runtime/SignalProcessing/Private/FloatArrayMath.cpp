@@ -2382,6 +2382,164 @@ namespace Audio
 		}
 	}
 	
+	constexpr int CreateByteMask(uint32 A, uint32 B, uint32 C, uint32 D)
+	{
+		return A | (B << 8) | (C << 16) | (D << 24);
+	}
+
+	void ArrayFloatToPcm24(TArrayView<const float> InView, TArrayView<int8> OutView)
+	{
+		CSV_SCOPED_TIMING_STAT(Audio_Dsp, ArrayFloatToPcm24);
+
+        const int32 Num = InView.Num();
+		const float* InputPtr = InView.GetData();
+		int8* OutPtr = OutView.GetData();
+
+        int32 InIndex = 0;
+        int32 OutIndex = 0;
+        
+        constexpr int32 SizeofPCM24 = 3;
+        constexpr float ConversionValue = static_cast<float>(0x7fffff);
+        // Output byte order must adhere to host endianess
+        const bool bIsOutputLittleEndian = IsHostLittleEndian();
+
+#if PLATFORM_ENABLE_VECTORINTRINSICS && !PLATFORM_ENABLE_VECTORINTRINSICS_NEON
+        constexpr int32 SimdIndexStride = (4 * SizeofPCM24);
+        check((OutView.Num() / SizeofPCM24) >= InView.Num());
+
+		const VectorRegister4Float Multiplier = VectorSetFloat1(ConversionValue);
+
+		// In the SIMD loop below, we overwrite an extra 4 bytes of zeros. The ZeroFillMargin
+		// is used to ensure we don't write off the end of the output array.
+		const int32 ZeroFillMargin = 2;
+		const int32 SimdNum = (Num - ZeroFillMargin) & MathIntrinsics::SimdMask;
+
+		// 0x80 designates zero fill for the _mm_shuffle_epi8 intrinsic
+		constexpr uint32 ZeroFill = 0x80;
+		// Here we convert from 4 32-bit ints to 4 24-bit ints using the mask register below.
+		// Notice that every 4th byte is skipped. This is the uneeded high byte of the 32-bit int.
+		VectorRegister4Int Mask;
+		if (bIsOutputLittleEndian)
+		{
+			Mask = MakeVectorRegisterInt(
+				CreateByteMask(0, 1, 2, 4),
+				CreateByteMask(5, 6, 8, 9),
+				CreateByteMask(10, 12, 13, 14),
+				CreateByteMask(ZeroFill, ZeroFill, ZeroFill, ZeroFill));
+		}
+		else
+		{
+			Mask = MakeVectorRegisterInt(
+				CreateByteMask(2, 1, 0, 6),
+				CreateByteMask(5, 4, 10, 9),
+				CreateByteMask(8, 14, 13, 12),
+				CreateByteMask(ZeroFill, ZeroFill, ZeroFill, ZeroFill));
+		}
+
+		for (; InIndex < SimdNum; InIndex += AUDIO_NUM_FLOATS_PER_VECTOR_REGISTER)
+		{
+			const VectorRegister4Float InVector = VectorLoad(&InputPtr[InIndex]);
+			const VectorRegister4Float ScaledVector = VectorMultiply(InVector, Multiplier);
+			const VectorRegister4Int IntVector = VectorFloatToInt(ScaledVector);
+
+			const VectorRegister4Int OutVector = VectorShuffleByte4(IntVector, Mask);
+			VectorIntStore(OutVector, &OutPtr[OutIndex]);
+			OutIndex += SimdIndexStride;
+		}
+#endif // PLATFORM_ENABLE_VECTORINTRINSICS && !PLATFORM_ENABLE_VECTORINTRINSICS_NEON
+        
+		for (; InIndex < Num; InIndex++)
+		{
+			const int32 ConvertedValue = InputPtr[InIndex] * ConversionValue;
+
+			AssignPcm24Value(&OutPtr[OutIndex], ConvertedValue, bIsOutputLittleEndian);
+			OutIndex += SizeofPCM24;
+		}
+	}
+
+	FORCEINLINE void AssignPcm24Value(int8* OutPtr, const int32 InValue, const bool bIsOutputLittleEndian)
+	{
+		uint8* UnsignedOutPtr = (uint8*)OutPtr;
+		const uint32 UnsignedInValue = (const uint32)InValue;
+
+		if (bIsOutputLittleEndian)
+		{
+			UnsignedOutPtr[0] = UnsignedInValue & 0xFF;
+			UnsignedOutPtr[1] = UnsignedInValue >> 8 & 0xFF;
+			UnsignedOutPtr[2] = UnsignedInValue >> 16 & 0xFF;
+		}
+		else
+		{
+			UnsignedOutPtr[2] = UnsignedInValue & 0xFF;
+			UnsignedOutPtr[1] = UnsignedInValue >> 8 & 0xFF;
+			UnsignedOutPtr[0] = UnsignedInValue >> 16 & 0xFF;
+		}
+	}
+
+	void ArrayFloatToPcm32(TArrayView<const float> InView, TArrayView<int32> OutView)
+	{
+		CSV_SCOPED_TIMING_STAT(Audio_Dsp, ArrayFloatToPcm32);
+
+		check(OutView.Num() >= InView.Num());
+
+		const int32 Num = InView.Num();
+		const float* InputPtr = InView.GetData();
+		int32* OutPtr = OutView.GetData();
+
+        int32 Index = 0;
+        // Use double precision due to the limitations of
+        // single precision floats (e.g. values >= 2^24 get rounded)
+        constexpr double ConversionValue = static_cast<double>(TNumericLimits<int32>::Max());
+
+#if PLATFORM_ENABLE_VECTORINTRINSICS && !PLATFORM_ENABLE_VECTORINTRINSICS_NEON
+		const VectorRegister4Double Multiplier = VectorSetFloat1(ConversionValue);
+
+		const int32 SimdNum = Num & MathIntrinsics::SimdMask;
+		for (; Index < SimdNum; Index += AUDIO_NUM_FLOATS_PER_VECTOR_REGISTER)
+		{
+			const VectorRegister4Float InputVectorFloat = VectorLoad(&InputPtr[Index]);
+			const VectorRegister4Double InputVector = MakeVectorRegisterDouble(InputVectorFloat);
+			const VectorRegister4Double ScaledVector = VectorMultiply(InputVector, Multiplier);
+			
+			const VectorRegister4Int OutVector = VectorDoubleToInt(ScaledVector);
+			VectorIntStore(OutVector, &OutPtr[Index]);
+		}
+#endif // PLATFORM_ENABLE_VECTORINTRINSICS && !PLATFORM_ENABLE_VECTORINTRINSICS_NEON
+        
+		for (; Index < Num; Index++)
+		{
+			const double Value = InputPtr[Index];
+			OutPtr[Index] = static_cast<int32>(Value * ConversionValue);
+		}
+	}
+
+	void ArrayFloatToPcmDouble(TArrayView<const float> InView, TArrayView<double> OutView)
+	{
+		CSV_SCOPED_TIMING_STAT(Audio_Dsp, ArrayFloatToPcmDouble);
+
+		check(OutView.Num() >= InView.Num());
+
+		const int32 Num = InView.Num();
+
+		const float* InputPtr = InView.GetData();
+		double* OutPtr = OutView.GetData();
+
+		int32 Index = 0;
+		const int32 SimdNum = Num & MathIntrinsics::SimdMask;
+		for (; Index < SimdNum; Index += AUDIO_NUM_FLOATS_PER_VECTOR_REGISTER)
+		{
+			const VectorRegister4Float InputVectorFloat = VectorLoad(&InputPtr[Index]);
+			const VectorRegister4Double OutVector = MakeVectorRegisterDouble(InputVectorFloat);
+
+			VectorStore(OutVector, &OutPtr[Index]);
+		}
+
+		for (; Index < Num; ++Index)
+		{
+			OutPtr[Index] = (double)InputPtr[Index];
+		}
+	}
+
 	void ArrayInterleave(const TArray<FAlignedFloatBuffer>& InBuffers, FAlignedFloatBuffer& OutBuffer)
 	{
 		if(InBuffers.Num() == 0)
@@ -2429,6 +2587,15 @@ namespace Audio
 		
 		const int32 NumFrames = InBuffer.Num() / InChannels;
 
+		ArrayDeinterleave(TArrayView<const float>(InBuffer.GetData(), NumFrames), OutBuffers, InChannels);
+	}
+
+	void ArrayDeinterleave(const TArrayView<const float> InView, TArray<FAlignedFloatBuffer>& OutBuffers, const int32 InChannels)
+	{
+		check(InChannels > 0);
+		
+		const int32 NumFrames = InView.Num();
+
 		TArray<float*> BufferPtrArray;
 		BufferPtrArray.Reset(InChannels);
 
@@ -2444,7 +2611,7 @@ namespace Audio
 		
 		float** OutBufferPtr = BufferPtrArray.GetData();
 		
-		ArrayDeinterleave(InBuffer.GetData(), OutBufferPtr, NumFrames, InChannels);
+		ArrayDeinterleave(InView.GetData(), OutBufferPtr, NumFrames, InChannels);
 	}
 
 	void ArrayDeinterleave(const float* RESTRICT InBuffer, float* const* RESTRICT OutBuffers, const int32 InFrames, const int32 InChannels)
@@ -2544,6 +2711,160 @@ namespace Audio
 
 				SampleIndex += SampleStride;
 			}
+		}
+	}
+
+	void ArrayInt16SwapBytes(TArrayView<int16> InView)
+	{
+		CSV_SCOPED_TIMING_STAT(Audio_Dsp, ArrayInt16SwapBytes);
+
+		const int32 Num = InView.Num();
+		int16* InputPtr = InView.GetData();
+
+		int32 Index = 0;
+		const int32 SimdNum = Num & MathIntrinsics::Simd8Mask;
+		constexpr int32 NumInt16PerVectorRegister = sizeof(VectorRegister4Int) / sizeof(int16);
+
+		const VectorRegister4Int LeftMask = VectorIntSet1(0x00ff00ff);
+		const VectorRegister4Int RightMask = VectorIntSet1(0xff00ff00);
+
+		for (; Index < SimdNum; Index += NumInt16PerVectorRegister)
+		{
+			VectorRegister4Int InputVector = VectorIntLoad(&InputPtr[Index]);
+
+			const VectorRegister4Int LeftVector = VectorShiftLeftImm(VectorIntAnd(InputVector, LeftMask), 8);
+			const VectorRegister4Int RightVector = VectorShiftRightImmLogical(VectorIntAnd(InputVector, RightMask), 8);
+
+			InputVector = VectorIntOr(LeftVector, RightVector);
+
+			VectorIntStore(InputVector, &InputPtr[Index]);
+		}
+
+		for (; Index < Num; Index++)
+		{
+			InputPtr[Index] = BYTESWAP_ORDER16(InputPtr[Index]);
+		}
+	}
+
+	void ArrayInt24SwapBytes(TArrayView<int8> InView)
+	{
+		CSV_SCOPED_TIMING_STAT(Audio_Dsp, ArrayInt24SwapBytes);
+
+        const int32 NumBytes = InView.Num();
+        int8* InputPtr = InView.GetData();
+
+        int32 Index = 0;
+        constexpr int32 SizeofPCM24 = 3;
+
+#if PLATFORM_ENABLE_VECTORINTRINSICS && !PLATFORM_ENABLE_VECTORINTRINSICS_NEON
+		// We can fit 5 PCM24 samples into a vector register with one byte left over
+		constexpr int32 NumPCM24PerVectorRegister = sizeof(VectorRegister4Int) / SizeofPCM24;
+		constexpr int32 SimdIndexStride = (NumPCM24PerVectorRegister * SizeofPCM24);
+
+		const int32 MaxSimdBytes = NumBytes - sizeof(VectorRegister4Int);
+
+		VectorRegister4Int Mask = MakeVectorRegisterInt(
+			CreateByteMask(2, 1, 0, 5),
+			CreateByteMask(4, 3, 8, 7),
+			CreateByteMask(6, 11, 10, 9),
+			CreateByteMask(14, 13, 12, 15));
+
+		for (; Index < MaxSimdBytes; Index += SimdIndexStride)
+		{
+			const VectorRegister4Int InputVector = VectorIntLoad(&InputPtr[Index]);
+			const VectorRegister4Int OutVector = VectorShuffleByte4(InputVector, Mask);
+
+			VectorIntStore(OutVector, &InputPtr[Index]);
+		}
+#endif //PLATFORM_ENABLE_VECTORINTRINSICS && !PLATFORM_ENABLE_VECTORINTRINSICS_NEON
+        
+		for (; Index < NumBytes; Index += SizeofPCM24)
+		{
+			int8 TempValue = InputPtr[Index];
+
+			InputPtr[Index] = InputPtr[Index + 2];
+			InputPtr[Index + 2] = TempValue;
+		}
+	}
+
+	void ArrayInt32SwapBytes(TArrayView<int32> InView)
+	{
+		CSV_SCOPED_TIMING_STAT(Audio_Dsp, ArrayInt32SwapBytes);
+
+		const int32 Num = InView.Num();
+		int32* InputPtr = InView.GetData();
+
+        int32 Index = 0;
+
+#if PLATFORM_ENABLE_VECTORINTRINSICS && !PLATFORM_ENABLE_VECTORINTRINSICS_NEON
+		const int32 SimdNum = Num & MathIntrinsics::SimdMask;
+		constexpr int32 NumInt32PerVectorRegister = sizeof(VectorRegister4Int) / sizeof(int32);
+
+		VectorRegister4Int Mask = MakeVectorRegisterInt(
+			CreateByteMask(3, 2, 1, 0),
+			CreateByteMask(7, 6, 5, 4),
+			CreateByteMask(11, 10, 9, 8),
+			CreateByteMask(15, 14, 13, 12));
+
+		for (; Index < SimdNum; Index += NumInt32PerVectorRegister)
+		{
+			const VectorRegister4Int InputVector = VectorIntLoad(&InputPtr[Index]);
+
+			// Byte shuffle is approximately 2x faster than mask and shift method in this case
+			const VectorRegister4Int OutVector = VectorShuffleByte4(InputVector, Mask);
+
+			VectorIntStore(OutVector, &InputPtr[Index]);
+		}
+#endif // PLATFORM_ENABLE_VECTORINTRINSICS && !PLATFORM_ENABLE_VECTORINTRINSICS_NEON
+        
+		for (; Index < Num; Index++)
+		{
+			InputPtr[Index] = BYTESWAP_ORDER32(InputPtr[Index]);
+		}
+	}
+
+	void ArrayFloatSwapBytes(TArrayView<float> InView)
+	{
+		CSV_SCOPED_TIMING_STAT(Audio_Dsp, ArrayFloatSwapBytes);
+
+		ArrayInt32SwapBytes(TArrayView<int32>((int32*)InView.GetData(), InView.Num()));
+	}
+
+	void ArrayDoubleSwapBytes(TArrayView<double> InView)
+	{
+		CSV_SCOPED_TIMING_STAT(Audio_Dsp, ArrayDoubleSwapBytes);
+
+		const int32 Num = InView.Num();
+		double* InputPtr = InView.GetData();
+
+        int32 Index = 0;
+
+#if PLATFORM_ENABLE_VECTORINTRINSICS && !PLATFORM_ENABLE_VECTORINTRINSICS_NEON
+		const int32 SimdNum = Num & MathIntrinsics::SimdMask;
+		constexpr int32 NumDoublePerVectorRegister = sizeof(VectorRegister4Double) / sizeof(double);
+
+		VectorRegister4Int Mask = MakeVectorRegisterInt(
+			CreateByteMask(7, 6, 5, 4),
+			CreateByteMask(3, 2, 1, 0),
+			CreateByteMask(15, 14, 13, 12),
+			CreateByteMask(11, 10, 9, 8));
+
+		for (; Index < SimdNum; Index += NumDoublePerVectorRegister)
+		{
+			const VectorRegister4Double InputVector = VectorLoad(&InputPtr[Index]);
+
+			const VectorRegister4Int OutVectorXY = VectorShuffleByte4(VectorCastDoubleToInt(InputVector.XY), Mask);
+			const VectorRegister4Int OutVectorZW = VectorShuffleByte4(VectorCastDoubleToInt(InputVector.ZW), Mask);
+
+			const VectorRegister4Double OutVector(VectorCastIntToDouble(OutVectorXY), VectorCastIntToDouble(OutVectorZW));
+
+			VectorStore(OutVector, &InputPtr[Index]);
+		}
+#endif //PLATFORM_ENABLE_VECTORINTRINSICS && !PLATFORM_ENABLE_VECTORINTRINSICS_NEON
+        
+		for (; Index < Num; Index++)
+		{
+			InputPtr[Index] = BYTESWAP_ORDERD(InputPtr[Index]);
 		}
 	}
 

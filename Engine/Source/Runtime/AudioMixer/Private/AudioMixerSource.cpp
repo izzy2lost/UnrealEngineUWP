@@ -637,6 +637,13 @@ namespace Audio
 			if (ActiveSound)
 			{
 				InitParams.AudioComponentUserID = WaveInstance->ActiveSound->GetAudioComponentUserID();
+#if AUDIO_MIXER_ENABLE_DEBUG_MODE
+				if (InitParams.AudioComponentUserID.IsNone())
+				{
+					InitParams.AudioComponentUserID = ActiveSound->GetSound()->GetFName();
+
+				}
+#endif // AUDIO_MIXER_ENABLE_DEBUG_MODE
 				InitParams.AudioComponentID = WaveInstance->ActiveSound->GetAudioComponentID();
 			}
 

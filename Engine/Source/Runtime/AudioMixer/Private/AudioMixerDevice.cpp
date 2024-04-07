@@ -1290,16 +1290,22 @@ namespace Audio
 
  	FAudioPlatformSettings FMixerDevice::GetPlatformSettings() const
  	{
-		FAudioPlatformSettings Settings = AudioMixerPlatform->GetPlatformSettings();
+		FAudioPlatformSettings
+			Settings;
 
-		const int32 DefaultMaxChannels = GetDefault<UAudioSettings>()->GetHighestMaxChannels();
-		UE_LOG(LogAudioMixer, Display, TEXT("Audio Mixer Platform Settings:"));
-		UE_LOG(LogAudioMixer, Display, TEXT("	Sample Rate:						  %d"), Settings.SampleRate);
-		UE_LOG(LogAudioMixer, Display, TEXT("	Callback Buffer Frame Size Requested: %d"), Settings.CallbackBufferFrameSize);
-		UE_LOG(LogAudioMixer, Display, TEXT("	Callback Buffer Frame Size To Use:	  %d"), AudioMixerPlatform->GetNumFrames(Settings.CallbackBufferFrameSize));
-		UE_LOG(LogAudioMixer, Display, TEXT("	Number of buffers to queue:			  %d"), Settings.NumBuffers);
-		UE_LOG(LogAudioMixer, Display, TEXT("	Max Channels (voices):				  %d"), (Settings.MaxChannels > 0) ? Settings.MaxChannels : DefaultMaxChannels);
-		UE_LOG(LogAudioMixer, Display, TEXT("	Number of Async Source Workers:		  %d"), Settings.NumSourceWorkers);
+		if (AudioMixerPlatform)
+		{
+			Settings = AudioMixerPlatform->GetPlatformSettings();
+
+			const int32 DefaultMaxChannels = GetDefault<UAudioSettings>()->GetHighestMaxChannels();
+			UE_LOG(LogAudioMixer, Display, TEXT("Audio Mixer Platform Settings:"));
+			UE_LOG(LogAudioMixer, Display, TEXT("	Sample Rate:						  %d"), Settings.SampleRate);
+			UE_LOG(LogAudioMixer, Display, TEXT("	Callback Buffer Frame Size Requested: %d"), Settings.CallbackBufferFrameSize);
+			UE_LOG(LogAudioMixer, Display, TEXT("	Callback Buffer Frame Size To Use:	  %d"), AudioMixerPlatform->GetNumFrames(Settings.CallbackBufferFrameSize));
+			UE_LOG(LogAudioMixer, Display, TEXT("	Number of buffers to queue:			  %d"), Settings.NumBuffers);
+			UE_LOG(LogAudioMixer, Display, TEXT("	Max Channels (voices):				  %d"), (Settings.MaxChannels > 0) ? Settings.MaxChannels : DefaultMaxChannels);
+			UE_LOG(LogAudioMixer, Display, TEXT("	Number of Async Source Workers:		  %d"), Settings.NumSourceWorkers);
+		}
 
  		return Settings;
  	}

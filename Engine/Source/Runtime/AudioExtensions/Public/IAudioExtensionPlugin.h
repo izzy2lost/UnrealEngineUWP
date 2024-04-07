@@ -347,6 +347,11 @@ public:
 	{
 	}
 
+	virtual void OnInitSource(const uint32 SourceId, const FName& AudioComponentUserId, const uint32 NumChannels, USpatializationPluginSourceSettingsBase* InSettings)
+	{
+		OnInitSource(SourceId, AudioComponentUserId, InSettings);
+	}
+
 	/** Called when a source is done playing and is released. */
 	virtual void OnReleaseSource(const uint32 SourceId)
 	{
