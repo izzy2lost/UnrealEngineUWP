@@ -144,9 +144,11 @@ void FRigVMBlueprintUtils::HandleAssetDeleted(const FAssetData& InAssetData)
 	if (InAssetData.GetClass() && InAssetData.GetClass()->IsChildOf(URigVMBlueprint::StaticClass()))
 	{
 		// Make sure any RigVMBlueprint removes any TypeActions related to this asset (e.g. public functions)
-		FBlueprintActionDatabase& ActionDatabase = FBlueprintActionDatabase::Get();
-		ActionDatabase.ClearAssetActions(InAssetData.GetClass());
-		ActionDatabase.RefreshClassActions(InAssetData.GetClass());
+		if (FBlueprintActionDatabase* ActionDatabase = FBlueprintActionDatabase::TryGet())
+		{
+			ActionDatabase->ClearAssetActions(InAssetData.GetClass());
+			ActionDatabase->RefreshClassActions(InAssetData.GetClass());
+		}
 	}
 }
 
