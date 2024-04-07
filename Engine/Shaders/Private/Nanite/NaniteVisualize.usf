@@ -855,20 +855,96 @@ void PickingCS(uint3 DTID : SV_DispatchThreadID, uint3 GID : SV_GroupID)
 			LocalToTranslatedWorld
 		);
 
-		// TODO: Nanite-Skinning: Visualize Approx skinned cluster bounds
 		BRANCH
 		if (bIsSkinned)
 		{
-			// ...
-		}
+			SkinningHeader = LoadNaniteSkinningHeader(InstanceData.PrimitiveId);
 
-		AddOBBTWS(
-			ShaderPrint,
-			InstanceBoxBoundsCenter - InstanceBoxBoundsExtent,
-			InstanceBoxBoundsCenter + InstanceBoxBoundsExtent,
-			InstanceBoundsColor,
-			LocalToTranslatedWorld
-		);
+			// Operate on max of 16 bones for now. This computation will be moved to the cluster generation/encoding on the CPU side.
+			static const uint IBI = 0xFFFFFFFFu;
+			uint SeenBoneIndexes[16] = {IBI, IBI, IBI, IBI, IBI, IBI, IBI, IBI, IBI, IBI, IBI, IBI, IBI, IBI, IBI, IBI};
+			float SeenBoneWeights[16] = {0.f, 0.f, 0.f, 0.f, 0.f, 0.f, 0.f, 0.f, 0.f, 0.f, 0.f, 0.f, 0.f, 0.f, 0.f, 0.f};
+
+			for (uint VertexID = 0; VertexID < Cluster.NumVerts; ++VertexID)
+			{
+				LOOP
+				for (uint InfluenceIndex = 0; InfluenceIndex < Cluster.NumBones; ++InfluenceIndex)
+				{
+					uint BoneIndex = 0;
+					float BoneWeight = 0.0f;
+					DecodeBoneInfluence(Cluster, VertexID, InfluenceIndex, BoneIndex, BoneWeight);
+
+					// Have we reached the end of weights?
+					if (BoneWeight == 0.0f)
+					{
+						break;
+					}
+					// Have we seen this bone index already?
+					for (uint SeenBoneIndex = 0; SeenBoneIndex < 16; ++SeenBoneIndex)
+					{
+						if (SeenBoneIndexes[SeenBoneIndex] == BoneIndex)
+						{
+							// Store the accumulated weight.
+							// NOTE: We're not using this for now, but this may change later.
+							SeenBoneWeights[SeenBoneIndex] += BoneWeight;
+							break;
+						}
+						if (SeenBoneIndexes[SeenBoneIndex] == IBI)
+						{
+							SeenBoneIndexes[SeenBoneIndex] = BoneIndex;
+							SeenBoneWeights[SeenBoneIndex] = BoneWeight;
+							break;
+						}
+					}
+				}
+			}
+			
+			float3 ClusterBoxMin = Cluster.BoxBoundsCenter - Cluster.BoxBoundsExtent;
+			float3 ClusterBoxMax = Cluster.BoxBoundsCenter + Cluster.BoxBoundsExtent;
+
+			float3 ClusterBoxCorners[8] = {
+				float3(ClusterBoxMin.x, ClusterBoxMin.y, ClusterBoxMin.z),
+				float3(ClusterBoxMax.x, ClusterBoxMin.y, ClusterBoxMin.z),
+				float3(ClusterBoxMin.x, ClusterBoxMax.y, ClusterBoxMin.z),
+				float3(ClusterBoxMax.x, ClusterBoxMax.y, ClusterBoxMin.z),
+				float3(ClusterBoxMin.x, ClusterBoxMin.y, ClusterBoxMax.z),
+				float3(ClusterBoxMax.x, ClusterBoxMin.y, ClusterBoxMax.z),
+				float3(ClusterBoxMin.x, ClusterBoxMax.y, ClusterBoxMax.z),
+				float3(ClusterBoxMax.x, ClusterBoxMax.y, ClusterBoxMax.z)
+			};
+				
+			float3 MinBounds = float(9999999.0f).xxx;
+			float3 MaxBounds = float(-9999999.0f).xxx;
+
+			for (uint SeenBoneIndex = 0; SeenBoneIndex < 16; ++SeenBoneIndex)
+			{
+				uint BoneIndex = SeenBoneIndexes[SeenBoneIndex];
+				if (BoneIndex == IBI)
+				{
+					break;
+				}
+				float3x4 CurrentBoneTransform = LoadNaniteBoneTransform(SkinningHeader.TransformBufferOffset + BoneIndex);
+
+				for (uint BoxCornerIndex = 0; BoxCornerIndex < 8; ++BoxCornerIndex)
+				{
+					float3 SkinnedClusterBoxCorner = mul(CurrentBoneTransform, float4(ClusterBoxCorners[BoxCornerIndex], 1.0f)) /* * BoneWeight */;
+						
+					MinBounds = min(MinBounds, SkinnedClusterBoxCorner);
+					MaxBounds = max(MaxBounds, SkinnedClusterBoxCorner);
+				}
+			}
+
+			ClusterBoxBoundsCenter = (MaxBounds + MinBounds) * 0.5f;
+			ClusterBoxBoundsExtent = (MaxBounds - MinBounds) * 0.5f;
+			
+			AddOBBTWS(
+				ShaderPrint,
+				ClusterBoxBoundsCenter - ClusterBoxBoundsExtent,
+				ClusterBoxBoundsCenter + ClusterBoxBoundsExtent,
+				ApproximateClusterBoundsColor,
+				LocalToTranslatedWorld
+			);
+		}
 
 		AddReferentialTWS(ShaderPrint, LocalToTranslatedWorld, 50.f);
 
