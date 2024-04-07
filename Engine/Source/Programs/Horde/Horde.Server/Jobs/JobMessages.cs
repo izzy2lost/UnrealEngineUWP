@@ -244,6 +244,22 @@ namespace Horde.Server.Jobs
 	}
 
 	/// <summary>
+	/// Placement for a job report
+	/// </summary>
+	public enum ReportPlacement
+	{
+		/// <summary>
+		/// On a panel of its own
+		/// </summary>
+		Panel = 0,
+
+		/// <summary>
+		/// In the summary panel
+		/// </summary>
+		Summary = 1
+	}
+
+	/// <summary>
 	/// Information about a report associated with a job
 	/// </summary>
 	public class GetReportResponse
@@ -256,7 +272,7 @@ namespace Horde.Server.Jobs
 		/// <summary>
 		/// Report placement
 		/// </summary>
-		public HordeCommon.Rpc.ReportPlacement Placement { get; set; }
+		public ReportPlacement Placement { get; set; }
 
 		/// <summary>
 		/// The artifact id

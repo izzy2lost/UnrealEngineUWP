@@ -198,7 +198,7 @@ namespace Horde.Agent.Execution
 		class ReportData
 		{
 			public ReportScope Scope { get; set; }
-			public ReportPlacement Placement { get; set; }
+			public RpcReportPlacement Placement { get; set; }
 			public string Name { get; set; } = String.Empty;
 			public string Content { get; set; } = String.Empty;
 			public string FileName { get; set; } = String.Empty;

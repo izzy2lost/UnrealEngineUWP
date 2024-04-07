@@ -1028,7 +1028,7 @@ namespace Horde.Server.Jobs
 
 			IJobStepBatch batch = AuthorizeBatch(job, JobStepBatchId.Parse(request.BatchId), context);
 
-			Report newReport = new Report { Name = request.Name, Placement = request.Placement, Content = request.Content };
+			Report newReport = new Report { Name = request.Name, Placement = (ReportPlacement)request.Placement, Content = request.Content };
 			if (request.Scope == ReportScope.Job)
 			{
 				_logger.LogDebug("Adding report to job {JobId}: {Name} -> {Content}", job.Id, request.Name, request.Content);

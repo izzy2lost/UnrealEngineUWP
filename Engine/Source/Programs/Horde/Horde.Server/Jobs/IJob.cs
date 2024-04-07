@@ -28,8 +28,6 @@ using MongoDB.Driver;
 
 namespace Horde.Server.Jobs
 {
-	using ReportPlacement = HordeCommon.Rpc.ReportPlacement;
-
 	/// <summary>
 	/// Report for a job or jobstep
 	/// </summary>
