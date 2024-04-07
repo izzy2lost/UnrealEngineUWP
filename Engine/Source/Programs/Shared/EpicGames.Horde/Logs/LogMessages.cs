@@ -2,9 +2,13 @@
 
 using System;
 using System.Collections.Generic;
-using EpicGames.Horde.Logs;
+using EpicGames.Horde.Agents.Leases;
+using EpicGames.Horde.Agents.Sessions;
+using EpicGames.Horde.Jobs;
 
-namespace Horde.Server.Logs
+#pragma warning disable CA2227 // Change 'Lines' to be read-only by removing the property setter
+
+namespace EpicGames.Horde.Logs
 {
 	/// <summary>
 	/// The type of data stored in this log file
@@ -25,7 +29,7 @@ namespace Horde.Server.Logs
 	/// <summary>
 	/// Creates a new log file
 	/// </summary>
-	public class CreateLogFileRequest
+	public class CreateLogRequest
 	{
 		/// <summary>
 		/// Type of the log file
@@ -36,7 +40,7 @@ namespace Horde.Server.Logs
 	/// <summary>
 	/// Response from creating a log file
 	/// </summary>
-	public class CreateLogFileResponse
+	public class CreateLogResponse
 	{
 		/// <summary>
 		/// Identifier for the created log file
@@ -47,27 +51,27 @@ namespace Horde.Server.Logs
 	/// <summary>
 	/// Response describing a log file
 	/// </summary>
-	public class GetLogFileResponse
+	public class GetLogResponse
 	{
 		/// <summary>
 		/// Unique id of the log file
 		/// </summary>
-		public string Id { get; set; }
+		public LogId Id { get; set; }
 
 		/// <summary>
 		/// Unique id of the job for this log file
 		/// </summary>
-		public string JobId { get; set; }
+		public JobId JobId { get; set; }
 
 		/// <summary>
 		/// The lease allowed to write to this log
 		/// </summary>
-		public string? LeaseId { get; }
+		public LeaseId? LeaseId { get; set; }
 
 		/// <summary>
 		/// The session allowed to write to this log
 		/// </summary>
-		public string? SessionId { get; }
+		public SessionId? SessionId { get; set; }
 
 		/// <summary>
 		/// Type of events stored in this log
@@ -78,27 +82,12 @@ namespace Horde.Server.Logs
 		/// Number of lines in the file
 		/// </summary>
 		public int LineCount { get; set; }
-
-		/// <summary>
-		/// Constructor
-		/// </summary>
-		/// <param name="logFile">The logfile to construct from</param>
-		/// <param name="metadata">Metadata about the log file</param>
-		public GetLogFileResponse(ILogFile logFile, LogMetadata metadata)
-		{
-			Id = logFile.Id.ToString();
-			JobId = logFile.JobId.ToString();
-			LeaseId = logFile.LeaseId.ToString();
-			SessionId = logFile.SessionId.ToString();
-			Type = logFile.Type;
-			LineCount = metadata.MaxLineIndex;
-		}
 	}
 
 	/// <summary>
 	/// Response describing a log file
 	/// </summary>
-	public class SearchLogFileResponse
+	public class SearchLogResponse
 	{
 		/// <summary>
 		/// List of line numbers containing the search text

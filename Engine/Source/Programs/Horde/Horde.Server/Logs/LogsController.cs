@@ -78,7 +78,7 @@ namespace Horde.Server.Logs
 		/// <returns>Information about the requested project</returns>
 		[HttpGet]
 		[Route("/api/v1/logs/{logFileId}")]
-		[ProducesResponseType(typeof(GetLogFileResponse), 200)]
+		[ProducesResponseType(typeof(GetLogResponse), 200)]
 		public async Task<ActionResult<object>> GetLogAsync(LogId logFileId, [FromQuery] PropertyFilter? filter = null, CancellationToken cancellationToken = default)
 		{
 			ILogFile? logFile = await _logFileService.GetLogFileAsync(logFileId, cancellationToken);
@@ -92,7 +92,19 @@ namespace Horde.Server.Logs
 			}
 
 			LogMetadata metadata = await _logFileService.GetMetadataAsync(logFile, cancellationToken);
-			return new GetLogFileResponse(logFile, metadata).ApplyFilter(filter);
+			return CreateGetLogFileResponse(logFile, metadata).ApplyFilter(filter);
+		}
+
+		static GetLogResponse CreateGetLogFileResponse(ILogFile logFile, LogMetadata metadata)
+		{
+			GetLogResponse response = new GetLogResponse();
+			response.Id = logFile.Id;
+			response.JobId = logFile.JobId;
+			response.LeaseId = logFile.LeaseId;
+			response.SessionId = logFile.SessionId;
+			response.Type = logFile.Type;
+			response.LineCount = metadata.MaxLineIndex;
+			return response;
 		}
 
 		/// <summary>
@@ -268,7 +280,7 @@ namespace Horde.Server.Logs
 		/// <returns>Raw log data for the requested range</returns>
 		[HttpGet]
 		[Route("/api/v1/logs/{logFileId}/search")]
-		public async Task<ActionResult<SearchLogFileResponse>> SearchLogFileAsync(
+		public async Task<ActionResult<SearchLogResponse>> SearchLogFileAsync(
 			LogId logFileId,
 			[FromQuery] string text,
 			[FromQuery] int firstLine = 0,
@@ -285,7 +297,7 @@ namespace Horde.Server.Logs
 				return Forbid();
 			}
 
-			SearchLogFileResponse response = new SearchLogFileResponse();
+			SearchLogResponse response = new SearchLogResponse();
 			response.Stats = new SearchStats();
 			response.Lines = await _logFileService.SearchLogDataAsync(logFile, text, firstLine, count, response.Stats, cancellationToken);
 			return response;

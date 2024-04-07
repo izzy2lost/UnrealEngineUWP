@@ -3,7 +3,7 @@
 using System;
 using System.Collections.Generic;
 using System.Text;
-using Horde.Server.Logs;
+using EpicGames.Horde.Logs;
 using Horde.Server.Logs.Data;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.VisualStudio.TestTools.UnitTesting;

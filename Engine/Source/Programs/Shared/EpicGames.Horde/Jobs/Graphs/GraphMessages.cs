@@ -1,8 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System.Collections.Generic;
-using System.Linq;
-using EpicGames.Core;
+
+#pragma warning disable CA2227 // Change 'InputDependencies' to be read-only by removing the property setter
 
 namespace EpicGames.Horde.Jobs.Graphs
 {

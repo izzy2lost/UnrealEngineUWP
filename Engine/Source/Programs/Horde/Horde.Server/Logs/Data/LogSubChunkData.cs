@@ -2,6 +2,7 @@
 
 using System;
 using EpicGames.Core;
+using EpicGames.Horde.Logs;
 using Horde.Server.Utilities;
 using Microsoft.Extensions.Logging;
 

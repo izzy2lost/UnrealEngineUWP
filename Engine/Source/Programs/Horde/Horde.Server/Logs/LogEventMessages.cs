@@ -3,6 +3,7 @@
 using System.Collections.Generic;
 using System.Text.Json;
 using EpicGames.Core;
+using EpicGames.Horde.Logs;
 using HordeCommon;
 
 namespace Horde.Server.Logs
@@ -15,7 +16,7 @@ namespace Horde.Server.Logs
 		/// <summary>
 		/// Unique id of the log containing this event
 		/// </summary>
-		public string LogId { get; set; }
+		public LogId LogId { get; set; }
 
 		/// <summary>
 		/// Severity of this event
@@ -51,7 +52,7 @@ namespace Horde.Server.Logs
 		public GetLogEventResponse(ILogEvent logEvent, ILogEventData eventData, int? issueId)
 		{
 			Severity = logEvent.Severity;
-			LogId = logEvent.LogId.ToString();
+			LogId = logEvent.LogId;
 			LineIndex = logEvent.LineIndex;
 			LineCount = logEvent.LineCount;
 			IssueId = issueId;
