@@ -278,9 +278,23 @@ namespace Horde.Server.Streams
 			foreach (ICommit commit in commits)
 			{
 				IUser? author = await _userCollection.GetCachedUserAsync(commit.AuthorId, cancellationToken);
-				responses.Add(new GetCommitResponse(commit, author!, null, null));
+				responses.Add(CreateGetCommitResponse(commit, author!, null, null));
 			}
 			return responses.ConvertAll(x => PropertyFilter.Apply(x, filter));
+		}
+
+		static GetCommitResponse CreateGetCommitResponse(ICommit commit, IUser author, IReadOnlyList<CommitTag>? tags, IReadOnlyList<string>? files)
+		{
+			GetCommitResponse response = new GetCommitResponse(commit.Number, author.ToThinApiResponse(), commit.Description);
+			if (tags != null)
+			{
+				response.Tags = new List<CommitTag>(tags);
+			}
+			if (files != null)
+			{
+				response.Files = new List<string>(files);
+			}
+			return response;
 		}
 
 		/// <summary>
@@ -317,7 +331,7 @@ namespace Horde.Server.Streams
 			IReadOnlyList<CommitTag> tags = await changeDetails.GetTagsAsync(cancellationToken);
 			IReadOnlyList<string> files = await changeDetails.GetFilesAsync(maxFiles, cancellationToken);
 
-			return PropertyFilter.Apply(new GetCommitResponse(changeDetails, author!, tags, files), filter);
+			return PropertyFilter.Apply(CreateGetCommitResponse(changeDetails, author!, tags, files), filter);
 		}
 
 		/// <summary>

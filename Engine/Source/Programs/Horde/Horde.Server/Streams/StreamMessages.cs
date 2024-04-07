@@ -4,18 +4,15 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using EpicGames.Core;
-using EpicGames.Horde.Commits;
 using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Jobs.Templates;
 using EpicGames.Horde.Projects;
 using EpicGames.Horde.Streams;
 using EpicGames.Horde.Users;
-using Horde.Server.Commits;
 using Horde.Server.Issues;
 using Horde.Server.Jobs.Schedules;
 using Horde.Server.Jobs.Templates;
 using Horde.Server.Projects;
-using Horde.Server.Users;
 
 namespace Horde.Server.Streams
 {
@@ -519,67 +516,6 @@ namespace Horde.Server.Streams
 		{
 			_step = step;
 			PausedByUserInfo = pausedByUserInfo;
-		}
-	}
-
-	/// <summary>
-	/// Information about a commit
-	/// </summary>
-	public class GetCommitResponse
-	{
-		/// <summary>
-		/// The source changelist number
-		/// </summary>
-		public int Number { get; set; }
-
-		/// <summary>
-		/// Name of the user that authored this change [DEPRECATED]
-		/// </summary>
-		public string Author { get; set; }
-
-		/// <summary>
-		/// Information about the user that authored this change
-		/// </summary>
-		public GetThinUserInfoResponse AuthorInfo { get; set; }
-
-		/// <summary>
-		/// The description text
-		/// </summary>
-		public string Description { get; set; }
-
-		/// <summary>
-		/// Tags for this commit
-		/// </summary>
-		public List<CommitTag>? Tags { get; set; }
-
-		/// <summary>
-		/// List of files that were modified, relative to the stream base
-		/// </summary>
-		public List<string>? Files { get; set; }
-
-		/// <summary>
-		/// Constructor
-		/// </summary>
-		/// <param name="commit">The commit to construct from</param>
-		/// <param name="author">Author of the change</param>
-		/// <param name="tags">Tags for the commit</param>
-		/// <param name="files">Files modified by the commit</param>
-		public GetCommitResponse(ICommit commit, IUser author, IReadOnlyList<CommitTag>? tags, IReadOnlyList<string>? files)
-		{
-			Number = commit.Number;
-			Author = author.Name;
-			AuthorInfo = author.ToThinApiResponse();
-			Description = commit.Description;
-
-			if (tags != null)
-			{
-				Tags = new List<CommitTag>(tags);
-			}
-
-			if (files != null)
-			{
-				Files = new List<string>(files);
-			}
 		}
 	}
 }
