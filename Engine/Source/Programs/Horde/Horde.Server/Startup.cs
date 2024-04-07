@@ -26,6 +26,7 @@ using EpicGames.Horde;
 using EpicGames.Horde.Acls;
 using EpicGames.Horde.Agents;
 using EpicGames.Horde.Agents.Leases;
+using EpicGames.Horde.Commits;
 using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Logs;
 using EpicGames.Horde.Projects;
@@ -1197,6 +1198,21 @@ namespace Horde.Server
 			}
 		}
 
+		sealed class CommitTagBsonSerializer : SerializerBase<CommitTag>
+		{
+			/// <inheritdoc/>
+			public override CommitTag Deserialize(BsonDeserializationContext context, BsonDeserializationArgs args)
+			{
+				return new CommitTag(context.Reader.ReadString());
+			}
+
+			/// <inheritdoc/>
+			public override void Serialize(BsonSerializationContext context, BsonSerializationArgs args, CommitTag value)
+			{
+				context.Writer.WriteString(value.ToString());
+			}
+		}
+
 		static int s_haveConfiguredMongoDb = 0;
 
 		public static void ConfigureMongoDbClient()
@@ -1219,6 +1235,7 @@ namespace Horde.Server
 				BsonSerializer.RegisterSerializer(new AclScopeNameBsonSerializer());
 				BsonSerializer.RegisterSerializer(new ConditionSerializer());
 				BsonSerializer.RegisterSerializer(new SubResourceIdSerializer());
+				BsonSerializer.RegisterSerializer(new CommitTagBsonSerializer());
 				BsonSerializer.RegisterSerializationProvider(new BsonSerializationProvider());
 				BsonSerializer.RegisterSerializationProvider(new StringIdBsonSerializationProvider());
 				BsonSerializer.RegisterSerializationProvider(new BinaryIdBsonSerializationProvider());

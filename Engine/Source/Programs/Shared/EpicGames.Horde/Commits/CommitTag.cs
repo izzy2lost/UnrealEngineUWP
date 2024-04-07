@@ -1,25 +1,17 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using EpicGames.Core;
-using EpicGames.Horde;
-using EpicGames.Perforce;
-using MongoDB.Bson.Serialization;
-using MongoDB.Bson.Serialization.Attributes;
-using MongoDB.Bson.Serialization.Serializers;
 
-namespace Horde.Server.Perforce
+namespace EpicGames.Horde.Commits
 {
 	/// <summary>
 	/// Constants for known commit tags
 	/// </summary>
 	[JsonSchemaString]
 	[JsonConverter(typeof(CommitTagJsonConverter))]
-	[BsonSerializer(typeof(CommitTagBsonSerializer))]
 	public readonly struct CommitTag : IEquatable<CommitTag>
 	{
 		/// <summary>
@@ -28,19 +20,9 @@ namespace Horde.Server.Perforce
 		public static CommitTag Code { get; } = new CommitTag("code");
 
 		/// <summary>
-		/// Predefined filter for code
-		/// </summary>
-		public static IReadOnlyList<string> CodeFilter { get; } = PerforceUtils.CodeExtensions.Select(x => $"*{x}").ToList();
-
-		/// <summary>
 		/// Predefined filter name for commits containing content
 		/// </summary>
 		public static CommitTag Content { get; } = new CommitTag("content");
-
-		/// <summary>
-		/// Predefined filter name for content
-		/// </summary>
-		public static IReadOnlyList<string> ContentFilter { get; } = Enumerable.Concat(new[] { "*" }, PerforceUtils.CodeExtensions.Select(x => $"-*{x}")).ToArray();
 
 		/// <summary>
 		/// The tag text
@@ -106,24 +88,6 @@ namespace Horde.Server.Perforce
 		public override void Write(Utf8JsonWriter writer, CommitTag value, JsonSerializerOptions options)
 		{
 			writer.WriteStringValue(value.Text);
-		}
-	}
-
-	/// <summary>
-	/// Serializer for StringId objects
-	/// </summary>
-	public sealed class CommitTagBsonSerializer : SerializerBase<CommitTag>
-	{
-		/// <inheritdoc/>
-		public override CommitTag Deserialize(BsonDeserializationContext context, BsonDeserializationArgs args)
-		{
-			return new CommitTag(context.Reader.ReadString());
-		}
-
-		/// <inheritdoc/>
-		public override void Serialize(BsonSerializationContext context, BsonSerializationArgs args, CommitTag value)
-		{
-			context.Writer.WriteString(value.ToString());
 		}
 	}
 }

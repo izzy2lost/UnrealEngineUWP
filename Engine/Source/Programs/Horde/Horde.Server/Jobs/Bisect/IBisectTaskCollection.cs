@@ -4,11 +4,11 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
+using EpicGames.Horde.Commits;
 using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Jobs.Bisect;
 using EpicGames.Horde.Users;
 using Horde.Server.Jobs.Graphs;
-using Horde.Server.Perforce;
 using Microsoft.Extensions.Logging;
 
 namespace Horde.Server.Jobs.Bisect

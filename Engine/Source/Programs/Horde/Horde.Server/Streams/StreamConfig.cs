@@ -14,6 +14,7 @@ using EpicGames.Core;
 using EpicGames.Horde;
 using EpicGames.Horde.Acls;
 using EpicGames.Horde.Agents.Pools;
+using EpicGames.Horde.Commits;
 using EpicGames.Horde.Common;
 using EpicGames.Horde.Issues;
 using EpicGames.Horde.Jobs;
@@ -21,13 +22,13 @@ using EpicGames.Horde.Jobs.Templates;
 using EpicGames.Horde.Replicators;
 using EpicGames.Horde.Streams;
 using EpicGames.Horde.Telemetry;
+using EpicGames.Perforce;
 using Horde.Server.Acls;
 using Horde.Server.Configuration;
 using Horde.Server.Issues;
 using Horde.Server.Jobs;
 using Horde.Server.Jobs.Graphs;
 using Horde.Server.Jobs.Templates;
-using Horde.Server.Perforce;
 using Horde.Server.Projects;
 using Horde.Server.Replicators;
 using Horde.Server.Server;
@@ -1232,11 +1233,19 @@ namespace Horde.Server.Streams
 		/// <summary>
 		/// Default config for code filters
 		/// </summary>
-		public static CommitTagConfig CodeDefault { get; } = new CommitTagConfig { Name = CommitTag.Code, Filter = CommitTag.CodeFilter.ToList() };
+		public static CommitTagConfig CodeDefault { get; } = new CommitTagConfig
+		{
+			Name = CommitTag.Code,
+			Filter = PerforceUtils.CodeExtensions.Select(x => $"*{x}").ToList()
+		};
 
 		/// <summary>
 		/// Default config for content filters
 		/// </summary>
-		public static CommitTagConfig ContentDefault { get; } = new CommitTagConfig { Name = CommitTag.Content, Filter = CommitTag.ContentFilter.ToList() };
+		public static CommitTagConfig ContentDefault { get; } = new CommitTagConfig
+		{
+			Name = CommitTag.Content,
+			Filter = Enumerable.Concat(new[] { "*" }, PerforceUtils.CodeExtensions.Select(x => $"-*{x}")).ToList()
+		};
 	}
 }

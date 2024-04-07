@@ -2,7 +2,7 @@
 
 using System.Collections.Generic;
 using EpicGames.Core;
-using Horde.Server.Perforce;
+using EpicGames.Horde.Commits;
 using Horde.Server.Streams;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
