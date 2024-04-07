@@ -27,6 +27,7 @@ using Horde.Server.Telemetry;
 using Horde.Server.Tools;
 using Horde.Server.Utilities;
 using HordeCommon.Rpc;
+using HordeCommon.Rpc.Messages;
 using HordeCommon.Rpc.Messages.Telemetry;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Logging;
@@ -34,14 +35,6 @@ using Microsoft.Extensions.Options;
 
 namespace Horde.Server.Server
 {
-	using RpcAgentCapabilities = HordeCommon.Rpc.Messages.AgentCapabilities;
-	using RpcDeviceCapabilities = HordeCommon.Rpc.Messages.DeviceCapabilities;
-	using RpcGetJobResponse = HordeCommon.Rpc.GetJobResponse;
-	using RpcGetStepResponse = HordeCommon.Rpc.GetStepResponse;
-	using RpcGetStreamResponse = HordeCommon.Rpc.GetStreamResponse;
-	using RpcUpdateJobRequest = HordeCommon.Rpc.UpdateJobRequest;
-	using RpcUpdateStepRequest = HordeCommon.Rpc.UpdateStepRequest;
-
 	/// <summary>
 	/// Implements the Horde gRPC service for bots updating their status and dequeing work
 	/// </summary>
@@ -88,15 +81,15 @@ namespace Horde.Server.Server
 		/// <param name="writer">Response writer</param>
 		/// <param name="context">Context for the call</param>
 		/// <returns>Response object</returns>
-		public override async Task QueryServerState(IAsyncStreamReader<QueryServerStateRequest> reader, IServerStreamWriter<QueryServerStateResponse> writer, ServerCallContext context)
+		public override async Task QueryServerState(IAsyncStreamReader<RpcQueryServerStateRequest> reader, IServerStreamWriter<RpcQueryServerStateResponse> writer, ServerCallContext context)
 		{
 			if (await reader.MoveNext())
 			{
-				QueryServerStateRequest request = reader.Current;
+				RpcQueryServerStateRequest request = reader.Current;
 				_logger.LogInformation("Start server query for client {Name}", request.Name);
 
 				// Return the current response
-				QueryServerStateResponse response = new QueryServerStateResponse();
+				RpcQueryServerStateResponse response = new RpcQueryServerStateResponse();
 				response.Name = Dns.GetHostName();
 				await writer.WriteAsync(response);
 
@@ -131,17 +124,17 @@ namespace Horde.Server.Server
 		/// <param name="writer">Response writer</param>
 		/// <param name="context">Context for the call</param>
 		/// <returns>Response object</returns>
-		public override async Task QueryServerStateV2(IAsyncStreamReader<QueryServerStateRequest> reader, IServerStreamWriter<QueryServerStateResponse> writer, ServerCallContext context)
+		public override async Task QueryServerStateV2(IAsyncStreamReader<RpcQueryServerStateRequest> reader, IServerStreamWriter<RpcQueryServerStateResponse> writer, ServerCallContext context)
 		{
 			if (await reader.MoveNext())
 			{
-				QueryServerStateRequest request = reader.Current;
+				RpcQueryServerStateRequest request = reader.Current;
 				_logger.LogDebug("Start server query for client {Name}", request.Name);
 
 				try
 				{
 					// Return the current response
-					QueryServerStateResponse response = new QueryServerStateResponse();
+					RpcQueryServerStateResponse response = new RpcQueryServerStateResponse();
 					response.Name = Dns.GetHostName();
 					response.Stopping = _lifetimeService.IsStopping;
 					await writer.WriteAsync(response);
@@ -176,7 +169,7 @@ namespace Horde.Server.Server
 		/// <param name="request">The request parameters</param>
 		/// <param name="context">Context for the call</param>
 		/// <returns>Response object</returns>
-		public override async Task<UpdateAgentWorkspacesResponse> UpdateAgentWorkspaces(UpdateAgentWorkspacesRequest request, ServerCallContext context)
+		public override async Task<RpcUpdateAgentWorkspacesResponse> UpdateAgentWorkspaces(RpcUpdateAgentWorkspacesRequest request, ServerCallContext context)
 		{
 			for (; ; )
 			{
@@ -197,7 +190,7 @@ namespace Horde.Server.Server
 				// Update the workspaces
 				if (await _agentService.TryUpdateWorkspacesAsync(agent, newWorkspaces, pendingConform, context.CancellationToken))
 				{
-					UpdateAgentWorkspacesResponse response = new UpdateAgentWorkspacesResponse();
+					RpcUpdateAgentWorkspacesResponse response = new RpcUpdateAgentWorkspacesResponse();
 					if (pendingConform)
 					{
 						response.Retry = await _conformTaskSource.GetWorkspacesAsync(agent, response.PendingWorkspaces, context.CancellationToken);
@@ -256,7 +249,7 @@ namespace Horde.Server.Server
 		/// <param name="request">Request to create a new agent</param>
 		/// <param name="context">Context for the RPC call</param>
 		/// <returns>Information about the new agent</returns>
-		public override async Task<CreateAgentResponse> CreateAgent(CreateAgentRequest request, ServerCallContext context)
+		public override async Task<RpcCreateAgentResponse> CreateAgent(RpcCreateAgentRequest request, ServerCallContext context)
 		{
 			using IDisposable? scope = _logger.BeginScope("CreateAgent({AgentId})", request.Name.ToString());
 
@@ -270,7 +263,7 @@ namespace Horde.Server.Server
 			List<AclClaimConfig> claims = new List<AclClaimConfig>();
 			claims.Add(new AclClaimConfig(HordeClaimTypes.Agent, agent.Id.ToString()));
 
-			CreateAgentResponse response = new CreateAgentResponse();
+			RpcCreateAgentResponse response = new RpcCreateAgentResponse();
 			response.Id = agent.Id.ToString();
 			response.Token = await _aclService.IssueBearerTokenAsync(claims, null, context.CancellationToken);
 
@@ -283,7 +276,7 @@ namespace Horde.Server.Server
 		/// <param name="request">Request to create a new agent</param>
 		/// <param name="context">Context for the RPC call</param>
 		/// <returns>Information about the new agent</returns>
-		public override async Task<CreateSessionResponse> CreateSession(CreateSessionRequest request, ServerCallContext context)
+		public override async Task<RpcCreateSessionResponse> CreateSession(RpcCreateSessionRequest request, ServerCallContext context)
 		{
 			if (request.Capabilities == null)
 			{
@@ -333,7 +326,7 @@ namespace Horde.Server.Server
 			}
 
 			// Create the response
-			CreateSessionResponse response = new CreateSessionResponse();
+			RpcCreateSessionResponse response = new RpcCreateSessionResponse();
 			response.AgentId = agent.Id.ToString();
 			response.SessionId = agent.SessionId.ToString();
 			response.ExpiryTime = Timestamp.FromDateTime(agent.SessionExpiresAt!.Value);
@@ -348,17 +341,17 @@ namespace Horde.Server.Server
 		/// <param name="writer">Writer for response objects</param>
 		/// <param name="context">Context for the RPC call</param>
 		/// <returns>Information about the new agent</returns>
-		public override async Task UpdateSession(IAsyncStreamReader<UpdateSessionRequest> reader, IServerStreamWriter<UpdateSessionResponse> writer, ServerCallContext context)
+		public override async Task UpdateSession(IAsyncStreamReader<RpcUpdateSessionRequest> reader, IServerStreamWriter<RpcUpdateSessionResponse> writer, ServerCallContext context)
 		{
 			// Read the request object
 			Task<bool> nextRequestTask = reader.MoveNext();
 			if (await nextRequestTask)
 			{
-				UpdateSessionRequest request = reader.Current;
+				RpcUpdateSessionRequest request = reader.Current;
 				using IDisposable? scope = _logger.BeginScope("UpdateSession for agent {AgentId}, session {SessionId}", request.AgentId, request.SessionId);
 
 				_logger.LogDebug("Updating session for {AgentId}", request.AgentId);
-				foreach (HordeCommon.Rpc.Messages.Lease lease in request.Leases)
+				foreach (RpcLease lease in request.Leases)
 				{
 					_logger.LogDebug("Session {SessionId}, Lease {LeaseId} - State: {LeaseState}, Outcome: {LeaseOutcome}", request.SessionId, lease.Id, lease.State, lease.Outcome);
 				}
@@ -421,7 +414,7 @@ namespace Horde.Server.Server
 				// Create the new session info
 				if (!context.CancellationToken.IsCancellationRequested)
 				{
-					UpdateSessionResponse response = new UpdateSessionResponse();
+					RpcUpdateSessionResponse response = new RpcUpdateSessionResponse();
 					response.Leases.Add(agent.Leases.Select(x => x.ToRpcMessage()));
 					response.ExpiryTime = (agent.SessionExpiresAt == null) ? new Timestamp() : Timestamp.FromDateTime(agent.SessionExpiresAt.Value);
 					response.Status = (RpcAgentStatus)agent.Status;
@@ -444,34 +437,34 @@ namespace Horde.Server.Server
 		}
 
 		/// <inheritdoc/>
-		public override Task<RpcGetStreamResponse> GetStream(GetStreamRequest request, ServerCallContext context) => _jobRpcCommon.GetStreamAsync(request, context);
+		public override Task<RpcGetStreamResponse> GetStream(RpcGetStreamRequest request, ServerCallContext context) => _jobRpcCommon.GetStreamAsync(request, context);
 
 		/// <inheritdoc/>
-		public override Task<RpcGetJobResponse> GetJob(GetJobRequest request, ServerCallContext context) => _jobRpcCommon.GetJobAsync(request, context);
+		public override Task<RpcGetJobResponse> GetJob(RpcGetJobRequest request, ServerCallContext context) => _jobRpcCommon.GetJobAsync(request, context);
 
 		/// <inheritdoc/>
 		public override Task<Empty> UpdateJob(RpcUpdateJobRequest request, ServerCallContext context) => _jobRpcCommon.UpdateJobAsync(request, context);
 
 		/// <inheritdoc/>
-		public override Task<BeginBatchResponse> BeginBatch(BeginBatchRequest request, ServerCallContext context) => _jobRpcCommon.BeginBatchAsync(request, context);
+		public override Task<RpcBeginBatchResponse> BeginBatch(RpcBeginBatchRequest request, ServerCallContext context) => _jobRpcCommon.BeginBatchAsync(request, context);
 
 		/// <inheritdoc/>
-		public override Task<Empty> FinishBatch(FinishBatchRequest request, ServerCallContext context) => _jobRpcCommon.FinishBatchAsync(request, context);
+		public override Task<Empty> FinishBatch(RpcFinishBatchRequest request, ServerCallContext context) => _jobRpcCommon.FinishBatchAsync(request, context);
 
 		/// <inheritdoc/>
-		public override Task<BeginStepResponse> BeginStep(BeginStepRequest request, ServerCallContext context) => _jobRpcCommon.BeginStepAsync(request, context);
+		public override Task<RpcBeginStepResponse> BeginStep(RpcBeginStepRequest request, ServerCallContext context) => _jobRpcCommon.BeginStepAsync(request, context);
 
 		/// <inheritdoc/>
 		public override Task<Empty> UpdateStep(RpcUpdateStepRequest request, ServerCallContext context) => _jobRpcCommon.UpdateStepAsync(request, context);
 
 		/// <inheritdoc/>
-		public override Task<RpcGetStepResponse> GetStep(GetStepRequest request, ServerCallContext context) => _jobRpcCommon.GetStepAsync(request, context);
+		public override Task<RpcGetStepResponse> GetStep(RpcGetStepRequest request, ServerCallContext context) => _jobRpcCommon.GetStepAsync(request, context);
 
 		/// <inheritdoc/>
-		public override Task<UpdateGraphResponse> UpdateGraph(UpdateGraphRequest request, ServerCallContext context) => _jobRpcCommon.UpdateGraphAsync(request, context);
+		public override Task<RpcUpdateGraphResponse> UpdateGraph(RpcUpdateGraphRequest request, ServerCallContext context) => _jobRpcCommon.UpdateGraphAsync(request, context);
 
 		/// <inheritdoc/>
-		public override Task<Empty> CreateEvents(CreateEventsRequest request, ServerCallContext context) => _jobRpcCommon.CreateEventsAsync(request, context);
+		public override Task<Empty> CreateEvents(RpcCreateEventsRequest request, ServerCallContext context) => _jobRpcCommon.CreateEventsAsync(request, context);
 
 		/// <summary>
 		/// Downloads a new agent archive
@@ -480,7 +473,7 @@ namespace Horde.Server.Server
 		/// <param name="responseStream">Writer for the output data</param>
 		/// <param name="context">Context for the RPC call</param>
 		/// <returns>Information about the new agent</returns>
-		public override async Task DownloadSoftware(DownloadSoftwareRequest request, IServerStreamWriter<DownloadSoftwareResponse> responseStream, ServerCallContext context)
+		public override async Task DownloadSoftware(RpcDownloadSoftwareRequest request, IServerStreamWriter<RpcDownloadSoftwareResponse> responseStream, ServerCallContext context)
 		{
 			int colonIdx = request.Version.IndexOf(':', StringComparison.Ordinal);
 			ToolId toolId = new ToolId(request.Version.Substring(0, colonIdx));
@@ -516,7 +509,7 @@ namespace Horde.Server.Server
 						break;
 					}
 
-					DownloadSoftwareResponse response = new DownloadSoftwareResponse();
+					RpcDownloadSoftwareResponse response = new RpcDownloadSoftwareResponse();
 					response.Data = UnsafeByteOperations.UnsafeWrap(buffer.Memory.Slice(0, read));
 					await responseStream.WriteAsync(response);
 
@@ -532,7 +525,7 @@ namespace Horde.Server.Server
 		/// <param name="request">Request arguments</param>
 		/// <param name="context">Context for the RPC call</param>
 		/// <returns>An empty response</returns>
-		public override async Task<Empty> SendTelemetryEvents(SendTelemetryEventsRequest request, ServerCallContext context)
+		public override async Task<Empty> SendTelemetryEvents(RpcSendTelemetryEventsRequest request, ServerCallContext context)
 		{
 			ISession? session = null;
 
@@ -543,9 +536,9 @@ namespace Horde.Server.Server
 			}
 
 			TelemetryRecordMeta agentMeta = new TelemetryRecordMeta("HordeAgent", session?.Version ?? "(Unknown)", ServerApp.DeploymentEnvironment, sessionId?.ToString() ?? "(Unknown)");
-			foreach (WrappedTelemetryEvent wrappedEvent in request.Events)
+			foreach (RpcWrappedTelemetryEvent wrappedEvent in request.Events)
 			{
-				OneofDescriptor oneofDescriptor = WrappedTelemetryEvent.Descriptor.Oneofs[0];
+				OneofDescriptor oneofDescriptor = RpcWrappedTelemetryEvent.Descriptor.Oneofs[0];
 				FieldDescriptor caseDescriptor = oneofDescriptor.Accessor.GetCaseFieldDescriptor(wrappedEvent);
 
 				object wrappedValue = caseDescriptor.Accessor.GetValue(wrappedEvent);
@@ -556,12 +549,12 @@ namespace Horde.Server.Server
 		}
 
 		/// <inheritdoc/>
-		public override Task<UploadArtifactResponse> UploadArtifact(IAsyncStreamReader<UploadArtifactRequest> reader, ServerCallContext context) => _jobRpcCommon.UploadArtifactAsync(reader, context);
+		public override Task<RpcUploadArtifactResponse> UploadArtifact(IAsyncStreamReader<RpcUploadArtifactRequest> reader, ServerCallContext context) => _jobRpcCommon.UploadArtifactAsync(reader, context);
 
 		/// <inheritdoc/>
-		public override Task<UploadTestDataResponse> UploadTestData(IAsyncStreamReader<UploadTestDataRequest> reader, ServerCallContext context) => _jobRpcCommon.UploadTestDataAsync(reader, context);
+		public override Task<RpcUploadTestDataResponse> UploadTestData(IAsyncStreamReader<RpcUploadTestDataRequest> reader, ServerCallContext context) => _jobRpcCommon.UploadTestDataAsync(reader, context);
 
 		/// <inheritdoc/>
-		public override Task<CreateReportResponse> CreateReport(CreateReportRequest request, ServerCallContext context) => _jobRpcCommon.CreateReportAsync(request, context);
+		public override Task<RpcCreateReportResponse> CreateReport(RpcCreateReportRequest request, ServerCallContext context) => _jobRpcCommon.CreateReportAsync(request, context);
 	}
 }

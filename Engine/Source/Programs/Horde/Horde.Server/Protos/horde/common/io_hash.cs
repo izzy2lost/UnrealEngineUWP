@@ -5,16 +5,16 @@ namespace HordeCommon.Wrapper
 	using NativeIoHash = EpicGames.Core.IoHash;
 
 #pragma warning disable CS1591 // Missing XML comment for publicly visible type or member
-	partial class IoHash
+	partial class RpcIoHash
 	{
-		public static implicit operator NativeIoHash(IoHash hash)
+		public static implicit operator NativeIoHash(RpcIoHash hash)
 		{
 			return new NativeIoHash(hash.Data.ToByteArray());
 		}
 
-		public static implicit operator IoHash(NativeIoHash hash)
+		public static implicit operator RpcIoHash(NativeIoHash hash)
 		{
-			IoHash result = new IoHash();
+			RpcIoHash result = new RpcIoHash();
 			result.Data = Google.Protobuf.ByteString.CopyFrom(hash.ToByteArray());
 			return result;
 		}

@@ -16,8 +16,8 @@ namespace Horde.Agent.Utility
 {
 	interface IJsonRpcLogSink : IAsyncDisposable
 	{
-		Task WriteEventsAsync(List<CreateEventRequest> events, CancellationToken cancellationToken);
-		Task WriteOutputAsync(WriteOutputRequest request, CancellationToken cancellationToken);
+		Task WriteEventsAsync(List<RpcCreateEventRequest> events, CancellationToken cancellationToken);
+		Task WriteOutputAsync(RpcWriteOutputRequest request, CancellationToken cancellationToken);
 		Task SetOutcomeAsync(JobStepOutcome outcome, CancellationToken cancellationToken);
 	}
 
@@ -175,7 +175,7 @@ namespace Horde.Agent.Utility
 			{
 				try
 				{
-					await _connection.InvokeAsync((JobRpc.JobRpcClient x) => x.UpdateStepAsync(new UpdateStepRequest(_jobId.Value, _jobBatchId.Value, _jobStepId.Value, JobStepState.Unspecified, outcome)), cancellationToken);
+					await _connection.InvokeAsync((JobRpc.JobRpcClient x) => x.UpdateStepAsync(new RpcUpdateStepRequest(_jobId.Value, _jobBatchId.Value, _jobStepId.Value, JobStepState.Unspecified, outcome)), cancellationToken);
 				}
 				catch (Exception ex)
 				{
@@ -185,13 +185,13 @@ namespace Horde.Agent.Utility
 		}
 
 		/// <inheritdoc/>
-		public async Task WriteEventsAsync(List<CreateEventRequest> events, CancellationToken cancellationToken)
+		public async Task WriteEventsAsync(List<RpcCreateEventRequest> events, CancellationToken cancellationToken)
 		{
-			await _connection.InvokeAsync((JobRpc.JobRpcClient x) => x.CreateEventsAsync(new CreateEventsRequest(events)), cancellationToken);
+			await _connection.InvokeAsync((JobRpc.JobRpcClient x) => x.CreateEventsAsync(new RpcCreateEventsRequest(events)), cancellationToken);
 		}
 
 		/// <inheritdoc/>
-		public async Task WriteOutputAsync(WriteOutputRequest request, CancellationToken cancellationToken)
+		public async Task WriteOutputAsync(RpcWriteOutputRequest request, CancellationToken cancellationToken)
 		{
 			_builder.WriteData(request.Data.Memory);
 			_bufferLength += request.Data.Length;

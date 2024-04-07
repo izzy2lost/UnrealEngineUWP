@@ -26,8 +26,8 @@ namespace Horde.Agent.Commands.Utilities
 		/// <inheritdoc/>
 		public override async Task<int> ExecuteAsync(ILogger logger)
 		{
-			AgentCapabilities capabilities = await _capabilitiesService.GetCapabilitiesAsync(null);
-			foreach (DeviceCapabilities device in capabilities.Devices)
+			RpcAgentCapabilities capabilities = await _capabilitiesService.GetCapabilitiesAsync(null);
+			foreach (RpcDeviceCapabilities device in capabilities.Devices)
 			{
 				logger.LogInformation("Device: {Name}", device.Handle);
 				foreach (string property in device.Properties)

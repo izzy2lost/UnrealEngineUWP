@@ -15,7 +15,7 @@ namespace Horde.Agent.Execution;
 /// </summary>
 public sealed class ManagedWorkspaceMaterializer : IWorkspaceMaterializer
 {
-	private readonly AgentWorkspace _agentWorkspace;
+	private readonly RpcAgentWorkspace _agentWorkspace;
 	private readonly DirectoryReference _workingDir;
 	private readonly bool _useCacheFile;
 	private WorkspaceInfo? _workspace;
@@ -27,7 +27,7 @@ public sealed class ManagedWorkspaceMaterializer : IWorkspaceMaterializer
 	/// <param name="workingDir">Where to put synced Perforce files and any cached data/metadata</param>
 	/// <param name="useCacheFile">Whether to use a cache file during syncs</param>
 	public ManagedWorkspaceMaterializer(
-		AgentWorkspace agentWorkspace,
+		RpcAgentWorkspace agentWorkspace,
 		DirectoryReference workingDir,
 		bool useCacheFile)
 	{

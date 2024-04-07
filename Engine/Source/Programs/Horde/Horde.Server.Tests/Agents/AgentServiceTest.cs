@@ -119,7 +119,7 @@ public class AgentServiceTest : TestSetup
 		DateTime lastStatusChange = agent.LastStatusChange!.Value;
 		await Clock.AdvanceAsync(TimeSpan.FromMinutes(1));
 
-		agent = (await AgentService.UpdateSessionAsync(agent, agent.SessionId!.Value, status, null, null, new List<Lease>()))!;
+		agent = (await AgentService.UpdateSessionAsync(agent, agent.SessionId!.Value, status, null, null, new List<RpcLease>()))!;
 		if (expectTimestampUpdate)
 		{
 			AssertNotEqual(lastStatusChange, agent.LastStatusChange);

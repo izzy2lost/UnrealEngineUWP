@@ -79,31 +79,31 @@ namespace Horde.Agent.Execution
 
 			string projectName = GetArgument("Project", "UnknownProject");
 
-			UpdateGraphRequest updateGraph = new UpdateGraphRequest();
+			RpcUpdateGraphRequest updateGraph = new RpcUpdateGraphRequest();
 			updateGraph.JobId = JobId.ToString();
 
-			CreateGroupRequest winEditorGroup = CreateGroup("Win64");
+			RpcCreateGroupRequest winEditorGroup = CreateGroup("Win64");
 			winEditorGroup.Nodes.Add(CreateNode("Update Version Files", Array.Empty<string>(), JobStepOutcome.Success));
 			winEditorGroup.Nodes.Add(CreateNode("Compile UnrealHeaderTool Win64", new string[] { "Update Version Files" }, JobStepOutcome.Success));
 			winEditorGroup.Nodes.Add(CreateNode("Compile UnrealEditor Win64", new string[] { "Compile UnrealHeaderTool Win64" }, JobStepOutcome.Success));
 			winEditorGroup.Nodes.Add(CreateNode($"Compile {projectName}Editor Win64", new string[] { "Compile UnrealHeaderTool Win64", "Compile UnrealEditor Win64" }, JobStepOutcome.Success));
 			updateGraph.Groups.Add(winEditorGroup);
 
-			CreateGroupRequest winToolsGroup = CreateGroup("Win64");
+			RpcCreateGroupRequest winToolsGroup = CreateGroup("Win64");
 			winToolsGroup.Nodes.Add(CreateNode("Compile Tools Win64", new string[] { "Compile UnrealHeaderTool Win64" }, warningOutcome));
 			updateGraph.Groups.Add(winToolsGroup);
 
-			CreateGroupRequest winClientsGroup = CreateGroup("Win64");
+			RpcCreateGroupRequest winClientsGroup = CreateGroup("Win64");
 			winClientsGroup.Nodes.Add(CreateNode($"Compile {projectName}Client Win64", new string[] { "Compile UnrealHeaderTool Win64" }, JobStepOutcome.Success));
 			updateGraph.Groups.Add(winClientsGroup);
 
-			CreateGroupRequest winCooksGroup = CreateGroup("Win64");
+			RpcCreateGroupRequest winCooksGroup = CreateGroup("Win64");
 			winCooksGroup.Nodes.Add(CreateNode($"Cook {projectName}Client Win64", new string[] { $"Compile {projectName}Editor Win64", "Compile Tools Win64" }, warningOutcome));
 			winCooksGroup.Nodes.Add(CreateNode($"Stage {projectName}Client Win64", new string[] { $"Cook {projectName}Client Win64", "Compile Tools Win64" }, failureOutcome));
 			winCooksGroup.Nodes.Add(CreateNode($"Publish {projectName}Client Win64", new string[] { $"Stage {projectName}Client Win64" }, JobStepOutcome.Success));
 			updateGraph.Groups.Add(winCooksGroup);
 
-			CreateAggregateRequest aggregate = new CreateAggregateRequest();
+			RpcCreateAggregateRequest aggregate = new RpcCreateAggregateRequest();
 			aggregate.Name = "Full Build";
 			aggregate.Nodes.Add($"Publish {projectName}Client Win64");
 			updateGraph.Aggregates.Add(aggregate);
@@ -119,16 +119,16 @@ namespace Horde.Agent.Execution
 			return true;
 		}
 
-		static CreateGroupRequest CreateGroup(string agentType)
+		static RpcCreateGroupRequest CreateGroup(string agentType)
 		{
-			CreateGroupRequest request = new CreateGroupRequest();
+			RpcCreateGroupRequest request = new RpcCreateGroupRequest();
 			request.AgentType = agentType;
 			return request;
 		}
 
-		static CreateNodeRequest CreateNode(string name, string[] inputDependencies, JobStepOutcome outcome)
+		static RpcCreateNodeRequest CreateNode(string name, string[] inputDependencies, JobStepOutcome outcome)
 		{
-			CreateNodeRequest request = new CreateNodeRequest();
+			RpcCreateNodeRequest request = new RpcCreateNodeRequest();
 			request.Name = name;
 			request.InputDependencies.AddRange(inputDependencies);
 			request.Properties.Add("Action", "Build");
@@ -136,9 +136,9 @@ namespace Horde.Agent.Execution
 			return request;
 		}
 
-		static CreateLabelRequest CreateLabel(string category, string name, string[] requiredNodes, string[] includedNodes, Dictionary<string, string[]> dependencyMap)
+		static RpcCreateLabelRequest CreateLabel(string category, string name, string[] requiredNodes, string[] includedNodes, Dictionary<string, string[]> dependencyMap)
 		{
-			CreateLabelRequest request = new CreateLabelRequest();
+			RpcCreateLabelRequest request = new RpcCreateLabelRequest();
 			request.DashboardName = name;
 			request.DashboardCategory = category;
 			request.RequiredNodes.AddRange(requiredNodes);
@@ -146,12 +146,12 @@ namespace Horde.Agent.Execution
 			return request;
 		}
 
-		static Dictionary<string, string[]> CreateDependencyMap(IEnumerable<CreateGroupRequest> groups)
+		static Dictionary<string, string[]> CreateDependencyMap(IEnumerable<RpcCreateGroupRequest> groups)
 		{
 			Dictionary<string, string[]> nameToDependencyNames = new Dictionary<string, string[]>();
-			foreach (CreateGroupRequest group in groups)
+			foreach (RpcCreateGroupRequest group in groups)
 			{
-				foreach (CreateNodeRequest node in group.Nodes)
+				foreach (RpcCreateNodeRequest node in group.Nodes)
 				{
 					HashSet<string> dependencyNames = new HashSet<string> { node.Name };
 
@@ -237,7 +237,7 @@ namespace Horde.Agent.Execution
 			_logger = logger;
 		}
 
-		public IJobExecutor CreateExecutor(AgentWorkspace workspaceInfo, AgentWorkspace? autoSdkWorkspaceInfo, JobExecutorOptions options)
+		public IJobExecutor CreateExecutor(RpcAgentWorkspace workspaceInfo, RpcAgentWorkspace? autoSdkWorkspaceInfo, JobExecutorOptions options)
 		{
 			return new TestExecutor(options, _logger);
 		}

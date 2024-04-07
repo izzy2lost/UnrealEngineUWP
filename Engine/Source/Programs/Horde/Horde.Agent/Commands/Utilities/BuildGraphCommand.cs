@@ -52,9 +52,9 @@ namespace Horde.Agent.Commands.Utilities
 
 			public Task SetOutcomeAsync(JobStepOutcome outcome, CancellationToken cancellationToken) => Task.CompletedTask;
 
-			public async Task WriteEventsAsync(List<CreateEventRequest> events, CancellationToken cancellationToken)
+			public async Task WriteEventsAsync(List<RpcCreateEventRequest> events, CancellationToken cancellationToken)
 			{
-				foreach (CreateEventRequest request in events)
+				foreach (RpcCreateEventRequest request in events)
 				{
 					JsonSerializerOptions options = new JsonSerializerOptions();
 					options.Converters.Add(new JsonStringEnumConverter());
@@ -63,7 +63,7 @@ namespace Horde.Agent.Commands.Utilities
 				}
 			}
 
-			public async Task WriteOutputAsync(WriteOutputRequest request, CancellationToken cancellationToken)
+			public async Task WriteOutputAsync(RpcWriteOutputRequest request, CancellationToken cancellationToken)
 			{
 				PrintJson(request.Data.Span);
 				await _outputStream.WriteAsync(request.Data.Memory, cancellationToken);

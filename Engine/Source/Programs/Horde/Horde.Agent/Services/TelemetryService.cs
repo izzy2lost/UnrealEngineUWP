@@ -47,9 +47,9 @@ public class CpuMetrics
 	/// Convert to Protobuf-based event
 	/// </summary>
 	/// <returns></returns>
-	public AgentCpuMetricsEvent ToEvent()
+	public RpcAgentCpuMetricsEvent ToEvent()
 	{
-		return new AgentCpuMetricsEvent { User = User, System = System, Idle = Idle };
+		return new RpcAgentCpuMetricsEvent { User = User, System = System, Idle = Idle };
 	}
 }
 
@@ -88,9 +88,9 @@ public class MemoryMetrics
 	/// Convert to Protobuf-based event
 	/// </summary>
 	/// <returns></returns>
-	public AgentMemoryMetricsEvent ToEvent()
+	public RpcAgentMemoryMetricsEvent ToEvent()
 	{
-		return new AgentMemoryMetricsEvent { Total = Total, Free = Available, Used = Used, UsedPercentage = UsedPercentage };
+		return new RpcAgentMemoryMetricsEvent { Total = Total, Free = Available, Used = Used, UsedPercentage = UsedPercentage };
 	}
 }
 
@@ -211,7 +211,7 @@ class TelemetryService : BackgroundService
 	private readonly AgentSettings _agentSettings;
 	private readonly ILogger<TelemetryService> _logger;
 	private readonly TimeSpan _reportInterval;
-	private readonly AgentMetadataEvent _agentMetadataEvent;
+	private readonly RpcAgentMetadataEvent _agentMetadataEvent;
 	private readonly TimeSpan _agentMetadataReportInterval = TimeSpan.FromMinutes(2);
 	private ISystemMetrics? _systemMetrics;
 	private DateTime _lastTimeAgentMetadataSent = DateTime.UnixEpoch;
@@ -494,9 +494,9 @@ class TelemetryService : BackgroundService
 		{
 			_logger.LogDebug("Sending telemetry events to server...");
 
-			SendTelemetryEventsRequest request = new();
+			RpcSendTelemetryEventsRequest request = new();
 			Timestamp utcNow = Timestamp.FromDateTime(DateTime.UtcNow);
-			ExecutionMetadata em = new()
+			RpcExecutionMetadata em = new()
 			{
 				LeaseId = _jobHandler.CurrentLeaseId.ToString(),
 				JobId = _jobHandler.CurrentJobId,
@@ -504,26 +504,26 @@ class TelemetryService : BackgroundService
 			};
 
 			{
-				AgentCpuMetricsEvent cpuMetricsEvent = _systemMetrics.GetCpu().ToEvent();
+				RpcAgentCpuMetricsEvent cpuMetricsEvent = _systemMetrics.GetCpu().ToEvent();
 				cpuMetricsEvent.AgentId = _agentMetadataEvent.AgentId;
 				cpuMetricsEvent.Timestamp = utcNow;
 				cpuMetricsEvent.ExecutionMetadata = em;
-				request.Events.Add(new WrappedTelemetryEvent { Cpu = cpuMetricsEvent });
+				request.Events.Add(new RpcWrappedTelemetryEvent { Cpu = cpuMetricsEvent });
 			}
 
 			{
-				AgentMemoryMetricsEvent memMetricsEvent = _systemMetrics.GetMemory().ToEvent();
+				RpcAgentMemoryMetricsEvent memMetricsEvent = _systemMetrics.GetMemory().ToEvent();
 				memMetricsEvent.AgentId = _agentMetadataEvent.AgentId;
 				memMetricsEvent.Timestamp = utcNow;
 				memMetricsEvent.ExecutionMetadata = em;
-				request.Events.Add(new WrappedTelemetryEvent { Mem = memMetricsEvent });
+				request.Events.Add(new RpcWrappedTelemetryEvent { Mem = memMetricsEvent });
 			}
 
 			if (DateTime.UtcNow > _lastTimeAgentMetadataSent + _agentMetadataReportInterval)
 			{
 				// Report agent metadata every now and then as events are not guaranteed to be delivered.
 				// Re-sending ensures the metadata will eventually make it to the server.
-				request.Events.Add(new WrappedTelemetryEvent { AgentMetadata = _agentMetadataEvent });
+				request.Events.Add(new RpcWrappedTelemetryEvent { AgentMetadata = _agentMetadataEvent });
 				_lastTimeAgentMetadataSent = DateTime.UtcNow;
 			}
 
@@ -534,9 +534,9 @@ class TelemetryService : BackgroundService
 		return true;
 	}
 
-	AgentMetadataEvent GetAgentMetadataEvent()
+	RpcAgentMetadataEvent GetAgentMetadataEvent()
 	{
-		AgentMetadataEvent e = new()
+		RpcAgentMetadataEvent e = new()
 		{
 			Ip = null,
 			Hostname = _agentSettings.GetAgentName(),

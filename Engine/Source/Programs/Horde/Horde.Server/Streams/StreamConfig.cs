@@ -16,7 +16,6 @@ using EpicGames.Horde.Acls;
 using EpicGames.Horde.Agents.Pools;
 using EpicGames.Horde.Commits;
 using EpicGames.Horde.Issues;
-using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Jobs.Templates;
 using EpicGames.Horde.Replicators;
 using EpicGames.Horde.Streams;
@@ -32,6 +31,7 @@ using Horde.Server.Projects;
 using Horde.Server.Replicators;
 using Horde.Server.Server;
 using Horde.Server.Utilities;
+using HordeCommon.Rpc;
 
 namespace Horde.Server.Streams
 {
@@ -627,9 +627,9 @@ namespace Horde.Server.Streams
 		/// Creates an API response object from this stream
 		/// </summary>
 		/// <returns>The response object</returns>
-		public HordeCommon.Rpc.GetAgentTypeResponse ToRpcResponse()
+		public RpcGetAgentTypeResponse ToRpcResponse()
 		{
-			HordeCommon.Rpc.GetAgentTypeResponse response = new HordeCommon.Rpc.GetAgentTypeResponse();
+			RpcGetAgentTypeResponse response = new RpcGetAgentTypeResponse();
 			if (TempStorageDir != null)
 			{
 				response.TempStorageDir = TempStorageDir;

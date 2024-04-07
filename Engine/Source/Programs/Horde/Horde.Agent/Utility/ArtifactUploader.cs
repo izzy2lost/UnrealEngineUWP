@@ -115,10 +115,10 @@ namespace Horde.Agent.Utility
 			using (FileStream artifactStream = FileReference.Open(artifactFile, FileMode.Open, FileAccess.Read, FileShare.Read))
 			{
 				logger.LogInformation("Uploading artifact {ArtifactName} from {ArtifactFile} ({Size:n0} bytes)", artifactName, artifactFile, artifactStream.Length);
-				using (AsyncClientStreamingCall<UploadArtifactRequest, UploadArtifactResponse> cursor = client.UploadArtifact(null, null, cancellationToken))
+				using (AsyncClientStreamingCall<RpcUploadArtifactRequest, RpcUploadArtifactResponse> cursor = client.UploadArtifact(null, null, cancellationToken))
 				{
 					// Upload the metadata in the initial request
-					UploadArtifactMetadata metadata = new UploadArtifactMetadata();
+					RpcUploadArtifactMetadata metadata = new RpcUploadArtifactMetadata();
 					metadata.JobId = jobId.ToString();
 					metadata.BatchId = batchId.ToString();
 					metadata.StepId = stepId.ToString();
@@ -126,7 +126,7 @@ namespace Horde.Agent.Utility
 					metadata.MimeType = GetMimeType(artifactFile);
 					metadata.Length = artifactStream.Length;
 
-					UploadArtifactRequest initialRequest = new UploadArtifactRequest();
+					RpcUploadArtifactRequest initialRequest = new RpcUploadArtifactRequest();
 					initialRequest.Metadata = metadata;
 
 					await cursor.RequestStream.WriteAsync(initialRequest, cancellationToken);
@@ -141,7 +141,7 @@ namespace Horde.Agent.Utility
 							throw new InvalidDataException($"Unable to read data from {artifactFile} beyond offset {offset}; expected length to be {metadata.Length}");
 						}
 
-						UploadArtifactRequest request = new UploadArtifactRequest();
+						RpcUploadArtifactRequest request = new RpcUploadArtifactRequest();
 						request.Data = Google.Protobuf.ByteString.CopyFrom(buffer, 0, bytesRead);
 						await cursor.RequestStream.WriteAsync(request, cancellationToken);
 
@@ -152,7 +152,7 @@ namespace Horde.Agent.Utility
 					await cursor.RequestStream.CompleteAsync();
 
 					// Read the response
-					UploadArtifactResponse response = await cursor.ResponseAsync;
+					RpcUploadArtifactResponse response = await cursor.ResponseAsync;
 					return response.Id;
 				}
 			}

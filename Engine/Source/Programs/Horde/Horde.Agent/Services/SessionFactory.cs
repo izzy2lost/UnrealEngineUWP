@@ -154,7 +154,7 @@ namespace Horde.Agent.Services
 			logger.LogInformation("Server: {Server}", serverProfile.Url);
 
 			// Show the worker capabilities
-			AgentCapabilities capabilities = await capabilitiesService.GetCapabilitiesAsync(workingDir);
+			RpcAgentCapabilities capabilities = await capabilitiesService.GetCapabilitiesAsync(workingDir);
 			if (capabilities.Properties.Count > 0)
 			{
 				logger.LogInformation("Global:");
@@ -163,7 +163,7 @@ namespace Horde.Agent.Services
 					logger.LogInformation("  {AgentProperty}", property);
 				}
 			}
-			foreach (DeviceCapabilities device in capabilities.Devices)
+			foreach (RpcDeviceCapabilities device in capabilities.Devices)
 			{
 				logger.LogInformation("{DeviceName} Device:", device.Handle);
 				foreach (string property in device.Properties)
@@ -207,13 +207,13 @@ namespace Horde.Agent.Services
 			// Create the session
 			statusService.Set(AgentStatusMessage.ConnectingToServer);
 
-			CreateSessionResponse createSessionResponse;
+			RpcCreateSessionResponse createSessionResponse;
 			using (GrpcChannel channel = await grpcService.CreateGrpcChannelAsync(registrationInfo.Token, cancellationToken))
 			{
 				HordeRpc.HordeRpcClient rpcClient = new HordeRpc.HordeRpcClient(channel);
 
 				// Create the session information
-				CreateSessionRequest sessionRequest = new CreateSessionRequest();
+				RpcCreateSessionRequest sessionRequest = new RpcCreateSessionRequest();
 				sessionRequest.Id = registrationInfo.Id;
 				sessionRequest.Status = RpcAgentStatus.Ok;
 				sessionRequest.Capabilities = capabilities;
@@ -292,7 +292,7 @@ namespace Horde.Agent.Services
 			await FileReference.WriteAllBytesAsync(settingsFile, data, cancellationToken);
 		}
 
-		static async Task<AgentRegistration> RegisterAgentAsync(GrpcService grpcService, AgentSettings agentSettings, AgentCapabilities capabilities, ILogger logger, CancellationToken cancellationToken)
+		static async Task<AgentRegistration> RegisterAgentAsync(GrpcService grpcService, AgentSettings agentSettings, RpcAgentCapabilities capabilities, ILogger logger, CancellationToken cancellationToken)
 		{
 			ServerProfile serverProfile = agentSettings.GetCurrentServerProfile();
 			using GrpcChannel grpcChannel = await grpcService.CreateGrpcChannelAsync(serverProfile.Token, cancellationToken);
@@ -302,11 +302,11 @@ namespace Horde.Agent.Services
 				logger.LogInformation("Registering agent directly...");
 				HordeRpc.HordeRpcClient rpcClient = new HordeRpc.HordeRpcClient(grpcChannel);
 
-				CreateAgentRequest createAgentRequest = new CreateAgentRequest();
+				RpcCreateAgentRequest createAgentRequest = new RpcCreateAgentRequest();
 				createAgentRequest.Name = agentSettings.GetAgentName();
 				createAgentRequest.Ephemeral = agentSettings.Ephemeral;
 
-				CreateAgentResponse createAgentResponse = await rpcClient.CreateAgentAsync(createAgentRequest, null, null, cancellationToken);
+				RpcCreateAgentResponse createAgentResponse = await rpcClient.CreateAgentAsync(createAgentRequest, null, null, cancellationToken);
 				return new AgentRegistration(serverProfile.Url, createAgentResponse.Id, createAgentResponse.Token);
 			}
 
@@ -351,7 +351,7 @@ namespace Horde.Agent.Services
 			}
 		}
 
-		static string? GetProperty(AgentCapabilities capabilities, string name)
+		static string? GetProperty(RpcAgentCapabilities capabilities, string name)
 		{
 			foreach (string property in capabilities.Devices[0].Properties)
 			{

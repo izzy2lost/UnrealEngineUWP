@@ -20,15 +20,15 @@ namespace Horde.Agent.Execution
 	{
 		public const string Name = "Perforce";
 
-		protected AgentWorkspace _workspaceInfo;
-		protected AgentWorkspace? _autoSdkWorkspaceInfo;
+		protected RpcAgentWorkspace _workspaceInfo;
+		protected RpcAgentWorkspace? _autoSdkWorkspaceInfo;
 		protected DirectoryReference _rootDir;
 		protected DirectoryReference? _sharedStorageDir;
 
 		protected WorkspaceInfo? _autoSdkWorkspace;
 		protected WorkspaceInfo _workspace;
 
-		public PerforceExecutor(AgentWorkspace workspaceInfo, AgentWorkspace? autoSdkWorkspaceInfo, JobExecutorOptions options, ILogger logger)
+		public PerforceExecutor(RpcAgentWorkspace workspaceInfo, RpcAgentWorkspace? autoSdkWorkspaceInfo, JobExecutorOptions options, ILogger logger)
 			: base(options, logger)
 		{
 			_workspaceInfo = workspaceInfo;
@@ -109,7 +109,7 @@ namespace Horde.Agent.Execution
 					List<ChangesRecord> changes = await _workspace.PerforceClient.GetChangesAsync(ChangesOptions.None, 1, ChangeStatus.Submitted, new[] { Batch.StreamName + "/..." }, cancellationToken);
 					Batch.Change = changes[0].Number;
 
-					UpdateJobRequest updateJobRequest = new UpdateJobRequest();
+					RpcUpdateJobRequest updateJobRequest = new RpcUpdateJobRequest();
 					updateJobRequest.JobId = JobId.ToString();
 					updateJobRequest.Change = Batch.Change;
 					await RpcConnection.InvokeAsync((JobRpc.JobRpcClient x) => x.UpdateJobAsync(updateJobRequest, null, null, cancellationToken), cancellationToken);
@@ -241,7 +241,7 @@ namespace Horde.Agent.Execution
 			await base.FinalizeAsync(logger, cancellationToken);
 		}
 
-		public static async Task ConformAsync(DirectoryReference rootDir, IList<AgentWorkspace> pendingWorkspaces, bool removeUntrackedFiles, ILogger logger, CancellationToken cancellationToken)
+		public static async Task ConformAsync(DirectoryReference rootDir, IList<RpcAgentWorkspace> pendingWorkspaces, bool removeUntrackedFiles, ILogger logger, CancellationToken cancellationToken)
 		{
 			using IScope scope = GlobalTracer.Instance.BuildSpan("Conform").StartActive();
 			scope.Span.SetTag("workspaces", String.Join(',', pendingWorkspaces.Select(x => x.Identifier)));
@@ -249,7 +249,7 @@ namespace Horde.Agent.Execution
 
 			// Print out all the workspaces we're going to sync
 			logger.LogInformation("Workspaces:");
-			foreach (AgentWorkspace pendingWorkspace in pendingWorkspaces)
+			foreach (RpcAgentWorkspace pendingWorkspace in pendingWorkspaces)
 			{
 				logger.LogInformation("  Identifier={Identifier}, Stream={StreamName}, Incremental={Incremental} Method={Method} Partitioned={Partitioned}",
 					pendingWorkspace.Identifier, pendingWorkspace.Stream, pendingWorkspace.Incremental, pendingWorkspace.Method, pendingWorkspace.Partitioned);
@@ -261,7 +261,7 @@ namespace Horde.Agent.Execution
 			try
 			{
 				// Set up all the workspaces
-				foreach (AgentWorkspace pendingWorkspace in pendingWorkspaces)
+				foreach (RpcAgentWorkspace pendingWorkspace in pendingWorkspaces)
 				{
 					ManagedWorkspaceOptions options = WorkspaceInfo.GetMwOptions(pendingWorkspace);
 					WorkspaceInfo workspace = await WorkspaceInfo.SetupWorkspaceAsync(pendingWorkspace, rootDir, options, logger, cancellationToken);
@@ -435,7 +435,7 @@ namespace Horde.Agent.Execution
 			_logger = logger;
 		}
 
-		public IJobExecutor CreateExecutor(AgentWorkspace workspaceInfo, AgentWorkspace? autoSdkWorkspaceInfo, JobExecutorOptions options)
+		public IJobExecutor CreateExecutor(RpcAgentWorkspace workspaceInfo, RpcAgentWorkspace? autoSdkWorkspaceInfo, JobExecutorOptions options)
 		{
 			return new PerforceExecutor(workspaceInfo, autoSdkWorkspaceInfo, options, _logger);
 		}

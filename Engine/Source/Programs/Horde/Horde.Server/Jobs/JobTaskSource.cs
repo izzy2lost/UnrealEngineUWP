@@ -908,7 +908,7 @@ namespace Horde.Server.Jobs
 			task.StoragePrefix = storagePrefix;
 			task.Token = await _aclService.IssueBearerTokenAsync(claims, null, cancellationToken);
 
-			List<AgentWorkspace> workspaces = new();
+			List<RpcAgentWorkspace> workspaces = new();
 
 			PerforceCluster? cluster = globalConfig.FindPerforceCluster(workspace.Cluster);
 			if (cluster == null)
@@ -1045,7 +1045,7 @@ namespace Horde.Server.Jobs
 
 				// The changelist number to display the badge for
 				int change;
-				if (label.Change == LabelChange.Code)
+				if (label.Change == RpcLabelChange.Code)
 				{
 					change = job.CodeChange;
 				}

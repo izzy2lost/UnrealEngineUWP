@@ -158,10 +158,10 @@ namespace Horde.Server.Issues
 				EventData = logEventData;
 			}
 
-			static LogLevel GetLogLevelFromSeverity(EventSeverity severity) => severity switch
+			static LogLevel GetLogLevelFromSeverity(RpcEventSeverity severity) => severity switch
 			{
-				EventSeverity.Error => LogLevel.Error,
-				EventSeverity.Warning => LogLevel.Warning,
+				RpcEventSeverity.Error => LogLevel.Error,
+				RpcEventSeverity.Warning => LogLevel.Warning,
 				_ => LogLevel.Information
 			};
 		}

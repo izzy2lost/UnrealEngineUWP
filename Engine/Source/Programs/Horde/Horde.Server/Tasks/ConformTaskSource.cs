@@ -213,7 +213,7 @@ namespace Horde.Server.Tasks
 		}
 
 		/// <inheritdoc/>
-		public async Task<bool> GetWorkspacesAsync(IAgent agent, IList<HordeCommon.Rpc.Messages.AgentWorkspace> workspaces, CancellationToken cancellationToken)
+		public async Task<bool> GetWorkspacesAsync(IAgent agent, IList<RpcAgentWorkspace> workspaces, CancellationToken cancellationToken)
 		{
 			GlobalConfig globalConfig = _globalConfig.CurrentValue;
 
@@ -244,7 +244,7 @@ namespace Horde.Server.Tasks
 		/// <param name="leaseId">The lease id</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>True if the resource was allocated, false otherwise</returns>
-		private async Task<bool> AllocateConformLeaseAsync(AgentId agentId, IEnumerable<AgentWorkspace> workspaces, LeaseId leaseId, CancellationToken cancellationToken)
+		private async Task<bool> AllocateConformLeaseAsync(AgentId agentId, IEnumerable<RpcAgentWorkspace> workspaces, LeaseId leaseId, CancellationToken cancellationToken)
 		{
 			GlobalConfig globalConfig = _globalConfig.CurrentValue;
 			for (; ; )
@@ -256,7 +256,7 @@ namespace Horde.Server.Tasks
 				}
 
 				HashSet<string> servers = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-				foreach (AgentWorkspace workspace in workspaces)
+				foreach (RpcAgentWorkspace workspace in workspaces)
 				{
 					if (servers.Add(workspace.ServerAndPort))
 					{

@@ -127,7 +127,7 @@ namespace Horde.Agent.Utility
 		/// <param name="logger">Logger output</param>
 		/// <param name="cancellationToken">Cancellation token</param>
 		/// <returns>New workspace info</returns>
-		public static async Task<WorkspaceInfo> SetupWorkspaceAsync(AgentWorkspace workspace, DirectoryReference rootDir, ManagedWorkspaceOptions options, ILogger logger, CancellationToken cancellationToken)
+		public static async Task<WorkspaceInfo> SetupWorkspaceAsync(RpcAgentWorkspace workspace, DirectoryReference rootDir, ManagedWorkspaceOptions options, ILogger logger, CancellationToken cancellationToken)
 		{
 			// Fill in the default credentials iff they are not set
 			string? serverAndPort = String.IsNullOrEmpty(workspace.ServerAndPort) ? null : workspace.ServerAndPort;
@@ -295,7 +295,7 @@ namespace Horde.Agent.Utility
 		/// </summary>
 		/// <param name="workspace">Workspace settings</param>
 		/// <returns></returns>
-		public static ManagedWorkspaceOptions GetMwOptions(AgentWorkspace workspace)
+		public static ManagedWorkspaceOptions GetMwOptions(RpcAgentWorkspace workspace)
 		{
 			const string NameKey = "name";
 			const string ManagedWorkspaceValue = "managedWorkspace";

@@ -15,24 +15,24 @@ using Google.Protobuf.Collections;
 #pragma warning disable CA1716
 namespace HordeCommon.Rpc
 {
-	partial class Property
+	partial class RpcProperty
 	{
-		public Property(string name, string value)
+		public RpcProperty(string name, string value)
 		{
 			Name = name;
 			Value = value;
 		}
 
-		public Property(KeyValuePair<string, string> pair)
+		public RpcProperty(KeyValuePair<string, string> pair)
 		{
 			Name = pair.Key;
 			Value = pair.Value;
 		}
 	}
 
-	partial class PropertyUpdate
+	partial class RpcPropertyUpdate
 	{
-		public PropertyUpdate(string name, string? value)
+		public RpcPropertyUpdate(string name, string? value)
 		{
 			Name = name;
 			Value = value;
@@ -41,14 +41,14 @@ namespace HordeCommon.Rpc
 
 	static class PropertyExtensions
 	{
-		public static string GetValue(this RepeatedField<Property> properties, string name)
+		public static string GetValue(this RepeatedField<RpcProperty> properties, string name)
 		{
 			return properties.First(x => x.Name == name).Value;
 		}
 
-		public static bool TryGetValue(this RepeatedField<Property> properties, string name, [MaybeNullWhen(false)] out string result)
+		public static bool TryGetValue(this RepeatedField<RpcProperty> properties, string name, [MaybeNullWhen(false)] out string result)
 		{
-			Property? property = properties.FirstOrDefault(x => x.Name == name);
+			RpcProperty? property = properties.FirstOrDefault(x => x.Name == name);
 			if (property == null)
 			{
 				result = null!;
@@ -62,44 +62,34 @@ namespace HordeCommon.Rpc
 		}
 	}
 
-	partial class GetStreamRequest
+	partial class RpcGetStreamRequest
 	{
-		public GetStreamRequest(StreamId streamId)
+		public RpcGetStreamRequest(StreamId streamId)
 		{
 			StreamId = streamId.ToString();
 		}
 	}
 
-	partial class UpdateStreamRequest
+	partial class RpcUpdateStreamRequest
 	{
-		public UpdateStreamRequest(StreamId streamId, Dictionary<string, string?> properties)
+		public RpcUpdateStreamRequest(StreamId streamId, Dictionary<string, string?> properties)
 		{
 			StreamId = streamId.ToString();
-			Properties.AddRange(properties.Select(x => new PropertyUpdate(x.Key, x.Value)));
+			Properties.AddRange(properties.Select(x => new RpcPropertyUpdate(x.Key, x.Value)));
 		}
 	}
 
-	partial class GetJobRequest
+	partial class RpcGetJobRequest
 	{
-		public GetJobRequest(JobId jobId)
+		public RpcGetJobRequest(JobId jobId)
 		{
 			JobId = jobId.ToString();
 		}
 	}
 
-	partial class BeginBatchRequest
+	partial class RpcBeginBatchRequest
 	{
-		public BeginBatchRequest(JobId jobId, JobStepBatchId batchId, LeaseId leaseId)
-		{
-			JobId = jobId.ToString();
-			BatchId = batchId.ToString();
-			LeaseId = leaseId.ToString();
-		}
-	}
-
-	partial class FinishBatchRequest
-	{
-		public FinishBatchRequest(JobId jobId, JobStepBatchId batchId, LeaseId leaseId)
+		public RpcBeginBatchRequest(JobId jobId, JobStepBatchId batchId, LeaseId leaseId)
 		{
 			JobId = jobId.ToString();
 			BatchId = batchId.ToString();
@@ -107,9 +97,9 @@ namespace HordeCommon.Rpc
 		}
 	}
 
-	partial class BeginStepRequest
+	partial class RpcFinishBatchRequest
 	{
-		public BeginStepRequest(JobId jobId, JobStepBatchId batchId, LeaseId leaseId)
+		public RpcFinishBatchRequest(JobId jobId, JobStepBatchId batchId, LeaseId leaseId)
 		{
 			JobId = jobId.ToString();
 			BatchId = batchId.ToString();
@@ -117,9 +107,19 @@ namespace HordeCommon.Rpc
 		}
 	}
 
-	partial class UpdateStepRequest
+	partial class RpcBeginStepRequest
 	{
-		public UpdateStepRequest(JobId jobId, JobStepBatchId batchId, JobStepId stepId, JobStepState state, JobStepOutcome outcome)
+		public RpcBeginStepRequest(JobId jobId, JobStepBatchId batchId, LeaseId leaseId)
+		{
+			JobId = jobId.ToString();
+			BatchId = batchId.ToString();
+			LeaseId = leaseId.ToString();
+		}
+	}
+
+	partial class RpcUpdateStepRequest
+	{
+		public RpcUpdateStepRequest(JobId jobId, JobStepBatchId batchId, JobStepId stepId, JobStepState state, JobStepOutcome outcome)
 		{
 			JobId = jobId.ToString();
 			BatchId = batchId.ToString();
@@ -129,9 +129,9 @@ namespace HordeCommon.Rpc
 		}
 	}
 
-	partial class GetStepRequest
+	partial class RpcGetStepRequest
 	{
-		public GetStepRequest(JobId jobId, JobStepBatchId batchId, JobStepId stepId)
+		public RpcGetStepRequest(JobId jobId, JobStepBatchId batchId, JobStepId stepId)
 		{
 			JobId = jobId.ToString();
 			BatchId = batchId.ToString();
@@ -139,9 +139,9 @@ namespace HordeCommon.Rpc
 		}
 	}
 
-	partial class GetStepResponse
+	partial class RpcGetStepResponse
 	{
-		public GetStepResponse(JobStepOutcome outcome, JobStepState state, bool abortRequested)
+		public RpcGetStepResponse(JobStepOutcome outcome, JobStepState state, bool abortRequested)
 		{
 			Outcome = (int)outcome;
 			State = (int)state;
@@ -149,9 +149,9 @@ namespace HordeCommon.Rpc
 		}
 	}
 
-	partial class CreateEventRequest
+	partial class RpcCreateEventRequest
 	{
-		public CreateEventRequest(EventSeverity severity, LogId logId, int lineIndex, int lineCount)
+		public RpcCreateEventRequest(RpcEventSeverity severity, LogId logId, int lineIndex, int lineCount)
 		{
 			Severity = severity;
 			LogId = logId.ToString();
@@ -160,17 +160,17 @@ namespace HordeCommon.Rpc
 		}
 	}
 
-	partial class CreateEventsRequest
+	partial class RpcCreateEventsRequest
 	{
-		public CreateEventsRequest(IEnumerable<CreateEventRequest> events)
+		public RpcCreateEventsRequest(IEnumerable<RpcCreateEventRequest> events)
 		{
 			Events.AddRange(events);
 		}
 	}
 
-	partial class WriteOutputRequest
+	partial class RpcWriteOutputRequest
 	{
-		public WriteOutputRequest(LogId logId, long offset, int lineIndex, ByteString data, bool flush)
+		public RpcWriteOutputRequest(LogId logId, long offset, int lineIndex, ByteString data, bool flush)
 		{
 			LogId = logId.ToString();
 			Offset = offset;
@@ -180,9 +180,9 @@ namespace HordeCommon.Rpc
 		}
 	}
 
-	partial class DownloadSoftwareRequest
+	partial class RpcDownloadSoftwareRequest
 	{
-		public DownloadSoftwareRequest(string version)
+		public RpcDownloadSoftwareRequest(string version)
 		{
 			Version = version;
 		}
@@ -191,7 +191,7 @@ namespace HordeCommon.Rpc
 
 namespace HordeCommon.Rpc.Messages.Telemetry
 {
-	partial class AgentMetadataEvent
+	partial class RpcAgentMetadataEvent
 	{
 		/// <summary>
 		/// Calculate an agent ID

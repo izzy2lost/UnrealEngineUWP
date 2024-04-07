@@ -7,6 +7,7 @@ using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Jobs.Templates;
 using EpicGames.Horde.Streams;
 using EpicGames.Horde.Users;
+using HordeCommon.Rpc;
 
 namespace Horde.Server.Streams
 {
@@ -167,9 +168,9 @@ namespace Horde.Server.Streams
 		/// </summary>
 		/// <param name="streamConfig">The stream config object</param>
 		/// <returns>New response instance</returns>
-		public static HordeCommon.Rpc.GetStreamResponse ToRpcResponse(this StreamConfig streamConfig)
+		public static RpcGetStreamResponse ToRpcResponse(this StreamConfig streamConfig)
 		{
-			HordeCommon.Rpc.GetStreamResponse response = new HordeCommon.Rpc.GetStreamResponse();
+			RpcGetStreamResponse response = new RpcGetStreamResponse();
 			response.Name = streamConfig.Name;
 			response.AgentTypes.Add(streamConfig.AgentTypes.ToDictionary(x => x.Key, x => x.Value.ToRpcResponse()));
 			return response;

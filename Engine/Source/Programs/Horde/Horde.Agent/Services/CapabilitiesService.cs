@@ -45,12 +45,12 @@ namespace Horde.Agent.Services
 		/// </summary>
 		/// <param name="workingDir">Working directory for the agent</param>
 		/// <returns>Worker object for advertising to the server</returns>
-		public async Task<AgentCapabilities> GetCapabilitiesAsync(DirectoryReference? workingDir)
+		public async Task<RpcAgentCapabilities> GetCapabilitiesAsync(DirectoryReference? workingDir)
 		{
 			_logger.LogInformation("Querying agent capabilities... (may take up to 30 seconds)");
 			Stopwatch timer = Stopwatch.StartNew();
 
-			Task<AgentCapabilities> task = GetCapabilitiesInternalAsync(workingDir);
+			Task<RpcAgentCapabilities> task = GetCapabilitiesInternalAsync(workingDir);
 			while (!task.IsCompleted)
 			{
 				Task delayTask = Task.Delay(TimeSpan.FromSeconds(30.0));
@@ -64,15 +64,15 @@ namespace Horde.Agent.Services
 			return await task;
 		}
 
-		async Task<AgentCapabilities> GetCapabilitiesInternalAsync(DirectoryReference? workingDir)
+		async Task<RpcAgentCapabilities> GetCapabilitiesInternalAsync(DirectoryReference? workingDir)
 		{
 			ILogger logger = _logger;
 
 			// Create the primary device
-			DeviceCapabilities primaryDevice = new DeviceCapabilities();
+			RpcDeviceCapabilities primaryDevice = new RpcDeviceCapabilities();
 			primaryDevice.Handle = "Primary";
 
-			List<DeviceCapabilities> otherDevices = new List<DeviceCapabilities>();
+			List<RpcDeviceCapabilities> otherDevices = new List<RpcDeviceCapabilities>();
 			if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
 			{
 				primaryDevice.Properties.Add("Platform=Win64");
@@ -426,7 +426,7 @@ namespace Horde.Agent.Services
 			}
 
 			// Create the worker
-			AgentCapabilities agent = new();
+			RpcAgentCapabilities agent = new();
 			agent.Devices.Add(primaryDevice);
 			agent.Devices.AddRange(otherDevices);
 
@@ -471,7 +471,7 @@ namespace Horde.Agent.Services
 			}
 		}
 
-		static void AddCpuInfo(DeviceCapabilities primaryDevice, Dictionary<string, int> nameToCount, int numLogicalCores, int numPhysicalCores)
+		static void AddCpuInfo(RpcDeviceCapabilities primaryDevice, Dictionary<string, int> nameToCount, int numLogicalCores, int numPhysicalCores)
 		{
 			if (nameToCount.Count > 0)
 			{

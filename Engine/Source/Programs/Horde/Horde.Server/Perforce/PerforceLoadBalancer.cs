@@ -546,7 +546,7 @@ namespace Horde.Server.Perforce
 				HashSet<(string, string)> servers = new HashSet<(string, string)>();
 				if (any.TryUnpack(out ConformTask conformTask))
 				{
-					foreach (AgentWorkspace workspace in conformTask.Workspaces)
+					foreach (RpcAgentWorkspace workspace in conformTask.Workspaces)
 					{
 						servers.Add((workspace.Cluster, workspace.ServerAndPort));
 					}

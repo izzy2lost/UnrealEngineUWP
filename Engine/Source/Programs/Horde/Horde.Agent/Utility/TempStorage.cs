@@ -603,13 +603,13 @@ namespace Horde.Storage.Utility
 				ArtifactName artifactName = GetArtifactNameForNode(nodeName);
 				ArtifactType artifactType = ArtifactType.StepOutput;
 
-				GetJobArtifactRequest artifactRequest = new GetJobArtifactRequest();
+				RpcGetJobArtifactRequest artifactRequest = new RpcGetJobArtifactRequest();
 				artifactRequest.JobId = jobId.ToString();
 				artifactRequest.StepId = stepId.ToString();
 				artifactRequest.Name = artifactName.ToString();
 				artifactRequest.Type = artifactType.ToString();
 
-				GetJobArtifactResponse artifact = await jobRpc.Client.GetArtifactAsync(artifactRequest, cancellationToken: cancellationToken);
+				RpcGetJobArtifactResponse artifact = await jobRpc.Client.GetArtifactAsync(artifactRequest, cancellationToken: cancellationToken);
 
 				NamespaceId namespaceId = new NamespaceId(artifact.NamespaceId);
 				RefName refName = new RefName(artifact.RefName);
@@ -741,13 +741,13 @@ namespace Horde.Storage.Utility
 				ArtifactName artifactName = GetArtifactNameForNode(nodeName);
 				ArtifactType artifactType = ArtifactType.StepOutput;
 
-				GetJobArtifactRequest artifactRequest = new GetJobArtifactRequest();
+				RpcGetJobArtifactRequest artifactRequest = new RpcGetJobArtifactRequest();
 				artifactRequest.JobId = jobId.ToString();
 				artifactRequest.StepId = stepId.ToString();
 				artifactRequest.Name = artifactName.ToString();
 				artifactRequest.Type = artifactType.ToString();
 
-				GetJobArtifactResponse artifact = await jobRpc.Client.GetArtifactAsync(artifactRequest, cancellationToken: cancellationToken);
+				RpcGetJobArtifactResponse artifact = await jobRpc.Client.GetArtifactAsync(artifactRequest, cancellationToken: cancellationToken);
 				NamespaceId namespaceId = new NamespaceId(artifact.NamespaceId);
 				RefName refName = new RefName(artifact.RefName);
 

@@ -170,7 +170,7 @@ namespace Horde.Agent.Execution
 			_loggerFactory = loggerFactory;
 		}
 
-		public IJobExecutor CreateExecutor(AgentWorkspace workspaceInfo, AgentWorkspace? autoSdkWorkspaceInfo, JobExecutorOptions options)
+		public IJobExecutor CreateExecutor(RpcAgentWorkspace workspaceInfo, RpcAgentWorkspace? autoSdkWorkspaceInfo, JobExecutorOptions options)
 		{
 			IWorkspaceMaterializer? workspaceMaterializer = null;
 			IWorkspaceMaterializer? autoSdkMaterializer = null;

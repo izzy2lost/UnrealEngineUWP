@@ -165,7 +165,7 @@ namespace Horde.Server.Jobs.Graphs
 			public string? UgsProject { get; set; }
 
 			[BsonIgnoreIfNull]
-			public LabelChange Change { get; set; }
+			public RpcLabelChange Change { get; set; }
 
 			public List<NodeRef> RequiredNodes { get; set; }
 			public List<NodeRef> IncludedNodes { get; set; }
@@ -179,7 +179,7 @@ namespace Horde.Server.Jobs.Graphs
 				IncludedNodes = new List<NodeRef>();
 			}
 
-			public Label(string? dashboardName, string? dashboardCategory, string? ugsName, string? ugsProject, LabelChange change, List<NodeRef> requiredNodes, List<NodeRef> includedNodes)
+			public Label(string? dashboardName, string? dashboardCategory, string? ugsName, string? ugsProject, RpcLabelChange change, List<NodeRef> requiredNodes, List<NodeRef> includedNodes)
 			{
 				DashboardName = dashboardName;
 				DashboardCategory = dashboardCategory;

@@ -32,7 +32,6 @@ using MongoDB.Bson;
 
 namespace Horde.Server.Tests.Server
 {
-	using AgentCapabilities = HordeCommon.Rpc.Messages.AgentCapabilities;
 	using ISession = Microsoft.AspNetCore.Http.ISession;
 
 	public class AppLifetimeStub : IHostApplicationLifetime
@@ -323,14 +322,14 @@ namespace Horde.Server.Tests.Server
 		[TestMethod]
 		public async Task CreateSessionTestAsync()
 		{
-			CreateSessionRequest req = new CreateSessionRequest();
+			RpcCreateSessionRequest req = new RpcCreateSessionRequest();
 			await Assert.ThrowsExceptionAsync<StructuredRpcException>(() => RpcService.CreateSession(req, _adminContext));
 
 			req.Id = new AgentId("MyName").ToString();
 			await Assert.ThrowsExceptionAsync<StructuredRpcException>(() => RpcService.CreateSession(req, _adminContext));
 
-			req.Capabilities = new AgentCapabilities();
-			CreateSessionResponse res = await RpcService.CreateSession(req, _adminContext);
+			req.Capabilities = new RpcAgentCapabilities();
+			RpcCreateSessionResponse res = await RpcService.CreateSession(req, _adminContext);
 
 			Assert.AreEqual("MYNAME", res.AgentId);
 			// TODO: Check Token, ExpiryTime, SessionId 
@@ -339,15 +338,15 @@ namespace Horde.Server.Tests.Server
 		[TestMethod]
 		public async Task AgentJoinsPoolThroughPropertiesAsync()
 		{
-			CreateSessionRequest req = new() { Id = new AgentId("bogusAgentName").ToString(), Capabilities = new AgentCapabilities() };
+			RpcCreateSessionRequest req = new() { Id = new AgentId("bogusAgentName").ToString(), Capabilities = new RpcAgentCapabilities() };
 			req.Capabilities.Properties.Add($"{KnownPropertyNames.RequestedPools}=fooPool,barPool");
-			CreateSessionResponse res = await RpcService.CreateSession(req, _adminContext);
+			RpcCreateSessionResponse res = await RpcService.CreateSession(req, _adminContext);
 
 			IAgent agent = (await AgentService.GetAgentAsync(new AgentId(res.AgentId)))!;
 			CollectionAssert.AreEquivalent(new List<PoolId> { new("fooPool"), new("barPool") }, agent.GetPools().ToList());
 
 			// Connect a second time, when the agent has already been created
-			req = new() { Id = new AgentId("bogusAgentName").ToString(), Capabilities = new AgentCapabilities() };
+			req = new() { Id = new AgentId("bogusAgentName").ToString(), Capabilities = new RpcAgentCapabilities() };
 			req.Capabilities.Properties.Add($"{KnownPropertyNames.RequestedPools}=bazPool");
 			res = await RpcService.CreateSession(req, _adminContext);
 
@@ -358,9 +357,9 @@ namespace Horde.Server.Tests.Server
 		[TestMethod]
 		public async Task PropertiesFromAgentCapabilitiesAsync()
 		{
-			CreateSessionRequest req = new() { Id = new AgentId("bogusAgentName").ToString(), Capabilities = new AgentCapabilities() };
+			RpcCreateSessionRequest req = new() { Id = new AgentId("bogusAgentName").ToString(), Capabilities = new RpcAgentCapabilities() };
 			req.Capabilities.Properties.Add("fooKey=barValue");
-			CreateSessionResponse res = await RpcService.CreateSession(req, _adminContext);
+			RpcCreateSessionResponse res = await RpcService.CreateSession(req, _adminContext);
 			IAgent agent = (await AgentService.GetAgentAsync(new AgentId(res.AgentId)))!;
 			Assert.IsTrue(agent.Properties.Contains("fooKey=barValue"));
 		}
@@ -368,9 +367,9 @@ namespace Horde.Server.Tests.Server
 		[TestMethod]
 		public async Task PropertiesFromDeviceCapabilitiesAsync()
 		{
-			CreateSessionRequest req = new() { Id = new AgentId("bogusAgentName").ToString(), Capabilities = new AgentCapabilities() };
-			req.Capabilities.Devices.Add(new DeviceCapabilities { Handle = "someHandle", Properties = { "foo=bar" } });
-			CreateSessionResponse res = await RpcService.CreateSession(req, _adminContext);
+			RpcCreateSessionRequest req = new() { Id = new AgentId("bogusAgentName").ToString(), Capabilities = new RpcAgentCapabilities() };
+			req.Capabilities.Devices.Add(new RpcDeviceCapabilities { Handle = "someHandle", Properties = { "foo=bar" } });
+			RpcCreateSessionResponse res = await RpcService.CreateSession(req, _adminContext);
 			IAgent agent = (await AgentService.GetAgentAsync(new AgentId(res.AgentId)))!;
 			Assert.IsTrue(agent.Properties.Contains("foo=bar"));
 		}
@@ -378,9 +377,9 @@ namespace Horde.Server.Tests.Server
 		[TestMethod]
 		public async Task KnownPropertiesAreSetAsResourcesAsync()
 		{
-			CreateSessionRequest req = new() { Id = new AgentId("bogusAgentName").ToString(), Capabilities = new AgentCapabilities() };
-			req.Capabilities.Devices.Add(new DeviceCapabilities { Handle = "someHandle", Properties = { $"{KnownPropertyNames.LogicalCores}=10" } });
-			CreateSessionResponse res = await RpcService.CreateSession(req, _adminContext);
+			RpcCreateSessionRequest req = new() { Id = new AgentId("bogusAgentName").ToString(), Capabilities = new RpcAgentCapabilities() };
+			req.Capabilities.Devices.Add(new RpcDeviceCapabilities { Handle = "someHandle", Properties = { $"{KnownPropertyNames.LogicalCores}=10" } });
+			RpcCreateSessionResponse res = await RpcService.CreateSession(req, _adminContext);
 			IAgent agent = (await AgentService.GetAgentAsync(new AgentId(res.AgentId)))!;
 			Assert.AreEqual(10, agent.Resources[KnownPropertyNames.LogicalCores]);
 		}
@@ -388,22 +387,22 @@ namespace Horde.Server.Tests.Server
 		[TestMethod]
 		public async Task UpdateSessionTestAsync()
 		{
-			CreateSessionRequest createReq = new CreateSessionRequest
+			RpcCreateSessionRequest createReq = new RpcCreateSessionRequest
 			{
 				Id = new AgentId("UpdateSessionTest1").ToString(),
-				Capabilities = new AgentCapabilities()
+				Capabilities = new RpcAgentCapabilities()
 			};
-			CreateSessionResponse createRes = await RpcService.CreateSession(createReq, _adminContext);
+			RpcCreateSessionResponse createRes = await RpcService.CreateSession(createReq, _adminContext);
 			string agentId = createRes.AgentId;
 			string sessionId = createRes.SessionId;
 
-			TestAsyncStreamReader<UpdateSessionRequest> requestStream =
-				new TestAsyncStreamReader<UpdateSessionRequest>(_adminContext);
-			TestServerStreamWriter<UpdateSessionResponse> responseStream =
-				new TestServerStreamWriter<UpdateSessionResponse>(_adminContext);
+			TestAsyncStreamReader<RpcUpdateSessionRequest> requestStream =
+				new TestAsyncStreamReader<RpcUpdateSessionRequest>(_adminContext);
+			TestServerStreamWriter<RpcUpdateSessionResponse> responseStream =
+				new TestServerStreamWriter<RpcUpdateSessionResponse>(_adminContext);
 			Task call = RpcService.UpdateSession(requestStream, responseStream, _adminContext);
 
-			requestStream.AddMessage(new UpdateSessionRequest { AgentId = "does-not-exist", SessionId = sessionId });
+			requestStream.AddMessage(new RpcUpdateSessionRequest { AgentId = "does-not-exist", SessionId = sessionId });
 			StructuredRpcException re = await Assert.ThrowsExceptionAsync<StructuredRpcException>(() => call);
 			Assert.AreEqual(StatusCode.NotFound, re.StatusCode);
 			Assert.IsTrue(re.Message.Contains("Invalid agent name", StringComparison.OrdinalIgnoreCase));
@@ -414,14 +413,14 @@ namespace Horde.Server.Tests.Server
 		{
 			RpcService._longPollTimeout = TimeSpan.FromMilliseconds(200);
 
-			TestAsyncStreamReader<QueryServerStateRequest> requestStream =
-				new TestAsyncStreamReader<QueryServerStateRequest>(_adminContext);
-			TestServerStreamWriter<QueryServerStateResponse> responseStream =
-				new TestServerStreamWriter<QueryServerStateResponse>(_adminContext);
+			TestAsyncStreamReader<RpcQueryServerStateRequest> requestStream =
+				new TestAsyncStreamReader<RpcQueryServerStateRequest>(_adminContext);
+			TestServerStreamWriter<RpcQueryServerStateResponse> responseStream =
+				new TestServerStreamWriter<RpcQueryServerStateResponse>(_adminContext);
 			Task call = RpcService.QueryServerState(requestStream, responseStream, _adminContext);
 
-			requestStream.AddMessage(new QueryServerStateRequest { Name = "bogusAgentName" });
-			QueryServerStateResponse? res = await responseStream.ReadNextAsync();
+			requestStream.AddMessage(new RpcQueryServerStateRequest { Name = "bogusAgentName" });
+			RpcQueryServerStateResponse? res = await responseStream.ReadNextAsync();
 			Assert.IsNotNull(res);
 
 			res = await responseStream.ReadNextAsync();
@@ -434,22 +433,22 @@ namespace Horde.Server.Tests.Server
 		[TestMethod]
 		public async Task FinishBatchTestAsync()
 		{
-			CreateSessionRequest createReq = new CreateSessionRequest
+			RpcCreateSessionRequest createReq = new RpcCreateSessionRequest
 			{
 				Id = new AgentId("UpdateSessionTest1").ToString(),
-				Capabilities = new AgentCapabilities()
+				Capabilities = new RpcAgentCapabilities()
 			};
-			CreateSessionResponse createRes = await RpcService.CreateSession(createReq, _adminContext);
+			RpcCreateSessionResponse createRes = await RpcService.CreateSession(createReq, _adminContext);
 			string agentId = createRes.AgentId;
 			string sessionId = createRes.SessionId;
 
-			TestAsyncStreamReader<UpdateSessionRequest> requestStream =
-				new TestAsyncStreamReader<UpdateSessionRequest>(_adminContext);
-			TestServerStreamWriter<UpdateSessionResponse> responseStream =
-				new TestServerStreamWriter<UpdateSessionResponse>(_adminContext);
+			TestAsyncStreamReader<RpcUpdateSessionRequest> requestStream =
+				new TestAsyncStreamReader<RpcUpdateSessionRequest>(_adminContext);
+			TestServerStreamWriter<RpcUpdateSessionResponse> responseStream =
+				new TestServerStreamWriter<RpcUpdateSessionResponse>(_adminContext);
 			Task call = RpcService.UpdateSession(requestStream, responseStream, _adminContext);
 
-			requestStream.AddMessage(new UpdateSessionRequest { AgentId = "does-not-exist", SessionId = sessionId });
+			requestStream.AddMessage(new RpcUpdateSessionRequest { AgentId = "does-not-exist", SessionId = sessionId });
 			StructuredRpcException re = await Assert.ThrowsExceptionAsync<StructuredRpcException>(() => call);
 			Assert.AreEqual(StatusCode.NotFound, re.StatusCode);
 			Assert.IsTrue(re.Message.Contains("Invalid agent name", StringComparison.OrdinalIgnoreCase));
@@ -470,7 +469,7 @@ namespace Horde.Server.Tests.Server
 			string[] data = { "foo", "bar", "baz", "qux" };
 			string dataStr = String.Join("", data);
 
-			UploadArtifactMetadata metadata = new UploadArtifactMetadata
+			RpcUploadArtifactMetadata metadata = new RpcUploadArtifactMetadata
 			{
 				JobId = fixture.Job1.Id.ToString(),
 				BatchId = fixture.Job1.Batches[0].Id.ToString(),
@@ -496,14 +495,14 @@ namespace Horde.Server.Tests.Server
 						RequestStream.Complete();
 						await Task.Delay(500);
 			*/
-			TestAsyncStreamReader<UploadArtifactRequest> requestStream = new TestAsyncStreamReader<UploadArtifactRequest>(context);
-			Task<UploadArtifactResponse> call = RpcService.UploadArtifact(requestStream, context);
-			requestStream.AddMessage(new UploadArtifactRequest { Metadata = metadata });
-			requestStream.AddMessage(new UploadArtifactRequest { Data = ByteString.CopyFromUtf8(data[0]) });
-			requestStream.AddMessage(new UploadArtifactRequest { Data = ByteString.CopyFromUtf8(data[1]) });
-			requestStream.AddMessage(new UploadArtifactRequest { Data = ByteString.CopyFromUtf8(data[2]) });
-			requestStream.AddMessage(new UploadArtifactRequest { Data = ByteString.CopyFromUtf8(data[3]) });
-			UploadArtifactResponse res = await call;
+			TestAsyncStreamReader<RpcUploadArtifactRequest> requestStream = new TestAsyncStreamReader<RpcUploadArtifactRequest>(context);
+			Task<RpcUploadArtifactResponse> call = RpcService.UploadArtifact(requestStream, context);
+			requestStream.AddMessage(new RpcUploadArtifactRequest { Metadata = metadata });
+			requestStream.AddMessage(new RpcUploadArtifactRequest { Data = ByteString.CopyFromUtf8(data[0]) });
+			requestStream.AddMessage(new RpcUploadArtifactRequest { Data = ByteString.CopyFromUtf8(data[1]) });
+			requestStream.AddMessage(new RpcUploadArtifactRequest { Data = ByteString.CopyFromUtf8(data[2]) });
+			requestStream.AddMessage(new RpcUploadArtifactRequest { Data = ByteString.CopyFromUtf8(data[3]) });
+			RpcUploadArtifactResponse res = await call;
 
 			IArtifactV1? artifact = await ArtifactCollection.GetArtifactAsync(ObjectId.Parse(res.Id));
 			Assert.IsNotNull(artifact);

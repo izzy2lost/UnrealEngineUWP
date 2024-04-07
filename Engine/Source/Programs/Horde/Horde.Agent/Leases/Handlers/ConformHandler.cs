@@ -49,7 +49,7 @@ namespace Horde.Agent.Leases.Handlers
 			await session.TerminateProcessesAsync(TerminateCondition.BeforeConform, logger, cancellationToken);
 
 			bool removeUntrackedFiles = conformTask.RemoveUntrackedFiles;
-			IList<AgentWorkspace> pendingWorkspaces = conformTask.Workspaces;
+			IList<RpcAgentWorkspace> pendingWorkspaces = conformTask.Workspaces;
 			for (; ; )
 			{
 				bool isPerforceExecutor = _settings.Executor.Equals(PerforceExecutor.Name, StringComparison.OrdinalIgnoreCase);
@@ -72,12 +72,12 @@ namespace Horde.Agent.Leases.Handlers
 				}
 
 				// Update the new set of workspaces
-				UpdateAgentWorkspacesRequest request = new UpdateAgentWorkspacesRequest();
+				RpcUpdateAgentWorkspacesRequest request = new RpcUpdateAgentWorkspacesRequest();
 				request.AgentId = session.AgentId.ToString();
 				request.Workspaces.AddRange(pendingWorkspaces);
 				request.RemoveUntrackedFiles = removeUntrackedFiles;
 
-				UpdateAgentWorkspacesResponse response = await session.RpcConnection.InvokeAsync((HordeRpc.HordeRpcClient x) => x.UpdateAgentWorkspacesAsync(request, null, null, cancellationToken), cancellationToken);
+				RpcUpdateAgentWorkspacesResponse response = await session.RpcConnection.InvokeAsync((HordeRpc.HordeRpcClient x) => x.UpdateAgentWorkspacesAsync(request, null, null, cancellationToken), cancellationToken);
 				if (!response.Retry)
 				{
 					logger.LogInformation("Conform finished");

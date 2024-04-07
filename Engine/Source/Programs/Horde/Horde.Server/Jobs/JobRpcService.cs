@@ -40,12 +40,6 @@ using MongoDB.Bson.Serialization;
 
 namespace Horde.Server.Jobs
 {
-	using RpcGetJobResponse = HordeCommon.Rpc.GetJobResponse;
-	using RpcGetStepResponse = HordeCommon.Rpc.GetStepResponse;
-	using RpcGetStreamResponse = HordeCommon.Rpc.GetStreamResponse;
-	using RpcUpdateJobRequest = HordeCommon.Rpc.UpdateJobRequest;
-	using RpcUpdateStepRequest = HordeCommon.Rpc.UpdateStepRequest;
-
 	/// <summary>
 	/// Implements the Horde gRPC service for bots updating their status and dequeing work
 	/// </summary>
@@ -71,7 +65,7 @@ namespace Horde.Server.Jobs
 		}
 
 		/// <inheritdoc/>
-		public override async Task<Common.Rpc.CreateJobArtifactResponse> CreateArtifact(CreateJobArtifactRequest request, ServerCallContext context)
+		public override async Task<RpcCreateJobArtifactResponse> CreateArtifact(RpcCreateJobArtifactRequest request, ServerCallContext context)
 		{
 			(IJob job, _, IJobStep step) = await AuthorizeAsync(request.JobId, request.StepId, context);
 
@@ -101,11 +95,11 @@ namespace Horde.Server.Jobs
 			claims.Add(new AclClaimConfig(HordeClaimTypes.WriteNamespace, artifact.NamespaceId.ToString()));
 
 			string token = await _aclService.IssueBearerTokenAsync(claims, TimeSpan.FromHours(8.0), context.CancellationToken);
-			return new Common.Rpc.CreateJobArtifactResponse { Id = artifact.Id.ToString(), NamespaceId = artifact.NamespaceId.ToString(), RefName = artifact.RefName.ToString(), Token = token };
+			return new RpcCreateJobArtifactResponse { Id = artifact.Id.ToString(), NamespaceId = artifact.NamespaceId.ToString(), RefName = artifact.RefName.ToString(), Token = token };
 		}
 
 		/// <inheritdoc/>
-		public override async Task<Common.Rpc.CreateJobArtifactResponseV2> CreateArtifactV2(CreateJobArtifactRequestV2 request, ServerCallContext context)
+		public override async Task<RpcCreateJobArtifactResponseV2> CreateArtifactV2(RpcCreateJobArtifactRequestV2 request, ServerCallContext context)
 		{
 			(IJob job, _, IJobStep step) = await AuthorizeAsync(request.JobId, request.StepId, context);
 
@@ -135,7 +129,7 @@ namespace Horde.Server.Jobs
 
 			string token = await _aclService.IssueBearerTokenAsync(claims, TimeSpan.FromHours(8.0), context.CancellationToken);
 
-			Common.Rpc.CreateJobArtifactResponseV2 response = new Common.Rpc.CreateJobArtifactResponseV2();
+			RpcCreateJobArtifactResponseV2 response = new RpcCreateJobArtifactResponseV2();
 			response.Id = artifact.Id.ToString();
 			response.NamespaceId = artifact.NamespaceId.ToString();
 			response.RefName = artifact.RefName.ToString();
@@ -144,7 +138,7 @@ namespace Horde.Server.Jobs
 		}
 
 		/// <inheritdoc/>
-		public override async Task<Common.Rpc.GetJobArtifactResponse> GetArtifact(GetJobArtifactRequest request, ServerCallContext context)
+		public override async Task<RpcGetJobArtifactResponse> GetArtifact(RpcGetJobArtifactRequest request, ServerCallContext context)
 		{
 			(IJob job, _, _) = await AuthorizeAsync(request.JobId, request.StepId, context);
 
@@ -162,7 +156,7 @@ namespace Horde.Server.Jobs
 
 			string token = await _aclService.IssueBearerTokenAsync(claims, TimeSpan.FromHours(8.0), context.CancellationToken);
 
-			Common.Rpc.GetJobArtifactResponse response = new Common.Rpc.GetJobArtifactResponse();
+			RpcGetJobArtifactResponse response = new RpcGetJobArtifactResponse();
 			response.Id = artifact.Id.ToString();
 			response.NamespaceId = artifact.NamespaceId.ToString();
 			response.RefName = artifact.RefName.ToString();
@@ -205,43 +199,43 @@ namespace Horde.Server.Jobs
 		}
 
 		/// <inheritdoc/>
-		public override Task<RpcGetStreamResponse> GetStream(GetStreamRequest request, ServerCallContext context) => _jobRpcCommon.GetStreamAsync(request, context);
+		public override Task<RpcGetStreamResponse> GetStream(RpcGetStreamRequest request, ServerCallContext context) => _jobRpcCommon.GetStreamAsync(request, context);
 
 		/// <inheritdoc/>
-		public override Task<RpcGetJobResponse> GetJob(GetJobRequest request, ServerCallContext context) => _jobRpcCommon.GetJobAsync(request, context);
+		public override Task<RpcGetJobResponse> GetJob(RpcGetJobRequest request, ServerCallContext context) => _jobRpcCommon.GetJobAsync(request, context);
 
 		/// <inheritdoc/>
 		public override Task<Empty> UpdateJob(RpcUpdateJobRequest request, ServerCallContext context) => _jobRpcCommon.UpdateJobAsync(request, context);
 
 		/// <inheritdoc/>
-		public override Task<BeginBatchResponse> BeginBatch(BeginBatchRequest request, ServerCallContext context) => _jobRpcCommon.BeginBatchAsync(request, context);
+		public override Task<RpcBeginBatchResponse> BeginBatch(RpcBeginBatchRequest request, ServerCallContext context) => _jobRpcCommon.BeginBatchAsync(request, context);
 
 		/// <inheritdoc/>
-		public override Task<Empty> FinishBatch(FinishBatchRequest request, ServerCallContext context) => _jobRpcCommon.FinishBatchAsync(request, context);
+		public override Task<Empty> FinishBatch(RpcFinishBatchRequest request, ServerCallContext context) => _jobRpcCommon.FinishBatchAsync(request, context);
 
 		/// <inheritdoc/>
-		public override Task<BeginStepResponse> BeginStep(BeginStepRequest request, ServerCallContext context) => _jobRpcCommon.BeginStepAsync(request, context);
+		public override Task<RpcBeginStepResponse> BeginStep(RpcBeginStepRequest request, ServerCallContext context) => _jobRpcCommon.BeginStepAsync(request, context);
 
 		/// <inheritdoc/>
 		public override Task<Empty> UpdateStep(RpcUpdateStepRequest request, ServerCallContext context) => _jobRpcCommon.UpdateStepAsync(request, context);
 
 		/// <inheritdoc/>
-		public override Task<RpcGetStepResponse> GetStep(GetStepRequest request, ServerCallContext context) => _jobRpcCommon.GetStepAsync(request, context);
+		public override Task<RpcGetStepResponse> GetStep(RpcGetStepRequest request, ServerCallContext context) => _jobRpcCommon.GetStepAsync(request, context);
 
 		/// <inheritdoc/>
-		public override Task<UpdateGraphResponse> UpdateGraph(UpdateGraphRequest request, ServerCallContext context) => _jobRpcCommon.UpdateGraphAsync(request, context);
+		public override Task<RpcUpdateGraphResponse> UpdateGraph(RpcUpdateGraphRequest request, ServerCallContext context) => _jobRpcCommon.UpdateGraphAsync(request, context);
 
 		/// <inheritdoc/>
-		public override Task<Empty> CreateEvents(CreateEventsRequest request, ServerCallContext context) => _jobRpcCommon.CreateEventsAsync(request, context);
+		public override Task<Empty> CreateEvents(RpcCreateEventsRequest request, ServerCallContext context) => _jobRpcCommon.CreateEventsAsync(request, context);
 
 		/// <inheritdoc/>
-		public override Task<UploadArtifactResponse> UploadArtifact(IAsyncStreamReader<UploadArtifactRequest> reader, ServerCallContext context) => _jobRpcCommon.UploadArtifactAsync(reader, context);
+		public override Task<RpcUploadArtifactResponse> UploadArtifact(IAsyncStreamReader<RpcUploadArtifactRequest> reader, ServerCallContext context) => _jobRpcCommon.UploadArtifactAsync(reader, context);
 
 		/// <inheritdoc/>
-		public override Task<UploadTestDataResponse> UploadTestData(IAsyncStreamReader<UploadTestDataRequest> reader, ServerCallContext context) => _jobRpcCommon.UploadTestDataAsync(reader, context);
+		public override Task<RpcUploadTestDataResponse> UploadTestData(IAsyncStreamReader<RpcUploadTestDataRequest> reader, ServerCallContext context) => _jobRpcCommon.UploadTestDataAsync(reader, context);
 
 		/// <inheritdoc/>
-		public override Task<CreateReportResponse> CreateReport(CreateReportRequest request, ServerCallContext context) => _jobRpcCommon.CreateReportAsync(request, context);
+		public override Task<RpcCreateReportResponse> CreateReport(RpcCreateReportRequest request, ServerCallContext context) => _jobRpcCommon.CreateReportAsync(request, context);
 	}
 
 	/// <summary>
@@ -285,7 +279,7 @@ namespace Horde.Server.Jobs
 		/// <param name="request">Request arguments</param>
 		/// <param name="context">Context for the RPC call</param>
 		/// <returns>Information about the new agent</returns>
-		public Task<RpcGetStreamResponse> GetStreamAsync(GetStreamRequest request, ServerCallContext context)
+		public Task<RpcGetStreamResponse> GetStreamAsync(RpcGetStreamRequest request, ServerCallContext context)
 		{
 			StreamId streamIdValue = new StreamId(request.StreamId);
 
@@ -308,7 +302,7 @@ namespace Horde.Server.Jobs
 		/// <param name="request">Request arguments</param>
 		/// <param name="context">Context for the RPC call</param>
 		/// <returns>Information about the new agent</returns>
-		public async Task<RpcGetJobResponse> GetJobAsync(GetJobRequest request, ServerCallContext context)
+		public async Task<RpcGetJobResponse> GetJobAsync(RpcGetJobRequest request, ServerCallContext context)
 		{
 			JobId jobIdValue = JobId.Parse(request.JobId);
 
@@ -355,7 +349,7 @@ namespace Horde.Server.Jobs
 		/// <param name="request">Request arguments</param>
 		/// <param name="context">Context for the RPC call</param>
 		/// <returns>Information about the new agent</returns>
-		public async Task<BeginBatchResponse> BeginBatchAsync(BeginBatchRequest request, ServerCallContext context)
+		public async Task<RpcBeginBatchResponse> BeginBatchAsync(RpcBeginBatchRequest request, ServerCallContext context)
 		{
 			JobStepBatchId batchId = JobStepBatchId.Parse(request.BatchId);
 
@@ -380,7 +374,7 @@ namespace Horde.Server.Jobs
 			IGraph graph = await _jobService.GetGraphAsync(job);
 			AgentConfig agentConfig = streamConfig.AgentTypes[graph.Groups[batch.GroupIdx].AgentType];
 
-			BeginBatchResponse response = new BeginBatchResponse();
+			RpcBeginBatchResponse response = new RpcBeginBatchResponse();
 			response.LogId = batch.LogId.ToString();
 			response.AgentType = graph.Groups[batch.GroupIdx].AgentType;
 			response.StreamName = streamConfig.Name;
@@ -408,7 +402,7 @@ namespace Horde.Server.Jobs
 		/// <param name="request">Request arguments</param>
 		/// <param name="context">Context for the RPC call</param>
 		/// <returns>Information about the new agent</returns>
-		public async Task<Empty> FinishBatchAsync(FinishBatchRequest request, ServerCallContext context)
+		public async Task<Empty> FinishBatchAsync(RpcFinishBatchRequest request, ServerCallContext context)
 		{
 			IJob? job = await _jobService.GetJobAsync(JobId.Parse(request.JobId));
 			if (job == null)
@@ -431,12 +425,12 @@ namespace Horde.Server.Jobs
 		/// <param name="request">Request arguments</param>
 		/// <param name="context">Context for the RPC call</param>
 		/// <returns>Information about the new agent</returns>
-		public async Task<BeginStepResponse> BeginStepAsync(BeginStepRequest request, ServerCallContext context)
+		public async Task<RpcBeginStepResponse> BeginStepAsync(RpcBeginStepRequest request, ServerCallContext context)
 		{
 			Boxed<ILogFile?> log = new Boxed<ILogFile?>(null);
 			for (; ; )
 			{
-				BeginStepResponse? response = await TryBeginStepAsync(request, log, context);
+				RpcBeginStepResponse? response = await TryBeginStepAsync(request, log, context);
 				if (response != null)
 				{
 					return response;
@@ -444,7 +438,7 @@ namespace Horde.Server.Jobs
 			}
 		}
 
-		async Task<BeginStepResponse?> TryBeginStepAsync(BeginStepRequest request, Boxed<ILogFile?> log, ServerCallContext context)
+		async Task<RpcBeginStepResponse?> TryBeginStepAsync(RpcBeginStepRequest request, Boxed<ILogFile?> log, ServerCallContext context)
 		{
 			// Check the job exists and we can access it
 			IJob? job = await _jobService.GetJobAsync(JobId.Parse(request.JobId));
@@ -461,7 +455,7 @@ namespace Horde.Server.Jobs
 			IJobStepBatch batch = AuthorizeBatch(job, JobStepBatchId.Parse(request.BatchId), context);
 			if (batch.State != JobStepBatchState.Starting && batch.State != JobStepBatchState.Running)
 			{
-				return new BeginStepResponse { State = BeginStepResponse.Types.Result.Complete };
+				return new RpcBeginStepResponse { State = RpcBeginStepResponse.Types.Result.Complete };
 			}
 
 			// Figure out which step to execute next
@@ -476,7 +470,7 @@ namespace Horde.Server.Jobs
 					{
 						return null;
 					}
-					return new BeginStepResponse { State = BeginStepResponse.Types.Result.Complete };
+					return new RpcBeginStepResponse { State = RpcBeginStepResponse.Types.Result.Complete };
 				}
 
 				// Check if this step is ready to be executed
@@ -488,7 +482,7 @@ namespace Horde.Server.Jobs
 				if (step.State == JobStepState.Waiting)
 				{
 					_logger.LogDebug("Waiting for job {JobId}, batch {BatchId}, step {StepId}", job.Id, batch.Id, step.Id);
-					return new BeginStepResponse { State = BeginStepResponse.Types.Result.Waiting };
+					return new RpcBeginStepResponse { State = RpcBeginStepResponse.Types.Result.Waiting };
 				}
 			}
 
@@ -515,8 +509,8 @@ namespace Horde.Server.Jobs
 			IJob? newJob = await _jobService.TryUpdateStepAsync(job, batch.Id, step.Id, streamConfig, JobStepState.Running, JobStepOutcome.Unspecified, newLogId: log.Value.Id);
 			if (newJob != null)
 			{
-				BeginStepResponse response = new BeginStepResponse();
-				response.State = BeginStepResponse.Types.Result.Ready;
+				RpcBeginStepResponse response = new RpcBeginStepResponse();
+				response.State = RpcBeginStepResponse.Types.Result.Ready;
 				response.LogId = log.Value.Id.ToString();
 				response.StepId = step.Id.ToString();
 				response.Name = node.Name;
@@ -648,7 +642,7 @@ namespace Horde.Server.Jobs
 				{
 					if (node.OutputNames.Contains(artifact.OutputName))
 					{
-						CreateGraphArtifactRequest stepArtifact = new CreateGraphArtifactRequest { Name = artifact.Name.ToString(), Type = artifact.Type.ToString(), Description = artifact.Description, BasePath = artifact.BasePath, OutputName = artifact.OutputName };
+						RpcCreateGraphArtifactRequest stepArtifact = new RpcCreateGraphArtifactRequest { Name = artifact.Name.ToString(), Type = artifact.Type.ToString(), Description = artifact.Description, BasePath = artifact.BasePath, OutputName = artifact.OutputName };
 						stepArtifact.Keys.AddRange(artifact.Keys);
 						stepArtifact.Metadata.AddRange(artifact.Metadata);
 						response.Artifacts.Add(stepArtifact);
@@ -778,7 +772,7 @@ namespace Horde.Server.Jobs
 		/// <param name="request">Request arguments</param>
 		/// <param name="context">Context for the RPC call</param>
 		/// <returns>Information about the step</returns>
-		public async Task<RpcGetStepResponse> GetStepAsync(GetStepRequest request, ServerCallContext context)
+		public async Task<RpcGetStepResponse> GetStepAsync(RpcGetStepRequest request, ServerCallContext context)
 		{
 			IJob job = await GetJobAsync(JobId.Parse(request.JobId), context.CancellationToken);
 			IJobStepBatch batch = AuthorizeBatch(job, JobStepBatchId.Parse(request.BatchId), context);
@@ -798,7 +792,7 @@ namespace Horde.Server.Jobs
 		/// <param name="request">Request arguments</param>
 		/// <param name="context">Context for the RPC call</param>
 		/// <returns>Information about the new agent</returns>
-		public async Task<UpdateGraphResponse> UpdateGraphAsync(UpdateGraphRequest request, ServerCallContext context)
+		public async Task<RpcUpdateGraphResponse> UpdateGraphAsync(RpcUpdateGraphRequest request, ServerCallContext context)
 		{
 			JobId jobIdValue = JobId.Parse(request.JobId);
 			for (; ; )
@@ -818,10 +812,10 @@ namespace Horde.Server.Jobs
 
 				// Add all the new nodes
 				List<NewGroup> newGroups = new List<NewGroup> { new NewGroup(oldGraph, oldGraph.Groups[0]) };
-				foreach (CreateGroupRequest group in request.Groups)
+				foreach (RpcCreateGroupRequest group in request.Groups)
 				{
 					List<NewNode> newNodes = new List<NewNode>();
-					foreach (CreateNodeRequest node in group.Nodes)
+					foreach (RpcCreateNodeRequest node in group.Nodes)
 					{
 						NewNode newNode = new NewNode(node.Name, node.Inputs.ToList(), node.Outputs.ToList(), node.InputDependencies.ToList(), node.OrderDependencies.ToList(), (Priority)node.Priority, node.AllowRetry, node.RunEarly, node.Warnings, new Dictionary<string, string>(node.Credentials), new Dictionary<string, string>(node.Properties), new NodeAnnotations(node.Annotations));
 						newNodes.Add(newNode);
@@ -831,7 +825,7 @@ namespace Horde.Server.Jobs
 
 				// Add all the new aggregates
 				List<NewAggregate> newAggregates = new List<NewAggregate>();
-				foreach (CreateAggregateRequest aggregate in request.Aggregates)
+				foreach (RpcCreateAggregateRequest aggregate in request.Aggregates)
 				{
 					NewAggregate newAggregate = new NewAggregate(aggregate.Name, aggregate.Nodes.ToList());
 					newAggregates.Add(newAggregate);
@@ -839,7 +833,7 @@ namespace Horde.Server.Jobs
 
 				// Add all the new labels
 				List<NewLabel> newLabels = new List<NewLabel>();
-				foreach (CreateLabelRequest label in request.Labels)
+				foreach (RpcCreateLabelRequest label in request.Labels)
 				{
 					NewLabel newLabel = new NewLabel();
 					newLabel.DashboardName = String.IsNullOrEmpty(label.DashboardName) ? null : label.DashboardName;
@@ -854,7 +848,7 @@ namespace Horde.Server.Jobs
 
 				// Add all the new artifacts
 				List<NewGraphArtifact> newArtifacts = new List<NewGraphArtifact>();
-				foreach (CreateGraphArtifactRequest artifact in request.Artifacts)
+				foreach (RpcCreateGraphArtifactRequest artifact in request.Artifacts)
 				{
 					ArtifactName name = new ArtifactName(StringId.Sanitize(artifact.Name));
 					ArtifactType type = new ArtifactType(StringId.Sanitize(artifact.Type));
@@ -876,7 +870,7 @@ namespace Horde.Server.Jobs
 				if (newJob != null)
 				{
 					_logger.LogInformation("Updating graph for {JobId} from {OldGraphHash} to {NewGraphHash}", job.Id, oldGraph.Id, newJob.GraphHash);
-					return new UpdateGraphResponse();
+					return new RpcUpdateGraphResponse();
 				}
 			}
 		}
@@ -887,7 +881,7 @@ namespace Horde.Server.Jobs
 		/// <param name="request">Request arguments</param>
 		/// <param name="context">Context for the RPC call</param>
 		/// <returns>Information about the new agent</returns>
-		public async Task<Empty> CreateEventsAsync(CreateEventsRequest request, ServerCallContext context)
+		public async Task<Empty> CreateEventsAsync(RpcCreateEventsRequest request, ServerCallContext context)
 		{
 			if (!_globalConfig.Value.Authorize(LogAclAction.CreateEvent, context.GetHttpContext().User))
 			{
@@ -895,7 +889,7 @@ namespace Horde.Server.Jobs
 			}
 
 			List<NewLogEventData> newEvents = new List<NewLogEventData>();
-			foreach (CreateEventRequest createEvent in request.Events)
+			foreach (RpcCreateEventRequest createEvent in request.Events)
 			{
 				NewLogEventData newEvent = new NewLogEventData();
 				newEvent.LogId = LogId.Parse(createEvent.LogId);
@@ -914,7 +908,7 @@ namespace Horde.Server.Jobs
 		/// <param name="reader">Request arguments</param>
 		/// <param name="context">Context for the RPC call</param>
 		/// <returns>Information about the new agent</returns>
-		public async Task<UploadArtifactResponse> UploadArtifactAsync(IAsyncStreamReader<UploadArtifactRequest> reader, ServerCallContext context)
+		public async Task<RpcUploadArtifactResponse> UploadArtifactAsync(IAsyncStreamReader<RpcUploadArtifactRequest> reader, ServerCallContext context)
 		{
 			// Advance to the metadata object
 			if (!await reader.MoveNext())
@@ -923,7 +917,7 @@ namespace Horde.Server.Jobs
 			}
 
 			// Read the request object
-			UploadArtifactMetadata? metadata = reader.Current.Metadata;
+			RpcUploadArtifactMetadata? metadata = reader.Current.Metadata;
 			if (metadata == null)
 			{
 				throw new StructuredRpcException(StatusCode.DataLoss, "Expected metadata in first artifact request");
@@ -944,7 +938,7 @@ namespace Horde.Server.Jobs
 			{
 				IArtifactV1 artifact = await _artifactCollection.CreateArtifactAsync(job.Id, step.Id, metadata.Name, metadata.MimeType, inputStream, context.CancellationToken);
 
-				UploadArtifactResponse response = new UploadArtifactResponse();
+				RpcUploadArtifactResponse response = new RpcUploadArtifactResponse();
 				response.Id = artifact.Id.ToString();
 				return response;
 			}
@@ -956,7 +950,7 @@ namespace Horde.Server.Jobs
 		/// <param name="reader">Request arguments</param>
 		/// <param name="context">Context for the RPC call</param>
 		/// <returns>Information about the new agent</returns>
-		public async Task<UploadTestDataResponse> UploadTestDataAsync(IAsyncStreamReader<UploadTestDataRequest> reader, ServerCallContext context)
+		public async Task<RpcUploadTestDataResponse> UploadTestDataAsync(IAsyncStreamReader<RpcUploadTestDataRequest> reader, ServerCallContext context)
 		{
 			IJob? job = null;
 			IJobStep? jobStep = null;
@@ -965,7 +959,7 @@ namespace Horde.Server.Jobs
 
 			while (await reader.MoveNext())
 			{
-				UploadTestDataRequest request = reader.Current;
+				RpcUploadTestDataRequest request = reader.Current;
 
 				JobId jobId = JobId.Parse(request.JobId);
 				if (job == null)
@@ -1009,7 +1003,7 @@ namespace Horde.Server.Jobs
 				throw new StructuredRpcException(StatusCode.NotFound, "Unable to get job or step for test data upload");
 			}
 
-			return new UploadTestDataResponse();
+			return new RpcUploadTestDataResponse();
 		}
 
 		/// <summary>
@@ -1018,7 +1012,7 @@ namespace Horde.Server.Jobs
 		/// <param name="request"></param>
 		/// <param name="context"></param>
 		/// <returns></returns>
-		public async Task<CreateReportResponse> CreateReportAsync(CreateReportRequest request, ServerCallContext context)
+		public async Task<RpcCreateReportResponse> CreateReportAsync(RpcCreateReportRequest request, ServerCallContext context)
 		{
 			IJob job = await GetJobAsync(JobId.Parse(request.JobId), context.CancellationToken);
 			if (!_globalConfig.Value.TryGetStream(job.StreamId, out StreamConfig? streamConfig))
@@ -1029,7 +1023,7 @@ namespace Horde.Server.Jobs
 			IJobStepBatch batch = AuthorizeBatch(job, JobStepBatchId.Parse(request.BatchId), context);
 
 			Report newReport = new Report { Name = request.Name, Placement = (ReportPlacement)request.Placement, Content = request.Content };
-			if (request.Scope == ReportScope.Job)
+			if (request.Scope == RpcReportScope.Job)
 			{
 				_logger.LogDebug("Adding report to job {JobId}: {Name} -> {Content}", job.Id, request.Name, request.Content);
 				await _jobService.UpdateJobAsync(job, reports: new List<Report> { newReport });
@@ -1040,7 +1034,7 @@ namespace Horde.Server.Jobs
 				await _jobService.UpdateStepAsync(job, batch.Id, JobStepId.Parse(request.StepId), streamConfig, newReports: new List<Report> { newReport });
 			}
 
-			return new CreateReportResponse();
+			return new RpcCreateReportResponse();
 		}
 	}
 }

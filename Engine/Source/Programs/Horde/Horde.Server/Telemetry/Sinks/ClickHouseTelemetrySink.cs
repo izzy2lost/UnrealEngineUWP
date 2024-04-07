@@ -60,18 +60,18 @@ namespace Horde.Server.Telemetry.Sinks
 		/// <inheritdoc />
 		public async ValueTask FlushAsync(CancellationToken cancellationToken)
 		{
-			List<AgentMetadataEvent> agentMetadataEvents = new();
-			List<AgentCpuMetricsEvent> agentCpuEvents = new();
-			List<AgentMemoryMetricsEvent> agentMemEvents = new();
+			List<RpcAgentMetadataEvent> agentMetadataEvents = new();
+			List<RpcAgentCpuMetricsEvent> agentCpuEvents = new();
+			List<RpcAgentMemoryMetricsEvent> agentMemEvents = new();
 
 			int c = 0;
 			while (_queuedEvents.TryDequeue(out TelemetryEvent? evt))
 			{
 				switch (evt.Payload)
 				{
-					case AgentMetadataEvent agentMetadata: agentMetadataEvents.Add(agentMetadata); break;
-					case AgentCpuMetricsEvent agentCpu: agentCpuEvents.Add(agentCpu); break;
-					case AgentMemoryMetricsEvent agentMem: agentMemEvents.Add(agentMem); break;
+					case RpcAgentMetadataEvent agentMetadata: agentMetadataEvents.Add(agentMetadata); break;
+					case RpcAgentCpuMetricsEvent agentCpu: agentCpuEvents.Add(agentCpu); break;
+					case RpcAgentMemoryMetricsEvent agentMem: agentMemEvents.Add(agentMem); break;
 				}
 				c++;
 			}
@@ -116,14 +116,14 @@ namespace Horde.Server.Telemetry.Sinks
 		/// </summary>
 		/// <param name="events"></param>
 		/// <param name="sb"></param>
-		private static void WriteAgentCpuSql(List<AgentCpuMetricsEvent> events, StringBuilder sb)
+		private static void WriteAgentCpuSql(List<RpcAgentCpuMetricsEvent> events, StringBuilder sb)
 		{
 			if (events.Count > 0)
 			{
 				sb.Append("INSERT INTO agentCpu (time, agentId, leaseId, jobId, jobBatchId, user, system, idle) VALUES \n");
-				foreach (AgentCpuMetricsEvent e in events)
+				foreach (RpcAgentCpuMetricsEvent e in events)
 				{
-					ExecutionMetadata? em = e.ExecutionMetadata;
+					RpcExecutionMetadata? em = e.ExecutionMetadata;
 					sb.AppendFormat("({0}, {1}, '{2}', '{3}', {4}, {5:F3}, {6:F3}, {7:F3}),\n",
 						e.Timestamp?.Seconds, (ulong)e.AgentId,
 						WriteEscapedObjectId(em?.LeaseId ?? EmptyObjectId),
@@ -141,12 +141,12 @@ namespace Horde.Server.Telemetry.Sinks
 		/// </summary>
 		/// <param name="events"></param>
 		/// <param name="sb"></param>
-		private static void WriteAgentMetadataSql(List<AgentMetadataEvent> events, StringBuilder sb)
+		private static void WriteAgentMetadataSql(List<RpcAgentMetadataEvent> events, StringBuilder sb)
 		{
 			if (events.Count > 0)
 			{
 				sb.Append("INSERT INTO agentMetadata (id, ip, hostname, region, az, env, version, os, osVersion, arch, props) VALUES \n");
-				foreach (AgentMetadataEvent e in events)
+				foreach (RpcAgentMetadataEvent e in events)
 				{
 					sb.AppendFormat("({0}, '{1}', '{2}', '{3}', '{4}', '{5}', '{6}', '{7}', '{8}', '{9}', {10}),\n",
 						(ulong)e.AgentId, e.Ip, e.Hostname, e.Region, e.AvailabilityZone, e.Environment, e.AgentVersion,

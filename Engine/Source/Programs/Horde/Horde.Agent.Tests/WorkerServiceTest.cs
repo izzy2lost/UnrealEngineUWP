@@ -162,8 +162,8 @@ namespace Horde.Agent.Tests
 			executeJobTask.LogId = _logId.ToString();
 			executeJobTask.JobName = "jobName1";
 			executeJobTask.JobOptions = new RpcJobOptions { Executor = SimpleTestExecutor.Name };
-			executeJobTask.AutoSdkWorkspace = new AgentWorkspace();
-			executeJobTask.Workspace = new AgentWorkspace();
+			executeJobTask.AutoSdkWorkspace = new RpcAgentWorkspace();
+			executeJobTask.Workspace = new RpcAgentWorkspace();
 
 			JobRpcClientStub client = new JobRpcClientStub(NullLogger.Instance);
 			await using RpcConnectionStub rpcConnection = new RpcConnectionStub(null!, null!, client);
@@ -171,12 +171,12 @@ namespace Horde.Agent.Tests
 			await using FakeHordeRpcServer fakeServer = new();
 			await using ISession session = FakeServerSessionFactory.CreateSession(rpcConnection, fakeServer.GetGrpcChannel());
 
-			client.BeginStepResponses.Enqueue(new BeginStepResponse { Name = "stepName1", StepId = _stepId1.ToString() });
-			client.BeginStepResponses.Enqueue(new BeginStepResponse { Name = "stepName2", StepId = _stepId2.ToString() });
-			client.BeginStepResponses.Enqueue(new BeginStepResponse { Name = "stepName3", StepId = _stepId3.ToString() });
+			client.BeginStepResponses.Enqueue(new RpcBeginStepResponse { Name = "stepName1", StepId = _stepId1.ToString() });
+			client.BeginStepResponses.Enqueue(new RpcBeginStepResponse { Name = "stepName2", StepId = _stepId2.ToString() });
+			client.BeginStepResponses.Enqueue(new RpcBeginStepResponse { Name = "stepName3", StepId = _stepId3.ToString() });
 
-			GetStepRequest step2Req = new GetStepRequest(_jobId, _batchId, _stepId2);
-			GetStepResponse step2Res = new GetStepResponse(JobStepOutcome.Unspecified, JobStepState.Unspecified, true);
+			RpcGetStepRequest step2Req = new RpcGetStepRequest(_jobId, _batchId, _stepId2);
+			RpcGetStepResponse step2Res = new RpcGetStepResponse(JobStepOutcome.Unspecified, JobStepState.Unspecified, true);
 			client.GetStepResponses[step2Req] = step2Res;
 
 			using SimpleTestExecutor executor = new SimpleTestExecutor(async (step, logger, cancelToken) =>
@@ -227,9 +227,9 @@ namespace Horde.Agent.Tests
 			{
 				return ++c switch
 				{
-					1 => new GetStepResponse { AbortRequested = false },
+					1 => new RpcGetStepResponse { AbortRequested = false },
 					2 => throw new RpcException(new Status(StatusCode.Cancelled, "Fake cancel from test")),
-					3 => new GetStepResponse { AbortRequested = true },
+					3 => new RpcGetStepResponse { AbortRequested = true },
 					_ => throw new Exception("Should never reach here")
 				};
 			};
@@ -307,10 +307,10 @@ namespace Horde.Agent.Tests
 	{
 		private readonly string _serverName;
 		private readonly bool _isStopping = false;
-		private readonly Dictionary<string, Lease> _leases = new();
+		private readonly Dictionary<string, RpcLease> _leases = new();
 
-		private readonly Dictionary<StreamId, GetStreamResponse> _streamIdToStreamResponse = new();
-		private readonly Dictionary<JobId, GetJobResponse> _jobIdToJobResponse = new();
+		private readonly Dictionary<StreamId, RpcGetStreamResponse> _streamIdToStreamResponse = new();
+		private readonly Dictionary<JobId, RpcGetJobResponse> _jobIdToJobResponse = new();
 		private readonly Mock<IRpcClientRef<HordeRpc.HordeRpcClient>> _mockClientRef;
 		private readonly Mock<IRpcConnection> _mockConnection;
 		private readonly ILogger<FakeHordeRpcServer> _logger;
@@ -330,7 +330,7 @@ namespace Horde.Agent.Tests
 				_outer = outer;
 			}
 
-			public override AsyncDuplexStreamingCall<UpdateSessionRequest, UpdateSessionResponse> UpdateSession(Metadata headers = null!, DateTime? deadline = null, CancellationToken cancellationToken = default)
+			public override AsyncDuplexStreamingCall<RpcUpdateSessionRequest, RpcUpdateSessionResponse> UpdateSession(Metadata headers = null!, DateTime? deadline = null, CancellationToken cancellationToken = default)
 			{
 				return _outer.GetUpdateSessionCall(CancellationToken.None);
 			}
@@ -345,9 +345,9 @@ namespace Horde.Agent.Tests
 				_outer = outer;
 			}
 
-			public override AsyncUnaryCall<GetStreamResponse> GetStreamAsync(GetStreamRequest request, CallOptions options)
+			public override AsyncUnaryCall<RpcGetStreamResponse> GetStreamAsync(RpcGetStreamRequest request, CallOptions options)
 			{
-				if (_outer._streamIdToStreamResponse.TryGetValue(new StreamId(request.StreamId), out GetStreamResponse? streamResponse))
+				if (_outer._streamIdToStreamResponse.TryGetValue(new StreamId(request.StreamId), out RpcGetStreamResponse? streamResponse))
 				{
 					return JobRpcClientStub.Wrap(streamResponse);
 				}
@@ -355,9 +355,9 @@ namespace Horde.Agent.Tests
 				throw new RpcException(new Status(StatusCode.NotFound, $"Stream ID {request.StreamId} not found"));
 			}
 
-			public override AsyncUnaryCall<GetJobResponse> GetJobAsync(GetJobRequest request, CallOptions options)
+			public override AsyncUnaryCall<RpcGetJobResponse> GetJobAsync(RpcGetJobRequest request, CallOptions options)
 			{
-				if (_outer._jobIdToJobResponse.TryGetValue(JobId.Parse(request.JobId), out GetJobResponse? jobResponse))
+				if (_outer._jobIdToJobResponse.TryGetValue(JobId.Parse(request.JobId), out RpcGetJobResponse? jobResponse))
 				{
 					return JobRpcClientStub.Wrap(jobResponse);
 				}
@@ -400,7 +400,7 @@ namespace Horde.Agent.Tests
 			}
 
 			TestTask testTask = new();
-			_leases[leaseId] = new Lease
+			_leases[leaseId] = new RpcLease
 			{
 				Id = leaseId,
 				State = RpcLeaseState.Pending,
@@ -408,7 +408,7 @@ namespace Horde.Agent.Tests
 			};
 		}
 
-		public Lease GetLease(string leaseId)
+		public RpcLease GetLease(string leaseId)
 		{
 			return _leases[leaseId];
 		}
@@ -420,7 +420,7 @@ namespace Horde.Agent.Tests
 				throw new Exception($"Stream ID {streamId} already added");
 			}
 
-			_streamIdToStreamResponse[streamId] = new GetStreamResponse
+			_streamIdToStreamResponse[streamId] = new RpcGetStreamResponse
 			{
 				Name = streamName,
 			};
@@ -428,7 +428,7 @@ namespace Horde.Agent.Tests
 
 		public void AddAgentType(StreamId streamId, string agentType)
 		{
-			if (!_streamIdToStreamResponse.TryGetValue(streamId, out GetStreamResponse? streamResponse))
+			if (!_streamIdToStreamResponse.TryGetValue(streamId, out RpcGetStreamResponse? streamResponse))
 			{
 				throw new Exception($"Stream ID {streamId} not found");
 			}
@@ -436,7 +436,7 @@ namespace Horde.Agent.Tests
 			string tempDir = Path.Join(Path.GetTempPath(), $"horde-agent-type-{agentType}-" + Guid.NewGuid().ToString()[..8]);
 			Directory.CreateDirectory(tempDir);
 
-			streamResponse.AgentTypes[agentType] = new GetAgentTypeResponse
+			streamResponse.AgentTypes[agentType] = new RpcGetAgentTypeResponse
 			{
 				TempStorageDir = tempDir
 			};
@@ -449,7 +449,7 @@ namespace Horde.Agent.Tests
 				throw new Exception($"Stream ID {streamId} not found");
 			}
 
-			_jobIdToJobResponse[jobId] = new GetJobResponse
+			_jobIdToJobResponse[jobId] = new RpcGetJobResponse
 			{
 				StreamId = streamId.ToString(),
 				Change = change,
@@ -467,11 +467,11 @@ namespace Horde.Agent.Tests
 			return _grpcChannel;
 		}
 
-		public CreateSessionResponse OnCreateSessionRequest(CreateSessionRequest request)
+		public RpcCreateSessionResponse OnCreateSessionRequest(RpcCreateSessionRequest request)
 		{
 			CreateSessionReceived.TrySetResult(true);
 			_logger.LogInformation("OnCreateSessionRequest: {AgentId} {Status}", request.Id, request.Status);
-			CreateSessionResponse response = new()
+			RpcCreateSessionResponse response = new()
 			{
 				AgentId = "bogusAgentId",
 				Token = "bogusToken",
@@ -482,16 +482,16 @@ namespace Horde.Agent.Tests
 			return response;
 		}
 
-		public AsyncDuplexStreamingCall<QueryServerStateRequest, QueryServerStateResponse> GetQueryServerStateCall(CancellationToken cancellationToken)
+		public AsyncDuplexStreamingCall<RpcQueryServerStateRequest, RpcQueryServerStateResponse> GetQueryServerStateCall(CancellationToken cancellationToken)
 		{
-			FakeAsyncStreamReader<QueryServerStateResponse> responseStream = new(cancellationToken);
-			FakeClientStreamWriter<QueryServerStateRequest> requestStream = new(onComplete: () =>
+			FakeAsyncStreamReader<RpcQueryServerStateResponse> responseStream = new(cancellationToken);
+			FakeClientStreamWriter<RpcQueryServerStateRequest> requestStream = new(onComplete: () =>
 			{
 				responseStream.Complete();
 				return Task.CompletedTask;
 			});
 
-			responseStream.Write(new QueryServerStateResponse { Name = _serverName, Stopping = _isStopping });
+			responseStream.Write(new RpcQueryServerStateResponse { Name = _serverName, Stopping = _isStopping });
 
 			return new(
 				requestStream,
@@ -502,17 +502,17 @@ namespace Horde.Agent.Tests
 				() => { /*isDisposed = true;*/ });
 		}
 
-		public AsyncDuplexStreamingCall<UpdateSessionRequest, UpdateSessionResponse> GetUpdateSessionCall(CancellationToken cancellationToken)
+		public AsyncDuplexStreamingCall<RpcUpdateSessionRequest, RpcUpdateSessionResponse> GetUpdateSessionCall(CancellationToken cancellationToken)
 		{
-			FakeAsyncStreamReader<UpdateSessionResponse> responseStream = new(cancellationToken);
+			FakeAsyncStreamReader<RpcUpdateSessionResponse> responseStream = new(cancellationToken);
 
-			async Task OnRequest(UpdateSessionRequest request)
+			async Task OnRequest(RpcUpdateSessionRequest request)
 			{
 				UpdateSessionReceived.TrySetResult(true);
 
-				foreach (Lease agentLease in request.Leases)
+				foreach (RpcLease agentLease in request.Leases)
 				{
-					Lease serverLease = _leases[agentLease.Id];
+					RpcLease serverLease = _leases[agentLease.Id];
 					serverLease.State = agentLease.State;
 					serverLease.Outcome = agentLease.Outcome;
 					serverLease.Output = agentLease.Output;
@@ -520,12 +520,12 @@ namespace Horde.Agent.Tests
 
 				_logger.LogInformation("OnUpdateSessionRequest: {AgentId} {SessionId} {Status}", request.AgentId, request.SessionId, request.Status);
 				await Task.Delay(100, cancellationToken);
-				UpdateSessionResponse response = new() { ExpiryTime = Timestamp.FromDateTime(DateTime.UtcNow + TimeSpan.FromMinutes(120)) };
+				RpcUpdateSessionResponse response = new() { ExpiryTime = Timestamp.FromDateTime(DateTime.UtcNow + TimeSpan.FromMinutes(120)) };
 				response.Leases.AddRange(_leases.Values.Where(x => x.State != RpcLeaseState.Completed));
 				await responseStream.Write(response);
 			}
 
-			FakeClientStreamWriter<UpdateSessionRequest> requestStream = new(OnRequest, () =>
+			FakeClientStreamWriter<RpcUpdateSessionRequest> requestStream = new(OnRequest, () =>
 			{
 				responseStream.Complete();
 				return Task.CompletedTask;
@@ -555,9 +555,9 @@ namespace Horde.Agent.Tests
 			await _connection.DisposeAsync();
 			_grpcChannel.Dispose();
 
-			foreach (GetStreamResponse stream in _streamIdToStreamResponse.Values)
+			foreach (RpcGetStreamResponse stream in _streamIdToStreamResponse.Values)
 			{
-				foreach (GetAgentTypeResponse agentType in stream.AgentTypes.Values)
+				foreach (RpcGetAgentTypeResponse agentType in stream.AgentTypes.Values)
 				{
 					if (Directory.Exists(agentType.TempStorageDir))
 					{

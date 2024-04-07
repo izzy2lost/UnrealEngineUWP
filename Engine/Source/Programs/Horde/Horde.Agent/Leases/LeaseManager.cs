@@ -32,7 +32,7 @@ namespace Horde.Agent.Leases
 			/// <summary>
 			/// The worker lease state
 			/// </summary>
-			public Lease Lease { get; set; }
+			public RpcLease Lease { get; set; }
 
 			/// <summary>
 			/// Identifier for this lease
@@ -53,7 +53,7 @@ namespace Horde.Agent.Leases
 			/// Constructor
 			/// </summary>
 			/// <param name="lease">The worker lease state</param>
-			public LeaseInfo(Lease lease)
+			public LeaseInfo(RpcLease lease)
 			{
 				Lease = lease;
 				LeaseId = LeaseId.Parse(lease.Id);
@@ -99,7 +99,7 @@ namespace Horde.Agent.Leases
 		/// <summary>
 		/// Delegate for lease active events
 		/// </summary>
-		public delegate void LeaseActiveEvent(Lease lease);
+		public delegate void LeaseActiveEvent(RpcLease lease);
 
 		/// <summary>
 		/// Event triggered when a lease is accepted and set to active
@@ -124,7 +124,7 @@ namespace Horde.Agent.Leases
 		readonly LeaseLoggerFactory _leaseLoggerFactory;
 		readonly ILogger _logger;
 
-		AgentCapabilities? _capabilities;
+		RpcAgentCapabilities? _capabilities;
 
 		public LeaseManager(ISession session, CapabilitiesService capabilitiesService, StatusService statusService, IEnumerable<LeaseHandler> leaseHandlers, LeaseLoggerFactory leaseLoggerFactory, ILogger logger)
 		{
@@ -261,7 +261,7 @@ namespace Horde.Agent.Leases
 				}
 
 				// Build the next update request
-				UpdateSessionRequest updateSessionRequest = new UpdateSessionRequest();
+				RpcUpdateSessionRequest updateSessionRequest = new RpcUpdateSessionRequest();
 				updateSessionRequest.AgentId = _session.AgentId.ToString();
 				updateSessionRequest.SessionId = _session.SessionId.ToString();
 
@@ -270,7 +270,7 @@ namespace Horde.Agent.Leases
 				{
 					foreach (LeaseInfo leaseInfo in _activeLeases)
 					{
-						updateSessionRequest.Leases.Add(new Lease(leaseInfo.Lease));
+						updateSessionRequest.Leases.Add(new RpcLease(leaseInfo.Lease));
 					}
 					if (_sessionResult != null && _activeLeases.Count == 0)
 					{
@@ -304,7 +304,7 @@ namespace Horde.Agent.Leases
 				using (stopping ? (CancellationTokenRegistration?)null : stoppingToken.Register(() => _updateLeasesEvent.Set()))
 				{
 					// Update the state with the server
-					UpdateSessionResponse? updateSessionResponse = await UpdateSessionAsync(rpcClient, updateSessionRequest, waitTask);
+					RpcUpdateSessionResponse? updateSessionResponse = await UpdateSessionAsync(rpcClient, updateSessionRequest, waitTask);
 
 					lock (_lockObject)
 					{
@@ -325,7 +325,7 @@ namespace Horde.Agent.Leases
 							NumLeasesCompleted += numRemoved;
 
 							// Create any new leases and cancel any running leases
-							foreach (Lease serverLease in updateSessionResponse.Leases)
+							foreach (RpcLease serverLease in updateSessionResponse.Leases)
 							{
 								if (serverLease.State == RpcLeaseState.Cancelled)
 								{
@@ -413,9 +413,9 @@ namespace Horde.Agent.Leases
 		/// <param name="updateSessionRequest">The session update request</param>
 		/// <param name="waitTask">Task which can be used to jump out of the update early</param>
 		/// <returns>Response from the call</returns>
-		async Task<UpdateSessionResponse?> UpdateSessionAsync(HordeRpc.HordeRpcClient rpcClient, UpdateSessionRequest updateSessionRequest, Task waitTask)
+		async Task<RpcUpdateSessionResponse?> UpdateSessionAsync(HordeRpc.HordeRpcClient rpcClient, RpcUpdateSessionRequest updateSessionRequest, Task waitTask)
 		{
-			UpdateSessionResponse? updateSessionResponse = null;
+			RpcUpdateSessionResponse? updateSessionResponse = null;
 			try
 			{
 				updateSessionResponse = await UpdateSessionInternalAsync(rpcClient, updateSessionRequest, waitTask);
@@ -451,10 +451,10 @@ namespace Horde.Agent.Leases
 		/// <param name="request">The session update request</param>
 		/// <param name="waitTask">Task to use to terminate the wait</param>
 		/// <returns>The response object</returns>
-		async Task<UpdateSessionResponse?> UpdateSessionInternalAsync(HordeRpc.HordeRpcClient rpcClient, UpdateSessionRequest request, Task waitTask)
+		async Task<RpcUpdateSessionResponse?> UpdateSessionInternalAsync(HordeRpc.HordeRpcClient rpcClient, RpcUpdateSessionRequest request, Task waitTask)
 		{
 			DateTime deadline = DateTime.UtcNow + TimeSpan.FromMinutes(2.0);
-			using AsyncDuplexStreamingCall<UpdateSessionRequest, UpdateSessionResponse> call = rpcClient.UpdateSession(deadline: deadline);
+			using AsyncDuplexStreamingCall<RpcUpdateSessionRequest, RpcUpdateSessionResponse> call = rpcClient.UpdateSession(deadline: deadline);
 			_logger.LogDebug("Updating session {SessionId} (Status={Status})", request.SessionId, request.Status);
 
 			// Write the request to the server
@@ -473,7 +473,7 @@ namespace Horde.Agent.Leases
 			await call.RequestStream.CompleteAsync();
 
 			// Wait for a response or a new update to come in, then close the request stream
-			UpdateSessionResponse? response = null;
+			RpcUpdateSessionResponse? response = null;
 			while (await moveNextAsync)
 			{
 				response = call.ResponseStream.Current;

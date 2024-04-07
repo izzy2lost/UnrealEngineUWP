@@ -161,13 +161,13 @@ interface IWorkspaceMaterializerFactory
 	/// <param name="options">Job options</param>
 	/// <param name="forAutoSdk">Whether intended for AutoSDK materialization</param>
 	/// <returns>A new workspace materializer instance</returns>
-	IWorkspaceMaterializer CreateMaterializer(WorkspaceMaterializerType type, AgentWorkspace workspaceInfo, JobExecutorOptions options, bool forAutoSdk = false);
+	IWorkspaceMaterializer CreateMaterializer(WorkspaceMaterializerType type, RpcAgentWorkspace workspaceInfo, JobExecutorOptions options, bool forAutoSdk = false);
 }
 
 class WorkspaceMaterializerFactory : IWorkspaceMaterializerFactory
 {
 	/// <inheritdoc/>
-	public IWorkspaceMaterializer CreateMaterializer(WorkspaceMaterializerType type, AgentWorkspace workspaceInfo, JobExecutorOptions options, bool forAutoSdk)
+	public IWorkspaceMaterializer CreateMaterializer(WorkspaceMaterializerType type, RpcAgentWorkspace workspaceInfo, JobExecutorOptions options, bool forAutoSdk)
 	{
 		switch (type)
 		{

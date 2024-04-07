@@ -232,7 +232,7 @@ namespace Horde.Server.Jobs.Graphs
 		/// <summary>
 		/// Which change to display the label on
 		/// </summary>
-		public LabelChange Change { get; }
+		public RpcLabelChange Change { get; }
 
 		/// <summary>
 		/// List of required nodes for the aggregate to be valid
@@ -645,7 +645,7 @@ namespace Horde.Server.Jobs.Graphs
 		/// <summary>
 		/// Which change the label applies to
 		/// </summary>
-		public LabelChange Change { get; set; }
+		public RpcLabelChange Change { get; set; }
 
 		/// <summary>
 		/// Nodes which must be part of the job for the aggregate to be valid

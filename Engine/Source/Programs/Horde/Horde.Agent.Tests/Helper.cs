@@ -103,10 +103,10 @@ namespace Horde.Agent.Tests
 
 	class JobRpcClientStub : JobRpc.JobRpcClient
 	{
-		public readonly Queue<BeginStepResponse> BeginStepResponses = new Queue<BeginStepResponse>();
-		public readonly List<UpdateStepRequest> UpdateStepRequests = new List<UpdateStepRequest>();
-		public readonly Dictionary<GetStepRequest, GetStepResponse> GetStepResponses = new Dictionary<GetStepRequest, GetStepResponse>();
-		public Func<GetStepRequest, GetStepResponse>? _getStepFunc = null;
+		public readonly Queue<RpcBeginStepResponse> BeginStepResponses = new Queue<RpcBeginStepResponse>();
+		public readonly List<RpcUpdateStepRequest> UpdateStepRequests = new List<RpcUpdateStepRequest>();
+		public readonly Dictionary<RpcGetStepRequest, RpcGetStepResponse> GetStepResponses = new Dictionary<RpcGetStepRequest, RpcGetStepResponse>();
+		public Func<RpcGetStepRequest, RpcGetStepResponse>? _getStepFunc = null;
 		private readonly ILogger _logger;
 
 		public JobRpcClientStub(ILogger logger)
@@ -114,11 +114,11 @@ namespace Horde.Agent.Tests
 			_logger = logger;
 		}
 
-		public override AsyncUnaryCall<BeginBatchResponse> BeginBatchAsync(BeginBatchRequest request,
+		public override AsyncUnaryCall<RpcBeginBatchResponse> BeginBatchAsync(RpcBeginBatchRequest request,
 			CallOptions options)
 		{
 			_logger.LogDebug("HordeRpcClientStub.BeginBatchAsync()");
-			BeginBatchResponse res = new BeginBatchResponse();
+			RpcBeginBatchResponse res = new RpcBeginBatchResponse();
 
 			res.AgentType = "agentType1";
 			res.LogId = "logId1";
@@ -127,39 +127,39 @@ namespace Horde.Agent.Tests
 			return Wrap(res);
 		}
 
-		public override AsyncUnaryCall<Empty> FinishBatchAsync(FinishBatchRequest request, CallOptions options)
+		public override AsyncUnaryCall<Empty> FinishBatchAsync(RpcFinishBatchRequest request, CallOptions options)
 		{
 			Empty res = new Empty();
 			return Wrap(res);
 		}
 
-		public override AsyncUnaryCall<GetStreamResponse> GetStreamAsync(GetStreamRequest request, CallOptions options)
+		public override AsyncUnaryCall<RpcGetStreamResponse> GetStreamAsync(RpcGetStreamRequest request, CallOptions options)
 		{
-			GetStreamResponse res = new GetStreamResponse();
+			RpcGetStreamResponse res = new RpcGetStreamResponse();
 			return Wrap(res);
 		}
 
-		public override AsyncUnaryCall<GetJobResponse> GetJobAsync(GetJobRequest request, CallOptions options)
+		public override AsyncUnaryCall<RpcGetJobResponse> GetJobAsync(RpcGetJobRequest request, CallOptions options)
 		{
-			GetJobResponse res = new GetJobResponse();
+			RpcGetJobResponse res = new RpcGetJobResponse();
 			return Wrap(res);
 		}
 
-		public override AsyncUnaryCall<BeginStepResponse> BeginStepAsync(BeginStepRequest request, CallOptions options)
+		public override AsyncUnaryCall<RpcBeginStepResponse> BeginStepAsync(RpcBeginStepRequest request, CallOptions options)
 		{
 			if (BeginStepResponses.Count == 0)
 			{
-				BeginStepResponse completeRes = new BeginStepResponse();
-				completeRes.State = BeginStepResponse.Types.Result.Complete;
+				RpcBeginStepResponse completeRes = new RpcBeginStepResponse();
+				completeRes.State = RpcBeginStepResponse.Types.Result.Complete;
 				return Wrap(completeRes);
 			}
 
-			BeginStepResponse res = BeginStepResponses.Dequeue();
-			res.State = BeginStepResponse.Types.Result.Ready;
+			RpcBeginStepResponse res = BeginStepResponses.Dequeue();
+			res.State = RpcBeginStepResponse.Types.Result.Ready;
 			return Wrap(res);
 		}
 
-		public override AsyncUnaryCall<Empty> UpdateStepAsync(UpdateStepRequest request, CallOptions options)
+		public override AsyncUnaryCall<Empty> UpdateStepAsync(RpcUpdateStepRequest request, CallOptions options)
 		{
 			_logger.LogDebug("UpdateStepAsync(Request: {Request})", request);
 			UpdateStepRequests.Add(request);
@@ -167,26 +167,26 @@ namespace Horde.Agent.Tests
 			return Wrap(res);
 		}
 
-		public override AsyncUnaryCall<Empty> CreateEventsAsync(CreateEventsRequest request, CallOptions options)
+		public override AsyncUnaryCall<Empty> CreateEventsAsync(RpcCreateEventsRequest request, CallOptions options)
 		{
 			_logger.LogDebug("CreateEventsAsync: {Request}", request);
 			Empty res = new Empty();
 			return Wrap(res);
 		}
 
-		public override AsyncUnaryCall<GetStepResponse> GetStepAsync(GetStepRequest request, CallOptions options)
+		public override AsyncUnaryCall<RpcGetStepResponse> GetStepAsync(RpcGetStepRequest request, CallOptions options)
 		{
 			if (_getStepFunc != null)
 			{
 				return Wrap(_getStepFunc(request));
 			}
 
-			if (GetStepResponses.TryGetValue(request, out GetStepResponse? res))
+			if (GetStepResponses.TryGetValue(request, out RpcGetStepResponse? res))
 			{
 				return Wrap(res);
 			}
 
-			return Wrap(new GetStepResponse());
+			return Wrap(new RpcGetStepResponse());
 		}
 
 		public static AsyncUnaryCall<T> Wrap<T>(T res)
@@ -241,6 +241,6 @@ namespace Horde.Agent.Tests
 			_executor = executor;
 		}
 
-		public IJobExecutor CreateExecutor(AgentWorkspace? workspaceInfo, AgentWorkspace? autoSdkWorkspaceInfo, JobExecutorOptions options) => _executor;
+		public IJobExecutor CreateExecutor(RpcAgentWorkspace? workspaceInfo, RpcAgentWorkspace? autoSdkWorkspaceInfo, JobExecutorOptions options) => _executor;
 	}
 }

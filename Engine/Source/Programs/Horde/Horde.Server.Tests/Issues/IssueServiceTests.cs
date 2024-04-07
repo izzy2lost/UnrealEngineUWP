@@ -100,7 +100,7 @@ namespace Horde.Server.Tests.Issues
 					LogEvent ev = ParseEvent(line);
 					if (ev.LineIndex == 0)
 					{
-						EventSeverity severity = (level == LogLevel.Warning) ? EventSeverity.Warning : EventSeverity.Error;
+						RpcEventSeverity severity = (level == LogLevel.Warning) ? RpcEventSeverity.Warning : RpcEventSeverity.Error;
 						await _logFileService.CreateEventsAsync(new List<NewLogEventData> { new NewLogEventData { LogId = _logId, LineIndex = _lineIndex, LineCount = ev.LineCount, Severity = severity } }, CancellationToken.None);
 					}
 				}
@@ -316,11 +316,11 @@ namespace Horde.Server.Tests.Issues
 			buffer.GetSpan(1)[0] = (byte)'\n';
 			buffer.Advance(1);
 
-			EventSeverity severity = (logLevel == LogLevel.Error) ? EventSeverity.Error : (logLevel == LogLevel.Warning) ? EventSeverity.Warning : EventSeverity.Information;
+			RpcEventSeverity severity = (logLevel == LogLevel.Error) ? RpcEventSeverity.Error : (logLevel == LogLevel.Warning) ? RpcEventSeverity.Warning : RpcEventSeverity.Information;
 			await AddEventAsync(job, batchIdx, stepIdx, severity, buffer.WrittenMemory.ToArray());
 		}
 
-		async Task AddEventAsync(IJob job, int batchIdx, int stepIdx, EventSeverity severity, byte[] data)
+		async Task AddEventAsync(IJob job, int batchIdx, int stepIdx, RpcEventSeverity severity, byte[] data)
 		{
 			LogId logId = job.Batches[batchIdx].Steps[stepIdx].LogId!.Value;
 

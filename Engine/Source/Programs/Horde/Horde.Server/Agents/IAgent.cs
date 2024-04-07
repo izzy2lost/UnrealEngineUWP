@@ -101,7 +101,7 @@ namespace Horde.Server.Agents
 		/// Constructor
 		/// </summary>
 		/// <param name="workspace">RPC message to construct from</param>
-		public AgentWorkspaceInfo(AgentWorkspace workspace)
+		public AgentWorkspaceInfo(RpcAgentWorkspace workspace)
 			: this(workspace.ConfiguredCluster, workspace.ConfiguredUserName, workspace.Identifier, workspace.Stream, (workspace.View.Count > 0) ? workspace.View.ToList() : null, workspace.Incremental, workspace.Method)
 		{
 		}
@@ -164,10 +164,10 @@ namespace Horde.Server.Agents
 		/// <param name="server">The Perforce server</param>
 		/// <param name="credentials">Credentials for the server</param>
 		/// <returns>The RPC message</returns>
-		public AgentWorkspace ToRpcMessage(IPerforceServer server, PerforceCredentials? credentials)
+		public RpcAgentWorkspace ToRpcMessage(IPerforceServer server, PerforceCredentials? credentials)
 		{
 			// Construct the message
-			AgentWorkspace result = new AgentWorkspace
+			RpcAgentWorkspace result = new RpcAgentWorkspace
 			{
 				ConfiguredCluster = Cluster,
 				ConfiguredUserName = UserName,
@@ -402,9 +402,9 @@ namespace Horde.Server.Agents
 		/// Converts this lease to an RPC message
 		/// </summary>
 		/// <returns>RPC message</returns>
-		public HordeCommon.Rpc.Messages.Lease ToRpcMessage()
+		public RpcLease ToRpcMessage()
 		{
-			HordeCommon.Rpc.Messages.Lease lease = new HordeCommon.Rpc.Messages.Lease();
+			RpcLease lease = new RpcLease();
 			lease.Id = Id.ToString();
 			lease.Payload = Google.Protobuf.WellKnownTypes.Any.Parser.ParseFrom(Payload);
 			lease.State = (RpcLeaseState)State;
@@ -965,14 +965,14 @@ namespace Horde.Server.Agents
 		/// <param name="workspaceMessages">List of messages</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>The RPC message</returns>
-		public static async Task<bool> TryAddWorkspaceMessageAsync(this IAgent agent, AgentWorkspaceInfo workspace, PerforceCluster cluster, PerforceLoadBalancer loadBalancer, IList<AgentWorkspace> workspaceMessages, CancellationToken cancellationToken)
+		public static async Task<bool> TryAddWorkspaceMessageAsync(this IAgent agent, AgentWorkspaceInfo workspace, PerforceCluster cluster, PerforceLoadBalancer loadBalancer, IList<RpcAgentWorkspace> workspaceMessages, CancellationToken cancellationToken)
 		{
 			// Find a matching server, trying to use a previously selected one if possible
 			string? baseServerAndPort;
 			string? serverAndPort;
 			bool partitioned;
 
-			AgentWorkspace? existingWorkspace = workspaceMessages.FirstOrDefault(x => x.ConfiguredCluster == workspace.Cluster);
+			RpcAgentWorkspace? existingWorkspace = workspaceMessages.FirstOrDefault(x => x.ConfiguredCluster == workspace.Cluster);
 			if (existingWorkspace != null)
 			{
 				baseServerAndPort = existingWorkspace.BaseServerAndPort;
@@ -1012,7 +1012,7 @@ namespace Horde.Server.Agents
 			}
 
 			// Construct the message
-			AgentWorkspace result = new AgentWorkspace
+			RpcAgentWorkspace result = new RpcAgentWorkspace
 			{
 				ConfiguredCluster = workspace.Cluster,
 				ConfiguredUserName = workspace.UserName,

@@ -161,7 +161,7 @@ namespace Horde.Agent.Utility
 
 			// Buffer for events read in a single iteration
 			JsonRpcLogWriter writer = new JsonRpcLogWriter();
-			List<CreateEventRequest> events = new List<CreateEventRequest>();
+			List<RpcCreateEventRequest> events = new List<RpcCreateEventRequest>();
 
 			// The current jobstep outcome
 			JobStepOutcome postedOutcome = JobStepOutcome.Success;
@@ -183,11 +183,11 @@ namespace Horde.Agent.Utility
 						{
 							if (jsonLogEvent.Level == LogLevel.Warning && ++numWarnings <= MaxWarnings)
 							{
-								AddEvent(jsonLogEvent.Data.Span, nextLineIndex, Math.Max(lineCount, jsonLogEvent.LineCount), EventSeverity.Warning, events);
+								AddEvent(jsonLogEvent.Data.Span, nextLineIndex, Math.Max(lineCount, jsonLogEvent.LineCount), RpcEventSeverity.Warning, events);
 							}
 							else if ((jsonLogEvent.Level == LogLevel.Error || jsonLogEvent.Level == LogLevel.Critical) && ++numErrors <= MaxErrors)
 							{
-								AddEvent(jsonLogEvent.Data.Span, nextLineIndex, Math.Max(lineCount, jsonLogEvent.LineCount), EventSeverity.Error, events);
+								AddEvent(jsonLogEvent.Data.Span, nextLineIndex, Math.Max(lineCount, jsonLogEvent.LineCount), RpcEventSeverity.Error, events);
 							}
 						}
 						nextLineIndex += lineCount;
@@ -211,7 +211,7 @@ namespace Horde.Agent.Utility
 					(ReadOnlyMemory<byte> packet, int packetLineCount) = writer.CreatePacket();
 					try
 					{
-						await _sink.WriteOutputAsync(new WriteOutputRequest(_logId, packetOffset, packetLineIndex, UnsafeByteOperations.UnsafeWrap(packet), false), CancellationToken.None);
+						await _sink.WriteOutputAsync(new RpcWriteOutputRequest(_logId, packetOffset, packetLineIndex, UnsafeByteOperations.UnsafeWrap(packet), false), CancellationToken.None);
 						packetOffset += packet.Length;
 						packetLineIndex += packetLineCount;
 					}
@@ -253,7 +253,7 @@ namespace Horde.Agent.Utility
 				{
 					try
 					{
-						await _sink.WriteOutputAsync(new WriteOutputRequest(_logId, packetOffset, packetLineIndex, ByteString.Empty, true), CancellationToken.None);
+						await _sink.WriteOutputAsync(new RpcWriteOutputRequest(_logId, packetOffset, packetLineIndex, ByteString.Empty, true), CancellationToken.None);
 					}
 					catch (Exception ex)
 					{
@@ -264,11 +264,11 @@ namespace Horde.Agent.Utility
 			}
 		}
 
-		void AddEvent(ReadOnlySpan<byte> span, int lineIndex, int lineCount, EventSeverity severity, List<CreateEventRequest> events)
+		void AddEvent(ReadOnlySpan<byte> span, int lineIndex, int lineCount, RpcEventSeverity severity, List<RpcCreateEventRequest> events)
 		{
 			try
 			{
-				events.Add(new CreateEventRequest(severity, _logId, lineIndex, lineCount));
+				events.Add(new RpcCreateEventRequest(severity, _logId, lineIndex, lineCount));
 			}
 			catch (Exception ex)
 			{

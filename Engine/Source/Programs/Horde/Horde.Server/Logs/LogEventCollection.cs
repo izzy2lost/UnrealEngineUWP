@@ -46,17 +46,17 @@ namespace Horde.Server.Logs
 			LogId ILogEvent.LogId => Id.LogId;
 			int ILogEvent.LineIndex => Id.LineIndex;
 			int ILogEvent.LineCount => LineCount ?? 1;
-			EventSeverity ILogEvent.Severity => IsWarning ? EventSeverity.Warning : EventSeverity.Error;
+			RpcEventSeverity ILogEvent.Severity => IsWarning ? RpcEventSeverity.Warning : RpcEventSeverity.Error;
 
 			public LogEventDocument()
 			{
 				Id = new LogEventId();
 			}
 
-			public LogEventDocument(LogId logId, EventSeverity severity, int lineIndex, int lineCount, ObjectId? spanId)
+			public LogEventDocument(LogId logId, RpcEventSeverity severity, int lineIndex, int lineCount, ObjectId? spanId)
 			{
 				Id = new LogEventId { LogId = logId, LineIndex = lineIndex };
-				IsWarning = severity == EventSeverity.Warning;
+				IsWarning = severity == RpcEventSeverity.Warning;
 				LineCount = (lineCount > 1) ? (int?)lineCount : null;
 				SpanId = spanId;
 			}
@@ -71,7 +71,7 @@ namespace Horde.Server.Logs
 		{
 			public ObjectId Id { get; set; }
 			public DateTime Time { get; set; }
-			public EventSeverity Severity { get; set; }
+			public RpcEventSeverity Severity { get; set; }
 			public LogId LogId { get; set; }
 			public int LineIndex { get; set; }
 			public int LineCount { get; set; }

@@ -691,7 +691,7 @@ namespace Horde.Server.Logs
 			public IReadOnlyList<JsonLogEvent> Lines { get; }
 
 			EventId? ILogEventData.EventId => (Lines.Count > 0) ? Lines[0].EventId : null;
-			EventSeverity ILogEventData.Severity => (Lines.Count == 0) ? EventSeverity.Information : (Lines[0].Level == LogLevel.Warning) ? EventSeverity.Warning : EventSeverity.Error;
+			RpcEventSeverity ILogEventData.Severity => (Lines.Count == 0) ? RpcEventSeverity.Information : (Lines[0].Level == LogLevel.Warning) ? RpcEventSeverity.Warning : RpcEventSeverity.Error;
 
 			public LogEventData(IReadOnlyList<JsonLogEvent> lines)
 			{

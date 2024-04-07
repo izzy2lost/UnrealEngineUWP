@@ -42,10 +42,10 @@ namespace Horde.Agent.Execution
 		IReadOnlyList<string> Inputs,
 		IReadOnlyList<string> OutputNames,
 		IList<int> PublishOutputs,
-		IReadOnlyList<CreateGraphArtifactRequest> Artifacts
+		IReadOnlyList<RpcCreateGraphArtifactRequest> Artifacts
 	)
 	{
-		public JobStepInfo(BeginStepResponse response)
+		public JobStepInfo(RpcBeginStepResponse response)
 			: this(JobStepId.Parse(response.StepId), LogId.Parse(response.LogId), response.Name, response.Credentials, response.Properties, response.EnvVars, response.Warnings, response.Inputs, response.OutputNames, response.PublishOutputs, response.Artifacts)
 		{
 		}
@@ -64,11 +64,11 @@ namespace Horde.Agent.Execution
 		public HttpStorageClientFactory StorageFactory { get; }
 		public JobId JobId { get; }
 		public JobStepBatchId BatchId { get; }
-		public BeginBatchResponse Batch { get; }
+		public RpcBeginBatchResponse Batch { get; }
 		public string Token { get; }
 		public RpcJobOptions JobOptions { get; }
 
-		public JobExecutorOptions(ISession session, HttpStorageClientFactory storageFactory, JobId jobId, JobStepBatchId batchId, BeginBatchResponse batch, string token, RpcJobOptions jobOptions)
+		public JobExecutorOptions(ISession session, HttpStorageClientFactory storageFactory, JobId jobId, JobStepBatchId batchId, RpcBeginBatchResponse batch, string token, RpcJobOptions jobOptions)
 		{
 			Session = session;
 			StorageFactory = storageFactory;
@@ -112,7 +112,7 @@ namespace Horde.Agent.Execution
 			public string? Category { get; set; }
 			public string? UgsBadge { get; set; }
 			public string? UgsProject { get; set; }
-			public LabelChange Change { get; set; } = LabelChange.Current;
+			public RpcLabelChange Change { get; set; } = RpcLabelChange.Current;
 			public List<string> RequiredNodes { get; set; } = new List<string>();
 			public List<string> IncludedNodes { get; set; } = new List<string>();
 		}
@@ -197,7 +197,7 @@ namespace Horde.Agent.Execution
 
 		class ReportData
 		{
-			public ReportScope Scope { get; set; }
+			public RpcReportScope Scope { get; set; }
 			public RpcReportPlacement Placement { get; set; }
 			public string Name { get; set; } = String.Empty;
 			public string Content { get; set; } = String.Empty;
@@ -222,7 +222,7 @@ namespace Horde.Agent.Execution
 
 		protected JobId JobId { get; }
 		protected JobStepBatchId BatchId { get; }
-		protected BeginBatchResponse Batch { get; }
+		protected RpcBeginBatchResponse Batch { get; }
 
 		protected List<string> _additionalArguments = new List<string>();
 		protected bool _allowTargetChanges;
@@ -548,13 +548,13 @@ namespace Horde.Agent.Execution
 					ArtifactName artifactName = TempStorage.GetArtifactNameForNode(SetupStepName);
 					ArtifactType artifactType = ArtifactType.StepOutput;
 
-					CreateJobArtifactRequestV2 artifactRequest = new CreateJobArtifactRequestV2();
+					RpcCreateJobArtifactRequestV2 artifactRequest = new RpcCreateJobArtifactRequestV2();
 					artifactRequest.JobId = JobId.ToString();
 					artifactRequest.StepId = step.StepId.ToString();
 					artifactRequest.Name = artifactName.ToString();
 					artifactRequest.Type = artifactType.ToString();
 
-					CreateJobArtifactResponseV2 artifact = await jobRpc.Client.CreateArtifactV2Async(artifactRequest, cancellationToken: cancellationToken);
+					RpcCreateJobArtifactResponseV2 artifact = await jobRpc.Client.CreateArtifactV2Async(artifactRequest, cancellationToken: cancellationToken);
 					logger.LogInformation("Creating output artifact {ArtifactId} '{ArtifactName}' ({ArtifactType}) with ref {RefName} in namespace {NamespaceId}", artifact.Id, artifactName, artifactType, artifact.RefName, artifact.NamespaceId);
 
 					// Write the data
@@ -586,7 +586,7 @@ namespace Horde.Agent.Execution
 				await StorePreprocessedFileAsync(preprocessedSchemaFile, step.StepId, sharedStorageDir, logger, cancellationToken);
 			}
 
-			UpdateGraphRequest updateGraph = await ParseGraphUpdateAsync(definitionFile, logger, cancellationToken);
+			RpcUpdateGraphRequest updateGraph = await ParseGraphUpdateAsync(definitionFile, logger, cancellationToken);
 			await RpcConnection.InvokeAsync((JobRpc.JobRpcClient x) => x.UpdateGraphAsync(updateGraph, null, null, cancellationToken), cancellationToken);
 
 			HashSet<string> validTargets = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -605,7 +605,7 @@ namespace Horde.Agent.Execution
 			return true;
 		}
 
-		private async Task<UpdateGraphRequest> ParseGraphUpdateAsync(FileReference definitionFile, ILogger logger, CancellationToken cancellationToken)
+		private async Task<RpcUpdateGraphRequest> ParseGraphUpdateAsync(FileReference definitionFile, ILogger logger, CancellationToken cancellationToken)
 		{
 			JsonSerializerOptions options = new JsonSerializerOptions();
 			options.PropertyNameCaseInsensitive = true;
@@ -613,7 +613,7 @@ namespace Horde.Agent.Execution
 
 			ExportedGraph graph = JsonSerializer.Deserialize<ExportedGraph>(await FileReference.ReadAllBytesAsync(definitionFile, cancellationToken), options)!;
 
-			UpdateGraphRequest updateGraph = new UpdateGraphRequest();
+			RpcUpdateGraphRequest updateGraph = new RpcUpdateGraphRequest();
 			updateGraph.JobId = JobId.ToString();
 
 			List<string> missingAgentTypes = new List<string>();
@@ -644,12 +644,12 @@ namespace Horde.Agent.Execution
 					}
 				}
 
-				CreateGroupRequest createGroup = new CreateGroupRequest();
+				RpcCreateGroupRequest createGroup = new RpcCreateGroupRequest();
 				createGroup.AgentType = agentTypeName;
 
 				foreach (ExportedNode exportedNode in exportedGroup.Nodes)
 				{
-					CreateNodeRequest createNode = new CreateNodeRequest();
+					RpcCreateNodeRequest createNode = new RpcCreateNodeRequest();
 					createNode.Name = exportedNode.Name;
 					if (exportedNode.Inputs != null)
 					{
@@ -687,7 +687,7 @@ namespace Horde.Agent.Execution
 
 			foreach (ExportedAggregate exportedAggregate in graph.Aggregates)
 			{
-				CreateAggregateRequest createAggregate = new CreateAggregateRequest();
+				RpcCreateAggregateRequest createAggregate = new RpcCreateAggregateRequest();
 				createAggregate.Name = exportedAggregate.Name;
 				createAggregate.Nodes.AddRange(exportedAggregate.Nodes);
 				updateGraph.Aggregates.Add(createAggregate);
@@ -695,7 +695,7 @@ namespace Horde.Agent.Execution
 
 			foreach (ExportedLabel exportedLabel in graph.Labels)
 			{
-				CreateLabelRequest createLabel = new CreateLabelRequest();
+				RpcCreateLabelRequest createLabel = new RpcCreateLabelRequest();
 				if (exportedLabel.Name != null)
 				{
 					createLabel.DashboardName = exportedLabel.Name;
@@ -721,7 +721,7 @@ namespace Horde.Agent.Execution
 			Dictionary<string, ExportedNode> nameToNode = graph.Groups.SelectMany(x => x.Nodes).ToDictionary(x => x.Name, x => x);
 			foreach (ExportedBadge exportedBadge in graph.Badges)
 			{
-				CreateLabelRequest createLabel = new CreateLabelRequest();
+				RpcCreateLabelRequest createLabel = new RpcCreateLabelRequest();
 				createLabel.UgsName = exportedBadge.Name;
 
 				string? project = exportedBadge.Project;
@@ -740,11 +740,11 @@ namespace Horde.Agent.Execution
 
 				if (exportedBadge.Change == Batch.Change || exportedBadge.Change == 0)
 				{
-					createLabel.Change = LabelChange.Current;
+					createLabel.Change = RpcLabelChange.Current;
 				}
 				else if (exportedBadge.Change == Batch.CodeChange)
 				{
-					createLabel.Change = LabelChange.Code;
+					createLabel.Change = RpcLabelChange.Code;
 				}
 				else
 				{
@@ -767,7 +767,7 @@ namespace Horde.Agent.Execution
 
 			foreach (ExportedArtifact exportedArtifact in graph.Artifacts)
 			{
-				CreateGraphArtifactRequest createArtifact = new CreateGraphArtifactRequest();
+				RpcCreateGraphArtifactRequest createArtifact = new RpcCreateGraphArtifactRequest();
 
 				createArtifact.Name = exportedArtifact.Name;
 				createArtifact.Type = exportedArtifact.Type ?? String.Empty;
@@ -812,13 +812,13 @@ namespace Horde.Agent.Execution
 
 					using IRpcClientRef<JobRpc.JobRpcClient> jobRpc = await RpcConnection.GetClientRefAsync<JobRpc.JobRpcClient>(cancellationToken);
 
-					GetJobArtifactRequest artifactRequest = new GetJobArtifactRequest();
+					RpcGetJobArtifactRequest artifactRequest = new RpcGetJobArtifactRequest();
 					artifactRequest.JobId = JobId.ToString();
 					artifactRequest.StepId = step.StepId.ToString();
 					artifactRequest.Name = artifactName.ToString();
 					artifactRequest.Type = ArtifactType.StepOutput.ToString();
 
-					GetJobArtifactResponse artifact = await jobRpc.Client.GetArtifactAsync(artifactRequest, cancellationToken: cancellationToken);
+					RpcGetJobArtifactResponse artifact = await jobRpc.Client.GetArtifactAsync(artifactRequest, cancellationToken: cancellationToken);
 
 					NamespaceId namespaceId = new NamespaceId(artifact.NamespaceId);
 					RefName refName = new RefName(artifact.RefName);
@@ -896,13 +896,13 @@ namespace Horde.Agent.Execution
 			{
 				using IRpcClientRef<JobRpc.JobRpcClient> jobRpc = await RpcConnection.GetClientRefAsync<JobRpc.JobRpcClient>(cancellationToken);
 
-				CreateJobArtifactRequestV2 artifactRequest = new CreateJobArtifactRequestV2();
+				RpcCreateJobArtifactRequestV2 artifactRequest = new RpcCreateJobArtifactRequestV2();
 				artifactRequest.JobId = JobId.ToString();
 				artifactRequest.StepId = stepId.ToString();
 				artifactRequest.Name = name.ToString();
 				artifactRequest.Type = type.ToString();
 
-				CreateJobArtifactResponseV2 artifact = await jobRpc.Client.CreateArtifactV2Async(artifactRequest, cancellationToken: cancellationToken);
+				RpcCreateJobArtifactResponseV2 artifact = await jobRpc.Client.CreateArtifactV2Async(artifactRequest, cancellationToken: cancellationToken);
 				Logger.LogInformation("Created artifact {ArtifactId} '{ArtifactName}' ({ArtifactType}) with ref {RefName} ({Link})", artifact.Id, name, type, artifact.RefName, $"{Session.ServerUrl}/api/v1/storage/{artifact.NamespaceId}/refs/{artifact.RefName}");
 
 				using IStorageClient storage = CreateStorageClient(new NamespaceId(artifact.NamespaceId), artifact.Token);
@@ -1096,13 +1096,13 @@ namespace Horde.Agent.Execution
 			using (GlobalTracer.Instance.BuildSpan("TempStorage").WithTag("resource", "Write").StartActive())
 			{
 				// Create the artifact
-				CreateJobArtifactRequestV2 artifactRequest = new CreateJobArtifactRequestV2();
+				RpcCreateJobArtifactRequestV2 artifactRequest = new RpcCreateJobArtifactRequestV2();
 				artifactRequest.JobId = JobId.ToString();
 				artifactRequest.StepId = step.StepId.ToString();
 				artifactRequest.Name = TempStorage.GetArtifactNameForNode(step.Name).ToString();
 				artifactRequest.Type = ArtifactType.StepOutput.ToString();
 
-				CreateJobArtifactResponseV2 artifact = await jobRpc.Client.CreateArtifactV2Async(artifactRequest, cancellationToken: cancellationToken);
+				RpcCreateJobArtifactResponseV2 artifact = await jobRpc.Client.CreateArtifactV2Async(artifactRequest, cancellationToken: cancellationToken);
 				logger.LogInformation("Created artifact {ArtifactId} '{ArtifactName}' ({ArtifactType}) with ref {RefName} ({RefUrl})", artifact.Id, artifactRequest.Name, ArtifactType.StepOutput, artifact.RefName, $"{Session.ServerUrl.ToString().TrimEnd('/')}/api/v1/storage/{artifact.NamespaceId}/refs/{artifact.RefName}");
 
 				using IStorageClient storage = CreateStorageClient(new NamespaceId(artifact.NamespaceId), artifact.Token);
@@ -1157,7 +1157,7 @@ namespace Horde.Agent.Execution
 
 			// Create all the named artifacts. TODO: Merge this with regular temp storage artifacts?
 			logger.LogInformation("Uploading {NumArtifacts} artifacts", step.Artifacts.Count);
-			foreach (CreateGraphArtifactRequest graphArtifact in step.Artifacts)
+			foreach (RpcCreateGraphArtifactRequest graphArtifact in step.Artifacts)
 			{
 				logger.LogInformation("Uploading artifact {Name} using output {Output}", graphArtifact.Name, graphArtifact.OutputName);
 
@@ -1171,7 +1171,7 @@ namespace Horde.Agent.Execution
 				using (GlobalTracer.Instance.BuildSpan("Artifact").WithTag("name", graphArtifact.Name).WithTag("resource", "Write").StartActive())
 				{
 					// Create the artifact
-					CreateJobArtifactRequestV2 artifactRequest = new CreateJobArtifactRequestV2();
+					RpcCreateJobArtifactRequestV2 artifactRequest = new RpcCreateJobArtifactRequestV2();
 					artifactRequest.JobId = JobId.ToString();
 					artifactRequest.StepId = step.StepId.ToString();
 					artifactRequest.Name = graphArtifact.Name;
@@ -1180,7 +1180,7 @@ namespace Horde.Agent.Execution
 					artifactRequest.Keys.AddRange(graphArtifact.Keys);
 					artifactRequest.Metadata.AddRange(graphArtifact.Metadata);
 
-					CreateJobArtifactResponseV2 artifact = await jobRpc.Client.CreateArtifactV2Async(artifactRequest, cancellationToken: cancellationToken);
+					RpcCreateJobArtifactResponseV2 artifact = await jobRpc.Client.CreateArtifactV2Async(artifactRequest, cancellationToken: cancellationToken);
 					logger.LogInformation("Created artifact {ArtifactId} '{ArtifactName}' ({ArtifactType}) with ref {RefName} ({RefUrl})", artifact.Id, artifactRequest.Name, ArtifactType.StepOutput, artifact.RefName, $"{Session.ServerUrl.ToString().TrimEnd('/')}/api/v1/storage/{artifact.NamespaceId}/refs/{artifact.RefName}");
 
 					using IStorageClient storage = CreateStorageClient(new NamespaceId(artifact.NamespaceId), artifact.Token);
@@ -1737,11 +1737,11 @@ namespace Horde.Agent.Execution
 			{
 				jobLogger.LogInformation("Parsing graph update from {File}", graphUpdateFile);
 
-				UpdateGraphRequest updateGraph = await ParseGraphUpdateAsync(graphUpdateFile, jobLogger, cancellationToken);
-				foreach (CreateGroupRequest group in updateGraph.Groups)
+				RpcUpdateGraphRequest updateGraph = await ParseGraphUpdateAsync(graphUpdateFile, jobLogger, cancellationToken);
+				foreach (RpcCreateGroupRequest group in updateGraph.Groups)
 				{
 					jobLogger.LogInformation("  AgentType: {Name}", group.AgentType);
-					foreach (CreateNodeRequest node in group.Nodes)
+					foreach (RpcCreateNodeRequest node in group.Nodes)
 					{
 						jobLogger.LogInformation("    Node: {Name}", node.Name);
 					}
@@ -1917,7 +1917,7 @@ namespace Horde.Agent.Execution
 				report.Content = await FileReference.ReadAllTextAsync(reportDataFile);
 			}
 
-			CreateReportRequest request = new CreateReportRequest();
+			RpcCreateReportRequest request = new RpcCreateReportRequest();
 			request.JobId = JobId.ToString();
 			request.BatchId = BatchId.ToString();
 			request.StepId = stepId.ToString();
@@ -1966,7 +1966,7 @@ namespace Horde.Agent.Execution
 
 		async Task<bool> UploadTestDataAsync(JobRpc.JobRpcClient rpcClient, JobStepId jobStepId, IEnumerable<KeyValuePair<string, object>> pairs)
 		{
-			using (AsyncClientStreamingCall<UploadTestDataRequest, UploadTestDataResponse> call = rpcClient.UploadTestData())
+			using (AsyncClientStreamingCall<RpcUploadTestDataRequest, RpcUploadTestDataResponse> call = rpcClient.UploadTestData())
 			{
 				foreach (KeyValuePair<string, object> pair in pairs)
 				{
@@ -1975,7 +1975,7 @@ namespace Horde.Agent.Execution
 					options.Converters.Add(new JsonStringEnumConverter());
 					byte[] data = JsonSerializer.SerializeToUtf8Bytes(pair.Value, options);
 
-					UploadTestDataRequest request = new UploadTestDataRequest();
+					RpcUploadTestDataRequest request = new RpcUploadTestDataRequest();
 					request.JobId = JobId.ToString();
 					request.JobStepId = jobStepId.ToString();
 					request.Key = pair.Key;
@@ -1993,6 +1993,6 @@ namespace Horde.Agent.Execution
 	{
 		string Name { get; }
 
-		IJobExecutor CreateExecutor(AgentWorkspace workspaceInfo, AgentWorkspace? autoSdkWorkspaceInfo, JobExecutorOptions options);
+		IJobExecutor CreateExecutor(RpcAgentWorkspace workspaceInfo, RpcAgentWorkspace? autoSdkWorkspaceInfo, JobExecutorOptions options);
 	}
 }

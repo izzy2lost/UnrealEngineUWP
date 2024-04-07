@@ -17,7 +17,7 @@ namespace Horde.Server.Utilities
 		/// <summary>
 		/// The grpc client reader. Should probably be templatized
 		/// </summary>
-		readonly IAsyncStreamReader<UploadArtifactRequest> _reader;
+		readonly IAsyncStreamReader<RpcUploadArtifactRequest> _reader;
 
 		/// <summary>
 		/// Position within the stream
@@ -32,7 +32,7 @@ namespace Horde.Server.Utilities
 		/// <summary>
 		/// The current request being read from
 		/// </summary>
-		UploadArtifactRequest? _request;
+		RpcUploadArtifactRequest? _request;
 
 		/// <summary>
 		/// Position within the current request
@@ -44,7 +44,7 @@ namespace Horde.Server.Utilities
 		/// </summary>
 		/// <param name="reader">the grpc reader</param>
 		/// <param name="length">filesize reported by the client</param>
-		public ArtifactChunkStream(IAsyncStreamReader<UploadArtifactRequest> reader, long length)
+		public ArtifactChunkStream(IAsyncStreamReader<RpcUploadArtifactRequest> reader, long length)
 		{
 			_reader = reader;
 			_streamLength = length;

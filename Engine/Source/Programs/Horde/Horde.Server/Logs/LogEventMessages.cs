@@ -20,7 +20,7 @@ namespace Horde.Server.Logs
 		/// <summary>
 		/// Severity of this event
 		/// </summary>
-		public EventSeverity Severity { get; set; }
+		public RpcEventSeverity Severity { get; set; }
 
 		/// <summary>
 		/// Index of the first line for this event

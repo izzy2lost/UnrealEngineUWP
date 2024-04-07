@@ -19,7 +19,7 @@ namespace Horde.Server.Logs
 		/// <summary>
 		/// The log level
 		/// </summary>
-		EventSeverity Severity { get; }
+		RpcEventSeverity Severity { get; }
 
 		/// <summary>
 		/// The type of event
@@ -50,7 +50,7 @@ namespace Horde.Server.Logs
 		/// <summary>
 		/// Severity of the event
 		/// </summary>
-		public EventSeverity Severity { get; }
+		public RpcEventSeverity Severity { get; }
 
 		/// <summary>
 		/// Index of the first line for this event
@@ -81,7 +81,7 @@ namespace Horde.Server.Logs
 		/// <summary>
 		/// Severity of the event
 		/// </summary>
-		public EventSeverity Severity { get; set; }
+		public RpcEventSeverity Severity { get; set; }
 
 		/// <summary>
 		/// Index of the first line for this event

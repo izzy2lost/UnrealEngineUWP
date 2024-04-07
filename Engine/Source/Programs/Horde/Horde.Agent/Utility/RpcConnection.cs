@@ -546,10 +546,10 @@ namespace Horde.Agent.Utility
 					while (!reconnectTaskSource.Task.IsCompleted && !_stoppingTaskSource.Task.IsCompleted)
 					{
 						// Client HAS TO BE the one to end the call, by closing the stream. The server must keep receiving requests from us until it does.
-						using (AsyncDuplexStreamingCall<QueryServerStateRequest, QueryServerStateResponse> call = client.QueryServerStateV2())
+						using (AsyncDuplexStreamingCall<RpcQueryServerStateRequest, RpcQueryServerStateResponse> call = client.QueryServerStateV2())
 						{
 							// Send the name of this agent
-							QueryServerStateRequest request = new QueryServerStateRequest();
+							RpcQueryServerStateRequest request = new RpcQueryServerStateRequest();
 							request.Name = Dns.GetHostName();
 							await call.RequestStream.WriteAsync(request);
 
@@ -562,7 +562,7 @@ namespace Horde.Agent.Utility
 							}
 
 							// Read the server response
-							QueryServerStateResponse response = call.ResponseStream.Current;
+							RpcQueryServerStateResponse response = call.ResponseStream.Current;
 							if (!response.Stopping)
 							{
 								// The first time we connect, log the server name and create the subconnection

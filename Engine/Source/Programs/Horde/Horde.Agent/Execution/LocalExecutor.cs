@@ -75,7 +75,7 @@ namespace Horde.Agent.Execution
 			_logger = logger;
 		}
 
-		public IJobExecutor CreateExecutor(AgentWorkspace workspaceInfo, AgentWorkspace? autoSdkWorkspaceInfo, JobExecutorOptions options)
+		public IJobExecutor CreateExecutor(RpcAgentWorkspace workspaceInfo, RpcAgentWorkspace? autoSdkWorkspaceInfo, JobExecutorOptions options)
 		{
 			return new LocalExecutor(options, _settings, _logger);
 		}

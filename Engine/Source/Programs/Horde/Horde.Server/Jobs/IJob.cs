@@ -23,6 +23,7 @@ using Horde.Server.Jobs.Timing;
 using Horde.Server.Server;
 using Horde.Server.Streams;
 using Horde.Server.Ugs;
+using HordeCommon.Rpc;
 using MongoDB.Bson;
 using MongoDB.Driver;
 
@@ -1556,9 +1557,9 @@ namespace Horde.Server.Jobs
 		/// </summary>
 		/// <param name="job">The job document</param>
 		/// <returns></returns>
-		public static HordeCommon.Rpc.GetJobResponse ToRpcResponse(this IJob job)
+		public static RpcGetJobResponse ToRpcResponse(this IJob job)
 		{
-			HordeCommon.Rpc.GetJobResponse response = new HordeCommon.Rpc.GetJobResponse();
+			RpcGetJobResponse response = new RpcGetJobResponse();
 			response.StreamId = job.StreamId.ToString();
 			response.Change = job.Change;
 			response.CodeChange = job.CodeChange;
