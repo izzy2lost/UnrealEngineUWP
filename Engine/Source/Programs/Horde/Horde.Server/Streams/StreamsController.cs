@@ -6,6 +6,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Horde.Commits;
+using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Jobs.Templates;
 using EpicGames.Horde.Projects;
 using EpicGames.Horde.Streams;
@@ -347,7 +348,28 @@ namespace Horde.Server.Streams
 			TemplateId templateIdValue = new TemplateId(templateId);
 
 			List<IJobStepRef> steps = await _jobStepRefCollection.GetStepsForNodeAsync(streamId, templateIdValue, step, change, true, count);
-			return steps.ConvertAll(x => PropertyFilter.Apply(new GetJobStepRefResponse(x), filter));
+			return steps.ConvertAll(x => PropertyFilter.Apply(CreateGetJobStepRefResponse(x), filter));
+		}
+
+		/// <summary>
+		/// Constructor
+		/// </summary>
+		/// <param name="jobStepRef">The jobstep ref to construct from</param>
+		internal static GetJobStepRefResponse CreateGetJobStepRefResponse(IJobStepRef jobStepRef)
+		{
+			GetJobStepRefResponse response = new GetJobStepRefResponse();
+			response.JobId = jobStepRef.Id.JobId;
+			response.BatchId = jobStepRef.Id.BatchId;
+			response.StepId = jobStepRef.Id.StepId;
+			response.Change = jobStepRef.Change;
+			response.LogId = jobStepRef.LogId.ToString();
+			response.PoolId = jobStepRef.PoolId?.ToString();
+			response.AgentId = jobStepRef.AgentId?.ToString();
+			response.Outcome = jobStepRef.Outcome;
+			response.IssueIds = jobStepRef.IssueIds?.Select(id => id).ToList();
+			response.StartTime = jobStepRef.StartTimeUtc;
+			response.FinishTime = jobStepRef.FinishTimeUtc;
+			return response;
 		}
 
 		/// <summary>

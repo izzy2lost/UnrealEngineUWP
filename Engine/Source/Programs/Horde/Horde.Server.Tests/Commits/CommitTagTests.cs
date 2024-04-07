@@ -6,7 +6,7 @@ using EpicGames.Horde.Commits;
 using Horde.Server.Streams;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
-namespace Horde.Server.Tests.Perforce
+namespace Horde.Server.Tests.Commits
 {
 	[TestClass]
 	public class CommitTagTests

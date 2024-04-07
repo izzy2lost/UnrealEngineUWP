@@ -475,7 +475,7 @@ namespace Horde.Server.Jobs
 				abortedByUserInfo = (await _userCollection.GetCachedUserAsync(job.AbortedByUserId.Value, cancellationToken))?.ToThinApiResponse();
 			}
 
-			GetJobResponse response = new GetJobResponse(job, startedByUserInfo, abortedByUserInfo);
+			GetJobResponse response = CreateGetJobResponse(job, startedByUserInfo, abortedByUserInfo);
 			if (includeBatches || includeLabels)
 			{
 				if (includeBatches)
@@ -547,6 +547,44 @@ namespace Horde.Server.Jobs
 				&& artifact.Type != ArtifactType.StepTestData;
 		}
 
+		static GetJobResponse CreateGetJobResponse(IJob job, GetThinUserInfoResponse? startedByUserInfo, GetThinUserInfoResponse? abortedByUserInfo)
+		{
+			GetJobResponse response = new GetJobResponse(job.Id, job.StreamId, job.TemplateId, job.Name);
+			response.Change = job.Change;
+			response.CodeChange = (job.CodeChange != 0) ? (int?)job.CodeChange : null;
+			response.PreflightChange = (job.PreflightChange != 0) ? (int?)job.PreflightChange : null;
+			response.ClonedPreflightChange = (job.ClonedPreflightChange != 0) ? (int?)job.ClonedPreflightChange : null;
+			response.PreflightDescription = job.PreflightDescription;
+			response.TemplateHash = job.TemplateHash?.ToString() ?? String.Empty;
+			response.GraphHash = job.GraphHash.ToString();
+			response.StartedByUserId = job.StartedByUserId?.ToString();
+			response.StartedByUser = startedByUserInfo?.Login;
+			response.StartedByUserInfo = startedByUserInfo;
+			response.StartedByBisectTaskId = job.StartedByBisectTaskId;
+			response.AbortedByUser = abortedByUserInfo?.Login;
+			response.AbortedByUserInfo = abortedByUserInfo;
+			response.CreateTime = new DateTimeOffset(job.CreateTimeUtc);
+			response.State = job.GetState();
+			response.Priority = job.Priority;
+			response.AutoSubmit = job.AutoSubmit;
+			response.AutoSubmitChange = job.AutoSubmitChange;
+			response.AutoSubmitMessage = job.AutoSubmitMessage;
+			response.Reports = job.Reports?.ConvertAll(x => CreateGetReportResponse(x));
+			response.Arguments = job.Arguments.ToList();
+			response.UpdateTime = new DateTimeOffset(job.UpdateTimeUtc);
+			response.UseArtifactsV2 = job.JobOptions?.UseNewTempStorage ?? true;
+			response.UpdateIssues = job.UpdateIssues;
+			return response;
+		}
+
+		static GetReportResponse CreateGetReportResponse(IReport report)
+		{
+			GetReportResponse response = new GetReportResponse(report.Name, report.Placement);
+			response.ArtifactId = report.ArtifactId?.ToString();
+			response.Content = report.Content;
+			return response;
+		}
+
 		/// <summary>
 		/// Get the response object for a batch
 		/// </summary>
@@ -568,7 +606,34 @@ namespace Horde.Server.Jobs
 				agentRate = await _agentService.GetRateAsync(batch.AgentId.Value, cancellationToken);
 			}
 
-			return new GetBatchResponse(batch, steps, agentRate);
+			return CreateGetBatchResponse(batch, steps, agentRate);
+		}
+
+		/// <summary>
+		/// Converts this batch into a public response object
+		/// </summary>
+		/// <param name="batch">The batch to construct from</param>
+		/// <param name="steps">Steps in this batch</param>
+		/// <param name="agentRate">Rate for this agent</param>
+		/// <returns>Response instance</returns>
+		static GetBatchResponse CreateGetBatchResponse(IJobStepBatch batch, List<GetStepResponse> steps, double? agentRate)
+		{
+			GetBatchResponse response = new GetBatchResponse();
+			response.Id = batch.Id;
+			response.LogId = batch.LogId?.ToString();
+			response.GroupIdx = batch.GroupIdx;
+			response.State = batch.State;
+			response.Error = batch.Error;
+			response.Steps.AddRange(steps);
+			response.AgentId = batch.AgentId?.ToString();
+			response.AgentRate = agentRate;
+			response.SessionId = batch.SessionId?.ToString();
+			response.LeaseId = batch.LeaseId?.ToString();
+			response.WeightedPriority = batch.SchedulePriority;
+			response.StartTime = batch.StartTimeUtc;
+			response.FinishTime = batch.FinishTimeUtc;
+			response.ReadyTime = batch.ReadyTimeUtc;
+			return response;
 		}
 
 		/// <summary>
@@ -591,7 +656,39 @@ namespace Horde.Server.Jobs
 				retriedByUserInfo = (await _userCollection.GetCachedUserAsync(step.RetriedByUserId.Value, cancellationToken))?.ToThinApiResponse();
 			}
 
-			return new GetStepResponse(step, abortedByUserInfo, retriedByUserInfo);
+			return CreateGetStepResponse(step, abortedByUserInfo, retriedByUserInfo);
+		}
+
+		/// <summary>
+		/// Constructor
+		/// </summary>
+		/// <param name="step">The step to construct from</param>
+		/// <param name="abortedByUserInfo">User that aborted this step</param>
+		/// <param name="retriedByUserInfo">User that retried this step</param>
+		static GetStepResponse CreateGetStepResponse(IJobStep step, GetThinUserInfoResponse? abortedByUserInfo, GetThinUserInfoResponse? retriedByUserInfo)
+		{
+			GetStepResponse response = new GetStepResponse();
+			response.Id = step.Id;
+			response.NodeIdx = step.NodeIdx;
+			response.State = step.State;
+			response.Outcome = step.Outcome;
+			response.Error = step.Error;
+			response.AbortRequested = step.AbortRequested;
+			response.AbortByUser = abortedByUserInfo?.Login;
+			response.AbortedByUserInfo = abortedByUserInfo;
+			response.RetryByUser = retriedByUserInfo?.Login;
+			response.RetriedByUserInfo = retriedByUserInfo;
+			response.LogId = step.LogId?.ToString();
+			response.ReadyTime = step.ReadyTimeUtc;
+			response.StartTime = step.StartTimeUtc;
+			response.FinishTime = step.FinishTimeUtc;
+			response.Reports = step.Reports?.ConvertAll(x => CreateGetReportResponse(x));
+
+			if (step.Properties != null && step.Properties.Count > 0)
+			{
+				response.Properties = step.Properties;
+			}
+			return response;
 		}
 
 		/// <summary>
@@ -668,7 +765,7 @@ namespace Horde.Server.Jobs
 				foreach (IJobStep step in batch.Steps)
 				{
 					INode node = graph.Groups[batch.GroupIdx].Nodes[step.NodeIdx];
-					steps[step.Id.ToString()] = new GetStepTimingInfoResponse(node.Name, nodeToTimingInfo[node]);
+					steps[step.Id.ToString()] = CreateGetStepTimingInfoResponse(node.Name, nodeToTimingInfo[node]);
 				}
 			}
 
@@ -676,7 +773,7 @@ namespace Horde.Server.Jobs
 			foreach (ILabel label in graph.Labels)
 			{
 				TimingInfo timingInfo = TimingInfo.Max(label.GetDependencies(graph.Groups).Select(x => nodeToTimingInfo[x]));
-				labels.Add(new GetLabelTimingInfoResponse(label, timingInfo));
+				labels.Add(CreateGetLabelTimingInfoResponse(label, timingInfo));
 			}
 
 			GetJobResponse? jobResponse = null;
@@ -686,6 +783,30 @@ namespace Horde.Server.Jobs
 			}
 
 			return new GetJobTimingResponse(jobResponse, steps, labels);
+		}
+
+		static GetLabelTimingInfoResponse CreateGetLabelTimingInfoResponse(ILabel label, TimingInfo timingInfo)
+		{
+			GetLabelTimingInfoResponse response = new GetLabelTimingInfoResponse();
+			timingInfo.CopyToResponse(response);
+
+			response.DashboardName = label.DashboardName;
+			response.DashboardCategory = label.DashboardCategory;
+			response.UgsName = label.UgsName;
+			response.UgsProject = label.UgsProject;
+			return response;
+		}
+
+		static GetStepTimingInfoResponse CreateGetStepTimingInfoResponse(string? name, TimingInfo jobTimingInfo)
+		{
+			GetStepTimingInfoResponse response = new GetStepTimingInfoResponse();
+			jobTimingInfo.CopyToResponse(response);
+
+			response.Name = name;
+			response.AverageStepWaitTime = jobTimingInfo.StepTiming?.AverageWaitTime;
+			response.AverageStepInitTime = jobTimingInfo.StepTiming?.AverageInitTime;
+			response.AverageStepDuration = jobTimingInfo.StepTiming?.AverageDuration;
+			return response;
 		}
 
 		/// <summary>

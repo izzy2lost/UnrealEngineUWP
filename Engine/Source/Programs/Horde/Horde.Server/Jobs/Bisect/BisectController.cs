@@ -151,7 +151,7 @@ namespace Horde.Server.Jobs.Bisect
 		{
 			_bisectTask = bisectTask;
 			Owner = owner;
-			Steps = steps.Select(s => new GetJobStepRefResponse(s)).ToList();
+			Steps = steps.Select(s => StreamsController.CreateGetJobStepRefResponse(s)).ToList();
 			NextJobId = nextJob?.Id;
 			NextJobChange = nextJob?.Change;
 		}

@@ -490,6 +490,20 @@ namespace Horde.Server.Jobs
 			timingInfo.WaitForAll(others);
 			return timingInfo;
 		}
+
+		/// <summary>
+		/// Copies this info to a repsonse object
+		/// </summary>
+		public void CopyToResponse(GetTimingInfoResponse response)
+		{
+			response.TotalWaitTime = (float?)TotalWaitTime?.TotalSeconds;
+			response.TotalInitTime = (float?)TotalInitTime?.TotalSeconds;
+			response.TotalTimeToComplete = (float?)TotalTimeToComplete?.TotalSeconds;
+
+			response.AverageTotalWaitTime = (float?)AverageTotalWaitTime?.TotalSeconds;
+			response.AverageTotalInitTime = (float?)AverageTotalInitTime?.TotalSeconds;
+			response.AverageTotalTimeToComplete = (float?)AverageTotalTimeToComplete?.TotalSeconds;
+		}
 	}
 
 	/// <summary>

@@ -15,7 +15,6 @@ using EpicGames.Horde;
 using EpicGames.Horde.Acls;
 using EpicGames.Horde.Agents.Pools;
 using EpicGames.Horde.Commits;
-using EpicGames.Horde.Common;
 using EpicGames.Horde.Issues;
 using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Jobs.Templates;
@@ -709,42 +708,6 @@ namespace Horde.Server.Streams
 		/// Method to use when syncing/materializing data from Perforce
 		/// </summary>
 		public string? Method { get; set; } = null;
-	}
-
-	/// <summary>
-	/// Query selecting the base changelist to use
-	/// </summary>
-	public class ChangeQueryConfig
-	{
-		/// <summary>
-		/// Name of this query, for display on the dashboard.
-		/// </summary>
-		public string? Name { get; set; }
-
-		/// <summary>
-		/// Condition to evaluate before deciding to use this query. May query tags in a preflight.
-		/// </summary>
-		public Condition? Condition { get; set; }
-
-		/// <summary>
-		/// The template id to query
-		/// </summary>
-		public TemplateId? TemplateId { get; set; }
-
-		/// <summary>
-		/// The target to query
-		/// </summary>
-		public string? Target { get; set; }
-
-		/// <summary>
-		/// Whether to match a job that produced warnings
-		/// </summary>
-		public List<JobStepOutcome>? Outcomes { get; set; }
-
-		/// <summary>
-		/// Finds the last commit with this tag
-		/// </summary>
-		public CommitTag? CommitTag { get; set; }
 	}
 
 	/// <summary>

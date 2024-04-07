@@ -7,13 +7,13 @@ using System.Linq;
 using System.Text.Json.Serialization;
 using EpicGames.Core;
 using EpicGames.Horde.Artifacts;
+using EpicGames.Horde.Commits;
+using EpicGames.Horde.Common;
 using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Jobs.Bisect;
 using EpicGames.Horde.Jobs.Templates;
 using EpicGames.Horde.Streams;
 using EpicGames.Horde.Users;
-using Horde.Server.Jobs.Graphs;
-using Horde.Server.Streams;
 
 namespace Horde.Server.Jobs
 {
@@ -108,6 +108,42 @@ namespace Horde.Server.Jobs
 		/// Additional arguments to pass to container engine
 		/// </summary>
 		public string? ExtraArguments { get; set; }
+	}
+
+	/// <summary>
+	/// Query selecting the base changelist to use
+	/// </summary>
+	public class ChangeQueryConfig
+	{
+		/// <summary>
+		/// Name of this query, for display on the dashboard.
+		/// </summary>
+		public string? Name { get; set; }
+
+		/// <summary>
+		/// Condition to evaluate before deciding to use this query. May query tags in a preflight.
+		/// </summary>
+		public Condition? Condition { get; set; }
+
+		/// <summary>
+		/// The template id to query
+		/// </summary>
+		public TemplateId? TemplateId { get; set; }
+
+		/// <summary>
+		/// The target to query
+		/// </summary>
+		public string? Target { get; set; }
+
+		/// <summary>
+		/// Whether to match a job that produced warnings
+		/// </summary>
+		public List<JobStepOutcome>? Outcomes { get; set; }
+
+		/// <summary>
+		/// Finds the last commit with this tag
+		/// </summary>
+		public CommitTag? CommitTag { get; set; }
 	}
 
 	/// <summary>
@@ -287,13 +323,10 @@ namespace Horde.Server.Jobs
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		/// <param name="report"></param>
-		public GetReportResponse(IReport report)
+		public GetReportResponse(string name, ReportPlacement placement)
 		{
-			Name = report.Name;
-			Placement = report.Placement;
-			ArtifactId = report.ArtifactId?.ToString();
-			Content = report.Content;
+			Name = name;
+			Placement = placement;
 		}
 	}
 
@@ -305,12 +338,12 @@ namespace Horde.Server.Jobs
 		/// <summary>
 		/// Unique Id for the job
 		/// </summary>
-		public string Id { get; set; }
+		public JobId Id { get; set; }
 
 		/// <summary>
 		/// Unique id of the stream containing this job
 		/// </summary>
-		public string StreamId { get; set; }
+		public StreamId StreamId { get; set; }
 
 		/// <summary>
 		/// Name of the job
@@ -345,12 +378,12 @@ namespace Horde.Server.Jobs
 		/// <summary>
 		/// The template type
 		/// </summary>
-		public string TemplateId { get; set; }
+		public TemplateId TemplateId { get; set; }
 
 		/// <summary>
 		/// Hash of the actual template data
 		/// </summary>
-		public string TemplateHash { get; set; }
+		public string? TemplateHash { get; set; }
 
 		/// <summary>
 		/// Hash of the graph for this job
@@ -400,12 +433,12 @@ namespace Horde.Server.Jobs
 		/// <summary>
 		/// The submitted changelist number
 		/// </summary>
-		public int? AutoSubmitChange { get; }
+		public int? AutoSubmitChange { get; set; }
 
 		/// <summary>
 		/// Message produced by trying to auto-submit the change
 		/// </summary>
-		public string? AutoSubmitMessage { get; }
+		public string? AutoSubmitMessage { get; set; }
 
 		/// <summary>
 		/// Time that the job was created
@@ -445,7 +478,7 @@ namespace Horde.Server.Jobs
 		/// <summary>
 		/// Parameters for the job
 		/// </summary>
-		public List<string> Arguments { get; set; }
+		public List<string> Arguments { get; set; } = new List<string>();
 
 		/// <summary>
 		/// The last update time for this job
@@ -465,39 +498,12 @@ namespace Horde.Server.Jobs
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		/// <param name="job">Job to create a response for</param>
-		/// <param name="startedByUserInfo">User that started this job</param>
-		/// <param name="abortedByUserInfo">User that aborted this job</param>
-		public GetJobResponse(IJob job, GetThinUserInfoResponse? startedByUserInfo, GetThinUserInfoResponse? abortedByUserInfo)
+		public GetJobResponse(JobId jobId, StreamId streamId, TemplateId templateId, string name)
 		{
-			Id = job.Id.ToString();
-			StreamId = job.StreamId.ToString();
-			Name = job.Name;
-			Change = job.Change;
-			CodeChange = (job.CodeChange != 0) ? (int?)job.CodeChange : null;
-			PreflightChange = (job.PreflightChange != 0) ? (int?)job.PreflightChange : null;
-			ClonedPreflightChange = (job.ClonedPreflightChange != 0) ? (int?)job.ClonedPreflightChange : null;
-			PreflightDescription = job.PreflightDescription;
-			TemplateId = job.TemplateId.ToString();
-			TemplateHash = job.TemplateHash?.ToString() ?? String.Empty;
-			GraphHash = job.GraphHash.ToString();
-			StartedByUserId = job.StartedByUserId?.ToString();
-			StartedByUser = startedByUserInfo?.Login;
-			StartedByUserInfo = startedByUserInfo;
-			StartedByBisectTaskId = job.StartedByBisectTaskId;
-			AbortedByUser = abortedByUserInfo?.Login;
-			AbortedByUserInfo = abortedByUserInfo;
-			CreateTime = new DateTimeOffset(job.CreateTimeUtc);
-			State = job.GetState();
-			Priority = job.Priority;
-			AutoSubmit = job.AutoSubmit;
-			AutoSubmitChange = job.AutoSubmitChange;
-			AutoSubmitMessage = job.AutoSubmitMessage;
-			Reports = job.Reports?.ConvertAll(x => new GetReportResponse(x));
-			Arguments = job.Arguments.ToList();
-			UpdateTime = new DateTimeOffset(job.UpdateTimeUtc);
-			UseArtifactsV2 = job.JobOptions?.UseNewTempStorage ?? true;
-			UpdateIssues = job.UpdateIssues;
+			Id = jobId;
+			StreamId = streamId;
+			TemplateId = templateId;
+			Name = name;
 		}
 	}
 
@@ -639,7 +645,7 @@ namespace Horde.Server.Jobs
 		/// <summary>
 		/// The unique id of the step
 		/// </summary>
-		public string Id { get; set; }
+		public JobStepId Id { get; set; }
 
 		/// <summary>
 		/// Index of the node which this jobstep is to execute
@@ -715,36 +721,6 @@ namespace Horde.Server.Jobs
 		/// User-defined properties for this jobstep.
 		/// </summary>
 		public Dictionary<string, string>? Properties { get; set; }
-
-		/// <summary>
-		/// Constructor
-		/// </summary>
-		/// <param name="step">The step to construct from</param>
-		/// <param name="abortedByUserInfo">User that aborted this step</param>
-		/// <param name="retriedByUserInfo">User that retried this step</param>
-		public GetStepResponse(IJobStep step, GetThinUserInfoResponse? abortedByUserInfo, GetThinUserInfoResponse? retriedByUserInfo)
-		{
-			Id = step.Id.ToString();
-			NodeIdx = step.NodeIdx;
-			State = step.State;
-			Outcome = step.Outcome;
-			Error = step.Error;
-			AbortRequested = step.AbortRequested;
-			AbortByUser = abortedByUserInfo?.Login;
-			AbortedByUserInfo = abortedByUserInfo;
-			RetryByUser = retriedByUserInfo?.Login;
-			RetriedByUserInfo = retriedByUserInfo;
-			LogId = step.LogId?.ToString();
-			ReadyTime = step.ReadyTimeUtc;
-			StartTime = step.StartTimeUtc;
-			FinishTime = step.FinishTimeUtc;
-			Reports = step.Reports?.ConvertAll(x => new GetReportResponse(x));
-
-			if (step.Properties != null && step.Properties.Count > 0)
-			{
-				Properties = step.Properties;
-			}
-		}
 	}
 
 	/// <summary>
@@ -893,7 +869,7 @@ namespace Horde.Server.Jobs
 		/// <summary>
 		/// Unique id for this batch
 		/// </summary>
-		public string Id { get; set; }
+		public JobStepBatchId Id { get; set; }
 
 		/// <summary>
 		/// The unique log file id
@@ -918,7 +894,7 @@ namespace Horde.Server.Jobs
 		/// <summary>
 		/// Steps within this run
 		/// </summary>
-		public List<GetStepResponse> Steps { get; set; }
+		public List<GetStepResponse> Steps { get; set; } = new List<GetStepResponse>();
 
 		/// <summary>
 		/// The agent assigned to execute this group
@@ -959,31 +935,6 @@ namespace Horde.Server.Jobs
 		/// Time at which the group became ready (UTC).
 		/// </summary>
 		public DateTimeOffset? ReadyTime { get; set; }
-
-		/// <summary>
-		/// Converts this batch into a public response object
-		/// </summary>
-		/// <param name="batch">The batch to construct from</param>
-		/// <param name="steps">Steps in this batch</param>
-		/// <param name="agentRate">Rate for this agent</param>
-		/// <returns>Response instance</returns>
-		public GetBatchResponse(IJobStepBatch batch, List<GetStepResponse> steps, double? agentRate)
-		{
-			Id = batch.Id.ToString();
-			LogId = batch.LogId?.ToString();
-			GroupIdx = batch.GroupIdx;
-			State = batch.State;
-			Error = batch.Error;
-			Steps = steps;
-			AgentId = batch.AgentId?.ToString();
-			AgentRate = agentRate;
-			SessionId = batch.SessionId?.ToString();
-			LeaseId = batch.LeaseId?.ToString();
-			WeightedPriority = batch.SchedulePriority;
-			StartTime = batch.StartTimeUtc;
-			FinishTime = batch.FinishTimeUtc;
-			ReadyTime = batch.ReadyTimeUtc;
-		}
 	}
 
 	/// <summary>
@@ -1117,21 +1068,6 @@ namespace Horde.Server.Jobs
 		/// Average duration to this point
 		/// </summary>
 		public float? AverageTotalTimeToComplete { get; set; }
-
-		/// <summary>
-		/// Constructor
-		/// </summary>
-		/// <param name="timingInfo">Timing info to construct from</param>
-		public GetTimingInfoResponse(TimingInfo timingInfo)
-		{
-			TotalWaitTime = (float?)timingInfo.TotalWaitTime?.TotalSeconds;
-			TotalInitTime = (float?)timingInfo.TotalInitTime?.TotalSeconds;
-			TotalTimeToComplete = (float?)timingInfo.TotalTimeToComplete?.TotalSeconds;
-
-			AverageTotalWaitTime = (float?)timingInfo.AverageTotalWaitTime?.TotalSeconds;
-			AverageTotalInitTime = (float?)timingInfo.AverageTotalInitTime?.TotalSeconds;
-			AverageTotalTimeToComplete = (float?)timingInfo.AverageTotalTimeToComplete?.TotalSeconds;
-		}
 	}
 
 	/// <summary>
@@ -1158,20 +1094,6 @@ namespace Horde.Server.Jobs
 		/// Average duration for this step
 		/// </summary>
 		public float? AverageStepDuration { get; set; }
-
-		/// <summary>
-		/// Constructor
-		/// </summary>
-		/// <param name="name">Name of the node</param>
-		/// <param name="jobTimingInfo">Timing info to construct from</param>
-		public GetStepTimingInfoResponse(string? name, TimingInfo jobTimingInfo)
-			: base(jobTimingInfo)
-		{
-			Name = name;
-			AverageStepWaitTime = jobTimingInfo.StepTiming?.AverageWaitTime;
-			AverageStepInitTime = jobTimingInfo.StepTiming?.AverageInitTime;
-			AverageStepDuration = jobTimingInfo.StepTiming?.AverageDuration;
-		}
 	}
 
 	/// <summary>
@@ -1210,20 +1132,6 @@ namespace Horde.Server.Jobs
 		/// Category for the label
 		/// </summary>
 		public string? UgsProject { get; set; }
-
-		/// <summary>
-		/// Constructor
-		/// </summary>
-		/// <param name="label">The label to construct from</param>
-		/// <param name="timingInfo">Timing info to construct from</param>
-		public GetLabelTimingInfoResponse(ILabel label, TimingInfo timingInfo)
-			: base(timingInfo)
-		{
-			DashboardName = label.DashboardName;
-			DashboardCategory = label.DashboardCategory;
-			UgsName = label.UgsName;
-			UgsProject = label.UgsProject;
-		}
 	}
 
 	/// <summary>
@@ -1234,17 +1142,17 @@ namespace Horde.Server.Jobs
 		/// <summary>
 		/// The job id
 		/// </summary>
-		public string JobId { get; set; }
+		public JobId JobId { get; set; }
 
 		/// <summary>
 		/// The batch containing the step
 		/// </summary>
-		public string BatchId { get; set; }
+		public JobStepBatchId BatchId { get; set; }
 
 		/// <summary>
 		/// The step identifier
 		/// </summary>
-		public string StepId { get; set; }
+		public JobStepId StepId { get; set; }
 
 		/// <summary>
 		/// The change number being built
@@ -1274,35 +1182,16 @@ namespace Horde.Server.Jobs
 		/// <summary>
 		/// The issues which affected this step
 		/// </summary>
-		public List<int>? IssueIds { get; }
+		public List<int>? IssueIds { get; set; }
 
 		/// <summary>
 		/// Time at which the step started.
 		/// </summary>
-		public DateTimeOffset StartTime { get; }
+		public DateTimeOffset StartTime { get; set; }
 
 		/// <summary>
 		/// Time at which the step finished.
 		/// </summary>
-		public DateTimeOffset? FinishTime { get; }
-
-		/// <summary>
-		/// Constructor
-		/// </summary>
-		/// <param name="jobStepRef">The jobstep ref to construct from</param>
-		public GetJobStepRefResponse(IJobStepRef jobStepRef)
-		{
-			JobId = jobStepRef.Id.JobId.ToString();
-			BatchId = jobStepRef.Id.BatchId.ToString();
-			StepId = jobStepRef.Id.StepId.ToString();
-			Change = jobStepRef.Change;
-			LogId = jobStepRef.LogId.ToString();
-			PoolId = jobStepRef.PoolId?.ToString();
-			AgentId = jobStepRef.AgentId?.ToString();
-			Outcome = jobStepRef.Outcome;
-			IssueIds = jobStepRef.IssueIds?.Select(id => id).ToList();
-			StartTime = jobStepRef.StartTimeUtc;
-			FinishTime = jobStepRef.FinishTimeUtc;
-		}
+		public DateTimeOffset? FinishTime { get; set; }
 	}
 }
