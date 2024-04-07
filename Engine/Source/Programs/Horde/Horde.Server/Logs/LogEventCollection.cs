@@ -7,7 +7,6 @@ using System.Threading.Tasks;
 using EpicGames.Horde.Logs;
 using Horde.Server.Server;
 using Horde.Server.Utilities;
-using HordeCommon;
 using Microsoft.Extensions.Logging;
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Attributes;
@@ -46,17 +45,17 @@ namespace Horde.Server.Logs
 			LogId ILogEvent.LogId => Id.LogId;
 			int ILogEvent.LineIndex => Id.LineIndex;
 			int ILogEvent.LineCount => LineCount ?? 1;
-			RpcEventSeverity ILogEvent.Severity => IsWarning ? RpcEventSeverity.Warning : RpcEventSeverity.Error;
+			LogEventSeverity ILogEvent.Severity => IsWarning ? LogEventSeverity.Warning : LogEventSeverity.Error;
 
 			public LogEventDocument()
 			{
 				Id = new LogEventId();
 			}
 
-			public LogEventDocument(LogId logId, RpcEventSeverity severity, int lineIndex, int lineCount, ObjectId? spanId)
+			public LogEventDocument(LogId logId, LogEventSeverity severity, int lineIndex, int lineCount, ObjectId? spanId)
 			{
 				Id = new LogEventId { LogId = logId, LineIndex = lineIndex };
-				IsWarning = severity == RpcEventSeverity.Warning;
+				IsWarning = severity == LogEventSeverity.Warning;
 				LineCount = (lineCount > 1) ? (int?)lineCount : null;
 				SpanId = spanId;
 			}
@@ -71,7 +70,7 @@ namespace Horde.Server.Logs
 		{
 			public ObjectId Id { get; set; }
 			public DateTime Time { get; set; }
-			public RpcEventSeverity Severity { get; set; }
+			public LogEventSeverity Severity { get; set; }
 			public LogId LogId { get; set; }
 			public int LineIndex { get; set; }
 			public int LineCount { get; set; }

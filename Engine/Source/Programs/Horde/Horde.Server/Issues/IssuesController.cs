@@ -745,7 +745,7 @@ namespace Horde.Server.Issues
 				if (logFile != null && await _jobService.AuthorizeAsync(logFile.JobId, LogAclAction.ViewLog, User, _globalConfig.Value, cancellationToken))
 				{
 					ILogEventData data = await _logFileService.GetEventDataAsync(logFile, logEvent.LineIndex, logEvent.LineCount, cancellationToken);
-					GetLogEventResponse response = new GetLogEventResponse(logEvent, data, issueId);
+					GetLogEventResponse response = LogsController.CreateGetLogEventResponse(logEvent, data, issueId);
 					responses.Add(PropertyFilter.Apply(response, filter));
 				}
 			}

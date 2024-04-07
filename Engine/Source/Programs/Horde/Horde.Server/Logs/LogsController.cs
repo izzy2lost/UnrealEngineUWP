@@ -6,6 +6,7 @@ using System.IO;
 using System.Linq;
 using System.Security.Claims;
 using System.Text;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
@@ -343,9 +344,27 @@ namespace Horde.Server.Logs
 					spanIdToIssueId[logEvent.SpanId.Value] = issueId;
 				}
 
-				responses.Add(new GetLogEventResponse(logEvent, logEventData, issueId));
+				responses.Add(CreateGetLogEventResponse(logEvent, logEventData, issueId));
 			}
 			return responses;
+		}
+
+		/// <summary>
+		/// Create a log event response message
+		/// </summary>
+		/// <param name="logEvent">The event to construct from</param>
+		/// <param name="eventData">The event data</param>
+		/// <param name="issueId">The issue for this event</param>
+		internal static GetLogEventResponse CreateGetLogEventResponse(ILogEvent logEvent, ILogEventData eventData, int? issueId)
+		{
+			GetLogEventResponse response = new GetLogEventResponse();
+			response.Severity = logEvent.Severity;
+			response.LogId = logEvent.LogId;
+			response.LineIndex = logEvent.LineIndex;
+			response.LineCount = logEvent.LineCount;
+			response.IssueId = issueId;
+			response.Lines.AddRange(eventData.Lines.Select(x => JsonDocument.Parse(x.Data).RootElement));
+			return response;
 		}
 
 		/// <summary>

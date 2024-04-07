@@ -6,7 +6,6 @@ using EpicGames.Core;
 using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Logs;
 using Google.Protobuf;
-using HordeCommon;
 using HordeCommon.Rpc;
 using Microsoft.Extensions.Logging;
 
@@ -183,11 +182,11 @@ namespace Horde.Agent.Utility
 						{
 							if (jsonLogEvent.Level == LogLevel.Warning && ++numWarnings <= MaxWarnings)
 							{
-								AddEvent(jsonLogEvent.Data.Span, nextLineIndex, Math.Max(lineCount, jsonLogEvent.LineCount), RpcEventSeverity.Warning, events);
+								AddEvent(jsonLogEvent.Data.Span, nextLineIndex, Math.Max(lineCount, jsonLogEvent.LineCount), LogEventSeverity.Warning, events);
 							}
 							else if ((jsonLogEvent.Level == LogLevel.Error || jsonLogEvent.Level == LogLevel.Critical) && ++numErrors <= MaxErrors)
 							{
-								AddEvent(jsonLogEvent.Data.Span, nextLineIndex, Math.Max(lineCount, jsonLogEvent.LineCount), RpcEventSeverity.Error, events);
+								AddEvent(jsonLogEvent.Data.Span, nextLineIndex, Math.Max(lineCount, jsonLogEvent.LineCount), LogEventSeverity.Error, events);
 							}
 						}
 						nextLineIndex += lineCount;
@@ -264,7 +263,7 @@ namespace Horde.Agent.Utility
 			}
 		}
 
-		void AddEvent(ReadOnlySpan<byte> span, int lineIndex, int lineCount, RpcEventSeverity severity, List<RpcCreateEventRequest> events)
+		void AddEvent(ReadOnlySpan<byte> span, int lineIndex, int lineCount, LogEventSeverity severity, List<RpcCreateEventRequest> events)
 		{
 			try
 			{

@@ -4,10 +4,35 @@ using System.Collections.Generic;
 using System.Text.Json;
 using EpicGames.Core;
 using EpicGames.Horde.Logs;
-using HordeCommon;
 
-namespace Horde.Server.Logs
+namespace EpicGames.Horde.Logs
 {
+	/// <summary>
+	/// Severity of a log event
+	/// </summary>
+	public enum LogEventSeverity
+	{
+		/// <summary>
+		/// Severity is not specified
+		/// </summary>
+		Unspecified = 0,
+
+		/// <summary>
+		/// Information severity
+		/// </summary>
+		Information = 1,
+
+		/// <summary>
+		/// Warning severity
+		/// </summary>
+		Warning = 2,
+
+		/// <summary>
+		/// Error severity
+		/// </summary>
+		Error = 3,
+	}
+
 	/// <summary>
 	/// Information about an uploaded event
 	/// </summary>
@@ -21,7 +46,7 @@ namespace Horde.Server.Logs
 		/// <summary>
 		/// Severity of this event
 		/// </summary>
-		public RpcEventSeverity Severity { get; set; }
+		public LogEventSeverity Severity { get; set; }
 
 		/// <summary>
 		/// Index of the first line for this event
@@ -41,22 +66,6 @@ namespace Horde.Server.Logs
 		/// <summary>
 		/// The structured message data for this event
 		/// </summary>
-		public List<JsonElement> Lines { get; set; }
-
-		/// <summary>
-		/// Constructor
-		/// </summary>
-		/// <param name="logEvent">The event to construct from</param>
-		/// <param name="eventData">The event data</param>
-		/// <param name="issueId">The issue for this event</param>
-		public GetLogEventResponse(ILogEvent logEvent, ILogEventData eventData, int? issueId)
-		{
-			Severity = logEvent.Severity;
-			LogId = logEvent.LogId;
-			LineIndex = logEvent.LineIndex;
-			LineCount = logEvent.LineCount;
-			IssueId = issueId;
-			Lines = eventData.Lines.ConvertAll(x => JsonDocument.Parse(x.Data).RootElement);
-		}
+		public List<JsonElement> Lines { get; set; } = new List<JsonElement>();
 	}
 }

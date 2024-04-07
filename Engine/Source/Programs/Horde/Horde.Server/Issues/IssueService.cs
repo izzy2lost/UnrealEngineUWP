@@ -13,6 +13,7 @@ using EpicGames.Core;
 using EpicGames.Horde.Issues;
 using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Jobs.Templates;
+using EpicGames.Horde.Logs;
 using EpicGames.Horde.Streams;
 using EpicGames.Horde.Users;
 using Horde.Server.Commits;
@@ -158,10 +159,10 @@ namespace Horde.Server.Issues
 				EventData = logEventData;
 			}
 
-			static LogLevel GetLogLevelFromSeverity(RpcEventSeverity severity) => severity switch
+			static LogLevel GetLogLevelFromSeverity(LogEventSeverity severity) => severity switch
 			{
-				RpcEventSeverity.Error => LogLevel.Error,
-				RpcEventSeverity.Warning => LogLevel.Warning,
+				LogEventSeverity.Error => LogLevel.Error,
+				LogEventSeverity.Warning => LogLevel.Warning,
 				_ => LogLevel.Information
 			};
 		}

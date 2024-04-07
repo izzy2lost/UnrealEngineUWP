@@ -151,9 +151,9 @@ namespace HordeCommon.Rpc
 
 	partial class RpcCreateEventRequest
 	{
-		public RpcCreateEventRequest(RpcEventSeverity severity, LogId logId, int lineIndex, int lineCount)
+		public RpcCreateEventRequest(LogEventSeverity severity, LogId logId, int lineIndex, int lineCount)
 		{
-			Severity = severity;
+			Severity = (int)severity;
 			LogId = logId.ToString();
 			LineIndex = lineIndex;
 			LineCount = lineCount;

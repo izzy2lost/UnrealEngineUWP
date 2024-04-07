@@ -5,7 +5,6 @@ using System.Linq;
 using System.Text.Json;
 using EpicGames.Core;
 using EpicGames.Horde.Logs;
-using HordeCommon;
 using Microsoft.Extensions.Logging;
 using MongoDB.Bson;
 
@@ -19,7 +18,7 @@ namespace Horde.Server.Logs
 		/// <summary>
 		/// The log level
 		/// </summary>
-		RpcEventSeverity Severity { get; }
+		LogEventSeverity Severity { get; }
 
 		/// <summary>
 		/// The type of event
@@ -50,7 +49,7 @@ namespace Horde.Server.Logs
 		/// <summary>
 		/// Severity of the event
 		/// </summary>
-		public RpcEventSeverity Severity { get; }
+		public LogEventSeverity Severity { get; }
 
 		/// <summary>
 		/// Index of the first line for this event
@@ -81,7 +80,7 @@ namespace Horde.Server.Logs
 		/// <summary>
 		/// Severity of the event
 		/// </summary>
-		public RpcEventSeverity Severity { get; set; }
+		public LogEventSeverity Severity { get; set; }
 
 		/// <summary>
 		/// Index of the first line for this event

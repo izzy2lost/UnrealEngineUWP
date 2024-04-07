@@ -893,7 +893,7 @@ namespace Horde.Server.Jobs
 			{
 				NewLogEventData newEvent = new NewLogEventData();
 				newEvent.LogId = LogId.Parse(createEvent.LogId);
-				newEvent.Severity = createEvent.Severity;
+				newEvent.Severity = (LogEventSeverity)createEvent.Severity;
 				newEvent.LineIndex = createEvent.LineIndex;
 				newEvent.LineCount = createEvent.LineCount;
 				newEvents.Add(newEvent);

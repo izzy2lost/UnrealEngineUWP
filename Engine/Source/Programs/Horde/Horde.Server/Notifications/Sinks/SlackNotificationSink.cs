@@ -639,8 +639,8 @@ namespace Horde.Server.Notifications.Sinks
 			}
 			else
 			{
-				List<ILogEventData> errors = events.Where(x => x.Severity == RpcEventSeverity.Error).ToList();
-				List<ILogEventData> warnings = events.Where(x => x.Severity == RpcEventSeverity.Warning).ToList();
+				List<ILogEventData> errors = events.Where(x => x.Severity == LogEventSeverity.Error).ToList();
+				List<ILogEventData> warnings = events.Where(x => x.Severity == LogEventSeverity.Warning).ToList();
 				List<string> eventStrings = new List<string>();
 				if (errors.Any())
 				{
@@ -1018,9 +1018,9 @@ namespace Horde.Server.Notifications.Sinks
 					if (logFile != null)
 					{
 						events = await _logFileService.FindEventsAsync(logFile, span.Id, 0, 50, cancellationToken);
-						if (events.Any(x => x.Severity == RpcEventSeverity.Error))
+						if (events.Any(x => x.Severity == LogEventSeverity.Error))
 						{
-							events.RemoveAll(x => x.Severity == RpcEventSeverity.Warning);
+							events.RemoveAll(x => x.Severity == LogEventSeverity.Warning);
 						}
 
 						List<string> eventStrings = new List<string>();
@@ -1454,9 +1454,9 @@ namespace Horde.Server.Notifications.Sinks
 				if (logFile != null)
 				{
 					List<ILogEvent> events = await _logFileService.FindEventsAsync(logFile, lastSpan.Id, 0, 20, cancellationToken);
-					if (events.Any(x => x.Severity == RpcEventSeverity.Error))
+					if (events.Any(x => x.Severity == LogEventSeverity.Error))
 					{
-						events.RemoveAll(x => x.Severity == RpcEventSeverity.Warning);
+						events.RemoveAll(x => x.Severity == LogEventSeverity.Warning);
 					}
 
 					for (int idx = 0; idx < Math.Min(events.Count, 3); idx++)
