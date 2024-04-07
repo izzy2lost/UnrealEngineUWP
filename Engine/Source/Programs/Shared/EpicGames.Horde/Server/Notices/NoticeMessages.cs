@@ -4,7 +4,7 @@ using System;
 using System.ComponentModel.DataAnnotations;
 using EpicGames.Horde.Users;
 
-namespace Horde.Server.Server.Notices
+namespace EpicGames.Horde.Server.Notices
 {
 	/// <summary>
 	/// Parameters required to create a notice

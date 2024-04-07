@@ -6,6 +6,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
+using EpicGames.Horde.Server.Notices;
 using EpicGames.Horde.Users;
 using Horde.Server.Acls;
 using Horde.Server.Users;
