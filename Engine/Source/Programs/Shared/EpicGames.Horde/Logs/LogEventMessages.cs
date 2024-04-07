@@ -2,8 +2,8 @@
 
 using System.Collections.Generic;
 using System.Text.Json;
-using EpicGames.Core;
-using EpicGames.Horde.Logs;
+
+#pragma warning disable CA2227
 
 namespace EpicGames.Horde.Logs
 {
