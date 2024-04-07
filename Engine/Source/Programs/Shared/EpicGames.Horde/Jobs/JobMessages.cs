@@ -7,13 +7,15 @@ using System.Text.Json.Serialization;
 using EpicGames.Horde.Artifacts;
 using EpicGames.Horde.Commits;
 using EpicGames.Horde.Common;
-using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Jobs.Bisect;
 using EpicGames.Horde.Jobs.Templates;
 using EpicGames.Horde.Streams;
 using EpicGames.Horde.Users;
 
-namespace Horde.Server.Jobs
+#pragma warning disable CA1056 // Change the type of property 'JobContainerOptions.ImageUrl' from 'string' to 'System.Uri'
+#pragma warning disable CA2227 // Change 'Outcomes' to be read-only by removing the property setter
+
+namespace EpicGames.Horde.Jobs
 {
 	/// <summary>
 	/// State of the job

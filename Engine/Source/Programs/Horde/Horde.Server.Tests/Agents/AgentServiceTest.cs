@@ -9,6 +9,7 @@ using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Horde.Agents;
 using EpicGames.Horde.Agents.Pools;
+using EpicGames.Horde.Jobs;
 using Horde.Server.Agents;
 using Horde.Server.Auditing;
 using Horde.Server.Jobs;

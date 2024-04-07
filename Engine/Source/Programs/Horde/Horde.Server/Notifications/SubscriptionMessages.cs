@@ -6,7 +6,6 @@ using EpicGames.Core;
 using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Jobs.Templates;
 using EpicGames.Horde.Streams;
-using Horde.Server.Jobs;
 
 namespace Horde.Server.Notifications
 {
