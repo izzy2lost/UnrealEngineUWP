@@ -28,8 +28,11 @@ protected:
 		NumSegments = 1;
 		NodalVector.Add(0.);
 		NodalVector.Add(1.);
-		Weights.Add(1.);
-		Weights.Add(1.);
+		Weights.SetNum(Poles.Num());
+		for (double& Weight : Weights)
+		{
+			Weight = 1.;
+		}
 	}
 
 	FBezierCurve(const FNurbsCurveData& NurbsCurveData);

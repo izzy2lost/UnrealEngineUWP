@@ -52,6 +52,14 @@ FBezierCurve::FBezierCurve(const FNurbsCurveData& NurbsCurveData)
 
 	Poles = NurbsCurveData.Poles;
 	Weights = NurbsCurveData.Weights;
+	if (Weights.Num() != Poles.Num())
+	{
+		Weights.SetNum(Poles.Num());
+		for (double& Weight : Weights)
+		{
+			Weight = 1.;
+		}
+	}
 
 	// Validate the curve is actually rational
 	if (NurbsCurveData.bIsRational)

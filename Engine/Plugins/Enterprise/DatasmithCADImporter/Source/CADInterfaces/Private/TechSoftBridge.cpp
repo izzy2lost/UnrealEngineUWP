@@ -161,10 +161,10 @@ UE::CADKernel::FSurfacicBoundary GetSurfacicBoundary(A3DDomainData& Domain, cons
 	UE::CADKernel::EIso VIndex = UVReparameterization.GetSwapUV() ? UE::CADKernel::EIso::IsoU : UE::CADKernel::EIso::IsoV;
 
 	UE::CADKernel::FSurfacicBoundary Boundary;
-	Boundary[UIndex].Min = Min.U;
-	Boundary[VIndex].Min = Min.V;
-	Boundary[UIndex].Max = Max.U;
-	Boundary[VIndex].Max = Max.V;
+	Boundary[UIndex].Min = FMath::Min(Min.U, Max.U);
+	Boundary[UIndex].Max = FMath::Max(Min.U, Max.U);
+	Boundary[VIndex].Min = FMath::Min(Min.V, Max.V);
+	Boundary[VIndex].Max = FMath::Max(Min.V, Max.V);
 
 	return Boundary;
 }
