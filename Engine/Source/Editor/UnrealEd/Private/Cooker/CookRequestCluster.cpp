@@ -1129,15 +1129,10 @@ void FRequestCluster::FGraphSearch::ExploreVertexEdges(FVertexData& Vertex)
 					bIterativelyUnmodified = true;
 					PackagePlatformData.SetIterativelyUnmodified(true);
 				}
-				if (bExploreDependencies)
+				if (bExploreDependencies && Cluster.bAllowSoftDependencies)
 				{
-					AddPlatformDependencyRange(CookDependencies.GetPackageDependencies(), PlatformIndex,
-						EInstigator::HardDependency);
-					if (Cluster.bAllowSoftDependencies)
-					{
-						AddPlatformDependencyRange(CookDependencies.GetRuntimePackageDependencies(), PlatformIndex,
-							EInstigator::HardDependency);
-					}
+					AddPlatformDependencyRange(CookDependencies.GetRuntimePackageDependencies(), PlatformIndex,
+						EInstigator::SoftDependency);
 				}
 
 				if (Cluster.bPreQueueBuildDefinitions)
@@ -1208,9 +1203,11 @@ void FRequestCluster::FGraphSearch::ExploreVertexEdges(FVertexData& Vertex)
 			Cluster.AssetRegistry.GetDependencies(PackageName, CookerLoadingDependencies, EDependencyCategory::Package,
 				EDependencyQuery::Hard);
 
-			// ITERATIVECOOK_TODO: Build dependencies need to be stored and used to mark package loads as expected
-			// But we can't use them to explore packages that will be loaded during cook because they might not be;
-			// some build dependencies might be a conservative list but unused by the asset, or unused on
+			// ITERATIVECOOK_TODO: To improve cooker load performance, we should declare EDependencyQuery::Build
+			// packages as packages that will be loaded during the cook, by adding them as edges for the
+			// CookerLoadingPlatformIndex platform.
+			// But we can't do that yet; in some important cases the build dependencies are declared by a class but not
+			// always used - some build dependencies might be a conservative list but unused by the asset, or unused on
 			// targetplatform.
 			// Adding BuildDependencies also sets up many circular dependencies, because maps declare their external
 			// actors as build dependencies and the external actors declare the map as a build or hard dependency.

@@ -4406,16 +4406,23 @@ private: // Used only by UCookOnTheFlyServer, which has private access
 	FSaveCookedPackageContext(UCookOnTheFlyServer& InCOTFS, UE::Cook::FPackageData& InPackageData,
 		TArrayView<const ITargetPlatform*> InPlatformsForPackage, UE::Cook::FTickStackData& StackData);
 
+	// Hooks used by friends
 	void SetupPackage();
-	void SetupPlatform(const ITargetPlatform* InTargetPlatform, bool bFirstPlatform);
+	void SetupPlatform(const ITargetPlatform* InTargetPlatform, int32 InPlatformIndex);
 	void FinishPlatform();
 	void FinishPackage();
+
+	// private helper functions
+	void CalculatePlatformAgnosticRuntimeDependencies();
+	void CalculatePlatformRuntimeDependencies();
+	static void AddDependency(TMap<FPackageData*, EInstigator>& InDependencies, FPackageData* PackageData, bool bHard);
 
 	// General Package Data
 	UCookOnTheFlyServer& COTFS;
 	FPackageData& PackageData;
 	TArrayView<const ITargetPlatform*> PlatformsForPackage;
-	TSet<FPackageData*> SaveReferences;
+	TMap<FPackageData*, EInstigator> PlatformAgnosticDependencies;
+	TArray<TMap<FPackageData*, EInstigator>, TInlineAllocator<1>> PlatformDependencies;
 	FTickStackData& StackData;
 	UPackage* Package;
 	const FString PackageName;
@@ -4424,7 +4431,8 @@ private: // Used only by UCookOnTheFlyServer, which has private access
 	bool bReferencedOnlyByEditorOnlyData = false;
 	bool bHasTimeOut = false;
 	bool bHasRetryErrorCode = false;
-	bool bHasFirstPlatformResults = false;
+	bool bPlatformAgnosticDependenciesCalculated = false;
+	bool bAnySaveSucceeded = false;
 
 	// General Package Data that is delay-loaded the first time we save a platform
 	UWorld* World = nullptr;
@@ -4441,6 +4449,7 @@ private: // Used only by UCookOnTheFlyServer, which has private access
 	ICookedPackageWriter* PackageWriter = nullptr;
 	FString PlatFilename;
 	FSavePackageResultStruct SavePackageResult;
+	int32 PlatformIndex = -1;
 	bool bPlatformSetupSuccessful = false;
 	bool bEndianSwap = false;
 
@@ -6072,10 +6081,10 @@ void UCookOnTheFlyServer::SaveCookedPackage(UE::Cook::FSaveCookedPackageContext&
 	// For legacy reasons we set GIsCookerLoadingPackage == true during save. Some classes use it to conditionally execute cook operations in both save and load
 	TGuardValue<bool> ScopedIsCookerLoadingPackage(GIsCookerLoadingPackage, true);
 
-	bool bFirstPlatform = true;
-	for (const ITargetPlatform* TargetPlatform : Context.PlatformsForPackage)
+	for (int32 PlatformIndex = 0; PlatformIndex < Context.PlatformsForPackage.Num(); ++PlatformIndex)
 	{
-		Context.SetupPlatform(TargetPlatform, bFirstPlatform);
+		const ITargetPlatform* TargetPlatform = Context.PlatformsForPackage[PlatformIndex];
+		Context.SetupPlatform(TargetPlatform, PlatformIndex);
 		if (Context.bPlatformSetupSuccessful)
 		{
 			UE_SCOPED_HIERARCHICAL_COOKTIMER(GEditorSavePackage);
@@ -6142,7 +6151,6 @@ void UCookOnTheFlyServer::SaveCookedPackage(UE::Cook::FSaveCookedPackageContext&
 		}
 
 		Context.FinishPlatform();
-		bFirstPlatform = false;
 	}
 
 	// Need to restore flags before calling FinishPackage because it might need to save again
@@ -6173,6 +6181,7 @@ FSaveCookedPackageContext::FSaveCookedPackageContext(UCookOnTheFlyServer& InCOTF
 	, PackageName(Package ? Package->GetName() : FString())
 	, Filename(PackageData.GetFileName().ToString())
 {
+	PlatformDependencies.SetNum(InPlatformsForPackage.Num());
 }
 
 void FSaveCookedPackageContext::SetupPackage()
@@ -6203,8 +6212,9 @@ void FSaveCookedPackageContext::SetupPackage()
 	Filename = COTFS.ConvertToFullSandboxPath(*Filename, true);
 }
 
-void FSaveCookedPackageContext::SetupPlatform(const ITargetPlatform* InTargetPlatform, bool bFirstPlatform)
+void FSaveCookedPackageContext::SetupPlatform(const ITargetPlatform* InTargetPlatform, int32 InPlatformIndex)
 {
+	PlatformIndex = InPlatformIndex;
 	TargetPlatform = InTargetPlatform;
 	PlatFilename = Filename.Replace(TEXT("[Platform]"), *TargetPlatform->PlatformName());
 	bPlatformSetupSuccessful = false;
@@ -6268,8 +6278,9 @@ void FSaveCookedPackageContext::SetupPlatform(const ITargetPlatform* InTargetPla
 		bHasDelayLoaded = true;
 	}
 
-	UE_CLOG((GCookProgressDisplay & (int32)ECookProgressDisplayMode::Instigators) && bFirstPlatform, LogCook, Display,
-		TEXT("Cooking %s, Instigator: { %s }"), *PackageName, *(PackageData.GetInstigator().ToString()));
+	UE_CLOG((GCookProgressDisplay & (int32)ECookProgressDisplayMode::Instigators) && PlatformIndex == 0,
+		LogCook, Display, TEXT("Cooking %s, Instigator: { %s }"),
+		*PackageName, *(PackageData.GetInstigator().ToString()));
 	UE_CLOG(GCookProgressDisplay & (int32)ECookProgressDisplayMode::PackageNames, LogCook, Display,
 		TEXT("Cooking %s"), *PackageName);
 
@@ -6315,19 +6326,30 @@ bool IsRetryErrorCode(ESavePackageResult Result)
 void FSaveCookedPackageContext::FinishPlatform()
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FSaveCookedPackageContext::FinishPlatform);
+	check(PlatformIndex >= 0 && PlatformDependencies.IsValidIndex(PlatformIndex));
 
 	bool bSuccessful = SavePackageResult.IsSuccessful();
 	ECookResult CookResult = bSuccessful ? ECookResult::Succeeded : ECookResult::Failed;
 
 	if (bPlatformSetupSuccessful)
 	{
+		CalculatePlatformAgnosticRuntimeDependencies();
+		CalculatePlatformRuntimeDependencies();
+
 		TOptional<FAssetPackageData> AssetPackageData = COTFS.AssetRegistry->GetAssetPackageDataCopy(Package->GetFName());
 
 		ICookedPackageWriter::FCommitPackageInfo Info;
 		if (COTFS.bHybridIterativeEnabled)
 		{
+			TArray<FName> PlatformDependencyNames;
+			PlatformDependencyNames.Reserve(PlatformDependencies[PlatformIndex].Num());
+			for (const TPair<FPackageData*, EInstigator>& DependencyPair : PlatformDependencies[PlatformIndex])
+			{
+				PlatformDependencyNames.Add(DependencyPair.Key->GetPackageName());
+			}
 			UE_SCOPED_HIERARCHICAL_COOKTIMER(TargetDomainDependencies);
-			UE::TargetDomain::CollectAndStoreCookAttachments(Package, TargetPlatform, &SavePackageResult, Info.Attachments);
+			UE::TargetDomain::CollectAndStoreCookAttachments(Package, TargetPlatform, &SavePackageResult,
+				MoveTemp(PlatformDependencyNames), Info.Attachments);
 		}
 		if (bSuccessful)
 		{
@@ -6385,7 +6407,7 @@ void FSaveCookedPackageContext::FinishPlatform()
 				Dependency.Properties = UE::AssetRegistry::EDependencyProperty::Game;
 			}
 
-			if (!bHasFirstPlatformResults)
+			if (PlatformIndex == 0)
 			{
 				GenerationHelper->FetchExternalActorDependencies();
 				COTFS.RecordExternalActorDependencies(GenerationHelper->GetExternalActorDependencies());
@@ -6440,31 +6462,6 @@ void FSaveCookedPackageContext::FinishPlatform()
 			COTFS);
 	}
 
-	if (bSuccessful && COTFS.bSkipOnlyEditorOnly)
-	{
-		// If the save succeeded, add the imports and softobjectpaths from the save to the cook for the platform
-		FName PackageFName = Package->GetFName();
-		TConstArrayView<const ITargetPlatform*> ReachablePlatforms(&TargetPlatform, 1);
-		for (const TArray<FName>& DependencyNames : { SavePackageResult.ImportPackages, SavePackageResult.SoftPackageReferences })
-		{
-			EInstigator InstigatorType = &DependencyNames == &SavePackageResult.ImportPackages ?
-				EInstigator::SaveTimeHardDependency : EInstigator::SaveTimeSoftDependency;
-			for (FName DependencyName : DependencyNames)
-			{
-				UE::Cook::FPackageData* DependencyData = COTFS.PackageDatas->TryAddPackageDataByPackageName(DependencyName);
-				if (DependencyData)
-				{
-					COTFS.QueueDiscoveredPackage(*DependencyData,
-						UE::Cook::FInstigator(InstigatorType, PackageFName), FDiscoveredPlatformSet(ReachablePlatforms));
-					if (COTFS.IsDebugRecordUnsolicited())
-					{
-						SaveReferences.Add(DependencyData);
-					}
-				}
-			}
-		}
-	}
-
 	// If not retrying, mark the package as cooked, either successfully or with failure
 	bool bIsRetryErrorCode = IsRetryErrorCode(SavePackageResult.Result);
 	if (!bIsRetryErrorCode)
@@ -6488,7 +6485,7 @@ void FSaveCookedPackageContext::FinishPlatform()
 
 	// Accumulate results for SaveCookedPackage_Finish
 	bool bLocalReferencedOnlyByEditorOnlyData = SavePackageResult.Result == ESavePackageResult::ReferencedOnlyByEditorOnlyData;
-	if (bHasFirstPlatformResults && bLocalReferencedOnlyByEditorOnlyData != bReferencedOnlyByEditorOnlyData)
+	if (PlatformIndex > 0 && bLocalReferencedOnlyByEditorOnlyData != bReferencedOnlyByEditorOnlyData)
 	{
 		UE_LOG(LogCook, Error, TEXT("Package %s had different values for IsReferencedOnlyByEditorOnlyData from multiple platforms. ")
 			TEXT("Treating all platforms as IsReferencedOnlyByEditorOnlyData = true; this will cause the package to be ignored on the platforms that need it."),
@@ -6504,82 +6501,75 @@ void FSaveCookedPackageContext::FinishPlatform()
 		PackageData.FindOrAddPlatformData(TargetPlatform).SetSaveTimedOut(true);
 		bHasTimeOut = true;
 	}
+	bAnySaveSucceeded |= bSuccessful;
 
 	bHasRetryErrorCode |= bIsRetryErrorCode;
-	bHasFirstPlatformResults = true;
 
 	ArchiveCookContext.Reset();
+	PlatformIndex = -1;
 }
 
 void FSaveCookedPackageContext::FinishPackage()
 {
-	// Add soft references discovered from the package
-	FName PackageFName = Package->GetFName();
-	TConstArrayView<const ITargetPlatform*> ReachablePlatforms = PlatformsForPackage;
-	if (!COTFS.CookByTheBookOptions->bSkipSoftReferences)
+	// If any save succeeded, add all dependencies from all platforms to the cook for the platform
+	if (bAnySaveSucceeded && !COTFS.CookByTheBookOptions->bSkipSoftReferences)
 	{
-		// Also request any localized variants of this package
-		for (FName LocalizedPackageName : FRequestCluster::GetLocalizationReferences(PackageFName, COTFS))
+		FName PackageFName = Package->GetFName();
+		if (PlatformsForPackage.Num() == 1)
 		{
-			UE::Cook::FPackageData* LocalizedPackageData = COTFS.PackageDatas->TryAddPackageDataByPackageName(LocalizedPackageName);
-			if (LocalizedPackageData)
+			TConstArrayView<const ITargetPlatform*> ReachablePlatforms(&TargetPlatform, 1);
+			for (const TPair<FPackageData*, EInstigator>& DependencyPair : PlatformDependencies[0])
 			{
-				COTFS.QueueDiscoveredPackage(*LocalizedPackageData,
-					UE::Cook::FInstigator(UE::Cook::EInstigator::SoftDependency, PackageFName),
-					FDiscoveredPlatformSet(ReachablePlatforms));
+				COTFS.QueueDiscoveredPackage(*DependencyPair.Key,
+					UE::Cook::FInstigator(DependencyPair.Value, PackageFName), FDiscoveredPlatformSet(ReachablePlatforms));
 			}
 		}
-		// Also add any references from the package that are required by the AssetManager
-		for (FName AMPackageName : FRequestCluster::GetAssetManagerReferences(PackageFName))
+		else
 		{
-			UE::Cook::FPackageData* AMPackageData = COTFS.PackageDatas->TryAddPackageDataByPackageName(AMPackageName);
-			if (AMPackageData)
+			// Merge the platform dependencies for each package into a single QueueDiscoveredPackage call, if possible
+			// It will not be possible if the different platforms have different instigators, so track a list of
+			// platforms for each package for each instigator type.
+			TMap<FPackageData*, TMap<EInstigator, TArray<const ITargetPlatform*>>> PackagePlatformsForInstigator;
+			for (int32 LocalIndex = 0; LocalIndex < PlatformsForPackage.Num(); ++LocalIndex)
 			{
-				COTFS.QueueDiscoveredPackage(*AMPackageData,
-					UE::Cook::FInstigator(UE::Cook::EInstigator::SoftDependency, PackageFName),
-					FDiscoveredPlatformSet(ReachablePlatforms));
-			}
-		}
-
-		// When using legacy WhatGetsCookedRules, add all the SoftObjectPaths discovered during the package's load, plus any added on
-		// during save, to the cook for all platforms
-		TSet<FName> SoftObjectPackages;
-		GRedirectCollector.ProcessSoftObjectPathPackageList(PackageFName, false /* bGetEditorOnly */, SoftObjectPackages);
-		for (FName SoftObjectPackage : SoftObjectPackages)
-		{
-			TMap<FSoftObjectPath, FSoftObjectPath> RedirectedPaths;
-
-			// If this is a redirector, extract destination from asset registry
-			if (COTFS.ContainsRedirector(SoftObjectPackage, RedirectedPaths))
-			{
-				for (TPair<FSoftObjectPath, FSoftObjectPath>& RedirectedPath : RedirectedPaths)
+				const TMap<FPackageData*, EInstigator>& CurrentDependencies = PlatformDependencies[LocalIndex];
+				const ITargetPlatform* CurrentPlatform = PlatformsForPackage[LocalIndex];
+				for (const TPair<FPackageData*, EInstigator>& PackagePlatformPair : CurrentDependencies)
 				{
-					GRedirectCollector.AddAssetPathRedirection(RedirectedPath.Key, RedirectedPath.Value);
+					TMap<EInstigator, TArray<const ITargetPlatform*>>& TargetMap =
+						PackagePlatformsForInstigator.FindOrAdd(PackagePlatformPair.Key);
+					TargetMap.FindOrAdd(PackagePlatformPair.Value).Add(CurrentPlatform);
 				}
 			}
-
-			UE::Cook::FPackageData* SoftObjectPackageData = COTFS.PackageDatas->TryAddPackageDataByPackageName(SoftObjectPackage);
-			if (SoftObjectPackageData)
+			for (const TPair<FPackageData*, TMap<EInstigator, TArray<const ITargetPlatform*>>>& PackagePair
+				: PackagePlatformsForInstigator)
 			{
-				if (!COTFS.bSkipOnlyEditorOnly)
+				for (const TPair<EInstigator, TArray<const ITargetPlatform*>>& InstigatorPair : PackagePair.Value)
 				{
-					COTFS.QueueDiscoveredPackage(*SoftObjectPackageData,
-						UE::Cook::FInstigator(UE::Cook::EInstigator::SoftDependency, PackageFName),
-						FDiscoveredPlatformSet(ReachablePlatforms));
-				}
-
-				if (COTFS.IsDebugRecordUnsolicited())
-				{
-					PackageData.CreateOrGetUnsolicited().Add(SoftObjectPackageData, EInstigator::SoftDependency);
+					COTFS.QueueDiscoveredPackage(*PackagePair.Key,
+						UE::Cook::FInstigator(InstigatorPair.Key, PackageFName),
+						FDiscoveredPlatformSet(InstigatorPair.Value));
 				}
 			}
 		}
 	}
+
 	if (COTFS.IsDebugRecordUnsolicited())
 	{
 		COTFS.ProcessUnsolicitedPackages();
+		TMap<FPackageData*, EInstigator> AllPlatformDependenciesBuffer;
+		TMap<FPackageData*, EInstigator>* AllPlatformDependencies = &PlatformDependencies[0];
+		if (PlatformsForPackage.Num() > 1)
+		{
+			AllPlatformDependencies = &AllPlatformDependenciesBuffer;
+			for (int32 LocalIndex = 0; LocalIndex < PlatformsForPackage.Num(); ++LocalIndex)
+			{
+				AllPlatformDependenciesBuffer.Append(PlatformDependencies[LocalIndex]);
+			}
+		}
+
 		FDiagnostics::AnalyzeHiddenDependencies(COTFS, PackageData, PackageData.DetachUnsolicited(),
-			SaveReferences, ReachablePlatforms, COTFS.bOnlyEditorOnlyDebug, COTFS.bHiddenDependenciesDebug);
+			*AllPlatformDependencies, PlatformsForPackage, COTFS.bOnlyEditorOnlyDebug, COTFS.bHiddenDependenciesDebug);
 	}
 
 	if (!bHasRetryErrorCode)
@@ -6602,6 +6592,108 @@ void FSaveCookedPackageContext::FinishPackage()
 	else if (bReferencedOnlyByEditorOnlyData)
 	{
 		COTFS.PackageTracker->UncookedEditorOnlyPackages.AddUnique(Package->GetFName());
+	}
+}
+
+void FSaveCookedPackageContext::CalculatePlatformAgnosticRuntimeDependencies()
+{
+	if (bPlatformAgnosticDependenciesCalculated)
+	{
+		return;
+	}
+	bPlatformAgnosticDependenciesCalculated = true;
+
+	FName PackageFName = PackageData.GetPackageName();
+	for (FName LocalizedPackageName : FRequestCluster::GetLocalizationReferences(PackageFName, COTFS))
+	{
+		UE::Cook::FPackageData* LocalizedPackageData = COTFS.PackageDatas->TryAddPackageDataByPackageName(LocalizedPackageName);
+		if (LocalizedPackageData)
+		{
+			AddDependency(PlatformAgnosticDependencies, LocalizedPackageData, false /* bHard */);
+		}
+	}
+	// Also add any references from the package that are required by the AssetManager
+	for (FName AMPackageName : FRequestCluster::GetAssetManagerReferences(PackageFName))
+	{
+		UE::Cook::FPackageData* AMPackageData = COTFS.PackageDatas->TryAddPackageDataByPackageName(AMPackageName);
+		if (AMPackageData)
+		{
+			AddDependency(PlatformAgnosticDependencies, AMPackageData, false /* bHard */);
+		}
+	}
+
+	// When using legacy WhatGetsCookedRules, add all the SoftObjectPaths discovered during the package's load, plus any added on
+	// during save, to the cook for all platforms
+	TSet<FName> SoftObjectPackages;
+	GRedirectCollector.ProcessSoftObjectPathPackageList(PackageFName, false /* bGetEditorOnly */, SoftObjectPackages);
+	for (FName SoftObjectPackage : SoftObjectPackages)
+	{
+		TMap<FSoftObjectPath, FSoftObjectPath> RedirectedPaths;
+
+		// If this is a redirector, extract destination from asset registry
+		if (COTFS.ContainsRedirector(SoftObjectPackage, RedirectedPaths))
+		{
+			for (TPair<FSoftObjectPath, FSoftObjectPath>& RedirectedPath : RedirectedPaths)
+			{
+				GRedirectCollector.AddAssetPathRedirection(RedirectedPath.Key, RedirectedPath.Value);
+			}
+		}
+
+		UE::Cook::FPackageData* SoftObjectPackageData = COTFS.PackageDatas->TryAddPackageDataByPackageName(SoftObjectPackage);
+		if (SoftObjectPackageData)
+		{
+			if (!COTFS.bSkipOnlyEditorOnly)
+			{
+				AddDependency(PlatformAgnosticDependencies, SoftObjectPackageData, false /* bHard */);
+			}
+
+			if (COTFS.IsDebugRecordUnsolicited())
+			{
+				PackageData.CreateOrGetUnsolicited().Add(SoftObjectPackageData, EInstigator::SoftDependency);
+			}
+		}
+	}
+}
+
+void FSaveCookedPackageContext::CalculatePlatformRuntimeDependencies()
+{
+	PlatformDependencies.IsValidIndex(PlatformIndex);
+	TMap<FPackageData*, EInstigator>& CurrentDependencies = PlatformDependencies[PlatformIndex];
+	CurrentDependencies.Reset();
+	// Add PlatformAgnostic dependencies to the PlatformDependencies
+	CurrentDependencies.Append(PlatformAgnosticDependencies);
+
+	// Add imports and softobjectpaths from the save to the SaveDependencies for the current Platform and for all Platforms
+	if (COTFS.bSkipOnlyEditorOnly)
+	{
+		FName PackageFName = Package->GetFName();
+		TConstArrayView<const ITargetPlatform*> ReachablePlatforms(&TargetPlatform, 1);
+		for (const TArray<FName>& DependencyNames : { SavePackageResult.ImportPackages, SavePackageResult.SoftPackageReferences })
+		{
+			bool bHard = &DependencyNames == &SavePackageResult.ImportPackages;
+			for (FName DependencyName : DependencyNames)
+			{
+				UE::Cook::FPackageData* DependencyData = COTFS.PackageDatas->TryAddPackageDataByPackageName(DependencyName);
+				if (DependencyData)
+				{
+					AddDependency(CurrentDependencies, DependencyData, bHard);
+				}
+			}
+		}
+	}
+}
+
+void FSaveCookedPackageContext::AddDependency(TMap<FPackageData*, EInstigator>& InDependencies,
+	FPackageData* PackageData, bool bHard)
+{
+	EInstigator& Existing = InDependencies.FindOrAdd(PackageData, EInstigator::Unspecified);
+	if (bHard)
+	{
+		Existing = EInstigator::SaveTimeHardDependency;
+	}
+	else if (Existing == EInstigator::Unspecified)
+	{
+		Existing = EInstigator::SoftDependency;
 	}
 }
 

@@ -55,14 +55,14 @@ public:
 	FCookDependencies& operator=(const FCookDependencies&);
 	FCookDependencies& operator=(FCookDependencies&&);
 	// Build Dependencies
-	const TArray<FName>& GetPackageDependencies() const { return PackageDependencies; }
-	const TArray<FString>& GetConfigDependencies() const { return ConfigDependencies; }
+	const TArray<FName>& GetBuildPackageDependencies() const;
+	const TArray<FString>& GetConfigDependencies() const;
 
 	// Runtime Dependencies
-	const TArray<FName>& GetRuntimePackageDependencies() const { return RuntimePackageDependencies; }
+	const TArray<FName>& GetRuntimePackageDependencies() const;
 
 	// Cook Dependencies
-	const TArray<UE::Cook::FCookDependency>& GetCookDependencies() const { return CookDependencies; }
+	const TArray<UE::Cook::FCookDependency>& GetCookDependencies() const;
 
 	// Data about the Key and Package that are not dependencies
 	/**
@@ -70,9 +70,9 @@ public:
 	 * key for the package. False if the stucture is default, has been reset, or was marked invalid.
 	 */
 	bool IsValid() const;
-	FName GetPackageName() const { return PackageName; }
-	const FIoHash& GetStoredKey() const { return StoredKey; }
-	const FIoHash& GetCurrentKey() const { return CurrentKey; }
+	FName GetPackageName() const;
+	const FIoHash& GetStoredKey() const;
+	const FIoHash& GetCurrentKey() const;
 	bool HasKeyMatch();
 
 	// Modifying the structure data
@@ -86,13 +86,13 @@ public:
 	 * that have recorded its data during the package's load/other/save operations in the current cook session.
 	 */
 	static FCookDependencies Collect(UPackage* Package, const ITargetPlatform* TargetPlatform,
-		FSavePackageResultStruct* SaveResult, FString* OutErrorMessage = nullptr);
+		FSavePackageResultStruct* SaveResult, TArray<FName>&& RuntimeDependencies, FString* OutErrorMessage = nullptr);
 
 	// Fetch function to load the dependencies from a PackageStore is not yet implemented independently for
 	// this structure. Use FCookAttachments instead. 
 
 private:
-	TArray<FName> PackageDependencies;
+	TArray<FName> BuildPackageDependencies;
 	TArray<FString> ConfigDependencies;
 	TArray<FName> RuntimePackageDependencies;
 	TArray<UE::Cook::FCookDependency> CookDependencies;
@@ -142,16 +142,17 @@ struct FCookAttachments
 };
 
 bool TryCollectAndStoreCookDependencies(UPackage* Package, const ITargetPlatform* TargetPlatform,
-	FSavePackageResultStruct* SaveResult, IPackageWriter::FCommitAttachmentInfo& OutResult);
+	FSavePackageResultStruct* SaveResult, TArray<FName>&& RuntimeDependencies,
+	IPackageWriter::FCommitAttachmentInfo& OutResult);
 bool TryCollectAndStoreBuildDefinitionList(UPackage* Package, const ITargetPlatform* TargetPlatform,
 	IPackageWriter::FCommitAttachmentInfo& OutResult);
 
 template <typename ArrayType>
 void CollectAndStoreCookAttachments(UPackage* Package, const ITargetPlatform* TargetPlatform,
-	FSavePackageResultStruct* SaveResult, ArrayType& Output)
+	FSavePackageResultStruct* SaveResult, TArray<FName>&& RuntimeDependencies, ArrayType& Output)
 {
 	IPackageWriter::FCommitAttachmentInfo Result;
-	if (TryCollectAndStoreCookDependencies(Package, TargetPlatform, SaveResult, Result))
+	if (TryCollectAndStoreCookDependencies(Package, TargetPlatform, SaveResult, MoveTemp(RuntimeDependencies), Result))
 	{
 		Output.Add(MoveTemp(Result));
 	}
@@ -167,4 +168,44 @@ bool IsIterativeEnabled(FName PackageName, bool bAllowAllClasses);
 /** Store extra information derived during save and used by the cooker for the given EditorDomain package. */
 void CommitEditorDomainCookAttachments(FName PackageName, TArrayView<IPackageWriter::FCommitAttachmentInfo> Attachments);
 
+
+////////////////////////////////
+// Inline Implementations
+////////////////////////////////
+
+inline const TArray<FName>& FCookDependencies::GetBuildPackageDependencies() const
+{
+	return BuildPackageDependencies;
 }
+
+inline const TArray<FString>& FCookDependencies::GetConfigDependencies() const
+{
+	return ConfigDependencies;
+}
+
+inline const TArray<FName>& FCookDependencies::GetRuntimePackageDependencies() const
+{
+	return RuntimePackageDependencies;
+}
+
+inline const TArray<UE::Cook::FCookDependency>& FCookDependencies::GetCookDependencies() const
+{
+	return CookDependencies;
+}
+
+inline FName FCookDependencies::GetPackageName() const
+{
+	return PackageName;
+}
+
+inline const FIoHash& FCookDependencies::GetStoredKey() const
+{
+	return StoredKey;
+}
+
+inline const FIoHash& FCookDependencies::GetCurrentKey() const
+{
+	return CurrentKey;
+}
+
+} // namespace UE::TargetDomain

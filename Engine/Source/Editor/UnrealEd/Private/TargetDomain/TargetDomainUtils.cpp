@@ -5,6 +5,7 @@
 #include "Algo/BinarySearch.h"
 #include "Algo/IsSorted.h"
 #include "Algo/Sort.h"
+#include "Algo/Unique.h"
 #include "AssetRegistry/IAssetRegistry.h"
 #include "Containers/Set.h"
 #include "Containers/UnrealString.h"
@@ -34,7 +35,7 @@
 namespace UE::TargetDomain
 {
 
-constexpr uint32 CookDependenciesVersion = 0x00000001;
+constexpr uint32 CookDependenciesVersion = 0x00000002;
 static const FUtf8StringView CookDependenciesAttachmentKey = UTF8TEXTVIEW("CookDependencies");
 static const FUtf8StringView BuildDefinitionsAttachmentKey = UTF8TEXTVIEW("BuildDefinitionsAttachmentKey");
 /**
@@ -148,7 +149,7 @@ bool FCookDependencies::TryCalculateCurrentKey(FString* OutErrorMessage)
 
 	KeyBuilder.Update(&PackageDigest.Hash, sizeof(PackageDigest.Hash));
 
-	for (FName PackageDependency : PackageDependencies)
+	for (FName PackageDependency : BuildPackageDependencies)
 	{
 		PackageDigest = EditorDomain->GetPackageDigest(PackageDependency);
 		if (!PackageDigest.IsSuccessful())
@@ -221,7 +222,7 @@ bool FCookDependencies::TryCalculateCurrentKey(FString* OutErrorMessage)
 
 void FCookDependencies::Reset()
 {
-	PackageDependencies.Reset();
+	BuildPackageDependencies.Reset();
 	ConfigDependencies.Reset();
 	RuntimePackageDependencies.Reset();
 	PackageName = FName();
@@ -233,14 +234,27 @@ void FCookDependencies::Reset()
 void FCookDependencies::Empty()
 {
 	Reset();
-	PackageDependencies.Empty();
+	BuildPackageDependencies.Empty();
 	ConfigDependencies.Empty();
 	RuntimePackageDependencies.Empty();
 }
 
 FCookDependencies FCookDependencies::Collect(UPackage* Package, const ITargetPlatform* TargetPlatform,
-	FSavePackageResultStruct* SaveResult, FString* OutErrorMessage)
+	FSavePackageResultStruct* SaveResult, TArray<FName>&& RuntimeDependencies, FString* OutErrorMessage)
 {
+	TStringBuilder<256> StringBuffer;
+	FName TransientPackageName = GetTransientPackage()->GetFName();
+	auto IsTransientPackageName = [&StringBuffer, TransientPackageName](FName InPackageName)
+		{
+			if (InPackageName == TransientPackageName)
+			{
+				return true;
+			}
+			InPackageName.ToString(StringBuffer);
+			return FPackageName::IsMemoryPackage(StringBuffer) ||
+				FPackageName::IsScriptPackage(StringBuffer);
+		};
+
 	if (!Package)
 	{
 		if (OutErrorMessage) *OutErrorMessage = TEXT("Invalid null package.");
@@ -261,12 +275,15 @@ FCookDependencies FCookDependencies::Collect(UPackage* Package, const ITargetPla
 
 	FCookDependencies Result;
 	Result.PackageName = Package->GetFName();
-	TSet<FName> PackageDependenciesSet;
-	TSet<FName> RuntimePackageDependenciesSet;
+	TSet<FName> BuildDependenciesSet;
 
 	TArray<FName> AssetDependencies;
 	AssetRegistry->GetDependencies(Result.PackageName, AssetDependencies,
 		UE::AssetRegistry::EDependencyCategory::Package, UE::AssetRegistry::EDependencyQuery::Game);
+	RuntimeDependencies.Append(MoveTemp(AssetDependencies));
+	RuntimeDependencies.RemoveAllSwap(IsTransientPackageName, EAllowShrinking::No);
+	RuntimeDependencies.Sort(FNameLexicalLess());
+	RuntimeDependencies.SetNum(Algo::Unique(RuntimeDependencies), EAllowShrinking::Yes);
 
 	FPackageBuildDependencyTracker& Tracker = FPackageBuildDependencyTracker::Get();
 
@@ -275,52 +292,27 @@ FCookDependencies FCookDependencies::Collect(UPackage* Package, const ITargetPla
 	{
 		TArray<FBuildDependencyAccessData> AccessDatas = Tracker.GetAccessDatas(Result.PackageName);
 
-		PackageDependenciesSet.Reserve(AccessDatas.Num());
+		BuildDependenciesSet.Reserve(AccessDatas.Num());
 		for (FBuildDependencyAccessData& AccessData : AccessDatas)
 		{
 			if (AccessData.TargetPlatform == TargetPlatform || AccessData.TargetPlatform == nullptr)
 			{
-				PackageDependenciesSet.Add(AccessData.ReferencedPackage);
-			}
-		}
-
-		RuntimePackageDependenciesSet.Reserve(AssetDependencies.Num());
-		for (FName DependencyName : AssetDependencies)
-		{
-			if (!PackageDependenciesSet.Contains(DependencyName))
-			{
-				RuntimePackageDependenciesSet.Add(DependencyName);
+				BuildDependenciesSet.Add(AccessData.ReferencedPackage);
 			}
 		}
 	}
 	else
 #endif
 	{
-		// Defensively treat all asset dependencies as build dependencies and have zero runtime only dependencies
-		PackageDependenciesSet.Append(AssetDependencies);
+		// Defensively treat all asset dependencies as both build and runtime dependencies
+		BuildDependenciesSet.Append(AssetDependencies);
 	}
 
-	TStringBuilder<256> StringBuffer;
-	FName TransientPackageName = GetTransientPackage()->GetFName();
-	auto IsTransientPackageName = [&StringBuffer, TransientPackageName](FName InPackageName)
-	{
-		if (InPackageName == TransientPackageName)
-		{
-			return true;
-		}
-		InPackageName.ToString(StringBuffer);
-		return FPackageName::IsMemoryPackage(StringBuffer) ||
-			FPackageName::IsScriptPackage(StringBuffer);
-	};
-	Result.PackageDependencies = PackageDependenciesSet.Array();
-	Result.PackageDependencies.RemoveAllSwap(IsTransientPackageName, EAllowShrinking::No);
-	Result.PackageDependencies.Sort(FNameLexicalLess());
-	Result.PackageDependencies.Shrink();
+	Result.BuildPackageDependencies = BuildDependenciesSet.Array();
+	Result.BuildPackageDependencies.RemoveAllSwap(IsTransientPackageName, EAllowShrinking::Yes);
+	Result.BuildPackageDependencies.Sort(FNameLexicalLess());
 
-	Result.RuntimePackageDependencies = RuntimePackageDependenciesSet.Array();
-	Result.RuntimePackageDependencies.RemoveAllSwap(IsTransientPackageName, EAllowShrinking::No);
-	Result.RuntimePackageDependencies.Sort(FNameLexicalLess());
-	Result.RuntimePackageDependencies.Shrink();
+	Result.RuntimePackageDependencies = MoveTemp(RuntimeDependencies);
 
 #if UE_WITH_CONFIG_TRACKING
 	{
@@ -381,9 +373,9 @@ bool LoadFromCompactBinary(FCbObjectView ObjectView, UE::TargetDomain::FCookDepe
 				return false;
 			}
 		}
-		if (FieldView.GetName().Equals(UTF8TEXTVIEW("PackageDependencies")))
+		if (FieldView.GetName().Equals(UTF8TEXTVIEW("BuildPackageDependencies")))
 		{
-			if (!LoadFromCompactBinary(FieldView++, Dependencies.PackageDependencies))
+			if (!LoadFromCompactBinary(FieldView++, Dependencies.BuildPackageDependencies))
 			{
 				return false;
 			}
@@ -429,9 +421,9 @@ FCbWriter& operator<<(FCbWriter& Writer, const UE::TargetDomain::FCookDependenci
 	Writer.BeginObject();
 	Writer << "Version" << CookDependenciesVersion;
 	Writer << "StoredKey" << CookDependencies.StoredKey;
-	if (!CookDependencies.PackageDependencies.IsEmpty())
+	if (!CookDependencies.BuildPackageDependencies.IsEmpty())
 	{
-		Writer << "PackageDependencies" << CookDependencies.PackageDependencies;
+		Writer << "BuildPackageDependencies" << CookDependencies.BuildPackageDependencies;
 	}
 	if (!CookDependencies.ConfigDependencies.IsEmpty())
 	{
@@ -546,10 +538,12 @@ void FCookAttachments::Empty()
 }
 
 bool TryCollectAndStoreCookDependencies(UPackage* Package, const ITargetPlatform* TargetPlatform,
-	FSavePackageResultStruct* SaveResult, IPackageWriter::FCommitAttachmentInfo& OutResult)
+	FSavePackageResultStruct* SaveResult, TArray<FName>&& RuntimeDependencies,
+	IPackageWriter::FCommitAttachmentInfo& OutResult)
 {
 	FString ErrorMessage;
-	FCookDependencies CookDependencies = FCookDependencies::Collect(Package, TargetPlatform, SaveResult, &ErrorMessage);
+	FCookDependencies CookDependencies = FCookDependencies::Collect(Package, TargetPlatform, SaveResult, 
+		MoveTemp(RuntimeDependencies), &ErrorMessage);
 	if (!CookDependencies.IsValid())
 	{
 		// CookPackageSplitterTODO: This error occurs for generated packages. Need to register them with EditorDomain.
