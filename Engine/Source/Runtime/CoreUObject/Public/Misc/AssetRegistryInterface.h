@@ -253,6 +253,21 @@ namespace Utils
 }
 #endif
 
+	COREUOBJECT_API FName GetScriptPackageNameCoreUObject();
+	COREUOBJECT_API FName GetScriptPackageNameEngine();
+	COREUOBJECT_API FName GetScriptPackageNameBlueprintGraph();
+	COREUOBJECT_API FName GetScriptPackageNameUnrealEd();
+	COREUOBJECT_API FName GetClassNameObject();
+	COREUOBJECT_API FName GetClassNameObjectRedirector();
+	COREUOBJECT_API FName GetClassNameBlueprintCore();
+	COREUOBJECT_API FName GetClassNameBlueprint();
+	COREUOBJECT_API FName GetClassNameBlueprintGeneratedClass();
+	COREUOBJECT_API FTopLevelAssetPath GetClassPathObject();
+	COREUOBJECT_API FTopLevelAssetPath GetClassPathObjectRedirector();
+	COREUOBJECT_API FTopLevelAssetPath GetClassPathBlueprintCore();
+	COREUOBJECT_API FTopLevelAssetPath GetClassPathBlueprint();
+	COREUOBJECT_API FTopLevelAssetPath GetClassPathBlueprintGeneratedClass();
+
 }
 
 // Enums used in public Engine headers

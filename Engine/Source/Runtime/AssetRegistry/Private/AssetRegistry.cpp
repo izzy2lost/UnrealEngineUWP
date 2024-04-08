@@ -1555,7 +1555,7 @@ void FAssetRegistryImpl::CollectCodeGeneratorClasses()
 	SavedGeneratorClassesVersionNumber = CurrentGeneratorClassesVersionNumber;
 
 	TArray<UClass*> BlueprintCoreDerivedClasses;
-	FTopLevelAssetPath BlueprintCorePathName(TEXT("/Script/Engine"), TEXT("BlueprintCore"));
+	FTopLevelAssetPath BlueprintCorePathName(GetClassPathBlueprintCore());
 	UClass* BlueprintCoreClass = nullptr;
 
 	{
@@ -2976,7 +2976,7 @@ bool UAssetRegistryImpl::DoesPackageExistOnDisk(FName PackageName, FString* OutC
 {
 	auto CalculateExtension = [](const FString& PackageNameStr, TConstArrayView<FAssetData> Assets) -> FString
 	{
-		FTopLevelAssetPath ClassRedirector = UObjectRedirector::StaticClass()->GetClassPathName();
+		FTopLevelAssetPath ClassRedirector = UE::AssetRegistry::GetClassPathObjectRedirector();
 		bool bContainsMap = false;
 		bool bContainsRedirector = false;
 		for (const FAssetData& Asset : Assets)
@@ -3630,7 +3630,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		if (InFilter.RecursiveClassPathsExclusionSet.Num() > 0 && InFilter.ClassPaths.Num() == 0)
 		{
 			TArray<FTopLevelAssetPath> ClassNamesObject;
-			ClassNamesObject.Add(UObject::StaticClass()->GetClassPathName());
+			ClassNamesObject.Add(UE::AssetRegistry::GetClassPathObject());
 
 			GetSubClasses(InheritanceContext, ClassNamesObject, InFilter.RecursiveClassPathsExclusionSet, OutCompiledFilter.ClassPaths);
 		}
@@ -6296,7 +6296,12 @@ void FAssetRegistryImpl::DependencyDataGathered(TMultiMap<FName, FPackageDepende
 			Node->SetIsReferencersSorted(ShouldSortReferencers());
 
 			// Don't bother registering dependencies on these packages, every package in the game will depend on them
-			static TArray<FName> ScriptPackagesToSkip = TArray<FName>{ TEXT("/Script/CoreUObject"), TEXT("/Script/Engine"), TEXT("/Script/BlueprintGraph"), TEXT("/Script/UnrealEd") };
+			static TArray<FName> ScriptPackagesToSkip = TArray<FName>{
+				UE::AssetRegistry::GetScriptPackageNameCoreUObject(),
+				UE::AssetRegistry::GetScriptPackageNameEngine(),
+				UE::AssetRegistry::GetScriptPackageNameBlueprintGraph(),
+				UE::AssetRegistry::GetScriptPackageNameUnrealEd(),
+			};
 
 			// Conditionally add package dependencies
 			TMap<FName, FDependsNode::FPackageFlagSet> PackageDependencies;
@@ -7294,7 +7299,7 @@ void FAssetRegistryImpl::PushProcessLoadedAssetsBatch(Impl::FEventContext& Event
 void FAssetRegistryImpl::UpdateRedirectCollector()
 {
 	// Look for all redirectors in list
-	const TArray<const FAssetData*>& RedirectorAssets = State.GetAssetsByClassPathName(UObjectRedirector::StaticClass()->GetClassPathName());
+	const TArray<const FAssetData*>& RedirectorAssets = State.GetAssetsByClassPathName(UE::AssetRegistry::GetClassPathObjectRedirector());
 
 	for (const FAssetData* AssetData : RedirectorAssets)
 	{
@@ -7716,7 +7721,7 @@ void FAssetRegistryImpl::UpdateInheritanceBuffer(Impl::FClassInheritanceBuffer& 
 	}
 	OutBuffer.InheritanceMap.Reserve(NumNativeClasses + CachedBPInheritanceMap.Num());
 	OutBuffer.InheritanceMap = CachedBPInheritanceMap;
-	OutBuffer.InheritanceMap.Add(FTopLevelAssetPath(TEXT("/Script.CoreUObject"), TEXT("Object")), FTopLevelAssetPath());
+	OutBuffer.InheritanceMap.Add(UE::AssetRegistry::GetClassPathObject(), FTopLevelAssetPath());
 
 	for (TPair<FTopLevelAssetPath, TArray<FTopLevelAssetPath>>& Pair : OutBuffer.ReverseInheritanceMap)
 	{

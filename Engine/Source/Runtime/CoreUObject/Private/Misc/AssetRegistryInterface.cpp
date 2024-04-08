@@ -76,12 +76,12 @@ namespace Utils
 
 	void PopulateSkipClasses(TSet<FTopLevelAssetPath>& OutSkipUncookedClasses, TSet<FTopLevelAssetPath>& OutSkipCookedClasses)
 	{
-		static const FName NAME_EnginePackage("/Script/Engine");
+		const FName NAME_EnginePackage(GetScriptPackageNameEngine());
 		UPackage* EnginePackage = Cast<UPackage>(StaticFindObjectFast(UPackage::StaticClass(), nullptr, NAME_EnginePackage));
 		{
 			OutSkipUncookedClasses.Reset();
 
-			static const FName NAME_BlueprintGeneratedClass("BlueprintGeneratedClass");
+			const FName NAME_BlueprintGeneratedClass(GetClassNameBlueprintGeneratedClass());
 			UClass* BlueprintGeneratedClass = nullptr;
 			if (EnginePackage)
 			{
@@ -106,7 +106,7 @@ namespace Utils
 		{
 			OutSkipCookedClasses.Reset();
 
-			static const FName NAME_Blueprint("Blueprint");
+			const FName NAME_Blueprint(GetClassNameBlueprint());
 			UClass* BlueprintClass = nullptr;
 			if (EnginePackage)
 			{
@@ -178,4 +178,72 @@ namespace Utils
 		bInitializedSkipClasses = false;
 #endif
 	}
-}
+
+	static FName ScriptPackageNameCoreUObject(TEXT("/Script/CoreUObject"));
+	static FName ScriptPackageNameEngine(TEXT("/Script/Engine"));
+	static FName ScriptPackageNameBlueprintGraph(TEXT("/Script/BlueprintGraph"));
+	static FName ScriptPackageNameUnrealEd(TEXT("/Script/UnrealEd"));
+	static FName ClassNameObject(TEXT("Object"));
+	static FName ClassNameObjectRedirector(TEXT("ObjectRedirector"));
+	static FName ClassNameBlueprintCore(TEXT("BlueprintCore"));
+	static FName ClassNameBlueprint(TEXT("Blueprint"));
+	static FName ClassNameBlueprintGeneratedClass(TEXT("BlueprintGeneratedClass"));
+
+	FName GetScriptPackageNameCoreUObject()
+	{
+		return ScriptPackageNameCoreUObject;
+	}
+	FName GetScriptPackageNameEngine()
+	{
+		return ScriptPackageNameEngine;
+	}
+	FName GetScriptPackageNameBlueprintGraph()
+	{
+		return ScriptPackageNameBlueprintGraph;
+	}
+	FName GetScriptPackageNameUnrealEd()
+	{
+		return ScriptPackageNameUnrealEd;
+	}
+	FName GetClassNameObject()
+	{
+		return ClassNameObject;
+	}
+	FName GetClassNameObjectRedirector()
+	{
+		return ClassNameObjectRedirector;
+	}
+	FName GetClassNameBlueprintCore()
+	{
+		return ClassNameBlueprintCore;
+	}
+	FName GetClassNameBlueprint()
+	{
+		return ClassNameBlueprint;
+	}
+	FName GetClassNameBlueprintGeneratedClass()
+	{
+		return ClassNameBlueprintGeneratedClass;
+	}
+	FTopLevelAssetPath GetClassPathObject()
+	{
+		return FTopLevelAssetPath(GetScriptPackageNameCoreUObject(), GetClassNameObject());
+	}
+	FTopLevelAssetPath GetClassPathObjectRedirector()
+	{
+		return FTopLevelAssetPath(GetScriptPackageNameCoreUObject(), GetClassNameObjectRedirector());
+	}
+	FTopLevelAssetPath GetClassPathBlueprintCore()
+	{
+		return FTopLevelAssetPath(GetScriptPackageNameEngine(), GetClassNameBlueprintCore());
+	}
+	FTopLevelAssetPath GetClassPathBlueprint()
+	{
+		return FTopLevelAssetPath(GetScriptPackageNameEngine(), GetClassNameBlueprint());
+	}
+	FTopLevelAssetPath GetClassPathBlueprintGeneratedClass()
+	{
+		return FTopLevelAssetPath(GetScriptPackageNameEngine(), GetClassNameBlueprintGeneratedClass());
+	}
+
+} // namespace UE::AssetRegistry

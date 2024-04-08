@@ -11,6 +11,7 @@
 #include "HAL/CriticalSection.h"
 #include "HAL/PlatformMath.h"
 #include "Misc/AsciiSet.h"
+#include "Misc/AssetRegistryInterface.h"
 #include "Misc/PathViews.h"
 #include "Misc/ScopeRWLock.h"
 #include "Serialization/CompactBinary.h"
@@ -818,8 +819,7 @@ void FAssetData::SerializeForCacheOldVersionWithTagsAndBundles(FArchive& Ar, FAs
 
 bool FAssetData::IsRedirectorClassName(FTopLevelAssetPath ClassPathName)
 {
-	static const FTopLevelAssetPath ObjectRedirectorClassPathName = UObjectRedirector::StaticClass()->GetClassPathName();
-	return ClassPathName == ObjectRedirectorClassPathName;
+	return ClassPathName == UE::AssetRegistry::GetClassPathObjectRedirector();
 }
 
 FTopLevelAssetPath FAssetData::TryConvertShortClassNameToPathName(FName InClassName, ELogVerbosity::Type FailureMessageVerbosity /*= ELogVerbosity::Warning*/)
