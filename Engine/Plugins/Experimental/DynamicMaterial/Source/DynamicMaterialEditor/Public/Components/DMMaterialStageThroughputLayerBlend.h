@@ -84,7 +84,7 @@ public:
 
 protected:
 	UPROPERTY(EditInstanceOnly, BlueprintReadOnly, Getter=GetMaskChannelOverride, Setter=SetMaskChannelOverride, BlueprintGetter=GetMaskChannelOverride,
-		Category = "Material Designer", DisplayName = "ChannelOverride",
+		Category = "Material Designer", DisplayName = "Channel Override",
 		meta=(NotKeyframeable, ToolTip="Changes the output channel of the mask input."))
 	mutable EAvaColorChannel MaskChannelOverride;
 
