@@ -570,6 +570,7 @@ void FScene::AllocateAndCaptureFrameSkyEnvMap(
 				SkyRC.SceneUniformBuffer = SceneRenderer.GetSceneUniforms().GetBuffer(GraphBuilder);
 
 				SkyRC.ViewMatrices = &CubeViewMatrices;
+				SkyRC.bSceneHasSkyMaterial = MainView.bSceneHasSkyMaterial;
 
 				SkyRC.SkyAtmosphereViewLutTexture = BlackDummy2dTex;
 				SkyRC.SkyAtmosphereCameraAerialPerspectiveVolume = BlackDummy3dTex;

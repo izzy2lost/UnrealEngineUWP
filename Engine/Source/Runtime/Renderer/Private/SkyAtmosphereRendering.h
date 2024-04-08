@@ -96,6 +96,7 @@ struct FSkyAtmosphereRenderContext
 	FViewMatrices* ViewMatrices;			// The actual view matrices we use to render the sky
 	TUniformBufferRef<FViewUniformShaderParameters> ViewUniformBuffer;
 	TRDGUniformBufferRef<FSceneUniformParameters> SceneUniformBuffer;
+	bool bSceneHasSkyMaterial;
 
 	FRenderTargetBindingSlots RenderTargets;
 

@@ -2846,6 +2846,7 @@ bool FSceneRenderer::RenderVolumetricCloud(
 					SkyRC.FeatureLevel = ViewInfo.FeatureLevel;
 
 					SkyRC.bRenderSkyPixel = false;
+					SkyRC.bSceneHasSkyMaterial = false;
 
 					if (ViewInfo.SkyAtmosphereViewLutTexture && ViewInfo.SkyAtmosphereCameraAerialPerspectiveVolume)
 					{

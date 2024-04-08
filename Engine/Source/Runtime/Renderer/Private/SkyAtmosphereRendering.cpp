@@ -1823,7 +1823,7 @@ void FSceneRenderer::RenderSkyAtmosphereInternal(
 		const bool bFastAerialPerspectiveDepthTest = SkyRC.bFastAerialPerspectiveDepthTest;
 		const bool SkyAtmosphereOutputsAlpha = IsPostProcessingWithAlphaChannelSupported();
 		const bool SkyAtmosphereAlphaHoldOut = SkyAtmosphereOutputsAlpha && SkyAtmosphereSceneProxy.IsHoldout();
-		const bool bRenderSkyPixel = SkyRC.bRenderSkyPixel || SkyAtmosphereOutputsAlpha;	// In this case we need to write alpha holdout values in the sky pixels.
+		const bool bRenderSkyPixel = SkyRC.bRenderSkyPixel || (SkyAtmosphereOutputsAlpha && !SkyRC.bSceneHasSkyMaterial);	// In this case we need to write alpha holdout values in the sky pixels. If there is no IsSky dmoe meshes.
 
 		FRenderSkyAtmospherePS::FPermutationDomain PsPermutationVector;
 		PsPermutationVector.Set<FSampleCloudSkyAO>(SkyRC.bShouldSampleCloudSkyAO);
@@ -2020,6 +2020,7 @@ void FSceneRenderer::RenderSkyAtmosphere(FRDGBuilder& GraphBuilder, const FMinim
 		FViewInfo& View = Views[ViewIndex];
 		SkyRC.ViewMatrices = &View.ViewMatrices;
 		SkyRC.ViewUniformBuffer = View.ViewUniformBuffer;
+		SkyRC.bSceneHasSkyMaterial = View.bSceneHasSkyMaterial;
 
 		SkyRC.Viewport = View.ViewRect;
 		SkyRC.bLightDiskEnabled = !View.bIsReflectionCapture;
