@@ -34,3 +34,13 @@ struct FTypedElementExternalObjectColumn final : public FTypedElementDataStorage
 
 	void* Object;
 };
+
+/**
+ * Tag to identify a row with an actor. If there's a FTypedElementUObjectColumn, the stored object will be
+ * an actor if this tag is present.
+ */
+USTRUCT(meta = (DisplayName = "Actor"))
+struct FTypedElementActorTag final : public FTypedElementDataStorageTag
+{
+	GENERATED_BODY()
+};

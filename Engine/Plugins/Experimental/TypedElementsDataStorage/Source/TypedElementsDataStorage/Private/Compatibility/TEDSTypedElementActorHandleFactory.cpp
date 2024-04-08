@@ -2,13 +2,13 @@
 
 #include "TEDSTypedElementActorHandleFactory.h"
 
-#include "MassActorSubsystem.h"
 #include "Compatibility/TEDSTypedElementBridge.h"
 #include "Elements/Columns/TypedElementCompatibilityColumns.h"
 #include "Elements/Framework/EngineElementsLibrary.h"
 #include "Elements/Framework/TypedElementList.h"
 #include "Elements/Framework/TypedElementQueryBuilder.h"
 #include "Elements/Framework/TypedElementRegistry.h"
+#include "GameFramework/Actor.h"
 
 void UTEDSTypedElementActorHandleFactory::PreRegister(ITypedElementDataStorageInterface& DataStorage)
 {
@@ -36,7 +36,9 @@ void UTEDSTypedElementActorHandleFactory::RegisterQueries(ITypedElementDataStora
 	using namespace TypedElementDataStorage;
 	GetAllActorsQuery = DataStorage.RegisterQuery(
 	Select()
-		.ReadOnly(FMassActorFragment::StaticStruct())
+		.ReadOnly<FTypedElementUObjectColumn>()
+	.Where()
+		.All<FTypedElementActorTag>()
 	.Compile());
 }
 
@@ -67,7 +69,7 @@ void UTEDSTypedElementActorHandleFactory::RegisterQuery_ActorHandlePopulate(ITyp
 		}
 	)
 	.Where()
-		.All(FMassActorFragment::StaticStruct())
+		.All<FTypedElementActorTag>()
 	.Compile());
 }
 
@@ -85,18 +87,18 @@ void UTEDSTypedElementActorHandleFactory::HandleBridgeEnabled(bool bEnabled)
 		TArray<RowHandle> CollatedRowHandles;
 		TArray<TWeakObjectPtr<const AActor>> Actors;
 		
-		DataStorage->RunQuery(GetAllActorsQuery, CreateDirectQueryCallbackBinding([&CollatedRowHandles, &Actors](IDirectQueryContext& Context, const FMassActorFragment* Fragments)
+		DataStorage->RunQuery(GetAllActorsQuery, CreateDirectQueryCallbackBinding([&CollatedRowHandles, &Actors](IDirectQueryContext& Context, const FTypedElementUObjectColumn* Fragments)
 		{
 			TConstArrayView<RowHandle> RowHandles = Context.GetRowHandles();
 
 			CollatedRowHandles.Append(RowHandles);
 
-			TConstArrayView<const FMassActorFragment> FragmentView(Fragments, Context.GetRowCount());
+			TConstArrayView<const FTypedElementUObjectColumn> FragmentView(Fragments, Context.GetRowCount());
 
 			Actors.Reserve(Actors.Num() + FragmentView.Num());
-			for (const FMassActorFragment& Fragment : FragmentView)
+			for (const FTypedElementUObjectColumn& Fragment : FragmentView)
 			{
-				const AActor* Actor = Fragment.Get(FMassActorFragment::EActorAccess::OnlyWhenAlive);
+				const AActor* Actor = Cast<AActor>(Fragment.Object);
 				Actors.Add(Actor);
 			}
 		}));

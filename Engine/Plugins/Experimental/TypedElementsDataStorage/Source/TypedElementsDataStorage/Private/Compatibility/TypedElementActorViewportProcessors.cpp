@@ -3,12 +3,12 @@
 #include "Compatibility/TypedElementActorViewportProcessors.h"
 
 #include "Components/PrimitiveComponent.h"
+#include "Elements/Columns/TypedElementCompatibilityColumns.h"
 #include "Elements/Columns/TypedElementViewportColumns.h"
 #include "Elements/Columns/TypedElementMiscColumns.h"
 #include "Elements/Framework/TypedElementQueryBuilder.h"
 #include "Elements/Framework/TypedElementRegistry.h"
 #include "HAL/IConsoleManager.h"
-#include "MassActorSubsystem.h"
 #include "Elements/Columns/TypedElementSelectionColumns.h"
 #include "ProfilingDebugging/CpuProfilerTrace.h"
 
@@ -180,9 +180,9 @@ void UTypedElementActorViewportFactory::RegisterOutlineColorColumnToActor(ITyped
 			TEXT("Sync viewport outline color column to actor"),
 			FProcessor(DSI::EQueryTickPhase::DuringPhysics, DataStorage.GetQueryTickGroupName(DSI::EQueryTickGroups::SyncDataStorageToExternal))
 				.ForceToGameThread(true),
-			[](FMassActorFragment& Actor, const FTypedElementViewportOutlineColorColumn& ViewportColor)
+			[](FTypedElementUObjectColumn& Actor, const FTypedElementViewportOutlineColorColumn& ViewportColor)
 			{
-				if (AActor* ActorInstance = Actor.GetMutable(); ActorInstance != nullptr)
+				if (AActor* ActorInstance = Cast<AActor>(Actor.Object); ActorInstance != nullptr)
 				{
 					bool bIncludeFromChildActors = false;
 					ActorInstance->ForEachComponent<UPrimitiveComponent>(bIncludeFromChildActors, [&ViewportColor](UPrimitiveComponent* PrimitiveComponent)
@@ -193,7 +193,7 @@ void UTypedElementActorViewportFactory::RegisterOutlineColorColumnToActor(ITyped
 			}
 		)
 		.Where()
-			.All<FTypedElementSyncBackToWorldTag>()
+			.All<FTypedElementActorTag, FTypedElementSyncBackToWorldTag>()
 		.Compile()
 	);
 }
@@ -208,9 +208,9 @@ void UTypedElementActorViewportFactory::RegisterOverlayColorColumnToActor(ITyped
 			TEXT("Sync viewport overlay color column to actor"),
 			FProcessor(DSI::EQueryTickPhase::DuringPhysics, DataStorage.GetQueryTickGroupName(DSI::EQueryTickGroups::SyncDataStorageToExternal))
 				.ForceToGameThread(true),
-			[](FMassActorFragment& Actor, const FTypedElementViewportOverlayColorColumn& ViewportColor)
+			[](FTypedElementUObjectColumn& Actor, const FTypedElementViewportOverlayColorColumn& ViewportColor)
 			{
-				if (AActor* ActorInstance = Actor.GetMutable(); ActorInstance != nullptr)
+				if (AActor* ActorInstance = Cast<AActor>(Actor.Object); ActorInstance != nullptr)
 				{
 					bool bIncludeFromChildActors = true;
 					ActorInstance->ForEachComponent<UPrimitiveComponent>(bIncludeFromChildActors, [&ViewportColor](UPrimitiveComponent* PrimitiveComponent)
@@ -221,7 +221,7 @@ void UTypedElementActorViewportFactory::RegisterOverlayColorColumnToActor(ITyped
 			}
 		)
 		.Where()
-			.All<FTypedElementSyncBackToWorldTag>()
+			.All<FTypedElementActorTag, FTypedElementSyncBackToWorldTag>()
 		.Compile()
 	);
 
@@ -229,9 +229,9 @@ void UTypedElementActorViewportFactory::RegisterOverlayColorColumnToActor(ITyped
 		Select(
 			TEXT("Remove viewport overlay color column from actor"),
 			FObserver::OnRemove<FTypedElementViewportOverlayColorColumn>(),
-			[](FMassActorFragment& Actor)
+			[](FTypedElementUObjectColumn& Actor)
 			{
-				if (AActor* ActorInstance = Actor.GetMutable(); ActorInstance != nullptr)
+				if (AActor* ActorInstance = Cast<AActor>(Actor.Object); ActorInstance != nullptr)
 				{
 					bool bIncludeFromChildActors = true;
 					ActorInstance->ForEachComponent<UPrimitiveComponent>(bIncludeFromChildActors, [](UPrimitiveComponent* PrimitiveComponent)
@@ -241,6 +241,8 @@ void UTypedElementActorViewportFactory::RegisterOverlayColorColumnToActor(ITyped
 				}
 			}
 		)
+		.Where()
+			.All<FTypedElementActorTag>()
 		.Compile()
 	);
 }

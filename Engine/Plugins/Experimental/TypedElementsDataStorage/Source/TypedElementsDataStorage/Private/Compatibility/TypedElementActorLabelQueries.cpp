@@ -3,12 +3,12 @@
 #include "Compatibility/TypedElementActorLabelQueries.h"
 
 #include "Editor/EditorEngine.h"
+#include "Elements/Columns/TypedElementCompatibilityColumns.h"
 #include "Elements/Columns/TypedElementMiscColumns.h"
 #include "Elements/Columns/TypedElementLabelColumns.h"
 #include "Elements/Framework/TypedElementQueryBuilder.h"
 #include "Elements/Framework/TypedElementRegistry.h"
 #include "Hash/CityHash.h"
-#include "MassActorSubsystem.h"
 #include "ScopedTransaction.h"
 
 #define LOCTEXT_NAMESPACE "TypedElementDataStorage"
@@ -29,9 +29,9 @@ void UTypedElementActorLabelFactory::RegisterActorLabelToColumnQuery(ITypedEleme
 			TEXT("Sync actor label to column"),
 			FProcessor(DSI::EQueryTickPhase::PrePhysics, DataStorage.GetQueryTickGroupName(DSI::EQueryTickGroups::SyncExternalToDataStorage))
 				.ForceToGameThread(true),
-			[](const FMassActorFragment& Actor, FTypedElementLabelColumn& Label, FTypedElementLabelHashColumn& LabelHash)
+			[](const FTypedElementUObjectColumn& Actor, FTypedElementLabelColumn& Label, FTypedElementLabelHashColumn& LabelHash)
 			{
-				if (const AActor* ActorInstance = Actor.Get(); ActorInstance != nullptr)
+				if (const AActor* ActorInstance = Cast<AActor>(Actor.Object); ActorInstance != nullptr)
 				{
 					const FString& ActorLabel = ActorInstance->GetActorLabel(false);
 					uint64 ActorLabelHash = CityHash64(reinterpret_cast<const char*>(*ActorLabel), ActorLabel.Len() * sizeof(**ActorLabel));
@@ -44,7 +44,7 @@ void UTypedElementActorLabelFactory::RegisterActorLabelToColumnQuery(ITypedEleme
 			}
 		)
 		.Where()
-			.All<FTypedElementSyncFromWorldTag>()
+			.All<FTypedElementActorTag, FTypedElementSyncFromWorldTag>()
 		.Compile()
 	);
 }
@@ -59,9 +59,9 @@ void UTypedElementActorLabelFactory::RegisterLabelColumnToActorQuery(ITypedEleme
 			TEXT("Sync label column to actor"),
 			FProcessor(DSI::EQueryTickPhase::FrameEnd, DataStorage.GetQueryTickGroupName(DSI::EQueryTickGroups::SyncDataStorageToExternal))
 				.ForceToGameThread(true),
-			[](FMassActorFragment& Actor, const FTypedElementLabelColumn& Label, const FTypedElementLabelHashColumn& LabelHash)
+			[](FTypedElementUObjectColumn& Actor, const FTypedElementLabelColumn& Label, const FTypedElementLabelHashColumn& LabelHash)
 			{
-				if (AActor* ActorInstance = Actor.GetMutable(); ActorInstance != nullptr)
+				if (AActor* ActorInstance = Cast<AActor>(Actor.Object); ActorInstance != nullptr)
 				{
 					const FString& ActorLabel = ActorInstance->GetActorLabel(false);
 					uint64 ActorLabelHash = CityHash64(reinterpret_cast<const char*>(*ActorLabel), ActorLabel.Len() * sizeof(**ActorLabel));
@@ -74,7 +74,7 @@ void UTypedElementActorLabelFactory::RegisterLabelColumnToActorQuery(ITypedEleme
 			}
 		)
 		.Where()
-			.All<FTypedElementSyncBackToWorldTag>()
+			.All<FTypedElementActorTag, FTypedElementSyncBackToWorldTag>()
 		.Compile()
 	);
 }

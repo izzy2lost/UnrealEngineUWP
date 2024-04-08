@@ -3,13 +3,13 @@
 #include "TedsOutlinerModule.h"
 
 #include "LevelEditor.h"
-#include "MassActorSubsystem.h"
 #include "SceneOutlinerPublicTypes.h"
 #include "TypedElementOutlinerColumnIntegration.h"
 #include "TypedElementOutlinerMode.h"
 #include "WorkspaceMenuStructureModule.h"
 #include "WorkspaceMenuStructure.h"
 #include "Elements/Columns/TypedElementAlertColumns.h"
+#include "Elements/Columns/TypedElementCompatibilityColumns.h"
 #include "Elements/Columns/TypedElementPackageColumns.h"
 #include "Elements/Columns/TypedElementTypeInfoColumns.h"
 #include "Elements/Framework/TypedElementRegistry.h"
@@ -152,7 +152,7 @@ TSharedRef<SWidget> FTedsOutlinerModule::CreateLevelEditorTedsOutliner()
 	TypedElementDataStorage::FQueryDescription ActorFilterQuery =
 					Select()
 					.Where()
-						.All(FMassActorFragment::StaticStruct())
+						.All<FTypedElementActorTag>()
 					.Compile();
 	Params.FilterQueries.Emplace("Actors", ActorFilterQuery);
 		

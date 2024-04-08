@@ -2,7 +2,6 @@
 
 #include "Widgets/TypedElementTypeInfoWidget.h"
 
-#include "MassActorSubsystem.h"
 #include "SceneOutlinerHelpers.h"
 #include "Elements/Columns/TypedElementCompatibilityColumns.h"
 #include "Elements/Columns/TypedElementMiscColumns.h"
@@ -135,12 +134,14 @@ const FSlateBrush* FTypedElementTypeInfoWidgetConstructor::GetIconForRow(ITypedE
 	FName IconName;
 
 	// Allow the actor the first chance to provide an icon override
-	FMassActorFragment* ActorStore = DataStorage->GetColumn<FMassActorFragment>(Row);
-	if(ActorStore)
+	if (DataStorage->HasColumns<FTypedElementActorTag>(Row))
 	{
-		if(const AActor* Actor = ActorStore->Get())
+		if (FTypedElementUObjectColumn* ActorStore = DataStorage->GetColumn<FTypedElementUObjectColumn>(Row))
 		{
-			IconName = Actor->GetCustomIconName();
+			if (const AActor* Actor = Cast<AActor>(ActorStore->Object))
+			{
+				IconName = Actor->GetCustomIconName();
+			}
 		}
 	}
 

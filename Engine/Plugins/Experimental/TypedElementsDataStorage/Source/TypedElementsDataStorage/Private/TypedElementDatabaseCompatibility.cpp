@@ -15,7 +15,6 @@
 #include "Elements/Columns/TypedElementTypeInfoColumns.h"
 #include "Elements/Framework/TypedElementIndexHasher.h"
 #include "Elements/Framework/TypedElementQueryBuilder.h"
-#include "MassActorSubsystem.h"
 #include "Memento/TypedElementMementoRowTypes.h"
 #include "TypedElementDatabase.h"
 #include "TypedElementDataStorageProfilingMacros.h"
@@ -188,8 +187,8 @@ void UTypedElementDatabaseCompatibility::Reset()
 void UTypedElementDatabaseCompatibility::CreateStandardArchetypes()
 {
 	StandardActorTable = Storage->RegisterTable(TTypedElementColumnTypeList<
-			FMassActorFragment, FTypedElementUObjectColumn, FTypedElementClassTypeInfoColumn,
-			FTypedElementLabelColumn, FTypedElementLabelHashColumn,
+			FTypedElementUObjectColumn, FTypedElementClassTypeInfoColumn,
+			FTypedElementLabelColumn, FTypedElementLabelHashColumn, FTypedElementActorTag,
 			FTypedElementSyncFromWorldTag>(), 
 		FName("Editor_StandardActorTable"));
 
@@ -601,22 +600,6 @@ void UTypedElementDatabaseCompatibility::TickPendingUObjectRegistration()
 			[this](TypedElementRowHandle Row, const TWeakObjectPtr<UObject>& Object)
 			{
 				ITypedElementDataStorageInterface* Interface = Storage;
-				if (AActor* Actor = Cast<AActor>(Object))
-				{
-					constexpr bool bIsOwnedByMass = false;
-					FMassActorFragment ActorColumn;
-					ActorColumn.SetNoHandleMapUpdate(FMassEntityHandle::FromNumber(Row), Actor, bIsOwnedByMass);
-					Interface->AddColumnData(Row, FMassActorFragment::StaticStruct(),
-						[&ActorColumn](void* Column, const UScriptStruct& ColumnType)
-						{
-							*reinterpret_cast<FMassActorFragment*>(Column) = MoveTemp(ActorColumn);
-						},
-						[](const UScriptStruct& ColumnType, void* Destination, void* Source)
-						{
-							*reinterpret_cast<FMassActorFragment*>(Destination) = *reinterpret_cast<FMassActorFragment*>(Source);
-						});
-				}
-
 				Interface->AddColumn(Row, FTypedElementUObjectColumn{ .Object = Object });
 				Interface->AddColumn(Row, FTypedElementClassTypeInfoColumn{ .TypeInfo = Object->GetClass() });
 				// Make sure the new row is tagged for update.

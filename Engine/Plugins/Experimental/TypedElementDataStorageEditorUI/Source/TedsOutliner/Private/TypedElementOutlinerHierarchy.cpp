@@ -2,7 +2,6 @@
 
 #include "TypedElementOutlinerHierarchy.h"
 
-#include "MassActorSubsystem.h"
 #include "Elements/Framework/TypedElementQueryBuilder.h"
 #include "Elements/Interfaces/TypedElementDataStorageInterface.h"
 #include "Elements/Interfaces/TypedElementQueryStorageInterfaces.h"

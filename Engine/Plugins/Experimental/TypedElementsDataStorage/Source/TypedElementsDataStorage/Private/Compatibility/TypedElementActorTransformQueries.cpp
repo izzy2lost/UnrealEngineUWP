@@ -2,10 +2,11 @@
 
 #include "Compatibility/TypedElementActorTransformQueries.h"
 
+#include "Elements/Columns/TypedElementCompatibilityColumns.h"
 #include "Elements/Columns/TypedElementMiscColumns.h"
 #include "Elements/Columns/TypedElementTransformColumns.h"
 #include "Elements/Framework/TypedElementQueryBuilder.h"
-#include "MassActorSubsystem.h"
+#include "GameFramework/Actor.h"
 
 void UTypedElementActorTransformFactory::RegisterQueries(ITypedElementDataStorageInterface& DataStorage)
 {
@@ -22,20 +23,19 @@ void UTypedElementActorTransformFactory::RegisterActorAddTransformColumn(ITypedE
 	DataStorage.RegisterQuery(
 		Select(
 			TEXT("Add transform column to actor"),
-			FProcessor(DSI::EQueryTickPhase::PrePhysics, 
+			FProcessor(DSI::EQueryTickPhase::PrePhysics,
 				DataStorage.GetQueryTickGroupName(DSI::EQueryTickGroups::SyncExternalToDataStorage))
-				.ForceToGameThread(true),
-			[](DSI::IQueryContext& Context, TypedElementRowHandle Row, const FMassActorFragment& Actor)
+			.ForceToGameThread(true),
+			[](DSI::IQueryContext& Context, TypedElementRowHandle Row, const FTypedElementUObjectColumn& Actor)
 			{
-				const AActor* ActorInstance = Actor.Get();
-				if (ActorInstance != nullptr && ActorInstance->GetRootComponent())
+				if (const AActor* ActorInstance = Cast<AActor>(Actor.Object); ActorInstance != nullptr && ActorInstance->GetRootComponent())
 				{
 					Context.AddColumn(Row, FTypedElementLocalTransformColumn{ .Transform = ActorInstance->GetActorTransform() });
 				}
 			}
 		)
 		.Where()
-			.All<FTypedElementSyncFromWorldTag>()
+			.All<FTypedElementSyncFromWorldTag, FTypedElementActorTag>()
 			.None<FTypedElementLocalTransformColumn>()
 		.Compile()
 	);
@@ -51,10 +51,9 @@ void UTypedElementActorTransformFactory::RegisterActorLocalTransformToColumn(ITy
 			TEXT("Sync actor transform to column"),
 			FProcessor(DSI::EQueryTickPhase::PostPhysics, DataStorage.GetQueryTickGroupName(DSI::EQueryTickGroups::SyncExternalToDataStorage))
 				.ForceToGameThread(true),
-			[](DSI::IQueryContext& Context, TypedElementRowHandle Row, const FMassActorFragment& Actor, FTypedElementLocalTransformColumn& Transform)
+			[](DSI::IQueryContext& Context, TypedElementRowHandle Row, const FTypedElementUObjectColumn& Actor, FTypedElementLocalTransformColumn& Transform)
 			{
-				const AActor* ActorInstance = Actor.Get();
-				if (ActorInstance != nullptr && ActorInstance->GetRootComponent() != nullptr)
+				if (const AActor* ActorInstance = Cast<AActor>(Actor.Object); ActorInstance != nullptr && ActorInstance->GetRootComponent() != nullptr)
 				{
 					Transform.Transform = ActorInstance->GetActorTransform();
 				}
@@ -65,6 +64,7 @@ void UTypedElementActorTransformFactory::RegisterActorLocalTransformToColumn(ITy
 			}
 		)
 		.Where()
+			.All<FTypedElementActorTag>()
 			.Any<FTypedElementSyncFromWorldTag, FTypedElementSyncFromWorldInteractiveTag>()
 		.Compile()
 	);
@@ -80,16 +80,16 @@ void UTypedElementActorTransformFactory::RegisterLocalTransformColumnToActor(ITy
 			TEXT("Sync transform column to actor"),
 			FProcessor(DSI::EQueryTickPhase::FrameEnd, DataStorage.GetQueryTickGroupName(DSI::EQueryTickGroups::SyncDataStorageToExternal))
 				.ForceToGameThread(true),
-			[](FMassActorFragment& Actor, const FTypedElementLocalTransformColumn& Transform)
+			[](FTypedElementUObjectColumn& Actor, const FTypedElementLocalTransformColumn& Transform)
 			{
-				if (AActor* ActorInstance = Actor.GetMutable(); ActorInstance != nullptr)
+				if (AActor* ActorInstance = Cast<AActor>(Actor.Object); ActorInstance != nullptr)
 				{
 					ActorInstance->SetActorTransform(Transform.Transform);
 				}
 			}
 		)
 		.Where()
-			.All< FTypedElementSyncBackToWorldTag>()
+			.All<FTypedElementActorTag, FTypedElementSyncBackToWorldTag>()
 		.Compile()
 	);
 }

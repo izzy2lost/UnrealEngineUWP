@@ -28,13 +28,6 @@ public class TypedElementsDataStorageRevisionControl : ModuleRules
 					"EditorSubsystem",
 					"UnrealEd",
 				});
-			PrivateDependencyModuleNames.AddRange(
-				new string[]
-				{
-					"MassActors",
-					"MassEntity",
-					"StructUtils"
-				});
 
 			DynamicallyLoadedModuleNames.AddRange(new string[] {});
 			

@@ -1,18 +1,18 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Compatibility/TEDSTypedElementBridge.h"
 
-#include "MassActorSubsystem.h"
 #include "Elements/Columns/TypedElementCompatibilityColumns.h"
 #include "Elements/Framework/EngineElementsLibrary.h"
 #include "Elements/Framework/TypedElementList.h"
 #include "Elements/Framework/TypedElementQueryBuilder.h"
 #include "Elements/Framework/TypedElementRegistry.h"
+#include "HAL/IConsoleManager.h"
 
 namespace UTEDSTypedElementBridge_Private
 {
 	bool bBridgeEnabled = false;
-	TYPEDELEMENTSDATASTORAGE_API FAutoConsoleVariableRef CVarBridgeEnabled(
+	FAutoConsoleVariableRef CVarBridgeEnabled(
 		TEXT("TEDS.TypedElementBridge.Enable"),
 		bBridgeEnabled,
 		TEXT("Automatically populated TEDS with TypedElementHandles"));

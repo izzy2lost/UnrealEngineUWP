@@ -20,12 +20,9 @@ public class TedsOutliner : ModuleRules
 					"CoreUObject",
 					"EditorFramework",
 					"Engine",
-					"MassActors",
-					"MassEntity",
 					"SceneOutliner",
 					"Slate",
 					"SlateCore",
-					"StructUtils",
 					"TypedElementFramework",
 				});
 			PrivateDependencyModuleNames.AddRange(

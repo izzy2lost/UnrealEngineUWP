@@ -16,7 +16,6 @@
 #include "ISceneOutlinerColumn.h"
 #include "ISceneOutlinerTreeItem.h"
 #include "LevelEditor.h"
-#include "MassEntityTypes.h"
 #include "SSceneOutliner.h"
 #include "SceneOutlinerFwd.h"
 #include "SceneOutlinerModule.h"
@@ -87,7 +86,7 @@ FAutoConsoleCommand BindColumnsToSceneOutlinerConsoleCommand(
 								if (!Arg.IsEmpty() && Arg[0] == '/' && Path.TrySetPath(Arg))
 								{
 									const UScriptStruct* ColumnType = TypeOptional(Path);
-									if (ColumnType && ColumnType->IsChildOf(FMassFragment::StaticStruct()))
+									if (ColumnType && ColumnType->IsChildOf(FTypedElementDataStorageColumn::StaticStruct()))
 									{
 										Query.ReadOnly(ColumnType);
 										++AdditionCount;

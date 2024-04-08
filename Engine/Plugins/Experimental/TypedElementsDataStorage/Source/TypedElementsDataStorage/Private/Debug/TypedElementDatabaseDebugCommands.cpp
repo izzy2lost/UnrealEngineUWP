@@ -7,7 +7,6 @@
 #include "Elements/Framework/TypedElementRegistry.h"
 #include "Elements/Interfaces/TypedElementDataStorageInterface.h"
 #include "HAL/IConsoleManager.h"
-#include "MassActorSubsystem.h"
 #include "Misc/OutputDevice.h"
 #include "ProfilingDebugging/CpuProfilerTrace.h"
 
@@ -164,54 +163,7 @@ FAutoConsoleCommandWithOutputDevice PrintActorLabelsConsoleCommand(
 		{
 			TRACE_CPUPROFILER_EVENT_SCOPE(TEDS.Debug.PrintActorLabels);
 			Output.Log(TEXT("The Typed Elements Data Storage has the following actors:"));
-			Private::PrintObjectLabels<FMassActorFragment>(Output);
+			Private::PrintObjectLabels<FTypedElementActorTag>(Output);
 			Output.Log(TEXT("End of Typed Elements Data Storage actors list."));
 		}));
 
-FAutoConsoleCommandWithOutputDevice CheckActorAndObjectAddressCommand(
-	TEXT("TEDS.Debug.CheckActorAndObjectAddress"),
-	TEXT("Checks if the address of the actor is the same as the address of the object."),
-	FConsoleCommandWithOutputDeviceDelegate::CreateLambda([](FOutputDevice& Output)
-		{
-			using namespace TypedElementQueryBuilder;
-			using DSI = ITypedElementDataStorageInterface;
-
-			TRACE_CPUPROFILER_EVENT_SCOPE(TEDS.Debug.CheckActorAndObjectAddress);
-
-			if (ITypedElementDataStorageInterface* DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage())
-			{
-				static TypedElementQueryHandle LabelQuery = [DataStorage]
-				{
-					return DataStorage->RegisterQuery(
-						Select()
-							.ReadOnly<FTypedElementUObjectColumn>()
-							.ReadOnly(FMassActorFragment::StaticStruct())
-						.Compile());
-				}();
-				
-				if (LabelQuery != TypedElementInvalidQueryHandle)
-				{
-					bool Result = true;
-					DataStorage->RunQuery(LabelQuery, CreateDirectQueryCallbackBinding(
-						[&Result](DSI::IDirectQueryContext& Context, const FTypedElementUObjectColumn* Objects, const FMassActorFragment* Actors)
-						{
-							const uint32 Count = Context.GetRowCount();
-
-							for (uint32 Index = 0; Index < Count; ++Index)
-							{
-								Result = Result && (Objects->Object.Get() == Actors->Get());
-								++Objects;
-								++Actors;
-							}
-						}));
-					if (Result)
-					{
-						Output.Logf(TEXT("All actors in TEDS have matching object addresses."));
-					}
-					else
-					{
-						Output.Logf(TEXT("One or more actors in TEDS have addresses that differ from the object."));
-					}
-				}
-			}
-		}));
