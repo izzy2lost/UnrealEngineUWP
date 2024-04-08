@@ -5882,7 +5882,7 @@ UObject* FLinkerLoad::CreateImport( int32 Index )
 		else if (ImportsToVerifyOnCreate.Contains(Index))
 		{
 			const UClass* ExpectedImportClass = nullptr;
-			if (UPackage* ImportClassPackage = FindObjectFast<UPackage>(nullptr, Import.ClassPackage, false))
+			if (UPackage* ImportClassPackage = FindObjectFast<UPackage>(nullptr, InstancingContext.RemapPackage(Import.ClassPackage), false))
 			{
 				const UObject* FoundObject = FindObjectFast<UObject>(ImportClassPackage, Import.ClassName, false);
 				ExpectedImportClass = Cast<UClass>(FoundObject);

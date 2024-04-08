@@ -985,6 +985,9 @@ namespace UE::AssetTools::Private
 				 */
 				MigrationPackageData.InstancedPackage = LoadPackage(MigrationPackage, *MigrationPackageData.GetOriginalPackageName(), LOAD_Verify | LOAD_NoVerify, ReaderOverride, &MigrationImplContext.InstancingContext);
 
+				// Add the PKG_NewlyCreated flag here to help the engine code that expect the packages without it to have a file associated with it on disk.
+				MigrationPackage->SetPackageFlags(PKG_NewlyCreated);
+
 				PackagesToClean.Add(MigrationPackage);
 			}
 		}
