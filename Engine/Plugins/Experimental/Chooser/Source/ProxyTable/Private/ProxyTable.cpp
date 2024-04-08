@@ -197,10 +197,14 @@ static void OutputStructData(const FRuntimeProxyValue& EntryValueData, FChooserE
 	for (const FProxyStructOutput& StructOutput : EntryValueData.OutputStructData)
 	{
 		// copy each struct output value
-		void* TargetData;
-		if (StructOutput.Binding.GetValuePtr(Context, TargetData))
+		void* TargetData = nullptr;
+		const UStruct* StructType = nullptr;
+		if (StructOutput.Binding.GetStructPtr(Context, TargetData, StructType))
 		{
-			StructOutput.Value.GetScriptStruct()->CopyScriptStruct(TargetData, StructOutput.Value.GetMemory());
+			if (StructType == StructOutput.Value.GetScriptStruct())
+			{
+				StructOutput.Value.GetScriptStruct()->CopyScriptStruct(TargetData, StructOutput.Value.GetMemory());
+			}
 		}
 	}
 }

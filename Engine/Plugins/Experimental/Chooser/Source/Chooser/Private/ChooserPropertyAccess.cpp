@@ -207,6 +207,11 @@ void FChooserPropertyBinding::Compile(IHasContextClass* Owner, bool bForce)
 	{
 		// handle binding directly to a context struct
 		OutCompiledBinding.CompiledChain.Add(UE::Chooser::FCompiledBindingElement(0));
+		
+		if (const FContextObjectTypeStruct* StructContext = ContextData[ContextIndex].GetPtr<FContextObjectTypeStruct>())
+		{
+			OutCompiledBinding.StructType = StructContext->Struct;
+		}
 		bFound = true;
 	}
 	else
@@ -245,6 +250,10 @@ void FChooserPropertyBinding::Compile(IHasContextClass* Owner, bool bForce)
 			{
 				OutCompiledBinding.PropertyType = UE::Chooser::EChooserPropertyAccessType::SoftObjectRef;
 			}
+			else if (BaseProperty->IsA<FStructProperty>())
+            {
+            	OutCompiledBinding.StructType = CastField<FStructProperty>(BaseProperty)->Struct;
+            }
 		}
 		else
 		{
@@ -377,6 +386,7 @@ namespace UE::Chooser
 			Result.Mask = Last.Mask;
 		}
 		Result.PropertyType = CompiledBinding.PropertyType;
+		Result.StructType = CompiledBinding.StructType; 
 		return true;
 	}
 	
@@ -387,6 +397,7 @@ namespace UE::Chooser
 			if (PropertyBinding.IsBoundToRoot)
 			{
 				Result.Container = Container;
+				Result.StructType = StructType;
 				return true;
 			}
 			else
@@ -481,6 +492,10 @@ namespace UE::Chooser
 			else if (BaseProperty->IsA<FSoftObjectProperty>())
 			{
 				Result.PropertyType = UE::Chooser::EChooserPropertyAccessType::SoftObjectRef;
+			}
+			else if (BaseProperty->IsA<FStructProperty>())
+			{
+				Result.StructType = CastField<FStructProperty>(BaseProperty)->Struct;
 			}
 		}
 		else

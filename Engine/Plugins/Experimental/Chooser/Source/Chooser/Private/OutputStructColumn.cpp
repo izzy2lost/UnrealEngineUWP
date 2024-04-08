@@ -11,10 +11,18 @@
 bool FStructContextProperty::SetValue(FChooserEvaluationContext& Context, const FInstancedStruct& InValue) const
 {
 	void* TargetData;
-	if (Binding.GetValuePtr(Context, TargetData))
+	const UStruct* StructType;
+	if (Binding.GetStructPtr(Context, TargetData, StructType))
 	{
-		InValue.GetScriptStruct()->CopyScriptStruct(TargetData, InValue.GetMemory());
-		return true;
+		if (StructType == InValue.GetScriptStruct())
+		{
+			InValue.GetScriptStruct()->CopyScriptStruct(TargetData, InValue.GetMemory());
+			return true;
+		}
+		else
+		{
+			return false;
+		}
 	}
 	return false;
 }

@@ -54,7 +54,7 @@ namespace UE::Chooser
 		Int32,
 		Float,
 		Double,
-		SoftObjectRef
+		SoftObjectRef,
 	};
 
 	struct FCompiledBinding
@@ -64,6 +64,9 @@ namespace UE::Chooser
 		// type info for number and enum conversions
 		TArray<FCompiledBindingElement> CompiledChain;
 		const UStruct* TargetType = nullptr;
+
+		// Type of struct for when the property itself is a struct
+		const UStruct* StructType = nullptr;
 #if WITH_EDITORONLY_DATA
 		int SerialNumber = 0;
 		TArray<const UStruct*> Dependencies;
@@ -102,6 +105,9 @@ struct CHOOSER_API FChooserPropertyBinding
 	
 	template <typename T>
 	bool GetValuePtr(FChooserEvaluationContext& Context, T*& Value) const;
+	
+	template <typename T>
+	bool GetStructPtr(FChooserEvaluationContext& Context, T*& Value, UStruct const* &StructType) const;
 	
 	template <typename T>
 	bool GetValue(FChooserEvaluationContext& Context, T& Value) const;
@@ -185,6 +191,7 @@ namespace UE::Chooser
 		uint8* Container = nullptr;
 		uint32 PropertyOffset = 0;
 		UFunction* Function = nullptr;
+		const UStruct* StructType = nullptr;
 		EChooserPropertyAccessType PropertyType = EChooserPropertyAccessType::None;
 		uint8 Mask = 0;
 	};
@@ -212,6 +219,25 @@ bool FChooserPropertyBinding::GetValuePtr(FChooserEvaluationContext& Context, T*
 	}
 	return false;
 }
+
+template <typename T>
+bool FChooserPropertyBinding::GetStructPtr(FChooserEvaluationContext& Context, T*& OutResult, UStruct const* &OutStructType) const
+{
+	using namespace  UE::Chooser;
+
+	FResolvedPropertyChainResult Result;
+	if (ResolvePropertyChain(Context, *this, Result))
+	{
+		if (Result.Function == nullptr)
+		{
+			OutResult = reinterpret_cast<T*>(Result.Container + Result.PropertyOffset);
+			OutStructType = Result.StructType;
+			return true;
+		}
+	}
+	return false;
+}
+
 
 template <typename T>
 bool FChooserPropertyBinding::GetValue(FChooserEvaluationContext& Context, T& OutResult) const
