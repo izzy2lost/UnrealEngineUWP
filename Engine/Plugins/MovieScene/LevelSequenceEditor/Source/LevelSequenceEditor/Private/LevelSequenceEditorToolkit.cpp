@@ -743,8 +743,10 @@ void FLevelSequenceEditorToolkit::AddShot(UMovieSceneCinematicShotTrack* ShotTra
 		FGuid CameraGuid;
 		if (bCreateSpawnableCamera)
 		{
+			FString NewName = MovieSceneHelpers::MakeUniqueBindingName(ShotSequence->GetMovieScene(), FName::NameToDisplayString(ACineCameraActor::StaticClass()->GetFName().ToString(), false));
 			UE::Sequencer::FCreateBindingParams CreateBindingParams;
 			CreateBindingParams.bSpawnable = true;
+			CreateBindingParams.BindingNameOverride = NewName;
 			CameraGuid = FSequencerUtilities::CreateBinding(GetSequencer().ToSharedRef(), *NewCamera, CreateBindingParams);
 
 			UObject* SpawnedCamera = GetSequencer()->FindSpawnedObjectOrTemplate(CameraGuid);

@@ -2395,7 +2395,9 @@ FGuid TryCreateCustomBinding(TSharedRef<ISequencer> Sequencer, UObject* CustomBi
 	if (NewCustomBinding)
 	{
 		FString DesiredBindingName = NewCustomBinding->GetDesiredBindingName();
-		FString CurrentName = DesiredBindingName.IsEmpty() ? InParams.BindingNameOverride : DesiredBindingName;
+		FString CurrentName = DesiredBindingName.IsEmpty() ? 
+			(InParams.BindingNameOverride.IsEmpty() && CustomBindingObject ? FName::NameToDisplayString(CustomBindingObject->GetName(), false) : InParams.BindingNameOverride)
+			: DesiredBindingName;
 		CurrentName = MovieSceneHelpers::MakeUniqueBindingName(OwnerMovieScene, CurrentName);
 
 		FMovieScenePossessable* NewPossessable = nullptr;
@@ -2422,22 +2424,29 @@ FGuid TryCreateCustomBinding(TSharedRef<ISequencer> Sequencer, UObject* CustomBi
 			// Spawn the object so we can position it correctly, it's going to get spawned anyway since things default to spawned.
 			SpawnedObject = Sequencer->GetSpawnRegister().SpawnObject(NewID, *OwnerMovieScene, Sequencer->GetFocusedTemplateID(), Sequencer->GetSharedPlaybackState(), 0);
 
-			// Allow the binding to set up any necessary defaults
-			NewCustomBinding->SetupDefaults(SpawnedObject, NewID, *OwnerMovieScene, Sequencer->GetSharedPlaybackState());
+			if (InParams.bSetupDefaults)
+			{
+				// Allow the binding to set up any necessary defaults
+				NewCustomBinding->SetupDefaults(SpawnedObject, NewID, *OwnerMovieScene, Sequencer->GetSharedPlaybackState());
 
-			FTransformData TransformData;
-			Sequencer->GetSpawnRegister().SetupDefaultsForSpawnable(SpawnedObject, NewID, TransformData, Sequencer, Sequencer->GetSequencerSettings());
+				FTransformData TransformData;
+				Sequencer->GetSpawnRegister().SetupDefaultsForSpawnable(SpawnedObject, NewID, TransformData, Sequencer, Sequencer->GetSequencerSettings());
+			}
 		}
 
 		Sequencer->State.Invalidate(NewID, Sequencer->GetFocusedTemplateID());
 		Sequencer->ForceEvaluate();
 
-		if (AActor* Actor = Cast<AActor>(SpawnedObject))
+		// We don't call these events in the case bSetupDefaults is false because they may add tracks.
+		if (InParams.bSetupDefaults)
 		{
-			Sequencer->OnActorAddedToSequencer().Broadcast(Actor, NewID);
-		}
+			if (AActor* Actor = Cast<AActor>(SpawnedObject))
+			{
+				Sequencer->OnActorAddedToSequencer().Broadcast(Actor, NewID);
+			}
 
-		Sequencer->OnAddBinding(NewID, OwnerMovieScene);
+			Sequencer->OnAddBinding(NewID, OwnerMovieScene);
+		}
 
 		return NewID;
 	}
@@ -2738,12 +2747,21 @@ bool FSequencerUtilities::PasteBindings(const FString& TextToImport, TSharedRef<
 					if (BindingReferences)
 					{
 						int32 BindingIndex = 0;
+						int32 SpawnableBindingIndex = 0;
 						for (UMovieSceneCustomBinding* CustomBinding : CopyableBinding->CustomBindings)
 						{
 							if (CustomBinding)
 							{
-								// We need to duplicate this as the one in CopyableBinding will be transient package owned
 								UMovieSceneCustomBinding* NewCustomBinding = Cast<UMovieSceneCustomBinding>(StaticDuplicateObject(CustomBinding, MovieScene));
+
+								// Need to re-copy the object template to avoid private object issues
+								if (UMovieSceneSpawnableBindingBase* SpawnableBinding = NewCustomBinding->AsSpawnable(Sequencer->GetSharedPlaybackState()))
+								{
+									if (CopyableBinding->SpawnableObjectTemplates.IsValidIndex(SpawnableBindingIndex))
+									{
+										SpawnableBinding->CopyObjectTemplate(CopyableBinding->SpawnableObjectTemplates[SpawnableBindingIndex++], *Sequence);
+									}
+								}
 
 								// This will either add a brand new possessable and binding (if one doesn't exist for that guid), or just add a new binding to that same possessable
 								UE::Sequencer::FCreateBindingParams CreateBindingParams;
@@ -2751,6 +2769,7 @@ bool FSequencerUtilities::PasteBindings(const FString& TextToImport, TSharedRef<
 								CreateBindingParams.BindingIndex = BindingIndex++;
 								CreateBindingParams.bAllowCustomBinding = true;
 								CreateBindingParams.CustomBinding = NewCustomBinding;
+								CreateBindingParams.bSetupDefaults = false;
 								NewGuid = CreateGenericBinding(Sequencer, nullptr, BindingReferences, CreateBindingParams);
 							}
 						}

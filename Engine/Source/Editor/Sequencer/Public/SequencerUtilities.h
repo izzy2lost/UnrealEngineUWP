@@ -68,6 +68,8 @@ struct FCreateBindingParams
 	TObjectPtr<UMovieSceneCustomBinding> CustomBinding = nullptr;
 	/* May be used depending on options if an asset UObject is passed in to create a custom or regular spawnable actor binding*/
 	TObjectPtr<UActorFactory> ActorFactory = nullptr;
+	/* Whether to set up default tracks and child components for a new binding. May be set false for example by a copy/paste which won't want that.*/
+	bool bSetupDefaults = true;
 };
 
 } // namespace UE::Sequencer
