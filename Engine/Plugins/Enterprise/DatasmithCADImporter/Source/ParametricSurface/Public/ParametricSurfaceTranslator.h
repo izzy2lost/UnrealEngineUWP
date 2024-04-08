@@ -4,9 +4,6 @@
 
 #include "CoreMinimal.h"
 
-#include "CADOptions.h"
-
-#include "DatasmithImportOptions.h"
 #include "DatasmithTranslator.h"
 #include "UObject/ObjectMacros.h"
 
@@ -22,11 +19,7 @@ class PARAMETRICSURFACE_API FParametricSurfaceTranslator : public IDatasmithTran
 {
 public:
 
-	FParametricSurfaceTranslator()
-	{
-		// Initialize bUseCADKernel with current value of CVar ds.CADTranslator.DisableCADKernelTessellation
-		CommonTessellationOptions.bUseCADKernel = !CADLibrary::FImportParameters::bGDisableCADKernelTessellation;
-	}
+	FParametricSurfaceTranslator();
 
 	// Begin IDatasmithTranslator overrides
 	virtual void GetSceneImportOptions(TArray<TObjectPtr<UDatasmithOptionsBase>>& Options) override;
@@ -46,7 +39,7 @@ protected:
 	 */
 	virtual void InitCommonTessellationOptions(FDatasmithTessellationOptions& TessellationOptions) {}
 
-private:
+protected:
 	FDatasmithTessellationOptions CommonTessellationOptions;
 };
 

@@ -3,9 +3,9 @@
 using System.IO;
 using UnrealBuildTool;
 
-public class DatasmithWireTranslator2022_2 : DatasmithWireTranslatorBase
+public class WireInterface2022_2 : WireInterfaceBase
 {
-	public DatasmithWireTranslator2022_2(ReadOnlyTargetRules Target) 
+	public WireInterface2022_2(ReadOnlyTargetRules Target) 
 		: base(Target)
 	{
 	}
@@ -18,5 +18,15 @@ public class DatasmithWireTranslator2022_2 : DatasmithWireTranslatorBase
 	public override string GetAliasDefinition()
 	{
 		return "OPEN_MODEL_2022_2";
+	}
+
+	public override int GetMajorVersion()
+	{
+		return 2022;
+	}
+
+	public override int GetMinorVersion()
+	{
+		return 2;
 	}
 }

@@ -3,12 +3,14 @@
 using System.IO;
 using UnrealBuildTool;
 
-public abstract class DatasmithWireTranslatorBase : ModuleRules
+public abstract class WireInterfaceBase : ModuleRules
 {
-	public DatasmithWireTranslatorBase(ReadOnlyTargetRules Target) : base(Target)
+	public WireInterfaceBase(ReadOnlyTargetRules Target) : base(Target)
 	{
 		// TODO: investigate to remove that (Jira UETOOL-4975)
 		bUseUnity = false;
+		//OptimizeCode = CodeOptimization.Never;
+		//PCHUsage = ModuleRules.PCHUsageMode.NoPCHs;
 
 		PublicDependencyModuleNames.AddRange(
 			new string[]
@@ -29,6 +31,7 @@ public abstract class DatasmithWireTranslatorBase : ModuleRules
 				"DatasmithContent",
 				"DatasmithCore",
 				"DatasmithTranslator",
+				"DatasmithWireTranslator",
 				"Engine",
 				"MeshDescription",
 				"ParametricSurface",
@@ -50,6 +53,8 @@ public abstract class DatasmithWireTranslatorBase : ModuleRules
 		PublicDefinitions.Add(GetAliasDefinition());
 		PublicDefinitions.Add($"UE_DATASMITHWIRETRANSLATOR_NAMESPACE={GetAliasDefinition()}Namespace");
 		PublicDefinitions.Add($"UE_DATASMITHWIRETRANSLATOR_MODULE_NAME={GetType().Name}");
+		PublicDefinitions.Add($"UE_OPENMODEL_MAJOR_VERSION={GetMajorVersion()}");
+		PublicDefinitions.Add($"UE_OPENMODEL_MINOR_VERSION={GetMinorVersion()}");
 
 		if (System.Type.GetType(GetAliasVersion()) != null)
 		{
@@ -59,12 +64,14 @@ public abstract class DatasmithWireTranslatorBase : ModuleRules
 
 	public abstract string GetAliasVersion();
 	public abstract string GetAliasDefinition();
+	public abstract int GetMajorVersion();
+	public abstract int GetMinorVersion();
 
 }
 
-public class DatasmithWireTranslator2020 : DatasmithWireTranslatorBase
+public class WireInterface2020 : WireInterfaceBase
 {
-	public DatasmithWireTranslator2020(ReadOnlyTargetRules Target) 
+	public WireInterface2020(ReadOnlyTargetRules Target) 
 		: base(Target)
 	{
 		PublicDefinitions.Add("IS_MAIN_MODULE");
@@ -78,5 +85,15 @@ public class DatasmithWireTranslator2020 : DatasmithWireTranslatorBase
 	public override string GetAliasDefinition()
 	{
 		return "OPEN_MODEL_2020";
+	}
+
+	public override int GetMajorVersion()
+	{
+		return 2020;
+	}
+
+	public override int GetMinorVersion()
+	{
+		return 0;
 	}
 }

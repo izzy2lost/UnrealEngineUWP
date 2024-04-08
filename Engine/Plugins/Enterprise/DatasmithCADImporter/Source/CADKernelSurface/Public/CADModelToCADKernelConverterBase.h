@@ -54,12 +54,17 @@ public:
 		return true;
 	}
 
-	virtual bool SaveModel(const TCHAR* InFolderPath, TSharedRef<IDatasmithMeshElement>& MeshElement) override
+	virtual bool SaveModel(const TCHAR* InFolderPath, TSharedPtr<IDatasmithMeshElement> MeshElement) override
 	{
-		FString FilePath = FPaths::Combine(InFolderPath, MeshElement->GetName()) + TEXT(".ugeom");
-		CADKernelSession.SaveDatabase(*FilePath);
-		MeshElement->SetFile(*FilePath);
-		return true;
+		if (MeshElement.IsValid())
+		{
+			FString FilePath = FPaths::Combine(InFolderPath, MeshElement->GetName()) + TEXT(".ugeom");
+			CADKernelSession.SaveDatabase(*FilePath);
+			MeshElement->SetFile(*FilePath);
+			return true;
+		}
+
+		return false;
 	}
 
 	virtual bool Tessellate(const CADLibrary::FMeshParameters& InMeshParameters, FMeshDescription& OutMeshDescription) override

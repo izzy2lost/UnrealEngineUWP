@@ -4,9 +4,10 @@
 
 #include "CoreMinimal.h"
 
-#include "CADModelToTechSoftConverterBase.h"
-
+#include "OpenModelUtils.h"
 #include "AliasBRepConverter.h"
+
+#include "CADModelToTechSoftConverterBase.h"
 
 #include "CADKernel/Core/Session.h"
 #include "CADKernel/Core/Types.h"
@@ -23,8 +24,6 @@ typedef void A3DTopoFace;
 typedef void A3DTopoLoop;
 typedef void A3DTopoCoEdge;
 typedef void A3DCrvBase;
-
-typedef double AlMatrix4x4[4][4];
 
 namespace UE_DATASMITHWIRETRANSLATOR_NAMESPACE
 {

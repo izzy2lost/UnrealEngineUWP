@@ -5,10 +5,18 @@
 #include "ParametricSurfaceData.h"
 #include "ParametricSurfaceModule.h"
 
+#include "CADOptions.h"
+
 #include "DatasmithImportOptions.h"
 #include "IDatasmithSceneElements.h"
 
 #include "Misc/FileHelper.h"
+
+FParametricSurfaceTranslator::FParametricSurfaceTranslator()
+{
+	// Initialize bUseCADKernel with current value of CVar ds.CADTranslator.DisableCADKernelTessellation
+	CommonTessellationOptions.bUseCADKernel = !CADLibrary::FImportParameters::bGDisableCADKernelTessellation;
+}
 
 void FParametricSurfaceTranslator::GetSceneImportOptions(TArray<TObjectPtr<UDatasmithOptionsBase>>& Options)
 {

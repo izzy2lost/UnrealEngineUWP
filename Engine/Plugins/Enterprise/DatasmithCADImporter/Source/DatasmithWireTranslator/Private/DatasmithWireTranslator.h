@@ -4,15 +4,40 @@
 
 #include "CoreMinimal.h"
 
-#include "OpenModelUtils.h"
 #include "ParametricSurfaceTranslator.h"
+
+#include "DatasmithImportOptions.h"
+
 #include "UObject/ObjectMacros.h"
 
+#include "DatasmithWireTranslator.generated.h"
 
-namespace UE_DATASMITHWIRETRANSLATOR_NAMESPACE
+class IWireInterface;
+
+USTRUCT(BlueprintType)
+struct FDatasmithWireOptions : public FDatasmithTessellationOptions
 {
+	GENERATED_BODY()
 
-class FWireTranslatorImpl;
+	UPROPERTY(config, EditAnywhere, BlueprintReadWrite, Category = "Wire Translation Options")
+	bool bUseLayerAsActor = false;
+
+	uint32 GetHash() const
+	{
+		return HashCombine(FDatasmithTessellationOptions::GetHash(), GetTypeHash(false));
+	}
+};
+
+
+UCLASS(BlueprintType, config = EditorPerProjectUserSettings)
+class UDatasmithWireTranslationOptions : public UDatasmithOptionsBase
+{
+	GENERATED_BODY()
+
+public:
+	UPROPERTY(config, EditAnywhere, BlueprintReadWrite, Category = "Wire Translation Options", meta = (ShowOnlyInnerProperties))
+	FDatasmithWireOptions Options;
+};
 
 class FDatasmithWireTranslator : public FParametricSurfaceTranslator
 {
@@ -43,7 +68,8 @@ protected:
 	// End ADatasmithCoreTechTranslator overrides
 
 private:
-	TSharedPtr<FWireTranslatorImpl> Translator;
-};
+	bool CanTranslate();
 
-}
+private:
+	TSharedPtr<IWireInterface> WireInterface;
+};

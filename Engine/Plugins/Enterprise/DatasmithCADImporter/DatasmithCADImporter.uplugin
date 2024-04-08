@@ -71,7 +71,7 @@
 			]
 		},
 		{
-			"Name": "DatasmithWireTranslator2020",
+			"Name": "DatasmithWireTranslator",
 			"Type": "Editor",
 			"LoadingPhase": "Default",
 			"PlatformAllowList": [
@@ -79,7 +79,7 @@
 			]
 		},
 		{
-			"Name": "DatasmithWireTranslator2021_3",
+			"Name": "WireInterface2020",
 			"Type": "Editor",
 			"LoadingPhase": "Default",
 			"PlatformAllowList": [
@@ -87,7 +87,7 @@
 			]
 		},
 		{
-			"Name": "DatasmithWireTranslator2022",
+			"Name": "WireInterface2021_3",
 			"Type": "Editor",
 			"LoadingPhase": "Default",
 			"PlatformAllowList": [
@@ -95,7 +95,7 @@
 			]
 		},
 		{
-			"Name": "DatasmithWireTranslator2022_1",
+			"Name": "WireInterface2022",
 			"Type": "Editor",
 			"LoadingPhase": "Default",
 			"PlatformAllowList": [
@@ -103,7 +103,7 @@
 			]
 		},
 		{
-			"Name": "DatasmithWireTranslator2022_2",
+			"Name": "WireInterface2022_1",
 			"Type": "Editor",
 			"LoadingPhase": "Default",
 			"PlatformAllowList": [
@@ -111,7 +111,7 @@
 			]
 		},
 		{
-			"Name": "DatasmithWireTranslator2023_0",
+			"Name": "WireInterface2022_2",
 			"Type": "Editor",
 			"LoadingPhase": "Default",
 			"PlatformAllowList": [
@@ -119,7 +119,15 @@
 			]
 		},
 		{
-			"Name": "DatasmithWireTranslator2023_1",
+			"Name": "WireInterface2023_0",
+			"Type": "Editor",
+			"LoadingPhase": "Default",
+			"PlatformAllowList": [
+				"Win64"
+			]
+		},
+		{
+			"Name": "WireInterface2023_1",
 			"Type": "Editor",
 			"LoadingPhase": "Default",
 			"PlatformAllowList": [

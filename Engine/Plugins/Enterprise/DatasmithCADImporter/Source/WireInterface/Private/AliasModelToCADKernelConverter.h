@@ -4,7 +4,9 @@
 
 #include "CoreMinimal.h"
 
+#include "OpenModelUtils.h"
 #include "AliasBRepConverter.h"
+
 #include "CADModelToCADKernelConverterBase.h"
 
 #include "CADKernel/Core/Session.h"
@@ -16,8 +18,6 @@ class AlSurface;
 class AlTrimBoundary;
 class AlTrimCurve;
 class AlTrimRegion;
-
-typedef double AlMatrix4x4[4][4];
 
 namespace UE::CADKernel
 {
@@ -40,11 +40,12 @@ public:
 	{
 	}
 
-	virtual bool AddBRep(AlDagNode& DagNode, const FColor& Color, EAliasObjectReference ObjectReference) override;
-
+	// Begin FCADModelToCADKernelConverterBase overrides
 	virtual bool Tessellate(const CADLibrary::FMeshParameters& InMeshParameters, FMeshDescription& OutMeshDescription) override;
-
 	virtual bool RepairTopology() override;
+	// End FCADModelToCADKernelConverterBase overrides
+
+	virtual bool AddBRep(AlDagNode& DagNode, const FColor& Color, EAliasObjectReference ObjectReference) override;
 
 protected:
 	TSharedPtr<UE::CADKernel::FTopologicalEdge> AddEdge(const AlTrimCurve& TrimCurve, TSharedPtr<UE::CADKernel::FSurface>& CarrierSurface);

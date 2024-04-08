@@ -33,7 +33,7 @@ public:
 
 	virtual bool RepairTopology() override;
 
-	virtual bool SaveModel(const TCHAR* InFolderPath, TSharedRef<IDatasmithMeshElement>& MeshElement) override;
+	virtual bool SaveModel(const TCHAR* InFolderPath, TSharedPtr<IDatasmithMeshElement> MeshElement) override;
 
 	virtual bool Tessellate(const CADLibrary::FMeshParameters& InMeshParameters, FMeshDescription& OutMeshDescription) override;
 
@@ -54,3 +54,4 @@ protected:
 	TArray<A3DRiRepresentationItem*> RiRepresentationItems;
 	CADLibrary::FUniqueTechSoftModelFile ModelFile;
 };
+

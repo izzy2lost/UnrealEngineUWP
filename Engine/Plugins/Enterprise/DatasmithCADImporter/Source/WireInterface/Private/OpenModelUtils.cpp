@@ -55,9 +55,14 @@ void OpenModelUtils::SetActorTransform(TSharedPtr<IDatasmithActorElement>& OutAc
 		FTransform LocalTransform(Matrix);
 		FTransform LocalUETransform = FDatasmithUtils::ConvertTransform(FDatasmithUtils::EModelCoordSystem::ZUp_RightHanded, LocalTransform);
 
-		OutActorElement->SetTranslation(LocalUETransform.GetTranslation());
-		OutActorElement->SetScale(LocalUETransform.GetScale3D());
-		OutActorElement->SetRotation(LocalUETransform.GetRotation());
+		FVector Translation = LocalUETransform.GetTranslation();
+		if (!FMath::IsNearlyEqual(Translation.X, 0.0f))
+		{
+			printf(">>> %f", Translation.X);
+		}
+		//OutActorElement->SetTranslation(LocalUETransform.GetTranslation());
+		//OutActorElement->SetScale(LocalUETransform.GetScale3D());
+		//OutActorElement->SetRotation(LocalUETransform.GetRotation());
 	}
 }
 
@@ -275,7 +280,7 @@ bool OpenModelUtils::TransferAlMeshToMeshDescription(const AlMesh& AliasMesh, co
 }
 
 
-TSharedPtr<AlDagNode> OpenModelUtils::TesselateDagLeaf(const AlDagNode& DagLeaf, ETesselatorType TessType, double Tolerance)
+TAlObjectPtr<AlDagNode> OpenModelUtils::TesselateDagLeaf(const AlDagNode& DagLeaf, ETesselatorType TessType, double Tolerance)
 {
 	AlDagNode* TesselatedNode = nullptr;
 	statusCode TessStatus;
@@ -293,11 +298,11 @@ TSharedPtr<AlDagNode> OpenModelUtils::TesselateDagLeaf(const AlDagNode& DagLeaf,
 
 	if ((TessStatus == sSuccess) && (AlIsValid(TesselatedNode) == TRUE))
 	{
-		return TSharedPtr<AlDagNode>(TesselatedNode);
+		return TAlObjectPtr<AlDagNode>(TesselatedNode);
 	}
 	else
 	{
-		return TSharedPtr<AlDagNode>();
+		return TAlObjectPtr<AlDagNode>();
 	}
 }
 
