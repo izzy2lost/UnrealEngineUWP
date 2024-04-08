@@ -27,11 +27,11 @@ struct VNameValueMap
 		return NameAndValues->Num() / 2;
 	}
 
-	const VUTF8String& GetName(uint32 Index) const
+	const VArray& GetName(uint32 Index) const
 	{
 		checkSlow(Index < static_cast<int32>(Num()));
 		VValue Value = NameAndValues->GetValue(2 * Index);
-		return Value.StaticCast<VUTF8String>();
+		return Value.StaticCast<VArray>();
 	}
 
 	VValue GetValue(uint32 Index) const
@@ -48,11 +48,11 @@ struct VNameValueMap
 
 	void AddValue(FAllocationContext Context, FUtf8StringView Name, VValue Value)
 	{
-		NameAndValues->AddValue(Context, VUTF8String::New(Context, Name));
+		NameAndValues->AddValue(Context, VArray::New(Context, Name));
 		NameAndValues->AddValue(Context, Value);
 	}
 
-	void AddValue(FAllocationContext Context, VUTF8String& Name, VValue Value)
+	void AddValue(FAllocationContext Context, VArray& Name, VValue Value)
 	{
 		NameAndValues->AddValue(Context, VValue(Name));
 		NameAndValues->AddValue(Context, Value);
@@ -62,7 +62,7 @@ struct VNameValueMap
 	{
 		for (uint32 Index = 0, End = Num(); Index < End; ++Index)
 		{
-			if (GetName(Index).Equals(Name))
+			if (GetName(Index).AsStringView().Equals(Name))
 			{
 				return GetValue(Index);
 			}

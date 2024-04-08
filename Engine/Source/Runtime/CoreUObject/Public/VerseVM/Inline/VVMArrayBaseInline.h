@@ -58,11 +58,10 @@ inline void VArrayBase::ConvertDataToVValues(FAllocationContext Context, const u
 	V_DIE_IF(IsA<VMutableArray>() && !Capacity);
 	if (GetArrayType() != EArrayType::VValue)
 	{
-		const uint32 NewCapacity = Capacity ? *Capacity : NumValues;
-		checkSlow(NewCapacity >= NumValues);
+		const uint32 NewCapacity = Capacity ? *Capacity : Num();
 
 		TAux<TWriteBarrier<VValue>> NewValues(Context.AllocateAuxCell(sizeof(TWriteBarrier<VValue>) * NewCapacity));
-		for (uint32 Index = 0; Index < NumValues; ++Index)
+		for (uint32 Index = 0; Index < Num(); ++Index)
 		{
 			new (&NewValues[Index]) TWriteBarrier<VValue>(Context, GetValue(Index));
 		}

@@ -58,6 +58,11 @@ public:
 		return *new (Context.AllocateFastCell(sizeof(VMutableArray))) VMutableArray(Context, InNumValues, InitFunc);
 	}
 
+	static VMutableArray& New(FAllocationContext Context, FUtf8StringView String)
+	{
+		return *new (Context.AllocateFastCell(sizeof(VMutableArray))) VMutableArray(Context, String);
+	}
+
 	static void SerializeImpl(VMutableArray*& This, FAllocationContext Context, FAbstractVisitor& Visitor) { Serialize(This, Context, Visitor); }
 
 	COREUOBJECT_API FOpResult FreezeImpl(FRunningContext Context);
@@ -78,6 +83,10 @@ private:
 	VMutableArray(FAllocationContext Context, uint32 InNumValues, InitIndexFunc&& InitFunc)
 		: VArrayBase(Context, InNumValues, InitFunc, &GlobalTrivialEmergentType.Get(Context))
 		, Capacity(InNumValues) {}
+
+	VMutableArray(FAllocationContext Context, FUtf8StringView String)
+		: VArrayBase(Context, String, &GlobalTrivialEmergentType.Get(Context))
+		, Capacity(static_cast<uint32>(String.Len())) {}
 };
 
 } // namespace Verse

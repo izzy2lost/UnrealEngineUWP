@@ -16,6 +16,21 @@ namespace Verse
 {
 UE::FMutex VStringInternPool::Mutex;
 
+void VUniqueString::SerializeImpl(VUniqueString*& This, FAllocationContext Context, FAbstractVisitor& Visitor)
+{
+	if (Visitor.IsLoading())
+	{
+		FString ScratchString;
+		Visitor.Visit(ScratchString, TEXT("Value"));
+		This = &VUniqueString::New(Context, TCHAR_TO_UTF8(*ScratchString));
+	}
+	else
+	{
+		FString ScratchString(This->AsStringView());
+		Visitor.Visit(ScratchString, TEXT("Value"));
+	}
+}
+
 VUniqueString& VStringInternPool::Intern(FAllocationContext Context, FUtf8StringView String)
 {
 	UE::TUniqueLock Lock(Mutex);
@@ -48,74 +63,9 @@ void VStringInternPool::ConductCensus()
 	}
 }
 
-uint32 VUTF8String::GetTypeHashImpl()
-{
-	return GetTypeHash(*this);
-}
-
-template <typename TVisitor>
-void VUTF8String::VisitReferencesImpl(TVisitor& Visitor)
-{
-	if constexpr (TVisitor::bIsAbstractVisitor)
-	{
-		if (Visitor.IsLoading())
-		{
-			V_DIE("VUTF8String isn't mutable and can not be loaded through the abstract visitors, use the Serialization method");
-		}
-		else
-		{
-			FString ScratchString(AsStringView());
-			Visitor.Visit(ScratchString, TEXT("Value"));
-		}
-	}
-}
-
-void VUTF8String::ToStringImpl(FStringBuilderBase& Builder, FAllocationContext Context, const FCellFormatter& Formatter)
-{
-	Builder.Append(TEXT("\"")).Append(AsCString()).Append(TEXT("\""));
-}
-
-void VUTF8String::SerializeImpl(VUTF8String*& This, FAllocationContext Context, FAbstractVisitor& Visitor)
-{
-	if (Visitor.IsLoading())
-	{
-		FString ScratchString;
-		Visitor.Visit(ScratchString, TEXT("Value"));
-		This = &VUTF8String::New(Context, TCHAR_TO_UTF8(*ScratchString));
-	}
-	else
-	{
-		FString ScratchString(This->AsStringView());
-		Visitor.Visit(ScratchString, TEXT("Value"));
-	}
-}
-
-DEFINE_DERIVED_VCPPCLASSINFO(VUTF8String);
-TGlobalTrivialEmergentTypePtr<&VUTF8String::StaticCppClassInfo> VUTF8String::GlobalTrivialEmergentType;
-
 DEFINE_DERIVED_VCPPCLASSINFO(VUniqueString);
 DEFINE_TRIVIAL_VISIT_REFERENCES(VUniqueString);
 TGlobalTrivialEmergentTypePtr<&VUniqueString::StaticCppClassInfo> VUniqueString::GlobalTrivialEmergentType;
-
-void VUniqueString::ToStringImpl(FStringBuilderBase& Builder, FAllocationContext Context, const FCellFormatter& Formatter)
-{
-	Builder.Append(TEXT("\"")).Append(AsCString()).Append(TEXT("\""));
-}
-
-void VUniqueString::SerializeImpl(VUniqueString*& This, FAllocationContext Context, FAbstractVisitor& Visitor)
-{
-	if (Visitor.IsLoading())
-	{
-		FString ScratchString;
-		Visitor.Visit(ScratchString, TEXT("Value"));
-		This = &VUniqueString::New(Context, TCHAR_TO_UTF8(*ScratchString));
-	}
-	else
-	{
-		FString ScratchString(This->AsStringView());
-		Visitor.Visit(ScratchString, TEXT("Value"));
-	}
-}
 
 TLazyInitialized<VStringInternPool> VUniqueString::StringPool;
 

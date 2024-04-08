@@ -51,12 +51,12 @@ void VPackage::SetStage(EPackageStage InPackageStage)
 	ensure(Environment);
 	for (uint32 Index = UPackageMap.Num(); Index-- > 0;)
 	{
-		const VUTF8String& Utf8PackageName = UPackageMap.GetName(Index);
+		const VArray& Utf8PackageName = UPackageMap.GetName(Index);
 		VValue PackageValue = UPackageMap.GetValue(Index);
 		if (PackageValue.IsUObject())
 		{
 			UPackage* Package = Cast<UPackage>(PackageValue.AsUObject());
-			FString UPackageName = StringCast<TCHAR>(Utf8PackageName.AsCString()).Get();
+			FString UPackageName = Utf8PackageName.AsString();
 			FString ScratchSpace;
 			const TCHAR* AdornedPackageName = Environment->AdornPackageName(*UPackageName, PackageStage, ScratchSpace);
 			Package->Rename(AdornedPackageName);

@@ -4,6 +4,7 @@
 
 #if WITH_VERSE_VM || defined(__INTELLISENSE__)
 
+#include "Containers/StringView.h"
 #include "VVMAux.h"
 #include "VVMEmergentTypeCreator.h"
 #include "VVMGlobalTrivialEmergentTypePtr.h"
@@ -115,12 +116,37 @@ protected:
 		}
 	}
 
+	VArrayBase(FAllocationContext Context, FUtf8StringView String, VEmergentType* Type)
+		: VHeapValue(Context, Type)
+		, NumValues(String.Len())
+	{
+		SetIsDeeplyMutable();
+		AllocateBuffer(Context, EArrayType::Char8, NumValues);
+		FMemory::Memcpy(GetData(), String.GetData(), String.Len());
+	}
+
 	void AllocateBuffer(FAllocationContext Context, EArrayType ArrayType, uint32 Capacity)
 	{
 		checkSlow(!GetData());
-		TAux<void> NewValues = TAux<void>(Context.AllocateAuxCell(ByteLength(ArrayType) * Capacity));
-		Values.Set(Context, NewValues);
 		SetArrayType(ArrayType);
+
+		if (IsString())
+		{
+			// If we are UTF8, add +1 to capacity and set a null-terminator
+			TAux<void> NewValues = TAux<void>(Context.AllocateAuxCell(ByteLength(ArrayType) * (Capacity + 1)));
+			Values.Set(Context, NewValues);
+			SetChar(Num(), static_cast<UTF8CHAR>(0));
+		}
+		else
+		{
+			TAux<void> NewValues = TAux<void>(Context.AllocateAuxCell(ByteLength(ArrayType) * Capacity));
+			Values.Set(Context, NewValues);
+		}
+	}
+
+	void SetNullTerminator()
+	{
+		SetChar(Num(), static_cast<UTF8CHAR>(0));
 	}
 
 	void ConvertDataToVValues(FAllocationContext Context, const uint32* Capacity);
@@ -167,6 +193,40 @@ public:
 	size_t ByteLength()
 	{
 		return Num() * ByteLength(GetArrayType());
+	}
+
+	bool IsString() const
+	{
+		return GetArrayType() == EArrayType::Char8;
+	}
+
+	FString AsString() const
+	{
+		if (IsString())
+		{
+			return FString(GetData<UTF8CHAR>());
+		}
+		V_DIE("Array is not UTF8!");
+		return FString();
+	}
+
+	FUtf8StringView AsStringView() const
+	{
+		if (IsString())
+		{
+			return FUtf8StringView(GetData<UTF8CHAR>());
+		}
+		V_DIE("Array is not UTF8!");
+		return FUtf8StringView();
+	}
+
+	bool Equals(const FUtf8StringView String) const
+	{
+		if (IsString())
+		{
+			return AsStringView().Equals(String);
+		}
+		return false;
 	}
 
 	COREUOBJECT_API bool EqualImpl(FRunningContext Context, VCell* Other, const TFunction<void(::Verse::VValue, ::Verse::VValue)>& HandlePlaceholder);

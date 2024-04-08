@@ -35,13 +35,13 @@ inline uint32 FEmergentTypesCacheKeyFuncs::GetKeyHash(const VUniqueStringSet& Ke
 	return GetTypeHash(Key);
 }
 
-inline VClass& VClass::New(FAllocationContext Context, VPackage* Scope, VUTF8String* Name, VUTF8String* UEMangledName, EKind Kind, bool bNative, const TArray<VClass*>& Inherited, VConstructor& Constructor, UClass* ImportClass)
+inline VClass& VClass::New(FAllocationContext Context, VPackage* Scope, VArray* Name, VArray* UEMangledName, EKind Kind, bool bNative, const TArray<VClass*>& Inherited, VConstructor& Constructor, UClass* ImportClass)
 {
 	const size_t NumBytes = offsetof(VClass, Inherited) + Inherited.Num() * sizeof(Inherited[0]);
 	return *new (Context.AllocateFastCell(NumBytes)) VClass(Context, Scope, Name, UEMangledName, Kind, bNative, Inherited, Constructor, ImportClass);
 }
 
-inline VClass::VClass(FAllocationContext Context, VPackage* InScope, VUTF8String* InName, VUTF8String* InUEMangledName, EKind InKind, bool bInNative, const TArray<VClass*>& InInherited, VConstructor& InConstructor, UClass* InImportClass)
+inline VClass::VClass(FAllocationContext Context, VPackage* InScope, VArray* InName, VArray* InUEMangledName, EKind InKind, bool bInNative, const TArray<VClass*>& InInherited, VConstructor& InConstructor, UClass* InImportClass)
 	: VType(Context, &GlobalTrivialEmergentType.Get(Context))
 	, ClassName(Context, InName)
 	, UEMangledName(Context, InUEMangledName)

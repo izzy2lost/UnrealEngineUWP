@@ -19,6 +19,8 @@ struct VFalse : VHeapValue
 
 	static void InitializeGlobals();
 
+	COREUOBJECT_API void ToStringImpl(FStringBuilderBase& Builder, FAllocationContext Context, const FCellFormatter& Formatter);
+
 private:
 	VFalse(FAllocationContext Context)
 		: VHeapValue(Context, &GlobalTrivialEmergentType.Get(Context))

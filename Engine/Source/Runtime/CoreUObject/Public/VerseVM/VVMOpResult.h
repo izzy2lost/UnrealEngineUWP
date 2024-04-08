@@ -27,10 +27,10 @@
 	{                             \
 		::Verse::FOpResult::Yield \
 	}
-#define V_RUNTIME_ERROR(Context, Message)                                      \
-	return                                                                     \
-	{                                                                          \
-		::Verse::FOpResult::Error, ::Verse::VUTF8String::New(Context, Message) \
+#define V_RUNTIME_ERROR(Context, Message)                                 \
+	return                                                                \
+	{                                                                     \
+		::Verse::FOpResult::Error, ::Verse::VArray::New(Context, Message) \
 	}
 #define V_RUNTIME_ERROR_IF(Condition, Context, Message) \
 	if (Condition)                                      \
@@ -50,7 +50,7 @@ struct FOpResult
 		Block,  // A placeholder was encountered, and this operation should be enqueued on Value.
 		Fail,   // The current choice failed. Value is undefined.
 		Yield,  // The task suspended, and execution should continue in the resumer. Value is undefined.
-		Error,  // A runtime error occurred, and Value holds a VUTF8String with an error message.
+		Error,  // A runtime error occurred, and Value holds a VArray with an error message.
 	};
 
 	FOpResult(EKind Kind, VValue Value = VValue())

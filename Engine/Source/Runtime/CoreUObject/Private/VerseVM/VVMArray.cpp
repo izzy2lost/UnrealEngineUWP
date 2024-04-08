@@ -19,11 +19,23 @@ DEFINE_TRIVIAL_VISIT_REFERENCES(VArray);
 
 VArray& VArray::Concat(FRunningContext Context, VArrayBase& Lhs, VArrayBase& Rhs)
 {
-	VArray& NewArray = VArray::New(Context, Lhs.Num() + Rhs.Num(), DetermineCombinedType(Lhs.GetArrayType(), Rhs.GetArrayType()));
-	if (NewArray.GetArrayType() != EArrayType::VValue)
+	EArrayType NewArrayType = DetermineCombinedType(Lhs.GetArrayType(), Rhs.GetArrayType());
+	VArray& NewArray = VArray::New(Context, Lhs.Num() + Rhs.Num(), NewArrayType);
+	if (NewArrayType != EArrayType::VValue)
 	{
 		FMemory::Memcpy(NewArray.GetData(), Lhs.GetData(), Lhs.ByteLength());
-		FMemory::Memcpy(NewArray.GetData<int32>() + Lhs.Num(), Rhs.GetData(), Rhs.ByteLength());
+		switch (NewArrayType)
+		{
+			case EArrayType::Int32:
+				FMemory::Memcpy(NewArray.GetData<int32>() + Lhs.Num(), Rhs.GetData(), Rhs.ByteLength());
+				break;
+			case EArrayType::Char8:
+				FMemory::Memcpy(NewArray.GetData<uint8>() + Lhs.Num(), Rhs.GetData(), Rhs.ByteLength());
+				break;
+			case EArrayType::Char32:
+				FMemory::Memcpy(NewArray.GetData<uint32>() + Lhs.Num(), Rhs.GetData(), Rhs.ByteLength());
+				break;
+		}
 		return NewArray;
 	}
 

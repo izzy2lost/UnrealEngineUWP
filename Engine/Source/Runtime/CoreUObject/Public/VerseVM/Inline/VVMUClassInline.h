@@ -12,7 +12,7 @@ FORCEINLINE_DEBUGGABLE FVRestValueProperty* UVerseVMClass::GetPropertyForField(V
 	const VShape::VEntry* Field = Shape->GetField(Context, FieldName);
 	if (!Field)
 	{
-		V_DIE("Field: %hs was not found!", FieldName.AsCString());
+		V_DIE("Field: %s was not found!", *FieldName.AsString());
 	}
 	checkSlow(Field->Type == EFieldType::FProperty);
 	return Field->Property;

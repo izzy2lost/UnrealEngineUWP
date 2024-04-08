@@ -4,6 +4,7 @@
 #if WITH_VERSE_VM || defined(__INTELLISENSE__)
 
 #include "Templates/SharedPointer.h"
+#include "VerseVM/VVMArray.h"
 #include "VerseVM/VVMCppClassInfo.h"
 #include "VerseVM/VVMProcedure.h"
 #include "VerseVM/VVMShape.h"
@@ -146,7 +147,7 @@ struct VClass : VType
 		Interface
 	};
 
-	FUtf8StringView GetName() const { return ClassName.Get() != nullptr ? ClassName->AsCString() : FUtf8StringView(); }
+	FUtf8StringView GetName() const { return ClassName.Get() != nullptr ? ClassName->AsStringView() : FUtf8StringView(); }
 	FUtf8StringView GetUEMangledName() const { return UEMangledName.Get() != nullptr ? UEMangledName->AsStringView() : FUtf8StringView(); }
 	COREUOBJECT_API FUtf8StringView ExtractClassName() const;
 	VPackage* GetScope() const { return Scope.Get(); }
@@ -184,18 +185,18 @@ public:
 	 * @param Inherited     An array of base classes in order of inheritance.
 	 * @param Constructor   The sequence of fields and blocks in the class body.
 	 */
-	COREUOBJECT_API static VClass& New(FAllocationContext Context, VPackage* Scope, VUTF8String* Name, VUTF8String* UEMangledName, EKind Kind, bool bNative, const TArray<VClass*>& Inherited, VConstructor& Constructor, UClass* ImportClass);
+	COREUOBJECT_API static VClass& New(FAllocationContext Context, VPackage* Scope, VArray* Name, VArray* UEMangledName, EKind Kind, bool bNative, const TArray<VClass*>& Inherited, VConstructor& Constructor, UClass* ImportClass);
 
 private:
-	VClass(FAllocationContext Context, VPackage* InScope, VUTF8String* InName, VUTF8String* InUEMangledName, EKind InKind, bool bInNative, const TArray<VClass*>& InInherited, VConstructor& InConstructor, UClass* InImportClass);
+	VClass(FAllocationContext Context, VPackage* InScope, VArray* InName, VArray* InUEMangledName, EKind InKind, bool bInNative, const TArray<VClass*>& InInherited, VConstructor& InConstructor, UClass* InImportClass);
 
 	/// Append to `Entries` those elements of `Base` which are not already overridden, indicated by `Fields`.
 	COREUOBJECT_API static void Extend(TSet<VUniqueString*>& Fields, TArray<VConstructor::VEntry>& Entries, const VConstructor& Base);
 
 	bool SubsumesImpl(FRunningContext, VValue);
 
-	TWriteBarrier<VUTF8String> ClassName;
-	TWriteBarrier<VUTF8String> UEMangledName;
+	TWriteBarrier<VArray> ClassName;
+	TWriteBarrier<VArray> UEMangledName;
 
 	/// The package this class is in
 	TWriteBarrier<VPackage> Scope;

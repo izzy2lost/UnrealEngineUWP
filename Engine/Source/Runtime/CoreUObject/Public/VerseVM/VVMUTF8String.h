@@ -7,6 +7,7 @@
 #include "Containers/Set.h"
 #include "Containers/StringView.h"
 #include "Templates/UnrealTemplate.h"
+#include "VerseVM/VVMArray.h"
 #include "VerseVM/VVMCell.h"
 #include "VerseVM/VVMContext.h"
 #include "VerseVM/VVMGlobalHeapCensusRoot.h"
@@ -15,7 +16,6 @@
 
 namespace Verse
 {
-struct VUTF8String;
 struct VUniqueString;
 class VUniqueStringSetInternPool;
 
@@ -57,6 +57,7 @@ private:
 	VStringInternPool() = default;
 
 	COREUOBJECT_API VUniqueString& Intern(FAllocationContext Context, FUtf8StringView String);
+	COREUOBJECT_API VUniqueString& Intern(FAllocationContext Context, uint32 NumValues, EArrayType ArrayType);
 
 	/// This gives the string intern pool the ability to conduct census on its own to clear references to the strings.
 	COREUOBJECT_API virtual void ConductCensus() override;
@@ -70,124 +71,10 @@ private:
 	friend struct TLazyInitialized<VStringInternPool>;
 };
 
-/// Representation of a UTF-8 string in the Verse compiler.
-struct VUTF8String : VHeapValue
-{
-	using SizeType = uint32;
-
-	DECLARE_DERIVED_VCPPCLASSINFO(COREUOBJECT_API, VHeapValue);
-	COREUOBJECT_API static TGlobalTrivialEmergentTypePtr<&StaticCppClassInfo> GlobalTrivialEmergentType;
-
-	static VUTF8String& New(FAllocationContext Context, const SizeType NumUTF8CHARs)
-	{
-		const size_t NumBytes = AllocationSize(NumUTF8CHARs);
-		return *new (Context.AllocateFastCell(NumBytes)) VUTF8String(Context, &GlobalTrivialEmergentType.Get(Context), NumUTF8CHARs);
-	}
-
-	/**
-	 * Creates a new string. Use this if you do not require your string to be unique-able.
-	 * (i.e. a one-off string not used for repeated property field lookups or some other string literal.)
-	 */
-	static VUTF8String& New(FAllocationContext Context, FUtf8StringView String)
-	{
-		const size_t NumBytes = AllocationSize(String.Len());
-		return *new (Context.AllocateFastCell(NumBytes)) VUTF8String(Context, &GlobalTrivialEmergentType.Get(Context), String);
-	}
-
-	/**
-	 * Creates a new string from the concatenation of two input strings.
-	 */
-	static VUTF8String& Concat(FAllocationContext Context, VUTF8String& Left, VUTF8String& Right)
-	{
-		const SizeType NumUTF8CHARs = Left.Num() + Right.Num();
-		const size_t NumBytes = AllocationSize(NumUTF8CHARs);
-		VUTF8String& NewString = *new (Context.AllocateFastCell(NumBytes)) VUTF8String(Context, &GlobalTrivialEmergentType.Get(Context), NumUTF8CHARs);
-		checkSlow(NewString.Data() && Left.Data() && Right.Data());
-		memcpy(NewString.Data(), Left.Data(), Left.Num());
-		memcpy(NewString.Data() + Left.Num(), Right.Data(), Right.Num());
-		NewString.Data()[NumUTF8CHARs] = static_cast<UTF8CHAR>(0);
-		return NewString;
-	}
-
-	SizeType Num() const
-	{
-		return NumUTF8CHARs;
-	}
-
-	bool Equals(FUtf8StringView String) const
-	{
-		return AsStringView().Equals(String, ESearchCase::CaseSensitive);
-	}
-
-	bool operator==(const VUTF8String& Other) const
-	{
-		return Equals(Other.AsStringView());
-	}
-
-	const char* AsCString() const
-	{
-		return reinterpret_cast<const char*>(Data());
-	}
-
-	FUtf8StringView AsStringView() const
-	{
-		return FUtf8StringView(Data(), IntCastChecked<int32>(NumUTF8CHARs));
-	}
-
-	COREUOBJECT_API uint32 GetTypeHashImpl();
-
-	COREUOBJECT_API void ToStringImpl(FStringBuilderBase& Builder, FAllocationContext Context, const FCellFormatter& Formatter);
-
-	static void SerializeImpl(VUTF8String*& This, FAllocationContext Context, FAbstractVisitor& Visitor);
-
-	UTF8CHAR Get(SizeType I) const
-	{
-		checkSlow(I < Num());
-		return Data()[I];
-	}
-
-private:
-	static size_t DataOffset()
-	{
-		return Align(sizeof(VUTF8String), alignof(UTF8CHAR));
-	}
-
-	static size_t AllocationSize(const SizeType NumUTF8CHARs)
-	{
-		return DataOffset() + ((NumUTF8CHARs + 1) * sizeof(UTF8CHAR)); // Additional space for null terminator.
-	}
-
-	VUTF8String(FAllocationContext Context, const VEmergentType* EmergentType, const SizeType InNumUTF8CHARs)
-		: VHeapValue(Context, EmergentType)
-		, NumUTF8CHARs(InNumUTF8CHARs)
-	{
-	}
-
-	VUTF8String(FAllocationContext Context, const VEmergentType* EmergentType, FUtf8StringView String)
-		: VUTF8String(Context, EmergentType, String.Len())
-	{
-		if (String.Len())
-		{
-			memcpy(Data(), String.GetData(), String.Len());
-		}
-		Data()[String.Len()] = static_cast<UTF8CHAR>(0);
-	}
-
-	UTF8CHAR* Data() const
-	{
-		return BitCast<UTF8CHAR*>(BitCast<char*>(this) + DataOffset());
-	}
-
-	const SizeType NumUTF8CHARs;
-
-	friend class VStringInternPool;
-	friend struct VUniqueString;
-};
-
 /// A unique string that lives in the global string intern pool.
-struct VUniqueString final : VUTF8String
+struct VUniqueString final : VArray
 {
-	DECLARE_DERIVED_VCPPCLASSINFO(COREUOBJECT_API, VUTF8String);
+	DECLARE_DERIVED_VCPPCLASSINFO(COREUOBJECT_API, VArray);
 	COREUOBJECT_API static TGlobalTrivialEmergentTypePtr<&StaticCppClassInfo> GlobalTrivialEmergentType;
 
 	/**
@@ -204,19 +91,16 @@ struct VUniqueString final : VUTF8String
 		return this == &Other;
 	}
 
-	COREUOBJECT_API void ToStringImpl(FStringBuilderBase& Builder, FAllocationContext Context, const FCellFormatter& Formatter);
-
 	static void SerializeImpl(VUniqueString*& This, FAllocationContext Context, FAbstractVisitor& Visitor);
 
 private:
 	static VUniqueString& Make(FAllocationContext Context, FUtf8StringView String)
 	{
-		const size_t NumBytes = AllocationSize(String.Len());
-		return *new (Context.AllocateFastCell(NumBytes)) VUniqueString(Context, String);
+		return *new (Context.AllocateFastCell(sizeof(VUniqueString))) VUniqueString(Context, String);
 	}
 
 	VUniqueString(FAllocationContext Context, FUtf8StringView String)
-		: VUTF8String(Context, &GlobalTrivialEmergentType.Get(Context), String)
+		: VArray(Context, String, &GlobalTrivialEmergentType.Get(Context))
 	{
 	}
 
@@ -230,12 +114,6 @@ private:
 inline uint32 GetTypeHash(const VUniqueString& String)
 {
 	return PointerHash(&String);
-}
-
-/// Allows for `VUTF8String` to be used with Unreal hashtable containers like `TMap`/`TSet`.
-inline uint32 GetTypeHash(const VUTF8String& String)
-{
-	return GetTypeHash(String.AsStringView());
 }
 
 /// A unique string set. This makes use of a pool so that multiple requests for the same set of unique strings

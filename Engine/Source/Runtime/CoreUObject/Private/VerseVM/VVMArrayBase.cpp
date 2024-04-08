@@ -91,6 +91,13 @@ uint32 VArrayBase::GetTypeHashImpl()
 
 void VArrayBase::ToStringImpl(FStringBuilderBase& Builder, FAllocationContext Context, const FCellFormatter& Formatter)
 {
+	// We print UTF8 Arrays as strings for ease of reading when debugging and logging.
+	if (IsString())
+	{
+		Builder.Append(FString::Printf(TEXT("\"%s\""), *AsString()));
+		return;
+	}
+
 	for (uint32 I = 0; I < Num(); ++I)
 	{
 		if (I > 0)

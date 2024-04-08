@@ -25,20 +25,13 @@ namespace
 {
 void AppendDebugName(FStringBuilderBase& Builder, const VEmergentType& EmergentType)
 {
-	if (EmergentType.CppClassInfo == &VUTF8String::StaticCppClassInfo)
+	FString Name = EmergentType.CppClassInfo->DebugName();
+	FStringView NameView(Name);
+	if (NameView.Len() > 0 && NameView[0] == 'V')
 	{
-		Builder.Append(TEXT("String"));
+		NameView.RightChopInline(1);
 	}
-	else
-	{
-		FString Name = EmergentType.CppClassInfo->DebugName();
-		FStringView NameView(Name);
-		if (NameView.Len() > 0 && NameView[0] == 'V')
-		{
-			NameView.RightChopInline(1);
-		}
-		Builder.Append(NameView);
-	}
+	Builder.Append(NameView);
 }
 } // namespace
 
@@ -170,6 +163,24 @@ struct FDefaultCellFormmatterVisitor : FAbstractVisitor
 	{
 		BeginElement(ElementName);
 		Builder.Append(bValue ? TEXT("true") : TEXT("false"));
+	}
+
+	void Visit(uint8& Value, const TCHAR* ElementName) override
+	{
+		BeginElement(ElementName);
+		Builder.Append(FString::Printf(TEXT("%d"), Value));
+	}
+
+	void Visit(uint32& Value, const TCHAR* ElementName) override
+	{
+		BeginElement(ElementName);
+		Builder.Append(FString::Printf(TEXT("%d"), Value));
+	}
+
+	void Visit(int32& Value, const TCHAR* ElementName) override
+	{
+		BeginElement(ElementName);
+		Builder.Append(FString::Printf(TEXT("%d"), Value));
 	}
 
 	virtual void Visit(FString& Value, const TCHAR* ElementName) override

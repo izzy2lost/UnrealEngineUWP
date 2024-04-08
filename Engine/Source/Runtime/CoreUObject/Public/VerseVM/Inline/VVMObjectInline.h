@@ -57,7 +57,7 @@ inline void VObject::SetField(FAllocationContext Context, VUniqueString& Name, V
 			GetData(*EmergentType->CppClassInfo)[Field->Index].Set(Context, Value);
 			break;
 		case EFieldType::Constant:
-			V_DIE("Attempted to set a value for a non-offset field: %hs!", Name.AsCString());
+			V_DIE("Attempted to set a value for a non-offset field: %s!", *Name.AsString());
 			break;
 		default:
 			VERSE_UNREACHABLE();

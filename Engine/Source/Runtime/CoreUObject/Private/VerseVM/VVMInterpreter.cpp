@@ -886,28 +886,28 @@ class FInterpreter
 		FAIL();              \
 	}
 
-#define OP_RESULT_HELPER(Result)                                                            \
-	if (Result.Kind != FOpResult::Return)                                                   \
-	{                                                                                       \
-		if (Result.Kind == FOpResult::Block)                                                \
-		{                                                                                   \
-			check(Result.Value.IsPlaceholder());                                            \
-			ENQUEUE_SUSPENSION(Result.Value);                                               \
-		}                                                                                   \
-		else if (Result.Kind == FOpResult::Fail)                                            \
-		{                                                                                   \
-			FAIL();                                                                         \
-		}                                                                                   \
-		else if (Result.Kind == FOpResult::Yield)                                           \
-		{                                                                                   \
-			YIELD();                                                                        \
-		}                                                                                   \
-		else                                                                                \
-		{                                                                                   \
-			check(Result.Kind == FOpResult::Error);                                         \
-			/* TODO: SOL-4563 Implement proper handling of runtime errors */                \
-			V_DIE("%s", UTF8_TO_TCHAR(Result.Value.StaticCast<VUTF8String>().AsCString())); \
-		}                                                                                   \
+#define OP_RESULT_HELPER(Result)                                             \
+	if (Result.Kind != FOpResult::Return)                                    \
+	{                                                                        \
+		if (Result.Kind == FOpResult::Block)                                 \
+		{                                                                    \
+			check(Result.Value.IsPlaceholder());                             \
+			ENQUEUE_SUSPENSION(Result.Value);                                \
+		}                                                                    \
+		else if (Result.Kind == FOpResult::Fail)                             \
+		{                                                                    \
+			FAIL();                                                          \
+		}                                                                    \
+		else if (Result.Kind == FOpResult::Yield)                            \
+		{                                                                    \
+			YIELD();                                                         \
+		}                                                                    \
+		else                                                                 \
+		{                                                                    \
+			check(Result.Kind == FOpResult::Error);                          \
+			/* TODO: SOL-4563 Implement proper handling of runtime errors */ \
+			V_DIE("%s", *Result.Value.StaticCast<VArray>().AsString());      \
+		}                                                                    \
 	}
 
 	// Macro definitions to be used in impl functions.
@@ -967,14 +967,6 @@ class FInterpreter
 			VRational& RightRational = PrepareRationalSourceHelper(RightSource);
 
 			DEF(Op.Dest, VRational::Add(Context, LeftRational, RightRational).StaticCast<VCell>());
-		}
-		else if (LeftSource.IsCellOfType<VUTF8String>() && RightSource.IsCellOfType<VUTF8String>())
-		{
-			// String concatenation.
-			VUTF8String& LeftString = LeftSource.StaticCast<VUTF8String>();
-			VUTF8String& RightString = RightSource.StaticCast<VUTF8String>();
-
-			DEF(Op.Dest, VUTF8String::Concat(Context, LeftString, RightString));
 		}
 		else if (LeftSource.IsCellOfType<VArrayBase>() && RightSource.IsCellOfType<VArrayBase>())
 		{
@@ -1264,10 +1256,6 @@ class FInterpreter
 		{
 			DEF(Op.Dest, VInt{static_cast<int32>(Map->Num())});
 		}
-		else if (const VUTF8String* String = Container.DynamicCast<VUTF8String>())
-		{
-			DEF(Op.Dest, VInt{static_cast<int32>(String->Num())});
-		}
 		else
 		{
 			V_DIE("Unsupported container type passed!");
@@ -1401,18 +1389,6 @@ class FInterpreter
 				if (VValue Result = Map->Find(Argument))
 				{
 					DEF(Op.Dest, Result);
-				}
-				else
-				{
-					FAIL();
-				}
-			}
-			else if (VUTF8String* String = Callee.DynamicCast<VUTF8String>())
-			{
-				REQUIRE_CONCRETE(Argument);
-				if (Argument.IsUint32() && Argument.AsUint32() < String->Num())
-				{
-					DEF(Op.Dest, VValue::Char(String->Get(Argument.AsUint32())));
 				}
 				else
 				{
@@ -1621,7 +1597,7 @@ class FInterpreter
 					FieldValue = Field->Value.Get();
 					break;
 				default:
-					V_DIE("Field: %hs has an unsupported type; cannot load!", FieldName.AsCString());
+					V_DIE("Field: %s has an unsupported type; cannot load!", *FieldName.AsString());
 					break;
 			}
 		}
@@ -1676,7 +1652,7 @@ class FInterpreter
 					bSucceeded = Def(Field->Value.Get(), ValueOperand);
 					break;
 				default:
-					V_DIE("Field: %hs has an unsupported type; cannot unify!", Op.Name.Get()->AsCString());
+					V_DIE("Field: %s has an unsupported type; cannot unify!", *Op.Name.Get()->AsString());
 					break;
 			}
 		}

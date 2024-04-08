@@ -28,5 +28,10 @@ void VFalse::InitializeGlobals()
 	});
 }
 
+void VFalse::ToStringImpl(FStringBuilderBase& Builder, FAllocationContext Context, const FCellFormatter& Formatter)
+{
+	Builder.Append("False");
+}
+
 } // namespace Verse
 #endif // WITH_VERSE_VM || defined(__INTELLISENSE__)

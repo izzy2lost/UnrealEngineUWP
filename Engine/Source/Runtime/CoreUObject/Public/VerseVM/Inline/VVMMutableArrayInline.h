@@ -38,6 +38,10 @@ inline void VMutableArray::AddValue(FAllocationContext Context, VValue Value)
 	uint32 Index = Num();
 	++NumValues;
 	SetValue(Context, Index, Value);
+	if (IsString())
+	{
+		SetNullTerminator();
+	}
 }
 
 template <typename T>
@@ -54,6 +58,10 @@ inline void VMutableArray::Append(FAllocationContext Context, VArrayBase& Array)
 	}
 	FMemory::Memcpy(GetData<T>() + Num(), Array.GetData<T>(), Array.ByteLength());
 	NumValues = NewNumValues;
+	if (IsString())
+	{
+		SetNullTerminator();
+	}
 }
 
 template <>

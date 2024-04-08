@@ -32,15 +32,15 @@ struct VPackage : VCell
 	DECLARE_DERIVED_VCPPCLASSINFO(COREUOBJECT_API, VCell);
 	COREUOBJECT_API static TGlobalTrivialEmergentTypePtr<&StaticCppClassInfo> GlobalTrivialEmergentType;
 
-	TWriteBarrier<VUTF8String> DigestCode[2]; // One for each variant
+	TWriteBarrier<VArray> DigestCode[2]; // One for each variant
 
-	VUTF8String& GetName() const { return *PackageName; }
+	VArray& GetName() const { return *PackageName; }
 
 	uint32 Num() const { return Map.Num(); }
-	const VUTF8String& GetName(uint32 Index) const { return Map.GetName(Index); }
+	const VArray& GetName(uint32 Index) const { return Map.GetName(Index); }
 	VValue GetDefinition(uint32 Index) const { return Map.GetValue(Index).Follow(); }
 	void AddDefinition(FAllocationContext Context, FUtf8StringView Name, VValue Definition) { Map.AddValue(Context, Name, Definition); }
-	void AddDefinition(FAllocationContext Context, VUTF8String& Name, VValue Definition) { Map.AddValue(Context, Name, Definition); }
+	void AddDefinition(FAllocationContext Context, VArray& Name, VValue Definition) { Map.AddValue(Context, Name, Definition); }
 	VValue LookupDefinition(FUtf8StringView Name) const { return Map.Lookup(Name); }
 	template <typename CellType>
 	CellType* LookupDefinition(FUtf8StringView Name) const { return Map.LookupCell<CellType>(Name); }
@@ -51,13 +51,13 @@ struct VPackage : VCell
 	EPackageStage GetStage() const { return PackageStage; }
 	COREUOBJECT_API void SetStage(EPackageStage InPackageStage);
 
-	static VPackage& New(FAllocationContext Context, VUTF8String& Name, uint32 Capacity, EPackageStage InPackageStage = EPackageStage::Global)
+	static VPackage& New(FAllocationContext Context, VArray& Name, uint32 Capacity, EPackageStage InPackageStage = EPackageStage::Global)
 	{
 		return *new (Context.AllocateFastCell(sizeof(VPackage))) VPackage(Context, Name, Capacity, InPackageStage);
 	}
 
 private:
-	VPackage(FAllocationContext Context, VUTF8String& Name, uint32 Capacity, EPackageStage InPackageStage)
+	VPackage(FAllocationContext Context, VArray& Name, uint32 Capacity, EPackageStage InPackageStage)
 		: VCell(Context, &GlobalTrivialEmergentType.Get(Context))
 		, PackageName(Context, &Name)
 		, Map(Context, Capacity)
@@ -67,7 +67,7 @@ private:
 
 	UPackage* GetUPackageInternal(FUtf8StringView UEPackageName) const;
 
-	TWriteBarrier<VUTF8String> PackageName;
+	TWriteBarrier<VArray> PackageName;
 	VNameValueMap Map;
 	VNameValueMap UPackageMap;
 	EPackageStage PackageStage;
