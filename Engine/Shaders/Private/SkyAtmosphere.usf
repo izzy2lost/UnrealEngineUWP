@@ -965,6 +965,19 @@ void RenderSkyAtmosphereRayMarchingPS(
 		PreExposedL += SkyLuminance * LuminanceScale * (ViewOneOverPreExposure * OutputPreExposure);
 	
 		OutLuminance = PrepareOutput(PreExposedL, SkyGreyTransmittance);
+		
+	#if POST_PROCESS_ALPHA
+		if (View.RenderingReflectionCaptureMask == 0.0f)
+		{
+			// This is for parity with the sky dome mesh behavior.
+			// Output fully opaque alpha if looking through outer space, if atmosphere is not in holdout.
+			if (DeviceZ == FarDepthValue && !IsSkyAtmosphereHoldout(View.EnvironmentComponentsFlags))
+			{
+				OutLuminance.a = 1.0;
+			}
+		}
+	#endif
+		
 		return;
 	}
 #endif

@@ -648,6 +648,13 @@ FPackedPathTracingPayload TraceTransparentRay(inout FPathState PathState, int Bo
 
 		if (PackedPayload.IsMiss())
 		{
+			// This is for parity with the sky dome mesh behavior.
+			// Output fully opaque alpha if looking through outer space, if atmosphere is not in holdout.
+			if (bIsCameraRay && (VolumeFlags & PATH_TRACER_VOLUME_HOLDOUT_ATMOSPHERE) == 0)
+			{
+				PathState.Alpha += Luminance(PathState.PathThroughput);
+			}
+
 			// Ray didn't hit any real geometry
 			break;
 		}
