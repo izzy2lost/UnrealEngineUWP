@@ -249,13 +249,6 @@ protected:
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Material Designer")
 	bool bCreateMaterialPackage;
 
-	/**
-	 * This is just a quick, transient flag that marks this model as needing to
-	 * open the wizard when it is opened by the material designer. It is initially
-	 * set to true, but set to false on first opening and on post load.
-	 */
-	bool bUseWizard;
-
 	FDMOnMaterialBuilt OnMaterialBuiltDelegate;
 	FDMOnValueListUpdated OnValueListUpdateDelegate;
 	FDMOnValueUpdated OnValueUpdateDelegate;

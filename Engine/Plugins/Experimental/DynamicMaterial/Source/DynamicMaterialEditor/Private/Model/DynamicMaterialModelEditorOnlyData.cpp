@@ -141,7 +141,6 @@ UDynamicMaterialModelEditorOnlyData::UDynamicMaterialModelEditorOnlyData()
 	ShadingModel = EDMMaterialShadingModel::Unlit;
 	bPixelAnimationFlag = false;
 	bTwoSidedFlag = true;
-	bUseWizard = true;
 	ChannelListPreset = NAME_None;
 
 	Properties.Emplace(EDMMaterialPropertyType::BaseColor,           CreateDefaultSubobject<UDMMaterialPropertyBaseColor>(          "MaterialProperty_BaseColor"));
@@ -669,12 +668,11 @@ TSharedRef<FDMMaterialBuildState> UDynamicMaterialModelEditorOnlyData::CreateBui
 
 bool UDynamicMaterialModelEditorOnlyData::NeedsWizard() const
 {
-	return bUseWizard;
+	return ChannelListPreset == NAME_None;
 }
 
 void UDynamicMaterialModelEditorOnlyData::OnWizardComplete()
 {
-	bUseWizard = false;
 }
 
 void UDynamicMaterialModelEditorOnlyData::SetChannelListPreset(FName InPresetName)
@@ -1312,8 +1310,6 @@ void UDynamicMaterialModelEditorOnlyData::PostLoad()
 	SetFlags(RF_Transactional);
 
 	ReinitComponents();
-
-	bUseWizard = false;
 }
 
 void UDynamicMaterialModelEditorOnlyData::PostEditUndo()
