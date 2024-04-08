@@ -207,13 +207,18 @@ private:
 	/**
 	 * Saves the state of UncontrolledChangelists to Json for persistency.
 	 */
-	void SaveState() const;
+	void SaveState();
 	
 	/**
 	 * Restores the previously saved state from Json.
 	 */
 	void LoadState();
-		
+	
+	/**
+	 * Removes any duplicated files across changelists
+	 */
+	void SanitizeState();
+
 	/**
 	 * Called on End of frame. Calls SaveState if needed.
 	 */

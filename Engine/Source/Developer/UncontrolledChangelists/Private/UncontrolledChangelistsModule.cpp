@@ -728,8 +728,10 @@ FUncontrolledChangelistStateRef FUncontrolledChangelistsModule::GetDefaultUncont
 	return UncontrolledChangelistsStateCache.Emplace(MoveTemp(DefaultUncontrolledChangelist), MakeShared<FUncontrolledChangelistState>(DefaultUncontrolledChangelist, FUncontrolledChangelistState::DEFAULT_UNCONTROLLED_CHANGELIST_DESCRIPTION));
 }
 
-void FUncontrolledChangelistsModule::SaveState() const
+void FUncontrolledChangelistsModule::SaveState()
 {
+	SanitizeState();
+
 	TSharedPtr<FJsonObject> RootObject = MakeShareable(new FJsonObject);
 	TArray<TSharedPtr<FJsonValue>> UncontrolledChangelistsArray;
 
@@ -813,7 +815,53 @@ void FUncontrolledChangelistsModule::LoadState()
 		UncontrolledChangelistState->Deserialize(JsonObject);
 	}
 
+	SanitizeState();
+
 	UE_LOG(LogSourceControl, Display, TEXT("Uncontrolled Changelist persistency file loaded %s"), *GetPersistentFilePath());
+}
+
+void FUncontrolledChangelistsModule::SanitizeState()
+{
+	TSet<FString> AllFiles;
+
+	for (const TPair<FUncontrolledChangelist, FUncontrolledChangelistStateRef>& Pair : UncontrolledChangelistsStateCache)
+	{
+		FUncontrolledChangelistStateRef UncontrolledChangelistState = Pair.Value;
+
+		// UncontrolledChangelistState->Files
+		{
+			for (TSet<FSourceControlStateRef>::TIterator FileStateIt = UncontrolledChangelistState->Files.CreateIterator(); FileStateIt; ++FileStateIt)
+			{
+				if (AllFiles.Contains((*FileStateIt)->GetFilename()))
+				{
+					FileStateIt.RemoveCurrent();
+				}
+				else
+				{
+					AllFiles.Add((*FileStateIt)->GetFilename());
+				}
+			}
+
+		}
+
+		auto RemoveDuplicateFiles = [&AllFiles](TSet<FString>& Files)
+		{
+			for (TSet<FString>::TIterator FileIt = Files.CreateIterator(); FileIt; ++FileIt)
+			{
+				if (AllFiles.Contains(*FileIt))
+				{
+					FileIt.RemoveCurrent();
+				}
+				else
+				{
+					AllFiles.Add(*FileIt);
+				}
+			}
+		};
+
+		RemoveDuplicateFiles(UncontrolledChangelistState->OfflineFiles);
+		RemoveDuplicateFiles(UncontrolledChangelistState->DeletedOfflineFiles);
+	}
 }
 
 FString FUncontrolledChangelistsModule::GetPersistentFilePath() const
