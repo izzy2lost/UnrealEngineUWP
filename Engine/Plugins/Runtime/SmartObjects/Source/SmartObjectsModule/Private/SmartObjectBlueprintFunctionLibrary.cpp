@@ -125,7 +125,7 @@ const USmartObjectBehaviorDefinition* USmartObjectBlueprintFunctionLibrary::Mark
 	const UWorld* World = GEngine->GetWorldFromContextObject(WorldContextObject, EGetWorldErrorMode::LogAndReturnNull);
 	if (USmartObjectSubsystem* Subsystem = USmartObjectSubsystem::GetCurrent(World))
 	{
-		Subsystem->MarkSlotAsOccupied(ClaimHandle, DefinitionClass);
+		return Subsystem->MarkSlotAsOccupied(ClaimHandle, DefinitionClass);
 	}
 
 	return nullptr;
