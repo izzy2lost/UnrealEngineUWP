@@ -54,55 +54,6 @@
 #define LOCTEXT_NAMESPACE "CustomizableObjectEditor"
 
 
-mu::ImagePtr ConvertTextureUnrealToMutable(UTexture2D* Texture, const UCustomizableObjectNode* Node, FCustomizableObjectCompiler* Compiler, bool bIsNormalComposite)
-{     
-	MUTABLE_CPUPROFILER_SCOPE(ConvertTextureUnrealToMutable);
-
-	mu::Ptr<mu::Image> MutableImage = new mu::Image;
-	EUnrealToMutableConversionError Error = EUnrealToMutableConversionError::Unknown;
-
-	Error = ConvertTextureUnrealSourceToMutable(MutableImage.get(), Texture, bIsNormalComposite, 0);
-
-	switch(Error)
-	{
-	case EUnrealToMutableConversionError::Success: break;
-	case EUnrealToMutableConversionError::UnsupportedFormat:
-		{
-			Compiler->CompilerLog(
-					LOCTEXT("UnsupportedImageFormat", 
-							"Image format not supported."), 
-					Node);
-			break;
-		}
-	case EUnrealToMutableConversionError::CompositeImageDimensionMismatch:
-		{
-			Compiler->CompilerLog(
-					LOCTEXT("CompositeImageDimensionMismatch", 
-							"Composite image dimension mismatch."), 
-					Node);
-			break;
-		}
-	case EUnrealToMutableConversionError::CompositeUnsupportedFormat:
-		{
-			Compiler->CompilerLog(
-					LOCTEXT("CompositeUnsupportedFormat", 
-							"Composite image format not supported."), 
-					Node);
-			break;
-		}
-	default:
-		{
-			Compiler->CompilerLog(
-					LOCTEXT("ImageConversionUnknownError", 
-							"Image conversion unknown error."), 
-					Node);
-			break;
-		}
-	}
-
-	return MutableImage;
-}
-
 mu::Ptr<mu::NodeImage> ResizeTextureByNumMips(const mu::Ptr<mu::NodeImage>& ImageConstant, int32 MipsToSkip)
 {
 	if (MipsToSkip > 0)

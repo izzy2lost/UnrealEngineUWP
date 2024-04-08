@@ -214,9 +214,6 @@ namespace mu
 
 		/** Function used to request an engine resource (image) from the compiler. */
 		FReferencedResourceFunc ReferencedResourceProvider;
-
-		/** Function used to ensure the provision of engine resources with ReferencedResourceProvider advances. */
-		FReferencedResourceGameThreadTickFunc ReferencedResourceProviderTick;
 	};
 
 

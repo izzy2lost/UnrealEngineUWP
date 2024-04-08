@@ -24,7 +24,6 @@
 #include "MuR/MutableRuntimeModule.h"
 
 #include "Tasks/Task.h"
-#include "Misc/ScopeRWLock.h"
 
 #include <unordered_set>
 
@@ -767,7 +766,7 @@ namespace mu
 		if (bUseConcurrency)
 		{
 			/** Protect access to the original AST being optimized. */
-			FRWLock ASTAccessLock;
+			FCriticalSection ASTAccessLock;
 
 			// Launch the tasks.
 			UE::Tasks::FTask LaunchTask = UE::Tasks::Launch(TEXT("ConstantGeneratorLaunchTasks"), 
@@ -775,7 +774,7 @@ namespace mu
 				{
 					MUTABLE_CPUPROFILER_SCOPE(ConstantGenerator_LaunchTasks);
 
-					FReadScopeLock Lock(ASTAccessLock);
+					FScopeLock Lock(&ASTAccessLock);
 
 					FImageOperator ImOp = FImageOperator::GetDefault(InOptions->ImageFormatFunc);
 
@@ -801,19 +800,23 @@ namespace mu
 							TSharedPtr< Ptr<Image> > ResolveImage = MakeShared<Ptr<Image>>();
 
 							constexpr bool bRunImmediatlyIfPossible = false;
-							UE::Tasks::FTaskEvent ReferenceCompletionEvent = InOptions->OptimisationOptions.ReferencedResourceProvider(ImageID, ResolveImage, bRunImmediatlyIfPossible);
+							UE::Tasks::FTask ReferenceCompletion = InOptions->OptimisationOptions.ReferencedResourceProvider(ImageID, ResolveImage, bRunImmediatlyIfPossible);
 
 							UE::Tasks::FTask CompleteTask = UE::Tasks::Launch(TEXT("MutableResolveComplete"),
 								[SubgraphRoot, InOptions, ResolveImage, &ASTAccessLock]()
 								{
-									FWriteScopeLock Lock(ASTAccessLock);
+									MUTABLE_CPUPROFILER_SCOPE(MutableResolveComplete);
 
 									Ptr<ASTOpConstantResource> ConstantOp = new ASTOpConstantResource;
 									ConstantOp->Type = OP_TYPE::IM_CONSTANT;
 									ConstantOp->SetValue(ResolveImage->get(), InOptions->OptimisationOptions.DiskCacheContext);
-									ASTOp::Replace(SubgraphRoot, ConstantOp);
+
+									{
+										FScopeLock Lock(&ASTAccessLock);
+										ASTOp::Replace(SubgraphRoot, ConstantOp);
+									}
 								},
-								ReferenceCompletionEvent,
+								ReferenceCompletion,
 								LowLevelTasks::ETaskPriority::BackgroundNormal);
 
 							SubgraphCompletionEvent.AddPrerequisites(CompleteTask);
@@ -831,7 +834,8 @@ namespace mu
 							// Launch the preparation on the AST-modification pipe
 							UE::Tasks::FTask PrepareTask = UE::Tasks::Launch(TEXT("MutableConstantPrepare"), [TaskPtr, &ASTAccessLock]()
 								{
-									FReadScopeLock Lock(ASTAccessLock);
+									MUTABLE_CPUPROFILER_SCOPE(MutableConstantPrepare);
+									FScopeLock Lock(&ASTAccessLock);
 
 									// We need the clone because linking modifies ASTOp state and also to be safe for concurrency.
 									TaskPtr->SourceCloned = ASTOp::DeepClone(TaskPtr->Source);
@@ -850,11 +854,20 @@ namespace mu
 							// Launch the completion on the AST-modification pipe
 							UE::Tasks::FTask CompleteTask = UE::Tasks::Launch(TEXT("MutableConstantComplete"), [TaskPtr = MoveTemp(Task), &ASTAccessLock]()
 								{
-									FWriteScopeLock Lock(ASTAccessLock);
+									MUTABLE_CPUPROFILER_SCOPE(MutableConstantComplete);
 
-									ASTOp::Replace(TaskPtr->Source, TaskPtr->Result);
-									TaskPtr->Source = nullptr;
-									TaskPtr->Result = nullptr;
+									{
+										MUTABLE_CPUPROFILER_SCOPE(Replace);
+										FScopeLock Lock(&ASTAccessLock);
+
+										ASTOp::Replace(TaskPtr->Source, TaskPtr->Result);
+										TaskPtr->Result = nullptr;
+									}
+
+									{
+										MUTABLE_CPUPROFILER_SCOPE(Release);
+										TaskPtr->Source = nullptr;
+									}
 								},
 								RunTask,
 								LowLevelTasks::ETaskPriority::BackgroundHigh);
@@ -872,21 +885,8 @@ namespace mu
 
 			// Wait for pending tasks
 			{
-				MUTABLE_CPUPROFILER_SCOPE(ConstantGenerator_WaitPending);
-				if (!IsInGameThread())
-				{
-					LaunchTask.Wait();
-				}
-				else
-				{
-					const FReferencedResourceGameThreadTickFunc& ManualGameTick = InOptions->OptimisationOptions.ReferencedResourceProviderTick;
-
-					constexpr float FakeTimeStep = 0.1f;
-					while (!LaunchTask.Wait(FakeTimeStep))
-					{
-						ManualGameTick(FakeTimeStep);
-					}
-				}
+				MUTABLE_CPUPROFILER_SCOPE(Waiting);
+				LaunchTask.Wait();
 			}
 		}
 
@@ -921,8 +921,8 @@ namespace mu
 							{
 								TSharedPtr< Ptr<Image> > ResolveImage = MakeShared<Ptr<Image>>();
 								constexpr bool bRunImmediatlyIfPossible = true;
-								UE::Tasks::FTaskEvent ReferenceCompletionEvent = InOptions->OptimisationOptions.ReferencedResourceProvider(ImageID, ResolveImage, bRunImmediatlyIfPossible);
-								ReferenceCompletionEvent.Wait();
+								UE::Tasks::FTask ReferenceCompletion = InOptions->OptimisationOptions.ReferencedResourceProvider(ImageID, ResolveImage, bRunImmediatlyIfPossible);
+								ReferenceCompletion.Wait();
 								Ptr<ASTOpConstantResource> ConstantOp = new ASTOpConstantResource;
 								ConstantOp->Type = OP_TYPE::IM_CONSTANT;
 								ConstantOp->SetValue(ResolveImage->get(), InOptions->OptimisationOptions.DiskCacheContext);

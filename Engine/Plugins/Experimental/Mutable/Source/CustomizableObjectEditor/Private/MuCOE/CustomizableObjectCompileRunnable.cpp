@@ -45,8 +45,6 @@ FCustomizableObjectCompileRunnable::FCustomizableObjectCompileRunnable(mu::Ptr<m
 
 mu::Ptr<mu::Image> FCustomizableObjectCompileRunnable::LoadResourceReferenced(int32 ID)
 {
-	check(IsInGameThread());
-
 	MUTABLE_CPUPROFILER_SCOPE(LoadResourceReferenced);
 
 	mu::Ptr<mu::Image> Image;
@@ -58,23 +56,20 @@ mu::Ptr<mu::Image> FCustomizableObjectCompileRunnable::LoadResourceReferenced(in
 	}
 
 	// Find the texture id
-	TSoftObjectPtr<UTexture> TexturePtr = ReferencedTextures[ID];
-
-	// This can cause a stall because of loading the asset.
-	UTexture2D* Texture = Cast<UTexture2D>(TexturePtr.LoadSynchronous());
-	if (!Texture)
-	{
-		// Failed to load the texture
-		check(false);
-		return Image;
-	}
+	FMutableSourceTextureData& TextureData = ReferencedTextures[ID];
 
 	// In the editor the src data can be directly accessed
 	Image = new mu::Image();
 	int32 MipmapsToSkip = 0;
-	bool bIsNormalComposite = false; // TODO?
-	EUnrealToMutableConversionError Error = ConvertTextureUnrealSourceToMutable(Image.get(), Texture, bIsNormalComposite, MipmapsToSkip);
-	check(Error == EUnrealToMutableConversionError::Success);
+	EUnrealToMutableConversionError Error = ConvertTextureUnrealSourceToMutable(Image.get(), TextureData, MipmapsToSkip);
+
+	if (Error != EUnrealToMutableConversionError::Success)
+	{
+		// This could happen in the editor, because some source textures may have changed while there was a background compilation.
+		// We just show a warning and move on. This cannot happen during cooks, so it is fine.
+		UE_LOG(LogMutable, Warning, TEXT("Failed to load some source texture data for texture ID [%d]. Some textures may be corrupted."), ID);
+	}
+
 	return Image;
 }
 
@@ -146,31 +141,19 @@ uint32 FCustomizableObjectCompileRunnable::Run()
 		CompilerOptions->SetImagePixelFormatOverride( UnrealPixelFormatFunc );
 	}
 
-	auto ProviderTick = [this](float)
+	CompilerOptions->SetReferencedResourceCallback([this](int32 ID, TSharedPtr<mu::Ptr<mu::Image>> ResolvedImage, bool bRunImmediatlyIfPossible)
 		{
-			Tick();
-		};
+			UE::Tasks::FTask LaunchTask = UE::Tasks::Launch(TEXT("ConstantGeneratorLaunchTasks"),
+				[ID,ResolvedImage,this]()
+				{
+					mu::Ptr<mu::Image> Result = LoadResourceReferenced(ID);
+					*ResolvedImage = Result;
+				},
+				LowLevelTasks::ETaskPriority::BackgroundLow
+			);
 
-	CompilerOptions->SetReferencedResourceCallback([this, &ProviderTick](int32 ID, TSharedPtr<mu::Ptr<mu::Image>> ResolvedImage, bool bRunImmediatlyIfPossible)
-		{
-			// This runs in a random thread
-			UE::Tasks::FTaskEvent CompletionEvent(TEXT("ReferencedResourceCallbackCompletion"));			
-
-			if (IsInGameThread() && bRunImmediatlyIfPossible)
-			{
-				// Do everything now
-				mu::Ptr<mu::Image> Result = LoadResourceReferenced(ID);
-				*ResolvedImage = Result;
-				CompletionEvent.Trigger();
-			}
-			else
-			{
-				PendingResourceReferenceRequests.Enqueue(FReferenceResourceRequest{ ID, ResolvedImage, MakeShared<UE::Tasks::FTaskEvent>(CompletionEvent) });
-			}
-
-			return CompletionEvent;
-		}, 
-		ProviderTick
+			return LaunchTask;
+		}
 	);
 
 	const int32 MinResidentMips = UTexture::GetStaticMinTextureResidentMipCount();

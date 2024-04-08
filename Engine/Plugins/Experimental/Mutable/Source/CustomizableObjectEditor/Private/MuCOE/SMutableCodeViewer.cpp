@@ -2560,9 +2560,25 @@ namespace
 			check(MipIndex >= 0);
 
 			mu::Ptr<mu::Image> ResultImage = new mu::Image();
-			bool bIsNormalComposite = false; // TODO?
-			EUnrealToMutableConversionError Error = ConvertTextureUnrealSourceToMutable(ResultImage.get(), Texture, bIsNormalComposite, MipmapsToSkip);
-			check(Error == EUnrealToMutableConversionError::Success);
+
+			FMutableSourceTextureData Tex;
+			Tex.Source = Texture->Source.CopyTornOff();
+			Tex.bFlipGreenChannel = Texture->bFlipGreenChannel;
+			Tex.bHasAlphaChannel =
+				Texture->AdjustMinAlpha != Texture->AdjustMaxAlpha
+				&& Texture->CompressionSettings != TextureCompressionSettings::TC_Normalmap
+				&& !Texture->CompressionNoAlpha;
+			Tex.bCompressionForceAlpha = Texture->CompressionForceAlpha;
+			Tex.bIsNormalComposite = false; // TODO?
+
+			EUnrealToMutableConversionError Error = ConvertTextureUnrealSourceToMutable(ResultImage.get(), Tex, MipmapsToSkip);
+
+			if (Error != EUnrealToMutableConversionError::Success)
+			{
+				// This could happen in the editor, because some source textures may have changed while there was a background compilation.
+				// We just show a warning and move on. This cannot happen during cooks, so it is fine.
+				UE_LOG(LogMutable, Warning, TEXT("Failed to load some source texture data for [%s]. Some textures may be corrupted."), *Texture->GetName());
+			}
 
 			ResultCallback(ResultImage);
 

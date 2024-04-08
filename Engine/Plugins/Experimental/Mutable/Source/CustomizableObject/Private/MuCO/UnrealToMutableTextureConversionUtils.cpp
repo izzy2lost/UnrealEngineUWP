@@ -11,7 +11,7 @@
 
 #if WITH_EDITOR
 
-namespace UnrealToMutableImageConversion_Interanl
+namespace UnrealToMutableImageConversion_Internal
 {
 	
 FORCEINLINE ERawImageFormat::Type ConvertFormatSourceToRaw(const ETextureSourceFormat SourceFormat)
@@ -173,44 +173,37 @@ void BlurNormalForComposite(FImage& Image)
 } //namespace UnrealToMutableImageConversion_Internal
 
 
-EUnrealToMutableConversionError ConvertTextureUnrealSourceToMutable(mu::Image* OutResult, UTexture2D* Texture, bool bIsNormalComposite, uint8 MipmapsToSkip)
+EUnrealToMutableConversionError ConvertTextureUnrealSourceToMutable(mu::Image* OutResult, FMutableSourceTextureData& Tex, uint8 MipmapsToSkip)
 {
-	MUTABLE_CPUPROFILER_SCOPE(ConvertTextureUnrealToMutableTuple);
+	MUTABLE_CPUPROFILER_SCOPE(ConvertTextureUnrealSourceToMutable);
 
-    using namespace UnrealToMutableImageConversion_Interanl;
+    using namespace UnrealToMutableImageConversion_Internal;
 
 	// Correct mips to skip to fit source data
-	MipmapsToSkip = FMath::Clamp(MipmapsToSkip, 0, Texture->Source.GetNumMips()-1);
+	MipmapsToSkip = FMath::Clamp(MipmapsToSkip, 0, Tex.Source.GetNumMips()-1);
 
     const int32 LODs = 1;
-    const int32 SizeX = Texture->Source.GetSizeX() >> MipmapsToSkip;
-    const int32 SizeY = Texture->Source.GetSizeY() >> MipmapsToSkip;
+    const int32 SizeX = Tex.Source.GetSizeX() >> MipmapsToSkip;
+    const int32 SizeY = Tex.Source.GetSizeY() >> MipmapsToSkip;
 	check(SizeX > 0 && SizeY > 0);
 
-    ETextureSourceFormat Format = Texture->Source.GetFormat();
+    ETextureSourceFormat Format = Tex.Source.GetFormat();
  
     ERawImageFormat::Type RawFormat = ConvertFormatSourceToRaw(Format);
-
-	// Not true, we will convert it.
-	// \TODO: Warn?
-    //if (RawFormat == ERawImageFormat::RGBA32F)
-    //{
-    //    return MakeTuple(nullptr, EUnrealToMutableConversionError::UnsupportedFormat);
-    //}
 
 	// What if source data is not linear?
     FImage TempImage(SizeX, SizeY, 1, RawFormat, EGammaSpace::Linear);
 	FImage TempImage2;
 
-    if (!Texture->Source.GetMipData(TempImage.RawData, MipmapsToSkip))
+    if (!Tex.Source.GetMipData(TempImage.RawData, MipmapsToSkip))
     {
         return EUnrealToMutableConversionError::Unknown;
     }
 
-    bool bFlipGreenChannel = Texture->bFlipGreenChannel;
+    bool bFlipGreenChannel = Tex.bFlipGreenChannel;
 
     // If any post processes of the image is needed, convert to RGBA32F
-    if (bIsNormalComposite)
+    if (Tex.bIsNormalComposite)
     { 
 		MUTABLE_CPUPROFILER_SCOPE(FlipOrComposite);
 
@@ -264,11 +257,8 @@ EUnrealToMutableConversionError ConvertTextureUnrealSourceToMutable(mu::Image* O
 	case ERawImageFormat::BGRA8:
 	{
 		// Try to find out if the texture has and actually makes use of the alpha channel
-		bool bHasAlphaChannel = 
-			Texture->AdjustMinAlpha != Texture->AdjustMaxAlpha
-			&& Texture->CompressionSettings != TextureCompressionSettings::TC_Normalmap
-			&& !Texture->CompressionNoAlpha
-			&& (Texture->CompressionForceAlpha 
+		bool bHasAlphaChannel = Tex.bHasAlphaChannel
+			&& (Tex.bCompressionForceAlpha
 				||
 				FImageCore::DetectAlphaChannel(TempImage));
 

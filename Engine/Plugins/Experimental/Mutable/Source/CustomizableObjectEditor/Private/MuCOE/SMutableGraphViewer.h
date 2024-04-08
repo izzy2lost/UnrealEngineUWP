@@ -36,7 +36,7 @@ public:
 	SLATE_ARGUMENT(FString, DataTag)
 
 	SLATE_ARGUMENT(TArray<TSoftObjectPtr<UTexture>>, ReferencedRuntimeTextures)
-	SLATE_ARGUMENT(TArray<TSoftObjectPtr<UTexture>>, ReferencedCompileTextures)
+	SLATE_ARGUMENT(TArray<FMutableSourceTextureData>, ReferencedCompileTextures)
 
 	SLATE_END_ARGS()
 
@@ -60,7 +60,7 @@ private:
 
 	/** Array of external referenced textures in MutableModel, indexed by id. */
 	TArray<TSoftObjectPtr<UTexture>> ReferencedRuntimeTextures;
-	TArray<TSoftObjectPtr<UTexture>> ReferencedCompileTextures;
+	TArray<FMutableSourceTextureData> ReferencedCompileTextures;
 
 	/** Object compiler. */
 	FCustomizableObjectCompiler Compiler;

@@ -105,7 +105,7 @@ void SMutableObjectViewer::GenerateMutableGraphPressed()
 {
 	// Convert from Unreal graph to Mutable graph.
 	TArray<TSoftObjectPtr<UTexture>> RuntimeTextures;
-	TArray<TSoftObjectPtr<UTexture>> CompilerTextures;
+	TArray<FMutableSourceTextureData> CompilerTextures;
 	mu::Ptr<mu::Node> RootNode = Compiler.Export(CustomizableObject, CompileOptions, RuntimeTextures, CompilerTextures);
 	if (!RootNode)
 	{
@@ -128,7 +128,7 @@ void SMutableObjectViewer::GenerateMutableGraphPressed()
 void SMutableObjectViewer::CompileMutableCodePressed()
 {
 	TArray<TSoftObjectPtr<UTexture>> RuntimeTextures;
-	TArray<TSoftObjectPtr<UTexture>> CompilerTextures;
+	TArray<FMutableSourceTextureData> CompilerTextures;
 	if (CompileOptions.bForceLargeLODBias)
 	{
 		// Debug compile with many different biases

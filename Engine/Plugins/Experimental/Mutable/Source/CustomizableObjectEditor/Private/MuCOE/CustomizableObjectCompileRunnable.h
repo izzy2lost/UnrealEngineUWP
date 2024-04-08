@@ -5,6 +5,7 @@
 #include "HAL/Runnable.h"
 #include "MuCO/CustomizableObject.h"
 #include "MuCO/CustomizableObjectPrivate.h"
+#include "MuCO/UnrealToMutableTextureConversionUtils.h"
 #include "MuR/Ptr.h"
 #include "MuT/Node.h"
 #include "MuCOE/CustomizableObjectEditorLogger.h"
@@ -74,7 +75,7 @@ public:
 
 	FCompilationOptions Options;
 	
-	TArray<TSoftObjectPtr<UTexture>> ReferencedTextures;
+	TArray<FMutableSourceTextureData> ReferencedTextures;
 
 	FString ErrorMsg;
 

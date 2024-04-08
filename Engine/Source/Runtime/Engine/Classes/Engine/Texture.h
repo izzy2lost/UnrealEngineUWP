@@ -264,7 +264,7 @@ struct FTextureSource
 	);
 
 	/** Make a copy with a torn-off BulkData that has the same Guid used for DDC as this->BulkData */
-	FTextureSource CopyTornOff() const;
+	ENGINE_API FTextureSource CopyTornOff() const;
 	
 	/** PNG Compresses the source art if possible or tells the bulk data to zlib compress when it saves out to disk. */
 	ENGINE_API void Compress();
@@ -431,12 +431,12 @@ struct FTextureSource
 		// we need to support the old bulkdata code path (although previously storing these allocations as
 		// raw pointers would allow it to be assigned, this would most likely cause a mismatch in lock counts,
 		// either in FTextureSource or the underlying bulkdata and was never actually safe)
-		FMipAllocation(const FMipAllocation&) {}
-		FMipAllocation& operator =(const FMipAllocation&) { return *this; }
+		ENGINE_API FMipAllocation(const FMipAllocation&) {}
+		ENGINE_API FMipAllocation& operator =(const FMipAllocation&) { return *this; }
 
 		// We do allow rvalue assignment
-		FMipAllocation(FMipAllocation&&);
-		FMipAllocation& operator =(FMipAllocation&&);
+		ENGINE_API FMipAllocation(FMipAllocation&&);
+		ENGINE_API FMipAllocation& operator =(FMipAllocation&&);
 
 		~FMipAllocation() = default;
 

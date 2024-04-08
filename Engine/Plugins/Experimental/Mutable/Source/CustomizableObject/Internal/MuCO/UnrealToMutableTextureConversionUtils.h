@@ -2,9 +2,20 @@
 
 #pragma once
 
-#if WITH_EDITOR
-
 #include "HAL/Platform.h"
+#include "Engine/Texture.h"
+
+struct CUSTOMIZABLEOBJECT_API FMutableSourceTextureData
+{
+	FTextureSource Source;
+	bool bFlipGreenChannel = false;
+	bool bHasAlphaChannel = false;
+	bool bCompressionForceAlpha = false;
+	bool bIsNormalComposite = false;
+};
+
+
+#if WITH_EDITOR
 
 namespace mu
 {
@@ -23,7 +34,6 @@ enum class EUnrealToMutableConversionError
     Unknown
 };
 
-
-CUSTOMIZABLEOBJECT_API EUnrealToMutableConversionError ConvertTextureUnrealSourceToMutable(mu::Image* OutResult, UTexture2D* Texture, bool bIsNormalComposite, uint8 MipmapsToSkip);
+CUSTOMIZABLEOBJECT_API EUnrealToMutableConversionError ConvertTextureUnrealSourceToMutable(mu::Image* OutResult, FMutableSourceTextureData&, uint8 MipmapsToSkip);
 
 #endif

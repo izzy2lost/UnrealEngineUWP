@@ -169,10 +169,9 @@ namespace mu
 
 
 	//---------------------------------------------------------------------------------------------
-	void CompilerOptions::SetReferencedResourceCallback(const FReferencedResourceFunc& Provider, const FReferencedResourceGameThreadTickFunc& ProviderGameThreadTick)
+	void CompilerOptions::SetReferencedResourceCallback(const FReferencedResourceFunc& Provider)
 	{
 		m_pD->OptimisationOptions.ReferencedResourceProvider = Provider;
-		m_pD->OptimisationOptions.ReferencedResourceProviderTick = ProviderGameThreadTick;
 	}
 
 

@@ -1109,11 +1109,23 @@ void FCustomizableObjectCompiler::CompileInternal(UCustomizableObject* Object, c
 		Object->GetPrivate()->GetStreamedResourceData() = MoveTemp(GenerationContext.StreamedResourceData);
 
 		// Pass-through textures
-		TArray<TSoftObjectPtr<UTexture>> NewCompileTimeReferencedTextures;
+		TArray<FMutableSourceTextureData> NewCompileTimeReferencedTextures;
 		for (const TPair<TSoftObjectPtr<UTexture>, FMutableGraphGenerationContext::FGeneratedReferencedTexture>& Pair : GenerationContext.CompileTimeTextureMap)
 		{
 			check(Pair.Value.ID == NewCompileTimeReferencedTextures.Num());
-			NewCompileTimeReferencedTextures.Add(Pair.Key);
+
+			UTexture* Texture = Pair.Key.LoadSynchronous();
+			FMutableSourceTextureData Tex;
+			Tex.Source = Texture->Source.CopyTornOff();
+			Tex.bFlipGreenChannel = Texture->bFlipGreenChannel;
+			Tex.bHasAlphaChannel =
+				Texture->AdjustMinAlpha != Texture->AdjustMaxAlpha
+				&& Texture->CompressionSettings != TextureCompressionSettings::TC_Normalmap
+				&& !Texture->CompressionNoAlpha;
+			Tex.bCompressionForceAlpha = Texture->CompressionForceAlpha;
+			Tex.bIsNormalComposite = false; // TODO?
+
+			NewCompileTimeReferencedTextures.Add(Tex);
 		}
 
 		if (!ParamNamesToSelectedOptions.Num())
@@ -1218,7 +1230,7 @@ void FCustomizableObjectCompiler::CompileInternal(UCustomizableObject* Object, c
 
 mu::NodePtr FCustomizableObjectCompiler::Export(UCustomizableObject* Object, const FCompilationOptions& InCompilerOptions, 
 	TArray<TSoftObjectPtr<UTexture>>& OutRuntimeReferencedTextures,
-	TArray<TSoftObjectPtr<UTexture>>& OutCompilerReferencedTextures )
+	TArray<FMutableSourceTextureData>& OutCompilerReferencedTextures )
 {
 	UE_LOG(LogMutable, Log, TEXT("Started Customizable Object Export %s."), *Object->GetName());
 
@@ -1265,7 +1277,19 @@ mu::NodePtr FCustomizableObjectCompiler::Export(UCustomizableObject* Object, con
 	for (const TPair<TSoftObjectPtr<UTexture>, FMutableGraphGenerationContext::FGeneratedReferencedTexture>& Pair : GenerationContext.CompileTimeTextureMap)
 	{
 		check(Pair.Value.ID == OutCompilerReferencedTextures.Num());
-		OutCompilerReferencedTextures.Add(Pair.Key);
+
+		UTexture* Texture = Pair.Key.LoadSynchronous();
+		FMutableSourceTextureData Tex;
+		Tex.Source = Texture->Source.CopyTornOff();
+		Tex.bFlipGreenChannel = Texture->bFlipGreenChannel;
+		Tex.bHasAlphaChannel =
+			Texture->AdjustMinAlpha != Texture->AdjustMaxAlpha
+			&& Texture->CompressionSettings != TextureCompressionSettings::TC_Normalmap
+			&& !Texture->CompressionNoAlpha;
+		Tex.bCompressionForceAlpha = Texture->CompressionForceAlpha;
+		Tex.bIsNormalComposite = false; // TODO?
+
+		OutCompilerReferencedTextures.Add(Tex);
 	}
 
 	return MutableRoot;
