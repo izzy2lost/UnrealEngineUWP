@@ -148,6 +148,9 @@ private:
 	// The toolkit that created this UI
 	TWeakPtr<FControlRigEditModeToolkit> OwningToolkit;
 
+	//array of handles to clear when getting new control rigs
+	TArray<FDelegateHandle> HandlesToClear;
+
 public:
 	/** Modes Panel Header Information **/
 	void CustomizeToolBarPalette(FToolBarBuilder& ToolBarBuilder);

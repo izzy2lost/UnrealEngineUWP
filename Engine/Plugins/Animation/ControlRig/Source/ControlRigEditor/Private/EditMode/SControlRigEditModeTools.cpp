@@ -62,19 +62,20 @@ void SControlRigEditModeTools::Cleanup()
 
 void SControlRigEditModeTools::SetControlRigs(const TArrayView<TWeakObjectPtr<UControlRig>>& InControlRigs)
 {
-	for (TWeakObjectPtr<UControlRig>& ControlRig : ControlRigs)
+	for (FDelegateHandle& Delegate : HandlesToClear)
 	{
-		if (ControlRig.IsValid())
+		if (Delegate.IsValid())
 		{
-			ControlRig->ControlSelected().RemoveAll(this);
+			Delegate.Reset();
 		}
 	}
+	HandlesToClear.Reset();
 	ControlRigs = InControlRigs;
 	for (TWeakObjectPtr<UControlRig>& InControlRig : InControlRigs)
 	{
 		if (InControlRig.IsValid())
 		{
-			InControlRig->ControlSelected().AddRaw(this, &SControlRigEditModeTools::OnRigElementSelected);
+			HandlesToClear.Add(InControlRig->ControlSelected().AddRaw(this, &SControlRigEditModeTools::OnRigElementSelected));
 		}
 	}
 
@@ -850,18 +851,20 @@ void SControlRigEditModeTools::OnRigElementSelected(UControlRig* Subject, FRigCo
 	}
 #endif
 
-	if (Subject)
+	if (Subject && Subject->GetHierarchy())
 	{
 		// get the selected controls
 		TArray<FRigElementKey> SelectedControls = Subject->GetHierarchy()->GetSelectedKeys(ERigElementType::Control);
-		SpacePickerWidget->SetControls(Subject->GetHierarchy(), SelectedControls);
+		if (SpacePickerWidget)
+		{
+			SpacePickerWidget->SetControls(Subject->GetHierarchy(), SelectedControls);
+		}
 		if (ConstraintsEditionWidget)
 		{
 			ConstraintsEditionWidget->InvalidateConstraintList();
 		}
 	}
 }
-
 
 const FRigControlElementCustomization* SControlRigEditModeTools::HandleGetControlElementCustomization(URigHierarchy* InHierarchy, const FRigElementKey& InControlKey)
 {
