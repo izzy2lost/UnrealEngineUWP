@@ -22,11 +22,25 @@ DECLARE_LOG_CATEGORY_EXTERN(LogContentBrowserAssetDataSource, Log, All);
 namespace ContentBrowserAssetData
 {
 
-	CONTENTBROWSERASSETDATASOURCE_API FContentBrowserItemData CreateAssetFolderItem(UContentBrowserDataSource* InOwnerDataSource, const FName InVirtualPath, const FName InFolderPath, const bool bIsCookedPath = false, const bool bIsPlugin = false);
+CONTENTBROWSERASSETDATASOURCE_API FContentBrowserItemData CreateAssetFolderItem(
+	UContentBrowserDataSource* InOwnerDataSource,
+	const FName InVirtualPath,
+	const FName InInternalFolderPath,
+	const bool bIsCookedPath = false,
+	const bool bIsPlugin = false);
 
-	CONTENTBROWSERASSETDATASOURCE_API FContentBrowserItemData CreateAssetFileItem(UContentBrowserDataSource* InOwnerDataSource, const FName InVirtualPath, const FAssetData& InAssetData, const bool bIsPlugin = false);
+CONTENTBROWSERASSETDATASOURCE_API FContentBrowserItemData CreateAssetFileItem(
+	UContentBrowserDataSource* InOwnerDataSource,
+	const FName InVirtualPath,
+	const FName InInternalPath,
+	const FAssetData& InAssetData,
+	const bool bIsPlugin = false);
 
-	CONTENTBROWSERASSETDATASOURCE_API FContentBrowserItemData CreateUnsupportedAssetFileItem(UContentBrowserDataSource* InOwnerDataSource, const FName InVirtualPath, const FAssetData& InAssetData);
+CONTENTBROWSERASSETDATASOURCE_API FContentBrowserItemData CreateUnsupportedAssetFileItem(
+	UContentBrowserDataSource* InOwnerDataSource,
+	const FName InVirtualPath,
+	const FName InInternalPath,
+	const FAssetData& InAssetData);
 
 	CONTENTBROWSERASSETDATASOURCE_API TSharedPtr<const FContentBrowserAssetFolderItemDataPayload> GetAssetFolderItemPayload(const UContentBrowserDataSource* InOwnerDataSource, const FContentBrowserItemData& InItem);
 

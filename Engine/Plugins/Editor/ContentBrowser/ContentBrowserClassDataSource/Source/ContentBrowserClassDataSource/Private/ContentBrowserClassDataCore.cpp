@@ -100,7 +100,8 @@ bool IsPluginClass(const FName InPath)
 	return AssetViewUtils::IsPluginFolder(PathStr);
 }
 
-FContentBrowserItemData CreateClassFolderItem(UContentBrowserDataSource* InOwnerDataSource, const FName InVirtualPath, const FName InFolderPath, const bool bIsFromPlugin)
+FContentBrowserItemData CreateClassFolderItem(
+	UContentBrowserDataSource* InOwnerDataSource, const FName InVirtualPath, FName InFolderPath, const bool bIsFromPlugin)
 {
 	static const FName GameRootPath = "/Classes_Game";
 	static const FName EngineRootPath = "/Classes_Engine";
@@ -126,20 +127,28 @@ FContentBrowserItemData CreateClassFolderItem(UContentBrowserDataSource* InOwner
 		InVirtualPath,
 		*FolderItemName,
 		MoveTemp(FolderDisplayNameOverride),
-		MakeShared<FContentBrowserClassFolderItemDataPayload>(InFolderPath));
+		MakeShared<FContentBrowserClassFolderItemDataPayload>(InFolderPath),
+		{ InFolderPath });
 }
 
-FContentBrowserItemData CreateClassFileItem(UContentBrowserDataSource* InOwnerDataSource, const FName InVirtualPath, const FName InClassPath, UClass* InClass, const bool bIsFromPlugin)
+FContentBrowserItemData CreateClassFileItem(
+	UContentBrowserDataSource* InOwnerDataSource,
+	const FName InVirtualPath,
+	FName InClassPath,
+	UClass* InClass,
+	const bool bIsFromPlugin)
 {
 	return FContentBrowserItemData(InOwnerDataSource,
 		EContentBrowserItemFlags::Type_File | EContentBrowserItemFlags::Category_Class | (bIsFromPlugin ? EContentBrowserItemFlags::Category_Plugin : EContentBrowserItemFlags::None),
 		InVirtualPath,
 		InClass->GetFName(),
 		FText(),
-		MakeShared<FContentBrowserClassFileItemDataPayload>(InClassPath, InClass));
+		MakeShared<FContentBrowserClassFileItemDataPayload>(InClassPath, InClass),
+		{ InClassPath });
 }
 
-TSharedPtr<const FContentBrowserClassFolderItemDataPayload> GetClassFolderItemPayload(const UContentBrowserDataSource* InOwnerDataSource, const FContentBrowserItemData& InItem)
+TSharedPtr<const FContentBrowserClassFolderItemDataPayload> GetClassFolderItemPayload(
+	const UContentBrowserDataSource* InOwnerDataSource, const FContentBrowserItemData& InItem)
 {
 	if (InItem.GetOwnerDataSource() == InOwnerDataSource && InItem.IsFolder())
 	{

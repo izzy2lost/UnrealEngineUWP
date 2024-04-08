@@ -2384,24 +2384,27 @@ bool UContentBrowserAssetDataSource::DuplicateItem(const FContentBrowserItemData
 	if (ContentBrowserAssetData::DuplicateItem(AssetTools, this, InItem, SourceAsset, NewAssetData))
 	{
 		FName VirtualizedPath;
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-		TryConvertInternalPathToVirtual(NewAssetData.ObjectPath, VirtualizedPath);
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		FName InternalPath = NewAssetData.ObjectPath;
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
+		TryConvertInternalPathToVirtual(InternalPath, VirtualizedPath);
 
 		FContentBrowserItemData NewItemData(
 			this,
-			EContentBrowserItemFlags::Type_File | EContentBrowserItemFlags::Category_Asset | EContentBrowserItemFlags::Temporary_Duplication,
+			EContentBrowserItemFlags::Type_File | EContentBrowserItemFlags::Category_Asset
+				| EContentBrowserItemFlags::Temporary_Duplication,
 			VirtualizedPath,
 			NewAssetData.AssetName,
 			FText::AsCultureInvariant(NewAssetData.AssetName.ToString()),
-			MakeShared<FContentBrowserAssetFileItemDataPayload_Duplication>(MoveTemp(NewAssetData), SourceAsset)
-			);
+			MakeShared<FContentBrowserAssetFileItemDataPayload_Duplication>(MoveTemp(NewAssetData), SourceAsset),
+			{ InternalPath });
 
 		OutPendingItem = FContentBrowserItemDataTemporaryContext(
 			MoveTemp(NewItemData),
-			FContentBrowserItemDataTemporaryContext::FOnValidateItem::CreateUObject(this, &UContentBrowserAssetDataSource::OnValidateItemName),
-			FContentBrowserItemDataTemporaryContext::FOnFinalizeItem::CreateUObject(this, &UContentBrowserAssetDataSource::OnFinalizeDuplicateAsset)
-			);
+			FContentBrowserItemDataTemporaryContext::FOnValidateItem::CreateUObject(
+				this, &UContentBrowserAssetDataSource::OnValidateItemName),
+			FContentBrowserItemDataTemporaryContext::FOnFinalizeItem::CreateUObject(
+				this, &UContentBrowserAssetDataSource::OnFinalizeDuplicateAsset));
 
 		return true;
 	}
@@ -2839,41 +2842,47 @@ bool UContentBrowserAssetDataSource::GetObjectPathsForCollections(ICollectionMan
 	return false;
 }
 
-FContentBrowserItemData UContentBrowserAssetDataSource::CreateAssetFolderItem(const FName InFolderPath)
+FContentBrowserItemData UContentBrowserAssetDataSource::CreateAssetFolderItem(const FName InInternalFolderPath)
 {
 	FName VirtualizedPath;
-	TryConvertInternalPathToVirtual(InFolderPath, VirtualizedPath);
+	TryConvertInternalPathToVirtual(InInternalFolderPath, VirtualizedPath);
 
-	const EContentBrowserFolderAttributes FolderAttributes = GetAssetFolderAttributes(InFolderPath);
-	const bool bIsCookedPath = EnumHasAnyFlags(FolderAttributes, EContentBrowserFolderAttributes::HasAssets | EContentBrowserFolderAttributes::HasRedirectors)
-							&& !EnumHasAnyFlags(FolderAttributes, EContentBrowserFolderAttributes::HasSourceContent);
+	const EContentBrowserFolderAttributes FolderAttributes = GetAssetFolderAttributes(InInternalFolderPath);
+	const bool bIsCookedPath =
+		EnumHasAnyFlags(
+			FolderAttributes, EContentBrowserFolderAttributes::HasAssets | EContentBrowserFolderAttributes::HasRedirectors)
+		&& !EnumHasAnyFlags(FolderAttributes, EContentBrowserFolderAttributes::HasSourceContent);
 	const bool bIsPlugin = EnumHasAnyFlags(FolderAttributes, EContentBrowserFolderAttributes::IsInPlugin);
-	return ContentBrowserAssetData::CreateAssetFolderItem(this, VirtualizedPath, InFolderPath, bIsCookedPath, bIsPlugin);
+	return ContentBrowserAssetData::CreateAssetFolderItem(
+		this, VirtualizedPath, InInternalFolderPath, bIsCookedPath, bIsPlugin);
 }
 
 FContentBrowserItemData UContentBrowserAssetDataSource::CreateAssetFileItem(const FAssetData& InAssetData)
 {
 	FName VirtualizedPath;
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	TryConvertInternalPathToVirtual(InAssetData.ObjectPath, VirtualizedPath);
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	FName InternalPath = InAssetData.ObjectPath;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	TryConvertInternalPathToVirtual(InternalPath, VirtualizedPath);
 
 	const EContentBrowserFolderAttributes FolderAttributes = GetAssetFolderAttributes(InAssetData.PackagePath);
 	const bool bIsPlugin = EnumHasAnyFlags(FolderAttributes, EContentBrowserFolderAttributes::IsInPlugin);
-	return ContentBrowserAssetData::CreateAssetFileItem(this, VirtualizedPath, InAssetData, bIsPlugin);
+	return ContentBrowserAssetData::CreateAssetFileItem(this, VirtualizedPath, InternalPath, InAssetData, bIsPlugin);
 }
 
 FContentBrowserItemData UContentBrowserAssetDataSource::CreateUnsupportedAssetFileItem(const FAssetData& InAssetData)
 {
 	FName VirtualizedPath;
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS
-		TryConvertInternalPathToVirtual(InAssetData.ObjectPath, VirtualizedPath);
+	FName InternalPath = InAssetData.ObjectPath;
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	TryConvertInternalPathToVirtual(InternalPath, VirtualizedPath);
 
-	return ContentBrowserAssetData::CreateUnsupportedAssetFileItem(this, VirtualizedPath, InAssetData);
+	return ContentBrowserAssetData::CreateUnsupportedAssetFileItem(this, VirtualizedPath, InternalPath, InAssetData);
 }
 
-TSharedPtr<const FContentBrowserAssetFolderItemDataPayload> UContentBrowserAssetDataSource::GetAssetFolderItemPayload(const FContentBrowserItemData& InItem) const
+TSharedPtr<const FContentBrowserAssetFolderItemDataPayload> UContentBrowserAssetDataSource::GetAssetFolderItemPayload(
+	const FContentBrowserItemData& InItem) const
 {
 	return ContentBrowserAssetData::GetAssetFolderItemPayload(this, InItem);
 }
@@ -3418,24 +3427,27 @@ void UContentBrowserAssetDataSource::OnBeginCreateAsset(const FName InDefaultAss
 		FAssetData NewAssetData(*(InPackagePath.ToString() / InDefaultAssetName.ToString()), InPackagePath, InDefaultAssetName, ClassToUse->GetClassPathName());
 
 		FName VirtualizedPath;
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-		TryConvertInternalPathToVirtual(NewAssetData.ObjectPath, VirtualizedPath);
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		FName InternalPath = NewAssetData.ObjectPath;
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
+		TryConvertInternalPathToVirtual(InternalPath, VirtualizedPath);
 
 		FContentBrowserItemData NewItemData(
-			this, 
-			EContentBrowserItemFlags::Type_File | EContentBrowserItemFlags::Category_Asset | EContentBrowserItemFlags::Temporary_Creation,
-			VirtualizedPath, 
+			this,
+			EContentBrowserItemFlags::Type_File | EContentBrowserItemFlags::Category_Asset
+				| EContentBrowserItemFlags::Temporary_Creation,
+			VirtualizedPath,
 			NewAssetData.AssetName,
 			FText::AsCultureInvariant(NewAssetData.AssetName.ToString()),
-			MakeShared<FContentBrowserAssetFileItemDataPayload_Creation>(MoveTemp(NewAssetData), InAssetClass, InFactory)
-			);
+			MakeShared<FContentBrowserAssetFileItemDataPayload_Creation>(MoveTemp(NewAssetData), InAssetClass, InFactory),
+			{ InternalPath });
 
 		InOnBeginItemCreation.Execute(FContentBrowserItemDataTemporaryContext(
-			MoveTemp(NewItemData), 
-			FContentBrowserItemDataTemporaryContext::FOnValidateItem::CreateUObject(this, &UContentBrowserAssetDataSource::OnValidateItemName),
-			FContentBrowserItemDataTemporaryContext::FOnFinalizeItem::CreateUObject(this, &UContentBrowserAssetDataSource::OnFinalizeCreateAsset)
-			));
+			MoveTemp(NewItemData),
+			FContentBrowserItemDataTemporaryContext::FOnValidateItem::CreateUObject(
+				this, &UContentBrowserAssetDataSource::OnValidateItemName),
+			FContentBrowserItemDataTemporaryContext::FOnFinalizeItem::CreateUObject(
+				this, &UContentBrowserAssetDataSource::OnFinalizeCreateAsset)));
 	}
 }
 

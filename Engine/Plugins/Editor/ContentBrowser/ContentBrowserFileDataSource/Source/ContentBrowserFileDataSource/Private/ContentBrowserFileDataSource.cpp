@@ -1021,18 +1021,20 @@ bool UContentBrowserFileDataSource::CreateFolder(const FName InPath, FContentBro
 
 	FContentBrowserItemData NewItemData(
 		this,
-		EContentBrowserItemFlags::Type_Folder | EContentBrowserItemFlags::Category_Misc | EContentBrowserItemFlags::Temporary_Creation,
+		EContentBrowserItemFlags::Type_Folder | EContentBrowserItemFlags::Category_Misc
+			| EContentBrowserItemFlags::Temporary_Creation,
 		InPath,
 		*FolderItemName,
 		FText::AsCultureInvariant(FolderItemName),
-		MakeShared<FContentBrowserFolderItemDataPayload>(InternalPath, InternalDiskPath, Config.GetDirectoryActions())
-		);
+		MakeShared<FContentBrowserFolderItemDataPayload>(InternalPath, InternalDiskPath, Config.GetDirectoryActions()),
+		{ InternalPath });
 
 	OutPendingItem = FContentBrowserItemDataTemporaryContext(
 		MoveTemp(NewItemData),
-		FContentBrowserItemDataTemporaryContext::FOnValidateItem::CreateUObject(this, &UContentBrowserFileDataSource::OnValidateItemName),
-		FContentBrowserItemDataTemporaryContext::FOnFinalizeItem::CreateUObject(this, &UContentBrowserFileDataSource::OnFinalizeCreateFolder)
-		);
+		FContentBrowserItemDataTemporaryContext::FOnValidateItem::CreateUObject(
+			this, &UContentBrowserFileDataSource::OnValidateItemName),
+		FContentBrowserItemDataTemporaryContext::FOnFinalizeItem::CreateUObject(
+			this, &UContentBrowserFileDataSource::OnFinalizeCreateFolder));
 
 	return true;
 }
@@ -1282,24 +1284,27 @@ bool UContentBrowserFileDataSource::DuplicateItem(const FContentBrowserItemData&
 		checkf(NewItemPayload, TEXT("DuplicateItem returned true, but NewItemPayload was null!"));
 
 		FName VirtualizedPath;
-		TryConvertInternalPathToVirtual(NewItemPayload->GetInternalPath(), VirtualizedPath);
+		FName InternalPath = NewItemPayload->GetInternalPath();
+		TryConvertInternalPathToVirtual(InternalPath, VirtualizedPath);
 
 		const FString FileItemName = FPaths::GetBaseFilename(NewItemPayload->GetFilename());
 
 		FContentBrowserItemData NewItemData(
 			this,
-			EContentBrowserItemFlags::Type_File | EContentBrowserItemFlags::Category_Misc | EContentBrowserItemFlags::Temporary_Duplication,
+			EContentBrowserItemFlags::Type_File | EContentBrowserItemFlags::Category_Misc
+				| EContentBrowserItemFlags::Temporary_Duplication,
 			VirtualizedPath,
 			*FileItemName,
 			FText::AsCultureInvariant(FileItemName),
-			NewItemPayload
-			);
+			NewItemPayload,
+			{ InternalPath });
 
 		OutPendingItem = FContentBrowserItemDataTemporaryContext(
 			MoveTemp(NewItemData),
-			FContentBrowserItemDataTemporaryContext::FOnValidateItem::CreateUObject(this, &UContentBrowserFileDataSource::OnValidateItemName),
-			FContentBrowserItemDataTemporaryContext::FOnFinalizeItem::CreateUObject(this, &UContentBrowserFileDataSource::OnFinalizeDuplicateFile)
-			);
+			FContentBrowserItemDataTemporaryContext::FOnValidateItem::CreateUObject(
+				this, &UContentBrowserFileDataSource::OnValidateItemName),
+			FContentBrowserItemDataTemporaryContext::FOnFinalizeItem::CreateUObject(
+				this, &UContentBrowserFileDataSource::OnFinalizeDuplicateFile));
 
 		return true;
 	}
@@ -1315,11 +1320,19 @@ bool UContentBrowserFileDataSource::BulkDuplicateItems(TArrayView<const FContent
 		for (const TSharedRef<const FContentBrowserFileItemDataPayload>& NewItemPayload : NewItemPayloads)
 		{
 			FName VirtualizedPath;
-			TryConvertInternalPathToVirtual(NewItemPayload->GetInternalPath(), VirtualizedPath);
+			FName InternalPath = NewItemPayload->GetInternalPath();
+			TryConvertInternalPathToVirtual(InternalPath, VirtualizedPath);
 
 			const FString FileItemName = FPaths::GetBaseFilename(NewItemPayload->GetFilename());
 
-			OutNewItems.Emplace(FContentBrowserItemData(this, EContentBrowserItemFlags::Type_File | EContentBrowserItemFlags::Category_Misc, VirtualizedPath, *FileItemName, FText(), NewItemPayload));
+			OutNewItems.Emplace(FContentBrowserItemData(
+				this,
+				EContentBrowserItemFlags::Type_File | EContentBrowserItemFlags::Category_Misc,
+				VirtualizedPath,
+				*FileItemName,
+				FText(),
+				NewItemPayload,
+				{ InternalPath }));
 		}
 
 		return true;
@@ -1997,19 +2010,22 @@ void UContentBrowserFileDataSource::OnNewFileRequested(const FName InDestFolderP
 	const FString NewFileItemName = FPaths::GetBaseFilename(NewFilename);
 
 	FContentBrowserItemData NewItemData(
-		this, 
-		EContentBrowserItemFlags::Type_File | EContentBrowserItemFlags::Category_Misc | EContentBrowserItemFlags::Temporary_Creation,
-		VirtualizedPath, 
+		this,
+		EContentBrowserItemFlags::Type_File | EContentBrowserItemFlags::Category_Misc
+			| EContentBrowserItemFlags::Temporary_Creation,
+		VirtualizedPath,
 		*NewFileItemName,
 		FText::AsCultureInvariant(NewFileItemName),
-		MakeShared<FContentBrowserFileItemDataPayload_Creation>(NewInternalFilePath, NewFilename, InFileActions, MoveTemp(CreationConfig))
-		);
+		MakeShared<FContentBrowserFileItemDataPayload_Creation>(
+			NewInternalFilePath, NewFilename, InFileActions, MoveTemp(CreationConfig)),
+		{ NewInternalFilePath });
 
 	InOnBeginItemCreation.Execute(FContentBrowserItemDataTemporaryContext(
-		MoveTemp(NewItemData), 
-		FContentBrowserItemDataTemporaryContext::FOnValidateItem::CreateUObject(this, &UContentBrowserFileDataSource::OnValidateItemName),
-		FContentBrowserItemDataTemporaryContext::FOnFinalizeItem::CreateUObject(this, &UContentBrowserFileDataSource::OnFinalizeCreateFile)
-		));
+		MoveTemp(NewItemData),
+		FContentBrowserItemDataTemporaryContext::FOnValidateItem::CreateUObject(
+			this, &UContentBrowserFileDataSource::OnValidateItemName),
+		FContentBrowserItemDataTemporaryContext::FOnFinalizeItem::CreateUObject(
+			this, &UContentBrowserFileDataSource::OnFinalizeCreateFile)));
 }
 
 bool UContentBrowserFileDataSource::OnValidateItemName(const FContentBrowserItemData& InItem, const FString& InProposedName, FText* OutErrorMsg)

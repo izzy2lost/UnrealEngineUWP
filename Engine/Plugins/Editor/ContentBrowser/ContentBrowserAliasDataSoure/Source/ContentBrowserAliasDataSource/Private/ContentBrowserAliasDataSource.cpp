@@ -987,14 +987,20 @@ void UContentBrowserAliasDataSource::ClearCachedFilterData(const FContentBrowser
 	FilterCache.ClearCachedData(IDOwner);
 }
 
-FContentBrowserItemData UContentBrowserAliasDataSource::CreateAssetFolderItem(const FName InFolderPath)
+FContentBrowserItemData UContentBrowserAliasDataSource::CreateAssetFolderItem(const FName InInternalFolderPath)
 {
 	FName VirtualizedPath;
-	TryConvertInternalPathToVirtual(InFolderPath, VirtualizedPath);
+	TryConvertInternalPathToVirtual(InInternalFolderPath, VirtualizedPath);
 
-	const FString FolderItemName = FPackageName::GetShortName(InFolderPath);
-	return FContentBrowserItemData(this, EContentBrowserItemFlags::Type_Folder | EContentBrowserItemFlags::Category_Asset, VirtualizedPath,
-		*FolderItemName, AliasFolderDisplayNames.FindRef(InFolderPath), MakeShared<FContentBrowserAssetFolderItemDataPayload>(InFolderPath));
+	const FString FolderItemName = FPackageName::GetShortName(InInternalFolderPath);
+	return FContentBrowserItemData(
+		this,
+		EContentBrowserItemFlags::Type_Folder | EContentBrowserItemFlags::Category_Asset,
+		VirtualizedPath,
+		*FolderItemName,
+		AliasFolderDisplayNames.FindRef(InInternalFolderPath),
+		MakeShared<FContentBrowserAssetFolderItemDataPayload>(InInternalFolderPath),
+		{ InInternalFolderPath });
 }
 
 FContentBrowserItemData UContentBrowserAliasDataSource::CreateAssetFileItem(const FContentBrowserUniqueAlias& Alias)
@@ -1005,15 +1011,21 @@ FContentBrowserItemData UContentBrowserAliasDataSource::CreateAssetFileItem(cons
 	{
 		LLM_SCOPE(ELLMTag::UI);
 		FName VirtualizedPath;
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-		TryConvertInternalPathToVirtual(AliasData->ObjectPath.ToFName(), VirtualizedPath);
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		FName InternalPath = AliasData->ObjectPath.ToFName();
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
+		TryConvertInternalPathToVirtual(InternalPath, VirtualizedPath);
 
 		// Since AliasID is PackagePath/AssetName, AssetName should also be passed as the ItemName here. This provides the functionality of
 		// being able to have multiple aliases with the same display name, while still showing their original asset name in the tooltip.
-		return FContentBrowserItemData(this, EContentBrowserItemFlags::Type_File | EContentBrowserItemFlags::Category_Asset, VirtualizedPath,
-			AliasData->AssetData.AssetName, AliasData->AliasDisplayName, MakeShared<FContentBrowserAliasItemDataPayload>(AliasData->AssetData, Alias));
+		return FContentBrowserItemData(
+			this,
+			EContentBrowserItemFlags::Type_File | EContentBrowserItemFlags::Category_Asset,
+			VirtualizedPath,
+			AliasData->AssetData.AssetName,
+			AliasData->AliasDisplayName,
+			MakeShared<FContentBrowserAliasItemDataPayload>(AliasData->AssetData, Alias),
+			{ InternalPath });
 	}
 	return FContentBrowserItemData();
 }
-

@@ -36,31 +36,60 @@ DEFINE_LOG_CATEGORY(LogContentBrowserAssetDataSource);
 namespace ContentBrowserAssetData
 {
 
-FContentBrowserItemData CreateAssetFolderItem(UContentBrowserDataSource* InOwnerDataSource, const FName InVirtualPath, const FName InFolderPath, const bool bIsCookedPath, const bool bIsPlugin)
+FContentBrowserItemData CreateAssetFolderItem(
+	UContentBrowserDataSource* InOwnerDataSource,
+	const FName InVirtualPath,
+	const FName InInternalFolderPath,
+	const bool bIsCookedPath,
+	const bool bIsPlugin)
 {
-	const FString FolderItemName = FPackageName::GetShortName(InFolderPath);
-	FText FolderDisplayNameOverride = ContentBrowserDataUtils::GetFolderItemDisplayNameOverride(InFolderPath, FolderItemName, /*bIsClassesFolder*/ false, bIsCookedPath);
-	return FContentBrowserItemData(InOwnerDataSource,
-		EContentBrowserItemFlags::Type_Folder | EContentBrowserItemFlags::Category_Asset | (bIsPlugin ? EContentBrowserItemFlags::Category_Plugin : EContentBrowserItemFlags::None ),
+	const FString FolderItemName = FPackageName::GetShortName(InInternalFolderPath);
+	FText FolderDisplayNameOverride = ContentBrowserDataUtils::GetFolderItemDisplayNameOverride(
+		InInternalFolderPath, FolderItemName, /*bIsClassesFolder*/ false, bIsCookedPath);
+	return FContentBrowserItemData(
+		InOwnerDataSource,
+		EContentBrowserItemFlags::Type_Folder | EContentBrowserItemFlags::Category_Asset
+			| (bIsPlugin ? EContentBrowserItemFlags::Category_Plugin : EContentBrowserItemFlags::None),
 		InVirtualPath,
 		*FolderItemName,
 		MoveTemp(FolderDisplayNameOverride),
-		MakeShared<FContentBrowserAssetFolderItemDataPayload>(InFolderPath));
+		MakeShared<FContentBrowserAssetFolderItemDataPayload>(InInternalFolderPath),
+		{ InInternalFolderPath });
 }
 
-FContentBrowserItemData CreateAssetFileItem(UContentBrowserDataSource* InOwnerDataSource, const FName InVirtualPath, const FAssetData& InAssetData, const bool bIsPluginAsset)
+FContentBrowserItemData CreateAssetFileItem(
+	UContentBrowserDataSource* InOwnerDataSource,
+	const FName InVirtualPath,
+	const FName InInternalPath,
+	const FAssetData& InAssetData,
+	const bool bIsPluginAsset)
 {
-	return FContentBrowserItemData(InOwnerDataSource,
-		EContentBrowserItemFlags::Type_File | EContentBrowserItemFlags::Category_Asset | (bIsPluginAsset ? EContentBrowserItemFlags::Category_Plugin : EContentBrowserItemFlags::None),
+	return FContentBrowserItemData(
+		InOwnerDataSource,
+		EContentBrowserItemFlags::Type_File | EContentBrowserItemFlags::Category_Asset
+			| (bIsPluginAsset ? EContentBrowserItemFlags::Category_Plugin : EContentBrowserItemFlags::None),
 		InVirtualPath,
 		InAssetData.AssetName,
 		FText(),
-		MakeShared<FContentBrowserAssetFileItemDataPayload>(InAssetData));
+		MakeShared<FContentBrowserAssetFileItemDataPayload>(InAssetData),
+		{ InInternalPath });
 }
 
-FContentBrowserItemData CreateUnsupportedAssetFileItem(UContentBrowserDataSource* InOwnerDataSource, const FName InVirtualPath, const FAssetData& InAssetData)
+FContentBrowserItemData CreateUnsupportedAssetFileItem(
+	UContentBrowserDataSource* InOwnerDataSource,
+	const FName InVirtualPath,
+	const FName InInternalPath,
+	const FAssetData& InAssetData)
 {
-	return FContentBrowserItemData(InOwnerDataSource, EContentBrowserItemFlags::Type_File | EContentBrowserItemFlags::Category_Asset | EContentBrowserItemFlags::Misc_Unsupported, InVirtualPath, InAssetData.AssetName, FText(), MakeShared<FContentBrowserUnsupportedAssetFileItemDataPayload>(InAssetData));
+	return FContentBrowserItemData(
+		InOwnerDataSource,
+		EContentBrowserItemFlags::Type_File | EContentBrowserItemFlags::Category_Asset
+			| EContentBrowserItemFlags::Misc_Unsupported,
+		InVirtualPath,
+		InAssetData.AssetName,
+		FText(),
+		MakeShared<FContentBrowserUnsupportedAssetFileItemDataPayload>(InAssetData),
+		{ InInternalPath });
 }
 
 
@@ -1931,7 +1960,10 @@ void PopulateAssetFileContextMenu(UContentBrowserDataSource* InOwnerDataSource, 
 				FName VirtualPathToShow;
 				if (OwnerDataSourcePtr->Legacy_TryConvertAssetDataToVirtualPath(AssetToShow, /*bUseFolderPaths*/false, VirtualPathToShow))
 				{
-					ItemsToShow.Emplace(CreateAssetFileItem(OwnerDataSourcePtr, VirtualPathToShow, AssetToShow));
+					PRAGMA_DISABLE_DEPRECATION_WARNINGS
+					ItemsToShow.Emplace(
+						CreateAssetFileItem(OwnerDataSourcePtr, VirtualPathToShow, AssetToShow.ObjectPath, AssetToShow));
+					PRAGMA_ENABLE_DEPRECATION_WARNINGS
 				}
 			}
 			OnShowInPathsView.Execute(ItemsToShow);
@@ -1945,6 +1977,6 @@ void PopulateAssetFileContextMenu(UContentBrowserDataSource* InOwnerDataSource, 
 	);
 }
 
-}
+} // namespace ContentBrowserAssetData
 
 #undef LOCTEXT_NAMESPACE

@@ -125,14 +125,25 @@ public:
 	/**
 	 * Create an internal Content Browser item.
 	 *
-	 * @param InOwnerDataSource A pointer to the data source that manages the thing represented by this item. This is usually set, but may be null in rare circumstances (ie, creating a dummy placeholder item with no owner).
+	 * @param InOwnerDataSource A pointer to the data source that manages the thing represented by this item. This is
+	 * usually set, but may be null in rare circumstances (ie, creating a dummy placeholder item with no owner).
 	 * @param InItemFlags Flags denoting basic state information for this item instance.
-	 * @param InVirtualPath The complete virtual path that uniquely identifies this item within its owner data source (eg, "/MyRoot/MyFolder/MyFile").
+	 * @param InVirtualPath The complete virtual path that uniquely identifies this item within its owner data source
+	 * (eg, "/MyRoot/MyFolder/MyFile").
 	 * @param InItemName The leaf-name of this item (eg, "MyFile").
-	 * @param InDisplayNameOverride The user-facing name of this item (eg, "MyFile"). This will be lazily set to InItemName if no override is provided. 
+	 * @param InDisplayNameOverride The user-facing name of this item (eg, "MyFile"). This will be lazily set to
+	 * InItemName if no override is provided.
 	 * @param InPayload Any data source defined payload data for this item.
+	 * @param InInternalPath Precalculated internal path if available
 	 */
-	FContentBrowserItemData(UContentBrowserDataSource* InOwnerDataSource, EContentBrowserItemFlags InItemFlags, FName InVirtualPath, FName InItemName, FText InDisplayNameOverride, TSharedPtr<const IContentBrowserItemDataPayload> InPayload);
+	FContentBrowserItemData(
+		UContentBrowserDataSource* InOwnerDataSource,
+		EContentBrowserItemFlags InItemFlags,
+		FName InVirtualPath,
+		FName InItemName,
+		FText InDisplayNameOverride,
+		TSharedPtr<const IContentBrowserItemDataPayload> InPayload,
+		TOptional<FName> InInternalPath = {});
 
 	/**
 	 * Copy support.
@@ -266,6 +277,9 @@ private:
 
 	/** The leaf-name of this item (eg, "MyFile") */
 	FName ItemName;
+
+	/** Cached/pre-computed value for GetInternalPath */
+	mutable TOptional<FName> InternalPath;
 
 	/** The user-facing name of this item (eg, "MyFile") */
 	mutable FText CachedDisplayName;

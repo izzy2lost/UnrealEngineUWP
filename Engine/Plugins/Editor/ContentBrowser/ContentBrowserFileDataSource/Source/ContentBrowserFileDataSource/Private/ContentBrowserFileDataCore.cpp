@@ -17,19 +17,44 @@
 namespace ContentBrowserFileData
 {
 
-FContentBrowserItemData CreateFolderItem(UContentBrowserDataSource* InOwnerDataSource, const FName InVirtualPath, const FName InInternalPath, const FString& InFilename, TWeakPtr<const ContentBrowserFileData::FDirectoryActions> InDirectoryActions)
+FContentBrowserItemData CreateFolderItem(
+	UContentBrowserDataSource* InOwnerDataSource,
+	const FName InVirtualPath,
+	const FName InInternalPath,
+	const FString& InFilename,
+	TWeakPtr<const ContentBrowserFileData::FDirectoryActions> InDirectoryActions)
 {
 	const FString FolderItemName = FPaths::GetCleanFilename(InFilename);
-	return FContentBrowserItemData(InOwnerDataSource, EContentBrowserItemFlags::Type_Folder | EContentBrowserItemFlags::Category_Misc, InVirtualPath, *FolderItemName, FText(), MakeShared<FContentBrowserFolderItemDataPayload>(InInternalPath, InFilename, MoveTemp(InDirectoryActions)));
+	return FContentBrowserItemData(
+		InOwnerDataSource,
+		EContentBrowserItemFlags::Type_Folder | EContentBrowserItemFlags::Category_Misc,
+		InVirtualPath,
+		*FolderItemName,
+		FText(),
+		MakeShared<FContentBrowserFolderItemDataPayload>(InInternalPath, InFilename, MoveTemp(InDirectoryActions)),
+		{ InInternalPath });
 }
 
-FContentBrowserItemData CreateFileItem(UContentBrowserDataSource* InOwnerDataSource, const FName InVirtualPath, const FName InInternalPath, const FString& InFilename, TWeakPtr<const ContentBrowserFileData::FFileActions> InFileActions)
+FContentBrowserItemData CreateFileItem(
+	UContentBrowserDataSource* InOwnerDataSource,
+	const FName InVirtualPath,
+	const FName InInternalPath,
+	const FString& InFilename,
+	TWeakPtr<const ContentBrowserFileData::FFileActions> InFileActions)
 {
 	const FString FileItemName = FPaths::GetBaseFilename(InFilename);
-	return FContentBrowserItemData(InOwnerDataSource, EContentBrowserItemFlags::Type_File | EContentBrowserItemFlags::Category_Misc, InVirtualPath, *FileItemName, FText(), MakeShared<FContentBrowserFileItemDataPayload>(InInternalPath, InFilename, MoveTemp(InFileActions)));
+	return FContentBrowserItemData(
+		InOwnerDataSource,
+		EContentBrowserItemFlags::Type_File | EContentBrowserItemFlags::Category_Misc,
+		InVirtualPath,
+		*FileItemName,
+		FText(),
+		MakeShared<FContentBrowserFileItemDataPayload>(InInternalPath, InFilename, MoveTemp(InFileActions)),
+		{ InInternalPath });
 }
 
-TSharedPtr<const FContentBrowserFolderItemDataPayload> GetFolderItemPayload(const UContentBrowserDataSource* InOwnerDataSource, const FContentBrowserItemData& InItem)
+TSharedPtr<const FContentBrowserFolderItemDataPayload> GetFolderItemPayload(
+	const UContentBrowserDataSource* InOwnerDataSource, const FContentBrowserItemData& InItem)
 {
 	if (InItem.GetOwnerDataSource() == InOwnerDataSource && InItem.IsFolder())
 	{

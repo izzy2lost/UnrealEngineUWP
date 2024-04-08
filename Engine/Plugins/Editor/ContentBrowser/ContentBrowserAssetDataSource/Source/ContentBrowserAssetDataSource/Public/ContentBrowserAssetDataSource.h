@@ -360,7 +360,7 @@ private:
 
 	static bool GetObjectPathsForCollections(ICollectionManager* CollectionManager, TArrayView<const FCollectionNameType> InCollections, const bool bIncludeChildCollections, TArray<FSoftObjectPath>& OutObjectPaths);
 
-	FContentBrowserItemData CreateAssetFolderItem(const FName InFolderPath);
+	FContentBrowserItemData CreateAssetFolderItem(const FName InInternalFolderPath);
 
 	FContentBrowserItemData CreateAssetFileItem(const FAssetData& InAssetData);
 

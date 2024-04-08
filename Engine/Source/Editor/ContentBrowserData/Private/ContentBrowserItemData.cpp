@@ -9,11 +9,19 @@
 #include "Templates/UnrealTemplate.h"
 #include "UObject/UnrealNames.h"
 
-FContentBrowserItemData::FContentBrowserItemData(UContentBrowserDataSource* InOwnerDataSource, EContentBrowserItemFlags InItemFlags, FName InVirtualPath, FName InItemName, FText InDisplayNameOverride, TSharedPtr<const IContentBrowserItemDataPayload> InPayload)
+FContentBrowserItemData::FContentBrowserItemData(
+	UContentBrowserDataSource* InOwnerDataSource,
+	EContentBrowserItemFlags InItemFlags,
+	FName InVirtualPath,
+	FName InItemName,
+	FText InDisplayNameOverride,
+	TSharedPtr<const IContentBrowserItemDataPayload> InPayload,
+	TOptional<FName> InInternalPath)
 	: OwnerDataSource(InOwnerDataSource)
 	, ItemFlags(InItemFlags)
 	, VirtualPath(InVirtualPath)
 	, ItemName(InItemName)
+	, InternalPath(InInternalPath)
 	, CachedDisplayName(MoveTemp(InDisplayNameOverride))
 	, Payload(MoveTemp(InPayload))
 {
@@ -100,21 +108,20 @@ FName FContentBrowserItemData::GetVirtualPath() const
 
 FName FContentBrowserItemData::GetInvariantPath() const
 {
-	if (UContentBrowserDataSource* DataSource = OwnerDataSource.Get())
+	FName Internal = GetInternalPath();
+	if (!Internal.IsNone())
 	{
-		if (!VirtualPath.IsNone())
-		{
-			FName ConvertedPath;
-			DataSource->TryConvertVirtualPath(VirtualPath, ConvertedPath);
-			return ConvertedPath;
-		}
+		return Internal;
 	}
-
-	return NAME_None;
+	return VirtualPath; // None or a useful path
 }
 
 FName FContentBrowserItemData::GetInternalPath() const
 {
+	if (InternalPath.IsSet())
+	{
+		return InternalPath.GetValue();
+	}
 	if (UContentBrowserDataSource* DataSource = OwnerDataSource.Get())
 	{
 		if (!VirtualPath.IsNone())
@@ -122,6 +129,7 @@ FName FContentBrowserItemData::GetInternalPath() const
 			FName ConvertedPath;
 			if (DataSource->TryConvertVirtualPath(VirtualPath, ConvertedPath) == EContentBrowserPathType::Internal)
 			{
+				InternalPath = ConvertedPath;
 				return ConvertedPath;
 			}
 		}
