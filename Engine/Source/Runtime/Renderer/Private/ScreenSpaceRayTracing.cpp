@@ -525,6 +525,7 @@ class FScreenSpaceReflectionsCS : public FGlobalShader
 		OutEnvironment.SetDefine(TEXT("SUPPORTS_ANISOTROPIC_MATERIALS"), FDataDrivenShaderPlatformInfo::GetSupportsAnisotropicMaterials(Parameters.Platform));
 		OutEnvironment.SetDefine(TEXT("THREADGROUP_SIZE_X"), GetThreadGroupSize().X);
 		OutEnvironment.SetDefine(TEXT("THREADGROUP_SIZE_Y"), GetThreadGroupSize().Y);
+		OutEnvironment.SetDefine(TEXT("COMPUTE_SHADER"), 1);
 	}
 
 	static FIntPoint GetThreadGroupSize()
