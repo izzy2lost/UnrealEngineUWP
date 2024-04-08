@@ -356,7 +356,7 @@ public:
 		}
 		else
 		{
-			UE_LOG(LogToolMenus, Warning, TEXT("Menu '%s', item '%s', type not currently supported: %d"), *MenuData->MenuName.ToString(), *BlockNameOverride.ToString(), int(Block.Type));
+			UE_LOG(LogToolMenus, Warning, TEXT("Menu '%s', item '%s', Menus do not support: %s"), *MenuData->MenuName.ToString(), *BlockNameOverride.ToString(), *UEnum::GetValueAsString(Block.Type));
 		}
 	};
 
