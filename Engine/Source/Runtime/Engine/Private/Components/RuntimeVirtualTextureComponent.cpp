@@ -349,7 +349,7 @@ void URuntimeVirtualTextureComponent::InitializeStreamingTexture(EShadingPath Sh
 		BuildDesc.TileBorderSize = VirtualTexture->GetTileBorderSize();
 		BuildDesc.LODGroup = VirtualTexture->GetLODGroup();
 		BuildDesc.LossyCompressionAmount = GetLossyCompressionAmount();
-
+		
 		BuildDesc.LayerCount = VirtualTexture->GetLayerCount();
 		check(BuildDesc.LayerCount <= RuntimeVirtualTexture::MaxTextureLayers);
 		BuildDesc.LayerFormats.AddDefaulted(BuildDesc.LayerCount);
@@ -369,15 +369,20 @@ void URuntimeVirtualTextureComponent::InitializeStreamingTexture(EShadingPath Sh
 		BuildDesc.InSizeY = InSizeY;
 		BuildDesc.InData = InData;
 
-		StreamingTexture->BuildTexture(ShadingPath, BuildDesc);
+		// Make sure the streaming texture is fully built before marking the render state dirty, otherwise the scene proxy will be constructed thinking that it's not, which will prevent showing it in editor. 
+		//  It's a rarely-triggered, bake-time, editor-only function anyway, so the blocking wait is acceptable
+		constexpr bool bWaitForCompilation = true;
+		StreamingTexture->BuildTexture(ShadingPath, BuildDesc, bWaitForCompilation);
 		StreamingTexture->Modify();
 	}
+
+	MarkRenderStateDirty();
 }
 
 bool URuntimeVirtualTextureComponent::CanEditChange(const FProperty* InProperty) const
 {
 	bool bCanEdit = Super::CanEditChange(InProperty);
-	if (InProperty->GetFName() == TEXT("bUseStreamingLowMipsInEditor"))
+	if (InProperty->GetFName() == GET_MEMBER_NAME_CHECKED(URuntimeVirtualTextureComponent, bUseStreamingLowMipsInEditor))
 	{
 		bCanEdit &= GetVirtualTexture() != nullptr && GetStreamingTexture() != nullptr;
 	}
