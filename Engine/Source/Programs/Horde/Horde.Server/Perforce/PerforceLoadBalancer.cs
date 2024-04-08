@@ -204,7 +204,7 @@ namespace Horde.Server.Perforce
 		{
 			PerforceServerList serverList = await _serverListSingleton.GetAsync(cancellationToken);
 
-			DateTime minLastUpdateTime = DateTime.UtcNow - TimeSpan.FromMinutes(2.5);
+			DateTime minLastUpdateTime = DateTime.UtcNow - TimeSpan.FromMinutes(7.5);
 			foreach (PerforceServerEntry server in serverList.Servers)
 			{
 				if (server.Status == PerforceServerStatus.Healthy && server.LastUpdateTime != null && server.LastUpdateTime.Value < minLastUpdateTime)
@@ -460,6 +460,7 @@ namespace Horde.Server.Perforce
 
 			// Now update the health of each entry in parallel
 			List<Task> tasks = [];
+			span.SetAttribute("numServers", list.Servers.Count);
 			foreach (PerforceServerEntry entry in list.Servers)
 			{
 				tasks.Add(Task.Run(() => UpdateHealthAsync(entry, cancellationToken), cancellationToken));
