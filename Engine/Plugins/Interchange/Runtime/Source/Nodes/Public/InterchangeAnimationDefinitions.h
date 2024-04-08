@@ -34,6 +34,7 @@ enum class EInterchangePropertyTracks : int32
 	DrawDebug,
 	EmissiveLightSource,
 	ExcludeFromLightAttachmentGroup,
+	HiddenInGame, // This visibility property is set on the Component
 	HiddenInSceneCapture,
 	Holdout,
 	LightAttachmentsAsGroup,
@@ -48,7 +49,7 @@ enum class EInterchangePropertyTracks : int32
 	TranslucencySortDistanceOffset,
 	VisibleInRayTracing,
 	VisibleInSceneCaptureOnly,
-	Visibility,
+	Visibility, // This visibility property is set on the Actor
 
 	/** Light Properties */
 	LightAffectGlobalIllumination,
@@ -312,6 +313,30 @@ enum class EInterchangePropertyTracks : int32
 	CameraUpdateOrthoPlanes,
 	CameraUseCameraHeightAsViewTarget,
 	CameraUseFieldOfViewForLOD,
+
+	/** Common Mesh Properties */
+	MeshOverlayMaterialMaxDrawDistance, 
+
+	/** Skinned Mesh Properties */
+	SkinnedMeshCapsuleIndirectShadowMinVisibility,
+	SkinnedMeshCastCapsuleDirectShadow,
+	SkinnedMeshCastCapsuleIndirectShadow,
+	SkinnedMeshRenderStatic,
+	SkinnedMeshVisibilityBasedAnimTickOption,
+
+	/** Skeletal Mesh Properties */
+	SkeletalMeshAllowClothActors,
+	SkeletalMeshAnimationMode,
+	SkeletalMeshClothBlendWeight,
+	SkeletalMeshClothMaxDistanceScale,
+
+	/** Static Mesh Properties */
+	StaticMeshDistanceFieldSelfShadowBias,
+	StaticMeshEvaluateWorldPositionOffset,
+	StaticMeshEvaluateWorldPositionOffsetInRayTracing,
+	StaticMeshForcedLodModel,
+	StaticMeshReverseCulling,
+	StaticMeshWorldPositionOffsetDisableDistance,
 
 	None = -1 UMETA(hidden),
 };
