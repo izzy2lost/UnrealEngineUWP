@@ -13,6 +13,25 @@
 
 namespace UE::Chaos::ClothAsset::Private
 {
+	// Memory counter archive for GetResourceSizeEx
+	class FMemoryCounterArchive final : public FArchive
+	{
+	public:
+		FMemoryCounterArchive()
+			: Size(0)
+		{
+			SetIsSaving(true);
+			SetIsPersistent(true);
+			ArIsCountingMemory = true;
+		}
+
+		virtual void Serialize(void*, int64 Length) override { Size += Length; }
+		virtual int64 TotalSize() override { return Size; }
+
+	private:
+		int64 Size;
+	};
+
 	// Find the root bone for this cloth asset (common bone for all used bones)
 	static int32 CalculateReferenceBoneIndex(const TArray<FChaosClothSimulationLodModel> ClothSimulationLodModels, const FReferenceSkeleton& ReferenceSkeleton, const TArray<int32>& UsedBoneIndices)
 	{
@@ -137,7 +156,7 @@ bool FChaosClothSimulationLodModel::Serialize(FArchive& Ar)
 	using namespace UE::Chaos::ClothAsset;
 
 	// Serialize normal tagged property data
-	if (Ar.IsLoading() || Ar.IsSaving())
+	if (Ar.IsLoading() || Ar.IsSaving() || Ar.IsCountingMemory())
 	{
 		UScriptStruct* const Struct = FChaosClothSimulationLodModel::StaticStruct();
 		Struct->SerializeTaggedProperties(Ar, (uint8*)this, Struct, nullptr);
@@ -215,6 +234,13 @@ bool FChaosClothSimulationLodModel::Serialize(FArchive& Ar)
 
 	// Return true to confirm that serialization has already been taken care of
 	return true;
+}
+
+void FChaosClothSimulationLodModel::GetResourceSizeEx(FResourceSizeEx& CumulativeResourceSize)
+{
+	UE::Chaos::ClothAsset::Private::FMemoryCounterArchive Ar;
+	Serialize(Ar);
+	CumulativeResourceSize.AddDedicatedSystemMemoryBytes(Ar.TotalSize());
 }
 
 FChaosClothSimulationModel::FChaosClothSimulationModel(const TArray<TSharedRef<const FManagedArrayCollection>>& ClothCollections, 
@@ -452,4 +478,14 @@ void FChaosClothSimulationModel::CalculateLODTransitionUpDownData(TArray<FChaosC
 			}
 		}
 	}
+}
+
+void FChaosClothSimulationModel::GetResourceSizeEx(FResourceSizeEx& CumulativeResourceSize)
+{
+	UE::Chaos::ClothAsset::Private::FMemoryCounterArchive Ar;
+
+	UScriptStruct* const Struct = FChaosClothSimulationModel::StaticStruct();
+	Struct->SerializeTaggedProperties(Ar, (uint8*)this, Struct, nullptr);
+
+	CumulativeResourceSize.AddDedicatedSystemMemoryBytes(Ar.TotalSize());
 }

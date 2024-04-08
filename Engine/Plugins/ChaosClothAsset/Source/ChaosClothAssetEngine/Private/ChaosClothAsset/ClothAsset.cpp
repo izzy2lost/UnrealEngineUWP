@@ -193,14 +193,12 @@ FMatrix UChaosClothAsset::GetComposedRefPoseMatrix(FName InBoneName) const
 	return LocalPose;
 }
 
-
 void UChaosClothAsset::Serialize(FArchive& Ar)
 {
 	Super::Serialize(Ar);
 
 	bool bCooked = Ar.IsCooking();
 	Ar << bCooked;
-
 
 	if (bCooked && Ar.IsSaving())
 	{
@@ -217,7 +215,7 @@ void UChaosClothAsset::Serialize(FArchive& Ar)
 
 	Ar << GetRefSkeleton();
 
-	if (bCooked && !IsTemplate() && !Ar.IsCountingMemory())
+	if (bCooked && !IsTemplate() && !Ar.IsCountingMemory())  // Counting of these resources are done in GetResourceSizeEx, so skip these when counting memory
 	{
 		if (Ar.IsLoading())
 		{
@@ -249,6 +247,65 @@ void UChaosClothAsset::PostEditChangeProperty(FPropertyChangedEvent& PropertyCha
 	Super::PostEditChangeProperty(PropertyChangedEvent);
 }
 #endif // #if WITH_EDITOR
+
+void UChaosClothAsset::GetResourceSizeEx(FResourceSizeEx& CumulativeResourceSize)
+{
+	Super::GetResourceSizeEx(CumulativeResourceSize);
+
+	GetResourceForRendering()->GetResourceSizeEx(CumulativeResourceSize);
+	ClothSimulationModel->GetResourceSizeEx(CumulativeResourceSize);
+
+#if !UE_BUILD_SHIPPING
+	FString MemoryReport;
+	MemoryReport.Appendf(TEXT("---- Memory report for Cloth Asset [%s] ----"), *this->GetName());
+
+	FResourceSizeEx RenderDataResourceSize;
+	if (GetResourceForRendering())
+	{
+		for (int32 LodIndex = 0; LodIndex < GetResourceForRendering()->LODRenderData.Num(); ++LodIndex)
+		{
+			FResourceSizeEx LODRenderDataResourceSize;
+			GetResourceForRendering()->LODRenderData[LodIndex].GetResourceSizeEx(LODRenderDataResourceSize);
+			MemoryReport.Appendf(TEXT("\n LODRenderData LOD%d size: %ld bytes"), LodIndex, LODRenderDataResourceSize.GetTotalMemoryBytes());
+		}
+
+		GetResourceForRendering()->GetResourceSizeEx(RenderDataResourceSize);
+	}
+	MemoryReport.Appendf(TEXT("\n Total RenderData size: %ld bytes"), RenderDataResourceSize.GetTotalMemoryBytes());
+
+	FResourceSizeEx ClothSimulationModelResourceSize;
+	if (ClothSimulationModel)
+	{
+		for (int32 LodIndex = 0; LodIndex < ClothSimulationModel->GetNumLods(); ++LodIndex)
+		{
+			FResourceSizeEx ClothSimulationLodModelResourceSize;
+			ClothSimulationModel->ClothSimulationLodModels[LodIndex].GetResourceSizeEx(ClothSimulationLodModelResourceSize);
+
+			const FName Tag(*FString::Printf(TEXT("ClothSimulationLodModel[%d]"), LodIndex));
+			MemoryReport.Appendf(TEXT("\n ClothSimulationLodModel LOD%d size: %ld bytes"), LodIndex, ClothSimulationLodModelResourceSize.GetTotalMemoryBytes());
+		}
+
+		ClothSimulationModel->GetResourceSizeEx(ClothSimulationModelResourceSize);
+	}
+	MemoryReport.Appendf(TEXT("\n Total ClothSimulationModel size: %ld bytes"), ClothSimulationModelResourceSize.GetTotalMemoryBytes());
+
+	const int64 TotalResourceSize = RenderDataResourceSize.GetTotalMemoryBytes() + ClothSimulationModelResourceSize.GetTotalMemoryBytes();
+	MemoryReport.Appendf(
+		TEXT("\n Total resource size for Cloth Asset [%s]: %ld bytes (%.3f MB)"),
+		*this->GetName(),
+		TotalResourceSize,
+		(float)TotalResourceSize / (1024.f * 1024.f));
+
+	const int64 TotalSize = CumulativeResourceSize.GetTotalMemoryBytes();
+	MemoryReport.Appendf(
+		TEXT("\n Total size for Cloth Asset [%s]: %ld bytes (%.3f MB)"),
+		*this->GetName(),
+		TotalSize,
+		(float)TotalSize / (1024.f * 1024.f));
+
+	UE_LOG(LogChaosClothAsset, Display, TEXT("\n%s"), *MemoryReport);
+#endif
+}
 
 void UChaosClothAsset::BeginPostLoadInternal(FSkinnedAssetPostLoadContext& Context)
 {
