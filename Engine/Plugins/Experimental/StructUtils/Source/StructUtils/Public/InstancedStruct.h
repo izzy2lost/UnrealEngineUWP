@@ -7,7 +7,9 @@
 #include "InstancedStruct.generated.h"
 
 struct FConstStructView;
+template<typename BaseStructT> struct TConstStructView;
 struct FConstSharedStruct;
+template<typename BaseStructT> struct TConstSharedStruct;
 class UUserDefinedStruct;
 
 /**
@@ -296,6 +298,16 @@ struct TInstancedStruct
 public:
 	TInstancedStruct() = default;
 
+	/**
+	 * This constructor is explicit to avoid accidentally converting struct views to instanced structs (which would result in costly copy of the struct to be made).
+	 * Implicit conversion could happen e.g. when comparing TInstancedStruct to TConstStructView.
+	 */
+	template<typename T = BaseStructT, typename = std::enable_if_t<std::is_base_of_v<BaseStructT, std::decay_t<T>>>>
+	explicit TInstancedStruct(const TConstStructView<T> InOther)
+	{
+		InitializeAsScriptStruct(InOther.GetScriptStruct(), InOther.GetMemory());
+	}
+
 	template<typename T = BaseStructT, typename = std::enable_if_t<std::is_base_of_v<BaseStructT, std::decay_t<T>>>>
 	TInstancedStruct(const TInstancedStruct<T>& InOther)
 		: InstancedStruct(InOther.InstancedStruct)
@@ -306,6 +318,16 @@ public:
 	TInstancedStruct(TInstancedStruct<T>&& InOther)
 		: InstancedStruct(MoveTemp(InOther.InstancedStruct))
 	{
+	}
+
+	template<typename T = BaseStructT, typename = std::enable_if_t<std::is_base_of_v<BaseStructT, std::decay_t<T>>>>
+	TInstancedStruct& operator=(const TConstStructView<T> InOther)
+	{
+		if (this != &InOther)
+		{
+			InstancedStruct = InOther.InstancedStruct;
+		}
+		return *this;
 	}
 
 	template<typename T = BaseStructT, typename = std::enable_if_t<std::is_base_of_v<BaseStructT, std::decay_t<T>>>>

@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "AITestsCommon.h"
 #include "SharedStruct.h"
@@ -36,6 +36,14 @@ namespace FInstancedStructTest
 				FInstancedStruct InstancedStruct(StructView);
 
 				AITEST_EQUAL("FInstancedStruct initialized from Make should have value of FStructView its initiliazed from", Val, InstancedStruct.Get<FTestStructSimple>().Float);
+			}
+			
+			{
+				FTestStructSimple Simple(Val);
+				TConstStructView<FTestStructSimple> ConstStructView(Simple);
+				TInstancedStruct<FTestStructSimple> InstancedStruct(ConstStructView);
+
+				AITEST_EQUAL("TInstancedStruct initialized from Make should have value of TConstStructView its initiliazed from", Val, InstancedStruct.Get<FTestStructSimple>().Float);
 			}
 
 			{

@@ -126,6 +126,70 @@ protected:
 	uint8* StructMemory = nullptr;
 };
 
+/**
+ * TStructView is a type-safe FStructView wrapper against the given BaseStruct type.
+ * 
+ * Example:
+ *
+ *	TStructView<FTestStructBase> Test;
+ *
+ *	TArray<TStructView<FTestStructBase>> TestArray;
+ */
+template<typename BaseStructT>
+struct TStructView : FStructView
+{
+public:
+
+	explicit TStructView() = default;
+
+	template<typename T = BaseStructT, typename = std::enable_if_t<std::is_base_of_v<BaseStructT, std::decay_t<T>>>>
+	TStructView(BaseStructT& InStruct)
+		: FStructView(TBaseStructure<BaseStructT>::Get(), reinterpret_cast<uint8*>(&InStruct))
+	{}
+
+	template<typename T = BaseStructT, typename = std::enable_if_t<std::is_base_of_v<BaseStructT, std::decay_t<T>>>>
+	explicit TStructView(uint8* InStructMemory = nullptr)
+		: FStructView(T::StaticStruct(), InStructMemory)
+	{}
+
+	template<typename T = BaseStructT, typename = std::enable_if_t<std::is_base_of_v<BaseStructT, std::decay_t<T>>>>
+	TStructView(TInstancedStruct<T>& InstancedStruct)
+		: TStructView(InstancedStruct.GetScriptStruct(), InstancedStruct.GetMutableMemory())
+	{}
+
+	template<typename T = BaseStructT, typename = std::enable_if_t<std::is_base_of_v<BaseStructT, std::decay_t<T>>>>
+	TStructView(const TSharedStruct<T>& SharedStruct)
+		: TStructView(SharedStruct.GetScriptStruct(), SharedStruct.GetMemory())
+	{}
+
+	/** Returns mutable reference to the struct, this getter assumes that all data is valid. */
+	template<typename T = BaseStructT, typename = std::enable_if_t<std::is_base_of_v<BaseStructT, std::decay_t<T>>>>
+	T& Get() const
+	{
+		return UE::StructUtils::GetStructRef<BaseStructT>(ScriptStruct, StructMemory);
+	}
+
+	/** Returns mutable pointer to the struct, or nullptr if cast is not valid. */
+	template<typename T = BaseStructT, typename = std::enable_if_t<std::is_base_of_v<BaseStructT, std::decay_t<T>>>>
+	T* GetPtr() const
+	{
+		return UE::StructUtils::GetStructPtr<T>(ScriptStruct, StructMemory);
+	}
+
+	/** Comparison operators. Note: it does not compare the internal structure itself */
+	template<typename T = BaseStructT, typename = std::enable_if_t<std::is_base_of_v<BaseStructT, std::decay_t<T>>>>
+	bool operator==(const TStructView<T>& Other) const
+	{
+		return ((ScriptStruct == Other.GetScriptStruct()) && (StructMemory == Other.GetMemory()));
+	}
+
+	template<typename T = BaseStructT, typename = std::enable_if_t<std::is_base_of_v<BaseStructT, std::decay_t<T>>>>
+	bool operator!=(const TStructView<T>& Other) const
+	{
+		return !operator==(Other);
+	}
+};
+
 ///////////////////////////////////////////////////////////////// FConstStructView /////////////////////////////////////////////////////////////////
 /**
  * FConstStructView is "typed" struct pointer, it contains const pointer to struct plus UScriptStruct pointer.
@@ -257,4 +321,76 @@ public:
 protected:
 	const UScriptStruct* ScriptStruct = nullptr;
 	const uint8* StructMemory = nullptr;
+};
+
+/**
+ * TConstStructView is a type-safe FConstStructView wrapper against the given BaseStruct type.
+ * 
+ * Example:
+ *
+ *	TConstStructView<FTestStructBase> Test;
+ *
+ *	TArray<TConstStructView<FTestStructBase>> TestArray;
+ */
+template<typename BaseStructT>
+struct TConstStructView : FConstStructView
+{
+	explicit TConstStructView() = default;
+
+	template<typename T = BaseStructT, typename = std::enable_if_t<std::is_base_of_v<BaseStructT, std::decay_t<T>>>>
+	TConstStructView(const BaseStructT& InStruct)
+		: FConstStructView(TBaseStructure<T>::Get(), reinterpret_cast<const uint8*>(&InStruct))
+	{}
+
+	template<typename T = BaseStructT, typename = std::enable_if_t<std::is_base_of_v<BaseStructT, std::decay_t<T>>>>
+	explicit TConstStructView(const uint8* InStructMemory = nullptr)
+		: FConstStructView(T::StaticStruct(), InStructMemory)
+	{}
+
+	template<typename T = BaseStructT, typename = std::enable_if_t<std::is_base_of_v<BaseStructT, std::decay_t<T>>>>
+	TConstStructView(const TInstancedStruct<T>& InstancedStruct)
+		: FConstStructView(InstancedStruct.GetScriptStruct(), InstancedStruct.GetMemory())
+	{}
+
+	template<typename T = BaseStructT, typename = std::enable_if_t<std::is_base_of_v<BaseStructT, std::decay_t<T>>>>
+	TConstStructView(const TSharedStruct<T>& SharedStruct)
+		: FConstStructView(SharedStruct.GetScriptStruct(), SharedStruct.GetMemory())
+	{}
+
+	template<typename T = BaseStructT, typename = std::enable_if_t<std::is_base_of_v<BaseStructT, std::decay_t<T>>>>
+	TConstStructView(const TConstSharedStruct<T>& SharedStruct)
+		: FConstStructView(SharedStruct.GetScriptStruct(), SharedStruct.GetMemory())
+	{}
+
+	template<typename T = BaseStructT, typename = std::enable_if_t<std::is_base_of_v<BaseStructT, std::decay_t<T>>>>
+	TConstStructView(const TStructView<T> StructView)
+		: FConstStructView(StructView.GetScriptStruct(), StructView.GetMemory())
+	{}
+
+	/** Returns const reference to the struct, this getter assumes that all data is valid. */
+	template<typename T = BaseStructT, typename = std::enable_if_t<std::is_base_of_v<BaseStructT, std::decay_t<T>>>>
+	constexpr T& Get() const
+	{
+		return UE::StructUtils::GetStructRef<T>(ScriptStruct, StructMemory);
+	}
+
+	/** Returns const pointer to the struct, or nullptr if cast is not valid. */
+	template<typename T = BaseStructT, typename = std::enable_if_t<std::is_base_of_v<BaseStructT, std::decay_t<T>>>>
+	constexpr T* GetPtr() const
+	{
+		return UE::StructUtils::GetStructPtr<T>(ScriptStruct, StructMemory);
+	}
+
+	/** Comparison operators. Note: it does not compare the internal structure itself */
+	template<typename T = BaseStructT, typename = std::enable_if_t<std::is_base_of_v<BaseStructT, std::decay_t<T>>>>
+	bool operator==(const TConstStructView<T>& Other) const
+	{
+		return ((ScriptStruct == Other.GetScriptStruct()) && (StructMemory == Other.GetMemory()));
+	}
+
+	template<typename T = BaseStructT, typename = std::enable_if_t<std::is_base_of_v<BaseStructT, std::decay_t<T>>>>
+	bool operator!=(const TConstStructView<T>& Other) const
+	{
+		return !operator==(Other);
+	}
 };
