@@ -292,6 +292,8 @@ namespace Chaos
 						StaticFrictionRatio,
 						Dt);
 				}
+
+				Constraint->FinalizeSolverResults(Dt);
 			}
 		}
 

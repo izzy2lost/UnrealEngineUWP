@@ -170,7 +170,6 @@ namespace Chaos
 	{
 	public:
 		FVec3f ShapeContactPoints[2];			// Contact anchor points for friction
-		FRealSingle InitialPhi;					// Non-resolved initial penetration
 	};
 
 	class FManifoldPointResult

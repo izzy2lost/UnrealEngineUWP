@@ -179,12 +179,12 @@ namespace Chaos
 				}
 
 			}
-			else if (ManifoldPoint.InitialPhi < 0)
+			else if (Constraint->GetMinInitialPhi() < 0)
 			{
-				// This is a pre-existing manifold point with some initial penetration to resolve.
-				// If we are currently penetrating less than the inital overlap, reduce the initial overlap
-				// Also resolve initial overlap over time by reducing allowed penetration by MaxDepenetrationVelocity
-				WorldContactInitialPhi = FMath::Max(ManifoldPoint.InitialPhi + MaxDepenetrationVelocity * Dt, WorldContactDeltaNormal);
+				// This is a pre-existing manifold point, but maybe we are still resolving initial penetrations
+				// Don't allow this contact to penetrate any deeper than it currently is. MinInitialPhi will
+				// decrease over time if we have a non-zero depenetration velocity
+				WorldContactInitialPhi = FMath::Max(WorldContactDeltaNormal, Constraint->GetMinInitialPhi());
 			}
 
 			// InitialPhi is only for tracking penetration - cannot be positive
@@ -238,9 +238,7 @@ namespace Chaos
 		const FConstraintSolverBody& Body1 = Solver.SolverBody1();
 
 		// MaxDepenetrationVelocity controls the rate at which initial-overlaps are resolved
-		// If the constraint has a non-negative MaxDepenetrationVelocity we use it, otherwise use the solver setting.
-		// If resultant MaxDepenetrationVelocity is negative, it means depenetrate immediately
-		const FSolverReal MaxDepenetrationVelocity = (Constraint->GetInitialOverlapDepentrationVelocity() >= 0) ? Constraint->GetInitialOverlapDepentrationVelocity() : SolverSettings.DepenetrationVelocity;
+		const FSolverReal MaxDepenetrationVelocity = Constraint->GetInitialOverlapDepenetrationVelocity();
 
 		// The maximum correction we can apply in one frame
 		// @todo(chaos): consider removing this functionality?
@@ -377,6 +375,8 @@ namespace Chaos
 				StaticFrictionRatio,
 				Dt);
 		}
+
+		Constraint->FinalizeSolverResults(Dt);
 	}
 
 	//////////////////////////////////////////////////////////////////////////////////////////////////

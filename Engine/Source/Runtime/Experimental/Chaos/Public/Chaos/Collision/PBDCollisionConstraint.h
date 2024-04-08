@@ -505,7 +505,7 @@ namespace Chaos
 		bool GetUseIncrementalCollisionDetection() const { return !Flags.bUseManifold || Flags.bUseIncrementalManifold; }
 
 		// Initial overlap depenetration velocity from the maximum of the two bodies
-		FRealSingle GetInitialOverlapDepentrationVelocity() const { return InitialOverlapDepenetrationVelocity; }
+		FRealSingle GetInitialOverlapDepenetrationVelocity() const { return InitialOverlapDepenetrationVelocity; }
 
 		/**
 		* Reset the material properties to those from the shape materials. Called each frame to reset contact modifications to the material.
@@ -817,10 +817,18 @@ namespace Chaos
 			{
 				SavedManifoldPoint->ShapeContactPoints[0] = Anchor0;
 				SavedManifoldPoint->ShapeContactPoints[1] = Anchor1;
-				SavedManifoldPoint->InitialPhi = ManifoldPoint.InitialPhi;
 			}
 
 			MinInitialPhi = FMath::Min(MinInitialPhi, ManifoldPoint.InitialPhi);
+		}
+
+		void FinalizeSolverResults(const FRealSingle Dt)
+		{
+			if (MinInitialPhi < 0)
+			{
+				// Apply depentration velocity to the initial overlap
+				MinInitialPhi = FMath::Min(MinInitialPhi + InitialOverlapDepenetrationVelocity * Dt, 0.0f);
+			}
 		}
 
 		/**
