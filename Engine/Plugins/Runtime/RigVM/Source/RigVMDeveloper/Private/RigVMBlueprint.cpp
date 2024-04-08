@@ -2091,7 +2091,7 @@ TArray<FString> URigVMBlueprint::GeneratePythonCommands(const FString InNewBluep
 							continue;
 						}
 
-						URigVMLibraryNode* LibraryNode = Cast<URigVMLibraryNode>(Reference->GetReferencedFunctionHeader().LibraryPointer.LibraryNode.ResolveObject());
+						URigVMLibraryNode* LibraryNode = Cast<URigVMLibraryNode>(Reference->GetReferencedFunctionHeader().LibraryPointer.GetNodeSoftPath().ResolveObject());
 						if (!ProcessedGraphs.Contains(LibraryNode->GetContainedGraph()))
 						{
 							bFoundUnprocessedReference = true;
@@ -3469,12 +3469,17 @@ void URigVMBlueprint::PatchFunctionReferencesOnLoad()
 
 				if (FunctionReferenceNode->ReferencedNodePtr_DEPRECATED.IsValid())
 				{
-					FunctionReferenceNode->ReferencedFunctionHeader = FunctionReferenceNode->ReferencedNodePtr_DEPRECATED->GetFunctionHeader();					
+					FunctionReferenceNode->ReferencedFunctionHeader = FunctionReferenceNode->ReferencedNodePtr_DEPRECATED->GetFunctionHeader();
 				}
 				else if (!FunctionReferenceNode->ReferencedNodePtr_DEPRECATED.IsNull())
 				{
 					// At least lets make sure we store the path in the header
-					FunctionReferenceNode->ReferencedFunctionHeader.LibraryPointer.LibraryNode = FunctionReferenceNode->ReferencedNodePtr_DEPRECATED.ToSoftObjectPath();
+					FunctionReferenceNode->ReferencedFunctionHeader.LibraryPointer.LibraryNodePath = FunctionReferenceNode->ReferencedNodePtr_DEPRECATED.ToSoftObjectPath().ToString();
+				}
+
+				if (FunctionReferenceNode->ReferencedFunctionHeader.LibraryPointer.LibraryNode_DEPRECATED.IsValid())
+				{
+					FunctionReferenceNode->ReferencedFunctionHeader.LibraryPointer.LibraryNodePath = FunctionReferenceNode->ReferencedFunctionHeader.LibraryPointer.LibraryNode_DEPRECATED.ToString();
 				}
 			}
 
@@ -3654,7 +3659,7 @@ void URigVMBlueprint::PatchFunctionsOnLoad()
 		for (const FRigVMGraphFunctionData& FunctionData : Store.PublicFunctions)
 		{
 			BackwardsCompatiblePublicFunctions.Add(FunctionData.Header.Name);
-			URigVMLibraryNode* LibraryNode = Cast<URigVMLibraryNode>(FunctionData.Header.LibraryPointer.LibraryNode.ResolveObject());
+			URigVMLibraryNode* LibraryNode = Cast<URigVMLibraryNode>(FunctionData.Header.LibraryPointer.GetNodeSoftPath().ResolveObject());
 			OldHeaders.Add(LibraryNode, FunctionData.Header);
 		}
 	}

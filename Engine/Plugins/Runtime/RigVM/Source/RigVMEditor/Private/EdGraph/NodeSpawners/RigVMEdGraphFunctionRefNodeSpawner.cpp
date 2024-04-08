@@ -378,7 +378,7 @@ bool URigVMEdGraphFunctionRefNodeSpawner::IsTemplateNodeFilteredOut(FBlueprintAc
 			}
 		}
 	}
-	const FString ReferencedAssetObjectPathString = ReferencedPublicFunctionHeader.LibraryPointer.LibraryNode.GetAssetName();
+	const FString ReferencedAssetObjectPathString = ReferencedPublicFunctionHeader.LibraryPointer.GetNodeSoftPath().GetAssetName();
 	for (UBlueprint* Blueprint : Filter.Context.Blueprints)
 	{
 		if(Blueprint->GetPathName() == ReferencedAssetObjectPathString)

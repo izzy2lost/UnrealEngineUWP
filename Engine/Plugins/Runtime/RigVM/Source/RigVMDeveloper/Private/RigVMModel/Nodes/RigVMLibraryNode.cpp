@@ -148,7 +148,7 @@ bool URigVMLibraryNode::Contains(URigVMLibraryNode* InContainedNode, bool bRecur
 		if(URigVMFunctionReferenceNode* FunctionReferenceNode = Cast<URigVMFunctionReferenceNode>(ContainedNode))
 		{
 			FRigVMGraphFunctionIdentifier ReferencedNode = FunctionReferenceNode->GetReferencedFunctionHeader().LibraryPointer;
-			if(ReferencedNode.LibraryNode == InContainedNode)
+			if(ReferencedNode.GetNodeSoftPath() == InContainedNode)
 			{
 				return true;
 			}
@@ -219,7 +219,7 @@ FRigVMGraphFunctionIdentifier URigVMLibraryNode::GetFunctionIdentifier() const
 	{
 		Identifier.HostObject = Library->GetFunctionHostObjectPath();
 	}
-	Identifier.LibraryNode = this;
+	Identifier.LibraryNodePath = this->GetPathName();
 	return Identifier;
 }
 
@@ -233,7 +233,7 @@ FRigVMGraphFunctionHeader URigVMLibraryNode::GetFunctionHeader(IRigVMGraphFuncti
 	}
 	else
 	{
-	    Header.LibraryPointer.LibraryNode = this;
+	    Header.LibraryPointer.LibraryNodePath = this->GetPathName();
 	    Header.LibraryPointer.HostObject = Cast<UObject>(InHostObject);
 	}	
     

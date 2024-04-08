@@ -62,7 +62,7 @@ void IRigVMExternalDependencyManager::CollectExternalDependencies(TArray<FRigVME
 	check(InHeader);
 	if(InCategory == RigVMGraphFunctionCategory)
 	{
-		OutDependencies.AddUnique({InHeader->LibraryPointer.LibraryNode.ToString(), InCategory});
+		OutDependencies.AddUnique({InHeader->LibraryPointer.LibraryNodePath, InCategory});
 	}
 	for(const FRigVMGraphFunctionArgument& Argument : InHeader->Arguments)
 	{

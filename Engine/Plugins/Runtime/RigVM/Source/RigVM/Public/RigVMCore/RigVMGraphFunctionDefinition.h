@@ -370,41 +370,43 @@ struct RIGVM_API FRigVMGraphFunctionIdentifier
 {
 	GENERATED_BODY()
 
+	UPROPERTY(meta=(DeprecatedProperty))
+	FSoftObjectPath LibraryNode_DEPRECATED;
+
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category=FunctionIdentifier)
-	FSoftObjectPath LibraryNode;
+	FString LibraryNodePath;
 
 	// A path to the IRigVMGraphFunctionHost that stores the function information, and compilation data (e.g. RigVMBlueprintGeneratedClass)
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category=FunctionIdentifier)
 	FSoftObjectPath HostObject;
 
 	FRigVMGraphFunctionIdentifier()
-		: LibraryNode(nullptr), HostObject(nullptr) {}
+		: LibraryNodePath(FString()), HostObject(nullptr) {}
 	
-	FRigVMGraphFunctionIdentifier(FSoftObjectPath InHostObject, FSoftObjectPath InLibraryNode)
-		: LibraryNode(InLibraryNode), HostObject(InHostObject) {}
+	FRigVMGraphFunctionIdentifier(FSoftObjectPath InHostObject, FString InLibraryNodePath)
+		: LibraryNodePath(InLibraryNodePath), HostObject(InHostObject) {}
 
 	friend uint32 GetTypeHash(const FRigVMGraphFunctionIdentifier& Pointer)
 	{
-		return HashCombine(GetTypeHash(Pointer.LibraryNode), GetTypeHash(Pointer.HostObject));
+		return HashCombine(GetTypeHash(Pointer.LibraryNodePath), GetTypeHash(Pointer.HostObject));
 	}
 
 	bool operator==(const FRigVMGraphFunctionIdentifier& Other) const
 	{
-		return HostObject == Other.HostObject && LibraryNode == Other.LibraryNode;
+		return HostObject == Other.HostObject && LibraryNodePath == Other.LibraryNodePath;
 	}
 
 	bool IsValid() const
 	{
-		return !HostObject.IsNull() && !LibraryNode.IsNull();
+		return !HostObject.IsNull() && !LibraryNodePath.IsEmpty();
 	}
 
 	FString GetFunctionName() const
 	{
 		if(IsValid())
 		{
-			const FString Path = LibraryNode.ToString();
 			FString NodeName;
-			if(Path.Split(TEXT("."), nullptr, &NodeName, ESearchCase::CaseSensitive, ESearchDir::FromEnd))
+			if(LibraryNodePath.Split(TEXT("."), nullptr, &NodeName, ESearchCase::CaseSensitive, ESearchDir::FromEnd))
 			{
 				return NodeName;
 			}
@@ -421,9 +423,26 @@ struct RIGVM_API FRigVMGraphFunctionIdentifier
 		return *GetFunctionName();
 	}
 
+	FSoftObjectPath GetNodeSoftPath() const
+	{
+		return LibraryNodePath;
+	}
+
 	friend FArchive& operator<<(FArchive& Ar, FRigVMGraphFunctionIdentifier& Data)
 	{
-		Ar << Data.LibraryNode;
+		Ar.UsingCustomVersion(FRigVMObjectVersion::GUID);
+		
+		if (Ar.IsLoading() && Ar.CustomVer(FRigVMObjectVersion::GUID) < FRigVMObjectVersion::RemoveLibraryNodeReferenceFromFunctionIdentifier)
+		{
+			FSoftObjectPath SoftPath;
+			Ar << SoftPath;
+			Data.LibraryNodePath = SoftPath.ToString();
+		}
+		else
+		{
+			Ar << Data.LibraryNodePath;
+		}
+		
 		Ar << Data.HostObject;
 		return Ar;
 	}
@@ -435,7 +454,7 @@ struct RIGVM_API FRigVMGraphFunctionHeader
 	GENERATED_BODY()
 
 	FRigVMGraphFunctionHeader()
-		: LibraryPointer(nullptr, nullptr)
+		: LibraryPointer(nullptr, FString())
 		, Name(NAME_None)
 	{}
 
@@ -499,7 +518,7 @@ struct RIGVM_API FRigVMGraphFunctionHeader
 	{
 		FString TooltipStr = FString::Printf(TEXT("%s (%s)\n%s"),
 		*NodeTitle,
-		*LibraryPointer.LibraryNode.GetAssetPathString(),
+		*LibraryPointer.GetNodeSoftPath().GetAssetPathString(),
 		*Description);
 		return FText::FromString(TooltipStr);
 	}

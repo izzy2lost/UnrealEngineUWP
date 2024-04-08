@@ -81,7 +81,7 @@ FText URigVMEdGraphNode::GetNodeTitle(ENodeTitleType::Type TitleType) const
 				const FRigVMGraphFunctionHeader& ReferencedHeader = FunctionReferenceNode->GetReferencedFunctionHeader();
 				{
 					TSoftObjectPtr<URigVMFunctionReferenceNode> RefNodePtr(FunctionReferenceNode);
-					const FString& PackagePath = ReferencedHeader.LibraryPointer.LibraryNode.GetLongPackageName();
+					const FString& PackagePath = ReferencedHeader.LibraryPointer.GetNodeSoftPath().GetLongPackageName();
 					if(PackagePath != RefNodePtr.GetLongPackageName())
 					{
 						SubTitle = FString::Printf(TEXT("From %s"), *PackagePath);

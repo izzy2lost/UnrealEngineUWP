@@ -148,7 +148,7 @@ void URigVMBuildData::RegisterReferencesFromAsset(const FAssetData& InAssetData)
 				ReferenceNodeDataProperty->ImportText_Direct(*ReferenceNodeDataString, &ReferenceNodeDatas, nullptr, EPropertyPortFlags::PPF_None);	
 				for(FRigVMReferenceNodeData& ReferenceNodeData : ReferenceNodeDatas)
 				{
-					if (ReferenceNodeData.ReferencedFunctionIdentifier.LibraryNode.IsValid())
+					if (ReferenceNodeData.ReferencedFunctionIdentifier.GetNodeSoftPath().IsValid())
 					{
 						BuildData->RegisterFunctionReference(ReferenceNodeData.ReferencedFunctionIdentifier, ReferenceNodeData.GetReferenceNodeObjectPath());
 					}
@@ -248,31 +248,31 @@ void URigVMBuildData::RegisterFunctionReference(const FRigVMGraphFunctionIdentif
 
 void URigVMBuildData::RegisterFunctionReference(FRigVMReferenceNodeData InReferenceNodeData)
 {
-	if (InReferenceNodeData.ReferencedFunctionIdentifier.LibraryNode.IsValid())
+	if (InReferenceNodeData.ReferencedFunctionIdentifier.GetNodeSoftPath().IsValid())
 	{
 		return RegisterFunctionReference(InReferenceNodeData.ReferencedFunctionIdentifier, InReferenceNodeData.GetReferenceNodeObjectPath());
 	}
 
-	if (!InReferenceNodeData.ReferencedFunctionIdentifier.LibraryNode.IsValid())
+	if (!InReferenceNodeData.ReferencedFunctionIdentifier.GetNodeSoftPath().IsValid())
 	{
 		InReferenceNodeData.ReferencedFunctionIdentifier = InReferenceNodeData.ReferencedHeader_DEPRECATED.LibraryPointer;
 	}
 
-	if (!InReferenceNodeData.ReferencedFunctionIdentifier.LibraryNode.IsValid())
+	if (!InReferenceNodeData.ReferencedFunctionIdentifier.GetNodeSoftPath().IsValid())
 	{
-		InReferenceNodeData.ReferencedFunctionIdentifier.LibraryNode = InReferenceNodeData.ReferencedFunctionPath_DEPRECATED;
+		InReferenceNodeData.ReferencedFunctionIdentifier.LibraryNodePath = InReferenceNodeData.ReferencedFunctionPath_DEPRECATED;
 	}
 	
-	check(InReferenceNodeData.ReferencedFunctionIdentifier.LibraryNode.IsValid());
+	check(InReferenceNodeData.ReferencedFunctionIdentifier.GetNodeSoftPath().IsValid());
 
-	FSoftObjectPath LibraryNodePath = InReferenceNodeData.ReferencedFunctionIdentifier.LibraryNode;
+	FString LibraryNodePath = InReferenceNodeData.ReferencedFunctionIdentifier.LibraryNodePath;
 	TSoftObjectPtr<URigVMLibraryNode> LibraryNodePtr = TSoftObjectPtr<URigVMLibraryNode>(LibraryNodePath);
 
 	// Try to find a FunctionIdentifier with the same LibraryNodePath
 	bool bFound = false;
 	for (TPair< FRigVMGraphFunctionIdentifier, FRigVMFunctionReferenceArray >& Pair : GraphFunctionReferences)
 	{
-		if (Pair.Key.LibraryNode == LibraryNodePath)
+		if (Pair.Key.LibraryNodePath == LibraryNodePath)
 		{
 			Pair.Value.FunctionReferences.Add(InReferenceNodeData.GetReferenceNodeObjectPath());
 			bFound = true;

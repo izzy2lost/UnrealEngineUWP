@@ -188,7 +188,7 @@ bool URigVMSchema::SupportsGraphFunction(URigVMController* InController, const F
 	URigVMLibraryNode* ParentLibraryNode = Cast<URigVMLibraryNode>(Graph->GetOuter());
 	while (ParentLibraryNode)
 	{
-		if (TSoftObjectPtr<UObject>(ParentLibraryNode).ToSoftObjectPath() == InGraphFunction->LibraryPointer.LibraryNode)
+		if (TSoftObjectPtr<UObject>(ParentLibraryNode).ToSoftObjectPath() == InGraphFunction->LibraryPointer.GetNodeSoftPath())
 		{
 			static const FString Message = TEXT("You cannot place functions inside of itself or an indirect recursion.");
 			InController->ReportError(Message);

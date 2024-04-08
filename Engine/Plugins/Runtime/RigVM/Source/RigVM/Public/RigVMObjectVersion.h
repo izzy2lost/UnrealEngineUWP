@@ -39,6 +39,9 @@ struct RIGVM_API FRigVMObjectVersion
 		// Removing unused tooltip property from frunction header
 		VMRemoveTooltipFromFunctionHeader,
 
+		// Removing library node FSoftObjectPath from FRigVMGraphFunctionIdentifier
+		RemoveLibraryNodeReferenceFromFunctionIdentifier,
+
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,
 		LatestVersion = VersionPlusOne - 1

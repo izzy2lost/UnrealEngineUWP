@@ -27,7 +27,7 @@ SRigVMGraphFunctionLocalizationItem::SRigVMGraphFunctionLocalizationItem(const F
 
 	if (FRigVMGraphFunctionData* FunctionData = FRigVMGraphFunctionData::FindFunctionData(InFunction, &bIsPublic))
 	{
-		OuterName = InFunction.LibraryNode.GetAssetPathString();
+		OuterName = InFunction.GetNodeSoftPath().GetAssetPathString();
 		FunctionName = FunctionData->Header.Name.ToString();
 		DisplayText = FText::FromString(FString::Printf(TEXT("%s :: %s"), *OuterName, *FunctionName));
 		ToolTipText = bIsPublic ?

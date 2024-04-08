@@ -1838,7 +1838,7 @@ void UControlRigBlueprint::PatchFunctionsOnLoad()
 			for (const FRigVMGraphFunctionData& FunctionData : Store.PublicFunctions)
 			{
 				BackwardsCompatiblePublicFunctions.Add(FunctionData.Header.Name);
-				URigVMLibraryNode* LibraryNode = Cast<URigVMLibraryNode>(FunctionData.Header.LibraryPointer.LibraryNode.ResolveObject());
+				URigVMLibraryNode* LibraryNode = Cast<URigVMLibraryNode>(FunctionData.Header.LibraryPointer.GetNodeSoftPath().ResolveObject());
 				OldHeaders.Add(LibraryNode, FunctionData.Header);
 			}
 		}

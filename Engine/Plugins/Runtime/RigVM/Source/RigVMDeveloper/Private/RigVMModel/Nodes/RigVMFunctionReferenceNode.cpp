@@ -43,7 +43,7 @@ bool URigVMFunctionReferenceNode::RequiresVariableRemappingInternal(TArray<FRigV
 	bool bHostedInDifferencePackage = false;
 	
 	FRigVMGraphFunctionIdentifier LibraryPointer = ReferencedFunctionHeader.LibraryPointer;
-	const FString& LibraryPackagePath = LibraryPointer.LibraryNode.GetLongPackageName();
+	const FString& LibraryPackagePath = LibraryPointer.GetNodeSoftPath().GetLongPackageName();
 	const FString& ThisPacakgePath = GetPackage()->GetPathName();
 	bHostedInDifferencePackage = LibraryPackagePath != ThisPacakgePath;
 		
@@ -137,7 +137,7 @@ uint32 URigVMFunctionReferenceNode::GetStructureHash() const
 
 	Hash = HashCombine(Hash, GetTypeHash(ReferencedFunctionHeader.Name.ToString()));
 	Hash = HashCombine(Hash, GetTypeHash(ReferencedFunctionHeader.NodeTitle));
-	Hash = HashCombine(Hash, GetTypeHash(ReferencedFunctionHeader.LibraryPointer.LibraryNode.ToString()));
+	Hash = HashCombine(Hash, GetTypeHash(ReferencedFunctionHeader.LibraryPointer.LibraryNodePath));
 	Hash = HashCombine(Hash, GetTypeHash(ReferencedFunctionHeader.Keywords));
 	Hash = HashCombine(Hash, GetTypeHash(ReferencedFunctionHeader.Description));
 	Hash = HashCombine(Hash, GetTypeHash(ReferencedFunctionHeader.NodeColor));
@@ -216,15 +216,16 @@ bool URigVMFunctionReferenceNode::IsReferencedFunctionHostLoaded() const
 
 bool URigVMFunctionReferenceNode::IsReferencedNodeLoaded() const
 {
-	return ReferencedFunctionHeader.LibraryPointer.LibraryNode.ResolveObject() != nullptr;
+	return ReferencedFunctionHeader.LibraryPointer.GetNodeSoftPath().ResolveObject() != nullptr;
 }
 
 URigVMLibraryNode* URigVMFunctionReferenceNode::LoadReferencedNode() const
 {
-	UObject* LibraryNode = ReferencedFunctionHeader.LibraryPointer.LibraryNode.ResolveObject();
+	FSoftObjectPath SoftObjectPath = ReferencedFunctionHeader.LibraryPointer.GetNodeSoftPath();
+	UObject* LibraryNode = SoftObjectPath.ResolveObject();
 	if (!LibraryNode)
 	{
-		LibraryNode = ReferencedFunctionHeader.LibraryPointer.LibraryNode.TryLoad();
+		LibraryNode = SoftObjectPath.TryLoad();
 	}
 	return Cast<URigVMLibraryNode>(LibraryNode);
 	

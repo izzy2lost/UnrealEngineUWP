@@ -93,26 +93,31 @@ void FRigVMGraphFunctionHeader::PostDuplicateHost(const FString& InOldPathName, 
 	const FString OldPathName = InOldPathName + TEXT(":");
 	const FString NewPathName = InNewPathName + TEXT(":");
 
-	auto ReplacePathName = [InOldPathName, InNewPathName, OldPathName, NewPathName](FSoftObjectPath& InOutObjectPath)
+	auto ReplacePathName = [InOldPathName, InNewPathName, OldPathName, NewPathName](FString& InOutObjectPath)
 	{
-		FString PathName = InOutObjectPath.ToString();
-		if(PathName.Equals(InOldPathName, ESearchCase::CaseSensitive))
+		if(InOutObjectPath.Equals(InOldPathName, ESearchCase::CaseSensitive))
 		{
-			InOutObjectPath = FSoftObjectPath(InNewPathName);
+			InOutObjectPath = InNewPathName;
 		}
-		else if(PathName.StartsWith(OldPathName, ESearchCase::CaseSensitive))
+		else if(InOutObjectPath.StartsWith(OldPathName, ESearchCase::CaseSensitive))
 		{
-			PathName = NewPathName + PathName.Mid(OldPathName.Len());
-			InOutObjectPath = FSoftObjectPath(PathName);
+			InOutObjectPath = NewPathName + InOutObjectPath.Mid(OldPathName.Len());
 		}
 	};
+	
+	auto ReplaceSoftPathName = [InOldPathName, InNewPathName, OldPathName, NewPathName, ReplacePathName](FSoftObjectPath& InOutObjectPath)
+	{
+		FString PathName = InOutObjectPath.ToString();
+		ReplacePathName(PathName);
+		InOutObjectPath = FSoftObjectPath(PathName);
+	};
 
-	ReplacePathName(LibraryPointer.LibraryNode);
-	ReplacePathName(LibraryPointer.HostObject);
+	ReplacePathName(LibraryPointer.LibraryNodePath);
+	ReplaceSoftPathName(LibraryPointer.HostObject);
 	for (TPair<FRigVMGraphFunctionIdentifier, uint32>& Pair : Dependencies)
 	{
-		ReplacePathName(Pair.Key.LibraryNode);
-		ReplacePathName(Pair.Key.HostObject);
+		ReplacePathName(Pair.Key.LibraryNodePath);
+		ReplaceSoftPathName(Pair.Key.HostObject);
 	}
 }
 

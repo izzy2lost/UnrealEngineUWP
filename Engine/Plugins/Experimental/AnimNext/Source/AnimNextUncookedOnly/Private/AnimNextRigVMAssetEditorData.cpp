@@ -249,7 +249,7 @@ void UAnimNextRigVMAssetEditorData::RefreshAllModels(ERigVMLoadType InLoadType)
 				{
 					if (URigVMFunctionReferenceNode* FunctionReferenceNode = Cast<URigVMFunctionReferenceNode>(LibraryNode))
 					{
-						if (FunctionReferenceNode->GetReferencedFunctionHeader().LibraryPointer.LibraryNode.GetLongPackageName() != GetPackage()->GetPathName())
+						if (FunctionReferenceNode->GetReferencedFunctionHeader().LibraryPointer.GetNodeSoftPath().GetLongPackageName() != GetPackage()->GetPathName())
 						{
 							continue;
 						}
