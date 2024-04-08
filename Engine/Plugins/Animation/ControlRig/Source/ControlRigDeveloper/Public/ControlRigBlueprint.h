@@ -39,6 +39,33 @@ enum class EControlRigType : uint8
 	ModularRig =2,
 };
 
+USTRUCT(BlueprintType)
+struct CONTROLRIGDEVELOPER_API FModuleReferenceData
+{
+	GENERATED_BODY()
+
+public:
+	
+	FModuleReferenceData(){}
+
+	FModuleReferenceData(const FRigModuleReference* InModule)
+	{
+		if (InModule)
+		{
+			ModulePath = InModule->GetPath();
+			if (InModule->Class.IsValid())
+			{
+				ReferencedModule = InModule->Class.Get();
+			}
+		}
+	}
+
+	UPROPERTY()
+	FString ModulePath;
+
+	UPROPERTY()
+	FSoftClassPath ReferencedModule;
+};
 
 UCLASS(BlueprintType, meta=(IgnoreClassThumbnail))
 class CONTROLRIGDEVELOPER_API UControlRigBlueprint : public URigVMBlueprint, public IInterface_PreviewMeshProvider, public IRigHierarchyProvider
@@ -162,10 +189,19 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Hierarchy", AssetRegistrySearchable)
 	FRigModuleSettings RigModuleSettings;
 
+	/** Asset searchable information module references in this rig */
+	UPROPERTY(AssetRegistrySearchable)
+	TArray<FModuleReferenceData> ModuleReferenceData;
+
 	UPROPERTY()
 	TMap<FRigElementKey, FRigElementKey> ConnectionMap;
 
+	UFUNCTION(BlueprintPure, Category = "Control Rig Blueprint")
+	TArray<FModuleReferenceData> FindReferencesToModule() const;
+
 protected:
+
+	TArray<FModuleReferenceData> GetModuleReferenceData() const;
 
 	FOnRigTypeChanged OnRigTypeChangedDelegate;
 	

@@ -259,6 +259,20 @@ bool FModularRigModel::IsModuleParentedTo(const FRigModuleReference* InChildModu
 	return false;
 }
 
+TArray<const FRigModuleReference*> FModularRigModel::FindModuleInstancesOfClass(TSoftClassPtr<UControlRig> InClass) const
+{
+	TArray<const FRigModuleReference*> Result;
+	ForEachModule([&Result, InClass](const FRigModuleReference* Module) -> bool
+	{
+		if (Module->Class == InClass)
+		{
+			Result.Add(Module);
+		}
+		return true;
+	});
+	return Result;
+}
+
 FString FModularRigModel::GetParentPath(const FString& InPath) const
 {
 	if (const FRigModuleReference* Element = FindModule(InPath))

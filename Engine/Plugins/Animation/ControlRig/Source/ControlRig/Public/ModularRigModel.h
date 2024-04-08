@@ -318,6 +318,8 @@ public:
 	
 	bool IsModuleParentedTo(const FRigModuleReference* InChildModule, const FRigModuleReference* InParentModule) const;
 
+	TArray<const FRigModuleReference*> FindModuleInstancesOfClass(TSoftClassPtr<UControlRig> InClass) const;
+
 private:
 	TWeakObjectPtr<UObject> OuterClientHost;
 

@@ -955,6 +955,89 @@ void UControlRigBlueprint::PreSave(FObjectPreSaveContext ObjectSaveContext)
 		ControlRigType = EControlRigType::IndependentRig;
 		ItemTypeDisplayName = TEXT("Control Rig");
 	}
+
+	if (IsModularRig())
+	{
+		ModuleReferenceData = GetModuleReferenceData();
+		IAssetRegistry::GetChecked().AssetTagsFinalized(*this);
+	}
+}
+
+TArray<FModuleReferenceData> UControlRigBlueprint::FindReferencesToModule() const
+{
+	TArray<FModuleReferenceData> Result;
+	if (!IsControlRigModule())
+	{
+		return Result;
+	}
+
+	const UClass* RigModuleClass = GetControlRigClass();
+	if (!RigModuleClass)
+	{
+		return Result;
+	}
+
+	// Load the asset registry module
+	const FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry"));
+
+	// Collect a full list of assets with the control rig class
+	TArray<FAssetData> AssetDataList;
+	AssetRegistryModule.Get().GetAssetsByClass(UControlRigBlueprint::StaticClass()->GetClassPathName(), AssetDataList, true);
+
+	static const FLazyName ControlRigTypeName(GET_MEMBER_NAME_CHECKED(UControlRigBlueprint, ControlRigType));
+	FProperty* ControlRigTypeProperty = CastField<FProperty>(UControlRigBlueprint::StaticClass()->FindPropertyByName(ControlRigTypeName));
+	static const FLazyName ModuleReferenceDataName(GET_MEMBER_NAME_CHECKED(UControlRigBlueprint, ModuleReferenceData));
+	FArrayProperty* ModuleReferenceDataProperty = CastField<FArrayProperty>(UControlRigBlueprint::StaticClass()->FindPropertyByName(ModuleReferenceDataName));
+
+	for(const FAssetData& AssetData : AssetDataList)
+	{
+		// Check only modular rigs
+		{
+			const FString ControlRigTypeString = AssetData.GetTagValueRef<FString>(ControlRigTypeName);
+			if (ControlRigTypeString.IsEmpty())
+			{
+				continue;
+			}
+
+			EControlRigType RigType;
+			ControlRigTypeProperty->ImportText_Direct(*ControlRigTypeString, &RigType, nullptr, EPropertyPortFlags::PPF_None);
+			if (RigType != EControlRigType::ModularRig)
+			{
+				continue;
+			}
+		}
+		
+		const FString ModularRigDataString = AssetData.GetTagValueRef<FString>(ModuleReferenceDataName);
+		if (ModularRigDataString.IsEmpty())
+		{
+			continue;
+		}
+
+		TArray<FModuleReferenceData> Modules;
+		ModuleReferenceDataProperty->ImportText_Direct(*ModularRigDataString, &Modules, nullptr, EPropertyPortFlags::PPF_None);
+
+		for (FModuleReferenceData& Module : Modules)
+		{
+			if (Module.ReferencedModule == RigModuleClass)
+			{
+				Result.Add(Module);
+			}
+		}
+	}
+
+	return Result;
+}
+
+TArray<FModuleReferenceData> UControlRigBlueprint::GetModuleReferenceData() const
+{
+	TArray<FModuleReferenceData> Result;
+	Result.Reserve(ModularRigModel.Modules.Num());
+	ModularRigModel.ForEachModule([&Result](const FRigModuleReference* Module) -> bool
+	{
+		Result.Add(Module);
+		return true;
+	});
+	return Result;
 }
 
 void UControlRigBlueprint::UpdateExposedModuleConnectors() const
