@@ -106,9 +106,9 @@ void UGraphIsland::HandleOnDestroyed()
 	OnDestroyed.Broadcast(Handle());
 }
 
-void UGraphIsland::HandleOnConnectivityChanged()
+void UGraphIsland::HandleOnConnectivityChanged(EGraphIslandConnectivityChange Change)
 {
-	OnConnectivityChanged.Broadcast(Handle());
+	OnConnectivityChanged.Broadcast(Handle(), Change);
 }
 
 void UGraphIsland::SetOperationAllowed(EGraphIslandOperations Op, bool bAllowed)

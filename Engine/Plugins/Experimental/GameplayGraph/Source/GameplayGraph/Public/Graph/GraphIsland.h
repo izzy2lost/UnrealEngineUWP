@@ -15,19 +15,32 @@ enum class EGraphIslandOperations : int32
 {
 	None = 0,
 	Add = 1 << 0,
-Split = 1 << 1,
+	Split = 1 << 1,
 	Merge = 1 << 2,
 	Destroy = 1 << 3,
 	All = Add | Split | Merge | Destroy
 };
 ENUM_CLASS_FLAGS(EGraphIslandOperations);
 
+UENUM()
+enum class EGraphIslandConnectivityChange : int32
+{
+	// Vertex added into an island
+	VertexAdd,
+	// An island is split into 2 more islands
+	SplitFrom,
+	// An island was created by splitting an old island.
+	SplitTo,
+	// Some other undefined change - not used by the library but can be used by external users as a no-op of sorts.
+	Other
+};
+
 /** Delegate to track when some sort of batch change has occurred on this island that probably changes its connectivity.
  *  This is different from FOnGraphIslandNodeRemoved since FOnGraphIslandDestructiveChangeFinish will only be called
  *  once for the graph for a given operation while FOnGraphIslandNodeRemoved may be called multiple times if we're removing
  *  more than one node from the island at a given time. Note that this will only be called as a result of a destructive change.
  *  So repeatedly adding a node to an island won't call this event. */
-DECLARE_MULTICAST_DELEGATE_OneParam(FOnGraphIslandConnectedComponentsChanged, const FGraphIslandHandle&);
+DECLARE_MULTICAST_DELEGATE_TwoParams(FOnGraphIslandConnectedComponentsChanged, const FGraphIslandHandle&, EGraphIslandConnectivityChange);
 
 /** Delegate to track when this island should no longer exist. */
 DECLARE_MULTICAST_DELEGATE_OneParam(FOnGraphIslandDestroyed, const FGraphIslandHandle&);
@@ -83,7 +96,7 @@ protected:
 	virtual void HandleOnVertexAdded(const FGraphVertexHandle& Handle);
 	virtual void HandleOnVertexRemoved(const FGraphVertexHandle& Handle);
 	virtual void HandleOnDestroyed();
-	virtual void HandleOnConnectivityChanged();
+	virtual void HandleOnConnectivityChanged(EGraphIslandConnectivityChange Change);
 
 	/** Called when removing the island from the graph. */
 	void Destroy();

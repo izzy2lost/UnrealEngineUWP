@@ -600,9 +600,15 @@ void UGraph::RemoveOrSplitIsland(TObjectPtr<UGraphIsland> Island)
 		// This let's all the listeners of the islands make a decision on what to do with
 		// the island that had a destructive change to its connected components as well as
 		// the newly created islands.
-		for (TObjectPtr<UGraphIsland>& AffectedIsland : AffectedIslands)
+		for (UGraphIsland* AffectedIsland : AffectedIslands)
 		{
-			AffectedIsland->HandleOnConnectivityChanged();
+			if (!AffectedIsland)
+			{
+				continue;
+			}
+
+			const EGraphIslandConnectivityChange ChangeType = (AffectedIsland == Island) ? EGraphIslandConnectivityChange::SplitFrom : EGraphIslandConnectivityChange::SplitTo;
+			AffectedIsland->HandleOnConnectivityChanged(ChangeType);
 		}
 	}
 }
@@ -678,7 +684,7 @@ void UGraph::FinalizeVertex(const FGraphVertexHandle& InHandle)
 
 	if (TObjectPtr<UGraphIsland> Island = IslandHandle.GetIsland())
 	{
-		Island->HandleOnConnectivityChanged();
+		Island->HandleOnConnectivityChanged(EGraphIslandConnectivityChange::VertexAdd);
 	}
 }
 
