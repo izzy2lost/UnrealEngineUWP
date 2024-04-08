@@ -112,6 +112,7 @@ enum class EOperation : uint8
 	Mul,
 	Div,
 	Fmod,
+	Modulo,
 	Step,
 	PowPositiveClamped,
 	Atan2,

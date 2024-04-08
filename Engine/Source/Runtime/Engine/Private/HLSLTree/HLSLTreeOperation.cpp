@@ -75,7 +75,8 @@ FOperationDescription GetOperationDescription(EOperation Op)
 	case EOperation::Sub: return FOperationDescription(TEXT("Subtract"), TEXT("-"), 2, Shader::EPreshaderOpcode::Sub); break;
 	case EOperation::Mul: return FOperationDescription(TEXT("Multiply"), TEXT("*"), 2, Shader::EPreshaderOpcode::Mul); break;
 	case EOperation::Div: return FOperationDescription(TEXT("Divide"), TEXT("/"), 2, Shader::EPreshaderOpcode::Div); break;
-	case EOperation::Fmod: return FOperationDescription(TEXT("Fmod"), TEXT("%"), 2, Shader::EPreshaderOpcode::Fmod); break;
+	case EOperation::Fmod: return FOperationDescription(TEXT("Fmod"), TEXT("fmod"), 2, Shader::EPreshaderOpcode::Fmod); break;
+	case EOperation::Modulo: return FOperationDescription(TEXT("Modulo"), TEXT("%"), 2, Shader::EPreshaderOpcode::Modulo); break;
 	case EOperation::Step: return FOperationDescription(TEXT("Step"), TEXT("step"), 2, Shader::EPreshaderOpcode::Nop); break;
 	case EOperation::PowPositiveClamped: return FOperationDescription(TEXT("PowPositiveClamped"), TEXT("PowPositiveClamped"), 2, Shader::EPreshaderOpcode::Nop); break;
 	case EOperation::Atan2: return FOperationDescription(TEXT("Atan2"), TEXT("atan2"), 2, Shader::EPreshaderOpcode::Atan2); break;
@@ -367,6 +368,10 @@ FOperationTypes GetOperationTypes(EOperation Op, TConstArrayView<FPreparedType> 
 			Types.InputType[1] = Shader::MakeNonLWCType(Types.InputType[1]);
 			Types.ResultType = MakeNonLWCType(IntermediateType);
 			break;
+		case EOperation::Modulo:
+			Types.InputType[1] = Shader::MakeNonLWCType(Types.InputType[1]);
+			Types.ResultType = MakeNonLWCType(IntermediateType);
+			break;
 		case EOperation::PowPositiveClamped:
 		case EOperation::Atan2:
 		case EOperation::Atan2Fast:
@@ -621,6 +626,11 @@ void FExpressionOperation::ComputeAnalyticDerivatives(FTree& Tree, FExpressionDe
 		// We can't really do anything meaningful in the non-zero case.
 		OutResult = InputDerivatives[0];
 		break;
+	case EOperation::Modulo:
+		// Only valid when B derivatives are zero.
+		// We can't really do anything meaningful in the non-zero case.
+		OutResult = InputDerivatives[0];
+		break;
 	case EOperation::Min:
 	{
 		const FExpression* Cond = Tree.NewLess(Inputs[0], Inputs[1]);
@@ -820,6 +830,7 @@ void FExpressionOperation::EmitValueShader(FEmitContext& Context, FEmitScope& Sc
 	case EOperation::Mul: OutResult.Code = Context.EmitExpression(Scope, ResultType, Types.bIsLWC ? TEXT("WSMultiply(%, %)") : TEXT("(% * %)"), InputValue[0], InputValue[1]); break;
 	case EOperation::Div: OutResult.Code = Context.EmitExpression(Scope, ResultType, Types.bIsLWC ? TEXT("WSDivide(%, %)") : TEXT("(% / %)"), InputValue[0], InputValue[1]); break;
 	case EOperation::Fmod: OutResult.Code = Context.EmitExpression(Scope, ResultType, Types.bIsLWC ? TEXT("WSFmodDemote(%, %)") : TEXT("fmod(%, %)"), InputValue[0], InputValue[1]); break;
+	case EOperation::Modulo: OutResult.Code = Context.EmitExpression(Scope, ResultType, Types.bIsLWC ? TEXT("% %% %)") : TEXT("(% %% %)"), InputValue[0], InputValue[1]); break;
 	case EOperation::Step: OutResult.Code = Context.EmitExpression(Scope, ResultType, Types.bIsLWC ? TEXT("WSStep(%, %)") : TEXT("step(%, %)"), InputValue[0], InputValue[1]); break;
 	case EOperation::PowPositiveClamped: OutResult.Code = Context.EmitExpression(Scope, ResultType, TEXT("PositiveClampedPow(%, %)"), InputValue[0], InputValue[1]); break;
 	case EOperation::Atan2: OutResult.Code = Context.EmitExpression(Scope, ResultType, TEXT("atan2(%, %)"), InputValue[0], InputValue[1]); break;

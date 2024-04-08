@@ -118,6 +118,7 @@
 #include "Materials/MaterialExpressionMaterialProxyReplace.h"
 #include "Materials/MaterialExpressionMax.h"
 #include "Materials/MaterialExpressionMin.h"
+#include "Materials/MaterialExpressionModulo.h"
 #include "Materials/MaterialExpressionMultiply.h"
 #include "Materials/MaterialExpressionNamedReroute.h"
 #include "Materials/MaterialExpressionNaniteReplace.h"
@@ -2891,6 +2892,18 @@ bool UMaterialExpressionFmod::GenerateHLSLExpression(FMaterialHLSLGenerator& Gen
 		return false;
 	}
 	OutExpression = Generator.GetTree().NewFmod(Lhs, Rhs);
+	return true;
+}
+
+bool UMaterialExpressionModulo::GenerateHLSLExpression(FMaterialHLSLGenerator& Generator, UE::HLSLTree::FScope& Scope, int32 OutputIndex, UE::HLSLTree::FExpression const*& OutExpression) const
+{
+	const UE::HLSLTree::FExpression* Lhs = A.AcquireHLSLExpression(Generator, Scope);
+	const UE::HLSLTree::FExpression* Rhs = B.AcquireHLSLExpression(Generator, Scope);
+	if (!Lhs || !Rhs)
+	{
+		return false;
+	}
+	OutExpression = Generator.GetTree().NewModulo(Lhs, Rhs);
 	return true;
 }
 

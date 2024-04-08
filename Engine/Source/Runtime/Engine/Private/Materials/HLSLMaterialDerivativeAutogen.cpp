@@ -384,9 +384,10 @@ FMaterialDerivativeAutogen::FOperationType2 FMaterialDerivativeAutogen::GetFunc2
 	case EFunc2::Max:
 	case EFunc2::Min:
 	case EFunc2::Fmod:
+	case EFunc2::Modulo:
 		// Operations that support LWC
 		// Any LWC type promotes result to LWC
-		if (IsLWCType(LhsType) || (IsLWCType(RhsType) && Op != EFunc2::Fmod))
+		if (IsLWCType(LhsType) || (IsLWCType(RhsType) && Op != EFunc2::Fmod && Op != EFunc2::Modulo))
 		{
 			const EDerivativeType LhsLWCType = MakeLWCType(LhsType);
 			const EDerivativeType RhsLWCType = MakeLWCType(RhsType);
@@ -408,6 +409,7 @@ FMaterialDerivativeAutogen::FOperationType2 FMaterialDerivativeAutogen::GetFunc2
 					// Make sure we generate LWCDivide(LWC, float) if possible, since have a LWC denominator will result in worse approximation
 					return FOperationType2(LWCType, LWCType, IsLWCType(RhsType) ? LWCType : NonLWCType);
 				case EFunc2::Fmod:
+				case EFunc2::Modulo:
 					// FMOD Rhs is non-LWC
 					return FOperationType2(NonLWCType, LWCType, NonLWCType);
 				case EFunc2::Min:
@@ -840,7 +842,7 @@ int32 FMaterialDerivativeAutogen::GenerateExpressionFunc2(FHLSLMaterialTranslato
 	const FDerivInfo LhsDerivInfo = Translator.GetDerivInfo(LhsCode);
 	const FDerivInfo RhsDerivInfo = Translator.GetDerivInfo(RhsCode);
 
-	if (Op == EFunc2::Fmod)
+	if (Op == EFunc2::Fmod || Op == EFunc2::Modulo)
 	{
 		check(RhsDerivInfo.DerivativeStatus == EDerivativeStatus::Zero);
 	}
@@ -997,6 +999,17 @@ int32 FMaterialDerivativeAutogen::GenerateExpressionFunc2(FHLSLMaterialTranslato
 				DstToken = TEXT("fmod(") + LhsToken + TEXT(",") + RhsToken + TEXT(")");
 			}
 			break;
+		case EFunc2::Modulo:
+			if (bIsLWC)
+			{
+				Translator.AddLWCFuncUsage(ELWCFunctionKind::Other);
+				DstToken = TEXT("WSModuloDemote(") + LhsToken + TEXT(",") + RhsToken + TEXT(")");
+			}
+			else
+			{
+				DstToken = TEXT("(") + LhsToken + TEXT("%") + RhsToken + TEXT(")");
+			}
+			break;
 		case EFunc2::Min:
 			if (bIsLWC)
 			{
@@ -1082,6 +1095,9 @@ int32 FMaterialDerivativeAutogen::GenerateExpressionFunc2(FHLSLMaterialTranslato
 			break;
 		case EFunc2::Fmod:
 			DstToken = TEXT("FmodDeriv") + Suffix + TEXT("(") + LhsToken + TEXT(",") + RhsToken + TEXT(")");
+			break;
+		case EFunc2::Modulo:
+			DstToken = TEXT("ModuloDeriv") + Suffix + TEXT("(") + LhsToken + TEXT(",") + RhsToken + TEXT(")");
 			break;
 		case EFunc2::Dot:
 			DstToken = TEXT("DotDeriv") + Suffix + TEXT("(") + LhsToken + TEXT(",") + RhsToken + TEXT(")");
@@ -1687,6 +1703,27 @@ FString FMaterialDerivativeAutogen::GenerateUsedFunctions(FHLSLMaterialTranslato
 						else
 						{
 							Ret += TEXT("\tRet.Value = fmod(A.Value, B.Value);") HLSL_LINE_TERMINATOR;
+						}
+						Ret += TEXT("\tRet.Ddx = A.Ddx;") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("\tRet.Ddy = A.Ddy;") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("\treturn Ret;") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("}") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("") HLSL_LINE_TERMINATOR;
+						break;
+					case EFunc2::Modulo:
+						// Only valid when B derivatives are zero.
+						// We can't really do anything meaningful in the non-zero case.
+						Ret += NonLWCBaseName + TEXT(" ModuloDeriv") + Suffix + TEXT("(") + LHSBaseName + TEXT(" A, ") + NonLWCBaseName + TEXT(" B)") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("{") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("\t") + NonLWCBaseName + TEXT(" Ret;") HLSL_LINE_TERMINATOR;
+						if (IsLWCType(DerivType))
+						{
+							Translator.AddLWCFuncUsage(ELWCFunctionKind::Other);
+							Ret += TEXT("\tRet.Value = WSModuloDemote(A.Value, B.Value);") HLSL_LINE_TERMINATOR;
+						}
+						else
+						{
+							Ret += TEXT("\tRet.Value = (A.Value % B.Value);") HLSL_LINE_TERMINATOR;
 						}
 						Ret += TEXT("\tRet.Ddx = A.Ddx;") HLSL_LINE_TERMINATOR;
 						Ret += TEXT("\tRet.Ddy = A.Ddy;") HLSL_LINE_TERMINATOR;

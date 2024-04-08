@@ -569,6 +569,7 @@ ENGINE_API FValue Min(const FValue& Lhs, const FValue& Rhs);
 ENGINE_API FValue Max(const FValue& Lhs, const FValue& Rhs);
 ENGINE_API FValue Clamp(const FValue& Value, const FValue& Low, const FValue& High);
 ENGINE_API FValue Fmod(const FValue& Lhs, const FValue& Rhs);
+ENGINE_API FValue Modulo(const FValue& Lhs, const FValue& Rhs);
 ENGINE_API FValue Atan2(const FValue& Lhs, const FValue& Rhs);
 ENGINE_API FValue Dot(const FValue& Lhs, const FValue& Rhs);
 ENGINE_API FValue Cross(const FValue& Lhs, const FValue& Rhs);
@@ -609,6 +610,7 @@ ENGINE_API EValueType DivInPlace(EValueType LhsType, EValueType RhsType, TArrayV
 ENGINE_API EValueType MinInPlace(EValueType LhsType, EValueType RhsType, TArrayView<FValueComponent> Component, int32& OutComponentsConsumed);
 ENGINE_API EValueType MaxInPlace(EValueType LhsType, EValueType RhsType, TArrayView<FValueComponent> Component, int32& OutComponentsConsumed);
 ENGINE_API EValueType FmodInPlace(EValueType LhsType, EValueType RhsType, TArrayView<FValueComponent> Component, int32& OutComponentsConsumed);
+ENGINE_API EValueType ModuloInPlace(EValueType LhsType, EValueType RhsType, TArrayView<FValueComponent> Component, int32& OutComponentsConsumed);
 ENGINE_API EValueType Atan2InPlace(EValueType LhsType, EValueType RhsType, TArrayView<FValueComponent> Component, int32& OutComponentsConsumed);
 ENGINE_API EValueType AppendInPlace(EValueType LhsType, EValueType RhsType, TArrayView<FValueComponent> Component, int32& OutComponentsConsumed);
 

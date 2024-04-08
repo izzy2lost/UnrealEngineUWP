@@ -999,6 +999,17 @@ struct FOpDiv : public FOpBase { template<typename T> T operator()(T Lhs, T Rhs)
 struct FOpMin : public FOpBase { template<typename T> T operator()(T Lhs, T Rhs) const { return FMath::Min(Lhs, Rhs); } };
 struct FOpMax : public FOpBase { template<typename T> T operator()(T Lhs, T Rhs) const { return FMath::Max(Lhs, Rhs); } };
 struct FOpFmod : public FOpBaseNoInt { template<typename T> T operator()(T Lhs, T Rhs) const { return FMath::Fmod(Lhs, GetSafeDivisor(Rhs)); } };
+struct FOpModulo : public FOpBase
+{
+	static float  ModuloImpl(float Lhs, float Rhs)   { return FMath::Fmod(Lhs, Rhs); }
+	static double ModuloImpl(double Lhs, double Rhs) { return FMath::Fmod(Lhs, Rhs); }
+	static int32  ModuloImpl(int32 Lhs, int32 Rhs)   { return Lhs % Rhs;             }
+
+	template<typename T> T operator()(T Lhs, T Rhs) const
+	{
+		return ModuloImpl(Lhs, GetSafeDivisor(Rhs));
+	}
+};
 struct FOpAtan2 : public FOpBaseNoInt { template<typename T> T operator()(T Lhs, T Rhs) const { return FMath::Atan2(Lhs, Rhs); } };
 struct FOpLess : public FOpBase { template<typename T> bool operator()(T Lhs, T Rhs) const { return Lhs < Rhs; } };
 struct FOpGreater : public FOpBase { template<typename T> bool operator()(T Lhs, T Rhs) const { return Lhs > Rhs; } };
@@ -1545,6 +1556,11 @@ FValue Fmod(const FValue& Lhs, const FValue& Rhs)
 	return Private::BinaryOp(Private::FOpFmod(), Lhs, Rhs);
 }
 
+FValue Modulo(const FValue& Lhs, const FValue& Rhs)
+{
+	return Private::BinaryOp(Private::FOpModulo(), Lhs, Rhs);
+}
+
 FValue Atan2(const FValue& Lhs, const FValue& Rhs)
 {
 	return Private::BinaryOp(Private::FOpAtan2(), Lhs, Rhs);
@@ -1891,6 +1907,11 @@ EValueType MaxInPlace(EValueType LhsType, EValueType RhsType, TArrayView<FValueC
 EValueType FmodInPlace(EValueType LhsType, EValueType RhsType, TArrayView<FValueComponent> Component, int32& OutComponentsConsumed)
 {
 	return Private::BinaryOpInPlace(Private::FOpFmod(), LhsType, RhsType, Component, OutComponentsConsumed);
+}
+
+EValueType ModuloInPlace(EValueType LhsType, EValueType RhsType, TArrayView<FValueComponent> Component, int32& OutComponentsConsumed)
+{
+	return Private::BinaryOpInPlace(Private::FOpModulo(), LhsType, RhsType, Component, OutComponentsConsumed);
 }
 
 EValueType Atan2InPlace(EValueType LhsType, EValueType RhsType, TArrayView<FValueComponent> Component, int32& OutComponentsConsumed)

@@ -123,6 +123,7 @@ public:
 		Mul,
 		Div,
 		Fmod,
+		Modulo,
 		Max,
 		Min,
 		Dot,	// Depends on Add/Mul, so it must come after them

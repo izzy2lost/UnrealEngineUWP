@@ -1703,6 +1703,50 @@ private:
 };
 
 /**
+ */
+class FMaterialUniformExpressionModulo : public FMaterialUniformExpression
+{
+	DECLARE_MATERIALUNIFORMEXPRESSION_TYPE(FMaterialUniformExpressionModulo);
+public:
+
+	FMaterialUniformExpressionModulo() {}
+	FMaterialUniformExpressionModulo(FMaterialUniformExpression* InA,FMaterialUniformExpression* InB):
+		A(InA),
+		B(InB)
+	{}
+
+	// FMaterialUniformExpression interface.
+	virtual void WriteNumberOpcodes(UE::Shader::FPreshaderData& OutData) const override
+	{
+		A->WriteNumberOpcodes(OutData);
+		B->WriteNumberOpcodes(OutData);
+		OutData.WriteOpcode(UE::Shader::EPreshaderOpcode::Modulo);
+	}
+	virtual bool IsConstant() const
+	{
+		return A->IsConstant() && B->IsConstant();
+	}
+	virtual bool IsIdentical(const FMaterialUniformExpression* OtherExpression) const
+	{
+		if (GetType() != OtherExpression->GetType())
+		{
+			return false;
+		}
+		const FMaterialUniformExpressionModulo* OtherMax = (const FMaterialUniformExpressionModulo*)OtherExpression;
+		return A->IsIdentical(OtherMax->A) && B->IsIdentical(OtherMax->B);
+	}
+
+	virtual TArrayView<const FMaterialUniformExpression*> GetChildren() const override
+	{
+		return TArrayView<const FMaterialUniformExpression*>((const FMaterialUniformExpression**)&A, 2);
+	}
+
+private:
+	TRefCountPtr<FMaterialUniformExpression> A;
+	TRefCountPtr<FMaterialUniformExpression> B;
+};
+
+/**
  * Absolute value evaluator for a given input expression
  */
 class FMaterialUniformExpressionAbs: public FMaterialUniformExpression

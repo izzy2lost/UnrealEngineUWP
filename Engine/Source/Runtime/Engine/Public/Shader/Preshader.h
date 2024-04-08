@@ -27,6 +27,7 @@ enum class EPreshaderOpcode : uint8
 	Mul,
 	Div,
 	Fmod,
+	Modulo,
 	Min,
 	Max,
 	Clamp,

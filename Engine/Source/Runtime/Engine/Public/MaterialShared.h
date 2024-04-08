@@ -241,25 +241,30 @@ inline uint32 GetNumComponents(EMaterialValueType Type)
 	}
 }
 
+inline bool IsMaterialValueType(EMaterialValueType InType, EMaterialValueType InCompare)
+{
+	return (InType & InCompare) != 0;
+}
+
 inline bool IsLWCType(EMaterialValueType InType)
 {
-	return (InType & MCT_LWCType);
+	return IsMaterialValueType(InType, MCT_LWCType);
 }
 
 inline bool IsFloatNumericType(EMaterialValueType InType)
 {
-	return (InType & MCT_Float) || IsLWCType(InType);
+	return IsMaterialValueType(InType, EMaterialValueType(MCT_Float | MCT_LWCType));
 }
 
 inline bool IsUIntNumericType(EMaterialValueType InType)
 {
-	return (InType & MCT_UInt);
+	return IsMaterialValueType(InType, MCT_UInt);
 }
 
 inline bool IsNumericType(EMaterialValueType InType)
 {
 	// 'ShadingModel' is considered an 'int' 
-	return IsFloatNumericType(InType) || InType == MCT_ShadingModel || IsUIntNumericType(InType);
+	return IsMaterialValueType(InType, EMaterialValueType(MCT_Float | MCT_LWCType | MCT_UInt | MCT_ShadingModel));
 }
 
 inline EMaterialValueType MakeNonLWCType(EMaterialValueType Type)

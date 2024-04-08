@@ -227,6 +227,7 @@ public:
 	virtual int32 Sign(int32 X) = 0;
 	virtual int32 Frac(int32 X) = 0;
 	virtual int32 Fmod(int32 A, int32 B) = 0;
+	virtual int32 Modulo(int32 A, int32 B) = 0;
 	virtual int32 Abs(int32 X) = 0;
 
 	virtual int32 ReflectionVector() = 0;
@@ -836,6 +837,7 @@ public:
 	virtual int32 Sign(int32 X) override { return Compiler->Sign(X); }
 	virtual int32 Frac(int32 X) override { return Compiler->Frac(X); }
 	virtual int32 Fmod(int32 A, int32 B) override { return Compiler->Fmod(A, B); }
+	virtual int32 Modulo(int32 A, int32 B) override { return Compiler->Modulo(A, B); }
 	virtual int32 Abs(int32 X) override { return Compiler->Abs(X); }
 
 	virtual int32 ReflectionVector() override { return Compiler->ReflectionVector(); }

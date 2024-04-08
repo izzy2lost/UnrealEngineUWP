@@ -142,6 +142,7 @@
 #include "Materials/MaterialExpressionMaterialAttributeLayers.h"
 #include "Materials/MaterialExpressionMaterialProxyReplace.h"
 #include "Materials/MaterialExpressionMin.h"
+#include "Materials/MaterialExpressionModulo.h"
 #include "Materials/MaterialExpressionMultiply.h"
 #include "Materials/MaterialExpressionNaniteReplace.h"
 #include "Materials/MaterialExpressionNoise.h"
@@ -8531,6 +8532,64 @@ int32 UMaterialExpressionFmod::Compile(class FMaterialCompiler* Compiler, int32 
 void UMaterialExpressionFmod::GetCaption(TArray<FString>& OutCaptions) const
 {
 	OutCaptions.Add(TEXT("Fmod"));
+}
+#endif // WITH_EDITOR
+
+//
+//	UMaterialExpressionModulo
+//
+
+UMaterialExpressionModulo::UMaterialExpressionModulo(const FObjectInitializer& ObjectInitializer)
+	: Super(ObjectInitializer)
+{
+	// Structure to hold one-time initialization
+	struct FConstructorStatics
+	{
+		FText NAME_Math;
+		FConstructorStatics()
+			: NAME_Math(LOCTEXT( "Math", "Math" ))
+		{
+		}
+	};
+	static FConstructorStatics ConstructorStatics;
+
+#if WITH_EDITORONLY_DATA
+	MenuCategories.Add(ConstructorStatics.NAME_Math);
+#endif
+}
+
+#if WITH_EDITOR
+int32 UMaterialExpressionModulo::Compile(class FMaterialCompiler* Compiler, int32 OutputIndex)
+{
+	if (!A.GetTracedInput().Expression)
+	{
+		return Compiler->Errorf(TEXT("Missing Modulo input A"));
+	}
+	if (!B.GetTracedInput().Expression)
+	{
+		return Compiler->Errorf(TEXT("Missing Modulo input B"));
+	}
+	return Compiler->Modulo(A.Compile(Compiler), B.Compile(Compiler));
+}
+
+uint32 UMaterialExpressionModulo::GetInputType(int32 InputIndex)
+{
+	return MCT_Float | MCT_LWCType | MCT_UInt;
+}
+
+uint32 UMaterialExpressionModulo::GetOutputType(int32 OutputIndex)
+{
+	return MCT_Float | MCT_LWCType | MCT_UInt;
+}
+
+void UMaterialExpressionModulo::GetCaption(TArray<FString>& OutCaptions) const
+{
+	OutCaptions.Add(TEXT("Modulo"));
+}
+
+FText UMaterialExpressionModulo::GetKeywords() const
+{
+	return FText::FromString(TEXT("%"));
 }
 #endif // WITH_EDITOR
 

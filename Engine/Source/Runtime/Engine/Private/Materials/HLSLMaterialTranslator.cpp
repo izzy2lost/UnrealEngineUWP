@@ -3999,9 +3999,9 @@ int32 FHLSLMaterialTranslator::AccessUniformExpression(int32 Index)
 	return AddInlinedCodeChunkZeroDeriv(CodeChunk.Type,FormattedCode.ToString());
 }
 
-FString FHLSLMaterialTranslator::CoerceValue(const FString& Code, EMaterialValueType SourceType, EMaterialValueType DestType)
+FString FHLSLMaterialTranslator::CoerceValue(const FString& Code, EMaterialValueType SourceType, EMaterialValueType DestType, EMaterialCastFlags AdditionalCastFlags)
 {
-	EMaterialCastFlags CastFlags = EMaterialCastFlags::ReplicateScalar;
+	EMaterialCastFlags CastFlags = EMaterialCastFlags::ReplicateScalar | AdditionalCastFlags;
 	if (DestType == MCT_Float || DestType == MCT_Float1 || DestType == MCT_LWCScalar)
 	{
 		// CoerceValue allows truncating to scalar types only
@@ -4011,9 +4011,9 @@ FString FHLSLMaterialTranslator::CoerceValue(const FString& Code, EMaterialValue
 }
 
 // CoerceParameter
-FString FHLSLMaterialTranslator::CoerceParameter(int32 Index,EMaterialValueType DestType)
+FString FHLSLMaterialTranslator::CoerceParameter(int32 Index,EMaterialValueType DestType, EMaterialCastFlags AdditionalCastFlags)
 {
-	return CoerceValue(GetParameterCode(Index), GetParameterType(Index), DestType);
+	return CoerceValue(GetParameterCode(Index), GetParameterType(Index), DestType, AdditionalCastFlags);
 }
 
 // GetParameterType
@@ -4720,22 +4720,23 @@ int32 FHLSLMaterialTranslator::CastToNonLWCIfDisabled(int32 Code)
 
 FString FHLSLMaterialTranslator::CastValue(const FString& Code, EMaterialValueType SourceType, EMaterialValueType DestType, EMaterialCastFlags Flags)
 {
-	const bool bAllowTruncate = EnumHasAnyFlags(Flags, EMaterialCastFlags::AllowTruncate);
-	const bool bAllowAppendZeroes = EnumHasAnyFlags(Flags, EMaterialCastFlags::AllowAppendZeroes);
-	bool bReplicateScalar = EnumHasAnyFlags(Flags, EMaterialCastFlags::ReplicateScalar);
-
 	if (SourceType == DestType)
 	{
 		return Code;
 	}
-	else if (IsFloatNumericType(SourceType) && IsFloatNumericType(DestType))
+	
+	const bool bAllowTruncate = EnumHasAnyFlags(Flags, EMaterialCastFlags::AllowTruncate);
+	const bool bAllowAppendZeroes = EnumHasAnyFlags(Flags, EMaterialCastFlags::AllowAppendZeroes);
+	const bool bAllowReplicateScalar = EnumHasAnyFlags(Flags, EMaterialCastFlags::ReplicateScalar);
+	const bool bAllowInteger = EnumHasAnyFlags(Flags, EMaterialCastFlags::AllowInteger);
+
+	const EMaterialValueType AllowedTypes = EMaterialValueType(MCT_Float | MCT_LWCType | (bAllowInteger ? MCT_UInt : 0));
+
+	if (IsMaterialValueType(SourceType, AllowedTypes) && IsMaterialValueType(DestType, AllowedTypes))
 	{
 		const uint32 NumSourceComponents = GetNumComponents(SourceType);
 		const uint32 NumDestComponents = GetNumComponents(DestType);
-		if (NumSourceComponents != 1)
-		{
-			bReplicateScalar = false;
-		}
+		const bool bReplicateScalar = bAllowReplicateScalar && (NumSourceComponents == 1);
 		if (!bReplicateScalar && !bAllowAppendZeroes && NumDestComponents > NumSourceComponents)
 		{
 			Errorf(TEXT("Cannot cast from smaller type %s to larger type %s."), DescribeType(SourceType), DescribeType(DestType));
@@ -4844,11 +4845,9 @@ FString FHLSLMaterialTranslator::CastValue(const FString& Code, EMaterialValueTy
 		check(NumComponents == NumDestComponents);
 		return Result;
 	}
-	else
-	{
-		Errorf(TEXT("Cannot cast between non-numeric types %s to %s."), DescribeType(SourceType), DescribeType(DestType));
-		return FString();
-	}
+
+	Errorf(TEXT("Cannot cast between non-numeric types %s to %s."), DescribeType(SourceType), DescribeType(DestType));
+	return FString();
 }
 
 /** Pushes a function onto the compiler's function stack, which indicates that compilation is entering a function. */
@@ -5601,6 +5600,30 @@ int32 FHLSLMaterialTranslator::Fmod(int32 A, int32 B)
 		}
 		
 	}
+}
+
+int32 FHLSLMaterialTranslator::Modulo(int32 A, int32 B)
+{
+	if ((A == INDEX_NONE) || (B == INDEX_NONE))
+	{
+		return INDEX_NONE;
+	}
+
+	if (GetParameterUniformExpression(A) && GetParameterUniformExpression(B))
+	{
+		FAddUniformExpressionScope Scope(this);
+		return AddUniformExpression(Scope, new FMaterialUniformExpressionModulo(GetParameterUniformExpression(A),GetParameterUniformExpression(B)),
+			GetParameterType(A),TEXT("(%s %% %s)"),*GetParameterCode(A),*CoerceParameter(B,GetParameterType(A), EMaterialCastFlags::AllowInteger));
+	}
+
+	const FDerivInfo& BDerivInfo = GetDerivInfo(B, true);
+	if (IsAnalyticDerivEnabled() && BDerivInfo.DerivativeStatus == EDerivativeStatus::Zero)
+	{
+		// Analytic derivatives only make sense when RHS derivatives are zero.
+		return DerivativeAutogen.GenerateExpressionFunc2(*this, FMaterialDerivativeAutogen::EFunc2::Modulo, A, B);
+	}
+
+	return AddCodeChunk(GetParameterType(A), TEXT("(%s %% %s)"), *GetParameterCode(A), *CoerceParameter(B, GetParameterType(A), EMaterialCastFlags::AllowInteger));
 }
 
 /**

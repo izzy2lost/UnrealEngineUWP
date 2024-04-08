@@ -228,6 +228,7 @@ enum class EMaterialCastFlags : uint32
 	ReplicateScalar = (1u << 0),
 	AllowTruncate = (1u << 1),
 	AllowAppendZeroes = (1u << 2),
+	AllowInteger = (1u << 3),
 
 	ValidCast = ReplicateScalar | AllowTruncate,
 };
@@ -705,8 +706,8 @@ public:
 	FString CastValue(const FString& Code, EMaterialValueType SourceType, EMaterialValueType DestType, EMaterialCastFlags Flags);
 
 	// CoerceParameter
-	FString CoerceParameter(int32 Index, EMaterialValueType DestType);
-	FString CoerceValue(const FString& Code, EMaterialValueType SourceType, EMaterialValueType DestType);
+	FString CoerceParameter(int32 Index, EMaterialValueType DestType, EMaterialCastFlags AdditionalCastFlags = EMaterialCastFlags::None);
+	FString CoerceValue(const FString& Code, EMaterialValueType SourceType, EMaterialValueType DestType, EMaterialCastFlags AdditionalCastFlags = EMaterialCastFlags::None);
 
 	int32 CastToNonLWCIfDisabled(int32 Code);
 
@@ -925,6 +926,7 @@ protected:
 	virtual int32 Sign(int32 X) override;
 	virtual int32 Frac(int32 X) override;
 	virtual int32 Fmod(int32 A, int32 B) override;
+	virtual int32 Modulo(int32 A, int32 B) override;
 
 	/**
 	* Creates the new shader code chunk needed for the Abs expression

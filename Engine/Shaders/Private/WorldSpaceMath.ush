@@ -119,6 +119,7 @@ FDFInverseMatrix WSToDF(FWSInverseMatrix In) { return DFFromTileOffset(In); }
 #define WSDivideByPow2 LWCDivide
 #define WSLerp LWCLerp
 #define WSFmodDemote LWCFmod
+#define WSModuloDemote LWCModulo
 
 #define WSSin LWCSin
 #define WSCos LWCCos
@@ -252,6 +253,7 @@ FDFInverseMatrix WSToDF(FWSInverseMatrix In) { return In; }
 #define WSDivideByPow2 DFDivideByPow2
 #define WSLerp DFLerp
 #define WSFmodDemote DFFmodDemote
+#define WSModuloDemote DFModuloDemote
 
 #define WSSin DFSin
 #define WSCos DFCos
