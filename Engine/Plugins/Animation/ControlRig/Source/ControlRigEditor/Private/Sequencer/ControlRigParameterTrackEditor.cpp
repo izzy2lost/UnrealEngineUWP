@@ -420,6 +420,9 @@ FControlRigParameterTrackEditor::FControlRigParameterTrackEditor(TSharedRef<ISeq
 			BindControlRig(ControlRig);
 		}
 
+		// Mark layered mode on track color and display name 
+		UControlRigSequencerEditorLibrary::MarkLayeredModeOnTrackDisplay(Track);
+
 		return false;
 	});
 }

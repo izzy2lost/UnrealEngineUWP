@@ -1080,6 +1080,12 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | Sequencer Tools | Control Rig")
 	static bool IsLayeredControlRig(UControlRig* InControlRig);
 
+	/**
+	 * Mark the layered mode of a control rig on the color and display name of a track
+	 * @param InTrack The track to modify the color and display name if necessary
+	 */
+	static bool MarkLayeredModeOnTrackDisplay(UMovieSceneControlRigParameterTrack* InTrack);
+
 	/*
 	 * Convert the control rig track into absolute or layered rig
 	 *
