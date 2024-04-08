@@ -349,6 +349,12 @@ FArchive& operator<<(FArchive& Ar, FOnDemandTocHeader& Header)
 		return Ar;
 	}
 
+	if (uint32(Header.Version) > uint32(EOnDemandTocVersion::Latest))
+	{
+		Ar.SetError();
+		return Ar;
+	}
+
 	Ar << Header.ChunkVersion;
 	Ar << Header.BlockSize;
 	Ar << Header.CompressionFormat;
@@ -1355,7 +1361,7 @@ TIoStatusOr<FIoStoreUploadResult> UploadContainerFiles(
 				Toc = FOnDemandToc{};
 				if (LoadFromCompactBinary(FCbFieldView(TocResponse.GetBody().GetData()), Toc) == false)
 				{
-					UE_LOG(LogIas, Warning, TEXT("Failed to load TOC '%s/%s/%s'"), *Client.GetConfig().ServiceUrl, *UploadParams.Bucket, *TocInfo.Key);
+					UE_LOG(LogIas, Display, TEXT("Failed to load TOC '%s/%s/%s'"), *Client.GetConfig().ServiceUrl, *UploadParams.Bucket, *TocInfo.Key);
 					continue;
 				}
 			}
@@ -2232,9 +2238,9 @@ FIoStatus ListTocs(const FIoStoreListTocsParams& Params)
 			FMemoryReaderView Ar(TocResponse.GetBody().GetView());
 			Ar << Toc;
 
-			if (Toc.Header.Magic != FOnDemandTocHeader::ExpectedMagic)
+			if (Ar.IsError() || Toc.Header.Magic != FOnDemandTocHeader::ExpectedMagic)
 			{
-				UE_LOG(LogIas, Warning, TEXT("Failed to serialize TOC '%s/%s/%s'. Header magic mimsatch"), *Client.GetConfig().ServiceUrl, *Params.Bucket, *Obj.Key);
+				UE_LOG(LogIas, Warning, TEXT("Failed to serialize TOC '%s/%s/%s'. Header version/magic mimsatch"), *Client.GetConfig().ServiceUrl, *Params.Bucket, *Obj.Key);
 				return;
 			}
 
