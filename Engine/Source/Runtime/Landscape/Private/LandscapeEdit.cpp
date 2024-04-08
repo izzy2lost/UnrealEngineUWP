@@ -6184,7 +6184,10 @@ void ALandscapeStreamingProxy::PostEditChangeProperty(FPropertyChangedEvent& Pro
 		{
 			{
 				FMaterialUpdateContext MaterialUpdateContext;
-				GetLandscapeInfo()->UpdateLayerInfoMap(/*this*/);
+				if (ULandscapeInfo* LandscapeInfo = GetLandscapeInfo())
+				{
+					LandscapeInfo->UpdateLayerInfoMap(/*this*/);
+				}
 
 				// Clear the parents out of combination material instances
 				for (const auto& MICPair : MaterialInstanceConstantMap)
