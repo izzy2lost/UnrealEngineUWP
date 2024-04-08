@@ -67,7 +67,7 @@ FTestPipeline& OnlineSubsystemTestBase::GetLoginPipeline(uint32 NumUsersToLogin)
 	REQUIRE(NumLocalUsers == -1); // Don't call GetLoginPipeline more than once per test
 	NumLocalUsers = NumUsersToLogin;
 
-	bool bUseAutoLogin;
+	bool bUseAutoLogin = false;
 	FString LoginCredentialCategory = FString::Printf(TEXT("LoginCredentials %s"), *Subsystem);
 	GConfig->GetBool(*LoginCredentialCategory, TEXT("UseAutoLogin"), bUseAutoLogin, GEngineIni);
 
