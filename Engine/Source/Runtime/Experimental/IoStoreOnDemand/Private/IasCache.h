@@ -70,6 +70,7 @@ struct FIasCacheConfig
 	uint64		DiskQuota = 512ull << 20;
 	uint32		MemoryQuota = 2 << 20;
 	uint32		JournalQuota = 4 << 20; // description in JournalCache.cpp
+	uint32		JournalMagic = 0; // can be used to invalidate cache
 	FRate		WriteRate;
 	FDemand		Demand;
 	bool		DropCache = false;
