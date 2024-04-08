@@ -252,8 +252,15 @@ void UChaosClothAsset::GetResourceSizeEx(FResourceSizeEx& CumulativeResourceSize
 {
 	Super::GetResourceSizeEx(CumulativeResourceSize);
 
-	GetResourceForRendering()->GetResourceSizeEx(CumulativeResourceSize);
-	ClothSimulationModel->GetResourceSizeEx(CumulativeResourceSize);
+	if (GetResourceForRendering())
+	{
+		GetResourceForRendering()->GetResourceSizeEx(CumulativeResourceSize);
+	}
+
+	if (ClothSimulationModel)
+	{
+		ClothSimulationModel->GetResourceSizeEx(CumulativeResourceSize);
+	}
 
 #if !UE_BUILD_SHIPPING
 	FString MemoryReport;
