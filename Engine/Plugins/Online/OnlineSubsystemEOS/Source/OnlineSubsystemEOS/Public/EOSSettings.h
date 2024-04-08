@@ -201,7 +201,8 @@ private:
 
 	static bool GetArtifactSettings(const FString& ArtifactName, FEOSArtifactSettings& OutSettings);
 	static bool GetArtifactSettings(const FString& ArtifactName, const FString& SandboxId, FEOSArtifactSettings& OutSettings);
-	static bool GetArtifactSettingsImpl(const FString& ArtifactName, const TOptional<FString>& SandboxId, FEOSArtifactSettings& OutSettings);
+	static bool GetArtifactSettings(const FString& ArtifactName, const FString& SandboxId, const FString& DeploymentId, FEOSArtifactSettings& OutSettings);
+	static bool GetArtifactSettingsImpl(const FString& ArtifactName, const TOptional<FString>& SandboxId, const TOptional<FString>& DeploymentId, FEOSArtifactSettings& OutSettings);
 
 	static const TArray<FEOSArtifactSettings>& GetCachedArtifactSettings();
 
