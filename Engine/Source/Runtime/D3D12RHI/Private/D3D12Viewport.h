@@ -11,6 +11,7 @@
 #include "MultiGPU.h"
 #include "RHIResources.h"
 #include "Templates/RefCounting.h"
+#include "DXGIUtilities.h"
 
 class FD3D12Texture;
 class FD3D12UnorderedAccessView_RHI;
@@ -64,7 +65,6 @@ private:
 };
 #endif //WITH_MGPU
 
-
 class FD3D12Viewport : public FRHIViewport, public FD3D12AdapterChild
 {
 public:
@@ -95,15 +95,57 @@ public:
 	bool Present(bool bLockToVsync);
 
 	// Accessors.
-	FIntPoint GetSizeXY() const { return FIntPoint(SizeX, SizeY); }
+	FIntPoint GetSizeXY() const
+	{
+		return FIntPoint(SizeX, SizeY);
+	}
 
-	FD3D12Texture* GetDummyBackBuffer_RenderThread(bool bInIsSDR) const;
-	FD3D12Texture* GetBackBuffer_RenderThread() const;
+	FD3D12Texture* GetBackBuffer_RenderThread() const
+	{
+		check(IsInRenderingThread());
+#if D3D12RHI_USE_DUMMY_BACKBUFFER
+		return DummyBackBuffer_RenderThread;
+#else
+		checkSlow(CurrentBackBuffer_RenderThread);
+		return CurrentBackBuffer_RenderThread->Texture;
+#endif
+	}
 
-	FD3D12Texture* GetBackBuffer_RHIThread() const { return BackBuffer_RHIThread; }
-	FD3D12Texture* GetSDRBackBuffer_RHIThread() const { return (PixelFormat == SDRPixelFormat) ? GetBackBuffer_RHIThread() : SDRBackBuffer_RHIThread; }
+#if D3D12RHI_SUPPORTS_UAV_BACKBUFFER
+	FD3D12UnorderedAccessView_RHI* GetBackBufferUAV_RenderThread() const
+	{
+		checkSlow(CurrentBackBuffer_RenderThread);
+		return CurrentBackBuffer_RenderThread->UAV;
+	}
+#endif
 
-	FD3D12UnorderedAccessView_RHI* GetBackBufferUAV_RenderThread() const;
+	FD3D12Texture* GetBackBuffer_RHIThread() const
+	{
+		checkSlow(CurrentBackBuffer_RHIThread);
+		return CurrentBackBuffer_RHIThread->Texture;
+	}
+
+	FD3D12Texture* GetSDRBackBuffer_RHIThread() const
+	{
+		checkSlow(CurrentBackBuffer_RHIThread);
+
+#if D3D12RHI_USE_SDR_BACKBUFFER
+		if (PixelFormat != SDRPixelFormat)
+		{
+			return CurrentBackBuffer_RHIThread->TextureSDR;
+		}
+#endif
+
+		return CurrentBackBuffer_RHIThread->Texture;
+	}
+
+#if WITH_MGPU
+	uint32 GetNextPresentGPUIndex() const
+	{
+		FScopeLock Lock(&ExpectedBackBufferIndexLock);
+		return BackBuffers[ExpectedBackBufferIndex_RenderThread].GPUIndex;
+	}
+#endif // WITH_MGPU
 
 	virtual void WaitForFrameEventCompletion() override;
 	virtual void IssueFrameEvent() override;
@@ -129,39 +171,16 @@ public:
 
 	/** Advance and get the next present GPU index */
 	void AdvanceExpectedBackBufferIndex_RenderThread();
-#if WITH_MGPU
-	uint32 GetNextPresentGPUIndex() const
-	{
-		FScopeLock Lock(&ExpectedBackBufferIndexLock);
-		return BackBufferGPUIndices.IsValidIndex(ExpectedBackBufferIndex_RenderThread) ? BackBufferGPUIndices[ExpectedBackBufferIndex_RenderThread] : 0;
-	}
-#endif // WITH_MGPU
 
 	void OnResumeRendering();
 	void OnSuspendRendering();
 
-	static DXGI_FORMAT GetRenderTargetFormat(EPixelFormat PixelFormat)
-	{
-		DXGI_FORMAT	DXFormat = (DXGI_FORMAT)GPixelFormats[PixelFormat].PlatformFormat;
-		switch (DXFormat)
-		{
-		case DXGI_FORMAT_B8G8R8A8_TYPELESS:		return DXGI_FORMAT_B8G8R8A8_UNORM;
-		case DXGI_FORMAT_BC1_TYPELESS:			return DXGI_FORMAT_BC1_UNORM;
-		case DXGI_FORMAT_BC2_TYPELESS:			return DXGI_FORMAT_BC2_UNORM;
-		case DXGI_FORMAT_BC3_TYPELESS:			return DXGI_FORMAT_BC3_UNORM;
-		case DXGI_FORMAT_R16_TYPELESS:			return DXGI_FORMAT_R16_UNORM;
-		case DXGI_FORMAT_R8G8B8A8_TYPELESS:		return DXGI_FORMAT_R8G8B8A8_UNORM;
-		default: 								return DXFormat;
-		}
-	}
-
 private:
 	bool IsPresentAllowed();
 
-	/**
-	 * Create the dummy back buffer textures
-	 */
-	FD3D12Texture* CreateDummyBackBufferTextures(FD3D12Adapter* InAdapter, EPixelFormat InPixelFormat, uint32 InSizeX, uint32 InSizeY, bool bInIsSDR);
+#if D3D12RHI_USE_DUMMY_BACKBUFFER
+	FD3D12Texture* CreateDummyBackBufferTextures(FD3D12Adapter* InAdapter, EPixelFormat InPixelFormat, uint32 InSizeX, uint32 InSizeY);
+#endif
 
 	/**
 	 * Presents the swap chain checking the return result.
@@ -179,14 +198,48 @@ private:
 	void FinalDestroyInternal();
 	void ClearPresentQueue();
 
-	HWND WindowHandle;
-	uint32 SizeX;
-	uint32 SizeY;
-	bool bIsFullscreen;
-	bool bFullscreenLost;
+	// Determine how deep the swapchain should be
+	void InitializeBackBufferArrays();
+
+	/** See if HDR can be enabled or not based on RHI support and current engine settings. */
+	bool CheckHDRSupport();
+
+	/** Enable HDR meta data transmission and set the necessary color space. */
+	void EnableHDR();
+
+	/** Disable HDR meta data transmission and set the necessary color space. */
+	void ShutdownHDR();
+
+#if D3D12RHI_USE_DXGI_COLOR_SPACE
+	/** Ensure the correct color space is set on the swap chain */
+	void EnsureColorSpace(EDisplayColorGamut DisplayGamut, EDisplayOutputFormat OutputDevice);
+#endif
+
+	void SetBackBufferIndex_RHIThread(uint32 Index)
+	{
+		CurrentBackBufferIndex_RHIThread = Index % NumBackBuffers;
+		CurrentBackBuffer_RHIThread = &BackBuffers[CurrentBackBufferIndex_RHIThread];
+	}
+
+	void SetBackBufferIndex_RenderThread(uint32 Index)
+	{
+		ExpectedBackBufferIndex_RenderThread = Index % NumBackBuffers;
+		CurrentBackBuffer_RenderThread = &BackBuffers[ExpectedBackBufferIndex_RenderThread];
+	}
+
+private:
+	const HWND WindowHandle;
+	uint32 SizeX = 0;
+	uint32 SizeY = 0;
 	EPixelFormat PixelFormat;
-	bool bIsValid;
-	bool bAllowTearing;
+#if D3D12RHI_USE_SDR_BACKBUFFER
+	static constexpr EPixelFormat SDRPixelFormat = PF_B8G8R8A8;
+#endif
+
+	bool bIsFullscreen = false;
+	bool bFullscreenLost = false;
+	bool bIsValid = true;
+	bool bAllowTearing = true;
 	bool bNeedSwapChain = false;
 
 #if D3D12_VIEWPORT_EXPOSES_SWAP_CHAIN
@@ -201,75 +254,57 @@ private:
 	TRefCountPtr<IDXGISwapChain4> SwapChain4;
 #endif
 
-#if PLATFORM_WINDOWS
-	DXGI_COLOR_SPACE_TYPE ColorSpace;
+#if D3D12RHI_USE_DXGI_COLOR_SPACE
+	DXGI_COLOR_SPACE_TYPE ColorSpace = DXGI_COLOR_SPACE_RGB_FULL_G22_NONE_P709;
 #endif
 #endif // D3D12_VIEWPORT_EXPOSES_SWAP_CHAIN
 
-	TArray<TRefCountPtr<FD3D12Texture>> BackBuffers;
-	TArray<TRefCountPtr<FD3D12UnorderedAccessView_RHI>> BackBuffersUAV;
-	uint32 NumBackBuffers;
-
-	TRefCountPtr<FD3D12Texture> DummyBackBuffer_RenderThread; // Dummy back buffer texture which always references the current back buffer on the RHI thread
-	uint32 CurrentBackBufferIndex_RHIThread;
-	FD3D12Texture* BackBuffer_RHIThread;
-	FD3D12Texture* BackBuffer_RenderThread;
-	FD3D12UnorderedAccessView_RHI* BackBufferUAV_RenderThread;
-
-#if WITH_MGPU
-	int32 BackbufferMultiGPUBinding; // where INDEX_NONE cycles through the GPU, otherwise the GPU index.
-	mutable FCriticalSection ExpectedBackBufferIndexLock; // Can very rarely be modified on the RHI thread as well if present is skipped
+	struct FBackBufferData
+	{
+		TRefCountPtr<FD3D12Texture>                 Texture;
+#if D3D12RHI_USE_SDR_BACKBUFFER
+		// When HDR is enabled, SDR backbuffers may be required on some architectures for game DVR or broadcasting
+		TRefCountPtr<FD3D12Texture>                 TextureSDR;
 #endif
-	uint32 ExpectedBackBufferIndex_RenderThread; // Expected back buffer GPU index - used and updated on RenderThread!
+#if D3D12RHI_SUPPORTS_UAV_BACKBUFFER
+		TRefCountPtr<FD3D12UnorderedAccessView_RHI> UAV;
+#endif
 #if WITH_MGPU
-	TArray<uint32> BackBufferGPUIndices;
-	FD3D12SyncPointRef LastFrameSyncPoint;
-#endif // WITH_MGPU
+		uint32                                      GPUIndex = 0;
+#endif
+	};
 
-	/** 
-	 * When HDR is enabled, SDR backbuffers may be required on some architectures for game DVR or broadcasting
-	 */
-	TArray<TRefCountPtr<FD3D12Texture>> SDRBackBuffers;
-	TRefCountPtr<FD3D12Texture> SDRDummyBackBuffer_RenderThread;
-	FD3D12Texture* SDRBackBuffer_RHIThread;
-	EPixelFormat SDRPixelFormat;
-	EDisplayColorGamut DisplayColorGamut;
-	EDisplayOutputFormat DisplayOutputFormat;
+	static constexpr uint32 NumBackBuffers = GD3D12RHINumBackBuffers;
+	TStaticArray<FBackBufferData, NumBackBuffers> BackBuffers;
+
+#if D3D12RHI_USE_DUMMY_BACKBUFFER
+	// Dummy back buffer texture which always references the current back buffer on the RHI thread
+	TRefCountPtr<FD3D12Texture> DummyBackBuffer_RenderThread;
+#endif
+
+	FBackBufferData* CurrentBackBuffer_RHIThread = nullptr;
+	FBackBufferData* CurrentBackBuffer_RenderThread = nullptr;
+
+	uint32 CurrentBackBufferIndex_RHIThread = 0;
+	uint32 ExpectedBackBufferIndex_RenderThread = 0;
+	EDisplayColorGamut DisplayColorGamut = EDisplayColorGamut::sRGB_D65;
+	EDisplayOutputFormat DisplayOutputFormat = EDisplayOutputFormat::SDR_sRGB;
 
 	/** A fence value used to track the GPU's progress. */
 	TArray<FD3D12SyncPointRef> FrameSyncPoints;
 
-	// Determine how deep the swapchain should be
-	void CalculateSwapChainDepth(int32 DefaultSwapChainDepth);
-
 	FCustomPresentRHIRef CustomPresent;
 
-	DXGI_MODE_DESC SetupDXGI_MODE_DESC() const;
-
 #if WITH_MGPU
-	FD3D12FramePacing* FramePacerRunnable;
-#endif //WITH_MGPU
+	// Where INDEX_NONE cycles through the GPU, otherwise the GPU index.
+	int32 BackbufferMultiGPUBinding = 0;
 
-	struct DisplayChromacities
-	{
-		float RedX, RedY;
-		float GreenX, GreenY;
-		float BlueX, BlueY;
-		float WpX, WpY;
-	};
+	// Can very rarely be modified on the RHI thread as well if present is skipped
+	mutable FCriticalSection ExpectedBackBufferIndexLock;
 
-	/** See if HDR can be enabled or not based on RHI support and current engine settings. */
-	bool CheckHDRSupport();
+	FD3D12SyncPointRef LastFrameSyncPoint;
 
-	/** Enable HDR meta data transmission and set the necessary color space. */
-	void EnableHDR();
-
-	/** Disable HDR meta data transmission and set the necessary color space. */
-	void ShutdownHDR();
-
-#if PLATFORM_WINDOWS
-	/** Ensure the correct color space is set on the swap chain */
-	void EnsureColorSpace(EDisplayColorGamut DisplayGamut, EDisplayOutputFormat OutputDevice);
+	FD3D12FramePacing* FramePacerRunnable = nullptr;
 #endif
 };
 

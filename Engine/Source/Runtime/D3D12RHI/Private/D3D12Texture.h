@@ -192,26 +192,25 @@ struct TD3D12ResourceTraits<FRHITexture>
 
 class FD3D12Viewport;
 
+#if D3D12RHI_USE_DUMMY_BACKBUFFER
 class FD3D12BackBufferReferenceTexture2D : public FD3D12Texture
 {
 public:
-	FD3D12BackBufferReferenceTexture2D(const FRHITextureCreateDesc& InDesc, FD3D12Viewport* InViewPort, bool bInIsSDR, FD3D12Device* InDevice)
+	FD3D12BackBufferReferenceTexture2D(const FRHITextureCreateDesc& InDesc, FD3D12Viewport* InViewPort, FD3D12Device* InDevice)
 		: FD3D12Texture(InDesc, InDevice)
 		, Viewport(InViewPort)
-		, bIsSDR(bInIsSDR)
 	{
 	}
 
 	FD3D12Viewport* GetViewPort() const { return Viewport; }
-	bool IsSDR() const { return bIsSDR; }
 
 	FRHITexture* GetBackBufferTexture() const;
 	virtual FRHIDescriptorHandle GetDefaultBindlessHandle() const override;
 
 private:
-	FD3D12Viewport* Viewport = nullptr;
-	bool bIsSDR = false;
+	FD3D12Viewport* const Viewport;
 };
+#endif
 
 /** Given a pointer to a RHI texture that was created by the D3D12 RHI, returns a pointer to the FD3D12Texture it encapsulates. */
 FORCEINLINE FD3D12Texture* GetD3D12TextureFromRHITexture(FRHITexture* Texture)
@@ -223,7 +222,7 @@ FORCEINLINE FD3D12Texture* GetD3D12TextureFromRHITexture(FRHITexture* Texture)
 	
 	// If it's the dummy backbuffer then swap with actual current RHI backbuffer right now
 	FRHITexture* RHITexture = Texture;
-#if D3D12_USE_DUMMY_BACKBUFFER
+#if D3D12RHI_USE_DUMMY_BACKBUFFER
 	if (RHITexture && EnumHasAnyFlags(RHITexture->GetFlags(), TexCreate_Presentable))
 	{
 		FD3D12BackBufferReferenceTexture2D* BufferBufferReferenceTexture = (FD3D12BackBufferReferenceTexture2D*)RHITexture;

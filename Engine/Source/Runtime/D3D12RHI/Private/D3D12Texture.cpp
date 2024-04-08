@@ -2693,6 +2693,7 @@ void FD3D12CommandContext::RHICopyTexture(FRHITexture* SourceTextureRHI, FRHITex
 	ConditionalSplitCommandList();
 }
 
+#if D3D12RHI_USE_DUMMY_BACKBUFFER
 
 ///////////////////////////////////////////////////////////////////////////////////////////
 // FD3D12BackBufferReferenceTexture2D functions
@@ -2700,10 +2701,12 @@ void FD3D12CommandContext::RHICopyTexture(FRHITexture* SourceTextureRHI, FRHITex
 
 FRHITexture* FD3D12BackBufferReferenceTexture2D::GetBackBufferTexture() const
 {
-	return bIsSDR ? Viewport->GetSDRBackBuffer_RHIThread() : Viewport->GetBackBuffer_RHIThread();
+	return Viewport->GetBackBuffer_RHIThread();
 }
 
 FRHIDescriptorHandle FD3D12BackBufferReferenceTexture2D::GetDefaultBindlessHandle() const
 {
 	return GetBackBufferTexture()->GetDefaultBindlessHandle();
 }
+
+#endif // D3D12RHI_USE_DUMMY_BACKBUFFER

@@ -10,6 +10,7 @@
 	#error "Platform needs to define RHICORE_PLATFORM_DXGI_H"
 #endif
 
+#include "PixelFormat.h"
 #include "RHIDefinitions.h"
 #include "Misc/AssertionMacros.h"
 
@@ -469,6 +470,21 @@ namespace UE::DXGIUtilities
 	inline uint32 GetFormatSizeInBytes(DXGI_FORMAT Format)
 	{
 		return GetFormatSizeInBits(Format) / 8;
+	}
+
+	inline DXGI_FORMAT GetSwapChainFormat(EPixelFormat PixelFormat)
+	{
+		DXGI_FORMAT	DXFormat = static_cast<DXGI_FORMAT>(GPixelFormats[PixelFormat].PlatformFormat);
+		switch (DXFormat)
+		{
+		case DXGI_FORMAT_B8G8R8A8_TYPELESS:		return DXGI_FORMAT_B8G8R8A8_UNORM;
+		case DXGI_FORMAT_BC1_TYPELESS:			return DXGI_FORMAT_BC1_UNORM;
+		case DXGI_FORMAT_BC2_TYPELESS:			return DXGI_FORMAT_BC2_UNORM;
+		case DXGI_FORMAT_BC3_TYPELESS:			return DXGI_FORMAT_BC3_UNORM;
+		case DXGI_FORMAT_R16_TYPELESS:			return DXGI_FORMAT_R16_UNORM;
+		case DXGI_FORMAT_R8G8B8A8_TYPELESS:		return DXGI_FORMAT_R8G8B8A8_UNORM;
+		default: 								return DXFormat;
+		}
 	}
 } // UE::DXGIUtilities
 
