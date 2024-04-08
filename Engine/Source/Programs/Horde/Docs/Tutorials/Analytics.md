@@ -25,12 +25,6 @@ make sure it is enabled. It should be enabled by default.
 the following lines:
 
     ```ini
-    [StudioTelemetry.Config] 
-    SendTelemetry=true
-    SendUserData=false
-    SendHardwareData=true
-    SendOSData=true
-
     [StudioTelemetry.Provider.HordeAnalytics]
     Name=HordeAnalytics
     ProviderModule=AnalyticsET
