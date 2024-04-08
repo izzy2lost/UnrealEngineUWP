@@ -16,6 +16,7 @@
 #include "ILevelEditor.h"
 #include "LevelViewportTabContent.h"
 #include "SLevelEditorToolBox.h"
+#include "ActorDetailsSCSEditorUICustomization.h"
 
 class IAssetEditorInstance;
 class IDetailsView;
@@ -129,7 +130,8 @@ public:
 	virtual UWorld* GetWorld() const override;
 	virtual TSharedRef<SWidget> CreateActorDetails( const FName TabIdentifier ) override;
 	virtual void SetActorDetailsRootCustomization(TSharedPtr<FDetailsViewObjectFilter> InActorDetailsObjectFilter, TSharedPtr<IDetailRootObjectCustomization> InActorDetailsRootCustomization) override;
-	virtual void SetActorDetailsSCSEditorUICustomization(TSharedPtr<ISCSEditorUICustomization> InActorDetailsSCSEditorUICustomization) override;
+	virtual void AddActorDetailsSCSEditorUICustomization(TSharedPtr<ISCSEditorUICustomization> ActorDetailsSCSEditorUICustomization) override;
+	virtual void RemoveActorDetailsSCSEditorUICustomization(TSharedPtr<ISCSEditorUICustomization> ActorDetailsSCSEditorUICustomization) override;
 	virtual FEditorModeTools& GetEditorModeManager() const override;
 	virtual UTypedElementCommonActions* GetCommonActions() const override;
 	virtual FName GetStatusBarName() const override;
@@ -365,7 +367,7 @@ private:
 	TSharedPtr<IDetailRootObjectCustomization> ActorDetailsRootCustomization;
 
 	/** Actor details SCS editor customization */
-	TSharedPtr<ISCSEditorUICustomization> ActorDetailsSCSEditorUICustomization;
+	TSharedPtr<FActorDetailsSCSEditorUICustomization> ActorDetailsSCSEditorUICustomization;
 		
 	/** A delegate which is called any time the LevelEditor's active viewport changes. */
 	FOnActiveViewportChanged OnActiveViewportChangedDelegate;

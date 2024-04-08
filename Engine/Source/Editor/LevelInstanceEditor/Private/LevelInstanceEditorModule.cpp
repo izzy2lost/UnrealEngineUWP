@@ -47,6 +47,7 @@
 #include "WorldPartition/WorldPartitionConverter.h"
 #include "WorldPartition/WorldPartitionActorLoaderInterface.h"
 #include "ScopedTransaction.h"
+#include "ISCSEditorUICustomization.h"
 
 IMPLEMENT_MODULE( FLevelInstanceEditorModule, LevelInstanceEditor );
 
@@ -903,8 +904,75 @@ struct FLevelInstanceMenuUtils
 	}
 };
 
+class FLevelInstanceActorDetailsSCSEditorUICustomization : public ISCSEditorUICustomization
+{
+public:
+	static TSharedPtr<FLevelInstanceActorDetailsSCSEditorUICustomization> GetInstance()
+	{
+		if (!Instance)
+		{
+			Instance = MakeShareable(new FLevelInstanceActorDetailsSCSEditorUICustomization());
+		}
+		return Instance;
+	}
+
+	virtual bool HideComponentsTree(TArrayView<UObject*> Context) const override { return false; }
+
+	virtual bool HideComponentsFilterBox(TArrayView<UObject*> Context) const override { return false; }
+
+	virtual bool HideAddComponentButton(TArrayView<UObject*> Context) const override { return ShouldHide(Context); }
+
+	virtual bool HideBlueprintButtons(TArrayView<UObject*> Context) const override { return ShouldHide(Context); }
+private:
+	bool ShouldHide(TArrayView<UObject*> Context) const
+	{
+		for (const UObject* ContextObject : Context)
+		{
+			if (const AActor* ActorContext = Cast<AActor>(ContextObject))
+			{
+				if (ActorContext->IsInLevelInstance() && !ActorContext->IsInEditLevelInstance())
+				{
+					return true;
+				}
+			}
+		}
+
+		return false;
+	}
+		
+	static TSharedPtr<FLevelInstanceActorDetailsSCSEditorUICustomization> Instance;
+	bool bShouldHide = false;
+};
+
+TSharedPtr<FLevelInstanceActorDetailsSCSEditorUICustomization> FLevelInstanceActorDetailsSCSEditorUICustomization::Instance;
+
+void FLevelInstanceEditorModule::OnLevelEditorCreated(TSharedPtr<ILevelEditor> InLevelEditor)
+{
+	RegisterToFirstLevelEditor();
+}
+
+void FLevelInstanceEditorModule::RegisterToFirstLevelEditor()
+{
+	FLevelEditorModule& LevelEditorModule = FModuleManager::GetModuleChecked<FLevelEditorModule>("LevelEditor");
+	TSharedPtr<ILevelEditor> FirstLevelEditor = LevelEditorModule.GetFirstLevelEditor();
+	if (FirstLevelEditor.IsValid())
+	{
+		FirstLevelEditor->AddActorDetailsSCSEditorUICustomization(FLevelInstanceActorDetailsSCSEditorUICustomization::GetInstance());
+	}
+}
+
 void FLevelInstanceEditorModule::StartupModule()
 {
+	FLevelEditorModule& LevelEditorModule = FModuleManager::LoadModuleChecked<FLevelEditorModule>("LevelEditor");
+	if (TSharedPtr<ILevelEditor> FirstLevelEditor = LevelEditorModule.GetFirstLevelEditor())
+	{
+		RegisterToFirstLevelEditor();
+	}
+	else
+	{
+		LevelEditorModule.OnLevelEditorCreated().AddRaw(this, &FLevelInstanceEditorModule::OnLevelEditorCreated);
+	}
+			
 	ExtendContextMenu();
 
 	FPropertyEditorModule& PropertyModule = FModuleManager::LoadModuleChecked<FPropertyEditorModule>("PropertyEditor");
@@ -965,6 +1033,16 @@ void FLevelInstanceEditorModule::StartupModule()
 
 void FLevelInstanceEditorModule::ShutdownModule()
 {
+	if (FModuleManager::Get().IsModuleLoaded("LevelEditor"))
+	{
+		FLevelEditorModule& LevelEditorModule = FModuleManager::GetModuleChecked<FLevelEditorModule>("LevelEditor");
+		LevelEditorModule.OnLevelEditorCreated().RemoveAll(this);
+		if (TSharedPtr<ILevelEditor> FirstLevelEditor = LevelEditorModule.GetFirstLevelEditor())
+		{
+			FirstLevelEditor->RemoveActorDetailsSCSEditorUICustomization(FLevelInstanceActorDetailsSCSEditorUICustomization::GetInstance());
+		}
+	}
+
 	if (GEditor)
 	{
 		GEditor->OnLevelActorDeleted().RemoveAll(this);

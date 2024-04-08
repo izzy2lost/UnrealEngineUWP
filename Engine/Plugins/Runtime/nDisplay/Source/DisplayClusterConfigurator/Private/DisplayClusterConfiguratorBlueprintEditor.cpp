@@ -92,8 +92,8 @@ public:
 		return Instance.ToSharedRef();
 	}
 
-	virtual bool HideAddComponentButton() const override { return true; }
-	virtual bool HideBlueprintButtons() const override { return true; }
+	virtual bool HideAddComponentButton(TArrayView<UObject*> Context) const override { return true; }
+	virtual bool HideBlueprintButtons(TArrayView<UObject*> Context) const override { return true; }
 	virtual EChildActorComponentTreeViewVisualizationMode GetChildActorVisualizationMode() const override { return EChildActorComponentTreeViewVisualizationMode::UseDefault; }
 
 private:

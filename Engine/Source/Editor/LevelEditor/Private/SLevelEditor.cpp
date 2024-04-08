@@ -204,6 +204,8 @@ void SLevelEditor::RegisterMenus()
 
 void SLevelEditor::Construct( const SLevelEditor::FArguments& InArgs)
 {
+	ActorDetailsSCSEditorUICustomization = FActorDetailsSCSEditorUICustomization::GetInstance();
+	
 	// Important: We use raw bindings here because we are releasing our binding in our destructor (where a weak pointer would be invalid)
 	// It's imperative that our delegate is removed in the destructor for the level editor module to play nicely with reloading.
 
@@ -398,6 +400,8 @@ void SLevelEditor::ConstructTitleBarMessages()
 
 SLevelEditor::~SLevelEditor()
 {
+	ActorDetailsSCSEditorUICustomization = nullptr;
+
 	// We're going away now, so make sure all toolkits that are hosted within this level editor are shut down
 	FToolkitManager::Get().OnToolkitHostDestroyed( this );
 	HostedToolkits.Reset();
@@ -2193,13 +2197,17 @@ void SLevelEditor::SetActorDetailsRootCustomization(TSharedPtr<FDetailsViewObjec
 	}
 }
 
-void SLevelEditor::SetActorDetailsSCSEditorUICustomization(TSharedPtr<ISCSEditorUICustomization> InActorDetailsSCSEditorUICustomization)
+void SLevelEditor::AddActorDetailsSCSEditorUICustomization(TSharedPtr<ISCSEditorUICustomization> InActorDetailsSCSEditorUICustomization)
 {
-	ActorDetailsSCSEditorUICustomization = InActorDetailsSCSEditorUICustomization;
+	check(ActorDetailsSCSEditorUICustomization);
+	ActorDetailsSCSEditorUICustomization->AddCustomization(InActorDetailsSCSEditorUICustomization);
+}
 
-	for (TSharedRef<SActorDetails> ActorDetails : GetAllActorDetails())
+void SLevelEditor::RemoveActorDetailsSCSEditorUICustomization(TSharedPtr<ISCSEditorUICustomization> InActorDetailsSCSEditorUICustomization)
+{
+	if (ActorDetailsSCSEditorUICustomization)
 	{
-		ActorDetails->SetSubobjectEditorUICustomization(ActorDetailsSCSEditorUICustomization);
+		ActorDetailsSCSEditorUICustomization->RemoveCustomization(InActorDetailsSCSEditorUICustomization);
 	}
 }
 

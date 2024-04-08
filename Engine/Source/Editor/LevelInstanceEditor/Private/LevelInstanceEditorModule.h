@@ -10,6 +10,7 @@
 class AActor;
 class ULevel;
 enum class EMapChangeType : uint8;
+class ILevelEditor;
 
 /**
  * The module holding all of the UI related pieces for LevelInstance management
@@ -48,6 +49,9 @@ private:
 
 	void ExtendContextMenu();
 		
+	void OnLevelEditorCreated(TSharedPtr<ILevelEditor> InLevelEditor);
+	void RegisterToFirstLevelEditor();
+
 	class FPropertyEditorPolicy : public PropertyEditorPolicy::IEditConstPolicy, 
 								  public PropertyEditorPolicy::IArchetypePolicy
 	{

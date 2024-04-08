@@ -2234,7 +2234,8 @@ TSharedRef<ITableRow> SSubobjectEditor::MakeTableRowWidget(FSubobjectEditorTreeN
 
 EVisibility SSubobjectEditor::GetComponentsTreeVisibility() const
 {
-	return (UICustomization.IsValid() && UICustomization->HideComponentsTree())
+	UObject* ObjectContextPtr = GetObjectContext();
+	return (UICustomization.IsValid() && UICustomization->HideComponentsTree(MakeArrayView(&ObjectContextPtr, 1)))
 		       ? EVisibility::Collapsed
 		       : EVisibility::Visible;
 }
@@ -2393,7 +2394,8 @@ void SSubobjectEditor::SelectNode(FSubobjectEditorTreeNodePtrType InNodeToSelect
 
 EVisibility SSubobjectEditor::GetComponentsFilterBoxVisibility() const
 {
-	return (UICustomization.IsValid() && UICustomization->HideComponentsFilterBox())
+	UObject* ObjectContextPtr = GetObjectContext();
+	return (UICustomization.IsValid() && UICustomization->HideComponentsFilterBox(MakeArrayView(&ObjectContextPtr, 1)))
 		       ? EVisibility::Collapsed
 		       : EVisibility::Visible;
 }
@@ -3296,8 +3298,9 @@ void SSubobjectEditor::GetSelectedItemsForContextMenu(TArray<FComponentEventCons
 
 TSubclassOf<UActorComponent> SSubobjectEditor::GetComponentTypeFilterToApply() const
 {
+	UObject* ObjectContextPtr = GetObjectContext();
 	TSubclassOf<UActorComponent> ComponentType = UICustomization.IsValid()
-		                                             ? UICustomization->GetComponentTypeFilter()
+		                                             ? UICustomization->GetComponentTypeFilter(MakeArrayView(&ObjectContextPtr, 1))
 		                                             : nullptr;
 	if (!ComponentType)
 	{
@@ -3585,7 +3588,8 @@ FSubobjectDataHandle SSubobjectEditor::PerformComboAddClass(TSubclassOf<UActorCo
 
 EVisibility SSubobjectEditor::GetPromoteToBlueprintButtonVisibility() const
 {
-	return (UICustomization.IsValid() && UICustomization->HideBlueprintButtons())
+	UObject* ObjectContextPtr = GetObjectContext();
+	return (UICustomization.IsValid() && UICustomization->HideBlueprintButtons(MakeArrayView(&ObjectContextPtr, 1)))
 	       || (ShowInlineSearchWithButtons())
 	       || (GetBlueprint() != nullptr)
 		       ? EVisibility::Collapsed
@@ -3594,7 +3598,8 @@ EVisibility SSubobjectEditor::GetPromoteToBlueprintButtonVisibility() const
 
 EVisibility SSubobjectEditor::GetEditBlueprintButtonVisibility() const
 {
-	return (UICustomization.IsValid() && UICustomization->HideBlueprintButtons())
+	UObject* ObjectContextPtr = GetObjectContext();
+	return (UICustomization.IsValid() && UICustomization->HideBlueprintButtons(MakeArrayView(&ObjectContextPtr, 1)))
 	       || (ShowInlineSearchWithButtons())
 	       || (GetBlueprint() == nullptr)
 		       ? EVisibility::Collapsed
@@ -3603,8 +3608,9 @@ EVisibility SSubobjectEditor::GetEditBlueprintButtonVisibility() const
 
 EVisibility SSubobjectEditor::GetComponentClassComboButtonVisibility() const
 {
+	UObject* ObjectContextPtr = GetObjectContext();
 	return (HideComponentClassCombo.Get() 
-	|| (UICustomization.IsValid() && UICustomization->HideAddComponentButton())) 
+	|| (UICustomization.IsValid() && UICustomization->HideAddComponentButton(MakeArrayView(&ObjectContextPtr, 1))))
 	? EVisibility::Collapsed : EVisibility::Visible;
 }
 

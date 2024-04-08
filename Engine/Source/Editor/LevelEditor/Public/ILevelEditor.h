@@ -85,8 +85,14 @@ public:
 	/** Set the filter that should be used to determine the set of objects that should be shown in a details panel when an actor in the level editor is selected */
 	virtual void SetActorDetailsRootCustomization(TSharedPtr<FDetailsViewObjectFilter> ActorDetailsObjectFilter, TSharedPtr<IDetailRootObjectCustomization> ActorDetailsRootCustomization) = 0;
 
-	/** Sets the UI customization of the SCSEditor inside the level editor details panel. */
-	virtual void SetActorDetailsSCSEditorUICustomization(TSharedPtr<class ISCSEditorUICustomization> ActorDetailsSCSEditorUICustomization) = 0;
+	/** Adds the UI customization of the SCSEditor inside the level editor details panel. */
+	virtual void AddActorDetailsSCSEditorUICustomization(TSharedPtr<class ISCSEditorUICustomization> ActorDetailsSCSEditorUICustomization) = 0;
+	
+	/** Remove the UI customization of the SCSEditor inside the level editor details panel. */
+	virtual void RemoveActorDetailsSCSEditorUICustomization(TSharedPtr<class ISCSEditorUICustomization> ActorDetailsSCSEditorUICustomization) = 0;
+
+	UE_DEPRECATED(5.5, "Use AddActorDetailsSCSEditorUICustomization/RemoveActorDetailsSCSEditorUICustomization instead.")
+	virtual void SetActorDetailsSCSEditorUICustomization(TSharedPtr<class ISCSEditorUICustomization> ActorDetailsSCSEditorUICustomization) {};
 
 	/** Return the most recently interacted with Outliner */
 	UE_DEPRECATED(5.1, "The Level Editor has multiple outliners, use GetAllSceneOutliners() or GetMostRecentlyUsedSceneOutliner() instead to avoid ambiguity")
