@@ -100,12 +100,14 @@ Name | Description
 
 ## JobStepOutcome (Enum)
 
+Outcome for a jobstep
+
 Name | Description
 ---- | -----------
-`Unspecified` | 
-`Failure` | 
-`Warnings` | 
-`Success` | 
+`Unspecified` | Outcome is not known
+`Failure` | Step failed
+`Warnings` | Step completed with warnings
+`Success` | Step succeeded
 
 ## CommitTagConfig
 
@@ -348,6 +350,8 @@ Name | Description
 `extends` | `string[]`<br>Other profiles to extend from
 
 ## Priority (Enum)
+
+Priority of a job or step
 
 Name | Description
 ---- | -----------
