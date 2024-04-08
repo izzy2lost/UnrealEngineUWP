@@ -3635,6 +3635,21 @@ bool UNiagaraScript::IsEditorOnly() const
 bool UNiagaraScript::ShouldCompile(EShaderPlatform Platform) const
 {
 #if WITH_EDITOR
+
+	// We can not guarantee half float support on all platforms on the GPU, therefore we skip compilation in these cases
+	TOptional<ENiagaraSimTarget> ActualSimTarget = GetSimTarget();
+	if (ActualSimTarget.IsSet() && ActualSimTarget.GetValue() == ENiagaraSimTarget::GPUComputeSim)
+	{
+		UNiagaraSystem* OuterSystem = GetTypedOuter<UNiagaraSystem>();
+		if (OuterSystem && OuterSystem->ShouldCompressAttributes())
+		{
+			if ( !FDataDrivenShaderPlatformInfo::GetSupportsUnrestrictedHalfFloatBuffers(Platform) )
+			{
+				return false;
+			}
+		}
+	}
+
 	// Add all data interfaces
 	TSet<UClass*> DIUniqueClasses;
 	for (const FNiagaraScriptDataInterfaceInfo& DataInterfaceInfo : CachedDefaultDataInterfaces)

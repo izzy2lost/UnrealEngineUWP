@@ -53,6 +53,7 @@ class FGenericDataDrivenShaderPlatformInfo
 	uint32 bSupportsHighEndRayTracingEffects : 1; // Whether fully-featured RT effects can be used on the platform (with translucent shadow, etc.)
 	uint32 bSupportsPathTracing : 1; // Whether real-time path tracer is supported on this platform (avoids compiling unnecessary shaders)
 	uint32 bSupportsGPUScene : 1;
+	uint32 bSupportsUnrestrictedHalfFloatBuffers : 1;
 	uint32 bSupportsByteBufferComputeShaders : 1;
 	uint32 bSupportsPrimitiveShaders : 1;
 	uint32 bSupportsUInt64ImageAtomics : 1;
@@ -416,6 +417,12 @@ public:
 	{
 		check(IsValid(Platform));
 		return Infos[Platform].bNeedsOfflineCompiler;
+	}
+
+	static FORCEINLINE_DEBUGGABLE const bool GetSupportsUnrestrictedHalfFloatBuffers(const FStaticShaderPlatform Platform)
+	{
+		check(IsValid(Platform));
+		return Infos[Platform].bSupportsUnrestrictedHalfFloatBuffers;
 	}
 
 	static FORCEINLINE_DEBUGGABLE const bool GetSupportsByteBufferComputeShaders(const FStaticShaderPlatform Platform)
