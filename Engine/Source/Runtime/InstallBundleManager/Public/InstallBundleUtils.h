@@ -199,6 +199,11 @@ namespace InstallBundleUtil
 	};
 
 	using FInstallBundleTask = FAsyncTask<FInstallBundleWork>;
+	using FAutoDeleteInstallBundleTask = FAutoDeleteAsyncTask<FInstallBundleWork>;
+
+	INSTALLBUNDLEMANAGER_API void StartInstallBundleAsyncIOTask(TUniqueFunction<void()> WorkFunc);
+
+	INSTALLBUNDLEMANAGER_API void StartInstallBundleAsyncIOTask(FQueuedThreadPool* ThreadPool, TUniqueFunction<void()> WorkFunc);
 
 	INSTALLBUNDLEMANAGER_API void StartInstallBundleAsyncIOTask(TArray<TUniquePtr<FInstallBundleTask>>& Tasks, TUniqueFunction<void()> WorkFunc, TUniqueFunction<void()> OnComplete);
 

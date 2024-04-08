@@ -273,6 +273,15 @@ namespace InstallBundleUtil
 		return InstallBundleSuppressAnalyticsCounter > 0;
 	}
 
+	void StartInstallBundleAsyncIOTask(TUniqueFunction<void()> WorkFunc)
+	{
+		return StartInstallBundleAsyncIOTask(GIOThreadPool, MoveTemp(WorkFunc));
+	}
+
+	void StartInstallBundleAsyncIOTask(FQueuedThreadPool* ThreadPool, TUniqueFunction<void()> WorkFunc)
+	{
+		(new FAutoDeleteInstallBundleTask(MoveTemp(WorkFunc), nullptr))->StartBackgroundTask(ThreadPool);
+	}
 
 	void StartInstallBundleAsyncIOTask(TArray<TUniquePtr<FInstallBundleTask>>& Tasks, TUniqueFunction<void()> WorkFunc, TUniqueFunction<void()> OnComplete)
 	{
