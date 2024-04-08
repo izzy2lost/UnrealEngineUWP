@@ -502,7 +502,6 @@ bool SAvaLevelViewportGuide::DragUpdate()
 	}
 
 	FVector2f MousePosition = FrameAndClient.ViewportClient->GetConstrainedZoomedViewportMousePosition();
-	FVector2f Offset = FrameAndClient.ViewportClient->GetCachedViewportOffset();
 	FVector2f NewSlotPosition = FVector2f::ZeroVector;
 
 	if (TSharedPtr<FAvaSnapOperation> SnapOperation = FrameAndClient.ViewportClient->GetSnapOperation())
