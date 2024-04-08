@@ -2479,10 +2479,9 @@ bool FAssetManagerEditorModule::WriteCollection(FName CollectionName, ECollectio
 		ResultsMessage = FText::Format(LOCTEXT("NothingToAddToCollection", "Nothing to add to collection {0}"), FText::FromName(CollectionName));
 	}
 	else if (CreateOrEmptyCollection(CollectionName, ShareType))
-	{	
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-		if (CollectionManager.AddToCollection(CollectionName, ECollectionShareType::CST_Local, UE::SoftObjectPath::Private::ConvertSoftObjectPaths(ObjectPathsToAddToCollection.Array())))
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	{
+		if (CollectionManager.AddToCollection(
+				CollectionName, ECollectionShareType::CST_Local, ObjectPathsToAddToCollection.Array()))
 		{
 			UE_LOG(LogAssetManagerEditor, Log, TEXT("Updated collection %s"), *CollectionName.ToString());
 			ResultsMessage = FText::Format(LOCTEXT("CreateCollectionSucceeded", "Updated collection {0}"), FText::FromName(CollectionName));

@@ -892,7 +892,9 @@ int32 UDumpMaterialShaderTypesCommandlet::Main(const FString& Params)
 
 				FCollectionManagerModule& CollectionManagerModule = FCollectionManagerModule::GetModule();
 PRAGMA_DISABLE_DEPRECATION_WARNINGS
-				CollectionManagerModule.Get().GetObjectsInCollection(FName(*CollectionName), ECollectionShareType::CST_All, Filter.ObjectPaths, ECollectionRecursionFlags::SelfAndChildren);
+CollectionManagerModule.Get().GetObjectsInCollection(
+	FName(*CollectionName), ECollectionShareType::CST_All, Filter.SoftObjectPaths,
+	ECollectionRecursionFlags::SelfAndChildren);
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 				AssetRegistry.GetAssets(Filter, MaterialList);

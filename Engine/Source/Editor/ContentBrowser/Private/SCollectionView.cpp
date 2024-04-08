@@ -1348,9 +1348,8 @@ FReply SCollectionView::HandleDragDropOnCollectionItem(TSharedRef<FCollectionIte
 		const double BeginTimeSec = FPlatformTime::Seconds();
 		int32 NumAdded = 0;
 		FText Message;
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-		if (CollectionManagerModule.Get().AddToCollection(CollectionItem->CollectionName, CollectionItem->CollectionType, UE::SoftObjectPath::Private::ConvertSoftObjectPaths(ObjectPaths), &NumAdded))
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
+		if (CollectionManagerModule.Get().AddToCollection(
+				CollectionItem->CollectionName, CollectionItem->CollectionType, ObjectPaths, &NumAdded))
 		{
 			if (DroppedAssets.Num() == 1)
 			{
