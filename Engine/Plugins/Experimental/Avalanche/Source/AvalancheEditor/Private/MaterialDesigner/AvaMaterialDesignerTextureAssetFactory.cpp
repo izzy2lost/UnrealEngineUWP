@@ -121,7 +121,7 @@ AActor* UAvaMaterialDesignerTextureAssetFactory::SpawnActor(UObject* InAsset, UL
 		return InNewActor;
 	}
 
-	const UDMMaterialSlot* Slot = EditorOnlyData->GetSlot(0);
+	const UDMMaterialSlot* Slot = EditorOnlyData->GetSlotForMaterialProperty(EDMMaterialPropertyType::BaseColor);
 
 	if (!Slot)
 	{
