@@ -164,8 +164,12 @@ void FObjectMixerOutlinerSoloColumn::OnClickSoloIcon(const FSceneOutlinerTreeIte
 			{
 				SetSoloPerRowRecursively(RowPtr, bNewSolo);
 			}
-								
-			ListView->EvaluateAndSetEditorVisibilityPerRow();
+
+			{
+				FScopedTransaction SoloObject(LOCTEXT("ChangeSoloState", "Solo Object"));
+				ListView->EvaluateAndSetEditorVisibilityPerRow();
+			}
+
 		}
 	}
 }
