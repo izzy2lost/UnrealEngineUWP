@@ -752,16 +752,12 @@ ENGINE_API void UTextureCubeArray::InvalidateTextureSource()
 {
 	Modify();
 
-	if (GetPlatformData())
-	{
-		delete GetPlatformData();
-		SetPlatformData(nullptr);
-	}
+	SetPlatformData(nullptr);
 
 	Source = FTextureSource();
 	Source.SetOwner(this);
+
 	UpdateResource();
-	
 }
 #endif
 

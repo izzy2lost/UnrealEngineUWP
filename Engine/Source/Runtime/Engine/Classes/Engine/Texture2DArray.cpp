@@ -495,11 +495,7 @@ ENGINE_API void UTexture2DArray::InvalidateTextureSource()
 {
 	Modify();
 
-	if (GetPlatformData())
-	{
-		delete GetPlatformData();
-		SetPlatformData(nullptr);
-	}
+	SetPlatformData(nullptr);
 
 	Source = FTextureSource();
 	Source.SetOwner(this);
