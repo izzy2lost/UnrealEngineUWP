@@ -423,7 +423,8 @@ bool UCommonButtonBase::Initialize()
 		RootButtonRaw->SetClickMethod(ClickMethod);
 		RootButtonRaw->SetTouchMethod(TouchMethod);
 		RootButtonRaw->SetPressMethod(PressMethod);
-		RootButtonRaw->SetButtonFocusable(IsFocusable());
+		//Force the RootButton to not be focusable if it has a DesiredFocusWidgetName set which was stealing the focus and preventing DesiredFocusWidget from getting the FocusReceived event.
+		RootButtonRaw->SetButtonFocusable(GetDesiredFocusWidgetName().IsNone() && IsFocusable());
 		RootButtonRaw->SetButtonEnabled(bButtonEnabled);
 		RootButtonRaw->SetInteractionEnabled(bInteractionEnabled);
 		RootButton = RootButtonRaw;

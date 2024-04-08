@@ -2122,7 +2122,7 @@ FReply UUserWidget::NativeOnFocusReceived( const FGeometry& InGeometry, const FF
 	// Forward focus if Desired Focus is set
 	if (UWidget * WidgetToFocus = DesiredFocusWidget.Resolve(WidgetTree))
 	{
-		return FReply::Handled().SetUserFocus(WidgetToFocus->GetCachedWidget().ToSharedRef());
+		return FReply::Handled().SetUserFocus(WidgetToFocus->GetCachedWidget().ToSharedRef(),InFocusEvent.GetCause());
 	}
 	return Reply;
 }
