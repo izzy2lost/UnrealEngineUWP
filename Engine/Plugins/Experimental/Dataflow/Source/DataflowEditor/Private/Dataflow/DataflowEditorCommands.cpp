@@ -355,6 +355,12 @@ void FDataflowEditorCommands::OnPropertyValueChanged(UDataflow* OutDataflow, TSh
 					{
 						UpdatedNode = DataflowNode;
 						DataflowNode->Invalidate();
+
+						// Reflect the active state on the drawing of the node
+						if (DataflowNode->bActive != Node->IsNodeEnabled())
+						{
+							Node->SetEnabledState(DataflowNode->bActive ? ENodeEnabledState::Enabled : ENodeEnabledState::Disabled);
+						}
 					}
 				}
 			}
