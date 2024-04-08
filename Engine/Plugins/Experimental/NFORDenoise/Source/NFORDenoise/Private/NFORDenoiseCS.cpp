@@ -16,6 +16,20 @@ namespace NFORDenoise
 		TEXT("Add a constant 1 feature for denoising. Especially useful when all other features are zero."),
 		ECVF_RenderThreadSafe);
 
+	TAutoConsoleVariable<float> CVarNFORFeatureMaxAlbedoGreyscale(
+		TEXT("r.NFOR.Feature.MaxAlbedoGreyscale"),
+		2.0,
+		TEXT("Set the max albedo in greyscale used for denoising. Scale the albedo variance as well. Used for suppressing specular noise.")
+		TEXT("<=0: Ignore scaling."),
+		ECVF_RenderThreadSafe);
+
+	TAutoConsoleVariable<float> CVarNFORFeatureMaxNormalLength(
+		TEXT("r.NFOR.Feature.MaxNormalLength"),
+		10.0,
+		TEXT("Set the max normal length used for denoising. Scale the normal variance as well. Used for suppressing specular noise.")
+		TEXT("<=0: Ignore scaling."),
+		ECVF_RenderThreadSafe);
+
 	TAutoConsoleVariable<int32> CVarNFORPredivideAlbedo(
 		TEXT("r.NFOR.PredivideAlbedo"),
 		1,
@@ -163,6 +177,16 @@ namespace NFORDenoise
 	bool ShouldFeatureAddConstant()
 	{
 		return CVarNFORFeatureAddConstant.GetValueOnRenderThread();
+	}
+
+	float GetFeatureMaxAlbedoGrayscale()
+	{
+		return CVarNFORFeatureMaxAlbedoGreyscale.GetValueOnRenderThread();
+	}
+
+	float GetFeatureMaxNormalLength()
+	{
+		return CVarNFORFeatureMaxNormalLength.GetValueOnRenderThread();
 	}
 
 	bool IsPreAlbedoDivideEnabled()
@@ -378,9 +402,10 @@ namespace NFORDenoise
 	IMPLEMENT_GLOBAL_SHADER(FCopyTexturePS, "/NFORDenoise/NFORDenoise.usf", "CopyTexturePS", SF_Pixel);
 
 	//--------------------------------------------------------------------------------------------------------------------
-	// Radiance normalization
+	// Feature range adjustment and radiance normalization
 	IMPLEMENT_GLOBAL_SHADER(FClassifyPreAlbedoDivideMaskIdCS, "/NFORDenoise/NFORDenoise.usf", "ClassifyPreAlbedoDivideMaskIdCS", SF_Compute);
 	IMPLEMENT_GLOBAL_SHADER(FNormalizeRadianceVarianceByAlbedoCS, "/NFORDenoise/NFORDenoise.usf", "NormalizeRadianceVarianceByAlbedoCS", SF_Compute);
+	IMPLEMENT_GLOBAL_SHADER(FAdjustFeatureRangeCS, "/NFORDenoise/NFORDenoise.usf", "AdjustFeatureRangeCS", SF_Compute);
 
 	//--------------------------------------------------------------------------------------------------------------------
 	// Non-local mean weight and filtering
@@ -653,6 +678,47 @@ namespace NFORDenoise
 		}
 
 		return MaskTexture;
+	}
+
+	void AddAdjustFeatureRangePass(FRDGBuilder& GraphBuilder, const FFeatureDesc& FeatureDesc, float MaxValue)
+	{
+		checkf(FeatureDesc.Data.NumOfChannel == 4, TEXT("Only feature with 4 channels can be adjusted"));
+		checkf(FeatureDesc.VarianceType != EVarianceType::Colored, TEXT("Feature variance of type EVarianceType::Colored cannot be adjusted"));
+		
+		if (MaxValue <= 0)
+		{
+			return;
+		}
+
+		FIntPoint Size = FeatureDesc.Data.Image->Desc.Extent;
+		typedef FAdjustFeatureRangeCS SHADER;
+		SHADER::FParameters* PassParameters = GraphBuilder.AllocParameters<SHADER::FParameters>();
+		{
+			PassParameters->RWImage = GraphBuilder.CreateUAV(FeatureDesc.Data.Image);
+			PassParameters->RWImageVariance = GraphBuilder.CreateUAV(FeatureDesc.Variance.Image);
+			PassParameters->Size = Size;
+			PassParameters->VarianceChannelOffset = FeatureDesc.Variance.ChannelOffset;
+			PassParameters->MaxValue = MaxValue;
+		}
+
+		SHADER::FPermutationDomain ComputeShaderPermutationVector;
+		{
+			ComputeShaderPermutationVector.Set<SHADER::FDimensionVarianceType>(FeatureDesc.VarianceType);
+		}
+
+		TShaderMapRef<SHADER> ComputeShader(GetGlobalShaderMap(GMaxRHIFeatureLevel), ComputeShaderPermutationVector);
+
+		FComputeShaderUtils::AddPass(
+			GraphBuilder,
+			RDG_EVENT_NAME("NFOR::AddAdjustFeatureRangePass (%s, MaxValue=%.2f, size:%dx%d)",
+				FeatureDesc.Data.Image->Name,
+				MaxValue,
+				Size.X,
+				Size.Y),
+			ERDGPassFlags::Compute,
+			ComputeShader,
+			PassParameters,
+			FComputeShaderUtils::GetGroupCount(Size, NON_LOCAL_MEAN_THREAD_GROUP_SIZE));
 	}
 
 	//--------------------------------------------------------------------------------------------------------------------
@@ -1591,16 +1657,23 @@ namespace NFORDenoise
 		const int32 SourceRadianceIndex = GetDenoisingFrameIndex(NumOfTemporalFrames);
 		
 		// Preprocessing
-		// Radiance normalization and filtering frames
+		// Feature range adjustment, radiance normalization and filtering frames
 		{
-			if (IsPreAlbedoDivideEnabled())
+			// Latest frame only 
+			for (int i = 0; i < 1; ++i)
 			{
-				// Latest frame only 
-				for (int i = 0; i < 1; ++i)
+				const FFeatureDesc& Albedo = FeatureDescs[i * NumOfFeaturesPerFrame + 0]; //TODO: unify the index
+				const FFeatureDesc& Normal = FeatureDescs[i * NumOfFeaturesPerFrame + 1]; //TODO: unify the index
+
+				// Adjust feature range if required
+				AddAdjustFeatureRangePass(GraphBuilder, Albedo, GetFeatureMaxAlbedoGrayscale());
+				AddAdjustFeatureRangePass(GraphBuilder, Normal, GetFeatureMaxNormalLength());
+
+				if (IsPreAlbedoDivideEnabled())
 				{
-					FRDGTextureRef AlbedoTex = FeatureDescs[i * NumOfFeaturesPerFrame + 0].Feature.Image; //TODO: unify the index
-					FRDGTextureRef NormalTex = FeatureDescs[i * NumOfFeaturesPerFrame + 1].Feature.Image; //TODO: unify the index
-					FRDGTextureRef NormalVarianceTex = FeatureDescs[i * NumOfFeaturesPerFrame + 1].Variance.Image;
+					FRDGTextureRef AlbedoTex = Albedo.Feature.Image; 
+					FRDGTextureRef NormalTex = Normal.Feature.Image; 
+					FRDGTextureRef NormalVarianceTex = Normal.Variance.Image;
 					FRDGTextureRef MaskTexture = NFORDenoise::GetPreAlbedoDivideMask(GraphBuilder, View, NormalTex, NormalVarianceTex);
 
 					FLinearColor RGBOffset = NFORDenoise::GetPreAlbedoDivideAlbedoOffset();
@@ -1610,7 +1683,7 @@ namespace NFORDenoise
 					FRDGTextureRef RadianceTexture = Radiances[i].Data.Image;
 					FRDGTextureRef RadianceVarianceTexture = Radiances[i].Variance.Image;
 
-					// Normalization should apply to both texture to variance.
+					// Normalization should apply to both texture and variance.
 					NFORDenoise::AddDivideTextureRegionPass(GraphBuilder, AlbedoTex, RadianceTexture);
 					NFORDenoise::AddNormalizeRadianceVariancePass(GraphBuilder, AlbedoTex, RadianceVarianceTexture);
 				}

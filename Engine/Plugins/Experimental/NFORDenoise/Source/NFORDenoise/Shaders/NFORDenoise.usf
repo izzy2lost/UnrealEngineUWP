@@ -268,6 +268,40 @@ void NormalizeRadianceVarianceByAlbedoCS(in const uint3 DispatchThreadID : SV_Di
 	RWRadianceVariance[Position].r /= lerp(1.0f, AlbedoLum, AlbedoLum > 0);
 }
 
+RWTexture2D<float4> RWImage;
+RWTexture2D<float4> RWImageVariance;
+float MaxValue;
+int VarianceChannelOffset;
+
+[numthreads(THREAD_GROUP_SIZE, THREAD_GROUP_SIZE, 1)]
+void AdjustFeatureRangeCS(in const uint3 DispatchThreadID : SV_DispatchThreadID)
+{
+	if (any(DispatchThreadID.xy >= (uint2)Size))
+	{
+		return;
+	}
+
+	const uint2 Position = DispatchThreadID.xy;
+
+	float3 Feature = RWImage[Position].xyz;
+#if (IMAGE_VARIANCE_TYPE == IMAGE_VARIANCE_NORMAL)
+	float Value = length(Feature);
+#elif (IMAGE_VARIANCE_TYPE == IMAGE_VARIANCE_GREYSCALE)
+	float Value = Luminance(Feature);
+#else
+	float Value = -1.0f;
+#endif
+
+	const float ScaleFactor = lerp(1.0f, MaxValue / Value, Value > MaxValue);
+	
+	BRANCH
+	if (ScaleFactor < 1.0f)
+	{
+		RWImage[Position].xyz *= ScaleFactor;
+		RWImageVariance[Position][VarianceChannelOffset] *= ScaleFactor; // Scaling the std does not require power.
+	}
+}
+
 //--------------------------------------------------------------------------------------------------
 // Non-local mean definition and function
 //--------------------------------------------------------------------------------------------------
@@ -288,8 +322,6 @@ Texture2D<TImageVariance> TargetVariance;
 #define TargetImage Image
 #define TargetVariance Variance
 #endif
-
-int VarianceChannelOffset;
 
 float GetSquaredDistance(int2 P, int2 Q, float VarianceScale = 1.0f)
 {

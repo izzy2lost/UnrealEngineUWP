@@ -179,7 +179,7 @@ namespace NFORDenoise
 	
 
 	//--------------------------------------------------------------------------------------------------------------------
-	// Radiance normalization by albedo
+	// Feature range adjustment, and radiance normalization by albedo
 	
 	class FClassifyPreAlbedoDivideMaskIdCS : public FGlobalShader
 	{
@@ -221,10 +221,41 @@ namespace NFORDenoise
 		}
 	};
 
+	struct FFeatureDesc;
+
+	// Remap feature range
+	class FAdjustFeatureRangeCS : public FGlobalShader
+	{
+		DECLARE_GLOBAL_SHADER(FAdjustFeatureRangeCS)
+		SHADER_USE_PARAMETER_STRUCT(FAdjustFeatureRangeCS, FGlobalShader)
+	public:
+
+		BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
+			SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D, RWImage)
+			SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D, RWImageVariance)
+			SHADER_PARAMETER(FIntPoint, Size)
+			SHADER_PARAMETER(int32, VarianceChannelOffset)
+			SHADER_PARAMETER(float, MaxValue)
+		END_SHADER_PARAMETER_STRUCT()
+
+		static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& InParameters, FShaderCompilerEnvironment& OutEnvironment)
+		{
+			FGlobalShader::ModifyCompilationEnvironment(InParameters, OutEnvironment);
+			OutEnvironment.SetDefine(TEXT("THREAD_GROUP_SIZE"), NON_LOCAL_MEAN_THREAD_GROUP_SIZE);
+			OutEnvironment.CompilerFlags.Add(CFLAG_AllowTypedUAVLoads);
+		}
+
+		class FDimensionVarianceType : SHADER_PERMUTATION_ENUM_CLASS("IMAGE_VARIANCE_TYPE", EVarianceType);
+		using FPermutationDomain = TShaderPermutationDomain<FDimensionVarianceType>;
+	};
+
 	FRDGTextureRef GetPreAlbedoDivideMask(FRDGBuilder& GraphBuilder, const FSceneView& View, const FRDGTextureRef& Normal, const FRDGTextureRef& NormalVariance);
 
 	void AddNormalizeRadianceVariancePass(FRDGBuilder& GraphBuilder, const FRDGTextureRef& Albedo, const FRDGTextureRef& RadianceVariance);
 
+	// Adjust feature and variance range based on MaxValue to suppress random specular noise.
+	// NewValue = min(Value, MaxValue). Std = lerp(Std,(MaxValue/Value)*Std,Value > MaxValue).
+	void AddAdjustFeatureRangePass(FRDGBuilder& GraphBuilder, const FFeatureDesc& FeatureDesc, float MaxValue);
 
 	//--------------------------------------------------------------------------------------------------------------------
 	// Non-local mean weight and filtering
