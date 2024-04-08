@@ -1125,6 +1125,7 @@ void SContentBrowser::SetFavoritesExpanded(bool bExpanded)
 
 TSharedRef<SWidget> SContentBrowser::CreateFavoritesView(const FContentBrowserConfig* Config)
 {
+	// clang-format off
 	return
 		SAssignNew(FavoritesArea, SExpandableArea)
 		.BorderImage(FAppStyle::Get().GetBrush("Brushes.Header"))
@@ -1178,10 +1179,12 @@ TSharedRef<SWidget> SContentBrowser::CreateFavoritesView(const FContentBrowserCo
 				.ShowTreeTitle(false)
 				.ShowSeparator(false)
 				.AllowClassesFolder(true)
+				.OwningContentBrowserName(InstanceName)
 				.AddMetaData<FTagMetaData>(FTagMetaData(TEXT("ContentBrowserFavorites")))
 				.ExternalSearch(FavoritesSearch)
 			]
 		];
+	// clang-format on
 }
 
 void SContentBrowser::SetPathViewExpanded(bool bExpanded)
