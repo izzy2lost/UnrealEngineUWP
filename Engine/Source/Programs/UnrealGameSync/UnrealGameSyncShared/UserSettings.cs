@@ -992,6 +992,7 @@ namespace UnrealGameSync
 			currentProject.BuildSteps.AddRange(projectSection.GetValues("BuildStep", Array.Empty<string>()).Select(x => new ConfigObject(x)));
 			currentProject.FilterType = projectSection.GetEnumValue("FilterType", FilterType.None);
 			currentProject.FilterBadges.UnionWith(projectSection.GetValues("FilterBadges", Array.Empty<string>()));
+			currentProject.RequiredBadges.AddRange(projectSection.GetValues("RequiredBadges", Array.Empty<string>())); 
 		}
 
 		public override bool Save(ILogger logger)
