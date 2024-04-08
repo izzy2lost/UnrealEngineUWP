@@ -106,6 +106,8 @@ public:
 	void SetYAxisGridVisibility(const bool InbIsVisible);
 	void SetYAxisLabelsVisibility(const bool InbIsVisible);
 
+	void SetMaxTimeWindowMs(const float InMaxTimeWindowMs);
+
 	void SetChannelToAnalyze(const int32 InChannelToAnalyze);
 	void SetTriggerMode(const EAudioOscilloscopeTriggerMode InTriggerMode);
 	void SetTriggerThreshold(const float InTriggerThreshold);
@@ -169,8 +171,9 @@ private:
 	TSharedPtr<SAudioRadialSlider> AnalysisPeriodKnob;
 
 	inline static const FVector2D TriggerThresholdKnobOutputRange = { -1.0, 1.0 };
-	inline static const FVector2D TimeWindowKnobOutputRange       = { 10.0, 5000.0 };
 	inline static const FVector2D AnalysisPeriodKnobOutputRange   = { 10.0, 1000.0 };
+
+	FVector2D TimeWindowKnobOutputRange = { 10.0, 5000.0 };
 
 	EAudioPanelLayoutType PanelLayoutType = EAudioPanelLayoutType::Basic;
 

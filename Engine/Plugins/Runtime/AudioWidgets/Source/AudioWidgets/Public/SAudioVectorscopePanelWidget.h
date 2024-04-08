@@ -53,6 +53,8 @@ public:
 	void SetGridVisibility(const bool InbIsVisible);
 	void SetValueGridOverlayMaxNumDivisions(const uint32 InGridMaxNumDivisions);
 
+	void SetMaxDisplayPersistence(const float InMaxDisplayPersistenceInMs);
+
 	void SetDisplayPersistence(const float InDisplayPersistenceInMs);
 	void SetVectorViewerScaleFactor(const float InScaleFactor);
 
@@ -93,8 +95,8 @@ private:
 	TSharedPtr<SAudioRadialSlider> DisplayPersistenceKnob;
 	TSharedPtr<SAudioRadialSlider> ScaleKnob;
 
-	inline static const FVector2D DisplayPersistenceKnobOutputRange = { 10.0, 500.0 };
-	inline static const FVector2D ScaleFactorOutputKnobRange        = { 0.0, 1.0 };
+	FVector2D DisplayPersistenceKnobOutputRange = { 10.0, 500.0 };
+	inline static const FVector2D ScaleFactorOutputKnobRange = { 0.0, 1.0 };
 
 	EAudioPanelLayoutType PanelLayoutType = EAudioPanelLayoutType::Basic;
 

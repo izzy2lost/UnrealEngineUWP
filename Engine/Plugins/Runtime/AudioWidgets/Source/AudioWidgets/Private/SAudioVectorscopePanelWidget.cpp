@@ -371,6 +371,16 @@ void SAudioVectorscopePanelWidget::SetValueGridOverlayMaxNumDivisions(const uint
 	ValueGridOverlayYAxis->SetMaxDivisionParameter(InGridMaxNumDivisions);
 }
 
+void SAudioVectorscopePanelWidget::SetMaxDisplayPersistence(const float InMaxDisplayPersistenceInMs)
+{
+	DisplayPersistenceKnobOutputRange.Y = InMaxDisplayPersistenceInMs;
+
+	if (DisplayPersistenceKnob.IsValid())
+	{
+		DisplayPersistenceKnob->SetOutputRange(DisplayPersistenceKnobOutputRange);
+	}
+}
+
 void SAudioVectorscopePanelWidget::SetDisplayPersistence(const float InDisplayPersistenceInMs)
 {
 	if (DisplayPersistenceKnob.IsValid())

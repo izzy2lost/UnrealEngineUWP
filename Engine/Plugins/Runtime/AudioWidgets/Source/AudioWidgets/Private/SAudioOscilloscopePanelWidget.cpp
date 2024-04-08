@@ -701,6 +701,16 @@ void SAudioOscilloscopePanelWidget::SetYAxisLabelsVisibility(const bool InbIsVis
 	ValueGridOverlay->SetHideLabels(!InbIsVisible);
 }
 
+void SAudioOscilloscopePanelWidget::SetMaxTimeWindowMs(const float InMaxTimeWindowMs)
+{
+	TimeWindowKnobOutputRange.Y = InMaxTimeWindowMs;
+
+	if (TimeWindowKnob.IsValid())
+	{
+		TimeWindowKnob->SetOutputRange(TimeWindowKnobOutputRange);
+	}
+}
+
 void SAudioOscilloscopePanelWidget::SetChannelToAnalyze(const int32 InChannelToAnalyze)
 {
 	if (ChannelCombobox.IsValid())

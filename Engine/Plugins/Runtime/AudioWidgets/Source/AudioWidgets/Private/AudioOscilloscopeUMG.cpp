@@ -51,7 +51,6 @@ void UAudioOscilloscope::CreateDataProvider()
 	}
 
 	const uint32 NumChannelsToProvide = (PanelLayoutType == EAudioPanelLayoutType::Advanced) ? 1 : AudioBus->GetNumChannels(); // Advanced mode waveform display is based on channel selection
-	constexpr float  MaxTimeWindowMs = 5000.0f; // TODO alex.perez: should we expose this as a UPROPERTY?
 
 	AudioSamplesDataProvider = MakeShared<AudioWidgets::FWaveformAudioSamplesDataProvider>(AudioDevice.GetDeviceID(), AudioBus, NumChannelsToProvide, TimeWindowMs, MaxTimeWindowMs, AnalysisPeriodMs);
 }
@@ -83,6 +82,8 @@ void UAudioOscilloscope::CreateOscilloscopeWidget()
 
 TSharedRef<SWidget> UAudioOscilloscope::RebuildWidget()
 {
+	TimeWindowMs = FMath::Clamp(TimeWindowMs, 10.0f, MaxTimeWindowMs);
+
 	if (!AudioBus)
 	{
 		NumChannels = DummyNumChannels;
@@ -103,6 +104,8 @@ TSharedRef<SWidget> UAudioOscilloscope::RebuildWidget()
 void UAudioOscilloscope::SynchronizeProperties()
 {
 	Super::SynchronizeProperties();
+
+	TimeWindowMs = FMath::Clamp(TimeWindowMs, 10.0f, MaxTimeWindowMs);
 
 	if (!AudioBus)
 	{
@@ -132,6 +135,11 @@ void UAudioOscilloscope::SynchronizeProperties()
 
 	if (AudioSamplesDataProvider.IsValid())
 	{
+		if (MaxTimeWindowMs != AudioSamplesDataProvider->GetMaxTimeWindowMs())
+		{
+			AudioSamplesDataProvider->SetMaxTimeWindowMs(MaxTimeWindowMs);
+		}
+
 		if (PanelLayoutType == EAudioPanelLayoutType::Advanced)
 		{
 			AudioSamplesDataProvider->SetChannelToAnalyze(ChannelToAnalyze);
@@ -149,6 +157,7 @@ void UAudioOscilloscope::SynchronizeProperties()
 
 		AudioSamplesDataProvider->SetTimeWindow(TimeWindowMs);
 		AudioSamplesDataProvider->SetAnalysisPeriod(AnalysisPeriodMs);
+
 		AudioSamplesDataProvider->RequestSequenceView(TRange<double>::Inclusive(0, 1));
 	}
 
@@ -175,6 +184,8 @@ void UAudioOscilloscope::SynchronizeProperties()
 		OscilloscopePanelWidget->SetYAxisGridVisibility(bShowAmplitudeGrid);
 		OscilloscopePanelWidget->SetYAxisLabelsVisibility(bShowAmplitudeLabels);
 		OscilloscopePanelWidget->SetValueGridOverlayDisplayUnit(AmplitudeGridLabelsUnit);
+
+		OscilloscopePanelWidget->SetMaxTimeWindowMs(MaxTimeWindowMs);
 
 		if (PanelLayoutType == EAudioPanelLayoutType::Advanced)
 		{

@@ -44,31 +44,35 @@ public:
 	void StopProcessing();
 
 	/** The vectorscope panel style */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Style", meta=(DisplayName="Style"))
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Style", meta=(DisplayName="Style"))
 	FAudioVectorscopePanelStyle VectorscopeStyle;
 
 	/** The audio bus used to obtain audio samples for the vectorscope */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Vectorscope Values", meta = (DesignerRebuild = "True"))
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Vectorscope Values", meta = (DesignerRebuild = "True"))
 	TObjectPtr<UAudioBus> AudioBus = nullptr;
 
 	/** Show/Hide the vectorscope grid. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Vectorscope Values")
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Vectorscope Values")
 	bool bShowGrid = true;
 
 	/** The number of grid divisions. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Vectorscope Values", meta = (UIMin = 1, UIMax = 6, ClampMin = 1, ClampMax = 6))
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Vectorscope Values", meta = (UIMin = 1, UIMax = 6, ClampMin = 1, ClampMax = 6))
 	int32 GridDivisions = 2;
 
+	/** The max where the audio samples should persist in the screen (in milliseconds). */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Vectorscope Values", meta = (UIMin = 10.0, UIMax = 500.0, ClampMin = 10.0, ClampMax = 500.0))
+	float MaxDisplayPersistenceMs = 500.0f;
+
 	/** For how long the audio samples should persist in the screen (in milliseconds). */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Vectorscope Values", meta = (UIMin = 10.0, UIMax = 500.0, ClampMin = 10.0, ClampMax = 500.0))
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Vectorscope Values", meta = (UIMin = 10.0, ClampMin = 10.0))
 	float DisplayPersistenceMs = 60.0f;
 
 	/** The scale for the displayed audio samples. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Vectorscope Values", meta = (UIMin = 0.0, UIMax = 1.0, ClampMin = 0.0, ClampMax = 1.0))
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Vectorscope Values", meta = (UIMin = 0.0, UIMax = 1.0, ClampMin = 0.0, ClampMax = 1.0))
 	float Scale = 1.0f;
 
 	/** Show/Hide advanced panel layout. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Vectorscope Values", meta = (DesignerRebuild = "True"))
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Vectorscope Values", meta = (DesignerRebuild = "True"))
 	EAudioPanelLayoutType PanelLayoutType = EAudioPanelLayoutType::Basic;
 
 private:
