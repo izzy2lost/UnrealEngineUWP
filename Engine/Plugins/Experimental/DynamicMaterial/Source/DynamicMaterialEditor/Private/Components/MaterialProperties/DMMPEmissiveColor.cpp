@@ -32,5 +32,5 @@ UMaterialExpression* UDMMaterialPropertyEmissiveColor::GetDefaultInput(
 
 void UDMMaterialPropertyEmissiveColor::OnSlotAdded(UDMMaterialSlot* InSlot)
 {
-	UDMMaterialPropertyBaseColor::AddDefaultRGBLayer(EDMMaterialPropertyType::BaseColor, InSlot);
+	UDMMaterialPropertyBaseColor::AddDefaultRGBLayer(EDMMaterialPropertyType::EmissiveColor, InSlot);
 }

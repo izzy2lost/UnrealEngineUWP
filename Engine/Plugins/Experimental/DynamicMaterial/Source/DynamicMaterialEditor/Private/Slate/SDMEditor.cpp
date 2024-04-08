@@ -292,7 +292,6 @@ void SDMEditor::SetMaterialModel(UDynamicMaterialModel* InMaterialModel)
 	if (EditorOnlyData && EditorOnlyData->NeedsWizard())
 	{
 		Container->SetContent(SNew(SDMMaterialWizard, SharedThis(this)));
-		EditorOnlyData->OnWizardComplete();
 	}
 	else
 	{
@@ -697,51 +696,32 @@ TSharedRef<SWidget> SDMEditor::CreateSlotPickerWidget()
 
 	UEnum* MaterialPropertyEnum = StaticEnum<EDMMaterialPropertyType>();
 
-	for (uint8 PropertyIndex = static_cast<uint8>(EDMMaterialPropertyType::None) + 1;
-		PropertyIndex < static_cast<uint8>(EDMMaterialPropertyType::Any);
-		++PropertyIndex)
+	for (const TPair<EDMMaterialPropertyType, UDMMaterialProperty*>& Property : ModelEditorOnlyData->GetMaterialProperties())
 	{
-		EDMMaterialPropertyType Property = static_cast<EDMMaterialPropertyType>(PropertyIndex);
-
-		// Filter RGB modes
-		if (bHasBaseColorSlot)
+		// Always create base colour, not emissive - Will be sorted out by the button itself.
+		if (Property.Key == EDMMaterialPropertyType::EmissiveColor)
 		{
-			if (Property == EDMMaterialPropertyType::EmissiveColor)
-			{
-				continue;
-			}
-		}
-		else
-		{
-			if (Property == EDMMaterialPropertyType::BaseColor)
-			{
-				continue;
-			}
+			continue;
 		}
 
-		// Filter opacity modes
-		if (Property == EDMMaterialPropertyType::OpacityMask)
+		// Always create opacity, not opacity mask - Will be sorted out by the button itself.
+		if (Property.Key == EDMMaterialPropertyType::OpacityMask)
 		{
-			if (ModelEditorOnlyData->GetBlendMode() != BLEND_Masked)
-			{
-				continue;
-			}
+			continue;
 		}
-		else
+
+		if (Property.Key == EDMMaterialPropertyType::Opacity && ModelEditorOnlyData->GetBlendMode() == BLEND_Opaque)
 		{
-			if (ModelEditorOnlyData->GetBlendMode() == BLEND_Masked)
-			{
-				continue;
-			}
+			continue;
 		}
 
 		const bool bIsPropertyEnabled = Preset
-			? Preset->IsPropertyEnabled(Property)
-			: !!ModelEditorOnlyData->GetSlotForMaterialProperty(Property);
+			? Preset->IsPropertyEnabled(Property.Key)
+			: !!ModelEditorOnlyData->GetSlotForMaterialProperty(Property.Key);
 
 		if (bIsPropertyEnabled)
 		{
-			const int32 EnumIndex = MaterialPropertyEnum->GetIndexByValue(static_cast<int64>(Property));
+			const int32 EnumIndex = MaterialPropertyEnum->GetIndexByValue(static_cast<int64>(Property.Key));
 
 			constexpr const TCHAR* ShortNameName = TEXT("ShortName");
 			const FString ShortName = MaterialPropertyEnum->GetMetaData(ShortNameName, EnumIndex);
@@ -751,15 +731,15 @@ TSharedRef<SWidget> SDMEditor::CreateSlotPickerWidget()
 					SNew(SCheckBox)
 					.Style(FAppStyle::Get(), "DetailsView.SectionButton")
 					.HAlign(EHorizontalAlignment::HAlign_Center)
-					.IsEnabled(this, &SDMEditor::IsPropertyValidForModel, Property)
-					.IsChecked(this, &SDMEditor::GetSlotCheckState, Property)
-					.OnCheckStateChanged(this, &SDMEditor::OnSlotCheckStateChanged, Property)
+					.IsEnabled(this, &SDMEditor::IsPropertyValidForModel, Property.Key)
+					.IsChecked(this, &SDMEditor::GetSlotCheckState, Property.Key)
+					.OnCheckStateChanged(this, &SDMEditor::OnSlotCheckStateChanged, Property.Key)
 					.Padding(FVector2D(5.f, 3.f))
-					.ToolTipText(this, &SDMEditor::GetToolTipForProperty, Property)
+					.ToolTipText(this, &SDMEditor::GetToolTipForProperty, Property.Key)
 					.Content()
 					[
 						SNew(STextBlock)
-						.Text(!ShortName.IsEmpty() ? FText::FromString(ShortName) : MaterialPropertyEnum->GetDisplayNameTextByValue(static_cast<int64>(Property)))
+						.Text(!ShortName.IsEmpty() ? FText::FromString(ShortName) : MaterialPropertyEnum->GetDisplayNameTextByValue(static_cast<int64>(Property.Key)))
 					]
 				];
 		}
@@ -937,7 +917,26 @@ bool SDMEditor::IsPropertyValidForModel(EDMMaterialPropertyType InProperty) cons
 		{
 			if (UDMMaterialProperty* Property = EditorOnlyData->GetMaterialProperty(InProperty))
 			{
-				return Property->IsValidForModel(*EditorOnlyData);
+				if (Property->IsValidForModel(*EditorOnlyData))
+				{
+					return true;
+				}
+			}
+
+			if (InProperty == EDMMaterialPropertyType::BaseColor)
+			{
+				if (UDMMaterialProperty* Property = EditorOnlyData->GetMaterialProperty(EDMMaterialPropertyType::EmissiveColor))
+				{
+					return Property->IsValidForModel(*EditorOnlyData);
+				}
+			}
+
+			if (InProperty == EDMMaterialPropertyType::Opacity)
+			{
+				if (UDMMaterialProperty* Property = EditorOnlyData->GetMaterialProperty(EDMMaterialPropertyType::OpacityMask))
+				{
+					return Property->IsValidForModel(*EditorOnlyData);
+				}
 			}
 		}
 	}
@@ -953,9 +952,26 @@ ECheckBoxState SDMEditor::GetSlotCheckState(EDMMaterialPropertyType InProperty) 
 		{
 			if (UDynamicMaterialModelEditorOnlyData* EditorOnlyData = Slot->GetMaterialModelEditorOnlyData())
 			{
-				return EditorOnlyData->GetSlotForMaterialProperty(InProperty) == Slot
-					? ECheckBoxState::Checked
-					: ECheckBoxState::Unchecked;
+				if (UDMMaterialSlot* PropertySlot = EditorOnlyData->GetSlotForMaterialProperty(InProperty))
+				{
+					return PropertySlot == Slot
+						? ECheckBoxState::Checked
+						: ECheckBoxState::Unchecked;
+				}
+
+				if (InProperty == EDMMaterialPropertyType::BaseColor)
+				{
+					return EditorOnlyData->GetSlotForMaterialProperty(EDMMaterialPropertyType::EmissiveColor) == Slot
+						? ECheckBoxState::Checked
+						: ECheckBoxState::Unchecked;
+				}
+
+				if (InProperty == EDMMaterialPropertyType::Opacity)
+				{
+					return EditorOnlyData->GetSlotForMaterialProperty(EDMMaterialPropertyType::OpacityMask) == Slot
+						? ECheckBoxState::Checked
+						: ECheckBoxState::Unchecked;
+				}	
 			}
 		}
 	}
@@ -983,9 +999,28 @@ void SDMEditor::OnSlotCheckStateChanged(ECheckBoxState InCheckState, EDMMaterial
 			{
 				if (UDynamicMaterialModelEditorOnlyData* EditorOnlyData = Slot->GetMaterialModelEditorOnlyData())
 				{
-					if (EditorOnlyData->GetSlotForMaterialProperty(InProperty) == Slot)
+					if (UDMMaterialSlot* PropertySlot = EditorOnlyData->GetSlotForMaterialProperty(InProperty))
 					{
-						SetActiveSlotIndex(SlotIndex);
+						if (PropertySlot == Slot)
+						{
+							SetActiveSlotIndex(SlotIndex);
+						}
+					}
+
+					if (InProperty == EDMMaterialPropertyType::BaseColor)
+					{
+						if (EditorOnlyData->GetSlotForMaterialProperty(EDMMaterialPropertyType::EmissiveColor) == Slot)
+						{
+							SetActiveSlotIndex(SlotIndex);
+						}
+					}
+
+					if (InProperty == EDMMaterialPropertyType::Opacity)
+					{
+						if (EditorOnlyData->GetSlotForMaterialProperty(EDMMaterialPropertyType::OpacityMask) == Slot)
+						{
+							SetActiveSlotIndex(SlotIndex);
+						}
 					}
 				}
 			}

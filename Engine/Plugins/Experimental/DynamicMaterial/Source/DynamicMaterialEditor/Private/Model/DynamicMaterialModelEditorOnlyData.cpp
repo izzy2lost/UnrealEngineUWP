@@ -154,8 +154,8 @@ UDynamicMaterialModelEditorOnlyData::UDynamicMaterialModelEditorOnlyData()
 	Properties.Emplace(EDMMaterialPropertyType::Normal,              CreateDefaultSubobject<UDMMaterialPropertyNormal>(             "MaterialProperty_Normal"));
 	Properties.Emplace(EDMMaterialPropertyType::Tangent,             CreateDefaultSubobject<UDMMaterialPropertyTangent>(            "MaterialProperty_Tangent"));
 	Properties.Emplace(EDMMaterialPropertyType::WorldPositionOffset, CreateDefaultSubobject<UDMMaterialPropertyWorldPositionOffset>("MaterialProperty_WorldPositionOffset"));
-	Properties.Emplace(EDMMaterialPropertyType::Refraction,          CreateDefaultSubobject<UDMMaterialPropertyRefraction>(         "MaterialProperty_Refraction"));
 	Properties.Emplace(EDMMaterialPropertyType::AmbientOcclusion,    CreateDefaultSubobject<UDMMaterialPropertyAmbientOcclusion>(   "MaterialProperty_AmbientOcclusion"));
+	Properties.Emplace(EDMMaterialPropertyType::Refraction,          CreateDefaultSubobject<UDMMaterialPropertyRefraction>(         "MaterialProperty_Refraction"));
 	Properties.Emplace(EDMMaterialPropertyType::PixelDepthOffset,    CreateDefaultSubobject<UDMMaterialPropertyPixelDepthOffset>(   "MaterialProperty_PixelDepthOffset"));
 
 	Properties.Emplace(EDMMaterialPropertyType::Custom1, UDMMaterialProperty::CreateCustomMaterialPropertyDefaultSubobject(this, EDMMaterialPropertyType::Custom1, "MaterialProperty_Custom1"));
@@ -673,35 +673,48 @@ bool UDynamicMaterialModelEditorOnlyData::NeedsWizard() const
 
 void UDynamicMaterialModelEditorOnlyData::OnWizardComplete()
 {
+	if (UDynamicMaterialModel* MaterialModelLocal = MaterialModel.Get())
+	{
+		FDynamicMaterialEditorModule::Get().OnWizardComplete(MaterialModelLocal);
+	}
 }
 
 void UDynamicMaterialModelEditorOnlyData::SetChannelListPreset(FName InPresetName)
 {
 	ChannelListPreset = InPresetName;
 
-	if (const FDMMaterialChannelListPreset* Preset = GetDefault<UDynamicMaterialEditorSettings>()->ChannelPresets.Find(InPresetName))
+	const FDMMaterialChannelListPreset* Preset = GetDefault<UDynamicMaterialEditorSettings>()->ChannelPresets.Find(InPresetName);
+
+	if (!Preset)
 	{
-		for (uint8 PropertyIndex = static_cast<uint8>(EDMMaterialPropertyType::None) + 1;
-			PropertyIndex < static_cast<uint8>(EDMMaterialPropertyType::Any);
-			++PropertyIndex)
+		return;
+	}
+
+	for (uint8 PropertyIndex = static_cast<uint8>(EDMMaterialPropertyType::None) + 1;
+		PropertyIndex < static_cast<uint8>(EDMMaterialPropertyType::Any);
+		++PropertyIndex)
+	{
+		const EDMMaterialPropertyType Property = static_cast<EDMMaterialPropertyType>(PropertyIndex);
+
+		if (Property == EDMMaterialPropertyType::EmissiveColor || Property == EDMMaterialPropertyType::OpacityMask)
 		{
-			const EDMMaterialPropertyType Property = static_cast<EDMMaterialPropertyType>(PropertyIndex);
+			continue;
+		}
 
-			if (Property == EDMMaterialPropertyType::EmissiveColor || Property == EDMMaterialPropertyType::OpacityMask)
-			{
-				continue;
-			}
-
-			if (Preset->IsPropertyEnabled(Property))
-			{
-				AddSlotForMaterialProperty(Property);
-			}
-			else
-			{
-				RemoveSlotForMaterialProperty(Property);
-			}
+		if (Preset->IsPropertyEnabled(Property))
+		{
+			AddSlotForMaterialProperty(Property);
+		}
+		else
+		{
+			RemoveSlotForMaterialProperty(Property);
 		}
 	}
+
+	SetBlendMode(Preset->DefaultBlendMode);
+	SetShadingModel(Preset->DefaultShadingModel);
+	SetPixelAnimationFlag(Preset->bDefaultAnimated);
+	SetTwoSidedFlag(Preset->bDefaultTwoSided);
 }
 
 UDMMaterialComponent* UDynamicMaterialModelEditorOnlyData::GetSubComponentByPath(FDMComponentPath& InPath,
@@ -1070,10 +1083,10 @@ UDMMaterialSlot* UDynamicMaterialModelEditorOnlyData::GetSlotForMaterialProperty
 
 UDMMaterialSlot* UDynamicMaterialModelEditorOnlyData::AddSlot()
 {
-	constexpr int64 Start = static_cast<int64>(EDMMaterialPropertyType::None) + 1;
-	constexpr int64 End = static_cast<int64>(EDMMaterialPropertyType::Any);
+	constexpr uint8 Start = static_cast<uint8>(EDMMaterialPropertyType::None) + 1;
+	constexpr uint8 End = static_cast<uint8>(EDMMaterialPropertyType::Any);
 
-	for (int64 PropertyIndex = Start; PropertyIndex < End; ++PropertyIndex)
+	for (uint8 PropertyIndex = Start; PropertyIndex < End; ++PropertyIndex)
 	{
 		const EDMMaterialPropertyType Property = static_cast<EDMMaterialPropertyType>(PropertyIndex);
 

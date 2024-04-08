@@ -6,14 +6,14 @@
 #include "Components/StaticMeshComponent.h"
 #include "DynamicMaterialEditorModule.h"
 #include "Delegates/IDelegateInstance.h"
-#include "Model/DMModelCreatedCallback.h"
+#include "Model/DMOnWizardCompleteCallback.h"
 #include "Model/DynamicMaterialModel.h"
 #include "Model/DynamicMaterialModelEditorOnlyData.h"
 
 namespace UE::DynamicMaterialEditor::Private
 {
-	TSharedPtr<IDMMaterialModelCreatedCallback> DefaultsCallback_StaticMeshComponent;
-	TSharedPtr<IDMMaterialModelCreatedCallback> DefaultsCallback_DecalComponent;
+	TSharedPtr<IDMOnWizardCompleteCallback> DefaultsCallback_StaticMeshComponent;
+	TSharedPtr<IDMOnWizardCompleteCallback> DefaultsCallback_DecalComponent;
 }
 
 struct FDMMaterialModelCreatedCallback_StaticMeshComponent : FDMMaterialModelCreatedCallbackBase
@@ -26,7 +26,7 @@ struct FDMMaterialModelCreatedCallback_StaticMeshComponent : FDMMaterialModelCre
 	virtual ~FDMMaterialModelCreatedCallback_StaticMeshComponent() override = default;
 
 	//~ Begin IDMMaterialModelCreatedCallback
-	virtual void OnModelCreated(const FDMMaterialModelCreatedCallbackParams& InParams) override
+	virtual void OnModelCreated(const FDMOnWizardCompleteCallbackParams& InParams) override
 	{
 		if (!::IsValid(InParams.EditorOnlyData))
 		{
@@ -67,7 +67,7 @@ struct FDMMaterialModelCreatedCallback_DecalComponent : FDMMaterialModelCreatedC
 	virtual ~FDMMaterialModelCreatedCallback_DecalComponent() override = default;
 
 	//~ Begin IDMMaterialModelCreatedCallback
-	virtual void OnModelCreated(const FDMMaterialModelCreatedCallbackParams& InParams) override
+	virtual void OnModelCreated(const FDMOnWizardCompleteCallbackParams& InParams) override
 	{
 		if (!::IsValid(InParams.EditorOnlyData))
 		{

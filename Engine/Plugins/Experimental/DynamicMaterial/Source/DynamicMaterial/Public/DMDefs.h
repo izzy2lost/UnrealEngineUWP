@@ -15,8 +15,8 @@ UENUM(BlueprintType)
 enum class EDMMaterialPropertyType : uint8
 {
 	None = 0,
-	BaseColor UMETA(ShortName = "RGB"),
-	EmissiveColor UMETA(ShortName = "RGB"),
+	BaseColor UMETA(ShortName = "Base Color"),
+	EmissiveColor UMETA(ShortName = "Emissive"),
 	Opacity,
 	OpacityMask UMETA(ShortName = "Mask"),
 	Roughness,

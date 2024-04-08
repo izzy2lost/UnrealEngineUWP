@@ -13,7 +13,7 @@ class UDynamicMaterialModelEditorOnlyData;
 class UDynamicMaterialModel;
 class UObject;
 
-struct FDMMaterialModelCreatedCallbackParams
+struct FDMOnWizardCompleteCallbackParams
 {
 	UDynamicMaterialModel* MaterialModel;
 	UDynamicMaterialModelEditorOnlyData* EditorOnlyData;
@@ -23,21 +23,21 @@ struct FDMMaterialModelCreatedCallbackParams
 };
 
 // Callback interface
-struct IDMMaterialModelCreatedCallback : public TSharedPtr<IDMMaterialModelCreatedCallback>
+struct IDMOnWizardCompleteCallback : public TSharedPtr<IDMOnWizardCompleteCallback>
 {
-	virtual ~IDMMaterialModelCreatedCallback() = default;
+	virtual ~IDMOnWizardCompleteCallback() = default;
 
 	virtual uint32 GetPriority() const = 0;
-	virtual void OnModelCreated(const FDMMaterialModelCreatedCallbackParams& InParams) = 0;
+	virtual void OnModelCreated(const FDMOnWizardCompleteCallbackParams& InParams) = 0;
 
-	virtual bool operator<(const IDMMaterialModelCreatedCallback& InOther) const
+	virtual bool operator<(const IDMOnWizardCompleteCallback& InOther) const
 	{
 		return GetPriority() < InOther.GetPriority();
 	}
 };
 
 // Default implementation
-struct FDMMaterialModelCreatedCallbackBase : public IDMMaterialModelCreatedCallback
+struct FDMMaterialModelCreatedCallbackBase : public IDMOnWizardCompleteCallback
 {
 	FDMMaterialModelCreatedCallbackBase(uint32 InPriority);
 
@@ -54,14 +54,14 @@ protected:
 // Default implementation
 struct FDMMaterialModelCreatedCallbackDelegate : public FDMMaterialModelCreatedCallbackBase
 {
-	DECLARE_DELEGATE_OneParam(FOnModelCreated, const FDMMaterialModelCreatedCallbackParams&)
+	DECLARE_DELEGATE_OneParam(FOnModelCreated, const FDMOnWizardCompleteCallbackParams&)
 
 	FDMMaterialModelCreatedCallbackDelegate(uint32 InPriority, const FOnModelCreated& InOnModelCreatedDelegate);
 
 	virtual ~FDMMaterialModelCreatedCallbackDelegate() override = default;
 
 	//~ Begin IDMMaterialModelCreatedCallback
-	virtual void OnModelCreated(const FDMMaterialModelCreatedCallbackParams& InParams) override;
+	virtual void OnModelCreated(const FDMOnWizardCompleteCallbackParams& InParams) override;
 	//~ End IDMMaterialModelCreatedCallback
 
 protected:

@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Model/DMModelCreatedCallback.h"
+#include "Model/DMOnWizardCompleteCallback.h"
 
 FDMMaterialModelCreatedCallbackBase::FDMMaterialModelCreatedCallbackBase(uint32 InPriority)
 	: Priority(InPriority)
@@ -18,7 +18,7 @@ FDMMaterialModelCreatedCallbackDelegate::FDMMaterialModelCreatedCallbackDelegate
 {
 }
 
-void FDMMaterialModelCreatedCallbackDelegate::OnModelCreated(const FDMMaterialModelCreatedCallbackParams& InParams)
+void FDMMaterialModelCreatedCallbackDelegate::OnModelCreated(const FDMOnWizardCompleteCallbackParams& InParams)
 {
 	OnModelCreatedDelegate.ExecuteIfBound(InParams);
 }

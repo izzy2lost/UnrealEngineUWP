@@ -2,10 +2,11 @@
 
 #pragma once
 
+#include "Containers/Array.h"
 #include "DMDefs.h"
 #include "Engine/DeveloperSettings.h"
-#include "Containers/Array.h"
 #include "Engine/Texture.h"
+#include "MaterialDomain.h"
 #include "PropertyEditorDelegates.h"
 #include "UObject/SoftObjectPtr.h"
 #include "DynamicMaterialEditorSettings.generated.h"
@@ -69,6 +70,18 @@ struct FDMMaterialChannelListPreset
 
 	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Channel")
 	bool bTangent = false;
+
+	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Channel")
+	TEnumAsByte<EBlendMode> DefaultBlendMode = BLEND_Opaque;
+
+	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Channel")
+	EDMMaterialShadingModel DefaultShadingModel = EDMMaterialShadingModel::Unlit;
+
+	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Channel")
+	bool bDefaultAnimated = false;
+
+	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Channel")
+	bool bDefaultTwoSided = true;
 
 	bool IsPropertyEnabled(EDMMaterialPropertyType InProperty) const;
 };
@@ -191,7 +204,6 @@ public:
 	FOnFinishedChangingProperties OnSettingsChanged;
 
 	//~ Begin UObject
-	virtual void PostInitProperties() override;
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& InPropertyChangedEvent) override;
 	//~ End UObject
 

@@ -36,7 +36,7 @@
 #include "Model/DynamicMaterialModelEditorOnlyData.h"
 #include "Modules/ModuleManager.h"
 #include "PropertyEditorModule.h"
-#include "Model/DMModelCreatedCallback.h"
+#include "Model/DMOnWizardCompleteCallback.h"
 #include "Slate/Properties/Editors/SDMPropertyEditBoolValue.h"
 #include "Slate/Properties/Editors/SDMPropertyEditFloat1Value.h"
 #include "Slate/Properties/Editors/SDMPropertyEditFloat2Value.h"
@@ -82,7 +82,7 @@ TMap<UClass*, FDMCreateValueEditWidgetDelegate> FDynamicMaterialEditorModule::Va
 TMap<UClass*, FDMComponentPropertyRowGeneratorDelegate> FDynamicMaterialEditorModule::ComponentPropertyRowGenerators;
 TMap<UClass*, FDMGetObjectMaterialPropertiesDelegate> FDynamicMaterialEditorModule::CustomMaterialPropertyGenerators;
 FDMOnUIValueUpdate FDynamicMaterialEditorModule::OnUIValueUpdate;
-TArray<TSharedRef<IDMMaterialModelCreatedCallback>> FDynamicMaterialEditorModule::OnCreatedCallbacks;
+TArray<TSharedRef<IDMOnWizardCompleteCallback>> FDynamicMaterialEditorModule::OnWizardCompleteCallbacks;
 
 void FDynamicMaterialEditorModule::RegisterValueEditWidgetDelegate(UClass* InClass, FDMCreateValueEditWidgetDelegate ValueEditBodyDelegate)
 {
@@ -187,24 +187,24 @@ void FDynamicMaterialEditorModule::RegisterCustomMaterialPropertyGenerator(UClas
 	CustomMaterialPropertyGenerators.FindOrAdd(InClass) = InGenerator;
 }
 
-void FDynamicMaterialEditorModule::RegisterMaterialModelCreatedCallback(const TSharedRef<IDMMaterialModelCreatedCallback> InCallback)
+void FDynamicMaterialEditorModule::RegisterMaterialModelCreatedCallback(const TSharedRef<IDMOnWizardCompleteCallback> InCallback)
 {
-	OnCreatedCallbacks.Add(InCallback);
+	OnWizardCompleteCallbacks.Add(InCallback);
 
-	OnCreatedCallbacks.StableSort(
-		[](const TSharedRef<IDMMaterialModelCreatedCallback>& InA, const TSharedRef<IDMMaterialModelCreatedCallback>& InB)
+	OnWizardCompleteCallbacks.StableSort(
+		[](const TSharedRef<IDMOnWizardCompleteCallback>& InA, const TSharedRef<IDMOnWizardCompleteCallback>& InB)
 		{
 			return InA.Get() < InB.Get();
 		}
 	);
 }
 
-void FDynamicMaterialEditorModule::UnregisterMaterialModelCreatedCallback(const TSharedRef<IDMMaterialModelCreatedCallback> InCallback)
+void FDynamicMaterialEditorModule::UnregisterMaterialModelCreatedCallback(const TSharedRef<IDMOnWizardCompleteCallback> InCallback)
 {
-	OnCreatedCallbacks.Remove(InCallback);
+	OnWizardCompleteCallbacks.Remove(InCallback);
 }
 
-void FDynamicMaterialEditorModule::OnMaterialModelCreated(UDynamicMaterialModel* InModel)
+void FDynamicMaterialEditorModule::OnWizardComplete(UDynamicMaterialModel* InModel)
 {
 	if (!IsValid(InModel))
 	{
@@ -216,7 +216,7 @@ void FDynamicMaterialEditorModule::OnMaterialModelCreated(UDynamicMaterialModel*
 	UActorComponent* OuterComponent = InModel->GetTypedOuter<UActorComponent>();
 	AActor* OuterActor = InModel->GetTypedOuter<AActor>();
 
-	const FDMMaterialModelCreatedCallbackParams Params = {
+	const FDMOnWizardCompleteCallbackParams Params = {
 		InModel,
 		EditorOnlyData,
 		Outer,
@@ -224,9 +224,9 @@ void FDynamicMaterialEditorModule::OnMaterialModelCreated(UDynamicMaterialModel*
 		OuterActor
 	};
 
-	for (const TSharedRef<IDMMaterialModelCreatedCallback>& OnCreatedCallback : OnCreatedCallbacks)
+	for (const TSharedRef<IDMOnWizardCompleteCallback>& OnWizardCompleteCallback : OnWizardCompleteCallbacks)
 	{
-		OnCreatedCallback->OnModelCreated(Params);
+		OnWizardCompleteCallback->OnModelCreated(Params);
 	}
 }
 

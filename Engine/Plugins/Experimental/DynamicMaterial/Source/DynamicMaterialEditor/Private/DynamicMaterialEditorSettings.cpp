@@ -78,10 +78,18 @@ UDynamicMaterialEditorSettings::UDynamicMaterialEditorSettings()
 	FDMMaterialChannelListPreset Opaque;
 	Opaque.bRGB = true;
 	Opaque.bOpacity = false;
+	Opaque.DefaultBlendMode = BLEND_Opaque;
+	Opaque.DefaultShadingModel = EDMMaterialShadingModel::DefaultLit;
+	Opaque.bDefaultAnimated = false;
+	Opaque.bDefaultTwoSided = true;
 
 	FDMMaterialChannelListPreset Translucent;
 	Translucent.bRGB = true;
 	Translucent.bOpacity = true;
+	Translucent.DefaultBlendMode = BLEND_Translucent;
+	Translucent.DefaultShadingModel = EDMMaterialShadingModel::Unlit;
+	Translucent.bDefaultAnimated = false;
+	Translucent.bDefaultTwoSided = true;
 
 	FDMMaterialChannelListPreset PBR;
 	PBR.bRGB = true;
@@ -91,6 +99,10 @@ UDynamicMaterialEditorSettings::UDynamicMaterialEditorSettings()
 	PBR.bRoughness = true;
 	PBR.bNormal = true;
 	PBR.bAmbientOcclusion = true;
+	PBR.DefaultBlendMode = BLEND_Opaque;
+	PBR.DefaultShadingModel = EDMMaterialShadingModel::DefaultLit;
+	PBR.bDefaultAnimated = false;
+	PBR.bDefaultTwoSided = true;
 
 	FDMMaterialChannelListPreset All;
 	All.bRGB = true;
@@ -105,10 +117,14 @@ UDynamicMaterialEditorSettings::UDynamicMaterialEditorSettings()
 	All.bRefraction = true;
 	All.bTangent = true;
 	All.bWorldPositionOffset = true;
+	All.DefaultBlendMode = BLEND_Opaque;
+	All.DefaultShadingModel = EDMMaterialShadingModel::DefaultLit;
+	All.bDefaultAnimated = false;
+	All.bDefaultTwoSided = true;
 
+	ChannelPresets.Add(TEXT("PBR"), PBR);
 	ChannelPresets.Add(TEXT("Opaque"), Opaque);
 	ChannelPresets.Add(TEXT("Translucent"), Translucent);
-	ChannelPresets.Add(TEXT("PBR"), PBR);
 	ChannelPresets.Add(TEXT("All"), All);		
 }
 
@@ -122,12 +138,6 @@ UDynamicMaterialEditorSettings* UDynamicMaterialEditorSettings::Get()
 		DefaultSettings->SetFlags(RF_Transactional);
 	}
 	return DefaultSettings;
-}
-
-void UDynamicMaterialEditorSettings::PostInitProperties()
-{
-	Super::PostInitProperties();
-
 }
 
 void UDynamicMaterialEditorSettings::PostEditChangeProperty(FPropertyChangedEvent& InPropertyChangedEvent)
