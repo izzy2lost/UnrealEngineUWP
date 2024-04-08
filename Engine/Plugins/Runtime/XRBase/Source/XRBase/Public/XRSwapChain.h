@@ -31,7 +31,6 @@ public:
 	uint32 GetSwapChainLength() const { return (uint32)RHITextureSwapChain.Num(); }
 	TArray<FTextureRHIRef> GetSwapChain() const { return RHITextureSwapChain; }
 
-	void GenerateMips_RenderThread(FRHICommandListImmediate& RHICmdList);
 	uint32 GetSwapChainIndex_RHIThread() { return SwapChainIndex_RHIThread; }
 
 	virtual void IncrementSwapChainIndex_RHIThread();

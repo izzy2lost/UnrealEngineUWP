@@ -985,18 +985,6 @@ FMetalBufferPtr FMetalRenderPass::AllocateTemporyBufferForCopy(FMetalBufferPtr D
 	return Buffer;
 }
 
-void FMetalRenderPass::AsyncGenerateMipmapsForTexture(MTL::Texture* Texture)
-{
-	// This must be a plain old error
-	ConditionalSwitchToBlit();
-	MTL::BlitCommandEncoder* Encoder = CurrentEncoder.GetBlitCommandEncoder();
-	check(Encoder);
-	
-	METAL_GPUPROFILE(FMetalProfiler::GetProfiler()->EncodeBlit(CurrentEncoder.GetCommandBufferStats(), __FUNCTION__));
-	//MTLPP_VALIDATE(mtlpp::BlitCommandEncoder, Encoder, SafeGetRuntimeDebuggingLevel() >= EMetalDebugLevelValidation, GenerateMipmaps(Texture));
-    Encoder->generateMipmaps(Texture);
-}
-
 TRefCountPtr<FMetalFence> const& FMetalRenderPass::End(void)
 {
 	if (CurrentEncoder.IsRenderCommandEncoderActive() || CurrentEncoder.IsBlitCommandEncoderActive() || CurrentEncoder.IsComputeCommandEncoderActive())

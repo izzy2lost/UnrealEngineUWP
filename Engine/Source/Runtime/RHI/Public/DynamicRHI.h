@@ -450,12 +450,6 @@ public:
 	}
 
 	/**
-	* Generates mip maps for a texture.
-	*/
-	// FlushType: Flush Immediate (NP: this should be queued on the command list for RHI thread execution, not flushed)
-	virtual void RHIGenerateMips(FRHITexture* Texture) {}
-
-	/**
 	* Computes the size in memory required by a given texture.
 	*
 	* @param	TextureRHI		- Texture we want to know the size of, 0 is safely ignored
@@ -947,8 +941,6 @@ public:
 
 	virtual uint16 RHIGetPlatformTextureMaxSampleCount() { return 8; };
 
-	virtual bool RHIRequiresComputeGenerateMips() const { return false; };
-
 #if RHI_RAYTRACING
 
 	virtual FRayTracingAccelerationStructureSize RHICalcRayTracingSceneSize(uint32 MaxInstances, ERayTracingAccelerationStructureFlags Flags)
@@ -1406,9 +1398,10 @@ FORCEINLINE void RHIGetSupportedResolution(uint32& Width, uint32& Height)
 	GDynamicRHI->RHIGetSupportedResolution(Width, Height);
 }
 
+UE_DEPRECATED(5.5, "RHIRequiresComputeGenerateMips is deprecated and always returns true. Use FGenerateMips helper class from the RenderCore module to generate mips on textures.")
 FORCEINLINE bool RHIRequiresComputeGenerateMips()
 {
-	return GDynamicRHI->RHIRequiresComputeGenerateMips();
+	return true;
 }
 
 FORCEINLINE class IRHICommandContext* RHIGetDefaultContext()

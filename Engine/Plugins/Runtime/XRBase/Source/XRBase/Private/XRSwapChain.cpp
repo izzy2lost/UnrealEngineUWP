@@ -76,20 +76,6 @@ FXRSwapChain::FXRSwapChain(TArray<FTextureRHIRef>&& InRHITextureSwapChain, const
 	}
 }
 
-
-void FXRSwapChain::GenerateMips_RenderThread(FRHICommandListImmediate& RHICmdList)
-{
-	CheckInRenderThread();
-
-	if (RHITexture->GetNumMips() > 1 && RHITexture->GetTextureCube() == nullptr)
-	{
-#if PLATFORM_WINDOWS
-		RHICmdList.GenerateMips(RHITexture);
-#endif
-	}
-}
-
-
 void FXRSwapChain::IncrementSwapChainIndex_RHIThread()
 {
 	CheckInRHIThread();

@@ -540,20 +540,6 @@ public:
 	}
 
 	/**
-	* Generates mip maps for a texture.
-	*/
-	// FlushType: Flush Immediate (NP: this should be queued on the command list for RHI thread execution, not flushed)
-	virtual void RHIGenerateMips(FRHITexture* Texture) override final
-	{
-		return RHI->RHIGenerateMips(Texture);
-	}
-
-	virtual bool RHIRequiresComputeGenerateMips() const final override
-	{
-		return RHI->RHIRequiresComputeGenerateMips();
-	}
-
-	/**
 	* Computes the size in memory required by a given texture.
 	*
 	* @param	TextureRHI		- Texture we want to know the size of, 0 is safely ignored

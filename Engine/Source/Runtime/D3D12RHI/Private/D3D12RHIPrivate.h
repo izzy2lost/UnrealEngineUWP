@@ -467,8 +467,6 @@ public:
 
 	virtual void HandleGpuTimeout(FD3D12Payload* Payload, double SecondsSinceSubmission);
 
-	bool RHIRequiresComputeGenerateMips() const override { return true; };
-
 	bool IsQuadBufferStereoEnabled() const;
 	void DisableQuadBufferStereo();
 

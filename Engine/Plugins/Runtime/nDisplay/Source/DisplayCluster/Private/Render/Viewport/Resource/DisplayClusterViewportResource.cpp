@@ -32,7 +32,7 @@ void FDisplayClusterViewportResource::ImplInitDynamicRHI_RenderTargetResource2D(
 	if (ResourceSettings.GetNumMips() > 1)
 	{
 		// Create nummips texture!
-		CreateFlags |= TexCreate_GenerateMipCapable | TexCreate_UAV;
+		CreateFlags |= TexCreate_UAV;
 		NumMips = ResourceSettings.GetNumMips();
 	}
 

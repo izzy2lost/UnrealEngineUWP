@@ -237,11 +237,6 @@ namespace MediaTextureResourceHelpers
 		}
 	}
 
-	bool SupportsComputeMipGen(EPixelFormat InFormat)
-	{
-		return RHIRequiresComputeGenerateMips() && UE::PixelFormat::HasCapabilities(InFormat, EPixelFormatCapabilities::TypedUAVLoad);
-	}
-
 	EPixelFormat GetConvertedPixelFormat(const TSharedPtr<IMediaTextureSample, ESPMode::ThreadSafe>& Sample)
 	{
 		switch (Sample->GetFormat())
@@ -300,8 +295,15 @@ namespace MediaTextureResourceHelpers
 		//UAV output is needed if mips are required and uses CS to generate
 		//or if sample converter asks for it
 		const IMediaTextureSampleConverter* Converter = Sample->GetMediaTextureSampleConverter();
-		bool bNeedsUAV = (NumMips > 1 && RHIRequiresComputeGenerateMips());
-		bNeedsUAV |= (Converter && ((Converter->GetConverterInfoFlags() & IMediaTextureSampleConverter::ConverterInfoFlags_NeedUAVOutputTexture) != 0));
+
+		bool bNeedsUAV = (Converter && ((Converter->GetConverterInfoFlags() & IMediaTextureSampleConverter::ConverterInfoFlags_NeedUAVOutputTexture) != 0));
+
+		if (NumMips > 1)
+		{
+			EPixelFormat Format = MediaTextureResourceHelpers::GetConvertedPixelFormat(Sample);
+			bNeedsUAV |= FGenerateMips::WillFormatSupportCompute(Format);
+		}
+
 		return bNeedsUAV;
 	}
 
@@ -617,14 +619,11 @@ void FMediaTextureResource::Render(const FRenderParams& Params)
 				{
 					check(OutputTarget);
 
-					const EGenerateMipsPass GenerateMipsPass =
-						MediaTextureResourceHelpers::SupportsComputeMipGen(OutputTarget->GetFormat()) ? EGenerateMipsPass::Compute : EGenerateMipsPass::Raster;
-
 					CacheRenderTarget(OutputTarget, TEXT("MipGeneration"), MipGenerationCache);
 
 					FRDGBuilder GraphBuilder(RHICmdList);
 					FRDGTextureRef MipOutputTexture = GraphBuilder.RegisterExternalTexture(MipGenerationCache);
-					FGenerateMips::Execute(GraphBuilder, GetFeatureLevel(), MipOutputTexture, FGenerateMipsParams{ SF_Bilinear, AM_Clamp, AM_Clamp, AM_Clamp }, GenerateMipsPass);
+					FGenerateMips::Execute(GraphBuilder, GetFeatureLevel(), MipOutputTexture, FGenerateMipsParams{ SF_Bilinear, AM_Clamp, AM_Clamp, AM_Clamp });
 					GraphBuilder.Execute();
 				}
 
@@ -1546,9 +1545,6 @@ void FMediaTextureResource::CreateIntermediateRenderTarget(FRHICommandListImmedi
 
 	if (InNumMips > 1)
 	{
-		// Make sure can have mips & the mip generator has what it needs to work
-		OutputCreateFlags |= TexCreate_GenerateMipCapable;
-
 		// Make sure we only set a number of mips that actually makes sense, given the sample size
 		uint8 MaxMips = (uint8)(FMath::Min(255, FGenericPlatformMath::FloorToInt(FGenericPlatformMath::Log2(static_cast<float>(FGenericPlatformMath::Min(InDim.X, InDim.Y))))));
 		InNumMips = FMath::Min(InNumMips, MaxMips);

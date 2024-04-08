@@ -135,11 +135,6 @@ FTextureResource* UTextureRenderTargetCube::CreateResource()
 	if (bAutoGenerateMips)
 	{
 		NumMips = FMath::FloorLog2(SizeX) + 1;
-
-		if (RHIRequiresComputeGenerateMips())
-		{
-			bCanCreateUAV = 1;
-		}
 	}
 	else
 	{
@@ -282,8 +277,6 @@ void FTextureRenderTargetCubeResource::InitRHI(FRHICommandListBase& RHICmdList)
 		
 		if (Owner->bAutoGenerateMips)
 		{
-			TexCreateFlags |= ETextureCreateFlags::GenerateMipCapable;
-
 			if (FGenerateMips::WillFormatSupportCompute(Owner->GetFormat()))
 			{
 				TexCreateFlags |= ETextureCreateFlags::UAV;

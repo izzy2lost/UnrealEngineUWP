@@ -171,11 +171,6 @@ void FOpenGLGPUProfiler::PopEvent()
 
 }
 
-bool FOpenGLDynamicRHI::RHIRequiresComputeGenerateMips() const
-{
-	return !FOpenGL::SupportsGenerateMipmap();
-};
-
 // only use shader hashes to determine GL PSO hash;
 uint64 FOpenGLDynamicRHI::RHIComputeStatePrecachePSOHash(const FGraphicsPipelineStateInitializer& Initializer)
 {

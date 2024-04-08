@@ -3663,6 +3663,9 @@ public:
 		}
 	}
 
+	UE_DEPRECATED(5.5, "GenerateMips on RHI command lists is deprecated and no longer functions. Use the FGenerateMips helper class from the RenderCore module to generate mips on textures.")
+	RHI_API void GenerateMips(FRHITexture*);
+
 #if RHI_RAYTRACING
 	// Ray tracing API
 
@@ -4091,13 +4094,6 @@ public:
 		QUICK_SCOPE_CYCLE_COUNTER(STAT_RHIMETHOD_GetTextureMemoryVisualizeData_Flush);
 		ImmediateFlush(EImmediateFlushType::FlushRHIThread); 
 		return GDynamicRHI->RHIGetTextureMemoryVisualizeData(TextureData,SizeX,SizeY,Pitch,PixelSize);
-	}
-
-	FORCEINLINE void GenerateMips(FRHITexture* Texture)
-	{
-		QUICK_SCOPE_CYCLE_COUNTER(STAT_RHIMETHOD_GenerateMips_Flush);
-		ImmediateFlush(EImmediateFlushType::FlushRHIThread);
-		return GDynamicRHI->RHIGenerateMips(Texture);
 	}
 	
 	FORCEINLINE FTextureRHIRef AsyncReallocateTexture2D(FRHITexture* Texture2D, int32 NewMipCount, int32 NewSizeX, int32 NewSizeY, FThreadSafeCounter* RequestStatus)

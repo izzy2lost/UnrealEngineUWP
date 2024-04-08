@@ -45,5 +45,13 @@ public class RenderCore : ModuleRules
 
 		// Added in Dev-VT, still needed?
 		PrivateIncludePathModuleNames.AddRange(new string[] { "TargetPlatform" });
+
+		if (Target.IsInPlatformGroup(UnrealPlatformGroup.Windows)
+			|| Target.IsInPlatformGroup(UnrealPlatformGroup.Android)
+			|| Target.IsInPlatformGroup(UnrealPlatformGroup.Linux))
+		{
+			// For IOpenGLDynamicRHI::RHIGenerateMips
+			PublicIncludePathModuleNames.Add("OpenGLDrv");
+		}
     }
 }

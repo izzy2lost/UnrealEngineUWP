@@ -91,11 +91,6 @@ FTextureResource* UTextureRenderTarget2D::CreateResource()
 	if (bAutoGenerateMips)
 	{
 		NumMips = FMath::FloorLog2(FMath::Max(SizeX, SizeY)) + 1;
-
-		if (RHIRequiresComputeGenerateMips())
-		{
-			bCanCreateUAV = 1;
-		}
 	}
 	else
 	{
@@ -496,7 +491,6 @@ ETextureCreateFlags FTextureRenderTarget2DResource::GetCreateFlags()
 	
 	if (Owner->bAutoGenerateMips)
 	{
-		TexCreateFlags |= ETextureCreateFlags::GenerateMipCapable;
 		if (FGenerateMips::WillFormatSupportCompute(Format))
 		{
 			TexCreateFlags |= ETextureCreateFlags::UAV;

@@ -359,7 +359,6 @@ FString GetTextureCreateFlagsName(ETextureCreateFlags TextureCreateFlags)
 		case ETextureCreateFlags::Foveation:						return TEXT("Foveation");
 		case ETextureCreateFlags::Tiling3D:							return TEXT("Tiling3D");
 		case ETextureCreateFlags::Memoryless:						return TEXT("Memoryless");
-		case ETextureCreateFlags::GenerateMipCapable:				return TEXT("GenerateMipCapable");
 		case ETextureCreateFlags::FastVRAMPartialAlloc:				return TEXT("FastVRAMPartialAlloc");
 		case ETextureCreateFlags::DisableSRVCreation:				return TEXT("DisableSRVCreation");
 		case ETextureCreateFlags::DisableDCC:						return TEXT("DisableDCC");
@@ -572,8 +571,6 @@ const TCHAR* GetTextureCreateFlagString(ETextureCreateFlags TextureCreateFlag)
 		return TEXT("Tiling3D");
 	case ETextureCreateFlags::Memoryless:
 		return TEXT("Memoryless");
-	case ETextureCreateFlags::GenerateMipCapable:
-		return TEXT("GenerateMipCapable");
 	case ETextureCreateFlags::FastVRAMPartialAlloc:
 		return TEXT("FastVRAMPartialAlloc");
 	case ETextureCreateFlags::DisableSRVCreation:

@@ -310,12 +310,6 @@ FD3D11Texture* FD3D11DynamicRHI::CreateD3D11Texture2D(FRHITextureCreateDesc cons
 		}
 	}
 
-	if (EnumHasAnyFlags(Flags, TexCreate_GenerateMipCapable))
-	{
-		// Set the flag that allows us to call GenerateMips on this texture later
-		TextureDesc.MiscFlags |= D3D11_RESOURCE_MISC_GENERATE_MIPS;
-	}
-
 	// Set up the texture bind flags.
 	bool bCreateRTV = false;
 	bool bCreateDSV = false;
@@ -679,12 +673,6 @@ FD3D11Texture* FD3D11DynamicRHI::CreateD3D11Texture3D(FRHITextureCreateDesc cons
 		}
 	}
 
-	if (EnumHasAnyFlags(Flags, TexCreate_GenerateMipCapable))
-	{
-		// Set the flag that allows us to call GenerateMips on this texture later
-		TextureDesc.MiscFlags |= D3D11_RESOURCE_MISC_GENERATE_MIPS;
-	}
-
 	if (EnumHasAnyFlags(Flags, TexCreate_UAV))
 	{
 		TextureDesc.BindFlags |= D3D11_BIND_UNORDERED_ACCESS;
@@ -867,17 +855,6 @@ FTextureRHIRef FD3D11DynamicRHI::RHIAsyncCreateTexture2D(uint32 SizeX, uint32 Si
 	OutCompletionEvent = nullptr;
 
 	return Texture;
-}
-
-/** Generates mip maps for the surface. */
-void FD3D11DynamicRHI::RHIGenerateMips(FRHITexture* TextureRHI)
-{
-	FD3D11Texture* Texture = ResourceCast(TextureRHI);
-	// Surface must have been created with D3D11_BIND_RENDER_TARGET for GenerateMips to work
-	check(Texture->GetShaderResourceView() && Texture->GetRenderTargetView(0, 0));
-	Direct3DDeviceIMContext->GenerateMips(Texture->GetShaderResourceView());
-
-	GPUProfilingData.RegisterGPUWork(0);
 }
 
 /**

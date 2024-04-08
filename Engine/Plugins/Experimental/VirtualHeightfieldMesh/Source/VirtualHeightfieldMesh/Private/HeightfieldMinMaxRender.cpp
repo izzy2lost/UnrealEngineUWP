@@ -163,7 +163,7 @@ namespace VirtualHeightfieldMesh
 		const int32 NumMips = FMath::FloorLog2(FMath::Max(DownsampleTextureSize.X, DownsampleTextureSize.Y)) + 1;
 		check(NumMips > 1);
 
-		const ETextureCreateFlags TextureFlags = TexCreate_ShaderResource | TexCreate_UAV | TexCreate_GenerateMipCapable | TexCreate_RenderTargetable;
+		const ETextureCreateFlags TextureFlags = TexCreate_ShaderResource | TexCreate_UAV | TexCreate_RenderTargetable;
 		const FRDGTextureDesc Desc = FRDGTextureDesc::Create2D(DownsampleTextureSize, PF_R16G16B16A16_UNORM, FClearValueBinding::None, TextureFlags, NumMips);
 		FRDGTextureRef DownsampleTexture = GraphBuilder.CreateTexture(Desc, TEXT("DownsampleTexture"));
 

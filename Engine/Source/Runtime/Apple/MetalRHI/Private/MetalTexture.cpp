@@ -1482,16 +1482,6 @@ FTextureRHIRef FMetalDynamicRHI::RHIAsyncCreateTexture2D(uint32 SizeX, uint32 Si
 	return FTextureRHIRef();
 }
 
-void FMetalDynamicRHI::RHIGenerateMips(FRHITexture* SourceSurfaceRHI)
-{
-    MTL_SCOPED_AUTORELEASE_POOL;
-    FMetalSurface* Surf = GetMetalSurfaceFromRHITexture(SourceSurfaceRHI);
-    if (Surf && Surf->Texture)
-    {
-        ImmediateContext.GetInternalContext().AsyncGenerateMipmapsForTexture(Surf->Texture.get());
-    }
-}
-
 FTextureRHIRef FMetalDynamicRHI::AsyncReallocateTexture2D_RenderThread(class FRHICommandListImmediate& RHICmdList, FRHITexture* Texture2D, int32 NewMipCount, int32 NewSizeX, int32 NewSizeY, FThreadSafeCounter* RequestStatus)
 {
 	return this->RHIAsyncReallocateTexture2D(Texture2D, NewMipCount, NewSizeX, NewSizeY, RequestStatus);

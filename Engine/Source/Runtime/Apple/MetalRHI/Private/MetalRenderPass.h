@@ -87,8 +87,6 @@ public:
 	
 	FMetalBufferPtr AllocateTemporyBufferForCopy(FMetalBufferPtr DestinationBuffer, NS::UInteger Size, NS::UInteger Align);
 	
-	void AsyncGenerateMipmapsForTexture(MTL::Texture* Texture);
-	
     TRefCountPtr<FMetalFence> const& Submit(EMetalSubmitFlags SubmissionFlags);
     
     TRefCountPtr<FMetalFence> const& End(void);

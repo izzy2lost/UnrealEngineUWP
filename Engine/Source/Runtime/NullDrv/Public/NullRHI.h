@@ -205,10 +205,6 @@ public:
 		return new FRHIUnorderedAccessView(Resource, ViewDesc);
 	}
 
-	virtual void RHIGenerateMips(FRHITexture* Texture) final override
-	{
-
-	}
 	virtual uint32 RHIComputeMemorySize(FRHITexture* TextureRHI) final override
 	{ 
 		return 0; 

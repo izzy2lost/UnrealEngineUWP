@@ -450,8 +450,6 @@ struct FOpenGLES : public FOpenGLBase
 	{
 		glGenerateMipmap( Target);
 	}
-	
-	static FORCEINLINE bool SupportsGenerateMipmap() { return true; }
 
 	static FORCEINLINE GLuint GetMajorVersion()
 	{

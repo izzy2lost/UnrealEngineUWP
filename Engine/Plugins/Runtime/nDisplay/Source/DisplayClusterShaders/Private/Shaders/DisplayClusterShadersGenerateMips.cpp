@@ -13,7 +13,6 @@ bool FDisplayClusterShadersGenerateMips::GenerateMips(FRHICommandListImmediate& 
 	{
 		check(InOutMipsTexture);
 
-		//const EGenerateMipsPass GenerateMipsPass = EGenerateMipsPass::Compute;
 		FGenerateMipsParams GenerateMipsParams{ InSettings.MipsSamplerFilter == TF_Nearest ? SF_Point : (InSettings.MipsSamplerFilter == TF_Trilinear ? SF_Trilinear : SF_Bilinear),
 			InSettings.MipsAddressU == TA_Wrap ? AM_Wrap : (InSettings.MipsAddressU == TA_Mirror ? AM_Mirror : AM_Clamp),
 			InSettings.MipsAddressV == TA_Wrap ? AM_Wrap : (InSettings.MipsAddressV == TA_Mirror ? AM_Mirror : AM_Clamp) };

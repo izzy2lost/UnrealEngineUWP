@@ -91,8 +91,6 @@ public:
     void AsyncCopyFromBufferToBuffer(FMetalBufferPtr SourceBuffer, NS::UInteger SourceOffset, FMetalBufferPtr DestinationBuffer, NS::UInteger DestinationOffset, NS::UInteger Size);
     
     bool CanAsyncCopyToBuffer(FMetalBufferPtr DestinationBuffer);
-	
-    void AsyncGenerateMipmapsForTexture(MTL::Texture* Texture);
     
 	void SubmitAsyncCommands(MTL::HandlerFunction ScheduledHandler, MTL::HandlerFunction CompletionHandler, bool const bWait);
 	

@@ -1006,7 +1006,11 @@ enum class ETextureCreateFlags : uint64
     // This texture has no GPU or CPU backing. It only exists in tile memory on TBDR GPUs (i.e., mobile).
     Memoryless                        = 1ull << 12,
     // Create the texture with the flag that allows mip generation later, only applicable to D3D11
-    GenerateMipCapable                = 1ull << 13,
+    GenerateMipCapable UE_DEPRECATED(5.5,
+		"The GenerateMipCapable flag is no longer used."
+		" Use ETextureCreateFlags::UAV to make a texture compatible with compute-based mip generation,"
+		" or use ETextureCreateFlags::RenderTargetable for raster-based mip generation.")
+		                              = 1ull << 13,
     // The texture can be partially allocated in fastvram
     FastVRAMPartialAlloc              = 1ull << 14,
     // Do not create associated shader resource view, only applicable to D3D11 and D3D12

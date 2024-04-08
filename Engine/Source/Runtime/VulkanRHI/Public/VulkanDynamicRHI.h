@@ -273,8 +273,6 @@ public:
 	virtual void* RHILockStagingBuffer(FRHIStagingBuffer* StagingBuffer, FRHIGPUFence* Fence, uint32 Offset, uint32 SizeRHI) final override;
 	virtual void RHIUnlockStagingBuffer(FRHIStagingBuffer* StagingBuffer) final override;
 
-	bool RHIRequiresComputeGenerateMips() const override { return true; };
-
 	inline TArray<FVulkanViewport*>& GetViewports()
 	{
 		return Viewports;

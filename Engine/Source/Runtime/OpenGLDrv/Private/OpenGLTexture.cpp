@@ -1393,27 +1393,17 @@ FTextureRHIRef FOpenGLDynamicRHI::RHIAsyncCreateTexture2D(uint32 SizeX, uint32 S
 }
 
 /** Generates mip maps for the surface. */
-void FOpenGLDynamicRHI::RHIGenerateMips(FRHITexture* SurfaceRHI)
+void FOpenGLDynamicRHI::RHIGenerateMips(FRHITexture* TextureRHI)
 {
-	if (FOpenGL::SupportsGenerateMipmap())
-	{
-		RunOnGLRenderContextThread([this, SurfaceRHI]()
-		{
-			VERIFY_GL_SCOPE();
-			GPUProfilingData.RegisterGPUWork(0);
+	VERIFY_GL_SCOPE();
+	GPUProfilingData.RegisterGPUWork(0);
 
-			FOpenGLContextState& ContextState = GetContextStateForCurrentContext();
-			FOpenGLTexture* Texture = ResourceCast(SurfaceRHI);
-			// Setup the texture on a disused unit
-			// need to figure out how to setup mips properly in no views case
-			CachedSetupTextureStage(ContextState, FOpenGL::GetMaxCombinedTextureImageUnits() - 1, Texture->Target, Texture->GetResource(), -1, Texture->GetNumMips());
-			FOpenGL::GenerateMipmap(Texture->Target);
-		});
-	}
-	else
-	{
-		UE_LOG( LogRHI, Fatal, TEXT("Generate Mipmaps unsupported on this OpenGL version"));
-	}
+	FOpenGLContextState& ContextState = GetContextStateForCurrentContext();
+	FOpenGLTexture* Texture = ResourceCast(TextureRHI);
+	// Setup the texture on a disused unit
+	// need to figure out how to setup mips properly in no views case
+	CachedSetupTextureStage(ContextState, FOpenGL::GetMaxCombinedTextureImageUnits() - 1, Texture->Target, Texture->GetResource(), -1, Texture->GetNumMips());
+	FOpenGL::GenerateMipmap(Texture->Target);
 }
 
 

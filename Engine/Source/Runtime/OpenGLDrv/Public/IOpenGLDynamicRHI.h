@@ -22,6 +22,8 @@ struct IOpenGLDynamicRHI : public FDynamicRHIPSOFallback
 	virtual bool RHIIsValidTexture(GLuint InTexture) const = 0;
 	virtual void RHISetExternalGPUTime(uint32 InExternalGPUTime) = 0;
 
+	virtual void RHIGenerateMips(FRHITexture* Texture) = 0;
+
 #if PLATFORM_ANDROID
 	virtual EGLDisplay RHIGetEGLDisplay() const = 0;
 	virtual EGLSurface RHIGetEGLSurface() const = 0;

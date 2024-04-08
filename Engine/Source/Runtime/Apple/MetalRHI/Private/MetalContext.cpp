@@ -1412,11 +1412,6 @@ void FMetalContext::AsyncCopyFromBufferToBuffer(FMetalBufferPtr SourceBuffer, NS
 	RenderPass.AsyncCopyFromBufferToBuffer(SourceBuffer, SourceOffset, DestinationBuffer, DestinationOffset, Size);
 }
 
-void FMetalContext::AsyncGenerateMipmapsForTexture(MTL::Texture* Texture)
-{
-	RenderPass.AsyncGenerateMipmapsForTexture(Texture);
-}
-
 void FMetalContext::SubmitAsyncCommands(MTL::HandlerFunction ScheduledHandler, MTL::HandlerFunction CompletionHandler, bool const bWait)
 {
 	RenderPass.AddAsyncCommandBufferHandlers(ScheduledHandler, CompletionHandler);

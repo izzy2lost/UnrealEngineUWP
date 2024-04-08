@@ -8,6 +8,10 @@
 #include "RHIStaticStates.h"
 #include "PixelShaderUtils.h"
 
+#if PLATFORM_WINDOWS || PLATFORM_ANDROID || PLATFORM_LINUX
+#include "IOpenGLDynamicRHI.h"
+#endif
+
 class FGenerateMipsCS : public FGlobalShader
 {
 public:
@@ -118,6 +122,10 @@ public:
 };
 
 IMPLEMENT_GLOBAL_SHADER(FGenerateMipsIndirectCS, "/Engine/Private/ComputeGenerateMips.usf", "MainCS", SF_Compute);
+
+BEGIN_SHADER_PARAMETER_STRUCT(FGenerateMipsRHIImplParameters, )
+	RDG_TEXTURE_ACCESS(Texture, ERHIAccess::CopyDest)
+END_SHADER_PARAMETER_STRUCT()
 
 void FGenerateMips::ExecuteRaster(FRDGBuilder& GraphBuilder, ERHIFeatureLevel::Type FeatureLevel, FRDGTextureRef Texture, FRHISamplerState* Sampler)
 {
@@ -322,83 +330,65 @@ void FGenerateMips::ExecuteCompute(
 			PassParameters,
 			IndirectDispatchArgsBuffer, sizeof(FRHIDispatchIndirectParameters) * (MipLevel - 1));
 	}
-	
 }
-
-BEGIN_SHADER_PARAMETER_STRUCT(FCopyDestParameters, )
-	RDG_TEXTURE_ACCESS(Texture, ERHIAccess::CopyDest)
-END_SHADER_PARAMETER_STRUCT()
 
 bool FGenerateMips::WillFormatSupportCompute(EPixelFormat InPixelFormat)
 {
-	return RHIRequiresComputeGenerateMips() && UE::PixelFormat::HasCapabilities(InPixelFormat, EPixelFormatCapabilities::TypedUAVStore);
+	return UE::PixelFormat::HasCapabilities(InPixelFormat, EPixelFormatCapabilities::TypedUAVStore);
 }
 
 void FGenerateMips::Execute(FRDGBuilder& GraphBuilder, ERHIFeatureLevel::Type FeatureLevel, FRDGTextureRef Texture, FGenerateMipsParams Params, EGenerateMipsPass Pass)
 {
 	if (Texture->Desc.NumMips > 1)
 	{
-		if (RHIRequiresComputeGenerateMips())
-		{
-			FSamplerStateInitializerRHI SamplerInit(Params.Filter, Params.AddressU, Params.AddressV, Params.AddressW);
-			FSamplerStateRHIRef Sampler = *GraphBuilder.AllocObject<FSamplerStateRHIRef>(RHICreateSamplerState(SamplerInit));
-			Execute(GraphBuilder, FeatureLevel, Texture, Sampler, Pass);
-		}
-		else
-		{
-			FCopyDestParameters* PassParameters = GraphBuilder.AllocParameters<FCopyDestParameters>();
-			PassParameters->Texture = Texture;
-
-			GraphBuilder.AddPass(
-				RDG_EVENT_NAME("GenerateMipsTexture"),
-				PassParameters,
-				ERDGPassFlags::Copy,
-				[Texture](FRHICommandListImmediate& RHICmdList)
-			{
-				RHICmdList.GenerateMips(Texture->GetRHI());
-			});
-		}
+		FSamplerStateInitializerRHI SamplerInit(Params.Filter, Params.AddressU, Params.AddressV, Params.AddressW);
+		FSamplerStateRHIRef Sampler = *GraphBuilder.AllocObject<FSamplerStateRHIRef>(RHICreateSamplerState(SamplerInit));
+		Execute(GraphBuilder, FeatureLevel, Texture, Sampler, Pass);
 	}
 }
 
 void FGenerateMips::Execute(FRDGBuilder& GraphBuilder, ERHIFeatureLevel::Type FeatureLevel, FRDGTextureRef Texture, FRHISamplerState* Sampler, EGenerateMipsPass Pass)
 {
-	if (Pass == EGenerateMipsPass::AutoDetect)
+#if PLATFORM_WINDOWS || PLATFORM_ANDROID || PLATFORM_LINUX
+	if (RHIGetInterfaceType() == ERHIInterfaceType::OpenGL)
 	{
-		Pass = WillFormatSupportCompute(Texture->Desc.Format) ? EGenerateMipsPass::Compute : EGenerateMipsPass::Raster;
-	}
+		// Special case for OpenGL. We can't use the above compute/pixel shaders due to lack of proper SRV support.
+		FGenerateMipsRHIImplParameters* PassParameters = GraphBuilder.AllocParameters<FGenerateMipsRHIImplParameters>();
+		PassParameters->Texture = Texture;
 
-	if (Pass == EGenerateMipsPass::Compute)
-	{
-		ExecuteCompute(GraphBuilder, FeatureLevel, Texture, Sampler);
+		GraphBuilder.AddPass(RDG_EVENT_NAME("GenerateMips - OpenGL"), PassParameters, ERDGPassFlags::Copy,
+			[Texture](FRHICommandList& RHICmdList)
+		{
+			RHICmdList.EnqueueLambda(TEXT("GenerateMips - OpenGL"), [Texture = Texture->GetRHI()](FRHICommandList&)
+			{
+				GetIOpenGLDynamicRHI()->RHIGenerateMips(Texture);
+			});
+		});
 	}
 	else
+#endif
 	{
-		ExecuteRaster(GraphBuilder, FeatureLevel, Texture, Sampler);
+		if (Pass == EGenerateMipsPass::AutoDetect)
+		{
+			// Use compute when the given texture has a UAV-compatible format and UAV create flag, otherwise fallback to raster.
+			Pass = WillFormatSupportCompute(Texture->Desc.Format) && EnumHasAnyFlags(Texture->Desc.Flags, ETextureCreateFlags::UAV) 
+				? EGenerateMipsPass::Compute
+				: EGenerateMipsPass::Raster;
+		}
+
+		if (Pass == EGenerateMipsPass::Compute)
+		{
+			ensureMsgf(EnumHasAllFlags(Texture->Desc.Flags, ETextureCreateFlags::UAV | ETextureCreateFlags::ShaderResource),
+				TEXT("Texture must be created with ETextureCreateFlags::UAV and ETextureCreateFlags::ShaderResource to be used in compute-based mip generation."));
+
+			ExecuteCompute(GraphBuilder, FeatureLevel, Texture, Sampler);
+		}
+		else
+		{
+			ensureMsgf(EnumHasAllFlags(Texture->Desc.Flags, ETextureCreateFlags::RenderTargetable | ETextureCreateFlags::ShaderResource),
+				TEXT("Texture must be created with ETextureCreateFlags::RenderTargetable and ETextureCreateFlags::ShaderResource to be used in raster-based mip generation."));
+
+			ExecuteRaster(GraphBuilder, FeatureLevel, Texture, Sampler);
+		}
 	}
 }
-
-
-//////////////////////////////////////////////////////////////////////////
-// Deprecated versions
-void FGenerateMips::Execute(FRDGBuilder& GraphBuilder, FRDGTextureRef Texture, FGenerateMipsParams Params, EGenerateMipsPass Pass)
-{
-	Execute(GraphBuilder, GMaxRHIFeatureLevel, Texture, Params, Pass);
-}
-void FGenerateMips::Execute(FRDGBuilder& GraphBuilder, FRDGTextureRef Texture, FRHISamplerState* Sampler, EGenerateMipsPass Pass)
-{
-	Execute(GraphBuilder, GMaxRHIFeatureLevel, Texture, Sampler, Pass);
-}
-void FGenerateMips::ExecuteCompute(FRDGBuilder& GraphBuilder, FRDGTextureRef Texture, FRHISamplerState* Sampler)
-{
-	ExecuteCompute(GraphBuilder, GMaxRHIFeatureLevel, Texture, Sampler);
-}
-void FGenerateMips::ExecuteCompute(FRDGBuilder& GraphBuilder, FRDGTextureRef Texture, FRHISamplerState* Sampler, FRDGBufferRef ConditionBuffer, uint32 Offset)
-{
-	ExecuteCompute(GraphBuilder, GMaxRHIFeatureLevel, Texture, Sampler, ConditionBuffer, Offset);
-}
-void FGenerateMips::ExecuteRaster(FRDGBuilder& GraphBuilder, FRDGTextureRef Texture, FRHISamplerState* Sampler)
-{
-	ExecuteRaster(GraphBuilder, GMaxRHIFeatureLevel, Texture, Sampler);
-}
-//////////////////////////////////////////////////////////////////////////
