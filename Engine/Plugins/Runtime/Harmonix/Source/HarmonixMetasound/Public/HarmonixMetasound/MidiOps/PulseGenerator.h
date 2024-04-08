@@ -31,51 +31,21 @@ namespace Harmonix::Midi::Ops
 		
 		void SetInterval(const FMusicTimeInterval& NewInterval);
 
-		FMusicTimeInterval GetInterval() const { return Cursor.GetInterval(); }
+		FMusicTimeInterval GetInterval() const { return Interval; }
 
 		void Process(HarmonixMetasound::FMidiStream& OutStream);
 
 	private:
+		void HandleAdvanceThru(const int32 BlockFrameIndex, const HarmonixMetasound::MidiClockMessageTypes::FAdvanceThru* AdvanceThru, HarmonixMetasound::FMidiStream& OutStream);
+		void HandleTimeSignatureChange(const HarmonixMetasound::MidiClockMessageTypes::FTimeSignatureChange* TimeSigChange);
+		void DoPulse(const int32 BlockFrameIndex, const int32 PulseTick, HarmonixMetasound::FMidiStream& OutStream);
+
 		FMidiVoiceGeneratorBase VoiceGenerator{};
 		TOptional<HarmonixMetasound::FMidiStreamEvent> LastNoteOn;
 		bool Enabled{ true };
-
-		class FCursor final : public FMidiPlayCursor
-		{
-		public:
-			FCursor();
-
-			virtual ~FCursor() override;
-
-			void SetClock(const TSharedPtr<const HarmonixMetasound::FMidiClock, ESPMode::NotThreadSafe>& NewClock);
-
-			void SetInterval(const FMusicTimeInterval& NewInterval);
-
-			FMusicTimeInterval GetInterval() const { return Interval; }
-
-			struct FPulseTime
-			{
-				int32 AudioBlockFrame;
-				int32 MidiTick;
-			};
-
-			bool Pop(FPulseTime& PulseTime);
-
-		private:
-			void Push(FPulseTime&& PulseTime);
-			
-			virtual void AdvanceThruTick(int32 Tick, bool IsPreRoll) override;
-			
-			virtual void OnTimeSig(int32 TrackIndex, int32 Tick, int32 Numerator, int32 Denominator, bool IsPreroll) override;
-
-			TWeakPtr<const HarmonixMetasound::FMidiClock, ESPMode::NotThreadSafe> Clock;
-			FMusicTimeInterval Interval{};
-			TSpscQueue<FPulseTime> PulsesSinceLastProcess;
-			int32 QueueSize{0};
-			FTimeSignature CurrentTimeSignature{};
-			FMusicTimestamp NextPulseTimestamp{ -1, -1 };
-		};
-		
-		FCursor Cursor;
+		TWeakPtr<const HarmonixMetasound::FMidiClock, ESPMode::NotThreadSafe> Clock;
+		FMusicTimeInterval Interval{};
+		FTimeSignature CurrentTimeSignature{};
+		FMusicTimestamp NextPulseTimestamp{ -1, -1 };
 	};
 }

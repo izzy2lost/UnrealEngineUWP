@@ -111,6 +111,12 @@ namespace HarmonixMetasound
 			, Msg(TInPlaceType<T>(), MoveTemp(Msg))
 		{
 		}
+
+		template<typename T>
+		bool IsType() const	{ return Msg.IsType<T>(); }
+
+		template<typename T>
+		const T* TryGet() const { return Msg.TryGet<T>(); }
 	};
 
 };
