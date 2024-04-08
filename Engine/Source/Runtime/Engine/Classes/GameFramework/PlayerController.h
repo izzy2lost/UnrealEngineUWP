@@ -1300,7 +1300,7 @@ public:
 	UFUNCTION(reliable, client, BlueprintCallable, Category="Game|Feedback")
 	ENGINE_API void ClientStopForceFeedback(class UForceFeedbackEffect* ForceFeedbackEffect, FName Tag);
 
-private:
+public:
 	/** 
 	 * Latent action that controls the playing of force feedback 
 	 * Begins playing when Start is called.  Calling Update or Stop if the feedback is not active will have no effect.
@@ -1316,6 +1316,7 @@ private:
 	UFUNCTION(BlueprintCallable, meta=(Latent, LatentInfo="LatentInfo", ExpandEnumAsExecs="Action", Duration="-1", bAffectsLeftLarge="true", bAffectsLeftSmall="true", bAffectsRightLarge="true", bAffectsRightSmall="true", AdvancedDisplay="bAffectsLeftLarge,bAffectsLeftSmall,bAffectsRightLarge,bAffectsRightSmall"), Category="Game|Feedback")
 	ENGINE_API void PlayDynamicForceFeedback(float Intensity, float Duration, bool bAffectsLeftLarge, bool bAffectsLeftSmall, bool bAffectsRightLarge, bool bAffectsRightSmall, TEnumAsByte<EDynamicForceFeedbackAction::Type> Action, FLatentActionInfo LatentInfo);
 
+private:
 	//~ This method is purely for debugging purposes.
 	//~ It will trigger a ServerUpdateLevelVisibilityCall with the provided package name.
 	UFUNCTION(Exec)
