@@ -843,6 +843,9 @@ void UPCGGraph::RemoveNodes_Internal(TArrayView<UPCGNode*> InNodes)
 		// We're about to remove InNode, so don't bother triggering updates
 		TouchedNodes.Remove(Node);
 
+		// Add the node to the transaction, to make sure we reconnect everything correctly on Undo/Redo
+		Node->Modify();
+
 		Nodes.Remove(Node);
 	}
 
