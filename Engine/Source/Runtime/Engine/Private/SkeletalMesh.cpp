@@ -493,6 +493,16 @@ FSkeletalMeshRenderData* USkeletalMesh::GetResourceForRendering() const
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
 
+bool USkeletalMesh::HasValidNaniteData() const
+{
+	if (const FSkeletalMeshRenderData* RenderData = GetResourceForRendering())
+	{
+		return RenderData->HasValidNaniteData();
+	}
+
+	return false;
+}
+
 void USkeletalMesh::PostInitProperties()
 {
 #if WITH_EDITORONLY_DATA
@@ -3741,12 +3751,33 @@ void USkeletalMesh::GetAssetRegistryTags(FAssetRegistryTagsContext Context) cons
 	
 	int32 NumLODs = GetLODInfoArray().Num();
 
+	int32 NumNaniteTriangles = GetNumNaniteTriangles();
+	int32 NumNaniteVertices = GetNumNaniteVertices();
+
+	uint64 EstimatedCompressedSize = 0;
+	uint64 EstimatedNaniteCompressedSize = 0;
+#if WITH_EDITORONLY_DATA && 0 // TODO: Nanite-Skinning
+	if (GetResourceForRendering())
+	{
+		EstimatedCompressedSize = (int32)GetResourceForRendering()->EstimatedCompressedSize;
+		EstimatedNaniteCompressedSize = (int32)GetResourceForRendering()->EstimatedNaniteTotalCompressedSize;
+	}
+#endif
+
+#if WITH_EDITORONLY_DATA
+	Context.AddTag(FAssetRegistryTag("NaniteEnabled", IsNaniteEnabled() ? TEXT("True") : TEXT("False"), FAssetRegistryTag::TT_Alphabetical));
+#endif
+
+	Context.AddTag(FAssetRegistryTag("NaniteTriangles", FString::FromInt(NumNaniteTriangles), FAssetRegistryTag::TT_Numerical));
+	Context.AddTag(FAssetRegistryTag("NaniteVertices", FString::FromInt(NumNaniteVertices), FAssetRegistryTag::TT_Numerical));
 	Context.AddTag(FAssetRegistryTag("Vertices", FString::FromInt(NumVertices), FAssetRegistryTag::TT_Numerical));
 	Context.AddTag(FAssetRegistryTag("Triangles", FString::FromInt(NumTriangles), FAssetRegistryTag::TT_Numerical));
 	Context.AddTag(FAssetRegistryTag("LODs", FString::FromInt(NumLODs), FAssetRegistryTag::TT_Numerical));
 	Context.AddTag(FAssetRegistryTag("Bones", FString::FromInt(GetRefSkeleton().GetRawBoneNum()), FAssetRegistryTag::TT_Numerical));
 	Context.AddTag(FAssetRegistryTag("MorphTargets", FString::FromInt(GetMorphTargets().Num()), FAssetRegistryTag::TT_Numerical));
 	Context.AddTag(FAssetRegistryTag("SkinWeightProfiles", FString::FromInt(GetSkinWeightProfiles().Num()), FAssetRegistryTag::TT_Numerical));
+	Context.AddTag(FAssetRegistryTag("EstTotalCompressedSize", FString::Printf(TEXT("%llu"), EstimatedCompressedSize), FAssetRegistryTag::TT_Numerical, FAssetRegistryTag::TD_Memory));
+	Context.AddTag(FAssetRegistryTag("EstNaniteCompressedSize", FString::Printf(TEXT("%llu"), EstimatedNaniteCompressedSize), FAssetRegistryTag::TT_Numerical, FAssetRegistryTag::TD_Memory));
 
 #if WITH_EDITORONLY_DATA
 	if (GetAssetImportData())
@@ -5418,6 +5449,34 @@ int32 USkeletalMesh::GetLODNum() const
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	return LODInfo.Num();
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+}
+
+int32 USkeletalMesh::GetNumNaniteVertices() const
+{
+	int32 NumVertices = 0;
+	if (HasValidNaniteData())
+	{
+		const Nanite::FResources& Resources = *GetResourceForRendering()->NaniteResourcesPtr.Get();
+		if (Resources.RootData.Num() > 0)
+		{
+			NumVertices = Resources.NumInputVertices;
+		}
+	}
+	return NumVertices;
+}
+
+int32 USkeletalMesh::GetNumNaniteTriangles() const
+{
+	int32 NumTriangles = 0;
+	if (HasValidNaniteData())
+	{
+		const Nanite::FResources& Resources = *GetResourceForRendering()->NaniteResourcesPtr.Get();
+		if (Resources.RootData.Num() > 0)
+		{
+			NumTriangles = Resources.NumInputTriangles;
+		}
+	}
+	return NumTriangles;
 }
 
 bool USkeletalMesh::IsMaterialUsed(int32 MaterialIndex) const

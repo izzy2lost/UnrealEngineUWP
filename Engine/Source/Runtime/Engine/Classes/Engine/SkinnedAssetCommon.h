@@ -245,19 +245,19 @@ struct FSkeletalMeshLODInfo
 
 };
 
-//~ Begin Material Interface for USkeletalMesh - contains a material and a shadow casting flag
+//~ Begin Material Interface for USkeletalMesh
 USTRUCT(BlueprintType)
 struct FSkeletalMaterial
 {
 	GENERATED_USTRUCT_BODY()
 
 	FSkeletalMaterial()
-		: MaterialInterface( NULL )
-		, MaterialSlotName( NAME_None )
+		: MaterialInterface(nullptr)
+		, MaterialSlotName(NAME_None)
 #if WITH_EDITORONLY_DATA
 		, bEnableShadowCasting_DEPRECATED(true)
 		, bRecomputeTangent_DEPRECATED(false)
-		, ImportedMaterialSlotName( NAME_None )
+		, ImportedMaterialSlotName(NAME_None)
 #endif
 	{
 
@@ -269,11 +269,11 @@ struct FSkeletalMaterial
 		FName InImportedMaterialSlotName = NAME_None)
 		: MaterialInterface( InMaterialInterface )
 		, MaterialSlotName(InMaterialSlotName)
-#if WITH_EDITORONLY_DATA
+	#if WITH_EDITORONLY_DATA
 		, bEnableShadowCasting_DEPRECATED(true)
 		, bRecomputeTangent_DEPRECATED(false)
 		, ImportedMaterialSlotName(InImportedMaterialSlotName)
-#endif //WITH_EDITORONLY_DATA
+	#endif
 	{
 
 	}
@@ -285,11 +285,11 @@ struct FSkeletalMaterial
 						, FName InImportedMaterialSlotName = NAME_None)
 		: MaterialInterface( InMaterialInterface )
 		, MaterialSlotName(InMaterialSlotName)
-#if WITH_EDITORONLY_DATA
+	#if WITH_EDITORONLY_DATA
 		, bEnableShadowCasting_DEPRECATED(bInEnableShadowCasting)
 		, bRecomputeTangent_DEPRECATED(bInRecomputeTangent)
 		, ImportedMaterialSlotName(InImportedMaterialSlotName)
-#endif //WITH_EDITORONLY_DATA
+	#endif
 	{
 
 	}
@@ -317,7 +317,7 @@ struct FSkeletalMaterial
 	/*This name should be use when we re-import a skeletal mesh so we can order the Materials array like it should be*/
 	UPROPERTY(VisibleAnywhere, Category = SkeletalMesh)
 	FName						ImportedMaterialSlotName;
-#endif //WITH_EDITORONLY_DATA
+#endif
 
 	/** Data used for texture streaming relative to each UV channels. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = SkeletalMesh)

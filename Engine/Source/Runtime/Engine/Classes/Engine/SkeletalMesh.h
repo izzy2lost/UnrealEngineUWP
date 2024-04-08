@@ -500,6 +500,9 @@ private:
 
 	ENGINE_API void SetSkeletalMeshRenderData(TUniquePtr<FSkeletalMeshRenderData>&& InSkeletalMeshRenderData);
 
+	/** Returns true if the mesh has valid Nanite render data. */
+	ENGINE_API bool HasValidNaniteData() const;
+
 #if WITH_EDITORONLY_DATA
 	/*
 	 * This editor data asset is save under the skeletalmesh(skel mesh is the owner), the editor data asset is always loaded.
@@ -2920,6 +2923,12 @@ public:
 	 * Returns total number of LOD. USkinnedAsset interface.
 	 */
 	ENGINE_API virtual int32 GetLODNum() const override;
+
+	/** Returns the number of vertices of the Nanite representation of this mesh. */
+	ENGINE_API int32 GetNumNaniteVertices() const;
+
+	/** Returns the number of triangles of the Nanite representation of this mesh. */
+	ENGINE_API int32 GetNumNaniteTriangles() const;
 
 	/** USkinnedAsset interface. */
 	ENGINE_API virtual bool IsMaterialUsed(int32 MaterialIndex) const override;

@@ -2200,7 +2200,7 @@ uint32 FSceneProxy::GetMemoryFootprint() const
 	return sizeof( *this ) + GetAllocatedSize();
 }
 
-FSkinnedSceneProxy::FSkinnedSceneProxy(USkinnedMeshComponent* InComponent, FSkeletalMeshRenderData* InRenderData)
+FSkinnedSceneProxy::FSkinnedSceneProxy(const FMaterialAudit& MaterialAudit, USkinnedMeshComponent* InComponent, FSkeletalMeshRenderData* InRenderData)
 : FSceneProxyBase(InComponent)
 , SkinnedAsset(InComponent->GetSkinnedAsset())
 , Resources(InComponent->GetNaniteResources())
@@ -2636,6 +2636,48 @@ TArray<FAuditMaterialSlotInfo, TInlineAllocator<32>> GetMaterialSlotInfos(const 
 	return Infos;
 }
 
+template<>
+TArray<FAuditMaterialSlotInfo, TInlineAllocator<32>> GetMaterialSlotInfos<USkinnedMeshComponent>(const USkinnedMeshComponent& Object)
+{
+	TArray<FAuditMaterialSlotInfo, TInlineAllocator<32>> Infos;
+
+	if (const USkinnedAsset* SkinnedAsset = Object.GetSkinnedAsset())
+	{
+		const TArray<FSkeletalMaterial>& Materials = SkinnedAsset->GetMaterials();
+		for (int32 Index = 0; Index < Materials.Num(); ++Index)
+		{
+			const FSkeletalMaterial& Material = Materials[Index];
+			Infos.Add({ Material.MaterialInterface, Material.MaterialSlotName, Material.UVChannelData });
+		}
+	}
+
+	return Infos;
+}
+
+template<class T>
+FString GetMaterialMeshName(const T& Object)
+{
+	return Object.GetStaticMesh()->GetName();
+}
+
+template<>
+FString GetMaterialMeshName<USkinnedMeshComponent>(const USkinnedMeshComponent& Object)
+{
+	return Object.GetSkinnedAsset()->GetName();
+}
+
+template<class T>
+bool IsMaterialSkeletalMesh(const T& Object)
+{
+	return false;
+}
+
+template<>
+bool IsMaterialSkeletalMesh<USkinnedMeshComponent>(const USkinnedMeshComponent& Object)
+{
+	return true;
+}
+
 template<class T> 
 FMaterialAudit& AuditMaterialsImp(const T* InProxyDesc, FMaterialAudit& Audit, bool bSetMaterialUsage)
 {
@@ -2643,7 +2685,7 @@ FMaterialAudit& AuditMaterialsImp(const T* InProxyDesc, FMaterialAudit& Audit, b
 	static const bool bNaniteForceEnableMeshes = NaniteForceEnableMeshesCvar && NaniteForceEnableMeshesCvar->GetValueOnAnyThread() != 0;
 
 	Audit.bHasAnyError = false;
-	Audit.Entries.Reset();	
+	Audit.Entries.Reset();
 
 	if (InProxyDesc != nullptr)
 	{
@@ -2677,9 +2719,9 @@ FMaterialAudit& AuditMaterialsImp(const T* InProxyDesc, FMaterialAudit& Audit, b
 			const EBlendMode BlendMode = Entry.Material->GetBlendMode();
 
 			bool bUsingCookedEditorData = false;
-#if WITH_EDITORONLY_DATA
+		#if WITH_EDITORONLY_DATA
 			bUsingCookedEditorData = Material->GetOutermost()->bIsCookedForEditor;
-#endif
+		#endif
 			bool bUsageSetSuccessfully = false;
 
 			const FMaterialCachedExpressionData& CachedMaterialData = Material->GetCachedExpressionData();
@@ -2692,6 +2734,11 @@ FMaterialAudit& AuditMaterialsImp(const T* InProxyDesc, FMaterialAudit& Audit, b
 			Entry.bHasUnsupportedBlendMode		= !IsSupportedBlendMode(BlendMode);
 			Entry.bHasUnsupportedShadingModel	= !IsSupportedShadingModel(Material->GetShadingModels());
 			Entry.bHasInvalidUsage				= (bUsingCookedEditorData || !bSetMaterialUsage) ? Material->NeedsSetMaterialUsage_Concurrent(bUsageSetSuccessfully, MATUSAGE_Nanite) : !Material->CheckMaterialUsage_Concurrent(MATUSAGE_Nanite);
+
+			if (IsMaterialSkeletalMesh(*InProxyDesc))
+			{
+				Entry.bHasInvalidUsage |= (bUsingCookedEditorData || !bSetMaterialUsage) ? Material->NeedsSetMaterialUsage_Concurrent(bUsageSetSuccessfully, MATUSAGE_SkeletalMesh) : !Material->CheckMaterialUsage_Concurrent(MATUSAGE_SkeletalMesh);
+			}
 
 			if (BlendMode == BLEND_Masked)
 			{
@@ -2712,41 +2759,69 @@ FMaterialAudit& AuditMaterialsImp(const T* InProxyDesc, FMaterialAudit& Audit, b
 			if (!bUsingCookedEditorData && Entry.bHasAnyError && !Audit.bHasAnyError)
 			{
 				// Only populate on error for performance/memory reasons
-				Audit.AssetName = InProxyDesc->GetStaticMesh()->GetName();
+				Audit.AssetName = GetMaterialMeshName(*InProxyDesc);
 				Audit.FallbackMaterial = UMaterial::GetDefaultMaterial(MD_Surface);
 			}
 
 			Audit.bHasAnyError |= Entry.bHasAnyError;
 
-#if !(UE_BUILD_SHIPPING) || WITH_EDITOR
+		#if !(UE_BUILD_SHIPPING) || WITH_EDITOR
 			if (!bUsingCookedEditorData && !bNaniteForceEnableMeshes)
 			{
 				if (Entry.bHasUnsupportedBlendMode)
 				{
 					const FString BlendModeName = GetBlendModeString(Entry.Material->GetBlendMode());
-					UE_LOG
-					(
-						LogStaticMesh, Warning,
-						TEXT("Invalid material [%s] used on Nanite static mesh [%s]. Only opaque or masked blend modes are currently supported, [%s] blend mode was specified."),
-						*Entry.Material->GetName(),
-						*Audit.AssetName,
-						*BlendModeName
-					);
+					if (IsMaterialSkeletalMesh(*InProxyDesc))
+					{
+						UE_LOG
+						(
+							LogSkeletalMesh, Warning,
+							TEXT("Invalid material [%s] used on Nanite skeletal mesh [%s]. Only opaque or masked blend modes are currently supported, [%s] blend mode was specified."),
+							*Entry.Material->GetName(),
+							*Audit.AssetName,
+							*BlendModeName
+						);
+					}
+					else
+					{
+						UE_LOG
+						(
+							LogStaticMesh, Warning,
+							TEXT("Invalid material [%s] used on Nanite static mesh [%s]. Only opaque or masked blend modes are currently supported, [%s] blend mode was specified."),
+							*Entry.Material->GetName(),
+							*Audit.AssetName,
+							*BlendModeName
+						);
+					}
 				}
 				if (Entry.bHasUnsupportedShadingModel)
 				{
 					const FString ShadingModelString = GetShadingModelFieldString(Entry.Material->GetShadingModels());
-					UE_LOG
-					(
-						LogStaticMesh, Warning,
-						TEXT("Invalid material [%s] used on Nanite static mesh [%s]. The SingleLayerWater shading model is currently not supported, [%s] shading model was specified."),
-						*Entry.Material->GetName(),
-						*Audit.AssetName,
-						*ShadingModelString
-					);
+					if (IsMaterialSkeletalMesh(*InProxyDesc))
+					{
+						UE_LOG
+						(
+							LogSkeletalMesh, Warning,
+							TEXT("Invalid material [%s] used on Nanite skeletal mesh [%s]. The SingleLayerWater shading model is currently not supported, [%s] shading model was specified."),
+							*Entry.Material->GetName(),
+							*Audit.AssetName,
+							*ShadingModelString
+						);
+					}
+					else
+					{
+						UE_LOG
+						(
+							LogStaticMesh, Warning,
+							TEXT("Invalid material [%s] used on Nanite static mesh [%s]. The SingleLayerWater shading model is currently not supported, [%s] shading model was specified."),
+							*Entry.Material->GetName(),
+							*Audit.AssetName,
+							*ShadingModelString
+						);
+					}
 				}
 			}
-#endif
+		#endif
 		}
 	}
 
@@ -2755,10 +2830,7 @@ FMaterialAudit& AuditMaterialsImp(const T* InProxyDesc, FMaterialAudit& Audit, b
 
 void AuditMaterials(const USkinnedMeshComponent* Component, FMaterialAudit& Audit, bool bSetMaterialUsage)
 {
-	Audit.bHasAnyError = false;
-	Audit.Entries.Reset();
-
-	// TODO: Nanite-Skinning
+	AuditMaterialsImp(Component, Audit, bSetMaterialUsage);
 }
 
 void AuditMaterials(const UStaticMeshComponent* Component, FMaterialAudit& Audit, bool bSetMaterialUsage)

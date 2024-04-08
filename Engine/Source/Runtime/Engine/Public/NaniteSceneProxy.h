@@ -605,7 +605,7 @@ class FSkinnedSceneProxy : public FSceneProxyBase
 public:
 	using Super = FSceneProxyBase;
 	
-	ENGINE_API FSkinnedSceneProxy(USkinnedMeshComponent* InComponent, FSkeletalMeshRenderData* InRenderData);
+	ENGINE_API FSkinnedSceneProxy(const FMaterialAudit& MaterialAudit, USkinnedMeshComponent* InComponent, FSkeletalMeshRenderData* InRenderData);
 	ENGINE_API virtual ~FSkinnedSceneProxy();
 
 public:

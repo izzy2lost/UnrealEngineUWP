@@ -584,9 +584,17 @@ FPrimitiveSceneProxy* USkinnedMeshComponent::CreateSceneProxy()
 		{
 			if (ShouldNaniteSkin())
 			{
-				Result = ::new Nanite::FSkinnedSceneProxy(this, SkelMeshRenderData);
+				Nanite::FMaterialAudit NaniteMaterials{};
+				AuditMaterials(this, NaniteMaterials, true /* Set material usage flags */);
+
+				const bool bIsMaskingAllowed = Nanite::IsMaskingAllowed(GetWorld(), false /* force Nanite for masked */);
+				if (NaniteMaterials.IsValid(bIsMaskingAllowed))
+				{
+					Result = ::new Nanite::FSkinnedSceneProxy(NaniteMaterials, this, SkelMeshRenderData);
+				}
 			}
-			else
+
+			if (Result == nullptr)
 			{
 				Result = ::new FSkeletalMeshSceneProxy(this, SkelMeshRenderData);
 			}

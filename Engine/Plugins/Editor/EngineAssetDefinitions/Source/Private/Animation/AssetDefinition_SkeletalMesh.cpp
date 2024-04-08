@@ -287,7 +287,135 @@ namespace MenuExtension_SkeletalMesh
 		int32 NumberOfLODs = 0;
 		return SkeletalMeshAsset.GetTagValue<int32>(NAME_LODs, NumberOfLODs) ? NumberOfLODs : 0;
 	}
-    
+
+	// Nanite Section
+	//=================================================================
+	
+	const static FName NAME_NaniteEnabled("NaniteEnabled");
+	static bool IsNaniteEnabled(const FAssetData& SkeletalMeshAsset)
+	{
+		bool bNaniteEnabled = false;
+		return SkeletalMeshAsset.GetTagValue<bool>(NAME_NaniteEnabled, bNaniteEnabled) && bNaniteEnabled;
+	}
+	
+	void ModifyNaniteEnable(const TArray<USkeletalMesh*>& Objects, bool bNaniteEnable)
+	{
+		TArray<USkeletalMesh*> Meshes;
+		Meshes.Reserve(Objects.Num());
+
+		for (USkeletalMesh* Mesh: Objects)
+		{
+			if (Mesh && Mesh->NaniteSettings.bEnabled != bNaniteEnable)
+			{
+				Meshes.Add(Mesh);
+			}
+		}
+
+		for (USkeletalMesh* Mesh : Meshes)
+		{
+			Mesh->NaniteSettings.bEnabled = bNaniteEnable;
+			Mesh->Build();
+			Mesh->MarkPackageDirty();
+		}
+	}
+
+	void ExecuteNaniteEnable(const FToolMenuContext& InContext)
+	{
+		const UContentBrowserAssetContextMenuContext* Context = UContentBrowserAssetContextMenuContext::FindContextWithAssets(InContext);
+		TArray<USkeletalMesh*> RegularMeshes = Context->LoadSelectedObjectsIf<USkeletalMesh>([](const FAssetData& AssetData)
+		{
+			return !IsNaniteEnabled(AssetData);
+		});
+		ModifyNaniteEnable(RegularMeshes, true);
+	}
+
+	void ExecuteNaniteDisable(const FToolMenuContext& InContext)
+	{
+		const UContentBrowserAssetContextMenuContext* Context = UContentBrowserAssetContextMenuContext::FindContextWithAssets(InContext);
+		TArray<USkeletalMesh*> NaniteMeshes = Context->LoadSelectedObjectsIf<USkeletalMesh>([](const FAssetData& AssetData)
+		{
+			return IsNaniteEnabled(AssetData);
+		});
+		ModifyNaniteEnable(NaniteMeshes, false);
+	}
+
+	static void GetNaniteMenu(UToolMenu* Menu)
+	{
+		const UContentBrowserAssetContextMenuContext* Context = UContentBrowserAssetContextMenuContext::FindContextWithAssets(*Menu);
+	
+		FToolMenuSection& Section = Menu->FindOrAddSection("NaniteActions");
+
+		{
+			const TAttribute<FText> Label = LOCTEXT("SkeletalMesh_NaniteToggle", "Nanite");
+			const TAttribute<FText> ToolTip = LOCTEXT("SkeletalMesh_NaniteToggleTooltip", "Toggle Nanite support on the selected meshes.");
+			const FSlateIcon Icon = FSlateIcon();
+
+			FToolUIAction UIAction;
+			UIAction.ExecuteAction = FToolMenuExecuteAction::CreateLambda([](const FToolMenuContext& InContext)
+			{
+				if (const UContentBrowserAssetContextMenuContext* Context = UContentBrowserAssetContextMenuContext::FindContextWithAssets(InContext))
+				{
+					const bool bContainsTrue = Context->SelectedAssets.ContainsByPredicate([](const FAssetData& InAsset) { return IsNaniteEnabled(InAsset); });
+					const bool bContainsFalse = Context->SelectedAssets.ContainsByPredicate([](const FAssetData& InAsset) { return !IsNaniteEnabled(InAsset); });
+
+					if ((bContainsTrue && bContainsFalse) || bContainsTrue)
+					{
+						ExecuteNaniteDisable(InContext);
+					}
+					else
+					{
+						ExecuteNaniteEnable(InContext);
+					}
+				}
+			});
+			UIAction.GetActionCheckState = FToolMenuGetActionCheckState::CreateLambda([](const FToolMenuContext& InContext)
+			{
+				if (const UContentBrowserAssetContextMenuContext* Context = UContentBrowserAssetContextMenuContext::FindContextWithAssets(InContext))
+				{
+					const bool bContainsTrue = Context->SelectedAssets.ContainsByPredicate([](const FAssetData& InAsset) { return IsNaniteEnabled(InAsset); });
+					const bool bContainsFalse = Context->SelectedAssets.ContainsByPredicate([](const FAssetData& InAsset) { return !IsNaniteEnabled(InAsset); });
+					return bContainsTrue && bContainsFalse ? ECheckBoxState::Undetermined : (bContainsTrue ? ECheckBoxState::Checked : ECheckBoxState::Unchecked);
+				}
+
+				return ECheckBoxState::Undetermined;
+			});
+			
+			Section.AddMenuEntry("SkeletalMesh_NaniteToggle", Label, ToolTip, Icon, UIAction, EUserInterfaceActionType::ToggleButton);
+		}
+
+		Section.AddSeparator("Nanite_EnableDisableOptions");
+
+		const int32 NaniteMeshes = Algo::Accumulate(Context->SelectedAssets, 0, [](int32 Value, const FAssetData& SkeletalMeshAsset)
+		{
+			bool bNaniteEnabled = false;
+			return (SkeletalMeshAsset.GetTagValue<bool>(NAME_NaniteEnabled, bNaniteEnabled) && bNaniteEnabled) ? Value + 1 : Value;
+		});
+
+		{
+			const int32 RegularMeshes = Context->SelectedAssets.Num() - NaniteMeshes;
+			
+			const TAttribute<FText> Label = FText::Format(LOCTEXT("SkeletalMesh_NaniteEnableAll", "Enable Nanite ({0} Meshes)"), RegularMeshes);
+			const TAttribute<FText> ToolTip = LOCTEXT("SkeletalMesh_NaniteEnableAllTooltip", "Enables support for Nanite on the selected meshes.");
+			const FSlateIcon Icon = FSlateIcon();
+			
+			FToolUIAction UIAction;
+			UIAction.ExecuteAction = FToolMenuExecuteAction::CreateStatic(&ExecuteNaniteEnable);
+			UIAction.CanExecuteAction.BindLambda([RegularMeshes](const FToolMenuContext&) { return RegularMeshes > 0; });
+			Section.AddMenuEntry("SkeletalMesh_EnableNanite", Label, ToolTip, Icon, UIAction);
+		}
+		
+		{
+			const TAttribute<FText> Label = FText::Format(LOCTEXT("SkeletalMesh_NaniteDisableAll", "Disable Nanite ({0} Meshes)"), NaniteMeshes);
+			const TAttribute<FText> ToolTip = LOCTEXT("SkeletalMesh_NaniteDisableAllTooltip", "Disables support for Nanite on the selected meshes.");
+			const FSlateIcon Icon = FSlateIcon();
+			
+			FToolUIAction UIAction;
+			UIAction.ExecuteAction = FToolMenuExecuteAction::CreateStatic(&ExecuteNaniteDisable);
+			UIAction.CanExecuteAction.BindLambda([NaniteMeshes](const FToolMenuContext&) { return NaniteMeshes > 0; });
+			Section.AddMenuEntry("SkeletalMesh_DisableNanite", Label, ToolTip, Icon, UIAction);
+		}
+	}
+
     void GetLODMenu(UToolMenu* Menu)
     {
 		const UContentBrowserAssetContextMenuContext* Context = UContentBrowserAssetContextMenuContext::FindContextWithAssets(*Menu);
@@ -413,6 +541,20 @@ namespace MenuExtension_SkeletalMesh
 						FNewToolMenuDelegate::CreateStatic(&FillCreateMenu),
 						false,
 						FSlateIcon(FAppStyle::GetAppStyleSetName(), "Persona.AssetActions.CreateAnimAsset")
+					);
+				}
+
+				static const auto AllowSkinnedMeshes = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.Nanite.AllowSkinnedMeshes"));
+				static const bool bAllowSkinnedMeshes = (AllowSkinnedMeshes && AllowSkinnedMeshes->GetValueOnAnyThread() != 0);
+				if (bAllowSkinnedMeshes)
+				{
+					InSection.AddSubMenu(
+						"SkeletalMesh_NaniteSubmenu",
+						LOCTEXT("SkeletalMesh_NaniteMenu", "Nanite"),
+						LOCTEXT("SkeletalMesh_NaniteTooltip", "Nanite Options and Tools"),
+						FNewToolMenuDelegate::CreateStatic(&GetNaniteMenu),
+						false,
+						FSlateIcon(FAppStyle::GetAppStyleSetName(), "Icons.Adjust")
 					);
 				}
 
