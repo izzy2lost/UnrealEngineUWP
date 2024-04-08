@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -24,6 +24,7 @@ private:
 	virtual void UnregisterObjectDocumentType(const FTopLevelAssetPath& InClassPath) override;
 	virtual FObjectDocumentArgs CreateGraphDocumentArgs(const FGraphDocumentWidgetArgs& InArgs) override;
 	virtual void OpenWorkspaceForObject(UObject* InObject, EOpenWorkspaceMethod InOpenMethod, const TSubclassOf<UWorkspaceFactory> WorkSpaceFactoryClass) override;
+	virtual FOnRegisterDetailCustomizations& OnRegisterWorkspaceDetailsCustomization() override;
 
 	// Find an existing registered object document type
 	const FObjectDocumentArgs* FindObjectDocumentType(const FTopLevelAssetPath& InClassPath) const;
@@ -34,9 +35,15 @@ private:
 	// Get the exported set of assets in asset registry tags for a workspace's FAssetData
 	static bool GetExportedAssetsForWorkspace(const FAssetData& InWorkspaceAsset, FWorkspaceAssetRegistryExports& OutExports);
 
+	// Applies any previously registered details-view customizations
+	void ApplyWorkspaceDetailsCustomization(TSharedPtr<IDetailsView>& DetailsView) const;
+
 	TMap<FTopLevelAssetPath, FObjectDocumentArgs> ObjectDocumentArgs;
 
 	TMap<FName, TSet<FTopLevelAssetPath>> DocumentAreaMap;
+
+	/** Event called to allow external clients to register details customizations */
+	FOnRegisterDetailCustomizations OnRegisterDetailCustomizations;
 
 	friend struct FAssetDocumentSummoner;
 	friend class FWorkspaceEditor;

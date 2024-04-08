@@ -10,7 +10,6 @@
 #include "UObject/ConstructorHelpers.h"
 #include "UObject/FortniteMainBranchObjectVersion.h"
 
-
 const FName UWorkspace::ExportsAssetRegistryTag = TEXT("Exports");
 
 bool UWorkspace::AddAsset(const FAssetData& InAsset, bool bSetupUndoRedo, bool bPrintPythonCommand)
@@ -209,7 +208,7 @@ bool UWorkspace::RemoveAssets(TConstArrayView<FAssetData> InAssets, bool bSetupU
 
 bool UWorkspace::IsAssetSupported(const FAssetData& InAsset)
 {
-	TConstArrayView<FTopLevelAssetPath> SupportedAssets = GetSchema()->GetSupportedAssetClassPaths();
+	const TConstArrayView<FTopLevelAssetPath> SupportedAssets = GetSchema()->GetSupportedAssetClassPaths();
 	return SupportedAssets.IsEmpty() || SupportedAssets.Contains(InAsset.AssetClassPath);
 }
 
@@ -289,17 +288,17 @@ void UWorkspace::PostLoad()
 	{
 		for (const TSoftObjectPtr<UObject>& SoftAsset : Assets_DEPRECATED)
 		{
-			if (!SoftAsset.IsNull())
+			if (UObject* Asset = SoftAsset.LoadSynchronous())
 			{
-				UWorkspaceAssetEntry* NewEntry = NewObject<UWorkspaceAssetEntry>(this, UWorkspaceAssetEntry::StaticClass(), NAME_None, RF_Transactional);
-				FExternalPackageHelper::SetPackagingMode(NewEntry, this, true, true, PKG_None);
-
-				NewEntry->Asset = TSoftObjectPtr<UObject>(SoftAsset.ToSoftObjectPath());
-				AssetEntries.Add(NewEntry);				
-				NewEntry->GetPackage()->SetDirtyFlag(true);
+				AddAsset(Asset);
 			}
 		}
-	
+
+		for (const TObjectPtr<UWorkspaceAssetEntry>& Entry : AssetEntries)
+		{
+			Entry->Asset->GetPackage()->SetDirtyFlag(true);	
+		}
+
 		Assets_DEPRECATED.Empty();
 	}
 	else

@@ -3,7 +3,6 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "GraphEditor.h"
 #include "InstancedStruct.h"
 #include "IWorkspaceEditor.h"
 #include "WorkflowOrientedApp/WorkflowTabManager.h"
@@ -20,11 +19,11 @@ class IToolkitHost;
 namespace UE::Workspace
 {
 
-class FWorkspaceEditorMode;
 struct FGraphDocumentSummoner;
 struct FWorkspaceTabSummoner;
 struct FAssetDocumentSummoner;
 class FWorkspaceEditorModule;
+class SWorkspaceView;
 
 namespace WorkspaceModes
 {
@@ -37,14 +36,11 @@ namespace WorkspaceTabs
 	extern const FName WorkspaceView;
 }
 
-class FWorkspaceEditor : public IWorkspaceEditor
+class FWorkspaceEditor : public IWorkspaceEditor, public FGCObject
 {
 public:
-	FWorkspaceEditor();
-	virtual ~FWorkspaceEditor() override;
-
-	/** Edits the specified asset */
-	void InitEditor(const EToolkitMode::Type InMode, const TSharedPtr<IToolkitHost>& InInitToolkitHost, UWorkspace* InWorkspace);
+	FWorkspaceEditor(UWorkspaceAssetEditor* InOwningAssetEditor);
+	virtual ~FWorkspaceEditor() override {}
 
 private:
 	friend class FWorkspaceEditorMode;
@@ -54,20 +50,34 @@ private:
 	friend struct FAssetDocumentSummoner;
 	friend class FWorkspaceEditorModule;
 
-	// IToolkit interface
-	virtual void RegisterTabSpawners(const TSharedRef<FTabManager>& InTabManager) override;
+	// FBaseAssetToolkit interface
+	virtual void RegisterTabSpawners(const TSharedRef<class FTabManager>& TabManager) override;
 	virtual void UnregisterTabSpawners(const TSharedRef<FTabManager>& InTabManager) override;
 	virtual FName GetToolkitFName() const override;
 	virtual FText GetBaseToolkitName() const override;
 	virtual FString GetWorldCentricTabPrefix() const override;
 	virtual FLinearColor GetWorldCentricTabColorScale() const override;
+	virtual void CreateWidgets() override;
+	virtual void PostInitAssetEditor() override;
 	virtual void InitToolMenuContext(FToolMenuContext& InMenuContext) override;
 	virtual void SaveAsset_Execute() override;
 	virtual bool OnRequestClose(EAssetEditorCloseReason InCloseReason) override;
 	virtual void OnClose() override;
+	virtual void RegisterToolbar() override;
+	virtual bool ShouldReopenEditorForSavedAsset(const UObject* Asset) const override;
 
 	// FAssetEditorToolkit interface
 	virtual void GetSaveableObjects(TArray<UObject*>& OutObjects) const override;
+
+	// FGCObject interface
+	virtual void AddReferencedObjects(FReferenceCollector& Collector) override
+	{
+		Collector.AddReferencedObject(Workspace);
+	}
+	virtual FString GetReferencerName() const override
+	{
+		return TEXT("FWorkspaceEditor");
+	}
 
 	// IWorkspaceEditor interface
 	virtual void OpenAssets(TConstArrayView<FAssetData> InAssets) override;
@@ -82,34 +92,25 @@ private:
 
 	void ExtendToolbar();
 
-	void CloseDocumentTab(const UObject* DocumentID);
+	void CloseDocumentTab(const UObject* DocumentID) const;
 
-	void HandleDetailsViewCreated(TSharedRef<IDetailsView> InDetailsView)
-	{
-		DetailsView = InDetailsView;
-	}
-	
 	bool InEditingMode() const;
 
 	void RestoreEditedObjectState();
 
-	void SaveEditedObjectState();
+	void SaveEditedObjectState() const;
 
 	TSharedPtr<SDockTab> OpenDocument(const UObject* InForObject, FDocumentTracker::EOpenDocumentCause InCause);
 
-	void RecordDocumentState(const TInstancedStruct<FWorkspaceDocumentState>& InState);
+	void RecordDocumentState(const TInstancedStruct<FWorkspaceDocumentState>& InState) const;
 
-	// The asset we are editing
-	UWorkspace* Workspace = nullptr;
+	/** The asset being edited */
+	TObjectPtr<UWorkspace> Workspace = nullptr;
 
 	// Document tracker
 	TSharedPtr<FDocumentTracker> DocumentManager;
 
-	// Command list for this editor
-	TSharedPtr<FUICommandList> CommandList;
-
-	// Our details panel
-	TSharedPtr<IDetailsView> DetailsView;
+	TSharedPtr<SWorkspaceView> WorkspaceView;
 
 	bool bSavingWorkspaceOnly = false;
 };

@@ -2,14 +2,18 @@
 
 #pragma once
 
-#include "WorkflowOrientedApp/WorkflowCentricApplication.h"
+#include "Tools/BaseAssetToolkit.h"
+
+class UWorkspaceAssetEditor;
 
 namespace UE::Workspace
 {
 
-class IWorkspaceEditor : public FWorkflowCentricApplication
+class IWorkspaceEditor : public FBaseAssetToolkit
 {
 public:
+	IWorkspaceEditor(UAssetEditor* InOwningAssetEditor) : FBaseAssetToolkit(InOwningAssetEditor) {}
+
 	// Open the supplied assets for editing within the workspace editor
 	virtual void OpenAssets(TConstArrayView<FAssetData> InAssets) = 0;
 

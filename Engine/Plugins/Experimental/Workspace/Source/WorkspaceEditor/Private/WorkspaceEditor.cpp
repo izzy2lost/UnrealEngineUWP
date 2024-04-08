@@ -2,17 +2,16 @@
 
 #include "WorkspaceEditor.h"
 
-#include "WorkspaceEditorMode.h"
 #include "Workspace.h"
 #include "AssetDocumentSummoner.h"
 #include "ExternalPackageHelper.h"
 #include "Widgets/Docking/SDockTab.h"
 #include "WorkflowOrientedApp/WorkflowUObjectDocuments.h"
-#include "SWorkspacePicker.h"
+#include "WorkspaceAssetEditor.h"
 #include "WorkspaceState.h"
 #include "WorkspaceDocumentState.h"
 #include "WorkspaceEditorModule.h"
-#include "Engine/Blueprint.h"
+#include "SWorkspaceView.h"
 
 #define LOCTEXT_NAMESPACE "WorkspaceEditor"
 
@@ -35,46 +34,90 @@ namespace WorkspaceTabs
 
 const FName WorkspaceAppIdentifier("WorkspaceEditor");
 
-FWorkspaceEditor::FWorkspaceEditor()
+FWorkspaceEditor::FWorkspaceEditor(UWorkspaceAssetEditor* InOwningAssetEditor) : IWorkspaceEditor(InOwningAssetEditor)
 {
+	Workspace = Cast<UWorkspaceAssetEditor>(OwningAssetEditor)->GetObjectToEdit();
 }
 
-FWorkspaceEditor::~FWorkspaceEditor()
+void FWorkspaceEditor::CreateWidgets()
 {
-}
-
-void FWorkspaceEditor::InitEditor(const EToolkitMode::Type InMode, const TSharedPtr<IToolkitHost>& InInitToolkitHost, UWorkspace* InWorkspace)
-{
-	Workspace = InWorkspace;
-
-	Workspace->LoadState();
-
 	DocumentManager = MakeShared<FDocumentTracker>(NAME_None);
 	DocumentManager->Initialize(SharedThis(this));
+	
+	FBaseAssetToolkit::CreateWidgets();
 
-	FWorkspaceEditorModule& WorkspaceEditorModule = FModuleManager::Get().LoadModuleChecked<FWorkspaceEditorModule>("WorkspaceEditor");
+	const FWorkspaceEditorModule& WorkspaceEditorModule = FModuleManager::Get().LoadModuleChecked<FWorkspaceEditorModule>("WorkspaceEditor");
 
 	// Build document summoners for each workspace layout area
-	TSharedRef<FAssetDocumentSummoner> LeftAssetDocumentSummoner = MakeShared<FAssetDocumentSummoner>(WorkspaceTabs::LeftDocumentArea, SharedThis(this));
+	const TSharedRef<FAssetDocumentSummoner> LeftAssetDocumentSummoner = MakeShared<FAssetDocumentSummoner>(WorkspaceTabs::LeftDocumentArea, SharedThis(this));
 	LeftAssetDocumentSummoner->SetAllowedClassPaths(WorkspaceEditorModule.GetAllowedObjectTypesForArea(WorkspaceTabs::LeftDocumentArea));
 	DocumentManager->RegisterDocumentFactory(LeftAssetDocumentSummoner);
 
-	TSharedRef<FAssetDocumentSummoner> MiddleAssetDocumentSummoner = MakeShared<FAssetDocumentSummoner>(WorkspaceTabs::MiddleDocumentArea, SharedThis(this));
+	const TSharedRef<FAssetDocumentSummoner> MiddleAssetDocumentSummoner = MakeShared<FAssetDocumentSummoner>(WorkspaceTabs::MiddleDocumentArea, SharedThis(this));
 	MiddleAssetDocumentSummoner->SetAllowedClassPaths(WorkspaceEditorModule.GetAllowedObjectTypesForArea(WorkspaceTabs::MiddleDocumentArea));
 	DocumentManager->RegisterDocumentFactory(MiddleAssetDocumentSummoner);
 
-	TSharedRef<FAssetDocumentSummoner> RightAssetDocumentSummoner = MakeShared<FAssetDocumentSummoner>(WorkspaceTabs::RightDocumentArea, SharedThis(this));
+	const TSharedRef<FAssetDocumentSummoner> RightAssetDocumentSummoner = MakeShared<FAssetDocumentSummoner>(WorkspaceTabs::RightDocumentArea, SharedThis(this));
 	RightAssetDocumentSummoner->SetAllowedClassPaths(WorkspaceEditorModule.GetAllowedObjectTypesForArea(WorkspaceTabs::RightDocumentArea));
 	DocumentManager->RegisterDocumentFactory(RightAssetDocumentSummoner);
+	
+	check(DetailsView.IsValid());
+	WorkspaceEditorModule.ApplyWorkspaceDetailsCustomization(DetailsView);
 
-	constexpr bool bCreateDefaultStandaloneMenu = true;
-	constexpr bool bCreateDefaultToolbar = true;
-	InitAssetEditor(InMode, InInitToolkitHost, WorkspaceAppIdentifier, FTabManager::FLayout::NullLayout, bCreateDefaultStandaloneMenu, bCreateDefaultToolbar, InWorkspace);
+	StandaloneDefaultLayout = FTabManager::NewLayout("Standalone_WorkspaceEditor_Layout_v1.1")
+	->AddArea
+	(
+		FTabManager::NewPrimaryArea()
+		->SetOrientation(Orient_Vertical)
+		->Split
+		(
+			FTabManager::NewSplitter()
+			->SetSizeCoefficient(1.0f)
+			->SetOrientation(Orient_Horizontal)
+			->Split
+			(
+				FTabManager::NewStack()
+				->SetSizeCoefficient(0.25f)
+				->SetHideTabWell(false)
+				->AddTab(WorkspaceTabs::WorkspaceView, ETabState::OpenedTab)
+				->AddTab(WorkspaceTabs::LeftDocumentArea, ETabState::ClosedTab)
+			)
+			->Split
+			(
+				FTabManager::NewStack()
+				->SetSizeCoefficient(0.5f)
+				->SetHideTabWell(false)
+				->AddTab(WorkspaceTabs::MiddleDocumentArea, ETabState::ClosedTab)
+			)
+			->Split
+			(
+				FTabManager::NewStack()
+				->SetSizeCoefficient(0.25f)
+				->SetHideTabWell(false)
+				->AddTab(WorkspaceTabs::RightDocumentArea, ETabState::ClosedTab)
+				->AddTab(FBaseAssetToolkit::DetailsTabID, ETabState::OpenedTab)
+			)
+		)
+	);
 
+	TWeakPtr<FWorkspaceEditor> WeakToolkit = StaticCastSharedRef<FWorkspaceEditor>(AsShared());
+	WorkspaceView = SNew(SWorkspaceView, Workspace)
+		.OnAssetsOpened_Lambda([WeakToolkit](TConstArrayView<FAssetData> InAssets)
+		{
+			if(const TSharedPtr<FWorkspaceEditor> HostingApp = WeakToolkit.Pin())
+			{
+				HostingApp->OpenAssets(InAssets);
+			}
+		});
+
+	
 	BindCommands();
+}
 
-	AddApplicationMode(WorkspaceModes::WorkspaceEditor, MakeShared<FWorkspaceEditorMode>(SharedThis(this)));
-	SetCurrentMode(WorkspaceModes::WorkspaceEditor);
+void FWorkspaceEditor::PostInitAssetEditor()
+{
+	Workspace->LoadState();
+	RestoreEditedObjectState();
 
 	ExtendMenu();
 	ExtendToolbar();
@@ -88,7 +131,7 @@ void FWorkspaceEditor::RestoreEditedObjectState()
 	{
 		if (UObject* Object = DocumentState.Get().Object.TryLoad())
 		{
-			if(TSharedPtr<SDockTab> DockTab = OpenDocument(Object, FDocumentTracker::RestorePreviousDocument))
+			if(const TSharedPtr<SDockTab> DockTab = OpenDocument(Object, FDocumentTracker::RestorePreviousDocument))
 			{
 				FWorkspaceEditorModule& WorkspaceEditorModule = FModuleManager::LoadModuleChecked<FWorkspaceEditorModule>("WorkspaceEditor");
 				const FObjectDocumentArgs* DocumentArgs = WorkspaceEditorModule.FindObjectDocumentType(Object->GetClass()->GetClassPathName());
@@ -101,7 +144,7 @@ void FWorkspaceEditor::RestoreEditedObjectState()
 	}
 }
 
-void FWorkspaceEditor::SaveEditedObjectState()
+void FWorkspaceEditor::SaveEditedObjectState() const
 {
 	// Clear edited document state
 	UWorkspaceState* State = Workspace->GetState();
@@ -116,12 +159,12 @@ void FWorkspaceEditor::SaveEditedObjectState()
 
 TSharedPtr<SDockTab> FWorkspaceEditor::OpenDocument(const UObject* InForObject, FDocumentTracker::EOpenDocumentCause InCause)
 {
-	TSharedRef<FTabPayload_UObject> Payload = FTabPayload_UObject::Make(InForObject);
+	const TSharedRef<FTabPayload_UObject> Payload = FTabPayload_UObject::Make(InForObject);
 	TSharedPtr<SDockTab> NewTab = DocumentManager->OpenDocument(Payload, InCause);
 
 	if(InCause != FDocumentTracker::RestorePreviousDocument)
 	{
-		FWorkspaceEditorModule& WorkspaceEditorModule = FModuleManager::LoadModuleChecked<FWorkspaceEditorModule>("WorkspaceEditor");
+		const FWorkspaceEditorModule& WorkspaceEditorModule = FModuleManager::LoadModuleChecked<FWorkspaceEditorModule>("WorkspaceEditor");
 		const FObjectDocumentArgs* DocumentArgs = WorkspaceEditorModule.FindObjectDocumentType(InForObject->GetClass()->GetClassPathName());
 		if(DocumentArgs != nullptr && DocumentArgs->OnGetDocumentState.IsBound())
 		{
@@ -140,7 +183,7 @@ void FWorkspaceEditor::OpenAssets(TConstArrayView<FAssetData> InAssets)
 {
 	for(const FAssetData& Asset : InAssets)
 	{
-		if(UObject* LoadedAsset = Asset.GetAsset())
+		if(const UObject* LoadedAsset = Asset.GetAsset())
 		{
 			OpenDocument(LoadedAsset, FDocumentTracker::EOpenDocumentCause::OpenNewDocument);
 		}
@@ -149,7 +192,7 @@ void FWorkspaceEditor::OpenAssets(TConstArrayView<FAssetData> InAssets)
 
 void FWorkspaceEditor::OpenObjects(TConstArrayView<UObject*> InObjects)
 {
-	for(UObject* Object : InObjects)
+	for(const UObject* Object : InObjects)
 	{
 		OpenDocument(Object, FDocumentTracker::EOpenDocumentCause::OpenNewDocument);
 	}
@@ -159,7 +202,7 @@ void FWorkspaceEditor::CloseObjects(TConstArrayView<UObject*> InObjects)
 {
 	if(InObjects.Num() > 0)
 	{
-		for(UObject* Object : InObjects)
+		for(const UObject* Object : InObjects)
 		{
 			CloseDocumentTab(Object);
 		}
@@ -198,14 +241,28 @@ void FWorkspaceEditor::ExtendToolbar()
 
 void FWorkspaceEditor::RegisterTabSpawners(const TSharedRef<FTabManager>& InTabManager)
 {
-	DocumentManager->SetTabManager(InTabManager);
+	FBaseAssetToolkit::RegisterTabSpawners(InTabManager);
 
-	FWorkflowCentricApplication::RegisterTabSpawners(InTabManager);
+	InTabManager->RegisterTabSpawner(WorkspaceTabs::WorkspaceView, FOnSpawnTab::CreateLambda([this](const FSpawnTabArgs& Args) -> TSharedRef<SDockTab>
+	{
+		check(Args.GetTabId() == WorkspaceTabs::WorkspaceView);
+		
+		return SNew(SDockTab)
+			.Label(LOCTEXT("WorkspaceTabLabel", "Workspace"))
+			[
+				WorkspaceView.ToSharedRef()
+			];
+	}))
+	.SetDisplayName(LOCTEXT("WorkspaceTabLabel", "Workspace"))
+	.SetIcon(FSlateIcon("EditorStyle", "LevelEditor.Tabs.Outliner"))
+	.SetTooltipText(LOCTEXT("WorkspaceTabToolTip", "Shows the workspace outliner tab."));
+
+	DocumentManager->SetTabManager(InTabManager);
 }
 
 void FWorkspaceEditor::UnregisterTabSpawners(const TSharedRef<FTabManager>& InTabManager)
 {
-	FWorkflowCentricApplication::UnregisterTabSpawners(InTabManager);
+	FBaseAssetToolkit::UnregisterTabSpawners(InTabManager);
 }
 
 FName FWorkspaceEditor::GetToolkitFName() const
@@ -235,26 +292,26 @@ void FWorkspaceEditor::InitToolMenuContext(FToolMenuContext& InMenuContext)
 void FWorkspaceEditor::SaveAsset_Execute()
 {
 	// If asset is a default 'Untitled' workspace, redirect to the 'save as' flow
-	FString AssetPath = Workspace->GetOutermost()->GetPathName();
+	const FString AssetPath = Workspace->GetOutermost()->GetPathName();
 	if(AssetPath.StartsWith(TEXT("/Temp/Untitled")))
 	{
-		// Ensure we dont also 'save as' other externally linked assets at this point
+		// Ensure we do not also 'save as' other externally linked assets at this point
 		TGuardValue<bool> SaveWorkspaceOnly(bSavingWorkspaceOnly, true);
 
 		SaveAssetAs_Execute();
 	}
 	else
 	{
-		FWorkflowCentricApplication::SaveAsset_Execute();
+		FBaseAssetToolkit::SaveAsset_Execute();
 	}
 }
 
-void FWorkspaceEditor::CloseDocumentTab(const UObject* DocumentID)
+void FWorkspaceEditor::CloseDocumentTab(const UObject* DocumentID) const
 {
 	UWorkspaceState* State = Workspace->GetState();
 	State->DocumentStates.Remove(TInstancedStruct<FWorkspaceDocumentState>::Make(DocumentID));
 
-	TSharedRef<FTabPayload_UObject> Payload = FTabPayload_UObject::Make(DocumentID);
+	const TSharedRef<FTabPayload_UObject> Payload = FTabPayload_UObject::Make(DocumentID);
 	DocumentManager->CloseTab(Payload);
 }
 
@@ -266,8 +323,14 @@ bool FWorkspaceEditor::InEditingMode() const
 void FWorkspaceEditor::GetSaveableObjects(TArray<UObject*>& OutObjects) const
 {
 	// Base class will pick up edited object
-	FWorkflowCentricApplication::GetSaveableObjects(OutObjects);
+	FBaseAssetToolkit::GetSaveableObjects(OutObjects);
 
+	for (UObject* Object : GetEditingObjects())
+	{
+		// Get external objects too
+		FExternalPackageHelper::GetExternalSaveableObjects(Object, OutObjects);	
+	}
+	
 	if(!bSavingWorkspaceOnly)
 	{
 		for(const UWorkspaceAssetEntry* Entry : Workspace->AssetEntries)
@@ -284,7 +347,7 @@ void FWorkspaceEditor::GetSaveableObjects(TArray<UObject*>& OutObjects) const
 	}
 }
 
-void FWorkspaceEditor::RecordDocumentState(const TInstancedStruct<FWorkspaceDocumentState>& InState)
+void FWorkspaceEditor::RecordDocumentState(const TInstancedStruct<FWorkspaceDocumentState>& InState) const
 {
 	UWorkspaceState* State = Workspace->GetState();
 	State->DocumentStates.AddUnique(InState);
@@ -294,12 +357,12 @@ bool FWorkspaceEditor::OnRequestClose(EAssetEditorCloseReason InCloseReason)
 {
 	auto RequiresSave = [this]()
 	{
-		UPackage* Package = Workspace->GetOutermost();
+		const UPackage* Package = Workspace->GetOutermost();
 		return Package->GetPathName().StartsWith(TEXT("/Temp/Untitled"));
 	};
 
 	// Give the user opportunity to save temp workspaces
-	if(RequiresSave())
+	if(RequiresSave() && !bSavingWorkspaceOnly)
 	{
 		// Ensure we dont also 'save as' other externally linked assets at this point
 		TGuardValue<bool> SaveWorkspaceOnly(bSavingWorkspaceOnly, true);
@@ -312,15 +375,26 @@ bool FWorkspaceEditor::OnRequestClose(EAssetEditorCloseReason InCloseReason)
 
 void FWorkspaceEditor::OnClose()
 {
+	SaveEditedObjectState();
+	
 	if (DetailsView.IsValid())
 	{
 		DetailsView->SetObject(nullptr);
 		DetailsView.Reset();
 	}
 
-	FWorkflowCentricApplication::OnClose();
+	FBaseAssetToolkit::OnClose();
 }
 
+void FWorkspaceEditor::RegisterToolbar()
+{
+	IWorkspaceEditor::RegisterToolbar();
+}
+
+bool FWorkspaceEditor::ShouldReopenEditorForSavedAsset(const UObject* Asset) const
+{
+	return Asset && Asset->GetClass() != UWorkspace::StaticClass();
+}
 }
 
 #undef LOCTEXT_NAMESPACE

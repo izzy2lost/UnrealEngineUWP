@@ -97,9 +97,7 @@ class UWorkspace : public UObject
 	UWorkspaceSchema* GetSchema() const;
 
 	void LoadState();
-
 	void SaveState();
-
 	UWorkspaceState* GetState() const;
 
 	void ReportError(const TCHAR* InMessage) const;
@@ -114,13 +112,12 @@ class UWorkspace : public UObject
 	virtual bool IsEditorOnly() const override { return true; }
 	virtual void Serialize(FArchive& Ar) override;
 
-protected:
 	void PostLoadExternalPackages();
+	
 	// All of the assets referenced by this workspace
 	UPROPERTY()
 	TArray<TSoftObjectPtr<UObject>> Assets_DEPRECATED;
 
-public:
 	// All of the assets in-directly referenced by this workspace
 	UPROPERTY(transient)
 	TArray<TObjectPtr<UWorkspaceAssetEntry>> AssetEntries;

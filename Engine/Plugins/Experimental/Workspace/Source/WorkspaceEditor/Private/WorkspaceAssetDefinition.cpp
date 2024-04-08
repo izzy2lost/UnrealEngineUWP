@@ -3,6 +3,7 @@
 #include "WorkspaceAssetDefinition.h"
 #include "WorkspaceEditor.h"
 #include "WorkspaceSchema.h"
+#include "WorkspaceAssetEditor.h"
 
 #define LOCTEXT_NAMESPACE "AssetDefinition_Workspace"
 
@@ -33,8 +34,10 @@ EAssetCommandResult UAssetDefinition_Workspace::OpenAssets(const FAssetOpenArgs&
 {
 	for (UWorkspace* Asset : OpenArgs.LoadObjects<UWorkspace>())
 	{
-		TSharedRef<UE::Workspace::FWorkspaceEditor> Editor = MakeShared<UE::Workspace::FWorkspaceEditor>();
-		Editor->InitEditor(OpenArgs.GetToolkitMode(), OpenArgs.ToolkitHost, Asset);
+		UAssetEditorSubsystem* AssetEditorSubsystem = GEditor->GetEditorSubsystem<UAssetEditorSubsystem>();
+		UWorkspaceAssetEditor* AssetEditor = NewObject<UWorkspaceAssetEditor>(AssetEditorSubsystem, NAME_None, RF_Transient);
+		AssetEditor->SetObjectToEdit(Asset);
+		AssetEditor->Initialize();
 	}
 
 	return EAssetCommandResult::Handled;

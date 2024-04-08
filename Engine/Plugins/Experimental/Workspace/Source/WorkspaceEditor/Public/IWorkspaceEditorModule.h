@@ -9,10 +9,12 @@
 #include "Misc/Attribute.h"
 #include "Modules/ModuleInterface.h"
 
-struct FSlateBrush;
 class SWidget;
-struct FTopLevelAssetPath;
 class UEdGraph;
+class IDetailsView;
+
+struct FSlateBrush;
+struct FTopLevelAssetPath;
 struct FWorkspaceDocumentState;
 
 namespace UE::Workspace
@@ -156,6 +158,10 @@ public:
 
 	// Make the required args for a document widget for a UEdGraph
 	virtual FObjectDocumentArgs CreateGraphDocumentArgs(const FGraphDocumentWidgetArgs& InArgs) = 0;
+
+	// Event to allow registering details customizations
+	DECLARE_EVENT_OneParam(IWorkspaceEditorModule, FOnRegisterDetailCustomizations, TSharedPtr<IDetailsView>&);
+	virtual FOnRegisterDetailCustomizations& OnRegisterWorkspaceDetailsCustomization() = 0;
 };
 
 }

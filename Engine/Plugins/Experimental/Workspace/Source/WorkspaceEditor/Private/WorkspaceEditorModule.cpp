@@ -8,6 +8,7 @@
 #include "SGraphDocument.h"
 #include "SWorkspacePicker.h"
 #include "Workspace.h"
+#include "WorkspaceAssetEditor.h"
 #include "WorkspaceEditor.h"
 #include "WorkspaceFactory.h"
 #include "AssetRegistry/AssetRegistryModule.h"
@@ -148,7 +149,7 @@ void FWorkspaceEditorModule::OpenWorkspaceForObject(UObject* InObject, EOpenWork
 		}
 	}
 
-	FWorkspaceEditor* WorkspaceEditor = nullptr;
+	UWorkspaceAssetEditor* WorkspaceEditor = nullptr;
 
 	auto HandleNewWorkspace = [InObject, &WorkspaceEditor, WorkSpaceFactoryClass]()
 	{
@@ -160,10 +161,13 @@ void FWorkspaceEditorModule::OpenWorkspaceForObject(UObject* InObject, EOpenWork
 			UWorkspace* NewWorkspace = CastChecked<UWorkspace>(Factory->FactoryCreateNew(UWorkspace::StaticClass(), Package, PackageName, RF_Public | RF_Standalone, NULL, GWarn));
 			NewWorkspace->AddAsset(InObject, false);
 			NewWorkspace->MarkPackageDirty();
-			TSharedRef<FWorkspaceEditor> Editor = MakeShared<FWorkspaceEditor>();
-			Editor->InitEditor(EToolkitMode::Standalone, nullptr, NewWorkspace);
 
-			WorkspaceEditor = &Editor.Get();
+			UAssetEditorSubsystem* AssetEditorSubsystem = GEditor->GetEditorSubsystem<UAssetEditorSubsystem>();
+			UWorkspaceAssetEditor* AssetEditor = NewObject<UWorkspaceAssetEditor>(AssetEditorSubsystem, NAME_None, RF_Transient);
+			AssetEditor->SetObjectToEdit(NewWorkspace);
+			AssetEditor->Initialize();
+
+			WorkspaceEditor = AssetEditor;
 		}
 	};
 
@@ -173,7 +177,7 @@ void FWorkspaceEditorModule::OpenWorkspaceForObject(UObject* InObject, EOpenWork
 		{
 			GEditor->GetEditorSubsystem<UAssetEditorSubsystem>()->OpenEditorForAsset(ExistingWorkspace);
 
-			WorkspaceEditor = static_cast<FWorkspaceEditor*>(GEditor->GetEditorSubsystem<UAssetEditorSubsystem>()->FindEditorForAsset(ExistingWorkspace, true));
+			WorkspaceEditor = static_cast<UWorkspaceAssetEditor*>(GEditor->GetEditorSubsystem<UAssetEditorSubsystem>()->FindEditorForAsset(ExistingWorkspace, true));
 		}
 	};
 
@@ -197,11 +201,6 @@ void FWorkspaceEditorModule::OpenWorkspaceForObject(UObject* InObject, EOpenWork
 
 		WorkspacePicker->ShowModal();
 	}
-	
-	if(WorkspaceEditor)
-	{
-		WorkspaceEditor->OpenAssets({InObject});
-	}
 }
 
 const FObjectDocumentArgs* FWorkspaceEditorModule::FindObjectDocumentType(const FTopLevelAssetPath& InClassPath) const
@@ -212,6 +211,19 @@ const FObjectDocumentArgs* FWorkspaceEditorModule::FindObjectDocumentType(const 
 TArray<FTopLevelAssetPath> FWorkspaceEditorModule::GetAllowedObjectTypesForArea(FName InSpawnLocation) const
 {
 	return DocumentAreaMap.FindRef(InSpawnLocation).Array();
+}
+
+IWorkspaceEditorModule::FOnRegisterDetailCustomizations& FWorkspaceEditorModule::OnRegisterWorkspaceDetailsCustomization()
+{
+	return OnRegisterDetailCustomizations;
+}
+
+void FWorkspaceEditorModule::ApplyWorkspaceDetailsCustomization(TSharedPtr<IDetailsView>& DetailsView) const
+{
+	if (OnRegisterDetailCustomizations.IsBound())
+	{
+		OnRegisterDetailCustomizations.Broadcast(DetailsView);
+	}
 }
 
 }
