@@ -7,7 +7,6 @@
 #include "EdModeInteractiveToolsContext.h"
 #include "EditorModeManager.h"
 #include "EditorModes.h"
-#include "GameFramework/InputSettings.h"
 #include "IAvalancheInteractiveToolsModule.h"
 #include "Selection.h"
 #include "Tools/AvaInteractiveToolsToolBase.h"
@@ -180,6 +179,11 @@ void UAvaInteractiveToolsEdMode::OnToolShutdown(UInteractiveTool* InTool, EToolS
 	{
 		Context->EndTool(InShutdownType);
 	}
+}
+
+void UAvaInteractiveToolsEdMode::OnToolActivateEnd()
+{
+	LastToolActivateTime = FApp::GetCurrentTime();
 }
 
 void UAvaInteractiveToolsEdMode::OnActorSelectionChange(const UTypedElementSelectionSet* InSelectionSet)

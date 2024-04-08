@@ -30,10 +30,13 @@ public:
 	void OnToolSetup(UInteractiveTool* InTool);
 	void OnToolShutdown(UInteractiveTool* InTool, EToolShutdownType InShutdownType);
 	const FString GetLastActiveTool() const { return LastActiveTool; }
+	double GetLastToolActivateTime() { return LastToolActivateTime; }
+	void OnToolActivateEnd();
 
 protected:
 	FString LastActiveTool;
 	TWeakObjectPtr<UTypedElementSelectionSet> WeakActorSelectionSet;
+	double LastToolActivateTime;
 
 	void OnActorSelectionChange(const UTypedElementSelectionSet* InSelectionSet);
 };
