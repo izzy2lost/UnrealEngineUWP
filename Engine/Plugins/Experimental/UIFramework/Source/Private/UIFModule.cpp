@@ -126,11 +126,11 @@ void FUIFrameworkModule::AuthorityDetachWidgetFromParentInternal(UUIFrameworkWid
 	check(Child);
 
 	// If it's in the WidgetTree, we need to remove it.
-	if (!bTemporary && Child->WidgetTreeOwner)
+	if (!bTemporary && Child->GetWidgetTreeOwner())
 	{
 		//bTemporary: we do not want to remove and re-add the same widget if it's not needed. 
 		//Removing them would cause the local to recreate them instead of re-parenting them.
-		Child->WidgetTreeOwner->GetWidgetTree().AuthorityRemoveWidgetAndChildren(Child);
+		Child->GetWidgetTreeOwner()->GetWidgetTree().AuthorityRemoveWidgetAndChildren(Child);
 	}
 
 	// Notify the widget that we removed a child.

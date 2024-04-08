@@ -28,9 +28,6 @@ class UUIFrameworkWidgetWrapperInterface : public UInterface
 class IUIFrameworkWidgetWrapperInterface
 {
 	GENERATED_BODY()
-
-public:
-	virtual void ReplaceWidget(UUIFrameworkWidget* OldWidget, UUIFrameworkWidget* NewWidget) {}
 };
 
 /**
@@ -63,12 +60,12 @@ public:
 
 	TScriptInterface<IUIFrameworkWidgetWrapperInterface> AuthorityGetWrapper() const
 	{
-		return Wrapper;
+		return AuthorityWrapper;
 	}
 
 	void AuthoritySetWrapper(TScriptInterface<IUIFrameworkWidgetWrapperInterface> InWrapper)
 	{
-		Wrapper = InWrapper;
+		AuthorityWrapper = InWrapper;
 	}
 
 	FUIFrameworkWidgetId GetWidgetId() const
@@ -124,6 +121,9 @@ protected:
 	virtual void AuthorityRemoveChild(UUIFrameworkWidget* Widget)
 	{
 	}
+	virtual void AuthorityOnWidgetTreeOwnerChanged()
+	{
+	}
 	virtual void LocalOnUMGWidgetCreated()
 	{
 	}
@@ -136,6 +136,15 @@ private:
 	UFUNCTION()
 	void OnRep_Visibility();
 
+	void AuthoritySetWidgetTreeOwner(IUIFrameworkWidgetTreeOwner* InWidgetTreeOwner)
+	{
+		if (WidgetTreeOwner != InWidgetTreeOwner)
+		{
+			WidgetTreeOwner = InWidgetTreeOwner;
+			AuthorityOnWidgetTreeOwnerChanged();
+		}
+	}
+
 protected:
 	UPROPERTY(BlueprintReadOnly, Replicated, EditDefaultsOnly, Category = "UI Framework")
 	TSoftClassPtr<UWidget> WidgetClass; // todo: make this private and use a constructor argument
@@ -147,7 +156,7 @@ private:
 
 	//~ Authority
 	UPROPERTY(Transient)
-	TScriptInterface<IUIFrameworkWidgetWrapperInterface> Wrapper;
+	TScriptInterface<IUIFrameworkWidgetWrapperInterface> AuthorityWrapper;
 
 	//~ Authority and Local
 	IUIFrameworkWidgetTreeOwner* WidgetTreeOwner = nullptr;

@@ -87,71 +87,8 @@ void FUIFrameworkUserWidgetNamedSlotList::AuthorityForEachChildren(const TFuncti
 /**
  *
  */
-void FUIFrameworkUserWidgetViewmodelList::PostReplicatedChange(const TArrayView<int32>& ChangedIndices, int32 FinalSize)
-{
-	check(Owner);
-	if (UUserWidget* UserWidget = Cast<UUserWidget>(Owner->LocalGetUMGWidget()))
-	{
-		if (UMVVMView* View = UMVVMSubsystem::GetViewFromUserWidget(UserWidget))
-		{
-			for (int32 Index : ChangedIndices)
-			{
-				FUIFrameworkUserWidgetViewmodel& Viewmodel = Viewmodels[Index];
-				if (!Viewmodel.Name.IsNone())
-				{
-					View->SetViewModel(Viewmodel.Name, TScriptInterface<INotifyFieldValueChanged>(Viewmodel.Instance));
-				}
-			}
-		}
-	}
-}
-
-bool FUIFrameworkUserWidgetViewmodelList::NetDeltaSerialize(FNetDeltaSerializeInfo& DeltaParms)
-{
-	return FFastArraySerializer::FastArrayDeltaSerialize<FUIFrameworkUserWidgetViewmodel, FUIFrameworkUserWidgetViewmodelList>(Viewmodels, DeltaParms, *this);
-}
-
-void FUIFrameworkUserWidgetViewmodelList::AuthorityAddEntry(FUIFrameworkUserWidgetViewmodel Entry)
-{
-	// Make sure there is only one entry of that name.
-	int32 RemoveCount = Viewmodels.RemoveAllSwap([ViewmodelName = Entry.Name](const FUIFrameworkUserWidgetViewmodel& Entry) { return Entry.Name == ViewmodelName; });
-	if (RemoveCount > 0)
-	{
-		MarkArrayDirty();
-	}
-
-	FUIFrameworkUserWidgetViewmodel& NewEntry = Viewmodels.Add_GetRef(MoveTemp(Entry));
-	MarkItemDirty(NewEntry);
-}
-
-const FUIFrameworkUserWidgetViewmodel* FUIFrameworkUserWidgetViewmodelList::AuthorityFindEntry(FName ViewmodelName) const
-{
-	return Viewmodels.FindByPredicate([ViewmodelName](const FUIFrameworkUserWidgetViewmodel& Entry) { return Entry.Name == ViewmodelName; });
-}
-
-void FUIFrameworkUserWidgetViewmodelList::AttachViewmodels()
-{
-	if (Viewmodels.Num() > 0)
-	{
-		if (UUserWidget* UserWidget = Cast<UUserWidget>(Owner->LocalGetUMGWidget()))
-		{
-			if (UMVVMView* View = UMVVMSubsystem::GetViewFromUserWidget(UserWidget))
-			{
-				for (FUIFrameworkUserWidgetViewmodel& Slot : Viewmodels)
-				{
-					View->SetViewModel(Slot.Name, TScriptInterface<INotifyFieldValueChanged>(Slot.Instance));
-				}
-			}
-		}
-	}
-}
-
-/**
- *
- */
 UUIFrameworkUserWidget::UUIFrameworkUserWidget()
 	: ReplicatedNamedSlotList(this)
-	, ReplicatedViewmodelList(this)
 {
 }
 
@@ -162,14 +99,6 @@ void UUIFrameworkUserWidget::GetLifetimeReplicatedProps(TArray<FLifetimeProperty
 	FDoRepLifetimeParams Params;
 	Params.bIsPushBased = true;
 	DOREPLIFETIME_WITH_PARAMS_FAST(ThisClass, ReplicatedNamedSlotList, Params);
-	DOREPLIFETIME_WITH_PARAMS_FAST(ThisClass, ReplicatedViewmodelList, Params);
-}
-
-void UUIFrameworkUserWidget::LocalOnUMGWidgetCreated()
-{
-	Super::LocalOnUMGWidgetCreated();
-
-	ReplicatedViewmodelList.AttachViewmodels();
 }
 
 bool UUIFrameworkUserWidget::LocalIsReplicationReady() const
@@ -216,27 +145,6 @@ UUIFrameworkWidget* UUIFrameworkUserWidget::GetNamedSlot(FName SlotName) const
 
 	}
 	return Result;
-}
-
-void UUIFrameworkUserWidget::SetViewmodel(FName ViewmodelName, TScriptInterface<INotifyFieldValueChanged> Viewmodel)
-{
-	if (ViewmodelName.IsNone())
-	{
-		FFrame::KismetExecutionMessage(TEXT("The viewmodel name is invalid. It can't be added."), ELogVerbosity::Warning, "InvalidViewmodelToAdd");
-	}
-	else
-	{
-		FUIFrameworkUserWidgetViewmodel NewItem;
-		NewItem.Name = ViewmodelName;
-		NewItem.Instance = Viewmodel.GetObject();
-		ReplicatedViewmodelList.AuthorityAddEntry(NewItem);
-	}
-}
-
-TScriptInterface<INotifyFieldValueChanged> UUIFrameworkUserWidget::GetViewmodel(FName ViewmodelName) const
-{
-	const FUIFrameworkUserWidgetViewmodel* Found = ReplicatedViewmodelList.AuthorityFindEntry(ViewmodelName);
-	return Found ? TScriptInterface<INotifyFieldValueChanged>(Found->Instance) : TScriptInterface<INotifyFieldValueChanged>();
 }
 
 void UUIFrameworkUserWidget::AuthorityForEachChildren(const TFunctionRef<void(UUIFrameworkWidget*)>& Func)

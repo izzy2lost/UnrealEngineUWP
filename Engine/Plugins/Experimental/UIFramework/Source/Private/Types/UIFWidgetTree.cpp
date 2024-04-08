@@ -205,15 +205,15 @@ void FUIFrameworkWidgetTree::AuthorityAddWidget(UUIFrameworkWidget* Parent, UUIF
 
 void FUIFrameworkWidgetTree::AuthorityAddChildInternal(UUIFrameworkWidget* Parent, UUIFrameworkWidget* Child, bool bFirst)
 {
-	Child->WidgetTreeOwner = Owner;
-	check(bFirst || Parent->WidgetTreeOwner == Owner);
+	Child->AuthoritySetWidgetTreeOwner(Owner);
+	check(bFirst || Parent->GetWidgetTreeOwner() == Owner);
 
 	bool bOuterIsDifferent = Child->GetOuter() != ReplicatedOwner;
 	if (bOuterIsDifferent)
 	{
 		//if (Child->GetOuter() == GetTransientPackage())
 		{
-			//If the outer is the transient package, then there are no replication owner yetand it safe to rename it with the correct new outer.
+			//If the outer is the transient package, then there are no replication owner yet and it safe to rename it with the correct new outer.
 			//If the Outer is not the transient, then the widget got replicated with another player.There are no "reset" and we should duplicate and delete the object.
 			//For now only do the rename.It works but it is not the best.
 
@@ -325,7 +325,7 @@ void FUIFrameworkWidgetTree::LocalRemoveRoot(const UUIFrameworkWidget* Widget)
 
 bool FUIFrameworkWidgetTree::AuthorityRemoveChildRecursiveInternal(UUIFrameworkWidget* Widget)
 {
-	Widget->WidgetTreeOwner = nullptr;
+	Widget->AuthoritySetWidgetTreeOwner(nullptr);
 	if (int32* PreviousEntryIndexPtr = AuthorityIndexByWidgetMap.Find(Widget))
 	{
 		check(Entries.IsValidIndex(*PreviousEntryIndexPtr));

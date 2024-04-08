@@ -82,6 +82,11 @@ public:
 		return FFastArraySerializer::FastArrayDeltaSerialize<FUIFrameworkWidgetTreeEntry, FUIFrameworkWidgetTree>(Entries, DeltaParms, *this);
 	}
 
+	AActor* GetReplicationOwner() const
+	{
+		return ReplicatedOwner;
+	}
+
 	bool ReplicateSubWidgets(UActorChannel* Channel, FOutBunch* Bunch, FReplicationFlags* RepFlags);
 
 	/** Add a new widget to the top hierarchy. */
