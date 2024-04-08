@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "Containers/StringFwd.h"
 #include "Containers/UnrealString.h"
 #include "Elements/Interfaces/TypedElementQueryStorageInterfaces.h"
 #include "UObject/NameTypes.h"
@@ -22,6 +23,7 @@ namespace TypedElementDataStorage
 	IndexHash GenerateIndexHash(const TStrongObjectPtr<T>& Object);
 
 	inline IndexHash GenerateIndexHash(const FString& Object);
+	inline IndexHash GenerateIndexHash(FStringView Object);
 	inline IndexHash GenerateIndexHash(FName Object);
 } // namespace TypedElementDataStorage
 

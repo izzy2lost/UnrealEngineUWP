@@ -35,6 +35,11 @@ namespace TypedElementDataStorage
 		return CityHash64(reinterpret_cast<const char*>(*Object), Object.Len() * sizeof(**Object));
 	}
 
+	IndexHash GenerateIndexHash(FStringView Object)
+	{
+		return CityHash64(reinterpret_cast<const char*>(Object.GetData()), Object.Len() * sizeof(*Object.GetData()));
+	}
+
 	IndexHash GenerateIndexHash(FName Object)
 	{
 		constexpr static const char SeedName[] = "FName";
