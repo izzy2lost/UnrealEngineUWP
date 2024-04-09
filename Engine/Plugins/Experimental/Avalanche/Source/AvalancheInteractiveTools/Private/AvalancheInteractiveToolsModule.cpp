@@ -260,7 +260,7 @@ void FAvalancheInteractiveToolsModule::OnPlacementCategoryRefreshed(FName InCate
 		{
 			PlaceableItem = MakeShared<FPlaceableItem>(
 				Tool.Factory.Get(),
-				FAssetData(Tool.Factory->NewActorClass->GetDefaultObject()),
+				FAssetData(Tool.Factory->NewActorClass),
 				Tool.Priority
 			);
 		}
