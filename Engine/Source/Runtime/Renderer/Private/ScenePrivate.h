@@ -2880,6 +2880,22 @@ public:
 	/** Nanite material visibility references. These are stored on the scene as they are computed at FPrimitiveSceneInfo::AddToScene time. */
 	FNaniteVisibility NaniteVisibility[ENaniteMeshPass::Num];
 
+	struct FPrimitiveUpdateParams
+	{
+		FScene* Scene;
+		FPrimitiveSceneProxy* PrimitiveSceneProxy;
+		FBoxSphereBounds WorldBounds;
+		FBoxSphereBounds LocalBounds;
+		FMatrix LocalToWorld;
+		TOptional<FTransform> PreviousTransform;
+		FVector AttachmentRootPosition;
+	};
+
+	/** DoDeferredRenderUpdates_Concurrent can be called not only inside SendAllEndOfFrameUpdates so we should be able to enqueue commands also in immediate mode. */
+	bool bPrimitivesUpdateBatching = false;
+	std::atomic_int32_t PrimitiveUpdateIndex = 0;
+	TArray<FPrimitiveUpdateParams> PrimitivesUpdates;
+
 	/**
 	 * The following arrays are densely packed primitive data needed by various
 	 * rendering passes. PrimitiveSceneInfo->PackedIndex maintains the index
@@ -3802,6 +3818,9 @@ private:
 
 	template<class T> 	
 	void UpdatePrimitiveTransformInternal(T* Primitive);
+
+	virtual void StartUpdatePrimitiveTransform(int32 NumPrimitives) override;
+	virtual void FinishUpdatePrimitiveTransform() override;
 	
 	void RemoveViewLumenSceneData_RenderThread(FSceneViewStateInterface* ViewState);
 	void RemoveViewState_RenderThread(FSceneViewStateInterface*);

@@ -2117,17 +2117,6 @@ void FScene::UpdatePrimitiveTransformInternal(T* Primitive)
 		{
 			FVector AttachmentRootPosition = Primitive->GetActorPositionForRenderer();
 
-			struct FPrimitiveUpdateParams
-			{
-				FScene* Scene;
-				FPrimitiveSceneProxy* PrimitiveSceneProxy;
-				FBoxSphereBounds WorldBounds;
-				FBoxSphereBounds LocalBounds;
-				FMatrix LocalToWorld;
-				TOptional<FTransform> PreviousTransform;
-				FVector AttachmentRootPosition;
-			};
-
 			FPrimitiveUpdateParams UpdateParams;
 			UpdateParams.Scene = this;
 			UpdateParams.PrimitiveSceneProxy = Primitive->GetSceneProxy();
@@ -2181,20 +2170,29 @@ void FScene::UpdatePrimitiveTransformInternal(T* Primitive)
 
 			if (bPerformUpdate)
 			{
-				ENQUEUE_RENDER_COMMAND(UpdateTransformCommand)(
-					[UpdateParams] (FRHICommandListBase&)
-					{
-						FScopeCycleCounter Context(UpdateParams.PrimitiveSceneProxy->GetStatId());
-						UpdateParams.Scene->UpdatePrimitiveTransform_RenderThread(
-							UpdateParams.PrimitiveSceneProxy,
-							UpdateParams.WorldBounds,
-							UpdateParams.LocalBounds,
-							UpdateParams.LocalToWorld,
-							UpdateParams.AttachmentRootPosition,
-							UpdateParams.PreviousTransform
-						);
-					}
-				);
+				// Accumulate all transform updates and enqueue them as once
+				if (bPrimitivesUpdateBatching)
+				{
+					int32 Index = PrimitiveUpdateIndex.fetch_add(1, std::memory_order_relaxed);
+					PrimitivesUpdates[Index] = MoveTemp(UpdateParams);
+				}
+				else
+				{
+					ENQUEUE_RENDER_COMMAND(UpdateTransformCommand)(
+						[UpdateParams](FRHICommandListBase&)
+						{
+							FScopeCycleCounter Context(UpdateParams.PrimitiveSceneProxy->GetStatId());
+							UpdateParams.Scene->UpdatePrimitiveTransform_RenderThread(
+								UpdateParams.PrimitiveSceneProxy,
+								UpdateParams.WorldBounds,
+								UpdateParams.LocalBounds,
+								UpdateParams.LocalToWorld,
+								UpdateParams.AttachmentRootPosition,
+								UpdateParams.PreviousTransform
+							);
+						}
+					);
+				}
 			}
 		}
 	}
@@ -2202,6 +2200,45 @@ void FScene::UpdatePrimitiveTransformInternal(T* Primitive)
 	{
 		// If the primitive doesn't have a scene info object yet, it must be added from scratch.
 		AddPrimitive(Primitive);
+	}
+}
+
+void FScene::StartUpdatePrimitiveTransform(int32 NumPrimitives)
+{
+	if (NumPrimitives > 0)
+	{
+		PrimitivesUpdates.SetNum(NumPrimitives);
+		bPrimitivesUpdateBatching = true;
+	}
+}
+
+void FScene::FinishUpdatePrimitiveTransform()
+{
+	if (bPrimitivesUpdateBatching)
+	{
+		// Pass the collection and actual number of accumulated updates
+		ENQUEUE_RENDER_COMMAND(UpdateTransformCommand)(
+			[PrimitivesUpdates = MoveTemp(PrimitivesUpdates), NumUpdates = PrimitiveUpdateIndex.load(std::memory_order_relaxed)](FRHICommandListBase&)
+			{
+				for (int32 Index = 0; Index < NumUpdates; ++Index)
+				{
+					const auto& UpdateParams = PrimitivesUpdates[Index];
+					FScopeCycleCounter Context(UpdateParams.PrimitiveSceneProxy->GetStatId());
+					UpdateParams.Scene->UpdatePrimitiveTransform_RenderThread(
+						UpdateParams.PrimitiveSceneProxy,
+						UpdateParams.WorldBounds,
+						UpdateParams.LocalBounds,
+						UpdateParams.LocalToWorld,
+						UpdateParams.AttachmentRootPosition,
+						UpdateParams.PreviousTransform
+					);
+				}
+			}
+		);
+
+		PrimitivesUpdates.Reset();
+		PrimitiveUpdateIndex = 0;
+		bPrimitivesUpdateBatching = false;
 	}
 }
 
@@ -7074,7 +7111,8 @@ public:
 	virtual void UpdateCustomPrimitiveData(FPrimitiveSceneDesc* Primitive, const FCustomPrimitiveData&) override {}
 	virtual void UpdatePrimitiveInstances(FInstancedStaticMeshSceneDesc* Primitive) override {};
 
-
+	virtual void StartUpdatePrimitiveTransform(int32 NumPrimitives) override {}
+	virtual void FinishUpdatePrimitiveTransform() override {}
 private:
 	UWorld* World;
 	class FFXSystemInterface* FXSystem;

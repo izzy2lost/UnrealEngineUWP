@@ -578,6 +578,9 @@ public:
 	}
 	virtual void UpdateSceneSettings(AWorldSettings* WorldSettings) {}
 
+	virtual void StartUpdatePrimitiveTransform(int32 NumPrimitives) = 0;
+	virtual void FinishUpdatePrimitiveTransform() = 0;
+
 	/**
 	* Gets the GPU Skin Cache system associated with the scene.
 	*/

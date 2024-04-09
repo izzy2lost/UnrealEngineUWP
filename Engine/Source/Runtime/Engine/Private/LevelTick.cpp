@@ -1126,6 +1126,12 @@ void UWorld::SendAllEndOfFrameUpdates()
 		}
 	};
 
+	if (Scene)
+	{
+		// We do not know in advance how many transform updates will occur so need to resize array to total number of components to avoid synchronization later
+		Scene->StartUpdatePrimitiveTransform(LocalComponentsThatNeedEndOfFrameUpdate.Num() + ComponentsThatNeedEndOfFrameUpdate_OnGameThread.Num());
+	}
+
 	if (IsUsingParallelNotifyEvents)
 	{
 #if WITH_EDITOR
@@ -1143,6 +1149,11 @@ void UWorld::SendAllEndOfFrameUpdates()
 		ParallelFor(LocalComponentsThatNeedEndOfFrameUpdate.Num(), ParallelWork);
 	}
 	
+	if (Scene)
+	{
+		Scene->FinishUpdatePrimitiveTransform();
+	}
+
 	for (UMaterialParameterCollectionInstance* ParameterCollectionInstance : ParameterCollectionInstances)
 	{
 		if (ParameterCollectionInstance)
