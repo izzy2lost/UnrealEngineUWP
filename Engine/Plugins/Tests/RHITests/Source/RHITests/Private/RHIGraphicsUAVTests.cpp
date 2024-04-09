@@ -1,0 +1,147 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
+
+#include "RHIGraphicsUAVTests.h"
+#include "RHIBufferTests.h" // for VerifyBufferContents
+#include "RHIStaticStates.h"
+#include "ShaderCompilerCore.h"
+#include "GlobalShader.h"
+#include "PipelineStateCache.h"
+
+class FTestGraphicsUAVTrivialVS : public FGlobalShader
+{
+	DECLARE_GLOBAL_SHADER(FTestGraphicsUAVTrivialVS);
+	FTestGraphicsUAVTrivialVS() = default;
+	FTestGraphicsUAVTrivialVS(const ShaderMetaType::CompiledShaderInitializerType& Initializer)
+	: FGlobalShader(Initializer)
+	{
+	}
+	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
+	{
+	}
+};
+IMPLEMENT_GLOBAL_SHADER(FTestGraphicsUAVTrivialVS, "/Plugin/RHITests/Private/TestGraphicsUAV.usf", "TestGraphicsUAVTrivialMainVS", SF_Vertex);
+
+class FTestGraphicsUAVWriteVS : public FGlobalShader
+{
+	DECLARE_GLOBAL_SHADER(FTestGraphicsUAVWriteVS);
+	FTestGraphicsUAVWriteVS() = default;
+	FTestGraphicsUAVWriteVS(const ShaderMetaType::CompiledShaderInitializerType& Initializer)
+	: FGlobalShader(Initializer)
+	{
+		RWVertexShaderOutput.Bind(Initializer.ParameterMap, TEXT("RWVertexShaderOutput"), SPF_Mandatory);
+	}
+	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
+	{
+	}
+	LAYOUT_FIELD(FShaderResourceParameter, RWVertexShaderOutput);
+};
+IMPLEMENT_GLOBAL_SHADER(FTestGraphicsUAVWriteVS, "/Plugin/RHITests/Private/TestGraphicsUAV.usf", "TestGraphicsUAVWriteMainVS", SF_Vertex);
+
+class FTestGraphicsUAVWritePS : public FGlobalShader
+{
+	DECLARE_GLOBAL_SHADER(FTestGraphicsUAVWritePS);
+	FTestGraphicsUAVWritePS() = default;
+	FTestGraphicsUAVWritePS(const ShaderMetaType::CompiledShaderInitializerType& Initializer)
+	: FGlobalShader(Initializer)
+	{
+		RWPixelShaderOutput.Bind(Initializer.ParameterMap, TEXT("RWPixelShaderOutput"), SPF_Mandatory);
+	}
+	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
+	{
+	}
+	LAYOUT_FIELD(FShaderResourceParameter, RWPixelShaderOutput);
+};
+IMPLEMENT_GLOBAL_SHADER(FTestGraphicsUAVWritePS, "/Plugin/RHITests/Private/TestGraphicsUAV.usf", "TestGraphicsUAVWriteMainPS", SF_Pixel);
+
+bool FRHIGraphicsUAVTests::Test_GraphicsUAV_PixelShader(FRHICommandListImmediate& RHICmdList)
+{
+	if (!GRHIGlobals.SupportsPixelShaderUAVs)
+	{
+		return true;
+	}
+
+	TShaderMapRef<FTestGraphicsUAVTrivialVS> VertexShader(GetGlobalShaderMap(GMaxRHIFeatureLevel));
+	TShaderMapRef<FTestGraphicsUAVWritePS> PixelShader(GetGlobalShaderMap(GMaxRHIFeatureLevel));
+
+	FIntPoint RenderTargetSize = FIntPoint(4, 4);
+	FTextureRHIRef RenderTarget;
+
+	FGraphicsPipelineStateInitializer GraphicsPSOInit;
+
+	FRHITextureDesc RenderTargetTextureDesc(ETextureDimension::Texture2D,
+		ETextureCreateFlags::RenderTargetable, PF_B8G8R8A8, FClearValueBinding(),
+		RenderTargetSize, 1, 1, 1, 1, 0);
+
+	FRHITextureCreateDesc RenderTargetCreateDesc(RenderTargetTextureDesc,
+		ERHIAccess::RTV, TEXT("GraphicsUAVTests_RenderTarget"));
+	RenderTarget = RHICreateTexture(RenderTargetCreateDesc);
+
+	FVertexDeclarationElementList VertexDeclarationElements;
+	VertexDeclarationElements.Add(FVertexElement(0, 0, VET_Float4, 0, 16));
+
+	FVertexDeclarationRHIRef VertexDeclarationRHI = PipelineStateCache::GetOrCreateVertexDeclaration(VertexDeclarationElements);
+
+	GraphicsPSOInit.BoundShaderState.VertexShaderRHI = VertexShader.GetVertexShader();
+	GraphicsPSOInit.BoundShaderState.VertexDeclarationRHI = VertexDeclarationRHI;
+	GraphicsPSOInit.BoundShaderState.PixelShaderRHI = PixelShader.GetPixelShader();
+	GraphicsPSOInit.DepthStencilState = TStaticDepthStencilState<false, CF_Always>::GetRHI();
+	GraphicsPSOInit.BlendState = TStaticBlendState<>::GetRHI();
+	GraphicsPSOInit.RasterizerState = TStaticRasterizerState<>::GetRHI();
+	GraphicsPSOInit.PrimitiveType = EPrimitiveType::PT_TriangleList;
+
+	TArray<FVector4f> Vertices;
+	Vertices.Reserve(3);
+	Vertices.Add(FVector4f(-1.0f, -1.0f, 0.0f, 1.0f));
+	Vertices.Add(FVector4f(-1.0f, +3.0f, 0.0f, 1.0f));
+	Vertices.Add(FVector4f(+3.0f, -1.0f, 0.0f, 1.0f));
+	
+	FBufferRHIRef VertexBuffer = CreateBufferWithData(EBufferUsageFlags::VertexBuffer,
+		ERHIAccess::VertexOrIndexBuffer, TEXT("GraphicsUAVTests_VertexBuffer"), MakeArrayView(Vertices));
+
+	static constexpr uint32 MaxInstances = 8;
+	static constexpr uint32 OutputBufferStride = sizeof(uint32);
+	static constexpr uint32 OutputBufferSize = OutputBufferStride * MaxInstances;
+	FRHIResourceCreateInfo OutputBufferCreateInfo(TEXT("GraphicsUAVTests_PixelShaderOutput"));
+
+	FBufferRHIRef OutputBuffer = RHICmdList.CreateBuffer(OutputBufferSize,
+		EBufferUsageFlags::UnorderedAccess | EBufferUsageFlags::SourceCopy,
+		OutputBufferStride, ERHIAccess::UAVCompute, OutputBufferCreateInfo);
+
+	FUnorderedAccessViewRHIRef OutputBufferUAV = RHICmdList.CreateUnorderedAccessView(OutputBuffer,
+		FRHIViewDesc::CreateBufferUAV()
+			.SetType(FRHIViewDesc::EBufferType::Typed)
+			.SetFormat(PF_R32_UINT));
+
+	RHICmdList.ClearUAVUint(OutputBufferUAV, FUintVector4(~0u));
+
+	FRHITexture* ColorRTs[1] = { RenderTarget.GetReference() };
+	FRHIRenderPassInfo RenderPassInfo(1, ColorRTs, ERenderTargetActions::DontLoad_DontStore);
+
+	RHICmdList.Transition(FRHITransitionInfo(OutputBufferUAV, ERHIAccess::UAVCompute, ERHIAccess::UAVGraphics, EResourceTransitionFlags::None));
+
+	RHICmdList.BeginRenderPass(RenderPassInfo, TEXT("GraphicsUAV_PixelShader"));
+	RHICmdList.SetViewport(0, 0, 0, float(RenderTargetSize.X), float(RenderTargetSize.Y), 1);
+
+	RHICmdList.ApplyCachedRenderTargets(GraphicsPSOInit);
+	SetGraphicsPipelineState(RHICmdList, GraphicsPSOInit, 0);
+
+	RHICmdList.SetStreamSource(0, VertexBuffer, 0);
+
+	FRHIBatchedShaderParameters ShaderParameters;
+	SetUAVParameter(ShaderParameters, PixelShader->RWPixelShaderOutput, OutputBufferUAV);
+	RHICmdList.SetBatchedShaderParameters(PixelShader.GetPixelShader(), ShaderParameters);
+
+	RHICmdList.DrawPrimitive(0, 1, MaxInstances);
+
+	RHICmdList.EndRenderPass();
+
+	RHICmdList.Transition(FRHITransitionInfo(OutputBufferUAV, ERHIAccess::UAVGraphics, ERHIAccess::CopySrc, EResourceTransitionFlags::None));
+
+	// Expect pixel shader to populate UAV with instance IDs
+
+	const uint32 ExpectedOutput[MaxInstances] = { 0, 1, 2, 3, 4, 5, 6, 7 };
+	TConstArrayView<uint8> ExpectedOutputView = MakeArrayView(reinterpret_cast<const uint8*>(ExpectedOutput), sizeof(ExpectedOutput));
+	const bool bSucceeded = FRHIBufferTests::VerifyBufferContents(TEXT("GraphicsUAV_PixelShader"), RHICmdList, OutputBuffer, ExpectedOutputView);
+
+	return bSucceeded;
+}

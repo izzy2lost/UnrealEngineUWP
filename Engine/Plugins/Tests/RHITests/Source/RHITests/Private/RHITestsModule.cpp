@@ -11,6 +11,7 @@
 #include "RHIClearTextureTests.h"
 #include "RHIReadbackTests.h"
 #include "RHIReservedResourceTests.h"
+#include "RHIGraphicsUAVTests.h"
 
 #define LOCTEXT_NAMESPACE "FRHITestsModule"
 
@@ -93,6 +94,13 @@ static bool RunTests_RenderThread(FRHICommandListImmediate& RHICmdList)
 	{
 		RUN_TEST(FRHIClearTextureTests::Test_ClearTexture(RHICmdList));
 	}
+	
+	// ------------------------------------------------
+	// Graphics UAV binding
+	// ------------------------------------------------
+	{
+		RUN_TEST(FRHIGraphicsUAVTests::Test_GraphicsUAV_PixelShader(RHICmdList));
+	}	
 
 	// @todo - add more tests
 	return bResult;

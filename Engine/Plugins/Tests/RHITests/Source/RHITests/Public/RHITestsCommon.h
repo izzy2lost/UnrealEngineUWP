@@ -26,3 +26,22 @@ static inline FString ClearValueToString(const ValueType & ClearValue)
 		return FString::Printf(TEXT("0x%08x 0x%08x 0x%08x 0x%08x"), ClearValue.X, ClearValue.Y, ClearValue.Z, ClearValue.W);
 	}
 }
+
+template <typename T>
+static FBufferRHIRef CreateBufferWithData(EBufferUsageFlags UsageFlags, ERHIAccess ResourceState, const TCHAR* Name, TConstArrayView<T> Data)
+{
+	FRHICommandListBase& RHICmdList = FRHICommandListImmediate::Get();
+	uint32 BufferSize = sizeof(T) * Data.Num();
+	FRHIResourceCreateInfo CreateInfo(Name);
+	FBufferRHIRef Buffer = RHICmdList.CreateBuffer(BufferSize, UsageFlags, sizeof(T), ResourceState, CreateInfo);
+	void* MappedData = RHICmdList.LockBuffer(Buffer, 0, BufferSize, EResourceLockMode::RLM_WriteOnly);
+	FMemory::Memcpy(MappedData, Data.GetData(), BufferSize);
+	RHICmdList.UnlockBuffer(Buffer);
+	return Buffer;
+}
+
+template<typename T>
+static FBufferRHIRef CreateBufferWithData(EBufferUsageFlags UsageFlags, ERHIAccess ResourceState, const TCHAR* Name, TArrayView<T> Data)
+{
+	return CreateBufferWithData(UsageFlags, ResourceState, Name, TConstArrayView<T>(Data.GetData(), Data.Num()));
+}

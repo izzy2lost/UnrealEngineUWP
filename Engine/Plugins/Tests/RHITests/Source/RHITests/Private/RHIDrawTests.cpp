@@ -41,25 +41,6 @@ IMPLEMENT_GLOBAL_SHADER(FTestDrawInstancedPS, "/Plugin/RHITests/Private/TestDraw
 namespace
 {
 
-template <typename T>
-static FBufferRHIRef CreateBufferWithData(EBufferUsageFlags UsageFlags, ERHIAccess ResourceState, const TCHAR* Name, TConstArrayView<T> Data)
-{
-	FRHICommandListBase& RHICmdList = FRHICommandListImmediate::Get();
-	uint32 BufferSize = sizeof(T) * Data.Num();
-	FRHIResourceCreateInfo CreateInfo(Name);
-	FBufferRHIRef Buffer = RHICmdList.CreateBuffer(BufferSize, UsageFlags, sizeof(T), ResourceState, CreateInfo);
-	void* MappedData = RHICmdList.LockBuffer(Buffer, 0, BufferSize, EResourceLockMode::RLM_WriteOnly);
-	FMemory::Memcpy(MappedData, Data.GetData(), BufferSize);
-	RHICmdList.UnlockBuffer(Buffer);
-	return Buffer;
-}
-
-template<typename T>
-static FBufferRHIRef CreateBufferWithData(EBufferUsageFlags UsageFlags, ERHIAccess ResourceState, const TCHAR* Name, TArrayView<T> Data)
-{
-	return CreateBufferWithData(UsageFlags, ResourceState, Name, TConstArrayView<T>(Data.GetData(), Data.Num()));
-}
-
 // Structure to initialize common resources required for various draw tests
 struct FDrawTestResources
 {

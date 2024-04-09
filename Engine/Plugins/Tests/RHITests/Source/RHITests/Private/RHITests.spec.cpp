@@ -10,6 +10,7 @@
 #include "RHIClearTextureTests.h"
 #include "RHIReadbackTests.h"
 #include "RHIReservedResourceTests.h"
+#include "RHIGraphicsUAVTests.h"
 
 BEGIN_DEFINE_SPEC(FAutomationRHITest, "Rendering.RHI", EAutomationTestFlags::EngineFilter | EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::NonNullRHI)
 END_DEFINE_SPEC(FAutomationRHITest)
@@ -172,6 +173,16 @@ void FAutomationRHITest::Define()
 		{
 			bool bResult = RunOnRenderThreadSynchronous(FRHIReservedResourceTests::Test_ReservedResource_DecommitBuffer);
 			TestEqual("Decommit Reserved Buffer failed", bResult, 1);
+		});
+	});
+
+
+	Describe("Test RHI Graphics UAV Binding", [this]()
+	{
+		It("Pixel shader UAV", [this]()
+		{
+			bool bResult = RunOnRenderThreadSynchronous(FRHIGraphicsUAVTests::Test_GraphicsUAV_PixelShader);
+			TestEqual("Pixel shader UAV failed", bResult, 1);
 		});
 	});
 }
