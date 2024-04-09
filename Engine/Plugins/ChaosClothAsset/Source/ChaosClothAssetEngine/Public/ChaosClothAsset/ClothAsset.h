@@ -5,6 +5,7 @@
 #include "Engine/SkinnedAsset.h"
 #include "ReferenceSkeleton.h"
 #include "RenderCommandFence.h"
+#include "PerQualityLevelProperties.h"
 #include "ClothAsset.generated.h"
 
 class FSkeletalMeshRenderData;
@@ -106,6 +107,7 @@ public:
 	virtual int32 GetPlatformMinLODIdx(const ITargetPlatform* TargetPlatform) const override;
 	virtual const FPerPlatformBool& GetDisableBelowMinLodStripping() const override { return DisableBelowMinLodStripping; }
 	virtual const FPerPlatformInt& GetMinLod() const override;
+	virtual bool IsMinLodQualityLevelEnable() const override;
 #if WITH_EDITOR
 	/* Build a LOD model for the targeted platform. */
 	virtual void BuildLODModel(const ITargetPlatform* TargetPlatform, int32 LODIndex) override;
@@ -183,6 +185,10 @@ public:
 	/** Set the skinning weights for all of the sim vertices to be bound to the root node of the reference skeleton. */
 	UE_DEPRECATED(5.3, "Use FClothGeometryTools::BindMeshToRootBone or SetReferenceSkeleton(const FReferenceSkeleton*, bool, bool) instead.")
 	void BindSimMeshToRootBone();
+
+	const FPerQualityLevelInt& GetQualityLevelMinLod() const { return MinQualityLevelLOD; }
+	void SetQualityLevelMinLod(FPerQualityLevelInt InMinLod) { MinQualityLevelLOD = MoveTemp(InMinLod); }
+	static void OnLodStrippingQualityLevelChanged(IConsoleVariable* Variable);
 
 	//
 	// Dataflow
@@ -287,10 +293,15 @@ private:
 	/** Struct containing information for each LOD level, such as materials to use, and when use the LOD. Not currently editable or customizable through the Dataflow. */
 	UPROPERTY(VisibleAnywhere, EditFixedSize, Category = LevelOfDetails)
 	TArray<FSkeletalMeshLODInfo> LODInfo;
+	
+	/** Set the Minimum LOD by Quality Level. This property is used when "Use Cloth Asset Min LOD Per Quality Levels" is set at the Project level. Otherwise, the (per platform) Minimum LOD value is used.*/
+	UPROPERTY(EditAnywhere, Category = LODSettings, meta = (DisplayName = "Quality Level Minimum LOD"))
+	FPerQualityLevelInt MinQualityLevelLOD;
 
 	UPROPERTY(EditAnywhere, Category = LODSettings)
 	FPerPlatformBool DisableBelowMinLodStripping;
 
+	/** Set the Minimum LOD by platform. This property is overriden by "Quality Level Minimum LOD" when "Use Cloth Asset Min LOD Per Quality Levels" is set at the Project level.*/
 	UPROPERTY(EditAnywhere, Category = LODSettings, Meta = (DisplayName = "Minimum LOD"))
 	FPerPlatformInt MinLod;
 

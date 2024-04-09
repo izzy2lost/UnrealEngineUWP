@@ -22,6 +22,7 @@
 #include "Rendering/SkeletalMeshRenderData.h"
 #include "UObject/Package.h"
 #include "EngineUtils.h"
+#include "Engine/Engine.h"
 #if WITH_EDITOR
 #include "IMeshBuilderModule.h"
 #include "DerivedDataCacheInterface.h"
@@ -41,6 +42,17 @@ FAutoConsoleVariableRef CVarClothCollectionOnlyCookPropertyFacade(
 	TEXT("p.ClothCollectionOnlyCookPropertyFacade"),
 	bClothCollectionOnlyCookPropertyFacade,
 	TEXT("Default setting for culling propertys on the cloth collection during the cook. Default[false]"));
+
+
+const TCHAR* MinLodQualityLevelCVarName = TEXT("p.ClothAsset.MinLodQualityLevel");
+const TCHAR* MinLodQualityLevelScalabilitySection = TEXT("ViewDistanceQuality");
+int32 MinLodQualityLevel = -1;
+FAutoConsoleVariableRef CVarClothAssetMinLodQualityLevel(
+	MinLodQualityLevelCVarName,
+	MinLodQualityLevel,
+	TEXT("The quality level for the Min stripping LOD. \n"),
+	FConsoleVariableDelegate::CreateStatic(&UChaosClothAsset::OnLodStrippingQualityLevelChanged),
+	ECVF_Scalability);
 	
 ::Chaos::FChaosArchive& Serialize(::Chaos::FChaosArchive& Ar, TArray<TSharedRef<FManagedArrayCollection>>& ClothCollections)
 {
@@ -138,7 +150,9 @@ TArray<TSharedRef<FManagedArrayCollection>> TrimOnCook(const FString InAssetName
 
 UChaosClothAsset::UChaosClothAsset(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
+	, MinQualityLevelLOD(0)
 	, DisableBelowMinLodStripping(FPerPlatformBool(false))
+	, MinLod(0)
 #if WITH_EDITORONLY_DATA
 	, MeshModel(MakeShareable(new FSkeletalMeshModel()))
 #endif
@@ -155,6 +169,8 @@ UChaosClothAsset::UChaosClothAsset(const FObjectInitializer& ObjectInitializer)
 	constexpr bool bRebuildModels = false;
 	constexpr bool bRebindMeshes = false;
 	SetReferenceSkeleton(nullptr, bRebuildModels, bRebindMeshes);
+
+	MinQualityLevelLOD.SetQualityLevelCVarForCooking(UE::Chaos::ClothAsset::Private::MinLodQualityLevelCVarName, UE::Chaos::ClothAsset::Private::MinLodQualityLevelScalabilitySection);
 }
 
 UChaosClothAsset::UChaosClothAsset(FVTableHelper& Helper)
@@ -380,6 +396,15 @@ void UChaosClothAsset::BeginPostLoadInternal(FSkinnedAssetPostLoadContext& Conte
 	BuildClothSimulationModel();  // TODO: Cache ClothSimulationModel?
 
 	BuildMeshModel();
+
+	// Convert PerPlatForm data to PerQuality if perQuality data have not been serialized.
+	// Also test default value, since PerPlatformData can have Default !=0 and no PerPlatform data overrides.
+	const bool bConvertMinLODData = (MinQualityLevelLOD.PerQuality.Num() == 0 && MinQualityLevelLOD.Default == 0) && (MinLod.PerPlatform.Num() != 0 || MinLod.Default != 0);
+	if (IsMinLodQualityLevelEnable() && bConvertMinLODData)
+	{
+		constexpr bool bRequireAllPlatformsKnownTrue = true;
+		MinQualityLevelLOD.ConvertQualityLevelDataUsingCVar(MinLod.PerPlatform, MinLod.Default, bRequireAllPlatformsKnownTrue);
+	}
 #endif // #if WITH_EDITOR
 }
 
@@ -732,17 +757,53 @@ FString UChaosClothAsset::GetAsyncPropertyName(uint64 Property) const
 	return StaticEnum<EClothAssetAsyncProperties>()->GetNameByValue(Property).ToString();
 }
 
+bool UChaosClothAsset::IsMinLodQualityLevelEnable() const
+{
+	return (GEngine && GEngine->UseClothAssetMinLODPerQualityLevels);
+}
+
+void UChaosClothAsset::OnLodStrippingQualityLevelChanged(IConsoleVariable* Variable) 
+{
+#if WITH_EDITOR || PLATFORM_DESKTOP
+	if (GEngine && GEngine->UseClothAssetMinLODPerQualityLevels)
+	{
+		for (TObjectIterator<UChaosClothAsset> It; It; ++It)
+		{
+			UChaosClothAsset* ClothAsset = *It;
+			if (ClothAsset && ClothAsset->GetQualityLevelMinLod().PerQuality.Num() > 0)
+			{
+				FSkinnedMeshComponentRecreateRenderStateContext Context(ClothAsset, false);
+			}
+		}
+	}
+#endif
+}
+
 int32 UChaosClothAsset::GetMinLodIdx(bool bForceLowestLODIndex) const
 {
-	// #TODO Add quality level controls alongside per-platform taking precedence when enabled
-	return GetMinLod().GetValue();
+	if (IsMinLodQualityLevelEnable())
+	{
+		return bForceLowestLODIndex ? GetQualityLevelMinLod().GetLowestValue() : GetQualityLevelMinLod().GetValue(UE::Chaos::ClothAsset::Private::MinLodQualityLevel);
+	}
+	else
+	{
+		return GetMinLod().GetValue();
+	}
 }
 
 int32 UChaosClothAsset::GetPlatformMinLODIdx(const ITargetPlatform* InTargetPlatform) const
 {
-	// #TODO Add quality level controls alongside per-platform taking precedence when enabled
 #if WITH_EDITOR
-	return GetMinLod().GetValueForPlatform(*InTargetPlatform->IniPlatformName());
+	check(InTargetPlatform);
+	if (IsMinLodQualityLevelEnable())
+	{
+		// get all supported quality level from scalability + engine ini files
+		return GetQualityLevelMinLod().GetValueForPlatform(InTargetPlatform);
+	}
+	else
+	{
+		return GetMinLod().GetValueForPlatform(*InTargetPlatform->IniPlatformName());
+	}
 #else
 	return 0;
 #endif

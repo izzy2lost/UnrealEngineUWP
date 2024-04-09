@@ -1615,6 +1615,9 @@ public:
 	bool UseSkeletalMeshMinLODPerQualityLevels;
 
 	UPROPERTY(config, EditAnywhere, Category = PerQualityLevelProperty, AdvancedDisplay)
+	bool UseClothAssetMinLODPerQualityLevels;
+
+	UPROPERTY(config, EditAnywhere, Category = PerQualityLevelProperty, AdvancedDisplay)
 	bool UseGrassVarityPerQualityLevels;
 
 	/** The state of the current map transition.  */

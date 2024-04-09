@@ -56,6 +56,7 @@ namespace QualityLevelProperty
 	ENGINE_API TMap<EPerQualityLevels, _ValueType> ConvertQualtiyLevelData(const TMap<int32, _ValueType>& Data);
 	
 #if WITH_EDITOR
+	ENGINE_API TArray<FName> GetEnginePlatformsForPlatformOrGroupName(const FString& InPlatformName);
 	ENGINE_API FSupportedQualityLevelArray PerPlatformOverrideMapping(FString& InPlatformName);
 #endif
 };
@@ -96,7 +97,15 @@ struct FPerQualityLevelProperty
 	FSupportedQualityLevelArray GetSupportedQualityLevels(const TCHAR* InPlatformName = nullptr) const;
 	void StripQualtiyLevelForCooking(const TCHAR* InPlatformName = nullptr);
 	bool IsQualityLevelValid(int32 QualityLevel) const;
-	void ConvertQualtiyLevelData(TMap<FName, _ValueType>& PlaformData, TMultiMap<FName, FName>& PerPlatformToQualityLevel, _ValueType Default);
+	void ConvertQualityLevelData(const TMap<FName, _ValueType>& PlatformData, const TMultiMap<FName, FName>& PerPlatformToQualityLevel, _ValueType Default);
+	UE_DEPRECATED(5.5, "Use ConvertQualityLevelData")
+	void ConvertQualtiyLevelData(TMap<FName, _ValueType>& PlatformData, TMultiMap<FName, FName>& PerPlatformToQualityLevel, _ValueType Default)
+	{
+		ConvertQualityLevelData(PlatformData, PerPlatformToQualityLevel, Default);
+	}
+	// Use the CVar set by SetQualityLevelCVarForCooking to convert from PlatformData.
+	// This method will do nothing if bRequireAllPlatformsKnown and some of the keys in PlatformData are unrecognized as either Platform names or PlatformGroup names.
+	void ConvertQualityLevelDataUsingCVar(const TMap<FName, _ValueType>& PlatformData, _ValueType Default, bool bRequireAllPlatformsKnown);
 #endif
 
 	// Set Cvar to be able to scan ini files at cook-time and only have the supported ranges of quality levels relevant to the platform.

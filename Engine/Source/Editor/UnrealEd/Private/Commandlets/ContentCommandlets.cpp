@@ -3922,9 +3922,9 @@ int32 ULandscapeGrassTypeCommandlet::Main(const FString& Params)
 			{
 				for (FGrassVariety& GrassVariety : GrassType->GrassVarieties)
 				{
-					GrassVariety.GrassDensityQuality.ConvertQualtiyLevelData(GrassVariety.GrassDensity.PerPlatform, PerPlatformToQualityLevel, GrassVariety.GrassDensity.Default);
-					GrassVariety.StartCullDistanceQuality.ConvertQualtiyLevelData(GrassVariety.StartCullDistance.PerPlatform, PerPlatformToQualityLevel, GrassVariety.StartCullDistance.Default);
-					GrassVariety.EndCullDistanceQuality.ConvertQualtiyLevelData(GrassVariety.EndCullDistance.PerPlatform, PerPlatformToQualityLevel, GrassVariety.EndCullDistance.Default);
+					GrassVariety.GrassDensityQuality.ConvertQualityLevelData(GrassVariety.GrassDensity.PerPlatform, PerPlatformToQualityLevel, GrassVariety.GrassDensity.Default);
+					GrassVariety.StartCullDistanceQuality.ConvertQualityLevelData(GrassVariety.StartCullDistance.PerPlatform, PerPlatformToQualityLevel, GrassVariety.StartCullDistance.Default);
+					GrassVariety.EndCullDistanceQuality.ConvertQualityLevelData(GrassVariety.EndCullDistance.PerPlatform, PerPlatformToQualityLevel, GrassVariety.EndCullDistance.Default);
 				}
 			}
 		}
