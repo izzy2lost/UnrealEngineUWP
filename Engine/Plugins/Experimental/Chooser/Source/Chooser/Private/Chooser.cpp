@@ -39,50 +39,6 @@ void UChooserTable::PostLoad()
 	CachedPreviousResultType = ResultType;
 #endif
 
-#if WITH_EDITORONLY_DATA
-	// convert old data if it exists
-
-	if (ContextObjectType_DEPRECATED)
-	{
-		ContextData.SetNum(1);
-		ContextData[0].InitializeAs<FContextObjectTypeClass>();
-		FContextObjectTypeClass& Context = ContextData[0].GetMutable<FContextObjectTypeClass>();
-		Context.Class = ContextObjectType_DEPRECATED;
-		Context.Direction = EContextObjectDirection::ReadWrite;
-		ContextObjectType_DEPRECATED = nullptr;
-		OnContextClassChanged.Broadcast();
-	}
-
-	if (Results_DEPRECATED.Num() > 0 || Columns_DEPRECATED.Num() > 0)
-	{
-		ResultsStructs.Reserve(Results_DEPRECATED.Num());
-		ColumnsStructs.Reserve(Columns_DEPRECATED.Num());
-		
-		for(TScriptInterface<IObjectChooser>& Result : Results_DEPRECATED)
-		{
-			ResultsStructs.SetNum(ResultsStructs.Num() + 1);
-			IObjectChooser* ResultInterface = Result.GetInterface();
-			if (ResultInterface)
-			{
-				ResultInterface->ConvertToInstancedStruct(ResultsStructs.Last());
-			}
-		}
-		
-		for(TScriptInterface<IChooserColumn>& Column : Columns_DEPRECATED)
-		{
-			ColumnsStructs.SetNum(ColumnsStructs.Num() + 1);
-			IChooserColumn* ColumnInterface = Column.GetInterface();
-			if (ColumnInterface)
-			{
-				ColumnInterface->ConvertToInstancedStruct(ColumnsStructs.Last());
-			}
-		}
-
-		Results_DEPRECATED.SetNum(0);
-		Columns_DEPRECATED.SetNum(0);
-	}
-#endif
-
 	Compile();
 }
 
@@ -196,7 +152,53 @@ void UChooserTable::Serialize(FArchive& Ar)
 	}
 #endif
 	
-	UObject::Serialize(Ar);
+	Super::Serialize(Ar);
+
+#if WITH_EDITORONLY_DATA
+	if (Ar.IsLoading())
+	{
+		// convert old data if it exists
+
+		if (ContextObjectType_DEPRECATED)
+		{
+			ContextData.SetNum(1);
+			ContextData[0].InitializeAs<FContextObjectTypeClass>();
+			FContextObjectTypeClass& Context = ContextData[0].GetMutable<FContextObjectTypeClass>();
+			Context.Class = ContextObjectType_DEPRECATED;
+			Context.Direction = EContextObjectDirection::ReadWrite;
+			ContextObjectType_DEPRECATED = nullptr;
+		}
+
+		if (Results_DEPRECATED.Num() > 0 || Columns_DEPRECATED.Num() > 0)
+		{
+			ResultsStructs.Reserve(Results_DEPRECATED.Num());
+			ColumnsStructs.Reserve(Columns_DEPRECATED.Num());
+
+			for (TScriptInterface<IObjectChooser>& Result : Results_DEPRECATED)
+			{
+				ResultsStructs.SetNum(ResultsStructs.Num() + 1);
+				IObjectChooser* ResultInterface = Result.GetInterface();
+				if (ResultInterface)
+				{
+					ResultInterface->ConvertToInstancedStruct(ResultsStructs.Last());
+				}
+			}
+
+			for (TScriptInterface<IChooserColumn>& Column : Columns_DEPRECATED)
+			{
+				ColumnsStructs.SetNum(ColumnsStructs.Num() + 1);
+				IChooserColumn* ColumnInterface = Column.GetInterface();
+				if (ColumnInterface)
+				{
+					ColumnInterface->ConvertToInstancedStruct(ColumnsStructs.Last());
+				}
+			}
+
+			Results_DEPRECATED.SetNum(0);
+			Columns_DEPRECATED.SetNum(0);
+		}
+	}
+#endif
 }
 
 #if WITH_EDITORONLY_DATA

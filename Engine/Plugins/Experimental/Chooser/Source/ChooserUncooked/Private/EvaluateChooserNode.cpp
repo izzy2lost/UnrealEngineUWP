@@ -405,10 +405,7 @@ void UK2Node_EvaluateChooser2::AllocateDefaultPins()
 
 	if (Chooser)
 	{
-		// ensure any data upgrades have been applied to Chooser before generating pins
-		Chooser->ConditionalPostLoad();
-		
-		for(FInstancedStruct& ContextDataEntry : Chooser->ContextData)
+		for (FInstancedStruct& ContextDataEntry : Chooser->ContextData)
 		{
 			if (ContextDataEntry.IsValid())
 			{
@@ -547,7 +544,6 @@ void UK2Node_EvaluateChooser2::PostLoad()
 
 void UK2Node_EvaluateChooser2::PinConnectionListChanged(UEdGraphPin* Pin)
 {
-
 	Modify();
 
 	FBlueprintEditorUtils::MarkBlueprintAsStructurallyModified(GetBlueprint());
