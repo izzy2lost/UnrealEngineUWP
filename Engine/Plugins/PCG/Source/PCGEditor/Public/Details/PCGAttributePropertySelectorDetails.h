@@ -25,6 +25,8 @@ public:
 	virtual void CustomizeChildren(TSharedRef<IPropertyHandle> InPropertyHandle, IDetailChildrenBuilder& ChildBuilder, IPropertyTypeCustomizationUtils& CustomizationUtils) override {};
 	/** ~End IPropertyTypeCustomization interface */
 
+	void AddExtractor(FName InExtractor);
+
 protected:
 	FPCGAttributePropertySelector* GetStruct();
 	const FPCGAttributePropertySelector* GetStruct() const;
