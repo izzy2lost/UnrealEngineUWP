@@ -161,8 +161,8 @@ float3 GetFroxelProbeLighting(Texture3D<float3> VolumeFroxelProbeRadiance, uint3
 	
 	float3	FroxelProbeUVs;
 	#define PREPARE_SAMPLE(FLOATCOORD)	FroxelProbeUVs.xy = float2(FLOATCOORD.xy)			* TranslucencyVolumeTracingFroxelProbesGridSizeInv.xy;\
-										FroxelProbeUVs.xy+= ProbeUV							* TranslucencyVolumeTracingFroxelProbesGridSizePlus1Inv.xy;\
-										FroxelProbeUVs.z  = (float(FLOATCOORD.z) + 0.5f)	* TranslucencyVolumeTracingFroxelProbesGridSizeInv.z;
+										FroxelProbeUVs.xy+= ProbeUV							* TranslucencyVolumeTracingFroxelProbesGridSizeInv.xy;\
+										FroxelProbeUVs.z  = (float(FLOATCOORD.z))			* TranslucencyVolumeTracingFroxelProbesGridSizeInv.z; 
 	
 	PREPARE_SAMPLE(float3(FroxelProbeGridCoordinate))
 	float3 Lighting000 = VolumeFroxelProbeRadiance.SampleLevel(GlobalBilinearClampedSampler, FroxelProbeUVs, 0);
