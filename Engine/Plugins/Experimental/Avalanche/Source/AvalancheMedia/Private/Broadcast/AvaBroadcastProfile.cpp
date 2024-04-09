@@ -303,8 +303,16 @@ FAvaBroadcastOutputChannel& FAvaBroadcastProfile::GetChannelMutable(FName InChan
 	const FName PinnedChannelProfileName = Broadcast.GetPinnedChannelProfileName(InChannelName);
 	if (PinnedChannelProfileName != NAME_None)
 	{
-		return Broadcast.GetProfile(PinnedChannelProfileName).GetLocalChannelMutable(InChannelName);
-	}	
+		const FAvaBroadcastProfile& PinnedProfile = Broadcast.GetProfile(PinnedChannelProfileName); 
+		if (PinnedProfile.IsValidProfile())
+		{
+			return Broadcast.GetProfile(PinnedChannelProfileName).GetLocalChannelMutable(InChannelName);
+		}
+
+		UE_LOG(LogAvaBroadcast, Error,
+			TEXT("Can't find profile \"%s\" for pinned channel \"%s\". Using local channel instead."),
+			*PinnedChannelProfileName.ToString(), *InChannelName.ToString());	
+	}
 	return GetLocalChannelMutable(InChannelName);
 }
 

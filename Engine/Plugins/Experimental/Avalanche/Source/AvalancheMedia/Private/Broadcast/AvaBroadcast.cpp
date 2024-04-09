@@ -266,6 +266,16 @@ bool UAvaBroadcast::RenameProfile(FName InProfileName, FName InNewProfileName)
 		{
 			CurrentProfile = InNewProfileName;
 		}
+
+		// Rename pinned channel's profile.
+		for (TPair<FName, FName>& PinnedChannel : PinnedChannels)
+		{
+			if (PinnedChannel.Value == InProfileName)
+			{
+				PinnedChannel.Value = InNewProfileName;
+			}
+		}
+		
 		return true;
 	}
 	return false;
