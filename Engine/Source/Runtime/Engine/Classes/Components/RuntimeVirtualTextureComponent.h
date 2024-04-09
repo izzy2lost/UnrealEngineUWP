@@ -90,7 +90,7 @@ protected:
 	FLinearColor StreamingMipsFixedColor;
 
 	/** Use streaming low mips when rendering in editor. Set true to view and debug the baked streaming low mips. */
-	UPROPERTY(EditAnywhere, AdvancedDisplay, Category = StreamingVirtualTexture, meta = (DisplayName = "View in Editor"))
+	UPROPERTY(EditAnywhere, Transient, AdvancedDisplay, Category = StreamingVirtualTexture, meta = (DisplayName = "View in Editor"))
 	bool bUseStreamingLowMipsInEditor = false;
 
 #if WITH_EDITOR
