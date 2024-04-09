@@ -618,11 +618,11 @@ void UTypedElementDatabaseCompatibility::TickPendingExternalObjectRegistration()
 		ExternalObjectsPendingRegistration.ProcessEntries(*Storage, *this,
 			[this](TypedElementRowHandle Row, const ExternalObjectRegistration& Object)
 			{
-				Storage->AddOrGetColumn<FTypedElementExternalObjectColumn>(Row, FTypedElementExternalObjectColumn{ .Object = Object.Object });
-				Storage->AddOrGetColumn<FTypedElementScriptStructTypeInfoColumn>(Row, FTypedElementScriptStructTypeInfoColumn{ .TypeInfo = Object.TypeInfo });
+				ITypedElementDataStorageInterface* Interface = Storage;
+				Interface->AddColumn(Row, FTypedElementExternalObjectColumn{ .Object = Object.Object });
+				Interface->AddColumn(Row, FTypedElementScriptStructTypeInfoColumn{ .TypeInfo = Object.TypeInfo });
 				// Make sure the new row is tagged for update.
-				Storage->AddColumn<FTypedElementSyncFromWorldTag>(Row);
-
+				Interface->AddColumn<FTypedElementSyncFromWorldTag>(Row);
 				OnObjectAdded(Object.Object, Object.TypeInfo.Get(), Row);
 			});
 

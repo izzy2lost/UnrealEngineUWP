@@ -428,7 +428,27 @@ void UTypedElementDatabase::AddColumnData(TypedElementRowHandle Row, const UScri
 	const TypedElementDataStorage::ColumnCreationCallbackRef& Initializer,
 	TypedElementDataStorage::ColumnCopyOrMoveCallback Relocator)
 {
-	AddOrGetColumnData(Row, ColumnType, Initializer, Relocator);
+	if (ActiveEditorEntityManager && ColumnType && ColumnType->IsChildOf(FMassFragment::StaticStruct()))
+	{
+		if (HasRowBeenAssigned(Row))
+		{
+			FMassEntityHandle Entity = FMassEntityHandle::FromNumber(Row);
+			FStructView Column = ActiveEditorEntityManager->GetFragmentDataStruct(Entity, ColumnType);
+			if (!Column.IsValid())
+			{
+				ActiveEditorEntityManager->AddFragmentToEntity(Entity, ColumnType, Initializer);
+			}
+			else
+			{
+				Initializer(Column.GetMemory(), *ColumnType);
+			}
+		}
+		else
+		{
+			void* Column = Environment->GetDirectDeferredCommands().Queue_AddDataColumnCommandUnitialized(Row, ColumnType, Relocator);
+			Initializer(Column, *ColumnType);
+		}
+	}
 }
 
 void UTypedElementDatabase::RemoveColumn(TypedElementRowHandle Row, const UScriptStruct* ColumnType)
@@ -444,40 +464,6 @@ void UTypedElementDatabase::RemoveColumn(TypedElementRowHandle Row, const UScrip
 			Environment->GetDirectDeferredCommands().Queue_RemoveColumnCommand(Row, ColumnType);
 		}
 	}
-}
-
-void* UTypedElementDatabase::AddOrGetColumnData(TypedElementRowHandle Row, const UScriptStruct* ColumnType,
-	const TypedElementDataStorage::ColumnCreationCallbackRef& Initializer, TypedElementDataStorage::ColumnCopyOrMoveCallback Relocator)
-{
-	FMassEntityHandle Entity = FMassEntityHandle::FromNumber(Row);
-	if (ActiveEditorEntityManager && ColumnType && ColumnType->IsChildOf(FMassFragment::StaticStruct()))
-	{
-		if (HasRowBeenAssigned(Row))
-		{
-			FStructView Column = ActiveEditorEntityManager->GetFragmentDataStruct(Entity, ColumnType);
-			if (!Column.IsValid())
-			{
-				ActiveEditorEntityManager->AddFragmentToEntity(Entity, ColumnType, Initializer);
-				Column = ActiveEditorEntityManager->GetFragmentDataStruct(Entity, ColumnType);
-				checkf(Column.IsValid(), TEXT("Added a new column to the Typed Element's data store, but it couldn't be retrieved."));
-				return Column.GetMemory();
-
-			}
-			else
-			{
-				void* Result = Column.GetMemory();
-				Initializer(Result, *ColumnType);
-				return Result;
-			}
-		}
-		else
-		{
-			void* Result = Environment->GetDirectDeferredCommands().Queue_AddDataColumnCommandUnitialized(Row, ColumnType, Relocator);
-			Initializer(Result, *ColumnType);
-			return Result;
-		}
-	}
-	return nullptr;
 }
 
 const void* UTypedElementDatabase::GetColumnData(TypedElementRowHandle Row, const UScriptStruct* ColumnType) const

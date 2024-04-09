@@ -50,7 +50,7 @@ class UTypedElementDataStorageInterface : public UInterface
  * multiple column lists are used. Note that the returned array view is only available while
  * this object is constructed, so care must be taken with functions that return a const array view.
  */
-template<typename... Columns>
+template<TypedElementDataStorage::TColumnType... Columns>
 struct TTypedElementColumnTypeList
 {
 	const UScriptStruct* ColumnTypes[sizeof...(Columns)] = { Columns::StaticStruct()... };
@@ -162,19 +162,19 @@ public:
 	 * at a time.
 	 */
 	virtual void AddColumns(TypedElementRowHandle Row, TConstArrayView<const UScriptStruct*> Columns) = 0;
-	template<typename... Columns>
+	template<TypedElementDataStorage::TColumnType... Columns>
 	void AddColumns(TypedElementRowHandle Row);
 
 	/** Removes a column from a row or does nothing if already removed. */
 	virtual void RemoveColumn(TypedElementRowHandle Row, const UScriptStruct* ColumnType) = 0;
-	template<typename Column>
+	template<TypedElementDataStorage::TColumnType Column>
 	void RemoveColumn(TypedElementRowHandle Row);
 	/**
 	 * Removes multiple columns from a row. This is typically more efficient than adding columns one
 	 * at a time.
 	 */
 	virtual void RemoveColumns(TypedElementRowHandle Row, TConstArrayView<const UScriptStruct*> Columns) = 0;
-	template<typename... Columns>
+	template<TypedElementDataStorage::TColumnType... Columns>
 	void RemoveColumns(TypedElementRowHandle Row);
 
 	/** 
@@ -190,39 +190,20 @@ public:
 		TConstArrayView<TypedElementRowHandle> Rows,
 		TConstArrayView<const UScriptStruct*> ColumnsToAdd,
 		TConstArrayView<const UScriptStruct*> ColumnsToRemove) = 0;
-
-	/**
-	 * Adds a new column to a row. If the column already exists it will be returned instead. If the column couldn't
-	 * be added or the column type points to a tag an nullptr will be returned.
-	 * This version allows a new object to be initialized before OnAdd observers are called as well as provide a
-	 * bespoke call to move the object from temporary locations to the final table location.
-	 */
-	virtual void* AddOrGetColumnData(TypedElementRowHandle Row, const UScriptStruct* ColumnType,
-		const TypedElementDataStorage::ColumnCreationCallbackRef& Initializer,
-		TypedElementDataStorage::ColumnCopyOrMoveCallback Relocator) = 0;
-	/**
-	 * Returns a pointer to the column of the given row or creates a new one if not found.
-	 * Enables type deduction of ColumnType from Column argument.
-	 *
-	 * For example, FTransformColumn added and deduced from second argument:
-	 * StorageInterface->AddOrGetColumn(Row, FTransformColumn{.Transform = Transform});
-	 */
-	template<typename ColumnType>
-	ColumnType* AddOrGetColumn(TypedElementRowHandle Row, ColumnType&& Column);
 	
 	/** Retrieves a pointer to the column of the given row or a nullptr if not found or if the column type is a tag. */
 	virtual void* GetColumnData(TypedElementRowHandle Row, const UScriptStruct* ColumnType) = 0;
 	virtual const void* GetColumnData(TypedElementRowHandle Row, const UScriptStruct* ColumnType) const = 0;
 	/** Returns a pointer to the column of the given row or a nullptr if the type couldn't be found or the row doesn't exist. */
-	template<typename ColumnType>
+	template<TypedElementDataStorage::TDataColumnType ColumnType>
 	ColumnType* GetColumn(TypedElementRowHandle Row);
-	template<typename ColumnType>
+	template<TypedElementDataStorage::TDataColumnType ColumnType>
 	const ColumnType* GetColumn(TypedElementRowHandle Row) const;
 	
 	/** Determines if the provided row contains the collection of columns and tags. */
 	virtual bool HasColumns(TypedElementRowHandle Row, TConstArrayView<const UScriptStruct*> ColumnTypes) const = 0;
 	virtual bool HasColumns(TypedElementRowHandle Row, TConstArrayView<TWeakObjectPtr<const UScriptStruct>> ColumnTypes) const = 0;
-	template<typename... ColumnTypes>
+	template<TypedElementDataStorage::TColumnType... ColumnTypes>
 	bool HasColumns(TypedElementRowHandle Row) const;
 
 	/** Determines if the columns in the row match the query conditions. */
@@ -365,19 +346,19 @@ void ITypedElementDataStorageInterface::AddColumn(TypedElementRowHandle Row)
 	AddColumn(Row, Column::StaticStruct());
 }
 
-template<typename Column>
+template<TypedElementDataStorage::TColumnType Column>
 void ITypedElementDataStorageInterface::RemoveColumn(TypedElementRowHandle Row)
 {
 	RemoveColumn(Row, Column::StaticStruct());
 }
 
-template<typename... Columns>
+template<TypedElementDataStorage::TColumnType... Columns>
 void ITypedElementDataStorageInterface::AddColumns(TypedElementRowHandle Row)
 {
 	AddColumns(Row, { Columns::StaticStruct()...});
 }
 
-template<typename... Columns>
+template<TypedElementDataStorage::TColumnType... Columns>
 void ITypedElementDataStorageInterface::RemoveColumns(TypedElementRowHandle Row)
 {
 	RemoveColumns(Row, { Columns::StaticStruct()...});
@@ -386,13 +367,7 @@ void ITypedElementDataStorageInterface::RemoveColumns(TypedElementRowHandle Row)
 template<TypedElementDataStorage::TDataColumnType ColumnType>
 void ITypedElementDataStorageInterface::AddColumn(TypedElementRowHandle Row, ColumnType&& Column)
 {
-	AddOrGetColumn<ColumnType>(Row, Forward<ColumnType>(Column));
-}
-
-template<typename ColumnType>
-ColumnType* ITypedElementDataStorageInterface::AddOrGetColumn(TypedElementRowHandle Row, ColumnType&& Column)
-{
-	return reinterpret_cast<ColumnType*>(AddOrGetColumnData(Row, ColumnType::StaticStruct(),
+	AddColumnData(Row, ColumnType::StaticStruct(),
 		[&Column](void* ColumnData, const UScriptStruct&)
 		{
 			if constexpr (std::is_move_constructible_v<ColumnType>)
@@ -414,22 +389,22 @@ ColumnType* ITypedElementDataStorageInterface::AddOrGetColumn(TypedElementRowHan
 			{
 				*reinterpret_cast<ColumnType*>(Destination) = *reinterpret_cast<ColumnType*>(Source);
 			}
-		}));
+		});
 }
 
-template<typename ColumnType>
+template<TypedElementDataStorage::TDataColumnType ColumnType>
 ColumnType* ITypedElementDataStorageInterface::GetColumn(TypedElementRowHandle Row)
 {
 	return reinterpret_cast<ColumnType*>(GetColumnData(Row, ColumnType::StaticStruct()));
 }
 
-template<typename ColumnType>
+template<TypedElementDataStorage::TDataColumnType ColumnType>
 const ColumnType* ITypedElementDataStorageInterface::GetColumn(TypedElementRowHandle Row) const
 {
 	return reinterpret_cast<const ColumnType*>(GetColumnData(Row, ColumnType::StaticStruct()));
 }
 
-template<typename... ColumnType>
+template<TypedElementDataStorage::TColumnType... ColumnType>
 bool ITypedElementDataStorageInterface::HasColumns(TypedElementRowHandle Row) const
 {
 	return HasColumns(Row, TConstArrayView<const UScriptStruct*>({ ColumnType::StaticStruct()... }));
