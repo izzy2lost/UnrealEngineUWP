@@ -1090,6 +1090,10 @@ void UInterchangeGenericAssetsPipeline::ExecutePipeline(UInterchangeBaseNodeCont
 	//When we import only animation we need to prevent material and physic asset to be created
 	if (CommonSkeletalMeshesAndAnimationsProperties->bImportOnlyAnimations)
 	{
+		//We need to turn on ImportAnimation
+		AnimationPipeline->bImportAnimations = true;
+		
+		//Turn off mesh, material, texture, physics
 		MaterialPipeline->bImportMaterials = false;
 		MeshPipeline->bImportStaticMeshes = false;
 		MeshPipeline->bCreatePhysicsAsset = false;

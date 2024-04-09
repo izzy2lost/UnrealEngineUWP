@@ -64,11 +64,17 @@ void UInterchangeGenericAnimationPipeline::AdjustSettingsForContext(EInterchange
 			//Set the skeleton to the current asset skeleton and re-import only the animation
 			CommonSkeletalMeshesAndAnimationsProperties->Skeleton = AnimSequence->GetSkeleton();
 			CommonSkeletalMeshesAndAnimationsProperties->bImportOnlyAnimations = true;
+			bImportAnimations = true;
 		}
 		else
 		{
 			HideCategories.Add(TEXT("Animations"));
 		}
+	}
+
+	if (CommonSkeletalMeshesAndAnimationsProperties->bImportOnlyAnimations)
+	{
+		bImportAnimations = true;
 	}
 
 	if (UInterchangePipelineBase* OuterMostPipeline = GetMostPipelineOuter())
@@ -90,6 +96,11 @@ void UInterchangeGenericAnimationPipeline::ExecutePipeline(UInterchangeBaseNodeC
 	}
 
 	BaseNodeContainer = InBaseNodeContainer;
+
+	if (CommonSkeletalMeshesAndAnimationsProperties->bImportOnlyAnimations)
+	{
+		bImportAnimations = true;
+	}
 
 	if (!bImportAnimations)
 	{
