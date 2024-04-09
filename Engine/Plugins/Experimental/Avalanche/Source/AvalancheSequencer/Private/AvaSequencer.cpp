@@ -1440,6 +1440,13 @@ TArray<UAvaSequence*> FAvaSequencer::GetSequencesForObject(UObject* InObject) co
 
 TSharedRef<SWidget> FAvaSequencer::CreateSequenceWidget()
 {
+	// Force the SequencerWeak ptr to be invalid if this AvaSequencer doesn't explicitly own the sequencer (i.e. InstancedSequencer is null)
+	// This is to force the sequencer to look for a new sequencer again
+	if (!InstancedSequencer.IsValid())
+	{
+		SequencerWeak.Reset();
+	}
+
 	TSharedRef<ISequencer> Sequencer = GetSequencer();
 
 	TArray<TSharedRef<IAvaSequenceSectionDetails>> Sections =
