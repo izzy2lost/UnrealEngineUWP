@@ -294,7 +294,7 @@ struct FTextureSource
 		return GetMipData(OutMipData, 0, 0, MipIndex, ImageWrapperModule);
 	}
 
-	/** Retrieve a copy of the MipData as an FImage */
+	/** Retrieve a copy of the MipData as an FImage.  Uses LockMip.  Allocates OutImage and copies into it. */
 	ENGINE_API bool GetMipImage(FImage & OutImage, int32 BlockIndex, int32 LayerIndex, int32 MipIndex);
 	
 	/** Retrieve a copy of the MipData as an FImage */
@@ -306,7 +306,12 @@ struct FTextureSource
 	/** Returns a FMipData structure that wraps around the entire mip chain for read only operations. This is more efficient than calling the above method once per mip. */
 	ENGINE_API FMipData GetMipData(class IImageWrapperModule* ImageWrapperModule);
 
-	/** Computes the size of a single mip in bytes */
+	/** Get ImageInfo of one mip.  Does not require locking the mips, or accessing the payload data.
+	Returns false if the requested indexes were out of bounds, true if successful and fills OutImageInfo. **/
+	ENGINE_API bool GetMipImageInfo(FImageInfo & OutImageInfo, int32 BlockIndex, int32 LayerIndex, int32 MipIndex) const;
+
+	/** Computes the size of a single mip in bytes.  Same size as the image in GetMipImageInfo.
+	See also: CalcMipOffset. */
 	ENGINE_API int64 CalcMipSize(int32 BlockIndex, int32 LayerIndex, int32 MipIndex) const;
 
 	/** Computes the number of bytes per-pixel. */
@@ -635,7 +640,7 @@ private:
 	FMipAllocation LockedMipData;
 
 	// Internal implementation for locking the mip data, called by LockMipReadOnly or LockMip.
-	FMutableMemoryView LockMipInternal(int32 BlockIndex, int32 LayerIndex, int32 MipIndex, ELockState RequestedLockState);
+	FMutableMemoryView LockMipInternal(int32 BlockIndex, int32 LayerIndex, int32 MipIndex, ELockState RequestedLockState, FImageInfo & OutImageInfo);
 		
 	/** Returns the source data fully decompressed */
 	// ImageWrapperModule is not used
@@ -647,8 +652,6 @@ private:
 	*/
 	FSharedBuffer DoUEDeltaTransform(FSharedBuffer InBuffer,bool bForward) const;
 
-	/** Return true if the source art is not png compressed but could be. */
-	bool CanPNGCompress() const;
 	/** Retrieve the size and offset for a source mip. The size includes all slices. */
 	int64 CalcMipOffset(int32 BlockIndex, int32 LayerIndex, int32 MipIndex) const;
 	
