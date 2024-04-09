@@ -852,7 +852,7 @@ namespace Chaos::Private
 
 	// Generate the contact point and closest feature types between a convex and a triangle
 	template<typename ConvexType>
-	bool FindClosestFeatures(const ConvexType& Convex, const FRigidTransform3& ConvexTransform, const FTriangle& Triangle, const FVec3& TriangleNormal, const FVec3& ConvexRelativeMovement, const FReal CullDistance, FConvexContactPoint& OutContactPoint)
+	bool FindClosestFeatures(const ConvexType& Convex, const FTriangle& Triangle, const FVec3& TriangleNormal, const FVec3& ConvexRelativeMovement, const FReal CullDistance, FConvexContactPoint& OutContactPoint)
 	{
 		// Find the closest point on the convex and triangle that we will use to generate the manifold
 		// NOTE: use an upper limit on cull distance here since the real cull distance depends on the motion against the contact normal which we don't know yet
@@ -886,7 +886,6 @@ namespace Chaos::Private
 
 	template bool FindClosestFeatures(
 		const FImplicitConvex3& Convex,
-		const FRigidTransform3& ConvexTransform, 
 		const FTriangle& Triangle, 
 		const FVec3& TriangleNormal,
 		const FVec3& ConvexRelativeMovement,
@@ -895,7 +894,6 @@ namespace Chaos::Private
 
 	template bool FindClosestFeatures(
 		const TImplicitObjectInstanced<FImplicitConvex3>& Convex,
-		const FRigidTransform3& ConvexTransform,
 		const FTriangle& Triangle,
 		const FVec3& TriangleNormal,
 		const FVec3& ConvexRelativeMovement,
@@ -904,7 +902,6 @@ namespace Chaos::Private
 
 	template bool FindClosestFeatures(
 		const TImplicitObjectScaled<FImplicitConvex3>& Convex,
-		const FRigidTransform3& ConvexTransform,
 		const FTriangle& Triangle,
 		const FVec3& TriangleNormal,
 		const FVec3& ConvexRelativeMovement,
@@ -913,7 +910,6 @@ namespace Chaos::Private
 
 	template bool FindClosestFeatures(
 		const FImplicitBox3& Convex,
-		const FRigidTransform3& ConvexTransform,
 		const FTriangle& Triangle,
 		const FVec3& TriangleNormal,
 		const FVec3& ConvexRelativeMovement,
@@ -922,7 +918,6 @@ namespace Chaos::Private
 
 	template bool FindClosestFeatures(
 		const TImplicitObjectScaled<FImplicitBox3>& Convex,
-		const FRigidTransform3& ConvexTransform,
 		const FTriangle& Triangle,
 		const FVec3& TriangleNormal,
 		const FVec3& ConvexRelativeMovement,
@@ -931,7 +926,6 @@ namespace Chaos::Private
 
 	template bool FindClosestFeatures(
 		const TImplicitObjectInstanced<FImplicitBox3>& Convex,
-		const FRigidTransform3& ConvexTransform,
 		const FTriangle& Triangle,
 		const FVec3& TriangleNormal,
 		const FVec3& ConvexRelativeMovement,

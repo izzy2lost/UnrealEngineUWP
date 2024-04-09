@@ -50,6 +50,195 @@ namespace Chaos::Private
 		uint32 bUseTwoPassLoop : 1;
 	};
 
+	// A triangle plus some extended data and state
+	// Should be a member of FMeshContactGenerator but that causes natvis issues.
+	class FMeshContactGeneratorTriangle
+	{
+		static constexpr FReal InvalidNormalMarker = std::numeric_limits<FReal>::max();
+
+	public:
+		FMeshContactGeneratorTriangle(const FTriangle& InTriangle, const int32 InTriangleIndex, const int32 InVertexIndex0, const int32 InVertexIndex1, const int32 InVertexIndex2)
+			: Triangle(InTriangle)
+			, Normal(InvalidNormalMarker)
+			, TriangleIndex(InTriangleIndex)
+			, VertexIndices{ InVertexIndex0, InVertexIndex1, InVertexIndex2 }
+			, NumFaceEdgeCollisions(0)
+			, VisitIndex(INDEX_NONE)
+			, bEnabled(true)
+		{
+		}
+
+		// Does this triangle contains the specified vertex? (VertexIndex is an index into the owning mesh's vertices)
+		inline bool HasVertexID(const int32 VertexIndex) const
+		{
+			return (VertexIndices[0] == VertexIndex) || (VertexIndices[1] == VertexIndex) || (VertexIndices[2] == VertexIndex);
+		}
+
+		// Get the vertex position from the vertex ID (not the triangle-local vertex index)
+		inline bool GetVertexWithID(const int32 VertexID, FVec3& OutVertex) const
+		{
+			if (VertexID == VertexIndices[0])
+			{
+				OutVertex = Triangle.GetVertex(0);
+				return true;
+			}
+			else if (VertexID == VertexIndices[1])
+			{
+				OutVertex = Triangle.GetVertex(1);
+				return true;
+			}
+			else if (VertexID == VertexIndices[2])
+			{
+				OutVertex = Triangle.GetVertex(2);
+				return true;
+			}
+			return false;
+		}
+
+		inline bool GetOtherVertexIDs(const int32 VertexID, int32& OutVertexID0, int32& OutVertexID1) const
+		{
+			if (VertexID == VertexIndices[0])
+			{
+				OutVertexID0 = VertexIndices[1];
+				OutVertexID1 = VertexIndices[2];
+				return true;
+			}
+			else if (VertexID == VertexIndices[1])
+			{
+				OutVertexID0 = VertexIndices[2];
+				OutVertexID1 = VertexIndices[0];
+				return true;
+			}
+			else if (VertexID == VertexIndices[2])
+			{
+				OutVertexID0 = VertexIndices[0];
+				OutVertexID1 = VertexIndices[1];
+				return true;
+			}
+			return false;
+		}
+
+		// Get the positions of the other two vertices in the triangle. (VertexIndex is an index into the owning mesh's vertices)
+		inline bool GetOtherVerticesFromID(const int32 VertexID, FVec3& OutVertex0, FVec3& OutVertex1) const
+		{
+			if (VertexID == VertexIndices[0])
+			{
+				OutVertex0 = Triangle.GetVertex(1);
+				OutVertex1 = Triangle.GetVertex(2);
+				return true;
+			}
+			else if (VertexID == VertexIndices[1])
+			{
+				OutVertex0 = Triangle.GetVertex(2);
+				OutVertex1 = Triangle.GetVertex(0);
+				return true;
+			}
+			else if (VertexID == VertexIndices[2])
+			{
+				OutVertex0 = Triangle.GetVertex(0);
+				OutVertex1 = Triangle.GetVertex(1);
+				return true;
+			}
+			return false;
+		}
+
+		int32 GetLocalVertexIndexAt(const FVec3& InPos, const FReal InTolerance) const
+		{
+			for (int32 LocalVertexIndex = 0; LocalVertexIndex < 3; ++LocalVertexIndex)
+			{
+				if (FVec3::IsNearlyEqual(GetVertex(LocalVertexIndex), InPos, InTolerance))
+				{
+					return LocalVertexIndex;
+				}
+			}
+			return INDEX_NONE;
+		};
+
+		int32 GetVertexIDAt(const FVec3& InPos, const FReal InTolerance) const
+		{
+			const int32 LocalVertexIndex = GetLocalVertexIndexAt(InPos, InTolerance);
+			if (LocalVertexIndex != INDEX_NONE)
+			{
+				return VertexIndices[LocalVertexIndex];
+			}
+			return INDEX_NONE;
+		};
+
+		const FTriangle& GetTriangle() const
+		{
+			return Triangle;
+		}
+
+		// Get the vertex for the triangle-local vertex index [0,2]
+		const FVec3& GetVertex(const int32 LocalVertexIndex) const
+		{
+			return Triangle.GetVertex(LocalVertexIndex);
+		}
+
+		int32 GetTriangleIndex() const
+		{
+			return TriangleIndex;
+		}
+
+		int32 GetVertexIndex(const int32 LocalIndex) const
+		{
+			return VertexIndices[LocalIndex];
+		}
+
+		const FVec3& GetNormal() const
+		{
+			if (Normal.X == InvalidNormalMarker)
+			{
+				Normal = Triangle.GetNormal();
+			}
+			return Normal;
+		}
+
+		FVec3 GetCentroid() const
+		{
+			return Triangle.GetCentroid();
+		}
+
+		void SetVisitIndex(const int8 InVisitIndex)
+		{
+			VisitIndex = InVisitIndex;
+		}
+
+		int8 GetVisitIndex() const
+		{
+			return VisitIndex;
+		}
+
+		void SetEnabled(const bool bInEnabled)
+		{
+			bEnabled = bInEnabled;
+		}
+
+		bool GetIsEnabled() const
+		{
+			return bEnabled;
+		}
+
+		void AddFaceEdgeCollision()
+		{
+			++NumFaceEdgeCollisions;
+		}
+
+		int32 GetNumFaceEdgeCollisions() const
+		{
+			return NumFaceEdgeCollisions;
+		}
+
+	private:
+		FTriangle Triangle;
+		mutable FVec3 Normal;
+		int32 TriangleIndex;
+		int32 VertexIndices[3];
+		int8 NumFaceEdgeCollisions;
+		int8 VisitIndex;
+		bool bEnabled;
+	};
+
 	/**
 	* Generate contacts between a collision shape and the triangles from a mesh.
 	*/
@@ -115,193 +304,7 @@ namespace Chaos::Private
 		}
 
 	private:
-		// A triangle plus some extended data and state
-		class FTriangleExt
-		{
-			static constexpr FReal InvalidNormalMarker = std::numeric_limits<FReal>::max();
-
-		public:
-			FTriangleExt(const FTriangle& InTriangle, const int32 InTriangleIndex, const int32 InVertexIndex0, const int32 InVertexIndex1, const int32 InVertexIndex2)
-				: Triangle(InTriangle)
-				, Normal(InvalidNormalMarker)
-				, TriangleIndex(InTriangleIndex)
-				, VertexIndices{ InVertexIndex0, InVertexIndex1, InVertexIndex2 }
-				, NumFaceEdgeCollisions(0)
-				, VisitIndex(INDEX_NONE)
-				, bEnabled(true)
-			{
-			}
-
-			// Does this triangle contains the specified vertex? (VertexIndex is an index into the owning mesh's vertices)
-			inline bool HasVertexID(const int32 VertexIndex) const
-			{
-				return (VertexIndices[0] == VertexIndex) || (VertexIndices[1] == VertexIndex) || (VertexIndices[2] == VertexIndex);
-			}
-
-			// Get the vertex position from the vertex ID (not the triangle-local vertex index)
-			inline bool GetVertexWithID(const int32 VertexID, FVec3& OutVertex) const
-			{
-				if (VertexID == VertexIndices[0])
-				{
-					OutVertex = Triangle.GetVertex(0);
-					return true;
-				}
-				else if (VertexID == VertexIndices[1])
-				{
-					OutVertex = Triangle.GetVertex(1);
-					return true;
-				}
-				else if (VertexID == VertexIndices[2])
-				{
-					OutVertex = Triangle.GetVertex(2);
-					return true;
-				}
-				return false;
-			}
-
-			inline bool GetOtherVertexIDs(const int32 VertexID, int32& OutVertexID0, int32& OutVertexID1) const
-			{
-				if (VertexID == VertexIndices[0])
-				{
-					OutVertexID0 = VertexIndices[1];
-					OutVertexID1 = VertexIndices[2];
-					return true;
-				}
-				else if (VertexID == VertexIndices[1])
-				{
-					OutVertexID0 = VertexIndices[2];
-					OutVertexID1 = VertexIndices[0];
-					return true;
-				}
-				else if (VertexID == VertexIndices[2])
-				{
-					OutVertexID0 = VertexIndices[0];
-					OutVertexID1 = VertexIndices[1];
-					return true;
-				}
-				return false;
-			}
-
-			// Get the positions of the other two vertices in the triangle. (VertexIndex is an index into the owning mesh's vertices)
-			inline bool GetOtherVerticesFromID(const int32 VertexID, FVec3& OutVertex0, FVec3& OutVertex1) const
-			{
-				if (VertexID == VertexIndices[0])
-				{
-					OutVertex0 = Triangle.GetVertex(1);
-					OutVertex1 = Triangle.GetVertex(2);
-					return true;
-				}
-				else if (VertexID == VertexIndices[1])
-				{
-					OutVertex0 = Triangle.GetVertex(2);
-					OutVertex1 = Triangle.GetVertex(0);
-					return true;
-				}
-				else if (VertexID == VertexIndices[2])
-				{
-					OutVertex0 = Triangle.GetVertex(0);
-					OutVertex1 = Triangle.GetVertex(1);
-					return true;
-				}
-				return false;
-			}
-
-			int32 GetLocalVertexIndexAt(const FVec3& InPos, const FReal InTolerance) const
-			{
-				for (int32 LocalVertexIndex = 0; LocalVertexIndex < 3; ++LocalVertexIndex)
-				{
-					if (FVec3::IsNearlyEqual(GetVertex(LocalVertexIndex), InPos, InTolerance))
-					{
-						return LocalVertexIndex;
-					}
-				}
-				return INDEX_NONE;
-			};
-
-			int32 GetVertexIDAt(const FVec3& InPos, const FReal InTolerance) const
-			{
-				const int32 LocalVertexIndex = GetLocalVertexIndexAt(InPos, InTolerance);
-				if (LocalVertexIndex != INDEX_NONE)
-				{
-					return VertexIndices[LocalVertexIndex];
-				}
-				return INDEX_NONE;
-			};
-
-			const FTriangle& GetTriangle() const
-			{
-				return Triangle;
-			}
-
-			// Get the vertex for the triangle-local vertex index [0,2]
-			const FVec3& GetVertex(const int32 LocalVertexIndex) const
-			{
-				return Triangle.GetVertex(LocalVertexIndex);
-			}
-
-			int32 GetTriangleIndex() const
-			{
-				return TriangleIndex;
-			}
-
-			int32 GetVertexIndex(const int32 LocalIndex) const
-			{
-				return VertexIndices[LocalIndex];
-			}
-
-			const FVec3& GetNormal() const
-			{
-				if (Normal.X == InvalidNormalMarker)
-				{
-					Normal = Triangle.GetNormal();
-				}
-				return Normal;
-			}
-
-			FVec3 GetCentroid() const
-			{
-				return Triangle.GetCentroid();
-			}
-
-			void SetVisitIndex(const int8 InVisitIndex)
-			{
-				VisitIndex = InVisitIndex;
-			}
-
-			int8 GetVisitIndex() const
-			{
-				return VisitIndex;
-			}
-
-			void SetEnabled(const bool bInEnabled)
-			{
-				bEnabled = bInEnabled;
-			}
-
-			bool GetIsEnabled() const
-			{
-				return bEnabled;
-			}
-
-			void AddFaceEdgeCollision()
-			{
-				++NumFaceEdgeCollisions;
-			}
-
-			int32 GetNumFaceEdgeCollisions() const
-			{
-				return NumFaceEdgeCollisions;
-			}
-
-		private:
-			FTriangle Triangle;
-			mutable FVec3 Normal;
-			int32 TriangleIndex;
-			int32 VertexIndices[3];
-			int8 NumFaceEdgeCollisions;
-			int8 VisitIndex;
-			bool bEnabled;
-		};
+		using FTriangleExt = FMeshContactGeneratorTriangle;
 
 		// A contact index combined with a flag to indicate if the normal is roughly along the triangle face
 		struct FVertexContactIndex

@@ -25,8 +25,6 @@
 #include "Chaos/Utilities.h"
 #include "ChaosStats.h"
 
-//UE_DISABLE_OPTIMIZATION
-
 namespace Chaos
 {
 	extern bool bChaos_Collision_OneSidedTriangleMesh;
@@ -40,7 +38,7 @@ namespace Chaos
 	extern bool bChaos_Collision_EnableMACDPreManifoldFix;
 
 	extern bool bChaos_Collision_UseCapsuleTriMesh2;
-	extern bool bChaos_Collision_UseConvexTriMesh2;
+	extern int32 Chaos_Collision_ConvexTriMeshMode;
 	
 	namespace CVars
 	{
@@ -91,6 +89,94 @@ namespace Chaos
 			}
 		}
 
+		template<typename ConvexType>
+		void ConstructConvexTriangleOneShotManifold3(
+			const ConvexType& Convex,
+			const FRigidTransform3& ConvexTransform,
+			Private::FMeshContactGenerator& ContactGenerator,
+			const int32 TriangleIndex,
+			const FReal CullDistance,
+			FContactPointManifold& OutContactPoints)
+		{
+			// Triangle relative to the convex at its predicted position P
+			const FTriangle& Triangle = ContactGenerator.GetTriangle(TriangleIndex);
+			const FVec3 TriangleNormal = ContactGenerator.GetTriangleNormal(TriangleIndex);
+
+			// Find the closest feature between the Convex at its initial position X and the Triangle
+			Private::FConvexContactPoint ClosestContact;
+			const bool bFoundClosestContact = Private::FindClosestFeatures(Convex, Triangle, TriangleNormal, FVec3(0), CullDistance, ClosestContact);
+
+			if (bFoundClosestContact)
+			{
+				ClosestContact.Features[0].ObjectIndex = 0;
+				ClosestContact.Features[1].ObjectIndex = TriangleIndex;
+
+				#if CHAOS_DEBUG_DRAW
+				if (CVars::ChaosSolverDebugDrawMeshContacts && FDebugDrawQueue::GetInstance().IsDebugDrawingEnabled())
+				{
+					const FVec3 P = ConvexTransform.TransformPositionNoScale(ClosestContact.ShapeContactPoints[1]);
+					const FVec3 N = ConvexTransform.TransformVectorNoScale(ClosestContact.ShapeContactNormal);
+					FDebugDrawQueue::GetInstance().DrawDebugLine(P, P + 10.0f * N, FColor::Black, false, CVars::ChaosSolverDebugDebugDrawSettings.DrawDuration, (uint8)CVars::ChaosSolverDebugDebugDrawSettings.DrawPriority, 1.5f * CVars::ChaosSolverDebugDebugDrawSettings.LineThickness);
+				}
+				#endif
+
+				// Use the mesh info to correct the normal - this corrects edge and vertex normals if they are
+				// outside the range allowed by the set of triangles sharing the feature
+				if (ContactGenerator.FixFeature(TriangleIndex, ClosestContact.Features[1].FeatureType, ClosestContact.Features[1].PlaneFeatureIndex, ClosestContact.ShapeContactNormal))
+				{
+					// The normal was remapped to the triangle plane
+					ClosestContact.Features[0].FeatureType = Private::EConvexFeatureType::Vertex;
+					ClosestContact.Features[0].PlaneIndex = Convex.GetMostOpposingPlane(ClosestContact.ShapeContactNormal);
+					ClosestContact.Features[0].PlaneFeatureIndex = INDEX_NONE;	// Not needed by ConvexTriangleManifoldFromContact so not worth calculating
+				}
+
+				#if CHAOS_DEBUG_DRAW
+				if (CVars::ChaosSolverDebugDrawMeshContacts && FDebugDrawQueue::GetInstance().IsDebugDrawingEnabled())
+				{
+					const FVec3 P = ConvexTransform.TransformPositionNoScale(ClosestContact.ShapeContactPoints[1]);
+					const FVec3 N = ConvexTransform.TransformVectorNoScale(ClosestContact.ShapeContactNormal);
+					FDebugDrawQueue::GetInstance().DrawDebugLine(P, P + 10.0f * N, FColor::Orange, false, CVars::ChaosSolverDebugDebugDrawSettings.DrawDuration, (uint8)CVars::ChaosSolverDebugDebugDrawSettings.DrawPriority, 1.25f * CVars::ChaosSolverDebugDebugDrawSettings.LineThickness);
+				}
+				#endif
+
+				// Back face culling based on the corrected feature
+				const FReal TriangleDotNormal = FVec3::DotProduct(TriangleNormal, ClosestContact.ShapeContactNormal);
+				if (TriangleDotNormal < 0)
+				{
+					return;
+				}
+
+				// Generate a manifold from on the closest features by projecting the triangle and most opposing convex face onto each other
+				Private::ConvexTriangleManifoldFromContact(Convex, Triangle, TriangleNormal, ClosestContact, CullDistance, OutContactPoints);
+
+				#if CHAOS_DEBUG_DRAW
+				if (CVars::ChaosSolverDebugDrawMeshContacts && FDebugDrawQueue::GetInstance().IsDebugDrawingEnabled())
+				{
+					for (int32 ContactIndex = 0; ContactIndex < OutContactPoints.Num(); ++ContactIndex)
+					{
+						FContactPoint& ContactPoint = OutContactPoints[ContactIndex];
+						const FVec3 P = ConvexTransform.TransformPositionNoScale(ContactPoint.ShapeContactPoints[1]);
+						const FVec3 N = ConvexTransform.TransformVectorNoScale(ContactPoint.ShapeContactNormal);
+						FColor Color = FColor::Black;
+						if (ContactPoint.ContactType == EContactPointType::VertexPlane)
+						{
+							Color = FColor::White;
+						}
+						else if (ContactPoint.ContactType == EContactPointType::PlaneVertex)
+						{
+							Color = FColor::Magenta;
+						}
+						else if (ContactPoint.ContactType == EContactPointType::EdgeEdge)
+						{
+							Color = FColor::Cyan;
+						}
+						FDebugDrawQueue::GetInstance().DrawDebugLine(P, P + 10.0f * N, Color, false, CVars::ChaosSolverDebugDebugDrawSettings.DrawDuration, (uint8)CVars::ChaosSolverDebugDebugDrawSettings.DrawPriority, 1.25f * CVars::ChaosSolverDebugDebugDrawSettings.LineThickness);
+					}
+				}
+				#endif
+			}
+		}
+
 		/**
 		 * @brief Generate a manifold between a convex shape and a single triangle
 		 * Templated so we can specialize for some shape types
@@ -98,7 +184,7 @@ namespace Chaos
 		template<typename ConvexType>
 		void GenerateConvexTriangleOneShotManifold(const ConvexType& Convex, const FTriangle& Triangle, const FReal CullDistance, FContactPointManifold& OutContactPoints)
 		{
-			if (bChaos_Collision_UseConvexTriMesh2)
+			if (Chaos_Collision_ConvexTriMeshMode != 0)
 			{
 				ConstructConvexTriangleOneShotManifold2(Convex, Triangle, CullDistance, OutContactPoints);
 			}
@@ -127,6 +213,47 @@ namespace Chaos
 			ConstructSphereTriangleOneShotManifold(Sphere, Triangle, CullDistance, OutContactPoints);
 		}
 
+		template<typename ConvexType>
+		void GenerateConvexTriangleOneShotManifold(const ConvexType& Convex, const FRigidTransform3& ConvexTransform, Private::FMeshContactGenerator& ContactGenerator, const int32 TriangleIndex, const FReal CullDistance, FContactPointManifold& OutContactPoints)
+		{
+			if (Chaos_Collision_ConvexTriMeshMode == 2)
+			{
+				ConstructConvexTriangleOneShotManifold3(Convex, ConvexTransform, ContactGenerator, TriangleIndex, CullDistance, OutContactPoints);
+				ContactGenerator.SetFixNormalsEnabled(false);
+			}
+			else if (Chaos_Collision_ConvexTriMeshMode == 1)
+			{
+				const FTriangle& Triangle = ContactGenerator.GetTriangle(TriangleIndex);
+				ConstructConvexTriangleOneShotManifold2(Convex, Triangle, CullDistance, OutContactPoints);
+			}
+			else
+			{
+				const FTriangle& Triangle = ContactGenerator.GetTriangle(TriangleIndex);
+				ConstructPlanarConvexTriangleOneShotManifold(Convex, Triangle, CullDistance, OutContactPoints);
+			}
+		}
+
+		template<>
+		void GenerateConvexTriangleOneShotManifold<FImplicitCapsule3>(const FImplicitCapsule3& Capsule, const FRigidTransform3& ConvexTransform, Private::FMeshContactGenerator& ContactGenerator, const int32 TriangleIndex, const FReal CullDistance, FContactPointManifold& OutContactPoints)
+		{
+			const FTriangle& Triangle = ContactGenerator.GetTriangle(TriangleIndex);
+			if (bChaos_Collision_UseCapsuleTriMesh2)
+			{
+				ConstructCapsuleTriangleOneShotManifold2(Capsule, Triangle, CullDistance, OutContactPoints);
+			}
+			else
+			{
+				ConstructCapsuleTriangleOneShotManifold(Capsule, Triangle, CullDistance, OutContactPoints);
+			}
+		}
+
+		template<>
+		void GenerateConvexTriangleOneShotManifold<FImplicitSphere3>(const FImplicitSphere3& Sphere, const FRigidTransform3& ConvexTransform, Private::FMeshContactGenerator& ContactGenerator, const int32 TriangleIndex, const FReal CullDistance, FContactPointManifold& OutContactPoints)
+		{
+			const FTriangle& Triangle = ContactGenerator.GetTriangle(TriangleIndex);
+			ConstructSphereTriangleOneShotManifold(Sphere, Triangle, CullDistance, OutContactPoints);
+		}
+
 		template<typename ConvexType, typename MeshType>
 		void ConstructConvexMeshOneShotManifold2(const ConvexType& Convex, const FRigidTransform3& ConvexTransform, const MeshType& Mesh, const FRigidTransform3& MeshTransform, const FVec3& MeshScale, const FReal CullDistance, Private::FMeshContactGenerator& ContactGenerator)
 		{
@@ -139,12 +266,10 @@ namespace Chaos
 
 			// Generate the contact manifold between Convex and a Triangle
 			const auto& GenerateConvexTriangleContacts =
-				[&Convex, CullDistance](Private::FMeshContactGenerator& ContactGenerator, const int32 TriangleIndex)
+				[&Convex, &ConvexTransform, CullDistance](Private::FMeshContactGenerator& ContactGenerator, const int32 TriangleIndex)
 			{
-				const FTriangle& Triangle = ContactGenerator.GetTriangle(TriangleIndex);
-
 				FContactPointManifold Contacts;
-				GenerateConvexTriangleOneShotManifold(Convex, Triangle, CullDistance, Contacts);
+				GenerateConvexTriangleOneShotManifold(Convex, ConvexTransform, ContactGenerator, TriangleIndex, CullDistance, Contacts);
 
 				ContactGenerator.AddTriangleContacts(TriangleIndex, MakeArrayView(Contacts));
 			};
@@ -178,7 +303,7 @@ namespace Chaos
 
 			// Find the closest feature pair on the triangle and convex
 			Private::FConvexContactPoint ClosestContact;
-			if (Private::FindClosestFeatures(Convex, ConvexTransform, Triangle, TriangleNormal, ConvexRelativeMovement, CullDistance, ClosestContact))
+			if (Private::FindClosestFeatures(Convex, Triangle, TriangleNormal, ConvexRelativeMovement, CullDistance, ClosestContact))
 			{
 				ClosestContact.Features[0].ObjectIndex = 0;
 				ClosestContact.Features[1].ObjectIndex = TriangleIndex;
@@ -332,7 +457,7 @@ namespace Chaos
 
 			// Find the closest feature between the Convex at its initial position X and the Triangle
 			Private::FConvexContactPoint ClosestContact;
-			const bool bFoundClosestContact = Private::FindClosestFeatures(Convex, ConvexTransform, TriangleX, TriangleNormal, ConvexRelativeMovement, CullDistance, ClosestContact);
+			const bool bFoundClosestContact = Private::FindClosestFeatures(Convex, TriangleX, TriangleNormal, ConvexRelativeMovement, CullDistance, ClosestContact);
 
 			if (bFoundClosestContact)
 			{

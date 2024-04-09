@@ -276,6 +276,22 @@ namespace Chaos::Private
 				for (int32 OtherLocalTriangleIndex = 0; OtherLocalTriangleIndex < Triangles.Num(); ++OtherLocalTriangleIndex)
 				{
 					const FTriangleExt& OtherTriangle = Triangles[OtherLocalTriangleIndex];
+
+					// We don't collide with boundary vertices. The vertex is a boundary vertex if any of the edges including
+					// the vertex are boundary edges (i.e., not shared between two triangles)
+					int32 OtherVertexIndexB, OtherVertexIndexC;
+					if (OtherTriangle.GetOtherVertexIDs(VertexIndexA, OtherVertexIndexB, OtherVertexIndexC))
+					{
+						const FContactEdgeID EdgeAB = FContactEdgeID(VertexIndexA, OtherVertexIndexB);
+						const FContactEdgeID EdgeCA = FContactEdgeID(OtherVertexIndexC, VertexIndexA);
+						if (!IsSharedEdge(EdgeAB) || !IsSharedEdge(EdgeCA))
+						{
+							ContactPoint.ShapeContactNormal = TriangleNormal;
+							ContactPoint.ShapeContactPoints[0] = ContactPoint.ShapeContactPoints[1] + ContactPoint.Phi * TriangleNormal;
+							break;
+						}
+					}
+
 					FVec3 OtherVertexB, OtherVertexC;
 					if (OtherTriangle.GetOtherVerticesFromID(VertexIndexA, OtherVertexB, OtherVertexC))
 					{
@@ -442,55 +458,102 @@ namespace Chaos::Private
 		if (InOutFeatureType == Private::EConvexFeatureType::Vertex)
 		{
 			check(InOutFeatureIndex != INDEX_NONE);
-
 			const int32 LocalVertexIndex0 = InOutFeatureIndex;
 			const int32 VertexIndexA = Triangle.GetVertexIndex(LocalVertexIndex0);
 			const FVec3& VertexA = Triangle.GetVertex(LocalVertexIndex0);
 
-			// @todo(chaos): the map of Vertex->TriangleIndices would help here but may not be a net win
-			for (int32 OtherLocalTriangleIndex = 0; OtherLocalTriangleIndex < Triangles.Num(); ++OtherLocalTriangleIndex)
+			// Loop over the fan of triangles that share VertexA
+			// If the fan is not complete, we assume we have a boundary vertex and convert to a face collision
+			int32 CurrentLocalTriangleIndex = LocalTriangleIndex;
+			int32 NumTrianglesVisited = 0;
+			while (true)
 			{
-				const FTriangleExt& OtherTriangle = Triangles[OtherLocalTriangleIndex];
+				const FTriangleExt& CurrentTriangle = Triangles[CurrentLocalTriangleIndex];
 
-				// We don't collide with boundary vertices. The vertex is a boundary vertex if any of the edges including
-				// the vertex are boundary edges (i.e., not shared between two triangles)
-				int32 OtherVertexIndexB, OtherVertexIndexC;
-				if (OtherTriangle.GetOtherVertexIDs(VertexIndexA, OtherVertexIndexB, OtherVertexIndexC))
+				// Does the contact normal point into the infinite prism formed by extruding the triangle along the face normal?
+				FVec3 CurrentVertexB, CurrentVertexC;
+				if (CurrentTriangle.GetOtherVerticesFromID(VertexIndexA, CurrentVertexB, CurrentVertexC))
 				{
-					const FContactEdgeID EdgeAB = FContactEdgeID(VertexIndexA, OtherVertexIndexB);
-					const FContactEdgeID EdgeCA = FContactEdgeID(OtherVertexIndexC, VertexIndexA);
-					if (!IsSharedEdge(EdgeAB) || !IsSharedEdge(EdgeCA))
+					const FVec3& CurrentTriangleNormal = CurrentTriangle.GetNormal();
+					const FVec3 CurrentEdge0 = CurrentVertexB - VertexA;
+					const FVec3 CurrentEdge1 = CurrentVertexC - VertexA;
+					const FVec3 CurrentEdgeNormal0 = FVec3::CrossProduct(CurrentTriangleNormal, CurrentEdge0);	// Not normalized
+					const FVec3 CurrentEdgeNormal1 = FVec3::CrossProduct(CurrentEdge1, CurrentTriangleNormal);	// Not normalized
+					const FReal CurrentEdgeSign0 = FVec3::DotProduct(InOutPlaneNormal, CurrentEdgeNormal0);		// Not normalized
+					const FReal CurrentEdgeSign1 = FVec3::DotProduct(InOutPlaneNormal, CurrentEdgeNormal1);		// Not normalized
+					const FReal CurrentEdgeSign0Sq = Utilities::SignedSquare(CurrentEdgeSign0);					// Not normalized
+					const FReal CurrentEdgeSign1Sq = Utilities::SignedSquare(CurrentEdgeSign1);					// Not normalized
+
+					// Scale tolerance to account for non-normalized sign
+					const FReal SignToleranceSq = FReal(1.e-8);
+					const FReal SignTolerance0Sq = SignToleranceSq * CurrentEdge0.SizeSquared();
+					const FReal SignTolerance1Sq = SignToleranceSq * CurrentEdge1.SizeSquared();
+					
+					// If the normal is in the voronoi region of the triangle face, the only valid value for the normal is the face normal
+					if ((CurrentEdgeSign0Sq >= FReal(-SignTolerance0Sq)) && (CurrentEdgeSign1Sq >= FReal(-SignTolerance1Sq)))
 					{
 						InOutFeatureType = Private::EConvexFeatureType::Plane;
 						InOutFeatureIndex = 0;
-						InOutPlaneNormal = TriangleNormal;
+						InOutPlaneNormal = CurrentTriangleNormal;
 						return true;
+					}
+
+					// If the normal is in the voronoi region of the shared edge, use the triangle face normal
+					// @todo(chaos): we should really use the two triangles sharing the edge to map the normal to a valid edge normal.
+					if ((CurrentEdgeSign0Sq <= FReal(SignTolerance0Sq)) && (CurrentEdgeSign1Sq <= FReal(SignTolerance1Sq)))
+					{
+						const FReal NormalDotEdge0 = FVec3::DotProduct(InOutPlaneNormal, CurrentEdge0);
+						const FReal NormalDotEdge1 = FVec3::DotProduct(InOutPlaneNormal, CurrentEdge1);
+						if ((NormalDotEdge0 > 0) || (NormalDotEdge1 > 0))
+						{
+							InOutFeatureType = Private::EConvexFeatureType::Plane;
+							InOutFeatureIndex = 0;
+							InOutPlaneNormal = CurrentTriangleNormal;
+							return true;
+						}
 					}
 				}
 
-				// Does the contact normal point into the infinite prism formed by extruding the triangle along the face normal?
-				FVec3 OtherVertexB, OtherVertexC;
-				if (OtherTriangle.GetOtherVerticesFromID(VertexIndexA, OtherVertexB, OtherVertexC))
+				// Move to next triangle that shares edge A-B
+				// NOTE: This relies on constent winding and that GetOtherVertexIDs returns indices in winding order
+				int32 CurrentVertexIndexB, CurrentVertexIndexC;
+				if (!ensure(CurrentTriangle.GetOtherVertexIDs(VertexIndexA, CurrentVertexIndexB, CurrentVertexIndexC)))
 				{
-					const FVec3& OtherTriangleNormal = OtherTriangle.GetNormal();
-					const FVec3 OtherEdge0 = OtherVertexB - VertexA;
-					const FVec3 OtherEdge1 = VertexA - OtherVertexC;
-					const FVec3 OtherEdgeNormal0 = FVec3::CrossProduct(OtherTriangleNormal, OtherEdge0);	// Not normlized
-					const FVec3 OtherEdgeNormal1 = FVec3::CrossProduct(OtherTriangleNormal, OtherEdge1);	// Not normlized
-					const FReal OtherEdgeSign0 = FVec3::DotProduct(InOutPlaneNormal, OtherEdgeNormal0);
-					const FReal OtherEdgeSign1 = FVec3::DotProduct(InOutPlaneNormal, OtherEdgeNormal1);
-					const FReal OtherEdgeSign0Sq = OtherEdgeSign0 * FMath::Abs(OtherEdgeSign0);
-					const FReal OtherEdgeSign1Sq = OtherEdgeSign1 * FMath::Abs(OtherEdgeSign1);
-					const FReal NormalToleranceSq = FReal(1.e-8);
-					const FReal NormalTolerance0Sq = NormalToleranceSq * OtherEdge0.SizeSquared();
-					const FReal NormalTolerance1Sq = NormalToleranceSq * OtherEdge1.SizeSquared();
-					if ((OtherEdgeSign0Sq >= FReal(-NormalTolerance0Sq)) && (OtherEdgeSign1Sq >= FReal(-NormalTolerance1Sq)))
-					{
-						InOutFeatureType = Private::EConvexFeatureType::Plane;
-						InOutFeatureIndex = 0;
-						InOutPlaneNormal = OtherTriangleNormal;
-						return true;
-					}
+					// Unexpected error - the triangle does not contain VertexA but it always should
+					return false;
+				}
+				const int32 NextLocalTriangleIndex = GetOtherTriangleIndexForEdge(CurrentLocalTriangleIndex, FContactEdgeID(VertexIndexA, CurrentVertexIndexB));
+
+				// Fan complete? We are done
+				if (NextLocalTriangleIndex == LocalTriangleIndex)
+				{
+					break;
+				}
+
+				// Incomplete fan means boundary vertex. We treat boundary vertex contacts as a face contacts
+				// NOTE: we may get false-positives here. Our triangle cache may not contain all the triangles that use
+				// VertexA because the convex bounds does not overlap them all. However, if that happens we cannot
+				// have a real vertex collision (if we overlap the vertex we should overlap all triangles that use it),
+				// so the fallback should be reasonable even for false positives.
+				if (NextLocalTriangleIndex == INDEX_NONE)
+				{
+					InOutFeatureType = Private::EConvexFeatureType::Plane;
+					InOutFeatureIndex = 0;
+					InOutPlaneNormal = TriangleNormal;
+					return true;
+				}
+
+
+				CurrentLocalTriangleIndex = NextLocalTriangleIndex;
+				++NumTrianglesVisited;
+
+				// Malformed mesh?
+				if (!ensure(NumTrianglesVisited < GetNumTriangles()))
+				{
+					InOutFeatureType = Private::EConvexFeatureType::Plane;
+					InOutFeatureIndex = 0;
+					InOutPlaneNormal = TriangleNormal;
+					return true;
 				}
 			}
 		}

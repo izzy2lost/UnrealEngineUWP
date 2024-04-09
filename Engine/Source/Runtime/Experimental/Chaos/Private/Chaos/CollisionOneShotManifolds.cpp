@@ -137,9 +137,12 @@ namespace Chaos
 
 	bool bChaos_Collision_UseCapsuleTriMesh2 = true;
 	FAutoConsoleVariableRef CVarChaos_Collision_UseCapsuleTriMesh2(TEXT("p.Chaos.Collision.UseCapsuleTriMesh2"), bChaos_Collision_UseCapsuleTriMesh2, TEXT(""));
-
-	bool bChaos_Collision_UseConvexTriMesh2 = true;
-	FAutoConsoleVariableRef CVarChaos_Collision_UseConvexTriMesh2(TEXT("p.Chaos.Collision.UseConvexTriMesh2"), bChaos_Collision_UseConvexTriMesh2, TEXT(""));
+	// @todo(chaos): (2) is the intended solution. The others are for rollback if blocking bugs are found. Remove this once (2) is tested
+	// 0: Use GJK + EPA to generate closest feature, generate multi-point manifold from its normal, and then fix manifold based on mesh topology
+	// 1: Use SAT to generate closest feature, generate multi-point manifold from its normal, and then fix manifold based on mesh topology
+	// 2: Use GJK + SAT to generate closest feature, then fix its normal based on mesh topology, then generate the multi-point manifold
+	int32 Chaos_Collision_ConvexTriMeshMode = 2;
+	FAutoConsoleVariableRef CVarChaos_Collision_UseConvexTriMesh2(TEXT("p.Chaos.Collision.ConvexTriMeshMode"), Chaos_Collision_ConvexTriMeshMode, TEXT(""));
 
 	// true: use GJK and then SAT if the shapes overlap
 	// false: use GJK and then EPA if the shapes overlap

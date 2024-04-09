@@ -19,34 +19,44 @@ namespace Chaos::Private
 			Reset();
 		}
 
-		void Reset()
+		inline void Reset()
 		{
 			Phi = InvalidPhi<FRealType>();
 		}
 
-		bool IsSet() const
+		inline bool IsSet() const
 		{
 			return Phi != InvalidPhi<FRealType>();
 		}
 
-		EContactPointType GetContactPointType() const
+		// Convert a feature pair into a contact type (used by callbacks, events, etc)
+		inline EContactPointType GetContactPointType() const
 		{
-			if (IsSet())
+			if (!IsSet())
 			{
-				if ((Features[0].FeatureType == EConvexFeatureType::Plane) && (Features[1].FeatureType == EConvexFeatureType::Vertex))
-				{
-					return EContactPointType::PlaneVertex;
-				}
-				if ((Features[0].FeatureType == EConvexFeatureType::Vertex) && (Features[1].FeatureType == EConvexFeatureType::Plane))
-				{
-					return EContactPointType::VertexPlane;
-				}
-				if ((Features[0].FeatureType == EConvexFeatureType::Edge) && (Features[1].FeatureType == EConvexFeatureType::Edge))
-				{
-					return EContactPointType::EdgeEdge;
-				}
+				return EContactPointType::Unknown;
 			}
-			return EContactPointType::Unknown;
+
+			// Both features should be set to something
+			if ((Features[0].FeatureType == EConvexFeatureType::Unknown) || (Features[1].FeatureType == EConvexFeatureType::Unknown))
+			{
+				return EContactPointType::Unknown;
+			}
+
+			// Plane-Plane, Edge-Plane and Vertex-Plane are treated as Vertex-Plane
+			if (Features[1].FeatureType == EConvexFeatureType::Plane)
+			{
+				return EContactPointType::VertexPlane;
+			}
+
+			// Plane-Vertex and Plane-Edge are treated as Plane-Vertex
+			if (Features[0].FeatureType == EConvexFeatureType::Plane)
+			{
+				return EContactPointType::PlaneVertex;
+			}
+
+			// Vertex-Vertex, Edge-Vertex and Edge-Edge are treated as Edge-Edge
+			return EContactPointType::EdgeEdge;
 		}
 
 		FConvexFeature Features[2];
