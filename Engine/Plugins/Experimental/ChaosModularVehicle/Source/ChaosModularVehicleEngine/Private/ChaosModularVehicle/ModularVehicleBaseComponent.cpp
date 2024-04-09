@@ -182,7 +182,8 @@ int GenerateNewGuid()
 	return Val++;
 }
 
-void UModularVehicleBaseComponent::CreateAssociatedSimComponents(const UPrimitiveComponent* AttachedComponent, int ParentIndex, int TransformIndex, Chaos::FSimTreeUpdates& TreeUpdatesOut)
+
+void UModularVehicleBaseComponent::CreateAssociatedSimComponents(UPrimitiveComponent* AttachedComponent, int ParentIndex, int TransformIndex, Chaos::FSimTreeUpdates& TreeUpdatesOut)
 {
 	using namespace Chaos;
 	if (AttachedComponent == nullptr || ClusterUnionComponent == nullptr)
@@ -264,6 +265,11 @@ void UModularVehicleBaseComponent::CreateAssociatedSimComponents(const UPrimitiv
 			}
 		}
 
+		// store the tree index in the original sim component
+		if (UVehicleSimBaseComponent* SimComponent = Cast<UVehicleSimBaseComponent>(AttachedComponent))
+		{
+			SimComponent->TreeIndex = TreeIndex;
+		}
 		ParentIndex = TreeIndex;
 
 		if (bModularVehicle_SuspensionConstraint_Enabled)
@@ -730,7 +736,7 @@ void UModularVehicleBaseComponent::ParallelUpdate(float DeltaTime)
 
 					if (Chaos::FSimOutputData* ModuleOutput = PVehicleOutput->SimTreeOutputData[I])
 					{
-						if (ModuleOutput->AnimationSetupIndex >= 0)
+						if ((ModuleOutput->AnimationSetupIndex >= 0) && (ModuleOutput->AnimationSetupIndex < ModuleAnimationSetups.Num()))
 						{
 							ModuleAnimationSetups[ModuleOutput->AnimationSetupIndex].AnimFlags |= ModuleOutput->AnimFlags;
 
@@ -851,6 +857,25 @@ void UModularVehicleBaseComponent::ActionTreeUpdates(Chaos::FSimTreeUpdates* Nex
 		});
 }
 
+int UModularVehicleBaseComponent::FindParentsLastSimComponent(const UPrimitiveComponent* AttachedComponent)
+{
+	if (USceneComponent* AttachParent = AttachedComponent->GetAttachParent())
+	{
+		TArray<USceneComponent*> Children;
+		AttachParent->GetChildrenComponents(false, Children);
+
+		for (int I = Children.Num()-1; I>=0; I--)
+		{
+			if (UVehicleSimBaseComponent* ChildSimComponent = Cast<UVehicleSimBaseComponent>(Children[I]))
+			{
+				return ChildSimComponent->TreeIndex;
+			}
+		}
+	}
+
+	return INDEX_NONE;
+}
+
 void UModularVehicleBaseComponent::AddComponentToSimulation(UPrimitiveComponent* InComponent, const TArray<FClusterUnionBoneData>& BonesData, const TArray<FClusterUnionBoneData>& RemovedBoneIDs, bool bIsNew)
 {
 	check(ClusterUnionComponent);
@@ -874,7 +899,8 @@ void UModularVehicleBaseComponent::AddComponentToSimulation(UPrimitiveComponent*
 			ComponentAddOrder = FindComponentAddOrder(InComponent);
 		}
 
-		int ParentID = INDEX_NONE; // always at root
+		int ParentID = FindParentsLastSimComponent(InComponent);
+
 		Chaos::FSimTreeUpdates LatestTreeUpdates;
 		CreateAssociatedSimComponents(InComponent, ParentID, NextTransformIndex, LatestTreeUpdates);
 

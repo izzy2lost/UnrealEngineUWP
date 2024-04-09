@@ -210,7 +210,7 @@ public:
 	virtual void BeginPlay() override;
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 
-	void CreateAssociatedSimComponents(const UPrimitiveComponent* AttachedComponent, int ParentIndex, int TransformIndex, Chaos::FSimTreeUpdates& TreeUpdatesOut);
+	void CreateAssociatedSimComponents(UPrimitiveComponent* AttachedComponent, int ParentIndex, int TransformIndex, Chaos::FSimTreeUpdates& TreeUpdatesOut);
 
 	void CreateConstraint(Chaos::ISimulationModuleBase* NewModule);
 	void DestroyConstraint(int ConstraintIndex);
@@ -384,6 +384,7 @@ protected:
 	void ActionTreeUpdates(Chaos::FSimTreeUpdates* NextTreeUpdates);
 
 	void SetCurrentAsyncDataInternal(FModularVehicleAsyncInput* CurInput, int32 InputIdx, FChaosSimModuleManagerAsyncOutput* CurOutput, FChaosSimModuleManagerAsyncOutput* NextOutput, float Alpha, int32 VehicleManagerTimestamp);
+	int FindParentsLastSimComponent(const UPrimitiveComponent* AttachedComponent);
 
 	IPhysicsProxyBase* GetPhysicsProxy() const;
 

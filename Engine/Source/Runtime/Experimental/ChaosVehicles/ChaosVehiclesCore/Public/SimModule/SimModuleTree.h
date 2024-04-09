@@ -8,6 +8,7 @@
 
 DECLARE_STATS_GROUP(TEXT("ModularVehicle.SimTree"), STATGROUP_ModularVehicleSimTree, STATGROUP_Advanced);
 
+
 class FGeometryCollectionPhysicsProxy;
 namespace Chaos
 {
@@ -15,6 +16,12 @@ namespace Chaos
 	class FClusterUnionPhysicsProxy;
 	struct FAllInputs;
 
+
+	enum ESimTreeProcessingOrder : int8
+	{
+		LeafFirst = 0,
+		RootFirst = 1
+	};
 
 	struct FPendingModuleAdds
 	{
@@ -32,7 +39,6 @@ namespace Chaos
 	};
 
 	// Each update tree has it's own local tree hierarchy, this will be translated into the actual tree hierarchy.
-	// The root in here will always translate to the root in the main sim tree
 	class FSimTreeUpdates
 	{
 	public:
@@ -103,6 +109,7 @@ namespace Chaos
 		{
 			bAnimationEnabled = true;
 			bSimulationEnabled = true;
+			SimTreeProcessingOrder = ESimTreeProcessingOrder::LeafFirst;
 		}
 
 		~FSimModuleTree()
@@ -139,6 +146,8 @@ namespace Chaos
 		void AppendTreeUpdates(const FSimTreeUpdates& TreeUpdates);
 
 		void Simulate(float DeltaTime, FAllInputs& Inputs, FClusterUnionPhysicsProxy* PhysicsProxy);
+
+		void SetSimTreeProcessingOrder(ESimTreeProcessingOrder OrderIn) { SimTreeProcessingOrder = OrderIn; }
 
 		FDeferredForcesModular& AccessDeferredForces() { return DeferredForces; }
 		const FDeferredForcesModular& GetDeferredForces() const { return DeferredForces; }
@@ -215,6 +224,7 @@ namespace Chaos
 		bool bSimulationEnabled;
 
 		FVehicleState VehicleState;
+		ESimTreeProcessingOrder SimTreeProcessingOrder;
 	};
 
 

@@ -95,9 +95,18 @@ void FSimModuleTree::AppendTreeUpdates(const FSimTreeUpdates& TreeUpdates)
 	for (const FPendingModuleAdds& TreeUpdate : TreeUpdates.GetNewModules())
 	{
 		int AddIndex = -1;
-		if (int* AddIndexPtr = SimTreeMapping.Find(TreeUpdate.ParentIndex))
+		if (LocalIndex == 0)
 		{
-			AddIndex = *AddIndexPtr;
+			// the first tree update contains the actual parent index in the real tree..
+			AddIndex = TreeUpdate.ParentIndex;
+		}
+		else
+		{
+			// all other tree updates have a parent index that is relative to the first
+			if (int* AddIndexPtr = SimTreeMapping.Find(TreeUpdate.ParentIndex))
+			{
+				AddIndex = *AddIndexPtr;
+			}
 		}
 
 		TreeIndex = AddNodeBelow(AddIndex, TreeUpdate.NewSimModule);
@@ -239,13 +248,16 @@ void FSimModuleTree::SimulateNode(float DeltaTime, FAllInputs& Inputs, int NodeI
 {
 	if (ISimulationModuleBase* Module = AccessSimModule(NodeIndex))
 	{
-		if (Module->IsEnabled())
+		if (SimTreeProcessingOrder == ESimTreeProcessingOrder::RootFirst)
 		{
-			Module->Simulate(PhysicsProxy, DeltaTime, Inputs, *this);
-
-			if (IsAnimationEnabled() && Module->IsAnimationEnabled())
+			if (Module->IsEnabled())
 			{
-				Module->Animate(PhysicsProxy);
+				Module->Simulate(PhysicsProxy, DeltaTime, Inputs, *this);
+
+				if (IsAnimationEnabled() && Module->IsAnimationEnabled())
+				{
+					Module->Animate(PhysicsProxy);
+				}
 			}
 		}
 
@@ -253,6 +265,20 @@ void FSimModuleTree::SimulateNode(float DeltaTime, FAllInputs& Inputs, int NodeI
 		{
 			SimulateNode(DeltaTime, Inputs, ChildIdx, PhysicsProxy);
 		}
+
+		if (SimTreeProcessingOrder == ESimTreeProcessingOrder::LeafFirst)
+		{
+			if (Module->IsEnabled())
+			{
+				Module->Simulate(PhysicsProxy, DeltaTime, Inputs, *this);
+
+				if (IsAnimationEnabled() && Module->IsAnimationEnabled())
+				{
+					Module->Animate(PhysicsProxy);
+				}
+			}
+		}
+
 	}
 }
 
