@@ -71,6 +71,9 @@ namespace Chaos
 	int32 Chaos_Collision_MaxManifoldPoints = -1;
 	FAutoConsoleVariableRef CVarChaos_Collision_MaxManifoldPoints(TEXT("p.Chaos.Collision.MaxManifoldPoints"), Chaos_Collision_MaxManifoldPoints, TEXT(""));
 
+	bool bChaos_Collision_AllowGlobalInitialPhi = true;
+	FAutoConsoleVariableRef CVarChaos_Collision_AllowGlobalInitialPhi(TEXT("p.Chaos.Collision.AllowGlobalInitialPhi"), bChaos_Collision_AllowGlobalInitialPhi, TEXT(""));
+
 
 	struct FCollisionTolerances
 	{
@@ -343,6 +346,15 @@ namespace Chaos
 		const bool bOneWay0 = FConstGenericParticleHandle(GetParticle0())->OneWayInteraction();
 		const bool bOneWay1 = FConstGenericParticleHandle(GetParticle1())->OneWayInteraction();
 		Flags.bIsOneWayInteraction = (bDynamic0 || bDynamic1) && (bOneWay0 || bOneWay1);
+
+		// For dynamic against kinematic (as long as no spheres or capsules are involved) we share initial overlap between all manifold points.
+		// This is to make convex-mesh collisions work better for large overlaps on complicated meshes, but it is not ideal.
+		// @todo(chaos): try to remove this
+		Flags.bUsePerContactInitialPhi = true;
+		if (bChaos_Collision_AllowGlobalInitialPhi && !Flags.bIsQuadratic0 && !Flags.bIsQuadratic1 && (!bDynamic0 || !bDynamic1))
+		{
+			Flags.bUsePerContactInitialPhi = false;
+		}
 
 		// Only levelsets use incremental collision manifolds
 		if (bInUseManifold && ((ImplicitType0 == ImplicitObjectType::LevelSet) || (ImplicitType1 == ImplicitObjectType::LevelSet)))
@@ -1211,6 +1223,7 @@ namespace Chaos
 					ManifoldPoints[PointIndex].Flags.bHasStaticFrictionAnchor = true;
 					ManifoldPoints[PointIndex].ShapeAnchorPoints[0] = SavedManifoldPoints[SavedManifoldPointIndex].ShapeContactPoints[0];
 					ManifoldPoints[PointIndex].ShapeAnchorPoints[1] = SavedManifoldPoints[SavedManifoldPointIndex].ShapeContactPoints[1];
+					ManifoldPoints[PointIndex].InitialPhi = SavedManifoldPoints[SavedManifoldPointIndex].InitialPhi;
 					ManifoldPoints[PointIndex].Flags.bInitialContact = false;
 				}
 				// Nothing to do if no saved friction point because we already set the achor to the most recently detected contact point

@@ -154,14 +154,18 @@ namespace Chaos
 			}
 		}
 
-		// Overlap remaining from the previous frame, estimated from current contact phi and velocity
-		FRealSingle WorldContactResidualPhi = FMath::Min(WorldContactDeltaNormal, FRealSingle(0)) - FMath::Min(ContactVelocityNormal * Dt, FRealSingle(0));
-
-		// Initial Phi for initial-overlap depenetration.
-		// If we have an initial contact, calculate the initial overlap. This will get saved in SetSolverResults
-		FRealSingle WorldContactInitialPhi = 0;
+		// Handle initial overlaps. Initially overlapping objects will de-penetrate at MaxDepenetrationVelocity (which may be zero).
 		if ((MaxDepenetrationVelocity >= 0) && CVars::bChaos_Collision_EnableInitialDepenetration)
 		{
+			// Overlap remaining from the previous frame, estimated from current contact phi and velocity
+			FRealSingle WorldContactResidualPhi = FMath::Min(WorldContactDeltaNormal, FRealSingle(0)) - FMath::Min(ContactVelocityNormal * Dt, FRealSingle(0));
+
+			// We can handle initial overlap depenentration individually per manifold point or
+			// globally over all maifold points. See FPBDCollisionConstraint::Setup
+			const bool bUsePerContactInitialPhi = Constraint->UsePerContactInitialPhi();
+			
+			// If we have an initial contact, calculate the initial overlap. This will get saved in SetSolverResults
+			FRealSingle WorldContactInitialPhi = 0;
 			if (ManifoldPoint.Flags.bInitialContact)
 			{
 				// This is a new manifold point, capture current Phi as the initial Phi
@@ -173,22 +177,26 @@ namespace Chaos
 				// new deeper manifold points as full initial overlaps.
 				// NOTE: here we are checking IsInitialContact on the constraint, which is only set when we first make contact, as opposed 
 				// to the bInitialContact on the manifold point which is true for any new manifold point, regardless of the constraint age.
-				if (!Constraint->IsInitialContact())
+				if (bUsePerContactInitialPhi && !Constraint->IsInitialContact())
 				{
 					WorldContactInitialPhi = FMath::Max(WorldContactInitialPhi, Constraint->GetMinInitialPhi());
 				}
 
 			}
-			else if (Constraint->GetMinInitialPhi() < 0)
+			else
 			{
 				// This is a pre-existing manifold point, but maybe we are still resolving initial penetrations
-				// Don't allow this contact to penetrate any deeper than it currently is. MinInitialPhi will
+				// Don't allow this contact to penetrate any deeper than it currently is. InitialPhi will
 				// decrease over time if we have a non-zero depenetration velocity
-				WorldContactInitialPhi = FMath::Max(WorldContactDeltaNormal, Constraint->GetMinInitialPhi());
+				const FRealSingle InitialPhi = bUsePerContactInitialPhi ? ManifoldPoint.InitialPhi : Constraint->GetMinInitialPhi();
+				if (InitialPhi < 0)
+				{
+					WorldContactInitialPhi = FMath::Max(WorldContactDeltaNormal, InitialPhi);
+				}
 			}
 
-			// InitialPhi is only for tracking penetration - cannot be positive
-			WorldContactInitialPhi = FMath::Min(WorldContactInitialPhi, FRealSingle(0));
+			// Update the initial overlap based on depenetration velocity
+			WorldContactInitialPhi = FMath::Min(WorldContactInitialPhi + MaxDepenetrationVelocity * Dt, 0.0f);
 
 			// Apply initial penetration allowance to depth correction
 			WorldContactDeltaNormal -= WorldContactInitialPhi;
@@ -209,8 +217,7 @@ namespace Chaos
 		}
 
 		// Adjust depth to account for target penetration from user
-		const FRealSingle TargetPhi = ManifoldPoint.TargetPhi;
-		WorldContactDeltaNormal -= TargetPhi;
+		WorldContactDeltaNormal -= ManifoldPoint.TargetPhi;
 
 		Solver.InitManifoldPoint(
 			SolverPointIndex,
@@ -375,8 +382,6 @@ namespace Chaos
 				StaticFrictionRatio,
 				Dt);
 		}
-
-		Constraint->FinalizeSolverResults(Dt);
 	}
 
 	//////////////////////////////////////////////////////////////////////////////////////////////////

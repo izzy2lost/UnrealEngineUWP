@@ -414,6 +414,7 @@ namespace Chaos
 		void SetIsInitialContact(const bool bInIsInitialContact) { Flags.bInitialContact = bInIsInitialContact; }
 		bool IsInitialContact() const { return Flags.bInitialContact; }
 		FRealSingle GetMinInitialPhi() const { return MinInitialPhi; }
+		bool UsePerContactInitialPhi() const { return Flags.bUsePerContactInitialPhi; }
 
 		virtual bool SupportsSleeping() const override final { return true; }
 		CHAOS_API virtual bool IsSleeping() const override final;
@@ -817,18 +818,10 @@ namespace Chaos
 			{
 				SavedManifoldPoint->ShapeContactPoints[0] = Anchor0;
 				SavedManifoldPoint->ShapeContactPoints[1] = Anchor1;
+				SavedManifoldPoint->InitialPhi = ManifoldPoint.InitialPhi;
 			}
 
 			MinInitialPhi = FMath::Min(MinInitialPhi, ManifoldPoint.InitialPhi);
-		}
-
-		void FinalizeSolverResults(const FRealSingle Dt)
-		{
-			if (MinInitialPhi < 0)
-			{
-				// Apply depentration velocity to the initial overlap
-				MinInitialPhi = FMath::Min(MinInitialPhi + InitialOverlapDepenetrationVelocity * Dt, 0.0f);
-			}
 		}
 
 		/**
@@ -953,6 +946,7 @@ namespace Chaos
 				uint16 bMaterialSet : 1;				// Has the material been set (or does it need to be reset)
 				uint16 bInitialContact : 1;				// Is this contact considered an initial contact
 				uint16 bIsOneWayInteraction : 1;		// Does one of the bodies have the one-way interaction bit set?
+				uint16 bUsePerContactInitialPhi : 1;	// Whether we track initial overlap per-contact or shared across all contacts in the manifold
 			};
 			uint16 Bits;
 		};
