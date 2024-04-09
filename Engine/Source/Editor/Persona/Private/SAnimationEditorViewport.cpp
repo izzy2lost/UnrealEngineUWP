@@ -1194,12 +1194,7 @@ void SAnimationEditorViewportTabBody::OnSetTurnTableMode(int32 ModeIndex)
 	UDebugSkelMeshComponent* PreviewComponent = GetPreviewScene()->GetPreviewMeshComponent();
 	if (PreviewComponent)
 	{
-		PreviewComponent->TurnTableMode = SelectedTurnTableMode;
-
-		if (SelectedTurnTableMode == EPersonaTurnTableMode::Stopped)
-		{
-			PreviewComponent->SetRelativeRotation(FRotator::ZeroRotator);
-		}
+		PreviewComponent->SetTurnTableMode(SelectedTurnTableMode);
 	}
 }
 

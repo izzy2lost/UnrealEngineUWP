@@ -625,6 +625,10 @@ protected:
 	UNREALED_API virtual void SendRenderDynamicData_Concurrent() override;
 
 public:
+
+	/** Set TurnTableMode and reset the turntable rotation if needed. */
+	UNREALED_API void SetTurnTableMode(EPersonaTurnTableMode::Type NewMode);
+	
 	/** Current turn table mode */
 	EPersonaTurnTableMode::Type TurnTableMode;
 	/** Current turn table speed scaling */
