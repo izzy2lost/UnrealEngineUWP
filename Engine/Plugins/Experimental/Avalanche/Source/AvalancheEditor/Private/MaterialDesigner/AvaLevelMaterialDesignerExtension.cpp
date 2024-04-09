@@ -71,7 +71,7 @@ void FAvaLevelMaterialDesignerExtension::DeinitContentBrowserExtension()
 		{
 			TArray<FContentBrowserMenuExtender_SelectedAssets>& CBMenuExtenderDelegates = ContentBrowserModule->GetAllAssetViewContextMenuExtenders();
 
-			CBMenuExtenderDelegates.RemoveAll([ContentBrowserExtenderDelegateHandle = ContentBrowserExtenderDelegateHandle](const FContentBrowserMenuExtender_SelectedAssets& InDelegate)
+			CBMenuExtenderDelegates.RemoveAll([](const FContentBrowserMenuExtender_SelectedAssets& InDelegate)
 				{
 					return InDelegate.GetHandle() == ContentBrowserExtenderDelegateHandle;
 				});
