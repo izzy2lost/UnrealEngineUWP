@@ -20,7 +20,7 @@ CORE_API void FixupPathSeparator(FStringBuilderBase& InOutPath, int32 StartIndex
 CORE_API int32 FindInsertionIndex(int32 NumChildNodes, const TUniquePtr<FString[]>& RelPaths,
 	FStringView FirstPathComponent, bool& bOutExists);
 
-}
+} // namespace UE::DirectoryTree
 
 enum class EDirectoryTreeGetFlags
 {
@@ -84,6 +84,12 @@ class TDirectoryTree
 public:
 	TDirectoryTree();
 
+	TDirectoryTree(const TDirectoryTree& Other) = default;
+	TDirectoryTree& operator=(const TDirectoryTree& Other) = default;
+
+	TDirectoryTree(TDirectoryTree&& Other) = default;
+	TDirectoryTree& operator=(TDirectoryTree&& Other) = default;
+
 	/**
 	 * Add a path to the tree if it does not already exist. Construct default Value for it if it did not already exist.
 	 * Return a reference to the added or existing Value. Optionally report whether the path already existed.
@@ -144,6 +150,11 @@ public:
 	bool TryFindClosestPath(FStringView Path, FString& OutPath, ValueType** OutValue);
 
 	/**
+	 * Return whether any children of the given path have been added to the tree.
+	 */
+	bool ContainsChildPaths(FStringView Path) const;
+
+	/**
 	 * Report the children (optionally recursive or not, optionally implied or not) in the tree of a given Path
 	 * (optionally skipped if implied). @see EDirectoryTreeGetFlags.
 	 * Relative paths of discovered children will be appended to OutRelativeChildNames.
@@ -165,8 +176,8 @@ private:
 	 * Root
 	 *		/				(FullPath: /)
 	 *			A			(FullPath: /A
-	 *				X		(FullPath: /A/Y
-	 *				Y/M		(FullPath: /A/Z/N)
+	 *				X		(FullPath: /A/X
+	 *				Y/M		(FullPath: /A/Y/M)
 	 *			B/Z			(FullPath: /B/Z)
 	 *				N		(FullPath: /B/Z/N)
 	 *				O		(FullPath: /B/Z/O)
@@ -178,8 +189,8 @@ private:
 		FTreeNode() = default;
 		FTreeNode(FTreeNode&& Other);
 		FTreeNode& operator=(FTreeNode&& Other);
-		FTreeNode(const FTreeNode& Other) = delete;
-		FTreeNode& operator=(const FTreeNode& Other) = delete;
+		FTreeNode(const FTreeNode& Other);
+		FTreeNode& operator=(const FTreeNode& Other);
 
 		/** Remove Value and ChildNodes, return state to default-constructed state. */
 		void Reset();
@@ -195,6 +206,14 @@ private:
 		void Remove(FStringView InRelPath, bool& bOutExisted);
 		/** Return pointer to the Value stored in RelPath, if RelPath exists in the tree. */
 		ValueType* Find(FStringView InRelPath);
+
+		/**
+		 * Recursively search this node's subtree for the given relative path, then return whether that path has any
+		 * children. Returns false if the given relative path doesn't exist in the tree or if it is an explicit path
+		 * with no children. Returns true if the given path is implicit (there is a node representing a sub-path of it)
+		 * or if it is an explicit path with direct or indirect children.
+		 */
+		bool ContainsChildPaths(FStringView InRelPath) const;
 
 		bool TryGetChildren(FStringBuilderBase& ReportedPathPrefix, TCHAR InPathSeparator, FStringView InRelPath,
 			TArray<FString>& OutRelativeChildNames, EDirectoryTreeGetFlags Flags) const;
@@ -221,6 +240,8 @@ private:
 		bool HasValue() const;
 		/** Get a reference to the node's Value. Invalid to call if !HasValue. */
 		ValueType& GetValue();
+		/** Get a reference to the node's Value. Invalid to call if !HasValue. */
+		const ValueType& GetValue() const;
 		/** Set HasValue=true, and move InValue into the node's value, after destructing any existing old value. */
 		void SetValue(ValueType&& InValue);
 		/** Set HasValue=true, and default-construct the node's value, after destructing any existing old value. */
@@ -585,7 +606,16 @@ inline void TDirectoryTree<ValueType>::InitializePathSeparator(TCHAR InPathSepar
 	bPathSeparatorInitialized = true;
 }
 
-template <typename ValueType>
+template<typename ValueType>
+inline bool TDirectoryTree<ValueType>::ContainsChildPaths(FStringView Path) const
+{
+	TStringBuilder<16> NormalizeBuffer;
+	NormalizePathForReading(Path, NormalizeBuffer);
+
+	return Root.ContainsChildPaths(Path);
+}
+
+template<typename ValueType>
 inline bool TDirectoryTree<ValueType>::TryGetChildren(FStringView Path, TArray<FString>& OutRelativeChildNames,
 	EDirectoryTreeGetFlags Flags) const
 {
@@ -598,6 +628,37 @@ inline bool TDirectoryTree<ValueType>::TryGetChildren(FStringView Path, TArray<F
 
 	TStringBuilder<1024> ReportedPathPrefix;
 	return Root.TryGetChildren(ReportedPathPrefix, PathSeparator, Path, OutRelativeChildNames, Flags);
+}
+
+template<typename ValueType>
+TDirectoryTree<ValueType>::FTreeNode::FTreeNode(const FTreeNode& Other)
+{
+	*this = Other;
+}
+
+template<typename ValueType>
+typename TDirectoryTree<ValueType>::FTreeNode& TDirectoryTree<ValueType>::FTreeNode::operator=(const FTreeNode& Other)
+{
+	Reset();
+
+	if (Other.HasValue())
+	{
+		SetValue(CopyTemp(Other.GetValue()));
+	}
+
+	Realloc(Other.CapacityChildNodes);
+	int32 NumChildren = Other.GetNumChildNodes();
+	for (int32 i = 0; i < NumChildren; ++i)
+	{
+		RelPaths[i] = Other.RelPaths[i];
+	}
+	for (int32 i = 0; i < NumChildren; ++i)
+	{
+		ChildNodes[i] = Other.ChildNodes[i];
+	}
+
+	SetNumChildNodes(Other.GetNumChildNodes());
+	return *this;
 }
 
 template <typename ValueType>
@@ -663,6 +724,12 @@ template <typename ValueType>
 inline ValueType& TDirectoryTree<ValueType>::FTreeNode::GetValue()
 {
 	return *reinterpret_cast<ValueType*>(&Value);
+}
+
+template<typename ValueType>
+inline const ValueType& TDirectoryTree<ValueType>::FTreeNode::GetValue() const
+{
+	return *reinterpret_cast<const ValueType*>(&Value);
 }
 
 template <typename ValueType>
@@ -911,6 +978,85 @@ inline ValueType* TDirectoryTree<ValueType>::FTreeNode::Find(FStringView InRelPa
 		// The input path matches the existing path
 		return ChildNode.HasValue() ? &ChildNode.GetValue() : nullptr;
 	}
+}
+
+template<typename ValueType>
+inline bool TDirectoryTree<ValueType>::FTreeNode::ContainsChildPaths(FStringView InRelPath) const
+{
+	if (InRelPath.IsEmpty())
+	{
+		// This is the node we were searching for as an explicit entry
+		return GetNumChildNodes() > 0;
+	}
+
+	// We are still looking for the requested InRelPath and are not reporting results yet. Look for an existing
+	// stored child that has the same FirstComponent of its path as InRelPath does.
+	FStringView FirstComponent;
+	FStringView RemainingPath;
+	FPathViews::SplitFirstComponent(InRelPath, FirstComponent, RemainingPath);
+	bool bExists;
+	int32 InsertionIndex = FindInsertionIndex(FirstComponent, bExists);
+	if (!bExists)
+	{
+		// No child has the same FirstComponent as InRelPath, so InRelPath does not exist in the tree, not even as
+		// an implied path.
+		return false;
+	}
+
+	FTreeNode& ChildNode = ChildNodes[InsertionIndex];
+	FString& ChildRelPath = RelPaths[InsertionIndex];
+
+	FStringView ExistingFirstComponent;
+	FStringView ExistingRemainingPath;
+	FPathViews::SplitFirstComponent(ChildRelPath, ExistingFirstComponent, ExistingRemainingPath);
+	check(FPathViews::Equals(
+		FirstComponent,
+		ExistingFirstComponent)); // Otherwise FindInsertionIndex would have returned bExists=false
+
+	// Same logic as TryGetChildren - progressively match the InRelPath against ChildRelPath until one is empty
+	for (int32 RunawayLoop = 0; RunawayLoop <= InRelPath.Len(); ++RunawayLoop)
+	{
+		if (ExistingRemainingPath.IsEmpty())
+		{
+			// We've reached the end of the existing path, so InRelPath is either equal to or a child of the
+			// ChildNode. Delegate to that node to keep searching or return results
+			return ChildNode.ContainsChildPaths(RemainingPath);
+		}
+		else if (RemainingPath.IsEmpty())
+		{
+			// We've reached the end of the input path, but not the end of the existing path, so InRelPath is a
+			// parent of the existing path, and is an implied path rather than an added path.
+			return true;
+		}
+		else
+		{
+			// Both existing and remaining have more directory components
+			FStringView NextFirstComponent;
+			FStringView NextRemainingPath;
+			FPathViews::SplitFirstComponent(RemainingPath, NextFirstComponent, NextRemainingPath);
+			check(!NextFirstComponent.IsEmpty());
+			FStringView NextExistingFirstComponent;
+			FStringView NextExistingRemainingPath;
+			FPathViews::SplitFirstComponent(ExistingRemainingPath, NextExistingFirstComponent, NextExistingRemainingPath);
+			check(!NextExistingFirstComponent.IsEmpty());
+			if (NextFirstComponent == NextExistingFirstComponent)
+			{
+				// Next component is also a match, go to the next loop iteration to handle the new remainingpaths
+				RemainingPath = NextRemainingPath;
+				ExistingRemainingPath = NextExistingRemainingPath;
+
+				continue;
+			}
+			else
+			{
+				// The existing child diverges from the path components of InRelPath, so InRelPath does not exist
+				// in the tree, not even as an implied path.
+				return false;
+			}
+		}
+	}
+	checkf(false, TEXT("Infinite loop trying to split path %.*s into components."), InRelPath.Len(), InRelPath.GetData());
+	return false;
 }
 
 template <typename ValueType>
