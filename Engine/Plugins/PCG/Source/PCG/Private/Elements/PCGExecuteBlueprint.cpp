@@ -179,6 +179,28 @@ bool UPCGBlueprintElement::IsCacheableOverride_Implementation() const
 	return bIsCacheable;
 }
 
+int32 UPCGBlueprintElement::DynamicPinTypesOverride_Implementation(const UPCGSettings* InSettings, const UPCGPin* InPin) const
+{
+	// Default implementation will modify the Out pin type depending on the input data coming from the In pin. 
+	// If no data arrives, it's not dynamic, or it is another pin, it returns the default allowed type
+	check(InPin);
+
+	if (InSettings->HasDynamicPins() && InPin->IsOutputPin())
+	{
+		const UPCGNode* Node = Cast<const UPCGNode>(InSettings->GetOuter());
+		if (Node && Node->GetInputPin(PCGPinConstants::DefaultInputLabel) != nullptr)
+		{
+			const EPCGDataType InputTypeUnion = InSettings->GetTypeUnionOfIncidentEdges(PCGPinConstants::DefaultInputLabel);
+			if (InputTypeUnion != EPCGDataType::None)
+			{
+				return static_cast<int32>(InputTypeUnion);
+			}
+		}
+	}
+
+	return static_cast<int32>(InPin->Properties.AllowedTypes);
+}
+
 TSet<FName> UPCGBlueprintElement::CustomInputLabels() const
 {
 	TSet<FName> Labels;
@@ -473,6 +495,16 @@ void UPCGBlueprintSettings::RefreshBlueprintElement()
 
 	// Also, reconstruct overrides
 	InitializeCachedOverridableParams(/*bReset=*/true);
+}
+
+bool UPCGBlueprintSettings::HasDynamicPins() const
+{
+	return BlueprintElementInstance ? BlueprintElementInstance->bHasDynamicPins : UPCGSettings::HasDynamicPins();
+}
+
+EPCGDataType UPCGBlueprintSettings::GetCurrentPinTypes(const UPCGPin* InPin) const
+{
+	return BlueprintElementInstance ? static_cast<EPCGDataType>(BlueprintElementInstance->DynamicPinTypesOverride(this, InPin)) : UPCGSettings::GetCurrentPinTypes(InPin);
 }
 
 #if WITH_EDITOR

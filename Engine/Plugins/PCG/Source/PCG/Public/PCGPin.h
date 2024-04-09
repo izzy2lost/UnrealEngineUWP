@@ -123,6 +123,12 @@ class PCG_API UPCGBlueprintPinHelpers : public UBlueprintFunctionLibrary
 	GENERATED_BODY()
 
 public:
+	UFUNCTION(BlueprintCallable, Category = "PCG|Pins")
+	static int32 GetCorrespondingDataType(EPCGExclusiveDataType InExclusiveDataType)
+	{
+		return static_cast<int32>(GetCorrespondingDataType_Internal(InExclusiveDataType));
+	}
+
 	UFUNCTION(BlueprintPure, Category="PCG|Pins", meta = (NativeBreakFunc))
 	static void BreakPinProperty(const FPCGPinProperties& PinProperty, FName& Label, bool& bAllowMultipleData, bool& bAllowMultipleConnections, bool& bIsAdvancedPin, EPCGExclusiveDataType& AllowedType)
 	{
@@ -155,6 +161,34 @@ public:
 	UFUNCTION(BlueprintPure, Category="PCG|Pins", meta = (NativeMakeFunc))
 	static FPCGPinProperties MakePinProperty(FName Label, bool bAllowMultipleData, bool bAllowMultipleConnections, bool bIsAdvancedPin, EPCGExclusiveDataType AllowedType = EPCGExclusiveDataType::Any)
 	{
+		EPCGDataType DataType = GetCorrespondingDataType_Internal(AllowedType);
+
+		FPCGPinProperties PinProperties = FPCGPinProperties(Label, DataType, bAllowMultipleConnections, bAllowMultipleData);
+		if (bIsAdvancedPin)
+		{
+			PinProperties.SetAdvancedPin();
+		}
+
+		return PinProperties;
+	}
+
+	UFUNCTION(BlueprintCallable, Category = "PCG|Pins")
+	static bool IsOfType(int32 AllowedTypes, EPCGExclusiveDataType TypeToCheck)
+	{
+		int32 DataType = GetCorrespondingDataType(TypeToCheck);
+		return !!(AllowedTypes & DataType);
+	}
+
+	UFUNCTION(BlueprintCallable, Category = "PCG|Pins")
+	static bool IsExactlySameType(int32 AllowedTypes, EPCGExclusiveDataType TypeToCheck)
+	{
+		int32 DataType = GetCorrespondingDataType(TypeToCheck);
+		return AllowedTypes == DataType;
+	}
+
+private:
+	static EPCGDataType GetCorrespondingDataType_Internal(EPCGExclusiveDataType InExclusiveDataType)
+	{
 		const UEnum* DataTypeEnum = StaticEnum<EPCGDataType>();
 		const UEnum* ExclusiveDataTypeEnum = StaticEnum<EPCGExclusiveDataType>();
 
@@ -162,7 +196,7 @@ public:
 
 		if (DataTypeEnum && ExclusiveDataTypeEnum)
 		{
-			FName ExclusiveDataTypeName = ExclusiveDataTypeEnum->GetNameByValue(static_cast<__underlying_type(EPCGExclusiveDataType)>(AllowedType));
+			FName ExclusiveDataTypeName = ExclusiveDataTypeEnum->GetNameByValue(static_cast<__underlying_type(EPCGExclusiveDataType)>(InExclusiveDataType));
 			if (ensure(ExclusiveDataTypeName != NAME_None))
 			{
 				const int64 MatchingType = DataTypeEnum->GetValueByName(ExclusiveDataTypeName);
@@ -173,13 +207,7 @@ public:
 			}
 		}
 
-		FPCGPinProperties PinProperties = FPCGPinProperties(Label, DataType, bAllowMultipleConnections, bAllowMultipleData);
-		if (bIsAdvancedPin)
-		{
-			PinProperties.SetAdvancedPin();
-		}
-
-		return PinProperties;
+		return DataType;
 	}
 };
 
@@ -230,8 +258,12 @@ public:
 	/** Break all edges the connect pins of invalid type. Optionally returns list of affected nodes (including the pin owner). */
 	bool BreakAllIncompatibleEdges(TSet<UPCGNode*>* InTouchedNodes = nullptr);
 
+	UFUNCTION(BlueprintCallable, Category = Settings)
 	bool IsConnected() const;
+
+	UFUNCTION(BlueprintCallable, Category = Settings)
 	bool IsOutputPin() const;
+
 	int32 EdgeCount() const;
 
 	/** Returns the current pin types, which can either be the static types from the pin properties, or a dynamic type based on connected edges. */
