@@ -6276,8 +6276,7 @@ void UGeometryCollectionComponent::RefreshCustomRenderer()
 	
 	if (IGeometryCollectionExternalRenderInterface* RendererInterface = CustomRenderer.GetInterface())
 	{
-		const int32 RootIndex = GetRootIndex();
-		bool bIsBroken = DynamicCollection ? !DynamicCollection->Active[RootIndex] : false;
+		bool bIsBroken = BrokenAndDecayedStates.GetIsRootBroken();
 
 #if !(UE_BUILD_SHIPPING)
 		if (CVarNumToForceBreak->GetInt() >= 0)
