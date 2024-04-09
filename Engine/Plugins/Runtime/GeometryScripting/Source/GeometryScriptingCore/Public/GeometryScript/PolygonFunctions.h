@@ -119,7 +119,7 @@ public:
 	 * Set the specified vertex of a Simple Polygon. Returns the index of the added vertex.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "GeometryScript|SimplePolygon", meta = (ScriptMethod))
-	static UPARAM(DisplayName = "Vertex Index") int32 AddPolygonVertex(UPARAM(ref) FGeometryScriptSimplePolygon Polygon, FVector2D Position);
+	static UPARAM(DisplayName = "Vertex Index") int32 AddPolygonVertex(UPARAM(ref) FGeometryScriptSimplePolygon& Polygon, FVector2D Position);
 
 	/**
 	 * Returns a vertex's tangent of a Simple Polygon. VertexIndex loops around, so e.g., -1 gives the tangent of the last vertex in the polygon.
@@ -258,7 +258,7 @@ public:
 	 * Add Polygon to a Polygon List, with optional holes. Returns index of the added polygon.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "GeometryScript|PolygonList", meta = (ScriptMethod, AutoCreateRefTerm = "HolePolygons"))
-	static UPARAM(DisplayName = "Polygon Index") int32 AddPolygonToList(UPARAM(ref) FGeometryScriptGeneralPolygonList PolygonList, FGeometryScriptSimplePolygon OuterPolygon, const TArray<FGeometryScriptSimplePolygon>& HolePolygons, bool bFixHoleOrientations = true);
+	static UPARAM(DisplayName = "Polygon Index") int32 AddPolygonToList(UPARAM(ref) FGeometryScriptGeneralPolygonList& PolygonList, FGeometryScriptSimplePolygon OuterPolygon, const TArray<FGeometryScriptSimplePolygon>& HolePolygons, bool bFixHoleOrientations = true);
 
 	/**
 	 * Create a Polygon List from an array of Simple Polygons
@@ -270,7 +270,7 @@ public:
 	 * Append the polygons in 'Polygons to Append' to Polygon List
 	 */
 	UFUNCTION(BlueprintCallable, Category = "GeometryScript|PolygonList", meta = (ScriptMethod))
-	static void AppendPolygonList(UPARAM(ref) FGeometryScriptGeneralPolygonList PolygonList, FGeometryScriptGeneralPolygonList PolygonsToAppend);
+	static void AppendPolygonList(UPARAM(ref) FGeometryScriptGeneralPolygonList& PolygonList, FGeometryScriptGeneralPolygonList PolygonsToAppend);
 	
 	/** Compute union of all polygons in Polygon List. Also resolves self-intersections within each polygon. */
 	UFUNCTION(BlueprintCallable, Category = "GeometryScript|PolygonList", meta = (ScriptMethod))
