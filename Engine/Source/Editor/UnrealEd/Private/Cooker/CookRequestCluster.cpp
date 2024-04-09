@@ -98,9 +98,10 @@ FRequestCluster::FRequestCluster(UCookOnTheFlyServer& InCOTFS, FPackageDataSet&&
 	ReserveInitialRequests(InRequests.Num());
 	for (FPackageData* PackageData : InRequests)
 	{
-		ESuppressCookReason& Existing = OwnedPackageDatas.FindOrAdd(PackageData, ESuppressCookReason::Invalid);
-		check(Existing == ESuppressCookReason::Invalid);
-		Existing = ESuppressCookReason::NotSuppressed;
+		check(PackageData);
+		bool bExisted;
+		SetPackageDataSuppressReason(*PackageData, ESuppressCookReason::NotSuppressed, &bExisted);
+		check(!bExisted);
 	}
 	InRequests.Empty();
 }
@@ -150,13 +151,13 @@ FRequestCluster::FRequestCluster(UCookOnTheFlyServer& InCOTFS, TRingBuffer<FDisc
 		{
 			// If there are no new reachable platforms, add it to the cluster for cooking if it needs
 			// it, otherwise let it remain where it is
-			FDiscoveryQueueElement PoppedDiscovery = DiscoveryQueue.PopFrontValue();
-			Discovery = &PoppedDiscovery;
+			DiscoveryQueue.PopFrontValue();
+			Discovery = nullptr;
 			if (!PackageData.IsInProgress() && PackageData.GetPlatformsNeedingCookingNum() == 0)
 			{
 				PackageData.SendToState(EPackageState::Request, ESendFlags::QueueRemove,
 					EStateChangeReason::RequestCluster);
-				OwnedPackageDatas.Add(&PackageData, ESuppressCookReason::NotSuppressed);
+				SetPackageDataSuppressReason(PackageData, ESuppressCookReason::NotSuppressed);
 			}
 			continue;
 		}
@@ -210,7 +211,7 @@ FRequestCluster::FRequestCluster(UCookOnTheFlyServer& InCOTFS, TRingBuffer<FDisc
 		// and add it to this cluster.
 		PackageData.SendToState(EPackageState::Request, ESendFlags::QueueRemove, EStateChangeReason::RequestCluster);
 		PackageData.AddUrgency(Discovery->bUrgent, false /* bAllowUpdateState */);
-		OwnedPackageDatas.Add(&PackageData, ESuppressCookReason::NotSuppressed);
+		SetPackageDataSuppressReason(PackageData, ESuppressCookReason::NotSuppressed);
 	}
 }
 
@@ -313,8 +314,9 @@ void FRequestCluster::ReserveInitialRequests(int32 RequestNum)
 
 void FRequestCluster::PullIntoCluster(FPackageData& PackageData)
 {
-	ESuppressCookReason& Existing = OwnedPackageDatas.FindOrAdd(&PackageData, ESuppressCookReason::Invalid);
-	if (Existing == ESuppressCookReason::Invalid)
+	bool bExisted;
+	SetPackageDataSuppressReason(PackageData, ESuppressCookReason::NotSuppressed, &bExisted);
+	if (!bExisted)
 	{
 		// Steal it from wherever it is and send it to Request State. It has already been added to this cluster
 		if (PackageData.GetState() == EPackageState::Request)
@@ -326,7 +328,6 @@ void FRequestCluster::PullIntoCluster(FPackageData& PackageData)
 			PackageData.SendToState(EPackageState::Request, ESendFlags::QueueRemove,
 				EStateChangeReason::RequestCluster);
 		}
-		Existing = ESuppressCookReason::NotSuppressed;
 	}
 }
 
@@ -350,9 +351,9 @@ void FRequestCluster::StartAsync(const FCookerTimer& CookerTimer, bool& bOutComp
 			// If the EditorDomain is active, then batch-download all packages to cook from remote cache into local
 			TArray<FName> BatchDownload;
 			BatchDownload.Reserve(OwnedPackageDatas.Num());
-			for (TPair<FPackageData*, ESuppressCookReason>& Pair : OwnedPackageDatas)
+			for (TPair<FPackageData*, FProcessingFlags>& Pair : OwnedPackageDatas)
 			{
-				if (Pair.Value == ESuppressCookReason::NotSuppressed)
+				if (Pair.Value.GetSuppressReason() == ESuppressCookReason::NotSuppressed)
 				{
 					BatchDownload.Add(Pair.Key->GetPackageName());
 				}
@@ -371,14 +372,61 @@ int32 FRequestCluster::NumPackageDatas() const
 
 void FRequestCluster::RemovePackageData(FPackageData* PackageData)
 {
-	if (OwnedPackageDatas.Remove(PackageData) == 0)
+	FProcessingFlags RemovedFlags;
+	if (!OwnedPackageDatas.RemoveAndCopyValue(PackageData, RemovedFlags))
 	{
 		return;
+	}
+	check(RemovedFlags.IsValid());
+	if (RemovedFlags.ShouldMarkNotInProgress())
+	{
+		--PackagesToMarkNotInProgressCount;
 	}
 
 	if (GraphSearch)
 	{
 		GraphSearch->RemovePackageData(PackageData);
+	}
+}
+
+void FRequestCluster::SetPackageDataSuppressReason(FPackageData& PackageData, ESuppressCookReason Reason, bool* bOutExisted)
+{
+	check(Reason != ESuppressCookReason::Invalid);
+
+	FProcessingFlags& Existing = OwnedPackageDatas.FindOrAdd(&PackageData);
+	if (bOutExisted)
+	{
+		*bOutExisted = Existing.IsValid();
+	}
+	if (Existing.ShouldMarkNotInProgress())
+	{
+		--PackagesToMarkNotInProgressCount;
+	}
+	Existing.SetValid();
+	Existing.SetSuppressReason(Reason);
+	if (Existing.ShouldMarkNotInProgress())
+	{
+		++PackagesToMarkNotInProgressCount;
+	}
+}
+
+void FRequestCluster::SetPackageDataWasMarkedCooked(FPackageData& PackageData, bool bValue,
+	bool* bOutExisted)
+{
+	FProcessingFlags& Existing = OwnedPackageDatas.FindOrAdd(&PackageData);
+	if (bOutExisted)
+	{
+		*bOutExisted = Existing.IsValid();
+	}
+	if (Existing.ShouldMarkNotInProgress())
+	{
+		--PackagesToMarkNotInProgressCount;
+	}
+	Existing.SetValid();
+	Existing.SetWasMarkedCooked(bValue);
+	if (Existing.ShouldMarkNotInProgress())
+	{
+		++PackagesToMarkNotInProgressCount;
 	}
 }
 
@@ -443,15 +491,15 @@ void FRequestCluster::ClearAndDetachOwnedPackageDatas(TArray<FPackageData*>& Out
 		check(!GraphSearch);
 		OutRequestsToLoad.Reset();
 		OutRequestsToDemote.Reset();
-		for (TPair<FPackageData*, ESuppressCookReason>& Pair : OwnedPackageDatas)
+		for (TPair<FPackageData*, FProcessingFlags>& Pair : OwnedPackageDatas)
 		{
-			if (Pair.Value == ESuppressCookReason::NotSuppressed)
+			if (Pair.Value.GetSuppressReason() == ESuppressCookReason::NotSuppressed)
 			{
 				OutRequestsToLoad.Add(Pair.Key);
 			}
 			else
 			{
-				OutRequestsToDemote.Add(Pair);
+				OutRequestsToDemote.Add({ Pair.Key, Pair.Value.GetSuppressReason() });
 			}
 		}
 		OutRequestGraph = MoveTemp(RequestGraph);
@@ -459,7 +507,7 @@ void FRequestCluster::ClearAndDetachOwnedPackageDatas(TArray<FPackageData*>& Out
 	else
 	{
 		OutRequestsToLoad.Reset();
-		for (TPair<FPackageData*, ESuppressCookReason>& Pair : OwnedPackageDatas)
+		for (TPair<FPackageData*, FProcessingFlags>& Pair : OwnedPackageDatas)
 		{
 			OutRequestsToLoad.Add(Pair.Key);
 		}
@@ -468,6 +516,7 @@ void FRequestCluster::ClearAndDetachOwnedPackageDatas(TArray<FPackageData*>& Out
 	}
 	FilePlatformRequests.Empty();
 	OwnedPackageDatas.Empty();
+	PackagesToMarkNotInProgressCount = 0;
 	GraphSearch.Reset();
 	RequestGraph.Reset();
 }
@@ -517,9 +566,9 @@ void FRequestCluster::PumpExploration(const FCookerTimer& CookerTimer, bool& bOu
 
 	TArray<FPackageData*> SortedPackages;
 	SortedPackages.Reserve(OwnedPackageDatas.Num());
-	for (TPair<FPackageData*, ESuppressCookReason>& Pair : OwnedPackageDatas)
+	for (TPair<FPackageData*, FProcessingFlags>& Pair : OwnedPackageDatas)
 	{
-		if (Pair.Value == ESuppressCookReason::NotSuppressed)
+		if (Pair.Value.GetSuppressReason() == ESuppressCookReason::NotSuppressed)
 		{
 			SortedPackages.Add(Pair.Key);
 		}
@@ -611,7 +660,7 @@ void FRequestCluster::FGraphSearch::VisitWithoutDependencies()
 {
 	// PumpExploration is responsible for marking all requests as explored and cookable/uncoookable.
 	// If we're skipping the dependencies search, handle that responsibility for the initial requests and return.
-	for (TPair<FPackageData*, ESuppressCookReason>& Pair : Cluster.OwnedPackageDatas)
+	for (TPair<FPackageData*, FProcessingFlags>& Pair : Cluster.OwnedPackageDatas)
 	{
 		FVertexData Vertex;
 		Vertex.PackageData = Pair.Key;
@@ -622,13 +671,12 @@ void FRequestCluster::FGraphSearch::VisitWithoutDependencies()
 void FRequestCluster::FGraphSearch::StartSearch()
 {
 	Frontier.Reserve(Cluster.OwnedPackageDatas.Num());
-	for (TPair<FPackageData*, ESuppressCookReason>& Pair : Cluster.OwnedPackageDatas)
+	for (TPair<FPackageData*, FProcessingFlags>& Pair : Cluster.OwnedPackageDatas)
 	{
 		FVertexData& Vertex = FindOrAddVertex(Pair.Key->GetPackageName(), *Pair.Key);
 		check(Vertex.PackageData);
 		// We're iterating over OwnedPackageDatas and the Vertex is already in the Cluster so we don't need to call
 		// AddToFrontier; just add it directly.
-		check(Pair.Value != ESuppressCookReason::Invalid);
 		Frontier.Add(&Vertex);
 	}
 }
@@ -926,7 +974,7 @@ void FRequestCluster::FGraphSearch::VisitVertex(FVertexData& Vertex)
 		{
 			check(SuppressCookReason == ESuppressCookReason::NotSuppressed);
 		}
-		Cluster.OwnedPackageDatas.FindOrAdd(Vertex.PackageData) = SuppressCookReason;
+		Cluster.SetPackageDataSuppressReason(*Vertex.PackageData, SuppressCookReason);
 		Vertex.bAnyCookable = bAnyCookable;
 	}
 
@@ -1150,6 +1198,7 @@ void FRequestCluster::FGraphSearch::ExploreVertexEdges(FVertexData& Vertex)
 				// Call SetPlatformCooked instead of just PackagePlatformData.SetCookResults because we might also need
 				// to set OnFirstCookedPlatformAdded
 				PackageData.SetPlatformCooked(TargetPlatform, ECookResult::Succeeded);
+				Cluster.SetPackageDataWasMarkedCooked(PackageData, true);
 				if (PlatformIndex == FirstSessionPlatformIndex)
 				{
 					COOK_STAT(++DetailedCookStats::NumPackagesIterativelySkipped);

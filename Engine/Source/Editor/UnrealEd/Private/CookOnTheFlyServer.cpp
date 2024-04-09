@@ -1778,22 +1778,33 @@ void UCookOnTheFlyServer::UpdateDisplay(UE::Cook::FTickStackData& StackData, boo
 		return;
 	}
 
-	const int32 CookedPackagesCount = PackageDatas->GetNumCooked() - PackageDatas->GetNumCooked(ECookResult::NeverCookPlaceholder) - PackageDataFromBaseGameNum;
-	const int32 CookPendingCount = WorkerRequests->GetNumExternalRequests() + PackageDatas->GetMonitor().GetNumInProgress();
+	int32 CookedCountWitness = PackageDatas->GetNumCooked();
+	int32 PendingCountWitness = WorkerRequests->GetNumExternalRequests()
+		+ PackageDatas->GetMonitor().GetNumInProgress();
 	if (bForceDisplay ||
-		(DeltaProgressDisplayTime >= GCookProgressUpdateTime && CookPendingCount != 0 &&
-			(LastCookedPackagesCount != CookedPackagesCount || LastCookPendingCount != CookPendingCount || DeltaProgressDisplayTime > GCookProgressRepeatTime)))
+		(DeltaProgressDisplayTime >= GCookProgressUpdateTime && PendingCountWitness != 0 &&
+			(LastCookedPackagesCount != CookedCountWitness || LastCookPendingCount != PendingCountWitness
+				|| DeltaProgressDisplayTime > GCookProgressRepeatTime)))
 	{
-		UE_CLOG(!(StackData.TickFlags & ECookTickFlags::HideProgressDisplay) && (GCookProgressDisplay & (int32)ECookProgressDisplayMode::RemainingPackages),
-			LogCook,
-			Display,
+		const int32 CookedPackagesCount = PackageDatas->GetNumCooked()
+			- PackageDatas->GetNumCooked(ECookResult::NeverCookPlaceholder) - PackageDataFromBaseGameNum;
+		int32 CookPendingCount = WorkerRequests->GetNumExternalRequests()
+			+ PackageDatas->GetMonitor().GetNumInProgress();
+		// When a RequestCluster is doing a graph search, it marks uncookable packages as to-be-demoted, and
+		// iteratively skippable packages as cooked, but those packages remain in the request state until the cluster
+		// search is complete so we still count them as inprogress. Subtract them from the inprogress count.
+		for (const FRequestCluster& Cluster : PackageDatas->GetRequestQueue().GetRequestClusters())
+		{
+			CookPendingCount -= Cluster.GetPackagesToMarkNotInProgress();
+		}
+		UE_CLOG(!(StackData.TickFlags & ECookTickFlags::HideProgressDisplay)
+			&& (GCookProgressDisplay & (int32)ECookProgressDisplayMode::RemainingPackages),
+			LogCook, Display,
 			TEXT("Cooked packages %d Packages Remain %d Total %d"),
-			CookedPackagesCount,
-			CookPendingCount,
-			CookedPackagesCount + CookPendingCount);
+			CookedPackagesCount, CookPendingCount, CookedPackagesCount + CookPendingCount);
 
-		LastCookedPackagesCount = CookedPackagesCount;
-		LastCookPendingCount = CookPendingCount;
+		LastCookedPackagesCount = CookedCountWitness;
+		LastCookPendingCount = PendingCountWitness;
 		LastProgressDisplayTime = CurrentTime;
 	}
 	const double DeltaDiagnosticsDisplayTime = CurrentTime - LastDiagnosticsDisplayTime;
@@ -2472,16 +2483,23 @@ UCookOnTheFlyServer::ECookAction UCookOnTheFlyServer::DecideNextCookAction(UE::C
 
 int32 UCookOnTheFlyServer::NumMultiprocessLocalWorkerAssignments() const
 {
+	using namespace UE::Cook;
+
 	if (!CookDirector.IsValid())
 	{
 		return 0;
 	}
 	UE::Cook::FPackageDataMonitor& Monitor = PackageDatas->GetMonitor();
-	return WorkerRequests->GetNumExternalRequests() +
+	int32 Result = WorkerRequests->GetNumExternalRequests() +
 		PackageDatas->GetRequestQueue().Num() +
 		PackageDatas->GetLoadPrepareQueue().Num() +
 		PackageDatas->GetLoadReadyQueue().Num() +
 		PackageDatas->GetSaveQueue().Num();
+	for (const FRequestCluster& Cluster : PackageDatas->GetRequestQueue().GetRequestClusters())
+	{
+		Result -= Cluster.GetPackagesToMarkNotInProgress();
+	}
+	return Result;
 }
 
 void UCookOnTheFlyServer::PumpExternalRequests(const UE::Cook::FCookerTimer& CookerTimer)

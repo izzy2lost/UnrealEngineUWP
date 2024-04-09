@@ -78,6 +78,10 @@ public:
 	void ClearAndDetachOwnedPackageDatas(TArray<FPackageData*>& OutRequestsToLoad,
 		TArray<TPair<FPackageData*, ESuppressCookReason>>& OutRequestsToDemote,
 		TMap<FPackageData*, TArray<FPackageData*>>& OutRequestGraph);
+	/**
+	 * Report packages that are in request state and assigned to this Cluster, but that should not be counted as in
+	 * progress for progress displays because this cluster has marked them as already cooked or as to be demoted. */
+	int32 GetPackagesToMarkNotInProgress() const;
 
 	static TConstArrayView<FName> GetLocalizationReferences(FName PackageName, UCookOnTheFlyServer& InCOTFS);
 	static TArray<FName> GetAssetManagerReferences(FName PackageName);
@@ -323,6 +327,28 @@ private:
 		FEventRef AsyncResultsReadyEvent;
 	};
 
+	/** Tracks flags about this cluster's processing state for its OwnedPackageDatas. */
+	struct FProcessingFlags
+	{
+		/** Whether this struct has been set valid, used to identify whether values exist in a TMap. */
+		bool IsValid() const;
+		/** The package's SuppressCookReason, either NotSuppressed or a reason it was suppressed. */
+		ESuppressCookReason GetSuppressReason() const;
+		/** Whether the package was marked as cooked for any platform by this cluster. */
+		bool WasMarkedCooked() const;
+		/** Whether the values indicate the package should be added to the cluster's PackagesToMarkNotInProgress. */
+		bool ShouldMarkNotInProgress() const;
+
+		void SetValid();
+		void SetSuppressReason(ESuppressCookReason Value);
+		void SetWasMarkedCooked(bool bValue);
+
+	private:
+		ESuppressCookReason SuppressCookReason = ESuppressCookReason::NotSuppressed;
+		bool bValid = false;
+		bool bWasMarkedCooked = false;
+	};
+
 private:
 	explicit FRequestCluster(UCookOnTheFlyServer& COTFS);
 	void ReserveInitialRequests(int32 RequestNum);
@@ -331,6 +357,9 @@ private:
 	void PumpExploration(const FCookerTimer& CookerTimer, bool& bOutComplete);
 	void StartAsync(const FCookerTimer& CookerTimer, bool& bOutComplete);
 	bool IsIncrementalCook() const;
+	void SetPackageDataSuppressReason(FPackageData& PackageData, ESuppressCookReason Reason,
+		bool* bOutExisted = nullptr);
+	void SetPackageDataWasMarkedCooked(FPackageData& PackageData, bool bValue, bool* bOutExisted = nullptr);
 	void IsRequestCookable(const ITargetPlatform* TargetPlatform, FName PackageName, FPackageData& PackageData,
 		ESuppressCookReason& OutReason, bool& bOutCookable, bool& bOutExplorable);
 	static void IsRequestCookable(const ITargetPlatform* TargetPlatform, FName PackageName, FPackageData& PackageData,
@@ -340,7 +369,13 @@ private:
 		const TMap<FPackageData*, TArray<FPackageData*>>& Edges);
 
 	TArray<FFilePlatformRequest> FilePlatformRequests;
-	TFastPointerMap<FPackageData*, ESuppressCookReason> OwnedPackageDatas;
+	/**
+	 * Set of all packageDatas owned by this cluster (they are in the request state and this is the requeststate
+	 * container that records them). The count of PackageDatas matching certain properties is stored in
+	 * PackagesToMarkNotInProgress and must be updated whenever values change in OwnedPackageDatas. Call
+	 * SetPackageData... functions or RemovePackageData instead of modifying it directly.
+	 */
+	TFastPointerMap<FPackageData*, FProcessingFlags> OwnedPackageDatas;
 	TMap<FPackageData*, TArray<FPackageData*>> RequestGraph;
 	FString DLCPath;
 	TUniquePtr<FGraphSearch> GraphSearch; // Needs to be dynamic-allocated because of large alignment
@@ -349,6 +384,7 @@ private:
 	IAssetRegistry& AssetRegistry;
 	FPackageTracker& PackageTracker;
 	FBuildDefinitions& BuildDefinitions;
+	int32 PackagesToMarkNotInProgressCount = 0;
 	bool bAllowHardDependencies = true;
 	bool bAllowSoftDependencies = true;
 	bool bErrorOnEngineContentUse = false;
@@ -358,5 +394,51 @@ private:
 	bool bAllowIterativeResults = false;
 	bool bPreQueueBuildDefinitions = true;
 };
+
+
+///////////////////////////////////////////////////////
+// Inline implementations
+///////////////////////////////////////////////////////
+
+inline int32 FRequestCluster::GetPackagesToMarkNotInProgress() const
+{
+	return PackagesToMarkNotInProgressCount;
+}
+
+inline bool FRequestCluster::FProcessingFlags::IsValid() const
+{
+	return bValid;
+}
+
+inline ESuppressCookReason FRequestCluster::FProcessingFlags::GetSuppressReason() const
+{
+	return SuppressCookReason;
+}
+
+inline bool FRequestCluster::FProcessingFlags::WasMarkedCooked() const
+{
+	return bWasMarkedCooked;
+}
+
+inline bool FRequestCluster::FProcessingFlags::ShouldMarkNotInProgress() const
+{
+	return bValid & 
+		((SuppressCookReason != ESuppressCookReason::NotSuppressed) | bWasMarkedCooked);
+}
+
+inline void FRequestCluster::FProcessingFlags::SetValid()
+{
+	bValid = true;
+}
+
+inline void FRequestCluster::FProcessingFlags::SetSuppressReason(ESuppressCookReason Value)
+{
+	SuppressCookReason = Value;
+}
+
+inline void FRequestCluster::FProcessingFlags::SetWasMarkedCooked(bool bValue)
+{
+	bWasMarkedCooked = bValue;
+}
 
 }
