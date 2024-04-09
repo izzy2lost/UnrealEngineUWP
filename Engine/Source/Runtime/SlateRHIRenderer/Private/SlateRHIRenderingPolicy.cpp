@@ -1083,6 +1083,9 @@ void FSlateRHIRenderingPolicy::DrawElements(
 				{
 					SLATE_DRAW_EVENTF(RHICmdList, MaterialBatch, TEXT("Slate Material: %s"), MaterialRenderProxy->GetMaterialName());
 
+					const ERHIFeatureLevel::Type ViewFeatureLevel = ActiveSceneView.GetFeatureLevel();
+					// Update Material in case of null ShaderMap
+					MaterialRenderProxy->UpdateUniformExpressionCacheIfNeeded(RHICmdList, ViewFeatureLevel);
 					MaterialShaderResource->CheckForStaleResources();
 
 					const bool bUseInstancing = RenderBatch.InstanceCount > 0 && RenderBatch.InstanceData != nullptr;
@@ -1094,7 +1097,6 @@ void FSlateRHIRenderingPolicy::DrawElements(
 					ChooseMaterialShaderTypes(ShaderType, bUseInstancing, ShaderTypesToGet);
 					const FMaterial* EffectiveMaterial = nullptr;
 
-					const ERHIFeatureLevel::Type ViewFeatureLevel = ActiveSceneView.GetFeatureLevel();
 					while(MaterialRenderProxy)
 					{
 						const FMaterial* Material = MaterialRenderProxy->GetMaterialNoFallback(ViewFeatureLevel);
