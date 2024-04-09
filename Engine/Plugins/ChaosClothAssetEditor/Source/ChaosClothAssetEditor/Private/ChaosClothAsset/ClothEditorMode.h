@@ -304,5 +304,9 @@ private:
 
 	// Correspondence between node types and commands to launch tools
 	TMap<FName, TSharedPtr<const FUICommandInfo>> NodeTypeToToolCommandMap;
+
+	// Timestamps for telemetry
+	FDateTime LastModeStartTimestamp;
+	FDateTime LastToolStartTimestamp;
 };
 
