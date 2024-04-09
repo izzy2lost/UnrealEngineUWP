@@ -57,7 +57,6 @@ private:
 	VStringInternPool() = default;
 
 	COREUOBJECT_API VUniqueString& Intern(FAllocationContext Context, FUtf8StringView String);
-	COREUOBJECT_API VUniqueString& Intern(FAllocationContext Context, uint32 NumValues, EArrayType ArrayType);
 
 	/// This gives the string intern pool the ability to conduct census on its own to clear references to the strings.
 	COREUOBJECT_API virtual void ConductCensus() override;

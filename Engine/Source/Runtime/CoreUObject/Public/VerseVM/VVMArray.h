@@ -85,7 +85,7 @@ struct VArray : VArrayBase
 private:
 	friend struct VMutableArray;
 	VArray(FAllocationContext Context, uint32 InNumValues, EArrayType ArrayType)
-		: VArrayBase(Context, InNumValues, ArrayType, VEmergentTypeCreator::GetOrCreate(Context, VTypeCreator::GetOrCreate<VTypeArray>(Context, NumValues), &StaticCppClassInfo)) {}
+		: VArrayBase(Context, InNumValues, ArrayType, VEmergentTypeCreator::GetOrCreate(Context, VTypeCreator::GetOrCreate<VTypeArray>(Context, InNumValues), &StaticCppClassInfo)) {}
 
 	VArray(FAllocationContext Context, std::initializer_list<VValue> InitList)
 		: VArrayBase(Context, InitList, VEmergentTypeCreator::GetOrCreate(Context, VTypeCreator::GetOrCreate<VTypeArray>(Context, static_cast<uint32>(InitList.size())), &StaticCppClassInfo)) {}
