@@ -10,6 +10,7 @@
 #include "TypedElementCompatibilityColumns.generated.h"
 
 class UObject;
+class UWorld;
 
 /**
  * Column containing a non-owning reference to a UObject.
@@ -43,4 +44,15 @@ USTRUCT(meta = (DisplayName = "Actor"))
 struct FTypedElementActorTag final : public FTypedElementDataStorageTag
 {
 	GENERATED_BODY()
+};
+
+/**
+ * Column that stores a reference to the world.
+ */
+USTRUCT(meta = (DisplayName = "World"))
+struct FTypedElementWorldColumn final : public FTypedElementDataStorageColumn
+{
+	GENERATED_BODY()
+
+	TWeakObjectPtr<UWorld> World;
 };
