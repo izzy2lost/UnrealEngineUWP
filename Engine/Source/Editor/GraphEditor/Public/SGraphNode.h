@@ -278,7 +278,16 @@ public:
 
 	/** Returns true if the node is hiding its pins */
 	virtual bool IsHidingPinWidgets() const { return false; }
-	
+
+	/** Allows the node to override the pin border image */
+	virtual TOptional<const FSlateBrush*> GetPinBorder(const SGraphPin* InGraphPin) const { return TOptional<const FSlateBrush*>(); }
+
+	/** Allows the node to override the pin highlight color */
+	virtual TOptional<FSlateColor> GetHighlightColor(const SGraphPin* InGraphPin) const { return TOptional<FSlateColor>(); }
+
+	/** Allows the node to override the pin text color */
+	virtual TOptional<FSlateColor> GetPinTextColor(const SGraphPin* InGraphPin) const { return TOptional<FSlateColor>(); }
+
 protected:
 	SGraphNode();
 

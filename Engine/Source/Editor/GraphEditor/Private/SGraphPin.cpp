@@ -1128,15 +1128,24 @@ const FSlateBrush* SGraphPin::GetSecondaryPinIcon() const
 const FSlateBrush* SGraphPin::GetPinBorder() const
 {
 	bool bIsMarkedPin = false;
-	TSharedPtr<SGraphPanel> OwnerPanelPtr = OwnerNodePtr.Pin()->GetOwnerPanel();
-	if (OwnerPanelPtr.IsValid())
+	const TSharedPtr<SGraphNode> OwnerNode = OwnerNodePtr.Pin();
+	if(OwnerNode.IsValid())
 	{
-		if (OwnerPanelPtr->MarkedPin.IsValid())
+		const TSharedPtr<SGraphPanel> OwnerPanelPtr = OwnerNodePtr.Pin()->GetOwnerPanel();
+		if (OwnerPanelPtr.IsValid())
 		{
-			bIsMarkedPin = (OwnerPanelPtr->MarkedPin.Pin() == SharedThis(this));
+			if (OwnerPanelPtr->MarkedPin.IsValid())
+			{
+				bIsMarkedPin = (OwnerPanelPtr->MarkedPin.Pin() == SharedThis(this));
+			}
+		}
+
+		TOptional<const FSlateBrush*> OptionalPinBorder = OwnerNode->GetPinBorder(this);
+		if(OptionalPinBorder.IsSet())
+		{
+			return OptionalPinBorder.GetValue();
 		}
 	}
-	UEdGraphPin* GraphPin = GetPinObj();
 	return (IsHovered() || bIsMarkedPin || bIsDiffHighlighted || bOnlyShowDefaultValue) ? CachedImg_Pin_BackgroundHovered : CachedImg_Pin_Background;
 }
 
@@ -1174,6 +1183,17 @@ FSlateColor SGraphPin::GetHighlightColor() const
 	{
 		return PinDiffColor.GetValue();
 	}
+	
+	const TSharedPtr<SGraphNode> OwnerNode = OwnerNodePtr.Pin();
+	if(OwnerNode.IsValid())
+	{
+		TOptional<FSlateColor> OptionalHighlightColor = OwnerNode->GetHighlightColor(this);
+		if(OptionalHighlightColor.IsSet())
+		{
+			return OptionalHighlightColor.GetValue();
+		}
+	}
+	
 	return GetPinColor();
 }
 
@@ -1203,6 +1223,16 @@ FSlateColor SGraphPin::GetSecondaryPinColor() const
 
 FSlateColor SGraphPin::GetPinTextColor() const
 {
+	const TSharedPtr<SGraphNode> OwnerNode = OwnerNodePtr.Pin();
+	if(OwnerNode.IsValid())
+	{
+		TOptional<FSlateColor> OptionalPinTextColor = OwnerNode->GetPinTextColor(this);
+		if(OptionalPinTextColor.IsSet())
+		{
+			return OptionalPinTextColor.GetValue();
+		}
+	}
+
 	UEdGraphPin* GraphPin = GetPinObj();
 	// If there is no schema there is no owning node (or basically this is a deleted node)
 	if (UEdGraphNode* GraphNode = GraphPin ? GraphPin->GetOwningNodeUnchecked() : nullptr)

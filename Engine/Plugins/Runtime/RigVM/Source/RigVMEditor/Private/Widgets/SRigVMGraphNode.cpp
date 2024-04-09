@@ -663,26 +663,24 @@ FText SRigVMGraphNode::GetPinLabel(TWeakPtr<SGraphPin> GraphPin) const
 	return FText();
 }
 
-FSlateColor SRigVMGraphNode::GetPinTextColor(TWeakPtr<SGraphPin> GraphPin) const
+TOptional<FSlateColor> SRigVMGraphNode::GetHighlightColor(const SGraphPin* InGraphPin) const
 {
-	if(GraphPin.IsValid())
+	if(HasUserProvidedValue(InGraphPin))
 	{
-		if (GraphPin.Pin()->GetPinObj()->bOrphanedPin)
-		{
-			return FLinearColor::Red;
-		}
-
-		// If there is no schema there is no owning node (or basically this is a deleted node)
-		if (GraphNode)
-		{
-			if(!GraphNode->IsNodeEnabled() || GraphNode->IsDisplayAsDisabledForced() || !GraphPin.Pin()->IsEditingEnabled() || GraphNode->IsNodeUnrelated())
-			{
-				return FLinearColor(1.0f, 1.0f, 1.0f, 0.5f);
-			}
-		}
+		return FSlateColor(FLinearColor::Red);
 	}
+	return SGraphNode::GetHighlightColor(InGraphPin);
+}
 
-	return FLinearColor::White;
+TOptional<const FSlateBrush*> SRigVMGraphNode::GetPinBorder(const SGraphPin* InGraphPin) const
+{
+	if(HasUserProvidedValue(InGraphPin))
+	{
+		static const FName NAME_Pin_BackgroundHovered("Graph.Pin.BackgroundHovered");
+		static const FSlateBrush* CachedImg_Pin_BackgroundHovered = FAppStyle::GetBrush( NAME_Pin_BackgroundHovered );
+		return CachedImg_Pin_BackgroundHovered;
+	}
+	return SGraphNode::GetPinBorder(InGraphPin);
 }
 
 FSlateColor SRigVMGraphNode::GetVariableLabelTextColor(
@@ -2165,6 +2163,26 @@ void SRigVMGraphNode::UpdatePinTreeView()
 		SNew(SSpacer)
 		.Size(FVector2D(1.f, 4.f))
 	];
+}
+
+bool SRigVMGraphNode::HasUserProvidedValue(const SGraphPin* InGraphPin) const
+{
+	if(!CVarRigVMEnablePinDefaultTypes.GetValueOnAnyThread())
+	{
+		return false;
+	}
+
+	if (const URigVMEdGraphNode* RigVMEdGraphNode = Cast<URigVMEdGraphNode>(GraphNode))
+	{
+		if (const UEdGraphPin* Pin = InGraphPin->GetPinObj())
+		{
+			if(const URigVMPin* ModelPin = RigVMEdGraphNode->FindModelPinFromGraphPin(Pin))
+			{
+				return ModelPin->HasUserProvidedDefaultValue();
+			}
+		}
+	}
+	return false;
 }
 
 #undef LOCTEXT_NAMESPACE

@@ -27,6 +27,7 @@
 #include "Widgets/SRigVMGraphPinVariableBinding.h"
 #include "InstancedPropertyBagStructureDataProvider.h"
 #include "Widgets/SRigVMGraphPinEnumPicker.h"
+#include "ScopedTransaction.h"
 
 #define LOCTEXT_NAMESPACE "RigVMGraphDetailCustomization"
 
@@ -1355,12 +1356,99 @@ void FRigVMWrappedNodeDetailCustomization::CustomizeDetails(IDetailLayoutBuilder
 	for (TFieldIterator<FProperty> PropertyIt(WrapperClass); PropertyIt; ++PropertyIt)
 	{
 		FProperty* Property = *PropertyIt;
-		TSharedPtr<IPropertyHandle> PropertyHandle = DetailLayout.GetProperty(Property->GetFName(), WrapperClass);
+		const FName PropertyName = Property->GetFName();
+		TSharedPtr<IPropertyHandle> PropertyHandle = DetailLayout.GetProperty(PropertyName, WrapperClass);
 		if (!PropertyHandle->IsValidHandle())
 		{
 			continue;
 		}
 		PropertiesToVisit.Add(PropertyHandle);
+
+		TAttribute<bool> HasUserProvidedDefaultValue = TAttribute<bool>::CreateLambda([this, PropertyName, PropertyHandle]() -> bool
+		{
+			if(CVarRigVMEnablePinDefaultTypes.GetValueOnAnyThread())
+			{
+				for(const TWeakObjectPtr<URigVMNode>& Node : NodesBeingCustomized)
+				{
+					if(Node.IsValid())
+					{
+						if(const URigVMPin* Pin = Node->FindRootPinByName(PropertyName))
+						{
+							if(Pin->HasUserProvidedDefaultValue())
+							{
+								return true;
+							}
+						}
+					}	
+				}
+			}
+			return PropertyHandle->DiffersFromDefault();
+		});
+
+		FResetToDefaultOverride ResetToDefault = FResetToDefaultOverride::Create(
+			HasUserProvidedDefaultValue,
+			FSimpleDelegate::CreateLambda([this, PropertyHandle, PropertyName]()
+			{
+				FScopedTransaction Transaction(LOCTEXT("ResetValueToDefault", "Reset Value To Default"));
+				const URigVMGraph* Graph = NodesBeingCustomized[0]->GetGraph();
+				URigVMController* Controller = BlueprintBeingCustomized->GetController(Graph);
+				FRigVMDefaultValueTypeGuard _(Controller, ERigVMPinDefaultValueType::Unset);
+
+				Controller->OpenUndoBracket(TEXT("Reset pin default value"));
+				for(const TWeakObjectPtr<URigVMNode> Node : NodesBeingCustomized)
+				{
+					if(const URigVMPin* Pin = Node->FindRootPinByName(PropertyName))
+					{
+						Controller->ResetPinDefaultValue(Pin->GetPinPath());
+					}
+				}
+				Controller->CloseUndoBracket();
+			})
+		);
+
+		static const FSlateFontInfo NameFont = FAppStyle::GetFontStyle( TEXT("PropertyWindow.NormalFont") );
+		
+		TSharedRef<SWidget> LabelWidget = PropertyHandle->CreatePropertyNameWidget();
+
+		/*
+		// in the future we may want some visual alignment of the label widget on top of the 
+		// reset arrow on the right to indicate the state of the default value change
+		TSharedRef<SHorizontalBox> LabelWidget = SNew(SHorizontalBox)
+		+ SHorizontalBox::Slot()
+		.FillWidth(1)
+		[
+			SNew(SBorder)
+			.HAlign(HAlign_Left)
+			.BorderImage_Lambda([HasUserProvidedDefaultValue]() -> const FSlateBrush*
+			{
+				if(CVarRigVMEnablePinDefaultTypes.GetValueOnAnyThread())
+				{
+					if(HasUserProvidedDefaultValue.Get())
+					{
+						static const FSlateBrush* BorderBrush = FAppStyle::Get().GetBrush("FloatingBorder");
+						return BorderBrush;
+					}
+				}
+				return nullptr;
+			})
+			.BorderBackgroundColor_Lambda([HasUserProvidedDefaultValue]() -> FSlateColor
+			{
+				if(CVarRigVMEnablePinDefaultTypes.GetValueOnAnyThread())
+				{
+					if(HasUserProvidedDefaultValue.Get())
+					{
+						return FSlateColor(FLinearColor::Red);
+					}
+				}
+				return FSlateColor(EStyleColor::Background);
+			})
+			[
+				SNew(STextBlock)
+				.Text(PropertyHandle->GetPropertyDisplayName())
+				.Font(NameFont)
+			]
+		];
+		*/
 
 		// check if any / all pins are bound to a variable
 		int32 PinsBoundToVariable = 0;
@@ -1383,7 +1471,7 @@ void FRigVMWrappedNodeDetailCustomization::CustomizeDetails(IDetailLayoutBuilder
 					Row->CustomWidget()
 					.NameContent()
 					[
-						PropertyHandle->CreatePropertyNameWidget()
+						LabelWidget
 					]
 					.ValueContent()
 					[
@@ -1391,6 +1479,7 @@ void FRigVMWrappedNodeDetailCustomization::CustomizeDetails(IDetailLayoutBuilder
 						.ModelPins(ModelPins)
 						.Blueprint(BlueprintBeingCustomized)
 					];
+					continue;
 				}
 			}
 			else // in this case some pins are bound, and some are not - we'll hide the input value widget
@@ -1400,12 +1489,11 @@ void FRigVMWrappedNodeDetailCustomization::CustomizeDetails(IDetailLayoutBuilder
 					Row->CustomWidget()
 					.NameContent()
 					[
-						PropertyHandle->CreatePropertyNameWidget()
+						LabelWidget
 					];
+					continue;
 				}
 			}
-
-			continue;
 		}
 		
 		if (FNameProperty* NameProperty = CastField<FNameProperty>(Property))
@@ -1427,7 +1515,7 @@ void FRigVMWrappedNodeDetailCustomization::CustomizeDetails(IDetailLayoutBuilder
         				Row->CustomWidget()
 						.NameContent()
 						[
-							PropertyHandle->CreatePropertyNameWidget()
+							LabelWidget
 						]
 						.ValueContent()
 						[
@@ -1451,24 +1539,43 @@ void FRigVMWrappedNodeDetailCustomization::CustomizeDetails(IDetailLayoutBuilder
 									return FSlateColor::UseForeground();
 								})
 							]
-        				];
+						]
+        				.OverrideResetToDefault(ResetToDefault);
         			}        			
         			NameListWidgets.Add(Property->GetFName(), NameListWidget);
+       				continue;
         		}
-        		else
+        		
+        		if(IDetailPropertyRow* Row = DetailLayout.EditDefaultProperty(PropertyHandle))
         		{
-        			if(IDetailPropertyRow* Row = DetailLayout.EditDefaultProperty(PropertyHandle))
-        			{
-        				Row->CustomWidget()
-						.NameContent()
-						[
-							PropertyHandle->CreatePropertyNameWidget()
-						];
-        			}
+        			Row->CustomWidget()
+					.NameContent()
+					[
+						LabelWidget
+					]
+        			.OverrideResetToDefault(ResetToDefault);
+        			continue;
         		}
-        		continue;
         	}
         }
+
+		if(IDetailPropertyRow* Row = DetailLayout.EditDefaultProperty(PropertyHandle))
+		{
+			TSharedPtr<SWidget> ValueWidget = PropertyHandle->CreatePropertyValueWidgetWithCustomization(DetailLayout.GetDetailsView());
+
+			constexpr bool bShowChildren = true;
+			Row->CustomWidget(bShowChildren)
+			.NameContent()
+			[
+				LabelWidget
+			]
+			.ValueContent()
+			[
+				ValueWidget ? ValueWidget.ToSharedRef() : SNullWidget::NullWidget
+			]
+			.OverrideResetToDefault(ResetToDefault);
+			continue;
+		}
 	}
 
 	// now loop over all handles and determine expansion states of the corresponding pins
@@ -1576,6 +1683,7 @@ void FRigVMWrappedNodeDetailCustomization::SetNameListText(const FText& NewTypeI
 	{
 		if(URigVMPin* Pin = Node->FindPin(InProperty->GetName()))
 		{
+			FRigVMDefaultValueTypeGuard _(Controller, ERigVMPinDefaultValueType::Override);
 			Controller->SetPinDefaultValue(Pin->GetPinPath(), NewTypeInValue.ToString(), false, true, false, true);
 		}
 	}
