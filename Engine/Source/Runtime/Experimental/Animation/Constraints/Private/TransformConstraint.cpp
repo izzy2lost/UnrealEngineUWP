@@ -436,7 +436,7 @@ void UTickableTransformConstraint::Setup()
 
 }
 
-void UTickableTransformConstraint::SetupDependencies(UWorld* InWorld)
+void UTickableTransformConstraint::SetupDependencies(const UWorld* InWorld)
 {
 	//we may not be the outer for old files so move it over
 	if (ParentTRSHandle)
@@ -454,6 +454,11 @@ void UTickableTransformConstraint::SetupDependencies(UWorld* InWorld)
 		{
 			ChildTRSHandle->Rename(nullptr, this, REN_ForceNoResetLoaders | REN_DontCreateRedirectors);
 		}
+	}
+
+	if (!ensure(InWorld))
+	{
+		return;
 	}
 	
 	FTickFunction* ParentTickFunction = GetParentHandleTickFunction();
@@ -483,8 +488,13 @@ void UTickableTransformConstraint::SetupDependencies(UWorld* InWorld)
 	}
 }
 
-void UTickableTransformConstraint::EnsurePrimaryDependency(UWorld* InWorld)
+void UTickableTransformConstraint::EnsurePrimaryDependency(const UWorld* InWorld) const
 {
+	if (!ensure(InWorld))
+	{
+		return;
+	}
+	
 	const FTickFunction* ParentTickFunction = GetParentHandleTickFunction();
 	const FTickFunction* ChildTickFunction = GetChildHandleTickFunction();
 	if (ParentTickFunction && (ChildTickFunction != ParentTickFunction))
@@ -780,6 +790,11 @@ FTickFunction* UTickableTransformConstraint::GetHandleTickFunction(const TObject
 
 void UTickableTransformConstraint::InitConstraint(UWorld *InWorld)
 {
+	if (!ensure(InWorld))
+	{
+		return;
+	}
+	
 	FConstraintTickFunction& ConstraintTick = ConstraintTicks.FindOrAdd(InWorld->GetCurrentLevel());
 
 	if (ConstraintTick.ConstraintFunctions.IsEmpty())
@@ -795,6 +810,11 @@ void UTickableTransformConstraint::InitConstraint(UWorld *InWorld)
 
 void UTickableTransformConstraint::TeardownConstraint(UWorld* InWorld)
 {
+	if (!ensure(InWorld))
+	{
+		return;
+	}
+	
 	FConstraintTickFunction& ConstraintTick = ConstraintTicks.FindOrAdd(InWorld->GetCurrentLevel());
 	ConstraintTick.SetTickFunctionEnable(false);
 	ConstraintTick.UnRegisterTickFunction();

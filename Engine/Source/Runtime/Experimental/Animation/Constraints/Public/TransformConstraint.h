@@ -117,7 +117,7 @@ public:
 	/**
 	* Sets up dependencies with the first primary prerequisite available if the parent does not tick.   
 	*/
-	CONSTRAINTS_API void EnsurePrimaryDependency(UWorld* InWorld);
+	CONSTRAINTS_API void EnsurePrimaryDependency(const UWorld* InWorld) const;
 	
 protected:
 
@@ -136,7 +136,7 @@ protected:
 	 * Sets up dependencies between the parent, the constraint and the child using their respective tick functions.
 	 * It creates a dependency graph between them so that they tick in the right order when evaluated.   
 	*/
-	CONSTRAINTS_API void SetupDependencies(UWorld* InWorld);
+	CONSTRAINTS_API void SetupDependencies(const UWorld* InWorld);
 
 	/** Set the current child's global transform. */
 	CONSTRAINTS_API void SetChildGlobalTransform(const FTransform& InGlobal) const;
