@@ -1810,6 +1810,8 @@ public:
 	 * Collector for view-dependent data.
 	 */
 	FGPUScenePrimitiveCollector DynamicPrimitiveCollector;
+	FGPUScenePrimitiveCollector RayTracingDynamicPrimitiveCollector;
+
 private:
 	// Cache of TEXTUREGROUP_World to create view's samplers on render thread.
 	// may not have a valid value if FViewInfo is created on the render thread.

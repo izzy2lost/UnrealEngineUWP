@@ -2589,6 +2589,7 @@ FSceneRenderer::FSceneRenderer(const FSceneViewFamily* InViewFamily, FHitProxyCo
 
 		// Must initialize to have a GPUScene connected to be able to collect dynamic primitives.
 		ViewInfo->DynamicPrimitiveCollector = FGPUScenePrimitiveCollector(&GPUSceneDynamicContext);
+		ViewInfo->RayTracingDynamicPrimitiveCollector = FGPUScenePrimitiveCollector(&GPUSceneDynamicContext);
 
 		check(ViewInfo->ViewRect.Area() == 0);
 

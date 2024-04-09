@@ -683,16 +683,6 @@ namespace RayTracing
 
 		View.RayTracingCullingParameters.Init(View);
 
-		FRayTracingMaterialGatheringContext MaterialGatheringContext
-		(
-			&Scene,
-			&View,
-			*View.Family,
-			GraphBuilder,
-			*View.RayTracingMeshResourceCollector,
-			InDynamicReadBuffer
-		);
-
 		const float CurrentWorldTime = View.Family->Time.GetWorldTimeSeconds();
 
 		// Consume output of the relevant primitive gathering task
@@ -796,31 +786,75 @@ namespace RayTracing
 					NumPendingMeshBatches = 0;
 				};
 
-			// Local temporary array of instances used for GetDynamicRayTracingInstances()
-			TArray<FRayTracingInstance> TempRayTracingInstances;
+			// Need to process dynamic primitives in 3 passes to support dynamic primitives/instances in GPU Scene
+			// 1 - gather all dynamic ray tracing instances
+			// 2 - upload dynamic primitive/instance data to GPU scene
+			// 3 - process dynamic ray tracing instances (primitive IDs and instance scene data offset of dynamic primitives is now valid)
 
-			for (int32 PrimitiveIndex : RelevantPrimitiveList.DynamicPrimitives)
+			// Local temporary array of instances used for GetDynamicRayTracingInstances()
+			TArray<FRayTracingInstance> DynamicRayTracingInstances;
+			TArray<TRange<int32>> PrimitivesDynamicRayTracingInstances;
+
 			{
+				FRayTracingMaterialGatheringContext MaterialGatheringContext
+				(
+					&Scene,
+					&View,
+					*View.Family,
+					GraphBuilder,
+					*View.RayTracingMeshResourceCollector,
+					View.RayTracingDynamicPrimitiveCollector,
+					InDynamicReadBuffer
+				);
+
+				for (int32 PrimitiveIndex : RelevantPrimitiveList.DynamicPrimitives)
+				{
+					check(MaterialGatheringContext.DynamicRayTracingGeometriesToUpdate.IsEmpty());
+
+					FPrimitiveSceneProxy* SceneProxy = Scene.PrimitiveSceneProxies[PrimitiveIndex];
+					FPrimitiveSceneInfo* SceneInfo = Scene.Primitives[PrimitiveIndex];
+					const FPersistentPrimitiveIndex PersistentPrimitiveIndex = SceneInfo->GetPersistentIndex();
+
+					MaterialGatheringContext.SetPrimitive(SceneProxy);
+
+					int32 BaseRayTracingInstance = DynamicRayTracingInstances.Num();
+
+					SceneProxy->GetDynamicRayTracingInstances(MaterialGatheringContext, DynamicRayTracingInstances);
+
+					for (const FRayTracingDynamicGeometryUpdateParams& DynamicRayTracingGeometryUpdate : MaterialGatheringContext.DynamicRayTracingGeometriesToUpdate)
+					{
+						Scene.GetRayTracingDynamicGeometryCollection()->AddDynamicMeshBatchForGeometryUpdate(
+							GraphBuilder.RHICmdList,
+							&Scene,
+							&View,
+							SceneProxy,
+							DynamicRayTracingGeometryUpdate,
+							PersistentPrimitiveIndex.Index
+						);
+					}
+					MaterialGatheringContext.DynamicRayTracingGeometriesToUpdate.Reset();
+
+					PrimitivesDynamicRayTracingInstances.Add(TRange<int32>(BaseRayTracingInstance, DynamicRayTracingInstances.Num()));
+				}
+
+				// FRayTracingMaterialGatheringContext destructor handles committing dynamic mesh batches to GPU Scene
+			}
+
+			Scene.GPUScene.UploadDynamicPrimitiveShaderDataForView(GraphBuilder, View, true);
+
+			const int32 ViewDynamicPrimitiveId = View.RayTracingDynamicPrimitiveCollector.GetPrimitiveIdRange().GetLowerBoundValue();
+			const int32 ViewInstanceSceneDataOffset = View.RayTracingDynamicPrimitiveCollector.GetInstanceSceneDataOffset();
+
+			for (int32 Index = 0; Index < RelevantPrimitiveList.DynamicPrimitives.Num(); ++Index)
+			{
+				const int32 PrimitiveIndex = RelevantPrimitiveList.DynamicPrimitives[Index];
 				FPrimitiveSceneProxy* SceneProxy = Scene.PrimitiveSceneProxies[PrimitiveIndex];
 				FPrimitiveSceneInfo* SceneInfo = Scene.Primitives[PrimitiveIndex];
 				const FPersistentPrimitiveIndex PersistentPrimitiveIndex = SceneInfo->GetPersistentIndex();
 
-				TempRayTracingInstances.Reset();
-				MaterialGatheringContext.DynamicRayTracingGeometriesToUpdate.Reset();
-
-				SceneProxy->GetDynamicRayTracingInstances(MaterialGatheringContext, TempRayTracingInstances);
-
-				for (const FRayTracingDynamicGeometryUpdateParams& DynamicRayTracingGeometryUpdate : MaterialGatheringContext.DynamicRayTracingGeometriesToUpdate)
-				{
-					Scene.GetRayTracingDynamicGeometryCollection()->AddDynamicMeshBatchForGeometryUpdate(
-						GraphBuilder.RHICmdList,
-						&Scene,
-						&View,
-						SceneProxy,
-						DynamicRayTracingGeometryUpdate,
-						PersistentPrimitiveIndex.Index
-					);
-				}
+				TArrayView<FRayTracingInstance> TempRayTracingInstances = MakeArrayView(
+					DynamicRayTracingInstances.GetData() + PrimitivesDynamicRayTracingInstances[Index].GetLowerBound().GetValue(),
+					PrimitivesDynamicRayTracingInstances[Index].Size<int32>());
 
 				if (TempRayTracingInstances.Num() > 0)
 				{
@@ -906,10 +940,20 @@ namespace RayTracing
 							continue;
 						}
 
+						int32 PrimitiveId = PersistentPrimitiveIndex.Index;
+						int32 InstanceSceneDataOffset = SceneInfo->GetInstanceSceneDataOffset();
+
+						if (Instance.Materials.Num() > 0 && Instance.Materials[0].Elements.Num() > 0 && Instance.Materials[0].Elements[0].DynamicPrimitiveData != nullptr)
+						{
+							check(Instance.NumTransforms == Instance.Materials[0].Elements[0].NumInstances);
+							PrimitiveId = ViewDynamicPrimitiveId + Instance.Materials[0].Elements[0].DynamicPrimitiveIndex;
+							InstanceSceneDataOffset = ViewInstanceSceneDataOffset + Instance.Materials[0].Elements[0].DynamicPrimitiveInstanceSceneDataOffset;
+						}
+
 						FRayTracingGeometryInstance RayTracingInstance;
 						RayTracingInstance.GeometryRHI = Geometry->GetRHI();
 						checkf(RayTracingInstance.GeometryRHI, TEXT("Ray tracing instance must have a valid geometry."));
-						RayTracingInstance.DefaultUserData = PersistentPrimitiveIndex.Index;
+						RayTracingInstance.DefaultUserData = PrimitiveId;
 						RayTracingInstance.bApplyLocalBoundsTransform = Instance.bApplyLocalBoundsTransform;
 						RayTracingInstance.LayerIndex = (uint8)ERayTracingSceneLayer::Base;
 						RayTracingInstance.Mask = SceneInfo->CachedRayTracingInstance.Mask;
@@ -921,7 +965,7 @@ namespace RayTracing
 							RayTracingInstance.NumTransforms = Instance.NumTransforms;
 							RayTracingInstance.GPUTransformsSRV = Instance.InstanceGPUTransformsSRV;
 						}
-						else
+						else if(!Instance.GetTransforms().IsEmpty())
 						{
 							if (Instance.OwnsTransforms())
 							{
@@ -941,6 +985,12 @@ namespace RayTracing
 								RayTracingInstance.NumTransforms = Instance.InstanceTransformsView.Num();
 								RayTracingInstance.Transforms = Instance.InstanceTransformsView;
 							}
+						}
+						else
+						{
+							// If neither InstanceGPUTransformsSRV nor array of transforms was provided, get the instance transforms from GPU Scene
+							RayTracingInstance.NumTransforms = Instance.NumTransforms;
+							RayTracingInstance.BaseInstanceSceneDataOffset = InstanceSceneDataOffset;
 						}
 
 						uint32 InstanceIndex = INDEX_NONE;

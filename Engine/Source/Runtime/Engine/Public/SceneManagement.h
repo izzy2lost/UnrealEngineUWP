@@ -2119,7 +2119,6 @@ class FRayTracingMeshResourceCollector : public FMeshElementCollector
 public:
 	// No MeshBatch should be allocated from an FRayTracingMeshResourceCollector.
 	inline FMeshBatch& AllocateMesh() = delete;
-	void AddMesh(int32 ViewIndex, FMeshBatch& MeshBatch) = delete;
 	void RegisterOneFrameMaterialProxy(FMaterialRenderProxy* Proxy) = delete;
 
 	FRayTracingMeshResourceCollector(
@@ -2172,9 +2171,12 @@ struct FRayTracingMaterialGatheringContext
 		const FSceneViewFamily& InReferenceViewFamily,
 		FRDGBuilder& InGraphBuilder,
 		FRayTracingMeshResourceCollector& InRayTracingMeshResourceCollector,
+		FGPUScenePrimitiveCollector& InDynamicPrimitiveCollector,
 		FGlobalDynamicReadBuffer& InGlobalDynamicReadBuffer);
 
 	ENGINE_API virtual ~FRayTracingMaterialGatheringContext();
+
+	ENGINE_API void SetPrimitive(const FPrimitiveSceneProxy* InPrimitiveSceneProxy);
 };
 #endif
 

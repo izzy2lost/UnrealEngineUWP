@@ -6615,7 +6615,7 @@ void FSceneRenderer::FinishDynamicShadowMeshPassSetup(FRDGBuilder& GraphBuilder,
 	}
 	for (FProjectedShadowInfo* ProjectedShadowInfo : SortedShadowsForShadowDepthPass.VirtualShadowMapShadows)
 	{
-		Scene->GPUScene.UploadDynamicPrimitiveShaderDataForView(GraphBuilder, *ProjectedShadowInfo->ShadowDepthView, GetShadowInvalidatingInstancesInterface(ProjectedShadowInfo->DependentView) );
+		Scene->GPUScene.UploadDynamicPrimitiveShaderDataForView(GraphBuilder, *ProjectedShadowInfo->ShadowDepthView, false, GetShadowInvalidatingInstancesInterface(ProjectedShadowInfo->DependentView) );
 	}
 
 	DynamicReadBufferForShadows.Commit(GraphBuilder.RHICmdList);

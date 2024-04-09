@@ -1564,7 +1564,7 @@ struct FUploadDataSourceAdapterDynamicPrimitives
 	TArray<uint32, SceneRenderingAllocator> PrimitivesIds;
 };
 
-void FGPUScene::UploadDynamicPrimitiveShaderDataForViewInternal(FRDGBuilder& GraphBuilder, FViewInfo& View, UE::Renderer::Private::IShadowInvalidatingInstances *ShadowInvalidatingInstances)
+void FGPUScene::UploadDynamicPrimitiveShaderDataForViewInternal(FRDGBuilder& GraphBuilder, FViewInfo& View, bool bRayTracing, UE::Renderer::Private::IShadowInvalidatingInstances *ShadowInvalidatingInstances)
 {
 	LLM_SCOPE_BYTAG(GPUScene);
 
@@ -1574,7 +1574,7 @@ void FGPUScene::UploadDynamicPrimitiveShaderDataForViewInternal(FRDGBuilder& Gra
 	ensure(bInBeginEndBlock);
 	ensure(DynamicPrimitivesOffset >= Scene.GetMaxPersistentPrimitiveIndex());
 
-	FGPUScenePrimitiveCollector& Collector = View.DynamicPrimitiveCollector;
+	FGPUScenePrimitiveCollector& Collector = bRayTracing ? View.RayTracingDynamicPrimitiveCollector : View.DynamicPrimitiveCollector;
 
 	// Auto-commit if not done (should usually not be done, but sometimes the UploadDynamicPrimitiveShaderDataForViewInternal is called to ensure the 
 	// CachedViewUniformShaderParameters is set on the view.
@@ -1775,13 +1775,13 @@ void FGPUScene::Update(FRDGBuilder& GraphBuilder, FSceneUniformBuffer& SceneUB, 
 	}
 }
 
-void FGPUScene::UploadDynamicPrimitiveShaderDataForView(FRDGBuilder& GraphBuilder, FViewInfo& View, UE::Renderer::Private::IShadowInvalidatingInstances *ShadowInvalidatingInstances)
+void FGPUScene::UploadDynamicPrimitiveShaderDataForView(FRDGBuilder& GraphBuilder, FViewInfo& View, bool bRayTracing, UE::Renderer::Private::IShadowInvalidatingInstances *ShadowInvalidatingInstances)
 {
 	if (bIsEnabled)
 	{
 		RDG_GPU_MASK_SCOPE(GraphBuilder, FRHIGPUMask::All());
 
-		UploadDynamicPrimitiveShaderDataForViewInternal(GraphBuilder, View, ShadowInvalidatingInstances);
+		UploadDynamicPrimitiveShaderDataForViewInternal(GraphBuilder, View, bRayTracing, ShadowInvalidatingInstances);
 	}
 }
 

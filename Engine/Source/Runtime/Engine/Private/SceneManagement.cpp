@@ -348,6 +348,7 @@ FRayTracingMaterialGatheringContext::FRayTracingMaterialGatheringContext(
 	const FSceneViewFamily& InReferenceViewFamily,
 	FRDGBuilder& InGraphBuilder,
 	FRayTracingMeshResourceCollector& InRayTracingMeshResourceCollector,
+	FGPUScenePrimitiveCollector& InDynamicPrimitiveCollector,
 	FGlobalDynamicReadBuffer& InDynamicReadBuffer)
 	: Scene(InScene)
 	, ReferenceView(InReferenceView)
@@ -360,12 +361,27 @@ FRayTracingMaterialGatheringContext::FRayTracingMaterialGatheringContext(
 	, DynamicReadBuffer(InDynamicReadBuffer)
 {
 	RayTracingMeshResourceCollector.Start(RHICmdList, DynamicVertexBuffer, DynamicIndexBuffer, DynamicReadBuffer);
+
+	RayTracingMeshResourceCollector.AddViewMeshArrays(
+		ReferenceView,
+		nullptr,
+		nullptr,
+		&InDynamicPrimitiveCollector
+#if UE_ENABLE_DEBUG_DRAWING
+		, nullptr
+#endif
+	);
 }
 
 FRayTracingMaterialGatheringContext::~FRayTracingMaterialGatheringContext()
 {
 	RayTracingMeshResourceCollector.Finish();
 	DynamicReadBuffer.Commit(GraphBuilder.RHICmdList);
+}
+
+void FRayTracingMaterialGatheringContext::SetPrimitive(const FPrimitiveSceneProxy* InPrimitiveSceneProxy)
+{
+	RayTracingMeshResourceCollector.SetPrimitive(InPrimitiveSceneProxy, FHitProxyId::InvisibleHitProxyId);
 }
 
 #endif
@@ -396,7 +412,10 @@ void FMeshElementCollector::SetPrimitive(const FPrimitiveSceneProxy* InPrimitive
 
 	for (int32 ViewIndex = 0; ViewIndex < SimpleElementCollectors.Num(); ViewIndex++)
 	{
-		SimpleElementCollectors[ViewIndex]->HitProxyId = DefaultHitProxyId;
+		if (SimpleElementCollectors[ViewIndex])
+		{
+			SimpleElementCollectors[ViewIndex]->HitProxyId = DefaultHitProxyId;
+		}
 	}
 
 	for (int32 ViewIndex = 0; ViewIndex < MeshIdInPrimitivePerView.Num(); ++ViewIndex)
@@ -567,7 +586,10 @@ void FMeshElementCollector::AddMesh(int32 ViewIndex, FMeshBatch& MeshBatch)
 
 	NumMeshBatchElementsPerView[ViewIndex] += MeshBatch.Elements.Num();
 
-	MeshBatches[ViewIndex]->Emplace(MeshBatch, PrimitiveSceneProxy, FeatureLevel);
+	if (MeshBatches[ViewIndex])
+	{
+		MeshBatches[ViewIndex]->Emplace(MeshBatch, PrimitiveSceneProxy, FeatureLevel);
+	}
 }
 
 FDynamicPrimitiveUniformBuffer::FDynamicPrimitiveUniformBuffer() = default;
