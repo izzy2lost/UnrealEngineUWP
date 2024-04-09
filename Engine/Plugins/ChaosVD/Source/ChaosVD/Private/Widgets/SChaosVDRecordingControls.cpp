@@ -215,7 +215,7 @@ bool SChaosVDRecordingControls::CanChangeChannelEnabledState(TWeakPtr<FCVDDataCh
 bool SChaosVDRecordingControls::HasDataChannelsSupport() const
 {
 #if WITH_CHAOS_VISUAL_DEBUGGER
-	return true;
+	return !FChaosVDModule::IsStandaloneChaosVisualDebugger();
 #else
 	return false;
 #endif
@@ -391,6 +391,13 @@ FReply SChaosVDRecordingControls::ToggleRecordingState(EChaosVDRecordingMode Rec
 bool SChaosVDRecordingControls::IsRecordingToggleButtonEnabled(EChaosVDRecordingMode RecordingMode) const
 {
 	if (bAutoConnectionAttemptInProgress)
+	{
+		return false;
+	}
+
+	// Currently we don't support start a recording in standalone mode
+	// but once we add a way to communicate with other running instances we can re-enable these buttons
+	if (FChaosVDModule::IsStandaloneChaosVisualDebugger())
 	{
 		return false;
 	}

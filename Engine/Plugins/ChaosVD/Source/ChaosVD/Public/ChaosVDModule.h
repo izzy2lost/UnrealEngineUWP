@@ -30,6 +30,8 @@ public:
 	/** Spawns a new instance of CVD */
 	void SpawnCVDTab();
 
+	static bool IsStandaloneChaosVisualDebugger();
+
 private:
 
 	void RegisterClassesCustomDetails() const;
@@ -53,6 +55,8 @@ private:
 	TArray<FName> CreatedExtraTabSpawnersIDs;
 
 	TSharedPtr<FChaosVDTraceManager> ChaosVDTraceManager;
+
+	static FString ChaosVisualDebuggerProgramName;
 
 	bool bIsShuttingDown = false;
 };

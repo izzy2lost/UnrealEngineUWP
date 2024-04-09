@@ -472,6 +472,7 @@ void FChaosVDScene::CreateBaseLights(UWorld* TargetWorld) const
 				SkySphere->SetFolderPath(LightingFolderPath);
 				if (SkySphere->Implements<UChaosVDSkySphereInterface>())
 				{
+					FEditorScriptExecutionGuard AllowEditorScriptGuard;
 					IChaosVDSkySphereInterface::Execute_SetDirectionalLightSource(SkySphere, DirectionalLightActor);
 				}
 			}

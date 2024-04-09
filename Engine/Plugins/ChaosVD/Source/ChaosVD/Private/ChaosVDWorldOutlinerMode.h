@@ -95,6 +95,8 @@ public:
 
 	virtual TUniquePtr<ISceneOutlinerHierarchy> CreateHierarchy() override;
 
+	bool CanInteract(const ISceneOutlinerTreeItem& Item) const override;
+
 private:
 
 	void EnqueueAndCombineHierarchyEvent(const FSceneOutlinerTreeItemID& ItemID, const FSceneOutlinerHierarchyChangedData& EnventToProcess);

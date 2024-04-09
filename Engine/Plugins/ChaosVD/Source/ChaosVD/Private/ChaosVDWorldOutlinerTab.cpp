@@ -31,6 +31,7 @@ void FChaosVDWorldOutlinerTab::CreateWorldOutlinerWidget()
 		FActorModeParams ModeParams(Outliner);
 		ModeParams.SpecifiedWorldToDisplay = GetChaosVDWorld();
 		ModeParams.bHideEmptyFolders = true;
+		ModeParams.bCanInteractWithSelectableActorsOnly = false;
 
 		// The mode is deleted by the Outliner when it is destroyed 
 		return new FChaosVDWorldOutlinerMode(ModeParams, GetChaosVDScene());

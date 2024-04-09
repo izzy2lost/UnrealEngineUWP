@@ -24,5 +24,6 @@
 			"Type": "Runtime",
 			"LoadingPhase": "Default"
 		}
-	]
+	],
+	"SupportedPrograms": ["ChaosVisualDebugger"]
 }

@@ -15,7 +15,7 @@ public class GeometryFramework : ModuleRules
 		);
 		
 		// These are required to register filters to the Level Editor Outliner
-		if (Target.Type == TargetType.Editor)
+		if (Target.Type == TargetType.Editor || Target.Type == TargetType.Program)
 		{
 			PrivateDependencyModuleNames.AddRange(
 				new string[]

@@ -18,7 +18,7 @@
 	"Modules": [
 		{
 			"Name": "ChaosVD",
-			"Type": "Editor",
+			"Type": "EditorAndProgram",
 			"LoadingPhase": "Default"
 		}
 	],
@@ -27,5 +27,6 @@
 			"Name": "GeometryProcessing",
 			"Enabled": true
 		}
-	]
+	],
+	"SupportedPrograms": ["ChaosVisualDebugger"]
 }

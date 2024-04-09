@@ -40,6 +40,7 @@ FChaosVDPlaybackViewportClient::FChaosVDPlaybackViewportClient(const TSharedPtr<
 	{
 		Settings->OnFarClippingOverrideChanged().AddRaw(this, &FChaosVDPlaybackViewportClient::HandleViewportSettingsChanged);
 		Settings->OnVisibilitySettingsChanged().AddRaw(this, &FChaosVDPlaybackViewportClient::HandleViewportSettingsChanged);
+		Settings->OnColorSettingsChanged().AddRaw(this, &FChaosVDPlaybackViewportClient::HandleViewportSettingsChanged);
 
 		HandleViewportSettingsChanged(Settings);
 	}
@@ -64,6 +65,7 @@ FChaosVDPlaybackViewportClient::~FChaosVDPlaybackViewportClient()
 	{
 		Settings->OnFarClippingOverrideChanged().RemoveAll(this);
 		Settings->OnVisibilitySettingsChanged().RemoveAll(this);
+		Settings->OnColorSettingsChanged().RemoveAll(this);
 	}
 }
 
@@ -176,6 +178,7 @@ void FChaosVDPlaybackViewportClient::HandleActorMoving(AActor* MovedActor) const
 		{
 			if (SceneSharedPtr->GetSkySphereActor()->Implements<UChaosVDSkySphereInterface>())
 			{
+				FEditorScriptExecutionGuard AllowEditorScriptGuard;
 				IChaosVDSkySphereInterface::Execute_Refresh(SceneSharedPtr->GetSkySphereActor());
 			}
 		}
