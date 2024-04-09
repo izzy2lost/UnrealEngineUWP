@@ -6042,6 +6042,10 @@ int32 FHLSLMaterialTranslator::LocalPosition(EPositionIncludedOffsets IncludedOf
 		// Generate derivative based on WorldPosition_DDX
 		int32 WorldPositionCode = WorldPosition(IncludedOffsets == EPositionIncludedOffsets::IncludeOffsets ? WPT_CameraRelative : WPT_CameraRelativeNoOffsets);
 		int32 TransformedPositionCode = TransformPosition(MCB_TranslatedWorld, OriginType == ELocalPositionOrigin::Instance ? MCB_Instance : MCB_Local, WorldPositionCode);
+		if (TransformedPositionCode < 0) // TransformPosition failed
+		{
+			return TransformedPositionCode;
+		}
 		FString TransformedPositionAnalyticCode = GetParameterCodeDeriv(TransformedPositionCode, CompiledPDV_Analytic);
 
 		FString AnalyticCode = DerivativeAutogen.ConstructDeriv(
