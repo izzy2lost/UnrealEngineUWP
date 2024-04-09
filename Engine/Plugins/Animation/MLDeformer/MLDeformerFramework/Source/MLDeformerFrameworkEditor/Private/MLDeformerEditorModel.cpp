@@ -223,6 +223,8 @@ namespace UE::MLDeformer
 			// NOTE: We don't copy the DeformerGraph on purpose, as this model might need another one, so we let it get the default graph.
 		}
 
+		ActiveTrainingInputAnimIndex = SourceEditorModel->GetActiveTrainingInputAnimIndex();
+
 		TargetModel->UpdateMemoryUsage();
 		UpdateMemoryUsage();	
 	}
