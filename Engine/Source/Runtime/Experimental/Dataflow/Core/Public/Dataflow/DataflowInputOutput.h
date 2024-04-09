@@ -54,8 +54,18 @@ public:
 	virtual TArray< FDataflowOutput* > GetConnectedOutputs();
 	virtual const TArray< const FDataflowOutput* > GetConnectedOutputs() const;
 
+	/** 
+	* Get the value of this input by evaluating the value of the connected output 
+	* @return the typed value of the input 
+	*/
 	template<class T>
 	const T& GetValue(Dataflow::FContext& Context, const T& Default) const;
+
+	/**
+	* pull the value from the upstream connections
+	* the upstream graph is evaluated if necessary and values are cached along the way 
+	*/
+	void PullValue(Dataflow::FContext& Context) const;
 
 	template<class T>
 	TFuture<const T&> GetValueParallel(Dataflow::FContext& Context, const T& Default) const;
@@ -133,9 +143,10 @@ public:
 		}
 	}
 
-	template<class T> const T& GetValue(Dataflow::FContext& Context, const T& Default) const
+	template<class T>
+	const T& GetValue(Dataflow::FContext& Context, const T& Default) const
 	{
-		if (!this->Evaluate<T>(Context))
+		if (!this->Evaluate(Context))
 		{
 			Context.SetData(CacheKey(), Property, Default, GetOwningNodeGuid(), GetOwningNodeValueHash(), Dataflow::FTimestamp::Current());
 		}
@@ -154,11 +165,9 @@ public:
 
 	DATAFLOWCORE_API bool EvaluateImpl(Dataflow::FContext& Context) const;
 	
-	template<class T>
-	bool Evaluate(Dataflow::FContext& Context) const;
+	DATAFLOWCORE_API bool Evaluate(Dataflow::FContext& Context) const;
 
-	template<class T>
-	TFuture<bool> EvaluateParallel(Dataflow::FContext& Context) const;
+	DATAFLOWCORE_API TFuture<bool> EvaluateParallel(Dataflow::FContext& Context) const;
 
 	DATAFLOWCORE_API virtual void Invalidate(const Dataflow::FTimestamp& ModifiedTimestamp = Dataflow::FTimestamp::Current()) override;
 
@@ -174,7 +183,7 @@ const T& FDataflowInput::GetValue(Dataflow::FContext& Context, const T& Default)
 		ensure(GetConnectedOutputs().Num() == 1);
 		if (const FDataflowOutput* ConnectionOut = GetConnection())
 		{
-			if (!ConnectionOut->Evaluate<T>(Context))
+			if (!ConnectionOut->Evaluate(Context))
 			{
 				Context.SetData(ConnectionOut->CacheKey(), Property, Default, GetOwningNodeGuid(), GetOwningNodeValueHash(), Dataflow::FTimestamp::Current());
 			}
@@ -194,28 +203,3 @@ TFuture<const T&> FDataflowInput::GetValueParallel(Dataflow::FContext& Context, 
 	return Async(EAsyncExecution::TaskGraph, [&]() -> const T& { return this->GetValue<T>(Context, Default); });
 }
 
-template<class T>
-bool FDataflowOutput::Evaluate(Dataflow::FContext& Context) const
-{
-	check(OwningNode);
- 
-	if (IsOwningNodeEnabled())
-	{
-		return Context.Evaluate(*this);
-	}
-	else if(const FDataflowInput* PassthroughInput = GetPassthroughInput())
-	{
-		// @todo(dataflow) would be nice if the passthrough does not overwrite the existing cache value.
-		const T& PassthroughData = PassthroughInput->GetValue<T>(Context, *reinterpret_cast<const T*>(PassthroughInput->RealAddress()));
-		SetValue(PassthroughData, Context);
-		return true;
-	}
- 
-	return false;
-}
-
-template<class T>
-TFuture<bool> FDataflowOutput::EvaluateParallel(Dataflow::FContext& Context) const
-{
-	return Async(EAsyncExecution::TaskGraph, [&]() -> bool { return this->Evaluate<T>(Context); });
-}

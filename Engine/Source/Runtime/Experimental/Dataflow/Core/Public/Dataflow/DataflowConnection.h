@@ -33,6 +33,8 @@ namespace Dataflow
 		FName Type;
 		FName Name;
 	};
+
+	class FGraph;
 }
 
 //
@@ -50,13 +52,18 @@ protected:
 	FDataflowNode* OwningNode = nullptr;
 	const FProperty* Property = nullptr;
 	FGuid  Guid;
+	bool bIsAnyType = false;
 
 	friend struct FDataflowNode;
+	friend class Dataflow::FGraph;
 
 protected:
 	DATAFLOWCORE_API bool IsOwningNodeEnabled() const;
 	DATAFLOWCORE_API FGuid GetOwningNodeGuid() const;
 	DATAFLOWCORE_API uint32 GetOwningNodeValueHash() const;
+
+	/** this should only be used for serialization */
+	DATAFLOWCORE_API void SetAsAnyType(bool bAnyType, const FName& ConcreteType);
 
 public:
 	FDataflowConnection() {};
@@ -84,6 +91,11 @@ public:
 
 	virtual bool AddConnection(FDataflowConnection* In) { return false; };
 	virtual bool RemoveConnection(FDataflowConnection* In) { return false; }
+
+	DATAFLOWCORE_API bool IsAnyType() const { return bIsAnyType; }
+	static bool IsAnyType(const FName& InType);
+
+	DATAFLOWCORE_API void SetConcreteType(const FName& InType);
 
 	template<class T>
 	bool IsA(const T* InVar) const

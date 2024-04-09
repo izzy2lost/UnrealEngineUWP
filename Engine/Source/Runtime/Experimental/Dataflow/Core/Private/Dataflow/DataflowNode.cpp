@@ -19,6 +19,8 @@ const FName FDataflowNode::DataflowIntrinsic = TEXT("DataflowIntrinsic");
 const FLinearColor FDataflowNode::DefaultNodeTitleColor = FLinearColor(1.f, 1.f, 0.8f);
 const FLinearColor FDataflowNode::DefaultNodeBodyTintColor = FLinearColor(0.f, 0.f, 0.f, 0.5f);
 
+const FName FDataflowAnyType::TypeName = TEXT("FDataflowAnyType");
+
 //
 // Inputs
 //
@@ -810,6 +812,26 @@ void FDataflowNode::CopyNodeProperties(const TSharedPtr<FDataflowNode> CopyFromD
 }
 
 
+void FDataflowNode::ForwardInput(Dataflow::FContext& Context, const void* InputReference, const void* Reference) const
+{
+	if (const FDataflowOutput* Output = FindOutput(Reference))
+	{
+		if (const FDataflowInput* Input = FindInput(Reference))
+		{
+			// we need to pull the value first so the upstream of the graph evaluate 
+			Input->PullValue(Context);
+			Output->ForwardInput(InputReference, Context);
+		}
+		else
+		{
+			checkfSlow(false, TEXT("This input could not be found within this node, check this has been properly registered in the node constructor"));
+		}
+	}
+	else
+	{
+		checkfSlow(false, TEXT("This output could not be found within this node, check this has been properly registered in the node constructor"));
+	}
+}
 
 
 

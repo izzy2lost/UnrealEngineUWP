@@ -47,7 +47,7 @@ namespace Dataflow
 		TMap<FName, FName > DisplayMap;					// [DisplayName] -> TypeName
 
 		DATAFLOWCORE_API static FNodeFactory* Instance;
-		FNodeFactory() {}
+		FNodeFactory() {};
 
 	public:
 		~FNodeFactory() { delete Instance; }
@@ -57,6 +57,7 @@ namespace Dataflow
 			if (!Instance)
 			{
 				Instance = new FNodeFactory();
+				Instance->RegisterDefaultNodes();
 			}
 			return Instance;
 		}
@@ -94,8 +95,9 @@ namespace Dataflow
 			for (auto Elem : ParametersMap) RetVal.Add(Elem.Value);
 			return RetVal;
 		}
+	private:
+		DATAFLOWCORE_API void RegisterDefaultNodes();
 
 	};
-
 }
 

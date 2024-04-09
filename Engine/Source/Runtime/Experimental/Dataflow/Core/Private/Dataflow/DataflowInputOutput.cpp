@@ -19,11 +19,9 @@ FDataflowInput::FDataflowInput(const Dataflow::FInputParameters& Param, FGuid In
 {
 }
 
-
-
 bool FDataflowInput::AddConnection(FDataflowConnection* InOutput)
 {
-	if (ensure(InOutput->GetType() == this->GetType()))
+	if (Type == InOutput->GetType())
 	{
 		Connection = (FDataflowOutput*)InOutput;
 		GetOwningNode()->Invalidate();
@@ -68,6 +66,18 @@ void FDataflowInput::Invalidate(const Dataflow::FTimestamp& ModifiedTimestamp)
 	OwningNode->Invalidate(ModifiedTimestamp);
 }
 
+void FDataflowInput::PullValue(Dataflow::FContext& Context) const
+{
+	if (GetConnectedOutputs().Num())
+	{
+		ensure(GetConnectedOutputs().Num() == 1);
+		if (const FDataflowOutput* ConnectionOut = GetConnection())
+		{
+			ConnectionOut->Evaluate(Context);
+		}
+	}
+}
+
 //
 //
 //  Output
@@ -109,7 +119,7 @@ TArray< FDataflowInput*> FDataflowOutput::GetConnectedInputs()
 
 bool FDataflowOutput::AddConnection(FDataflowConnection* InOutput)
 {
-	if (ensure(InOutput->GetType() == this->GetType()))
+	if (Type == InOutput->GetType())
 	{
 		Connections.Add((FDataflowInput*)InOutput);
 		return true;
@@ -128,6 +138,23 @@ void FDataflowOutput::Invalidate(const Dataflow::FTimestamp& ModifiedTimestamp)
 	{
 		Con->Invalidate(ModifiedTimestamp);
 	}
+}
+
+bool FDataflowOutput::Evaluate(Dataflow::FContext& Context) const
+{
+	check(OwningNode);
+
+	if (IsOwningNodeEnabled())
+	{
+		return Context.Evaluate(*this);
+	}
+	else if (const FDataflowInput* PassthroughInput = GetPassthroughInput())
+	{
+		ForwardInput(PassthroughInput->RealAddress(), Context);
+		return true;
+	}
+
+	return false;
 }
 
 bool FDataflowOutput::EvaluateImpl(Dataflow::FContext& Context) const
@@ -156,6 +183,11 @@ bool FDataflowOutput::EvaluateImpl(Dataflow::FContext& Context) const
 	return true;
 }
 
+TFuture<bool> FDataflowOutput::EvaluateParallel(Dataflow::FContext& Context) const
+{
+	return Async(EAsyncExecution::TaskGraph, [&]() -> bool { return this->Evaluate(Context); });
+}
+
 const FDataflowInput* FDataflowOutput::GetPassthroughInput() const
 {
 	return OwningNode ? OwningNode->FindInput(GetPassthroughRealAddress()) : nullptr;
@@ -172,6 +204,7 @@ void FDataflowOutput::ForwardInput(const void* InputReference, Dataflow::FContex
 			ensure(InputToForward->GetConnectedOutputs().Num() == 1);
 			if (const FDataflowOutput* ConnectionOut = InputToForward->GetConnection())
 			{
+				InputToForward->PullValue(Context);
 				Context.SetDataReference(CacheKey(), Property, ConnectionOut->CacheKey());
 			}
 		}

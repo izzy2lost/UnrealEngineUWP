@@ -133,9 +133,9 @@ namespace Dataflow
 	{
 		check(PropertyIn);
 		// check(PropertyIn->IsA<T>()); // @todo(dataflow) compile error for non-class T; find alternatives
-		check(Property->SameType(PropertyIn));
 		if (Type == EType::CacheElementTyped)
 		{
+			check(Property->SameType(PropertyIn));
 			return static_cast<const FContextCacheElement<T>&>(*this).GetData(Context, PropertyIn, Default);
 		}
 		if (Type == EType::CacheElementReference)

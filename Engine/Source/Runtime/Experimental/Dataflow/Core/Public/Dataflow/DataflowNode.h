@@ -254,26 +254,7 @@ struct FDataflowNode
 	*   @param InputReference : Pointer to a input member of this node that needs to be forwarded
 	*   @param Reference : Pointer to a member of this node that corresponds with the output to set.
 	*/
-	template<class T> void ForwardInput(Dataflow::FContext& Context, const typename TDecay<T>::Type* InputReference, const typename TDecay<T>::Type* Reference) const
-	{
-		if (const FDataflowOutput* Output = FindOutput(Reference))
-		{
-			if (const FDataflowInput* Input = FindInput(Reference))
-			{
-				// we need to pull the value first so the upstream of the graph evaluate 
-				Input->template GetValue<T>(Context, *Reference);
-				Output->ForwardInput(InputReference, Context);
-			}
-			else
-			{
-				checkfSlow(false, TEXT("This input could not be found within this node, check this has been properly registered in the node constructor"));
-			}
-		}
-		else
-		{
-			checkfSlow(false, TEXT("This output could not be found within this node, check this has been properly registered in the node constructor"));
-		}
-	}
+	DATAFLOWCORE_API void ForwardInput(Dataflow::FContext& Context, const void* InputReference, const void* Reference) const;
 
 	/**
 	*   IsConnected(...)
@@ -352,6 +333,7 @@ protected:
 
 };
 
+
 namespace Dataflow
 {
 	//
@@ -404,4 +386,39 @@ private:
 }																					\
 
 }
+
+USTRUCT()
+struct FDataflowAnyType
+{
+	GENERATED_USTRUCT_BODY()
+	void* Value = nullptr;
+
+	DATAFLOWCORE_API static const FName TypeName;
+};
+
+USTRUCT()
+struct FDataflowReRouteNode : public FDataflowNode
+{
+	GENERATED_USTRUCT_BODY()
+
+	DATAFLOW_NODE_DEFINE_INTERNAL(FDataflowReRouteNode, "DataflowReRouteNode", "Core", "")
+
+public:
+	FDataflowReRouteNode(const Dataflow::FNodeParameters& Param, FGuid InGuid = FGuid::NewGuid())
+		: Super(Param, InGuid)
+	{
+		RegisterInputConnection(&Value);
+		RegisterOutputConnection(&Value, &Value);
+	}
+
+	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+	{
+		ForwardInput(Context, &Value, &Value);
+	}
+
+public:
+	UPROPERTY(meta = (DataflowInput, DataflowOutput, DataflowPassthrough = "Value", DisplayName = "Value"))
+	FDataflowAnyType Value;
+};
+
 

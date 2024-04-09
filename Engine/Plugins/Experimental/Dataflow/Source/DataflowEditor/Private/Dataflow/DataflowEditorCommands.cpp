@@ -935,18 +935,22 @@ void FDataflowEditorCommands::PasteNodes(UDataflow* Graph, const TSharedPtr<SDat
 					{
 						if (TSharedPtr<FDataflowNode> DataflowNodeTo = DataflowGraph->FindBaseNode(GuidIn))
 						{
-							FDataflowInput* InputConnection = DataflowNodeTo->FindInput(InputputName);
-							FDataflowOutput* OutputConnection = DataflowNodeFrom->FindOutput(OutputputName);
-
-							DataflowGraph->Connect(OutputConnection, InputConnection);
-
-							if (UEdGraphPin* OutputPin = GetPin(EdNodeMap[NodeOut], EEdGraphPinDirection::EGPD_Output, OutputputName))
+							// first connect the edgraph as this may affect the dataflow inputs ( for AnyType )
+							UEdGraphPin* OutputPin = GetPin(EdNodeMap[NodeOut], EEdGraphPinDirection::EGPD_Output, OutputputName);
+							UEdGraphPin* InputPin = GetPin(EdNodeMap[NodeIn], EEdGraphPinDirection::EGPD_Input, InputputName);
+							if (OutputPin && InputPin)
 							{
-								if (UEdGraphPin* InputPin = GetPin(EdNodeMap[NodeIn], EEdGraphPinDirection::EGPD_Input, InputputName))
+								if (UEdGraph* EdGraph = EdNodeMap[NodeOut]->GetGraph())
 								{
-									OutputPin->MakeLinkTo(InputPin);
+									EdGraph->GetSchema()->TryCreateConnection(OutputPin, InputPin);
 								}
 							}
+
+							// now connect the dataflow
+							FDataflowInput* InputConnection = DataflowNodeTo->FindInput(InputputName);
+							FDataflowOutput* OutputConnection = DataflowNodeFrom->FindOutput(OutputputName);
+							DataflowGraph->Connect(OutputConnection, InputConnection);
+
 						}
 					}
 				}

@@ -438,6 +438,9 @@ struct FFortniteMainBranchObjectVersion
 		// Change workspaces to store asset references as external objects
 		AnimNextWorkspaceEntryConversion,
 
+		// Add support for anytype in dataflow
+		DataflowAnyTypeSupport,
+
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,
 		LatestVersion = VersionPlusOne - 1

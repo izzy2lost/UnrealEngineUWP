@@ -14,7 +14,9 @@ FDataflowConnection::FDataflowConnection(Dataflow::FPin::EDirection InDirection,
 	, OwningNode(InOwningNode)
 	, Property(InProperty)
 	, Guid(InGuid)
-{}
+{
+	bIsAnyType = FDataflowConnection::IsAnyType(Type);
+}
 
 uint32 FDataflowConnection::GetOffset() const
 {
@@ -41,3 +43,25 @@ uint32 FDataflowConnection::GetOwningNodeValueHash() const
 	return OwningNode ? OwningNode->GetValueHash() : 0;
 }
 
+bool FDataflowConnection::IsAnyType(const FName& InType)
+{
+	return (InType == FDataflowAnyType::TypeName);
+}
+
+void FDataflowConnection::SetAsAnyType(bool bAnyType, const FName& ConcreteType)
+{
+	bIsAnyType = bAnyType;
+	if (bIsAnyType)
+	{
+		Type = ConcreteType;
+	}
+}
+
+void FDataflowConnection::SetConcreteType(const FName& InType)
+{
+	// Can only change from AnyType to a concrete type
+	if (ensure(IsAnyType() && IsAnyType(Type) && !IsAnyType(InType)))
+	{
+		Type = InType;
+	}
+}

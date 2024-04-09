@@ -265,6 +265,11 @@ void UDataflowEdNode::PinConnectionListChanged(UEdGraphPin* Pin)
 										DataflowGraph->Connect(LinkedConOutput, ConnectionInput);
 									}
 								}
+								OnPinConnection(*Pin, LinkedCon->PinType);
+							}
+							else
+							{
+								OnPinDisconnection(*Pin);
 							}
 						}
 					}
@@ -288,6 +293,11 @@ void UDataflowEdNode::PinConnectionListChanged(UEdGraphPin* Pin)
 										DataflowGraph->Connect(ConnectionOutput, LinkedConInput);
 									}
 								}
+								OnPinConnection(*Pin, LinkedCon->PinType);
+							}
+							else
+							{
+								OnPinDisconnection(*Pin);
 							}
 						}
 					}
@@ -300,6 +310,62 @@ void UDataflowEdNode::PinConnectionListChanged(UEdGraphPin* Pin)
 }
 
 #endif // WITH_EDITOR && !UE_BUILD_SHIPPING
+
+void UDataflowEdNode::OnPinConnection(const UEdGraphPin& Pin, const FEdGraphPinType& Type)
+{
+#if WITH_EDITOR
+	if (Pin.PinType.PinCategory == FDataflowAnyType::TypeName)
+	{
+		SetAnyTypePinsToType(Type);
+	}
+#endif
+}
+
+void UDataflowEdNode::OnPinDisconnection(const UEdGraphPin& Pin)
+{
+}
+
+void UDataflowEdNode::SetAnyTypePinsToType(const FEdGraphPinType& Type)
+{
+#if WITH_EDITOR
+	if (const TSharedPtr<FDataflowNode> DataflowNode = this->GetDataflowNode())
+	{
+		for (UEdGraphPin* Pin : GetAllPins())
+		{
+			if (Pin)
+			{
+				switch (Pin->Direction)
+				{
+					case EEdGraphPinDirection::EGPD_Input:
+					{
+						if (FDataflowInput* Input = DataflowNode->FindInput(Pin->GetFName()))
+						{
+							if (Input->IsAnyType())
+							{
+								Pin->PinType = Type;
+								Input->SetConcreteType(Type.PinCategory);
+							}
+						}
+						break;
+					}
+					case EEdGraphPinDirection::EGPD_Output:
+					{
+						if (FDataflowOutput* Output = DataflowNode->FindOutput(Pin->GetFName()))
+						{
+							if (Output->IsAnyType())
+							{
+								Pin->PinType = Type;
+								Output->SetConcreteType(Type.PinCategory);
+							}
+						}
+						break;
+					}
+				}
+			}
+		}
+	}
+#endif
+}
 
 void UDataflowEdNode::Serialize(FArchive& Ar)
 {
@@ -477,7 +543,22 @@ void UDataflowEdNode::OnPinRemoved(UEdGraphPin* InRemovedPin)
 	}
 }
 
-#endif
+bool UDataflowEdNode::ShouldDrawNodeAsControlPointOnly(int32& OutInputPinIndex, int32& OutOutputPinIndex) const
+{
+	UEdGraphNode::ShouldDrawNodeAsControlPointOnly(OutInputPinIndex, OutOutputPinIndex);
+	if (const TSharedPtr<const FDataflowNode> DataflowNode = GetDataflowNode())
+	{
+		if (DataflowNode->GetType() == FDataflowReRouteNode::StaticType())
+		{
+			OutInputPinIndex = 0;
+			OutOutputPinIndex = 1;
+			return true;
+		}
+	}
+	return false;
+}
+
+#endif //WITH_EDITOR
 
 
 TArray<Dataflow::FRenderingParameter> UDataflowEdNode::GetRenderParameters() const

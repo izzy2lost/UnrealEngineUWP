@@ -8,6 +8,7 @@
 #include "Logging/LogMacros.h"
 #include "Dataflow/DataflowArchive.h"
 #include "UObject/UE5MainStreamObjectVersion.h"
+#include "UObject/FortniteMainBranchObjectVersion.h"
 
 DEFINE_LOG_CATEGORY_STATIC(DATAFLOW_LOG, Error, All);
 
@@ -130,6 +131,7 @@ namespace Dataflow
 	void FGraph::Serialize(FArchive& Ar, UObject* OwningObject)
 	{
 		Ar.UsingCustomVersion(FUE5MainStreamObjectVersion::GUID);
+		Ar.UsingCustomVersion(FFortniteMainBranchObjectVersion::GUID);
 
 		Ar << Guid;
 		if (Ar.IsSaving())
@@ -171,6 +173,9 @@ namespace Dataflow
 					ArType = Output->GetType();
 					ArName = Output->GetName();
 					Ar << ArGuid << ArType << ArName;
+
+					bool bIsAnytype = Output->IsAnyType();
+					Ar << bIsAnytype;
 				}
 
 				int32 ArNumInputs = Node->GetInputs().Num();
@@ -181,6 +186,9 @@ namespace Dataflow
 					ArType = Input->GetType();
 					ArName = Input->GetName();
 					Ar << ArGuid << ArType << ArName;
+
+					bool bIsAnytype = Input->IsAnyType();
+					Ar << bIsAnytype;
 				}
 			}
 			DATAFLOW_OPTIONAL_BLOCK_WRITE_END();
@@ -210,7 +218,10 @@ namespace Dataflow
 				ensure(!NodeGuidMap.Contains(ArGuid));
 				NodeGuidMap.Add(ArGuid, Node);
 
-				if ((Ar.CustomVer(FUE5MainStreamObjectVersion::GUID) < FUE5MainStreamObjectVersion::DataflowSeparateInputOutputSerialization))
+				const bool bDataflowSeparateInputOutputSerialization = (Ar.CustomVer(FUE5MainStreamObjectVersion::GUID) >= FUE5MainStreamObjectVersion::DataflowSeparateInputOutputSerialization);
+				const bool bDataflowAnyTypeSupport = (Ar.CustomVer(FFortniteMainBranchObjectVersion::GUID) >= FFortniteMainBranchObjectVersion::DataflowAnyTypeSupport);
+
+				if (!bDataflowSeparateInputOutputSerialization)
 				{
 
 					// former input / output serialization method where we only store aggregate number of inputs and outputs
@@ -268,6 +279,7 @@ namespace Dataflow
 					// be referenced when deserializing them below ( see Dataflow Node AddPin method )
 					Node->SerializeInternal(Ar);
 
+					bool bIsAnyType = false;
 					// Outputs deserialization
 					{
 						int32 ArNumOutputs;
@@ -276,9 +288,17 @@ namespace Dataflow
 						for (int32 OutputIndex = 0; OutputIndex < ArNumOutputs; OutputIndex++)
 						{
 							Ar << ArGuid << ArType << ArName;
+							if (bDataflowAnyTypeSupport)
+							{
+								Ar << bIsAnyType;
+							}
 
 							if (FDataflowOutput* Output = Node->FindOutput(ArName))
 							{
+								if (bIsAnyType)
+								{
+									Output->SetAsAnyType(bIsAnyType, ArType);
+								}
 								check(Output->GetType() == ArType);
 								Output->SetGuid(ArGuid);
 								ensure(!ConnectionGuidMap.Contains(ArGuid));
@@ -302,10 +322,18 @@ namespace Dataflow
 						for (int32 InputIndex = 0; InputIndex < ArNumInputs; InputIndex++)
 						{
 							Ar << ArGuid << ArType << ArName;
+							if (bDataflowAnyTypeSupport)
+							{
+								Ar << bIsAnyType;
+							}
 
 							if (FDataflowInput* Input = Node->FindInput(ArName))
 							{
-								check(Input->GetType() == ArType);
+								if (bIsAnyType)
+								{
+									Input->SetAsAnyType(bIsAnyType, ArType);
+								}
+								check(Input->GetType() == ArType || bIsAnyType);
 								Input->SetGuid(ArGuid);
 								ensure(!ConnectionGuidMap.Contains(ArGuid));
 								ConnectionGuidMap.Add(ArGuid, Input);

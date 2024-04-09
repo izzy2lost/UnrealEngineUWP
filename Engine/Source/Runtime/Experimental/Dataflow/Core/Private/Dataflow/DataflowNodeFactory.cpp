@@ -12,6 +12,13 @@ namespace Dataflow
 {
 	FNodeFactory* FNodeFactory::Instance = nullptr;
 
+	void FNodeFactory::RegisterDefaultNodes()
+	{
+		// by default always register a reroute node
+		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FDataflowReRouteNode);
+	}
+
+
 	TSharedPtr<FDataflowNode> FNodeFactory::NewNodeFromRegisteredType(FGraph& Graph, const FNewNodeParameters& Param)
 	{ 
 		if (ClassMap.Contains(Param.Type))

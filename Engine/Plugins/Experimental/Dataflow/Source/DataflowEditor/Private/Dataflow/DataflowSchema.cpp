@@ -175,7 +175,9 @@ const FPinConnectionResponse UDataflowSchema::CanCreateConnection(const UEdGraph
 			if (PinA->GetOwningNode() != PinB->GetOwningNode())
 			{
 				// Make sure types match. 
-				if (PinA->PinType == PinB->PinType)
+				const bool bIsAnyTypeA = PinA->PinType.PinCategory == FDataflowAnyType::TypeName;
+				const bool bIsAnyTypeB = PinB->PinType.PinCategory == FDataflowAnyType::TypeName;
+				if (PinA->PinType == PinB->PinType || (bIsAnyTypeA != bIsAnyTypeB))
 				{
 					// cycle checking on connect
 					if (!HasLoopIfConnected(PinA->GetOwningNode(), PinB->GetOwningNode()))
@@ -264,9 +266,36 @@ FLinearColor UDataflowSchema::GetTypeColor(const FName& Type)
 	return Settings->DefaultPinTypeColor;
 }
 
-//void UDataflowSchema::OnPinConnectionDoubleCicked(UEdGraphPin* PinA, UEdGraphPin* PinB, const FVector2D& GraphPosition) const
-//{
-//}
+static void CreateAndConnectNewReRouteNode(UEdGraphPin* FromPin, UEdGraphPin* ToPin, const FVector2D& GraphPosition)
+{
+	const UEdGraphNode* FromNode = FromPin->GetOwningNode();
+	UEdGraph* EdGraph = FromNode->GetGraph();
+
+	// Add the new reroute node and connect it 
+	TSharedPtr<FAssetSchemaAction_Dataflow_CreateNode_DataflowEdNode> NewNodeAction 
+		= FAssetSchemaAction_Dataflow_CreateNode_DataflowEdNode::CreateAction(EdGraph, FDataflowReRouteNode::StaticType());
+	if (NewNodeAction)
+	{
+		UEdGraphNode* NewEdNode = NewNodeAction->PerformAction(EdGraph, nullptr, GraphPosition, false);
+		if (NewEdNode)
+		{
+			const FName PinName = "Value";
+			UEdGraphPin* InputPin = NewEdNode->FindPin(PinName, EGPD_Input);
+			UEdGraphPin* OutputPin = NewEdNode->FindPin(PinName, EGPD_Output);
+			if (InputPin && OutputPin)
+			{
+				EdGraph->GetSchema()->TryCreateConnection(FromPin, InputPin);
+				EdGraph->GetSchema()->TryCreateConnection(OutputPin, ToPin);
+			}
+		}
+	}
+}
+
+
+void UDataflowSchema::OnPinConnectionDoubleCicked(UEdGraphPin* PinA, UEdGraphPin * PinB, const FVector2D & GraphPosition) const
+{
+	CreateAndConnectNewReRouteNode(PinA, PinB, GraphPosition);
+}
 
 FConnectionDrawingPolicy* UDataflowSchema::CreateConnectionDrawingPolicy(int32 InBackLayerID, int32 InFrontLayerID, float InZoomFactor, const FSlateRect& InClippingRect, class FSlateWindowElementList& InDrawElements, class UEdGraph* InGraphObj) const
 {

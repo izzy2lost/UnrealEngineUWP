@@ -31,7 +31,7 @@ void FDataflowCollectionSpreadSheet::UpdateViewData()
 						FName Name = Output->GetName();
 						FName Type = Output->GetType();
 
-						if (Output->GetType() == "FManagedArrayCollection")
+						if (Output->GetType() == "FManagedArrayCollection" && !Output->IsAnyType())
 						{
 							const FManagedArrayCollection& Value = Output->GetValue<FManagedArrayCollection>(*GetContext(), FManagedArrayCollection());
 

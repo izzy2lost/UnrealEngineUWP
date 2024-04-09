@@ -6,11 +6,19 @@
 #include "EdGraphNode_Comment.h"
 #include "Dataflow/DataflowSCommentNode.h"
 #include "Dataflow/DataflowSchema.h"
+#include "SGraphNodeKnot.h"
 
 TSharedPtr<class SGraphNode> FDataflowSNodeFactory::CreateNode(UEdGraphNode* InNode) const
 {
 	if (UDataflowEdNode* Node = Cast<UDataflowEdNode>(InNode))
 	{
+		if (const TSharedPtr<const FDataflowNode> DataflowNode = Node->GetDataflowNode())
+		{
+			if (DataflowNode->GetType() == FDataflowReRouteNode::StaticType())
+			{
+				return SNew(SGraphNodeKnot, Node);
+			}
+		}
 		return SNew(SDataflowEdNode, Node);
 	}	
 	else if (UEdGraphNode_Comment* CommentNode = Cast<UEdGraphNode_Comment>(InNode))
