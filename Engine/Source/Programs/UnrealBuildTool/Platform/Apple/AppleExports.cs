@@ -2,6 +2,9 @@
 
 using System;
 using EpicGames.Core;
+using System.Collections.Generic;
+using System.Linq;
+using System.IO;
 using Microsoft.Extensions.Logging;
 using UnrealBuildBase;
 
@@ -156,6 +159,37 @@ namespace UnrealBuildTool
 		}
 
 		/// <summary>
+		/// Gets the AppStoreConnect auth options for a given project. Will return empty string if the project isn't set up to use ASC
+		/// </summary>
+		/// <param name="ProjectFile"></param>
+		/// <returns></returns>
+		public static string GetXcodeBuildAuthOptions(FileReference? ProjectFile)
+		{
+			string Options = "";
+			
+			// handle AppStore Connect settings
+			bool bUseAppStoreConnect;
+		
+			ConfigHierarchy SharedPlatformIni = ConfigCache.ReadHierarchy(ConfigHierarchyType.Engine, ProjectFile?.Directory, UnrealTargetPlatform.Mac);
+			SharedPlatformIni.TryGetValue("/Script/MacTargetPlatform.XcodeProjectSettings", "bUseAppStoreConnect", out bUseAppStoreConnect);
+			if (bUseAppStoreConnect)
+			{
+				string? IssuerID, KeyID, KeyPath;
+				if (SharedPlatformIni.TryGetValue("/Script/MacTargetPlatform.XcodeProjectSettings", "AppStoreConnectIssuerID", out IssuerID) &&
+					SharedPlatformIni.TryGetValue("/Script/MacTargetPlatform.XcodeProjectSettings", "AppStoreConnectKeyID", out KeyID) &&
+					SharedPlatformIni.TryGetValue("/Script/MacTargetPlatform.XcodeProjectSettings", "AppStoreConnectKeyPath", out KeyPath))
+				{
+					FileReference KeyFile = ConvertFilePath(ProjectFile?.Directory, KeyPath);
+					Options += $" -authenticationKeyIssuerID {IssuerID}";
+					Options += $" -authenticationKeyID {KeyID}";
+					Options += $" -authenticationKeyPath \"{KeyFile}\"";
+				}
+			}
+
+			return Options;
+		}
+
+		/// <summary>
 		/// Generates a stub xcode project for the given project/platform/target combo, then builds or archives it
 		/// </summary>
 		/// <param name="ProjectFile">Project to build</param>
@@ -201,22 +235,8 @@ namespace UnrealBuildTool
 				{
 					ExtraOptions += " -allowProvisioningUpdates";
 
-					// handle AppStore Connect settings
-					bool bUseAppStoreConnect;
-					SharedPlatformIni.TryGetValue("/Script/MacTargetPlatform.XcodeProjectSettings", "bUseAppStoreConnect", out bUseAppStoreConnect);
-					if (bUseAppStoreConnect)
-					{
-						string? IssuerID, KeyID, KeyPath;
-						if (SharedPlatformIni.TryGetValue("/Script/MacTargetPlatform.XcodeProjectSettings", "AppStoreConnectIssuerID", out IssuerID) &&
-							SharedPlatformIni.TryGetValue("/Script/MacTargetPlatform.XcodeProjectSettings", "AppStoreConnectKeyID", out KeyID) &&
-							SharedPlatformIni.TryGetValue("/Script/MacTargetPlatform.XcodeProjectSettings", "AppStoreConnectKeyPath", out KeyPath))
-						{
-							FileReference KeyFile = ConvertFilePath(ProjectFile?.Directory, KeyPath);
-							ExtraOptions += $" -authenticationKeyIssuerID {IssuerID}";
-							ExtraOptions += $" -authenticationKeyID {KeyID}";
-							ExtraOptions += $" -authenticationKeyPath \"{KeyFile}\"";
-						}
-					}
+					ExtraOptions += GetXcodeBuildAuthOptions(ProjectFile);
+
 				}
 			}
 
@@ -270,6 +290,39 @@ namespace UnrealBuildTool
 		{
 			string StandardBinaryName = UEBuildTarget.MakeBinaryFileName(BinaryName, Platform, Configuration, Architectures, UndecoratedConfiguration, UEBuildBinaryType.Executable);
 			return System.IO.Path.ChangeExtension(StandardBinaryName, Extension);
+		}
+
+		/// <summary>
+		/// FInds the latest .xcarchive for a given Target name (the .xcarchive will start with this name then have a data appended)
+		/// </summary>
+		/// <param name="TargetName"></param>
+		/// <returns></returns>
+		public static DirectoryReference? FindLatestXcArchive(string TargetName)
+		{
+			DirectoryReference UserDir = new DirectoryReference(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile));
+			DirectoryReference Library = DirectoryReference.Combine(UserDir, "Library/Developer/Xcode/Archives");
+
+			// order date named folders (use creating data, not name, but same thing)
+			List<DirectoryReference> DateDirs = DirectoryReference.EnumerateDirectories(Library).ToList();
+			DateDirs.SortBy(x => Directory.GetCreationTime(x.FullName));
+			DateDirs.Reverse();
+
+			// go through each folder, starting at most recent, looking for an archive for the target
+			foreach (DirectoryReference DateDir in DateDirs)
+			{
+				string Wildcard = $"{TargetName} *.xcarchive";
+
+				List<DirectoryReference> XcArchives = DirectoryReference.EnumerateDirectories(DateDir, Wildcard).ToList();
+				if (XcArchives.Count > 0)
+				{
+					XcArchives.SortBy(x => Directory.GetCreationTime(x.FullName));
+					DirectoryReference XcArchive = XcArchives.Last();
+
+					return XcArchive;
+				}
+			}
+
+			return null;
 		}
 	}
 }

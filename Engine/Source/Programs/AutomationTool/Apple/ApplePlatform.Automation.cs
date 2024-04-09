@@ -145,45 +145,27 @@ public abstract class ApplePlatform : Platform
 
 	private DirectoryReference GetArchivePath(StageTarget Target, DeploymentContext SC)
 	{
-		DirectoryReference UserDir = new DirectoryReference(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile));
-		DirectoryReference Library = DirectoryReference.Combine(UserDir, "Library/Developer/Xcode/Archives");
-
-		// order date named folders (use creating data, not name, but same thing)
-		List<DirectoryReference> DateDirs = DirectoryReference.EnumerateDirectories(Library).ToList();
-		DateDirs.SortBy(x => Directory.GetCreationTime(x.FullName));
-		DateDirs.Reverse();
-
-		string ArchiveName = Target.Receipt.TargetName;
+		string TargetName = Target.Receipt.TargetName;
 		if (!SC.IsCodeBasedProject)
 		{
 			if (SC.RawProjectPath != null)
 			{
-				ArchiveName = MakeContentOnlyTargetName(Target.Receipt, SC.ShortProjectName);
+				TargetName = MakeContentOnlyTargetName(Target.Receipt, SC.ShortProjectName);
 			}
 		}
 
-		// go through each folder, starting at most recent, looking for an archive for the target
-		foreach (DirectoryReference DateDir in DateDirs)
+		// find the most recent archive for this target (based on name of target, this ignores Development vs Shipping, but 
+		// since Distribution is meant only for Shipping it's ok
+		string ArchiveName = AppleExports.MakeBinaryFileName(TargetName, Target.Receipt.Platform, UnrealTargetConfiguration.Development,
+		 	Target.Receipt.Architectures, UnrealTargetConfiguration.Development, null) + " *.xcarchive";
+
+		if (ArchiveName != TargetName)
 		{
-			// find the most recent archive for this target (based on name of target, this ignores Development vs Shipping, but 
-			// since Distribution is meant only for Shipping it's ok
-			string Wildcard = AppleExports.MakeBinaryFileName(ArchiveName, Target.Receipt.Platform, UnrealTargetConfiguration.Development,
-				Target.Receipt.Architectures, UnrealTargetConfiguration.Development, null) + " *.xcarchive";
-
-			Logger.LogInformation("Looking in Xcode archive dir {0} for {1}", DateDir, Wildcard);
-
-			List<DirectoryReference> XcArchives = DirectoryReference.EnumerateDirectories(DateDir, Wildcard).ToList();
-			if (XcArchives.Count > 0)
-			{
-				XcArchives.SortBy(x => Directory.GetCreationTime(x.FullName));
-				DirectoryReference XcArchive = XcArchives.Last();
-
-				Logger.LogInformation("Found xcarchive dir {0}", XcArchive);
-				return XcArchive;
-			}
+			// i don't know why we called MakeBinaryFileName - with Dev it seems to just return the TargetName passed in
+			throw new AutomationException($"GetArchivePath changed name of Target from {TargetName} to {ArchiveName} - tell Josh Adams");
 		}
 
-		return null;
+		return AppleExports.FindLatestXcArchive(TargetName);
 	}
 
 	private DirectoryReference GetFinalAppPath(StageTarget Target, DeploymentContext SC)

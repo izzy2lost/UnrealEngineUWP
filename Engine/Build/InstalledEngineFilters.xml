@@ -368,6 +368,9 @@
         
         <!-- Mac build resources (plist entitlement etc.) -->
         Engine/Build/Mac/Resources/...
+		
+		<!-- Some plist files for exporting Mac/IOS builds for distribuion -->
+		Engine/Build/Xcode/...
 
 		<!-- DotNet -->
 		Engine/Binaries/ThirdParty/DotNet/6.0.302/mac-arm64/...
