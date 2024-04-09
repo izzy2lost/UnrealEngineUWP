@@ -156,8 +156,8 @@ namespace mu
 						&&
 						sourceSemanticIndex == resultSemanticIndex);
 
-					int sourceElemSize = Source.GetElementSize(sourceBuffer);
-					const uint8_t* pSourceBuf = Source.GetBufferData(sourceBuffer);
+					int32 sourceElemSize = Source.GetElementSize(sourceBuffer);
+					const uint8* pSourceBuf = Source.GetBufferData(sourceBuffer);
 					pSourceBuf += sourceOffset;
 
 					// Copy element by element
@@ -165,7 +165,7 @@ namespace mu
 					{
 						if (resultFormat == sourceFormat && resultComponents == sourceComponents)
 						{
-							memcpy(pResultBuf, pSourceBuf, resultChannelSize);
+							FMemory::Memcpy(pResultBuf, pSourceBuf, resultChannelSize);
 						}
 						else if (resultFormat == MBF_PACKEDDIR8_W_TANGENTSIGN
 							||
@@ -175,7 +175,6 @@ namespace mu
 							check(resultComponents == 4);
 
 							// convert the 3 first components
-							//memcpy(pResultBuf, pSourceBuf, resultChannelSize);
 							for (int i = 0; i < 3; ++i)
 							{
 								if (i < sourceComponents)
@@ -191,10 +190,10 @@ namespace mu
 
 
 							// Add the tangent sign
-							uint8_t* pData = (uint8_t*)pResultBuf;
+							uint8* pData = reinterpret_cast<uint8*>(pResultBuf);
 
 							// Look for the full tangent space
-							int tanXBuf, tanXChan, tanYBuf, tanYChan, tanZBuf, tanZChan;
+							int32 tanXBuf, tanXChan, tanYBuf, tanYChan, tanZBuf, tanZChan;
 							Source.FindChannel(MBS_TANGENT, resultSemanticIndex, &tanXBuf, &tanXChan);
 							Source.FindChannel(MBS_BINORMAL, resultSemanticIndex, &tanYBuf, &tanYChan);
 							Source.FindChannel(MBS_NORMAL, resultSemanticIndex, &tanZBuf, &tanZChan);
@@ -211,7 +210,7 @@ namespace mu
 
 								FMatrix44f Mat(xIt.GetAsVec3f(), yIt.GetAsVec3f(), zIt.GetAsVec3f(), FVector3f(0, 0, 0));
 
-								uint8_t sign = 0;
+								uint8 sign = 0;
 								if (resultFormat == MBF_PACKEDDIR8_W_TANGENTSIGN)
 								{
 									sign = Mat.RotDeterminant() < 0 ? 0 : 255;
@@ -221,6 +220,11 @@ namespace mu
 									sign = Mat.RotDeterminant() < 0 ? -128 : 127;
 								}
 								pData[3] = sign;
+							}
+							else
+							{
+								// At least initialize it to avoid garbage.
+								pData[3] = 0;
 							}
 						}
 						else
@@ -292,12 +296,12 @@ namespace mu
 	(
 		const FMeshBufferSet& Source,
 		FMeshBufferSet& Result,
-		bool keepSystemBuffers,
-		bool ignoreMissingChannels,
-		bool isVertexBuffer
+		bool bKeepSystemBuffers,
+		bool bIgnoreMissingChannels,
+		bool bIsVertexBuffer
 	)
 	{
-		if (ignoreMissingChannels)
+		if (bIgnoreMissingChannels)
 		{
 			// Remove from the result the channels that are not present in the source, and re-pack the
 			// offsets.
@@ -371,12 +375,14 @@ namespace mu
 
 
 		// Detect internal system buffers and clone them unmodified.
-		if (keepSystemBuffers)
+		if (bKeepSystemBuffers)
 		{
 			for (int b = 0; b < Source.GetBufferCount(); ++b)
 			{
+				bool bIsSystemBuffer = false;
+
 				// Detect system buffers and clone them unmodified.
-				if (Source.GetBufferChannelCount(b) > 0)
+				if (Source.GetBufferChannelCount(b) == 1)
 				{
 					EMeshBufferSemantic sourceSemantic;
 					int sourceSemanticIndex;
@@ -392,11 +398,16 @@ namespace mu
 					);
 
 					if (sourceSemantic == MBS_LAYOUTBLOCK
-						|| (isVertexBuffer && sourceSemantic == MBS_VERTEXINDEX)
-						)
+						||
+						(bIsVertexBuffer && sourceSemantic == MBS_VERTEXINDEX))
 					{
-						Result.AddBuffer(Source, b);
+						bIsSystemBuffer = true;
 					}
+				}
+
+				if (bIsSystemBuffer)
+				{
+					Result.AddBuffer(Source, b);
 				}
 			}
 		}

@@ -165,13 +165,13 @@ namespace
 		// Make a morph format by adding all the vertex channels from the base into a single
 		// vertex buffer, adding the vertex index channel
 
-		int offset = 0;
-		int numChannels = 0;
+		int32 offset = 0;
+		int32 numChannels = 0;
 		TArray<EMeshBufferSemantic> semantics;
-		TArray<int> semanticIndices;
+		TArray<int32> semanticIndices;
 		TArray<EMeshBufferFormat> formats;
-		TArray<int> components;
-		TArray<int> offsets;
+		TArray<int32> components;
+		TArray<int32> offsets;
 
 		// Add the vertex index channel
 		semantics.Add(MBS_VERTEXINDEX);
@@ -183,26 +183,25 @@ namespace
 		numChannels++;
 
 		// Add the vertex channels from the new format
-		for (int vb = 0; vb < pTargetFormat->GetVertexBuffers().GetBufferCount(); ++vb)
+		for (int32 vb = 0; vb < pTargetFormat->GetVertexBuffers().GetBufferCount(); ++vb)
 		{
-			for (int c = 0; c < pTargetFormat->GetVertexBuffers().GetBufferChannelCount(vb); ++c)
+			for (int32 c = 0; c < pTargetFormat->GetVertexBuffers().GetBufferChannelCount(vb); ++c)
 			{
 				// Channel info
 				EMeshBufferSemantic semantic;
 				int semanticIndex;
 				EMeshBufferFormat format;
 				int component;
-				pTargetFormat->GetVertexBuffers().GetChannel
-				(vb, c, &semantic, &semanticIndex, &format, &component, nullptr);
+				pTargetFormat->GetVertexBuffers().GetChannel(vb, c, &semantic, &semanticIndex, &format, &component, nullptr);
 
 				// TODO: Filter useless semantics for morphing.
+				// Maybe some formats like the ones with a packed tangent sign need to be tweaked here, to make sense of the whole buffer.
 				semantics.Add(semantic);
 				semanticIndices.Add(semanticIndex);
 				formats.Add(format);
 				components.Add(component);
 				offsets.Add(offset);
-				offset += components[numChannels]
-					* GetMeshFormatData(formats[numChannels]).SizeInBytes;
+				offset += components[numChannels] * GetMeshFormatData(formats[numChannels]).SizeInBytes;
 				numChannels++;
 			}
 		}
@@ -277,29 +276,27 @@ mu::Ptr<ASTOp> Sink_MeshFormatAST::Visit(const mu::Ptr<ASTOp>& at, const ASTOpMe
 	case OP_TYPE::ME_MORPH:
 	{
 		// Move the format down the base of the morph
-		Ptr<ASTOpMeshMorph> newOp = mu::Clone<ASTOpMeshMorph>(at);
-		newOp->Base = Visit(newOp->Base.child(), currentFormatOp);
+		Ptr<ASTOpMeshMorph> NewOp = mu::Clone<ASTOpMeshMorph>(at);
+		NewOp->Base = Visit(NewOp->Base.child(), currentFormatOp);
 
 		// Reformat the morph targets to match the new format.
-		// \TODO: Cache pTargetMorphFormat? motaop?
 		MeshPtrConst pTargetFormat = FindBaseMeshConstant(currentFormatOp->Format.child());
 		MeshPtrConst pTargetMorphFormat = MakeMorphTargetFormat(pTargetFormat);
 
-		mu::Ptr<ASTOpConstantResource> motaop = new ASTOpConstantResource();
-		motaop->Type = OP_TYPE::ME_CONSTANT;
-		motaop->SetValue(pTargetMorphFormat, nullptr);
-		auto targetMorphFormatAt = motaop;
+		mu::Ptr<ASTOpConstantResource> NewFormatConstant = new ASTOpConstantResource();
+		NewFormatConstant->Type = OP_TYPE::ME_CONSTANT;
+		NewFormatConstant->SetValue(pTargetMorphFormat, nullptr);
 
-		if (newOp->Target)
+		if (NewOp->Target)
 		{
 			mu::Ptr<ASTOpMeshFormat> newFormat = mu::Clone<ASTOpMeshFormat>(currentFormatOp);
 			newFormat->Flags = OP::MeshFormatArgs::Vertex | OP::MeshFormatArgs::IgnoreMissing;
-			newFormat->Format = targetMorphFormatAt;
+			newFormat->Format = NewFormatConstant;
 
-			newOp->Target = Visit(newOp->Target.child(), newFormat.get());
+			NewOp->Target = Visit(NewOp->Target.child(), newFormat.get());
 		}
 
-		newAt = newOp;
+		newAt = NewOp;
 		break;
 	}
 
