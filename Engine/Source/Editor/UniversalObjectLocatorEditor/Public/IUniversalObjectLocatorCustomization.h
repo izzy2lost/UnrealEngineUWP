@@ -5,6 +5,7 @@
 #include "Templates/SharedPointer.h"
 
 struct FUniversalObjectLocator;
+struct FUniversalObjectLocatorFragment;
 
 class FString;
 class UObject;

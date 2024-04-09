@@ -3,6 +3,8 @@
 #pragma once
 
 #include "HAL/Platform.h"
+#include "Misc/CoreMiscDefines.h"
+#include "UObject/NameTypes.h"
 
 /** default beacon port, if not specified by other means */
 #define DEFAULT_BEACON_PORT 15000

@@ -4,6 +4,7 @@
 #include "Chaos/Core.h"
 #include "Chaos/Capsule.h"
 #include "Chaos/Collision/ContactPoint.h"
+#include "Chaos/Collision/ContactTriangles.h"
 #include "Chaos/Collision/ConvexFeature.h"
 #include "Chaos/Triangle.h"
 
