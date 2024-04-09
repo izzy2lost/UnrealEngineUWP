@@ -283,5 +283,5 @@ private:
 
 	/* The asset registry tag that contains the post smooth level*/
 	UPROPERTY(EditAnywhere, Category = "Clips", BlueprintReadWrite, meta = (AllowPrivateAccess = "true"))
-	float PostSmoothLevel = 0.0f;
+	int32 PostSmoothLevel = 0;
 };
