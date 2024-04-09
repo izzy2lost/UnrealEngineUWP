@@ -515,6 +515,7 @@ namespace Horde.Server.Agents
 					// If no task source is valid, just add a delay
 					if (tasks.Count == 0)
 					{
+						_logger.LogInformation("No task source valid for agent {AgentId}. Waiting {WaitTimeMs} ms", agent.Id, maxWaitTime.TotalMilliseconds);
 						await AsyncUtils.DelayNoThrow(maxWaitTime, cancellationToken);
 						break;
 					}
