@@ -26,8 +26,10 @@ void UGameViewFunctionLibrary::ToggleGameView(EVCamTargetViewportID ViewportID)
 bool UGameViewFunctionLibrary::CanToggleGameView(EVCamTargetViewportID ViewportID)
 {
 #if WITH_EDITOR
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	const TSharedPtr<SLevelViewport> Viewport = UE::VCamCore::GetLevelViewport(ViewportID);
 	return Viewport && Viewport->CanToggleGameView();
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 #else
 	return false;
 #endif

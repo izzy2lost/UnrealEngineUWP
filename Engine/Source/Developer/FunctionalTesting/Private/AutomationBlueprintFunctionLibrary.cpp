@@ -668,7 +668,7 @@ public:
 			{
 				if (NeedGameViewToggle)
 				{
-					if (LevelViewport->IsInGameView() && LevelViewport->CanToggleGameView())
+					if (LevelViewport->IsInGameView())
 					{
 						LevelViewport->ToggleGameView();
 					}
@@ -1237,7 +1237,7 @@ UAutomationEditorTask* UAutomationBlueprintFunctionLibrary::TakeHighResScreensho
 			FLevelEditorModule& LevelEditor = FModuleManager::GetModuleChecked<FLevelEditorModule>("LevelEditor");
 			SLevelViewport* LevelViewport = LevelEditor.GetFirstActiveLevelViewport().Get();
 			bool bNeedGameViewToggle = bForceGameView && !LevelViewport->IsInGameView();
-			if (bNeedGameViewToggle && LevelViewport->CanToggleGameView())
+			if (bNeedGameViewToggle)
 			{
 				LevelViewport->ToggleGameView();
 			}

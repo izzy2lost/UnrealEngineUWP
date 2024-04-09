@@ -1456,7 +1456,7 @@ void SLevelViewport::BindOptionCommands( FUICommandList& OutCommandList )
 	OutCommandList.MapAction(
 		ViewportActions.ToggleGameView,
 		FExecuteAction::CreateSP( this, &SLevelViewport::ToggleGameView ),
-		FCanExecuteAction::CreateSP( this, &SLevelViewport::CanToggleGameView ),
+		FCanExecuteAction(),
 		FIsActionChecked::CreateSP( this, &SLevelViewport::IsInGameView ) );
 
 	OutCommandList.MapAction(
@@ -2044,21 +2044,18 @@ void SLevelViewport::OnTakeHighResScreenshot()
 
 void SLevelViewport::ToggleGameView()
 {
-	if( LevelViewportClient->IsPerspective() )
+	bool bGameViewEnable = !LevelViewportClient->IsInGameView();
+
+	// "Mode Widget" should not automatically be reactivated by selecting an actor after "Game View" is enabled
+	LevelViewportClient->bAlwaysShowModeWidgetAfterSelectionChanges = bGameViewEnable ? false : true;
+
+	LevelViewportClient->SetGameView(bGameViewEnable);
+
+	if (!bGameViewEnable)
 	{
-		bool bGameViewEnable = !LevelViewportClient->IsInGameView();
-
-		// "Mode Widget" should not automatically be reactivated by selecting an actor after "Game View" is enabled
-		LevelViewportClient->bAlwaysShowModeWidgetAfterSelectionChanges = bGameViewEnable ? false : true;
-
-		LevelViewportClient->SetGameView(bGameViewEnable);
-
-		if (!bGameViewEnable)
-		{
-			// LevelViewportClient->bShowWidget is set to "false" when entering game mode
-			// Need to turn it back to "true" when exiting game mode
-			LevelViewportClient->ShowWidget(true);
-		}
+		// LevelViewportClient->bShowWidget is set to "false" when entering game mode
+		// Need to turn it back to "true" when exiting game mode
+		LevelViewportClient->ShowWidget(true);
 	}
 }
 

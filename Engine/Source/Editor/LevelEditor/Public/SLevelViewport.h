@@ -195,6 +195,7 @@ public:
 	/**
 	 * @return true if we can toggle game view
 	 */
+	UE_DEPRECATED(5.5, "CanToggleGameView is deprecated. Please update usage to assume that this function would return true in the future. All level viewports should support game view moving forward.")
 	bool CanToggleGameView() const;
 
 	/**
