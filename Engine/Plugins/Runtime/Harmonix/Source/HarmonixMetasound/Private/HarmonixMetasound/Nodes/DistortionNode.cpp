@@ -16,7 +16,6 @@
 #include "HarmonixDsp/Effects/Settings/BiquadFilterSettings.h"
 #include "HarmonixDsp/Effects/BiquadFilter.h"
 #include "HarmonixDsp/Effects/Settings/DistortionSettings.h"
-#include "HarmonixDsp/Effects/DistortionV1.h"
 #include "HarmonixDsp/Effects/DistortionV2.h"
 #include "HarmonixMetasound/Common.h"
 
