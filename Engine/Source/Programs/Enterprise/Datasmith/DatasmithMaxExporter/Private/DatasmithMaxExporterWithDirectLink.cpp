@@ -623,7 +623,11 @@ public:
 
 	FString GetConfigPath()
 	{
+#if MAX_PRODUCT_YEAR_NUMBER >= 2025
+		FString PlugCfgPath = (TCHAR*)GetCOREInterface()->GetDir(APP_PLUGCFG_DIR).data();
+#else
 		FString PlugCfgPath = GetCOREInterface()->GetDir(APP_PLUGCFG_DIR);
+#endif
 		return FPaths::Combine(PlugCfgPath, TEXT("UnrealDatasmithMax.ini"));
 	}
 
