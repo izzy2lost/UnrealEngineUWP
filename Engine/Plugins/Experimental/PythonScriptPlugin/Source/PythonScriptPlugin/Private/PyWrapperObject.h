@@ -200,6 +200,7 @@ public:
 	}
 
 	//~ UClass interface
+	virtual void Link(FArchive& Ar, bool bRelinkExistingProperties) override;
 	virtual void PostInitInstance(UObject* InObj, FObjectInstancingGraph* InstanceGraph) override;
 
 	//~ IPythonResourceOwner interface
