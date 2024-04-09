@@ -3405,7 +3405,7 @@ static void maybe_expand_macro(parse_state* cs, struct macro_definition* pending
 				}
 				else
 				{
-					arrinsn(copy, 0, leading_ws_size);
+					arrinsn(copy, 0, leading_ws_size); //-V568
 					memcpy(copy, leading_ws, leading_ws_size);
 				}
 
