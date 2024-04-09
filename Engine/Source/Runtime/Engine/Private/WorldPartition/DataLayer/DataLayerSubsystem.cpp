@@ -138,10 +138,10 @@ UDataLayerInstance* UDataLayerSubsystem::GetDataLayerInstanceFromAsset(const UDa
 	return DataLayerManager ? const_cast<UDataLayerInstance*>(DataLayerManager->GetDataLayerInstance(InDataLayerAsset)) : nullptr;
 }
 
-const UDataLayerInstance* UDataLayerSubsystem::GetDataLayerInstanceFromAssetName(const FName& InDataLayerAssetFullName) const
+const UDataLayerInstance* UDataLayerSubsystem::GetDataLayerInstanceFromAssetName(const FName& InDataLayerAssetPathName) const
 {
 	const UDataLayerManager* DataLayerManager = UDataLayerManager::GetDataLayerManager(GetWorld());
-	return DataLayerManager ? DataLayerManager->GetDataLayerInstanceFromAssetName(InDataLayerAssetFullName) : nullptr;
+	return DataLayerManager ? DataLayerManager->GetDataLayerInstanceFromAssetName(InDataLayerAssetPathName) : nullptr;
 }
 
 PRAGMA_DISABLE_DEPRECATION_WARNINGS

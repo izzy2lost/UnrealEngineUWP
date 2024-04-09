@@ -1068,13 +1068,13 @@ const UDataLayerInstance* AWorldDataLayers::GetDataLayerInstance(const FName& In
 	return nullptr;
 }
 
-const UDataLayerInstance* AWorldDataLayers::GetDataLayerInstanceFromAssetName(const FName& InDataLayerAssetFullName) const
+const UDataLayerInstance* AWorldDataLayers::GetDataLayerInstanceFromAssetName(const FName& InDataLayerAssetPathName) const
 {
 #if WITH_EDITOR	
 	const UDataLayerInstance* FoundDataLayerInstance = nullptr;
-	ForEachDataLayerInstance([InDataLayerAssetFullName, &FoundDataLayerInstance](UDataLayerInstance* DataLayerInstance)
+	ForEachDataLayerInstance([InDataLayerAssetPathName, &FoundDataLayerInstance](UDataLayerInstance* DataLayerInstance)
 	{
-		if (DataLayerInstance->GetDataLayerFullName().Equals(InDataLayerAssetFullName.ToString(), ESearchCase::IgnoreCase))
+		if (DataLayerInstance->GetDataLayerFullName().Equals(InDataLayerAssetPathName.ToString(), ESearchCase::IgnoreCase))
 		{
 			FoundDataLayerInstance = DataLayerInstance;
 			return false;
@@ -1083,7 +1083,7 @@ const UDataLayerInstance* AWorldDataLayers::GetDataLayerInstanceFromAssetName(co
 	});
 	return FoundDataLayerInstance;
 #else
-	if (const UDataLayerInstance* const* FoundDataLayerInstance = AssetNameToInstance.Find(InDataLayerAssetFullName.ToString()))
+	if (const UDataLayerInstance* const* FoundDataLayerInstance = AssetNameToInstance.Find(InDataLayerAssetPathName.ToString()))
 	{
 		return *FoundDataLayerInstance;
 	}
@@ -1111,7 +1111,7 @@ const UDataLayerInstance* AWorldDataLayers::GetDataLayerInstance(const UDataLaye
 	});
 	return FoundDataLayerInstance;
 #else
-	if (const UDataLayerInstance* const* FoundDataLayerInstance = AssetNameToInstance.Find(InDataLayerAsset->GetFullName()))
+	if (const UDataLayerInstance* const* FoundDataLayerInstance = AssetNameToInstance.Find(InDataLayerAsset->GetPathName()))
 	{
 		return *FoundDataLayerInstance;
 	}
@@ -1344,20 +1344,20 @@ void AWorldDataLayers::UpdateAccelerationTable(const UDataLayerInstance* DataLay
 	static_assert(DATALAYER_TO_INSTANCE_RUNTIME_CONVERSION_ENABLED, "Remove unnecessary cast. All DataLayerInstance now have assets");
 	if (const UDataLayerInstanceWithAsset* DataLayerInstanceWithAsset = Cast<UDataLayerInstanceWithAsset>(DataLayerInstance))
 	{
-		if (!DataLayerInstanceWithAsset->GetAsset())
-		{
-			UE_LOG(LogWorldPartition, Warning, TEXT("DataLayerWithAsset %s has null asset."), *DataLayerInstanceWithAsset->GetPathName());
-		}
-		else
+		if (const UDataLayerAsset* DataLayerAsset = DataLayerInstanceWithAsset->GetAsset())
 		{
 			if (bIsAdding)
 			{
-				AssetNameToInstance.Add(DataLayerInstanceWithAsset->GetAsset()->GetFullName(), DataLayerInstance);
+				AssetNameToInstance.Add(DataLayerAsset->GetPathName(), DataLayerInstance);
 			}
 			else
 			{
-				AssetNameToInstance.Remove(DataLayerInstanceWithAsset->GetAsset()->GetFullName());
+				AssetNameToInstance.Remove(DataLayerAsset->GetPathName());
 			}
+		}
+		else
+		{
+			UE_LOG(LogWorldPartition, Warning, TEXT("DataLayerWithAsset %s has null asset."), *DataLayerInstanceWithAsset->GetPathName());
 		}
 	}
 }
