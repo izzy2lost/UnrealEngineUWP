@@ -1091,6 +1091,7 @@ void FRenderAssetStreamingMipCalcTask::UpdateCSVOnlyStats_Async()
 	Stats.RequiredPool = 0;
 	Stats.CachedMips = 0;
 	Stats.WantedMips = 0;
+	Stats.PendingRequests = 0;
 
 	Stats.NumStreamedMeshes = 0;
 	Stats.AvgNumStreamedLODs = 0.f;
@@ -1122,6 +1123,11 @@ void FRenderAssetStreamingMipCalcTask::UpdateCSVOnlyStats_Async()
 
 		Stats.WantedMips += UsedSize;
 		Stats.CachedMips += FMath::Max<int64>(ResidentSize - UsedSize, 0);
+
+		if (StreamingRenderAsset.RequestedMips > StreamingRenderAsset.ResidentMips)
+		{
+			Stats.PendingRequests += StreamingRenderAsset.GetSize(StreamingRenderAsset.RequestedMips) - ResidentSize;
+		}
 
 		if (StreamingRenderAsset.IsMesh())
 		{
