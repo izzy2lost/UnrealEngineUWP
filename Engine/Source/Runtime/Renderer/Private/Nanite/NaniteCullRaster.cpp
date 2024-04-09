@@ -1240,8 +1240,9 @@ class FPatchSplitCS : public FNaniteGlobalShader
 	class FMultiViewDim : SHADER_PERMUTATION_BOOL("NANITE_MULTI_VIEW");
 	class FVirtualTextureTargetDim : SHADER_PERMUTATION_BOOL("VIRTUAL_TEXTURE_TARGET");
 	class FSplineDeformDim : SHADER_PERMUTATION_BOOL("USE_SPLINEDEFORM");
+	class FSkinningDim : SHADER_PERMUTATION_BOOL("USE_SKINNING");
 	class FWriteStatsDim : SHADER_PERMUTATION_BOOL("WRITE_STATS");
-	using FPermutationDomain = TShaderPermutationDomain< FCullingPassDim, FMultiViewDim, FVirtualTextureTargetDim, FSplineDeformDim, FWriteStatsDim >;
+	using FPermutationDomain = TShaderPermutationDomain< FCullingPassDim, FMultiViewDim, FVirtualTextureTargetDim, FSplineDeformDim, FSkinningDim, FWriteStatsDim >;
 
 	BEGIN_SHADER_PARAMETER_STRUCT( FParameters, )
 		SHADER_PARAMETER_RDG_UNIFORM_BUFFER( FSceneUniformParameters, Scene )
@@ -1285,6 +1286,11 @@ class FPatchSplitCS : public FNaniteGlobalShader
 		}
 
 		if (PermutationVector.Get<FSplineDeformDim>() && !NaniteSplineMeshesSupported())
+		{
+			return false;
+		}
+
+		if (PermutationVector.Get<FSkinningDim>() && !NaniteSkinnedMeshesSupported())
 		{
 			return false;
 		}
@@ -4771,7 +4777,8 @@ void FRenderer::AddPass_PatchSplit(
 		PermutationVector.Set< FPatchSplitCS::FCullingPassDim >( CullingPass );
 		PermutationVector.Set< FPatchSplitCS::FMultiViewDim >( ViewArray.NumViews > 1 || VirtualShadowMapArray != nullptr );
 		PermutationVector.Set< FPatchSplitCS::FVirtualTextureTargetDim >( VirtualShadowMapArray != nullptr );
-		PermutationVector.Set< FPatchSplitCS::FSplineDeformDim >( NaniteSplineMeshesSupported() ); // TODO: Nanite-Skinning - leverage this?
+		PermutationVector.Set< FPatchSplitCS::FSplineDeformDim >( NaniteSplineMeshesSupported() );
+		PermutationVector.Set< FPatchSplitCS::FSkinningDim >(NaniteSkinnedMeshesSupported());
 		PermutationVector.Set< FPatchSplitCS::FWriteStatsDim >(GNaniteShowStats != 0u);
 		
 		auto ComputeShader = SharedContext.ShaderMap->GetShader< FPatchSplitCS >( PermutationVector );
