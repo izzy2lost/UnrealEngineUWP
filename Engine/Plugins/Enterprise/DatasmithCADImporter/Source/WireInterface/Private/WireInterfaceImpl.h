@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 
+#include "AliasBrepConverter.h"
 #include "OpenModelUtils.h"
 
 #include "IWireInterface.h"

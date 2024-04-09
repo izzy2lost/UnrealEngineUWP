@@ -14,6 +14,8 @@
 
 DEFINE_LOG_CATEGORY_STATIC(LogDatasmithWireTranslator, Log, All);
 
+#define LOCTEXT_NAMESPACE "DatasmithWireTranslator"
+
 static TAutoConsoleVariable<bool> CVarAliasThreadSafe(
 	TEXT("ds.WireTranslator.ThreadSafe"),
 	false,

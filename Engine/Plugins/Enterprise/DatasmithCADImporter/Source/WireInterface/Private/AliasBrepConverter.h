@@ -5,6 +5,8 @@
 class AlDagNode;
 struct FColor;
 
+typedef double AlMatrix4x4[4][4];
+
 namespace UE_DATASMITHWIRETRANSLATOR_NAMESPACE
 {
 

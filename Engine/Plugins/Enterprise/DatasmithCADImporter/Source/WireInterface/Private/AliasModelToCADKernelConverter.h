@@ -4,8 +4,8 @@
 
 #include "CoreMinimal.h"
 
-#include "OpenModelUtils.h"
 #include "AliasBRepConverter.h"
+#include "OpenModelUtils.h"
 
 #include "CADModelToCADKernelConverterBase.h"
 

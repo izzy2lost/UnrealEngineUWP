@@ -27,8 +27,6 @@ class AlMesh;
 
 struct FMeshDescription;
 
-typedef double AlMatrix4x4[4][4];
-
 namespace UE_DATASMITHWIRETRANSLATOR_NAMESPACE
 {
 	//enum class EAliasObjectReference : uint8

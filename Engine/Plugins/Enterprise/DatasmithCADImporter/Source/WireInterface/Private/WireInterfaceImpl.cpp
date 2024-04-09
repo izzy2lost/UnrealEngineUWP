@@ -28,7 +28,6 @@
 #include "Modules/ModuleManager.h"
 #endif
 
-#include "AliasBrepConverter.h"
 #include "AliasModelToCADKernelConverter.h"
 #include "AliasModelToTechSoftConverter.h" // requires Techsoft as public dependency
 #include "CADInterfacesModule.h"
