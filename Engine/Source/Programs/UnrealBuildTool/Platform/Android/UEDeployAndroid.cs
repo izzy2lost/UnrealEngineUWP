@@ -2763,18 +2763,19 @@ namespace UnrealBuildTool
 			StringBuilder Text = new StringBuilder();
 			Text.AppendLine(XML_HEADER);
 
-			bool bIsMakeAAREnabled = AndroidPlatform.IsMakeAAREnabled(ProjectFile, Logger);
-			if (bIsMakeAAREnabled)
-			{
-				// Note: dist was added for SingleInstanceService to allow instant module features, but need feedback if this will cause any issues since according to docs (https://developer.android.com/guide/playcore/feature-delivery/instant) An instant-enabled module cannot use background services. Additionally, such a module cannot send notifications when running in the background.
 
+			bool bIsMakeAAREnabled = false;
+			Ini.GetBool("/Script/AndroidSingleInstanceServiceEditor.AndroidSingleInstanceServiceRuntimeSettings", "bEnableASISPlugin", out bIsMakeAAREnabled);
+
+			if (bIsMakeAAREnabled)
+			{				
 				Text.AppendLine("<manifest xmlns:android=\"http://schemas.android.com/apk/res/android\" xmlns:dist=\"http://schemas.android.com/apk/distribution\" xmlns:tools=\"http://schemas.android.com/tools\"");
 			}
 			else
 			{
 				Text.AppendLine("<manifest xmlns:android=\"http://schemas.android.com/apk/res/android\" xmlns:tools=\"http://schemas.android.com/tools\"");
 			}
-			//			Text.AppendLine(string.Format("          package=\"{0}\"", PackageName));
+
 			if (ExtraManifestNodeTags != null)
 			{
 				foreach (string Line in ExtraManifestNodeTags)
