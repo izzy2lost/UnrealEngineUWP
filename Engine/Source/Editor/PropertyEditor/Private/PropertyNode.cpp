@@ -4169,4 +4169,19 @@ bool FPropertyNode::GenerateRestrictionToolTip(const FString& Value, FText& OutT
 	return bRestricted;
 }
 
+void FComplexPropertyNode::SetDisplayNameOverride(const FText& InDisplayNameOverride)
+{
+	DisplayNameOverride = InDisplayNameOverride;
+}
+
+FText FComplexPropertyNode::GetDisplayName() const
+{
+	if (!DisplayNameOverride.IsEmpty())
+	{
+		return DisplayNameOverride;
+	}
+
+	return FPropertyNode::GetDisplayName();
+}
+
 #undef LOCTEXT_NAMESPACE

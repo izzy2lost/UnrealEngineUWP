@@ -70,11 +70,29 @@ IDetailPropertyRow* FCustomChildrenBuilder::AddExternalStructure(TSharedRef<FStr
 
 IDetailPropertyRow* FCustomChildrenBuilder::AddExternalStructureProperty(TSharedRef<FStructOnScope> ChildStructure, FName PropertyName, const FAddPropertyParams& Params)
 {
+	return AddExternalStructureProperty<>(ChildStructure, PropertyName, Params);
+}
+
+IDetailPropertyRow* FCustomChildrenBuilder::AddExternalStructure(TSharedPtr<IStructureDataProvider> ChildStructure, FName UniqueIdName)
+{
+	return AddExternalStructureProperty(ChildStructure, NAME_None, FAddPropertyParams().UniqueId(UniqueIdName));
+}
+
+IDetailPropertyRow* FCustomChildrenBuilder::AddChildStructure(TSharedRef<IPropertyHandle> PropertyHandle, TSharedPtr<IStructureDataProvider> ChildStructure, FName UniqueIdName, const FText& DisplayNameOverride)
+{
+	return AddChildStructureProperty(PropertyHandle, ChildStructure, NAME_None, FAddPropertyParams().UniqueId(UniqueIdName), DisplayNameOverride);
+}
+
+IDetailPropertyRow* FCustomChildrenBuilder::AddExternalStructureProperty(TSharedPtr<IStructureDataProvider> ChildStructure, FName PropertyName, const FAddPropertyParams& Params)
+{
+	return AddExternalStructureProperty<>(ChildStructure, PropertyName, Params);
+}
+
+IDetailPropertyRow* FCustomChildrenBuilder::AddStructureProperty(const FAddPropertyParams& Params, TFunctionRef<void(FDetailLayoutCustomization&)> MakePropertyRowCustomization)
+{
 	FDetailLayoutCustomization NewCustomization;
 
-	TSharedRef<FDetailCategoryImpl> ParentCategoryRef = ParentCategory.Pin().ToSharedRef();
-
-	FDetailPropertyRow::MakeExternalPropertyRowCustomization(ChildStructure, PropertyName, ParentCategoryRef, NewCustomization, Params);
+	MakePropertyRowCustomization(NewCustomization);
 
 	if (Params.ShouldHideRootObjectNode() && NewCustomization.HasPropertyNode() && NewCustomization.GetPropertyNode()->AsComplexNode())
 	{
@@ -94,6 +112,28 @@ IDetailPropertyRow* FCustomChildrenBuilder::AddExternalStructureProperty(TShared
 	}
 
 	return NewRow.Get();
+}
+
+template<class T>
+IDetailPropertyRow* FCustomChildrenBuilder::AddExternalStructureProperty(const T& ChildStructure, FName PropertyName, const FAddPropertyParams& Params)
+{
+	return AddStructureProperty(Params, [&](FDetailLayoutCustomization& NewCustomization)
+	{
+		FDetailPropertyRow::MakeExternalPropertyRowCustomization(
+			ChildStructure, PropertyName, ParentCategory.Pin().ToSharedRef(), NewCustomization, Params
+		);
+	});
+}
+
+IDetailPropertyRow* FCustomChildrenBuilder::AddChildStructureProperty(TSharedRef<IPropertyHandle> PropertyHandle,
+	TSharedPtr<IStructureDataProvider> ChildStructure, FName PropertyName, const FAddPropertyParams& Params, const FText& DisplayNameOverride)
+{
+	return AddStructureProperty(Params, [&](FDetailLayoutCustomization& NewCustomization)
+	{
+		FDetailPropertyRow::MakeChildPropertyRowCustomization(
+			PropertyHandle, ChildStructure, PropertyName, ParentCategory.Pin().ToSharedRef(), NewCustomization, Params, DisplayNameOverride
+		);
+	});
 }
 
 TArray<TSharedPtr<IPropertyHandle>> FCustomChildrenBuilder::AddAllExternalStructureProperties(TSharedRef<FStructOnScope> ChildStructure)

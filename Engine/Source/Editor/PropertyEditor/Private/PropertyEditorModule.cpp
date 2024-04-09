@@ -33,6 +33,7 @@
 #include "Widgets/Layout/SBorder.h"
 #include "DetailsViewStyle.h"
 #include "ToolMenus.h"
+#include "IStructureDataProvider.h"
 
 IMPLEMENT_MODULE( FPropertyEditorModule, PropertyEditor );
 
@@ -403,9 +404,11 @@ TSharedRef< IPropertyTableCellPresenter > FPropertyEditorModule::CreateTextPrope
 	return MakeShareable( new FTextPropertyTableCellPresenter( PropertyEditor, InPropertyUtilities, InFont, InCell) );
 }
 
-FStructProperty* FPropertyEditorModule::RegisterStructOnScopeProperty(TSharedRef<FStructOnScope> StructOnScope)
+FStructProperty* FPropertyEditorModule::RegisterStructProperty(const UStruct* StructClass)
 {
-	const FName StructName = StructOnScope->GetStruct()->GetFName();
+	check(StructClass);
+
+	const FName StructName = StructClass->GetFName();
 	FStructProperty* StructProperty = RegisteredStructToProxyMap.FindRef(StructName);
 
 	if(!StructProperty)
@@ -418,10 +421,10 @@ FStructProperty* FPropertyEditorModule::RegisterStructOnScopeProperty(TSharedRef
 			StructOnScopePropertyOwner = NewObject<UStruct>(GetTransientPackage(), TEXT("StructOnScope"), RF_Transient);
 			StructOnScopePropertyOwner->AddToRoot();
 		}
-		UScriptStruct* InnerStruct = Cast<UScriptStruct>(const_cast<UStruct*>(StructOnScope->GetStruct()));
+		UScriptStruct* InnerStruct = CastChecked<UScriptStruct>(const_cast<UStruct*>(StructClass));
 		StructProperty = new FStructProperty(StructOnScopePropertyOwner, *MakeUniqueObjectName(StructOnScopePropertyOwner, UField::StaticClass(), InnerStruct->GetFName()).ToString(), RF_Transient);
 		StructProperty->Struct = InnerStruct;
-		StructProperty->ElementSize = StructOnScope->GetStruct()->GetStructureSize();
+		StructProperty->ElementSize = StructClass->GetStructureSize();
 		StructOnScopePropertyOwner->AddCppProperty(StructProperty);
 
 		RegisteredStructToProxyMap.Add(StructName, StructProperty);
