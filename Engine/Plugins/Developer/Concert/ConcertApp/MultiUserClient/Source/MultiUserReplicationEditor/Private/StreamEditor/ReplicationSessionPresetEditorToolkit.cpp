@@ -75,27 +75,11 @@ namespace UE::MultiUserReplicationEditor
 	{
 		using namespace ConcertClientSharedSlate;
 		using namespace ConcertSharedSlate;
-		
-		const TSharedRef<IEditableReplicationStreamModel> AssetReadWriteModel = CreateTransactionalStreamModel(
-			CreateBaseStreamModel(GetEditedStreamAsset()->GetUnassignedClient()->Stream->MakeReplicationMapGetterAttribute()),
-			*GetEditedStreamAsset()
-			);
-		
-		const TSharedRef<FActorSelectionSourceModel> ObjectSourceModel = MakeShared<FActorSelectionSourceModel>();
-		const TSharedRef<FSelectPropertyFromUClassModel> PropertySourceModel = MakeShared<FSelectPropertyFromUClassModel>();
-		FDefaultStreamEditorParams DefaultParams{
-			.BaseEditorParams =
-			{
-				.DataModel = AssetReadWriteModel,
-				.ObjectSource = ObjectSourceModel,
-				.PropertySource = PropertySourceModel
-			}
-		};
-		const TSharedRef<IReplicationStreamEditor> EditorView = CreateDefaultStreamEditor(MoveTemp(DefaultParams));
 		return SNew(SDockTab)
 			.Label(LOCTEXT("BaseDetailsTitle", "Details"))
 			[
-				EditorView
+				SNew(STextBlock)
+				.Text(LOCTEXT("NotImplemented", "This feature is not implemented"))
 			];
 	}
 }

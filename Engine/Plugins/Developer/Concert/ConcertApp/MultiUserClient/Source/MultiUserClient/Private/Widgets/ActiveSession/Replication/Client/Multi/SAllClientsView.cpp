@@ -18,7 +18,6 @@ namespace UE::MultiUserClient
 		ChildSlot
 		[
 			SNew(SMultiClientView, InConcertClient, InClientManager, *AllClientsModel)
-			.ViewSelectionArea() [ InArgs._ViewSelectionArea.Widget ]
 		];
 	}
 

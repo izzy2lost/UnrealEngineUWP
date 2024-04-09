@@ -14,7 +14,6 @@
 #include "Replication/Editor/Model/ObjectSource/ActorSelectionSourceModel.h"
 #include "Widgets/ActiveSession/Replication/Client/FrequencyContextMenuUtils.h"
 #include "Widgets/ActiveSession/Replication/Client/Multi/Columns/MultiStreamColumns.h"
-#include "Widgets/ActiveSession/Replication/Client/SClientToolbar.h"
 #include "Widgets/ActiveSession/Replication/Client/SReplicationStatus.h"
 
 #include "Widgets/SBoxPanel.h"
@@ -36,15 +35,6 @@ namespace UE::MultiUserClient
 		ChildSlot
 		[
 			SAssignNew(Content, SVerticalBox)
-
-			// Toolbar
-			+SVerticalBox::Slot()
-			.AutoHeight()
-			.Padding(2.f)
-			[
-				SNew(SClientToolbar)
-				.ViewSelectionArea() [ InArgs._ViewSelectionArea.Widget ]
-			]
 
 			// Editor
 			+SVerticalBox::Slot()

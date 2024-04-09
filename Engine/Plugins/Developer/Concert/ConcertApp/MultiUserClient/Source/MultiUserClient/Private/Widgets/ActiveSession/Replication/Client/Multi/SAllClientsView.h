@@ -16,10 +16,7 @@ namespace UE::MultiUserClient
 	/** Leverages SMultiClientView to display all replication clients. */
 	class SAllClientsView : public SCompoundWidget
 	{
-		SLATE_BEGIN_ARGS(SAllClientsView)
-			{}
-			/** Dedicated space for a widget with which to change the view. */
-			SLATE_NAMED_SLOT(FArguments, ViewSelectionArea)
+		SLATE_BEGIN_ARGS(SAllClientsView){}
 		SLATE_END_ARGS()
 
 		void Construct(const FArguments& InArgs, TSharedRef<IConcertClient> InConcertClient, FReplicationClientManager& InClientManager);

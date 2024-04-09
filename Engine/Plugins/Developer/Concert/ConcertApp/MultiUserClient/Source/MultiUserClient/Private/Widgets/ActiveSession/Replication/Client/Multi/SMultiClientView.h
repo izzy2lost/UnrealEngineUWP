@@ -27,10 +27,7 @@ namespace UE::MultiUserClient
 	class SMultiClientView
 		: public SCompoundWidget
 	{
-		SLATE_BEGIN_ARGS(SMultiClientView)
-		{}
-			/** Dedicated space for a widget with which to change the view. */
-			SLATE_NAMED_SLOT(FArguments, ViewSelectionArea)
+		SLATE_BEGIN_ARGS(SMultiClientView){}
 		SLATE_END_ARGS()
 
 		void Construct(const FArguments& InArgs, TSharedRef<IConcertClient> InConcertClient, FReplicationClientManager& InClientManager, IClientSelectionModel& InDisplayClientsModel);
