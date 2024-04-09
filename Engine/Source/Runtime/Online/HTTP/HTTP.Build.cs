@@ -136,7 +136,7 @@ public class HTTP : ModuleRules
 		float PlatformConnectionTimeoutMaxDeviation = 0.5f;
 		if (bPlatformSupportsXCurl)
 		{
-			PlatformConnectionTimeoutMaxDeviation = 3.5f;
+			PlatformConnectionTimeoutMaxDeviation = 4.0f;
 		}
 		if (Target.IsInPlatformGroup(UnrealPlatformGroup.Apple))
 		{

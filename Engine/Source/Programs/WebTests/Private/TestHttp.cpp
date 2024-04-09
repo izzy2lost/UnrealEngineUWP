@@ -1686,6 +1686,7 @@ TEST_CASE_METHOD(FWaitUntilQuitFromTestThreadedFixture, "Threaded http request p
 	ThreadedHttpRunnable.StartTestHttpThread(false/*bBlockGameThread*/);
 }
 
+#if UE_HTTP_CONNECTION_TIMEOUT_SUPPORT_RETRY
 TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Cancel http request connect before timeout", HTTP_TAG)
 {
 	DisableWarningsInThisTest();
@@ -1714,6 +1715,7 @@ TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Cancel http request connect bef
 	HttpRequest->CancelRequest();
 	HttpRequest->CancelRequest(); // Duplicated calls to CancelRequest should be fine
 }
+#endif
 
 TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Retry respect Retry-After header in response", HTTP_TAG)
 {
