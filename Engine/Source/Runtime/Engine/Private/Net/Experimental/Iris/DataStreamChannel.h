@@ -28,9 +28,6 @@ public:
 	/** Invoked from NetDriver::PostTickDispatch if we have any data that should be written from PostTickDispatch */
 	ENGINE_API void PostTickDispatch();
 
-	/** Invoked when a connection is about to close to flush any last pending SendImmediate RPCs. Copy of PostTickDispatch but uses EDataStreamWriteMode::PreCloseFlush */
-	ENGINE_API void PreCloseFlush();
-
 private:
 	static void AddReferencedObjects(UObject* Object, FReferenceCollector& Collector);
 

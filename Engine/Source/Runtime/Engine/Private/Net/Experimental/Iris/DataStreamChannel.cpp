@@ -208,39 +208,6 @@ void UDataStreamChannel::PostTickDispatch()
 #endif
 }
 
-void UDataStreamChannel::PreCloseFlush()
-{
-#if UE_WITH_IRIS
-	using namespace UE::Net;
-
-	if (!Connection->Driver->IsUsingIrisReplication() || !bHandshakeComplete)
-	{
-		return;
-	}
-
-	if (IsPacketWindowFull() || !Connection->HasReceivedClientPacket() || (Connection->Handler != nullptr && !Connection->Handler->IsFullyInitialized()))
-	{
-		return;
-	}
-
-	// We probably want separate bandwidth management for iris as we are not pre-filling sendbuffer before call to NetReady.
-	if (!IsNetReady(UE::Net::Private::bIrisSaturateBandwidth))
-	{
-		return;
-	}
-
-#if UE_NET_IRIS_CSV_STATS
-	CSV_SCOPED_TIMING_STAT_EXCLUSIVE(UDataStreamChannel_PreCloseFlush_Write);
-#endif
-
-	IRIS_PROFILER_SCOPE(UDataStreamChannel_PreCloseFlush);
-	LLM_SCOPE_BYTAG(Iris);
-
-	WriteData(EDataStreamWriteMode::PreCloseFlush);
-
-#endif
-}
-
 void UDataStreamChannel::Tick()
 {
 #if UE_WITH_IRIS
@@ -419,7 +386,7 @@ void UDataStreamChannel::WriteData(UE::Net::EDataStreamWriteMode WriteMode)
 	DataStreamManager->EndWrite();
 
 	// If we did write data and the current WriteMode is PostTickDispatch we flush the packet here.
-	if ((WriteMode == EDataStreamWriteMode::PostTickDispatch || WriteMode == EDataStreamWriteMode::PreCloseFlush) && bNeedsPreSendFlush)
+	if (WriteMode == EDataStreamWriteMode::PostTickDispatch && bNeedsPreSendFlush)
 	{
 		IRIS_PROFILER_SCOPE(UDataStreamChannel_FlushNet);
 		Connection->FlushNet();	

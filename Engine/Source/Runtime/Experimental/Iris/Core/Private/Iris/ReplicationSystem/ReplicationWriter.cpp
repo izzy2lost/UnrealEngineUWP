@@ -2815,21 +2815,6 @@ uint32 FReplicationWriter::WriteOOBAttachments(FNetSerializationContext& Context
 			WrittenObjectCount += Result;
 		}
 	}
-	else if (WriteContext.WriteMode == EDataStreamWriteMode::PreCloseFlush)
-	{
-		if (WriteContext.bHasOOBAttachmentsToSend && CanSendObject(ObjectIndexForOOBAttachment))
-		{
-			IRIS_PROFILER_SCOPE(FReplicationWriter_WriteOOBAttachments);
-			const int32 Result = WriteObjectBatch(Context, ObjectIndexForOOBAttachment, WriteObjectFlag_Attachments);
-			if (Result == -1)
-			{
-				return WrittenObjectCount;
-			}
-
-			WriteContext.bHasOOBAttachmentsToSend = Attachments.HasUnsentAttachments(ENetObjectAttachmentType::OutOfBand, ObjectIndexForOOBAttachment);
-			WrittenObjectCount += Result;
-		}
-	}
 	else
 	{
 		if (WriteContext.bHasHugeObjectToSend)
@@ -3172,16 +3157,6 @@ UDataStream::EWriteResult FReplicationWriter::BeginWrite(const UDataStream::FBeg
 	if (WriteContext.WriteMode == EDataStreamWriteMode::PostTickDispatch)
 	{
 		const bool bHasUnsentOOBAttachments = Attachments.HasUnsentUnreliableAttachments(ENetObjectAttachmentType::OutOfBand, ObjectIndexForOOBAttachment);
-		if (!bHasUnsentOOBAttachments)
-		{
-			return UDataStream::EWriteResult::NoData;
-		}
-		WriteContext.bHasOOBAttachmentsToSend = bHasUnsentOOBAttachments;
-		WriteContext.bCanWriteMoreData = Params.bCanWriteMoreData;
-	}
-	else if (WriteContext.WriteMode == EDataStreamWriteMode::PreCloseFlush)
-	{
-		const bool bHasUnsentOOBAttachments = Attachments.HasUnsentAttachments(ENetObjectAttachmentType::OutOfBand, ObjectIndexForOOBAttachment);
 		if (!bHasUnsentOOBAttachments)
 		{
 			return UDataStream::EWriteResult::NoData;

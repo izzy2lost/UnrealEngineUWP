@@ -11,7 +11,6 @@
 #include "Engine/Level.h"
 #include "Engine/World.h"
 #include "GameFramework/WorldSettings.h"
-#include "Net/Experimental/Iris/DataStreamChannel.h"
 #include "Iris/ReplicationSystem/ReplicationSystem.h"
 #include "Misc/MemStack.h"
 #include "Misc/ScopeExit.h"
@@ -177,13 +176,6 @@ namespace UE::Net
 		QueuedBunchTimeFailsafeSeconds,
 		TEXT("Amount of time in seconds to wait with queued bunches before forcibly processing them all, ignoring the NetDriver's HasExceededIncomingBunchFrameProcessingTime."));
 
-	static bool bIrisDoPreCloseFlush = true;
-	static FAutoConsoleVariableRef CVarIrisDoPreCloseFlush(
-		TEXT("net.Iris.DoPreCloseFlush"),
-		bIrisDoPreCloseFlush,
-		TEXT("If true, call UDataStreamChannel::PreCloseFlush on a server before a connection's control channel closes to send any last SendImmediate RPCs."));
-
-
 	// bTearOff is private but we still might need to adjust the flag on clients based on the channel close reason
 	class FTearOffSetter final
 	{
@@ -312,25 +304,6 @@ int64 UChannel::Close(EChannelCloseReason Reason)
 		if ( ChIndex == 0 )
 		{
 			UE_LOG(LogNet, Log, TEXT("UChannel::Close: Sending CloseBunch. ChIndex == 0. Name: %s"), *Describe());
-
-#if UE_WITH_IRIS
-			if (UE::Net::bIrisDoPreCloseFlush)
-			{
-				// Last chance for Iris to flush SendImmediate RPCs before the control channel close starts shutting down the connection
-				UReplicationSystem* ReplicationSystem = Connection->Driver ? Connection->Driver->GetReplicationSystem() : nullptr;
-				if (ReplicationSystem && Connection->Driver->IsServer() && !Connection->Driver->IsInTick())
-				{
-					const int32 DataStreamChannelIndex = Connection->Driver->ChannelDefinitionMap[NAME_DataStream].StaticChannelIndex;
-					if (Connection->Channels.IsValidIndex(DataStreamChannelIndex))
-					{
-						if (UDataStreamChannel* DataStreamChannel = Cast<UDataStreamChannel>(Connection->Channels[DataStreamChannelIndex]))
-						{
-							DataStreamChannel->PreCloseFlush();
-						}
-					}
-				}
-			}
-#endif
 		}
 
 		UE_LOG(LogNetDormancy, Verbose, TEXT("UChannel::Close: Sending CloseBunch. Reason: %s, %s"), LexToString(Reason), *Describe());

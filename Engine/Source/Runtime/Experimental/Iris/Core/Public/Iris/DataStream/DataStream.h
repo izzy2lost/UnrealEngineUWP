@@ -17,9 +17,6 @@ enum class EDataStreamWriteMode : unsigned
 
 	// Only write data that should be sent after PostTickDispatch
 	PostTickDispatch,
-
-	// Only write data that should be sent right before a connection close (SendImmediate RPCs)
-	PreCloseFlush
 };
 
 }

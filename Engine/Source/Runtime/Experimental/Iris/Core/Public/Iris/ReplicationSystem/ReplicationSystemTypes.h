@@ -62,9 +62,6 @@ enum class ENetObjectAttachmentSendPolicyFlags : uint32
 
 	// SendImmediate, Attachment should be sent using OOB channel and from PostTickDispatch.
 	SendImmediate = ScheduleAsOOB | SendInPostTickDispatch,
-
-	// Immediately post RPC to relevant connections' internal queues. Only valid in combination with SendImmediate.
-	BypassQueue = SendInPostTickDispatch << 1U,
 };
 
 ENUM_CLASS_FLAGS(ENetObjectAttachmentSendPolicyFlags);
@@ -77,7 +74,6 @@ inline const TCHAR* LexToString(ENetObjectAttachmentSendPolicyFlags SendFlags)
 	case ENetObjectAttachmentSendPolicyFlags::ScheduleAsOOB: return TEXT("ScheduleAsOOB");
 	case ENetObjectAttachmentSendPolicyFlags::SendInPostTickDispatch: return TEXT("SendInPostTickDispatch");
 	case ENetObjectAttachmentSendPolicyFlags::SendImmediate: return TEXT("SendImmediate");
-	case ENetObjectAttachmentSendPolicyFlags::SendImmediate | ENetObjectAttachmentSendPolicyFlags::BypassQueue : return TEXT("SendImmediateAndBypassQueue");
 	default: ensure(false); return TEXT("Missing");
 	}
 }
