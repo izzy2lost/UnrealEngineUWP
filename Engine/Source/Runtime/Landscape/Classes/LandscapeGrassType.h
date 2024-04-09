@@ -68,12 +68,17 @@ struct LANDSCAPE_API FGrassVariety
 
 	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = Grass, meta = (UIMin = 0, ClampMin = 0, UIMax = 1000000, ClampMax = 1000000))
 	FPerQualityLevelInt EndCullDistanceQuality;
+
 	/** 
 	 * Specifies the smallest LOD that will be used for this component.
 	 * If -1 (default), the MinLOD of the static mesh asset will be used instead.
 	 */
 	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = Grass, meta = (UIMin = -1, ClampMin = -1, UIMax = 8, ClampMax = 8))
 	int32 MinLOD;
+
+	/** Specifies the density range where the grass variety is allowed to be spawned ([0,1] represents the entire range). */
+	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category=Grass, meta = (UIMin = 0.0, ClampMin = 0.0, UIMax = 1.0, ClampMax = 1.0))
+	FFloatInterval AllowedDensityRange;
 
 	/** Specifies grass instance scaling type */
 	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category=Grass)

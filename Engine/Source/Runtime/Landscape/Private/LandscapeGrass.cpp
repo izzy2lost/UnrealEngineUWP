@@ -1242,6 +1242,7 @@ FGrassVariety::FGrassVariety()
 	, EndCullDistance(10000)
 	, EndCullDistanceQuality(10000)
 	, MinLOD(-1)
+	, AllowedDensityRange(0.0f, 1.0f)
 	, Scaling(EGrassScaling::Uniform)
 	, ScaleX(1.0f, 1.0f)
 	, ScaleY(1.0f, 1.0f)
@@ -1832,6 +1833,7 @@ struct FAsyncGrassBuilder : public FGrassBuilderBase
 	FFloatInterval ScaleX;
 	FFloatInterval ScaleY;
 	FFloatInterval ScaleZ;
+	FFloatInterval AllowedDensityRange;
 	bool bWeightAttenuatesMaxScale;
 	float MaxScaleWeightAttenuation ;
 	bool bRandomRotation;
@@ -1870,6 +1872,7 @@ struct FAsyncGrassBuilder : public FGrassBuilderBase
 		, ScaleX(GrassVariety.ScaleX)
 		, ScaleY(GrassVariety.ScaleY)
 		, ScaleZ(GrassVariety.ScaleZ)
+		, AllowedDensityRange(GrassVariety.AllowedDensityRange)
 		, bWeightAttenuatesMaxScale(GrassVariety.bWeightAttenuatesMaxScale)
 		, MaxScaleWeightAttenuation(GrassVariety.MaxScaleWeightAttenuation)
 		, bRandomRotation(GrassVariety.RandomRotation)
@@ -2103,7 +2106,9 @@ struct FAsyncGrassBuilder : public FGrassBuilderBase
 				FVector ComputedNormal;
 				float Weight = 0.f;
 				SampleLandscapeAtLocationLocal(Location, LocationWithHeight, Weight, bAlignToSurface ? &ComputedNormal : nullptr);
-				bool bKeep = Weight > 0.0f && Weight >= RandomStream.GetFraction() && !IsExcluded(LocationWithHeight);
+				bool bKeep = (Weight > AllowedDensityRange.Min) && (Weight <= AllowedDensityRange.Max) 
+					&& (Weight >= RandomStream.GetFraction()) 
+					&& !IsExcluded(LocationWithHeight);
 				if (bKeep)
 				{
 					const FVector Scale = bRandomScale ? GetRandomScale(Weight) : DefaultScale;
@@ -2169,7 +2174,9 @@ struct FAsyncGrassBuilder : public FGrassBuilderBase
 						FInstanceLocal& Instance = Instances[InstanceIndex];
 						float Weight = 0.f;
 						SampleLandscapeAtLocationLocal(Location, Instance.Pos, Weight);
-						Instance.bKeep = Weight > 0.0f && Weight >= RandomStream.GetFraction() && !IsExcluded(Instance.Pos);
+						Instance.bKeep = (Weight > AllowedDensityRange.Min) && (Weight <= AllowedDensityRange.Max) 
+							&& (Weight >= RandomStream.GetFraction()) 
+							&& !IsExcluded(Instance.Pos);
 						Instance.Weight = Weight;
 						if (Instance.bKeep)
 						{
