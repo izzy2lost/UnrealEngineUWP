@@ -84,7 +84,8 @@ private:
 	float GetFloatParameterValue(const FString ParamName, int32 RangeIndex) const;
 	void OnFloatParameterChanged(float Value, const FString ParamName, int32 RangeIndex);
 	void OnFloatParameterSliderBegin();
-	void OnFloatParameterSliderEnd(float Value, const FString ParamName, int32 RangeIndex);
+	void OnFloatParameterSpinBoxEnd(float Value, const FString ParamName, int32 RangeIndex);
+	void OnFloatParameterSliderEnd();
  
 	// Texture Parameters Functions
 	TSharedRef<SWidget> GenerateTextureWidget(const int32 ParamIndexInObject);
@@ -168,5 +169,8 @@ private:
 
 	/** True when a slider is being edited*/
 	bool bUpdatingSlider = false;
+
+	/** Array to store dynamic brushes. Neede because an image widget only stores a pointer to a Brush. */
+	TArray< TSharedPtr<class FDeferredCleanupSlateBrush> > DynamicBrushes;
 };
 
