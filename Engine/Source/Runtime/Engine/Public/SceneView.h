@@ -1970,15 +1970,15 @@ public:
 	 */
 	virtual DynamicRenderScaling::TMap<float> GetResolutionFractionsUpperBound() const = 0;
 
+	/** Create a new screen percentage interface for a new view family. */
+	virtual ISceneViewFamilyScreenPercentage* Fork_GameThread(const class FSceneViewFamily& ViewFamily) const = 0;
+
 protected:
 	/**
 	 * Setup view family's view's screen percentage on rendering thread.
 	 * This should leave ResolutionFraction == 1 if screen percentage show flag is disabled.
 	 */
 	virtual DynamicRenderScaling::TMap<float> GetResolutionFractions_RenderThread() const = 0;
-
-	/** Create a new screen percentage interface for a new view family. */
-	virtual ISceneViewFamilyScreenPercentage* Fork_GameThread(const class FSceneViewFamily& ViewFamily) const = 0;
 
 	friend class FSceneViewFamily;
 	friend class FSceneRenderer;
@@ -2334,18 +2334,23 @@ public:
 		check(SecondarySpatialUpscalerInterface == nullptr);
 	}
 
-	template<typename TExtensionData> TExtensionData* GetExtentionData()
+	template<typename TExtensionData> const TExtensionData* GetExtentionData() const
 	{
 		static_assert(TIsDerivedFrom<TExtensionData, ISceneViewFamilyExtentionData>::Value, "TExtensionData is not derived from ISceneViewFamilyExtentionData.");
 
-		for (TSharedRef<class ISceneViewFamilyExtentionData, ESPMode::ThreadSafe>& ViewExtensionData : ViewExtentionDatas)
+		for (const TSharedRef<class ISceneViewFamilyExtentionData, ESPMode::ThreadSafe>& ViewExtensionData : ViewExtentionDatas)
 		{
 			if (ViewExtensionData->GetSubclassIdentifier() == TExtensionData::GSubclassIdentifier)
 			{
-				return static_cast<TExtensionData*>(&ViewExtensionData.Get());
+				return static_cast<const TExtensionData*>(&ViewExtensionData.Get());
 			}
 		}
 		return nullptr;
+	}
+
+	template<typename TExtensionData> TExtensionData* GetExtentionData()
+	{
+		return const_cast<TExtensionData*>(AsConst(*this).GetExtentionData<TExtensionData>());
 	}
 
 	template<typename TExtensionData> TExtensionData* GetOrCreateExtentionData()

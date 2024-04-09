@@ -140,6 +140,11 @@ public:
      */
     virtual void BeginRenderViewFamily(FSceneViewFamily& InViewFamily) = 0;
 
+	/**
+	* Called on game thread after the scene renderers have been created
+	*/
+	virtual void PostCreateSceneRenderer(const FSceneViewFamily& InViewFamily, ISceneRenderer* Renderer) {}
+
     /**
      * Called on render thread at the start of rendering.
      */

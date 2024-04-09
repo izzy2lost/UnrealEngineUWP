@@ -2887,7 +2887,11 @@ bool FEditorViewportClient::SupportsPreviewResolutionFraction() const
 	}
 
 	// Don't do preview screen percentage in certain cases.
-	if (EngineShowFlags.VisualizeBuffer || EngineShowFlags.VisualizeNanite || EngineShowFlags.VisualizeVirtualShadowMap || IsVisualizeCalibrationMaterialEnabled())
+	if (EngineShowFlags.VisualizeBuffer 
+		|| EngineShowFlags.MeshEdges
+		|| EngineShowFlags.VisualizeNanite 
+		|| EngineShowFlags.VisualizeVirtualShadowMap 
+		|| IsVisualizeCalibrationMaterialEnabled())
 	{
 		return false;
 	}

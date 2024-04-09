@@ -1681,45 +1681,6 @@ void ApplyViewModeOverrides(
 			Mesh.MaterialRenderProxy = InvalidSettingsMaterialInstance;
 			Collector.RegisterOneFrameMaterialProxy(InvalidSettingsMaterialInstance);
 		}
-
-		//Draw a wireframe overlay last, if requested
-		if (EngineShowFlags.MeshEdges)
-		{
-			FMeshBatch& MeshEdgeElement = Collector.AllocateMesh();
-			MeshEdgeElement = Mesh;
-			// Avoid infinite recursion
-			MeshEdgeElement.bCanApplyViewModeOverrides = false;
-
-			
-			// Draw the mesh's edges in blue, on top of the base geometry.
-			if (bMaterialModifiesMeshPosition)
-			{
-				// If the material is mesh-modifying, we cannot rely on substitution
-				auto WireframeMaterialInstance = new FOverrideSelectionColorMaterialRenderProxy(
-					MeshEdgeElement.MaterialRenderProxy,
-					PrimitiveSceneProxy->GetWireframeColor()
-				);
-
-				MeshEdgeElement.bWireframe = true;
-				MeshEdgeElement.MaterialRenderProxy = WireframeMaterialInstance;
-				Collector.RegisterOneFrameMaterialProxy(WireframeMaterialInstance);
-
-				Collector.AddMesh(ViewIndex, MeshEdgeElement);
-			}
-			else
-			{
-				auto WireframeMaterialInstance = new FColoredMaterialRenderProxy(
-					GEngine->WireframeMaterial->GetRenderProxy(),
-					PrimitiveSceneProxy->GetWireframeColor()
-				);
-
-				MeshEdgeElement.bWireframe = true;
-				MeshEdgeElement.MaterialRenderProxy = WireframeMaterialInstance;
-				Collector.RegisterOneFrameMaterialProxy(WireframeMaterialInstance);
-
-				Collector.AddMesh(ViewIndex, MeshEdgeElement);
-			}
-		}
 	}
 #endif
 }

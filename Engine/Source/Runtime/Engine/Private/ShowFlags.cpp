@@ -622,6 +622,14 @@ void EngineShowFlagOverride(EShowFlagInitMode ShowFlagInitMode, EViewModeIndex V
 	{
 		EngineShowFlags.SetTonemapper(false);
 	}
+	
+	if (EngineShowFlags.MeshEdges)
+	{
+		// TAA-induced jittering causes a mismatch between the sampled positions for wireframe and lit-view pixels, resulting in z-fighting and flickering.
+		// Enabling jittering on the wireframe means also enabling TAA, which doesn't need it (MSAA) and causes ghosting artifacts.
+		EngineShowFlags.SetTemporalAA(false);
+	}
+
 
 	if (EngineShowFlags.Bones)
 	{

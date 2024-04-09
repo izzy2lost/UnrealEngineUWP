@@ -1501,8 +1501,10 @@ void AddPostProcessingPasses(
 	if (PassSequence.IsEnabled(EPass::EditorPrimitive))
 	{
 		FCompositePrimitiveInputs PassInputs;
-		PassSequence.AcceptOverrideIfLastPass(EPass::EditorPrimitive, PassInputs.OverrideOutput);
-		PassInputs.OverrideDepthOutput = ViewFamilyDepthOutput;
+		if (PassSequence.AcceptOverrideIfLastPass(EPass::EditorPrimitive, PassInputs.OverrideOutput))
+		{
+			PassInputs.OverrideDepthOutput = ViewFamilyDepthOutput;
+		}
 		PassInputs.SceneColor = SceneColor;
 		PassInputs.SceneDepth = SceneDepth;
 		PassInputs.BasePassType = FCompositePrimitiveInputs::EBasePassType::Deferred;

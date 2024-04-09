@@ -4286,6 +4286,11 @@ void FSceneRenderer::CreateSceneRenderers(TArrayView<const FSceneViewFamily*> In
 
 		OutSceneRenderers.Last()->bIsFirstSceneRenderer = (FamilyIndex == 0);
 		OutSceneRenderers.Last()->bIsLastSceneRenderer = (FamilyIndex == InViewFamilies.Num() - 1);
+
+		for (int ViewExt = 0; ViewExt < InViewFamily->ViewExtensions.Num(); ViewExt++)
+		{
+			InViewFamily->ViewExtensions[ViewExt]->PostCreateSceneRenderer(*InViewFamily, OutSceneRenderers.Last());
+		}
 	}
 
 #if RHI_RAYTRACING
@@ -4350,9 +4355,9 @@ bool FSceneRenderer::ShouldCompositeEditorPrimitives(const FViewInfo& View)
 		return false;
 	}
 
-	if (ShowFlags.Wireframe)
+	if (ShowFlags.Wireframe || ShowFlags.MeshEdges)
 	{
-		// We want wireframe view use MSAA if possible.
+		// Wireframe is drawn to EditorPrimitives buffer because it uses MSAA, and so it requires the composition step
 		return true;
 	}
 	else if (ShowFlags.CompositeEditorPrimitives)

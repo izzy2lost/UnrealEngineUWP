@@ -9,6 +9,7 @@
 #include "MobileBasePassRendering.h"
 #include "PixelShaderUtils.h"
 #include "Substrate/Substrate.h"
+#include "MeshEdgesRendering.h"
 
 namespace
 {
@@ -279,7 +280,7 @@ FScreenPassTexture AddEditorPrimitivePass(
 
 	// The editor primitive composition pass is also used when rendering VMI_WIREFRAME in order to use MSAA.
 	// So we need to check whether the editor primitives are enabled inside this function.
-	if (View.Family->EngineShowFlags.CompositeEditorPrimitives)
+	if (View.Family->EngineShowFlags.CompositeEditorPrimitives || View.Family->EngineShowFlags.MeshEdges)
 	{
 		// Populate depth if a prior pass did not already do it.
 		if (!bProducedByPriorPass)
@@ -302,6 +303,10 @@ FScreenPassTexture AddEditorPrimitivePass(
 				SceneDepthJitter,
 				NumMSAASamples);
 		}	
+		
+		FScreenPassRenderTarget EditorPrimitiveColorRT(EditorPrimitiveColor, EditorPrimitivesViewport.Rect, ERenderTargetLoadAction::ELoad);
+		FScreenPassRenderTarget EditorPrimitiveDepthRT(EditorPrimitiveDepth, EditorPrimitivesViewport.Rect, ERenderTargetLoadAction::ELoad);
+		ComposeMeshEdges(GraphBuilder, View, EditorPrimitiveColorRT, EditorPrimitiveDepthRT);
 
 		// Draws the editors opaque primitives
 		{
@@ -402,7 +407,7 @@ FScreenPassTexture AddEditorPrimitivePass(
 		PassParameters->EditorPrimitivesDepth = EditorPrimitiveDepth;
 		PassParameters->EditorPrimitivesColor = EditorPrimitiveColor;
 		PassParameters->bOpaqueEditorGizmo = bOpaqueEditorGizmo;
-		PassParameters->bCompositeAnyNonNullDepth = bProducedByPriorPass;
+		PassParameters->bCompositeAnyNonNullDepth = bProducedByPriorPass && !View.Family->EngineShowFlags.MeshEdges;
 		PassParameters->DepthTextureJitter = SceneDepthJitter;
 
 		for (int32 i = 0; i < int32(NumMSAASamples); i++)
