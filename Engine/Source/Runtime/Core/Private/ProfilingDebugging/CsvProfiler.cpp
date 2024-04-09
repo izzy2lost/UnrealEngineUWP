@@ -2215,10 +2215,12 @@ public:
 	}
 	CSV_PROFILER_INLINE const char* PopWaitStatName()
 	{
-		check(WaitStatNameStack.Num() > 0);
-		return WaitStatNameStack.Pop();
+		if (WaitStatNameStack.Num() > 0)
+		{
+			return WaitStatNameStack.Pop();
+		}
+		return nullptr;
 	}
-
 	// Raw stat data (written from the thread)
 	TSingleProducerSingleConsumerList<FCsvTimingMarker, 256> TimingMarkers;
 	TSingleProducerSingleConsumerList<FCsvCustomStat, 256> CustomStats;
