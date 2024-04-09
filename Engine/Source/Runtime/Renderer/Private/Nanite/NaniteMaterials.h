@@ -87,7 +87,7 @@ struct FNaniteMaterialSlot
 	FNaniteMaterialSlot()
 	: ShadingBin(0xFFFF)
 	, RasterBin(0xFFFF)
-	, SecondaryRasterBin(0xFFFF)
+	, FallbackRasterBin(0xFFFF)
 	, LegacyShadingId(0xFFFF)
 	{
 	}
@@ -96,13 +96,13 @@ struct FNaniteMaterialSlot
 	{
 		FPacked Ret;
 		Ret.Data[0] = (ShadingBin << 16u | RasterBin);
-		Ret.Data[1] = (LegacyShadingId << 16u | SecondaryRasterBin);
+		Ret.Data[1] = (LegacyShadingId << 16u | FallbackRasterBin);
 		return Ret;
 	}
 
 	uint16 ShadingBin;
 	uint16 RasterBin;
-	uint16 SecondaryRasterBin;
+	uint16 FallbackRasterBin;
 	uint16 LegacyShadingId;
 };
 

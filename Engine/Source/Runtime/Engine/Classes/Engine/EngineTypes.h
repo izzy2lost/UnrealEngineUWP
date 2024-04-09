@@ -3052,6 +3052,63 @@ public:
 	}
 };
 
+USTRUCT(BlueprintType)
+struct FDisplacementFadeRange
+{
+	GENERATED_USTRUCT_BODY()
+
+	/**
+	 * How large the max displacement should be, in on-screen pixels, when beginning to fade out displacement.
+	 * NOTE: This should be a LARGER number than End Fade Size.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Displacement, meta = (DisplayName="Start Fade Size (Pixels)", NoSpinbox=true, ClampMin="0.0001", UIMin="0.0001"))
+	float StartSizePixels;
+
+	/**
+	 * How large the max displacement should be, in on-screen pixels, when fading out should complete, and displacement
+	 * should be disabled.
+	 * NOTE: This should be a SMALLER number than Start Fade Size.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Displacement, meta = (DisplayName="End Fade Size (Pixels)", NoSpinbox=true, ClampMin="0.0001", UIMin="0.0001"))
+	float EndSizePixels;
+
+public:
+	static FDisplacementFadeRange Invalid()
+	{
+		return FDisplacementFadeRange(0.0f, 0.0f);
+	}
+	
+	FDisplacementFadeRange()
+	: StartSizePixels(4.0f)
+	, EndSizePixels(1.0f)
+	{
+	}
+	
+	FDisplacementFadeRange(float InStartSizePixels, float InEndSizePixels)
+	: StartSizePixels(InStartSizePixels)
+	, EndSizePixels(InEndSizePixels)
+	{
+	}
+
+	/** Equality operator. */
+	bool operator==(const FDisplacementFadeRange& Other) const
+	{
+		return FMath::IsNearlyEqual(StartSizePixels, Other.StartSizePixels) &&
+			FMath::IsNearlyEqual(EndSizePixels, Other.EndSizePixels);
+	}
+
+	/** Inequality operator. */
+	bool operator!=(const FDisplacementFadeRange& Other) const
+	{
+		return !(*this == Other);
+	}
+
+	bool IsValid() const
+	{
+		return StartSizePixels > 0.0f && EndSizePixels > 0.0f;
+	}
+};
+
 /** The network role of an actor on a local/remote network context */
 UENUM(BlueprintType)
 enum ENetRole : int

@@ -848,16 +848,25 @@ void BuildNaniteMaterialBins(FScene* Scene, FPrimitiveSceneInfo* PrimitiveSceneI
 							RasterPipeline.bSplineMesh = NaniteProxy->IsSplineMesh();
 						}
 						
+						RasterPipeline.bWPOEnabled = MaterialSection.MaterialRelevance.bUsesWorldPositionOffset;
+						RasterPipeline.bDisplacementEnabled = MaterialSection.MaterialRelevance.bUsesDisplacement;
 						RasterPipeline.bPerPixelEval = MaterialSection.MaterialRelevance.bMasked ||
-													   MaterialSection.MaterialRelevance.bUsesPixelDepthOffset;
+							MaterialSection.MaterialRelevance.bUsesPixelDepthOffset;
 
 						RasterPipeline.DisplacementScaling = MaterialSection.DisplacementScaling;
+						RasterPipeline.DisplacementFadeRange = MaterialSection.DisplacementFadeRange;
 
-						float WPODisableDistance;
-						RasterPipeline.bWPODisableDistance =
-							MaterialSection.MaterialRelevance.bUsesWorldPositionOffset &&
+						float WPODistance;
+						RasterPipeline.bHasWPODistance =
+							RasterPipeline.bWPOEnabled &&
 							!MaterialSection.bAlwaysEvaluateWPO &&
-							NaniteProxy->GetInstanceWorldPositionOffsetDisableDistance(WPODisableDistance);
+							NaniteProxy->GetInstanceWorldPositionOffsetDisableDistance(WPODistance);
+						RasterPipeline.bHasPixelDistance =
+							RasterPipeline.bPerPixelEval &&
+							NaniteProxy->GetPixelProgrammableDistance() > 0.0f;
+						RasterPipeline.bHasDisplacementFadeOut =
+							RasterPipeline.bDisplacementEnabled &&
+							NaniteProxy->GetMaterialDisplacementFadeOutSize() > 0.0f;
 
 						if (bUseComputeMaterials)
 						{

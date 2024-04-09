@@ -28,6 +28,14 @@ FPrimitiveUniformShaderParametersBuilder& FPrimitiveUniformShaderParametersBuild
 	return *this;
 }
 
+FPrimitiveUniformShaderParametersBuilder& FPrimitiveUniformShaderParametersBuilder::PixelProgrammableDistance(float PixelProgrammableDistance)
+{
+	PixelProgrammableDistance *= GetCachedScalabilityCVars().ViewDistanceScale;
+	Parameters.PixelProgrammableDistanceSquared = PixelProgrammableDistance * PixelProgrammableDistance;
+
+	return *this;
+}
+
 void FSinglePrimitiveStructured::InitRHI(FRHICommandListBase& RHICmdList)
 {
 	SCOPED_LOADTIMER(FSinglePrimitiveStructuredBuffer_InitRHI);
@@ -234,8 +242,8 @@ void FPrimitiveSceneShaderData::Setup(const FPrimitiveUniformShaderParameters& P
 	Store4(OutData, 32,
 		PrimitiveUniformShaderParameters.MaxWPOExtent,
 		PrimitiveUniformShaderParameters.CustomStencilValueAndMask,
-		0.0f,
-		0.0f);
+		PrimitiveUniformShaderParameters.PixelProgrammableDistanceSquared,
+		PrimitiveUniformShaderParameters.MaterialDisplacementFadeOutSize);
 
 	// Set all the custom primitive data float4. This matches the loop in SceneData.ush
 	const int32 CustomPrimitiveDataStartIndex = 33;

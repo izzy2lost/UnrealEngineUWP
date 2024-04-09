@@ -148,6 +148,7 @@ public:
 	PRIMITIVE_UNIFORM_BUILDER_METHOD(uint32,			NaniteRayTracingDataOffset);
 	PRIMITIVE_UNIFORM_BUILDER_METHOD(uint32,			LightmapUVIndex);
 	PRIMITIVE_UNIFORM_BUILDER_METHOD(uint32,			LightmapDataIndex);
+	PRIMITIVE_UNIFORM_BUILDER_METHOD(float,				MaterialDisplacementFadeOutSize);
 
 #undef PRIMITIVE_UNIFORM_BUILDER_FLAG_METHOD
 #undef PRIMITIVE_UNIFORM_BUILDER_METHOD
@@ -307,6 +308,8 @@ public:
 	ENGINE_API FPrimitiveUniformShaderParametersBuilder& InstanceDrawDistance(FVector2f DistanceMinMax);
 
 	ENGINE_API FPrimitiveUniformShaderParametersBuilder& InstanceWorldPositionOffsetDisableDistance(float WPODisableDistance);
+
+	ENGINE_API FPrimitiveUniformShaderParametersBuilder& PixelProgrammableDistance(float PixelProgrammableDistance);
 
 	inline const FPrimitiveUniformShaderParameters& Build()
 	{

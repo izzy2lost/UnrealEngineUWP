@@ -53,6 +53,7 @@ struct FStaticMeshSceneProxyDesc : public FPrimitiveSceneProxyDesc
 	int32 ForcedLodModel = 0;
 	int32 MinLOD = 0;
 	int32 WorldPositionOffsetDisableDistance = 0;
+	float NanitePixelProgrammableDistance = 0.0f;
 	
 	uint32 bReverseCulling : 1 = false;	
 #if STATICMESH_ENABLE_DEBUG_RENDERING

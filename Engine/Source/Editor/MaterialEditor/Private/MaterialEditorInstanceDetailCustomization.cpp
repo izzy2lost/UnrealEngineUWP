@@ -1250,296 +1250,121 @@ UEnum* GetBlendModeEnum();
 void FMaterialInstanceParameterDetails::CreateBasePropertyOverrideWidgets(IDetailLayoutBuilder& DetailLayout, IDetailGroup& MaterialPropertyOverrideGroup)
 {
 	IDetailGroup& BasePropertyOverrideGroup = MaterialPropertyOverrideGroup;
-
-	TAttribute<bool> IsOverrideOpacityClipMaskValueEnabled = TAttribute<bool>::Create(TAttribute<bool>::FGetter::CreateSP(this, &FMaterialInstanceParameterDetails::OverrideOpacityClipMaskValueEnabled));
-	TAttribute<bool> IsOverrideBlendModeEnabled = TAttribute<bool>::Create(TAttribute<bool>::FGetter::CreateSP(this, &FMaterialInstanceParameterDetails::OverrideBlendModeEnabled));
-	TAttribute<bool> IsOverrideShadingModelEnabled = TAttribute<bool>::Create(TAttribute<bool>::FGetter::CreateSP(this, &FMaterialInstanceParameterDetails::OverrideShadingModelEnabled));
-	TAttribute<bool> IsOverrideTwoSidedEnabled = TAttribute<bool>::Create(TAttribute<bool>::FGetter::CreateSP(this, &FMaterialInstanceParameterDetails::OverrideTwoSidedEnabled));
-	TAttribute<bool> IsOverrideIsThinSurfaceEnabled = TAttribute<bool>::Create(TAttribute<bool>::FGetter::CreateSP(this, &FMaterialInstanceParameterDetails::OverrideIsThinSurfaceEnabled));
-	TAttribute<bool> IsOverrideDitheredLODTransitionEnabled = TAttribute<bool>::Create(TAttribute<bool>::FGetter::CreateSP(this, &FMaterialInstanceParameterDetails::OverrideDitheredLODTransitionEnabled));
-	TAttribute<bool> IsOverrideOutputTranslucentVelocityEnabled = TAttribute<bool>::Create(TAttribute<bool>::FGetter::CreateSP(this, &FMaterialInstanceParameterDetails::OverrideOutputTranslucentVelocityEnabled));
-	TAttribute<bool> IsOverrideHasPixelAnimationEnabled = TAttribute<bool>::Create(TAttribute<bool>::FGetter::CreateSP(this, &FMaterialInstanceParameterDetails::OverrideHasPixelAnimationEnabled));
-	TAttribute<bool> IsOverrideTessellationEnabled = TAttribute<bool>::Create(TAttribute<bool>::FGetter::CreateSP(this, &FMaterialInstanceParameterDetails::OverrideTessellationEnabled));
-	TAttribute<bool> IsOverrideDisplacementScalingEnabled = TAttribute<bool>::Create(TAttribute<bool>::FGetter::CreateSP(this, &FMaterialInstanceParameterDetails::OverrideDisplacementScalingEnabled));
-	TAttribute<bool> IsOverrideMaxWorldPositionOffsetDisplacementEnabled = TAttribute<bool>::Create(TAttribute<bool>::FGetter::CreateSP(this, &FMaterialInstanceParameterDetails::OverrideMaxWorldPositionOffsetDisplacementEnabled));
-	TAttribute<bool> IsOverrideCastDynamicShadowAsMaskedEnabled = TAttribute<bool>::Create(TAttribute<bool>::FGetter::CreateSP(this, &FMaterialInstanceParameterDetails::OverrideCastDynamicShadowAsMaskedEnabled));
-
 	TSharedRef<IPropertyHandle> BasePropertyOverridePropery = DetailLayout.GetProperty("BasePropertyOverrides");
-	TSharedPtr<IPropertyHandle> OpacityClipMaskValueProperty = BasePropertyOverridePropery->GetChildHandle("OpacityMaskClipValue");
-	TSharedPtr<IPropertyHandle> BlendModeProperty = BasePropertyOverridePropery->GetChildHandle("BlendMode");
-	TSharedPtr<IPropertyHandle> ShadingModelProperty = BasePropertyOverridePropery->GetChildHandle("ShadingModel");
-	TSharedPtr<IPropertyHandle> TwoSidedProperty = BasePropertyOverridePropery->GetChildHandle("TwoSided");
-	TSharedPtr<IPropertyHandle> IsThinSurfaceProperty = BasePropertyOverridePropery->GetChildHandle("IsThinSurface");
-	TSharedPtr<IPropertyHandle> DitheredLODTransitionProperty = BasePropertyOverridePropery->GetChildHandle("DitheredLODTransition");
-	TSharedPtr<IPropertyHandle> OutputTranslucentVelocityProperty = BasePropertyOverridePropery->GetChildHandle("bOutputTranslucentVelocity");
-	TSharedPtr<IPropertyHandle> HasPixelAnimationProperty = BasePropertyOverridePropery->GetChildHandle("bHasPixelAnimation");
-	TSharedPtr<IPropertyHandle> EnableTessellationProperty = BasePropertyOverridePropery->GetChildHandle("bEnableTessellation");
-	TSharedPtr<IPropertyHandle> DisplacementScalingProperty = BasePropertyOverridePropery->GetChildHandle("DisplacementScaling");
-	TSharedPtr<IPropertyHandle> MaxWorldPositionOffsetDisplacementProperty = BasePropertyOverridePropery->GetChildHandle("MaxWorldPositionOffsetDisplacement");
-	TSharedPtr<IPropertyHandle> CastDynamicShadowAsMaskedProperty = BasePropertyOverridePropery->GetChildHandle("bCastDynamicShadowAsMasked");
-
+	FMaterialInstanceBasePropertyOverrides& BaseOverrides = MaterialEditorInstance->BasePropertyOverrides;
+	TObjectPtr<UMaterialInterface> ParentMat = MaterialEditorInstance->Parent;
 	const FText ParameterDisabledToolTipString = FText::FromString(TEXT("This material instance parent restricts the creation of new shader permutations. Overriding this parameter would result in the generation of additional shader permutations."));
 	const bool bStaticParametersOverrideDisabled = MaterialEditorInstance->SourceInstance->bDisallowStaticParameterPermutations;
 
-	// Update blend mode display names
-	if (FByteProperty* BlendModeByteProperty = (FByteProperty*)BlendModeProperty->GetProperty())
+	auto CreateBaseOverrideRow = [&] (
+		const char* PropertyName,
+		auto&& OverrideBoolEnabledMemberFn,
+		auto&& OverrideBoolChangedMemberFn,
+		auto&& IsResetPropertyVisibleLambda,
+		auto&& ResetPropertyHandlerLambda
+	)
 	{
-		BlendModeByteProperty->Enum = GetBlendModeEnum();
-	}
+		TSharedPtr<IPropertyHandle> ValueProperty = BasePropertyOverridePropery->GetChildHandle(PropertyName);
+		check(ValueProperty.IsValid());
+		TAttribute<bool> OverrideBoolAttr = TAttribute<bool>::Create(TAttribute<bool>::FGetter::CreateSP(this, OverrideBoolEnabledMemberFn));
+		FIsResetToDefaultVisible IsResetPropertyVisible = FIsResetToDefaultVisible::CreateLambda(IsResetPropertyVisibleLambda);
+		FResetToDefaultHandler ResetPropertyHandler = FResetToDefaultHandler::CreateLambda(ResetPropertyHandlerLambda);
+		FResetToDefaultOverride ResetPropertyOverride = FResetToDefaultOverride::Create(IsResetPropertyVisible, ResetPropertyHandler);
+		IDetailPropertyRow& PropertyRow = BasePropertyOverrideGroup.AddPropertyRow(ValueProperty.ToSharedRef())
+			.DisplayName(ValueProperty->GetPropertyDisplayName())
+			.ToolTip(bStaticParametersOverrideDisabled ? ParameterDisabledToolTipString : ValueProperty->GetToolTipText())
+			.EditCondition(OverrideBoolAttr, FOnBooleanValueChanged::CreateSP(this, OverrideBoolChangedMemberFn))
+			.Visibility(TAttribute<EVisibility>::Create(TAttribute<EVisibility>::FGetter::CreateSP(this, &FMaterialInstanceParameterDetails::IsOverriddenAndVisible, OverrideBoolAttr)))
+			.OverrideResetToDefault(ResetPropertyOverride);
+	};
 
-	{
-		FIsResetToDefaultVisible IsOpacityClipMaskValuePropertyResetVisible = FIsResetToDefaultVisible::CreateLambda([this](TSharedPtr<IPropertyHandle> InHandle) {
-			return MaterialEditorInstance->Parent != nullptr ? MaterialEditorInstance->BasePropertyOverrides.OpacityMaskClipValue != MaterialEditorInstance->Parent->GetOpacityMaskClipValue() : false;
-			});
-		FResetToDefaultHandler ResetOpacityClipMaskValuePropertyHandler = FResetToDefaultHandler::CreateLambda([this](TSharedPtr<IPropertyHandle> InHandle) {
-			if (MaterialEditorInstance->Parent != nullptr)
+#define CREATE_BASE_OVERRIDE_ROW_CUSTOM(PropertyName, PropertyVariableName, IsResetPropertyVisibleLambda, ResetPropertyHandlerLambda) \
+	CreateBaseOverrideRow ( \
+		#PropertyVariableName, \
+		&FMaterialInstanceParameterDetails::Override ## PropertyName ## Enabled, \
+		&FMaterialInstanceParameterDetails::OnOverride ## PropertyName ## Changed, \
+		IsResetPropertyVisibleLambda, \
+		ResetPropertyHandlerLambda \
+	)
+#define CREATE_BASE_OVERRIDE_ROW(PropertyName, PropertyVariableName, ValueGetterName) \
+	CREATE_BASE_OVERRIDE_ROW_CUSTOM( \
+		PropertyName, \
+		PropertyVariableName, \
+		[this] (TSharedPtr<IPropertyHandle> InHandle) { \
+			if (TObjectPtr<UMaterialInterface> ParentMat = MaterialEditorInstance->Parent) \
+			{ \
+				return MaterialEditorInstance->BasePropertyOverrides.PropertyVariableName != ParentMat->ValueGetterName(); \
+			} \
+			else \
+			{ \
+				return false; \
+			} \
+		}, \
+		[this] (TSharedPtr<IPropertyHandle> InHandle) { \
+			if (TObjectPtr<UMaterialInterface> ParentMat = MaterialEditorInstance->Parent) \
+			{ \
+				MaterialEditorInstance->BasePropertyOverrides.PropertyVariableName = ParentMat->ValueGetterName(); \
+			} \
+		} \
+	)
+#define CREATE_BASE_OVERRIDE_ROW_BASIC(PropertyName) \
+	CREATE_BASE_OVERRIDE_ROW(PropertyName, PropertyName, Get ## PropertyName)
+#define CREATE_BASE_OVERRIDE_ROW_BOOL(PropertyName, GetterName) \
+	CREATE_BASE_OVERRIDE_ROW(PropertyName, b ## PropertyName, GetterName)
+#define CREATE_BASE_OVERRIDE_ROW_BASIC_BOOL(PropertyName) \
+	CREATE_BASE_OVERRIDE_ROW(PropertyName, b ## PropertyName, PropertyName)
+
+	CREATE_BASE_OVERRIDE_ROW_BASIC(OpacityMaskClipValue);
+	CREATE_BASE_OVERRIDE_ROW_BASIC(BlendMode);
+	CREATE_BASE_OVERRIDE_ROW_CUSTOM(ShadingModel, ShadingModel,
+		[this](TSharedPtr<IPropertyHandle> InHandle) {
+			if (TObjectPtr<UMaterialInterface> ParentMat = MaterialEditorInstance->Parent)
 			{
-				MaterialEditorInstance->BasePropertyOverrides.OpacityMaskClipValue = MaterialEditorInstance->Parent->GetOpacityMaskClipValue();
-			}
-			});
-		FResetToDefaultOverride ResetOpacityClipMaskValuePropertyOverride = FResetToDefaultOverride::Create(IsOpacityClipMaskValuePropertyResetVisible, ResetOpacityClipMaskValuePropertyHandler);
-		IDetailPropertyRow& OpacityClipMaskValuePropertyRow = BasePropertyOverrideGroup.AddPropertyRow(OpacityClipMaskValueProperty.ToSharedRef());
-		OpacityClipMaskValuePropertyRow
-			.DisplayName(OpacityClipMaskValueProperty->GetPropertyDisplayName())
-			.ToolTip(bStaticParametersOverrideDisabled ? ParameterDisabledToolTipString : OpacityClipMaskValueProperty->GetToolTipText())
-			.EditCondition(IsOverrideOpacityClipMaskValueEnabled, FOnBooleanValueChanged::CreateSP(this, &FMaterialInstanceParameterDetails::OnOverrideOpacityClipMaskValueChanged))
-			.Visibility(TAttribute<EVisibility>::Create(TAttribute<EVisibility>::FGetter::CreateSP(this, &FMaterialInstanceParameterDetails::IsOverriddenAndVisible, IsOverrideOpacityClipMaskValueEnabled)))
-			.OverrideResetToDefault(ResetOpacityClipMaskValuePropertyOverride);
-	}
-	{
-		FIsResetToDefaultVisible IsBlendModePropertyResetVisible = FIsResetToDefaultVisible::CreateLambda([this](TSharedPtr<IPropertyHandle> InHandle) {
-			return MaterialEditorInstance->Parent != nullptr ? MaterialEditorInstance->BasePropertyOverrides.BlendMode != MaterialEditorInstance->Parent->GetBlendMode() : false;
-			});
-		FResetToDefaultHandler ResetBlendModePropertyHandler = FResetToDefaultHandler::CreateLambda([this](TSharedPtr<IPropertyHandle> InHandle) {
-			if (MaterialEditorInstance->Parent != nullptr)
-			{
-				MaterialEditorInstance->BasePropertyOverrides.BlendMode = MaterialEditorInstance->Parent->GetBlendMode();
-			}
-			});
-		FResetToDefaultOverride ResetBlendModePropertyOverride = FResetToDefaultOverride::Create(IsBlendModePropertyResetVisible, ResetBlendModePropertyHandler);
-		IDetailPropertyRow& BlendModePropertyRow = BasePropertyOverrideGroup.AddPropertyRow(BlendModeProperty.ToSharedRef());
-		BlendModePropertyRow
-			.DisplayName(BlendModeProperty->GetPropertyDisplayName())
-			.ToolTip(bStaticParametersOverrideDisabled ? ParameterDisabledToolTipString : BlendModeProperty->GetToolTipText())
-			.EditCondition(IsOverrideBlendModeEnabled, FOnBooleanValueChanged::CreateSP(this, &FMaterialInstanceParameterDetails::OnOverrideBlendModeChanged))
-			.Visibility(TAttribute<EVisibility>::Create(TAttribute<EVisibility>::FGetter::CreateSP(this, &FMaterialInstanceParameterDetails::IsOverriddenAndVisible, IsOverrideBlendModeEnabled)))
-			.OverrideResetToDefault(ResetBlendModePropertyOverride);
-	}
-	{
-		FIsResetToDefaultVisible IsShadingModelPropertyResetVisible = FIsResetToDefaultVisible::CreateLambda([this](TSharedPtr<IPropertyHandle> InHandle) {
-			if (MaterialEditorInstance->Parent != nullptr)
-			{
-				if (MaterialEditorInstance->Parent->IsShadingModelFromMaterialExpression())
+				if (ParentMat->IsShadingModelFromMaterialExpression())
 				{
 					return MaterialEditorInstance->BasePropertyOverrides.ShadingModel != MSM_FromMaterialExpression;
 				}
 				else
 				{
-					return MaterialEditorInstance->BasePropertyOverrides.ShadingModel != MaterialEditorInstance->Parent->GetShadingModels().GetFirstShadingModel();
+					return MaterialEditorInstance->BasePropertyOverrides.ShadingModel != ParentMat->GetShadingModels().GetFirstShadingModel();
 				}
 			}
 			else
 			{
 				return false;
 			}
-			});
-		FResetToDefaultHandler ResetShadingModelPropertyHandler = FResetToDefaultHandler::CreateLambda([this](TSharedPtr<IPropertyHandle> InHandle) {
-			if (MaterialEditorInstance->Parent != nullptr)
+		},
+		[this](TSharedPtr<IPropertyHandle> InHandle) {
+			if (TObjectPtr<UMaterialInterface> ParentMat = MaterialEditorInstance->Parent)
 			{
-				if (MaterialEditorInstance->Parent->IsShadingModelFromMaterialExpression())
+				if (ParentMat->IsShadingModelFromMaterialExpression())
 				{
 					MaterialEditorInstance->BasePropertyOverrides.ShadingModel = MSM_FromMaterialExpression;
 				}
 				else
 				{
-					MaterialEditorInstance->BasePropertyOverrides.ShadingModel = MaterialEditorInstance->Parent->GetShadingModels().GetFirstShadingModel();
+					MaterialEditorInstance->BasePropertyOverrides.ShadingModel = ParentMat->GetShadingModels().GetFirstShadingModel();
 				}
 			}
-			});
-		FResetToDefaultOverride ResetShadingModelPropertyOverride = FResetToDefaultOverride::Create(IsShadingModelPropertyResetVisible, ResetShadingModelPropertyHandler);
-		IDetailPropertyRow& ShadingModelPropertyRow = BasePropertyOverrideGroup.AddPropertyRow(ShadingModelProperty.ToSharedRef());
-		ShadingModelPropertyRow
-			.DisplayName(ShadingModelProperty->GetPropertyDisplayName())
-			.ToolTip(bStaticParametersOverrideDisabled ? ParameterDisabledToolTipString : ShadingModelProperty->GetToolTipText())
-			.EditCondition(IsOverrideShadingModelEnabled, FOnBooleanValueChanged::CreateSP(this, &FMaterialInstanceParameterDetails::OnOverrideShadingModelChanged))
-			.Visibility(TAttribute<EVisibility>::Create(TAttribute<EVisibility>::FGetter::CreateSP(this, &FMaterialInstanceParameterDetails::IsOverriddenAndVisible, IsOverrideShadingModelEnabled)))
-			.OverrideResetToDefault(ResetShadingModelPropertyOverride);
-	}
-	{
-		FIsResetToDefaultVisible IsTwoSidedPropertyResetVisible = FIsResetToDefaultVisible::CreateLambda([this](TSharedPtr<IPropertyHandle> InHandle) {
-			return MaterialEditorInstance->Parent != nullptr ? MaterialEditorInstance->BasePropertyOverrides.TwoSided != MaterialEditorInstance->Parent->IsTwoSided() : false;
-			});
-		FResetToDefaultHandler ResetTwoSidedValuePropertyHandler = FResetToDefaultHandler::CreateLambda([this](TSharedPtr<IPropertyHandle> InHandle) {
-			if (MaterialEditorInstance->Parent != nullptr)
-			{
-				MaterialEditorInstance->BasePropertyOverrides.TwoSided = MaterialEditorInstance->Parent->IsTwoSided();
-			}
-			});
-		FResetToDefaultOverride ResetTwoSidedPropertyOverride = FResetToDefaultOverride::Create(IsTwoSidedPropertyResetVisible, ResetTwoSidedValuePropertyHandler);
-		IDetailPropertyRow& TwoSidedPropertyRow = BasePropertyOverrideGroup.AddPropertyRow(TwoSidedProperty.ToSharedRef());
-		TwoSidedPropertyRow
-			.DisplayName(TwoSidedProperty->GetPropertyDisplayName())
-			.ToolTip(bStaticParametersOverrideDisabled ? ParameterDisabledToolTipString : TwoSidedProperty->GetToolTipText())
-			.EditCondition(IsOverrideTwoSidedEnabled, FOnBooleanValueChanged::CreateSP(this, &FMaterialInstanceParameterDetails::OnOverrideTwoSidedChanged))
-			.Visibility(TAttribute<EVisibility>::Create(TAttribute<EVisibility>::FGetter::CreateSP(this, &FMaterialInstanceParameterDetails::IsOverriddenAndVisible, IsOverrideTwoSidedEnabled)))
-			.OverrideResetToDefault(ResetTwoSidedPropertyOverride);
-	}
-	if (IsThinSurfaceProperty)
-	{
-		FIsResetToDefaultVisible IsThinSurfacePropertyResetVisible = FIsResetToDefaultVisible::CreateLambda([this](TSharedPtr<IPropertyHandle> InHandle) {
-			return MaterialEditorInstance->Parent != nullptr ? MaterialEditorInstance->BasePropertyOverrides.bIsThinSurface != MaterialEditorInstance->Parent->IsThinSurface() : false;
-			});
-		FResetToDefaultHandler ResetIsThinSurfaceValuePropertyHandler = FResetToDefaultHandler::CreateLambda([this](TSharedPtr<IPropertyHandle> InHandle) {
-			if (MaterialEditorInstance->Parent != nullptr)
-			{
-				MaterialEditorInstance->BasePropertyOverrides.bIsThinSurface = MaterialEditorInstance->Parent->IsThinSurface();
-			}
-			});
-		FResetToDefaultOverride ResetIsThinSurfacePropertyOverride = FResetToDefaultOverride::Create(IsThinSurfacePropertyResetVisible, ResetIsThinSurfaceValuePropertyHandler);
-		IDetailPropertyRow& IsThinSurfacePropertyRow = BasePropertyOverrideGroup.AddPropertyRow(IsThinSurfaceProperty.ToSharedRef());
-		IsThinSurfacePropertyRow
-			.DisplayName(IsThinSurfaceProperty->GetPropertyDisplayName())
-			.ToolTip(bStaticParametersOverrideDisabled ? ParameterDisabledToolTipString : IsThinSurfaceProperty->GetToolTipText())
-			.EditCondition(IsOverrideIsThinSurfaceEnabled, FOnBooleanValueChanged::CreateSP(this, &FMaterialInstanceParameterDetails::OnOverrideIsThinSurfaceChanged))
-			.Visibility(TAttribute<EVisibility>::Create(TAttribute<EVisibility>::FGetter::CreateSP(this, &FMaterialInstanceParameterDetails::IsOverriddenAndVisible, IsOverrideIsThinSurfaceEnabled)))
-			.OverrideResetToDefault(ResetIsThinSurfacePropertyOverride);
-	}
-	{
-		FIsResetToDefaultVisible IsDitheredLODTransitionPropertyResetVisible = FIsResetToDefaultVisible::CreateLambda([this](TSharedPtr<IPropertyHandle> InHandle) {
-			return MaterialEditorInstance->Parent != nullptr ? MaterialEditorInstance->BasePropertyOverrides.DitheredLODTransition != MaterialEditorInstance->Parent->IsDitheredLODTransition() : false;
-			});
-		FResetToDefaultHandler ResetDitheredLODTransitionPropertyHandler = FResetToDefaultHandler::CreateLambda([this](TSharedPtr<IPropertyHandle> InHandle) {
-			if (MaterialEditorInstance->Parent != nullptr)
-			{
-				MaterialEditorInstance->BasePropertyOverrides.DitheredLODTransition = MaterialEditorInstance->Parent->IsDitheredLODTransition();
-			}
-			});
-		FResetToDefaultOverride ResetDitheredLODTransitionPropertyOverride = FResetToDefaultOverride::Create(IsDitheredLODTransitionPropertyResetVisible, ResetDitheredLODTransitionPropertyHandler);
-		IDetailPropertyRow& DitheredLODTransitionPropertyRow = BasePropertyOverrideGroup.AddPropertyRow(DitheredLODTransitionProperty.ToSharedRef());
-		DitheredLODTransitionPropertyRow
-			.DisplayName(DitheredLODTransitionProperty->GetPropertyDisplayName())
-			.ToolTip(bStaticParametersOverrideDisabled ? ParameterDisabledToolTipString : DitheredLODTransitionProperty->GetToolTipText())
-			.EditCondition(IsOverrideDitheredLODTransitionEnabled, FOnBooleanValueChanged::CreateSP(this, &FMaterialInstanceParameterDetails::OnOverrideDitheredLODTransitionChanged))
-			.Visibility(TAttribute<EVisibility>::Create(TAttribute<EVisibility>::FGetter::CreateSP(this, &FMaterialInstanceParameterDetails::IsOverriddenAndVisible, IsOverrideDitheredLODTransitionEnabled)))
-			.OverrideResetToDefault(ResetDitheredLODTransitionPropertyOverride);
-	}
-	{
-		FIsResetToDefaultVisible IsOutputTranslucentVelocityPropertyResetVisible = FIsResetToDefaultVisible::CreateLambda([this](TSharedPtr<IPropertyHandle> InHandle) {
-			return MaterialEditorInstance->Parent != nullptr ? MaterialEditorInstance->BasePropertyOverrides.bOutputTranslucentVelocity != MaterialEditorInstance->Parent->IsTranslucencyWritingVelocity() : false;
-			});
-		FResetToDefaultHandler ResetOutputTranslucentVelocityPropertyHandler = FResetToDefaultHandler::CreateLambda([this](TSharedPtr<IPropertyHandle> InHandle) {
-			if (MaterialEditorInstance->Parent != nullptr)
-			{
-				MaterialEditorInstance->BasePropertyOverrides.bOutputTranslucentVelocity = MaterialEditorInstance->Parent->IsTranslucencyWritingVelocity();
-			}
-			});
-		FResetToDefaultOverride ResetOutputTranslucentVelocityPropertyOverride = FResetToDefaultOverride::Create(IsOutputTranslucentVelocityPropertyResetVisible, ResetOutputTranslucentVelocityPropertyHandler);
-		IDetailPropertyRow& OutputTranslucentVelocityPropertyRow = BasePropertyOverrideGroup.AddPropertyRow(OutputTranslucentVelocityProperty.ToSharedRef());
-		OutputTranslucentVelocityPropertyRow
-			.DisplayName(OutputTranslucentVelocityProperty->GetPropertyDisplayName())
-			.ToolTip(bStaticParametersOverrideDisabled ? ParameterDisabledToolTipString : OutputTranslucentVelocityProperty->GetToolTipText())
-			.EditCondition(IsOverrideOutputTranslucentVelocityEnabled, FOnBooleanValueChanged::CreateSP(this, &FMaterialInstanceParameterDetails::OnOverrideOutputTranslucentVelocityChanged))
-			.Visibility(TAttribute<EVisibility>::Create(TAttribute<EVisibility>::FGetter::CreateSP(this, &FMaterialInstanceParameterDetails::IsOverriddenAndVisible, IsOverrideOutputTranslucentVelocityEnabled)))
-			.OverrideResetToDefault(ResetOutputTranslucentVelocityPropertyOverride);
-	}
-	{
-		FIsResetToDefaultVisible IsHasPixelAnimationPropertyResetVisible = FIsResetToDefaultVisible::CreateLambda([this](TSharedPtr<IPropertyHandle> InHandle) {
-			return MaterialEditorInstance->Parent != nullptr ? MaterialEditorInstance->BasePropertyOverrides.bHasPixelAnimation != MaterialEditorInstance->Parent->HasPixelAnimation() : false;
-			});
-		FResetToDefaultHandler ResetHasPixelAnimationPropertyHandler = FResetToDefaultHandler::CreateLambda([this](TSharedPtr<IPropertyHandle> InHandle) {
-			if (MaterialEditorInstance->Parent != nullptr)
-			{
-				MaterialEditorInstance->BasePropertyOverrides.bHasPixelAnimation = MaterialEditorInstance->Parent->HasPixelAnimation();
-			}
-			});
-		FResetToDefaultOverride ResetHasPixelAnimationPropertyOverride = FResetToDefaultOverride::Create(IsHasPixelAnimationPropertyResetVisible, ResetHasPixelAnimationPropertyHandler);
-		IDetailPropertyRow& HasPixelAnimationPropertyRow = BasePropertyOverrideGroup.AddPropertyRow(HasPixelAnimationProperty.ToSharedRef());
-		HasPixelAnimationPropertyRow
-			.DisplayName(HasPixelAnimationProperty->GetPropertyDisplayName())
-			.ToolTip(bStaticParametersOverrideDisabled ? ParameterDisabledToolTipString : HasPixelAnimationProperty->GetToolTipText())
-			.EditCondition(IsOverrideHasPixelAnimationEnabled, FOnBooleanValueChanged::CreateSP(this, &FMaterialInstanceParameterDetails::OnOverrideHasPixelAnimationChanged))
-			.Visibility(TAttribute<EVisibility>::Create(TAttribute<EVisibility>::FGetter::CreateSP(this, &FMaterialInstanceParameterDetails::IsOverriddenAndVisible, IsOverrideHasPixelAnimationEnabled)))
-			.OverrideResetToDefault(ResetHasPixelAnimationPropertyOverride);
-	}
-	{
-		FIsResetToDefaultVisible IsEnableTessellationPropertyResetVisible = FIsResetToDefaultVisible::CreateLambda([this](TSharedPtr<IPropertyHandle> InHandle) {
-			return MaterialEditorInstance->Parent != nullptr ? MaterialEditorInstance->BasePropertyOverrides.bEnableTessellation != MaterialEditorInstance->Parent->IsTessellationEnabled() : false;
-			});
-		FResetToDefaultHandler ResetEnableTessellationPropertyHandler = FResetToDefaultHandler::CreateLambda([this](TSharedPtr<IPropertyHandle> InHandle) {
-			if (MaterialEditorInstance->Parent != nullptr)
-			{
-				MaterialEditorInstance->BasePropertyOverrides.bEnableTessellation = MaterialEditorInstance->Parent->IsTessellationEnabled();
-			}
-			});
-		FResetToDefaultOverride ResetEnableTessellationPropertyOverride = FResetToDefaultOverride::Create(IsEnableTessellationPropertyResetVisible, ResetEnableTessellationPropertyHandler);
-		IDetailPropertyRow& EnableTessellationPropertyRow = BasePropertyOverrideGroup.AddPropertyRow(EnableTessellationProperty.ToSharedRef());
-		EnableTessellationPropertyRow
-			.DisplayName(EnableTessellationProperty->GetPropertyDisplayName())
-			.ToolTip(bStaticParametersOverrideDisabled ? ParameterDisabledToolTipString : EnableTessellationProperty->GetToolTipText())
-			.EditCondition(IsOverrideTessellationEnabled, FOnBooleanValueChanged::CreateSP(this, &FMaterialInstanceParameterDetails::OnOverrideEnableTessellationChanged))
-			.Visibility(TAttribute<EVisibility>::Create(TAttribute<EVisibility>::FGetter::CreateSP(this, &FMaterialInstanceParameterDetails::IsOverriddenAndVisible, IsOverrideTessellationEnabled)))
-			.OverrideResetToDefault(ResetEnableTessellationPropertyOverride);
-	}
-	{
-		FIsResetToDefaultVisible IsDisplacementScalingPropertyResetVisible = FIsResetToDefaultVisible::CreateLambda([this](TSharedPtr<IPropertyHandle> InHandle)
-		{
-			return MaterialEditorInstance->Parent != nullptr ?
-				MaterialEditorInstance->BasePropertyOverrides.DisplacementScaling != MaterialEditorInstance->Parent->GetDisplacementScaling() : false;
-		});
-		FResetToDefaultHandler ResetDisplacementScalingPropertyHandler = FResetToDefaultHandler::CreateLambda([this](TSharedPtr<IPropertyHandle> InHandle)
-		{
-			if (MaterialEditorInstance->Parent != nullptr)
-			{
-				MaterialEditorInstance->BasePropertyOverrides.DisplacementScaling = MaterialEditorInstance->Parent->GetDisplacementScaling();
-			}
-		});
-		FResetToDefaultOverride ResetDisplacementScalingPropertyOverride = FResetToDefaultOverride::Create(IsDisplacementScalingPropertyResetVisible, ResetDisplacementScalingPropertyHandler);
-		IDetailPropertyRow& DisplacementScalingPropertyRow = BasePropertyOverrideGroup.AddPropertyRow(DisplacementScalingProperty.ToSharedRef());
-		DisplacementScalingPropertyRow
-			.DisplayName(DisplacementScalingProperty->GetPropertyDisplayName())
-			.ToolTip(DisplacementScalingProperty->GetToolTipText())
-			.EditCondition(IsOverrideDisplacementScalingEnabled, FOnBooleanValueChanged::CreateSP(this, &FMaterialInstanceParameterDetails::OnOverrideDisplacementScalingChanged))
-			.Visibility(TAttribute<EVisibility>::Create(TAttribute<EVisibility>::FGetter::CreateSP(this, &FMaterialInstanceParameterDetails::IsOverriddenAndVisible, IsOverrideDisplacementScalingEnabled)))
-			.OverrideResetToDefault(ResetDisplacementScalingPropertyOverride);
-	}
-	{
-		FIsResetToDefaultVisible IsMaxWorldPositionOffsetDisplacementPropertyResetVisible = FIsResetToDefaultVisible::CreateLambda([this](TSharedPtr<IPropertyHandle> InHandle) {
-			return MaterialEditorInstance->Parent != nullptr ? MaterialEditorInstance->BasePropertyOverrides.MaxWorldPositionOffsetDisplacement != MaterialEditorInstance->Parent->GetMaxWorldPositionOffsetDisplacement() : false;
-			});
-		FResetToDefaultHandler ResetMaxWorldPositionOffsetDisplacementPropertyHandler = FResetToDefaultHandler::CreateLambda([this](TSharedPtr<IPropertyHandle> InHandle) {
-			if (MaterialEditorInstance->Parent != nullptr)
-			{
-				MaterialEditorInstance->BasePropertyOverrides.MaxWorldPositionOffsetDisplacement = MaterialEditorInstance->Parent->GetMaxWorldPositionOffsetDisplacement();
-			}
-			});
-		FResetToDefaultOverride ResetMaxWorldPositionOffsetDisplacementPropertyOverride = FResetToDefaultOverride::Create(IsMaxWorldPositionOffsetDisplacementPropertyResetVisible, ResetMaxWorldPositionOffsetDisplacementPropertyHandler);
-		IDetailPropertyRow& MaxWorldPositionOffsetDisplacementPropertyRow = BasePropertyOverrideGroup.AddPropertyRow(MaxWorldPositionOffsetDisplacementProperty.ToSharedRef());
-		MaxWorldPositionOffsetDisplacementPropertyRow
-			.DisplayName(MaxWorldPositionOffsetDisplacementProperty->GetPropertyDisplayName())
-			.ToolTip(bStaticParametersOverrideDisabled ? ParameterDisabledToolTipString : MaxWorldPositionOffsetDisplacementProperty->GetToolTipText())
-			.EditCondition(IsOverrideMaxWorldPositionOffsetDisplacementEnabled, FOnBooleanValueChanged::CreateSP(this, &FMaterialInstanceParameterDetails::OnOverrideMaxWorldPositionOffsetDisplacementChanged))
-			.Visibility(TAttribute<EVisibility>::Create(TAttribute<EVisibility>::FGetter::CreateSP(this, &FMaterialInstanceParameterDetails::IsOverriddenAndVisible, IsOverrideMaxWorldPositionOffsetDisplacementEnabled)))
-			.OverrideResetToDefault(ResetMaxWorldPositionOffsetDisplacementPropertyOverride);
-	}
-	{
-		FIsResetToDefaultVisible IsCastDynamicShadowAsMaskedPropertyResetVisible = FIsResetToDefaultVisible::CreateLambda([this](TSharedPtr<IPropertyHandle> InHandle) {
-			return MaterialEditorInstance->Parent != nullptr ? MaterialEditorInstance->BasePropertyOverrides.bCastDynamicShadowAsMasked != MaterialEditorInstance->Parent->GetCastDynamicShadowAsMasked() : false;
-			});
-		FResetToDefaultHandler ResetCastDynamicShadowAsMaskedPropertyHandler = FResetToDefaultHandler::CreateLambda([this](TSharedPtr<IPropertyHandle> InHandle) {
-			if (MaterialEditorInstance->Parent != nullptr)
-			{
-				MaterialEditorInstance->BasePropertyOverrides.bCastDynamicShadowAsMasked = MaterialEditorInstance->Parent->GetCastDynamicShadowAsMasked();
-			}
-			});
-		FResetToDefaultOverride ResetCastDynamicShadowAsMaskedPropertyOverride = FResetToDefaultOverride::Create(IsCastDynamicShadowAsMaskedPropertyResetVisible, ResetCastDynamicShadowAsMaskedPropertyHandler);
-		IDetailPropertyRow& CastDynamicShadowAsMaskedPropertyRow = BasePropertyOverrideGroup.AddPropertyRow(CastDynamicShadowAsMaskedProperty.ToSharedRef());
-		CastDynamicShadowAsMaskedPropertyRow
-			.DisplayName(CastDynamicShadowAsMaskedProperty->GetPropertyDisplayName())
-			.ToolTip(bStaticParametersOverrideDisabled ? ParameterDisabledToolTipString : CastDynamicShadowAsMaskedProperty->GetToolTipText())
-			.EditCondition(IsOverrideCastDynamicShadowAsMaskedEnabled, FOnBooleanValueChanged::CreateSP(this, &FMaterialInstanceParameterDetails::OnOverrideCastDynamicShadowAsMaskedChanged))
-			.Visibility(TAttribute<EVisibility>::Create(TAttribute<EVisibility>::FGetter::CreateSP(this, &FMaterialInstanceParameterDetails::IsOverriddenAndVisible, IsOverrideCastDynamicShadowAsMaskedEnabled)))
-			.OverrideResetToDefault(ResetCastDynamicShadowAsMaskedPropertyOverride);
-	}
+		}
+	);
+	CREATE_BASE_OVERRIDE_ROW(TwoSided, TwoSided, IsTwoSided);
+	CREATE_BASE_OVERRIDE_ROW_BASIC_BOOL(IsThinSurface);
+	CREATE_BASE_OVERRIDE_ROW(DitheredLODTransition, DitheredLODTransition, IsDitheredLODTransition);
+	CREATE_BASE_OVERRIDE_ROW_BOOL(OutputTranslucentVelocity, IsTranslucencyWritingVelocity);
+	CREATE_BASE_OVERRIDE_ROW_BASIC_BOOL(HasPixelAnimation);
+	CREATE_BASE_OVERRIDE_ROW_BOOL(EnableTessellation, IsTessellationEnabled);
+	CREATE_BASE_OVERRIDE_ROW_BASIC(DisplacementScaling);
+	CREATE_BASE_OVERRIDE_ROW_BOOL(EnableDisplacementFade, IsDisplacementFadeEnabled);
+	CREATE_BASE_OVERRIDE_ROW_BASIC(DisplacementFadeRange);
+	CREATE_BASE_OVERRIDE_ROW_BASIC(MaxWorldPositionOffsetDisplacement);
+	CREATE_BASE_OVERRIDE_ROW_BOOL(CastDynamicShadowAsMasked, GetCastDynamicShadowAsMasked);
+
+#undef CREATE_BASE_OVERRIDE_ROW_BASIC_BOOL
+#undef CREATE_BASE_OVERRIDE_ROW_BOOL
+#undef CREATE_BASE_OVERRIDE_ROW_BASIC
+#undef CREATE_BASE_OVERRIDE_ROW
+#undef CREATE_BASE_OVERRIDE_ROW_CUSTOM
 }
 
 EVisibility FMaterialInstanceParameterDetails::IsOverriddenAndVisible(TAttribute<bool> IsOverridden) const
@@ -1550,66 +1375,6 @@ EVisibility FMaterialInstanceParameterDetails::IsOverriddenAndVisible(TAttribute
 		bShouldBeVisible = IsOverridden.Get();
 	}
 	return bShouldBeVisible ? EVisibility::Visible : EVisibility::Collapsed;
-}
-
-bool FMaterialInstanceParameterDetails::OverrideOpacityClipMaskValueEnabled() const
-{
-	return MaterialEditorInstance->BasePropertyOverrides.bOverride_OpacityMaskClipValue;
-}
-
-bool FMaterialInstanceParameterDetails::OverrideBlendModeEnabled() const
-{
-	return MaterialEditorInstance->BasePropertyOverrides.bOverride_BlendMode;
-}
-
-bool FMaterialInstanceParameterDetails::OverrideShadingModelEnabled() const
-{
-	return MaterialEditorInstance->BasePropertyOverrides.bOverride_ShadingModel;
-}
-
-bool FMaterialInstanceParameterDetails::OverrideTwoSidedEnabled() const
-{
-	return MaterialEditorInstance->BasePropertyOverrides.bOverride_TwoSided;
-}
-
-bool FMaterialInstanceParameterDetails::OverrideIsThinSurfaceEnabled() const
-{
-	return MaterialEditorInstance->BasePropertyOverrides.bOverride_bIsThinSurface;
-}
-
-bool FMaterialInstanceParameterDetails::OverrideDitheredLODTransitionEnabled() const
-{
-	return MaterialEditorInstance->BasePropertyOverrides.bOverride_DitheredLODTransition;
-}
-
-bool FMaterialInstanceParameterDetails::OverrideOutputTranslucentVelocityEnabled() const
-{
-	return MaterialEditorInstance->BasePropertyOverrides.bOverride_OutputTranslucentVelocity;
-}
-
-bool FMaterialInstanceParameterDetails::OverrideHasPixelAnimationEnabled() const
-{
-	return MaterialEditorInstance->BasePropertyOverrides.bOverride_bHasPixelAnimation;
-}
-
-bool FMaterialInstanceParameterDetails::OverrideTessellationEnabled() const
-{
-	return MaterialEditorInstance->BasePropertyOverrides.bOverride_bEnableTessellation;
-}
-
-bool FMaterialInstanceParameterDetails::OverrideDisplacementScalingEnabled() const
-{
-	return MaterialEditorInstance->BasePropertyOverrides.bOverride_DisplacementScaling;
-}
-
-bool FMaterialInstanceParameterDetails::OverrideMaxWorldPositionOffsetDisplacementEnabled() const
-{
-	return MaterialEditorInstance->BasePropertyOverrides.bOverride_MaxWorldPositionOffsetDisplacement;
-}
-
-bool FMaterialInstanceParameterDetails::OverrideCastDynamicShadowAsMaskedEnabled() const
-{
-	return MaterialEditorInstance->BasePropertyOverrides.bOverride_CastDynamicShadowAsMasked;
 }
 
 /** Helper function used by some parameters to verify that they are allowed to be overridden. This
@@ -1624,133 +1389,45 @@ static bool DoesSourceMaterialInstanceDisallowStaticParameterPermutation(const U
 	return false;
 }
 
-void FMaterialInstanceParameterDetails::OnOverrideCastDynamicShadowAsMaskedChanged(bool NewValue)
-{
-	if (DoesSourceMaterialInstanceDisallowStaticParameterPermutation(MaterialEditorInstance, NewValue))
-	{
-		return;
+#define IMPLEMENT_OVERRIDE_MEMBER_FUNCS_COMMON(PropertyName, PropertyVariableName, bRequiresPermutation) \
+	bool FMaterialInstanceParameterDetails::Override ## PropertyName ## Enabled() const \
+	{ \
+		return MaterialEditorInstance->BasePropertyOverrides.bOverride_ ## PropertyVariableName ; \
+	} \
+	void FMaterialInstanceParameterDetails::OnOverride ## PropertyName ## Changed(bool NewValue) \
+	{ \
+		if (DoesSourceMaterialInstanceDisallowStaticParameterPermutation(MaterialEditorInstance, NewValue) && \
+			bRequiresPermutation) \
+		{ \
+			return; \
+		} \
+		MaterialEditorInstance->BasePropertyOverrides.bOverride_ ## PropertyVariableName = NewValue; \
+		MaterialEditorInstance->PostEditChange(); \
+		FEditorSupportDelegates::RedrawAllViewports.Broadcast(); \
 	}
-	MaterialEditorInstance->BasePropertyOverrides.bOverride_CastDynamicShadowAsMasked = NewValue;
-	MaterialEditorInstance->PostEditChange();
-	FEditorSupportDelegates::RedrawAllViewports.Broadcast();
-}
+#define IMPLEMENT_OVERRIDE_MEMBER_FUNCS(PropertyName, bRequiresPermutation) \
+	IMPLEMENT_OVERRIDE_MEMBER_FUNCS_COMMON(PropertyName, PropertyName, bRequiresPermutation)
+#define IMPLEMENT_OVERRIDE_MEMBER_FUNCS_BOOL(PropertyName, bRequiresPermutation) \
+	IMPLEMENT_OVERRIDE_MEMBER_FUNCS_COMMON(PropertyName, b ## PropertyName, bRequiresPermutation)
 
-void FMaterialInstanceParameterDetails::OnOverrideOpacityClipMaskValueChanged(bool NewValue)
-{
-	if (DoesSourceMaterialInstanceDisallowStaticParameterPermutation(MaterialEditorInstance, NewValue))
-	{
-		return;
-	}
-	MaterialEditorInstance->BasePropertyOverrides.bOverride_OpacityMaskClipValue = NewValue;
-	MaterialEditorInstance->PostEditChange();
-	FEditorSupportDelegates::RedrawAllViewports.Broadcast();
-}
+IMPLEMENT_OVERRIDE_MEMBER_FUNCS(OpacityMaskClipValue, true)
+IMPLEMENT_OVERRIDE_MEMBER_FUNCS(BlendMode, true)
+IMPLEMENT_OVERRIDE_MEMBER_FUNCS(ShadingModel, true)
+IMPLEMENT_OVERRIDE_MEMBER_FUNCS(TwoSided, true)
+IMPLEMENT_OVERRIDE_MEMBER_FUNCS_BOOL(IsThinSurface, true)
+IMPLEMENT_OVERRIDE_MEMBER_FUNCS(DitheredLODTransition, true)
+IMPLEMENT_OVERRIDE_MEMBER_FUNCS(OutputTranslucentVelocity, true)
+IMPLEMENT_OVERRIDE_MEMBER_FUNCS_BOOL(HasPixelAnimation, true)
+IMPLEMENT_OVERRIDE_MEMBER_FUNCS_BOOL(EnableTessellation, true)
+IMPLEMENT_OVERRIDE_MEMBER_FUNCS(DisplacementScaling, false)
+IMPLEMENT_OVERRIDE_MEMBER_FUNCS_BOOL(EnableDisplacementFade, false)
+IMPLEMENT_OVERRIDE_MEMBER_FUNCS(DisplacementFadeRange, false)
+IMPLEMENT_OVERRIDE_MEMBER_FUNCS(MaxWorldPositionOffsetDisplacement, false)
+IMPLEMENT_OVERRIDE_MEMBER_FUNCS(CastDynamicShadowAsMasked, true)
 
-void FMaterialInstanceParameterDetails::OnOverrideBlendModeChanged(bool NewValue)
-{
-	if (DoesSourceMaterialInstanceDisallowStaticParameterPermutation(MaterialEditorInstance, NewValue))
-	{
-		return;
-	}
-	MaterialEditorInstance->BasePropertyOverrides.bOverride_BlendMode = NewValue;
-	MaterialEditorInstance->PostEditChange();
-	FEditorSupportDelegates::RedrawAllViewports.Broadcast();
-}
-
-void FMaterialInstanceParameterDetails::OnOverrideShadingModelChanged(bool NewValue)
-{
-	if (DoesSourceMaterialInstanceDisallowStaticParameterPermutation(MaterialEditorInstance, NewValue))
-	{
-		return;
-	}
-	MaterialEditorInstance->BasePropertyOverrides.bOverride_ShadingModel = NewValue;
-	MaterialEditorInstance->PostEditChange();
-	FEditorSupportDelegates::RedrawAllViewports.Broadcast();
-}
-
-void FMaterialInstanceParameterDetails::OnOverrideTwoSidedChanged(bool NewValue)
-{
-	if (DoesSourceMaterialInstanceDisallowStaticParameterPermutation(MaterialEditorInstance, NewValue))
-	{
-		return;
-	}
-	MaterialEditorInstance->BasePropertyOverrides.bOverride_TwoSided = NewValue;
-	MaterialEditorInstance->PostEditChange();
-	FEditorSupportDelegates::RedrawAllViewports.Broadcast();
-}
-
-void FMaterialInstanceParameterDetails::OnOverrideIsThinSurfaceChanged(bool NewValue)
-{
-	if (DoesSourceMaterialInstanceDisallowStaticParameterPermutation(MaterialEditorInstance, NewValue))
-	{
-		return;
-	}
-	MaterialEditorInstance->BasePropertyOverrides.bOverride_bIsThinSurface = NewValue;
-	MaterialEditorInstance->PostEditChange();
-	FEditorSupportDelegates::RedrawAllViewports.Broadcast();
-}
-
-void FMaterialInstanceParameterDetails::OnOverrideDitheredLODTransitionChanged(bool NewValue)
-{
-	if (DoesSourceMaterialInstanceDisallowStaticParameterPermutation(MaterialEditorInstance, NewValue))
-	{
-		return;
-	}
-	MaterialEditorInstance->BasePropertyOverrides.bOverride_DitheredLODTransition = NewValue;
-	MaterialEditorInstance->PostEditChange();
-	FEditorSupportDelegates::RedrawAllViewports.Broadcast();
-}
-
-void FMaterialInstanceParameterDetails::OnOverrideOutputTranslucentVelocityChanged(bool NewValue)
-{
-	if (DoesSourceMaterialInstanceDisallowStaticParameterPermutation(MaterialEditorInstance, NewValue))
-	{
-		return;
-	}
-	MaterialEditorInstance->BasePropertyOverrides.bOverride_OutputTranslucentVelocity = NewValue;
-	MaterialEditorInstance->PostEditChange();
-	FEditorSupportDelegates::RedrawAllViewports.Broadcast();
-}
-
-void FMaterialInstanceParameterDetails::OnOverrideHasPixelAnimationChanged(bool NewValue)
-{
-	if (DoesSourceMaterialInstanceDisallowStaticParameterPermutation(MaterialEditorInstance, NewValue))
-	{
-		return;
-	}
-	MaterialEditorInstance->BasePropertyOverrides.bOverride_bHasPixelAnimation = NewValue;
-	MaterialEditorInstance->PostEditChange();
-	FEditorSupportDelegates::RedrawAllViewports.Broadcast();
-}
-
-void FMaterialInstanceParameterDetails::OnOverrideEnableTessellationChanged(bool NewValue)
-{
-	if (DoesSourceMaterialInstanceDisallowStaticParameterPermutation(MaterialEditorInstance, NewValue))
-	{
-		return;
-	}
-	MaterialEditorInstance->BasePropertyOverrides.bOverride_bEnableTessellation = NewValue;
-	MaterialEditorInstance->PostEditChange();
-	FEditorSupportDelegates::RedrawAllViewports.Broadcast();
-}
-
-void FMaterialInstanceParameterDetails::OnOverrideDisplacementScalingChanged(bool NewValue)
-{
-	MaterialEditorInstance->BasePropertyOverrides.bOverride_DisplacementScaling = NewValue;
-	MaterialEditorInstance->PostEditChange();
-	FEditorSupportDelegates::RedrawAllViewports.Broadcast();
-}
-
-void FMaterialInstanceParameterDetails::OnOverrideMaxWorldPositionOffsetDisplacementChanged(bool NewValue)
-{
-	if (DoesSourceMaterialInstanceDisallowStaticParameterPermutation(MaterialEditorInstance, NewValue))
-	{
-		return;
-	}
-	MaterialEditorInstance->BasePropertyOverrides.bOverride_MaxWorldPositionOffsetDisplacement = NewValue;
-	MaterialEditorInstance->PostEditChange();
-	FEditorSupportDelegates::RedrawAllViewports.Broadcast();
-}
+#undef IMPLEMENT_OVERRIDE_MEMBER_FUNCS_BOOL
+#undef IMPLEMENT_OVERRIDE_MEMBER_FUNCS
+#undef IMPLEMENT_OVERRIDE_MEMBER_FUNCS_COMMON
 
 #undef LOCTEXT_NAMESPACE
 

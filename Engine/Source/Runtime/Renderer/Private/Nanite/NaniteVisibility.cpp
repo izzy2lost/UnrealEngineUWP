@@ -203,9 +203,9 @@ static FORCEINLINE bool IsVisibilityTestNeeded(
 	for (const FNaniteVisibility::FRasterBin& RasterBin : References.RasterBins)
 	{
 		const bool bPrimaryVisible = Query->RasterBinVisibility[int32(BinIndexTranslator.Translate(RasterBin.Primary))];
-		const bool bSecondaryVisible = RasterBin.Secondary != 0xFFFFu ? (bool)(Query->RasterBinVisibility[int32(BinIndexTranslator.Translate(RasterBin.Secondary))]) : true;
+		const bool bFallbackVisible = RasterBin.Fallback != 0xFFFFu ? (bool)(Query->RasterBinVisibility[int32(BinIndexTranslator.Translate(RasterBin.Fallback))]) : true;
 
-		if (!bPrimaryVisible || !bSecondaryVisible) // Raster bin reference is not marked visible
+		if (!bPrimaryVisible || !bFallbackVisible) // Raster bin reference is not marked visible
 		{
 			bShouldTest = true;
 			break;
@@ -322,9 +322,9 @@ static void PerformNaniteVisibility(const FNaniteVisibility::PrimitiveMapType& P
 					for (const FNaniteVisibility::FRasterBin& RasterBin : References.RasterBins)
 					{
 						Query->RasterBinVisibility[int32(Query->BinIndexTranslator.Translate(RasterBin.Primary))] = true;
-						if (RasterBin.Secondary != 0xFFFFu)
+						if (RasterBin.Fallback != 0xFFFFu)
 						{
-							Query->RasterBinVisibility[int32(Query->BinIndexTranslator.Translate(RasterBin.Secondary))] = true;
+							Query->RasterBinVisibility[int32(Query->BinIndexTranslator.Translate(RasterBin.Fallback))] = true;
 						}
 					}
 				}

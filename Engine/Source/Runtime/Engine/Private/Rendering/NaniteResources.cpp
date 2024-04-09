@@ -548,6 +548,13 @@ HHitProxy* FSceneProxyBase::CreateHitProxies(IPrimitiveComponent* ComponentInter
 }
 #endif
 
+float FSceneProxyBase::GetMaterialDisplacementFadeOutSize() const
+{
+	static const auto CVarNaniteMaxPixelsPerEdge = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.Nanite.MaxPixelsPerEdge"));
+	const float PixelsPerEdge = CVarNaniteMaxPixelsPerEdge ? CVarNaniteMaxPixelsPerEdge->GetValueOnAnyThread() : 1.0f;
+	return MaterialDisplacementFadeOutSize / PixelsPerEdge;
+}
+
 void FSceneProxyBase::DrawStaticElementsInternal(FStaticPrimitiveDrawInterface* PDI, const FLightCacheInterface* LCI)
 {
 	LLM_SCOPE_BYTAG(Nanite);
@@ -616,7 +623,9 @@ void FSceneProxyBase::OnMaterialsUpdated()
 	CombinedMaterialRelevance = FMaterialRelevance();
 	MaxWPOExtent = 0.0f;
 	MinMaxMaterialDisplacement = FVector2f::Zero();
-	bHasProgrammableRaster = false;
+	MaterialDisplacementFadeOutSize = UE_MAX_FLT;
+	bHasVertexProgrammableRaster = false;
+	bHasPixelProgrammableRaster = false;
 	bHasDynamicDisplacement = false;
 	bAnyMaterialAlwaysEvaluatesWorldPositionOffset = false;
 	bAnyMaterialHasPixelAnimation = false;
@@ -635,15 +644,17 @@ void FSceneProxyBase::OnMaterialsUpdated()
 		CombinedMaterialRelevance |= MaterialSection.MaterialRelevance;
 
 		// Now that the material relevance is updated, determine if any material has programmable raster
-		const bool bProgrammableRaster = MaterialSection.IsProgrammableRaster(bEvaluateWorldPositionOffset);
-		bHasProgrammableRaster |= bProgrammableRaster;
+		const bool bVertexProgrammableRaster = MaterialSection.IsVertexProgrammableRaster(bEvaluateWorldPositionOffset);
+		const bool bPixelProgrammableRaster = MaterialSection.IsPixelProgrammableRaster();
+		bHasVertexProgrammableRaster |= bVertexProgrammableRaster;
+		bHasPixelProgrammableRaster |= bPixelProgrammableRaster;
 		
 		// Update the RasterMaterialProxy, which is dependent on hidden status and programmable rasterization
 		if (MaterialSection.bHidden)
 		{
 			MaterialSection.RasterMaterialProxy = GEngine->NaniteHiddenSectionMaterial.Get()->GetRenderProxy();
 		}
-		else if (bProgrammableRaster)
+		else if (bVertexProgrammableRaster || bPixelProgrammableRaster)
 		{
 			MaterialSection.RasterMaterialProxy = MaterialSection.ShadingMaterialProxy;
 		}
@@ -675,6 +686,24 @@ void FSceneProxyBase::OnMaterialsUpdated()
 		if (bUseTessellation && MaterialSection.MaterialRelevance.bUsesDisplacement)
 		{
 			MaterialSection.DisplacementScaling = ShadingMaterial->GetDisplacementScaling();
+			if (ShadingMaterial->IsDisplacementFadeEnabled())
+			{
+				MaterialSection.DisplacementFadeRange = ShadingMaterial->GetDisplacementFadeRange();
+
+				// Determine the smallest pixel size of the maximum amount of displacement before it has entirely faded out
+				// NOTE: If the material is ALSO masked, we can't disable it based on tessellation fade (must be manually set
+				// to be disabled by PixelProgrammableDistance otherwise non-obvious side effects could occur)
+				MaterialDisplacementFadeOutSize = FMath::Min3(
+					MaterialSection.MaterialRelevance.bMasked ? 0.0f : MaterialDisplacementFadeOutSize,
+					MaterialSection.DisplacementFadeRange.StartSizePixels,
+					MaterialSection.DisplacementFadeRange.EndSizePixels
+				);
+			}
+			else
+			{
+				MaterialSection.DisplacementFadeRange = FDisplacementFadeRange::Invalid();
+				MaterialDisplacementFadeOutSize = 0.0f; // never disable pixel programmable rasterization
+			}
 			
 			const float MinDisplacement = (0.0f - MaterialSection.DisplacementScaling.Center) * MaterialSection.DisplacementScaling.Magnitude;
 			const float MaxDisplacement = (1.0f - MaterialSection.DisplacementScaling.Center) * MaterialSection.DisplacementScaling.Magnitude;
@@ -687,6 +716,14 @@ void FSceneProxyBase::OnMaterialsUpdated()
 		else
 		{
 			MaterialSection.DisplacementScaling = FDisplacementScaling();
+			MaterialSection.DisplacementFadeRange = FDisplacementFadeRange::Invalid();
+
+			// If we have a material that is pixel programmable but not using tessellation, we can never disable pixel programmable
+			// rasterization due to displacement fade (though note we still might disable it due to PixelProgrammableDistance)
+			if (bPixelProgrammableRaster)
+			{
+				MaterialDisplacementFadeOutSize = 0.0f;
+			}
 		}
 	}
 }
@@ -764,6 +801,7 @@ FSceneProxy::FSceneProxy(const FMaterialAudit& MaterialAudit, const FStaticMeshS
 	bHasMaterialErrors = false;
 
 	InstanceWPODisableDistance = ProxyDesc.WorldPositionOffsetDisableDistance;
+	PixelProgrammableDistance = ProxyDesc.NanitePixelProgrammableDistance;
 
 	SetWireframeColor(ProxyDesc.GetWireframeColor());
 
@@ -1011,13 +1049,13 @@ void FSceneProxy::CreateRenderThreadResources(FRHICommandListBase& RHICmdList)
 
 void FSceneProxy::OnEvaluateWorldPositionOffsetChanged_RenderThread()
 {
-	bHasProgrammableRaster = false;
+	bHasVertexProgrammableRaster = false;
 	for (FMaterialSection& MaterialSection : MaterialSections)
 	{
-		if (MaterialSection.IsProgrammableRaster(bEvaluateWorldPositionOffset))
+		if (MaterialSection.IsVertexProgrammableRaster(bEvaluateWorldPositionOffset))
 		{
 			MaterialSection.RasterMaterialProxy = MaterialSection.ShadingMaterialProxy;
-			bHasProgrammableRaster = true;
+			bHasVertexProgrammableRaster = true;
 		}
 		else
 		{

@@ -184,12 +184,12 @@ void DepthExport(uint2 GroupId : SV_GroupID, uint ThreadIndex : SV_GroupIndex)
 			#if VELOCITY_EXPORT
 				// Don't output velocity here for WPO clusters, as their velocity must be calculated in the base pass
 				bool bWPOEnabled = (VisibleCluster.Flags & NANITE_CULLING_FLAG_ENABLE_WPO) != 0;
-				const bool bSecondaryRasterBin = !bWPOEnabled;
+				const bool bFallbackRasterBin = (VisibleCluster.Flags & NANITE_CULLING_FLAG_FALLBACK_RASTER) != 0;
 		
 				if (bWPOEnabled)
 				{
 					// The cluster may have WPO enabled, but we want to know if WPO is enabled by the material to decide to output velocity
-					const uint RasterBinIndex = GetMaterialRasterBin(ClusterData, InstanceData.PrimitiveId, MeshPassIndex, TriIndex, RegularMaterialRasterBinCount, bSecondaryRasterBin);
+					const uint RasterBinIndex = GetMaterialRasterBin(ClusterData, InstanceData.PrimitiveId, MeshPassIndex, TriIndex, RegularMaterialRasterBinCount, bFallbackRasterBin);
 					const FNaniteMaterialFlags MaterialFlags = UnpackNaniteMaterialFlags(RasterBinMeta[RasterBinIndex].MaterialFlags);
 					bWPOEnabled &= MaterialFlags.bWorldPositionOffset;
 				}

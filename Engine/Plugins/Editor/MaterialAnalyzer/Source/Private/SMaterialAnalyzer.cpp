@@ -41,6 +41,8 @@ SMaterialAnalyzer::SMaterialAnalyzer()
 	BasePropertyOverrideNames.Add(TEXT("bOverride_bHasPixelAnimation"), TEXT("bHasPixelAnimation"));
 	BasePropertyOverrideNames.Add(TEXT("bOverride_bEnableTessellation"), TEXT("bEnableTessellation"));
 	BasePropertyOverrideNames.Add(TEXT("bOverride_DisplacementScaling"), TEXT("DisplacementScaling"));
+	BasePropertyOverrideNames.Add(TEXT("bOverride_bEnableDisplacementFade"), TEXT("bEnableDisplacementFade"));
+	BasePropertyOverrideNames.Add(TEXT("bOverride_DisplacementFadeRange"), TEXT("DisplacementFadeRange"));
 	BasePropertyOverrideNames.Add(TEXT("bOverride_MaxWorldPositionOffsetDisplacement"), TEXT("MaxWorldPositionOffsetDisplacement"));
 }
 
@@ -809,6 +811,22 @@ void FAnalyzeMaterialTreeAsyncTask::DoWork()
 			if (CurrentMaterialInstance)
 			{
 				bIsOverridden = CurrentMaterialInstance->BasePropertyOverrides.bOverride_DisplacementScaling;
+			}
+		}
+		else if (BasePropertyOverrideName.Key.IsEqual(TEXT("bOverride_bEnableDisplacementFade")))
+		{
+			TempValue = CurrentMaterialInterface->IsDisplacementFadeEnabled();
+			if (CurrentMaterialInstance)
+			{
+				bIsOverridden = CurrentMaterialInstance->BasePropertyOverrides.bOverride_bEnableDisplacementFade;
+			}
+		}
+		else if (BasePropertyOverrideName.Key.IsEqual(TEXT("bOverride_DisplacementFadeRange")))
+		{
+			TempValue = CurrentMaterialInterface->GetDisplacementFadeRange().EndSizePixels;
+			if (CurrentMaterialInstance)
+			{
+				bIsOverridden = CurrentMaterialInstance->BasePropertyOverrides.bOverride_DisplacementFadeRange;
 			}
 		}
 		else if (BasePropertyOverrideName.Key.IsEqual(TEXT("bOverride_MaxWorldPositionOffsetDisplacement")))

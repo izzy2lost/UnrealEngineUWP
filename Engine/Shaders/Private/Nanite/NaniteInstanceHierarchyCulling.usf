@@ -148,7 +148,7 @@ void HierarchyCellInstanceCull(uint3 GroupId : SV_GroupID, uint GroupIndex : SV_
 			float4x4 PrevLocalToTranslatedWorld = MakeTranslationMatrix(DFFastToTranslatedWorld(CellData.BlockData.WorldPos, NaniteView.PrevPreViewTranslation));
 
 			FBoxCull Cull;
-			Cull.Init(NaniteView, CellData.LocalBoundsCenter, CellData.LocalBoundsExtent, float3(1.0f, 1.0f, 1.0f), LocalToTranslatedWorld, PrevLocalToTranslatedWorld);
+			Cull.Init(NaniteView, CellData.LocalBoundsCenter, CellData.LocalBoundsExtent, float4(1.0f, 1.0f, 1.0f, 1.0f), LocalToTranslatedWorld, PrevLocalToTranslatedWorld);
 			if (CULLING_PASS == CULLING_PASS_OCCLUSION_POST)
 			{
 				Cull.bSkipCullFrustum = true;

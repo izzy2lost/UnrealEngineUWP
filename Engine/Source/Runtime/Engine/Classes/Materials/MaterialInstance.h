@@ -583,6 +583,7 @@ class UMaterialInstance : public UMaterialInterface
 	uint8 bIsShadingModelFromMaterialExpression : 1;
 	uint8 bHasPixelAnimation : 1;
 	uint8 bEnableTessellation : 1;
+	uint8 bEnableDisplacementFade : 1;
 protected:
 	uint8 bLoadedCachedData : 1;
 public:
@@ -595,6 +596,7 @@ public:
 	float OpacityMaskClipValue;
 
 	FDisplacementScaling DisplacementScaling;
+	FDisplacementFadeRange DisplacementFadeRange;
 
 	float MaxWorldPositionOffsetDisplacement;
 
@@ -802,6 +804,8 @@ public:
 	ENGINE_API virtual bool IsMasked() const override;
 	ENGINE_API virtual bool WritesToRuntimeVirtualTexture() const override;
 	ENGINE_API virtual FDisplacementScaling GetDisplacementScaling() const override;
+	ENGINE_API virtual bool IsDisplacementFadeEnabled() const override;
+	ENGINE_API virtual FDisplacementFadeRange GetDisplacementFadeRange() const override;
 	ENGINE_API virtual float GetMaxWorldPositionOffsetDisplacement() const override;
 	ENGINE_API virtual bool ShouldAlwaysEvaluateWorldPositionOffset() const override;
 	ENGINE_API virtual bool IsDeferredDecal() const override;

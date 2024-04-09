@@ -110,30 +110,26 @@ private:
 
 	EVisibility IsOverriddenAndVisible(TAttribute<bool> IsOverridden) const;
 
-	bool OverrideOpacityClipMaskValueEnabled() const;
-	bool OverrideBlendModeEnabled() const;
-	bool OverrideShadingModelEnabled() const;
-	bool OverrideTwoSidedEnabled() const;
-	bool OverrideIsThinSurfaceEnabled() const;
-	bool OverrideDitheredLODTransitionEnabled() const;
-	bool OverrideOutputTranslucentVelocityEnabled() const;
-	bool OverrideHasPixelAnimationEnabled() const;
-	bool OverrideTessellationEnabled() const;
-	bool OverrideDisplacementScalingEnabled() const;
-	bool OverrideMaxWorldPositionOffsetDisplacementEnabled() const;
-	void OnOverrideOpacityClipMaskValueChanged(bool NewValue);
-	void OnOverrideBlendModeChanged(bool NewValue);
-	void OnOverrideShadingModelChanged(bool NewValue);
-	void OnOverrideTwoSidedChanged(bool NewValue);
-	void OnOverrideIsThinSurfaceChanged(bool NewValue);
-	void OnOverrideDitheredLODTransitionChanged(bool NewValue);
-	void OnOverrideOutputTranslucentVelocityChanged(bool NewValue);
-	void OnOverrideHasPixelAnimationChanged(bool NewValue);
-	void OnOverrideEnableTessellationChanged(bool NewValue);
-	void OnOverrideDisplacementScalingChanged(bool NewValue);
-	void OnOverrideMaxWorldPositionOffsetDisplacementChanged(bool NewValue);
-	bool OverrideCastDynamicShadowAsMaskedEnabled() const;
-	void OnOverrideCastDynamicShadowAsMaskedChanged(bool NewValue);
+#define DECLARE_OVERRIDE_MEMBER_FUNCS(PropertyName) \
+	bool Override ## PropertyName ## Enabled() const; \
+	void OnOverride ## PropertyName ## Changed(bool NewValue);
+
+	DECLARE_OVERRIDE_MEMBER_FUNCS(OpacityMaskClipValue)
+	DECLARE_OVERRIDE_MEMBER_FUNCS(BlendMode)
+	DECLARE_OVERRIDE_MEMBER_FUNCS(ShadingModel)
+	DECLARE_OVERRIDE_MEMBER_FUNCS(TwoSided)
+	DECLARE_OVERRIDE_MEMBER_FUNCS(IsThinSurface)
+	DECLARE_OVERRIDE_MEMBER_FUNCS(DitheredLODTransition)
+	DECLARE_OVERRIDE_MEMBER_FUNCS(OutputTranslucentVelocity)
+	DECLARE_OVERRIDE_MEMBER_FUNCS(HasPixelAnimation)
+	DECLARE_OVERRIDE_MEMBER_FUNCS(EnableTessellation)
+	DECLARE_OVERRIDE_MEMBER_FUNCS(DisplacementScaling)
+	DECLARE_OVERRIDE_MEMBER_FUNCS(EnableDisplacementFade)
+	DECLARE_OVERRIDE_MEMBER_FUNCS(DisplacementFadeRange)
+	DECLARE_OVERRIDE_MEMBER_FUNCS(MaxWorldPositionOffsetDisplacement)
+	DECLARE_OVERRIDE_MEMBER_FUNCS(CastDynamicShadowAsMasked)
+	
+#undef DECLARE_OVERRIDE_MEMBER_FUNCS
 
 private:
 	/** Object that stores all of the possible parameters we can edit */

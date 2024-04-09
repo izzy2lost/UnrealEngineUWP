@@ -865,13 +865,17 @@ void FPrimitiveSceneProxy::BuildUniformShaderParameters(FPrimitiveUniformShaderP
 		uint32 NaniteFilterFlags = uint32(NaniteProxy->GetFilterFlags());
 		uint32 NaniteRayTracingDataOffset = NaniteProxy->GetRayTracingDataOffset();
 		bool bReverseCulling = NaniteProxy->IsCullingReversedByComponent(); // needed because Nanite doesn't use raster state
+		float PixelProgrammableDistance = NaniteProxy->GetPixelProgrammableDistance();
+		float MaterialDisplacementFadeOutSize = NaniteProxy->GetMaterialDisplacementFadeOutSize();
 		
 		Builder.NaniteResourceID(NaniteResourceID)
 			.NaniteHierarchyOffset(NaniteHierarchyOffset)
 			.NaniteImposterIndex(NaniteImposterIndex)
 			.NaniteFilterFlags(NaniteFilterFlags)
 			.NaniteRayTracingDataOffset(NaniteRayTracingDataOffset)
-			.ReverseCulling(bReverseCulling);
+			.ReverseCulling(bReverseCulling)
+			.PixelProgrammableDistance(PixelProgrammableDistance)
+			.MaterialDisplacementFadeOutSize(MaterialDisplacementFadeOutSize);
 	}
 
 	FVector2f InstanceDrawDistanceMinMax;

@@ -1311,6 +1311,16 @@ FDisplacementScaling UMaterialInterface::GetDisplacementScaling() const
 	return FDisplacementScaling();
 }
 
+bool UMaterialInterface::IsDisplacementFadeEnabled() const
+{
+	return false;
+}
+
+FDisplacementFadeRange UMaterialInterface::GetDisplacementFadeRange() const
+{
+	return FDisplacementFadeRange();
+}
+
 float UMaterialInterface::GetMaxWorldPositionOffsetDisplacement() const
 {
 	return 0.0f;

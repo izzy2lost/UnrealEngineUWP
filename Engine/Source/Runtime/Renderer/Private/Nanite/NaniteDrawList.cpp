@@ -17,11 +17,12 @@ static FAutoConsoleVariableRef CVarNaniteMaterialSortMode(
 	ECVF_RenderThreadSafe
 );
 
-int32 GNaniteAllowWPODistanceDisable = 1;
-static FAutoConsoleVariableRef CVarNaniteAllowWPODistanceDisable(
-	TEXT("r.Nanite.AllowWPODistanceDisable"),
-	GNaniteAllowWPODistanceDisable,
-	TEXT("Whether or not to allow disabling World Position Offset for Nanite instances at a distance from the camera."),
+int32 GNaniteAllowProgrammableDistances = 1;
+static FAutoConsoleVariableRef CVarNaniteAllowProgrammableDistances(
+	TEXT("r.Nanite.AllowProgrammableDistances"),
+	GNaniteAllowProgrammableDistances,
+	TEXT("Whether or not to allow disabling of Nanite programmable raster features (World Position Offset, Pixel Depth Offset, ")
+	TEXT("Masked Opaque, or Displacement) at a distance from the camera."),
 	ECVF_ReadOnly
 );
 
@@ -120,7 +121,7 @@ void FNaniteDrawListContext::AddShadingBin(FPrimitiveSceneInfo& PrimitiveSceneIn
 void FNaniteDrawListContext::AddRasterBin(
 	FPrimitiveSceneInfo& PrimitiveSceneInfo,
 	const FNaniteRasterBin& PrimaryRasterBin,
-	const FNaniteRasterBin& SecondaryRasterBin,
+	const FNaniteRasterBin& FallbackRasterBin,
 	ENaniteMeshPass::Type MeshPass,
 	uint8 SectionIndex)
 {
@@ -129,12 +130,12 @@ void FNaniteDrawListContext::AddRasterBin(
 	FNaniteMaterialSlot& MaterialSlot = GetMaterialSlotForWrite(PrimitiveSceneInfo, MeshPass, SectionIndex);
 	check(MaterialSlot.RasterBin == 0xFFFFu);
 	MaterialSlot.RasterBin = PrimaryRasterBin.BinIndex;
-	MaterialSlot.SecondaryRasterBin = SecondaryRasterBin.BinIndex;
+	MaterialSlot.FallbackRasterBin = FallbackRasterBin.BinIndex;
 	
 	PrimitiveSceneInfo.NaniteRasterBins[MeshPass].Add(PrimaryRasterBin);
-	if (SecondaryRasterBin.IsValid())
+	if (FallbackRasterBin.IsValid())
 	{
-		PrimitiveSceneInfo.NaniteRasterBins[MeshPass].Add(SecondaryRasterBin);
+		PrimitiveSceneInfo.NaniteRasterBins[MeshPass].Add(FallbackRasterBin);
 	}
 }
 
@@ -253,19 +254,19 @@ void FNaniteDrawListContext::Apply(FScene& Scene)
 					const FNaniteRasterPipeline& RasterPipeline = PipelinesCommand.RasterPipelines[MaterialSectionIndex];
 					FNaniteRasterBin PrimaryRasterBin = RasterPipelines.Register(RasterPipeline);
 
-					// Check to register a secondary bin (used to disable WPO at a distance)
-					FNaniteRasterBin SecondaryRasterBin;
-					FNaniteRasterPipeline SecondaryRasterPipeline;
-					if (GNaniteAllowWPODistanceDisable && RasterPipeline.GetSecondaryPipeline(SecondaryRasterPipeline))
+					// Check to register a fallback bin (used to disable programmable functionality at a distance)
+					FNaniteRasterBin FallbackRasterBin;
+					FNaniteRasterPipeline FallbackRasterPipeline;
+					if (GNaniteAllowProgrammableDistances && RasterPipeline.GetFallbackPipeline(FallbackRasterPipeline))
 					{
-						SecondaryRasterBin = RasterPipelines.Register(SecondaryRasterPipeline);
+						FallbackRasterBin = RasterPipelines.Register(FallbackRasterPipeline);
 					}
 
-					AddRasterBin(*PrimitiveSceneInfo, PrimaryRasterBin, SecondaryRasterBin, ENaniteMeshPass::Type(MeshPass), uint8(MaterialSectionIndex));
+					AddRasterBin(*PrimitiveSceneInfo, PrimaryRasterBin, FallbackRasterBin, ENaniteMeshPass::Type(MeshPass), uint8(MaterialSectionIndex));
 
 					if (RasterBins)
 					{
-						RasterBins->Add(FNaniteVisibility::FRasterBin{ PrimaryRasterBin.BinIndex, SecondaryRasterBin.BinIndex });
+						RasterBins->Add(FNaniteVisibility::FRasterBin{ PrimaryRasterBin.BinIndex, FallbackRasterBin.BinIndex });
 					}
 				}
 

@@ -114,9 +114,7 @@ float2 CalculateUVDerivativeForDomainPoint(
 	float UniformScale,
 	float UVDensity )
 {
-	const bool bOrtho = NaniteView.ViewToClip[3][3] >= 1;
-	const float dUV_dTri = (bOrtho ? 1.0f : ViewZ) / (UVDensity * UniformScale * NaniteView.LODScale * InvDiceRate);
-
+	const float dUV_dTri = rcp(GetProjectedEdgeLengthAtDepth(UVDensity * UniformScale, ViewZ, NaniteView) * InvDiceRate);
 	return dUV_dTri.xx;
 }
 

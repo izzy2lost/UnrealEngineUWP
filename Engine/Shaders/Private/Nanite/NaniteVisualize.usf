@@ -317,9 +317,9 @@ void VisualizeCS(uint3 DTID : SV_DispatchThreadID, uint3 GID : SV_GroupID)
 		);
 
 		const bool bWPOEnabled = (VisibleCluster.Flags & NANITE_CULLING_FLAG_ENABLE_WPO) != 0;
-		const bool bSecondaryRasterBin = !bWPOEnabled;
+		const bool bFallbackRaster = (VisibleCluster.Flags & NANITE_CULLING_FLAG_FALLBACK_RASTER) != 0;
 
-		uint RasterBin = GetMaterialRasterBin(Cluster, InstanceData.PrimitiveId, MeshPassIndex, TriIndex, RegularMaterialRasterBinCount, bSecondaryRasterBin);
+		uint RasterBin = GetMaterialRasterBin(Cluster, InstanceData.PrimitiveId, MeshPassIndex, TriIndex, RegularMaterialRasterBinCount, bFallbackRaster);
 		RasterBin = RemapRasterBin(RasterBin, RenderFlags, MaterialFlags);
 
 		const int HierarchyOffset = InstanceData.NaniteHierarchyOffset;
@@ -569,6 +569,14 @@ void VisualizeCS(uint3 DTID : SV_DispatchThreadID, uint3 GID : SV_GroupID)
 				break;
 			}
 
+			if (bFallbackRaster &&
+				(PrimitiveData.PixelProgrammableDistanceSquared > 0.0f ||
+				 PrimitiveData.MaterialDisplacementFadeOutSize > 0.0f))
+			{
+				// We've disabled pixel programmable for this cluster
+				bHighlight = false;
+			}
+
 			Result = select(bHighlight, float3(1, 0, 0), float3(0.1, 0, 0.3));
 		}
 		else if (VisualizeMode == NANITE_VISUALIZE_LIGHTMAP_UVS)
@@ -612,8 +620,8 @@ void VisualizeCS(uint3 DTID : SV_DispatchThreadID, uint3 GID : SV_GroupID)
 		}
 		else if (VisualizeMode == NANITE_VISUALIZE_DISPLACEMENT_SCALE)
 		{
-			const float DisplacementCenter = RasterBinMeta[RasterBin].MaterialDisplacementCenter;
-			const float DisplacementMagnitude = RasterBinMeta[RasterBin].MaterialDisplacementMagnitude;
+			const float DisplacementCenter = RasterBinMeta[RasterBin].MaterialDisplacementParams.Center;
+			const float DisplacementMagnitude = RasterBinMeta[RasterBin].MaterialDisplacementParams.Magnitude;
 
 			const float MinDisplacement = (0.0f - DisplacementCenter) * DisplacementMagnitude;
 			const float MaxDisplacement = (1.0f - DisplacementCenter) * DisplacementMagnitude;
@@ -734,9 +742,9 @@ void PickingCS(uint3 DTID : SV_DispatchThreadID, uint3 GID : SV_GroupID)
 		FCluster Cluster							= GetCluster(VisibleCluster.PageIndex, VisibleCluster.ClusterIndex);
 
 		const bool bWPOEnabled = (VisibleCluster.Flags & NANITE_CULLING_FLAG_ENABLE_WPO) != 0;
-		const bool bSecondaryRasterBin = !bWPOEnabled;
+		const bool bFallbackRaster = (VisibleCluster.Flags & NANITE_CULLING_FLAG_FALLBACK_RASTER) != 0;
 
-		uint RasterBin = GetMaterialRasterBin(Cluster, InstanceData.PrimitiveId, MeshPassIndex, TriIndex, RegularMaterialRasterBinCount, bSecondaryRasterBin);
+		uint RasterBin = GetMaterialRasterBin(Cluster, InstanceData.PrimitiveId, MeshPassIndex, TriIndex, RegularMaterialRasterBinCount, bFallbackRaster);
 		RasterBin = RemapRasterBin(RasterBin, RenderFlags, MaterialFlags);
 
 		FeedbackResults.PrimitiveId			= InstanceData.PrimitiveId;
@@ -768,7 +776,7 @@ void PickingCS(uint3 DTID : SV_DispatchThreadID, uint3 GID : SV_GroupID)
 		const float4x4 LocalToTranslatedWorld = DFFastToTranslatedWorld(InstanceData.LocalToWorld, NaniteView.PreViewTranslation);
 
 		const float3 WPOExtent = GetLocalMaxWPOExtent(PrimitiveData, InstanceData, bWPOEnabled);
-		const float AbsMaxMaterialDisplacement = GetAbsMaxMaterialDisplacement(PrimitiveData);
+		const float AbsMaxMaterialDisplacement = GetAbsMaxMaterialDisplacement(PrimitiveData, bFallbackRaster);
 
 		// If WPO and/or material displacement is enabled, the cluster bounds will have been dilated to account for max displacement
 		float3 ClusterBoxBoundsCenter = Cluster.BoxBoundsCenter;

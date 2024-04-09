@@ -934,6 +934,8 @@ public:
 	ENGINE_API virtual bool IsDeferredDecal() const;
 	ENGINE_API virtual bool WritesToRuntimeVirtualTexture() const;
 	ENGINE_API virtual FDisplacementScaling GetDisplacementScaling() const;
+	ENGINE_API virtual bool IsDisplacementFadeEnabled() const;
+	ENGINE_API virtual FDisplacementFadeRange GetDisplacementFadeRange() const;
 	ENGINE_API virtual float GetMaxWorldPositionOffsetDisplacement() const;
 	ENGINE_API virtual bool ShouldAlwaysEvaluateWorldPositionOffset() const;
 	ENGINE_API virtual bool HasPixelAnimation() const;

@@ -191,6 +191,7 @@ public:
 		float MaxWPOExtent = 0.0f;
 
 		FDisplacementScaling DisplacementScaling;
+		FDisplacementFadeRange DisplacementFadeRange;
 
 		FMaterialRelevance MaterialRelevance;
 		FVector4f LocalUVDensities = FVector4f(1.0f);
@@ -207,12 +208,21 @@ public:
 
 		inline bool IsProgrammableRaster(bool bEvaluateWPO) const
 		{
-			// NOTE: MaterialRelevance.bTwoSided does not go into bHasProgrammableRaster
-			// because we want only want this flag to control culling, not a full raster bin
+			return IsVertexProgrammableRaster(bEvaluateWPO) || IsPixelProgrammableRaster();
+		}
+
+		inline bool IsVertexProgrammableRaster(bool bEvaluateWPO) const
+		{
 			return (bEvaluateWPO && MaterialRelevance.bUsesWorldPositionOffset) ||
-				MaterialRelevance.bUsesPixelDepthOffset ||
-				MaterialRelevance.bMasked ||
 				MaterialRelevance.bUsesDisplacement;
+		}
+
+		inline bool IsPixelProgrammableRaster() const
+		{
+			// NOTE: MaterialRelevance.bTwoSided does not go into bHasPixelProgrammableRaster
+			// because we want only want this flag to control culling, not a full raster bin
+			return MaterialRelevance.bUsesPixelDepthOffset ||
+				MaterialRelevance.bMasked;
 		}
 	};
 
@@ -223,7 +233,8 @@ public:
 	{
 		bIsNaniteMesh  = true;
 		bIsAlwaysVisible = SupportsAlwaysVisible();
-		bHasProgrammableRaster = false;
+		bHasVertexProgrammableRaster = false;
+		bHasPixelProgrammableRaster = false;
 		bHasDynamicDisplacement = false;
 		bReverseCulling = false;
 	#if WITH_EDITOR
@@ -236,7 +247,8 @@ public:
 	{
 		bIsNaniteMesh  = true;
 		bIsAlwaysVisible = SupportsAlwaysVisible();
-		bHasProgrammableRaster = false;
+		bHasVertexProgrammableRaster = false;
+		bHasPixelProgrammableRaster = false;
 		bHasDynamicDisplacement = false;
 		bReverseCulling = false;
 	#if WITH_EDITOR
@@ -263,9 +275,19 @@ public:
 		return false;
 	}
 
+	inline bool HasVertexProgrammableRaster() const
+	{
+		return bHasVertexProgrammableRaster;
+	}
+
+	inline bool HasPixelProgrammableRaster() const
+	{
+		return bHasPixelProgrammableRaster;
+	}
+
 	inline bool HasProgrammableRaster() const
 	{
-		return bHasProgrammableRaster;
+		return HasVertexProgrammableRaster() || HasPixelProgrammableRaster();
 	}
 
 	inline bool HasDynamicDisplacement() const
@@ -331,6 +353,13 @@ public:
 	// Nanite always uses LOD 0, and performs custom LOD streaming.
 	virtual uint8 GetCurrentFirstLODIdx_RenderThread() const override { return 0; }
 
+	inline float GetPixelProgrammableDistance() const
+	{
+		return HasPixelProgrammableRaster() ? PixelProgrammableDistance : 0.0f;
+	}
+
+	ENGINE_API float GetMaterialDisplacementFadeOutSize() const;
+
 protected:
 	ENGINE_API void DrawStaticElementsInternal(FStaticPrimitiveDrawInterface* PDI, const FLightCacheInterface* LCI);
 	ENGINE_API void OnMaterialsUpdated();
@@ -345,8 +374,11 @@ protected:
 #endif
 	int32 MaterialMaxIndex = INDEX_NONE;
 	uint32 InstanceWPODisableDistance = 0;
+	float PixelProgrammableDistance = 0.0f;
+	float MaterialDisplacementFadeOutSize = 0.0f;
 	EFilterFlags FilterFlags = EFilterFlags::None;
-	uint8 bHasProgrammableRaster : 1;
+	uint8 bHasVertexProgrammableRaster : 1;
+	uint8 bHasPixelProgrammableRaster : 1;
 	uint8 bHasDynamicDisplacement : 1;
 	uint8 bReverseCulling : 1;
 #if WITH_EDITOR

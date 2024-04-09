@@ -57,6 +57,14 @@ struct FMaterialInstanceBasePropertyOverrides
 	UPROPERTY(EditAnywhere, Category = Material)
 	uint8 bOverride_DisplacementScaling : 1;
 
+	/** Enables override of the eanble displacement fade property. */
+	UPROPERTY(EditAnywhere, Category = Material)
+	uint8 bOverride_bEnableDisplacementFade : 1;
+
+	/** Enables override of the displacement fading range. */
+	UPROPERTY(EditAnywhere, Category = Material)
+	uint8 bOverride_DisplacementFadeRange : 1;
+
 	/** Enables override of the max world position offset property. */
 	UPROPERTY(EditAnywhere, Category = Material)
 	uint8 bOverride_MaxWorldPositionOffsetDisplacement : 1;
@@ -91,6 +99,10 @@ struct FMaterialInstanceBasePropertyOverrides
 	UPROPERTY(EditAnywhere, Category = Material, meta = (editcondition = "bOverride_bEnableTessellation"))
 	uint8 bEnableTessellation : 1;
 
+	/** Whether or not displacement fade is enabled. */
+	UPROPERTY(EditAnywhere, Category = Material, meta = (editcondition = "bOverride_bEnableDisplacementFade"))
+	uint8 bEnableDisplacementFade : 1;
+	
 	/** The blend mode */
 	UPROPERTY(EditAnywhere, Category = Material, meta = (editcondition = "bOverride_BlendMode"))
 	TEnumAsByte<EBlendMode> BlendMode;
@@ -105,6 +117,9 @@ struct FMaterialInstanceBasePropertyOverrides
 
 	UPROPERTY(EditAnywhere, Category = Material, meta = (editcondition = "bOverride_DisplacementScaling"))
 	FDisplacementScaling DisplacementScaling;
+
+	UPROPERTY(EditAnywhere, Category = Material, meta = (editcondition = "bOverride_DisplacementFadeRange"))
+	FDisplacementFadeRange DisplacementFadeRange;
 
 	/** The maximum World Position Offset distance. Zero means no maximum. */
 	UPROPERTY(EditAnywhere, Category = Material, meta = (editcondition = "bOverride_MaxWorldPositionOffsetDisplacement", ClampMin=0.0f, NoSpinbox = true))

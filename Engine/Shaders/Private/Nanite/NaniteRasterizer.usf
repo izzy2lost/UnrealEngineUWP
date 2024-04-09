@@ -388,6 +388,7 @@ void ClusterRasterize( uint VisibleIndex, uint GroupThreadIndex )
 	FMaterialShader MaterialShader;
 
 #if NANITE_VERTEX_PROGRAMMABLE || NANITE_PIXEL_PROGRAMMABLE
+	MaterialShader.PrimitiveData		= PrimitiveData;
 	MaterialShader.InstanceData			= InstanceData;
 	MaterialShader.InstanceDynamicData	= InstanceDynamicData;
 	MaterialShader.NaniteView			= NaniteView;
@@ -411,8 +412,7 @@ void ClusterRasterize( uint VisibleIndex, uint GroupThreadIndex )
 
 #if NANITE_TESSELLATION
 #if USES_DISPLACEMENT
-	MaterialShader.DisplacementCenter = RasterBinMeta[ActiveRasterBin].MaterialDisplacementCenter;
-	MaterialShader.DisplacementMagnitude = RasterBinMeta[ActiveRasterBin].MaterialDisplacementMagnitude;
+	MaterialShader.InitDisplacement(RasterBinMeta[ActiveRasterBin].MaterialDisplacementParams);
 #endif
 
 	uint TriIndex = TriRange.Start + GroupThreadIndex;
@@ -886,6 +886,7 @@ void PatchRasterize( uint GroupID, uint GroupThreadIndex )
 		FMaterialShader MaterialShader;
 
 #if NANITE_VERTEX_PROGRAMMABLE || NANITE_PIXEL_PROGRAMMABLE
+		MaterialShader.PrimitiveData = GetPrimitiveData(InstanceData.PrimitiveId);
 		MaterialShader.InstanceData = InstanceData;
 		MaterialShader.InstanceDynamicData = InstanceDynamicData;
 		MaterialShader.NaniteView = NaniteView;
@@ -895,8 +896,7 @@ void PatchRasterize( uint GroupID, uint GroupThreadIndex )
 		MaterialShader.TransformedTri = MakeTransformedNaniteTriangle(Patches_Verts, PatchStartLane + uint3(0, 1, 2));
 
 #if USES_DISPLACEMENT
-		MaterialShader.DisplacementCenter = RasterBinMeta[ActiveRasterBin].MaterialDisplacementCenter;
-		MaterialShader.DisplacementMagnitude = RasterBinMeta[ActiveRasterBin].MaterialDisplacementMagnitude;
+		MaterialShader.InitDisplacement(RasterBinMeta[ActiveRasterBin].MaterialDisplacementParams);
 #endif
 
 		uint PixelValue = (SplitPatch.VisibleClusterIndex + 1) << 7;
@@ -1143,17 +1143,20 @@ VSOut CommonRasterizerVS(FNaniteView NaniteView, FPrimitiveSceneData PrimitiveDa
 	float3 WorldPositionOffset = 0.0f;
 #if NANITE_VERTEX_PROGRAMMABLE
 	FMaterialShader MaterialShader;
+	MaterialShader.PrimitiveData		= PrimitiveData;
 	MaterialShader.InstanceData			= InstanceData;
 	MaterialShader.InstanceDynamicData	= CalculateInstanceDynamicData(NaniteView, InstanceData);
 	MaterialShader.NaniteView			= NaniteView;
 	MaterialShader.Cluster 				= Cluster;
 
 #if NANITE_TESSELLATION && USES_DISPLACEMENT
-	MaterialShader.DisplacementCenter		= RasterBinMeta[ActiveRasterBin].MaterialDisplacementCenter;
-	MaterialShader.DisplacementMagnitude	= RasterBinMeta[ActiveRasterBin].MaterialDisplacementMagnitude;
+	MaterialShader.InitDisplacement(RasterBinMeta[ActiveRasterBin].MaterialDisplacementParams);
 #endif
-
-	WorldPositionOffset = MaterialShader.EvaluateWorldPositionOffset(InputVert);
+	BRANCH
+	if ( (VisibleCluster.Flags & NANITE_CULLING_FLAG_ENABLE_WPO) != 0 )
+	{		
+		WorldPositionOffset = MaterialShader.EvaluateWorldPositionOffset(InputVert);
+	}
 #endif
 	
 	const float3 PointTranslatedWorld = DFTransformLocalToTranslatedWorld(InputVert.Position, InstanceData.LocalToWorld, NaniteView.PreViewTranslation) + WorldPositionOffset;

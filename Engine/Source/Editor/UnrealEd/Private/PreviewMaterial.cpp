@@ -1010,6 +1010,14 @@ void UMaterialEditorInstanceConstant::CopyBasePropertiesFromParent()
 	{
 		BasePropertyOverrides.DisplacementScaling = SourceInstance->GetDisplacementScaling();
 	}
+	if (!BasePropertyOverrides.bOverride_bEnableDisplacementFade)
+	{
+		BasePropertyOverrides.bEnableDisplacementFade = SourceInstance->IsDisplacementFadeEnabled();
+	}
+	if (!BasePropertyOverrides.bOverride_DisplacementFadeRange)
+	{
+		BasePropertyOverrides.DisplacementFadeRange = SourceInstance->GetDisplacementFadeRange();
+	}
 	if (!BasePropertyOverrides.bOverride_MaxWorldPositionOffsetDisplacement)
 	{
 		BasePropertyOverrides.MaxWorldPositionOffsetDisplacement = SourceInstance->GetMaxWorldPositionOffsetDisplacement();

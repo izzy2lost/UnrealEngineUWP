@@ -1417,17 +1417,42 @@ BEGIN_SHADER_PARAMETER_STRUCT( FRasterizePassParameters, )
 	SHADER_PARAMETER_STRUCT_INCLUDE(FVirtualTargetParameters, VirtualShadowMap)
 END_SHADER_PARAMETER_STRUCT()
 
-static uint32 PackMaterialBitFlags(const FMaterial& RasterMaterial, bool bMaterialUsesWorldPositionOffset, bool bMaterialUsesPixelDepthOffset, bool bMaterialUsesDisplacement, bool bForceDisableWPO, bool bSplineMesh, bool bSkinnedMesh)
+static uint32 PackMaterialBitFlags(
+	const FMaterial& RasterMaterial,
+	const FNaniteRasterPipeline& RasterPipeline,
+	bool bMaterialUsesWorldPositionOffset,
+	bool bMaterialUsesPixelDepthOffset,
+	bool bMaterialUsesDisplacement)
 {
 	FNaniteMaterialFlags Flags = {0};
-	Flags.bPixelDiscard = RasterMaterial.IsMasked();
-	Flags.bPixelDepthOffset = bMaterialUsesPixelDepthOffset;
-	Flags.bWorldPositionOffset = !bForceDisableWPO && bMaterialUsesWorldPositionOffset;
-	Flags.bDisplacement = UseNaniteTessellation() && bMaterialUsesDisplacement;
-	Flags.bSplineMesh = bSplineMesh;
-	Flags.bSkinnedMesh = bSkinnedMesh;
+	Flags.bPixelDiscard = RasterPipeline.bPerPixelEval && RasterMaterial.IsMasked();
+	Flags.bPixelDepthOffset = RasterPipeline.bPerPixelEval && bMaterialUsesPixelDepthOffset;
+	Flags.bWorldPositionOffset = RasterPipeline.bWPOEnabled && bMaterialUsesWorldPositionOffset;
+	Flags.bDisplacement = UseNaniteTessellation() && RasterPipeline.bDisplacementEnabled && bMaterialUsesDisplacement;
+	Flags.bSplineMesh = RasterPipeline.bSplineMesh;
+	Flags.bSkinnedMesh = RasterPipeline.bSkinnedMesh;
 	Flags.bTwoSided = RasterMaterial.IsTwoSided();
 	return PackNaniteMaterialBitFlags(Flags);
+}
+
+static uint32 PackMaterialBitFlags_GameThread(const FMaterial& RasterMaterial, const FNaniteRasterPipeline& RasterPipeline)
+{
+	return PackMaterialBitFlags(
+		RasterMaterial,
+		RasterPipeline,
+		RasterMaterial.MaterialUsesWorldPositionOffset_GameThread(),
+		RasterMaterial.MaterialUsesPixelDepthOffset_GameThread(),
+		RasterMaterial.MaterialUsesDisplacement_GameThread());
+}
+
+static uint32 PackMaterialBitFlags_RenderThread(const FMaterial& RasterMaterial, const FNaniteRasterPipeline& RasterPipeline)
+{
+	return PackMaterialBitFlags(
+		RasterMaterial,
+		RasterPipeline,
+		RasterMaterial.MaterialUsesWorldPositionOffset_RenderThread(),
+		RasterMaterial.MaterialUsesPixelDepthOffset_RenderThread(),
+		RasterMaterial.MaterialUsesDisplacement_RenderThread());
 }
 
 class FMicropolyRasterizeCS : public FNaniteMaterialShader
@@ -2388,30 +2413,33 @@ void CollectRasterPSOInitializersForPipeline(
 	}
 	else
 	{
-		const auto AddPSOInitializers = [&](bool bForceDisableWPO)
+		const auto AddPSOInitializers = [&](bool bForceDisableWPO, bool bForceDisablePixelEvalOrDisplacement)
 		{
-			const uint32 MaterialBitFlags = PackMaterialBitFlags(
-				RasterMaterial,
-				RasterMaterial.MaterialUsesWorldPositionOffset_GameThread(),
-				RasterMaterial.MaterialUsesPixelDepthOffset_GameThread(),
-				RasterMaterial.MaterialUsesDisplacement_GameThread(),
-				bForceDisableWPO,
-				bSplineMesh,
-				bSkinnedMesh
-			);
+			// Set up a theoretical RasterPipeline that enables the feature set we're collecting for
+			// NOTE: When we force disable pixel programmable, we also force disable displacement
+			FNaniteRasterPipeline RasterPipeline;
+			RasterPipeline.bWPOEnabled = !bForceDisableWPO;
+			RasterPipeline.bDisplacementEnabled = !bForceDisablePixelEvalOrDisplacement;
+			RasterPipeline.bPerPixelEval = !bForceDisablePixelEvalOrDisplacement;
+			RasterPipeline.bSplineMesh = bSplineMesh;
+			RasterPipeline.bSkinnedMesh = bSkinnedMesh;
+
+			const uint32 MaterialBitFlags = PackMaterialBitFlags_GameThread(RasterMaterial, RasterPipeline);
 			const bool bVertexProgrammable = FNaniteMaterialShader::IsVertexProgrammable(MaterialBitFlags);
 			const bool bPixelProgrammable = FNaniteMaterialShader::IsPixelProgrammable(MaterialBitFlags);
+			const bool bIsTwoSided = MaterialBitFlags & NANITE_MATERIAL_FLAG_TWO_SIDED;
 
 			const FMeshPassProcessor::FMeshDrawingPolicyOverrideSettings OverrideSettings = FMeshPassProcessor::ComputeMeshOverrideSettings(PreCacheParams);
 			ERasterizerCullMode MeshCullMode = FMeshPassProcessor::ComputeMeshCullMode(RasterMaterial, OverrideSettings);
-			const bool bIsTwoSided = MaterialBitFlags & NANITE_MATERIAL_FLAG_TWO_SIDED;
 
 			CollectRasterPSOInitializersForPermutation(RasterMaterial, ShaderPlatform, HardwarePath, bVertexProgrammable, bPixelProgrammable, bIsTwoSided, bSplineMesh, bSkinnedMesh,
 				PermutationVectorVS, PermutationVectorMS, PermutationVectorPS, PermutationVectorCS_Cluster, PSOCollectorIndex, PSOInitializers);
 		};
 
-		AddPSOInitializers(true /*bForceDisableWPO*/);
-		AddPSOInitializers(false /*bForceDisableWPO*/);
+		// Add initializers for all features that can be toggled in fallback bins (NOTE: can't disable both)
+		AddPSOInitializers(false /*bForceDisableWPO*/, false /*bForceDisablePixelEvalOrDisplacement*/);
+		AddPSOInitializers(false /*bForceDisableWPO*/, true /*bForceDisablePixelEvalOrDisplacement*/);
+		AddPSOInitializers(true /*bForceDisableWPO*/, false /*bForceDisablePixelEvalOrDisplacement*/);
 	}
 }
 
@@ -2508,6 +2536,23 @@ static void AddPassInitNodesAndClusterBatchesUAV( FRDGBuilder& GraphBuilder, FGl
 			PassParameters,
 			FComputeShaderUtils::GetGroupCountWrapped(Nanite::FGlobalResources::GetMaxClusterBatches(), 64)
 		);
+	}
+}
+
+/** Creates a line slope/offset to calculate displacement fade from max displacement in terms of on-screen triangle size */
+static void CalcDisplacementFadeSizes(const FDisplacementFadeRange& Range, float& FadeSizeStart, float& FadeSizeStop)
+{
+	const float EdgesPerPixel = 1.0f / CVarNaniteMaxPixelsPerEdge.GetValueOnRenderThread();
+	if (!Range.IsValid())
+	{
+		FadeSizeStart = FadeSizeStop = 0.0f;
+	}
+	else
+	{
+		// Ensure a non-zero domain, a negative slope, and that it doesn't converge at zero
+		FVector2f RangeEdges;
+		FadeSizeStop = EdgesPerPixel * FMath::Max(Range.EndSizePixels, UE_KINDA_SMALL_NUMBER);
+		FadeSizeStart = EdgesPerPixel * FMath::Max(Range.StartSizePixels, Range.EndSizePixels + UE_KINDA_SMALL_NUMBER);
 	}
 }
 
@@ -4054,21 +4099,20 @@ void FRenderer::PrepareRasterizerPasses(
 			else
 			{
 				const FMaterial& RasterMaterial = RasterizerPass.RasterPipeline.RasterMaterial->GetIncompleteMaterialWithFallback(FeatureLevel);
-				MaterialBitFlags = PackMaterialBitFlags(
-					RasterMaterial,
-					RasterMaterial.MaterialUsesWorldPositionOffset_RenderThread(),
-					RasterMaterial.MaterialUsesPixelDepthOffset_RenderThread(),
-					RasterMaterial.MaterialUsesDisplacement_RenderThread(),
-					RasterEntry.bForceDisableWPO,
-					RasterEntry.RasterPipeline.bSplineMesh,
-					RasterEntry.RasterPipeline.bSkinnedMesh
-				);
+				MaterialBitFlags = PackMaterialBitFlags_RenderThread(RasterMaterial, RasterEntry.RasterPipeline);
+
 				RasterMaterialCache.MaterialBitFlags = MaterialBitFlags;
 				RasterMaterialCache.DisplacementScaling = RasterizerPass.RasterPipeline.DisplacementScaling;
+				RasterMaterialCache.DisplacementFadeRange = RasterizerPass.RasterPipeline.DisplacementFadeRange;
 			}
 
-			BinMeta.MaterialDisplacementCenter = RasterMaterialCache.DisplacementScaling->Center;
-			BinMeta.MaterialDisplacementMagnitude = RasterMaterialCache.DisplacementScaling->Magnitude;
+			BinMeta.MaterialDisplacementParams.Center = RasterMaterialCache.DisplacementScaling->Center;
+			BinMeta.MaterialDisplacementParams.Magnitude = RasterMaterialCache.DisplacementScaling->Magnitude;
+			CalcDisplacementFadeSizes(
+				*RasterMaterialCache.DisplacementFadeRange,
+				BinMeta.MaterialDisplacementParams.FadeSizeStart,
+				BinMeta.MaterialDisplacementParams.FadeSizeStop
+			);
 
 			RasterizerPass.bVertexProgrammable = FNaniteMaterialShader::IsVertexProgrammable(MaterialBitFlags);
 			RasterizerPass.bPixelProgrammable = FNaniteMaterialShader::IsPixelProgrammable(MaterialBitFlags);
@@ -4253,10 +4297,11 @@ void FRenderer::PrepareRasterizerPasses(
 			if (bUseSetupCache)
 			{
 				RasterMaterialCacheKey.FeatureLevel = FeatureLevel;
-				RasterMaterialCacheKey.bForceDisableWPO = RasterEntry.bForceDisableWPO;
+				RasterMaterialCacheKey.bWPOEnabled = RasterEntry.RasterPipeline.bWPOEnabled;
+				RasterMaterialCacheKey.bPerPixelEval = RasterEntry.RasterPipeline.bPerPixelEval;
 				RasterMaterialCacheKey.bUseMeshShader = IsMeshShaderRasterPath(HardwarePath);
 				RasterMaterialCacheKey.bUsePrimitiveShader = HardwarePath == ERasterHardwarePath::PrimitiveShader;
-				RasterMaterialCacheKey.bUseDisplacement = UseNaniteTessellation();
+				RasterMaterialCacheKey.bDisplacementEnabled = RasterEntry.RasterPipeline.bDisplacementEnabled;
 				RasterMaterialCacheKey.bVisualizeActive = VisualizeActive;
 				RasterMaterialCacheKey.bHasVirtualShadowMap = bHasVirtualShadowMap;
 				RasterMaterialCacheKey.bIsDepthOnly = RasterMode == EOutputBufferMode::DepthOnly;

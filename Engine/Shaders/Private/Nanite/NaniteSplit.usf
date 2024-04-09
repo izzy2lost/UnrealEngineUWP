@@ -196,7 +196,7 @@ uint FSplitTask::Run()
 	BoundsExtent += GetLocalMaxWPOExtent( PrimitiveData, InstanceData, bWPOEnabled );
 
 	FBoxCull Cull;
-	Cull.Init( NaniteView, BoundsCenter, BoundsExtent, InstanceData.NonUniformScale.xyz, InstanceDynamicData.LocalToTranslatedWorld, InstanceDynamicData.PrevLocalToTranslatedWorld );
+	Cull.Init( NaniteView, BoundsCenter, BoundsExtent, InstanceData.NonUniformScale, InstanceDynamicData.LocalToTranslatedWorld, InstanceDynamicData.PrevLocalToTranslatedWorld );
 	Cull.Distance();
 	Cull.GlobalClipPlane();
 

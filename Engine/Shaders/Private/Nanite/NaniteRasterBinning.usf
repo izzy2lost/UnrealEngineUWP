@@ -97,14 +97,14 @@ uint GetRemappedRasterBinFromIndex(
 	uint InPrimitiveIndex,
 	uint InRegularRasterBinCount,
 	uint InRenderFlags,
-	bool bSecondaryRasterBin)
+	bool bFallbackRasterBin)
 {
 	uint RasterBin = GetMaterialRasterBinFromIndex(
 		InRelativeMaterialIndex,
 		InPrimitiveIndex,
 		MeshPassIndex,
 		InRegularRasterBinCount,
-		bSecondaryRasterBin
+		bFallbackRasterBin
 	);
 
 	const FNaniteMaterialFlags MaterialFlags = GetRasterBinMaterialFlags(RasterBin);
@@ -414,7 +414,7 @@ void RasterBinBuild(uint RelativeClusterIndex : SV_DispatchThreadID, uint GroupT
 			InstanceData.PrimitiveId,
 			RegularMaterialRasterBinCount,
 			RenderFlags,
-			/* Secondary Bin */ false
+			/* bFallbackRasterBin */ false
 		);
 
 		uint IndexInBin = 0;
@@ -483,8 +483,7 @@ void RasterBinBuild(uint RelativeClusterIndex : SV_DispatchThreadID, uint GroupT
 		FVisibleCluster VisibleCluster		= GetVisibleCluster(VisibleClusterIndex, VIRTUAL_TEXTURE_TARGET);
 		FInstanceSceneData InstanceData		= GetInstanceSceneData(VisibleCluster, false);
 		FCluster Cluster					= GetCluster(VisibleCluster.PageIndex, VisibleCluster.ClusterIndex);
-		const bool bWPOEnabled				= (VisibleCluster.Flags & NANITE_CULLING_FLAG_ENABLE_WPO) != 0;
-		const bool bSecondaryBin			= !bWPOEnabled; // use secondary bin where applicable when WPO disabled
+		const bool bFallbackBin				= (VisibleCluster.Flags & NANITE_CULLING_FLAG_FALLBACK_RASTER) != 0;
 		const bool bMergeRanges				= false;	// Merging ranges is incompatible with tessellation. Cluster rasterizer assumes UVDensities is uniform. 	// TODO: Reenable it for non-tessellation materials?
 
 		BRANCH
@@ -510,19 +509,19 @@ void RasterBinBuild(uint RelativeClusterIndex : SV_DispatchThreadID, uint GroupT
 
 			// The 0th material range is always non-zero length
 			{
-				RasterBin0 = GetRemappedRasterBinFromIndex(Cluster.Material0Index, InstanceData.PrimitiveId, RegularMaterialRasterBinCount, RenderFlags, bSecondaryBin);
+				RasterBin0 = GetRemappedRasterBinFromIndex(Cluster.Material0Index, InstanceData.PrimitiveId, RegularMaterialRasterBinCount, RenderFlags, bFallbackBin);
 			}
 
 			BRANCH
 			if (Cluster.Material1Length > 0u)
 			{
-				RasterBin1 = GetRemappedRasterBinFromIndex(Cluster.Material1Index, InstanceData.PrimitiveId, RegularMaterialRasterBinCount, RenderFlags, bSecondaryBin);
+				RasterBin1 = GetRemappedRasterBinFromIndex(Cluster.Material1Index, InstanceData.PrimitiveId, RegularMaterialRasterBinCount, RenderFlags, bFallbackBin);
 			}
 
 			BRANCH
 			if (Material2Length > 0)
 			{
-				RasterBin2 = GetRemappedRasterBinFromIndex(Cluster.Material2Index, InstanceData.PrimitiveId, RegularMaterialRasterBinCount, RenderFlags, bSecondaryBin);
+				RasterBin2 = GetRemappedRasterBinFromIndex(Cluster.Material2Index, InstanceData.PrimitiveId, RegularMaterialRasterBinCount, RenderFlags, bFallbackBin);
 			}
 
 			RasterLen0 = Cluster.Material0Length;
@@ -593,7 +592,7 @@ void RasterBinBuild(uint RelativeClusterIndex : SV_DispatchThreadID, uint GroupT
 				uint MaterialIndex;
 				DecodeMaterialRange(EncodedRange, TriStart, TriLength, MaterialIndex);
 
-				const uint RasterBinN = GetRemappedRasterBinFromIndex(MaterialIndex, InstanceData.PrimitiveId, RegularMaterialRasterBinCount, RenderFlags, bSecondaryBin);
+				const uint RasterBinN = GetRemappedRasterBinFromIndex(MaterialIndex, InstanceData.PrimitiveId, RegularMaterialRasterBinCount, RenderFlags, bFallbackBin);
 
 				const uint BatchCount = BitStreamReader_Read_RO(ClusterPageData, BatchCountStreamState, 4, 4);
 

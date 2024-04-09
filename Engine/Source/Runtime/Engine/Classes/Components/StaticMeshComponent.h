@@ -331,6 +331,10 @@ public:
 	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadWrite, Category=TextureStreaming, meta=(ClampMin = 0, ToolTip="Allows adjusting the desired resolution of streaming textures that uses UV 0.  1.0 is the default, whereas a higher value increases the streamed-in resolution."))
 	float StreamingDistanceMultiplier;
 
+	/** Used to forcefully disable pixel programmable rasterization of Nanite when the mesh is further than a given distance from the camera. */
+	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadOnly, Category=Rendering)
+	float NanitePixelProgrammableDistance;
+
 #if WITH_EDITORONLY_DATA
 	UPROPERTY()
 	TArray<FGuid> IrrelevantLights_DEPRECATED;

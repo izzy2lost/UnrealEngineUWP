@@ -144,6 +144,8 @@ struct FPrimitiveSceneData
 	uint		NaniteRayTracingDataOffset;
 	float		MaxWPOExtent;
 	uint		CustomStencilValueAndMask;
+	float		PixelProgrammableDistanceSquared;
+	float		MaterialDisplacementFadeOutSize;
 	float4		CustomPrimitiveData[NUM_CUSTOM_PRIMITIVE_DATA]; // TODO: Move to associated array to shrink primitive data and pack cachelines more effectively
 };
 
@@ -217,6 +219,8 @@ FPrimitiveSceneData GetPrimitiveDataFromUniformBuffer()
 	PrimitiveData.MinMaterialDisplacement			= Primitive.MinMaterialDisplacement;
 	PrimitiveData.MaxMaterialDisplacement			= Primitive.MaxMaterialDisplacement;
 	PrimitiveData.CustomStencilValueAndMask			= Primitive.CustomStencilValueAndMask;
+	PrimitiveData.PixelProgrammableDistanceSquared	= Primitive.PixelProgrammableDistanceSquared;
+	PrimitiveData.MaterialDisplacementFadeOutSize	= Primitive.MaterialDisplacementFadeOutSize;
 	
 	UNROLL
 	for (int DataIndex = 0; DataIndex < NUM_CUSTOM_PRIMITIVE_DATA; ++DataIndex)
@@ -461,6 +465,8 @@ FPrimitiveSceneData GetPrimitiveData(uint PrimitiveId)
 	PrimitiveData.NaniteRayTracingDataOffset			= asuint(LoadPrimitivePrimitiveSceneDataElement(PrimitiveIndex, 31).w);
 	PrimitiveData.MaxWPOExtent							= LoadPrimitivePrimitiveSceneDataElement(PrimitiveIndex, 32).x;
 	PrimitiveData.CustomStencilValueAndMask				= asuint(LoadPrimitivePrimitiveSceneDataElement(PrimitiveIndex, 32).y);
+	PrimitiveData.PixelProgrammableDistanceSquared		= LoadPrimitivePrimitiveSceneDataElement(PrimitiveIndex, 32).z;
+	PrimitiveData.MaterialDisplacementFadeOutSize		= LoadPrimitivePrimitiveSceneDataElement(PrimitiveIndex, 32).w;
 
 	// NOTE: Please make sure GetPrimitiveDataFromUniformBuffer() gets updated as well when adding new members here
 

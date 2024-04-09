@@ -4796,19 +4796,19 @@ public:
 		}
 
 		bool bAnySectionMasked = false;
-		bHasProgrammableRaster = false;
+		bHasPixelProgrammableRaster = false;
 
 		for (::Nanite::FSceneProxyBase::FMaterialSection& MaterialSection : MaterialSections)
 		{
 			const bool bWasMasked = MaterialSection.MaterialRelevance.bMasked;
 			MaterialSection.MaterialRelevance.bMasked = false;
 
-			if (MaterialSection.IsProgrammableRaster(bEvaluateWorldPositionOffset))
+			if (MaterialSection.IsPixelProgrammableRaster())
 			{
 				// Don't change bMasked if it is not the sole factor that makes the material section programmable
 				MaterialSection.MaterialRelevance.bMasked = bWasMasked;
 				bAnySectionMasked |= bWasMasked;
-				bHasProgrammableRaster = true;
+				bHasPixelProgrammableRaster = true;
 			}
 			else
 			{

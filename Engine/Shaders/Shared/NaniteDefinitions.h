@@ -152,11 +152,12 @@
 
 #define NANITE_RAY_TRACING_NODE_DATA_SIZE_IN_BYTES			80
 
-#define NANITE_NUM_CULLING_FLAG_BITS						4
-#define NANITE_CULLING_FLAG_TEST_LOD						0x1
-#define NANITE_CULLING_FLAG_USE_HW							0x2
-#define NANITE_CULLING_FLAG_CACHE_AS_STATIC					0x4
-#define NANITE_CULLING_FLAG_ENABLE_WPO						0x8
+#define NANITE_NUM_CULLING_FLAG_BITS						5
+#define NANITE_CULLING_FLAG_TEST_LOD						(1u << 0u)
+#define NANITE_CULLING_FLAG_USE_HW							(1u << 1u)
+#define NANITE_CULLING_FLAG_CACHE_AS_STATIC					(1u << 2u)
+#define NANITE_CULLING_FLAG_ENABLE_WPO						(1u << 3u)
+#define NANITE_CULLING_FLAG_FALLBACK_RASTER					(1u << 4u)
 
 #define NANITE_CULLING_TYPE_NODES							0
 #define NANITE_CULLING_TYPE_CLUSTERS						1
@@ -216,12 +217,14 @@
 
 // Only available with the DEBUG_FLAGS permutation active.
 // Default value (no debug) is 0
-#define NANITE_DEBUG_FLAG_DISABLE_CULL_HZB					0x1
-#define NANITE_DEBUG_FLAG_DISABLE_CULL_FRUSTUM				0x2
-#define NANITE_DEBUG_FLAG_DISABLE_CULL_DRAW_DISTANCE		0x4
-#define NANITE_DEBUG_FLAG_DISABLE_CULL_GLOBAL_CLIP_PLANE	0x8
-#define NANITE_DEBUG_FLAG_DISABLE_WPO_DISABLE_DISTANCE		0x10
-#define NANITE_DEBUG_FLAG_DRAW_ONLY_ROOT_DATA				0x20
+#define NANITE_DEBUG_FLAG_DISABLE_CULL_HZB							0x1
+#define NANITE_DEBUG_FLAG_DISABLE_CULL_FRUSTUM						0x2
+#define NANITE_DEBUG_FLAG_DISABLE_CULL_DRAW_DISTANCE				0x4
+#define NANITE_DEBUG_FLAG_DISABLE_CULL_GLOBAL_CLIP_PLANE			0x8
+#define NANITE_DEBUG_FLAG_DISABLE_WPO_DISABLE_DISTANCE				0x10
+#define NANITE_DEBUG_FLAG_DISABLE_PIXEL_PROGRAMMABLE_DISTANCE		0x20
+#define NANITE_DEBUG_FLAG_DISABLE_DISPLACEMENT_FADE_OUT_DISTANCE	0x40
+#define NANITE_DEBUG_FLAG_DRAW_ONLY_ROOT_DATA						0x80
 
 #define NANITE_RASTER_BIN_INIT			0
 #define NANITE_RASTER_BIN_COUNT			1
@@ -457,6 +460,14 @@ struct FNanitePickingFeedback
 	UINT_TYPE LegacyShadingId;
 };
 
+struct FNaniteMaterialDisplacementParams
+{
+	float Center;
+	float Magnitude;
+	float FadeSizeStart;
+	float FadeSizeStop;
+};
+
 struct FNaniteRasterBinMeta
 {
 	UINT_TYPE BinSWCount;
@@ -464,8 +475,7 @@ struct FNaniteRasterBinMeta
 	UINT_TYPE ClusterOffset;
 	UINT_TYPE MaterialFlags;
 
-	float MaterialDisplacementCenter;
-	float MaterialDisplacementMagnitude;
+	FNaniteMaterialDisplacementParams MaterialDisplacementParams;
 };
 
 struct FNaniteShadingBinMeta

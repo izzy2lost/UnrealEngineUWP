@@ -173,8 +173,9 @@ void TransformNodeCullingBounds(
 	// Extend the bounds for WPO or displacement
 	// NOTE: always extend the bounds if any material ignores the Enable WPO flag
 	const bool bEnableWPO = (CullingFlags & NANITE_CULLING_FLAG_ENABLE_WPO) != 0u;
+	const bool bFallbackRaster = (CullingFlags & NANITE_CULLING_FLAG_FALLBACK_RASTER);
 	const float3 LocalWPOExtent = GetLocalMaxWPOExtent(PrimitiveData, InstanceData, bEnableWPO);
-	Bounds.BoxExtent += LocalWPOExtent + GetAbsMaxMaterialDisplacement(PrimitiveData);
+	Bounds.BoxExtent += LocalWPOExtent + GetAbsMaxMaterialDisplacement(PrimitiveData, bFallbackRaster);
 
 	if ((PrimitiveData.Flags & PRIMITIVE_SCENE_DATA_FLAG_SKINNED_MESH) != 0)
 	{
@@ -365,7 +366,7 @@ struct FNaniteTraversalClusterCullCallback
 			TransformNodeCullingBounds(PrimitiveData, InstanceData, CandidateNode.Flags, NodeBounds);
 
 			FBoxCull Cull;
-			Cull.Init( NaniteView, NodeBounds.BoxCenter, NodeBounds.BoxExtent, InstanceData.NonUniformScale.xyz, DynamicData.LocalToTranslatedWorld, DynamicData.PrevLocalToTranslatedWorld );
+			Cull.Init( NaniteView, NodeBounds.BoxCenter, NodeBounds.BoxExtent, InstanceData.NonUniformScale, DynamicData.LocalToTranslatedWorld, DynamicData.PrevLocalToTranslatedWorld );
 			Cull.Distance();
 			Cull.GlobalClipPlane();
 
@@ -558,7 +559,7 @@ struct FNaniteTraversalClusterCullCallback
 		bool bUseHWRaster = false;
 		
 		FBoxCull Cull;
-		Cull.Init( NaniteView, ClusterBounds.BoxCenter, ClusterBounds.BoxExtent, InstanceData.NonUniformScale.xyz, DynamicData.LocalToTranslatedWorld, DynamicData.PrevLocalToTranslatedWorld );
+		Cull.Init( NaniteView, ClusterBounds.BoxCenter, ClusterBounds.BoxExtent, InstanceData.NonUniformScale, DynamicData.LocalToTranslatedWorld, DynamicData.PrevLocalToTranslatedWorld );
 		Cull.Distance();
 		Cull.GlobalClipPlane();
 

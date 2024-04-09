@@ -466,8 +466,11 @@ class UMaterial : public UMaterialInterface
 	UPROPERTY(EditAnywhere, Category=Nanite, meta = (EditInline, ShowOnlyInnerProperties))
 	FMaterialOverrideNanite NaniteOverrideMaterial;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Nanite, meta = (DisplayName = "Displacement", EditCondition="bEnableTessellation"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Nanite, meta = (DisplayName = "Displacement", EditCondition="bEnableTessellation", DisplayAfter="bEnableTessellation"))
 	FDisplacementScaling DisplacementScaling;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Nanite, meta = (DisplayName = "Displacement Fade", EditCondition="bEnableDisplacementFade", DisplayAfter="DisplacementScaling"))
+	FDisplacementFadeRange DisplacementFadeRange;
 
 private:
 	/** Determines how inputs are combined to create the material's final color. */
@@ -549,6 +552,10 @@ public:
 	/** Whether tessellation is enabled on the material. NOTE: Required for displacement to work. */
 	UPROPERTY(EditAnywhere, Category=Nanite)
 	uint8 bEnableTessellation : 1;
+
+	/** Enables fading out and disabling of dynamic displacement in the distance, as displacement becomes unnoticeable */
+	UPROPERTY(EditAnywhere, Category=Nanite, meta=(EditCondition="bEnableTessellation", InlineEditConditionToggle))
+	uint8 bEnableDisplacementFade : 1;
 
 	/**
 	 * Specifies the separate pass in which to render translucency.
@@ -1175,6 +1182,8 @@ public:
 	ENGINE_API virtual bool CastsRayTracedShadows() const override;
 	ENGINE_API virtual bool IsTessellationEnabled() const override;
 	ENGINE_API virtual FDisplacementScaling GetDisplacementScaling() const override;
+	ENGINE_API virtual bool IsDisplacementFadeEnabled() const override;
+	ENGINE_API virtual FDisplacementFadeRange GetDisplacementFadeRange() const override;
 	ENGINE_API virtual float GetMaxWorldPositionOffsetDisplacement() const override;
 	ENGINE_API virtual bool ShouldAlwaysEvaluateWorldPositionOffset() const override;
 	ENGINE_API virtual bool HasPixelAnimation() const override;

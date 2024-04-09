@@ -895,6 +895,12 @@ void PatchViewState(FNaniteView NaniteView, inout ViewState InOutView)
 #endif
 }
 
+float GetProjectedEdgeLengthAtDepth(float InLength, float ViewZ, FNaniteView NaniteView)
+{
+	const bool bOrtho = NaniteView.ViewToClip[3][3] >= 1;
+	return (InLength * NaniteView.LODScale) / (bOrtho ? 1.0f : ViewZ);
+}
+
 void WriteDispatchArgsSWHW(RWBuffer<uint> RasterizerArgsSWHW, uint ArgsOffset, uint NumClustersSW, uint NumClustersHW)
 {
 	RasterizerArgsSWHW[ArgsOffset + 0] = (NumClustersSW + 63u) / 64u;			// SW: ThreadGroupCountX

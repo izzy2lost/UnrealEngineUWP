@@ -1885,11 +1885,104 @@ FNaniteRasterPipeline FNaniteRasterPipeline::GetFixedFunctionPipeline(bool bIsTw
 	FNaniteRasterPipeline Pipeline;
 	Pipeline.RasterMaterial = UMaterial::GetDefaultMaterial(MD_Surface)->GetRenderProxy();
 	Pipeline.bIsTwoSided = bIsTwoSided;
+	Pipeline.bWPOEnabled = false;
+	Pipeline.bDisplacementEnabled = false;
+	Pipeline.bPerPixelEval = false;
 	Pipeline.bSplineMesh = bSplineMesh;
 	Pipeline.bSkinnedMesh = bSkinnedMesh;
-	Pipeline.bPerPixelEval = false;
-	Pipeline.bWPODisableDistance = false;
+	Pipeline.bHasWPODistance = false;
+	Pipeline.bHasPixelDistance = false;
+	Pipeline.bHasDisplacementFadeOut = false;
 	return Pipeline;
+}
+
+uint32 FNaniteRasterPipeline::GetPipelineHash() const
+{
+	struct FHashKey
+	{
+		uint32 MaterialFlags;
+		uint32 MaterialHash;
+
+		FDisplacementScaling DisplacementScaling;
+		FDisplacementFadeRange DisplacementFadeRange;
+
+		static inline uint32 PointerHash(const void* Key)
+		{
+		#if PLATFORM_64BITS
+			// Ignoring the lower 4 bits since they are likely zero anyway.
+			// Higher bits are more significant in 64 bit builds.
+			return reinterpret_cast<UPTRINT>(Key) >> 4;
+		#else
+			return reinterpret_cast<UPTRINT>(Key);
+		#endif
+		};
+
+	} HashKey;
+
+	HashKey.MaterialFlags  = 0;
+	HashKey.MaterialFlags |= bIsTwoSided ? 0x1u : 0x0u;
+	HashKey.MaterialFlags |= bWPOEnabled ? 0x2u : 0x0u;
+	HashKey.MaterialFlags |= bDisplacementEnabled ? 0x4u : 0x0u;
+	HashKey.MaterialFlags |= bPerPixelEval ? 0x8u : 0x0u;
+	HashKey.MaterialFlags |= bSplineMesh ? 0x10u : 0x0u;
+	HashKey.MaterialFlags |= bSkinnedMesh ? 0x20u : 0x0u;
+	HashKey.MaterialHash   = FHashKey::PointerHash(RasterMaterial);
+
+	// Don't let displacement options affect the hash if displacement is disabled
+	if (bDisplacementEnabled)
+	{
+		HashKey.DisplacementScaling = DisplacementScaling;
+		HashKey.DisplacementFadeRange = DisplacementFadeRange;
+	}
+
+	const uint64 PipelineHash = CityHash64((char*)&HashKey, sizeof(FHashKey));
+	return HashCombineFast(uint32(PipelineHash & 0xFFFFFFFF), uint32((PipelineHash >> 32) & 0xFFFFFFFF));
+}
+
+bool FNaniteRasterPipeline::GetFallbackPipeline(FNaniteRasterPipeline& OutFallback) const
+{
+	// NOTE: Ordering matters here. We don't want to have to create many bins to handle enabled/disabled state of
+	// pixel programmable, WPO, and displacement, so when we have overlap, WPO disabled clusters rely on branching
+	// rather than using simpler shaders until either pixel programmable distance or displacement fade-out occurs,
+	// and when either pixel programmable or displacement is disabled, both are.
+	if ((bPerPixelEval && bHasPixelDistance) || (bDisplacementEnabled && bHasDisplacementFadeOut))
+	{
+		if (bWPOEnabled)
+		{
+			// The fallback bin must still be a programmable bin, but with pixel programmable and displacement disabled
+			OutFallback = *this;
+			OutFallback.bHasWPODistance = false;
+			OutFallback.bHasPixelDistance = false;
+			OutFallback.bHasDisplacementFadeOut = false;
+			OutFallback.bPerPixelEval = false;
+			OutFallback.bDisplacementEnabled = false;
+		}
+		else
+		{
+			// The fallback bin can be a non-programmable, fixed-function bin
+			OutFallback = GetFixedFunctionPipeline(bIsTwoSided, bSplineMesh, bSkinnedMesh);
+		}
+
+		return true;
+	}
+	else if (bHasWPODistance)
+	{
+		if (bPerPixelEval || bDisplacementEnabled)
+		{
+			// The fallback bin must still be a programmable bin, but with WPO force disabled.
+			OutFallback = *this;
+			OutFallback.bHasWPODistance = false;
+			OutFallback.bWPOEnabled = false;
+		}
+		else
+		{
+			// The fallback bin can be a non-programmable, fixed-function bin
+			OutFallback = GetFixedFunctionPipeline(bIsTwoSided, bSplineMesh, bSkinnedMesh);
+		}
+		return true;
+	}
+
+	return false;
 }
 
 FNaniteRasterPipelines::FNaniteRasterPipelines()
@@ -2010,7 +2103,6 @@ FNaniteRasterBin FNaniteRasterPipelines::Register(const FNaniteRasterPipeline& I
 		// First reference
 		RasterEntry.RasterPipeline = InRasterPipeline;
 		RasterEntry.BinIndex = AllocateBin(InRasterPipeline.bPerPixelEval);
-		RasterEntry.bForceDisableWPO = InRasterPipeline.bForceDisableWPO;
 	}
 
 	++RasterEntry.ReferenceCount;

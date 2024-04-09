@@ -2631,7 +2631,8 @@ void FStaticMeshSceneProxyDesc::InitializeFrom(const UStaticMeshComponent* InCom
 
 	ForcedLodModel = InComponent->ForcedLodModel ;
 	MinLOD = InComponent->MinLOD ;
-	WorldPositionOffsetDisableDistance = InComponent->WorldPositionOffsetDisableDistance ;	
+	WorldPositionOffsetDisableDistance = InComponent->WorldPositionOffsetDisableDistance ;
+	NanitePixelProgrammableDistance = InComponent->NanitePixelProgrammableDistance;
 	bReverseCulling = InComponent->bReverseCulling ;
 #if STATICMESH_ENABLE_DEBUG_RENDERING
 	bDrawMeshCollisionIfComplex = InComponent->bDrawMeshCollisionIfComplex ;

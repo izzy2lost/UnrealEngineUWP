@@ -147,7 +147,7 @@ bool IsInstanceVisible(FPrimitiveSceneData PrimitiveData, FInstanceSceneData Ins
 			NaniteView,
 			InstanceData.LocalBoundsCenter,
 			InstanceData.LocalBoundsExtent,
-			InstanceData.NonUniformScale.xyz,
+			InstanceData.NonUniformScale,
 			DynamicData.LocalToTranslatedWorld,
 			DynamicData.PrevLocalToTranslatedWorld );
 

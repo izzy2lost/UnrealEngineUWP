@@ -1718,6 +1718,16 @@ FDisplacementScaling UMaterialInstanceDynamic::GetDisplacementScaling() const
 	return Parent ? Parent->GetDisplacementScaling() : FDisplacementScaling();
 }
 
+bool UMaterialInstanceDynamic::IsDisplacementFadeEnabled() const
+{
+	return Parent ? Parent->IsDisplacementFadeEnabled() : false;
+}
+
+FDisplacementFadeRange UMaterialInstanceDynamic::GetDisplacementFadeRange() const
+{
+	return Parent ? Parent->GetDisplacementFadeRange() : FDisplacementFadeRange();
+}
+
 float UMaterialInstanceDynamic::GetMaxWorldPositionOffsetDisplacement() const
 {
 	return Parent ? Parent->GetMaxWorldPositionOffsetDisplacement() : 0.0f;
@@ -2094,6 +2104,8 @@ void UMaterialInstance::UpdateOverridableBaseProperties()
 		bHasPixelAnimation = false;
 		bEnableTessellation = false;
 		DisplacementScaling = FDisplacementScaling();
+		bEnableDisplacementFade = false;
+		DisplacementFadeRange = FDisplacementFadeRange();
 		MaxWorldPositionOffsetDisplacement = 0.0f;
 		return;
 	}
@@ -2244,6 +2256,26 @@ void UMaterialInstance::UpdateOverridableBaseProperties()
 	{
 		DisplacementScaling = Parent->GetDisplacementScaling();
 		BasePropertyOverrides.DisplacementScaling = DisplacementScaling;
+	}
+
+	if (BasePropertyOverrides.bOverride_bEnableDisplacementFade)
+	{
+		bEnableDisplacementFade = BasePropertyOverrides.bEnableDisplacementFade;
+	}
+	else
+	{
+		bEnableDisplacementFade = Parent->IsDisplacementFadeEnabled();
+		BasePropertyOverrides.bEnableDisplacementFade = bEnableDisplacementFade;
+	}
+
+	if (BasePropertyOverrides.bOverride_DisplacementFadeRange)
+	{
+		DisplacementFadeRange = BasePropertyOverrides.DisplacementFadeRange;
+	}
+	else
+	{
+		DisplacementFadeRange = Parent->GetDisplacementFadeRange();
+		BasePropertyOverrides.DisplacementFadeRange = DisplacementFadeRange;
 	}
 
 	if (BasePropertyOverrides.bOverride_MaxWorldPositionOffsetDisplacement)
@@ -4442,6 +4474,8 @@ void UMaterialInstance::GetBasePropertyOverridesHash(FSHAHash& OutHash)const
 	GetPropertyOverrideHash(HasPixelAnimation(), Mat->HasPixelAnimation(), TEXT("bOverride_bHasPixelAnimation"));
 	GetPropertyOverrideHash(IsTessellationEnabled(), Mat->IsTessellationEnabled(), TEXT("bOverride_bEnableTessellation"));
 	GetPropertyOverrideHash(GetDisplacementScaling(), Mat->GetDisplacementScaling(), TEXT("bOverride_DisplacementScaling"));
+	GetPropertyOverrideHash(IsDisplacementFadeEnabled(), Mat->IsDisplacementFadeEnabled(), TEXT("bOverride_bEnableDisplacementFade"));
+	GetPropertyOverrideHash(GetDisplacementFadeRange(), Mat->GetDisplacementFadeRange(), TEXT("bOverride_DisplacementFadeRange"));
 	GetPropertyOverrideHash(GetMaxWorldPositionOffsetDisplacement(), Mat->GetMaxWorldPositionOffsetDisplacement(), TEXT("bOverride_MaxWorldPositionOffsetDisplacement"));
 	
 	if (bHasOverrides)
@@ -4451,28 +4485,29 @@ void UMaterialInstance::GetBasePropertyOverridesHash(FSHAHash& OutHash)const
 	}
 }
 
-bool UMaterialInstance::HasOverridenBaseProperties()const
+bool UMaterialInstance::HasOverridenBaseProperties() const
 {
 	const UMaterial* Material = GetMaterial_Concurrent();
-	if (Parent && Material && Material->bUsedAsSpecialEngineMaterial == false &&
-		(!FMath::IsNearlyEqual(GetOpacityMaskClipValue(), Parent->GetOpacityMaskClipValue()) ||
-		(GetBlendMode() != Parent->GetBlendMode()) ||
-		(GetShadingModels() != Parent->GetShadingModels()) ||
-		(IsTwoSided() != Parent->IsTwoSided()) ||
-		(IsThinSurface() != Parent->IsThinSurface()) ||
-		(IsDitheredLODTransition() != Parent->IsDitheredLODTransition()) ||
-		(GetCastDynamicShadowAsMasked() != Parent->GetCastDynamicShadowAsMasked()) ||
-		(IsTranslucencyWritingVelocity() != Parent->IsTranslucencyWritingVelocity()) ||
-		(HasPixelAnimation() != Parent->HasPixelAnimation()) ||
-		(IsTessellationEnabled() != Parent->IsTessellationEnabled()) ||
-		(GetDisplacementScaling() != Parent->GetDisplacementScaling()) ||
-		!FMath::IsNearlyEqual(GetMaxWorldPositionOffsetDisplacement(), Parent->GetMaxWorldPositionOffsetDisplacement())
-		))
+	if (!Parent || !Material || Material->bUsedAsSpecialEngineMaterial)
 	{
-		return true;
+		return false;
 	}
 
-	return false;
+	return
+		GetBlendMode() != Parent->GetBlendMode() ||
+		GetShadingModels() != Parent->GetShadingModels() ||
+		IsTwoSided() != Parent->IsTwoSided() ||
+		IsThinSurface() != Parent->IsThinSurface() ||
+		IsDitheredLODTransition() != Parent->IsDitheredLODTransition() ||
+		GetCastDynamicShadowAsMasked() != Parent->GetCastDynamicShadowAsMasked() ||
+		IsTranslucencyWritingVelocity() != Parent->IsTranslucencyWritingVelocity() ||
+		HasPixelAnimation() != Parent->HasPixelAnimation() ||
+		IsTessellationEnabled() != Parent->IsTessellationEnabled() ||
+		GetDisplacementScaling() != Parent->GetDisplacementScaling() ||
+		IsDisplacementFadeEnabled() != Parent->IsDisplacementFadeEnabled() ||
+		GetDisplacementFadeRange() != Parent->GetDisplacementFadeRange() ||
+		!FMath::IsNearlyEqual(GetOpacityMaskClipValue(), Parent->GetOpacityMaskClipValue()) ||
+		!FMath::IsNearlyEqual(GetMaxWorldPositionOffsetDisplacement(), Parent->GetMaxWorldPositionOffsetDisplacement());
 }
 
 #if WITH_EDITOR
@@ -4481,18 +4516,20 @@ FString UMaterialInstance::GetBasePropertyOverrideString() const
 	FString BasePropString;
 	if (HasOverridenBaseProperties())
 	{
-		BasePropString += FString::Printf(TEXT("bOverride_OpacityMaskClipValue_%d, "), ((FMath::Abs(GetOpacityMaskClipValue() - Parent->GetOpacityMaskClipValue()) > UE_SMALL_NUMBER)));
-		BasePropString += FString::Printf(TEXT("bOverride_BlendMode_%d, "), (GetBlendMode() != Parent->GetBlendMode()));
-		BasePropString += FString::Printf(TEXT("bOverride_ShadingModel_%d, "), (GetShadingModels() != Parent->GetShadingModels()));
-		BasePropString += FString::Printf(TEXT("bOverride_TwoSided_%d, "), (IsTwoSided() != Parent->IsTwoSided()));
-		BasePropString += FString::Printf(TEXT("bOverride_bIsThinSurface_%d, "), (IsThinSurface() != Parent->IsThinSurface()));
-		BasePropString += FString::Printf(TEXT("bOverride_DitheredLODTransition_%d, "), (IsDitheredLODTransition() != Parent->IsDitheredLODTransition()));
-		BasePropString += FString::Printf(TEXT("bOverride_CastDynamicShadowAsMasked_%d, "), (GetCastDynamicShadowAsMasked() != Parent->GetCastDynamicShadowAsMasked()));
-		BasePropString += FString::Printf(TEXT("bOverride_OutputTranslucentVelocity_%d "), (IsTranslucencyWritingVelocity() != Parent->IsTranslucencyWritingVelocity()));
-		BasePropString += FString::Printf(TEXT("bOverride_bHasPixelAnimation_%d "), (HasPixelAnimation() != Parent->HasPixelAnimation()));
-		BasePropString += FString::Printf(TEXT("bOverride_bEnableTessellation_%d "), (IsTessellationEnabled() != Parent->IsTessellationEnabled()));
-		BasePropString += FString::Printf(TEXT("bOverride_DisplacementScaling_%d "), (GetDisplacementScaling() != Parent->GetDisplacementScaling()));
-		BasePropString += FString::Printf(TEXT("bOverride_MaxWorldPositionOffsetDisplacement_%d "), (GetMaxWorldPositionOffsetDisplacement() != Parent->GetMaxWorldPositionOffsetDisplacement()));
+		BasePropString.Appendf(TEXT("bOverride_OpacityMaskClipValue_%d, "), FMath::IsNearlyEqual(GetOpacityMaskClipValue(), Parent->GetOpacityMaskClipValue()));
+		BasePropString.Appendf(TEXT("bOverride_BlendMode_%d, "), (GetBlendMode() != Parent->GetBlendMode()));
+		BasePropString.Appendf(TEXT("bOverride_ShadingModel_%d, "), (GetShadingModels() != Parent->GetShadingModels()));
+		BasePropString.Appendf(TEXT("bOverride_TwoSided_%d, "), (IsTwoSided() != Parent->IsTwoSided()));
+		BasePropString.Appendf(TEXT("bOverride_bIsThinSurface_%d, "), (IsThinSurface() != Parent->IsThinSurface()));
+		BasePropString.Appendf(TEXT("bOverride_DitheredLODTransition_%d, "), (IsDitheredLODTransition() != Parent->IsDitheredLODTransition()));
+		BasePropString.Appendf(TEXT("bOverride_CastDynamicShadowAsMasked_%d, "), (GetCastDynamicShadowAsMasked() != Parent->GetCastDynamicShadowAsMasked()));
+		BasePropString.Appendf(TEXT("bOverride_OutputTranslucentVelocity_%d "), (IsTranslucencyWritingVelocity() != Parent->IsTranslucencyWritingVelocity()));
+		BasePropString.Appendf(TEXT("bOverride_bHasPixelAnimation_%d "), (HasPixelAnimation() != Parent->HasPixelAnimation()));
+		BasePropString.Appendf(TEXT("bOverride_bEnableTessellation_%d "), (IsTessellationEnabled() != Parent->IsTessellationEnabled()));
+		BasePropString.Appendf(TEXT("bOverride_DisplacementScaling_%d "), (GetDisplacementScaling() != Parent->GetDisplacementScaling()));
+		BasePropString.Appendf(TEXT("bOverride_bEnableDisplacementFade_%d "), (IsDisplacementFadeEnabled() != Parent->IsDisplacementFadeEnabled()));
+		BasePropString.Appendf(TEXT("bOverride_DisplacementFadeRange_%d "), (GetDisplacementFadeRange() != Parent->GetDisplacementFadeRange()));
+		BasePropString.Appendf(TEXT("bOverride_MaxWorldPositionOffsetDisplacement_%d "), (GetMaxWorldPositionOffsetDisplacement() != Parent->GetMaxWorldPositionOffsetDisplacement()));
 	}
 	return BasePropString;
 }
@@ -4546,6 +4583,16 @@ bool UMaterialInstance::IsDitheredLODTransition() const
 FDisplacementScaling UMaterialInstance::GetDisplacementScaling() const
 {
 	return DisplacementScaling;
+}
+
+bool UMaterialInstance::IsDisplacementFadeEnabled() const
+{
+	return bEnableDisplacementFade;
+}
+
+FDisplacementFadeRange UMaterialInstance::GetDisplacementFadeRange() const
+{
+	return DisplacementFadeRange;
 }
 
 float UMaterialInstance::GetMaxWorldPositionOffsetDisplacement() const

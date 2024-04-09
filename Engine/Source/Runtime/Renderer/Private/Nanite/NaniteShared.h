@@ -508,72 +508,22 @@ struct FNaniteRasterPipeline
 	const FMaterialRenderProxy* RasterMaterial = nullptr;
 
 	FDisplacementScaling DisplacementScaling;
+	FDisplacementFadeRange DisplacementFadeRange;
 
-	bool bIsTwoSided = false;
-	bool bPerPixelEval = false;
-	bool bForceDisableWPO = false;
-	bool bWPODisableDistance = false;
-	bool bSplineMesh = false;
-	bool bSkinnedMesh = false;
+	bool bIsTwoSided : 1 = false;
+	bool bWPOEnabled : 1 = false;
+	bool bDisplacementEnabled : 1 = false;
+	bool bPerPixelEval : 1 = false;
+	bool bSplineMesh : 1 = false;
+	bool bSkinnedMesh : 1 = false;
+	bool bHasWPODistance : 1 = false;
+	bool bHasPixelDistance : 1 = false;
+	bool bHasDisplacementFadeOut : 1 = false;
 
 	static FNaniteRasterPipeline GetFixedFunctionPipeline(bool bIsTwoSided, bool bSplineMesh, bool bSkinnedMesh);
 
-	inline uint32 GetPipelineHash() const
-	{
-		struct FHashKey
-		{
-			uint32 MaterialFlags;
-			uint32 MaterialHash;
-
-			FDisplacementScaling DisplacementScaling;
-
-			static inline uint32 PointerHash(const void* Key)
-			{
-			#if PLATFORM_64BITS
-				// Ignoring the lower 4 bits since they are likely zero anyway.
-				// Higher bits are more significant in 64 bit builds.
-				return reinterpret_cast<UPTRINT>(Key) >> 4;
-			#else
-				return reinterpret_cast<UPTRINT>(Key);
-			#endif
-			};
-
-		} HashKey;
-
-		HashKey.MaterialFlags  = 0;
-		HashKey.MaterialFlags |= bIsTwoSided ? 0x1u : 0x0u;
-		HashKey.MaterialFlags |= bForceDisableWPO ? 0x2u : 0x0u;
-		HashKey.MaterialFlags |= bSplineMesh ? 0x4u : 0x0u;
-		HashKey.MaterialFlags |= bSkinnedMesh ? 0x8u : 0x0u;
-		HashKey.MaterialHash   = FHashKey::PointerHash(RasterMaterial);
-
-		HashKey.DisplacementScaling = DisplacementScaling;
-
-		const uint64 PipelineHash = CityHash64((char*)&HashKey, sizeof(FHashKey));
-		return HashCombineFast(uint32(PipelineHash & 0xFFFFFFFF), uint32((PipelineHash >> 32) & 0xFFFFFFFF));
-	}
-
-	inline bool GetSecondaryPipeline(FNaniteRasterPipeline& OutSecondary) const
-	{
-		if (bWPODisableDistance)
-		{
-			if (bPerPixelEval)
-			{
-				// The secondary bin must still be a programmable bin, but with WPO force disabled.
-				OutSecondary = *this;
-				OutSecondary.bWPODisableDistance = false;
-				OutSecondary.bForceDisableWPO = true;
-			}
-			else
-			{
-				// The secondary bin can be a non-programmable, fixed-function bin
-				OutSecondary = GetFixedFunctionPipeline(bIsTwoSided, bSplineMesh, bSkinnedMesh);
-			}
-			return true;
-		}
-
-		return false;
-	}
+	uint32 GetPipelineHash() const;
+	bool GetFallbackPipeline(FNaniteRasterPipeline& OutFallback) const;
 
 	FORCENOINLINE friend uint32 GetTypeHash(const FNaniteRasterPipeline& Other)
 	{
@@ -608,11 +558,12 @@ struct FNaniteRasterMaterialCacheKey
 	{
 		struct
 		{
-			uint16 FeatureLevel				: 6;
-			uint16 bForceDisableWPO			: 1;
+			uint16 FeatureLevel				: 4;
+			uint16 bWPOEnabled				: 1;
+			uint16 bPerPixelEval			: 1;
 			uint16 bUseMeshShader			: 1;
 			uint16 bUsePrimitiveShader		: 1;
-			uint16 bUseDisplacement			: 1;
+			uint16 bDisplacementEnabled		: 1;
 			uint16 bVisualizeActive			: 1;
 			uint16 bHasVirtualShadowMap		: 1;
 			uint16 bIsDepthOnly				: 1;
@@ -664,6 +615,7 @@ struct FNaniteRasterMaterialCache
 
 	TOptional<uint32> MaterialBitFlags;
 	TOptional<FDisplacementScaling> DisplacementScaling;
+	TOptional<FDisplacementFadeRange> DisplacementFadeRange;
 
 	bool bFinalized = false;
 };
@@ -675,7 +627,6 @@ struct FNaniteRasterEntry
 	FNaniteRasterPipeline RasterPipeline{};
 	uint32 ReferenceCount = 0;
 	uint16 BinIndex = 0xFFFFu;
-	bool bForceDisableWPO = false;
 };
 
 struct FNaniteRasterEntryKeyFuncs : TDefaultMapHashableKeyFuncs<FNaniteRasterPipeline, FNaniteRasterEntry, false>

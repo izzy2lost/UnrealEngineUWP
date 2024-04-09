@@ -248,7 +248,7 @@ void CullPerPageDrawCommandsCs(uint3 GroupId : SV_GroupID, int GroupThreadIndex 
 				NaniteView,
 				InstanceData.LocalBoundsCenter,
 				InstanceData.LocalBoundsExtent,
-				InstanceData.NonUniformScale.xyz,
+				InstanceData.NonUniformScale,
 				DynamicData.LocalToTranslatedWorld,
 				DynamicData.PrevLocalToTranslatedWorld );
 

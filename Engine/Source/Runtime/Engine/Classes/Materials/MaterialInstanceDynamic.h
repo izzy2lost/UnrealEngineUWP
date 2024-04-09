@@ -197,6 +197,8 @@ class UMaterialInstanceDynamic : public UMaterialInstance
 	ENGINE_API virtual bool IsDitheredLODTransition() const override;
 	ENGINE_API virtual bool IsMasked() const override;
 	ENGINE_API virtual FDisplacementScaling GetDisplacementScaling() const override;
+	ENGINE_API virtual bool IsDisplacementFadeEnabled() const override;
+	ENGINE_API virtual FDisplacementFadeRange GetDisplacementFadeRange() const override;
 	ENGINE_API virtual float GetMaxWorldPositionOffsetDisplacement() const override;
 	ENGINE_API virtual bool HasPixelAnimation() const override;
 

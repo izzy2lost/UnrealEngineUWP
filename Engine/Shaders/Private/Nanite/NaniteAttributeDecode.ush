@@ -279,7 +279,7 @@ struct FNaniteMaterialSlot
 {
 	uint ShadingBin;
 	uint RasterBin;
-	uint SecondaryRasterBin;
+	uint FallbackRasterBin;
 	uint LegacyShadingId;
 };
 
@@ -289,7 +289,7 @@ FNaniteMaterialSlot UnpackMaterialSlot(uint2 Data)
 	Output.ShadingBin			= Data.x >> 16u;
 	Output.RasterBin			= Data.x & 0xFFFFu;
 	Output.LegacyShadingId		= Data.y >> 16u;
-	Output.SecondaryRasterBin	= Data.y & 0xFFFFu;
+	Output.FallbackRasterBin	= Data.y & 0xFFFFu;
 	return Output;
 }
 
@@ -399,14 +399,14 @@ uint GetMaterialRasterBinFromIndex(
 	uint InPrimitiveIndex,
 	uint InMeshPassIndex,
 	uint InRegularRasterBinCount,
-	bool bSecondaryRasterBin)
+	bool bFallbackRasterBin)
 {
 	FNaniteMaterialSlot MaterialSlot = LoadMaterialSlot(InRelativeMaterialIndex, InPrimitiveIndex, InMeshPassIndex);
 	uint RasterBin = MaterialSlot.RasterBin;
 	
-	if (bSecondaryRasterBin && MaterialSlot.SecondaryRasterBin != 0xFFFFu)
+	if (bFallbackRasterBin && MaterialSlot.FallbackRasterBin != 0xFFFFu)
 	{
-		RasterBin = MaterialSlot.SecondaryRasterBin;
+		RasterBin = MaterialSlot.FallbackRasterBin;
 	}
 
 	if (RasterBin >= InRegularRasterBinCount)
@@ -452,14 +452,14 @@ uint GetMaterialRasterBin(
 	uint InMeshPassIndex,
 	uint InTriIndex,
 	uint InRegularSlotCount,
-	bool bSecondaryBin)
+	bool bFallbackRasterBin)
 {
 	return GetMaterialRasterBinFromIndex(
 		GetRelativeMaterialIndex(InCluster, InTriIndex),
 		InPrimitiveIndex,
 		InMeshPassIndex,
 		InRegularSlotCount,
-		bSecondaryBin
+		bFallbackRasterBin
 	);
 }
 

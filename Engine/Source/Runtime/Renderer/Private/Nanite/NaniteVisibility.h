@@ -96,7 +96,7 @@ public:
 	struct FRasterBin
 	{
 		uint16 Primary = 0xFFFFu;
-		uint16 Secondary = 0xFFFFu;
+		uint16 Fallback = 0xFFFFu;
 	};
 
 	struct FShadingBin

@@ -21,12 +21,14 @@
 #define DISABLE_DISPLACEMENT_BOUNDS 0
 #endif
 
-float GetAbsMaxMaterialDisplacement(FPrimitiveSceneData PrimitiveData)
+float GetAbsMaxMaterialDisplacement(FPrimitiveSceneData PrimitiveData, bool bFallbackRaster)
 {
 #if DISABLE_DISPLACEMENT_BOUNDS
 	return 0.0f;
 #else
-	return max(-PrimitiveData.MinMaterialDisplacement, PrimitiveData.MaxMaterialDisplacement);
+	const bool bDisplacementDisabled = bFallbackRaster &&
+		(PrimitiveData.PixelProgrammableDistanceSquared > 0.0f || PrimitiveData.MaterialDisplacementFadeOutSize > 0.0f);
+	return bDisplacementDisabled ? 0.0f : max(-PrimitiveData.MinMaterialDisplacement, PrimitiveData.MaxMaterialDisplacement);
 #endif
 }
 
@@ -48,7 +50,7 @@ struct FBoxCull
 	float3		LocalBoxCenter;
 	float3		LocalBoxExtent;
 
-	float3		NonUniformScale;
+	float4		NonUniformScale;
 	float4x4	LocalToTranslatedWorld;
 	float4x4	PrevLocalToTranslatedWorld;
 
@@ -63,10 +65,13 @@ struct FBoxCull
 	bool		bSkipCullGlobalClipPlane;
 	bool		bSkipDrawDistance;
 	bool		bSkipWPODisableDistance;
+	bool		bSkipPixelProgrammableDistance;
+	bool		bSkipDisplacementFadeOutDistance;
 
 	bool		bIsVisible;
 	bool		bWasOccluded;
 	bool		bNeedsClipping;
+	bool		bFallbackRaster;
 
 #if VIRTUAL_TEXTURE_TARGET
 	uint		PageFlagMask;
@@ -77,7 +82,7 @@ struct FBoxCull
 		const FNaniteView	InNaniteView,
 		const float3		InLocalBoxCenter,
 		const float3		InLocalBoxExtent,
-		const float3		InNonUniformScale,
+		const float4		InNonUniformScale,
 		const float4x4		InLocalToTranslatedWorld,
 		const float4x4		InPrevLocalToTranslatedWorld )
 	{
@@ -96,22 +101,27 @@ struct FBoxCull
 		bIsViewUncached	= (NaniteView.Flags & NANITE_VIEW_FLAG_UNCACHED) != 0u;
 
 	#if DEBUG_FLAGS
-		bSkipCullFrustum			= (DebugFlags & NANITE_DEBUG_FLAG_DISABLE_CULL_FRUSTUM) != 0u;
-		bSkipCullHZB				= (DebugFlags & NANITE_DEBUG_FLAG_DISABLE_CULL_HZB) != 0u;
-		bSkipCullGlobalClipPlane	= (DebugFlags & NANITE_DEBUG_FLAG_DISABLE_CULL_GLOBAL_CLIP_PLANE) != 0u;
-		bSkipDrawDistance			= (DebugFlags & NANITE_DEBUG_FLAG_DISABLE_CULL_DRAW_DISTANCE) != 0u;
-		bSkipWPODisableDistance		= (DebugFlags & NANITE_DEBUG_FLAG_DISABLE_WPO_DISABLE_DISTANCE) != 0u;
+		bSkipCullFrustum					= (DebugFlags & NANITE_DEBUG_FLAG_DISABLE_CULL_FRUSTUM) != 0u;
+		bSkipCullHZB						= (DebugFlags & NANITE_DEBUG_FLAG_DISABLE_CULL_HZB) != 0u;
+		bSkipCullGlobalClipPlane			= (DebugFlags & NANITE_DEBUG_FLAG_DISABLE_CULL_GLOBAL_CLIP_PLANE) != 0u;
+		bSkipDrawDistance					= (DebugFlags & NANITE_DEBUG_FLAG_DISABLE_CULL_DRAW_DISTANCE) != 0u;
+		bSkipWPODisableDistance				= (DebugFlags & NANITE_DEBUG_FLAG_DISABLE_WPO_DISABLE_DISTANCE) != 0u;
+		bSkipPixelProgrammableDistance		= (DebugFlags & NANITE_DEBUG_FLAG_DISABLE_PIXEL_PROGRAMMABLE_DISTANCE) != 0u;
+		bSkipDisplacementFadeOutDistance	= (DebugFlags & NANITE_DEBUG_FLAG_DISABLE_DISPLACEMENT_FADE_OUT_DISTANCE) != 0u;
 	#else
-		bSkipCullFrustum			= false;
-		bSkipCullHZB				= false;
-		bSkipCullGlobalClipPlane	= false;
-		bSkipDrawDistance			= false;
-		bSkipWPODisableDistance		= false;
+		bSkipCullFrustum					= false;
+		bSkipCullHZB						= false;
+		bSkipCullGlobalClipPlane			= false;
+		bSkipDrawDistance					= false;
+		bSkipWPODisableDistance				= false;
+		bSkipPixelProgrammableDistance		= false;
+		bSkipDisplacementFadeOutDistance	= false;
 	#endif
 
-		bIsVisible		= true;
-		bWasOccluded	= false;
-		bNeedsClipping	= false;
+		bIsVisible			= true;
+		bWasOccluded		= false;
+		bNeedsClipping		= false;
+		bFallbackRaster		= false;
 
 	#if VIRTUAL_TEXTURE_TARGET
 		PageFlagMask = ~0u;
@@ -137,7 +147,7 @@ struct FBoxCull
 			const float4 PlaneLocal = mul(LocalToTranslatedWorld, NaniteView.TranslatedGlobalClipPlane);
 
 			// AABB/Plane intersection test
-			const float3 ScaledExtents = LocalBoxExtent * NonUniformScale;
+			const float3 ScaledExtents = LocalBoxExtent * NonUniformScale.xyz;
 			const float ExtentAlongPlaneN = dot(abs(ScaledExtents * PlaneLocal.xyz), (float3)1.0f);
 			const float CenterDist = dot(PlaneLocal, float4(LocalBoxCenter, 1.0f));
 
@@ -159,7 +169,7 @@ struct FBoxCull
 		if( bIsVisible && bDistanceCull )
 		{
 			const float3 CenterTranslatedWorld = mul( float4( LocalBoxCenter, 1.0f ), LocalToTranslatedWorld ).xyz;
-			const float Radius = length( LocalBoxExtent * NonUniformScale );
+			const float Radius = length( LocalBoxExtent * NonUniformScale.xyz );
 
 			bIsVisible = length2( CenterTranslatedWorld ) <= Square( NaniteView.RangeBasedCullingDistance + Radius );
 		}
@@ -178,21 +188,18 @@ struct FBoxCull
 		if( bIsVisible )
 		{
 			const float3 CenterTranslatedWorld = mul( float4( LocalBoxCenter, 1.0f ), LocalToTranslatedWorld ).xyz;
+			const float Radius = length( LocalBoxExtent * NonUniformScale.xyz );
 
 			// Check to cull the instances based on its distance from the view's camera (per-view setting)
-			BRANCH
 			if( bIsVisible && bDistanceCull )
 			{
-				const float Radius = length( LocalBoxExtent * NonUniformScale );
-
 				bIsVisible = length2( CenterTranslatedWorld ) <= Square( NaniteView.RangeBasedCullingDistance + Radius );
 			}
 
 			const float InstanceDrawDistSq = length2( CenterTranslatedWorld - NaniteView.CullingViewOriginTranslatedWorld);
 
 			// Check to cull the instance based on its distance from the main view's location (per-primitive setting)
-			BRANCH
-			if (bIsVisible && bDrawDistance && !bSkipDrawDistance)
+			if ( bIsVisible && bDrawDistance && !bSkipDrawDistance )
 			{
 				const float MinDistanceSq = PrimitiveData.InstanceDrawDistanceMinMaxSquared.x;
 				const float MaxDistanceSq = PrimitiveData.InstanceDrawDistanceMinMaxSquared.y;
@@ -200,11 +207,37 @@ struct FBoxCull
 				bIsVisible = InstanceDrawDistSq >= MinDistanceSq && InstanceDrawDistSq <= MaxDistanceSq;
 			}
 
-			// Check to disable the instance's WPO based on distance from the main view's location
 			BRANCH
-			if (bIsVisible && bEnableWPO && bWPODisableDist && !bSkipWPODisableDistance)
+			if ( bIsVisible )
 			{
-				bEnableWPO = InstanceDrawDistSq < PrimitiveData.InstanceWPODisableDistanceSquared;
+				const float PixelProgrammableDistanceSq	= PrimitiveData.PixelProgrammableDistanceSquared;
+				const float DisplacementFadeOutSize		= PrimitiveData.MaterialDisplacementFadeOutSize;
+				const bool bUseFallbackForWPO			= PixelProgrammableDistanceSq <= 0.0f && DisplacementFadeOutSize <= 0.0f;
+
+				// Check to disable the instance's WPO based on distance from the main view's location
+				if ( bEnableWPO && bWPODisableDist && !bSkipWPODisableDistance )
+				{
+					bEnableWPO = InstanceDrawDistSq < PrimitiveData.InstanceWPODisableDistanceSquared;
+					bFallbackRaster = bUseFallbackForWPO && !bEnableWPO;
+				}
+
+				// Determine if we should use fallback raster bins due to disabling pixel programmable raster
+				if ( PixelProgrammableDistanceSq > 0.0f && !bSkipPixelProgrammableDistance )
+				{
+					bFallbackRaster = InstanceDrawDistSq > PixelProgrammableDistanceSq;
+				}
+
+				// Also check to use fallback raster bins as a method of disabling tessellation when the object
+				// is at a safe enough distance for all displacement to have been completely faded out
+				if ( !bFallbackRaster && DisplacementFadeOutSize > 0.0f && !bSkipDisplacementFadeOutDistance )
+				{
+					const float SurfaceDepth = max(dot( NaniteView.ViewForward, CenterTranslatedWorld ) - Radius, 0.0f);
+					const float MaxDisplacementProj = GetProjectedEdgeLengthAtDepth(
+							NonUniformScale.w * GetAbsMaxMaterialDisplacement( PrimitiveData, false /* bFallbackRaster */ ),
+							SurfaceDepth,
+							NaniteView );
+					bFallbackRaster = MaxDisplacementProj <= DisplacementFadeOutSize;
+				}
 			}
 		}
 
