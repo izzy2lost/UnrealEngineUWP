@@ -87,11 +87,7 @@ struct FFastArrayReplicationFragmentHelper
 	static inline typename TEnableIf<TModels_V<FFastArraySerializer::CPostReplicatedReceiveFuncable, FastArrayType, const FFastArraySerializer::FPostReplicatedReceiveParameters&>, void>::Type CallPostReplicatedReceiveOrNot(FastArrayType& ArraySerializer, int32 OldArraySize, bool bHasUnresolvedReferences)
 	{
 PRAGMA_DISABLE_DEPRECATION_WARNINGS
-		FFastArraySerializer::FPostReplicatedReceiveParameters PostReceivedParameters =
-		{
-			.OldArraySize = OldArraySize,
-			.bHasMoreUnmappedReferences = bHasUnresolvedReferences,
-		};
+		FFastArraySerializer::FPostReplicatedReceiveParameters PostReceivedParameters = { OldArraySize, bHasUnresolvedReferences };
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		
 		ArraySerializer.PostReplicatedReceive(PostReceivedParameters);

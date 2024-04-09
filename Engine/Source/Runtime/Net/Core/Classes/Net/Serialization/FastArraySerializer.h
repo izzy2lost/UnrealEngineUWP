@@ -703,11 +703,7 @@ private:
 		inline typename TEnableIf<TModels_V<CPostReplicatedReceiveFuncable, FastArrayType, const FFastArraySerializer::FPostReplicatedReceiveParameters>, void>::Type CallPostReplicatedReceiveOrNot(int32 OldArraySize)
 		{
 PRAGMA_DISABLE_DEPRECATION_WARNINGS
-			FFastArraySerializer::FPostReplicatedReceiveParameters PostReceivedParameters =
-			{
-				.OldArraySize = OldArraySize,
-				.bHasMoreUnmappedReferences = Parms.bOutHasMoreUnmapped,
-			};
+			FFastArraySerializer::FPostReplicatedReceiveParameters PostReceivedParameters = { OldArraySize, Parms.bOutHasMoreUnmapped };
 			ArraySerializer.PostReplicatedReceive(PostReceivedParameters);
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		}
