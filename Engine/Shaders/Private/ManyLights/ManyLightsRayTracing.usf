@@ -48,6 +48,7 @@ uint2 SampleViewSize;
 uint DebugMode;
 float4 HZBUvFactorAndInvFactor;
 float MaxHierarchicalScreenTraceIterations;
+float MaxTraceDistance;
 float RelativeDepthThickness;
 float HistoryDepthTestRelativeThickness;
 uint MinimumTracingThreadOccupancy;
@@ -266,7 +267,7 @@ void ScreenSpaceRayTraceLightSamplesCS(
 		TraceScreen(
 			TranslatedWorldPosition,
 			LightSampleTrace.Direction,
-			LightSampleTrace.Distance,
+			min(LightSampleTrace.Distance, MaxTraceDistance),
 			HZBUvFactorAndInvFactor,
 			MaxHierarchicalScreenTraceIterations, 
 			RelativeDepthThickness,

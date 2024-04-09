@@ -20,6 +20,13 @@ static TAutoConsoleVariable<int32> CVarManyLightsScreenTracesMaxIterations(
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
+static TAutoConsoleVariable<int32> CVarManyLightsScreenTracesMaxDistance(
+	TEXT("r.ManyLights.ScreenTraces.MaxDistance"),
+	100,
+	TEXT("Max distance in world space for screen space tracing."),
+	ECVF_Scalability | ECVF_RenderThreadSafe
+);
+
 static TAutoConsoleVariable<int32> CVarManyLightsScreenTracesMinimumOccupancy(
 	TEXT("r.ManyLights.ScreenTraces.MinimumOccupancy"),
 	0,
@@ -404,6 +411,7 @@ class FScreenSpaceRayTraceLightSamplesCS : public FGlobalShader
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float>, RWLightSampleRayDistance)
 		SHADER_PARAMETER_STRUCT_INCLUDE(FLumenHZBScreenTraceParameters, HZBScreenTraceParameters)
 		SHADER_PARAMETER(float, MaxHierarchicalScreenTraceIterations)
+		SHADER_PARAMETER(float, MaxTraceDistance)
 		SHADER_PARAMETER(float, RelativeDepthThickness)
 		SHADER_PARAMETER(float, HistoryDepthTestRelativeThickness)
 		SHADER_PARAMETER(uint32, MinimumTracingThreadOccupancy)
@@ -628,6 +636,7 @@ void ManyLights::RayTraceLightSamples(
 		PassParameters->RWLightSampleRayDistance = GraphBuilder.CreateUAV(LightSampleRayDistance);
 		PassParameters->HZBScreenTraceParameters = SetupHZBScreenTraceParameters(GraphBuilder, View, SceneTextures, /*bBindLumenHistory*/ false);
 		PassParameters->MaxHierarchicalScreenTraceIterations = CVarManyLightsScreenTracesMaxIterations.GetValueOnRenderThread();
+		PassParameters->MaxTraceDistance = CVarManyLightsScreenTracesMaxDistance.GetValueOnRenderThread();
 		PassParameters->RelativeDepthThickness = CVarManyLightsScreenTraceRelativeDepthThreshold.GetValueOnRenderThread() * View.ViewMatrices.GetPerProjectionDepthThicknessScale();
 		PassParameters->HistoryDepthTestRelativeThickness = 0.0f;
 		PassParameters->MinimumTracingThreadOccupancy = CVarManyLightsScreenTracesMinimumOccupancy.GetValueOnRenderThread();

@@ -186,7 +186,7 @@ void InternalTraceScreen(
 		NumIterations++;
 	}
 
-	if (MipLevel < BaseMipLevel)
+	if (MipLevel < BaseMipLevel && CurrentIntersectionTime < 1.0f)
 	{
 		float TileZ;
 
