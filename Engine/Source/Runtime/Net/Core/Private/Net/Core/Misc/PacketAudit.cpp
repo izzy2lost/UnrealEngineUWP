@@ -157,6 +157,10 @@ public:
 
 	virtual void Serialize(void* Data, int64 Num) override
 	{
+#if defined(__clang_analyzer__)
+		// Suppress uninitialized data static analysis warning
+		FMemory::Memzero(Data, Num);
+#endif
 		if (Num > 0 && !IsError())
 		{
 			if (Offset + Num <= TotalSize())
