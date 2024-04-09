@@ -19,6 +19,7 @@ namespace UnrealBuildTool.Rules
 					"AnimNextUncookedOnly",
 					"UnrealEd",
 					"SlateCore",
+					"AnimationCore",
 					"Slate",
 					"InputCore",
 					"PropertyEditor",
