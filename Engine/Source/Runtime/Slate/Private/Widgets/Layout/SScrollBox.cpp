@@ -28,6 +28,8 @@ void SScrollBox::FSlot::RegisterAttributes(FSlateWidgetSlotAttributeInitializer&
 	SLATE_ADD_SLOT_ATTRIBUTE_DEFINITION_WITH_NAME(FSlot, AttributeInitializer, "Slot.MaxSize", MaxSize, EInvalidateWidgetReason::Layout);
 	SLATE_ADD_SLOT_ATTRIBUTE_DEFINITION_WITH_NAME(FSlot, AttributeInitializer, "Slot.SizeValue", SizeValue, EInvalidateWidgetReason::Layout)
 		.UpdatePrerequisite("Slot.MaxSize");
+	SLATE_ADD_SLOT_ATTRIBUTE_DEFINITION_WITH_NAME(FSlot, AttributeInitializer, "Slot.ShrinkSizeValue", ShrinkSizeValue, EInvalidateWidgetReason::Layout)
+		.UpdatePrerequisite("Slot.MaxSize");
 }
 
 SScrollBox::FSlot::FSlotArguments SScrollBox::Slot()

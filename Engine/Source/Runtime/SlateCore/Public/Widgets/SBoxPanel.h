@@ -47,7 +47,7 @@ protected:
 			: TBasicLayoutWidgetSlot<SlotType>(HAlign_Fill, VAlign_Fill)
 			, SizeRule(FSizeParam::SizeRule_Stretch)
 			, SizeValue(*this, 1.f)
-			, ShrinkSizeValue(*this, -1.f) // Negative means unset, SizeValue is used instead.
+			, ShrinkSizeValue(*this, 1.f)
 			, MaxSize(*this, 0.0f)
 		{ }
 
@@ -96,8 +96,7 @@ protected:
 		 */
 		float GetShrinkSizeValue() const
 		{
-			const float Value = ShrinkSizeValue.Get();
-			return Value < 0.0f ? GetSizeValue() : Value;
+			return ShrinkSizeValue.Get();
 		}
 
 		/** Get the max size the slot can be.*/
@@ -111,16 +110,26 @@ protected:
 		void SetSizeParam(FSizeParam InSizeParam)
 		{
 			SizeRule = InSizeParam.SizeRule;
-			SizeValue.Assign(*this, MoveTemp(InSizeParam.Value));
-			if (InSizeParam.ShrinkValue.IsSet())
+
+			// ShrinkSizeValue is only used for StretchContent.
+			// If ShrinkValue is not set, make it equal to the Value. 
+			if (SizeRule == FSizeParam::SizeRule_StretchContent)
 			{
-				ShrinkSizeValue.Assign(*this, MoveTemp(InSizeParam.ShrinkValue));
+				if (InSizeParam.ShrinkValue.IsSet())
+				{
+					ShrinkSizeValue.Assign(*this, MoveTemp(InSizeParam.ShrinkValue));
+				}
+				else
+				{
+					ShrinkSizeValue.Assign(*this, InSizeParam.Value); // Make copy, let SizeValue use move.
+				}
 			}
 			else
 			{
-				// Negative value means to use size value for shrink and grow.
-				ShrinkSizeValue.Set(*this, -1.f);
+				ShrinkSizeValue.Set(*this, 1.f); // Reset
 			}
+			
+			SizeValue.Assign(*this, MoveTemp(InSizeParam.Value));
 		}
 
 		/**

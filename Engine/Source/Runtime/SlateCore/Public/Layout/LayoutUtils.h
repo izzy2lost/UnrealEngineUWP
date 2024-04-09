@@ -247,9 +247,6 @@ static void ArrangeSingleChild(EFlowDirection InFlowDirection, const FGeometry& 
 	}
 }
 
-// Defines THasMemberFunction_GetShrinkSizeValue<T>
-GENERATE_MEMBER_FUNCTION_CHECK(GetShrinkSizeValue, float, const);
-
 template<EOrientation Orientation, typename SlotType>
 static void ArrangeChildrenInStack(EFlowDirection InLayoutFlow, const TPanelChildren<SlotType>& Children, const FGeometry& AllottedGeometry, FArrangedChildren& ArrangedChildren, float InOffset, bool bInAllowShrink)
 {
@@ -345,16 +342,8 @@ static void ArrangeChildrenInStack(EFlowDirection InLayoutFlow, const TPanelChil
 			else if (CurChild.GetSizeRule() == FSizeParam::SizeRule_StretchContent)
 			{
 				// Allow separate values from grow and shrink, as the adjustment is relative to the child size. 
-				Item.GrowStretchValue = CurChild.GetSizeValue();
-
-				if constexpr (THasMemberFunction_GetShrinkSizeValue<SlotType>::Value)
-				{
-					Item.ShrinkStretchValue = CurChild.GetShrinkSizeValue();
-				}
-				else
-				{
-					Item.ShrinkStretchValue = Item.GrowStretchValue;
-				}
+				Item.GrowStretchValue = FMath::Max(0.f, CurChild.GetSizeValue());
+				Item.ShrinkStretchValue = FMath::Max(0.f,CurChild.GetShrinkSizeValue());
 				Item.Size = ChildSize;
 				Item.BasisSize = ChildSize;
 
@@ -426,12 +415,22 @@ static void ArrangeChildrenInStack(EFlowDirection InLayoutFlow, const TPanelChil
 		// First, consume each items desired size from the available space.
 		// The remainder is corrected by growing ot shrinking the items.
 		int32 NumStretchContentItems = 0;
-		for (const FStretchItem& Item : StretchItems)
+		for (FStretchItem& Item : StretchItems)
 		{
 			if (Item.SizeRule == FSizeParam::SizeRule_StretchContent)
 			{
 				AvailableSpace -= Item.Size;
 				NumStretchContentItems++;
+
+				// If the item cannot shrink or grow, mark it already frozen.
+				if (bIsGrowing)
+				{
+					Item.bFrozen |= FMath::IsNearlyZero(Item.GrowStretchValue);
+				}
+				else
+				{
+					Item.bFrozen |= FMath::IsNearlyZero(Item.ShrinkStretchValue);
+				}
 			}
 		}
 
@@ -444,6 +443,12 @@ static void ArrangeChildrenInStack(EFlowDirection InLayoutFlow, const TPanelChil
 		const int32 MaxPasses = FMath::Min(NumStretchContentItems, 5);
 		for (int32 Pass = 0; Pass < MaxPasses; Pass++)
 		{
+			// If no available space, stop.
+			if (FMath::IsNearlyZero(AvailableSpace))
+			{
+				break;
+			}
+
 			// On each pass calculate the total coefficients for valid items.
 			GrowStretchCoefficientTotal = 0.0f;
 			ShrinkStretchCoefficientTotal = 0.0f;
@@ -464,13 +469,14 @@ static void ArrangeChildrenInStack(EFlowDirection InLayoutFlow, const TPanelChil
 				? GrowStretchCoefficientTotal
 				: ShrinkStretchCoefficientTotal;
 			
-			// If all items are frozen, or no space to distribute, stop.
-			if (StretchCoefficientTotal < UE_KINDA_SMALL_NUMBER
-				|| FMath::Abs(AvailableSpace) < UE_KINDA_SMALL_NUMBER)
+			// If none of the items can stretch, stop.
+			if (StretchCoefficientTotal < UE_KINDA_SMALL_NUMBER)
 			{
 				break;
 			}
 
+			float ConsumedSpace = 0.0f;
+			
 			for (FStretchItem& Item : StretchItems)
 			{
 				if (Item.SizeRule == FSizeParam::SizeRule_StretchContent
@@ -479,6 +485,13 @@ static void ArrangeChildrenInStack(EFlowDirection InLayoutFlow, const TPanelChil
 					const float SizeAdjust = bIsGrowing
 						? (AvailableSpace * (Item.GrowStretchValue / GrowStretchCoefficientTotal))
 						: (AvailableSpace * (Item.ShrinkStretchValue * Item.BasisSize / ShrinkStretchCoefficientTotal));
+
+					// If the item cannot be adjusted anymore, mark it frozen.
+					if (FMath::IsNearlyZero(SizeAdjust))
+					{
+						Item.bFrozen = true;
+						continue;
+					}
 					
 					constexpr float MinSize = 0.0f;
 					const float MaxSize = Item.MaxSize;
@@ -487,7 +500,7 @@ static void ArrangeChildrenInStack(EFlowDirection InLayoutFlow, const TPanelChil
 					if ((Item.Size + SizeAdjust) <= MinSize)
 					{
 						// Adjustment goes past min constraint, apply what we can and freeze since the item cannot change anymore.
-						AvailableSpace -= MinSize - Item.Size;
+						ConsumedSpace += MinSize - Item.Size;
 						Item.Size = MinSize;
 						Item.bFrozen = true;
 					}
@@ -495,18 +508,20 @@ static void ArrangeChildrenInStack(EFlowDirection InLayoutFlow, const TPanelChil
 						&& (Item.Size + SizeAdjust) >= MaxSize)
 					{
 						// Adjustment goes past max constraint, apply what we can and freeze since the item cannot change anymore.
-						AvailableSpace -= MaxSize - Item.Size;
+						ConsumedSpace += MaxSize - Item.Size;
 						Item.Size = MaxSize;
 						Item.bFrozen = true;
 					}
 					else
 					{
 						// Within constraints, adjust.
-						AvailableSpace -= SizeAdjust;
+						ConsumedSpace += SizeAdjust;
 						Item.Size += SizeAdjust;
 					}
 				}
 			}
+			
+			AvailableSpace -= ConsumedSpace;
 		}
 	}
 	

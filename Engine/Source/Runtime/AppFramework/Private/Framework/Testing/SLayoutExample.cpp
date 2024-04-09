@@ -43,6 +43,9 @@ public:
 	{
 		const FVector2D HeadingShadowOffset(2,2);
 
+		TSharedPtr<int32> SharedSizeValue = MakeShared<int32>(1);
+		TAttribute<float> SizeAttrib = TAttribute<float>::Create(TAttribute<float>::FGetter::CreateLambda([SharedSizeValue] { return (float)*SharedSizeValue.Get(); })); 
+		
 		FSlateFontInfo LargeLayoutFont = FCoreStyle::GetDefaultFontStyle("Regular", 16);
 		FSlateFontInfo SmallLayoutFont = FCoreStyle::GetDefaultFontStyle("Regular", 10);
 		this->ChildSlot
@@ -95,6 +98,41 @@ public:
 				+SHorizontalBox::Slot() .FillWidth(3)
 				[
 					SNew(SButton) .Text( LOCTEXT("ExampleLayout-TextLabel07", ".FillWidth(3)") )
+				]
+			]
+			// Fill Contents example
+			+SScrollBox::Slot() .Padding(5.f)
+			[
+				SNew(STextBlock) .ShadowOffset(HeadingShadowOffset) .Font( LargeLayoutFont ) .Text( LOCTEXT("ExampleLayout-FillContentsLabel", "Fill Content Size:") )
+			]
+			+SScrollBox::Slot() .Padding(10.f,5.f)
+			[
+				SNew(STextBlock) .Font(SmallLayoutFont) .Text( LOCTEXT("ExampleLayout-FillContent0", "Calculated size tarts with content size (like auto), but allows to control shrinking and growing.") )
+			]
+			+SScrollBox::Slot() .Padding(10.f,5.f)
+			[
+				SNew(SHorizontalBox)
+				+SHorizontalBox::Slot() .FillContentWidth(0.f, 1.f)
+				[
+					SNew(SButton) .Text( LOCTEXT("ExampleLayout-FillContent1", "No grow, allow shrink.\n.FillContentWidth(0, 1)") )
+				]
+				+SHorizontalBox::Slot() .FillContentWidth(SizeAttrib)
+				[
+					SNew(SButton)
+					.Text_Lambda([SharedSizeValue]()
+					{
+						return FText::Format(LOCTEXT("ExampleLayout-FillContent2", "Allow grow and Shrink\n.FillContentWidth({0})"), *SharedSizeValue.Get());
+					})
+					.OnClicked_Lambda([SharedSizeValue]()
+					{
+						int32& Value = *SharedSizeValue;
+						Value = (Value + 1) % 4;
+						return FReply::Handled();						
+					})
+				]
+				+SHorizontalBox::Slot() .FillContentWidth(1.f, 0.f)
+				[
+					SNew(SButton) .Text( LOCTEXT("ExampleLayout-FillContent3", "Allow grow, no shrink\n.FillContentWidth(1, 0)") )
 				]
 			]
 			// Aspect Ratio example

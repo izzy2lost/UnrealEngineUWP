@@ -91,6 +91,19 @@ public:
 				_SizeParam = FStretch(MoveTemp(InStretchCoefficient));
 				return Me();
 			}
+			
+			/**
+			 * The widget's content size is adjusted proportionally to fit the available space.
+			 * The slots size starts at DesiredSize, and a slot with coefficient of 2 will get adjusted twice as much as slot with coefficient 1 to fit the available space.
+			 * @param InStretchCoefficient Stretch coefficient for this slot.
+			 * @param InShrinkStretchCoefficient If specified, this stretch coefficient is used when the slots is shrinking below desired size. Otherwise InStretchCoefficient is used for both shrink and grow.  
+			 */
+			FSlotArguments& FillContentSize(TAttribute<float> InStretchCoefficient, TAttribute<float> InShrinkStretchCoefficient = TAttribute<float>())
+			{
+				_SizeParam = FStretchContent(MoveTemp(InStretchCoefficient), MoveTemp(InShrinkStretchCoefficient));
+				return Me();
+			}
+
 			/** Set the max size in SlateUnit this slot can be. */
 			FSlotArguments& MaxSize(TAttribute<float> InMaxHeight)
 			{
@@ -104,6 +117,7 @@ public:
 			: TBasicLayoutWidgetSlot<FSlot>(HAlign_Fill, VAlign_Fill)
 			, SizeRule(FSizeParam::SizeRule_Auto)
 			, SizeValue(*this, 1.f)
+			, ShrinkSizeValue(*this, 1.f)
 			, MaxSize(*this, 0.0f)
 		{ }
 
@@ -122,16 +136,44 @@ public:
 			return SizeValue.Get();
 		}
 
+		/**
+		 * Get the size parameter for the space rule, used when the slot size is shrinking below desired size.
+		 * Used for size rule SizeRule_StretchContent.
+		 */
+		float GetShrinkSizeValue() const
+		{
+			return ShrinkSizeValue.Get();
+		}
+		
 		/** Get the max size the slot can be.*/
 		float GetMaxSize() const
 		{
 			return MaxSize.Get();
 		}
 
-		/** Set the size Param of the slot, It could be a FStretch or a FAuto. */
+		/** Set the size Param of the slot, It could be a FStretch, FStretchContent, or a FAuto. */
 		void SetSizeParam(FSizeParam InSizeParam)
 		{
 			SizeRule = InSizeParam.SizeRule;
+
+			// ShrinkSizeValue is only used for StretchContent.
+			// If ShrinkValue is not set, make it equal to the Value. 
+			if (SizeRule == FSizeParam::SizeRule_StretchContent)
+			{
+				if (InSizeParam.ShrinkValue.IsSet())
+				{
+					ShrinkSizeValue.Assign(*this, MoveTemp(InSizeParam.ShrinkValue));
+				}
+				else
+				{
+					ShrinkSizeValue.Assign(*this, InSizeParam.Value); // Make copy, let SizeValue use move.
+				}
+			}
+			else
+			{
+				ShrinkSizeValue.Set(*this, 1.f); // Reset
+			}
+
 			SizeValue.Assign(*this, MoveTemp(InSizeParam.Value));
 		}
 
@@ -145,6 +187,17 @@ public:
 		void SetSizeToStretch(TAttribute<float> StretchCoefficient)
 		{
 			SetSizeParam(FStretch(MoveTemp(StretchCoefficient)));
+		}
+
+		/**
+		 * The widget's content size is adjusted proportionally to fit the available space.
+		 * The slots size starts at DesiredSize, and a slot with coefficient of 2 will get adjusted twice as much as slot with coefficient 1 to fit the available space.
+		 * @param InStretchCoefficient Stretch coefficient for this slot.
+		 * @param InShrinkStretchCoefficient If specified, this stretch coefficient is used when the slots is shrinking below desired size. Otherwise InStretchCoefficient is used for both shrink and grow.  
+		 */
+		void SetSizeToStretchContent(TAttribute<float> InStretchCoefficient, TAttribute<float> InShrinkStretchCoefficient = TAttribute<float>())
+		{
+			SetSizeParam(FStretchContent(MoveTemp(InStretchCoefficient), MoveTemp(InShrinkStretchCoefficient)));
 		}
 
 		/** Set the max size in SlateUnit this slot can be. */
@@ -165,8 +218,14 @@ public:
 		 /** The sizing rule to use. */
 		FSizeParam::ESizeRule SizeRule;
 
+		/** Flag indicating if the ShrinkSizeValue value is set. */
+		bool bIsShrinkSizeValueSet;
+		
 		/** The actual value this size parameter stores. */
 		typename TBasicLayoutWidgetSlot<FSlot>::template TSlateSlotAttribute<float> SizeValue;
+
+		/** The actual value this size parameter stores, used for shrinking (negative if not defined, use SizeValue). */
+		typename TBasicLayoutWidgetSlot<FSlot>::template TSlateSlotAttribute<float> ShrinkSizeValue;
 
 		/** The max size that this slot can be (0 if no max) */
 		typename TBasicLayoutWidgetSlot<FSlot>::template TSlateSlotAttribute<float> MaxSize;
