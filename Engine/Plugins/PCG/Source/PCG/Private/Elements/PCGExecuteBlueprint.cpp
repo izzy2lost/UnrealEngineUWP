@@ -12,6 +12,7 @@
 #include "Engine/World.h"
 #include "PCGPin.h"
 #include "UObject/Package.h"
+#include "UObject/UObjectThreadContext.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(PCGExecuteBlueprint)
 
@@ -504,7 +505,17 @@ bool UPCGBlueprintSettings::HasDynamicPins() const
 
 EPCGDataType UPCGBlueprintSettings::GetCurrentPinTypes(const UPCGPin* InPin) const
 {
-	return BlueprintElementInstance ? static_cast<EPCGDataType>(BlueprintElementInstance->DynamicPinTypesOverride(this, InPin)) : UPCGSettings::GetCurrentPinTypes(InPin);
+	check(InPin);
+
+	// We can't call a BP function while we are PostLoading, in that case (or if we don't have an instance or it's not dynamic) just return the pin allowed types.
+	if (BlueprintElementInstance && BlueprintElementInstance->bHasDynamicPins && !FUObjectThreadContext::Get().IsRoutingPostLoad)
+	{
+		return static_cast<EPCGDataType>(BlueprintElementInstance->DynamicPinTypesOverride(this, InPin));
+	}
+	else
+	{
+		return InPin->Properties.AllowedTypes;
+	}
 }
 
 #if WITH_EDITOR
