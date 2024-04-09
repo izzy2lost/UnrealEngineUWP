@@ -26,6 +26,8 @@ UCookerSettings::UCookerSettings(const FObjectInitializer& ObjectInitializer)
 	
 	DefaultASTCQualityBySpeed = 2; // Medium preset
 	DefaultASTCQualityBySize = 3;  // 6x6
+	DefaultASTCQualityBySizeHQ = 4; // 4x4
+
 	{
 		static IConsoleVariable* ASTCTextureCompressorCVar = IConsoleManager::Get().FindConsoleVariable(TEXT("cook.ASTCTextureCompressor"));
 		DefaultASTCCompressor = (ASTCTextureCompressorCVar && ASTCTextureCompressorCVar->GetInt() != 0) ? ETextureFormatASTCCompressor::Arm : ETextureFormatASTCCompressor::IntelISPC;

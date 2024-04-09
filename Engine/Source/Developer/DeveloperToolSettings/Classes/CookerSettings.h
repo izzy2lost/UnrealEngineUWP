@@ -173,12 +173,16 @@ public:
 	TArray<FString> VersionedIntRValues;
 
 	/** Quality of 0 means fastest, 3 means best quality */
-	UPROPERTY(GlobalConfig, EditAnywhere, Category = Textures, meta = (DisplayName = "ASTC Compression Quality vs Speed (0-3, 0 is fastest)"))
+	UPROPERTY(GlobalConfig, EditAnywhere, Category = Textures, meta = (DisplayName = "ASTC Compression Speed (0-3, 0 is fastest)"))
 	int32 DefaultASTCQualityBySpeed;
 
 	/** Quality of 0 means smallest (12x12 block size), 4 means best (4x4 block size) */
-	UPROPERTY(GlobalConfig, EditAnywhere, Category = Textures, meta = (DisplayName = "ASTC Compression Quality vs Size (0-4, 0 is smallest)"))
+	UPROPERTY(GlobalConfig, EditAnywhere, Category = Textures, meta = (DisplayName = "ASTC Compression Block Size (0-4, 0 is smallest)"))
 	int32 DefaultASTCQualityBySize;
+	
+	/** Quality of 0 means smallest (12x12 block size), 4 means best (4x4 block size) */
+	UPROPERTY(GlobalConfig, EditAnywhere, Category = Textures, meta = (DisplayName = "ASTC Compression Block Size for High Quality (BC7) (0-4, 0 is smallest)"))
+	int32 DefaultASTCQualityBySizeHQ;
 
 	/** Allows opening cooked assets in the editor */
 	UPROPERTY(GlobalConfig, EditAnywhere, Category = Textures, meta = (

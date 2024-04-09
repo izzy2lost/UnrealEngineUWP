@@ -467,6 +467,7 @@ static EPixelFormat GetASTCQualityFormat(int& BlockWidth, int& BlockHeight, cons
 	}
 	else if ( bIsHQ || BuildSettings.bVirtualStreamable )
 	{
+		// NOTE: different than TextureFormatASTC which configurable HQ block size
 		BlockWidth = BlockHeight = 4;
 		return PF_ASTC_4x4;		
 	}
