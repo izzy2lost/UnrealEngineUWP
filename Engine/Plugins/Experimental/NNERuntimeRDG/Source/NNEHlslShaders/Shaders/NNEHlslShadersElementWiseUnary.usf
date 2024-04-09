@@ -7,8 +7,28 @@ RWBuffer<float> Output;
 uint Num;
 uint ThreadCountX;
 float Alpha;
+Buffer<float> AlphaTensor;
 float Beta;
+Buffer<float> BetaTensor;
 float Gamma;
+
+float GetAlpha()
+{
+#if ALPHA_ON_GPU == 0
+	return Alpha;
+#else
+	return AlphaTensor[0];
+#endif
+}
+
+float GetBeta()
+{
+#if BETA_ON_GPU == 0
+	return Beta;
+#else
+	return BetaTensor[0];
+#endif
+}
 
 //see https://github.com/onnx/onnx/blob/main/docs/Operators.md#Relu
 float relu(float x)
@@ -19,7 +39,7 @@ float relu(float x)
 //see https://github.com/onnx/onnx/blob/main/docs/Operators.md#Selu
 float selu(float x)
 {
-	float yNegOrZero = Gamma * (Alpha * exp(x) - Alpha);
+	float yNegOrZero = Gamma * (GetAlpha() * exp(x) - GetAlpha());
 	float yPos = Gamma * x;
 	return (x > 0.0f) ? yPos : yNegOrZero;
 }
@@ -68,7 +88,7 @@ float atanh(float x)
 //see https://github.com/onnx/onnx/blob/main/docs/Operators.md#elu
 float elu(float x)
 {
-    float yNeg = Alpha * (exp(x) - 1.0f);
+    float yNeg = GetAlpha() * (exp(x) - 1.0f);
 	float yPosOrZero = x;
 	return (x >= 0.0f) ? yPosOrZero : yNeg;
 }
@@ -91,7 +111,7 @@ float hardSigmoid(float x, float alpha, float beta)
 //see https://github.com/onnx/onnx/blob/main/docs/Operators.md#hardSigmoid
 float hardSigmoid(float x)
 {
-	return hardSigmoid(x, Alpha, Beta);
+	return hardSigmoid(x, GetAlpha(), GetBeta());
 }
 
 //see https://github.com/onnx/onnx/blob/main/docs/Operators.md#hardSwish
@@ -103,16 +123,16 @@ float hardSwish(float x)
 //see https://github.com/onnx/onnx/blob/main/docs/Operators.md#leakyRelu
 float leakyRelu(float x)
 {
-    return (x >= 0.0f) ? x : Alpha * x;
+    return (x >= 0.0f) ? x : GetAlpha() * x;
 }
 
 
 //see https://github.com/onnx/onnx/blob/main/docs/Operators.md#clip
 float clipOp(float x)
 {
-	float min = Alpha;
-	float max = Beta;
-	return clamp(x, Alpha, Beta);
+	float min = GetAlpha();
+	float max = GetBeta();
+	return clamp(x, GetAlpha(), GetBeta());
 }
 
 

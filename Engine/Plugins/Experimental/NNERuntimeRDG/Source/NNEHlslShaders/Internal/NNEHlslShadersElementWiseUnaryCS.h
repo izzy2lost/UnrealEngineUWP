@@ -22,7 +22,9 @@ namespace UE::NNEHlslShaders::Internal
 		SHADER_USE_PARAMETER_STRUCT(TElementWiseUnaryCS, FHlslShaderBase)
 
 		class FOperatorType : SHADER_PERMUTATION_ENUM_CLASS("OP_TYPENAME", NNE::Internal::EElementWiseUnaryOperatorType);
-		using FPermutationDomain = TShaderPermutationDomain<FOperatorType>;
+		class FAlphaOnGPU : SHADER_PERMUTATION_BOOL("ALPHA_ON_GPU");
+		class FBetaOnGPU : SHADER_PERMUTATION_BOOL("BETA_ON_GPU");
+		using FPermutationDomain = TShaderPermutationDomain<FOperatorType,FAlphaOnGPU,FBetaOnGPU>;
 
 	public:
 
@@ -32,9 +34,13 @@ namespace UE::NNEHlslShaders::Internal
 			SHADER_PARAMETER(uint32, Num)
 			SHADER_PARAMETER(uint32, ThreadCountX)
 			SHADER_PARAMETER(float, Alpha)
+			SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<float>, AlphaTensor)
 			SHADER_PARAMETER(float, Beta)
+			SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<float>, BetaTensor)
 			SHADER_PARAMETER(float, Gamma)
 		END_SHADER_PARAMETER_STRUCT()
+
+		static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters);
 
 		static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& InParameters, FShaderCompilerEnvironment& OutEnvironment);
 
