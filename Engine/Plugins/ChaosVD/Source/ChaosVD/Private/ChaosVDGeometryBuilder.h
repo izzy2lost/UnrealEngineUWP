@@ -324,6 +324,9 @@ private:
 	/** Map containing already initialized Instanced static mesh components for mesh instances that required a negative scale transform and use a translucent material, for any given geometry key */
 	TMap<uint32, UChaosVDInstancedStaticMeshComponent*> TranslucentMirroredInstancedMeshComponentByGeometryKey;
 
+	/** Components that need to be processed and added to the pool in the next frame */
+	TArray<TObjectPtr<UMeshComponent>> MeshComponentsPendingDisposal;
+
 	/** Instance of uninitialized mesh components pool */
 	FChaosVDMeshComponentPool ComponentMeshPool;
 

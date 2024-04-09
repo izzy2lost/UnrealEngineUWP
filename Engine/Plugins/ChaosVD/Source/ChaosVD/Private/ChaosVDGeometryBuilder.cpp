@@ -187,12 +187,16 @@ void FChaosVDGeometryBuilder::Initialize(const TWeakPtr<FChaosVDScene>& ChaosVDS
 	MeshComponentsWaitingForGeometry = MakeUnique<FObjectsWaitingGeometryList<FMeshComponentWeakPtr>>(ProcessMeshComponent, NSLOCTEXT("ChaosVisualDebugger", "GeometryGenNotification","Mesh Components"), ShouldProcessObjectsForKey);
 
 	GameThreadTickDelegate = FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateRaw(this, &FChaosVDGeometryBuilder::GameThreadTick));
+
+	constexpr int32 MeshPendingDisposalContainerDefaultSize = 500; 
+	MeshComponentsPendingDisposal.Reserve(MeshPendingDisposalContainerDefaultSize);
 }
 
 void FChaosVDGeometryBuilder::AddReferencedObjects(FReferenceCollector& Collector)
 {
 	Collector.AddStableReferenceMap(DynamicMeshCacheMap);
 	Collector.AddStableReferenceMap(StaticMeshCacheMap);
+	Collector.AddReferencedObjects(MeshComponentsPendingDisposal);
 }
 
 bool FChaosVDGeometryBuilder::DoesImplicitContainType(const Chaos::FImplicitObject* InImplicitObject, const Chaos::EImplicitObjectType ImplicitTypeToCheck)
@@ -395,7 +399,7 @@ void FChaosVDGeometryBuilder::DestroyMeshComponent(UMeshComponent* MeshComponent
 		}
 	}
 
-	ComponentMeshPool.DisposeMeshComponent(MeshComponent);
+	MeshComponentsPendingDisposal.Add(MeshComponent);
 }
 
 TMap<uint32, UChaosVDInstancedStaticMeshComponent*>& FChaosVDGeometryBuilder::GetInstancedStaticMeshComponentCacheMap(EChaosVDMeshAttributesFlags MeshAttributeFlags)
@@ -635,6 +639,16 @@ bool FChaosVDGeometryBuilder::GameThreadTick(float DeltaTime)
 	{
 		MeshComponentsWaitingForGeometry->ProcessWaitingObjects(CurrentGeometryTasksProcessedNum);
 	}
+
+	for (TObjectPtr<UMeshComponent>& MeshComponentPtr : MeshComponentsPendingDisposal)
+	{
+		if (MeshComponentPtr)
+		{
+			ComponentMeshPool.DisposeMeshComponent(MeshComponentPtr);
+		}
+	}
+
+	MeshComponentsPendingDisposal.Reset();
 
 	return true;
 }
