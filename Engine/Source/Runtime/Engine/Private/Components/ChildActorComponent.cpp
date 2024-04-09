@@ -193,6 +193,7 @@ void UChildActorComponent::Serialize(FArchive& Ar)
 #if WITH_EDITOR
 void UChildActorComponent::SetPackageExternal(bool bExternal, bool bShouldDirty)
 {
+	Modify(bShouldDirty);
 	DestroyChildActor();
 	CreateChildActor();
 }
