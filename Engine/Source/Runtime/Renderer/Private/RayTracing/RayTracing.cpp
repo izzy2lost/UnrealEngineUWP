@@ -653,26 +653,6 @@ namespace RayTracing
 		}
 	}
 
-	// Class to implement build instance mask and flags so that rendering related mask build is maintained in any renderer module.
-	// BuildInstanceMaskAndFlags() will be called in the Engine module where it does not know specifics of the ray tracing instance
-	// masks used by the renderer (e.g., path tracer mask might be different from raytracing mask).
-	struct FDeferredShadingRayTracingMaterialGatheringContext : public FRayTracingMaterialGatheringContext
-	{
-		FDeferredShadingRayTracingMaterialGatheringContext(
-			const FScene* InScene,
-			const FSceneView* InReferenceView,
-			const FSceneViewFamily& InReferenceViewFamily,
-			FRDGBuilder& InGraphBuilder,
-			FRayTracingMeshResourceCollector& InRayTracingMeshResourceCollector,
-			FGlobalDynamicReadBuffer& InDynamicReadBuffer)
-			:FRayTracingMaterialGatheringContext(InScene, InReferenceView, InReferenceViewFamily, InGraphBuilder, InRayTracingMeshResourceCollector, InDynamicReadBuffer) {}
-
-		virtual FRayTracingMaskAndFlags BuildInstanceMaskAndFlags(const FRayTracingInstance& Instance, const FPrimitiveSceneProxy& ScenePrimitive) override
-		{
-			return BuildRayTracingInstanceMaskAndFlags(Instance, ScenePrimitive, &ReferenceViewFamily);
-		}
-	};
-
 	bool GatherWorldInstancesForView(
 		FRDGBuilder& GraphBuilder,
 		FScene& Scene,
@@ -703,7 +683,7 @@ namespace RayTracing
 
 		View.RayTracingCullingParameters.Init(View);
 
-		FDeferredShadingRayTracingMaterialGatheringContext MaterialGatheringContext
+		FRayTracingMaterialGatheringContext MaterialGatheringContext
 		(
 			&Scene,
 			&View,
