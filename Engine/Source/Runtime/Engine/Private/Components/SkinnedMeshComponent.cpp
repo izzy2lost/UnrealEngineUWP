@@ -3949,30 +3949,46 @@ int32 USkinnedMeshComponent::GetNumLODs() const
 	return NumLODs;
 }
 
-
 void USkinnedMeshComponent::SetMinLOD(int32 InNewMinLOD)
 {
-	int32 MaxLODIndex = GetNumLODs() - 1;
-	MinLodModel = FMath::Clamp(InNewMinLOD, 0, MaxLODIndex);
+	MinLodModel = GetValidMinLOD(InNewMinLOD);
 }
 
 void USkinnedMeshComponent::OverrideMinLOD(int32 InNewMinLOD)
 {
-	int32 MaxLODIndex = GetNumLODs() - 1;
-	MinLodModel = FMath::Clamp(InNewMinLOD, 0, MaxLODIndex);
+	MinLodModel = GetValidMinLOD(InNewMinLOD);
 	bOverrideMinLod = true;
 }
 
 int32 USkinnedMeshComponent::ComputeMinLOD() const
 {
-	int32 AssetMinLod = GetSkinnedAsset()->GetMinLodIdx();
+	const int32 AssetMinLOD = GetSkinnedAsset()->GetMinLodIdx();
 	// overriden MinLOD can't be higher than asset MinLOD
-	int32 MinLodIndex = bOverrideMinLod ? FMath::Max(MinLodModel, AssetMinLod) : AssetMinLod;
-	int32 NumLODs = GetNumLODs();
-	// want to make sure MinLOD stays within the valid range
-	MinLodIndex = FMath::Min(MinLodIndex, NumLODs - 1);
-	MinLodIndex = FMath::Max(MinLodIndex, 0);
-	return MinLodIndex;
+	int32 MinLODIndex = bOverrideMinLod ? FMath::Max(MinLodModel, AssetMinLOD) : AssetMinLOD;
+	MinLODIndex = GetValidMinLOD(MinLODIndex);
+	return MinLODIndex;
+}
+
+int32 USkinnedMeshComponent::GetValidMinLOD(const int32 InMinLODIndex) const
+{
+	// Iterate the render data to validate that our min LOD has data that can be used.
+	const int32 MaxLODIndex = GetNumLODs() - 1;
+	const FSkeletalMeshRenderData* RenderData = GetSkeletalMeshRenderData();
+	const int32 FirstValidLODIndex = RenderData != nullptr ? RenderData->GetFirstValidLODIdx(InMinLODIndex) : INDEX_NONE;
+	UE_CLOG(FirstValidLODIndex == INDEX_NONE
+		, LogSkinnedMeshComp, Log
+		, TEXT("%hs We're trying to override min LOD for [%s] with no valid LOD index from [%i] to [%i]")
+		, __FUNCTION__
+		, *GetName()
+		, InMinLODIndex
+		, MaxLODIndex
+	);
+
+	// Return the first LOD that has render data that can be used.
+	/** NOTE: We're logging if the index is not valid in the render data but we still want to return a valid value from 0 to max. 
+	  * Render data could be invalid if we're still loading/streaming in the asset.
+	  */
+	return FMath::Clamp<int32>(FirstValidLODIndex, 0, MaxLODIndex);
 }
 
 #if WITH_EDITOR

@@ -1116,6 +1116,13 @@ public:
 	 */
 	ENGINE_API int32 ComputeMinLOD() const;
 
+	/**
+	 * Validate the min LOD value of the mesh component by iterating over render data to make sure we get something usable.
+	 *
+	 * @param	InMinLOD	The starting LOD index to iterate from to make sure the render data is valid. Range from [0, Max Number of LOD - 1].
+	 */
+	int32 GetValidMinLOD(const int32 InMinLODIndex) const;
+
 public:
 	//~ Begin UObject Interface
 	ENGINE_API virtual void BeginDestroy() override;
