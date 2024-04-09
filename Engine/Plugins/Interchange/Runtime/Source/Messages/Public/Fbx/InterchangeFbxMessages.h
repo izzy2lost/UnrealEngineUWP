@@ -26,6 +26,20 @@ public:
  * Base class for FBX parser warnings
  */
 UCLASS()
+class INTERCHANGEMESSAGES_API UInterchangeResultTextureDisplay : public UInterchangeResultDisplay_Generic
+{
+	GENERATED_BODY()
+
+public:
+
+	UPROPERTY()
+	FString TextureName;
+};
+
+/**
+ * Base class for FBX parser warnings
+ */
+UCLASS()
 class INTERCHANGEMESSAGES_API UInterchangeResultTextureWarning : public UInterchangeResultWarning
 {
 	GENERATED_BODY()
@@ -102,15 +116,12 @@ public:
  * A generic class for FBX parser warnings, with no additional metadata, and where the text is specified by the user
  */
 UCLASS()
-class INTERCHANGEMESSAGES_API UInterchangeResultTextureWarning_TextureFileDoNotExist : public UInterchangeResultTextureWarning
+class INTERCHANGEMESSAGES_API UInterchangeResultTextureDisplay_TextureFileDoNotExist : public UInterchangeResultTextureDisplay
 {
 	GENERATED_BODY()
 
 public:
 	virtual FText GetText() const override;
-
-	UPROPERTY()
-	FText Text;
 
 	UPROPERTY()
 	FString MaterialName;

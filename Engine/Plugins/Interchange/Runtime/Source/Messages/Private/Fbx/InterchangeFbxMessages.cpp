@@ -42,7 +42,7 @@ FText UInterchangeResultMeshWarning_TooManyUVs::GetText() const
 	return FText::Format(LOCTEXT("TooManyUVs", "Reached the maximum number of UV Channels for mesh '{MeshName}' - discarding {ExcessUVs} {ExcessUVs}|plural(one=channel,other=channels)."), Args);
 }
 
-FText UInterchangeResultTextureWarning_TextureFileDoNotExist::GetText() const
+FText UInterchangeResultTextureDisplay_TextureFileDoNotExist::GetText() const
 {
 	FFormatNamedArguments Args
 	{
