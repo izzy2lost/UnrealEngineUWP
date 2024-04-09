@@ -82,7 +82,7 @@ enum class ETemplateSetting
 	GraphicsPreset,
 	StarterContent,
 	XR,
-	Raytracing,
+	Raytracing_DEPRECATED,
 	All
 };
 

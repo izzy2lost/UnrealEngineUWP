@@ -157,27 +157,23 @@ namespace
 	/** Get the configuration values for raytracing if enabled. */
 	void AddRaytracingConfigValues(const FProjectInformation& InProjectInfo, TArray<FTemplateConfigValue>& ConfigValues)
 	{
-		if (InProjectInfo.bEnableRaytracing.IsSet() && 
-			InProjectInfo.bEnableRaytracing.GetValue() == true)
-		{
-			ConfigValues.Emplace(TEXT("DefaultEngine.ini"),
-				TEXT("/Script/WindowsTargetPlatform.WindowsTargetSettings"),
-				TEXT("DefaultGraphicsRHI"),
-				TEXT("DefaultGraphicsRHI_DX12"),
-				true /* ShouldReplaceExistingValue */);
+		ConfigValues.Emplace(TEXT("DefaultEngine.ini"),
+			TEXT("/Script/WindowsTargetPlatform.WindowsTargetSettings"),
+			TEXT("DefaultGraphicsRHI"),
+			TEXT("DefaultGraphicsRHI_DX12"),
+			false /* ShouldReplaceExistingValue */);
 
-			ConfigValues.Emplace(TEXT("DefaultEngine.ini"),
-				TEXT("/Script/Engine.RendererSettings"),
-				TEXT("r.SkinCache.CompileShaders"),
-				TEXT("True"),
-				true /* ShouldReplaceExistingValue */);
+		ConfigValues.Emplace(TEXT("DefaultEngine.ini"),
+			TEXT("/Script/Engine.RendererSettings"),
+			TEXT("r.SkinCache.CompileShaders"),
+			TEXT("True"),
+			false /* ShouldReplaceExistingValue */);
 
-			ConfigValues.Emplace(TEXT("DefaultEngine.ini"),
-				TEXT("/Script/Engine.RendererSettings"),
-				TEXT("r.RayTracing"),
-				TEXT("True"),
-				true /* ShouldReplaceExistingValue */);
-		}
+		ConfigValues.Emplace(TEXT("DefaultEngine.ini"),
+			TEXT("/Script/Engine.RendererSettings"),
+			TEXT("r.RayTracing"),
+			TEXT("True"),
+			false /* ShouldReplaceExistingValue */);
 	}
 
 	void AddDefaultMapConfigValues(const FProjectInformation& InProjectInfo, TArray<FTemplateConfigValue>& ConfigValues)
