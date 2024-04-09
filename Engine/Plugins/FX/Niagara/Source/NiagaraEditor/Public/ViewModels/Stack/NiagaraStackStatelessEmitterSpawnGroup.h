@@ -10,6 +10,7 @@
 
 class FNiagaraStackItemPropertyHeaderValue;
 struct FNiagaraStatelessSpawnInfo;
+enum class ENiagaraStatelessSpawnInfoType;
 class UNiagaraStatelessEmitter;
 class UNiagaraStackObject;
 
@@ -61,6 +62,9 @@ public:
 	virtual FText GetDeleteTransactionText() const override;
 	virtual void Delete() override;
 
+	virtual bool SupportsChangeEnabled() const override;
+	virtual bool GetIsEnabled() const override;
+
 	virtual bool SupportsHeaderValues() const override { return true; }
 	virtual void GetHeaderValueHandlers(TArray<TSharedRef<INiagaraStackItemHeaderValueHandler>>& OutHeaderValueHandlers) const override;
 
@@ -70,8 +74,12 @@ public:
 
 	FOnRequestDelete& OnRequestDelete() { return OnRequestDeleteDelegate; }
 
+	static FText GetDisplayName(ENiagaraStatelessSpawnInfoType SpawnInfoType);
+
 protected:
 	virtual void RefreshChildrenInternal(const TArray<UNiagaraStackEntry*>& CurrentChildren, TArray<UNiagaraStackEntry*>& NewChildren, TArray<FStackIssue>& NewIssues) override;
+
+	virtual void SetIsEnabledInternal(bool bInIsEnabled) override;
 
 private:
 	FNiagaraStatelessSpawnInfo* GetSpawnInfo() const;

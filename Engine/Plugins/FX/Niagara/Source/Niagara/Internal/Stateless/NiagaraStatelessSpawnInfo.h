@@ -37,7 +37,10 @@ struct FNiagaraStatelessSpawnInfo
 	FNiagaraDistributionRangeFloat Rate = FNiagaraDistributionRangeFloat(60.0f);
 
 	UPROPERTY(EditAnywhere, Category = "Spawn", meta = (InlineEditConditionToggle))
-	bool bSpawnProbabilityEnabled = false;
+	uint8 bEnabled : 1 = true;
+
+	UPROPERTY(EditAnywhere, Category = "Spawn", meta = (InlineEditConditionToggle))
+	uint8 bSpawnProbabilityEnabled : 1 = false;
 
 	UPROPERTY(EditAnywhere, Category = "Spawn", meta = (EditCondition = "bSpawnProbabilityEnabled", ClampMin = "0.0", ClampMax = "1.0", UIMin = "0.0", UIMax = "1.0"))
 	float SpawnProbability = 1.0f;

@@ -17,36 +17,65 @@
 
 #define LOCTEXT_NAMESPACE "NiagaraEmitterStatelessSpawnGroup"
 
+class FNiagaraStatelessEmitterAddSpawnInfoAction : public INiagaraStackItemGroupAddAction
+{
+public:
+	explicit FNiagaraStatelessEmitterAddSpawnInfoAction(ENiagaraStatelessSpawnInfoType InSpawnInfoType)
+		: SpawnInfoType(InSpawnInfoType)
+		, DisplayName(UNiagaraStackStatelessEmitterSpawnItem::GetDisplayName(InSpawnInfoType))
+	{
+	}
+
+	ENiagaraStatelessSpawnInfoType GetSpawnInfoType() const { return SpawnInfoType; }
+
+	virtual TArray<FString> GetCategories() const override { return Categories; }
+	virtual FText GetDisplayName() const override { return DisplayName; }
+	virtual FText GetDescription() const override { return FText(); }
+	virtual FText GetKeywords() const override { return FText(); }
+
+private:
+	ENiagaraStatelessSpawnInfoType SpawnInfoType;
+	TWeakObjectPtr<UNiagaraStatelessModule> StatelessModuleWeak;
+	TArray<FString> Categories;
+	FText DisplayName;
+};
+
 class FNiagaraStackStatelessEmitterSpawnGroupAddUtilities : public TNiagaraStackItemGroupAddUtilities<FGuid>
 {
 public:
 	FNiagaraStackStatelessEmitterSpawnGroupAddUtilities(UNiagaraStatelessEmitter* StatelessEmitter, FOnItemAdded InOnItemAdded)
-		: TNiagaraStackItemGroupAddUtilities(LOCTEXT("AddUtilitiesName", "Spawn Data"), EAddMode::AddDirectly, false, false, InOnItemAdded)
+		: TNiagaraStackItemGroupAddUtilities(LOCTEXT("AddUtilitiesName", "Spawn Data"), EAddMode::AddFromAction, true, false, InOnItemAdded)
 	{
 		StatelessEmitterWeak = StatelessEmitter;
 	}
 
 	virtual void AddItemDirectly() override 
 	{ 
-		UNiagaraStatelessEmitter* StatelessEmitter = StatelessEmitterWeak.Get();
-		if (StatelessEmitter != nullptr)
-		{
-			FScopedTransaction ScopedTransaction(LOCTEXT("AddNewSpawnInfoTransaction", "Add new spawn data"));
-			StatelessEmitter->Modify();
-			FNiagaraStatelessSpawnInfo& SpawnInfo = StatelessEmitter->AddSpawnInfo();
-			SpawnInfo.SourceId = FGuid::NewGuid();
-			OnItemAdded.ExecuteIfBound(SpawnInfo.SourceId);
-		}
+		unimplemented();
 	}
 
 	virtual void GenerateAddActions(TArray<TSharedRef<INiagaraStackItemGroupAddAction>>& OutAddActions, const FNiagaraStackItemGroupAddOptions& AddProperties) const override
 	{
-		unimplemented();
+		OutAddActions.Emplace(MakeShared<FNiagaraStatelessEmitterAddSpawnInfoAction>(ENiagaraStatelessSpawnInfoType::Burst));
+		OutAddActions.Emplace(MakeShared<FNiagaraStatelessEmitterAddSpawnInfoAction>(ENiagaraStatelessSpawnInfoType::Rate));
 	}
 
 	virtual void ExecuteAddAction(TSharedRef<INiagaraStackItemGroupAddAction> AddAction, int32 TargetIndex) override
 	{
-		unimplemented();
+		UNiagaraStatelessEmitter* StatelessEmitter = StatelessEmitterWeak.Get();
+		if (StatelessEmitter != nullptr)
+		{
+			TSharedRef<FNiagaraStatelessEmitterAddSpawnInfoAction> AddSpawnInfoAction = StaticCastSharedRef<FNiagaraStatelessEmitterAddSpawnInfoAction>(AddAction);
+
+			FScopedTransaction ScopedTransaction(LOCTEXT("AddNewSpawnInfoTransaction", "Add new spawn data"));
+			StatelessEmitter->Modify();
+
+			FNiagaraStatelessSpawnInfo& SpawnInfo = StatelessEmitter->AddSpawnInfo();
+			SpawnInfo.Type = AddSpawnInfoAction->GetSpawnInfoType();
+
+			SpawnInfo.SourceId = FGuid::NewGuid();
+			OnItemAdded.ExecuteIfBound(SpawnInfo.SourceId);
+		}
 	}
 
 private:
@@ -134,22 +163,21 @@ void UNiagaraStackStatelessEmitterSpawnItem::Initialize(FRequiredEntryData InReq
 	OnDataObjectModified().AddUObject(this, &UNiagaraStackStatelessEmitterSpawnItem::OnSpawnInfoModified);
 }
 
+FText UNiagaraStackStatelessEmitterSpawnItem::GetDisplayName(ENiagaraStatelessSpawnInfoType SpawnInfoType)
+{
+	switch (SpawnInfoType)
+	{
+		case ENiagaraStatelessSpawnInfoType::Burst:	return LOCTEXT("EmitterSpawnBurstDisplayName", "Spawn Burst Instantaneous");
+		case ENiagaraStatelessSpawnInfoType::Rate:	return LOCTEXT("EmitterSpawnRateDisplayName", "Spawn Rate");
+		default:									checkNoEntry();	return LOCTEXT("EmitterSpawnUnknownDisplayName", "Unknown");
+	}
+}
+
 FText UNiagaraStackStatelessEmitterSpawnItem::GetDisplayName() const
 {
 	const FNiagaraStatelessSpawnInfo* SpawnInfo = GetSpawnInfo();
 	const ENiagaraStatelessSpawnInfoType SpawnInfoType = SpawnInfo ? SpawnInfo->Type : ENiagaraStatelessSpawnInfoType::Burst;
-	switch (SpawnInfoType)
-	{
-		case ENiagaraStatelessSpawnInfoType::Burst:
-			return LOCTEXT("EmitterSpawnBurstDisplayName", "Spawn Burst Instantaneous");
-
-		case ENiagaraStatelessSpawnInfoType::Rate:
-			return LOCTEXT("EmitterSpawnRateDisplayName", "Spawn Rate");
-
-		default:
-			checkNoEntry();
-			return LOCTEXT("EmitterSpawnUnknownDisplayName", "Unknown");
-	}
+	return GetDisplayName(SpawnInfoType);
 }
 
 FGuid UNiagaraStackStatelessEmitterSpawnItem::GetSelectionId() const
@@ -171,6 +199,17 @@ FText UNiagaraStackStatelessEmitterSpawnItem::GetDeleteTransactionText() const
 void UNiagaraStackStatelessEmitterSpawnItem::Delete()
 {
 	OnRequestDeleteDelegate.ExecuteIfBound(SourceId);
+}
+
+bool UNiagaraStackStatelessEmitterSpawnItem::SupportsChangeEnabled() const
+{
+	return true;
+}
+
+bool UNiagaraStackStatelessEmitterSpawnItem::GetIsEnabled() const
+{
+	const FNiagaraStatelessSpawnInfo* SpawnInfo = GetSpawnInfo();
+	return SpawnInfo ? SpawnInfo->bEnabled : false;
 }
 
 void UNiagaraStackStatelessEmitterSpawnItem::GetHeaderValueHandlers(TArray<TSharedRef<INiagaraStackItemHeaderValueHandler>>& OutHeaderValueHandlers) const
@@ -237,6 +276,25 @@ void UNiagaraStackStatelessEmitterSpawnItem::RefreshChildrenInternal(const TArra
 		SpawnInfoStructOnScope.Reset();
 		SpawnInfoObjectWeak.Reset();
 		HeaderValueHandlers.Empty();
+	}
+}
+
+void UNiagaraStackStatelessEmitterSpawnItem::SetIsEnabledInternal(bool bInIsEnabled)
+{
+	UNiagaraStatelessEmitter* StatelessEmitter = StatelessEmitterWeak.Get();
+	FNiagaraStatelessSpawnInfo* SpawnInfo = GetSpawnInfo();
+	if (StatelessEmitter && SpawnInfo && SpawnInfo->bEnabled != bInIsEnabled)
+	{
+		FScopedTransaction ScopedTransaction(LOCTEXT("ChangeStatelessSpawnInfoEnabledTransaction", "Change spawn info enabled"));
+		StatelessEmitter->Modify();
+		SpawnInfo->bEnabled = bInIsEnabled;
+		StatelessEmitter->PostEditChange();
+
+		TArray<UObject*> ChangedObjects;
+		ChangedObjects.Add(StatelessEmitter);
+		OnDataObjectModified().Broadcast(ChangedObjects, ENiagaraDataObjectChange::Changed);
+
+		RefreshChildren();
 	}
 }
 
