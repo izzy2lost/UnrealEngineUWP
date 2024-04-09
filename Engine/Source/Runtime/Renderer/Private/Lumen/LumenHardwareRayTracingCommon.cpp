@@ -12,7 +12,7 @@
 
 static TAutoConsoleVariable<int32> CVarLumenUseHardwareRayTracing(
 	TEXT("r.Lumen.HardwareRayTracing"),
-	0,
+	1,
 	TEXT("Uses Hardware Ray Tracing for Lumen features, when available.\n")
 	TEXT("Lumen will fall back to Software Ray Tracing otherwise.\n")
 	TEXT("Note: Hardware ray tracing has significant scene update costs for\n")
