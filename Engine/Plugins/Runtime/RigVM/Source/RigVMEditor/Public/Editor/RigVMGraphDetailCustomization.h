@@ -536,11 +536,11 @@ protected:
 	template<typename VectorType, typename NumericType>
 	void OnVectorComponentChanged(TSharedRef<class IPropertyHandle> InPropertyHandle, int32 InComponent, NumericType InValue, bool bIsCommit, ETextCommit::Type InCommitType = ETextCommit::Default)
 	{
-		if (ObjectsBeingCustomized.IsEmpty())
+		if (ObjectsBeingCustomized.IsEmpty() && StructsBeingCustomized.IsEmpty())
 		{
 			return;
 		}
-		
+
 		FEditPropertyChain PropertyChain;
 		TArray<int32> PropertyArrayIndices;
 		bool bEnabled;
@@ -548,48 +548,38 @@ protected:
 		{
 			return;
 		}
-	
-		TArray<UObject*> ObjectsView;
-		for(int32 Index = 0; Index < ObjectsBeingCustomized.Num(); Index++)
-		{
-			const TWeakObjectPtr<UObject>& Object = ObjectsBeingCustomized[Index];
-			if (Object.Get())
-			{
-				ObjectsView.Add(Object.Get());
-			}
-		}
-		FPropertyChangedEvent PropertyChangedEvent(InPropertyHandle->GetProperty(), bIsCommit ? EPropertyChangeType::ValueSet : EPropertyChangeType::Interactive, ObjectsView);
-		FPropertyChangedChainEvent PropertyChangedChainEvent(PropertyChain, PropertyChangedEvent);
 
 		URigVMController* Controller = nullptr;
-		if(BlueprintBeingCustomized && GraphBeingCustomized)
+		if (BlueprintBeingCustomized && GraphBeingCustomized)
 		{
 			Controller = BlueprintBeingCustomized->GetController(GraphBeingCustomized);
-			if(bIsCommit)
+			if (bIsCommit)
 			{
 				Controller->OpenUndoBracket(FString::Printf(TEXT("Set %s"), *InPropertyHandle->GetProperty()->GetName()));
 			}
 		}
 
-		for(int32 Index = 0; Index < ObjectsBeingCustomized.Num(); Index++)
+		const EPropertyChangeType::Type ChangeType = bIsCommit ? EPropertyChangeType::ValueSet : EPropertyChangeType::Interactive;
+
+		const TArray<uint8*> AllMemoryBeingCustomized = GetMemoryBeingCustomized();
+		for (int32 Index = 0; Index < AllMemoryBeingCustomized.Num(); Index++)
 		{
-			const TWeakObjectPtr<UObject>& Object = ObjectsBeingCustomized[Index];
-			if(Object.Get() && InPropertyHandle->IsValidHandle())
+			const uint8* Memory = AllMemoryBeingCustomized[Index];
+			if (Memory != nullptr && InPropertyHandle->IsValidHandle())
 			{
 				static VectorType ZeroVector = VectorType();
-				VectorType& Vector = ContainerMemoryBlockToValueRef<VectorType>((uint8*)Object.Get(), ZeroVector, PropertyChain, PropertyArrayIndices);
+				VectorType& Vector = ContainerMemoryBlockToValueRef<VectorType>((uint8*)Memory, ZeroVector, PropertyChain, PropertyArrayIndices);
 				VectorType PreviousVector = Vector;
 				Vector[InComponent] = InValue;
-					
-				if(!PreviousVector.Equals(Vector))
+
+				if (!PreviousVector.Equals(Vector))
 				{
-					Object->PostEditChangeChainProperty(PropertyChangedChainEvent);
-					InPropertyHandle->NotifyPostChange(PropertyChangedEvent.ChangeType);
+					InPropertyHandle->NotifyPostChange(ChangeType);
 				}
 			}
 		}
 
-		if(Controller && bIsCommit)
+		if (Controller && bIsCommit)
 		{
 			Controller->CloseUndoBracket();
 		}
@@ -654,7 +644,7 @@ protected:
 	template<typename RotationType>
 	void OnRotationChanged(TSharedRef<class IPropertyHandle> InPropertyHandle, RotationType InValue, bool bIsCommit, ETextCommit::Type InCommitType = ETextCommit::Default)
 	{
-		if (ObjectsBeingCustomized.IsEmpty())
+		if (ObjectsBeingCustomized.IsEmpty() && StructsBeingCustomized.IsEmpty())
 		{
 			return;
 		}
@@ -667,18 +657,6 @@ protected:
         	return;
         }
 	
-		TArray<UObject*> ObjectsView;
-		for(int32 Index = 0; Index < ObjectsBeingCustomized.Num(); Index++)
-		{
-			const TWeakObjectPtr<UObject>& Object = ObjectsBeingCustomized[Index];
-			if (Object.Get())
-			{
-				ObjectsView.Add(Object.Get());
-			}
-		}
-		FPropertyChangedEvent PropertyChangedEvent(InPropertyHandle->GetProperty(), bIsCommit ? EPropertyChangeType::ValueSet : EPropertyChangeType::Interactive, ObjectsView);
-		FPropertyChangedChainEvent PropertyChangedChainEvent(PropertyChain, PropertyChangedEvent);
-
 		URigVMController* Controller = nullptr;
 		if(BlueprintBeingCustomized && GraphBeingCustomized)
 		{
@@ -689,20 +667,22 @@ protected:
 			}
 		}
 
-		for(int32 Index = 0; Index < ObjectsBeingCustomized.Num(); Index++)
+		const EPropertyChangeType::Type ChangeType = bIsCommit ? EPropertyChangeType::ValueSet : EPropertyChangeType::Interactive;
+
+		const TArray<uint8*> AllMemoryBeingCustomized = GetMemoryBeingCustomized();
+		for (int32 Index = 0; Index < AllMemoryBeingCustomized.Num(); Index++)
 		{
-			const TWeakObjectPtr<UObject>& Object = ObjectsBeingCustomized[Index];
-			if(Object.Get() && InPropertyHandle->IsValidHandle())
+			const uint8* Memory = AllMemoryBeingCustomized[Index];
+			if (Memory != nullptr && InPropertyHandle->IsValidHandle())
 			{
 				static RotationType ZeroRotation = RotationType();
-				RotationType& Rotation = ContainerMemoryBlockToValueRef<RotationType>((uint8*)Object.Get(), ZeroRotation, PropertyChain, PropertyArrayIndices);
+				RotationType& Rotation = ContainerMemoryBlockToValueRef<RotationType>((uint8*)Memory, ZeroRotation, PropertyChain, PropertyArrayIndices);
 				RotationType PreviousRotation = Rotation;
 				Rotation = InValue;
-					
-				if(!PreviousRotation.Equals(Rotation))
+
+				if (!PreviousRotation.Equals(Rotation))
 				{
-					Object->PostEditChangeChainProperty(PropertyChangedChainEvent);
-					InPropertyHandle->NotifyPostChange(PropertyChangedEvent.ChangeType);
+					InPropertyHandle->NotifyPostChange(ChangeType);
 				}
 			}
 		}
