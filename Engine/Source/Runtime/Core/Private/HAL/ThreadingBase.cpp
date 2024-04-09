@@ -1015,6 +1015,17 @@ protected:
 	 */
 	virtual uint32 Run() override;
 
+	/** Common code use by Create functions */
+	FString SetupForCreate(class FQueuedThreadPoolBase* InPool, const TCHAR* ThreadName)
+	{
+		static int32 PoolThreadIndex = 0;
+		const FString PoolThreadName = ThreadName ? FString(ThreadName) : FString::Printf(TEXT("PoolThread %d"), PoolThreadIndex++);
+
+		OwningThreadPool = InPool;
+		DoWorkEvent = FPlatformProcess::GetSynchEventFromPool();
+		return PoolThreadName;
+	}
+
 public:
 
 	/** Default constructor **/
@@ -1031,14 +1042,31 @@ public:
 	 */
 	virtual bool Create(class FQueuedThreadPoolBase* InPool,uint32 InStackSize = 0, EThreadPriority ThreadPriority=TPri_Normal, const TCHAR* ThreadName = nullptr)
 	{
-		static int32 PoolThreadIndex = 0;
-		const FString PoolThreadName = ThreadName ? FString(ThreadName) : FString::Printf( TEXT( "PoolThread %d" ), PoolThreadIndex++ );
+		const FString PoolThreadName = SetupForCreate(InPool, ThreadName);
 
-		OwningThreadPool = InPool;
-		DoWorkEvent = FPlatformProcess::GetSynchEventFromPool();
 		Thread = FRunnableThread::Create(this, *PoolThreadName, InStackSize, ThreadPriority, FPlatformAffinity::GetPoolThreadMask());
 		check(Thread);
 		return true;
+	}
+
+	/**
+	 * Attempts to creates a forkable thread (see FForkProcessHelper) with the specified stack size and creates the various
+	 * events to be able to communicate with it.
+	 * 
+	 * Currently only works after the process has been forked because GetSingleThreadInterface() isn't implemented
+	 *
+	 * @param InPool The thread pool interface used to place this thread back into the pool of available threads when its work is done
+	 * @param InStackSize The size of the stack to create. 0 means use the current thread's stack size
+	 * @param ThreadPriority priority of new thread
+	 * @return True if the thread and all of its initialization was successful, false otherwise
+	 */
+	virtual bool CreateForkable(class FQueuedThreadPoolBase* InPool, uint32 InStackSize = 0, EThreadPriority ThreadPriority = TPri_Normal, const TCHAR* ThreadName = nullptr)
+	{
+		const FString PoolThreadName = SetupForCreate(InPool, ThreadName);
+
+		// Currently no single threaded support, so this is expected to fail before forking
+		Thread = FForkProcessHelper::CreateForkableThread(this, *PoolThreadName, InStackSize, ThreadPriority, FPlatformAffinity::GetPoolThreadMask());
+		return !!Thread;
 	}
 	
 	/**
@@ -1123,7 +1151,7 @@ public:
 		Destroy();
 	}
 
-	virtual bool Create(uint32 InNumQueuedThreads, uint32 StackSize, EThreadPriority ThreadPriority, const TCHAR* Name) override
+	bool CreateInternal(bool bForkable, uint32 InNumQueuedThreads, uint32 StackSize, EThreadPriority ThreadPriority, const TCHAR* Name)
 	{
 		UE::Trace::ThreadGroupBegin(Name);
 
@@ -1150,7 +1178,10 @@ public:
 			FQueuedThread* pThread = new FQueuedThread();
 			// Now create the thread and add it if ok
 			const FString ThreadName = FString::Printf(TEXT("%s #%d"), Name, Count);
-			if (pThread->Create(this, StackSize, ThreadPriority, *ThreadName) == true)
+			const bool bCreateSuccess = bForkable ?
+				pThread->CreateForkable(this, StackSize, ThreadPriority, *ThreadName) :
+				pThread->Create(this, StackSize, ThreadPriority, *ThreadName);
+			if (bCreateSuccess)
 			{
 				QueuedThreads.Add(pThread);
 				AllThreads.Add(pThread);
@@ -1170,6 +1201,16 @@ public:
 
 		UE::Trace::ThreadGroupEnd();
 		return bWasSuccessful;
+	}
+
+	virtual bool Create(uint32 InNumQueuedThreads, uint32 StackSize, EThreadPriority ThreadPriority, const TCHAR* Name) override
+	{
+		return CreateInternal(false, InNumQueuedThreads, StackSize, ThreadPriority, Name);
+	}
+
+	virtual bool CreateForkable(uint32 InNumQueuedThreads, uint32 StackSize, EThreadPriority ThreadPriority, const TCHAR* Name) override
+	{
+		return CreateInternal(true, InNumQueuedThreads, StackSize, ThreadPriority, Name);
 	}
 
 	virtual void Destroy() override final
