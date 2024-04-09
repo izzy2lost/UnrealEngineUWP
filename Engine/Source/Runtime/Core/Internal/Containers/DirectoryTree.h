@@ -16,8 +16,8 @@
 namespace UE::DirectoryTree
 {
 
-COREUOBJECT_API void FixupPathSeparator(FStringBuilderBase& InOutPath, int32 StartIndex, TCHAR InSeparatorChar);
-COREUOBJECT_API int32 FindInsertionIndex(int32 NumChildNodes, const TUniquePtr<FString[]>& RelPaths,
+CORE_API void FixupPathSeparator(FStringBuilderBase& InOutPath, int32 StartIndex, TCHAR InSeparatorChar);
+CORE_API int32 FindInsertionIndex(int32 NumChildNodes, const TUniquePtr<FString[]>& RelPaths,
 	FStringView FirstPathComponent, bool& bOutExists);
 
 }
