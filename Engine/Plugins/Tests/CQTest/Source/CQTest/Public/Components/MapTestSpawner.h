@@ -6,10 +6,11 @@
 
 #include "Commands/TestCommandBuilder.h"
 
-#define ENABLE_MAPSPAWNER_TEST WITH_EDITOR && WITH_AUTOMATION_TESTS
+#if WITH_AUTOMATION_TESTS
 
-#if ENABLE_MAPSPAWNER_TEST
+#if WITH_EDITOR
 #include "UnrealEdMisc.h"
+#endif // WITH_EDITOR
 
 /// Class for spawning Actors in a named Map/Level
 struct CQTEST_API FMapTestSpawner : public FSpawnHelper
@@ -20,7 +21,8 @@ struct CQTEST_API FMapTestSpawner : public FSpawnHelper
 	 * @param MapDirectory - The directory which the map resides in.
 	 * @param MapName - Name of the map.
 	 */
-	FMapTestSpawner(const FString& MapDirectory, const FString& MapName);
+	FMapTestSpawner(const FString& MapDirectory, const FString& MapName)
+		: MapDirectory(MapDirectory), MapName(MapName) {}
 
 	/**
 	 * Creates an instance of the MapTestSpawner with a temporary level ready for use.
@@ -46,15 +48,18 @@ protected:
     virtual UWorld* CreateWorld() override;
 
 private:
+#if WITH_EDITOR
 	/**
 	 * Handler called on map changed.
 	 */
 	void OnMapChanged(UWorld* World, EMapChangeType ChangeType);
 
+	FDelegateHandle MapChangedHandle;
+#endif // WITH_EDITOR
+
 	FString MapDirectory;
 	FString MapName;
 	UWorld* PieWorld{ nullptr };
-	FDelegateHandle MapChangedHandle;
 };
 
-#endif // ENABLE_MAPSPAWNER_TEST
+#endif // WITH_AUTOMATION_TESTS

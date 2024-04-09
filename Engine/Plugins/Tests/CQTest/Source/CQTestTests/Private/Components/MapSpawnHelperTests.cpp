@@ -4,9 +4,9 @@
 #include "Components/MapTestSpawner.h"
 #include "GameFramework/Pawn.h"
 
-#if ENABLE_MAPSPAWNER_TEST
+#if WITH_EDITOR && WITH_AUTOMATION_TESTS
 
-TEST_CLASS(MapSpawnHelperTests, "TestFramework.CQTest.Map")
+TEST_CLASS_WITH_FLAGS(MapSpawnHelperTests, "TestFramework.CQTest.Map", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 {
 	TUniquePtr<FMapTestSpawner> Spawner;
 
@@ -30,4 +30,4 @@ TEST_CLASS(MapSpawnHelperTests, "TestFramework.CQTest.Map")
 	}
 };
 
-#endif // ENABLE_MAPSPAWNER_TEST
+#endif // WITH_EDITOR && WITH_AUTOMATION_TESTS
