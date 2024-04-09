@@ -168,7 +168,7 @@ public:
 			const T* Item = reinterpret_cast<const T*>(CachedItem.Value);
 			if (Item)
 			{
-				Predicate(*ContextString, *Item);
+				Predicate(CachedItem.Key.ItemName, *Item);
 			}
 		}
 	}
