@@ -462,6 +462,12 @@ public:
 	 */
 	FString DestinationName;
 
+	/*
+	 * The content path where asset should be created.
+	 */
+	UPROPERTY(Transient)
+	FString ContentImportPath;
+
 protected:
 
 	INTERCHANGECORE_API virtual FString GetPipelineDisplayName() const;

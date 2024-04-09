@@ -1737,7 +1737,7 @@ UInterchangeManager::ImportInternal(const FString& ContentPath, const UInterchan
 	
 	UInterchangeBaseNodeContainer* BaseNodeContainer = AsyncHelper->BaseNodeContainers[SourceIndex].Get();
 
-	auto AdjustPipelineSettingForContext = [bIsReimport, bImportScene, &TaskData, BaseNodeContainer](UInterchangePipelineBase* Pipeline)
+	auto AdjustPipelineSettingForContext = [bIsReimport, bImportScene, &TaskData, BaseNodeContainer, &ContentBasePath](UInterchangePipelineBase* Pipeline)
 		{
 			EInterchangePipelineContext Context;
 			if (bIsReimport)
@@ -1748,7 +1748,7 @@ UInterchangeManager::ImportInternal(const FString& ContentPath, const UInterchan
 			{
 				Context = bImportScene ? EInterchangePipelineContext::SceneImport : EInterchangePipelineContext::AssetImport;
 			}
-
+			Pipeline->ContentImportPath = ContentBasePath;
 			Pipeline->AdjustSettingsForContext(Context, TaskData.ReimportObject, BaseNodeContainer);
 			Pipeline->DestinationName = TaskData.DestinationName;
 		};

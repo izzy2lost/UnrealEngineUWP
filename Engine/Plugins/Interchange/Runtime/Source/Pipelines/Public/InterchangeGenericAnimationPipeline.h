@@ -41,6 +41,8 @@ public:
 	virtual bool CanEditChange(const FProperty* InProperty) const override;
 #endif
 
+	static FString GetPipelineCategory(UClass* AssetClass);
+
 	//Common SkeletalMeshes And Animations Properties Settings Pointer
 	UPROPERTY(Transient)
 	TWeakObjectPtr<UInterchangeGenericCommonSkeletalMeshesAndAnimationsProperties> CommonSkeletalMeshesAndAnimationsProperties;

@@ -130,6 +130,14 @@ public:
 		TArray<TSharedPtr<FSkeletonJoint>> Children;
 	};
 
+	//We need to store the adjusted content path existing skeleton to restore it in PreDialogCleanup
+	UPROPERTY(meta = (AlwaysResetToDefault = "True"))
+	FSoftObjectPath ContentPathExistingSkeleton;
+
+	//We need to store the adjusted import only animation boolean to restore it in PreDialogCleanup
+	UPROPERTY(meta = (AlwaysResetToDefault = "True"))
+	bool bImportOnlyAnimationAdjusted = false;
+
 protected:
 
 	virtual void ExecutePipeline(UInterchangeBaseNodeContainer* InBaseNodeContainer, const TArray<UInterchangeSourceData*>& InSourceDatas, const FString& ContentBasePath) override;

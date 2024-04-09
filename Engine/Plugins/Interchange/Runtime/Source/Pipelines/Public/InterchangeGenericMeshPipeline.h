@@ -30,6 +30,8 @@ class INTERCHANGEPIPELINES_API UInterchangeGenericMeshPipeline : public UInterch
 	GENERATED_BODY()
 
 public:
+	//IInterchangeGenericPipelineCategoryInterface
+	static FString GetPipelineCategory(UClass* AssetClass);
 
 	//Common Meshes Properties Settings Pointer
 	UPROPERTY(Transient)

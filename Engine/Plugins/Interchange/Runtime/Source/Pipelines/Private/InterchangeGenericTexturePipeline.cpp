@@ -110,6 +110,11 @@ namespace UE::Interchange::Private
 	}
 }
 
+FString UInterchangeGenericTexturePipeline::GetPipelineCategory(UClass* AssetClass)
+{
+	return TEXT("Textures");
+}
+
 void UInterchangeGenericTexturePipeline::AdjustSettingsForContext(EInterchangePipelineContext ImportType, TObjectPtr<UObject> ReimportAsset, const UInterchangeBaseNodeContainer* InBaseNodeContainer)
 {
 	Super::AdjustSettingsForContext(ImportType, ReimportAsset, InBaseNodeContainer);
@@ -123,7 +128,7 @@ void UInterchangeGenericTexturePipeline::AdjustSettingsForContext(EInterchangePi
 		|| ImportType == EInterchangePipelineContext::AssetAlternateSkinningReimport)
 	{
 		bImportTextures = false;
-		HideCategories.Add(TEXT("Textures"));
+		HideCategories.Add(UInterchangeGenericTexturePipeline::GetPipelineCategory(nullptr));
 	}
 	if (UInterchangePipelineBase* OuterMostPipeline = GetMostPipelineOuter())
 	{
@@ -149,7 +154,7 @@ void UInterchangeGenericTexturePipeline::FilterPropertiesFromTranslatedData(UInt
 		//Filter out all Textures properties
 		if (UInterchangePipelineBase* OuterMostPipeline = GetMostPipelineOuter())
 		{
-			HidePropertiesOfCategory(OuterMostPipeline, this, TEXT("Textures"));
+			HidePropertiesOfCategory(OuterMostPipeline, this, UInterchangeGenericTexturePipeline::GetPipelineCategory(nullptr));
 		}
 	}
 }

@@ -3,6 +3,9 @@
 
 #include "Animation/AnimationSettings.h"
 #include "CoreMinimal.h"
+#include "Engine/SkeletalMesh.h"
+#include "Engine/StaticMesh.h"
+#include "InterchangeGenericMeshPipeline.h"
 #include "InterchangeLevelSequenceFactoryNode.h"
 #include "InterchangeAnimationTrackSetNode.h"
 #include "InterchangeAnimSequenceFactoryNode.h"
@@ -20,6 +23,49 @@
 #include "Nodes/InterchangeUserDefinedAttribute.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(InterchangeGenericAnimationPipeline)
+
+namespace UE::Interchange::Private
+{
+	bool IsTranslatedDataContainOnlyJointAnimation(const UInterchangeBaseNodeContainer* InBaseNodeContainer)
+	{
+		//Its valid to call GetMeshesInformationFromTranslatedData with a null container
+		if (!InBaseNodeContainer)
+		{
+			return false;
+		}
+		bool bContainOnlyJointAnimation = false;
+		bool bContainJointAnimation = false;
+		InBaseNodeContainer->BreakableIterateNodesOfType<UInterchangeSkeletalAnimationTrackNode>([&bContainJointAnimation](const FString& NodeUid, UInterchangeSkeletalAnimationTrackNode* AnimationNode)
+			{
+				bContainJointAnimation = true;
+				return bContainJointAnimation;
+			});
+		if (bContainJointAnimation)
+		{
+			//if we have bone animation and no skinned mesh, we want to import animation only.
+			bool bContainSkinnedMeshNode = false;
+			InBaseNodeContainer->BreakableIterateNodesOfType<UInterchangeMeshNode>([&bContainSkinnedMeshNode](const FString& NodeUid, UInterchangeMeshNode* MeshNode)
+				{
+					if (!MeshNode->IsMorphTarget())
+					{
+						if (MeshNode->IsSkinnedMesh())
+						{
+							bContainSkinnedMeshNode = true;
+						}
+					}
+					return bContainSkinnedMeshNode;
+				});
+			bContainOnlyJointAnimation = !bContainSkinnedMeshNode;
+		}
+
+		return bContainOnlyJointAnimation;
+	}
+}
+
+FString UInterchangeGenericAnimationPipeline::GetPipelineCategory(UClass* AssetClass)
+{
+	return TEXT("Animations");
+}
 
 #if WITH_EDITOR
 bool UInterchangeGenericAnimationPipeline::CanEditChange(const FProperty* InProperty) const
@@ -56,7 +102,26 @@ void UInterchangeGenericAnimationPipeline::AdjustSettingsForContext(EInterchange
 		CommonSkeletalMeshesAndAnimationsProperties->bImportOnlyAnimations = false;
 	}
 	
+	const FString CommonMeshesCategory =  UInterchangeGenericCommonMeshesProperties::GetPipelineCategory(nullptr);
+	const FString StaticMeshesCategory = UInterchangeGenericMeshPipeline::GetPipelineCategory(UStaticMesh::StaticClass());
+	const FString SkeletalMeshesCategory = UInterchangeGenericMeshPipeline::GetPipelineCategory(USkeletalMesh::StaticClass());
+	const FString AnimationCategory = UInterchangeGenericAnimationPipeline::GetPipelineCategory(nullptr);
+
 	TArray<FString> HideCategories;
+	if(ImportType == EInterchangePipelineContext::AssetImport)
+	{
+		if(UE::Interchange::Private::IsTranslatedDataContainOnlyJointAnimation(InBaseNodeContainer))
+		{
+			bImportAnimations = true;
+			CommonSkeletalMeshesAndAnimationsProperties->bImportOnlyAnimations = true;
+
+			HideCategories.Add(StaticMeshesCategory);
+			HideCategories.Add(SkeletalMeshesCategory);
+			HideCategories.Add(CommonMeshesCategory);
+		}
+	}
+
+	
 	if (ImportType == EInterchangePipelineContext::AssetReimport)
 	{
 		if (UAnimSequence* AnimSequence = Cast<UAnimSequence>(ReimportAsset))
@@ -68,7 +133,7 @@ void UInterchangeGenericAnimationPipeline::AdjustSettingsForContext(EInterchange
 		}
 		else
 		{
-			HideCategories.Add(TEXT("Animations"));
+			HideCategories.Add(AnimationCategory);
 		}
 	}
 

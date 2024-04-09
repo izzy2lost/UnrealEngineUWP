@@ -51,6 +51,12 @@ class INTERCHANGEPIPELINES_API UInterchangeGenericCommonMeshesProperties : publi
 {
 	GENERATED_BODY()
 public:
+
+	static FString GetPipelineCategory(UClass* AssetClass)
+	{
+		return TEXT("Common Meshes");
+	}
+
 	//////	COMMON_MESHES_CATEGORY Properties //////
 
 	/**
@@ -144,6 +150,12 @@ class INTERCHANGEPIPELINES_API UInterchangeGenericCommonSkeletalMeshesAndAnimati
 {
 	GENERATED_BODY()
 public:
+
+	static FString GetPipelineCategory(UClass* AssetClass)
+	{
+		return TEXT("Common Skeletal Meshes and Animations");
+	}
+
 	/** If enabled, only animations are imported from the source. You must also set a valid skeleton. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Common Skeletal Meshes and Animations")
 	bool bImportOnlyAnimations = false;
@@ -178,6 +190,10 @@ public:
 			return true;
 		}
 		else if (PropertyChangedEvent.Property->GetName() == GET_MEMBER_NAME_CHECKED(UInterchangeGenericCommonSkeletalMeshesAndAnimationsProperties, Skeleton))
+		{
+			return true;
+		}
+		else if (PropertyChangedEvent.Property->GetName() == GET_MEMBER_NAME_CHECKED(UInterchangeGenericCommonSkeletalMeshesAndAnimationsProperties, bImportOnlyAnimations))
 		{
 			return true;
 		}

@@ -582,6 +582,11 @@ UInterchangeGenericMaterialPipeline::UInterchangeGenericMaterialPipeline()
 	TexturePipeline = CreateDefaultSubobject<UInterchangeGenericTexturePipeline>("TexturePipeline");
 }
 
+FString UInterchangeGenericMaterialPipeline::GetPipelineCategory(UClass* AssetClass)
+{
+	return TEXT("Materials");
+}
+
 void UInterchangeGenericMaterialPipeline::PreDialogCleanup(const FName PipelineStackName)
 {
 	if (TexturePipeline)
@@ -589,7 +594,11 @@ void UInterchangeGenericMaterialPipeline::PreDialogCleanup(const FName PipelineS
 		TexturePipeline->PreDialogCleanup(PipelineStackName);
 	}
 
-	SaveSettings(PipelineStackName);
+	//Save only pipeline if we are a stand alone pipeline (not a sub object of another pipeline)
+	if (IsStandAlonePipeline())
+	{
+		SaveSettings(PipelineStackName);
+	}
 }
 
 bool UInterchangeGenericMaterialPipeline::IsSettingsAreValid(TOptional<FText>& OutInvalidReason) const
@@ -619,7 +628,7 @@ void UInterchangeGenericMaterialPipeline::AdjustSettingsForContext(EInterchangeP
 		|| ImportType == EInterchangePipelineContext::AssetAlternateSkinningReimport)
 	{
 		bImportMaterials = false;
-		HideCategories.Add(TEXT("Materials"));
+		HideCategories.Add(UInterchangeGenericMaterialPipeline::GetPipelineCategory(nullptr));
 		SearchLocation = EInterchangeMaterialSearchLocation::DoNotSearch;
 	}
 

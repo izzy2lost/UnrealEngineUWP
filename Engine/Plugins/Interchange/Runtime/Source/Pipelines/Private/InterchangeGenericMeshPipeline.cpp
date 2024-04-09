@@ -21,6 +21,22 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(InterchangeGenericMeshPipeline)
 
+FString UInterchangeGenericMeshPipeline::GetPipelineCategory(UClass* AssetClass)
+{
+	if (ensure(AssetClass))
+	{
+		if (AssetClass->IsChildOf(UStaticMesh::StaticClass()))
+		{
+			return TEXT("Static Meshes");
+		}
+		else if (AssetClass->IsChildOf(USkeletalMesh::StaticClass()))
+		{
+			return TEXT("Skeletal Meshes");
+		}
+	}
+	return TEXT("Static Meshes");
+}
+
 void UInterchangeGenericMeshPipeline::AdjustSettingsForContext(EInterchangePipelineContext ImportType, TObjectPtr<UObject> ReimportAsset, const UInterchangeBaseNodeContainer* InBaseNodeContainer)
 {
 	Super::AdjustSettingsForContext(ImportType, ReimportAsset, InBaseNodeContainer);
@@ -72,10 +88,10 @@ void UInterchangeGenericMeshPipeline::AdjustSettingsForContext(EInterchangePipel
 			CommonSkeletalMeshesAndAnimationsProperties->bImportOnlyAnimations = false;
 		}
 	}
-	const FString CommonMeshesCategory = TEXT("Common Meshes");
-	const FString StaticMeshesCategory = TEXT("Static Meshes");
-	const FString SkeletalMeshesCategory = TEXT("Skeletal Meshes");
-	const FString CommonSkeletalMeshesAndAnimationCategory = TEXT("Common Skeletal Meshes and Animations");
+	const FString CommonMeshesCategory = UInterchangeGenericCommonMeshesProperties::GetPipelineCategory(nullptr);
+	const FString StaticMeshesCategory = UInterchangeGenericMeshPipeline::GetPipelineCategory(UStaticMesh::StaticClass());
+	const FString SkeletalMeshesCategory = UInterchangeGenericMeshPipeline::GetPipelineCategory(USkeletalMesh::StaticClass());
+	const FString CommonSkeletalMeshesAndAnimationCategory = UInterchangeGenericCommonSkeletalMeshesAndAnimationsProperties::GetPipelineCategory(nullptr);
 
 	TArray<FString> HideCategories;
 	TArray<FString> HideSubCategories;
