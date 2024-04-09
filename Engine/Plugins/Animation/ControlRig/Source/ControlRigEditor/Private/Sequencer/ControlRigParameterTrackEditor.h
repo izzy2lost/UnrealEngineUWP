@@ -249,6 +249,10 @@ public:
 
 	//** Function to smart reduce all keys on all constraints based on the parameters
 	static void SmartReduce(TSharedPtr<ISequencer>& SequencerPtr, const FSmartReduceParams& InParams, UMovieSceneControlRigParameterSection* InSection);
+
+	/** Adds the constraint to sequencer and create the bindings if needed. Note that ControlRig Track auto-generation is disabled in this function. */
+	static void AddConstraintToSequencer(const TSharedPtr<ISequencer>& InSequencer, UTickableTransformConstraint* InConstraint);
+
 private:
 	FDelegateHandle SelectionChangedHandle;
 	FDelegateHandle SequencerChangedHandle;

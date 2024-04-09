@@ -1967,6 +1967,12 @@ void FControlRigParameterTrackEditor::OnChannelChanged(const FMovieSceneChannelM
 	}
 }
 
+void FControlRigParameterTrackEditor::AddConstraintToSequencer(const TSharedPtr<ISequencer>& InSequencer, UTickableTransformConstraint* InConstraint)
+{
+	TGuardValue<bool> DisableTrackCreation(bAutoGenerateControlRigTrack, false);
+	FMovieSceneConstraintChannelHelper::AddConstraintToSequencer(InSequencer, InConstraint);
+}
+
 void FControlRigParameterTrackEditor::AddTrackForComponent(USceneComponent* InComponent, FGuid InBinding) 
 {
 	if (USkeletalMeshComponent* SkelMeshComp = Cast<USkeletalMeshComponent>(InComponent))
@@ -2035,7 +2041,7 @@ void FControlRigParameterTrackEditor::HandleActorAdded(AActor* Actor, FGuid Targ
 				const AActor* TargetActor = Child->IsA<AActor>() ? Cast<AActor>(Child) : Child->GetTypedOuter<AActor>();
 				if (TargetActor == Actor)
 				{
-					FMovieSceneConstraintChannelHelper::AddConstraintToSequencer(GetSequencer(), Constraint);
+					AddConstraintToSequencer(GetSequencer(), Constraint);
 				}		
 			}
 		}

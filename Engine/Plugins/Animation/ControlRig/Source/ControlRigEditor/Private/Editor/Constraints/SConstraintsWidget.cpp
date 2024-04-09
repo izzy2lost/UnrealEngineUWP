@@ -29,6 +29,7 @@
 #include "Styling/SlateIconFinder.h"
 #include "Widgets/Input/NumericTypeInterface.h"
 #include "FrameNumberDetailsCustomization.h"
+#include "Sequencer/ControlRigParameterTrackEditor.h"
 
 #define LOCTEXT_NAMESPACE "SConstraintsWidget"
 
@@ -492,7 +493,7 @@ void SConstraintMenuEntry::CreateConstraint(
 						{
 							Constraint->Evaluate();
 						}
-						FMovieSceneConstraintChannelHelper::AddConstraintToSequencer(WeakSequencer.Pin(), Constraint);
+						FControlRigParameterTrackEditor::AddConstraintToSequencer(WeakSequencer.Pin(), Constraint);
 					}
 					else
 					{
