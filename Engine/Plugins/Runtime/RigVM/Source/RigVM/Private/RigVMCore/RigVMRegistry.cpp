@@ -424,15 +424,12 @@ void FRigVMRegistry_NoLock::OnAssetRenamed_NoLock(const FAssetData& InAssetData,
 	}
 }
 
-void FRigVMRegistry_NoLock::OnAssetRemoved_NoLock(const FAssetData& InAssetData)
+bool FRigVMRegistry_NoLock::OnAssetRemoved_NoLock(const FAssetData& InAssetData)
 {
-	if (RemoveType_NoLock(InAssetData.ToSoftObjectPath(), InAssetData.GetClass()))
-	{
-		OnRigVMRegistryChangedDelegate.Broadcast();
-	}
+	return RemoveType_NoLock(InAssetData.ToSoftObjectPath(), InAssetData.GetClass());
 }
 
-void FRigVMRegistry_NoLock::OnPluginUnloaded_NoLock(IPlugin& InPlugin)
+bool FRigVMRegistry_NoLock::OnPluginUnloaded_NoLock(IPlugin& InPlugin)
 {
 	const FString PluginContentPath = InPlugin.GetMountedAssetPath();
 
@@ -463,10 +460,7 @@ void FRigVMRegistry_NoLock::OnPluginUnloaded_NoLock(IPlugin& InPlugin)
 		}
 	}
 
-	if (bRegistryChanged)
-	{
-		OnRigVMRegistryChangedDelegate.Broadcast();
-	}
+	return bRegistryChanged;
 }
 
 void FRigVMRegistry_NoLock::OnAnimationAttributeTypesChanged_NoLock(const UScriptStruct* InStruct, bool bIsAdded)
@@ -479,7 +473,6 @@ void FRigVMRegistry_NoLock::OnAnimationAttributeTypesChanged_NoLock(const UScrip
 	if (bIsAdded)
 	{
 		FindOrAddType_NoLock(FRigVMTemplateArgumentType(const_cast<UScriptStruct*>(InStruct)));
-		OnRigVMRegistryChangedDelegate.Broadcast();		
 	}
 }
 
@@ -927,6 +920,47 @@ FRigVMRegistry_RWLock& FRigVMRegistry_RWLock::Get()
 	// the registry constructor is called
 	static FRigVMRegistry_RWLock s_RigVMRegistry;
 	return s_RigVMRegistry;
+}
+
+void FRigVMRegistry_RWLock::OnAssetRemoved(const FAssetData& InAssetData)
+{
+	bool bAssetRemoved = false;
+	{
+		FConditionalWriteScopeLock _(*this);
+		bAssetRemoved = Super::OnAssetRemoved_NoLock(InAssetData);
+	}
+
+	if (bAssetRemoved)
+	{
+		OnRigVMRegistryChangedDelegate.Broadcast();
+	}
+}
+
+void FRigVMRegistry_RWLock::OnPluginUnloaded(IPlugin& InPlugin)
+{
+	bool bRegistryChanged = false;
+	{
+		FConditionalWriteScopeLock _(*this);
+		bRegistryChanged = Super::OnPluginUnloaded_NoLock(InPlugin);
+	}
+		
+	if (bRegistryChanged)
+	{
+		OnRigVMRegistryChangedDelegate.Broadcast();
+	}
+}
+
+void FRigVMRegistry_RWLock::OnAnimationAttributeTypesChanged(const UScriptStruct* InStruct, bool bIsAdded)
+{
+	{
+		FConditionalWriteScopeLock _(*this);
+		Super::OnAnimationAttributeTypesChanged_NoLock(InStruct, bIsAdded);
+	}
+
+	if (bIsAdded)
+	{
+		OnRigVMRegistryChangedDelegate.Broadcast();		
+	}
 }
 
 TRigVMTypeIndex FRigVMRegistry_NoLock::GetTypeIndex_NoLock(const FRigVMTemplateArgumentType& InType) const

@@ -100,10 +100,10 @@ public:
 	virtual void OnAssetRenamed_NoLock(const FAssetData& InAssetData, const FString& InOldObjectPath);
 	
 	// Update the registry when old types are removed
-	virtual void OnAssetRemoved_NoLock(const FAssetData& InAssetData);
+	virtual bool OnAssetRemoved_NoLock(const FAssetData& InAssetData);
 
 	// Removes all types associated with a plugin that's being unloaded. 
-	virtual void OnPluginUnloaded_NoLock(IPlugin& InPlugin);
+	virtual bool OnPluginUnloaded_NoLock(IPlugin& InPlugin);
 	
 	// Update the registry when new types are added to the attribute system so that they can be selected
 	// on Attribute Nodes
@@ -295,8 +295,6 @@ public:
 
 	static const TArray<UScriptStruct*>& GetMathTypes();
 
-	// Notifies other system that types have been added/removed, and template permutations have been updated
-	FOnRigVMRegistryChanged& OnRigVMRegistryChanged() { return OnRigVMRegistryChangedDelegate; }
 
 	// Returns a unique hash per type index
 	virtual uint32 GetHashForType_NoLock(TRigVMTypeIndex InTypeIndex) const;
@@ -406,8 +404,7 @@ protected:
 	// All allowed structs
 	TSet<TObjectPtr<const UScriptStruct>> AllowedStructs;
 	
-	// Notifies other system that types have been added/removed, and template permutations have been updated
-	FOnRigVMRegistryChanged OnRigVMRegistryChangedDelegate;
+
 
 	// If this is true the registry is currently refreshing all types
 	bool bIsRefreshingEngineTypes;
@@ -608,26 +605,17 @@ public:
 	}
 	
 	// Update the registry when old types are removed
-    void OnAssetRemoved(const FAssetData& InAssetData)
-	{
-		FConditionalWriteScopeLock _(*this);
-		Super::OnAssetRemoved_NoLock(InAssetData);
-	}
+    void OnAssetRemoved(const FAssetData& InAssetData);
 
 	// Removes all types associated with a plugin that's being unloaded. 
-	void OnPluginUnloaded(IPlugin& InPlugin)
-	{
-		FConditionalWriteScopeLock _(*this);
-		Super::OnPluginUnloaded_NoLock(InPlugin);
-	}
-	
+	void OnPluginUnloaded(IPlugin& InPlugin);
+
 	// Update the registry when new types are added to the attribute system so that they can be selected
 	// on Attribute Nodes
-	void OnAnimationAttributeTypesChanged(const UScriptStruct* InStruct, bool bIsAdded)
-	{
-		FConditionalWriteScopeLock _(*this);
-		Super::OnAnimationAttributeTypesChanged_NoLock(InStruct, bIsAdded);
-	}
+	void OnAnimationAttributeTypesChanged(const UScriptStruct* InStruct, bool bIsAdded);
+
+	// Notifies other system that types have been added/removed, and template permutations have been updated
+	FOnRigVMRegistryChanged& OnRigVMRegistryChanged() { return OnRigVMRegistryChangedDelegate; }
 	
 	// Clear the registry
 	void Reset(bool bLockRegistry = true)
@@ -980,16 +968,16 @@ protected:
 	
 	// Update the registry when old types are removed
 	// Note: Only call NoLock methods on the FRigVMRegistry_NoLock
-	virtual void OnAssetRemoved_NoLock(const FAssetData& InAssetData) override
+	virtual bool OnAssetRemoved_NoLock(const FAssetData& InAssetData) override
 	{
-		Super::OnAssetRemoved_NoLock(InAssetData);
+		return Super::OnAssetRemoved_NoLock(InAssetData);
 	}
 
 	// Removes all types associated with a plugin that's being unloaded. 
 	// Note: Only call NoLock methods on the FRigVMRegistry_NoLock
-	virtual void OnPluginUnloaded_NoLock(IPlugin& InPlugin) override
+	virtual bool OnPluginUnloaded_NoLock(IPlugin& InPlugin) override
 	{
-		Super::OnPluginUnloaded_NoLock(InPlugin);
+		return Super::OnPluginUnloaded_NoLock(InPlugin);
 	}
 	
 	// Update the registry when new types are added to the attribute system so that they can be selected
@@ -1274,6 +1262,9 @@ private:
 	mutable FRWLock Lock;
 	mutable std::atomic<ELockType> LockType;
 	mutable std::atomic<int32> LockCount;
+
+	// Notifies other system that types have been added/removed, and template permutations have been updated
+	FOnRigVMRegistryChanged OnRigVMRegistryChangedDelegate;
 	
 	friend struct FRigVMStruct;
 	friend struct FRigVMTemplate;
