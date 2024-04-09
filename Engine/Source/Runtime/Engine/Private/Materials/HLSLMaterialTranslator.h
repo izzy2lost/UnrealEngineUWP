@@ -392,6 +392,8 @@ protected:
 
 	/** true if the material uses any type of vertex position */
 	uint32 bUsesVertexPosition : 1;
+	/** true if the material potentially manipulates any type of TexCoord for texture sampling */
+	uint32 bPotentiallyManipulateTexCoords : 1;
 
 	uint32 bUsesTransformVector : 1;
 	// True if the current property requires last frame's information
@@ -989,6 +991,7 @@ protected:
 #endif
 
 	virtual int32 TextureCoordinate(uint32 CoordinateIndex, bool UnMirrorU, bool UnMirrorV) override;
+	virtual void SetPotentiallyManipulateTexCoords() override;
 
 	uint32 AcquireVTStackIndex(
 		ETextureMipValueMode MipValueMode, 

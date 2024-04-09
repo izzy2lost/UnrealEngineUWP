@@ -1020,6 +1020,9 @@ UMaterial::UMaterial(const FObjectInitializer& ObjectInitializer)
 	bUsedWithVolumetricCloud = false;
 	bUsedWithHeterogeneousVolumes = false;
 
+	// We default to false=incompatible, and rely onto the automatic detection executed from the HLSLTranslator.
+	bCompatibleWithLightFunctionAtlas = false;
+
 	bUseEmissiveForDynamicAreaLighting = false;
 	RefractionDepthBias = 0.0f;
 	MaterialDecalResponse = MDR_ColorNormalRoughness;

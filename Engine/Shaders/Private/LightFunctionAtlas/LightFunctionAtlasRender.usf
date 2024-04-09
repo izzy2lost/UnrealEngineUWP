@@ -8,7 +8,7 @@
 #define LIGHT_FUNCTION_ATLAS 1
 
 // Used to trigger shader recompiles, guid should be regenerated on merge conflicts
-#pragma message("UESHADERMETADATA_VERSION 98DA9C13-D8B0-43F6-AD31-6198D1CE3A5C")
+#pragma message("UESHADERMETADATA_VERSION D13B08DE-2E66-447C-AF33-27D896D280CA")
 
 #include "../Common.ush"
 #include "/Engine/Generated/Material.ush"

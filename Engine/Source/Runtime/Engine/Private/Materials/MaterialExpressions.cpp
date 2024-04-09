@@ -5606,6 +5606,8 @@ UMaterialExpressionTextureCoordinate::UMaterialExpressionTextureCoordinate(const
 #if WITH_EDITOR
 int32 UMaterialExpressionTextureCoordinate::Compile(class FMaterialCompiler* Compiler, int32 OutputIndex)
 {
+	Compiler->SetPotentiallyManipulateTexCoords();
+
 	// Depending on whether we have U and V scale values that differ, we can perform a multiply by either
 	// a scalar or a float2.  These tiling values are baked right into the shader node, so they're always
 	// known at compile time.

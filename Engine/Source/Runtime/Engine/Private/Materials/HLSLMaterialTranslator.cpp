@@ -658,6 +658,7 @@ FHLSLMaterialTranslator::FHLSLMaterialTranslator(FMaterial* InMaterial,
 ,	bUsesInstanceWorldToLocalPS(false)
 ,	bUsesPerInstanceRandomPS(false)
 ,	bUsesVertexPosition(false)
+,	bPotentiallyManipulateTexCoords(false)
 ,	bUsesTransformVector(false)
 ,	bCompilingPreviousFrame(false)
 ,	bOutputsBasePassVelocities(true)
@@ -1707,7 +1708,16 @@ void FHLSLMaterialTranslator::DoTranslate()
 	bUsesAnisotropy = IsMaterialPropertyUsed(MP_Anisotropy, Chunk[MP_Anisotropy], FLinearColor(0, 0, 0, 0), 1);
 	MaterialCompilationOutput.bUsesAnisotropy = bUsesAnisotropy;
 
-	MaterialCompilationOutput.bIsLightFunctionAtlasCompatible = !bUsesVertexPosition && !bUsesSceneDepth && !MaterialCompilationOutput.bNeedsSceneTextures;
+	/**
+	 * A material is not compatible with the atlas if 
+	 *  - it samples world position of depth since we do not have such data when rendering an atlas tile.
+	 *  - it manipulates TexCoords for the following reasons:
+	 *		- Clamped textures will look different if texcoords are manipulated
+	 *		- Wrapped textures look good with any texcoords offsets (since tiles are repeatable and have correct HW filtering at edges)
+	 *		- Wrapped textures look different however if texcoords are scaled (looks correct for 1, 2, 3 but not for 1.5 or 1.1 for instance as UV space [0,1] will no longer align with the atlas tile edges)
+	 * But, an artist can specify and override the fact that a material is compatible with the light function atlas.
+	 */
+	MaterialCompilationOutput.bIsLightFunctionAtlasCompatible = (!bUsesVertexPosition && !bUsesSceneDepth && !MaterialCompilationOutput.bNeedsSceneTextures && !bPotentiallyManipulateTexCoords) || Material->IsCompatibleWithLightFunctionAtlas();
 
 	EMaterialDecalResponse MDR = (EMaterialDecalResponse)Material->GetMaterialDecalResponse();
 	if (MDR == MDR_Color || MDR == MDR_ColorNormal || MDR == MDR_ColorRoughness || MDR == MDR_ColorNormalRoughness)
@@ -6500,6 +6510,12 @@ int32 FHLSLMaterialTranslator::TextureCoordinate(uint32 CoordinateIndex, bool Un
 	// The UV does not get assigned to a half temporary in cases where the texture sample is done directly from interpolated UVs
 		return AddInlinedCodeChunk(MCT_Float2, *SampleCodeFinite, CoordinateIndex);
 	}
+}
+
+void FHLSLMaterialTranslator::SetPotentiallyManipulateTexCoords()
+{
+	// This cannot be set from FHLSLMaterialTranslator::TextureCoordinate because it is called by texture sampling node for default UVs as coordinate index 0 for instance.
+	bPotentiallyManipulateTexCoords = true;
 }
 
 static const TCHAR* GetVTAddressMode(TextureAddress Address)

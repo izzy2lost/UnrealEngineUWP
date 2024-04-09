@@ -1878,6 +1878,11 @@ bool FMaterialResource::IsFullyRough() const
 	return Material->bFullyRough;
 }
 
+bool FMaterialResource::IsCompatibleWithLightFunctionAtlas() const
+{
+	return Material->bCompatibleWithLightFunctionAtlas;
+}
+
 bool FMaterialResource::UseNormalCurvatureToRoughness() const
 {
 	return Material->bNormalCurvatureToRoughness;

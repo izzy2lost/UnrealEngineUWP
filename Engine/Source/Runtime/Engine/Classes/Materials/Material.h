@@ -812,6 +812,14 @@ public:
 	uint8 bUsedWithUI_DEPRECATED : 1;
 
 	/** 
+	 * Indicates that this material is safe to use with the light function atlas:
+	 *  - texture coordinates are manipulated in a way that works.
+	 *  - world position and depth are not used in the graph or do work with the atlas.
+	 */
+	UPROPERTY(EditAnywhere, Category = LightFunctionMaterial)
+	uint8 bCompatibleWithLightFunctionAtlas : 1;
+
+	/** 
 	 * Whether to automatically set usage flags based on what the material is applied to in the editor.
 	 * It can be useful to disable this on a base material with many instances, where adding another usage flag accidentally (eg bUsedWithSkeletalMeshes) can add a lot of shader permutations.
 	 */
