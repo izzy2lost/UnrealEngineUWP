@@ -10,6 +10,7 @@ using UnrealBuildBase;
 using System.Diagnostics;
 using System.Collections.Generic;
 using Microsoft.Extensions.Logging;
+using System.Xml.Linq;
 
 public abstract class ApplePlatform : Platform
 {
@@ -157,7 +158,7 @@ public abstract class ApplePlatform : Platform
 		// find the most recent archive for this target (based on name of target, this ignores Development vs Shipping, but 
 		// since Distribution is meant only for Shipping it's ok
 		string ArchiveName = AppleExports.MakeBinaryFileName(TargetName, Target.Receipt.Platform, UnrealTargetConfiguration.Development,
-		 	Target.Receipt.Architectures, UnrealTargetConfiguration.Development, null) + " *.xcarchive";
+		 	Target.Receipt.Architectures, UnrealTargetConfiguration.Development, null);
 
 		if (ArchiveName != TargetName)
 		{
@@ -228,6 +229,15 @@ public abstract class ApplePlatform : Platform
 					}
 				}
 
+				// if we aren't going to archive right after this to another location, and then archivedirectory specifies a .xcarchive extension
+				// then we want to archive directly to that location instead of the standard ~/Library/Developer/Xcode/Archives. This is useful for
+				// build machines that want to make a .xcarchive and export/upload it, without needing to hunt down latest, or dirty up the Library dir
+				string XcArchivePath = "";
+				if (Params.Distribution && Params.Archive == false && Params.ArchiveDirectoryParam.EndsWith(".xcarchive"))
+				{
+					XcArchivePath = Params.ArchiveDirectoryParam;
+					ExtraOptions += $" -archivePath \"{XcArchivePath}\"";
+				}
 
 				// if we we packaging for distrbution, we will create a .xcarchive which can be used to submit to app stores, or exported for other distribution methods
 				// the archive will be created in the standard Archives location accessible via Xcode. Using -archive will copy it out into
@@ -235,17 +245,34 @@ public abstract class ApplePlatform : Platform
 				AppleExports.XcodeBuildMode BuildMode = Params.Distribution ? AppleExports.XcodeBuildMode.Distribute : AppleExports.XcodeBuildMode.Package;
 				if (AppleExports.BuildWithStubXcodeProject(Params.RawProjectPath, Receipt.Platform, Receipt.Architectures, Receipt.Configuration, TargetName, BuildMode, Logger, ExtraOptions) == 0)
 				{
-					Logger.LogInformation("=====================================================================================");
+					Logger.LogInformation("==================================================================================================================================================");
 					if (Params.Distribution)
 					{
-						Logger.LogInformation("Created .xcarchive in Xcode's Library, which can be seen in Xcode's Organizer window");
-						Logger.LogInformation("You may use this to validate and prepare for various distribution methods");
+						if (XcArchivePath == "")
+						{
+							XcArchivePath = AppleExports.FindLatestXcArchive(TargetName)?.FullName;
+							if (XcArchivePath == null)
+							{
+								Logger.LogError("Unable to discover a xcarchive for {TargetName} in ~/Library/Developer/Xcode/Archives.", TargetName);
+								Logger.LogError("This is unexpected since the command succeeded");
+							}
+							else
+							{
+								Logger.LogInformation("Created '{XcArchivePath}', which can be seen in Xcode's Organizer window.", XcArchivePath);
+								Logger.LogInformation("You may use this to validate and prepare for various distribution methods");
+							}
+						}
+						else
+						{
+							Logger.LogInformation("Created '{XcArchivePath}' using an overriden location - this will _not_ appear in Xcode's Organizer window.", XcArchivePath);
+							Logger.LogInformation("You may use this to validate and prepare for various distribution methods");
+						}
 					}
 					else
 					{
 						Logger.LogInformation("Finalized {App} for running fully self-contained", GetFinalAppPath(Target, SC));
 					}
-					Logger.LogInformation("=====================================================================================");
+					Logger.LogInformation("==================================================================================================================================================");
 				}
 			}
 		}
@@ -272,6 +299,7 @@ public abstract class ApplePlatform : Platform
 
 			// distribution mode we want to archive the .xcarchive that was created during Package
 			DirectoryReference ArchiveSource;
+			DirectoryReference ArchiveDestination = null;
 			if (Params.Distribution)
 			{
 				// find the most recent .xcarchive in the Xcode archives library
@@ -281,6 +309,15 @@ public abstract class ApplePlatform : Platform
 				{
 					Logger.LogError("Unable to find a .xcarchive in Xcode's Library to archive to {ArchiveDir}", SC.ArchiveDirectory);
 					return;
+				}
+
+				if (SC.ArchiveDirectory.HasExtension(".xcarchive"))
+				{
+					ArchiveDestination = SC.ArchiveDirectory;
+					if (DirectoryReference.Exists(ArchiveDestination))
+					{
+						DirectoryReference.Delete(ArchiveDestination);
+					}
 				}
 			}
 			else
@@ -293,11 +330,16 @@ public abstract class ApplePlatform : Platform
 				}
 			}
 
-			Logger.LogInformation("=====================================================================================");
-			Logger.LogInformation("Copying {Type} package {ArchiveSource} to archive directory {ArchiveDir}", Params.Distribution ? "Distribution" : "Development", ArchiveSource, SC.ArchiveDirectory);
-			Logger.LogInformation("=====================================================================================");
+			if (ArchiveDestination == null)
+			{
+				ArchiveDestination = DirectoryReference.Combine(SC.ArchiveDirectory, ArchiveSource.GetDirectoryName());
+			}
+			
+			Logger.LogInformation("==================================================================================================================================================");
+			Logger.LogInformation("Copying {Type} package {ArchiveSource} to archive directory {ArchiveDir}", Params.Distribution ? "Distribution" : "Development", ArchiveSource, ArchiveDestination);
+			Logger.LogInformation("==================================================================================================================================================");
 
-			Utils.RunLocalProcessAndReturnStdOut("/usr/bin/env", $"ditto \"{ArchiveSource}\" \"{SC.ArchiveDirectory}/{ArchiveSource.GetDirectoryName()}\"", null);
+			Utils.RunLocalProcessAndReturnStdOut("/usr/bin/env", $"ditto \"{ArchiveSource}\" \"{ArchiveDestination}\"", null);
 		}
 	}
 }

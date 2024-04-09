@@ -25,13 +25,19 @@ class ExportAppleBuild : BuildCommand
 		string PlistParam = ParseParamValue("Plist");
 		string XcArchivePathParam = ParseParamValue("XcArchive");
 		string LatestXcArchiveParam = ParseParamValue("LatestXcArchiveForTarget");
+		string LatestXcArchiveSearch = ParseParamValue("LatestXcArchiveSearchPath");
 		string ExportPath = ParseParamValue("ExportPath");
 
 		DirectoryReference XcArchive;
 		if (!string.IsNullOrEmpty(LatestXcArchiveParam))
 		{
 			// find the latest archive for the given project name
-			XcArchive = AppleExports.FindLatestXcArchive(LatestXcArchiveParam);
+			DirectoryReference SearchPath = null;
+			if (!string.IsNullOrEmpty(LatestXcArchiveSearch))
+			{
+				SearchPath = new DirectoryReference(LatestXcArchiveSearch);
+			}
+			XcArchive = AppleExports.FindLatestXcArchive(LatestXcArchiveParam, SearchPath);
 		}
 		else
 		{
@@ -40,7 +46,7 @@ class ExportAppleBuild : BuildCommand
 
 		if (XcArchive == null || !DirectoryReference.Exists(XcArchive))
 		{
-			Logger.LogError("No XCArchive found, with -XCArchive or LatestXCArchiveForTarget params");
+			Logger.LogError("No XCArchive found, with -XCArchive or -LatestXCArchiveForTarget params");
 			return ExitCode.Error_Arguments;
 		}
 
@@ -82,11 +88,6 @@ class ExportAppleBuild : BuildCommand
 
 		int Return;
 		Utils.RunLocalProcessAndReturnStdOut("/usr/bin/xcodebuild", CommandLine, Logger, out Return);
-
-// xcodebuild -exportArchive -archivePath "/Users/josh.adams/Library/Developer/Xcode/Archives/2024-04-06/LyraGame 4-6-24, 2.35 PM.xcarchive" 
-// -exportPath ./private_keys -exportOptionsPlist Engine/Build/Xcode/ExportOptions_UploadTestFlight.plist 
-// -authenticationKeyIssuerID 69a6de71-5e09-47e3-e053-5b8c7c11a4d1 -authenticationKeyPath $PWD/private_keys/AuthKey_HCTZ2FPZ2Y.p8 
-// -authenticationKeyID HCTZ2FPZ2Y
 
 		return (ExitCode)Return;
 	}

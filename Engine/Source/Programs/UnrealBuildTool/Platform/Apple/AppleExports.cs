@@ -295,12 +295,13 @@ namespace UnrealBuildTool
 		/// <summary>
 		/// FInds the latest .xcarchive for a given Target name (the .xcarchive will start with this name then have a data appended)
 		/// </summary>
-		/// <param name="TargetName"></param>
+		/// <param name="TargetName">Name of the target to look for, this will be the prefix for the .xcarchive to search for</param>
+		/// <param name="SearchPath">If null, look in Xcode Archives library, otherwiwse, look here</param>
 		/// <returns></returns>
-		public static DirectoryReference? FindLatestXcArchive(string TargetName)
+		public static DirectoryReference? FindLatestXcArchive(string TargetName, DirectoryReference? SearchPath=null)
 		{
 			DirectoryReference UserDir = new DirectoryReference(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile));
-			DirectoryReference Library = DirectoryReference.Combine(UserDir, "Library/Developer/Xcode/Archives");
+			DirectoryReference Library = SearchPath ?? DirectoryReference.Combine(UserDir, "Library/Developer/Xcode/Archives");
 
 			// order date named folders (use creating data, not name, but same thing)
 			List<DirectoryReference> DateDirs = DirectoryReference.EnumerateDirectories(Library).ToList();
@@ -308,10 +309,9 @@ namespace UnrealBuildTool
 			DateDirs.Reverse();
 
 			// go through each folder, starting at most recent, looking for an archive for the target
+			string Wildcard = $"{TargetName} *.xcarchive";
 			foreach (DirectoryReference DateDir in DateDirs)
 			{
-				string Wildcard = $"{TargetName} *.xcarchive";
-
 				List<DirectoryReference> XcArchives = DirectoryReference.EnumerateDirectories(DateDir, Wildcard).ToList();
 				if (XcArchives.Count > 0)
 				{
