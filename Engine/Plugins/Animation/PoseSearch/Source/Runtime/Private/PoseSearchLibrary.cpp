@@ -108,6 +108,47 @@ namespace UE::PoseSearch
 		return false;
 	}
 
+	static const FAnimNode_PoseSearchHistoryCollector_Base* FindPoseHistoryNode(const FName PoseHistoryName, const UAnimInstance* AnimInstance)
+	{
+		if (AnimInstance)
+		{
+			TSet<const UAnimInstance*, DefaultKeyFuncs<const UAnimInstance*>, TInlineSetAllocator<128>> AlreadyVisited;
+			TArray<const UAnimInstance*, TInlineAllocator<128>> ToVisit;
+
+			ToVisit.Add(AnimInstance);
+			AlreadyVisited.Add(AnimInstance);
+
+			while (!ToVisit.IsEmpty())
+			{
+				const UAnimInstance* Visiting = ToVisit.Pop();
+
+				if (IAnimClassInterface* AnimBlueprintClass = IAnimClassInterface::GetFromClass(Visiting->GetClass()))
+				{
+					if (const FAnimSubsystem_Tag* TagSubsystem = AnimBlueprintClass->FindSubsystem<FAnimSubsystem_Tag>())
+					{
+						if (const FAnimNode_PoseSearchHistoryCollector_Base* HistoryCollector = TagSubsystem->FindNodeByTag<FAnimNode_PoseSearchHistoryCollector_Base>(PoseHistoryName, Visiting))
+						{
+							return HistoryCollector;
+						}
+					}
+				}
+
+				const USkeletalMeshComponent* SkeletalMeshComponent = Visiting->GetSkelMeshComponent();
+				const TArray<UAnimInstance*>& LinkedAnimInstances = SkeletalMeshComponent->GetLinkedAnimInstances();
+				for (const UAnimInstance* LinkedAnimInstance : LinkedAnimInstances)
+				{
+					bool bIsAlreadyInSet = false;
+					AlreadyVisited.Add(LinkedAnimInstance, &bIsAlreadyInSet);
+					if (!bIsAlreadyInSet)
+					{
+						ToVisit.Add(LinkedAnimInstance);
+					}
+				}
+			}
+		}
+		return nullptr;
+	}
+
 #if ENABLE_DRAW_DEBUG && ENABLE_ANIM_DEBUG
 	class UAnimInstanceProxyProvider : public UAnimInstance
 	{
@@ -547,6 +588,7 @@ void UPoseSearchLibrary::MotionMatch(
 	UAnimInstance* AnimInstance,
 	TArray<UObject*> AssetsToSearch,
 	const FName PoseHistoryName,
+	const FPoseSearchContinuingProperties ContinuingProperties,
 	FPoseSearchFutureProperties Future,
 	FPoseSearchBlueprintResult& Result,
 	const int32 DebugSessionUniqueIdentifier)
@@ -562,7 +604,7 @@ void UPoseSearchLibrary::MotionMatch(
 	Roles.Add(UE::PoseSearch::DefaultRole);
 
 	TArray<const UObject*>& AssetsToSearchConst = reinterpret_cast<TArray<const UObject*>&>(AssetsToSearch);
-	MotionMatch(AnimInstances, Roles, AssetsToSearchConst, PoseHistoryName, Future, Result, DebugSessionUniqueIdentifier);
+	MotionMatch(AnimInstances, Roles, AssetsToSearchConst, PoseHistoryName, ContinuingProperties, Future, Result, DebugSessionUniqueIdentifier);
 }
 
 void UPoseSearchLibrary::MotionMatchMulti(
@@ -570,6 +612,7 @@ void UPoseSearchLibrary::MotionMatchMulti(
 	TArray<FName> Roles,
 	TArray<UObject*> AssetsToSearch,
 	const FName PoseHistoryName,
+	const FPoseSearchContinuingProperties ContinuingProperties,
 	FPoseSearchBlueprintResult& Result,
 	const int32 DebugSessionUniqueIdentifier)
 {
@@ -589,7 +632,7 @@ void UPoseSearchLibrary::MotionMatchMulti(
 	}
 
 	TArray<const UObject*>& AssetsToSearchConst = reinterpret_cast<TArray<const UObject*>&>(AssetsToSearch);
-	MotionMatch(AnimInstances, Roles, AssetsToSearchConst, PoseHistoryName, FPoseSearchFutureProperties(), Result, DebugSessionUniqueIdentifier);
+	MotionMatch(AnimInstances, Roles, AssetsToSearchConst, PoseHistoryName, ContinuingProperties, FPoseSearchFutureProperties(), Result, DebugSessionUniqueIdentifier);
 }
 
 void UPoseSearchLibrary::MotionMatch(
@@ -597,6 +640,7 @@ void UPoseSearchLibrary::MotionMatch(
 	TArrayView<const UE::PoseSearch::FRole> Roles,
 	TArrayView<const UObject*> AssetsToSearch,
 	const FName PoseHistoryName,
+	const FPoseSearchContinuingProperties& ContinuingProperties,
 	const FPoseSearchFutureProperties& Future,
 	FPoseSearchBlueprintResult& Result,
 	const int32 DebugSessionUniqueIdentifier)
@@ -643,23 +687,17 @@ void UPoseSearchLibrary::MotionMatch(
 	TArray<FMemStackPoseHistory, TInlineAllocator<PreallocatedRolesNum, TMemStackAllocator<>>> MemStackPoseHistories;
 	for (UAnimInstance* AnimInstance : AnimInstances)
 	{
-		if (IAnimClassInterface* AnimBlueprintClass = IAnimClassInterface::GetFromClass(AnimInstance->GetClass()))
+		if (const FAnimNode_PoseSearchHistoryCollector_Base* PoseHistoryNode = FindPoseHistoryNode(PoseHistoryName, AnimInstance))
 		{
-			if (const FAnimSubsystem_Tag* TagSubsystem = AnimBlueprintClass->FindSubsystem<FAnimSubsystem_Tag>())
-			{
-				if (const FAnimNode_PoseSearchHistoryCollector_Base* PoseHistoryNode = TagSubsystem->FindNodeByTag<FAnimNode_PoseSearchHistoryCollector_Base>(PoseHistoryName, AnimInstance))
-				{
-					MemStackPoseHistories.AddDefaulted_GetRef().Init(&PoseHistoryNode->GetPoseHistory());
+			MemStackPoseHistories.AddDefaulted_GetRef().Init(&PoseHistoryNode->GetPoseHistory());
 
 #if ENABLE_DRAW_DEBUG && ENABLE_ANIM_DEBUG
-	#if WITH_EDITORONLY_DATA
-					HistoryCollectorColors.Emplace(PoseHistoryNode->DebugColor.ToFColor(true));
-	#else // WITH_EDITORONLY_DATA
-					HistoryCollectorColors.Emplace(FColor::Red);
-	#endif // WITH_EDITORONLY_DATA
+#if WITH_EDITORONLY_DATA
+			HistoryCollectorColors.Emplace(PoseHistoryNode->DebugColor.ToFColor(true));
+#else // WITH_EDITORONLY_DATA
+			HistoryCollectorColors.Emplace(FColor::Red);
+#endif // WITH_EDITORONLY_DATA
 #endif // ENABLE_DRAW_DEBUG && ENABLE_ANIM_DEBUG && WITH_EDITORONLY_DATA
-				}
-			}
 		}
 	}
 
@@ -733,7 +771,7 @@ void UPoseSearchLibrary::MotionMatch(
 		PoseHistories.Add(MemStackPoseHistory.GetThisOrPoseHistory());
 	}
 
-	const FSearchResult SearchResult = MotionMatch(AnimInstances, Roles, PoseHistories, AssetsToSearch, nullptr, 0.f, DebugSessionUniqueIdentifier, FutureIntervalTime);
+	const FSearchResult SearchResult = MotionMatch(AnimInstances, Roles, PoseHistories, AssetsToSearch, ContinuingProperties, DebugSessionUniqueIdentifier, FutureIntervalTime);
 	if (SearchResult.IsValid())
 	{
 		const UPoseSearchDatabase* Database = SearchResult.Database.Get();
@@ -770,8 +808,7 @@ void UPoseSearchLibrary::MotionMatch(
 UE::PoseSearch::FSearchResult UPoseSearchLibrary::MotionMatch(
 	const FAnimationBaseContext& Context,
 	TArrayView<const UObject*> AssetsToSearch,
-	const UObject* PlayingAsset,
-	float PlayingAssetAccumulatedTime)
+	const FPoseSearchContinuingProperties& ContinuingProperties)
 {
 	using namespace UE::PoseSearch;
 
@@ -784,7 +821,7 @@ UE::PoseSearch::FSearchResult UPoseSearchLibrary::MotionMatch(
 	UAnimInstance* AnimInstance = Cast<UAnimInstance>(Context.AnimInstanceProxy->GetAnimInstanceObject());
 	check(AnimInstance);
 
-	return MotionMatch(MakeArrayView(&AnimInstance, 1), MakeArrayView(&DefaultRole, 1), MakeArrayView(&PoseHistory, 1), AssetsToSearch, PlayingAsset, PlayingAssetAccumulatedTime, Context.GetCurrentNodeId());
+	return MotionMatch(MakeArrayView(&AnimInstance, 1), MakeArrayView(&DefaultRole, 1), MakeArrayView(&PoseHistory, 1), AssetsToSearch, ContinuingProperties, Context.GetCurrentNodeId());
 }
 	
 UE::PoseSearch::FSearchResult UPoseSearchLibrary::MotionMatch(
@@ -792,8 +829,7 @@ UE::PoseSearch::FSearchResult UPoseSearchLibrary::MotionMatch(
 	TArrayView<const UE::PoseSearch::FRole> Roles,
 	TArrayView<const UE::PoseSearch::IPoseHistory*> PoseHistories, 
 	TArrayView<const UObject*> AssetsToSearch,
-	const UObject* PlayingAsset,
-	float PlayingAssetAccumulatedTime,
+	const FPoseSearchContinuingProperties& ContinuingProperties,
 	const int32 DebugSessionUniqueIdentifier,
 	float DesiredPermutationTimeOffset)
 {
@@ -869,9 +905,21 @@ UE::PoseSearch::FSearchResult UPoseSearchLibrary::MotionMatch(
 
 	// collecting all the possible continuing pose search (it could be multiple searches, but most likely only one)
 	const float DeltaSeconds = AnimInstances[0]->GetDeltaSeconds();
-	if (const UAnimationAsset* PlayingAnimationAsset = Cast<UAnimationAsset>(PlayingAsset))
+	if (const UAnimationAsset* PlayingAnimationAsset = Cast<UAnimationAsset>(ContinuingProperties.PlayingAsset))
 	{
 		AddToSearch(AssetsToSearchPerDatabaseMap, PlayingAnimationAsset);
+		
+		for (const UObject* AssetToSearch : AssetsToSearch)
+		{
+			if (const UPoseSearchDatabase* Database = Cast<UPoseSearchDatabase>(AssetToSearch))
+			{
+				if (Database->Contains(PlayingAnimationAsset))
+				{
+					AddToSearch(AssetsToSearchPerDatabaseMap, AssetToSearch);
+				}
+			}
+		}
+
 		for (const TAssetsToSearchPerDatabasePair& AssetsToSearchPerDatabasePair : AssetsToSearchPerDatabaseMap)
 		{
 			const UPoseSearchDatabase* Database = AssetsToSearchPerDatabasePair.Key;
@@ -901,14 +949,14 @@ UE::PoseSearch::FSearchResult UPoseSearchLibrary::MotionMatch(
 								const float LastSampleTime = SearchIndexAsset.GetLastSampleTime(Database->Schema->SampleRate) - DeltaSeconds;
 								const float MaxTimeToBeAbleToContinuingPlayingAnimation = LastSampleTime - DeltaSeconds;
 
-								bCanAdvance = PlayingAssetAccumulatedTime >= FirstSampleTime && PlayingAssetAccumulatedTime < MaxTimeToBeAbleToContinuingPlayingAnimation;
+								bCanAdvance = ContinuingProperties.PlayingAssetAccumulatedTime >= FirstSampleTime && ContinuingProperties.PlayingAssetAccumulatedTime < MaxTimeToBeAbleToContinuingPlayingAnimation;
 							}
 
 							if (bCanAdvance)
 							{
 								ReconstructedPreviousSearchResult.Database = Database;
-								ReconstructedPreviousSearchResult.AssetTime = PlayingAssetAccumulatedTime;
-								ReconstructedPreviousSearchResult.PoseIdx = Database->GetPoseIndexFromTime(PlayingAssetAccumulatedTime, SearchIndexAsset);
+								ReconstructedPreviousSearchResult.AssetTime = ContinuingProperties.PlayingAssetAccumulatedTime;
+								ReconstructedPreviousSearchResult.PoseIdx = Database->GetPoseIndexFromTime(ContinuingProperties.PlayingAssetAccumulatedTime, SearchIndexAsset);
 								SearchContext.UpdateCurrentResultPoseVector();
 
 								const FSearchResult NewSearchResult = Database->SearchContinuingPose(SearchContext);

@@ -781,6 +781,21 @@ void UPoseSearchDatabase::PostLoad()
 	Super::PostLoad();
 }
 
+bool UPoseSearchDatabase::Contains(const UObject* Object) const
+{
+	for (const FInstancedStruct& AnimationAsset : AnimationAssets)
+	{
+		if (const FPoseSearchDatabaseAnimationAssetBase* AnimationAssetBase = AnimationAsset.GetPtr<FPoseSearchDatabaseAnimationAssetBase>())
+		{
+			if (AnimationAssetBase->GetAnimationAsset() == Object)
+			{
+				return true;
+			}
+		}
+	}
+	return false;
+}
+
 #if WITH_EDITOR
 void UPoseSearchDatabase::SynchronizeWithExternalDependencies()
 {
@@ -927,21 +942,6 @@ void UPoseSearchDatabase::SynchronizeWithExternalDependencies(TConstArrayView<UA
 		Modify();
 		NotifySynchronizeWithExternalDependencies();
 	}
-}
-
-bool UPoseSearchDatabase::Contains(const UObject* Object) const
-{
-	for (const FInstancedStruct& AnimationAsset : AnimationAssets)
-	{
-		if (const FPoseSearchDatabaseAnimationAssetBase* AnimationAssetBase = AnimationAsset.GetPtr<FPoseSearchDatabaseAnimationAssetBase>())
-		{
-			if (AnimationAssetBase->GetAnimationAsset() == Object)
-			{
-				return true;
-			}
-		}
-	}
-	return false;
 }
 
 void UPoseSearchDatabase::BeginCacheForCookedPlatformData(const ITargetPlatform* TargetPlatform)

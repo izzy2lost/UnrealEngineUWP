@@ -105,6 +105,21 @@ public:
 	float IntervalTime = 0.f;
 };
 
+USTRUCT(Experimental, BlueprintType, Category="Animation|Pose Search")
+struct POSESEARCH_API FPoseSearchContinuingProperties
+{
+	GENERATED_BODY()
+
+public:
+	// Currently playing animation
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=State)
+	TObjectPtr<const UObject> PlayingAsset = nullptr;
+
+	// Currently playing animation accumulated time
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=State)
+	float PlayingAssetAccumulatedTime = 0.f;
+};
+
 UCLASS()
 class POSESEARCH_API UPoseSearchLibrary : public UBlueprintFunctionLibrary
 {
@@ -172,6 +187,7 @@ public:
 		UAnimInstance* AnimInstance,
 		TArray<UObject*> AssetsToSearch,
 		const FName PoseHistoryName,
+		const FPoseSearchContinuingProperties ContinuingProperties,
 		FPoseSearchFutureProperties Future,
 		FPoseSearchBlueprintResult& Result,
 		const int32 DebugSessionUniqueIdentifier = 6174);
@@ -188,10 +204,11 @@ public:
 	*/
 	UFUNCTION(BlueprintPure, Category = "Animation|Pose Search|Experimental", meta = (BlueprintThreadSafe, Keywords = "PoseMatch"))
 	static void MotionMatchMulti(
-		TArray<ACharacter*> AnimInstances,
+		TArray<ACharacter*> Characters,
 		TArray<FName> Roles,
 		TArray<UObject*> AssetsToSearch,
 		const FName PoseHistoryName,
+		const FPoseSearchContinuingProperties ContinuingProperties,
 		FPoseSearchBlueprintResult& Result,
 		const int32 DebugSessionUniqueIdentifier = 6174);
 
@@ -200,6 +217,7 @@ public:
 		TArrayView<const UE::PoseSearch::FRole> Roles,
 		TArrayView<const UObject*> AssetsToSearch,
 		const FName PoseHistoryName,
+		const FPoseSearchContinuingProperties& ContinuingProperties,
 		const FPoseSearchFutureProperties& Future,
 		FPoseSearchBlueprintResult& Result,
 		const int32 DebugSessionUniqueIdentifier);
@@ -207,16 +225,14 @@ public:
 	static UE::PoseSearch::FSearchResult MotionMatch(
 		const FAnimationBaseContext& Context,
 		TArrayView<const UObject*> AssetsToSearch,
-		const UObject* PlayingAsset = nullptr,
-		float PlayingAssetAccumulatedTime = 0.f);
+		const FPoseSearchContinuingProperties& ContinuingProperties);
 
 	static UE::PoseSearch::FSearchResult MotionMatch(
 		TArrayView<UAnimInstance*> AnimInstances,
 		TArrayView<const UE::PoseSearch::FRole> Roles,
 		TArrayView<const UE::PoseSearch::IPoseHistory*> PoseHistories, 
 		TArrayView<const UObject*> AssetsToSearch,
-		const UObject* PlayingAsset,
-		float PlayingAssetAccumulatedTime,
+		const FPoseSearchContinuingProperties& ContinuingProperties,
 		const int32 DebugSessionUniqueIdentifier,
 		float DesiredPermutationTimeOffset = 0.f);
 };

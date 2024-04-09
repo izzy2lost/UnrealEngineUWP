@@ -8,48 +8,24 @@ bool UPoseSearchMultiSequence::IsLooping() const
 	float CommonPlayLength = -1.f;
 	for (const FPoseSearchMultiSequenceItem& Item : Items)
 	{
-		if (Item.Sequence)
+		if (const UAnimSequenceBase* Sequence = Item.Sequence.Get())
 		{
-			if (!Item.Sequence->bLoop)
+			if (!Sequence->bLoop)
 			{
 				return false;
 			}
 
 			if (CommonPlayLength < 0.f)
 			{
-				CommonPlayLength = Item.Sequence->GetPlayLength();
+				CommonPlayLength = Sequence->GetPlayLength();
 			}
-			else if (!FMath::IsNearlyEqual(CommonPlayLength, Item.Sequence->GetPlayLength()))
+			else if (!FMath::IsNearlyEqual(CommonPlayLength, Sequence->GetPlayLength()))
 			{
 				return false;
 			}
 		}
 	}
 	return true;
-}
-
-const FString UPoseSearchMultiSequence::GetName() const
-{
-	FString Name;
-	Name.Reserve(256);
-	bool bAddComma = false;
-	for (const FPoseSearchMultiSequenceItem& Item : Items)
-	{
-		if (bAddComma)
-		{
-			Name += ", ";
-		}
-		else
-		{
-			bAddComma = true;
-		}
-
-		Name += "[";
-		Name += Item.Role.ToString();
-		Name += "] ";
-		Name += GetNameSafe(Item.Sequence);
-	}
-	return Name;
 }
 
 bool UPoseSearchMultiSequence::HasRootMotion() const
@@ -59,9 +35,9 @@ bool UPoseSearchMultiSequence::HasRootMotion() const
 
 	for (const FPoseSearchMultiSequenceItem& Item : Items)
 	{
-		if (Item.Sequence)
+		if (const UAnimSequenceBase* Sequence = Item.Sequence.Get())
 		{
-			bHasRootMotion &= Item.Sequence->HasRootMotion();
+			bHasRootMotion &= Sequence->HasRootMotion();
 			bHasAtLeastOneValidItem = true;
 		}
 	}
@@ -71,27 +47,40 @@ bool UPoseSearchMultiSequence::HasRootMotion() const
 
 float UPoseSearchMultiSequence::GetPlayLength() const
 {
-	float PlayLength = 0.f;
+	float MaxPlayLength = 0.f;
 	for (const FPoseSearchMultiSequenceItem& Item : Items)
 	{
-		if (Item.Sequence)
+		if (const UAnimSequenceBase* Sequence = Item.Sequence.Get())
 		{
-			PlayLength = FMath::Max(PlayLength, Item.Sequence->GetPlayLength());
+			MaxPlayLength = FMath::Max(MaxPlayLength, Sequence->GetPlayLength());
 		}
 	}
-	return PlayLength;
+	return MaxPlayLength;
 }
 
 #if WITH_EDITOR
 int32 UPoseSearchMultiSequence::GetFrameAtTime(float Time) const
 {
+	const UAnimSequenceBase* MaxPlayLengthAnim = nullptr;
+	float MaxPlayLength = -1.f;
 	for (const FPoseSearchMultiSequenceItem& Item : Items)
 	{
-		if (Item.Sequence)
+		if (const UAnimSequenceBase* Sequence = Item.Sequence.Get())
 		{
-			return Item.Sequence->GetFrameAtTime(Time);
+			const float PlayLength = Sequence->GetPlayLength();
+			if (PlayLength > MaxPlayLength)
+			{
+				MaxPlayLength = PlayLength;
+				MaxPlayLengthAnim = Sequence;
+			}
 		}
 	}
+	
+	if (MaxPlayLengthAnim)
+	{
+		return MaxPlayLengthAnim->GetFrameAtTime(Time);
+	}
+
 	return 0;
 }
 #endif // WITH_EDITOR

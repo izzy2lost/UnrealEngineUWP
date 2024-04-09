@@ -407,6 +407,8 @@ public:
 	UE::PoseSearch::FSearchResult Search(UE::PoseSearch::FSearchContext& SearchContext) const;
 	UE::PoseSearch::FSearchResult SearchContinuingPose(UE::PoseSearch::FSearchContext& SearchContext) const;
 
+	bool Contains(const UObject* Object) const;
+
 #if WITH_EDITOR
 	int32 GetNumberOfPrincipalComponents() const;
 
@@ -425,8 +427,6 @@ public:
 
 	void SynchronizeWithExternalDependencies();
 	void SynchronizeWithExternalDependencies(TConstArrayView<UAnimSequenceBase*> SequencesBase);
-
-	bool Contains(const UObject* Object) const;
 #endif // WITH_EDITOR
 
 #if WITH_EDITOR && ENABLE_ANIM_DEBUG

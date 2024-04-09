@@ -33,7 +33,6 @@ class POSESEARCH_API UPoseSearchMultiSequence : public UDataAsset
 
 public:
 	bool IsLooping() const;
-	const FString GetName() const;
 	bool HasRootMotion() const;
 	float GetPlayLength() const;
 
