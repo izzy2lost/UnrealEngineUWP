@@ -972,6 +972,7 @@ FWSVector3 GetPrevParticleWorldPosition(FMaterialPixelParameters Parameters)
 
 float3 GetPositionPrimitiveSpace(FMaterialPixelParameters Parameters)
 {
+	// See also: derivative computation of local position in material translator.
 	return DFFastMultiplyDemote(Parameters.AbsoluteWorldPosition, GetPrimitiveData(Parameters).WorldToLocal);
 }
 
@@ -996,6 +997,7 @@ float3 GetPositionPrimitiveSpace_NoMaterialOffsets(FMaterialPixelParameters Para
 
 float3 GetPositionInstanceSpace(FMaterialPixelParameters Parameters)
 {
+	// See also: derivative computation of local position in material translator.
 	return DFFastMultiplyDemote(Parameters.AbsoluteWorldPosition, GetWorldToInstanceDF(Parameters));
 }
 
@@ -1729,13 +1731,13 @@ FMaterialLWCData MakeMaterialLWCData(FMaterialVertexParameters Parameters)
 	Result.AbsoluteWorldPosition = WSSubtract(Parameters.WorldPosition, Result.PreViewTranslation);
 
 	Result.InstanceToWorld = DFToWS(GetInstanceToWorldDF(Parameters));
-	Result.WorldToInstance = DFFastToWS(GetWorldToInstanceDF(Parameters));
+	Result.WorldToInstance = DFToWS(GetWorldToInstanceDF(Parameters));
 	Result.PreviousInstanceToWorld = DFToWS(GetPrevInstanceToWorldDF(Parameters));
 
 	Result.LocalToWorld = DFToWS(GetLocalToWorldDF(Parameters));
-	Result.WorldToLocal = DFFastToWS(GetWorldToLocalDF(Parameters));
+	Result.WorldToLocal = DFToWS(GetWorldToLocalDF(Parameters));
 	Result.PreviousLocalToWorld = DFToWS(GetPrevLocalToWorldDF(Parameters));
-	Result.PreviousWorldToLocal = DFFastToWS(GetPrevWorldToLocalDF(Parameters));
+	Result.PreviousWorldToLocal = DFToWS(GetPrevWorldToLocalDF(Parameters));
 
 #if DECAL_PRIMITIVE
 	/*
@@ -1751,7 +1753,7 @@ FMaterialLWCData MakeMaterialLWCData(FMaterialVertexParameters Parameters)
 	
 #if USE_INSTANCING || USE_INSTANCE_CULLING || IS_MESHPARTICLE_FACTORY
 #if MATERIAL_LWC_ENABLED
-	Result.ObjectWorldPosition = WSGetOrigin(DFFastToWS(Parameters.InstanceLocalToWorld));
+	Result.ObjectWorldPosition = WSGetOrigin(DFToWS(Parameters.InstanceLocalToWorld));
 #else //MATERIAL_LWC_ENABLED
 	Result.ObjectWorldPosition = WSPromote(Parameters.InstanceLocalToWorld.PostTranslation + Parameters.InstanceLocalToWorld.M[3].xyz);
 #endif //MATERIAL_LWC_ENABLED
