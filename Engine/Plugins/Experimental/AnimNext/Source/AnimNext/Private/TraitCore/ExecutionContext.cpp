@@ -552,6 +552,16 @@ namespace UE::AnimNext
 		return RootGraphInstance->GetComponentIterator();
 	}
 
+	void FExecutionContext::RaiseInputTraitEvent(FAnimNextTraitEventPtr Event)
+	{
+		ensureMsgf(false, TEXT("Raising input trait events is not supported in this context"));
+	}
+
+	void FExecutionContext::RaiseOutputTraitEvent(FAnimNextTraitEventPtr Event)
+	{
+		ensureMsgf(false, TEXT("Raising output trait events is not supported in this context"));
+	}
+
 	const FNodeDescription& FExecutionContext::GetNodeDescription(const FAnimNextGraphInstance& GraphInstance, FNodeHandle NodeHandle) const
 	{
 		// Grab the node description from the specified graph

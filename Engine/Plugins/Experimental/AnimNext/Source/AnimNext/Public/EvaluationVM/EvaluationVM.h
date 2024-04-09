@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 
+#include "ConstExprUID.h"
 #include "Animation/AnimCurveFilter.h"
 #include "EvaluationVM/EvaluationFlags.h"
 #include "EvaluationVM/KeyframeState.h"
@@ -22,23 +23,6 @@
 
 namespace UE::AnimNext
 {
-	constexpr uint32 ConstexprStringFnv32(const char* StringLiteral)
-	{
-		constexpr uint32 Offset = 0x811c9dc5;
-		constexpr uint32 Prime = 0x01000193;
-
-		const char* CharPtr = StringLiteral;
-
-		uint32 Fnv = Offset;
-		while (*CharPtr != 0)
-		{
-			Fnv ^= *CharPtr++;
-			Fnv *= Prime;
-		}
-
-		return Fnv;
-	}
-
 	// Helper function that returns a UID for the specified type
 	// @see ANIM_NEXT_ENABLE_EVALUATION_STACK_USAGE
 	template<typename Type>

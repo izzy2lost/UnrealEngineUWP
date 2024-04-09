@@ -7,6 +7,7 @@
 #include "Graph/AnimNextGraph.h"
 #include "Graph/GC_GraphInstanceComponent.h"
 #include "Graph/RigUnit_AnimNextShimRoot.h"
+#include "Misc/ScopeRWLock.h"
 
 DEFINE_STAT(STAT_AnimNext_Graph_RigVM);
 
@@ -115,6 +116,38 @@ UE::AnimNext::FGraphInstanceComponent& FAnimNextGraphInstance::AddComponent(int3
 GraphInstanceComponentMapType::TConstIterator FAnimNextGraphInstance::GetComponentIterator() const
 {
 	return RootGraphInstance->Components.CreateConstIterator();
+}
+
+void FAnimNextGraphInstance::QueueInputTraitEvent(FAnimNextTraitEventPtr Event)
+{
+	if (!Event || !Event->IsValid())
+	{
+		return;
+	}
+
+	FWriteScopeLock WriteLock(RootGraphInstance->InputEventListLock);
+	RootGraphInstance->InputEventList.Push(Event);
+}
+
+void FAnimNextGraphInstance::QueueInputTraitEvents(const UE::AnimNext::FTraitEventList& Events)
+{
+	FWriteScopeLock WriteLock(RootGraphInstance->InputEventListLock);
+
+	for (const FAnimNextTraitEventPtr& Event : Events)
+	{
+		if (Event->IsValid())
+		{
+			RootGraphInstance->InputEventList.Push(Event);
+		}
+	}
+}
+
+void FAnimNextGraphInstance::CollectInputTraitEvents(UE::AnimNext::FTraitEventList& OutInputEvents)
+{
+	OutInputEvents.Reset();
+
+	FWriteScopeLock WriteLock(RootGraphInstance->InputEventListLock);
+	Swap(OutInputEvents, RootGraphInstance->InputEventList);
 }
 
 void FAnimNextGraphInstance::ExecuteLatentPins(const TConstArrayView<UE::AnimNext::FLatentPropertyHandle>& LatentHandles, void* DestinationBasePtr, bool bIsFrozen)

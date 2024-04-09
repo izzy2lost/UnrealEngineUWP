@@ -6,6 +6,7 @@
 #include "TraitCore/ExecutionContext.h"
 #include "TraitCore/ITraitInterface.h"
 #include "TraitCore/TraitBinding.h"
+#include "TraitCore/TraitEventList.h"
 
 #include <type_traits>
 
@@ -19,6 +20,9 @@ namespace UE::AnimNext
 	namespace Private
 	{
 		struct FUpdateEntry;
+		struct FUpdateEventBookkeepingList;
+		struct FUpdateEventBookkeepingEntry;
+		enum class FUpdateEventBookkeepingAction : uint8;
 	}
 
 	/**
@@ -103,12 +107,21 @@ namespace UE::AnimNext
 	 */
 	struct FUpdateTraversalContext final : FExecutionContext
 	{
+		// Raises an input trait event
+		// The raised event will be seen by every child of the currently updating trait stack
+		// Input trait events can only be raised during PreUpdate
+		virtual void RaiseInputTraitEvent(FAnimNextTraitEventPtr Event) override;
+
+		// Raises an output trait event
+		// The raised event will be seen by every parent of the currently updating trait stack
+		virtual void RaiseOutputTraitEvent(FAnimNextTraitEventPtr Event) override;
+
 	private:
 		// Constructs a new traversal context
 		FUpdateTraversalContext() = default;
 
 		// Pops entries from the traversal queue and pushes them onto the update stack
-		void PushQueuedUpdateEntries(FUpdateTraversalQueue& TraversalQueue);
+		void PushQueuedUpdateEntries(FUpdateTraversalQueue& TraversalQueue, Private::FUpdateEntry* ParentEntry);
 
 		// Pushes an entry onto the update stack
 		void PushUpdateEntry(Private::FUpdateEntry* Entry);
@@ -123,6 +136,23 @@ namespace UE::AnimNext
 		// If an entry isn't found in the free stack, a new one is allocated from the memstack
 		Private::FUpdateEntry* GetNewEntry(const FWeakTraitPtr& TraitPtr, const FTraitUpdateState& TraitState);
 
+		// Returns a new bookkeeping entry suitable for queuing
+		// If an entry isn't found in the free stack, a new one is allocated from the memstack
+		Private::FUpdateEventBookkeepingEntry* GetNewBookkeepingEntry(Private::FUpdateEventBookkeepingAction Action, FAnimNextTraitEventPtr Event);
+
+		// Pushes a bookkeeping entry onto the free bookkeeping entry stack
+		void PushFreeBookkeepingEntry(Private::FUpdateEventBookkeepingEntry* Entry);
+
+		// Executes the event bookkeeping actions and clears the bookkeeping list
+		void ExecuteBookkeepingActions(Private::FUpdateEventBookkeepingList& BookkeepingList);
+
+		// The input and output event lists
+		UE::AnimNext::FTraitEventList InputEventList;
+		UE::AnimNext::FTraitEventList OutputEventList;
+
+		// The currently executing entry
+		Private::FUpdateEntry* ExecutingEntry = nullptr;
+
 		// The head pointer of the update stack
 		// This is the traversal execution stack and it contains entries that are
 		// pending their pre-update call and entries waiting for post-update to be called
@@ -132,6 +162,14 @@ namespace UE::AnimNext
 		// Entries are allocated from the memstack and are re-used in LIFO since they'll
 		// be warmer in the CPU cache
 		Private::FUpdateEntry* FreeEntryStackHead = nullptr;
+
+		// The head pointer of the free bookkeeping entry stack
+		// Entries are allocated from the memstack and are re-used in LIFO since they'll
+		// be warmer in the CPU cache
+		Private::FUpdateEventBookkeepingEntry* FreeBookkeepingEntryStackHead = nullptr;
+
+		// The root node doesn't have a parent but we need a bookkeeping list regardless
+		Private::FUpdateEventBookkeepingList* RootParentBookkeepingEntryList = nullptr;
 
 		friend ANIMNEXTANIMGRAPH_API void UpdateGraph(FAnimNextGraphInstancePtr& GraphInstance, float DeltaTime);
 		friend FUpdateTraversalQueue;

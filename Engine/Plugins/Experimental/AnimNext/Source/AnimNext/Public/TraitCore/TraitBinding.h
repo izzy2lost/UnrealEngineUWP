@@ -156,6 +156,9 @@ namespace UE::AnimNext
 		// Returns the trait index on the stack we are bound to.
 		uint32 GetTraitIndex() const { return Stack != nullptr ? (TraitIndex - Stack->BaseTraitIndex) : 0; }
 
+		// Returns a pointer to the trait implementation if valid and if the trait is present at runtime
+		const FTrait* GetTrait() const { return TraitImpl; }
+
 		// Returns the trait interface UID when bound, an invalid UID otherwise.
 		FTraitInterfaceUID GetInterfaceUID() const;
 

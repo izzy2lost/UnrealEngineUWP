@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "TraitCore/TraitBinding.h"
+#include "TraitCore/TraitEvent.h"
 #include "TraitCore/TraitHandle.h"
 #include "TraitCore/TraitPtr.h"
 #include "TraitCore/TraitStackBinding.h"
@@ -52,6 +53,8 @@ namespace UE::AnimNext
 		// Creates an execution context and binds it to the specified graph instance
 		explicit FExecutionContext(FAnimNextGraphInstance& InGraphInstance);
 
+		// Derived types can control various features
+		virtual ~FExecutionContext() = default;
 
 
 		//////////////////////////////////////////////////////////////////////////
@@ -172,6 +175,21 @@ namespace UE::AnimNext
 
 		// Returns const iterators to the graph instance component container
 		GraphInstanceComponentMapType::TConstIterator GetComponentIterator() const;
+
+
+
+		//////////////////////////////////////////////////////////////////////////
+		// The following functions handle node lifetime management
+
+		// Raises an input trait event
+		// Behavior is traversal dependent, see the derived type for your current traversal (e.g. IUpdate)
+		// Default behavior asserts
+		virtual void RaiseInputTraitEvent(FAnimNextTraitEventPtr Event);
+
+		// Raises an output trait event
+		// Behavior is traversal dependent, see the derived type for your current traversal (e.g. IUpdate)
+		// Default behavior asserts
+		virtual void RaiseOutputTraitEvent(FAnimNextTraitEventPtr Event);
 
 
 

@@ -3,6 +3,9 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "HAL/CriticalSection.h"
+#include "TraitCore/TraitEvent.h"
+#include "TraitCore/TraitEventList.h"
 #include "TraitCore/TraitPtr.h"
 #include "RigVMCore/RigVMExecuteContext.h"
 
@@ -90,6 +93,18 @@ struct ANIMNEXT_API FAnimNextGraphInstance
 	// Returns const iterators to the graph instance component container
 	GraphInstanceComponentMapType::TConstIterator GetComponentIterator() const;
 
+	// Queues an input trait event (thread safe)
+	// Input events will be processed in the next graph update after they are queued
+	void QueueInputTraitEvent(FAnimNextTraitEventPtr Event);
+
+	// Queues a list of input trait events (thread safe)
+	// Input events will be processed in the next graph update after they are queued
+	// Expired or invalid events will be skipped
+	void QueueInputTraitEvents(const UE::AnimNext::FTraitEventList& Events);
+
+	// Collects all currently queued input trait events (thread safe)
+	void CollectInputTraitEvents(UE::AnimNext::FTraitEventList& OutInputEvents);
+
 private:
 	// Returns a pointer to the specified component, or nullptr if not found
 	UE::AnimNext::FGraphInstanceComponent* TryGetComponent(int32 ComponentNameHash, FName ComponentName) const;
@@ -130,6 +145,12 @@ private:
 
 	// Graph instance components that persist from update to update
 	GraphInstanceComponentMapType Components;
+
+	// Input event list to be processed on the next update
+	UE::AnimNext::FTraitEventList InputEventList;
+
+	// Lock to ensure input event list actions are thread safe
+	FRWLock InputEventListLock;
 
 	friend UAnimNextGraph;					// The graph is the one that allocates instances
 	friend FRigUnit_AnimNextGraphEvaluator;	// We evaluate the instance

@@ -56,6 +56,25 @@ namespace UE::AnimNext
 		return Result;
 	}
 
+	TArray<FTraitEventUID> FTrait::BuildTraitEventList(
+		const TConstArrayView<FTraitEventUID>& SuperEvents,
+		std::initializer_list<FTraitEventUID> EventList)
+	{
+		TArray<FTraitEventUID> Result;
+		Result.Reserve(SuperEvents.Num() + EventList.size());
+
+		Result.Append(SuperEvents);
+
+		for (FTraitEventUID InterfaceID : EventList)
+		{
+			Result.AddUnique(InterfaceID);
+		}
+
+		Result.Shrink();
+		Result.Sort();
+		return Result;
+	}
+
 #if WITH_EDITOR
 	void FTrait::SaveTraitSharedData(const TFunction<FString(FName PropertyName)>& GetTraitProperty, FAnimNextTraitSharedData& OutSharedData) const
 	{

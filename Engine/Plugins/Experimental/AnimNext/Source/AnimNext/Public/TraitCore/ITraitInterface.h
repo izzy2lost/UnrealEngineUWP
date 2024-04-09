@@ -32,4 +32,19 @@ namespace UE::AnimNext
 		// Returns the globally unique UID for this interface
 		virtual FTraitInterfaceUID GetInterfaceUID() const { return InterfaceUID; };
 	};
+
+	/**
+	 * Trait Stack Propagation
+	 * 
+	 * This enum can be used to signal whether an interface call should be forwarded to its parent
+	 * on the trait stack or not.
+	 */
+	enum class ETraitStackPropagation
+	{
+		// Forward the call to our parent on the trait stack (if we have one)
+		Continue,
+
+		// Do not forward the call to our parent, execution stops
+		Stop,
+	};
 }

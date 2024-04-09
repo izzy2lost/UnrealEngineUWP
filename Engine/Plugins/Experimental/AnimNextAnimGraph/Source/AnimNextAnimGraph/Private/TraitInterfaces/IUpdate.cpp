@@ -12,6 +12,15 @@ namespace UE::AnimNext
 {
 	namespace Private
 	{
+		struct FUpdateEventBookkeepingEntry;
+
+		struct FUpdateEventBookkeepingList
+		{
+			// We maintain a double linked list of event bookkeeping entries we execute before post-update
+			FUpdateEventBookkeepingEntry* EventBookkeepingHead = nullptr;
+			FUpdateEventBookkeepingEntry* EventBookkeepingTail = nullptr;
+		};
+
 		// This structure is transient and lives either on the stack or the memstack and its destructor may not be called
 		struct FUpdateEntry
 		{
@@ -30,6 +39,12 @@ namespace UE::AnimNext
 
 			// Once we've called PreUpdate, we cache the trait binding to avoid a redundant query to call PostUpdate
 			TTraitBinding<IUpdate>		UpdateTrait;
+
+			// A pointer to our parent entry or nullptr if we are the root
+			FUpdateEntry*				ParentEntry = nullptr;
+
+			// We maintain a double linked list of event bookkeeping entries we execute before post-update
+			FUpdateEventBookkeepingList EventBookkeepingList;
 
 			// These pointers are mutually exclusive
 			// An entry is either part of the queued update stack, the update stack, the free list, or none of the above
@@ -51,6 +66,94 @@ namespace UE::AnimNext
 			{
 			}
 		};
+
+		// The update traversal performs various event bookkeeping actions
+		enum class FUpdateEventBookkeepingAction : uint8
+		{
+			// Pushes an output trait event
+			PushOutput,
+
+			// Consumes a trait event
+			Consume,
+		};
+
+		// Encapsulates a bookkeeping entry that we'll execute before post-update
+		// These may be allocated on the memstack and their destructor might not run
+		struct FUpdateEventBookkeepingEntry
+		{
+			// The event the action manipulates
+			FAnimNextTraitEventPtr Event;
+
+			// The action to perform
+			// TODO: Could back a single bit in the LSB of one of the linked list pointers
+			FUpdateEventBookkeepingAction Action = FUpdateEventBookkeepingAction::Consume;
+
+			// Once allocated and bound to an update entry, bookkeeping entries form a double linked list
+			// where we append at the tail (next) to maintain queue ordering when we execute them
+			// When the bookkeeping entry isn't bound to an update entry, it lives in a free list where
+			// the next entry is the top of the free list
+			FUpdateEventBookkeepingEntry* NextEntry = nullptr;
+			FUpdateEventBookkeepingEntry* PrevEntry = nullptr;
+
+			// Creates a fresh entry
+			FUpdateEventBookkeepingEntry(FUpdateEventBookkeepingAction InAction, FAnimNextTraitEventPtr InEvent)
+				: Event(InEvent)
+				, Action(InAction)
+			{
+			}
+		};
+
+		// Queues the specified bookkeeping entry in the provided update entry
+		static void QueueBookkeepingEntry(FUpdateEventBookkeepingList& BookkeepingList, FUpdateEventBookkeepingEntry* BookkeepingEntry)
+		{
+			// Previous entry is the current tail (if any)
+			BookkeepingEntry->PrevEntry = BookkeepingList.EventBookkeepingTail;
+
+			if (BookkeepingList.EventBookkeepingHead == nullptr)
+			{
+				// This is the first bookkeeping entry, start our list
+				BookkeepingList.EventBookkeepingHead = BookkeepingEntry;
+			}
+			else
+			{
+				// Stitch the current tail with our new entry before we update it
+				BookkeepingList.EventBookkeepingTail->NextEntry = BookkeepingEntry;
+			}
+
+			// Append our entry at the tail
+			BookkeepingList.EventBookkeepingTail = BookkeepingEntry;
+		}
+
+		// Raises every queued event from the list on the specified entry
+		static void RaiseTraitEvents(FUpdateTraversalContext& Context, Private::FUpdateEntry* UpdateEntry, const UE::AnimNext::FTraitEventList& EventList)
+		{
+			// TODO: Performance note
+			// 
+			// Event lists are typically very small or empty and similarly most nodes handle few or no events
+			// They are thus a great fit to leverage bloom filters
+			// A node can pre-compute and cache one in its node template. This bloom filter contains all the event types it handles
+			// An event list can build a bloom filter of the event types it contains
+			// 
+			// Here (in this function), we could test if the event list bloom filter overlaps the node bloom filter: (node filter AND list filter) != 0
+			// If any bits intersect, then perhaps the node handles a type contained in the list (if the node handles nothing or if the list is empty, the result is always 0)
+			// With most nodes handling few events and the event list containing few events, we are likely to be able to skip many nodes with a very cheap test
+			// 
+			// Next, when we iterate over the event list, we can perform a similar test again for every event: (event filter AND node filter) == event filter
+			// If the event filter is contained in the node filter, the node might be handling the event type
+			// If not, then for sure it doesn't handle that event and we can avoid the virtual call and the event branching
+			// With most nodes handling few events and with an inclusion test, the rate of false positives is likely very low and we can skip most events
+			// avoiding the dispatch cost
+			// 
+			// To efficiently support this, we need to be able to build and cache bloom filters for each event in our list
+			// Caching the filter in the event itself is tricky as there is no good place to perform initialization work
+			// if we allow inheritance of events. Instead, the event list could store a struct with the event ptr and the bloom filter
+			// that we build when the event is inserted into the list. This would avoid the need to call a virtual function on the event
+			// to return a static constexpr filter. Similarly, we could store the event type UID alongside. We could pass this to the FTrait::OnTraitEvent
+			// function to avoid the virtual call we have for GetTypeUID.
+			// 
+
+			UE::AnimNext::RaiseTraitEvents(Context, UpdateEntry->TraitStack, EventList);
+		}
 	}
 
 	void IUpdate::PreUpdate(FUpdateTraversalContext& Context, const TTraitBinding<IUpdate>& Binding, const FTraitUpdateState& TraitState) const
@@ -81,7 +184,96 @@ namespace UE::AnimNext
 	//////////////////////////////////////////////////////////////////////////
 	// Traversal implementation
 
-	void FUpdateTraversalContext::PushQueuedUpdateEntries(FUpdateTraversalQueue& TraversalQueue)
+	void FUpdateTraversalContext::RaiseInputTraitEvent(FAnimNextTraitEventPtr Event)
+	{
+		if (!Event || !Event->IsValid())
+		{
+			return;
+		}
+
+		if (!ensureMsgf(ExecutingEntry == nullptr || !ExecutingEntry->bHasPreUpdated, TEXT("Input trait events can only be raised before a trait stack pre-updates")))
+		{
+			return;
+		}
+
+		if (ExecutingEntry != nullptr)
+		{
+			// If we are currently executing a node, we don't want the input event to be seen by our parent/siblings
+			// Add a bookkeeping entry to consume the event when we post-update
+			Private::FUpdateEventBookkeepingEntry* BookkeepingEntry = GetNewBookkeepingEntry(Private::FUpdateEventBookkeepingAction::Consume, Event);
+
+			Private::QueueBookkeepingEntry(ExecutingEntry->EventBookkeepingList, BookkeepingEntry);
+		}
+
+		InputEventList.Push(Event);
+	}
+
+	void FUpdateTraversalContext::RaiseOutputTraitEvent(FAnimNextTraitEventPtr Event)
+	{
+		if (!Event || !Event->IsValid())
+		{
+			return;
+		}
+
+		ensureMsgf(Event->IsTransient(), TEXT("Output trait events must have transient duration"));
+
+		if (ExecutingEntry != nullptr && ExecutingEntry->ParentEntry != nullptr)
+		{
+			// If we are currently executing a node, we don't want the output event to be visible on this node or its siblings
+			// Only its parent should see it
+			// Add a bookkeeping entry to push the event when our parent post-updates
+			// If we don't have a parent (e.g. root node), then we append to a fake parent list
+			Private::FUpdateEventBookkeepingEntry* BookkeepingEntry = GetNewBookkeepingEntry(Private::FUpdateEventBookkeepingAction::PushOutput, Event);
+
+			Private::FUpdateEventBookkeepingList* BookkeepingList = ExecutingEntry->ParentEntry != nullptr ? &ExecutingEntry->ParentEntry->EventBookkeepingList : RootParentBookkeepingEntryList;
+			Private::QueueBookkeepingEntry(*BookkeepingList, BookkeepingEntry);
+		}
+		else
+		{
+			// We aren't executing a trait stack or we are the root stack, just queue the output
+			// We might be in a component pre/post-update
+			OutputEventList.Push(Event);
+		}
+	}
+
+	void FUpdateTraversalContext::ExecuteBookkeepingActions(Private::FUpdateEventBookkeepingList& BookkeepingList)
+	{
+		if (BookkeepingList.EventBookkeepingHead == nullptr)
+		{
+			return;	// Nothing to do
+		}
+
+		// Iterate over our action list
+		Private::FUpdateEventBookkeepingEntry* BookkeepingEntry = BookkeepingList.EventBookkeepingHead;
+		while (BookkeepingEntry != nullptr)
+		{
+			switch (BookkeepingEntry->Action)
+			{
+			case Private::FUpdateEventBookkeepingAction::PushOutput:
+				OutputEventList.Push(BookkeepingEntry->Event);
+				break;
+			case Private::FUpdateEventBookkeepingAction::Consume:
+				BookkeepingEntry->Event->MarkConsumed();
+				break;
+			}
+
+			// Reset our pointer manually since the destructor won't run
+			BookkeepingEntry->Event.Reset();
+
+			Private::FUpdateEventBookkeepingEntry* NextEntry = BookkeepingEntry->NextEntry;
+
+			// Return our entry to the free list
+			PushFreeBookkeepingEntry(BookkeepingEntry);
+
+			// Continue iterating
+			BookkeepingEntry = NextEntry;
+		}
+
+		// Clear the list
+		BookkeepingList.EventBookkeepingHead = BookkeepingList.EventBookkeepingTail = nullptr;
+	}
+
+	void FUpdateTraversalContext::PushQueuedUpdateEntries(FUpdateTraversalQueue& TraversalQueue, Private::FUpdateEntry* ParentEntry)
 	{
 		// Pop every entry from the queued update stack and push them onto the update stack
 		// reversing their order
@@ -89,6 +281,8 @@ namespace UE::AnimNext
 		{
 			// Update our queued stack head
 			TraversalQueue.QueuedUpdateStackHead = Entry->PrevQueuedUpdateStackEntry;
+
+			Entry->ParentEntry = ParentEntry;
 
 			// Push our new entry onto the update stack
 			PushUpdateEntry(Entry);
@@ -131,6 +325,8 @@ namespace UE::AnimNext
 			FreeEntry->TraitState = TraitState;
 			FreeEntry->TraitPtr = TraitPtr;
 			FreeEntry->bHasPreUpdated = false;
+			FreeEntry->ParentEntry = nullptr;
+			FreeEntry->EventBookkeepingList = Private::FUpdateEventBookkeepingList();
 			FreeEntry->NextFreeEntry = nullptr;		// Mark it as not being a member of any list
 		}
 		else
@@ -140,6 +336,36 @@ namespace UE::AnimNext
 		}
 
 		return FreeEntry;
+	}
+
+	Private::FUpdateEventBookkeepingEntry* FUpdateTraversalContext::GetNewBookkeepingEntry(Private::FUpdateEventBookkeepingAction Action, FAnimNextTraitEventPtr Event)
+	{
+		Private::FUpdateEventBookkeepingEntry* FreeEntry = FreeBookkeepingEntryStackHead;
+		if (FreeEntry != nullptr)
+		{
+			// We have a free entry, set our new head
+			FreeBookkeepingEntryStackHead = FreeEntry->NextEntry;
+
+			// Update our entry
+			FreeEntry->Event = Event;
+			FreeEntry->Action = Action;
+			FreeEntry->NextEntry = nullptr;		// Mark it as not being a member of any list
+		}
+		else
+		{
+			// Allocate a new entry
+			FreeEntry = new(MemStack) Private::FUpdateEventBookkeepingEntry(Action, Event);
+		}
+
+		return FreeEntry;
+	}
+
+	void FUpdateTraversalContext::PushFreeBookkeepingEntry(Private::FUpdateEventBookkeepingEntry* Entry)
+	{
+		Entry->NextEntry = FreeBookkeepingEntryStackHead;
+		Entry->PrevEntry = nullptr;
+
+		FreeBookkeepingEntryStackHead = Entry;
 	}
 
 	FUpdateTraversalQueue::FUpdateTraversalQueue(FUpdateTraversalContext& InTraversalContext)
@@ -233,10 +459,18 @@ namespace UE::AnimNext
 
 		FUpdateTraversalQueue TraversalQueue(TraversalContext);
 
+		Private::FUpdateEventBookkeepingList RootParentBookkeepingEntryList;
+		TraversalContext.RootParentBookkeepingEntryList = &RootParentBookkeepingEntryList;
+
+		// Grab our input events, we'll propagate them down the graph as we traverse
+		GraphInstance.CollectInputTraitEvents(TraversalContext.InputEventList);
+
 		// Before we start the traversal, we give the graph instance components the chance to do some work
 		TraversalContext.BindTo(GraphInstance);
 		for (auto It = TraversalContext.GetComponentIterator(); It; ++It)
 		{
+			RaiseTraitEvents(TraversalContext, *It.Value(), TraversalContext.InputEventList);
+
 			It.Value()->PreUpdate(TraversalContext);
 		}
 
@@ -246,6 +480,8 @@ namespace UE::AnimNext
 
 		while (Private::FUpdateEntry* Entry = TraversalContext.PopUpdateEntry())
 		{
+			TraversalContext.ExecutingEntry = Entry;
+
 			const FWeakTraitPtr& EntryTraitPtr = Entry->TraitPtr;
 
 			if (!Entry->bHasPreUpdated)
@@ -261,22 +497,20 @@ namespace UE::AnimNext
 				const bool bIsFrozen = false;	// Not yet supported
 				Entry->TraitStack.SnapshotLatentProperties(bIsFrozen);
 
+				// Raise our input events
+				Private::RaiseTraitEvents(TraversalContext, Entry, TraversalContext.InputEventList);
+
 				// If this trait stack implements IUpdate, call into it
 				if (Entry->TraitStack.GetInterface(Entry->UpdateTrait))
 				{
 					Entry->UpdateTrait.PreUpdate(TraversalContext, Entry->TraitState);
-
-					// Make sure that next time we visit this entry, we'll post-update
-					Entry->bHasPreUpdated = true;
-
-					// Push this entry onto the update stack, we'll call it once all our children have finished executing
-					TraversalContext.PushUpdateEntry(Entry);
 				}
-				else
-				{
-					// We don't need this entry anymore
-					TraversalContext.PushFreeEntry(Entry);
-				}
+
+				// Make sure that next time we visit this entry, we'll post-update
+				Entry->bHasPreUpdated = true;
+
+				// Push this entry onto the update stack, we'll call it once all our children have finished executing
+				TraversalContext.PushUpdateEntry(Entry);
 
 				// Now visit the trait stack and queue our children
 				ensure(Entry->TraitStack.GetTopTrait(TraitBinding));
@@ -296,7 +530,7 @@ namespace UE::AnimNext
 						// Iterate over our queued children and push them onto the update stack
 						// We do this to allow children to be queued in traversal order which is intuitive
 						// but to traverse them in that order, they must be pushed in reverse order onto the update stack
-						TraversalContext.PushQueuedUpdateEntries(TraversalQueue);
+						TraversalContext.PushQueuedUpdateEntries(TraversalQueue, Entry);
 					}
 					else if (TraitBinding.AsInterface(HierarchyTrait))
 					{
@@ -309,6 +543,7 @@ namespace UE::AnimNext
 							if (ChildPtr.IsValid())
 							{
 								Private::FUpdateEntry* ChildEntry = TraversalContext.GetNewEntry(ChildPtr, Entry->TraitState);
+								ChildEntry->ParentEntry = Entry;
 								TraversalContext.PushUpdateEntry(ChildEntry);
 							}
 						}
@@ -324,9 +559,17 @@ namespace UE::AnimNext
 			}
 			else
 			{
+				// Execute event bookkeeping actions
+				TraversalContext.ExecuteBookkeepingActions(Entry->EventBookkeepingList);
+
+				// Raise our output events
+				Private::RaiseTraitEvents(TraversalContext, Entry, TraversalContext.OutputEventList);
+
 				// We've already visited this node once, time to PostUpdate
-				check(Entry->UpdateTrait.IsValid());
-				Entry->UpdateTrait.PostUpdate(TraversalContext, Entry->TraitState);
+				if (Entry->UpdateTrait.IsValid())
+				{
+					Entry->UpdateTrait.PostUpdate(TraversalContext, Entry->TraitState);
+				}
 
 				// Now that it finished updating, we can pop any scoped interfaces this node might have pushed
 				TraversalContext.PopStackScopedInterfaces(Entry->TraitStack);
@@ -336,15 +579,30 @@ namespace UE::AnimNext
 			}
 		}
 
+		// Clear our executing entry
+		TraversalContext.ExecutingEntry = nullptr;
+
+		// Executing any bookkeeping our root node might need
+		TraversalContext.ExecuteBookkeepingActions(*TraversalContext.RootParentBookkeepingEntryList);
+
 		// After we finish the traversal, we give the graph instance components the chance to do some work
-		TraversalContext.BindTo(GraphInstance);
 		for (auto It = TraversalContext.GetComponentIterator(); It; ++It)
 		{
+			RaiseTraitEvents(TraversalContext, *It.Value(), TraversalContext.OutputEventList);
+
 			It.Value()->PostUpdate(TraversalContext);
 		}
+
+		// Decrement the remaining lifetime of the input events we processed and queue up any remaining events
+		TraversalContext.InputEventList.DecrementLifetime();
+		GraphInstance.QueueInputTraitEvents(TraversalContext.InputEventList);
 
 		// At this point, we shouldn't have any remaining scoped interfaces
 		// If this fails, it means we failed to pop them due to a push/pop mismatch
 		ensure(!TraversalContext.HasScopedInterfaces());
+
+		// TODO: Figure out what to do with the output events, we probably want to return them here and let the caller
+		// determine whether they should be ignored, filtered, or handled (e.g. post-physics vs pre-physics)
+		// The caller can determine what events can fire because it knows where it is running (e.g. worker vs main thread)
 	}
 }

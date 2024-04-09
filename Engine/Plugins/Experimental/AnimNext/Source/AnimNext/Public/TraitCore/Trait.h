@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 
+#include "TraitCore/TraitEvent.h"
 #include "TraitCore/TraitHandle.h"			// Derived types are likely to refer to other traits as children
 #include "TraitCore/TraitInstanceData.h"
 #include "TraitCore/TraitMode.h"
@@ -32,6 +33,8 @@ class FArchive;
 	virtual void DestructTraitInstance(const UE::AnimNext::FExecutionContext& Context, const UE::AnimNext::FTraitBinding& Binding) const override; \
 	virtual const UE::AnimNext::ITraitInterface* GetTraitInterface(UE::AnimNext::FTraitInterfaceUID InterfaceUID) const override; \
 	virtual TConstArrayView<FTraitInterfaceUID> GetTraitInterfaces() const override; \
+	virtual UE::AnimNext::ETraitStackPropagation OnTraitEvent(UE::AnimNext::FExecutionContext& Context, UE::AnimNext::FTraitBinding& Binding, FAnimNextTraitEvent& Event) const override; \
+	virtual TConstArrayView<FTraitEventUID> GetTraitEvents() const override; \
 	virtual uint32 GetNumLatentTraitProperties() const override { return -FSharedData::GetLatentPropertyIndex(~(size_t)0); } \
 	virtual FTraitLatentPropertyMemoryLayout GetLatentPropertyMemoryLayout(FName PropertyName, uint32 PropertyIndex) const override; \
 	static_assert(std::is_base_of<FAnimNextTraitSharedData, FSharedData>::value, "Trait shared data must derive from FAnimNextTraitSharedData"); \
@@ -101,20 +104,93 @@ class FArchive;
 	{ \
 		/* Thread safe cache initialization */ \
 		static TArray<UE::AnimNext::FTraitInterfaceUID> CachedInterfaceList = FTrait::BuildTraitInterfaceList( \
-		TraitSuper::GetTraitInterfaces(), \
-		{ \
-			InterfaceEnumeratorMacro(ANIM_NEXT_IMPL_GET_INTERFACES_IMPL_FOR_INTERFACE) \
-		}); \
+			TraitSuper::GetTraitInterfaces(), \
+			{ \
+				InterfaceEnumeratorMacro(ANIM_NEXT_IMPL_GET_INTERFACES_IMPL_FOR_INTERFACE) \
+			}); \
 		return CachedInterfaceList; \
 	}
+
+namespace UE::AnimNext::Private
+{
+	// Helper to grab the event type from an event handler function signature
+	template<typename HandlerEventType>
+	struct EventHandlerTypeTrait;
+
+	template<typename HandlerEventType>
+	struct EventHandlerTypeTrait<ETraitStackPropagation(*)(FExecutionContext&, FTraitBinding&, HandlerEventType&)>
+	{
+		using EventType = std::remove_const_t<HandlerEventType>;
+	};
+
+	template<typename HandlerEventType>
+	struct EventHandlerTypeTrait<ETraitStackPropagation(*)(const FExecutionContext&, FTraitBinding&, HandlerEventType&)>
+	{
+		using EventType = std::remove_const_t<HandlerEventType>;
+	};
+
+	template<typename BaseType, typename HandlerEventType>
+	struct EventHandlerTypeTrait<ETraitStackPropagation(BaseType::*)(FExecutionContext&, FTraitBinding&, HandlerEventType&) const>
+	{
+		using EventType = std::remove_const_t<HandlerEventType>;
+	};
+
+	template<typename BaseType, typename HandlerEventType>
+	struct EventHandlerTypeTrait<ETraitStackPropagation(BaseType::*)(const FExecutionContext&, FTraitBinding&, HandlerEventType&) const>
+	{
+		using EventType = std::remove_const_t<HandlerEventType>;
+	};
+}
+
+// Helper that handles the OnTraitEvent() details for each event specified by the generator macro
+#define ANIM_NEXT_IMPL_ON_TRAIT_EVENT_IMPL_FOR_EVENT(EventHandler) \
+	if (EventUID == UE::AnimNext::Private::EventHandlerTypeTrait<decltype(&EventHandler)>::EventType::TypeUID) \
+	{ \
+		return EventHandler(Context, Binding, static_cast<UE::AnimNext::Private::EventHandlerTypeTrait<decltype(&EventHandler)>::EventType&>(Event)); \
+	}
+
+// Implements OnTraitEvent()
+#define ANIM_NEXT_IMPL_DEFINE_ANIM_TRAIT_ON_TRAIT_EVENT(TraitName, EventEnumeratorMacro) \
+	UE::AnimNext::ETraitStackPropagation TraitName::OnTraitEvent(UE::AnimNext::FExecutionContext& Context, UE::AnimNext::FTraitBinding& Binding, FAnimNextTraitEvent& Event) const \
+	{ \
+		const UE::AnimNext::FTraitEventUID EventUID = Event.GetTypeUID(); \
+		EventEnumeratorMacro(ANIM_NEXT_IMPL_ON_TRAIT_EVENT_IMPL_FOR_EVENT) \
+		/* Forward to base implementation */ \
+		return TraitSuper::OnTraitEvent(Context, Binding, Event); \
+	}
+
+// Helper that handles the GetTraitEvents() details for each event specified by the generator macro
+#define ANIM_NEXT_IMPL_GET_TRAIT_EVENTS_IMPL_FOR_EVENT(EventHandler) \
+	UE::AnimNext::Private::EventHandlerTypeTrait<decltype(&EventHandler)>::EventType::TypeUID,
+
+// Implements GetTraitEvents()
+#define ANIM_NEXT_IMPL_DEFINE_ANIM_TRAIT_GET_TRAIT_EVENTS(TraitName, EventEnumeratorMacro) \
+	TConstArrayView<UE::AnimNext::FTraitEventUID> TraitName::GetTraitEvents() const \
+	{ \
+		/* Thread safe cache initialization */ \
+		static TArray<UE::AnimNext::FTraitEventUID> CachedEventList = FTrait::BuildTraitEventList( \
+			TraitSuper::GetTraitEvents(), \
+			{ \
+				EventEnumeratorMacro(ANIM_NEXT_IMPL_GET_TRAIT_EVENTS_IMPL_FOR_EVENT) \
+			}); \
+		return CachedEventList; \
+	}
+
+// A dummy trait interface generator for traits that do not implement any interfaces
+#define NULL_ANIM_TRAIT_INTERFACE_ENUMERATOR(GeneratorMacro)
+
+// A dummy trait event generator for traits that do not handle any events
+#define NULL_ANIM_TRAIT_EVENT_ENUMERATOR(GeneratorMacro)
 
 /**
   * This macro defines the necessary boilerplate for implementing FTrait. See above for usage example.
   */
-#define GENERATE_ANIM_TRAIT_IMPLEMENTATION(TraitName, InterfaceEnumeratorMacro) \
+#define GENERATE_ANIM_TRAIT_IMPLEMENTATION(TraitName, InterfaceEnumeratorMacro, EventEnumeratorMacro) \
 	ANIM_NEXT_IMPL_DEFINE_ANIM_TRAIT(TraitName) \
 	ANIM_NEXT_IMPL_DEFINE_ANIM_TRAIT_GET_INTERFACE(TraitName, InterfaceEnumeratorMacro) \
-	ANIM_NEXT_IMPL_DEFINE_ANIM_TRAIT_GET_INTERFACES(TraitName, InterfaceEnumeratorMacro)
+	ANIM_NEXT_IMPL_DEFINE_ANIM_TRAIT_GET_INTERFACES(TraitName, InterfaceEnumeratorMacro) \
+	ANIM_NEXT_IMPL_DEFINE_ANIM_TRAIT_ON_TRAIT_EVENT(TraitName, EventEnumeratorMacro) \
+	ANIM_NEXT_IMPL_DEFINE_ANIM_TRAIT_GET_TRAIT_EVENTS(TraitName, EventEnumeratorMacro)
 
 // Allows a trait to auto-register and unregister within the current execution scope
 // The trait must be found in the current scope without a namespace qualification
@@ -262,6 +338,12 @@ namespace UE::AnimNext
 		// Returns a list of interfaces that this trait supports
 		virtual TConstArrayView<FTraitInterfaceUID> GetTraitInterfaces() const { return TConstArrayView<FTraitInterfaceUID>(); }
 
+		// Called when an event reaches an instance of this trait
+		virtual ETraitStackPropagation OnTraitEvent(FExecutionContext& Context, FTraitBinding& Binding, FAnimNextTraitEvent& Event) const { return ETraitStackPropagation::Continue; }
+
+		// Returns a list of events that this trait handles
+		virtual TConstArrayView<FTraitEventUID> GetTraitEvents() const { return TConstArrayView<FTraitEventUID>(); }
+
 		// The number of latent property properties in the shared data of this trait
 		virtual uint32 GetNumLatentTraitProperties() const { return 0; }
 
@@ -295,6 +377,11 @@ namespace UE::AnimNext
 		static TArray<FTraitInterfaceUID> BuildTraitInterfaceList(
 			const TConstArrayView<FTraitInterfaceUID>& SuperInterfaces,
 			std::initializer_list<FTraitInterfaceUID> InterfaceList);
+
+		// Builds a list of events with the provided super events and current events as an initializer list
+		static TArray<FTraitEventUID> BuildTraitEventList(
+			const TConstArrayView<FTraitEventUID>& SuperEvents,
+			std::initializer_list<FTraitEventUID> EventList);
 	};
 
 	// Base class for base traits that are standalone

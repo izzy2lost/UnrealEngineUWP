@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "TraitCore/TraitEvent.h"
 #include "TraitCore/TraitPtr.h"
 
 #include "AnimNextGraphInstancePtr.generated.h"
@@ -79,6 +80,18 @@ struct ANIMNEXT_API FAnimNextGraphInstancePtr
 
 	// Returns const iterators to the graph instance component container
 	GraphInstanceComponentMapType::TConstIterator GetComponentIterator() const;
+
+	// Queues an input trait event (thread safe)
+	// Input events will be processed in the next graph update after they are queued
+	void QueueInputTraitEvent(FAnimNextTraitEventPtr Event);
+
+	// Queues a list of input trait events (thread safe)
+	// Input events will be processed in the next graph update after they are queued
+	// Expired or invalid events will be skipped
+	void QueueInputTraitEvents(const UE::AnimNext::FTraitEventList& Events);
+
+	// Collects all currently queued input trait events (thread safe)
+	void CollectInputTraitEvents(UE::AnimNext::FTraitEventList& OutInputEvents);
 
 private:
 	// Returns a pointer to the specified component, or nullptr if not found
