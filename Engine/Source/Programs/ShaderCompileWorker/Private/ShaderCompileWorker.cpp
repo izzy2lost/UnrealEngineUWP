@@ -456,19 +456,6 @@ private:
 
 		VerifyFormatVersions(ReceivedFormatVersionMap);
 		
-		// Apply shader source directory mappings.
-		{
-			TMap<FString, FString> DirectoryMappings;
-			InputFile << DirectoryMappings;
-
-			ResetAllShaderSourceDirectoryMappings();
-			for (TPair<FString, FString>& MappingEntry : DirectoryMappings)
-			{
-				FPaths::NormalizeDirectoryName(MappingEntry.Value);
-				AddShaderSourceDirectoryMapping(MappingEntry.Key, MappingEntry.Value);
-			}
-		}
-
 		// Initialize shader hash cache before reading any includes.
 		InitializeShaderHashCache();
 
@@ -518,23 +505,6 @@ private:
 			}
 			return CharName;
 		};
-
-		// Shared inputs
-		TMap<FString, FThreadSafeSharedAnsiStringPtr> ExternalIncludes;
-		{
-			int32 NumExternalIncludes = 0;
-			InputFile << NumExternalIncludes;
-			ExternalIncludes.Reserve(NumExternalIncludes);
-
-			for (int32 IncludeIndex = 0; IncludeIndex < NumExternalIncludes; IncludeIndex++)
-			{
-				FString NewIncludeName;
-				InputFile << NewIncludeName;
-				TArray<ANSICHAR>* NewIncludeContents = new TArray<ANSICHAR>;
-				InputFile << (*NewIncludeContents);
-				ExternalIncludes.Add(NewIncludeName, MakeShareable(NewIncludeContents));
-			}
-		}
 
 		// Shared environments
 		TArray<FShaderCompilerEnvironment> SharedEnvironments;
@@ -671,15 +641,7 @@ private:
 				FShaderCompileJob& Job = OutSingleJobs.AddDefaulted_GetRef();
 				// Deserialize the job's inputs.
 				Job.SerializeWorkerInput(InputFile);
-				Job.Input.DeserializeSharedInputs(InputFile, ExternalIncludes, SharedEnvironments, ParameterStructures);
-
-				// SCW doesn't run DDPI, GShaderHasCache Initialize is run  at start with no knowledge of the CustomPlatforms
-				// CustomPlatforms are known when we parse the WorkerInput so we populate the Directory here
-				if (IsCustomPlatform((EShaderPlatform)Job.Input.Target.Platform))
-				{
-					const EShaderPlatform ShaderPlatform = ShaderFormatNameToShaderPlatform(Job.Input.ShaderFormat);
-					UpdateIncludeDirectoryForPreviewPlatform((EShaderPlatform)Job.Input.Target.Platform, ShaderPlatform);
-				}
+				Job.Input.DeserializeSharedInputs(InputFile, SharedEnvironments, ParameterStructures);
 
 				// Process the job.
 				CompileShader(GetShaderFormats(), Job, WorkingDirectory, &GNumProcessedJobs); 
@@ -715,7 +677,7 @@ private:
 					// Deserialize the job's inputs.
 					FShaderCompileJob* Job = PipelineJob.StageJobs[StageIndex]->GetSingleShaderJob();
 					Job->SerializeWorkerInput(InputFile);
-					Job->Input.DeserializeSharedInputs(InputFile, ExternalIncludes, SharedEnvironments, ParameterStructures);
+					Job->Input.DeserializeSharedInputs(InputFile, SharedEnvironments, ParameterStructures);
 
 					// SCW doesn't run DDPI, GShaderHasCache Initialize is run  at start with no knowledge of the CustomPlatforms
 					// CustomPlatforms are known when we parse the WorkerInput so we populate the Directory here

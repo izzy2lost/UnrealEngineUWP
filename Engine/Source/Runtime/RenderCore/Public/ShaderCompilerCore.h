@@ -31,7 +31,7 @@ class FShaderPipelineCompileJob;
 typedef TSharedPtr<TArray<ANSICHAR>, ESPMode::ThreadSafe> FShaderSharedAnsiStringPtr;
 
 // this is for the protocol, not the data, bump if FShaderCompilerInput/FShaderPreprocessOutput serialization, SerializeWorkerInput or ProcessInputFromArchive changes.
-inline const int32 ShaderCompileWorkerInputVersion = 27;
+inline const int32 ShaderCompileWorkerInputVersion = 28;
 // this is for the protocol, not the data, bump if FShaderCompilerOutput or WriteToOutputArchive changes.
 inline const int32 ShaderCompileWorkerOutputVersion = 20;
 // this is for the protocol, not the data.
@@ -260,6 +260,7 @@ struct FShaderCompilerInput
 	// True if the backend for this job implements the independent preprocessing API.
 	bool bIndependentPreprocessed = true;
 
+	UE_DEPRECATED(5.5, "bCachePreprocessed member no longer used; preprocessed job cache is now the only path for in-memory caching of shader jobs")
 	// True if the cache key for this job should be based on preprocessed source. If so,
 	// preprocessing will be executed in the cook process independent of compilation (and
 	// as such this will only ever be set for jobs whose shader format supports independent
@@ -364,58 +365,23 @@ struct FShaderCompilerInput
 		return DebugGroupName;
 	}
 
+	UE_DEPRECATED(5.5, "GatherSharedInputs no longer processes external includes, as these are not needed by SCW anymore")
 	void GatherSharedInputs(
 		TMap<FString, FString>& ExternalIncludes,
 		TArray<TRefCountPtr<FSharedShaderCompilerEnvironment>>& SharedEnvironments,
-		TArray<const FShaderParametersMetadata*>& ParametersStructures)
-	{
-		check(!SharedEnvironment || SharedEnvironment->IncludeVirtualPathToSharedContentsMap.Num() == 0);
+		TArray<const FShaderParametersMetadata*>& ParametersStructures) {}
 
-		// If the input is already preprocessed we don't need to serialize includes when writing worker input files
-		if (!bCachePreprocessed)
-		{
-			for (const auto& It : Environment.IncludeVirtualPathToSharedContentsMap)
-			{
-				FString* FoundEntry = ExternalIncludes.Find(It.Key);
-
-				if (!FoundEntry)
-				{
-					ExternalIncludes.Add(It.Key, FString(*It.Value));
-				}
-			}
-		}
-
-		if (SharedEnvironment)
-		{
-			SharedEnvironments.AddUnique(SharedEnvironment);
-		}
-
-		if (RootParametersStructure)
-		{
-			ParametersStructures.AddUnique(RootParametersStructure);
-		}
-	}
-
+	UE_DEPRECATED(5.5, "GatherSharedInputsAnsi is no longer needed since external includes are no longer serialized; use GetSharedInputs")
 	void GatherSharedInputsAnsi(
 		TMap<FString, TArray<ANSICHAR>>& ExternalIncludes,
+		TArray<TRefCountPtr<FSharedShaderCompilerEnvironment>>& SharedEnvironments,
+		TArray<const FShaderParametersMetadata*>& ParametersStructures) {}
+
+	void GatherSharedInputs(
 		TArray<TRefCountPtr<FSharedShaderCompilerEnvironment>>& SharedEnvironments,
 		TArray<const FShaderParametersMetadata*>& ParametersStructures)
 	{
 		check(!SharedEnvironment || SharedEnvironment->IncludeVirtualPathToSharedContentsMap.Num() == 0);
-
-		// If the input is already preprocessed we don't need to serialize includes when writing worker input files
-		if (!bCachePreprocessed)
-		{
-			for (const auto& It : Environment.IncludeVirtualPathToSharedContentsMap)
-			{
-				TArray<ANSICHAR>* FoundEntry = ExternalIncludes.Find(It.Key);
-
-				if (!FoundEntry)
-				{
-					ExternalIncludes.Add(It.Key, *It.Value);
-				}
-			}
-		}
 
 		if (SharedEnvironment)
 		{
@@ -432,19 +398,6 @@ struct FShaderCompilerInput
 	{
 		check(Ar.IsSaving());
 
-		if (!bCachePreprocessed)
-		{
-			TArray<FString> ReferencedExternalIncludes;
-			ReferencedExternalIncludes.Empty(Environment.IncludeVirtualPathToSharedContentsMap.Num());
-
-			for (const auto& It : Environment.IncludeVirtualPathToSharedContentsMap)
-			{
-				ReferencedExternalIncludes.Add(It.Key);
-			}
-
-			Ar << ReferencedExternalIncludes;
-		}
-
 		int32 SharedEnvironmentIndex = SharedEnvironments.Find(SharedEnvironment);
 		Ar << SharedEnvironmentIndex;
 
@@ -459,24 +412,10 @@ struct FShaderCompilerInput
 
 	void DeserializeSharedInputs(
 		FArchive& Ar,
-		const TMap<FString, FThreadSafeSharedAnsiStringPtr>& ExternalIncludes,
 		const TArray<FShaderCompilerEnvironment>& SharedEnvironments,
 		const TArray<TUniquePtr<FShaderParametersMetadata>>& ShaderParameterStructures)
 	{
 		check(Ar.IsLoading());
-
-		if (!bCachePreprocessed)
-		{
-			TArray<FString> ReferencedExternalIncludes;
-			Ar << ReferencedExternalIncludes;
-
-			Environment.IncludeVirtualPathToSharedContentsMap.Reserve(ReferencedExternalIncludes.Num());
-
-			for (int32 i = 0; i < ReferencedExternalIncludes.Num(); i++)
-			{
-				Environment.IncludeVirtualPathToSharedContentsMap.Add(ReferencedExternalIncludes[i], ExternalIncludes.FindChecked(ReferencedExternalIncludes[i]));
-			}
-		}
 
 		int32 SharedEnvironmentIndex = 0;
 		Ar << SharedEnvironmentIndex;
@@ -740,7 +679,9 @@ extern RENDERCORE_API int HandleShaderCompileException(Windows::LPEXCEPTION_POIN
 extern RENDERCORE_API const IShaderFormat* FindShaderFormat(FName Format, const TArray<const IShaderFormat*>& ShaderFormats);
 
 // Executes preprocessing for the given job, if the job is marked to be preprocessed independently prior to compilation.
+UE_DEPRECATED(5.5, "ConditionalPreprocessShader is now just PreprocessShader (no longer conditional, always executes in the main process at job submission time)")
 extern RENDERCORE_API bool ConditionalPreprocessShader(FShaderCommonCompileJob* Job);
+extern RENDERCORE_API bool PreprocessShader(FShaderCommonCompileJob* Job);
 extern RENDERCORE_API void CompileShader(const TArray<const IShaderFormat*>& ShaderFormats, FShaderCompileJob& Job, const FString& WorkingDirectory, int32* CompileCount = nullptr);
 extern RENDERCORE_API void CompileShaderPipeline(const TArray<const IShaderFormat*>& ShaderFormats, FShaderPipelineCompileJob* PipelineJob, const FString& WorkingDirectory, int32* CompileCount = nullptr);
 

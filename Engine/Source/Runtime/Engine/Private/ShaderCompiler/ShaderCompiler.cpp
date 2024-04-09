@@ -134,13 +134,6 @@ static FAutoConsoleVariableRef CVarShaderCompilerJobCacheOverflowReducePercent(
 	ECVF_Default
 );
 
-static TAutoConsoleVariable<bool> CVarPreprocessedJobCache(
-	TEXT("r.ShaderCompiler.PreprocessedJobCache"),
-	true,
-	TEXT("If enabled will shader compile jobs will be preprocessed at submission time in the cook process (when the job is queued) and generate job input hashes based on preprocessed source."),
-	ECVF_Default
-);
-
 static TAutoConsoleVariable<bool> CVarJobCacheDDC(
 	TEXT("r.ShaderCompiler.JobCacheDDC"),
 	true,
@@ -323,14 +316,6 @@ static FAutoConsoleVariableRef CVarShaderCompilerDebugDiscardCacheOutputs(
 	TEXT("r.ShaderCompiler.DebugDiscardCacheOutputs"),
 	GShaderCompilerDebugDiscardCacheOutputs,
 	TEXT("if != 0, cache outputs are discarded (not added to the output map) for debugging purposes.\nEliminates usefulness of the cache, but allows repeated triggering of the same jobs for stress testing (for example, rapid undo/redo in the Material editor)."),
-	ECVF_Default
-);
-
-int32 GShaderCompilerParallelSubmitJobs = 1;
-static FAutoConsoleVariableRef CVarShaderCompilerParallelSubmitJobs(
-	TEXT("r.ShaderCompiler.ParallelSubmitJobs"),
-	GShaderCompilerParallelSubmitJobs,
-	TEXT("if != 0, FShaderJobCache::SubmitJobs will run in multiple parallel tasks, instead of the game thread."),
 	ECVF_Default
 );
 
@@ -1785,12 +1770,10 @@ void FShaderJobCache::SubmitJobs(const TArray<FShaderCommonCompileJobPtr>& InJob
 			}
 		}
 
-		if (GShaderCompilerParallelSubmitJobs)
+		for (const FShaderCommonCompileJobPtr& Job : InJobs)
 		{
-			for (FShaderCommonCompileJobPtr Job : InJobs)
-			{
-				UE::Tasks::ETaskPriority Prio = IsRunningCookCommandlet() ? UE::Tasks::ETaskPriority::Normal : UE::Tasks::ETaskPriority::BackgroundNormal;
-				UE::Tasks::Launch(UE_SOURCE_LOCATION, [Job, this]()
+			UE::Tasks::ETaskPriority Prio = IsRunningCookCommandlet() ? UE::Tasks::ETaskPriority::Normal : UE::Tasks::ETaskPriority::BackgroundNormal;
+			UE::Tasks::Launch(UE_SOURCE_LOCATION, [Job, this]()
 				{
 					TRACE_CPUPROFILER_EVENT_SCOPE(ShaderJobTask);
 					double TimeStart = FPlatformTime::Seconds();
@@ -1803,10 +1786,10 @@ void FShaderJobCache::SubmitJobs(const TArray<FShaderCommonCompileJobPtr>& InJob
 					bool bSubmitJob = true;
 					if (ShaderCompiler::IsJobCacheEnabled())
 					{
-						bSubmitJob = ConditionalPreprocessShader(Job);
+						bSubmitJob = PreprocessShader(Job);
 						Job->GetInputHash();
 					}
-					
+
 					if (bSubmitJob)
 					{
 						SubmitJob(Job);
@@ -1815,28 +1798,9 @@ void FShaderJobCache::SubmitJobs(const TArray<FShaderCommonCompileJobPtr>& InJob
 					{
 						ProcessFinishedJob(Job, /* bCompilationSkipped = */true);
 					}
-					
+
 					Job->TimeTaskSubmitJobs = FPlatformTime::Seconds() - TimeStart;
 				}, Prio);
-			}
-		}
-		else
-		{
-			// Precompute the InputHash for each job in multiple-thread.
-			if (ShaderCompiler::IsJobCacheEnabled())
-			{
-				TRACE_CPUPROFILER_EVENT_SCOPE(ShaderCompiler.GetInputHash);
-				ParallelFor(TEXT("ShaderCompiler.GetInputHash.PF"), InJobs.Num(), 1, [&InJobs](int32 Index)
-				{
-					ConditionalPreprocessShader(InJobs[Index]);
-					InJobs[Index]->GetInputHash();
-				}, EParallelForFlags::Unbalanced);
-			}
-
-			for (FShaderCommonCompileJob* Job : InJobs)
-			{
-				SubmitJob(Job);
-			}
 		}
 	}
 }
@@ -2560,32 +2524,25 @@ static int32 GetNumTotalJobs(const TArray<FShaderCommonCompileJobPtr>& Jobs)
 	return NumJobs;
 }
 
-static bool SplitJobsByType(const TArray<FShaderCommonCompileJobPtr>& QueuedJobs, TArray<FShaderCompileJob*>& OutQueuedSingleJobs, TArray<FShaderPipelineCompileJob*>& OutQueuedPipelineJobs)
+static void SplitJobsByType(const TArray<FShaderCommonCompileJobPtr>& QueuedJobs, TArray<FShaderCompileJob*>& OutQueuedSingleJobs, TArray<FShaderPipelineCompileJob*>& OutQueuedPipelineJobs)
 {
-	bool bAnyPreprocessingNeeded = false;
 	for (int32 Index = 0; Index < QueuedJobs.Num(); ++Index)
 	{
 		FShaderCommonCompileJobPtr CommonJob = QueuedJobs[Index];
 		if (FShaderCompileJob* SingleJob = CommonJob->GetSingleShaderJob())
 		{
 			OutQueuedSingleJobs.Add(SingleJob);
-			bAnyPreprocessingNeeded |= !SingleJob->Input.bCachePreprocessed;
 
 		}
 		else if (FShaderPipelineCompileJob* PipelineJob = CommonJob->GetShaderPipelineJob())
 		{
 			OutQueuedPipelineJobs.Add(PipelineJob);
-			PipelineJob->ForEachSingleShaderJob([&bAnyPreprocessingNeeded](const FShaderCompileJob& SingleJob)
-				{
-					bAnyPreprocessingNeeded |= !SingleJob.Input.bCachePreprocessed;
-				});
 		}
 		else
 		{
 			checkf(0, TEXT("FShaderCommonCompileJob::Type=%d is not a valid type for a shader compile job"), (int32)CommonJob->Type);
 		}
 	}
-	return bAnyPreprocessingNeeded;
 }
 
 bool DoWriteTasksInner(const TArray<FShaderCommonCompileJobPtr>& QueuedJobs, FArchive& InTransferFile, IDistributedBuildController* BuildDistributionController, bool bUseRelativePaths, bool bCompressTaskFile)
@@ -2609,51 +2566,17 @@ bool DoWriteTasksInner(const TArray<FShaderCommonCompileJobPtr>& QueuedJobs, FAr
 
 	TArray<FShaderCompileJob*> QueuedSingleJobs;
 	TArray<FShaderPipelineCompileJob*> QueuedPipelineJobs;
-	bool bAnyPreprocessingNeeded = SplitJobsByType(QueuedJobs, QueuedSingleJobs, QueuedPipelineJobs);
-
-	TMap<FString, FString> ShaderSourceDirectoryMappings;
-	// Only serialize source directory mappings if any jobs need to preprocess; these are only used for include handling
-	if (bAnyPreprocessingNeeded)
-	{
-		ShaderSourceDirectoryMappings = AllShaderSourceDirectoryMappings();
-	}
-	
-	// Convert all the source directory paths to absolute, since SCW might be in a different directory to the editor executable
-	for(TPair<FString, FString>& Pair : ShaderSourceDirectoryMappings)
-	{
-		// Remap/enforce relative paths when bUseRelativePaths=true
-		if (bUseRelativePaths && BuildDistributionController != nullptr)
-		{
-			FString SourcePath = FPaths::ConvertRelativePathToFull(Pair.Value);
-			if (!FPaths::IsUnderDirectory(SourcePath, FPaths::RootDir()))
-			{
-				FString DestinationPath = BuildDistributionController->RemapPath(SourcePath);
-				DestinationPath = FPaths::CreateStandardFilename(DestinationPath);
-				Pair.Value = DestinationPath;
-			}
-			else
-			{
-				Pair.Value = FPaths::CreateStandardFilename(Pair.Value);
-			}
-		}
-		else
-		{
-			Pair.Value = FPaths::ConvertRelativePathToFull(Pair.Value);
-		}
-	}
-	TransferFile << ShaderSourceDirectoryMappings;
+	SplitJobsByType(QueuedJobs, QueuedSingleJobs, QueuedPipelineJobs);
 
 	TArray<TRefCountPtr<FSharedShaderCompilerEnvironment>> SharedEnvironments;
 	TArray<const FShaderParametersMetadata*> RequestShaderParameterStructures;
 
-	// Gather External Includes and serialize separately, these are largely shared between jobs
+	// gather shared environments and parameter structures, these tend to be shared between jobs
 	{
-		TMap<FString, TArray<ANSICHAR>> ExternalIncludes;
-		ExternalIncludes.Reserve(32);
 
 		for (int32 JobIndex = 0; JobIndex < QueuedSingleJobs.Num(); JobIndex++)
 		{
-			QueuedSingleJobs[JobIndex]->Input.GatherSharedInputsAnsi(ExternalIncludes, SharedEnvironments, RequestShaderParameterStructures);
+			QueuedSingleJobs[JobIndex]->Input.GatherSharedInputs(SharedEnvironments, RequestShaderParameterStructures);
 		}
 
 		for (int32 JobIndex = 0; JobIndex < QueuedPipelineJobs.Num(); JobIndex++)
@@ -2663,17 +2586,8 @@ bool DoWriteTasksInner(const TArray<FShaderCommonCompileJobPtr>& QueuedJobs, FAr
 
 			for (int32 Index = 0; Index < NumStageJobs; Index++)
 			{
-				PipelineJob->StageJobs[Index]->Input.GatherSharedInputsAnsi(ExternalIncludes, SharedEnvironments, RequestShaderParameterStructures);
+				PipelineJob->StageJobs[Index]->Input.GatherSharedInputs(SharedEnvironments, RequestShaderParameterStructures);
 			}
-		}
-
-		int32 NumExternalIncludes = ExternalIncludes.Num();
-		TransferFile << NumExternalIncludes;
-
-		for (TMap<FString, TArray<ANSICHAR>>::TIterator It(ExternalIncludes); It; ++It)
-		{
-			TransferFile << It.Key();
-			TransferFile << It.Value();
 		}
 
 		int32 NumSharedEnvironments = SharedEnvironments.Num();
@@ -5327,9 +5241,9 @@ void FShaderCompilerStats::RegisterFinishedJob(FShaderCommonCompileJob& Job, boo
 
 		// Sanity check; compile time should be 0 for cache hits
 		check(!bCompilationSkipped || SingleJob.Output.CompileTime == 0.0f);
-		// Preprocess time should always be non-zero if preprocessed job cache is enabled and preprocessing succeeded;
-		// preprocessing for pipeline stage jobs may be skipped in the case preprocessing a preceding stage of the pipeline failed
-		check(!SingleJob.Input.bCachePreprocessed || !SingleJob.PreprocessOutput.GetSucceeded() || SingleJob.Output.PreprocessTime > 0.0f);
+		// Preprocess time should always be non-zero if preprocessing succeeded; note that preprocessing for pipeline stage jobs may be skipped 
+		// in the case preprocessing a preceding stage of the pipeline failed
+		check(!SingleJob.PreprocessOutput.GetSucceeded() || SingleJob.Output.PreprocessTime > 0.0f);
 
 		const FString ShaderName(SingleJob.Key.ShaderType->GetName());
 		if (FShaderTimings* Existing = ShaderTimings.Find(ShaderName))
@@ -8823,11 +8737,6 @@ void GlobalBeginCompileShader(
 	const IShaderFormat* Format = GetTargetPlatformManagerRef().FindShaderFormat(ShaderFormatName);
 	checkf(Format, TEXT("Shader format %s cannot be found"), *ShaderFormatName.ToString());
 	Format->ModifyShaderCompilerInput(Input);
-
-	if (ShaderCompiler::IsJobCacheEnabled() && CVarPreprocessedJobCache.GetValueOnAnyThread())
-	{
-		Input.bCachePreprocessed = true;
-	}
 
 	// Allow the GBuffer and other shader defines to cause dependend environment changes, but minimizing the #ifdef magic in the shaders, which
 	// is nearly impossible to debug when it goes wrong.

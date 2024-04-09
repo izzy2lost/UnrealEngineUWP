@@ -371,14 +371,6 @@ static TAutoConsoleVariable<int32> CVarForceDebugViewModes(
 	TEXT("2: Forces debug view modes to be unavailable, even on editor builds.  Removes many shader permutations for faster shader iteration."),
 	ECVF_RenderThreadSafe | ECVF_ReadOnly);
 
-int32 GShaderCompilerDumpCompileJobInputs = 0;
-static FAutoConsoleVariableRef CVarShaderCompilerDumpCompileJobInputs(
-	TEXT("r.ShaderCompiler.DumpCompileJobInputs"),
-	GShaderCompilerDumpCompileJobInputs,
-	TEXT("if != 0, unpreprocessed input of the shader compiler jobs will be dumped into the debug directory for closer inspection. This is a debugging feature which is disabled by default."),
-	ECVF_Default
-);
-
 /** Returns true if debug viewmodes are allowed for the current platform. */
 bool AllowDebugViewmodes()
 {	
@@ -1481,9 +1473,7 @@ public:
 	{
 		const double StartPreprocessTime = FPlatformTime::Seconds();
 
-		// if preprocessed cache is disabled, this function is executed as part of the compile process
-		// which will have merged the environment inline prior to calling this, so we can skip merging here 
-		if (Job.Input.bCachePreprocessed && IsValidRef(Job.Input.SharedEnvironment))
+		if (IsValidRef(Job.Input.SharedEnvironment))
 		{
 			// only create new environment & merge if necessary, save some allocs
 			// (need a copy here as we don't want to merge the environment in place like we do in the compile path
@@ -1497,7 +1487,7 @@ public:
 			PreprocessShaderInternal(Backend, Job, Job.Input.Environment);
 		}
 
-		if (Job.PreprocessOutput.bSucceeded && Job.Input.bCachePreprocessed)
+		if (Job.PreprocessOutput.bSucceeded)
 		{
 			if (!Job.Input.Environment.CompilerFlags.Contains(CFLAG_DisableSourceStripping))
 			{
@@ -1633,38 +1623,35 @@ public:
 
 bool ConditionalPreprocessShader(FShaderCommonCompileJob* Job)
 {
+	return PreprocessShader(Job);
+}
+
+bool PreprocessShader(FShaderCommonCompileJob* Job)
+{
 	static ITargetPlatformManagerModule& TargetPlatformManager = GetTargetPlatformManagerRef();
 	if (FShaderCompileJob* SingleJob = Job->GetSingleShaderJob())
 	{
-		if (SingleJob->Input.bCachePreprocessed)
-		{
-			const IShaderFormat* ShaderFormat = TargetPlatformManager.FindShaderFormat(SingleJob->Input.ShaderFormat);
-			return FInternalShaderCompilerFunctions::PreprocessShaderInternal(ShaderFormat, *SingleJob);
-		}
-		return true;
-
+		const IShaderFormat* ShaderFormat = TargetPlatformManager.FindShaderFormat(SingleJob->Input.ShaderFormat);
+		return FInternalShaderCompilerFunctions::PreprocessShaderInternal(ShaderFormat, *SingleJob);
 	}
 	else if (FShaderPipelineCompileJob* PipelineJob = Job->GetShaderPipelineJob())
 	{
 		bool bAnyFailed = false;
 		for (FShaderCompileJob* StageJob : PipelineJob->StageJobs)
 		{
-			if (StageJob->Input.bCachePreprocessed)
-			{
-				const IShaderFormat* ShaderFormat = TargetPlatformManager.FindShaderFormat(StageJob->Input.ShaderFormat);
+			const IShaderFormat* ShaderFormat = TargetPlatformManager.FindShaderFormat(StageJob->Input.ShaderFormat);
 
-				if (!bAnyFailed)
-				{
-					bAnyFailed |= !FInternalShaderCompilerFunctions::PreprocessShaderInternal(ShaderFormat, *StageJob);
-				}
-				else
-				{
-					// skip subsequent stage preprocessing if a prior stage failed to avoid unnecessary work, but log an error to indicate this
-					FString Error = FString::Printf(
-						TEXT("Preprocessing %s stage skipped due to earlier stage preprocessing failure."),
-						GetShaderFrequencyString(StageJob->Input.Target.GetFrequency()));
-					StageJob->Output.Errors.Add(FShaderCompilerError(*Error));
-				}
+			if (!bAnyFailed)
+			{
+				bAnyFailed |= !FInternalShaderCompilerFunctions::PreprocessShaderInternal(ShaderFormat, *StageJob);
+			}
+			else
+			{
+				// skip subsequent stage preprocessing if a prior stage failed to avoid unnecessary work, but log an error to indicate this
+				FString Error = FString::Printf(
+					TEXT("Preprocessing %s stage skipped due to earlier stage preprocessing failure."),
+					GetShaderFrequencyString(StageJob->Input.Target.GetFrequency()));
+				StageJob->Output.Errors.Add(FShaderCompilerError(*Error));
 			}
 		}
 		return !bAnyFailed;
@@ -1711,22 +1698,6 @@ void CompileShader(const TArray<const IShaderFormat*>& ShaderFormats, FShaderCom
 	}
 
 	Job.bSucceeded = Job.Output.bSucceeded;
-	if (Job.Input.DumpDebugInfoEnabled())
-	{
-		// if the preprocessed cache is disabled, dump debug output here, since we don't serialize preprocess output back to the cooker from SCW
-		// (if enabled this will occur in the job OnComplete callback)
-		if (!Job.Input.bCachePreprocessed)
-		{
-			if (Job.SecondaryPreprocessOutput.IsValid() && Job.SecondaryOutput.IsValid())
-			{
-				Compiler->OutputDebugData(Job.Input, Job.PreprocessOutput, *Job.SecondaryPreprocessOutput, Job.Output, *Job.SecondaryOutput);
-			}
-			else
-			{
-				Compiler->OutputDebugData(Job.Input, Job.PreprocessOutput, Job.Output);
-			}
-		}
-	}
 }
 
 void CompileShaderPipeline(const TArray<const IShaderFormat*>& ShaderFormats, FShaderPipelineCompileJob* PipelineJob, const FString& Dir, int32* CompileCount)
@@ -2837,53 +2808,7 @@ void GetShaderIncludes(const TCHAR* EntryPointVirtualFilePath, const TCHAR* Virt
 
 void HashShaderFileWithIncludes(FArchive& HashingArchive, const TCHAR* VirtualFilePath, const FString& FileContents, EShaderPlatform ShaderPlatform, bool bOnlyHashIncludedFiles)
 {
-	auto HashSingleFile = [](FArchive& HashingArchive, const TCHAR* VirtualFilePath, EShaderPlatform ShaderPlatform, const FString& FileContents)
-	{
-		// first, a "soft" check
-		bool bFoundInCache = false;
-		{
-			FRWScopeLock ShaderHashAccessLock(GShaderHashAccessRWLock, SLT_ReadOnly);
-			const FSHAHash* CachedHash = GShaderHashCache.FindHash(ShaderPlatform, VirtualFilePath);
-			// If a hash for this filename has been cached, use that
-			if (CachedHash)
-			{
-				bFoundInCache = true;
-				HashingArchive << const_cast<FSHAHash&>(*CachedHash);
-			}
-		}
-
-		// outside of the lock scope because we don't need the lock and hashing can take time
-		if (!bFoundInCache)
-		{			
-			// if the file isn't generated, add it to the cache now
-			bool bGenerated = FCString::Strstr(VirtualFilePath, TEXT("Generated")) != nullptr;
-			if (!bGenerated)
-			{
-				// this function fails hard if it cannot load
-				const FSHAHash& FileHash = GetShaderFileHash(VirtualFilePath, ShaderPlatform);
-				HashingArchive << const_cast<FSHAHash&>(FileHash);
-			}
-			else
-			{
-				// note, it is legal for some generated files to have empty contents, so hash both the name and their contents
-				HashingArchive.Serialize(reinterpret_cast<void*>(const_cast<TCHAR*>(VirtualFilePath)), FCString::Strlen(VirtualFilePath));
-				HashingArchive << const_cast<FString&>(FileContents);
-			}
-		}
-	};
-
-	// First, always hash the file itself
-	HashSingleFile(HashingArchive, VirtualFilePath, ShaderPlatform, FileContents);
-
-	// Get the list of includes this file contains
-	TArray<FString> IncludeVirtualFilePaths;
-	GetShaderIncludes(VirtualFilePath, VirtualFilePath, FileContents, IncludeVirtualFilePaths, ShaderPlatform);
-
-	for (int32 IncludeIndex = 0; IncludeIndex < IncludeVirtualFilePaths.Num(); IncludeIndex++)
-	{
-		// Here, we assume that all includes can be found in cache. This also means that generated files won't include other generated files.
-		HashSingleFile(HashingArchive, *IncludeVirtualFilePaths[IncludeIndex], ShaderPlatform, FString());
-	}
+	// deprecated
 }
 
 static bool TryUpdateSingleShaderFilehash(FSHA1& InOutHashState, const TCHAR* VirtualFilePath,
@@ -3766,7 +3691,6 @@ FArchive& operator<<(FArchive& Ar, FShaderCompilerInput& Input)
 	Ar << Input.ShaderName;
 	Ar << Input.bCompilingForShaderPipeline;
 	Ar << Input.bIncludeUsedOutputs;
-	Ar << Input.bCachePreprocessed;
 	Ar << Input.UsedOutputs;
 	Ar << Input.DumpDebugInfoRootPath;
 	Ar << Input.DumpDebugInfoPath;
@@ -3775,14 +3699,7 @@ FArchive& operator<<(FArchive& Ar, FShaderCompilerInput& Input)
 	Ar << Input.DebugGroupName;
 	Ar << Input.DebugDescription;
 	Ar << Input.Hash;
-	if (Input.bCachePreprocessed)
-	{
-		Input.Environment.SerializeCompilationDependencies(Ar);
-	}
-	else
-	{
-		Ar << Input.Environment;
-	}
+	Input.Environment.SerializeCompilationDependencies(Ar);
 	Ar << Input.ExtraSettings;
 	Ar << reinterpret_cast<uint8&>(Input.OodleCompressor);
 	Ar << reinterpret_cast<uint8&>(Input.OodleLevel);
@@ -3859,202 +3776,50 @@ FShaderCompilerInputHash FShaderCompileJob::GetInputHash()
 		return InputHash;
 	}
 
-	if (Input.bCachePreprocessed)
+	FMemoryHasherBlake3 Hasher;
+
+	int32 FShaderCompilerOutputStructVersionLocal = FShaderCompilerOutputStructVersion;
+	Hasher << FShaderCompilerOutputStructVersionLocal;
+
+	uint32 FormatVersion = GetTargetPlatformManagerRef().ShaderFormatVersion(Input.ShaderFormat);
+	Hasher << FormatVersion;
+	
+	FShaderTarget Target = Input.Target;
+	Hasher << Target;
+	Hasher << Input.EntryPointName;
+
+	// Include this flag, so shader pipeline jobs get a different hash from single shader jobs, even if the preprocessed shader is otherwise the same.
+	Hasher << Input.bCompilingForShaderPipeline;
+
+	FShaderCompilerEnvironment MergedEnvironment = Input.Environment;
+	if (Input.SharedEnvironment)
 	{
-		FMemoryHasherBlake3 Hasher;
-
-		int32 FShaderCompilerOutputStructVersionLocal = FShaderCompilerOutputStructVersion;
-		Hasher << FShaderCompilerOutputStructVersionLocal;
-
-		uint32 FormatVersion = GetTargetPlatformManagerRef().ShaderFormatVersion(Input.ShaderFormat);
-		Hasher << FormatVersion;
-		
-		FShaderTarget Target = Input.Target;
-		Hasher << Target;
-		Hasher << Input.EntryPointName;
-
-		// Include this flag, so shader pipeline jobs get a different hash from single shader jobs, even if the preprocessed shader is otherwise the same.
-		Hasher << Input.bCompilingForShaderPipeline;
-
-		FShaderCompilerEnvironment MergedEnvironment = Input.Environment;
-		if (Input.SharedEnvironment)
-		{
-			MergedEnvironment.Merge(*Input.SharedEnvironment);
-		}
-		MergedEnvironment.SerializeCompilationDependencies(Hasher);
-		
-		auto HashDirectives = [&Hasher](const FString* Directive)
-		{
-			check(Directive && !Directive->IsEmpty());
-			// const_cast due to serialization API requiring non-const. better than not having const correctness in the API.
-			Hasher << const_cast<FString&>(*Directive);
-		};
-		// Hash all UESHADERMETADATA_ directives encountered during preprocessing (assume these may be used to modify compilation behaviour)
-		PreprocessOutput.VisitDirectives(HashDirectives);
-
+		MergedEnvironment.Merge(*Input.SharedEnvironment);
+	}
+	MergedEnvironment.SerializeCompilationDependencies(Hasher);
+	
+	auto HashDirectives = [&Hasher](const FString* Directive)
+	{
+		check(Directive && !Directive->IsEmpty());
 		// const_cast due to serialization API requiring non-const. better than not having const correctness in the API.
-		Hasher << PreprocessOutput.EditSource();
-		if (SecondaryPreprocessOutput.IsValid())
-		{
-			Hasher << SecondaryPreprocessOutput->EditSource();
-		}
+		Hasher << const_cast<FString&>(*Directive);
+	};
+	// Hash all UESHADERMETADATA_ directives encountered during preprocessing (assume these may be used to modify compilation behaviour)
+	PreprocessOutput.VisitDirectives(HashDirectives);
 
-		if (Input.RootParametersStructure)
-		{
-			FBlake3Hash LayoutSignature = Input.RootParametersStructure->GetLayoutSignature();
-			Hasher << LayoutSignature;
-		}
-
-		InputHash = Hasher.Finalize();
-	}
-	else
+	Hasher << PreprocessOutput.EditSource();
+	if (SecondaryPreprocessOutput.IsValid())
 	{
-		auto SerializeInputs = [this](FArchive& Archive)
-		{
-			checkf(Archive.IsSaving() && !Archive.IsLoading(), TEXT("A loading archive is passed to FShaderCompileJob::GetInputHash(), this is not supported as it may corrupt its data"));
-
-			int32 FShaderCompilerOutputStructVersionLocal = FShaderCompilerOutputStructVersion;
-			Archive << FShaderCompilerOutputStructVersionLocal;
-
-			uint32 FormatVersion = GetTargetPlatformManagerRef().ShaderFormatVersion(Input.ShaderFormat);
-			Archive << FormatVersion;
-
-			// Don't include debug group name in the hashing; this drastically worsens our cache hit rate
-			FString DebugGroupNameTmp(MoveTemp(Input.DebugGroupName));
-			Archive << Input;
-			Input.DebugGroupName = MoveTemp(DebugGroupNameTmp);
-			Input.Environment.SerializeEverythingButFiles(Archive);
-
-			if (Input.RootParametersStructure)
-			{
-				FBlake3Hash LayoutSignature = Input.RootParametersStructure->GetLayoutSignature();
-				Archive << LayoutSignature;
-			}
-
-			// hash the source file so changes to files during the development are picked up
-			const FSHAHash& SourceHash = GetShaderFileHash(*Input.VirtualSourceFilePath, Input.Target.GetPlatform());
-			Archive << const_cast<FSHAHash&>(SourceHash);
-
-			// unroll the included files for the parallel processing.
-			// These are temporary arrays that only exist for the ParallelFor
-			TArray<const TCHAR*> IncludeVirtualPaths;
-			TArray<FShaderVirtualFileContents> Contents;
-			TArray<bool> OnlyHashIncludes;
-			TArray<FBlake3Hash> Hashes;
-
-			// while the contents of this is already hashed (included in Environment's operator<<()), we still need to account for includes in the generated files and hash them, too
-			for (TMap<FString, FString>::TConstIterator It(Input.Environment.IncludeVirtualPathToContentsMap); It; ++It)
-			{
-				const FString& VirtualPath = It.Key();
-				IncludeVirtualPaths.Add(*VirtualPath);
-				Contents.Add(&It.Value());
-				OnlyHashIncludes.Add(true);	// not hashing contents of the file itself, as it was included in Environment's operator<<()
-				Hashes.AddDefaulted();
-			}
-
-			for (TMap<FString, FThreadSafeSharedAnsiStringPtr>::TConstIterator It(Input.Environment.IncludeVirtualPathToSharedContentsMap); It; ++It)
-			{
-				const FString& VirtualPath = It.Key();
-				IncludeVirtualPaths.Add(*VirtualPath);
-				check(It.Value());
-				Contents.Add(&(*It.Value()));
-				OnlyHashIncludes.Add(false);
-				Hashes.AddDefaulted();
-			}
-
-			if (Input.SharedEnvironment)
-			{
-				Input.SharedEnvironment->SerializeEverythingButFiles(Archive);
-
-				for (TMap<FString, FString>::TConstIterator It(Input.SharedEnvironment->IncludeVirtualPathToContentsMap); It; ++It)
-				{
-					const FString& VirtualPath = It.Key();
-					IncludeVirtualPaths.Add(*VirtualPath);
-					Contents.Add(&It.Value());
-					OnlyHashIncludes.Add(true);	// not hashing contents of the file itself, as it was included in Environment's operator<<()
-					Hashes.AddDefaulted();
-				}
-
-				for (TMap<FString, FThreadSafeSharedAnsiStringPtr>::TConstIterator It(Input.SharedEnvironment->IncludeVirtualPathToSharedContentsMap); It; ++It)
-				{
-					const FString& VirtualPath = It.Key();
-					IncludeVirtualPaths.Add(*VirtualPath);
-					check(It.Value());
-					Contents.Add(&(*It.Value()));
-					OnlyHashIncludes.Add(false);
-					Hashes.AddDefaulted();
-				}
-			}
-
-			check(IncludeVirtualPaths.Num() == Contents.Num());
-			check(Contents.Num() == OnlyHashIncludes.Num());
-			check(OnlyHashIncludes.Num() == Hashes.Num());
-
-			EShaderPlatform Platform = Input.Target.GetPlatform();
-			ParallelFor(Contents.Num(), [&IncludeVirtualPaths, &Contents, &OnlyHashIncludes, &Hashes, &Platform](int32 FileIndex)
-				{
-					FMemoryHasherBlake3 MemHasher;
-					if (Contents[FileIndex].Wide)
-					{
-						HashShaderFileWithIncludes(MemHasher, IncludeVirtualPaths[FileIndex], *Contents[FileIndex].Wide, Platform, OnlyHashIncludes[FileIndex]);
-					}
-					else
-					{
-						// ANSI files are shared uniform buffer struct declarations (or generated stereo code), and never have includes, so we just need to hash the
-						// single file contents.  Make sure that assumption hasn't been violated (this test costs less than 0.1% of GetInputHash, so might as well).
-						check(FCStringAnsi::Strstr(Contents[FileIndex].Ansi->GetData(), "#include") == nullptr);
-
-						MemHasher.Serialize(reinterpret_cast<void*>(const_cast<TCHAR*>(IncludeVirtualPaths[FileIndex])), FCString::Strlen(IncludeVirtualPaths[FileIndex]));
-						MemHasher << const_cast<TArray<ANSICHAR>&>(*Contents[FileIndex].Ansi);
-					}
-					Hashes[FileIndex] = MemHasher.Finalize();
-				},
-				EParallelForFlags::Unbalanced
-					);
-
-			// include the hashes in the main hash (consider sorting them if includes are found to have a random order)
-			for (int32 HashIndex = 0, NumHashes = Hashes.Num(); HashIndex < NumHashes; ++HashIndex)
-			{
-				Archive << Hashes[HashIndex];
-			}
-		};
-
-		// use faster hasher that doesn't allocate memory
-		FMemoryHasherBlake3 MemHasher;
-		SerializeInputs(MemHasher);
-		InputHash = MemHasher.Finalize();
-
-		if (GShaderCompilerDumpCompileJobInputs)
-		{
-			TArray<uint8> MemoryBlob;
-			FMemoryWriter MemWriter(MemoryBlob);
-
-			SerializeInputs(MemWriter);
-
-			FString IntermediateFormatPath = FPaths::ProjectSavedDir() / TEXT("ShaderJobInputs");
-#if UE_BUILD_DEBUG
-			FString TempPath = IntermediateFormatPath / TEXT("DebugEditor");
-#else
-			FString TempPath = IntermediateFormatPath / TEXT("DevelopmentEditor");
-#endif
-			IFileManager::Get().MakeDirectory(*TempPath, true);
-
-			static int32 InputHashID = 0;
-			FString FileName = Input.DebugGroupName.Replace(TEXT("/"), TEXT("_")).Replace(TEXT("<"), TEXT("_")).Replace(TEXT(">"), TEXT("_")).Replace(TEXT(":"), TEXT("_")).Replace(TEXT("|"), TEXT("_"))
-				+ TEXT("-") + Input.EntryPointName;
-			FString TempFile = TempPath / FString::Printf(TEXT("%s-%d.bin"), *FileName, InputHashID++);
-
-			TUniquePtr<FArchive> DumpAr(IFileManager::Get().CreateFileWriter(*TempFile));
-			DumpAr->Serialize(MemoryBlob.GetData(), MemoryBlob.Num());
-
-			// as an additional debugging feature, make sure that the hash is the same as calculated by the memhasher
-			FBlake3Hash Check = FBlake3::HashBuffer(MemoryBlob.GetData(), MemoryBlob.Num());
-			if (Check != InputHash)
-			{
-				UE_LOG(LogShaders, Error, TEXT("Job input hash disagrees between FMemoryHasherSHA1 (%s) and FMemoryWriter + FSHA1 (%s, which was dumped to disk)"), *LexToString(InputHash), *LexToString(Check));
-			}
-		}
+		Hasher << SecondaryPreprocessOutput->EditSource();
 	}
+
+	if (Input.RootParametersStructure)
+	{
+		FBlake3Hash LayoutSignature = Input.RootParametersStructure->GetLayoutSignature();
+		Hasher << LayoutSignature;
+	}
+
+	InputHash = Hasher.Finalize();
 
 	bInputHashSet = true;
 	Input.Hash = InputHash;
@@ -4104,19 +3869,23 @@ void FShaderCompileJob::OnComplete()
 		PreprocessOutput.DecompressCode();
 	}
 
-	// For jobs using the preprocessed cache, we need to remap error messages whether or not the job was actually the one that ran
-	// the compilation step. In addition since we always run preprocessing we set the total preprocess time accordingly.
-	if (Input.bCachePreprocessed)
+	// For jobs which applied source stripping, we need to remap error messages whether or not the job was actually the one that ran
+	// the compilation step.
+	if (!Input.Environment.CompilerFlags.Contains(CFLAG_DisableSourceStripping))
 	{
 		PreprocessOutput.RemapErrors(Output);
-		Output.PreprocessTime = PreprocessOutput.ElapsedTime;
 	}
 
-	// dump debug info for the job at this point if the preprocessed cache is enabled
-	// this ensures we get debug output for all jobs, including those that were found in the job cache,
-	// or matched another in-flight job's hash and so could share its results
-	if (Input.bCachePreprocessed 
-		&& Input.DumpDebugInfoEnabled()
+	// always set the preprocess time on the output struct, regardless of whether this job hit the cache or actually compiled, since
+	// we always run preprocessing as a first step when the job was submitted.
+	Output.PreprocessTime = PreprocessOutput.ElapsedTime;
+
+	// output debug info for the job if either the job was the one which actually executed the compile, or debug info is requested 
+	// for all jobs including ones which hit the job cache (or matched and was deduplicated with another in-flight job)
+	// note that depending on shaderformat implementation this may not necessarily be _all_ debug artifacts, since some require
+	// running compilation to generate (these will always be output by the compile step, and always only be generated for the single
+	// job which executed compilation)
+	if (Input.DumpDebugInfoEnabled()
 		// if we only want debug info for jobs which actually compiled, check the CompileTime
 		// (jobs deserialized from the cache/wait list/ddc will have a compiletime of 0.0)
 		&& (CVarDumpDebugInfoForCacheHits.GetValueOnAnyThread() || Output.CompileTime > 0.0f))
@@ -4141,10 +3910,9 @@ void FShaderCompileJob::AppendDebugName(FStringBuilderBase& OutName) const
 void FShaderCompileJob::SerializeWorkerOutput(FArchive& Ar)
 {
 	// Only serialize the modified source/entry point if either:
-	// (a) this job is using the preprocessed cache and requires debug output (since this is done in the cooker process the modified source is needed outside of SCW)
+	// (a) this job requires debug output (since this is done in the cooker process the modified source is needed outside of SCW)
 	// or (b) the "extract shader source" setting is enabled (i.e. something upstream explicitly wants the final source passed to the compiler).
-	Output.bSerializeModifiedSource = (Input.bCachePreprocessed && Input.DumpDebugInfoEnabled()) || Input.ExtraSettings.bExtractShaderSource;
-
+	Output.bSerializeModifiedSource = Input.DumpDebugInfoEnabled() || Input.ExtraSettings.bExtractShaderSource;
 
 	Ar << Output;
 
@@ -4160,14 +3928,6 @@ void FShaderCompileJob::SerializeWorkerOutput(FArchive& Ar)
 		Ar << *SecondaryOutput;
 	}
 
-	// edge case for backends which have implemented independent preprocessing API when the preprocessed cache is not enabled.
-	// if no modifications have occurred as part of the compile step, we still need a copy of the source back in the cooker
-	// if bExtractShaderSource is set, so explicitly serialize just that portion of the preprocess output struct here.
-	if (Input.ExtraSettings.bExtractShaderSource && !Input.bCachePreprocessed && Output.ModifiedShaderSource.IsEmpty())
-	{
-		Ar << PreprocessOutput.EditSource();
-	}
-
 	bool bSucceededTemp = (bool)bSucceeded;
 	Ar << bSucceededTemp;
 	bSucceeded = bSucceededTemp;
@@ -4177,21 +3937,18 @@ void FShaderCompileJob::SerializeWorkerInput(FArchive& Ar)
 {
 	Ar << Input;
 
-	if (Input.bCachePreprocessed)
+	Ar << PreprocessOutput;
+
+	bool bSecondaryPreprocessOutput = SecondaryPreprocessOutput.IsValid();
+	Ar << bSecondaryPreprocessOutput;
+
+	if (bSecondaryPreprocessOutput)
 	{
-		Ar << PreprocessOutput;
-
-		bool bSecondaryPreprocessOutput = SecondaryPreprocessOutput.IsValid();
-		Ar << bSecondaryPreprocessOutput;
-
-		if (bSecondaryPreprocessOutput)
+		if (Ar.IsLoading())
 		{
-			if (Ar.IsLoading())
-			{
-				SecondaryPreprocessOutput = MakeUnique<FShaderPreprocessOutput>();
-			}
-			Ar << *SecondaryPreprocessOutput;
+			SecondaryPreprocessOutput = MakeUnique<FShaderPreprocessOutput>();
 		}
+		Ar << *SecondaryPreprocessOutput;
 	}
 }
 

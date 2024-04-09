@@ -1819,7 +1819,7 @@ namespace UE::ShaderCompilerCommon
 		const FShaderCompilerOutput& Output,
 		const FDebugShaderDataOptions& Options)
 	{
-		if (Input.bCachePreprocessed && EnumHasAnyFlags(Input.DebugInfoFlags, EShaderDebugInfoFlags::DetailedSource))
+		if (!Input.Environment.CompilerFlags.Contains(CFLAG_DisableSourceStripping) && EnumHasAnyFlags(Input.DebugInfoFlags, EShaderDebugInfoFlags::DetailedSource))
 		{
 			const TCHAR* StrippedSuffix = TEXT("_Stripped");
 			FFileHelper::SaveStringToFile(GetDebugShaderContents(Input, PreprocessOutput.GetSourceViewWide(), Options, StrippedSuffix), *Options.GetDebugShaderPath(Input, StrippedSuffix));
@@ -1935,10 +1935,9 @@ namespace UE::ShaderCompilerCommon
 
 	FString GetDebugShaderContents(const FShaderCompilerInput& Input, FStringView PreprocessedSource, const FDebugShaderDataOptions& Options, const TCHAR* Suffix)
 	{
-		// If preprocessed cache is enabled, debug dump occurs in the cook process rather than the workers, and
-		// in that case the env in Input.Environment has not been merged with the shared env. Do so here.
+		// Debug dump occurs in the cook process, so we need to merge the env in Input.Environment with the shared env (this is done in the compile step as well)
 		FShaderCompilerEnvironment MergedEnvironment(Input.Environment);
-		if (Input.bCachePreprocessed && IsValidRef(Input.SharedEnvironment))
+		if (IsValidRef(Input.SharedEnvironment))
 		{
 			MergedEnvironment.Merge(*Input.SharedEnvironment);
 		}

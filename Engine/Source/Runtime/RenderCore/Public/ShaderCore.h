@@ -1183,14 +1183,7 @@ extern RENDERCORE_API const class FSHAHash& GetShaderFileHash(const TCHAR* Virtu
 extern RENDERCORE_API const FSHAHash* TryGetShaderFileHash(const TCHAR* VirtualFilePath,
 	EShaderPlatform ShaderPlatform, FString* OutErrorMessage = nullptr);
 
-/**
- * Calculates a hash for the given source file and all files included from it.
- * @param HashingArchive - hash to update
- * @param VirtualFilePath - name of this source code path (won't be loaded, as it is expected to be generated)
- * @param FileContents - shader source code to Hash (included files will be hashed, too)
- * @param ShaderPlatform - shader platform to Hash
- * @param bOnlyHashIncludedFiles - skip hashing contents of the file itself (useful if it was already hashed outside of this function)
- */
+UE_DEPRECATED(5.5, "HashShaderFileWithIncludes is no longer used by the shader compilation system and so no longer supported.")
 extern RENDERCORE_API void HashShaderFileWithIncludes(FArchive& HashingArchive, const TCHAR* VirtualFilePath, const FString& FileContents, EShaderPlatform ShaderPlatform, bool bOnlyHashIncludedFiles);
 
 /**
