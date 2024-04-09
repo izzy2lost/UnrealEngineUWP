@@ -1029,10 +1029,14 @@ void FLevelInstanceEditorModule::StartupModule()
 	{
 		GLevelEditorModeTools().OnEditorModeIDChanged().AddRaw(this, &FLevelInstanceEditorModule::OnEditorModeIDChanged);
 	}
+
+	ULevelInstanceSubsystem::RegisterPrimitiveColorHandler();
 }
 
 void FLevelInstanceEditorModule::ShutdownModule()
 {
+	ULevelInstanceSubsystem::UnregisterPrimitiveColorHandler();
+
 	if (FModuleManager::Get().IsModuleLoaded("LevelEditor"))
 	{
 		FLevelEditorModule& LevelEditorModule = FModuleManager::GetModuleChecked<FLevelEditorModule>("LevelEditor");

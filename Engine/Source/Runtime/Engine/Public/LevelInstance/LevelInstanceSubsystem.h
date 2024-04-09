@@ -188,6 +188,9 @@ private:
 	ENGINE_API void ResetPropertyOverridesForActor(AActor* Actor);
 	ENGINE_API bool CanResetPropertyOverrides(ILevelInstanceInterface* LevelInstance) const;
 	ENGINE_API void ResetPropertyOverrides(ILevelInstanceInterface* LevelInstance);
+
+	ENGINE_API static void RegisterPrimitiveColorHandler();
+	ENGINE_API static void UnregisterPrimitiveColorHandler();
 #endif
 
 private:
@@ -317,6 +320,7 @@ private:
 	FLevelInstanceChanged LevelInstanceChangedEvent;
 	FLevelInstancesUpdated LevelInstancesUpdatedEvent;
 
+	static bool bPrimitiveColorHandlerRegistered;
 #endif
 
 	struct FLevelInstance

@@ -12,6 +12,7 @@
 #include "EngineUtils.h"
 #include "LevelInstancePrivate.h"
 #include "LevelUtils.h"
+#include "GameFramework/ActorPrimitiveColorHandler.h"
 
 #if WITH_EDITOR
 #include "Settings/LevelEditorMiscSettings.h"
@@ -61,6 +62,10 @@
 #define LOCTEXT_NAMESPACE "LevelInstanceSubsystem"
 
 DEFINE_LOG_CATEGORY(LogLevelInstance);
+
+#if WITH_EDITOR
+bool ULevelInstanceSubsystem::bPrimitiveColorHandlerRegistered = false;
+#endif
 
 ULevelInstanceSubsystem::ULevelInstanceSubsystem()
 	: UWorldSubsystem()
@@ -3128,6 +3133,48 @@ void ULevelInstanceSubsystem::ResetPropertyOverrides(ILevelInstanceInterface* Le
 	
 	// Make sure selection is refreshed (Reset can have impact on details view)
 	GEditor->SelectNone(true, true);
+}
+
+void ULevelInstanceSubsystem::RegisterPrimitiveColorHandler()
+{
+#if ENABLE_ACTOR_PRIMITIVE_COLOR_HANDLER
+	if (!bPrimitiveColorHandlerRegistered && GetDefault<ULevelInstanceSettings>()->IsPropertyOverrideEnabled())
+	{
+		FActorPrimitiveColorHandler::Get().RegisterPrimitiveColorHandler(TEXT("LevelInstancePropertyOverride"), LOCTEXT("LevelInstancePropertyOverrideColorHandler", "Level Instance Property Override"), [](const UPrimitiveComponent* InPrimitiveComponent)
+		{
+			if (AActor* Actor = InPrimitiveComponent ? InPrimitiveComponent->GetOwner() : nullptr; Actor && Actor->IsInLevelInstance())
+			{
+				if (ULevelInstanceSubsystem* LevelInstanceSubsystem = UWorld::GetSubsystem<ULevelInstanceSubsystem>(Actor->GetWorld()))
+				{
+					if (ILevelInstanceInterface* OwningLevelInstance = LevelInstanceSubsystem->GetOwningLevelInstance(Actor->GetLevel()))
+					{
+						const FActorContainerID ContextContainerID = LevelInstanceSubsystem->GetLevelInstancePropertyOverridesContext(OwningLevelInstance);
+						TArray<const FActorPropertyOverride*> ActorPropertyOverrides;
+						if (LevelInstanceSubsystem->GetLevelInstancePropertyOverridesForActor(Actor, ContextContainerID, ActorPropertyOverrides))
+						{
+							return FLinearColor::Green;
+						}
+					}
+				}
+
+				return FLinearColor::Red;
+			}
+			return FLinearColor::White;
+		});
+		bPrimitiveColorHandlerRegistered = true;
+	}
+#endif
+}
+
+void ULevelInstanceSubsystem::UnregisterPrimitiveColorHandler()
+{
+#if ENABLE_ACTOR_PRIMITIVE_COLOR_HANDLER
+	if (bPrimitiveColorHandlerRegistered)
+	{
+		FActorPrimitiveColorHandler::Get().UnregisterPrimitiveColorHandler(TEXT("LevelInstancePropertyOverride"));
+		bPrimitiveColorHandlerRegistered = false;
+	}
+#endif
 }
 
 void ULevelInstanceSubsystem::UpdateLevelInstancesFromPropertyOverrideAsset(const TSoftObjectPtr<ULevelInstancePropertyOverrideAsset>& PreviousAssetPath, ULevelInstancePropertyOverrideAsset* NewAsset)
