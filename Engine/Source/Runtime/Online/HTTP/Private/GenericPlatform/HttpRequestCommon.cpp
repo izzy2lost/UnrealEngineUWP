@@ -3,10 +3,60 @@
 #include "GenericPlatform/HttpRequestCommon.h"
 #include "GenericPlatform/HttpResponseCommon.h"
 #include "HAL/Event.h"
+#include "HAL/IConsoleManager.h"
 #include "Http.h"
 #include "HttpManager.h"
+#include "Logging/StructuredLog.h"
 #include "Misc/CommandLine.h"
 #include "Stats/Stats.h"
+
+namespace UE::HttpRequestCommon::Private
+{
+
+TAutoConsoleVariable<FString> CVarHttpUrlPatternsToLogResponse(
+	TEXT("http.UrlPatternsToLogResponse"),
+	TEXT(""),
+	TEXT("List of url patterns to log headers and json content: \"epicgames.com,unrealengine.com,...\""),
+	ECVF_SaveForNextBoot
+);
+
+TAutoConsoleVariable<bool> CVarHttpLogJsonResponseOnly(
+	TEXT("http.LogJsonResponseOnly"),
+	true,
+	TEXT("When log response payload, log json content only"),
+	ECVF_SaveForNextBoot
+);
+
+bool ShouldLogResponse(FStringView Url)
+{
+	static std::atomic<bool> bUpdatedCVarHttpUrlPatternsToLogResponse = true;
+	UE_CALL_ONCE([] {
+		CVarHttpUrlPatternsToLogResponse.AsVariable()->OnChangedDelegate().AddLambda([](IConsoleVariable* CVar) {
+			bUpdatedCVarHttpUrlPatternsToLogResponse = true;
+		});
+	});
+
+	static TArray<FString> UrlPatternsToLogResponse;
+	static FCriticalSection UrlPatternsToLogResponseCriticalSection;
+	const FScopeLock CacheLock(&UrlPatternsToLogResponseCriticalSection);
+	if (bUpdatedCVarHttpUrlPatternsToLogResponse)
+	{
+		CVarHttpUrlPatternsToLogResponse.GetValueOnAnyThread().ParseIntoArray(UrlPatternsToLogResponse, TEXT(","));
+		bUpdatedCVarHttpUrlPatternsToLogResponse = false;
+	}
+
+	for (const FString& UrlPatternToLogResponse : UrlPatternsToLogResponse)
+	{
+		if (Url.Contains(UrlPatternToLogResponse))
+		{
+			return true;
+		}
+	}
+
+	return false;
+}
+
+}
 
 FHttpRequestCommon::FHttpRequestCommon()
 	: RequestStartTimeAbsoluteSeconds(FPlatformTime::Seconds())
@@ -159,6 +209,9 @@ EHttpRequestDelegateThreadPolicy FHttpRequestCommon::GetDelegateThreadPolicy() c
 void FHttpRequestCommon::HandleRequestSucceed(TSharedPtr<IHttpResponse> InResponse)
 {
 	SetStatus(EHttpRequestStatus::Succeeded);
+
+	LogResponse(InResponse);
+
 	OnProcessRequestComplete().ExecuteIfBound(SharedThis(this), InResponse, true);
 	FHttpModule::Get().GetHttpManager().RecordStatTimeToConnect(ConnectTime);
 }
@@ -476,6 +529,11 @@ bool FHttpRequestCommon::SetResponseBodyReceiveStream(TSharedRef<FArchive> Strea
 	return true;
 }
 
+float FHttpRequestCommon::GetElapsedTime() const
+{
+	return ElapsedTime;
+}
+
 bool FHttpRequestCommon::PassReceivedDataToStream(void* Ptr, int64 Length)
 {
 	const FScopeLock StreamLock(&ResponseBodyReceiveStreamCriticalSection);
@@ -496,6 +554,7 @@ void FHttpRequestCommon::StopPassingReceivedData()
 
 	ResponseBodyReceiveStream = nullptr;
 }
+
 
 float FHttpRequestCommon::GetActivityTimeoutOrDefault() const
 {
@@ -542,5 +601,65 @@ void FHttpRequestCommon::CloseRequestPayloadDefaultImpl()
 	if (RequestPayload.IsValid())
 	{
 		RequestPayload->Close();
+	}
+}
+
+#define UE_HTTP_LOG_RESPONSE_PRIVATE(Condition, Format, ...) \
+	if (Condition) \
+	{ \
+		UE_LOG(LogHttp, Warning, Format, ##__VA_ARGS__); \
+	} \
+	else \
+	{ \
+		UE_LOG(LogHttp, Verbose, Format, ##__VA_ARGS__); \
+	}
+
+void FHttpRequestCommon::LogResponse(const TSharedPtr<IHttpResponse>& InResponse)
+{
+	bool bShouldLogResponse = UE::HttpRequestCommon::Private::ShouldLogResponse(GetURL());
+	UE_HTTP_LOG_RESPONSE_PRIVATE(bShouldLogResponse, TEXT("%p %s %s completed with code %d after %.2fs. Content length: %ld"), this, *GetVerb(), *GetURL(), InResponse->GetResponseCode(), ElapsedTime, InResponse->GetContentLength());
+
+	TArray<FString> AllHeaders = InResponse->GetAllHeaders();
+	for (const FString& HeaderStr : AllHeaders)
+	{
+		if (!HeaderStr.StartsWith(TEXT("Authorization")) && !HeaderStr.StartsWith(TEXT("Set-Cookie")))
+		{
+			UE_HTTP_LOG_RESPONSE_PRIVATE(bShouldLogResponse, TEXT("%p Response Header %s"), this, *HeaderStr);
+		}
+	}
+
+	if (!bShouldLogResponse || InResponse->GetContentLength() == 0)
+	{
+		return;
+	}
+
+	if (UE::HttpRequestCommon::Private::CVarHttpLogJsonResponseOnly.GetValueOnAnyThread())
+	{
+		bool bIsContentTypeJson = !InResponse->GetHeader(TEXT("Content-Type")).Compare(TEXT("application/json"), ESearchCase::IgnoreCase);
+		if (!bIsContentTypeJson)
+			return;
+	}
+
+	const TArray<uint8>& Content = InResponse->GetContent();
+	FUtf8StringView ResponseStringView(reinterpret_cast<const UTF8CHAR*>(Content.GetData()), Content.Num());
+	int32 StartPos = 0;
+	int32 EndPos = 0;
+	// The response payload could exceed the maximum length supported by UE_LOG/UE_LOGFMT, so log it line by line if there are multiple lines
+	while (StartPos < ResponseStringView.Len())
+	{
+		EndPos = ResponseStringView.Find("\n", StartPos);
+		if (EndPos != INDEX_NONE)
+		{
+			FUtf8StringView Line(&ResponseStringView[StartPos], EndPos - StartPos);
+			UE_LOGFMT(LogHttp, Warning, "{Line}", Line);
+		}
+		else
+		{
+			FUtf8StringView Remain(&ResponseStringView[StartPos], ResponseStringView.Len() - StartPos);
+			UE_LOGFMT(LogHttp, Warning, "{Remain}", Remain);
+			break;
+		}
+
+		StartPos = EndPos + 1;
 	}
 }

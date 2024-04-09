@@ -19,12 +19,6 @@
 #include <openssl/ssl.h>
 #endif
 
-TAutoConsoleVariable<bool> CVarCurlDebugServerResponseEnabled(
-	TEXT("http.CurlDebugServerResponseEnabled"),
-	false,
-	TEXT("Enable debugging of server response")
-);
-
 #if WITH_SSL
 static int SslCertVerify(int PreverifyOk, X509_STORE_CTX* Context)
 {
@@ -76,7 +70,6 @@ FCurlHttpRequest::FCurlHttpRequest()
 	, bRedirected(false)
 	, CurlAddToMultiResult(CURLM_OK)
 	, CurlCompletionResult(CURLE_OK)
-	, ElapsedTime(0.0f)
 	, bAnyHttpActivity(false)
 	, BytesSent(0)
 	, TotalBytesSent(0)
@@ -1220,40 +1213,6 @@ void FCurlHttpRequest::FinishRequest()
 
 	if (Response.IsValid() && Response->bSucceeded)
 	{
-		bool bDebugServerResponse = CVarCurlDebugServerResponseEnabled.GetValueOnAnyThread() && (Response->GetResponseCode() >= 500 && Response->GetResponseCode() <= 503);
-
-		// log info about error responses to identify failed downloads
-		if (UE_LOG_ACTIVE(LogHttp, Verbose) || bDebugServerResponse)
-		{
-			if (bDebugServerResponse)
-			{
-				UE_LOG(LogHttp, Warning, TEXT("%p: request has been successfully processed. URL: %s, HTTP code: %d, content length: %llu, actual payload size: %llu, elapsed: %.2fs"),
-					this, *GetURL(), Response->HttpCode, Response->ContentLength, TotalBytesRead.load(), ElapsedTime);
-			}
-			else
-			{
-				UE_LOG(LogHttp, Log, TEXT("%p: request has been successfully processed. URL: %s, HTTP code: %d, content length: %llu, actual payload size: %llu, elapsed: %.2fs"),
-					this, *GetURL(), Response->HttpCode, Response->ContentLength, TotalBytesRead.load(), ElapsedTime);
-			}
-
-			TArray<FString> AllHeaders = Response->GetAllHeaders();
-			for (TArray<FString>::TConstIterator It(AllHeaders); It; ++It)
-			{
-				const FString& HeaderStr = *It;
-				if (!HeaderStr.StartsWith(TEXT("Authorization")) && !HeaderStr.StartsWith(TEXT("Set-Cookie")))
-				{
-					if (bDebugServerResponse)
-					{
-						UE_LOG(LogHttp, Warning, TEXT("%p Response Header %s"), this, *HeaderStr);
-					}
-					else
-					{
-						UE_LOG(LogHttp, Verbose, TEXT("%p Response Header %s"), this, *HeaderStr);
-					}
-				}
-			}
-		}
-
 		HandleRequestSucceed(Response);
 	}
 	else
@@ -1325,11 +1284,6 @@ void FCurlHttpRequest::FinishRequest()
 		ResponseCommon = nullptr;
 		TotalBytesRead = 0;
 	}
-}
-
-float FCurlHttpRequest::GetElapsedTime() const
-{
-	return ElapsedTime;
 }
 
 void FCurlHttpRequest::CleanupRequest()

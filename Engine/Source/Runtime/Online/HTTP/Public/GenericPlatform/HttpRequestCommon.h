@@ -46,6 +46,8 @@ public:
 
 	HTTP_API virtual bool SetResponseBodyReceiveStream(TSharedRef<FArchive> Stream) override;
 
+	HTTP_API virtual float GetElapsedTime() const override;
+
 protected:
 	/**
 	 * Check if this request is valid or allowed, before actually process the request
@@ -91,6 +93,8 @@ protected:
 	HTTP_API bool SetContentAsStreamedFileDefaultImpl(const FString& Filename);
 	HTTP_API bool OpenRequestPayloadDefaultImpl();
 	HTTP_API void CloseRequestPayloadDefaultImpl();
+
+	HTTP_API void LogResponse(const TSharedPtr<IHttpResponse>& InResponse);
 
 protected:
 	/** Current status of request being processed */
@@ -155,4 +159,7 @@ protected:
 
 	/** Payload to use with the request. Typically for POST, PUT, or PATCH */
 	TUniquePtr<FRequestPayload> RequestPayload;
+
+	/** Total elapsed time in seconds since the start of the request */
+	float ElapsedTime = 0.0f;
 };

@@ -540,7 +540,6 @@ FAppleHttpRequest::FAppleHttpRequest(NSURLSession* InSession)
 :   Session([InSession retain])
 ,   Task(nil)
 ,	ContentBytesLength(0)
-,	ElapsedTime(0.0f)
 ,	LastReportedBytesWritten(0)
 ,	LastReportedBytesRead(0)
 {
@@ -1013,11 +1012,6 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 			LastReportedBytesRead = BytesRead;
 		}
 	}
-}
-
-float FAppleHttpRequest::GetElapsedTime() const
-{
-	return ElapsedTime;
 }
 
 bool FAppleHttpRequest::StartThreadedRequest()

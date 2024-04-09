@@ -164,7 +164,6 @@ public:
 	virtual void AppendToHeader(const FString& HeaderName, const FString& AdditionalHeaderValue) override;
 	virtual bool ProcessRequest() override;
 	virtual void Tick(float DeltaSeconds) override;
-	virtual float GetElapsedTime() const override;
 	//~ End IHttpRequest Interface
 
 	//~ Begin IHttpRequestThreaded Interface
@@ -376,8 +375,6 @@ private:
 	bool bIsRequestPayloadSeekable = false;
 	/** Mapping of header section to values. */
 	TMap<FString, FString> Headers;
-	/** Total elapsed time in seconds since the start of the request */
-	float ElapsedTime;
 	/** Have we had any HTTP activity with the host? Sending headers, SSL handshake, etc */
 	bool bAnyHttpActivity;
 	/** Newly received headers we need to inform listeners about */

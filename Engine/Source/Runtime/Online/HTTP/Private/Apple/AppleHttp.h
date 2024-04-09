@@ -46,7 +46,6 @@ public:
 	virtual void AppendToHeader(const FString& HeaderName, const FString& AdditionalHeaderValue) override;
 	virtual bool ProcessRequest() override;
 	virtual void Tick(float DeltaSeconds) override;
-	virtual float GetElapsedTime() const override;
 	//~ End IHttpRequest Interface
 
 	//~ Begin IHttpRequestThreaded Interface
@@ -123,9 +122,6 @@ private:
 
 	/** Array used to retrieve back content set on the ObjC request when calling GetContent*/
 	mutable TArray<uint8> StorageForGetContent;
-
-	/** Time taken to complete/cancel the request. */
-	float ElapsedTime;
 
 	/** Last reported bytes written */
 	int32 LastReportedBytesWritten;
