@@ -40,7 +40,6 @@ protected:
 	/** Executes the PointFunction function/lambda for every point copied from PreparePointOperationData */
 	bool ExecutePointOperation(ContextType* Context, TFunctionRef<PointExecSignature> PointFunction, int32 PointsPerChunk = PCGPointOperation::Constants::PointsPerChunk) const;
 
-private:
 	/** Mandatory call. Using the context, prepares the state data for time slice execution */
-	bool PreparePointOperationData(ContextType* Context) const;
+	bool PreparePointOperationData(ContextType* Context, FName InputPinLabel = PCGPinConstants::DefaultInputLabel) const;
 };
