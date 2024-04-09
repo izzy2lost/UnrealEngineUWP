@@ -6,11 +6,13 @@
 #include "Dataflow/DataflowEngine.h"
 #include "GeometryCollection/ManagedArrayCollection.h"
 #include "GeometryCollection/GeometryCollectionObject.h"
+#include "Engine/Blueprint.h"
 
 #include "GeometryCollectionAssetNodes.generated.h"
 
 class UGeometryCollection;
 class UStaticMesh;
+class UBlueprint;
 
 USTRUCT(meta = (DataflowGeometryCollection, DataflowTerminal))
 struct FGeometryCollectionTerminalDataflowNode : public FDataflowTerminalNode
@@ -185,6 +187,43 @@ public:
 	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 };
 
+
+/**
+ * Create a geometry collection from an asset
+ */
+ USTRUCT(meta = (DataflowContext = "GeometryCollection", DataflowGeometryCollection, DataflowTerminal))
+ struct FBlueprintToCollectionDataflowNode : public FDataflowNode
+ {
+ 	GENERATED_USTRUCT_BODY()
+ 	DATAFLOW_NODE_DEFINE_INTERNAL(FBlueprintToCollectionDataflowNode, "BlueprintToCollection", "GeometryCollection|Asset", "")
+	DATAFLOW_NODE_RENDER_TYPE(FGeometryCollection::StaticType(), "Collection")
+
+ public:
+ 	/** Asset input */
+ 	UPROPERTY(EditAnywhere, Category = "Asset");
+	TObjectPtr<UBlueprint> Blueprint;
+ 
+ 	/** Split components */
+ 	UPROPERTY(EditAnywhere, Category = "Asset");
+ 	bool bSplitComponents = false;
+ 
+ 	/** Geometry collection newly created */
+ 	UPROPERTY(meta = (DataflowOutput, DisplayName = "Collection"))
+ 	FManagedArrayCollection Collection;
+ 
+ 	/** Materials array to use for this asset */
+ 	UPROPERTY(meta = (DataflowOutput, DisplayName = "Materials"))
+ 	TArray<TObjectPtr<UMaterial>> Materials;
+ 
+ 	/** Array of instanced meshes*/
+ 	UPROPERTY(meta = (DataflowOutput, DisplayName = "InstancedMeshes"))
+ 	TArray<FGeometryCollectionAutoInstanceMesh> InstancedMeshes;
+ 
+	FBlueprintToCollectionDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
+ 	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+ };
+
+ 
 namespace Dataflow
 {
 	void GeometryCollectionEngineAssetNodes();

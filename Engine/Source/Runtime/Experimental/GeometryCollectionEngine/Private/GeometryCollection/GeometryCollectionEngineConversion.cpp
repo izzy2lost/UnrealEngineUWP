@@ -1547,7 +1547,7 @@ void FGeometryCollectionEngineConversion::ConvertStaticMeshToGeometryCollection(
 		NewInstanceMesh.Materials = SourceMaterials;
 		OutInstancedMeshes.Emplace(NewInstanceMesh);
 
-		bool bAddInternalMaterials = true;
+		bool bAddInternalMaterials = false;
 
 		NewGeometryCollection->GeometrySource.Emplace(SourceSoftObjectPath, ComponentTransform, SourceMaterials, bSplitComponents, bSetInternalFromMaterialIndex);
 		FGeometryCollectionEngineConversion::AppendStaticMesh(StaticMesh, SourceMaterials, ComponentTransform, NewGeometryCollection, false, bAddInternalMaterials, bSplitComponents, bSetInternalFromMaterialIndex);
@@ -1586,6 +1586,82 @@ void FGeometryCollectionEngineConversion::ConvertGeometryCollectionToGeometryCol
 			NewGeometryCollectionPtr->CopyTo(&OutCollection);
 		}
 	}
+}
+
+void FGeometryCollectionEngineConversion::ConvertActorToGeometryCollection(const AActor* Actor, FManagedArrayCollection& OutCollection, TArray<TObjectPtr<UMaterial>>& OutMaterials, TArray<FGeometryCollectionAutoInstanceMesh>& OutInstancedMeshes, bool bSplitComponents)
+{
+#if WITH_EDITORONLY_DATA
+	const FTransform ActorTransform(Actor->GetTransform());
+
+	if (UGeometryCollection* NewGeometryCollection = NewObject<UGeometryCollection>())
+	{
+		TInlineComponentArray<UStaticMeshComponent*> StaticMeshComponents(Actor);
+		for (UStaticMeshComponent* StaticMeshComponent : StaticMeshComponents)
+		{
+			if (StaticMeshComponent)
+			{
+				if (const UStaticMesh* ComponentStaticMesh = StaticMeshComponent->GetStaticMesh())
+				{
+					NewGeometryCollection->EnableNanite |= ComponentStaticMesh->IsNaniteEnabled();
+
+					FTransform ComponentTransform(StaticMeshComponent->GetComponentTransform());
+					ComponentTransform.SetTranslation((ComponentTransform.GetTranslation() - ActorTransform.GetTranslation()));
+
+					// Record the contributing source on the asset.
+					FSoftObjectPath SourceSoftObjectPath(ComponentStaticMesh);
+					TArray<TObjectPtr<UMaterialInterface>> SourceMaterials(StaticMeshComponent->GetMaterials());
+
+					NewGeometryCollection->GeometrySource.Emplace(SourceSoftObjectPath, ComponentTransform, SourceMaterials, bSplitComponents, true/*bSetInternalFromMaterialIndex*/);
+
+					FGeometryCollectionEngineConversion::AppendStaticMesh(ComponentStaticMesh, SourceMaterials, ComponentTransform, NewGeometryCollection, false/*bReindexMaterials*/, false/*bAddInternalMaterials*/, bSplitComponents, true/*bSetInternalFromMaterialIndex*/);
+				}
+			}
+		}
+
+		TInlineComponentArray<UGeometryCollectionComponent*> GeometryCollectionComponents(Actor);
+		for (UGeometryCollectionComponent* GeometryCollectionComponent : GeometryCollectionComponents)
+		{
+			if (GeometryCollectionComponent)
+			{
+				if (const UGeometryCollection* RestCollection = GeometryCollectionComponent->GetRestCollection())
+				{
+					NewGeometryCollection->EnableNanite |= RestCollection->EnableNanite;
+
+					FTransform ComponentTransform(GeometryCollectionComponent->GetComponentTransform());
+					ComponentTransform.SetTranslation((ComponentTransform.GetTranslation() - ActorTransform.GetTranslation()));
+
+					// Record the contributing source on the asset.
+					FSoftObjectPath SourceSoftObjectPath(RestCollection);
+
+					int32 NumMaterials = GeometryCollectionComponent->GetNumMaterials();
+					TArray<TObjectPtr<UMaterialInterface>> SourceMaterials;
+					SourceMaterials.SetNum(NumMaterials);
+					for (int32 MaterialIndex = 0; MaterialIndex < NumMaterials; ++MaterialIndex)
+					{
+						SourceMaterials[MaterialIndex] = GeometryCollectionComponent->GetMaterial(MaterialIndex);
+					}
+					NewGeometryCollection->GeometrySource.Emplace(SourceSoftObjectPath, ComponentTransform, SourceMaterials, bSplitComponents, true/*bSetInternalFromMaterialIndex*/);
+
+					FGeometryCollectionEngineConversion::AppendGeometryCollection(RestCollection, GeometryCollectionComponent, ComponentTransform, NewGeometryCollection, false /*bReindexMaterials*/);
+				}
+			}
+		}
+
+		NewGeometryCollection->InitializeMaterials();
+
+		// InstanceMeshes
+		OutInstancedMeshes.Append(NewGeometryCollection->AutoInstanceMeshes);
+
+		// Materials
+		for (auto& Material : NewGeometryCollection->Materials)
+		{
+			OutMaterials.Emplace(Material->GetMaterial());
+		}
+
+		TSharedPtr<FGeometryCollection> OutCollectionPtr = NewGeometryCollection->GetGeometryCollection();
+		OutCollectionPtr->CopyTo(&OutCollection);
+	}
+#endif //WITH_EDITORONLY_DATA
 }
 
 #undef LOCTEXT_NAMESPACE 

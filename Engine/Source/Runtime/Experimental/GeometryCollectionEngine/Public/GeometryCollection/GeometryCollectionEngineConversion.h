@@ -195,4 +195,14 @@ public:
 	*/	
 	static GEOMETRYCOLLECTIONENGINE_API void ConvertGeometryCollectionToGeometryCollection(const TObjectPtr<UGeometryCollection> InGeometryCollectionAssetPtr, FManagedArrayCollection& OutCollection, TArray<TObjectPtr<UMaterial>>& OutMaterials, TArray<FGeometryCollectionAutoInstanceMesh>& OutInstancedMeshes);
 
+	/**
+	*  Converts an actor to an FManagedArrayCollection, and arrays of materials and instanced meshes
+	*  @param Actor : actor input to convert
+	*  @param OutCollection : FGeometryCollection output
+	*  @param OutMaterials : Materials from the UGeometryCollection
+	*  @param OutInstancedMeshes : InstancedMeshes
+	*  @param bSplitComponents : Split the components
+	*/
+	static GEOMETRYCOLLECTIONENGINE_API void ConvertActorToGeometryCollection(const AActor* Actor, FManagedArrayCollection& OutCollection, TArray<TObjectPtr<UMaterial>>& OutMaterials, TArray<FGeometryCollectionAutoInstanceMesh>& OutInstancedMeshes, bool bSplitComponents = false);
+
 };
