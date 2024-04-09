@@ -2264,19 +2264,42 @@ FORCEINLINE int32 VectorAnyGreaterThan(VectorRegister4Double Vec1, VectorRegiste
  *
  * @return			The uint32 control register
  */
-#define VectorGetControlRegister()		0
+FORCEINLINE uint32_t VectorGetControlRegister()
+{
+#if PLATFORM_WINDOWS
+	return (uint32_t)_ReadStatusReg(ARM64_FPCR);
+#else
+	uint64_t Value;
+	// The system register read/write instructions use 64-bit registers,
+	__asm__ volatile("mrs %0, fpcr" : "=r"(Value));
+	return (uint32_t)Value;
+#endif
+}
 
 /**
  * Sets the control register.
  *
  * @param ControlStatus		The uint32 control status value to set
  */
-#define	VectorSetControlRegister(ControlStatus)
+FORCEINLINE void VectorSetControlRegister(uint32_t ControlStatus)
+{
+#if PLATFORM_WINDOWS
+	_WriteStatusReg(ARM64_FPCR, ControlStatus);
+#else
+	uint64_t State64 = ControlStatus; // instruction needs a 64b reg, but all control bits fit in the lower 32b
+	__asm__ volatile("msr fpcr, %0" : : "r"(State64));
+#endif
+}
 
 /**
  * Control status bit to round all floating point math results towards zero.
  */
-#define VECTOR_ROUND_TOWARD_ZERO		0
+#define VECTOR_ROUND_TOWARD_ZERO		(3 << 22)
+
+ /**
+  * Denormal operands and results will be flushed to zero
+  */
+#define VECTOR_DENORMALS_FLUSH_TO_ZERO	(1 << 24)
 
 
 /**

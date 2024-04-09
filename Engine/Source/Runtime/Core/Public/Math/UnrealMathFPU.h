@@ -1941,6 +1941,11 @@ FORCEINLINE uint32 VectorAnyGreaterThan(const VectorRegister4Double& Vec1, const
  */
 #define VECTOR_ROUND_TOWARD_ZERO		0
 
+ /**
+  * Denormal operands and results will be flushed to zero
+  */
+#define VECTOR_DENORMALS_FLUSH_TO_ZERO	0
+
 // Returns true if the vector contains a component that is either NAN or +/-infinite.
 inline bool VectorContainsNaNOrInfinite(const VectorRegister4Float& Vec)
 {

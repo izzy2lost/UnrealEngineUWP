@@ -2699,6 +2699,11 @@ FORCEINLINE int VectorAnyGreaterThan(const VectorRegister4Double& Vec1, const Ve
  */
 #define VECTOR_ROUND_TOWARD_ZERO		_MM_ROUND_TOWARD_ZERO
 
+ /**
+  * Denormal operands and results will be flushed to zero
+  */
+#define VECTOR_DENORMALS_FLUSH_TO_ZERO	_MM_FLUSH_ZERO_ON
+
 /**
 * Multiplies two quaternions; the order matters.
 *
