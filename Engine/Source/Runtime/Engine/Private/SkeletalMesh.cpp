@@ -7144,14 +7144,13 @@ FPrimitiveViewRelevance FSkeletalMeshSceneProxy::GetViewRelevance(const FSceneVi
 		return IsRichView(*View->Family)
 			|| EngineShowFlags.Bones
 			|| EngineShowFlags.Collision
-			|| EngineShowFlags.Bounds
-			|| EngineShowFlags.VertexColors
-			|| IsSelected()
+			|| EngineShowFlags.VisualizeGPUSkinCache
+			|| (IsSelected() && (EngineShowFlags.VertexColors || EngineShowFlags.Bounds))
 #if WITH_EDITORONLY_DATA
 			|| MeshObject->SelectedEditorMaterial != -1
 			|| MeshObject->SelectedEditorSection != -1
 #endif
-			|| GetGPUSkinCacheVisualizationData().IsActive();
+			;
 #else
 		return false;
 #endif
