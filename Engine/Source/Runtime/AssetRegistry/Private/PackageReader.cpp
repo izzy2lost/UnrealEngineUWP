@@ -1770,4 +1770,4 @@ namespace UE::AssetRegistry
 	}
 }
 
-#undef LOC_NAMESPACE
+#undef LOCTEXT_NAMESPACE
