@@ -102,6 +102,7 @@ protected:
 
 	virtual FText GetToolTipTextForPin(const URigVMPin* InPin) const override;
 	virtual bool ShouldInputPinComputeLazily(const URigVMPin* InPin) const override;
+	virtual FString GetOriginalDefaultValueForRootPin(const URigVMPin* InRootPin) const override;
 	void EnumeratePropertiesOnHostAndStructInstance(
 		URigVMHost* InHost,
 		TSharedPtr<FStructOnScope> InInstance, 

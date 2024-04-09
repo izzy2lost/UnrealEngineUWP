@@ -28,6 +28,8 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(RigVMPin)
 
+TAutoConsoleVariable<bool> CVarRigVMEnablePinDefaultTypes(TEXT("RigVM.EnablePinDefaultTypes"), false, TEXT("enables the use of pin default types"));
+
 #if WITH_EDITOR
 #include "UObject/CoreRedirects.h"
 #endif
@@ -112,6 +114,7 @@ URigVMPin::URigVMPin()
 	, CPPTypeObject(nullptr)
 	, CPPTypeObjectPath(NAME_None)
 	, DefaultValue(FString())
+	, DefaultValueType(ERigVMPinDefaultValueType::AutoDetect)
 	, BoundVariablePath_DEPRECATED()
 	, LastKnownTypeIndex(INDEX_NONE)
 {
@@ -744,6 +747,15 @@ bool URigVMPin::ShouldHideSubPins() const
 	return false;
 }
 
+FString URigVMPin::GetOriginalDefaultValue() const
+{
+	if(const URigVMNode* Node = GetNode())
+	{
+		return Node->GetOriginalPinDefaultValue(this);
+	}
+	return FString();
+}
+
 FString URigVMPin::GetDefaultValue() const
 {
 	return GetDefaultValue(EmptyPinOverride, true);
@@ -1036,6 +1048,53 @@ bool URigVMPin::IsValidDefaultValue(const FString& InDefaultValue) const
 		}
 	}
 
+	return true;
+}
+
+bool URigVMPin::HasUserProvidedDefaultValue() const
+{
+	if(!CVarRigVMEnablePinDefaultTypes.GetValueOnAnyThread())
+	{
+		return false;
+	}
+	
+	if(!CanProvideDefaultValue())
+	{
+		return false;
+	}
+	
+	if(DefaultValueType == ERigVMPinDefaultValueType::Override)
+	{
+		return true;
+	}
+
+	for(const TObjectPtr<URigVMPin>& SubPin : SubPins)
+	{
+		if(SubPin->HasUserProvidedDefaultValue())
+		{
+			return true;
+		}
+	}
+
+	return false;
+}
+
+bool URigVMPin::CanProvideDefaultValue() const
+{
+	if((GetDirection() != ERigVMPinDirection::Input) &&
+		(GetDirection() != ERigVMPinDirection::IO) &&
+		(GetDirection() != ERigVMPinDirection::Visible))
+	{
+		return false;
+	}
+	if(IsWildCard() && !IsArray())
+	{
+		return false;
+	}
+	if(IsExecuteContext())
+	{
+		return false;
+	}
 	return true;
 }
 

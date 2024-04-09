@@ -858,6 +858,12 @@ public:
 
 	UPROPERTY()
 	FString NewDefaultValue;
+
+	UPROPERTY()
+	ERigVMPinDefaultValueType OldDefaultValueType;
+
+	UPROPERTY()
+	ERigVMPinDefaultValueType NewDefaultValueType;
 };
 
 /**
@@ -871,7 +877,7 @@ struct FRigVMInsertArrayPinAction : public FRigVMBaseAction
 public:
 
 	FRigVMInsertArrayPinAction();
-	FRigVMInsertArrayPinAction(URigVMController* InController, URigVMPin* InArrayPin, int32 InIndex, const FString& InNewDefaultValue);
+	FRigVMInsertArrayPinAction(URigVMController* InController, URigVMPin* InArrayPin, int32 InIndex, const FString& InNewDefaultValue, const ERigVMPinDefaultValueType& InNewDefaultValueType);
 	virtual ~FRigVMInsertArrayPinAction() {};
 	virtual UScriptStruct* GetScriptStruct() const override { return FRigVMInsertArrayPinAction::StaticStruct(); }
 	virtual bool Undo() override;
@@ -885,6 +891,9 @@ public:
 
 	UPROPERTY()
 	FString NewDefaultValue;
+
+	UPROPERTY()
+	ERigVMPinDefaultValueType NewDefaultValueType;
 };
 
 /**
@@ -912,6 +921,9 @@ public:
 
 	UPROPERTY()
 	FString DefaultValue;
+
+	UPROPERTY()
+	ERigVMPinDefaultValueType DefaultValueType;
 };
 
 /**

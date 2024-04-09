@@ -1204,6 +1204,7 @@ void UControlRigBlueprint::PostLoad()
 							if(URigVMController* Controller = GetController(GraphToValidate))
 							{
 								FRigVMControllerNotifGuard NotifGuard(Controller, true);
+								FRigVMDefaultValueTypeGuard _(Controller, ERigVMPinDefaultValueType::Override);
 								Controller->SetPinDefaultValue(Pin->GetPinPath(), TEXT("Null"), false, false, false);
 							}
 						}
@@ -1806,6 +1807,7 @@ void UControlRigBlueprint::PatchRigElementKeyCacheOnLoad()
 								FCachedRigElement DefaultValueElement(Key, Hierarchy);
 								FString Result;
 								TBaseStructure<FCachedRigElement>::Get()->ExportText(Result, &DefaultValueElement, nullptr, nullptr, PPF_None, nullptr);								
+								FRigVMDefaultValueTypeGuard _(Controller, ERigVMPinDefaultValueType::Override);
 								Controller->SetPinDefaultValue(Pin->GetPinPath(), Result, true, false, false);
 								MarkDirtyDuringLoad();
 							}							

@@ -3,6 +3,7 @@
 #include "Editor/RigVMDetailsViewWrapperObject.h"
 #include "RigVMCore/RigVMStruct.h"
 #include "RigVMModel/Nodes/RigVMUnitNode.h"
+#include "RigVMModel/Nodes/RigVMDispatchNode.h"
 #include "Modules/ModuleManager.h"
 #include "Algo/Sort.h"
 #include "RigVMTypeUtils.h"
@@ -220,6 +221,11 @@ UClass* URigVMDetailsViewWrapperObject::GetClassForNodes(TArray<URigVMNode*> InN
 
 	// determine if all nodes are unit nodes and match their script struct
 	TArray<UScriptStruct*> UnitStructs;
+	TArray<const FRigVMDispatchFactory*> DispatchFactories;
+	TArray<const FRigVMGraphFunctionIdentifier> FunctionIdentifiers;
+	
+	const UClass* NodeClass = InNodes[0]->GetClass();
+	bool bMatchingNodes = true;
 	for(URigVMNode* Node : InNodes)
 	{
 		if(URigVMUnitNode* UnitNode = Cast<URigVMUnitNode>(Node))
@@ -228,6 +234,38 @@ UClass* URigVMDetailsViewWrapperObject::GetClassForNodes(TArray<URigVMNode*> InN
 			{
 				UnitStructs.AddUnique(ScriptStruct);
 			}
+		}
+		else if(URigVMDispatchNode* DispatchNode = Cast<URigVMDispatchNode>(Node))
+		{
+			if(const FRigVMDispatchFactory* Factory = DispatchNode->GetFactory())
+			{
+				DispatchFactories.AddUnique(Factory);
+			}
+		}
+		else if(URigVMFunctionReferenceNode* FunctionReferenceNode = Cast<URigVMFunctionReferenceNode>(Node))
+		{
+			FunctionIdentifiers.AddUnique(FunctionReferenceNode->GetReferencedFunctionHeader().LibraryPointer);
+		}
+
+		if(NodeClass != Node->GetClass())
+		{
+			bMatchingNodes = false;
+		}
+	}
+
+	if(bMatchingNodes)
+	{
+		if(!UnitStructs.IsEmpty())
+		{
+			bMatchingNodes = UnitStructs.Num() == 1;
+		}
+		else if(!DispatchFactories.IsEmpty())
+		{
+			bMatchingNodes = DispatchFactories.Num() == 1;
+		}
+		else if(!FunctionIdentifiers.IsEmpty())
+		{
+			bMatchingNodes = FunctionIdentifiers.Num() == 1;
 		}
 	}
 
@@ -294,6 +332,36 @@ UClass* URigVMDetailsViewWrapperObject::GetClassForNodes(TArray<URigVMNode*> InN
 			StructNames.Add(UnitStruct->GetStructCPPName());
 		}
 		Notation = FString::Printf(TEXT("%s(%s)"), *FString::Join(StructNames, TEXT("|")), *Notation);
+	}
+	if(DispatchFactories.Num() > 0)
+	{
+		// sort the factories to ensure we get the same notation each time
+		Algo::Sort(DispatchFactories, [](const FRigVMDispatchFactory* A, const FRigVMDispatchFactory* B) -> bool
+		{
+			return B->GetFactoryName().LexicalLess(A->GetFactoryName());
+		});
+
+		TArray<FString> FactoryNames;
+		for(const FRigVMDispatchFactory* Factory : DispatchFactories)
+		{
+			FactoryNames.Add(Factory->GetFactoryName().ToString());
+		}
+		Notation = FString::Printf(TEXT("%s(%s)"), *FString::Join(FactoryNames, TEXT("|")), *Notation);
+	}
+	if(FunctionIdentifiers.Num() > 0)
+	{
+		// sort the functions to ensure we get the same notation each time
+		Algo::Sort(FunctionIdentifiers, [](const FRigVMGraphFunctionIdentifier& A, const FRigVMGraphFunctionIdentifier& B) -> bool
+		{
+			return A.LibraryNodePath > B.LibraryNodePath;
+		});
+
+		TArray<FString> IdentifierStrings;
+		for(const FRigVMGraphFunctionIdentifier& Identifier : FunctionIdentifiers)
+		{
+			IdentifierStrings.Add(Identifier.LibraryNodePath);
+		}
+		Notation = FString::Printf(TEXT("%s(%s)"), *FString::Join(IdentifierStrings, TEXT("|")), *Notation);
 	}
 
 	const FPerClassInfo PerClassInfo(Notation);
@@ -484,6 +552,59 @@ UClass* URigVMDetailsViewWrapperObject::GetClassForNodes(TArray<URigVMNode*> InN
 				}
 			}
 		}
+	}
+	
+	if(bMatchingNodes)
+	{
+		if(DispatchFactories.Num() > 0)
+		{
+			const FRigVMDispatchFactory* Factory = DispatchFactories[0];
+
+			for(URigVMPin* Pin : PinsToInspect)
+			{
+				const FString DefaultValue = Factory->GetArgumentDefaultValue(Pin->GetFName(), Pin->GetTypeIndex());
+				if(!DefaultValue.IsEmpty())
+				{
+					if(FProperty* Property = WrapperClass->FindPropertyByName(Pin->GetFName()))
+					{
+						uint8* TargetMemory = Property->ContainerPtrToValuePtr<uint8>(CDO);
+						
+						// use error pipe to ignore errors
+						FRigVMPinDefaultValueImportErrorContext ErrorPipe;
+						Property->ImportText_Direct(*DefaultValue, TargetMemory, CDO, PPF_None, &ErrorPipe);
+					}
+				}
+			}
+		}
+
+		if(DispatchFactories.Num() > 0)
+		{
+			const FRigVMGraphFunctionIdentifier Identifier = FunctionIdentifiers[0];
+			const FRigVMGraphFunctionHeader Header = FRigVMGraphFunctionHeader::FindGraphFunctionHeader(Identifier);
+
+			for(URigVMPin* Pin : PinsToInspect)
+			{
+				const FRigVMGraphFunctionArgument* Argument = Header.Arguments.FindByPredicate([Pin](const FRigVMGraphFunctionArgument& InArgument)-> bool
+				{
+					return InArgument.Name == Pin->GetFName();
+				});
+				if(Argument)
+				{
+					if(!Argument->DefaultValue.IsEmpty())
+					{
+						if(FProperty* Property = WrapperClass->FindPropertyByName(Pin->GetFName()))
+						{
+							uint8* TargetMemory = Property->ContainerPtrToValuePtr<uint8>(CDO);
+							
+							// use error pipe to ignore errors
+							FRigVMPinDefaultValueImportErrorContext ErrorPipe;
+							Property->ImportText_Direct(*Argument->DefaultValue, TargetMemory, CDO, PPF_None, &ErrorPipe);
+						}
+					}
+				}
+			}
+		}
+
 	}
 
 #if WITH_EDITOR

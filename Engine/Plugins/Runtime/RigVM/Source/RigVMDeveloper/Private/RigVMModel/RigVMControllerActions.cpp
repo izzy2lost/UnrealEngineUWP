@@ -1069,6 +1069,8 @@ bool FRigVMSetPinWatchAction::Redo()
 
 FRigVMSetPinDefaultValueAction::FRigVMSetPinDefaultValueAction()
 : FRigVMBaseAction(nullptr)
+, OldDefaultValueType(ERigVMPinDefaultValueType::AutoDetect)
+, NewDefaultValueType(ERigVMPinDefaultValueType::AutoDetect)
 {
 }
 
@@ -1077,6 +1079,8 @@ FRigVMSetPinDefaultValueAction::FRigVMSetPinDefaultValueAction(URigVMController*
 , PinPath(InPin->GetPinPath())
 , OldDefaultValue(InPin->GetDefaultValueStoredByUserInterface())
 , NewDefaultValue(InNewDefaultValue)
+, OldDefaultValueType(InPin->GetDefaultValueType())
+, NewDefaultValueType(InController->GetDefaultValueType(InPin, InNewDefaultValue))
 {
 	/* Since for template we are chaning types - it is possible that the
 	 * pin is no longer compliant with the old value
@@ -1105,6 +1109,7 @@ bool FRigVMSetPinDefaultValueAction::Merge(const FRigVMBaseAction* Other)
 	}
 
 	NewDefaultValue = Action->NewDefaultValue;
+	NewDefaultValueType = Action->NewDefaultValueType;
 	return true;
 }
 
@@ -1116,8 +1121,18 @@ bool FRigVMSetPinDefaultValueAction::Undo()
 	}
 	if (OldDefaultValue.IsEmpty())
 	{
-		return true;
+		// strings and wildcards allow to set an empty default
+		if(const URigVMPin* Pin = GetController()->GetGraph()->FindPin(PinPath))
+		{
+			if((Pin->GetCPPType() != RigVMTypeUtils::FStringType) &&
+				!Pin->IsWildCard())
+			{
+				return true;
+			}
+		}
 	}
+
+	FRigVMDefaultValueTypeGuard _(GetController(), OldDefaultValueType, true);
 	return GetController()->SetPinDefaultValue(PinPath, OldDefaultValue, true, false);
 }
 
@@ -1127,8 +1142,25 @@ bool FRigVMSetPinDefaultValueAction::Redo()
 	{
 		return false;
 	}
-	if (!NewDefaultValue.IsEmpty())
+	bool bIsValidDefaultValue = !NewDefaultValue.IsEmpty();
+	if(!bIsValidDefaultValue)
 	{
+		// strings and wildcards allow to set an empty default
+		if(const URigVMPin* Pin = GetController()->GetGraph()->FindPin(PinPath))
+		{
+			if(Pin->GetCPPType() == RigVMTypeUtils::FStringType)
+			{
+				bIsValidDefaultValue = true;
+			}
+			else if(Pin->IsWildCard())
+			{
+				bIsValidDefaultValue = true;
+			}
+		}
+	}
+	if (bIsValidDefaultValue)
+	{
+		FRigVMDefaultValueTypeGuard _(GetController(), NewDefaultValueType, true);
 		if (!GetController()->SetPinDefaultValue(PinPath, NewDefaultValue, true, false))
 		{
 			return false;
@@ -1140,14 +1172,16 @@ bool FRigVMSetPinDefaultValueAction::Redo()
 FRigVMInsertArrayPinAction::FRigVMInsertArrayPinAction()
 : FRigVMBaseAction(nullptr)
 , Index(0)
+, NewDefaultValueType(ERigVMPinDefaultValueType::AutoDetect)
 {
 }
 
-FRigVMInsertArrayPinAction::FRigVMInsertArrayPinAction(URigVMController* InController, URigVMPin* InArrayPin, int32 InIndex, const FString& InNewDefaultValue)
+FRigVMInsertArrayPinAction::FRigVMInsertArrayPinAction(URigVMController* InController, URigVMPin* InArrayPin, int32 InIndex, const FString& InNewDefaultValue, const ERigVMPinDefaultValueType& InNewDefaultValueType)
 : FRigVMBaseAction(InController)
 , ArrayPinPath(InArrayPin->GetPinPath())
 , Index(InIndex)
 , NewDefaultValue(InNewDefaultValue)
+, NewDefaultValueType(InNewDefaultValueType)
 {
 }
 
@@ -1166,6 +1200,8 @@ bool FRigVMInsertArrayPinAction::Redo()
 	{
 		return false;
 	}
+
+	FRigVMDefaultValueTypeGuard _(GetController(), NewDefaultValueType, true);
 	if(GetController()->InsertArrayPin(ArrayPinPath, Index, NewDefaultValue, false).IsEmpty())
 	{
 		return false;
@@ -1176,6 +1212,7 @@ bool FRigVMInsertArrayPinAction::Redo()
 FRigVMRemoveArrayPinAction::FRigVMRemoveArrayPinAction()
 : FRigVMBaseAction(nullptr)
 , Index(0)
+, DefaultValueType(ERigVMPinDefaultValueType::AutoDetect)
 {
 }
 
@@ -1184,6 +1221,7 @@ FRigVMRemoveArrayPinAction::FRigVMRemoveArrayPinAction(URigVMController* InContr
 , ArrayPinPath(InArrayElementPin->GetParentPin()->GetPinPath())
 , Index(InArrayElementPin->GetPinIndex())
 , DefaultValue(InArrayElementPin->GetDefaultValue())
+, DefaultValueType(InArrayElementPin->GetDefaultValueType())
 {
 }
 
@@ -1193,10 +1231,13 @@ bool FRigVMRemoveArrayPinAction::Undo()
 	{
 		return false;
 	}
-	if (GetController()->InsertArrayPin(*ArrayPinPath, Index, DefaultValue, false).IsEmpty())
+
+	FRigVMDefaultValueTypeGuard _(GetController(), DefaultValueType, true);
+	if(GetController()->InsertArrayPin(*ArrayPinPath, Index, DefaultValue, false).IsEmpty())
 	{
 		return false;
 	}
+	
 	return FRigVMBaseAction::Undo();
 }
 
@@ -1206,6 +1247,7 @@ bool FRigVMRemoveArrayPinAction::Redo()
 	{
 		return false;
 	}
+
 	return GetController()->RemoveArrayPin(FString::Printf(TEXT("%s.%d"), *ArrayPinPath, Index), false);
 }
 

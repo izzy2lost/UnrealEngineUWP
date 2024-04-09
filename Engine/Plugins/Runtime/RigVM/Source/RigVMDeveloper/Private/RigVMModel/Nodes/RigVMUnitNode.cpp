@@ -175,6 +175,37 @@ bool URigVMUnitNode::ShouldInputPinComputeLazily(const URigVMPin* InPin) const
 	return Super::ShouldInputPinComputeLazily(InPin);
 }
 
+FString URigVMUnitNode::GetOriginalDefaultValueForRootPin(const URigVMPin* InRootPin) const
+{
+	if(InRootPin->CanProvideDefaultValue())
+	{
+		const TSharedPtr<FStructOnScope> StructOnScope = ConstructStructInstance(true);
+		if(StructOnScope.IsValid())
+		{
+			if(const UStruct* Struct = StructOnScope->GetStruct())
+			{
+				if (const FProperty* Property = Struct->FindPropertyByName(InRootPin->GetFName()))
+				{
+					const uint8* PropertyMemory = Property->ContainerPtrToValuePtr<uint8>(StructOnScope->GetStructMemory());
+
+					FString DefaultValue;
+					Property->ExportText_Direct(
+						DefaultValue,
+						PropertyMemory,
+						PropertyMemory,
+						nullptr,
+						PPF_None,
+						nullptr
+					);
+
+					return DefaultValue;
+				}
+			}
+		}
+	}
+	return Super::GetOriginalDefaultValueForRootPin(InRootPin);
+}
+
 bool URigVMUnitNode::IsOutDated() const
 {
 	return !GetDeprecatedMetadata().IsEmpty();

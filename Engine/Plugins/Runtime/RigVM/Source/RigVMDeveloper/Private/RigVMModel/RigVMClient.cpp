@@ -945,22 +945,41 @@ FRigVMClientPatchResult FRigVMClient::PatchModelsOnLoad()
 		URigVMController* Controller = GetOrCreateController(Model);
 		TGuardValue<bool> GuardSuspendTemplateComputation(Controller->bSuspendTemplateComputation, true);
 		TGuardValue<bool> GuardIsTransacting(Controller->bIsTransacting, true);
-
-		Result.Merge(Controller->PatchRerouteNodesOnLoad());
-		Result.Merge(Controller->PatchUnitNodesOnLoad());
-		Result.Merge(Controller->PatchDispatchNodesOnLoad());
-		Result.Merge(Controller->PatchBranchNodesOnLoad());
-		Result.Merge(Controller->PatchIfSelectNodesOnLoad());
-		Result.Merge(Controller->PatchArrayNodesOnLoad());
-		Result.Merge(Controller->PatchReduceArrayFloatDoubleConvertsionsOnLoad());
-		Result.Merge(Controller->PatchInvalidLinksOnWildcards());
-		Result.Merge(Controller->PatchExecutePins());
-		Result.Merge(Controller->PatchLazyPins());
-
-		if (URigVMCollapseNode* CollapseNode = Model->GetTypedOuter<URigVMCollapseNode>())
 		{
-			Result.Merge(Controller->PatchFunctionsWithInvalidReturnPaths());	
+			FRigVMDefaultValueTypeGuard DefaultValueTypeGuard(Controller, ERigVMPinDefaultValueType::KeepValueType);
+			Result.Merge(Controller->PatchRerouteNodesOnLoad());
+			Result.Merge(Controller->PatchUnitNodesOnLoad());
+			Result.Merge(Controller->PatchDispatchNodesOnLoad());
+			Result.Merge(Controller->PatchBranchNodesOnLoad());
+			Result.Merge(Controller->PatchIfSelectNodesOnLoad());
+			Result.Merge(Controller->PatchArrayNodesOnLoad());
+			Result.Merge(Controller->PatchReduceArrayFloatDoubleConvertsionsOnLoad());
+			Result.Merge(Controller->PatchInvalidLinksOnWildcards());
+			Result.Merge(Controller->PatchExecutePins());
+			Result.Merge(Controller->PatchLazyPins());
+		
+			if (URigVMCollapseNode* CollapseNode = Model->GetTypedOuter<URigVMCollapseNode>())
+			{
+				Result.Merge(Controller->PatchFunctionsWithInvalidReturnPaths());	
+			}
 		}
+		Result.Merge(Controller->PatchPinDefaultValues());
+	}
+
+	return Result;
+}
+
+FRigVMClientPatchResult FRigVMClient::PatchPinDefaultValues()
+{
+	FRigVMClientPatchResult Result;
+	
+	TArray<URigVMGraph*> AllModels = GetAllModelsLeavesFirst(true);
+	TGuardValue<bool> ClientIgnoreModificationsGuard(bIgnoreModelNotifications, true);
+	for(URigVMGraph* Model : AllModels)
+	{
+		URigVMController* Controller = GetOrCreateController(Model);
+		TGuardValue<bool> GuardIsTransacting(Controller->bIsTransacting, true);
+		Result.Merge(Controller->PatchPinDefaultValues());
 	}
 
 	return Result;
@@ -1264,6 +1283,7 @@ bool FRigVMClient::UpdateFunctionReferences(const FRigVMGraphFunctionHeader& Hea
 
 				Node->Modify();
 				Node->ReferencedFunctionHeader = Header;
+				Node->InvalidateCache();
 
 				if (bUpdateDependencies || bUpdateExternalVariables)
 				{

@@ -547,6 +547,7 @@ void FRigVMEditorModule::GetNodeContextMenuActions(IRigVMClientHost* RigVMClient
 
 	GetNodeWorkflowContextMenuActions(RigVMClientHost, EdGraphNode, ModelNode, Menu);
 	GetNodeEventsContextMenuActions(RigVMClientHost, EdGraphNode, ModelNode, Menu);
+	GetNodeDefaultValueContextMenuActions(RigVMClientHost, EdGraphNode, ModelNode, Menu);
 	GetNodeConversionContextMenuActions(RigVMClientHost, EdGraphNode, ModelNode, Menu);
 	GetNodeDebugContextMenuActions(RigVMClientHost, EdGraphNode, ModelNode, Menu);
 	GetNodeVariablesContextMenuActions(RigVMClientHost, EdGraphNode, ModelNode, Menu);
@@ -644,6 +645,97 @@ void FRigVMEditorModule::GetNodeEventsContextMenuActions(IRigVMClientHost* RigVM
 			FCanExecuteAction::CreateLambda([bCanRunOnce](){ return bCanRunOnce; }))
 		);
 	}
+}
+
+void FRigVMEditorModule::GetNodeDefaultValueContextMenuActions(IRigVMClientHost* RigVMClientHost, const URigVMEdGraphNode* EdGraphNode, URigVMNode* ModelNode, UToolMenu* Menu) const
+{
+	if(!CVarRigVMEnablePinDefaultTypes.GetValueOnAnyThread())
+	{
+		return;
+	}
+	
+	URigVMController* Controller = RigVMClientHost->GetRigVMClient()->GetController(ModelNode->GetGraph());
+	FToolMenuSection& DefaultValuesSection = Menu->AddSection("RigVMEditorContextMenuDefaultValues", LOCTEXT("DefaultValuesHeader", "Pin Values"));
+
+	DefaultValuesSection.AddMenuEntry(
+		"Override All",
+		LOCTEXT("OverrideAll", "Override All"),
+		LOCTEXT("OverrideAll_Tooltip", "Overrides all values"),
+		FSlateIcon(),
+		FUIAction(FExecuteAction::CreateLambda([Controller]()
+		{
+			const TArray<FName> SelectedNodeNames = Controller->GetGraph()->GetSelectNodes();
+			if(!SelectedNodeNames.IsEmpty())
+			{
+				FRigVMDefaultValueTypeGuard _(Controller, ERigVMPinDefaultValueType::Override);
+				Controller->OpenUndoBracket(TEXT("Override all pin values"));
+				for(const FName& SelectedNodeName : SelectedNodeNames)
+				{
+					if(const URigVMNode* Node = Controller->GetGraph()->FindNodeByName(SelectedNodeName))
+					{
+						for(const URigVMPin* Pin : Node->GetPins())
+						{
+							if(Pin->CanProvideDefaultValue())
+							{
+								FString DefaultValue = Pin->GetDefaultValue();
+								if(DefaultValue.IsEmpty())
+								{
+									DefaultValue = Pin->GetOriginalDefaultValue();
+								}
+								if(!DefaultValue.IsEmpty())
+								{
+									Controller->SetPinDefaultValue(Pin->GetPinPath(), DefaultValue);
+								}
+							}
+						}
+					}
+				}
+				Controller->CloseUndoBracket();
+			}
+		}))
+	);
+
+	DefaultValuesSection.AddMenuEntry(
+		"Reset Unchanged",
+		LOCTEXT("ResetUnchanged", "Reset Unchanged"),
+		LOCTEXT("ResetUnchanged_Tooltip", "Resets pin values that match the default"),
+		FSlateIcon(),
+		FUIAction(FExecuteAction::CreateLambda([Controller]()
+		{
+			const TArray<FName> SelectedNodeNames = Controller->GetGraph()->GetSelectNodes();
+			if(!SelectedNodeNames.IsEmpty())
+			{
+				FRigVMDefaultValueTypeGuard _(Controller, ERigVMPinDefaultValueType::Unset);
+				Controller->OpenUndoBracket(TEXT("Reset unchanged pin values"));
+				for(const FName& SelectedNodeName : SelectedNodeNames)
+				{
+					if(const URigVMNode* Node = Controller->GetGraph()->FindNodeByName(SelectedNodeName))
+					{
+						for(const URigVMPin* Pin : Node->GetPins())
+						{
+							if(Pin->CanProvideDefaultValue())
+							{
+								FString DefaultValue = Pin->GetDefaultValue();
+								const FString OriginalDefaultValue = Pin->GetOriginalDefaultValue();
+								if(!OriginalDefaultValue.IsEmpty())
+								{
+									if(DefaultValue.IsEmpty())
+									{
+										DefaultValue = OriginalDefaultValue;
+									}
+									if(DefaultValue.Equals(OriginalDefaultValue, ESearchCase::CaseSensitive))
+									{
+										Controller->SetPinDefaultValue(Pin->GetPinPath(), OriginalDefaultValue);
+									}
+								}
+							}
+						}
+					}
+				}
+				Controller->CloseUndoBracket();
+			}
+		}))
+	);
 }
 
 void FRigVMEditorModule::GetNodeConversionContextMenuActions(IRigVMClientHost* RigVMClientHost, const URigVMEdGraphNode* EdGraphNode, URigVMNode* ModelNode, UToolMenu* Menu) const
@@ -1399,6 +1491,17 @@ void FRigVMEditorModule::GetPinResetDefaultContextMenuActions(IRigVMClientHost* 
 				FSlateIcon(),
 				FUIAction(FExecuteAction::CreateLambda([Controller, ModelPin]() {
 					Controller->ResetPinDefaultValue(ModelPin->GetPinPath());
+				})
+			));
+
+			Section.AddMenuEntry(
+				"OverridePinDefaultValue",
+				LOCTEXT("OverridePinDefaultValue", "Override Value"),
+				LOCTEXT("OverridePinDefaultValue_Tooltip", "Marks the pin value as an override."),
+				FSlateIcon(),
+				FUIAction(FExecuteAction::CreateLambda([Controller, ModelPin]() {
+					FRigVMDefaultValueTypeGuard _(Controller, ERigVMPinDefaultValueType::Override);
+					Controller->SetPinDefaultValue(ModelPin->GetPinPath(), ModelPin->GetDefaultValue());
 				})
 			));
 		}

@@ -27,7 +27,7 @@ URigVMUnitNode* UAnimNextGraph_Controller::AddUnitNodeWithPins(UScriptStruct* In
 	if (bHasDynamicPins)
 	{
 		const FRigVMRegistry& Registry = FRigVMRegistry::Get();
-		const FRigVMPinInfoArray PreviousPins(Node);
+		const FRigVMPinInfoArray PreviousPins(Node, this);
 
 		for (int32 PinIndex = 0; PinIndex < PinArray.Num(); ++PinIndex)
 		{

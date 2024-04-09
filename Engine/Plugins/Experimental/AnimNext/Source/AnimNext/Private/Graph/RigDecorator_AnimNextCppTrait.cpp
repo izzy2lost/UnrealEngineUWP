@@ -17,6 +17,7 @@ void FRigDecorator_AnimNextCppDecorator::GetProgrammaticPins(URigVMController* I
 		return;
 	}
 
+	FStructOnScope OriginalValueMemoryScope(DecoratorSharedDataStruct);
 	FStructOnScope DefaultValueMemoryScope(DecoratorSharedDataStruct);
 
 	if (!InDefaultValue.IsEmpty())
@@ -25,8 +26,21 @@ void FRigDecorator_AnimNextCppDecorator::GetProgrammaticPins(URigVMController* I
 		DecoratorSharedDataStruct->ImportText(*InDefaultValue, DefaultValueMemoryScope.GetStructMemory(), nullptr, PPF_SerializedAsImportText, &ErrorPipe, DecoratorSharedDataStruct->GetName());
 	}
 
+	const TFunction<ERigVMPinDefaultValueType(const FName&)> DefaultValueTypeGetter = [&OriginalValueMemoryScope, &DefaultValueMemoryScope](const FName& InPropertyName)
+	{
+		if(const FProperty* Property = OriginalValueMemoryScope.GetStruct()->FindPropertyByName(InPropertyName))
+		{
+			if(Property->Identical_InContainer(OriginalValueMemoryScope.GetStructMemory(), DefaultValueMemoryScope.GetStructMemory()))
+			{
+				return ERigVMPinDefaultValueType::Unset;
+			}
+			return ERigVMPinDefaultValueType::Override;
+		}
+		return ERigVMPinDefaultValueType::AutoDetect;
+	};
+
 	const int32 StartPinIndex = OutPinArray.Num();
-	OutPinArray.AddPins(DecoratorSharedDataStruct, InController, ERigVMPinDirection::Invalid, InParentPinIndex, DefaultValueMemoryScope.GetStructMemory(), true);
+	OutPinArray.AddPins(DecoratorSharedDataStruct, InController, ERigVMPinDirection::Invalid, InParentPinIndex, DefaultValueTypeGetter, DefaultValueMemoryScope.GetStructMemory(), true);
 
 	for (int32 PinIndex = StartPinIndex; PinIndex < OutPinArray.Num(); ++PinIndex)
 	{

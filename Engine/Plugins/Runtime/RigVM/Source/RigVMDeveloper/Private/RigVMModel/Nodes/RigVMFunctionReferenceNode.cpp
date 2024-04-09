@@ -171,6 +171,7 @@ void URigVMFunctionReferenceNode::UpdateFunctionHeaderFromHost()
 	if (const FRigVMGraphFunctionData* Data = GetReferencedFunctionData())
 	{
 		ReferencedFunctionHeader = Data->Header;
+		InvalidateCache();
 	}
 }
 
@@ -181,6 +182,29 @@ const FRigVMGraphFunctionData* URigVMFunctionReferenceNode::GetReferencedFunctio
 		return Host->GetRigVMGraphFunctionStore()->FindFunction(ReferencedFunctionHeader.LibraryPointer);
 	}
 	return nullptr;
+}
+
+FString URigVMFunctionReferenceNode::GetOriginalDefaultValueForRootPin(const URigVMPin* InRootPin) const
+{
+	if(InRootPin->CanProvideDefaultValue())
+	{
+		const FRigVMGraphFunctionHeader& Header = GetReferencedFunctionHeader();
+		if(!Header.IsValid())
+		{
+			// we don't have a valid header yet
+			// maybe still waiting for the function reference to resolve?
+			return FString();
+		}
+		const FRigVMGraphFunctionArgument* Argument = Header.Arguments.FindByPredicate([InRootPin](const FRigVMGraphFunctionArgument& InArgument) -> bool
+		{
+			return InArgument.Name == InRootPin->GetFName();
+		});
+		if(Argument)
+		{
+			return Argument->DefaultValue;
+		}
+	}
+	return Super::GetOriginalDefaultValueForRootPin(InRootPin);
 }
 
 FText URigVMFunctionReferenceNode::GetToolTipTextForPin(const URigVMPin* InPin) const

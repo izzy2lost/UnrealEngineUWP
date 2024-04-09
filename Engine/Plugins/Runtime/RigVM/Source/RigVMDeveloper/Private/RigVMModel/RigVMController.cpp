@@ -356,6 +356,7 @@ FRigVMPinInfo::FRigVMPinInfo()
 	, TypeIndex(INDEX_NONE)
 	, bIsArray(false)
 	, Property(nullptr)
+	, DefaultValueType(ERigVMPinDefaultValueType::AutoDetect)
 	, bIsExpanded(false)
 	, bIsConstant(false)
 	, bIsDynamicArray(false)
@@ -364,13 +365,14 @@ FRigVMPinInfo::FRigVMPinInfo()
 {
 }
 
-FRigVMPinInfo::FRigVMPinInfo(const URigVMPin* InPin, int32 InParentIndex, ERigVMPinDirection InDirection)
+FRigVMPinInfo::FRigVMPinInfo(const URigVMPin* InPin, int32 InParentIndex, ERigVMPinDirection InDirection, ERigVMPinDefaultValueType InDefaultValueType)
 	: ParentIndex(InParentIndex)
 	, Name(InPin->GetName())
 	, Direction(InDirection == ERigVMPinDirection::Invalid ? InPin->GetDirection() : InDirection)
 	, TypeIndex(InPin->GetTypeIndex())
 	, bIsArray(InPin->IsArray())
 	, Property(nullptr)
+	, DefaultValueType(InDefaultValueType)
 	, bIsExpanded(InPin->IsExpanded())
 	, bIsConstant(InPin->IsDefinedAsConstant())
 	, bIsDynamicArray(InPin->IsDynamicArray())
@@ -389,13 +391,14 @@ FRigVMPinInfo::FRigVMPinInfo(const URigVMPin* InPin, int32 InParentIndex, ERigVM
 	}
 }
 
-FRigVMPinInfo::FRigVMPinInfo(FProperty* InProperty, ERigVMPinDirection InDirection, int32 InParentIndex, const uint8* InDefaultValueMemory)
+FRigVMPinInfo::FRigVMPinInfo(FProperty* InProperty, ERigVMPinDirection InDirection, int32 InParentIndex, ERigVMPinDefaultValueType InDefaultValueType, const uint8* InDefaultValueMemory)
 	: ParentIndex(InParentIndex)
 	, Name(InProperty->GetFName())
 	, Direction(InDirection)
 	, TypeIndex(INDEX_NONE)
 	, bIsArray(InProperty->IsA<FArrayProperty>())
 	, Property(InProperty)
+	, DefaultValueType(InDefaultValueType)
 	, bIsExpanded(false)
 	, bIsConstant(false)
 	, bIsDynamicArray(false)
@@ -529,22 +532,23 @@ uint32 GetTypeHash(const FRigVMPinInfo& InPin)
 	return Hash;
 }
 
-FRigVMPinInfoArray::FRigVMPinInfoArray(const URigVMNode* InNode)
+FRigVMPinInfoArray::FRigVMPinInfoArray(const URigVMNode* InNode, URigVMController* InController)
 {
 	// this method adds all pins as currently represented in the model.
 	for(const URigVMPin* Pin : InNode->GetPins())
 	{
-		(void)AddPin(Pin, INDEX_NONE);
+		const ERigVMPinDefaultValueType DefaultValueType = InController->GetDefaultValueType(Pin, Pin->GetDefaultValue());
+		(void)AddPin(Pin, INDEX_NONE, ERigVMPinDirection::Invalid, DefaultValueType);
 	}
 }
 
-int32 FRigVMPinInfoArray::AddPin(const URigVMPin* InPin, int32 InParentIndex, ERigVMPinDirection InDirection)
+int32 FRigVMPinInfoArray::AddPin(const URigVMPin* InPin, int32 InParentIndex, ERigVMPinDirection InDirection, ERigVMPinDefaultValueType InDefaultValueType)
 {
 	// this method adds all pins as currently represented in the model.
-	const int32 Index = Pins.Emplace(InPin, InParentIndex, InDirection);
+	const int32 Index = Pins.Emplace(InPin, InParentIndex, InDirection, InDefaultValueType);
 	for(const URigVMPin* SubPin : InPin->GetSubPins())
 	{
-		const int32 SubPinIndex = AddPin(SubPin, Index, InDirection);
+		const int32 SubPinIndex = AddPin(SubPin, Index, InDirection, InDefaultValueType);
 		Pins[Index].SubPins.Add(SubPinIndex);
 	}
 	return Index;
@@ -558,11 +562,12 @@ FRigVMPinInfoArray::FRigVMPinInfoArray(const URigVMNode* InNode, URigVMControlle
 	for(const URigVMPin* Pin : InNode->GetPins())
 	{
 		const FString DefaultValue = Pin->GetDefaultValue();
+		const ERigVMPinDefaultValueType DefaultValueType = InController->GetDefaultValueType(Pin, DefaultValue);
 		if (Pin->GetTypeIndex() == INDEX_NONE)
 		{
 			InController->ReportErrorf( TEXT("Invalid pin type %s for %s in %s"), *Pin->GetCPPType(), *Pin->GetPathName(), *InNode->GetPackage()->GetPathName());
 		}
-		(void)AddPin(InController, INDEX_NONE, Pin->GetFName(), Pin->GetDirection(), Pin->GetTypeIndex(), DefaultValue, nullptr, InPreviousPinInfos, bAddSubPins);
+		(void)AddPin(InController, INDEX_NONE, Pin->GetFName(), Pin->GetDirection(), Pin->GetTypeIndex(), DefaultValue, DefaultValueType, nullptr, InPreviousPinInfos, bAddSubPins);
 	}
 }
 
@@ -579,18 +584,23 @@ FRigVMPinInfoArray::FRigVMPinInfoArray(const FRigVMGraphFunctionHeader& Function
 			InController->ReportErrorf( TEXT("Invalid pin type %s for %s in %s"), *FunctionArgument.CPPType.ToString(), *FunctionHeader.LibraryPointer.LibraryNodePath, *InController->GetPackage()->GetPathName());
 		}
 		ensureMsgf(TypeIndex != INDEX_NONE, TEXT("Invalid pin type %s in %s"), *FunctionArgument.CPPType.ToString(), *InController->GetPackage()->GetPathName());
-		(void)AddPin(InController, INDEX_NONE, FunctionArgument.Name, FunctionArgument.Direction, TypeIndex, FunctionArgument.DefaultValue, nullptr, InPreviousPinInfos, true);
+		ERigVMPinDefaultValueType DefaultValueType = ERigVMPinDefaultValueType::Unset;
+		if(const FRigVMPinInfo* PinInfo = InPreviousPinInfos->GetPinFromPinPath(FunctionArgument.Name.ToString()))
+		{
+			DefaultValueType = PinInfo->DefaultValueType;
+		}
+		(void)AddPin(InController, INDEX_NONE, FunctionArgument.Name, FunctionArgument.Direction, TypeIndex, FunctionArgument.DefaultValue, DefaultValueType, nullptr, InPreviousPinInfos, true);
 	}
 }
 
 int32 FRigVMPinInfoArray::AddPin(FProperty* InProperty, URigVMController* InController,
-                                              ERigVMPinDirection InDirection, int32 InParentIndex, const uint8* InDefaultValueMemory, bool bAddSubPins)
+    ERigVMPinDirection InDirection, int32 InParentIndex, ERigVMPinDefaultValueType InDefaultValueType, const uint8* InDefaultValueMemory, bool bAddSubPins)
 {
 	// this method adds pins as needed based on the property structure
 
 	check(InDefaultValueMemory);
 	
-	const int32 Index = Pins.Emplace(InProperty, InDirection, InParentIndex, InDefaultValueMemory);
+	const int32 Index = Pins.Emplace(InProperty, InDirection, InParentIndex, InDefaultValueType, InDefaultValueMemory);
 	if(InParentIndex != INDEX_NONE)
 	{
 		Pins[InParentIndex].SubPins.Add(Index);
@@ -600,7 +610,11 @@ int32 FRigVMPinInfoArray::AddPin(FProperty* InProperty, URigVMController* InCont
 	{
 		if (const FStructProperty* StructProperty = CastField<FStructProperty>(InProperty))
 		{
-			(void)AddPins(StructProperty->Struct, InController, Pins[Index].Direction, Index, InDefaultValueMemory, bAddSubPins);
+			const TFunction<ERigVMPinDefaultValueType(const FName&)> DefaultValueTypeGetter = [InDefaultValueType](const FName&)
+			{
+				return InDefaultValueType;
+			};
+			(void)AddPins(StructProperty->Struct, InController, Pins[Index].Direction, Index, DefaultValueTypeGetter, InDefaultValueMemory, bAddSubPins);
 		}
 		else if (const FArrayProperty* ArrayProperty = CastField<FArrayProperty>(InProperty))
 		{
@@ -608,7 +622,7 @@ int32 FRigVMPinInfoArray::AddPin(FProperty* InProperty, URigVMController* InCont
 			for(int32 ElementIndex = 0; ElementIndex < ArrayHelper.Num(); ElementIndex++)
 			{
 				const uint8* ElementDefaultValueMemory = ArrayHelper.GetRawPtr(ElementIndex);
-				const int32 SubIndex = AddPin(ArrayProperty->Inner, InController, Pins[Index].Direction, Index, ElementDefaultValueMemory, bAddSubPins);
+				const int32 SubIndex = AddPin(ArrayProperty->Inner, InController, Pins[Index].Direction, Index, InDefaultValueType, ElementDefaultValueMemory, bAddSubPins);
 				Pins[SubIndex].Name = *FString::FormatAsNumber(ElementIndex);
 			}
 		}
@@ -617,7 +631,7 @@ int32 FRigVMPinInfoArray::AddPin(FProperty* InProperty, URigVMController* InCont
 }
 
 int32 FRigVMPinInfoArray::AddPin(URigVMController* InController, int32 InParentIndex, const FName& InName, ERigVMPinDirection InDirection,
-	TRigVMTypeIndex InTypeIndex, const FString& InDefaultValue, const uint8* InDefaultValueMemory, const FRigVMPinInfoArray* InPreviousPinInfos, bool bAddSubPins)
+	TRigVMTypeIndex InTypeIndex, const FString& InDefaultValue, ERigVMPinDefaultValueType InDefaultValueType, const uint8* InDefaultValueMemory, const FRigVMPinInfoArray* InPreviousPinInfos, bool bAddSubPins)
 {
 	const FRigVMRegistry& Registry = FRigVMRegistry::Get();
 		
@@ -628,6 +642,7 @@ int32 FRigVMPinInfoArray::AddPin(URigVMController* InController, int32 InParentI
 	Info.TypeIndex = InTypeIndex;
 	Info.bIsArray = Registry.IsArrayType(InTypeIndex);
 	Info.DefaultValue = InDefaultValue;
+	Info.DefaultValueType = InDefaultValueType;
 	Info.CorrectExecuteTypeIndex();
 
 	const int32 Index = Pins.Add(Info);
@@ -674,7 +689,7 @@ int32 FRigVMPinInfoArray::AddPin(URigVMController* InController, int32 InParentI
 					ElementDefaultValueMemory = ElementDefaultValueMemoryScope.GetStructMemory();
 				}
 
-				(void)AddPin(InController, Index, *FString::FormatAsNumber(ElementIndex), InDirection, ElementTypeIndex, ElementDefaultValue, ElementDefaultValueMemory, InPreviousPinInfos, bAddSubPins);
+				(void)AddPin(InController, Index, *FString::FormatAsNumber(ElementIndex), InDirection, ElementTypeIndex, ElementDefaultValue, InDefaultValueType, ElementDefaultValueMemory, InPreviousPinInfos, bAddSubPins);
 			}
 		}
 		else if(UScriptStruct* ScriptStruct = Cast<UScriptStruct>(Type.CPPTypeObject))
@@ -688,7 +703,11 @@ int32 FRigVMPinInfoArray::AddPin(URigVMController* InController, int32 InParentI
 				ScriptStruct->ImportText(*Pins[Index].DefaultValue, DefaultValueMemoryScope.GetStructMemory(), nullptr, PPF_None, &ErrorPipe, FString());
 				DefaultValueMemory = DefaultValueMemoryScope.GetStructMemory();
 			}
-			AddPins(ScriptStruct, InController, InDirection, Index, DefaultValueMemory, bAddSubPins);
+			const TFunction<ERigVMPinDefaultValueType(const FName&)> DefaultValueTypeGetter = [InDefaultValueType](const FName&)
+			{
+				return InDefaultValueType;
+			};
+			AddPins(ScriptStruct, InController, InDirection, Index, DefaultValueTypeGetter, DefaultValueMemory, bAddSubPins);
 		}
 	}
 
@@ -701,7 +720,8 @@ int32 FRigVMPinInfoArray::AddPin(URigVMController* InController, int32 InParentI
 }
 
 void FRigVMPinInfoArray::AddPins(UScriptStruct* InScriptStruct, URigVMController* InController,
-	ERigVMPinDirection InDirection, int32 InParentIndex, const uint8* InDefaultValueMemory, bool bAddSubPins)
+	ERigVMPinDirection InDirection, int32 InParentIndex, TFunction<ERigVMPinDefaultValueType(const FName&)> InDefaultValueTypeGetter,
+	const uint8* InDefaultValueMemory, bool bAddSubPins)
 {
 	if (InController->GetSchema()->ShouldUnfoldStruct(InController, InScriptStruct))
 	{
@@ -728,7 +748,12 @@ void FRigVMPinInfoArray::AddPins(UScriptStruct* InScriptStruct, URigVMController
 					}
 				}
 #endif
-				(void)AddPin(*It, InController, InDirection, InParentIndex, DefaultValueMemory, bAddSubPinsForProperty);
+				ERigVMPinDefaultValueType DefaultValueType = ERigVMPinDefaultValueType::AutoDetect;
+				if(InDefaultValueTypeGetter)
+				{
+					DefaultValueType = InDefaultValueTypeGetter(It->GetFName());
+				}
+				(void)AddPin(*It, InController, InDirection, InParentIndex, DefaultValueType, DefaultValueMemory, bAddSubPinsForProperty);
 			}
 		}
 	}
@@ -1394,6 +1419,7 @@ URigVMUnitNode* URigVMController::AddUnitNode(UScriptStruct* InScriptStruct, TSu
 			{
 				if (Pin->IsWildCard())
 				{
+					FRigVMDefaultValueTypeGuard _(this, ERigVMPinDefaultValueType::Unset, true);
 					ResolveWildCardPin(Pin, Pair.Value, bSetupUndoRedo);
 				}
 			}
@@ -1469,6 +1495,7 @@ URigVMUnitNode* URigVMController::AddUnitNode(UScriptStruct* InScriptStruct, TSu
 	FString ExportedDefaultValue;
 	CreateDefaultValueForStructIfRequired(InScriptStruct, ExportedDefaultValue);
 	{
+		FRigVMDefaultValueTypeGuard _(this, ERigVMPinDefaultValueType::Unset, true);
 		TGuardValue<bool> SuspendNotifications(bSuspendNotifications, true);
 		AddPinsForStruct(InScriptStruct, Node, nullptr, ERigVMPinDirection::Invalid, ExportedDefaultValue, true);
 	}
@@ -1665,6 +1692,7 @@ bool URigVMController::SetUnitNodeDefaults(URigVMUnitNode* InNode, const FRigStr
 			const FString NewDefault = FRigVMStruct::ExportToFullyQualifiedText(Property, MemberMemoryPtr);
 			if(NewDefault != Pin->GetDefaultValue())
 			{
+				FRigVMDefaultValueTypeGuard _(this, ERigVMPinDefaultValueType::AutoDetect);
 				SetPinDefaultValue(Pin->GetPinPath(), NewDefault, true, bSetupUndoRedo, false, bPrintPythonCommand);
 			}
 		}
@@ -3039,6 +3067,7 @@ URigVMRerouteNode* URigVMController::AddRerouteNodeOnPin(const FString& InPinPat
 	FString DefaultValue = Pin->GetDefaultValue();
 	if (!DefaultValue.IsEmpty())
 	{
+		FRigVMDefaultValueTypeGuard _(this, ERigVMPinDefaultValueType::Override, true);
 		SetPinDefaultValue(ValuePin, Pin->GetDefaultValue(), true, false, false);
 	}
 
@@ -7810,7 +7839,9 @@ bool URigVMController::SetPinDefaultValue(const FString& InPinPath, const FStrin
 			return SetVariableName(VariableNode, *InDefaultValue, bSetupUndoRedo);
 		}
 	}
-	
+
+	// by default treat pin default value changes as overrides
+	FRigVMDefaultValueTypeGuard _(this, ERigVMPinDefaultValueType::Override);
 	if (!SetPinDefaultValue(Pin, InDefaultValue, bResizeArrays, bSetupUndoRedo, bMergeUndoAction, bSetValueOnLinkedPins))
 	{
 		return false;
@@ -7903,6 +7934,7 @@ bool URigVMController::SetPinDefaultValue(URigVMPin* InPin, const FString& InDef
 					{
 						break;
 					}
+					bSetPinDefaultValueSucceeded = true;
 				}
 				while (Elements.Num() < InPin->SubPins.Num())
 				{
@@ -7910,6 +7942,7 @@ bool URigVMController::SetPinDefaultValue(URigVMPin* InPin, const FString& InDef
 					{
 						break;
 					}
+					bSetPinDefaultValueSucceeded = true;
 				}
 			}
 			else
@@ -7957,15 +7990,28 @@ bool URigVMController::SetPinDefaultValue(URigVMPin* InPin, const FString& InDef
 	if(!bSetPinDefaultValueSucceeded)
 	{
 		// no need to send notifications if not changing the value
-		if (InPin->GetSubPins().IsEmpty() && (InPin->DefaultValue != ClampedDefaultValue))
+		if (InPin->GetSubPins().IsEmpty())
 		{
-			InPin->DefaultValue = ClampedDefaultValue;
-			Notify(ERigVMGraphNotifType::PinDefaultValueChanged, InPin);
-			if (!bSuspendNotifications)
+			// always mark the pin's default value type as user provided
+			// even if the value didn't change. this is done to remember
+			// the value when switching versions of nodes / functions.
+			const ERigVMPinDefaultValueType NewDefaultValueType = GetDefaultValueType(InPin, ClampedDefaultValue);
+			if(InPin->DefaultValueType != NewDefaultValueType)
 			{
-				Graph->MarkPackageDirty();
+				InPin->DefaultValueType = NewDefaultValueType;
+				bSetPinDefaultValueSucceeded = true;
 			}
-			bSetPinDefaultValueSucceeded = true;
+
+			if(InPin->DefaultValue != ClampedDefaultValue)
+			{
+				InPin->DefaultValue = ClampedDefaultValue;
+				Notify(ERigVMGraphNotifType::PinDefaultValueChanged, InPin);
+				if (!bSuspendNotifications)
+				{
+					(void)Graph->MarkPackageDirty();
+				}
+				bSetPinDefaultValueSucceeded = true;
+			}
 		}
 	}
 
@@ -8006,13 +8052,6 @@ bool URigVMController::ResetPinDefaultValue(const FString& InPinPath, bool bSetu
 		return false;
 	}
 
-	URigVMNode* Node = Pin->GetNode();
-	if (!Node->IsA<URigVMUnitNode>() && !Node->IsA<URigVMFunctionReferenceNode>())
-	{
-		ReportErrorf(TEXT("Pin '%s' is neither part of a unit nor a function reference node."), *InPinPath);
-		return false;
-	}
-
 	const bool bSuccess = ResetPinDefaultValue(Pin, bSetupUndoRedo);
 	if (bSuccess && bPrintPythonCommand)
 	{
@@ -8038,29 +8077,14 @@ bool URigVMController::ResetPinDefaultValue(URigVMPin* InPin, bool bSetupUndoRed
 
 	URigVMNode* RigVMNode = InPin->GetNode();
 
-	// unit nodes
-	if (URigVMUnitNode* UnitNode = Cast<URigVMUnitNode>(RigVMNode))
-	{
-		// cut off the first one since it's the node
-		static const uint32 Offset = 1;
-		const FString DefaultValue = GetPinInitialDefaultValueFromStruct(UnitNode->GetScriptStruct(), InPin, Offset);
-		if (!DefaultValue.IsEmpty())
-		{
-			SetPinDefaultValue(InPin, DefaultValue, true, bSetupUndoRedo, false);
-			return true;
-		}
-	}
+	FRigVMDefaultValueTypeGuard _(this, ERigVMPinDefaultValueType::Unset);
 
-	// function reference nodes
-	URigVMFunctionReferenceNode* RefNode = Cast<URigVMFunctionReferenceNode>(RigVMNode);
-	if (RefNode != nullptr)
+	FString DefaultValue = RigVMNode->GetOriginalPinDefaultValue(InPin);
+	PostProcessDefaultValue(InPin, DefaultValue);
+	if(!DefaultValue.IsEmpty() || InPin->IsWildCard())
 	{
-		const FString DefaultValue = GetPinInitialDefaultValue(InPin);
-		if (!DefaultValue.IsEmpty())
-		{
-			SetPinDefaultValue(InPin, DefaultValue, true, bSetupUndoRedo, false);
-			return true;
-		}
+		SetPinDefaultValue(InPin, DefaultValue, true, bSetupUndoRedo, false);
+		return true;
 	}
 
 	return false;
@@ -8891,11 +8915,12 @@ URigVMPin* URigVMController::InsertArrayPin(URigVMPin* ArrayPin, int32 InIndex, 
 		InIndex = ArrayPin->GetSubPins().Num();
 	}
 
+	FRigVMDefaultValueTypeGuard _(this, ERigVMPinDefaultValueType::Override);
 	FRigVMControllerCompileBracketScope CompileScope(this);
 	FRigVMInsertArrayPinAction Action;
 	if (bSetupUndoRedo)
 	{
-		Action = FRigVMInsertArrayPinAction(this, ArrayPin, InIndex, InDefaultValue);
+		Action = FRigVMInsertArrayPinAction(this, ArrayPin, InIndex, InDefaultValue, OptionalDefaultValueType.Get(ERigVMPinDefaultValueType::Override));
 		Action.SetTitle(FString::Printf(TEXT("Insert Array Pin")));
 		GetActionStack()->BeginAction(Action);
 	}
@@ -8937,7 +8962,17 @@ URigVMPin* URigVMController::InsertArrayPin(URigVMPin* ArrayPin, int32 InIndex, 
 	{
 		FString DefaultValue = InDefaultValue;
 		PostProcessDefaultValue(Pin, DefaultValue);
+		if(Pin->CanProvideDefaultValue())
+		{
+			Pin->DefaultValueType = GetDefaultValueType(Pin, DefaultValue);
+		}
 		Pin->DefaultValue = DefaultValue;
+	}
+
+	// set the array pin's default value type based on the resulting array pin list
+	{
+		const FRigVMDefaultValueTypeGuard AutoDetectGuard(this, ERigVMPinDefaultValueType::AutoDetect, true);
+		ArrayPin->DefaultValueType = GetDefaultValueType(ArrayPin, ArrayPin->GetDefaultValue());
 	}
 
 	Notify(ERigVMGraphNotifType::PinAdded, Pin);
@@ -8982,6 +9017,8 @@ bool URigVMController::RemoveArrayPin(const FString& InArrayElementPinPath, bool
 		ReportErrorf(TEXT("Pin '%s' is not an array element."), *InArrayElementPinPath);
 		return false;
 	}
+
+	FRigVMDefaultValueTypeGuard _(this, ERigVMPinDefaultValueType::Override);
 
 	URigVMPin* ArrayPin = ArrayElementPin->GetParentPin();
 	check(ArrayPin);
@@ -9031,6 +9068,12 @@ bool URigVMController::RemoveArrayPin(const FString& InArrayElementPinPath, bool
 	if (!bSuspendNotifications)
 	{
 		Graph->MarkPackageDirty();
+	}
+
+	// set the array pin's default value type based on the resulting array pin list
+	{
+		const FRigVMDefaultValueTypeGuard AutoDetectGuard(this, ERigVMPinDefaultValueType::AutoDetect, true);
+		ArrayPin->DefaultValueType = GetDefaultValueType(ArrayPin, ArrayPin->GetDefaultValue());
 	}
 	Notify(ERigVMGraphNotifType::PinArraySizeChanged, ArrayPin);
 
@@ -11587,6 +11630,7 @@ URigVMFunctionReferenceNode* URigVMController::AddFunctionReferenceNodeFromDescr
 			const FString& DefaultValue = Argument.DefaultValue;
 			if (!DefaultValue.IsEmpty())
 			{
+				FRigVMDefaultValueTypeGuard _(this, ERigVMPinDefaultValueType::Unset, true);
 				SetPinDefaultValue(TargetPin, DefaultValue, true, false, false);
 			}
 		}
@@ -14415,6 +14459,10 @@ void URigVMController::AddPinsForStruct(UStruct* InStruct, URigVMNode* InNode, U
 				else if(DefaultValuePtr != nullptr)
 				{
 					Pin->DefaultValue = *DefaultValuePtr;
+					if(Pin->CanProvideDefaultValue() && !Pin->DefaultValue.IsEmpty())
+					{
+						Pin->DefaultValueType = GetDefaultValueType(Pin, Pin->DefaultValue);
+					}
 				}
 			}
 
@@ -14435,6 +14483,10 @@ void URigVMController::AddPinsForStruct(UStruct* InStruct, URigVMNode* InNode, U
 						FString DefaultValue = *DefaultValuePtr;
 						PostProcessDefaultValue(Pin, DefaultValue);
 						Pin->DefaultValue = *DefaultValuePtr;
+						if(Pin->CanProvideDefaultValue() && !Pin->DefaultValue.IsEmpty())
+						{
+							Pin->DefaultValueType = GetDefaultValueType(Pin, Pin->DefaultValue);
+						}
 					}
 				}
 			}
@@ -14444,6 +14496,10 @@ void URigVMController::AddPinsForStruct(UStruct* InStruct, URigVMNode* InNode, U
 				FString DefaultValue = *DefaultValuePtr;
 				PostProcessDefaultValue(Pin, DefaultValue);
 				Pin->DefaultValue = DefaultValue;
+				if(Pin->CanProvideDefaultValue() && !Pin->DefaultValue.IsEmpty())
+				{
+					Pin->DefaultValueType = GetDefaultValueType(Pin, Pin->DefaultValue);
+				}
 			}
 
 			if (!bSuspendNotifications)
@@ -14504,6 +14560,10 @@ void URigVMController::AddPinsForArray(FArrayProperty* InArrayProperty, URigVMNo
 			{
 				PostProcessDefaultValue(Pin, DefaultValue);
 				Pin->DefaultValue = DefaultValue;
+				if(Pin->CanProvideDefaultValue() && !Pin->DefaultValue.IsEmpty())
+				{
+					Pin->DefaultValueType = GetDefaultValueType(Pin, Pin->DefaultValue);
+				}
 			}
 		}
 
@@ -14519,6 +14579,10 @@ void URigVMController::AddPinsForArray(FArrayProperty* InArrayProperty, URigVMNo
 			{
 				PostProcessDefaultValue(Pin, DefaultValue);
 				Pin->DefaultValue = DefaultValue;
+				if(Pin->CanProvideDefaultValue() && !Pin->DefaultValue.IsEmpty())
+				{
+					Pin->DefaultValueType = GetDefaultValueType(Pin, Pin->DefaultValue);
+				}
 			}
 		}
 
@@ -14526,6 +14590,10 @@ void URigVMController::AddPinsForArray(FArrayProperty* InArrayProperty, URigVMNo
 		{
 			PostProcessDefaultValue(Pin, DefaultValue);
 			Pin->DefaultValue = DefaultValue;
+			if(Pin->CanProvideDefaultValue() && !Pin->DefaultValue.IsEmpty())
+			{
+				Pin->DefaultValueType = GetDefaultValueType(Pin, Pin->DefaultValue);
+			}
 		}
 	}
 }
@@ -14533,6 +14601,7 @@ void URigVMController::AddPinsForArray(FArrayProperty* InArrayProperty, URigVMNo
 void URigVMController::AddPinsForTemplate(const FRigVMTemplate* InTemplate, const FRigVMTemplateTypeMap& InPinTypeMap, URigVMNode* InNode)
 {
 	const FRigVMRegistry& Registry = FRigVMRegistry::Get();
+	FRigVMDefaultValueTypeGuard _(this, ERigVMPinDefaultValueType::Unset, true);
 
 	FRigVMDispatchContext DispatchContext;
 	if(const URigVMDispatchNode* DispatchNode = Cast<URigVMDispatchNode>(InNode))
@@ -15135,7 +15204,7 @@ void URigVMController::GenerateRepopulatePinsNodeData(TArray<FRepopulatePinsNode
 
 	const FRigVMRegistry& Registry = FRigVMRegistry::Get();
 
-	NodeData.PreviousPinInfos = FRigVMPinInfoArray(InNode);
+	NodeData.PreviousPinInfos = FRigVMPinInfoArray(InNode, this);
 	NodeData.PreviousPinHash = GetTypeHash(NodeData.PreviousPinInfos);
 	if (!GenerateNewPinInfos(Registry, InNode, NodeData.PreviousPinInfos, NodeData.NewPinInfos, NodeData.bSetupOrphanPinsForThisNode))
 	{
@@ -15271,7 +15340,15 @@ bool URigVMController::GenerateNewPinInfos(const FRigVMRegistry& Registry, URigV
 		}
 
 		const TSharedPtr<FStructOnScope> DefaultValueContent = UnitNode->ConstructStructInstance(false);
-		NewPinInfos.AddPins(ScriptStruct, this, ERigVMPinDirection::Invalid, INDEX_NONE, DefaultValueContent->GetStructMemory(), true);
+		const TFunction<ERigVMPinDefaultValueType(const FName&)> DefaultValueTypeGetter = [InNode, this](const FName& InPropertyName)
+		{
+			if(const URigVMPin* Pin = InNode->FindPin(InPropertyName.ToString()))
+			{
+				return GetDefaultValueType(Pin, Pin->GetDefaultValue());
+			}
+			return ERigVMPinDefaultValueType::AutoDetect;
+		};
+		NewPinInfos.AddPins(ScriptStruct, this, ERigVMPinDirection::Invalid, INDEX_NONE, DefaultValueTypeGetter, DefaultValueContent->GetStructMemory(), true);
 	}
 	else if (DispatchNode)
 	{
@@ -15307,7 +15384,7 @@ bool URigVMController::GenerateNewPinInfos(const FRigVMRegistry& Registry, URigV
 							}
 						}
 
-						(void)NewPinInfos.AddPin(this, INDEX_NONE, Arg->Name, Arg->Direction, TypeIndex, DefaultValue, nullptr, &PreviousPinInfos, true);
+						(void)NewPinInfos.AddPin(this, INDEX_NONE, Arg->Name, Arg->Direction, TypeIndex, DefaultValue, ERigVMPinDefaultValueType::Unset, nullptr, &PreviousPinInfos, true);
 					}
 				}
 			};
@@ -15382,7 +15459,12 @@ bool URigVMController::GenerateNewPinInfos(const FRigVMRegistry& Registry, URigV
 				bAddSubPinsForArgument = false;
 			}
 #endif
-			(void)NewPinInfos.AddPin(this, INDEX_NONE, Arg->Name, Arg->GetDirection(), TypeIndex, DefaultValue, DefaultValueMemory, &PreviousPinInfos, bAddSubPinsForArgument);
+			ERigVMPinDefaultValueType DefaultValueType = ERigVMPinDefaultValueType::AutoDetect;
+			if(const FRigVMPinInfo* PinInfo = PreviousPinInfos.GetPinFromPinPath(Arg->Name.ToString()))
+			{
+				DefaultValueType = PinInfo->DefaultValueType;
+			}
+			(void)NewPinInfos.AddPin(this, INDEX_NONE, Arg->Name, Arg->GetDirection(), TypeIndex, DefaultValue, DefaultValueType, DefaultValueMemory, &PreviousPinInfos, bAddSubPinsForArgument);
 		}
 
 		AddExecutePins(ERigVMPinDirection::Output);
@@ -15520,7 +15602,7 @@ bool URigVMController::GenerateNewPinInfos(const FRigVMRegistry& Registry, URigV
 				}
 
 				ERigVMPinDirection Direction = bIsEntryNode ? ERigVMPinDirection::Output : ERigVMPinDirection::Input;
-				(void)NewPinInfos.AddPin(LibraryPin, INDEX_NONE, Direction);
+				(void)NewPinInfos.AddPin(LibraryPin, INDEX_NONE, Direction, LibraryPin->GetDefaultValueType());
 			}
 		}
 		else
@@ -15559,7 +15641,7 @@ bool URigVMController::GenerateNewPinInfos(const FRigVMRegistry& Registry, URigV
 		const FRigVMPinInfo& PreviousPin = PreviousPinInfos[Index];
 		if (PreviousPin.bIsDecorator)
 		{
-			const int32 NewPinIndex = NewPinInfos.AddPin(this, INDEX_NONE, PreviousPin.Name, PreviousPin.Direction, PreviousPin.TypeIndex, PreviousPin.DefaultValue, nullptr, &PreviousPinInfos, true);
+			const int32 NewPinIndex = NewPinInfos.AddPin(this, INDEX_NONE, PreviousPin.Name, PreviousPin.Direction, PreviousPin.TypeIndex, PreviousPin.DefaultValue, PreviousPin.DefaultValueType, nullptr, &PreviousPinInfos, true);
 			NewPinInfos[NewPinIndex].bIsDecorator = true;
 
 			if (URigVMPin* Pin = InNode->FindPin(PreviousPin.PinPath))
@@ -16242,6 +16324,7 @@ URigVMController::FPinState URigVMController::GetPinState(URigVMPin* InPin, bool
 	State.CPPType = InPin->GetCPPType();
 	State.CPPTypeObject = InPin->GetCPPTypeObject();
 	State.DefaultValue = InPin->GetDefaultValue();
+	State.DefaultValueType = InPin->GetDefaultValueType();
 	State.bIsExpanded = InPin->IsExpanded();
 	State.InjectionInfos = InPin->GetInjectedNodes();
 
@@ -16334,12 +16417,13 @@ void URigVMController::ApplyPinState(URigVMPin* InPin, const FPinState& InPinSta
 		}
 	}
 
-	if (!InPinState.DefaultValue.IsEmpty())
+	if (!InPinState.DefaultValue.IsEmpty() || InPin->IsWildCard())
 	{
 		FString DefaultValue = InPinState.DefaultValue;
 		PostProcessDefaultValue(InPin, DefaultValue);
-		if(!DefaultValue.IsEmpty())
+		if(!DefaultValue.IsEmpty() || InPin->IsWildCard())
 		{
+			FRigVMDefaultValueTypeGuard _(this, InPinState.DefaultValueType, true);
 			SetPinDefaultValue(InPin, DefaultValue, true, bSetupUndoRedo, false);
 		}
 	}
@@ -16379,7 +16463,7 @@ void URigVMController::ApplyPinStates(URigVMNode* InNode, const TMap<FString, UR
 	}
 }
 
-URigVMPin* URigVMController::CreatePinFromPinInfo(const FRigVMRegistry& InRegistry, const FRigVMPinInfoArray& InPreviousPinInfos, const FRigVMPinInfo& InPinInfo, const FString& InPinPath, UObject* InOuter) const
+URigVMPin* URigVMController::CreatePinFromPinInfo(const FRigVMRegistry& InRegistry, const FRigVMPinInfoArray& InPreviousPinInfos, const FRigVMPinInfo& InPinInfo, const FString& InPinPath, UObject* InOuter)
 {
 	check(InOuter);
 	URigVMPin* Pin = NewObject<URigVMPin>(InOuter, InPinInfo.Name);
@@ -16411,6 +16495,7 @@ URigVMPin* URigVMController::CreatePinFromPinInfo(const FRigVMRegistry& InRegist
 
 	Pin->bIsExpanded = InPinInfo.bIsExpanded;
 	Pin->DefaultValue = InPinInfo.DefaultValue;
+	Pin->DefaultValueType = InPinInfo.DefaultValueType;
 
 	// reuse expansion state and default value
 	if (const FRigVMPinInfo* PreviousPin = InPreviousPinInfos.GetPinFromPinPath(InPinPath))
@@ -16419,6 +16504,7 @@ URigVMPin* URigVMController::CreatePinFromPinInfo(const FRigVMRegistry& InRegist
 		{
 			Pin->bIsExpanded = PreviousPin->bIsExpanded;
 			Pin->DefaultValue = PreviousPin->DefaultValue;
+			Pin->DefaultValueType = PreviousPin->DefaultValueType;
 		}
 	}
 
@@ -16626,7 +16712,7 @@ void URigVMController::CreateDefaultValueForStructIfRequired(UScriptStruct* InSt
 	}
 }
 
-void URigVMController::PostProcessDefaultValue(URigVMPin* Pin, FString& OutDefaultValue)
+void URigVMController::PostProcessDefaultValue(const URigVMPin* Pin, FString& OutDefaultValue)
 {
 	static const FString NoneString = FName(NAME_None).ToString();
 	static const FString QuotedNoneString = FString::Printf(TEXT("\"%s\""), *NoneString);
@@ -17900,6 +17986,11 @@ bool URigVMController::ChangePinType(URigVMPin* InPin, TRigVMTypeIndex InTypeInd
 				InPin->DefaultValue = TemplateNode->GetInitialDefaultValueForPin(InPin->GetFName());
 			}
 		}
+
+		if(!InPin->DefaultValue.IsEmpty())
+		{
+			InPin->DefaultValueType = GetDefaultValueType(InPin, InPin->DefaultValue);
+		}
 	}
 
 	if (InPin->IsExecuteContext() && !InPin->GetNode()->IsA<URigVMFunctionEntryNode>() && !InPin->GetNode()->IsA<URigVMFunctionReturnNode>())
@@ -18274,6 +18365,19 @@ void URigVMController::AddNodePin(URigVMNode* InNode, URigVMPin* InPin)
 	if(InPin->IsFixedSizeArray())
 	{
 		InPin->bIsExpanded = true;
+	}
+
+	if(InPin->DefaultValueType == ERigVMPinDefaultValueType::AutoDetect)
+	{
+		if(InPin->DefaultValue.IsEmpty())
+		{
+			InPin->DefaultValueType = ERigVMPinDefaultValueType::Unset;
+		}
+		else
+		{
+			FRigVMDefaultValueTypeGuard _(this, ERigVMPinDefaultValueType::AutoDetect, true);
+			InPin->DefaultValueType = GetDefaultValueType(InPin, InPin->DefaultValue);
+		}
 	}
 }
 
@@ -20238,6 +20342,112 @@ FRigVMClientPatchResult URigVMController::PatchLazyPins()
 		}
 	}
 	return Result;
+}
+
+FRigVMClientPatchResult URigVMController::PatchPinDefaultValues()
+{
+	FRigVMClientPatchResult Result;
+	if(!CVarRigVMEnablePinDefaultTypes.GetValueOnAnyThread())
+	{
+		return Result;
+	}
+
+	FRigVMDefaultValueTypeGuard AutoDetectGuard(this, ERigVMPinDefaultValueType::AutoDetect, true);
+	if (const URigVMGraph* Graph = GetGraph())
+	{
+		for (const URigVMNode* Node : Graph->GetNodes())
+		{
+			const TArray<URigVMPin*> Pins = Node->GetAllPinsRecursively();
+			for(URigVMPin* Pin : Pins)
+			{
+				if(Pin->CanProvideDefaultValue() && Pin->GetSubPins().IsEmpty())
+				{
+					if(Pin->GetDefaultValueType() == ERigVMPinDefaultValueType::AutoDetect)
+					{
+						if(!Pin->DefaultValue.IsEmpty())
+						{
+							// this will determine based on the delta if the default value
+							// is unchanged or overridden by the user
+							const ERigVMPinDefaultValueType DefaultValueType = GetDefaultValueType(Pin, Pin->DefaultValue);
+							if(Pin->DefaultValueType != DefaultValueType)
+							{
+								Pin->DefaultValueType = DefaultValueType;
+								Result.bChangedContent = true;
+							}
+						}
+					}
+					else if(!Pin->GetRootPin()->HasUserProvidedDefaultValue())
+					{
+						if(Pin->GetDefaultValueType() == ERigVMPinDefaultValueType::Unset)
+						{
+							// if the pin is supposed to be the original value of the providing
+							// node (like unit struct, dispatch factory or function ref).
+							// reset the value back to the current / updated default.
+							FString OriginalDefaultValue = Pin->GetOriginalDefaultValue();
+							PostProcessDefaultValue(Pin, OriginalDefaultValue);
+							if(!OriginalDefaultValue.IsEmpty() && (Pin->GetCPPType() != RigVMTypeUtils::FStringType))
+							{
+								if(Pin->IsValidDefaultValue(OriginalDefaultValue))
+								{
+									if(!Pin->DefaultValue.Equals(OriginalDefaultValue, ESearchCase::CaseSensitive))
+									{
+										FRigVMDefaultValueTypeGuard OverrideGuard(this, ERigVMPinDefaultValueType::Unset, true);
+										if(SetPinDefaultValue(Pin, OriginalDefaultValue, true, false, false))
+										{
+											Result.bChangedContent = true;
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+	return Result;
+
+}
+
+ERigVMPinDefaultValueType URigVMController::GetDefaultValueType(const URigVMPin* InPin, const FString& InDefaultValue) const
+{
+	if(!CVarRigVMEnablePinDefaultTypes.GetValueOnAnyThread())
+	{
+		return ERigVMPinDefaultValueType::AutoDetect;
+	}
+	
+	// default to user provided values
+	ERigVMPinDefaultValueType Type = OptionalDefaultValueType.Get(InPin->GetDefaultValueType());
+	
+	if(Type == ERigVMPinDefaultValueType::AutoDetect)
+	{
+		if(InDefaultValue.IsEmpty())
+		{
+			return ERigVMPinDefaultValueType::Unset;
+		}
+		
+		FString OriginalDefaultValue = InPin->GetOriginalDefaultValue();
+		PostProcessDefaultValue(InPin, OriginalDefaultValue);
+		if(OriginalDefaultValue.Equals(InDefaultValue, ESearchCase::CaseSensitive))
+		{
+			return ERigVMPinDefaultValueType::Unset;
+		}
+
+		// if the node didn't provide a valid default value let's keep it at autodetect
+		if(OriginalDefaultValue.IsEmpty() && (InPin->GetCPPType() != RigVMTypeUtils::FStringType))
+		{
+			return ERigVMPinDefaultValueType::AutoDetect;
+		}
+		
+		return ERigVMPinDefaultValueType::Override;
+	}
+
+	if(Type == ERigVMPinDefaultValueType::KeepValueType)
+	{
+		return InPin->GetDefaultValueType();
+	}
+
+	return Type;
 }
 
 void URigVMController::PostDuplicateHost(const FString& InOldPathName, const FString& InNewPathName)

@@ -987,6 +987,13 @@ void URigVMBlueprint::PostLoad()
 			PatchParameterNodesOnLoad();
 			PatchLinksWithCast();
 			PatchFunctionsOnLoad();
+
+			const FRigVMClientPatchResult PinDefaultValuePatchResult = GetRigVMClient()->PatchPinDefaultValues();
+			if(PinDefaultValuePatchResult.RequiresToMarkPackageDirty())
+			{
+				(void)MarkPackageDirty();
+				bDirtyDuringLoad = true;
+			}
 		}
 
 #if WITH_EDITOR

@@ -114,6 +114,95 @@ TArray<URigVMPin*> URigVMNode::GetAllPinsRecursively() const
 	return Result;
 }
 
+FString URigVMNode::GetOriginalPinDefaultValue(const URigVMPin* InPin) const
+{
+	const FString CompleteSegmentPath = InPin->GetSegmentPath(true);
+	if(const FString* CachedOriginalPinDefaultValue = CachedOriginalPinDefaultValues.Find(CompleteSegmentPath))
+	{
+		return *CachedOriginalPinDefaultValue;
+	}
+	
+	const URigVMPin* RootPin = InPin->GetRootPin();
+	const FString OriginalDefaultValue = GetOriginalDefaultValueForRootPin(RootPin);
+	if((RootPin != InPin) && !OriginalDefaultValue.IsEmpty())
+	{
+		struct Local
+		{
+			static FString TraverseArrayElement(TMap<FString, FString>& Cache, const URigVMPin* InPin, const FString& InSegmentPath, const FString& InRemainingSegmentPath, const FString& InDefaultValue)
+			{
+				FString Left = InRemainingSegmentPath, Right;
+				(void)URigVMPin::SplitPinPathAtStart(InRemainingSegmentPath, Left, Right);
+
+				if(const URigVMPin* SubPin = InPin->FindSubPin(Left))
+				{
+					const TArray<FString> DefaultValues = URigVMPin::SplitDefaultValue(InDefaultValue);
+					if(DefaultValues.IsValidIndex(SubPin->GetPinIndex()))
+					{
+						const FString SubPinDefaultValue = DefaultValues[SubPin->GetPinIndex()];
+						return Traverse(Cache, SubPin, URigVMPin::JoinPinPath(InSegmentPath, Left), Right, SubPinDefaultValue);
+					}
+				}
+				return FString();
+			}
+
+			static FString TraverseStructMember(TMap<FString, FString>& Cache, const URigVMPin* InPin, const FString& InSegmentPath, const FString& InRemainingSegmentPath, const FString& InDefaultValue)
+			{
+				FString Left = InRemainingSegmentPath, Right;
+				(void)URigVMPin::SplitPinPathAtStart(InRemainingSegmentPath, Left, Right);
+
+				const TArray<FString> DefaultValues = URigVMPin::SplitDefaultValue(InDefaultValue);
+				for(const FString& DefaultValue : DefaultValues)
+				{
+					FString Name, Value;
+					if (DefaultValue.Split(TEXT("="), &Name, &Value))
+					{
+						if(Left.Equals(Name, ESearchCase::CaseSensitive))
+						{
+							if(const URigVMPin* SubPin = InPin->FindSubPin(Left))
+							{
+								return Traverse(Cache, SubPin, URigVMPin::JoinPinPath(InSegmentPath, Left), Right, Value);
+							}
+						}
+					}
+				}
+
+				return FString();
+			}
+
+			static FString Traverse(TMap<FString, FString>& Cache, const URigVMPin* InPin, const FString& InSegmentPath, const FString& InRemainingSegmentPath, const FString& InDefaultValue)
+			{
+				FString DefaultValue = InDefaultValue;
+				if(!InRemainingSegmentPath.IsEmpty())
+				{
+					if(InPin->IsArray())
+					{
+						DefaultValue = TraverseArrayElement(Cache, InPin, InSegmentPath, InRemainingSegmentPath, InDefaultValue);
+					}
+					else if(InPin->IsStruct())
+					{
+						DefaultValue = TraverseStructMember(Cache, InPin, InSegmentPath, InRemainingSegmentPath, InDefaultValue);
+					}
+				}
+
+				if(!InDefaultValue.IsEmpty())
+				{
+					Cache.FindOrAdd(InSegmentPath, InDefaultValue);
+				}
+				return DefaultValue;
+			}
+		};
+
+		const FString SegmentPath = InPin->GetSegmentPath(false);
+		return Local::Traverse(CachedOriginalPinDefaultValues, RootPin, RootPin->GetName(), SegmentPath, OriginalDefaultValue);
+	}
+
+	if(!OriginalDefaultValue.IsEmpty())
+	{
+		CachedOriginalPinDefaultValues.FindOrAdd(CompleteSegmentPath, OriginalDefaultValue);
+	}
+	return OriginalDefaultValue;
+}
+
 URigVMPin* URigVMNode::FindPin(const FString& InPinPath) const
 {
 	FString Left, Right;
@@ -149,6 +238,25 @@ URigVMPin* URigVMNode::FindPin(const FString& InPinPath) const
 		}
 	}
 	
+	return nullptr;
+}
+
+URigVMPin* URigVMNode::FindRootPinByName(const FName& InPinName) const
+{
+	for(TObjectPtr<URigVMPin> Pin : Pins)
+	{
+		if(Pin->GetFName().IsEqual(InPinName, ENameCase::CaseSensitive))
+		{
+			return Pin;
+		}
+	}
+	for(TObjectPtr<URigVMPin> OrphanedPin : OrphanedPins)
+	{
+		if(OrphanedPin->GetFName().IsEqual(InPinName, ENameCase::CaseSensitive))
+		{
+			return OrphanedPin;
+		}
+	}
 	return nullptr;
 }
 
@@ -221,6 +329,12 @@ FText URigVMNode::GetToolTipText() const
 FText URigVMNode::GetToolTipTextForPin(const URigVMPin* InPin) const
 {
 	return FText::FromName(InPin->GetFName());
+}
+
+FString URigVMNode::GetOriginalDefaultValueForRootPin(const URigVMPin* InRootPin) const
+{
+	ensure(InRootPin->IsRootPin());
+	return FString();
 }
 
 void URigVMNode::UpdateDecoratorRootPinNames()
@@ -623,6 +737,11 @@ void URigVMNode::GetLinkedNodesRecursive(URigVMPin* InPin, bool bLookForSources,
 	{
 		GetLinkedNodesRecursive(SubPin, bLookForSources, OutNodes);
 	}
+}
+
+void URigVMNode::InvalidateCache()
+{
+	CachedOriginalPinDefaultValues.Reset();
 }
 
 const TArray<int32>& URigVMNode::GetInstructionsForVM(const FRigVMExtendedExecuteContext& Context, URigVM* InVM, const FRigVMASTProxy& InProxy) const

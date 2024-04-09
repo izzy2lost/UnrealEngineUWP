@@ -218,6 +218,18 @@ bool URigVMDispatchNode::ShouldInputPinComputeLazily(const URigVMPin* InPin) con
 	return Super::ShouldInputPinComputeLazily(InPin);
 }
 
+FString URigVMDispatchNode::GetOriginalDefaultValueForRootPin(const URigVMPin* InRootPin) const
+{
+	if(const FRigVMDispatchFactory* Factory = GetFactory())
+	{
+		if(InRootPin->CanProvideDefaultValue())
+		{
+			return Factory->GetArgumentDefaultValue(InRootPin->GetFName(), InRootPin->GetTypeIndex());
+		}
+	}
+	return Super::GetOriginalDefaultValueForRootPin(InRootPin);
+}
+
 FString URigVMDispatchNode::GetFactoryDefaultValue() const
 {
 	TArray<FString> PinDefaultValues;

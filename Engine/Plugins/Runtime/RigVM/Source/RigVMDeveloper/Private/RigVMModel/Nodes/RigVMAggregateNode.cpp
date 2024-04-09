@@ -243,6 +243,28 @@ TArray<URigVMPin*> URigVMAggregateNode::GetAggregateOutputs() const
 #endif
 }
 
+FString URigVMAggregateNode::GetOriginalDefaultValueForRootPin(const URigVMPin* InRootPin) const
+{
+	if(InRootPin->CanProvideDefaultValue())
+	{
+		if(const URigVMFunctionEntryNode* EntryNode = GetEntryNode())
+		{
+			if(const URigVMPin* EntryPin = EntryNode->FindPin(InRootPin->GetName()))
+			{
+				if(!EntryPin->GetLinks().IsEmpty())
+				{
+					// linked targets only since only input pins on the outer node are valid for default values
+					if(const URigVMPin* InnerRootPin = EntryPin->GetLinks()[0]->GetTargetPin())
+					{
+						return InnerRootPin->GetOriginalDefaultValue();
+					}
+				}
+			}
+		}
+	}
+	return Super::GetOriginalDefaultValueForRootPin(InRootPin);
+}
+
 void URigVMAggregateNode::InvalidateCache()
 {
 	Super::InvalidateCache();

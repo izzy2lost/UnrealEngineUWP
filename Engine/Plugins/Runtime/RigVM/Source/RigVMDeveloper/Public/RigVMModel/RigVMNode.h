@@ -68,10 +68,17 @@ public:
 	UFUNCTION(BlueprintCallable, Category = RigVMNode)
 	TArray<URigVMPin*> GetAllPinsRecursively() const;
 
+	// Returns the default value for a given pin
+	FString GetOriginalPinDefaultValue(const URigVMPin* InPin) const;
+
 	// Returns a Pin given it's partial pin path below
 	// this node (for example: "Color.R")
 	UFUNCTION(BlueprintCallable, Category = RigVMNode)
 	URigVMPin* FindPin(const FString& InPinPath) const;
+
+	// Returns a root pin given its name
+	UFUNCTION(BlueprintCallable, Category = RigVMNode)
+	URigVMPin* FindRootPinByName(const FName& InPinName) const;
 
 	// Returns all of the top-level orphaned Pins of this Node.
 	UFUNCTION(BlueprintCallable, Category = RigVMNode)
@@ -335,11 +342,13 @@ private:
 
 protected:
 
-	virtual void InvalidateCache() {}
+	virtual void InvalidateCache();
 	virtual TArray<int32> GetInstructionsForVMImpl(const FRigVMExtendedExecuteContext& Context, URigVM* InVM, const FRigVMASTProxy& InProxy = FRigVMASTProxy()) const; 
 	virtual FText GetToolTipTextForPin(const URigVMPin* InPin) const;
 	virtual bool AllowsLinksOn(const URigVMPin* InPin) const { return true; }
 	virtual bool ShouldInputPinComputeLazily(const URigVMPin* InPin) const { return false; }
+	virtual FString GetOriginalDefaultValueForRootPin(const URigVMPin* InRootPin) const;
+
 	void UpdateDecoratorRootPinNames();
 
 	UPROPERTY()
@@ -386,6 +395,8 @@ private:
 	mutable TMap<uint32, TSharedPtr<FProfilingCache>> ProfilingCache;
 	static TArray<int32> EmptyInstructionArray;
 #endif
+
+	mutable TMap<FString, FString> CachedOriginalPinDefaultValues;
 	
 	friend class URigVMController;
 	friend class URigVMGraph;
@@ -394,4 +405,3 @@ private:
 	friend class FRigVMLexer;
 	friend class URigVMSchema;
 };
-

@@ -246,6 +246,7 @@ public:
 
 	// backwards compatibility
 	FRigVMClientPatchResult PatchModelsOnLoad();
+	FRigVMClientPatchResult PatchPinDefaultValues();
 
 	// try to reattach detached links and delete remaining ones
 	void ProcessDetachedLinks();

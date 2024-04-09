@@ -20,6 +20,8 @@ class URigVMPin;
 class URigVMLink;
 class URigVMVariableNode;
 
+extern RIGVMDEVELOPER_API TAutoConsoleVariable<bool> CVarRigVMEnablePinDefaultTypes;
+
 /**
  * The Injected Info is used for injecting a node on a pin.
  * Injected nodes are not visible to the user, but they are normal
@@ -71,6 +73,15 @@ public:
 	};
 
 	FWeakInfo GetWeakInfo() const;
+};
+
+UENUM()
+enum class ERigVMPinDefaultValueType : uint8
+{
+	AutoDetect, // Detect if this is an unchanged or overridden value based on the delta
+	Unset, // The value is unchanged and will remain the original default
+	Override, // The value is overridden by the user and should stay like this no matter what
+	KeepValueType, // The value type should be kept as well as the value itself (don't touch this)
 };
 
 /**
@@ -284,6 +295,9 @@ public:
 	// Returns true if this pin's subpins should be hidden in the UI
 	UFUNCTION(BlueprintCallable, Category = RigVMPin)
 	bool ShouldHideSubPins() const;
+
+	UFUNCTION(BlueprintCallable, Category = RigVMPin)
+	FString GetOriginalDefaultValue() const;
 	
 	// Returns the default value of the Pin as a string.
 	// Note that this value is computed based on the Pin's
@@ -300,7 +314,20 @@ public:
 	FString GetDefaultValueStoredByUserInterface() const;
 
 	// Returns true if the default value provided is valid
+	UFUNCTION(BlueprintPure, Category = RigVMPin)
 	bool IsValidDefaultValue(const FString& InDefaultValue) const;
+
+	// Returns true if the default value was ever changed by the user
+	UFUNCTION(BlueprintPure, Category = RigVMPin)
+	bool HasUserProvidedDefaultValue() const;
+
+	// Returns true if the pin can / may provide a default value 
+	UFUNCTION(BlueprintPure, Category = RigVMPin)
+	ERigVMPinDefaultValueType GetDefaultValueType() const { return DefaultValueType; }
+
+	// Returns true if the pin can / may provide a default value 
+	UFUNCTION(BlueprintPure, Category = RigVMPin)
+	bool CanProvideDefaultValue() const;
 
 	// Returns the default value clamped with the limit meta values defined by the UPROPERTY in URigVMUnitNodes 
 	FString ClampDefaultValueFromMetaData(const FString& InDefaultValue) const;
@@ -534,6 +561,9 @@ private:
 
 	UPROPERTY()
 	FString DefaultValue;
+
+	UPROPERTY()
+	ERigVMPinDefaultValueType DefaultValueType;
 
 	UPROPERTY()
 	FName CustomWidgetName;
