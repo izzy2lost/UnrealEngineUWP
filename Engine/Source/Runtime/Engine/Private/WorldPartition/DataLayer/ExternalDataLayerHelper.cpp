@@ -260,7 +260,7 @@ bool FExternalDataLayerHelper::MoveActorsToExternalDataLayer(const TArray<AActor
 		TArray<UObject*> DependantObjects;
 		ForEachObjectWithPackage(OldActorPackage, [&DependantObjects](UObject* Object)
 		{
-			if (!Cast<UMetaData>(Object) && !Cast<UDeletedObjectPlaceholder>(Object))
+			if (!Cast<UMetaData>(Object) && !Cast<UDeletedObjectPlaceholder>(Object) && !Cast<AActor>(Object))
 			{
 				DependantObjects.Add(Object);
 			}
