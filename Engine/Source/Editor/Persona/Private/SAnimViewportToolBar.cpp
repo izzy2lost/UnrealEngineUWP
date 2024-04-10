@@ -812,7 +812,6 @@ TSharedRef<SWidget> SAnimViewportToolBar::GenerateCharacterMenu() const
 						Section.AddMenuEntry(FAnimViewportShowCommands::Get().ShowSockets);
 						Section.AddMenuEntry(FAnimViewportShowCommands::Get().ShowAttributes);
 						Section.AddMenuEntry(FAnimViewportShowCommands::Get().ShowBoneNames);
-						Section.AddMenuEntry(FAnimViewportShowCommands::Get().ShowBoneColors);
 					}
 
 					{

@@ -104,9 +104,6 @@ public:
 	/** Show skeletal mesh bone names */
 	TSharedPtr< FUICommandInfo > ShowBoneNames;
 
-	/** Show skeletal mesh bone names */
-	TSharedPtr< FUICommandInfo > ShowBoneColors;
-
 	/** Show skeletal mesh info */
 	TSharedPtr< FUICommandInfo > ShowDisplayInfoBasic;
 	TSharedPtr< FUICommandInfo > ShowDisplayInfoDetailed;
