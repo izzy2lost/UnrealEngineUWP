@@ -140,7 +140,6 @@ enum EForceInit
 };
 enum ENoInit {NoInit};
 enum EInPlace {InPlace};
-enum EPerElement {PerElement};
 
 #endif // RC_INVOKED
 
