@@ -315,7 +315,10 @@ RHI_API void FRHIBreadcrumbState::DumpActiveBreadcrumbs(TMap<FQueueID, TArray<FR
 		}
 	}
 
-	FGenericCrashContext::SetGPUBreadcrumbs(MoveTemp(CrashData));
+	if (CrashData.Queues.Num())
+	{
+		FGenericCrashContext::SetGPUBreadcrumbs(MoveTemp(CrashData));
+	}
 	UE_LOG(LogRHI, Error, TEXT("Active GPU breadcrumbs:%s\r\n"), *Tree);
 }
 
