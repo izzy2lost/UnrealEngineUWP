@@ -326,6 +326,10 @@ void FShaderPreprocessOutput::StripCode(bool bCopyOriginalPreprocessdSource)
 				*OutStripped++ = *Current++;
 			}
 		}
+		else if (*Current == 0)
+		{
+			*OutStripped++ = *Current++;
+		}
 	}
 	check(OutStripped <= OutStrippedData + PreprocessedSourceStripped.Len());
 	// ShrinkToLen null terminates for us by virtue of adding zero'd SIMD padding
