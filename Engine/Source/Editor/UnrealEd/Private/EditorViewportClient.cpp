@@ -2870,6 +2870,7 @@ bool FEditorViewportClient::SupportsPreviewResolutionFraction() const
 	{
 	case VMI_BrushWireframe:
 	case VMI_Wireframe:
+	case VMI_Lit_Wireframe:
 	case VMI_LightComplexity:
 	case VMI_LightmapDensity:
 	case VMI_LitLightmapDensity:

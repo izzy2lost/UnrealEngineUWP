@@ -40,6 +40,10 @@ TArray<FText> FillViewModeDisplayNames()
 		{
 			ViewModeDisplayNames.Emplace(LOCTEXT("UViewModeUtils_VMI_Lit_DetailLighting", "Detail Lighting"));
 		}
+		else if (ViewModeIndex == VMI_Lit_Wireframe)
+		{
+			ViewModeDisplayNames.Emplace(LOCTEXT("UViewModeUtils_VMI_Lit_Wireframe", "Lit Wireframe"));
+		}
 		// Lit wo/ materials
 		else if (ViewModeIndex == VMI_LightingOnly)
 		{
@@ -243,6 +247,10 @@ TArray<const FSlateBrush*> FillViewModeDisplayIcons()
 		else if (ViewModeIndex == VMI_Lit_DetailLighting)
 		{
 			ViewModeDisplayIcons.Emplace(FAppStyle::Get().GetBrush("EditorViewport.DetailLightingMode"));
+		}
+		else if (ViewModeIndex == VMI_Lit_Wireframe)
+		{
+			ViewModeDisplayIcons.Emplace(FAppStyle::Get().GetBrush("EditorViewport.LitWireframeMode"));
 		}
 		// Lit wo/ materials
 		else if (ViewModeIndex == VMI_LightingOnly)

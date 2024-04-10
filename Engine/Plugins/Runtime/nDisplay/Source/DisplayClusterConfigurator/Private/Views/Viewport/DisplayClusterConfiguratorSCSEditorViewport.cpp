@@ -211,6 +211,7 @@ public:
 		static FName LitModeIconName("EditorViewport.LitMode");
 		static FName UnlitModeIconName("EditorViewport.UnlitMode");
 		static FName WireframeModeIconName("EditorViewport.WireframeMode");
+		static FName LitWireframeModeIconName("EditorViewport.LitWireframeMode");
 
 		FName Icon = NAME_None;
 
@@ -228,6 +229,10 @@ public:
 
 			case VMI_BrushWireframe:
 				Icon = WireframeModeIconName;
+				break;
+
+			case VMI_Lit_Wireframe:
+				Icon = LitWireframeModeIconName;
 				break;
 			}
 		}

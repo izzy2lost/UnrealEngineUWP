@@ -311,6 +311,9 @@ void ApplyViewMode(EViewModeIndex ViewModeIndex, bool bPerspective, FEngineShowF
 		case VMI_Lit_DetailLighting:
 			bPostProcessing = true;
 			break;
+		case VMI_Lit_Wireframe:
+			bPostProcessing = true;
+			break;
 		case VMI_LightingOnly:
 			bPostProcessing = true;
 			break;
@@ -414,6 +417,7 @@ void ApplyViewMode(EViewModeIndex ViewModeIndex, bool bPerspective, FEngineShowF
 	EngineShowFlags.SetPathTracing(ViewModeIndex == VMI_PathTracing);
 	EngineShowFlags.SetVisualizeGPUSkinCache(ViewModeIndex == VMI_VisualizeGPUSkinCache);
 	EngineShowFlags.SetVisualizeLWCComplexity(ViewModeIndex == VMI_LWCComplexity);
+	EngineShowFlags.SetMeshEdges(ViewModeIndex == VMI_Lit_Wireframe);
 }
 
 void EngineShowFlagOverride(EShowFlagInitMode ShowFlagInitMode, EViewModeIndex ViewModeIndex, FEngineShowFlags& EngineShowFlags, bool bCanDisableTonemapper)
@@ -549,6 +553,7 @@ void EngineShowFlagOverride(EShowFlagInitMode ShowFlagInitMode, EViewModeIndex V
 		}
 
 		if( ViewModeIndex == VMI_Lit ||
+			ViewModeIndex == VMI_Lit_Wireframe ||
 			ViewModeIndex == VMI_LightingOnly ||
 			ViewModeIndex == VMI_LitLightmapDensity)
 		{
@@ -800,6 +805,10 @@ EViewModeIndex FindViewMode(const FEngineShowFlags& EngineShowFlags)
 	{
 		return VMI_ReflectionOverride;
 	}
+	else if (EngineShowFlags.MeshEdges)
+	{
+		return VMI_Lit_Wireframe;
+	}
 	else if (EngineShowFlags.Wireframe)
 	{
 		if (EngineShowFlags.Brushes)
@@ -861,6 +870,7 @@ const TCHAR* GetViewModeName(EViewModeIndex ViewModeIndex)
 		case VMI_Unlit:						return TEXT("Unlit");
 		case VMI_Lit:						return TEXT("Lit");
 		case VMI_Lit_DetailLighting:		return TEXT("Lit_DetailLighting");
+		case VMI_Lit_Wireframe:				return TEXT("Lit_Wireframe");
 		case VMI_LightingOnly:				return TEXT("LightingOnly");
 		case VMI_LightComplexity:			return TEXT("LightComplexity");
 		case VMI_ShaderComplexity:			return TEXT("ShaderComplexity");
