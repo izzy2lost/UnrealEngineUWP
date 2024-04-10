@@ -296,7 +296,7 @@ void UWorkspace::PostLoad()
 
 		for (const TObjectPtr<UWorkspaceAssetEntry>& Entry : AssetEntries)
 		{
-			Entry->Asset->GetPackage()->SetDirtyFlag(true);	
+			Entry->GetPackage()->SetDirtyFlag(true);	
 		}
 
 		Assets_DEPRECATED.Empty();

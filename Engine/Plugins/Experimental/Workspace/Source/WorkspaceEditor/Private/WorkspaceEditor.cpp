@@ -355,6 +355,8 @@ void FWorkspaceEditor::RecordDocumentState(const TInstancedStruct<FWorkspaceDocu
 
 bool FWorkspaceEditor::OnRequestClose(EAssetEditorCloseReason InCloseReason)
 {
+	TGuardValue<bool> ClosingDown(bClosingDown, true);
+
 	auto RequiresSave = [this]()
 	{
 		const UPackage* Package = Workspace->GetOutermost();
@@ -393,7 +395,7 @@ void FWorkspaceEditor::RegisterToolbar()
 
 bool FWorkspaceEditor::ShouldReopenEditorForSavedAsset(const UObject* Asset) const
 {
-	return Asset && Asset->GetClass() != UWorkspace::StaticClass();
+	return !bClosingDown;
 }
 }
 

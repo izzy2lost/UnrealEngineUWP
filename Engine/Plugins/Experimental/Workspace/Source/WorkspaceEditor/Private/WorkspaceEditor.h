@@ -113,6 +113,7 @@ private:
 	TSharedPtr<SWorkspaceView> WorkspaceView;
 
 	bool bSavingWorkspaceOnly = false;
+	bool bClosingDown = false;
 };
 
 }
