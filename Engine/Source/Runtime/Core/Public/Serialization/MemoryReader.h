@@ -34,10 +34,6 @@ public:
 
 	void Serialize( void* Data, int64 Num )
 	{
-#if defined(__clang_analyzer__)
-		// Suppress uninitialized data static analysis warning
-		FMemory::Memzero(Data, Num);
-#endif
 		if (Num && !IsError())
 		{
 			// Only serialize if we have the requested amount of data

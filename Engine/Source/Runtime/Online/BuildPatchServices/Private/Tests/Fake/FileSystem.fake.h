@@ -36,10 +36,6 @@ namespace BuildPatchServices
 
 		void Serialize(void* Data, int64 Num)
 		{
-#if defined(__clang_analyzer__)
-			// Suppress uninitialized data static analysis warning
-			FMemory::Memzero(Data, Num);
-#endif
 			if (Num && !IsError())
 			{
 				if (Offset + Num <= TotalSize())
