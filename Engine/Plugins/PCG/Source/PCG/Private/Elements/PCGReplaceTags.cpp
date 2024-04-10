@@ -3,6 +3,7 @@
 #include "Elements/PCGReplaceTags.h"
 
 #include "PCGContext.h"
+#include "PCGCustomVersion.h"
 #include "PCGData.h"
 #include "PCGModule.h"
 #include "PCGPin.h"
@@ -11,6 +12,18 @@
 #define LOCTEXT_NAMESPACE "PCGReplaceTagsElement"
 
 #if WITH_EDITOR
+void UPCGReplaceTagsSettings::ApplyDeprecation(UPCGNode* InOutNode)
+{
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	if (DataVersion < FPCGCustomVersion::AttributesAndTagsCanContainSpaces)
+	{
+		bTokenizeOnWhiteSpace = true;
+	}
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+	Super::ApplyDeprecation(InOutNode);
+}
+
 FName UPCGReplaceTagsSettings::GetDefaultNodeName() const
 {
 	return TEXT("ReplaceTags");
@@ -24,8 +37,14 @@ FText UPCGReplaceTagsSettings::GetDefaultNodeTitle() const
 
 FString UPCGReplaceTagsSettings::GetAdditionalTitleInformation() const
 {
-	TArray<FString> TagsToReplace = PCGHelpers::GetStringArrayFromCommaSeparatedString(SelectedTags);
-	TArray<FString> TagsToProcess = PCGHelpers::GetStringArrayFromCommaSeparatedString(ReplacedTags);
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	const TArray<FString> TagsToReplace = bTokenizeOnWhiteSpace
+		? PCGHelpers::GetStringArrayFromCommaSeparatedString(SelectedTags)
+		: PCGHelpers::GetStringArrayFromCommaSeparatedList(SelectedTags);
+	const TArray<FString> TagsToProcess = bTokenizeOnWhiteSpace
+		? PCGHelpers::GetStringArrayFromCommaSeparatedString(ReplacedTags)
+		: PCGHelpers::GetStringArrayFromCommaSeparatedList(ReplacedTags);
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	if (TagsToReplace.Num() == 1 && TagsToProcess.Num() == 1)
 	{
@@ -69,8 +88,15 @@ bool FPCGReplaceTagsElement::ExecuteInternal(FPCGContext* Context) const
 	const TArray<FPCGTaggedData> Inputs = Context->InputData.GetInputsByPin(PCGPinConstants::DefaultInputLabel);
 	TArray<FPCGTaggedData>& Outputs = Context->OutputData.TaggedData;
 
-	const TArray<FString> SelectedTags = PCGHelpers::GetStringArrayFromCommaSeparatedString(Settings->SelectedTags);
-	const TArray<FString> ReplacedTags = PCGHelpers::GetStringArrayFromCommaSeparatedString(Settings->ReplacedTags);
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	const TArray<FString> SelectedTags = Settings->bTokenizeOnWhiteSpace
+		? PCGHelpers::GetStringArrayFromCommaSeparatedString(Settings->SelectedTags)
+		: PCGHelpers::GetStringArrayFromCommaSeparatedList(Settings->SelectedTags);
+	const TArray<FString> ReplacedTags = Settings->bTokenizeOnWhiteSpace
+		? PCGHelpers::GetStringArrayFromCommaSeparatedString(Settings->ReplacedTags)
+		: PCGHelpers::GetStringArrayFromCommaSeparatedList(Settings->ReplacedTags);
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
 	if (SelectedTags.IsEmpty() && ReplacedTags.IsEmpty())
 	{
 		// Forward the input and early out

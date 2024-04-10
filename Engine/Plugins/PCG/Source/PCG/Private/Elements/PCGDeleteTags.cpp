@@ -3,12 +3,25 @@
 #include "Elements/PCGDeleteTags.h"
 
 #include "PCGContext.h"
+#include "PCGCustomVersion.h"
 #include "PCGData.h"
 #include "Helpers/PCGHelpers.h"
 
 #define LOCTEXT_NAMESPACE "PCGDeleteTagsElement"
 
 #if WITH_EDITOR
+void UPCGDeleteTagsSettings::ApplyDeprecation(UPCGNode* InOutNode)
+{
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	if (DataVersion < FPCGCustomVersion::AttributesAndTagsCanContainSpaces)
+	{
+		bTokenizeOnWhiteSpace = true;
+	}
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+	Super::ApplyDeprecation(InOutNode);
+}
+
 FName UPCGDeleteTagsSettings::GetDefaultNodeName() const
 {
 	return TEXT("DeleteTags");
@@ -25,7 +38,12 @@ FString UPCGDeleteTagsSettings::GetAdditionalTitleInformation() const
 	if (const UEnum* SelectionEnum = StaticEnum<EPCGTagFilterOperation>())
 	{
 		FText OperationText = SelectionEnum->GetDisplayNameTextByValue(static_cast<int64>(Operation));
-		TArray<FString> TagsToProcess = PCGHelpers::GetStringArrayFromCommaSeparatedString(SelectedTags);
+
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		const TArray<FString> TagsToProcess = bTokenizeOnWhiteSpace
+			? PCGHelpers::GetStringArrayFromCommaSeparatedString(SelectedTags)
+			: PCGHelpers::GetStringArrayFromCommaSeparatedList(SelectedTags);
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 		if (TagsToProcess.Num() == 1)
 		{
@@ -63,7 +81,12 @@ bool FPCGDeleteTagsElement::ExecuteInternal(FPCGContext* Context) const
 	const UPCGDeleteTagsSettings* Settings = Context->GetInputSettings<UPCGDeleteTagsSettings>();
 	check(Settings);
 
-	const TArray<FString> FilterTags = PCGHelpers::GetStringArrayFromCommaSeparatedString(Settings->SelectedTags);
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	const TArray<FString> FilterTags = Settings->bTokenizeOnWhiteSpace
+		? PCGHelpers::GetStringArrayFromCommaSeparatedString(Settings->SelectedTags, Context)
+		: PCGHelpers::GetStringArrayFromCommaSeparatedList(Settings->SelectedTags);
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
 	TSet<FString> TagsToFilter(FilterTags);
 
 	const bool bKeepInFilter = (Settings->Operation == EPCGTagFilterOperation::KeepOnlySelectedTags);

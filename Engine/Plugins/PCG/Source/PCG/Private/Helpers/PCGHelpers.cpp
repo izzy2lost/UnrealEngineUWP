@@ -288,10 +288,37 @@ namespace PCGHelpers
 		return (InWorld && InWorld->GetSubsystem<UPCGSubsystem>()) ? InWorld->GetSubsystem<UPCGSubsystem>()->GetPCGWorldActor() : nullptr;
 	}
 
-	TArray<FString> GetStringArrayFromCommaSeparatedString(const FString& InCommaSeparatedString)
+	// TODO: Temporary validation during transition of allowing spaces in tags/attributes. Deprecate in 5.6.
+	TArray<FString> GetStringArrayFromCommaSeparatedString(const FString& InCommaSeparatedString, const FPCGContext* InOptionalContext)
 	{
+#if WITH_EDITOR
+		if (InCommaSeparatedString.Contains(" "))
+		{
+			PCGLog::LogWarningOnGraph(
+				FText::Format(LOCTEXT(
+					"AttributeOrTagContainsSpace", "The comma separated list '{0}' contains an internal space character, which should no longer be parsed as a separator. \n"
+					"Disable 'bParseOnWhiteSpace' on the node to deprecate and update the behavior."),
+					FText::FromString(InCommaSeparatedString)),
+				InOptionalContext);
+		}
+#endif // WITH_EDITOR
+
 		TArray<FString> Result;
 		InCommaSeparatedString.ParseIntoArrayWS(Result, TEXT(","));
+
+		return Result;
+	}
+
+	TArray<FString> GetStringArrayFromCommaSeparatedList(const FString& InCommaSeparatedString)
+	{
+		TArray<FString> Result;
+		InCommaSeparatedString.ParseIntoArray(Result, TEXT(","));
+		// Trim leading and trailing spaces
+		for (FString& String : Result)
+		{
+			String.TrimStartAndEndInline();
+		}
+
 		return Result;
 	}
 

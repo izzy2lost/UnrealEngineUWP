@@ -2,7 +2,7 @@
 
 #include "Elements/PCGFilterByTag.h"
 #include "PCGContext.h"
-#include "PCGPin.h"
+#include "PCGCustomVersion.h"
 #include "Helpers/PCGHelpers.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(PCGFilterByTag)
@@ -10,6 +10,18 @@
 #define LOCTEXT_NAMESPACE "PCGFilterByTag"
 
 #if WITH_EDITOR
+void UPCGFilterByTagSettings::ApplyDeprecation(UPCGNode* InOutNode)
+{
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	if (DataVersion < FPCGCustomVersion::AttributesAndTagsCanContainSpaces)
+	{
+		bTokenizeOnWhiteSpace = true;
+	}
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+	Super::ApplyDeprecation(InOutNode);
+}
+
 FName UPCGFilterByTagSettings::GetDefaultNodeName() const
 {
 	return FName(TEXT("FilterDataByTag"));
@@ -28,7 +40,11 @@ FText UPCGFilterByTagSettings::GetNodeTooltipText() const
 
 FString UPCGFilterByTagSettings::GetAdditionalTitleInformation() const
 {
-	const TArray<FString> Tags = PCGHelpers::GetStringArrayFromCommaSeparatedString(SelectedTags);
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	const TArray<FString> Tags = bTokenizeOnWhiteSpace
+		? PCGHelpers::GetStringArrayFromCommaSeparatedString(SelectedTags)
+		: PCGHelpers::GetStringArrayFromCommaSeparatedList(SelectedTags);
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	const FString Prefix = (Operation == EPCGFilterByTagOperation::KeepTagged ? TEXT("Tag (Keep):") : TEXT("Tag (Remove):"));
 
@@ -59,7 +75,12 @@ bool FPCGFilterByTagElement::ExecuteInternal(FPCGContext* Context) const
 	const UPCGFilterByTagSettings* Settings = Context->GetInputSettings<UPCGFilterByTagSettings>();
 
 	const bool bKeepIfTag = (Settings->Operation == EPCGFilterByTagOperation::KeepTagged);
-	const TArray<FString> Tags = PCGHelpers::GetStringArrayFromCommaSeparatedString(Settings->SelectedTags);
+
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	const TArray<FString> Tags = Settings->bTokenizeOnWhiteSpace
+		? PCGHelpers::GetStringArrayFromCommaSeparatedString(Settings->SelectedTags, Context)
+		: PCGHelpers::GetStringArrayFromCommaSeparatedList(Settings->SelectedTags);
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	TArray<FPCGTaggedData> Inputs = Context->InputData.GetInputsByPin(PCGPinConstants::DefaultInputLabel);
 	TArray<FPCGTaggedData>& Outputs = Context->OutputData.TaggedData;

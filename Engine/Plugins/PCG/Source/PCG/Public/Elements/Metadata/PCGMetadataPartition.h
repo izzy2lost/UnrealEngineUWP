@@ -19,6 +19,8 @@ public:
 
 	//~Begin UPCGSettings interface
 #if WITH_EDITOR
+	virtual void ApplyDeprecation(UPCGNode* InOutNode) override;
+
 	virtual FName GetDefaultNodeName() const override { return FName(TEXT("AttributePartition")); }
 	virtual FText GetDefaultNodeTitle() const override { return NSLOCTEXT("PCGMetadataPartitionSettings", "NodeTitle", "Attribute Partition"); }
 	virtual EPCGSettingsType GetType() const override { return EPCGSettingsType::Metadata; }
@@ -42,11 +44,18 @@ public:
 	UPROPERTY(meta = (PCG_Overridable))
 	FString PartitionAttributeNames;
 
+	/** Enables deprecated behavior using spaces as separators. Disable to update the node to current behavior. */
+	UE_DEPRECATED(5.6, "bTokenizeOnWhiteSpace has been deprecated.")
+	UPROPERTY(EditAnywhere, Category = Settings, meta = (EditCondition = "bTokenizeOnWhiteSpace", EditConditionHides, DeprecationMessage = "bTokenizeOnWhiteSpace has been deprecated."))
+	bool bTokenizeOnWhiteSpace = false;
+
 #if WITH_EDITORONLY_DATA
-	UPROPERTY()
+	UE_DEPRECATED(5.6, "PartitionAttribute has been deprecated.")
+	UPROPERTY(meta = (DeprecatedProperty, DeprecationMessage = "PartitionAttribute has been deprecated."))
 	FName PartitionAttribute_DEPRECATED = NAME_None;
 
-	UPROPERTY()
+	UE_DEPRECATED(5.6, "PartitionAttributeSource has been deprecated.")
+	UPROPERTY(meta = (DeprecatedProperty, DeprecationMessage = "PartitionAttributeSource has been deprecated."))
 	FPCGAttributePropertyInputSelector PartitionAttributeSource_DEPRECATED;
 #endif // WITH_EDITORONLY_DATA
 };

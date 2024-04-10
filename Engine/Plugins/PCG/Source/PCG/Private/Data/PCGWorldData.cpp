@@ -29,7 +29,7 @@ void FPCGWorldCommonQueryParams::Initialize()
 	}
 	else
 	{
-		TArray<FString> ParsedList = PCGHelpers::GetStringArrayFromCommaSeparatedString(ActorTagsList);
+		TArray<FString> ParsedList = PCGHelpers::GetStringArrayFromCommaSeparatedList(ActorTagsList);
 		ParsedActorTagsList.Reset();
 		for (const FString& Tag : ParsedList)
 		{

@@ -3,10 +3,25 @@
 #include "Elements/PCGAddTag.h"
 
 #include "PCGContext.h"
+#include "PCGCustomVersion.h"
 #include "PCGPin.h"
 #include "Helpers/PCGHelpers.h"
 
 #define LOCTEXT_NAMESPACE "PCGAddTagElement"
+
+#if WITH_EDITOR
+void UPCGAddTagSettings::ApplyDeprecation(UPCGNode* InOutNode)
+{
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	if (DataVersion < FPCGCustomVersion::AttributesAndTagsCanContainSpaces)
+	{
+		bTokenizeOnWhiteSpace = true;
+	}
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+	Super::ApplyDeprecation(InOutNode);
+}
+#endif // WITH_EDITOR
 
 TArray<FPCGPinProperties> UPCGAddTagSettings::OutputPinProperties() const
 {
@@ -32,8 +47,12 @@ bool FPCGAddTagElement::ExecuteInternal(FPCGContext* Context) const
 	
 	Context->OutputData.TaggedData = Context->InputData.GetInputsByPin(PCGPinConstants::DefaultInputLabel);
 
-	const TArray<FString> TagsArray = PCGHelpers::GetStringArrayFromCommaSeparatedString(Settings->TagsToAdd);
-	
+    PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	const TArray<FString> TagsArray = Settings->bTokenizeOnWhiteSpace
+		? PCGHelpers::GetStringArrayFromCommaSeparatedString(Settings->TagsToAdd, Context)
+		: PCGHelpers::GetStringArrayFromCommaSeparatedList(Settings->TagsToAdd);
+    PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
 	for (const FString& Tag : TagsArray)
 	{
 		for (FPCGTaggedData& OutputTaggedData : Context->OutputData.TaggedData)

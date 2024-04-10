@@ -54,7 +54,9 @@ namespace PCGHelpers
 
 	PCG_API APCGWorldActor* GetPCGWorldActor(UWorld* InWorld);
 
-	PCG_API TArray<FString> GetStringArrayFromCommaSeparatedString(const FString& InCommaSeparatedString);
+	UE_DEPRECATED(5.6, "This function was incorrectly parsing by whitespace. Please use 'GetStringArrayFromCommaSeparatedList' instead.")
+	PCG_API TArray<FString> GetStringArrayFromCommaSeparatedString(const FString& InCommaSeparatedString, const FPCGContext* InOptionalContext = nullptr);
+	PCG_API TArray<FString> GetStringArrayFromCommaSeparatedList(const FString& InCommaSeparatedString);
 
 #if WITH_EDITOR
 	PCG_API void GatherDependencies(UObject* Object, TSet<TObjectPtr<UObject>>& OutDependencies, int32 MaxDepth = -1, const TArray<UClass*>& InExcludedClasses = {});

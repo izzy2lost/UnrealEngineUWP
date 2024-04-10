@@ -3,6 +3,7 @@
 #include "Elements/PCGDeleteAttributesElement.h"
 
 #include "PCGContext.h"
+#include "PCGCustomVersion.h"
 #include "PCGParamData.h"
 #include "PCGPin.h"
 #include "Data/PCGSpatialData.h"
@@ -51,6 +52,18 @@ void UPCGDeleteAttributesSettings::PostLoad()
 }
 
 #if WITH_EDITOR
+void UPCGDeleteAttributesSettings::ApplyDeprecation(UPCGNode* InOutNode)
+{
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	if (DataVersion < FPCGCustomVersion::AttributesAndTagsCanContainSpaces)
+	{
+		bTokenizeOnWhiteSpace = true;
+	}
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+	Super::ApplyDeprecation(InOutNode);
+}
+
 FName UPCGDeleteAttributesSettings::GetDefaultNodeName() const
 {
 	return PCGAttributeFilterConstants::NodeName;
@@ -84,7 +97,12 @@ FString UPCGDeleteAttributesSettings::GetAdditionalTitleInformation() const
 		ensureMsgf(false, TEXT("Unrecognized operation"));
 	}
 
-	TArray<FString> AttributesToKeep = PCGHelpers::GetStringArrayFromCommaSeparatedString(SelectedAttributes);
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	const TArray<FString> AttributesToKeep = bTokenizeOnWhiteSpace
+		? PCGHelpers::GetStringArrayFromCommaSeparatedString(SelectedAttributes)
+		: PCGHelpers::GetStringArrayFromCommaSeparatedList(SelectedAttributes);
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
 	if (AttributesToKeep.Num() == 1)
 	{
 		return FString::Printf(TEXT("%s (%s)"), *OperationString, *AttributesToKeep[0]);
@@ -123,8 +141,14 @@ bool FPCGDeleteAttributesElement::ExecuteInternal(FPCGContext* Context) const
 	const bool bAddAttributesFromParent = (Settings->Operation == EPCGAttributeFilterOperation::DeleteSelectedAttributes);
 	const EPCGMetadataFilterMode FilterMode = bAddAttributesFromParent ? EPCGMetadataFilterMode::ExcludeAttributes : EPCGMetadataFilterMode::IncludeAttributes;
 
-	TSet<FName> AttributesToFilter; 
-	const TArray<FString> FilterAttributes = PCGHelpers::GetStringArrayFromCommaSeparatedString(Settings->SelectedAttributes);
+	TSet<FName> AttributesToFilter;
+
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	const TArray<FString> FilterAttributes = Settings->bTokenizeOnWhiteSpace
+	   ? PCGHelpers::GetStringArrayFromCommaSeparatedString(Settings->SelectedAttributes, Context)
+	   : PCGHelpers::GetStringArrayFromCommaSeparatedList(Settings->SelectedAttributes);
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
 	for (const FString& FilterAttribute : FilterAttributes)
 	{
 		AttributesToFilter.Add(FName(*FilterAttribute));

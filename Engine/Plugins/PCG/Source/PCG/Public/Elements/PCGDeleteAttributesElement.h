@@ -33,6 +33,8 @@ public:
 
 	//~Begin UPCGSettings interface
 #if WITH_EDITOR
+	virtual void ApplyDeprecation(UPCGNode* InOutNode) override;
+
 	virtual FName GetDefaultNodeName() const override;
 	virtual FText GetDefaultNodeTitle() const override;
 	virtual TArray<FText> GetNodeTitleAliases() const override;
@@ -58,6 +60,11 @@ public:
 	/** Comma-separated list of attributes to keep or remove from the input data. */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable))
 	FString SelectedAttributes;
+
+	/** Enables deprecated behavior using spaces as separators. Disable to update the node to current behavior. */
+	UE_DEPRECATED(5.6, "bTokenizeOnWhiteSpace has been deprecated.")
+	UPROPERTY(EditAnywhere, Category = Settings, meta = (EditCondition = "bTokenizeOnWhiteSpace", EditConditionHides, DeprecationMessage = "bTokenizeOnWhiteSpace has been deprecated."))
+	bool bTokenizeOnWhiteSpace = false;
 
 #if WITH_EDITORONLY_DATA
 	UPROPERTY()

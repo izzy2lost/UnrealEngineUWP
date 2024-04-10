@@ -35,6 +35,13 @@ void UPCGLoopSettings::ApplyDeprecation(UPCGNode* InOutNode)
 		bUseGraphDefaultPinUsage = LoopPins.IsEmpty();
 	}
 
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	if (DataVersion < FPCGCustomVersion::AttributesAndTagsCanContainSpaces)
+	{
+		bTokenizeOnWhiteSpace = true;
+	}
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
 	Super::ApplyDeprecation(InOutNode);
 }
 
@@ -112,13 +119,21 @@ void UPCGLoopSettings::GetLoopPinNames(FPCGContext* Context, TArray<FName>& Loop
 	}
 	else
 	{
-		TArray<FString> PinsFromSettings = PCGHelpers::GetStringArrayFromCommaSeparatedString(LoopPins);
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		TArray<FString> PinsFromSettings = bTokenizeOnWhiteSpace
+			? PCGHelpers::GetStringArrayFromCommaSeparatedString(LoopPins, Context)
+			: PCGHelpers::GetStringArrayFromCommaSeparatedList(LoopPins);
+
 		for (const FString& PinLabel : PinsFromSettings)
 		{
 			LoopPinNames.Emplace(PinLabel);
 		}
 
-		PinsFromSettings = PCGHelpers::GetStringArrayFromCommaSeparatedString(FeedbackPins);
+		PinsFromSettings = bTokenizeOnWhiteSpace
+			? PCGHelpers::GetStringArrayFromCommaSeparatedString(FeedbackPins, Context)
+			: PCGHelpers::GetStringArrayFromCommaSeparatedList(FeedbackPins);
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
 		for (const FString& PinLabel : PinsFromSettings)
 		{
 			if (LoopPinNames.Contains(PinLabel))

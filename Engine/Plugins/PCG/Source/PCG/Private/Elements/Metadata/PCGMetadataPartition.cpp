@@ -3,7 +3,7 @@
 #include "Elements/Metadata/PCGMetadataPartition.h"
 
 #include "PCGContext.h"
-#include "PCGModule.h"
+#include "PCGCustomVersion.h"
 #include "Helpers/PCGHelpers.h"
 #include "Metadata/PCGMetadataAttribute.h"
 #include "Metadata/PCGMetadataPartitionCommon.h"
@@ -30,6 +30,7 @@ void UPCGMetadataPartitionSettings::PostLoad()
 	Super::PostLoad();
 
 #if WITH_EDITOR
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	if (PartitionAttribute_DEPRECATED != NAME_None)
 	{
 		PartitionAttributeSelectors.Empty();
@@ -43,8 +44,23 @@ void UPCGMetadataPartitionSettings::PostLoad()
 		PartitionAttributeSelectors.Emplace(PartitionAttributeSource_DEPRECATED);
 		PartitionAttributeSource_DEPRECATED = FPCGAttributePropertyInputSelector();
 	}
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 #endif // WITH_EDITOR
 }
+
+#if WITH_EDITOR
+void UPCGMetadataPartitionSettings::ApplyDeprecation(UPCGNode* InOutNode)
+{
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	if (DataVersion < FPCGCustomVersion::AttributesAndTagsCanContainSpaces)
+	{
+		bTokenizeOnWhiteSpace = true;
+	}
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+	Super::ApplyDeprecation(InOutNode);
+}
+#endif // WITH_EDITOR
 
 FString UPCGMetadataPartitionSettings::GetAdditionalTitleInformation() const
 {
@@ -81,7 +97,13 @@ bool FPCGMetadataPartitionElement::ExecuteInternal(FPCGContext* Context) const
 
 	// TODO: This is a temporary solution for overrides until arrays are supported
 	TArray<FPCGAttributePropertyInputSelector> OverriddenSelectors;
-	const TArray<FString> AttributeNames = PCGHelpers::GetStringArrayFromCommaSeparatedString(Settings->PartitionAttributeNames);
+
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	const TArray<FString> AttributeNames = Settings->bTokenizeOnWhiteSpace
+		? PCGHelpers::GetStringArrayFromCommaSeparatedString(Settings->PartitionAttributeNames, Context)
+		: PCGHelpers::GetStringArrayFromCommaSeparatedList(Settings->PartitionAttributeNames);
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
 	// If the names are overridden by the user, generate the selectors with them
 	OverriddenSelectors.SetNum(AttributeNames.Num());
 	for (const FString& AttributeName : AttributeNames)
