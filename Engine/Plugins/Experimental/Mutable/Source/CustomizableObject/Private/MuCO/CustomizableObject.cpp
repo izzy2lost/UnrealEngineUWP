@@ -2025,7 +2025,8 @@ void UCustomizableObjectBulk::PostLoad()
 	UObject::PostLoad();
 
 	const FString OutermostName = GetOutermost()->GetName();
-	const FString PackageFilename = FPackageName::LongPackageNameToFilename(OutermostName);
+	FString PackageFilename = FPackageName::LongPackageNameToFilename(OutermostName);
+	FPaths::MakeStandardFilename(PackageFilename);
 	BulkFilePrefix = PackageFilename;
 }
 
