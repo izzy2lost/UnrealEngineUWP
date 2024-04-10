@@ -500,7 +500,7 @@ void UPoseSearchLibrary::UpdateMotionMatchingState(
 
 #if WITH_EDITOR
 			StringBuilder << SearchContext.IsAsyncBuildIndexInProgress();
-//#else // WITH_EDITOR
+#else // WITH_EDITOR
 			StringBuilder << false;
 #endif // WITH_EDITOR
 
