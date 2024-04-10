@@ -138,7 +138,19 @@ public:
 	TSharedPtr<IPropertyHandle> GetPropertyHandle(FName InProperty);
 #endif
 
+	UFUNCTION(BlueprintPure, Category = "Material Designer")
 	TArray<UDMMaterialParameter*> GetParameters() const;
+
+	UFUNCTION(BlueprintPure, Category = "Material Designer")
+	UDMMaterialParameter* GetMaterialParameter(FName InPropertyName, int32 InComponent) const;
+
+	UFUNCTION(BlueprintPure, Category = "Material Designer")
+	FName GetMaterialParameterName(FName InPropertyName, int32 InComponent) const;
+
+#if WITH_EDITOR
+	UFUNCTION(BlueprintCallable, Category = "Material Designer")
+	bool SetMaterialParameterName(FName InPropertyName, int32 InComponent, FName InNewName);
+#endif
 
 	void SetMIDParameters(UMaterialInstanceDynamic* InMID);
 

@@ -26,7 +26,6 @@
 TMap<EDMValueType, TStrongObjectPtr<UClass>> UDMMaterialValue::TypeClasses = {};
 
 const FString UDMMaterialValue::ParameterPathToken = FString(TEXT("Parameter"));
-const TCHAR* UDMMaterialValue::ParameterNamePrefix = TEXT("VALUE_");
 
 #if WITH_EDITOR
 const FName UDMMaterialValue::ValueName = "Value";
@@ -151,7 +150,7 @@ void UDMMaterialValue::BeginDestroy()
 
 FName UDMMaterialValue::GetMaterialParameterName() const
 {
-	return Parameter ? FName(ParameterNamePrefix + Parameter->GetParameterName().ToString()) : GetFName();
+	return Parameter ? Parameter->GetParameterName() : GetFName();
 }
 
 UDMMaterialComponent* UDMMaterialValue::GetSubComponentByPath(FDMComponentPath& InPath, const FDMComponentPathSegment& InPathSegment) const
