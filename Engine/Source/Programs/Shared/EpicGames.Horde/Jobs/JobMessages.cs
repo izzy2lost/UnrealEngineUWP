@@ -505,6 +505,15 @@ namespace EpicGames.Horde.Jobs
 			TemplateId = templateId;
 			Name = name;
 		}
+
+		/// <summary>
+		/// Default constructor needed for JsonSerializer
+		/// </summary>
+		[JsonConstructor]
+		public GetJobResponse()
+		{
+			Name = "";
+		}
 	}
 
 	/// <summary>
@@ -1009,6 +1018,15 @@ namespace EpicGames.Horde.Jobs
 			State = state;
 			Outcome = outcome;
 		}
+
+		/// <summary>
+		/// Default Constructor needed for JsonSerializer
+		/// </summary>
+		[JsonConstructor]
+		public GetLabelStateResponse()
+		{
+
+		}
 	}
 
 	/// <summary>
@@ -1031,6 +1049,15 @@ namespace EpicGames.Horde.Jobs
 			: base(state, outcome)
 		{
 			Nodes = nodes;
+		}
+
+		/// <summary>
+		/// Default Constructor needed for JsonSerializer
+		/// </summary>
+		[JsonConstructor]
+		public GetDefaultLabelStateResponse() : base()
+		{
+			Nodes = new List<string>();
 		}
 	}
 

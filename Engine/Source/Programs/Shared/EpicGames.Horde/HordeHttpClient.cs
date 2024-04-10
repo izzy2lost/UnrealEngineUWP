@@ -13,6 +13,8 @@ using EpicGames.Core;
 using EpicGames.Horde.Agents.Telemetry;
 using EpicGames.Horde.Artifacts;
 using EpicGames.Horde.Dashboard;
+using EpicGames.Horde.Jobs;
+using EpicGames.Horde.Logs;
 using EpicGames.Horde.Projects;
 using EpicGames.Horde.Secrets;
 using EpicGames.Horde.Server;
@@ -108,6 +110,7 @@ namespace EpicGames.Horde
 			options.Converters.Add(new JsonStringEnumConverter());
 			options.Converters.Add(new StringIdJsonConverterFactory());
 			options.Converters.Add(new BinaryIdJsonConverterFactory());
+			options.Converters.Add(new SubResourceIdJsonConverterFactory());
 		}
 
 		#region Artifacts
@@ -429,6 +432,32 @@ namespace EpicGames.Horde
 			return response.Id;
 		}
 
+		#endregion
+
+		#region Jobs
+		/// <summary>
+		/// Gets job information for given job ID. Fail response if jobID does not exist.
+		/// </summary>
+		/// <param name="id">Id of the job to get infomation for</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		/// <returns></returns>
+		public Task<GetJobResponse> GetJobAsync(JobId id, CancellationToken cancellationToken = default)
+		{
+			return GetAsync<GetJobResponse>(_httpClient, $"api/v1/jobs/{id}", cancellationToken);
+		}
+		#endregion
+
+		#region Log
+		/// <summary>
+		/// Get the given log file 
+		/// </summary>
+		/// <param name="logFileId">Id of the log file to retrieve</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		/// <returns></returns>
+		public Task<SearchLogResponse> GetSearchLogAsync(LogId logFileId, CancellationToken cancellationToken = default)
+		{
+			return GetAsync<SearchLogResponse>(_httpClient, $"/api/v1/logs/{logFileId}/search", cancellationToken);
+		}
 		#endregion
 
 		#region Utility Methods
