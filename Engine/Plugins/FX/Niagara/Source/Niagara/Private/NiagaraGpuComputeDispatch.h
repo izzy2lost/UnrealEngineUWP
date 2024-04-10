@@ -229,6 +229,7 @@ private:
 	/** A buffer of list sizes used by UpdateFreeIDBuffers to allow overlapping several dispatches. */
 	FRWBuffer FreeIDListSizesBuffer;
 	uint32 NumAllocatedFreeIDListSizes = 0;
+	uint32 NumRequiredFreeIDListSizes = 0;
 
 	uint32 NumProxiesThatRequireGlobalDistanceField = 0;
 	uint32 NumProxiesThatRequireDepthBuffer = 0;

@@ -933,6 +933,7 @@ void FNiagaraGpuComputeDispatch::PrepareTicksForProxy(FRHICommandListImmediate& 
 				if ( ComputeContext->MainDataSet->RequiresPersistentIDs() && ComputeContext->bHasTickedThisFrame_RT )
 				{
 					FinalDispatchGroup.FreeIDUpdates.Emplace(ComputeContext);
+					NumRequiredFreeIDListSizes = FMath::Max<uint32>(NumRequiredFreeIDListSizes, FinalDispatchGroup.FreeIDUpdates.Num());
 				}
 			}
 		}
@@ -1005,12 +1006,22 @@ void FNiagaraGpuComputeDispatch::PrepareTicksForProxy(FRHICommandListImmediate& 
 
 void FNiagaraGpuComputeDispatch::PrepareAllTicks(FRHICommandListImmediate& RHICmdList)
 {
+	NumRequiredFreeIDListSizes = 0;
+
 	for (int iTickStage=0; iTickStage < ENiagaraGpuComputeTickStage::Max; ++iTickStage)
 	{
 		for (FNiagaraSystemGpuComputeProxy* ComputeProxy : ProxiesPerStage[iTickStage])
 		{
 			PrepareTicksForProxy(RHICmdList, ComputeProxy, DispatchListPerStage[iTickStage]);
 		}
+	}
+
+	if (NumRequiredFreeIDListSizes > NumAllocatedFreeIDListSizes)
+	{
+		constexpr uint32 ALLOC_CHUNK_SIZE = 128;
+		NumAllocatedFreeIDListSizes = Align(NumRequiredFreeIDListSizes, ALLOC_CHUNK_SIZE);
+		FreeIDListSizesBuffer.Release();
+		FreeIDListSizesBuffer.Initialize(RHICmdList, TEXT("NiagaraFreeIDListSizes"), sizeof(uint32), NumAllocatedFreeIDListSizes, EPixelFormat::PF_R32_SINT, ERHIAccess::UAVCompute, BUF_Static);
 	}
 }
 
@@ -1330,17 +1341,6 @@ void FNiagaraGpuComputeDispatch::ExecuteTicks(FRDGBuilder& GraphBuilder, TConstS
 
 					// Initialize the free ID size buffer
 					{
-						if (NumFreeIDUpdates > NumAllocatedFreeIDListSizes)
-						{
-							constexpr uint32 ALLOC_CHUNK_SIZE = 128;
-							NumAllocatedFreeIDListSizes = Align(NumFreeIDUpdates, ALLOC_CHUNK_SIZE);
-							if (FreeIDListSizesBuffer.Buffer)
-							{
-								FreeIDListSizesBuffer.Release();
-							}
-							FreeIDListSizesBuffer.Initialize(RHICmdList, TEXT("NiagaraFreeIDListSizes"), sizeof(uint32), NumAllocatedFreeIDListSizes, EPixelFormat::PF_R32_SINT, ERHIAccess::UAVCompute, BUF_Static);
-						}
-
 						SCOPED_DRAW_EVENT(RHICmdList, NiagaraGPUComputeClearFreeIDListSizes);
 						RHICmdList.Transition(FRHITransitionInfo(FreeIDListSizesBuffer.UAV, ERHIAccess::UAVCompute, ERHIAccess::UAVCompute));
 						NiagaraFillGPUIntBuffer(RHICmdList, FeatureLevel, FreeIDListSizesBuffer.UAV, FreeIDListSizesBuffer.NumBytes / sizeof(uint32), 0);
