@@ -3110,6 +3110,8 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 			}
 		}
 
+		LightFunctionAtlas.RenderDebugInfo(GraphBuilder, Views);
+
 		if (VirtualShadowMapArray.IsEnabled())
 		{
 			VirtualShadowMapArray.RenderDebugInfo(GraphBuilder, Views);
