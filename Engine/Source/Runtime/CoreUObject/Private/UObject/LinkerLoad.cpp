@@ -980,6 +980,7 @@ FLinkerLoad::FLinkerLoad(UPackage* InParent, const FPackagePath& InPackagePath, 
 , TemplateForGetArchetypeFromLoader(nullptr)
 , bForceSimpleIndexToObject(false)
 , bLockoutLegacyOperations(false)
+, bSkipKnownProperties(false)
 , bIsAsyncLoader(false)
 , bIsDestroyingLoader(false)
 #if WITH_EDITOR
@@ -7186,6 +7187,22 @@ bool FLinkerLoad::SerializeBulkData(FBulkData& BulkData, const FBulkDataSerializ
 	}
 
 	return true;
+}
+
+bool FLinkerLoad::ShouldSkipProperty(const FProperty* InProperty) const
+{
+	if (bSkipKnownProperties)
+	{
+#if WITH_EDITORONLY_DATA
+		static const FName NAME_IsLooseMetadata(ANSITEXTVIEW("IsLoose"));
+		static const FName NAME_ContainsLoosePropertiesMetadata(ANSITEXTVIEW("ContainsLooseProperties"));
+		if (!InProperty->GetBoolMetaData(NAME_IsLooseMetadata) && !InProperty->GetBoolMetaData(NAME_ContainsLoosePropertiesMetadata))
+#endif
+		{
+			return true;
+		}
+	}
+	return FArchiveUObject::ShouldSkipProperty(InProperty);
 }
 
 void FLinkerLoad::SerializeBulkMeta(UE::BulkData::Private::FBulkMetaData& Meta, int64& DuplicateSerialOffset, int32 ElementSize)

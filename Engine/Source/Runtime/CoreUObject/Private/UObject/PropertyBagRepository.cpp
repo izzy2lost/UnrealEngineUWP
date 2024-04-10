@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "UObject/PropertyBagRepository.h"
+
 #include "Containers/Queue.h"
 #include "Serialization/ObjectReader.h"
 #include "Serialization/ObjectWriter.h"
@@ -12,7 +13,10 @@
 #include "UObject/UObjectThreadContext.h"
 #include "UObject/LinkerLoad.h"
 #include "UObject/InstanceDataObjectUtils.h"
+#include "UObject/OverridableManager.h"
+#include "UObject/OverriddenPropertySet.h"
 #include "UObject/Package.h"
+#include "Templates/UnrealTemplate.h"
 
 #if WITH_EDITOR
 #include "HAL/IConsoleManager.h"
@@ -125,10 +129,64 @@ FPropertyBagRepository::FPropertyBagRepository()
 #if WITH_EDITOR
 	FCoreUObjectDelegates::OnObjectModified.AddLambda([](const UObject* Object)
 	{
-		// if this object is an InstanceDataObject, modify it's owner as well
-		if (const UObject* Owner = Get().FindInstanceForDataObject(Object))
+		auto CopyChanges = [](const UObject* Source, UObject* Dest)
 		{
-			const_cast<UObject*>(Owner)->Modify();
+			TArray<uint8> Buffer;
+			Buffer.Reserve(Source->GetClass()->GetStructureSize());
+			FObjectWriter Writer(Buffer);
+			Source->GetClass()->SerializeTaggedProperties(Writer, (uint8*)Source, Source->GetClass(), (uint8*)Source->GetArchetype());
+		
+			FObjectReader Reader(Buffer);
+			Reader.ArMergeOverrides = true;
+			Dest->GetClass()->SerializeTaggedProperties(Reader, (uint8*)Dest, Dest->GetClass(), (uint8*)Dest->GetArchetype());	
+		};
+		
+		if (UObject* Instance = const_cast<UObject*>(Get().FindInstanceForDataObject(Object)))
+		{
+			// if this object is an instance, modify it's IDO as well
+			Instance->Modify();
+			CopyChanges(Object, Instance);
+		}
+	});
+
+	FCoreUObjectDelegates::OnObjectPropertyChanged.AddLambda([](const UObject* Object, FPropertyChangedEvent& ChangeEvent)
+	{
+		static TSet<TSoftObjectPtr<UObject>> ChangeCallbacksToSkip;
+		if (ChangeCallbacksToSkip.Remove(Object))
+		{
+			// avoids infinite recursion
+			return;
+		}
+		
+		auto CopyChanges = [&ChangeEvent](const UObject* Source, UObject* Dest)
+		{
+			//Dest->PreEditChange(nullptr);
+			const FOverriddenPropertySet* SourceOverriddenProperties = FOverridableManager::Get().GetOverriddenProperties(*Source);
+			const FOverriddenPropertySet* DestOverriddenProperties = FOverridableManager::Get().GetOverriddenProperties(*Dest);
+			TArray<TObjectPtr<UObject>>* Test = reinterpret_cast<TArray<TObjectPtr<UObject>>*>(reinterpret_cast<uint8*>(Dest) + 240);
+			TArray<uint8> Buffer;
+			Buffer.Reserve(Source->GetClass()->GetStructureSize());
+			FObjectWriter Writer(Buffer);
+			Source->GetClass()->SerializeTaggedProperties(Writer, (uint8*)Source, Source->GetClass(), (uint8*)Source->GetArchetype());
+		
+			FObjectReader Reader(Buffer);
+			Reader.ArMergeOverrides = true;
+			Dest->GetClass()->SerializeTaggedProperties(Reader, (uint8*)Dest, Dest->GetClass(), (uint8*)Dest->GetArchetype());	
+			(void)Test;
+			//Dest->PostEditChangeProperty(ChangeEvent);
+		};
+		
+		if (UObject* Ido = Get().FindInstanceDataObject(Object))
+		{
+			// if this object is an InstanceDataObject, modify it's owner as well
+			ChangeCallbacksToSkip.Add(Ido); // avoid infinite recursion
+			CopyChanges(Object, Ido);
+		}
+		else if (UObject* Instance = const_cast<UObject*>(Get().FindInstanceForDataObject(Object)))
+		{
+			// if this object is an instance, modify it's IDO as well
+			ChangeCallbacksToSkip.Add(Ido); // avoid infinite recursion
+			CopyChanges(Object, Instance);
 		}
 	});
 #endif
@@ -372,7 +430,11 @@ void FPropertyBagRepository::CreateInstanceDataObjectUnsafe(UObject* Owner, FPro
 		// TODO: @jordan.hoffmann - this is very inefficient! We should remove this call to Preload. To do so, we'd need to change MarkPropertySetBySerialization
 		// to cache the serialized property list in the property bag instead of the structs. We'd also need to copy the property bag values to the IDO
 		Owner->SetFlags(RF_NeedLoad);
-		Linker->Preload(Owner);
+		{
+			TGuardValue<bool> ScopedSkipKnownProperties(Linker->bSkipKnownProperties, true);
+			FGuardValue_Bitfield(Linker->ArMergeOverrides, true);
+            Linker->Preload(Owner);
+		}
 		LoadContext->OnTaggedPropertySerialize.Remove(OnTaggedPropertySerializeHandle);
 		
 		// copy data from owner to IDO

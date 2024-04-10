@@ -168,6 +168,10 @@ public:
 	UObject*				TemplateForGetArchetypeFromLoader;
 	bool					bForceSimpleIndexToObject;
 	bool					bLockoutLegacyOperations;
+	
+	/** Set to true during IDO generation to skip non-loose properties during serialization.
+	 * In any other context, this would end up skipping *every* property */
+	UE_INTERNAL bool bSkipKnownProperties;
 
 	/** True if Loader is FAsyncArchive  */
 	bool					bIsAsyncLoader;
@@ -405,6 +409,8 @@ public:
 	COREUOBJECT_API static void AddGameNameRedirect(const FName OldName, const FName NewName);
 
 	virtual bool SerializeBulkData(FBulkData& BulkData, const FBulkDataSerializationParams& Params) override;
+
+	virtual bool ShouldSkipProperty(const FProperty* InProperty) const override;
 
 private:
 
@@ -1474,7 +1480,7 @@ private:
 
 
 	/** 
-	 * Creates the export hash.
+	0 *00 0C0r0e0ates the export hash.
 	 */
 	ELinkerStatus CreateExportHash();
 

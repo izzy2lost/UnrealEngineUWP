@@ -110,6 +110,7 @@ namespace UE
 	static const FName NAME_DisplayName(ANSITEXTVIEW("DisplayName"));
 	static const FName NAME_PresentAsTypeMetadata(ANSITEXTVIEW("PresentAsType"));
 	static const FName NAME_IsLooseMetadata(ANSITEXTVIEW("IsLoose"));
+	static const FName NAME_ContainsLoosePropertiesMetadata(ANSITEXTVIEW("ContainsLooseProperties"));
 	static const FName NAME_VerseClass(ANSITEXTVIEW("VerseClass"));
 	static const FName NAME_IDOMapKey(ANSITEXTVIEW("Key"));
 	static const FName NAME_IDOMapValue(ANSITEXTVIEW("Value"));
@@ -362,7 +363,16 @@ namespace UE
 			}
 		}
 #endif
-
+const auto TrySetContainsLooseProperties = [](FProperty* Property, const FFieldVariant& Inner)
+		{
+#if WITH_EDITORONLY_DATA
+			if (Inner.HasMetaData(NAME_ContainsLoosePropertiesMetadata))
+			{
+				Property->SetMetaData(NAME_ContainsLoosePropertiesMetadata, TEXT("True"));
+			}
+#endif
+		};
+		
 		if (FStructProperty* AsStructProperty = CastField<FStructProperty>(Property))
 		{
 			if (!AsStructProperty->Struct->UseNativeSerialization())
@@ -400,41 +410,86 @@ namespace UE
 				AsStructProperty->SetMetaData(NAME_OriginalType, *OriginalName);
 				AsStructProperty->SetMetaData(NAME_PresentAsTypeMetadata, *OriginalName);
 				AsStructProperty->Struct->SetMetaData(NAME_PresentAsTypeMetadata, *OriginalName);
+
+				TrySetContainsLooseProperties(AsStructProperty, AsStructProperty->Struct);
 #endif
 			}
 		}
-		else if (const FArrayProperty* AsArrayProperty = CastField<FArrayProperty>(Property))
+		else if (FArrayProperty* AsArrayProperty = CastField<FArrayProperty>(Property))
 		{
 			ConvertToInstanceDataObjectProperty(AsArrayProperty->Inner, PropertyType.GetParameter(0), Outer, LooseProperties, Path);
+			TrySetContainsLooseProperties(AsArrayProperty, AsArrayProperty->Inner);
 		}
-		else if (const FSetProperty* AsSetProperty = CastField<FSetProperty>(Property))
+		else if (FSetProperty* AsSetProperty = CastField<FSetProperty>(Property))
 		{
 			ConvertToInstanceDataObjectProperty(AsSetProperty->ElementProp, PropertyType.GetParameter(0), Outer, LooseProperties, Path);
+			TrySetContainsLooseProperties(AsSetProperty, AsSetProperty->ElementProp);
 		}
-		else if (const FMapProperty* AsMapProperty = CastField<FMapProperty>(Property))
+		else if (FMapProperty* AsMapProperty = CastField<FMapProperty>(Property))
 		{
 			Path.Push({NAME_IDOMapKey});
 			ConvertToInstanceDataObjectProperty(AsMapProperty->KeyProp, PropertyType.GetParameter(0), Outer, LooseProperties, Path);
 			Path.Pop();
+			TrySetContainsLooseProperties(AsMapProperty, AsMapProperty->KeyProp);
 			
 			Path.Push({NAME_IDOMapValue});
 			ConvertToInstanceDataObjectProperty(AsMapProperty->ValueProp, PropertyType.GetParameter(1), Outer, LooseProperties, Path);
 			Path.Pop();
+			TrySetContainsLooseProperties(AsMapProperty, AsMapProperty->ValueProp);
+		}
+		else if (FOptionalProperty* AsOptionalProperty = CastField<FOptionalProperty>(Property))
+		{
+			ConvertToInstanceDataObjectProperty(AsOptionalProperty->GetValueProperty(), PropertyType.GetParameter(0), Outer, LooseProperties, Path);
+			TrySetContainsLooseProperties(AsOptionalProperty, AsOptionalProperty->GetValueProperty());
+		}
+		
+#if WITH_EDITORONLY_DATA
+		if (Property->GetBoolMetaData(NAME_IsLooseMetadata) || Property->GetBoolMetaData(NAME_ContainsLoosePropertiesMetadata))
+		{
+			Property->GetOwnerStruct()->SetMetaData(NAME_ContainsLoosePropertiesMetadata, TEXT("True"));
+		}
+#endif
+	}
+
+	// recursively gives a property the metadata and flags of a loose property
+	static void MarkPropertyAsLoose(FProperty* Property)
+	{
+#if WITH_EDITORONLY_DATA
+		Property->SetMetaData(NAME_IsLooseMetadata, TEXT("True"));
+#endif
+		Property->SetPropertyFlags(CPF_Edit | CPF_EditConst);
+		if (const FArrayProperty* AsArrayProperty = CastField<FArrayProperty>(Property))
+		{
+			MarkPropertyAsLoose(AsArrayProperty->Inner);
+		}
+		else if (const FSetProperty* AsSetProperty = CastField<FSetProperty>(Property))
+		{
+			MarkPropertyAsLoose(AsSetProperty->ElementProp);
+		}
+		else if (const FMapProperty* AsMapProperty = CastField<FMapProperty>(Property))
+		{
+			MarkPropertyAsLoose(AsMapProperty->KeyProp);
+			MarkPropertyAsLoose(AsMapProperty->ValueProp);
 		}
 		else if (const FOptionalProperty* AsOptionalProperty = CastField<FOptionalProperty>(Property))
 		{
-			ConvertToInstanceDataObjectProperty(AsOptionalProperty->GetValueProperty(), PropertyType.GetParameter(0), Outer, LooseProperties, Path);
+			MarkPropertyAsLoose(AsOptionalProperty->GetValueProperty());
 		}
 	}
 
 	// copy template property then convert it into an InstanceDataObject property by adding loose properties
 	static FProperty* CreateInstanceDataObjectProperty(const FProperty* TemplateProperty, UObject* Outer,
-		const TMap<FWildcardPropertyPathName, TMap<FName, const FProperty*>>& LooseProperties, FWildcardPropertyPathName& Path)
+		const TMap<FWildcardPropertyPathName, TMap<FName, const FProperty*>>& LooseProperties, FWildcardPropertyPathName& Path, bool bIsLoose)
 	{
 		FProperty* InstanceDataObjectProperty = CastFieldChecked<FProperty>(FField::Duplicate(TemplateProperty, Outer));
 #if WITH_EDITORONLY_DATA
 		FField::CopyMetaData(TemplateProperty, InstanceDataObjectProperty);
 #endif
+		if (bIsLoose)
+		{
+			MarkPropertyAsLoose(InstanceDataObjectProperty);
+		}
+		
 		ConvertToInstanceDataObjectProperty(InstanceDataObjectProperty, Path.GetSegment(Path.GetSegmentCount() - 1).Type, Outer, LooseProperties, Path);
 		return InstanceDataObjectProperty;
 	}
@@ -507,33 +562,7 @@ namespace UE
 		
 		return LooseProperties;
 	}
-
-	// recursively gives a property the metadata and flags of a loose property
-	static void MarkPropertyAsLoose(FProperty* Property)
-	{
-#if WITH_EDITORONLY_DATA
-		Property->SetMetaData(NAME_IsLooseMetadata, TEXT("True"));
-#endif
-		Property->SetPropertyFlags(CPF_Edit | CPF_EditConst);
-		if (const FArrayProperty* AsArrayProperty = CastField<FArrayProperty>(Property))
-		{
-			MarkPropertyAsLoose(AsArrayProperty->Inner);
-		}
-		else if (const FSetProperty* AsSetProperty = CastField<FSetProperty>(Property))
-{
-			MarkPropertyAsLoose(AsSetProperty->ElementProp);
-		}
-		else if (const FMapProperty* AsMapProperty = CastField<FMapProperty>(Property))
-		{
-			MarkPropertyAsLoose(AsMapProperty->KeyProp);
-			MarkPropertyAsLoose(AsMapProperty->ValueProp);
-		}
-		else if (const FOptionalProperty* AsOptionalProperty = CastField<FOptionalProperty>(Property))
-		{
-			MarkPropertyAsLoose(AsOptionalProperty->GetValueProperty());
-		}
-	}
-
+	
 	// constructs an InstanceDataObject struct by merging the properties in 
 	static UStruct* CreateInstanceDataObjectStructRec(const UClass* StructClass, UStruct* TemplateStruct,
 		UObject* Outer, const TMap<FWildcardPropertyPathName, TMap<FName, const FProperty*>>& LooseProperties, FWildcardPropertyPathName& Path)
@@ -570,7 +599,7 @@ namespace UE
 					continue;
 				}
 				Path.Push(CreateSegmentFromProperty(TemplateProperty));
-				FProperty* SuperProperty = CreateInstanceDataObjectProperty(TemplateProperty, Super, LooseProperties, Path);
+				FProperty* SuperProperty = CreateInstanceDataObjectProperty(TemplateProperty, Super, LooseProperties, Path, false);
 				
 				Path.Pop();
 				SuperProperties.Add(SuperProperty);
@@ -606,10 +635,8 @@ namespace UE
 			for (const TPair<FName, const FProperty*>& BagProperty : *BagProperties)
 			{
 				Path.Push(CreateSegmentFromProperty(BagProperty.Value));
-				FProperty* LooseProperty = CreateInstanceDataObjectProperty(BagProperty.Value, Result, LooseProperties, Path);
+				FProperty* LooseProperty = CreateInstanceDataObjectProperty(BagProperty.Value, Result, LooseProperties, Path, true);
 				Path.Pop();
-				
-				MarkPropertyAsLoose(LooseProperty);
 				LooseInstanceDataObjectProperties.Add(LooseProperty);
 			}
 		}
