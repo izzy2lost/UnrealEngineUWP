@@ -252,7 +252,7 @@ template <class ModelInterface, class TensorBinding>
 bool FModelInstanceORTBase<ModelInterface, TensorBinding>::InitializedAndConfigureMembers()
 {
 	Allocator = MakeUnique<Ort::AllocatorWithDefaultOptions>();
-	AllocatorInfo = MakeUnique<Ort::MemoryInfo>(Ort::MemoryInfo::CreateCpu(OrtDeviceAllocator, OrtMemTypeCPU));
+	MemoryInfo = MakeUnique<Ort::MemoryInfo>(Ort::MemoryInfo::CreateCpu(OrtDeviceAllocator, OrtMemTypeCPU));
 
 	return true;
 }
@@ -342,17 +342,54 @@ typename ModelInterface::ESetInputTensorShapesStatus FModelInstanceORTBase<Model
 	return ModelInterface::ESetInputTensorShapesStatus::Ok;
 }
 
+template <class TensorBinding>
+Ort::Value CreateTensor(const Ort::MemoryInfo& MemoryInfo, const TensorBinding& Binding, const NNE::Internal::FTensor& Tensor, const ONNXTensorElementDataType ElementDataType)
+{
+	const uint64 SizeInBytes = Tensor.GetDataSize();
+	const uint32 ShapeLen = (uint32)Tensor.GetShape().Rank();
+
+	TUniquePtr<int64_t[]> Shape = MakeUnique<int64_t[]>(Tensor.GetShape().Rank());
+	for (int32 DimIndex = 0; DimIndex < Tensor.GetShape().Rank(); ++DimIndex)
+	{
+		Shape.Get()[DimIndex] = Tensor.GetShape().GetData()[DimIndex];
+	}
+	
+	return	Ort::Value::CreateTensor(MemoryInfo, Binding.Data, SizeInBytes, Shape.Get(), ShapeLen, ElementDataType);
+}
+
 template <class ModelInterface, class TensorBinding>
 typename ModelInterface::ERunSyncStatus FModelInstanceORTBase<ModelInterface, TensorBinding>::RunSync(TConstArrayView<TensorBinding> InInputBindings, TConstArrayView<TensorBinding> InOutputBindings)
 {
-	checkf(Session.IsValid(), TEXT("FModelInstanceORT::RunSync(): Called without a Session, FModelInstanceORT::Init() should have been called."));
-
 	SCOPED_NAMED_EVENT_TEXT("FModelInstanceORTBase::RunSync", FColor::Magenta);
 
-	// Verify the model inputs were prepared
-	if (NNE::Internal::FModelInstanceBase<ModelInterface>::InputTensorShapes.Num() == 0)
+	if (!Session.IsValid())
 	{
-		UE_LOG(LogNNE, Error, TEXT("RunSync(): Input shapes are not set, please call SetInputTensorShapes."));
+		UE_LOG(LogNNE, Error, TEXT("FModelInstanceORTBase::RunSync(): Called without a Session, FModelInstanceORT::Init() should have been called."));
+		return ModelInterface::ERunSyncStatus::Fail;
+	}
+
+	// Verify the model inputs were prepared
+	if (NNE::Internal::FModelInstanceBase<ModelInterface>::InputTensorShapes.IsEmpty())
+	{
+		UE_LOG(LogNNE, Error, TEXT("FModelInstanceORTBase::RunSync(): Input shapes are not set, please call SetInputTensorShapes."));
+		return ModelInterface::ERunSyncStatus::Fail;
+	}
+
+	check(NNE::Internal::FModelInstanceBase<ModelInterface>::InputTensorShapes.Num() == InputTensors.Num());
+	check(NNE::Internal::FModelInstanceBase<ModelInterface>::InputTensorShapes.Num() == InputTensorNames.Num());
+	check(NNE::Internal::FModelInstanceBase<ModelInterface>::InputSymbolicTensors.Num() == InputTensors.Num());
+
+	if (InInputBindings.Num() != InputTensors.Num())
+	{
+		UE_LOG(LogNNE, Error, TEXT("FModelInstanceORTBase::RunSync(): Input bindings need to match input tensor descriptor count (got %d, expected %d)."), InInputBindings.Num(), InputTensors.Num());
+		return ModelInterface::ERunSyncStatus::Fail;
+	}
+
+	check(NNE::Internal::FModelInstanceBase<ModelInterface>::OutputSymbolicTensors.Num() == OutputTensorNames.Num());
+
+	if (!InOutputBindings.IsEmpty() && InOutputBindings.Num() != OutputTensorNames.Num())
+	{
+		UE_LOG(LogNNE, Error, TEXT("FModelInstanceORTBase::RunSync(): Output binding can be empty or needs to match output tensor descriptor count (got %d, expected %d)."), InOutputBindings.Num(), OutputTensorNames.Num());
 		return ModelInterface::ERunSyncStatus::Fail;
 	}
 
@@ -360,37 +397,68 @@ typename ModelInterface::ERunSyncStatus FModelInstanceORTBase<ModelInterface, Te
 	try
 #endif // WITH_EDITOR
 	{
-		TArray<Ort::Value> InputOrtTensors;
-		BindTensorsToORT(InInputBindings, InputTensors, InputTensorsORTType, *AllocatorInfo, InputOrtTensors);
-
-		if (!OutputTensors.IsEmpty())
+		TArray<Ort::Value> OrtInputTensors;
+		for (int32 i = 0; i < InputTensorNames.Num(); i++)
 		{
-			// If output shapes are known we can directly map preallocated output buffers
-			TArray<Ort::Value> OutputOrtTensors;
-			BindTensorsToORT(InOutputBindings, OutputTensors, OutputTensorsORTType, *AllocatorInfo, OutputOrtTensors);
+			const TensorBinding& Binding = InInputBindings[i];
+			const NNE::Internal::FTensor& Tensor = InputTensors[i];
 
-			Session->Run(Ort::RunOptions{ nullptr },
-				InputTensorNames.GetData(), &InputOrtTensors[0], InputTensorNames.Num(),
-				OutputTensorNames.GetData(), &OutputOrtTensors[0], OutputTensorNames.Num());
-		}
-		else
-		{
-			TArray<Ort::Value> OutputOrtTensors;
-			for (int32 i = 0; i < InOutputBindings.Num(); ++i)
+			if (!Binding.Data && Binding.SizeInBytes != 0)
 			{
-				OutputOrtTensors.Emplace(nullptr);
+				UE_LOG(LogNNE, Error, TEXT("FModelInstanceORTBase::RunSync(): Binding input tensor %d is not set but given size is non-zero %d."), i, Binding.SizeInBytes);
+				return ModelInterface::ERunSyncStatus::Fail;
 			}
 
-			Session->Run(Ort::RunOptions{ nullptr },
-				InputTensorNames.GetData(), &InputOrtTensors[0], InputTensorNames.Num(),
-				OutputTensorNames.GetData(), &OutputOrtTensors[0], OutputTensorNames.Num());
-
-			// Output shapes were resolved during inference: Copy the data back to bindings and expose output tensor shapes
-			CopyFromORTToBindings(OutputOrtTensors, InOutputBindings, NNE::Internal::FModelInstanceBase<ModelInterface>::OutputSymbolicTensors, OutputTensors);
-			check(NNE::Internal::FModelInstanceBase<ModelInterface>::OutputTensorShapes.IsEmpty());
-			for (int32 i = 0; i < OutputTensors.Num(); ++i)
+			if (Binding.SizeInBytes != Tensor.GetDataSize())
 			{
-				NNE::Internal::FModelInstanceBase<ModelInterface>::OutputTensorShapes.Emplace(OutputTensors[i].GetShape());
+				UE_LOG(LogNNE, Error, TEXT("FModelInstanceORTBase::RunSync(): Binding input tensor %d size does not match size given by tensor descriptor (got %d, expected %d)."), i, Binding.SizeInBytes, Tensor.GetDataSize());
+				return ModelInterface::ERunSyncStatus::Fail;
+			}
+
+			OrtInputTensors.Add(CreateTensor(*MemoryInfo, Binding, Tensor, InputTensorsORTType[i]));
+		}
+
+		TArray<Ort::Value> OrtOutputTensors;
+		for (int32 i = 0; i < OutputTensorNames.Num(); i++)
+		{
+			if (OutputTensors.IsEmpty() ||
+				InOutputBindings.IsEmpty() ||
+				!InOutputBindings[i].Data ||
+				InOutputBindings[i].SizeInBytes < OutputTensors[i].GetDataSize())
+			{
+				OrtOutputTensors.Emplace(nullptr);
+			}
+			else
+			{
+				OrtOutputTensors.Add(CreateTensor(*MemoryInfo, InOutputBindings[i], OutputTensors[i], OutputTensorsORTType[i]));
+			}
+		}
+
+		Session->Run(Ort::RunOptions{nullptr},
+			InputTensorNames.GetData(), &OrtInputTensors[0], InputTensorNames.Num(),
+			OutputTensorNames.GetData(), &OrtOutputTensors[0], OutputTensorNames.Num());
+
+		// At this (latest) stage shapes are known, therefore set them if not present yet and possibly copy data to output binding
+		if (OutputTensors.IsEmpty())
+		{
+			check(NNE::Internal::FModelInstanceBase<ModelInterface>::OutputTensorShapes.IsEmpty());
+
+			for (int32 i = 0; i < OutputTensorNames.Num(); i++)
+			{
+				const NNE::FTensorDesc& TensorDesc = NNE::Internal::FModelInstanceBase<ModelInterface>::OutputSymbolicTensors[i];
+				const NNE::FTensorShape Shape = NNE::FTensorShape::Make(OrtHelper::GetShape(OrtOutputTensors[i]));
+				const NNE::Internal::FTensor Tensor = NNE::Internal::FTensor::Make(TensorDesc.GetName(), Shape, TensorDesc.GetDataType());
+
+				OutputTensors.Add(Tensor);
+				NNE::Internal::FModelInstanceBase<ModelInterface>::OutputTensorShapes.Add(Shape);
+
+				if (!InOutputBindings.IsEmpty() &&
+					InOutputBindings[i].Data &&
+					Tensor.GetDataSize() > 0 &&
+					InOutputBindings[i].SizeInBytes >= Tensor.GetDataSize())
+				{
+					FMemory::Memcpy(InOutputBindings[i].Data, OrtOutputTensors[i].GetTensorData<void>(), Tensor.GetDataSize());
+				}
 			}
 		}
 	}
@@ -582,6 +650,9 @@ bool FModelInstanceORTDmlRDG::ConfigureTensors(const Ort::Session& ActiveSession
 	TArray<TArray<FString>>& SymbolicDimensionNames 	= bAreTensorInputs ? InputSymbolicDimensionNames : OutputSymbolicDimensionNames;
 
 	SymbolicTensorDescs.Reset();
+	TensorsORTType.Reset();
+	TensorNameValues.Reset();
+	TensorNames.Reset();
 	SymbolicDimensionNames.SetNum(NumberTensors);
 
 	for (uint32 TensorIndex = 0; TensorIndex < NumberTensors; ++TensorIndex)
@@ -759,13 +830,15 @@ FModelInstanceORTDmlRDG::ESetInputTensorShapesStatus FModelInstanceORTDmlRDG::Se
 	return ESetInputTensorShapesStatus::Ok;
 }
 
-Ort::Value CreateTensor(const OrtDmlApi* DmlApi, const Ort::MemoryInfo& MemoryInfo, FRHIBuffer* Buffer, const NNE::Internal::FTensor& Tensor, ONNXTensorElementDataType ElementDataType,
+Ort::Value CreateTensor(const OrtDmlApi& DmlApi, const Ort::MemoryInfo& MemoryInfo, FRHIBuffer* Buffer, const NNE::Internal::FTensor& Tensor, ONNXTensorElementDataType ElementDataType,
 	TArray<std::unique_ptr<void, void (*)(void*)>>& DmlAllocatorResources)
 {
+	checkf(Buffer, TEXT("CreateTensor needs Buffer to be set"));
+
 	ID3D12Resource* NativeD3D12Resource = GetID3D12DynamicRHI()->RHIGetResource(Buffer);
 
 	void* DmlAllocatorResourcePtr;
-	Ort::ThrowOnError(DmlApi->CreateGPUAllocationFromD3DResource(NativeD3D12Resource, &DmlAllocatorResourcePtr));
+	Ort::ThrowOnError(DmlApi.CreateGPUAllocationFromD3DResource(NativeD3D12Resource, &DmlAllocatorResourcePtr));
 
 	std::unique_ptr<void, void (*)(void*)> DmlAllocatorResource(DmlAllocatorResourcePtr,
 		[] (void* Ptr)
@@ -794,29 +867,71 @@ Ort::Value CreateTensor(const OrtDmlApi* DmlApi, const Ort::MemoryInfo& MemoryIn
 
 FModelInstanceORTDmlRDG::EEnqueueRDGStatus FModelInstanceORTDmlRDG::EnqueueRDG(FRDGBuilder& GraphBuilder, TConstArrayView<NNE::FTensorBindingRDG> Inputs, TConstArrayView<NNE::FTensorBindingRDG> Outputs)
 {
-	checkf(Session.IsValid(), TEXT("FModelInstanceORTDmlRDG::EnqueueRDG(): Called without a Session, FModelInstanceORTDmlRDG::Init() should have been called."));
-
 	SCOPED_NAMED_EVENT_TEXT("FModelInstanceORTDmlRDG::EnqueueRDG", FColor::Magenta);
 
-	// Verify the model inputs were prepared
-	if (InputTensorShapes.Num() == 0)
+	if (!Session.IsValid())
 	{
-		UE_LOG(LogNNE, Error, TEXT("EnqueueRDG(): Input shapes are not set, please call SetInputTensorShapes."));
+		UE_LOG(LogNNE, Error, TEXT("FModelInstanceORTDmlRDG::EnqueueRDG(): Called without a Session, FModelInstanceORTDmlRDG::Init() should have been called."));
+		return EEnqueueRDGStatus::Fail;
+	}
+
+	if (InputTensorShapes.IsEmpty())
+	{
+		UE_LOG(LogNNE, Error, TEXT("FModelInstanceORTDmlRDG::EnqueueRDG(): Input shapes are not set, please call SetInputTensorShapes."));
+		return EEnqueueRDGStatus::Fail;
+	}
+
+	check(InputTensorShapes.Num() == InputTensors.Num());
+	check(InputTensorShapes.Num() == InputTensorNames.Num());
+	check(InputSymbolicTensors.Num() == InputTensors.Num());
+
+	if (Inputs.Num() != InputTensors.Num())
+	{
+		UE_LOG(LogNNE, Error, TEXT("FModelInstanceORTDmlRDG::EnqueueRDG(): Input bindings need to match input tensor descriptor count (got %d, expected %d)."), Inputs.Num(), InputTensors.Num());
+		return EEnqueueRDGStatus::Fail;
+	}
+
+	check(OutputSymbolicTensors.Num() == OutputTensorNames.Num());
+
+	if (!Outputs.IsEmpty() && Outputs.Num() != OutputTensorNames.Num())
+	{
+		UE_LOG(LogNNE, Error, TEXT("FModelInstanceORTDmlRDG::EnqueueRDG(): Output binding can be empty or needs to match output tensor descriptor count (got %d, expected %d)."), Outputs.Num(), OutputTensorNames.Num());
 		return EEnqueueRDGStatus::Fail;
 	}
 
 	FORTModelInstanceRDGParameters* PassParameters = GraphBuilder.AllocParameters<FORTModelInstanceRDGParameters>();
-	for (const NNE::FTensorBindingRDG& Binding : Inputs)
+	for (int32 i = 0; i < Inputs.Num(); i++)
 	{
+		const NNE::FTensorBindingRDG& Binding = Inputs[i];
+		if (!Binding.Buffer && InputTensors[i].GetDataSize() != 0)
+		{
+			UE_LOG(LogNNE, Error, TEXT("FModelInstanceORTDmlRDG::EnqueueRDG(): Binding input tensor %d is not set but given size by tensor descriptor is non-zero %d."), i, InputTensors[i].GetDataSize());
+			return EEnqueueRDGStatus::Fail;
+		}
+
+		if (Binding.Buffer->Desc.GetSize() != InputTensors[i].GetDataSize())
+		{
+			UE_LOG(LogNNE, Error, TEXT("FModelInstanceORTDmlRDG::EnqueueRDG(): Binding input tensor %d size does not match size given by tensor descriptor (got %d, expected %d)."), i, Binding.Buffer->Desc.GetSize(), InputTensors[i].GetDataSize());
+			return EEnqueueRDGStatus::Fail;
+		}
+
 		PassParameters->InputBuffers.Emplace(Binding.Buffer, ERHIAccess::CopySrc);
 	}
-	for (const NNE::FTensorBindingRDG& Binding : Outputs)
+
+	TArray<int32> ValidOutputs;
+	for (int32 i = 0; i < Outputs.Num(); i++)
 	{
-		PassParameters->OutputBuffers.Emplace(Binding.Buffer, ERHIAccess::CopyDest);
+		const NNE::FTensorBindingRDG& Binding = Outputs[i];
+
+		if (Binding.Buffer && Binding.Buffer->Desc.GetSize() >= OutputTensors[i].GetDataSize())
+		{
+			PassParameters->OutputBuffers.Emplace(Binding.Buffer, ERHIAccess::CopyDest);
+			ValidOutputs.Add(i);
+		}
 	}
 
 	GraphBuilder.AddPass(RDG_EVENT_NAME("FModelInstanceORTDmlRDG::EnqueueRDG.AddPass"), PassParameters, ERDGPassFlags::Readback,
-	[this, PassParameters](FRHICommandListImmediate& RHICmdList)
+	[this, ValidOutputsCopy = ValidOutputs, PassParameters](FRHICommandListImmediate& RHICmdList)
 	{
 		SCOPED_NAMED_EVENT_TEXT("FModelInstanceORTDmlRDG::EnqueueRDG.AddPass", FColor::Magenta);
 
@@ -826,11 +941,14 @@ FModelInstanceORTDmlRDG::EEnqueueRDGStatus FModelInstanceORTDmlRDG::EnqueueRDG(F
 		{
 			InputBuffers[i] = PassParameters->InputBuffers[i]->GetRHI();
 		}
+
+		check(ValidOutputsCopy.Num() == PassParameters->OutputBuffers.Num());
+
 		TArray<FRHIBuffer*> OutputBuffers;
-		OutputBuffers.SetNumUninitialized(PassParameters->OutputBuffers.Num());
-		for (int32 i = 0; i < PassParameters->OutputBuffers.Num(); i++)
+		OutputBuffers.SetNumZeroed(OutputSymbolicTensors.Num());
+		for (int32 i = 0; i < ValidOutputsCopy.Num(); i++)
 		{
-			OutputBuffers[i] = PassParameters->OutputBuffers[i]->GetRHI();
+			OutputBuffers[ValidOutputsCopy[i]] = PassParameters->OutputBuffers[i]->GetRHI();
 		}
 
 		// Submit previous work here to the GPU to avoid ORT Session Run() dispatching its work first
@@ -853,37 +971,34 @@ FModelInstanceORTDmlRDG::EEnqueueRDGStatus FModelInstanceORTDmlRDG::EnqueueRDG(F
 					TArray<Ort::Value> OrtInputTensors;
 					TArray<Ort::Value> OrtOutputTensors;
 
-					Ort::IoBinding IoBinding = Ort::IoBinding(*Session);
-
 					for (int32 i = 0; i < InputBuffersCopyCopy.Num(); i++)
 					{
-						OrtInputTensors.Add(CreateTensor(DmlApi, MemoryInfo, InputBuffersCopyCopy[i], InputTensors[i], InputTensorsORTType[i], DmlAllocatorResources));
-
-						IoBinding.BindInput(InputTensorNames[i], OrtInputTensors[i]);
+						OrtInputTensors.Add(CreateTensor(*DmlApi, MemoryInfo, InputBuffersCopyCopy[i], InputTensors[i], InputTensorsORTType[i], DmlAllocatorResources));
 					}
 					for (int32 i = 0; i < OutputBuffersCopyCopy.Num(); i++)
 					{
-						OrtOutputTensors.Add(CreateTensor(DmlApi, MemoryInfo, OutputBuffersCopyCopy[i], OutputTensors[i], OutputTensorsORTType[i], DmlAllocatorResources));
-
-						IoBinding.BindOutput(OutputTensorNames[i], OrtOutputTensors[i]);
+						if (OutputBuffersCopyCopy[i])
+						{
+							OrtOutputTensors.Add(CreateTensor(*DmlApi, MemoryInfo, OutputBuffersCopyCopy[i], OutputTensors[i], OutputTensorsORTType[i], DmlAllocatorResources));
+						}
+						else
+						{
+							OrtOutputTensors.Emplace(nullptr);
+						}
 					}
 
-					// Don't use this sync, its CPU to GPU, but we need GPU to GPU
-					// IoBinding.SynchronizeInputs();
-
-					Session->Run({}, IoBinding);
-
-					// // Don't use this sync, its CPU to GPU, but we need GPU to GPU
-					// IoBinding.SynchronizeOutputs();
+					Session->Run(Ort::RunOptions{ nullptr },
+						InputTensorNames.GetData(), &OrtInputTensors[0], InputTensorNames.Num(),
+						OutputTensorNames.GetData(), &OrtOutputTensors[0], OutputTensorNames.Num());
 				}
 #if WITH_EDITOR
 				catch (const Ort::Exception& Exception)
 				{
-					UE_LOG(LogNNE, Error, TEXT("%s"), UTF8_TO_TCHAR(Exception.what()));
+					UE_LOG(LogNNE, Error, TEXT("FModelInstanceORTDmlRDG::EnqueueRDG(): %s"), UTF8_TO_TCHAR(Exception.what()));
 				}
 				catch (...)
 				{
-					UE_LOG(LogNNE, Error, TEXT("Unknown exception!"));
+					UE_LOG(LogNNE, Error, TEXT("FModelInstanceORTDmlRDG::EnqueueRDG(): Unknown exception!"));
 				}
 #endif // WITH_EDITOR
 			}, false);

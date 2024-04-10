@@ -52,7 +52,7 @@ protected:
 	TUniquePtr<Ort::Session> Session;
 	TUniquePtr<Ort::AllocatorWithDefaultOptions> Allocator;
 	TUniquePtr<Ort::SessionOptions> SessionOptions;
-	TUniquePtr<Ort::MemoryInfo> AllocatorInfo;
+	TUniquePtr<Ort::MemoryInfo> MemoryInfo;
 
 	/** IO ORT-related variables */
 	TArray<ONNXTensorElementDataType> InputTensorsORTType;
