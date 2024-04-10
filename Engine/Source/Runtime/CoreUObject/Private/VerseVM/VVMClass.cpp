@@ -151,7 +151,7 @@ VObject& VClass::NewVObject(FAllocationContext Context, VUniqueStringSet& Archet
 
 	if (Kind == EKind::Struct)
 	{
-		NewObject.Misc2 |= IsStructBit;
+		NewObject.SetIsStruct();
 	}
 
 	// Initialize fields from the archetype.

@@ -84,5 +84,15 @@ VShape* VShape::New(FAllocationContext Context, FieldsMap&& InFields)
 	return new (Context.Allocate(FHeap::DestructorSpace, sizeof(VShape))) VShape(Context, MoveTemp(InFields));
 }
 
+VShape& VShape::CopyToMeltedShape(FAllocationContext Context)
+{
+	FieldsMap NewFields;
+	for (auto It = Fields.CreateIterator(); It; ++It)
+	{
+		NewFields.Add(It->Key, VEntry::Offset());
+	}
+	return *VShape::New(Context, MoveTemp(NewFields));
+}
+
 } // namespace Verse
 #endif // WITH_VERSE_VM || defined(__INTELLISENSE__)

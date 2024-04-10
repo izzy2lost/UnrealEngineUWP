@@ -15,6 +15,7 @@ namespace Verse
 {
 struct FAccessContext;
 struct VUniqueString;
+struct VEmergentType;
 
 template <Verse::VCppClassInfo* ClassInfo>
 struct TGlobalTrivialEmergentTypePtr;
@@ -99,6 +100,10 @@ struct VShape : VCell
 
 	friend uint32 GetTypeHash(const VShape& Shape);
 
+	VShape& CopyToMeltedShape(FAllocationContext);
+
+	FieldsMap::TIterator CreateFieldsIterator() { return Fields.CreateIterator(); }
+
 private:
 	VShape(FAllocationContext Context, FieldsMap&& InFields);
 
@@ -113,6 +118,7 @@ private:
 	friend class ::FVerseVMEngineEnvironment;
 	friend struct VClass;
 	friend struct VObject;
+	friend struct VEmergentType;
 };
 
 } // namespace Verse

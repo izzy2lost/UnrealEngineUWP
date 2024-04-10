@@ -14,7 +14,7 @@
 
 namespace Verse
 {
-inline const VEmergentType* VCell::GetEmergentType() const
+inline VEmergentType* VCell::GetEmergentType() const
 {
 	return FHeap::EmergentTypeOffsetToPtr(EmergentTypeOffset);
 }

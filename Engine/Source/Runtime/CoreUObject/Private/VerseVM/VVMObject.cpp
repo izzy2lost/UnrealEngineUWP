@@ -108,5 +108,68 @@ uint32 VObject::GetTypeHashImpl()
 	return Result;
 }
 
+VValue VObject::MeltImpl(FRunningContext Context)
+{
+	V_DIE_UNLESS(IsStruct());
+
+	VEmergentType& EmergentType = *GetEmergentType();
+	VEmergentType& NewEmergentType = EmergentType.GetOrCreateMeltTransition(Context);
+
+	VObject& NewObject = VObject::NewUninitialized(Context, NewEmergentType);
+	NewObject.SetIsStruct();
+	if (&EmergentType == &NewEmergentType)
+	{
+		VRestValue* Data = GetData(*EmergentType.CppClassInfo);
+		VRestValue* TargetData = NewObject.GetData(*EmergentType.CppClassInfo);
+		uint64 NumIndexedFields = EmergentType.Shape->NumIndexedFields;
+		for (uint64 I = 0; I < NumIndexedFields; ++I)
+		{
+			VValue MeltResult = VValue::Melt(Context, Data[I].Get(Context));
+			if (MeltResult.IsPlaceholder())
+			{
+				return MeltResult;
+			}
+
+			TargetData[I].Set(Context, MeltResult);
+		}
+	}
+	else
+	{
+		for (auto It = EmergentType.Shape->CreateFieldsIterator(); It; ++It)
+		{
+			VUniqueString& Key = *It->Key.Get();
+			VValue MeltResult = VValue::Melt(Context, LoadField(Context, Key));
+			if (MeltResult.IsPlaceholder())
+			{
+				return MeltResult;
+			}
+			NewObject.SetField(Context, Key, MeltResult);
+		}
+	}
+
+	return VValue(NewObject);
+}
+
+VValue VObject::FreezeImpl(FRunningContext Context)
+{
+	V_DIE_UNLESS(IsStruct());
+
+	VEmergentType& EmergentType = *GetEmergentType();
+	VObject& NewObject = VObject::NewUninitialized(Context, EmergentType);
+	NewObject.SetIsStruct();
+
+	// Mutable structs have all fields as indexed fields in the object.
+	uint64 NumIndexedFields = EmergentType.Shape->NumIndexedFields;
+	V_DIE_UNLESS(NumIndexedFields == EmergentType.Shape->GetNumFields());
+
+	VRestValue* Data = GetData(*EmergentType.CppClassInfo);
+	VRestValue* TargetData = NewObject.GetData(*EmergentType.CppClassInfo);
+	for (uint64 I = 0; I < NumIndexedFields; ++I)
+	{
+		TargetData[I].Set(Context, VValue::Freeze(Context, Data[I].Get(Context)));
+	}
+	return VValue(NewObject);
+}
+
 } // namespace Verse
 #endif // WITH_VERSE_VM || defined(__INTELLISENSE__)

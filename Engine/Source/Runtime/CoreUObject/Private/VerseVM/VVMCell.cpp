@@ -90,8 +90,9 @@ VValue VCell::MeltImpl(FRunningContext Context)
 
 VValue VCell::FreezeImpl(FRunningContext Context)
 {
-	V_DIE("VCell subtype without `FreezeImpl` override called! Either this type should have an override "
-		  "or an invalid subtype is being frozen.");
+	V_DIE("VCell subtype '%s' without `FreezeImpl` override called! Either this type should have an override "
+		  "or an invalid subtype is being frozen.",
+		GetCppClassInfo()->Name);
 	return VValue();
 }
 

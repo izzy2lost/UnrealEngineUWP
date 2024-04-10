@@ -152,6 +152,7 @@ struct VClass : VType
 	COREUOBJECT_API FUtf8StringView ExtractClassName() const;
 	VPackage* GetScope() const { return Scope.Get(); }
 	EKind GetKind() const { return Kind; }
+	bool IsStruct() const { return GetKind() == EKind::Struct; }
 	bool IsNative() const { return bNative; }
 
 	/// Allocate a new VObject. Also returns a sequence of VProcedures to invoke to finish the object's construction.

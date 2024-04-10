@@ -66,7 +66,7 @@ struct VCell
 
 	COREUOBJECT_API VCell(FAccessContext, const VEmergentType* EmergentType);
 
-	const VEmergentType* GetEmergentType() const;
+	VEmergentType* GetEmergentType() const;
 	const VCppClassInfo* GetCppClassInfo() const;
 
 	// FIXME: In the future maybe these will take a FRunningContext or FAccessContext rather than

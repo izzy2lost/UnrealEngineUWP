@@ -862,7 +862,7 @@ namespace UnrealBuildTool
 				.Arg("Container", Role.Use)
 				.Suspends();
 
-			Inst("IndexSet")
+			Inst("CallSet")
 				.Arg("Container", Role.Use)
 				.Arg("Index", Role.Use)
 				.Arg("ValueToSet", Role.Use)
@@ -950,6 +950,13 @@ namespace UnrealBuildTool
 				.Arg("Object", Role.Use)
 				.Arg("Name", Role.Immediate, Arity.Fixed, "VUniqueString")
 				.Arg("Value", Role.Use)
+				.Suspends();
+
+			Inst("SetField")
+				.Arg("Object", Role.Use)
+				.Arg("Name", Role.Immediate, Arity.Fixed, "VUniqueString")
+				.Arg("Value", Role.Use)
+				.CapturesEffectToken()
 				.Suspends();
 
 			string[] ComparisonOps =

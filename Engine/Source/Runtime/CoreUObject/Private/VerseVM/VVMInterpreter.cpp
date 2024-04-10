@@ -161,7 +161,7 @@ static void UnboxArguments(FAllocationContext Context, uint32 NumParams, uint32 
 
 				// Function wants loose arguments but a tuple is provided - unbox them
 				VValue IncomingArg = GetArg(0);
-				VArray* Args = IncomingArg.DynamicCast<VArray>();
+				VArrayBase* Args = IncomingArg.DynamicCast<VArrayBase>();
 
 				V_DIE_UNLESS(Args->Num() == NumParams);
 				for (uint32 Param = 0; Param < NumParams; ++Param)
@@ -189,7 +189,7 @@ static void UnboxArguments(FAllocationContext Context, uint32 NumParams, uint32 
 				V_DIE_UNLESS(NumUnnamedArgs == 1);
 				// Function wants loose arguments but a tuple is provided - unbox them
 				VValue IncomingArg = GetArg(0);
-				VArray* Args = IncomingArg.DynamicCast<VArray>();
+				VArrayBase* Args = IncomingArg.DynamicCast<VArrayBase>();
 
 				V_DIE_UNLESS(Args->Num() == NumParams);
 				for (uint32 Param = 0; Param < NumParams; ++Param)
@@ -1306,7 +1306,7 @@ class FInterpreter
 	}
 
 	template <typename OpType>
-	FOpResult IndexSetImpl(OpType& Op)
+	FOpResult CallSetImpl(OpType& Op)
 	{
 		const VValue Container = GetOperand(Op.Container);
 		const VValue Index = GetOperand(Op.Index);
@@ -1552,11 +1552,18 @@ class FInterpreter
 		bool bUObject = Class.IsNative();
 		if (!bUObject)
 		{
-			const float UObjectProbablity = CVarUObjectProbablity.GetValueOnAnyThread();
-			bUObject = UObjectProbablity > 0.0f && (UObjectProbablity > RandomUObjectProbablity.FRand());
+			// TODO: Implement native structs: SOL-6281
+			if (!Class.IsStruct())
+			{
+				const float UObjectProbablity = CVarUObjectProbablity.GetValueOnAnyThread();
+				bUObject = UObjectProbablity > 0.0f && (UObjectProbablity > RandomUObjectProbablity.FRand());
+			}
 		}
 		if (bUObject)
 		{
+			// TODO: Implement native structs: SOL-6281
+			V_DIE_IF(Class.IsStruct());
+
 			V_RUNTIME_ERROR_IF(!verse::CanAllocateUObjects(), Context, FUtf8String::Printf("Ran out of memory for allocating `UObject`s while attempting to construct a Verse object of type %s!", *FString(Class.GetName())));
 
 			NewObject = Class.NewUObject(Context, ArchetypeFields, ArchetypeValues, Initializers);
@@ -1668,6 +1675,42 @@ class FInterpreter
 		}
 
 		return bSucceeded ? FOpResult{FOpResult::Return} : FOpResult{FOpResult::Fail};
+	}
+
+	template <typename OpType>
+	FOpResult SetFieldImpl(OpType& Op)
+	{
+		const VValue& ObjectOperand = GetOperand(Op.Object);
+		REQUIRE_CONCRETE(ObjectOperand);
+		VValue Value = GetOperand(Op.Value);
+		VUniqueString& FieldName = *Op.Name.Get();
+
+		// This is only used for setting into a deeply mutable struct.
+		// However, this code should just work for setting fields var
+		// fields in a class when we stop boxing those fields in a VVar.
+
+		bool bSucceeded = false;
+		if (VObject* Object = ObjectOperand.DynamicCast<VObject>())
+		{
+			const VEmergentType* EmergentType = Object->GetEmergentType();
+			VShape* Shape = EmergentType->Shape.Get();
+			const VShape::VEntry* Field = Shape->GetField(Context, FieldName);
+			// Right now, this is only used for setting fields on mutable structs. So it has to be an offset.
+			V_DIE_UNLESS(Field->Type == EFieldType::Offset);
+			// TODO: Make this transactional.
+			Object->GetData(*EmergentType->CppClassInfo)[Field->Index].Set(Context, Value);
+		}
+		else if (ObjectOperand.IsUObject())
+		{
+			// TODO: Implement this when we know what a struct in UObject land will look like.
+			VERSE_UNREACHABLE();
+		}
+		else
+		{
+			V_DIE("Unsupported operand to a `SetField` operation!");
+		}
+
+		return FOpResult{FOpResult::Return};
 	}
 
 	FOpResult NeqImplHelper(VValue LeftSource, VValue RightSource)
@@ -2005,7 +2048,8 @@ class FInterpreter
 
 				OP_IMPL_THREAD_EFFECTS(VarGet)
 				OP_IMPL_THREAD_EFFECTS(VarSet)
-				OP_IMPL_THREAD_EFFECTS(IndexSet)
+				OP_IMPL_THREAD_EFFECTS(SetField)
+				OP_IMPL_THREAD_EFFECTS(CallSet)
 
 				OP_IMPL(NewOption)
 				OP_IMPL(Length)
@@ -2396,7 +2440,8 @@ class FInterpreter
 
 						OP_IMPL_THREAD_EFFECTS(VarGet)
 						OP_IMPL_THREAD_EFFECTS(VarSet)
-						OP_IMPL_THREAD_EFFECTS(IndexSet)
+						OP_IMPL_THREAD_EFFECTS(SetField)
+						OP_IMPL_THREAD_EFFECTS(CallSet)
 
 						OP_IMPL(Length)
 						OP_IMPL(NewMutableArrayWithCapacity)

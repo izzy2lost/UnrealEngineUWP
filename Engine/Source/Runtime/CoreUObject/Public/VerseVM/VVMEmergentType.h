@@ -19,6 +19,7 @@ struct VEmergentType final : VCell
 
 	TWriteBarrier<VShape> Shape; // This is immutable. If you need to change an object's shape, transition to a new emergent type that points to your new shape instead.
 	TWriteBarrier<VType> Type;
+	TWriteBarrier<VEmergentType> MeltTransition;
 	VCppClassInfo* CppClassInfo = nullptr;
 
 	static VEmergentType* New(FAllocationContext Context, VType* Type, VCppClassInfo* CppClassInfo)
@@ -29,6 +30,15 @@ struct VEmergentType final : VCell
 	static VEmergentType* New(FAllocationContext Context, VShape* InShape, VType* Type, VCppClassInfo* CppClassInfo)
 	{
 		return new (Context.AllocateEmergentType(sizeof(VEmergentType))) VEmergentType(Context, InShape, VEmergentTypeCreator::EmergentTypeForEmergentType.Get(), Type, CppClassInfo);
+	}
+
+	VEmergentType& GetOrCreateMeltTransition(FAllocationContext Context)
+	{
+		if (VEmergentType* Transition = MeltTransition.Get())
+		{
+			return *Transition;
+		}
+		return GetOrCreateMeltTransitionSlow(Context);
 	}
 
 	static bool Equals(const VEmergentType& EmergentType, VType* Type, VCppClassInfo* CppClassInfo)
@@ -56,6 +66,8 @@ private:
 	{
 		return new (Context.AllocateEmergentType(sizeof(VEmergentType))) VEmergentType(Context, CppClassInfo);
 	}
+
+	VEmergentType& GetOrCreateMeltTransitionSlow(FAllocationContext);
 
 	void SetEmergentType(FAccessContext Context, VEmergentType* EmergentType)
 	{

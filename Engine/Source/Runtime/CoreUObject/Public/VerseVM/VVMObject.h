@@ -12,8 +12,6 @@ struct VClass;
 struct VProcedure;
 struct VUniqueString;
 
-static constexpr uint8 IsStructBit = 4;
-
 /// A Verse object that may store fields and associated values for those fields on it.
 /// An object points to an emergent type, which in turn points to a "shape".
 /// A "shape" is a dynamic memory layout of fields and their offsets.
@@ -32,7 +30,8 @@ struct VObject : VHeapValue
 
 	void SetField(FAllocationContext Context, VUniqueString& Name, VValue Value);
 
-	bool IsStruct() const { return !!(Misc2 & IsStructBit); };
+	bool IsStruct() { return IsDeeplyMutable(); };
+	void SetIsStruct() { SetIsDeeplyMutable(); };
 
 protected:
 	COREUOBJECT_API bool EqualImpl(FRunningContext Context, VCell* Other, const TFunction<void(::Verse::VValue, ::Verse::VValue)>& HandlePlaceholder);
@@ -45,6 +44,9 @@ protected:
 	static size_t FieldsOffset(const VCppClassInfo& CppClassInfo);
 
 	static std::byte* AllocateFastCell(FAllocationContext Context, VEmergentType& EmergentType);
+
+	VValue MeltImpl(FRunningContext Context);
+	VValue FreezeImpl(FRunningContext Context);
 
 	/*
 	 * Mutable variables store their data as a `VRestValue`.
