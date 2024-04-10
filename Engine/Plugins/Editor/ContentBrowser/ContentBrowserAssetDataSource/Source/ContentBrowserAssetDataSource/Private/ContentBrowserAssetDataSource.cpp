@@ -774,14 +774,15 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		}
 
 		// Remove any inclusive paths that aren't in the explicit AllowList set
-		if (Params.PathPermissionList && Params.PathPermissionList->GetAllowList().Num() > 0)
+		if (Params.PathPermissionList && Params.PathPermissionList->HasAllowListEntries())
 		{
 			FARCompiledFilter CompiledPathFilterAllowList;
 			{
-				CompiledPathFilterAllowList.PackagePaths.Reserve(Params.PathPermissionList->GetAllowList().Num());
-				for (const auto& AllowListPair : Params.PathPermissionList->GetAllowList())
+				TArray<FString> AllowList = Params.PathPermissionList->GetAllowListEntries();
+				CompiledPathFilterAllowList.PackagePaths.Reserve(AllowList.Num());
+				for (const FString& AllowListEntry : AllowList)
 				{
-					FName PackageName = *AllowListPair.Key;
+					FName PackageName{AllowListEntry};
 					CompiledPathFilterAllowList.PackagePaths.Add(PackageName);
 
 					constexpr bool bIsRecursive = true;
@@ -813,14 +814,15 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		}
 
 		// Remove any inclusive classes that aren't in the explicit allow list set
-		if (Params.ClassPermissionList && Params.ClassPermissionList->GetAllowList().Num() > 0)
+		if (Params.ClassPermissionList && Params.ClassPermissionList->HasAllowListEntries())
 		{
 			FARCompiledFilter CompiledClassFilterAllowList;
 			{
 				FARFilter AllowListClassFilter;
-				for (const auto& AllowListPair : Params.ClassPermissionList->GetAllowList())
+				TArray<FString> AllowList = Params.ClassPermissionList->GetAllowListEntries();
+				for (const FString& Path : AllowList)
 				{
-					AllowListClassFilter.ClassPaths.Add(FTopLevelAssetPath(AllowListPair.Key));
+					AllowListClassFilter.ClassPaths.Add(FTopLevelAssetPath(Path));
 				}
 				Params.AssetRegistry->CompileFilter(AllowListClassFilter, CompiledClassFilterAllowList);
 			}
@@ -894,12 +896,13 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		}
 
 		// Add any exclusive paths that are in the explicit DenyList set
-		if (Params.PathPermissionList && Params.PathPermissionList->GetDenyList().Num() > 0)
+		if (Params.PathPermissionList && Params.PathPermissionList->HasDenyListEntries())
 		{
-			CompiledExclusiveFilter.PackagePaths.Reserve(Params.PathPermissionList->GetDenyList().Num());
-			for (const auto& FilterPair : Params.PathPermissionList->GetDenyList())
+			TArray<FString> DenyListEntries = Params.PathPermissionList->GetDenyListEntries();
+			CompiledExclusiveFilter.PackagePaths.Reserve(DenyListEntries.Num());
+			for (const FString& PathString : DenyListEntries)
 			{
-				FName Path = *FilterPair.Key;
+				FName Path{PathString};
 				CompiledExclusiveFilter.PackagePaths.Add(Path);
 
 				constexpr bool bIsRecursive = true;
@@ -913,14 +916,14 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		}
 
 		// Add any exclusive classes that are in the explicit DenyList set
-		if (Params.ClassPermissionList && Params.ClassPermissionList->GetDenyList().Num() > 0)
+		if (Params.ClassPermissionList && Params.ClassPermissionList->HasDenyListEntries())
 		{
 			FARCompiledFilter CompiledClassFilter;
 			{
 				FARFilter ClassFilter;
-				for (const auto& FilterPair : Params.ClassPermissionList->GetDenyList())
+				for (const FString& Path : Params.ClassPermissionList->GetDenyListEntries())
 				{
-					ClassFilter.ClassPaths.Add(FTopLevelAssetPath(FilterPair.Key));
+					ClassFilter.ClassPaths.Add(FTopLevelAssetPath(Path));
 				}
 				Params.AssetRegistry->CompileFilter(ClassFilter, CompiledClassFilter);
 			}
@@ -1038,10 +1041,11 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 							ShowInclusiveFilter.bRecursivePaths = true;
 
-							ShowInclusiveFilter.PackagePaths.Reserve(FolderPermissionList->GetAllowList().Num());
-							for (const auto& AllowListPair : ClassPermissionList->GetAllowList())
+							TArray<FString> AllowList = ClassPermissionList->GetAllowListEntries();
+							ShowInclusiveFilter.PackagePaths.Reserve(AllowList.Num());
+							for (const FString& Path : AllowList)
 							{
-								ShowInclusiveFilter.PackagePaths.Add(*(AllowListPair.Key));
+								ShowInclusiveFilter.PackagePaths.Emplace(Path);
 							}
 
 							Params.AssetRegistry->CompileFilter(ShowInclusiveFilter, CompiledShowInclusiveFilter);
@@ -1084,10 +1088,11 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 							ShowExclusiveFilter.bRecursivePaths = true;
 
-							ShowExclusiveFilter.PackagePaths.Reserve(FolderPermissionList->GetDenyList().Num());
-							for (const auto& DenyListPair : ClassPermissionList->GetDenyList())
+							TArray<FString> DenyList = ClassPermissionList->GetDenyListEntries();
+							ShowExclusiveFilter.PackagePaths.Reserve(DenyList.Num());
+							for (const FString& Path : DenyList)
 							{
-								ShowExclusiveFilter.PackagePaths.Add(*(DenyListPair.Key));
+								ShowExclusiveFilter.PackagePaths.Add(FName(Path));
 							}
 
 							Params.AssetRegistry->CompileFilter(ShowExclusiveFilter, CompiledShowExclusiveFilter);
@@ -1107,16 +1112,17 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 
 					// Compile the convert if fail inclusive filter
-					if (!ClassPermissionList->GetAllowList().IsEmpty())
+					if (ClassPermissionList->HasAllowListEntries())
 					{
 						FARCompiledFilter CompiledConvertIfFailInclusiveFilter;
 						FARFilter ConvertIfFailInclusiveFilter;
 
 						// Remove any inclusive classes that aren't in the explicit allow list set
-						ConvertIfFailInclusiveFilter.ClassPaths.Reserve(ClassPermissionList->GetAllowList().Num());
-						for (const auto& AllowListPair : ClassPermissionList->GetAllowList())
+						TArray<FString> AllowList = ClassPermissionList->GetAllowListEntries();
+						ConvertIfFailInclusiveFilter.ClassPaths.Reserve(AllowList.Num());
+						for (const FString& Path : AllowList)
 						{
-							ConvertIfFailInclusiveFilter.ClassPaths.Add(FTopLevelAssetPath(AllowListPair.Key));
+							ConvertIfFailInclusiveFilter.ClassPaths.Add(FTopLevelAssetPath(Path));
 						}
 
 						Params.AssetRegistry->CompileFilter(ConvertIfFailInclusiveFilter, CompiledConvertIfFailInclusiveFilter);
@@ -1136,16 +1142,17 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 					}
 
 					// Compile the convert if fail exclusive filter
-					if (!ClassPermissionList->GetDenyList().IsEmpty())
+					if (ClassPermissionList->HasDenyListEntries())
 					{
 						FARCompiledFilter CompiledConvertIfFailExclusiveFilter;
 						FARFilter ConvertIfFailExclusiveFilter;
 
 						// Add any exclusive classes that are in the explicit DenyList set
-						ConvertIfFailExclusiveFilter.ClassPaths.Reserve(ClassPermissionList->GetDenyList().Num());
-						for (const auto& FilterPair : ClassPermissionList->GetDenyList())
+						TArray<FString> DenyList = ClassPermissionList->GetDenyListEntries();
+						ConvertIfFailExclusiveFilter.ClassPaths.Reserve(DenyList.Num());
+						for (const FString& Path : DenyList)
 						{
-							ConvertIfFailExclusiveFilter.ClassPaths.Add(FTopLevelAssetPath(FilterPair.Key));
+							ConvertIfFailExclusiveFilter.ClassPaths.Add(FTopLevelAssetPath(Path));
 						}
 
 
@@ -1334,14 +1341,16 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		}
 
 		// Remove any inclusive paths that aren't in the explicit AllowList set
-		if (Params.PathPermissionList && Params.PathPermissionList->GetAllowList().Num() > 0)
+		if (Params.PathPermissionList && Params.PathPermissionList->HasAllowListEntries())
 		{
 			FARCompiledFilter CompiledPathFilterAllowList;
 			{
 				FARFilter AllowListPathFilter;
-				for (const auto& AllowListPair : Params.PathPermissionList->GetAllowList())
+				TArray<FString> AllowList = Params.PathPermissionList->GetAllowListEntries();
+				AllowListPathFilter.PackagePaths.Reserve(AllowList.Num());
+				for (const FString& Path : AllowList)
 				{
-					AllowListPathFilter.PackagePaths.Add(*AllowListPair.Key);
+					AllowListPathFilter.PackagePaths.Emplace(Path);
 				}
 				AllowListPathFilter.bRecursivePaths = true;
 				CreateCompiledFilter(AllowListPathFilter, CompiledPathFilterAllowList);
@@ -1365,14 +1374,15 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		}
 
 		// Remove any inclusive classes that aren't in the explicit allow list set
-		if (Params.ClassPermissionList && Params.ClassPermissionList->GetAllowList().Num() > 0)
+		if (Params.ClassPermissionList && Params.ClassPermissionList->HasAllowListEntries())
 		{
 			FARCompiledFilter CompiledClassFilterAllowList;
 			{
 				FARFilter AllowListClassFilter;
-				for (const auto& AllowListPair : Params.ClassPermissionList->GetAllowList())
+				TArray<FString> AllowList = Params.ClassPermissionList->GetAllowListEntries();
+				for (const FString& Path : AllowList)
 				{
-					AllowListClassFilter.ClassPaths.Add(FTopLevelAssetPath(AllowListPair.Key));
+					AllowListClassFilter.ClassPaths.Add(FTopLevelAssetPath(Path));
 				}
 				Params.AssetRegistry->CompileFilter(AllowListClassFilter, CompiledClassFilterAllowList);
 			}
@@ -1424,14 +1434,14 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		}
 
 		// Add any exclusive paths that are in the explicit DenyList set
-		if (Params.PathPermissionList && Params.PathPermissionList->GetDenyList().Num() > 0)
+		if (Params.PathPermissionList && Params.PathPermissionList->HasDenyListEntries())
 		{
 			FARCompiledFilter CompiledClassFilter;
 			{
 				FARFilter ClassFilter;
-				for (const auto& FilterPair : Params.PathPermissionList->GetDenyList())
+				for (const FString& Path : Params.PathPermissionList->GetDenyListEntries())
 				{
-					ClassFilter.PackagePaths.Add(*FilterPair.Key);
+					ClassFilter.PackagePaths.Add(FName(Path));
 				}
 				ClassFilter.bRecursivePaths = true;
 				CreateCompiledFilter(ClassFilter, CompiledClassFilter);
@@ -1441,14 +1451,14 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		}
 
 		// Add any exclusive classes that are in the explicit DenyList set
-		if (Params.ClassPermissionList && Params.ClassPermissionList->GetDenyList().Num() > 0)
+		if (Params.ClassPermissionList && Params.ClassPermissionList->HasDenyListEntries())
 		{
 			FARCompiledFilter CompiledClassFilter;
 			{
 				FARFilter ClassFilter;
-				for (const auto& FilterPair : Params.ClassPermissionList->GetDenyList())
+				for (const FString& Path : Params.ClassPermissionList->GetDenyListEntries())
 				{
-					ClassFilter.ClassPaths.Add(FTopLevelAssetPath(FilterPair.Key));
+					ClassFilter.ClassPaths.Add(FTopLevelAssetPath(Path));
 				}
 				Params.AssetRegistry->CompileFilter(ClassFilter, CompiledClassFilter);
 			}
@@ -1566,10 +1576,11 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 							ShowInclusiveFilter.bRecursivePaths = true;
 
-							ShowInclusiveFilter.PackagePaths.Reserve(FolderPermissionList->GetAllowList().Num());
-							for (const auto& AllowListPair : ClassPermissionList->GetAllowList())
+							TArray<FString> AllowList = ClassPermissionList->GetAllowListEntries();
+							ShowInclusiveFilter.PackagePaths.Reserve(AllowList.Num());
+							for (const FString& Path : AllowList)
 							{
-								ShowInclusiveFilter.PackagePaths.Add(*(AllowListPair.Key));
+								ShowInclusiveFilter.PackagePaths.Emplace(Path);
 							}
 
 							Params.AssetRegistry->CompileFilter(ShowInclusiveFilter, CompiledShowInclusiveFilter);
@@ -1612,10 +1623,11 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 							ShowExclusiveFilter.bRecursivePaths = true;
 
-							ShowExclusiveFilter.PackagePaths.Reserve(FolderPermissionList->GetDenyList().Num());
-							for (const auto& DenyListPair : ClassPermissionList->GetDenyList())
+							TArray<FString> DenyList = ClassPermissionList->GetDenyListEntries();
+							ShowExclusiveFilter.PackagePaths.Reserve(DenyList.Num());
+							for (const FString& Path : DenyList)
 							{
-								ShowExclusiveFilter.PackagePaths.Add(*(DenyListPair.Key));
+								ShowExclusiveFilter.PackagePaths.Add(FName(Path));
 							}
 
 							Params.AssetRegistry->CompileFilter(ShowExclusiveFilter, CompiledShowExclusiveFilter);
@@ -1635,16 +1647,17 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 
 					// Compile the convert if fail inclusive filter
-					if (!ClassPermissionList->GetAllowList().IsEmpty())
+					if (ClassPermissionList->HasAllowListEntries())
 					{
 						FARCompiledFilter CompiledConvertIfFailInclusiveFilter;
 						FARFilter ConvertIfFailInclusiveFilter;
 
 						// Remove any inclusive classes that aren't in the explicit allow list set
-						ConvertIfFailInclusiveFilter.ClassPaths.Reserve(ClassPermissionList->GetAllowList().Num());
-						for (const auto& AllowListPair : ClassPermissionList->GetAllowList())
+						TArray<FString> AllowList = ClassPermissionList->GetAllowListEntries();
+						ConvertIfFailInclusiveFilter.ClassPaths.Reserve(AllowList.Num());
+						for (const FString& Path : AllowList)
 						{
-							ConvertIfFailInclusiveFilter.ClassPaths.Add(FTopLevelAssetPath(AllowListPair.Key));
+							ConvertIfFailInclusiveFilter.ClassPaths.Add(FTopLevelAssetPath(Path));
 						}
 
 						Params.AssetRegistry->CompileFilter(ConvertIfFailInclusiveFilter, CompiledConvertIfFailInclusiveFilter);
@@ -1664,16 +1677,17 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 					}
 
 					// Compile the convert if fail exclusive filter
-					if (!ClassPermissionList->GetDenyList().IsEmpty())
+					if (ClassPermissionList->HasDenyListEntries())
 					{
 						FARCompiledFilter CompiledConvertIfFailExclusiveFilter;
 						FARFilter ConvertIfFailExclusiveFilter;
 
 						// Add any exclusive classes that are in the explicit DenyList set
-						ConvertIfFailExclusiveFilter.ClassPaths.Reserve(ClassPermissionList->GetDenyList().Num());
-						for (const auto& FilterPair : ClassPermissionList->GetDenyList())
+						TArray<FString> DenyList = ClassPermissionList->GetDenyListEntries();
+						ConvertIfFailExclusiveFilter.ClassPaths.Reserve(DenyList.Num());
+						for (const FString& Path : DenyList) 
 						{
-							ConvertIfFailExclusiveFilter.ClassPaths.Add(FTopLevelAssetPath(FilterPair.Key));
+							ConvertIfFailExclusiveFilter.ClassPaths.Add(FTopLevelAssetPath(Path));
 						}
 
 
@@ -1738,30 +1752,136 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 }
 
+enum class EFolderFilterState
+{
+	None = 0, // Check all filters
+	SkipPathInclude = 0x1,
+	SkipPathExclude = 0x2,
+	SkipPermissionList = 0x3,
+};
+ENUM_CLASS_FLAGS(EFolderFilterState);
+
+// Possible outcomes of the filtering here
+//  Failure - do not visit this path or its children
+//	Success - visit this path and it's children
+//	Additional info for success - whether we need to check any more path filters - or which ones we still need to check
+// return value: success or failure
+// InOutFilterState - bitmask of which filters have passed recursively and can be skipped in future
+bool PathPassesCompiledDataFilterRecursive(const FContentBrowserCompiledAssetDataFilter& InFilter,
+	const FName InInternalPath,
+	EFolderFilterState& InOutFilterState)
+{
+	if (InFilter.ExcludedPackagePaths.Contains(InInternalPath)) // PassesExcludedPathsFilter
+	{
+		return false;
+	}
+
+	FNameBuilder PathStr(InInternalPath);
+	FStringView Path(PathStr);
+	if (!ContentBrowserDataUtils::PathPassesAttributeFilter(Path, 0, InFilter.ItemAttributeFilter))
+	{
+		return false;
+	}
+
+	auto UpdateFilterState = [&InOutFilterState](EPathPermissionPrefixResult Result, EFolderFilterState Flag) -> bool {
+		switch (Result)
+		{
+			case EPathPermissionPrefixResult::Fail:
+			case EPathPermissionPrefixResult::FailRecursive:
+				return false;
+			case EPathPermissionPrefixResult::PassRecursive:
+				InOutFilterState |= Flag;
+				return true;
+			case EPathPermissionPrefixResult::Pass:
+			default:
+				return true;
+		}
+	};
+
+	if (!EnumHasAnyFlags(InOutFilterState, EFolderFilterState::SkipPathInclude))
+	{
+		if (InFilter.bRecursivePackagePathsToInclude)
+		{
+			EPathPermissionPrefixResult IncludeResult =
+				InFilter.PackagePathsToInclude.PassesStartsWithFilterRecursive(Path);
+			if (!UpdateFilterState(IncludeResult, EFolderFilterState::SkipPathInclude))
+			{
+				return false;
+			}
+		}
+		else
+		{
+			if (!InFilter.PackagePathsToInclude.PassesFilter(Path))
+			{
+				return false;
+			}
+			// No info on recursive pass/fail for exact matches, can't update flags
+		}
+	}
+
+	if (!EnumHasAnyFlags(InOutFilterState, EFolderFilterState::SkipPathExclude))
+	{
+		if (InFilter.bRecursivePackagePathsToExclude)
+		{
+			EPathPermissionPrefixResult ExcludeResult =
+				InFilter.PackagePathsToExclude.PassesStartsWithFilterRecursive(Path);
+			if (!UpdateFilterState(ExcludeResult, EFolderFilterState::SkipPathExclude))
+			{
+				return false;
+			}
+		}
+		else
+		{
+			if (!InFilter.PackagePathsToExclude.PassesFilter(Path))
+			{
+				return false;
+			}
+			// No info on recursive pass/fail for exact matches, can't update flags
+		}
+	}
+
+	if (!EnumHasAnyFlags(InOutFilterState, EFolderFilterState::SkipPermissionList))
+	{
+		EPathPermissionPrefixResult PermissionResult =
+			InFilter.PathPermissionList.PassesStartsWithFilterRecursive(Path);
+		if (!UpdateFilterState(PermissionResult, EFolderFilterState::SkipPermissionList))
+		{
+			return false;
+		}
+	}
+
+	return true;
+}
+
 void UContentBrowserAssetDataSource::EnumerateFoldersMatchingFilter(UContentBrowserDataSource* DataSource, const FContentBrowserCompiledAssetDataFilter* AssetDataFilter, TFunctionRef<bool(FContentBrowserItemData&&)> InCallback, FSubPathEnumerationFunc SubPathEnumeration, FCreateFolderItemFunc CreateFolderItem)
 {
 	if (AssetDataFilter->bRunFolderQueryOnDemand)
 	{
-		auto HandleInternalPath = [&DataSource, &InCallback, &AssetDataFilter, &SubPathEnumeration, &CreateFolderItem](const FName InInternalPath)
-		{
-			TArray<FName, TInlineAllocator<16>> PathsToScan;
-			PathsToScan.Add(InInternalPath);
+		auto HandleInternalPath = [&DataSource, &InCallback, &AssetDataFilter, &SubPathEnumeration, &CreateFolderItem](
+									  const FName InInternalPath) {
+			TArray<TPair<FName, EFolderFilterState>, TInlineAllocator<16>> PathsToScan;
+			PathsToScan.Add({ InInternalPath, EFolderFilterState::None });
 			while (PathsToScan.Num() > 0)
 			{
-				const FName PathToScan = PathsToScan.Pop(EAllowShrinking::No);
-				SubPathEnumeration(PathToScan, [&DataSource, &InCallback, &AssetDataFilter, &PathsToScan, &CreateFolderItem](FName SubPath)
-				{
-					if (UContentBrowserAssetDataSource::PathPassesCompiledDataFilter(*AssetDataFilter, SubPath))
-					{
-						if (!InCallback(CreateFolderItem(SubPath)))
+				TPair<FName, EFolderFilterState> PathToScan = PathsToScan.Pop(EAllowShrinking::No);
+				EFolderFilterState ParentFilterState = PathToScan.Value;
+				SubPathEnumeration(
+					PathToScan.Key,
+					[&DataSource, &InCallback, &AssetDataFilter, &PathsToScan, &CreateFolderItem, ParentFilterState](
+						FName SubPath) -> bool {
+						EFolderFilterState FilterState = ParentFilterState;
+						if (PathPassesCompiledDataFilterRecursive(*AssetDataFilter, SubPath, FilterState))
 						{
-							return false;
-						}
+							if (!InCallback(CreateFolderItem(SubPath)))
+							{
+								return false;
+							}
 
-						PathsToScan.Add(SubPath);
-					}
-					return true;
-				}, false);
+							PathsToScan.Add({ SubPath, FilterState });
+						}
+						return true;
+					},
+					false);
 			}
 		};
 

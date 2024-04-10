@@ -1166,11 +1166,12 @@ void FContentBrowserSingleton::RebuildPrivateContentStateCache()
 	ShowPrivateContentState.CachedVirtualPaths.Reset();
 	ShowPrivateContentState.CachedVirtualPaths = MakeShared<FPathPermissionList>();
 
-	const auto& InvariantAllowList = ShowPrivateContentState.InvariantPaths->GetAllowList();
-	for (const TPair<FString, FPermissionListOwners>& InvariantPathOwnerPair : InvariantAllowList)
+	TArray<FString> InvariantAllowList = ShowPrivateContentState.InvariantPaths->GetAllowListEntries();
+	for (const FString& InvariantPath : InvariantAllowList)
 	{
 		FName VirtualPath;
-		IContentBrowserDataModule::Get().GetSubsystem()->ConvertInternalPathToVirtual(FStringView(InvariantPathOwnerPair.Key), VirtualPath);
+		IContentBrowserDataModule::Get().GetSubsystem()->ConvertInternalPathToVirtual(FStringView(InvariantPath),
+			VirtualPath);
 
 		ShowPrivateContentState.CachedVirtualPaths->AddAllowListItem(TEXT("ContentBrowser"), VirtualPath);
 	}

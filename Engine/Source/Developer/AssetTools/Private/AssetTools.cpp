@@ -513,18 +513,13 @@ namespace UE::AssetTools::Private
 			{
 				TempWritableRootPath = InWritableRootPath;
 
-				if (const FPermissionListOwners* DenyListPtr = WritableFolder->GetDenyList().Find(TempWritableRootPath))
+				if (WritableFolder->ContainsDenyListItem(TempWritableRootPath))
 				{
-					DenyList = *DenyListPtr;
-
-					for (const FName Owner : DenyList)
-					{
-						WritableFolder->RemoveDenyListItem(Owner, TempWritableRootPath);
-					}
+					DenyList = WritableFolder->RemoveDenyListItemAndGetOwners(TempWritableRootPath);
 				}
 
 				// No need to add a permission if the list is empty since everything is permitted (except the deny list)
-				if (!WritableFolder->GetAllowList().IsEmpty())
+				if (WritableFolder->HasAllowListEntries())
 				{
 					WritableFolder->AddAllowListItem(TemporalyPermittedByMigration, TempWritableRootPath);
 				}

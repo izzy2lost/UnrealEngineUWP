@@ -16,6 +16,20 @@
 #include "UObject/NameTypes.h"
 #include "UObject/UnrealNames.h"
 
+// Deprecated methods
+static TMap<FString, FPermissionListOwners> EmptyDeprecatedList;
+const TMap<FString, FPermissionListOwners>& FPathPermissionList::GetDenyList() const
+{
+	return EmptyDeprecatedList;
+}
+
+const TMap<FString, FPermissionListOwners>& FPathPermissionList::GetAllowList() const
+{
+	return EmptyDeprecatedList;
+}
+
+FPathPermissionList::FPathPermissionList(EPathPermissionListType InType) : ListType(InType) { }
+
 bool FPathPermissionList::PassesFilter(const FStringView Item) const
 {
 	if (DenyListAll.Num() > 0)
@@ -25,16 +39,14 @@ bool FPathPermissionList::PassesFilter(const FStringView Item) const
 
 	VerifyItemMatchesListType(Item);
 
-	if (AllowList.Num() > 0 || DenyList.Num() > 0)
+	if (!AllowTree.IsEmpty() || !DenyTree.IsEmpty())
 	{
-		const uint32 ItemHash = GetTypeHash(Item);
-
-		if (AllowList.Num() > 0 && !AllowList.ContainsByHash(ItemHash, Item))
+		if (!AllowTree.IsEmpty() && !AllowTree.Contains(Item))
 		{
 			return false;
 		}
 
-		if (DenyList.ContainsByHash(ItemHash, Item))
+		if (DenyTree.Contains(Item))
 		{
 			return false;
 		}
@@ -55,53 +67,16 @@ bool FPathPermissionList::PassesFilter(const TCHAR* Item) const
 
 bool FPathPermissionList::PassesStartsWithFilter(const FStringView Item, const bool bAllowParentPaths) const
 {
-	VerifyItemMatchesListType(Item);
-
-	if (AllowList.Num() > 0)
+	switch (PassesStartsWithFilterRecursive(Item, bAllowParentPaths))
 	{
-		bool bPassedAllowList = false;
-		for (const auto& Other : AllowList)
-		{
-			if (FPathViews::IsParentPathOf(Other.Key, Item))
-			{
-				bPassedAllowList = true;
-				break;
-			}
-
-			if (bAllowParentPaths)
-			{
-				// If allowing parent paths (eg, when filtering folders), then we must also check if the item has a AllowList child path
-				if (FPathViews::IsParentPathOf(Item, Other.Key))
-				{
-					bPassedAllowList = true;
-					break;
-				}
-			}
-		}
-
-		if (!bPassedAllowList)
-		{
+		case EPathPermissionPrefixResult::Fail:
+		case EPathPermissionPrefixResult::FailRecursive:
 			return false;
-		}
+		case EPathPermissionPrefixResult::Pass:
+		case EPathPermissionPrefixResult::PassRecursive:
+		default:
+			return true;
 	}
-
-	if (DenyList.Num() > 0)
-	{
-		for (const auto& Other : DenyList)
-		{
-			if (FPathViews::IsParentPathOf(Other.Key, Item))
-			{
-				return false;
-			}
-		}
-	}
-
-	if (DenyListAll.Num() > 0)
-	{
-		return false;
-	}
-
-	return true;
 }
 
 bool FPathPermissionList::PassesStartsWithFilter(const FName Item, const bool bAllowParentPaths) const
@@ -114,21 +89,71 @@ bool FPathPermissionList::PassesStartsWithFilter(const TCHAR* Item, const bool b
 	return PassesStartsWithFilter(FStringView(Item), bAllowParentPaths);
 }
 
+EPathPermissionPrefixResult FPathPermissionList::PassesStartsWithFilterRecursive(const FStringView Item,
+	const bool bAllowParentPaths) const
+{
+	VerifyItemMatchesListType(Item);
+
+	if (!HasFiltering())
+	{
+		return EPathPermissionPrefixResult::PassRecursive;
+	}
+
+	if (DenyListAll.Num() > 0)
+	{
+		return EPathPermissionPrefixResult::FailRecursive;
+	}
+
+	bool bChildrenMayBeDenied = false;
+	if (!DenyTree.IsEmpty())
+	{
+		if (DenyTree.FindClosestValue(Item) != nullptr)
+		{
+			return EPathPermissionPrefixResult::FailRecursive;
+		}
+	}
+
+	if (AllowTree.IsEmpty())
+	{
+		// Return value here is dependent on whether child paths might still fail deny lists
+		return DenyTree.ContainsChildPaths(Item) ? EPathPermissionPrefixResult::Pass
+												 : EPathPermissionPrefixResult::PassRecursive;
+	}
+
+	bool bPassedAllowList = AllowTree.FindClosestValue(Item) != nullptr;
+	if (!bPassedAllowList && bAllowParentPaths && AllowTree.ContainsChildPaths(Item))
+	{
+		bPassedAllowList = true;
+	}
+	if (bPassedAllowList)
+	{
+		// If we pass an allow list entry, we might later fail a deny list entry
+		// This logic is also correct if bAllowParent paths is true
+		// 	- child paths of Item will also be parents of an entry in AllowTree
+		//	- child paths of Item may also be present in DenyTree
+		return DenyTree.ContainsChildPaths(Item) ? EPathPermissionPrefixResult::Pass
+												 : EPathPermissionPrefixResult::PassRecursive;
+	}
+
+	// If we don't match any allow list entries now, check if we might later pass a longer allow list entry
+	// This logic is also correct if bAllowParentPaths is true - if there were a parent path of Item in the tree
+	// it would have matched above and covered future calls with children of Item
+	return AllowTree.ContainsChildPaths(Item) ? EPathPermissionPrefixResult::Fail
+											  : EPathPermissionPrefixResult::FailRecursive;
+}
+
+bool FPathPermissionList::ContainsDenyListItem(FStringView Item) const
+{
+	return DenyTree.Contains(Item);
+}
+
 bool FPathPermissionList::AddDenyListItem(const FName OwnerName, const FStringView Item)
 {
 	VerifyItemMatchesListType(Item);
 
-	const uint32 ItemHash = GetTypeHash(Item);
-
-	FPermissionListOwners* Owners = DenyList.FindByHash(ItemHash, Item);
-	const bool bFilterChanged = (Owners == nullptr);
-	if (!Owners)
-	{
-		Owners = &DenyList.AddByHash(ItemHash, FString(Item));
-	}
-
-	Owners->AddUnique(OwnerName);
-	
+	bool bExisted = false;
+	DenyTree.FindOrAdd(Item, &bExisted).AddUnique(OwnerName);
+	bool bFilterChanged = !bExisted;
 	if (bFilterChanged && !bSuppressOnFilterChanged)
 	{
 		OnFilterChanged().Broadcast();
@@ -149,21 +174,18 @@ bool FPathPermissionList::AddDenyListItem(const FName OwnerName, const TCHAR* It
 
 bool FPathPermissionList::RemoveDenyListItem(const FName OwnerName, const FStringView Item)
 {
-	const uint32 ItemHash = GetTypeHash(Item);
-
-	FPermissionListOwners* Owners = DenyList.FindByHash(ItemHash, Item);
+	FPermissionListOwners* Owners = DenyTree.Find(Item);
 	if (Owners && Owners->Remove(OwnerName) == 1)
 	{
 		if (Owners->Num() == 0)
 		{
-			DenyList.RemoveByHash(ItemHash, Item);
+			DenyTree.Remove(Item);
+			if (!bSuppressOnFilterChanged)
+			{
+				OnFilterChanged().Broadcast();
+			}
+			return true;
 		}
-
-		if (!bSuppressOnFilterChanged)
-		{
-			OnFilterChanged().Broadcast();
-		}
-		return true;
 	}
 
 	return false;
@@ -179,21 +201,52 @@ bool FPathPermissionList::RemoveDenyListItem(const FName OwnerName, const TCHAR*
 	return RemoveDenyListItem(OwnerName, FStringView(Item));
 }
 
+bool FPathPermissionList::HasDenyListEntries() const
+{
+	return DenyTree.IsEmpty() == false;
+}
+
+TArray<FString> FPathPermissionList::GetDenyListEntries() const
+{
+	TArray<FString> Entries;
+	DenyTree.TryGetChildren({}, Entries, EDirectoryTreeGetFlags::Recursive | EDirectoryTreeGetFlags::ImpliedParent);
+	return MoveTemp(Entries);
+}
+
+FPermissionListOwners FPathPermissionList::RemoveDenyListItemAndGetOwners(FStringView Item)
+{
+	if (FPermissionListOwners* Owners = DenyTree.Find(Item))
+	{
+		FPermissionListOwners RemovedOwners = MoveTemp(*Owners);
+		DenyTree.Remove(Item);
+
+		if (!bSuppressOnFilterChanged)
+		{
+			OnFilterChanged().Broadcast();
+		}
+		return RemovedOwners;
+	}
+	return {};
+}
+
+bool FPathPermissionList::HasAllowListEntries() const
+{
+	return AllowTree.IsEmpty() == false;
+}
+
+TArray<FString> FPathPermissionList::GetAllowListEntries() const
+{
+	TArray<FString> Entries;
+	AllowTree.TryGetChildren({}, Entries, EDirectoryTreeGetFlags::Recursive | EDirectoryTreeGetFlags::ImpliedParent);
+	return MoveTemp(Entries);
+}
+
 bool FPathPermissionList::AddAllowListItem(const FName OwnerName, const FStringView Item)
 {
 	VerifyItemMatchesListType(Item);
-
-	const uint32 ItemHash = GetTypeHash(Item);
-
-	FPermissionListOwners* Owners = AllowList.FindByHash(ItemHash, Item);
-	const bool bFilterChanged = (Owners == nullptr);
-	if (!Owners)
-	{
-		Owners = &AllowList.AddByHash(ItemHash, FString(Item));
-	}
-
-	Owners->AddUnique(OwnerName);
-
+	bool bExisted = false;
+	AllowTree.FindOrAdd(Item).AddUnique(OwnerName);
+	bool bFilterChanged = !bExisted;
 	if (bFilterChanged && !bSuppressOnFilterChanged)
 	{
 		OnFilterChanged().Broadcast();
@@ -228,21 +281,18 @@ bool FPathPermissionList::AddDenyListAll(const FName OwnerName)
 
 bool FPathPermissionList::RemoveAllowListItem(const FName OwnerName, const FStringView Item)
 {
-	const uint32 ItemHash = GetTypeHash(Item);
-
-	FPermissionListOwners* Owners = AllowList.FindByHash(ItemHash, Item);
+	FPermissionListOwners* Owners = AllowTree.Find(Item);
 	if (Owners && Owners->Remove(OwnerName) == 1)
 	{
 		if (Owners->Num() == 0)
 		{
-			AllowList.RemoveByHash(ItemHash, Item);
+			AllowTree.Remove(Item);
+			if (!bSuppressOnFilterChanged)
+			{
+				OnFilterChanged().Broadcast();
+			}
+			return true;
 		}
-
-		if (!bSuppressOnFilterChanged)
-		{
-			OnFilterChanged().Broadcast();
-		}
-		return true;
 	}
 
 	return false;
@@ -260,24 +310,28 @@ bool FPathPermissionList::RemoveAllowListItem(const FName OwnerName, const TCHAR
 
 bool FPathPermissionList::HasFiltering() const
 {
-	return DenyList.Num() > 0 || AllowList.Num() > 0 || DenyListAll.Num() > 0;
+	return !DenyTree.IsEmpty() || !AllowTree.IsEmpty() || DenyListAll.Num() > 0;
 }
 
 TArray<FName> FPathPermissionList::GetOwnerNames() const
 {
 	TArray<FName> OwnerNames;
 
-	for (const auto& It : DenyList)
+	TArray<FString> Entries;
+	DenyTree.TryGetChildren({}, Entries, EDirectoryTreeGetFlags::Recursive | EDirectoryTreeGetFlags::ImpliedParent);
+	for (const FString& DenyEntry : Entries)
 	{
-		for (const auto& OwnerName : It.Value)
+		for (FName OwnerName : *DenyTree.Find(DenyEntry))
 		{
 			OwnerNames.AddUnique(OwnerName);
 		}
 	}
 
-	for (const auto& It : AllowList)
+	Entries.Reset();
+	AllowTree.TryGetChildren({}, Entries, EDirectoryTreeGetFlags::Recursive | EDirectoryTreeGetFlags::ImpliedParent);
+	for (const FString& AllowEntry : Entries)
 	{
-		for (const auto& OwnerName : It.Value)
+		for (FName OwnerName : *AllowTree.Find(AllowEntry))
 		{
 			OwnerNames.AddUnique(OwnerName);
 		}
@@ -295,22 +349,28 @@ bool FPathPermissionList::UnregisterOwner(const FName OwnerName)
 {
 	bool bFilterChanged = false;
 
-	for (auto It = DenyList.CreateIterator(); It; ++It)
+	TArray<FString> Entries;
+	DenyTree.TryGetChildren({}, Entries, EDirectoryTreeGetFlags::Recursive | EDirectoryTreeGetFlags::ImpliedParent);
+	for (const FString& DenyEntry : Entries)
 	{
-		It->Value.Remove(OwnerName);
-		if (It->Value.Num() == 0)
+		FPermissionListOwners* Owners = DenyTree.Find(DenyEntry);
+		Owners->Remove(OwnerName);
+		if (Owners->Num() == 0)
 		{
-			It.RemoveCurrent();
+			DenyTree.Remove(DenyEntry);
 			bFilterChanged = true;
 		}
 	}
 
-	for (auto It = AllowList.CreateIterator(); It; ++It)
+	Entries.Reset();
+	AllowTree.TryGetChildren({}, Entries, EDirectoryTreeGetFlags::Recursive | EDirectoryTreeGetFlags::ImpliedParent);
+	for (const FString& AllowEntry : Entries)
 	{
-		It->Value.Remove(OwnerName);
-		if (It->Value.Num() == 0)
+		FPermissionListOwners* Owners = AllowTree.Find(AllowEntry);
+		Owners->Remove(OwnerName);
+		if (Owners->Num() == 0)
 		{
-			It.RemoveCurrent();
+			AllowTree.Remove(AllowEntry);
 			bFilterChanged = true;
 		}
 	}
@@ -353,23 +413,31 @@ bool FPathPermissionList::Append(const FPathPermissionList& Other)
 	{
 		TGuardValue<bool> Guard(bSuppressOnFilterChanged, true);
 
-		for (const auto& It : Other.DenyList)
+		TArray<FString> Entries;
+		Other.DenyTree.TryGetChildren({},
+			Entries,
+			EDirectoryTreeGetFlags::Recursive | EDirectoryTreeGetFlags::ImpliedParent);
+		for (const FString& DenyEntry : Entries)
 		{
-			for (const auto& OwnerName : It.Value)
+			for (FName OwnerName : *Other.DenyTree.Find(DenyEntry))
 			{
-				bFilterChanged |= AddDenyListItem(OwnerName, It.Key);
+				bFilterChanged |= AddDenyListItem(OwnerName, DenyEntry);
 			}
 		}
 
-		for (const auto& It : Other.AllowList)
+		Entries.Reset();
+		Other.AllowTree.TryGetChildren({},
+			Entries,
+			EDirectoryTreeGetFlags::Recursive | EDirectoryTreeGetFlags::ImpliedParent);
+		for (const FString& AllowEntry : Entries)
 		{
-			for (const auto& OwnerName : It.Value)
+			for (const auto& OwnerName : *Other.AllowTree.Find(AllowEntry))
 			{
-				bFilterChanged |= AddAllowListItem(OwnerName, It.Key);
+				bFilterChanged |= AddAllowListItem(OwnerName, AllowEntry);
 			}
 		}
 
-		for (const auto& OwnerName : Other.DenyListAll)
+		for (FName OwnerName : Other.DenyListAll)
 		{
 			bFilterChanged |= AddDenyListAll(OwnerName);
 		}
@@ -387,55 +455,65 @@ FPathPermissionList FPathPermissionList::CombinePathFilters(const FPathPermissio
 {
 	FPathPermissionList Result;
 
-	if (IsDenyListAll() || OtherFilter.IsDenyListAll())
-	{
-		Result.AddDenyListAll(NAME_None);
-	}
+	Result.DenyListAll.Append(DenyListAll);
+	Result.DenyListAll.Append(OtherFilter.DenyListAll);
 
-	for (const TPair<FString, FPermissionListOwners>& It : GetDenyList())
+	TArray<FString> Entries;
+	DenyTree.TryGetChildren({}, Entries, EDirectoryTreeGetFlags::Recursive | EDirectoryTreeGetFlags::ImpliedParent);
+	for (const FString& DenyEntry : Entries)
 	{
-		for (const FName& OwnerName : It.Value)
+		for (FName OwnerName : *DenyTree.Find(DenyEntry))
 		{
-			Result.AddDenyListItem(OwnerName, It.Key);
+			Result.AddDenyListItem(OwnerName, DenyEntry);
 		}
 	}
 
-	for (const TPair<FString, FPermissionListOwners>& It : OtherFilter.GetDenyList())
+	Entries.Reset();
+	OtherFilter.DenyTree.TryGetChildren({},
+		Entries,
+		EDirectoryTreeGetFlags::Recursive | EDirectoryTreeGetFlags::ImpliedParent);
+	for (const FString& DenyEntry : Entries)
 	{
-		for (const FName& OwnerName : It.Value)
+		for (const FName& OwnerName : *OtherFilter.DenyTree.Find(DenyEntry))
 		{
-			Result.AddDenyListItem(OwnerName, It.Key);
+			Result.AddDenyListItem(OwnerName, DenyEntry);
 		}
 	}
 
-	if (GetAllowList().Num() > 0 || OtherFilter.GetAllowList().Num() > 0)
+	if (!AllowTree.IsEmpty() || !OtherFilter.AllowTree.IsEmpty())
 	{
-		for (const TPair<FString, FPermissionListOwners>& It : GetAllowList())
+		Entries.Reset();
+		AllowTree.TryGetChildren({},
+			Entries,
+			EDirectoryTreeGetFlags::Recursive | EDirectoryTreeGetFlags::ImpliedParent);
+		for (const FString& AllowEntry : Entries)
 		{
-			const FString& Path = It.Key;
-			if (OtherFilter.PassesStartsWithFilter(Path, true))
+			if (OtherFilter.PassesStartsWithFilter(AllowEntry, true))
 			{
-				for (const FName& OwnerName : It.Value)
+				for (const FName& OwnerName : *AllowTree.Find(AllowEntry))
 				{
-					Result.AddAllowListItem(OwnerName, Path);
+					Result.AddAllowListItem(OwnerName, AllowEntry);
 				}
 			}
 		}
 
-		for (const TPair<FString, FPermissionListOwners>& It : OtherFilter.GetAllowList())
+		Entries.Reset();
+		OtherFilter.AllowTree.TryGetChildren({},
+			Entries,
+			EDirectoryTreeGetFlags::Recursive | EDirectoryTreeGetFlags::ImpliedParent);
+		for (const FString& AllowEntry : Entries)
 		{
-			const FString& Path = It.Key;
-			if (PassesStartsWithFilter(Path, true))
+			if (PassesStartsWithFilter(AllowEntry, true))
 			{
-				for (const FName& OwnerName : It.Value)
+				for (const FName& OwnerName : *OtherFilter.AllowTree.Find(AllowEntry))
 				{
-					Result.AddAllowListItem(OwnerName, Path);
+					Result.AddAllowListItem(OwnerName, AllowEntry);
 				}
 			}
 		}
 
 		// Block everything if none of the AllowList paths passed
-		if (Result.GetAllowList().Num() == 0)
+		if (Result.AllowTree.IsEmpty())
 		{
 			Result.AddDenyListAll(NAME_None);
 		}
@@ -481,8 +559,7 @@ FString FPathPermissionList::ToString() const
 {
 	TStringBuilder<4096> StringBuilder;
 
-	auto SortAndAppendOwners = [&StringBuilder](FPermissionListOwners& Owners)
-	{
+	auto SortAndAppendOwners = [&StringBuilder](FPermissionListOwners Owners) {
 		Owners.Sort(FNameLexicalLess());
 
 		StringBuilder.AppendChar(TCHAR('('));
@@ -505,37 +582,36 @@ FString FPathPermissionList::ToString() const
 	if (!DenyListAll.IsEmpty())
 	{
 		StringBuilder.Append(TEXT("Deny All "));
-		FPermissionListOwners SortedDenyListAll = DenyListAll;
-		SortAndAppendOwners(SortedDenyListAll);
+		SortAndAppendOwners(DenyListAll);
 		StringBuilder.Append(TEXT("\n"));;
 	}
 
-	auto AppendList = [&StringBuilder, &SortAndAppendOwners](const TMap<FString, FPermissionListOwners>& List)
-	{
-		TMap<FString, FPermissionListOwners> SortedList = List;
-		SortedList.KeySort(TLess<FString>());
-		for (TPair<FString, FPermissionListOwners>& ListEntry : SortedList)
+	auto AppendList = [&StringBuilder, &SortAndAppendOwners](const TDirectoryTree<FPermissionListOwners>& Tree) {
+		TArray<FString> AllPaths;
+		Tree.TryGetChildren({}, AllPaths, EDirectoryTreeGetFlags::Recursive | EDirectoryTreeGetFlags::ImpliedParent);
+		Algo::Sort(AllPaths);
+		for (const FString& Path : AllPaths)
 		{
 			StringBuilder.AppendChar(TCHAR('\t'));
 			StringBuilder.AppendChar(TCHAR('"'));
-			StringBuilder.Append(ListEntry.Key);
+			StringBuilder.Append(Path);
 			StringBuilder.AppendChar(TCHAR('"'));
 			StringBuilder.AppendChar(TCHAR(' '));
-			SortAndAppendOwners(ListEntry.Value);
+			SortAndAppendOwners(*Tree.Find(Path));
 			StringBuilder.AppendChar(TCHAR('\n'));
 		}
 	};
 
-	if (!DenyList.IsEmpty())
+	if (!DenyTree.IsEmpty())
 	{
 		StringBuilder.Append(TEXT("Deny List\n"));
-		AppendList(DenyList);
+		AppendList(DenyTree);
 	}
 
-	if (!AllowList.IsEmpty())
+	if (!AllowTree.IsEmpty())
 	{
 		StringBuilder.Append(TEXT("Allow List\n"));
-		AppendList(AllowList);
+		AppendList(AllowTree);
 	}
 
 	return StringBuilder.ToString();
