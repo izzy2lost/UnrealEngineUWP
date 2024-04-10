@@ -27,6 +27,15 @@ namespace Chaos
 	class FPhysicsSolverBase;
 }
 
+namespace RenderInterpolationCVars
+{
+	extern float RenderInterpErrorCorrectionDuration;
+	extern float RenderInterpMaximumErrorCorrectionBeforeSnapping;
+	extern float RenderInterpErrorVelocitySmoothingDuration;
+	extern float RenderInterpErrorDirectionalDecayMultiplier;
+	extern bool bRenderInterpDebugDraw;
+}
+
 struct FProxyTimestampBase
 {
 	bool bDeleted = false;
@@ -123,35 +132,30 @@ public:
 	void SetParentProxy(IPhysicsProxyBase* InProxy) { ParentProxy = InProxy; }
 
 	// Render Interpolation CVars
+	UE_DEPRECATED(5.5, "Deprecated, use RenderInterpolationCVars::RenderInterpErrorCorrectionDuration")
 	static float GetRenderInterpErrorCorrectionDuration()
 	{
-		static float RenderInterpErrorCorrectionDuration = 0.5f;
-		static FAutoConsoleVariableRef CVarRenderInterpErrorCorrectionDuration(TEXT("p.RenderInterp.ErrorCorrectionDuration"), RenderInterpErrorCorrectionDuration, TEXT("How long in seconds to apply error correction over."));
-		return RenderInterpErrorCorrectionDuration;
+		return RenderInterpolationCVars::RenderInterpErrorCorrectionDuration;
 	}
+	UE_DEPRECATED(5.5, "Deprecated, use RenderInterpolationCVars::RenderInterpMaximumErrorCorrectionBeforeSnapping")
 	static float GetRenderInterpMaximumErrorCorrectionBeforeSnapping()
 	{
-		static float RenderInterpMaximumErrorCorrectionBeforeSnapping = 250.0f;
-		static FAutoConsoleVariableRef CVarRenderInterpErrorCorrectionMaximumError(TEXT("p.RenderInterp.MaximumErrorCorrectionBeforeSnapping"), RenderInterpMaximumErrorCorrectionBeforeSnapping, TEXT("Maximum error correction in cm before we stop interpolating and snap to target."));
-		return RenderInterpMaximumErrorCorrectionBeforeSnapping;
+		return RenderInterpolationCVars::RenderInterpMaximumErrorCorrectionBeforeSnapping;
 	}
+	UE_DEPRECATED(5.5, "Deprecated, use RenderInterpolationCVars::RenderInterpErrorVelocitySmoothingDuration")
 	static float GetRenderInterpErrorVelocitySmoothingDuration()
 	{
-		static float RenderInterpErrorVelocitySmoothingDuration = 0.5f;
-		static FAutoConsoleVariableRef CVarRenderInterpErrorVelocitySmoothingDuration(TEXT("p.RenderInterp.ErrorVelocitySmoothingDuration"), RenderInterpErrorVelocitySmoothingDuration, TEXT("How long in seconds to apply error velocity smoothing correction over, should be smaller than or equal to p.RenderInterp.ErrorCorrectionDuration. RENDERINTERPOLATION_VELOCITYSMOOTHING needs to be defined."));
-		return RenderInterpErrorVelocitySmoothingDuration;
+		return RenderInterpolationCVars::RenderInterpErrorVelocitySmoothingDuration;
 	}
+	UE_DEPRECATED(5.5, "Deprecated, use RenderInterpolationCVars::bRenderInterpDebugDraw")
 	static bool GetRenderInterpDebugDraw()
 	{
-		static bool RenderInterpDebugDraw = false;
-		static FAutoConsoleVariableRef CVarRenderInterpDebugDraw(TEXT("p.RenderInterp.DebugDraw"), RenderInterpDebugDraw, TEXT("Draw debug lines for physics render interpolation, also needs p.Chaos.DebugDraw.Enabled set"));
-		return RenderInterpDebugDraw;
+		return RenderInterpolationCVars::bRenderInterpDebugDraw;
 	}
+	UE_DEPRECATED(5.5, "Deprecated, use RenderInterpolationCVars::RenderInterpErrorDirectionalDecayMultiplier")
 	static float GetRenderInterpErrorDirectionalDecayMultiplier()
 	{
-		static float RenderInterpErrorDirectionalDecayMultiplier = 0.0f;
-		static FAutoConsoleVariableRef CVarRenderInterpErrorDirectionalDecayMultiplier(TEXT("p.RenderInterp.DirectionalDecayMultiplier"), RenderInterpErrorDirectionalDecayMultiplier, TEXT("Decay error offset in the direction that the physics object is moving, value is multiplier of projected offset direction, 0.25 means a 25% decay of the magnitude in the direction of physics travel. Deactivate by setting to 0."));
-		return RenderInterpErrorDirectionalDecayMultiplier;
+		return RenderInterpolationCVars::RenderInterpErrorDirectionalDecayMultiplier;
 	}
 
 protected:
@@ -262,7 +266,7 @@ struct FProxyInterpolationError : FProxyInterpolationBase
 			Chaos::FRealDouble DotProd = Chaos::FVec3::DotProduct(DirectionNormal, ErrorX);
 			if (DotProd > 0.0f)
 			{
-				Chaos::FVec3 DirProjection = ErrorX.ProjectOnToNormal(DirectionNormal) * IPhysicsProxyBase::GetRenderInterpErrorDirectionalDecayMultiplier();
+				Chaos::FVec3 DirProjection = ErrorX.ProjectOnToNormal(DirectionNormal) * RenderInterpolationCVars::RenderInterpErrorDirectionalDecayMultiplier;
 				ErrorX -= DirProjection;
 				return true;
 			}
