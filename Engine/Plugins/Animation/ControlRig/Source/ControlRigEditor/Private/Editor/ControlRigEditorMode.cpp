@@ -205,3 +205,36 @@ FModularRigEditorMode::FModularRigEditorMode(const TSharedRef<FControlRigEditor>
 			)
 		);
 }
+
+void FModularRigEditorMode::RegisterTabFactories(TSharedPtr<FTabManager> InTabManager)
+{
+	TSharedPtr<FBlueprintEditor> BP = MyBlueprintEditor.Pin();
+	
+	BP->RegisterToolbarTab(InTabManager.ToSharedRef());
+
+	static const TArray<FName> DisallowedTabs = {
+		FBlueprintEditorTabs::PaletteID,
+		FBlueprintEditorTabs::ReplaceNodeReferencesID,
+		FBlueprintEditorTabs::CompilerResultsID,
+		FBlueprintEditorTabs::FindResultsID,
+		FBlueprintEditorTabs::BookmarksID,
+		FRigVMExecutionStackTabSummoner::TabID
+	};
+
+	auto PushTabFactories = [&](FWorkflowAllowedTabSet& Tabs)
+	{
+		for (auto FactoryIt = Tabs.CreateIterator(); FactoryIt; ++FactoryIt)
+		{
+			if (DisallowedTabs.Contains(FactoryIt->Key))
+			{
+				continue;
+			}
+			FactoryIt.Value()->RegisterTabSpawner(InTabManager.ToSharedRef(), BP->GetCurrentModePtr().Get());
+		}
+	};
+
+	// Mode-specific setup
+	PushTabFactories(CoreTabFactories);
+	PushTabFactories(BlueprintEditorTabFactories);
+	PushTabFactories(TabFactories);
+}

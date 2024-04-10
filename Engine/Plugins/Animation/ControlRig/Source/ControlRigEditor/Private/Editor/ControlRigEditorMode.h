@@ -31,6 +31,9 @@ class FModularRigEditorMode : public FControlRigEditorMode
 public:
 	FModularRigEditorMode(const TSharedRef<FControlRigEditor>& InControlRigEditor);
 
+	// FApplicationMode interface
+	virtual void RegisterTabFactories(TSharedPtr<FTabManager> InTabManager) override;
+
 	// for now just don't open up the previous edited documents
 	virtual void PostActivateMode() override {}
 };
