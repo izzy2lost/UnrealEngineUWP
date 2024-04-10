@@ -266,7 +266,7 @@ namespace UE::Tasks
 
 		void FTaskBase::ClearPipe()
 		{
-			GetPipe()->TryClearTask(*this);
+			GetPipe()->ClearTask(*this);
 		}
 
 		static thread_local FTaskBase* CurrentTask = nullptr;

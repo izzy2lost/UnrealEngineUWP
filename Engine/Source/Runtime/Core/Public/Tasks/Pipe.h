@@ -7,6 +7,7 @@
 #include "CoreTypes.h"
 #include "Misc/AssertionMacros.h"
 #include "Tasks/Task.h"
+#include "Async/EventCount.h"
 #include "Tasks/TaskPrivate.h"
 #include "Templates/Invoke.h"
 #include "Templates/UnrealTemplate.h"
@@ -20,7 +21,8 @@ namespace UE::Tasks
 	// non-concurrent tasks execution. FPipe is a replacement for named threads because it's lightweight and flexible -
 	// there can be a large dynamic number of pipes each controlling its own shared resource. Can be used as a replacement for
 	// dedicated threads.
-	// Execution order is FIFO, i.e. it's the same as launching order. This means that if launching order is unspecified
+	// Execution order is FIFO for tasks that don't have prerequisites, i.e. it's the same as launching order. 
+	// Adding prerequisites to a pipe task can alter when the task is queued to the pipe, hence can change the execution order.
 	// A pipe must be alive until its last task is completed.
 	// See `FTasksPipeTest` for tests and examples.
 	class FPipe
@@ -42,7 +44,7 @@ namespace UE::Tasks
 		// returns `true` if the pipe has any not completed tasks
 		bool HasWork() const
 		{
-			return LastTask.load(std::memory_order_relaxed) != nullptr;
+			return TaskCount.load(std::memory_order_relaxed) != 0;
 		}
 
 		// waits until the pipe is empty (its last task is executed)
@@ -70,8 +72,7 @@ namespace UE::Tasks
 			using FExecutableTask = Private::TExecutableTask<std::decay_t<TaskBodyType>>;
 
 			FExecutableTask* Task = FExecutableTask::Create(InDebugName, Forward<TaskBodyType>(TaskBody), Priority, ExtendedPriority, Flags);
-			Task->SetPipe(*this);
-			Task->TryLaunch(sizeof(*Task));
+			AddToPipe(Task);
 			return TTask<FResult>{ Task };
 		}
 
@@ -97,9 +98,8 @@ namespace UE::Tasks
 			using FExecutableTask = Private::TExecutableTask<std::decay_t<TaskBodyType>>;
 
 			FExecutableTask* Task = FExecutableTask::Create(InDebugName, Forward<TaskBodyType>(TaskBody), Priority, ExtendedPriority, Flags);
-			Task->SetPipe(*this);
 			Task->AddPrerequisites(Forward<PrerequisitesCollectionType>(Prerequisites));
-			Task->TryLaunch(sizeof(*Task));
+			AddToPipe(Task);
 			return TTask<FResult>{ Task };
 		}
 
@@ -116,18 +116,26 @@ namespace UE::Tasks
 		[[nodiscard]] Private::FTaskBase* PushIntoPipe(Private::FTaskBase& Task);
 
 		// pipe holds a "weak" reference to a task. the task must be cleared from the pipe when its execution finished before its completion, 
-		// otherwise the next piped task can try to add itself as a subsequent to already destroyed task.
-		// returns true if the task was still the last one and so was successfully cleared
-		bool TryClearTask(Private::FTaskBase& Task);
+		// otherwise the next piped task can try to add itself as a subsequent to an already destroyed task.
+		void ClearTask(Private::FTaskBase& Task);
 
 		// notifications about pipe's task execution
 		void ExecutionStarted();
 		void ExecutionFinished();
 
+		template <typename TaskType>
+		void AddToPipe(TaskType* Task)
+		{
+			TaskCount.fetch_add(1, std::memory_order_acq_rel);
+			Task->SetPipe(*this);
+			Task->TryLaunch(sizeof(*Task));
+		}
+
 	private:
 		// pipe builds a chain (a linked list) of tasks and so needs to store only the last one. the last task is null if the pipe is not blocked
 		std::atomic<Private::FTaskBase*> LastTask{ nullptr };
-
+		std::atomic<uint64> TaskCount { 0 };
+		UE::FEventCount EmptyEvent;
 	public:
 		FORCENOINLINE const TCHAR* GetDebugName() const
 		{
