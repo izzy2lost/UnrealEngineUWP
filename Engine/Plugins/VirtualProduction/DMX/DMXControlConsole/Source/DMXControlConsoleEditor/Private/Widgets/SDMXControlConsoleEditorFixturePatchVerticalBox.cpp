@@ -53,7 +53,6 @@ namespace UE::DMX::Private
 				]
 
 				+ SVerticalBox::Slot()
-				.AutoHeight()
 				[
 					SAssignNew(FixturePatchList, SDMXControlConsoleFixturePatchList, EditorModel.Get())
 					.DMXLibrary(DMXLibrary)

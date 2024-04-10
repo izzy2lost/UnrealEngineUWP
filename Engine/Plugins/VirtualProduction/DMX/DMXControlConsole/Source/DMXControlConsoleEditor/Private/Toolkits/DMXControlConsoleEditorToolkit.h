@@ -21,6 +21,7 @@ class UDMXControlConsoleEditorPlayMenuModel;
 namespace UE::DMX::Private
 {
 	class FDMXControlConsoleEditorToolbar;
+	class SDMXControlConsoleEditorCueStackView;
 	class SDMXControlConsoleEditorDetailsView;
 	class SDMXControlConsoleEditorDMXLibraryView;
 	class SDMXControlConsoleEditorFiltersView;
@@ -87,6 +88,9 @@ namespace UE::DMX::Private
 		/** Name of the Filters View Tab */
 		static const FName FiltersViewTabID;
 
+		/** Name of the Cue Stack View Tab */
+		static const FName CueStackViewTabID;
+
 	protected:
 		//~ Begin FAssetEditorToolkit Interface
 		virtual void RegisterTabSpawners(const TSharedRef<FTabManager>& TabManager) override;
@@ -125,6 +129,9 @@ namespace UE::DMX::Private
 		/** Generates the Filters View for this Control Console instance */
 		TSharedRef<SDMXControlConsoleEditorFiltersView> GenerateFiltersView();
 
+		/** Generates the Cue Stack View for this Control Console instance */
+		TSharedRef<SDMXControlConsoleEditorCueStackView> GenerateCueStackView();
+
 		/** Spawns the DMX Library View */
 		TSharedRef<SDockTab> SpawnTab_DMXLibraryView(const FSpawnTabArgs& Args);
 
@@ -136,6 +143,9 @@ namespace UE::DMX::Private
 
 		/** Spawns the Filters View */
 		TSharedRef<SDockTab> SpawnTab_FiltersView(const FSpawnTabArgs& Args);
+
+		/** Spawns the Cue Stack View */
+		TSharedRef<SDockTab> SpawnTab_CueStackView(const FSpawnTabArgs& Args);
 
 		/** Setups the asset toolkit's commands */
 		void SetupCommands();
@@ -160,6 +170,9 @@ namespace UE::DMX::Private
 
 		/** The Filters View instance */
 		TSharedPtr<SDMXControlConsoleEditorFiltersView> FiltersView;
+
+		/** The Cue Stack View instance */
+		TSharedPtr<SDMXControlConsoleEditorCueStackView> CueStackView;
 
 		/** The Play Menu Model for the Control Console this toolkit is based on */
 		TObjectPtr<UDMXControlConsoleEditorPlayMenuModel> PlayMenuModel;

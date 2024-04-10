@@ -8,6 +8,7 @@
 
 #include "DMXControlConsoleData.generated.h"
 
+class UDMXControlConsoleCueStack;
 class UDMXControlConsoleFaderGroup;
 class UDMXControlConsoleFaderGroupController;
 class UDMXControlConsoleFaderGroupRow;
@@ -38,6 +39,9 @@ class DMXCONTROLCONSOLE_API UDMXControlConsoleData
 	friend UDMXControlConsoleFaderGroupRow;
 
 public:
+	/** Constructor */
+	UDMXControlConsoleData();
+
 	/** Adds a Fader Group Row to this DMX Control Console */
 	UDMXControlConsoleFaderGroupRow* AddFaderGroupRow(const int32 RowIndex);
 
@@ -56,8 +60,11 @@ public:
 	/** Generates sorted Fader Groups based on the DMX Control Console's current DMX Library */
 	void GenerateFromDMXLibrary();
 
-	/** Gets this DMX Control Console's DMXLibrary */
+	/** Gets this DMX Control Console's DMX Library */
 	UDMXLibrary* GetDMXLibrary() const { return CachedWeakDMXLibrary.Get(); }
+
+	/** Gets this DMX Control Console's Cue Stack */
+	UDMXControlConsoleCueStack* GetCueStack() const { return CueStack; }
 
 	/** Sends DMX on this DMX Control Console on tick */
 	void StartSendingDMX();
@@ -155,6 +162,10 @@ private:
 	/** Cached DMX Library for faster access */
 	UPROPERTY()
 	TWeakObjectPtr<UDMXLibrary> CachedWeakDMXLibrary;
+
+	/** The Cue Stack for this DMX Control Console */
+	UPROPERTY()
+	TObjectPtr<UDMXControlConsoleCueStack> CueStack;
 
 	/** DMX Control Console's Fader Group Rows array */
 	UPROPERTY()

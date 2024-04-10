@@ -48,6 +48,8 @@ FDMXControlConsoleEditorStyle::FDMXControlConsoleEditorStyle()
 	{
 		Set("DMXControlConsole.TabIcon", new IMAGE_BRUSH_SVG("DMXControlConsole_16", Icon16x16));
 		Set("DMXControlConsole.DMXLibrary", new IMAGE_BRUSH_SVG("DMXLibrary_16", Icon16x16));
+		Set("DMXControlConsole.CueStack", new EDITOR_IMAGE_BRUSH("Icons/hiererchy_16x", Icon16x16));
+		Set("DMXControlConsole.StoreCue", new EDITOR_IMAGE_BRUSH("Icons/ReturnToLayersList", Icon16x16));
 		Set("DMXControlConsole.ResetToDefault", new EDITOR_IMAGE_BRUSH_SVG("Starship/Common/Reset", Icon16x16));
 		Set("DMXControlConsole.ResetToZero", new EDITOR_IMAGE_BRUSH("UMG/Slider", Icon16x16));
 		Set("DMXControlConsole.Clear", new EDITOR_IMAGE_BRUSH("Icons/GeneralTools/Erase_40x", Icon16x16));

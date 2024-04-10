@@ -26,6 +26,7 @@
 #include "Models/DMXControlConsoleEditorPlayMenuModel.h"
 #include "ScopedTransaction.h"
 #include "Style/DMXControlConsoleEditorStyle.h"
+#include "Views/SDMXControlConsoleEditorCueStackView.h"
 #include "Views/SDMXControlConsoleEditorDetailsView.h"
 #include "Views/SDMXControlConsoleEditorDMXLibraryView.h"
 #include "Views/SDMXControlConsoleEditorFiltersView.h"
@@ -41,6 +42,7 @@ namespace UE::DMX::Private
 	const FName FDMXControlConsoleEditorToolkit::LayoutViewTabID(TEXT("DMXControlConsoleEditorToolkit_LayoutViewTabID"));
 	const FName FDMXControlConsoleEditorToolkit::DetailsViewTabID(TEXT("DMXControlConsoleEditorToolkit_DetailsViewTabID"));
 	const FName FDMXControlConsoleEditorToolkit::FiltersViewTabID(TEXT("DMXControlConsoleEditorToolkit_FiltersViewTabID"));
+	const FName FDMXControlConsoleEditorToolkit::CueStackViewTabID(TEXT("DMXControlConsoleEditorToolkit_CueStackViewTabID"));
 
 	FDMXControlConsoleEditorToolkit::FDMXControlConsoleEditorToolkit()
 		: ControlConsole(nullptr)
@@ -397,6 +399,11 @@ namespace UE::DMX::Private
 			.SetDisplayName(LOCTEXT("Tab_FiltersView", "Filters"))
 			.SetGroup(WorkspaceMenuCategoryRef)
 			.SetIcon(FSlateIcon(FAppStyle::Get().GetStyleSetName(), "Icons.Filter"));
+
+		InTabManager->RegisterTabSpawner(CueStackViewTabID, FOnSpawnTab::CreateSP(this, &FDMXControlConsoleEditorToolkit::SpawnTab_CueStackView))
+			.SetDisplayName(LOCTEXT("Tab_CueStackView", "Cue Stack"))
+			.SetGroup(WorkspaceMenuCategoryRef)
+			.SetIcon(FSlateIcon(FDMXControlConsoleEditorStyle::Get().GetStyleSetName(), "DMXControlConsole.CueStack"));
 	}
 
 	void FDMXControlConsoleEditorToolkit::UnregisterTabSpawners(const TSharedRef<class FTabManager>& InTabManager)
@@ -407,6 +414,7 @@ namespace UE::DMX::Private
 		InTabManager->UnregisterTabSpawner(LayoutViewTabID);
 		InTabManager->UnregisterTabSpawner(DetailsViewTabID);
 		InTabManager->UnregisterTabSpawner(FiltersViewTabID);
+		InTabManager->UnregisterTabSpawner(CueStackViewTabID);
 	}
 
 	const FSlateBrush* FDMXControlConsoleEditorToolkit::GetDefaultTabIcon() const
@@ -451,7 +459,7 @@ namespace UE::DMX::Private
 		ExtendToolbar();
 		GenerateInternalViews();
 
-		TSharedRef<FTabManager::FLayout> StandaloneDefaultLayout = FTabManager::NewLayout("Standalone_ControlConsole_Layout_1.5")
+		TSharedRef<FTabManager::FLayout> StandaloneDefaultLayout = FTabManager::NewLayout("Standalone_ControlConsole_Layout_2.0")
 			->AddArea
 			(
 				FTabManager::NewPrimaryArea()->SetOrientation(Orient_Vertical)
@@ -477,7 +485,12 @@ namespace UE::DMX::Private
 						->AddTab(DetailsViewTabID, ETabState::SidebarTab, ESidebarLocation::Right, .2f)
 						->SetSizeCoefficient(.2f)
 					)
-
+					->Split
+					(
+						FTabManager::NewStack()
+						->AddTab(CueStackViewTabID, ETabState::SidebarTab, ESidebarLocation::Right, .2f)
+						->SetSizeCoefficient(.2f)
+					)
 					->Split
 					(
 						FTabManager::NewStack()
@@ -502,6 +515,7 @@ namespace UE::DMX::Private
 		GenerateLayoutView();
 		GenerateDetailsView();
 		GenerateFiltersView();
+		GenerateCueStackView();
 	}
 
 	TSharedRef<SDMXControlConsoleEditorDMXLibraryView> FDMXControlConsoleEditorToolkit::GenerateDMXLibraryView()
@@ -542,6 +556,16 @@ namespace UE::DMX::Private
 		}
 
 		return FiltersView.ToSharedRef();
+	}
+
+	TSharedRef<SDMXControlConsoleEditorCueStackView> FDMXControlConsoleEditorToolkit::GenerateCueStackView()
+	{
+		if (!CueStackView.IsValid())
+		{
+			CueStackView = SNew(SDMXControlConsoleEditorCueStackView, EditorModel);
+		}
+
+		return CueStackView.ToSharedRef();
 	}
 
 	TSharedRef<SDockTab> FDMXControlConsoleEditorToolkit::SpawnTab_DMXLibraryView(const FSpawnTabArgs& Args)
@@ -591,6 +615,19 @@ namespace UE::DMX::Private
 			.Label(LOCTEXT("FiltersViewTabID", "Filters"))
 			[
 				FiltersView.ToSharedRef()
+			];
+
+		return SpawnedTab;
+	}
+
+	TSharedRef<SDockTab> FDMXControlConsoleEditorToolkit::SpawnTab_CueStackView(const FSpawnTabArgs& Args)
+	{
+		check(Args.GetTabId() == CueStackViewTabID);
+
+		const TSharedRef<SDockTab> SpawnedTab = SNew(SDockTab)
+			.Label(LOCTEXT("CueStackViewTabID", "Cue Stack"))
+			[
+				CueStackView.ToSharedRef()
 			];
 
 		return SpawnedTab;

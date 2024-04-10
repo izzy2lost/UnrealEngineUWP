@@ -4,6 +4,7 @@
 
 #include "Algo/Find.h"
 #include "Algo/Sort.h"
+#include "DMXControlConsoleCueStack.h"
 #include "DMXControlConsoleFaderBase.h"
 #include "DMXControlConsoleFaderGroup.h"
 #include "DMXControlConsoleFaderGroupRow.h"
@@ -32,6 +33,11 @@ namespace UE::DMX::Private
 	};
 }
 
+
+UDMXControlConsoleData::UDMXControlConsoleData()
+{
+	CueStack = NewObject<UDMXControlConsoleCueStack>(this, TEXT("CueStack"), RF_Transactional);
+}
 
 UDMXControlConsoleFaderGroupRow* UDMXControlConsoleData::AddFaderGroupRow(const int32 RowIndex = 0)
 {
@@ -277,6 +283,11 @@ void UDMXControlConsoleData::PostLoad()
 	Super::PostLoad();
 
 	CachedWeakDMXLibrary = Cast<UDMXLibrary>(SoftDMXLibraryPtr.ToSoftObjectPath().TryLoad());
+
+	if (!CueStack)
+	{
+		CueStack = NewObject<UDMXControlConsoleCueStack>(this, TEXT("CueStack"), RF_Transactional);
+	}
 }
 
 #if WITH_EDITOR
