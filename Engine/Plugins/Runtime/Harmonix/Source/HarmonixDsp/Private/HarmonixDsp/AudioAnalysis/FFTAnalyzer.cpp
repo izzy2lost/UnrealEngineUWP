@@ -52,16 +52,9 @@ namespace Harmonix::Dsp::AudioAnalysis
 		State = FState{};
 	}
 
-	void FFFTAnalyzer::Process(const TAudioBuffer<float>& InBuffer, FHarmonixFFTAnalyzerResults& InOutResults)
+	void FFFTAnalyzer::Process(const Audio::FAlignedFloatBuffer& InBuffer, FHarmonixFFTAnalyzerResults& InOutResults)
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(Harmonix::Dsp::AudioAnalysis::FFFTAnalyzer::Process);
-		
-		const int32 NumChannels = InBuffer.GetNumValidChannels();
-
-		if (NumChannels < 1)
-		{
-			return;
-		}
 		
 		// Make a copy of the settings so we don't hold up another thread
 		FHarmonixFFTAnalyzerSettings SettingsCopy;
@@ -92,18 +85,8 @@ namespace Harmonix::Dsp::AudioAnalysis
 
 		// Process however many windows we need to process
 		{
-			// copy the input buffer
-			{
-				State.InputBuffer.SetNumUninitialized(InBuffer.GetNumValidFrames());
-				TDynamicStridePtr<float> ChannelPtr = InBuffer.GetStridingChannelDataPointer(0);
-				for (int32 i = 0; i < InBuffer.GetNumValidFrames(); ++i)
-				{
-					State.InputBuffer[i] = ChannelPtr[i];
-				}
-			}
-
 			// make the sliding window
-			Audio::TAutoSlidingWindow<float> SlidingWindow(*State.SlidingBuffer, State.InputBuffer, State.WindowedBuffer);
+			Audio::TAutoSlidingWindow<float> SlidingWindow(*State.SlidingBuffer, InBuffer, State.WindowedBuffer);
 
 			// process each window
 			for (TArray<float>& Window : SlidingWindow)

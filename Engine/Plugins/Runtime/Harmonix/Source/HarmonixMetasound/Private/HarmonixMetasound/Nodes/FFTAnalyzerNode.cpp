@@ -72,7 +72,6 @@ namespace HarmonixMetasound
 		FFFTAnalyzerOperator(const FBuildOperatorParams& CreateOperatorParams, FInputs&& Inputs)
 			: Inputs(MoveTemp(Inputs))
 			, FFTAnalyzer(CreateOperatorParams.OperatorSettings.GetSampleRate())
-			, InputBufferAlias(NumChannels, CreateOperatorParams.OperatorSettings.GetNumFramesPerBlock(), EAudioBufferCleanupMode::DontDelete)
 			, ResultsOut(FHarmonixFFTAnalyzerResultsWriteRef::CreateNew())
 		{
 			Reset(CreateOperatorParams);
@@ -204,8 +203,7 @@ namespace HarmonixMetasound
 			}
 			
 			RefreshParams();
-			InputBufferAlias.Alias(Inputs.Audio->GetData(), Inputs.Audio->Num(), NumChannels);
-			FFTAnalyzer.Process(InputBufferAlias, *ResultsOut);
+			FFTAnalyzer.Process(*Inputs.Audio, *ResultsOut);
 		}
 
 	private:
@@ -258,7 +256,6 @@ namespace HarmonixMetasound
 		FInputs Inputs;
 		FHarmonixFFTAnalyzerSettings FFTSettings;
 		FFFTAnalyzer FFTAnalyzer;
-		TAudioBuffer<float> InputBufferAlias;
 
 		// OUTPUT
 		FHarmonixFFTAnalyzerResultsWriteRef ResultsOut;

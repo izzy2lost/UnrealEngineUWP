@@ -1,5 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+#include "HarmonixDsp/Generate.h"
 #include "HarmonixDsp/AudioAnalysis/FFTAnalyzer.h"
 #include "Misc/AutomationTest.h"
 
@@ -13,7 +14,6 @@ namespace Harmonix::Dsp::AudioAnalysis::FFTAnalyzer::Tests
 		EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 	bool FHarmonixFFTAnalyzerBasicTest::RunTest(const FString&)
 	{
-		constexpr int32 NumChannels = 2;
 		constexpr int32 NumFramesPerBlock = 256;
 		constexpr float SampleRate = 48000;
 		
@@ -25,18 +25,15 @@ namespace Harmonix::Dsp::AudioAnalysis::FFTAnalyzer::Tests
 		FHarmonixFFTAnalyzerResults Results;
 
 		// process a few times so we can ensure we have some energy in the spectrum
-		TAudioBuffer<float> Buffer{ NumChannels, NumFramesPerBlock, EAudioBufferCleanupMode::Delete };
+		Audio::FAlignedFloatBuffer Buffer;
+		Buffer.SetNumUninitialized(NumFramesPerBlock);
 		constexpr float Frequency = 440;
 		float Phase = 0;
 		constexpr int32 NumBlocks = 200;
 		for (int i = 0; i < NumBlocks; ++i)
 		{
 			// Fill the buffer with a sine
-			HarmonixDsp::GenerateSine(Buffer.GetValidChannelData(0), NumFramesPerBlock, Frequency, SampleRate, Phase);
-			for (int32 c = 1; c < NumChannels; ++c)
-			{
-				FMemory::Memcpy(Buffer.GetValidChannelData(c), Buffer.GetValidChannelData(0), NumFramesPerBlock * sizeof(float));
-			}
+			HarmonixDsp::GenerateSine(Buffer.GetData(), NumFramesPerBlock, Frequency, SampleRate, Phase);
 			Analyzer.Process(Buffer, Results);
 		}
 		

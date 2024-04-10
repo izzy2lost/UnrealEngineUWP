@@ -4,7 +4,6 @@
 
 #include "DSP/AudioFFT.h"
 #include "DSP/SlidingWindow.h"
-#include "HarmonixDsp/AudioBuffer.h"
 #include "HarmonixDsp/AudioAnalysis/OutputSettings.h"
 
 #include "FFTAnalyzer.generated.h"
@@ -82,7 +81,7 @@ namespace Harmonix::Dsp::AudioAnalysis
 		 * @param InBuffer - The audio buffer to analyze
 		 * @param InOutResults - The results from the analysis
 		 */
-		void Process(const TAudioBuffer<float>& InBuffer, FHarmonixFFTAnalyzerResults& InOutResults);
+		void Process(const Audio::FAlignedFloatBuffer& InBuffer, FHarmonixFFTAnalyzerResults& InOutResults);
 		
 	private:
 		const float SampleRate;
@@ -95,7 +94,6 @@ namespace Harmonix::Dsp::AudioAnalysis
 		{
 			TUniquePtr<Audio::IFFTAlgorithm> FFT;
 			TUniquePtr<Audio::TSlidingBuffer<float>> SlidingBuffer;
-			TArray<float> InputBuffer;
 			TUniquePtr<Audio::FWindow> Window;
 			TArray<float> WindowedBuffer;
 			Audio::AlignedFloatBuffer FFTOutput;

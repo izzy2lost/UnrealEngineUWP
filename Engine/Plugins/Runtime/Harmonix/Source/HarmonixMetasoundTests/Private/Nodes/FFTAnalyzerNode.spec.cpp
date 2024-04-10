@@ -36,8 +36,9 @@ namespace HarmonixMetasoundTests::FFTAnalyzerNode
 				Harmonix::Dsp::AudioAnalysis::FFFTAnalyzer FFTAnalyzerForComparison{ Generator->OperatorSettings.GetSampleRate() };
 
 				// Make some noise and copy it to the node's input
-				TAudioBuffer<float> InputBuffer{ 1, Generator->OperatorSettings.GetNumFramesPerBlock(), EAudioBufferCleanupMode::Delete };
-				HarmonixDsp::GenerateWhiteNoise(InputBuffer.GetValidChannelData(0), InputBuffer.GetNumValidFrames());
+				Audio::FAlignedFloatBuffer InputBuffer;
+				InputBuffer.SetNumUninitialized(Generator->OperatorSettings.GetNumFramesPerBlock());
+				HarmonixDsp::GenerateWhiteNoise(InputBuffer.GetData(), InputBuffer.Num());
 
 				auto GeneratorInputBuffer = Generator->GetInputWriteReference<Metasound::FAudioBuffer>("In");
 
@@ -49,15 +50,16 @@ namespace HarmonixMetasoundTests::FFTAnalyzerNode
 				FHarmonixFFTAnalyzerResults RawResults;
 
 				constexpr int32 NumBlocksToRender = 4;
+				Metasound::FAudioBuffer OutputBuffer{ InputBuffer.Num() };
+				
 				for (int32 i = 0; i < NumBlocksToRender; ++i)
 				{
 					FMemory::Memcpy(
 						(*GeneratorInputBuffer)->GetData(),
-						InputBuffer.GetValidChannelData(0),
-						InputBuffer.GetNumValidFrames() * sizeof(float));
+						InputBuffer.GetData(),
+						InputBuffer.Num() * sizeof(float));
 				
 					// Process the node
-					Metasound::FAudioBuffer OutputBuffer{ InputBuffer.GetNumValidFrames() };
 					Generator->OnGenerateAudio(OutputBuffer.GetData(), OutputBuffer.Num());
 
 					// Process the raw DSP
