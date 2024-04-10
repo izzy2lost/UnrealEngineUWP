@@ -1,5 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+#pragma once
+
 #include "Features/IPluginsEditorFeature.h"
 #include "GameFeatureData.h"
 #include "PluginDescriptor.h"
