@@ -41,6 +41,7 @@ static TAutoConsoleVariable<bool> CVarUseIntrinsicsGuess(TEXT("LensDistortionChe
 static TAutoConsoleVariable<bool> CVarFixExtrinsics(TEXT("LensDistortionCheckerboard.FixExtrinsics"), false, TEXT("If true, the solver will fix the camera extrinsics to the user-provided camera poses"));
 static TAutoConsoleVariable<bool> CVarFixZeroDistortion(TEXT("LensDistortionCheckerboard.FixZeroDistortion"), false, TEXT("If true, the solver will fix all distortion values to always be 0"));
 static TAutoConsoleVariable<bool> CVarUseExtrinsicsGuess(TEXT("LensDistortionCheckerboard.UseExtrinsicsGuess"), false, TEXT("If true, the actual checkerboard and camera poses will be used when running the solver"));
+static TAutoConsoleVariable<bool> CVarUseTrackedCalibrator(TEXT("LensDistortionCheckerboard.UseTrackedCalibrator"), false, TEXT("If true, the 3D points of the checkerboard will come from the tracked pose of the object, otherwise, dummy points will be used."));
 #endif
 
 const int UCameraLensDistortionAlgoCheckerboard::DATASET_VERSION = 1;
@@ -350,35 +351,22 @@ bool UCameraLensDistortionAlgoCheckerboard::AddCalibrationRow(FText& OutErrorMes
  	}
 
 	// Fill out the checkerboard's 3D points
-	if (CVarUseExtrinsicsGuess.GetValueOnGameThread())
+	const FVector LocationTL = Calibrator->TopLeft->GetComponentLocation();
+	const FVector LocationTR = Calibrator->TopRight->GetComponentLocation();
+	const FVector LocationBL = Calibrator->BottomLeft->GetComponentLocation();
+
+	const FVector RightVector = LocationTR - LocationTL;
+	const FVector DownVector = LocationBL - LocationTL;
+
+	const float HorizontalStep = (Row->NumCornerCols > 1) ? (1.0f / (Row->NumCornerCols - 1)) : 0.0f;
+	const float VerticalStep = (Row->NumCornerRows > 1) ? (1.0f / (Row->NumCornerRows - 1)) : 0.0f;
+
+	for (int32 RowIdx = 0; RowIdx < Row->NumCornerRows; ++RowIdx)
 	{
-		const FVector LocationTL = Calibrator->TopLeft->GetComponentLocation();
-		const FVector LocationTR = Calibrator->TopRight->GetComponentLocation();
-		const FVector LocationBL = Calibrator->BottomLeft->GetComponentLocation();
-
-		const FVector RightVector = LocationTR - LocationTL;
-		const FVector DownVector = LocationBL - LocationTL;
-
-		const float HorizontalStep = (Row->NumCornerCols > 1) ? (1.0f / (Row->NumCornerCols - 1)) : 0.0f;
-		const float VerticalStep = (Row->NumCornerRows > 1) ? (1.0f / (Row->NumCornerRows - 1)) : 0.0f;
-
-		for (int32 RowIdx = 0; RowIdx < Row->NumCornerRows; ++RowIdx)
+		for (int32 ColIdx = 0; ColIdx < Row->NumCornerCols; ++ColIdx)
 		{
-			for (int32 ColIdx = 0; ColIdx < Row->NumCornerCols; ++ColIdx)
-			{
-				const FVector PointLocation = LocationTL + (RightVector * ColIdx * HorizontalStep) + (DownVector * RowIdx * VerticalStep);
-				Row->Points3d.Add(PointLocation);
-			}
-		}
-	}
-	else
-	{
-		for (int32 RowIdx = 0; RowIdx < Row->NumCornerRows; ++RowIdx)
-		{
-			for (int32 ColIdx = 0; ColIdx < Row->NumCornerCols; ++ColIdx)
-			{
-				Row->Points3d.Add(Row->SquareSideInCm * FVector(ColIdx, RowIdx, 0));
-			}
+			const FVector PointLocation = LocationTL + (RightVector * ColIdx * HorizontalStep) + (DownVector * RowIdx * VerticalStep);
+			Row->Points3d.Add(PointLocation);
 		}
 	}
 
@@ -677,7 +665,7 @@ FDistortionCalibrationTask UCameraLensDistortionAlgoCheckerboard::BeginCalibrati
 	}
 
 	const float FocalLengthEstimateValue = FocalLengthEstimate.GetValue();
-	const double Fx = (FocalLengthEstimateValue / DesqueezeSensorWidth) * ImageSize.X;
+	const double Fx = ((double)FocalLengthEstimateValue / DesqueezeSensorWidth) * ImageSize.X;
 
 	// When operating on a desqueezed image, we expect our pixel aspect to be square, so horizontal and vertical field of view are assumed to be equal (i.e. Fx == Fy)
 	FVector2D FocalLength = FVector2D(Fx, Fx);
@@ -706,6 +694,26 @@ FDistortionCalibrationTask UCameraLensDistortionAlgoCheckerboard::BeginCalibrati
 		Samples3d.Add(Points3d);
 		Samples2d.Add(Points2d);
 		CameraPoses.Add(Row->CameraData.Pose);
+	}
+
+	if (!CVarUseTrackedCalibrator.GetValueOnGameThread())
+	{
+		// Use a set of dummy points for the 3D checkerboard corners. The board is assumed to lie in the YZ plane with the TopLeft corner at (0, 0, 0) in world space.
+		// The side length of the checkerboard squares are used to position the remaining corners.
+		Samples3d.Empty();
+		for (int32 ImageIndex = 0; ImageIndex < CalibrationRows.Num(); ++ImageIndex)
+		{
+			FObjectPoints Points3d;
+			for (int32 RowIdx = 0; RowIdx < CalibrationRows[0]->NumCornerRows; ++RowIdx)
+			{
+				for (int32 ColIdx = 0; ColIdx < CalibrationRows[0]->NumCornerCols; ++ColIdx)
+				{
+					Points3d.Points.Add(CalibrationRows[0]->SquareSideInCm * FVector(0, ColIdx, -RowIdx));
+				}
+			}
+
+			Samples3d.Add(Points3d);
+		}
 	}
 
 	ECalibrationFlags SolverFlags = ECalibrationFlags::None;
@@ -744,7 +752,7 @@ FDistortionCalibrationTask UCameraLensDistortionAlgoCheckerboard::BeginCalibrati
 	
 	Solver = NewObject<ULensDistortionSolver>(this, Tool->GetSolverClass());
 
-	CalibrationTask = UE::Tasks::Launch(UE_SOURCE_LOCATION, [Solver=Solver, Model, Samples3d, Samples2d, ImageSize, FocalLength, ImageCenter, CameraPoses, PixelAspect, SolverFlags, Focus, Zoom]() mutable
+	CalibrationTask = UE::Tasks::Launch(UE_SOURCE_LOCATION, [Solver = Solver, Model, Samples3d, Samples2d, ImageSize, FocalLength, ImageCenter, CameraPoses, PixelAspect, SolverFlags, Focus, Zoom]() mutable
 		{
 			FDistortionCalibrationResult Result = Solver->Solve(
 				Samples3d,

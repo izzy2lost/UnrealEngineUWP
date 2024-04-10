@@ -34,6 +34,10 @@ struct FDistortionCalibrationResult
 	UPROPERTY(BlueprintReadWrite, Category = "Distortion")
 	FImageCenterInfo ImageCenter;
 
+	/** Calibrated camera pose for each input image */
+	UPROPERTY(BlueprintReadWrite, Category = "Distortion")
+	TArray<FTransform> CameraPoses;
+
 	/** Distortion parameters for the model specified by the lens file. And empty parameter array implies that there is a valid ST Map instead. */
 	UPROPERTY(BlueprintReadWrite, Category = "Distortion")
 	FDistortionInfo Parameters;

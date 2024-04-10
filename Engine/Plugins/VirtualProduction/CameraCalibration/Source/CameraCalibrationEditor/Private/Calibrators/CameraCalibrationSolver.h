@@ -56,7 +56,8 @@ enum class ECalibrationFlags : uint32
 	FixFocalLength = 1 << 2,     /** The solver will not optimize the focal length */
 	FixPrincipalPoint = 1 << 3,  /** The solver will not optimize the principal point */
 	FixExtrinsics = 1 << 4,      /** The solver will not optimize the camera extrinsics */
-	FixZeroDistortion = 1 << 5   /** The solver will fix all distortion values at 0 */
+	FixZeroDistortion = 1 << 5,  /** The solver will fix all distortion values at 0 */
+	FixAspectRatio = 1 << 6      /** The solver will respect the input aspect ratio when solving for Fx and Fy */
 };
 
 /** 
