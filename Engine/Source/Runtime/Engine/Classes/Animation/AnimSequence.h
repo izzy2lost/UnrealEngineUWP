@@ -916,6 +916,7 @@ protected:
 
 protected:
 	ENGINE_API bool TryCancelAsyncTasks();
+	ENGINE_API bool WaitForAsyncTasks(float TimeLimitSeconds);
 	ENGINE_API void FinishAsyncTasks();
 	ENGINE_API void Reschedule(FQueuedThreadPool* InThreadPool, EQueuedWorkPriority InPriority);
 	ENGINE_API bool IsAsyncTaskComplete() const;

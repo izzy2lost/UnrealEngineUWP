@@ -4770,6 +4770,21 @@ bool UAnimSequence::TryCancelAsyncTasks()
 	return CacheTasksByKeyHash.IsEmpty();
 }
 
+bool UAnimSequence::WaitForAsyncTasks(float TimeLimitSeconds)
+{
+	double StartTimeSeconds = FPlatformTime::Seconds();
+	for (auto& Pair : CacheTasksByKeyHash)
+	{
+		// Clamp to 0 as it implies polling
+		const float TimeLimit = FMath::Min(0.0f, TimeLimitSeconds - (FPlatformTime::Seconds() - StartTimeSeconds));
+		if (!Pair.Value->WaitWithTimeout(TimeLimit))
+		{
+			return false;
+		}
+	}
+	return true;
+}
+
 bool UAnimSequence::IsAsyncTaskComplete() const
 {
 	bool bAllFinished = true;

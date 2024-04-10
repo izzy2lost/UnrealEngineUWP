@@ -87,6 +87,24 @@ public:
 		Owner.Wait();
 	}
 
+	inline bool WaitWithTimeout(float TimeLimitSeconds)
+	{
+		if (bIsWaitingOnMeshCompilation)
+		{
+			if (!WaitForDependenciesAndBeginCacheWithTimeout(TimeLimitSeconds))
+			{
+				return false;
+			}
+		}
+
+		if (BuildTask != nullptr && !BuildTask->WaitCompletionWithTimeout(TimeLimitSeconds))
+		{
+			return false;
+		}
+
+		return Owner.Poll();
+	}
+
 	inline bool Poll()
 	{
 		if (bIsWaitingOnMeshCompilation)
@@ -123,6 +141,7 @@ private:
 
 	void BeginCacheIfDependenciesAreFree();
 	void WaitForDependenciesAndBeginCache();
+	bool WaitForDependenciesAndBeginCacheWithTimeout(float TimeLimitSeconds);
 
 	void BeginCache(const FIoHash& KeyHash);
 	void EndCache(UE::DerivedData::FCacheGetValueResponse&& Response);
@@ -237,7 +256,22 @@ void FNaniteBuildAsyncCacheTask::WaitForDependenciesAndBeginCache()
 	{
 		bIsWaitingOnMeshCompilation = false;
 	}
+}
 
+bool FNaniteBuildAsyncCacheTask::WaitForDependenciesAndBeginCacheWithTimeout(float TimeLimitSeconds)
+{
+	if (UNaniteDisplacedMesh* DisplacedMesh = WeakDisplacedMesh.Get())
+	{
+		if (DisplacedMesh->Parameters.BaseMesh->IsCompiling() && !DisplacedMesh->Parameters.BaseMesh->AsyncTask->WaitCompletionWithTimeout(TimeLimitSeconds))
+		{
+			return false;
+		}
+	}
+
+	// Performs any necessary cleanup now that the async task (if any) is complete
+	WaitForDependenciesAndBeginCache();
+
+	return true;
 }
 
 void FNaniteBuildAsyncCacheTask::BeginCache(const FIoHash& InKeyHash)
@@ -873,6 +907,21 @@ bool UNaniteDisplacedMesh::TryCancelAsyncTasks()
 	}
 	
 	return CacheTasksByKeyHash.IsEmpty();
+}
+
+bool UNaniteDisplacedMesh::WaitForAsyncTasks(float TimeLimitSeconds)
+{
+	double StartTimeSeconds = FPlatformTime::Seconds();
+	for (auto& Pair : CacheTasksByKeyHash)
+	{
+		// Clamp to 0 as it implies polling
+		const float TimeLimit = FMath::Min(0.0f, TimeLimitSeconds - (FPlatformTime::Seconds() - StartTimeSeconds));
+		if (!Pair.Value->WaitWithTimeout(TimeLimit))
+		{
+			return false;
+		}
+	}
+	return true;
 }
 
 bool UNaniteDisplacedMesh::IsAsyncTaskComplete() const

@@ -144,7 +144,6 @@ namespace AsyncCompilationHelpers
 		TBitArray<> LoggedSlowTask(false, Num);
 		for(;;)
 		{
-			int32 OldNumDone = NumDone;
 			for (TBitArray<>::FWordIterator It(JobsToFinish); It; ++It)
 			{
 				const uint32_t BaseIndex = It.GetIndex();
@@ -183,21 +182,16 @@ namespace AsyncCompilationHelpers
 				break;
 			}
 
-			// We haven't finished all tasks yet. Progress the slow task so the editor may 
-			// remain responsive if we hit our timeout, otherwise if we didn't make 
-			// progress yield the thread to avoid spinning needlessly
-			//
-			// Note, we want to instead call IncompleteJob.WaitCompletionWithTimeout(MaxProcessingTimeSeconds) here, 
-			// but until we fix the majority of tasks to signal instead of sleeping it's faster to poll and yield.
-			if ((FPlatformTime::Seconds() - StartTimeSeconds) > MaxProcessingTimeSeconds)
-			{
-				// We still have jobs inflight, so find one of the remaining jobs, update 
-				// progress on our slow task to keep the editor responsive and then wait 
-				// for the job to finish or our timeout, whichever comes first
-				int IncompleteJobIndex = JobsToFinish.Find(true);
-				check(IncompleteJobIndex != INDEX_NONE);
-				ICompilable& IncompleteJob = Getter(IncompleteJobIndex);
+			// We still have jobs inflight, so find an incomplete job and wait on it so we can be signalled if it ends before our timeout. 
+			int IncompleteJobIndex = JobsToFinish.Find(true);
+			check(IncompleteJobIndex != INDEX_NONE);
+			ICompilable& IncompleteJob = Getter(IncompleteJobIndex);
 
+			// If this job completes, we will clean it up on the next loop iteration
+			float ElapsedTimeSeconds = float(FPlatformTime::Seconds() - StartTimeSeconds);
+			if (!IncompleteJob.WaitCompletionWithTimeout(MaxProcessingTimeSeconds - ElapsedTimeSeconds))
+			{
+				// Progress the slow task so the editor may remain responsive
 				if (SlowTask.IsSet())
 				{
 					FText Progress = FormatProgress(NumDone, Num, IncompleteJob.GetName());
@@ -223,10 +217,6 @@ namespace AsyncCompilationHelpers
 				}
 
 				StartTimeSeconds = FPlatformTime::Seconds();
-			}
-			else if (NumDone == OldNumDone)
-			{
-				FPlatformProcess::YieldThread();
 			}
 		}
 

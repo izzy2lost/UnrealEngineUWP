@@ -318,20 +318,7 @@ void FNaniteDisplacedMeshCompilingManager::FinishCompilation(TArrayView<UNaniteD
 
 			bool WaitCompletionWithTimeout(float TimeLimitSeconds) override
 			{
-				// Poll for now but we might want to use events to wait instead at some point
-				if (NaniteDisplacedMesh->IsAsyncTaskComplete())
-				{
-					return true;
-				}
-
-				if (TimeLimitSeconds > 0.0f)
-				{
-					FPlatformProcess::Sleep(TimeLimitSeconds);
-					// Since we slept, might as well check again rather than waiting to be polled again
-					return NaniteDisplacedMesh->IsAsyncTaskComplete();
-				}
-
-				return false;
+				return NaniteDisplacedMesh->WaitForAsyncTasks(TimeLimitSeconds);
 			}
 
 			UNaniteDisplacedMesh* NaniteDisplacedMesh;

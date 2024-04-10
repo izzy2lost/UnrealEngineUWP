@@ -69,6 +69,16 @@ void FAnimationSequenceAsyncCacheTask::Wait(bool bPerformWork /*= true*/)
 	Owner.Wait();
 }
 
+bool FAnimationSequenceAsyncCacheTask::WaitWithTimeout(float TimeLimitSeconds)
+{
+	if (BuildTask != nullptr && !BuildTask->WaitCompletionWithTimeout(TimeLimitSeconds))
+	{
+		return false;
+	}
+
+	return Owner.Poll();
+}
+
 bool FAnimationSequenceAsyncCacheTask::Poll() const
 {
 	if (BuildTask && !BuildTask->IsDone())

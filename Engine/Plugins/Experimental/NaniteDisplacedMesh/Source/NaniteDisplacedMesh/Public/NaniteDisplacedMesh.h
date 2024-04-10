@@ -163,6 +163,12 @@ public:
 	/** Returns false if there is currently an async task running */
 	bool IsAsyncTaskComplete() const;
 
+	/**
+	* Wait until all async tasks are complete, up to a time limit
+	* Returns true if all tasks are completed
+	**/
+	bool WaitForAsyncTasks(float TimeLimitSeconds);
+
 	/** Make sure all async tasks are completed before returning */
 	void FinishAsyncTasks();
 

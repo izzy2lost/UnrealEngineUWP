@@ -81,6 +81,7 @@ namespace UE::Anim
 
 		void Cancel();
 		void Wait(bool bPerformWork = true);
+		bool WaitWithTimeout(float TimeLimitSeconds);
 		bool Poll() const;
 		void Reschedule(FQueuedThreadPool* InThreadPool, EQueuedWorkPriority InPriority) const;
 		bool WasCancelled() const { return CompressibleAnimPtr->IsCancelled() || Owner.IsCanceled(); }
