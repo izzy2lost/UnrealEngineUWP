@@ -36,6 +36,7 @@ using FIoBlockHash = uint32;
 	#define UE_IAS_CUSTOM_INITIALIZATION 0
 #endif
 
+UE_API DECLARE_LOG_CATEGORY_EXTERN(LogIoStoreOnDemand, Log, All);
 UE_API DECLARE_LOG_CATEGORY_EXTERN(LogIas, Log, All);
 
 namespace UE::IoStore
@@ -341,6 +342,21 @@ enum class EOnDemandInitResult
 
 #endif // UE_IAS_CUSTOM_INITIALIZATION
 
+struct FOnDemandMountArgs
+{
+	FString MountId;
+	FString Url;
+	FString InstallDirectory;
+	bool bInstall = false;
+};
+
+struct FOnDemandMountResult
+{
+	FString MountId;
+};
+
+using FOnDemandMountCompleted = TFunction<void(TIoStatusOr<FOnDemandMountResult>)>;
+
 class FIoStoreOnDemandModule
 	: public IModuleInterface
 {
@@ -360,6 +376,9 @@ public:
 	UE_API void AbandonCache();
 
 	UE_API void ReportAnalytics(TArray<FAnalyticsEventAttribute>& OutAnalyticsArray) const;
+
+	UE_API void Mount(FOnDemandMountArgs&& Args, FOnDemandMountCompleted&& OnCompleted);
+	UE_API FIoStatus Unmount(FStringView MountId);
 
 	virtual void StartupModule() override;
 	virtual void ShutdownModule() override;

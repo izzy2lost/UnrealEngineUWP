@@ -45,6 +45,7 @@
 #include "S3/S3Client.h"
 #endif // (PLATFORM_DESKTOP && (IS_PROGRAM || WITH_EDITOR))
 
+DEFINE_LOG_CATEGORY(LogIoStoreOnDemand);
 DEFINE_LOG_CATEGORY(LogIas);
 
 namespace UE::IoStore
@@ -2512,6 +2513,16 @@ void FIoStoreOnDemandModule::ReportAnalytics(TArray<FAnalyticsEventAttribute>& O
 	{
 		HttpIoDispatcherBackend->ReportAnalytics(OutAnalyticsArray);
 	}
+}
+
+void FIoStoreOnDemandModule::Mount(FOnDemandMountArgs&& Args, FOnDemandMountCompleted&& OnCompleted)
+{
+	OnCompleted(TIoStatusOr<FOnDemandMountResult>(FIoStatus(EIoErrorCode::InvalidCode, TEXT("Mount not implemented"))));
+}
+
+FIoStatus FIoStoreOnDemandModule::Unmount(FStringView MountId)
+{
+	return FIoStatus(EIoErrorCode::InvalidCode, TEXT("Unmount not implemented"));
 }
 
 void FIoStoreOnDemandModule::InitializeInternal()
