@@ -1270,21 +1270,19 @@ class FInterpreter
 	FOpResult MeltImpl(OpType& Op)
 	{
 		VValue Value = GetOperand(Op.Value);
-		FOpResult Result = VValue::Melt(Context, Value);
-		if (Result.Kind == FOpResult::Return)
-		{
-			DEF(Op.Dest, Result.Value);
-		}
-		return Result;
+		VValue Result = VValue::Melt(Context, Value);
+		REQUIRE_CONCRETE(Result);
+		DEF(Op.Dest, Result);
+		return {FOpResult::Return};
 	}
 
 	template <typename OpType>
 	FOpResult FreezeImpl(OpType& Op)
 	{
 		VValue Value = GetOperand(Op.Value);
-		FOpResult Result = VValue::Freeze(Context, Value);
-		DEF(Op.Dest, Result.Value);
-		return Result;
+		VValue Result = VValue::Freeze(Context, Value);
+		DEF(Op.Dest, Result);
+		return {FOpResult::Return};
 	}
 
 	template <typename OpType>

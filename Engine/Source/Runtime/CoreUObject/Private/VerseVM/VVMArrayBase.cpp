@@ -46,7 +46,7 @@ bool VArrayBase::EqualImpl(FRunningContext Context, VCell* Other, const TFunctio
 	return true;
 }
 
-FOpResult VArrayBase::MeltImpl(FRunningContext Context)
+VValue VArrayBase::MeltImpl(FRunningContext Context)
 {
 	EArrayType ArrayType = GetArrayType();
 	VMutableArray& MeltedArray = VMutableArray::New(Context, Num(), ArrayType);
@@ -59,15 +59,15 @@ FOpResult VArrayBase::MeltImpl(FRunningContext Context)
 	{
 		for (uint32 I = 0; I < Num(); ++I)
 		{
-			FOpResult ValueResult = VValue::Melt(Context, GetValue(I));
-			if (ValueResult.Kind == FOpResult::Block)
+			VValue Result = VValue::Melt(Context, GetValue(I));
+			if (Result.IsPlaceholder())
 			{
-				return ValueResult;
+				return Result;
 			}
-			MeltedArray.AddValue(Context, ValueResult.Value);
+			MeltedArray.AddValue(Context, Result);
 		}
 	}
-	V_RETURN(VValue(MeltedArray));
+	return MeltedArray;
 }
 
 uint32 VArrayBase::GetTypeHashImpl()

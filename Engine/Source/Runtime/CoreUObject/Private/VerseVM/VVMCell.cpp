@@ -55,12 +55,12 @@ bool VCell::Equal(FRunningContext Context, VCell* Other, const TFunction<void(::
 	return GetEmergentType()->CppClassInfo->Equal(Context, this, Other, HandlePlaceholder);
 }
 
-FOpResult VCell::Melt(FRunningContext Context)
+VValue VCell::Melt(FRunningContext Context)
 {
 	return GetEmergentType()->CppClassInfo->Melt(Context, this);
 }
 
-FOpResult VCell::Freeze(FRunningContext Context)
+VValue VCell::Freeze(FRunningContext Context)
 {
 	return GetEmergentType()->CppClassInfo->Freeze(Context, this);
 }
@@ -81,18 +81,18 @@ bool VCell::EqualImpl(FRunningContext Context, VCell* Other, const TFunction<voi
 	return false;
 }
 
-FOpResult VCell::MeltImpl(FRunningContext Context)
+VValue VCell::MeltImpl(FRunningContext Context)
 {
 	V_DIE("VCell subtype without `MeltImpl` override called! Either this type should have an override "
 		  "or an invalid subtype is being melted.");
-	return {FOpResult::Error};
+	return VValue();
 }
 
-FOpResult VCell::FreezeImpl(FRunningContext Context)
+VValue VCell::FreezeImpl(FRunningContext Context)
 {
 	V_DIE("VCell subtype without `FreezeImpl` override called! Either this type should have an override "
 		  "or an invalid subtype is being frozen.");
-	return {FOpResult::Error};
+	return VValue();
 }
 
 bool VCell::SubsumesImpl(FRunningContext, VValue)

@@ -65,7 +65,7 @@ public:
 
 	static void SerializeImpl(VMutableArray*& This, FAllocationContext Context, FAbstractVisitor& Visitor) { Serialize(This, Context, Visitor); }
 
-	COREUOBJECT_API FOpResult FreezeImpl(FRunningContext Context);
+	COREUOBJECT_API VValue FreezeImpl(FRunningContext Context);
 
 private:
 	VMutableArray(FAllocationContext Context, uint32 InitialCapacity, EArrayType ArrayType)

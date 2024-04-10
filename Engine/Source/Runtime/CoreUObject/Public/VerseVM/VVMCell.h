@@ -80,8 +80,8 @@ struct VCell
 	COREUOBJECT_API void ConductCensus();
 	COREUOBJECT_API void RunDestructor();
 	COREUOBJECT_API bool Equal(FRunningContext Context, VCell* Other, const TFunction<void(::Verse::VValue, ::Verse::VValue)>& HandlePlaceholder);
-	COREUOBJECT_API FOpResult Melt(FRunningContext Context);
-	COREUOBJECT_API FOpResult Freeze(FRunningContext Context);
+	COREUOBJECT_API VValue Melt(FRunningContext Context);
+	COREUOBJECT_API VValue Freeze(FRunningContext Context);
 	COREUOBJECT_API bool Subsumes(FRunningContext Context, VValue);
 	bool IsDeeplyMutable() { return Misc2 & DeeplyMutableTag; }
 	bool SetIsDeeplyMutable() { return Misc2 |= DeeplyMutableTag; }
@@ -138,10 +138,10 @@ protected:
 	// We can ignore the possibility that the skipped 'freeze' could error on placeholders
 	// as the mutable data we are operating on requires all values be concrete on creation
 	// or we would've suspended.
-	COREUOBJECT_API FOpResult MeltImpl(FRunningContext Context);
+	COREUOBJECT_API VValue MeltImpl(FRunningContext Context);
 
 	// Override this if your cell is a mutable representation and requires deep copying.
-	COREUOBJECT_API FOpResult FreezeImpl(FRunningContext Context);
+	COREUOBJECT_API VValue FreezeImpl(FRunningContext Context);
 
 	COREUOBJECT_API bool SubsumesImpl(FRunningContext, VValue);
 

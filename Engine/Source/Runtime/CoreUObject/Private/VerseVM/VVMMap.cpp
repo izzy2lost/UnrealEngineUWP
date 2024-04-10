@@ -61,6 +61,22 @@ uint32 VMapBase::GetTypeHashImpl()
 	return Result;
 }
 
+void VMapBase::ToStringImpl(FStringBuilderBase& Builder, FAllocationContext Context, const FCellFormatter& Formatter)
+{
+	uint32 Count = 0;
+	for (VMapBaseInternal::TConstIterator MapIt = InternalMap.CreateConstIterator(); MapIt; ++MapIt)
+	{
+		if (Count > 0)
+		{
+			Builder.Append(TEXT(", "));
+		}
+		++Count;
+		MapIt.Key().Get().ToString(Builder, Context, Formatter);
+		Builder.Append(TEXT(" => "));
+		MapIt.Value().Get().ToString(Builder, Context, Formatter);
+	}
+}
+
 bool VMapBase::EqualImpl(FRunningContext Context, VCell* Other, const TFunction<void(::Verse::VValue, ::Verse::VValue)>& HandlePlaceholder)
 {
 	if (!Other->IsA<VMapBase>())
@@ -98,34 +114,32 @@ VMapBase::~VMapBase()
 }
 
 template <typename MapType, typename TranslationFunc>
-FOpResult VMapBase::Copy(FRunningContext Context, TranslationFunc&& Func)
+VValue VMapBase::FreezeMeltImpl(FRunningContext Context, TranslationFunc&& Func)
 {
 	VMapBase& MapCopy = VMapBase::New<MapType>(Context, Num());
 	for (TPair<Verse::TWriteBarrier<Verse::VValue>, Verse::TWriteBarrier<Verse::VValue>>& Pair : InternalMap)
 	{
-		FOpResult KeyResult = Func(Context, Pair.Key.Get());
-		if (KeyResult.Kind == FOpResult::Block)
+		// We don't mutate keys, so we needn't melt/freeze them.
+		VValue Key = Pair.Key.Get();
+
+		VValue Value = Func(Context, Pair.Value.Get());
+		if (Value.IsPlaceholder())
 		{
-			return KeyResult;
+			return Value;
 		}
-		FOpResult ValueResult = Func(Context, Pair.Value.Get());
-		if (ValueResult.Kind == FOpResult::Block)
-		{
-			return ValueResult;
-		}
-		MapCopy.Add(Context, KeyResult.Value, ValueResult.Value);
+		MapCopy.Add(Context, Key, Value);
 	}
-	V_RETURN(VValue(MapCopy));
+	return MapCopy;
 }
 
-FOpResult VMapBase::MeltImpl(FRunningContext Context)
+VValue VMapBase::MeltImpl(FRunningContext Context)
 {
-	return Copy<VMutableMap>(Context, [](FRunningContext Context, VValue Value) { return VValue::Melt(Context, Value); });
+	return FreezeMeltImpl<VMutableMap>(Context, [](FRunningContext Context, VValue Value) { return VValue::Melt(Context, Value); });
 }
 
-FOpResult VMutableMap::FreezeImpl(FRunningContext Context)
+VValue VMutableMap::FreezeImpl(FRunningContext Context)
 {
-	return Copy<VMap>(Context, [](FRunningContext Context, VValue Value) { return VValue::Freeze(Context, Value); });
+	return FreezeMeltImpl<VMap>(Context, [](FRunningContext Context, VValue Value) { return VValue::Freeze(Context, Value); });
 }
 
 DEFINE_DERIVED_VCPPCLASSINFO(VMap);

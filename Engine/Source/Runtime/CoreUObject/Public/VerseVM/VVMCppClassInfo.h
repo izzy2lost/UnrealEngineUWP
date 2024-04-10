@@ -90,10 +90,10 @@ public:                                                                         
 		[](::Verse::VCell* This) -> uint32 {                                                                                                                                    \
 			return This->StaticCast<CellType>().GetTypeHashImpl();                                                                                                              \
 		},                                                                                                                                                                      \
-		[](::Verse::FRunningContext Context, ::Verse::VCell* This) -> ::Verse::FOpResult {                                                                                      \
+		[](::Verse::FRunningContext Context, ::Verse::VCell* This) -> ::Verse::VValue {                                                                                         \
 			return This->StaticCast<CellType>().MeltImpl(Context);                                                                                                              \
 		},                                                                                                                                                                      \
-		[](::Verse::FRunningContext Context, ::Verse::VCell* This) -> ::Verse::FOpResult {                                                                                      \
+		[](::Verse::FRunningContext Context, ::Verse::VCell* This) -> ::Verse::VValue {                                                                                         \
 			return This->StaticCast<CellType>().FreezeImpl(Context);                                                                                                            \
 		},                                                                                                                                                                      \
 		[](::Verse::FRunningContext Context, ::Verse::VCell* This, ::Verse::VValue InputValue) -> bool {                                                                        \
@@ -152,8 +152,8 @@ struct VCppClassInfo
 	void (*RunDestructor)(VCell* This);
 	bool (*Equal)(FRunningContext Context, VCell* This, VCell* Other, const TFunction<void(::Verse::VValue, ::Verse::VValue)>& HandlePlaceholder);
 	uint32 (*GetTypeHash)(VCell* This);
-	FOpResult (*Melt)(FRunningContext Context, VCell* This);
-	FOpResult (*Freeze)(FRunningContext Context, VCell* This);
+	VValue (*Melt)(FRunningContext Context, VCell* This);
+	VValue (*Freeze)(FRunningContext Context, VCell* This);
 	bool (*Subsumes)(FRunningContext Context, VCell* This, VValue);
 	void (*ToString)(VCell* This, FStringBuilderBase& Builder, FAllocationContext Context, const FCellFormatter& Formatter);
 	void (*Serialize)(VCell*& This, FAllocationContext Context, FAbstractVisitor& Visitor);

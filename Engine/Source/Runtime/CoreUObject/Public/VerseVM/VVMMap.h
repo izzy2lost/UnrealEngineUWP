@@ -109,13 +109,15 @@ public:
 	static void Serialize(MapType*& This, FAllocationContext Context, FAbstractVisitor& Visitor);
 
 	template <typename MapType, typename TranslationFunc>
-	FOpResult Copy(FRunningContext Context, TranslationFunc&& Func);
+	VValue FreezeMeltImpl(FRunningContext Context, TranslationFunc&& Func);
 
-	COREUOBJECT_API FOpResult MeltImpl(FRunningContext Context);
+	COREUOBJECT_API VValue MeltImpl(FRunningContext Context);
 
 	COREUOBJECT_API bool EqualImpl(FRunningContext Context, VCell* Other, const TFunction<void(::Verse::VValue, ::Verse::VValue)>& HandlePlaceholder);
 
 	COREUOBJECT_API uint32 GetTypeHashImpl();
+
+	COREUOBJECT_API void ToStringImpl(FStringBuilderBase& Builder, FAllocationContext Context, const FCellFormatter& Formatter);
 
 	// C++ ranged-based iteration
 	class FConstIterator
@@ -151,7 +153,7 @@ struct VMutableMap : VMapBase
 {
 	DECLARE_DERIVED_VCPPCLASSINFO(COREUOBJECT_API, VMapBase);
 	COREUOBJECT_API static TGlobalTrivialEmergentTypePtr<&StaticCppClassInfo> GlobalTrivialEmergentType;
-	COREUOBJECT_API FOpResult FreezeImpl(FRunningContext Context);
+	COREUOBJECT_API VValue FreezeImpl(FRunningContext Context);
 	static void SerializeImpl(VMutableMap*& This, FAllocationContext Context, FAbstractVisitor& Visitor) { Super::Serialize<VMutableMap>(This, Context, Visitor); }
 };
 

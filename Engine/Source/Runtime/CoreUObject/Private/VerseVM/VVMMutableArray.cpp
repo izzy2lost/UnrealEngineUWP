@@ -52,7 +52,7 @@ void VMutableArray::Append(FAllocationContext Context, VArrayBase& Array)
 	}
 }
 
-FOpResult VMutableArray::FreezeImpl(FRunningContext Context)
+VValue VMutableArray::FreezeImpl(FRunningContext Context)
 {
 	EArrayType ArrayType = GetArrayType();
 	VArray& FrozenArray = VArray::New(Context, Num(), ArrayType);
@@ -64,10 +64,10 @@ FOpResult VMutableArray::FreezeImpl(FRunningContext Context)
 	{
 		for (uint32 I = 0; I < Num(); ++I)
 		{
-			FrozenArray.SetValue(Context, I, VValue::Freeze(Context, GetValue(I)).Value);
+			FrozenArray.SetValue(Context, I, VValue::Freeze(Context, GetValue(I)));
 		}
 	}
-	V_RETURN(VValue(FrozenArray));
+	return FrozenArray;
 }
 
 } // namespace Verse

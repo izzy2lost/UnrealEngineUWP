@@ -231,7 +231,7 @@ public:
 
 	COREUOBJECT_API bool EqualImpl(FRunningContext Context, VCell* Other, const TFunction<void(::Verse::VValue, ::Verse::VValue)>& HandlePlaceholder);
 
-	COREUOBJECT_API FOpResult MeltImpl(FRunningContext Context);
+	COREUOBJECT_API VValue MeltImpl(FRunningContext Context);
 
 	COREUOBJECT_API uint32 GetTypeHashImpl();
 

@@ -85,10 +85,11 @@ struct VValue
 	template <typename ContextType, typename HandlePlaceholderFunction>
 	static bool Equal(ContextType Context, VValue Left, VValue Right, HandlePlaceholderFunction HandlePlaceholder);
 
+	// This may return a placeholder which is suspended upon as a FOpResult::Block result would be.
 	template <typename ContextType>
-	static FOpResult Melt(ContextType Context, VValue Value);
+	static VValue Melt(ContextType Context, VValue Value);
 	template <typename ContextType>
-	static FOpResult Freeze(ContextType Context, VValue Value);
+	static VValue Freeze(ContextType Context, VValue Value);
 
 	static VValue Decode(uint64 EncodedBits)
 	{

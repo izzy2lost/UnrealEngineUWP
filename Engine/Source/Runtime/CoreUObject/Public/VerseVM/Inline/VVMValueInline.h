@@ -193,18 +193,17 @@ inline uint32 GetTypeHash(VRestValue RestValue)
 }
 
 template <typename ContextType>
-inline FOpResult VValue::Melt(ContextType Context, VValue Value)
+inline VValue VValue::Melt(ContextType Context, VValue Value)
 {
-	V_REQUIRE_CONCRETE(Value);
 	if (Value.IsCell() && Value.AsCell().IsDeeplyMutable())
 	{
 		return Value.AsCell().Melt(FRunningContext(Context));
 	}
-	V_RETURN(Value);
+	return Value;
 }
 
 template <typename ContextType>
-inline FOpResult VValue::Freeze(ContextType Context, VValue Value)
+inline VValue VValue::Freeze(ContextType Context, VValue Value)
 {
 	if (Value.IsPlaceholder())
 	{
@@ -214,7 +213,7 @@ inline FOpResult VValue::Freeze(ContextType Context, VValue Value)
 	{
 		return Value.AsCell().Freeze(FRunningContext(Context));
 	}
-	V_RETURN(Value);
+	return Value;
 }
 
 } // namespace Verse
