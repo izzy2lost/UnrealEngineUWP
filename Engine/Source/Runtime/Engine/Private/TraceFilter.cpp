@@ -158,6 +158,12 @@ public:
 	{
 		return UniqueScopeLock.IsValid();
 	}
+
+	virtual SIZE_T GetAllocatedSize() const override
+	{
+		return AnnotationMap.GetAllocatedSize();
+	}
+
 private:
 	TMap<const UObjectBase*, FTraceFilterObjectAnnotation> AnnotationMap;
 	FCriticalSection AnnotationMapCritical;

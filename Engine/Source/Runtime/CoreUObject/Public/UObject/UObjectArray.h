@@ -793,6 +793,14 @@ public:
 		 * Called when UObject Array is being shut down, this is where all listeners should be removed from it
 		 */
 		virtual void OnUObjectArrayShutdown() = 0;
+
+		/**
+		 * Returns the size of heap memory allocated internally by this listener
+		 */
+		virtual SIZE_T GetAllocatedSize() const
+		{
+			return 0;
+		}
 	};
 
 	/**
@@ -1258,7 +1266,7 @@ private:
 	 */
 	TArray<FUObjectDeleteListener* > UObjectDeleteListeners;
 #if THREADSAFE_UOBJECTS
-	FCriticalSection UObjectDeleteListenersCritical;
+	mutable FCriticalSection UObjectDeleteListenersCritical;
 #endif
 
 	/** Current primary serial number **/
@@ -1280,10 +1288,31 @@ public:
 		return ObjObjects;
 	}
 
-    int64 GetAllocatedSize() const
+    SIZE_T GetAllocatedSize() const
     {
-        return ObjObjects.GetAllocatedSize();
+		FScopeLock ObjListLock(&ObjObjectsCritical);
+#if THREADSAFE_UOBJECTS
+		FScopeLock ListenersLock(&UObjectDeleteListenersCritical);
+#endif
+        return ObjObjects.GetAllocatedSize() + ObjAvailableList.GetAllocatedSize() + UObjectCreateListeners.GetAllocatedSize() + UObjectDeleteListeners.GetAllocatedSize();
     }
+
+	SIZE_T GetDeleteListenersAllocatedSize(int32* OutNumListeners = nullptr) const
+	{
+#if THREADSAFE_UOBJECTS
+		FScopeLock ListenersLock(&UObjectDeleteListenersCritical);
+#endif
+		SIZE_T AllocatedSize = 0;
+		for (FUObjectDeleteListener* Listener : UObjectDeleteListeners)
+		{
+			AllocatedSize += Listener->GetAllocatedSize();
+		}
+		if (OutNumListeners)
+		{
+			*OutNumListeners = UObjectDeleteListeners.Num();
+		}
+		return AllocatedSize;
+	}
 
 	COREUOBJECT_API void DumpUObjectCountsToLog() const;
 };

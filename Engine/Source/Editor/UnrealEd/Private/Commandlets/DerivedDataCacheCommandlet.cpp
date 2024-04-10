@@ -92,6 +92,11 @@ public:
 		return NewPackages;
 	}
 
+	virtual SIZE_T GetAllocatedSize() const override
+	{
+		return NewPackages.GetAllocatedSize();
+	}
+
 private:
 	void NotifyUObjectCreated(const class UObjectBase* Object, int32 Index) override
 	{

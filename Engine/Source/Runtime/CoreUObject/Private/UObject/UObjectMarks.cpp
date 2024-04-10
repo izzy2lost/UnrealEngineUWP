@@ -135,6 +135,11 @@ public:
 		return AnnotationMap;
 	}
 
+	virtual SIZE_T GetAllocatedSize() const override
+	{
+		return AnnotationMap.GetAllocatedSize();
+	}
+
 private:
 	TMap<const UObjectBase*, TAnnotation>	AnnotationMap;
 	const UObjectBase*						AnnotationCacheKey;

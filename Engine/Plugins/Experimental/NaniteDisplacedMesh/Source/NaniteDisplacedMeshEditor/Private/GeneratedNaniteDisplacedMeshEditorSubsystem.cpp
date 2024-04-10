@@ -573,6 +573,37 @@ void UGeneratedNaniteDisplacedMeshEditorSubsystem::OnUObjectArrayShutdown()
 	GUObjectArray.RemoveUObjectDeleteListener(this);
 }
 
+SIZE_T UGeneratedNaniteDisplacedMeshEditorSubsystem::FBidirectionalAssetsAndDisplacementMeshMap::GetAllocatedSize() const
+{
+	SIZE_T AllocatedSize = MeshToAssets.GetAllocatedSize();
+	for (const TPair<UNaniteDisplacedMesh*, TSet<UObject*>>& Pair : MeshToAssets)
+	{
+		AllocatedSize += Pair.Value.GetAllocatedSize();
+	}
+	AllocatedSize += AssetToMeshes.GetAllocatedSize();
+	for (const TPair<UObject*, TSet<UNaniteDisplacedMesh*>>& Pair : AssetToMeshes)
+	{
+		AllocatedSize += Pair.Value.GetAllocatedSize();
+	}
+	return AllocatedSize;
+}
+
+SIZE_T UGeneratedNaniteDisplacedMeshEditorSubsystem::GetAllocatedSize() const
+{
+	SIZE_T AllocatedSize = ActorsToDependencies.GetAllocatedSize();
+	for (const TPair<TObjectKey<AActor>, TArray<TObjectKey<UObject>>>& Pair : ActorsToDependencies)
+	{
+		AllocatedSize += Pair.Value.GetAllocatedSize();
+	}
+	AllocatedSize += DependenciesToActors.GetAllocatedSize();
+	for (const TPair<TObjectKey<UObject>, TSet<TObjectKey<AActor>>>& Pair : DependenciesToActors)
+	{
+		AllocatedSize += Pair.Value.GetAllocatedSize();
+	}
+	AllocatedSize += MeshesAndAssetsReimportTracking.GetAllocatedSize();
+	return AllocatedSize;
+}
+
 void UGeneratedNaniteDisplacedMeshEditorSubsystem::UpdateIsEngineCollectingGarbage(bool bIsCollectingGarbage)
 {
 	bIsEngineCollectingGarbage = bIsCollectingGarbage;

@@ -89,6 +89,11 @@ private:
 		virtual void OnUObjectArrayShutdown();
 		void EnableListener();
 		void DisableListener();
+
+		virtual SIZE_T GetAllocatedSize() const override
+		{
+			return 0;
+		}
 	};
 
 	/** Allow the object listener to use the critical section and remove objects from the map */

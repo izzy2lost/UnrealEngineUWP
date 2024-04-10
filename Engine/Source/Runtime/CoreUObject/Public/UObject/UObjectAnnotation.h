@@ -264,6 +264,11 @@ public:
 		AnnotationMap.Empty(ExpectedNumElements);
 	}
 
+	virtual SIZE_T GetAllocatedSize() const override
+	{
+		return AnnotationMap.GetAllocatedSize();
+	}
+
 private:
 
 	/**
@@ -411,7 +416,10 @@ public:
 		InverseAnnotationMap.Empty();
 	}
 
-
+	virtual SIZE_T GetAllocatedSize() const override
+	{
+		return InverseAnnotationMap.GetAllocatedSize() + Super::GetAllocatedSize();
+	}
 private:
 
 	/**
@@ -938,9 +946,9 @@ public:
 	}
 
 	/** Returns the memory allocated by the internal array */
-	uint32 GetAllocatedSize() const
+	virtual SIZE_T GetAllocatedSize() const override
 	{
-		uint32 AllocatedSize = Chunks.GetAllocatedSize();
+		SIZE_T AllocatedSize = Chunks.GetAllocatedSize();
 		for (const TAnnotationChunk& Chunk : Chunks)
 		{
 			if (Chunk.Items)
@@ -1220,7 +1228,7 @@ public:
 	}
 
 	/** Returns the memory allocated by the internal array */
-	uint32 GetAllocatedSize() const
+	virtual SIZE_T GetAllocatedSize() const override
 	{
 		return AnnotationArray.GetAllocatedSize();
 	}
@@ -1329,6 +1337,11 @@ public:
 			return !!(AnnotationArray[Index / BitsPerElement] & TBitType(TBitType(1) << (Index % BitsPerElement)));
 		}
 		return false;
+	}
+
+	virtual SIZE_T GetAllocatedSize() const override
+	{
+		return AnnotationArray.GetAllocatedSize();
 	}
 
 private:

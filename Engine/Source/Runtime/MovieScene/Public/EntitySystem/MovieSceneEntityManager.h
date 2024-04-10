@@ -926,6 +926,11 @@ private:
 
 	MOVIESCENE_API void CheckInvariants();
 
+	virtual SIZE_T GetAllocatedSize() const override
+	{
+		return 0;
+	}
+
 	friend struct FEntityAllocationProxy;
 	friend struct FEntityAllocationIterator;
 	friend struct FEntityAllocationIteratorProxy;

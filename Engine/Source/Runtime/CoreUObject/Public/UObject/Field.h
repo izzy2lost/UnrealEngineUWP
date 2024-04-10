@@ -230,6 +230,10 @@ public: \
 	friend void operator<<(FStructuredArchive::FSlot InSlot, ThisClass*& Res) \
 	{ \
 		InSlot << (FField*&)Res; \
+	} \
+	virtual SIZE_T GetFieldSize() const override \
+	{ \
+		return sizeof(TClass); \
 	}
 
 #if !CHECK_PUREVIRTUALS
@@ -459,6 +463,11 @@ public:
 	typedef FFieldClass FieldTypeClass;
 
 	static COREUOBJECT_API FFieldClass* StaticClass();
+
+	virtual SIZE_T GetFieldSize() const
+	{
+		return sizeof(FField);
+	}
 
 	inline static constexpr uint64 StaticClassCastFlagsPrivate()
 	{

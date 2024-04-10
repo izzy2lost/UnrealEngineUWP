@@ -223,6 +223,12 @@ public:
 		FWriteScopeLock ScopeLock(Lock);
 		ExpectedNeverLoadPackages.Empty();
 	}
+
+	virtual SIZE_T GetAllocatedSize() const override
+	{
+		return LoadedPackages.GetAllocatedSize() + ExpectedNeverLoadPackages.GetAllocatedSize() + NewPackages.GetAllocatedSize();
+	}
+
 private:
 	void InitializeTracking();
 

@@ -8,6 +8,8 @@
 #include "UObject/Class.h"
 #include "UObject/GarbageCollectionGlobals.h"
 #include "UObject/Package.h"
+#include "UObject/UObjectIterator.h"
+#include "Templates/Casts.h"
 #include "Misc/AsciiSet.h"
 #include "Misc/PackageName.h"
 #include "Async/ParallelFor.h"
@@ -1921,14 +1923,15 @@ void LogHashOuterStatistics(FOutputDevice& Ar, const bool bShowHashBucketCollisi
 	Ar.Logf(TEXT(""));
 }
 
-void LogHashMemoryOverheadStatistics(FOutputDevice& Ar, const bool bShowIndividualStats)
+void LogHashMemoryOverheadStatistics(FOutputDevice& Ar, const EObjectMemoryOverheadOptions InOptions)
 {
 	Ar.Logf(TEXT("UObject Hash Tables and Maps memory overhead"));
 	Ar.Logf(TEXT("-------------------------------------------------"));
-
+	
 	FUObjectHashTables& HashTables = FUObjectHashTables::Get();
 	FHashTableLock HashLock(HashTables);
 
+	const bool bShowIndividualStats = !!(InOptions & EObjectMemoryOverheadOptions::ShowIndividualStats);
 	SIZE_T TotalSize = 0;
 	
 	{
@@ -2015,6 +2018,16 @@ void LogHashMemoryOverheadStatistics(FOutputDevice& Ar, const bool bShowIndividu
 	}
 
 	{
+		int32 NumListeners = 0;
+		const SIZE_T Size = GUObjectArray.GetDeleteListenersAllocatedSize(&NumListeners);
+		if (bShowIndividualStats)
+		{
+			Ar.Logf(TEXT("Memory used by UObject Delete Listeners (including annotations): %" SIZE_T_FMT " bytes. (%d listeners) "), Size, NumListeners);
+		}
+		TotalSize += Size;
+	}
+
+	{
 		const SIZE_T Size = GUObjectArray.GetAllocatedSize();
 		if (bShowIndividualStats)
 		{
@@ -2024,5 +2037,47 @@ void LogHashMemoryOverheadStatistics(FOutputDevice& Ar, const bool bShowIndividu
 	}
 
 	Ar.Logf(TEXT("Total memory allocated by Object hash tables and maps: %" SIZE_T_FMT " bytes(% .2f MB)."), TotalSize, (double)TotalSize / 1024.0 / 1024.0);
+	
+	if (!!(InOptions & EObjectMemoryOverheadOptions::IncludeReflectionData))
+	{
+		SIZE_T PropertiesSize = 0;
+		int32 NumProperties = 0;
+		SIZE_T UFieldsSize = 0;
+		int32 NumUFields = 0;
+		TArray<FField*> InnerFields;
+		for (TObjectIterator<UField> It; It; ++It)
+		{
+			if (UStruct* Struct = Cast<UStruct>(*It))
+			{
+				for (FField* Property = Struct->ChildProperties; Property; Property = Property->Next)
+				{
+					NumProperties++;
+					PropertiesSize += Property->GetFieldSize();
+					InnerFields.Reset();
+					Property->GetInnerFields(InnerFields);
+					for (FField* InnerProperty : InnerFields)
+					{
+						NumProperties++;
+						PropertiesSize += InnerProperty->GetFieldSize();
+					}
+				}
+				UFieldsSize += Struct->Script.GetAllocatedSize();
+				UFieldsSize += Struct->ScriptAndPropertyObjectReferences.GetAllocatedSize();
+			}
+			NumUFields++;
+			UFieldsSize += It->GetClass()->GetPropertiesSize();
+		}
+		if (bShowIndividualStats)
+		{
+			Ar.Logf(TEXT("Memory used by FProperties: %" SIZE_T_FMT " bytes. (%d FProperties) "), PropertiesSize, NumProperties);
+			Ar.Logf(TEXT("Memory used by UFields: %" SIZE_T_FMT " bytes. (%d UFields) "), UFieldsSize, NumUFields);
+		}
+		SIZE_T ReflectionDataSize = PropertiesSize + UFieldsSize;
+		TotalSize += ReflectionDataSize;
+
+		Ar.Logf(TEXT("Total memory allocated by Object reflection data: %" SIZE_T_FMT " bytes(% .2f MB)."), ReflectionDataSize, (double)ReflectionDataSize / 1024.0 / 1024.0);
+		Ar.Logf(TEXT("Total memory overhead: %" SIZE_T_FMT " bytes(% .2f MB)."), TotalSize, (double)TotalSize / 1024.0 / 1024.0);
+	}
+
 	Ar.Logf(TEXT(""));
 }

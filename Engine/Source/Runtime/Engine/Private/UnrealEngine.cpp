@@ -9635,8 +9635,16 @@ bool UEngine::HandleObjCommand( const TCHAR* Cmd, FOutputDevice& Ar )
 	}
 	else if (FParse::Command(&Cmd, TEXT("OVERHEAD")))
 	{
-		const bool bShowIndividualStats = FParse::Param(Cmd, TEXT("DETAILED"));
-		LogHashMemoryOverheadStatistics(Ar, bShowIndividualStats);
+		EObjectMemoryOverheadOptions Options = EObjectMemoryOverheadOptions::None;
+		if (FParse::Param(Cmd, TEXT("DETAILED")))
+		{
+			Options |= EObjectMemoryOverheadOptions::ShowIndividualStats;
+		}
+		if (FParse::Param(Cmd, TEXT("WITHREFLECTION")))
+		{
+			Options |= EObjectMemoryOverheadOptions::IncludeReflectionData;
+		}
+		LogHashMemoryOverheadStatistics(Ar, Options);
 		return true;
 	}
 #endif
