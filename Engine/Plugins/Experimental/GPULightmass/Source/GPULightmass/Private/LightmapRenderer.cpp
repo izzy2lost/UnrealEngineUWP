@@ -354,7 +354,7 @@ void FCachedRayTracingSceneData::SetupViewAndSceneUniformBufferFromSceneRenderSt
 				&LightmapSceneData,
 				&LightmapSceneDataStartOffsets,
 				&InstanceSceneData,
-				&InstanceDataOriginalOffsets = InstanceDataOriginalOffsets
+				&InstanceDataOffsets = InstanceDataOriginalOffsets
 			](int32 InstanceIndex = 0)
 			{
 				FStaticMeshInstanceRenderState& Instance = Scene.StaticMeshInstanceRenderStates.Elements[InstanceIndex];
@@ -376,7 +376,7 @@ void FCachedRayTracingSceneData::SetupViewAndSceneUniformBufferFromSceneRenderSt
 				
 				PrimitiveSceneData[InstanceIndex] = FPrimitiveSceneShaderData(PrimitiveUniformShaderParameters);
 
-				InstanceDataOriginalOffsets[InstanceIndex] = InstanceIndex;
+				InstanceDataOffsets[InstanceIndex] = InstanceIndex;
 
 				FInstanceSceneShaderData& SceneData = InstanceSceneData[InstanceIndex];
 				SceneData.Build
