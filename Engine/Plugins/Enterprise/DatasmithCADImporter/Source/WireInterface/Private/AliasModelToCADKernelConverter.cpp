@@ -2,6 +2,8 @@
 
 #include "AliasModelToCADKernelConverter.h"
 
+#ifdef USE_OPENMODEL
+
 #include "OpenModelUtils.h"
 
 #include "CADData.h"
@@ -25,8 +27,6 @@
 #include "CADKernel/Topo/TopologicalEdge.h"
 #include "CADKernel/Topo/TopologicalFace.h"
 #include "CADKernel/Topo/TopologicalLoop.h"
-
-#ifdef USE_OPENMODEL
 
 #if PLATFORM_WINDOWS
 #include "Windows/AllowWindowsPlatformTypes.h"

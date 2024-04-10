@@ -2,6 +2,7 @@
 
 #include "AliasModelToTechSoftConverter.h"
 
+#ifdef USE_OPENMODEL
 #include "OpenModelUtils.h"
 
 #include "Hal/PlatformMemory.h"
@@ -12,7 +13,6 @@
 #include "TUniqueTechSoftObj.h"
 
 
-#ifdef USE_OPENMODEL
 
 #if PLATFORM_WINDOWS
 #include "Windows/AllowWindowsPlatformTypes.h"

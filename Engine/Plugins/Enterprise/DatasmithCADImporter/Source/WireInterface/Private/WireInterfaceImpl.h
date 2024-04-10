@@ -4,6 +4,8 @@
 
 #include "CoreMinimal.h"
 
+#ifdef USE_OPENMODEL
+
 #include "AliasBrepConverter.h"
 #include "OpenModelUtils.h"
 
@@ -136,3 +138,4 @@ namespace UE_DATASMITHWIRETRANSLATOR_NAMESPACE
 		bool bSceneLoaded = false;
 	};
 } // namespace
+#endif

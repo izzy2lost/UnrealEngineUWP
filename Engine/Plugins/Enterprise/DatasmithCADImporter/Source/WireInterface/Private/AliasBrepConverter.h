@@ -2,6 +2,7 @@
 
 #pragma once
 
+#ifdef USE_OPENMODEL
 class AlDagNode;
 struct FColor;
 
@@ -25,3 +26,4 @@ public:
 };
 
 }
+#endif

@@ -1,9 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #include "OpenModelUtils.h"
 
-#include "AliasBRepConverter.h"
-
 #ifdef USE_OPENMODEL
+#include "AliasBRepConverter.h"
 
 #include "CADOptions.h"
 #include "DatasmithUtils.h"

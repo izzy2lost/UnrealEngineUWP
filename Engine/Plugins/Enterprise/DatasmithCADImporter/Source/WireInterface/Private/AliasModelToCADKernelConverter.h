@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 
+#ifdef USE_OPENMODEL
 #include "AliasBRepConverter.h"
 #include "OpenModelUtils.h"
 
@@ -68,3 +69,4 @@ protected:
 };
 
 }
+#endif

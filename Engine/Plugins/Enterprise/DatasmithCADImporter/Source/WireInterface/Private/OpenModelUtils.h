@@ -4,11 +4,11 @@
 
 #include "CoreMinimal.h"
 
+#ifdef USE_OPENMODEL
 //#include "CADModelToTechSoftConverterBase.h"
 #include "CADModelConverter.h"
 #include "CADOptions.h"
 
-#ifdef USE_OPENMODEL
 
 #if PLATFORM_WINDOWS
 #include "Windows/AllowWindowsPlatformTypes.h"
