@@ -1752,6 +1752,12 @@ FGuid UGeometryCollection::GetStateGuid() const
 
 #if WITH_EDITOR
 
+void UGeometryCollection::PostEditUndo()
+{
+	PropagateTransformUpdateToComponents();
+	Super::PostEditUndo();
+}
+
 void UGeometryCollection::PostEditChangeProperty(struct FPropertyChangedEvent& PropertyChangedEvent)
 {
 	bool bDoInvalidateCollection = false;

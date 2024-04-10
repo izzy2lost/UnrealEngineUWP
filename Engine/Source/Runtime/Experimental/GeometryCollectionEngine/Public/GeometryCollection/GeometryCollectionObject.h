@@ -367,6 +367,7 @@ public:
 	/** UObject Interface */
 #if WITH_EDITOR
 	GEOMETRYCOLLECTIONENGINE_API virtual void PostEditChangeProperty(struct FPropertyChangedEvent& PropertyChangedEvent) override;
+	GEOMETRYCOLLECTIONENGINE_API virtual void PostEditUndo() override;
 	GEOMETRYCOLLECTIONENGINE_API virtual bool Modify(bool bAlwaysMarkDirty = true) override;
 #endif
 	GEOMETRYCOLLECTIONENGINE_API virtual void PostInitProperties() override;
