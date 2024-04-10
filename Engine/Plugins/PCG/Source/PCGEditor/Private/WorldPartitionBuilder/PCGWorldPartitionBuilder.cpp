@@ -163,7 +163,7 @@ bool UPCGWorldPartitionBuilder::RunInternal(UWorld* World, const FCellInfo& InCe
 
 	{
 		TArray<UPackage*> DirtyPackages;
-		FEditorFileUtils::GetDirtyPackages(DirtyPackages);
+		FEditorFileUtils::GetDirtyWorldPackages(DirtyPackages);
 		DirtyPackages.RemoveSwap(nullptr);
 		for (UPackage* DirtyPackage : DirtyPackages)
 		{
@@ -212,7 +212,7 @@ bool UPCGWorldPartitionBuilder::RunInternal(UWorld* World, const FCellInfo& InCe
 	if (bGeneratedAnyComponent)
 	{
 		TArray<UPackage*> DirtyPackages;
-		FEditorFileUtils::GetDirtyPackages(DirtyPackages);
+		FEditorFileUtils::GetDirtyWorldPackages(DirtyPackages);
 		
 		DirtyPackages.RemoveSwap(nullptr);
 		for (UPackage* DirtyPackage : DirtyPackages)
