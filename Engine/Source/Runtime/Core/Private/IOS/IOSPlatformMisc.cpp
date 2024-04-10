@@ -1906,46 +1906,62 @@ void FIOSPlatformMisc::MetalAssert()
     *(int32 *)7 = 123;
 }
 
-bool FIOSPlatformMisc::CPUHasHwCrcSupport()
+struct FCPUFeatures
 {
-	// HW CRC instructions support is available on Apple A10+
-	static int HwCrcSupported = -1;
-	if (HwCrcSupported == -1)
+	// CRC instructions support is available on Apple A10 and beyond.
+	bool bHasCrc : 1 = false;
+	// AES instructions support is available on Apple A7  and beyond.
+	// A8 is minspec, so assuming it is always available.
+	bool bHasAes : 1 = true;
+
+	FCPUFeatures()
 	{
-		HwCrcSupported = 0;
-		
 		const FString DeviceIDString = GetIOSDeviceIDString();
 		if (DeviceIDString.StartsWith(TEXT("iPod")))
 		{
 			const int Major = FCString::Atoi(&DeviceIDString[4]);
-			//iPod Touch 6 and lower don't support hw CRC32
-			HwCrcSupported = Major > 7;
+			// iPod Touch 6 and lower don't support it.
+			bHasCrc = Major > 7;
 		}
 		else if (DeviceIDString.StartsWith(TEXT("iPad")))
 		{
-			// get major revision number
 			const int Major = FCString::Atoi(&DeviceIDString[4]);
-
-			//iPad 5, iPad Pro and lower
-			HwCrcSupported = Major > 6;
+			// iPad 5, iPad Pro and lower don't support it.
+			bHasCrc = Major > 6;
 		}
 		else if (DeviceIDString.StartsWith(TEXT("iPhone")))
 		{
 			const int Major = FCString::Atoi(&DeviceIDString[6]);
-			
-			// iPhone 6S, iPhone SE and below
-			HwCrcSupported = Major > 9;
+			// iPhone 6S, iPhone SE and below don't support it.
+			bHasCrc = Major > 9;
 		}
 		else if (DeviceIDString.StartsWith(TEXT("AppleTV")))
 		{
 			const int Major = FCString::Atoi(&DeviceIDString[7]);
-			
-			// Apple TV
-			HwCrcSupported = Major > 5;
+			// Apple TV 4 and lower don't support it.
+			bHasCrc = Major > 5;
+		}
+		else
+		{
+			bHasCrc = false;
 		}
 	}
+};
 
-	return HwCrcSupported == 1;
+static FCPUFeatures DetectCPUFeatures()
+{
+	static FCPUFeatures Features;
+	return Features;
+}
+
+bool FIOSPlatformMisc::CPUHasHwCrcSupport()
+{
+	return DetectCPUFeatures().bHasCrc;
+}
+
+bool FIOSPlatformMisc::CPUHasHwAesSupport()
+{
+	return DetectCPUFeatures().bHasAes;
 }
 
 static FCriticalSection EnsureLock;

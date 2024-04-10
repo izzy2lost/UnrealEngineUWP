@@ -214,6 +214,7 @@ struct CORE_API FIOSPlatformMisc : public FApplePlatformMisc
     static FORCENOINLINE CA_NO_RETURN void MetalAssert();
 
 	static bool CPUHasHwCrcSupport();
+	static bool CPUHasHwAesSupport();
 };
 
 typedef FIOSPlatformMisc FPlatformMisc;
