@@ -1551,7 +1551,11 @@ void UCharacterMovementComponent::TickComponent(float DeltaTime, enum ELevelTick
 		USkeletalMeshComponent* CharacterMesh = CharacterOwner->GetMesh();
 		if (CharacterMesh->ShouldTickPose())
 		{
+			// Keep track of if we're playing root motion, just in case the root motion montage ends this frame.
+			// Also cache the root motion translation scale, in case the root motion ends in TickPose and
+			// translation scale is reset by a blend out listener.
 			const bool bWasPlayingRootMotion = CharacterOwner->IsPlayingRootMotion();
+			const float RootMotionTranslationScale = CharacterOwner->GetAnimRootMotionTranslationScale();
 
 			CharacterMesh->TickPose(DeltaTime, true);
 			// We are simulating character movement on physics thread, do not tick movement.
@@ -1561,7 +1565,7 @@ void UCharacterMovementComponent::TickComponent(float DeltaTime, enum ELevelTick
 				FRootMotionMovementParams RootMotion = CharacterMesh->ConsumeRootMotion();
 				if (RootMotion.bHasRootMotion)
 				{
-					RootMotion.ScaleRootMotionTranslation(CharacterOwner->GetAnimRootMotionTranslationScale());
+					RootMotion.ScaleRootMotionTranslation(RootMotionTranslationScale);
 					RootMotionParams.Accumulate(RootMotion);
 				}
 			}
@@ -11577,7 +11581,10 @@ void UCharacterMovementComponent::TickCharacterPose(float DeltaTime)
 	if (CharacterMesh->ShouldTickPose())
 	{
 		// Keep track of if we're playing root motion, just in case the root motion montage ends this frame.
+		// Also cache the root motion translation scale, in case the root motion ends in TickPose and
+		// translation scale is reset by a blend out listener.
 		const bool bWasPlayingRootMotion = CharacterOwner->IsPlayingRootMotion();
+		const float RootMotionTranslationScale = CharacterOwner->GetAnimRootMotionTranslationScale();
 
 		CharacterMesh->TickPose(DeltaTime, true);
 
@@ -11587,7 +11594,7 @@ void UCharacterMovementComponent::TickCharacterPose(float DeltaTime)
 			FRootMotionMovementParams RootMotion = CharacterMesh->ConsumeRootMotion();
 			if (RootMotion.bHasRootMotion)
 			{
-				RootMotion.ScaleRootMotionTranslation(CharacterOwner->GetAnimRootMotionTranslationScale());
+				RootMotion.ScaleRootMotionTranslation(RootMotionTranslationScale);
 				RootMotionParams.Accumulate(RootMotion);
 			}
 
