@@ -2002,7 +2002,16 @@ void ShaderMapAppendKey(EShaderPlatform Platform, FShaderKeyGenerator& KeyGen)
 		ShaderFormat->AppendToKeyString(ShaderFormatExtraData);
 		KeyGen.Append(ShaderFormatExtraData);
 	}
-	
+
+	ITargetPlatform* TargetPlatform = GetTargetPlatformManagerRef().FindTargetPlatformWithSupport(TEXT("ShaderFormat"), ShaderFormatName);
+
+	uint32 SupportedHardwareMask = TargetPlatform ? TargetPlatform->GetSupportedHardwareMask() : 0;
+
+	if (SupportedHardwareMask != 0)
+	{
+		KeyString += FString::Printf(TEXT("_SHM_%X"), SupportedHardwareMask);
+	}
+
 	// Encode the Metal standard into the shader compile options so that they recompile if the settings change.
 	if (IsMetalPlatform(Platform))
 	{
@@ -2121,8 +2130,6 @@ void ShaderMapAppendKey(EShaderPlatform Platform, FShaderKeyGenerator& KeyGen)
 			KeyGen.Append(TEXT("SD"));
 		}
 	}
-
-	ITargetPlatform* TargetPlatform = GetTargetPlatformManager()->FindTargetPlatformWithSupport(TEXT("ShaderFormat"), ShaderFormatName);
 
 	{
 		bool bForwardShading = false;

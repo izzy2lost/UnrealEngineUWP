@@ -249,6 +249,8 @@ struct FShaderCompilerInput
 	FString EntryPointName;
 	FString ShaderName;
 
+	uint32 SupportedHardwareMask = 0;
+
 	// Skips the preprocessor and instead loads the usf file directly
 	UE_DEPRECATED(5.4, "bSkipPreprocessedCache member is deprecated; set EShaderDebugInfoFlags::CompileFromDebugUSF on DebugInfoFlags instead.")
 	bool bSkipPreprocessedCache = false;

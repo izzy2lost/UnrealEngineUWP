@@ -1424,6 +1424,8 @@ FString CreateShaderCompilerWorkerDirectCommandLine(const FShaderCompilerInput& 
 	Text += TEXT("\" -shaderPlatformName=");
 	Text += Input.ShaderPlatformName.GetPlainNameString();
 
+	Text += FString::Printf(TEXT(" -supportedHardwareMask=%u"), Input.SupportedHardwareMask);
+
 	switch (Input.Target.Frequency)
 	{
 	case SF_Vertex:			Text += TEXT(" -vs"); break;
