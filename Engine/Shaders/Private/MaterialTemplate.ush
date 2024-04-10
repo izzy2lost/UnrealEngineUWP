@@ -1035,32 +1035,12 @@ float4 GetScreenPosition(FMaterialPixelParameters Parameters)
 // Returns the pixel's depth, in world units. Works for both orthographic and perspective projections:
 float GetPixelDepth(FMaterialVertexParameters Parameters)
 {
-	FLATTEN
-	if (View.ViewToClip[3][3] < 1.0f)
-	{
-		// Perspective
-		return GetScreenPosition(Parameters).w;
-	}
-	else
-	{
-		// Ortho
-		return ConvertFromDeviceZ(GetScreenPosition(Parameters).z);
-	}
+	return GetScreenPositionDepth(GetScreenPosition(Parameters));
 }
 
 float GetPixelDepth(FMaterialPixelParameters Parameters)
 {
-	FLATTEN
-	if (View.ViewToClip[3][3] < 1.0f)
-	{
-		// Perspective
-		return GetScreenPosition(Parameters).w;
-	}
-	else
-	{
-		// Ortho
-		return ConvertFromDeviceZ(GetScreenPosition(Parameters).z);
-	}
+	return GetScreenPositionDepth(GetScreenPosition(Parameters));
 }
 
 float2 GetSceneTextureUV(FMaterialVertexParameters Parameters)
@@ -4310,14 +4290,33 @@ float ApplyPixelDepthOffsetToMaterialParameters(inout FMaterialPixelParameters M
 	// RE_Z causes the HW to perform depth test twice, once before executing pixel shader, and once after
 	// The PreZ pass will write depth buffer using depth offset, then the base pass will test against this value using both modified and unmodifed depth
 	// If the unmodified depth is ever slightly less than the modified depth, the initial depth test will fail, which results in z-fighting/flickering type artifacts
-	float DeviceDepth = min(MaterialParameters.ScreenPosition.z / (MaterialParameters.ScreenPosition.w + PixelDepthOffset), MaterialParameters.SvPosition.z);
+	float DeviceDepth;
+	if(IsOrthoProjection(ResolvedView))
+	{
+		//Ortho projections have PDO applied to z rather than w. w should always stay as 1.0f
+		float OriginalDeviceZ = MaterialParameters.SvPosition.z;
+		float SceneDepth = ConvertFromDeviceZ(OriginalDeviceZ);
+		DeviceDepth = max(SceneDepth + PixelDepthOffset, SceneDepth);
 
-	// Once we've computed our (clamped) device depth, recompute PixelDepthOffset again to take the potential clamp into account
-	PixelDepthOffset = (MaterialParameters.ScreenPosition.z - DeviceDepth * MaterialParameters.ScreenPosition.w) / DeviceDepth;
+		PixelDepthOffset = SceneDepth - DeviceDepth;
 
-	// Update positions used for shading
-	MaterialParameters.ScreenPosition.w += PixelDepthOffset;
-	MaterialParameters.SvPosition.w = MaterialParameters.ScreenPosition.w;
+		MaterialParameters.ScreenPosition.z = ConvertToDeviceZ(SceneDepth + PixelDepthOffset);
+		MaterialParameters.SvPosition.z = MaterialParameters.ScreenPosition.z;
+
+		DeviceDepth = ConvertToDeviceZ(DeviceDepth);
+		PixelDepthOffset = MaterialParameters.SvPosition.z - OriginalDeviceZ;
+	}
+	else
+	{
+		DeviceDepth = min(MaterialParameters.ScreenPosition.z / (MaterialParameters.ScreenPosition.w + PixelDepthOffset), MaterialParameters.SvPosition.z);
+
+		// Once we've computed our (clamped) device depth, recompute PixelDepthOffset again to take the potential clamp into account
+		PixelDepthOffset = (MaterialParameters.ScreenPosition.z - DeviceDepth * MaterialParameters.ScreenPosition.w) / DeviceDepth;
+
+		// Update positions used for shading
+		MaterialParameters.ScreenPosition.w += PixelDepthOffset;
+		MaterialParameters.SvPosition.w = MaterialParameters.ScreenPosition.w;
+	}
 
 	MaterialParameters.LWCData.AbsoluteWorldPosition = WSAdd(MaterialParameters.LWCData.AbsoluteWorldPosition, -MaterialParameters.CameraVector * PixelDepthOffset);
 	MaterialParameters.AbsoluteWorldPosition = WSToDF(MaterialParameters.LWCData.AbsoluteWorldPosition);

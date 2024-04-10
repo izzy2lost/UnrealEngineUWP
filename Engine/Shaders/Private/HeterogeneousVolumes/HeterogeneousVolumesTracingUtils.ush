@@ -34,7 +34,7 @@ float3 Calculate3DVelocityAtWorldPos(float3 WorldRayOrigin, float3 WorldRayDirec
 	ClipPos /= ClipPos.w;
 
 	float3 PreViewTranslationOffset = DFFastLocalSubtractDemote(PrimaryView.PreViewTranslation, PrimaryView.PrevPreViewTranslation);
-	float3 PrevTranslatedWorldPos = mul(float4(ClipPos.xy * WorldHitT, WorldHitT, 1), View.PrevScreenToTranslatedWorld).xyz + PreViewTranslationOffset;
+	float3 PrevTranslatedWorldPos = mul(float4(GetScreenPositionForProjectionType(ClipPos.xy, WorldHitT), WorldHitT, 1), View.PrevScreenToTranslatedWorld).xyz + PreViewTranslationOffset;
 	float4 PrevClipPos = mul(float4(PrevTranslatedWorldPos, 1), View.TranslatedWorldToClip);
 	PrevClipPos /= PrevClipPos.w;
 

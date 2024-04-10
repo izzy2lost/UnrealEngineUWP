@@ -1196,15 +1196,6 @@ float4 GetPerPixelLightAttenuation(float2 UV)
 	return DecodeLightAttenuation(Texture2DSampleLevel(LightAttenuationTexture, LightAttenuationTextureSampler, UV, 0));
 }
 
-// also see ConvertToDeviceZ()
-// @param DeviceZ value that is stored in the depth buffer (Z/W)
-// @return SceneDepth (linear in world units, W)
-float ConvertFromDeviceZ(float DeviceZ)
-{
-	// Supports ortho and perspective, see CreateInvDeviceZToWorldZTransform()
-	return DeviceZ * View.InvDeviceZToWorldZTransform[0] + View.InvDeviceZToWorldZTransform[1] + 1.0f / (DeviceZ * View.InvDeviceZToWorldZTransform[2] - View.InvDeviceZToWorldZTransform[3]);
-}
-
 // Returns whether or not the given projection matrix is orthographic
 bool IsOrthoProjection(float4x4 ViewToClip)
 {
@@ -1216,7 +1207,6 @@ bool IsOrthoProjection(ViewState InView)
 {
 	return IsOrthoProjection(InView.ViewToClip);
 }
-
 
 // Returns whether or not the default view is orthographic
 bool IsOrthoProjection()
@@ -1248,9 +1238,28 @@ float ConvertToDeviceZ(float SceneDepth)
 	}
 }
 
+// also see ConvertToDeviceZ()
+// @param DeviceZ value that is stored in the depth buffer (Z/W)
+// @return SceneDepth (linear in world units, W)
+float ConvertFromDeviceZ(float DeviceZ)
+{
+	// Supports ortho and perspective, see CreateInvDeviceZToWorldZTransform()
+	return DeviceZ * View.InvDeviceZToWorldZTransform[0] + View.InvDeviceZToWorldZTransform[1] + 1.0f / (DeviceZ * View.InvDeviceZToWorldZTransform[2] - View.InvDeviceZToWorldZTransform[3]);
+}
+
+float GetScreenPositionDepth(float4 ScreenPosition)
+{
+	return select(IsOrthoProjection(ResolvedView), ConvertFromDeviceZ(ScreenPosition.z), ScreenPosition.w);
+}
+
+float3 GetCameraVector(ViewState InView, float3 Position, float3 CameraPosition)
+{
+	return select(IsOrthoProjection(InView), InView.ViewForward, normalize(Position - CameraPosition));
+}
+
 float3 GetCameraVector(float3 Position, float3 CameraPosition)
 {
-	return select(IsOrthoProjection(), View.ViewForward, normalize(Position - CameraPosition));
+	return GetCameraVector(PrimaryView, Position, CameraPosition);
 }
 
 float3 GetCameraVectorFromWorldPosition(float3 WorldPosition)
@@ -1258,9 +1267,14 @@ float3 GetCameraVectorFromWorldPosition(float3 WorldPosition)
 	return GetCameraVector(WorldPosition, DFHackToFloat(PrimaryView.WorldCameraOrigin));
 }
 
+float3 GetCameraVectorFromTranslatedWorldPosition(ViewState InView, float3 TranslatedWorldPosition)
+{
+	return GetCameraVector(TranslatedWorldPosition, InView.TranslatedWorldCameraOrigin);
+}
+
 float3 GetCameraVectorFromTranslatedWorldPosition(float3 TranslatedWorldPosition)
 {
-	return GetCameraVector(TranslatedWorldPosition, PrimaryView.TranslatedWorldCameraOrigin);
+	return GetCameraVectorFromTranslatedWorldPosition(PrimaryView, TranslatedWorldPosition);
 }
 
 float GetDistanceToCameraFromViewVector(float3 DistanceVector)
@@ -1392,6 +1406,24 @@ void SvPositionToResolvedScreenPositionDeriv(float4 SvPosition, float2 PPZ_DDX_D
 	ScreenPosition = NDCPos * SvPosition.w;
 	ScreenPositionDDX = NDCPos * W_DDX_DDY.x + NDCPosDDX * SvPosition.w;
 	ScreenPositionDDY = NDCPos * W_DDX_DDY.y + NDCPosDDY * SvPosition.w;
+}
+
+float3 GetTranslatedWorldCameraPosFromView(ViewState InView, float2 SvPosition)
+{
+	// Get the camera position per pixel in ortho, or just the camera location in perspective.
+	if (IsOrthoProjection(InView))
+	{
+		return SvPositionToTranslatedWorld(float4(SvPosition, 1.0f, 1.0f));
+	}
+	else
+	{
+		return InView.TranslatedWorldCameraOrigin;
+	}
+}
+
+float3 GetTranslatedWorldCameraPosFromView(float2 SvPosition)
+{
+	return GetTranslatedWorldCameraPosFromView(PrimaryView, SvPosition);
 }
 
 float2 SvPositionToViewportUV(float4 SvPosition)

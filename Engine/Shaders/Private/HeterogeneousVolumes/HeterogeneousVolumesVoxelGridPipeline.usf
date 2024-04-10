@@ -181,7 +181,7 @@ void TopLevelGridCalculateVoxelSize(
 		float PixelWidth = TanHalfFOV.x / HalfWidth;
 
 		float3 WorldCameraOrigin = DFHackToFloat(DFFastSubtract(View.TranslatedWorldCameraOrigin, PrimaryView.PreViewTranslation));
-		float Distance = length(WorldVoxelCenter - WorldCameraOrigin) - length(WorldVoxelExtent);
+		float Distance = GetDistanceToCameraFromViewVector(WorldVoxelCenter - WorldCameraOrigin) - length(WorldVoxelExtent);
 		float VoxelWidth = Distance * PixelWidth * ShadingRate;
 
 		// Frustum intersection determines which min voxel-size to clip by

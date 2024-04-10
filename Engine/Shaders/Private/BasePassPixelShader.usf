@@ -686,7 +686,14 @@ void ApplyPixelDepthOffsetForBasePass(inout FMaterialPixelParameters MaterialPar
 	float PixelDepthOffset = ApplyPixelDepthOffsetToMaterialParameters(MaterialParameters, PixelMaterialInputs, OutDepth);
 
 #if WRITES_VELOCITY_TO_GBUFFER && !IS_NANITE_PASS
-	BasePassInterpolants.VelocityPrevScreenPosition.w += PixelDepthOffset;
+	if(IsOrthoProjection(ResolvedView))
+	{
+		BasePassInterpolants.VelocityPrevScreenPosition.z += PixelDepthOffset;
+	}
+	else
+	{
+		BasePassInterpolants.VelocityPrevScreenPosition.w += PixelDepthOffset;
+	}
 #endif
 }
 

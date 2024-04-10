@@ -189,7 +189,7 @@ void GetSpriteTangents(
 	float3 CameraUp = lerp(-ResolvedViewUp, EmitterDynamicUniforms.AxisLockUp.xyz, EmitterDynamicUniforms.AxisLockUp.w);
 
 	// Determine the vector from the particle to the camera and the particle's movement direction.
-	float3 CameraDirection	= SafeNormalize(ResolvedView.TranslatedWorldCameraOrigin - ParticleTranslatedWorldPosition.xyz);
+	float3 CameraDirection	= -GetCameraVectorFromTranslatedWorldPosition(ResolvedView, ParticleTranslatedWorldPosition.xyz);
 	float3 RightVector = CameraRight.xyz;
 	float3 UpVector = CameraUp.xyz;
 
@@ -197,8 +197,7 @@ void GetSpriteTangents(
 	if (EmitterUniforms.CameraFacingBlend.x > 0.f)
 	{
 		// Blend between PSA_FacingCamera and PSA_Square over distance
-		float3 CameraVector = ResolvedView.TranslatedWorldCameraOrigin.xyz - ParticleTranslatedWorldPosition.xyz;
-		float CameraDistanceSq = dot(CameraVector, CameraVector);
+		float CameraDistanceSq = GetDistanceToCameraFromViewVectorSqr(ResolvedView.TranslatedWorldCameraOrigin.xyz - ParticleTranslatedWorldPosition.xyz);
 		float AlignmentMode = saturate(CameraDistanceSq * EmitterUniforms.CameraFacingBlend.y - EmitterUniforms.CameraFacingBlend.z);
 
 		float3 CameraFacingRight = SafeNormalize(cross(CameraDirection, float3(0,0,1)));

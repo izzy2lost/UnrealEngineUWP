@@ -365,7 +365,7 @@ void GetTangents(float3 TranslatedWorldPosition, float3 OldTranslatedWorldPositi
 	float3 CameraUp = lerp(-ResolvedViewUp, SpriteVF.AxisLockUp.xyz, SpriteVF.AxisLockUp.w);
 
 	// Determine the vector from the particle to the camera and the particle's movement direction.
-	float3 CameraDirection = SafeNormalize(ResolvedView.TranslatedWorldCameraOrigin - TranslatedWorldPosition);
+	float3 CameraDirection = -GetCameraVectorFromTranslatedWorldPosition(ResolvedView, TranslatedWorldPosition);
 	float3 RightVector = CameraRight.xyz;
 	float3 UpVector = CameraUp.xyz;
 
@@ -375,8 +375,7 @@ void GetTangents(float3 TranslatedWorldPosition, float3 OldTranslatedWorldPositi
 	if (SpriteVF.CameraFacingBlend.x > 0.f)
 	{
 		// Blend between PSA_FacingCamera and PSA_Square over distance
-		float3 CameraVector = ResolvedView.TranslatedWorldCameraOrigin - TranslatedWorldPosition;
-		float CameraDistanceSq = dot(CameraVector, CameraVector);
+		float CameraDistanceSq = GetDistanceToCameraFromViewVectorSqr(ResolvedView.TranslatedWorldCameraOrigin - TranslatedWorldPosition);
 		float AlignmentMode = saturate(CameraDistanceSq * SpriteVF.CameraFacingBlend.y - SpriteVF.CameraFacingBlend.z);
 
 		float3 CameraFacingRight = SafeNormalize(cross(CameraDirection, float3(0,0,1)));

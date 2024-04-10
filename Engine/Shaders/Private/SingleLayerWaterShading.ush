@@ -57,7 +57,7 @@ WaterVolumeLightingOutput EvaluateWaterVolumeLighting(
 
 	if (WaterVisibility > 0.0f)
 	{
-		float WaterDepth = MaterialParameters.ScreenPosition.w; // Scene depth with Pixel-Depth-Offset taken into account is in ScreenPosition.w already
+		float WaterDepth = GetPixelDepth(MaterialParameters); // Scene depth with Pixel-Depth-Offset taken into account is in ScreenPosition.w already
 #if SINGLE_LAYER_WATER_MOBILE_SHADING
 
 #if SINGLE_LAYER_WATER_SHADING_QUALITY == SINGLE_LAYER_WATER_SHADING_QUALITY_MOBILE_WITH_DEPTH_TEXTURE 
