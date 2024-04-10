@@ -92,8 +92,11 @@ FVulkanView* FVulkanView::InitAsTypedBufferView(FVulkanResourceMultiBuffer* Buff
 	}
 
 	const uint32 TypeSize = GetNumBitsPerPixel(Format) / 8u;
-	// view size has to be a multiple of element size
-	check(IsAligned(InSize, TypeSize));
+	// View size has to be a multiple of element size
+	// Commented out because there are multiple places in the high level rendering code which re-purpose buffers for a new format while there are still
+	// views with the old format lying around, and then lock them with a size computed based on the new stride, triggering this assert when the old views
+	// are re-created. These places need to be fixed before re-enabling this check (UE-211785).
+	//check(IsAligned(InSize, TypeSize));
 
 	//#todo-rco: Revisit this if buffer views become VK_BUFFER_USAGE_STORAGE_BUFFER_BIT instead of VK_BUFFER_USAGE_UNIFORM_TEXEL_BUFFER_BIT
 	const VkPhysicalDeviceLimits& Limits = Device.GetLimits();
