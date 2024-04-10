@@ -425,6 +425,7 @@ UCommonSession_HostSessionRequest* UCommonSessionSubsystem::CreateOnlineHostSess
 	UCommonSession_HostSessionRequest* NewRequest = NewObject<UCommonSession_HostSessionRequest>(this);
 	NewRequest->OnlineMode = ECommonSessionOnlineMode::Online;
 	NewRequest->bUseLobbies = bUseLobbiesDefault;
+	NewRequest->bUseLobbiesVoiceChat = bUseLobbiesVoiceChatDefault;
 
 	// We enable presence by default in the primary session used for matchmaking. For online systems that care about presence, only the primary session should have presence enabled
 	NewRequest->bUsePresence = !IsRunningDedicatedServer();
@@ -530,6 +531,7 @@ void UCommonSessionSubsystem::CreateOnlineSessionInternalOSSv1(ULocalPlayer* Loc
 	{
 		HostSettings = MakeShareable(new FCommonSession_OnlineSessionSettings(Request->OnlineMode == ECommonSessionOnlineMode::LAN, Request->bUsePresence, MaxPlayers));
 		HostSettings->bUseLobbiesIfAvailable = Request->bUseLobbies;
+		HostSettings->bUseLobbiesVoiceChatIfAvailable = Request->bUseLobbiesVoiceChat;
 		HostSettings->Set(SETTING_GAMEMODE, Request->ModeNameForAdvertisement, EOnlineDataAdvertisementType::ViaOnlineService);
 		HostSettings->Set(SETTING_MAPNAME, Request->GetMapName(), EOnlineDataAdvertisementType::ViaOnlineService);
 		//@TODO: HostSettings->Set(SETTING_MATCHING_HOPPER, FString("TeamDeathmatch"), EOnlineDataAdvertisementType::DontAdvertise);
@@ -837,6 +839,7 @@ void UCommonSessionSubsystem::QuickPlaySession(APlayerController* JoiningOrHosti
 	// We enable presence by default on the primary session used for matchmaking. For online systems that care about presence, only the primary session should have presence enabled
 
 	HostRequestPtr->bUseLobbies = bUseLobbiesDefault;
+	HostRequestPtr->bUseLobbiesVoiceChat = bUseLobbiesVoiceChatDefault;
 	HostRequestPtr->bUsePresence = true;
 	QuickPlayRequest->bUseLobbies = bUseLobbiesDefault;
 

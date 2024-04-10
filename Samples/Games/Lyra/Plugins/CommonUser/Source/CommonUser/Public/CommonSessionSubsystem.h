@@ -63,6 +63,10 @@ public:
 	UPROPERTY(BlueprintReadWrite, Category = Session)
 	bool bUseLobbies;
 
+	/** True if this request should create a lobby with enabled voice chat in available */
+	UPROPERTY(BlueprintReadWrite, Category = Session)
+	bool bUseLobbiesVoiceChat;
+
 	/** True if this request should create a session that will appear in the user's presence information */
 	UPROPERTY(BlueprintReadWrite, Category = Session)
 	bool bUsePresence;
@@ -318,6 +322,10 @@ public:
 	/** Sets the default value of bUseLobbies for session search and host requests */
 	UPROPERTY(Config)
 	bool bUseLobbiesDefault = true;
+
+	/** Sets the default value of bUseLobbiesVoiceChat for session host requests */
+	UPROPERTY(Config)
+	bool bUseLobbiesVoiceChatDefault = false;
 
 protected:
 	// Functions called during the process of creating or joining a session, these can be overidden for game-specific behavior
