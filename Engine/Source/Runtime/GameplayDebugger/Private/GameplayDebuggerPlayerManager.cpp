@@ -92,6 +92,14 @@ void AGameplayDebuggerPlayerManager::BeginPlay()
 	FGameModeEvents::GameModeLogoutEvent.AddUObject(this, &ThisClass::OnGameModeLogout);
 }
 
+void AGameplayDebuggerPlayerManager::BeginDestroy()
+{
+	Super::BeginDestroy();
+
+	// Make sure the tick is completely disabled
+	SetTickableTickType(ETickableTickType::Never);
+}
+
 void AGameplayDebuggerPlayerManager::EndPlay(const EEndPlayReason::Type Reason)
 {
 	Super::EndPlay(Reason);

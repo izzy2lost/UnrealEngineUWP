@@ -150,6 +150,9 @@ void UTargetingSubsystem::Deinitialize()
 {
 	ClearAsyncRequests();
 	FCoreUObjectDelegates::PreLoadMap.RemoveAll(this);
+
+	// We are done, so do not attempt to tick us again
+	SetTickableTickType(ETickableTickType::Never);
 }
 
 bool UTargetingSubsystem::Exec_Runtime(UWorld* Inworld, const TCHAR* Cmd, FOutputDevice& Ar)

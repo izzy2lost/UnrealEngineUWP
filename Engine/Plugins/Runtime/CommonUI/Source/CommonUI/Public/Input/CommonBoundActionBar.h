@@ -35,6 +35,7 @@ public:
 	//~ FTickableGameObject End
 
 protected:
+	virtual void BeginDestroy() override;
 	virtual void OnWidgetRebuilt() override;
 	virtual void SynchronizeProperties() override;
 	virtual void ReleaseSlateResources(bool bReleaseChildren) override;

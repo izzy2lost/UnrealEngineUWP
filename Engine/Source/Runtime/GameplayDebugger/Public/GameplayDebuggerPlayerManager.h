@@ -56,6 +56,7 @@ protected:
 	GAMEPLAYDEBUGGER_API void OnGameModeLogout(AGameModeBase* GameMode, AController* Exiting);
 
 public:
+	GAMEPLAYDEBUGGER_API virtual void BeginDestroy() override;
 	GAMEPLAYDEBUGGER_API virtual void EndPlay(const EEndPlayReason::Type Reason) override;
 	GAMEPLAYDEBUGGER_API void Init();
 		

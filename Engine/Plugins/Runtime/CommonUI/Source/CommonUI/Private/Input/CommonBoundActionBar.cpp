@@ -60,6 +60,14 @@ bool UCommonBoundActionBar::IsTickableWhenPaused() const
 	return true;
 }
 
+void UCommonBoundActionBar::BeginDestroy()
+{
+	Super::BeginDestroy();
+
+	// Make sure the tick is completely disabled
+	SetTickableTickType(ETickableTickType::Never);
+}
+
 void UCommonBoundActionBar::OnWidgetRebuilt()
 {
 	Super::OnWidgetRebuilt();
