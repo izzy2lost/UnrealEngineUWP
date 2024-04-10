@@ -791,7 +791,12 @@ mu::NodeObjectPtr GenerateMutableSource(const UEdGraphPin * Pin, FMutableGraphGe
 		Result = ObjectNode;
 
 		ObjectNode->SetName(TypedNodeObj->ObjectName);
-		ObjectNode->SetUid(GenerationContext.GetNodeIdUnique(TypedNodeObj).ToString());
+		FGuid FinalGuid = GenerationContext.GetNodeIdUnique(TypedNodeObj);
+		if (FinalGuid != TypedNodeObj->NodeGuid)
+		{
+			GenerationContext.Compiler->CompilerLog(FText::FromString(TEXT("Warning: Node has a duplicated GUID. A new ID has been generated, but cooked data will not be deterministic.")), Node, EMessageSeverity::Warning);
+		}
+		ObjectNode->SetUid(FinalGuid.ToString());
 
 		// LOD
 		const int32 NumLODs = TypedNodeObj->GetNumLODPins();

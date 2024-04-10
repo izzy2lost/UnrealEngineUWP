@@ -2,8 +2,6 @@
 
 #include "MuCOE/Nodes/CustomizableObjectNodeObject.h"
 
-#include "Containers/Queue.h"
-#include "Logging/MessageLog.h"
 #include "MuCO/ICustomizableObjectModule.h"
 #include "MuCO/CustomizableObjectExtension.h"
 #include "MuCO/CustomizableObjectPrivate.h"
@@ -14,6 +12,9 @@
 #include "MuCOE/ICustomizableObjectEditor.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeMaterial.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeMaterialVariation.h"
+#include "Misc/UObjectToken.h"
+#include "Logging/MessageLog.h"
+#include "Containers/Queue.h"
 
 class UCustomizableObjectNodeRemapPins;
 
@@ -27,16 +28,9 @@ UCustomizableObjectNodeObject::UCustomizableObjectNodeObject()
 	: Super()
 {
 	bIsBase = true;
-
 	ObjectName = "Unnamed Object";
 	NumLODs = 1;
-	Identifier.Invalidate();
-
-	if (!Identifier.IsValid())
-	{
-		Identifier = FGuid::NewGuid();
-		IdentifierVerification = Identifier;
-	}
+	Identifier = FGuid::NewGuid();
 }
 
 
@@ -65,6 +59,15 @@ void UCustomizableObjectNodeObject::BackwardsCompatibleFixup()
 		// This will regenerate all the Node Object Guids to finally remove the duplicated Guids warning.
 		// It is safe to do this here as Node Object do not use its node guid to link themeselves to other nodes.
 		CreateNewGuid();
+
+		// This change may make cooks to become undeterministic, if the object GUID is finally used (it is a "toggle group" option).
+		UCustomizableObject* CustomizableObject = Cast<UCustomizableObject>(GetCustomizableObjectGraph()->GetOuter());
+		if (CustomizableObject)
+		{
+			FMessageLog("Mutable").Message(EMessageSeverity::Warning)
+				->AddToken(FTextToken::Create(LOCTEXT("Indeterministic Warning", "The object was saved with an old version and it may generate indeterministic packages. Resave it to fix the problem.")))
+				->AddToken(FUObjectToken::Create(CustomizableObject));
+		}
 	}
 
 	// Update state never-stream flag from deprecated enum
@@ -274,15 +277,6 @@ TArray<UCustomizableObjectNodeMaterial*> UCustomizableObjectNodeObject::GetMater
 void UCustomizableObjectNodeObject::PostBackwardsCompatibleFixup()
 {
 	Super::PostBackwardsCompatibleFixup();
-
-	const bool bJustBuiltCoFlag = !GetAllNonOrphanPins().Num() && !NodeGuid.IsValid();
-	if (!bJustBuiltCoFlag && Identifier == IdentifierVerification)
-	{
-		FCustomizableObjectEditorLogger::CreateLog(LOCTEXT("ResaveNode","Please re-save this Customizable Object to avoid binary differences when packaging"))
-		.Severity(EMessageSeverity::Warning)
-		.Context(*this)
-		.Log();
-	}
 
 	// Fix up ComponentSettings
 	if (ComponentSettings.IsEmpty())

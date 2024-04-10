@@ -201,9 +201,6 @@ public:
 	UPROPERTY(EditAnywhere, Category = CustomizableObject)
 	TArray<FComponentSettings> ComponentSettings;
 	
-    // To avoid any no properly saved GUIDs
-	FGuid IdentifierVerification;
-
 	// UObject interface.
 	void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 
