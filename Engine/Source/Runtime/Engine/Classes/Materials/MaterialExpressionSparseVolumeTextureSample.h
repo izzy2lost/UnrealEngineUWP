@@ -26,8 +26,21 @@ class UMaterialExpressionSparseVolumeTextureSample : public UMaterialExpressionS
 	UPROPERTY(meta = (RequiredInput = "false", ToolTip = "Defaults to 'SparseVolumeTexture' if not specified"))
 	FExpressionInput TextureObject;
 
+	/** Meaning depends on MipValueMode, a single unit is one mip level  */
 	UPROPERTY(meta = (RequiredInput = "false", ToolTip = "Defaults to 0 if not specified"))
-	FExpressionInput MipLevel;
+	FExpressionInput MipValue;
+
+	/** Enabled only if MipValueMode == TMVM_Derivative */
+	UPROPERTY(meta = (RequiredInput = "true", ToolTip = "Coordinates derivative over the X axis"))
+	FExpressionInput CoordinatesDX;
+
+	/** Enabled only if MipValueMode == TMVM_Derivative */
+	UPROPERTY(meta = (RequiredInput = "true", ToolTip = "Coordinates derivative over the Y axis"))
+	FExpressionInput CoordinatesDY;
+
+	/** Defines how the MipValue property is applied to the texture lookup */
+	UPROPERTY(EditAnywhere, Category = MaterialExpressionTextureSample, meta = (DisplayName = "MipValueMode", ShowAsInputPin = "Advanced"))
+	TEnumAsByte<ETextureMipValueMode> MipValueMode;
 
 	/**
 	 * Controls where the sampler for this texture lookup will come from.
@@ -38,10 +51,18 @@ class UMaterialExpressionSparseVolumeTextureSample : public UMaterialExpressionS
 	UPROPERTY(EditAnywhere, Category = MaterialExpressionTextureSample, Meta = (ShowAsInputPin = "Advanced"))
 	TEnumAsByte<ESamplerSourceMode> SamplerSource;
 
+	/** Only used if MipValue is not hooked up */
+	UPROPERTY(EditAnywhere, Category = MaterialExpressionTextureSample)
+	int32 ConstMipValue;
+
 protected:
 
 #if WITH_EDITOR
+	ENGINE_API virtual bool CanEditChange(const FProperty* InProperty) const override;
 	ENGINE_API virtual void PostLoad() override;
+	ENGINE_API virtual TArrayView<FExpressionInput*> GetInputsView() override;
+	ENGINE_API virtual FExpressionInput* GetInput(int32 InputIndex) override;
+	ENGINE_API virtual FName GetInputName(int32 InputIndex) const override;
 	ENGINE_API virtual int32 Compile(class FMaterialCompiler* Compiler, int32 OutputIndex) override;
 	ENGINE_API virtual void GetCaption(TArray<FString>& OutCaptions) const override;
 	ENGINE_API virtual uint32 GetOutputType(int32 OutputIndex) override;

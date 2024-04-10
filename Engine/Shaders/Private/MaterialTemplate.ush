@@ -42,7 +42,7 @@
 
 // Update this GUID to force all material shaders to recompile
 // Merge conflicts on this line should be resolved by generating a new GUID
-#pragma message("UESHADERMETADATA_VERSION 381E7C4C-6229-4F2E-8F0E-EE692C2785A3")
+#pragma message("UESHADERMETADATA_VERSION 838540DA-BB92-4973-80CB-D9E993EBA40D")
 
 #if USES_SPEEDTREE
 	#include "/Engine/Private/SpeedTreeCommon.ush"

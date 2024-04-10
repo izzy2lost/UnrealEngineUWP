@@ -28380,9 +28380,41 @@ UMaterialExpressionSparseVolumeTextureSample::UMaterialExpressionSparseVolumeTex
 
 #if WITH_EDITOR
 
+bool UMaterialExpressionSparseVolumeTextureSample::CanEditChange(const FProperty* InProperty) const
+{
+	bool bIsEditable = Super::CanEditChange(InProperty);
+	if (bIsEditable && InProperty != nullptr)
+	{
+		FName PropertyFName = InProperty->GetFName();
+
+		if (PropertyFName == GET_MEMBER_NAME_CHECKED(UMaterialExpressionSparseVolumeTextureSample, ConstMipValue))
+		{
+			bIsEditable = MipValueMode == TMVM_MipLevel || MipValueMode == TMVM_MipBias;
+		}
+		else if (PropertyFName == GET_MEMBER_NAME_CHECKED(UMaterialExpressionSparseVolumeTextureSample, SparseVolumeTexture))
+		{
+			// The Texture property is overridden by a connection to TextureObject
+			bIsEditable = TextureObject.GetTracedInput().Expression == nullptr;
+		}
+	}
+
+	return bIsEditable;
+}
+
 void UMaterialExpressionSparseVolumeTextureSample::PostLoad()
 {
 	Super::PostLoad();
+}
+
+TArrayView<FExpressionInput*> UMaterialExpressionSparseVolumeTextureSample::GetInputsView()
+{
+	CachedInputs.Empty();
+	uint32 InputIndex = 0;
+	while (FExpressionInput* Ptr = GetInput(InputIndex++))
+	{
+		CachedInputs.Add(Ptr);
+	}
+	return CachedInputs;
 }
 
 void UMaterialExpressionSparseVolumeTextureSample::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
@@ -28393,6 +28425,14 @@ void UMaterialExpressionSparseVolumeTextureSample::PostEditChangeProperty(FPrope
 		if (SparseVolumeTexture != nullptr)
 		{
 			FEditorSupportDelegates::ForcePropertyWindowRebuild.Broadcast(this);
+		}
+	}
+
+	if (PropertyChangedEvent.GetMemberPropertyName() == GET_MEMBER_NAME_CHECKED(ThisClass, MipValueMode))
+	{
+		if (GraphNode)
+		{
+			GraphNode->ReconstructNode();
 		}
 	}
 
@@ -28413,20 +28453,86 @@ uint32 UMaterialExpressionSparseVolumeTextureSample::GetOutputType(int32 OutputI
 	return MCT_Float1;
 }
 
+// this define is only used for the following function
+#define IF_INPUT_RETURN(Item) if(!InputIndex) return &Item; --InputIndex
+FExpressionInput* UMaterialExpressionSparseVolumeTextureSample::GetInput(int32 InputIndex)
+{
+	IF_INPUT_RETURN(Coordinates);
+
+	IF_INPUT_RETURN(TextureObject);
+
+	if (MipValueMode == TMVM_Derivative)
+	{
+		IF_INPUT_RETURN(CoordinatesDX);
+		IF_INPUT_RETURN(CoordinatesDY);
+	}
+	else if (MipValueMode != TMVM_None)
+	{
+		IF_INPUT_RETURN(MipValue);
+	}
+
+	return nullptr;
+}
+#undef IF_INPUT_RETURN
+
+// this define is only used for the following function
+#define IF_INPUT_RETURN(Name) if(!InputIndex) return Name; --InputIndex
+FName UMaterialExpressionSparseVolumeTextureSample::GetInputName(int32 InputIndex) const
+{
+	// Coordinates
+	IF_INPUT_RETURN(TEXT("Coordinates"));
+
+	// TextureObject
+	IF_INPUT_RETURN(TEXT("TextureObject"));
+
+	if (MipValueMode == TMVM_MipLevel)
+	{
+		// MipValue
+		IF_INPUT_RETURN(TEXT("MipLevel"));
+	}
+	else if (MipValueMode == TMVM_MipBias)
+	{
+		// MipValue
+		IF_INPUT_RETURN(TEXT("MipBias"));
+	}
+	else if (MipValueMode == TMVM_Derivative)
+	{
+		// CoordinatesDX
+		IF_INPUT_RETURN(TEXT("DDX(UVs)"));
+		// CoordinatesDY
+		IF_INPUT_RETURN(TEXT("DDY(UVs)"));
+	}
+
+	return TEXT("");
+}
+#undef IF_INPUT_RETURN
+
+// this define is only used for the following function
+#define IF_INPUT_RETURN(Type) if(!InputIndex) return (Type); --InputIndex
 uint32 UMaterialExpressionSparseVolumeTextureSample::GetInputType(int32 InputIndex)
 {
-	switch (InputIndex)
+	// Coordinates
+	IF_INPUT_RETURN(MCT_Float3);
+
+	// TextureObject
+	IF_INPUT_RETURN(MCT_SparseVolumeTexture);
+
+	if (MipValueMode == TMVM_MipLevel || MipValueMode == TMVM_MipBias)
 	{
-	case 0:
-		return MCT_Float3;
-	case 1:
-		return MCT_SparseVolumeTexture;
-	case 2:
-		return MCT_Float1;
-	default:
-		return MCT_Unknown;
+		// MipValue
+		IF_INPUT_RETURN(MCT_Float);
 	}
+	else if (MipValueMode == TMVM_Derivative)
+	{
+		// CoordinatesDX
+		IF_INPUT_RETURN(MCT_Float);
+		// CoordinatesDY
+		IF_INPUT_RETURN(MCT_Float);
+	}
+
+	return MCT_Unknown;
 }
+#undef IF_INPUT_RETURN
 
 int32 UMaterialExpressionSparseVolumeTextureSample::Compile(class FMaterialCompiler* Compiler, int32 OutputIndex)
 {
@@ -28478,38 +28584,35 @@ int32 UMaterialExpressionSparseVolumeTextureSample::Compile(class FMaterialCompi
 
 			if (CoordinateIndex == INDEX_NONE)
 			{
-				CompilerError(Compiler, TEXT("Failed to generate fallback UVW input for sparse volume texture"));
+				return CompilerError(Compiler, TEXT("Failed to generate fallback UVW input for sparse volume texture"));
 			}
 		}
 
-		UMaterialExpression* MipLevelExpression = MipLevel.GetTracedInput().Expression;
-
-		// Shared inputs for both potential samples
-		int32 PhysicalTileDataIdxIndex = Compiler->Constant(OutputIndex);
-		int32 MipLevelInputIndex = MipLevelExpression ? MipLevel.Compile(Compiler) : INDEX_NONE;
-		
-		// Sample the first mip
-		int32 MipLevel0Index = MipLevelExpression ? Compiler->Floor(MipLevelInputIndex) : Compiler->Constant(0.0f);
-		int32 VoxelCoordMip0Index = Compiler->SparseVolumeTextureSamplePageTable(SparseVolumeTextureIndex, CoordinateIndex, MipLevel0Index, SamplerSource);
-		int32 Mip0SampleIndex = Compiler->SparseVolumeTextureSamplePhysicalTileData(SparseVolumeTextureIndex, VoxelCoordMip0Index, PhysicalTileDataIdxIndex);
-
-		if (MipLevelExpression)
+		int32 MipValue0Index = INDEX_NONE;
+		int32 MipValue1Index = INDEX_NONE;
+		if (MipValueMode == TMVM_Derivative)
 		{
-			// Sample the second mip
-			// SVT_TODO: Try to optimize out this second sample if LerpAlpha == 0. Might need to do that in HLSL.
-			int32 MipLevel1Index = Compiler->Ceil(MipLevelInputIndex);
-			int32 VoxelCoordMip1Index = Compiler->SparseVolumeTextureSamplePageTable(SparseVolumeTextureIndex, CoordinateIndex, MipLevel1Index, SamplerSource);
-			int32 Mip1SampleIndex = Compiler->SparseVolumeTextureSamplePhysicalTileData(SparseVolumeTextureIndex, VoxelCoordMip1Index, PhysicalTileDataIdxIndex);
-
-			// Lerp
-			int32 LerpAlphaIndex = Compiler->Frac(MipLevelInputIndex);
-			int32 LerpedResultIndex = Compiler->Lerp(Mip0SampleIndex, Mip1SampleIndex, LerpAlphaIndex);
-			return LerpedResultIndex;
+			if (CoordinatesDX.GetTracedInput().IsConnected())
+			{
+				MipValue0Index = CoordinatesDX.Compile(Compiler);
+			}
+			if (CoordinatesDY.GetTracedInput().IsConnected())
+			{
+				MipValue1Index = CoordinatesDY.Compile(Compiler);
+			}
+		}
+		else if (MipValue.GetTracedInput().IsConnected())
+		{
+			MipValue0Index = MipValue.Compile(Compiler);
 		}
 		else
 		{
-			return Mip0SampleIndex;
+			MipValue0Index = Compiler->Constant(ConstMipValue);
 		}
+
+		int32 PhysicalTileDataIdxIndex = Compiler->Constant(OutputIndex);
+
+		return Compiler->SparseVolumeTextureSample(SparseVolumeTextureIndex, CoordinateIndex, MipValue0Index, MipValue1Index, PhysicalTileDataIdxIndex, MipValueMode, SamplerSource);
 	}
 	else
 	{

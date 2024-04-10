@@ -64,6 +64,19 @@ FSparseVolumeTextureUniforms SparseVolumeTextureUnpackUniforms(const uint4 Packe
 	return Result;
 }
 
+float SparseVolumeTextureCalculateMipLevel(FSparseVolumeTextureUniforms Uniforms, float3 UVWDDX, float3 UVWDDY, float MipBias)
+{
+	const float3 Resolution = Uniforms.VolumePageResolution * float(SPARSE_VOLUME_TILE_RES);
+	const float3 TexCoordDDX = UVWDDX * Resolution;
+	const float3 TexCoordDDY = UVWDDY * Resolution;
+	const float DDXLengthSquared = dot(TexCoordDDX, TexCoordDDX);
+	const float DDYLengthSquared = dot(TexCoordDDY, TexCoordDDY);
+	const float MaxLengthSquared = max(DDXLengthSquared, DDYLengthSquared);
+	const float MipLevel = 0.5f * log2(max(MaxLengthSquared, 1e-8f));
+	const float MipLevelBiased = max(0.0f, MipLevel + MipBias);
+	return MipLevelBiased;
+}
+
 float3 SparseVolumeTextureGetVoxelCoord(Texture3D<uint> PageTable, FSparseVolumeTextureUniforms Uniforms, float3 PageTableCoord, int MipLevel)
 {
 	// Load from page table texture

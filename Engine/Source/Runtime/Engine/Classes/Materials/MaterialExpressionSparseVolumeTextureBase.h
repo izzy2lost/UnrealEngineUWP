@@ -17,7 +17,7 @@ class UMaterialExpressionSparseVolumeTextureBase : public UMaterialExpression
 {
 	GENERATED_UCLASS_BODY()
 
-	/** The Sparse Virtual Texture to sample. */
+	/** The Sparse Volume Texture to sample. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = SparseVolumeTexture)
 	TObjectPtr<USparseVolumeTexture> SparseVolumeTexture;
 

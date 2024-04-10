@@ -6165,7 +6165,7 @@ int32 FHLSLMaterialTranslator::ObjectRadius()
 
 int32 FHLSLMaterialTranslator::ObjectBounds()
 {
-	return AddInlinedCodeChunk(MCT_Float3, TEXT("float3(GetPrimitiveData(Parameters).ObjectBoundsX, GetPrimitiveData(Parameters).ObjectBoundsY, GetPrimitiveData(Parameters).ObjectBoundsZ)"));
+	return AddInlinedCodeChunkZeroDeriv(MCT_Float3, TEXT("float3(GetPrimitiveData(Parameters).ObjectBoundsX, GetPrimitiveData(Parameters).ObjectBoundsY, GetPrimitiveData(Parameters).ObjectBoundsZ)"));
 }
 
 int32 FHLSLMaterialTranslator::ObjectLocalBounds(int32 OutputIndex)
@@ -6173,9 +6173,9 @@ int32 FHLSLMaterialTranslator::ObjectLocalBounds(int32 OutputIndex)
 	switch (OutputIndex)
 	{
 	case 0: // Half extents
-		return AddInlinedCodeChunk(MCT_Float3, TEXT("((GetPrimitiveData(Parameters).LocalObjectBoundsMax - GetPrimitiveData(Parameters).LocalObjectBoundsMin) / 2.0f)"));
+		return AddInlinedCodeChunkZeroDeriv(MCT_Float3, TEXT("((GetPrimitiveData(Parameters).LocalObjectBoundsMax - GetPrimitiveData(Parameters).LocalObjectBoundsMin) / 2.0f)"));
 	case 1: // Full extents
-		return AddInlinedCodeChunk(MCT_Float3, TEXT("(GetPrimitiveData(Parameters).LocalObjectBoundsMax - GetPrimitiveData(Parameters).LocalObjectBoundsMin)"));
+		return AddInlinedCodeChunkZeroDeriv(MCT_Float3, TEXT("(GetPrimitiveData(Parameters).LocalObjectBoundsMax - GetPrimitiveData(Parameters).LocalObjectBoundsMin)"));
 	case 2: // Min point
 		return GetPrimitiveProperty(MCT_Float3, TEXT("ObjectLocalBounds"), TEXT("LocalObjectBoundsMin"));
 	case 3: // Max point
@@ -6192,13 +6192,13 @@ int32 FHLSLMaterialTranslator::InstanceLocalBounds(int32 OutputIndex)
 	switch (OutputIndex)
 	{
 	case 0: // Half extents
-		return AddInlinedCodeChunk(MCT_Float3, TEXT("(GetPrimitiveData(Parameters).InstanceLocalBoundsExtent)"));
+		return AddInlinedCodeChunkZeroDeriv(MCT_Float3, TEXT("(GetPrimitiveData(Parameters).InstanceLocalBoundsExtent)"));
 	case 1: // Full extents
-		return AddInlinedCodeChunk(MCT_Float3, TEXT("(GetPrimitiveData(Parameters).InstanceLocalBoundsExtent * 2.0f)"));
+		return AddInlinedCodeChunkZeroDeriv(MCT_Float3, TEXT("(GetPrimitiveData(Parameters).InstanceLocalBoundsExtent * 2.0f)"));
 	case 2: // Min point
-		return AddInlinedCodeChunk(MCT_Float3, TEXT("(GetPrimitiveData(Parameters).InstanceLocalBoundsCenter - GetPrimitiveData(Parameters).InstanceLocalBoundsExtent)"));
+		return AddInlinedCodeChunkZeroDeriv(MCT_Float3, TEXT("(GetPrimitiveData(Parameters).InstanceLocalBoundsCenter - GetPrimitiveData(Parameters).InstanceLocalBoundsExtent)"));
 	case 3: // Max point
-		return AddInlinedCodeChunk(MCT_Float3, TEXT("(GetPrimitiveData(Parameters).InstanceLocalBoundsCenter + GetPrimitiveData(Parameters).InstanceLocalBoundsExtent)"));
+		return AddInlinedCodeChunkZeroDeriv(MCT_Float3, TEXT("(GetPrimitiveData(Parameters).InstanceLocalBoundsCenter + GetPrimitiveData(Parameters).InstanceLocalBoundsExtent)"));
 	default:
 		check(false);
 	}
@@ -6211,9 +6211,9 @@ int32 FHLSLMaterialTranslator::PreSkinnedLocalBounds(int32 OutputIndex)
 	switch (OutputIndex)
 	{
 	case 0: // Half extents
-		return AddInlinedCodeChunk(MCT_Float3, TEXT("((GetPrimitiveData(Parameters).PreSkinnedLocalBoundsMax - GetPrimitiveData(Parameters).PreSkinnedLocalBoundsMin) / 2.0f)"));
+		return AddInlinedCodeChunkZeroDeriv(MCT_Float3, TEXT("((GetPrimitiveData(Parameters).PreSkinnedLocalBoundsMax - GetPrimitiveData(Parameters).PreSkinnedLocalBoundsMin) / 2.0f)"));
 	case 1: // Full extents
-		return AddInlinedCodeChunk(MCT_Float3, TEXT("(GetPrimitiveData(Parameters).PreSkinnedLocalBoundsMax - GetPrimitiveData(Parameters).PreSkinnedLocalBoundsMin)"));
+		return AddInlinedCodeChunkZeroDeriv(MCT_Float3, TEXT("(GetPrimitiveData(Parameters).PreSkinnedLocalBoundsMax - GetPrimitiveData(Parameters).PreSkinnedLocalBoundsMin)"));
 	case 2: // Min point
 		return GetPrimitiveProperty(MCT_Float3, TEXT("PreSkinnedLocalBounds"), TEXT("PreSkinnedLocalBoundsMin"));
 	case 3: // Max point
@@ -15309,5 +15309,84 @@ int32 FHLSLMaterialTranslator::SparseVolumeTextureSamplePhysicalTileData(int32 S
 	return AddCodeChunk(MCT_Float4, *SampleCode);
 }
 
+int32 FHLSLMaterialTranslator::SparseVolumeTextureSample(int32 SparseVolumeTextureIndex, int32 UVWIndex, int32 MipValue0Index, int32 MipValue1Index, int32 PhysicalTileDataIdxIndex, ETextureMipValueMode MipValueMode, ESamplerSourceMode SamplerSource)
+{
+	if (MipValueMode == TMVM_Derivative)
+	{
+		if (MipValue0Index == INDEX_NONE)
+		{
+			return Errorf(TEXT("Missing DDX(UVs) parameter"));
+		}
+		else if (MipValue1Index == INDEX_NONE)
+		{
+			return Errorf(TEXT("Missing DDY(UVs) parameter"));
+		}
+		else if (!IsFloatNumericType(GetParameterType(MipValue0Index)))
+		{
+			return Errorf(TEXT("Invalid DDX(UVs) parameter"));
+		}
+		else if (!IsFloatNumericType(GetParameterType(MipValue1Index)))
+		{
+			return Errorf(TEXT("Invalid DDY(UVs) parameter"));
+		}
+	}
+	else if (MipValueMode != TMVM_None && MipValue0Index != INDEX_NONE && !IsFloatNumericType(GetParameterType(MipValue0Index)))
+	{
+		return Errorf(TEXT("Invalid mip map parameter"));
+	}
+
+	int32 MipLevelIndex = INDEX_NONE;
+	int32 MipLevelBiasIndex = Constant(0.0f);
+	int32 DDXIndex = INDEX_NONE;
+	int32 DDYIndex = INDEX_NONE;
+	const bool bDeriveMipLevel = (MipValueMode == TMVM_None || MipValueMode == TMVM_MipBias || MipValueMode == TMVM_Derivative);
+
+	if (MipValueMode == TMVM_None || MipValueMode == TMVM_MipBias)
+	{
+		if (MipValueMode == TMVM_MipBias)
+		{
+			MipLevelBiasIndex = MipValue0Index;
+		}
+
+		DDXIndex = DDX(UVWIndex);
+		DDYIndex = DDY(UVWIndex);
+	}
+	else if (MipValueMode == TMVM_MipLevel)
+	{
+		MipLevelIndex = MipValue0Index;
+	}
+	else if (MipValueMode == TMVM_Derivative)
+	{
+		DDXIndex = MipValue0Index;
+		DDYIndex = MipValue1Index;
+	}
+	else
+	{
+		checkNoEntry();
+	}
+
+	if (bDeriveMipLevel)
+	{
+		FString MipLevelCode = FString::Printf(TEXT("SparseVolumeTextureCalculateMipLevel(%s, %s, %s, %s)"), *GetParameterCode(SparseVolumeTextureIndex), *GetParameterCode(DDXIndex), *GetParameterCode(DDYIndex), *GetParameterCode(MipLevelBiasIndex));
+		MipLevelIndex = AddCodeChunk(MCT_Float1, *MipLevelCode);
+	}
+
+	// Sample the first mip
+	int32 MipLevel0Index = Floor(MipLevelIndex);
+	int32 VoxelCoordMip0Index = SparseVolumeTextureSamplePageTable(SparseVolumeTextureIndex, UVWIndex, MipLevel0Index, SamplerSource);
+	int32 Mip0SampleIndex = SparseVolumeTextureSamplePhysicalTileData(SparseVolumeTextureIndex, VoxelCoordMip0Index, PhysicalTileDataIdxIndex);
+
+	// Sample the second mip
+	// SVT_TODO: Try to optimize out this second sample if LerpAlpha == 0. Might need to do that in HLSL.
+	int32 MipLevel1Index = Ceil(MipLevelIndex);
+	int32 VoxelCoordMip1Index = SparseVolumeTextureSamplePageTable(SparseVolumeTextureIndex, UVWIndex, MipLevel1Index, SamplerSource);
+	int32 Mip1SampleIndex = SparseVolumeTextureSamplePhysicalTileData(SparseVolumeTextureIndex, VoxelCoordMip1Index, PhysicalTileDataIdxIndex);
+
+	// Lerp
+	int32 LerpAlphaIndex = Frac(MipLevelIndex);
+	int32 LerpedResultIndex = Lerp(Mip0SampleIndex, Mip1SampleIndex, LerpAlphaIndex);
+
+	return LerpedResultIndex;
+}
 
 #endif // WITH_EDITORONLY_DATA
