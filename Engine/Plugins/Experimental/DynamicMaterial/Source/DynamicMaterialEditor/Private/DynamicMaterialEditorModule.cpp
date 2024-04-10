@@ -1,7 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "DynamicMaterialEditorModule.h"
-#include "Components/ActorComponent.h"
 #include "Components/DMMaterialComponent.h"
 #include "Components/DMMaterialEffectFunction.h"
 #include "Components/DMMaterialStageThroughput.h"
@@ -16,10 +15,10 @@
 #include "Components/MaterialValues/DMMaterialValueFloat3XYZ.h"
 #include "Components/MaterialValues/DMMaterialValueFloat4.h"
 #include "Components/MaterialValues/DMMaterialValueTexture.h"
+#include "Components/ActorComponent.h"
 #include "Components/PrimitiveComponent.h"
 #include "DetailsPanel/DMMaterialInterfaceTypeCustomizer.h"
 #include "DetailsPanel/DMPropertyTypeCustomizer.h"
-#include "DetailsPanel/DMValueDetailsRowExtensions.h"
 #include "DetailsPanel/Slate/SDMMaterialListExtensionWidget.h"
 #include "DMMaterialFunctionLibrary.h"
 #include "DMWorldSubsystem.h"
@@ -33,11 +32,11 @@
 #include "Material/DynamicMaterialInstance.h"
 #include "MaterialList.h"
 #include "Model/DMMaterialModelDefaults.h"
-#include "Model/DMOnWizardCompleteCallback.h"
 #include "Model/DynamicMaterialModel.h"
 #include "Model/DynamicMaterialModelEditorOnlyData.h"
 #include "Modules/ModuleManager.h"
 #include "PropertyEditorModule.h"
+#include "Model/DMOnWizardCompleteCallback.h"
 #include "Slate/Properties/Editors/SDMPropertyEditBoolValue.h"
 #include "Slate/Properties/Editors/SDMPropertyEditFloat1Value.h"
 #include "Slate/Properties/Editors/SDMPropertyEditFloat2Value.h"
@@ -305,8 +304,6 @@ void FDynamicMaterialEditorModule::StartupModule()
 		{
 			return UDynamicMaterialEditorSettings::Get()->DefaultRGBTexture.LoadSynchronous();
 		});
-
-	FDMValueDetailsRowExtensions::Get().RegisterRowExtensions();
 }
 
 void FDynamicMaterialEditorModule::ShutdownModule()
@@ -330,8 +327,6 @@ void FDynamicMaterialEditorModule::ShutdownModule()
 	BuildRequestList.Empty();
 
 	UDMMaterialValueTexture::GetDefaultRGBTexture.Unbind();
-
-	FDMValueDetailsRowExtensions::Get().UnregisterRowExtensions();
 }
 
 void FDynamicMaterialEditorModule::SetDynamicMaterialModel(UDynamicMaterialModel* InMaterialModel, UWorld* InWorld, bool bInInvokeTab)

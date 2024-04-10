@@ -241,11 +241,6 @@ UDMMaterialParameter* UDynamicMaterialModel::CreateUniqueParameter(FName InBaseN
 	ParameterMap.Emplace(NewParameter->GetParameterName(), NewParameter);
 	NewParameter->SetComponentState(EDMComponentLifetimeState::Added);
 
-	if (IDynamicMaterialModelEditorOnlyDataInterface* ModelEditorOnlyData = GetEditorOnlyData())
-	{
-		ModelEditorOnlyData->RequestMaterialBuild();
-	}
-
 	return NewParameter;
 }
 
@@ -266,11 +261,6 @@ void UDynamicMaterialModel::RenameParameter(UDMMaterialParameter* InParameter, F
 
 	InParameter->ParameterName = CreateUniqueParameterName(InBaseName);
 	ParameterMap.Emplace(InParameter->ParameterName, InParameter);
-
-	if (IDynamicMaterialModelEditorOnlyDataInterface* ModelEditorOnlyData = GetEditorOnlyData())
-	{
-		ModelEditorOnlyData->RequestMaterialBuild();
-	}
 }
 
 void UDynamicMaterialModel::FreeParameter(UDMMaterialParameter* InParameter)
@@ -299,11 +289,6 @@ void UDynamicMaterialModel::FreeParameter(UDMMaterialParameter* InParameter)
 
 	InParameter->ParameterName = NAME_None;
 	InParameter->SetComponentState(EDMComponentLifetimeState::Removed);
-
-	if (IDynamicMaterialModelEditorOnlyDataInterface* ModelEditorOnlyData = GetEditorOnlyData())
-	{
-		ModelEditorOnlyData->RequestMaterialBuild();
-	}
 }
 
 bool UDynamicMaterialModel::ConditionalFreeParameter(UDMMaterialParameter* InParameter)

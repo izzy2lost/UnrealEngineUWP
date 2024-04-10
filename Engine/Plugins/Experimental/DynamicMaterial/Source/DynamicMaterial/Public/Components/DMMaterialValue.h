@@ -41,6 +41,7 @@ class DYNAMICMATERIAL_API UDMMaterialValue : public UDMMaterialLinkedComponent
  
 public:
 	static const FString ParameterPathToken;
+	static const TCHAR* ParameterNamePrefix;
 
 #if WITH_EDITOR
 	static const FName ValueName;
