@@ -4154,6 +4154,8 @@ void FLODUtilities::MatchImportedMaterials(FLODUtilities::FSkeletalMeshMatchImpo
 						SourceSectionUserData.bVisibleInRayTracing = ExistingSection.bVisibleInRayTracing;
 						SourceSectionUserData.bRecomputeTangent = ExistingSection.bRecomputeTangent;
 						SourceSectionUserData.RecomputeTangentsVertexMaskChannel = ExistingSection.RecomputeTangentsVertexMaskChannel;
+						SourceSectionUserData.bDisabled = ExistingSection.bDisabled;
+						SourceSectionUserData.GenerateUpToLodIndex = ExistingSection.GenerateUpToLodIndex;
 					};
 
 				if (ExistingImportedMaterialSlotName != NAME_None)

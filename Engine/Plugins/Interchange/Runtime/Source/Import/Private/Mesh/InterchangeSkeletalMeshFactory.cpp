@@ -5,6 +5,7 @@
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "Async/Async.h"
 #include "Async/ParallelFor.h"
+#include "ClothingAsset.h"
 #include "Components.h"
 #include "CoreGlobals.h"
 #include "Engine/SkeletalMesh.h"
@@ -2144,6 +2145,13 @@ void UInterchangeSkeletalMeshFactory::FinalizeObject_GameThread(const FSetupObje
 		//Restore the clothing
 		if (ImportAssetObjectData.ExistingClothingBindings.Num() > 0)
 		{
+			for (ClothingAssetUtils::FClothingAssetMeshBinding& ExistingClothMeshBinding : ImportAssetObjectData.ExistingClothingBindings)
+			{
+				if (UClothingAssetCommon* ClothAssetCommon = ExistingClothMeshBinding.Asset)
+				{
+					ClothAssetCommon->RefreshBoneMapping(SkeletalMesh);
+				}
+			}
 			FSkeletalMeshModel* ImportedResource = SkeletalMesh->GetImportedModel();
 			for (int32 LodIndex = 0; LodIndex < ImportedResource->LODModels.Num(); ++LodIndex)
 			{

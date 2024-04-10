@@ -32,6 +32,7 @@ namespace UnrealBuildTool.Rules
 				{
 					"AssetRegistry",
 					"CinematicCamera",
+					"ClothingSystemRuntimeCommon",
 					"GLTFCore",
 					"IESFile",
 					"ImageCore",
