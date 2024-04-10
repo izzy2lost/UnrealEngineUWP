@@ -41,7 +41,7 @@ struct FSequenceUpdater_Flat : ISequenceUpdater
 	virtual void Update(TSharedRef<const FSharedPlaybackState> SharedPlaybackState, const FMovieSceneContext& Context) override;
 	virtual bool CanFinishImmediately(TSharedRef<const FSharedPlaybackState> SharedPlaybackState) const override;
 	virtual void Finish(TSharedRef<const FSharedPlaybackState> SharedPlaybackState) override;
-	virtual void InvalidateCachedData(TSharedRef<const FSharedPlaybackState> SharedPlaybackState) override;
+	virtual void InvalidateCachedData(TSharedRef<const FSharedPlaybackState> SharedPlaybackState, ESequenceInstanceInvalidationType InvalidationType) override;
 	virtual void Destroy(TSharedRef<const FSharedPlaybackState> SharedPlaybackState) override;
 	virtual TUniquePtr<ISequenceUpdater> MigrateToHierarchical() override;
 	virtual FInstanceHandle FindSubInstance(FMovieSceneSequenceID SubSequenceID) const override { return FInstanceHandle(); }
@@ -70,7 +70,7 @@ struct FSequenceUpdater_Hierarchical : ISequenceUpdater
 	virtual void Update(TSharedRef<const FSharedPlaybackState> SharedPlaybackState, const FMovieSceneContext& Context) override;
 	virtual bool CanFinishImmediately(TSharedRef<const FSharedPlaybackState> SharedPlaybackState) const override;
 	virtual void Finish(TSharedRef<const FSharedPlaybackState> SharedPlaybackState) override;
-	virtual void InvalidateCachedData(TSharedRef<const FSharedPlaybackState> SharedPlaybackState) override;
+	virtual void InvalidateCachedData(TSharedRef<const FSharedPlaybackState> SharedPlaybackState, ESequenceInstanceInvalidationType InvalidationType) override;
 	virtual void Destroy(TSharedRef<const FSharedPlaybackState> SharedPlaybackState) override;
 	virtual TUniquePtr<ISequenceUpdater> MigrateToHierarchical() override { return nullptr; }
 	virtual FInstanceHandle FindSubInstance(FMovieSceneSequenceID SubSequenceID) const override { return SequenceInstances.FindRef(SubSequenceID).Handle; }
@@ -335,14 +335,14 @@ bool FSequenceUpdater_Flat::CanFinishImmediately(TSharedRef<const FSharedPlaybac
 
 void FSequenceUpdater_Flat::Finish(TSharedRef<const FSharedPlaybackState> SharedPlaybackState)
 {
-	InvalidateCachedData(SharedPlaybackState);
+	InvalidateCachedData(SharedPlaybackState, ESequenceInstanceInvalidationType::All);
 }
 
 void FSequenceUpdater_Flat::Destroy(TSharedRef<const FSharedPlaybackState> SharedPlaybackState)
 {
 }
 
-void FSequenceUpdater_Flat::InvalidateCachedData(TSharedRef<const FSharedPlaybackState> SharedPlaybackState)
+void FSequenceUpdater_Flat::InvalidateCachedData(TSharedRef<const FSharedPlaybackState> SharedPlaybackState, ESequenceInstanceInvalidationType InvalidationType)
 {
 	CachedEntityRange = TRange<FFrameNumber>::Empty();
 	CachedDeterminismFences.Reset();
@@ -520,7 +520,7 @@ void FSequenceUpdater_Hierarchical::OverrideRootSequence(TSharedRef<const FShare
 			InstanceRegistry->MutateInstance(RootInstanceHandle).Ledger.UnlinkEverything(Linker);
 		}
 
-		InvalidateCachedData(SharedPlaybackState);
+		InvalidateCachedData(SharedPlaybackState, ESequenceInstanceInvalidationType::All);
 		RootOverrideSequenceID = NewRootOverrideSequenceID;
 	}
 }
@@ -805,7 +805,7 @@ void FSequenceUpdater_Hierarchical::Finish(TSharedRef<const FSharedPlaybackState
 		InstanceRegistry->MutateInstance(Pair.Value.Handle).Finish();
 	}
 
-	InvalidateCachedData(SharedPlaybackState);
+	InvalidateCachedData(SharedPlaybackState, ESequenceInstanceInvalidationType::All);
 }
 
 void FSequenceUpdater_Hierarchical::Destroy(TSharedRef<const FSharedPlaybackState> SharedPlaybackState)
@@ -819,7 +819,7 @@ void FSequenceUpdater_Hierarchical::Destroy(TSharedRef<const FSharedPlaybackStat
 	}
 }
 
-void FSequenceUpdater_Hierarchical::InvalidateCachedData(TSharedRef<const FSharedPlaybackState> SharedPlaybackState)
+void FSequenceUpdater_Hierarchical::InvalidateCachedData(TSharedRef<const FSharedPlaybackState> SharedPlaybackState, ESequenceInstanceInvalidationType InvalidationType)
 {
 	bDynamicWeighting.Reset();
 	CachedEntityRange = TRange<FFrameNumber>::Empty();
@@ -829,16 +829,30 @@ void FSequenceUpdater_Hierarchical::InvalidateCachedData(TSharedRef<const FShare
 
 	for (TPair<FMovieSceneSequenceID, FSubInstanceData>& Pair : SequenceInstances)
 	{
-		UMovieSceneSequence* Sequence = SharedPlaybackState->GetSequence(Pair.Key);
-		if (!Sequence)
+		FSequenceInstance& SubInstance = InstanceRegistry->MutateInstance(Pair.Value.Handle);
+
+		switch (InvalidationType)
 		{
-			Pair.Value.SequenceSignature = FGuid();
-			InstanceRegistry->MutateInstance(Pair.Value.Handle).Ledger.Invalidate();
-		}
-		else if (Pair.Value.SequenceSignature != Sequence->GetSignature())
-		{
-			Pair.Value.SequenceSignature = Sequence->GetSignature();
-			InstanceRegistry->MutateInstance(Pair.Value.Handle).Ledger.Invalidate();
+			case ESequenceInstanceInvalidationType::All:
+				{
+					SubInstance.Ledger.Invalidate();
+				}
+				break;
+			case ESequenceInstanceInvalidationType::DataChanged:
+				{
+					UMovieSceneSequence* Sequence = SharedPlaybackState->GetSequence(Pair.Key);
+					if (!Sequence)
+					{
+						Pair.Value.SequenceSignature = FGuid();
+						SubInstance.Ledger.Invalidate();
+					}
+					else if (Pair.Value.SequenceSignature != Sequence->GetSignature())
+					{
+						Pair.Value.SequenceSignature = Sequence->GetSignature();
+						SubInstance.Ledger.Invalidate();
+					}
+				}
+				break;
 		}
 	}
 }
@@ -854,6 +868,11 @@ TRange<FFrameNumber> FSequenceUpdater_Hierarchical::UpdateEntitiesForSequence(co
 	}
 
 	return CachedRange;
+}
+
+void ISequenceUpdater::InvalidateCachedData(TSharedRef<const FSharedPlaybackState> SharedPlaybackState)
+{
+	InvalidateCachedData(SharedPlaybackState, ESequenceInstanceInvalidationType::All);
 }
 
 } // namespace MovieScene

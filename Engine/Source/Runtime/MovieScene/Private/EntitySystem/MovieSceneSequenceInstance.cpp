@@ -164,7 +164,7 @@ void FSequenceInstance::InitializeLegacyEvaluator()
 	}
 }
 
-void FSequenceInstance::InvalidateCachedData()
+void FSequenceInstance::InvalidateCachedData(ESequenceInstanceInvalidationType InvalidationType)
 {
 	ensureMsgf(bInitialized, TEXT("Sequence instance hasn't been initialized yet!"));
 
@@ -223,7 +223,7 @@ void FSequenceInstance::InvalidateCachedData()
 
 		ISequenceUpdater::FactoryInstance(SequenceUpdater, CompiledDataManager, RootCompiledDataID);
 
-		SequenceUpdater->InvalidateCachedData(SharedPlaybackState);
+		SequenceUpdater->InvalidateCachedData(SharedPlaybackState, InvalidationType);
 		SequenceUpdater->PopulateUpdateFlags(SharedPlaybackState, UpdateFlags);
 
 		if (LegacyEvaluator)

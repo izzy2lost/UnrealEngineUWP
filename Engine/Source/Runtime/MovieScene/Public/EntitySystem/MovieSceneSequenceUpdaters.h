@@ -26,7 +26,7 @@ struct FInstanceHandle;
 struct FSharedPlaybackState;
 
 enum class ESequenceInstanceUpdateFlags : uint8;
-
+enum class ESequenceInstanceInvalidationType : uint8;
 
 /**
  * Interface for an object that will update a sequence based on the current context. It holds several responsibilities:
@@ -119,7 +119,7 @@ public:
 	 * @param InLinker         The linker that is evaluating this sequence
 	 * @param InInstanceHandle The instance handle for the top level sequence instance that this updater belongs to
 	 */
-	virtual void InvalidateCachedData(TSharedRef<const FSharedPlaybackState> SharedPlaybackState) = 0;
+	virtual void InvalidateCachedData(TSharedRef<const FSharedPlaybackState> SharedPlaybackState, ESequenceInstanceInvalidationType InvalidationType) = 0;
 
 
 	/**
@@ -151,8 +151,12 @@ public:
 	 * Find a sub sequence instance from its ID (if it exists)
 	 */
 	virtual FInstanceHandle FindSubInstance(FMovieSceneSequenceID SubSequenceID) const = 0;
-};
 
+public:
+
+	UE_DEPRECATED(5.5, "Please use the method that takes a reason parameter.")
+	MOVIESCENE_API void InvalidateCachedData(TSharedRef<const FSharedPlaybackState> SharedPlaybackState);
+};
 
 } // namespace MovieScene
 } // namespace UE

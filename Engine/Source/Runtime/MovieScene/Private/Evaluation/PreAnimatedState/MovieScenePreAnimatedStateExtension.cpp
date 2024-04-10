@@ -377,6 +377,18 @@ void FPreAnimatedStateExtension::RestoreGlobalState(const FRestoreStateParams& P
 			{
 				Storage.RestorePreAnimatedStateStorage(StorageIndex, EPreAnimatedStorageRequirement::Persistent, EPreAnimatedStorageRequirement::None, Params);
 			});
+
+	// Invalidate cached data for any sequence instance that belongs to the terminal instance.
+	// This is because we have just restored pre-animated state, so trying to re-update the sequence will 
+	// need to re-setup everything. It wouldn't do it unless we've invalidated it.
+	if (Params.TerminalInstanceHandle.IsValid() && 
+			ensureMsgf(
+				Linker->GetInstanceRegistry()->IsHandleValid(Params.TerminalInstanceHandle),
+				TEXT("Terminal instance handle is not valid anymore, was the sequence destroyed?")))
+	{
+		FSequenceInstance& TerminalInstance = Linker->GetInstanceRegistry()->MutateInstance(Params.TerminalInstanceHandle);
+		TerminalInstance.InvalidateCachedData(ESequenceInstanceInvalidationType::All);
+	}
 }
 
 void FPreAnimatedStateExtension::DiscardStaleObjectState()
@@ -788,15 +800,6 @@ void FPreAnimatedStateExtension::HandleMetaDataToRemove(const FRestoreStateParam
 	}
 
 	GroupMetaData.Shrink();
-
-	// Invalidate cached data for any sequence instance that belongs to the terminal instance
-	if (Params.TerminalInstanceHandle.IsValid() && 
-			ensureMsgf(
-				Linker->GetInstanceRegistry()->IsHandleValid(Params.TerminalInstanceHandle),
-				TEXT("Terminal instance handle is not valid anymore, was the sequence destroyed?")))
-	{
-		Linker->GetInstanceRegistry()->MutateInstance(Params.TerminalInstanceHandle).InvalidateCachedData();
-	}
 
 	bEntriesInvalidated = true;
 }
