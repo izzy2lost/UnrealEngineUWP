@@ -1550,29 +1550,16 @@ void FOpenGLDynamicRHI::RHIAcquireThreadOwnership()
 {
 	check(!bRevertToSharedContextAfterDrawingViewport);	// if this is true, then main thread is rendering using our context right now.
 	PlatformRenderingContextSetup(PlatformDevice);
-	PlatformRebindResources(PlatformDevice);
+
 	bIsRenderingContextAcquired = true;
 	VERIFY_GL(RHIAcquireThreadOwnership);
-	{
-		FScopeLock lock(&CustomPresentSection);
-		if (CustomPresent)
-		{
-			CustomPresent->OnAcquireThreadOwnership();
-		}
-	}
 }
 
 void FOpenGLDynamicRHI::RHIReleaseThreadOwnership()
 {
-	{
-		FScopeLock lock(&CustomPresentSection);
-		if (CustomPresent)
-		{
-			CustomPresent->OnReleaseThreadOwnership();
-		}
-	}
 	VERIFY_GL(RHIReleaseThreadOwnership);
 	bIsRenderingContextAcquired = false;
+
 	PlatformNULLContextSetup();
 }
 

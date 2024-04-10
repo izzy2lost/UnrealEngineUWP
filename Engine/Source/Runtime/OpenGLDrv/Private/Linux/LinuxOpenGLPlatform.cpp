@@ -531,11 +531,6 @@ void PlatformFlushIfNeeded()
 	glFinish();
 }
 
-void PlatformRebindResources(FPlatformOpenGLDevice* Device)
-{
-	// @todo: Figure out if we need to rebind frame & renderbuffers after switching contexts
-}
-
 void PlatformRenderingContextSetup(FPlatformOpenGLDevice* Device)
 {
 	check(Device && Device->RenderingContext.hWnd && Device->RenderingContext.hGLContext);

@@ -535,11 +535,6 @@ void PlatformFlushIfNeeded()
 	glFinish();
 }
 
-void PlatformRebindResources(FPlatformOpenGLDevice* Device)
-{
-	// @todo: Figure out if we need to rebind frame & renderbuffers after switching contexts
-}
-
 FPlatformOpenGLContext* PlatformGetOpenGLRenderingContext(FPlatformOpenGLDevice* Device)
 {
 	return &Device->RenderingContext;
@@ -553,6 +548,7 @@ void PlatformRenderingContextSetup(FPlatformOpenGLDevice* Device)
 	{
 		glFlush();
 	}
+
 	if (Device->ViewportContexts.Num() == 1)
 	{
 		// use the HDC of the window, to reduce context swap overhead

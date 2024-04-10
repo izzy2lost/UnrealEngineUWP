@@ -579,13 +579,12 @@ static void StartRenderingThread()
 	switch (GRHISupportsRHIThread ? FRHIThread::TargetMode : ERHIThreadMode::None)
 	{
 	case ERHIThreadMode::DedicatedThread:
-
-		// Start the dedicated RHI thread
-		GRHIThread = new FRHIThread();
-
 		GIsRunningRHIInSeparateThread_InternalUseOnly  = true;
 		GIsRunningRHIInDedicatedThread_InternalUseOnly = true;
 		GIsRunningRHIInTaskThread_InternalUseOnly      = false;
+
+		// Start the dedicated RHI thread
+		GRHIThread = new FRHIThread();
 		break;
 
 	case ERHIThreadMode::Tasks:

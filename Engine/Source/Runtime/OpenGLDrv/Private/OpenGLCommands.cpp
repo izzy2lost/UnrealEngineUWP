@@ -2913,8 +2913,10 @@ IRHIPlatformCommandList* FOpenGLDynamicRHI::RHIFinalizeContext(FRHIFinalizeConte
 	check(Args.Context == this);
 
 	// Flush the context to ensure recorded commands will reach the driver.
-	VERIFY_GL_SCOPE();
-	FOpenGL::Flush();
+	if (PlatformOpenGLContextValid())
+	{
+		FOpenGL::Flush();
+	}
 
 	// Clear some context state
 	FMemory::Memset(PendingState.BoundUniformBuffers, 0, sizeof(PendingState.BoundUniformBuffers));

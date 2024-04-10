@@ -237,7 +237,6 @@ void PlatformRenderingContextSetup(FPlatformOpenGLDevice* Device);
 
 // Some platforms require flushing and rebinding renderbuffers after context/thread changes
 void PlatformFlushIfNeeded();
-void PlatformRebindResources(FPlatformOpenGLDevice* Device);
 
 /**
  * Set up shared context on current thread. This thread should be always set on main game thread (expect at times

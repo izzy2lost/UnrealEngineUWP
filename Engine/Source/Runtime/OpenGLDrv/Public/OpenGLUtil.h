@@ -26,7 +26,7 @@ int32 GetOGLDebugOutputLevel();
 #endif
 
 // Additional check that our GL calls are occurring on the expected thread
-#define ENABLE_VERIFY_GL_THREAD (UE_BUILD_DEBUG)
+#define ENABLE_VERIFY_GL_THREAD (!(UE_BUILD_TEST || UE_BUILD_SHIPPING))
 
 /** Set to 1 to verify that the the engine side uniform buffer layout matches the driver side of the GLSL shader*/
 #define ENABLE_UNIFORM_BUFFER_LAYOUT_VERIFICATION ( 0 & UE_BUILD_DEBUG & (!PLATFORM_ANDROID))
@@ -52,20 +52,10 @@ GLenum GetOpenGLCubeFace(ECubeFace Face);
 extern bool PlatformOpenGLContextValid();
 
 #if ENABLE_VERIFY_GL_THREAD
-	#if UE_BUILD_TEST
-		#define GLCONTEXT_CLAUSE 
-	#else
-		#define GLCONTEXT_CLAUSE PlatformOpenGLContextValid() &&
-	#endif
-	// check that the current thread has a valid context and matches our RT / RHIT expectations.
-	// Note that the game thread can access the shared context.
-	// use commandline switch -norhithread if this causes issues.
 	#define CHECK_EXPECTED_GL_THREAD() \
-		if(!( \
-			 GLCONTEXT_CLAUSE\
-			(IsInGameThread() || ( (IsInRenderingThread() && !IsRunningRHIInSeparateThread()) || (IsInRHIThread() && IsRunningRHIInSeparateThread()) ))))\
+		if (!PlatformOpenGLContextValid()) \
 		{ \
-			UE_LOG(LogRHI, Fatal, TEXT("Potential use of GL context from incorrect thread. [ValidContext = %d] && [IsInGameThread() = %d, IsInRenderingThread() && !IsRunningRHIInSeparateThread() = %d, IsInRHIThread() && IsRunningRHIInSeparateThread() = %d]"), PlatformOpenGLContextValid(), IsInGameThread(), IsInRenderingThread() && !IsRunningRHIInSeparateThread(), IsInRHIThread() && IsRunningRHIInSeparateThread());\
+			UE_LOG(LogRHI, Fatal, TEXT("Potential use of GL context from incorrect thread. [ValidContext = %d] && [IsInGameThread() = %d, IsInRenderingThread() = %d, IsInRHIThread() = %d, IsRunningRHIInSeparateThread() = %d]"), PlatformOpenGLContextValid(), IsInGameThread(), IsInRenderingThread(), IsInRHIThread(), IsRunningRHIInSeparateThread()); \
 		}
 #else
 	#define CHECK_EXPECTED_GL_THREAD() 

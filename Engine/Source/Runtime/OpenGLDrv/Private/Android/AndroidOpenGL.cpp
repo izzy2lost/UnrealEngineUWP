@@ -276,10 +276,6 @@ void PlatformFlushIfNeeded()
 {
 }
 
-void PlatformRebindResources(FPlatformOpenGLDevice* Device)
-{
-}
-
 void PlatformSharedContextSetup(FPlatformOpenGLDevice* Device)
 {
 	Device->SetCurrentSharedContext();
