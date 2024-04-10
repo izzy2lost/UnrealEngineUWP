@@ -88,10 +88,9 @@ AUTORTFM_NO_ASAN UE_AUTORTFM_FORCEINLINE void FTransaction::RecordWrite(void* Lo
     // Remainder at the end of the memcpy.
     RecordWriteMaxPageSized(Address + I, Size - I);
 }
-
 template<unsigned SIZE> AUTORTFM_NO_ASAN UE_AUTORTFM_FORCEINLINE void FTransaction::RecordWrite(void* LogicalAddress)
 {
-    static_assert(SIZE <= FWriteLogBumpAllocator::MaxSize);
+    static_assert(SIZE <= 8);
 
     // If we are recording a stack address that is relative to our current
     // transactions stack location, we do not need to record the data in the
@@ -122,7 +121,7 @@ template<unsigned SIZE> AUTORTFM_NO_ASAN UE_AUTORTFM_FORCEINLINE void FTransacti
 
 	Stats.Collect<EStatsKind::NewMemoryTrackerMiss>();
 
-    RecordWriteMaxPageSized(LogicalAddress, SIZE);
+	WriteLog.Push(FWriteLogEntry::CreateSmall<SIZE>(LogicalAddress));
 }
 
 UE_AUTORTFM_FORCEINLINE void FTransaction::DidAllocate(void* LogicalAddress, const size_t Size)

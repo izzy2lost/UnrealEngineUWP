@@ -13,7 +13,7 @@ namespace Constants
 {
 
 	inline constexpr uint32_t Major = 0;
-	inline constexpr uint32_t Minor = 1;
+	inline constexpr uint32_t Minor = 2;
 	inline constexpr uint32_t Patch = 0;
 
 } // namespace Constants

@@ -82,17 +82,17 @@ void FTransaction::Undo()
 	for(auto Iter = WriteLog.rbegin(); Iter != WriteLog.rend(); ++Iter)
     {
 		FWriteLogEntry& Entry = *Iter;
+		void* const Original = Entry.GetOriginal();
 
         // Skip writes to our current transaction nest if we're scoped. We're about to
 		// leave so the changes don't matter. 
-        if (IsScopedTransaction() && Context->IsInnerTransactionStack(Entry.OriginalAndSize.Get()))
+        if (IsScopedTransaction() && Context->IsInnerTransactionStack(Original))
         {
             continue;
         }
 
-        void* const Original = Entry.OriginalAndSize.Get();
-        const size_t Size = Entry.OriginalAndSize.GetTopTag();
-        void* const Copy = Entry.Copy;
+		const size_t Size = Entry.GetSize();
+        void* const Copy = Entry.GetCopy();
 
 		if (UE_LOG_ACTIVE(LogAutoRTFM, Verbose))
 		{
@@ -161,13 +161,17 @@ void FTransaction::CommitNested()
     for (FWriteLogEntry& Write : WriteLog)
     {
         // Skip writes that are into our current transactions stack.
-        if (IsScopedTransaction() && Context->IsInnerTransactionStack(Write.OriginalAndSize.Get()))
+        if (IsScopedTransaction() && Context->IsInnerTransactionStack(Write.GetOriginal()))
         {
             continue;
         }
 
         Parent->WriteLog.Push(Write);
-        Parent->HitSet.Insert(Write.OriginalAndSize);
+
+		FHitSet::Key HitSetEntry(Write.GetOriginal());
+		HitSetEntry.SetTopTag(static_cast<uint16_t>(Write.GetSize()));
+
+        Parent->HitSet.Insert(HitSetEntry);
     }
 
     Parent->WriteLogBumpAllocator.Merge(MoveTemp(WriteLogBumpAllocator));

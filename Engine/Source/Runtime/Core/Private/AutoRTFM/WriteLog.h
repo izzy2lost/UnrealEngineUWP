@@ -10,20 +10,72 @@ namespace AutoRTFM
 {
 	using FMemoryLocation = FHitSet::Key;
 
-    struct FWriteLogEntry final
+    class FWriteLogEntry final
     {
-        FMemoryLocation OriginalAndSize;
-        void* Copy;
+		static constexpr uintptr_t IsSmallBit = 0x8000;
+
+        FMemoryLocation OriginalAndIsSmallAndSize;
+        uintptr_t Copy;
+	public:
 
         UE_AUTORTFM_FORCEINLINE FWriteLogEntry() = default;
         UE_AUTORTFM_FORCEINLINE FWriteLogEntry(const FWriteLogEntry&) = default;
         UE_AUTORTFM_FORCEINLINE FWriteLogEntry& operator=(const FWriteLogEntry&) = default;
 
         UE_AUTORTFM_FORCEINLINE explicit FWriteLogEntry(void* Original, size_t Size, void* Copy) :
-            OriginalAndSize(Original), Copy(Copy)
+			OriginalAndIsSmallAndSize(Original), Copy(reinterpret_cast<uintptr_t>(Copy))
         {
-            OriginalAndSize.SetTopTag(static_cast<uint16_t>(Size));
+			OriginalAndIsSmallAndSize.SetTopTag(static_cast<uint16_t>(Size));
         }
+
+		template<unsigned int SIZE> UE_AUTORTFM_FORCEINLINE static FWriteLogEntry CreateSmall(void* Original)
+		{
+			static_assert(SIZE <= 8);
+
+			FWriteLogEntry Entry;
+
+			Entry.OriginalAndIsSmallAndSize = Original;
+
+			// We store the 8-byte or less write log entry in the write log itself since it is small.
+			uintptr_t Temp = 0;
+			memcpy(&Temp, Original, SIZE);
+			Entry.Copy = Temp;
+
+			size_t Size = IsSmallBit | SIZE;
+
+			ASSERT(Size <= UINT16_MAX);
+
+			Entry.OriginalAndIsSmallAndSize.SetTopTag(static_cast<uint16_t>(Size));
+
+			return Entry;
+		}
+
+		UE_AUTORTFM_FORCEINLINE void* GetOriginal()
+		{
+			return OriginalAndIsSmallAndSize.Get();
+		}
+
+		UE_AUTORTFM_FORCEINLINE void* GetCopy()
+		{
+			if (IsSmall())
+			{
+				return reinterpret_cast<void*>(&Copy);
+			}
+			else
+			{
+				return reinterpret_cast<void*>(Copy);
+			}
+		}
+
+		UE_AUTORTFM_FORCEINLINE size_t GetSize() const
+		{
+			return OriginalAndIsSmallAndSize.GetTopTag() & ~IsSmallBit;
+		}
+
+		UE_AUTORTFM_FORCEINLINE bool IsSmall() const
+		{
+			return OriginalAndIsSmallAndSize.GetTopTag() & IsSmallBit;
+		}
     };
 
     class FWriteLog final
