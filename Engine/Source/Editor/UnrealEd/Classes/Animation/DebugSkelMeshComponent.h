@@ -293,10 +293,6 @@ class UDebugSkelMeshComponent : public USkeletalMeshComponent
 	UPROPERTY(transient)
 	uint32 bRequiredBonesUpToDateDuringTick : 1;
 
-	/** Multiplier for the bone radius rendering */
-	UPROPERTY(transient)
-	float BoneRadiusMultiplier;
-
 	/* Bounds computed from cloth. */
 	FBoxSphereBounds CachedClothBounds;
 
@@ -356,6 +352,13 @@ class UDebugSkelMeshComponent : public USkeletalMeshComponent
 	/** Should the LOD of the debug mesh component track the LOD of the instance being debugged */
 	UPROPERTY(transient)
 	bool bTrackAttachedInstanceLOD;
+
+	/** If true then the bones are displayed with multiple semi-random colors */
+	UPROPERTY()
+	bool bShowBoneColors = true;
+	
+	/** Palettized semi randomized colors for multi-color bone display */
+	UNREALED_API FLinearColor GetBoneColor(int32 BoneIndex);
 
 	// Helper method that sets the forced lod
 	UNREALED_API void SetDebugForcedLOD(int32 InNewForcedLOD);
@@ -686,7 +689,6 @@ public:
 
 		return FTransform::Identity;
 	}
-
 };
 
 

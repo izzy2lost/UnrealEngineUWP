@@ -443,6 +443,24 @@ struct FLinearColor
 		return (ClampedLo < 1.0f) ? ClampedLo : 1.0f;
 	}
 
+	/**
+	 * @brief Helper function to generate distinct colors from a sequence of integers where each integer increment
+	 * spins around the Hue wheel by increments of the golden ratio.
+	 * @param Integer		the "seed" for a semi-random, but deterministic color
+	 * @param Saturation	0-1 saturation of resulting color
+	 * @param Value			0-1 brightness of resulting color
+	 * @param HueRotation	0-360 amount to rotate around the hue wheel
+	 * @return color with semi-random hue */
+	static FLinearColor IntToDistinctColor(
+		const int32 Integer,
+		const float Saturation=1.f,
+		const float Value=1.f,
+		const float HueRotation=180.f)
+	{
+		constexpr float GoldenRatio = 1.618033988749895f; // (1 + FMath::Sqrt(5.f)) / 2.f;
+		return FLinearColor(Integer * GoldenRatio * HueRotation, Saturation, Value).HSVToLinearRGB();
+	}
+
 	// Common colors.	
 	static CORE_API const FLinearColor White;
 	static CORE_API const FLinearColor Gray;

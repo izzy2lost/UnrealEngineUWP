@@ -368,6 +368,12 @@ private:
 
 	/** Function to check whether bone names are displayed or not */
 	bool IsShowingBoneNames() const;
+
+	/** Function to show/hide bone colors */
+	void OnShowBoneColors();
+
+	/** Function to check whether bone's are using multiple colors */
+	bool IsShowingBoneColors() const;
 	
 	/** Function to show/hide selected bone weight */
 	void OnShowOverlayNone();

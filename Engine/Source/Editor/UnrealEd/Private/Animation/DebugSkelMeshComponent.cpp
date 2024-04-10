@@ -25,6 +25,7 @@
 #include "Utils/ClothingMeshUtils.h"
 #include "DynamicMeshBuilder.h"
 #include "Materials/MaterialInstanceDynamic.h"
+#include "Preferences/PersonaOptions.h"
 
 //////////////////////////////////////////////////////////////////////////
 // UDebugSkelMeshComponent
@@ -77,6 +78,30 @@ UDebugSkelMeshComponent::UDebugSkelMeshComponent(const FObjectInitializer& Objec
 	RequestedProcessRootMotionMode = EProcessRootMotionMode::LoopAndReset;
 	ProcessRootMotionMode = EProcessRootMotionMode::Ignore;
 	ConsumeRootMotionPreviousPlaybackTime = 0.f;
+}
+
+FLinearColor UDebugSkelMeshComponent::GetBoneColor(int32 InBoneIndex)
+{
+	// this returns the normal unmodified color of the bone, calling code must account
+	// for any editor specific states that might affect the final bone color (like selection)
+	
+	// skeleton greyed out
+	if (SkeletonDrawMode == ESkeletonDrawMode::GreyedOut)
+	{
+		return GetDefault<UPersonaOptions>()->DisabledBoneColor;
+	}
+
+	// using default color for all bones
+	if (!bShowBoneColors)
+	{
+		return GetDefault<UPersonaOptions>()->DefaultBoneColor;
+	}
+	
+	// uses deterministic, semi-random desaturated color unique to the bone index
+	constexpr float Saturation = 0.5f;
+	constexpr float Value = 1.0f;
+	constexpr float Rotation = 90.f;
+	return FLinearColor::IntToDistinctColor(InBoneIndex, Saturation, Value, Rotation);
 }
 
 void UDebugSkelMeshComponent::SetDebugForcedLOD(int32 InNewForcedLOD)

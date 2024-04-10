@@ -797,6 +797,12 @@ void SAnimationEditorViewportTabBody::BindCommands()
 		FIsActionChecked::CreateSP(this, &SAnimationEditorViewportTabBody::IsShowingBoneNames));
 
 	CommandList.MapAction( 
+		ViewportShowMenuCommands.ShowBoneColors,
+		FExecuteAction::CreateSP(this, &SAnimationEditorViewportTabBody::OnShowBoneColors),
+		FCanExecuteAction(),
+		FIsActionChecked::CreateSP(this, &SAnimationEditorViewportTabBody::IsShowingBoneColors));
+
+	CommandList.MapAction( 
 		ViewportShowMenuCommands.ShowRawAnimation,
 		FExecuteAction::CreateSP(this, &SAnimationEditorViewportTabBody::OnShowRawAnimation),
 		FCanExecuteAction(),
@@ -1299,6 +1305,22 @@ bool SAnimationEditorViewportTabBody::IsShowingBoneNames() const
 {
 	UDebugSkelMeshComponent* PreviewComponent = GetPreviewScene()->GetPreviewMeshComponent();
 	return PreviewComponent != NULL && PreviewComponent->bShowBoneNames;
+}
+
+void SAnimationEditorViewportTabBody::OnShowBoneColors()
+{
+	ForEachDebugMesh([](UDebugSkelMeshComponent* InMesh)
+	{
+		InMesh->bShowBoneColors = !InMesh->bShowBoneColors;
+		InMesh->MarkRenderStateDirty();
+	});
+	RefreshViewport();
+}
+
+bool SAnimationEditorViewportTabBody::IsShowingBoneColors() const
+{
+	const UDebugSkelMeshComponent* PreviewComponent = GetPreviewScene()->GetPreviewMeshComponent();
+	return PreviewComponent && PreviewComponent->bShowBoneColors;
 }
 
 bool SAnimationEditorViewportTabBody::IsShowingRawAnimation() const

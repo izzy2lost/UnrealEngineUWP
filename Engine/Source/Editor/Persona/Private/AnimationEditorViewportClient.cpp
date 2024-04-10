@@ -1777,20 +1777,17 @@ void FAnimationViewportClient::DrawMeshBones(UDebugSkelMeshComponent* MeshCompon
 	TArray<FLinearColor> BoneColours;
 	BoneColours.AddUninitialized(MeshComponent->GetNumDrawTransform());
 
-	// factor skeleton draw mode into color selection
-	const FLinearColor BoneColor = MeshComponent->SkeletonDrawMode == ESkeletonDrawMode::GreyedOut ? GetDefault<UPersonaOptions>()->DisabledBoneColor : GetDefault<UPersonaOptions>()->DefaultBoneColor;
-	const FLinearColor VirtualBoneColor = MeshComponent->SkeletonDrawMode == ESkeletonDrawMode::GreyedOut ? GetDefault<UPersonaOptions>()->DisabledBoneColor : GetDefault<UPersonaOptions>()->VirtualBoneColor;
-	
 	// we could cache parent bones as we calculate, but right now I'm not worried about perf issue of this
 	const TArray<FBoneIndexType>& DrawBoneIndices = MeshComponent->GetDrawBoneIndices();
 	for ( int32 Index=0; Index<DrawBoneIndices.Num(); ++Index )
 	{
 		const int32 BoneIndex = DrawBoneIndices[Index];
 		WorldTransforms[BoneIndex] = MeshComponent->GetDrawTransform(BoneIndex) * MeshComponent->GetComponentTransform();
-		BoneColours[BoneIndex] = BoneColor;
+		BoneColours[BoneIndex] = MeshComponent->GetBoneColor(Index);
 	}
 
-	// color virtual bones
+	// color virtual bones, factoring in skeleton draw mode into color selection
+	const FLinearColor VirtualBoneColor = MeshComponent->SkeletonDrawMode == ESkeletonDrawMode::GreyedOut ? GetDefault<UPersonaOptions>()->DisabledBoneColor : GetDefault<UPersonaOptions>()->VirtualBoneColor;
 	for (int16 VirtualBoneIndex : MeshComponent->GetReferenceSkeleton().GetRequiredVirtualBones())
 	{
 		BoneColours[VirtualBoneIndex] = VirtualBoneColor;
