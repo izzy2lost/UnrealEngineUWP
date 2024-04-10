@@ -42,6 +42,7 @@
 #include "IAssetViewport.h"
 #include "LevelEditor.h"
 #include "SequencerSettings.h"
+#include "Editor/EditorPerformanceSettings.h"
 #include "Subsystems/AssetEditorSubsystem.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(CacheTrackRecorder)
@@ -734,6 +735,20 @@ void UCacheTrackRecorder::PreRecord()
 	// prevent dropped frames from slate throttling
 	FSlateThrottleManager::Get().DisableThrottle(true);
 	OnStopCleanup.Add([]() { FSlateThrottleManager::Get().DisableThrottle(false); });
+
+	UEditorPerformanceSettings* EditorPerformanceSettings = GetMutableDefault<UEditorPerformanceSettings>();
+	if (EditorPerformanceSettings && EditorPerformanceSettings->bThrottleCPUWhenNotForeground)
+	{
+		EditorPerformanceSettings->bThrottleCPUWhenNotForeground = false;
+		EditorPerformanceSettings->PostEditChange();
+		OnStopCleanup.Add([]()
+		{
+			UEditorPerformanceSettings* PerformanceSettings = GetMutableDefault<UEditorPerformanceSettings>();
+			PerformanceSettings->bThrottleCPUWhenNotForeground = true;
+			PerformanceSettings->PostEditChange();
+		});
+	}
+	
 
 	if (Parameters.Project.bCacheTrackRecorderControlsClockTime)
 	{
