@@ -38,6 +38,7 @@ dev_dependencies:
   ffigen: ^10.0.0
   pigeon: ^14.0.1
   url_launcher: ^6.2.2
+  flutter_launcher_icons: ^0.13.1
 
   # The "flutter_lints" package below contains a set of recommended lints to
   # encourage good coding practices. The lint set provided by the package is
@@ -78,3 +79,11 @@ arb_generator:
   csv_settings:
     description_index: 1
     base_index: 2
+
+# Configuration for automatic icon generation.
+# Run `dart run flutter_launcher_icons` from a terminal to generate these.
+flutter_launcher_icons:
+  android: true
+  ios: true
+  remove_alpha_ios: true
+  image_path: "assets/app_icon/VCam_Icon_HD.png"

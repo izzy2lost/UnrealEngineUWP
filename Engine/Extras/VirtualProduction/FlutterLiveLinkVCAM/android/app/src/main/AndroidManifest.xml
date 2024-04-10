@@ -33,7 +33,7 @@
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
 
     <application
-        android:label="live_link_vcam"
+        android:label="Unreal VCam"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:enableOnBackInvokedCallback="true">
