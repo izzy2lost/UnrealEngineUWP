@@ -26,16 +26,18 @@ TAutoConsoleVariable<int32> CVarPathTracing(
 #include "RayTracing/RayTracingMaterialHitShaders.h"
 #include "RayTracing/RayTracingDecals.h"
 #include "DecalRenderingCommon.h"
+#include "VolumetricCloudProxy.h"
+#include "MeshPassUtils.h"
 #include "FogRendering.h"
 #include "GenerateMips.h"
 #include "HairStrands/HairStrandsData.h"
 #include "HeterogeneousVolumes/HeterogeneousVolumes.h"
 #include "Modules/ModuleManager.h"
 #include "SkyAtmosphereRendering.h"
-#include <limits>
 #include "PathTracingSpatialTemporalDenoising.h"
 #include "PostProcess/DiaphragmDOF.h"
 #include "EnvironmentComponentsFlags.h"
+#include <limits>
 
 TAutoConsoleVariable<int32> CVarPathTracingExperimental(
 	TEXT("r.PathTracing.Experimental"),
@@ -118,7 +120,7 @@ TAutoConsoleVariable<int32> CVarPathTracingVolumeMISMode(
 
 TAutoConsoleVariable<int32> CVarPathTracingMaxRaymarchSteps(
 	TEXT("r.PathTracing.MaxRaymarchSteps"),
-	256,
+	768,
 	TEXT("Upper limit on the number of ray marching steps in volumes. This limit should not be hit in most cases, but raising it can reduce bias in case it is. (default = 256)."),
 	ECVF_RenderThreadSafe
 );
@@ -192,6 +194,25 @@ TAutoConsoleVariable<int32> CVarPathTracingEnableCameraBackfaceCulling(
 	ECVF_RenderThreadSafe
 );
 
+TAutoConsoleVariable<int32> CVarPathTracingEnableReferenceAtmosphere(
+	TEXT("r.PathTracing.EnableReferenceAtmosphere"),
+	-1,
+	TEXT("Should the path tracer use a volumetric calculation to represent the sky atmosphere?\n")
+	TEXT("-1: Inherit from PostProcess settings (default)\n")
+	TEXT(" 0: Disabled\n")
+	TEXT(" 1: Enable\n"),
+	ECVF_RenderThreadSafe
+);
+
+TAutoConsoleVariable<int32> CVarPathTracingEnableReferenceClouds(
+	TEXT("r.PathTracing.EnableReferenceClouds"),
+	0,
+	TEXT("Should the path tracer use a volumetric calculation to represent volumetric clouds? (This requires Reference Atmosphere to be enabled)\n")
+	TEXT(" 0: Disabled (default)\n")
+	TEXT(" 1: Enable\n"),
+	ECVF_RenderThreadSafe
+);
+
 TAutoConsoleVariable<int32> CVarPathTracingAtmosphereOpticalDepthLutResolution(
 	TEXT("r.PathTracing.AtmosphereOpticalDepthLUTResolution"),
 	512,
@@ -203,6 +224,55 @@ TAutoConsoleVariable<int32> CVarPathTracingAtmosphereOpticalDepthLutNumSamples(
 	TEXT("r.PathTracing.AtmosphereOpticalDepthLUTNumSamples"),
 	16384,
 	TEXT("Number of ray marching samples used when building the transmittance lookup texture used for transmittance calculations by the path tracer in reference atmosphere mode.  (default = 16384)"),
+	ECVF_RenderThreadSafe
+);
+
+TAutoConsoleVariable<int32> CVarPathTracingCloudAccelerationMapResolution(
+	TEXT("r.PathTracing.CloudAccelerationMapResolution"),
+	512,
+	TEXT("Size of the square texture used to accelerate cloud ray marching for the path tracer in reference atmosphere mode.  (default = 512)"),
+	ECVF_RenderThreadSafe
+);
+
+TAutoConsoleVariable<int32> CVarPathTracingCloudAccelerationMapNumSamples(
+	TEXT("r.PathTracing.CloudAccelerationMapNumSamples"),
+	64,
+	TEXT("Number of ray marching samples used when building the cloud acceleration map for the path tracer in reference atmosphere mode.  (default = 64)"),
+	ECVF_RenderThreadSafe
+);
+
+TAutoConsoleVariable<bool> CVarPathTracingCloudAccelerationMapVisualize(
+	TEXT("r.PathTracing.CloudAccelerationMapVisualize"),
+	false,
+	TEXT("If true, replace clouds with a visualization of the acceleration map to help visualize it and fine tune its resolution (default = false)"),
+	ECVF_RenderThreadSafe
+);
+
+TAutoConsoleVariable<float> CVarPathTracingCloudRoughnessCutoff(
+	TEXT("r.PathTracing.CloudRoughnessCutoff"),
+	0.05f,
+	TEXT("Do not evaluate volumetric clouds beyond this roughness level to improve performance (default=0.05)"),
+	ECVF_RenderThreadSafe
+);
+
+TAutoConsoleVariable<bool> CVarPathTracingCloudMapEnabled(
+	TEXT("r.PathTracing.CloudMapEnable"),
+	true,
+	TEXT("If true, clouds will be voxelized into a texture for faster evaluation. If false, the cloud material will be invoked via callable shaders. (default = true)"),
+	ECVF_RenderThreadSafe
+);
+
+TAutoConsoleVariable<int32> CVarPathTracingCloudMapResolution(
+	TEXT("r.PathTracing.CloudMapResolution"),
+	512,
+	TEXT("Size of the texture used to cache cloud appearance in reference atmosphere mode.  (default = 512)"),
+	ECVF_RenderThreadSafe
+);
+
+TAutoConsoleVariable<int32> CVarPathTracingCloudMapDepth(
+	TEXT("r.PathTracing.CloudMapDepth"),
+	64,
+	TEXT("Depth of the texture used to cache cloud appearance in reference atmosphere mode.  (default = 64)"),
 	ECVF_RenderThreadSafe
 );
 
@@ -382,13 +452,12 @@ TAutoConsoleVariable<int32> CVarpathTracingOverrideDepth(
 	ECVF_RenderThreadSafe
 );
 
-TAutoConsoleVariable<int32> CVarPathTracingUseAnalyticTransmittance(
+TAutoConsoleVariable<bool> CVarPathTracingUseAnalyticTransmittance(
 	TEXT("r.PathTracing.UseAnalyticTransmittance"),
-	-1,
+	true,
 	TEXT("Determines use of analytical or null-tracking estimation when evaluating transmittance\n")
-	TEXT("-1: uses null-tracking estimation if heterogeneous volumes are present, or analytical estimation otherwise (default)\n")
-	TEXT("0: off (uses null-tracking estimation, instead)\n")
-	TEXT("1: on (uses analytical estimation)\n"),
+	TEXT("0: off (uses null-tracking estimation)\n")
+	TEXT("1: on (uses analytical estimation when possible) (default)\n"),
 	ECVF_RenderThreadSafe
 );
 
@@ -443,6 +512,7 @@ BEGIN_SHADER_PARAMETER_STRUCT(FPathTracingData, )
 	SHADER_PARAMETER(float, MaxPathIntensity)
 	SHADER_PARAMETER(float, MaxNormalBias)
 	SHADER_PARAMETER(float, FilterWidth)
+	SHADER_PARAMETER(float, CloudRoughnessCutoff)
 	SHADER_PARAMETER(float, DecalRoughnessCutoff)
 	SHADER_PARAMETER(float, MeshDecalRoughnessCutoff)
 	SHADER_PARAMETER(float, MeshDecalBias)
@@ -467,6 +537,10 @@ struct FPathTracingConfig
 	bool UseMultiGPU; // NOTE: Requires invalidation because the buffer layout changes
 	int DenoiserMode; // NOTE: does not require path tracing invalidation
 	float AdaptiveSamplingThreshold;
+	int CloudAccelerationMapNumSamples;
+	int CloudAccelerationMapResolution;
+	int CloudMapResolution;
+	int CloudMapDepth;
 
 	bool IsDifferent(const FPathTracingConfig& Other) const
 	{
@@ -490,6 +564,7 @@ struct FPathTracingConfig
 			PathTracingData.ApplyDiffuseSpecularOverrides != Other.PathTracingData.ApplyDiffuseSpecularOverrides ||
 			PathTracingData.EnabledDirectLightingContributions != Other.PathTracingData.EnabledDirectLightingContributions ||
 			PathTracingData.EnabledIndirectLightingContributions != Other.PathTracingData.EnabledIndirectLightingContributions ||
+			PathTracingData.CloudRoughnessCutoff != Other.PathTracingData.CloudRoughnessCutoff ||
 			PathTracingData.DecalRoughnessCutoff != Other.PathTracingData.DecalRoughnessCutoff ||
 			PathTracingData.MeshDecalRoughnessCutoff != Other.PathTracingData.MeshDecalRoughnessCutoff ||
 			PathTracingData.MeshDecalBias != Other.PathTracingData.MeshDecalBias ||
@@ -504,6 +579,10 @@ struct FPathTracingConfig
 			UseCameraMediumTracking != Other.UseCameraMediumTracking ||
 			UseAdaptiveSampling != Other.UseAdaptiveSampling ||
 			AdaptiveSamplingThreshold != Other.AdaptiveSamplingThreshold ||
+			CloudAccelerationMapNumSamples != Other.CloudAccelerationMapNumSamples ||
+			CloudAccelerationMapResolution != Other.CloudAccelerationMapResolution ||
+			CloudMapResolution != Other.CloudMapResolution ||
+			CloudMapDepth != Other.CloudMapDepth ||
 			UseMultiGPU != Other.UseMultiGPU;
 	}
 
@@ -561,6 +640,8 @@ struct FPathTracingState {
 	TRefCountPtr<IPooledRenderTarget> AlbedoRT;
 	TRefCountPtr<IPooledRenderTarget> NormalRT;
 	TRefCountPtr<FRDGPooledBuffer> VarianceBuffer;
+	TRefCountPtr<IPooledRenderTarget> CloudAccelerationMap;
+	TRefCountPtr<IPooledRenderTarget> CloudMap;
 
 	// Cache to improve the stability when frame denoising (SPP=r.pathtracing.SamplesPerPixel) is used in animation rendering
 	TRefCountPtr<IPooledRenderTarget> LastDenoisedRadianceRT;
@@ -597,17 +678,12 @@ namespace PathTracing
 	{
 		return ViewFamily.EngineShowFlags.Decals;
 	}
-}
 
-static bool EvalUseAnalyticTransmittance(const FViewInfo& View)
-{
-	int32 UseAnalyticTransmittance = CVarPathTracingUseAnalyticTransmittance.GetValueOnRenderThread();
-	if (UseAnalyticTransmittance < 0)
+	bool UsesReferenceAtmosphere(const FViewInfo& View)
 	{
-		UseAnalyticTransmittance = !ShouldRenderHeterogeneousVolumesForView(View);
+		const int32 EnableReferenceAtmosphereCVar = CVarPathTracingEnableReferenceAtmosphere.GetValueOnRenderThread();
+		return EnableReferenceAtmosphereCVar < 0 ? View.FinalPostProcessSettings.PathTracingEnableReferenceAtmosphere != 0 : EnableReferenceAtmosphereCVar != 0;
 	}
-
-	return UseAnalyticTransmittance != 0;
 }
 
 // This function prepares the portion of shader arguments that may involve invalidating the path traced state
@@ -653,12 +729,21 @@ static void PreparePathTracingData(const FScene* Scene, const FViewInfo& View, F
 		PathTracingData.CameraLensRadius    = CocModel.GetLensRadius();
 	}
 
+	const bool bUseReferenceAtmosphere = ShouldRenderSkyAtmosphere(Scene, ShowFlags) && 
+		View.SkyAtmosphereUniformShaderParameters != nullptr &&
+		PathTracing::UsesReferenceAtmosphere(View);
+	
+	const FVolumetricCloudRenderSceneInfo* CloudInfo = Scene->GetVolumetricCloudSceneInfo();
+	const bool bVolumeCloudMapEnabled = !RHISupportsRayTracingCallableShaders(View.GetShaderPlatform()) || CVarPathTracingCloudMapEnabled.GetValueOnRenderThread();
+	const bool bVolumeCloudsVisible = ShouldRenderVolumetricCloud(Scene, ShowFlags)
+		&& bUseReferenceAtmosphere
+		&& CVarPathTracingEnableReferenceClouds.GetValueOnRenderThread() != 0
+		&& (bVolumeCloudMapEnabled || uint32(View.PathTracingVolumetricCloudCallableShaderIndex) < Scene->RayTracingScene.NumCallableShaderSlots);
+
 	// Merge all volume flags into one uint
 	PathTracingData.VolumeFlags = 0;
-	PathTracingData.VolumeFlags |=
-		ShouldRenderSkyAtmosphere(Scene, ShowFlags) && 
-		View.SkyAtmosphereUniformShaderParameters != nullptr &&
-		PPV.PathTracingEnableReferenceAtmosphere != 0 ? PATH_TRACER_VOLUME_ENABLE_ATMOSPHERE : 0;
+	PathTracingData.VolumeFlags |= bUseReferenceAtmosphere ? PATH_TRACER_VOLUME_ENABLE_ATMOSPHERE : 0;
+	PathTracingData.VolumeFlags |= bVolumeCloudsVisible ? PATH_TRACER_VOLUME_ENABLE_CLOUDS : 0;
 	PathTracingData.VolumeFlags |= ShouldRenderFog(*View.Family)
 		&& Scene->ExponentialFogs.Num() > 0
 		&& Scene->ExponentialFogs[0].bEnableVolumetricFog
@@ -668,8 +753,13 @@ static void PreparePathTracingData(const FScene* Scene, const FViewInfo& View, F
 			Scene->ExponentialFogs[0].FogData[1].Density > 0) ? PATH_TRACER_VOLUME_ENABLE_FOG : 0;
 	PathTracingData.VolumeFlags |= ShouldRenderHeterogeneousVolumesForView(View) ? PATH_TRACER_VOLUME_ENABLE_HETEROGENEOUS_VOLUMES : 0;
 	PathTracingData.VolumeFlags |= View.SkyAtmosphereUniformShaderParameters != nullptr && IsSkyAtmosphereHoldout(View.CachedViewUniformShaderParameters->EnvironmentComponentsFlags) ? PATH_TRACER_VOLUME_HOLDOUT_ATMOSPHERE : 0;
+	PathTracingData.VolumeFlags |= bVolumeCloudsVisible && IsVolumetricCloudHoldout(View.CachedViewUniformShaderParameters->EnvironmentComponentsFlags) ? PATH_TRACER_VOLUME_HOLDOUT_CLOUDS : 0;
 	PathTracingData.VolumeFlags |= Scene->ExponentialFogs.Num() > 0 && IsExponentialFogHoldout(View.CachedViewUniformShaderParameters->EnvironmentComponentsFlags) ? PATH_TRACER_VOLUME_HOLDOUT_FOG : 0;
-	PathTracingData.VolumeFlags |= EvalUseAnalyticTransmittance(View) ? PATH_TRACER_VOLUME_USE_ANALYTIC_TRANSMITTANCE : 0;
+	PathTracingData.VolumeFlags |= CVarPathTracingUseAnalyticTransmittance.GetValueOnRenderThread() ? PATH_TRACER_VOLUME_USE_ANALYTIC_TRANSMITTANCE : 0;
+	PathTracingData.VolumeFlags |= bVolumeCloudMapEnabled ? PATH_TRACER_VOLUME_USE_CLOUD_MAP : 0;
+	PathTracingData.VolumeFlags |= CVarPathTracingCloudAccelerationMapVisualize.GetValueOnRenderThread() ? PATH_TRACER_VOLUME_VIEW_CLOUD_MAP_ACCEL : 0;
+
+	PathTracingData.CloudRoughnessCutoff = bVolumeCloudsVisible ? CVarPathTracingCloudRoughnessCutoff.GetValueOnRenderThread() : -1.0f;
 
 	PathTracingData.EnableDBuffer = CVarPathTracingUseDBuffer.GetValueOnRenderThread();
 
@@ -886,6 +976,32 @@ static FPathTracingFogParameters PrepareFogParameters(const FViewInfo& View, con
 	return Parameters;
 }
 
+
+BEGIN_SHADER_PARAMETER_STRUCT(FPathTracingCloudParameters, )
+	// coordinate frame for the cloud acceleration map
+	SHADER_PARAMETER(FVector3f, CloudClipX)	// Right
+	SHADER_PARAMETER(FVector3f, CloudClipY) // Forward
+	SHADER_PARAMETER(FVector3f, CloudClipZ) // Up
+
+	SHADER_PARAMETER(FVector3f, CloudClipCenterKm) // Planet center in Km
+
+	SHADER_PARAMETER(float, CloudLayerBotKm)
+	SHADER_PARAMETER(float, CloudLayerTopKm)
+	SHADER_PARAMETER(float, CloudClipDistKm) // distance in x,y in cloud clip space
+	SHADER_PARAMETER(float, CloudClipRadiusKm) // distance from origin to planet center in Km
+
+	SHADER_PARAMETER(float, CloudTracingMaxDistance) // limit ray lengths (to avoid slowing down when a ray crosses all clouds)
+	SHADER_PARAMETER(int32, CloudAccelMapResolution)
+	SHADER_PARAMETER(int32, CloudCallableShaderId)
+	SHADER_PARAMETER(FIntVector, CloudMapResolution)
+END_SHADER_PARAMETER_STRUCT()
+
+BEGIN_GLOBAL_SHADER_PARAMETER_STRUCT(FPathTracingCloudParameterGlobals,)
+	SHADER_PARAMETER_STRUCT_INCLUDE(FPathTracingCloudParameters, CloudParameters)
+END_GLOBAL_SHADER_PARAMETER_STRUCT()
+
+IMPLEMENT_GLOBAL_SHADER_PARAMETER_STRUCT(FPathTracingCloudParameterGlobals, "PathTracingCloudParameters");
+
 static uint32 GetPathtracingMaterialPayloadSize()
 {
 	// Substrate uses a slightly bigger payload as the basic slab contains more information
@@ -972,6 +1088,12 @@ class FPathTracingRG : public FGlobalShader
 		SHADER_PARAMETER_SAMPLER(SamplerState, AtmosphereOpticalDepthLUTSampler)
 		SHADER_PARAMETER(FVector3f, PlanetCenterTranslatedWorldHi)
 		SHADER_PARAMETER(FVector3f, PlanetCenterTranslatedWorldLo)
+
+		// clouds
+		SHADER_PARAMETER_STRUCT_INCLUDE(FPathTracingCloudParameters, CloudParameters)
+		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, CloudAccelerationMap)
+		SHADER_PARAMETER_SAMPLER(SamplerState, CloudAccelerationMapSampler)
+		SHADER_PARAMETER_RDG_TEXTURE(Texture3D, CloudMap)
 
 		// exponential height fog
 		SHADER_PARAMETER_STRUCT_INCLUDE(FPathTracingFogParameters, FogParameters)
@@ -1080,6 +1202,293 @@ class FPathTracingBuildAtmosphereOpticalDepthLUTCS : public FGlobalShader
 	END_SHADER_PARAMETER_STRUCT()
 };
 IMPLEMENT_SHADER_TYPE(, FPathTracingBuildAtmosphereOpticalDepthLUTCS, TEXT("/Engine/Private/PathTracing/PathTracingBuildAtmosphereLUT.usf"), TEXT("PathTracingBuildAtmosphereOpticalDepthLUTCS"), SF_Compute);
+
+
+FPathTracingCloudParameters PrepareCloudParameters(const FScene* Scene, const FViewInfo& View, const FPathTracingConfig* Config)
+{
+	check(Scene != nullptr);;
+	check(Scene->GetVolumetricCloudSceneInfo() != nullptr);
+
+
+	const FSkyAtmosphereRenderSceneInfo* SkyInfo = Scene->GetSkyAtmosphereSceneInfo();
+	const FVolumetricCloudRenderSceneInfo* CloudInfo = Scene->GetVolumetricCloudSceneInfo();
+	const FVolumetricCloudSceneProxy& CloudProxy = CloudInfo->GetVolumetricCloudSceneProxy();
+
+	float PlanetRadiusKm = CloudProxy.PlanetRadiusKm;
+	FVector CloudCenterKm = FVector(0, 0, -CloudProxy.PlanetRadiusKm);
+	if (SkyInfo != nullptr)
+	{
+		const FAtmosphereSetup& AtmosphereSetup = SkyInfo->GetSkyAtmosphereSceneProxy().GetAtmosphereSetup();
+		PlanetRadiusKm = AtmosphereSetup.BottomRadiusKm;
+		CloudCenterKm = AtmosphereSetup.PlanetCenterKm;
+	}
+
+	FVector PlanetUp = View.ViewMatrices.GetViewOrigin() - CloudCenterKm * double(FAtmosphereSetup::SkyUnitToCm);
+	double ViewToPlanet = PlanetUp.Length();
+	PlanetUp.Normalize();
+
+	FPathTracingCloudParameters Params = {};
+
+	// Make a coordinate frame for our cloud acceleration map -- we want it to be stable with respect
+	// to camera rotations to minimize aliasing as the camera moves. PlanetUp will generally be quite
+	// stable when moving about the planet surface, so using this as the only input minimizes resampling artifacts
+	// TODO: Figure out a stable scheme for views from space ...
+	// See GetTangentBasis() in MonteCarlo.ush
+	// TODO: Should probably be turned into a utility on TVector?
+	{
+		const FVector TangentZ = PlanetUp;
+		const double Sign = TangentZ.Z >= 0 ? 1 : -1;
+		const double a = -1 / (Sign + TangentZ.Z);
+		const double b = TangentZ.X * TangentZ.Y * a;
+		FVector TangentX = { 1 + Sign * a * (TangentZ.X * TangentZ.X), Sign * b, -Sign * TangentZ.X };
+		FVector TangentY = { b,  Sign + a * (TangentZ.Y * TangentZ.Y), -TangentZ.Y };
+
+		Params.CloudClipX = FVector3f(TangentX);
+		Params.CloudClipY = FVector3f(TangentY);
+		Params.CloudClipZ = FVector3f(TangentZ);
+	}
+	Params.CloudClipCenterKm = FVector3f(CloudCenterKm); // LWC_TODO: Pass this in as high/low for better precision
+
+	Params.CloudLayerBotKm = PlanetRadiusKm + CloudProxy.LayerBottomAltitudeKm;
+	Params.CloudLayerTopKm = Params.CloudLayerBotKm + CloudProxy.LayerHeightKm;
+	if (CloudProxy.TracingMaxDistanceMode == 0)
+	{
+		Params.CloudClipDistKm = FMath::Min(CloudProxy.TracingStartMaxDistance, Params.CloudLayerTopKm);
+		Params.CloudTracingMaxDistance = CloudProxy.TracingMaxDistance * FAtmosphereSetup::SkyUnitToCm;
+	}
+	else
+	{
+		Params.CloudClipDistKm = FMath::Min(FMath::Min(CloudProxy.TracingStartMaxDistance, CloudProxy.TracingMaxDistance), Params.CloudLayerTopKm);
+		Params.CloudTracingMaxDistance = 2 * Params.CloudClipDistKm * FAtmosphereSetup::SkyUnitToCm; // full diagonal for this
+	}
+	
+	Params.CloudClipRadiusKm = float(ViewToPlanet * double(FAtmosphereSetup::CmToSkyUnit));
+	Params.CloudCallableShaderId = -1;
+	if (Config != nullptr)
+	{
+		Params.CloudAccelMapResolution = Config->CloudAccelerationMapResolution;
+		Params.CloudMapResolution = FIntVector(Config->CloudMapResolution, Config->CloudMapResolution, Config->CloudMapDepth);
+	}
+	return Params;
+}
+
+class FPathTracingBuildCloudAccelerationMapCS : public FMeshMaterialShader
+{
+	DECLARE_SHADER_TYPE(FPathTracingBuildCloudAccelerationMapCS, MeshMaterial)
+	SHADER_USE_PARAMETER_STRUCT_WITH_LEGACY_BASE(FPathTracingBuildCloudAccelerationMapCS, FMeshMaterialShader) // TODO: following pattern used in VolumetricCloudRender.cpp -- is there a proper modern alternative?
+
+	static bool ShouldCompilePermutation(const FMeshMaterialShaderPermutationParameters& Parameters)
+	{
+		return ShouldCompilePathTracingShadersForProject(Parameters.Platform) &&
+			Parameters.MaterialParameters.bIsUsedWithVolumetricCloud &&
+			Parameters.MaterialParameters.MaterialDomain == MD_Volume;
+	}
+
+	static void ModifyCompilationEnvironment(const FMaterialShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
+	{
+		FMaterialShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
+
+		OutEnvironment.SetDefine(TEXT("THREADGROUPSIZE_X"), FComputeShaderUtils::kGolden2DGroupSize);
+		OutEnvironment.SetDefine(TEXT("THREADGROUPSIZE_Y"), FComputeShaderUtils::kGolden2DGroupSize);
+		OutEnvironment.SetDefine(TEXT("CLOUD_LAYER_PIXEL_SHADER"), 1);
+	}
+
+	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
+		SHADER_PARAMETER(uint32, NumSamples)
+		SHADER_PARAMETER(uint32, Iteration)
+		SHADER_PARAMETER(uint32, TemporalSeed)
+		SHADER_PARAMETER(int32 , UseCloudMap)
+		SHADER_PARAMETER_STRUCT_INCLUDE(FPathTracingCloudParameters, CloudParameters)
+		SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, ViewUniformBuffer)
+		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D, CloudAccelerationMap)
+		SHADER_PARAMETER_RDG_TEXTURE(Texture3D, CloudMap)
+	END_SHADER_PARAMETER_STRUCT()
+};
+IMPLEMENT_MATERIAL_SHADER_TYPE(, FPathTracingBuildCloudAccelerationMapCS, TEXT("/Engine/Private/PathTracing/PathTracingBuildCloudAccelerationMap.usf"), TEXT("PathTracingBuildCloudAccelerationMapCS"), SF_Compute);
+
+class FPathTracingBuildCloudCS : public FMeshMaterialShader
+{
+	DECLARE_SHADER_TYPE(FPathTracingBuildCloudCS, MeshMaterial)
+	SHADER_USE_PARAMETER_STRUCT_WITH_LEGACY_BASE(FPathTracingBuildCloudCS, FMeshMaterialShader) // TODO: following pattern used in VolumetricCloudRender.cpp -- is there a proper modern alternative?
+
+	static bool ShouldCompilePermutation(const FMeshMaterialShaderPermutationParameters& Parameters)
+	{
+		return ShouldCompilePathTracingShadersForProject(Parameters.Platform) &&
+		Parameters.MaterialParameters.bIsUsedWithVolumetricCloud &&
+		Parameters.MaterialParameters.MaterialDomain == MD_Volume;
+	}
+
+	static void ModifyCompilationEnvironment(const FMaterialShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
+	{
+		FMaterialShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
+
+		OutEnvironment.SetDefine(TEXT("THREADGROUPSIZE_X"), 4);
+		OutEnvironment.SetDefine(TEXT("THREADGROUPSIZE_Y"), 4);
+		OutEnvironment.SetDefine(TEXT("THREADGROUPSIZE_Z"), 4);
+		OutEnvironment.SetDefine(TEXT("CLOUD_LAYER_PIXEL_SHADER"), 1);
+	}
+
+	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
+		SHADER_PARAMETER(float , BlendFactor)
+		SHADER_PARAMETER(uint32, Iteration)
+		SHADER_PARAMETER(uint32, TemporalSeed)
+		SHADER_PARAMETER_STRUCT_INCLUDE(FPathTracingCloudParameters, CloudParameters)
+		SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, ViewUniformBuffer)
+		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture3D, CloudMap)
+	END_SHADER_PARAMETER_STRUCT()
+};
+IMPLEMENT_MATERIAL_SHADER_TYPE(, FPathTracingBuildCloudCS, TEXT("/Engine/Private/PathTracing/PathTracingBuildCloud.usf"), TEXT("PathTracingBuildCloudCS"), SF_Compute);
+
+
+class FPathTracingVolumetricCloudMaterial : public FMaterialShader
+{
+	DECLARE_SHADER_TYPE(FPathTracingVolumetricCloudMaterial, Material);
+public:
+	FPathTracingVolumetricCloudMaterial() = default;
+
+	FPathTracingVolumetricCloudMaterial(const ShaderMetaType::CompiledShaderInitializerType& Initializer)
+	: FMaterialShader(Initializer)
+	{
+		CloudParameter.Bind(Initializer.ParameterMap, TEXT("PathTracingCloudParameters"));
+	}
+
+	static bool ShouldCompilePermutation(const FMaterialShaderPermutationParameters& Parameters)
+	{
+		return ShouldCompilePathTracingShadersForProject(Parameters.Platform) &&
+			ShouldCompileRayTracingCallableShadersForProject(Parameters.Platform) &&
+			Parameters.MaterialParameters.bIsUsedWithVolumetricCloud &&
+			Parameters.MaterialParameters.MaterialDomain == MD_Volume;
+	}
+
+	static void ModifyCompilationEnvironment(const FMaterialShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
+	{
+		FMeshMaterialShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
+		check(Parameters.MaterialParameters.MaterialDomain == MD_Volume);
+		OutEnvironment.SetDefine(TEXT("CLOUD_LAYER_PIXEL_SHADER"), 1);
+	}
+
+	static bool ValidateCompiledResult(EShaderPlatform Platform, const FShaderParameterMap& ParameterMap, TArray<FString>& OutError)
+	{
+		if (ParameterMap.ContainsParameterAllocation(FSceneTextureUniformParameters::FTypeInfo::GetStructMetadata()->GetShaderVariableName()))
+		{
+			OutError.Add(TEXT("Ray tracing callable shaders cannot read from the SceneTexturesStruct."));
+			return false;
+		}
+
+		for (const auto& It : ParameterMap.GetParameterMap())
+		{
+			const FParameterAllocation& ParamAllocation = It.Value;
+			if (ParamAllocation.Type != EShaderParameterType::UniformBuffer
+				&& ParamAllocation.Type != EShaderParameterType::LooseData)
+			{
+				OutError.Add(FString::Printf(TEXT("Invalid ray tracing shader parameter '%s'. Only uniform buffers and loose data parameters are supported."), *(It.Key)));
+				return false;
+			}
+		}
+
+		return true;
+	}
+
+	static ERayTracingPayloadType GetRayTracingPayloadType(const int32 PermutationId)
+	{
+		// TODO: This isn't the payload we use, but the logic in RayTracingMaterialHitShaders.cpp needs to assume a consistent payload ID for all callable shaders
+		// The simplest solution is probably to remove FDecalShaderPayload and use the PT payload everywhere
+		return ERayTracingPayloadType::Decals;
+	}
+
+	void GetShaderBindings(
+		const FScene* Scene,
+		ERHIFeatureLevel::Type FeatureLevel,
+		const FMaterialRenderProxy& MaterialRenderProxy,
+		const FMaterial& Material,
+		const FViewInfo& View,
+		const TUniformBufferRef<FPathTracingCloudParameterGlobals>& CloudParameters,
+		FMeshDrawSingleShaderBindings& ShaderBindings) const
+	{
+		FMaterialShader::GetShaderBindings(Scene, FeatureLevel, MaterialRenderProxy, Material, ShaderBindings);
+
+		ShaderBindings.Add(GetUniformBufferParameter<FViewUniformShaderParameters>(), View.ViewUniformBuffer);
+		// Use GIdentityPrimitiveUniformBuffer just like in the decal handling code
+		// We could potentially bind the actual primitive uniform buffer
+		ShaderBindings.Add(GetUniformBufferParameter<FPrimitiveUniformShaderParameters>(), GIdentityPrimitiveUniformBuffer);
+		ShaderBindings.Add(CloudParameter, CloudParameters);
+	}
+
+private:
+	LAYOUT_FIELD(FShaderUniformBufferParameter, CloudParameter);
+};
+IMPLEMENT_SHADER_TYPE(, FPathTracingVolumetricCloudMaterial, TEXT("/Engine/Private/PathTracing/PathTracingVolumetricCloudMaterialShader.usf"), TEXT("PathTracingVolumetricCloudMaterialShader"), SF_RayCallable);
+
+void PreparePathTracingCloudMaterial(FScene* Scene, TArrayView<FViewInfo> Views)
+{
+	// make sure all views have an invalid callable shader index (unless proven otherwise below)
+	for (FViewInfo& View : Views)
+	{
+		View.PathTracingVolumetricCloudCallableShaderIndex = -1;
+	}
+
+	// if we are using reference clouds, or if we are using the cloud map, no need to prepare the callable shader version
+	if (CVarPathTracingEnableReferenceClouds.GetValueOnRenderThread() == 0 ||
+		CVarPathTracingCloudMapEnabled.GetValueOnRenderThread())
+	{
+		return;
+	}
+
+	FVolumetricCloudRenderSceneInfo* CloudRenderSceneInfo = Scene->GetVolumetricCloudSceneInfo();
+	if (CloudRenderSceneInfo == nullptr)
+	{
+		return;
+	}
+
+	UMaterialInterface* CloudMaterialInterface = CloudRenderSceneInfo->GetVolumetricCloudSceneProxy().GetCloudVolumeMaterial();
+	if (CloudMaterialInterface == nullptr)
+	{
+		return;
+	}
+	const FMaterialRenderProxy* CloudVolumeMaterialProxy = CloudMaterialInterface->GetRenderProxy();
+	if (CloudVolumeMaterialProxy == nullptr)
+	{
+		return;
+	}
+	const FMaterial* MaterialResource = &CloudVolumeMaterialProxy->GetMaterialWithFallback(Scene->GetFeatureLevel(), CloudVolumeMaterialProxy);
+	if (MaterialResource->GetMaterialDomain() != MD_Volume)
+	{
+		return;
+	}
+
+	const FMaterialShaderMap* MaterialShaderMap = MaterialResource->GetRenderingThreadShaderMap();
+	auto CallableShader = MaterialShaderMap->GetShader<FPathTracingVolumetricCloudMaterial>();
+	if (!CallableShader.IsValid())
+	{
+		return;
+	}
+
+	const FVolumetricCloudRenderSceneInfo* CloudInfo = Scene->GetVolumetricCloudSceneInfo();
+
+	for (FViewInfo& View : Views)
+	{
+		uint32 BaseCallableSlotIndex = Scene->RayTracingScene.NumCallableShaderSlots;
+		FRayTracingShaderCommand& Command = Scene->RayTracingScene.CallableCommands.AddDefaulted_GetRef();
+
+		Command.SetShader(CallableShader);
+		Command.SlotInScene = BaseCallableSlotIndex;
+
+		View.PathTracingVolumetricCloudCallableShaderIndex = BaseCallableSlotIndex;
+
+		FPathTracingCloudParameterGlobals Params = {};
+		Params.CloudParameters = PrepareCloudParameters(Scene, View, nullptr);
+		TUniformBufferRef<FPathTracingCloudParameterGlobals> CloudParametersUB = CreateUniformBufferImmediate(
+			Params,
+			EUniformBufferUsage::UniformBuffer_SingleFrame
+		);
+		Scene->RayTracingScene.UniformBuffers.Add(CloudParametersUB); // Hold uniform buffer ref in RayTracingScene since FMeshDrawSingleShaderBindings doesn't
+
+		FMeshDrawSingleShaderBindings SingleShaderBindings = Command.ShaderBindings.GetSingleShaderBindings(SF_RayCallable);
+		CallableShader->GetShaderBindings(Scene, Scene->GetFeatureLevel(), *CloudVolumeMaterialProxy, *MaterialResource, View, CloudParametersUB, SingleShaderBindings);
+
+		Scene->RayTracingScene.NumCallableShaderSlots++;
+	}
+}
 
 
 class FPathTracingBuildAdaptiveErrorTextureCS : public FGlobalShader
@@ -2382,7 +2791,7 @@ void FSceneViewState::PathTracingInvalidate(bool InvalidateAnimationStates)
 	if (State)
 	{
 		
-		if(InvalidateAnimationStates)
+		if (InvalidateAnimationStates)
 		{
 			State->LastDenoisedRadianceRT.SafeRelease();
 			State->LastRadianceRT.SafeRelease();
@@ -2398,6 +2807,8 @@ void FSceneViewState::PathTracingInvalidate(bool InvalidateAnimationStates)
 		State->AlbedoRT.SafeRelease();
 		State->NormalRT.SafeRelease();
 		State->VarianceBuffer.SafeRelease();
+		State->CloudAccelerationMap.SafeRelease();
+		State->CloudMap.SafeRelease();
 		State->SampleIndex = 0;
 
 		State->AdaptiveFrustumGridParameterCache.TopLevelGridBuffer.SafeRelease();
@@ -2480,6 +2891,10 @@ void FDeferredShadingSceneRenderer::RenderPathTracing(
 	Config.UseCameraMediumTracking = CVarPathTracingCameraMediumTracking.GetValueOnRenderThread() != 0;
 	Config.UseAdaptiveSampling = bUseExperimental && CVarPathTracingAdaptiveSampling.GetValueOnAnyThread() != 0;
 	Config.AdaptiveSamplingThreshold = CVarPathTracingAdaptiveSamplingErrorThreshold.GetValueOnRenderThread();
+	Config.CloudAccelerationMapNumSamples = FMath::Clamp(CVarPathTracingCloudAccelerationMapNumSamples.GetValueOnRenderThread(), 1, 65536);
+	Config.CloudAccelerationMapResolution = FMath::Clamp(CVarPathTracingCloudAccelerationMapResolution.GetValueOnRenderThread(), 1, 4096);
+	Config.CloudMapResolution = FMath::Clamp(CVarPathTracingCloudMapResolution.GetValueOnRenderThread(), 1, 4096);
+	Config.CloudMapDepth = FMath::Clamp(CVarPathTracingCloudMapDepth.GetValueOnRenderThread(), 1, 256);
 
 	// compute an integer code of what show flags and booleans related to lights are currently enabled so we can detect changes
 	Config.LightShowFlags = 0;
@@ -2642,6 +3057,7 @@ void FDeferredShadingSceneRenderer::RenderPathTracing(
 	{
 		AtmosphereOpticalDepthLUT = GraphBuilder.RegisterExternalTexture(GSystemTextures.BlackDummy);
 	}
+
 #if WITH_MGPU
 	Config.UseMultiGPU = CVarPathTracingMultiGPU.GetValueOnRenderThread() != 0;
 	// TODO: Figure out how to support adaptive sampling in multi-gpu cases (this is complicated due to the swizzled layout of the variance texture)
@@ -2779,6 +3195,137 @@ void FDeferredShadingSceneRenderer::RenderPathTracing(
 					PathTracingState->AdaptiveFrustumGridParameterCache,
 					FrustumGridUniformBuffer
 				);
+			}
+
+			FRDGTexture* CloudAccelerationMap = nullptr;
+			FRDGTexture* CloudMap = nullptr;
+
+			const bool bEnableClouds   = (Config.PathTracingData.VolumeFlags & PATH_TRACER_VOLUME_ENABLE_CLOUDS) != 0;
+			const bool bEnableCloudMap = (Config.PathTracingData.VolumeFlags & PATH_TRACER_VOLUME_USE_CLOUD_MAP) != 0;
+
+			if (bEnableClouds)
+			{
+				// clouds are enabled, build an accel map (do this every frame as clouds are usually animating)
+				RDG_GPU_MASK_SCOPE(GraphBuilder, FRHIGPUMask::All());
+
+				const int32 NumSamples = Config.CloudAccelerationMapNumSamples;
+				const int32 Resolution = Config.CloudAccelerationMapResolution;
+				if (PathTracingState->CloudAccelerationMap)
+				{
+					// we already have a map from a previous iteration, re-use it
+					CloudAccelerationMap = GraphBuilder.RegisterExternalTexture(PathTracingState->CloudAccelerationMap, TEXT("PathTracer.CloudAccelerationMap"));
+				}
+				else
+				{
+					// need to create a new LUT
+					EPixelFormat CloudAccelerationMapFormat = PF_FloatRGBA; // 16 bit should be good enough for typical density/z ranges
+					FRDGTextureDesc Desc = FRDGTextureDesc::Create2D(
+						FIntPoint(Resolution, Resolution),
+						CloudAccelerationMapFormat,
+						FClearValueBinding::None,
+						TexCreate_ShaderResource | TexCreate_UAV);
+					CloudAccelerationMap = GraphBuilder.CreateTexture(Desc, TEXT("PathTracer.CloudAccelerationMap"), ERDGTextureFlags::None);
+				}
+				if (bEnableCloudMap)
+				{
+					if (PathTracingState->CloudMap)
+					{
+						CloudMap = GraphBuilder.RegisterExternalTexture(PathTracingState->CloudMap, TEXT("PathTracer.CloudMap"));
+					}
+					else
+					{
+						FRDGTextureDesc Desc = FRDGTextureDesc::Create3D(
+							FIntVector(Config.CloudMapResolution, Config.CloudMapResolution, Config.CloudMapDepth),
+							PF_R32G32B32A32_UINT,
+							FClearValueBinding::None,
+							TexCreate_ShaderResource | TexCreate_UAV);
+						CloudMap = GraphBuilder.CreateTexture(Desc, TEXT("PathTracer.CloudMap"), ERDGTextureFlags::None);
+					}
+				}
+				else
+				{
+					CloudMap = GraphBuilder.RegisterExternalTexture(GSystemTextures.VolumetricBlackUintDummy);
+				}
+				FVolumetricCloudRenderSceneInfo* CloudRenderSceneInfo = Scene->GetVolumetricCloudSceneInfo();
+				check(CloudRenderSceneInfo != nullptr);
+				UMaterialInterface* CloudMaterialInterface = CloudRenderSceneInfo->GetVolumetricCloudSceneProxy().GetCloudVolumeMaterial();
+				check(CloudMaterialInterface != nullptr);
+				const FMaterialRenderProxy* CloudVolumeMaterialProxy = CloudMaterialInterface->GetRenderProxy();
+				check(CloudVolumeMaterialProxy != nullptr);
+				const FMaterial* MaterialResource = &CloudVolumeMaterialProxy->GetMaterialWithFallback(Scene->GetFeatureLevel(), CloudVolumeMaterialProxy);
+				
+
+				const FPathTracingCloudParameters CloudParameters = PrepareCloudParameters(Scene, View, &Config);
+				// build cloud map
+				if (bEnableCloudMap)
+				{
+					typename FPathTracingBuildCloudCS::FPermutationDomain PermutationVector;
+					TShaderRef<FPathTracingBuildCloudCS> ComputeShader = MaterialResource->GetShader<FPathTracingBuildCloudCS>(&FLocalVertexFactory::StaticType, PermutationVector, false);
+
+					FPathTracingBuildCloudCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FPathTracingBuildCloudCS::FParameters>();
+					PassParameters->BlendFactor = Config.PathTracingData.BlendFactor;;
+					PassParameters->Iteration = Config.PathTracingData.Iteration;
+					PassParameters->TemporalSeed = Config.PathTracingData.TemporalSeed;
+					PassParameters->CloudParameters = CloudParameters;
+					PassParameters->ViewUniformBuffer = View.ViewUniformBuffer;
+					PassParameters->CloudMap = GraphBuilder.CreateUAV(CloudMap);
+
+					check(CloudMap->Desc.GetSize() == CloudParameters.CloudMapResolution);
+
+					FIntVector GroupCount = FComputeShaderUtils::GetGroupCount(
+						CloudMap->Desc.GetSize(),
+						FIntVector(4, 4, 4)
+					);
+					GraphBuilder.AddPass(
+						RDG_EVENT_NAME("Path Tracing Cloud Build (%dx%dx%d)", CloudMap->Desc.GetSize().X, CloudMap->Desc.GetSize().Y, CloudMap->Desc.GetSize().Z),
+						PassParameters,
+						ERDGPassFlags::Compute,
+						[LocalScene = Scene, CloudVolumeMaterialProxy, MaterialResource, PassParameters, ComputeShader, GroupCount](FRHIComputeCommandList& RHICmdList)
+						{
+							FMeshDrawShaderBindings ShaderBindings;
+							UE::MeshPassUtils::SetupComputeBindings(ComputeShader, LocalScene, LocalScene->GetFeatureLevel(), nullptr, *CloudVolumeMaterialProxy, *MaterialResource, ShaderBindings);
+							UE::MeshPassUtils::Dispatch(RHICmdList, ComputeShader, ShaderBindings, *PassParameters, GroupCount);
+						});
+					GraphBuilder.QueueTextureExtraction(CloudMap, &PathTracingState->CloudMap);
+				}
+				// build cloud accel map
+				{
+					typename FPathTracingBuildCloudAccelerationMapCS::FPermutationDomain PermutationVector;
+					TShaderRef<FPathTracingBuildCloudAccelerationMapCS> ComputeShader = MaterialResource->GetShader<FPathTracingBuildCloudAccelerationMapCS>(&FLocalVertexFactory::StaticType, PermutationVector, false);
+
+					FPathTracingBuildCloudAccelerationMapCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FPathTracingBuildCloudAccelerationMapCS::FParameters>();
+					PassParameters->NumSamples = NumSamples;
+					PassParameters->Iteration = PathTracingState->SampleIndex;
+					PassParameters->TemporalSeed = PathTracingState->FrameIndex;
+					PassParameters->CloudParameters = CloudParameters;
+					PassParameters->ViewUniformBuffer = View.ViewUniformBuffer;
+					PassParameters->CloudAccelerationMap = GraphBuilder.CreateUAV(CloudAccelerationMap);
+					PassParameters->UseCloudMap = bEnableCloudMap;
+					PassParameters->CloudMap = CloudMap;
+
+					FIntVector GroupCount = FComputeShaderUtils::GetGroupCount(
+						FIntPoint(Resolution, Resolution),
+						FIntPoint(FComputeShaderUtils::kGolden2DGroupSize, FComputeShaderUtils::kGolden2DGroupSize));
+					GraphBuilder.AddPass(
+						RDG_EVENT_NAME("Path Tracing Cloud Acceleration Map Build (Resolution=%u, NumSamples=%u)", Resolution, NumSamples),
+						PassParameters,
+						ERDGPassFlags::Compute,
+						[LocalScene = Scene, CloudVolumeMaterialProxy, MaterialResource, PassParameters, ComputeShader, GroupCount](FRHIComputeCommandList& RHICmdList)
+						{
+							FMeshDrawShaderBindings ShaderBindings;
+							UE::MeshPassUtils::SetupComputeBindings(ComputeShader, LocalScene, LocalScene->GetFeatureLevel(), nullptr, *CloudVolumeMaterialProxy, *MaterialResource, ShaderBindings);
+							UE::MeshPassUtils::Dispatch(RHICmdList, ComputeShader, ShaderBindings, *PassParameters, GroupCount);
+						});
+					GraphBuilder.QueueTextureExtraction(CloudAccelerationMap, &PathTracingState->CloudAccelerationMap);
+				}
+			}
+			if (CloudAccelerationMap == nullptr)
+			{
+				CloudAccelerationMap = GraphBuilder.RegisterExternalTexture(GSystemTextures.BlackDummy);
+			}
+			if (CloudMap == nullptr)
+			{
+				CloudMap = GraphBuilder.RegisterExternalTexture(GSystemTextures.VolumetricBlackUintDummy);
 			}
 
 			// We are writing to the texture, we'll need to extract it...
@@ -2938,6 +3485,22 @@ void FDeferredShadingSceneRenderer::RenderPathTracing(
 							}
 							PassParameters->AtmosphereOpticalDepthLUT = AtmosphereOpticalDepthLUT;
 							PassParameters->AtmosphereOpticalDepthLUTSampler = TStaticSamplerState<SF_Bilinear, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
+
+							if (PreviousPassParameters != nullptr)
+							{
+								PassParameters->CloudParameters = PreviousPassParameters->CloudParameters;
+							} else if ((Config.PathTracingData.VolumeFlags & PATH_TRACER_VOLUME_ENABLE_CLOUDS) != 0)
+							{
+								PassParameters->CloudParameters = PrepareCloudParameters(Scene, View, &Config);
+							}
+							else
+							{
+								PassParameters->CloudParameters = FPathTracingCloudParameters{};
+							}
+							PassParameters->CloudParameters.CloudCallableShaderId = View.PathTracingVolumetricCloudCallableShaderIndex;
+							PassParameters->CloudAccelerationMap = CloudAccelerationMap;
+							PassParameters->CloudAccelerationMapSampler = TStaticSamplerState<SF_Point, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
+							PassParameters->CloudMap = CloudMap;
 
 							if ((Config.PathTracingData.VolumeFlags & PATH_TRACER_VOLUME_ENABLE_FOG) != 0)
 							{

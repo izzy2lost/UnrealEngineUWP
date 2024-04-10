@@ -1600,6 +1600,8 @@ public:
 	TRDGUniformBufferRef<FRayTracingDecals>				RayTracingDecalUniformBuffer;
 	bool												bHasRayTracingDecals = false;
 
+	int32 PathTracingVolumetricCloudCallableShaderIndex = -1;
+
 	bool bHasAnyRayTracingPass = false;
 #endif // RHI_RAYTRACING
 

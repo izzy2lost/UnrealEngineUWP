@@ -31,8 +31,10 @@ RENDERER_API FRHIRayTracingShader* GetGPULightmassDefaultOpaqueHitShader(const F
 RENDERER_API FRHIRayTracingShader* GetGPULightmassDefaultHiddenHitShader(const FGlobalShaderMap* ShaderMap);
 
 void PreparePathTracingRTPSO();
+void PreparePathTracingCloudMaterial(FScene* Scene, TArrayView<FViewInfo> Views);
 
 namespace PathTracing
 {
 	bool UsesDecals(const FSceneViewFamily& ViewFamily);
+	bool UsesReferenceAtmosphere(const FViewInfo& View);
 }

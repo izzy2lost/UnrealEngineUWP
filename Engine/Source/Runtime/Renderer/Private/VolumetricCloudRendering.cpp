@@ -531,6 +531,7 @@ void FScene::AddVolumetricCloud(FVolumetricCloudSceneProxy* VolumetricCloudScene
 
 			// Use the most recently enabled VolumetricCloud
 			Scene->VolumetricCloud = VolumetricCloudSceneProxy->RenderSceneInfo;
+			Scene->InvalidatePathTracedOutput();
 		} );
 }
 
@@ -554,6 +555,7 @@ void FScene::RemoveVolumetricCloud(FVolumetricCloudSceneProxy* VolumetricCloudSc
 			{
 				Scene->VolumetricCloud = nullptr;
 			}
+			Scene->InvalidatePathTracedOutput();
 		} );
 }
 
@@ -1820,8 +1822,6 @@ void FSceneRenderer::InitVolumetricCloudsForViews(FRDGBuilder& GraphBuilder, boo
 			CloudGlobalShaderParamsUB.VolumetricCloudCommonParams = CloudGlobalShaderParams;
 			CloudInfo.GetVolumetricCloudCommonShaderParametersUB() = TUniformBufferRef<FVolumetricCloudCommonGlobalShaderParameters>::CreateUniformBufferImmediate(CloudGlobalShaderParamsUB, UniformBuffer_SingleFrame);
 		}
-
-
 
 		if (CloudProxy.GetCloudVolumeMaterial())
 		{

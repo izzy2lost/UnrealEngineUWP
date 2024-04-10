@@ -19,6 +19,7 @@
 #include "RayTracingLighting.h"
 #include "RayTracingDecals.h"
 #include "PathTracing.h"
+#include "RendererModule.h"
 
 int32 GEnableRayTracingMaterials = 1;
 static FAutoConsoleVariableRef CVarEnableRayTracingMaterials(
