@@ -642,19 +642,19 @@ public:
 
 public:
 	// FPrimitiveSceneProxy interface.
-	virtual void CreateRenderThreadResources(FRHICommandListBase& RHICmdList) override;
+	ENGINE_API virtual void CreateRenderThreadResources(FRHICommandListBase& RHICmdList) override;
 	virtual SIZE_T GetTypeHash() const override;
-	virtual FPrimitiveViewRelevance	GetViewRelevance(const FSceneView* View) const override;
+	ENGINE_API virtual FPrimitiveViewRelevance	GetViewRelevance(const FSceneView* View) const override;
 #if WITH_EDITOR
-	virtual HHitProxy* CreateHitProxies(UPrimitiveComponent* Component, TArray<TRefCountPtr<HHitProxy> >& OutHitProxies) override;
+	ENGINE_API virtual HHitProxy* CreateHitProxies(UPrimitiveComponent* Component, TArray<TRefCountPtr<HHitProxy> >& OutHitProxies) override;
 #endif
-	virtual void DrawStaticElements(FStaticPrimitiveDrawInterface* PDI) override;
-	virtual void GetDynamicMeshElements(const TArray<const FSceneView*>& Views, const FSceneViewFamily& ViewFamily, uint32 VisibilityMap, FMeshElementCollector& Collector) const override;
+	ENGINE_API virtual void DrawStaticElements(FStaticPrimitiveDrawInterface* PDI) override;
+	ENGINE_API virtual void GetDynamicMeshElements(const TArray<const FSceneView*>& Views, const FSceneViewFamily& ViewFamily, uint32 VisibilityMap, FMeshElementCollector& Collector) const override;
 
 	/** Render the bones of the skeleton for debug display */
 	ENGINE_API void DebugDrawSkeleton(int32 ViewIndex, FMeshElementCollector& Collector, const FEngineShowFlags& EngineShowFlags) const;
 
-	virtual uint32 GetMemoryFootprint() const override;
+	ENGINE_API virtual uint32 GetMemoryFootprint() const override;
 
 	ENGINE_API virtual FResourceMeshInfo GetResourceMeshInfo() const override;
 
@@ -671,7 +671,7 @@ public:
 
 	ENGINE_API virtual FDesiredLODLevel GetDesiredLODLevel_RenderThread(const FSceneView* View) const final override;
 
-	virtual uint8 GetCurrentFirstLODIdx_RenderThread() const final override;
+	ENGINE_API virtual uint8 GetCurrentFirstLODIdx_RenderThread() const final override;
 
 	inline const FSkeletalMeshObject* GetMeshObject() const
 	{
