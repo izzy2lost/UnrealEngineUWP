@@ -174,8 +174,8 @@ int32 FIKRigSkeleton::GetCachedEndOfBranchIndex(const int32 InBoneIndex) const
 
 	const int32 NumBones = BoneNames.Num();
 	
-	// if we're asking for root's branch, get the last bone  
-	if (InBoneIndex == 0)
+	// if we're asking for the first or last bone, return the last bone  
+	if (InBoneIndex == 0 || InBoneIndex + 1 >= NumBones)
 	{
 		CachedEndOfBranchIndices[InBoneIndex] = NumBones-1;
 		return CachedEndOfBranchIndices[InBoneIndex];
@@ -183,21 +183,28 @@ int32 FIKRigSkeleton::GetCachedEndOfBranchIndex(const int32 InBoneIndex) const
 
 	CachedEndOfBranchIndices[InBoneIndex] = INDEX_NONE;
 	
-	// store ref parent
-	const int32 RefParentIndex = GetParentIndex(InBoneIndex);
+	// store start parent
+	const int32 StartParentIndex = GetParentIndex(InBoneIndex);
 
 	int32 BoneIndex = InBoneIndex + 1;
 	int32 ParentIndex = GetParentIndex(BoneIndex);
 
-	// if next bellow bone's parent is less than or equal to RefParentIndex, we are leaving the branch
-	// so ne need to go further
-	while (ParentIndex > RefParentIndex && BoneIndex < NumBones)
+	// if next child bone's parent is less than or equal to StartParentIndex,
+	// we are leaving the branch so no need to go further
+	int32 BoneIndexAtEndOfBranch = FIKRIGSKELETON_INVALID_EO_BRANCH_INDEX;
+	while (ParentIndex > StartParentIndex)
 	{
-		CachedEndOfBranchIndices[InBoneIndex] = BoneIndex;
-				
+		BoneIndexAtEndOfBranch = BoneIndex;
 		BoneIndex++;
+		if (BoneIndex >= NumBones)
+		{
+			break;
+		}
 		ParentIndex = GetParentIndex(BoneIndex);
 	}
+
+	// set once (outside of while loop above) to avoid potential race condition
+	CachedEndOfBranchIndices[InBoneIndex] = BoneIndexAtEndOfBranch;
 
 	return CachedEndOfBranchIndices[InBoneIndex];
 }

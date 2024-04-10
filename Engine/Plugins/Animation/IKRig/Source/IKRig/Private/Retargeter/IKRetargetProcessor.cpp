@@ -233,8 +233,8 @@ int32 FRetargetSkeleton::GetCachedEndOfBranchIndex(const int32 InBoneIndex) cons
 
 	const int32 NumBones = BoneNames.Num();
 	
-	// if we're asking for root's branch, get the last bone  
-	if (InBoneIndex == 0)
+	// if we're asking for the first or last bone, return the last bone  
+	if (InBoneIndex == 0 || InBoneIndex + 1 >= NumBones)
 	{
 		CachedEndOfBranchIndices[InBoneIndex] = NumBones-1;
 		return CachedEndOfBranchIndices[InBoneIndex];
@@ -247,13 +247,20 @@ int32 FRetargetSkeleton::GetCachedEndOfBranchIndex(const int32 InBoneIndex) cons
 
 	// if next child bone's parent is less than or equal to StartParentIndex,
 	// we are leaving the branch so no need to go further
-	while (ParentIndex > StartParentIndex && BoneIndex < NumBones)
+	int32 BoneIndexAtEndOfBranch = RETARGETSKELETON_INVALID_BRANCH_INDEX;
+	while (ParentIndex > StartParentIndex)
 	{
-		CachedEndOfBranchIndices[InBoneIndex] = BoneIndex;
-				
+		BoneIndexAtEndOfBranch = BoneIndex;
 		BoneIndex++;
+		if (BoneIndex >= NumBones)
+		{
+			break;
+		}
 		ParentIndex = GetParentIndex(BoneIndex);
 	}
+
+	// set once (outside of while loop above) to avoid potential race condition
+	CachedEndOfBranchIndices[InBoneIndex] = BoneIndexAtEndOfBranch;
 
 	return CachedEndOfBranchIndices[InBoneIndex];
 }

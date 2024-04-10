@@ -762,8 +762,8 @@ int32 FReferenceSkeleton::GetCachedEndOfBranchIndex(const int32 InBoneIndex) con
 	
 	const int32 NumBones = GetRawBoneNum();
 	
-	// if we're asking for root's branch, get the last bone  
-	if (InBoneIndex == 0)
+	// if we're asking for the first or last bone, return the last bone  
+	if (InBoneIndex == 0 || InBoneIndex + 1 >= NumBones)
 	{
 		CachedEndOfBranchIndicesRaw[InBoneIndex] = GetRawBoneNum()-1;
 		return CachedEndOfBranchIndicesRaw[InBoneIndex];
@@ -776,10 +776,14 @@ int32 FReferenceSkeleton::GetCachedEndOfBranchIndex(const int32 InBoneIndex) con
 	// if next child bone's parent is less than or equal to StartParentIndex,
 	// we are leaving the branch so no need to go further
 	int32 BoneIndexAtEndOfBranch = BRANCH_CACHE_INVALID_INDEX;
-	while (ParentIndex > StartParentIndex && BoneIndex < NumBones)
+	while (ParentIndex > StartParentIndex)
 	{
 		BoneIndexAtEndOfBranch = BoneIndex;
 		BoneIndex++;
+		if (BoneIndex >= NumBones)
+		{
+			break;
+		}
 		ParentIndex = GetParentIndex(BoneIndex);
 	}
 
