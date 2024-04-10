@@ -88,7 +88,20 @@ void FDiffPackageWriter::ParseCmds()
 
 	if (FParse::Param(CommandLine, TEXT("DiffDenyList")))
 	{
-		CompareDenyListClasses = UE::EditorDomain::ConstructTargetIterativeClassBlockList();
+		for (FTopLevelAssetPath& DenyBaseClassPath : UE::EditorDomain::ConstructTargetIterativeClassBlockList())
+		{
+			UClass* DenyBaseClass = FindObject<UClass>(DenyBaseClassPath);
+			if (DenyBaseClass)
+			{
+				CompareDenyListClasses.Add(DenyBaseClassPath);
+				TArray<UClass*> DerivedClasses;
+				GetDerivedClasses(DenyBaseClass, DerivedClasses);
+				for (UClass* DerivedClass : DerivedClasses)
+				{
+					CompareDenyListClasses.Add(DerivedClass->GetClassPathName());
+				}
+			}
+		}
 	}
 }
 
