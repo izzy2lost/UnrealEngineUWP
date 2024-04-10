@@ -3974,4 +3974,19 @@ void FDeferredShadingSceneRenderer::RenderPathTracing(
 	}
 }
 
+#else // RHI_RAYTRACING == false
+
+namespace PathTracing
+{
+	bool UsesDecals(const FSceneViewFamily& ViewFamily)
+	{
+		return false;
+	}
+
+	bool UsesReferenceAtmosphere(const FViewInfo& View)
+	{
+		return false;
+	}
+}
+
 #endif
