@@ -58,15 +58,31 @@ void SControlRigEditModeTools::Cleanup()
 	{
 		RigOptionsDetailsView->SetKeyframeHandler(nullptr);
 	}
+	for (TPair<FDelegateHandle, TWeakObjectPtr<UControlRig>>& Handles : HandlesToClear)
+	{
+		if (Handles.Value.IsValid())
+		{
+			Handles.Value->ControlSelected().RemoveAll(this);
+		}
+		if (Handles.Key.IsValid())
+		{
+			Handles.Key.Reset();
+		}
+	}
+	HandlesToClear.Reset();
 }
 
 void SControlRigEditModeTools::SetControlRigs(const TArrayView<TWeakObjectPtr<UControlRig>>& InControlRigs)
 {
-	for (FDelegateHandle& Delegate : HandlesToClear)
+	for (TPair<FDelegateHandle, TWeakObjectPtr<UControlRig>>& Handles : HandlesToClear)
 	{
-		if (Delegate.IsValid())
+		if (Handles.Value.IsValid())
 		{
-			Delegate.Reset();
+			Handles.Value->ControlSelected().RemoveAll(this);
+		}
+		if (Handles.Key.IsValid())
+		{
+			Handles.Key.Reset();
 		}
 	}
 	HandlesToClear.Reset();
@@ -75,7 +91,10 @@ void SControlRigEditModeTools::SetControlRigs(const TArrayView<TWeakObjectPtr<UC
 	{
 		if (InControlRig.IsValid())
 		{
-			HandlesToClear.Add(InControlRig->ControlSelected().AddRaw(this, &SControlRigEditModeTools::OnRigElementSelected));
+			TPair<FDelegateHandle, TWeakObjectPtr<UControlRig>> Handles;
+			Handles.Key = InControlRig->ControlSelected().AddRaw(this, &SControlRigEditModeTools::OnRigElementSelected);
+			Handles.Value = InControlRig;
+			HandlesToClear.Add(Handles);
 		}
 	}
 

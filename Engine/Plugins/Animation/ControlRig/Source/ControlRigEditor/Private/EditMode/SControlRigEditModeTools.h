@@ -149,7 +149,7 @@ private:
 	TWeakPtr<FControlRigEditModeToolkit> OwningToolkit;
 
 	//array of handles to clear when getting new control rigs
-	TArray<FDelegateHandle> HandlesToClear;
+	TArray<TPair<FDelegateHandle, TWeakObjectPtr<UControlRig>>> HandlesToClear;
 
 public:
 	/** Modes Panel Header Information **/
