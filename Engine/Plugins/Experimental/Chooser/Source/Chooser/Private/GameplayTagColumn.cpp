@@ -71,11 +71,11 @@ void FGameplayTagColumn::Filter(FChooserEvaluationContext& Context, const FChoos
 		}
 #endif
 
-		for (uint32 Index : IndexListIn)
+		for (const FChooserIndexArray::FIndexData& IndexData : IndexListIn)
 		{
-			if (TestRow(Index, *Result))
+			if (TestRow(IndexData.Index, *Result))
 			{
-				IndexListOut.Push(Index);
+				IndexListOut.Push(IndexData);
 			}
 		}
 	}

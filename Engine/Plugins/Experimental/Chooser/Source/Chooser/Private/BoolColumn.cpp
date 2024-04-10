@@ -40,14 +40,14 @@ void FBoolColumn::Filter(FChooserEvaluationContext& Context, const FChooserIndex
 		}
 	#endif
 		
-		for (uint32 Index : IndexListIn)
+		for (const FChooserIndexArray::FIndexData& IndexData : IndexListIn)
 		{
-			if (RowValuesWithAny.Num() > (int)Index)
+			if (RowValuesWithAny.IsValidIndex(IndexData.Index))
 			{
 				
-				if (RowValuesWithAny[Index] == EBoolColumnCellValue::MatchAny || Result == static_cast<bool>(RowValuesWithAny[Index]))
+				if (RowValuesWithAny[IndexData.Index] == EBoolColumnCellValue::MatchAny || Result == static_cast<bool>(RowValuesWithAny[IndexData.Index]))
 				{
-					IndexListOut.Push(Index);
+					IndexListOut.Push(IndexData);
 				}
 			}
 		}

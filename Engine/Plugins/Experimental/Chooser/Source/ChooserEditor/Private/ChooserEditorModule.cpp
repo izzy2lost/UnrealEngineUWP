@@ -11,6 +11,7 @@
 #include "CurveOverrideCustomization.h"
 #include "EnumColumnEditor.h"
 #include "Features/IModularFeatures.h"
+#include "FloatDistanceColumnEditor.h"
 #include "FloatRangeColumnEditor.h"
 #include "FrameTimeCustomization.h"
 #include "GameplayTagColumnEditor.h"
@@ -38,6 +39,7 @@ void FModule::StartupModule()
 	
 	FChooserTableEditor::RegisterWidgets();
 	RegisterGameplayTagWidgets();
+	RegisterFloatDistanceWidgets();
 	RegisterFloatRangeWidgets();
 	RegisterOutputFloatWidgets();
 	RegisterBoolWidgets();

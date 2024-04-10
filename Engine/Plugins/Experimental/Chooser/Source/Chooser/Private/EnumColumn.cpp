@@ -79,14 +79,14 @@ void FEnumColumn::Filter(FChooserEvaluationContext& Context, const FChooserIndex
 
 		TRACE_CHOOSER_VALUE(Context, ToCStr(InputValue.Get<FChooserParameterBase>().GetDebugName()), Result);
 		
-		for (const uint32 Index : IndexListIn)
+		for (const FChooserIndexArray::FIndexData& IndexData : IndexListIn)
 		{
-			if (RowValues.IsValidIndex(Index))
+			if (RowValues.IsValidIndex(IndexData.Index))
 			{
-				const FChooserEnumRowData& RowValue = RowValues[Index];
+				const FChooserEnumRowData& RowValue = RowValues[IndexData.Index];
 				if (RowValue.Evaluate(Result))
 				{
-					IndexListOut.Push(Index);
+					IndexListOut.Push(IndexData);
 				}
 			}
 		}

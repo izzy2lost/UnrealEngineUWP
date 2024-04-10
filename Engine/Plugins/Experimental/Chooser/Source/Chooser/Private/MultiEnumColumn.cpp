@@ -40,14 +40,14 @@ void FMultiEnumColumn::Filter(FChooserEvaluationContext& Context, const FChooser
 
 		// log if Result > 31
 		uint32 ResultBit = 1 << Result;
-		for (const uint32 Index : IndexListIn)
+		for (const FChooserIndexArray::FIndexData& IndexData : IndexListIn)
 		{
-			if (RowValues.IsValidIndex(Index))
+			if (RowValues.IsValidIndex(IndexData.Index))
 			{
-				const FChooserMultiEnumRowData& RowValue = RowValues[Index];
+				const FChooserMultiEnumRowData& RowValue = RowValues[IndexData.Index];
 				if (RowValue.Evaluate(ResultBit))
 				{
-					IndexListOut.Push(Index);
+					IndexListOut.Push(IndexData);
 				}
 			}
 		}

@@ -97,14 +97,14 @@ void FObjectColumn::Filter(FChooserEvaluationContext& Context, const FChooserInd
 		}
 #endif
 		
-		for (const uint32 Index : IndexListIn)
+		for (const FChooserIndexArray::FIndexData& IndexData : IndexListIn)
 		{
-			if (RowValues.IsValidIndex(Index))
+			if (RowValues.IsValidIndex(IndexData.Index))
 			{
-				const FChooserObjectRowData& RowValue = RowValues[Index];
+				const FChooserObjectRowData& RowValue = RowValues[IndexData.Index];
 				if (RowValue.Evaluate(Result))
 				{
-					IndexListOut.Push(Index);
+					IndexListOut.Push(IndexData);
 				}
 			}
 		}

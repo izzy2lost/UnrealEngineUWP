@@ -36,6 +36,9 @@ struct CHOOSER_API FRandomizeColumn : public FChooserColumnBase
 	UPROPERTY(EditAnywhere, Category= "Data", meta=(ClampMin="0.0",Tooltip="Multiplies the weight of the previous chosen result (set to 0 to never pick the same result twice in a row)"));
 	float RepeatProbabilityMultiplier = 1.0f;
 
+	UPROPERTY(EditAnywhere, Category= "Data", meta=(ClampMin="0.0",Tooltip="When columns with scoring are used, randomize will pick from among all rows that have a cost nearly equal to the minumum cost, using this threshold"));
+	float EqualCostThreshold = 0.001f;
+
 #if WITH_EDITORONLY_DATA
 	UPROPERTY(EditAnywhere, Category= "Data", DisplayName="DefaultRowValue");
 	float DefaultRowValue = 1.0f;

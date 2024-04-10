@@ -40,6 +40,7 @@ public:
 	virtual void PostLoad() {};
 	virtual void Filter(FChooserEvaluationContext& Context, const FChooserIndexArray& IndexListIn, FChooserIndexArray& IndexListOut) const {}
 
+	virtual bool HasCosts() const { return false; }
 	virtual bool HasFilters() const { return true; }
 	virtual bool HasOutputs() const { return false; }
 	
@@ -70,6 +71,7 @@ public:
 	// using a virtual fucntion to identify them (rather than hard coding a specific type) to potentially support multiple varieties of randomization column.
 	virtual bool IsRandomizeColumn() const { return false; }
 
+	virtual float EditorTestCost(int32 RowIndex) const { return 0.0f; }
 	virtual bool EditorTestFilter(int32 RowIndex) const { return false; }
 
 	virtual void AddToDetails(FInstancedPropertyBag& PropertyBag, int32 ColumnIndex, int32 RowIndex) {}

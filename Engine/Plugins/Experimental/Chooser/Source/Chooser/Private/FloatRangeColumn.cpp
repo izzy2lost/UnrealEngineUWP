@@ -69,35 +69,36 @@ void FFloatRangeColumn::Filter(FChooserEvaluationContext& Context, const FChoose
 		if (bWrapInput)
 		{
 			Result = FMath::Wrap(Result, MinValue, MaxValue);
-			for(uint32 Index : IndexListIn)
+			
+			for (const FChooserIndexArray::FIndexData& IndexData : IndexListIn)
 			{
-				if (RowValues.Num() > static_cast<int>(Index))
+				if (RowValues.Num() > static_cast<int>(IndexData.Index))
 				{
-					const FChooserFloatRangeRowData& RowValue = RowValues[Index];
+					const FChooserFloatRangeRowData& RowValue = RowValues[IndexData.Index];
 					if (RowValue.Max < RowValue.Min) // eg for an angle range from  135 to -135  (135 to 180 or -180 to -135)
 					{
 						if (Result >= RowValue.Min || Result <= RowValue.Max)
 						{
-							IndexListOut.Push(Index);
+							IndexListOut.Push(IndexData);
 						}
 					}
 					else if (Result >= RowValue.Min && Result <= RowValue.Max)
 					{
-						IndexListOut.Push(Index);
+						IndexListOut.Push(IndexData);
 					}
 				}
 			}
 		}
 		else
 		{
-			for(uint32 Index : IndexListIn)
+			for (const FChooserIndexArray::FIndexData& IndexData : IndexListIn)
 			{
-				if (RowValues.Num() > static_cast<int>(Index))
+				if (RowValues.Num() > static_cast<int>(IndexData.Index))
 				{
-					const FChooserFloatRangeRowData& RowValue = RowValues[Index];
+					const FChooserFloatRangeRowData& RowValue = RowValues[IndexData.Index];
 					if (Result >= RowValue.Min && Result <= RowValue.Max)
 					{
-						IndexListOut.Push(Index);
+						IndexListOut.Push(IndexData);
 					}
 				}
 			}

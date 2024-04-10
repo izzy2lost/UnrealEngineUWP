@@ -167,15 +167,38 @@ namespace UE::ChooserEditor
 							SNew(SColorBlock).Visibility(EVisibility::HitTestInvisible).Color_Lambda(
 									[this,Column]()
 									{
-										if (Chooser->bDebugTestValuesValid && Column->HasFilters())
+										if (Chooser->bDebugTestValuesValid)
 										{
-											if (Column->EditorTestFilter(RowIndex->RowIndex))
+											if (Column->HasCosts())
 											{
-												return TestPassedColor;
+												if (!Column->HasFilters() || Column->EditorTestFilter(RowIndex->RowIndex))
+												{
+													const double Cost = Column->EditorTestCost(RowIndex->RowIndex);
+
+													const FLinearColor Low(0.0, 1.0, 0.0, 0.30);
+													const FLinearColor Mid(0.8, 0.8, 0.0, 0.30);
+													const FLinearColor High(1.0, 0.0, 0.0, 0.20);
+
+													if (Cost < 0.5)
+													{
+														return FLinearColor::LerpUsingHSV(Low, Mid, FMath::Clamp(Cost * 2.0, 0.0f, 1.0f));
+													}
+													else
+													{
+														return FLinearColor::LerpUsingHSV(Mid, High, FMath::Clamp((Cost - 0.5) * 2.0, 0.0f, 1.0f));
+													}
+												}
 											}
-											else
+											else if (Column->HasFilters())
 											{
-												return TestFailedColor;
+												if (Column->EditorTestFilter(RowIndex->RowIndex))
+												{
+													return TestPassedColor;
+												}
+												else
+												{
+													return TestFailedColor;
+												}
 											}
 										}
 										return FLinearColor::Transparent;
@@ -218,7 +241,7 @@ namespace UE::ChooserEditor
 				TSharedPtr<SWidget> ResultWidget = FObjectChooserWidgetFactories::CreateWidget(false,ContextOwner, FObjectChooserBase::StaticStruct(), Chooser->FallbackResult.GetMutableMemory(), Chooser->FallbackResult.GetScriptStruct(), ContextOwner->OutputObjectType,
 				FOnStructPicked::CreateLambda([this](const UScriptStruct* ChosenStruct)
 				{
-				UChooserTable* ContextOwner = Chooser->GetContextOwner();
+					UChooserTable* ContextOwner = Chooser->GetContextOwner();
 					const FScopedTransaction Transaction(LOCTEXT("Change Row Result Type", "Change Row Result Type"));
 					Chooser->Modify(true);
 					Chooser->FallbackResult.InitializeAs(ChosenStruct);

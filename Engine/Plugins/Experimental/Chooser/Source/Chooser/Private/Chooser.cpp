@@ -362,16 +362,16 @@ FObjectChooserBase::EIteratorStatus UChooserTable::EvaluateChooser(FChooserEvalu
 	
 
 	uint32 Count = ResultsArray->Num();
-	uint32 BufferSize = Count * sizeof(uint32);
+	uint32 BufferSize = Count * sizeof(FChooserIndexArray::FIndexData);
 
-	FChooserIndexArray Indices1(static_cast<uint32*>(FMemory_Alloca(BufferSize)), Count);
-	FChooserIndexArray Indices2(static_cast<uint32*>(FMemory_Alloca(BufferSize)), Count);
+	FChooserIndexArray Indices1(static_cast<FChooserIndexArray::FIndexData*>(FMemory_Alloca(BufferSize)), Count);
+	FChooserIndexArray Indices2(static_cast<FChooserIndexArray::FIndexData*>(FMemory_Alloca(BufferSize)), Count);
 
 	for(uint32 i=0;i<Count;i++)
 	{
 		if (!Chooser->IsRowDisabled(i))
 		{
-			Indices1.Push(i);
+			Indices1.Push({i, 0});
 		}
 	}
 	FChooserIndexArray* IndicesOut = &Indices1;
@@ -393,7 +393,18 @@ FObjectChooserBase::EIteratorStatus UChooserTable::EvaluateChooser(FChooserEvalu
 			Swap(IndicesIn, IndicesOut);
 			IndicesOut->SetNum(0);
 			Column.Filter(Context, *IndicesIn, *IndicesOut);
+			
+			if (IndicesIn->HasCosts() || Column.HasCosts())
+			{
+				IndicesOut->SetHasCosts();
+			}
 		}
+	}
+
+	//	No need to score with only one valid option
+	if (IndicesOut->Num() > 1 && IndicesOut->HasCosts())
+	{
+		Algo::Sort(*IndicesOut);
 	}
 	
 	bool bSetOutputs = false;
@@ -432,11 +443,11 @@ FObjectChooserBase::EIteratorStatus UChooserTable::EvaluateChooser(FChooserEvalu
 	else
 	{
 		// of the rows that passed all column filters, iterate through them calling the callback until it returns Stop
-		for (uint32 SelectedIndex : *IndicesOut)
+		for (FChooserIndexArray::FIndexData& SelectedIndexData : *IndicesOut)
 		{
-			if (ResultsArray->Num() > (int32)SelectedIndex)
+			if (ResultsArray->IsValidIndex(SelectedIndexData.Index))
 			{
-				const FObjectChooserBase& SelectedResult = (*ResultsArray)[SelectedIndex].Get<FObjectChooserBase>();
+				const FObjectChooserBase& SelectedResult = (*ResultsArray)[SelectedIndexData.Index].Get<FObjectChooserBase>();
 				FObjectChooserBase::EIteratorStatus Status = SelectedResult.ChooseMulti(Context, Callback);
 				if (Status != FObjectChooserBase::EIteratorStatus::Continue)
 				{
@@ -445,15 +456,15 @@ FObjectChooserBase::EIteratorStatus UChooserTable::EvaluateChooser(FChooserEvalu
 					for (const FInstancedStruct& ColumnData : Chooser->ColumnsStructs)
 					{
 						const FChooserColumnBase& Column = ColumnData.Get<FChooserColumnBase>();
-						Column.SetOutputs(Context, SelectedIndex);
+						Column.SetOutputs(Context, SelectedIndexData.Index);
 					}
 					#if WITH_EDITOR
 					if (Context.DebuggingInfo.bCurrentDebugTarget)
 					{
-						Chooser->SetDebugSelectedRow(SelectedIndex);
+						Chooser->SetDebugSelectedRow(SelectedIndexData.Index);
 					}
 					#endif
-					TRACE_CHOOSER_EVALUATION(Chooser, Context, SelectedIndex);
+					TRACE_CHOOSER_EVALUATION(Chooser, Context, SelectedIndexData.Index);
 				}
 				if (Status == FObjectChooserBase::EIteratorStatus::Stop)
 				{
