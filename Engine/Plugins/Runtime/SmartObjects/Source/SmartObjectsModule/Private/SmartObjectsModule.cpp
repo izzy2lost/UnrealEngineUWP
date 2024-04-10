@@ -6,10 +6,10 @@
 #include "SmartObjectTypes.h" // IWYU pragma: keep
 #include "UObject/CoreRedirects.h"
 
-#if WITH_GAMEPLAY_DEBUGGER && WITH_SMARTOBJECT_DEBUG
+#if WITH_GAMEPLAY_DEBUGGER_MENU && WITH_SMARTOBJECT_DEBUG
 #include "GameplayDebugger.h"
 #include "GameplayDebuggerCategory_SmartObject.h"
-#endif
+#endif // WITH_GAMEPLAY_DEBUGGER_MENU && WITH_SMARTOBJECT_DEBUG
 
 #define LOCTEXT_NAMESPACE "SmartObjects"
 
@@ -45,25 +45,25 @@ void FSmartObjectsModule::StartupModule()
 
 	FCoreRedirects::AddRedirectList(Redirects, TEXT("SmartObjectsModule"));
 
-#if WITH_GAMEPLAY_DEBUGGER && WITH_SMARTOBJECT_DEBUG
+#if WITH_GAMEPLAY_DEBUGGER_MENU && WITH_SMARTOBJECT_DEBUG
 	IGameplayDebugger& GameplayDebuggerModule = IGameplayDebugger::Get();
 	GameplayDebuggerModule.RegisterCategory("SmartObject",
 		IGameplayDebugger::FOnGetCategory::CreateStatic(&FGameplayDebuggerCategory_SmartObject::MakeInstance),
 		EGameplayDebuggerCategoryState::EnabledInGameAndSimulate);
 	GameplayDebuggerModule.NotifyCategoriesChanged();
-#endif
+#endif // WITH_GAMEPLAY_DEBUGGER_MENU && WITH_SMARTOBJECT_DEBUG
 }
 
 void FSmartObjectsModule::ShutdownModule()
 {
-#if WITH_GAMEPLAY_DEBUGGER && WITH_SMARTOBJECT_DEBUG
+#if WITH_GAMEPLAY_DEBUGGER_MENU && WITH_SMARTOBJECT_DEBUG
 	if (IGameplayDebugger::IsAvailable())
 	{
 		IGameplayDebugger& GameplayDebuggerModule = IGameplayDebugger::Get();
 		GameplayDebuggerModule.UnregisterCategory("SmartObject");
 		GameplayDebuggerModule.NotifyCategoriesChanged();
 	}
-#endif
+#endif // WITH_GAMEPLAY_DEBUGGER_MENU && WITH_SMARTOBJECT_DEBUG
 }
 
 #undef LOCTEXT_NAMESPACE

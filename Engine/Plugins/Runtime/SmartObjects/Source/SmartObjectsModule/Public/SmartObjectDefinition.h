@@ -518,7 +518,28 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 			*LexToString(Definition.Preconditions.IsValid()));
 	}
 
+	/**
+	 * Indicates if 'Validate' was called.
+	 * Need to be called before calling 'IsDefinitionValid' to make the distinction between
+	 * an invalid asset and one that hasn't been validated yet.
+	 * @return true if 'Validate' was called, false otherwise
+	 * @see Validate
+	 * @see IsValidDefinition
+	 */
+	bool HasBeenValidated() const { return bValid.IsSet(); }
+
+	/**
+	 * Indicates the result of the last validation if 'Validate' was called.
+	 * Need to call 'HasBeenValidated' before to make the distinction between an invalid
+	 * asset and one that hasn't been validated yet.
+	 * @returns result of the last validation if 'Validate' was called; false otherwise
+	 * @see Validate
+	 * @see HasBeenValidated
+	 */
+	bool IsDefinitionValid() const { return bValid.Get(false); }
+
 	/** Returns result of the last validation if `Validate` was called; unset otherwise. */
+	UE_DEPRECATED(5.5, "Use IsDefinitionValid that returns a boolean instead.")
 	TOptional<bool> IsValid() const { return bValid; }
 
 #if WITH_EDITORONLY_DATA

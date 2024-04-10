@@ -573,9 +573,9 @@ void USmartObjectDefinition::PostLoad()
 #if WITH_EDITOR
 	UpdateSlotReferences();
 	UpdateBindingPaths();
+#endif // WITH_EDITOR
 
 	Validate();
-#endif	
 }
 
 USmartObjectDefinition* USmartObjectDefinition::GetAssetVariation(const FInstancedPropertyBag& VariationParameters)

@@ -669,15 +669,14 @@ bool USmartObjectSubsystem::RegisterSmartObject(USmartObjectComponent& SmartObje
 		return false;
 	}
 
-	TOptional<bool> bIsValid = Definition->IsValid();
-	if (bIsValid.IsSet() == false)
+	if (Definition->HasBeenValidated() == false)
 	{
 		UE_VLOG_UELOG(this, LogSmartObject, Log, TEXT("Attempting to register '%s' while its DefinitionAsset has not been Validated. Validating now."),
 			*UE::SmartObject::DebugGetComponentName(SmartObjectComponent));
-		bIsValid = Definition->Validate();
+		Definition->Validate();
 	}
 	
-	if (bIsValid.GetValue() == false)
+	if (Definition->IsDefinitionValid() == false)
 	{
 		UE_VLOG_UELOG(this, LogSmartObject, Log, TEXT("Attempting to register '%s' while its DefinitionAsset fails validation test. Bailing out."
 													" Resave asset '%s' to see the errors and fix the problem."),
@@ -2654,7 +2653,7 @@ void USmartObjectSubsystem::AddContainerToSimulation(const FSmartObjectContainer
 		const USmartObjectDefinition* Definition = InSmartObjectContainer.GetDefinitionForEntry(Entry);
 		USmartObjectComponent* Component = Entry.GetComponent();
 
-		if (Definition == nullptr || Definition->IsValid() == false)
+		if (Definition == nullptr || Definition->IsDefinitionValid() == false)
 		{
 			UE_CVLOG_UELOG(Component != nullptr, Component->GetOwner(), LogSmartObject, Error,
 				TEXT("Skipped runtime data creation for SmartObject %s: Invalid definition"), *GetNameSafe(Component->GetOwner()));
