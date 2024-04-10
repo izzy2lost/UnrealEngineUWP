@@ -507,6 +507,19 @@ struct FPackageReferencer
 #if WITH_EDITOR
 	ECookLoadType CookLoadType = ECookLoadType::Unexpected;
 #endif
+
+	static FPackageReferencer FromImport(FName ReferencerName)
+	{
+		FPackageReferencer Result;
+#if UE_WITH_PACKAGE_ACCESS_TRACKING
+		Result.ReferencerPackageName = ReferencerName;
+		Result.ReferencerPackageOp = PackageAccessTrackingOps::NAME_Load;
+#endif
+#if WITH_EDITOR
+		Result.CookLoadType = ECookLoadType::Unexpected;
+#endif
+		return Result;
+	}
 };
 
 struct FPackageRequest
@@ -633,7 +646,7 @@ struct FAsyncPackageDesc2
 			PackageIdToLoad,
 			UPackageName,
 			MoveTemp(PackagePathToLoad),
-			ImportingPackageDesc.PackageReferencer,
+			FPackageReferencer::FromImport(ImportingPackageDesc.UPackageName),
 			true
 		};
 	}
