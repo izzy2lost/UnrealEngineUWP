@@ -17,7 +17,10 @@ class alignas(Alignment) TStaticArray
 public:
 	using ElementType = InElementType;
 
-	TStaticArray() = default;
+	TStaticArray() 
+		: Storage()
+	{
+	}
 
 	template <typename... ArgTypes>
 	explicit TStaticArray(EInPlace, ArgTypes&&... Args)
@@ -90,7 +93,7 @@ private:
 
 	struct alignas(Alignment) TArrayStorageElementAligned
 	{
-		TArrayStorageElementAligned() = default;
+		TArrayStorageElementAligned() {}
 
 		// Index is used to achieve pack expansion in TArrayStorage, but is unused here
 		template <typename... ArgTypes>
@@ -104,7 +107,10 @@ private:
 
 	struct TArrayStorage
 	{
-		TArrayStorage() = default;
+		TArrayStorage()
+			: Elements()
+		{
+		}
 
 		template<uint32... Indices, typename... ArgTypes>
 		explicit TArrayStorage(EInPlace, TIntegerSequence<uint32, Indices...>, ArgTypes&&... Args)
