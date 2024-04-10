@@ -110,6 +110,13 @@ FVulkanResourceMultiBuffer::FVulkanResourceMultiBuffer(FVulkanDevice* InDevice, 
 	const bool bZeroSize = (InBufferDesc.Size == 0);
 	BufferUsageFlags = UEToVKBufferUsageFlags(InDevice, InBufferDesc.Usage, bZeroSize);
 	
+	#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
+	if (CreateInfo.DebugName)
+	{
+		SetName(CreateInfo.DebugName);
+	}
+	#endif
+
 	if (!bZeroSize)
 	{
 		check(InDevice);
