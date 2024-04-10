@@ -101,6 +101,8 @@ DECLARE_GPU_STAT(SparseVolumeTextureViewer);
 
 void AddSparseVolumeTextureViewerRenderPass(FRDGBuilder& GraphBuilder, FSceneRenderer& SceneRenderer, FSceneTextures& SceneTextures)
 {
+#if WITH_EDITORONLY_DATA // The SparseVolumeTexture viewer is only supported in editor builds
+
 	FScene* Scene = SceneRenderer.Scene;
 
 	if (Scene->SparseVolumeTextureViewers.Num() == 0)
@@ -216,4 +218,5 @@ void AddSparseVolumeTextureViewerRenderPass(FRDGBuilder& GraphBuilder, FSceneRen
 		}
 	}
 
+#endif // WITH_EDITORONLY_DATA
 }
