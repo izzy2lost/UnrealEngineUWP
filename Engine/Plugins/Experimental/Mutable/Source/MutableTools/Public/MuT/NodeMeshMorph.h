@@ -13,7 +13,7 @@ namespace mu
 
 	// Forward definitions
 	class NodeScalar;
-
+	struct FBoneName;
 
 	/** Node that morphs a base mesh with one weighted target. */
 	class MUTABLETOOLS_API NodeMeshMorph : public NodeMesh
@@ -61,10 +61,10 @@ namespace mu
 		void SetReshapePhysicsVolumes(bool);
 
 		/** Sets the number of bones that will be deform */
-		void AddBoneToDeform(const uint16 BoneName);	
+		void AddBoneToDeform(const FBoneName& BoneName);	
 
 		/** Add a Physics Body to deform */
-		void AddPhysicsBodyToDeform(const uint16 BoneName);
+		void AddPhysicsBodyToDeform(const FBoneName& BoneName);
 
         //-----------------------------------------------------------------------------------------
 		// Interface pattern

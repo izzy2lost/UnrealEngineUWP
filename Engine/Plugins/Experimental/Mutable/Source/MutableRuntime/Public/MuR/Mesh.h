@@ -15,7 +15,6 @@
 #include "MuR/Ptr.h"
 #include "MuR/RefCounted.h"
 #include "MuR/Serialisation.h"
-#include "MuR/Serialisation.h"
 #include "MuR/Skeleton.h"
 #include "Templates/Tuple.h"
 
@@ -290,7 +289,7 @@ namespace mu
 		const TArray<uint32>& GetStreamedResources() const;
 
 		//!
-		int32 FindBonePose(uint16 BoneId) const;
+		int32 FindBonePose(const FBoneName& BoneName) const;
 		
 		//!
 		void SetBonePoseCount(int32 count);
@@ -299,22 +298,22 @@ namespace mu
 		int32 GetBonePoseCount() const;
 
 		//!
-		void SetBonePose(int32 Index, uint16 BoneId, FTransform3f Transform, EBoneUsageFlags BoneUsageFlags);
+		void SetBonePose(int32 Index, const FBoneName& BoneName, FTransform3f Transform, EBoneUsageFlags BoneUsageFlags);
 
-		//! Return BoneId (uint16) of the pose at index PoseIndex or INDEX_NONE
-		int32 GetBonePoseBoneId(int32 PoseIndex) const;
+		//! @return - Bone identifier of the pose at 'Index'.
+		const FBoneName& GetBonePoseId(int32 BoneIndex) const;
 
 		//! Return a matrix stored per bone. It is a set of 16-float values.
-		void GetBoneTransform(int32 BoneIndex, FTransform3f& Transform) const;
+		void GetBonePoseTransform(int32 BoneIndex, FTransform3f& Transform) const;
 
 		//! 
 		EBoneUsageFlags GetBoneUsageFlags(int32 BoneIndex) const;
 
 		//! Set the bonemap of this mesh
-		void SetBoneMap(const TArray<uint16>& InBoneMap);
+		void SetBoneMap(const TArray<FBoneName>& InBoneMap);
 
-		//! Return an array containing the bonemap indices of all surfaces in the mesh.
-		const TArray<uint16>& GetBoneMap() const;
+		//! Return an array containing the bonemaps of all surfaces in the mesh.
+		const TArray<FBoneName>& GetBoneMap() const;
 
 		//!
 		int32 GetSkeletonIDsCount() const;
@@ -390,17 +389,14 @@ namespace mu
 
 		struct FBonePose
 		{
-			// Index of the bone in the CO BoneNames array
-			uint16 BoneId;
+			// Identifier built from the bone FName.
+			FBoneName BoneId;
 
 			EBoneUsageFlags BoneUsageFlags = EBoneUsageFlags::None;
 			FTransform3f BoneTransform;
 
 			inline void Serialise(OutputArchive& arch) const;
-
-
 			inline void Unserialise(InputArchive& arch);
-
 
 			//!
 			inline bool operator==(const FBonePose& Other) const
@@ -413,7 +409,7 @@ namespace mu
 		TMemoryTrackedArray<FBonePose> BonePoses;
 
 		// Array containing the bonemaps of all surfaces in the mesh.
-		TArray<uint16> BoneMap;
+		TArray<FBoneName> BoneMap;
 
 		//!
 		inline void Serialise(OutputArchive& arch) const;

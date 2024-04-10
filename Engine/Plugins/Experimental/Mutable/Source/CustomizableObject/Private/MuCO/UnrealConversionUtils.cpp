@@ -7,6 +7,7 @@
 #include "Engine/SkeletalMesh.h"
 #include "GPUSkinVertexFactory.h"
 #include "MuCO/CustomizableObject.h"
+#include "MuR/Skeleton.h"
 #include "MuR/Mesh.h"
 #include "MuR/MeshBufferSet.h"
 #include "MuR/MutableTrace.h"
@@ -162,7 +163,8 @@ namespace UnrealConversionUtils
 	void SetupRenderSections(
 		FSkeletalMeshLODRenderData& LODResource,
 		const mu::MeshPtrConst InMutableMesh,
-		const TArray<uint16>& InBoneMap,
+		const TArray<mu::FBoneName>& InBoneMap,
+		const TMap<mu::FBoneName, TPair<FName, uint16>>& BoneInfoMap,
 		const int32 InFirstBoneMapIndex)
 	{
 		check(InMutableMesh);
@@ -218,7 +220,7 @@ namespace UnrealConversionUtils
 			Section.BoneMap.Reserve(BoneCount);
 			for (int32 BoneMapIndex = 0; BoneMapIndex < BoneCount; ++BoneMapIndex, ++FirstBone)
 			{
-				Section.BoneMap.Add(InBoneMap[FirstBone]);
+				Section.BoneMap.Add(BoneInfoMap[InBoneMap[FirstBone]].Value);
 			}
 		}
 	}

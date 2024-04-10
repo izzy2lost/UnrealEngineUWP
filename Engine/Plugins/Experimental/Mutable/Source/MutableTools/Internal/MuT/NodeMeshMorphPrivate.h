@@ -6,6 +6,7 @@
 #include "MuT/NodeScalar.h"
 #include "MuT/NodeMeshPrivate.h"
 #include "MuT/AST.h"
+#include "MuR/Skeleton.h"
 
 namespace mu
 {
@@ -24,13 +25,13 @@ namespace mu
 		bool bReshapeSkeleton = false;
 		bool bReshapePhysicsVolumes = false;
 		
-		TArray<uint16> BonesToDeform;
-		TArray<uint16> PhysicsToDeform;
+		TArray<FBoneName> BonesToDeform;
+		TArray<FBoneName> PhysicsToDeform;
 
         //!
 		void Serialise( OutputArchive& arch ) const
 		{
-            uint32_t ver = 7;
+            uint32_t ver = 8;
 			arch << ver;
 
 			arch << Factor;
@@ -86,9 +87,21 @@ namespace mu
 					arch >> bReshapePhysicsVolumes;
 				}
 
-				if (ver >= 7)
+				if (ver >= 8)
 				{
 					arch >> BonesToDeform;
+				}
+				else if (ver == 7)
+				{
+					TArray<uint16> BonesToDeform_DEPRECATED;
+					arch >> BonesToDeform_DEPRECATED;
+
+					const int32 NumBonesToDeform = BonesToDeform_DEPRECATED.Num();
+					BonesToDeform.SetNum(NumBonesToDeform);
+					for (int32 Index = 0; Index < NumBonesToDeform; ++Index)
+					{
+						BonesToDeform[Index].Id = BonesToDeform_DEPRECATED[Index];
+					}
 				}
 				else
 				{
@@ -99,7 +112,7 @@ namespace mu
 					BonesToDeform.SetNumUninitialized(NumBonesToDeform);
 					for (int32 Index = 0; Index < NumBonesToDeform; ++Index)
 					{
-						BonesToDeform[Index] = Index;
+						BonesToDeform[Index].Id = Index;
 					}
 				}
 			}
@@ -122,9 +135,21 @@ namespace mu
 				arch >> bDeformAllPhysics_DEPRECATED;
 			}
 
-			if (ver >= 7)
+			if (ver >= 8)
 			{
 				arch >> PhysicsToDeform;
+			}
+			else if (ver == 7)
+			{
+				TArray<uint16> PhysicsToDeform_DEPRECATED;
+				arch >> PhysicsToDeform_DEPRECATED;
+
+				const int32 NumPhysicsToDeform = PhysicsToDeform_DEPRECATED.Num();
+				PhysicsToDeform.SetNum(NumPhysicsToDeform);
+				for (int32 Index = 0; Index < NumPhysicsToDeform; ++Index)
+				{
+					PhysicsToDeform[Index].Id = PhysicsToDeform_DEPRECATED[Index];
+				}
 			}
 			else if (ver >= 3)
 			{
@@ -135,7 +160,7 @@ namespace mu
 				PhysicsToDeform.SetNumUninitialized(NumPhysicsToDeform);
 				for (int32 Index = 0; Index < NumPhysicsToDeform; ++Index)
 				{
-					PhysicsToDeform[Index] = Index;
+					PhysicsToDeform[Index].Id = Index;
 				}
 			}
 			else

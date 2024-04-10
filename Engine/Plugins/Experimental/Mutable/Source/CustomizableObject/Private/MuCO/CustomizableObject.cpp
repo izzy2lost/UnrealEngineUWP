@@ -550,7 +550,7 @@ void UCustomizableObjectPrivate::SaveCompiledData(FArchive& MemoryWriter, bool b
 	MemoryWriter << LocalModelResources.AnimBpOverridePhysiscAssetsInfo;
 
 	MemoryWriter << LocalModelResources.MaterialSlotNames;
-	MemoryWriter << LocalModelResources.BoneNames;
+	MemoryWriter << LocalModelResources.RemappedBoneNames;
 	MemoryWriter << LocalModelResources.SocketArray;
 
 	MemoryWriter << LocalModelResources.SkinWeightProfilesInfo;
@@ -671,7 +671,7 @@ void UCustomizableObjectPrivate::LoadCompiledData(FArchive& MemoryReader, const 
 		MemoryReader << LocalModelResource.AnimBpOverridePhysiscAssetsInfo;
 
 		MemoryReader << LocalModelResource.MaterialSlotNames;
-		MemoryReader << LocalModelResource.BoneNames;
+		MemoryReader << LocalModelResource.RemappedBoneNames;
 		MemoryReader << LocalModelResource.SocketArray;
 
 		MemoryReader << LocalModelResource.SkinWeightProfilesInfo;
@@ -2360,6 +2360,13 @@ bool FMutableSkinWeightProfileInfo::operator==(const FMutableSkinWeightProfileIn
 
 
 #if WITH_EDITORONLY_DATA
+FArchive& operator<<(FArchive& Ar, FMutableRemappedBone& RemappedBone)
+{
+	Ar << RemappedBone.Name;
+	Ar << RemappedBone.Hash;
+	return Ar;
+}
+
 FArchive& operator<<(FArchive& Ar, FMutableModelImageProperties& ImageProps)
 {
 	Ar << ImageProps.TextureParameterName;

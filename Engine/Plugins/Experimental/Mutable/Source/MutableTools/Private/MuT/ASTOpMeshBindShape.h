@@ -6,13 +6,13 @@
 #include "HAL/Platform.h"
 #include "MuR/Operations.h"
 #include "MuR/Ptr.h"
+#include "MuR/Skeleton.h"
 #include "MuT/AST.h"
 
 
 namespace mu
 {
-struct FProgram;
-
+	struct FProgram;
 
 	//---------------------------------------------------------------------------------------------
 	//!
@@ -24,8 +24,8 @@ struct FProgram;
 		ASTChild Mesh;
 		ASTChild Shape;
 
-		TArray<uint16> BonesToDeform;
-		TArray<uint16> PhysicsToDeform;
+		TArray<FBoneName> BonesToDeform;
+		TArray<FBoneName> PhysicsToDeform;
 
 		uint32 BindingMethod = 0;
 		

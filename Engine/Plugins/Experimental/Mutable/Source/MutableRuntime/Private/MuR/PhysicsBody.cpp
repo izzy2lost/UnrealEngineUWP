@@ -279,14 +279,14 @@ namespace mu
 	}
 
 	//-------------------------------------------------------------------------------------------------
-	uint16 PhysicsBody::GetBodyBoneId(int32 B) const
+	const FBoneName& PhysicsBody::GetBodyBoneId(int32 B) const
 	{
 		check(BoneIds.IsValidIndex(B));
 		return BoneIds[B];
 	}
 
 	//-------------------------------------------------------------------------------------------------
-	void PhysicsBody::SetBodyBoneId(int32 B, const uint16 BoneId)
+	void PhysicsBody::SetBodyBoneId(int32 B, const FBoneName& BoneId)
 	{
 		check(BoneIds.IsValidIndex(B));
 		BoneIds[B] = BoneId;
@@ -719,7 +719,7 @@ namespace mu
 	//-------------------------------------------------------------------------------------------------
 	void PhysicsBody::Serialise(OutputArchive& arch) const
 	{
-		uint32 ver = 3;
+		uint32 ver = 4;
 		arch << ver;
         	
 		arch << CustomId;
@@ -735,7 +735,7 @@ namespace mu
 	{
 		uint32 ver;
 		arch >> ver;
-		check(ver <= 3);
+		check(ver <= 4);
         	
 		if (ver >= 2)
 		{
@@ -744,9 +744,21 @@ namespace mu
         	
 		arch >> Bodies;
 
-		if (ver >= 3)
+		if (ver >= 4)
 		{
 			arch >> BoneIds;
+		}
+		else if (ver == 3)
+		{
+			TArray<uint16> BoneIds_DEPRECATED;
+			arch >> BoneIds_DEPRECATED;
+
+			const int32 NumBoneNames = BoneIds_DEPRECATED.Num();
+			BoneIds.SetNum(NumBoneNames);
+			for (int32 BoneIndex = 0; BoneIndex < NumBoneNames; ++BoneIndex)
+			{
+				BoneIds[BoneIndex].Id = BoneIds_DEPRECATED[BoneIndex];
+			}
 		}
 		else
 		{
@@ -759,7 +771,7 @@ namespace mu
 			BoneIds.Reserve(NumBoneNames);
 			for (int32 BoneIndex = 0; BoneIndex < NumBoneNames; ++BoneIndex)
 			{
-				BoneIds.Add((uint16)UniqueBoneNames.AddUnique(BoneNames[BoneIndex]));
+				BoneIds.Add(FBoneName(BoneIndex));
 			}
 		}
 		arch >> BodiesCustomIds;

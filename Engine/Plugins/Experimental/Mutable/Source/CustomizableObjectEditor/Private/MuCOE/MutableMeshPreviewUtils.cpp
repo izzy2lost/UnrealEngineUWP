@@ -9,6 +9,7 @@
 #include "MuCO/MutableMeshBufferUtils.h"
 #include "MuCO/UnrealConversionUtils.h"
 #include "MuCO/UnrealPortabilityHelpers.h"
+#include "MuR/Skeleton.h"
 #include "MuR/OpMeshFormat.h"
 #include "Engine/SkeletalMesh.h"
 #include "MuCO/CustomizableObject.h"
@@ -314,7 +315,7 @@ namespace MutableMeshPreviewUtils
 				for (int32 BoneIndex = 0; BoneIndex < BonePoseCount; ++BoneIndex)
 				{
 					FTransform3f Transform;
-					InMutableMesh->GetBoneTransform(BoneIndex, Transform);
+					InMutableMesh->GetBonePoseTransform(BoneIndex, Transform);
 
 					Points.Add(FVector(Transform.GetTranslation()));
 				}
@@ -374,8 +375,11 @@ namespace MutableMeshPreviewUtils
 			const int32 NumBonesInBoneMap = !InMutableMesh->GetBoneMap().IsEmpty() ? InMutableMesh->GetBoneMap().Num() : InMutableMesh->GetBonePoseCount();
 			
 			// Fill the bonemap with zeros
-			TArray<uint16> BoneMap;
+			TArray<mu::FBoneName> BoneMap;
 			BoneMap.SetNumZeroed(FMath::Max(NumBonesInBoneMap, 1));
+
+			TMap <mu::FBoneName, TPair<FName, uint16>> BoneInfoMap;
+			BoneInfoMap.Add(mu::FBoneName(0), {NAME_None, 0});
 
 			FSkeletalMeshLODRenderData& LODResource = OutSkeletalMesh->GetResourceForRendering()->LODRenderData[0];
 
@@ -385,6 +389,7 @@ namespace MutableMeshPreviewUtils
 				LODResource,
 				InMutableMesh,
 				BoneMap,
+				BoneInfoMap,
 				0);
 
 			UnrealConversionUtils::CopyMutableVertexBuffers(

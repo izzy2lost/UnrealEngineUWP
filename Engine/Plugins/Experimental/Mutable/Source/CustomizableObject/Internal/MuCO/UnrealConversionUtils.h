@@ -9,11 +9,13 @@
 
 #include "MuR/Ptr.h"
 #include "Containers/Array.h"
+#include "Containers/Map.h"
 
 namespace mu
 {
 	class Mesh;
 	class FMeshBufferSet;
+	struct FBoneName;
 }
 struct FReferenceSkeleton;
 
@@ -40,7 +42,8 @@ namespace UnrealConversionUtils
 	CUSTOMIZABLEOBJECT_API void SetupRenderSections(
 		FSkeletalMeshLODRenderData& LODResource,
 		const mu::Ptr<const mu::Mesh> InMutableMesh,
-		const TArray<uint16>& InBoneMap,
+		const TArray<mu::FBoneName>& InBoneMap,
+		const TMap<mu::FBoneName, TPair<FName, uint16>>& BoneInfoMap,
 		const int32 InFirstBoneMapIndex);
 
 

@@ -2022,7 +2022,7 @@ namespace mu
 					Ptr<Mesh> Result = CreateMesh(Source ? Source->GetDataSize() : 0);
 
 					bool bOutSuccess = false;
-					MeshClipMorphPlane(Result.get(), Source.get(), origin, normal, args.dist, args.factor, morphShape.size[0], morphShape.size[1], morphShape.size[2], selectionShape, bOutSuccess, INDEX_NONE, -1);
+					MeshClipMorphPlane(Result.get(), Source.get(), origin, normal, args.dist, args.factor, morphShape.size[0], morphShape.size[1], morphShape.size[2], selectionShape, bOutSuccess, nullptr, -1);
 					
 					if (!bOutSuccess)
 					{
@@ -2043,8 +2043,11 @@ namespace mu
 
 					Ptr<Mesh> Result = CreateMesh(Source->GetDataSize());
 
+					check(args.vertexSelectionShapeOrBone <= MAX_uint32);
+					const FBoneName Bone(args.vertexSelectionShapeOrBone);
+
 					bool bOutSuccess = false;
-					MeshClipMorphPlane(Result.get(), Source.get(), origin, normal, args.dist, args.factor, morphShape.size[0], morphShape.size[1], morphShape.size[2], selectionShape, bOutSuccess, args.vertexSelectionShapeOrBone, args.maxBoneRadius);
+					MeshClipMorphPlane(Result.get(), Source.get(), origin, normal, args.dist, args.factor, morphShape.size[0], morphShape.size[1], morphShape.size[2], selectionShape, bOutSuccess, &Bone, args.maxBoneRadius);
 
 					if (!bOutSuccess)
 					{
@@ -2066,7 +2069,7 @@ namespace mu
 					Ptr<Mesh> Result = CreateMesh(Source ? Source->GetDataSize() : 0);
 
 					bool bOutSuccess = false;
-					MeshClipMorphPlane(Result.get(), Source.get(), origin, normal, args.dist, args.factor, morphShape.size[0], morphShape.size[1], morphShape.size[2], selectionShape, bOutSuccess, INDEX_NONE, -1.0f);
+					MeshClipMorphPlane(Result.get(), Source.get(), origin, normal, args.dist, args.factor, morphShape.size[0], morphShape.size[1], morphShape.size[2], selectionShape, bOutSuccess, nullptr, -1.0f);
 
 					if (!bOutSuccess)
 					{
@@ -2376,19 +2379,19 @@ namespace mu
 					FMemory::Memcpy(&NumBones, Data, sizeof(int32)); 
 					Data += sizeof(int32);
 					
-					TArray<uint16> BonesToDeform;
+					TArray<FBoneName> BonesToDeform;
 					BonesToDeform.SetNumUninitialized(NumBones);
-					FMemory::Memcpy(BonesToDeform.GetData(), Data, NumBones * sizeof(uint16));
-					Data += NumBones * sizeof(uint16);
+					FMemory::Memcpy(BonesToDeform.GetData(), Data, NumBones * sizeof(FBoneName));
+					Data += NumBones * sizeof(FBoneName);
 
 					int32 NumPhysicsBodies;
 					FMemory::Memcpy(&NumPhysicsBodies, Data, sizeof(int32)); 
 					Data += sizeof(int32);
 
-					TArray<uint16> PhysicsToDeform;
+					TArray<FBoneName> PhysicsToDeform;
 					PhysicsToDeform.SetNumUninitialized(NumPhysicsBodies);
-					FMemory::Memcpy(PhysicsToDeform.GetData(), Data, NumPhysicsBodies * sizeof(uint16));
-					Data += NumPhysicsBodies * sizeof(uint16);
+					FMemory::Memcpy(PhysicsToDeform.GetData(), Data, NumPhysicsBodies * sizeof(FBoneName));
+					Data += NumPhysicsBodies * sizeof(FBoneName);
 
 					const EMeshBindShapeFlags BindFlags = static_cast<EMeshBindShapeFlags>(Args.flags);
 
@@ -2627,7 +2630,7 @@ namespace mu
                 {
                     if ( Source->GetSkeleton()
                          &&
-                         !Source->GetSkeleton()->BoneIds.IsEmpty() )
+                         Source->GetSkeleton()->GetBoneCount() > 0 )
                     {
                         // For some reason we already have bone data, so we can't just overwrite it
                         // or the skinning may break. This may happen because of a problem in the

@@ -49,6 +49,7 @@
 #include "PhysicsEngine/AggregateGeom.h"
 #include "PhysicsEngine/PhysicsConstraintTemplate.h"
 #include "PhysicsEngine/SkeletalBodySetup.h"
+#include "Hash/CityHash.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(CustomizableObjectInstance)
 
@@ -1187,7 +1188,10 @@ namespace
 	};
 
 	TObjectPtr<UPhysicsAsset> MakePhysicsAssetFromTemplateAndMutableBody(
-		TObjectPtr<UPhysicsAsset> TemplateAsset, const mu::PhysicsBody* MutablePhysics, const UCustomizableObject& CustomizableObject) 
+		const TSharedRef<FUpdateContextPrivate>& OperationData,
+		TObjectPtr<UPhysicsAsset> TemplateAsset,
+		const mu::PhysicsBody* MutablePhysics,
+		int32 ComponentIndex)
 	{
 		check(TemplateAsset);
 		TObjectPtr<UPhysicsAsset> Result = NewObject<UPhysicsAsset>();
@@ -1202,18 +1206,16 @@ namespace
 
 		Result->bNotForDedicatedServer = TemplateAsset->bNotForDedicatedServer;
 
-		const FModelResources& ModelResources = CustomizableObject.GetPrivate()->GetModelResources();
+		const TMap<mu::FBoneName, TPair<FName, uint16>>& BoneInfoMap = OperationData->InstanceUpdateData.Skeletons[ComponentIndex].BoneInfoMap;
 		TMap<FName, int32> BonesInUse;
 
 		const int32 MutablePhysicsBodyCount = MutablePhysics->GetBodyCount();
 		BonesInUse.Reserve(MutablePhysicsBodyCount);
 		for ( int32 I = 0; I < MutablePhysicsBodyCount; ++I )
 		{
-			const uint16 BoneNameId = MutablePhysics->GetBodyBoneId(I);
-			if (ModelResources.BoneNames.IsValidIndex(BoneNameId))
+			if (const TPair<FName, uint16>* BoneInfo = BoneInfoMap.Find(MutablePhysics->GetBodyBoneId(I)))
 			{
-				FName BoneName = ModelResources.BoneNames[BoneNameId];
-				BonesInUse.Add(BoneName, I);
+				BonesInUse.Add(BoneInfo->Key, I);
 			}
 		}
 
@@ -1313,11 +1315,11 @@ namespace
 }
 
 UPhysicsAsset* UCustomizableInstancePrivate::GetOrBuildMainPhysicsAsset(
+	const TSharedRef<FUpdateContextPrivate>& OperationData,
 	TObjectPtr<UPhysicsAsset> TemplateAsset,
 	const mu::PhysicsBody* MutablePhysics,
-	const UCustomizableObject& CustomizableObject,
-	int32 ComponentId,
-	bool bDisableCollisionsBetweenDifferentAssets)
+	bool bDisableCollisionsBetweenDifferentAssets,
+	int32 ComponentIndex)
 {
 
 	MUTABLE_CPUPROFILER_SCOPE(MergePhysicsAssets);
@@ -1326,7 +1328,7 @@ UPhysicsAsset* UCustomizableInstancePrivate::GetOrBuildMainPhysicsAsset(
 
 	UPhysicsAsset* Result = nullptr;
 
-	FCustomizableInstanceComponentData* ComponentData = GetComponentData(ComponentId);
+	FCustomizableInstanceComponentData* ComponentData = GetComponentData(ComponentIndex);
 	check(ComponentData);
 
 	TArray<TObjectPtr<UPhysicsAsset>>& PhysicsAssets = ComponentData->PhysicsAssets.PhysicsAssetsToMerge;
@@ -1370,18 +1372,16 @@ UPhysicsAsset* UCustomizableInstancePrivate::GetOrBuildMainPhysicsAsset(
 
 	Result->bNotForDedicatedServer = TemplateAsset->bNotForDedicatedServer;
 
-	const FModelResources& ModelResources = CustomizableObject.GetPrivate()->GetModelResources();
+	const TMap<mu::FBoneName, TPair<FName, uint16>>& BoneInfoMap = OperationData->InstanceUpdateData.Skeletons[ComponentIndex].BoneInfoMap;
 	TMap<FName, int32> BonesInUse;
 
 	const int32 MutablePhysicsBodyCount = MutablePhysics->GetBodyCount();
 	BonesInUse.Reserve(MutablePhysicsBodyCount);
 	for ( int32 I = 0; I < MutablePhysicsBodyCount; ++I )
 	{
-		const uint16 BoneNameId = MutablePhysics->GetBodyBoneId(I);
-		if (ModelResources.BoneNames.IsValidIndex(BoneNameId))
+		if (const TPair<FName, uint16>* BoneInfo = BoneInfoMap.Find(MutablePhysics->GetBodyBoneId(I)))
 		{
-			FName BoneName = ModelResources.BoneNames[BoneNameId];
-			BonesInUse.Add(BoneName, I);
+			BonesInUse.Add(BoneInfo->Key, I);
 		}
 	}
 
@@ -1856,7 +1856,7 @@ bool UCustomizableInstancePrivate::UpdateSkeletalMesh_PostBeginUpdate0(UCustomiz
 			{
 				constexpr bool bDisallowCollisionBetweenAssets = true;
 				UPhysicsAsset* PhysicsAssetResult = GetOrBuildMainPhysicsAsset(
-					RefSkeletalMeshData.PhysicsAsset, MutablePhysics.get(), *CustomizableObject, Component.Id, bDisallowCollisionBetweenAssets);
+					OperationData, RefSkeletalMeshData.PhysicsAsset, MutablePhysics.get(), bDisallowCollisionBetweenAssets, Component.Id);
 
 				SkeletalMesh->SetPhysicsAsset(PhysicsAssetResult);
 
@@ -1905,7 +1905,8 @@ bool UCustomizableInstancePrivate::UpdateSkeletalMesh_PostBeginUpdate0(UCustomiz
 					PhysicsAssetsUsedByAnimBp.AnimInstancePropertyIndexAndPhysicsAssets.Emplace_GetRef();
 
 				Entry.PropertyIndex = Info.PropertyIndex;
-				Entry.PhysicsAsset = MakePhysicsAssetFromTemplateAndMutableBody(PhysicsAssetTemplate, AdditionalPhysiscBody.get(), *CustomizableObject);
+				Entry.PhysicsAsset = MakePhysicsAssetFromTemplateAndMutableBody(
+					OperationData,PhysicsAssetTemplate, AdditionalPhysiscBody.get(), Component.Id);
 			}
 
 			// Add sockets from the SkeletalMesh of reference and from the MutableMesh
@@ -3311,96 +3312,72 @@ bool UCustomizableInstancePrivate::BuildSkeletonData(const TSharedRef<FUpdateCon
 	SkeletalMesh.SetRefSkeleton(Skeleton->GetReferenceSkeleton());
 	FReferenceSkeleton& ReferenceSkeleton = SkeletalMesh.GetRefSkeleton();
 
-	// Check that the bones we need are present in the current Skeleton
-	FInstanceUpdateData::FSkeletonData& MutSkeletonData = OperationData->InstanceUpdateData.Skeletons[ComponentIndex];
-	const int32 MutBoneCount = MutSkeletonData.BoneIds.Num();
-	
-	TMap<uint16, uint16> BoneToFinalBoneIndexMap;
-	BoneToFinalBoneIndexMap.Reserve(MutBoneCount);
+	const TArray<FMeshBoneInfo>& RawRefBoneInfo = ReferenceSkeleton.GetRawRefBoneInfo();
+	const int32 RawRefBoneCount = ReferenceSkeleton.GetRawBoneNum();
+
+	const TArray<FInstanceUpdateData::FBone>& BonePose = OperationData->InstanceUpdateData.Skeletons[ComponentIndex].BonePose;
+	TMap<mu::FBoneName, TPair<FName,uint16>>& BoneInfoMap = OperationData->InstanceUpdateData.Skeletons[ComponentIndex].BoneInfoMap;
+
+	{
+		MUTABLE_CPUPROFILER_SCOPE(BuildSkeletonData_BuildBoneInfoMap);
+
+		BoneInfoMap.Reserve(RawRefBoneCount);
+
+		const FModelResources& ModelResources = CustomizableObject.GetPrivate()->GetModelResources();
+		for (int32 Index = 0; Index < RawRefBoneCount; ++Index)
+		{
+			const FName BoneName = RawRefBoneInfo[Index].Name;
+			if (const FMutableRemappedBone* RemappedBone = ModelResources.RemappedBoneNames.FindByKey(BoneName))
+			{
+				TPair<FName, uint16>& BoneInfo = BoneInfoMap.Add(mu::FBoneName(RemappedBone->Hash));
+				BoneInfo.Key = BoneName;
+				BoneInfo.Value = Index;
+			}
+			else
+			{
+				const FString BoneNameString = BoneName.ToString();
+				const mu::FBoneName Bone(CityHash32(reinterpret_cast<const char*>(*BoneNameString), BoneNameString.Len() * sizeof(FString::ElementType)));
+				TPair<FName, uint16>& BoneInfo = BoneInfoMap.Add(Bone);
+				BoneInfo.Key = BoneName;
+				BoneInfo.Value = Index;
+			}
+		}
+	}
 
 	{
 		MUTABLE_CPUPROFILER_SCOPE(BuildSkeletonData_EnsureBonesExist);
 
-		const FModelResources& ModelResources = CustomizableObject.GetPrivate()->GetModelResources();
-
-		// Ensure all the required bones are present in the skeleton
-		for (int32 BoneIndex = 0; BoneIndex < MutBoneCount; ++BoneIndex)
+		// Ensure all required bones are present in the skeleton
+		for (const FInstanceUpdateData::FBone& Bone : BonePose)
 		{
-			const uint16 BoneId = MutSkeletonData.BoneIds[BoneIndex];
-			check(ModelResources.BoneNames.IsValidIndex(BoneId));
-
-			const FName BoneName = ModelResources.BoneNames[BoneId];
-			check(BoneName != NAME_None);
-
-			const int32 SourceBoneIndex = ReferenceSkeleton.FindRawBoneIndex(BoneName);
-			if (SourceBoneIndex == INDEX_NONE)
+			if (!BoneInfoMap.Find(Bone.Name))
 			{
-				// Merged skeleton is missing some bones! This happens if one of the skeletons involved in the merge is discarded due to being incompatible with the rest
-				// or if the source mesh is not in sync with the skeleton. 
-				UE_LOG(LogMutable, Warning, TEXT("Building instance: generated mesh has a bone [%s] not present in the reference mesh [%s]. Failing to generate mesh. "),
-					*BoneName.ToString(), *SkeletalMesh.GetName());
+				UE_LOG(LogMutable, Warning, TEXT("The skeleton of skeletal mesh [%s] is missing a bone with ID [%d], which the mesh requires."),
+					*SkeletalMesh.GetName(), Bone.Name.Id);
 				return false;
 			}
-
-			BoneToFinalBoneIndexMap.Add(BoneId, SourceBoneIndex);
 		}
 	}
 
-	{
-		MUTABLE_CPUPROFILER_SCOPE(BuildSkeletonData_FixBoneIndices);
-
-		// Fix up BoneMaps and ActiveBones indices
-		for (FInstanceUpdateData::FComponent& Component : OperationData->InstanceUpdateData.Components)
-		{
-			if (Component.Id != ComponentIndex)
-			{
-				continue;
-			}
-
-			for (uint32 BoneMapIndex = Component.FirstBoneMap; BoneMapIndex < Component.FirstBoneMap + Component.BoneMapCount; ++BoneMapIndex)
-			{
-				const int32 BoneId = OperationData->InstanceUpdateData.BoneMaps[BoneMapIndex];
-				OperationData->InstanceUpdateData.BoneMaps[BoneMapIndex] = BoneToFinalBoneIndexMap[BoneId];
-			}
-
-			for (uint16& BoneId : Component.ActiveBones)
-			{
-				BoneId = BoneToFinalBoneIndexMap[BoneId];
-			}
-			Component.ActiveBones.Sort();
-		}
-	}
-	
 	{
 		MUTABLE_CPUPROFILER_SCOPE(BuildSkeletonData_ApplyPose);
 		
-		const int32 RefRawBoneCount = ReferenceSkeleton.GetRawBoneNum();
-
 		TArray<FMatrix44f>& RefBasesInvMatrix = SkeletalMesh.GetRefBasesInvMatrix();
-		RefBasesInvMatrix.Empty(RefRawBoneCount);
+		RefBasesInvMatrix.Empty(RawRefBoneCount);
 
-		// Initialize the base matrices
-		if (RefRawBoneCount == MutBoneCount)
-		{
-			RefBasesInvMatrix.AddUninitialized(MutBoneCount);
-		}
-		else
-		{
-			// Bad case, some bone poses are missing, calculate the InvRefMatrices to ensure all transforms are there for the second step 
-			MUTABLE_CPUPROFILER_SCOPE(BuildSkeletonData_CalcInvRefMatrices0);
-			SkeletalMesh.CalculateInvRefMatrices();
-		}
+		// Calculate the InvRefMatrices to ensure all transforms are there for the second step 
+		SkeletalMesh.CalculateInvRefMatrices();
 
 		// First step is to update the RefBasesInvMatrix for the bones.
-		for (int32 BoneIndex = 0; BoneIndex < MutBoneCount; ++BoneIndex)
+		for (const FInstanceUpdateData::FBone& Bone : BonePose)
 		{
-			const int32 RefSkelBoneIndex = BoneToFinalBoneIndexMap[MutSkeletonData.BoneIds[BoneIndex]];
-			RefBasesInvMatrix[RefSkelBoneIndex] = MutSkeletonData.BoneMatricesWithScale[BoneIndex];
+			const int32 BoneIndex = BoneInfoMap[Bone.Name].Value;
+			RefBasesInvMatrix[BoneIndex] = Bone.MatrixWithScale;
 		}
 
 		// The second step is to update the pose transforms in the ref skeleton from the BasesInvMatrix
 		FReferenceSkeletonModifier SkeletonModifier(ReferenceSkeleton, Skeleton);
-		for (int32 RefSkelBoneIndex = 0; RefSkelBoneIndex < ReferenceSkeleton.GetRawBoneNum(); ++RefSkelBoneIndex)
+		for (int32 RefSkelBoneIndex = 0; RefSkelBoneIndex < RawRefBoneCount; ++RefSkelBoneIndex)
 		{
 			int32 ParentBoneIndex = ReferenceSkeleton.GetParentIndex(RefSkelBoneIndex);
 			if (ParentBoneIndex >= 0)
@@ -3413,7 +3390,7 @@ bool UCustomizableInstancePrivate::BuildSkeletonData(const TSharedRef<FUpdateCon
 		}
 
 		// Force a CalculateInvRefMatrices
-		RefBasesInvMatrix.Empty(RefRawBoneCount);
+		RefBasesInvMatrix.Empty(RawRefBoneCount);
 	}
 
 	{
@@ -4701,15 +4678,29 @@ bool UCustomizableInstancePrivate::BuildOrCopyRenderData(const TSharedRef<FUpdat
 
 		FSkeletalMeshLODRenderData& LODResource = RenderData->LODRenderData[LODIndex];
 
+		const TMap<mu::FBoneName, TPair<FName, uint16>>& BoneInfoMap = OperationData->InstanceUpdateData.Skeletons[ComponentIndex].BoneInfoMap;
+		
 		// Set active and required bones
-		LODResource.ActiveBoneIndices.Append(Component.ActiveBones);
-		LODResource.RequiredBones.Append(Component.ActiveBones);
+		{
+			const TArray<mu::FBoneName>& ActiveBones = OperationData->InstanceUpdateData.ActiveBones;
+			LODResource.ActiveBoneIndices.Reserve(Component.ActiveBoneCount);
+
+			for (uint32 Index = 0; Index < Component.ActiveBoneCount; ++Index)
+			{
+				const uint16 ActiveBoneIndex = BoneInfoMap[ActiveBones[Component.FirstActiveBone + Index]].Value;
+				LODResource.ActiveBoneIndices.Add(ActiveBoneIndex);
+			}
+
+			LODResource.RequiredBones = LODResource.ActiveBoneIndices;
+			LODResource.RequiredBones.Sort();
+		}
 
 		// Set RenderSections
 		UnrealConversionUtils::SetupRenderSections(
 			LODResource,
 			Component.Mesh,
 			OperationData->InstanceUpdateData.BoneMaps,
+			BoneInfoMap,
 			Component.FirstBoneMap);
 
 		if (LODResource.bStreamedDataInlined) // Non-streamable LOD
@@ -4891,9 +4882,11 @@ UE::Tasks::FTask UCustomizableInstancePrivate::LoadAdditionalAssetsAndData(
 
 
 	// Load Skeletons required by the SubMeshes of the newly generated Mesh, will be merged later
-	for (FInstanceUpdateData::FSkeletonData& SkeletonData : OperationData->InstanceUpdateData.Skeletons)
+	for (int32 ComponentIndex = 0; ComponentIndex < OperationData->NumComponents; ++ ComponentIndex)
 	{
-		FCustomizableInstanceComponentData* ComponentData = GetComponentData(SkeletonData.ComponentIndex);
+		const FInstanceUpdateData::FSkeletonData& SkeletonData = OperationData->InstanceUpdateData.Skeletons[ComponentIndex];
+		
+		FCustomizableInstanceComponentData* ComponentData = GetComponentData(ComponentIndex);
 		if (!ComponentData)
 		{
 			check(false);

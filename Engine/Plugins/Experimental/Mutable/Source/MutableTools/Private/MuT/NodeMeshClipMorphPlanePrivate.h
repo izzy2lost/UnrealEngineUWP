@@ -7,7 +7,7 @@
 #include "MuT/AST.h"
 
 #include "MuR/MutableMath.h"
-
+#include "MuR/Skeleton.h"
 
 namespace mu
 {
@@ -60,7 +60,7 @@ namespace mu
         uint8 m_vertexSelectionType;
 		FVector3f m_selectionBoxOrigin;
 		FVector3f m_selectionBoxRadius;
-		uint16 m_vertexSelectionBone;
+		FBoneName m_vertexSelectionBone;
 
 		TArray<FString> m_tags;
 
@@ -71,7 +71,7 @@ namespace mu
 		//!
 		void Serialise( OutputArchive& arch ) const
 		{
-            uint32 ver = 5;
+            uint32 ver = 6;
 			arch << ver;
 
 			arch << m_pSource;
@@ -124,15 +124,21 @@ namespace mu
 				}
 			}
 
-			if (ver >= 4)
+			if (ver >= 6)
 			{
 				arch >> m_vertexSelectionBone;
+			}
+			else if (ver >= 4)
+			{
+				uint16 BoneId = 0;
+				arch >> BoneId;
+				m_vertexSelectionBone.Id = BoneId;
 			}
 			else
 			{
 				string OldVertexSelectionBone;
 				arch >> OldVertexSelectionBone;
-				m_vertexSelectionBone = 0;
+				m_vertexSelectionBone.Id = 0;
 			}
 			arch >> m_maxEffectRadius;
 		}

@@ -971,8 +971,14 @@ void FCustomizableObjectCompiler::CompileInternal(UCustomizableObject* Object, c
 		ModelResources.AnimBpOverridePhysiscAssetsInfo = MoveTemp(GenerationContext.AnimBpOverridePhysicsAssetsInfo);
 
 		ModelResources.MaterialSlotNames = MoveTemp(GenerationContext.ReferencedMaterialSlotNames);
-		ModelResources.BoneNames = MoveTemp(GenerationContext.BoneNames);
 		ModelResources.SocketArray = MoveTemp(GenerationContext.SocketArray);
+
+		for (auto& It : GenerationContext.RemappedBoneNames)
+		{
+			FMutableRemappedBone& RemappedBone = ModelResources.RemappedBoneNames.AddDefaulted_GetRef();
+			RemappedBone.Name = It.Key; // BoneName
+			RemappedBone.Hash = It.Value.Id; // mu::FBoneName
+		}
 
 		ModelResources.SkinWeightProfilesInfo = MoveTemp(GenerationContext.SkinWeightProfilesInfo);
 

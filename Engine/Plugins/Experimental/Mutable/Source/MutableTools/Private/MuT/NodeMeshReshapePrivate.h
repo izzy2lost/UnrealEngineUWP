@@ -6,6 +6,7 @@
 #include "MuT/NodeScalar.h"
 #include "MuT/NodeMeshPrivate.h"
 #include "MuT/AST.h"
+#include "MuR/Skeleton.h"
 
 namespace mu
 {
@@ -30,12 +31,12 @@ namespace mu
 		EVertexColorUsage ColorBChannelUsage = EVertexColorUsage::None;
 		EVertexColorUsage ColorAChannelUsage = EVertexColorUsage::None;
 
-		TArray<uint16> BonesToDeform;
-		TArray<uint16> PhysicsToDeform;
+		TArray<FBoneName> BonesToDeform;
+		TArray<FBoneName> PhysicsToDeform;
         //!
 		void Serialise( OutputArchive& arch ) const
 		{
-            uint32 ver = 11;
+            uint32 ver = 12;
 			arch << ver;
 
 			arch << BaseMesh;
@@ -97,20 +98,30 @@ namespace mu
 				arch >> bDeformAllBones_DEPRECATED;
 			}
 
-			if (ver >= 9)
+			if (ver >= 12)
 			{
 				arch >> BonesToDeform;
 			}
 			else
 			{
-				TArray<string> BonesToDeform_DEPRECATED;
-				arch >> BonesToDeform_DEPRECATED;
+				int32 NumBonesToDeform = 0;
+				if (ver >= 9)
+				{
+					TArray<uint16> BonesToDeform_DEPRECATED;
+					arch >> BonesToDeform_DEPRECATED;
+					NumBonesToDeform = BonesToDeform_DEPRECATED.Num();
+				}
+				else
+				{
+					TArray<string> BonesToDeform_DEPRECATED;
+					arch >> BonesToDeform_DEPRECATED;
+					NumBonesToDeform = BonesToDeform_DEPRECATED.Num();
+				}
 
-				const int32 NumBonesToDeform = BonesToDeform_DEPRECATED.Num();
-				BonesToDeform.Reserve(NumBonesToDeform);
+				BonesToDeform.SetNum(NumBonesToDeform);
 				for (int32 BoneIndex = 0; BoneIndex < NumBonesToDeform; ++BoneIndex)
 				{
-					BonesToDeform.Add(BoneIndex);
+					BonesToDeform[BoneIndex].Id = BoneIndex;
 				}
 			}
 
@@ -125,20 +136,30 @@ namespace mu
 				arch >> bDeformAllPhysics_DEPRECATED;
 			}
 
-			if (ver >= 9)
+			if (ver >= 12)
 			{
 				arch >> PhysicsToDeform;
 			}
-			else if (ver >= 5)
+			else
 			{
-				TArray<string> PhysicsToDeform_DEPRECATED;
-				arch >> PhysicsToDeform_DEPRECATED;
+				int32 NumPhysicsToDeform = 0;
+				if (ver >= 9)
+				{
+					TArray<uint16> PhysicsToDeform_DEPRECATED;
+					arch >> PhysicsToDeform_DEPRECATED;
+					NumPhysicsToDeform = PhysicsToDeform_DEPRECATED.Num();
+				}
+				else if (ver >= 5)
+				{
+					TArray<string> PhysicsToDeform_DEPRECATED;
+					arch >> PhysicsToDeform_DEPRECATED;
+					NumPhysicsToDeform = PhysicsToDeform_DEPRECATED.Num();
+				}
 
-				const int32 NumPhysicsToDeform = PhysicsToDeform_DEPRECATED.Num();
-				PhysicsToDeform.Reserve(NumPhysicsToDeform);
+				PhysicsToDeform.SetNum(NumPhysicsToDeform);
 				for (int32 BoneIndex = 0; BoneIndex < NumPhysicsToDeform; ++BoneIndex)
 				{
-					PhysicsToDeform.Add(BoneIndex);
+					PhysicsToDeform[BoneIndex].Id = BoneIndex;
 				}
 			}
 

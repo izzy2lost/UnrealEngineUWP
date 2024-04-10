@@ -123,14 +123,14 @@ void SMutableSkeletonViewer::FillBoneDefinitionArrays()
 
 		// Save the bone data
 		NewBoneDefinition->BoneIndex = BoneIndex;
-		NewBoneDefinition->BoneName = Skeleton->GetBoneFName(BoneIndex);
+		NewBoneDefinition->BoneName = Skeleton->GetDebugName(BoneIndex);
 
 		// Get the parent node if any
 		const int32 ParentBoneIndex = Skeleton->GetBoneParent(BoneIndex);
 		if (ParentBoneIndex != INDEX_NONE)
 		{
 			NewBoneDefinition->ParentBoneIndex = ParentBoneIndex;
-			NewBoneDefinition->ParentBoneName = Skeleton->GetBoneFName(ParentBoneIndex);
+			NewBoneDefinition->ParentBoneName = Skeleton->GetDebugName(ParentBoneIndex);
 
 			// Store child bones
 			ChildBones.Add(NewBoneDefinition);

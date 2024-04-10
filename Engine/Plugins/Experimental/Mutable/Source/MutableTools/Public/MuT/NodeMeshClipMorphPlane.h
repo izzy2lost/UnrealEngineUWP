@@ -16,6 +16,7 @@ namespace mu
     typedef Ptr<NodeMeshClipMorphPlane> NodeMeshClipMorphPlanePtr;
     typedef Ptr<const NodeMeshClipMorphPlane> NodeMeshClipMorphPlaneConst;
 
+	struct FBoneName;
 
     //! This node applies a geometric transform represented by a 4x4 matrix to a mesh
 	//! \ingroup model
@@ -60,7 +61,7 @@ namespace mu
 
 		//! Define the root bone of the subhierarchy of the mesh that will be affected.
 		//! Only one of Box or Bone Hierarchy can be used (the last one set)
-		void SetVertexSelectionBone(uint16 BoneId, float maxEffectRadius);
+		void SetVertexSelectionBone(const FBoneName& BoneId, float maxEffectRadius);
 
 		//! Add a tag to the clip morph operation, which will only affect surfaces with the same tag
 		void AddTag(const char* tagName);

@@ -101,13 +101,13 @@ namespace mu
 	}	
 
 	//---------------------------------------------------------------------------------------------
-	void NodeMeshReshape::AddBoneToDeform(const uint16 BoneId)
+	void NodeMeshReshape::AddBoneToDeform(const FBoneName& BoneId)
 	{
 		m_pD->BonesToDeform.Emplace(BoneId);
 	}
 
 	//---------------------------------------------------------------------------------------------
-	void NodeMeshReshape::AddPhysicsBodyToDeform(const uint16 BoneId)
+	void NodeMeshReshape::AddPhysicsBodyToDeform(const FBoneName& BoneId)
 	{
 		m_pD->PhysicsToDeform.Emplace(BoneId);
 	}

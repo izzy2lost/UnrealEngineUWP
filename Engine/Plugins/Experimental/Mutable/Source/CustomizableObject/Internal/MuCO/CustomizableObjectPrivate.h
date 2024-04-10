@@ -17,7 +17,12 @@
 
 #include "CustomizableObjectPrivate.generated.h"
 
-namespace mu { class Model; }
+namespace mu 
+{ 
+	class Model;
+	struct FBoneName;
+}
+
 class USkeletalMesh;
 class USkeleton;
 class UPhysicsAsset;
@@ -91,6 +96,29 @@ struct FCustomizableObjectStreameableResourceId
 	}
 };
 static_assert(sizeof(FCustomizableObjectStreameableResourceId) == sizeof(uint32));
+
+
+USTRUCT()
+struct FMutableRemappedBone
+{
+	GENERATED_USTRUCT_BODY()
+
+	UPROPERTY()
+	FName Name;
+	
+	UPROPERTY()
+	uint32 Hash = 0;
+	
+	bool operator==(const FName& InName)
+	{
+		return Name == InName;
+	}
+
+#if WITH_EDITORONLY_DATA
+	friend FArchive& operator<<(FArchive& Ar, FMutableRemappedBone& RemappedBone);
+#endif
+};
+
 
 USTRUCT()
 struct FMutableModelParameterValue
@@ -553,9 +581,9 @@ struct FModelResources
 	UPROPERTY()
 	TArray<FName> MaterialSlotNames;
 
-	/** Bone names of all the bones that can possibly use the generated meshes */
+	/** Bones remapped due to a hash collision at compile time. FName to (remapped)Hash. */
 	UPROPERTY()
-	TArray<FName> BoneNames;
+	TArray<FMutableRemappedBone> RemappedBoneNames;
 
 	/** Mesh sockets provided by the part skeletal meshes, to be merged in the generated meshes */
 	UPROPERTY()
@@ -833,6 +861,6 @@ public:
 	// This is a manual version number for the binary blobs in this asset.
 	// Increasing it invalidates all the previously compiled models.
 	// Warning: If while merging code both versions have changed, take the highest+1.
-	static constexpr int32 CurrentSupportedVersion = 439;
+	static constexpr int32 CurrentSupportedVersion = 440;
 };
 

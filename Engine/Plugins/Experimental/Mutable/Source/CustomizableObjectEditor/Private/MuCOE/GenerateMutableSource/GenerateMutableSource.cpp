@@ -374,6 +374,57 @@ void FMutableGraphGenerationContext::GenerateSharedSurfacesUniqueIds()
 	}
 }
 
+bool FMutableGraphGenerationContext::FindBone(const FName& InBoneName, mu::FBoneName& OutBoneName) const
+{
+	const FString BoneNameString = InBoneName.ToString();
+	OutBoneName.Id = CityHash32(reinterpret_cast<const char*>(*BoneNameString), BoneNameString.Len() * sizeof(FString::ElementType));
+	if (UniqueBoneNames.Contains(OutBoneName))
+	{
+		return true;
+	}
+
+	if (const mu::FBoneName* BoneName = RemappedBoneNames.Find(InBoneName))
+	{
+		OutBoneName = *BoneName;
+		return true;
+	}
+
+	return false;
+}
+
+
+mu::FBoneName FMutableGraphGenerationContext::GetBoneUnique(const FName& InBoneName)
+{
+	const FString BoneNameString = InBoneName.ToString();
+	mu::FBoneName Bone(CityHash32(reinterpret_cast<const char*>(*BoneNameString), BoneNameString.Len() * sizeof(FString::ElementType)));
+
+	bool bNewRemappedBoneName = false;
+
+	FName& BoneName = UniqueBoneNames.FindOrAdd(Bone, InBoneName);
+	while (BoneName != InBoneName)
+	{
+		if (mu::FBoneName* RemappedBoneName = RemappedBoneNames.Find(InBoneName))
+		{
+			Bone.Id = RemappedBoneName->Id;
+			break;
+		}
+
+		// Id collision detected
+		bNewRemappedBoneName = true;
+
+		// Increase Id in an attempt to make it unique again.
+		++Bone.Id;
+		BoneName = UniqueBoneNames.FindOrAdd(Bone, InBoneName);
+	}
+
+	if (bNewRemappedBoneName)
+	{
+		RemappedBoneNames.Add(InBoneName, Bone);
+	}
+
+	return Bone;
+}
+
 
 //void FMutableGraphGenerationContext::CheckPhysicsAssetInSkeletalMesh(const USkeletalMesh* SkeletalMesh)
 //{
@@ -741,10 +792,10 @@ mu::NodeMeshApplyPosePtr CreateNodeMeshApplyPose(FMutableGraphGenerationContext&
 	for (int32 i = 0; i < ArrayBoneName.Num(); ++i)
 	{
 		const FName BoneName = ArrayBoneName[i];
-		const uint16 BoneId = uint16(GenerationContext.BoneNames.AddUnique(BoneName));
+		const mu::FBoneName& BoneId = GenerationContext.GetBoneUnique(BoneName);
 
-		MutableSkeleton->SetBoneFName(i, BoneName);
-		MutableSkeleton->SetBoneId(i, BoneId);
+		MutableSkeleton->SetDebugName(i, BoneName);
+		MutableSkeleton->SetBoneName(i, { BoneId });
 		MutableMesh->SetBonePose(i, BoneId, (FTransform3f)ArrayTransform[i], mu::EBoneUsageFlags::Skinning);
 	}
 

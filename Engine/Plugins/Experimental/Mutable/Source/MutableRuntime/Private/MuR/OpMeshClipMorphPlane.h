@@ -70,7 +70,7 @@ namespace mu
 	//! Reference version
 	//---------------------------------------------------------------------------------------------
 	inline void MeshClipMorphPlane(Mesh* Result, const Mesh* pBase, const FVector3f& origin, const FVector3f& normal, float dist, float factor, float radius,
-		float radius2, float angle, const FShape& selectionShape, bool& bOutSuccess, const int32 BoneId = INDEX_NONE, float vertexSelectionBoneMaxRadius = -1.f)
+		float radius2, float angle, const FShape& selectionShape, bool& bOutSuccess, const FBoneName* BoneId = nullptr, float vertexSelectionBoneMaxRadius = -1.f)
 	{
 		bOutSuccess = true;
 		//float radius = 8.f;
@@ -101,10 +101,10 @@ namespace mu
         Ptr<const Skeleton> BaseSkeleton = pBase->GetSkeleton();
 
 		TArray<bool> AffectedBoneMapIndices;
-		const int32 BaseBoneIndex = BaseSkeleton ? BaseSkeleton->FindBone(BoneId) : INDEX_NONE;
+		const int32 BaseBoneIndex = BaseSkeleton && BoneId ? BaseSkeleton->FindBone(*BoneId) : INDEX_NONE;
         if (BaseBoneIndex != INDEX_NONE)
 		{
-			const TArray<uint16>& BoneMap = pBase->BoneMap;
+			const TArray<FBoneName>& BoneMap = pBase->BoneMap;
 			AffectedBoneMapIndices.SetNum(BoneMap.Num());
 
 			const int32 BoneCount = BaseSkeleton->GetBoneCount();
@@ -126,8 +126,8 @@ namespace mu
 				
 				AffectedSkeletonBones[BoneIndex] = true;
 
-				const uint16 AffectedBoneId = BaseSkeleton->GetBoneId(BoneIndex);
-				const int32 AffectedBoneMapIndex = BoneMap.Find(AffectedBoneId);
+				const FBoneName& AffectedBone = BaseSkeleton->GetBoneName(BoneIndex);
+				const int32 AffectedBoneMapIndex = BoneMap.Find(AffectedBone);
 				if (AffectedBoneMapIndex != INDEX_NONE)
 				{
 					AffectedBoneMapIndices[AffectedBoneMapIndex] = true;

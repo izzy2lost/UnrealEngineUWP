@@ -16,6 +16,7 @@
 #include "MuR/Mesh.h"
 #include "MuR/Parameters.h"
 #include "MuR/System.h"
+#include "MuR/Skeleton.h"
 #include "MuR/Image.h"
 #include "UObject/GCObject.h"
 #include "WorldCollision.h"
@@ -375,11 +376,9 @@ struct FInstanceUpdateData
 		uint16 FirstSurface = 0;
 		uint16 SurfaceCount = 0;
 
-		// \TODO: Flatten
-		TArray<uint16> ActiveBones;
 		/** Range in the external Bones array */
-		//uint32 FirstActiveBone;
-		//uint32 ActiveBoneCount;
+		uint32 FirstActiveBone = 0;
+		uint32 ActiveBoneCount = 0;
 
 		/** Range in the external Bones array */
 		uint32 FirstBoneMap = 0;
@@ -400,18 +399,26 @@ struct FInstanceUpdateData
 	TArray<FVector> Vectors;
 	TArray<FScalar> Scalars;
 
-	TArray<uint16> BoneMaps;
+	TArray<mu::FBoneName> ActiveBones;
+	TArray<mu::FBoneName> BoneMaps;
 	
 	TMap<uint32, TArray<FMorphTargetVertexData>> MorphTargetsVertexData;
 
+	struct FBone
+	{
+		mu::FBoneName Name;
+		FMatrix44f MatrixWithScale;
+
+		bool operator==(const mu::FBoneName& OtherName) const { return Name == OtherName; };
+	};
+
 	struct FSkeletonData
 	{
-		int16 ComponentIndex = INDEX_NONE;
-
 		TArray<uint16> SkeletonIds;
 
-		TArray<uint16> BoneIds;
-		TArray<FMatrix44f> BoneMatricesWithScale;
+		TArray<FBone> BonePose;
+
+		TMap<mu::FBoneName, TPair<FName, uint16>> BoneInfoMap;
 	};
 
 	TArray<FSkeletonData> Skeletons;

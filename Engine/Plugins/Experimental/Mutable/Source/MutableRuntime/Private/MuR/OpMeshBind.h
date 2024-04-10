@@ -428,7 +428,7 @@ namespace mu
 
 	inline TTuple<TArray<FReshapePointBindingData>, TArray<int32>, TArray<int32>> BindPhysicsBodies( 
 			TArray<const PhysicsBody*> PhysicsBodies, FShapeMeshTree& ShapeMeshTree, const Mesh* pMesh, 
-			const TArray<uint16>& PhysicsToDeform )
+			const TArray<FBoneName>& PhysicsToDeform )
 	{
 		TTuple<TArray<FReshapePointBindingData>, TArray<int32>, TArray<int32>> ReturnValue;
 
@@ -519,7 +519,7 @@ namespace mu
 				FTransform3f T = FTransform3f::Identity;
 				if (BoneIndex > 0)
 				{
-					pMesh->GetBoneTransform(BoneIndex, T);
+					pMesh->GetBonePoseTransform(BoneIndex, T);
 				}
 
 				const int32 SphereCount = Body->GetSphereCount(B);
@@ -900,7 +900,7 @@ namespace mu
 
 
 	inline TTuple<TArray<FReshapePointBindingData>, TArray<int32>> BindPose(
-			const Mesh* Mesh, FShapeMeshTree& ShapeMeshTree, const TArray<uint16>& BonesToDeform )
+			const Mesh* Mesh, FShapeMeshTree& ShapeMeshTree, const TArray<FBoneName>& BonesToDeform )
 	{
 		UE::Geometry::FAxisAlignedBox3d ShapeAABBox = ShapeMeshTree.GetBoundingBox();
 
@@ -981,7 +981,7 @@ namespace mu
     inline void MeshBindShapeReshape(
 			Mesh* Result,
 			const Mesh* BaseMesh, const Mesh* ShapeMesh, 
-			const TArray<uint16>& BonesToDeform, const TArray<uint16>& PhysicsToDeform, 
+			const TArray<FBoneName>& BonesToDeform, const TArray<FBoneName>& PhysicsToDeform,
 			EMeshBindShapeFlags BindFlags, FMeshBindColorChannelUsages ColorChannelUsages,
 			bool& bOutSuccess)
     {

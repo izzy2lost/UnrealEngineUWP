@@ -545,7 +545,7 @@ const TArray<uint32>& Mesh::GetStreamedResources() const
 
 
 //---------------------------------------------------------------------------------------------
-int32 Mesh::FindBonePose(const uint16 BoneId) const
+int32 Mesh::FindBonePose(const FBoneName& BoneId) const
 {
 	return BonePoses.IndexOfByPredicate([BoneId](const FBonePose& Pose) { return Pose.BoneId == BoneId; });
 }
@@ -567,7 +567,7 @@ int32 mu::Mesh::GetBonePoseCount() const
 
 
 //---------------------------------------------------------------------------------------------
-void mu::Mesh::SetBonePose(int32 Index, uint16 BoneId, FTransform3f Transform, EBoneUsageFlags BoneUsageFlags)
+void mu::Mesh::SetBonePose(int32 Index, const FBoneName& BoneId, FTransform3f Transform, EBoneUsageFlags BoneUsageFlags)
 {
 	check(BonePoses.IsValidIndex(Index));
 	if (BonePoses.IsValidIndex(Index))
@@ -578,20 +578,15 @@ void mu::Mesh::SetBonePose(int32 Index, uint16 BoneId, FTransform3f Transform, E
 
 
 //---------------------------------------------------------------------------------------------
-int32 Mesh::GetBonePoseBoneId(int32 Index) const
+const FBoneName& Mesh::GetBonePoseId(int32 Index) const
 {
 	check(BonePoses.IsValidIndex(Index));
-	if (BonePoses.IsValidIndex(Index))
-	{
-		return BonePoses[Index].BoneId;
-	}
-
-	return INDEX_NONE;
+	return BonePoses[Index].BoneId;
 }
 
 
 //---------------------------------------------------------------------------------------------
-void mu::Mesh::GetBoneTransform(int32 BoneIndex, FTransform3f& Transform) const
+void mu::Mesh::GetBonePoseTransform(int32 BoneIndex, FTransform3f& Transform) const
 {
 	check(BoneIndex >= 0 && BoneIndex < BonePoses.Num());
 	Transform = BoneIndex > INDEX_NONE ? BonePoses[BoneIndex].BoneTransform : FTransform3f::Identity;
@@ -607,14 +602,14 @@ EBoneUsageFlags Mesh::GetBoneUsageFlags(int32 BoneIndex) const
 
 
 //---------------------------------------------------------------------------------------------
-void Mesh::SetBoneMap(const TArray<uint16>& InBoneMap)
+void Mesh::SetBoneMap(const TArray<FBoneName>& InBoneMap)
 {
 	BoneMap = InBoneMap;
 }
 
 
 //---------------------------------------------------------------------------------------------
-const TArray<uint16>& Mesh::GetBoneMap() const
+const TArray<FBoneName>& Mesh::GetBoneMap() const
 {
 	return BoneMap;
 }
@@ -1179,7 +1174,7 @@ void Mesh::FBonePose::Unserialise(InputArchive& arch)
 		std::string DeprecatedBoneName;
 		arch >> DeprecatedBoneName;
 
-		BoneId = 0;
+		BoneId = FBoneName(0);
 	}
 	else
 	{
@@ -1322,7 +1317,7 @@ void Mesh::Unserialise(InputArchive& arch)
 
 		for (int32 BoneIndex = 0; BoneIndex < NumBones; ++BoneIndex)
 		{
-			BonePoses[BoneIndex].BoneId = BoneIndex;
+			BonePoses[BoneIndex].BoneId = FBoneName(static_cast<uint32>(BoneIndex));
 			BonePoses[BoneIndex].BoneUsageFlags = EBoneUsageFlags::Skinning;
 			BonePoses[BoneIndex].BoneTransform = m_pSkeleton->m_boneTransforms_DEPRECATED[BoneIndex];
 		}
@@ -1338,7 +1333,7 @@ void Mesh::Unserialise(InputArchive& arch)
 		BoneMap.SetNum(NumBonePoses);
 		for (int32 BoneIndex = 0; BoneIndex < NumBonePoses; ++BoneIndex)
 		{
-			BoneMap[BoneIndex] = BoneIndex;
+			BoneMap[BoneIndex] = FBoneName(static_cast<uint32>(BoneIndex));
 		}
 
 		for (MESH_SURFACE& Surface : m_surfaces)

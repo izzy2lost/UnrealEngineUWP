@@ -79,14 +79,14 @@ namespace mu
 		hash_combine(Result, static_cast<uint32>(BChannelUsage));
 		hash_combine(Result, static_cast<uint32>(AChannelUsage));
 
-		for (const uint16 S : BonesToDeform)
+		for (const FBoneName& S : BonesToDeform)
 		{
-			hash_combine(Result, S);
+			hash_combine(Result, S.Id);
 		}
 
-		for (const uint16 S : PhysicsToDeform)
+		for (const FBoneName& S : PhysicsToDeform)
 		{
-			hash_combine(Result, S);
+			hash_combine(Result, S.Id);
 		}
 
 		return Result;
@@ -179,13 +179,13 @@ namespace mu
 			AppendCode(program.m_byteCode, Args);
 
 			AppendCode(program.m_byteCode, (int32)BonesToDeform.Num());
-			for (const uint16 S : BonesToDeform)
+			for (const FBoneName& S : BonesToDeform)
 			{
 				AppendCode(program.m_byteCode, S);
 			}
 
 			AppendCode(program.m_byteCode, (int32)PhysicsToDeform.Num());
-			for (const uint16 S : PhysicsToDeform)
+			for (const FBoneName& S : PhysicsToDeform)
 			{
 				AppendCode(program.m_byteCode, S);
 			}

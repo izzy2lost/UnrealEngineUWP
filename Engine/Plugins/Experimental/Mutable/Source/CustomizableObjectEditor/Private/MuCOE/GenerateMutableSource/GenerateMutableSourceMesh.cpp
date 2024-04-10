@@ -408,7 +408,7 @@ void SetAndPropagatePoseBoneUsage(mu::Mesh& MutableMesh, int32 PoseIndex, mu::EB
 
 	while (BoneIndex != INDEX_NONE)
 	{
-		PoseIndex = MutableMesh.FindBonePose(MutableSkeleton.GetBoneId(BoneIndex));
+		PoseIndex = MutableMesh.FindBonePose(MutableSkeleton.GetBoneName(BoneIndex));
 
 		if (PoseIndex == INDEX_NONE)
 		{
@@ -472,8 +472,8 @@ TArray<uint8> MakePhysicsAssetBodySetupRelevancyMap(const FMutableGraphGeneratio
 
 	for (int32 BodyIndex = 0; BodyIndex < BodySetupsNum; ++BodyIndex)
 	{
-		const int32 BoneNameId = GenerationContext.BoneNames.Find(Asset->SkeletalBodySetups[BodyIndex]->BoneName);
-		RelevancyMap[BodyIndex] = BoneNameId != INDEX_NONE && Mesh->GetSkeleton()->FindBone(uint16(BoneNameId)) != INDEX_NONE;
+		mu::FBoneName Bone; 
+		RelevancyMap[BodyIndex] = GenerationContext.FindBone(Asset->SkeletalBodySetups[BodyIndex]->BoneName, Bone);
 	}
 
 	return RelevancyMap;
@@ -512,7 +512,7 @@ mu::Ptr<mu::PhysicsBody> MakePhysicsBodyFromAsset(FMutableGraphGenerationContext
 
 		TObjectPtr<USkeletalBodySetup>& BodySetup = SkeletalBodySetups[SourceBodyIndex++];
 
-		const uint16 BodyBoneId = GenerationContext.BoneNames.AddUnique(BodySetup->BoneName);
+		const mu::FBoneName& BodyBoneId = GenerationContext.GetBoneUnique(BodySetup->BoneName);
 		PhysicsBody->SetBodyBoneId(B, BodyBoneId);
 		
 		const int32 NumSpheres = BodySetup->AggGeom.SphereElems.Num();
@@ -801,7 +801,7 @@ mu::MeshPtr ConvertSkeletalMeshToMutable(const USkeletalMesh* InSkeletalMesh, co
 		MutableSkeleton->SetBoneCount(NumRequiredBones);
 
 		// MutableBoneMap will not keep an index to the Skeleton, but to the BoneName
-		TArray<uint16> MutableBoneMap;
+		TArray<mu::FBoneName> MutableBoneMap;
 		MutableBoneMap.SetNum(BoneMap.Num());
 		
 		const TArray<FMeshBoneInfo>& RefBoneInfo = InSkeletalMesh->GetRefSkeleton().GetRefBoneInfo();
@@ -813,19 +813,19 @@ mu::MeshPtr ConvertSkeletalMeshToMutable(const USkeletalMesh* InSkeletalMesh, co
 			const int32 ParentBoneIndex = RequiredBones.Find(BoneInfo.ParentIndex);
 
 			// Set bone hierarchy
-			const uint16 BoneId = uint16(GenerationContext.BoneNames.AddUnique(BoneInfo.Name));
+			const mu::FBoneName& BoneName = GenerationContext.GetBoneUnique(BoneInfo.Name);
 
-			MutableSkeleton->SetBoneId(BoneIndex, BoneId);
+			MutableSkeleton->SetBoneName(BoneIndex, BoneName);
 			MutableSkeleton->SetBoneParent(BoneIndex, ParentBoneIndex);
 
 			// Debug. Will not be serialized
-			MutableSkeleton->SetBoneFName(BoneIndex, BoneInfo.Name);
+			MutableSkeleton->SetDebugName(BoneIndex, BoneInfo.Name);
 
 			// BoneMap: Convert RefSkeletonBoneIndex to BoneId
 			const int32 BoneMapIndex = BoneMap.Find(RefSkeletonBoneIndex);
 			if (BoneMapIndex != INDEX_NONE)
 			{
-				MutableBoneMap[BoneMapIndex] = BoneId;
+				MutableBoneMap[BoneMapIndex] = BoneName;
 			}
 
 			// Set bone pose
@@ -837,7 +837,7 @@ mu::MeshPtr ConvertSkeletalMeshToMutable(const USkeletalMesh* InSkeletalMesh, co
 			EnumAddFlags(BoneUsageFlags, BoneMapIndex != INDEX_NONE ? mu::EBoneUsageFlags::Skinning : mu::EBoneUsageFlags::None);
 			EnumAddFlags(BoneUsageFlags, ParentBoneIndex == INDEX_NONE ? mu::EBoneUsageFlags::Root : mu::EBoneUsageFlags::None);
 
-			MutableMesh->SetBonePose(BoneIndex, BoneId, BaseInvTransform.Inverse(), BoneUsageFlags);
+			MutableMesh->SetBonePose(BoneIndex, BoneName, BaseInvTransform.Inverse(), BoneUsageFlags);
 		}
 
 		MutableMesh->SetBoneMap(MutableBoneMap);
@@ -1584,8 +1584,8 @@ mu::MeshPtr ConvertSkeletalMeshToMutable(const USkeletalMesh* InSkeletalMesh, co
 				continue;
 			}
 
-			const int32 BoneNameIndex = GenerationContext.BoneNames.Find(BodySetup->BoneName);
-			const int32 BonePoseIndex = MutableMesh->FindBonePose(uint16(BoneNameIndex));
+			const mu::FBoneName& BoneName = GenerationContext.GetBoneUnique(BodySetup->BoneName);
+			const int32 BonePoseIndex = MutableMesh->FindBonePose(BoneName);
 
 			if (BonePoseIndex == INDEX_NONE)
 			{
@@ -1648,7 +1648,7 @@ mu::MeshPtr ConvertSkeletalMeshToMutable(const USkeletalMesh* InSkeletalMesh, co
 		{
 			TObjectPtr<USkeletalBodySetup>& BodySetup = RelevantBodySetups[B];
 			
-			const uint16 BoneId = GenerationContext.BoneNames.AddUnique(BodySetup->BoneName);
+			const mu::FBoneName& BoneId = GenerationContext.GetBoneUnique(BodySetup->BoneName);
 			PhysicsBody->SetBodyBoneId( B, BoneId);
 			
 			const int32 NumSpheres = BodySetup->AggGeom.SphereElems.Num();
@@ -1750,7 +1750,7 @@ mu::MeshPtr ConvertSkeletalMeshToMutable(const USkeletalMesh* InSkeletalMesh, co
 				mu::EBoneUsageFlags::Skinning | mu::EBoneUsageFlags::Physics | mu::EBoneUsageFlags::Deform;
 		if (EnumHasAnyFlags(BonePose.BoneUsageFlags, FlagsToPropagate))
 		{
-			const int32 Index = MutableMesh->GetSkeleton()->FindBone(MutableMesh->GetBonePoseBoneId(I));
+			const int32 Index = MutableMesh->GetSkeleton()->FindBone(BonePose.BoneId);
 
 			if (Index == INDEX_NONE)
 			{
@@ -2787,7 +2787,7 @@ mu::NodeMeshPtr GenerateMorphMesh(const UEdGraphPin* Pin,
 
 						for (const FName BoneName : BonesToDeform)
 						{
-							Result->AddBoneToDeform(GenerationContext.BoneNames.AddUnique(BoneName));
+							Result->AddBoneToDeform(GenerationContext.GetBoneUnique(BoneName));
 						}
 					}
 
@@ -2803,7 +2803,7 @@ mu::NodeMeshPtr GenerateMorphMesh(const UEdGraphPin* Pin,
 	
 						for (const FName& PhysicsBoneName : PhysicsToDeform)
 						{
-							Result->AddPhysicsBodyToDeform(GenerationContext.BoneNames.AddUnique(PhysicsBoneName));
+							Result->AddPhysicsBodyToDeform(GenerationContext.GetBoneUnique(PhysicsBoneName));
 						}
 					}
 						
@@ -3531,7 +3531,7 @@ mu::NodeMeshPtr GenerateMutableSourceMesh(const UEdGraphPin* Pin,
 				
 				for (const FName& BoneName : BonesToDeform)
 				{
-					MeshNode->AddBoneToDeform(GenerationContext.BoneNames.Find(BoneName));
+					MeshNode->AddBoneToDeform(GenerationContext.GetBoneUnique(BoneName));
 				}
 			}
 
@@ -3546,7 +3546,7 @@ mu::NodeMeshPtr GenerateMutableSourceMesh(const UEdGraphPin* Pin,
 
 				for (const FName& PhysicsBoneName : PhysicsToDeform)
 				{
-					MeshNode->AddPhysicsBodyToDeform(GenerationContext.BoneNames.Find(PhysicsBoneName));
+					MeshNode->AddPhysicsBodyToDeform(GenerationContext.GetBoneUnique(PhysicsBoneName));
 				}	
 			}
 			

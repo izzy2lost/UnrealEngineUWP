@@ -7,6 +7,7 @@
 #include "MuT/AST.h"
 
 #include "MuR/MutableMath.h"
+#include "MuR/Skeleton.h"
 
 
 namespace mu
@@ -55,7 +56,7 @@ namespace mu
         uint8 m_vertexSelectionType;
 		FVector3f m_selectionBoxOrigin;
 		FVector3f m_selectionBoxRadius;
-        uint16 m_vertexSelectionBone;
+        FBoneName m_vertexSelectionBone;
 
 		// Max distance a vertex can have to the bone in order to be affected. A negative value
 		// means no limit.
@@ -66,7 +67,7 @@ namespace mu
         {
             NodeModifier::Private::Serialise(arch);
 
-			uint32 ver = 3;
+			uint32 ver = 4;
             arch << ver;
 
             arch << m_origin;
@@ -102,15 +103,21 @@ namespace mu
             arch >> m_vertexSelectionType;
             arch >> m_selectionBoxOrigin;
             arch >> m_selectionBoxRadius;
-			if (ver >= 3)
+			if (ver >= 4)
 			{
 				arch >> m_vertexSelectionBone;
+			}
+			else if (ver == 3)
+			{
+				uint16 BoneId = 0;
+				arch >> BoneId;
+				m_vertexSelectionBone.Id = BoneId;
 			}
 			else
 			{
 				string OldVertexSelectionBone;
 				arch >> OldVertexSelectionBone;
-				m_vertexSelectionBone = 0;
+				m_vertexSelectionBone.Id = 0;
 			}
 			arch >> m_maxEffectRadius;
         }

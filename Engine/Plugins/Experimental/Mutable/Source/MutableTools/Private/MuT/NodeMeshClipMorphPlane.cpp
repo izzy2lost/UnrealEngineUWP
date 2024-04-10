@@ -75,7 +75,7 @@ namespace mu
 	}
 
 	//---------------------------------------------------------------------------------------------
-	void NodeMeshClipMorphPlane::SetVertexSelectionBone(uint16 BoneId, float maxEffectRadius)
+	void NodeMeshClipMorphPlane::SetVertexSelectionBone(const FBoneName& BoneId, float maxEffectRadius)
 	{
 		m_pD->m_vertexSelectionType = Private::VS_BONE_HIERARCHY;
 		m_pD->m_vertexSelectionBone = BoneId;

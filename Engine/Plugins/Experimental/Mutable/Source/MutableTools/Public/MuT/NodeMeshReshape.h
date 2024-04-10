@@ -9,6 +9,8 @@
 
 namespace mu
 {
+	// Forward declarations
+	struct FBoneName;
 
 	//! Node that morphs a base mesh with one or two weighted targets from a sequence.
 	//! \ingroup model
@@ -62,10 +64,10 @@ namespace mu
 		void SetReshapePhysicsVolumes(bool);
 
 		/** Sets the number of bones that will be deform */
-		void AddBoneToDeform(const uint16 BoneId);
+		void AddBoneToDeform(const FBoneName& BoneId);
 	
 		/** Add a Physics Body to deform */
-		void AddPhysicsBodyToDeform(const uint16 BoneId);
+		void AddPhysicsBodyToDeform(const FBoneName& BoneId);
         
 		//-----------------------------------------------------------------------------------------
 		// Interface pattern

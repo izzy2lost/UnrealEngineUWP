@@ -38,7 +38,7 @@ namespace mu
 
 		for (int32 BoneIndex = 0; BoneIndex < NumBones; ++BoneIndex)
 		{
-			const int32 BonePoseIndex = pPose->FindBonePose(pSkeleton->GetBoneId(BoneIndex));
+			const int32 BonePoseIndex = pPose->FindBonePose(pSkeleton->GetBoneName(BoneIndex));
 			if (BonePoseIndex != INDEX_NONE)
 			{
 				BoneToPoseIndex[BoneIndex] = BonePoseIndex;
@@ -54,7 +54,7 @@ namespace mu
 		}
 
 
-		TArray<uint16> BoneMap = pBase->GetBoneMap();
+		const TArray<FBoneName>& BoneMap = pBase->GetBoneMap();
 		const int32 NumBonesBoneMap = BoneMap.Num();
 
         // Prepare the skin matrices. They may be in different order, and we only need the ones

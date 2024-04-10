@@ -12,6 +12,7 @@
 #include "MuCOE/Nodes/CustomizableObjectNodeMaterialBase.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeObject.h"
 #include "MuR/MutableMemory.h"
+#include "MuR/Skeleton.h"
 #include "MuT/NodeComponentNew.h"
 #include "MuR/Ptr.h"
 #include "MuT/NodeImageConstant.h"
@@ -660,6 +661,11 @@ struct FMutableGraphGenerationContext
 	/** Generates shared surface IDs for all surface nodes. If one or more nodes are equal, they will use the same SharedSurfaceId */
 	void GenerateSharedSurfacesUniqueIds();
 
+	bool FindBone(const FName& BoneName, mu::FBoneName& OutBone) const;
+
+	/** Get unique identifier for BoneName built from its FString. */
+	mu::FBoneName GetBoneUnique(const FName& BoneName);
+
 	/** Check if the PhysicsAsset of a given SkeletalMesh has any SkeletalBodySetup with BoneNames not present in the
 	* InSkeletalMesh's RefSkeleton, if so, adds the PhysicsAsset to the DiscartedPhysicsAssetMap to display a warning later on */
 	//void CheckPhysicsAssetInSkeletalMesh(const USkeletalMesh* InSkeletalMesh);
@@ -685,8 +691,9 @@ struct FMutableGraphGenerationContext
 
 	TArray<const USkeleton*> ReferencedSkeletons;
 
-	// Array of unique BoneNames. All bones from mu::Skeletons will point to the names of it.
-	TArray<FName> BoneNames;
+	// Array of unique Bone identifiers. 
+	TMap<mu::FBoneName, FName> UniqueBoneNames;
+	TMap<FName, mu::FBoneName> RemappedBoneNames; // Bone identifiers that had a collision.
 
 	// Used to aviod Nodes with duplicated ids
 	TMap<FGuid, TArray<const UObject*>> NodeIdsMap;

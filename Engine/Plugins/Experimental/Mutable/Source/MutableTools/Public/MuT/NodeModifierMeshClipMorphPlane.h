@@ -16,6 +16,7 @@ namespace mu
 	typedef Ptr<NodeModifierMeshClipMorphPlane> NodeModifierMeshClipMorphPlanePtr;
 	typedef Ptr<const NodeModifierMeshClipMorphPlane> NodeModifierMeshClipMorphPlanePtrConst;
 
+	struct FBoneName;
 
 	//! This node makes a new component from several meshes and images.
 	//! \ingroup model
@@ -55,7 +56,7 @@ namespace mu
 
 		//! Define the root bone of the subhierarchy of the mesh that will be affected.
 		//! Only one of Box or Bone Hierarchy can be used (the last one set)
-		void SetVertexSelectionBone(uint16 BoneId, float maxEffectRadius);
+		void SetVertexSelectionBone(const FBoneName& BoneId, float maxEffectRadius);
 
 		//-----------------------------------------------------------------------------------------
 		// Interface pattern

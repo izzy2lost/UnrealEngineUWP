@@ -1793,21 +1793,17 @@ namespace impl
 	{
 		MUTABLE_CPUPROFILER_SCOPE(Subtask_Mutable_PrepareSkeletonData);
 
+		OperationData->InstanceUpdateData.Skeletons.SetNum(OperationData->NumComponents);
+
 		for (FInstanceUpdateData::FComponent& Component : OperationData->InstanceUpdateData.Components)
 		{
-			if (!OperationData->InstanceUpdateData.Skeletons.IsValidIndex(Component.Id))
-			{
-				OperationData->InstanceUpdateData.Skeletons.SetNum(Component.Id + 1);
-			}
-
-			FInstanceUpdateData::FSkeletonData& SkeletonData = OperationData->InstanceUpdateData.Skeletons[Component.Id];
-			SkeletonData.ComponentIndex = Component.Id;
-
 			mu::MeshPtrConst Mesh = Component.Mesh;
 			if (!Mesh)
 			{
 				continue;
 			}
+
+			FInstanceUpdateData::FSkeletonData& SkeletonData = OperationData->InstanceUpdateData.Skeletons[Component.Id];
 
 			// Add SkeletonIds 
 			const int32 SkeletonIDsCount = Mesh->GetSkeletonIDsCount();
@@ -1817,27 +1813,25 @@ namespace impl
 			}
 
 			// Append BoneMap to the array of BoneMaps
-			const TArray<uint16>& BoneMap = Mesh->GetBoneMap();
+			const TArray<mu::FBoneName>& BoneMap = Mesh->GetBoneMap();
 			Component.FirstBoneMap = OperationData->InstanceUpdateData.BoneMaps.Num();
 			Component.BoneMapCount = BoneMap.Num();
 			OperationData->InstanceUpdateData.BoneMaps.Append(BoneMap);
 
 			// Add active bone indices and poses
-			const int32 MaxBoneIndex = Mesh->GetBonePoseCount();
-			Component.ActiveBones.Reserve(MaxBoneIndex);
-			for (int32 BonePoseIndex = 0; BonePoseIndex < MaxBoneIndex; ++BonePoseIndex)
+			Component.FirstActiveBone = OperationData->InstanceUpdateData.ActiveBones.Num();
+			Component.ActiveBoneCount = Mesh->GetBonePoseCount();
+			for (uint32 BoneIndex = 0; BoneIndex < Component.ActiveBoneCount; ++BoneIndex)
 			{
-				const uint16 BoneId = Mesh->GetBonePoseBoneId(BonePoseIndex);
+				const mu::FBoneName& BoneId = Mesh->GetBonePoseId(BoneIndex);
 
-				Component.ActiveBones.Add(BoneId);
+				OperationData->InstanceUpdateData.ActiveBones.Add(BoneId);
 
-				if (SkeletonData.BoneIds.Find(BoneId) == INDEX_NONE)
+				if (!SkeletonData.BonePose.FindByKey(BoneId))
 				{
-					SkeletonData.BoneIds.Add(BoneId);
-
 					FTransform3f Transform;
-					Mesh->GetBoneTransform(BonePoseIndex, Transform);
-					SkeletonData.BoneMatricesWithScale.Emplace(Transform.Inverse().ToMatrixWithScale());
+					Mesh->GetBonePoseTransform(BoneIndex, Transform);
+					SkeletonData.BonePose.Add({ BoneId,Transform.Inverse().ToMatrixWithScale() });
 				}
 			}
 		}

@@ -78,12 +78,12 @@ namespace mu
 	}	
 
 	//---------------------------------------------------------------------------------------------
-	void NodeMeshMorph::AddBoneToDeform(const uint16 BoneId)
+	void NodeMeshMorph::AddBoneToDeform(const FBoneName& BoneId)
 	{
 		m_pD->BonesToDeform.Emplace(BoneId);
 	}
 
-	void NodeMeshMorph::AddPhysicsBodyToDeform(const uint16 BoneId)
+	void NodeMeshMorph::AddPhysicsBodyToDeform(const FBoneName& BoneId)
 	{
 		m_pD->PhysicsToDeform.Emplace(BoneId);
 	}

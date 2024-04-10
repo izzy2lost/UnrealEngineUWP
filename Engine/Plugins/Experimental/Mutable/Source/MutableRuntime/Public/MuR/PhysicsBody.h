@@ -8,6 +8,7 @@
 #include "MuR/Ptr.h"
 #include "MuR/RefCounted.h"
 #include "MuR/Serialisation.h"
+#include "MuR/Skeleton.h"
 #include "Containers/Array.h"
 #include "Math/Quat.h"
 #include "Math/Transform.h"
@@ -187,8 +188,8 @@ namespace mu
 		void SetBodyCount(int32 B);
 		int32 GetBodyCount() const;
 	
-		void SetBodyBoneId(int32 B, uint16 BoneId);
-		uint16 GetBodyBoneId(int32 B) const;
+		void SetBodyBoneId(int32 B, const FBoneName& BoneId);
+		const FBoneName& GetBodyBoneId(int32 B) const;
 		
 		void SetBodyCustomId(int32 B, int32 BodyCustomId);
 		int32 GetBodyCustomId(int32 B) const;
@@ -295,7 +296,7 @@ namespace mu
 		int32 CustomId = -1;
 
 		// Bone name the physics volume aggregate is bound to. 
-		TArray<uint16> BoneIds;
+		TArray<FBoneName> BoneIds;
 		TArray<FPhysicsBodyAggregate> Bodies;
 		TArray<int32> BodiesCustomIds;
 
