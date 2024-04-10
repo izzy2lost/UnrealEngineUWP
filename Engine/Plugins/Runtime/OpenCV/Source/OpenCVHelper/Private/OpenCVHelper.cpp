@@ -557,6 +557,18 @@ bool FOpenCVHelper::DrawCheckerboardCorners(const TArray<FVector2f>& Corners, FI
 #endif // WITH_OPENCV
 }
 
+bool FOpenCVHelper::DrawCheckerboardCorners(const TArray<FVector2D>& Corners, FIntPoint CheckerboardDimensions, UTexture2D* DebugTexture)
+{
+	TArray<FVector2f> CornersFloat;
+	CornersFloat.Reserve(Corners.Num());
+	for (const FVector2D& Corner : Corners)
+	{
+		CornersFloat.Add(FVector2f(Corner.X, Corner.Y));
+	}
+
+	return DrawCheckerboardCorners(CornersFloat, CheckerboardDimensions, DebugTexture);
+}
+
 bool FOpenCVHelper::SolvePnP(const TArray<FVector>& ObjectPoints, const TArray<FVector2f>& ImagePoints, const FVector2D& FocalLength, const FVector2D& ImageCenter, const TArray<float>& DistortionParameters, FTransform& OutCameraPose)
 {
 #if WITH_OPENCV
@@ -627,6 +639,21 @@ bool FOpenCVHelper::SolvePnP(const TArray<FVector>& ObjectPoints, const TArray<F
 
 bool FOpenCVHelper::ProjectPoints(const TArray<FVector>& ObjectPoints, const FVector2D& FocalLength, const FVector2D& ImageCenter, const TArray<float>& DistortionParameters, const FTransform& CameraPose, TArray<FVector2f>& OutImagePoints)
 {
+	TArray<FVector2D> OutImagePointsDoublePrecision;
+	if (ProjectPoints(ObjectPoints, FocalLength, ImageCenter, DistortionParameters, CameraPose, OutImagePointsDoublePrecision))
+	{
+		for (const FVector2D& Point : OutImagePointsDoublePrecision)
+		{
+			OutImagePoints.Add(FVector2f(Point.X, Point.Y));
+		}
+
+		return true;
+	}
+	return false;
+}
+
+bool FOpenCVHelper::ProjectPoints(const TArray<FVector>& ObjectPoints, const FVector2D& FocalLength, const FVector2D& ImageCenter, const TArray<float>& DistortionParameters, const FTransform& CameraPose, TArray<FVector2D>& OutImagePoints)
+{
 #if WITH_OPENCV
 	const int32 NumPoints = ObjectPoints.Num();
 
@@ -655,17 +682,10 @@ bool FOpenCVHelper::ProjectPoints(const TArray<FVector>& ObjectPoints, const FVe
 
 	cv::Mat DistortionParametersMat = cv::Mat(DistortionParameters.Num(), 1, CV_32FC1, (void*)DistortionParameters.GetData());
 
-	// cv::projectPoints requires that the 3D points and 2D points have the same bit depth, so we compute projected points with double precision, and then convert them back to floats before outputting
-	TArray<FVector2D> ImagePointsDoublePrecision;
-	ImagePointsDoublePrecision.Init(FVector2D(0.0, 0.0), NumPoints);
-	cv::Mat ImagePointsMat = cv::Mat(NumPoints, 1, CV_64FC2, (void*)ImagePointsDoublePrecision.GetData());
+	OutImagePoints.Init(FVector2D(0.0, 0.0), NumPoints);
+	cv::Mat ImagePointsMat = cv::Mat(NumPoints, 1, CV_64FC2, (void*)OutImagePoints.GetData());
 
 	cv::projectPoints(ObjectPointsMat, Rotation, Translation, CameraMatrix, DistortionParametersMat, ImagePointsMat);
-
-	for (const FVector2D& Point : ImagePointsDoublePrecision)
-	{
-		OutImagePoints.Add(FVector2f(Point.X, Point.Y));
-	}
 
 	return true;
 #else
