@@ -54,13 +54,14 @@ class DYNAMICMATERIAL_API UDMTextureUV : public UDMMaterialLinkedComponent
 public:
 #if WITH_EDITOR
 	static const FName NAME_UVSource;
+	static const FName NAME_bMirrorOnX;
+	static const FName NAME_bMirrorOnY;
+#endif
+
 	static const FName NAME_Offset;
 	static const FName NAME_Pivot;
 	static const FName NAME_Rotation;
 	static const FName NAME_Scale;
-	static const FName NAME_bMirrorOnX;
-	static const FName NAME_bMirrorOnY;
-#endif
 
 	static const FString OffsetXPathToken;
 	static const FString OffsetYPathToken;
@@ -138,7 +139,19 @@ public:
 	TSharedPtr<IPropertyHandle> GetPropertyHandle(FName InProperty);
 #endif
 
+	UFUNCTION(BlueprintPure, Category = "Material Designer")
 	TArray<UDMMaterialParameter*> GetParameters() const;
+
+	UFUNCTION(BlueprintPure, Category = "Material Designer")
+	UDMMaterialParameter* GetMaterialParameter(FName InPropertyName, int32 InComponent) const;
+
+	UFUNCTION(BlueprintPure, Category = "Material Designer")
+	FName GetMaterialParameterName(FName InPropertyName, int32 InComponent) const;
+
+#if WITH_EDITOR
+	UFUNCTION(BlueprintCallable, Category = "Material Designer")
+	bool SetMaterialParameterName(FName InPropertyName, int32 InComponent, FName InNewName);
+#endif
 
 	void SetMIDParameters(UMaterialInstanceDynamic* InMID);
 

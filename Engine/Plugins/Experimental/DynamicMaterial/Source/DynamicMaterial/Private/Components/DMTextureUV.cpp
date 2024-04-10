@@ -47,12 +47,13 @@ const FString UDMTextureUV::RotationPathToken = FString(TEXT("Rotation"));
 const FString UDMTextureUV::ScaleXPathToken   = FString(TEXT("ScaleX"));
 const FString UDMTextureUV::ScaleYPathToken   = FString(TEXT("ScaleY"));
 
-#if WITH_EDITOR
-const FName UDMTextureUV::NAME_UVSource   = GET_MEMBER_NAME_CHECKED(UDMTextureUV, UVSource);
 const FName UDMTextureUV::NAME_Offset     = GET_MEMBER_NAME_CHECKED(UDMTextureUV, Offset);
 const FName UDMTextureUV::NAME_Pivot      = GET_MEMBER_NAME_CHECKED(UDMTextureUV, Pivot);
 const FName UDMTextureUV::NAME_Rotation   = GET_MEMBER_NAME_CHECKED(UDMTextureUV, Rotation);
 const FName UDMTextureUV::NAME_Scale      = GET_MEMBER_NAME_CHECKED(UDMTextureUV, Scale);
+
+#if WITH_EDITOR
+const FName UDMTextureUV::NAME_UVSource = GET_MEMBER_NAME_CHECKED(UDMTextureUV, UVSource);
 const FName UDMTextureUV::NAME_bMirrorOnX = GET_MEMBER_NAME_CHECKED(UDMTextureUV, bMirrorOnX);
 const FName UDMTextureUV::NAME_bMirrorOnY = GET_MEMBER_NAME_CHECKED(UDMTextureUV, bMirrorOnY);
 
@@ -217,6 +218,7 @@ TSharedPtr<IPropertyHandle> UDMTextureUV::GetPropertyHandle(FName InProperty)
 
 	return PropertyHandles.FindChecked(InProperty);
 }
+#endif
 
 TArray<UDMMaterialParameter*> UDMTextureUV::GetParameters() const
 {
@@ -229,6 +231,92 @@ TArray<UDMMaterialParameter*> UDMTextureUV::GetParameters() const
 	}
 
 	return Parameters;
+}
+
+UDMMaterialParameter* UDMTextureUV::GetMaterialParameter(FName InPropertyName, int32 InComponent) const
+{
+	using namespace UE::DynamicMaterial;
+
+	const TObjectPtr<UDMMaterialParameter>* ParameterPtr = nullptr;
+
+	if (InPropertyName == NAME_Offset)
+	{
+		switch (InComponent)
+		{
+			case 0:
+				ParameterPtr = MaterialParameters.Find(ParamID::OffsetX);
+				break;
+
+			case 1:
+				ParameterPtr = MaterialParameters.Find(ParamID::OffsetY);
+				break;
+		}
+	}
+	else if (InPropertyName == NAME_Pivot)
+	{
+		switch (InComponent)
+		{
+			case 0:
+				ParameterPtr = MaterialParameters.Find(ParamID::PivotX);
+				break;
+
+			case 1:
+				ParameterPtr = MaterialParameters.Find(ParamID::PivotY);
+				break;
+		}
+	}
+	else if (InPropertyName == NAME_Rotation)
+	{
+		switch (InComponent)
+		{
+			case 0:
+				ParameterPtr = MaterialParameters.Find(ParamID::Rotation);
+				break;
+		}
+	}
+	else if (InPropertyName == NAME_Scale)
+	{
+		switch (InComponent)
+		{
+			case 0:
+				ParameterPtr = MaterialParameters.Find(ParamID::ScaleX);
+				break;
+
+			case 1:
+				ParameterPtr = MaterialParameters.Find(ParamID::ScaleY);
+				break;
+		}
+	}
+
+	if (ParameterPtr)
+	{
+		return (*ParameterPtr).Get();
+	}
+
+	return nullptr;
+}
+
+FName UDMTextureUV::GetMaterialParameterName(FName InPropertyName, int32 InComponent) const
+{
+	if (UDMMaterialParameter* Parameter = GetMaterialParameter(InPropertyName, InComponent))
+	{
+		return Parameter->GetParameterName();
+	}
+
+	return NAME_None;
+}
+
+#if WITH_EDITOR
+bool UDMTextureUV::SetMaterialParameterName(FName InPropertyName, int32 InComponent, FName InNewName)
+{
+	if (UDMMaterialParameter* Parameter = GetMaterialParameter(InPropertyName, InComponent))
+	{
+		const FName CurrentName = Parameter->GetParameterName();
+		Parameter->RenameParameter(InNewName);
+		return Parameter->GetParameterName() != CurrentName;
+	}
+
+	return false;
 }
 
 void UDMTextureUV::PostEditorDuplicate(UDynamicMaterialModel* InMaterialModel, UDMMaterialComponent* InParent)
