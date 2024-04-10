@@ -199,7 +199,7 @@ namespace mu
 		{
 			FMeshBufferChannel& chan = buf.m_channels[c];
 			chan.m_semantic = pSemantics ? pSemantics[c] : MBS_NONE;
-			chan.m_semanticIndex = pSemanticIndices ? ((uint8_t)pSemanticIndices[c]) : 0;
+			chan.m_semanticIndex = pSemanticIndices ? pSemanticIndices[c] : 0;
 			chan.m_format = pFormats ? pFormats[c] : MBF_NONE;
 			chan.m_componentCount = pComponentCount ? ((uint16)pComponentCount[c]) : 0;
 			chan.m_offset = pOffsets ? ((uint8_t)pOffsets[c]) : 0;
@@ -245,7 +245,7 @@ namespace mu
 
 		FMeshBufferChannel& chan = buf.m_channels[channelIndex];
 		chan.m_semantic = semantic;
-		chan.m_semanticIndex = uint8_t(semanticIndex);
+		chan.m_semanticIndex = semanticIndex;
 		chan.m_format = format;
 		chan.m_componentCount = uint16(componentCount);
 		chan.m_offset = uint8(offset);
@@ -621,7 +621,7 @@ namespace mu
 	//-----------------------------------------------------------------------------------------
 	void FMeshBufferSet::ResetBufferIndices()
 	{
-		uint8_t currentIndices[MBS_COUNT];
+		int32 currentIndices[MBS_COUNT];
 		memset(currentIndices, 0, sizeof(currentIndices));
 
 		for (FMeshBuffer& b : m_buffers)

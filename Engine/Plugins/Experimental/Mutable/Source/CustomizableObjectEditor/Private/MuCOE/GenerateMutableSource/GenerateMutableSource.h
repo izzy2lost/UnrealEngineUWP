@@ -647,6 +647,8 @@ struct FMutableGraphGenerationContext
 	/** Adds to ParameterNamesMap the node Node to the array of elements with name Name */
 	void AddParameterNameUnique(const UCustomizableObjectNode* Node, FString Name);
 
+	uint32 GetSkinWeightProfileIdUnique(const FName ProfileName);
+
 	// Check if the Id of the node Node already exists, if it's new adds it to NodeIds array, otherwise, returns new Id
 	const FGuid GetNodeIdUnique(const UCustomizableObjectNode* Node);
 
@@ -710,6 +712,9 @@ struct FMutableGraphGenerationContext
 
 	// Data used for SkinWeightProfiles reconstruction
 	TArray<FMutableSkinWeightProfileInfo> SkinWeightProfilesInfo;
+
+	TMap<uint32, FName> UniqueSkinWeightProfileIds;
+	TMap<FName, uint32> RemappedSkinWeightProfileIds;
 
 	TArray<FAnimBpOverridePhysicsAssetsInfo> AnimBpOverridePhysicsAssetsInfo;
 

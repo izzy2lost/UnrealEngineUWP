@@ -120,6 +120,9 @@ namespace mu
 		MBS_BARYCENTRICCOORDS,
 		MBS_DISTANCE,
 
+		//! Semantics useful for alternative skin weight profiles.
+		MBS_ALTSKINWEIGHT,
+
 		//! Utility
 		MBS_COUNT,
 
@@ -134,9 +137,9 @@ namespace mu
 		{
 			m_semantic = MBS_NONE;
 			m_format = MBF_NONE;
-			m_componentCount = 0;
 			m_semanticIndex = 0;
 			m_offset = 0;
+			m_componentCount = 0;
 		}
 
 		//!
@@ -146,10 +149,10 @@ namespace mu
 		EMeshBufferFormat m_format;
 
 		//! Index of the semantic, in case there are more than one of this type.
-		uint8 m_semanticIndex;
+		int32 m_semanticIndex;
 
 		//! Offset in bytes from the begining of a buffer element
-		uint8 m_offset;
+		uint16 m_offset;
 
 		//! Number of components of the type in m_format for every value in the channel
 		uint16 m_componentCount;

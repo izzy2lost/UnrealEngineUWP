@@ -195,7 +195,7 @@ void MutableMeshBufferUtils::SetupSkinWeightProfileBuffer(const int32& InCurrent
 	using namespace mu;
 	const int32 ElementSize = sizeof(int32) + (MaxBoneIndexTypeSizeBytes + 1) * MaxNumBonesPerVertex;
 	constexpr int32 ChannelCount = 3;
-	const EMeshBufferSemantic Semantics[ChannelCount] = { MBS_OTHER, MBS_BONEINDICES, MBS_BONEWEIGHTS };
+	const EMeshBufferSemantic Semantics[ChannelCount] = { MBS_ALTSKINWEIGHT, MBS_BONEINDICES, MBS_BONEWEIGHTS };
 	const int32 SemanticIndices[ChannelCount] = { SemanticsIndex, SemanticsIndex, SemanticsIndex };
 
 	EMeshBufferFormat Formats[ChannelCount] = { MBF_INT32, MBF_UINT8, MBF_NUINT8 };

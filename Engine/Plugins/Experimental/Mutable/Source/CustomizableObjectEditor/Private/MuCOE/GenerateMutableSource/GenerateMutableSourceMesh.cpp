@@ -1485,19 +1485,19 @@ mu::MeshPtr ConvertSkeletalMeshToMutable(const USkeletalMesh* InSkeletalMesh, co
 				MutSkinWeightData += BoneWeightsSize;
 			}
 
-			const int32 ProfileIndex = GenerationContext.SkinWeightProfilesInfo.AddUnique({Profile.Name, false, 0});
-			const int32 ProfileSemanticIndex = ProfileIndex + 10;
+			const uint32 ProfileId = GenerationContext.GetSkinWeightProfileIdUnique(Profile.Name);
+			const int32 ProfileIndex = GenerationContext.SkinWeightProfilesInfo.AddUnique({Profile.Name, ProfileId, false, 0});
+			FMutableSkinWeightProfileInfo& MutSkinWeightProfileInfo = GenerationContext.SkinWeightProfilesInfo[ProfileIndex];
 
 			const FName PlatformName = *GenerationContext.Options.TargetPlatform->PlatformName();
-			FMutableSkinWeightProfileInfo& MutSkinWeightProfileInfo = GenerationContext.SkinWeightProfilesInfo[ProfileIndex];
 			MutSkinWeightProfileInfo.DefaultProfile = MutSkinWeightProfileInfo.DefaultProfile || Profile.DefaultProfile.GetValueForPlatform(PlatformName);
 			MutSkinWeightProfileInfo.DefaultProfileFromLODIndex = FMath::Min(MutSkinWeightProfileInfo.DefaultProfileFromLODIndex, Profile.DefaultProfileFromLODIndex.GetValueForPlatform(PlatformName));
 
 			// Set up SkinWeightPRofile BufferData
 			const int32 ElementSize = sizeof(int32) + sizeof(FBoneIndexType) + BoneWeightTypeSizeBytes;
 			const int32 ChannelCount = 3;
-			const EMeshBufferSemantic Semantics[ChannelCount] = { MBS_OTHER, MBS_BONEINDICES, MBS_BONEWEIGHTS };
-			const int32 SemanticIndices[ChannelCount] = { ProfileSemanticIndex, ProfileSemanticIndex, ProfileSemanticIndex };
+			const EMeshBufferSemantic Semantics[ChannelCount] = { MBS_ALTSKINWEIGHT, MBS_BONEINDICES, MBS_BONEWEIGHTS };
+			const int32 SemanticIndices[ChannelCount] = { static_cast<int32>(ProfileId), static_cast<int32>(ProfileId), static_cast<int32>(ProfileId) };
 			const EMeshBufferFormat Formats[ChannelCount] = { MBF_INT32, MBF_UINT16, BoneWeightFormat };
 			const int32 Components[ChannelCount] = { 1, MutableBonesPerVertex, MutableBonesPerVertex };
 			const int32 Offsets[ChannelCount] = { 0, sizeof(int32), sizeof(int32) + BoneIndicesSize };
@@ -3002,14 +3002,10 @@ mu::NodeMeshPtr GenerateMutableSourceMesh(const UEdGraphPin* Pin,
 				{
 					FSkeletalMeshModel* ImportModel = TypedNodeSkel->SkeletalMesh->GetImportedModel();
 
-					const int32 SkinWeightProfilesCount = GenerationContext.SkinWeightProfilesInfo.Num();
-					for (int32 ProfileIndex = 0; ProfileIndex < SkinWeightProfilesCount; ++ProfileIndex)
+					for (const auto& SkinWeightProfile : ImportModel->LODModels[LODIndex].SkinWeightProfiles)
 					{
-						if (ImportModel->LODModels[LODIndex].SkinWeightProfiles.Find(GenerationContext.SkinWeightProfilesInfo[ProfileIndex].Name))
-						{
-							const int32 ProfileScemanticIndex = ProfileIndex + 10;
-							MeshData.SkinWeightProfilesSemanticIndices.AddUnique(ProfileScemanticIndex);
-						}
+						const int32 ProfileId = static_cast<int32>(GenerationContext.GetSkinWeightProfileIdUnique(SkinWeightProfile.Key));
+						MeshData.SkinWeightProfilesSemanticIndices.AddUnique(ProfileId);
 					}
 				}
 

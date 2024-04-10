@@ -4730,46 +4730,53 @@ bool UCustomizableInstancePrivate::BuildOrCopyRenderData(const TSharedRef<FUpdat
 			// Copy SkinWeightProfiles
 			if (!ModelResources.SkinWeightProfilesInfo.IsEmpty())
 			{
-				bool bHasSkinWeightProfiles = false;
-
 				const mu::FMeshBufferSet& MutableMeshVertexBuffers = Component.Mesh->GetVertexBuffers();
 
-				const int32 SkinWeightProfilesCount = ModelResources.SkinWeightProfilesInfo.Num();
-				for (int32 ProfileIndex = 0; ProfileIndex < SkinWeightProfilesCount; ++ProfileIndex)
+				bool bHasSkinWeightProfiles = false;
+			
+				const int32 NumBuffers = MutableMeshVertexBuffers.GetBufferCount();
+				for (int32 BufferIndex = 0; BufferIndex < NumBuffers; ++BufferIndex)
 				{
-					const int32 ProfileSemanticsIndex = ProfileIndex + 10;
-					int32 BoneIndicesBufferIndex, BoneIndicesBufferChannelIndex;
-					MutableMeshVertexBuffers.FindChannel(mu::MBS_BONEINDICES, ProfileSemanticsIndex, &BoneIndicesBufferIndex, &BoneIndicesBufferChannelIndex);
-
-					int32 BoneWeightsBufferIndex, BoneWeightsBufferChannelIndex;
-					MutableMeshVertexBuffers.FindChannel(mu::MBS_BONEWEIGHTS, ProfileSemanticsIndex, &BoneWeightsBufferIndex, &BoneWeightsBufferChannelIndex);
-
-					if (BoneIndicesBufferIndex < 0 || BoneIndicesBufferIndex != BoneWeightsBufferIndex)
+					// Skin Weight Profiles have 3 channels
+					if (MutableMeshVertexBuffers.GetBufferChannelCount(BufferIndex) != 3)
 					{
 						continue;
 					}
 
-					if (!bHasSkinWeightProfiles)
+					mu::EMeshBufferSemantic Semantic;
+					int32 SemanticIndex;
+					MutableMeshVertexBuffers.GetChannel(BufferIndex, 0, &Semantic, &SemanticIndex, nullptr, nullptr, nullptr);
+
+					if (Semantic != mu::EMeshBufferSemantic::MBS_ALTSKINWEIGHT)
 					{
-						LODResource.SkinWeightProfilesData.Init(&LODResource.SkinWeightVertexBuffer);
-						bHasSkinWeightProfiles = true;
+						continue;
 					}
 
-					const FMutableSkinWeightProfileInfo& Profile = ModelResources.SkinWeightProfilesInfo[ProfileIndex];
+					const FMutableSkinWeightProfileInfo* ProfileInfo = ModelResources.SkinWeightProfilesInfo.FindByPredicate(
+							[&SemanticIndex](const FMutableSkinWeightProfileInfo& P) { return P.NameId == SemanticIndex; });
 
-					const FSkinWeightProfileInfo* ExistingProfile = SkeletalMesh->GetSkinWeightProfiles().FindByPredicate(
-						[&Profile](const FSkinWeightProfileInfo& P) { return P.Name == Profile.Name; });
-
-					if (!ExistingProfile)
+					if (ensure(ProfileInfo))
 					{
-						SkeletalMesh->AddSkinWeightProfile({ Profile.Name, Profile.DefaultProfile, Profile.DefaultProfileFromLODIndex });
-					}
+						if (!bHasSkinWeightProfiles)
+						{
+							LODResource.SkinWeightProfilesData.Init(&LODResource.SkinWeightVertexBuffer);
+							bHasSkinWeightProfiles = true;
+						}
+						
+						const FSkinWeightProfileInfo* ExistingProfile = SkeletalMesh->GetSkinWeightProfiles().FindByPredicate(
+							[&ProfileInfo](const FSkinWeightProfileInfo& P) { return P.Name == ProfileInfo->Name; });
 
-					UnrealConversionUtils::CopyMutableSkinWeightProfilesBuffers(
-						LODResource,
-						Profile.Name,
-						MutableMeshVertexBuffers,
-						BoneIndicesBufferIndex);
+						if (!ExistingProfile)
+						{
+							SkeletalMesh->AddSkinWeightProfile({ ProfileInfo->Name, ProfileInfo->DefaultProfile, ProfileInfo->DefaultProfileFromLODIndex });
+						}
+
+						UnrealConversionUtils::CopyMutableSkinWeightProfilesBuffers(
+							LODResource,
+							ProfileInfo->Name,
+							MutableMeshVertexBuffers,
+							BufferIndex);
+					}
 				}
 			}
 		}

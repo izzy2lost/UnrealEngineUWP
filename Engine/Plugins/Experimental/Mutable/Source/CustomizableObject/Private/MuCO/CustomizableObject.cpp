@@ -2494,6 +2494,7 @@ FArchive& operator<<(FArchive& Ar, FMutableRefAssetUserData& Data)
 FArchive& operator<<(FArchive& Ar, FMutableSkinWeightProfileInfo& Info)
 {
 	Ar << Info.Name;
+	Ar << Info.NameId;
 	Ar << Info.DefaultProfile;
 	Ar << Info.DefaultProfileFromLODIndex;
 

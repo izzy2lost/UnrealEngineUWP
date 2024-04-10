@@ -52,6 +52,7 @@
 #include "PhysicsEngine/PhysicsAsset.h"
 #include "PlatformInfo.h"
 #include "Math/NumericLimits.h"
+#include "Hash/CityHash.h"
 
 #define LOCTEXT_NAMESPACE "CustomizableObjectEditor"
 
@@ -218,6 +219,39 @@ void FMutableGraphGenerationContext::AddParameterNameUnique(const UCustomizableO
 		ArrayTemp.Add(Node);
 		ParameterNamesMap.Add(Name, ArrayTemp);
 	}
+}
+
+uint32 FMutableGraphGenerationContext::GetSkinWeightProfileIdUnique(const FName InProfileName)
+{
+	const FString ProfileNameString = InProfileName.ToString();
+	
+	uint32 UniqueProfileId = CityHash32(reinterpret_cast<const char*>(*ProfileNameString), ProfileNameString.Len() * sizeof(FString::ElementType));
+
+	bool bRemappedProfile = false;
+
+	FName& ProfileName = UniqueSkinWeightProfileIds.FindOrAdd(UniqueProfileId, InProfileName);
+	while (ProfileName != InProfileName)
+	{
+		if (uint32* RemappedProfileId = RemappedSkinWeightProfileIds.Find(InProfileName))
+		{
+			UniqueProfileId = *RemappedProfileId;
+			break;
+		}
+
+		// Id collision detected
+		bRemappedProfile = true;
+
+		// Increase Id in an attempt to make it unique again.
+		++UniqueProfileId;
+		ProfileName = UniqueSkinWeightProfileIds.FindOrAdd(UniqueProfileId, InProfileName);
+	}
+
+	if (bRemappedProfile)
+	{
+		RemappedSkinWeightProfileIds.Add(InProfileName, UniqueProfileId);
+	}
+
+	return UniqueProfileId;
 }
 
 

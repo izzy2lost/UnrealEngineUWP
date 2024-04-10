@@ -463,11 +463,14 @@ struct CUSTOMIZABLEOBJECT_API FMutableSkinWeightProfileInfo
 
 	FMutableSkinWeightProfileInfo() {};
 
-	FMutableSkinWeightProfileInfo(FName InName, bool InDefaultProfile, int8 InDefaultProfileFromLODIndex) : Name(InName),
-	DefaultProfile(InDefaultProfile), DefaultProfileFromLODIndex(InDefaultProfileFromLODIndex) {};
+	FMutableSkinWeightProfileInfo(FName InName, uint32 InNameId, bool InDefaultProfile, int8 InDefaultProfileFromLODIndex) : Name(InName),
+		NameId(InNameId), DefaultProfile(InDefaultProfile), DefaultProfileFromLODIndex(InDefaultProfileFromLODIndex) {};
 
 	UPROPERTY()
 	FName Name;
+
+	UPROPERTY()
+	uint32 NameId = 0;
 
 	UPROPERTY()
 	bool DefaultProfile = false;
@@ -830,6 +833,6 @@ public:
 	// This is a manual version number for the binary blobs in this asset.
 	// Increasing it invalidates all the previously compiled models.
 	// Warning: If while merging code both versions have changed, take the highest+1.
-	static constexpr int32 CurrentSupportedVersion = 438;
+	static constexpr int32 CurrentSupportedVersion = 439;
 };
 
