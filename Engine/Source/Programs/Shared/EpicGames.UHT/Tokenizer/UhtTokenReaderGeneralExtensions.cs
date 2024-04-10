@@ -224,7 +224,7 @@ namespace EpicGames.UHT.Tokenizer
 			for (; ; )
 			{
 				UhtToken token = tokenReader.PeekToken();
-				if (token.IsIdentifier("DEPRECATED") || token.IsIdentifier("UE_DEPRECATED"))
+				if (token.IsIdentifier("DEPRECATED") || token.IsIdentifier("UE_DEPRECATED") || token.IsIdentifier("UE_DEPRECATED_FORGAME") || token.IsIdentifier("UE_DEPRECATED_FORENGINE"))
 				{
 					tokenReader.ConsumeToken();
 					tokenReader.Require('(', "deprecation macro");
