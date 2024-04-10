@@ -577,7 +577,7 @@ UClass* URigVMDetailsViewWrapperObject::GetClassForNodes(TArray<URigVMNode*> InN
 			}
 		}
 
-		if(DispatchFactories.Num() > 0)
+		if(FunctionIdentifiers.Num() > 0)
 		{
 			const FRigVMGraphFunctionIdentifier Identifier = FunctionIdentifiers[0];
 			const FRigVMGraphFunctionHeader Header = FRigVMGraphFunctionHeader::FindGraphFunctionHeader(Identifier);
