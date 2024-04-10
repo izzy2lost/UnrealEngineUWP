@@ -42,6 +42,9 @@ class _StageAppMainScreenState extends State<StageAppMainScreen>
   /// Whether to show the floating stage map preview.
   bool _bShowMapPreview = false;
 
+  /// Whether to show the floating trackpad.
+  bool _bShowTrackpad = false;
+
   @override
   void initState() {
     super.initState();
@@ -52,6 +55,7 @@ class _StageAppMainScreenState extends State<StageAppMainScreen>
       vsync: this,
     );
     _tabController.addListener(_onActiveTabChanged);
+    _onActiveTabChanged();
 
     final int startTab = Provider.of<MainScreenSettings>(context, listen: false).selectedTab.getValue();
 
@@ -109,7 +113,7 @@ class _StageAppMainScreenState extends State<StageAppMainScreen>
                 right: UnrealTheme.cardMargin,
                 bottom: UnrealTheme.cardMargin,
               ),
-              key: Key('Tab View'),
+              key: const Key('Tab View'),
               child: Container(
                 decoration: BoxDecoration(
                   color: Theme.of(context).colorScheme.background,
@@ -124,7 +128,7 @@ class _StageAppMainScreenState extends State<StageAppMainScreen>
               ),
             ),
             if (_bShowMapPreview) const FloatingMapPreview(key: Key('Map Preview')),
-            FloatingTrackpad()
+            if (_bShowTrackpad) const FloatingTrackpad(key: Key('Trackpad')),
           ],
         ),
       ),
@@ -181,6 +185,13 @@ class _StageAppMainScreenState extends State<StageAppMainScreen>
     if (bNewShowMapPreview != _bShowMapPreview) {
       setState(() {
         _bShowMapPreview = bNewShowMapPreview;
+      });
+    }
+
+    final bool bNewShowTrackpad = MainScreenTabs.shouldShowTrackpad(_tabController.index);
+    if (bNewShowTrackpad != _bShowTrackpad) {
+      setState(() {
+        _bShowTrackpad = bNewShowTrackpad;
       });
     }
   }

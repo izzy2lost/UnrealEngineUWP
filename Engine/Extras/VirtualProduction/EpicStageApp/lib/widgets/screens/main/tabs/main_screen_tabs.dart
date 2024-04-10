@@ -17,6 +17,7 @@ class MainScreenTabs {
       getTitle: StageMapTab.getTitle,
       iconPath: StageMapTab.iconPath,
       bShowMapPreview: false,
+      bShowTrackpad: true,
       createTabContents: (context) => const StageMapTab(),
     ),
     MainScreenTabConfig(
@@ -66,6 +67,11 @@ class MainScreenTabs {
   static bool shouldShowMapPreview(int index) {
     return _tabs[index].bShowMapPreview;
   }
+
+  /// Check whether the given tab should show the trackpad.
+  static bool shouldShowTrackpad(int index) {
+    return _tabs[index].bShowTrackpad;
+  }
 }
 
 /// Configuration for an entry in the main screen's tab bar.
@@ -77,7 +83,8 @@ class MainScreenTabConfig {
     this.bKeepAlive = false,
     this.bEnableOutlinerToggle = true,
     this.bShowMapPreview = true,
-  });
+    this.bShowTrackpad = false,
+  }) : assert(!(bShowMapPreview && bShowTrackpad), 'Map and trackpad can\'t be shown at the same time');
 
   /// Function that returns the title of the tab as shown to the user.
   final String Function(BuildContext) getTitle;
@@ -97,4 +104,7 @@ class MainScreenTabConfig {
 
   /// Whether the floating map preview should be visible when this tab is open.
   final bool bShowMapPreview;
+
+  /// Whether the floating trackpad should be visible when this tab is open.
+  final bool bShowTrackpad;
 }
