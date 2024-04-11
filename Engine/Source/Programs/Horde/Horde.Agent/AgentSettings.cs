@@ -216,9 +216,14 @@ namespace Horde.Agent
 		public PerforceExecutorSettings PerforceExecutor { get; set; } = new PerforceExecutorSettings();
 
 		/// <summary>
-		/// Working directory
+		/// Working directory for leases and jobs (i.e where files from Perforce will be checked out) 
 		/// </summary>
 		public DirectoryReference WorkingDir { get; set; } = DirectoryReference.Combine(AgentApp.DataDir, "Sandbox");
+
+		/// <summary>
+		/// Directory where agent and lease logs are written
+		/// </summary>
+		public DirectoryReference LogsDir { get; set; } = AgentApp.DataDir;
 
 		/// <summary>
 		/// Whether to mount the specified list of network shares

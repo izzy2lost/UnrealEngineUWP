@@ -286,7 +286,7 @@ namespace Horde.Agent
 				.Build();
 		}
 
-		static AgentSettings BindSettings(IConfiguration configuration)
+		internal static AgentSettings BindSettings(IConfiguration configuration)
 		{
 			AgentSettings settings = new AgentSettings();
 			configuration.GetSection(AgentSettings.SectionName).Bind(settings);

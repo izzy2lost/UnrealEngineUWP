@@ -25,7 +25,7 @@ namespace Horde.Agent.Leases
 		public LeaseLoggerFactory(IOptions<AgentSettings> settings, ILogger<LeaseLoggerFactory> logger)
 		{
 			_settings = settings.Value;
-			_logDir = DirectoryReference.Combine(settings.Value.WorkingDir, "Leases");
+			_logDir = DirectoryReference.Combine(settings.Value.LogsDir, "Leases");
 			_logger = logger;
 			_backgroundTask = BackgroundTask.StartNew(BackgroundCleanupAsync);
 		}
