@@ -6,7 +6,7 @@
 
 #pragma once
 
-#include "TaskGraphNewFrontEndDef.h"
+#include "TaskGraphDefinitions.h"
 #include "Templates/RefCounting.h"
 
 class FBaseGraphTask;
