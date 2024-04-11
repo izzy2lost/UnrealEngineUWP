@@ -879,8 +879,14 @@ void ExtractFunctionParams(const UFunction* InFunc, TArray<FGeneratedWrappedMeth
 	auto AddGeneratedWrappedMethodParameter = [InFunc](const FProperty* InParam, TArray<FGeneratedWrappedMethodParameter>& OutParams)
 	{
 		const FString ParamName = InParam->GetName();
-		const FString PythonParamName = PythonizePropertyName(ParamName, EPythonizeNameCase::Lower);
 		const FName DefaultValueMetaDataKey = *FString::Printf(TEXT("CPP_Default_%s"), *ParamName);
+
+		FString PythonParamName = PythonizePropertyName(ParamName, EPythonizeNameCase::Lower);
+		if (!InFunc->HasAnyFunctionFlags(FUNC_Static) && PythonParamName == TEXTVIEW("self"))
+		{
+			// self is a reserved function parameter name
+			PythonParamName.InsertAt(0, TEXT('_'));
+		}
 
 		FGeneratedWrappedMethodParameter& GeneratedWrappedMethodParam = OutParams.AddDefaulted_GetRef();
 		GeneratedWrappedMethodParam.ParamName = TCHARToUTF8Buffer(*PythonParamName);
@@ -1850,18 +1856,17 @@ FString PythonizePropertyName(FStringView InName, const EPythonizeNameCase InNam
 			continue;
 		}
 
-		// Strip the "Out" prefix from names
-		//if (InName.Len() - NameOffset >= 4 && InName[NameOffset] == TEXT('O') && InName[NameOffset + 1] == TEXT('u') && InName[NameOffset + 2] == TEXT('t') && FChar::IsUpper(InName[NameOffset + 3]))
-		//{
-		//	NameOffset += 3;
-		//	continue;
-		//}
-
 		// Nothing more to strip
 		break;
 	}
 
-	return PythonizeName(NameOffset ? InName.RightChop(NameOffset) : InName, InNameCase);
+	FString PythonPropertyName = PythonizeName(NameOffset ? InName.RightChop(NameOffset) : InName, InNameCase);
+	if (PythonPropertyName == TEXTVIEW("self"))
+	{
+		PythonPropertyName.InsertAt(0, TEXT('_'));
+	}
+
+	return PythonPropertyName;
 }
 
 FString PythonizePropertyTooltip(const FParsedTooltip& InTooltip, const FProperty* InProp, const uint64 InReadOnlyFlags)

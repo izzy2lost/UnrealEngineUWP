@@ -453,7 +453,7 @@ FPCGAttributePropertyInputSelector UPCGAttributePropertySelectorBlueprintHelpers
 	return Selector.CopyAndFixLast(InData);
 }
 
-FPCGAttributePropertyOutputSelector UPCGAttributePropertySelectorBlueprintHelpers::CopyAndFixSource(const FPCGAttributePropertyOutputSelector& Selector, const FPCGAttributePropertyInputSelector& InSelector)
+FPCGAttributePropertyOutputSelector UPCGAttributePropertySelectorBlueprintHelpers::CopyAndFixSource(const FPCGAttributePropertyOutputSelector& OutputSelector, const FPCGAttributePropertyInputSelector& InputSelector)
 {
-	return Selector.CopyAndFixSource(&InSelector);
+	return OutputSelector.CopyAndFixSource(&InputSelector);
 }
