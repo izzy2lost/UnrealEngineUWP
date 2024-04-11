@@ -1837,6 +1837,246 @@ namespace impl
 		}
 	}
 
+	void Subtask_Mutable_PrepareRealTimeMorphData(const TSharedRef<FUpdateContextPrivate>& OperationData)
+	{
+		MUTABLE_CPUPROFILER_SCOPE(BuildMorphTargetsData);
+
+		FInstanceUpdateData& UpdateData = OperationData->InstanceUpdateData;
+
+		const TMap<uint32, FInstanceUpdateData::FMorphTargetMeshData>& ResourceIdToMeshDataMap =
+				UpdateData.RealTimeMorphTargetMeshData;
+
+		if (ResourceIdToMeshDataMap.IsEmpty())
+		{
+			return;
+		}
+		
+		int32 NumNotFoundLoadedMorphsResources = 0;
+		
+		for (FInstanceUpdateData::FComponent& Component : OperationData->InstanceUpdateData.Components)
+		{
+			if (!OperationData->InstanceUpdateData.RealTimeMorphTargets.IsValidIndex(Component.Id))
+			{
+				OperationData->InstanceUpdateData.RealTimeMorphTargets.SetNum(Component.Id + 1);
+			}
+
+			FInstanceUpdateData::FRealTimeMorphsComponentData& ComponentMorphTargetsData = 
+					OperationData->InstanceUpdateData.RealTimeMorphTargets[Component.Id];
+
+			ComponentMorphTargetsData.ComponentIndex = Component.Id;
+		}
+
+		const int32 NumComponents = OperationData->InstanceUpdateData.RealTimeMorphTargets.Num();
+		for (int32 ComponentIndex = 0; ComponentIndex < NumComponents; ++ComponentIndex)
+		{
+			FInstanceUpdateData::FRealTimeMorphsComponentData& ComponentMorphTargetsData = 
+					OperationData->InstanceUpdateData.RealTimeMorphTargets[ComponentIndex];
+			
+			if (ComponentMorphTargetsData.ComponentIndex == INDEX_NONE)
+			{
+				continue;
+			}
+
+			struct FMorphTargetMeshData
+			{
+				TArray<int32> NameResolutionMap;
+				TArrayView<const FMorphTargetVertexData> DataView;
+			};
+
+			TArray<FName>& MorphTargetNames = ComponentMorphTargetsData.RealTimeMorphTargetNames;
+			MorphTargetNames.Empty();
+
+			TMap<uint32, FMorphTargetMeshData> MorphTargetMeshData;
+			MorphTargetMeshData.Reserve(ResourceIdToMeshDataMap.Num());
+			
+			for (const TPair<uint32, FInstanceUpdateData::FMorphTargetMeshData>& MorphTargetResource : ResourceIdToMeshDataMap)
+			{
+				FMorphTargetMeshData& MeshData = MorphTargetMeshData.FindOrAdd(MorphTargetResource.Key);
+				MeshData.DataView = MakeArrayView(MorphTargetResource.Value.Data);
+
+				const int32 NumMorphNames = MorphTargetResource.Value.NameResolutionMap.Num();
+				MeshData.NameResolutionMap.SetNumUninitialized(NumMorphNames);
+
+				for (int32 NameIndex = 0; NameIndex < NumMorphNames; ++NameIndex)
+				{
+					const int32 ResolvedNameIndex = MorphTargetNames.AddUnique(MorphTargetResource.Value.NameResolutionMap[NameIndex]);
+					MeshData.NameResolutionMap[NameIndex] = ResolvedNameIndex;
+				}
+			}
+
+			// Allocate Morph data for used morphs.
+			TArray<TArray<FMorphTargetLODModel>>& MorphsData = ComponentMorphTargetsData.RealTimeMorphsLODData;
+			const int32 NumMorphs = MorphTargetNames.Num();
+
+			MorphsData.SetNum(MorphTargetNames.Num());
+			for (int32 MorphIndex = 0; MorphIndex < NumMorphs; ++MorphIndex)
+			{
+				MorphsData[MorphIndex].SetNum(OperationData->NumLODsAvailable);
+			}
+
+			TArray<int32> SectionMorphTargetVerticesCount;
+			SectionMorphTargetVerticesCount.SetNumZeroed(ComponentMorphTargetsData.RealTimeMorphTargetNames.Num());
+
+			const int32 FirstGeneratedLOD = FMath::Max((int32)OperationData->GetRequestedLODs()[ComponentIndex], OperationData->GetMinLOD());
+			for (int32 LODIndex = FirstGeneratedLOD; LODIndex < OperationData->NumLODsAvailable; ++LODIndex)
+			{
+				const FInstanceUpdateData::FLOD& LOD = UpdateData.LODs[LODIndex];
+				const FInstanceUpdateData::FComponent& Component = UpdateData.Components[LOD.FirstComponent + ComponentIndex];
+				check(Component.bGenerated);
+				check(Component.Mesh);
+
+				const mu::FMeshBufferSet& MeshSet = Component.Mesh->GetVertexBuffers();
+
+				int32 VertexMorphsInfoIndexAndCountBufferIndex, VertexMorphsInfoIndexAndCountBufferChannel;
+				MeshSet.FindChannel(mu::MBS_OTHER, 0, &VertexMorphsInfoIndexAndCountBufferIndex, &VertexMorphsInfoIndexAndCountBufferChannel);
+
+				int32 VertexMorphsResourceIdBufferIndex, VertexMorphsResourceIdBufferChannel;
+				MeshSet.FindChannel(mu::MBS_OTHER, 1, &VertexMorphsResourceIdBufferIndex, &VertexMorphsResourceIdBufferChannel);
+
+				if (VertexMorphsInfoIndexAndCountBufferIndex < 0 || VertexMorphsResourceIdBufferIndex < 0)
+				{
+					continue;
+				}
+
+				const uint32* const VertexMorphsInfoIndexAndCountBuffer = reinterpret_cast<const uint32*>(MeshSet.GetBufferData(VertexMorphsInfoIndexAndCountBufferIndex));
+				TArrayView<const uint32> VertexMorphsInfoIndexAndCountView(VertexMorphsInfoIndexAndCountBuffer, MeshSet.GetElementCount());
+
+				const uint32* const VertexMorphsResourceIdBuffer = reinterpret_cast<const uint32*>(MeshSet.GetBufferData(VertexMorphsResourceIdBufferIndex));
+				TArrayView<const uint32> VertexMorphsResourceIdView(VertexMorphsResourceIdBuffer, MeshSet.GetElementCount());
+
+				const int32 SurfaceCount = Component.Mesh->GetSurfaceCount();
+				for (int32 Section = 0; Section < SurfaceCount; ++Section)
+				{
+					// Reset SectionMorphTargets.
+					for (int32& Elem : SectionMorphTargetVerticesCount)
+					{
+						Elem = 0;
+					}
+
+					int32 FirstVertex, VerticesCount, FirstIndex, IndiciesCount;
+					Component.Mesh->GetSurface(Section, &FirstVertex, &VerticesCount, &FirstIndex, &IndiciesCount, nullptr, nullptr, nullptr);
+
+					for (int32 VertexIdx = FirstVertex; VertexIdx < FirstVertex + VerticesCount;)
+					{
+						// Find a span with the same VertexMorphResourceId to amortise the cost of finding 
+						// in the loaded resources map. It is expected to find large consecutive mesh sections pointing to
+						// the same loaded resource.
+
+						const int32 SpanStart = VertexIdx++;
+						const uint32 CurrentResourceId = VertexMorphsResourceIdView[SpanStart];
+
+						// Vertex with no morphs are marked with 0, skip vertex if the case.
+						if (CurrentResourceId == 0)
+						{
+							continue;
+						}
+
+						for (; VertexIdx < FirstVertex + VerticesCount; ++VertexIdx)
+						{
+							const int32 VertexResourceId = VertexMorphsResourceIdView[VertexIdx];
+							// we can skip vertices with no morph without breaking the span.
+							if (VertexResourceId == 0)
+							{
+								continue;
+							}
+
+							if (CurrentResourceId != VertexResourceId)
+							{
+								break;
+							}
+						}
+						const int32 SpanEnd = VertexIdx;
+
+						const FMorphTargetMeshData* MorphTargetReconstructionData = MorphTargetMeshData.Find(CurrentResourceId);
+
+						if (!MorphTargetReconstructionData)
+						{
+							++NumNotFoundLoadedMorphsResources;
+							continue;
+						}
+
+						TArrayView<const FMorphTargetVertexData> SpanMorphData = MorphTargetReconstructionData->DataView;
+
+						for (int32 SpanVertexIdx = SpanStart; SpanVertexIdx < SpanEnd; ++SpanVertexIdx)
+						{
+							const uint32 MorphOffsetAndCount = VertexMorphsInfoIndexAndCountView[SpanVertexIdx];
+							if (MorphOffsetAndCount == 0)
+							{
+								continue;
+							}
+
+							// See encoding in GenerateMutableSourceMesh.cpp.
+							constexpr uint32 Log2MaxNumVerts = 23;
+							
+							TArrayView<const FMorphTargetVertexData> MorphsVertexDataView = MakeArrayView(
+									SpanMorphData.GetData() + (MorphOffsetAndCount & ((1 << Log2MaxNumVerts) - 1)), 
+									MorphOffsetAndCount >> Log2MaxNumVerts);
+
+							for (const FMorphTargetVertexData& SourceVertex : MorphsVertexDataView)
+							{
+								const uint32 ResolvedNameIndex =
+										MorphTargetReconstructionData->NameResolutionMap[SourceVertex.MorphNameIndex];
+
+								FMorphTargetLODModel& DestMorphLODModel = MorphsData[ResolvedNameIndex][LODIndex];
+
+								DestMorphLODModel.Vertices.Emplace(
+										FMorphTargetDelta 
+										{ 
+											SourceVertex.PositionDelta, 
+											SourceVertex.TangentZDelta, 
+											static_cast<uint32>(SpanVertexIdx) 
+										});
+
+								++SectionMorphTargetVerticesCount[ResolvedNameIndex];
+							}
+						}
+					}
+
+					const int32 SectionMorphTargetsNum = SectionMorphTargetVerticesCount.Num();
+					for (int32 MorphIdx = 0; MorphIdx < SectionMorphTargetsNum; ++MorphIdx)
+					{
+						if (SectionMorphTargetVerticesCount[MorphIdx] > 0)
+						{
+							FMorphTargetLODModel& MorphTargetLodModel = MorphsData[MorphIdx][LODIndex];
+
+							MorphTargetLodModel.SectionIndices.Add(Section);
+							MorphTargetLodModel.NumVertices += SectionMorphTargetVerticesCount[MorphIdx];
+						}
+					}
+				}
+			}
+		
+			// Remove empty morph targets;
+			for (int32 MorphIndex = 0; MorphIndex < NumMorphs; ++MorphIndex)
+			{
+				const int32 NumLODs = MorphsData[MorphIndex].Num();
+
+				int32 LODIndex = 0;
+				for (; LODIndex < NumLODs; ++LODIndex)
+				{
+					if (!MorphsData[MorphIndex][LODIndex].Vertices.IsEmpty())
+					{
+						break;
+					}
+				}
+
+				if (LODIndex >= NumLODs)
+				{
+					MorphsData[MorphIndex].Empty();
+				}
+			}
+
+		}
+
+		// Free unneeded data memory.
+		UpdateData.RealTimeMorphTargetMeshData.Empty();
+		
+		if (NumNotFoundLoadedMorphsResources > 0)
+		{
+			UE_LOG(LogMutable, Warning, TEXT("Needed realtime morph reconstruction data was not loaded properly. Some realtime morphs may not work correctly."));
+		}
+	}
+
 
 	/** End of the GetMeshes tasks. */
 	void Task_Mutable_GetMeshes_End(
@@ -1848,7 +2088,6 @@ namespace impl
 
 		// TODO: Not strictly mutable: move to another worker thread task to free mutable access?
 		Subtask_Mutable_PrepareSkeletonData(OperationData);
-
 		if (OperationData->GetCapturedDescriptor().GetBuildParameterRelevancy())
 		{
 			Subtask_Mutable_UpdateParameterRelevancy(OperationData);
@@ -2622,6 +2861,10 @@ namespace impl
 			FinishUpdateGlobal(OperationData);
 			return;
 		}
+
+		// TODO: This subtask should execute before Convert resources in a worker thread but after 
+		// Loading resources. For now keep it here.
+		Subtask_Mutable_PrepareRealTimeMorphData(OperationData);
 
 		UCustomizableObjectInstance* CustomizableObjectInstance = OperationData->Instance.Get();
 

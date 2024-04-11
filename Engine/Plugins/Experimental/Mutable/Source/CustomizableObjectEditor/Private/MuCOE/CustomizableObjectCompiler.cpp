@@ -1006,35 +1006,30 @@ void FCustomizableObjectCompiler::CompileInternal(UCustomizableObject* Object, c
 		ModelResources.ParameterUIDataMap = MoveTemp(GenerationContext.ParameterUIDataMap);
 		ModelResources.StateUIDataMap = MoveTemp(GenerationContext.StateUIDataMap);
 
-		ModelResources.RealTimeMorphTargetNames = MoveTemp(GenerationContext.RealTimeMorphTargetsNames);
-
-		if (GenerationContext.RealTimeMorphTargetPerMeshData.Num() >= TNumericLimits<uint16>::Max())
-		{
-			UE_LOG(LogMutable, Warning, TEXT("Maximum number of meshes with realtime morph targets reached. Some morphs may not work."));
-		}
-
 		// Create the RealTimeMorphsTargets Blocks from the per mesh Morph data.
 		uint64 RealTimeMorphDataSize = 0;
-		for (const TArray<FMorphTargetVertexData>& VertexDataArray : GenerationContext.RealTimeMorphTargetPerMeshData)
+		for (const TPair<uint32, FRealTimeMorphMeshData>& MeshData : GenerationContext.RealTimeMorphTargetPerMeshData)
 		{
-			RealTimeMorphDataSize += VertexDataArray.Num();
+			RealTimeMorphDataSize += MeshData.Value.Data.Num();
 		}
 		
-		ModelResources.RealTimeMorphStreamableBlocks.Empty(32);
+		ModelResources.RealTimeMorphStreamables.Empty(32);
 		ModelResources.EditorOnlyMorphTargetReconstructionData.Empty(RealTimeMorphDataSize);
 
-		uint64 RealTimeMorphDataOffset = 0;
-		for (const TArray<FMorphTargetVertexData>& VertexDataArray : GenerationContext.RealTimeMorphTargetPerMeshData)
+		uint64 RealTimeMorphDataOffsetInBytes = 0;
+		for (const TPair<uint32, FRealTimeMorphMeshData>& MeshData : GenerationContext.RealTimeMorphTargetPerMeshData)
 		{
-			ModelResources.RealTimeMorphStreamableBlocks.Emplace(FMutableStreamableBlock
-					{
-						uint32(0),
-						(uint32)VertexDataArray.Num()*sizeof(FMorphTargetVertexData), 
-						RealTimeMorphDataOffset, 
-					});
+			const uint32 DataSizeInBytes = (uint32)MeshData.Value.Data.Num()*sizeof(FMorphTargetVertexData); 
+			FRealTimeMorphStreamable& ResourceMeshData = ModelResources.RealTimeMorphStreamables.FindOrAdd(MeshData.Key);
+			
+			check(ResourceMeshData.NameResolutionMap.IsEmpty());
+			check(ResourceMeshData.Block.Size == 0);
 
-			RealTimeMorphDataOffset += VertexDataArray.Num()*sizeof(FMorphTargetVertexData);
-			ModelResources.EditorOnlyMorphTargetReconstructionData.Append(VertexDataArray);
+			ResourceMeshData.NameResolutionMap = MeshData.Value.NameResolutionMap;
+			ResourceMeshData.Block = FMutableStreamableBlock { uint32(0), DataSizeInBytes, RealTimeMorphDataOffsetInBytes };
+
+			RealTimeMorphDataOffsetInBytes += DataSizeInBytes;
+			ModelResources.EditorOnlyMorphTargetReconstructionData.Append(MeshData.Value.Data);
 		}
 		
 		// Clothing	

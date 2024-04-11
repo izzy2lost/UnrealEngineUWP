@@ -283,10 +283,10 @@ namespace mu
         void SetTag( int tagIndex, const FString& Name );
 
 		//!
-		void AddStreamedResource(uint32 ResourceId);
+		void AddStreamedResource(uint64 ResourceId);
 
 		//!
-		const TArray<uint32>& GetStreamedResources() const;
+		const TArray<uint64>& GetStreamedResources() const;
 
 		//!
 		int32 FindBonePose(const FBoneName& BoneName) const;
@@ -385,7 +385,7 @@ namespace mu
 		TArray<FString> m_tags;
 
 		// Opaque handle to external resources.
-		TArray<uint32> StreamedResources;
+		TArray<uint64> StreamedResources;
 
 		struct FBonePose
 		{

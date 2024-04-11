@@ -249,7 +249,7 @@ bool FillTableColumn(const UCustomizableObjectNodeTable* TableNode,	mu::TablePtr
 				MeshUniqueTags += GenerateGameplayTag(Tag.ToString());
 			}
 			
-			TArray<int32> StreamedResources;
+			TArray<FCustomizableObjectStreameableResourceId> StreamedResources;
 
 			if (GenerationContext.Object->bEnableAssetUserDataMerge)
 			{
@@ -268,13 +268,11 @@ bool FillTableColumn(const UCustomizableObjectNodeTable* TableNode,	mu::TablePtr
 						
 						if (ResourceIndex >= 0)
 						{
-							check(ResourceIndex < (1 << 24) - 1);
-
 							FCustomizableObjectStreameableResourceId ResourceId;
 							ResourceId.Id = GenerationContext.AddAssetUserDataToStreamedResources(AssetUserData);
 							ResourceId.Type = (uint8)FCustomizableObjectStreameableResourceId::EType::AssetUserData;
 
-							StreamedResources.Add(BitCast<uint32>(ResourceId));
+							StreamedResources.Add(ResourceId);
 						}
 
 						MeshUniqueTags += AssetUserData->GetPathName();
@@ -332,9 +330,9 @@ bool FillTableColumn(const UCustomizableObjectNodeTable* TableNode,	mu::TablePtr
 					AddTagToMutableMeshUnique(*MutableMesh, GenerateGameplayTag(Tag.ToString()));
 				}
 
-				for (int32 ResourceIndex : StreamedResources)
+				for (FCustomizableObjectStreameableResourceId ResourceId : StreamedResources)
 				{
-					MutableMesh->AddStreamedResource(ResourceIndex);
+					MutableMesh->AddStreamedResource(BitCast<uint64>(ResourceId));
 				}
 
 				AddSocketTagsToMesh(SkeletalMesh, MutableMesh, GenerationContext);

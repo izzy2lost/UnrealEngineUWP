@@ -1870,7 +1870,7 @@ bool UCustomizableInstancePrivate::UpdateSkeletalMesh_PostBeginUpdate0(UCustomiz
 					constexpr bool bMarkAsDirty = false;
 					PhysicsAssetResult->SetPreviewMesh(SkeletalMesh, bMarkAsDirty);
 				}
-				}
+			}
 
 			const int32 NumAdditionalPhysicsNum = Component.Mesh->AdditionalPhysicsBodies.Num();
 			for (int32 I = 0; I < NumAdditionalPhysicsNum; ++I)
@@ -3532,217 +3532,45 @@ void UCustomizableInstancePrivate::BuildOrCopyMorphTargetsData(const TSharedRef<
 {
 	MUTABLE_CPUPROFILER_SCOPE(UCustomizableInstancePrivate::BuildOrCopyMorphTargetsData);
 
-	if (!SkeletalMesh || !CustomizableObjectInstance)
+	if (!SkeletalMesh)
 	{
 		return;
 	}
+	
+	FInstanceUpdateData& UpdateData = OperationData->InstanceUpdateData;
 
-	const UCustomizableObject* CustomizableObject = CustomizableObjectInstance->GetCustomizableObject();
-	const TArray<FName>& MorphTargetNames = CustomizableObject->GetPrivate()->GetModelResources().RealTimeMorphTargetNames;
+	FInstanceUpdateData::FRealTimeMorphsComponentData* ComponentMorphTargets = 
+		UpdateData.RealTimeMorphTargets.FindByPredicate(
+				[ComponentIndex](const FInstanceUpdateData::FRealTimeMorphsComponentData& Elem) 
+				{ 
+					return Elem.ComponentIndex == ComponentIndex; 
+				});
 
-	const TMap<uint32, TArray<FMorphTargetVertexData>>& ResourceIdToVertexDataMap =
-		OperationData->InstanceUpdateData.MorphTargetsVertexData;
-
-	if (MorphTargetNames.IsEmpty() || ResourceIdToVertexDataMap.IsEmpty())
+	if (!ComponentMorphTargets)
 	{
 		return;
 	}
-
-	TArray<int32> SectionMorphTargetVertices;
-
-	SectionMorphTargetVertices.SetNumZeroed(MorphTargetNames.Num());
-
-	TArray<uint8> UsedMorphSet;
-	UsedMorphSet.SetNum(MorphTargetNames.Num());
-
-	TArray<TArray<FMorphTargetLODModel>> MorphsData;
-	MorphsData.SetNum(MorphTargetNames.Num());
 
 	TArray<TObjectPtr<UMorphTarget>>& MorphTargets = SkeletalMesh->GetMorphTargets();
 
-	const int32 FirstGeneratedLOD = FMath::Max((int32)OperationData->GetRequestedLODs()[ComponentIndex], OperationData->GetMinLOD());
-	for (int32 LODIndex = FirstGeneratedLOD; LODIndex < OperationData->NumLODsAvailable; ++LODIndex)
+	MorphTargets.Empty(ComponentMorphTargets->RealTimeMorphTargetNames.Num());
+	
+	const int32 NumMorphs = ComponentMorphTargets->RealTimeMorphTargetNames.Num();
+	for (int32 I = 0; I < NumMorphs; ++I)
 	{
-		MUTABLE_CPUPROFILER_SCOPE(BuildMorphTargetsData);
-
-		int32 NumNotFoundLoadedMorphsResources = 0;
-
-		const FInstanceUpdateData::FLOD& LOD = OperationData->InstanceUpdateData.LODs[LODIndex];
-		const FInstanceUpdateData::FComponent& Component = OperationData->InstanceUpdateData.Components[LOD.FirstComponent + ComponentIndex];
-		check(Component.bGenerated);
-		check(Component.Mesh);
-
-		const mu::FMeshBufferSet& MeshSet = Component.Mesh->GetVertexBuffers();
-
-		int32 VertexMorphsInfoIndexBufferIndex, VertexMorphsInfoIndexBufferChannel;
-		MeshSet.FindChannel(mu::MBS_OTHER, 0, &VertexMorphsInfoIndexBufferIndex, &VertexMorphsInfoIndexBufferChannel);
-
-		int32 VertexMorphsCountBufferIndex, VertexMorphsCountBufferChannel;
-		MeshSet.FindChannel(mu::MBS_OTHER, 1, &VertexMorphsCountBufferIndex, &VertexMorphsCountBufferChannel);
-
-		int32 VertexMorphsResourceIdBufferIndex, VertexMorphsResourceIdBufferChannel;
-		MeshSet.FindChannel(mu::MBS_OTHER, 2, &VertexMorphsResourceIdBufferIndex, &VertexMorphsResourceIdBufferChannel);
-
-		if (VertexMorphsInfoIndexBufferIndex < 0 || VertexMorphsCountBufferIndex < 0 || VertexMorphsResourceIdBufferIndex < 0)
+		if (ComponentMorphTargets->RealTimeMorphsLODData[I].IsEmpty())
 		{
 			continue;
 		}
 
-		const int32* const VertexMorphsInfoIndexBuffer = reinterpret_cast<const int32*>(MeshSet.GetBufferData(VertexMorphsInfoIndexBufferIndex));
-		TArrayView<const int32> VertexMorphsInfoIndexView(VertexMorphsInfoIndexBuffer, MeshSet.GetElementCount());
-
-		const uint16* const VertexMorphsCountBuffer = reinterpret_cast<const uint16*>(MeshSet.GetBufferData(VertexMorphsCountBufferIndex));
-		TArrayView<const uint16> VertexMorphsCountView(VertexMorphsCountBuffer, MeshSet.GetElementCount());
-
-		const uint16* const VertexMorphsResourceIdBuffer = reinterpret_cast<const uint16*>(MeshSet.GetBufferData(VertexMorphsResourceIdBufferIndex));
-		TArrayView<const uint16> VertexMorphsResourceIdView(VertexMorphsResourceIdBuffer, MeshSet.GetElementCount());
-
-		const int32 SurfaceCount = Component.Mesh->GetSurfaceCount();
-		for (int32 Section = 0; Section < SurfaceCount; ++Section)
-		{
-			// Reset SectionMorphTargets.
-			for (int32& Elem : SectionMorphTargetVertices)
-			{
-				Elem = 0;
-			}
-
-			int32 FirstVertex, VerticesCount, FirstIndex, IndiciesCount;
-			Component.Mesh->GetSurface(Section, &FirstVertex, &VerticesCount, &FirstIndex, &IndiciesCount, nullptr, nullptr, nullptr);
-
-			for (int32 VertexIdx = FirstVertex; VertexIdx < FirstVertex + VerticesCount;)
-			{
-				// Find a span with the same VertexMorphResourceId to amortise the cost of finding 
-				// in the loaded resources map. It is expected to find large consecutive mesh sections pointing to
-				// the same loaded resource.
-
-				const int32 SpanStart = VertexIdx++;
-				const uint16 CurrentResourceId = VertexMorphsResourceIdView[SpanStart];
-
-				// Vertex with no morphs are marked with TNumericLimits<uint16>::Max(), skip vertex if the case.
-				if (CurrentResourceId == TNumericLimits<uint16>::Max())
-				{
-					continue;
-				}
-
-				for (; VertexIdx < FirstVertex + VerticesCount; ++VertexIdx)
-				{
-					const int32 VertexResourceId = VertexMorphsResourceIdView[VertexIdx];
-					// we can skip vertices with no morph without breaking the span.
-					if (VertexResourceId == TNumericLimits<uint16>::Max())
-					{
-						continue;
-					}
-
-					if (CurrentResourceId != VertexResourceId)
-					{
-						break;
-					}
-				}
-				const int32 SpanEnd = VertexIdx;
-
-				const TArray<FMorphTargetVertexData>* MorphTargetReconstructionData = ResourceIdToVertexDataMap.Find(CurrentResourceId);
-
-				if (!MorphTargetReconstructionData)
-				{
-					++NumNotFoundLoadedMorphsResources;
-					continue;
-				}
-
-				const TArray<FMorphTargetVertexData>& SpanMorphData = *MorphTargetReconstructionData;
-
-
-				// This assumes the number of vertex in an span will be large compared to the number of
-				// morphs. Maybe the allocation could be done in a different pass as an optimization.
-				FMemory::Memzero(UsedMorphSet.GetData(), UsedMorphSet.Num());
-				for (int32 SpanVertexIdx = SpanStart; SpanVertexIdx < SpanEnd; ++SpanVertexIdx)
-				{
-					const int32 MorphCount = VertexMorphsCountView[SpanVertexIdx];
-
-					TArrayView<const FMorphTargetVertexData> MorphsVertexDataView = MakeArrayView(
-						SpanMorphData.GetData() + VertexMorphsInfoIndexView[SpanVertexIdx],
-						MorphCount);
-
-					for (const FMorphTargetVertexData& MorphVertexData : MorphsVertexDataView)
-					{
-						check((uint32)UsedMorphSet.Num() > MorphVertexData.MorphNameIndex);
-						UsedMorphSet[MorphVertexData.MorphNameIndex] = 1;
-					}
-				}
-
-				const int32 NumMorphs = UsedMorphSet.Num();
-				for (int32 MorphIndex = 0; MorphIndex < NumMorphs; ++MorphIndex)
-				{
-					if (!UsedMorphSet[MorphIndex])
-					{
-						continue;
-					}
-
-					if (MorphsData[MorphIndex].IsEmpty())
-					{
-						MorphsData[MorphIndex].SetNum(OperationData->NumLODsAvailable);
-					}
-				}
-
-				for (int32 SpanVertexIdx = SpanStart; SpanVertexIdx < SpanEnd; ++SpanVertexIdx)
-				{
-					const uint16 MorphCount = VertexMorphsCountView[SpanVertexIdx];
-					if (MorphCount == 0)
-					{
-						continue;
-					}
-
-					TArrayView<const FMorphTargetVertexData> MorphsVertexDataView = MakeArrayView(
-						SpanMorphData.GetData() + VertexMorphsInfoIndexView[SpanVertexIdx],
-						MorphCount);
-
-					for (const FMorphTargetVertexData& SourceVertex : MorphsVertexDataView)
-					{
-						FMorphTargetLODModel& DestMorphLODModel = MorphsData[SourceVertex.MorphNameIndex][LODIndex];
-
-						DestMorphLODModel.Vertices.Emplace(
-							FMorphTargetDelta{ SourceVertex.PositionDelta, SourceVertex.TangentZDelta, static_cast<uint32>(SpanVertexIdx) });
-
-						++SectionMorphTargetVertices[SourceVertex.MorphNameIndex];
-					}
-				}
-			}
-
-			const int32 SectionMorphTargetsNum = SectionMorphTargetVertices.Num();
-			for (int32 MorphIdx = 0; MorphIdx < SectionMorphTargetsNum; ++MorphIdx)
-			{
-				if (SectionMorphTargetVertices[MorphIdx] > 0)
-				{
-					FMorphTargetLODModel& MorphTargetLodModel = MorphsData[MorphIdx][LODIndex];
-
-					MorphTargetLodModel.SectionIndices.Add(Section);
-					MorphTargetLodModel.NumVertices += SectionMorphTargetVertices[MorphIdx];
-				}
-			}
-		}
-
-		if (NumNotFoundLoadedMorphsResources > 0)
-		{
-			UE_LOG(LogMutable, Warning, TEXT("Needed realtime morph reconstruction data was not loaded properly. Some realtime morphs may not work correctly."));
-		}
-
-		// Generate the SkeletalMesh data structures. The previous step could be done in an async task.
-		MorphTargets.Empty();
-		const int32 NumMorphs = MorphTargetNames.Num();
-		for (int32 I = 0; I < NumMorphs; ++I)
-		{
-			if (MorphsData[I].IsEmpty())
-			{
-				continue;
-			}
-
-			UMorphTarget* NewMorphTarget = NewObject<UMorphTarget>(SkeletalMesh, MorphTargetNames[I]);
-			NewMorphTarget->BaseSkelMesh = SkeletalMesh;
-			NewMorphTarget->GetMorphLODModels() = MoveTemp(MorphsData[I]);
-			MorphTargets.Add(NewMorphTarget);
-		}
+		UMorphTarget* NewMorphTarget = NewObject<UMorphTarget>(SkeletalMesh, ComponentMorphTargets->RealTimeMorphTargetNames[I]);
+		NewMorphTarget->BaseSkelMesh = SkeletalMesh;
+		NewMorphTarget->GetMorphLODModels() = MoveTemp(ComponentMorphTargets->RealTimeMorphsLODData[I]);
+		MorphTargets.Add(NewMorphTarget);
 	}
 
 	// Copy MorphTargets from the FirstGeneratedLOD to the LODs below
+	const int32 FirstGeneratedLOD = FMath::Max((int32)OperationData->GetRequestedLODs()[ComponentIndex], OperationData->GetMinLOD());
 	for (int32 LODIndex = OperationData->FirstLODAvailable; LODIndex < FirstGeneratedLOD; ++LODIndex)
 	{
 		MUTABLE_CPUPROFILER_SCOPE(CopyMorphTargetsData);
@@ -3751,7 +3579,7 @@ void UCustomizableInstancePrivate::BuildOrCopyMorphTargetsData(const TSharedRef<
 		for (int32 MorphTargetIndex = 0; MorphTargetIndex < NumMorphTargets; ++MorphTargetIndex)
 		{
 			MorphTargets[MorphTargetIndex]->GetMorphLODModels()[LODIndex] =
-				MorphTargets[MorphTargetIndex]->GetMorphLODModels()[FirstGeneratedLOD];
+					MorphTargets[MorphTargetIndex]->GetMorphLODModels()[FirstGeneratedLOD];
 		}
 	}
 
@@ -3771,7 +3599,6 @@ namespace
 	};
 
 }
-
 
 void UCustomizableInstancePrivate::BuildOrCopyClothingData(const TSharedRef<FUpdateContextPrivate>&OperationData, USkeletalMesh * SkeletalMesh, const USkeletalMesh* LastUpdateSkeletalMesh, UCustomizableObjectInstance * CustomizableObjectInstance, int32 ComponentIndex)
 {
@@ -3840,15 +3667,7 @@ void UCustomizableInstancePrivate::BuildOrCopyClothingData(const TSharedRef<FUpd
 				const int32 ClothingDataBufferIndex = [&MeshSet]()
 				{
 					int32 BufferIndex, Channel;
-					MeshSet.FindChannel(mu::MBS_OTHER, 3, &BufferIndex, &Channel);
-
-					if (BufferIndex > 0)
-					{
-						return BufferIndex;
-					}
-
-					MeshSet.FindChannel(mu::MBS_OTHER, 0, &BufferIndex, &Channel);
-
+					MeshSet.FindChannel(mu::MBS_OTHER, 2, &BufferIndex, &Channel);
 					return BufferIndex;
 				}(); // lambda is invoked
 
@@ -4628,7 +4447,6 @@ void UCustomizableInstancePrivate::BuildOrCopyClothingData(const TSharedRef<FUpd
 	SkeletalMesh->SetHasActiveClothingAssets( static_cast<bool>( SectionsWithCloth.Num() ) );
 }
 
-
 bool UCustomizableInstancePrivate::BuildOrCopyRenderData(const TSharedRef<FUpdateContextPrivate>& OperationData, USkeletalMesh* SkeletalMesh, const USkeletalMesh* LastUpdateSkeletalMesh, UCustomizableObjectInstance* Public, int32 ComponentIndex)
 {
 	MUTABLE_CPUPROFILER_SCOPE(UCustomizableInstancePrivate::BuildOrCopyRenderData);
@@ -4942,9 +4760,9 @@ UE::Tasks::FTask UCustomizableInstancePrivate::LoadAdditionalAssetsAndData(
 
 			FCustomizableInstanceComponentData* ComponentData = GetComponentData(Component.Id);
 
-			const TArray<uint32>& StreamedResources = MutableMesh->GetStreamedResources();
+			const TArray<uint64>& StreamedResources = MutableMesh->GetStreamedResources();
 
-			for (uint32 ResourceId : StreamedResources)
+			for (uint64 ResourceId : StreamedResources)
 			{
 				const TArray<FCustomizableObjectStreamedResourceData>& StreamedResourcesData = CustomizableObject->GetPrivate()->GetStreamedResourceData();
 				FCustomizableObjectStreameableResourceId TypedResourceId = BitCast<FCustomizableObjectStreameableResourceId>(ResourceId);	
@@ -4968,8 +4786,10 @@ UE::Tasks::FTask UCustomizableInstancePrivate::LoadAdditionalAssetsAndData(
 				}
 				else if (TypedResourceId.Type == (uint8)FCustomizableObjectStreameableResourceId::EType::RealTimeMorphTarget)
 				{
-					const TArray<FMutableStreamableBlock>& MorphsStremeableBlocks = ModelResources.RealTimeMorphStreamableBlocks;
-					if (MorphsStremeableBlocks.IsValidIndex(TypedResourceId.Id))
+					check(TypedResourceId.Id != 0 && TypedResourceId.Id <= TNumericLimits<uint32>::Max());
+
+					const TMap<uint32, FRealTimeMorphStreamable>& MorphsStreamables = ModelResources.RealTimeMorphStreamables;
+					if (MorphsStreamables.Contains((uint32)TypedResourceId.Id))
 					{
 						RealTimeMorphStreamableBlocksToStream.AddUnique(TypedResourceId.Id);
 					}
@@ -4980,6 +4800,7 @@ UE::Tasks::FTask UCustomizableInstancePrivate::LoadAdditionalAssetsAndData(
 				}
 				else
 				{
+					UE_LOG(LogMutable, Error, TEXT("Unknown streamed resource type found."));
 					check(false);
 				}
 			}
@@ -5153,22 +4974,28 @@ UE::Tasks::FTask UCustomizableInstancePrivate::LoadAdditionalAssetsAndData(
 
 	if (RealTimeMorphStreamableBlocksToStream.Num() && bUpdateMeshes)
 	{
+		
 #if WITH_EDITOR
 		// On editor the data is always loaded, load directly form the ModelResources.
 		MUTABLE_CPUPROFILER_SCOPE(RealTimeMorphStreamingEditor);
 		for (uint32 BlockId : RealTimeMorphStreamableBlocksToStream)
 		{	
-			const FMutableStreamableBlock& Block = ModelResources.RealTimeMorphStreamableBlocks[BlockId]; 
+			const FRealTimeMorphStreamable& RealTimeMorphStreamable = ModelResources.RealTimeMorphStreamables[BlockId]; 
+		
+			const FMutableStreamableBlock& Block = RealTimeMorphStreamable.Block;
+
+			FInstanceUpdateData::FMorphTargetMeshData& MeshData = 
+					OperationData->InstanceUpdateData.RealTimeMorphTargetMeshData.FindOrAdd(BlockId);
 			
-			const TArray<FMorphTargetVertexData>& SourceData = ModelResources.EditorOnlyMorphTargetReconstructionData;
-			TArray<FMorphTargetVertexData>& DestData = OperationData->InstanceUpdateData.MorphTargetsVertexData.Emplace(BlockId);
-			
+			MeshData.NameResolutionMap = RealTimeMorphStreamable.NameResolutionMap;
+
+			const TArray<FMorphTargetVertexData>& SourceData = ModelResources.EditorOnlyMorphTargetReconstructionData;	
 			const uint32 NumElems = Block.Size / sizeof(FMorphTargetVertexData);
 			const uint32 OffsetInElems = Block.Offset / sizeof(FMorphTargetVertexData);
-			DestData.SetNumUninitialized(NumElems);
+			MeshData.Data.SetNumUninitialized(NumElems);
 
 			check(SourceData.Num()*sizeof(FMorphTargetVertexData) >= Block.Offset + Block.Size);
-			FMemory::Memcpy(DestData.GetData(), SourceData.GetData() + OffsetInElems, Block.Size);
+			FMemory::Memcpy(MeshData.Data.GetData(), SourceData.GetData() + OffsetInElems, Block.Size);
 		}
 #else	
 		MUTABLE_CPUPROFILER_SCOPE(RealTimeMorphStreaming);
@@ -5195,20 +5022,23 @@ UE::Tasks::FTask UCustomizableInstancePrivate::LoadAdditionalAssetsAndData(
 			MUTABLE_CPUPROFILER_SCOPE(RealTimeMorphStreamingRequest_Alloc);
 
 			const int32 BlockId = RealTimeMorphStreamableBlocksToStream[I];
-			const FMutableStreamableBlock& Block = ModelResources.RealTimeMorphStreamableBlocks[BlockId]; 
+			const FMutableStreamableBlock& Block = ModelResources.RealTimeMorphStreamables[BlockId].Block; 
 		
-			TArray<FMorphTargetVertexData>& ReadDestData = OperationData->InstanceUpdateData.MorphTargetsVertexData.FindOrAdd(BlockId);
+			FInstanceUpdateData::FMorphTargetMeshData& ReadDestData = 
+					OperationData->InstanceUpdateData.RealTimeMorphTargetMeshData.FindOrAdd(BlockId);
 
 			// Only request blocks once.
-			if (ReadDestData.Num())
+			if (ReadDestData.Data.Num())
 			{
 				continue;
 			}
 
+			ReadDestData.NameResolutionMap = ModelResources.RealTimeMorphStreamables[BlockId].NameResolutionMap;
+
 			check(Block.Size % sizeof(FMorphTargetVertexData) == 0);
 			uint32 NumElems = Block.Size / sizeof(FMorphTargetVertexData);
 
-			ReadDestData.SetNumUninitialized(NumElems);
+			ReadDestData.Data.SetNumUninitialized(NumElems);
 
 			int32 FileHandleIndex = OpenFilesIds.Find(Block.FileId);
 			if (FileHandleIndex == INDEX_NONE && BulkData)
@@ -5223,7 +5053,7 @@ UE::Tasks::FTask UCustomizableInstancePrivate::LoadAdditionalAssetsAndData(
 			{ 
 				Block.Offset,
 				OpenFileHandles[FileHandleIndex].Get(), 
-				MakeArrayView(reinterpret_cast<uint8*>(ReadDestData.GetData()), ReadDestData.Num()*sizeof(FMorphTargetVertexData)),
+				MakeArrayView(reinterpret_cast<uint8*>(ReadDestData.Data.GetData()), ReadDestData.Data.Num()*sizeof(FMorphTargetVertexData)),
 				Block.FileId
 			});
 		}

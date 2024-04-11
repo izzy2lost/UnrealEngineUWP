@@ -531,14 +531,14 @@ void Mesh::SetTag( int tagIndex, const FString& Name )
 
 
 //---------------------------------------------------------------------------------------------
-void Mesh::AddStreamedResource(uint32 ResourceId)
+void Mesh::AddStreamedResource(uint64 ResourceId)
 {
 	StreamedResources.AddUnique(ResourceId);
 }
 
 
 //---------------------------------------------------------------------------------------------
-const TArray<uint32>& Mesh::GetStreamedResources() const
+const TArray<uint64>& Mesh::GetStreamedResources() const
 {
 	return StreamedResources;
 }

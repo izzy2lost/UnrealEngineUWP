@@ -559,8 +559,7 @@ void UCustomizableObjectPrivate::SaveCompiledData(FArchive& MemoryWriter, bool b
 	MemoryWriter << LocalModelResources.ParameterUIDataMap;
 	MemoryWriter << LocalModelResources.StateUIDataMap;
 
-	MemoryWriter << LocalModelResources.RealTimeMorphTargetNames;
-	MemoryWriter << LocalModelResources.RealTimeMorphStreamableBlocks;
+	MemoryWriter << LocalModelResources.RealTimeMorphStreamables;
 
 	MemoryWriter << LocalModelResources.HashToStreamableBlock;
 
@@ -680,8 +679,7 @@ void UCustomizableObjectPrivate::LoadCompiledData(FArchive& MemoryReader, const 
 		MemoryReader << LocalModelResource.ParameterUIDataMap;
 		MemoryReader << LocalModelResource.StateUIDataMap;
 
-		MemoryReader << LocalModelResource.RealTimeMorphTargetNames;
-		MemoryReader << LocalModelResource.RealTimeMorphStreamableBlocks;
+		MemoryReader << LocalModelResource.RealTimeMorphStreamables;
 
 		MemoryReader << LocalModelResource.HashToStreamableBlock;
 
@@ -2173,17 +2171,19 @@ void UCustomizableObjectBulk::PrepareBulkData(UCustomizableObject* InOuter, cons
 		uint64 SourceOffset = 0;
 		
 		constexpr bool bGetCooked = false;
-		const TArray<FMutableStreamableBlock>& RealTimeMorphTargetsBlocks = 
-					CustomizableObject->GetPrivate()->GetModelResources(bGetCooked).RealTimeMorphStreamableBlocks;
+
+		TArray<FMutableStreamableBlock> RealTimeMorphTargetsBlocks;
+		
+		const TMap<uint32, FRealTimeMorphStreamable>& RealTimeMorphStreamables = 
+				CustomizableObject->GetPrivate()->GetModelResources(bGetCooked).RealTimeMorphStreamables;
 
 		const int32 NumBlocks = RealTimeMorphTargetsBlocks.Num();
-		for (int32 BlockIndex = 0; BlockIndex < NumBlocks; ++BlockIndex)
+		for (const TPair<uint32, FRealTimeMorphStreamable>& MorphStreamable : RealTimeMorphStreamables)
 		{
-			const FMutableStreamableBlock& StreamableBlock = RealTimeMorphTargetsBlocks[BlockIndex];
-			const uint32 BlockSize = StreamableBlock.Size;
+			const uint32 BlockSize = MorphStreamable.Value.Block.Size;
 			
-			check(SourceOffset == StreamableBlock.Offset);
-			FBlock CurrentBlock = { EDataType::RealTimeMorph, BlockIndex, BlockSize, SourceOffset };
+			check(SourceOffset == MorphStreamable.Value.Block.Offset);
+			FBlock CurrentBlock = { EDataType::RealTimeMorph, MorphStreamable.Key, BlockSize, SourceOffset };
 			
 			if (BlockSize > TargetBulkDataFileBytes)
 			{
@@ -2285,15 +2285,15 @@ void UCustomizableObjectBulk::PrepareBulkData(UCustomizableObject* InOuter, cons
 		else if (CurrentFile.DataType == EDataType::RealTimeMorph)
 		{
 			constexpr bool bGetCooked = true;
-			TArray<FMutableStreamableBlock>& MorphBlocks = 
-					CustomizableObject->GetPrivate()->GetModelResources(bGetCooked).RealTimeMorphStreamableBlocks;
+			TMap<uint32, FRealTimeMorphStreamable>& MorphBlocks = 
+					CustomizableObject->GetPrivate()->GetModelResources(bGetCooked).RealTimeMorphStreamables;
 			// Set it to all streamable blocks
 			uint32 OffsetInFile = 0;
 			for (int32 FileBlockIndex = 0; FileBlockIndex < CurrentFile.Blocks.Num(); ++FileBlockIndex)
 			{
 				FBlock ThisBlock = CurrentFile.Blocks[FileBlockIndex];
 
-				FMutableStreamableBlock& StreamableBlock = MorphBlocks[ThisBlock.Id];
+				FMutableStreamableBlock& StreamableBlock = MorphBlocks[ThisBlock.Id].Block;
 				check(StreamableBlock.Size == ThisBlock.Size);
 				StreamableBlock.FileId = FileId;
 				StreamableBlock.Offset = OffsetInFile;

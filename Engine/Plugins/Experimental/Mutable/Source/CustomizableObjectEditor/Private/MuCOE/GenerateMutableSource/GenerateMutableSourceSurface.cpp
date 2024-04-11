@@ -136,11 +136,11 @@ void SetSurfaceFormat( FMutableGraphGenerationContext& GenerationContext,
 	{
 		using namespace mu;
 		{
-			const int32 ElementSize = sizeof(int32);
+			const int32 ElementSize = sizeof(uint32);
 			constexpr int32 ChannelCount = 1;
 			const EMeshBufferSemantic Semantics[ChannelCount] = { MBS_OTHER };
 			const int32 SemanticIndices[ChannelCount] = { 0 };
-			const EMeshBufferFormat Formats[ChannelCount] = { MBF_INT32 };
+			const EMeshBufferFormat Formats[ChannelCount] = { MBF_UINT32 };
 			const int32 Components[ChannelCount] = { 1 };
 			const int32 Offsets[ChannelCount] = { 0 };
 
@@ -149,24 +149,11 @@ void SetSurfaceFormat( FMutableGraphGenerationContext& GenerationContext,
 		}
 
 		{
-			const int32 ElementSize = sizeof(uint16);
+			const int32 ElementSize = sizeof(uint32);
 			constexpr int32 ChannelCount = 1;
 			const EMeshBufferSemantic Semantics[ChannelCount] = { MBS_OTHER };
 			const int32 SemanticIndices[ChannelCount] = { 1 };
-			const EMeshBufferFormat Formats[ChannelCount] = { MBF_UINT16 };
-			const int32 Components[ChannelCount] = { 1 };
-			const int32 Offsets[ChannelCount] = { 0 };
-
-			OutVertexBufferFormat.SetBuffer(CurrentVertexBuffer, ElementSize, ChannelCount, Semantics, SemanticIndices, Formats, Components, Offsets);
-			++CurrentVertexBuffer;
-		}
-
-		{
-			const int32 ElementSize = sizeof(uint16);
-			constexpr int32 ChannelCount = 1;
-			const EMeshBufferSemantic Semantics[ChannelCount] = { MBS_OTHER };
-			const int32 SemanticIndices[ChannelCount] = { 2 };
-			const EMeshBufferFormat Formats[ChannelCount] = { MBF_UINT16 };
+			const EMeshBufferFormat Formats[ChannelCount] = { MBF_UINT32 };
 			const int32 Components[ChannelCount] = { 1 };
 			const int32 Offsets[ChannelCount] = { 0 };
 
@@ -182,7 +169,7 @@ void SetSurfaceFormat( FMutableGraphGenerationContext& GenerationContext,
 		const int32 ElementSize = sizeof(int32);
 		constexpr int32 ChannelCount = 1;
 		const EMeshBufferSemantic Semantics[ChannelCount] = { MBS_OTHER };
-		const int32 SemanticIndices[ChannelCount] = { bWithRealTimeMorphs ? 3 : 0 };
+		const int32 SemanticIndices[ChannelCount] = { 2 };
 		const EMeshBufferFormat Formats[ChannelCount] = { MBF_INT32 };
 		const int32 Components[ChannelCount] = { 1 };
 		const int32 Offsets[ChannelCount] = { 0 };

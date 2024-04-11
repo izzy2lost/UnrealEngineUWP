@@ -271,6 +271,11 @@ struct FPoseBoneData
 	TArray<FTransform> ArrayTransform;
 };
 
+struct FRealTimeMorphMeshData
+{
+	TArray<FName> NameResolutionMap;
+	TArray<FMorphTargetVertexData> Data;
+};
 
 struct FGroupProjectorTempData
 {
@@ -710,8 +715,7 @@ struct FMutableGraphGenerationContext
 	TMap<class UCustomizableObjectNodeMeshClipWithMesh*, TArray<mu::Ptr<mu::NodeModifierMeshClipWithMesh>>> MapClipMeshNodeToMutableClipMeshNodeArray;
 
 	// Data used for MorphTarget reconstruction.
-	TArray<FName> RealTimeMorphTargetsNames;
-	TArray<TArray<FMorphTargetVertexData>> RealTimeMorphTargetPerMeshData;
+	TMap<uint32, FRealTimeMorphMeshData> RealTimeMorphTargetPerMeshData;
 
 	// Data used for Clothing reconstruction.
 	TArray<FCustomizableObjectMeshToMeshVertData> ClothMeshToMeshVertData;

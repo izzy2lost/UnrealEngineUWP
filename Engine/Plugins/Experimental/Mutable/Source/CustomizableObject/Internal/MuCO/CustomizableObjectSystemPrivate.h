@@ -25,6 +25,7 @@
 #include "MuCO/FMutableTaskGraph.h"
 #include "AssetRegistry/AssetData.h"
 #include "ContentStreaming.h"
+#include "Animation/MorphTarget.h"
 
 #include "Tasks/Task.h"
 
@@ -37,7 +38,6 @@ class UEditorImageProvider;
 class UCustomizableObjectSystem;
 namespace LowLevelTasks { enum class ETaskPriority : int8; }
 struct FTexturePlatformData;
-
 
 // Split StreamedBulkData into chunks smaller than MUTABLE_STREAMED_DATA_MAXCHUNKSIZE
 #define MUTABLE_STREAMED_DATA_MAXCHUNKSIZE		(512 * 1024 * 1024)
@@ -402,8 +402,6 @@ struct FInstanceUpdateData
 	TArray<mu::FBoneName> ActiveBones;
 	TArray<mu::FBoneName> BoneMaps;
 	
-	TMap<uint32, TArray<FMorphTargetVertexData>> MorphTargetsVertexData;
-
 	struct FBone
 	{
 		mu::FBoneName Name;
@@ -411,6 +409,26 @@ struct FInstanceUpdateData
 
 		bool operator==(const mu::FBoneName& OtherName) const { return Name == OtherName; };
 	};
+
+	
+	struct FMorphTargetMeshData
+	{
+		TArray<FName> NameResolutionMap;
+		TArray<FMorphTargetVertexData> Data;
+	};
+
+	TMap<uint32, FMorphTargetMeshData> RealTimeMorphTargetMeshData;
+
+
+	struct FRealTimeMorphsComponentData
+	{
+		int32 ComponentIndex = INDEX_NONE;
+
+		TArray<FName> RealTimeMorphTargetNames;
+		TArray<TArray<FMorphTargetLODModel>> RealTimeMorphsLODData; 
+	};
+
+	TArray<FRealTimeMorphsComponentData> RealTimeMorphTargets;
 
 	struct FSkeletonData
 	{
@@ -439,6 +457,7 @@ struct FInstanceUpdateData
 		Images.Empty();
 		Scalars.Empty();
 		Vectors.Empty();
+		RealTimeMorphTargets.Empty();
 		Skeletons.Empty();
 		ExtendedInputPins.Empty();
 	}

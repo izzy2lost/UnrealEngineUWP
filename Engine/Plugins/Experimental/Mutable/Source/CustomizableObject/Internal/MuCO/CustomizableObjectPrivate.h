@@ -87,15 +87,15 @@ struct FCustomizableObjectStreameableResourceId
 		RealTimeMorphTarget   = 2,
 	};
 
-	uint32 Id   : 24;
-	uint32 Type : 8;
+	uint64 Id   : 64 - 8;
+	uint64 Type : 8;
 
 	friend bool operator==(FCustomizableObjectStreameableResourceId A, FCustomizableObjectStreameableResourceId B)
 	{
-		return BitCast<uint32>(A) == BitCast<uint32>(B);
+		return BitCast<uint64>(A) == BitCast<uint64>(B);
 	}
 };
-static_assert(sizeof(FCustomizableObjectStreameableResourceId) == sizeof(uint32));
+static_assert(sizeof(FCustomizableObjectStreameableResourceId) == sizeof(uint64));
 
 
 USTRUCT()
@@ -514,6 +514,26 @@ struct CUSTOMIZABLEOBJECT_API FMutableSkinWeightProfileInfo
 };
 
 USTRUCT()
+struct FRealTimeMorphStreamable
+{
+	GENERATED_USTRUCT_BODY()
+	
+	UPROPERTY()
+	TArray<FName> NameResolutionMap;
+
+	UPROPERTY()
+	FMutableStreamableBlock Block;
+
+	friend FArchive& operator<<(FArchive& Ar, FRealTimeMorphStreamable& Elem)
+	{
+		Ar << Elem.NameResolutionMap;
+		Ar << Elem.Block;
+
+		return Ar;
+	}
+};
+
+USTRUCT()
 struct FMorphTargetVertexData
 {
 	GENERATED_USTRUCT_BODY()
@@ -536,6 +556,7 @@ struct FMorphTargetVertexData
 		return Ar;
 	}
 };
+static_assert(sizeof(FMorphTargetVertexData) == sizeof(FVector3f)*2 + sizeof(uint32)); // Make sure no padding is present.
 template<> struct TCanBulkSerialize<FMorphTargetVertexData> { enum { Value = true }; };
 
 // Referenced materials, skeletons, passthrough textures...
@@ -604,10 +625,7 @@ struct FModelResources
 	TMap<FString, FParameterUIData> StateUIDataMap;
 
 	UPROPERTY()
-	TArray<FName> RealTimeMorphTargetNames;
-
-	UPROPERTY()
-	TArray<FMutableStreamableBlock> RealTimeMorphStreamableBlocks;
+	TMap<uint32, FRealTimeMorphStreamable> RealTimeMorphStreamables;
 
 #if WITH_EDITORONLY_DATA
 	UPROPERTY()
@@ -861,6 +879,6 @@ public:
 	// This is a manual version number for the binary blobs in this asset.
 	// Increasing it invalidates all the previously compiled models.
 	// Warning: If while merging code both versions have changed, take the highest+1.
-	static constexpr int32 CurrentSupportedVersion = 440;
+	static constexpr int32 CurrentSupportedVersion = 441;
 };
 
