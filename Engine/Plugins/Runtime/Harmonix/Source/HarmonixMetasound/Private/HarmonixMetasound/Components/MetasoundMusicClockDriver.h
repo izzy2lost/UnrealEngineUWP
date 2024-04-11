@@ -28,7 +28,9 @@ protected:
 	void OnGeneratorAttached();
 	void OnGeneratorDetached();
 	void OnGraphSet();
+	UE_DEPRECATED(5.5, "Use OnGeneratorIOUpdatedWithChanges.")
 	void OnGeneratorIOUpdated();
+	void OnGeneratorIOUpdatedWithChanges(const TArray<Metasound::FVertexInterfaceChange>& VertexInterfaceChanges);
 
 private:
 	FName MetasoundOutputName;

@@ -95,6 +95,20 @@ namespace Metasound
 		static void Reset(FMetasoundGeneratorInitParams& InParams);
 	};
 
+	enum class EVertexInterfaceChangeType : uint8
+	{
+		Added,
+		Updated,
+		Removed
+	};
+
+	struct METASOUNDGENERATOR_API FVertexInterfaceChange
+	{
+		FVertexName VertexName;
+		EMetasoundFrontendClassType VertexType; // Input or Output
+		EVertexInterfaceChangeType ChangeType;
+	};
+
 	DECLARE_TS_MULTICAST_DELEGATE(FOnSetGraph);
 
 	class METASOUNDGENERATOR_API FMetasoundGenerator : public ISoundGenerator
@@ -191,6 +205,9 @@ namespace Metasound
 		DECLARE_TS_MULTICAST_DELEGATE_OneParam(FOnVertexInterfaceDataUpdated, FVertexInterfaceData);
 		FOnVertexInterfaceDataUpdated OnVertexInterfaceDataUpdated;
 
+		DECLARE_TS_MULTICAST_DELEGATE_OneParam(FOnVertexInterfaceDataUpdatedWithChanges, const TArray<FVertexInterfaceChange>&);
+		FOnVertexInterfaceDataUpdatedWithChanges OnVertexInterfaceDataUpdatedWithChanges;
+
 		/**
 		 * Add a vertex analyzer for a named output with the given address info.
 		 *
@@ -263,6 +280,7 @@ namespace Metasound
 		void ClearGraph();
 		bool UpdateGraphIfPending();
 
+		UE_DEPRECATED(5.5, "Use VertexInterfaceChangesSinceLastBroadcast to determine if changes have occurred.")
 		std::atomic<bool> bVertexInterfaceHasChanged{ false };
 
 	private:
@@ -306,6 +324,7 @@ namespace Metasound
 	protected:
 		FExecuter RootExecuter;
 		FVertexInterfaceData VertexInterfaceData;
+		TArray<FVertexInterfaceChange> VertexInterfaceChangesSinceLastBroadcast;
 
 		TArray<FAudioBufferReadRef> GraphOutputAudio;
 

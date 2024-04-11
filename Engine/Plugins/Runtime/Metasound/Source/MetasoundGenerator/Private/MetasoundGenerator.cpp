@@ -435,7 +435,20 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 		bIsWaitingForFirstGraph = false;
 		OnSetGraph.Broadcast();
+
+		for (const auto& Binding : VertexInterfaceData.GetInputs())
+		{
+			VertexInterfaceChangesSinceLastBroadcast.Add({ Binding.GetVertex().VertexName, EMetasoundFrontendClassType::Input, EVertexInterfaceChangeType::Added });
+		}
+
+		for (const auto& Binding : VertexInterfaceData.GetOutputs())
+		{
+			VertexInterfaceChangesSinceLastBroadcast.Add({ Binding.GetVertex().VertexName, EMetasoundFrontendClassType::Output, EVertexInterfaceChangeType::Added });
+		}
+
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		bVertexInterfaceHasChanged.store(true);
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
 	TUniquePtr<IOperator> FMetasoundGenerator::ReleaseGraphOperator()
@@ -450,6 +463,16 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	void FMetasoundGenerator::ClearGraph()
 	{
+		for (const auto& Binding : VertexInterfaceData.GetInputs())
+		{
+			VertexInterfaceChangesSinceLastBroadcast.Add({ Binding.GetVertex().VertexName, EMetasoundFrontendClassType::Input, EVertexInterfaceChangeType::Removed });
+		}
+
+		for (const auto& Binding : VertexInterfaceData.GetOutputs())
+		{
+			VertexInterfaceChangesSinceLastBroadcast.Add({ Binding.GetVertex().VertexName, EMetasoundFrontendClassType::Output, EVertexInterfaceChangeType::Removed });
+		}
+
 		RootExecuter.ReleaseOperator();
 		VertexInterfaceData = FVertexInterfaceData();
 		GraphOutputAudio.Reset();
@@ -458,7 +481,9 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		ParameterSetters.Reset();
 		ParameterPackSetters.Reset();
 
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		bVertexInterfaceHasChanged.store(true);
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
 	void FMetasoundGenerator::QueueParameterPack(TSharedPtr<FMetasoundParameterPackStorage> ParameterPack)
@@ -662,11 +687,14 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		}
 
 		// If the vertex interface changed, notify listeners
+		if (!VertexInterfaceChangesSinceLastBroadcast.IsEmpty())
 		{
-			if (bVertexInterfaceHasChanged.exchange(false))
-			{
-				OnVertexInterfaceDataUpdated.Broadcast(VertexInterfaceData);
-			}
+			OnVertexInterfaceDataUpdated.Broadcast(VertexInterfaceData);
+			OnVertexInterfaceDataUpdatedWithChanges.Broadcast(VertexInterfaceChangesSinceLastBroadcast);
+			VertexInterfaceChangesSinceLastBroadcast.Empty();
+			PRAGMA_DISABLE_DEPRECATION_WARNINGS
+			bVertexInterfaceHasChanged.store(false);
+			PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		}
 
 		return NumSamplesWritten;
@@ -1013,7 +1041,10 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		VertexInterfaceData.GetInputs() = InGraphInputs;
 		GeneratorBuilder::AddParameterSetterIfWritable(InVertexName, VertexInterfaceData.GetInputs(), ParameterSetters, ParameterPackSetters);
 
+		VertexInterfaceChangesSinceLastBroadcast.Add({ InVertexName, EMetasoundFrontendClassType::Input, EVertexInterfaceChangeType::Added });
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		bVertexInterfaceHasChanged.store(true);
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
 	void FMetasoundDynamicGraphGenerator::OnInputRemoved(const FVertexName& InVertexName, const FInputVertexInterfaceData& InGraphInputs)
@@ -1021,7 +1052,10 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		VertexInterfaceData.GetInputs() = InGraphInputs;
 		ParameterSetters.Remove(InVertexName);
 		ParameterPackSetters.Remove(InVertexName);
+		VertexInterfaceChangesSinceLastBroadcast.Add({ InVertexName, EMetasoundFrontendClassType::Input, EVertexInterfaceChangeType::Removed });
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		bVertexInterfaceHasChanged.store(true);
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
 	void FMetasoundDynamicGraphGenerator::OnOutputAdded(const FVertexName& InVertexName, const FOutputVertexInterfaceData& InGraphOutputs)
@@ -1033,7 +1067,11 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		{
 			OnFinishedTriggerRef = InGraphOutputs.GetDataReadReference<FTrigger>(InVertexName);
 		}
+		
+		VertexInterfaceChangesSinceLastBroadcast.Add({ InVertexName, EMetasoundFrontendClassType::Output, EVertexInterfaceChangeType::Added });
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		bVertexInterfaceHasChanged.store(true);
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
 	void FMetasoundDynamicGraphGenerator::OnOutputUpdated(const FVertexName& InVertexName, const FOutputVertexInterfaceData& InGraphOutputs)
@@ -1052,7 +1090,10 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 			OnFinishedTriggerRef = InGraphOutputs.GetDataReadReference<FTrigger>(InVertexName);
 		}
 		
+		VertexInterfaceChangesSinceLastBroadcast.Add({ InVertexName, EMetasoundFrontendClassType::Output, EVertexInterfaceChangeType::Updated });
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		bVertexInterfaceHasChanged.store(true);
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
 	void FMetasoundDynamicGraphGenerator::OnOutputRemoved(const FVertexName& InVertexName, const FOutputVertexInterfaceData& InGraphOutputs)
@@ -1060,7 +1101,10 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		MetasoundGeneratorPrivate::LogErrorIfIsAudioVertex(InVertexName, TEXT("The MetaSound Generator cannot dynamically remove audio outputs"));
 
 		VertexInterfaceData.GetOutputs() = InGraphOutputs;
+		VertexInterfaceChangesSinceLastBroadcast.Add({ InVertexName, EMetasoundFrontendClassType::Output, EVertexInterfaceChangeType::Removed });
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		bVertexInterfaceHasChanged.store(true);
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
 	TUniquePtr<IOperator> FMetasoundDynamicGraphGenerator::ReleaseGraphOperator()

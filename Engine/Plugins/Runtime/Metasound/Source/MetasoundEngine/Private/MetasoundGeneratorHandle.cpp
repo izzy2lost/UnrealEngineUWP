@@ -82,6 +82,9 @@ namespace Metasound
 		return nullptr;
 	}
 
+	// Remove these PRAGMAs when cleaning up the deprecated OnGeneratorIOUpdated. 
+	// The curly brace line was throwing errors for usage of the deprecated member, presumably it was doing something to tear it down and complaining about it.
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	FMetasoundGeneratorHandle::~FMetasoundGeneratorHandle()
 	{
 		check(IsInGameThread());
@@ -100,6 +103,7 @@ namespace Metasound
 		// unset the generator and clean up
 		SetGenerator(nullptr);
 	}
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	bool FMetasoundGeneratorHandle::IsValid() const
 	{
@@ -304,7 +308,7 @@ namespace Metasound
 			}
 
 			// Vertex interface updated (Live Update support)
-			GeneratorVertexInterfaceChangedDelegateHandle = PinnedGenerator->OnVertexInterfaceDataUpdated.AddSP(
+			GeneratorVertexInterfaceChangedDelegateHandle = PinnedGenerator->OnVertexInterfaceDataUpdatedWithChanges.AddSP(
 				AsShared(),
 				&FMetasoundGeneratorHandle::HandleGeneratorVertexInterfaceChanged);
 		}
@@ -321,7 +325,7 @@ namespace Metasound
 		{
 			PinnedGenerator->OnOutputChanged.Remove(GeneratorOutputChangedDelegateHandle);
 			PinnedGenerator->RemoveGraphSetCallback(GeneratorGraphSetDelegateHandle);
-			PinnedGenerator->OnVertexInterfaceDataUpdated.Remove(GeneratorVertexInterfaceChangedDelegateHandle);
+			PinnedGenerator->OnVertexInterfaceDataUpdatedWithChanges.Remove(GeneratorVertexInterfaceChangedDelegateHandle);
 		}
 	}
 
@@ -635,22 +639,29 @@ namespace Metasound
 		});
 	}
 
-	void FMetasoundGeneratorHandle::HandleGeneratorVertexInterfaceChanged(FVertexInterfaceData)
+	void FMetasoundGeneratorHandle::HandleGeneratorVertexInterfaceChanged(const TArray<FVertexInterfaceChange>& VertexInterfaceChanges)
 	{
 		METASOUND_LLM_SCOPE;
 		METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(FMetasoundGeneratorHandle::HandleGeneratorVertexInterfaceChanged);
 
 		// Defer to the game thread. We grab a weak pointer in case this gets destroyed while we wait.
-		AsyncTask(ENamedThreads::GameThread, [WeakThis = AsWeak()]()
+		AsyncTask(ENamedThreads::GameThread, [WeakThis = AsWeak(), VertexInterfaceChanges]()
 		{
 			if (const TSharedPtr<FMetasoundGeneratorHandle> PinnedThis = WeakThis.Pin())
 			{
 				PinnedThis->SendParametersToGenerator();
 				PinnedThis->FixUpOutputWatchers();
 
+				PRAGMA_DISABLE_DEPRECATION_WARNINGS
 				if (PinnedThis->OnGeneratorIOUpdated.IsBound())
 				{
 					PinnedThis->OnGeneratorIOUpdated.Execute();
+				}
+				PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+				if (PinnedThis->OnGeneratorIOUpdatedWithChanges.IsBound())
+				{
+					PinnedThis->OnGeneratorIOUpdatedWithChanges.Execute(VertexInterfaceChanges);
 				}
 			}
 		});
@@ -848,9 +859,16 @@ bool UMetasoundGeneratorHandle::InitGeneratorHandle(TWeakObjectPtr<UAudioCompone
 		OnGeneratorsGraphChanged.Broadcast();
 	});
 
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	GeneratorHandle->OnGeneratorIOUpdated.BindLambda([this]()
 	{
 		OnIOUpdated.Broadcast();
+	});
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+	GeneratorHandle->OnGeneratorIOUpdatedWithChanges.BindLambda([this](const TArray<Metasound::FVertexInterfaceChange>& VertexInterfaceChanges)
+	{
+		OnIOUpdatedWithChanges.Broadcast(VertexInterfaceChanges);
 	});
 
 	return true;

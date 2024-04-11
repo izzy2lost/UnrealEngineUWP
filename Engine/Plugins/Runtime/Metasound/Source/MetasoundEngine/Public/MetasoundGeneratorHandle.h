@@ -19,6 +19,7 @@ class UMetaSoundSource;
 namespace Metasound
 {
 	class FMetasoundGenerator;
+	struct FVertexInterfaceChange;
 }
 
 DECLARE_DYNAMIC_DELEGATE_TwoParams(FOnMetasoundOutputValueChanged, FName, OutputName, const FMetaSoundOutput&, Output);
@@ -89,9 +90,17 @@ namespace Metasound
 		DECLARE_DELEGATE(FOnGeneratorIOUpdated);
 
 		/**
-		 * Fires on the game thread when the generator's graph inputs or outputs change
+		 * Fires on the game thread when the generator's graph inputs or outputs change.
 		 */
+		UE_DEPRECATED(5.5, "Use OnGeneratorIOUpdatedWithChanges.")
 		FOnGeneratorIOUpdated OnGeneratorIOUpdated;
+
+		DECLARE_DELEGATE_OneParam(FOnGeneratorIOUpdatedWithChanges, const TArray<FVertexInterfaceChange>&);
+
+		/**
+		 * Fires on the game thread when the generator's graph inputs or outputs change, and includes a list of those changes.
+		 */
+		FOnGeneratorIOUpdatedWithChanges OnGeneratorIOUpdatedWithChanges;
 
 		/**
 		 * Update the current parameter state on this handle and enqueue the changes on the generator.
@@ -243,7 +252,7 @@ namespace Metasound
 		void HandleGeneratorGraphSet();
 		FDelegateHandle GeneratorGraphSetDelegateHandle;
 
-		void HandleGeneratorVertexInterfaceChanged(FVertexInterfaceData VertexInterfaceData);
+		void HandleGeneratorVertexInterfaceChanged(const TArray<FVertexInterfaceChange>& VertexInterfaceData);
 		FDelegateHandle GeneratorVertexInterfaceChangedDelegateHandle;
 
 		void HandleOutputChanged(
@@ -450,7 +459,11 @@ public:
 	bool RemoveGraphSetCallback(const FDelegateHandle& Handle);
 
 	DECLARE_MULTICAST_DELEGATE(FOnIOUpdated)
+	UE_DEPRECATED(5.5, "Use OnIOUpdatedWithChanges.")
 	FOnIOUpdated OnIOUpdated;
+
+	DECLARE_MULTICAST_DELEGATE_OneParam(FOnIOUpdatedWithChanges, const TArray<Metasound::FVertexInterfaceChange>&)
+	FOnIOUpdatedWithChanges OnIOUpdatedWithChanges;
 
 	/**
 	 * Watch an output value.

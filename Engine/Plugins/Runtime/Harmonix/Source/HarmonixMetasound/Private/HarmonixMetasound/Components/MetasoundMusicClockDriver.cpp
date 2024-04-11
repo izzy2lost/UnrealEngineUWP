@@ -169,7 +169,7 @@ bool FMetasoundMusicClockDriver::AttemptToConnectToAudioComponentsMetasound()
 	}
 	GeneratorAttachedCallbackHandle = CurrentGeneratorHandle->OnGeneratorHandleAttached.AddLambda([this](){OnGeneratorAttached();});
 	GeneratorDetachedCallbackHandle = CurrentGeneratorHandle->OnGeneratorHandleDetached.AddLambda([this](){OnGeneratorDetached();});
-	GeneratorIOUpdatedCallbackHandle = CurrentGeneratorHandle->OnIOUpdated.AddLambda([this](){OnGeneratorIOUpdated();});
+	GeneratorIOUpdatedCallbackHandle = CurrentGeneratorHandle->OnIOUpdatedWithChanges.AddLambda([this](const TArray<Metasound::FVertexInterfaceChange>& VertexInterfaceChanges){OnGeneratorIOUpdatedWithChanges(VertexInterfaceChanges);});
 	UMetasoundGeneratorHandle::FOnSetGraph::FDelegate OnSetGraph;
 	OnSetGraph.BindLambda([this](){OnGraphSet();});
 	GraphChangedCallbackHandle = CurrentGeneratorHandle->AddGraphSetCallback(MoveTemp(OnSetGraph));
@@ -185,7 +185,7 @@ void FMetasoundMusicClockDriver::DetachAllCallbacks()
 		GeneratorAttachedCallbackHandle.Reset();
 		CurrentGeneratorHandle->OnGeneratorHandleDetached.Remove(GeneratorDetachedCallbackHandle);
 		GeneratorDetachedCallbackHandle.Reset();
-		CurrentGeneratorHandle->OnIOUpdated.Remove(GeneratorIOUpdatedCallbackHandle);
+		CurrentGeneratorHandle->OnIOUpdatedWithChanges.Remove(GeneratorIOUpdatedCallbackHandle);
 		GeneratorIOUpdatedCallbackHandle.Reset();
 		CurrentGeneratorHandle->RemoveGraphSetCallback(GraphChangedCallbackHandle);
 		GraphChangedCallbackHandle.Reset();
@@ -204,9 +204,24 @@ void FMetasoundMusicClockDriver::OnGraphSet()
 
 void FMetasoundMusicClockDriver::OnGeneratorIOUpdated()
 {
+	// Replaced by OnGeneratorIOUpdatedWithChanges, no-op but still here as it's protected, and child classes may call to it
+	UE_LOG(LogMusicClock, Warning, TEXT("Called to OnGeneratorIOUpdated, which is deprecated and no-op. Use OnGeneratorIOUpdatedWithChanges."), *MetasoundOutputName.ToString());
+}
+
+void FMetasoundMusicClockDriver::OnGeneratorIOUpdatedWithChanges(const TArray<Metasound::FVertexInterfaceChange>& VertexInterfaceChanges)
+{
 	// An output vertex update may have destroyed our Clock, reattach to the new one if it's there
-	// FUTURE: There isn't a way to listen to vertex changes on a specific Metasound output, so until then this will be called every time IO changes
-	TryToRegisterPlayCursor();
+	if (!MetasoundOutputName.IsNone())
+	{
+		for (auto& VertexInterfaceChange : VertexInterfaceChanges)
+		{
+			if (VertexInterfaceChange.VertexName.IsEqual(MetasoundOutputName))
+			{
+				TryToRegisterPlayCursor();
+				break;
+			}
+		}
+	}
 }
 
 void FMetasoundMusicClockDriver::OnGeneratorDetached()
