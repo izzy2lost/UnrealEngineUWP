@@ -111,7 +111,9 @@ void FGraphActionListBuilderBase::AddAction( const TSharedPtr<FEdGraphSchemaActi
 
 void FGraphActionListBuilderBase::AddActionList( const TArray<TSharedPtr<FEdGraphSchemaAction> >& NewActions, FString const& Category)
 {
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	Entries.Add( ActionGroup( NewActions, Category ) );
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
 
 void FGraphActionListBuilderBase::Append( FGraphActionListBuilderBase& Other )
@@ -268,7 +270,9 @@ void FCategorizedGraphActionListBuilder::AddAction(TSharedPtr<FEdGraphSchemaActi
 
 void FCategorizedGraphActionListBuilder::AddActionList(TArray<TSharedPtr<FEdGraphSchemaAction> > const& NewActions, FString const& CategoryIn)
 {
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	FGraphActionListBuilderBase::AddActionList(NewActions, ConcatCategories(Category, CategoryIn));
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
 
 /////////////////////////////////////////////////////
