@@ -369,7 +369,8 @@ private:
 			TSharedPtr<FNewLevelTemplateItem> Item = MakeShareable(new FNewLevelTemplateItem());
 			Item->TemplateMapInfo = TemplateMapInfo;
 			Item->Type = FNewLevelTemplateItem::NewLevelType::Template;
-			Item->Name = TemplateMapInfo.DisplayName;
+			// This would keep the loc key for QA localization (e.g. culture=keys in console)
+			Item->Name = TemplateMapInfo.LocKeyName.IsEmpty() ? TemplateMapInfo.DisplayName : FInternationalization::ForUseOnlyByLocMacroAndGraphNodeTextLiterals_CreateText(*TemplateMapInfo.DisplayName.ToString(), TEXT("NewLevelDialog"), *TemplateMapInfo.LocKeyName);
 			Item->Category = TemplateMapInfo.Category;
 			Item->OriginalIndex = CurrentIndex++;
 
