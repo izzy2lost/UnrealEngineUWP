@@ -1895,16 +1895,8 @@ void FResponse::GetContentType(FAnsiStringView& Out) const
 ////////////////////////////////////////////////////////////////////////////////
 FAnsiStringView FResponse::GetHeader(FAnsiStringView Name) const
 {
-	const auto* Activity = (const FActivity*)this;
-	const FResponseInternal& Internal = Activity->Response;
-
-	const char* MessageData = Activity->Buffer.GetData() + Activity->StateParam;
-	FAnsiStringView Result, Headers(
-		MessageData + Internal.Offsets.Headers,
-		Internal.MessageLength - Internal.Offsets.Headers
-	);
-
-	EnumerateHeaders(Headers, [&Result, Name] (FAnsiStringView Candidate, FAnsiStringView Value)
+	FAnsiStringView Result;
+	ReadHeaders([&Result, Name] (FAnsiStringView Candidate, FAnsiStringView Value)
 	{
 		if (Candidate != Name)
 		{
@@ -1915,6 +1907,21 @@ FAnsiStringView FResponse::GetHeader(FAnsiStringView Name) const
 		return false;
 	});
 	return Result;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void FResponse::ReadHeaders(FHeaderSink Sink) const
+{
+	const auto* Activity = (const FActivity*)this;
+	const FResponseInternal& Internal = Activity->Response;
+
+	const char* MessageData = Activity->Buffer.GetData() + Activity->StateParam;
+	FAnsiStringView Result, Headers(
+		MessageData + Internal.Offsets.Headers,
+		Internal.MessageLength - Internal.Offsets.Headers
+	);
+
+	EnumerateHeaders(Headers, Sink);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

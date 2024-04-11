@@ -114,6 +114,8 @@ private:
 class UE_API FResponse
 {
 public:
+	using FHeaderSink = TFunction<bool (FAnsiStringView, FAnsiStringView)>;
+
 	EStatusCodeClass	GetStatus() const;
 	uint32				GetStatusCode() const;
 	FAnsiStringView 	GetStatusMessage() const;
@@ -121,6 +123,7 @@ public:
 	EMimeType			GetContentType() const;
 	void				GetContentType(FAnsiStringView& Out) const;
 	FAnsiStringView 	GetHeader(FAnsiStringView Name) const;
+	void				ReadHeaders(FHeaderSink Sink) const;
 	void				SetDestination(FIoBuffer* Buffer);
 
 private:
@@ -185,7 +188,6 @@ public:
 	struct FRequestParams
 	{
 		uint32	BufferSize	= 256;
-	 // uint32	PageSize	= 2 << 10;
 	};
 
 	template <typename... T> [[nodiscard]] FRequest Get(T&&... t)  { return Request("GET",  Forward<T&&>(t)...); }
