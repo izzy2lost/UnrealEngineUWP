@@ -39,12 +39,10 @@ namespace UE::MultiUserClient
 		StyleSet->SetContentRoot(FPaths::EngineContentDir() / TEXT("Editor/Slate"));
 		StyleSet->SetCoreContentRoot(FPaths::EngineContentDir() / TEXT("Slate"));
 
-		// Column widths
-		StyleSet->Set("AllClients.Object.OwnerColumnWidth", 200.f);
+		// Column widths - see FConcertFrontendStyle::Initialize() also ("Default Concert Replication Columns Widths")
 		StyleSet->Set("AllClients.Object.ReplicationToggle", 45.f);
-		StyleSet->Set("AllClients.Property.OwnerColumnWidth", 200.f);
-		StyleSet->Set("SingleClient.Object.OwnerColumnWidth", 200.f);
-		StyleSet->Set("SingleClient.Property.OwnerColumnWidth", 200.f);
+		StyleSet->Set("AllClients.Object.OwnerSize", 200.f);
+		StyleSet->Set("AllClients.Property.OwnerSize", 200.f);
 
 		// Timing
 		StyleSet->Set("AllClients.Reassignment.DisplayThrobberAfterSeconds", 0.2f);

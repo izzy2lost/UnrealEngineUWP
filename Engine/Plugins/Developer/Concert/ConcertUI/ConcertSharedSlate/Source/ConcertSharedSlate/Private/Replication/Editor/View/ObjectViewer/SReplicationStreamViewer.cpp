@@ -211,6 +211,7 @@ namespace UE::ConcertSharedSlate
 		TArray<FObjectColumnEntry> Columns = InArgs._ObjectColumns;
 		Columns.Add(ReplicationColumns::TopLevel::LabelColumn(NameModel.Get(), GetObjectClassDelegate));
 		Columns.Add(ReplicationColumns::TopLevel::TypeColumn(GetObjectClassDelegate));
+		Columns.Add(ReplicationColumns::TopLevel::NumPropertiesColumn(*PropertiesModel));
 		
 		const bool bHasNoOutlinerObjectsAttribute = InArgs._NoOutlinerObjects.IsBound() || InArgs._NoOutlinerObjects.IsSet(); 
 		const TAttribute<FText> NoObjectsAttribute = bHasNoOutlinerObjectsAttribute ? InArgs._NoOutlinerObjects : LOCTEXT("NoObjects", "No objects to display");

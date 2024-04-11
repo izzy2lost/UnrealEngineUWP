@@ -85,7 +85,6 @@ namespace UE::MultiUserClient
 			.AdditionalPropertyColumns =
 			{
 				ReplicationColumns::Property::LabelColumn(),
-				ReplicationColumns::Property::TypeColumn(),
 				MultiStreamColumns::AssignPropertyColumn(MultiStreamEditorAttribute, InConcertClient, InClientManager)
 			}
 		};

@@ -62,7 +62,18 @@ namespace UE::ConcertSharedSlate
 			return bContains ? EBreakBehavior::Break : EBreakBehavior::Continue;
 		});
 		return bContains;
-	}		
+	}
+
+	bool FConsolidatedMultiStreamModel::ContainsProperties(const FSoftObjectPath& Object, const TSet<FConcertPropertyChain>& Properties) const
+	{
+		bool bContainsProperty = false;
+		MultiStreamModel->ForEachStream([&Object, &Properties, &bContainsProperty](const TSharedRef<IReplicationStreamModel>& Model)
+		{
+			bContainsProperty = Model->ContainsProperties(Object, Properties);
+			return bContainsProperty ? EBreakBehavior::Break : EBreakBehavior::Continue;
+		});
+		return bContainsProperty;
+	}
 
 	bool FConsolidatedMultiStreamModel::ForEachReplicatedObject(TFunctionRef<EBreakBehavior(const FSoftObjectPath& Object)> Delegate) const
 	{
@@ -93,6 +104,33 @@ namespace UE::ConcertSharedSlate
 		});
 		
 		return bAnyMappings;
+	}
+
+	bool FConsolidatedMultiStreamModel::ForEachProperty(const FSoftObjectPath& Object, TFunctionRef<EBreakBehavior(const FConcertPropertyChain& Property)> Delegate) const
+	{
+		bool bCalledAtLeastOnce = false;
+		MultiStreamModel->ForEachStream([&Object, &Delegate, &bCalledAtLeastOnce](const TSharedRef<IReplicationStreamModel>& Model)
+		{
+			EBreakBehavior BreakBehavior = EBreakBehavior::Continue;
+			bCalledAtLeastOnce |= Model->ForEachProperty(Object, [&Delegate, &BreakBehavior](const FConcertPropertyChain& Property)
+			{
+				BreakBehavior = Delegate(Property);
+				return BreakBehavior;
+			});
+			return BreakBehavior;
+		});
+		return bCalledAtLeastOnce;
+	}
+
+	uint32 FConsolidatedMultiStreamModel::GetNumProperties(const FSoftObjectPath& Object) const
+	{
+		uint32 NumProperties = 0;
+		MultiStreamModel->ForEachStream([&Object, &NumProperties](const TSharedRef<IReplicationStreamModel>& Model)
+		{
+			NumProperties += Model->GetNumProperties(Object);
+			return EBreakBehavior::Continue;
+		});
+		return NumProperties;
 	}
 
 	void FConsolidatedMultiStreamModel::AddObjects(TConstArrayView<UObject*> Objects)

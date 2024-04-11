@@ -148,10 +148,13 @@ void FConcertFrontendStyle::Initialize()
 	// Colors
 	StyleSet->Set("Concert.DisconnectedColor", FLinearColor(0.672f, 0.672f, 0.672f));
 
-	// Floats
+	// Default Concert Replication Columns Widths
 	StyleSet->Set("Concert.Replication.Tree.RowHeight", 22.f);
-	StyleSet->Set("Concert.Replication.Tree.Object.LabelRowWidth", 255.f);
-	StyleSet->Set("Concert.Replication.Tree.Property.LabelRowWidth", 300.f);
+	StyleSet->Set("Concert.Replication.Object.LabelSize", 1.5f);
+	StyleSet->Set("Concert.Replication.Object.TypeWidth", 1.f);
+	StyleSet->Set("Concert.Replication.Object.NumPropertiesSize", 1.f);
+	StyleSet->Set("Concert.Replication.Property.LabelSize", 1.35f); // Property label needs to be smaller to align the top and bottom type columns
+	StyleSet->Set("Concert.Replication.Property.TypeSize", 1.f);
 	
 	FSlateStyleRegistry::RegisterSlateStyle(*StyleSet.Get());
 };

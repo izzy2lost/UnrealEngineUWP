@@ -23,8 +23,7 @@ namespace UE::ConcertSharedSlate
 		/** Optional. Additional property columns you want added. */
 		TArray<FPropertyColumnEntry> PropertyColumns
 		{
-			ReplicationColumns::Property::LabelColumn(),
-			ReplicationColumns::Property::TypeColumn()
+			ReplicationColumns::Property::LabelColumn()
 		};
 
 		/** Optional filter function. Return true to al */

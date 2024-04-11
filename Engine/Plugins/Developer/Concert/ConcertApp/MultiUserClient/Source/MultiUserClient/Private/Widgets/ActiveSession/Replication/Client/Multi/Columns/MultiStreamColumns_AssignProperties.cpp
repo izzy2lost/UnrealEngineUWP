@@ -101,7 +101,7 @@ namespace UE::MultiUserClient::MultiStreamColumns
 				return SHeaderRow::Column(AssignPropertyColumnId)
 					.DefaultLabel(LOCTEXT("Owner.Label", "Assigned Client"))
 					.ToolTipText(LOCTEXT("Owner.ToolTip", "Client that should replicate this property"))
-					.FillSized(FMultiUserReplicationStyle::Get()->GetFloat(TEXT("AllClients.Property.OwnerColumnWidth")));
+					.FillSized(FMultiUserReplicationStyle::Get()->GetFloat(TEXT("AllClients.Property.OwnerSize")));
 			}
 			
 			virtual TSharedRef<SWidget> GenerateColumnWidget(const FBuildArgs& InArgs) override

@@ -151,6 +151,18 @@ namespace UE::ConcertSharedSlate
 		return !AssignedProperties->PropertySelection.ReplicatedProperties.IsEmpty();
 	}
 
+	uint32 FGenericReplicationStreamModel::GetNumProperties(const FSoftObjectPath& Object) const
+	{
+		const FConcertObjectReplicationMap* ReplicationMap = ReplicationMapAttribute.Get();
+		if (!ensure(ReplicationMap))
+		{
+			return 0;
+		}
+		
+		const FConcertReplicatedObjectInfo* AssignedProperties = ReplicationMap->ReplicatedObjects.Find(Object);
+		return AssignedProperties ? AssignedProperties->PropertySelection.ReplicatedProperties.Num() : 0;
+	}
+
 	void FGenericReplicationStreamModel::AddObjects(TConstArrayView<UObject*> Objects)
 	{
 		FConcertObjectReplicationMap* ReplicationMap = ReplicationMapAttribute.Get();

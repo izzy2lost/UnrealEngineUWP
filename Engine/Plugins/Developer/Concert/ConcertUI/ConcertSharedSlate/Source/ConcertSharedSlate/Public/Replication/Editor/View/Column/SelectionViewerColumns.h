@@ -7,6 +7,8 @@
 #include "Replication/Utils/ReplicationWidgetDelegates.h"
 #include "ReplicationColumnInfo.h"
 
+#include "HAL/Platform.h"
+#include "Misc/EnumClassFlags.h"
 #include "Templates/SharedPointer.h"
 
 namespace UE::ConcertSharedSlate
@@ -21,9 +23,9 @@ namespace UE::ConcertSharedSlate
 
 namespace UE::ConcertSharedSlate::ReplicationColumns::TopLevel
 {
-	CONCERTSHAREDSLATE_API extern const FName IconColumnId;
 	CONCERTSHAREDSLATE_API extern const FName LabelColumnId;
 	CONCERTSHAREDSLATE_API extern const FName TypeColumnId;
+	CONCERTSHAREDSLATE_API extern const FName NumPropertiesColumnId;
 
 	enum class ETopLevelColumnOrder : int32
 	{
@@ -31,14 +33,27 @@ namespace UE::ConcertSharedSlate::ReplicationColumns::TopLevel
 		Label = 20,
 		/** Class of the object */
 		Type = 30,
+		/** Displays the number of properties assigned to the object */
+		NumProperties = 40
 	};
+
+	enum class ENumPropertiesFlags : uint8
+	{
+		None,
+		/** Also add up the number of properties that child objects have assigned. */
+		IncludeSubobjectCounts
+	};
+	ENUM_CLASS_FLAGS(ENumPropertiesFlags);
 
 	/**
 	 * @param OptionalNameModel Used to look object name. Defaults to name displayed in object path if unset.
 	 * @param GetObjectClassDelegate Used to display class icon. No icon is displayed if unset.
 	 */
 	CONCERTSHAREDSLATE_API FObjectColumnEntry LabelColumn(IObjectNameModel* OptionalNameModel = nullptr, FGetObjectClass GetObjectClassDelegate = {});
+	/** Shows the object's type. */
 	CONCERTSHAREDSLATE_API FObjectColumnEntry TypeColumn(FGetObjectClass GetObjectClassDelegate);
+	/** Shows the number of widgets assigned to the object. */
+	CONCERTSHAREDSLATE_API FObjectColumnEntry NumPropertiesColumn(const IReplicationStreamModel& Model UE_LIFETIMEBOUND, ENumPropertiesFlags Flags = ENumPropertiesFlags::None);
 }
 
 namespace UE::ConcertSharedSlate::ReplicationColumns::Property

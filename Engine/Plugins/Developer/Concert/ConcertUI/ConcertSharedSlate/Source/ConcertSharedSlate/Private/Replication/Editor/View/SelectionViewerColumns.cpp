@@ -3,15 +3,15 @@
 #include "Replication/Editor/View/Column/SelectionViewerColumns.h"
 
 #include "ConcertFrontendStyle.h"
-#include "Replication/Editor/Model/IEditableReplicationStreamModel.h"
 #include "Replication/Editor/Model/Data/PropertyData.h"
 #include "Replication/Editor/Model/Data/ReplicatedObjectData.h"
+#include "Replication/Editor/Model/IReplicationStreamModel.h"
 #include "Replication/Editor/Utils/DisplayUtils.h"
+#include "Replication/Editor/View/Column/IObjectTreeColumn.h"
 #include "Replication/Editor/View/Column/ReplicationColumnsUtils.h"
 #include "Replication/PropertyChainUtils.h"
 
 #include "Internationalization/Internationalization.h"
-#include "Replication/Editor/View/Column/IObjectTreeColumn.h"
 #include "Textures/SlateIcon.h"
 #include "Widgets/Images/SImage.h"
 #include "Widgets/Input/SCheckBox.h"
@@ -24,9 +24,9 @@
 
 namespace UE::ConcertSharedSlate::ReplicationColumns::TopLevel
 {
-	const FName IconColumnId = TEXT("IconColumn");
 	const FName LabelColumnId = TEXT("LabelColumn");
 	const FName TypeColumnId = TEXT("TypeColumn");
+	const FName NumPropertiesColumnId = TEXT("NumPropertiesColumnId");
 	
 	FObjectColumnEntry LabelColumn(IObjectNameModel* OptionalNameModel, FGetObjectClass GetObjectClassDelegate)
 	{
@@ -43,7 +43,7 @@ namespace UE::ConcertSharedSlate::ReplicationColumns::TopLevel
 			{
 				return SHeaderRow::Column(LabelColumnId)
 					.DefaultLabel(LOCTEXT("LabelColumnLabel", "Label"))
-					.FillSized(FConcertFrontendStyle::Get()->GetFloat("Concert.Replication.Tree.Object.LabelRowWidth"));
+					.FillWidth(FConcertFrontendStyle::Get()->GetFloat("Concert.Replication.Object.LabelSize"));
 			}
 			
 			virtual TSharedRef<SWidget> GenerateColumnWidget(const FBuildArgs& InArgs) override
@@ -123,8 +123,8 @@ namespace UE::ConcertSharedSlate::ReplicationColumns::TopLevel
 			virtual SHeaderRow::FColumn::FArguments CreateHeaderRowArgs() const override
 			{
 				return SHeaderRow::Column(TypeColumnId)
-					.DefaultLabel(LOCTEXT("TypeColumnLabel", "Type"))
-					.FillWidth(1.f);
+					.DefaultLabel(LOCTEXT("TypeColumnLabel", "Type")) 
+					.FillWidth(FConcertFrontendStyle::Get()->GetFloat("Concert.Replication.Object.TypeWidth"));
 			}
 			
 			virtual TSharedRef<SWidget> GenerateColumnWidget(const FBuildArgs& InArgs) override
@@ -136,6 +136,7 @@ namespace UE::ConcertSharedSlate::ReplicationColumns::TopLevel
 						SNew(STextBlock)
 						.HighlightText(TAttribute<FText>::CreateLambda([HighlightText = InArgs.HighlightText](){ return *HighlightText; }))
 						.Text(DisplayUtils::GetObjectTypeText(Class))
+						.ColorAndOpacity(FSlateColor::UseSubduedForeground())
 					];
 			}
 			
@@ -171,6 +172,94 @@ namespace UE::ConcertSharedSlate::ReplicationColumns::TopLevel
 			{ static_cast<int32>(ETopLevelColumnOrder::Type) }
 		};
 	}
+
+	FObjectColumnEntry NumPropertiesColumn(const IReplicationStreamModel& Model, ENumPropertiesFlags Flags)
+	{
+		class FNumPropertiesColumn_Object : public IObjectTreeColumn
+		{
+		public:
+			
+			FNumPropertiesColumn_Object(const IReplicationStreamModel& Model UE_LIFETIMEBOUND, ENumPropertiesFlags Flags)
+				: Model(Model)
+				, Flags(Flags)
+			{}
+
+			virtual SHeaderRow::FColumn::FArguments CreateHeaderRowArgs() const override
+			{
+				return SHeaderRow::Column(NumPropertiesColumnId)
+					.DefaultLabel(LOCTEXT("NumPropertyColumnLabel", "# Properties"))
+					.FillWidth(FConcertFrontendStyle::Get()->GetFloat("Concert.Replication.Object.NumPropertiesSize"));
+			}
+			
+			virtual TSharedRef<SWidget> GenerateColumnWidget(const FBuildArgs& InArgs) override
+			{
+				return SNew(SHorizontalBox)
+					
+					+SHorizontalBox::Slot()
+					.HAlign(HAlign_Left)
+					.VAlign(VAlign_Center)
+					.Padding(6.f, 0.f, 0.f, 0.f)
+					[
+						SNew(STextBlock)
+						.HighlightText(TAttribute<FText>::CreateLambda([HighlightText = InArgs.HighlightText](){ return *HighlightText; }))
+						.Text_Raw(this, &FNumPropertiesColumn_Object::GetDisplayText, InArgs.RowItem.RowData.GetObjectPath())
+						.ColorAndOpacity(FSlateColor::UseSubduedForeground())
+					];
+			}
+			
+			virtual void PopulateSearchString(const FObjectTreeRowContext& InItem, TArray<FString>& InOutSearchStrings) const override
+			{
+				InOutSearchStrings.Add(
+					FString::FromInt(GetNumProperties(InItem.RowData.GetObjectPath()))
+					);
+			}
+			
+			virtual bool CanBeSorted() const override { return true; } 
+			virtual bool IsLessThan(const FObjectTreeRowContext& Left, const FObjectTreeRowContext& Right) const override
+			{
+				return GetNumProperties(Left.RowData.GetObjectPath()) < GetNumProperties(Right.RowData.GetObjectPath());
+			}
+
+		private:
+			
+			const IReplicationStreamModel& Model;
+			const ENumPropertiesFlags Flags;
+			
+			FText GetDisplayText(FSoftObjectPath ObjectPath) const
+			{
+				return FText::AsNumber(GetNumProperties(ObjectPath));
+			}
+
+			uint32 GetNumProperties(const FSoftObjectPath& ObjectPath) const
+			{
+				const uint32 ObjectProperties = Model.GetNumProperties(ObjectPath);
+				
+				const bool bCountSubobjects = EnumHasAnyFlags(Flags, ENumPropertiesFlags::IncludeSubobjectCounts);
+				if (!bCountSubobjects)
+				{
+					return ObjectProperties;
+				}
+
+				uint32 NumSubobjectProperties = 0;
+				Model.ForEachSubobject(ObjectPath, [this, &NumSubobjectProperties](const FSoftObjectPath& Child)
+				{
+					NumSubobjectProperties += Model.GetNumProperties(Child);
+					return EBreakBehavior::Continue;
+				});
+
+				return ObjectProperties + NumSubobjectProperties;
+			}
+		};
+		
+		return {
+			TReplicationColumnDelegates<FObjectTreeRowContext>::FCreateColumn::CreateLambda([&Model, Flags]()
+			{
+				return MakeShared<FNumPropertiesColumn_Object>(Model, Flags);
+			}),
+			NumPropertiesColumnId,
+			{ static_cast<int32>(ETopLevelColumnOrder::NumProperties) }
+		};
+	}
 }
 
 #undef LOCTEXT_NAMESPACE
@@ -192,7 +281,7 @@ namespace UE::ConcertSharedSlate::ReplicationColumns::Property
 			{
 				return SHeaderRow::Column(LabelColumnId)
 					.DefaultLabel(LOCTEXT("LabelColumnLabel", "Label"))
-					.FillSized(FConcertFrontendStyle::Get()->GetFloat("Concert.Replication.Tree.Property.LabelRowWidth"));
+					.FillWidth(FConcertFrontendStyle::Get()->GetFloat("Concert.Replication.Property.LabelSize"));
 			}
 			
 			virtual TSharedRef<SWidget> GenerateColumnWidget(const FBuildArgs& InArgs) override
@@ -252,7 +341,7 @@ namespace UE::ConcertSharedSlate::ReplicationColumns::Property
 			{
 				return SHeaderRow::Column(TypeColumnId)
 					.DefaultLabel(LOCTEXT("TypeColumnLabel", "Type"))
-					.FillWidth(1.f);
+					.FillWidth(FConcertFrontendStyle::Get()->GetFloat("Concert.Replication.Property.TypeSize"));
 			}
 			
 			virtual TSharedRef<SWidget> GenerateColumnWidget(const FBuildArgs& InArgs) override
@@ -265,6 +354,7 @@ namespace UE::ConcertSharedSlate::ReplicationColumns::Property
 						.Font(FAppStyle::GetFontStyle("PropertyWindow.NormalFont"))
 						.HighlightText(TAttribute<FText>::CreateLambda([HighlightText = InArgs.HighlightText](){ return *HighlightText; }))
 						.Text(GetDisplayText(InArgs.RowItem.RowData))
+						.ColorAndOpacity(FSlateColor::UseSubduedForeground())
 					];
 			}
 			

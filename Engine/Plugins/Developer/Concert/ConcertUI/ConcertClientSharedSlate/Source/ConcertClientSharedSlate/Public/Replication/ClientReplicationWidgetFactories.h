@@ -50,8 +50,7 @@ namespace UE::ConcertClientSharedSlate
 		/** The columns the property view should have. The label column is always included. */
 		TArray<ConcertSharedSlate::FPropertyColumnEntry> AdditionalPropertyColumns
 		{
-			ConcertSharedSlate::ReplicationColumns::Property::LabelColumn(),
-			ConcertSharedSlate::ReplicationColumns::Property::TypeColumn()
+			ConcertSharedSlate::ReplicationColumns::Property::LabelColumn()
 		};
 		
 		/** Optional initial primary sort mode for object rows */
