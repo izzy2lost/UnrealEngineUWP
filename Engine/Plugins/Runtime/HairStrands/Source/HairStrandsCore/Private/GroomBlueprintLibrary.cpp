@@ -4,6 +4,9 @@
 #include "GeometryCache.h"
 #include "HairStrandsCore.h"
 #include "GroomBindingAsset.h"
+#include "HairStrandsInterface.h"
+#include "Engine/Engine.h"
+#include "SceneInterface.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(GroomBlueprintLibrary)
 
@@ -109,3 +112,17 @@ UGroomBindingAsset* UGroomBlueprintLibrary::CreateNewGeometryCacheGroomBindingAs
 #endif
 }
 
+bool UGroomBlueprintLibrary::IsHairStrandsSupportedInWorld(const UObject* WorldContextObject)
+{
+	bool bHairEnabledSupported = false;
+
+	if (UWorld* World = GEngine->GetWorldFromContextObject(WorldContextObject, EGetWorldErrorMode::LogAndReturnNull))
+	{
+		if (FSceneInterface* Scene = World->Scene)
+		{
+			bHairEnabledSupported = IsHairStrandsSupported(EHairStrandsShaderType::Strands, Scene->GetShaderPlatform());
+		}
+	}
+
+	return bHairEnabledSupported;
+}
