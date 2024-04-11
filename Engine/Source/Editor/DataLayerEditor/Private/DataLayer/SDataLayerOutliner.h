@@ -22,8 +22,8 @@ public:
 
 	void CustomAddToToolbar(TSharedPtr<class SHorizontalBox> Toolbar) override;
 private:
-	bool CanAddSelectedActorsToSelectedDataLayersClicked() const;
-	bool CanRemoveSelectedActorsFromSelectedDataLayersClicked() const;
+	bool CanAddSelectedActorsToSelectedDataLayers() const;
+	bool CanRemoveSelectedActorsFromSelectedDataLayers() const;
 	FReply OnAddSelectedActorsToSelectedDataLayersClicked();
 	FReply OnRemoveSelectedActorsFromSelectedDataLayersClicked();
 	TArray<class UDataLayerInstance*> GetSelectedDataLayers() const;
