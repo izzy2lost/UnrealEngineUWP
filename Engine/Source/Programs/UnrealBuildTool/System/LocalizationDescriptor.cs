@@ -178,6 +178,12 @@ namespace UnrealBuildTool
 				JsonObject[] JsonObjects = Targets.Select(X => X.ToJsonObject()).ToArray();
 				InObject.AddOrSetFieldValue(Name, JsonObjects);
 			}
+			else
+			{
+				// The loaded plugin descriptor could have an existing localization target descriptor 
+				// If we remove it in memory, we should try and also remove it from the cached json in this case 
+				InObject.RemoveField(Name);
+			}
 		}
 	}
 }
