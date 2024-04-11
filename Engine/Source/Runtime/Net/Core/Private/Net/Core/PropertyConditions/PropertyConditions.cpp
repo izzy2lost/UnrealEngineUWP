@@ -77,7 +77,7 @@ void FNetPropertyConditionManager::NotifyObjectDestroyed(const FObjectKey Object
 {
 	if (ObjectKey == LastFoundTrackerKey)
 	{
-		LastFoundTrackerKey;
+		LastFoundTrackerKey = FObjectKey();
 		LastFoundTracker = nullptr;
 	}
 
@@ -128,7 +128,7 @@ void FNetPropertyConditionManager::PostGarbageCollect()
 		{
 			if (It.Key() == LastFoundTrackerKey)
 			{
-				LastFoundTrackerKey;
+				LastFoundTrackerKey = FObjectKey();
 				LastFoundTracker = nullptr;
 			}
 			It.RemoveCurrent();
