@@ -62,7 +62,7 @@ void RayTracingDynamicGeometryConverterCS(uint3 DispatchThreadId : SV_DispatchTh
 
 	if (DispatchThreadId.x < NumActualVertices)
 	{
-		FVertexFactoryInput Input = LoadVertexFactoryInputForDynamicUpdate(VertexIndex / 3, VertexIndex % 3, PrimitiveId);
+		FVertexFactoryInput Input = LoadVertexFactoryInputForDynamicUpdate(VertexIndex / 3, VertexIndex % 3, PrimitiveId, InstanceId);
 
 #if USE_INSTANCING
 		Input.InstanceId = InstanceId;

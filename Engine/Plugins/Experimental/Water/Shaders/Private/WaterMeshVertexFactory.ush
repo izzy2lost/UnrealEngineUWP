@@ -594,7 +594,7 @@ FVertexFactoryInput LoadVertexFactoryInputForHGS(uint TriangleIndex, int VertexI
 #endif
 
 #if COMPUTESHADER
-FVertexFactoryInput LoadVertexFactoryInputForDynamicUpdate(uint TriangleIndex, int VertexIndex, uint PrimitiveId)
+FVertexFactoryInput LoadVertexFactoryInputForDynamicUpdate(uint TriangleIndex, int VertexIndex, uint PrimitiveId, uint DrawInstanceId)
 {
 	FVertexFactoryInput Input = (FVertexFactoryInput)0;
 
@@ -611,7 +611,8 @@ FVertexFactoryInput LoadVertexFactoryInputForDynamicUpdate(uint TriangleIndex, i
 	Input.InstanceData2 = 0.0f;
 #endif
 	
-	VF_GPUSCENE_SET_INPUT_FOR_RT(Input, PrimitiveId, 0U);
+	FPrimitiveSceneData PrimitiveData = GetPrimitiveData(PrimitiveId);
+	VF_GPUSCENE_SET_INPUT_FOR_RT(Input, PrimitiveData.InstanceSceneDataOffset + DrawInstanceId, DrawInstanceId);
 
 	return Input;
 }

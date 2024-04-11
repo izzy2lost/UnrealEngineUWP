@@ -457,10 +457,7 @@ FLumenMinimalRayResult TraceLumenMinimalRay(
 
 			FHitGroupRootConstants HitData = Context.HitGroupData[HitGroupIndex];
 
-			const int Primitive = TraceResult.InstanceID;
-			const int PrimitiveInstanceIndex = TraceResult.InstanceIndex - HitData.BaseInstanceIndex;
-			const uint GPUSceneInstanceIndex = GetGPUSceneInstanceIndex(Primitive, PrimitiveInstanceIndex);
-			Payload.SetGPUSceneInstanceIndex(GPUSceneInstanceIndex);
+			Payload.SetGPUSceneInstanceIndex(TraceResult.InstanceID);
 
 			uint MaterialShaderIndex = HitData.UserData & LUMEN_MATERIAL_SHADER_INDEX_MASK;
 			Payload.SetMaterialShaderIndex(MaterialShaderIndex);

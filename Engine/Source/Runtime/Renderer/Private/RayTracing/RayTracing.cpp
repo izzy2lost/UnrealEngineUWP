@@ -953,7 +953,8 @@ namespace RayTracing
 						FRayTracingGeometryInstance RayTracingInstance;
 						RayTracingInstance.GeometryRHI = Geometry->GetRHI();
 						checkf(RayTracingInstance.GeometryRHI, TEXT("Ray tracing instance must have a valid geometry."));
-						RayTracingInstance.DefaultUserData = PrimitiveId;
+						RayTracingInstance.DefaultUserData = InstanceSceneDataOffset;
+						RayTracingInstance.bIncrementUserDataPerInstance = true;
 						RayTracingInstance.bApplyLocalBoundsTransform = Instance.bApplyLocalBoundsTransform;
 						RayTracingInstance.LayerIndex = (uint8)ERayTracingSceneLayer::Base;
 						RayTracingInstance.Mask = SceneInfo->CachedRayTracingInstance.Mask;
@@ -1134,7 +1135,7 @@ namespace RayTracing
 				int32 DecalIndex = INDEX_NONE;
 
 				// Copies the next InstanceSceneDataOffset and user data into the current batch, returns true if arrays were re-allocated.
-				bool Add(FRayTracingScene& InRayTracingScene, uint32 InInstanceSceneDataOffset, uint32 InUserData)
+				bool Add(FRayTracingScene& InRayTracingScene, uint32 InInstanceSceneDataOffset)
 				{
 					// Adhoc TArray-like resize behavior, in lieu of support for using a custom FMemStackBase in TArray.
 					// Idea for future: if batch becomes large enough, we could actually split it into multiple instances to avoid memory waste.
@@ -1152,17 +1153,9 @@ namespace RayTracing
 							FMemory::Memcpy(NewInstanceSceneDataOffsets.GetData(), InstanceSceneDataOffsets.GetData(), InstanceSceneDataOffsets.GetTypeSize() * InstanceSceneDataOffsets.Num());
 						}
 						InstanceSceneDataOffsets = NewInstanceSceneDataOffsets;
-
-						TArrayView<uint32> NewUserData = InRayTracingScene.Allocate<uint32>(NextCount);
-						if (PrevCount)
-						{
-							FMemory::Memcpy(NewUserData.GetData(), UserData.GetData(), UserData.GetTypeSize() * UserData.Num());
-						}
-						UserData = NewUserData;
 					}
 
 					InstanceSceneDataOffsets[Cursor] = InInstanceSceneDataOffset;
-					UserData[Cursor] = InUserData;
 
 					++Cursor;
 
@@ -1175,7 +1168,6 @@ namespace RayTracing
 				}
 
 				TArrayView<uint32> InstanceSceneDataOffsets;
-				TArrayView<uint32> UserData;
 				uint32 Cursor = 0;
 			};
 
@@ -1239,7 +1231,7 @@ namespace RayTracing
 						{
 							// Reusing a previous entry, just append to the instance list.
 
-							bool bReallocated = InstanceBatch.Add(RayTracingScene, SceneInfo->GetInstanceSceneDataOffset(), uint32(PersistentPrimitiveIndex.Index));
+							bool bReallocated = InstanceBatch.Add(RayTracingScene, SceneInfo->GetInstanceSceneDataOffset());
 
 							if(InstanceBatch.Index != INDEX_NONE)
 							{
@@ -1250,7 +1242,7 @@ namespace RayTracing
 								if (bReallocated)
 								{
 									RayTracingInstance.InstanceSceneDataOffsets = InstanceBatch.InstanceSceneDataOffsets;
-									RayTracingInstance.UserData = InstanceBatch.UserData;
+									RayTracingInstance.UserData = InstanceBatch.InstanceSceneDataOffsets;
 								}
 							}
 
@@ -1263,7 +1255,7 @@ namespace RayTracing
 								if (bReallocated)
 								{
 									RayTracingInstance.InstanceSceneDataOffsets = InstanceBatch.InstanceSceneDataOffsets;
-									RayTracingInstance.UserData = InstanceBatch.UserData;
+									RayTracingInstance.UserData = InstanceBatch.InstanceSceneDataOffsets;
 								}
 							}
 						}
@@ -1271,13 +1263,13 @@ namespace RayTracing
 						{
 							// Starting new instance batch
 
-							InstanceBatch.Add(RayTracingScene, SceneInfo->GetInstanceSceneDataOffset(), uint32(PersistentPrimitiveIndex.Index));
+							InstanceBatch.Add(RayTracingScene, SceneInfo->GetInstanceSceneDataOffset());
 
 							FRayTracingGeometryInstance RayTracingInstance;
 							RayTracingInstance.GeometryRHI = RelevantPrimitive.RayTracingGeometryRHI;
 							checkf(RayTracingInstance.GeometryRHI, TEXT("Ray tracing instance must have a valid geometry."));
 							RayTracingInstance.InstanceSceneDataOffsets = InstanceBatch.InstanceSceneDataOffsets;
-							RayTracingInstance.UserData = InstanceBatch.UserData;
+							RayTracingInstance.UserData = InstanceBatch.InstanceSceneDataOffsets;
 							RayTracingInstance.NumTransforms = 1;
 
 							RayTracingInstance.Mask = RelevantPrimitive.InstanceMask; // When no cached command is found, InstanceMask == 0 and the instance is effectively filtered out

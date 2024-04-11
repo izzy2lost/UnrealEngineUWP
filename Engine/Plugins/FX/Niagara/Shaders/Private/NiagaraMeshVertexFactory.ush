@@ -974,10 +974,11 @@ float4 VertexFactoryGetTranslatedPrimitiveVolumeBounds(FVertexFactoryInterpolant
 #endif // #if PASS_NEEDS_VERTEX_ID
 
 #if (VF_USE_PRIMITIVE_SCENE_DATA == 1)
-		// Note: GetInstanceUserData() stores the GPU-Scene primitive ID
-		VF_GPUSCENE_SET_INPUT_FOR_RT(Input, GetInstanceUserData(), InstanceIndex() - GetBaseInstanceIndex());
+		const uint GPUSceneInstanceId = GetInstanceUserData();
+		const FInstanceSceneData InstanceSceneData = GetInstanceSceneData(GPUSceneInstanceId, Scene.GPUScene.InstanceDataSOAStride);
+		VF_GPUSCENE_SET_INPUT_FOR_RT(Input, GPUSceneInstanceId, InstanceSceneData.RelativeId);
 #else
-		Input.InstanceId = InstanceIndex() - GetBaseInstanceIndex(); // TIAGO_TODO
+	#error "HGS requires GPU Scene support"
 #endif
 
 		return Input;

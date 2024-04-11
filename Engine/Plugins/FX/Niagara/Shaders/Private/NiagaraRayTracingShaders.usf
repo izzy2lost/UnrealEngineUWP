@@ -78,11 +78,10 @@ RAY_TRACING_ENTRY_RAYGEN(NiagaraCollisionRayTraceRG)
 				0,      // MissShaderIndex
 				Ray.GetNativeDesc(),    // RayDesc
 				Payload // Payload
-			); 
+			);
 
-			uint GPUSceneInstanceIndex = GetGPUSceneInstanceIndex(Payload.PrimitiveIndex, Payload.InstanceIndex);
 			uint PrimCollisionGroup; 
-			if (FindCollisionGroup(GPUSceneInstanceIndex, PrimCollisionGroup))
+			if (FindCollisionGroup(Payload.GPUSceneInstanceId, PrimCollisionGroup))
 			{
 				//If we collide with something of a different group to the Ray then break and allow the collision. Otherwise loop and attempt to recast just infront of the hit we're discarding.
 				if (PrimCollisionGroup == RayCollisionGroup)

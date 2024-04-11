@@ -160,7 +160,7 @@ FVertexFactoryInput LoadVertexFactoryInputForHGS(uint TriangleIndex, int VertexI
 	Input.TriangleVertexId = VertexIndex;
 #endif // !ENABLE_PROCEDURAL_INTERSECTOR
 
-	// Note: GetInstanceUserData() stores the GPU-Scene primitive ID
+	// Note: GetInstanceUserData() stores the GPU-Scene instance ID
 	VF_GPUSCENE_SET_INPUT_FOR_RT(Input, GetInstanceUserData(), 0U);
 
 	return Input;
@@ -524,7 +524,7 @@ FMaterialPixelParameters GetMaterialPixelParameters(float3 RayOrigin, float3 Ray
 
 #if VF_USE_PRIMITIVE_SCENE_DATA
 	FVertexFactoryInput Input;
-	// Note: GetInstanceUserData() stores the GPU-Scene primitive ID
+	// Note: GetInstanceUserData() stores the GPU-Scene instance ID
 	VF_GPUSCENE_SET_INPUT_FOR_RT(Input, GetInstanceUserData(), 0U);
 #endif
 
@@ -901,7 +901,7 @@ float3 VertexFactoryGetWorldNormal(FVertexFactoryInput Input, FVertexFactoryInte
 // Regular material evalution for raytracing
 
 #if RAYHITGROUP || COMPUTESHADER
-FVertexFactoryInput LoadVertexFactoryInputForDynamicUpdate(uint TriangleIndex, int VertexIndex, uint PrimitiveId)
+FVertexFactoryInput LoadVertexFactoryInputForDynamicUpdate(uint TriangleIndex, int VertexIndex, uint PrimitiveId, uint DrawInstanceId)
 {
 	FVertexFactoryInput Input;
 

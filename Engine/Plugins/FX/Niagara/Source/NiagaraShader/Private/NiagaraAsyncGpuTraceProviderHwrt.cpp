@@ -31,8 +31,7 @@ static FAutoConsoleVariableRef CVarNiagaraAsyncGpuTraceHwrtEnabled(
 struct FVFXTracePayload
 {
 	float HitT;
-	uint32 PrimitiveIndex;
-	uint32 InstanceIndex;
+	uint32 GPUSceneInstanceId;
 	float Barycentrics[2];
 	float WorldPosition[3];
 	float WorldNormal[3];

@@ -25,7 +25,7 @@
 #endif
 
 #ifndef USE_INSTANCE_CULLING_DATA
-	#define USE_INSTANCE_CULLING_DATA 1
+	#define USE_INSTANCE_CULLING_DATA (!(RAYHITGROUPSHADER || RAYTRACING_DYNAMIC_GEOMETRY_CONVERTER))
 #endif
 
 #ifndef VF_REQUIRES_PER_INSTANCE_CUSTOM_DATA
@@ -1213,7 +1213,6 @@ FSceneDataIntermediates GetSceneDataIntermediates(uint InstanceIdOffset, uint Dr
 	// GPUCULL_TODO: workaround for the fact that DrawDynamicMeshPassPrivate et al. don't work with GPU-Scene instancing
 	//				 instead they mark the top bit in the primitive ID and disable auto instancing such that there is an 1:1:1
 	//               drawcmd:primitive:instance. Then we can just look up the primitive and fetch the instance data index.
-	// GPUCULL_TODO: Workaround also used for ray tracing interfacing with the VFs, that also supply a DrawInstanceId. 
 	// GPUCULL_TODO: Workaround also used by HairStrandsMaterialCommon.ush
 	// We mark the PrimitiveID with the top bit in dynamic draw passes
 	if ((InstanceIdOffset & VF_TREAT_INSTANCE_ID_OFFSET_AS_PRIMITIVE_ID_FLAG) != 0U)
@@ -1225,9 +1224,16 @@ FSceneDataIntermediates GetSceneDataIntermediates(uint InstanceIdOffset, uint Dr
 		Intermediates.ViewIndex = 0;
 		Intermediates.CullingFlags = INSTANCE_CULLING_FLAGS_DEFAULT;
 	}
+#if RAYHITGROUPSHADER || RAYTRACING_DYNAMIC_GEOMETRY_CONVERTER
+	else
+	{
+		Intermediates.InstanceId = InstanceIdOffset + DrawInstanceId;
+		Intermediates.ViewIndex = 0;
+		Intermediates.CullingFlags = INSTANCE_CULLING_FLAGS_DEFAULT;
+	}
 // Workaround for Vulkan SPIRV issue when "else" branch is not removed when it should, which leads to higher level code expecting InstanceCulling buffer to be bound.
 // See: https://github.com/KhronosGroup/SPIRV-Tools/issues/4902
-#if USE_INSTANCE_CULLING_DATA
+#elif USE_INSTANCE_CULLING_DATA
 	else
 	{
 		const uint PackedId = InstanceCulling.InstanceIdsBuffer[InstanceIdOffset + DrawInstanceId];

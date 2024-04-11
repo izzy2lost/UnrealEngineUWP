@@ -1286,7 +1286,8 @@ void FPrimitiveSceneInfo::UpdateCachedRayTracingInstance(FPrimitiveSceneInfo* Sc
 
 		// At this point (in AddToScene()) PrimitiveIndex has been set
 		check(SceneInfo->GetPersistentIndex().IsValid());
-		SceneInfo->CachedRayTracingInstance.DefaultUserData = (uint32)SceneInfo->GetPersistentIndex().Index;
+		SceneInfo->CachedRayTracingInstance.DefaultUserData = SceneInfo->GetInstanceSceneDataOffset();
+		SceneInfo->CachedRayTracingInstance.bIncrementUserDataPerInstance = true;
 
 		SceneInfo->CachedRayTracingInstance.bApplyLocalBoundsTransform = CachedRayTracingInstance.bApplyLocalBoundsTransform;
 

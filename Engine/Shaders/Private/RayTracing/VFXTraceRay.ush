@@ -20,8 +20,7 @@
 void InitVFXTracePayloadFromHitShader(FRayTracingIntersectionAttributes Attributes, out FVFXTracePayload OutPayload)
 {
 	OutPayload.HitT = RayTCurrent();
-	OutPayload.PrimitiveIndex = GetInstanceUserData();
-	OutPayload.InstanceIndex = InstanceIndex() - GetBaseInstanceIndex();
+	OutPayload.GPUSceneInstanceId = GetInstanceUserData();
 	OutPayload.Barycentrics = Attributes.GetBarycentrics();
 
 	//Reconstruct world position.

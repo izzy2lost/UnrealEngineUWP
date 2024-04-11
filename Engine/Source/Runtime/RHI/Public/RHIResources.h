@@ -3028,6 +3028,8 @@ struct FRayTracingGeometryInstance
 
 	// Whether local bounds scale and center translation should be applied to the instance transform.
 	bool bApplyLocalBoundsTransform = false;
+	// Whether to increment UserData for each instance of this geometry (only applied when using DefaultUserData)
+	bool bIncrementUserDataPerInstance = false;
 
 	// Mask that will be tested against one provided to TraceRay() in shader code.
 	// If binary AND of instance mask with ray mask is zero, then the instance is considered not intersected / invisible.

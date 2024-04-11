@@ -121,13 +121,10 @@ uint GetBaseInstanceIndex()
 float3 GetGeometryNormalFromTriangleBaseAttributes(uint PrimitiveIndex)
 {
 #if NANITE_RAY_TRACING
-	const int ScenePrimitiveIndex = GetInstanceUserData();
-	const int SceneInstanceIndex = InstanceIndex() - GetBaseInstanceIndex();
-
-	const uint GPUSceneInstanceIndex = GetGPUSceneInstanceIndex(ScenePrimitiveIndex, SceneInstanceIndex);
+	const uint GPUSceneInstanceIndex = GetInstanceUserData();
 
 	FInstanceSceneData InstanceData = GetInstanceSceneData(GPUSceneInstanceIndex, Scene.GPUScene.InstanceDataSOAStride);
-	FPrimitiveSceneData PrimitiveData = GetPrimitiveData(ScenePrimitiveIndex);
+	FPrimitiveSceneData PrimitiveData = GetPrimitiveData(InstanceData.PrimitiveId);
 
 	const uint FirstTriangle = HitGroupSystemRootConstants.FirstPrimitive;
 	const uint PackedTriangleData = RayTracingDataBuffer[PrimitiveData.NaniteRayTracingDataOffset + FirstTriangle + PrimitiveIndex];

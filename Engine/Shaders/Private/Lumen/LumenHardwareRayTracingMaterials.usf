@@ -14,9 +14,7 @@ RAY_TRACING_ENTRY_CLOSEST_HIT(LumenHardwareRayTracingMaterialCHS,
 {
 	Payload.HitT = RayTCurrent();
 
-	const int Primitive = GetInstanceUserData();
-	const int PrimitiveInstanceIndex = InstanceIndex() - GetBaseInstanceIndex();
-	const uint GPUSceneInstanceIndex = GetGPUSceneInstanceIndex(Primitive, PrimitiveInstanceIndex);
+	uint GPUSceneInstanceIndex = GetInstanceUserData();
 	Payload.SetGPUSceneInstanceIndex(GPUSceneInstanceIndex);
 
 	uint MaterialShaderIndex = GetHitGroupUserData() & LUMEN_MATERIAL_SHADER_INDEX_MASK;

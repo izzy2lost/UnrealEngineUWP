@@ -860,14 +860,14 @@ struct FVertexFactoryInput
 
 FMaterialPixelParameters GetMaterialPixelParameters(float3 RayOrigin, float3 RayDirection, float HitT, uint HitPrimitiveIndex, FRayTracingIntersectionAttributes HitAttributes, uint HitKind, out float3 WorldGeoNormal)
 {
-	// Note: GetInstanceUserData() stores the GPU-Scene primitive ID
-	uint PrimitiveId = GetInstanceUserData();
-
 #if VF_USE_PRIMITIVE_SCENE_DATA
-	const uint DrawInstanceId = InstanceIndex() - GetBaseInstanceIndex();
+	const uint GPUSceneInstanceId = GetInstanceUserData();
+	const FInstanceSceneData InstanceSceneData = GetInstanceSceneData(GPUSceneInstanceId, Scene.GPUScene.InstanceDataSOAStride);
 
 	FVertexFactoryInput Input = (FVertexFactoryInput)0;
-	VF_GPUSCENE_SET_INPUT_FOR_RT(Input, PrimitiveId, DrawInstanceId);
+	VF_GPUSCENE_SET_INPUT_FOR_RT(Input, GPUSceneInstanceId, InstanceSceneData.RelativeId);
+#else
+	#error "HGS requires GPU Scene support"
 #endif // VF_USE_PRIMITIVE_SCENE_DATA
 
 	FSceneDataIntermediates SceneData = VF_GPUSCENE_GET_INTERMEDIATES(Input); // NOTE: Input is not used when VF_USE_PRIMITIVE_SCENE_DATA == 0

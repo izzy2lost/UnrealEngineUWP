@@ -308,8 +308,10 @@ CHECK_RT_PAYLOAD_SIZE(FDefaultPayload)
 
 
 #if IS_PAYLOAD_ENABLED(RT_PAYLOAD_TYPE_VFX)
-struct FVFXTracePayload : FIntersectionPayload
+struct FVFXTracePayload : FMinimalPayload
 {
+	uint   GPUSceneInstanceId;
+	float2 Barycentrics;
 	float3 TranslatedWorldPosition;
 	float3 WorldNormal;
 };

@@ -511,14 +511,8 @@ RAY_TRACING_ENTRY_CLOSEST_HIT(MaterialCHS,
 	bool bIsLumenPayload = PackedPayload.IsLumenPayload();
 	if (bIsLumenPayload)
 	{
-		const float3 SurfaceNormal = GeoNormal;
-		const int PrimitiveIndex = GetInstanceUserData();
-		const int PrimitiveInstanceIndex = InstanceIndex() - GetBaseInstanceIndex();
-
-		PackedPayload.SetGeometryNormal(SurfaceNormal);
-		PackedPayload.SetSceneInstanceIndex(
-			GetGPUSceneInstanceIndex(PrimitiveIndex, PrimitiveInstanceIndex)
-		);
+		PackedPayload.SetGeometryNormal(GeoNormal);
+		PackedPayload.SetSceneInstanceIndex(GetInstanceUserData());
 	}
 
 	if (PackedPayload.IsMinimalPayloadMode())
@@ -618,9 +612,7 @@ RAY_TRACING_ENTRY_CLOSEST_HIT(MaterialCHS,
 	// Override packed payload with custom Lumen data
 	if (bIsLumenPayload)
 	{
-		const int PrimitiveIndex = GetInstanceUserData();
-		const int PrimitiveInstanceIndex = InstanceIndex() - GetBaseInstanceIndex();
-		PackedPayload.SetSceneInstanceIndex(GetGPUSceneInstanceIndex(PrimitiveIndex, PrimitiveInstanceIndex));
+		PackedPayload.SetSceneInstanceIndex(GetInstanceUserData());
 		PackedPayload.SetGeometryNormal(GeoNormal);
 	}
 
