@@ -9,6 +9,7 @@
 #include "Engine/Engine.h"
 #include "MaterialDomain.h"
 #include "Engine/Texture.h"
+#include "Engine/TextureCollection.h"
 #include "Materials/MaterialAttributeDefinitionMap.h"
 #include "Field/FieldSystemTypes.h"
 #include "Materials/MaterialExpressionCustom.h"
@@ -21,7 +22,6 @@
 #include "Engine/RendererSettings.h"
 #include "DataDrivenShaderPlatformInfo.h"
 #include "Materials/Material.h"
-#include <functional>
 #include "Materials/MaterialExpressionAbsorptionMediumMaterialOutput.h"
 #include "Materials/MaterialExpressionCustomOutput.h"
 #include "Materials/MaterialExpressionFunctionInput.h"
@@ -63,6 +63,8 @@
 #include "Materials/MaterialExpressionSubstrate.h"
 #include "ShaderPlatformCachedIniValue.h"
 #endif
+
+#include <functional>
 
 #if ENABLE_COOK_STATS && STATS
 
@@ -2154,11 +2156,19 @@ void FHLSLMaterialTranslator::DoTranslate()
 			TextureExpression->GetTextureParameterInfo(MaterialCompilationOutput.UniformExpressionSet.UniformTextureParameters[TypeIndex].AddDefaulted_GetRef());
 		}
 	}
+
 	MaterialCompilationOutput.UniformExpressionSet.UniformExternalTextureParameters.Empty(UniformExternalTextureExpressions.Num());
 	for (FMaterialUniformExpressionExternalTexture* TextureExpression : UniformExternalTextureExpressions)
 	{
 		CHECK_DDC_QUERY_FINISHED_ELSE_RETURN();
 		TextureExpression->GetExternalTextureParameterInfo(MaterialCompilationOutput.UniformExpressionSet.UniformExternalTextureParameters.AddDefaulted_GetRef());
+	}
+
+	MaterialCompilationOutput.UniformExpressionSet.UniformTextureCollectionParameters.Empty(UniformTextureCollectionExpressions.Num());
+	for (const FMaterialUniformExpressionTextureCollection* TextureExpression : UniformTextureCollectionExpressions)
+	{
+		CHECK_DDC_QUERY_FINISHED_ELSE_RETURN();
+		TextureExpression->GetTextureCollectionParameterInfo(MaterialCompilationOutput.UniformExpressionSet.UniformTextureCollectionParameters.AddDefaulted_GetRef());
 	}
 
 	for (uint32 SubstrateCompilationContextIndex = 0; SubstrateCompilationContextIndex < ESubstrateCompilationContext::SCC_MAX; ++SubstrateCompilationContextIndex)
@@ -3289,6 +3299,7 @@ const TCHAR* FHLSLMaterialTranslator::DescribeType(EMaterialValueType Type) cons
 	case MCT_LWCVector2:			return TEXT("LWCVector2");
 	case MCT_LWCVector3:			return TEXT("LWCVector3");
 	case MCT_LWCVector4:			return TEXT("LWCVector4");
+	case MCT_TextureCollection:		return TEXT("TextureCollection");
 	default:						return TEXT("unknown");
 	};
 }
@@ -3303,11 +3314,11 @@ const TCHAR* FHLSLMaterialTranslator::HLSLTypeString(EMaterialValueType Type) co
 	case MCT_Float3:				return TEXT("MaterialFloat3");
 	case MCT_Float4:				return TEXT("MaterialFloat4");
 	case MCT_Float:					return TEXT("MaterialFloat");
-	case MCT_Texture2D:				return TEXT("texture2D");
-	case MCT_TextureCube:			return TEXT("textureCube");
-	case MCT_Texture2DArray:		return TEXT("texture2DArray");
-	case MCT_TextureCubeArray:		return TEXT("textureCubeArray");
-	case MCT_VolumeTexture:			return TEXT("volumeTexture");
+	case MCT_Texture2D:				return TEXT("Texture2D");
+	case MCT_TextureCube:			return TEXT("TextureCube");
+	case MCT_Texture2DArray:		return TEXT("Texture2DArray");
+	case MCT_TextureCubeArray:		return TEXT("TextureCubeArray");
+	case MCT_VolumeTexture:			return TEXT("Texture3D");
 	case MCT_StaticBool:			return TEXT("static bool");
 	case MCT_Bool:					return TEXT("bool");
 	case MCT_MaterialAttributes:	return TEXT("FMaterialAttributes");
@@ -3326,6 +3337,7 @@ const TCHAR* FHLSLMaterialTranslator::HLSLTypeString(EMaterialValueType Type) co
 	case MCT_LWCVector2:			return TEXT("FWSVector2");
 	case MCT_LWCVector3:			return TEXT("FWSVector3");
 	case MCT_LWCVector4:			return TEXT("FWSVector4");
+	case MCT_TextureCollection:		return TEXT("FResourceCollection");
 	default:						return TEXT("unknown");
 	};
 }
@@ -3363,6 +3375,7 @@ const TCHAR* FHLSLMaterialTranslator::HLSLTypeStringDeriv(EMaterialValueType Typ
 	case MCT_LWCVector2:			return (DerivativeStatus == EDerivativeStatus::Valid) ? TEXT("FWSVector2Deriv") : TEXT("FWSVector2");
 	case MCT_LWCVector3:			return (DerivativeStatus == EDerivativeStatus::Valid) ? TEXT("FWSVector3Deriv") : TEXT("FWSVector3");
 	case MCT_LWCVector4:			return (DerivativeStatus == EDerivativeStatus::Valid) ? TEXT("FWSVector4Deriv") : TEXT("FWSVector4");
+	case MCT_TextureCollection:		return TEXT("FResourceCollection");
 	default:						return TEXT("unknown");
 	};
 }
@@ -3474,6 +3487,8 @@ int32 FHLSLMaterialTranslator::AddCodeChunkInner(uint64 Hash, const TCHAR* Forma
 		return INDEX_NONE;
 	}
 
+	const bool bFromTextureCollection = (Type & MCT_TextureCollection) != 0;
+
 	int32 CodeIndex = INDEX_NONE;
 	if (Type == MCT_VoidStatement)
 	{
@@ -3488,7 +3503,7 @@ int32 FHLSLMaterialTranslator::AddCodeChunkInner(uint64 Hash, const TCHAR* Forma
 		new(*CurrentScopeChunks) FShaderCodeChunk(Hash, FormattedCode, FormattedCode, TEXT(""), Type, DerivativeStatus, true);
 	}
 	// Can only create temporaries for certain types
-	else if ((Type & (MCT_Float | MCT_LWCType | MCT_VTPageTableResult | MCT_UInt)) || Type == MCT_ShadingModel || Type == MCT_MaterialAttributes || Type == MCT_Substrate || Type == MCT_UInt)
+	else if ((Type & (MCT_Float | MCT_LWCType | MCT_VTPageTableResult | MCT_UInt)) || Type == MCT_ShadingModel || Type == MCT_MaterialAttributes || Type == MCT_Substrate || Type == MCT_UInt || bFromTextureCollection)
 	{
 		// Check for existing
 		for (int32 i = 0; i < CurrentScopeChunks->Num(); ++i)
@@ -3502,13 +3517,15 @@ int32 FHLSLMaterialTranslator::AddCodeChunkInner(uint64 Hash, const TCHAR* Forma
 
 		if (CodeIndex == INDEX_NONE)
 		{
+			const EMaterialValueType EffectiveType = EMaterialValueType(Type & ~MCT_TextureCollection);
+
 			CodeIndex = CurrentScopeChunks->Num();
 			// Allocate a local variable name
 			const FString SymbolName = CreateSymbolName(TEXT("Local"));
 			// Construct the definition string which stores the result in a temporary and adds a newline for readability
-			const FString LocalVariableDefinitionFinite = FString("	") + HLSLTypeString(Type) + TEXT(" ") + SymbolName + TEXT(" = ") + FormattedCode + TEXT(";") + HLSL_LINE_TERMINATOR;
+			const FString LocalVariableDefinitionFinite = FString("	") + HLSLTypeString(EffectiveType) + TEXT(" ") + SymbolName + TEXT(" = ") + FormattedCode + TEXT(";") + HLSL_LINE_TERMINATOR;
 			// Construct the definition string which stores the result in a temporary and adds a newline for readability
-			const FString LocalVariableDefinitionAnalytic = FString("	") + HLSLTypeString(Type) + TEXT(" ") + SymbolName + TEXT(" = ") + FormattedCode + TEXT(";") + HLSL_LINE_TERMINATOR;
+			const FString LocalVariableDefinitionAnalytic = FString("	") + HLSLTypeString(EffectiveType) + TEXT(" ") + SymbolName + TEXT(" = ") + FormattedCode + TEXT(";") + HLSL_LINE_TERMINATOR;
 			// Adding a code chunk that creates a local variable
 			new(*CurrentScopeChunks) FShaderCodeChunk(Hash, *LocalVariableDefinitionFinite, *LocalVariableDefinitionAnalytic, SymbolName, Type, DerivativeStatus, false);
 		}
@@ -3821,11 +3838,14 @@ int32 FHLSLMaterialTranslator::AccessUniformExpression(int32 Index)
 	}
 
 	FMaterialUniformExpressionTexture* TextureUniformExpression = CodeChunk.UniformExpression->GetTextureUniformExpression();
+	FMaterialUniformExpressionTextureCollection* TextureCollectionUniformExpression = CodeChunk.UniformExpression->GetTextureCollectionUniformExpression();
 	FMaterialUniformExpressionExternalTexture* ExternalTextureUniformExpression = CodeChunk.UniformExpression->GetExternalTextureUniformExpression();
 
 	// Any code chunk can have a texture uniform expression (eg FMaterialUniformExpressionFlipBookTextureParameter),
 	// But a texture code chunk must have a texture uniform expression
 	check(!(CodeChunk.Type & MCT_Texture) || TextureUniformExpression || ExternalTextureUniformExpression);
+	// Texture collection samples must have a corresponding uniform expression
+	check(!(CodeChunk.Type & MCT_TextureCollection) || TextureCollectionUniformExpression);
 	// External texture samples must have a corresponding uniform expression
 	check(!(CodeChunk.Type & MCT_TextureExternal) || ExternalTextureUniformExpression);
 	// Virtual texture samples must have a corresponding uniform expression
@@ -4002,6 +4022,11 @@ int32 FHLSLMaterialTranslator::AccessUniformExpression(int32 Index)
 		int32 TextureInputIndex = UniformTextureExpressions[(uint32)EMaterialTextureParameterType::SparseVolume].AddUnique(TextureUniformExpression);
 		FormattedCode.Appendf(TEXT("SparseVolumeTextureUnpackUniforms(Material.SVTPackedUniform[%d*2], Material.SVTPackedUniform[%d*2+1])"), TextureInputIndex, TextureInputIndex);
 	}
+	else if (CodeChunk.Type == MCT_TextureCollection)
+	{
+		int32 TextureCollectionInputIndex = UniformTextureCollectionExpressions.AddUnique(TextureCollectionUniformExpression);
+		FormattedCode.Appendf(TEXT("Material.TextureCollection_%u"), TextureCollectionInputIndex);
+	}
 	else
 	{
 		UE_LOG(LogMaterial, Fatal,TEXT("User input of unknown type: %s"),DescribeType(CodeChunk.Type));
@@ -4050,7 +4075,7 @@ bool FHLSLMaterialTranslator::GetTextureForExpression(int32 Index, int32& OutTex
 	check(Index >= 0 && Index < CurrentScopeChunks->Num());
 	const FShaderCodeChunk& Chunk = (*CurrentScopeChunks)[Index];
 	const EMaterialValueType TexInputType = Chunk.Type;
-	if (!(TexInputType & MCT_Texture))
+	if ((TexInputType & MCT_Texture) == 0)
 	{
 		return false;
 	}
@@ -4076,6 +4101,33 @@ bool FHLSLMaterialTranslator::GetTextureForExpression(int32 Index, int32& OutTex
 		if (FMaterialUniformExpressionExternalTextureParameter* ExternalTextureParameterUniform = ExternalTextureUniform->GetExternalTextureParameterUniformExpression())
 		{
 			OutParameterName = ExternalTextureParameterUniform->GetParameterName();
+		}
+	}
+
+	return true;
+}
+
+bool FHLSLMaterialTranslator::GetTextureCollectionForExpression(int32 Index, int32& OutTextureCollectionIndex, TOptional<FName>& OutParameterName) const
+{
+	check(Index >= 0 && Index < CurrentScopeChunks->Num());
+	const FShaderCodeChunk& Chunk = (*CurrentScopeChunks)[Index];
+	const EMaterialValueType TexInputType = Chunk.Type;
+	if ((TexInputType & MCT_TextureCollection) == 0)
+	{
+		return false;
+	}
+
+	// If 'InputExpression' is connected, we use need to find the texture collection object that was passed in
+	// In this case, the texture collection assigned on this expression node is not used
+	FMaterialUniformExpression* UniformExpression = Chunk.UniformExpression;
+	checkf(UniformExpression, TEXT("TexInputType is %d, but missing FMaterialUniformExpression"), TexInputType);
+
+	if (FMaterialUniformExpressionTextureCollection* TextureCollectionUniform = UniformExpression->GetTextureCollectionUniformExpression())
+	{
+		OutTextureCollectionIndex = TextureCollectionUniform->GetTextureCollectionIndex();
+		if (FMaterialUniformExpressionTextureCollectionParameter* TextureCollectionParameterUniform = TextureCollectionUniform->GetTextureCollectionParameterUniformExpression())
+		{
+			OutParameterName = TextureCollectionParameterUniform->GetParameterName();
 		}
 	}
 
@@ -4856,6 +4908,12 @@ FString FHLSLMaterialTranslator::CastValue(const FString& Code, EMaterialValueTy
 		}
 		check(NumComponents == NumDestComponents);
 		return Result;
+	}
+
+	// If the type came from a texture collection, we'll need to remove that flag to resolve the cast.
+	if (SourceType & MCT_TextureCollection && SourceType != MCT_TextureCollection)
+	{
+		return CastValue(Code, EMaterialValueType(SourceType & ~MCT_TextureCollection), DestType, Flags);
 	}
 
 	Errorf(TEXT("Cannot cast between non-numeric types %s to %s."), DescribeType(SourceType), DescribeType(DestType));
@@ -6826,6 +6884,9 @@ int32 FHLSLMaterialTranslator::TextureSample(
 		return INDEX_NONE;
 	}
 
+	const bool bFromCollection = (TextureType & MCT_TextureCollection) != 0;
+	TextureType = EMaterialValueType(TextureType & ~MCT_TextureCollection);
+
 	if (ShaderFrequency != SF_Pixel && MipValueMode == TMVM_MipBias)
 	{
 		Errorf(TEXT("MipBias is only supported in the pixel shader"));
@@ -6960,7 +7021,7 @@ int32 FHLSLMaterialTranslator::TextureSample(
 
 	// Won't be able to get the texture, if this is an external texture sample
 	const UTexture* Texture = nullptr;
-	if (TextureType != MCT_TextureExternal)
+	if (TextureType != MCT_TextureExternal && !bFromCollection)
 	{
 		FMaterialUniformExpression* Expression = (*CurrentScopeChunks)[TextureIndex].UniformExpression;
 		const FMaterialUniformExpressionTexture* TextureExpression = Expression ? Expression->GetTextureUniformExpression() : nullptr;
@@ -7107,25 +7168,39 @@ int32 FHLSLMaterialTranslator::TextureSample(
 		{
 			SamplerStateCode = FString::Printf(TEXT("%sSampler"), *TextureName);
 		}
-		else if (SamplerSource == SSM_Wrap_WorldGroupSettings)
+		else
 		{
-			// Use the shared sampler to save sampler slots
-			SamplerStateCode = FString::Printf(TEXT("GetMaterialSharedSampler(%sSampler,%s)"),
-				*TextureName, AutomaticViewMipBias ? TEXT("View.MaterialTextureBilinearWrapedSampler") : TEXT("Material.Wrap_WorldGroupSettings"));
-			RequiresManualViewMipBias = false;
-		}
-		else if (SamplerSource == SSM_Clamp_WorldGroupSettings)
-		{
-			// Use the shared sampler to save sampler slots
-			SamplerStateCode = FString::Printf(TEXT("GetMaterialSharedSampler(%sSampler,%s)"),
-				*TextureName, AutomaticViewMipBias ? TEXT("View.MaterialTextureBilinearClampedSampler") : TEXT("Material.Clamp_WorldGroupSettings"));
-			RequiresManualViewMipBias = false;
-		}
-		else if (SamplerSource == SSM_TerrainWeightmapGroupSettings)
-		{
-			SamplerStateCode = FString::Printf(TEXT("GetMaterialSharedSampler(%sSampler,%s)"),
-				*TextureName, TEXT("View.LandscapeWeightmapSampler"));
-			RequiresManualViewMipBias = false;
+			const TCHAR* SharedSamplerName = nullptr;
+
+			if (SamplerSource == SSM_Wrap_WorldGroupSettings)
+			{
+				// Use the shared sampler to save sampler slots
+				SharedSamplerName = AutomaticViewMipBias ? TEXT("View.MaterialTextureBilinearWrapedSampler") : TEXT("Material.Wrap_WorldGroupSettings");
+				RequiresManualViewMipBias = false;
+			}
+			else if (SamplerSource == SSM_Clamp_WorldGroupSettings)
+			{
+				// Use the shared sampler to save sampler slots
+				SharedSamplerName = AutomaticViewMipBias ? TEXT("View.MaterialTextureBilinearClampedSampler") : TEXT("Material.Clamp_WorldGroupSettings");
+				RequiresManualViewMipBias = false;
+			}
+			else if (SamplerSource == SSM_TerrainWeightmapGroupSettings)
+			{
+				SharedSamplerName = TEXT("View.LandscapeWeightmapSampler");
+				RequiresManualViewMipBias = false;
+			}
+
+			if (SharedSamplerName)
+			{
+				if (bFromCollection)
+				{
+					SamplerStateCode = SharedSamplerName;
+				}
+				else
+				{
+					SamplerStateCode = FString::Printf(TEXT("GetMaterialSharedSampler(%sSampler,%s)"), *TextureName, SharedSamplerName);
+				}
+			}
 		}
 	}
 
@@ -7399,6 +7474,62 @@ int32 FHLSLMaterialTranslator::TextureProperty(int32 TextureIndex, EMaterialExpo
 	const EMaterialValueType ValueType = (TextureType == MCT_VolumeTexture || TextureType == MCT_Texture2DArray || TextureType == MCT_SparseVolumeTexture) ? MCT_Float3 : MCT_Float2;
 	FAddUniformExpressionScope Scope(this);
 	return AddUniformExpression(Scope, new FMaterialUniformExpressionTextureProperty(TextureExpression, Property), ValueType, TEXT(""));
+}
+
+static const TCHAR* GetTextureObjectType(EMaterialValueType Type)
+{
+	switch (Type)
+	{
+	case MCT_Texture2D:				return TEXT("Texture2D");
+	case MCT_TextureCube:			return TEXT("TextureCube");
+	case MCT_Texture2DArray:		return TEXT("Texture2DArray");
+	case MCT_TextureCubeArray:		return TEXT("TextureCubeArray");
+	case MCT_VolumeTexture:			return TEXT("Texture3D");
+	default:						return TEXT("unknown");
+	};
+}
+
+int32 FHLSLMaterialTranslator::TextureFromCollection(int32 TextureCollectionCodeIndex, int32 IndexIntoCollectionCodeIndex, EMaterialValueType ResultTextureType)
+{
+	if (ErrorUnlessFeatureLevelSupported(ERHIFeatureLevel::SM6) == INDEX_NONE)
+	{
+		return INDEX_NONE;
+	}
+
+	if (TextureCollectionCodeIndex == INDEX_NONE)
+	{
+		return Errorf(TEXT("Missing TextureCollection parameter"));
+	}
+
+	if (IndexIntoCollectionCodeIndex == INDEX_NONE)
+	{
+		return Errorf(TEXT("Missing CollectionIndex parameter"));
+	}
+
+	const EMaterialValueType TextureType = GetParameterType(TextureCollectionCodeIndex);
+	if (TextureType != MCT_TextureCollection)
+	{
+		return Errorf(TEXT("TextureFromCollection only available for Texture Collections, not %s"), DescribeType(TextureType));
+	}
+
+	FMaterialUniformExpressionTextureCollection* TextureCollectionExpression = GetParameterUniformExpression(TextureCollectionCodeIndex)->GetTextureCollectionUniformExpression();
+	if (!TextureCollectionExpression)
+	{
+		return Errorf(TEXT("Expected a texture collection expression"));
+	}
+
+	if ((ResultTextureType & MCT_Texture) == 0)
+	{
+		return Errorf(TEXT("Expected a texture return type"));
+	}
+
+	return AddCodeChunk(
+		EMaterialValueType(ResultTextureType | MCT_TextureCollection),
+		TEXT("TextureFromCollection_%s(%s, %s)"),
+		GetTextureObjectType(ResultTextureType),
+		*GetParameterCode(TextureCollectionCodeIndex),
+		*GetParameterCode(IndexIntoCollectionCodeIndex)
+	);
 }
 
 int32 FHLSLMaterialTranslator::TextureDecalMipmapLevel(int32 TextureSizeInput)
@@ -7969,6 +8100,71 @@ int32 FHLSLMaterialTranslator::TextureParameter(FName ParameterName, UTexture* I
 	return AddUniformExpression(Scope, new FMaterialUniformExpressionTextureParameter(ParameterInfo, TextureReferenceIndex, SamplerType, SamplerSource, bVirtual),ShaderType,TEXT(""));
 }
 
+int32 FHLSLMaterialTranslator::TextureCollection(UTextureCollection* InTextureCollection, int32& TextureCollectionReferenceIndex)
+{
+	TextureCollectionReferenceIndex = Material->GetReferencedTextureCollections().Find(InTextureCollection);
+	if (TextureCollectionReferenceIndex < 0)
+	{
+		return INDEX_NONE;
+	}
+
+	FAddUniformExpressionScope Scope(this);
+	return AddUniformExpression(Scope, new FMaterialUniformExpressionTextureCollection(TextureCollectionReferenceIndex), MCT_TextureCollection, TEXT(""));
+}
+
+int32 FHLSLMaterialTranslator::TextureCollectionParameter(FName ParameterName, UTextureCollection* InDefaultValue, int32& TextureCollectionReferenceIndex)
+{
+	UTextureCollection* DefaultValue = InDefaultValue;
+
+	// If we're compiling a function, give the function a chance to override the default parameter value
+	FMaterialParameterMetadata Meta;
+	if (GetParameterOverrideValueForCurrentFunction(EMaterialParameterType::TextureCollection, ParameterName, Meta))
+	{
+		DefaultValue = Meta.Value.TextureCollection;
+	}
+
+	TextureCollectionReferenceIndex = Material->GetReferencedTextureCollections().Find(DefaultValue);
+	if (TextureCollectionReferenceIndex == INDEX_NONE)
+	{
+		FString TextureCollectionName;
+		DefaultValue->GetName(TextureCollectionName);
+		Errorf(TEXT("Could not resolve referenced texture collection '%s'."), *TextureCollectionName);
+		return INDEX_NONE;
+	}
+
+	FMaterialParameterInfo ParameterInfo = GetParameterAssociationInfo();
+	ParameterInfo.Name = ParameterName;
+
+	FAddUniformExpressionScope Scope(this);
+	return AddUniformExpression(Scope, new FMaterialUniformExpressionTextureCollectionParameter(ParameterInfo, TextureCollectionReferenceIndex), MCT_TextureCollection, TEXT(""));
+}
+
+int32 FHLSLMaterialTranslator::TextureCollectionCount(int32 InTextureCollectionCodeIndex)
+{
+	if (ErrorUnlessFeatureLevelSupported(ERHIFeatureLevel::SM6) == INDEX_NONE)
+	{
+		return INDEX_NONE;
+	}
+
+	const EMaterialValueType TextureType = GetParameterType(InTextureCollectionCodeIndex);
+	if (TextureType != MCT_TextureCollection)
+	{
+		return Errorf(TEXT("TextureCollectionCount only available for Texture Collections, not %s"), DescribeType(TextureType));
+	}
+
+	FMaterialUniformExpressionTextureCollection* TextureCollectionExpression = GetParameterUniformExpression(InTextureCollectionCodeIndex)->GetTextureCollectionUniformExpression();
+	if (!TextureCollectionExpression)
+	{
+		return Errorf(TEXT("Expected a texture collection expression"));
+	}
+
+	return AddCodeChunk(
+		EMaterialValueType(MCT_UInt1),
+		TEXT("GetCountFromResourceCollection(%s)"),
+		*GetParameterCode(InTextureCollectionCodeIndex)
+	);
+}
+
 int32 FHLSLMaterialTranslator::VirtualTexture(URuntimeVirtualTexture* InTexture, int32 TextureLayerIndex, int32 PageTableLayerIndex, int32& TextureReferenceIndex, EMaterialSamplerType SamplerType) 
 {
 	if (!UseVirtualTexturing(Platform))
@@ -8179,6 +8375,11 @@ int32 FHLSLMaterialTranslator::ExternalTextureCoordinateOffset(const FGuid& Exte
 UObject* FHLSLMaterialTranslator::GetReferencedTexture(int32 Index)
 {
 	return Material->GetReferencedTextures()[Index];
+}
+
+UTextureCollection* FHLSLMaterialTranslator::GetReferencedTextureCollection(int32 Index)
+{
+	return Material->GetReferencedTextureCollections()[Index];
 }
 
 int32 FHLSLMaterialTranslator::StaticBool(bool bValue)

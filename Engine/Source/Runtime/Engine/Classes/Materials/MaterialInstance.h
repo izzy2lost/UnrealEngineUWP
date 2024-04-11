@@ -23,6 +23,7 @@ class ITargetPlatform;
 class UPhysicalMaterial;
 class USubsurfaceProfile;
 class UTexture;
+class UTextureCollection;
 
 //
 // Forward declarations.
@@ -272,6 +273,54 @@ struct FTextureParameterValue
 
 	typedef const UTexture* ValueType;
 	static ValueType GetValue(const FTextureParameterValue& Parameter) { return Parameter.ParameterValue; }
+
+	void GetValue(FMaterialParameterMetadata& OutResult) const
+	{
+		OutResult.Value = ParameterValue;
+#if WITH_EDITORONLY_DATA
+		OutResult.ExpressionGuid = ExpressionGUID;
+#endif
+	}
+};
+
+/** Editable texture collection parameter. */
+USTRUCT(BlueprintType)
+struct FTextureCollectionParameterValue
+{
+	GENERATED_USTRUCT_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=TextureCollectionParameterValue)
+	FMaterialParameterInfo ParameterInfo;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=TextureCollectionParameterValue)
+	TObjectPtr<UTextureCollection> ParameterValue;
+
+	UPROPERTY()
+	FGuid ExpressionGUID;
+
+	explicit FTextureCollectionParameterValue(const FMaterialParameterInfo& InParameterInfo = FMaterialParameterInfo(), UTextureCollection* InValue = nullptr)
+		: ParameterInfo(InParameterInfo), ParameterValue(InValue)
+	{
+	}
+
+	bool IsOverride() const { return true; }
+
+	bool IsValid() const { return GetValue(*this) != nullptr; }
+
+	bool operator==(const FTextureCollectionParameterValue& Other) const
+	{
+		return
+			ParameterInfo == Other.ParameterInfo &&
+			ParameterValue == Other.ParameterValue &&
+			ExpressionGUID == Other.ExpressionGUID;
+	}
+	bool operator!=(const FTextureCollectionParameterValue& Other) const
+	{
+		return !((*this) == Other);
+	}
+
+	typedef const UTextureCollection* ValueType;
+	static ValueType GetValue(const FTextureCollectionParameterValue& Parameter) { return Parameter.ParameterValue; }
 
 	void GetValue(FMaterialParameterMetadata& OutResult) const
 	{
@@ -632,6 +681,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=MaterialInstance, meta = (EditFixedOrder))
 	TArray<struct FTextureParameterValue> TextureParameterValues;
 
+	/** Texture Collection parameters. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=MaterialInstance, meta = (EditFixedOrder))
+	TArray<struct FTextureCollectionParameterValue> TextureCollectionParameterValues;
+
 	/** RuntimeVirtualTexture parameters. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = MaterialInstance, meta = (EditFixedOrder))
 	TArray<struct FRuntimeVirtualTextureParameterValue> RuntimeVirtualTextureParameterValues;
@@ -757,7 +810,8 @@ public:
 
 	virtual ENGINE_API void GetUsedTextures(TArray<UTexture*>& OutTextures, EMaterialQualityLevel::Type QualityLevel, bool bAllQualityLevels, ERHIFeatureLevel::Type FeatureLevel, bool bAllFeatureLevels) const override;
 	virtual ENGINE_API void GetUsedTexturesAndIndices(TArray<UTexture*>& OutTextures, TArray< TArray<int32> >& OutIndices, EMaterialQualityLevel::Type QualityLevel, ERHIFeatureLevel::Type FeatureLevel) const;
-	virtual ENGINE_API bool GetTextureParameterValue(const FHashedMaterialParameterInfo& ParameterInfo, class UTexture*& OutValue, bool bOveriddenOnly = false) const;
+	virtual ENGINE_API bool GetTextureParameterValue(const FHashedMaterialParameterInfo& ParameterInfo, class UTexture*& OutValue, bool bOveriddenOnly = false) const override;
+	virtual ENGINE_API bool GetTextureCollectionParameterValue(const FHashedMaterialParameterInfo& ParameterInfo, class UTextureCollection*& OutValue, bool bOveriddenOnly = false) const override;
 	virtual ENGINE_API void OverrideTexture(const UTexture* InTextureToOverride, UTexture* OverrideTexture, ERHIFeatureLevel::Type InFeatureLevel) override;
 	virtual ENGINE_API void OverrideNumericParameterDefault(EMaterialParameterType Type, const FHashedMaterialParameterInfo& ParameterInfo, const UE::Shader::FValue& Value, bool bOverride, ERHIFeatureLevel::Type FeatureLevel) override;
 	virtual ENGINE_API bool CheckMaterialUsage(const EMaterialUsage Usage) override;
@@ -1033,6 +1087,7 @@ protected:
 	void SetScalarParameterAtlasInternal(const FMaterialParameterInfo& ParameterInfo, FScalarParameterAtlasInstanceData AtlasData);
 #endif
 	void SetTextureParameterValueInternal(const FMaterialParameterInfo& ParameterInfo, class UTexture* Value);
+	void SetTextureCollectionParameterValueInternal(const FMaterialParameterInfo& ParameterInfo, class UTextureCollection* Value);
 	void SetRuntimeVirtualTextureParameterValueInternal(const FMaterialParameterInfo& ParameterInfo, class URuntimeVirtualTexture* Value);
 	void SetSparseVolumeTextureParameterValueInternal(const FMaterialParameterInfo& ParameterInfo, class USparseVolumeTexture* Value);
 	void SetFontParameterValueInternal(const FMaterialParameterInfo& ParameterInfo, class UFont* FontValue, int32 FontPage);

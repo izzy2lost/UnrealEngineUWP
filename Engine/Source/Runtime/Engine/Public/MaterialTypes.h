@@ -12,6 +12,7 @@
 
 class FShaderKeyGenerator;
 class UTexture;
+class UTextureCollection;
 class UCurveLinearColor;
 class UCurveLinearColorAtlas;
 class UFont;
@@ -186,6 +187,7 @@ enum class EMaterialParameterType : uint8
 	Vector,
 	DoubleVector,
 	Texture,
+	TextureCollection,
 	Font,
 	RuntimeVirtualTexture,
 	SparseVolumeTexture,
@@ -322,6 +324,7 @@ struct FMaterialParameterValue
 	FMaterialParameterValue(const FVector4d& InValue) : Type(EMaterialParameterType::DoubleVector) { Double[0] = InValue.X; Double[1] = InValue.Y; Double[2] = InValue.Z; Double[3] = InValue.W; }
 	FMaterialParameterValue(UTexture* InValue) : Type(EMaterialParameterType::Texture) { Texture = InValue; }
 	FMaterialParameterValue(const TObjectPtr<UTexture>& InValue) : Type(EMaterialParameterType::Texture) { Texture = InValue; }
+	FMaterialParameterValue(const TObjectPtr<UTextureCollection>& InValue) : Type(EMaterialParameterType::TextureCollection) { TextureCollection = InValue; }
 	FMaterialParameterValue(URuntimeVirtualTexture* InValue) : Type(EMaterialParameterType::RuntimeVirtualTexture) { RuntimeVirtualTexture = InValue; }
 	FMaterialParameterValue(const TObjectPtr<URuntimeVirtualTexture>& InValue) : Type(EMaterialParameterType::RuntimeVirtualTexture) { RuntimeVirtualTexture = InValue; }
 	FMaterialParameterValue(USparseVolumeTexture* InValue) : Type(EMaterialParameterType::SparseVolumeTexture) { SparseVolumeTexture = InValue; }
@@ -331,6 +334,8 @@ struct FMaterialParameterValue
 	// Would be possible to store an additional const-flag member, and provide runtime checks to ensure constness is not violated...maybe worth doing in the future
 	FMaterialParameterValue(const UTexture* InValue) : Type(EMaterialParameterType::Texture) { Texture = const_cast<UTexture*>(InValue); }
 	FMaterialParameterValue(const TObjectPtr<const UTexture>& InValue) : Type(EMaterialParameterType::Texture) { Texture = const_cast<UTexture*>(InValue.Get()); }
+	FMaterialParameterValue(const UTextureCollection* InValue) : Type(EMaterialParameterType::TextureCollection) { TextureCollection = const_cast<UTextureCollection*>(InValue); }
+	FMaterialParameterValue(const TObjectPtr<const UTextureCollection>& InValue) : Type(EMaterialParameterType::TextureCollection) { TextureCollection = const_cast<UTextureCollection*>(InValue.Get()); }
 	FMaterialParameterValue(const URuntimeVirtualTexture* InValue) : Type(EMaterialParameterType::RuntimeVirtualTexture) { RuntimeVirtualTexture = const_cast<URuntimeVirtualTexture*>(InValue); }
 	FMaterialParameterValue(const TObjectPtr<const URuntimeVirtualTexture>& InValue) : Type(EMaterialParameterType::RuntimeVirtualTexture) { RuntimeVirtualTexture = const_cast<URuntimeVirtualTexture*>(InValue.Get()); }
 	FMaterialParameterValue(const USparseVolumeTexture* InValue) : Type(EMaterialParameterType::SparseVolumeTexture) { SparseVolumeTexture = const_cast<USparseVolumeTexture*>(InValue); }
@@ -357,6 +362,7 @@ struct FMaterialParameterValue
 		float Float[4];
 		bool Bool[4];
 		UTexture* Texture;
+		UTextureCollection* TextureCollection;
 		URuntimeVirtualTexture* RuntimeVirtualTexture;
 		USparseVolumeTexture* SparseVolumeTexture;
 		struct
@@ -389,6 +395,7 @@ struct FMaterialParameterValue
 			Lhs.Double[2] == Rhs.Double[2] &&
 			Lhs.Double[3] == Rhs.Double[3];
 		case EMaterialParameterType::Texture: return Lhs.Texture == Rhs.Texture;
+		case EMaterialParameterType::TextureCollection: return Lhs.TextureCollection == Rhs.TextureCollection;
 		case EMaterialParameterType::Font: return Lhs.Font.Value == Rhs.Font.Value && Lhs.Font.Page == Rhs.Font.Page;
 		case EMaterialParameterType::RuntimeVirtualTexture: return Lhs.RuntimeVirtualTexture == Rhs.RuntimeVirtualTexture;
 		case EMaterialParameterType::SparseVolumeTexture: return Lhs.SparseVolumeTexture == Rhs.SparseVolumeTexture;

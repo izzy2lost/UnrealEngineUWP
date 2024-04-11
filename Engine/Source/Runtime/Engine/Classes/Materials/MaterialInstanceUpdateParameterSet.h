@@ -268,6 +268,11 @@ bool UpdateParameterSet(TArray<FTextureParameterValue>& Parameters, UMaterial* P
 	return MaterialInstance_Private::UpdateParameterSet_WithCachedData<FTextureParameterValue, ExpressionType>(EMaterialParameterType::Texture, Parameters, ParentMaterial);
 }
 template <typename ParameterType, typename ExpressionType>
+bool UpdateParameterSet(TArray<FTextureCollectionParameterValue>& Parameters, UMaterial* ParentMaterial)
+{
+	return MaterialInstance_Private::UpdateParameterSet_WithCachedData<FTextureCollectionParameterValue, ExpressionType>(EMaterialParameterType::TextureCollection, Parameters, ParentMaterial);
+}
+template <typename ParameterType, typename ExpressionType>
 bool UpdateParameterSet(TArray<FFontParameterValue>& Parameters, UMaterial* ParentMaterial)
 {
 	return MaterialInstance_Private::UpdateParameterSet_WithCachedData<FFontParameterValue, ExpressionType>(EMaterialParameterType::Font, Parameters, ParentMaterial);

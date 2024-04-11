@@ -67,6 +67,13 @@ class UMaterialExpressionTextureBase : public UMaterialExpression
 	 */
 	static ENGINE_API EMaterialSamplerType GetSamplerTypeForTexture( const UTexture* Texture, bool ForceNoVT = false );
 
+	static ENGINE_API bool VerifySamplerType(
+		const FString& TexturePathName,
+		EMaterialSamplerType CorrectSamplerType,
+		bool bSRGB,
+		EMaterialSamplerType SamplerType,
+		FString& OutErrorMessage);
+
 	/**
 	 * Verify that the texture and sampler type. Generates a compiler waring if
 	 * they do not.

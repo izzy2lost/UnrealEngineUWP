@@ -50,6 +50,7 @@ static const TCHAR* HLSLTypeString(EMaterialValueType Type)
 	case MCT_UInt3:					return TEXT("uint3");
 	case MCT_UInt4:					return TEXT("uint4");
 	case MCT_Substrate:				return TEXT("FSubstrateData");
+	case MCT_TextureCollection:		return TEXT("FResourceCollection");
 	default:						return TEXT("unknown");
 	};
 }

@@ -11,6 +11,7 @@
 #include "MaterialEditor/DEditorStaticComponentMaskParameterValue.h"
 #include "MaterialEditor/DEditorStaticSwitchParameterValue.h"
 #include "MaterialEditor/DEditorTextureParameterValue.h"
+#include "MaterialEditor/DEditorTextureCollectionParameterValue.h"
 #include "MaterialEditor/DEditorVectorParameterValue.h"
 #include "MaterialTypes.h"
 #include "Math/Color.h"
@@ -53,6 +54,11 @@ UDEditorStaticSwitchParameterValue::UDEditorStaticSwitchParameterValue(const FOb
 }
 
 UDEditorTextureParameterValue::UDEditorTextureParameterValue(const FObjectInitializer& ObjectInitializer)
+	: Super(ObjectInitializer)
+{
+}
+
+UDEditorTextureCollectionParameterValue::UDEditorTextureCollectionParameterValue(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
 }
@@ -125,6 +131,16 @@ static UDEditorParameterValue* CreateParameter_Texture(UObject* Owner, const FMa
 	return Parameter;
 }
 
+static UDEditorParameterValue* CreateParameter_TextureCollection(UObject* Owner, const FMaterialParameterMetadata& Meta)
+{
+	UDEditorTextureCollectionParameterValue* Parameter = NewObject<UDEditorTextureCollectionParameterValue>(Owner);
+	if (Meta.Value.Type == EMaterialParameterType::TextureCollection)
+	{
+		Parameter->ParameterValue = Meta.Value.TextureCollection;
+	}
+	return Parameter;
+}
+
 static UDEditorParameterValue* CreateParameter_RuntimeVirtualTexture(UObject* Owner, const FMaterialParameterMetadata& Meta)
 {
 	UDEditorRuntimeVirtualTextureParameterValue* Parameter = NewObject<UDEditorRuntimeVirtualTextureParameterValue>(Owner);
@@ -191,6 +207,7 @@ UDEditorParameterValue* UDEditorParameterValue::Create(UObject* Owner,
 	case EMaterialParameterType::Vector: Parameter = CreateParameter_Vector(Owner, Meta); break;
 	case EMaterialParameterType::DoubleVector: Parameter = CreateParameter_DoubleVector(Owner, Meta); break;
 	case EMaterialParameterType::Texture: Parameter = CreateParameter_Texture(Owner, Meta); break;
+	case EMaterialParameterType::TextureCollection: Parameter = CreateParameter_TextureCollection(Owner, Meta); break;
 	case EMaterialParameterType::RuntimeVirtualTexture: Parameter = CreateParameter_RuntimeVirtualTexture(Owner, Meta); break;
 	case EMaterialParameterType::SparseVolumeTexture: Parameter = CreateParameter_SparseVolumeTexture(Owner, Meta); break;
 	case EMaterialParameterType::Font: Parameter = CreateParameter_Font(Owner, Meta); break;

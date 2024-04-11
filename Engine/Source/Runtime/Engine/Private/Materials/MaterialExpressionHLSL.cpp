@@ -211,8 +211,11 @@
 #include "Materials/MaterialExpressionTangent.h"
 #include "Materials/MaterialExpressionTangentOutput.h"
 #include "Materials/MaterialExpressionTemporalSobol.h"
+#include "Materials/MaterialExpressionTextureCollection.h"
+#include "Materials/MaterialExpressionTextureCollectionParameter.h"
 #include "Materials/MaterialExpressionTextureCoordinate.h"
 #include "Materials/MaterialExpressionTextureObject.h"
+#include "Materials/MaterialExpressionTextureObjectFromCollection.h"
 #include "Materials/MaterialExpressionTextureObjectParameter.h"
 #include "Materials/MaterialExpressionTextureProperty.h"
 #include "Materials/MaterialExpressionTextureSample.h"
@@ -1489,6 +1492,62 @@ bool UMaterialExpressionTextureObjectParameter::GenerateHLSLExpression(FMaterial
 	}
 
 	OutExpression = Generator.GenerateMaterialParameter(ParameterName, ParameterMeta, SamplerType);
+	return true;
+}
+
+bool UMaterialExpressionTextureCollection::GenerateHLSLExpression(FMaterialHLSLGenerator& Generator, UE::HLSLTree::FScope& Scope, int32 OutputIndex, UE::HLSLTree::FExpression const*& OutExpression) const
+{
+	using namespace UE::HLSLTree;
+	using namespace UE::Shader;
+
+	const FMaterialParameterMetadata ParameterMeta(TextureCollection);
+	OutExpression = Generator.GenerateMaterialParameter(FName(), ParameterMeta);
+	return true;
+}
+
+bool UMaterialExpressionTextureCollectionParameter::GenerateHLSLExpression(FMaterialHLSLGenerator& Generator, UE::HLSLTree::FScope& Scope, int32 OutputIndex, UE::HLSLTree::FExpression const*& OutExpression) const
+{
+	using namespace UE::HLSLTree;
+	using namespace UE::Shader;
+
+	FMaterialParameterMetadata ParameterMeta;
+	if (!GetParameterValue(ParameterMeta))
+	{
+		return Generator.Error(TEXT("Failed to get parameter value"));
+	}
+
+	OutExpression = Generator.GenerateMaterialParameter(ParameterName, ParameterMeta);
+	return true;
+}
+
+
+bool UMaterialExpressionTextureObjectFromCollection::GenerateHLSLExpression(FMaterialHLSLGenerator& Generator, UE::HLSLTree::FScope& Scope, int32 OutputIndex, UE::HLSLTree::FExpression const*& OutExpression) const
+{
+	using namespace UE::HLSLTree;
+	using namespace UE::Shader;
+
+	const FExpression* TextureCollectionExpression = nullptr;
+	if (TextureCollection.GetTracedInput().Expression)
+	{
+		TextureCollectionExpression = TextureCollection.AcquireHLSLExpression(Generator, Scope);
+	}
+	else if (TextureCollectionObject)
+	{
+		const FMaterialParameterMetadata ParameterMeta(TextureCollectionObject);
+		TextureCollectionExpression = Generator.GenerateMaterialParameter(FName(), ParameterMeta);
+	}
+	if (!TextureCollectionExpression)
+	{
+		return Generator.Error(TEXT("Failed to get Texture Collection"));
+	}
+
+	const FExpression* CollectionIndexExpression = CollectionIndex.AcquireHLSLExpressionOrConstant(Generator, Scope, ConstCollectionIndex);
+	if (!CollectionIndexExpression)
+	{
+		return Generator.Error(TEXT("Failed to get Texture Collection Index"));
+	}
+
+	OutExpression = Generator.GetTree().NewExpression<Material::FExpressionTextureObjectFromCollection>(TextureCollectionExpression, CollectionIndexExpression, TextureType);
 	return true;
 }
 

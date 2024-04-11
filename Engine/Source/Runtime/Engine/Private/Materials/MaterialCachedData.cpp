@@ -39,6 +39,7 @@
 #include "Curves/CurveLinearColor.h"
 #include "Curves/CurveLinearColorAtlas.h"
 #include "UObject/UE5MainStreamObjectVersion.h"
+#include "Engine/TextureCollection.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(MaterialCachedData)
 
@@ -145,7 +146,7 @@ static bool TryAddParameter(FMaterialCachedExpressionData& CachedData,
 	return false;
 }
 
-bool FMaterialCachedExpressionData::AddParameter(const FMaterialParameterInfo& ParameterInfo, const FMaterialParameterMetadata& ParameterMeta, UObject*& OutReferencedTexture)
+bool FMaterialCachedExpressionData::AddParameter(const FMaterialParameterInfo& ParameterInfo, const FMaterialParameterMetadata& ParameterMeta, UObject*& OutReferencedTexture, UTextureCollection*& OutReferencedTextureCollection)
 {
 	check(EditorOnlyData);
 	int32 AssetIndex = INDEX_NONE;
@@ -192,6 +193,11 @@ bool FMaterialCachedExpressionData::AddParameter(const FMaterialParameterInfo& P
 			TextureValues.Insert(ParameterMeta.Value.Texture, Index);
 			EditorOnlyData->TextureChannelNameValues.Insert(ParameterMeta.ChannelNames, Index);
 			OutReferencedTexture = ParameterMeta.Value.Texture;
+			break;
+
+		case EMaterialParameterType::TextureCollection:
+			TextureCollectionValues.Insert(ParameterMeta.Value.TextureCollection, Index);
+			OutReferencedTextureCollection = ParameterMeta.Value.TextureCollection;
 			break;
 
 		case EMaterialParameterType::Font:
@@ -246,6 +252,10 @@ bool FMaterialCachedExpressionData::AddParameter(const FMaterialParameterInfo& P
 
 		case EMaterialParameterType::Texture:
 			bSameValue = TextureValues[Index] == ParameterMeta.Value.Texture;
+			break;
+
+		case EMaterialParameterType::TextureCollection:
+			bSameValue = TextureCollectionValues[Index] == ParameterMeta.Value.TextureCollection;
 			break;
 
 		case EMaterialParameterType::Font:
@@ -327,6 +337,7 @@ void FMaterialCachedExpressionData::UpdateForExpressions(const FMaterialCachedEx
 		}
 
 		UObject* ReferencedTexture = nullptr;
+		UTextureCollection* ReferencedTextureCollection = nullptr;
 
 		FMaterialParameterMetadata ParameterMeta;
 		if (Expression->GetParameterValue(ParameterMeta))
@@ -350,25 +361,33 @@ void FMaterialCachedExpressionData::UpdateForExpressions(const FMaterialCachedEx
 			const FMaterialParameterInfo ParameterInfo(ParameterName, Association, ParameterIndex);
 
 			// Try add the parameter. If this fails, the parameter is being added twice with different values. Report it as error.
-			if (!AddParameter(ParameterInfo, ParameterMeta, ReferencedTexture))
+			if (!AddParameter(ParameterInfo, ParameterMeta, ReferencedTexture, ReferencedTextureCollection))
 			{
 				DuplicateParameterErrors.AddUnique({ Expression, ParameterName });
 			}
 		}
 
-		// We first try to extract the referenced texture from the parameter value, that way we'll also get the proper texture in case value is overriden by a function instance
-		const bool bCanReferenceTexture = Expression->CanReferenceTexture();
-		if (!ReferencedTexture && bCanReferenceTexture)
+
+		if (ReferencedTexture)
 		{
+			ReferencedTextures.AddUnique(ReferencedTexture);
+		}
+		else if (ReferencedTextureCollection)
+		{
+			ReferencedTextureCollections.AddUnique(ReferencedTextureCollection);
+		}
+		else if (UTextureCollection* TextureCollection = Expression->GetReferencedTextureCollection())
+		{
+			ReferencedTextureCollections.AddUnique(TextureCollection);
+		}
+		else if (Expression->CanReferenceTexture())
+		{
+			// We first try to extract the referenced texture from the parameter value, that way we'll also get the proper texture in case value is overriden by a function instance
 			const UMaterialExpression::ReferencedTextureArray ExpressionReferencedTextures = Expression->GetReferencedTextures();
 			for (UObject* ExpressionReferencedTexture : ExpressionReferencedTextures)
 			{
 				ReferencedTextures.AddUnique(ExpressionReferencedTexture);
 			}
-		}
-		else if (ReferencedTexture)
-		{
-			ReferencedTextures.AddUnique(ReferencedTexture);
 		}
 
 		Expression->GetLandscapeLayerNames(EditorOnlyData->LandscapeLayerNames);
@@ -1124,6 +1143,9 @@ void FMaterialCachedExpressionData::GetParameterValueByIndex(EMaterialParameterT
 			OutResult.ChannelNames = EditorOnlyData->TextureChannelNameValues[ParameterIndex];
 		}
 #endif // WITH_EDITORONLY_DATA
+		break;
+	case EMaterialParameterType::TextureCollection:
+		OutResult.Value = TextureCollectionValues[ParameterIndex].LoadSynchronous();
 		break;
 	case EMaterialParameterType::RuntimeVirtualTexture:
 		OutResult.Value = RuntimeVirtualTextureValues[ParameterIndex].LoadSynchronous();

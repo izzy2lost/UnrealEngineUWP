@@ -45,6 +45,10 @@ class UMaterialFunctionInstance : public UMaterialFunctionInterface
 	UPROPERTY(EditAnywhere, Category=MaterialFunctionInstance)
 	TArray<struct FTextureParameterValue> TextureParameterValues;
 
+	/** Texture Collection parameters. */
+	UPROPERTY(EditAnywhere, Category=MaterialFunctionInstance)
+	TArray<struct FTextureCollectionParameterValue> TextureCollectionParameterValues;
+
 	/** Font parameters. */
 	UPROPERTY(EditAnywhere, Category=MaterialFunctionInstance)
 	TArray<struct FFontParameterValue> FontParameterValues;

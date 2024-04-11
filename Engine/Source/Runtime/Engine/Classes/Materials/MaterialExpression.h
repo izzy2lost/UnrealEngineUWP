@@ -17,6 +17,7 @@
 class UEdGraphNode;
 class UMaterial;
 class UTexture;
+class UTextureCollection;
 struct FPropertyChangedEvent;
 struct FMaterialParameterMetadata;
 struct FMaterialShadingModelField;
@@ -343,6 +344,8 @@ class UMaterialExpression : public UObject
 	
 	/** Returns true if GetReferencedTexture() / GetReferencedTextures() can ever return a valid pointer(s). */
 	virtual bool CanReferenceTexture() const { return false; }
+
+	virtual UTextureCollection* GetReferencedTextureCollection() const { return nullptr; }
 
 #if WITH_EDITOR
 	/**

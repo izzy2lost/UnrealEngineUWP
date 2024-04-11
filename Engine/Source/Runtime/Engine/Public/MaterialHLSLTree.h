@@ -15,6 +15,7 @@
 
 class UTexture;
 enum class EMaterialParameterType : uint8;
+enum class ETextureCollectionMemberType : uint8;
 struct FMaterialCachedExpressionData;
 struct FMaterialLayersFunctions;
 
@@ -38,6 +39,7 @@ inline void AppendHash(FHasher& Hasher, const FMaterialParameterValue& Value)
 	case EMaterialParameterType::Vector: AppendHash(Hasher, Value.Float); break;
 	case EMaterialParameterType::DoubleVector: AppendHash(Hasher, Value.Double); break;
 	case EMaterialParameterType::Texture: AppendHash(Hasher, Value.Texture); break;
+	case EMaterialParameterType::TextureCollection: AppendHash(Hasher, Value.TextureCollection); break;
 	case EMaterialParameterType::Font: AppendHash(Hasher, Value.Font); break;
 	case EMaterialParameterType::RuntimeVirtualTexture: AppendHash(Hasher, Value.RuntimeVirtualTexture); break;
 	case EMaterialParameterType::SparseVolumeTexture: AppendHash(Hasher, Value.SparseVolumeTexture); break;
@@ -630,6 +632,29 @@ public:
 
 	virtual bool PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const override;
 	virtual void EmitValueShader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValueShaderResult& OutResult) const override;
+};
+
+class FExpressionTextureObjectFromCollection : public FExpression
+{
+public:
+	FExpressionTextureObjectFromCollection(
+		const FExpression* InTextureCollectionExpression,
+		const FExpression* InCollectionIndexExpression,
+		ETextureCollectionMemberType InTextureType)
+		: TextureCollectionExpression(InTextureCollectionExpression)
+		, CollectionIndexExpression(InCollectionIndexExpression)
+		, TextureType(InTextureType)
+	{
+	}
+
+	const FExpression* const TextureCollectionExpression;
+	const FExpression* const CollectionIndexExpression;
+	const ETextureCollectionMemberType TextureType;
+
+	// FExpression
+	virtual bool PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const override;
+	virtual void EmitValueShader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValueShaderResult& OutResult) const override;
+	//~FExpression
 };
 
 class FExpressionAntiAliasedTextureMask : public FExpression

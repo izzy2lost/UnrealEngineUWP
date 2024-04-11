@@ -882,6 +882,7 @@ void UMaterialEditorInstanceConstant::ApplySourceFunctionChanges()
 		SourceFunction->VectorParameterValues = SourceInstance->VectorParameterValues;
 		SourceFunction->DoubleVectorParameterValues = SourceInstance->DoubleVectorParameterValues;
 		SourceFunction->TextureParameterValues = SourceInstance->TextureParameterValues;
+		SourceFunction->TextureCollectionParameterValues = SourceInstance->TextureCollectionParameterValues;
 		SourceFunction->RuntimeVirtualTextureParameterValues = SourceInstance->RuntimeVirtualTextureParameterValues;
 		SourceFunction->SparseVolumeTextureParameterValues = SourceInstance->SparseVolumeTextureParameterValues;
 		SourceFunction->FontParameterValues = SourceInstance->FontParameterValues;

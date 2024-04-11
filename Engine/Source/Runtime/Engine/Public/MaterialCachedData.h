@@ -13,6 +13,7 @@
 #include "MaterialCachedData.generated.h"
 
 class UTexture;
+class UTextureCollection;
 class UCurveLinearColor;
 class UCurveLinearColorAtlas;
 class UFont;
@@ -197,8 +198,13 @@ struct FMaterialCachedExpressionData
 	void Validate(const UMaterialInterface& Material);
 
 	/** Adds a parameter. If this returns false, a parameter with identical name has already been added but it was set to a different value. */
-	bool AddParameter(const FMaterialParameterInfo& ParameterInfo, const FMaterialParameterMetadata& ParameterMeta, UObject*& OutReferencedTexture);
-	
+	bool AddParameter(const FMaterialParameterInfo& ParameterInfo, const FMaterialParameterMetadata& ParameterMeta, UObject*& OutReferencedTexture, UTextureCollection*& OutReferencedTextureCollection);
+
+	bool AddParameter(const FMaterialParameterInfo& ParameterInfo, const FMaterialParameterMetadata& ParameterMeta, UObject*& OutReferencedTexture)
+	{
+		UTextureCollection* UnusedReferencedTextureCollection = nullptr;
+		return AddParameter(ParameterInfo, ParameterMeta, OutReferencedTexture, UnusedReferencedTextureCollection);
+	}
 #endif // WITH_EDITOR
 
 #if WITH_EDITORONLY_DATA
@@ -294,6 +300,9 @@ struct FMaterialCachedExpressionData
 	TArray<TSoftObjectPtr<UTexture>> TextureValues;
 
 	UPROPERTY()
+	TArray<TSoftObjectPtr<UTextureCollection>> TextureCollectionValues;
+
+	UPROPERTY()
 	TArray<TSoftObjectPtr<UFont>> FontValues;
 
 	UPROPERTY()
@@ -308,6 +317,9 @@ struct FMaterialCachedExpressionData
 	/** Array of all texture referenced by this material */
 	UPROPERTY()
 	TArray<TObjectPtr<UObject>> ReferencedTextures;
+
+	UPROPERTY()
+	TArray<TObjectPtr<UTextureCollection>> ReferencedTextureCollections;
 
 	/** Array of all functions this material depends on. */
 	UPROPERTY()

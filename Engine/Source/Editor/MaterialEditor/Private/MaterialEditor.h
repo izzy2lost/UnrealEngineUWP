@@ -88,6 +88,7 @@ public:
 	virtual bool ShouldCache(EShaderPlatform Platform, const FShaderType* ShaderType, const FVertexFactoryType* VertexFactoryType) const override;
 
 	virtual TArrayView<const TObjectPtr<UObject>> GetReferencedTextures() const override;
+	virtual TConstArrayView<TObjectPtr<UTextureCollection>> GetReferencedTextureCollections() const override;
 
 	////////////////
 	// FMaterialRenderProxy interface.
@@ -184,6 +185,7 @@ private:
 	TUniquePtr<FMaterialCachedHLSLTree> CachedHLSLTree;
 	TWeakObjectPtr<UMaterialExpression> Expression;
 	TArray<TObjectPtr<UObject>> ReferencedTextures;
+	TArray<TObjectPtr<UTextureCollection>> ReferencedTextureCollections;
 	FGuid Id;
 };
 

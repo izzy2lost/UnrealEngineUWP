@@ -530,6 +530,7 @@ void FMaterialInstanceEditor::ReInitMaterialFunctionProxies()
 		TArray<FVectorParameterValue> VectorParameterValues = FunctionInstanceProxy->VectorParameterValues;
 		TArray<FDoubleVectorParameterValue> DoubleVectorParameterValues = FunctionInstanceProxy->DoubleVectorParameterValues;
 		TArray<FTextureParameterValue> TextureParameterValues = FunctionInstanceProxy->TextureParameterValues;
+		TArray<FTextureCollectionParameterValue> TextureCollectionParameterValues = FunctionInstanceProxy->TextureCollectionParameterValues;
 		TArray<FRuntimeVirtualTextureParameterValue> RuntimeVirtualTextureParameterValues = FunctionInstanceProxy->RuntimeVirtualTextureParameterValues;
 		TArray<FSparseVolumeTextureParameterValue> SparseVolumeTextureParameterValues = FunctionInstanceProxy->SparseVolumeTextureParameterValues;
 		TArray<FFontParameterValue> FontParameterValues = FunctionInstanceProxy->FontParameterValues;
@@ -592,6 +593,18 @@ void FMaterialInstanceEditor::ReInitMaterialFunctionProxies()
 			{
 				FunctionInstanceProxy->TextureParameterValues.Add(TextureParameter);
 				FunctionInstanceProxy->TextureParameterValues.Last().ParameterInfo = OutParameterInfo[Index];
+			}
+		}
+
+		FunctionInstanceProxy->GetAllTextureCollectionParameterInfo(OutParameterInfo, Guids);
+		FunctionInstanceProxy->TextureCollectionParameterValues.Empty();
+		for (FTextureCollectionParameterValue& TextureCollectionParameter : TextureCollectionParameterValues)
+		{
+			int32 Index = Guids.Find(TextureCollectionParameter.ExpressionGUID);
+			if (Index != INDEX_NONE)
+			{
+				FunctionInstanceProxy->TextureCollectionParameterValues.Add(TextureCollectionParameter);
+				FunctionInstanceProxy->TextureCollectionParameterValues.Last().ParameterInfo = OutParameterInfo[Index];
 			}
 		}
 

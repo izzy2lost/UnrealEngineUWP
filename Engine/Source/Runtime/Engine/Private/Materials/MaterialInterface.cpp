@@ -226,7 +226,7 @@ void UMaterialInterface::Serialize(FArchive& Ar)
 		Struct->SerializeTaggedProperties(Ar, (uint8*)CachedExpressionData.Get(), Struct, nullptr);
 
 #if WITH_EDITOR
-		FObjectCacheEventSink::NotifyReferencedTextureChanged_Concurrent(this);
+		FObjectCacheEventSink::NotifyMaterialChanged_Concurrent(this);
 #endif
 	}
     // we don't consider bLoadedCachedExpressionData here because in editor we call UpdateCachedExpressionData which can
@@ -368,6 +368,11 @@ void UMaterialInterface::GetQualityLevelUsage(TArray<bool, TInlineAllocator<EMat
 TArrayView<const TObjectPtr<UObject>> UMaterialInterface::GetReferencedTextures() const
 {
 	return GetCachedExpressionData().ReferencedTextures;
+}
+
+TConstArrayView<TObjectPtr<UTextureCollection>> UMaterialInterface::GetReferencedTextureCollections() const
+{
+	return GetCachedExpressionData().ReferencedTextureCollections;
 }
 
 #if WITH_EDITOR
@@ -955,6 +960,17 @@ bool UMaterialInterface::GetTextureParameterValue(const FHashedMaterialParameter
 	return false;
 }
 
+bool UMaterialInterface::GetTextureCollectionParameterValue(const FHashedMaterialParameterInfo& ParameterInfo, UTextureCollection*& OutValue, bool bOveriddenOnly) const
+{
+	FMaterialParameterMetadata Result;
+	if (GetParameterValue(EMaterialParameterType::TextureCollection, ParameterInfo, Result, MakeParameterValueFlags(bOveriddenOnly)))
+	{
+		OutValue = Result.Value.TextureCollection;
+		return true;
+	}
+	return false;
+}
+
 bool UMaterialInterface::GetRuntimeVirtualTextureParameterValue(const FHashedMaterialParameterInfo& ParameterInfo, URuntimeVirtualTexture*& OutValue, bool bOveriddenOnly) const
 {
 	FMaterialParameterMetadata Result;
@@ -1047,6 +1063,17 @@ bool UMaterialInterface::GetTextureParameterDefaultValue(const FHashedMaterialPa
 	if (GetParameterDefaultValue(EMaterialParameterType::Texture, ParameterInfo, Result))
 	{
 		OutValue = Result.Value.Texture;
+		return true;
+	}
+	return false;
+}
+
+bool UMaterialInterface::GetTextureCollectionParameterDefaultValue(const FHashedMaterialParameterInfo& ParameterInfo, class UTextureCollection*& OutValue) const
+{
+	FMaterialParameterMetadata Result;
+	if (GetParameterDefaultValue(EMaterialParameterType::TextureCollection, ParameterInfo, Result))
+	{
+		OutValue = Result.Value.TextureCollection;
 		return true;
 	}
 	return false;
@@ -1148,6 +1175,11 @@ void UMaterialInterface::GetAllDoubleVectorParameterInfo(TArray<FMaterialParamet
 void UMaterialInterface::GetAllTextureParameterInfo(TArray<FMaterialParameterInfo>& OutParameterInfo, TArray<FGuid>& OutParameterIds) const
 {
 	GetAllParameterInfoOfType(EMaterialParameterType::Texture, OutParameterInfo, OutParameterIds);
+}
+
+void UMaterialInterface::GetAllTextureCollectionParameterInfo(TArray<FMaterialParameterInfo>& OutParameterInfo, TArray<FGuid>& OutParameterIds) const
+{
+	GetAllParameterInfoOfType(EMaterialParameterType::TextureCollection, OutParameterInfo, OutParameterIds);
 }
 
 void UMaterialInterface::GetAllRuntimeVirtualTextureParameterInfo(TArray<FMaterialParameterInfo>& OutParameterInfo, TArray<FGuid>& OutParameterIds) const

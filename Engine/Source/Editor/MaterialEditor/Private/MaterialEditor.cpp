@@ -42,6 +42,7 @@
 #include "Engine/TextureCube.h"
 #include "Engine/Texture2DArray.h"
 #include "Engine/TextureCubeArray.h"
+#include "Engine/TextureCollection.h"
 #include "SparseVolumeTexture/SparseVolumeTexture.h"
 #include "Dialogs/Dialogs.h"
 #include "UnrealEdGlobals.h"
@@ -236,6 +237,7 @@ FMatExpressionPreview::FMatExpressionPreview(UMaterialExpression* InExpression)
 	else
 	{
 		ReferencedTextures = InExpression->Material->GetReferencedTextures();
+		ReferencedTextureCollections = InExpression->Material->GetReferencedTextureCollections();
 	}
 }
 
@@ -246,6 +248,7 @@ FMatExpressionPreview::~FMatExpressionPreview()
 void FMatExpressionPreview::AddReferencedObjects(FReferenceCollector& Collector)
 {
 	Collector.AddReferencedObjects(ReferencedTextures);
+	Collector.AddReferencedObjects(ReferencedTextureCollections);
 	if (CachedExpressionData)
 	{
 		CachedExpressionData->AddReferencedObjects(Collector);
@@ -386,6 +389,18 @@ TArrayView<const TObjectPtr<UObject>> FMatExpressionPreview::GetReferencedTextur
 
 	// Legacy path
 	return MakeArrayView(ReferencedTextures);
+}
+
+TConstArrayView<TObjectPtr<UTextureCollection>> FMatExpressionPreview::GetReferencedTextureCollections() const
+{
+	if (CachedExpressionData)
+	{
+		// Path for new HLSL translator
+		return MakeArrayView(CachedExpressionData->ReferencedTextureCollections);
+	}
+
+	// Legacy path
+	return MakeArrayView(ReferencedTextureCollections);
 }
 
 const FMaterialCachedHLSLTree* FMatExpressionPreview::GetCachedHLSLTree() const

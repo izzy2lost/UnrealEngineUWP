@@ -98,6 +98,7 @@ IMPLEMENT_TYPE_LAYOUT(FMaterialUniformPreshaderHeader);
 IMPLEMENT_TYPE_LAYOUT(FMaterialUniformPreshaderField);
 IMPLEMENT_TYPE_LAYOUT(FMaterialNumericParameterInfo);
 IMPLEMENT_TYPE_LAYOUT(FMaterialTextureParameterInfo);
+IMPLEMENT_TYPE_LAYOUT(FMaterialTextureCollectionParameterInfo);
 IMPLEMENT_TYPE_LAYOUT(FMaterialExternalTextureParameterInfo);
 IMPLEMENT_TYPE_LAYOUT(FMaterialVirtualTextureStack);
 
@@ -1613,6 +1614,25 @@ TArrayView<const TObjectPtr<UObject>> FMaterialResource::GetReferencedTextures()
 	}
 
 	return UMaterial::GetDefaultMaterial(MD_Surface)->GetReferencedTextures();
+}
+
+TConstArrayView<TObjectPtr<UTextureCollection>> FMaterialResource::GetReferencedTextureCollections() const
+{
+	if (MaterialInstance)
+	{
+		TConstArrayView<TObjectPtr<UTextureCollection>> TextureCollections = MaterialInstance->GetReferencedTextureCollections();
+		if (TextureCollections.Num())
+		{
+			return TextureCollections;
+		}
+	}
+
+	if (Material)
+	{
+		return Material->GetReferencedTextureCollections();
+	}
+
+	return UMaterial::GetDefaultMaterial(MD_Surface)->GetReferencedTextureCollections();
 }
 
 void FMaterialResource::AddReferencedObjects(FReferenceCollector& Collector)
@@ -5314,6 +5334,7 @@ UE::Shader::FValue FMaterialParameterValue::AsShaderValue() const
 	case EMaterialParameterType::StaticSwitch: return Bool[0];
 	case EMaterialParameterType::StaticComponentMask: return UE::Shader::FValue(Bool[0], Bool[1], Bool[2], Bool[3]);
 	case EMaterialParameterType::Texture:
+	case EMaterialParameterType::TextureCollection:
 	case EMaterialParameterType::Font:
 	case EMaterialParameterType::RuntimeVirtualTexture:
 	case EMaterialParameterType::SparseVolumeTexture:
@@ -5355,6 +5376,7 @@ UE::Shader::FType GetShaderValueType(EMaterialParameterType Type)
 	case EMaterialParameterType::StaticSwitch: return UE::Shader::EValueType::Bool1;
 	case EMaterialParameterType::StaticComponentMask: return UE::Shader::EValueType::Bool4;
 	case EMaterialParameterType::Texture:
+	case EMaterialParameterType::TextureCollection:
 	case EMaterialParameterType::RuntimeVirtualTexture:
 	case EMaterialParameterType::Font:
 		return FMaterialTextureValue::GetTypeName();

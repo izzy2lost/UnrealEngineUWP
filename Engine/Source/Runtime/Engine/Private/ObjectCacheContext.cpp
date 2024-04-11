@@ -8,6 +8,7 @@
 #include "Materials/MaterialInterface.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/Texture.h"
+#include "Engine/TextureCollection.h"
 #include "Components/StaticMeshComponent.h"
 #include "Components/SkinnedMeshComponent.h"
 #include "Containers/Queue.h"
@@ -79,6 +80,7 @@ enum class EObjectReverseLookupMask : int32
 	MaterialToPrimitiveLookupCache = 4,
 	StaticMeshToComponentLookupCache = 8,
 	MaterialToMaterialsLookupCache = 16,
+	TextureCollectionToMaterialLookupCache = 32,
 	All = -1
 };
 
@@ -367,11 +369,14 @@ private:
 
 FObjectReverseLookupCache<UMaterialInterface, UMaterialInstance>   GMaterialToMaterialInstanceLookupCache; // Parent -> Children
 FObjectReverseLookupCache<UTexture, UMaterialInterface>            GTextureToMaterialLookupCache;
+FObjectReverseLookupCache<UTextureCollection, UMaterialInterface>  GTextureCollectionToMaterialLookupCache;
 FObjectReverseLookupCache<UTexture, UTexture>                      GTextureToTextureLookupCache; // CompositeTexture -> Texture
 FObjectReverseLookupCache<UStaticMesh, IStaticMeshComponent>       GStaticMeshToComponentLookupCache;
 FObjectReverseLookupCache<UMaterialInterface, IPrimitiveComponent> GMaterialToPrimitiveLookupCache;
 
 void GetReferencedTextures(UMaterialInterface* MaterialInterface, TSet<UTexture*>& OutReferencedTextures);
+void GetReferencedTextureCollections(UMaterialInterface* MaterialInterface, TSet<UTextureCollection*>& OutReferencedTextureCollections);
+
 void Validate()
 {
 	// Scan and compare UStaticMesh -> UStaticMeshComponent
@@ -398,6 +403,18 @@ void Validate()
 			TempLookup.Update(*It, ReferencedTextures.Array());
 		}
 		ErrorCount += TempLookup.Compare(GTextureToMaterialLookupCache);
+	}
+
+	// Scan and compare UTextureCollection -> UMaterialInterface
+	{
+		FObjectReverseLookupCache<UTextureCollection, UMaterialInterface> TempLookup;
+		for (TObjectIterator<UMaterialInterface> It(RF_ClassDefaultObject, true /*bIncludeDerivedClasses*/, GetObjectCacheInternalFlagsExclusion()); It; ++It)
+		{
+			TSet<UTextureCollection*> ReferencedTextureCollections;
+			GetReferencedTextureCollections(*It, ReferencedTextureCollections);
+			TempLookup.Update(*It, ReferencedTextureCollections.Array());
+		}
+		ErrorCount += TempLookup.Compare(GTextureCollectionToMaterialLookupCache);
 	}
 
 	// Scan and compare UTexture -> UTexture
@@ -473,6 +490,32 @@ namespace ObjectCacheContextImpl {
 				if (TextureParam.ParameterValue)
 				{
 					OutReferencedTextures.FindOrAdd(TextureParam.ParameterValue);
+				}
+			}
+
+			MaterialInstance = Cast<UMaterialInstance>(MaterialInstance->Parent);
+		}
+	}
+
+	void GetReferencedTextureCollections(UMaterialInterface* MaterialInterface, TSet<UTextureCollection*>& OutReferencedTextureCollections)
+	{
+		TSet<UTextureCollection*> TextureCollections;
+		for (UTextureCollection* TextureCollection : MaterialInterface->GetReferencedTextureCollections())
+		{
+			if (TextureCollection)
+			{
+				OutReferencedTextureCollections.FindOrAdd(TextureCollection);
+			}
+		}
+
+		UMaterialInstance* MaterialInstance = Cast<UMaterialInstance>(MaterialInterface);
+		while (MaterialInstance)
+		{
+			for (const FTextureCollectionParameterValue& TextureCollectionParam : MaterialInstance->TextureCollectionParameterValues)
+			{
+				if (TextureCollectionParam.ParameterValue)
+				{
+					OutReferencedTextureCollections.FindOrAdd(TextureCollectionParam.ParameterValue);
 				}
 			}
 
@@ -697,6 +740,43 @@ TObjectCacheIterator<UTexture> FObjectCacheContext::GetUsedTextures(UMaterialInt
 	return TObjectCacheIterator<UTexture>(Textures->Array());
 }
 
+TObjectCacheIterator<UTextureCollection> FObjectCacheContext::GetUsedTextureCollections(UMaterialInterface* MaterialInterface)
+{
+	using namespace ObjectCacheContextImpl;
+#if WITH_EDITOR
+	if (ShouldUseLookupTable(EObjectReverseLookupMask::TextureCollectionToMaterialLookupCache))
+	{
+		return GTextureCollectionToMaterialLookupCache.GetTo(MaterialInterface);
+	}
+#endif
+
+	TSet<UTextureCollection*>* TextureCollections = MaterialUsedTextureCollections.Find(MaterialInterface);
+	if (TextureCollections == nullptr)
+	{
+		TextureCollections = &MaterialUsedTextureCollections.Add(MaterialInterface);
+		ObjectCacheContextImpl::GetReferencedTextureCollections(MaterialInterface, *TextureCollections);
+	}
+
+#if WITH_EDITOR
+	if (IsReverseLookupComparisonActive(EObjectReverseLookupMask::TextureCollectionToMaterialLookupCache))
+	{
+		TSet<UTextureCollection*> LookupResult;
+		for (UTextureCollection* TextureCollection : GTextureCollectionToMaterialLookupCache.GetTo(MaterialInterface))
+		{
+			LookupResult.FindOrAdd(TextureCollection);
+			checkf(TextureCollections->Contains(TextureCollection), TEXT("Permanent Object Cache has an additional texture collection %s on material %s"), *TextureCollection->GetFullName(), *MaterialInterface->GetFullName());
+		}
+
+		for (UTextureCollection* TextureCollection : *TextureCollections)
+		{
+			checkf(LookupResult.Contains(TextureCollection), TEXT("Permanent Object Cache is missing a texture collection %s on material %s"), *TextureCollection->GetFullName(), *MaterialInterface->GetFullName());
+		}
+	}
+#endif
+
+	return TObjectCacheIterator<UTextureCollection>(TextureCollections->Array());
+}
+
 TObjectCacheIterator<USkinnedMeshComponent> FObjectCacheContext::GetSkinnedMeshComponents()
 {
 	using namespace ObjectCacheContextImpl;
@@ -857,6 +937,57 @@ TObjectCacheIterator<UMaterialInterface> FObjectCacheContext::GetMaterialsAffect
 		for (UMaterialInterface* Material : ComputeResult)
 		{
 			checkf(LookupResult.Contains(Material), TEXT("Permanent Object Cache is missing a material %s for texture %s"), *Material->GetFullName(), *InTexture->GetFullName());
+		}
+	}
+#endif
+
+	return TObjectCacheIterator<UMaterialInterface>(ComputeResult.Array());
+}
+
+TObjectCacheIterator<UMaterialInterface> FObjectCacheContext::GetMaterialsAffectedByTextureCollection(UTextureCollection* InTextureCollection)
+{
+	using namespace ObjectCacheContextImpl;
+#if WITH_EDITOR
+	if (ShouldUseLookupTable(EObjectReverseLookupMask::TextureCollectionToMaterialLookupCache))
+	{
+		return GTextureCollectionToMaterialLookupCache.GetFrom(InTextureCollection);
+	}
+#endif
+
+	if (!TextureCollectionToMaterials.IsSet())
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(ComputeMaterialsAffectedByTexture);
+
+		TMap<TObjectKey<UTextureCollection>, TSet<UMaterialInterface*>> TempMap;
+		TempMap.Reserve(8192);
+		for (TObjectIterator<UMaterialInterface> It(RF_ClassDefaultObject, true /*bIncludeDerivedClasses*/, GetObjectCacheInternalFlagsExclusion()); It; ++It)
+		{
+			UMaterialInterface* MaterialInterface = *It;
+			for (UTextureCollection* TextureCollection : GetUsedTextureCollections(MaterialInterface))
+			{
+				TempMap.FindOrAdd(TextureCollection).FindOrAdd(MaterialInterface);
+			}
+		}
+		TextureCollectionToMaterials = MoveTemp(TempMap);
+	}
+
+	static TSet<UMaterialInterface*> EmptySet;
+	TSet<UMaterialInterface*>* Set = TextureCollectionToMaterials.GetValue().Find(InTextureCollection);
+	const TSet<UMaterialInterface*>& ComputeResult = Set ? *Set : EmptySet;
+
+#if WITH_EDITOR
+	if (IsReverseLookupComparisonActive(EObjectReverseLookupMask::TextureCollectionToMaterialLookupCache))
+	{
+		TSet<UMaterialInterface*> LookupResult;
+		for (UMaterialInterface* Material : GTextureCollectionToMaterialLookupCache.GetFrom(InTextureCollection))
+		{
+			LookupResult.FindOrAdd(Material);
+			checkf(ComputeResult.Contains(Material), TEXT("Permanent Object Cache has an additional material %s for texture %s"), *Material->GetFullName(), *InTextureCollection->GetFullName());
+		}
+
+		for (UMaterialInterface* Material : ComputeResult)
+		{
+			checkf(LookupResult.Contains(Material), TEXT("Permanent Object Cache is missing a material %s for texture %s"), *Material->GetFullName(), *InTextureCollection->GetFullName());
 		}
 	}
 #endif
@@ -1057,7 +1188,7 @@ struct FObjectCacheEventSinkPrivate
 
 	static void NotifyUsedMaterialsChanged_Concurrent(const IPrimitiveComponent* PrimitiveComponent, const TArray<UMaterialInterface*>& UsedMaterials);
 	static void NotifyRenderStateChanged_Concurrent(const IPrimitiveComponent*);
-	static void NotifyReferencedTextureChanged_Concurrent(UMaterialInterface*);
+	static void NotifyMaterialChanged_Concurrent(UMaterialInterface*);
 	static void NotifyStaticMeshChanged_Concurrent(IStaticMeshComponent*);
 	static void NotifyMaterialDestroyed_Concurrent(UMaterialInterface*);
 	static void NotifyCompositeTextureChanged_Concurrent(UTexture*);
@@ -1067,7 +1198,7 @@ struct FObjectCacheEventSinkPrivate
 		EMaterialDestroyed,
 		EMaterialsChanged,
 		ERenderStateChanged,
-		EReferencedTextureChanged,
+		EMaterialChanged,
 		EStaticMeshChanged,
 		ECompositeTextureChanged,
 	};
@@ -1080,6 +1211,7 @@ struct FObjectCacheEventSinkPrivate
 		IStaticMeshComponent* StaticMeshComponent;
 		TArray<UMaterialInterface*> UsedMaterials;
 		UTexture* Texture;
+		UTextureCollection* TextureCollection;
 	};
 
 	static std::atomic<bool> bShouldQueueSinkEvents;
@@ -1202,7 +1334,7 @@ void FObjectCacheEventSink::NotifyRenderStateChanged_Concurrent(IPrimitiveCompon
 }
 
 
-void FObjectCacheEventSink::NotifyReferencedTextureChanged_Concurrent(UMaterialInterface* MaterialInterface)
+void FObjectCacheEventSink::NotifyMaterialChanged_Concurrent(UMaterialInterface* MaterialInterface)
 {
 	using namespace ObjectCacheContextImpl;
 
@@ -1210,11 +1342,11 @@ void FObjectCacheEventSink::NotifyReferencedTextureChanged_Concurrent(UMaterialI
 	{
 		if (FObjectCacheEventSinkPrivate::bShouldQueueSinkEvents)
 		{
-			FObjectCacheEventSinkPrivate::AddNotifyEvent(FObjectCacheEventSinkPrivate::EReferencedTextureChanged, MaterialInterface, nullptr, nullptr, nullptr, nullptr);
+			FObjectCacheEventSinkPrivate::AddNotifyEvent(FObjectCacheEventSinkPrivate::EMaterialChanged, MaterialInterface, nullptr, nullptr, nullptr, nullptr);
 		}
 		else
 		{
-			FObjectCacheEventSinkPrivate::NotifyReferencedTextureChanged_Concurrent(MaterialInterface);
+			FObjectCacheEventSinkPrivate::NotifyMaterialChanged_Concurrent(MaterialInterface);
 		}
 	}
 }
@@ -1297,8 +1429,8 @@ void FObjectCacheEventSinkPrivate::ProcessQueuedNotifyEvents()
 		case ERenderStateChanged:
 			NotifyRenderStateChanged_Concurrent(Event->PrimitiveComponent);
 			break;
-		case EReferencedTextureChanged:
-			NotifyReferencedTextureChanged_Concurrent(Event->MaterialInterface);
+		case EMaterialChanged:
+			NotifyMaterialChanged_Concurrent(Event->MaterialInterface);
 			break;
 		case EStaticMeshChanged:
 			NotifyStaticMeshChanged_Concurrent(Event->StaticMeshComponent);
@@ -1351,6 +1483,9 @@ void FObjectCacheEventSinkPrivate::NotifyMaterialDestroyed_Concurrent(UMaterialI
 	// Remove any Material to Texture that might be present in the cache for this Material
 	GTextureToMaterialLookupCache.Update(MaterialInterface, {});
 
+	// Remove any Material to Texture that might be present in the cache for this Material
+	GTextureCollectionToMaterialLookupCache.Update(MaterialInterface, {});
+
 	// Cleanup up any mapping that this material could have with other materials
 	if (UMaterialInstance* MaterialInstance = Cast<UMaterialInstance>(MaterialInterface))
 	{
@@ -1375,7 +1510,7 @@ void FObjectCacheEventSinkPrivate::NotifyRenderStateChanged_Concurrent(const IPr
 	GMaterialToPrimitiveLookupCache.Update(const_cast<IPrimitiveComponent*>(PrimitiveComponent), {});
 }
 
-void FObjectCacheEventSinkPrivate::NotifyReferencedTextureChanged_Concurrent(UMaterialInterface* MaterialInterface)
+void FObjectCacheEventSinkPrivate::NotifyMaterialChanged_Concurrent(UMaterialInterface* MaterialInterface)
 {
 	using namespace ObjectCacheContextImpl;
 
@@ -1385,9 +1520,17 @@ void FObjectCacheEventSinkPrivate::NotifyReferencedTextureChanged_Concurrent(UMa
 	}
 	else
 	{
-		TSet<UTexture*> Textures;
-		ObjectCacheContextImpl::GetReferencedTextures(MaterialInterface, Textures);
-		GTextureToMaterialLookupCache.Update(MaterialInterface, Textures.Array());
+		{
+			TSet<UTexture*> Textures;
+			ObjectCacheContextImpl::GetReferencedTextures(MaterialInterface, Textures);
+			GTextureToMaterialLookupCache.Update(MaterialInterface, Textures.Array());
+		}
+
+		{
+			TSet<UTextureCollection*> TextureCollections;
+			ObjectCacheContextImpl::GetReferencedTextureCollections(MaterialInterface, TextureCollections);
+			GTextureCollectionToMaterialLookupCache.Update(MaterialInterface, TextureCollections.Array());
+		}
 
 		if (UMaterialInstance* MaterialInstance = Cast<UMaterialInstance>(MaterialInterface))
 		{

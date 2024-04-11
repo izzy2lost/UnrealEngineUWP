@@ -29,6 +29,7 @@ class Error;
 class UMaterialParameterCollection;
 class URuntimeVirtualTexture;
 class UTexture;
+class UTextureCollection;
 struct FMaterialParameterInfo;
 class USparseVolumeTexture;
 
@@ -165,6 +166,7 @@ public:
 	virtual FMaterialUniformExpression* GetParameterUniformExpression(int32 Index) const = 0;
 
 	virtual bool GetTextureForExpression(int32 Index, int32& OutTextureIndex, EMaterialSamplerType& OutSamplerType, TOptional<FName>& OutParameterName) const = 0;
+	virtual bool GetTextureCollectionForExpression(int32 Index, int32& OutTextureCollectionIndex, TOptional<FName>& OutParameterName) const = 0;
 
 	virtual bool IsMaterialPropertyUsed(EMaterialProperty Property, int32 CodeChunkIdx) const = 0;
 	
@@ -285,6 +287,11 @@ public:
 	virtual int32 Texture(UTexture* Texture,int32& TextureReferenceIndex, EMaterialSamplerType SamplerType, ESamplerSourceMode SamplerSource=SSM_FromTextureAsset,ETextureMipValueMode MipValueMode=TMVM_None) = 0;
 	virtual int32 TextureParameter(FName ParameterName,UTexture* DefaultTexture,int32& TextureReferenceIndex, EMaterialSamplerType SamplerType, ESamplerSourceMode SamplerSource=SSM_FromTextureAsset) = 0;
 
+	virtual int32 TextureCollection(UTextureCollection* TextureCollection, int32& TextureCollectionReferenceIndex) = 0;
+	virtual int32 TextureCollectionParameter(FName ParameterName, UTextureCollection* DefaultValue, int32& TextureCollectionReferenceIndex) = 0;
+	virtual int32 TextureCollectionCount(int32 InTextureCollectionCodeIndex) = 0;
+	virtual int32 TextureFromCollection(int32 TextureCollectionCodeIndex, int32 IndexIntoCollectionCodeIndex, EMaterialValueType ResultTextureType) = 0;
+
 	virtual int32 VirtualTexture(URuntimeVirtualTexture* InTexture, int32 TextureLayerIndex, int32 PageTableLayerIndex, int32& TextureReferenceIndex, EMaterialSamplerType SamplerType) = 0;
 	virtual int32 VirtualTextureParameter(FName ParameterName, URuntimeVirtualTexture* DefaultValue, int32 TextureLayerIndex, int32 PageTableLayerIndex, int32& TextureReferenceIndex, EMaterialSamplerType SamplerType) = 0;
 	virtual int32 VirtualTextureUniform(int32 TextureIndex, int32 VectorIndex, UE::Shader::EValueType Type) = 0;
@@ -359,7 +366,15 @@ public:
 
 	virtual int32 SparseVolumeTextureSample(int32 SparseVolumeTextureIndex, int32 UVWIndex, int32 MipValue0Index, int32 MipValue1Index, int32 PhysicalTileDataIdxIndex, ETextureMipValueMode MipValueMode, ESamplerSourceMode SamplerSource) = 0;
 
-	virtual UObject* GetReferencedTexture(int32 Index) { return nullptr; }
+	virtual UObject* GetReferencedTexture(int32 Index)
+	{
+		return nullptr;
+	}
+
+	virtual UTextureCollection* GetReferencedTextureCollection(int32 Index)
+	{
+		return nullptr;
+	}
 
 	int32 Texture(UTexture* InTexture, EMaterialSamplerType SamplerType, ESamplerSourceMode SamplerSource=SSM_FromTextureAsset)
 	{
@@ -401,6 +416,18 @@ public:
 	{
 		int32 TextureReferenceIndex = INDEX_NONE;
 		return ExternalTextureParameter(ParameterName, DefaultTexture, TextureReferenceIndex);
+	}
+
+	int32 TextureCollection(UTextureCollection* InTextureCollection)
+	{
+		int32 TextureCollectionReferenceIndex = INDEX_NONE;
+		return TextureCollection(InTextureCollection, TextureCollectionReferenceIndex);
+	}
+
+	int32 TextureCollectionParameter(FName ParameterName, UTextureCollection* DefaultValue)
+	{
+		int32 TextureCollectionReferenceIndex = INDEX_NONE;
+		return TextureCollectionParameter(ParameterName, DefaultValue, TextureCollectionReferenceIndex);
 	}
 
 	virtual	int32 PixelDepth()=0;
@@ -769,6 +796,7 @@ public:
 	virtual EMaterialValueType GetParameterType(int32 Index) const { return Compiler->GetParameterType(Index); }
 	virtual FMaterialUniformExpression* GetParameterUniformExpression(int32 Index) const { return Compiler->GetParameterUniformExpression(Index); }
 	virtual bool GetTextureForExpression(int32 Index, int32& OutTextureIndex, EMaterialSamplerType& OutSamplerType, TOptional<FName>& OutParameterName) const override { return Compiler->GetTextureForExpression(Index, OutTextureIndex, OutSamplerType, OutParameterName); }
+	virtual bool GetTextureCollectionForExpression(int32 Index, int32& OutTextureCollectionIndex, TOptional<FName>& OutParameterName) const override { return Compiler->GetTextureCollectionForExpression(Index, OutTextureCollectionIndex, OutParameterName); }
 	virtual void SetMaterialProperty(EMaterialProperty InProperty, EShaderFrequency OverrideShaderFrequency, bool bUsePreviousFrameTime) override { Compiler->SetMaterialProperty(InProperty, OverrideShaderFrequency, bUsePreviousFrameTime); }
 	virtual void PushMaterialAttribute(const FGuid& InAttributeID) override { Compiler->PushMaterialAttribute(InAttributeID); }
 	virtual FGuid PopMaterialAttribute() override { return Compiler->PopMaterialAttribute(); }
@@ -894,6 +922,22 @@ public:
 	virtual int32 Texture(UTexture* InTexture, int32& TextureReferenceIndex, EMaterialSamplerType SamplerType, ESamplerSourceMode SamplerSource = SSM_FromTextureAsset, ETextureMipValueMode MipValueMode = TMVM_None) override { return Compiler->Texture(InTexture, TextureReferenceIndex, SamplerType, SamplerSource, MipValueMode); }
 	virtual int32 TextureParameter(FName ParameterName, UTexture* DefaultValue, int32& TextureReferenceIndex, EMaterialSamplerType SamplerType, ESamplerSourceMode SamplerSource = SSM_FromTextureAsset) override { return Compiler->TextureParameter(ParameterName, DefaultValue, TextureReferenceIndex, SamplerType, SamplerSource); }
 
+	virtual int32 TextureCollection(UTextureCollection* TextureCollection, int32& TextureCollectionReferenceIndex) override
+	{
+		return Compiler->TextureCollection(TextureCollection, TextureCollectionReferenceIndex);
+	}
+	virtual int32 TextureCollectionParameter(FName ParameterName, UTextureCollection* DefaultValue, int32& TextureCollectionReferenceIndex) override
+	{
+		return Compiler->TextureCollectionParameter(ParameterName, DefaultValue, TextureCollectionReferenceIndex);
+	}
+	virtual int32 TextureCollectionCount(int32 InTextureCollectionCodeIndex) override
+	{
+		return Compiler->TextureCollectionCount(InTextureCollectionCodeIndex);
+	}
+	virtual int32 TextureFromCollection(int32 TextureCollectionCodeIndex, int32 IndexIntoCollectionCodeIndex, EMaterialValueType ResultTextureType) override
+	{
+		return Compiler->TextureFromCollection(TextureCollectionCodeIndex, IndexIntoCollectionCodeIndex, ResultTextureType);
+	}
 
 	virtual int32 VirtualTexture(URuntimeVirtualTexture* InTexture, int32 TextureLayerIndex, int32 PageTableLayerIndex, int32& TextureReferenceIndex, EMaterialSamplerType SamplerType) override
 	{
@@ -924,7 +968,15 @@ public:
 	virtual int32 SparseVolumeTextureSamplePhysicalTileData(int32 SparseVolumeTextureIndex, int32 VoxelCoordIndex, int32 PhysicalTileDataIdxIndex) override													{ return Compiler->SparseVolumeTextureSamplePhysicalTileData(SparseVolumeTextureIndex, VoxelCoordIndex, PhysicalTileDataIdxIndex); }
 	virtual int32 SparseVolumeTextureSample(int32 SparseVolumeTextureIndex, int32 UVWIndex, int32 MipValue0Index, int32 MipValue1Index, int32 PhysicalTileDataIdxIndex, ETextureMipValueMode MipValueMode, ESamplerSourceMode SamplerSource) { return Compiler->SparseVolumeTextureSample(SparseVolumeTextureIndex, UVWIndex, MipValue0Index, MipValue1Index, PhysicalTileDataIdxIndex, MipValueMode, SamplerSource); }
 
-	virtual UObject* GetReferencedTexture(int32 Index) override { return Compiler->GetReferencedTexture(Index); }
+	virtual UObject* GetReferencedTexture(int32 Index) override
+	{
+		return Compiler->GetReferencedTexture(Index);
+	}
+
+	virtual UTextureCollection* GetReferencedTextureCollection(int32 Index) override
+	{
+		return Compiler->GetReferencedTextureCollection(Index);
+	}
 
 	virtual	int32 PixelDepth() override { return Compiler->PixelDepth(); }
 	virtual int32 SceneDepth(int32 Offset, int32 ViewportUV, bool bUseOffset) override { return Compiler->SceneDepth(Offset, ViewportUV, bUseOffset); }

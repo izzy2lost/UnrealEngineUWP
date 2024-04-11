@@ -239,6 +239,7 @@ public:
 		DoubleVectorParameterArray.Empty();
 		ScalarParameterArray.Empty();
 		TextureParameterArray.Empty();
+		TextureCollectionParameterArray.Empty();
 		RuntimeVirtualTextureParameterArray.Empty();
 		SparseVolumeTextureParameterArray.Empty();
 	}
@@ -309,6 +310,7 @@ private:
 	static bool IsValidParameterValue(const FLinearColor&) { return true; }
 	static bool IsValidParameterValue(const FVector4d&) { return true; }
 	static bool IsValidParameterValue(const UTexture* Value) { return Value != nullptr; }
+	static bool IsValidParameterValue(const UTextureCollection* Value) { return Value != nullptr; }
 	static bool IsValidParameterValue(const URuntimeVirtualTexture* Value) { return Value != nullptr; }
 	static bool IsValidParameterValue(const USparseVolumeTexture* Value) { return Value != nullptr; }
 
@@ -396,6 +398,8 @@ private:
 	THashedMaterialParameterMap<float> ScalarParameterArray;
 	/** Texture parameters for this material instance. */
 	THashedMaterialParameterMap<const UTexture*> TextureParameterArray;
+	/** TextureCollection parameters for this material instance. */
+	THashedMaterialParameterMap<const UTextureCollection*> TextureCollectionParameterArray;
 	/** Runtime Virtual Texture parameters for this material instance. */
 	THashedMaterialParameterMap<const URuntimeVirtualTexture*> RuntimeVirtualTextureParameterArray;
 	/** Sparse Volume Texture parameters for this material instance. */
@@ -409,6 +413,7 @@ template <> FORCEINLINE THashedMaterialParameterMap<float>& FMaterialInstanceRes
 template <> FORCEINLINE THashedMaterialParameterMap<FLinearColor>& FMaterialInstanceResource::GetValueArray() { return VectorParameterArray; }
 template <> FORCEINLINE THashedMaterialParameterMap<FVector4d>& FMaterialInstanceResource::GetValueArray() { return DoubleVectorParameterArray; }
 template <> FORCEINLINE THashedMaterialParameterMap<const UTexture*>& FMaterialInstanceResource::GetValueArray() { return TextureParameterArray; }
+template <> FORCEINLINE THashedMaterialParameterMap<const UTextureCollection*>& FMaterialInstanceResource::GetValueArray() { return TextureCollectionParameterArray; }
 template <> FORCEINLINE THashedMaterialParameterMap<const URuntimeVirtualTexture*>& FMaterialInstanceResource::GetValueArray() { return RuntimeVirtualTextureParameterArray; }
 template <> FORCEINLINE THashedMaterialParameterMap<const USparseVolumeTexture*>& FMaterialInstanceResource::GetValueArray() { return SparseVolumeTextureParameterArray; }
 template <> FORCEINLINE const THashedMaterialParameterMap<bool>& FMaterialInstanceResource::GetValueArray() const { return StaticSwitchParameterArray; }
@@ -416,6 +421,7 @@ template <> FORCEINLINE const THashedMaterialParameterMap<float>& FMaterialInsta
 template <> FORCEINLINE const THashedMaterialParameterMap<FLinearColor>& FMaterialInstanceResource::GetValueArray() const { return VectorParameterArray; }
 template <> FORCEINLINE const THashedMaterialParameterMap<FVector4d>& FMaterialInstanceResource::GetValueArray() const { return DoubleVectorParameterArray; }
 template <> FORCEINLINE const THashedMaterialParameterMap<const UTexture*>& FMaterialInstanceResource::GetValueArray() const { return TextureParameterArray; }
+template <> FORCEINLINE const THashedMaterialParameterMap<const UTextureCollection*>& FMaterialInstanceResource::GetValueArray() const { return TextureCollectionParameterArray; }
 template <> FORCEINLINE const THashedMaterialParameterMap<const URuntimeVirtualTexture*>& FMaterialInstanceResource::GetValueArray() const { return RuntimeVirtualTextureParameterArray; }
 template <> FORCEINLINE const THashedMaterialParameterMap<const USparseVolumeTexture*>& FMaterialInstanceResource::GetValueArray() const { return SparseVolumeTextureParameterArray; }
 
@@ -426,6 +432,7 @@ struct FMaterialInstanceParameterSet
 	TArray<THashedMaterialParameterMap<FLinearColor>::TNamedParameter>					VectorParameters;
 	TArray<THashedMaterialParameterMap<FVector4d>::TNamedParameter>						DoubleVectorParameters;
 	TArray<THashedMaterialParameterMap<const UTexture*>::TNamedParameter>				TextureParameters;
+	TArray<THashedMaterialParameterMap<const UTextureCollection*>::TNamedParameter>		TextureCollectionParameters;
 	TArray<THashedMaterialParameterMap<const URuntimeVirtualTexture*>::TNamedParameter>	RuntimeVirtualTextureParameters;
 	TArray<THashedMaterialParameterMap<const USparseVolumeTexture*>::TNamedParameter>	SparseVolumeTextureParameters;
 };

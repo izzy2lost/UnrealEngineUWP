@@ -1771,6 +1771,19 @@ void FExpressionTextureSample::EmitValueShader(FEmitContext& Context, FEmitScope
 		bAutomaticViewMipBias);
 }
 
+bool FExpressionTextureObjectFromCollection::PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const
+{
+	// TODO: christopher.waters - to implement
+	checkNoEntry();
+	return false;
+}
+
+void FExpressionTextureObjectFromCollection::EmitValueShader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValueShaderResult& OutResult) const
+{
+	// TODO: christopher.waters - to implement
+	checkNoEntry();
+}
+
 FName FExpressionStaticTerrainLayerWeight::BuildWeightmapName(const TCHAR* Weightmap, int32 Index, bool bUseIndex) const
 {
 	FName Name;

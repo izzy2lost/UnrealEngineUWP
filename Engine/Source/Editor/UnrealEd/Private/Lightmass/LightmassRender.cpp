@@ -267,6 +267,7 @@ public:
 			Usage = InUsage;
 
 			ReferencedTextures = MaterialInterface->GetReferencedTextures();
+			ReferencedTextureCollections = MaterialInterface->GetReferencedTextureCollections();
 
 			FMaterialResource* Resource = InMaterialInterface->GetMaterialResource(GMaxRHIFeatureLevel);
 			if (Resource)
@@ -295,6 +296,11 @@ public:
 	virtual TArrayView<const TObjectPtr<UObject>> GetReferencedTextures() const override
 	{
 		return ReferencedTextures;
+	}
+
+	virtual TConstArrayView<TObjectPtr<UTextureCollection>> GetReferencedTextureCollections() const override
+	{
+		return ReferencedTextureCollections;
 	}
 
 	/**
@@ -999,6 +1005,7 @@ private:
 	UMaterialInterface* MaterialInterface;
 	UMaterial* Material;
 	TArray<TObjectPtr<UObject>> ReferencedTextures;
+	TArray<TObjectPtr<UTextureCollection>> ReferencedTextureCollections;
 	/** The property to compile for rendering the sample */
 	EMaterialProperty PropertyToCompile;
 	/** Stores which exported attribute this proxy is compiling for. */

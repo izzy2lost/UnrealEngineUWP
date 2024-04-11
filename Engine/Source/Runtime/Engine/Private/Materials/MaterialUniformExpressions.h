@@ -61,6 +61,7 @@ public:
 	virtual FMaterialUniformExpressionType* GetType() const = 0;
 	virtual class FMaterialUniformExpressionTexture* GetTextureUniformExpression() { return nullptr; }
 	virtual class FMaterialUniformExpressionExternalTexture* GetExternalTextureUniformExpression() { return nullptr; }
+	virtual class FMaterialUniformExpressionTextureCollection* GetTextureCollectionUniformExpression() { return nullptr; }
 	virtual bool IsConstant() const { return false; }
 	virtual bool IsIdentical(const FMaterialUniformExpression* OtherExpression) const { return false; }
 
@@ -128,6 +129,63 @@ protected:
 	ESamplerSourceMode SamplerSource;
 	/** Virtual texture flag used only for unique serialization */
 	bool bVirtualTexture;
+};
+
+class FMaterialUniformExpressionTextureCollection : public FMaterialUniformExpression
+{
+	DECLARE_MATERIALUNIFORMEXPRESSION_TYPE(FMaterialUniformExpressionTextureCollection);
+
+public:
+	FMaterialUniformExpressionTextureCollection(int32 InTextureCollectionIndex);
+
+	//~ Begin FMaterialUniformExpression Interface.
+	virtual class FMaterialUniformExpressionTextureCollection* GetTextureCollectionUniformExpression() final { return this; }
+	virtual bool IsIdentical(const FMaterialUniformExpression* OtherExpression) const override;
+	//~ End FMaterialUniformExpression Interface.
+
+	virtual class FMaterialUniformExpressionTextureCollectionParameter* GetTextureCollectionParameterUniformExpression();
+	virtual void GetTextureCollectionParameterInfo(FMaterialTextureCollectionParameterInfo& OutParameter) const;
+
+	int32 GetTextureCollectionIndex() const
+	{
+		return TextureCollectionIndex;
+	}
+
+protected:
+	int32 TextureCollectionIndex;
+};
+
+class FMaterialUniformExpressionTextureCollectionParameter : public FMaterialUniformExpressionTextureCollection
+{
+	using Super = FMaterialUniformExpressionTextureCollection;
+	DECLARE_MATERIALUNIFORMEXPRESSION_TYPE(FMaterialUniformExpressionTextureCollectionParameter);
+
+public:
+	FMaterialUniformExpressionTextureCollectionParameter(const FMaterialParameterInfo& InParameterInfo, int32 InTextureCollectionIndex);
+
+	//~ Begin FMaterialUniformExpression Interface.
+	virtual bool IsIdentical(const FMaterialUniformExpression* OtherExpression) const override;
+	virtual bool IsConstant() const override;
+	//~ End FMaterialUniformExpression Interface.
+
+	//~ Begin FMaterialUniformExpressionTextureCollection Interface.
+	virtual FMaterialUniformExpressionTextureCollectionParameter* GetTextureCollectionParameterUniformExpression() final;
+	virtual void GetTextureCollectionParameterInfo(FMaterialTextureCollectionParameterInfo& OutParameter) const override;
+	//~ End FMaterialUniformExpressionTextureCollection Interface.
+
+	FName GetParameterName() const
+	{
+		return ParameterInfo.GetName();
+	}
+
+	const FHashedMaterialParameterInfo& GetParameterInfo() const
+	{
+		return ParameterInfo;
+	}
+
+private:
+	FHashedMaterialParameterInfo ParameterInfo;
+	int32 ParameterIndex;
 };
 
 class FMaterialUniformExpressionExternalTextureBase : public FMaterialUniformExpression
@@ -391,6 +449,28 @@ static TextureType* GetIndexedTexture(const FMaterial& Material, int32 TextureIn
 
 	// Can return nullptr if TextureType doesn't match type of indexed texture
 	return Cast<TextureType>(IndexedTexture);
+}
+
+inline UTextureCollection* GetIndexedTextureCollection(const FMaterial& Material, int32 TextureCollectionIndex)
+{
+	UTextureCollection* IndexedTextureCollection = nullptr;
+	const TArrayView<const TObjectPtr<UTextureCollection>> ReferencedTextureCollections = Material.GetReferencedTextureCollections();
+	if (ReferencedTextureCollections.IsValidIndex(TextureCollectionIndex))
+	{
+		IndexedTextureCollection = ReferencedTextureCollections[TextureCollectionIndex];
+	}
+
+	if (IndexedTextureCollection == nullptr)
+	{
+		static bool bWarnedOnce = false;
+		if (!bWarnedOnce)
+		{
+			UE_LOG(LogMaterial, Warning, TEXT("%s: Requesting an invalid TextureIndex! (%u / %u)"), *Material.GetFriendlyName(), TextureCollectionIndex, ReferencedTextureCollections.Num());
+			bWarnedOnce = true;
+		}
+	}
+
+	return IndexedTextureCollection;
 }
 
 /**

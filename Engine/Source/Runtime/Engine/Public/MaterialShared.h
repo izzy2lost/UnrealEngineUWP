@@ -376,6 +376,7 @@ struct FMaterialRenderContext
 	ENGINE_API void GetTextureParameterValue(const FHashedMaterialParameterInfo& ParameterInfo, int32 TextureIndex, const UTexture*& OutValue) const;
 	ENGINE_API void GetTextureParameterValue(const FHashedMaterialParameterInfo& ParameterInfo, int32 TextureIndex, const URuntimeVirtualTexture*& OutValue) const;
 	ENGINE_API void GetTextureParameterValue(const FHashedMaterialParameterInfo& ParameterInfo, int32 TextureIndex, const USparseVolumeTexture*& OutValue) const;
+	ENGINE_API void GetTextureCollectionParameterValue(const FHashedMaterialParameterInfo& ParameterInfo, int32 TextureCollectionIndex, const UTextureCollection*& OutValue) const;
 	ENGINE_API FGuid GetExternalTextureGuid(const FGuid& ExternalTextureGuid, const FName& ParameterName, int32 SourceTextureIndex) const;
 };
 
@@ -533,6 +534,24 @@ public:
 	LAYOUT_FIELD_INITIALIZED(uint8, VirtualTextureLayerIndex, 0u);
 };
 
+class FMaterialTextureCollectionParameterInfo
+{
+	DECLARE_TYPE_LAYOUT(FMaterialTextureCollectionParameterInfo, NonVirtual);
+public:
+	friend inline bool operator==(const FMaterialTextureCollectionParameterInfo& Lhs, const FMaterialTextureCollectionParameterInfo& Rhs)
+	{
+		return Lhs.ParameterInfo == Rhs.ParameterInfo && Lhs.TextureCollectionIndex == Rhs.TextureCollectionIndex;
+	}
+	friend inline bool operator!=(const FMaterialTextureCollectionParameterInfo& Lhs, const FMaterialTextureCollectionParameterInfo& Rhs)
+	{
+		return !operator==(Lhs, Rhs);
+	}
+
+	void GetTextureCollection(const FMaterialRenderContext& Context, const UTextureCollection*& OutTextureCollection) const;
+
+	LAYOUT_FIELD(FHashedMaterialParameterInfo, ParameterInfo);
+	LAYOUT_FIELD(int32, TextureCollectionIndex);
+};
 
 class FMaterialExternalTextureParameterInfo
 {
@@ -641,6 +660,7 @@ public:
 	ENGINE_API void GetTextureValue(int32 Index, const FMaterialRenderContext& Context, const FMaterial& Material, const USparseVolumeTexture*& OutValue) const;
 
 	int32 FindOrAddTextureParameter(EMaterialTextureParameterType Type, const FMaterialTextureParameterInfo& Info);
+	int32 FindOrAddTextureCollectionParameter(const FMaterialTextureCollectionParameterInfo& Info);
 	int32 FindOrAddExternalTextureParameter(const FMaterialExternalTextureParameterInfo& Info);
 	int32 FindOrAddNumericParameter(EMaterialParameterType Type, const FMaterialParameterInfo& ParameterInfo, uint32 DefaultValueOffset);
 	uint32 AddDefaultParameterValue(const UE::Shader::FValue& Value);
@@ -681,6 +701,7 @@ protected:
 	LAYOUT_FIELD(TMemoryImageArray<FMaterialNumericParameterInfo>, UniformNumericParameters);
 	LAYOUT_ARRAY(TMemoryImageArray<FMaterialTextureParameterInfo>, UniformTextureParameters, NumMaterialTextureParameterTypes);
 	LAYOUT_FIELD(TMemoryImageArray<FMaterialExternalTextureParameterInfo>, UniformExternalTextureParameters);
+	LAYOUT_FIELD(TMemoryImageArray<FMaterialTextureCollectionParameterInfo>, UniformTextureCollectionParameters);
 	LAYOUT_FIELD(uint32, UniformPreshaderBufferSize);
 
 	LAYOUT_FIELD(UE::Shader::FPreshaderData, UniformPreshaderData);
@@ -2361,6 +2382,7 @@ public:
 	ENGINE_API virtual void AddReferencedObjects(FReferenceCollector& Collector);
 
 	virtual TArrayView<const TObjectPtr<UObject>> GetReferencedTextures() const = 0;
+	virtual TConstArrayView<TObjectPtr<UTextureCollection>> GetReferencedTextureCollections() const = 0;
 
 	/**
 	 * Finds the shader matching the template type and the passed in vertex factory, asserts if not found.
@@ -2914,6 +2936,7 @@ public:
 	ENGINE_API virtual void LegacySerialize(FArchive& Ar) override;
 
 	ENGINE_API virtual TArrayView<const TObjectPtr<UObject>> GetReferencedTextures() const override;
+	ENGINE_API virtual TConstArrayView<TObjectPtr<UTextureCollection>> GetReferencedTextureCollections() const override;
 
 	ENGINE_API virtual void AddReferencedObjects(FReferenceCollector& Collector) override;
 

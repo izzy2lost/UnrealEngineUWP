@@ -154,6 +154,11 @@ public:
 		TextureReferenceRHI = TextureReference;
 	}
 
+	FRHITextureReference* GetTextureReference() const
+	{
+		return TextureReferenceRHI;
+	}
+
 #if STATS
 	/* The Stat_ FName corresponding to each TEXTUREGROUP */
 	static FName TextureGroupStatFNames[TEXTUREGROUP_MAX];

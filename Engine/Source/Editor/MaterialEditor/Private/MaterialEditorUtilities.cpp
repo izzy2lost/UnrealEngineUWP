@@ -16,6 +16,7 @@
 #include "Materials/MaterialExpressionStaticSwitch.h"
 #include "Materials/MaterialExpressionComment.h"
 #include "Materials/MaterialExpressionComposite.h"
+#include "Materials/MaterialExpressionTextureCollectionParameter.h"
 #include "Materials/MaterialExpressionTextureSample.h"
 #include "Materials/MaterialExpressionTextureSampleParameter.h"
 #include "Materials/MaterialExpressionRuntimeVirtualTextureSampleParameter.h"
@@ -471,6 +472,7 @@ void FMaterialEditorUtilities::GetVisibleMaterialParametersFromExpression(
 	// If it's a material parameter it must be visible so add it to the list
 	UMaterialExpressionParameter* Param = Cast<UMaterialExpressionParameter>( MaterialExpressionKey.Expression );
 	UMaterialExpressionTextureSampleParameter* TexParam = Cast<UMaterialExpressionTextureSampleParameter>( MaterialExpressionKey.Expression );
+	UMaterialExpressionTextureCollectionParameter* TextureCollectionParam = Cast<UMaterialExpressionTextureCollectionParameter>( MaterialExpressionKey.Expression );
 	UMaterialExpressionRuntimeVirtualTextureSampleParameter* RuntimeVirtualTexParam = Cast<UMaterialExpressionRuntimeVirtualTextureSampleParameter>(MaterialExpressionKey.Expression);
 	UMaterialExpressionSparseVolumeTextureSampleParameter* SparseVolumeTexParam = Cast<UMaterialExpressionSparseVolumeTextureSampleParameter>(MaterialExpressionKey.Expression);
 	UMaterialExpressionFontSampleParameter* FontParam = Cast<UMaterialExpressionFontSampleParameter>( MaterialExpressionKey.Expression );
@@ -482,6 +484,10 @@ void FMaterialEditorUtilities::GetVisibleMaterialParametersFromExpression(
 	else if (TexParam)
 	{
 		ParameterInfo.Name = TexParam->ParameterName;
+	}
+	else if (TextureCollectionParam)
+	{
+		ParameterInfo.Name = TextureCollectionParam->ParameterName;
 	}
 	else if (RuntimeVirtualTexParam)
 	{
@@ -496,7 +502,7 @@ void FMaterialEditorUtilities::GetVisibleMaterialParametersFromExpression(
 		ParameterInfo.Name = FontParam->ParameterName;
 	}
 		
-	if (Param || TexParam || FontParam || RuntimeVirtualTexParam || SparseVolumeTexParam)
+	if (Param || TexParam || TextureCollectionParam || FontParam || RuntimeVirtualTexParam || SparseVolumeTexParam)
 	{
 		VisibleExpressions.AddUnique(ParameterInfo);
 	}

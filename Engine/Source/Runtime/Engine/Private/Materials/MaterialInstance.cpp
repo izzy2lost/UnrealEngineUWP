@@ -8,6 +8,8 @@
 #include "Stats/StatsMisc.h"
 #include "EngineModule.h"
 #include "Engine/Font.h"
+#include "Engine/Texture.h"
+#include "Engine/TextureCollection.h"
 #include "Materials/Material.h"
 #include "UObject/Package.h"
 #include "Materials/MaterialExpressionStaticBoolParameter.h"
@@ -21,6 +23,7 @@
 #include "Materials/MaterialExpressionScalarParameter.h"
 #include "Materials/MaterialExpressionVectorParameter.h"
 #include "Materials/MaterialExpressionDoubleVectorParameter.h"
+#include "Materials/MaterialExpressionTextureCollectionParameter.h"
 #include "Materials/MaterialExpressionTextureSampleParameter.h"
 #include "Materials/MaterialExpressionFontSampleParameter.h"
 #include "Materials/MaterialExpressionMaterialAttributeLayers.h"
@@ -307,6 +310,7 @@ bool FMaterialInstanceResource::GetParameterValue(EMaterialParameterType Type, c
 		case EMaterialParameterType::Vector: bResult = RenderThread_GetParameterValue<FLinearColor>(ParameterInfo, OutValue); break;
 		case EMaterialParameterType::DoubleVector: bResult = RenderThread_GetParameterValue<FVector4d>(ParameterInfo, OutValue); break;
 		case EMaterialParameterType::Texture: bResult = RenderThread_GetParameterValue<const UTexture*>(ParameterInfo, OutValue); break;
+		case EMaterialParameterType::TextureCollection: bResult = RenderThread_GetParameterValue<const UTextureCollection*>(ParameterInfo, OutValue); break;
 		case EMaterialParameterType::RuntimeVirtualTexture: bResult = RenderThread_GetParameterValue<const URuntimeVirtualTexture*>(ParameterInfo, OutValue); break;
 		case EMaterialParameterType::SparseVolumeTexture: bResult = RenderThread_GetParameterValue<const USparseVolumeTexture*>(ParameterInfo, OutValue); break;
 		default: ensure(false); break; // other parameter types are not expected on the render thread
@@ -399,6 +403,7 @@ void FMaterialInstanceResource::InitMIParameters(FMaterialInstanceParameterSet& 
 	ParameterSet.VectorParameters.Sort(SortMaterialInstanceParametersPredicate<FLinearColor>);
 	ParameterSet.DoubleVectorParameters.Sort(SortMaterialInstanceParametersPredicate<FVector4d>);
 	ParameterSet.TextureParameters.Sort(SortMaterialInstanceParametersPredicate<const UTexture*>);
+	ParameterSet.TextureCollectionParameters.Sort(SortMaterialInstanceParametersPredicate<const UTextureCollection*>);
 	ParameterSet.RuntimeVirtualTextureParameters.Sort(SortMaterialInstanceParametersPredicate<const URuntimeVirtualTexture*>);
 	ParameterSet.SparseVolumeTextureParameters.Sort(SortMaterialInstanceParametersPredicate<const USparseVolumeTexture*>);
 
@@ -407,6 +412,7 @@ void FMaterialInstanceResource::InitMIParameters(FMaterialInstanceParameterSet& 
 	VectorParameterArray.Array = MoveTemp(ParameterSet.VectorParameters);
 	DoubleVectorParameterArray.Array = MoveTemp(ParameterSet.DoubleVectorParameters);
 	TextureParameterArray.Array = MoveTemp(ParameterSet.TextureParameters);
+	TextureCollectionParameterArray.Array = MoveTemp(ParameterSet.TextureCollectionParameters);
 	RuntimeVirtualTextureParameterArray.Array = MoveTemp(ParameterSet.RuntimeVirtualTextureParameters);
 	SparseVolumeTextureParameterArray.Array = MoveTemp(ParameterSet.SparseVolumeTextureParameters);
 
@@ -417,6 +423,7 @@ void FMaterialInstanceResource::InitMIParameters(FMaterialInstanceParameterSet& 
 	VectorParameterArray.HashAddAllItems();
 	DoubleVectorParameterArray.HashAddAllItems();
 	TextureParameterArray.HashAddAllItems();
+	TextureCollectionParameterArray.HashAddAllItems();
 	RuntimeVirtualTextureParameterArray.HashAddAllItems();
 	SparseVolumeTextureParameterArray.HashAddAllItems();
 }
@@ -570,6 +577,7 @@ void UMaterialInstance::SwapLayerParameterIndices(int32 OriginalIndex, int32 New
 		SwapLayerParameterIndicesArray(VectorParameterValues, OriginalIndex, NewIndex);
 		SwapLayerParameterIndicesArray(DoubleVectorParameterValues, OriginalIndex, NewIndex);
 		SwapLayerParameterIndicesArray(TextureParameterValues, OriginalIndex, NewIndex);
+		SwapLayerParameterIndicesArray(TextureCollectionParameterValues, OriginalIndex, NewIndex);
 		SwapLayerParameterIndicesArray(RuntimeVirtualTextureParameterValues, OriginalIndex, NewIndex);
 		SwapLayerParameterIndicesArray(SparseVolumeTextureParameterValues, OriginalIndex, NewIndex);
 		SwapLayerParameterIndicesArray(FontParameterValues, OriginalIndex, NewIndex);
@@ -588,6 +596,7 @@ void UMaterialInstance::RemoveLayerParameterIndex(int32 Index)
 	RemoveLayerParameterIndicesArray(VectorParameterValues, Index);
 	RemoveLayerParameterIndicesArray(DoubleVectorParameterValues, Index);
 	RemoveLayerParameterIndicesArray(TextureParameterValues, Index);
+	RemoveLayerParameterIndicesArray(TextureCollectionParameterValues, Index);
 	RemoveLayerParameterIndicesArray(RuntimeVirtualTextureParameterValues, Index);
 	RemoveLayerParameterIndicesArray(SparseVolumeTextureParameterValues, Index);
 	RemoveLayerParameterIndicesArray(FontParameterValues, Index);
@@ -637,6 +646,9 @@ bool UMaterialInstance::UpdateParameters()
 			// Texture parameters
 			bDirty = UpdateParameterSet<FTextureParameterValue, UMaterialExpressionTextureSampleParameter>(TextureParameterValues, ParentMaterial) || bDirty;
 
+			// Texture Collection parameters
+			bDirty = UpdateParameterSet<FTextureCollectionParameterValue, UMaterialExpressionTextureCollectionParameter>(TextureCollectionParameterValues, ParentMaterial) || bDirty;
+
 			// Runtime Virtual Texture parameters
 			bDirty = UpdateParameterSet<FRuntimeVirtualTextureParameterValue, UMaterialExpressionRuntimeVirtualTextureSampleParameter>(RuntimeVirtualTextureParameterValues, ParentMaterial) || bDirty;
 
@@ -669,6 +681,7 @@ bool UMaterialInstance::UpdateParameters()
 					RemapLayerParameterIndicesArray(VectorParameterValues, RemapLayerIndices);
 					RemapLayerParameterIndicesArray(DoubleVectorParameterValues, RemapLayerIndices);
 					RemapLayerParameterIndicesArray(TextureParameterValues, RemapLayerIndices);
+					RemapLayerParameterIndicesArray(TextureCollectionParameterValues, RemapLayerIndices);
 					RemapLayerParameterIndicesArray(RuntimeVirtualTextureParameterValues, RemapLayerIndices);
 					RemapLayerParameterIndicesArray(SparseVolumeTextureParameterValues, RemapLayerIndices);
 					RemapLayerParameterIndicesArray(FontParameterValues, RemapLayerIndices);
@@ -681,7 +694,7 @@ bool UMaterialInstance::UpdateParameters()
 
 		if (bDirty)
 		{
-			FObjectCacheEventSink::NotifyReferencedTextureChanged_Concurrent(this);
+			FObjectCacheEventSink::NotifyMaterialChanged_Concurrent(this);
 		}
 	}
 #endif // WITH_EDITOR
@@ -773,6 +786,14 @@ void GameThread_InitMIParameters(const UMaterialInstance& Instance)
 		auto& ParamRef = ParameterSet.TextureParameters.AddDefaulted_GetRef();
 		ParamRef.Info = Parameter.ParameterInfo;
 		ParamRef.Value = FFontParameterValue::GetValue(Parameter);
+	}
+
+	ParameterSet.TextureCollectionParameters.Reserve(Instance.TextureCollectionParameterValues.Num());
+	for (const FTextureCollectionParameterValue& Parameter : Instance.TextureCollectionParameterValues)
+	{
+		auto& ParamRef = ParameterSet.TextureCollectionParameters.AddDefaulted_GetRef();
+		ParamRef.Info = Parameter.ParameterInfo;
+		ParamRef.Value = FTextureCollectionParameterValue::GetValue(Parameter);
 	}
 
 	// RuntimeVirtualTexture parameters
@@ -974,6 +995,7 @@ bool UMaterialInstance::GetParameterOverrideValue(EMaterialParameterType Type, c
 	case EMaterialParameterType::Vector: bResult = GameThread_GetParameterValue(VectorParameterValues, ParameterInfo, OutResult); break;
 	case EMaterialParameterType::DoubleVector: bResult = GameThread_GetParameterValue(DoubleVectorParameterValues, ParameterInfo, OutResult); break;
 	case EMaterialParameterType::Texture: bResult = GameThread_GetParameterValue(TextureParameterValues, ParameterInfo, OutResult); break;
+	case EMaterialParameterType::TextureCollection: bResult = GameThread_GetParameterValue(TextureCollectionParameterValues, ParameterInfo, OutResult); break;
 	case EMaterialParameterType::RuntimeVirtualTexture: bResult = GameThread_GetParameterValue(RuntimeVirtualTextureParameterValues, ParameterInfo, OutResult); break;
 	case EMaterialParameterType::SparseVolumeTexture: bResult = GameThread_GetParameterValue(SparseVolumeTextureParameterValues, ParameterInfo, OutResult); break;
 	case EMaterialParameterType::Font: bResult = GameThread_GetParameterValue(FontParameterValues, ParameterInfo, OutResult); break;
@@ -1784,7 +1806,7 @@ void UMaterialInstance::CopyMaterialInstanceParameters(UMaterialInterface* Sourc
 		InitResources();
 
 #if WITH_EDITOR
-		FObjectCacheEventSink::NotifyReferencedTextureChanged_Concurrent(this);
+		FObjectCacheEventSink::NotifyMaterialChanged_Concurrent(this);
 #endif
 	}
 }
@@ -1973,6 +1995,7 @@ void UMaterialInstance::GetAllParametersOfType(EMaterialParameterType Type, TMap
 		case EMaterialParameterType::Vector: GameThread_ApplyParameterOverrides(Instance->VectorParameterValues, LayerIndexRemap, bSetOverride, OverridenParameters, OutParameters); break;
 		case EMaterialParameterType::DoubleVector: GameThread_ApplyParameterOverrides(Instance->DoubleVectorParameterValues, LayerIndexRemap, bSetOverride, OverridenParameters, OutParameters); break;
 		case EMaterialParameterType::Texture: GameThread_ApplyParameterOverrides(Instance->TextureParameterValues, LayerIndexRemap, bSetOverride, OverridenParameters, OutParameters); break;
+		case EMaterialParameterType::TextureCollection: GameThread_ApplyParameterOverrides(Instance->TextureCollectionParameterValues, LayerIndexRemap, bSetOverride, OverridenParameters, OutParameters); break;
 		case EMaterialParameterType::RuntimeVirtualTexture: GameThread_ApplyParameterOverrides(Instance->RuntimeVirtualTextureParameterValues, LayerIndexRemap, bSetOverride, OverridenParameters, OutParameters); break;
 		case EMaterialParameterType::SparseVolumeTexture: GameThread_ApplyParameterOverrides(Instance->SparseVolumeTextureParameterValues, LayerIndexRemap, bSetOverride, OverridenParameters, OutParameters); break;
 		case EMaterialParameterType::Font: GameThread_ApplyParameterOverrides(Instance->FontParameterValues, LayerIndexRemap, bSetOverride, OverridenParameters, OutParameters); break;
@@ -3117,6 +3140,17 @@ void UMaterialInstance::PostLoad()
 		}
 	}
 
+	// We have to make sure the resources are created for all used texture collections.
+	for( int32 ValueIndex=0; ValueIndex<TextureCollectionParameterValues.Num(); ValueIndex++ )
+	{
+		// Make sure the texture is postloaded so the resource isn't null.
+		UTextureCollection* TextureCollection = TextureCollectionParameterValues[ValueIndex].ParameterValue;
+		if( TextureCollection)
+		{
+			TextureCollection->ConditionalPostLoad();
+		}
+	}
+
 	// do the same for runtime virtual textures
 	for (int32 ValueIndex = 0; ValueIndex < RuntimeVirtualTextureParameterValues.Num(); ValueIndex++)
 	{
@@ -3437,7 +3471,7 @@ bool UMaterialInstance::SetParentInternal(UMaterialInterface* NewParent, bool Re
 
 #if WITH_EDITOR
 			// Important to notify when the parent change for Material -> Material relationship update
-			FObjectCacheEventSink::NotifyReferencedTextureChanged_Concurrent(this);
+			FObjectCacheEventSink::NotifyMaterialChanged_Concurrent(this);
 #endif
 
 			if( Parent )
@@ -3560,6 +3594,7 @@ void UMaterialInstance::ReserveParameterValuesInternal(EMaterialParameterType Ty
 	case EMaterialParameterType::Vector: VectorParameterValues.Reserve(Capacity); break;
 	case EMaterialParameterType::DoubleVector: DoubleVectorParameterValues.Reserve(Capacity); break;
 	case EMaterialParameterType::Texture: TextureParameterValues.Reserve(Capacity); break;
+	case EMaterialParameterType::TextureCollection: TextureCollectionParameterValues.Reserve(Capacity); break;
 	case EMaterialParameterType::Font: FontParameterValues.Reserve(Capacity); break;
 	case EMaterialParameterType::RuntimeVirtualTexture: RuntimeVirtualTextureParameterValues.Reserve(Capacity); break;
 	case EMaterialParameterType::SparseVolumeTexture: SparseVolumeTextureParameterValues.Reserve(Capacity); break;
@@ -3588,6 +3623,7 @@ void UMaterialInstance::AddParameterValueInternal(const FMaterialParameterInfo& 
 	case EMaterialParameterType::Vector: VectorParameterValues.Emplace(ParameterInfo, Value.AsLinearColor()); break;
 	case EMaterialParameterType::DoubleVector: DoubleVectorParameterValues.Emplace(ParameterInfo, Value.AsVector4d()); break;
 	case EMaterialParameterType::Texture: TextureParameterValues.Emplace(ParameterInfo, Value.Texture); break;
+	case EMaterialParameterType::TextureCollection: TextureCollectionParameterValues.Emplace(ParameterInfo, Value.TextureCollection); break;
 	case EMaterialParameterType::Font: FontParameterValues.Emplace(ParameterInfo, Value.Font.Value, Value.Font.Page); break;
 	case EMaterialParameterType::RuntimeVirtualTexture: RuntimeVirtualTextureParameterValues.Emplace(ParameterInfo, Value.RuntimeVirtualTexture); break;
 	case EMaterialParameterType::SparseVolumeTexture: SparseVolumeTextureParameterValues.Emplace(ParameterInfo, Value.SparseVolumeTexture); break;
@@ -3616,6 +3652,7 @@ void UMaterialInstance::SetParameterValueInternal(const FMaterialParameterInfo& 
 	case EMaterialParameterType::Vector: SetVectorParameterValueInternal(ParameterInfo, Value.AsLinearColor()); break;
 	case EMaterialParameterType::DoubleVector: SetDoubleVectorParameterValueInternal(ParameterInfo, Value.AsVector4d()); break;
 	case EMaterialParameterType::Texture: SetTextureParameterValueInternal(ParameterInfo, Value.Texture); break;
+	case EMaterialParameterType::TextureCollection: SetTextureCollectionParameterValueInternal(ParameterInfo, Value.TextureCollection); break;
 	case EMaterialParameterType::Font: SetFontParameterValueInternal(ParameterInfo, Value.Font.Value, Value.Font.Page); break;
 	case EMaterialParameterType::RuntimeVirtualTexture: SetRuntimeVirtualTextureParameterValueInternal(ParameterInfo, Value.RuntimeVirtualTexture); break;
 	case EMaterialParameterType::SparseVolumeTexture: SetSparseVolumeTextureParameterValueInternal(ParameterInfo, Value.SparseVolumeTexture); break;
@@ -3800,7 +3837,46 @@ void UMaterialInstance::SetTextureParameterValueInternal(const FMaterialParamete
 			GameThread_UpdateMIParameter(this, *ParameterValue);
 
 #if WITH_EDITOR
-			FObjectCacheEventSink::NotifyReferencedTextureChanged_Concurrent(this);
+			FObjectCacheEventSink::NotifyMaterialChanged_Concurrent(this);
+#endif
+		}		
+	}
+}
+
+void UMaterialInstance::SetTextureCollectionParameterValueInternal(const FMaterialParameterInfo& ParameterInfo, UTextureCollection* Value)
+{
+	LLM_SCOPE(ELLMTag::MaterialInstance);
+
+	if (Value)
+	{
+		Value->ConditionalPostLoad();
+	}
+
+	FTextureCollectionParameterValue* ParameterValue = GameThread_FindParameterByName(TextureCollectionParameterValues, ParameterInfo);
+
+	bool bForceUpdate = false;
+	if(!ParameterValue)
+	{
+		// If there's no element for the named parameter in array yet, add one.
+		ParameterValue = new(TextureCollectionParameterValues) FTextureCollectionParameterValue;
+		ParameterValue->ParameterInfo = ParameterInfo;
+		ParameterValue->ExpressionGUID.Invalidate();
+		bForceUpdate = true;
+	}
+
+	// Don't enqueue an update if it isn't needed
+	if (bForceUpdate || ParameterValue->ParameterValue != Value)
+	{
+		// set as an ensure, because it is somehow possible to accidentally pass non-textures into here via blueprints...
+		if (Value && ensureMsgf(Value->IsA(UTextureCollection::StaticClass()), TEXT("Expecting a UTextureCollection! Value='%s' class='%s'"), *Value->GetName(), *Value->GetClass()->GetName()))
+		{
+			ParameterValue->ParameterValue = Value;
+			Value->AddToCluster(this, true);
+			// Update the material instance data in the rendering thread.
+			GameThread_UpdateMIParameter(this, *ParameterValue);
+
+#if WITH_EDITOR
+			FObjectCacheEventSink::NotifyMaterialChanged_Concurrent(this);
 #endif
 		}		
 	}
@@ -3839,7 +3915,7 @@ void UMaterialInstance::SetRuntimeVirtualTextureParameterValueInternal(const FMa
 			GameThread_UpdateMIParameter(this, *ParameterValue);
 
 #if WITH_EDITOR
-			FObjectCacheEventSink::NotifyReferencedTextureChanged_Concurrent(this);
+			FObjectCacheEventSink::NotifyMaterialChanged_Concurrent(this);
 #endif
 		}
 	}
@@ -3877,7 +3953,7 @@ void UMaterialInstance::SetSparseVolumeTextureParameterValueInternal(const FMate
 			GameThread_UpdateMIParameter(this, *ParameterValue);
 
 #if WITH_EDITOR
-			FObjectCacheEventSink::NotifyReferencedTextureChanged_Concurrent(this);
+			FObjectCacheEventSink::NotifyMaterialChanged_Concurrent(this);
 #endif
 		}
 	}
@@ -3937,6 +4013,7 @@ void UMaterialInstance::ClearParameterValuesInternal(EMaterialInstanceClearParam
 		ResetAllTextureParameterOverrides();
 #endif
 		TextureParameterValues.Empty();
+		TextureCollectionParameterValues.Empty();
 		RuntimeVirtualTextureParameterValues.Empty();
 		SparseVolumeTextureParameterValues.Empty();
 		FontParameterValues.Empty();
@@ -3967,7 +4044,7 @@ void UMaterialInstance::ClearParameterValuesInternal(EMaterialInstanceClearParam
 	}
 
 #if WITH_EDITOR
-	FObjectCacheEventSink::NotifyReferencedTextureChanged_Concurrent(this);
+	FObjectCacheEventSink::NotifyMaterialChanged_Concurrent(this);
 #endif
 
 	InitResources();
@@ -5129,7 +5206,7 @@ void UMaterialInstance::CopyMaterialUniformParametersInternal(UMaterialInterface
 	}
 
 #if WITH_EDITOR
-	FObjectCacheEventSink::NotifyReferencedTextureChanged_Concurrent(this);
+	FObjectCacheEventSink::NotifyMaterialChanged_Concurrent(this);
 #endif
 }
 
@@ -5192,7 +5269,7 @@ void UMaterialInstance::OverrideTextureParameterValue(const UTexture* InTextureT
 				);
 			}
 #if WITH_EDITOR
-			FObjectCacheEventSink::NotifyReferencedTextureChanged_Concurrent(this);
+			FObjectCacheEventSink::NotifyMaterialChanged_Concurrent(this);
 #endif
 		}
 
@@ -5249,5 +5326,11 @@ bool UMaterialInstance::GetTextureParameterValue(const FHashedMaterialParameterI
 	}
 #endif
 
+	return bResult;
+}
+
+bool UMaterialInstance::GetTextureCollectionParameterValue(const FHashedMaterialParameterInfo& ParameterInfo, class UTextureCollection*& OutValue, bool bOveriddenOnly) const
+{
+	bool bResult = Super::GetTextureCollectionParameterValue(ParameterInfo, OutValue, bOveriddenOnly);
 	return bResult;
 }

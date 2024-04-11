@@ -234,7 +234,10 @@
 #include "Materials/MaterialExpressionTextureSample.h"
 #include "Materials/MaterialExpressionParticleSubUV.h"
 #include "Materials/MaterialExpressionParticleSubUVProperties.h"
+#include "Materials/MaterialExpressionTextureCollection.h"
+#include "Materials/MaterialExpressionTextureCollectionParameter.h"
 #include "Materials/MaterialExpressionTextureSampleParameter.h"
+#include "Materials/MaterialExpressionTextureObjectFromCollection.h"
 #include "Materials/MaterialExpressionTextureObjectParameter.h"
 #include "Materials/MaterialExpressionTextureSampleParameter2D.h"
 #include "Materials/MaterialExpressionAntialiasedTextureMask.h"
@@ -2728,6 +2731,46 @@ FName UMaterialExpressionTextureSample::GetInputName(int32 InputIndex) const
 #undef IF_INPUT_RETURN
 
 bool UMaterialExpressionTextureBase::VerifySamplerType(
+	const FString& TexturePathName,
+	EMaterialSamplerType CorrectSamplerType,
+	bool bSRGB,
+	EMaterialSamplerType SamplerType,
+	FString& OutErrorMessage)
+{
+	if (SamplerType != CorrectSamplerType)
+	{
+		UEnum* SamplerTypeEnum = UMaterialInterface::GetSamplerTypeEnum();
+		check(SamplerTypeEnum);
+
+		const FString SamplerTypeDisplayName = SamplerTypeEnum->GetDisplayNameTextByValue(SamplerType).ToString();
+		const FString TextureTypeDisplayName = SamplerTypeEnum->GetDisplayNameTextByValue(CorrectSamplerType).ToString();
+
+		OutErrorMessage = FString::Printf(TEXT("Sampler type is %s, should be %s for %s"),
+			*SamplerTypeDisplayName,
+			*TextureTypeDisplayName,
+			*TexturePathName);
+
+		return false;
+	}
+
+	if ((SamplerType == SAMPLERTYPE_Normal || SamplerType == SAMPLERTYPE_Masks) && bSRGB)
+	{
+		UEnum* SamplerTypeEnum = UMaterialInterface::GetSamplerTypeEnum();
+		check(SamplerTypeEnum);
+
+		const FString SamplerTypeDisplayName = SamplerTypeEnum->GetDisplayNameTextByValue(SamplerType).ToString();
+
+		OutErrorMessage = FString::Printf(TEXT("To use '%s' as sampler type, SRGB must be disabled for %s"),
+			*SamplerTypeDisplayName,
+			*TexturePathName);
+
+		return false;
+	}
+
+	return true;
+}
+
+bool UMaterialExpressionTextureBase::VerifySamplerType(
 	EShaderPlatform ShaderPlatform,
 	const ITargetPlatform* TargetPlatform,
 	const UTexture* Texture,
@@ -2742,32 +2785,8 @@ bool UMaterialExpressionTextureBase::VerifySamplerType(
 		{
 			SamplerType = UMaterialExpressionTextureBase::GetSamplerTypeForTexture(Texture, !bIsVirtualTextured);
 		}
-		if ( SamplerType != CorrectSamplerType )
-		{
-			UEnum* SamplerTypeEnum = UMaterialInterface::GetSamplerTypeEnum();
-			check( SamplerTypeEnum );
-
-			FString SamplerTypeDisplayName = SamplerTypeEnum->GetDisplayNameTextByValue(SamplerType).ToString();
-			FString TextureTypeDisplayName = SamplerTypeEnum->GetDisplayNameTextByValue(CorrectSamplerType).ToString();
-
-			OutErrorMessage = FString::Printf(TEXT("Sampler type is %s, should be %s for %s"),
-				*SamplerTypeDisplayName,
-				*TextureTypeDisplayName,
-				*Texture->GetPathName() );
-			return false;
-		}
-		if((SamplerType == SAMPLERTYPE_Normal || SamplerType == SAMPLERTYPE_Masks) && Texture->SRGB)
-		{
-			UEnum* SamplerTypeEnum = UMaterialInterface::GetSamplerTypeEnum();
-			check( SamplerTypeEnum );
-
-			FString SamplerTypeDisplayName = SamplerTypeEnum->GetDisplayNameTextByValue(SamplerType).ToString();
-
-			OutErrorMessage = FString::Printf(TEXT("To use '%s' as sampler type, SRGB must be disabled for %s"),
-				*SamplerTypeDisplayName,
-				*Texture->GetPathName() );
-			return false;
-		}
+		
+		return VerifySamplerType(Texture->GetPathName(), CorrectSamplerType, Texture->SRGB, SamplerType, OutErrorMessage);
 	}
 	return true;
 }
@@ -2812,6 +2831,71 @@ int32 UMaterialExpressionTextureSample::Compile(class FMaterialCompiler* Compile
 			return INDEX_NONE;
 		}
 
+		EMaterialValueType TextureType = Compiler->GetParameterType(TextureCodeIndex);
+
+		auto CheckForMissingUVWInput = [this, Compiler, TextureType](int32 ExpressionInput) -> TOptional<int32>
+		{
+			const EMaterialValueType TypesToCheck = EMaterialValueType(MCT_TextureCube | MCT_VolumeTexture | MCT_Texture2DArray | MCT_TextureCubeArray);
+			if (ExpressionInput != INDEX_NONE && (TextureType & TypesToCheck) != 0 && !Coordinates.GetTracedInput().Expression)
+			{
+				if (TextureType == MCT_TextureCube)
+				{
+					return CompilerError(Compiler, TEXT("UVW input required for cubemap sample"));
+				}
+				else if (TextureType == MCT_VolumeTexture)
+				{
+					return CompilerError(Compiler, TEXT("UVW input required for volume sample"));
+				}
+				else if (TextureType == MCT_Texture2DArray)
+				{
+					return CompilerError(Compiler, TEXT("UVW input required for texturearray sample"));
+				}
+				else if (TextureType == MCT_TextureCubeArray)
+				{
+					return CompilerError(Compiler, TEXT("UVWX input required for texturecubearray sample"));
+				}
+			}
+
+			return TOptional<int32>();
+		};
+
+		auto GetCoordinateIndex = [this, Compiler](int32 ExpressionInput, EMaterialSamplerType EffectiveSamplerType, const TOptional<FName>& EffectiveParameterName)
+		{
+			int32 CoordinateIndex = Coordinates.GetTracedInput().Expression ? Coordinates.Compile(Compiler) : Compiler->TextureCoordinate(ConstCoordinate, false, false);
+
+			// If the sampler type is an external texture, we have might have a scale/bias to apply to the UV coordinates.
+			// Generate that code for the TextureReferenceIndex here so we compile it using the correct texture based on possible reroute textures above
+			if (EffectiveSamplerType == SAMPLERTYPE_External)
+			{
+				CoordinateIndex = CompileExternalTextureCoordinates(Compiler, CoordinateIndex, ExpressionInput, EffectiveParameterName);
+			}
+
+			return CoordinateIndex;
+		};
+
+		if (TextureType & MCT_TextureCollection)
+		{
+			// There's no UTexture object to get here
+
+			if (TOptional<int32> MissingError = CheckForMissingUVWInput(TextureCodeIndex))
+			{
+				return *MissingError;
+			}
+
+			const int32 CoordinateIndex = GetCoordinateIndex(TextureReferenceIndex, SamplerType, {});
+
+			return Compiler->TextureSample(
+				TextureCodeIndex,
+				CoordinateIndex,
+				SamplerType,
+				CompileMipValue0(Compiler),
+				CompileMipValue1(Compiler),
+				MipValueMode,
+				SamplerSource,
+				TextureReferenceIndex,
+				bDoAutomaticViewMipBias);
+		}
+
 		UTexture* EffectiveTexture = Texture;
 		EMaterialSamplerType EffectiveSamplerType = SamplerType;
 		TOptional<FName> EffectiveParameterName;
@@ -2830,35 +2914,12 @@ int32 UMaterialExpressionTextureSample::Compile(class FMaterialCompiler* Compile
 		FString SamplerTypeError;
 		if (EffectiveTexture && VerifySamplerType(Compiler->GetShaderPlatform(), Compiler->GetTargetPlatform(), EffectiveTexture, EffectiveSamplerType, SamplerTypeError))
 		{
-			if (TextureCodeIndex != INDEX_NONE)
+			if (TOptional<int32> MissingError = CheckForMissingUVWInput(TextureCodeIndex))
 			{
-				const EMaterialValueType TextureType = Compiler->GetParameterType(TextureCodeIndex);
-				if (TextureType == MCT_TextureCube && !Coordinates.GetTracedInput().Expression)
-				{
-					return CompilerError(Compiler, TEXT("UVW input required for cubemap sample"));
-				}
-				else if (TextureType == MCT_VolumeTexture && !Coordinates.GetTracedInput().Expression)
-				{
-					return CompilerError(Compiler, TEXT("UVW input required for volume sample"));
-				}
-				else if (TextureType == MCT_Texture2DArray && !Coordinates.GetTracedInput().Expression)
-				{
-					return CompilerError(Compiler, TEXT("UVW input required for texturearray sample"));
-				}
-				else if (TextureType == MCT_TextureCubeArray && !Coordinates.GetTracedInput().Expression)
-				{
-					return CompilerError(Compiler, TEXT("UVWX input required for texturecubearray sample"));
-				}
+				return *MissingError;
 			}
 
-			int32 CoordinateIndex = Coordinates.GetTracedInput().Expression ? Coordinates.Compile(Compiler) : Compiler->TextureCoordinate(ConstCoordinate, false, false);
-
-			// If the sampler type is an external texture, we have might have a scale/bias to apply to the UV coordinates.
-			// Generate that code for the TextureReferenceIndex here so we compile it using the correct texture based on possible reroute textures above
-			if (EffectiveSamplerType == SAMPLERTYPE_External)
-			{
-				CoordinateIndex = CompileExternalTextureCoordinates(Compiler, CoordinateIndex, TextureReferenceIndex, EffectiveParameterName);
-			}
+			const int32 CoordinateIndex = GetCoordinateIndex(TextureReferenceIndex, EffectiveSamplerType, EffectiveParameterName);
 
 			return Compiler->TextureSample(
 				TextureCodeIndex,
@@ -10169,6 +10230,207 @@ void UMaterialExpressionBindlessSwitch::GetExpressionToolTip(TArray<FString>& Ou
 #endif
 
 //
+// UMaterialExpressionTextureCollection
+//
+
+UMaterialExpressionTextureCollection::UMaterialExpressionTextureCollection(const FObjectInitializer& ObjectInitializer)
+	: Super(ObjectInitializer)
+{
+#if WITH_EDITORONLY_DATA
+	Outputs.Reset();
+	Outputs.Emplace(TEXT("TextureCollection"));
+	Outputs.Emplace(TEXT("TextureCount"));
+	
+	bShowOutputNameOnPin = true;
+#endif
+}
+
+#if WITH_EDITOR
+int32 UMaterialExpressionTextureCollection::Compile(FMaterialCompiler* Compiler, int32 OutputIndex)
+{
+	const int32 TextureCollectionCodeIndex = Compiler->TextureCollection(TextureCollection);
+
+	if (OutputIndex == 1)
+	{
+		return Compiler->TextureCollectionCount(TextureCollectionCodeIndex);
+	}
+
+	return TextureCollectionCodeIndex;
+}
+
+void UMaterialExpressionTextureCollection::GetCaption(TArray<FString>& OutCaptions) const
+{
+	OutCaptions.Emplace(TEXT("Texture Collection"));
+}
+
+uint32 UMaterialExpressionTextureCollection::GetOutputType(int32 OutputIndex)
+{
+	if (OutputIndex == 1)
+	{
+		return MCT_UInt1;
+	}
+
+	return MCT_TextureCollection;
+}
+#endif
+
+//
+// UMaterialExpressionTextureCollectionParameter
+//
+
+UMaterialExpressionTextureCollectionParameter::UMaterialExpressionTextureCollectionParameter(const FObjectInitializer& ObjectInitializer)
+	: Super(ObjectInitializer)
+{
+#if WITH_EDITORONLY_DATA
+	bIsParameterExpression = true;
+#endif
+}
+
+#if WITH_EDITOR
+int32 UMaterialExpressionTextureCollectionParameter::Compile(FMaterialCompiler* Compiler, int32 OutputIndex)
+{
+	const int32 TextureCollectionCodeIndex = Compiler->TextureCollectionParameter(ParameterName, TextureCollection);
+
+	if (OutputIndex == 1)
+	{
+		return Compiler->TextureCollectionCount(TextureCollectionCodeIndex);
+	}
+
+	return TextureCollectionCodeIndex;
+}
+
+void UMaterialExpressionTextureCollectionParameter::GetCaption(TArray<FString>& OutCaptions) const
+{
+	OutCaptions.Emplace(TEXT("Texture Collection Parameter"));
+}
+
+bool UMaterialExpressionTextureCollectionParameter::CanRenameNode() const
+{
+	return true;
+}
+
+FString UMaterialExpressionTextureCollectionParameter::GetEditableName() const
+{
+	return ParameterName.ToString();
+}
+
+void UMaterialExpressionTextureCollectionParameter::SetEditableName(const FString& NewName)
+{
+	ParameterName = *NewName;
+}
+
+bool UMaterialExpressionTextureCollectionParameter::HasAParameterName() const
+{
+	return true;
+}
+
+FName UMaterialExpressionTextureCollectionParameter::GetParameterName() const
+{
+	return ParameterName;
+}
+
+void UMaterialExpressionTextureCollectionParameter::SetParameterName(const FName& Name)
+{
+	ParameterName = Name;
+}
+
+void UMaterialExpressionTextureCollectionParameter::ValidateParameterName(const bool bAllowDuplicateName)
+{
+	ValidateParameterNameInternal(this, Material, bAllowDuplicateName);
+}
+
+bool UMaterialExpressionTextureCollectionParameter::GetParameterValue(FMaterialParameterMetadata& OutMeta) const
+{
+	OutMeta.Value = TextureCollection;
+	OutMeta.Description = Desc;
+	OutMeta.ExpressionGuid = ExpressionGUID;
+	OutMeta.Group = Group;
+	OutMeta.SortPriority = SortPriority;
+	OutMeta.AssetPath = GetAssetPathName();
+	return true;
+}
+
+bool UMaterialExpressionTextureCollectionParameter::SetParameterValue(const FName& Name, const FMaterialParameterMetadata& Meta, EMaterialExpressionSetParameterValueFlags Flags)
+{
+	if (Meta.Value.Type == EMaterialParameterType::TextureCollection)
+	{
+		if (SetParameterValue(Name, Meta.Value.TextureCollection, Flags))
+		{
+			if (EnumHasAnyFlags(Flags, EMaterialExpressionSetParameterValueFlags::AssignGroupAndSortPriority))
+			{
+				Group = Meta.Group;
+				SortPriority = Meta.SortPriority;
+			}
+			return true;
+		}
+	}
+	return false;
+}
+
+bool UMaterialExpressionTextureCollectionParameter::SetParameterValue(const FName& InParameterName, UTextureCollection* InValue, EMaterialExpressionSetParameterValueFlags Flags)
+{
+	if (InParameterName == ParameterName)
+	{
+		TextureCollection = InValue;
+		if (EnumHasAnyFlags(Flags, EMaterialExpressionSetParameterValueFlags::SendPostEditChangeProperty))
+		{
+			SendPostEditChangeProperty(this, GET_MEMBER_NAME_STRING_CHECKED(ThisClass, TextureCollection));
+		}
+		return true;
+	}
+	return false;
+}
+#endif
+
+FGuid& UMaterialExpressionTextureCollectionParameter::GetParameterExpressionId()
+{
+	return ExpressionGUID;
+}
+
+//
+// UMaterialExpressionTextureObjectFromCollection
+//
+
+UMaterialExpressionTextureObjectFromCollection::UMaterialExpressionTextureObjectFromCollection(const FObjectInitializer& ObjectInitializer)
+	: Super(ObjectInitializer)
+{
+}
+
+#if WITH_EDITOR
+int32 UMaterialExpressionTextureObjectFromCollection::Compile(FMaterialCompiler* Compiler, int32 OutputIndex)
+{
+	int32 TextureCollectionCodeIndex = TextureCollection.GetTracedInput().Expression ? TextureCollection.Compile(Compiler) : Compiler->TextureCollection(TextureCollectionObject);
+	int32 IndexIntoCollectionCodeIndex = CollectionIndex.GetTracedInput().Expression ? CollectionIndex.Compile(Compiler) : Compiler->Constant(ConstCollectionIndex);
+	int32 TextureFromCollectionCodeIndex = Compiler->TextureFromCollection(
+		TextureCollectionCodeIndex,
+		IndexIntoCollectionCodeIndex,
+		MaterialValueTypeFromTextureCollectionMemberType(TextureType)
+	);
+	return TextureFromCollectionCodeIndex;
+}
+
+uint32 UMaterialExpressionTextureObjectFromCollection::GetInputType(int32 InputIndex)
+{
+	if (InputIndex == 0)
+	{
+		return MCT_TextureCollection;
+	}
+
+	return MCT_UInt1;
+}
+
+uint32 UMaterialExpressionTextureObjectFromCollection::GetOutputType(int32 OutputIndex)
+{
+	return MaterialValueTypeFromTextureCollectionMemberType(TextureType);
+}
+
+void UMaterialExpressionTextureObjectFromCollection::GetCaption(TArray<FString>& OutCaptions) const
+{
+	OutCaptions.Emplace(TEXT("Texture Object From Collection"));
+}
+#endif
+
+//
 //	UMaterialExpressionRequiredSamplersSwitch
 //
 
@@ -14919,6 +15181,17 @@ bool UMaterialFunctionInterface::OverrideNamedTextureParameter(const FHashedMate
 	return false;
 }
 
+bool UMaterialFunctionInterface::OverrideNamedTextureCollectionParameter(const FHashedMaterialParameterInfo& ParameterInfo, class UTextureCollection*& OutValue)
+{
+	FMaterialParameterMetadata Meta;
+	if (GetParameterOverrideValue(EMaterialParameterType::TextureCollection, ParameterInfo.GetName(), Meta))
+	{
+		OutValue = Meta.Value.TextureCollection;
+		return true;
+	}
+	return false;
+}
+
 bool UMaterialFunctionInterface::OverrideNamedRuntimeVirtualTextureParameter(const FHashedMaterialParameterInfo& ParameterInfo, class URuntimeVirtualTexture*& OutValue)
 {
 	FMaterialParameterMetadata Meta;
@@ -16067,6 +16340,17 @@ void UMaterialFunctionInstance::UpdateParameterSet()
 						}
 					}
 				}
+				else if (const UMaterialExpressionTextureCollectionParameter* TextureCollectionParameter = Cast<const UMaterialExpressionTextureCollectionParameter>(FunctionExpression))
+				{
+					for (FTextureCollectionParameterValue& TextureCollectionParameterValue : TextureCollectionParameterValues)
+					{
+						if (TextureCollectionParameterValue.ExpressionGUID == TextureCollectionParameter->ExpressionGUID)
+						{
+							TextureCollectionParameterValue.ParameterInfo.Name = TextureCollectionParameter->ParameterName;
+							break;
+						}
+					}
+				}
 				else if (const UMaterialExpressionRuntimeVirtualTextureSampleParameter* RuntimeVirtualTextureParameter = Cast<const UMaterialExpressionRuntimeVirtualTextureSampleParameter>(FunctionExpression))
 				{
 					for (FRuntimeVirtualTextureParameterValue& RuntimeVirtualTextureParameterValue : RuntimeVirtualTextureParameterValues)
@@ -16134,6 +16418,7 @@ void UMaterialFunctionInstance::OverrideMaterialInstanceParameterValues(UMateria
 	Instance->VectorParameterValues = VectorParameterValues;
 	Instance->DoubleVectorParameterValues = DoubleVectorParameterValues;
 	Instance->TextureParameterValues = TextureParameterValues;
+	Instance->TextureCollectionParameterValues = TextureCollectionParameterValues;
 	Instance->RuntimeVirtualTextureParameterValues = RuntimeVirtualTextureParameterValues;
 	Instance->SparseVolumeTextureParameterValues = SparseVolumeTextureParameterValues;
 	Instance->FontParameterValues = FontParameterValues;
@@ -16220,6 +16505,14 @@ void UMaterialFunctionInstance::PostLoad()
 		if (UTexture* Texture = Param.ParameterValue)
 		{
 			Texture->ConditionalPostLoad();
+		}
+	}
+
+	for (const FTextureCollectionParameterValue& Param : TextureCollectionParameterValues)
+	{
+		if (UTextureCollection* TextureCollection = Param.ParameterValue)
+		{
+			TextureCollection->ConditionalPostLoad();
 		}
 	}
 
@@ -16342,6 +16635,7 @@ bool UMaterialFunctionInstance::GetParameterOverrideValue(EMaterialParameterType
 	case EMaterialParameterType::Vector: bResult = GameThread_GetParameterValue(VectorParameterValues, ParameterInfo, OutResult); break;
 	case EMaterialParameterType::DoubleVector: bResult = GameThread_GetParameterValue(DoubleVectorParameterValues, ParameterInfo, OutResult); break;
 	case EMaterialParameterType::Texture: bResult = GameThread_GetParameterValue(TextureParameterValues, ParameterInfo, OutResult); break;
+	case EMaterialParameterType::TextureCollection: bResult = GameThread_GetParameterValue(TextureCollectionParameterValues, ParameterInfo, OutResult); break;
 	case EMaterialParameterType::RuntimeVirtualTexture: bResult = GameThread_GetParameterValue(RuntimeVirtualTextureParameterValues, ParameterInfo, OutResult); break;
 	case EMaterialParameterType::SparseVolumeTexture: bResult = GameThread_GetParameterValue(SparseVolumeTextureParameterValues, ParameterInfo, OutResult); break;
 	case EMaterialParameterType::Font: bResult = GameThread_GetParameterValue(FontParameterValues, ParameterInfo, OutResult); break;
