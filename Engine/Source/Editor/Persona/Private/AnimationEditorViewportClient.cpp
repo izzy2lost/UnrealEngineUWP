@@ -556,17 +556,14 @@ void FAnimationViewportClient::Draw(const FSceneView* View, FPrimitiveDrawInterf
 
 			const FReferenceSkeleton& RefSkeleton = PreviewMeshComponent->GetReferenceSkeleton();
 			const TArray<FBoneIndexType>& DrawBoneIndices = PreviewMeshComponent->GetDrawBoneIndices();
-
-			// if we have BonesOfInterest, draw sub set of the bones only
-			if (GetAnimPreviewScene()->GetSelectedBoneIndex() != INDEX_NONE)
-			{
-				DrawMeshSubsetBones(PreviewMeshComponent, PreviewMeshComponent->BonesOfInterest, PDI);
-			}
-			// otherwise, if we display bones, display
+			
+			// draw the skeleton normally
 			if ( GetBoneDrawMode() != EBoneDrawMode::None )
 			{
 				DrawMeshBones(PreviewMeshComponent, PDI);
 			}
+
+			// special draw modes for debugging various transforms...
 			if (PreviewMeshComponent->bDisplayRawAnimation )
 			{
 				DrawMeshBonesUncompressedAnimation(PreviewMeshComponent, PDI);
@@ -621,7 +618,7 @@ void FAnimationViewportClient::Draw(const FSceneView* View, FPrimitiveDrawInterf
 		{
 			if (const USkeleton* Skeleton = GetPreviewScene()->GetPersonaToolkit()->GetSkeleton())
 			{
-				DrawBonesFromSkeleton(Skeleton, PreviewMeshComponent->BonesOfInterest, PDI);
+				DrawBonesFromSkeleton(PreviewMeshComponent, Skeleton, PreviewMeshComponent->BonesOfInterest, PDI);
 			}
 		}
 	}
@@ -1577,6 +1574,7 @@ void FAnimationViewportClient::DrawBonesFromTransforms(
 
 	constexpr bool bForceDraw = false;
 	const bool bAddHitProxy = MeshComponent->SkeletonDrawMode != ESkeletonDrawMode::GreyedOut;
+	const bool bUseMuliColors = MeshComponent->bShowBoneColors;
 
 	DrawBones(
 		MeshComponent->GetComponentLocation(),
@@ -1587,7 +1585,8 @@ void FAnimationViewportClient::DrawBonesFromTransforms(
 		BoneColours,
 		PDI,
 		bForceDraw,
-		bAddHitProxy);
+		bAddHitProxy,
+		bUseMuliColors);
 }
 
 void FAnimationViewportClient::DrawBonesFromCompactPose(
@@ -1603,15 +1602,9 @@ void FAnimationViewportClient::DrawBonesFromCompactPose(
 	{
 		return;
 	}
-
-	// optionally override draw color
-	const FLinearColor BoneColor = MeshComponent->SkeletonDrawMode == ESkeletonDrawMode::GreyedOut ? GetDefault<UPersonaOptions>()->DisabledBoneColor : DrawColor;
 	
 	TArray<FTransform> WorldTransforms;
 	WorldTransforms.AddUninitialized(Pose.GetBoneContainer().GetNumBones());
-
-	TArray<FLinearColor> BoneColors;
-	BoneColors.AddUninitialized(Pose.GetBoneContainer().GetNumBones());
 
 	// we could cache parent bones as we calculate, but right now I'm not worried about perf issue of this
 	for (FCompactPoseBoneIndex BoneIndex : Pose.ForEachBoneIndex())
@@ -1628,11 +1621,11 @@ void FAnimationViewportClient::DrawBonesFromCompactPose(
 		{
 			WorldTransforms[MeshBoneIndex.GetInt()] = Pose[BoneIndex] * WorldTransforms[ParentIndex];
 		}
-		BoneColors[MeshBoneIndex.GetInt()] = BoneColor;
 	}
 
 	constexpr bool bForceDraw = true;
 	const bool bAddHitProxy = MeshComponent->SkeletonDrawMode != ESkeletonDrawMode::GreyedOut;
+	const bool bUseMultiColor = MeshComponent->bShowBoneColors;
 
 	DrawBones(
 		MeshComponent->GetComponentLocation(),
@@ -1640,10 +1633,11 @@ void FAnimationViewportClient::DrawBonesFromCompactPose(
 		MeshComponent->GetReferenceSkeleton(),
 		WorldTransforms,
 		MeshComponent->BonesOfInterest,
-		BoneColors,
+		TArray<FLinearColor>(),
 		PDI,
 		bForceDraw,
-		bAddHitProxy);
+		bAddHitProxy,
+		bUseMultiColor);
 }
 
 void FAnimationViewportClient::DrawMeshBonesUncompressedAnimation(UDebugSkelMeshComponent * MeshComponent, FPrimitiveDrawInterface* PDI) const
@@ -1705,7 +1699,7 @@ void FAnimationViewportClient::DrawMeshBonesBakedAnimation(UDebugSkelMeshCompone
 	}
 }
 
-void FAnimationViewportClient::DrawBonesFromSkeleton(const USkeleton* Skeleton, const TArray<int32>& InSelectedBones,FPrimitiveDrawInterface* PDI) const
+void FAnimationViewportClient::DrawBonesFromSkeleton(UDebugSkelMeshComponent * MeshComponent, const USkeleton* Skeleton, const TArray<int32>& InSelectedBones,FPrimitiveDrawInterface* PDI) const
 {
 	check(Skeleton);
 
@@ -1721,7 +1715,7 @@ void FAnimationViewportClient::DrawBonesFromSkeleton(const USkeleton* Skeleton, 
 
 	const FReferenceSkeleton& RefSkeleton = Skeleton->GetReferenceSkeleton();
 
-	const UPersonaOptions* PersonaOptions = GetDefault<UPersonaOptions>();
+	
 	for (FBoneIndexType BoneIndex = 0; BoneIndex < SkeletonRefPose.Num(); ++BoneIndex)
 	{
 		const int32 ParentIndex = RefSkeleton.GetParentIndex(BoneIndex);
@@ -1738,17 +1732,20 @@ void FAnimationViewportClient::DrawBonesFromSkeleton(const USkeleton* Skeleton, 
 			WorldTransforms[BoneIndex] = SkeletonRefPose[BoneIndex];
 		}
 
-		BoneColours[BoneIndex] = PersonaOptions->DefaultBoneColor;
+		BoneColours[BoneIndex] = MeshComponent->GetBoneColor(BoneIndex);
 	}
 
 	// color virtual bones
+	const FLinearColor VirtualBoneColor = GetDefault<UPersonaOptions>()->VirtualBoneColor;
 	for (const int16 VirtualBoneIndex : RefSkeleton.GetRequiredVirtualBones())
 	{
-		BoneColours[VirtualBoneIndex] = PersonaOptions->VirtualBoneColor;
+		BoneColours[VirtualBoneIndex] = VirtualBoneColor;
 	}
 
 	constexpr bool bForceDraw = false;
 	constexpr bool bAddHitProxy = true;
+	const bool bUseMultiColor = MeshComponent->bShowBoneColors;
+	
 	DrawBones(
 		FVector::ZeroVector,
 		RequiredBones,
@@ -1758,7 +1755,8 @@ void FAnimationViewportClient::DrawBonesFromSkeleton(const USkeleton* Skeleton, 
 		BoneColours,
 		PDI,
 		bForceDraw,
-		bAddHitProxy);
+		bAddHitProxy,
+		bUseMultiColor);
 }
 
 void FAnimationViewportClient::DrawMeshBones(UDebugSkelMeshComponent* MeshComponent, FPrimitiveDrawInterface* PDI) const
@@ -1787,7 +1785,7 @@ void FAnimationViewportClient::DrawMeshBones(UDebugSkelMeshComponent* MeshCompon
 	{
 		const int32 BoneIndex = DrawBoneIndices[Index];
 		WorldTransforms[BoneIndex] = MeshComponent->GetDrawTransform(BoneIndex) * MeshComponent->GetComponentTransform();
-		BoneColours[BoneIndex] = BoneColor;
+		BoneColours[BoneIndex] = MeshComponent->GetBoneColor(BoneIndex);
 	}
 
 	// color virtual bones
@@ -1795,11 +1793,11 @@ void FAnimationViewportClient::DrawMeshBones(UDebugSkelMeshComponent* MeshCompon
 	{
 		BoneColours[VirtualBoneIndex] = VirtualBoneColor;
 	}
-
+	
 	constexpr bool bForceDraw = false;
-
 	// don't allow selection if the skeleton draw mode is greyed out
 	const bool bAddHitProxy = MeshComponent->SkeletonDrawMode != ESkeletonDrawMode::GreyedOut;
+	const bool bUseMultiColors = MeshComponent->bShowBoneColors;
 
 	DrawBones(
 		MeshComponent->GetComponentLocation(),
@@ -1810,7 +1808,8 @@ void FAnimationViewportClient::DrawMeshBones(UDebugSkelMeshComponent* MeshCompon
 		BoneColours,
 		PDI,
 		bForceDraw,
-		bAddHitProxy);
+		bAddHitProxy,
+		bUseMultiColors);
 }
 
 void FAnimationViewportClient::DrawBones(
@@ -1822,13 +1821,15 @@ void FAnimationViewportClient::DrawBones(
 	const TArray<FLinearColor>& BoneColors,
 	FPrimitiveDrawInterface* PDI,
 	bool bForceDraw,
-	bool bAddHitProxy) const
+	bool bAddHitProxy,
+	bool bUseMultiColors) const
 {
 	FSkelDebugDrawConfig DrawConfig;
 	DrawConfig.BoneDrawMode = GetBoneDrawMode();
 	DrawConfig.BoneDrawSize = GetBoneDrawSize();
 	DrawConfig.bAddHitProxy = bAddHitProxy;
 	DrawConfig.bForceDraw = bForceDraw;
+	DrawConfig.bUseMultiColorAsDefaultColor = bUseMultiColors;
 	DrawConfig.DefaultBoneColor = GetMutableDefault<UPersonaOptions>()->DefaultBoneColor;
 	DrawConfig.AffectedBoneColor = GetMutableDefault<UPersonaOptions>()->AffectedBoneColor;
 	DrawConfig.SelectedBoneColor = GetMutableDefault<UPersonaOptions>()->SelectedBoneColor;
@@ -1856,84 +1857,6 @@ void FAnimationViewportClient::DrawBones(
 		HitProxies,
 		DrawConfig
 	);
-}
-
-void FAnimationViewportClient::DrawMeshSubsetBones(const UDebugSkelMeshComponent* MeshComponent, const TArray<int32>& BonesOfInterest, FPrimitiveDrawInterface* PDI) const
-{
-	// this BonesOfInterest has to be in MeshComponent base, not Skeleton 
-	if (!MeshComponent ||
-		!MeshComponent->GetSkeletalMeshAsset() ||
-		BonesOfInterest.IsEmpty() ||
-		MeshComponent->SkeletonDrawMode == ESkeletonDrawMode::Hidden)
-	{
-		return;
-	}
-	
-	TArray<FTransform> WorldTransforms;
-	WorldTransforms.AddUninitialized(MeshComponent->GetNumDrawTransform());
-
-	TArray<FLinearColor> BoneColours;
-	BoneColours.AddUninitialized(MeshComponent->GetNumDrawTransform());
-
-	TArray<FBoneIndexType> RequiredBones;
-
-	const FReferenceSkeleton& RefSkeleton = MeshComponent->GetReferenceSkeleton();
-
-	// we could cache parent bones as we calculate, but right now I'm not worried about perf issue of this
-	const TArray<FBoneIndexType>& DrawBoneIndices = MeshComponent->GetDrawBoneIndices();
-	const UPersonaOptions* PersonaOptions = GetDefault<UPersonaOptions>();
-	for ( auto Iter = DrawBoneIndices.CreateConstIterator(); Iter; ++Iter)
-	{
-		const int32 BoneIndex = *Iter;
-		bool bDrawBone = false;
-
-		const int32 ParentIndex = RefSkeleton.GetParentIndex(BoneIndex);
-
-		// need to see if it's child of any of Bones of interest
-		for (auto SubIter=BonesOfInterest.CreateConstIterator(); SubIter; ++SubIter )
-		{
-			const int32 SubBoneIndex = *SubIter;
-			// if I'm child of the BonesOfInterest
-			if(BoneIndex == SubBoneIndex)
-			{
-				//found a bone we are interested in
-				if(ParentIndex >= 0)
-				{
-					WorldTransforms[ParentIndex] = MeshComponent->GetDrawTransform(ParentIndex)*MeshComponent->GetComponentTransform();
-				}
-				BoneColours[BoneIndex] = PersonaOptions->SelectedBoneColor;
-				bDrawBone = true;
-				break;
-			}
-			else if ( RefSkeleton.BoneIsChildOf(BoneIndex, SubBoneIndex) )
-			{
-				BoneColours[BoneIndex] = PersonaOptions->DefaultBoneColor;
-				bDrawBone = true;
-				break;
-			}
-		}
-
-		if (bDrawBone)
-		{
-			//add to the list
-			RequiredBones.AddUnique(static_cast<FBoneIndexType>(BoneIndex));
-			WorldTransforms[BoneIndex] = MeshComponent->GetDrawTransform(BoneIndex) * MeshComponent->GetComponentTransform();
-		}
-	}
-
-	constexpr bool bForceDraw = false;
-	const bool bAddHitProxy = MeshComponent->SkeletonDrawMode != ESkeletonDrawMode::GreyedOut;
-
-	DrawBones(
-		MeshComponent->GetComponentLocation(),
-		RequiredBones,
-		MeshComponent->GetReferenceSkeleton(),
-		WorldTransforms,
-		MeshComponent->BonesOfInterest,
-		BoneColours,
-		PDI,
-		bForceDraw,
-		bAddHitProxy);
 }
 
 void FAnimationViewportClient::DrawAttributes(UDebugSkelMeshComponent* MeshComponent, FPrimitiveDrawInterface* PDI) const

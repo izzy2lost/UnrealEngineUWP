@@ -40,6 +40,7 @@ public:
 	float BoneDrawSize;
 	bool bForceDraw;
 	bool bAddHitProxy;
+	bool bUseMultiColorAsDefaultColor;
 	FLinearColor DefaultBoneColor;
 	FLinearColor AffectedBoneColor;
 	FLinearColor SelectedBoneColor;
@@ -151,4 +152,7 @@ void DrawBonesInternal(
 	const TArray<FLinearColor>& BoneColors,
 	const TArray<TRefCountPtr<HHitProxy>>& HitProxies,
 	const FSkelDebugDrawConfig& DrawConfig);
+
+ENGINE_API FLinearColor GetSemiRandomColorForBone(const int32 BoneIndex);
+ENGINE_API void FillWithMultiColors(TArray<FLinearColor>& BoneColors, const int32 NumBones);
 }

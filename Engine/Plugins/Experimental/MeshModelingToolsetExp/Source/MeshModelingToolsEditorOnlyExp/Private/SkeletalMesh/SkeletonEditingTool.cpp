@@ -18,6 +18,7 @@
 #include "BaseBehaviors/ClickDragBehavior.h"
 #include "BaseGizmos/GizmoViewContext.h"
 #include "DynamicMesh/MeshNormals.h"
+#include "Preferences/PersonaOptions.h"
 #include "Selection/PolygonSelectionMechanic.h"
 
 #include "SkeletalMesh/SkeletonTransformProxy.h"
@@ -1714,19 +1715,16 @@ void USkeletonEditingTool::Render(IToolsContextRenderAPI* RenderAPI)
 		return;
 	}
 
-	static const FLinearColor DefaultBoneColor(0.0f,0.0f,0.025f,1.0f);
-	static const FLinearColor SelectedBoneColor(0.2f,1.0f,0.2f,1.0f);
-	static const FLinearColor AffectedBoneColor(1.0f,1.0f,1.0f,1.0f);
-	static const FLinearColor ParentOfSelectedBoneColor(0.85f,0.45f,0.12f,1.0f);
+	const UPersonaOptions* PersonaOptions = GetDefault<UPersonaOptions>();
 	static FSkelDebugDrawConfig DrawConfig;
 		DrawConfig.BoneDrawMode = EBoneDrawMode::Type::All;
 		DrawConfig.BoneDrawSize = 1.f;
 		DrawConfig.bAddHitProxy = true;
 		DrawConfig.bForceDraw = false;
-		DrawConfig.DefaultBoneColor = DefaultBoneColor;
-		DrawConfig.AffectedBoneColor = AffectedBoneColor;
-		DrawConfig.SelectedBoneColor = SelectedBoneColor;
-		DrawConfig.ParentOfSelectedBoneColor = ParentOfSelectedBoneColor;
+		DrawConfig.DefaultBoneColor = PersonaOptions->DefaultBoneColor;
+		DrawConfig.AffectedBoneColor = PersonaOptions->AffectedBoneColor;
+		DrawConfig.SelectedBoneColor = PersonaOptions->SelectedBoneColor;
+		DrawConfig.ParentOfSelectedBoneColor = PersonaOptions->ParentOfSelectedBoneColor;
 		DrawConfig.AxisConfig.Thickness = Properties->AxisThickness;
 		DrawConfig.AxisConfig.Length = Properties->AxisLength;
 	
@@ -1748,7 +1746,7 @@ void USkeletonEditingTool::Render(IToolsContextRenderAPI* RenderAPI)
 		const FTransform& BoneTransform = Modifier->GetTransform(Index, true);
 		WorldTransforms[Index] = BoneTransform;
 		RequiredBones[Index] = Index;
-		BoneColors[Index] = DefaultBoneColor;
+		BoneColors[Index] = SkeletalDebugRendering::GetSemiRandomColorForBone(Index);
 		HitProxies.Add(new HBoneHitProxy(Index, RefSkeleton.GetBoneName(Index)));
 	}
 

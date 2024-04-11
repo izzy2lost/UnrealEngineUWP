@@ -392,7 +392,15 @@ void DrawBonesInternal(
 		// determine color of bone based on selection / affected state
 		const bool bIsSelected = InSelectedBones.Contains(BoneIndex);
 		const bool bIsAffected = AffectedBones[BoneIndex];
-		FLinearColor DefaultBoneColor = BoneColors.IsEmpty() ? DrawConfig.DefaultBoneColor : BoneColors[BoneIndex];
+		FLinearColor DefaultBoneColor;
+		if (BoneColors.IsEmpty())
+		{
+			DefaultBoneColor = DrawConfig.bUseMultiColorAsDefaultColor ? GetSemiRandomColorForBone(BoneIndex) : DrawConfig.DefaultBoneColor;
+		}
+		else
+		{
+			DefaultBoneColor = BoneColors[BoneIndex];
+		}
 		FLinearColor BoneColor = bIsAffected ? DrawConfig.AffectedBoneColor : DefaultBoneColor;
 		BoneColor = bIsSelected ? DrawConfig.SelectedBoneColor : BoneColor;
 
@@ -463,6 +471,24 @@ void DrawBonesInternal(
 		}
 		
 		PDI->SetHitProxy(nullptr);
+	}
+}
+
+FLinearColor GetSemiRandomColorForBone(const int32 BoneIndex)
+{
+	// uses deterministic, semi-random desaturated color unique to the bone index
+	constexpr float Saturation = 0.5f;
+	constexpr float Value = 1.0f;
+	constexpr float Rotation = 90.f;
+	return FLinearColor::IntToDistinctColor(BoneIndex, Saturation, Value, Rotation);
+}
+
+void FillWithMultiColors(TArray<FLinearColor>& BoneColors, const int32 NumBones)
+{
+	BoneColors.SetNumUninitialized(NumBones);
+	for (int32 BoneIndex=0; BoneIndex<NumBones; ++BoneIndex)
+	{
+		BoneColors[BoneIndex] = GetSemiRandomColorForBone(BoneIndex);
 	}
 }
 

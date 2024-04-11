@@ -1989,20 +1989,18 @@ void FCustomizableObjectEditorViewportClient::DrawMeshBones(UDebugSkelMeshCompon
 
 	TArray<FLinearColor> BoneColors;
 	BoneColors.AddUninitialized(MeshComponent->GetNumDrawTransform());
-
-	const FLinearColor BoneColor = GetDefault<UPersonaOptions>()->DefaultBoneColor;
-	const FLinearColor VirtualBoneColor = GetDefault<UPersonaOptions>()->VirtualBoneColor;
-	const TArray<FBoneIndexType>& DrawBoneIndices = MeshComponent->GetDrawBoneIndices();
 	
+	const TArray<FBoneIndexType>& DrawBoneIndices = MeshComponent->GetDrawBoneIndices();
 	for (int32 Index = 0; Index < DrawBoneIndices.Num(); ++Index)
 	{
 		const int32 BoneIndex = DrawBoneIndices[Index];
 		WorldTransforms[BoneIndex] = MeshComponent->GetDrawTransform(BoneIndex) * MeshComponent->GetComponentTransform();
-		BoneColors[BoneIndex] = BoneColor;
+		BoneColors[BoneIndex] = MeshComponent->GetBoneColor(BoneIndex);
 	}
 
 	// color virtual bones
-	for (int16 VirtualBoneIndex : MeshComponent->GetReferenceSkeleton().GetRequiredVirtualBones())
+	const FLinearColor VirtualBoneColor = GetDefault<UPersonaOptions>()->VirtualBoneColor;
+	for (const int16 VirtualBoneIndex : MeshComponent->GetReferenceSkeleton().GetRequiredVirtualBones())
 	{
 		BoneColors[VirtualBoneIndex] = VirtualBoneColor;
 	}

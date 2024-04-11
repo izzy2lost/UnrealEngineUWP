@@ -61,20 +61,17 @@ namespace UE::PoseSearch
 					{
 						WorldTransforms.SetNumUninitialized(MeshComponent->GetNumDrawTransform());
 						BoneColors.SetNumUninitialized(MeshComponent->GetNumDrawTransform());
-
-						// factor skeleton draw mode into color selection
-						const FLinearColor BoneColor = MeshComponent->SkeletonDrawMode == ESkeletonDrawMode::GreyedOut ? PersonaOptions->DisabledBoneColor : PersonaOptions->DefaultBoneColor;
-						const FLinearColor VirtualBoneColor = MeshComponent->SkeletonDrawMode == ESkeletonDrawMode::GreyedOut ? PersonaOptions->DisabledBoneColor : PersonaOptions->VirtualBoneColor;
-
+						
 						const TArray<FBoneIndexType>& DrawBoneIndices = MeshComponent->GetDrawBoneIndices();
 						for (int32 Index = 0; Index < DrawBoneIndices.Num(); ++Index)
 						{
 							const int32 BoneIndex = DrawBoneIndices[Index];
 							WorldTransforms[BoneIndex] = MeshComponent->GetDrawTransform(BoneIndex) * MeshComponent->GetComponentTransform();
-							BoneColors[BoneIndex] = BoneColor;
+							BoneColors[BoneIndex] = MeshComponent->GetBoneColor(BoneIndex);
 						}
 
 						// color virtual bones
+						const FLinearColor VirtualBoneColor = MeshComponent->SkeletonDrawMode == ESkeletonDrawMode::GreyedOut ? PersonaOptions->DisabledBoneColor : PersonaOptions->VirtualBoneColor;
 						for (int16 VirtualBoneIndex : MeshComponent->GetReferenceSkeleton().GetRequiredVirtualBones())
 						{
 							BoneColors[VirtualBoneIndex] = VirtualBoneColor;
@@ -85,6 +82,7 @@ namespace UE::PoseSearch
 						DrawConfig.BoneDrawSize = 0.2f;
 						DrawConfig.bAddHitProxy = false;
 						DrawConfig.bForceDraw = false;
+						DrawConfig.bUseMultiColorAsDefaultColor = MeshComponent->bShowBoneColors;
 						DrawConfig.DefaultBoneColor = PersonaOptions->DefaultBoneColor;
 						DrawConfig.AffectedBoneColor = PersonaOptions->AffectedBoneColor;
 						DrawConfig.SelectedBoneColor = PersonaOptions->SelectedBoneColor;

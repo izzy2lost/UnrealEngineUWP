@@ -29,6 +29,7 @@ void FAnimViewportShowCommands::RegisterCommands()
 	UI_COMMAND( ShowMorphTargets, "Morph Targets", "Display applied morph targets of the mesh", EUserInterfaceActionType::ToggleButton, FInputChord() );
 
 	UI_COMMAND( ShowBoneNames, "Bone Names", "Display bone names in the viewport", EUserInterfaceActionType::ToggleButton, FInputChord() );
+	UI_COMMAND( ShowBoneColors, "Multi-Color Bones", "Display skeleton with multiple colors", EUserInterfaceActionType::ToggleButton, FInputChord() );
 
 	// below 3 menus are radio button styles
 	UI_COMMAND(ShowDisplayInfoBasic, "Basic", "Display basic mesh info in the viewport", EUserInterfaceActionType::RadioButton, FInputChord());

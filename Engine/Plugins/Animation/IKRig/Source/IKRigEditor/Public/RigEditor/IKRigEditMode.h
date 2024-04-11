@@ -62,6 +62,7 @@ private:
 		FIKRigEditorController* Controller,
 		const UIKRigProcessor* Processor,
 		const FReferenceSkeleton& RefSkeleton,
+		bool bUseMultiColorAsDefaultColor,
 		TArray<FLinearColor>& OutBoneColors) const;
 
 	bool HandleBeginTransform() const;

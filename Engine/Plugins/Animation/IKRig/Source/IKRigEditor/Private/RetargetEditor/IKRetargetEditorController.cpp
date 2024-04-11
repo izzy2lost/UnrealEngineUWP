@@ -1454,8 +1454,15 @@ void FIKRetargetEditorController::RenderSkeleton(FPrimitiveDrawInterface* PDI, E
 	// generate bone colors, blue on selected chains
 	TArray<FLinearColor> BoneColors;
 	{
-		// set all to default color
-		BoneColors.Init(DefaultColor, RefSkeleton.GetNum());
+		// set default colors
+		if (MeshComponent->bShowBoneColors)
+		{
+			SkeletalDebugRendering::FillWithMultiColors(BoneColors, RefSkeleton.GetNum());
+		}
+		else
+		{
+			BoneColors.Init(DefaultColor, RefSkeleton.GetNum());
+		}
 
 		// highlight selected chains in blue
 		const TArray<FName>& SelectedChainNames = GetSelectedChains();
