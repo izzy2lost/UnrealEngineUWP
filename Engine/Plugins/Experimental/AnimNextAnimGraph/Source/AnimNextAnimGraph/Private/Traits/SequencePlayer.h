@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "TraitCore/Trait.h"
 #include "TraitInterfaces/IEvaluate.h"
+#include "TraitInterfaces/IGarbageCollection.h"
 #include "TraitInterfaces/ITimeline.h"
 #include "TraitInterfaces/IUpdate.h"
 #include "Animation/AnimSequence.h"
@@ -17,7 +18,7 @@ struct FAnimNextSequencePlayerTraitSharedData : public FAnimNextTraitSharedData
 	GENERATED_BODY()
 
 	/** The sequence to play. */
-	UPROPERTY(EditAnywhere, Category = "Default", meta = (Inline))
+	UPROPERTY(EditAnywhere, Category = "Default")
 	TObjectPtr<UAnimSequence> AnimSequence;
 
 	/** The play rate multiplier at which this sequence plays. */
@@ -34,6 +35,7 @@ struct FAnimNextSequencePlayerTraitSharedData : public FAnimNextTraitSharedData
 
 	// Latent pin support boilerplate
 	#define TRAIT_LATENT_PROPERTIES_ENUMERATOR(GeneratorMacro) \
+		GeneratorMacro(AnimSequence) \
 		GeneratorMacro(PlayRate) \
 		GeneratorMacro(StartPosition) \
 		GeneratorMacro(bLoop) \
@@ -49,7 +51,7 @@ namespace UE::AnimNext
 	 * 
 	 * A trait that can play an animation sequence.
 	 */
-	struct FSequencePlayerTrait : FBaseTrait, IEvaluate, ITimeline, IUpdate
+	struct FSequencePlayerTrait : FBaseTrait, IEvaluate, ITimeline, IUpdate, IGarbageCollection
 	{
 		DECLARE_ANIM_TRAIT(FSequencePlayerTrait, 0x7a0dc157, FBaseTrait)
 
@@ -57,9 +59,13 @@ namespace UE::AnimNext
 
 		struct FInstanceData : FTrait::FInstanceData
 		{
+			// Cached value of the anim sequence we are playing
+			TObjectPtr<UAnimSequence> AnimSequence;
+
 			float InternalTimeAccumulator = 0.0f;
 
 			void Construct(const FExecutionContext& Context, const FTraitBinding& Binding);
+			void Destruct(const FExecutionContext& Context, const FTraitBinding& Binding);
 		};
 
 		// IEvaluate impl
@@ -72,5 +78,8 @@ namespace UE::AnimNext
 
 		// IUpdate impl
 		virtual void PreUpdate(FUpdateTraversalContext& Context, const TTraitBinding<IUpdate>& Binding, const FTraitUpdateState& TraitState) const override;
+
+		// IGarbageCollection impl
+		virtual void AddReferencedObjects(const FExecutionContext& Context, const TTraitBinding<IGarbageCollection>& Binding, FReferenceCollector& Collector) const override;
 	};
 }

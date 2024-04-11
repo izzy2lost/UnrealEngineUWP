@@ -233,6 +233,8 @@ namespace UE::AnimNext
 
 	void FSubGraphHostTrait::AddReferencedObjects(const FExecutionContext& Context, const TTraitBinding<IGarbageCollection>& Binding, FReferenceCollector& Collector) const
 	{
+		IGarbageCollection::AddReferencedObjects(Context, Binding, Collector);
+
 		FInstanceData* InstanceData = Binding.GetInstanceData<FInstanceData>();
 
 		for (FSubGraphSlot& SubGraphEntry : InstanceData->SubGraphSlots)

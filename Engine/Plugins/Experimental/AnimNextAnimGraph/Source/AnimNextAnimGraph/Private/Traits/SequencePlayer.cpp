@@ -15,18 +15,35 @@ namespace UE::AnimNext
 		GeneratorMacro(IEvaluate) \
 		GeneratorMacro(ITimeline) \
 		GeneratorMacro(IUpdate) \
+		GeneratorMacro(IGarbageCollection) \
 
 	GENERATE_ANIM_TRAIT_IMPLEMENTATION(FSequencePlayerTrait, TRAIT_INTERFACE_ENUMERATOR, NULL_ANIM_TRAIT_EVENT_ENUMERATOR)
 	#undef TRAIT_INTERFACE_ENUMERATOR
 
 	void FSequencePlayerTrait::FInstanceData::Construct(const FExecutionContext& Context, const FTraitBinding& Binding)
 	{
+		FTrait::FInstanceData::Construct(Context, Binding);
+
+		IGarbageCollection::RegisterWithGC(Context, Binding);
+
 		const FSharedData* SharedData = Binding.GetSharedData<FSharedData>();
-		if (SharedData->AnimSequence != nullptr)
+		FInstanceData* InstanceData = Binding.GetInstanceData<FInstanceData>();
+
+		// Cache the anim sequence we'll play during construction, we don't allow it to change afterwards
+		InstanceData->AnimSequence = SharedData->GetAnimSequence(Binding);
+
+		if (InstanceData->AnimSequence)
 		{
-			const float SequenceLength = SharedData->AnimSequence->GetPlayLength();
+			const float SequenceLength = InstanceData->AnimSequence->GetPlayLength();
 			InternalTimeAccumulator = FMath::Clamp(SharedData->GetStartPosition(Binding), 0.0f, SequenceLength);
 		}
+	}
+
+	void FSequencePlayerTrait::FInstanceData::Destruct(const FExecutionContext& Context, const FTraitBinding& Binding)
+	{
+		FTrait::FInstanceData::Destruct(Context, Binding);
+
+		IGarbageCollection::UnregisterWithGC(Context, Binding);
 	}
 
 	void FSequencePlayerTrait::PreEvaluate(FEvaluateTraversalContext& Context, const TTraitBinding<IEvaluate>& Binding) const
@@ -36,7 +53,7 @@ namespace UE::AnimNext
 		const FInstanceData* InstanceData = Binding.GetInstanceData<FInstanceData>();
 		const bool bInterpolate = true;
 
-		FAnimNextAnimSequenceKeyframeTask Task = FAnimNextAnimSequenceKeyframeTask::MakeFromSampleTime(SharedData->AnimSequence, InstanceData->InternalTimeAccumulator, bInterpolate);
+		FAnimNextAnimSequenceKeyframeTask Task = FAnimNextAnimSequenceKeyframeTask::MakeFromSampleTime(InstanceData->AnimSequence, InstanceData->InternalTimeAccumulator, bInterpolate);
 		Task.bExtractTrajectory = true;	/*Output.AnimInstanceProxy->ShouldExtractRootMotion()*/
 
 		Context.AppendTask(Task);
@@ -50,10 +67,11 @@ namespace UE::AnimNext
 
 	float FSequencePlayerTrait::AdvanceBy(const FExecutionContext& Context, const TTraitBinding<ITimeline>& Binding, float DeltaTime) const
 	{
-		const FSharedData* SharedData = Binding.GetSharedData<FSharedData>();
-		if (UAnimSequence* AnimSeq = SharedData->AnimSequence.Get())
+		FInstanceData* InstanceData = Binding.GetInstanceData<FInstanceData>();
+
+		if (UAnimSequence* AnimSeq = InstanceData->AnimSequence.Get())
 		{
-			FInstanceData* InstanceData = Binding.GetInstanceData<FInstanceData>();
+			const FSharedData* SharedData = Binding.GetSharedData<FSharedData>();
 
 			TTraitBinding<ITimeline> TimelineTrait;
 			Binding.GetStackInterface(TimelineTrait);
@@ -72,11 +90,10 @@ namespace UE::AnimNext
 
 	void FSequencePlayerTrait::AdvanceToRatio(const FExecutionContext& Context, const TTraitBinding<ITimeline>& Binding, float ProgressRatio) const
 	{
-		const FSharedData* SharedData = Binding.GetSharedData<FSharedData>();
-		if (UAnimSequence* AnimSeq = SharedData->AnimSequence.Get())
-		{
-			FInstanceData* InstanceData = Binding.GetInstanceData<FInstanceData>();
+		FInstanceData* InstanceData = Binding.GetInstanceData<FInstanceData>();
 
+		if (UAnimSequence* AnimSeq = InstanceData->AnimSequence.Get())
+		{
 			const float SequenceLength = AnimSeq->GetPlayLength();
 
 			InstanceData->InternalTimeAccumulator = FMath::Clamp(ProgressRatio, 0.0f, 1.0f) * SequenceLength;
@@ -90,5 +107,14 @@ namespace UE::AnimNext
 		Binding.GetStackInterface(TimelineTrait);
 
 		TimelineTrait.AdvanceBy(Context, TraitState.GetDeltaTime());
+	}
+
+	void FSequencePlayerTrait::AddReferencedObjects(const FExecutionContext& Context, const TTraitBinding<IGarbageCollection>& Binding, FReferenceCollector& Collector) const
+	{
+		IGarbageCollection::AddReferencedObjects(Context, Binding, Collector);
+
+		FInstanceData* InstanceData = Binding.GetInstanceData<FInstanceData>();
+
+		Collector.AddReferencedObject(InstanceData->AnimSequence);
 	}
 }
