@@ -27,7 +27,7 @@ namespace uba
 		const u8* cryptoKey128 = nullptr;
 	};
 
-	class NetworkClient final : public WorkManagerImpl
+	class NetworkClient : public WorkManagerImpl
 	{
 	public:
 		NetworkClient(bool& outCtorSuccess, const NetworkClientCreateInfo& info = {}, const tchar* name = TC("UbaClient"));

@@ -54,7 +54,7 @@ namespace uba
 
 		void PrintSummary(Logger& logger); // Print summary stats of session
 		void RefreshDirectory(const tchar* dirName); // Tell uba a directory on disk has been changed by some other system while session is running
-		void RegisterNewFile(const tchar* filePath); // Tell uba a new file on disk has been added by some other system while session is running
+		bool RegisterNewFile(const tchar* filePath); // Tell uba a new file on disk has been added by some other system while session is running
 		void RegisterDeleteFile(const tchar* filePath); // Tell uba a file on disk has been deleted by some other system while session is running
 
 		using CustomServiceFunction = Function<u32(Process& handle, const void* recv, u32 recvSize, void* send, u32 sendCapacity)>;
@@ -63,12 +63,14 @@ namespace uba
 		using GetNextProcessFunction = Function<bool(Process& handle, NextProcessInfo& outNextProcess, u32 prevExitCode)>;
 		void RegisterGetNextProcess(GetNextProcessFunction&& function); // Register a custom service (that can be communicated with from the remote agents)
 
-		const tchar* GetId();			// Id for session. Will be "yymmdd_hhmmss" unless SessionCreateInfo.useUniqueId is set to false
-		u32 GetActiveProcessCount();	// Current active processes running inside session
-		Storage& GetStorage();		// Storage (only used when remote machines are connected)
-		Logger& GetLogger();			// Logger used for logging 
-		LogWriter& GetLogWriter();		// LogWriter used by logger
+		const tchar* GetId(); // Id for session. Will be "yymmdd_hhmmss" unless SessionCreateInfo.useUniqueId is set to false
+		u32 GetActiveProcessCount(); // Current active processes running inside session
+		Storage& GetStorage(); // Storage (only used when remote machines are connected)
+		Logger& GetLogger(); // Logger used for logging 
+		LogWriter& GetLogWriter(); // LogWriter used by logger
 		const ApplicationRules* GetRules(const ProcessStartInfo& si); // Get application rules used for process
+		const tchar* GetTempPath(); // Path for temp files used for current session
+		bool ShouldStoreObjFilesCompressed() { return m_storeObjFilesCompressed; }
 
 		virtual ~Session();
 

@@ -868,7 +868,7 @@ namespace uba
 						auto& process = *(RemoteProcess*)h.m_process;
 						if (process.startInfo.trackInputs)
 						{
-							u64 bytes = GetStringWriteSize(destination.data);
+							u64 bytes = GetStringWriteSize(destination.data, destination.count);
 							u64 prevSize = process.m_trackedOutputs.size();
 							process.m_trackedOutputs.resize(prevSize + bytes);
 							BinaryWriter w2(process.m_trackedOutputs.data(), prevSize, prevSize + bytes);
@@ -1067,7 +1067,7 @@ namespace uba
 			}
 			case SessionMessageType_ProcessInputs:
 			{
-				u32 processId = reader.ReadU32();
+				u32 processId = u32(reader.Read7BitEncoded());
 				SCOPED_WRITE_LOCK(m_processesLock, lock);
 				auto findIt = m_processes.find(processId);
 				if (findIt == m_processes.end())
@@ -1075,9 +1075,13 @@ namespace uba
 				ProcessHandle h(findIt->second);
 				lock.Leave();
 				auto& process = *(RemoteProcess*)h.m_process;
-				u64 size = reader.GetLeft();
-				process.m_trackedInputs.resize(size);
-				reader.ReadBytes(process.m_trackedInputs.data(), size);
+				auto& inputs = process.m_trackedInputs;
+				u64 size = inputs.size();
+				if (u64 addCapacity = reader.Read7BitEncoded())
+					inputs.reserve(size + addCapacity);
+				u64 toRead = reader.GetLeft();
+				inputs.resize(size + toRead);
+				reader.ReadBytes(inputs.data() + size, toRead);
 				return true;
 			}
 			case SessionMessageType_ProcessFinished:

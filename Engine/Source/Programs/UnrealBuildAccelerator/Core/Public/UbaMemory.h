@@ -101,6 +101,7 @@ namespace uba
 		void* AllocateNoLock(u64 bytes, u64 alignment, const tchar* hint);
 		void Free(void* p);
 		tchar* Strdup(const tchar* str);
+		void Swap(MemoryBlock& other);
 		
 
 		ReaderWriterLock lock;

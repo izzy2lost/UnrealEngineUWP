@@ -25,6 +25,7 @@ namespace uba
 	{
 		ProcessExecutionType_Native,
 		ProcessExecutionType_Detoured,
+		ProcessExecutionType_FromCache,
 	};
 
 	class ProcessHandle
@@ -38,6 +39,7 @@ namespace uba
 		bool WaitForExit(u32 millisecondsTimeout) const;	// Wait for process until it exists or time reach timeout
 		const Vector<ProcessLogLine>& GetLogLines() const;	// Log lines produced by the process
 		const Vector<u8>& GetTrackedInputs() const;			// If ProcessStartInfo.trackInputs was true, this will return a buffer to wchar/char strings 
+		const Vector<u8>& GetTrackedOutputs() const;		// If ProcessStartInfo.trackInputs was true, this will return a buffer to wchar/char strings 
 		u64 GetTotalProcessorTime() const;					// Total used cpu time (in time units. Use TimeToMs etc)
 		u64 GetTotalWallTime() const;						// Total wall time (in time units. Use TimeToMs etc)
 		void Cancel(bool terminate) const;					// Request to cancel process. Set terminate to true to quickly kill process

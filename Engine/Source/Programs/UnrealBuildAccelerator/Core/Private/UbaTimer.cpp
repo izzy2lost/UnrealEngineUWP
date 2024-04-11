@@ -66,7 +66,12 @@ namespace uba
 			u32 totalMin = totalSec / 60;
 			u32 min = totalMin % 60;
 			u32 sec = totalSec % 60;
-			if (u32 hour = totalMin / 60)
+			u32 hour = totalMin / 60;
+			u32 days = hour / 24;
+			hour -= days*24;
+			if (days)
+				TSprintf_s(str, 32, TC("%ud%uh%um"), (unsigned int)days, (unsigned int)hour, (unsigned int)min);
+			else if (hour)
 				TSprintf_s(str, 32, TC("%uh%um%us"), (unsigned int)hour, (unsigned int)min, (unsigned int)sec);
 			else
 				TSprintf_s(str, 32, TC("%um%us"), (unsigned int)min, (unsigned int)sec);

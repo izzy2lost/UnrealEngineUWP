@@ -872,7 +872,7 @@ namespace uba
 		StorageStats& stats = Stats();
 		TimerScope ts(stats.sendCas);
 
-		u64 firstMessageOverHead = (sizeof(CasKey) + sizeof(u64)*2 + GetStringWriteSize(hint));
+		u64 firstMessageOverHead = (sizeof(CasKey) + sizeof(u64)*2 + GetStringWriteSize(hint, TStrlen(hint)));
 
 		u64 messageHeader = client.GetMessageHeaderSize();
 		u64 messageHeaderMaxSize = messageHeader + firstMessageOverHead;

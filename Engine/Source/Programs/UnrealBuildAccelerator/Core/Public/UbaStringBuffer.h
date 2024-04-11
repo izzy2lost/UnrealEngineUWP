@@ -63,6 +63,10 @@ namespace uba
 		bool Parse(u16& out);
 		bool Parse(float& out);
 
+		#if PLATFORM_WINDOWS
+		u32 Parse(char* out, u64 outCapacity);
+		#endif
+
 		u32 count;
 		u32 capacity;
 		tchar data[1];

@@ -44,6 +44,7 @@ namespace uba
 
 #define UBA_WINDOWS_TESTS \
 		UBA_NONMAC_TESTS \
+		UBA_TEST(TestKnownSystemFiles) \
 		UBA_TEST(TestCustomService) \
 		UBA_TEST(TestStdOutLocal) \
 		UBA_TEST(TestStdOutViaCmd) \

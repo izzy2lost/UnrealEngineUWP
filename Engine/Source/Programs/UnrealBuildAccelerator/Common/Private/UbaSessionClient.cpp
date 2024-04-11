@@ -1231,13 +1231,26 @@ namespace uba
 
 	bool SessionClient::SendProcessInputs(ProcessImpl& process)
 	{
-		StackBinaryWriter<SendMaxSize> writer;
-		NetworkMessage msg(m_client, ServiceId, SessionMessageType_ProcessInputs, writer);
-		writer.WriteU32(process.m_id);
 		auto inputs = process.GetTrackedInputs();
-		writer.WriteBytes(inputs.data(), inputs.size());
-		StackBinaryReader<32> reader;
-		return msg.Send(reader);
+		u32 left = u32(inputs.size());
+		u32 capacityToAdd = left;
+		u8* readPos = inputs.data();
+		while (left)
+		{
+			StackBinaryWriter<SendMaxSize> writer;
+			NetworkMessage msg(m_client, ServiceId, SessionMessageType_ProcessInputs, writer);
+			writer.Write7BitEncoded(process.m_id);
+			writer.Write7BitEncoded(capacityToAdd);
+			capacityToAdd = 0;
+			u32 toWrite = Min(left, u32(writer.GetCapacityLeft()));
+			writer.WriteBytes(readPos, toWrite);
+			StackBinaryReader<32> reader;
+			if (!msg.Send(reader))
+				return false;
+			readPos += toWrite;
+			left -= toWrite;
+		}
+		return true;
 	}
 
 	bool SessionClient::SendProcessFinished(ProcessImpl& process, u32 exitCode)

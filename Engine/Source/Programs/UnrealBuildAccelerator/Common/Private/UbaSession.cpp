@@ -138,6 +138,11 @@ namespace uba
 		UBA_ASSERT(m_process);
 		return m_process->GetTrackedInputs();
 	}
+	const Vector<u8>& ProcessHandle::GetTrackedOutputs() const
+	{
+		UBA_ASSERT(m_process);
+		return m_process->GetTrackedOutputs();
+	}
 	u64 ProcessHandle::GetTotalProcessorTime() const
 	{
 		UBA_ASSERT(m_process);
@@ -1276,12 +1281,12 @@ namespace uba
 		return ToStringKey(hasher, baseFileNameForHash.data, baseFileNameForHash.count);
 	}
 
-	void Session::RegisterNewFile(const tchar* filePath)
+	bool Session::RegisterNewFile(const tchar* filePath)
 	{
 		UBA_ASSERT(!m_runningRemote);
 		StringBuffer<> fixedFilePath;
 		auto key = GetKeyAndFixedName(fixedFilePath, filePath);
-		RegisterCreateFileForWrite(key, fixedFilePath.data, fixedFilePath.count, true);
+		return RegisterCreateFileForWrite(key, fixedFilePath.data, fixedFilePath.count, true);
 	}
 
 	void Session::RegisterDeleteFile(const tchar* filePath)
@@ -1371,6 +1376,11 @@ namespace uba
 			exeName.Clear().Append(si.arguments + firstArgumentStart, firstArgumentEnd - firstArgumentStart);
 		}
 		return GetApplicationRules()[0].rules;
+	}
+
+	const tchar* Session::GetTempPath()
+	{
+		return m_tempPath.data;
 	}
 
 	void Session::ProcessAdded(Process& process, u32 sessionId)
@@ -2012,7 +2022,7 @@ namespace uba
 
 	bool Session::GetFullFileName(GetFullFileNameResponse& out, const GetFullFileNameMessage& msg)
 	{
-		UBA_ASSERTF(false, TC("SHOULD NOT HAPPEN (only remote)"));
+		UBA_ASSERTF(false, TC("SHOULD NOT HAPPEN (only remote).. %s"), msg.fileName.data);
 		return SearchPathForFile(m_logger, out.fileName, msg.fileName.data, msg.process.m_virtualApplicationDir.c_str());
 	}
 

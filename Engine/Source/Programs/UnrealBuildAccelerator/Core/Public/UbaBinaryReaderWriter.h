@@ -16,7 +16,7 @@ namespace uba
 		inline void WriteU32(u32 value);
 		inline void WriteU64(u64 value);
 		inline void WriteString(const tchar* str);
-		inline void WriteString(const tchar* str, u64 strLen);
+		inline void WriteString(const tchar* str, u64 len);
 		inline void WriteString(const StringBufferBase& str);
 		inline void WriteStringf(const tchar* format, ...);
 		inline void WriteString(const TString& str);
@@ -25,6 +25,10 @@ namespace uba
 		inline void WriteCasKey(const CasKey& casKey);
 		inline void Write7BitEncoded(u64 value);
 		inline void WriteBool(bool value) { WriteByte(value ? 1 : 0); }
+
+		template<typename CharType>
+		inline void WriteUtf8String(const CharType* str, u64 len);
+
 		inline u8* AllocWrite(u64 bytes);
 		inline u64 GetPosition() const { return u64(m_pos - m_begin); }
 		inline u64 GetCapacityLeft() const { return u64(m_end - m_pos); }
@@ -115,10 +119,11 @@ namespace uba
 		WriteString(str, u64(TStrlen(str)));
 	}
 
-	inline u64 GetWrittenBytes(const tchar* str, u64 strlen)
+	template<typename CharType>
+	inline u64 GetUtf8WrittenBytes(const CharType* str, u64 strlen)
 	{
 		u64 actualBytes = 0;
-		for (const tchar* i = str, *e = str + strlen; i != e; ++i)
+		for (const CharType* i = str, *e = str + strlen; i != e; ++i)
 		{
 			u16 c = u16(*i);
 			if (c < 128)
@@ -142,23 +147,24 @@ namespace uba
 		return count;
 	}
 
-	inline u64 GetStringWriteSize(const tchar* str)
+	inline u64 GetStringWriteSize(const tchar* str, u64 len)
 	{
-		u32 strLen = TStrlen(str);
-		u64 actualBytes = GetWrittenBytes(str, strLen);
-		return Get7BitEncodedCount(strLen) + actualBytes;
+		#if PLATFORM_WINDOWS
+		u64 actualBytes = GetUtf8WrittenBytes(str, len);
+		#else
+		u64 actualBytes = len;
+		#endif
+		return Get7BitEncodedCount(len) + actualBytes;
 	}
 
-	void BinaryWriter::WriteString(const tchar* str, u64 strLen)
+	template<typename CharType>
+	void BinaryWriter::WriteUtf8String(const CharType* str, u64 len)
 	{
 		UBA_ASSERT(str);
 
-		#if PLATFORM_WINDOWS
-		Write7BitEncoded(strLen);
+		UBA_ASSERT_WRITE(GetUtf8WrittenBytes(str, len));
 
-		UBA_ASSERT_WRITE(GetWrittenBytes(str, strLen));
-
-		for (const tchar* i = str, *e = str + strLen; i != e; ++i)
+		for (const CharType* i = str, *e = str + len; i != e; ++i)
 		{
 			int c = *i;
 			if (c < 128)
@@ -175,9 +181,19 @@ namespace uba
 				*m_pos++ = u8((c % 64) + 128);
 			}
 		}
+	}
+
+	void BinaryWriter::WriteString(const tchar* str, u64 len)
+	{
+		UBA_ASSERT(str);
+
+		Write7BitEncoded(len);
+
+		#if PLATFORM_WINDOWS
+		UBA_ASSERT_WRITE(GetUtf8WrittenBytes(str, len));
+		WriteUtf8String(str, len);
 		#else
-		Write7BitEncoded(strLen);
-		WriteBytes(str, strLen);
+		WriteBytes(str, len);
 		#endif
 	}
 

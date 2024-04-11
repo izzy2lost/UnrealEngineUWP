@@ -105,4 +105,21 @@ namespace uba
 		return (tchar*)mem;
 	}
 
+	void MemoryBlock::Swap(MemoryBlock& other)
+	{
+		u8* m = memory;
+		u64 rs = reserveSize;
+		u64 ws = writtenSize;
+		u64 ms = mappedSize;
+
+		memory = other.memory;
+		reserveSize = other.reserveSize;
+		writtenSize = other.writtenSize;
+		mappedSize = other.mappedSize;
+
+		other.memory = m;
+		other.reserveSize = rs;
+		other.writtenSize = ws;
+		other.mappedSize = ms;
+	}
 }

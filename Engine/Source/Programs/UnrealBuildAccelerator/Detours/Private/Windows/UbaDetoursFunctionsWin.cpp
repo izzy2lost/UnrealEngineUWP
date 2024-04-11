@@ -117,14 +117,41 @@ wchar_t* g_virtualCommandLine;
 constexpr u32 TrackInputsMemCapacity = 512 * 1024;
 u8* g_trackInputsMem;
 u32 g_trackInputsBufPos;
+
+void SendInput()
+{
+	u32 left = g_trackInputsBufPos;
+	u32 reserveSize = left;
+	u32 pos = 0;
+	while (left)
+	{
+		SCOPED_WRITE_LOCK(g_communicationLock, pcs);
+		BinaryWriter writer;
+		writer.WriteByte(MessageType_InputDependencies);
+		writer.Write7BitEncoded(reserveSize);
+		reserveSize = 0;
+		u32 toWrite = Min(left, u32(writer.GetCapacityLeft() - sizeof(u32)));
+		writer.WriteU32(toWrite);
+		writer.WriteBytes(g_trackInputsMem + pos, toWrite);
+		writer.Flush();
+		left -= toWrite;
+		pos += toWrite;
+	}
+	g_trackInputsBufPos = 0;
+}
+
+
 void TrackInput(const wchar_t* file)
 {
-	if (g_trackInputsMem)
-	{
-		BinaryWriter w(g_trackInputsMem, g_trackInputsBufPos, TrackInputsMemCapacity);
-		w.WriteString(file);
-		g_trackInputsBufPos = u32(w.GetPosition());
-	}
+	if (!g_trackInputsMem)
+		return;
+
+	if (g_trackInputsBufPos > TrackInputsMemCapacity - 2048)
+		SendInput();
+
+	BinaryWriter w(g_trackInputsMem, g_trackInputsBufPos, TrackInputsMemCapacity);
+	w.WriteString(file);
+	g_trackInputsBufPos = u32(w.GetPosition());
 }
 void SkipTrackInput(const wchar_t* file)
 {
@@ -465,24 +492,7 @@ void SendExitMessage(DWORD exitCode, u64 startTime)
 		Shared_WriteConsole(L"\n", 1, 0);
 
 	if (g_trackInputsMem)
-	{
-		u32 left = g_trackInputsBufPos;
-		u32 pos = 0;
-		while (left)
-		{
-			u32 toWrite = Min(left, u32(30 * 1024));
-			SCOPED_WRITE_LOCK(g_communicationLock, pcs);
-			BinaryWriter writer;
-			writer.WriteByte(MessageType_InputDependencies);
-			if (pos == 0)
-				writer.WriteU32(left);
-			writer.WriteU32(toWrite);
-			writer.WriteBytes(g_trackInputsMem + pos, toWrite);
-			writer.Flush();
-			left -= toWrite;
-			pos += toWrite;
-		}
-	}
+		SendInput();
 
 	g_stats.usedMemory = u32(g_memoryBlock.writtenSize);
 

@@ -682,7 +682,7 @@ NTSTATUS NTAPI Shared_NtCreateFile(bool IsCreateFunc, PHANDLE hFileHandle, ACCES
 
 		if (NT_ERROR(res))
 			return res;
-		if (!isSystemFile && !isWrite && !t_disallowDetour)
+		if (!isSystemOrTempFile && !isWrite && !t_disallowDetour && fileName[fileName.count-1] != ':')
 			TrackInput(fileName.data);
 		else
 			SkipTrackInput(fileName.data);

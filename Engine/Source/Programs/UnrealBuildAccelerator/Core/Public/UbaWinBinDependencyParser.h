@@ -14,75 +14,74 @@
 
 namespace uba
 {
-	inline bool IsKnownSystemFile(const tchar* applicationName)
+	// These dlls should _always_ exist on all machines so we can filter them out from the list of imports to copy
+	static const wchar_t* g_knownSystemFiles[] = // Sorted lowercase
 	{
-		// These dlls should _always_ exist on all machines so we can filter them out from the list of imports to copy
+		L"advapi32.dll",
+		L"bcrypt.dll",
+		L"bcryptprimitives.dll",
+		L"combase.dll",
+		L"concrt140.dll",
+		L"crypt32.dll",
+		L"cryptbase.dll",
+		L"dbghelp.dll",
+		L"dnsapi.dll",
+		L"dwmapi.dll",
+		L"dxgi.dll",
+		L"fwpuclnt.dll",
+		L"gdi32.dll",
+		L"gdi32full.dll",
+		L"glu32.dll",
+		L"imagehlp.dll",
+		L"imm32.dll",
+		L"iphlpapi.dll",
+		L"kernel32.dll",
+		L"kernelbase.dll",
+		L"msvcp_win.dll",
+		L"msvcrt.dll",
+		L"mswsock.dll",
+		L"ncrypt.dll",
+		L"netapi32.dll",
+		L"nsi.dll",
+		L"ntasn1.dll",
+		L"ntdll.dll",
+		L"ole32.dll",
+		L"oleaut32.dll",
+		L"ondemandconnroutehelper.dll",
+		L"opengl32.dll",
+		L"powrprof.dll",
+		L"psapi.dll",
+		L"rasadhlp.dll",
+		L"rpcrt4.dll",
+		L"rstrtmgr.dll",
+		L"sechost.dll",
+		L"setupapi.dll",
+		L"shell32.dll",
+		L"sspicli.dll",
+		L"ucrtbase.dll",
+		L"umpdc.dll",
+		L"umppc17706.dll",
+		L"user32.dll",
+		L"userenv.dll",
+		L"uxtheme.dll",
+		L"version.dll",
+		L"webio.dll",
+		L"win32u.dll",
+		L"winhttp.dll",
+		L"winmm.dll",
+		L"winnsi.dll",
+		L"ws2_32.dll",
+	};
 
-		static const wchar_t* knownSystemFiles[] = // Sorted lowercase
-		{
-			L"advapi32.dll",
-			L"bcrypt.dll",
-			L"bcryptprimitives.dll",
-			L"combase.dll",
-			L"concrt140.dll",
-			L"crypt32.dll",
-			L"cryptbase.dll",
-			L"dbghelp.dll",
-			L"dnsapi.dll",
-			L"dwmapi.dll",
-			L"dxgi.dll",
-			L"fwpuclnt.dll",
-			L"gdi32.dll",
-			L"gdi32full.dll",
-			L"glu32.dll",
-			L"imagehlp.dll",
-			L"imm32.dll",
-			L"iphlpapi.dll",
-			L"kernel32.dll",
-			L"kernelbase.dll",
-			L"msvcp_win.dll",
-			L"msvcrt.dll",
-			L"mswsock.dll",
-			L"ncrypt.dll",
-			L"netapi32.dll",
-			L"nsi.dll",
-			L"ntasn1.dll",
-			L"ntdll.dll",
-			L"ole32.dll",
-			L"oleaut32.dll",
-			L"ondemandconnroutehelper.dll",
-			L"opengl32.dll",
-			L"powrprof.dll",
-			L"psapi.dll",
-			L"rasadhlp.dll",
-			L"rpcrt4.dll",
-			L"rstrtmgr.dll",
-			L"sechost.dll",
-			L"setupapi.dll"
-			L"shell32.dll",
-			L"sspicli.dll",
-			L"ucrtbase.dll",
-			L"umpdc.dll",
-			L"umppc17706.dll",
-			L"user32.dll",
-			L"userenv.dll",
-			L"uxtheme.dll",
-			L"version.dll",
-			L"webio.dll",
-			L"win32u.dll",
-			L"winhttp.dll",
-			L"winmm.dll",
-			L"winnsi.dll",
-			L"ws2_32.dll",
-		};
-
+	inline bool IsKnownSystemFile(const tchar* fileName)
+	{
 		StringBuffer<> nameLower;
-		if (auto lastSeparator = TStrrchr(applicationName, PathSeparator))
+		if (auto lastSeparator = TStrrchr(fileName, PathSeparator))
 			nameLower.Append(lastSeparator + 1);
 		else
-			nameLower.Append(applicationName);
+			nameLower.Append(fileName);
 		nameLower.MakeLower();
-		return std::binary_search(knownSystemFiles, knownSystemFiles + sizeof_array(knownSystemFiles), nameLower.data, [](const wchar_t* a, const wchar_t* b) { return TStrcmp(a, b) < 0; });
+		return std::binary_search(g_knownSystemFiles, g_knownSystemFiles + sizeof_array(g_knownSystemFiles), nameLower.data, [](const wchar_t* a, const wchar_t* b) { return TStrcmp(a, b) < 0; });
 	}
 
 	inline DWORD GetOffset(DWORD rva, PIMAGE_SECTION_HEADER psh, PIMAGE_NT_HEADERS pnt)

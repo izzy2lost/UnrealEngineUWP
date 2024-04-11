@@ -504,7 +504,9 @@ namespace uba
 		u32 sendSize = u32(writer.GetPosition());
 		u8* data = writer.GetData();
 		data[1] = messageId >> 8;
-		*(u32*)(data + 2) = (sendSize - 6) | u32(messageId) << 24;
+		u32 dataSize = sendSize - 6;
+		UBA_ASSERTF(dataSize, TC("NetworkMessage must have data size of at least 1."));
+		*(u32*)(data + 2) = dataSize | u32(messageId) << 24;
 
 		//m_logger.Debug(TC("Send: %u, %u, %u, %u"), data[0], data[1], data[2], sendSize - 7);
 

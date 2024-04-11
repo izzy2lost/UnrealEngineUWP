@@ -899,11 +899,10 @@ namespace uba
 	bool ProcessImpl::HandleInputDependencies(BinaryReader& reader, BinaryWriter& writer)
 	{
 		UBA_ASSERT(m_startInfo.trackInputs);
-		if (m_trackedInputs.empty())
-		{
-			u32 trackedInputsSize = reader.ReadU32();
-			m_trackedInputs.reserve(trackedInputsSize);
-		}
+
+		if (u64 reserveSize = reader.Read7BitEncoded())
+			m_trackedInputs.reserve(m_trackedInputs.size() + reserveSize);
+
 		u32 toRead = reader.ReadU32();
 		u8* pos = m_trackedInputs.data() + m_trackedInputs.size();
 		m_trackedInputs.resize(m_trackedInputs.size() + toRead);
@@ -1083,7 +1082,7 @@ namespace uba
 		{
 			u64 totalBytes = 0;
 			for (auto& kv : m_writtenFiles)
-				totalBytes += GetStringWriteSize(kv.second.name.c_str());
+				totalBytes += GetStringWriteSize(kv.second.name.c_str(), kv.second.name.size());
 			m_trackedOutputs.resize(totalBytes);
 			BinaryWriter writer(m_trackedOutputs.data(), 0, totalBytes);
 			for (auto& kv : m_writtenFiles)

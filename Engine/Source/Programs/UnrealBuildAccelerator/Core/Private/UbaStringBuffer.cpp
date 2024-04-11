@@ -244,7 +244,7 @@ namespace uba
 	StringBufferBase& StringBufferBase::Append(const char* str, u32 charCount)
 	{
 		u32 capacityEnd = capacity - 1;
-		for (const char* i = str; *i && charCount; ++i, --charCount)
+		for (const char* i = str; charCount && *i; ++i, --charCount)
 			if (count < capacityEnd)
 				data[count++] = *i;
 		data[count] = 0;
@@ -360,4 +360,14 @@ namespace uba
 		#endif
 		return out != 0 || Equals(TC("0"));
 	}
+
+	#if PLATFORM_WINDOWS
+	u32 StringBufferBase::Parse(char* out, u64 outCapacity)
+	{
+		size_t destLen;
+		if (wcstombs_s(&destLen, out, outCapacity, data, outCapacity-1) != 0)
+			return 0;
+		return (u32)destLen;
+	}
+	#endif
 }

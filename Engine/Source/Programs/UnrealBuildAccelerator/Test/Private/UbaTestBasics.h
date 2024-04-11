@@ -16,6 +16,10 @@
 #include "UbaTimer.h"
 #include "UbaDirectoryIterator.h"
 
+#if PLATFORM_WINDOWS
+#include "UbaWinBinDependencyParser.h"
+#endif
+
 #define VA_ARGS(...) , ##__VA_ARGS__
 #define UBA_TEST_CHECK(expr, fmt, ...) if (!(expr)) return logger.Error(TC(fmt) VA_ARGS(__VA_ARGS__));
 
@@ -291,4 +295,16 @@ namespace uba
 
 		return true;
 	}
+
+	#if PLATFORM_WINDOWS
+	bool TestKnownSystemFiles(Logger& logger, const StringBufferBase& rootDir)
+	{
+		for (auto systemFile : g_knownSystemFiles)
+			if (!IsKnownSystemFile(systemFile))
+				return logger.Error(TC("IsKnownSystemFile returned false for %s which is a system file"), systemFile);
+		if (IsKnownSystemFile(TC("Fooo.dll")))
+			return logger.Error(TC("IsKnownSystemFile returned true for Fooo.dll which is not a system file"));
+		return true;
+	}
+	#endif
 }
