@@ -3,19 +3,21 @@
 
 #include "CoreMinimal.h"
 #include "LevelInstance/ILevelInstanceEditorModule.h"
+#include "UObject/GCObject.h"
 #include "PropertyEditorArchetypePolicy.h"
 #include "PropertyEditorEditConstPolicy.h"
 #include "Tools/Modes.h"
 
 class AActor;
 class ULevel;
+class IInputBehaviorSource;
 enum class EMapChangeType : uint8;
 class ILevelEditor;
 
 /**
  * The module holding all of the UI related pieces for LevelInstance management
  */
-class FLevelInstanceEditorModule : public ILevelInstanceEditorModule
+class FLevelInstanceEditorModule : public ILevelInstanceEditorModule, public FGCObject
 {
 public:
 	virtual ~FLevelInstanceEditorModule(){}
@@ -39,7 +41,10 @@ public:
 	virtual FTryExitEditorModeEvent& OnTryExitEditorMode() override { return TryExitEditorModeEvent; }
 
 	virtual bool IsEditInPlaceStreamingEnabled() const override;
+	virtual bool IsSubSelectionEnabled() const override;
 
+	virtual void AddReferencedObjects(FReferenceCollector& Collector) override;
+	virtual FString GetReferencerName() const override { return TEXT("LevelInstanceEditorModule"); }
 private:
 	virtual void UpdateEditorMode(bool bActivated) override;
 	
@@ -116,4 +121,6 @@ private:
 	
 	FExitEditorModeEvent ExitEditorModeEvent;
 	FTryExitEditorModeEvent TryExitEditorModeEvent;
+
+	TScriptInterface<IInputBehaviorSource> DefaultBehaviorSource;
 };

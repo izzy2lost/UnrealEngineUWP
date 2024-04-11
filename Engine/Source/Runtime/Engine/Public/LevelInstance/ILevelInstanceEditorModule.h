@@ -30,7 +30,7 @@ public:
 	virtual FTryExitEditorModeEvent& OnTryExitEditorMode() = 0;
 
 	virtual bool IsEditInPlaceStreamingEnabled() const = 0;
-
+	virtual bool IsSubSelectionEnabled() const = 0;
 protected:
 	friend class ULevelInstanceSubsystem;
 	friend class ULevelStreamingLevelInstanceEditorPropertyOverride;

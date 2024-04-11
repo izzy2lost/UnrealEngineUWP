@@ -1076,7 +1076,7 @@ public:
 	inline const FGuid& GetContentBundleGuid() const { return ContentBundleGuid; }
 
 	/** Returns true if actor location should be locked. */
-	virtual bool IsLockLocation() const { return bLockLocation; }
+	ENGINE_API virtual bool IsLockLocation() const;
 
 	/** Set the bLockLocation flag */
 	void SetLockLocation(bool bInLockLocation) { bLockLocation = bInLockLocation; }
@@ -3063,7 +3063,7 @@ public:
 	ENGINE_API virtual AActor* GetRootSelectionParent() const;
 
 	/** Returns true if actor can be selected as a sub selection of its root selection parent */
-	ENGINE_API virtual bool SupportsSubRootSelection() const { return false; }
+	ENGINE_API virtual bool SupportsSubRootSelection() const;
 
 	/** Returns if actor or selection parent is selected */
 	ENGINE_API bool IsActorOrSelectionParentSelected() const;

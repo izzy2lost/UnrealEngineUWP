@@ -48,6 +48,7 @@
 #include "WorldPartition/WorldPartitionActorLoaderInterface.h"
 #include "ScopedTransaction.h"
 #include "ISCSEditorUICustomization.h"
+#include "EdModeInteractiveToolsContext.h"
 
 IMPLEMENT_MODULE( FLevelInstanceEditorModule, LevelInstanceEditor );
 
@@ -1028,6 +1029,10 @@ void FLevelInstanceEditorModule::StartupModule()
 	if (!IsRunningCommandlet())
 	{
 		GLevelEditorModeTools().OnEditorModeIDChanged().AddRaw(this, &FLevelInstanceEditorModule::OnEditorModeIDChanged);
+	
+		// Create a Behavior source for the default EdModeTools (when we aren't in the LevelInstanceEditorMode)
+		DefaultBehaviorSource = ULevelInstanceEditorMode::CreateDefaultModeBehaviorSource(GLevelEditorModeTools().GetInteractiveToolsContext());
+		GLevelEditorModeTools().GetInteractiveToolsContext()->InputRouter->RegisterSource(DefaultBehaviorSource.GetInterface());
 	}
 
 	ULevelInstanceSubsystem::RegisterPrimitiveColorHandler();
@@ -1057,6 +1062,8 @@ void FLevelInstanceEditorModule::ShutdownModule()
 	if (!IsRunningCommandlet() && GLevelEditorModeToolsIsValid())
 	{
 		GLevelEditorModeTools().OnEditorModeIDChanged().RemoveAll(this);
+		GLevelEditorModeTools().GetInteractiveToolsContext()->InputRouter->DeregisterSource(DefaultBehaviorSource.GetInterface());
+		DefaultBehaviorSource = nullptr;
 	}
 }
 
@@ -1252,6 +1259,16 @@ void FLevelInstanceEditorModule::ExtendContextMenu()
 bool FLevelInstanceEditorModule::IsEditInPlaceStreamingEnabled() const
 {
 	return GetDefault<ULevelInstanceEditorSettings>()->bIsEditInPlaceStreamingEnabled;
+}
+
+bool FLevelInstanceEditorModule::IsSubSelectionEnabled() const
+{
+	return GetDefault<ULevelInstanceEditorPerProjectUserSettings>()->bIsSubSelectionEnabled;
+}
+
+void FLevelInstanceEditorModule::AddReferencedObjects(FReferenceCollector& Collector)
+{
+	DefaultBehaviorSource.AddReferencedObjects(Collector);
 }
 
 #undef LOCTEXT_NAMESPACE

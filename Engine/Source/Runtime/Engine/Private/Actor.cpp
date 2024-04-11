@@ -5206,6 +5206,18 @@ AActor* AActor::GetSelectionParent() const
 	return nullptr;
 }
 
+bool AActor::SupportsSubRootSelection() const
+{
+#if WITH_EDITOR
+	if (IsInLevelInstance())
+	{
+		return UWorld::GetSubsystem<ULevelInstanceSubsystem>(GetWorld())->IsSubSelectionEnabled();
+	}
+#endif
+
+	return false;
+}
+
 AActor* AActor::GetRootSelectionParent() const
 {
 	AActor* Parent = GetSelectionParent();

@@ -35,7 +35,11 @@ public class LevelInstanceEditor : ModuleRules
 				"SceneOutliner",
 				"WorldPartitionEditor",
 				"Kismet",
-				"PropertyEditor"
+				"PropertyEditor",
+				"InteractiveToolsFramework",
+				"EditorInteractiveToolsFramework",
+				"TypedElementFramework",
+				"TypedElementRuntime"
 			}
 		);
 

@@ -1140,6 +1140,16 @@ void AActor::SetPackageExternal(bool bExternal, bool bShouldDirty, UPackage* Act
 	MarkPackageDirty();
 }
 
+bool AActor::IsLockLocation() const
+{
+	if (IsInLevelInstance() && !IsInAnyEditLevelInstance())
+	{
+		return true;
+	}
+
+	return bLockLocation;
+}
+
 void AActor::OnPlayFromHere()
 {
 	check(bCanPlayFromHere);

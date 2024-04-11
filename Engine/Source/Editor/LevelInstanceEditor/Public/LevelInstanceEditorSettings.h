@@ -52,6 +52,14 @@ public:
 	UPROPERTY(config, EditAnywhere, Category = Pivot)
 	ELevelInstancePivotType PivotType;
 
+	/** If true, allows read only selection of actors inside a Level Instance */
+	UPROPERTY(config, EditAnywhere, Category = "Selection", meta = (ToolTip = "Allow Read Only Selection of Level Instance Level Actors"))
+	bool bIsSubSelectionEnabled;
+
+	/** If true, allows read only selection of actors inside a Level Instance through the viewport */
+	UPROPERTY(config, EditAnywhere, Category = "Selection", meta = (DisplayName = "Is Viewport Sub Selection Enabled (Shift + Mouse Scroll Up/Down)", ToolTip = "Allow Read Only Selection of Level Instance Level Actors in the Viewport (Shortcut: Shift + Mouse Scroll Up/Down)"))
+	bool bIsViewportSubSelectionEnabled;
+
 	/**
 	 * When the Level Instance is broken via "Level->Break..", its actors will be placed inside the folder the LI is
 	 * inside of, under a subfolder with the name of the Level Instance, and also keeping their original folder structure.

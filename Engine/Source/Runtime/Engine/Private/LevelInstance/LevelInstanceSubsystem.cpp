@@ -2294,6 +2294,12 @@ bool ULevelInstanceSubsystem::CanEditLevelInstance(const ILevelInstanceInterface
 	return true;
 }
 
+bool ULevelInstanceSubsystem::IsSubSelectionEnabled() const
+{
+	ILevelInstanceEditorModule& EditorModule = FModuleManager::GetModuleChecked<ILevelInstanceEditorModule>("LevelInstanceEditor");
+	return EditorModule.IsSubSelectionEnabled();
+}
+
 bool ULevelInstanceSubsystem::CanEditLevelInstancePropertyOverrides(const ILevelInstanceInterface* LevelInstance, FText* OutReason) const
 {
 	if (!CanEditLevelInstanceCommon(LevelInstance, OutReason))
