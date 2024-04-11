@@ -1059,10 +1059,7 @@ void UObjectReplicationBridge::PreUpdate(const UE::Net::FNetBitArrayView Objects
 {
 	using namespace UE::Net::Private;
 
-#if UE_NET_IRIS_CSV_STATS
-	CSV_SCOPED_TIMING_STAT(Iris, ReplicationBridge_PreUpdate);
-#endif
-	IRIS_PROFILER_SCOPE(UObjectReplicationBridge_PreUpdate);
+	IRIS_CSV_PROFILER_SCOPE(Iris, ReplicationBridge_PreUpdate);
 
 	// TODO: Get rid of Poller
 	FObjectPoller::FInitParams PollerInitParams;
@@ -1080,10 +1077,7 @@ void UObjectReplicationBridge::PollAndCopy(const UE::Net::FNetBitArrayView Objec
 {
 	using namespace UE::Net::Private;
 
-#if UE_NET_IRIS_CSV_STATS
-	CSV_SCOPED_TIMING_STAT(Iris, ReplicationBridge_PollAndCopy);
-#endif
-	IRIS_PROFILER_SCOPE(UObjectReplicationBridge_PollAndCopy);
+	IRIS_CSV_PROFILER_SCOPE(Iris, ReplicationBridge_PollAndCopy);
 
 	FObjectPoller::FInitParams PollerInitParams;
 	PollerInitParams.ObjectReplicationBridge = this;

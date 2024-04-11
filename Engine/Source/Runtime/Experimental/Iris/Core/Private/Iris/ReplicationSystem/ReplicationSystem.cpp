@@ -314,7 +314,7 @@ public:
 
 	void UpdateWorldLocations()
 	{
-		IRIS_PROFILER_SCOPE(FReplicationSystem_UpdateWorldLocations);
+		IRIS_CSV_PROFILER_SCOPE(Iris, ReplicationSystem_UpdateWorldLocations);
 
 		// Reset dirty object info before updating.
 		FWorldLocations& WorldLocations = ReplicationSystemInternal.GetWorldLocations();
@@ -325,7 +325,7 @@ public:
 
 	void UpdateFilterPrePoll()
 	{
-		IRIS_PROFILER_SCOPE(FReplicationSystem_UpdateFilterPrePoll);
+		IRIS_CSV_PROFILER_SCOPE(Iris, ReplicationSystem_UpdateFilterPrePoll);
 		LLM_SCOPE_BYTAG(Iris);
 
 		FReplicationFiltering& Filtering = ReplicationSystemInternal.GetFiltering();
@@ -339,12 +339,12 @@ public:
 		FReplicationFiltering& Filtering = ReplicationSystemInternal.GetFiltering();
 
 		{
-			IRIS_PROFILER_SCOPE(FReplicationSystem_UpdateFilterPostPoll);
+			IRIS_CSV_PROFILER_SCOPE(Iris, ReplicationSystem_UpdateFilterPostPoll);
 			Filtering.FilterPostPoll();
 		}
 
 		{
-			IRIS_PROFILER_SCOPE(FReplicationSystem_UpdateConnectionsScope);
+			IRIS_CSV_PROFILER_SCOPE(Iris, ReplicationSystem_UpdateConnectionsScope);
 		
 			// Iterate over all valid connections and propagate updated scopes
 			FReplicationConnections& Connections = ReplicationSystemInternal.GetConnections();
@@ -364,7 +364,7 @@ public:
 	// Can run at any time between scoping and replication.
 	void UpdateConditionals()
 	{
-		IRIS_PROFILER_SCOPE(FReplicationSystem_UpdateConditionals);
+		IRIS_CSV_PROFILER_SCOPE(Iris, ReplicationSystem_UpdateConditionals);
 
 		FReplicationConditionals& Conditionals = ReplicationSystemInternal.GetConditionals();
 		Conditionals.Update();
@@ -373,10 +373,7 @@ public:
 	// Runs after filtering
 	void UpdatePrioritization(const FNetBitArrayView& ReplicatingConnections)
 	{
-#if UE_NET_IRIS_CSV_STATS
-		CSV_SCOPED_TIMING_STAT(Iris, ReplicationSystem_UpdatePrioritization);
-#endif
-		IRIS_PROFILER_SCOPE(FReplicationSystem::FImpl::UpdatePrioritization);
+		IRIS_CSV_PROFILER_SCOPE(Iris, ReplicationSystem_UpdatePrioritization);
 		LLM_SCOPE_BYTAG(Iris);
 
 		const FNetBitArrayView RelevantObjects = ReplicationSystemInternal.GetNetRefHandleManager().GetRelevantObjectsInternalIndices();
@@ -394,7 +391,7 @@ public:
 
 	void PropagateDirtyChanges()
 	{
-		IRIS_PROFILER_SCOPE(FReplicationSystem_PropagateDirtyChanges);
+		IRIS_CSV_PROFILER_SCOPE(Iris, ReplicationSystem_PropagateDirtyChanges);
 
 		FReplicationConnections& Connections = ReplicationSystemInternal.GetConnections();
 		const FChangeMaskCache& UpdatedChangeMasks = ReplicationSystemInternal.GetChangeMaskCache();
@@ -411,7 +408,7 @@ public:
 
 	void QuantizeDirtyStateData()
 	{
-		IRIS_PROFILER_SCOPE(FReplicationSystem_QuantizeDirtyStateData);
+		IRIS_CSV_PROFILER_SCOPE(Iris, ReplicationSystem_QuantizeDirtyStateData);
 		LLM_SCOPE_BYTAG(IrisState);
 
 		FNetRefHandleManager& NetRefHandleManager = ReplicationSystemInternal.GetNetRefHandleManager();
@@ -451,7 +448,7 @@ public:
 
 	void ResetObjectStateDirtiness()
 	{
-		IRIS_PROFILER_SCOPE(FReplicationSystem_ResetObjectStateDirtiness);
+		IRIS_CSV_PROFILER_SCOPE(Iris, ReplicationSystem_ResetObjectStateDirtiness);
 
 		FNetRefHandleManager& NetRefHandleManager = ReplicationSystemInternal.GetNetRefHandleManager();
 
@@ -469,7 +466,7 @@ public:
 
 	void ProcessNetObjectAttachmentSendQueue(FNetBlobManager::EProcessMode ProcessMode)
 	{
-		IRIS_PROFILER_SCOPE(FReplicationSystem_ProcessNetObjectAttachmentSendQueue);
+		IRIS_CSV_PROFILER_SCOPE(Iris, ReplicationSystem_ProcessNetObjectAttachmentSendQueue);
 
 		FNetBlobManager& NetBlobManager = ReplicationSystemInternal.GetNetBlobManager();
 		NetBlobManager.ProcessNetObjectAttachmentSendQueue(ProcessMode);
@@ -477,7 +474,7 @@ public:
 
 	void ProcessOOBNetObjectAttachmentSendQueue()
 	{
-		IRIS_PROFILER_SCOPE(FReplicationSystem_ProcessOOBNetObjectAttachmentSendQueue);
+		IRIS_CSV_PROFILER_SCOPE(Iris, ReplicationSystem_ProcessOOBNetObjectAttachmentSendQueue);
 
 		FNetBlobManager& NetBlobManager = ReplicationSystemInternal.GetNetBlobManager();
 		NetBlobManager.ProcessOOBNetObjectAttachmentSendQueue(ConnectionsPendingPostTickDispatchSend);
@@ -576,6 +573,8 @@ public:
 
 	void UpdateUnresolvableReferenceTracking()
 	{
+		IRIS_CSV_PROFILER_SCOPE(Iris, ReplicationSystem_UpdateUnresolvableReferenceTracking);
+
 		FReplicationConnections& Connections = ReplicationSystemInternal.GetConnections();
 		auto UpdateUnresolvableReferenceTracking = [&Connections](uint32 ConnectionId)
 		{
@@ -649,7 +648,7 @@ void UReplicationSystem::PreSendUpdate(const FSendUpdateParams& Params)
 	using namespace UE::Net;
 	using namespace UE::Net::Private;
 
-	IRIS_PROFILER_SCOPE(FReplicationSystem_PreSendUpdate);
+	IRIS_CSV_PROFILER_SCOPE(Iris, ReplicationSystem_PreSendUpdate);
 
 	ensureAlways(Impl->CurrentSendPass == EReplicationSystemSendPass::Invalid);
 	Impl->CurrentSendPass = Params.SendPass;
@@ -789,7 +788,7 @@ void UReplicationSystem::PostSendUpdate()
 	using namespace UE::Net;
 	using namespace UE::Net::Private;
 
-	IRIS_PROFILER_SCOPE(FReplicationSystem_PostSendUpdate);
+	IRIS_CSV_PROFILER_SCOPE(Iris, ReplicationSystem_PostSendUpdate);
 
 	if (!ensure(Impl->CurrentSendPass != EReplicationSystemSendPass::Invalid))
 	{
@@ -834,7 +833,7 @@ void UReplicationSystem::PostGarbageCollection()
 
 void UReplicationSystem::CollectGarbage()
 {
-	IRIS_PROFILER_SCOPE(ReplicationSystem_CollectGarbage);
+	IRIS_CSV_PROFILER_SCOPE(Iris, ReplicationSystem_CollectGarbage);
 
 	// Prune stale object instances before descriptors and protocols are pruned
 	Impl->ReplicationSystemInternal.GetReplicationBridge()->CallPruneStaleObjects();
