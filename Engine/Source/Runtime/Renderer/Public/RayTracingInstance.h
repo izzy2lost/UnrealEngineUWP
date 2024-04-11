@@ -130,6 +130,7 @@ struct FRayTracingInstance
 	}
 
 	/** When instance transforms are only available in GPU, this SRV holds them. */
+	UE_DEPRECATED(5.5, "InstanceGPUTransformsSRV has been deprecated. GPU Scene should be used instead.")
 	FShaderResourceViewRHIRef InstanceGPUTransformsSRV;
 
 	//disable deprecation warnings for default constructors

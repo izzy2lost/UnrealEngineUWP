@@ -37,7 +37,6 @@ FRayTracingSceneWithGeometryInstances CreateRayTracingSceneWithGeometryInstances
 	FRayTracingSceneWithGeometryInstances Output;
 	Output.NumNativeGPUSceneInstances = 0;
 	Output.NumNativeCPUInstances = 0;
-	Output.NumNativeGPUInstances = 0;
 	Output.InstanceGeometryIndices.SetNumUninitialized(NumSceneInstances);
 	Output.BaseUploadBufferOffsets.SetNumUninitialized(NumSceneInstances);
 
@@ -63,8 +62,7 @@ FRayTracingSceneWithGeometryInstances CreateRayTracingSceneWithGeometryInstances
 		const FRayTracingGeometryInstance& InstanceDesc = Instances[InstanceIndex];
 
 		const bool bGpuSceneInstance = InstanceDesc.BaseInstanceSceneDataOffset != -1 || !InstanceDesc.InstanceSceneDataOffsets.IsEmpty();
-		const bool bGpuInstance = InstanceDesc.GPUTransformsSRV != nullptr;
-		const bool bCpuInstance = !bGpuSceneInstance && !bGpuInstance;
+		const bool bCpuInstance = !bGpuSceneInstance;
 
 		checkf(!bGpuSceneInstance || InstanceDesc.BaseInstanceSceneDataOffset != -1 || InstanceDesc.NumTransforms <= uint32(InstanceDesc.InstanceSceneDataOffsets.Num()),
 			TEXT("Expected at least %d ray tracing geometry instance scene data offsets, but got %d."),
@@ -90,7 +88,7 @@ FRayTracingSceneWithGeometryInstances CreateRayTracingSceneWithGeometryInstances
 
 		if (bGpuSceneInstance)
 		{
-			check(InstanceDesc.GPUTransformsSRV == nullptr && InstanceDesc.Transforms.IsEmpty());
+			check(InstanceDesc.Transforms.IsEmpty());
 			Output.BaseUploadBufferOffsets[InstanceIndex] = Output.NumNativeGPUSceneInstances;
 			Output.NumNativeGPUSceneInstances += InstanceDesc.NumTransforms;
 		}
@@ -101,17 +99,7 @@ FRayTracingSceneWithGeometryInstances CreateRayTracingSceneWithGeometryInstances
 		}
 		else
 		{
-			if (InstanceDesc.NumTransforms)
-			{
-				FRayTracingGPUInstance GPUInstance;
-				GPUInstance.TransformSRV = InstanceDesc.GPUTransformsSRV;
-				GPUInstance.DescBufferOffset = Output.NumNativeGPUInstances;
-				GPUInstance.NumInstances = InstanceDesc.NumTransforms;
-				Output.GPUInstances.Add(GPUInstance);
-			}
-
-			Output.BaseUploadBufferOffsets[InstanceIndex] = Output.NumNativeGPUInstances;
-			Output.NumNativeGPUInstances += InstanceDesc.NumTransforms;
+			checkNoEntry();
 		}
 
 		checkf(InstanceDesc.LayerIndex < NumLayers, 
@@ -191,10 +179,9 @@ void FillRayTracingInstanceUploadBuffer(
 			const bool bUseUniqueUserData = SceneInstance.UserData.Num() != 0;
 
 			const bool bGpuSceneInstance = SceneInstance.BaseInstanceSceneDataOffset != -1 || !SceneInstance.InstanceSceneDataOffsets.IsEmpty();
-			const bool bGpuInstance = SceneInstance.GPUTransformsSRV != nullptr;
-			const bool bCpuInstance = !bGpuSceneInstance && !bGpuInstance;
+			const bool bCpuInstance = !bGpuSceneInstance;
 
-			checkf(bGpuSceneInstance + bGpuInstance + bCpuInstance == 1, TEXT("Instance can only get transforms from one of GPUScene, GPUTransformsSRV, or Transforms array."));
+			checkf(bGpuSceneInstance + bCpuInstance == 1, TEXT("Instance can only get transforms from one of GPUScene, or Transforms array."));
 
 			const uint32 AccelerationStructureIndex = InstanceGeometryIndices[SceneInstanceIndex];
 			const uint32 LayerBaseIndex = LayerBaseIndices[SceneInstance.LayerIndex];

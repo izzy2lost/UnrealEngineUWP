@@ -16,13 +16,12 @@ struct FDFVector3;
 * Each FRayTracingGeometryInstance can translate to multiple native TLAS instances (see FRayTracingGeometryInstance::NumTransforms).
 * 
 * The FRayTracingGeometryInstance array (ie: FRayTracingScene::Instances) used to create FRayTracingSceneRHI
-* can have mix of instances using GPUScene, CPU transforms or GPUTransformSRV.
+* can have mix of instances using GPUScene or CPU transforms.
 * In order to reduce the number of dispatches to build the native RayTracing Instance Buffer,
-* the upload buffer containing FRayTracingInstanceDescriptorInput is split in 3 sections, [GPUSceneInstances] [CPUInstances] [GPUInstances].
+* the upload buffer containing FRayTracingInstanceDescriptorInput is split in 2 sections, [GPUSceneInstances] [CPUInstances].
 * This way native GPUScene and CPU instance descriptors can be built in a single dispatch per type.
-* Followed by one dispatch per GPU instance (since GPU transforms of each GPU instance are stored in separate buffers).
 * 
-* If the raytracing scene contains multiple layers, the instance buffer is divided into multiple subranges as expected by the RHI.
+* If the ray tracing scene contains multiple layers, the instance buffer is divided into multiple subranges as expected by the RHI.
 * 
 */
 
@@ -49,7 +48,6 @@ struct FRayTracingSceneWithGeometryInstances
 	FRayTracingSceneRHIRef Scene;
 	uint32 NumNativeGPUSceneInstances;
 	uint32 NumNativeCPUInstances;
-	uint32 NumNativeGPUInstances;
 	// index of each instance geometry in FRayTracingSceneRHIRef ReferencedGeometries
 	TArray<uint32> InstanceGeometryIndices;
 	// base offset of each instance entries in the instance upload buffer

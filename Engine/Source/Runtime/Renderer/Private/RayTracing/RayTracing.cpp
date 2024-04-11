@@ -961,12 +961,7 @@ namespace RayTracing
 						RayTracingInstance.Flags = SceneInfo->CachedRayTracingInstance.Flags;
 						AddDebugRayTracingInstanceFlags(RayTracingInstance.Flags);
 
-						if (Instance.InstanceGPUTransformsSRV.IsValid())
-						{
-							RayTracingInstance.NumTransforms = Instance.NumTransforms;
-							RayTracingInstance.GPUTransformsSRV = Instance.InstanceGPUTransformsSRV;
-						}
-						else if(!Instance.GetTransforms().IsEmpty())
+						if(!Instance.GetTransforms().IsEmpty())
 						{
 							if (Instance.OwnsTransforms())
 							{
@@ -989,7 +984,7 @@ namespace RayTracing
 						}
 						else
 						{
-							// If neither InstanceGPUTransformsSRV nor array of transforms was provided, get the instance transforms from GPU Scene
+							// If array of transforms was not provided, get the instance transforms from GPU Scene
 							RayTracingInstance.NumTransforms = Instance.NumTransforms;
 							RayTracingInstance.BaseInstanceSceneDataOffset = InstanceSceneDataOffset;
 						}

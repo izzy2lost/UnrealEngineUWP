@@ -3008,11 +3008,11 @@ struct FRayTracingGeometryInstance
 	TArrayView<const uint32> InstanceSceneDataOffsets;
 
 	// Optional buffer that stores GPU transforms. Used instead of CPU-side transform data.
+	UE_DEPRECATED(5.5, "GPUTransformsSRV has been deprecated. GPU Scene should be used instead.")
 	FShaderResourceViewRHIRef GPUTransformsSRV = nullptr;
 
 	// Conservative number of instances. Some of the actual instances may be made inactive if GPU transforms are used.
 	// Must be less or equal to number of entries in Transforms view if CPU transform data is used.
-	// Must be less or equal to number of entries in GPUTransformsSRV if it is non-null.
 	uint32 NumTransforms = 0;
 
 	// Each geometry copy can receive a user-provided integer, which can be used to retrieve extra shader parameters or customize appearance.
