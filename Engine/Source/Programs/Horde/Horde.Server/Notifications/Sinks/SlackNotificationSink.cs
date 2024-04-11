@@ -2092,7 +2092,7 @@ namespace Horde.Server.Notifications.Sinks
 		#region Stream updates
 
 		/// <inheritdoc/>
-		public async Task NotifyConfigUpdateAsync(Exception? ex, CancellationToken cancellationToken)
+		public async Task NotifyConfigUpdateAsync(ConfigUpdateInfo info, CancellationToken cancellationToken)
 		{
 			if (String.IsNullOrEmpty(_settings.ConfigNotificationChannel))
 			{
@@ -2101,6 +2101,7 @@ namespace Horde.Server.Notifications.Sinks
 
 			const string EventId = "config-update";
 
+			Exception? ex = info.Exception;
 			if (ex != null)
 			{
 				_logger.LogInformation(ex, "Sending config update failure notification: {Message}", ex.Message);
@@ -2156,13 +2157,43 @@ namespace Horde.Server.Notifications.Sinks
 			}
 			else
 			{
-				if (await DeleteMessageStateAsync(_settings.ConfigNotificationChannel, EventId, cancellationToken))
+				Dictionary<string, int> perforceClusterToChange = new Dictionary<string, int>();
+				foreach (Uri uri in info.Sources.Keys)
 				{
-					SlackMessage message = new SlackMessage();
-					message.AddSection($"*Config Update Succeeded*");
-					await SendMessageAsync(_settings.ConfigNotificationChannel, message, cancellationToken);
-					await DeleteMessageStateAsync(_settings.ConfigNotificationChannel, EventId, cancellationToken);
+					if (uri.Scheme == PerforceConfigSource.Scheme)
+					{
+						string path = uri.LocalPath;
+
+						int atIdx = path.IndexOf('@');
+						if (atIdx != -1 && Int32.TryParse(path.Substring(atIdx + 1), out int change))
+						{
+							int existingChange;
+							if (!perforceClusterToChange.TryGetValue(uri.Host, out existingChange) || change > existingChange)
+							{
+								perforceClusterToChange[uri.Host] = change;
+							}
+						}
+					}
 				}
+
+				// Can only send updates after failures by checking the result of this delete
+				await DeleteMessageStateAsync(_settings.ConfigNotificationChannel, EventId, cancellationToken);
+
+				SlackMessage message = new SlackMessage();
+				message.AddSection($"*Config Update Succeeded*");
+
+				if(perforceClusterToChange.Count > 0)
+				{
+					List<string> lines = new List<string>();
+					foreach ((string clusterName, int change) in perforceClusterToChange)
+					{
+						lines.Add($"Perforce changelist ({clusterName}): {change}");
+					}
+					message.AddSection(String.Join("\n", lines));
+				}
+
+				await SendMessageAsync(_settings.ConfigNotificationChannel, message, cancellationToken);
+				await DeleteMessageStateAsync(_settings.ConfigNotificationChannel, EventId, cancellationToken);
 			}
 		}
 

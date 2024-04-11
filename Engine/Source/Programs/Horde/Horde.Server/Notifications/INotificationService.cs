@@ -8,6 +8,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Horde.Jobs;
 using Horde.Server.Agents;
+using Horde.Server.Configuration;
 using Horde.Server.Devices;
 using Horde.Server.Issues;
 using Horde.Server.Jobs;
@@ -138,8 +139,8 @@ namespace Horde.Server.Notifications
 		/// <summary>
 		/// Notify slack channel about a configuration update
 		/// </summary>
-		/// <param name="ex">Exception thrown during the update. Null if the update completed successfully.</param>
-		void NotifyConfigUpdate(Exception? ex);
+		/// <param name="info">Information about the config update</param>
+		void NotifyConfigUpdate(ConfigUpdateInfo info);
 
 		/// <summary>
 		/// Notify slack channel about a stream update failure

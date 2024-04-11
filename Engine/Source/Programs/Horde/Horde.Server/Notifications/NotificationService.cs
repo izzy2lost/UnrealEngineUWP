@@ -286,10 +286,10 @@ namespace Horde.Server.Notifications
 		}
 
 		/// <inheritdoc/>
-		public void NotifyConfigUpdate(Exception? ex)
+		public void NotifyConfigUpdate(ConfigUpdateInfo info)
 		{
-			_logger.LogInformation(ex, "Configuration updated ({Result})", (ex == null) ? "success" : "failure");
-			EnqueueTasks((sink, ctx) => sink.NotifyConfigUpdateAsync(ex, ctx));
+			_logger.LogInformation(info.Exception, "Configuration updated ({Result})", (info.Exception == null) ? "success" : "failure");
+			EnqueueTasks((sink, ctx) => sink.NotifyConfigUpdateAsync(info, ctx));
 		}
 
 		/// <inheritdoc/>

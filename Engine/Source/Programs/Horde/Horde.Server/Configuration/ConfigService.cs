@@ -28,6 +28,11 @@ using StackExchange.Redis;
 namespace Horde.Server.Configuration
 {
 	/// <summary>
+	/// Information about the updated config
+	/// </summary>
+	public record class ConfigUpdateInfo(Dictionary<Uri, string> Sources, Exception? Exception);
+
+	/// <summary>
 	/// Service which processes runtime configuration data.
 	/// </summary>
 	public sealed class ConfigService : IOptionsFactory<GlobalConfig>, IOptionsChangeTokenSource<GlobalConfig>, IHostedService, IAsyncDisposable
@@ -132,7 +137,7 @@ namespace Horde.Server.Configuration
 		/// <summary>
 		/// Event for notifications that the config has been updated
 		/// </summary>
-		public event Action<Exception?>? OnConfigUpdate;
+		public event Action<ConfigUpdateInfo>? OnConfigUpdate;
 
 		/// <summary>
 		/// Constructor
@@ -448,14 +453,14 @@ namespace Horde.Server.Configuration
 			{
 				ConfigSnapshot snapshot = await CreateSnapshotAsync(cancellationToken);
 				await _health.UpdateAsync(HealthStatus.Healthy);
-				OnConfigUpdate?.Invoke(null);
+				OnConfigUpdate?.Invoke(new ConfigUpdateInfo(snapshot.Dependencies, null));
 				return snapshot;
 			}
 			catch (Exception ex)
 			{
 				_logger.LogError(ex, "Exception while updating config: {Message}", ex.Message);
 				await _health.UpdateAsync(HealthStatus.Unhealthy, ex.Message);
-				OnConfigUpdate?.Invoke(ex);
+				OnConfigUpdate?.Invoke(new ConfigUpdateInfo(new Dictionary<Uri, string>(), ex));
 				return null;
 			}
 		}

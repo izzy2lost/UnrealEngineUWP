@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Horde.Jobs;
 using Horde.Server.Agents;
+using Horde.Server.Configuration;
 using Horde.Server.Devices;
 using Horde.Server.Issues;
 using Horde.Server.Jobs;
@@ -99,9 +100,9 @@ namespace Horde.Server.Notifications
 		/// <summary>
 		/// Notification that the configuration state has changed
 		/// </summary>
-		/// <param name="ex">Exception during update. Null if the update completed successfully.</param>
+		/// <param name="info">Information about the updated config</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		Task NotifyConfigUpdateAsync(Exception? ex, CancellationToken cancellationToken);
+		Task NotifyConfigUpdateAsync(ConfigUpdateInfo info, CancellationToken cancellationToken);
 
 		/// <summary>
 		/// Notification that a stream has failed to update
