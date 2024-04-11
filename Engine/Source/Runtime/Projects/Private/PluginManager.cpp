@@ -1437,7 +1437,7 @@ bool FPluginManager::ConfigureEnabledPlugins()
 		};
 #endif // READ_TARGET_ENABLED_PLUGINS_FROM_RECEIPT
 
-#if !WITH_EDITOR
+#if UE_BUILD_SHIPPING
 		// const to ensure it to stays empty
 		const TSet<FString> AllowedOptionalDependencies;
 #else
@@ -1474,7 +1474,7 @@ bool FPluginManager::ConfigureEnabledPlugins()
 			AllowedOptionalDependencies.Append({ UBT_TARGET_BUILD_PLUGINS });
 		}
 #endif // READ_TARGET_ENABLED_PLUGINS_FROM_RECEIPT
-#endif // !WITH_EDITOR
+#endif // UE_BUILD_SHIPPING
 
 		// Check which plugins have been enabled or excluded via the command line
 		{
@@ -1538,9 +1538,9 @@ bool FPluginManager::ConfigureEnabledPlugins()
 			}
 			if (ExtraPluginsToEnable.Num() > 0)
 			{
-#if WITH_EDITOR
+#if !UE_BUILD_SHIPPING
 				AllowedOptionalDependencies.Append(ExtraPluginsToEnable);
-#endif // WITH_EDITOR
+#endif
 
 				auto IsRestrictedPlugin = [this](const FString& PluginName)
 				{
@@ -2543,7 +2543,7 @@ bool FPluginManager::ConfigureEnabledPluginForTarget(const FPluginReferenceDescr
 				return false;
 			}
 
-#if WITH_EDITOR
+#if !UE_BUILD_SHIPPING
 			// Allowed optional plugins are compiled enabled or enabled via the commandline. Ignore those that are not.
 			if (NextReference.bOptional && !AllowedOptionalDependencies.IsEmpty() && !AllowedOptionalDependencies.Contains(NextReference.Name))
 			{

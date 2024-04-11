@@ -4427,7 +4427,7 @@ namespace UnrealBuildTool
 		/// <param name="moduleRules">the module's rules</param>
 		private void ModifyModuleRulesForTarget(string moduleName, ModuleRules moduleRules)
 		{
-			if (moduleName == "Projects" && ((Rules.Type == TargetType.Editor || Rules.Type == TargetType.Program)))
+			if (moduleName == "Projects" && (Rules.Configuration != UnrealTargetConfiguration.Shipping))
 			{
 				// Monolithic and non-shared environment builds compile in the build plugins. Non-monolithic editor builds save them in the BuildPlugins receipt to avoid invalidating the shared build environment.
 				// See Projects.Build.cs
