@@ -516,6 +516,8 @@ private:
 	{
 		// The next characters in the tree and the number of paths beginning with the prefix including that character for use in removing paths.
 		TMap<TCHAR, TPair<FCharacterNodePtr, int32>> NextNodes;
+
+		bool bIsEndOfAMountPoint = false;
 	};
 
 	// Tree of character nodes all in lower case. Used to speed up queries against the RootContentPaths Array.

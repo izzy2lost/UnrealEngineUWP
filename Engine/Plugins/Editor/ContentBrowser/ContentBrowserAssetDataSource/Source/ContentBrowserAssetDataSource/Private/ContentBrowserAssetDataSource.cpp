@@ -2929,7 +2929,7 @@ bool UContentBrowserAssetDataSource::IsKnownContentPath(const FName InPackagePat
 		const FCharacterNode* NextNode = NextNodePair->Key.Get();
 
 		// Is the next node terminal
-		if (NextNode->NextNodes.IsEmpty())
+		if (NextNode->bIsEndOfAMountPoint)
 		{
 			// The package path start with a root content path
 			return true;
@@ -3671,12 +3671,6 @@ FContentBrowserItemData UContentBrowserAssetDataSource::OnFinalizeDuplicateAsset
 
 void UContentBrowserAssetDataSource::AddRootContentPathToStateMachine(const FString& InAssetPath)
 {
-	/**
-	 * No need to mark the nodes with a terminal attribute on the last node since they always finish with a '/'.
-	 * They never contains more then two '/'. One at the start and the other at end.
-	 */
-	 ensure(InAssetPath[InAssetPath.Len() - 1] == '/') ;
-
 	FCharacterNode* CurrentNode = &RootContentPathsTrie;
 
 	for (const TCHAR& Character : InAssetPath)
@@ -3685,6 +3679,8 @@ void UContentBrowserAssetDataSource::AddRootContentPathToStateMachine(const FStr
 		++NextNode.Value;
 		CurrentNode = NextNode.Key.Get();
 	}
+
+	CurrentNode->bIsEndOfAMountPoint = true;
 }
 
 void UContentBrowserAssetDataSource::RemoveRootContentPathFromStateMachine(const FString& InAssetPath)
@@ -3711,6 +3707,8 @@ void UContentBrowserAssetDataSource::RemoveRootContentPathFromStateMachine(const
 
 		CurrentNode = NextNode->Key.Get();
 	}
+
+	CurrentNode->bIsEndOfAMountPoint = false;
 }
 
 bool UContentBrowserAssetDataSource::PathPassesCompiledDataFilter(const FContentBrowserCompiledAssetDataFilter& InFilter, const FName InInternalPath)
