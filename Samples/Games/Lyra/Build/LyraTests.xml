@@ -81,7 +81,7 @@
 				<Property Name="RefExtensionsTypelist" Value=".uasset,.umap,.cpp,.c,.h,.inl,.ini,.uproject,.uplugin,.json"/>
 
 				<Property Name="CLArgs" Value="-CL=$(Change) -LastGoodContentCLPath=$(NetworkOutputDirectory)/AutoTest/LastGoodContentCL"/>
-				<Property Name="CLArgs" Value="-CL=$(PreflightChange) -shelved" If="$(IsPreflight)" />
+				<Property Name="CLArgs" Value="-CL=$(PreflightChange) -shelved -SkipPrevCLFileExport" If="$(IsPreflight)" />
 				<Property Name="CLArgs" Value="-opened" If="!$(IsBuildMachine)" />
 
 				<Property Name="CheckAssetReferencesArgs" Value="-Branch=$(Branch) $(CLArgs) -ExtTypeList=&quot;$(RefExtensionsTypelist)&quot; -MaxPackagesToLoad=3000" />
