@@ -8,6 +8,7 @@
 #include "IConcertClientSequencerManager.h"
 #include "ConcertSequencerMessages.h"
 #include "UObject/WeakObjectPtrTemplates.h"
+#include "Templates/PimplPtr.h"
 
 struct FConcertSessionContext;
 class IConcertSyncClient;
@@ -21,6 +22,7 @@ class FConcertClientSequencePreloader;
 class FConcertClientWorkspace;
 struct FSequencerInitParams;
 class ULevelSequence;
+class FConcertClientSequencerStateEventPacer;
 
 /**
  * Sequencer manager that is held by the client sync module that keeps track of open sequencer UIs, regardless of whether a session is open or not
@@ -140,6 +142,9 @@ private:
 
 		/** Delegate handle to the Close event for the sequencer, if locally opened. */
 		FDelegateHandle OnCloseEventHandle;
+
+		/** Pointer event pacer for state events. This class will pace state events so that we do not overwhelm the connection with too many. */
+		TPimplPtr<FConcertClientSequencerStateEventPacer> StateEventPacer;
 	};
 
 private:
@@ -370,6 +375,8 @@ private:
 
 	/** Weak pointer to the active workspace. */
 	TWeakPtr<FConcertClientWorkspace> Workspace;
+
+	friend class FConcertClientSequencerStateEventPacer;
 };
 
 #endif // WITH_EDITOR

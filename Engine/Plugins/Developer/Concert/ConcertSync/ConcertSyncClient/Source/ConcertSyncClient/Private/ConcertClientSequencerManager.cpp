@@ -2,6 +2,7 @@
 
 #include "ConcertClientSequencerManager.h"
 #include "ConcertSequencerMessages.h"
+#include "ConcertTransportMessages.h"
 #include "Delegates/IDelegateInstance.h"
 #include "HAL/IConsoleManager.h"
 #include "Misc/AssertionMacros.h"
@@ -57,10 +58,77 @@ static TAutoConsoleVariable<int32> CVarEnableRemoteSequencerClose(TEXT("Concert.
 // Enable synchronizing the timeline of unrelated Sequencers on remote machine whenever a Sequencer state event is received, if both instances have this option on.
 static TAutoConsoleVariable<int32> CVarEnableUnrelatedTimelineSync(TEXT("Concert.EnableUnrelatedTimelineSync"), 0, TEXT("Enable syncing unrelated sequencer timeline."));
 
+// Enable the sending of undefined message types to the connected endpoints.
+// This message is only used to indicate timeline state when not in playback
+// mode. This is an experimental cvar.
+static TAutoConsoleVariable<int32> CVarEnableUndefinedSequencerMessages(TEXT("Concert.EnableUndefinedSequencerMessages"), 1, TEXT("Enable undefined sequencer messages to be sent."));
+
+// Enable the sending of messages as unreliable.  Messages of this type may get skipped if the network is congested.
+// Sequencer state events can be skipped as the sequencer will send regular ticks that would issue new state events.
+static TAutoConsoleVariable<int32> CVarSendStateEventsAsUnreliable(TEXT("Concert.SendSequencerStateEventsAsUnreliable"), 0, TEXT("Enable sending sequencer events in unreliable mode. Note this "));
+
 // Enable always closing player on remote machine whenever a sequencer is closed on an editor.
 static TAutoConsoleVariable<int32> CVarAlwaysCloseGamePlayerOnCloseEvent(
 	TEXT("Concert.AlwaysCloseGamePlayerOnCloseEvent"), 1, TEXT("Force this player to close even if other editors have it open. This CVar only works on `-game` instances."));
 
+static TAutoConsoleVariable<float> CVarSequencerStatePacingDuration(
+	TEXT("Concert.SequencerStatePacingDuration"), 0.20f, TEXT("Duration we use (in seconds) to pace sequencer state events to clients."));
+
+static TAutoConsoleVariable<bool> CVarSequencerStatePacingEnabled(
+	TEXT("Concert.SequencerStatePacingEnabled"), 1, TEXT("Use sequencer state pacing to prevent too many messages sent to the server."));
+
+
+class FConcertClientSequencerStateEventPacer
+{
+public:
+	bool ShouldIncludeMessageForSend(FConcertClientSequencerManager::EPlaybackMode Mode)
+	{
+		if (CVarEnableUndefinedSequencerMessages.GetValueOnAnyThread() == 0 && Mode == FConcertClientSequencerManager::EPlaybackMode::Undefined)
+		{
+			return false;
+		}
+		return true;
+	}
+
+	void AddStateEvent(TSharedPtr<IConcertClientSession>& Session, FConcertSequencerStateEvent InEvent, FConcertClientSequencerManager::EPlaybackMode Mode)
+	{
+		if (!ShouldIncludeMessageForSend(Mode))
+		{
+			return;
+		}
+
+		bool bShouldForceSend = bIsFirstEvent || CVarSequencerStatePacingEnabled.GetValueOnAnyThread() == 0;
+		if (!bShouldForceSend && InEvent.State.bLoopMode && CurrentStateEvent)
+		{
+			// If we have loop enabled and we have started back over again then we should force a send.
+			bShouldForceSend = InEvent.State.Time.AsSeconds() < CurrentStateEvent->State.Time.AsSeconds();
+		}
+		CurrentStateEvent = MoveTemp(InEvent);
+		Tick(Session, bShouldForceSend);
+	}
+
+	void Tick(TSharedPtr<IConcertClientSession>& Session, bool bForceSend = false)
+	{
+		if (CurrentStateEvent)
+		{
+			double CurrentTime = FPlatformTime::Seconds();
+			const double DeltaTime = CurrentTime - LastSendTime;
+			if (bForceSend || DeltaTime > CVarSequencerStatePacingDuration.GetValueOnGameThread())
+			{
+				bool bShouldSendReliably = bForceSend && CVarSequencerStatePacingEnabled.GetValueOnAnyThread();
+				EConcertMessageFlags Flags = bShouldSendReliably || CVarSendStateEventsAsUnreliable.GetValueOnAnyThread() == 0 ? EConcertMessageFlags::ReliableOrdered : EConcertMessageFlags::None;
+				Session->SendCustomEvent(*CurrentStateEvent, Session->GetSessionServerEndpointId(), Flags);
+				LastSendTime = CurrentTime;
+				CurrentStateEvent.Reset();
+			}
+		}
+	}
+
+private:
+	TOptional<FConcertSequencerStateEvent> CurrentStateEvent;
+	double LastSendTime = 0;
+	bool bIsFirstEvent = true;
+};
 
 class FConcertClientSequencePreloader : public TSharedFromThis<FConcertClientSequencePreloader>
 {
@@ -113,8 +181,11 @@ FConcertClientSequencerManager::FConcertClientSequencerManager(IConcertSyncClien
 
 	bRespondingToTransportEvent = false;
 
-	ISequencerModule& SequencerModule = FModuleManager::Get().LoadModuleChecked<ISequencerModule>("Sequencer");
-	OnSequencerCreatedHandle = SequencerModule.RegisterOnSequencerCreated(FOnSequencerCreated::FDelegate::CreateRaw(this, &FConcertClientSequencerManager::OnSequencerCreated));
+	if (GIsEditor)
+	{
+		ISequencerModule& SequencerModule = FModuleManager::Get().LoadModuleChecked<ISequencerModule>("Sequencer");
+		OnSequencerCreatedHandle = SequencerModule.RegisterOnSequencerCreated(FOnSequencerCreated::FDelegate::CreateRaw(this, &FConcertClientSequencerManager::OnSequencerCreated));
+	}
 
 	FCoreUObjectDelegates::OnPackageReloaded.AddRaw(this, &FConcertClientSequencerManager::HandleAssetReload);
 }
@@ -131,10 +202,13 @@ bool IsPendingTakePath(const FString& InSequencePath)
 
 FConcertClientSequencerManager::~FConcertClientSequencerManager()
 {
-	ISequencerModule* SequencerModulePtr = FModuleManager::Get().GetModulePtr<ISequencerModule>("Sequencer");
-	if (SequencerModulePtr)
+	if (GIsEditor)
 	{
-		SequencerModulePtr->UnregisterOnSequencerCreated(OnSequencerCreatedHandle);
+		ISequencerModule* SequencerModulePtr = FModuleManager::Get().GetModulePtr<ISequencerModule>("Sequencer");
+		if (SequencerModulePtr)
+		{
+			SequencerModulePtr->UnregisterOnSequencerCreated(OnSequencerCreatedHandle);
+		}
 	}
 
 	SetActiveWorkspace(nullptr);
@@ -176,7 +250,8 @@ void FConcertClientSequencerManager::OnSequencerCreated(TSharedRef<ISequencer> I
 	OpenSequencer.PlaybackMode = EPlaybackMode::Undefined;
 	OpenSequencer.OnGlobalTimeChangedHandle = InSequencer->OnGlobalTimeChanged().AddRaw(this, &FConcertClientSequencerManager::OnSequencerTimeChanged, OpenSequencer.WeakSequencer);
 	OpenSequencer.OnCloseEventHandle = InSequencer->OnCloseEvent().AddRaw(this, &FConcertClientSequencerManager::OnSequencerClosed);
-	int32 OpenIndex = OpenSequencers.Add(OpenSequencer);
+	OpenSequencer.StateEventPacer = MakePimpl<FConcertClientSequencerStateEventPacer>();
+	int32 OpenIndex = OpenSequencers.Add(MoveTemp(OpenSequencer));
 
 	// Setup stored state.  Since this is an open event by the sequencer we might be the controller and should not set player
 	// state from previous stored state.  Hence playback mode is set to undefined.  We should wait for a global time event from
@@ -495,6 +570,7 @@ void FConcertClientSequencerManager::OnSequencerClosed(TSharedRef<ISequencer> In
 				FConcertSequencerCloseEvent CloseEvent;
 				CloseEvent.bControllerClose = ClosingSequencer.PlaybackMode == EPlaybackMode::Controller; // this sequencer had control over the sequence playback
 				CloseEvent.SequenceObjectPath = SequenceObjectPath;
+				ClosingSequencer.StateEventPacer->Tick(Session, true /*bForceSend*/);
 				Session->SendCustomEvent(CloseEvent, Session->GetSessionServerEndpointId(), EConcertMessageFlags::ReliableOrdered);
 			}
 		}
@@ -598,7 +674,8 @@ void FConcertClientSequencerManager::OnSequencerTimeChanged(TWeakPtr<ISequencer>
 			// Send to client and server
 			UE_LOG(LogConcertSequencerSync, Verbose, TEXT("Sending StateEvent: %s, at frame: %d"),
 				*SequencerStateEvent.State.SequenceObjectPath, SequencerStateEvent.State.Time.Time.FrameNumber.Value);
-			Session->SendCustomEvent(SequencerStateEvent, Session->GetSessionServerEndpointId(), EConcertMessageFlags::ReliableOrdered);
+
+			OpenSequencer->StateEventPacer->AddStateEvent(Session, SequencerStateEvent, OpenSequencer->PlaybackMode);
 
 			// If we're playing then ensure we are set to controller (driving the playback on all clients)
 			if (SequencerStateEvent.State.PlayerStatus == EConcertMovieScenePlayerStatus::Playing)
@@ -1353,6 +1430,20 @@ void FConcertClientSequencerManager::OnWorkspaceEndFrameCompleted()
 		ApplyTimeAdjustmentEvent(Event);
 	}
 	PendingTimeAdjustmentEvents.Reset();
+
+	if (GEditor)
+	{
+		if (TSharedPtr<IConcertClientSession> Session = WeakSession.Pin())
+		{
+			for (FOpenSequencerData& Entry : OpenSequencers)
+			{
+				if (Entry.StateEventPacer)
+				{
+					Entry.StateEventPacer->Tick(Session);
+				}
+			}
+		}
+	}
 }
 
 void FConcertClientSequencerManager::AddReferencedObjects(FReferenceCollector& Collector)
