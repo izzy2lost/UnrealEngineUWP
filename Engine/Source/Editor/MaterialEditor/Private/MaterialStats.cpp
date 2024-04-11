@@ -187,7 +187,9 @@ void FShaderPlatformSettings::SetMaterial(UMaterial *InBaseMaterial, UMaterialIn
 		bReallocate = true;
 	}
 
-	if (InBaseMaterial == nullptr && InBaseMaterialInstance != nullptr && MaterialInstance != InBaseMaterialInstance)
+	if (InBaseMaterial == nullptr && 
+		InBaseMaterialInstance != nullptr && 
+		(MaterialInstance != InBaseMaterialInstance || Material != InBaseMaterialInstance->GetMaterial())) // If the Material Instance changed or its parent changed
 	{
 		Material = InBaseMaterialInstance->GetMaterial();
 		MaterialInstance = InBaseMaterialInstance;
@@ -878,25 +880,22 @@ void FMaterialStats::SetMaterial(UMaterial *InMaterial, const TArray<TObjectPtr<
 
 void FMaterialStats::SetMaterial(UMaterialInstance *InMaterialInstance)
 {
-	if (MaterialInterface != InMaterialInstance || DerivedMaterialInstances.Num() > 0)
+	MaterialInterface = InMaterialInstance;
+	DerivedMaterialInstances.Empty();
+
+	for (const auto& Entry : ShaderPlatformStatsDB)
 	{
-		MaterialInterface = InMaterialInstance;
-		DerivedMaterialInstances.Empty();
-
-		for (const auto& Entry : ShaderPlatformStatsDB)
+		auto& Platform = Entry.Value;
+		if (Platform.IsValid())
 		{
-			auto& Platform = Entry.Value;
-			if (Platform.IsValid())
-			{
-				Platform->SetMaterial(nullptr, InMaterialInstance, DerivedMaterialInstances);
-			}
+			Platform->SetMaterial(nullptr, InMaterialInstance, DerivedMaterialInstances);
 		}
+	}
 
-		auto GridPtr = GetGridStatsWidget();
-		if (GridPtr.IsValid())
-		{
-			GridPtr->OnColumnNumChanged();
-		}
+	auto GridPtr = GetGridStatsWidget();
+	if (GridPtr.IsValid())
+	{
+		GridPtr->OnColumnNumChanged();
 	}
 }
 

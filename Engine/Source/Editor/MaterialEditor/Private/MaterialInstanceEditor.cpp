@@ -1140,6 +1140,10 @@ void FMaterialInstanceEditor::NotifyPostChange( const FPropertyChangedEvent& Pro
 		RebuildInheritanceList();
 
 		UpdatePropertyWindow();
+
+		// If the parent of this instance changed we need to update the cached state on the stats manager to have the updated parent.
+		MaterialStatsManager->SetMaterial(MaterialEditorInstance->SourceInstance);
+		MaterialStatsManager->Update();
 	}
 	else if(PropertyThatChanged->GetName() == TEXT("PreviewMesh"))
 	{
