@@ -684,7 +684,7 @@ public:
 		FScopedWidgetSlotArguments(FScopedWidgetSlotArguments&&) = default;
 		FScopedWidgetSlotArguments& operator=(FScopedWidgetSlotArguments&&) = default;
 	
-		virtual ~FScopedWidgetSlotArguments()
+		~FScopedWidgetSlotArguments()
 		{
 			if (const SlotType* SlotPtr = this->GetSlot())	// Is nullptr when the FScopedWidgetSlotArguments was moved-constructed.
 			{
