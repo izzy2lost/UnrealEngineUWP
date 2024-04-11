@@ -183,7 +183,7 @@ struct FPrimitiveSceneProxyDesc
 	uint64 HiddenEditorViews = 0;	
 
 #if WITH_EDITOR
-	FColor OverlayColor;
+	FColor OverlayColor = FColor(EForceInit::ForceInitToZero);
 #endif
 #if MESH_DRAW_COMMAND_STATS
 	FName MeshDrawCommandStatsCategory;

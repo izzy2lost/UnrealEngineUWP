@@ -1571,7 +1571,7 @@ private:
 	uint64 HiddenEditorViews;
 
 	/** Color to blend over the object as an overlay in the viewport */
-	FColor OverlayColor;
+	FColor OverlayColor = FColor(EForceInit::ForceInitToZero);
 
 	/** Index of the color to use for the object's outline */
 	uint32 SelectionOutlineColorIndex : 8;

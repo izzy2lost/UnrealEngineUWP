@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -28,5 +28,5 @@ struct FTypedElementViewportOverlayColorColumn final : public FTypedElementDataS
 	GENERATED_BODY()
 
 	UPROPERTY()
-	FColor OverlayColor{};
+	FColor OverlayColor = FColor(EForceInit::ForceInitToZero);
 };
