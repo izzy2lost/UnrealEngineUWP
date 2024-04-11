@@ -36,7 +36,7 @@ namespace UE::DMX::Private
 
 UDMXControlConsoleData::UDMXControlConsoleData()
 {
-	CueStack = NewObject<UDMXControlConsoleCueStack>(this, TEXT("CueStack"), RF_Transactional);
+	CueStack = CreateDefaultSubobject<UDMXControlConsoleCueStack>(TEXT("CueStack"));
 }
 
 UDMXControlConsoleFaderGroupRow* UDMXControlConsoleData::AddFaderGroupRow(const int32 RowIndex = 0)
@@ -53,7 +53,7 @@ UDMXControlConsoleFaderGroupRow* UDMXControlConsoleData::AddFaderGroupRow(const 
 	return FaderGroupRow;
 }
 
-void UDMXControlConsoleData::DeleteFaderGroupRow(const TObjectPtr<UDMXControlConsoleFaderGroupRow>& FaderGroupRow)
+void UDMXControlConsoleData::DeleteFaderGroupRow(UDMXControlConsoleFaderGroupRow* FaderGroupRow)
 {
 	if (!ensureMsgf(FaderGroupRow, TEXT("Invalid fader group row, cannot delete from '%s'."), *GetName()))
 	{
@@ -283,11 +283,6 @@ void UDMXControlConsoleData::PostLoad()
 	Super::PostLoad();
 
 	CachedWeakDMXLibrary = Cast<UDMXLibrary>(SoftDMXLibraryPtr.ToSoftObjectPath().TryLoad());
-
-	if (!CueStack)
-	{
-		CueStack = NewObject<UDMXControlConsoleCueStack>(this, TEXT("CueStack"), RF_Transactional);
-	}
 }
 
 #if WITH_EDITOR

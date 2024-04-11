@@ -46,7 +46,7 @@ public:
 	UDMXControlConsoleFaderGroupRow* AddFaderGroupRow(const int32 RowIndex);
 
 	/** Removes a Fader Group Row from this DMX Control Console */
-	void DeleteFaderGroupRow(const TObjectPtr<UDMXControlConsoleFaderGroupRow>& FaderGroupRow);
+	void DeleteFaderGroupRow(UDMXControlConsoleFaderGroupRow* FaderGroupRow);
 
 	/** Gets this DMX Control Console's Fader Group Rows array */
 	const TArray<UDMXControlConsoleFaderGroupRow*>& GetFaderGroupRows() const { return FaderGroupRows; }
