@@ -188,6 +188,7 @@ public:
 	struct FRequestParams
 	{
 		uint32	BufferSize	= 256;
+		bool	bAutoRedirect = false;
 	};
 
 	template <typename... T> [[nodiscard]] FRequest Get(T&&... t)  { return Request("GET",  Forward<T&&>(t)...); }
@@ -205,6 +206,7 @@ public:
 	FTicket					Send(FRequest&& Request, FTicketSink Sink, UPTRINT SinkParam=0);
 
 private:
+	bool					Redirect(const FTicketStatus& Status, FTicketSink& OuterSink);
 	FImpl*					Impl;
 
 private:

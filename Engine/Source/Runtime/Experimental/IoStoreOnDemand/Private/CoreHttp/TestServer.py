@@ -164,7 +164,19 @@ def http_data(handler, payload_size):
     handler.end_headers()
     handler.wfile.write(payload)
 
-
+def http_redirect(handler, style="abs", code=302, *dest):
+    loc = "/" + "/".join(dest)
+    if style.startswith("abs"):
+        proto = "https://" if style == "abs_s" else "http://"
+        port = 4939 if style == "abs_s" else 9493
+        host = handler.headers.get("Host")
+        if host.startswith("localhost"):
+            host = "127.0.49.3"
+        loc = f"{proto}{host}:{port}{loc}"
+    handler.send_response(int(code))
+    handler.send_header("Content-Length", "0")
+    handler.send_header("Location", loc)
+    handler.end_headers()
 
 class Handler(http.server.BaseHTTPRequestHandler):
     def _preroll(self):
@@ -207,6 +219,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(b"hello")
             return
+
+        if parts[0] == "redirect":
+            return http_redirect(self, *parts[1:])
 
         if parts[0] == "data":
             size = -1
