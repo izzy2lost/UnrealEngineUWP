@@ -128,7 +128,8 @@ void FConstraintsEvaluationGraph::Rebuild()
 		{
 			return Prerex.PrerequisiteTickFunction == LHSTickFunction;
 		});
-		return bIsLHSAPrerexOfRHS;
+		// if not a prerequisite then compare constraints indices
+		return bIsLHSAPrerexOfRHS ? bIsLHSAPrerexOfRHS :  LHS.ConstraintIndex < RHS.ConstraintIndex;
 	};
 	Algo::Sort(Nodes, EvaluationOrderPredicate);
 
