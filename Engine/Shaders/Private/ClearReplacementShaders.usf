@@ -5,11 +5,16 @@
 =============================================================================*/
 
 #include "Common.ush"
+#include "ComputeShaderUtils.ush"
 
 #ifndef THREADGROUPSIZE_X
 	#define THREADGROUPSIZE_X 1
 	#define THREADGROUPSIZE_Y 1
 	#define THREADGROUPSIZE_Z 1
+#endif
+
+#ifndef USE_WRAPPED_GROUP_COUNT
+	#define USE_WRAPPED_GROUP_COUNT 0
 #endif
 
 #if ENABLE_CLEAR_VALUE
@@ -64,8 +69,12 @@
 	#endif
 
 	[numthreads(THREADGROUPSIZE_X, THREADGROUPSIZE_Y, THREADGROUPSIZE_Z)]
-	void ClearCS(uint3 Position : SV_DispatchThreadID)
+	void ClearCS(uint3 GroupId : SV_GroupID, uint GroupThreadIndex : SV_GroupIndex, uint3 Position : SV_DispatchThreadID)
 	{
+	#if USE_WRAPPED_GROUP_COUNT
+		Position = uint3(GetUnWrappedDispatchThreadId(GroupId, GroupThreadIndex, THREADGROUPSIZE_X), 0, 0);
+	#endif
+
 	#if ENABLE_BOUNDS
 		ADDR(Position) += ADDR(MinBounds);
 		if (COMP(Position, MaxBounds))
