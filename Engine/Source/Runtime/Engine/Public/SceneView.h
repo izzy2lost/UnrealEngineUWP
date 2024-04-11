@@ -2179,7 +2179,10 @@ public:
 	bool bIsSceneTexturesInitialized = false;
 	bool bIsViewFamilyInfo = false;
 
-	/** 
+	/** Whether this view allows split screen debug -- we only want it for editor and game viewports, not other random scene renders */
+	bool bSplitScreenDebugAllowed = false;
+
+	/**
 	 * Which component of the scene rendering should be output to the final render target.
 	 * If SCS_FinalColorLDR this indicates do nothing.
 	 */

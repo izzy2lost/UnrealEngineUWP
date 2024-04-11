@@ -2553,6 +2553,11 @@ protected:
 
 	void RenderMeshDistanceFieldVisualization(FRDGBuilder& GraphBuilder, const FMinimalSceneTextures& SceneTextures);
 
+#if !UE_BUILD_SHIPPING
+	static FSceneViewFamily* CreateSplitScreenDebugViewFamily(const FSceneViewFamily& InFamily);
+	static void DestroySplitScreenDebugViewFamily(FSceneViewFamily* Family);
+#endif
+
 protected:
 	FGPUSceneDynamicContext GPUSceneDynamicContext;
 
