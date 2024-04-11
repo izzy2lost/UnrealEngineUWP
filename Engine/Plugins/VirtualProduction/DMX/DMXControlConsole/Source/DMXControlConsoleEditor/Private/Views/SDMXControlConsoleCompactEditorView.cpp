@@ -64,7 +64,6 @@ namespace UE::DMX::Private
 						.BorderImage(FAppStyle::GetBrush("ToolPanel.GroupBorder"))
 						.VAlign(VAlign_Center)
 						.Padding(FMargin(4.f, 0.f, 20.f, 0.f))
-						.OnMouseButtonDown_Lambda([this, SharedThis = AsShared()](const FGeometry&, const FPointerEvent&) { checkNoEntry(); return FReply::Handled(); })
 						[
 							SNew(STextBlock)
 							.Font(FCoreStyle::GetDefaultFontStyle("Bold", 10))
