@@ -1164,34 +1164,6 @@ void FActivatableTreeNode::DebugDumpRecursive(FString& OutputStr, int32 Depth, b
 	}
 }
 
-bool FActivatableTreeNode::IsWidgetOfClassPresentRecursive(TSubclassOf<UWidget> WidgetClass, bool IncludeChildren, bool IncludeInactive) const
-{
-	if (!IncludeInactive && !IsWidgetActivated())
-	{
-		return false;
-	}
-
-	bool IsPresent = false;
-	if (RepresentedWidget.IsValid())
-	{
-		IsPresent |= RepresentedWidget->IsA(WidgetClass);
-	}
-
-	if (IncludeChildren && !IsPresent)
-	{
-		for (const FActivatableTreeNodeRef& ChildNode : Children)
-		{
-			if(ChildNode->IsWidgetOfClassPresentRecursive(WidgetClass, IncludeChildren, IncludeInactive))
-			{
-				IsPresent = true;
-				break;
-			}
-		}
-	}
-
-	return IsPresent;
-}
-
 bool FActivatableTreeNode::IsParentOfWidget(const TSharedPtr<SWidget>& SlateWidget) const
 {
 	if (SlateWidget && ensure(RepresentedWidget.IsValid()))

@@ -107,7 +107,6 @@ public:
 	void FlushInput();
 
 	bool IsWidgetInActiveRoot(const UCommonActivatableWidget* Widget) const;
-	bool IsWidgetOfClassPresentInTree(TSubclassOf<UWidget> WidgetClass, bool bIncludeChildren, bool bIncludeInactive);
 
 	/** 
 	 * Sets Input Config 
