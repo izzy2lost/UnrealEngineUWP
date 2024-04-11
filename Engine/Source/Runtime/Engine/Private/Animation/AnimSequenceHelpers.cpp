@@ -236,6 +236,19 @@ FTransform ExtractRootMotionFromAnimationAsset(const UAnimationAsset* Animation,
 
 FTransform ExtractRootTransformFromAnimationAsset(const UAnimationAsset* Animation, float Time)
 {
+	const FVector DefaultScale(1.f);
+	bool bUseNormalizedRootMotionScale = false;
+
+	FTransform RootTransformRefPose = FTransform::Identity;
+	if (const USkeleton* MySkeleton = Animation->GetSkeleton())
+	{
+		const FReferenceSkeleton& RefSkeleton = MySkeleton->GetReferenceSkeleton();
+		if (RefSkeleton.GetNum() > 0)
+		{
+			RootTransformRefPose = RefSkeleton.GetRefBonePose()[0];
+		}
+	}
+
 	FTransform Result = FTransform::Identity;
 	if (const UAnimMontage* AnimMontage = Cast<UAnimMontage>(Animation))
 	{
@@ -245,13 +258,33 @@ FTransform ExtractRootTransformFromAnimationAsset(const UAnimationAsset* Animati
 			{
 				const float AnimSequenceTime = Segment->ConvertTrackPosToAnimPos(Time);
 				Result = AnimSequence->ExtractRootTrackTransform(AnimSequenceTime, nullptr);
+				bUseNormalizedRootMotionScale = AnimSequence->bUseNormalizedRootMotionScale;
 			}	
 		}
 	}
 	else if (const UAnimSequence* AnimSequence = Cast<UAnimSequence>(Animation))
 	{
 		Result = AnimSequence->ExtractRootTrackTransform(Time, nullptr);
+		bUseNormalizedRootMotionScale = AnimSequence->bUseNormalizedRootMotionScale;
 	}
+
+	// Use old calculation if needed.
+	if (bUseNormalizedRootMotionScale)
+	{
+		//Clear scale as it will muck up GetRelativeTransform
+		Result.SetScale3D(FVector(1.f));
+	}
+	else
+	{
+		if (Animation->IsValidAdditive())
+		{
+			Result.SetScale3D(Result.GetScale3D() + DefaultScale);
+		}
+	}
+
+	// Transform to Component Space
+	const FTransform RootToComponent = RootTransformRefPose.Inverse();
+	Result = RootToComponent * Result;
 
 	return Result;
 }

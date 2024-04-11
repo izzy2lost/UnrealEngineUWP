@@ -205,6 +205,7 @@ namespace Anim {
 
 	/**
 	 * Extract absolute root transform at specific position in time from the animation asset.
+	 * Note: this function applies skeleton reference pose the transform (similar to ExtractRootMotionFromAnimationAsset, but unlike UAnimSequence::ExtractRootTrackTransform()). 
 	 *
 	 * @param	Animation		Animation asset to extract the root motion from.
 	 * @param	Position		Start Position of the animation.
