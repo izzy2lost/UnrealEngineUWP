@@ -2,6 +2,7 @@
 #pragma once
 
 #include "Math/VectorRegister.h"
+#include "Chaos/Core.h"
 
 /**
  * Cast VectorRegister4Int in VectorRegister4Float
@@ -92,6 +93,43 @@ FORCEINLINE VectorRegister4Float VectorMoveLh(const VectorRegister4Float& A, con
 #endif
 }
 
+
+namespace Chaos::Private
+{
+	/**
+	 * Calculates the dot product of two vectors and returns a vector with the result in the first component.
+	 * W values should be set to 0 on the vector input. This function should be used with caution. Only the returned X should be read.
+	 *
+	 * @param Vec1	1st vector set with W equal to 0
+	 * @param Vec2	2nd vector set with W equal to 0
+	 * @return		d = dot3X(Vec1.xyz0, Vec2.xyz0), VectorRegister4Float( d, ?, ?, ? )
+	 */
+	FORCEINLINE VectorRegister4Float VectorDot3FastX(const VectorRegister4Float& Vec1, const VectorRegister4Float& Vec2)
+	{
+#if PLATFORM_ENABLE_VECTORINTRINSICS_NEON
+		VectorRegister4Float Temp = VectorMultiply(Vec1, Vec2); // Multiply 2 vector
+		float32x2_t sum = vpadd_f32(vget_low_f32(Temp), vget_high_f32(Temp));
+		sum = vpadd_f32(sum, sum);
+		return vcombine_f32(sum, sum);
+#elif PLATFORM_ENABLE_VECTORINTRINSICS
+		return _mm_dp_ps(Vec1, Vec2, 0xFF);
+#else
+		return VectorDot3(Vec1, Vec2);
+#endif
+	}
+
+	FORCEINLINE VectorRegister4Float VectorMatrixMultiply(const VectorRegister4Float& Vec, const FMatrix33& M)
+	{
+		const VectorRegister4Float VecX = VectorReplicate(Vec, 0);
+		const VectorRegister4Float VecY = VectorReplicate(Vec, 1);
+		const VectorRegister4Float VecZ = VectorReplicate(Vec, 2);
+
+		const VectorRegister4Float R0 = MakeVectorRegisterFloatFromDouble(MakeVectorRegister(M.M[0][0], M.M[0][1], M.M[0][2], 0.0));
+		const VectorRegister4Float R1 = MakeVectorRegisterFloatFromDouble(MakeVectorRegister(M.M[1][0], M.M[1][1], M.M[1][2], 0.0));
+		const VectorRegister4Float R2 = MakeVectorRegisterFloatFromDouble(MakeVectorRegister(M.M[2][0], M.M[2][1], M.M[2][2], 0.0));
+		return VectorMultiplyAdd(R0, VecX, VectorMultiplyAdd(R1, VecY, VectorMultiply(R2, VecZ)));
+	}
+}
 
 /**
  * Combines two vectors using bitwise NOT AND (treating each vector as a 128 bit field)

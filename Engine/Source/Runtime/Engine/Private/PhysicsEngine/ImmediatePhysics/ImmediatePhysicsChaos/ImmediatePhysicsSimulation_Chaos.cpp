@@ -156,6 +156,9 @@ FAutoConsoleVariableRef  CVarChaosImmPhysInertiaConditioningMaxInvInertiaCompone
 int32 ChaosImmediate_Joint_UseLinearSolver = -1;
 FAutoConsoleVariableRef CVarChaosImmPhysJointUseCachedSolver(TEXT("p.Chaos.ImmPhys.Joint.UseLinearSolver"), ChaosImmediate_Joint_UseLinearSolver, TEXT("Force use of linear or non-linear joint solver. (-1 to use PhysicsAsset setting)"));
 
+bool bChaosImmediate_UseSimdForLinearSolver = false;
+FAutoConsoleVariableRef  CVarChaosImmPhysUseSimdForLinearSolver(TEXT("p.Chaos.ImmPhys.UseSimd"), bChaosImmediate_UseSimdForLinearSolver, TEXT("Enable/Disable SIMD on the linear joint solver"));
+
 //
 // end remove when finished
 //
@@ -814,6 +817,7 @@ namespace ImmediatePhysics_Chaos
 		if (UseLinearJointSolver >= 0)
 		{
 			Implementation->Joints.SetUseLinearJointSolver(UseLinearJointSolver != 0);
+			Implementation->Joints.SetUseSimd(bChaosImmediate_UseSimdForLinearSolver); // RBAN solver can use safely the SIMD version
 		}
 
 		Implementation->Collisions.SetAllowManifolds(bUseManifoilds || (ChaosImmediate_Collision_UseManifolds != 0));

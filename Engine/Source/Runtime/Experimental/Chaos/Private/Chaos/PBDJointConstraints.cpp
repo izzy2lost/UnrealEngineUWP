@@ -479,6 +479,7 @@ namespace Chaos
 		, NumIterationsAtMaxSolverStiffness(1)
 		, NumShockPropagationIterations(0)
 		, bUseLinearSolver(true)
+		, bUseSimd(false)
 		, bSortEnabled(false)
 		, bSolvePositionLast(true)
 		, bUsePositionBasedDrives(true)

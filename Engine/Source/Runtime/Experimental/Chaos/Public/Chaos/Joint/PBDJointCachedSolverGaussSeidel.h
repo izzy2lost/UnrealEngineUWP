@@ -16,6 +16,12 @@ namespace Chaos
 /** Cached axis joint datas that will be used during the apply */
 struct FAxisConstraintDatas
 {
+	FAxisConstraintDatas() {}
+	FAxisConstraintDatas(const FAxisConstraintDatas&) = delete;
+	FAxisConstraintDatas& operator=(const FAxisConstraintDatas&) = delete;
+	FAxisConstraintDatas(FAxisConstraintDatas&&) = delete;
+	FAxisConstraintDatas& operator=(FAxisConstraintDatas&&) = delete;
+
 	/** Init the axis joint datas with stiffness / damping */
 	void InitDatas(
 		const int32 ConstraintIndex,
@@ -57,31 +63,63 @@ struct FAxisConstraintDatas
 		FReal& DeltaLambda, 
 		FReal& Lambda);
 	
-	FVec3 ConstraintHardStiffness;
-	FVec3 ConstraintSoftStiffness;
-	FVec3 ConstraintSoftDamping;
-	FVec3 ConstraintMaxLambda;
+	
 
+	struct alignas(16) FDataSimd
+	{
+		FDataSimd() 
+			: ConstraintSoftStiffnessSimd(VectorZeroFloat())
+			, ConstraintSoftDampingSimd(VectorZeroFloat())
+			, ConstraintLimitsSimd(VectorZeroFloat())
+		{}
+
+		VectorRegister4Float ConstraintHardStiffnessSimd;
+		VectorRegister4Float ConstraintSoftStiffnessSimd;
+		VectorRegister4Float ConstraintSoftDampingSimd;
+		VectorRegister4Float ConstraintArmsSimd[3][2];
+		VectorRegister4Float ConstraintAxisSimd[3];
+		VectorRegister4Float ConstraintLimitsSimd;
+		VectorRegister4Float ConstraintSoftIMSimd;
+		VectorRegister4Float ConstraintHardIMSimd;
+		VectorRegister4Float ConstraintDRAxisSimd[3][2];
+		VectorRegister4Float ConstraintCX;
+		VectorRegister4Float ConstraintLambda;
+	};
+
+	struct FData
+	{
+		FVec3 ConstraintHardStiffness;
+		FVec3 ConstraintSoftStiffness;
+		FVec3 ConstraintSoftDamping;
+		FVec3 ConstraintArms[3][2];
+		FVec3 ConstraintAxis[3];
+		FVec3 ConstraintLimits;
+		FVec3 ConstraintSoftIM;
+		FVec3 ConstraintHardIM;
+		FVec3 ConstraintDRAxis[3][2];
+		FVec3 ConstraintCX;
+		FVec3 ConstraintLambda;
+	};
+
+	union
+	{
+		FDataSimd Simd;
+		FData D;
+	};
+
+	FVec3 ConstraintMaxLambda;
 	FVec3 SettingsSoftDamping;
 	FVec3 SettingsSoftStiffness;
-	
-	FVec3 ConstraintArms[3][2];
-	FVec3 ConstraintAxis[3];
-	FVec3 ConstraintLimits;
-	
-	FVec3 ConstraintCX;
 	FVec3 ConstraintVX;
-	FVec3 ConstraintSoftIM;
-	FVec3 ConstraintHardIM;
-	FVec3 ConstraintDRAxis[3][2];
+
 	FVec3 ConstraintRestitution;
-	FVec3 ConstraintLambda;
 	FVec3 ConstraintLambdaVelocity;
 	
 	bool bValidDatas[3];
 	bool bLimitsCheck[3];
-	bool bAccelerationMode;
 	bool bSoftLimit[3];
+	bool bAccelerationMode;
+	bool bUseSimd;
 	
 	EJointMotionType MotionType[3];
 };
@@ -190,15 +228,45 @@ struct FAxisConstraintDatas
 		inline FVec3 GetNetLinearImpulse() const
 		{
 			FVec3 Impulse = FVec3(0);
+			if (PositionConstraints.bUseSimd || PositionDrives.bUseSimd)
+			{
+				VectorRegister4Float ImpulseSimd = VectorZeroFloat();
+				if (PositionConstraints.bUseSimd)
+				{
+					VectorRegister4Float ConstraintLambdas[3];
+					ConstraintLambdas[0] = VectorReplicate(PositionConstraints.Simd.ConstraintLambda, 0);
+					ConstraintLambdas[1] = VectorReplicate(PositionConstraints.Simd.ConstraintLambda, 1);
+					ConstraintLambdas[2] = VectorReplicate(PositionConstraints.Simd.ConstraintLambda, 2);
+					for (int32 Axis = 0; Axis < 3; ++Axis)
+					{
+						ImpulseSimd = VectorMultiplyAdd(ConstraintLambdas[Axis], PositionConstraints.Simd.ConstraintAxisSimd[Axis], ImpulseSimd);
+					}
+				}
+				if (PositionDrives.bUseSimd)
+				{
+					VectorRegister4Float ConstraintLambdas[3];
+					ConstraintLambdas[0] = VectorReplicate(PositionDrives.Simd.ConstraintLambda, 0);
+					ConstraintLambdas[1] = VectorReplicate(PositionDrives.Simd.ConstraintLambda, 1);
+					ConstraintLambdas[2] = VectorReplicate(PositionDrives.Simd.ConstraintLambda, 2);
+					for (int32 Axis = 0; Axis < 3; ++Axis)
+					{
+						ImpulseSimd = VectorMultiplyAdd(ConstraintLambdas[Axis], PositionDrives.Simd.ConstraintAxisSimd[Axis], ImpulseSimd);
+					}
+				}
+				FVec3f Impulsef;
+				VectorStoreFloat3(ImpulseSimd, &Impulsef[0]);
+				Impulse = FVec3(Impulsef);
+			}
+
 			for (int32 Axis = 0; Axis < 3; ++Axis)
 			{
-				if (PositionConstraints.bValidDatas[Axis])
+				if (!PositionConstraints.bUseSimd && PositionConstraints.bValidDatas[Axis])
 				{
-					Impulse += PositionConstraints.ConstraintLambda[Axis] * PositionConstraints.ConstraintAxis[Axis];
+					Impulse += PositionConstraints.D.ConstraintLambda[Axis] * PositionConstraints.D.ConstraintAxis[Axis];
 				}
-				if (PositionDrives.bValidDatas[Axis])
+				if (!PositionDrives.bUseSimd && PositionDrives.bValidDatas[Axis])
 				{
-					Impulse += PositionDrives.ConstraintLambda[Axis] * PositionDrives.ConstraintAxis[Axis];
+					Impulse += PositionDrives.D.ConstraintLambda[Axis] * PositionDrives.D.ConstraintAxis[Axis];
 				}
 			}
 			return Impulse;
@@ -208,15 +276,45 @@ struct FAxisConstraintDatas
 		inline FVec3 GetNetAngularImpulse() const
 		{
 			FVec3 Impulse = FVec3(0);
+			if (RotationConstraints.bUseSimd || RotationDrives.bUseSimd)
+			{
+				VectorRegister4Float ImpulseSimd = VectorZeroFloat();
+				if (RotationConstraints.bUseSimd)
+				{
+					VectorRegister4Float ConstraintLambdas[3];
+					ConstraintLambdas[0] = VectorReplicate(RotationConstraints.Simd.ConstraintLambda, 0);
+					ConstraintLambdas[1] = VectorReplicate(RotationConstraints.Simd.ConstraintLambda, 1);
+					ConstraintLambdas[2] = VectorReplicate(RotationConstraints.Simd.ConstraintLambda, 2);
+					for (int32 Axis = 0; Axis < 3; ++Axis)
+					{
+						ImpulseSimd = VectorMultiplyAdd(ConstraintLambdas[Axis], RotationConstraints.Simd.ConstraintAxisSimd[Axis], ImpulseSimd);
+					}
+				}
+				if (RotationDrives.bUseSimd)
+				{
+					VectorRegister4Float ConstraintLambdas[3];
+					ConstraintLambdas[0] = VectorReplicate(RotationDrives.Simd.ConstraintLambda, 0);
+					ConstraintLambdas[1] = VectorReplicate(RotationDrives.Simd.ConstraintLambda, 1);
+					ConstraintLambdas[2] = VectorReplicate(RotationDrives.Simd.ConstraintLambda, 2);
+					for (int32 Axis = 0; Axis < 3; ++Axis)
+					{
+						ImpulseSimd = VectorMultiplyAdd(ConstraintLambdas[Axis], RotationDrives.Simd.ConstraintAxisSimd[Axis], ImpulseSimd);
+					}
+				}
+				FVec3f Impulsef;
+				VectorStoreFloat3(ImpulseSimd, &Impulsef[0]);
+				Impulse = FVec3(Impulsef);
+			}
+
 			for (int32 Axis = 0; Axis < 3; ++Axis)
 			{
-				if (RotationConstraints.bValidDatas[Axis])
+				if (!RotationConstraints.bUseSimd && RotationConstraints.bValidDatas[Axis])
 				{
-					Impulse += RotationConstraints.ConstraintLambda[Axis] * RotationConstraints.ConstraintAxis[Axis];
+					Impulse += RotationConstraints.D.ConstraintLambda[Axis] * RotationConstraints.D.ConstraintAxis[Axis];
 				}
-				if (RotationDrives.bValidDatas[Axis])
+				if (!RotationDrives.bUseSimd && RotationDrives.bValidDatas[Axis])
 				{
-					Impulse += RotationDrives.ConstraintLambda[Axis] * RotationDrives.ConstraintAxis[Axis];
+					Impulse += RotationDrives.D.ConstraintLambda[Axis] * RotationDrives.D.ConstraintAxis[Axis];
 				}
 			}
 			return Impulse;
@@ -291,10 +389,26 @@ struct FAxisConstraintDatas
 			const FPBDJointSolverSettings& SolverSettings,
 			const FPBDJointSettings& JointSettings);
 
+		void ApplyAxisPositionProjection(
+			const FReal LinearProjection,
+			const int32 ConstraintIndex);
+
+		void ApplyPositionProjectionSimd(
+			const FReal LinearProjection);
+
 		void ApplyRotationProjection(
 			const FReal Dt,
 			const FPBDJointSolverSettings& SolverSettings,
 			const FPBDJointSettings& JointSettings);
+
+		void ApplyAxisRotationProjection(
+			const FReal AngularProjection,
+			const bool bLinearLocked,
+			const int32 ConstraintIndex);
+
+		void ApplyRotationProjectionSimd(
+			const FRealSingle AngularProjection,
+			const bool bLinearLocked);
 
 		void ApplyTeleports(
 			const FReal Dt,
@@ -305,6 +419,13 @@ struct FAxisConstraintDatas
 			const FReal Dt,
 			const FPBDJointSolverSettings& SolverSettings,
 			const FPBDJointSettings& JointSettings);
+
+		void ApplyAxisPositionTeleport(
+			const FReal TeleportDistance,
+			const int32 ConstraintIndex);
+
+		void ApplyPositionTeleportSimd(
+			const FRealSingle TeleportDistance);
 
 		void ApplyRotationTeleport(
 			const FReal Dt,
@@ -387,6 +508,11 @@ struct FAxisConstraintDatas
 			const FReal Dt,
 			const TVec3<EJointMotionType>& LinearMotion);
 
+		void InitLockedPositionConstraintSimd(
+			const FPBDJointSettings& JointSettings,
+			const FReal Dt,
+			const TVec3<EJointMotionType>& LinearMotion);
+
 		void InitSphericalPositionConstraint(
 			const FPBDJointSettings& JointSettings,
 			const FReal Dt);
@@ -408,6 +534,9 @@ struct FAxisConstraintDatas
 		
 		void ApplyAxisPositionConstraint(
 			const int32 ConstraintIndex,
+			const FReal Dt);
+
+		void ApplyPositionConstraintsSimd(
 			const FReal Dt);
 		
 		void SolvePositionConstraintDelta(
@@ -432,6 +561,8 @@ struct FAxisConstraintDatas
 		void ApplyAxisVelocityConstraint(
 			const int32 ConstraintIndex);
 
+		void ApplyVelocityConstraintSimd();
+
 		void SolveLinearVelocityConstraint(
 			const int32 ConstraintIndex,
 			const FReal TargetVel);
@@ -443,7 +574,11 @@ struct FAxisConstraintDatas
 			const FPBDJointSolverSettings& SolverSettings,
 			const FPBDJointSettings& JointSettings,
 			const bool bResetLambdas);
-		
+
+		void InitRotationConstraintsSimd(
+			const FPBDJointSettings& JointSettings,
+			const FReal Dt);
+
 		void CorrectAxisAngleConstraint(
 			const FPBDJointSettings& JointSettings,
 			const int32 ConstraintIndex,
@@ -513,6 +648,9 @@ struct FAxisConstraintDatas
 			const int32 ConstraintIndex,
 			const FReal Dt);
 
+		void ApplyRotationSoftConstraintsSimd(
+			const FReal Dt);
+
 		void SolveRotationConstraintDelta(
 			const int32 ConstraintIndex, 
 			const FReal DeltaLambda,
@@ -539,6 +677,8 @@ struct FAxisConstraintDatas
 
 		void ApplyAngularVelocityConstraint(
 			const int32 ConstraintIndex);
+
+		void ApplyAngularVelocityConstraintSimd();
 
 		/** Init Position Drives */
 		
@@ -582,6 +722,11 @@ struct FAxisConstraintDatas
 			const FVec3& ConstraintAxis,
 			const FReal Dt,
 			const FReal DeltaAngle);
+
+		void InitRotationConstraintDriveSimd(
+			FVec3 ConstraintAxes[3],
+			const FReal Dt,
+			const FVec3 DeltaAngles);
 		
 		void InitSwingTwistDrives(
 			const FReal Dt,
@@ -603,6 +748,9 @@ struct FAxisConstraintDatas
 		
 		void ApplyAxisRotationDrive(
 			const int32 ConstraintIndex,
+			const FReal Dt);
+
+		void ApplyRotationDrivesSimd(
 			const FReal Dt);
 
 		void ApplyRotationVelocityDrives(
@@ -627,6 +775,7 @@ struct FAxisConstraintDatas
 		FVec3 ConnectorXs[MaxConstrainedBodies];			// World-space joint connector positions
 		FRotation3 ConnectorRs[MaxConstrainedBodies];		// World-space joint connector rotations
 		FVec3 ConnectorWDts[MaxConstrainedBodies];			// World-space joint connector angular velocities * dt
+		VectorRegister4Float ConnectorWDtsSimd[MaxConstrainedBodies];			// World-space joint connector angular velocities * dt
 
 		// XPBD Initial iteration world-space body state
 		FVec3 InitConnectorXs[MaxConstrainedBodies];		// World-space joint connector positions
@@ -650,8 +799,8 @@ struct FAxisConstraintDatas
 		FVec3 LastDQs[MaxConstrainedBodies];				// Rotations at the beginning of the iteration
 		FVec3 CurrentPs[MaxConstrainedBodies];				// Positions at the beginning of the iteration
 		FRotation3 CurrentQs[MaxConstrainedBodies];			// Rotations at the beginning of the iteration
-		FVec3 InitConstraintAxisLinearVelocities;			// Linear velocities along the constraint axes at the begining of the frame, used by restitution
-		FVec3 InitConstraintAxisAngularVelocities;			// Angular velocities along the constraint axes at the begining of the frame, used by restitution
+		FVec3 InitConstraintAxisLinearVelocities;			// Linear velocities along the constraint axes at the beginning of the frame, used by restitution
+		FVec3 InitConstraintAxisAngularVelocities;			// Angular velocities along the constraint axes at the beginning of the frame, used by restitution
 		int32 NumActiveConstraints;							// The number of active constraints and drives in the last iteration (-1 initial value)
 		bool bIsActive;										// Whether any constraints actually moved any bodies in last iteration
 		bool bUsePositionBasedDrives;						// Whether to apply velocity drive in the PBD step of the VBD step
@@ -663,6 +812,7 @@ struct FAxisConstraintDatas
 		FAxisConstraintDatas RotationDrives;
 
 		bool bIsBroken;
+		bool bUseSimd;
 
 		// dummy indices
 		static constexpr int32 PointPositionConstraintIndex = 0;

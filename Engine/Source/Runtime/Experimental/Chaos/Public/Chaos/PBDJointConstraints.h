@@ -176,6 +176,11 @@ namespace Chaos
 		void SetUseLinearJointSolver(const bool bInEnable) { Settings.bUseLinearSolver = bInEnable; }
 
 		/**
+		* Whether to use simd in single precision on the linear joint solver. 
+		*/
+		void SetUseSimd(const bool bInEnable) { Settings.bUseSimd = bInEnable; }
+
+		/**
 		 * Whether to sort the joints internally. Sort will be triggered on any tick when a joint was added. Only needed for RBAN.
 		*/
 		void SetSortEnabled(const bool bInEnable) { Settings.bSortEnabled = bInEnable; }
