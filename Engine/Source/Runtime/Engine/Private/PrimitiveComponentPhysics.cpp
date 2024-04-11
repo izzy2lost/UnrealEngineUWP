@@ -341,29 +341,12 @@ void UPrimitiveComponent::AddTorqueInRadians(FVector Torque, FName BoneName, boo
 				return !Interface->AreAllDisabled({ &Object, 1 });
 			}
 		);
-
-		if (bAccelChange)
-		{
-			const float Mass = Interface->GetMass(PhysicsObjects);
-			Interface->AddTorque(PhysicsObjects, Torque * Mass, /*bInvalidate*/true);
-		}
-		else
-		{
-			Interface->AddTorque(PhysicsObjects, Torque, /*bInvalidate*/true);
-		}
+		Interface->AddTorque(PhysicsObjects, Torque, /*bInvalidate*/true, bAccelChange);
 	}
 	else if (Chaos::FPhysicsObject* Object = GetPhysicsObjectByName(BoneName))
 	{
 		FLockedWritePhysicsObjectExternalInterface Interface = FPhysicsObjectExternalInterface::LockWrite({ &Object, 1 });
-		if (bAccelChange)
-		{
-			const float Mass = Interface->GetMass({ &Object, 1 });
-			Interface->AddTorque({ &Object, 1 }, Torque * Mass, /*bInvalidate*/true);
-		}
-		else
-		{
-			Interface->AddTorque({ &Object, 1 }, Torque, /*bInvalidate*/true);
-		}
+		Interface->AddTorque({ &Object, 1 }, Torque, /*bInvalidate*/true, bAccelChange);
 	}
 }
 

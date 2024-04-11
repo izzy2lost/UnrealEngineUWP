@@ -985,10 +985,29 @@ namespace Chaos
 				}
 			}
 		}
+
+		if constexpr (Id == EThreadContext::External)
+		{
+			if (Chaos::FPhysicsSolverBase* Solver = FPhysicsObjectInterface::GetSolver(InObjects[0]))
+			{
+				Solver->EnqueueCommandImmediate(
+					[AllObjects = TArray<FPhysicsObjectHandle>{ InObjects }, Force, bInvalidate]() {
+						Chaos::FWritePhysicsObjectInterface_Internal Interface = Chaos::FPhysicsObjectInternalInterface::GetWrite();
+						Interface.AddForce(AllObjects, Force, bInvalidate);
+					}
+				);
+			}
+		}
 	}
 
 	template<EThreadContext Id>
 	void FWritePhysicsObjectInterface<Id>::AddTorque(TArrayView<const FPhysicsObjectHandle> InObjects, const FVector& Torque, bool bInvalidate)
+	{
+		AddTorque(InObjects, Torque, bInvalidate, false);
+	}
+
+	template<EThreadContext Id>
+	void FWritePhysicsObjectInterface<Id>::AddTorque(TArrayView<const FPhysicsObjectHandle> InObjects, const FVector& Torque, bool bInvalidate, bool bAccelChange)
 	{
 		for (const FPhysicsObjectHandle Object : InObjects)
 		{
@@ -1008,9 +1027,35 @@ namespace Chaos
 							SetParticleStateHelper<Id>(Object, EObjectStateType::Dynamic);
 						}
 
-						Rigid->AddTorque(Torque, bInvalidate);
+						if (bAccelChange)
+						{
+							FRotation3 QCom = Rigid->GetR() * Rigid->RotationOfMass();
+							if constexpr (Id == EThreadContext::Internal)
+							{
+								QCom = Rigid->GetQ() * Rigid->RotationOfMass();
+							}
+							const FMatrix33 WorldInertia = Utilities::ComputeWorldSpaceInertia(QCom, Rigid->I());
+							Rigid->AddTorque(WorldInertia * Torque, bInvalidate);
+						}
+						else 
+						{
+							Rigid->AddTorque(Torque, bInvalidate);
+						}
 					}
 				}
+			}
+		}
+
+		if constexpr (Id == EThreadContext::External)
+		{
+			if (Chaos::FPhysicsSolverBase* Solver = FPhysicsObjectInterface::GetSolver(InObjects[0]))
+			{
+				Solver->EnqueueCommandImmediate(
+					[AllObjects = TArray<FPhysicsObjectHandle>{ InObjects }, Torque, bInvalidate, bAccelChange]() {
+						Chaos::FWritePhysicsObjectInterface_Internal Interface = Chaos::FPhysicsObjectInternalInterface::GetWrite();
+						Interface.AddTorque(AllObjects, Torque, bInvalidate, bAccelChange);
+					}
+				);
 			}
 		}
 	}
