@@ -273,7 +273,6 @@ bool RunRayTracingTestbed_RenderThread(const FString& Parameters)
 		TransformUploadSRV,
 		RayTracingScene.NumNativeGPUSceneInstances,
 		RayTracingScene.NumNativeCPUInstances,
-		{},
 		nullptr,
 		nullptr);
 

@@ -190,15 +190,10 @@ void FillRayTracingInstanceUploadBuffer(
 
 			uint32 BaseDescriptorIndex = BaseUploadBufferOffsets[SceneInstanceIndex];
 
-			// Upload buffer is split into 3 sections [GPUSceneInstances][CPUInstances][GPUInstances]
+			// Upload buffer is split into 2 sections [GPUSceneInstances][CPUInstances]
 			if (!bGpuSceneInstance)
 			{
 				BaseDescriptorIndex += NumNativeGPUSceneInstances;
-				
-				if (!bCpuInstance)
-				{
-					BaseDescriptorIndex += NumNativeCPUInstances;
-				}
 			}
 
 			int32 NumInactiveNativeInstancesThisSceneInstance = 0;
@@ -413,7 +408,6 @@ void BuildRayTracingInstanceBuffer(
 	FShaderResourceViewRHIRef CPUInstanceTransformSRV,
 	uint32 NumNativeGPUSceneInstances,
 	uint32 NumNativeCPUInstances,
-	TConstArrayView<FRayTracingGPUInstance> GPUInstances,
 	const FRayTracingCullingParameters* CullingParameters,
 	FUnorderedAccessViewRHIRef DebugInstanceGPUSceneIndexUAV)
 {
@@ -447,25 +441,6 @@ void BuildRayTracingInstanceBuffer(
 			CPUInstanceTransformSRV,
 			nullptr,
 			nullptr);
-	}
-
-	for (const auto& GPUInstance : GPUInstances)
-	{
-		// GPU instance input descriptors are stored after CPU instances
-		const uint32 InputDescOffset = NumNativeGPUSceneInstances + NumNativeCPUInstances + GPUInstance.DescBufferOffset;
-
-		BuildRayTracingInstanceBuffer(
-			RHICmdList,
-			GPUScene,
-			PreViewTranslation,
-			GPUInstance.NumInstances,
-			InputDescOffset,
-			InstancesUAV,
-			InstanceUploadSRV,
-			AccelerationStructureAddressesSRV,
-			GPUInstance.TransformSRV,
-			CullingParameters,
-			DebugInstanceGPUSceneIndexUAV);
 	}
 }
 

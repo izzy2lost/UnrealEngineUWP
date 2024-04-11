@@ -52,6 +52,7 @@ struct FRayTracingSceneWithGeometryInstances
 	TArray<uint32> InstanceGeometryIndices;
 	// base offset of each instance entries in the instance upload buffer
 	TArray<uint32> BaseUploadBufferOffsets;
+	UE_DEPRECATED(5.5, "GPUInstances no longer supported. Use GPUSceneInstances instead.")
 	TArray<FRayTracingGPUInstance> GPUInstances;
 };
 
@@ -93,8 +94,29 @@ RENDERER_API void BuildRayTracingInstanceBuffer(
 	FShaderResourceViewRHIRef CPUInstanceTransformSRV,
 	uint32 NumNativeGPUSceneInstances,
 	uint32 NumNativeCPUInstances,
-	TConstArrayView<FRayTracingGPUInstance> GPUInstances,
 	const FRayTracingCullingParameters* CullingParameters,
 	FUnorderedAccessViewRHIRef DebugInstanceGPUSceneIndexUAV);
+
+UE_DEPRECATED(5.5, "GPUInstances no longer supported. Use GPUSceneInstances instead.")
+inline void BuildRayTracingInstanceBuffer(
+	FRHICommandList& RHICmdList,
+	const FGPUScene* GPUScene,
+	const FDFVector3& PreViewTranslation,
+	FUnorderedAccessViewRHIRef InstancesUAV,
+	FShaderResourceViewRHIRef InstanceUploadSRV,
+	FShaderResourceViewRHIRef AccelerationStructureAddressesSRV,
+	FShaderResourceViewRHIRef CPUInstanceTransformSRV,
+	uint32 NumNativeGPUSceneInstances,
+	uint32 NumNativeCPUInstances,
+	TConstArrayView<FRayTracingGPUInstance> GPUInstances,
+	const FRayTracingCullingParameters* CullingParameters,
+	FUnorderedAccessViewRHIRef DebugInstanceGPUSceneIndexUAV)
+{
+	BuildRayTracingInstanceBuffer(RHICmdList, GPUScene, PreViewTranslation,
+		InstancesUAV, InstanceUploadSRV, AccelerationStructureAddressesSRV, CPUInstanceTransformSRV,
+		NumNativeGPUSceneInstances, NumNativeCPUInstances,
+		CullingParameters,
+		DebugInstanceGPUSceneIndexUAV);
+}
 
 #endif // RHI_RAYTRACING

@@ -230,7 +230,6 @@ void FRayTracingScene::CreateWithInitializationData(FRDGBuilder& GraphBuilder, c
 			&SceneInitializer,
 			NumNativeGPUSceneInstances = SceneWithGeometryInstances.NumNativeGPUSceneInstances,
 			NumNativeCPUInstances = SceneWithGeometryInstances.NumNativeCPUInstances,
-			GPUInstances = MoveTemp(SceneWithGeometryInstances.GPUInstances),
 			CullingParameters = View.RayTracingCullingParameters
 			](FRHICommandListImmediate& RHICmdList)
 			{
@@ -273,7 +272,6 @@ void FRayTracingScene::CreateWithInitializationData(FRDGBuilder& GraphBuilder, c
 					TransformUploadSRV,
 					NumNativeGPUSceneInstances,
 					NumNativeCPUInstances,
-					GPUInstances,
 					CullingParameters.bUseInstanceCulling ? &CullingParameters : nullptr,
 					PassParams->DebugInstanceGPUSceneIndexBuffer ? PassParams->DebugInstanceGPUSceneIndexBuffer->GetRHI() : nullptr);
 			});
