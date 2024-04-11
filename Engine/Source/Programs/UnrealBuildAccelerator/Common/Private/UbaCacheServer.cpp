@@ -438,7 +438,7 @@ namespace uba
 				{
 					StringBuffer<> temp;
 					m_pathTable.GetString(temp, pathOffset);
-					auto res = oldToNewPathOffset.try_emplace(pathOffset, newPathTable.Add(temp.data, temp.count));
+					auto res = oldToNewPathOffset.try_emplace(pathOffset, newPathTable.AddNoLock(temp.data, temp.count));
 					UBA_ASSERT(res.second);(void)res;
 				}
 				m_pathTable.Swap(newPathTable);

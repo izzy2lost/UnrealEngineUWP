@@ -12,25 +12,32 @@ namespace uba
 			m_offsets.reserve(reserveOffsetsCount);
 	}
 
-	u32 CompactPathTable::Add(const tchar* str, u32 strLen, u32* outRequiredCasTableSize)
+	u32 CompactPathTable::Add(const tchar* str, u64 strLen, u32* outRequiredCasTableSize)
 	{
 		SCOPED_WRITE_LOCK(m_lock, lock);
-		if (!m_mem.memory)
-			m_mem.Init(m_reserveSize);
-		u32 res = InternalAdd(str, strLen);
+		u32 res = AddNoLock(str, strLen);
 		if (outRequiredCasTableSize)
 			*outRequiredCasTableSize = u32(m_mem.writtenSize);
 		return res;
 	}
 
-	u32 CompactPathTable::InternalAdd(const tchar* str, u32 strLen)
+	u32 CompactPathTable::AddNoLock(const tchar* str, u64 strLen)
 	{
-		const tchar* stringKeyString = str;
+		if (!m_mem.memory)
+			m_mem.Init(m_reserveSize);
+		if (!m_mem.writtenSize)
+			m_mem.AllocateNoLock(1, 1, TC(""));
 
+		const tchar* stringKeyString = str;
 		StringBuffer<MaxPath> tempStringKeyStr;
 		if (CaseInsensitiveFs)
 			stringKeyString = tempStringKeyStr.Append(str).MakeLower().data;
 
+		return InternalAdd(str, stringKeyString, strLen);
+	}
+
+	u32 CompactPathTable::InternalAdd(const tchar* str, const tchar* stringKeyString, u64 strLen)
+	{
 		StringKey key = ToStringKey(stringKeyString, strLen);
 		auto insres = m_offsets.try_emplace(key);
 		if (!insres.second)
@@ -38,23 +45,24 @@ namespace uba
 			
 		const tchar* seg = str;
 		u32 parentOffset = 0;
-		if (const tchar* lastSeparator = TStrrchr(str, PathSeparator))
+		
+		for (const tchar* it = str + strLen - 1; it > str; --it)
 		{
-			StringBuffer<> temp;
-			temp.Append(str, lastSeparator - str);
-			parentOffset = InternalAdd(temp.data, temp.count);
-			seg = lastSeparator + 1;
+			if (*it != PathSeparator)
+				continue;
+
+			parentOffset = InternalAdd(str, stringKeyString, it - str);
+			seg = it + 1;
+			break;
 		}
 
 		u64 segLen = strLen - (seg - str);
 		u8 bytesForParent = Get7BitEncodedCount(parentOffset);
 		u64 bytesForString = GetStringWriteSize(seg, segLen);
 
-		if (!m_mem.writtenSize)
-			m_mem.Allocate(1, 1, TC(""));
-
-		u8* mem = (u8*)m_mem.Allocate(bytesForParent + bytesForString, 1, TC(""));
-		BinaryWriter writer(mem, 0, 10000);
+		u64 memSize = bytesForParent + bytesForString;
+		u8* mem = (u8*)m_mem.AllocateNoLock(memSize, 1, TC(""));
+		BinaryWriter writer(mem, 0, memSize);
 		writer.Write7BitEncoded(parentOffset);
 		writer.WriteString(seg, segLen);
 		insres.first->second = u32(mem - m_mem.memory);
@@ -66,11 +74,14 @@ namespace uba
 		u32 offsets[256];
 		offsets[0] = u32(offset);
 		u32 offsetCount = 0;
+
+		BinaryReader reader(m_mem.memory, offset, m_mem.writtenSize);
+
 		while (offset)
 		{
 			++offsetCount;
 			UBA_ASSERT(offsetCount < sizeof_array(offsets));
-			BinaryReader reader(m_mem.memory, offset, 4);
+			reader.SetPosition(offset);
 			offset = (u32)reader.Read7BitEncoded();
 			offsets[offsetCount] = u32(offset);
 		}
@@ -78,7 +89,7 @@ namespace uba
 		bool isFirst = true;
 		for (u32 i=offsetCount;i; --i)
 		{
-			BinaryReader reader(m_mem.memory, offsets[i-1], 1024);
+			reader.SetPosition(offsets[i-1]);
 			reader.Read7BitEncoded();
 
 			if (!isFirst)
@@ -106,7 +117,7 @@ namespace uba
 
 		u64 writtenSize = m_mem.writtenSize;
 		u64 left = reader.GetLeft();
-		void* mem = m_mem.Allocate(left, 1, TC(""));
+		void* mem = m_mem.AllocateNoLock(left, 1, TC(""));
 		reader.ReadBytes(mem, left);
 
 		if (!populateLookup)
@@ -154,7 +165,7 @@ namespace uba
 		if (insres.second)
 		{
 			u8 bytesForStringOffset = Get7BitEncodedCount(stringOffset);
-			u8* mem = (u8*)m_mem.Allocate(bytesForStringOffset + sizeof(CasKey), 1, TC(""));
+			u8* mem = (u8*)m_mem.AllocateNoLock(bytesForStringOffset + sizeof(CasKey), 1, TC(""));
 			BinaryWriter writer(mem, 0, 1000);
 			writer.Write7BitEncoded(stringOffset);
 			writer.WriteCasKey(casKey);
@@ -205,7 +216,7 @@ namespace uba
 		u64 writtenSize = m_mem.writtenSize;
 
 		u64 left = reader.GetLeft();
-		void* mem = m_mem.Allocate(left, 1, TC(""));
+		void* mem = m_mem.AllocateNoLock(left, 1, TC(""));
 		reader.ReadBytes(mem, left);
 
 		if (!populateLookup)

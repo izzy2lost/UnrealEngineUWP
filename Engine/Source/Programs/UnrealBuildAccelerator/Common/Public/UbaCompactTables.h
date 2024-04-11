@@ -16,7 +16,8 @@ namespace uba
 	public:
 		CompactPathTable(u64 reserveSize, u64 reserveOffsetsCount = 0);
 
-		u32 Add(const tchar* str, u32 strLen, u32* outRequiredCasTableSize = nullptr);
+		u32 Add(const tchar* str, u64 strLen, u32* outRequiredCasTableSize = nullptr);
+		u32 AddNoLock(const tchar* str, u64 strLen);
 
 		void GetString(StringBufferBase& out, u64 offset) const;
 
@@ -27,7 +28,7 @@ namespace uba
 		void Swap(CompactPathTable& other);
 
 	private:
-		u32 InternalAdd(const tchar* str, u32 strLen);
+		u32 InternalAdd(const tchar* str, const tchar* stringKeyString, u64 strLen);
 		ReaderWriterLock m_lock;
 		MemoryBlock m_mem;
 		UnorderedMap<StringKey, u32> m_offsets;

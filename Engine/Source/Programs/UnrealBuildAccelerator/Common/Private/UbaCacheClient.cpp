@@ -274,6 +274,9 @@ namespace uba
 				return false;
 		}
 
+
+		UnorderedMap<u32, bool> offsetIsMatch;
+
 		// Traverse entries and test inputs against local machine
 		u32 entryCount = reader.ReadU16();
 		for (u32 i=0; i!=entryCount; ++i)
@@ -285,29 +288,35 @@ namespace uba
 			{
 				u32 casKeyOffset = u32(reader.Read7BitEncoded());
 
-				if (casKeyOffset >= m_serverCasKeyTable.GetSize())
-					if (!FetchCasTable())
+				auto insres = offsetIsMatch.try_emplace(casKeyOffset);
+				if (insres.second)
+				{
+					if (casKeyOffset >= m_serverCasKeyTable.GetSize())
+						if (!FetchCasTable())
+							return false;
+
+					StringBuffer<MaxPath> path;
+					CasKey cacheCasKey;
+					if (!GetLocalPathAndCasKey(path, cacheCasKey, m_serverCasKeyTable, m_serverPathTable, casKeyOffset))
 						return false;
+					UBA_ASSERT(IsCompressed(cacheCasKey));
 
-				StringBuffer<MaxPath> path;
-				CasKey cacheCasKey;
-				if (!GetLocalPathAndCasKey(path, cacheCasKey, m_serverCasKeyTable, m_serverPathTable, casKeyOffset))
-					return false;
-				UBA_ASSERT(IsCompressed(cacheCasKey));
+					CasKey localCasKey;
+					if (path.EndsWith(TC(".rsp")) || path.EndsWith(TC(".dep.json"))) // Need to normalize caskey for these files since they contain absolute paths
+					{
+						localCasKey = AsCompressed(NormalizeAndHashFile(path.data), true);
+					}
+					else
+					{
+						bool deferCreation = true;
+						m_storage.StoreCasFile(localCasKey, path.data, CasKeyZero, deferCreation);
+						UBA_ASSERT(localCasKey == CasKeyZero || IsCompressed(localCasKey));
+					}
 
-				CasKey localCasKey;
-				if (path.EndsWith(TC(".rsp")) || path.EndsWith(TC(".dep.json"))) // Need to normalize caskey for these files since they contain absolute paths
-				{
-					localCasKey = AsCompressed(NormalizeAndHashFile(path.data), true);
-				}
-				else
-				{
-					bool deferCreation = true;
-					m_storage.StoreCasFile(localCasKey, path.data, CasKeyZero, deferCreation);
-					UBA_ASSERT(localCasKey == CasKeyZero || IsCompressed(localCasKey));
+					insres.first->second = localCasKey == cacheCasKey;
 				}
 
-				if (localCasKey != cacheCasKey)
+				if (!insres.first->second)
 				{
 					reader.Skip(inputEnd -  reader.GetPositionData());
 					isMatch = false;

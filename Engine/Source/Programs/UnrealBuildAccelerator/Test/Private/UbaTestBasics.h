@@ -5,6 +5,7 @@
 #define Local_GetLongPathNameW uba::GetLongPathNameW
 
 #include "UbaBinaryReaderWriter.h"
+#include "UbaCompactTables.h"
 #include "UbaFileAccessor.h"
 #include "UbaProcess.h"
 #include "UbaPathUtils.h"
@@ -307,4 +308,25 @@ namespace uba
 		return true;
 	}
 	#endif
+
+	bool TestCompactPathTable(Logger& logger, const StringBufferBase& rootDir)
+	{
+		CompactPathTable table(64*1024);
+
+		StringBuffer<> str;
+		str.Append("foo").EnsureEndsWithSlash().Append("bar");
+		u32 offset = table.Add(str.data, str.count);
+
+		StringBuffer<> str2;
+		table.GetString(str2, offset);
+		if (!str.Equals(str2.data))
+			return false;
+
+		str.Clear().Append(PathSeparator).Append("foo").Append(PathSeparator).Append("bar");
+		offset = table.Add(str.data, str.count);
+		table.GetString(str2.Clear(), offset);
+		if (!str.Equals(str2.data))
+			return false;
+		return true;
+	}
 }

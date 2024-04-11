@@ -28,6 +28,7 @@ namespace uba
 		UBA_TEST(TestStorage) \
 		UBA_TEST(TestDetouredTestApp) \
 		UBA_TEST(TestRemoteDetouredTestApp) \
+		UBA_TEST(TestCompactPathTable) \
 
 
 #define UBA_POSIX_TESTS \
