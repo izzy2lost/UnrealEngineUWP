@@ -805,7 +805,8 @@ class ARecastNavMesh : public ANavigationData
 	/** Maximum vertical deviation between raw contour points to allowing merging (in voxel).
 	 * Use a low value (2-5) depending on CellHeight, AgentMaxStepHeight and AgentMaxSlope, to allow more precise contours (also see SimplificationElevationRatio).
 	 * Use very high value to deactivate (Recast behavior). */
-	UPROPERTY(EditAnywhere, Category = Generation, config, meta = (ClampMin = "0"))
+	UE_DEPRECATED(5.5, "Not used anymore, the behavior is now binded to SimplificationElevationRatio.")
+	UPROPERTY(config)
 	int MaxVerticalMergeError;
 	
 	/** How much navigable shapes can get simplified - the higher the value the more freedom */

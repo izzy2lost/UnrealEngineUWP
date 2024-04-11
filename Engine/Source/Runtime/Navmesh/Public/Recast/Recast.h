@@ -292,11 +292,6 @@ struct rcConfig
 	
 	/// The maximum allowed length for contour edges along the border of the mesh. [Limit: >=0] [Units: vx] 
 	int maxEdgeLen;
-
-	/// Maximum vertical deviation between raw contour points to allow merging points. [Limit: >=0] [Units: vx]
-	/// Use a low value (2-5) to allow more precise contours (also see SimplificationElevationFactor).
-	/// Use very high value to deactivate (Recast behavior).
-	int maxVerticalMergeError;	// UE
 	
 	/// The maximum distance a simplified contour's border edges should deviate 
 	/// the original raw contour. [Limit: >=0] [Units: wu]
