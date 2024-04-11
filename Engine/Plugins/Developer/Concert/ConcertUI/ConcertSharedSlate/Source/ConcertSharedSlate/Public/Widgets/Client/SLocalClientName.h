@@ -2,6 +2,8 @@
 
 #pragma once
 
+#include "ConcertMessageData.h"
+#include "Misc/Optional.h"
 #include "Styling/AppStyle.h"
 #include "Widgets/DeclarativeSyntaxSupport.h"
 #include "Widgets/SCompoundWidget.h"
@@ -16,19 +18,25 @@ namespace UE::ConcertClientSharedSlate
 	 * The name will look like "Client Name (me)".
 	 * @see SRemoteClientName
 	 */
-	class CONCERTCLIENTSHAREDSLATE_API SLocalClientName : public SCompoundWidget
+	class CONCERTSHAREDSLATE_API SLocalClientName : public SCompoundWidget
 	{
 	public:
 
 		SLATE_BEGIN_ARGS(SLocalClientName)
 			: _Font(FAppStyle::Get().GetFontStyle("BoldFont"))
 		{}
+			/** The client info to display. */
+			SLATE_ATTRIBUTE(TOptional<FConcertClientInfo>, DisplayInfo)
+			
+			/** Whether to show a square image in front of the name. */
+			SLATE_ATTRIBUTE(bool, DisplayAvatarColor)
+			
 			/** Used for highlighting in the text */
 			SLATE_ATTRIBUTE(FText, HighlightText)
 			/** The font to use for the name */
 			SLATE_ARGUMENT(FSlateFontInfo, Font)
 		SLATE_END_ARGS()
 
-		void Construct(const FArguments& InArgs, TSharedRef<IConcertClient> InClient);
+		void Construct(const FArguments& InArgs);
 	};
 }

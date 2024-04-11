@@ -5,25 +5,25 @@
 #include "MultiUserReplicationStyle.h"
 #include "Misc/EBreakBehavior.h"
 #include "Replication/Client/ReplicationClient.h"
+#include "Replication/Editor/Model/Object/IObjectHierarchyModel.h"
 #include "Replication/Submission/MultiEdit/ReassignObjectPropertiesLogic.h"
 #include "Widgets/ActiveSession/Replication/Client/ClientUtils.h"
 #include "Widgets/ActiveSession/Replication/Misc/SNoClients.h"
-#include "Widgets/ClientName/SHorizontalClientList.h"
+#include "Widgets/Client/ClientInfoHelpers.h"
+#include "Widgets/Client/SHorizontalClientList.h"
 
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "Framework/Commands/UIAction.h"
 #include "Framework/Commands/UICommandInfo.h"
-#include "Replication/Editor/Model/Object/IObjectHierarchyModel.h"
 #include "Textures/SlateIcon.h"
 #include "Widgets/Images/SThrobber.h"
 #include "Widgets/Input/SComboBox.h"
-#include "Widgets/Layout/SScaleBox.h"
 
 #define LOCTEXT_NAMESPACE "SReassignObjectComboBox"
 
 namespace UE::MultiUserClient
 {
-	namespace ReassignObjctComboBox
+	namespace ReassignObjectComboBox
 	{
 		TArray<FGuid> GetDisplayedClients(
 			const FReassignObjectPropertiesLogic& ReassignmentLogic,
@@ -50,7 +50,7 @@ namespace UE::MultiUserClient
 		TArray<FString>& InOutSearchTerms
 		)
 	{
-		for (const FGuid& ClientId : ReassignObjctComboBox::GetDisplayedClients(ReassignmentLogic, ManagedObject))
+		for (const FGuid& ClientId : ReassignObjectComboBox::GetDisplayedClients(ReassignmentLogic, ManagedObject))
 		{
 			InOutSearchTerms.Add(ClientUtils::GetClientDisplayName(Session, ClientId));
 		}
@@ -63,11 +63,13 @@ namespace UE::MultiUserClient
 		)
 	{
 		using SWidgetType = ConcertClientSharedSlate::SHorizontalClientList;
-		const TArray<FGuid> Clients = ReassignObjctComboBox::GetDisplayedClients(ReassignmentLogic, ManagedObject);
+		const TArray<FGuid> Clients = ReassignObjectComboBox::GetDisplayedClients(ReassignmentLogic, ManagedObject);
+		const ConcertSharedSlate::FIsLocalClient IsLocalClientDelegate = ConcertClientSharedSlate::MakeIsLocalClientGetter(LocalConcertClient);
 		return SWidgetType::GetDisplayString(
-			LocalConcertClient.Get(),
 			Clients,
-			SWidgetType::FSortPredicate::CreateStatic(&SWidgetType::SortLocalClientFirstThenAlphabetical, LocalConcertClient)
+			ConcertClientSharedSlate::MakeClientInfoGetter(LocalConcertClient),
+			SWidgetType::FSortPredicate::CreateStatic(&SWidgetType::SortLocalClientFirstThenAlphabetical, IsLocalClientDelegate),
+			IsLocalClientDelegate
 			);
 	}
 
@@ -107,7 +109,9 @@ namespace UE::MultiUserClient
 				.HasDownArrow(true)
 				.ButtonContent()
 				[
-					SAssignNew(ComboClientList, ConcertClientSharedSlate::SHorizontalClientList, InConcertClient)
+					SAssignNew(ComboClientList, ConcertClientSharedSlate::SHorizontalClientList)
+					.IsLocalClient(ConcertClientSharedSlate::MakeIsLocalClientGetter(ConcertClient.ToSharedRef()))
+					.GetClientInfo(ConcertClientSharedSlate::MakeClientInfoGetter(ConcertClient.ToSharedRef()))
 					.Font(FAppStyle::GetFontStyle("PropertyWindow.NormalFont"))
 					.HighlightText_Lambda([this](){ return HighlightText ? *HighlightText : FText::GetEmpty(); })
 					.EmptyListSlot() [ SNew(SNoClients) ]
@@ -128,7 +132,7 @@ namespace UE::MultiUserClient
 	void SReassignObjectComboBox::UpdateComboButtonContent() const
 	{
 		ComboClientList->RefreshList(
-			ReassignObjctComboBox::GetDisplayedClients(*ReassignmentLogic, ManagedObject)
+			ReassignObjectComboBox::GetDisplayedClients(*ReassignmentLogic, ManagedObject)
 			);
 	}
 

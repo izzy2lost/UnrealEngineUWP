@@ -71,10 +71,10 @@ private:
 	TSharedPtr<SWidget> NoClientPanel; // Displays the 'no client connected' message in Clients expendable area.
 	
 	// Layout the 'session|details' split view.
-	TSharedRef<SWidget> MakeBrowserContent(TSharedPtr<FText> InSearchText);
+	TSharedRef<SWidget> MakeBrowserContent(TSharedPtr<FText> InSearchText, const TSharedRef<IConcertClient>& Client);
 	void ExtendControlButtons(FExtender& Extender);
 	void ExtendSessionContextMenu(const TSharedPtr<FConcertSessionTreeItem>& Item, FExtender& Extender);
-	TSharedRef<SWidget> MakeUserAndSettings();
+	TSharedRef<SWidget> MakeUserAndSettings(TSharedPtr<FText> InSearchText, const TSharedRef<IConcertClient>& Client);
 	TSharedRef<SWidget> MakeOverlayedTableView(const TSharedRef<SWidget>& TableView);
 	
 	// Layouts the session detail panel.

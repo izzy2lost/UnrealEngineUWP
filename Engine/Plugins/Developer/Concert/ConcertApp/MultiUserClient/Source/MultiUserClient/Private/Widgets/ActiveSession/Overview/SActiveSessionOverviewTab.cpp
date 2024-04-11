@@ -13,10 +13,11 @@
 #include "IConcertClient.h"
 #include "IConcertClientWorkspace.h"
 #include "IConcertSyncClient.h"
+#include "Widgets/Client/ClientInfoHelpers.h"
+#include "Widgets/Client/SClientName.h"
 #include "Widgets/ClientSessionHistoryController.h"
 
 #include "Algo/Transform.h"
-#include "EditorFontGlyphs.h"
 #include "FileHelpers.h"
 #include "Misc/AsyncTaskNotification.h"
 #include "Misc/PackageName.h"
@@ -42,10 +43,11 @@ namespace ActiveSessionDetailsUI
 
 class SActiveSessionDetailsRow : public SMultiColumnTableRow<TSharedPtr<FConcertSessionClientInfo>>
 {
+public:
+	
 	SLATE_BEGIN_ARGS(SActiveSessionDetailsRow) {}
 	SLATE_END_ARGS()
 
-public:
 	/**
 	 * Constructs the widget.
 	 *
@@ -65,31 +67,21 @@ public:
 		SetToolTipText(MakeAttributeSP(this, &SActiveSessionDetailsRow::GetRowToolTip));
 	}
 
-public:
 	virtual TSharedRef<SWidget> GenerateWidgetForColumn(const FName& ColumnName) override
 	{
 		if (ColumnName == ActiveSessionDetailsUI::DisplayNameColumnName)
 		{
-			// Displays a colored square from a special font (using avatar color) followed by the the display name -> [x] John Smith
-			return SNew(SHorizontalBox)
-				// The 'square' glyph in front of the client name, rendered using special font glyph, in the client avatar color.
-				+SHorizontalBox::Slot()
-				.AutoWidth()
-				.VAlign(VAlign_Center)
-				.Padding(FMargin(4.0f, 0.0f, 0.0f, 0.0f))
-				[
-					SNew(STextBlock)
-					.Font(this, &SActiveSessionDetailsRow::GetAvatarFont)
-					.ColorAndOpacity(this, &SActiveSessionDetailsRow::GetAvatarColor)
-					.Text(FEditorFontGlyphs::Square)
-				]
+			const TSharedPtr<IConcertSyncClient> SyncClientPin = SyncClient.Pin();
+			const TSharedPtr<FConcertSessionClientInfo> SessionClientInfoPin = SessionClientInfo.Pin();
+			if (!SyncClientPin)
+			{
+				return SNew(STextBlock).Text(LOCTEXT("Unavailable", "Unavailable"));
+			}
 
-				// The client display name.
-				+SHorizontalBox::Slot()
-				.VAlign(VAlign_Center)
-				[
-					ConcertFrontendUtils::CreateDisplayName(MakeAttributeSP(this, &SActiveSessionDetailsRow::GetDisplayName))
-				];
+			const bool bIsLocalClient = SyncClientPin->GetConcertClient()->GetCurrentSession()->GetSessionClientEndpointId() == SessionClientInfoPin->ClientEndpointId;
+			return SNew(UE::ConcertClientSharedSlate::SClientName)
+				.ClientInfo(UE::ConcertClientSharedSlate::MakeClientInfoAttribute(SyncClientPin->GetConcertClient(), SessionClientInfoPin->ClientEndpointId))
+				.DisplayAsLocalClient(bIsLocalClient);
 		}
 		else if (ColumnName == ActiveSessionDetailsUI::PresenceColumnName)
 		{

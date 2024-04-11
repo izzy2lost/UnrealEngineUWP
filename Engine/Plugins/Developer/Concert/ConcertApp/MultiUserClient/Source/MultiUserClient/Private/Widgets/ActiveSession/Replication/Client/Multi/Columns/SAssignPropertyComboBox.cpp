@@ -10,9 +10,10 @@
 #include "Replication/Editor/Model/PropertyUtils.h"
 #include "Widgets/ActiveSession/Replication/Misc/SNoClients.h"
 #include "Widgets/ActiveSession/Replication/Client/ClientUtils.h"
-#include "Widgets/ClientName/SHorizontalClientList.h"
-#include "Widgets/ClientName/SLocalClientName.h"
-#include "Widgets/ClientName/SRemoteClientName.h"
+#include "Widgets/Client/ClientInfoHelpers.h"
+#include "Widgets/Client/SHorizontalClientList.h"
+#include "Widgets/Client/SLocalClientName.h"
+#include "Widgets/Client/SRemoteClientName.h"
 
 #include "Algo/AnyOf.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
@@ -58,10 +59,12 @@ namespace UE::MultiUserClient
 	{
 		using SWidgetType = ConcertClientSharedSlate::SHorizontalClientList;
 		const TArray<FGuid> Clients = AssignPropertyComboBox::GetDisplayedClients(ClientManager, DisplayedProperty, EditedObjects);
+		const ConcertSharedSlate::FIsLocalClient IsLocalClientDelegate = ConcertClientSharedSlate::MakeIsLocalClientGetter(LocalConcertClient);
 		return SWidgetType::GetDisplayString(
-			LocalConcertClient.Get(),
 			Clients,
-			SWidgetType::FSortPredicate::CreateStatic(&SWidgetType::SortLocalClientFirstThenAlphabetical, LocalConcertClient)
+			ConcertClientSharedSlate::MakeClientInfoGetter(LocalConcertClient),
+			SWidgetType::FSortPredicate::CreateStatic(&SWidgetType::SortLocalClientFirstThenAlphabetical, IsLocalClientDelegate),
+			IsLocalClientDelegate
 			);
 	}
 
@@ -88,7 +91,9 @@ namespace UE::MultiUserClient
 			.HasDownArrow(true)
 			.ButtonContent()
 			[
-				SAssignNew(ClientListWidget, ConcertClientSharedSlate::SHorizontalClientList, ConcertClient.ToSharedRef())
+				SAssignNew(ClientListWidget, ConcertClientSharedSlate::SHorizontalClientList)
+				.IsLocalClient(ConcertClientSharedSlate::MakeIsLocalClientGetter(ConcertClient.ToSharedRef()))
+				.GetClientInfo(ConcertClientSharedSlate::MakeClientInfoGetter(ConcertClient.ToSharedRef()))
 				.Font(FAppStyle::GetFontStyle("PropertyWindow.NormalFont"))
 				.HighlightText_Lambda([this](){ return HighlightText ? *HighlightText : FText::GetEmpty(); })
 				.EmptyListSlot() [ SNew(SNoClients) ]
@@ -117,13 +122,14 @@ namespace UE::MultiUserClient
 			const bool bIsLocalClient = EndpointId == ConcertClient->GetCurrentSession()->GetSessionClientEndpointId();
 			if (bIsLocalClient)
 			{
-				return SNew(SLocalClientName, ConcertClient.ToSharedRef())
+				return SNew(SLocalClientName)
+					.DisplayInfo(ConcertClientSharedSlate::MakeLocalClientInfoAttribute(ConcertClient.ToSharedRef()))
 					.Font(FAppStyle::GetFontStyle("PropertyWindow.NormalFont"))
 					.HighlightText_Lambda([this](){ return HighlightText ? *HighlightText : FText::GetEmpty(); });
 			}
-			return SNew(SRemoteClientName, ConcertClient.ToSharedRef())
+			return SNew(SRemoteClientName)
+				.DisplayInfo(ConcertClientSharedSlate::MakeClientInfoAttribute(ConcertClient.ToSharedRef(), EndpointId))
 				.Font(FAppStyle::GetFontStyle("PropertyWindow.NormalFont"))
-				.ClientEndpointId(EndpointId)
 				.HighlightText_Lambda([this](){ return HighlightText ? *HighlightText : FText::GetEmpty(); });
 		};
 		

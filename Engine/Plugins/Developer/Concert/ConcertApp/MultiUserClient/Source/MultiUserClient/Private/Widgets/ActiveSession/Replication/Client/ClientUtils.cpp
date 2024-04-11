@@ -5,7 +5,7 @@
 #include "ConcertMessageData.h"
 #include "IConcertClient.h"
 #include "Replication/Client/ReplicationClientManager.h"
-#include "Widgets/ClientName/SClientName.h"
+#include "Widgets/Client/SClientName.h"
 
 namespace UE::MultiUserClient::ClientUtils
 {

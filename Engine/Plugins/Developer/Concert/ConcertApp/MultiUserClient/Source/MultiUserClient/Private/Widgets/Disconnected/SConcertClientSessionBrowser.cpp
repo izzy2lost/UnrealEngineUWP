@@ -16,6 +16,9 @@
 #include "Session/Browser/ConcertBrowserUtils.h"
 #include "Session/Browser/Items/ConcertSessionTreeItem.h"
 #include "Session/Browser/SConcertSessionBrowser.h"
+#include "Widgets/Disconnected/ConcertClientSessionBrowserController.h"
+#include "Widgets/Client/SClientName.h"
+#include "Widgets/Client/ClientInfoHelpers.h"
 
 #include "Algo/Transform.h"
 #include "Algo/TiedTupleOutput.h"
@@ -25,7 +28,6 @@
 #include "Misc/MessageDialog.h"
 #include "Styling/AppStyle.h"
 #include "Textures/SlateIcon.h"
-#include "Widgets/Disconnected/ConcertClientSessionBrowserController.h"
 #include "Widgets/Images/SImage.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Layout/SBorder.h"
@@ -110,7 +112,7 @@ void SConcertClientSessionBrowser::Construct(const FArguments& InArgs, IConcertC
 
 	ChildSlot
 	[
-		MakeBrowserContent(InSearchText)
+		MakeBrowserContent(InSearchText, InConcertClient.ToSharedRef())
 	];
 
 	// Create a timer to periodically poll the server for sessions and session clients at a lower frequency than the normal tick.
@@ -120,7 +122,7 @@ void SConcertClientSessionBrowser::Construct(const FArguments& InArgs, IConcertC
 	ScheduleDiscoveryTaskIfPossible(bForceTaskStart);
 }
 
-TSharedRef<SWidget> SConcertClientSessionBrowser::MakeBrowserContent(TSharedPtr<FText> InSearchText)
+TSharedRef<SWidget> SConcertClientSessionBrowser::MakeBrowserContent(TSharedPtr<FText> InSearchText, const TSharedRef<IConcertClient>& Client)
 {
 	return SNew(SBox)
 		.HAlign(HAlign_Fill)
@@ -139,7 +141,7 @@ TSharedRef<SWidget> SConcertClientSessionBrowser::MakeBrowserContent(TSharedPtr<
 					.ExtendSessionContextMenu(this, &SConcertClientSessionBrowser::ExtendSessionContextMenu)
 					.RightOfControlButtons()
 					[
-						MakeUserAndSettings()
+						MakeUserAndSettings(InSearchText, Client)
 					]
 					.OnSessionClicked(this, &SConcertClientSessionBrowser::OnSessionSelectionChanged)
 					.OnLiveSessionDoubleClicked(this, &SConcertClientSessionBrowser::OnSessionDoubleClicked)
@@ -286,27 +288,17 @@ void SConcertClientSessionBrowser::ExtendSessionContextMenu(const TSharedPtr<FCo
 	
 }
 
-TSharedRef<SWidget> SConcertClientSessionBrowser::MakeUserAndSettings()
+TSharedRef<SWidget> SConcertClientSessionBrowser::MakeUserAndSettings(TSharedPtr<FText> InSearchText, const TSharedRef<IConcertClient>& Client)
 {
 	return SNew(SHorizontalBox)
-		// The user "Avatar color" displayed as a small square colored by the user avatar color.
 		+SHorizontalBox::Slot()
 		.VAlign(VAlign_Center)
 		.AutoWidth()
 		[
-			SNew(SImage)
-			.ColorAndOpacity_Lambda([this]() { return Controller->GetConcertClient()->GetClientInfo().AvatarColor; })
-			.Image(FAppStyle::GetBrush("Icons.FilledCircle"))
-		]
-				
-		// The user "Display Name".
-		+SHorizontalBox::Slot()
-		.VAlign(VAlign_Center)
-		.AutoWidth()
-		.Padding(3, 0, 2, 0)
-		[
-			SNew(STextBlock)
-				.Text_Lambda([this]() { return FText::FromString(Controller->GetConcertClient()->GetClientInfo().DisplayName);} )
+			SNew(UE::ConcertClientSharedSlate::SClientName)
+			.ClientInfo(UE::ConcertClientSharedSlate::MakeLocalClientInfoAttribute(Client))
+			.DisplayAsLocalClient(false) // It is obvious that it's the local user because we have not joined any session yet so do not display (You) in the back.
+			.HighlightText_Lambda([InSearchText](){ return *InSearchText.Get(); })
 		]
 
 		// The "Settings" icons.

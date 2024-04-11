@@ -1,23 +1,22 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Widgets/ClientName/SLocalClientName.h"
+#include "Widgets/Client/SLocalClientName.h"
 
-#include "IConcertClient.h"
-
-#include "Widgets/ClientName/SClientName.h"
+#include "Widgets/Client/SClientName.h"
 #include "Widgets/Text/STextBlock.h"
 
 #define LOCTEXT_NAMESPACE "SLocalClientName"
 
 namespace UE::ConcertClientSharedSlate
 {
-	void SLocalClientName::Construct(const FArguments& InArgs, TSharedRef<IConcertClient> InClient)
+	void SLocalClientName::Construct(const FArguments& InArgs)
 	{
 		ChildSlot
 		[
 			SNew(SClientName)
-			.ClientInfo_Lambda([InClient](){ return &InClient->GetClientInfo(); })
+			.ClientInfo(InArgs._DisplayInfo)
 			.DisplayAsLocalClient(true)
+			.DisplayAvatarColor(InArgs._DisplayAvatarColor)
 			.HighlightText(InArgs._HighlightText)
 			.Font(InArgs._Font)
 		];
