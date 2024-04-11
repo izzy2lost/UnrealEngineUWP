@@ -53,6 +53,9 @@ private:
 	FGraphVertexHandle VertexHandle2;
 };
 
+DECLARE_MULTICAST_DELEGATE_OneParam(FOnGraphEdgeCreated, const FEdgeSpecifier&);
+DECLARE_MULTICAST_DELEGATE_OneParam(FOnGraphEdgeRemoved, const FEdgeSpecifier&);
+
 /**
  * A UGraph is a collection of nodes and edges. This graph representation
  * is meant to be easily integrable into gameplay systems in the Unreal Engine.
@@ -122,6 +125,8 @@ public:
 
 	FOnGraphVertexCreated OnVertexCreated;
 	FOnGraphIslandCreated OnIslandCreated;
+	FOnGraphEdgeCreated OnEdgeCreated;
+	FOnGraphEdgeRemoved OnEdgeRemoved;
 
 	const TMap<FGraphVertexHandle, TObjectPtr<UGraphVertex>>& GetVertices() const { return Vertices; }
 	const TMap<FGraphIslandHandle, TObjectPtr<UGraphIsland>>& GetIslands() const { return Islands; }

@@ -32,11 +32,11 @@ void UGraphVertex::RemoveEdge(const FGraphVertexHandle& AdjacentVertexHandle)
 
 void UGraphVertex::HandleOnVertexRemoved()
 {
-	OnVertexRemoved.Broadcast();
+	OnVertexRemoved.Broadcast(Handle());
 }
 
 void UGraphVertex::SetParentIsland(const FGraphIslandHandle& Island)
 {
 	ParentIsland = Island;
-	OnParentIslandSet.Broadcast(Island);
+	OnParentIslandSet.Broadcast(Handle(), Island);
 }

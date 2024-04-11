@@ -133,6 +133,7 @@ bool UGraph::CreateEdge(FGraphVertexHandle Node1, FGraphVertexHandle Node2, bool
 	// Also need to make sure the nodes are aware of the new edge.
 	Node1Ptr->AddEdgeTo(Node2);
 	Node2Ptr->AddEdgeTo(Node1);
+	OnEdgeCreated.Broadcast(FEdgeSpecifier{Node1, Node2});
 
 	// If we want to keep track of islands, this is where we need to create/merge islands.
 	if (Properties.bGenerateIslands)
@@ -536,6 +537,8 @@ void UGraph::RemoveEdgeInternal(const FGraphVertexHandle& VertexHandleA, const F
 			IslandHandle = NodeB->GetParentIsland();
 		}
 	}
+
+	OnEdgeRemoved.Broadcast(FEdgeSpecifier{VertexHandleA, VertexHandleB});
 	
 	// Removing an edge should cause the island to check if it needs to split.
 	if (Properties.bGenerateIslands && bHandleIslands)
