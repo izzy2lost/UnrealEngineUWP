@@ -546,7 +546,7 @@ void UEnhancedPlayerInput::EvaluateInputDelegates(const TArray<UInputComponent*>
 		TRACE_CPUPROFILER_EVENT_SCOPE(EnhPIS_Delegates);
 
 		UEnhancedInputComponent* IC = Cast<UEnhancedInputComponent>(InputComponentStack[StackIndex]);
-		if (!IC)
+		if (!IsValid(IC))
 		{
 			continue;
 		}

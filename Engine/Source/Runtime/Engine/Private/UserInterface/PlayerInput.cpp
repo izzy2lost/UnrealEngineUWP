@@ -1294,7 +1294,7 @@ void UPlayerInput::EvaluateInputDelegates(const TArray<UInputComponent*>& InputC
 	for ( ; StackIndex >= 0; --StackIndex)
 	{
 		UInputComponent* const IC = InputComponentStack[StackIndex];
-		if (IC)
+		if (IsValid(IC))
 		{
 			check(!KeysToConsume.Num() && !FoundChords.Num() && !EventIndices.Num() && !PotentialActions.Num());
 

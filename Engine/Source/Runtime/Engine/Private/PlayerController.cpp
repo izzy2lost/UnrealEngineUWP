@@ -2708,7 +2708,7 @@ void APlayerController::BuildInputStack(TArray<UInputComponent*>& InputStack)
 	for (int32 Idx=0; Idx<CurrentInputStack.Num(); ++Idx)
 	{
 		UInputComponent* IC = CurrentInputStack[Idx].Get();
-		if (IC)
+		if (IsValid(IC))
 		{
 			InputStack.Push(IC);
 		}
