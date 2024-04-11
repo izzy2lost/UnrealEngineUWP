@@ -50,24 +50,8 @@ public:
 	/** Determines whether a Layer exists at the given index */
 	SLATECORE_API bool IsValidIndex(int32 Index) const;
 
-	/**
-	 * Gets the brush for a given layer
-	 * 
-	 * @return Null if the layer index is invalid. Otherwise, the brush for the given layer
-	 */
-	UE_DEPRECATED(5.0, "GetLayerBrush is not accessible anymore since it's attribute value may not have been updated yet.")
-	SLATECORE_API const FSlateBrush* GetLayerBrush(int32 Index) const;
-
 	/** Sets the brush for a given layer, if it exists */
 	SLATECORE_API void SetLayerBrush(int32 Index, TAttribute<const FSlateBrush*> Brush);
-
-	/** 
-	 * Gets the Color for a given layer
-	 *
-	 * @return Uninitialized fuschia color if the layer index is invalid. Otherwise the color for the given layer
-	 */
-	UE_DEPRECATED(5.0, "GetLayerColor is not accessible anymore since it's attribute value may not have been updated yet.")
-	SLATECORE_API FSlateColor GetLayerColor(int32 Index) const;
 
 	/** Sets the color for a given layer, if it exists. */
 	SLATECORE_API void SetLayerColor(int32 Index, TAttribute<FSlateColor> Color);

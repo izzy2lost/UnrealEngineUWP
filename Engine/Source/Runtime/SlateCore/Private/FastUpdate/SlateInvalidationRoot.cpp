@@ -262,11 +262,6 @@ FString FSlateInvalidationRoot::GetReferencerName() const
 	return TEXT("FSlateInvalidationRoot");
 }
 
-void FSlateInvalidationRoot::InvalidateRoot(const SWidget* Investigator)
-{
-	InvalidateRootChildOrder(Investigator);
-}
-
 void FSlateInvalidationRoot::InvalidateRootChildOrder(const SWidget* Investigator)
 {
 	// Invalidate all proxy handles

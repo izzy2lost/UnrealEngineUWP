@@ -360,15 +360,6 @@ public:
 		{
 			SBoxPanel::TSlot<FSlot>::Construct(SlotOwner, MoveTemp(InArgs));
 		}
-
-		UE_DEPRECATED(5.0, "Chained AutoWidth is deprecated. Use the FSlotArgument or SetAutoWidth")
-		FSlot& AutoWidth() { SetAutoWidth(); return *this; }
-
-		UE_DEPRECATED(5.0, "Chained FillWidth is deprecated. Use the FSlotArgument or SetFillWidth")
-		FSlot& FillWidth(TAttribute<float> InStretchCoefficient) { SetFillWidth(InStretchCoefficient); return *this; }
-
-		UE_DEPRECATED(5.0, "Chained MaxWidth is deprecated. Use the FSlotArgument or SetMaxWidth")
-		FSlot& MaxWidth(TAttribute<float> InMaxWidth) { SetMaxWidth(InMaxWidth); return *this; }
 	};
 
 	static FSlot::FSlotArguments Slot()
@@ -501,15 +492,6 @@ public:
 		{
 			SBoxPanel::TSlot<FSlot>::Construct(SlotOwner, MoveTemp(InArgs));
 		}
-
-		UE_DEPRECATED(5.0, "Chained AutoHeight is deprecated. Use the FSlotArgument or SetAutoHeight")
-		FSlot& AutoHeight() { SetAutoHeight(); return *this; }
-
-		UE_DEPRECATED(5.0, "Chained FillWidth is deprecated. Use the FSlotArgument or SetFillWidth")
-		FSlot& FillHeight(TAttribute<float> InStretchCoefficient) { SetFillHeight(InStretchCoefficient); return *this; }
-
-		UE_DEPRECATED(5.0, "Chained MaxWidth is deprecated. Use the FSlotArgument or SetMaxHeight")
-		FSlot& MaxHeight(TAttribute<float> InMaxHeight) { SetMaxHeight(InMaxHeight); return *this; }
 	};
 
 	static FSlot::FSlotArguments Slot()

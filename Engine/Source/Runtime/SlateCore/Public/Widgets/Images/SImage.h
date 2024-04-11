@@ -97,15 +97,6 @@ protected:
 	/** @return an attribute reference of DesiredSizeOverride */
 	TSlateAttributeRef<TOptional<FVector2D>> GetDesiredSizeOverrideAttribute() const { return TSlateAttributeRef<TOptional<FVector2D>>(SharedThis(this), DesiredSizeOverrideAttribute); }
 
-#if WITH_EDITORONLY_DATA
-	UE_DEPRECATED(5.0, "Direct access to Image is now deprecated. Use the setter or getter.")
-	FInvalidatableBrushAttribute Image;
-	UE_DEPRECATED(5.0, "Direct access to ColorAndOpacity is now deprecated. Use the setter or getter.")
-	TSlateDeprecatedTAttribute<FSlateColor> ColorAndOpacity;
-	UE_DEPRECATED(5.0, "Direct access to DesiredSizeOverride is now deprecated. Use the setter or getter.")
-	TSlateDeprecatedTAttribute<TOptional<FVector2D>> DesiredSizeOverride;
-#endif
-
 private:
 	/** The slate brush to draw for the ImageAttribute that we can invalidate. */
 	TSlateAttribute<const FSlateBrush*> ImageAttribute;

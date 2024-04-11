@@ -236,15 +236,6 @@ public:
 	SLATECORE_API ~FSlateWindowElementList();
 
 	/** @return Get the window that we will be painting */
-	UE_DEPRECATED(4.21, "FSlateWindowElementList::GetWindow is not thread safe but window element lists are accessed on multiple threads.  Please call GetPaintWindow instead")
-	FORCEINLINE TSharedPtr<SWindow> GetWindow() const
-	{
-		// check that we are in game thread or are in slate/movie loading thread
-		check(IsInGameThread() || IsInSlateThread());
-		return WeakPaintWindow.Pin();
-	}
-
-	/** @return Get the window that we will be painting */
 	SWindow* GetPaintWindow() const
 	{
 		check(IsInGameThread() || IsInSlateThread());

@@ -31,7 +31,6 @@ struct FWidgetMatcher
  * The window is needed for its ability to determine its own geometry, from which the geometries of the rest
  * of the widget can be determined.
  */
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
 class SLATECORE_API FWidgetPath
 {
 public:
@@ -47,20 +46,12 @@ public:
 	 * @return a copy of the widget path down to and including the MarkerWidget. If the MarkerWidget is not found in the path, return an invalid path.
 	 */
 	FWidgetPath GetPathDownTo( TSharedRef<const SWidget> MarkerWidget ) const;
-	
-	/** Get the widget and associated virtual cursor at a given index. */
-	UE_DEPRECATED(5.0, "GetCursorAt is deprecated. Use GetVirtualPointerPosition instead.")
-	const TSharedPtr<const FVirtualPointerPosition>& GetCursorAt( int32 Index ) const;
 
 	/** Get the virtual representation of the mouse at each level in the widget path. */
 	TOptional<FVirtualPointerPosition> GetVirtualPointerPosition(int32 Index) const
 	{
 		return VirtualPointerPositions[Index];
 	}
-
-	/** @return true if the WidgetToFind is in this WidgetPath, false otherwise. */
-	UE_DEPRECATED(5.0, "ContainsWidget that takes a shared ptr is deprecated.")
-	bool ContainsWidget( TSharedRef<const SWidget> WidgetToFind ) const;
 	
 	/** @return true if the WidgetToFind is in this WidgetPath, false otherwise. */
 	bool ContainsWidget( const SWidget* WidgetToFind ) const;
@@ -170,11 +161,11 @@ public:
 	FArrangedChildren Widgets;
 
 	/** The top level window of this widget path. */
-	TSharedPtr< SWindow > TopLevelWindow;
+	TSharedPtr<SWindow> TopLevelWindow;
 
+private:
 	/** The virtual representation of the mouse at each level in the widget path.  Due to 3D widgets, the space you transition to can be completely arbitrary as you traverse the tree. */
-	UE_DEPRECATED(5.0, "Direct access to VirtualPointerPositions is now deprecated. Use the getter.")
-	TArray< TOptional<FVirtualPointerPosition> > VirtualPointerPositions;
+	TArray<TOptional<FVirtualPointerPosition>> VirtualPointerPositions;
 
 private:
 
@@ -195,7 +186,6 @@ private:
 	template<typename MatchRuleType>
 	static bool SearchForWidgetRecursively_Reverse( const MatchRuleType& MatchRule, const FArrangedWidget& InCandidate, FArrangedChildren& OutReversedPath, EVisibility VisibilityFilter = EVisibility::Visible );
 };
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 /**
  * Just like a WidgetPath, but uses weak pointers and does not store geometry.
@@ -238,11 +228,6 @@ public:
 			Truncated
 		};
 	};
-
-
-	/** @return true if the WidgetToFind is in this WidgetPath, false otherwise. */
-	UE_DEPRECATED(5.0, "ContainsWidget that takes a shared ptr is deprecated.")
-	bool ContainsWidget(const TSharedRef<const SWidget>& WidgetToFind) const;
 
 	/** @return true if the WidgetToFind is in this WidgetPath, false otherwise. */
 	bool ContainsWidget(const SWidget* WidgetToFind) const;

@@ -315,12 +315,6 @@ public:
 	 */
 	void ApplyPositionOffset(UE::Slate::FDeprecateVector2DParameter InOffset);
 
-	UE_DEPRECATED(4.23, "GetClippingIndex has been deprecated.  If you were using this please use GetPrecachedClippingIndex instead.")
-	FORCEINLINE const int32 GetClippingIndex() const { return GetPrecachedClippingIndex(); }
-
-	UE_DEPRECATED(4.23, "SetClippingIndex has been deprecated.  If you were using this please use SetPrecachedClippingIndex instead.")
-	FORCEINLINE void SetClippingIndex(const int32 InClippingIndex) { SetPrecachedClippingIndex(InClippingIndex); }
-
 private:
 	void Init(FSlateWindowElementList& ElementList, EElementType InElementType, uint32 InLayer, const FPaintGeometry& PaintGeometry, ESlateDrawEffect InDrawEffects);
 

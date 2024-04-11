@@ -111,15 +111,6 @@ protected:
 	/** The slot that contains this widget's descendants.*/
 	FCompoundWidgetOneChildSlot ChildSlot;
 
-#if WITH_EDITORONLY_DATA
-	UE_DEPRECATED(5.0, "Direct access to ContentScale is now deprecated. Use the setter or getter.")
-	TSlateDeprecatedTAttribute<FVector2D> ContentScale;
-	UE_DEPRECATED(5.0, "Direct access to ColorAndOpacity is now deprecated. Use the setter or getter.")
-	TSlateDeprecatedTAttribute<FLinearColor> ColorAndOpacity;
-	UE_DEPRECATED(5.0, "Direct access to ForegroundColor is now deprecated. Use the setter or getter.")
-	TSlateDeprecatedTAttribute<FSlateColor> ForegroundColor;
-#endif
-
 private:
 	/** The layout scale to apply to this widget's contents; useful for animation. */
 	TSlateAttribute<FVector2D> ContentScaleAttribute;

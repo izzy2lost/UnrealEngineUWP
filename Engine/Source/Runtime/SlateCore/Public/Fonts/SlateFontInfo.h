@@ -23,8 +23,6 @@ enum class EFontFallback : uint8
 {
 	/** No fallback font */
 	FF_NoFallback,
-	/** Fallback to localized font set */
-	FF_LocalizedFallback UE_DEPRECATED(4.24, "Legacy localized fallback fonts have been removed. FF_LocalizedFallback no longer has any meaning, so use FF_NoFallback instead."),
 	/** Fallback to last resort font set */
 	FF_LastResortFallback,
 	/** Tries all fallbacks */

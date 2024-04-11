@@ -995,9 +995,8 @@ struct FEditableTextBoxStyle : public FSlateWidgetStyle
 	FEditableTextBoxStyle& operator=(const FEditableTextBoxStyle&) = default;
 
 	virtual ~FEditableTextBoxStyle() = default;
-	SLATECORE_API PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
-	virtual void GetResources( TArray< const FSlateBrush* >& OutBrushes ) const override;
+	SLATECORE_API virtual void GetResources( TArray< const FSlateBrush* >& OutBrushes ) const override;
 
 	static SLATECORE_API const FName TypeName;
 	virtual const FName GetTypeName() const override { return TypeName; };

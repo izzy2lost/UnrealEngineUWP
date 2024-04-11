@@ -407,18 +407,6 @@ public:
 	/**
 	 * Creates a title bar for the specified window.
 	 *
-	 * @param Window The window to create the title bar for.
-	 * @param CenterContent Optional content for the title bar's center (will override window title).
-	 * @param CenterContentAlignment The horizontal alignment of the center content.
-	 * @param OutTitleBar Will hold a pointer to the title bar's interface.
-	 * @return The new title bar widget.
-	 */
-	UE_DEPRECATED(4.26, "This version of MakeWindowTitleBar has been deprecated. Use the version that takes in an FWindowTitleBarArgs parameter instead.")
-	SLATECORE_API virtual TSharedRef<SWidget> MakeWindowTitleBar(const TSharedRef<SWindow>& Window, const TSharedPtr<SWidget>& CenterContent, EHorizontalAlignment CenterContentAlignment, TSharedPtr<IWindowTitleBar>& OutTitleBar) const;
-
-	/**
-	 * Creates a title bar for the specified window.
-	 *
 	 * @param InArgs	The creation arguments for the titlebar
 	 * @param OutTitleBar Will hold a pointer to the title bar's interface.
 	 * @return The new title bar widget.

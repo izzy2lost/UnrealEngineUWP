@@ -5,13 +5,9 @@
 #include "Widgets/SWidget.h"
 #include "Widgets/SNullWidget.h"
 
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
 FSlotBase::FSlotBase()
 	: Owner(nullptr)
 	, Widget(SNullWidget::NullWidget)
-#if WITH_EDITORONLY_DATA
-	, RawParentPtr(nullptr)
-#endif
 {
 
 }
@@ -19,9 +15,6 @@ FSlotBase::FSlotBase()
 FSlotBase::FSlotBase(const FChildren& Children)
 	: Owner(&Children)
 	, Widget(SNullWidget::NullWidget)
-#if WITH_EDITORONLY_DATA
-	, RawParentPtr(nullptr)
-#endif
 {
 
 }
@@ -29,13 +22,9 @@ FSlotBase::FSlotBase(const FChildren& Children)
 FSlotBase::FSlotBase( const TSharedRef<SWidget>& InWidget )
 	: Owner(nullptr)
 	, Widget(InWidget)
-#if WITH_EDITORONLY_DATA
-	, RawParentPtr(nullptr)
-#endif
 {
 
 }
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 SWidget* FSlotBase::GetOwnerWidget() const
 {

@@ -37,7 +37,6 @@ class SOverlay : public SPanel
 public:	
 
 	/** A slot that support alignment of content and padding and z-order */
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	class SLATECORE_API FOverlaySlot : public TBasicLayoutWidgetSlot<FOverlaySlot>
 	{
 	public:
@@ -59,15 +58,13 @@ public:
 
 		void SetZOrder(int32 InOrder);
 
-	public:
+	private:
 		/**
 		 * Slots with larger ZOrder values will draw above slots with smaller ZOrder values. Slots
 		 * with the same ZOrder will simply draw in the order they were added.
 		 */
-		UE_DEPRECATED(5.0, "Direct access to ZOrder is now deprecated. Use the getter or setter.")
 		int32 ZOrder;
 	};
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	SLATE_BEGIN_ARGS( SOverlay )
 	{

@@ -528,12 +528,6 @@ protected:
 	/** Whether to permit overscroll on this scroll box */
 	EAllowOverscroll AllowOverscroll;
 
-#if WITH_EDITORONLY_DATA
-	/** Padding to the scrollbox */
-	UE_DEPRECATED(5.0, "ScrollBarPadding is deprecated, Use SetScrollBarPadding")
-	FMargin ScrollBarPadding;
-#endif
-
 	/** Whether to back pad this scroll box, allowing user to scroll backward until child contents are no longer visible */
 	bool BackPadScrolling;
 
@@ -631,9 +625,6 @@ public:
 	: Children(this)
 	{
 	}
-
-	UE_DEPRECATED(5.0, "Direct construction of FSlot is deprecated")
-	void Construct(const FArguments& InArgs, const TArray<SScrollBox::FSlot*>& InSlots);
 
 	void Construct(const FArguments& InArgs, TArray<SScrollBox::FSlot::FSlotArguments> InSlots);
 

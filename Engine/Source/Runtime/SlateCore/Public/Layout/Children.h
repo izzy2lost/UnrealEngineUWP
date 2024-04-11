@@ -151,9 +151,6 @@ public:
 	static SLATECORE_API FNoChildren NoChildrenInstance;
 
 public:
-	UE_DEPRECATED(5.0, "FNoChildren take a valid reference to a SWidget")
-	SLATECORE_API FNoChildren();
-
 	FNoChildren(SWidget* InOwner)
 		: FChildren(InOwner)
 	{
@@ -201,56 +198,6 @@ private:
 	{
 		check(false);
 		return FConstWidgetRef(ReferenceConstruct, SNullWidget::NullWidget.Get());
-	}
-};
-
-
-/**
- * Widgets that will only have one child.
- */
-template <typename MixedIntoType>
-class UE_DEPRECATED(5.0, "TSupportsOneChildMixin is deprecated because it got confused between FSlot and FChildren. Use FSingleWidgetChildren.")
-TSupportsOneChildMixin : public FChildren, public TSlotBase<MixedIntoType>
-{
-public:
-	TSupportsOneChildMixin(SWidget* InOwner)
-		: FChildren(InOwner)
-		, TSlotBase<MixedIntoType>(static_cast<const FChildren&>(*this))
-	{
-	}
-
-	TSupportsOneChildMixin(std::nullptr_t) = delete;
-
-	virtual int32 Num() const override { return 1; }
-
-	virtual TSharedRef<SWidget> GetChildAt( int32 ChildIndex ) override
-	{
-		check(ChildIndex == 0);
-		return FSlotBase::GetWidget();
-	}
-
-	virtual TSharedRef<const SWidget> GetChildAt( int32 ChildIndex ) const override
-	{
-		check(ChildIndex == 0);
-		return FSlotBase::GetWidget();
-	}
-
-private:
-	virtual const FSlotBase& GetSlotAt(int32 ChildIndex) const override
-	{
-		check(ChildIndex == 0);
-		return *this;
-	}
-
-	virtual FWidgetRef GetChildRefAt(int32 ChildIndex) override
-	{
-		check(ChildIndex == 0);
-		return FWidgetRef(ReferenceConstruct, FSlotBase::GetWidget().Get());
-	}
-	virtual FConstWidgetRef GetChildRefAt(int32 ChildIndex) const override
-	{
-		check(ChildIndex == 0);
-		return FConstWidgetRef(ReferenceConstruct, FSlotBase::GetWidget().Get());
 	}
 };
 
@@ -346,21 +293,6 @@ public:
 
 private:
 	TWeakPtr<ChildType> WidgetPtr;
-};
-
-
-template <typename MixedIntoType>
-class UE_DEPRECATED(5.0, "Renamed TSupportsContentPaddingMixin to TAlignmentWidgetSlotMixin to differenciate from FSlot and FChildren.")
-TSupportsContentAlignmentMixin : public TAlignmentWidgetSlotMixin<MixedIntoType>
-{
-	using TAlignmentWidgetSlotMixin<MixedIntoType>::TAlignmentWidgetSlotMixin;
-};
-
-template <typename MixedIntoType>
-class UE_DEPRECATED(5.0, "Renamed TSupportsContentPaddingMixin to TPaddingWidgetSlotMixin to differenciate from FSlot and FChildren.")
-TSupportsContentPaddingMixin : public TPaddingWidgetSlotMixin<MixedIntoType>
-{
-	using TPaddingWidgetSlotMixin<MixedIntoType>::TPaddingWidgetSlotMixin;
 };
 
 
@@ -519,15 +451,6 @@ class FSingleWidgetChildrenWithBasicLayoutSlot : public TSingleWidgetChildrenWit
 };
 
 
-/** A slot that support alignment of content and padding */
-class UE_DEPRECATED(5.0, "FSimpleSlot is deprecated because it got confused from FChildren with FSlot. Use FSingleWidgetChildrenWithSimpleSlot.")
-FSimpleSlot : public FSingleWidgetChildrenWithBasicLayoutSlot
-{
-public:
-	using FSingleWidgetChildrenWithBasicLayoutSlot::FSingleWidgetChildrenWithBasicLayoutSlot;
-};
-
-
 /**
  * A generic FChildren that stores children along with layout-related information.
  * The type containing Widget* and layout info is specified by ChildType.
@@ -580,16 +503,6 @@ public:
 	}
 
 public:
-	UE_DEPRECATED(5.0, "Add a slot directly has been deprecated. use the FSlotArgument to create a new slot")
-	int32 Add( SlotType* Slot )
-	{
-		int32 Index = Children.Add(TUniquePtr<SlotType>(Slot));
-		check(Slot);
-		Slot->SetOwner(*this);
-
-		return Index;
-	}
-
 	int32 AddSlot(typename SlotType::FSlotArguments&& SlotArgument)
 	{
 		TUniquePtr<SlotType> NewSlot = SlotArgument.StealSlot();
@@ -651,14 +564,6 @@ public:
 		// ChildrenCopy will now be emptied and moved back (to preserve any allocated memory)
 		ChildrenCopy.Empty(Slack);
 		Children = MoveTemp(ChildrenCopy);
-	}
-
-	UE_DEPRECATED(5.0, "Insert a slot directly has been deprecated. use the FSlotArgument to create a new slot")
-	void Insert(SlotType* Slot, int32 Index)
-	{
-		check(Slot);
-		Children.Insert(TUniquePtr<SlotType>(Slot), Index);
-		Slot->SetOwner(*this);
 	}
 
 	void InsertSlot(typename SlotType::FSlotArguments&& SlotArgument, int32 Index)

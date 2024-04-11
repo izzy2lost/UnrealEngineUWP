@@ -7,7 +7,6 @@
 DECLARE_CYCLE_STAT(TEXT("Weak-To-Strong WidgetPath"), STAT_WeakToStrong_WidgetPath, STATGROUP_Slate);
 
 
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
 FWidgetPath::FWidgetPath()
 : Widgets( EVisibility::Visible )
 , TopLevelWindow()
@@ -33,7 +32,6 @@ FWidgetPath::FWidgetPath( TArrayView<FWidgetAndPointer> InWidgetsAndPointers )
 		VirtualPointerPositions.Add(WidgetAndPointer.GetPointerPosition());
 	}
 }
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 FWidgetPath FWidgetPath::GetPathDownTo( TSharedRef<const SWidget> MarkerWidget ) const
 {
@@ -55,18 +53,6 @@ FWidgetPath FWidgetPath::GetPathDownTo( TSharedRef<const SWidget> MarkerWidget )
 		// The MarkerWidget was not in the widget path. We failed.
 		return FWidgetPath( nullptr, FArrangedChildren(EVisibility::Visible) );		
 	}	
-}
-
-const TSharedPtr<const FVirtualPointerPosition>& FWidgetPath::GetCursorAt( int32 Index ) const
-{
-	static TSharedPtr<const FVirtualPointerPosition> CursorAt;
-	return CursorAt;
-}
-
-
-bool FWidgetPath::ContainsWidget(TSharedRef<const SWidget> WidgetToFind) const
-{
-	return ContainsWidget(&WidgetToFind.Get());
 }
 
 
@@ -426,11 +412,6 @@ FWeakWidgetPath::EPathResolutionResult::Result FWeakWidgetPath::ToWidgetPath( FW
 		WidgetPath = FWidgetPath(PathWithGeometries);
 		return bPathUninterrupted ? EPathResolutionResult::Live : EPathResolutionResult::Truncated;
 	}
-}
-
-bool FWeakWidgetPath::ContainsWidget( const TSharedRef< const SWidget >& SomeWidget ) const
-{
-	return ContainsWidget(&SomeWidget.Get());
 }
 
 bool FWeakWidgetPath::ContainsWidget(const SWidget* SomeWidget) const

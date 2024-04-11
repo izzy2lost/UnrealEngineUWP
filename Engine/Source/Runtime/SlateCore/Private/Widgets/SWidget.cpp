@@ -186,14 +186,10 @@ void SWidget::PrivateRegisterAttributes(FSlateAttributeInitializer& AttributeIni
 	SLATE_ADD_MEMBER_ATTRIBUTE_DEFINITION_WITH_NAME(AttributeInitializer, "RenderTransformPivot", RenderTransformPivotAttribute, EInvalidateWidgetReason::Layout | EInvalidateWidgetReason::RenderTransform);
 }
 
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
 SWidget::SWidget()
 	: bCanSupportFocus(true)
 	, bCanHaveChildren(true)
 	, bClippingProxy(false)
-#if WITH_EDITORONLY_DATA
-	, bIsHovered(false)
-#endif
 	, bToolTipForceFieldEnabled(false)
 	, bForceVolatile(false)
 	, bCachedVolatile(false)
@@ -243,9 +239,7 @@ SWidget::SWidget()
 	UE_SLATE_DEBUG_WIDGETLIST_ADD_WIDGET(this);
 	UE_TRACE_SLATE_WIDGET_ADDED(this);
 }
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
 SWidget::~SWidget()
 {
 #if WITH_SLATE_DEBUGGING
@@ -300,55 +294,6 @@ SWidget::~SWidget()
 	DEC_DWORD_STAT(STAT_SlateTotalWidgets);
 	DEC_MEMORY_STAT_BY(STAT_SlateSWidgetAllocSize, AllocSize);
 }
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
-
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-void SWidget::Construct(
-	const TAttribute<FText>& InToolTipText,
-	const TSharedPtr<IToolTip>& InToolTip,
-	const TAttribute< TOptional<EMouseCursor::Type> >& InCursor,
-	const TAttribute<bool>& InEnabledState,
-	const TAttribute<EVisibility>& InVisibility,
-	const float InRenderOpacity,
-	const TAttribute<TOptional<FSlateRenderTransform>>& InTransform,
-	const TAttribute<FVector2D>& InTransformPivot,
-	const FName& InTag,
-	const bool InForceVolatile,
-	const EWidgetClipping InClipping,
-	const EFlowDirectionPreference InFlowPreference,
-	const TOptional<FAccessibleWidgetData>& InAccessibleData,
-	const TArray<TSharedRef<ISlateMetaData>>& InMetaData
-)
-{
-	FSlateBaseNamedArgs Args;
-	Args._ToolTipText = InToolTipText;
-	Args._ToolTip = InToolTip;
-	Args._Cursor = InCursor;
-	Args._IsEnabled = InEnabledState;
-	Args._Visibility = InVisibility;
-	Args._RenderOpacity = InRenderOpacity;
-	Args._ForceVolatile = InForceVolatile;
-	Args._Clipping = InClipping;
-	Args._PixelSnappingMethod = EWidgetPixelSnapping::Inherit;
-	Args._FlowDirectionPreference = InFlowPreference;
-	Args._RenderTransform = InTransform;
-	Args._RenderTransformPivot = InTransformPivot;
-	Args._Tag = InTag;
-	Args._AccessibleParams = InAccessibleData;
-	Args.MetaData = InMetaData;
-	SWidgetConstruct(Args);
-}
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
-
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-void SWidget::SWidgetConstruct(const TAttribute<FText>& InToolTipText, const TSharedPtr<IToolTip>& InToolTip, const TAttribute< TOptional<EMouseCursor::Type> >& InCursor, const TAttribute<bool>& InEnabledState,
-							   const TAttribute<EVisibility>& InVisibility, const float InRenderOpacity, const TAttribute<TOptional<FSlateRenderTransform>>& InTransform, const TAttribute<FVector2D>& InTransformPivot,
-							   const FName& InTag, const bool InForceVolatile, const EWidgetClipping InClipping, const EFlowDirectionPreference InFlowPreference, const TOptional<FAccessibleWidgetData>& InAccessibleData,
-							   const TArray<TSharedRef<ISlateMetaData>>& InMetaData)
-{
-	Construct(InToolTipText, InToolTip, InCursor, InEnabledState, InVisibility, InRenderOpacity, InTransform, InTransformPivot, InTag, InForceVolatile, InClipping, InFlowPreference, InAccessibleData, InMetaData);
-}
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 void SWidget::SWidgetConstruct(const FSlateBaseNamedArgs& Args)
 {
@@ -717,11 +662,6 @@ void SWidget::SlatePrepass(float InLayoutScaleMultiplier)
 		}
 		Prepass_Internal(InLayoutScaleMultiplier);
 	}
-}
-
-void SWidget::InvalidatePrepass()
-{
-	MarkPrepassAsDirty();
 }
 
 void SWidget::InvalidateChildRemovedFromTree(SWidget& Child)
@@ -1267,11 +1207,6 @@ void SWidget::SetPixelSnapping(EWidgetPixelSnapping InPixelSnappingMethod)
 		PixelSnappingMethod = InPixelSnappingMethod;
 		Invalidate(EInvalidateWidget::Paint);
 	}
-}
-
-bool SWidget::IsFastPathVisible() const
-{
-	return FastPathProxyHandle.GetWidgetVisibility(this).IsVisible();
 }
 
 void SWidget::Invalidate(EInvalidateWidgetReason InvalidateReason)

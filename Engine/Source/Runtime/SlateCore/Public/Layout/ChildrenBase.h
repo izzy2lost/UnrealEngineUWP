@@ -23,7 +23,6 @@ class FSlotBase;
  * 
  * FChildren is intended to be returned by the GetChildren() method.
  */
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
 class FChildren
 {
 public:
@@ -220,11 +219,8 @@ protected:
 
 #endif // !WITH_SLATE_DEBUGGING
 
-protected:
-	UE_DEPRECATED(5.0, "Direct access to Owner is now deprecated. Use the getter.")
-	SWidget* Owner;
-
 private:
+	SWidget* Owner;
 	FName Name;
 
 #if UE_WITH_SLATE_CHILDREN_DEBUGGING
@@ -232,4 +228,3 @@ private:
 	mutable uint8 Debug_DestroyedTag = 0xDC;
 #endif // WITH_SLATE_DEBUGGING
 };
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
