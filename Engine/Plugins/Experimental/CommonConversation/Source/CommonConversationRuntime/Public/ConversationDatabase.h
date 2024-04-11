@@ -80,6 +80,7 @@ public:
 #if WITH_EDITOR
 	virtual void PostDuplicate(bool bDuplicateForPIE) override;
 	virtual EDataValidationResult IsDataValid(class FDataValidationContext& Context) const override;
+	virtual EDataValidationResult ValidateOutBoundConnections(class FDataValidationContext& Context) const;
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS // Suppress compiler warning on override of deprecated function
 	UE_DEPRECATED(5.0, "Use version that takes FObjectPreSaveContext instead.")
 	virtual void PreSave(const class ITargetPlatform* TargetPlatform) override;
