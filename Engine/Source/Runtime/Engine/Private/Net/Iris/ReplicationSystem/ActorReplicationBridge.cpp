@@ -63,17 +63,16 @@ bool IsActorValidForIrisReplication(const AActor* Actor)
 	return IsValid(Actor) && !Actor->IsActorBeingDestroyed() && !Actor->IsUnreachable();
 }
 
-void ActorReplicationBridgePreUpdateFunction(FNetRefHandle Handle, UObject* Instance, const UReplicationBridge* Bridge)
+void ActorReplicationBridgePreUpdateFunction(TArrayView<UObject*> Instances, const UReplicationBridge* Bridge)
 {
-	AActor* Actor = Cast<AActor>(Instance);
-	if (IsActorValidForIrisReplication(Actor))
+	UNetDriver* NetDriver = CastChecked<const UActorReplicationBridge>(Bridge)->GetNetDriver();
+	for (UObject* Instance : Instances)
 	{
-		/** $IRIS TODO:
-		 * Here we need to call something that either fakes CallPrereplication or we need to mimic the interfaces of NetDriver/PropertyChangeTracker
-		 * however we do think any state changes should be pushed to the network system rather than polled
-		 * One example is the gatherCurrent() movement, movementdata should have its own ReplicationState that is updated when changed. (or updated using a helper method)
-		 */
-		Actor->CallPreReplication(CastChecked<const UActorReplicationBridge>(Bridge)->GetNetDriver());
+		AActor* Actor = Cast<AActor>(Instance);
+		if (IsActorValidForIrisReplication(Actor))
+		{
+			Actor->CallPreReplication(NetDriver);
+		}
 	}
 }
 

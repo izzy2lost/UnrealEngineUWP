@@ -14,6 +14,7 @@
 #include "Iris/Stats/NetStatsContext.h"
 
 #include "Net/Core/Trace/NetDebugName.h"
+#include "HAL/IConsoleManager.h"
 
 namespace UE::Net::Private
 {
@@ -35,35 +36,48 @@ FObjectPoller::FObjectPoller(const FInitParams& InitParams)
 void FObjectPoller::PreUpdatePass(const FNetBitArrayView& ObjectsConsideredForPolling)
 {
 	IRIS_PROFILER_SCOPE_VERBOSE(PreUpdatePass);
-	NetStatsContext = ReplicationSystemInternal->GetNetTypeStats().GetNetStatsContext();
 
-	ObjectsConsideredForPolling.ForAllSetBits([this](FInternalNetRefIndex Objectindex)
+	constexpr uint32 PreUpdateBatchCount = 128U;
+
+	UObject* BatchedObjects[PreUpdateBatchCount];
+	uint32 BatchedObjectCount = 0U;
+
+	if (!ObjectReplicationBridge->PreUpdateInstanceFunction)
 	{
-		CallPreUpdate(Objectindex);
-	});
+		return;
+	}
+	
+	auto BatchedPreUpdate = [this, &BatchedObjects, &BatchedObjectCount](FInternalNetRefIndex Objectindex)
+	{
+		// Flush if needed
+		if (BatchedObjectCount == PreUpdateBatchCount)
+		{
+			ObjectReplicationBridge->PreUpdateInstanceFunction(MakeArrayView<UObject*>(BatchedObjects, BatchedObjectCount), ObjectReplicationBridge);
+			PollStats.PreUpdatedObjectCount += BatchedObjectCount;
+			BatchedObjectCount = 0U;
+		}
+		UObject* Instance = ReplicatedInstances[Objectindex];
+		BatchedObjects[BatchedObjectCount] = Instance;
+		BatchedObjectCount += Instance ? 1U : 0U;
+	};
 
-	NetStatsContext = nullptr;
+	FNetBitArrayView::ForAllSetBits(ObjectsConsideredForPolling, LocalNetRefHandleManager.GetObjectsWithPreUpdate(), FNetBitArrayView::AndOp, BatchedPreUpdate);
+
+	// Flush last batch
+	if (BatchedObjectCount > 0)
+	{
+		ObjectReplicationBridge->PreUpdateInstanceFunction(MakeArrayView(BatchedObjects, BatchedObjectCount), ObjectReplicationBridge);
+		PollStats.PreUpdatedObjectCount += BatchedObjectCount;
+	}
 }
 
 void FObjectPoller::CallPreUpdate(FInternalNetRefIndex ObjectIndex)
 {
-	FNetRefHandleManager::FReplicatedObjectData& ObjectData = LocalNetRefHandleManager.GetReplicatedObjectDataNoCheck(ObjectIndex);
-	if (UNLIKELY(ObjectData.InstanceProtocol == nullptr))
+	UObject* Instance = ReplicatedInstances[ObjectIndex];
+	if (Instance && LocalNetRefHandleManager.GetObjectsWithPreUpdate().GetBit(ObjectIndex))
 	{
-		return;
-	}
-
-	IRIS_PROFILER_PROTOCOL_NAME(ObjectData.Protocol->DebugName->Name);
-
-	// Call per-instance PreUpdate function
-	if (ObjectReplicationBridge->PreUpdateInstanceFunction && EnumHasAnyFlags(ObjectData.InstanceProtocol->InstanceTraits, EReplicationInstanceProtocolTraits::NeedsPreSendUpdate))
-	{
-		UE_NET_IRIS_STATS_TIMER(Timer, NetStatsContext);
-	
-		ObjectReplicationBridge->PreUpdateInstanceFunction(ObjectData.RefHandle, ReplicatedInstances[ObjectIndex], ObjectReplicationBridge);
+		ObjectReplicationBridge->PreUpdateInstanceFunction(MakeArrayView<UObject*>(&Instance, 1U), ObjectReplicationBridge);	
 		++PollStats.PreUpdatedObjectCount;
-		
-		UE_NET_IRIS_STATS_ADD_TIME_AND_COUNT_FOR_OBJECT(Timer, PreUpdate, ObjectIndex);
 	}
 }
 

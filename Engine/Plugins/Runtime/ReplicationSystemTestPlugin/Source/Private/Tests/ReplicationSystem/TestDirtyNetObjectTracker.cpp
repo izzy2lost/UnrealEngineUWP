@@ -232,12 +232,15 @@ UE_NET_TEST_FIXTURE(FReplicationSystemServerClientTestFixture, NetForceUpdateOth
 	// Force ObjectA to replicate
 	Server->ReplicationSystem->ForceNetUpdate(ServerObjectA->NetRefHandle);
 
-	auto PreUpdateObjectA = [&](FNetRefHandle NetHandle, UObject* ReplicatedObject, const UReplicationBridge* ReplicationBridge)
+	auto PreUpdateObjectA = [&](TArrayView<UObject*> Instances, const UReplicationBridge* Bridge)
 	{
-		// Inside ObjectA PreReplicationUpdate, force ObjectB to be replicated
-		if (ServerObjectA == ReplicatedObject)
+		for (UObject* ReplicatedObject : Instances)
 		{
-			Server->ReplicationSystem->ForceNetUpdate(ServerObjectB->NetRefHandle);
+			// Inside ObjectA PreReplicationUpdate, force ObjectB to be replicated
+			if (ServerObjectA == ReplicatedObject)
+			{
+				Server->ReplicationSystem->ForceNetUpdate(ServerObjectB->NetRefHandle);
+			}
 		}
 	};
 
@@ -259,12 +262,15 @@ UE_NET_TEST_FIXTURE(FReplicationSystemServerClientTestFixture, NetForceUpdateOth
 	// Now the ForceNetUpdate on ObjectB is applied and it is replicated
 	UE_NET_ASSERT_EQ(ClientObjectB->IntA, ServerObjectB->IntA);
 
-	auto PreUpdateObjectB = [&](FNetRefHandle NetHandle, UObject* ReplicatedObject, const UReplicationBridge* ReplicationBridge)
+	auto PreUpdateObjectB = [&](TArrayView<UObject*> Instances, const UReplicationBridge* Bridge)
 	{
-		// Inside ObjectB PreReplicationUpdate, force ObjectA to be replicated
-		if (ServerObjectB == ReplicatedObject)
+		for (UObject* ReplicatedObject : Instances)
 		{
-			Server->ReplicationSystem->ForceNetUpdate(ServerObjectA->NetRefHandle);
+			// Inside ObjectB PreReplicationUpdate, force ObjectA to be replicated
+			if (ServerObjectB == ReplicatedObject)
+			{
+				Server->ReplicationSystem->ForceNetUpdate(ServerObjectA->NetRefHandle);
+			}
 		}
 	};
 	Server->GetReplicationBridge()->SetExternalPreUpdateFunctor(PreUpdateObjectB);
@@ -322,12 +328,15 @@ UE_NET_TEST_FIXTURE(FReplicationSystemServerClientTestFixture, DirtyOtherObjectI
 	UE_NET_ASSERT_NE(ClientObjectB, nullptr);
 
 	UTestReplicatedIrisObject* ObjectToDirty = nullptr;
-	auto PreUpdateObject = [&](FNetRefHandle NetHandle, UObject* ReplicatedObject, const UReplicationBridge* ReplicationBridge)
+	auto PreUpdateObject = [&](TArrayView<UObject*> Instances, const UReplicationBridge* Bridge)
 	{
-		// There's only two objects, so when we update one we dirty the other
-		if (ObjectToDirty != ReplicatedObject)
+		for (UObject* ReplicatedObject : Instances)
 		{
-			ObjectToDirty->ObjectReferenceComponents[0]->ModifyIntA();
+			// There's only two objects, so when we update one we dirty the other
+			if (ObjectToDirty != ReplicatedObject)
+			{
+				ObjectToDirty->ObjectReferenceComponents[0]->ModifyIntA();
+			}
 		}
 	};
 	
@@ -373,11 +382,14 @@ UE_NET_TEST_FIXTURE(FReplicationSystemServerClientTestFixture, PushModelMarkSelf
 	UTestReplicatedIrisObject* ClientObject = Cast<UTestReplicatedIrisObject>(Client->GetReplicationBridge()->GetReplicatedObject(ServerObject->NetRefHandle));
 	UE_NET_ASSERT_NE(ClientObject, nullptr);
 
-	auto PreUpdateObject = [&](FNetRefHandle NetHandle, UObject* InObject, const UReplicationBridge* ReplicationBridge)
+	auto PreUpdateObject = [&](TArrayView<UObject*> Instances, const UReplicationBridge* Bridge)
 	{
-		if (InObject == ServerObject)
+		for (UObject* InObject : Instances)
 		{
-			ServerObject->ObjectReferenceComponents[0]->ModifyIntA();
+			if (InObject == ServerObject)
+			{
+				ServerObject->ObjectReferenceComponents[0]->ModifyIntA();
+			}
 		}
 	};
 

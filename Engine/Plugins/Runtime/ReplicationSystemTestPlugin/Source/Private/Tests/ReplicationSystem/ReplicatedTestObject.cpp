@@ -249,7 +249,7 @@ void UReplicatedTestObjectBridge::SetExternalWorldLocationUpdateFunctor(TFunctio
 	SetInstanceGetWorldObjectInfoFunction(LocUpdateFunctor);
 }
 
-void UReplicatedTestObjectBridge::SetExternalPreUpdateFunctor(TFunction<void(FNetRefHandle, UObject*, const UReplicationBridge*)> PreUpdateFunctor)
+void UReplicatedTestObjectBridge::SetExternalPreUpdateFunctor(TFunction<void(TArrayView<UObject*>, const UReplicationBridge*)> PreUpdateFunctor)
 {
 	SetInstancePreUpdateFunction(PreUpdateFunctor);
 }

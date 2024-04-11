@@ -37,6 +37,7 @@ FNetRefHandleManager::FNetRefHandleManager(FReplicationProtocolManager& InReplic
 , ObjectsWithDependentObjectsInternalIndices(MaxActiveObjectCount)
 , DestroyedStartupObjectInternalIndices(MaxActiveObjectCount)
 , WantToBeDormantInternalIndices(MaxActiveObjectCount)
+, ObjectsWithPreUpdate(MaxActiveObjectCount)
 , NextStaticHandleIndex(1) // Index 0 is always reserved, for both static and dynamic handles
 , NextDynamicHandleIndex(1)
 , ReplicationProtocolManager(InReplicationProtocolManager)
@@ -147,6 +148,7 @@ FInternalNetRefIndex FNetRefHandleManager::InternalCreateNetObject(const FNetRef
 		Data.NetHandle = GlobalHandle;
 		Data.Protocol = ReplicationProtocol;
 		Data.InstanceProtocol = nullptr;
+		ObjectsWithPreUpdate.ClearBit(InternalIndex);
 		ReplicatedObjectStateBuffers[InternalIndex] = nullptr;
 		Data.ReceiveStateBuffer = nullptr;
 		Data.bShouldPropagateChangedStates = 1U;
@@ -197,6 +199,8 @@ void FNetRefHandleManager::AttachInstanceProtocol(FInternalNetRefIndex InternalI
 
 		check(ReplicatedInstances[InternalIndex] == nullptr);
 		ReplicatedInstances[InternalIndex] = Instance;
+
+		ObjectsWithPreUpdate.SetBitValue(InternalIndex, EnumHasAnyFlags(InstanceProtocol->InstanceTraits, EReplicationInstanceProtocolTraits::NeedsPreSendUpdate));
 	}
 }
 
@@ -217,6 +221,8 @@ const FReplicationInstanceProtocol* FNetRefHandleManager::DetachInstanceProtocol
 		
 		Data.InstanceProtocol = nullptr;
 		ReplicatedInstances[InternalIndex] = nullptr;
+
+		ObjectsWithPreUpdate.ClearBit(InternalIndex);
 		
 		return InstanceProtocol;
 	}

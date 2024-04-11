@@ -300,6 +300,9 @@ public:
 	/** Return the largest internal index that has been used. */
 	uint32 GetLargestInternalIndex() const { return LargestInternalIndex; };
 
+	/** Get Objects that is flagged for PreUpdate (aka PreReplication) */
+	FNetBitArrayView GetObjectsWithPreUpdate() const { return MakeNetBitArrayView(ObjectsWithPreUpdate); }
+
 public:
 
 	// Iterate over all dependent objects and their dependent objects
@@ -410,6 +413,9 @@ private:
 
 	// Bitset marking internal indices that wants to be dormant
 	FNetBitArray WantToBeDormantInternalIndices;
+
+	// Bitset marking internal indices that is flagged as requiring PreUpdate
+	FNetBitArray ObjectsWithPreUpdate;
 
 	// Both are marked in DestroyedStartupObjectsInternalIndicies
 	// When one is destroyed both mapping will be cleared
