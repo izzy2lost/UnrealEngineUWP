@@ -155,7 +155,7 @@ private:
 		using ByteType = typename std::conditional_t<std::is_const_v<ElementType>, const uint8, uint8>;
 
 		ByteType* AsBytes = reinterpret_cast<ByteType*>(FirstElementPtr);
-		ElementType* AsElement = reinterpret_cast<ElementType*>(AsBytes + Index * BytesBetweenElements);
+		ElementType* AsElement = reinterpret_cast<ElementType*>(AsBytes + uint64(Index) * uint64(BytesBetweenElements));
 
 		return AsElement;
 	}
