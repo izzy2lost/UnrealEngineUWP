@@ -84,9 +84,18 @@ void AWorldDataLayers::GetLifetimeReplicatedProps(TArray< FLifetimeProperty >& O
 	DOREPLIFETIME_WITH_PARAMS_FAST(AWorldDataLayers, RepEffectiveActiveDataLayerNames, Params);
 }
 
-void AWorldDataLayers::BeginPlay()
+void AWorldDataLayers::RewindForReplay()
 {
-	Super::BeginPlay();
+	Super::RewindForReplay();
+
+	// Same as PostRegisterAllComponents when rewinding we want to reset our state to the initial state and rely on the Replay/Replication.
+	ResetDataLayerRuntimeStates();
+	InitializeDataLayerRuntimeStates();
+}
+
+void AWorldDataLayers::PostRegisterAllComponents() 
+{
+	Super::PostRegisterAllComponents();
 
 	// When running a Replay we want to reset our state to the initial state and rely on the Replay/Replication.
 	// Unfortunately this can't be tested in the PostLoad as the World doesn't have a demo driver yet.
@@ -95,15 +104,6 @@ void AWorldDataLayers::BeginPlay()
 		ResetDataLayerRuntimeStates();
 		InitializeDataLayerRuntimeStates();
 	}
-}
-
-void AWorldDataLayers::RewindForReplay()
-{
-	Super::RewindForReplay();
-
-	// Same as BeginPlay when rewinding we want to reset our state to the initial state and rely on the Replay/Replication.
-	ResetDataLayerRuntimeStates();
-	InitializeDataLayerRuntimeStates();
 }
 
 #define AWORLDDATALAYERS_UPDATE_REPLICATED_DATALAYERS(ReplicatedArray, SourceArray) \

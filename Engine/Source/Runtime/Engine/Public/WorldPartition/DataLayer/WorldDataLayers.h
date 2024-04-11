@@ -63,7 +63,7 @@ public:
 
 	//~ Begin AActor Interface
 	ENGINE_API virtual void RewindForReplay() override;
-	ENGINE_API virtual void BeginPlay() override;
+	ENGINE_API virtual void PostRegisterAllComponents() override;
 #if WITH_EDITOR
 	ENGINE_API virtual void PreEditUndo() override;
 	ENGINE_API virtual void PostEditUndo() override;
