@@ -92,6 +92,7 @@ namespace HarmonixMetasound
 		}
 
 		const TArray<FMidiClockEvent>& GetMidiClockEventsInBlock() const;
+		const FMidiClockEvent* FindLastMidiClockEventAtBlockSampleFrame(int32 FrameIndex) const;
 
 		EMusicPlayerTransportState GetTransportStateAtBlockSampleFrame(int32 FrameIndex) const;
 		EMusicPlayerTransportState GetTransportStateAtEndOfBlock() const;
@@ -284,6 +285,7 @@ namespace HarmonixMetasound
 
 		bool SmoothingEnabled = false;
 		TSharedRef<FMidiPlayCursorMgr> DrivingMidiPlayCursorMgr;
+		bool bSeekToAuthorityOnNextProcess = false;
 	};
 
 	// Declare aliases IN the namespace...
