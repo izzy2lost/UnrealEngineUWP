@@ -20,7 +20,15 @@ public:
 	virtual ~FWorldPartitionCookPackageSplitter();
 
 	virtual void Teardown(ETeardown Status) override;
-	virtual bool UseInternalReferenceToAvoidGarbageCollect() override { return true; }
+	virtual bool UseInternalReferenceToAvoidGarbageCollect() override
+	{
+		return true;
+	}
+	virtual EGeneratedRequiresGenerator DoesGeneratedRequireGenerator() override
+	{
+		return EGeneratedRequiresGenerator::Populate;
+	}
+
 	virtual TArray<ICookPackageSplitter::FGeneratedPackage> GetGenerateList(const UPackage* OwnerPackage, const UObject* OwnerObject) override;
 	virtual bool PopulateGeneratedPackage(UPackage* OwnerPackage, UObject* OwnerObject,
 		const FGeneratedPackageForPopulate& GeneratedPackage, TArray<UObject*>& OutObjectsToMove, TArray<UPackage*>& OutModifiedPackages) override;

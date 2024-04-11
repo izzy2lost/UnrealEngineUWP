@@ -685,9 +685,7 @@ void FCookWorkerServer::SendPendingPackages()
 		FAssignPackageData& AssignData = AssignDatas.Emplace_GetRef();
 		AssignData.ConstructData = PackageData->CreateConstructData();
 		AssignData.ParentGenerator = PackageData->GetParentGenerator();
-		// We do not record PackageData->IsGeneratedReliesOnGeneratorSave(). The CookWorker that created
-		// it knows it, and the Director knows it from FDiscoveredPackageReplication, and the package will not
-		// be sent to other CookWorkers if it is true.
+		AssignData.DoesGeneratedRequireGenerator = PackageData->DoesGeneratedRequireGenerator();
 		AssignData.Instigator = PackageData->GetInstigator();
 		SessionPlatformNeedsCook.Init(false, OrderedSessionPlatforms.Num());
 		int32 PlatformIndex = 0;
@@ -1000,7 +998,7 @@ void FCookWorkerServer::QueueDiscoveredPackage(FDiscoveredPackageReplication&& D
 	if (!DiscoveredPackage.ParentGenerator.IsNone())
 	{
 		PackageData.SetGenerated(DiscoveredPackage.ParentGenerator);
-		PackageData.SetGeneratedReliesOnGeneratorSave(DiscoveredPackage.bGeneratedReliesOnGeneratorSave);
+		PackageData.SetDoesGeneratedRequireGenerator(DiscoveredPackage.DoesGeneratedRequireGenerator);
 		FPackageData* GeneratorPackageData = PackageDatas.FindPackageDataByPackageName(
 			DiscoveredPackage.ParentGenerator);
 		if (GeneratorPackageData)
@@ -1047,7 +1045,7 @@ void FCookWorkerServer::QueueDiscoveredPackage(FDiscoveredPackageReplication&& D
 	}
 
 	if (PackageData.IsGenerated()
-		&& (PackageData.IsGeneratedReliesOnGeneratorSave()
+		&& (PackageData.DoesGeneratedRequireGenerator() >= ICookPackageSplitter::EGeneratedRequiresGenerator::Save
 				|| COTFS.MPCookGeneratorSplit == EMPCookGeneratorSplit::AllOnSameWorker))
 	{
 		PackageData.SetWorkerAssignmentConstraint(GetWorkerId());
@@ -1184,6 +1182,8 @@ void FAssignPackageData::Write(FCbWriter& Writer,
 	Writer << Instigator;
 	WriteToCompactBinary(Writer, NeedCookPlatforms, OrderedSessionPlatforms);
 	Writer << GeneratorPreviousGeneratedPackages;
+	static_assert(sizeof(ICookPackageSplitter::EGeneratedRequiresGenerator) <= sizeof(uint8), "We are storing it in a uint8");
+	Writer << static_cast<uint8>(DoesGeneratedRequireGenerator);
 	Writer.EndArray();
 }
 
@@ -1196,6 +1196,17 @@ bool FAssignPackageData::TryRead(FCbFieldView Field, TConstArrayView<const ITarg
 	bOk = LoadFromCompactBinary(*It++, Instigator) & bOk;
 	bOk = LoadFromCompactBinary(*It++, NeedCookPlatforms, OrderedSessionPlatforms) & bOk;
 	bOk = LoadFromCompactBinary(*It++, GeneratorPreviousGeneratedPackages) & bOk;
+	uint8 DoesGeneratedRequireGeneratorInt = It->AsUInt8();
+	if (!(It++)->HasError() && DoesGeneratedRequireGeneratorInt
+		< static_cast<uint8>(ICookPackageSplitter::EGeneratedRequiresGenerator::Count))
+	{
+		DoesGeneratedRequireGenerator =
+			static_cast<ICookPackageSplitter::EGeneratedRequiresGenerator>(DoesGeneratedRequireGeneratorInt);
+	}
+	else
+	{
+		bOk = false;
+	}
 	return bOk;
 }
 
@@ -1374,7 +1385,8 @@ void FDiscoveredPackageReplication::Write(FCbWriter& Writer,
 	Writer << ParentGenerator;
 	Writer << static_cast<uint8>(Instigator.Category);
 	Writer << Instigator.Referencer;
-	Writer << bGeneratedReliesOnGeneratorSave;
+	Writer << static_cast<uint8>(DoesGeneratedRequireGenerator);
+	static_assert(sizeof(ICookPackageSplitter::EGeneratedRequiresGenerator) <= sizeof(uint8), "We are storing it in a uint8");
 	WriteToCompactBinary(Writer, Platforms, OrderedSessionAndSpecialPlatforms);
 	Writer.EndArray();
 }
@@ -1404,8 +1416,17 @@ bool FDiscoveredPackageReplication::TryRead(FCbFieldView Field,
 		bOk = false;
 	}
 	bOk = LoadFromCompactBinary(Iter++, Instigator.Referencer) & bOk;
-	bGeneratedReliesOnGeneratorSave = Iter->AsBool();
-	bOk = (!(Iter++)->HasError()) & bOk;
+	uint8 DoesGeneratedRequireGeneratorInt = Iter->AsUInt8();
+	if (!(Iter++)->HasError() && DoesGeneratedRequireGeneratorInt
+		< static_cast<uint8>(ICookPackageSplitter::EGeneratedRequiresGenerator::Count))
+	{
+		DoesGeneratedRequireGenerator = static_cast<ICookPackageSplitter::EGeneratedRequiresGenerator>(
+			DoesGeneratedRequireGeneratorInt);
+	}
+	else
+	{
+		bOk = false;
+	}
 	bOk = LoadFromCompactBinary(Iter++, Platforms, OrderedSessionAndSpecialPlatforms) & bOk;
 	if (!bOk)
 	{

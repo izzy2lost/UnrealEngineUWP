@@ -13,6 +13,7 @@
 #include "Cooker/CookTypes.h"
 #include "Cooker/MPCollector.h"
 #include "CookOnTheSide/CookOnTheFlyServer.h"
+#include "CookPackageSplitter.h"
 #include "HAL/CriticalSection.h"
 #include "IO/IoHash.h"
 #include "Logging/LogVerbosity.h"
@@ -252,6 +253,8 @@ struct FAssignPackageData
 	FInstigator Instigator;
 	FDiscoveredPlatformSet NeedCookPlatforms;
 	TMap<FName, FIoHash> GeneratorPreviousGeneratedPackages;
+	ICookPackageSplitter::EGeneratedRequiresGenerator DoesGeneratedRequireGenerator
+		= ICookPackageSplitter::EGeneratedRequiresGenerator::None;
 
 private:
 	void Write(FCbWriter& Writer, TConstArrayView<const ITargetPlatform*> OrderedSessionPlatforms) const;
@@ -400,7 +403,8 @@ struct FDiscoveredPackageReplication
 	FName ParentGenerator;
 	FInstigator Instigator;
 	FDiscoveredPlatformSet Platforms;
-	bool bGeneratedReliesOnGeneratorSave = false;
+	ICookPackageSplitter::EGeneratedRequiresGenerator DoesGeneratedRequireGenerator =
+		ICookPackageSplitter::EGeneratedRequiresGenerator::None;
 
 private:
 	void Write(FCbWriter& Writer, TConstArrayView<const ITargetPlatform*> OrderedSessionAndSpecialPlatforms) const;

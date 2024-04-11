@@ -116,7 +116,7 @@ public:
 	EPollStatus RefreshPackageObjects(FGenerationHelper& GenerationHelper, UPackage* Package,
 		bool& bOutFoundNewObjects, ESaveState DemotionState);
 
-	void AddKeepReferencedPackages(TArray<UPackage*>& InKeepReferencedPackages);
+	void AddKeepReferencedPackages(FGenerationHelper& GenerationHelper, TArray<UPackage*>& InKeepReferencedPackages);
 
 	/** Create the hash for this generated package, based on dependencies and GenerationHash. */
 	void CreatePackageHash();
@@ -132,6 +132,9 @@ public:
 
 	TConstArrayView<FAssetDependency> GetDependencies() const;
 
+	/** Return the packagename, for use in debug messages. Handles PackageData==nullptr by returning RelativePath. */
+	FString GetPackageName() const;
+
 public:
 	FIoHash PackageHash;
 	FString RelativePath;
@@ -139,7 +142,7 @@ public:
 	FBlake3Hash GenerationHash;
 	TArray<FAssetDependency> PackageDependencies;
 	FPackageData* PackageData = nullptr;
-	TArray<UPackage*> KeepReferencedPackages;
+	TArray<TWeakObjectPtr<UPackage>> KeepReferencedPackages;
 	TMap<UObject*, FCachedObjectInOuterGeneratorInfo> CachedObjectsInOuterInfo;
 private:
 	ESaveState GeneratorSaveState = ESaveState::StartSave;
@@ -221,8 +224,8 @@ public:
 	const FName GetSplitDataObjectName() const;
 	/** Return the Splitter's value for virtual bool UseInternalReferenceToAvoidGarbageCollect(). */
 	bool IsUseInternalReferenceToAvoidGarbageCollect() const;
-	/** Return the Splitter's value for virtual bool GeneratedReliesOnGeneratorSave(). */
-	bool IsGeneratedReliesOnGeneratorSave() const;
+	/** Return the Splitter's value for virtual bool DoesGeneratedRequireGenerator(). */
+	ICookPackageSplitter::EGeneratedRequiresGenerator DoesGeneratedRequireGenerator() const;
 	/** Return the cached pointer to the SplitDataObject. Returns null if no longer in memory or marked as garbage. */
 	UObject* GetWeakSplitDataObject() const;
 	/**
@@ -230,6 +233,8 @@ public:
 	 * return null if !IsValid or if not found even after loading the package.
 	 */
 	UObject* FindOrLoadSplitDataObject();
+	/** Return the ObjectsToMove that were returned for the generator package. Does not call initialize. */
+	TConstArrayView<FWeakObjectPtr> GetOwnerObjectsToMove() const;
 
 	/** Find the OwnerPackage in memory, returns null if invalid or not already loaded. Does not call Initialize. */
 	UPackage* GetOwnerPackage();
@@ -248,6 +253,12 @@ public:
 
 	/** Call the Splitter's GetGenerateList and create the PackageDatas. Logs errors and returns false on failure. */
 	bool TryGenerateList();
+	/**
+	 * Call the Splitter's PopulateGeneratorPackage if not yet called. Assumes GenerateList has been called. Logs
+	 * errors and returns false on failure.
+	 */
+	bool TryCallPopulateGeneratorPackage(
+		TArray<ICookPackageSplitter::FGeneratedPackageForPreSave>& InOutGeneratedPackagesForPresave);
 	/**
 	 * Mark that the SavePackage of the Owner is starting. Keeps a reference to keep the generator alive until save
 	 * is finished.
@@ -363,15 +374,20 @@ private:
 	TWeakObjectPtr<UPackage> OwnerPackage;
 	TMap<FName, FIoHash> PreviousGeneratedPackages;
 	TArray<FName> ExternalActorDependencies;
+	TArray<FWeakObjectPtr> OwnerObjectsToMove;
 	TRefCountPtr<FGenerationHelper> ReferenceFromKeepForIterative;
 	TRefCountPtr<FGenerationHelper> ReferenceFromKeepForQueueResults;
 	TRefCountPtr<FGenerationHelper> ReferenceFromKeepForGeneratorSave;
 	int32 MPCookNextAssignmentIndex = 0;
 	FWorkerId WorkerIdThatSavedGenerator = FWorkerId::Invalid();
 	EInitializeStatus InitializeStatus = EInitializeStatus::Uninitialized;
+	ICookPackageSplitter::EGeneratedRequiresGenerator DoesGeneratedRequireGeneratorValue =
+		ICookPackageSplitter::EGeneratedRequiresGenerator::None;
 	bool bUseInternalReferenceToAvoidGarbageCollect = false;
-	bool bGeneratedReliesOnGeneratorSave = false;
 	bool bGeneratedList = false;
+	bool bCalledPopulateGeneratorPackage = false;
+	bool bCurrentGCHasKeptGeneratorPackage = false;
+	bool bCurrentGCHasKeptGeneratorKeepPackages = false;
 };
 
 
@@ -449,14 +465,14 @@ inline void FCookGenerationInfo::SetIsGenerator(bool bValue)
 	bGenerator = bValue;
 }
 
-inline void FCookGenerationInfo::AddKeepReferencedPackages(TArray<UPackage*>& InKeepReferencedPackages)
-{
-	KeepReferencedPackages.Append(InKeepReferencedPackages);
-}
-
 inline TConstArrayView<FAssetDependency> FCookGenerationInfo::GetDependencies() const
 {
 	return PackageDependencies;
+}
+
+inline FString FCookGenerationInfo::GetPackageName() const
+{
+	return PackageData ? *PackageData->GetPackageName().ToString() : *RelativePath;
 }
 
 inline bool FGenerationHelper::IsInitialized() const
@@ -519,16 +535,21 @@ inline bool FGenerationHelper::IsUseInternalReferenceToAvoidGarbageCollect() con
 	return bUseInternalReferenceToAvoidGarbageCollect;
 }
 
-inline bool FGenerationHelper::IsGeneratedReliesOnGeneratorSave() const
+inline ICookPackageSplitter::EGeneratedRequiresGenerator FGenerationHelper::DoesGeneratedRequireGenerator() const
 {
 	ConditionalInitialize();
-	return bGeneratedReliesOnGeneratorSave;
+	return DoesGeneratedRequireGeneratorValue;
 }
 
 inline UObject* FGenerationHelper::GetWeakSplitDataObject() const
 {
 	ConditionalInitialize();
 	return SplitDataObject.Get();
+}
+
+inline TConstArrayView<FWeakObjectPtr> FGenerationHelper::GetOwnerObjectsToMove() const
+{
+	return OwnerObjectsToMove;
 }
 
 inline TConstArrayView<FName> FGenerationHelper::GetExternalActorDependencies()

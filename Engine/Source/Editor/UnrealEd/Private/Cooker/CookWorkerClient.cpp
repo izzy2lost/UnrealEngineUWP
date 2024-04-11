@@ -318,7 +318,7 @@ void FCookWorkerClient::ReportDiscoveredPackage(const FPackageData& PackageData,
 	Discovered.Instigator = Instigator;
 	Discovered.Platforms = MoveTemp(ReachablePlatforms);
 	Discovered.Platforms.ConvertToBitfield(OrderedSessionAndSpecialPlatforms);
-	Discovered.bGeneratedReliesOnGeneratorSave = PackageData.IsGeneratedReliesOnGeneratorSave();
+	Discovered.DoesGeneratedRequireGenerator = PackageData.DoesGeneratedRequireGenerator();
 }
 
 void FCookWorkerClient::ReportGeneratorQueuedGeneratedPackages(FGenerationHelper& GenerationHelper)
@@ -854,6 +854,7 @@ void FCookWorkerClient::AssignPackages(FAssignPackagesMessage& Message)
 			if (!AssignData.ParentGenerator.IsNone())
 			{
 				PackageData.SetGenerated(AssignData.ParentGenerator);
+				PackageData.SetDoesGeneratedRequireGenerator(AssignData.DoesGeneratedRequireGenerator);
 			}
 			if (!AssignData.GeneratorPreviousGeneratedPackages.IsEmpty())
 			{

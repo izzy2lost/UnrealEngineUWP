@@ -47,11 +47,13 @@ public:
 	 */
 	virtual bool UseInternalReferenceToAvoidGarbageCollect() override { return true; }
 	/**
-	 * If true, the cooker will wait for the generator save to complete before calling Populate and PreSave on the
-	 * generated package. And during MPCook the cooker will load and save generated packages only on the same
-	 * CookWorker that saved the generator package that containes the SplitData object. 
+	 * Return capability setting which indicates which splitter functions acting on the parent generator package must
+	 * be called on the splitter before splitter functions acting on the generated packages can be called. 
 	 */
-	virtual bool GeneratedReliesOnGeneratorSave() override { return true; }
+	virtual EGeneratedRequiresGenerator DoesGeneratedRequireGenerator() override
+	{
+		return EGeneratedRequiresGenerator::Save;
+	}
 
 private:
 

@@ -3367,9 +3367,10 @@ UE::Cook::EPollStatus UCookOnTheFlyServer::PrepareSaveGenerationPackage(UE::Cook
 		// If generator should not save until after generated, stall it here
 		if (Info.IsGenerator()
 			&& FGenerationHelper::IsGeneratedSavedFirst()
-			// Splitters that declare GeneratedReliesOnGeneratorSave ignore the global setting and
+			// Splitters that declare DoesGeneratedRequireGenerator=Save ignore the global setting and
 			// never wait for generated to save
-			&& !GenerationHelper.IsGeneratedReliesOnGeneratorSave())
+			&& GenerationHelper.DoesGeneratedRequireGenerator() <
+				ICookPackageSplitter::EGeneratedRequiresGenerator::Save)
 		{
 			if (GenerationHelper.IsWaitingForQueueResults())
 			{
@@ -3387,9 +3388,10 @@ UE::Cook::EPollStatus UCookOnTheFlyServer::PrepareSaveGenerationPackage(UE::Cook
 		// If generated should not save until after generator, stall it here
 		if (!Info.IsGenerator()
 			&& (FGenerationHelper::IsGeneratorSavedFirst()
-			// Splitters that declare GeneratedReliesOnGeneratorSave ignore the global setting and
+			// Splitters that declare DoesGeneratedRequireGenerator=Save ignore the global setting and
 			// always wait for the generator to save
-				|| GenerationHelper.IsGeneratedReliesOnGeneratorSave()))
+				|| GenerationHelper.DoesGeneratedRequireGenerator() >= 
+					ICookPackageSplitter::EGeneratedRequiresGenerator::Save))
 		{
 			if (GenerationHelper.GetOwner().IsInProgress())
 			{
@@ -3519,42 +3521,49 @@ UE::Cook::EPollStatus UCookOnTheFlyServer::BeginCacheObjectsToMove(UE::Cook::FGe
 	if (Info.GetSaveState() <= FCookGenerationInfo::ESaveState::CallObjectsToMove)
 	{
 		bool bPopulateSucceeded = false;
-		TArray<UObject*> ObjectsToMove;
-		TArray<UPackage*> KeepReferencedPackages;
-		if (Info.IsGenerator())
+		if (Info.IsGenerator() || GenerationHelper.DoesGeneratedRequireGenerator()
+			>= ICookPackageSplitter::EGeneratedRequiresGenerator::Populate)
 		{
-			if (!TryConstructGeneratedPackagesForPresave(PackageData, GenerationHelper, GeneratedPackagesForPresave))
+			if (!GenerationHelper.TryCallPopulateGeneratorPackage(GeneratedPackagesForPresave))
 			{
-				UE_LOG(LogCook, Error, TEXT("PackageSplitter unexpected failure: could not ConstructGeneratedPackagesForPreSave. Splitter=%s"),
-					*GenerationHelper.GetSplitDataObjectName().ToString());
 				return EPollStatus::Error;
 			}
-			FScopedActivePackage ScopedActivePackage(*this, GenerationHelper.GetOwner().GetPackageName(),
-				PackageAccessTrackingOps::NAME_CookerBuildObject);
-			bPopulateSucceeded = Splitter->PopulateGeneratorPackage(Package, SplitDataObject,
-				GeneratedPackagesForPresave, ObjectsToMove, KeepReferencedPackages);
+		}
+		TArray<UObject*> ObjectsToMove;
+		if (Info.IsGenerator())
+		{
+			ObjectsToMove.Reserve(GenerationHelper.GetOwnerObjectsToMove().Num());
+			for (const FWeakObjectPtr& ObjectToMove : GenerationHelper.GetOwnerObjectsToMove())
+			{
+				UObject* Object = ObjectToMove.Get();
+				if (Object)
+				{
+					ObjectsToMove.Add(Object);
+				}
+			}
 		}
 		else
 		{
+			TArray<UPackage*> KeepReferencedPackages;
 			ICookPackageSplitter::FGeneratedPackageForPopulate SplitterInfo{ Info.RelativePath,
 				Info.GeneratedRootPath, Package, Info.IsCreateAsMap() };
 			FScopedActivePackage ScopedActivePackage(*this, GenerationHelper.GetOwner().GetPackageName(),
 				PackageAccessTrackingOps::NAME_CookerBuildObject);
 			bPopulateSucceeded = Splitter->PopulateGeneratedPackage(Package, SplitDataObject, SplitterInfo,
 				ObjectsToMove, KeepReferencedPackages);
+			if (!bPopulateSucceeded)
+			{
+				UE_LOG(LogCook, Error,
+					TEXT("CookPackageSplitter returned false from PopulateGeneratedPackage. Splitter=%s")
+					TEXT("\nGeneratedPackage: %s"),
+					*GenerationHelper.GetSplitDataObjectName().ToString(),
+					*PackageData.GetPackageName().ToString());
+				return EPollStatus::Error;
+			}
+
+			Info.AddKeepReferencedPackages(GenerationHelper, KeepReferencedPackages);
 		}
 
-		if (!bPopulateSucceeded)
-		{
-			UE_LOG(LogCook, Error, TEXT("CookPackageSplitter returned false from %s. Splitter=%s%s"),
-				Info.IsGenerator() ? TEXT("PopulateGeneratorPackage") : TEXT("PopulateGeneratedPackage"),
-				*GenerationHelper.GetSplitDataObjectName().ToString(), 
-				Info.IsGenerator() ? TEXT("") : *FString::Printf(TEXT("\nGeneratedPackage: %s"),
-					*PackageData.GetPackageName().ToString()));
-			return EPollStatus::Error;
-		}
-
-		Info.AddKeepReferencedPackages(KeepReferencedPackages);
 		Info.TakeOverCachedObjectsAndAddMoved(GenerationHelper, PackageData.GetCachedObjectsInOuter(), ObjectsToMove);
 		Info.SetSaveStateComplete(FCookGenerationInfo::ESaveState::CallObjectsToMove);
 	}
@@ -3603,7 +3612,7 @@ UE::Cook::EPollStatus UCookOnTheFlyServer::PreSaveGeneratorPackage(UE::Cook::FPa
 			return EPollStatus::Error;
 		}
 	}
-	Info.AddKeepReferencedPackages(KeepReferencedPackages);
+	Info.AddKeepReferencedPackages(GenerationHelper, KeepReferencedPackages);
 
 	return EPollStatus::Success;
 }
@@ -3756,7 +3765,7 @@ UE::Cook::EPollStatus UCookOnTheFlyServer::TryPopulateGeneratedPackage(UE::Cook:
 			return EPollStatus::Error;
 		}
 	}
-	GeneratedInfo.AddKeepReferencedPackages(KeepReferencedPackages);
+	GeneratedInfo.AddKeepReferencedPackages(GenerationHelper, KeepReferencedPackages);
 	bool bPackageIsMap = GeneratedPackage->ContainsMap();
 	if (bPackageIsMap != GeneratedInfo.IsCreateAsMap())
 	{
@@ -4643,6 +4652,7 @@ void UCookOnTheFlyServer::PumpSaves(UE::Cook::FTickStackData& StackData, uint32 
 					{
 						// We're waiting on something other than pendingcookedplatformdatas; this loop does not yet handle
 						// updating anything else, so break out
+						break;
 					}
 					// sleep for a bit
 					FPlatformProcess::Sleep(0.0f);
@@ -11621,10 +11631,10 @@ void UCookOnTheFlyServer::GetPackagesToRetract(int32 NumToRetract, TArray<FName>
 		}
 		if (PackageData->IsGenerated())
 		{
-			if (PackageData->IsGeneratedReliesOnGeneratorSave()
+			if (PackageData->DoesGeneratedRequireGenerator() >= ICookPackageSplitter::EGeneratedRequiresGenerator::Save
 				|| MPCookGeneratorSplit == UE::Cook::EMPCookGeneratorSplit::AllOnSameWorker)
 			{
-				// With IsGeneratedReliesOnGeneratorSave or the AllOnSameWorker setting, GeneratedPackages are
+				// With EGeneratedRequiresGenerator::Save or the AllOnSameWorker setting, GeneratedPackages are
 				// constrained to this worker.
 				return false;
 			}
@@ -11635,10 +11645,12 @@ void UCookOnTheFlyServer::GetPackagesToRetract(int32 NumToRetract, TArray<FName>
 				GenerationHelper->GetOwnerInfo().GetSaveState()
 					>= FCookGenerationInfo::ESaveState::QueueGeneratedPackages)
 			{
-				if (GenerationHelper->IsGeneratedReliesOnGeneratorSave() ||
+				if (GenerationHelper->DoesGeneratedRequireGenerator()
+					>= ICookPackageSplitter::EGeneratedRequiresGenerator::Save
+					||
 					MPCookGeneratorSplit != UE::Cook::EMPCookGeneratorSplit::AnyWorker)
 				{
-					// With IsGeneratedReliesOnGeneratorSave or with any MPCookGeneratorSplit setting other than
+					// With EGeneratedRequiresGenerator::Save or with any MPCookGeneratorSplit setting other than
 					// AnyWorker, we make assignment decisions based on the worker that saved and queued the generator
 					// package. We do not track queuing separately; we assume it happened on the worker that saved the
 					// package. Therefore, do not allow retraction of a generator package if it has already entered

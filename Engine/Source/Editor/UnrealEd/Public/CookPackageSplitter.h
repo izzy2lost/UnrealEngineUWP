@@ -62,20 +62,52 @@ public:
 	{
 		return false;
 	}
+
 	/**
-	 * If true, the cooker will wait for the generator save to complete before calling Populate and PreSave on the
-	 * generated package. And during MPCook the cooker will load and save generated packages only on the same
-	 * CookWorker that saved the generator package that containes the SplitData object. This election reduces cook
-	 * performance but is otherwise not a problem.
-	 * 
-	 * Examples of dependencies:
-	 *     ShouldSplit call reads data that is written by BeginCacheForCookedPlatformData
-	 *     PopulateGeneratedPackage or PreSaveGeneratedPackage read data that is written by PopulateGeneratorPackage.
+	 * Return value for the DoesGeneratedRequireGenerator function. All levels behave correctly, but provide
+	 * different tradeoffs of guarantees to the splitter versus performance.
 	 */
-	virtual bool GeneratedReliesOnGeneratorSave() 
+	enum class EGeneratedRequiresGenerator : uint8
 	{
-		 return false;
-	 }
+		/**
+		 * GetGenerateList will be called before PopulateGeneratedPackage. PopulateGenerator and PreSaveGenerator 
+		 * might or might not be called before. OutKeepReferencedPackages from PopulateGenerator will not be kept
+		 * referenced after PostSaveGenerator. Best for performance.
+		 */
+		None,
+		/**
+		 * GetGenerateList and PopulateGenerator will be called before PopulateGeneratedPackage.
+		 * OutKeepReferencedPackages from PopulateGenerator will be kept referenced until all generated and generator
+		 * packages call PostSave or until the splitter is destroyed. Performance cost: Possible extra calls to
+		 * PopulateGeneratedPackage, possible unnecessary memory increase due to OutKeepReferencedPackages.
+		 */
+		Populate,
+		/**
+		 * GetGenerateList PopulateGenerator, PreSaveGenerator, and PostSaveGenerator will be called before
+		 * PopulateGeneratedPackage. Performance cost: Progress on generated packages will be delayed until generator
+		 * finishes saving. Possible unnecessary memory increase due to OutKeepReferencedPackages. Retraction is not
+		 * possible in MPCook for the generated packages; they must all be saved on the same CookWorker that saves the
+		 * generator.
+		 */
+		Save,
+		Count,
+	};
+	/**
+	 * Return capability setting which indicates which splitter functions acting on the parent generator package must
+	 * be called on the splitter before splitter functions acting on the generated packages can be called. Also impacts
+	 * the lifetime of memory guarantees for the generator functions. @see EGeneratedRequiresGenerator. Default is
+	 * EGeneratedRequiresGenerator::None, which provides the best performance but the fewest guarantees.
+	 * 
+	 * Examples of dependencies and what capability level should be used:
+	 *		ShouldSplit call reads data that is written by BeginCacheForCookedPlatformData:
+	 *			EGeneratedRequiresGenerator::Save
+	 *     PopulateGeneratedPackage or PreSaveGeneratedPackage read data that is written by PopulateGeneratorPackage:
+	 *			EGeneratedRequiresGenerator::Populate
+	 */
+	virtual EGeneratedRequiresGenerator DoesGeneratedRequireGenerator()
+	{
+		 return EGeneratedRequiresGenerator::None;
+	}
 
 	/** Data sent to the cooker to describe each desired generated package */
 	struct FGeneratedPackage
@@ -129,9 +161,10 @@ public:
 	 * @param OwnerObject				The SplitDataClass instance that this CookPackageSplitter instance was created for
 	 * @param GeneratedPackages			Placeholder UPackage and relative path information for all packages that will be generated
 	 * @param OutObjectsToMove			List of all the objects that will be moved into the Generator package during its save
-	 * @param OutKeepReferencedPackages A list of packages which should be kept referenced until all generated packages for
-	 *                                  the generator have finished saving.
-	 * 
+	 * @param OutKeepReferencedPackages Packages to keep referenced until the generator package finishes save.
+	 *                                  If DoesGeneratedRequireGenerator() >= Populate, these will also be kept referenced until
+	 *                                  all generated packages finish saving or the splitter is destroyed.
+	 *
 	 * @return							True if successfully populated, false on error (this will cause a cook error).
 	 */
 	virtual bool PopulateGeneratorPackage(UPackage* OwnerPackage, UObject* OwnerObject,
@@ -148,8 +181,9 @@ public:
 	 * @param OwnerPackage				The generator package being split
 	 * @param OwnerObject				The SplitDataClass instance that this CookPackageSplitter instance was created for
 	 * @param GeneratedPackages			Placeholder UPackage and relative path information for all packages that will be generated
-	 * @param OutKeepReferencedPackages A list of packages which should be kept referenced until all generated packages for
-	 *                                  the generator have finished saving.
+	 * @param OutKeepReferencedPackages Packages to keep referenced until the generator package finishes save.
+	 *                                  If DoesGeneratedRequireGenerator() >= Populate, these will also be kept referenced until
+	 *                                  all generated packages finish saving or the splitter is destroyed.
 	 *
 	 * @return							True if successfully presaved, false on error (this will cause a cook error).
 	 */
@@ -196,8 +230,7 @@ public:
 	 * @param OwnerObject				The SplitDataClass instance that this CookPackageSplitter instance was created for
 	 * @param GeneratedPackage			Pointer and information about the package to populate
 	 * @param OutObjectsToMove			List of all the objects that will be moved into the generated package during its save
-	 * @param OutKeepReferencedPackages A list of packages which should be kept referenced until all generated packages for
-	 *                                  for the generator have finished saving.
+	 * @param OutKeepReferencedPackages Packages to keep referenced until the generated package finishes save.
 	 * 
 	 * @return							True if successfully populated, false on error (this will cause a cook error).
 	 */
@@ -215,8 +248,7 @@ public:
 	 * @param OwnerPackage				The parent package being split
 	 * @param OwnerObject				The SplitDataClass instance that this CookPackageSplitter instance was created for
 	 * @param GeneratedPackage			Pointer and information about the package to populate
-	 * @param OutKeepReferencedPackages A list of packages which should be kept referenced until all generated packages for
-	 *                                  for the generator have finished saving.
+	 * @param OutKeepReferencedPackages Packages to keep referenced until the generated package finishes save.
 	 * 
 	 * @return							True if successfully presaved, false on error (this will cause a cook error).
 	 */

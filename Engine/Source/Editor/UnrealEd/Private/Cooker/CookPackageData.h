@@ -640,9 +640,12 @@ public:
 	 */
 	TRefCountPtr<FGenerationHelper> TryCreateValidParentGenerationHelper();
 
-	/** Get/Set true if this is a generated package and its splitter reports GeneratedReliesOnGeneratorSave. */
-	bool IsGeneratedReliesOnGeneratorSave() const;
-	void SetGeneratedReliesOnGeneratorSave(bool bValue);
+	/**
+	 * Get/Set the package's parent's CookPackageSplitter's value for DoesGeneratedRequireGenerator.
+	 * Should only be called for generated packages.
+	 */
+	ICookPackageSplitter::EGeneratedRequiresGenerator DoesGeneratedRequireGenerator() const;
+	void SetDoesGeneratedRequireGenerator(ICookPackageSplitter::EGeneratedRequiresGenerator Value);
 
 	/**
 	 * Return the instigator for this package. The Instigator is the first code location or
@@ -825,7 +828,8 @@ private:
 	uint32 bGenerated : 1;
 	uint32 bKeepReferencedDuringGC : 1;
 	uint32 bWasCookedThisSession : 1;
-	uint32 bGeneratedReliesOnGeneratorSave : 1;
+	static_assert(static_cast<uint32>(ICookPackageSplitter::EGeneratedRequiresGenerator::Count) <= 4, "We are storing Enum value in 2 bits");
+	uint32 DoesGeneratedRequireGeneratorValue : 2;
 };
 
 /**
@@ -1469,14 +1473,14 @@ inline FName FPackageData::GetParentGenerator() const
 	return ParentGenerator;
 }
 
-inline bool FPackageData::IsGeneratedReliesOnGeneratorSave() const
+inline ICookPackageSplitter::EGeneratedRequiresGenerator FPackageData::DoesGeneratedRequireGenerator() const
 {
-	return bGeneratedReliesOnGeneratorSave != 0;
+	return static_cast<ICookPackageSplitter::EGeneratedRequiresGenerator>(DoesGeneratedRequireGeneratorValue);
 }
 
-inline void FPackageData::SetGeneratedReliesOnGeneratorSave(bool bValue)
+inline void FPackageData::SetDoesGeneratedRequireGenerator(ICookPackageSplitter::EGeneratedRequiresGenerator Value)
 {
-	bGeneratedReliesOnGeneratorSave = (uint32)bValue;
+	DoesGeneratedRequireGeneratorValue = static_cast<uint32>(Value);
 }
 
 } // namespace UE::Cook
