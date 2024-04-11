@@ -548,7 +548,6 @@ void FMetalRayTracingScene::BuildPerInstanceGeometryParameterBuffer()
 			FHitGroupSystemRootConstants SysRootConstants;
 			SysRootConstants.SetVertexAndIndexStride(Segment.VertexBufferStride, IndexStride);
 			SysRootConstants.UserData = 0;
-			SysRootConstants.BaseInstanceIndex = 0;
 
 			FMetalRayTracingGeometryParameters SegmentParameters;
 			if (IndexStride)

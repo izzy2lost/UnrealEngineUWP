@@ -113,11 +113,6 @@ uint GetHitGroupUserData()
 	return HitGroupSystemRootConstants.UserData;
 }
 
-uint GetBaseInstanceIndex()
-{
-	return HitGroupSystemRootConstants.BaseInstanceIndex;
-}
-
 float3 GetGeometryNormalFromTriangleBaseAttributes(uint PrimitiveIndex)
 {
 #if NANITE_RAY_TRACING

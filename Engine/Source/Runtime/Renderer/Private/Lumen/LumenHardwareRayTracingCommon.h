@@ -44,7 +44,6 @@ namespace Lumen
 	// Struct definitions much match those in LumenHardwareRayTracingCommon.ush 
 	struct FHitGroupRootConstants
 	{
-		uint32 BaseInstanceIndex;
 		uint32 UserData;
 	};
 

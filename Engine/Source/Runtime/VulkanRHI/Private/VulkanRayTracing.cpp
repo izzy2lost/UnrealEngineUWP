@@ -2129,7 +2129,6 @@ static void SetRayTracingHitGroup(
 
 	const FVulkanRayTracingGeometry* Geometry = ResourceCast(SceneInitializer.PerInstanceGeometries[InstanceIndex]);
 	FVulkanHitGroupSystemParameters SystemParameters = Geometry->HitGroupSystemParameters[SegmentIndex];
-	SystemParameters.RootConstants.BaseInstanceIndex = SceneInitializer.BaseInstancePrefixSum[InstanceIndex];
 	SystemParameters.RootConstants.UserData = UserData;
 	SetSystemParametersUB(SystemParameters, Device, ShaderTable, NumUniformBuffers, UniformBuffers, Shader);
 

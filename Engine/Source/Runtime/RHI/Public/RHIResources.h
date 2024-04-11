@@ -3165,6 +3165,7 @@ struct FRayTracingSceneInitializer2
 	// One entry per instance
 	TArray<FRHIRayTracingGeometry*> PerInstanceGeometries;
 	// Exclusive prefix sum of `Instance.NumTransforms` for all instances in this scene. Used to emulate SV_InstanceID in hit shaders.
+	UE_DEPRECATED(5.5, "Providing BaseInstancePrefixSum is no longer necessary.")
 	TArray<uint32> BaseInstancePrefixSum;
 	// Exclusive prefix sum of instance geometry segments is used to calculate SBT record address from instance and segment indices.
 	TArray<uint32> SegmentPrefixSum;

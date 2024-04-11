@@ -236,6 +236,7 @@ bool RunRayTracingTestbed_RenderThread(const FString& Parameters)
 			Instances,
 			RayTracingScene.InstanceGeometryIndices,
 			RayTracingScene.BaseUploadBufferOffsets,
+			RayTracingScene.BaseInstancePrefixSum,
 			RayTracingScene.NumNativeGPUSceneInstances,
 			RayTracingScene.NumNativeCPUInstances,
 			MakeArrayView(InstanceUploadData, SceneInitializer.NumNativeInstancesPerLayer[0]),

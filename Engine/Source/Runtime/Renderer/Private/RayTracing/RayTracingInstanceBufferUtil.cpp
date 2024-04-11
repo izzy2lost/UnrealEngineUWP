@@ -39,6 +39,7 @@ FRayTracingSceneWithGeometryInstances CreateRayTracingSceneWithGeometryInstances
 	Output.NumNativeCPUInstances = 0;
 	Output.InstanceGeometryIndices.SetNumUninitialized(NumSceneInstances);
 	Output.BaseUploadBufferOffsets.SetNumUninitialized(NumSceneInstances);
+	Output.BaseInstancePrefixSum.SetNumUninitialized(NumSceneInstances);
 
 	FRayTracingSceneInitializer2 Initializer;
 	Initializer.DebugName = FName(TEXT("FRayTracingScene"));
@@ -46,16 +47,13 @@ FRayTracingSceneWithGeometryInstances CreateRayTracingSceneWithGeometryInstances
 	Initializer.NumMissShaderSlots = NumMissShaderSlots;
 	Initializer.NumCallableShaderSlots = NumCallableShaderSlots;
 	Initializer.PerInstanceGeometries.SetNumUninitialized(NumSceneInstances);
-	Initializer.BaseInstancePrefixSum.SetNumUninitialized(NumSceneInstances);
 	Initializer.SegmentPrefixSum.SetNumUninitialized(NumSceneInstances);
 	Initializer.NumNativeInstancesPerLayer.SetNumZeroed(NumLayers);
 	Initializer.NumTotalSegments = 0;
 
 	Experimental::TSherwoodMap<FRHIRayTracingGeometry*, uint32> UniqueGeometries;
 
-	// Compute geometry segment and instance count prefix sums.
-	// These are later used by GetHitRecordBaseIndex() during resource binding
-	// and by GetBaseInstanceIndex() in shaders to emulate SV_InstanceIndex.
+	// Compute geometry segment prefix sum used by GetHitRecordBaseIndex() during resource binding
 
 	for (uint32 InstanceIndex = 0; InstanceIndex < NumSceneInstances; ++InstanceIndex)
 	{
@@ -107,7 +105,8 @@ FRayTracingSceneWithGeometryInstances CreateRayTracingSceneWithGeometryInstances
 			InstanceDesc.LayerIndex, NumLayers);
 
 		// Can't support same instance in multiple layers because BaseInstancePrefixSum would be different per layer
-		Initializer.BaseInstancePrefixSum[InstanceIndex] = Initializer.NumNativeInstancesPerLayer[InstanceDesc.LayerIndex];
+		Output.BaseInstancePrefixSum[InstanceIndex] = Initializer.NumNativeInstancesPerLayer[InstanceDesc.LayerIndex];
+
 		Initializer.NumNativeInstancesPerLayer[InstanceDesc.LayerIndex] += InstanceDesc.NumTransforms;
 	}
 
@@ -130,6 +129,7 @@ void FillRayTracingInstanceUploadBuffer(
 	TConstArrayView<FRayTracingGeometryInstance> Instances,
 	TConstArrayView<uint32> InstanceGeometryIndices,
 	TConstArrayView<uint32> BaseUploadBufferOffsets,
+	TConstArrayView<uint32> BaseInstancePrefixSum,
 	uint32 NumNativeGPUSceneInstances,
 	uint32 NumNativeCPUInstances,
 	TArrayView<FRayTracingInstanceDescriptorInput> OutInstanceUploadData,
@@ -163,6 +163,7 @@ void FillRayTracingInstanceUploadBuffer(
 			Instances,
 			InstanceGeometryIndices,
 			BaseUploadBufferOffsets,
+			BaseInstancePrefixSum,
 			LayerBaseIndices,
 			PreViewTranslation,
 			&SceneInitializer,
@@ -185,7 +186,7 @@ void FillRayTracingInstanceUploadBuffer(
 
 			const uint32 AccelerationStructureIndex = InstanceGeometryIndices[SceneInstanceIndex];
 			const uint32 LayerBaseIndex = LayerBaseIndices[SceneInstance.LayerIndex];
-			const uint32 BaseInstanceIndex = SceneInitializer.BaseInstancePrefixSum[SceneInstanceIndex];
+			const uint32 BaseInstanceIndex = BaseInstancePrefixSum[SceneInstanceIndex];
 			const uint32 BaseTransformIndex = bCpuInstance ? BaseUploadBufferOffsets[SceneInstanceIndex] : 0;
 
 			uint32 BaseDescriptorIndex = BaseUploadBufferOffsets[SceneInstanceIndex];
@@ -216,26 +217,10 @@ void FillRayTracingInstanceUploadBuffer(
 				{
 					InstanceDesc.GPUSceneInstanceOrTransformIndex = BaseTransformIndex + TransformIndex;
 				}
-				
-				uint32 UserData;
-
-				if (bUseUniqueUserData)
-				{
-					UserData = SceneInstance.UserData[TransformIndex];
-				}
-				else
-				{
-					UserData = SceneInstance.DefaultUserData;
-
-					if (SceneInstance.bIncrementUserDataPerInstance)
-					{
-						UserData += TransformIndex;
-					}
-				}
 
 				InstanceDesc.OutputDescriptorIndex = LayerBaseIndex + BaseInstanceIndex + TransformIndex;
 				InstanceDesc.AccelerationStructureIndex = AccelerationStructureIndex;
-				InstanceDesc.InstanceId = UserData;
+				InstanceDesc.InstanceId = bUseUniqueUserData ? SceneInstance.UserData[TransformIndex] : SceneInstance.DefaultUserData;
 				InstanceDesc.InstanceMaskAndFlags = SceneInstance.Mask | ((uint32)SceneInstance.Flags << 8);
 				InstanceDesc.InstanceContributionToHitGroupIndex = SceneInitializer.SegmentPrefixSum[SceneInstanceIndex] * SceneInitializer.ShaderSlotsPerGeometrySegment;
 				InstanceDesc.bApplyLocalBoundsTransform = SceneInstance.bApplyLocalBoundsTransform;

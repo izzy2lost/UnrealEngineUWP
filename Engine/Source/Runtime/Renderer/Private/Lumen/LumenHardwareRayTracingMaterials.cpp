@@ -164,7 +164,6 @@ void FDeferredShadingSceneRenderer::SetupLumenHardwareRayTracingHitGroupBuffer(F
 
 						const uint32 HitGroupIndex = SceneInitializer.SegmentPrefixSum[InstanceIndex] + SegmentIndex;
 
-						HitGroupData[HitGroupIndex].BaseInstanceIndex = SceneInitializer.BaseInstancePrefixSum[InstanceIndex];
 						HitGroupData[HitGroupIndex].UserData = CalculateLumenHardwareRayTracingUserData(MeshCommand);
 					}
 				}));

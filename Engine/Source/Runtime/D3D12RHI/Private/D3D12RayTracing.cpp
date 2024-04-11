@@ -4742,7 +4742,6 @@ static void SetRayTracingHitGroup(
 		SystemParameters = HitGroupSystemParametersForThisGPU[SegmentIndex];
 	}
 
-	SystemParameters.RootConstants.BaseInstanceIndex = Scene->Initializer.BaseInstancePrefixSum[InstanceIndex];
 	SystemParameters.RootConstants.UserData = UserData;
 	ShaderTable->SetHitGroupSystemParameters(RecordIndex, SystemParameters);
 

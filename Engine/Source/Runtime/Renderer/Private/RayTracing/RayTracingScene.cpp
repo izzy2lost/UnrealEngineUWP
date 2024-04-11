@@ -192,6 +192,7 @@ void FRayTracingScene::CreateWithInitializationData(FRDGBuilder& GraphBuilder, c
 			Instances = MakeArrayView(Instances),
 			InstanceGeometryIndices = MoveTemp(SceneWithGeometryInstances.InstanceGeometryIndices),
 			BaseUploadBufferOffsets = MoveTemp(SceneWithGeometryInstances.BaseUploadBufferOffsets),
+			BaseInstancePrefixSum = MoveTemp(SceneWithGeometryInstances.BaseInstancePrefixSum),
 			RayTracingSceneRHI = RayTracingSceneRHI,
 			PreViewTranslation = View.ViewMatrices.GetPreViewTranslation()]()
 		{
@@ -202,6 +203,7 @@ void FRayTracingScene::CreateWithInitializationData(FRDGBuilder& GraphBuilder, c
 				Instances,
 				InstanceGeometryIndices,
 				BaseUploadBufferOffsets,
+				BaseInstancePrefixSum,
 				NumNativeGPUSceneInstances,
 				NumNativeCPUInstances,
 				InstanceUploadData,

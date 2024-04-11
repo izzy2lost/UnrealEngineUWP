@@ -1166,6 +1166,7 @@ bool FSceneRenderState::SetupRayTracingScene(FRDGBuilder& GraphBuilder, FSceneUn
 					RayTracingGeometryInstances,
 					SceneWithGeometryInstances.InstanceGeometryIndices,
 					SceneWithGeometryInstances.BaseUploadBufferOffsets,
+					SceneWithGeometryInstances.BaseInstancePrefixSum,
 					SceneWithGeometryInstances.NumNativeGPUSceneInstances,
 					SceneWithGeometryInstances.NumNativeCPUInstances,
 					MakeArrayView(InstanceUploadData, SceneInitializer.NumNativeInstancesPerLayer[0]),

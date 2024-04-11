@@ -52,6 +52,8 @@ struct FRayTracingSceneWithGeometryInstances
 	TArray<uint32> InstanceGeometryIndices;
 	// base offset of each instance entries in the instance upload buffer
 	TArray<uint32> BaseUploadBufferOffsets;
+	// prefix sum of `Instance.NumTransforms` for all instances in this scene
+	TArray<uint32> BaseInstancePrefixSum;
 	UE_DEPRECATED(5.5, "GPUInstances no longer supported. Use GPUSceneInstances instead.")
 	TArray<FRayTracingGPUInstance> GPUInstances;
 };
@@ -79,10 +81,36 @@ RENDERER_API void FillRayTracingInstanceUploadBuffer(
 	TConstArrayView<FRayTracingGeometryInstance> Instances,
 	TConstArrayView<uint32> InstanceGeometryIndices,
 	TConstArrayView<uint32> BaseUploadBufferOffsets,
+	TConstArrayView<uint32> BaseInstancePrefixSum,
 	uint32 NumNativeGPUSceneInstances,
 	uint32 NumNativeCPUInstances,
 	TArrayView<FRayTracingInstanceDescriptorInput> OutInstanceUploadData,
 	TArrayView<FVector4f> OutTransformData);
+
+UE_DEPRECATED(5.5, "Must specify BaseInstancePrefixSum.")
+inline void FillRayTracingInstanceUploadBuffer(
+	FRayTracingSceneRHIRef RayTracingSceneRHI,
+	FVector PreViewTranslation,
+	TConstArrayView<FRayTracingGeometryInstance> Instances,
+	TConstArrayView<uint32> InstanceGeometryIndices,
+	TConstArrayView<uint32> BaseUploadBufferOffsets,
+	uint32 NumNativeGPUSceneInstances,
+	uint32 NumNativeCPUInstances,
+	TArrayView<FRayTracingInstanceDescriptorInput> OutInstanceUploadData,
+	TArrayView<FVector4f> OutTransformData)
+{
+	FillRayTracingInstanceUploadBuffer(
+		RayTracingSceneRHI,
+		PreViewTranslation,
+		Instances,
+		InstanceGeometryIndices,
+		BaseUploadBufferOffsets,
+		{},
+		NumNativeGPUSceneInstances,
+		NumNativeCPUInstances,
+		OutInstanceUploadData,
+		OutTransformData);
+}
 
 RENDERER_API void BuildRayTracingInstanceBuffer(
 	FRHICommandList& RHICmdList,
