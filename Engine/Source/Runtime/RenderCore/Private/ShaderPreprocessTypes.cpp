@@ -191,7 +191,7 @@ inline bool IsEndOfTheLine(FShaderSource::CharType C)
 
 inline bool StripNeedsHandling(FShaderSource::CharType C)
 {
-	return IsEndOfTheLine(C) || C == '/' || C == 0 || C == '#';
+	return IsEndOfTheLine(C) || C == '/' || C == '#';
 }
 
 inline void SkipNewLine(const FShaderSource::CharType*& Current, const FShaderSource::CharType* End)
@@ -212,7 +212,7 @@ void FShaderPreprocessOutput::StripCode(bool bCopyOriginalPreprocessdSource)
 	const FShaderSource::CharType* End = Current + PreprocessedSource.Len();
 	int32 CurrentBlockUnstrippedLineOffset = 0;
 	int32 CurrentStrippedLineNum = 1;
-	while (Current < End)
+	while (Current < End && *Current)
 	{
 		while (!StripNeedsHandling(*Current))
 		{
