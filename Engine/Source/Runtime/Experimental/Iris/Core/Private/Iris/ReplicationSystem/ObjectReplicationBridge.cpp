@@ -1660,7 +1660,7 @@ UE::Net::FNetObjectFilterHandle UObjectReplicationBridge::GetDynamicFilter(const
 
 				if (bUseFilter)
 				{
-					OutFilterProfile = FilterInfoPtr->FilterProfile;
+					OutFilterProfile = FilterInfo.FilterProfile;
 					return FilterInfo.FilterHandle;
 				}
 				else
