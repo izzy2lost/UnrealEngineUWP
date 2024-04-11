@@ -307,6 +307,11 @@ useDotnetMonitorSidecar : false
 ## this is typically faster then falling back to global blob store
 fetchBlobsFromPeerPods: false
 
+## restartPodOnConfigMapChange
+## Adds a annotation that will include the checksum of the config map to all pods, causing them to restart if the configmap changes
+## This is a bit pessimistic as config changes can be dynamically reloaded but its inconsistent
+restartPodOnConfigMapChange: false
+
 ## Nginx configuration
 nginx:
 
