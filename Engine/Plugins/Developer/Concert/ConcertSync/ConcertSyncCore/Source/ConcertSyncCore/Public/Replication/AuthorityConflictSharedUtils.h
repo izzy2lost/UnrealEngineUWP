@@ -59,7 +59,7 @@ namespace UE::ConcertSyncCore::Replication::AuthorityConflictUtils
 	CONCERTSYNCCORE_API EAuthorityConflict EnumerateAuthorityConflicts(
 		const FGuid& ClientId,
 		const FSoftObjectPath& Object,
-		TConstArrayView<FConcertPropertyChain> OverwriteProperties,
+		const TSet<FConcertPropertyChain>& OverwriteProperties,
 		const IReplicationGroundTruth& GroundTruth,
 		FProcessAuthorityConflict ProcessConflict = [](const FGuid&, const FGuid&, const FConcertPropertyChain&){ return EBreakBehavior::Break; }
 		);

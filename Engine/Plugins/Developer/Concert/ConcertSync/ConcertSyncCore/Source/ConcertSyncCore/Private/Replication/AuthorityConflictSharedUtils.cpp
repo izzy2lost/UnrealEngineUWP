@@ -53,7 +53,7 @@ namespace UE::ConcertSyncCore::Replication::AuthorityConflictUtils
 	EAuthorityConflict EnumerateAuthorityConflicts(
 		const FGuid& ClientId,
 		const FSoftObjectPath& Object,
-		TConstArrayView<FConcertPropertyChain> OverwriteProperties,
+		const TSet<FConcertPropertyChain>& OverwriteProperties,
 		const IReplicationGroundTruth& GroundTruth,
 		FProcessAuthorityConflict ProcessConflict
 		)
@@ -101,7 +101,7 @@ namespace UE::ConcertSyncCore::Replication::AuthorityConflictUtils
 				}
 
 				const FSoftObjectPath& ObjectPath = Change.Key;
-				const TArray<FConcertPropertyChain>& Properties = ObjectInfo->PropertySelection.ReplicatedProperties;
+				const TSet<FConcertPropertyChain>& Properties = ObjectInfo->PropertySelection.ReplicatedProperties;
 				const EAuthorityConflict Conflict = EnumerateAuthorityConflicts(SendingClient, ObjectPath, Properties, GroundTruth);
 
 				const bool bHasConflict = Conflict == EAuthorityConflict::Conflict;

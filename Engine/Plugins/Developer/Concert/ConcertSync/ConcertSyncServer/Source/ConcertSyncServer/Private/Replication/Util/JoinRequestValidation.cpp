@@ -45,24 +45,6 @@ namespace UE::ConcertSyncServer::Replication
 						);
 					return { EJoinReplicationErrorCode::InvalidClass, ErrorMessage };
 				}
-
-				// Validate unique properties
-				TSet<FConcertPropertyChain> UniquePropertyDetection;
-				for (const FConcertPropertyChain& PropertyChain : ObjectInfo.PropertySelection.ReplicatedProperties)
-				{
-					// No duplicate properties!
-					if (UniquePropertyDetection.Contains(PropertyChain))
-					{
-						const FString ErrorMessage = FString::Printf(
-							TEXT("Stream %s has duplicate property %s for object %s"),
-							*Stream.BaseDescription.Identifier.ToString(),
-							*PropertyChain.ToString(),
-							*ObjectPath.ToString()
-						);
-						return { EJoinReplicationErrorCode::DuplicateProperty, ErrorMessage };
-					}
-					UniquePropertyDetection.Add(PropertyChain);
-				}
 			}
 		}
 

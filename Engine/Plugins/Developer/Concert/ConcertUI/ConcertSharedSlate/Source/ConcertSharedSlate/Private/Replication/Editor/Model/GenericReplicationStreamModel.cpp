@@ -16,14 +16,16 @@ namespace UE::ConcertSharedSlate
 	namespace Private
 	{
 		/** @return Whether any property was added */
-		static bool AddParentProperties(const UStruct& Class, const FConcertPropertyChain& PropertyToAdd, TArray<FConcertPropertyChain>& ReplicatedProperties)
+		static bool AddParentProperties(const UStruct& Class, const FConcertPropertyChain& PropertyToAdd, TSet<FConcertPropertyChain>& ReplicatedProperties)
 		{
 			bool bAddedAtLeastOne = false;
 			ConcertSyncCore::PropertyChain::ForEachReplicatableConcertProperty(Class, [&bAddedAtLeastOne, &ReplicatedProperties, &PropertyToAdd](FConcertPropertyChain&& Property)
 				{
 					if (Property.IsParentOf(PropertyToAdd))
 					{
-						bAddedAtLeastOne |= ReplicatedProperties.AddUnique(Property) != INDEX_NONE;
+						bool bWasAlreadyInSet = false;
+						ReplicatedProperties.Add(Property, &bWasAlreadyInSet);
+						bAddedAtLeastOne |= !bWasAlreadyInSet;
 					}
 					return EBreakBehavior::Continue;
 				});
@@ -236,11 +238,14 @@ namespace UE::ConcertSharedSlate
 		}
 
 		bool bAddedAtLeastOne = false;
-		TArray<FConcertPropertyChain>& ReplicatedProperties = AssignedProperties->PropertySelection.ReplicatedProperties;
+		TSet<FConcertPropertyChain>& ReplicatedProperties = AssignedProperties->PropertySelection.ReplicatedProperties;
 		ReplicatedProperties.Reserve(ReplicatedProperties.Num() + Properties.Num());
 		for (const FConcertPropertyChain& AddedProperty : Properties)
 		{
-			bAddedAtLeastOne |= ReplicatedProperties.AddUnique(AddedProperty) != INDEX_NONE;
+			bool bWasAlreadyInSet = false;
+			ReplicatedProperties.Add(AddedProperty, &bWasAlreadyInSet);
+			
+			bAddedAtLeastOne |= !bWasAlreadyInSet;
 			// Parent properties must also be added
 			// Not exactly efficient to iterate through the hierarchy for every removed item but it should be fine... Properties.Num() == 1 is the most common case
 			bAddedAtLeastOne |= Private::AddParentProperties(*Class, AddedProperty, ReplicatedProperties);
@@ -342,7 +347,7 @@ namespace UE::ConcertSharedSlate
 
 				if (!ObjectInfo.PropertySelection.ReplicatedProperties.Contains(PropertyChain))
 				{
-					TArray<FConcertPropertyChain>& Properties = ObjectInfo.PropertySelection.ReplicatedProperties;
+					TSet<FConcertPropertyChain>& Properties = ObjectInfo.PropertySelection.ReplicatedProperties;
 					Private::AddParentProperties(*ObjectClass, PropertyChain, Properties);
 					Properties.Emplace(MoveTemp(PropertyChain));
 				}

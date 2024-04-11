@@ -420,7 +420,7 @@ namespace UE::ConcertSyncTests::Replication::Authority
 			}
 		};
 		
-		FConcertBaseStreamInfo MakeStream(const FGuid& StreamId, const FSoftObjectPath ObjectPath, TArray<FConcertPropertyChain> Properties)
+		FConcertBaseStreamInfo MakeStream(const FGuid& StreamId, const FSoftObjectPath ObjectPath, TSet<FConcertPropertyChain> Properties)
 		{
 			FConcertObjectReplicationMap ExistingReplicationMap;
 			const FConcertPropertySelection Selection{ Properties};

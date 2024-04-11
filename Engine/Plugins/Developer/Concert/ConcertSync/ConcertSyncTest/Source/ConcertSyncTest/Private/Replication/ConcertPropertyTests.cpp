@@ -326,7 +326,7 @@ namespace UE::ConcertSyncTest::Replication::PropertyChain
 		};
 
 		// CreateFromPath is supposed to work (assuming the other tests worked so far) but we'll use TOptional::Get() calls are in case it does not. 
-		TArray<FConcertPropertyChain> AllowedProperties = {
+		TSet<FConcertPropertyChain> AllowedProperties = {
 			FConcertPropertyChain::CreateFromPath(*UTestReflectionObject::StaticClass(), { TEXT("Float") }).Get({}),
 			FConcertPropertyChain::CreateFromPath(*UTestReflectionObject::StaticClass(), { TEXT("Vector") }).Get({}),
 			FConcertPropertyChain::CreateFromPath(*UTestReflectionObject::StaticClass(), { TEXT("Vector"), TEXT("X") }).Get({}),

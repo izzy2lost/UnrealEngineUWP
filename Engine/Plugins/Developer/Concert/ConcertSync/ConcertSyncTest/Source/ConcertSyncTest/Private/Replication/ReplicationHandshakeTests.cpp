@@ -70,21 +70,13 @@ namespace UE::ConcertSyncTests::Replication::Handshake
 		// These should cases never happen if using the editor tools.
 		// However malicious users or those with custom C++ logic can send whatever they want.
 		
-		// 2.1.1 Duplicate properties
-		FConcertReplicationStream Invalid_DoublePropertyDescription = StreamDescription;
-		Invalid_DoublePropertyDescription.BaseDescription.ReplicationMap.ReplicatedObjects[PathToSomeActorComponent].PropertySelection.ReplicatedProperties.Add(ForcedLodModelProperty);
-		ClientReplicationManager_Primary->JoinReplicationSession({ { Invalid_DoublePropertyDescription } })
-			.Next([&](const FJoinReplicatedSessionResult& Result)
-			{
-				TestTrue(TEXT("Cannot contain same properties twice"), Result.ErrorCode == EJoinReplicationErrorCode::DuplicateProperty);
-			});
-		// 2.1.2 Duplicate stream identifier
+		// 2.1.1 Duplicate stream identifier
 		ClientReplicationManager_Primary->JoinReplicationSession({ { StreamDescription, StreamDescription } })
 			.Next([&](const FJoinReplicatedSessionResult& Result)
 			{
 				TestTrue(TEXT("Cannot contain stream ID twice"), Result.ErrorCode == EJoinReplicationErrorCode::DuplicateStreamId);
 			});
-		// 2.1.3 Missing class path
+		// 2.1.2 Missing class path
 		ClientReplicationManager_Primary->JoinReplicationSession({ { InvalidClassStreamDescription } })
 			.Next([&](const FJoinReplicatedSessionResult& Result)
 			{

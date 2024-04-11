@@ -9,6 +9,7 @@
 
 class FProperty;
 struct FArchiveSerializedPropertyChain;
+struct FConcertPropertyChain;
 struct FConcertPropertySelection;
 
 namespace UE::ConcertSyncCore
@@ -31,10 +32,10 @@ namespace UE::ConcertSyncCore
 		const FConcertPropertySelection& PropertySelection;
 		
 		/**
-		 * Maps the name of every leaf property to the chain indices of PropertySelection.ReplicatedProperties that contain the property name at the end of the chain.
+		 * Maps the name of every leaf property to the chaisn PropertySelection.ReplicatedProperties that contain the property name at the end of the chain.
 		 * This speeds up matching chain and property.
 		 */
-		TMap<FName, TArray<int32>> LeafToChain;
+		TMap<FName, TArray<const FConcertPropertyChain*>> LeafToChain;
 	public:
 
 		FReplicationPropertyFilter(const FConcertPropertySelection& PropertySelection);

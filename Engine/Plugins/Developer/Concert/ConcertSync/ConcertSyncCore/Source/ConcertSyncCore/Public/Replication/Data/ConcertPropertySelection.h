@@ -148,13 +148,13 @@ struct CONCERTSYNCCORE_API FConcertPropertySelection
 
 	/** List of replicated properties. */
 	UPROPERTY()
-	TArray<FConcertPropertyChain> ReplicatedProperties;
+	TSet<FConcertPropertyChain> ReplicatedProperties;
 
 	/** @return Whether this and Other contain at least one property that is the same. */
 	bool OverlapsWith(const FConcertPropertySelection& Other) const { return EnumeratePropertyOverlaps(ReplicatedProperties, Other.ReplicatedProperties); }
 
 	/** @return Whether this includes all properties of Other */
-	bool Includes(const FConcertPropertySelection& Other) const;
+	bool Includes(const FConcertPropertySelection& Other) const { return ReplicatedProperties.Includes(Other.ReplicatedProperties); }
 
 	/**
 	 * Adds all parent properties if they are missing.
@@ -171,14 +171,14 @@ struct CONCERTSYNCCORE_API FConcertPropertySelection
 	 * @return Whether there were any property overlaps.
 	 */
 	static bool EnumeratePropertyOverlaps(
-		TConstArrayView<FConcertPropertyChain> First,
-		TConstArrayView<FConcertPropertyChain> Second,
+		const TSet<FConcertPropertyChain>& First,
+		const TSet<FConcertPropertyChain>& Second,
 		TFunctionRef<EBreakBehavior(const FConcertPropertyChain&)> Callback = [](const FConcertPropertyChain&){ return EBreakBehavior::Break; }
 		);
 	
 	friend bool operator==(const FConcertPropertySelection& Left, const FConcertPropertySelection& Right)
 	{
-		return Left.ReplicatedProperties == Right.ReplicatedProperties;
+		return Left.ReplicatedProperties.Num() == Right.ReplicatedProperties.Num() && Left.Includes(Right);
 	}
 	friend bool operator!=(const FConcertPropertySelection& Left, const FConcertPropertySelection& Right)
 	{

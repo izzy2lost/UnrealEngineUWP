@@ -153,7 +153,7 @@ namespace UE::MultiUserClient
 					{
 						for (const FConcertPropertyChain& PropertyChain : CurrentInfo->PropertySelection.ReplicatedProperties)
 						{
-							PutRequest->Properties.ReplicatedProperties.AddUnique(PropertyChain);
+							PutRequest->Properties.ReplicatedProperties.Add(PropertyChain);
 						}
 					}
 					

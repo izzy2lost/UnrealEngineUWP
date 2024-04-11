@@ -35,12 +35,10 @@ enum class EJoinReplicationErrorCode : uint8
 	// Invalid input:
 	/** One of the specified classes was null or otherwise invalid */
 	InvalidClass = 6,
-	/** An object selection contained a property twice. */
-	DuplicateProperty = 7,
 	/** Your input contained the same stream id twice. */
-	DuplicateStreamId = 8,
+	DuplicateStreamId = 7,
 	/** Failed to unpack the stream, likely because one of the attribute classes could not be resolved. */
-	FailedToUnpackStream = 9,
+	FailedToUnpackStream = 8,
 	
 	MaxPlusOne,
 	/** The maximum possible entry value */
