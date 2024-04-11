@@ -613,6 +613,7 @@ public class BlobService : IBlobService
 
 			if (blobResponse.StatusCode != HttpStatusCode.OK)
 			{
+				_logger.LogWarning("Failed to replicate {Blob} in {Namespace} from region {Region} due to bad http status code {StatusCode}.", blob, ns, region, blobResponse.StatusCode);
 				throw new BlobReplicationException(ns, blob, $"Failed to replicate {blob} in {ns} from region {region} due to bad http status code {blobResponse.StatusCode}.");
 			}
 
@@ -625,6 +626,8 @@ public class BlobService : IBlobService
 
 		if (!replicated)
 		{
+			_logger.LogWarning("Failed to replicate {Blob} in {Namespace} due to it not existing in any region", blob, ns);
+
 			throw new BlobReplicationException(ns, blob, $"Failed to replicate {blob} in {ns} due to it not existing in any region");
 		}
 

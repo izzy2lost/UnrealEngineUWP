@@ -241,6 +241,10 @@ namespace Jupiter.Implementation
 						{
 							// if the file was gced while running we can just ignore it
 						}
+						catch (DirectoryNotFoundException)
+						{
+							// if the directory was deleted then we can ignore it to, end result is the blob is gone which is what matters
+						}
 					}
 				}
 
