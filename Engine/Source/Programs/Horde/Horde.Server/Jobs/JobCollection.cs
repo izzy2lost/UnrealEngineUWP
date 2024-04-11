@@ -291,6 +291,11 @@ namespace Horde.Server.Jobs
 			public int SchedulePriority { get; set; }
 			public List<JobStepBatchDocument> Batches { get; set; } = new List<JobStepBatchDocument>();
 			public List<Report>? Reports { get; set; }
+
+			[BsonDictionaryOptions(Representation = DictionaryRepresentation.ArrayOfDocuments)]
+			public Dictionary<ParameterId, string> Parameters { get; set; } = new Dictionary<ParameterId, string>();
+			IReadOnlyDictionary<ParameterId, string> IJob.Parameters => Parameters;
+
 			public List<string> Arguments { get; set; } = new List<string>();
 
 			[BsonDictionaryOptions(DictionaryRepresentation.ArrayOfDocuments)]
@@ -362,6 +367,7 @@ namespace Horde.Server.Jobs
 				ShowUgsAlerts = options.ShowUgsAlerts;
 				NotificationChannel = options.NotificationChannel;
 				NotificationChannelFilter = options.NotificationChannelFilter;
+				Parameters = new Dictionary<ParameterId, string>(options.Parameters);
 				Arguments.AddRange(options.Arguments);
 
 				foreach (KeyValuePair<string, string> pair in options.Environment)

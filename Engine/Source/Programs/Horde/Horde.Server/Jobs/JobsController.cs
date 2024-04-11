@@ -203,6 +203,18 @@ namespace Horde.Server.Jobs
 			options.Arguments.AddRange(arguments);
 			options.JobOptions ??= create.JobOptions;
 
+			if (create.Parameters != null)
+			{
+				foreach ((ParameterId parameter, string value) in create.Parameters)
+				{
+					options.Parameters[parameter] = value;
+				}
+				foreach (Parameter parameter in template.Parameters)
+				{
+					parameter.GetArguments(options.Parameters, false, options.Arguments);
+				}
+			}
+
 			foreach ((string key, string value) in environment)
 			{
 				options.Environment[key] = value;
@@ -571,6 +583,7 @@ namespace Horde.Server.Jobs
 			response.AutoSubmitChange = job.AutoSubmitChange;
 			response.AutoSubmitMessage = job.AutoSubmitMessage;
 			response.Reports = job.Reports?.ConvertAll(x => CreateGetReportResponse(x));
+			response.Parameters = job.Parameters.ToDictionary();
 			response.Arguments = job.Arguments.ToList();
 			response.UpdateTime = new DateTimeOffset(job.UpdateTimeUtc);
 			response.UseArtifactsV2 = job.JobOptions?.UseNewTempStorage ?? true;

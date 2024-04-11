@@ -3,7 +3,10 @@
 using System;
 using System.Collections.Generic;
 using EpicGames.Core;
+using EpicGames.Horde;
 using EpicGames.Horde.Jobs;
+using EpicGames.Horde.Jobs.Templates;
+using Google.Protobuf.WellKnownTypes;
 using MongoDB.Bson.Serialization.Attributes;
 
 namespace Horde.Server.Jobs.Templates
@@ -15,6 +18,14 @@ namespace Horde.Server.Jobs.Templates
 	[BsonKnownTypes(typeof(GroupParameter), typeof(TextParameter), typeof(ListParameter), typeof(BoolParameter))]
 	public abstract class Parameter
 	{
+		/// <summary>
+		/// Gets the arguments for a job given a set of parameters
+		/// </summary>
+		/// <param name="parameters">Map of parameter id to value</param>
+		/// <param name="scheduledBuild">Whether this is a scheduled build</param>
+		/// <param name="arguments">Receives command line arguments for the job</param>
+		public abstract void GetArguments(Dictionary<ParameterId, string> parameters, bool scheduledBuild, List<string> arguments);
+
 		/// <summary>
 		/// Gets the default arguments for this parameter and its children
 		/// </summary>
@@ -72,6 +83,15 @@ namespace Horde.Server.Jobs.Templates
 		}
 
 		/// <inheritdoc/>
+		public override void GetArguments(Dictionary<ParameterId, string> parameters, bool scheduledBuild, List<string> arguments)
+		{
+			foreach (Parameter child in Children)
+			{
+				child.GetArguments(parameters, scheduledBuild, arguments);
+			}
+		}
+
+		/// <inheritdoc/>
 		public override void GetDefaultArguments(List<string> defaultArguments, bool scheduledBuild)
 		{
 			foreach (Parameter child in Children)
@@ -95,6 +115,11 @@ namespace Horde.Server.Jobs.Templates
 	/// </summary>
 	public sealed class TextParameter : Parameter
 	{
+		/// <summary>
+		/// Identifier for this parameter
+		/// </summary>
+		public ParameterId Id { get; set; }
+
 		/// <summary>
 		/// Label to display next to this parameter. Should default to the parameter name.
 		/// </summary>
@@ -150,6 +175,7 @@ namespace Horde.Server.Jobs.Templates
 		/// <summary>
 		/// Constructor
 		/// </summary>
+		/// <param name="id">Identifier for this parameter</param>
 		/// <param name="label">Parameter to pass this value to the BuildGraph script with</param>
 		/// <param name="argument">Label to show next to the parameter</param>
 		/// <param name="defaultValue">Default value for this argument</param>
@@ -158,8 +184,9 @@ namespace Horde.Server.Jobs.Templates
 		/// <param name="validation">Regex used to validate entries</param>
 		/// <param name="description">Message displayed for invalid values</param>
 		/// <param name="toolTip">Tool tip text to display</param>
-		public TextParameter(string label, string argument, string defaultValue, string? scheduleOverride, string? hint, string? validation, string? description, string? toolTip)
+		public TextParameter(ParameterId id, string label, string argument, string defaultValue, string? scheduleOverride, string? hint, string? validation, string? description, string? toolTip)
 		{
+			Id = id;
 			Label = label;
 			Argument = argument;
 			Default = defaultValue;
@@ -168,6 +195,19 @@ namespace Horde.Server.Jobs.Templates
 			Validation = validation;
 			Description = description;
 			ToolTip = toolTip;
+		}
+
+		/// <inheritdoc/>
+		public override void GetArguments(Dictionary<ParameterId, string> parameters, bool scheduledBuild, List<string> arguments)
+		{
+			if (parameters.TryGetValue(Id, out string? value))
+			{
+				arguments.Add(Argument + value);
+			}
+			else
+			{
+				arguments.Add(Argument + (scheduledBuild ? (ScheduleOverride ?? Default) : Default));
+			}
 		}
 
 		/// <inheritdoc/>
@@ -182,7 +222,7 @@ namespace Horde.Server.Jobs.Templates
 		/// <returns>Serializable parameter data</returns>
 		public override ParameterData ToData()
 		{
-			return new TextParameterData(Label, Argument, Default, ScheduleOverride, Hint, Validation, Description, ToolTip);
+			return new TextParameterData(Id, Label, Argument, Default, ScheduleOverride, Hint, Validation, Description, ToolTip);
 		}
 	}
 
@@ -191,6 +231,11 @@ namespace Horde.Server.Jobs.Templates
 	/// </summary>
 	public class ListParameterItem
 	{
+		/// <summary>
+		/// Identifier for this parameter
+		/// </summary>
+		public ParameterId Id { get; set; }
+
 		/// <summary>
 		/// Group to display this entry in
 		/// </summary>
@@ -248,6 +293,7 @@ namespace Horde.Server.Jobs.Templates
 		/// <summary>
 		/// Constructor
 		/// </summary>
+		/// <param name="id">Identifier for this parameter</param>
 		/// <param name="group">The group to put this parameter in</param>
 		/// <param name="text">Text to display for this option</param>
 		/// <param name="argumentIfEnabled">Argument to add if this option is enabled</param>
@@ -256,8 +302,9 @@ namespace Horde.Server.Jobs.Templates
 		/// <param name="argumentsIfDisabled">Arguments to add if this option is disabled </param>
 		/// <param name="defaultValue">Whether this item is selected by default</param>
 		/// <param name="scheduleOverride">Override for this value in scheduled builds</param>
-		public ListParameterItem(string? group, string text, string? argumentIfEnabled, List<string>? argumentsIfEnabled, string? argumentIfDisabled, List<string>? argumentsIfDisabled, bool defaultValue, bool? scheduleOverride)
+		public ListParameterItem(ParameterId id, string? group, string text, string? argumentIfEnabled, List<string>? argumentsIfEnabled, string? argumentIfDisabled, List<string>? argumentsIfDisabled, bool defaultValue, bool? scheduleOverride)
 		{
+			Id = id;
 			Group = group;
 			Text = text;
 			ArgumentIfEnabled = argumentIfEnabled;
@@ -274,7 +321,7 @@ namespace Horde.Server.Jobs.Templates
 		/// <returns>Serializable parameter data</returns>
 		public ListParameterItemData ToData()
 		{
-			return new ListParameterItemData(Group, Text, ArgumentIfEnabled, ArgumentsIfEnabled, ArgumentIfDisabled, ArgumentsIfDisabled, Default, ScheduleOverride);
+			return new ListParameterItemData(Id, Group, Text, ArgumentIfEnabled, ArgumentsIfEnabled, ArgumentIfDisabled, ArgumentsIfDisabled, Default, ScheduleOverride);
 		}
 	}
 
@@ -328,32 +375,47 @@ namespace Horde.Server.Jobs.Templates
 		}
 
 		/// <inheritdoc/>
+		public override void GetArguments(Dictionary<ParameterId, string> parameters, bool scheduledBuild, List<string> arguments)
+		{
+			foreach (ListParameterItem item in Items)
+			{
+				bool value = BoolParameter.GetValue(item.Id, parameters) ?? (scheduledBuild ? (item.ScheduleOverride ?? item.Default) : item.Default);
+				GetCommandLineArgumentsForItem(item, value, arguments);
+			}
+		}
+
+		/// <inheritdoc/>
 		public override void GetDefaultArguments(List<string> defaultArguments, bool scheduledBuild)
 		{
 			foreach (ListParameterItem item in Items)
 			{
 				bool value = scheduledBuild ? (item.ScheduleOverride ?? item.Default) : item.Default;
-				if (value)
+				GetCommandLineArgumentsForItem(item, value, defaultArguments);
+			}
+		}
+
+		static void GetCommandLineArgumentsForItem(ListParameterItem item, bool value, List<string> arguments)
+		{
+			if (value)
+			{
+				if (item.ArgumentIfEnabled != null)
 				{
-					if (item.ArgumentIfEnabled != null)
-					{
-						defaultArguments.Add(item.ArgumentIfEnabled);
-					}
-					if (item.ArgumentsIfEnabled != null)
-					{
-						defaultArguments.AddRange(item.ArgumentsIfEnabled);
-					}
+					arguments.Add(item.ArgumentIfEnabled);
 				}
-				else
+				if (item.ArgumentsIfEnabled != null)
 				{
-					if (item.ArgumentIfDisabled != null)
-					{
-						defaultArguments.Add(item.ArgumentIfDisabled);
-					}
-					if (item.ArgumentsIfDisabled != null)
-					{
-						defaultArguments.AddRange(item.ArgumentsIfDisabled);
-					}
+					arguments.AddRange(item.ArgumentsIfEnabled);
+				}
+			}
+			else
+			{
+				if (item.ArgumentIfDisabled != null)
+				{
+					arguments.Add(item.ArgumentIfDisabled);
+				}
+				if (item.ArgumentsIfDisabled != null)
+				{
+					arguments.AddRange(item.ArgumentsIfDisabled);
 				}
 			}
 		}
@@ -373,6 +435,11 @@ namespace Horde.Server.Jobs.Templates
 	/// </summary>
 	public class BoolParameter : Parameter
 	{
+		/// <summary>
+		/// Identifier for this parameter
+		/// </summary>
+		public ParameterId Id { get; set; }
+
 		/// <summary>
 		/// Label to display next to this parameter.
 		/// </summary>
@@ -430,6 +497,7 @@ namespace Horde.Server.Jobs.Templates
 		/// <summary>
 		/// Constructor
 		/// </summary>
+		/// <param name="id">Identifier for this parameter</param>
 		/// <param name="label">Label to display for this parameter</param>
 		/// <param name="argumentIfEnabled">Argument to add if this parameter is enabled</param>
 		/// <param name="argumentsIfEnabled">Arguments to add if this parameter is enabled</param>
@@ -438,8 +506,9 @@ namespace Horde.Server.Jobs.Templates
 		/// <param name="defaultValue">Default value for this argument</param>
 		/// <param name="scheduleOverride">Override for this argument in scheduled builds</param>
 		/// <param name="toolTip">Tool tip text to display</param>
-		public BoolParameter(string label, string? argumentIfEnabled, List<string>? argumentsIfEnabled, string? argumentIfDisabled, List<string>? argumentsIfDisabled, bool defaultValue, bool? scheduleOverride, string? toolTip)
+		public BoolParameter(ParameterId id, string label, string? argumentIfEnabled, List<string>? argumentsIfEnabled, string? argumentIfDisabled, List<string>? argumentsIfDisabled, bool defaultValue, bool? scheduleOverride, string? toolTip)
 		{
+			Id = id;
 			Label = label;
 			ArgumentIfEnabled = argumentIfEnabled;
 			ArgumentsIfEnabled = argumentsIfEnabled;
@@ -450,30 +519,63 @@ namespace Horde.Server.Jobs.Templates
 			ToolTip = toolTip;
 		}
 
+		/// <summary>
+		/// Parses a bool parameter value from a dictionary
+		/// </summary>
+		/// <param name="parameterId">The parameter id</param>
+		/// <param name="parameters">Map from parameter id to value</param>
+		public static bool? GetValue(ParameterId parameterId, Dictionary<ParameterId, string> parameters)
+		{
+			if (parameters.TryGetValue(parameterId, out string? stringValue))
+			{
+				if (stringValue.Equals("0", StringComparison.Ordinal) || stringValue.Equals("false", StringComparison.OrdinalIgnoreCase))
+				{
+					return false;
+				}
+				if (stringValue.Equals("1", StringComparison.Ordinal) || stringValue.Equals("true", StringComparison.OrdinalIgnoreCase))
+				{
+					return true;
+				}
+			}
+			return null;
+		}
+
+		/// <inheritdoc/>
+		public override void GetArguments(Dictionary<ParameterId, string> parameters, bool scheduledBuild, List<string> arguments)
+		{
+			bool value = GetValue(Id, parameters) ?? (scheduledBuild ? (ScheduleOverride ?? Default) : Default);
+			GetCommandLineArgumentsForItem(value, arguments);
+		}
+
 		/// <inheritdoc/>
 		public override void GetDefaultArguments(List<string> defaultArguments, bool scheduledBuild)
 		{
 			bool value = scheduledBuild ? (ScheduleOverride ?? Default) : Default;
+			GetCommandLineArgumentsForItem(value, defaultArguments);
+		}
+
+		void GetCommandLineArgumentsForItem(bool value, List<string> arguments)
+		{
 			if (value)
 			{
 				if (!String.IsNullOrEmpty(ArgumentIfEnabled))
 				{
-					defaultArguments.Add(ArgumentIfEnabled);
+					arguments.Add(ArgumentIfEnabled);
 				}
 				if (ArgumentsIfEnabled != null)
 				{
-					defaultArguments.AddRange(ArgumentsIfEnabled);
+					arguments.AddRange(ArgumentsIfEnabled);
 				}
 			}
 			else
 			{
 				if (!String.IsNullOrEmpty(ArgumentIfDisabled))
 				{
-					defaultArguments.Add(ArgumentIfDisabled);
+					arguments.Add(ArgumentIfDisabled);
 				}
 				if (ArgumentsIfDisabled != null)
 				{
-					defaultArguments.AddRange(ArgumentsIfDisabled);
+					arguments.AddRange(ArgumentsIfDisabled);
 				}
 			}
 		}
@@ -483,7 +585,7 @@ namespace Horde.Server.Jobs.Templates
 		/// <returns><see cref="BoolParameterData"/> instance</returns>
 		public override ParameterData ToData()
 		{
-			return new BoolParameterData(Label, ArgumentIfEnabled, ArgumentsIfEnabled, ArgumentIfDisabled, ArgumentsIfDisabled, Default, ScheduleOverride, ToolTip);
+			return new BoolParameterData(Id, Label, ArgumentIfEnabled, ArgumentsIfEnabled, ArgumentIfDisabled, ArgumentsIfDisabled, Default, ScheduleOverride, ToolTip);
 		}
 	}
 

@@ -124,10 +124,20 @@ namespace EpicGames.Horde
 		readonly TConverter _converter = new TConverter();
 
 		/// <inheritdoc/>
-		public override TValue Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options) => _converter.FromStringId(new StringId(new Utf8String(reader.GetUtf8String().ToArray())));
+		public override TValue Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+			=> _converter.FromStringId(new StringId(new Utf8String(reader.GetUtf8String().ToArray())));
 
 		/// <inheritdoc/>
-		public override void Write(Utf8JsonWriter writer, TValue value, JsonSerializerOptions options) => writer.WriteStringValue(_converter.ToStringId(value).Span);
+		public override void Write(Utf8JsonWriter writer, TValue value, JsonSerializerOptions options) 
+			=> writer.WriteStringValue(_converter.ToStringId(value).Span);
+
+		/// <inheritdoc/>
+		public override TValue ReadAsPropertyName(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+			=> Read(ref reader, typeToConvert, options);
+
+		/// <inheritdoc/>
+		public override void WriteAsPropertyName(Utf8JsonWriter writer, TValue value, JsonSerializerOptions options)
+			=> writer.WritePropertyName(_converter.ToStringId(value).Span);
 	}
 
 	/// <summary>

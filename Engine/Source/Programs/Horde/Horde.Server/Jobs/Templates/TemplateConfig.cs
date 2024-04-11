@@ -7,6 +7,7 @@ using System.IO;
 using System.Text.Json.Serialization;
 using EpicGames.Core;
 using EpicGames.Horde.Jobs;
+using EpicGames.Horde.Jobs.Templates;
 using Horde.Server.Configuration;
 
 namespace Horde.Server.Jobs.Templates
@@ -102,13 +103,58 @@ namespace Horde.Server.Jobs.Templates
 		/// <summary>
 		/// Callback after a parameter has been read.
 		/// </summary>
-		public abstract void PostLoad();
+		public abstract void PostLoad(HashSet<ParameterId> parameterIds);
 
 		/// <summary>
 		/// Convert to a parameter object
 		/// </summary>
 		/// <returns><see cref="Parameter"/> object</returns>
 		public abstract Parameter ToModel();
+
+		/// <summary>
+		/// Adds the given parameter id to the set of known ids, or create a new one
+		/// </summary>
+		/// <param name="explicitParameterId"></param>
+		/// <param name="name"></param>
+		/// <param name="parameterIds"></param>
+		/// <returns></returns>
+		protected ParameterId AddParameterId(ParameterId explicitParameterId, string name, HashSet<ParameterId> parameterIds)
+		{
+			if (explicitParameterId.Id.IsEmpty)
+			{
+				return CreateUniqueParameterId(name, parameterIds);
+			}
+			else if (parameterIds.Add(explicitParameterId))
+			{
+				return explicitParameterId;
+			}
+			else
+			{
+				throw new InvalidOperationException($"Parameter '{explicitParameterId}' has been defined twice");
+			}
+		}
+
+		/// <summary>
+		/// Creates a unique parameter id based on the given name
+		/// </summary>
+		/// <param name="name">Default name for the parameter</param>
+		/// <param name="parameterIds">The existing parameter ids</param>
+		protected ParameterId CreateUniqueParameterId(string name, HashSet<ParameterId> parameterIds)
+		{
+			string baseName = name;
+			if (String.IsNullOrEmpty(baseName))
+			{
+				baseName = "unnamed";
+			}
+
+			ParameterId parameterId = ParameterId.Sanitize(baseName);
+			for (int idx = 2; !parameterIds.Add(parameterId); idx++)
+			{
+				parameterId = ParameterId.Sanitize($"{baseName}-{idx}");
+			}
+
+			return parameterId;
+		}
 	}
 
 	/// <summary>
@@ -171,7 +217,7 @@ namespace Horde.Server.Jobs.Templates
 		}
 
 		/// <inheritdoc/>
-		public override void PostLoad()
+		public override void PostLoad(HashSet<ParameterId> parameterIds)
 		{
 		}
 
@@ -188,6 +234,11 @@ namespace Horde.Server.Jobs.Templates
 	[JsonDiscriminator("Text")]
 	public class TextParameterData : ParameterData
 	{
+		/// <summary>
+		/// Identifier for this parameter
+		/// </summary>
+		public ParameterId Id { get; set; }
+
 		/// <summary>
 		/// Name of the parameter associated with this parameter.
 		/// </summary>
@@ -241,6 +292,7 @@ namespace Horde.Server.Jobs.Templates
 		/// <summary>
 		/// Constructor
 		/// </summary>
+		/// <param name="id">Identifier for this parameter</param>
 		/// <param name="label">Label to show next to the parameter</param>
 		/// <param name="argument">Argument to pass this value with</param>
 		/// <param name="defaultValue">Default value for this parameter</param>
@@ -249,8 +301,9 @@ namespace Horde.Server.Jobs.Templates
 		/// <param name="validation">Regex used to validate entries</param>
 		/// <param name="validationError">Message displayed to explain validation issues</param>
 		/// <param name="toolTip">Tool tip text to display</param>
-		public TextParameterData(string label, string argument, string defaultValue, string? scheduleOverride, string? hint, string? validation, string? validationError, string? toolTip)
+		public TextParameterData(ParameterId id, string label, string argument, string defaultValue, string? scheduleOverride, string? hint, string? validation, string? validationError, string? toolTip)
 		{
+			Id = id;
 			Label = label;
 			Argument = argument;
 			Default = defaultValue;
@@ -262,14 +315,15 @@ namespace Horde.Server.Jobs.Templates
 		}
 
 		/// <inheritdoc/>
-		public override void PostLoad()
+		public override void PostLoad(HashSet<ParameterId> parameterIds)
 		{
+			Id = AddParameterId(Id, Label, parameterIds);
 		}
 
 		/// <inheritdoc/>
 		public override Parameter ToModel()
 		{
-			return new TextParameter(Label, Argument, Default, ScheduleOverride, Hint, Validation, ValidationError, ToolTip);
+			return new TextParameter(Id, Label, Argument, Default, ScheduleOverride, Hint, Validation, ValidationError, ToolTip);
 		}
 	}
 
@@ -299,6 +353,11 @@ namespace Horde.Server.Jobs.Templates
 	/// </summary>
 	public class ListParameterItemData
 	{
+		/// <summary>
+		/// Identifier for this parameter
+		/// </summary>
+		public ParameterId Id { get; set; }
+
 		/// <summary>
 		/// Optional group heading to display this entry under, if the picker style supports it.
 		/// </summary>
@@ -350,6 +409,7 @@ namespace Horde.Server.Jobs.Templates
 		/// <summary>
 		/// Constructor
 		/// </summary>
+		/// <param name="id">Identifier for this parameter</param>
 		/// <param name="group">The group to put this parameter in</param>
 		/// <param name="text">Text to display for this option</param>
 		/// <param name="argumentIfEnabled">Argument to pass for this item if it's enabled</param>
@@ -358,8 +418,9 @@ namespace Horde.Server.Jobs.Templates
 		/// <param name="argumentsIfDisabled">Argument to pass for this item if it's enabled</param>
 		/// <param name="defaultValue">Whether this item is selected by default</param>
 		/// <param name="scheduleOverride">Overridden value for this item for scheduled builds</param>
-		public ListParameterItemData(string? group, string text, string? argumentIfEnabled, List<string>? argumentsIfEnabled, string? argumentIfDisabled, List<string>? argumentsIfDisabled, bool defaultValue, bool? scheduleOverride)
+		public ListParameterItemData(ParameterId id, string? group, string text, string? argumentIfEnabled, List<string>? argumentsIfEnabled, string? argumentIfDisabled, List<string>? argumentsIfDisabled, bool defaultValue, bool? scheduleOverride)
 		{
+			Id = id;
 			Group = group;
 			Text = text;
 			ArgumentIfEnabled = argumentIfEnabled;
@@ -376,7 +437,7 @@ namespace Horde.Server.Jobs.Templates
 		/// <returns>New <see cref="ListParameterItem"/> object</returns>
 		public ListParameterItem ToModel()
 		{
-			return new ListParameterItem(Group, Text, ArgumentIfEnabled, ArgumentsIfEnabled, ArgumentIfDisabled, ArgumentsIfDisabled, Default, ScheduleOverride);
+			return new ListParameterItem(Id, Group, Text, ArgumentIfEnabled, ArgumentsIfEnabled, ArgumentIfDisabled, ArgumentsIfDisabled, Default, ScheduleOverride);
 		}
 	}
 
@@ -431,10 +492,12 @@ namespace Horde.Server.Jobs.Templates
 		}
 
 		/// <inheritdoc/>
-		public override void PostLoad()
+		public override void PostLoad(HashSet<ParameterId> parameterIds)
 		{
 			foreach (ListParameterItemData item in Items)
 			{
+				item.Id = AddParameterId(item.Id, $"{Label}.{item.Text}", parameterIds);
+
 				if (!String.IsNullOrEmpty(item.ArgumentIfEnabled) && item.ArgumentsIfEnabled != null && item.ArgumentsIfEnabled.Count > 0)
 				{
 					throw new InvalidDataException("Cannot specify both 'ArgumentIfEnabled' and 'ArgumentsIfEnabled'");
@@ -459,6 +522,11 @@ namespace Horde.Server.Jobs.Templates
 	[JsonDiscriminator("Bool")]
 	public class BoolParameterData : ParameterData
 	{
+		/// <summary>
+		/// Identifier for this parameter
+		/// </summary>
+		public ParameterId Id { get; set; }
+
 		/// <summary>
 		/// Name of the parameter associated with this parameter.
 		/// </summary>
@@ -510,6 +578,7 @@ namespace Horde.Server.Jobs.Templates
 		/// <summary>
 		/// Constructor
 		/// </summary>
+		/// <param name="id">Identifier for this parameter</param>
 		/// <param name="label">Label to show next to this parameter</param>
 		/// <param name="argumentIfEnabled">Argument to add if this parameter is enabled</param>
 		/// <param name="argumentsIfEnabled">Arguments to add if this parameter is enabled</param>
@@ -518,8 +587,9 @@ namespace Horde.Server.Jobs.Templates
 		/// <param name="defaultValue">Whether this option is enabled by default</param>
 		/// <param name="scheduleOverride">Override for scheduled builds</param>
 		/// <param name="toolTip">The tool tip text to display</param>
-		public BoolParameterData(string label, string? argumentIfEnabled, List<string>? argumentsIfEnabled, string? argumentIfDisabled, List<string>? argumentsIfDisabled, bool defaultValue, bool? scheduleOverride, string? toolTip)
+		public BoolParameterData(ParameterId id, string label, string? argumentIfEnabled, List<string>? argumentsIfEnabled, string? argumentIfDisabled, List<string>? argumentsIfDisabled, bool defaultValue, bool? scheduleOverride, string? toolTip)
 		{
+			Id = id;
 			Label = label;
 			ArgumentIfEnabled = argumentIfEnabled;
 			ArgumentsIfEnabled = argumentsIfEnabled;
@@ -531,8 +601,10 @@ namespace Horde.Server.Jobs.Templates
 		}
 
 		/// <inheritdoc/>
-		public override void PostLoad()
+		public override void PostLoad(HashSet<ParameterId> parameterIds)
 		{
+			Id = AddParameterId(Id, Label, parameterIds);
+
 			if (!String.IsNullOrEmpty(ArgumentIfEnabled) && ArgumentsIfEnabled != null && ArgumentsIfEnabled.Count > 0)
 			{
 				throw new InvalidDataException("Cannot specify both 'ArgumentIfEnabled' and 'ArgumentsIfEnabled'");
@@ -546,7 +618,7 @@ namespace Horde.Server.Jobs.Templates
 		/// <inheritdoc/>
 		public override Parameter ToModel()
 		{
-			return new BoolParameter(Label, ArgumentIfEnabled, ArgumentsIfEnabled, ArgumentIfDisabled, ArgumentsIfDisabled, Default, ScheduleOverride, ToolTip);
+			return new BoolParameter(Id, Label, ArgumentIfEnabled, ArgumentsIfEnabled, ArgumentIfDisabled, ArgumentsIfDisabled, Default, ScheduleOverride, ToolTip);
 		}
 	}
 }

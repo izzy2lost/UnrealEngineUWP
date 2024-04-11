@@ -674,6 +674,11 @@ namespace Horde.Server.Jobs
 		public IReadOnlyList<IJobStepBatch> Batches { get; }
 
 		/// <summary>
+		/// Parameters for the job
+		/// </summary>
+		public IReadOnlyDictionary<ParameterId, string> Parameters { get; }
+
+		/// <summary>
 		/// Optional user-defined properties for this job
 		/// </summary>
 		public IReadOnlyList<string> Arguments { get; }

@@ -99,7 +99,7 @@ namespace EpicGames.Horde
 				{
 					result.Append((char)('a' + (character - 'A')));
 				}
-				else if (IsValidCharacter(character))
+				else if (IsValidCharacter(character) && (result.Length > 0 || character != '.'))
 				{
 					result.Append(character);
 				}
@@ -108,7 +108,7 @@ namespace EpicGames.Horde
 					result.Append('-');
 				}
 			}
-			while (result.Length > 0 && result[^1] == '-')
+			while (result.Length > 0 && (result[^1] == '-' || result[^1] == '.'))
 			{
 				result.Remove(result.Length - 1, 1);
 			}

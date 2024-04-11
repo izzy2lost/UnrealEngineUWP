@@ -77,6 +77,9 @@ namespace Horde.Server.Jobs
 		/// <inheritdoc cref="IJob.NotificationChannelFilter"/>
 		public string? NotificationChannelFilter { get; set; }
 
+		/// <inheritdoc cref="IJob.Parameters"/>
+		public Dictionary<ParameterId, string> Parameters { get; } = new Dictionary<ParameterId, string>();
+
 		/// <inheritdoc cref="IJob.Arguments"/>
 		public List<string> Arguments { get; } = new List<string>();
 

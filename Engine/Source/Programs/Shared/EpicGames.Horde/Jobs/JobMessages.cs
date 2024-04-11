@@ -214,6 +214,11 @@ namespace EpicGames.Horde.Jobs
 		public bool? UpdateIssues { get; set; }
 
 		/// <summary>
+		/// Values for the template parameters
+		/// </summary>
+		public Dictionary<ParameterId, string>? Parameters { get; set; }
+
+		/// <summary>
 		/// Arguments for the job
 		/// </summary>
 		public List<string>? Arguments { get; set; }
@@ -477,6 +482,11 @@ namespace EpicGames.Horde.Jobs
 
 		/// <summary>
 		/// Parameters for the job
+		/// </summary>
+		public Dictionary<ParameterId, string> Parameters { get; set; } = new Dictionary<ParameterId, string>();
+
+		/// <summary>
+		/// Command line arguments for the job
 		/// </summary>
 		public List<string> Arguments { get; set; } = new List<string>();
 

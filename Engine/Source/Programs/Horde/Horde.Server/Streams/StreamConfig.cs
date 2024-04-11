@@ -280,9 +280,10 @@ namespace Horde.Server.Streams
 
 			foreach (TemplateRefConfig template in Templates)
 			{
+				HashSet<ParameterId> parameterIds = new HashSet<ParameterId>();
 				foreach (ParameterData parameter in template.Parameters)
 				{
-					parameter.PostLoad();
+					parameter.PostLoad(parameterIds);
 				}
 			}
 
