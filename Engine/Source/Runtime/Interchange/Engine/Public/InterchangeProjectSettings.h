@@ -56,9 +56,13 @@ struct FInterchangeImportSettings
 	UPROPERTY(EditAnywhere, Category = "Pipeline")
 	TSoftClassPtr <UInterchangePipelineConfigurationBase> ImportDialogClass;
 
-	/** If enabled, the import option dialog will show when interchange import or re-import.*/
+	/** If enabled, the import option dialog will show when interchange import.*/
 	UPROPERTY(EditAnywhere, Category = "Pipeline")
 	bool bShowImportDialog = true;
+
+	/** If enabled, the import option dialog will show when interchange re-import.*/
+	UPROPERTY(EditAnywhere, Category = "Pipeline", meta = (EditCondition = "bShowImportDialog", EditConditionHides))
+	bool bShowImportDialogAtReimport = false;
 };
 
 USTRUCT()
@@ -95,7 +99,7 @@ struct FInterchangeContentImportSettings : public FInterchangeImportSettings
 	TMap<EInterchangeTranslatorAssetType, FName> DefaultPipelineStackOverride;
 
 	/** This tell interchange if the import dialog should show or not when importing a particular type of asset.*/
-	UPROPERTY(EditAnywhere, Category = "Pipeline", Meta=(DisplayAfter="bShowImportDialog"))
+	UPROPERTY(EditAnywhere, Category = "Pipeline", Meta=(DisplayAfter="bShowImportDialogAtReimport"))
 	TMap<EInterchangeTranslatorAssetType, FInterchangeDialogOverride> ShowImportDialogOverride;
 };
 
@@ -154,5 +158,5 @@ public:
 	static INTERCHANGEENGINE_API FName GetDefaultPipelineStackName(const bool bIsSceneImport, const UInterchangeSourceData& SourceData);
 	static INTERCHANGEENGINE_API void SetDefaultPipelineStackName(const bool bIsSceneImport, const UInterchangeSourceData& SourceData, const FName StackName);
 
-	static INTERCHANGEENGINE_API bool ShouldShowPipelineStacksConfigurationDialog(const bool bIsSceneImport, const UInterchangeSourceData& SourceData);
+	static INTERCHANGEENGINE_API bool ShouldShowPipelineStacksConfigurationDialog(const bool bIsSceneImport, const bool bReImport, const UInterchangeSourceData& SourceData);
 };

@@ -106,7 +106,7 @@ void FInterchangeProjectSettingsUtils::SetDefaultPipelineStackName(const bool bI
 	GetMutableDefault<UInterchangeProjectSettings>()->SaveConfig();
 }
 
-bool FInterchangeProjectSettingsUtils::ShouldShowPipelineStacksConfigurationDialog(const bool bIsSceneImport, const UInterchangeSourceData& SourceData)
+bool FInterchangeProjectSettingsUtils::ShouldShowPipelineStacksConfigurationDialog(const bool bIsSceneImport, const bool bReImport, const UInterchangeSourceData& SourceData)
 {
 	const FInterchangeImportSettings& ImportSettings = GetDefaultImportSettings(bIsSceneImport);
 
@@ -154,6 +154,8 @@ bool FInterchangeProjectSettingsUtils::ShouldShowPipelineStacksConfigurationDial
 			}
 		}
 	}
+
+	bShowImportDialog &= (bReImport ? ImportSettings.bShowImportDialogAtReimport : true);
 
 	return bShowImportDialog;
 }
