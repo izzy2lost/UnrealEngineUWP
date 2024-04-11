@@ -62,6 +62,9 @@ public:
 	/** Compare this string against the other FString, using the text comparison mode provided */
 	CORE_API bool CompareFString(const FString& InOther, const ETextFilterTextComparisonMode InTextComparisonMode) const;
 
+	/** Compare this string against a string view which has previously been converted to uppercase */
+	CORE_API bool CompareFStringView(FStringView InOther, const ETextFilterTextComparisonMode InTextComparisonMode) const;
+
 	/** Compare this string against the other FName, using the text comparison mode provided */
 	CORE_API bool CompareName(const FName& InOther, const ETextFilterTextComparisonMode InTextComparisonMode) const;
 

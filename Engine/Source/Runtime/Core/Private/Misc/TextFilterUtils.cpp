@@ -296,6 +296,11 @@ bool FTextFilterString::CompareFString(const FString& InOtherUpper, const ETextF
 	return TextFilterInternal::CompareStrings<TCHAR>(*InOtherUpper, InOtherUpper.Len(), *InternalString, InternalString.Len(), InTextComparisonMode);
 }
 
+bool FTextFilterString::CompareFStringView(FStringView InOtherUpper, const ETextFilterTextComparisonMode InTextComparisonMode) const
+{
+	return TextFilterInternal::CompareStrings<TCHAR>(InOtherUpper.GetData(), InOtherUpper.Len(), *InternalString, InternalString.Len(), InTextComparisonMode);
+}
+
 bool FTextFilterString::CompareName(const FName& InOther, const ETextFilterTextComparisonMode InTextComparisonMode) const
 {
 	TextFilterUtils::FNameBufferWithNumber OtherNameBuffer(InOther);
