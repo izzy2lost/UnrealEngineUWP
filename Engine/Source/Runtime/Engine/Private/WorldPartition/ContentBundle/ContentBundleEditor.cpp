@@ -89,7 +89,7 @@ void FContentBundleEditor::DoInjectContent()
 		ActorDescContainerInstance = WorldPartition->RegisterActorDescContainerInstance(InitParams);
 		if (ActorDescContainerInstance.IsValid() && ActorDescContainerInstance->IsInitialized())
 		{
-			UE_LOG(LogContentBundle, Verbose, TEXT("%s ExternalActors in %s found. %u actors were injected"), *ContentBundle::Log::MakeDebugInfoString(*this), *ActorDescContainerInstance->GetExternalActorPath(), ActorDescContainerInstance->GetActorDescInstanceCount());
+			UE_CLOG(ActorDescContainerInstance->GetActorDescInstanceCount() > 0, LogContentBundle, Log, TEXT("%s ExternalActors in %s found. %u actors were injected"), *ContentBundle::Log::MakeDebugInfoString(*this), *ActorDescContainerInstance->GetExternalActorPath(), ActorDescContainerInstance->GetActorDescInstanceCount());
 
 			check(GetDescriptor()->GetGuid().IsValid());
 
