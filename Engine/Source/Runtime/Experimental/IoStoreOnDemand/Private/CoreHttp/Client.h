@@ -56,14 +56,11 @@ public:
 	struct FParams
 	{
 		int32				SetHostFromUrl(FAnsiStringView Url);
-		uint16				ConnectionCount = 1;
+		FAnsiStringView		HostName;
 		int32				SendBufSize = -1;
 		int32				RecvBufSize = -1;
-		struct {
-			FAnsiStringView	Name;
-			uint32			Port = 80;
-			/* uint8		Protocol */;
-		}					Host;
+		uint32				Port = 0;
+		uint16				ConnectionCount = 1;
 		/*
 		enum class ProxyType { Http, Socks4 };
 		Proxy = { ip, port, type }
