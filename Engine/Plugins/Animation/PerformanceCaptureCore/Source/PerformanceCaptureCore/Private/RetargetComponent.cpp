@@ -235,6 +235,7 @@ void URetargetComponent::InitiateAnimation()
 		
 		if(AnimInstance)
 		{
+			RetargetAsset->IncrementVersion();
 			AnimInstance->ConfigureAnimInstance(RetargetAsset, SourceMesh, CustomRetargetProfile);
 			ControlledMesh->SetUpdateAnimationInEditor(true);
 			ControlledMesh->bPropagateCurvesToFollowers = true;
