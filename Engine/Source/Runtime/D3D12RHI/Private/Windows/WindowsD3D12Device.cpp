@@ -1308,10 +1308,16 @@ static void ClearPSODriverCache()
 		else if (IsRHIDeviceAMD())
 		{
 			FString PSOPath = FPaths::Combine(*LocalAppDataFolder, TEXT("AMD"), TEXT("DxCache"));
-			ClearFolder(PSOPath, TEXT(".bin"));
+			ClearFolder(PSOPath, nullptr);
 
 			PSOPath = FPaths::Combine(*LocalAppDataFolder, TEXT("AMD"), TEXT("DxcCache"));
-			ClearFolder(PSOPath, TEXT(".parc"));
+			ClearFolder(PSOPath, nullptr);
+
+			PSOPath = FPaths::Combine(*LocalAppDataFolder, TEXT(".."), TEXT("LocalLow"), TEXT("AMD"), TEXT("DxCache"));
+			ClearFolder(PSOPath, nullptr);
+
+			PSOPath = FPaths::Combine(*LocalAppDataFolder, TEXT(".."), TEXT("LocalLow"), TEXT("AMD"), TEXT("DxcCache"));
+			ClearFolder(PSOPath, nullptr);
 		}
 		else if (IsRHIDeviceIntel())
 		{
