@@ -6040,11 +6040,6 @@ bool AActor::IsHLODRelevant() const
 		return false;
 	}
 
-	if (IsTemplate())
-	{
-		return false;
-	}
-
 	if (IsHidden())
 	{
 		return false;
@@ -6067,13 +6062,6 @@ bool AActor::IsHLODRelevant() const
 		return false;
 	}
 #endif
-
-	FVector Origin, Extent;
-	GetActorBounds(false, Origin, Extent);
-	if (Extent.SizeSquared() <= 0.1)
-	{
-		return false;
-	}
 
 	return HasHLODRelevantComponents();
 }
