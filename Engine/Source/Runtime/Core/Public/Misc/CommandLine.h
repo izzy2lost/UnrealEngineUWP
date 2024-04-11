@@ -56,6 +56,11 @@ struct FCommandLine
 	CORE_API static bool IsInitialized();
 
 	/**
+	 * Gets a number representing this version of the command line, incremented each command line change
+	 */
+	CORE_API static uint32 GetCommandLineVersion();
+
+	/**
 	 * Sets CmdLine to the string given
 	 */
 	CORE_API static bool Set(const TCHAR* NewCommandLine);
@@ -151,5 +156,7 @@ private:
 	static TCHAR LoggingOriginalCmdLine[MaxCommandLineSize];
 	/** subprocess command line */
 	static FString& GetSubprocessCommandLine_Internal();
+	/** What version of the command line this is, incremented on any modification to the command line */
+	static uint32 CmdLineVersion;
 };
 

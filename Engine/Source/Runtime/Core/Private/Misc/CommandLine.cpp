@@ -13,6 +13,7 @@
 -----------------------------------------------------------------------------*/
 
 bool FCommandLine::bIsInitialized = false;
+uint32 FCommandLine::CmdLineVersion = 0;
 TCHAR FCommandLine::CmdLine[FCommandLine::MaxCommandLineSize] = {};
 TCHAR FCommandLine::OriginalCmdLine[FCommandLine::MaxCommandLineSize] = {};
 TCHAR FCommandLine::LoggingCmdLine[FCommandLine::MaxCommandLineSize] = {};
@@ -29,6 +30,11 @@ bool FCommandLine::IsInitialized()
 	return bIsInitialized;
 }
 
+uint32 FCommandLine::GetCommandLineVersion()
+{
+	return CmdLineVersion;
+}
+
 void FCommandLine::Reset()
 {
 	CmdLine[0] = TEXT('\0');
@@ -36,6 +42,7 @@ void FCommandLine::Reset()
 	LoggingCmdLine[0] = TEXT('\0');
 	LoggingOriginalCmdLine[0] = TEXT('\0');
 	bIsInitialized = false;
+	CmdLineVersion++;
 }
 
 const TCHAR* FCommandLine::Get()
@@ -76,6 +83,7 @@ bool FCommandLine::Set(const TCHAR* NewCommandLine)
 	ApplyCommandLineAllowList();
 
 	bIsInitialized = true;
+	CmdLineVersion++;
 
 	// Check for the '-' that normal ones get converted to in Outlook. It's important to do it AFTER the command line is initialized
 	if (StringHasBadDashes(NewCommandLine))
@@ -95,6 +103,7 @@ bool FCommandLine::Set(const TCHAR* NewCommandLine)
 void FCommandLine::Append(const TCHAR* AppendString)
 {
 	FCString::Strncat( CmdLine, AppendString, UE_ARRAY_COUNT(CmdLine) );
+	CmdLineVersion++;
 	// If configured as part of the build, strip out any unapproved args
 	ApplyCommandLineAllowList();
 }

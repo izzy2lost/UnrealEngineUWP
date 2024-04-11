@@ -431,11 +431,22 @@ RENDERCORE_API bool IsHDREnabled()
 RENDERCORE_API bool IsHDRAllowed()
 {
 	// HDR can be forced on or off on the commandline. Otherwise we check the cvar r.AllowHDR
-	if (FParse::Param(FCommandLine::Get(), TEXT("hdr")))
+	static uint32 LastCommandLineVersionParsed = FCommandLine::GetCommandLineVersion();
+	static bool bYesHDR = FParse::Param(FCommandLine::Get(), TEXT("hdr"));
+	static bool bNoHDR = FParse::Param(FCommandLine::Get(), TEXT("nohdr"));
+
+	if (LastCommandLineVersionParsed != FCommandLine::GetCommandLineVersion())
+	{
+		LastCommandLineVersionParsed = FCommandLine::GetCommandLineVersion();
+		bYesHDR = FParse::Param(FCommandLine::Get(), TEXT("hdr"));
+		bNoHDR = FParse::Param(FCommandLine::Get(), TEXT("nohdr"));
+	}
+
+	if (bYesHDR)
 	{
 		return true;
 	}
-	else if (FParse::Param(FCommandLine::Get(), TEXT("nohdr")))
+	else if (bNoHDR)
 	{
 		return false;
 	}
