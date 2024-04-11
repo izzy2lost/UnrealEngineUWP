@@ -60,14 +60,12 @@ TAutoConsoleVariable<int32> CVarOverlayAlpha(
 	TEXT("Configures overlay opacity."),
 	ECVF_Default);
 
-static FColor DetermineOverlayColor(const TypedElementDataStorage::IQueryContext& ObjectContext, const TypedElementDataStorage::ICommonQueryContext& SCCContext, const FMassActorFragment& Actor)
+static FColor DetermineOverlayColor(const TypedElementDataStorage::IQueryContext& ObjectContext, const TypedElementDataStorage::ICommonQueryContext& SCCContext)
 {
 	check(IsInGameThread());
 
-	bool bExternal = Actor.Get() ? Actor.Get()->IsPackageExternal() : false;
-	bool bIgnored = !bExternal;
 	bool bSelected = ObjectContext.HasColumn<FTypedElementSelectionColumn>();
-	if (!bIgnored && !bSelected)
+	if (!bSelected)
 	{
 		// Check if the package is outdated because there is a newer version available.
 		if (SCCContext.HasColumn<FSCCNotCurrentTag>())
@@ -227,20 +225,23 @@ void UTypedElementRevisionControlFactory::RegisterApplyOverlays(ITypedElementDat
 			// This is in PrePhysics because the outline->actor query is in DuringPhysics and contexts don't flush changes between tick groups
 			FProcessor(DSI::EQueryTickPhase::PrePhysics, DataStorage.GetQueryTickGroupName(DSI::EQueryTickGroups::SyncExternalToDataStorage))
 				.ForceToGameThread(true),
-			[](DSI::IQueryContext& Context, TypedElementRowHandle ObjectRow, const FMassActorFragment& Actor, const FTypedElementPackageReference& PackageReference)
+			[](DSI::IQueryContext& Context, TypedElementRowHandle ObjectRow, const FTypedElementPackageReference& PackageReference)
 			{
-				Context.RemoveColumns<FTypedElementViewportOverlayColorColumn>(ObjectRow);
 				Context.RunSubquery(0, PackageReference.Row, CreateSubqueryCallbackBinding(
-					[&Context, &ObjectRow, &Actor](DSI::ISubqueryContext& SubQueryContext)
+					[&Context, &ObjectRow](DSI::ISubqueryContext& SubQueryContext)
 					{
-						FColor Color = DetermineOverlayColor(Context, SubQueryContext, Actor);
+						FColor Color = DetermineOverlayColor(Context, SubQueryContext);
 						if (Color.Bits != 0)
 						{
 							Context.AddColumn<FTypedElementViewportOverlayColorColumn>(ObjectRow, { .OverlayColor = Color });
 						}
+						else
+						{
+							Context.RemoveColumns<FTypedElementViewportOverlayColorColumn>(ObjectRow);
+						}
+						Context.AddColumns<FTypedElementSyncBackToWorldTag>(ObjectRow);
 					})
 				);
-				Context.AddColumns<FTypedElementSyncBackToWorldTag>(ObjectRow);
 			}
 		)
 		.DependsOn()
