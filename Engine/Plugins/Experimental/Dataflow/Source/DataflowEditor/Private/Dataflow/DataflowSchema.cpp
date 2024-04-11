@@ -177,7 +177,9 @@ const FPinConnectionResponse UDataflowSchema::CanCreateConnection(const UEdGraph
 				// Make sure types match. 
 				const bool bIsAnyTypeA = PinA->PinType.PinCategory == FDataflowAnyType::TypeName;
 				const bool bIsAnyTypeB = PinB->PinType.PinCategory == FDataflowAnyType::TypeName;
-				if (PinA->PinType == PinB->PinType || (bIsAnyTypeA != bIsAnyTypeB))
+				const bool bAreSameType = (PinA->PinType == PinB->PinType);
+				const bool bOnlyOneIsAnyType = (!bAreSameType && (bIsAnyTypeA != bIsAnyTypeB));
+				if (bAreSameType || bOnlyOneIsAnyType)
 				{
 					// cycle checking on connect
 					if (!HasLoopIfConnected(PinA->GetOwningNode(), PinB->GetOwningNode()))

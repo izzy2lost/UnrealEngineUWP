@@ -487,14 +487,38 @@ void UDataflowEdNode::AutowireNewNode(UEdGraphPin* FromPin)
 				{
 					if (FDataflowOutput* FromOutput = FromDataFlowNode->FindOutput(FromPin->PinName))
 					{
-						const FName OutputType = FromOutput->GetType();
-
 						const TSharedPtr<FDataflowNode> ToDataFlowNode = this->GetDataflowNode();
 						for (UEdGraphPin* InputPin : this->GetAllPins())
 						{
 							if (FDataflowInput* ToInput = ToDataFlowNode->FindInput(InputPin->PinName))
 							{
-								if (ToInput->GetType() == OutputType)
+								const bool bAreSameType = (ToInput->GetType() == FromOutput->GetType());
+								const bool bOnlyOneIsAnyType = (!bAreSameType && (ToInput->GetType() == FDataflowAnyType::TypeName) != (FromOutput->GetType() == FDataflowAnyType::TypeName));
+								if (bAreSameType || bOnlyOneIsAnyType)
+								{
+									if (const UEdGraph* EdGraph = this->GetGraph())
+									{
+										if (EdGraph->GetSchema()->TryCreateConnection(FromPin, InputPin))
+										{
+											FromGraphNode->NodeConnectionListChanged();
+											this->NodeConnectionListChanged();
+											break;
+										}
+									}
+								}
+							}
+						}
+					}
+					else if(FDataflowInput* FromInput = FromDataFlowNode->FindInput(FromPin->PinName))
+					{
+						const TSharedPtr<FDataflowNode> ToDataFlowNode = this->GetDataflowNode();
+						for (UEdGraphPin* InputPin : this->GetAllPins())
+						{
+							if (FDataflowOutput* ToOutput = ToDataFlowNode->FindOutput(InputPin->PinName))
+							{
+								const bool bAreSameType = (ToOutput->GetType() == FromInput->GetType());
+								const bool bOnlyOneIsAnyType = (!bAreSameType && (ToOutput->GetType() == FDataflowAnyType::TypeName) != (FromInput->GetType() == FDataflowAnyType::TypeName));
+								if (bAreSameType || bOnlyOneIsAnyType)
 								{
 									if (const UEdGraph* EdGraph = this->GetGraph())
 									{
@@ -595,5 +619,4 @@ bool UDataflowEdNode::Render(GeometryCollection::Facades::FRenderingFacade& Rend
 }
 
 #undef LOCTEXT_NAMESPACE
-
 

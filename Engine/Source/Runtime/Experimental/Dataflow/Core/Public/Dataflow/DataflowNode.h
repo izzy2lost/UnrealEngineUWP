@@ -401,7 +401,7 @@ struct FDataflowReRouteNode : public FDataflowNode
 {
 	GENERATED_USTRUCT_BODY()
 
-	DATAFLOW_NODE_DEFINE_INTERNAL(FDataflowReRouteNode, "DataflowReRouteNode", "Core", "")
+	DATAFLOW_NODE_DEFINE_INTERNAL(FDataflowReRouteNode, "ReRouteNode", "Core", "")
 
 public:
 	FDataflowReRouteNode(const Dataflow::FNodeParameters& Param, FGuid InGuid = FGuid::NewGuid())
