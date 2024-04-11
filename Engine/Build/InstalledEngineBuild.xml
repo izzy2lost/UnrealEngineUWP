@@ -481,7 +481,7 @@
 			<Tag Files="Engine/Binaries/Win64/LiveLinkHub-Win64-Shipping.exe" With="#NotForLicensee Build Tools Win64" />
 			<Tag Files="Engine/Binaries/Win64/ViconDataStreamSDK_CPP.dll" With="#NotForLicensee Build Tools Win64" />
 			<Tag Files="Engine/Binaries/Win64/boost_thread-vc141-mt-x64-1_75.dll" With="#NotForLicensee Build Tools Win64" />
-			<Tag Files="Engine/Programs/LiveLinkHub/Staged/..." With="#NotForLicensee Build Tools Win64" />
+			<Tag Files="Engine/Programs/LiveLinkHub/..." With="#NotForLicensee Build Tools Win64" />
 			
 			<Compile Target="DatasmithCADWorker" Configuration="Development" Platform="Win64" Tag="#NotForLicensee Build Tools Win64" Arguments="$(ExtraCompileArgs)"/>
 			<!-- Temporarily removing the compilation of DatasmithCADRuntime from the installed build
@@ -502,7 +502,7 @@
 		<Node Name="Build NotForLicensee Tools LinuxNative" Requires="Update Version Files" Produces="#NotForLicensee Build Tools LinuxNative">
 			<Compile Target="LiveLinkHub" Configuration="Shipping" Platform="Linux" Arguments="-Monolithic $(LiveLinkHubCompileArgs)"/>
 			<Command Name="StageLiveLinkHub" Arguments="$(StageLiveLinkHubArgs) -Platform=Linux"/>
-			<Tag Files="Engine/Programs/LiveLinkHub/Staged/..." With="#NotForLicensee Build Tools LinuxNative" />
+			<Tag Files="Engine/Programs/LiveLinkHub/..." With="#NotForLicensee Build Tools LinuxNative" />
 			<Tag Files="Engine/Binaries/Linux/LiveLinkHub-Linux-Shipping" With="#NotForLicensee Build Tools LinuxNative" />
 		</Node>
 	</Agent>
@@ -511,7 +511,7 @@
 		<Node Name="Build NotForLicensee Tools Mac" Requires="Update Version Files" Produces="#NotForLicensee Build Tools Mac">
 			<Compile Target="LiveLinkHub" Configuration="Shipping" Platform="Mac" Arguments="-Monolithic $(LiveLinkHubCompileArgs)"/>
 			<Command Name="StageLiveLinkHub" Arguments="$(StageLiveLinkHubArgs) -Platform=Mac"/>
-			<Tag Files="Engine/Programs/LiveLinkHub/Staged/..." With="#NotForLicensee Build Tools Mac" />
+			<Tag Files="Engine/Programs/LiveLinkHub/..." With="#NotForLicensee Build Tools Mac" />
 			<Tag Files="Engine/Binaries/Mac/LiveLinkHub-Mac-Shipping/..." With="#NotForLicensee Build Tools Mac" />
 		</Node>
 	</Agent>
