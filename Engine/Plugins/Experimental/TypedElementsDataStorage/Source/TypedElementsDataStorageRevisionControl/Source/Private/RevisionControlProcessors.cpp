@@ -14,6 +14,8 @@
 #include "Elements/Framework/TypedElementQueryBuilder.h"
 #include "Elements/Framework/TypedElementRegistry.h"
 
+#include "MassActorSubsystem.h"
+
 extern TYPEDELEMENTSDATASTORAGE_API FAutoConsoleVariableRef CVarAutoPopulateState;
 
 static bool gEnableOverlays = false;
