@@ -202,8 +202,8 @@ FText FGameplayInteractionIsSlotHandleValidCondition::GetDescription(const FGuid
 	const FText InvertText = UE::StateTree::DescHelpers::GetInvertText(bInvert, Formatting);
 
 	const FText Format = (Formatting == EStateTreeNodeFormatting::RichText)
-		? LOCTEXT("QuerySlotTagRich", "{EmptyOrNot}<s>Slot</> {Slot} <s>is valid</>")
-		: LOCTEXT("QuerySlotTag", "{EmptyOrNot}Slot {Slot} is valid");
+		? LOCTEXT("IsSlotHandleValidRich", "{EmptyOrNot}<s>Slot</> {Slot} <s>is valid</>")
+		: LOCTEXT("IsSlotHandleValid", "{EmptyOrNot}Slot {Slot} is valid");
 
 	return FText::FormatNamed(Format,
 		TEXT("EmptyOrNot"), InvertText,

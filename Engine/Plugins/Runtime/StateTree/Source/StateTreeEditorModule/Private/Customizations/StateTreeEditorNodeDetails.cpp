@@ -1323,7 +1323,7 @@ FText FStateTreeEditorNodeDetails::GetNodeDescription() const
 	StructProperty->AccessRawData(RawNodeData);
 	if (RawNodeData.Num() == 1)
 	{
-		FText Description = LOCTEXT("EmptyNodeStyled", "<s>None</>");
+		FText Description = LOCTEXT("EmptyNodeRich", "<s>None</>");
 		if (const FStateTreeEditorNode* Node = static_cast<FStateTreeEditorNode*>(RawNodeData[0]))
 		{
 			return EditorData->GetNodeDescription(*Node, EStateTreeNodeFormatting::RichText);
@@ -1331,7 +1331,7 @@ FText FStateTreeEditorNodeDetails::GetNodeDescription() const
 		return Description;
 	}
 
-	return LOCTEXT("MultipleSelected", "<s>Multiple Selected</>");
+	return LOCTEXT("MultipleSelectedRich", "<s>Multiple Selected</>");
 }
 
 EVisibility FStateTreeEditorNodeDetails::IsNodeDescriptionVisible() const

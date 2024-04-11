@@ -320,8 +320,8 @@ FText FStateTreeCompareDistanceCondition::GetDescription(const FGuid& ID, FState
 	const FText InvertText = UE::StateTree::DescHelpers::GetInvertText(bInvert, Formatting);
 
 	const FText Format = (Formatting == EStateTreeNodeFormatting::RichText)
-		? LOCTEXT("CompareEnumRich", "{EmptyOrNot}<s>Distance from</> {Source} <s>to</> {Target} {Op} {Distance}")
-		: LOCTEXT("CompareEnum", "{EmptyOrNot}Distance from {Source} to {Target} {Op} {Distance}");
+		? LOCTEXT("CompareDistanceRich", "{EmptyOrNot}<s>Distance from</> {Source} <s>to</> {Target} {Op} {Distance}")
+		: LOCTEXT("CompareDistance", "{EmptyOrNot}Distance from {Source} to {Target} {Op} {Distance}");
 
 	return FText::FormatNamed(Format,
 		TEXT("EmptyOrNot"), InvertText,

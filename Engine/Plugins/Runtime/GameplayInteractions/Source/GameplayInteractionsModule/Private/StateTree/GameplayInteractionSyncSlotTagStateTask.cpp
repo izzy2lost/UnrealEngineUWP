@@ -149,8 +149,8 @@ FText FGameplayInteractionSyncSlotTagStateTask::GetDescription(const FGuid& ID, 
 	}
 
 	const FText Format = (Formatting == EStateTreeNodeFormatting::RichText)
-		? LOCTEXT("FindSlotEntranceLocationRich", "<b>Sync Tag State</> {Tag} <s>on slot</> {Slot}")
-		: LOCTEXT("FindSlotEntranceLocation", "Sync Tag State {Tag} on slot {Slot}");
+		? LOCTEXT("SyncSlotTagStateRich", "<b>Sync Tag State</> {Tag} <s>on slot</> {Slot}")
+		: LOCTEXT("SyncSlotTagState", "Sync Tag State {Tag} on slot {Slot}");
 
 	return FText::FormatNamed(Format,
 		TEXT("Tag"), FText::FromString(TagToMonitor.ToString()),
