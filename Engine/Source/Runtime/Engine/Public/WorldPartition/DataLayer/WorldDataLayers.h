@@ -58,7 +58,6 @@ class AWorldDataLayers : public AInfo, public IDataLayerInstanceProvider
 public:
 	//~ Begin UObject Interface
 	ENGINE_API virtual void PostLoad() override;
-	ENGINE_API virtual void PostRegisterAllComponents() override;
 	virtual void Serialize(FArchive& Ar) override;
 	//~ End UObject Interface
 
