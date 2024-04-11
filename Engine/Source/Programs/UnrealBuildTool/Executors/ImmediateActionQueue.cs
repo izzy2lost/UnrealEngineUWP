@@ -116,6 +116,14 @@ namespace UnrealBuildTool
 		public int ActionStallReportTime = 0;
 
 		/// <summary>
+		/// Number of second of no completed actions to trigger to terminate the queue.
+		/// If zero, force termination not be enabled.
+		/// </summary>
+		[CommandLine("-ActionStallTerminateTime=")]
+		[XmlConfigFile(Category = "BuildConfiguration")]
+		public int ActionStallTerminateTime = 0;
+
+		/// <summary>
 		/// Running status of the action
 		/// </summary>
 		private enum ActionStatus : byte
@@ -323,9 +331,14 @@ namespace UnrealBuildTool
 		private int _lastActionChange = 1;
 
 		/// <summary>
-		/// If true, a action stall has been reported for the current change count
+		/// If true, an action stall has been reported for the current change count
 		/// </summary>
 		private bool _lastActionStallReported = false;
+
+		/// <summary>
+		/// If true, the queue has been cancelled due to an action stall
+		/// </summary>
+		private bool _lastActionStallCanceled = false;
 
 		/// <summary>
 		/// Time of the last change to the action count.  This is updated by the timer.
@@ -415,6 +428,25 @@ namespace UnrealBuildTool
 
 				_runners.Add(new(ImmediateActionQueueRunnerType.Automatic, ActionPhase.ArtifactCheck, runAction, false, maxActionArtifactCacheTasks, 0));
 			}
+
+			// Cancel the queue when Ctrl-C is pressed
+			Console.CancelKeyPress += CancelKeyPress;
+		}
+
+		/// <summary>
+		/// Event handler for the Console.CancelKeyPress event
+		/// </summary>
+		/// <param name="sender"></param>
+		/// <param name="e"></param>
+		private void CancelKeyPress(object? sender, ConsoleCancelEventArgs e)
+		{
+			Console.CancelKeyPress -= CancelKeyPress;
+			if (!CancellationTokenSource.IsCancellationRequested)
+			{
+				Logger.LogWarning("Canceling actions...");
+				CancellationTokenSource.Cancel();
+				e.Cancel = true;
+			}
 		}
 
 		/// <summary>
@@ -468,7 +500,7 @@ namespace UnrealBuildTool
 						}
 					}
 
-					if (ActionStallReportTime > 0)
+					if (ActionStallReportTime > 0 || ActionStallTerminateTime > 0)
 					{
 						lock (Actions)
 						{
@@ -482,13 +514,19 @@ namespace UnrealBuildTool
 							}
 
 							// Otherwise, if we haven't already generated a report, test for a timeout in seconds and generate one on timeout.
-							else if (!_lastActionStallReported && (DateTime.Now - _lastActionChangeTime).TotalSeconds > ActionStallReportTime)
+							else if (ActionStallReportTime > 0 && !_lastActionStallReported && (DateTime.Now - _lastActionChangeTime).TotalSeconds > ActionStallReportTime)
 							{
 								_lastActionStallReported = true;
 								GenerateStallReport();
 							}
+							else if (ActionStallTerminateTime > 0 && !_lastActionStallCanceled && (DateTime.Now - _lastActionChangeTime).TotalSeconds > ActionStallTerminateTime)
+							{
+								_lastActionStallCanceled = true;
+								CancelStalledActions();
+							}
 						}
 					}
+
 				}, null, 1000, 1000);
 			}
 
@@ -588,7 +626,7 @@ namespace UnrealBuildTool
 					{
 						try
 						{
-							runAction().Wait();
+							runAction().Wait(CancellationToken);
 						}
 						catch (Exception ex)
 						{
@@ -601,7 +639,7 @@ namespace UnrealBuildTool
 						{
 							try
 							{
-								runAction().Wait();
+								runAction().Wait(CancellationToken);
 							}
 							catch (Exception ex)
 							{
@@ -802,6 +840,7 @@ namespace UnrealBuildTool
 		/// </summary>
 		public void Dispose()
 		{
+			Console.CancelKeyPress -= CancelKeyPress;
 			_cpuUtilizationTimer?.Dispose();
 			_cpuUtilizationTimer = null;
 			CancellationTokenSource.Dispose();
@@ -1218,7 +1257,7 @@ namespace UnrealBuildTool
 			}
 
 			IEnumerable<int> CompletedActions = Enumerable.Range(0, Actions.Length)
-				.Where(x => Actions[x].Results != null && Actions[x].Results!.ExecutionTime > TimeSpan.Zero)
+				.Where(x => Actions[x].Results != null && Actions[x].Results!.ExecutionTime > TimeSpan.Zero && Actions[x].Results!.ExitCode != Int32.MaxValue)
 				.OrderByDescending(x => Actions[x].Results!.ExecutionTime)
 				.Take(20);
 
@@ -1329,6 +1368,13 @@ namespace UnrealBuildTool
 				}
 				Logger.LogInformation("Queue Counts: Queued = {Queued}, Running = {Running}, Finished = {Finished}, Error = {Error}", queued, running, finished, error);
 			}
+		}
+
+		private void CancelStalledActions()
+		{
+			GenerateStallReport();
+			Logger.LogInformation("Action stall terminate time exceeded, canceling remaining actions...");
+			CancellationTokenSource.Cancel();
 		}
 	}
 }

@@ -8,6 +8,7 @@ using System.Linq;
 using System.Reflection;
 using System.Text;
 using System.Text.Json;
+using System.Threading.Tasks;
 using EpicGames.Core;
 using Microsoft.Extensions.Logging;
 using OpenTracing.Util;
@@ -455,13 +456,32 @@ namespace UnrealBuildTool
 			return String.IsNullOrEmpty(extraArgs) ? Array.Empty<string>() : CommandLineArguments.Split(extraArgs);
 		}
 
-		/// <summary>
-		/// Main entry point. Parses any global options and initializes the logging system, then invokes the appropriate command.
-		/// NB: That the entry point is deliberately NOT async, since we have a single-instance mutex that cannot be disposed from a different thread.
-		/// </summary>
-		/// <param name="ArgumentsArray">Command line arguments</param>
-		/// <returns>Zero on success, non-zero on error</returns>
-		private static int Main(string[] ArgumentsArray)
+        /// <summary>
+        /// Event handler for the Console.CancelKeyPress event
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private static async void CancelKeyPress(object? sender, ConsoleCancelEventArgs e)
+        {
+			Console.CancelKeyPress -= CancelKeyPress;
+			Console.WriteLine($"UnrealBuildTool: Ctrl-{(e.SpecialKey == ConsoleSpecialKey.ControlC ? "C" : "Break")} pressed. Exiting...");
+
+            // Delay a few seconds to allow for the process to exit normally
+            await Task.Delay(2000);
+
+			// While the Ctrl-C handler fixes most instances of a zombie process, we still need to 
+			// force an exit from the process to handle _all_ cases.  Ctrl-C should not be a regular event! 
+			// Note: this could be a dotnet (6.0.302) on macOS issue.  Recheck with next release if this is still required.
+			Environment.Exit(-1);
+        }
+
+        /// <summary>
+        /// Main entry point. Parses any global options and initializes the logging system, then invokes the appropriate command.
+        /// NB: That the entry point is deliberately NOT async, since we have a single-instance mutex that cannot be disposed from a different thread.
+        /// </summary>
+        /// <param name="ArgumentsArray">Command line arguments</param>
+        /// <returns>Zero on success, non-zero on error</returns>
+        private static int Main(string[] ArgumentsArray)
 		{
 			FileReference? RunFile = null;
 			DirectoryReference? TempDirectory = null;
@@ -475,16 +495,8 @@ namespace UnrealBuildTool
 			// By putting this in, the Ctrl-C may not be handled immediately, but it shouldn't leave a blocking zombie process
 			if (OperatingSystem.IsMacOS())
 			{
-				Console.CancelKeyPress += delegate
-				{
-					Console.WriteLine("UnrealBuildTool: Ctrl-C pressed. Exiting...");
-
-					// While the Ctrl-C handler fixes most instances of a zombie process, we still need to 
-					// force an exit from the process to handle _all_ cases.  Ctrl-C should not be a regular event! 
-					// Note: this could be a dotnet (6.0.302) on macOS issue.  Recheck with next release if this is still required.
-					Environment.Exit(-1);
-				};
-			}
+                Console.CancelKeyPress += CancelKeyPress;
+            }
 
 			try
 			{

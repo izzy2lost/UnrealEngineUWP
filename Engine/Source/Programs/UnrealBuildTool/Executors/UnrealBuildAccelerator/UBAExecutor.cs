@@ -138,6 +138,17 @@ namespace UnrealBuildTool
 			return BitConverter.ToString(bytes).Replace("-", "", StringComparison.OrdinalIgnoreCase).ToLowerInvariant(); // "1234567890abcdef1234567890abcdef";
 		}
 
+		private async void ActionQueueCanceled(IStorageServer? ubaStorage)
+		{
+			_bIsCancelled = true;
+			_session?.CancelAll();
+			ubaStorage?.SaveCasTable();
+			foreach (IUBAAgentCoordinator coordinator in _agentCoordinators)
+			{
+				await coordinator.CloseAsync();
+			}
+		}
+
 		public override async Task<bool> ExecuteActionsAsync(IEnumerable<LinkedAction> inputActions, Microsoft.Extensions.Logging.ILogger logger, IActionArtifactCache? actionArtifactCache)
 		{
 			if (!inputActions.Any())
@@ -220,17 +231,6 @@ namespace UnrealBuildTool
 			Log.BackupLogFile(ubaTraceFile);
 
 			IStorageServer? ubaStorage = null;
-			void CancelKeyPress(object? sender, ConsoleCancelEventArgs e)
-			{
-				_bIsCancelled = true;
-				_session?.CancelAll();
-				ubaStorage?.SaveCasTable();
-				foreach (IUBAAgentCoordinator coordinator in _agentCoordinators)
-				{
-					coordinator.CloseAsync().Wait(2000); // Give coordinators some time to close (this makes coordinators like horde return resources faster)
-				}
-			}
-			Console.CancelKeyPress += CancelKeyPress;
 
 			try
 			{
@@ -254,7 +254,7 @@ namespace UnrealBuildTool
 							Server.StartServer(UBAConfig.Host, UBAConfig.Port, Crypto);
 						}
 
-						bool success = ExecuteActionsInternal(inputActions, _session, logger, actionArtifactCache);
+						bool success = ExecuteActionsInternal(inputActions, _session, logger, actionArtifactCache, () => ActionQueueCanceled(ubaStorage));
 
 						if (!UBAConfig.bDisableRemote)
 						{
@@ -266,14 +266,12 @@ namespace UnrealBuildTool
 							_session.PrintSummary();
 						}
 
-						return success;
+						return success && !_bIsCancelled;
 					}
 				}
 			}
 			finally
 			{
-				Console.CancelKeyPress -= CancelKeyPress;
-
 				foreach (IUBAAgentCoordinator coordinator in _agentCoordinators)
 				{
 					await coordinator.CloseAsync();
@@ -332,13 +330,14 @@ namespace UnrealBuildTool
 		/// Executes the provided actions
 		/// </summary>
 		/// <returns>True if all the tasks successfully executed, or false if any of them failed.</returns>
-		bool ExecuteActionsInternal(IEnumerable<LinkedAction> inputActions, ISessionServer session, Microsoft.Extensions.Logging.ILogger logger, IActionArtifactCache? actionArtifactCache)
+		bool ExecuteActionsInternal(IEnumerable<LinkedAction> inputActions, ISessionServer session, Microsoft.Extensions.Logging.ILogger logger, IActionArtifactCache? actionArtifactCache, System.Action onCancel)
 		{
 			DateTime startTimeUTC = DateTime.UtcNow;
 			using ImmediateActionQueue queue = CreateActionQueue(inputActions, actionArtifactCache, logger);
 			int actionLimit = Math.Min(NumParallelProcesses, queue.TotalActions);
 			queue.CreateAutomaticRunner(action => RunActionLocal(queue, action), bUseActionWeights, actionLimit, NumParallelProcesses);
 			ImmediateActionQueueRunner remoteRunner = queue.CreateManualRunner(action => RunActionRemote(queue, action));
+			queue.CancellationToken.Register(onCancel);
 
 			// Setup a notification that alerts uba when an artifact has been read from the cache
 			queue.OnArtifactsRead = (action) =>
@@ -614,10 +613,20 @@ namespace UnrealBuildTool
 			}
 		}
 
+		protected void HandleActionCancelled(ImmediateActionQueue queue, ExecuteResults? results, LinkedAction action)
+		{
+			if (_bIsCancelled)
+			{
+				ExecuteResults cancelResults = new(results?.LogLines ?? new(), Int32.MaxValue, results?.ExecutionTime ?? TimeSpan.Zero, results?.ProcessorTime ?? TimeSpan.Zero, results?.AdditionalDescription);
+				queue.OnActionCompleted(action, false, cancelResults);
+			}
+		}
+
 		protected void ActionFinished(ImmediateActionQueue queue, ExecuteResults results, LinkedAction action, FileItem? pchItem = null, IProcess? process = null)
 		{
 			if (_bIsCancelled)
 			{
+				HandleActionCancelled(queue, results, action);
 				return;
 			}
 
@@ -639,6 +648,7 @@ namespace UnrealBuildTool
 		{
 			if (_bIsCancelled)
 			{
+				HandleActionCancelled(queue, null, action);
 				return;
 			}
 
@@ -656,6 +666,7 @@ namespace UnrealBuildTool
 		{
 			if (_bIsCancelled)
 			{
+				HandleActionCancelled(queue, null, action);
 				return;
 			}
 
