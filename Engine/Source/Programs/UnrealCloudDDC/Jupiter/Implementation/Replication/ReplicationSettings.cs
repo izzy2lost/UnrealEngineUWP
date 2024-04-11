@@ -110,5 +110,10 @@ namespace Jupiter
 		/// The authentication scheme to use for this token
 		/// </summary>
 		public string SchemeName { get; set; } = "Bearer";
+
+		/// <summary>
+		/// The access token to use if not using OIDC. Can be resolved using a secret string.
+		/// </summary>
+		public string? AccessToken { get; set; } = null;
 	}
 }

@@ -19,10 +19,12 @@ namespace Jupiter.Implementation
 	{
 		private readonly ClientCredentialOAuthAuthenticator? _authenticator;
 		private readonly IOptionsMonitor<ServiceCredentialSettings> _settings;
+		private readonly ISecretResolver _secretResolver;
 
 		public ServiceCredentials(IServiceProvider provider, IOptionsMonitor<ServiceCredentialSettings> settings, ISecretResolver secretResolver)
 		{
 			_settings = settings;
+			_secretResolver = secretResolver;
 			if (settings.CurrentValue.OAuthLoginUrl != null)
 			{
 				string? clientId = secretResolver.Resolve(settings.CurrentValue.OAuthClientId);
@@ -43,6 +45,10 @@ namespace Jupiter.Implementation
 
 		public string? GetToken()
 		{
+			if (_authenticator == null && !string.IsNullOrEmpty(_settings.CurrentValue.AccessToken))
+			{
+				return _secretResolver.Resolve(_settings.CurrentValue.AccessToken);
+			}
 			return _authenticator?.AuthenticateAsync().Result;
 		}
 
@@ -50,6 +56,11 @@ namespace Jupiter.Implementation
 		{
 			if (_authenticator == null)
 			{
+				if (!string.IsNullOrEmpty(_settings.CurrentValue.AccessToken))
+				{
+					return _secretResolver.Resolve(_settings.CurrentValue.AccessToken);
+				}
+
 				return null;
 			}
 			return await _authenticator.AuthenticateAsync();
