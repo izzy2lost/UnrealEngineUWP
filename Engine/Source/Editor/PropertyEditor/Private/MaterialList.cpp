@@ -343,7 +343,7 @@ TSharedRef<SWidget> FMaterialItemView::MakeBrowseNaniteOverrideMaterialButton() 
 				}))
 			[ 
 				SNew(SImage)
-				.Image(FAppStyle::Get().GetBrush("Icons.BrowseContent")) //todo: UE-168435 Get custom icon for this.
+				.Image(FAppStyle::Get().GetBrush("Icons.NaniteBrowseContent"))
 				.ColorAndOpacity(FSlateColor::UseForeground())
 			]
 		];

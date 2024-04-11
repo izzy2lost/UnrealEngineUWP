@@ -776,6 +776,7 @@ void FStarshipEditorStyle::FStyle::SetupGeneralStyles()
 		Set( "MaterialList.DragDropBorder", new BOX_BRUSH( "Old/Window/ViewportDebugBorder", 0.8f ) );
 		Set( "MaterialList.HyperlinkStyle", FTextBlockStyle(NormalText) .SetFont( DEFAULT_FONT( "Regular", 8 ) ) );
 		Set( "MaterialList.HyperlinkStyle.ShadowOffset", FVector2D::ZeroVector );
+		Set( "Icons.NaniteBrowseContent", new IMAGE_BRUSH_SVG("Starship/Common/NaniteBrowseContent", Icon16x16));
 	}
 
 	// Dialogue Wave Details
