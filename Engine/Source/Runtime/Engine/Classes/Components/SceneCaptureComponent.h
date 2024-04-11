@@ -86,6 +86,23 @@ class USceneCaptureComponent : public USceneComponent
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = SceneCapture)
 	uint8 bCaptureOnMovement : 1;
 
+	/** Capture a GPU frame for this scene capture, next time it renders (capture program must be connected). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Transient, DuplicateTransient, SkipSerialization, NonTransactional, AdvancedDisplay, Category = SceneCapture)
+	uint8 bCaptureGpuNextRender : 1;
+
+	/** Run DumpGPU for this scene capture, next time it renders. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Transient, DuplicateTransient, SkipSerialization, NonTransactional, AdvancedDisplay, Category = SceneCapture)
+	uint8 bDumpGpuNextRender : 1;
+
+	/**
+	 * Flag used to suppress bCaptureGpuNextRender or bDumpGpuNextRender on reregistration of the component.  Editing any property
+	 * of the component, including the capture/dump flags, forces it to be reregistered, which also triggers the capture to render.
+	 * The purpose of the flags is to allow a capture or dump to be queued and triggered when the next render occurs organically
+	 * (for example, on a blueprint event or movement of the actor), not based on the flag itself being set.  When a property change
+	 * event for one of the flags occurs, this is set to true, to skip the capture/dump on that automatic first render.
+	 */
+	uint8 bSuppressGpuCaptureOrDump : 1;
+
 	/** Whether to persist the rendering state even if bCaptureEveryFrame==false.  This allows velocities for Motion Blur and Temporal AA to be computed. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = SceneCapture, meta = (editcondition = "!bCaptureEveryFrame"))
 	bool bAlwaysPersistRenderingState;

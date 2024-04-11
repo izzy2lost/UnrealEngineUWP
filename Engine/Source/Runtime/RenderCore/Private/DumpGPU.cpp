@@ -2100,6 +2100,12 @@ FString FRDGBuilder::BeginResourceDump(const TCHAR* Cmd)
 		}
 	}
 
+	// Override frame count CVar, and just capture one frame.  Used for scene capture dumps, where they aren't going to run more than one frame.
+	if (Switches.Contains(TEXT("oneframe")))
+	{
+		NewResourceDumpContext->FrameCount = 1;
+	}
+
 	if (NewResourceDumpContext->bUpload)
 	{
 		if (GDumpGPUUploadCompressResources.GetValueOnGameThread() == 1)

@@ -43,6 +43,9 @@
 #include "RectLightTexture.h"
 #include "Materials/MaterialRenderProxy.h"
 #include "Rendering/CustomRenderPass.h"
+#include "DumpGPU.h"
+#include "IRenderCaptureProvider.h"
+#include "RenderCaptureInterface.h"
 
 bool GSceneCaptureAllowRenderInMainRenderer = true;
 static FAutoConsoleVariableRef CVarSceneCaptureAllowRenderInMainRenderer(
@@ -956,9 +959,73 @@ public:
 	FRenderTarget* SceneCaptureRenderTarget = nullptr;
 };
 
+static void BeginGpuCaptureOrDump(USceneCaptureComponent* CaptureComponent, bool& bCapturingGPU, bool& bDumpingGPU)
+{
+	bCapturingGPU = false;
+	bDumpingGPU = false;
+
+	if (CaptureComponent->bSuppressGpuCaptureOrDump)
+	{
+		CaptureComponent->bSuppressGpuCaptureOrDump = false;
+		return;
+	}
+	
+	bCapturingGPU = CaptureComponent->bCaptureGpuNextRender;
+	bDumpingGPU = CaptureComponent->bDumpGpuNextRender;
+
+	CaptureComponent->bCaptureGpuNextRender = false;
+	CaptureComponent->bDumpGpuNextRender = false;
+
+	// Clear capturing flag if it's not available
+	if (!IRenderCaptureProvider::IsAvailable())
+	{
+		bCapturingGPU = false;
+	}
+
+	// If user sets both capture and dump flags, prefer capturing over dumping (or clear flag if dumping is not available)
+	if (bCapturingGPU || !(WITH_ENGINE && WITH_DUMPGPU))
+	{
+		bDumpingGPU = false;
+	}
+
+#if WITH_ENGINE && WITH_DUMPGPU
+	if (bDumpingGPU)
+	{
+		// Don't try to start a dump if we are already dumping for some reason
+		if (FRDGBuilder::IsDumpingFrame())
+		{
+			bDumpingGPU = false;
+		}
+		else
+		{
+			// Pass "-oneframe" to override CVar that could enable multiple frames of capture
+			FRDGBuilder::BeginResourceDump(TEXT("-oneframe"));
+
+			// Tick the DumpGPU system, which will start the dump
+			UE::RenderCore::DumpGPU::TickEndFrame();
+		}
+	}
+#endif
+}
+
+static void EndGpuCaptureOrDump(bool bDumpingGPU)
+{
+#if WITH_ENGINE && WITH_DUMPGPU
+	if (bDumpingGPU)
+	{
+		// Tick the dump GPU system again, which will end the active dump, so it just includes the scene capture
+		UE::RenderCore::DumpGPU::TickEndFrame();
+	}
+#endif
+}
+
 void FScene::UpdateSceneCaptureContents(USceneCaptureComponent2D* CaptureComponent)
 {
 	check(CaptureComponent);
+
+	bool bCapturingGPU;
+	bool bDumpingGPU;
+	BeginGpuCaptureOrDump(CaptureComponent, bCapturingGPU, bDumpingGPU);
 
 	if (UTextureRenderTarget2D* TextureRenderTarget = CaptureComponent->TextureTarget)
 	{
@@ -1203,8 +1270,10 @@ void FScene::UpdateSceneCaptureContents(USceneCaptureComponent2D* CaptureCompone
 		UE::RenderCommandPipe::FSyncScope SyncScope;
 
 		ENQUEUE_RENDER_COMMAND(CaptureCommand)(
-			[SceneRenderer, TextureRenderTargetResource, TexturePtrNotDeferenced, EventName, TargetName, bGenerateMips, GenerateMipsParams, GameViewportRT, bEnableOrthographicTiling, bIsCompositing, bOrthographicCamera, NumXTiles, NumYTiles, TileID, CaptureMemorySize](FRHICommandListImmediate& RHICmdList)
+			[SceneRenderer, TextureRenderTargetResource, TexturePtrNotDeferenced, EventName, TargetName, bGenerateMips, GenerateMipsParams, GameViewportRT, bEnableOrthographicTiling, bIsCompositing, bOrthographicCamera, NumXTiles, NumYTiles, TileID, CaptureMemorySize, bCapturingGPU](FRHICommandListImmediate& RHICmdList)
 			{
+				RenderCaptureInterface::FScopedCapture RenderCapture(bCapturingGPU, &RHICmdList, *FString::Format(TEXT("Scene Capture : {0}"), { EventName }));
+
 				if (GameViewportRT != nullptr)
 				{
 					const FRHIGPUMask GPUMask = GameViewportRT->GetGPUMask(RHICmdList);
@@ -1264,6 +1333,8 @@ void FScene::UpdateSceneCaptureContents(USceneCaptureComponent2D* CaptureCompone
 			}
 		);
 	}
+
+	EndGpuCaptureOrDump(bDumpingGPU);
 }
 
 // Split screen cube map faces are rendered as 3x2 tiles.
@@ -1279,6 +1350,10 @@ static const int32 GCubeFaceViewportOffsets[6][2] =
 
 void FScene::UpdateSceneCaptureContents(USceneCaptureComponentCube* CaptureComponent)
 {
+	bool bCapturingGPU;
+	bool bDumpingGPU;
+	BeginGpuCaptureOrDump(CaptureComponent, bCapturingGPU, bDumpingGPU);
+
 	struct FLocal
 	{
 		/** Creates a transformation for a cubemap face, following the D3D cubemap layout. */
@@ -1382,6 +1457,19 @@ void FScene::UpdateSceneCaptureContents(USceneCaptureComponentCube* CaptureCompo
 
 		if (GSceneCaptureCubeSinglePass == false)
 		{
+			// For GPU capture to work for multi-pass rendering, we need the capture scope to persist across all the scene render command lambdas,
+			// so we need to allocate a pointer on the heap, and let the last render command clean it up.
+			RenderCaptureInterface::FScopedCapture** ScopedCapturePtr;
+			if (bCapturingGPU)
+			{
+				ScopedCapturePtr = new RenderCaptureInterface::FScopedCapture*;
+				*ScopedCapturePtr = nullptr;
+			}
+			else
+			{
+				ScopedCapturePtr = nullptr;
+			}
+
 			for (int32 faceidx = 0; faceidx < (int32)ECubeFace::CubeFace_MAX; faceidx++)
 			{
 				const ECubeFace TargetFace = (ECubeFace)faceidx;
@@ -1420,8 +1508,13 @@ void FScene::UpdateSceneCaptureContents(USceneCaptureComponentCube* CaptureCompo
 				UE::RenderCommandPipe::FSyncScope SyncScope;
 
 				ENQUEUE_RENDER_COMMAND(CaptureCommand)(
-					[SceneRenderer, TextureRenderTarget, EventName, TargetFace, bGenerateMips, GenerateMipsParams](FRHICommandListImmediate& RHICmdList)
+					[SceneRenderer, TextureRenderTarget, EventName, TargetFace, bGenerateMips, GenerateMipsParams, ScopedCapturePtr](FRHICommandListImmediate& RHICmdList)
 					{
+						if (ScopedCapturePtr && (int32)TargetFace == 0)
+						{
+							*ScopedCapturePtr = new RenderCaptureInterface::FScopedCapture(true, &RHICmdList, *FString::Format(TEXT("Scene Capture : {0}"), { EventName }));
+						}
+
 #if WITH_EDITOR
 						// Scene renderer may be deleted in UpdateSceneCaptureContent_RenderThread, grab view state pointer first
 						const FSceneViewState* ViewState = SceneRenderer->Views[0].ViewState;
@@ -1450,6 +1543,13 @@ void FScene::UpdateSceneCaptureContents(USceneCaptureComponentCube* CaptureCompo
 							}
 						}
 #endif  // WITH_EDITOR
+
+						if (ScopedCapturePtr && (int32)TargetFace == (int32)ECubeFace::CubeFace_MAX - 1)
+						{
+							// Delete the scope, and the persistent pointer we allocated on the heap to share across the render command lambdas
+							delete *ScopedCapturePtr;
+							delete ScopedCapturePtr;
+						}
 					}
 				);
 
@@ -1601,8 +1701,10 @@ void FScene::UpdateSceneCaptureContents(USceneCaptureComponentCube* CaptureCompo
 			UE::RenderCommandPipe::FSyncScope SyncScope;
 
 			ENQUEUE_RENDER_COMMAND(CaptureAllCubeFaces)(
-				[SceneRenderer, CubeFaceTarget, TextureRenderTarget, EventName, CaptureSize, bGenerateMips, GenerateMipsParams](FRHICommandListImmediate& RHICmdList)
+				[SceneRenderer, CubeFaceTarget, TextureRenderTarget, EventName, CaptureSize, bGenerateMips, GenerateMipsParams, bCapturingGPU](FRHICommandListImmediate& RHICmdList)
 				{
+					RenderCaptureInterface::FScopedCapture RenderCapture(bCapturingGPU, &RHICmdList, *FString::Format(TEXT("Scene Capture : {0}"), { EventName }));
+
 					TStaticArray<FRHICopyTextureInfo, (int32)ECubeFace::CubeFace_MAX> CopyInfos;
 					for (int32 faceidx = 0; faceidx < (int32)ECubeFace::CubeFace_MAX; faceidx++)
 					{
@@ -1651,4 +1753,6 @@ void FScene::UpdateSceneCaptureContents(USceneCaptureComponentCube* CaptureCompo
 			);
 		}
 	}
+
+	EndGpuCaptureOrDump(bDumpingGPU);
 }

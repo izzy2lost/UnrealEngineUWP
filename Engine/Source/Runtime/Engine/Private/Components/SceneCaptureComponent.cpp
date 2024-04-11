@@ -171,6 +171,9 @@ USceneCaptureComponent::USceneCaptureComponent(const FObjectInitializer& ObjectI
 	CaptureSource = SCS_SceneColorHDR;
 	bCaptureEveryFrame = true;
 	bCaptureOnMovement = true;
+	bCaptureGpuNextRender = false;
+	bDumpGpuNextRender = false;
+	bSuppressGpuCaptureOrDump = false;
 	bAlwaysPersistRenderingState = false;
 	LODDistanceFactor = 1.0f;
 	MaxViewDistanceOverride = -1;
@@ -475,6 +478,14 @@ void USceneCaptureComponent::PostEditChangeProperty(struct FPropertyChangedEvent
 	{
 		UpdateShowFlags();
 	}
+
+	// The bSuppressGpuCaptureOrDump flag needs to be set to true when bCaptureGpuNextRender or bDumpGpuNextRender are changed, to suppress
+	// GPU capture or dump for the automatic render following component re-registration.  These two properties are the only ones in the
+	// component flagged as non-transactional (so they don't go in the undo/redo stream), so we can detect them based on that flag.
+	if (PropertyChangedEvent.Property && PropertyChangedEvent.Property->HasAnyPropertyFlags(CPF_NonTransactional))
+	{
+		bSuppressGpuCaptureOrDump = true;
+	}
 }
 #endif
 
@@ -735,6 +746,9 @@ void USceneCaptureComponent2D::CaptureScene()
 	UWorld* World = GetWorld();
 	if (World && World->Scene && IsVisible() && !IsCulledByDetailMode())
 	{
+		// Explicit CaptureScene blueprint command should always capture or dump (if capture or dump flag is set)
+		bSuppressGpuCaptureOrDump = false;
+
 		// We must push any deferred render state recreations before causing any rendering to happen, to make sure that deleted resource references are updated
 		World->SendAllEndOfFrameUpdates();
 		UpdateSceneCaptureContents(World->Scene);
@@ -1335,6 +1349,9 @@ void USceneCaptureComponentCube::CaptureScene()
 	UWorld* World = GetWorld();
 	if (World && World->Scene && IsVisible() && !IsCulledByDetailMode())
 	{
+		// Explicit CaptureScene blueprint command should always capture or dump (if capture or dump flag is set)
+		bSuppressGpuCaptureOrDump = false;
+
 		// We must push any deferred render state recreations before causing any rendering to happen, to make sure that deleted resource references are updated
 		World->SendAllEndOfFrameUpdates();
 		UpdateSceneCaptureContents(World->Scene);
