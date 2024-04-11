@@ -713,26 +713,56 @@ namespace UE::DMX::Private
 			if (bIsAnyFixturePatchSelected)
 			{
 				// Group all the fader groups with selected fixture patches into one controller
-				if (!FirstSelectedFaderGroupController)
+				if (FirstSelectedFaderGroupController)
+				{
+					// Destroy each selected fader group controller except the first one
+					TArray<UDMXControlConsoleFaderGroup*> Result;
+					Algo::TransformIf(FaderGroups, Result,
+						[](const TWeakObjectPtr<UDMXControlConsoleFaderGroup>& FaderGroup)
+						{
+							return FaderGroup.IsValid();
+						},
+						[](const TWeakObjectPtr<UDMXControlConsoleFaderGroup>& FaderGroup)
+						{
+							return FaderGroup.Get();
+						});
+
+					FaderGroupsToGroup.Append(Result);
+					FaderGroupController->Destroy();
+				}
+				else
 				{
 					FirstSelectedFaderGroupController = FaderGroupController;
-					continue;
+
+					const int32 RowIndex = ActiveLayout->GetFaderGroupControllerRowIndex(FirstSelectedFaderGroupController);
+					int32 ColumIndex = ActiveLayout->GetFaderGroupControllerColumnIndex(FirstSelectedFaderGroupController);
+
+					// Remove from the controller all the fader groups with unselected patches
+					for (const TWeakObjectPtr<UDMXControlConsoleFaderGroup>& FaderGroup : FaderGroups)
+					{
+						const UDMXEntityFixturePatch* FixturePatch = FaderGroup.IsValid() ? FaderGroup->GetFixturePatch() : nullptr;
+						if (!FixturePatch)
+						{
+							continue;
+						}
+
+						const bool bIsFixturePatchSelected = Algo::FindByPredicate(SelectedFixturePatches,
+							[FixturePatch](const TSharedPtr<FDMXReadOnlyFixturePatchListItem>& ListItem)
+							{
+								return ListItem.IsValid() && ListItem->GetFixturePatch() == FixturePatch;
+							}) != nullptr;
+
+						if (!bIsFixturePatchSelected)
+						{
+							FirstSelectedFaderGroupController->UnPossess(FaderGroup.Get());
+							ActiveLayout->AddToLayout(FaderGroup.Get(), FaderGroup->GetFaderGroupName(), RowIndex, ColumIndex);
+
+							ColumIndex++;
+						}
+					}
+
+					FirstSelectedFaderGroupController->Group();
 				}
-
-				// Destroy each selected fader group controller except the first one
-				TArray<UDMXControlConsoleFaderGroup*> Result;
-				Algo::TransformIf(FaderGroups, Result,
-					[](const TWeakObjectPtr<UDMXControlConsoleFaderGroup>& FaderGroup)
-					{
-						return FaderGroup.IsValid();
-					},
-					[](const TWeakObjectPtr<UDMXControlConsoleFaderGroup>& FaderGroup)
-					{
-						return FaderGroup.Get();
-					});
-
-				FaderGroupsToGroup.Append(Result);
-				FaderGroupController->Destroy();
 			}
 			else
 			{
