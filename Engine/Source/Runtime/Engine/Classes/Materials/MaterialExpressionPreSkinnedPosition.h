@@ -19,6 +19,8 @@ class UMaterialExpressionPreSkinnedPosition : public UMaterialExpression
 	virtual void GetExpressionToolTip(TArray<FString>& OutToolTip) override;
 	virtual FText GetKeywords() const override {return FText::FromString(TEXT("position"));}
 	virtual bool GenerateHLSLExpression(FMaterialHLSLGenerator& Generator, UE::HLSLTree::FScope& Scope, int32 OutputIndex, UE::HLSLTree::FExpression const*& OutExpression) const override;
+	virtual FText GetCreationDescription() const override;
+	virtual FText GetCreationName() const override;
 #endif
 	//~ End UMaterialExpression Interface
 };

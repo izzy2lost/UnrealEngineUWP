@@ -25,9 +25,9 @@ enum class ELocalPositionOrigin
 	/** Position relative to instance */
 	Instance UMETA(DisplayName="Instance"),
 
-	/** Position relative to instance, before skinning is applied. */
-	/** Returns the instance position for non-skeletal meshes. Incompatible with GPU skin cache feature. */
-	InstancePreSkinning UMETA(DisplayName="Instance (pre-skinning)"),
+	/** Returns pre-skinned local position for skeletal meshes, usable in vertex shader only.
+	Returns the instance position for non-skeletal meshes. Incompatible with GPU skin cache feature.*/
+	InstancePreSkinning UMETA(DisplayName="Pre-Skinned Instance"),
 
 	/** Position relative to primitive actor component */
 	Primitive UMETA(DisplayName="Component")
@@ -49,6 +49,7 @@ class UMaterialExpressionLocalPosition : public UMaterialExpression
 	bool GenerateHLSLExpression(FMaterialHLSLGenerator& Generator, UE::HLSLTree::FScope& Scope, int32 OutputIndex, UE::HLSLTree::FExpression const*& OutExpression) const;
 	virtual int32 Compile(class FMaterialCompiler* Compiler, int32 OutputIndex) override;
 	virtual void GetCaption(TArray<FString>& OutCaptions) const override;
+	virtual void GetExpressionToolTip(TArray<FString>& OutToolTip) override;
 	virtual FText GetKeywords() const override {return FText::FromString(TEXT("position preskinned local instance primitive"));}
 #endif
 	//~ End UMaterialExpression Interface

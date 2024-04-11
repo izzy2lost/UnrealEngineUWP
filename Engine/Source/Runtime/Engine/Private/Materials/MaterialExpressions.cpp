@@ -13340,6 +13340,11 @@ void UMaterialExpressionLocalPosition::GetCaption(TArray<FString>& OutCaptions) 
 		checkNoEntry();
 	}
 }
+
+void UMaterialExpressionLocalPosition::GetExpressionToolTip(TArray<FString>& OutToolTip) 
+{
+	ConvertToMultilineToolTip(TEXT("Gets the local position of the mesh, based on the selected Local Origin"), 40, OutToolTip);
+}
 #endif // WITH_EDITOR
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -22849,6 +22854,17 @@ void UMaterialExpressionPreSkinnedPosition::GetExpressionToolTip(TArray<FString>
 	                               "Returns pre-skinned local position for skeletal meshes, usable in vertex shader only."
 	                               "Returns the local position for non-skeletal meshes. Incompatible with GPU skin cache feature."), 40, OutToolTip);
 }
+
+FText UMaterialExpressionPreSkinnedPosition::GetCreationDescription() const
+{
+	return LOCTEXT("PreSkinnedPositionCreationDesc", "Deprecated, has been merged into 'Local Position' node.");
+}
+
+FText UMaterialExpressionPreSkinnedPosition::GetCreationName() const
+{
+	return LOCTEXT("PreSkinnedPositionCreationName", "PreSkinnedPosition (Deprecated)");
+}
+
 #endif // WITH_EDITOR
 
 ///////////////////////////////////////////////////////////////////////////////
