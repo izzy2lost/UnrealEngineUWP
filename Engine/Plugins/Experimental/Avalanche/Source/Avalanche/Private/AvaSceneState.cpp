@@ -3,61 +3,69 @@
 #include "AvaSceneState.h"
 #include "AvaSceneSettings.h"
 #include "AvaTagHandle.h"
+#include "AvaTagHandleContainer.h"
 #include "Tags/AvaTagAttribute.h"
+#include "Tags/AvaTagAttributeBase.h"
 
-void UAvaSceneState::SetSceneSettings(UAvaSceneSettings* InSceneSettings)
+void UAvaSceneState::Initialize(UAvaSceneSettings* InSceneSettings)
 {
-	SceneSettingsWeak = InSceneSettings;
+	SceneAttributes.Reset();
+	if (InSceneSettings)
+	{
+		SceneAttributes = InSceneSettings->GetSceneAttributes();
+	}
 }
 
 bool UAvaSceneState::AddTagAttribute(const FAvaTagHandle& InTagHandle)
 {
+	// Return true if already existing
+	if (ContainsTagAttribute(InTagHandle))
+	{
+		return true;
+	}
+
 	if (const FAvaTag* Tag = InTagHandle.GetTag())
 	{
-		bool bAlreadyInSet;
-		ActiveTagAttributes.Add(*Tag, &bAlreadyInSet);
-		return !bAlreadyInSet;
+		UAvaTagAttribute* TagAttribute = NewObject<UAvaTagAttribute>(this, NAME_None, RF_Transient);
+		check(TagAttribute);
+		TagAttribute->Tag = InTagHandle;
+
+		SceneAttributes.Add(TagAttribute);
+		return true;
 	}
+
 	return false;
 }
 
 bool UAvaSceneState::RemoveTagAttribute(const FAvaTagHandle& InTagHandle)
 {
-	if (const FAvaTag* Tag = InTagHandle.GetTag())
+	uint32 TagsCleared = 0;
+
+	for (UAvaAttribute* Attribute : SceneAttributes)
 	{
-		return ActiveTagAttributes.Remove(*Tag) > 0;
+		UAvaTagAttributeBase* TagAttribute = Cast<UAvaTagAttributeBase>(Attribute);
+		if (!TagAttribute)
+		{
+			continue;
+		}
+
+		// Attempt to clear the given tag handle for the attribute. This will return true if it did remove the entry
+		// Do not remove the attribute itself from the list as it could still have valid tags, or later have valid tags
+		if (TagAttribute->ClearTagHandle(InTagHandle))
+		{
+			++TagsCleared;
+		}
 	}
-	return false;
+
+	return TagsCleared > 0;
 }
 
 bool UAvaSceneState::ContainsTagAttribute(const FAvaTagHandle& InTagHandle) const
 {
-	const FAvaTag* Tag = InTagHandle.GetTag();
-	if (!Tag)
-	{
-		return false;
-	}
-
-	if (ActiveTagAttributes.Contains(*Tag))
-	{
-		return true;
-	}
-
-	const UAvaSceneSettings* SceneSettings = SceneSettingsWeak.Get();
-	if (!SceneSettings)
-	{
-		return false;
-	}
-
-	bool bFoundTag = false;
-
-	SceneSettings->ForEachSceneAttributeOfType<UAvaTagAttributeBase>(
-		[&InTagHandle, &bFoundTag](const UAvaTagAttributeBase& InTagAttribute)
+	return SceneAttributes.ContainsByPredicate(
+		[&InTagHandle](UAvaAttribute* InAttribute)
 		{
-			bFoundTag = InTagAttribute.ContainsTag(InTagHandle);
-			// continue iteration if tag not found
-			return !bFoundTag;
+			UAvaTagAttributeBase* TagAttribute = Cast<UAvaTagAttributeBase>(InAttribute);
+			return TagAttribute && TagAttribute->ContainsTag(InTagHandle);
 		});
-
-	return bFoundTag;
 }

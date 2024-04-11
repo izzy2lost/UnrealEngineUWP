@@ -74,11 +74,6 @@ AAvaScene::AAvaScene()
 
 	SceneState = CreateDefaultSubobject<UAvaSceneState>(TEXT("SceneState"));
 
-	if (SceneState)
-	{
-		SceneState->SetSceneSettings(SceneSettings);
-	}
-
 	RemoteControlPreset = CreateDefaultSubobject<URemoteControlPreset>(TEXT("RemoteControlPreset"));
 
 	StartupCameraName = NAME_None;
@@ -295,6 +290,20 @@ void AAvaScene::PostLoad()
 	if (UAvaSceneSubsystem* SceneSubsystem = FAvaWorldSubsystemUtils::GetWorldSubsystem<UAvaSceneSubsystem>(this))
 	{
 		SceneSubsystem->RegisterSceneInterface(GetLevel(), this);
+	}
+
+	if (SceneState)
+	{
+		SceneState->Initialize(SceneSettings);
+	}
+}
+
+void AAvaScene::PostInitializeComponents()
+{
+	Super::PostInitializeComponents();
+	if (SceneState)
+	{
+		SceneState->Initialize(SceneSettings);
 	}
 }
 

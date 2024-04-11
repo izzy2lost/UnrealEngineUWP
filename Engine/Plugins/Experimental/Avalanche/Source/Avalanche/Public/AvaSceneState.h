@@ -2,11 +2,15 @@
 
 #pragma once
 
-#include "AvaTagHandleContainer.h"
+#include "AvaTag.h"
+#include "Containers/Array.h"
+#include "Containers/Set.h"
 #include "UObject/Object.h"
 #include "AvaSceneState.generated.h"
 
+class UAvaAttribute;
 class UAvaSceneSettings;
+struct FAvaTagHandle;
 
 /** Object providing State information of the Scene */
 UCLASS(MinimalAPI)
@@ -15,7 +19,7 @@ class UAvaSceneState : public UObject
 	GENERATED_BODY()
 
 public:
-	void SetSceneSettings(UAvaSceneSettings* InSceneSettings);
+	void Initialize(UAvaSceneSettings* InSceneSettings);
 
 	AVALANCHE_API bool AddTagAttribute(const FAvaTagHandle& InTagHandle);
 
@@ -24,9 +28,7 @@ public:
 	AVALANCHE_API bool ContainsTagAttribute(const FAvaTagHandle& InTagHandle) const;
 
 private:
-	/** Weak pointer to the same scene's Settings. Used to query for default tag attributes of the scene */
-	TWeakObjectPtr<const UAvaSceneSettings> SceneSettingsWeak;
-
-	/** Active Tag Attributes that were added to the scene, separate from Scene Settings */
-	TSet<FAvaTag> ActiveTagAttributes;
+	/** In-play Scene Attributes. Starts as being the Scene Setting Attributes but can added to / removed from while in-play */
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UAvaAttribute>> SceneAttributes;
 };

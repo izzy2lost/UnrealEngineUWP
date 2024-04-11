@@ -26,23 +26,9 @@ public:
 		return GET_MEMBER_NAME_CHECKED(UAvaSceneSettings, SceneRig);
 	}
 
-	/**
-	 * Iterate each valid Scene Attribute of the given Type
-	 * The callable should return true to continue iteration, and false to stop it
-	 */
-	template<typename InAttributeType>
-	void ForEachSceneAttributeOfType(TFunctionRef<bool(const InAttributeType&)> InCallable) const
+	TConstArrayView<TObjectPtr<UAvaAttribute>> GetSceneAttributes() const
 	{
-		for (const UAvaAttribute* SceneAttribute : SceneAttributes)
-		{
-			if (const InAttributeType* CastedAttribute = Cast<InAttributeType>(SceneAttribute))
-			{
-				if (!InCallable(*CastedAttribute))
-				{
-					break;
-				}
-			}
-		}
+		return SceneAttributes;
 	}
 
 	FSoftObjectPath GetSceneRig() const
@@ -54,7 +40,6 @@ public:
 	{
 		SceneRig = InSceneRig;
 	}
-
 
 private:
 	UPROPERTY(EditAnywhere, Instanced, Category="Scene Attributes")

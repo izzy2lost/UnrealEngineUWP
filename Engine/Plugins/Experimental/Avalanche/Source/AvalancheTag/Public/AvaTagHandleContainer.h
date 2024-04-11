@@ -43,6 +43,11 @@ struct AVALANCHETAG_API FAvaTagHandleContainer
 	/** Returns an array of resolved tags through this container's tag ids and source tag collection */
 	TArray<FAvaTag> ResolveTags() const;
 
+	TConstArrayView<FAvaTagId> GetTagIds() const
+	{
+		return TagIds;
+	}
+
 	UPROPERTY(EditAnywhere, Category = "Tag")
 	TObjectPtr<const UAvaTagCollection> Source;
 

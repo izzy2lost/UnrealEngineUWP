@@ -88,6 +88,7 @@ public:
 
 	//~ Begin UObject
 	virtual void PostLoad() override;
+	virtual void PostInitializeComponents() override;
 	virtual void PostDuplicate(EDuplicateMode::Type InDuplicateMode) override;
 	virtual void PostEditImport() override;
 	virtual void BeginDestroy() override;
