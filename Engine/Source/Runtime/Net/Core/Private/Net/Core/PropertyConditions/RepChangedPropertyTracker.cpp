@@ -9,11 +9,7 @@ FRepChangedPropertyTracker::FRepChangedPropertyTracker(FCustomPropertyConditionS
 {
 }
 
-FRepChangedPropertyTracker::FRepChangedPropertyTracker(const bool InbIsReplay, const bool InbIsClientReplayRecording)
-	: FRepChangedPropertyTracker(0)
-{}
-
-void FRepChangedPropertyTracker::SetCustomIsActiveOverride(UObject* OwningObject, const uint16 RepIndex, const bool bIsActive)
+void FRepChangedPropertyTracker::SetCustomIsActiveOverride(const UObject* OwningObject, const uint16 RepIndex, const bool bIsActive)
 {
 	const bool bOldActive = ActiveState.GetActiveState(RepIndex);
 	ActiveState.SetActiveState(RepIndex, bIsActive);	// check for client replay recording moved to FReplicationFlags
@@ -33,7 +29,7 @@ void FRepChangedPropertyTracker::SetCustomIsActiveOverride(UObject* OwningObject
 #endif // UE_WITH_IRIS
 }
 
-void FRepChangedPropertyTracker::CallSetDynamicCondition(const UObject* OwningObject, const uint16 RepIndex, const ELifetimeCondition Condition)
+void FRepChangedPropertyTracker::SetDynamicCondition(const UObject* OwningObject, const uint16 RepIndex, const ELifetimeCondition Condition)
 {
 	using namespace UE::Net::Private;
 

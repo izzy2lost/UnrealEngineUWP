@@ -1582,7 +1582,13 @@ void AActor::CallPreReplication(UNetDriver* NetDriver)
 	const bool bPreReplication = ShouldCallPreReplication();
 	const bool bPreReplicationForReplay = ShouldCallPreReplicationForReplay();
 
-	TSharedPtr<FRepChangedPropertyTracker> ActorChangedPropertyTracker;
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	// This interface is obsolete and will be removed or re-purposed and renamed to pass parameters to PreReplication.
+	IRepChangedPropertyTracker DummyRepChangedPropertyTracker;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+	// Allow lazy creation/find of FRepChangedPropertyTracker
+	UE::Net::Private::FNetPropertyConditionManager::FAllowCreateTrackerFromSetPropertyActiveOverrideScope AllowCreateTracker(UE::Net::Private::FNetPropertyConditionManager::Get());	
 
 	if (bPreReplication)
 	{
@@ -1593,8 +1599,7 @@ void AActor::CallPreReplication(UNetDriver* NetDriver)
 		// In that case we call PreReplication on the locally controlled Character as well.
 		if ((LocalRole == ROLE_Authority) || ((LocalRole == ROLE_AutonomousProxy) && World && World->IsRecordingClientReplay()))
 		{
-			ActorChangedPropertyTracker = NetDriver->FindOrCreateRepChangedPropertyTracker(this);
-			PreReplication(*(ActorChangedPropertyTracker.Get()));
+			PreReplication(DummyRepChangedPropertyTracker);
 		}
 	}
 
@@ -1603,12 +1608,7 @@ void AActor::CallPreReplication(UNetDriver* NetDriver)
 		// If we're recording a replay, call this for everyone (includes SimulatedProxies).
 		if (Cast<UDemoNetDriver>(NetDriver) || NetDriver->HasReplayConnection())
 		{
-			if (!ActorChangedPropertyTracker.IsValid())
-			{
-				ActorChangedPropertyTracker = NetDriver->FindOrCreateRepChangedPropertyTracker(this);
-			}
-
-			PreReplicationForReplay(*(ActorChangedPropertyTracker.Get()));
+			PreReplicationForReplay(DummyRepChangedPropertyTracker);
 		}
 	}
 
@@ -1620,8 +1620,7 @@ void AActor::CallPreReplication(UNetDriver* NetDriver)
 			// Only call on components that aren't pending kill
 			if (IsValid(Component))
 			{
-				TSharedPtr<FRepChangedPropertyTracker> ComponentChangedPropertyTracker = NetDriver->FindOrCreateRepChangedPropertyTracker(Component);
-				Component->PreReplication(*(ComponentChangedPropertyTracker.Get()));
+				Component->PreReplication(DummyRepChangedPropertyTracker);
 			}
 		}
 	}

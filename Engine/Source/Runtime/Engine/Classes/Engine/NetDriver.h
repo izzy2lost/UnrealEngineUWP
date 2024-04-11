@@ -1259,36 +1259,6 @@ public:
 	 */
 	TMap<FName, FName>	RenamedStartupActors;
 
-	class UE_DEPRECATED(5.1, "No longer used.") FRepChangedPropertyTrackerWrapper
-	{
-	public:
-		FRepChangedPropertyTrackerWrapper(UObject* Obj, const TSharedPtr<FRepChangedPropertyTracker>& InRepChangedPropertyTracker) : RepChangedPropertyTracker(InRepChangedPropertyTracker), WeakObjectPtr(Obj) {}
-
-		const FRepChangedPropertyTracker* operator->() const { return RepChangedPropertyTracker.Get(); }
-		FRepChangedPropertyTracker* operator->() { return RepChangedPropertyTracker.Get(); }
-		
-		const FRepChangedPropertyTracker* Get() const { return RepChangedPropertyTracker.Get(); }
-		FRepChangedPropertyTracker* Get() { return RepChangedPropertyTracker.Get(); }
-
-		bool IsValid() const { return RepChangedPropertyTracker.IsValid(); }
-		bool IsObjectValid() const { return WeakObjectPtr.IsValid(); }
-
-		TWeakObjectPtr<UObject> GetWeakObjectPtr() const { return WeakObjectPtr; }
-
-		TSharedPtr<FRepChangedPropertyTracker> RepChangedPropertyTracker;
-
-		void CountBytes(FArchive& Ar) const;
-
-	private:
-		TWeakObjectPtr<UObject> WeakObjectPtr;
-	};
-
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	/** Maps FRepChangedPropertyTracker to active objects that are replicating properties */
-	UE_DEPRECATED(5.1, "Property trackers have been moved to the NetCore module")
-	TMap<UObject*, FRepChangedPropertyTrackerWrapper>	RepChangedPropertyTrackerMap;
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
-
 	/** Used to invalidate properties marked "unchanged" in FRepChangedPropertyTracker's */
 	uint32 ReplicationFrame;
 

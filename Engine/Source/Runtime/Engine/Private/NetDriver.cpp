@@ -2988,14 +2988,6 @@ void UNetDriver::SetAnalyticsProvider(TSharedPtr<IAnalyticsProvider> InProvider)
 	}
 }
 
-void UNetDriver::FRepChangedPropertyTrackerWrapper::CountBytes(FArchive& Ar) const
-{
-	if (FRepChangedPropertyTracker const * const LocalTracker = RepChangedPropertyTracker.Get())
-	{
-		LocalTracker->CountBytes(Ar);
-	}
-}
-
 void UNetDriver::FReplicationChangelistMgrWrapper::CountBytes(FArchive& Ar) const
 {
 	if (FReplicationChangelistMgr const * const ChangelistMgr = ReplicationChangelistMgr.Get())
@@ -3069,17 +3061,6 @@ void UNetDriver::Serialize( FArchive& Ar )
 		);
 
 		GRANULAR_NETWORK_MEMORY_TRACKING_TRACK("RenamedStartupActors", RenamedStartupActors.CountBytes(Ar));
-
-		PRAGMA_DISABLE_DEPRECATION_WARNINGS
-		GRANULAR_NETWORK_MEMORY_TRACKING_TRACK("RepChangedPropertyTrackerMap",
-			RepChangedPropertyTrackerMap.CountBytes(Ar);
-
-			for (const auto& RepChangedPropertyTrackerPair : RepChangedPropertyTrackerMap)
-			{
-				RepChangedPropertyTrackerPair.Value.CountBytes(Ar);
-			}
-		);
-		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 		GRANULAR_NETWORK_MEMORY_TRACKING_TRACK("RepLayoutMap",
 			RepLayoutMap.CountBytes(Ar);
@@ -4352,16 +4333,6 @@ void UNetDriver::PostGarbageCollect()
 			It.RemoveCurrent();
 		}
 	}
-
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	for (auto It = RepChangedPropertyTrackerMap.CreateIterator(); It; ++It)
-	{
-		if (!It.Value().IsObjectValid())
-		{
-			It.RemoveCurrent();
-		}
-	}
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	for (FObjectReplicator* Replicator : AllOwnedReplicators)
 	{
