@@ -143,6 +143,8 @@ struct FLightFunctionAtlas
 
 	void RenderLightFunctionAtlas(FRDGBuilder& GraphBuilder, TArray<FViewInfo>& Views);
 
+	void RenderDebugInfo(FRDGBuilder& GraphBuilder, TArray<FViewInfo>& Views);
+
 
 	FScreenPassTexture AddDebugVisualizationPasses(FRDGBuilder& GraphBuilder, const FViewInfo& View, FScreenPassTexture& ScreenPassSceneColor)  const;
 
@@ -187,13 +189,23 @@ private:
 		FLightSceneInfo*	LightSceneInfo = nullptr;
 		uint8				LightFunctionAtlasSlotIndex = 0;
 	};
-	TArray<EffectiveLocalLightSlot> EffectiveLocalLightSlotArray;
+	TArray<EffectiveLocalLightSlot>										EffectiveLocalLightSlotArray;
 
 	FLightFunctionAtlasGlobalParameters*								DefaultLightFunctionAtlasGlobalParameters = nullptr;
 	TRDGUniformBufferRef<FLightFunctionAtlasGlobalParameters>			DefaultLightFunctionAtlasGlobalParametersUB;
 
 	TArray<FLightFunctionAtlasGlobalParameters*>						ViewLightFunctionAtlasGlobalParametersArray;
 	TArray<TRDGUniformBufferRef<FLightFunctionAtlasGlobalParameters>>	ViewLightFunctionAtlasGlobalParametersUBArray;
+
+#if WITH_EDITOR
+	uint32																LightCountWithLFMaterialsNotSamplingAtlas = 0;
+	TMap<uint32, const UMaterialInterface*>								NonCompatibleLightFunctionMaterials;
+#endif
+
+#if !UE_BUILD_SHIPPING
+	uint32																LightCountSkippedDueToMissingAtlasSlot = 0;
+	TSet<FLightFunctionSlotKey>											SkippedLightFunctionsSet;
+#endif
 };
 
 
