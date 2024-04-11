@@ -640,9 +640,7 @@ private:
 	{
 		FGraphEventRef GraphEventRef{ this };
 		TTask* TaskObject = TaskStorage.GetTypedPtr();
-		ENamedThreads::Type ThreadIndex = ENamedThreads::GetThreadIndex(TaskObject->GetDesiredThread());
-
-		TaskObject->DoTask(ThreadIndex, GraphEventRef);
+		TaskObject->DoTask(TaskObject->GetDesiredThread(), GraphEventRef);
 		DestructItem(TaskObject);
 	}
 
