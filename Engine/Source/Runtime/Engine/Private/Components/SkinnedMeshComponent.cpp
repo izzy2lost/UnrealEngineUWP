@@ -3975,14 +3975,6 @@ int32 USkinnedMeshComponent::GetValidMinLOD(const int32 InMinLODIndex) const
 	const int32 MaxLODIndex = GetNumLODs() - 1;
 	const FSkeletalMeshRenderData* RenderData = GetSkeletalMeshRenderData();
 	const int32 FirstValidLODIndex = RenderData != nullptr ? RenderData->GetFirstValidLODIdx(InMinLODIndex) : INDEX_NONE;
-	UE_CLOG(FirstValidLODIndex == INDEX_NONE
-		, LogSkinnedMeshComp, Log
-		, TEXT("%hs We're trying to override min LOD for [%s] with no valid LOD index from [%i] to [%i]")
-		, __FUNCTION__
-		, *GetName()
-		, InMinLODIndex
-		, MaxLODIndex
-	);
 
 	// Return the first LOD that has render data that can be used.
 	/** NOTE: We're logging if the index is not valid in the render data but we still want to return a valid value from 0 to max. 
