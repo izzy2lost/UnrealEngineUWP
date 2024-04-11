@@ -484,7 +484,7 @@ bool ContentBrowserUtils::TryGetFolderBrushAndShadowName(const FContentBrowserIt
 	else if (bVirtualFolder && ShouldShowCustomVirtualFolderIcon())
 	{
 		OutBrushName = TEXT("ContentBrowser.ListViewVirtualFolderIcon");
-		OutShadowBrushName = TEXT("None");
+		OutShadowBrushName = TEXT("ContentBrowser.ListViewVirtualFolderShadow");
 	}
 	else if (bPluginFolder && ShouldShowPluginFolderIcon())
 	{
