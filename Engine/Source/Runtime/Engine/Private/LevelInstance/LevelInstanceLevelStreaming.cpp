@@ -210,6 +210,9 @@ void ULevelStreamingLevelInstance::ApplyPropertyOverrides(const TArray<AActor*>&
 							Actor->GetRootComponent()->UpdateComponentToWorld();
 							Actor->MarkComponentsRenderStateDirty();
 						}
+
+						// Flag actor as being overriden
+						FAddActorLevelInstanceFlags AddFlags(Actor, ELevelInstanceFlags::HasPropertyOverrides);
 					}
 				}
 			}

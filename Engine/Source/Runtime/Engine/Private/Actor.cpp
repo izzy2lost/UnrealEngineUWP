@@ -215,7 +215,7 @@ void AActor::InitializeDefaults()
 	bHasRegisteredAllComponents = false;
 
 #if WITH_EDITORONLY_DATA
-	bIsInEditLevelInstanceHierarchy = false;
+	LevelInstanceFlags = ELevelInstanceFlags::None;
 	LevelInstanceType = ELevelInstanceType::None;
 	PivotOffset = FVector::ZeroVector;
 #endif
@@ -5275,13 +5275,20 @@ void AActor::PushLevelInstanceEditingStateToProxies(bool bInEditingState)
 	TInlineComponentArray<UPrimitiveComponent*> PrimComponents;
 	GetComponents(PrimComponents);
 
-	bIsInEditLevelInstanceHierarchy = bInEditingState;
+	if (bInEditingState)
+	{
+		EnumAddFlags(LevelInstanceFlags, ELevelInstanceFlags::IsInEditHierarchy);
+	}
+	else
+	{
+		EnumRemoveFlags(LevelInstanceFlags, ELevelInstanceFlags::IsInEditHierarchy);
+	}
 
 	for (const auto& PrimComponent : PrimComponents)
 	{
 		if (PrimComponent->IsRegistered())
 		{
-			PrimComponent->PushLevelInstanceEditingStateToProxy(bIsInEditLevelInstanceHierarchy);
+			PrimComponent->PushLevelInstanceEditingStateToProxy(bInEditingState);
 		}
 	}
 

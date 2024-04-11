@@ -205,6 +205,9 @@ void ULevelStreamingLevelInstanceEditorPropertyOverride::ApplyPropertyOverrides(
 						Actor->GetRootComponent()->UpdateComponentToWorld();
 						Actor->MarkComponentsRenderStateDirty();
 					}
+
+					// Flag actor as being overriden
+					FAddActorLevelInstanceFlags AddFlags(Actor, ELevelInstanceFlags::HasPropertyOverrides);
 				}
 			}
 		}

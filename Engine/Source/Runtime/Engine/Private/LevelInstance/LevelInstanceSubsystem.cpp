@@ -3144,20 +3144,7 @@ void ULevelInstanceSubsystem::RegisterPrimitiveColorHandler()
 		{
 			if (AActor* Actor = InPrimitiveComponent ? InPrimitiveComponent->GetOwner() : nullptr; Actor && Actor->IsInLevelInstance())
 			{
-				if (ULevelInstanceSubsystem* LevelInstanceSubsystem = UWorld::GetSubsystem<ULevelInstanceSubsystem>(Actor->GetWorld()))
-				{
-					if (ILevelInstanceInterface* OwningLevelInstance = LevelInstanceSubsystem->GetOwningLevelInstance(Actor->GetLevel()))
-					{
-						const FActorContainerID ContextContainerID = LevelInstanceSubsystem->GetLevelInstancePropertyOverridesContext(OwningLevelInstance);
-						TArray<const FActorPropertyOverride*> ActorPropertyOverrides;
-						if (LevelInstanceSubsystem->GetLevelInstancePropertyOverridesForActor(Actor, ContextContainerID, ActorPropertyOverrides))
-						{
-							return FLinearColor::Green;
-						}
-					}
-				}
-
-				return FLinearColor::Red;
+				return Actor->HasLevelInstancePropertyOverrides() ? FLinearColor::Green : FLinearColor::Red;
 			}
 			return FLinearColor::White;
 		});

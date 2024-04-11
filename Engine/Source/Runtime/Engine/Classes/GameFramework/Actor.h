@@ -102,6 +102,16 @@ enum class ELevelInstanceType : uint8
 	LevelInstancePropertyOverride
 };
 
+UENUM()
+enum class ELevelInstanceFlags : uint8
+{
+	None = 0,
+	IsInEditHierarchy = 1,
+	HasPropertyOverrides = 2,
+};
+
+ENUM_CLASS_FLAGS(ELevelInstanceFlags)
+
 #if WITH_EDITORONLY_DATA
 /** Enum defining how actor will be placed in the partition */
 UENUM()
@@ -295,11 +305,12 @@ private:
 	UPROPERTY(Transient)
 	ELevelInstanceType LevelInstanceType;
 
-	/** Whether this actor belongs to a level instance in a level instance hierarchy currently being edited. Itself or its parent level instances. */
+	/** Flags related to level instances for this actor. */
 	UPROPERTY(Transient)
-	uint8 bIsInEditLevelInstanceHierarchy:1;
+	ELevelInstanceFlags LevelInstanceFlags;
 
 	friend struct FSetActorIsInLevelInstance;
+	friend struct FAddActorLevelInstanceFlags;
 
 public:
 	UPROPERTY(EditAnywhere, AdvancedDisplay, Category = LevelInstance, meta = (Tooltip = "If checked, this Actor will only get loaded in a main world (persistent level), it will not be loaded through Level Instances."))
@@ -355,7 +366,13 @@ public:
 	/** If true, the actor belongs to a level instance which is currently being edited or a parent level instance being edited. */
 	bool IsInEditLevelInstanceHierarchy() const
 	{
-		return bIsInEditLevelInstanceHierarchy;
+		return EnumHasAnyFlags(LevelInstanceFlags, ELevelInstanceFlags::IsInEditHierarchy);
+	}
+
+	/** iF true, this actor or one of its components has property overrides applied. */
+	bool HasLevelInstancePropertyOverrides() const
+	{
+		return EnumHasAnyFlags(LevelInstanceFlags, ELevelInstanceFlags::HasPropertyOverrides);
 	}
 
 	/** If true, the actor belongs to a level instance. */
@@ -4581,6 +4598,19 @@ private:
 	FSetActorIsInLevelInstance(AActor* InActor, ELevelInstanceType InLevelInstanceType)
 	{
 		InActor->LevelInstanceType = InLevelInstanceType;
+	}
+
+	friend class ULevelStreamingLevelInstance;
+	friend class ULevelStreamingLevelInstanceEditor;
+	friend class ULevelStreamingLevelInstanceEditorPropertyOverride;
+};
+
+struct FAddActorLevelInstanceFlags
+{
+private:
+	FAddActorLevelInstanceFlags(AActor* InActor, ELevelInstanceFlags InFlagsToAdd)
+	{
+		EnumAddFlags(InActor->LevelInstanceFlags, InFlagsToAdd);
 	}
 
 	friend class ULevelStreamingLevelInstance;
