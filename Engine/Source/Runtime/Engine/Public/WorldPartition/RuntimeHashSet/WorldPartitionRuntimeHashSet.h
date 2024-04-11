@@ -96,11 +96,6 @@ protected:
 	// Transient
 	mutable TUniquePtr<FStaticSpatialIndexType> SpatialIndex;
 	mutable TUniquePtr<FStaticSpatialIndexType> SpatialIndex2D;
-
-#if !UE_BUILD_SHIPPING
-	static TMap<FName, int32> OverriddenLoadingRanges;
-	static class FAutoConsoleCommand OverrideLoadingRangeCommand;
-#endif
 };
 
 template<>

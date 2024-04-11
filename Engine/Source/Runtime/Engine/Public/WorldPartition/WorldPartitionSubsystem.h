@@ -101,6 +101,11 @@ public:
 
 	ENGINE_API void ForEachWorldPartition(TFunctionRef<bool(UWorldPartition*)> Func);
 
+#if !UE_BUILD_SHIPPING
+	static ENGINE_API void SetOverrideLoadingRange(FName Name, int32 LoadingRange);
+	static ENGINE_API bool GetOverrideLoadingRange(FName Name, int32& LoadingRange);
+#endif
+
 #if WITH_EDITOR
 	ENGINE_API FWorldPartitionActorFilter GetWorldPartitionActorFilter(const FString& InWorldPackage, EWorldPartitionActorFilterType InFilterTypes = EWorldPartitionActorFilterType::Loading) const;
 	ENGINE_API TMap<FActorContainerID, TSet<FGuid>> GetFilteredActorsPerContainer(const FActorContainerID& InContainerID, const FString& InWorldPackage, const FWorldPartitionActorFilter& InActorFilter, EWorldPartitionActorFilterType InFilterTypes = EWorldPartitionActorFilterType::Loading);
@@ -127,6 +132,10 @@ protected:
 	//~ End USubsystem Interface.
 
 private:
+#if !UE_BUILD_SHIPPING
+	static TMap<FName, int32> OverriddenLoadingRanges;
+	static class FAutoConsoleCommand OverrideLoadingRangeCommand;
+#endif
 
 	// Streaming Sources
 	void UpdateStreamingSources();

@@ -42,6 +42,12 @@
 #include "WorldPartition/WorldPartitionPropertyOverride.h"
 #endif
 
+#if !UE_BUILD_SHIPPING
+#include "Engine/Engine.h"
+#include "WorldPartition/WorldPartitionHelpers.h"
+#include "WorldPartition/WorldPartitionSubsystem.h"
+#endif
+
 #include UE_INLINE_GENERATED_CPP_BY_NAME(WorldPartitionSubsystem)
 
 DECLARE_STATS_GROUP(TEXT("World Partition"), STATGROUP_WorldPartition, STATCAT_Advanced);
@@ -188,6 +194,49 @@ static FAutoConsoleVariableRef CVarUdateStreamingStateTimeLimit(
 	TEXT("Maximum amount of time to spend doing World Partition UpdateStreamingState (ms per frame)."),
 	ECVF_Default
 );
+
+#if !UE_BUILD_SHIPPING
+TMap<FName, int32> UWorldPartitionSubsystem::OverriddenLoadingRanges;
+static const TCHAR* GOverrideLoadingRangeCommandName = TEXT("wp.Runtime.OverrideRuntimeLoadingRange");
+static FDelegateHandle OnWorldPartitionSubsystemDeinitializedFDelegateHandle;
+FAutoConsoleCommand UWorldPartitionSubsystem::OverrideLoadingRangeCommand(
+	GOverrideLoadingRangeCommandName,
+	TEXT("Sets runtime loading range. Args -grid=[Name] -range=[Range]"),
+	FConsoleCommandWithArgsDelegate::CreateLambda([](const TArray<FString>& InArgs)
+	{
+		FString ArgString = FString::Join(InArgs, TEXT(" "));
+		FName OverrideGridName;
+		int32 OverrideLoadingRange = -1;
+		FParse::Value(*ArgString, TEXT("grid="), OverrideGridName);
+		FParse::Value(*ArgString, TEXT("range="), OverrideLoadingRange);
+
+		if (!OnWorldPartitionSubsystemDeinitializedFDelegateHandle.IsValid())
+		{
+			OnWorldPartitionSubsystemDeinitializedFDelegateHandle = UWorldPartitionSubsystem::OnWorldPartitionSubsystemDeinitialized.AddLambda([](UWorldPartitionSubsystem* InWorldPartitionSubsystem, UWorld* InWorld)
+			{
+				if (InWorld && InWorld->IsGameWorld())
+				{
+					OverriddenLoadingRanges.Reset();
+				}
+			});
+		}
+
+		for (const FWorldContext& Context : GEngine->GetWorldContexts())
+		{
+			UWorld* World = Context.World();
+			if (World && World->IsGameWorld())
+			{
+				if (UWorld::HasSubsystem<UWorldPartitionSubsystem>(World))
+				{
+					FWorldPartitionHelpers::ServerExecConsoleCommand(World, GOverrideLoadingRangeCommandName, InArgs);
+					UWorldPartitionSubsystem::SetOverrideLoadingRange(OverrideGridName, OverrideLoadingRange);
+					break;
+				}
+			}
+		}
+	})
+);
+#endif
 
 TMulticastDelegate<void(UWorldPartitionSubsystem*, UWorld*)> UWorldPartitionSubsystem::OnWorldPartitionSubsystemInitialized;
 TMulticastDelegate<void(UWorldPartitionSubsystem*, UWorld*)> UWorldPartitionSubsystem::OnWorldPartitionSubsystemDeinitialized;
@@ -469,6 +518,30 @@ void UWorldPartitionSubsystem::ForEachWorldPartition(TFunctionRef<bool(UWorldPar
 		}
 	}
 }
+
+#if !UE_BUILD_SHIPPING
+void UWorldPartitionSubsystem::SetOverrideLoadingRange(FName Name, int32 LoadingRange)
+{
+	if (LoadingRange >= 0)
+	{
+		OverriddenLoadingRanges.Add(Name, LoadingRange);
+	}
+	else
+	{
+		OverriddenLoadingRanges.Remove(Name);
+	}
+}
+
+bool UWorldPartitionSubsystem::GetOverrideLoadingRange(FName Name, int32& LoadingRange)
+{
+	if (int32* OverriddenLoadingRange = OverriddenLoadingRanges.Find(Name))
+	{
+		LoadingRange = *OverriddenLoadingRange;
+		return true;
+	}
+	return false;
+}
+#endif
 
 void UWorldPartitionSubsystem::OnWorldPartitionInitialized(UWorldPartition* InWorldPartition)
 {

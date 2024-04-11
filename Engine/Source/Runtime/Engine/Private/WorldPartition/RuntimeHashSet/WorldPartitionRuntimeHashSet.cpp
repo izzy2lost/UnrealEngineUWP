@@ -8,65 +8,11 @@
 #include "WorldPartition/HLOD/HLODLayer.h"
 #include "WorldPartition/ContentBundle/ContentBundleDescriptor.h"
 #include "WorldPartition/DataLayer/DataLayersID.h"
+#include "WorldPartition/WorldPartitionSubsystem.h"
 #include "Algo/RemoveIf.h"
 #include "Algo/Transform.h"
 #include "Misc/HashBuilder.h"
 #include "Misc/ArchiveMD5.h"
-
-#if !UE_BUILD_SHIPPING
-#include "Engine/Engine.h"
-#include "WorldPartition/WorldPartitionHelpers.h"
-#include "WorldPartition/WorldPartitionSubsystem.h"
-
-TMap<FName, int32> FRuntimePartitionStreamingData::OverriddenLoadingRanges;
-static const TCHAR* GOverrideHashSetLoadingRangeCommandName = TEXT("wp.Runtime.OverrideRuntimeHashSetLoadingRange");
-static FDelegateHandle OnWorldPartitionSubsystemDeinitializedFDelegateHandle;
-FAutoConsoleCommand FRuntimePartitionStreamingData::OverrideLoadingRangeCommand(
-	GOverrideHashSetLoadingRangeCommandName,
-	TEXT("Sets runtime loading range. Args -partition=[Name] -range=[Range]"),
-	FConsoleCommandWithArgsDelegate::CreateLambda([](const TArray<FString>& InArgs)
-	{
-		FString ArgString = FString::Join(InArgs, TEXT(" "));
-		FName OverrideGridName;
-		int32 OverrideLoadingRange = -1;
-		FParse::Value(*ArgString, TEXT("partition="), OverrideGridName);
-		FParse::Value(*ArgString, TEXT("range="), OverrideLoadingRange);
-
-		if (!OnWorldPartitionSubsystemDeinitializedFDelegateHandle.IsValid())
-		{
-			OnWorldPartitionSubsystemDeinitializedFDelegateHandle = UWorldPartitionSubsystem::OnWorldPartitionSubsystemDeinitialized.AddLambda([](UWorldPartitionSubsystem* InWorldPartitionSubsystem, UWorld* InWorld)
-			{
-				if (InWorld && InWorld->IsGameWorld())
-				{
-					OverriddenLoadingRanges.Reset();
-				}
-			});
-		}
-
-		for (const FWorldContext& Context : GEngine->GetWorldContexts())
-		{
-			UWorld* World = Context.World();
-			if (World && World->IsGameWorld())
-			{
-				if (UWorld::HasSubsystem<UWorldPartitionSubsystem>(World))
-				{
-					FWorldPartitionHelpers::ServerExecConsoleCommand(World, GOverrideHashSetLoadingRangeCommandName, InArgs);
-
-					if (OverrideLoadingRange >= 0)
-					{
-						OverriddenLoadingRanges.Add(OverrideGridName, OverrideLoadingRange);
-					}
-					else
-					{
-						OverriddenLoadingRanges.Remove(OverrideGridName);
-					}
-					break;
-				}
-			}
-		}
-	})
-);
-#endif
 
 void FRuntimePartitionStreamingData::CreatePartitionsSpatialIndex() const
 {
@@ -106,12 +52,12 @@ void FRuntimePartitionStreamingData::DestroyPartitionsSpatialIndex() const
 int32 FRuntimePartitionStreamingData::GetLoadingRange() const
 {
 #if !UE_BUILD_SHIPPING
-	if (int32* OverriddenLoadingRange = OverriddenLoadingRanges.Find(Name))
+	int32 OverriddenLoadingRange;
+	if (UWorldPartitionSubsystem::GetOverrideLoadingRange(Name, OverriddenLoadingRange))
 	{
-		return *OverriddenLoadingRange;
+		return OverriddenLoadingRange;
 	}
 #endif
-
 	return LoadingRange;
 }
 
@@ -618,11 +564,11 @@ void UWorldPartitionRuntimeHashSet::ForEachStreamingCellsSources(const TArray<FW
 uint32 UWorldPartitionRuntimeHashSet::ComputeUpdateStreamingHash() const
 {
 	FHashBuilder HashBuilder(Super::ComputeUpdateStreamingHash());
-
-#if !UE_BUILD_SHIPPING
-	HashBuilder << FRuntimePartitionStreamingData::OverriddenLoadingRanges;
-#endif
-
+	ForEachStreamingData([&HashBuilder](const FRuntimePartitionStreamingData& StreamingData)
+	{
+		HashBuilder << StreamingData.GetLoadingRange();
+		return true;
+	});
 	return HashBuilder.GetHash();
 }
 
