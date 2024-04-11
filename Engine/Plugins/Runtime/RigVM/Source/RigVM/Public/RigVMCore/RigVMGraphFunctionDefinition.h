@@ -393,7 +393,7 @@ struct RIGVM_API FRigVMGraphFunctionIdentifier
 
 	bool operator==(const FRigVMGraphFunctionIdentifier& Other) const
 	{
-		return HostObject == Other.HostObject && LibraryNodePath == Other.LibraryNodePath;
+		return HostObject == Other.HostObject && FSoftObjectPath(LibraryNodePath).GetSubPathString() == FSoftObjectPath(Other.LibraryNodePath).GetSubPathString();
 	}
 
 	bool IsValid() const
