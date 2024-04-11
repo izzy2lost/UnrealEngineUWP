@@ -102,6 +102,18 @@ namespace
 			if(FEOSSharedModule* Module = FEOSSharedModule::Get())
 			{
 				bSuppressLogLevel = Algo::AnyOf(Module->GetSuppressedLogStrings(), [&MessageStr](const FString& SuppressedLogString) { return MessageStr.Contains(SuppressedLogString); });
+
+				// Check for suppressed categories if not already suppressed
+				if (!bSuppressLogLevel)
+				{
+					const TArray<FString>& SuppressedCategories = Module->GetSuppressedLogCategories();
+					if (SuppressedCategories.Num())
+					{
+						FString CategoryStr(UTF8_TO_TCHAR(Message->Category));
+						CategoryStr.TrimStartAndEndInline();
+						bSuppressLogLevel = Algo::AnyOf(SuppressedCategories, [&CategoryStr](const FString& SuppressedLogCategory) { return CategoryStr.Contains(SuppressedLogCategory); });
+					}
+				}
 			}
 		}
 

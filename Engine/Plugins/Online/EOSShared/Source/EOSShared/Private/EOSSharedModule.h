@@ -16,6 +16,7 @@ public:
 	static FEOSSharedModule* Get();
 
 	const TArray<FString>& GetSuppressedLogStrings() const { return SuppressedLogStrings; }
+	const TArray<FString>& GetSuppressedLogCategories() const { return SuppressedLogCategories; }
 
 private:
 	// ~Begin IModuleInterface
@@ -31,5 +32,6 @@ private:
 	TUniquePtr<FEOSSDKManager> SDKManager;
 #endif
 	TArray<FString> SuppressedLogStrings;
+	TArray<FString> SuppressedLogCategories;
 	FDelegateHandle OnPostForkDelegateHandle;
 };

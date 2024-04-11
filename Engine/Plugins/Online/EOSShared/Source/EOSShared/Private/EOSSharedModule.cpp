@@ -101,6 +101,7 @@ void FEOSSharedModule::OnConfigSectionsChanged(const FString& IniFilename, const
 void FEOSSharedModule::LoadConfig()
 {
 	GConfig->GetArray(CONFIG_SECTION_NAME, TEXT("SuppressedLogStrings"), SuppressedLogStrings, GEngineIni);
+	GConfig->GetArray(CONFIG_SECTION_NAME, TEXT("SuppressedLogCategories"), SuppressedLogCategories, GEngineIni);
 }
 
 #undef CONFIG_SECTION_NAME
