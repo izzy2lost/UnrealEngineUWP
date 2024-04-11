@@ -4,7 +4,8 @@
 
 #include "Replication/Editor/View/Column/ReplicationColumnInfo.h"
 #include "Replication/Editor/View/Column/ReplicationColumnsUtils.h"
-#include "SReplicationColumnRow.h"
+#include "TreeItemTraitsInput.h"
+#include "TreeItemTraits.h"
 
 #include "Algo/RemoveIf.h"
 #include "Misc/TextFilter.h"
@@ -21,22 +22,36 @@
 
 namespace UE::ConcertSharedSlate
 {
+	enum class EItemFilterResult : uint8
+	{
+		/** The item passes the filter and should be displayed */
+		Include,
+		/** The item does not pass the filter and not should be displayed */
+		Exclude,
+		/** The item is only displayed if the filter passes on one of its children. If no child is included, the item is not displayed. */
+		IncludeOnlyIfChildIsIncluded
+	};
+	
 	/**
-	 * Shared code for the list view for replicated actors and properties.
-	 * It is a table view that is searchable with a search box and exposes slots to add more filter widgets, such as SBasicFilterBar.
+	 * Shared code for the tree view for replicated actors and properties.
+	 * 
+	 * It is a tree view that is searchable with a search box and exposes slots to add more filter widgets, such as SBasicFilterBar.
+	 * The columns are modular and are abstracted by IReplicationTreeColumn. You can customize row content by by specializing TReplicationTreeItemTraits;
+	 * the default implementation creates a SReplicationColumnRow, which uses IReplicationTreeColumn to draw the columns. 
 	 */
 	template<typename TItemType>
 	class SReplicationTreeView : public SCompoundWidget
 	{
 	public:
 
-		using TOverrideColumnWidget = typename SReplicationColumnRow<TItemType>::FOverrideColumnWidget;
+		using TOverrideColumnWidget = typename TReplicationTreeData<TItemType>::FOverrideColumnWidget;
 
 		DECLARE_DELEGATE_OneParam(FDeleteItems, const TArray<TSharedPtr<TItemType>>& SelectedItems);
 		DECLARE_DELEGATE_TwoParams(FGetItemChildren, TSharedPtr<TItemType> Item, TFunctionRef<void(TSharedPtr<TItemType>)> ProcessChild);
 		DECLARE_DELEGATE(FOnSelectionChanged);
-		
-		DECLARE_DELEGATE_RetVal_OneParam(bool, FCustomFilter, const TSharedPtr<TItemType>& Item);
+
+		/** @return Whether the item passes the filter, i.e. should be shown. */
+		DECLARE_DELEGATE_RetVal_OneParam(EItemFilterResult, FCustomFilter, const TItemType& Item);
 		DECLARE_DELEGATE_RetVal_OneParam(bool, FIsSearchableItem, const TSharedPtr<TItemType>& Item);
 
 		enum class EContent
@@ -363,7 +378,7 @@ namespace UE::ConcertSharedSlate
 		void PopulateSearchStrings(const TSharedPtr<TItemType>& Item, TArray<FString>& OutSearchStrings);
 		void ReapplyFilters();
 		EFilterResult ApplyFiltersRecursive(const TSharedPtr<TItemType>& Item, TSet<TSharedPtr<TItemType>>& FilteredItemsToShow);
-		bool PassesFilters(const TSharedPtr<TItemType>& Item);
+		EItemFilterResult PassesFilters(const TSharedPtr<TItemType>& Item);
 
 		/** Called after RootItems has changed. Removes all invalidated ItemMetaData entries */
 		void CleanseItemMetaData();
@@ -489,18 +504,18 @@ namespace UE::ConcertSharedSlate
 	TSharedRef<ITableRow> SReplicationTreeView<TItemType>::OnGenerateRowWidget(TSharedPtr<TItemType> Item, const TSharedRef<STableViewBase>& OwnerTable)
 	{
 		const typename SReplicationColumnRow<TItemType>::FGetColumn ColumnGetter =
-			SReplicationColumnRow<TItemType>::FGetColumn::CreateSP(
-				this,
-				&SReplicationTreeView::FindColumnByName
+			SReplicationColumnRow<TItemType>::FGetColumn::CreateSP(this, &SReplicationTreeView::FindColumnByName
 			);
-	
-		return SNew(SReplicationColumnRow<TItemType>, OwnerTable)
-			.HighlightText(SearchText)
-			.ColumnGetter(ColumnGetter)
-			.OverrideColumnWidget(OverrideColumnWidget)
-			.RowData(Item)
-			.ExpandableColumnLabel(ExpandableColumnId)
-			.Style(RowStyle);
+
+		// Compile-time decide the row that is supposed to be generated
+		return TReplicationTreeItemTraits<TItemType>::GenerateRowWidget(Item, OwnerTable,
+			{
+				ColumnGetter,
+				OverrideColumnWidget,
+				SearchText,
+				ExpandableColumnId,
+				RowStyle
+			});
 	}
 
 	template <typename TItemType>
@@ -513,8 +528,8 @@ namespace UE::ConcertSharedSlate
 				const bool bAllowedByFilter =
 					// When we applied the filter, was this item or one of its children allowed?
 					AllFilteredItems.Contains(ItemToAdd)
-					// Handle case where no filter has been applied, yet
-					|| PassesFilters(ItemToAdd);
+					// Handle case where no filter has been applied, yet. 
+					|| PassesFilters(ItemToAdd) != EItemFilterResult::Exclude;
 				if (bAllowedByFilter)
 				{
 					OutChildren.Add(ItemToAdd);
@@ -652,28 +667,38 @@ namespace UE::ConcertSharedSlate
 	typename SReplicationTreeView<TItemType>::EFilterResult SReplicationTreeView<TItemType>::ApplyFiltersRecursive(const TSharedPtr<TItemType>& Item, TSet<TSharedPtr<TItemType>>& FilteredItemsToShow)
 	{
 		bool bPassesAtLeastOnce = false;
-		if (PassesFilters(Item))
+		const EItemFilterResult ItemFilterResult = PassesFilters(Item);
+
+		bool bChildPassedAtLeastOnce = false;
+		if (OnGetChildrenDelegate.IsBound())
+		{
+			OnGetChildrenDelegate.Execute(Item, [this, &FilteredItemsToShow, &bChildPassedAtLeastOnce](TSharedPtr<TItemType> ItemToAdd)
+			{
+				bChildPassedAtLeastOnce |= ApplyFiltersRecursive(ItemToAdd, FilteredItemsToShow) == EFilterResult::ItemOrChildrenPassFilter;
+			});
+			bPassesAtLeastOnce = bChildPassedAtLeastOnce;
+		}
+		
+		if (ItemFilterResult == EItemFilterResult::Include
+			 || (ItemFilterResult == EItemFilterResult::IncludeOnlyIfChildIsIncluded && bChildPassedAtLeastOnce))
 		{
 			bPassesAtLeastOnce = true;
 			FilteredItemsToShow.Add(Item);
-		}
-
-		if (OnGetChildrenDelegate.IsBound())
-		{
-			OnGetChildrenDelegate.Execute(Item, [this, &FilteredItemsToShow, &bPassesAtLeastOnce](TSharedPtr<TItemType> ItemToAdd)
-			{
-				bPassesAtLeastOnce |= ApplyFiltersRecursive(ItemToAdd, FilteredItemsToShow) == EFilterResult::ItemOrChildrenPassFilter;
-			});
 		}
 
 		return bPassesAtLeastOnce ? EFilterResult::ItemOrChildrenPassFilter : EFilterResult::NoneInHierarchyPassFilter;
 	}
 
 	template <typename TItemType>
-	bool SReplicationTreeView<TItemType>::PassesFilters(const TSharedPtr<TItemType>& Item)
+	EItemFilterResult SReplicationTreeView<TItemType>::PassesFilters(const TSharedPtr<TItemType>& Item)
 	{
-		return SearchTextFilter->PassesFilter(Item)
-			&& (!CustomFilterDelegate.IsBound() || CustomFilterDelegate.Execute(Item));
+		if (SearchTextFilter->PassesFilter(Item))
+		{
+			return CustomFilterDelegate.IsBound()
+				? CustomFilterDelegate.Execute(*Item)
+				: EItemFilterResult::Include; 
+		}
+		return EItemFilterResult::Exclude;
 	}
 
 	template <typename TItemType>
@@ -746,8 +771,8 @@ namespace UE::ConcertSharedSlate
 
 			switch (SortMode)
 			{
-				case EColumnSortMode::Ascending: return Column->IsLessThan(*Left, *Right);
-				case EColumnSortMode::Descending: return Column->IsLessThan(*Right, *Left);
+				case EColumnSortMode::Ascending: return TReplicationTreeItemTraits<TItemType>::IsLessThan(*Left, *Right, *Column);
+				case EColumnSortMode::Descending: return TReplicationTreeItemTraits<TItemType>::IsLessThan(*Right, *Left, *Column);
 				case EColumnSortMode::None:
 				default: return false;
 			};

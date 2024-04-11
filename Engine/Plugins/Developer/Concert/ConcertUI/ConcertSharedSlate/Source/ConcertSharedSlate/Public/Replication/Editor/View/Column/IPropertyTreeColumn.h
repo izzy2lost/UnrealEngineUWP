@@ -4,7 +4,7 @@
 
 #include "IReplicationTreeColumn.h"
 #include "ReplicationColumnInfo.h"
-#include "Replication/Editor/Model/ReplicatedPropertyData.h"
+#include "Replication/Editor/Model/Data/PropertyData.h"
 
 namespace UE::ConcertSharedSlate
 {
@@ -12,7 +12,7 @@ namespace UE::ConcertSharedSlate
 	struct FPropertyTreeRowContext
 	{
 		/** The data that is stored in the row */
-		FReplicatedPropertyData RowData;
+		FPropertyData RowData;
 	};
 	
 	using IPropertyTreeColumn = IReplicationTreeColumn<FPropertyTreeRowContext>;

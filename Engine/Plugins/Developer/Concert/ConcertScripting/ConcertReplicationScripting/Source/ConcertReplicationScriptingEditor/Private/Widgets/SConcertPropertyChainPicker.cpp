@@ -133,7 +133,7 @@ namespace UE::ConcertReplicationScriptingEditor
 			});
 		}
 
-		// If not class is selected, the widget will display the NoItemsContent ("Select a class").
+		// If no class is selected, the widget will display the NoItemsContent ("Select a class").
 		TreeView->RefreshPropertyData(Properties, ClassPath);
 	}
 
@@ -141,7 +141,7 @@ namespace UE::ConcertReplicationScriptingEditor
 	{
 		OnSelectedPropertiesChangedDelegate.ExecuteIfBound(ConcertPropertyChain, bIsSelected);
 
-		// The checkbox state may have changed request a resort.
+		// The checkbox state may have changed so request a resort.
 		TreeView->RequestResortForColumn(PropertySelectionCheckboxColumnId);
 	}
 }

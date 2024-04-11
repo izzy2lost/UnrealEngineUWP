@@ -11,6 +11,7 @@ class UStruct;
 
 struct FConcertPropertyChain;
 struct FSlateIcon;
+struct FSoftClassPath;
 struct FSoftObjectPath;
 
 namespace UE::ConcertSharedSlate
@@ -32,10 +33,10 @@ namespace UE::ConcertSharedSlate::DisplayUtils
 	FString GetObjectDisplayString(const UObject& Object);
 	
 	/** @return The text to use for displaying this object's type */
-	FText GetObjectTypeText(const IReplicationStreamModel& Model, const FSoftObjectPath& Object);
+	FText GetObjectTypeText(const FSoftClassPath& ClassPath);
 	
 	/** @return The icon to use for this object */
-	FSlateIcon GetObjectIcon(const IReplicationStreamModel& Model, const FSoftObjectPath& Object);
+	FSlateIcon GetObjectIcon(const FSoftClassPath& ClassPath);
 	/** @return The icon to use for this object */
 	FSlateIcon GetObjectIcon(UObject& Object);
 

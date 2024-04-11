@@ -6,7 +6,7 @@
 #include "Replication/Editor/View/IReplicationStreamEditor.h"
 #include "Replication/Editor/View/Column/IObjectTreeColumn.h"
 #include "Replication/Editor/View/Column/ReplicationColumnsUtils.h"
-#include "Replication/ReplicationWidgetDelegates.h"
+#include "Replication/Utils/ReplicationWidgetDelegates.h"
 
 #include "Widgets/DeclarativeSyntaxSupport.h"
 
@@ -18,11 +18,11 @@ namespace UE::ConcertSharedSlate
 {
 	class FFakeObjectToPropertiesEditorModel;
 	class FReplicatedObjectData;
-	class FReplicatedPropertyData;
+	class FPropertyData;
 	class IEditableReplicationStreamModel;
 	class IObjectNameModel;
 	class IObjectSelectionSourceModel;
-	class IPropertyTreeView;
+	class IPropertyAssignmentView;
 	class IPropertySelectionSourceModel;
 	class IReplicationSubobjectView;
 	class IObjectHierarchyModel;
@@ -52,8 +52,8 @@ namespace UE::ConcertSharedSlate
 		
 		SLATE_BEGIN_ARGS(SBaseReplicationStreamEditor)
 		{}
-			/** Displays the properties in a tree view */
-			SLATE_ARGUMENT(TSharedPtr<IPropertyTreeView>, PropertyTreeView)
+			/** In the lower half of the editor, this view presents the properties associated with the object that is currently selected in the upper part of the view. */
+			SLATE_ARGUMENT(TSharedPtr<IPropertyAssignmentView>, PropertyAssignmentView)
 		
 			/** Additional columns to add to the object view */
 			SLATE_ARGUMENT(TArray<FObjectColumnEntry>, ObjectColumns)
@@ -92,7 +92,7 @@ namespace UE::ConcertSharedSlate
 		virtual void Refresh() override;
 		virtual void RequestObjectColumnResort(const FName& ColumnId) override;
 		virtual void RequestPropertyColumnResort(const FName& ColumnId) override;
-		virtual TArray<FSoftObjectPath> GetObjectsBeingPropertyEdited() const override;
+		virtual TSet<FSoftObjectPath> GetObjectsBeingPropertyEdited() const override;
 		//~ End IReplicationStreamEditor Interface
 
 	private:
@@ -102,11 +102,6 @@ namespace UE::ConcertSharedSlate
 
 		/** For reading and writting to the edited asset */
 		TSharedPtr<IEditableReplicationStreamModel> EditablePropertiesModel;
-		/**
-		 * Fakes to SObjectToPropertyView that all UClass properties are contained.
-		 * We inject checkboxes to SObjectToPropertyView which do the actual adding and removing.
-		 */
-		TSharedPtr<FFakeObjectToPropertiesEditorModel> PropertiesModelAdapter;
 		/** Can be null. If set, adds all subobjects to the top level view. */
 		TSharedPtr<IObjectHierarchyModel> ObjectHierarchy;
 		

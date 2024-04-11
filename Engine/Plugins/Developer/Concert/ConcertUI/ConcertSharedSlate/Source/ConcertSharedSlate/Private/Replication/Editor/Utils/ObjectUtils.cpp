@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Replication/ObjectUtils.h"
+#include "Replication/Utils/ObjectUtils.h"
 
 #include "Containers/UnrealString.h"
 #include "UObject/SoftObjectPath.h"

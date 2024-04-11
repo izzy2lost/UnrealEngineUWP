@@ -34,7 +34,7 @@ namespace UE::ConcertSharedSlate
 		 * If there is an IReplicationSubobjectView, this is IReplicationSubobjectView::GetSelectedObjects.
 		 * Otherwise it is IReplicationStreamViewer::GetSelectedTopLevelObjects.
 		 */
-		virtual TArray<FSoftObjectPath> GetObjectsBeingPropertyEdited() const = 0;
+		virtual TSet<FSoftObjectPath> GetObjectsBeingPropertyEdited() const = 0;
 
 		virtual ~IReplicationStreamViewer() = default;
 	};

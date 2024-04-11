@@ -12,7 +12,7 @@ struct FSoftClassPath;
 
 namespace UE::ConcertSharedSlate
 {
-	/** Represents a tree view displaying properties. */
+	/** Represents a tree view displaying properties from a single class. */
 	class CONCERTSHAREDSLATE_API IPropertyTreeView
 	{
 	public:
@@ -28,9 +28,7 @@ namespace UE::ConcertSharedSlate
 		 */
 		virtual void RefreshPropertyData(const TSet<FConcertPropertyChain>& PropertiesToDisplay, const FSoftClassPath& Class, bool bCanReuseExistingRowItems = true) = 0;
 		
-		/**
-		 * Reapply the filter function to all items at the end of the frame. Call e.g. when the filters have changed.
-		 */
+		/** Reapply the filter function to all items at the end of the frame. Call e.g. when the filters have changed. */
 		virtual void RequestRefilter() const = 0;
 		
 		/**

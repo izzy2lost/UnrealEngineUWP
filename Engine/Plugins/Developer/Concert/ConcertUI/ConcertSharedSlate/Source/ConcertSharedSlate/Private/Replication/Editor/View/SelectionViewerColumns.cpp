@@ -4,9 +4,9 @@
 
 #include "ConcertFrontendStyle.h"
 #include "Replication/Editor/Model/IEditableReplicationStreamModel.h"
-#include "Replication/Editor/Model/ReplicatedPropertyData.h"
-#include "Replication/Editor/Model/ReplicatedObjectData.h"
-#include "Replication/Editor/View/DisplayUtils.h"
+#include "Replication/Editor/Model/Data/PropertyData.h"
+#include "Replication/Editor/Model/Data/ReplicatedObjectData.h"
+#include "Replication/Editor/Utils/DisplayUtils.h"
 #include "Replication/Editor/View/Column/ReplicationColumnsUtils.h"
 #include "Replication/PropertyChainUtils.h"
 
@@ -28,15 +28,15 @@ namespace UE::ConcertSharedSlate::ReplicationColumns::TopLevel
 	const FName LabelColumnId = TEXT("LabelColumn");
 	const FName TypeColumnId = TEXT("TypeColumn");
 	
-	FObjectColumnEntry LabelColumn(TSharedRef<IReplicationStreamModel> Model, IObjectNameModel* OptionalNameModel)
+	FObjectColumnEntry LabelColumn(IObjectNameModel* OptionalNameModel, FGetObjectClass GetObjectClassDelegate)
 	{
 		class FLabelColumn_Object : public IObjectTreeColumn
 		{
 		public:
 			
-			FLabelColumn_Object(TSharedRef<IReplicationStreamModel> Model, IObjectNameModel* OptionalNameModel)
-				: Model(MoveTemp(Model))
-				, OptionalNameModel(OptionalNameModel)
+			FLabelColumn_Object(IObjectNameModel* OptionalNameModel, FGetObjectClass GetObjectClassDelegate)
+				:  OptionalNameModel(OptionalNameModel)
+				, GetObjectClassDelegate(MoveTemp(GetObjectClassDelegate))
 			{}
 
 			virtual SHeaderRow::FColumn::FArguments CreateHeaderRowArgs() const override
@@ -49,10 +49,12 @@ namespace UE::ConcertSharedSlate::ReplicationColumns::TopLevel
 			virtual TSharedRef<SWidget> GenerateColumnWidget(const FBuildArgs& InArgs) override
 			{
 				const FReplicatedObjectData& ObjectData = InArgs.RowItem.RowData;
+				const FSoftObjectPath& ObjectPath = ObjectData.GetObjectPath();
+				
 				const FText Text = GetDisplayText(ObjectData);
-					
+				const FSlateIcon ClassIcon = GetObjectClassDelegate.IsBound() ? DisplayUtils::GetObjectIcon(GetObjectClassDelegate.Execute(ObjectPath)) : FSlateIcon{};
 				return SNew(SHorizontalBox)
-					.ToolTipText(FText::FromString(ObjectData.GetObjectPath().ToString()))
+					.ToolTipText(FText::FromString(ObjectPath.ToString()))
 					
 					+SHorizontalBox::Slot()
 					.AutoWidth()
@@ -60,7 +62,7 @@ namespace UE::ConcertSharedSlate::ReplicationColumns::TopLevel
 					.VAlign(VAlign_Center)
 					[
 						SNew(SImage)
-						.Image(DisplayUtils::GetObjectIcon(*Model, ObjectData.GetObjectPath()).GetOptionalIcon())
+						.Image(ClassIcon.GetOptionalIcon())
 					]
 					
 					+SHorizontalBox::Slot()
@@ -88,8 +90,8 @@ namespace UE::ConcertSharedSlate::ReplicationColumns::TopLevel
 
 		private:
 			
-			const TSharedRef<IReplicationStreamModel> Model;
 			IObjectNameModel* const OptionalNameModel;
+			const FGetObjectClass GetObjectClassDelegate;
 			
 			FText GetDisplayText(const FReplicatedObjectData& ObjectData) const
 			{
@@ -99,23 +101,23 @@ namespace UE::ConcertSharedSlate::ReplicationColumns::TopLevel
 		};
 
 		return {
-			TReplicationColumnDelegates<FObjectTreeRowContext>::FCreateColumn::CreateLambda([Model = MoveTemp(Model), OptionalNameModel]()
+			TReplicationColumnDelegates<FObjectTreeRowContext>::FCreateColumn::CreateLambda([OptionalNameModel, GetObjectClassDelegate = MoveTemp(GetObjectClassDelegate)]()
 			{
-				return MakeShared<FLabelColumn_Object>(Model, OptionalNameModel);
+				return MakeShared<FLabelColumn_Object>(OptionalNameModel, GetObjectClassDelegate);
 			}),
 			LabelColumnId,
 			{ static_cast<int32>(ETopLevelColumnOrder::Label) }
 		};
 	}
 	
-	FObjectColumnEntry TypeColumn(TSharedRef<IReplicationStreamModel> Model)
+	FObjectColumnEntry TypeColumn(FGetObjectClass GetObjectClassDelegate)
 	{
-		class FLabelColumn_Type : public IObjectTreeColumn
+		class FTypeColumn_Object : public IObjectTreeColumn
 		{
 		public:
 			
-			FLabelColumn_Type(TSharedRef<IReplicationStreamModel> Model)
-				: Model(MoveTemp(Model))
+			FTypeColumn_Object(FGetObjectClass GetObjectClassDelegate)
+				: GetObjectClassDelegate(MoveTemp(GetObjectClassDelegate))
 			{}
 
 			virtual SHeaderRow::FColumn::FArguments CreateHeaderRowArgs() const override
@@ -127,36 +129,43 @@ namespace UE::ConcertSharedSlate::ReplicationColumns::TopLevel
 			
 			virtual TSharedRef<SWidget> GenerateColumnWidget(const FBuildArgs& InArgs) override
 			{
+				const FSoftClassPath Class = GetClass(InArgs.RowItem.RowData.GetObjectPath());
 				return SNew(SBox)
 					.Padding(8, 0, 0, 0) // So the type name text is aligned with the header column text
 					[
 						SNew(STextBlock)
 						.HighlightText(TAttribute<FText>::CreateLambda([HighlightText = InArgs.HighlightText](){ return *HighlightText; }))
-						.Text(DisplayUtils::GetObjectTypeText(*Model, InArgs.RowItem.RowData.GetObjectPath()))
+						.Text(DisplayUtils::GetObjectTypeText(Class))
 					];
 			}
 			
 			virtual void PopulateSearchString(const FObjectTreeRowContext& InItem, TArray<FString>& InOutSearchStrings) const override
 			{
-				InOutSearchStrings.Add(DisplayUtils::GetObjectTypeText(Model.Get(), InItem.RowData.GetObjectPath()).ToString());
+				const FSoftClassPath Class = GetClass(InItem.RowData.GetObjectPath());
+				InOutSearchStrings.Add(DisplayUtils::GetObjectTypeText(Class).ToString());
 			}
 			
 			virtual bool CanBeSorted() const override { return true; } 
 			virtual bool IsLessThan(const FObjectTreeRowContext& Left, const FObjectTreeRowContext& Right) const override
 			{
-				return DisplayUtils::GetObjectTypeText(*Model, Left.RowData.GetObjectPath()).ToString()
-					< DisplayUtils::GetObjectTypeText(*Model, Right.RowData.GetObjectPath()).ToString();
+				const FSoftClassPath LeftClass = GetClass(Left.RowData.GetObjectPath());
+				const FSoftClassPath RightClass = GetClass(Right.RowData.GetObjectPath());
+				return DisplayUtils::GetObjectTypeText(LeftClass).ToString()
+					< DisplayUtils::GetObjectTypeText(RightClass).ToString();
 			}
 
 		private:
 			
-			const TSharedRef<IReplicationStreamModel> Model;
+			const FGetObjectClass GetObjectClassDelegate;
+
+			FSoftClassPath GetClass(const FSoftObjectPath& Path) const { return GetObjectClassDelegate.Execute(Path); }
 		};
 
+		check(GetObjectClassDelegate.IsBound());
 		return {
-			TReplicationColumnDelegates<FObjectTreeRowContext>::FCreateColumn::CreateLambda([Model = MoveTemp(Model)]()
+			TReplicationColumnDelegates<FObjectTreeRowContext>::FCreateColumn::CreateLambda([GetObjectClassDelegate = MoveTemp(GetObjectClassDelegate)]()
 			{
-				return MakeShared<FLabelColumn_Type>(Model);
+				return MakeShared<FTypeColumn_Object>(GetObjectClassDelegate);
 			}),
 			TypeColumnId,
 			{ static_cast<int32>(ETopLevelColumnOrder::Type) }
@@ -188,7 +197,7 @@ namespace UE::ConcertSharedSlate::ReplicationColumns::Property
 			
 			virtual TSharedRef<SWidget> GenerateColumnWidget(const FBuildArgs& InArgs) override
 			{
-				const FReplicatedPropertyData& PropertyData = InArgs.RowItem.RowData;
+				const FPropertyData& PropertyData = InArgs.RowItem.RowData;
 				return SNew(STextBlock)
 					.Font(FAppStyle::GetFontStyle("PropertyWindow.NormalFont"))
 					.HighlightText(TAttribute<FText>::CreateLambda([HighlightText = InArgs.HighlightText](){ return *HighlightText; }))
@@ -197,7 +206,7 @@ namespace UE::ConcertSharedSlate::ReplicationColumns::Property
 			
 			virtual void PopulateSearchString(const FPropertyTreeRowContext& InItem, TArray<FString>& InOutSearchStrings) const override
 			{
-				const FReplicatedPropertyData& PropertyData = InItem.RowData;
+				const FPropertyData& PropertyData = InItem.RowData;
 				FString DisplayString = DisplayUtils::GetPropertyDisplayString(InItem.RowData.GetProperty(), ResolveOrLoadClass(PropertyData));
 				InOutSearchStrings.Emplace(MoveTemp(DisplayString));
 			}
@@ -211,7 +220,7 @@ namespace UE::ConcertSharedSlate::ReplicationColumns::Property
 
 		private:
 
-			static UClass* ResolveOrLoadClass(const FReplicatedPropertyData& PropertyData)
+			static UClass* ResolveOrLoadClass(const FPropertyData& PropertyData)
 			{
 #if WITH_EDITOR
 				// On editor there may be Blueprints that need loading...
@@ -248,7 +257,7 @@ namespace UE::ConcertSharedSlate::ReplicationColumns::Property
 			
 			virtual TSharedRef<SWidget> GenerateColumnWidget(const FBuildArgs& InArgs) override
 			{
-				const FReplicatedPropertyData& PropertyData = InArgs.RowItem.RowData;
+				const FPropertyData& PropertyData = InArgs.RowItem.RowData;
 				return SNew(SBox)
 					.Padding(8, 0, 0, 0) // So the type name text is aligned with the header column text
 					[
@@ -272,7 +281,7 @@ namespace UE::ConcertSharedSlate::ReplicationColumns::Property
 
 		private:
 			
-			static FText GetDisplayText(const FReplicatedPropertyData& Args)
+			static FText GetDisplayText(const FPropertyData& Args)
 			{
 				UClass* Class = Args.GetOwningClass().TryLoadClass<UObject>();
 				const FProperty* Property = Class ? ConcertSyncCore::PropertyChain::ResolveProperty(*Class, Args.GetProperty()) : nullptr;

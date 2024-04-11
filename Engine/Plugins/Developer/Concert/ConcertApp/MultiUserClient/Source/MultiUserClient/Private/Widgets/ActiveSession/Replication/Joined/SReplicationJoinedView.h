@@ -30,5 +30,12 @@ namespace UE::MultiUserClient
 			const TSharedRef<FMultiUserReplicationManager>& InReplicationManager,
 			const TSharedRef<IConcertSyncClient>& InClient
 			);
+
+	private:
+
+		/** The local client this widget is created for. */
+		TSharedPtr<IConcertSyncClient> Client;
+		/** Acts as the model of this view */
+		TSharedPtr<FMultiUserReplicationManager> ReplicationManager;
 	};
 }

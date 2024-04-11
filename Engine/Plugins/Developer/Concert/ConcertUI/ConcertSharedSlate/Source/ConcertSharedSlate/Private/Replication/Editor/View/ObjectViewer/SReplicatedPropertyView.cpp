@@ -3,7 +3,7 @@
 #include "SReplicatedPropertyView.h"
 
 #include "Replication/Editor/Model/IReplicationStreamModel.h"
-#include "Replication/Editor/Model/ReplicatedObjectData.h"
+#include "Replication/Editor/Model/Data/ReplicatedObjectData.h"
 
 #include "Algo/AllOf.h"
 #include "Widgets/Layout/SWidgetSwitcher.h"
@@ -13,13 +13,14 @@
 
 namespace UE::ConcertSharedSlate
 {
-	void SReplicatedPropertyView::Construct(const FArguments& InArgs, TSharedRef<IPropertyTreeView> InPropertyTreeView, TSharedRef<IReplicationStreamModel> InPropertiesModel)
+	void SReplicatedPropertyView::Construct(const FArguments& InArgs, TSharedRef<IPropertyAssignmentView> InPropertyAssignmentView, TSharedRef<IReplicationStreamModel> InPropertiesModel)
 	{
-		ReplicatedProperties = MoveTemp(InPropertyTreeView);
+		PropertyAssignmentView = MoveTemp(InPropertyAssignmentView);
 		PropertiesModel = MoveTemp(InPropertiesModel);
 		
 		GetSelectedRootObjectsDelegate = InArgs._GetSelectedRootObjects;
-		check(GetSelectedRootObjectsDelegate.IsBound());
+		GetObjectClassDelegate = InArgs._GetObjectClass;
+		check(GetSelectedRootObjectsDelegate.IsBound() && GetObjectClassDelegate.IsBound());
 		
 		ChildSlot
 		[
@@ -29,7 +30,7 @@ namespace UE::ConcertSharedSlate
 	
 	void SReplicatedPropertyView::RefreshPropertyData()
 	{
-		TArray<FSoftObjectPath> SelectedObjects = GetObjectsSelectedForPropertyEditing();
+		TSet<FSoftObjectPath> SelectedObjects = GetObjectsSelectedForPropertyEditing();
 		if (SelectedObjects.IsEmpty())
 		{
 			SetPropertyContent(EReplicatedPropertyContent::NoSelection);
@@ -44,35 +45,13 @@ namespace UE::ConcertSharedSlate
 			return;
 		}
 		
-		const FSoftClassPath Class = *SharedClass;
-		if (!ensure(Class.IsValid()))
-		{
-			return;
-		}
-		
-		// Build the set of properties that are shared by all of the selected objects
-		TSet<FConcertPropertyChain> SharedProperties = PropertiesModel->GetAllProperties(SelectedObjects[0]);
-		for (int32 i = 1; i < SelectedObjects.Num(); ++i)
-		{
-			SharedProperties = PropertiesModel->GetAllProperties(SelectedObjects[i]).Union(SharedProperties);
-		}
-		
-		// If the objects have changed, the classes may share properties.
-		// In that case, below we'd reuse the item pointer, which would cause the tree view to re-use the old row widgets.
-		// However, we must regenerate all column widgets since they may be referencing the object the row was originally built for. So they'd display the state of the previous object still!
-		// Example: Assign property combo-box in Multi-User All Clients view displays who has the property assigned.
-		// Note: If the objects did not change, we definitely want to reuse item pointers since otherwise the user row selection is reset.
-		const bool bCanReusePropertyData = PreviousSelectedObjects == SelectedObjects; // This SHOULD be an order independent compare but usually Num == 1, so whatever
-		
-		ReplicatedProperties->RefreshPropertyData(SharedProperties, Class, bCanReusePropertyData);
-		
+		PropertyAssignmentView->RefreshData(SelectedObjects, *PropertiesModel);
 		SetPropertyContent(EReplicatedPropertyContent::Properties);
-		PreviousSelectedObjects = MoveTemp(SelectedObjects);
 	}
 
-	TArray<FSoftObjectPath> SReplicatedPropertyView::GetObjectsSelectedForPropertyEditing() const
+	TSet<FSoftObjectPath> SReplicatedPropertyView::GetObjectsSelectedForPropertyEditing() const
 	{
-		TArray<FSoftObjectPath> Result;
+		TSet<FSoftObjectPath> Result;
 		Algo::Transform(GetSelectedRootObjectsDelegate.Execute(), Result, [](const TSharedPtr<FReplicatedObjectData>& ObjectData)
 		{
 			return ObjectData->GetObjectPath();
@@ -89,7 +68,7 @@ namespace UE::ConcertSharedSlate
 			// EReplicatedPropertyContent::Properties
 			+SWidgetSwitcher::Slot()
 			[
-				ReplicatedProperties->GetWidget()
+				PropertyAssignmentView->GetWidget()
 			]
 			
 			// EReplicatedPropertyContent::NoSelection
@@ -111,14 +90,16 @@ namespace UE::ConcertSharedSlate
 			];
 	}
 	
-	TOptional<FSoftClassPath> SReplicatedPropertyView::GetClassForPropertiesFromSelection(const TArray<FSoftObjectPath>& Objects) const
+	TOptional<FSoftClassPath> SReplicatedPropertyView::GetClassForPropertiesFromSelection(const TSet<FSoftObjectPath>& Objects) const
 	{
-		const FSoftClassPath Class = PropertiesModel->GetObjectClass(Objects[0]);
-		const bool bAllHaveSameClass = Algo::AllOf(Objects, [this, Class](const FSoftObjectPath& Object)
+		FSoftClassPath SharedClass;
+		const bool bAllHaveSameClass = Algo::AllOf(Objects, [this, &SharedClass](const FSoftObjectPath& Object)
 		{
-			return PropertiesModel->GetObjectClass(Object) == Class;
+			const FSoftClassPath ObjectClass = GetObjectClass(Object);
+			SharedClass = SharedClass.IsValid() ? SharedClass : ObjectClass;
+			return ObjectClass == SharedClass;
 		});
-		return bAllHaveSameClass ? Class : TOptional<FSoftClassPath>{};
+		return bAllHaveSameClass ? SharedClass : TOptional<FSoftClassPath>{};
 	}
 
 	void SReplicatedPropertyView::SetPropertyContent(EReplicatedPropertyContent Content) const

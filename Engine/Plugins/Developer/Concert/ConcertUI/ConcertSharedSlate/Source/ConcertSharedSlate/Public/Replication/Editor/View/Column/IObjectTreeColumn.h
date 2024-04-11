@@ -4,7 +4,7 @@
 
 #include "IReplicationTreeColumn.h"
 #include "ReplicationColumnInfo.h"
-#include "Replication/Editor/Model/ReplicatedObjectData.h"
+#include "Replication/Editor/Model/Data/ReplicatedObjectData.h"
 
 namespace UE::ConcertSharedSlate
 {

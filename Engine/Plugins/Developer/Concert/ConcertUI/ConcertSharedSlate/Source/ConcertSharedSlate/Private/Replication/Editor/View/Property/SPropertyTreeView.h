@@ -6,14 +6,13 @@
 #include "Replication/Editor/View/IPropertyTreeView.h"
 #include "Replication/Editor/View/Tree/SReplicationTreeView.h"
 
-#include "Filters/SBasicFilterBar.h"
 #include "Replication/Editor/View/Column/IPropertyTreeColumn.h"
 #include "Widgets/DeclarativeSyntaxSupport.h"
 #include "Widgets/SCompoundWidget.h"
 
 namespace UE::ConcertSharedSlate
 {
-	class FReplicatedPropertyData;
+	class FPropertyData;
 	
 	/**
 	 * This widget knows how to display a list of properties in a tree view.
@@ -30,7 +29,7 @@ namespace UE::ConcertSharedSlate
 			/*************** Arguments inherited by SReplicationTreeView ***************/
 		
 			/** Optional callback to do even more filtering of items. */
-			SLATE_EVENT(SReplicationTreeView<FReplicatedPropertyData>::FCustomFilter, FilterItem)
+			SLATE_EVENT(SReplicationTreeView<FPropertyData>::FCustomFilter, FilterItem)
 		
 			/** The columns this list should have */
 			SLATE_ARGUMENT(TArray<FPropertyColumnEntry>, Columns)
@@ -70,25 +69,20 @@ namespace UE::ConcertSharedSlate
 	private:
 
 		/** The tree view displaying the replicated properties */
-		TSharedPtr<SReplicationTreeView<FReplicatedPropertyData>> TreeView;
+		TSharedPtr<SReplicationTreeView<FPropertyData>> TreeView;
 		
-		/**
-		 * These instances can be subclasses of FReplicatedPropertyData, e.g. FReplicatedPropertyData_Editor.
-		 * Their type can be overridden by subclasses.
-		 * They only have the FReplicatedPropertyData type so they can be passed efficiently to SObjectToPropertyView.
-		 * @see GetPropertyData
-		 */
-		TArray<TSharedPtr<FReplicatedPropertyData>> PropertyRowData;
-		/** The instances of ObjectRowData which do not have any parents. This acts as the item source for the tree view. */
-		TArray<TSharedPtr<FReplicatedPropertyData>> RootPropertyRowData;
-		/** Inverse map of PropertyRowData using FReplicatedPropertyData::GetProperty as key. Contains all elements of PropertyRowData. */
-		TMap<FConcertPropertyChain, TSharedPtr<FReplicatedPropertyData>> ChainToPropertyDataCache;
+		/** Contains all data. */
+		TArray<TSharedPtr<FPropertyData>> PropertyRowData;
+		/** The instances which do not have any parents. This acts as the item source for the tree view. */
+		TArray<TSharedPtr<FPropertyData>> RootPropertyRowData;
+		/** Inverse map of PropertyRowData using FPropertyData::GetProperty as key. Contains all elements of PropertyRowData. */
+		TMap<FConcertPropertyChain, TSharedPtr<FPropertyData>> ChainToPropertyDataCache;
 		
-		TSharedRef<FReplicatedPropertyData> AllocatePropertyData(FSoftClassPath OwningClass, FConcertPropertyChain PropertyChain);
+		TSharedRef<FPropertyData> AllocatePropertyData(FSoftClassPath OwningClass, FConcertPropertyChain PropertyChain);
 
 		/** Inits RootPropertyRowData from PropertyRowData. */
 		void BuildRootPropertyRowData();
-		void GetPropertyRowChildren(TSharedPtr<FReplicatedPropertyData> ReplicatedPropertyData, TFunctionRef<void(TSharedPtr<FReplicatedPropertyData>)> ProcessChild);
+		void GetPropertyRowChildren(TSharedPtr<FPropertyData> ReplicatedPropertyData, TFunctionRef<void(TSharedPtr<FPropertyData>)> ProcessChild);
 	};
 }
 

@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ConcertFrontendStyle.h"
+#include "TreeItemTraitsInput.h"
 
 #include "Delegates/DelegateCombinations.h"
 #include "Widgets/Layout/SBox.h"
@@ -17,18 +18,14 @@
 
 namespace UE::ConcertSharedSlate
 {
-	/**
-	 * Displays the summary of an activity recorded and recoverable in the SConcertSessionRecovery list view.
-	 */
+	/** A row that generates its columns generically via IReplicationTreeColumn. */
 	template<typename TListItemType>
 	class SReplicationColumnRow : public SMultiColumnTableRow<TSharedPtr<TListItemType>>
 	{
 	public:
-		
-		DECLARE_DELEGATE_RetVal_OneParam(TSharedPtr<IReplicationTreeColumn<TListItemType>>, FGetColumn,
-			const FName& ColumnId
-			);
-		DECLARE_DELEGATE_RetVal_TwoParams(TSharedPtr<SWidget>, FOverrideColumnWidget, const FName& ColumnName, const TListItemType& RowData);
+
+		using FGetColumn = typename TReplicationTreeData<TListItemType>::FGetColumn;
+		using FOverrideColumnWidget = typename TReplicationTreeData<TListItemType>::FOverrideColumnWidget;
 		
 		SLATE_BEGIN_ARGS(SReplicationColumnRow)
 			: _Style(&FCoreStyle::Get().GetWidgetStyle<FTableRowStyle>("TableView.Row"))

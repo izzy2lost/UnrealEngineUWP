@@ -4,6 +4,7 @@
 
 #include "IObjectTreeColumn.h"
 #include "IPropertyTreeColumn.h"
+#include "Replication/Utils/ReplicationWidgetDelegates.h"
 #include "ReplicationColumnInfo.h"
 
 #include "Templates/SharedPointer.h"
@@ -32,8 +33,12 @@ namespace UE::ConcertSharedSlate::ReplicationColumns::TopLevel
 		Type = 30,
 	};
 
-	CONCERTSHAREDSLATE_API FObjectColumnEntry LabelColumn(TSharedRef<IReplicationStreamModel> Model, IObjectNameModel* OptionalNameModel = nullptr);
-	CONCERTSHAREDSLATE_API FObjectColumnEntry TypeColumn(TSharedRef<IReplicationStreamModel> Model);
+	/**
+	 * @param OptionalNameModel Used to look object name. Defaults to name displayed in object path if unset.
+	 * @param GetObjectClassDelegate Used to display class icon. No icon is displayed if unset.
+	 */
+	CONCERTSHAREDSLATE_API FObjectColumnEntry LabelColumn(IObjectNameModel* OptionalNameModel = nullptr, FGetObjectClass GetObjectClassDelegate = {});
+	CONCERTSHAREDSLATE_API FObjectColumnEntry TypeColumn(FGetObjectClass GetObjectClassDelegate);
 }
 
 namespace UE::ConcertSharedSlate::ReplicationColumns::Property

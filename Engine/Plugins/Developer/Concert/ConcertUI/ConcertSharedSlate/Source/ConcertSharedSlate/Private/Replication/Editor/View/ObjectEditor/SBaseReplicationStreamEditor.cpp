@@ -2,14 +2,13 @@
 
 #include "SBaseReplicationStreamEditor.h"
 
-#include "FakeObjectToPropertiesEditorModel.h"
 #include "Model/Item/SourceModelBuilders.h"
 #include "Replication/Editor/Model/IEditableReplicationStreamModel.h"
 #include "Replication/Editor/Model/Property/IPropertySelectionSourceModel.h"
-#include "Replication/Editor/Model/ReplicatedObjectData.h"
-#include "Replication/Editor/View/DisplayUtils.h"
-#include "Replication/Editor/View/ObjectViewer/SReplicationStreamViewer.h"
+#include "Replication/Editor/Model/Data/ReplicatedObjectData.h"
 #include "Replication/Editor/Model/ObjectSource/IObjectSelectionSourceModel.h"
+#include "Replication/Editor/Utils/DisplayUtils.h"
+#include "Replication/Editor/View/ObjectViewer/SReplicationStreamViewer.h"
 
 #include "Algo/AnyOf.h"
 #include "Replication/Editor/Model/Object/IObjectHierarchyModel.h"
@@ -33,8 +32,6 @@ namespace UE::ConcertSharedSlate
 		EditablePropertiesModel = MoveTemp(InPropertiesModel);
 		EditablePropertiesModel->OnObjectsChanged().AddSP(this, &SBaseReplicationStreamEditor::OnObjectsChanged);
 		EditablePropertiesModel->OnPropertiesChanged().AddSP(this, &SBaseReplicationStreamEditor::OnPropertiesChanged);
-		
-		PropertiesModelAdapter = MakeShared<FFakeObjectToPropertiesEditorModel>(EditablePropertiesModel.ToSharedRef(), PropertySelectionSource.ToSharedRef());
 
 		IsEditingEnabledAttribute = InArgs._IsEditingEnabled;
 		EditingDisabledToolTipTextAttribute = InArgs._EditingDisabledToolTipText;
@@ -42,8 +39,8 @@ namespace UE::ConcertSharedSlate
 		
 		ChildSlot
 		[
-			SAssignNew(ReplicationViewer, SReplicationStreamViewer, PropertiesModelAdapter.ToSharedRef())
-				.PropertyTreeView(InArgs._PropertyTreeView)
+			SAssignNew(ReplicationViewer, SReplicationStreamViewer, EditablePropertiesModel.ToSharedRef())
+				.PropertyAssignmentView(InArgs._PropertyAssignmentView)
 				.ObjectColumns(InArgs._ObjectColumns)
 				.PrimaryObjectSort(InArgs._PrimaryObjectSort)
 				.SecondaryObjectSort(InArgs._SecondaryObjectSort)
@@ -90,7 +87,7 @@ namespace UE::ConcertSharedSlate
 		ReplicationViewer->RequestPropertyColumnResort(ColumnId);
 	}
 
-	TArray<FSoftObjectPath> SBaseReplicationStreamEditor::GetObjectsBeingPropertyEdited() const
+	TSet<FSoftObjectPath> SBaseReplicationStreamEditor::GetObjectsBeingPropertyEdited() const
 	{
 		return ReplicationViewer->GetObjectsBeingPropertyEdited();
 	}

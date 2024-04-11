@@ -5,17 +5,21 @@
 #include "ConcertFrontendUtils.h"
 #include "Replication/Editor/Model/IReplicationStreamModel.h"
 #include "Replication/Editor/Model/Object/IObjectHierarchyModel.h"
-#include "Replication/Editor/Model/ReplicatedObjectData.h"
+#include "Replication/Editor/Model/Data/ReplicatedObjectData.h"
 #include "Replication/Editor/View/Column/ObjectColumnAdapter.h"
 #include "Replication/Editor/View/Column/SelectionViewerColumns.h"
-#include "Replication/Editor/View/ObjectViewer/Property/SPropertyTreeView.h"
-#include "Replication/ObjectUtils.h"
+#include "Replication/Editor/View/Property/SPropertyTreeView.h"
+#include "Replication/Utils/ObjectUtils.h"
 #include "SReplicatedPropertyView.h"
 
 #include "Widgets/Layout/SBorder.h"
 #include "Widgets/Layout/SSplitter.h"
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/Text/STextBlock.h"
+#if WITH_EDITOR
+#include "UObject/Class.h"
+#include "UObject/Object.h"
+#endif
 
 #define LOCTEXT_NAMESPACE "SObjectToPropertyView"
 
@@ -52,7 +56,7 @@ namespace UE::ConcertSharedSlate
 		PropertySection->RequestResortForColumn(ColumnId);
 	}
 
-	TArray<FSoftObjectPath> SReplicationStreamViewer::GetObjectsBeingPropertyEdited() const
+	TSet<FSoftObjectPath> SReplicationStreamViewer::GetObjectsBeingPropertyEdited() const
 	{
 		return PropertySection->GetObjectsSelectedForPropertyEditing();
 	}
@@ -119,17 +123,29 @@ namespace UE::ConcertSharedSlate
 			ReplicatedObjects->SetExpandedItems(ItemsToExpand, true);
 		}
 	}
-
+	
 	TArray<TSharedPtr<FReplicatedObjectData>> SReplicationStreamViewer::GetSelectedOutlinerObjects() const
 	{
 		TArray<TSharedPtr<FReplicatedObjectData>> SelectedItems = ReplicatedObjects->GetSelectedItems();
 		// Items may have been removed this tick. However, selected items may not have been updated yet because STreeView processes item changes at the end of tick. 
 		SelectedItems.SetNum(Algo::RemoveIf(SelectedItems, [this](const TSharedPtr<FReplicatedObjectData>& ObjectData)
 		{
-			const bool bIsInModel = PropertiesModel->ContainsObjects({ ObjectData->GetObjectPath() });
-			const TOptional<FSoftObjectPath> OwningActor = ObjectUtils::GetActorOf(ObjectData->GetObjectPath());
-			const bool bHierarchyIsInModel = OwningActor.IsSet() && PropertiesModel->ContainsObjects({ *OwningActor });
-			return !bIsInModel && !bHierarchyIsInModel;
+			const FSoftObjectPath& ObjectPath = ObjectData->GetObjectPath();
+			const bool bIsInModel = PropertiesModel->ContainsObjects({ ObjectPath });
+			
+			const TOptional<FSoftObjectPath> OwningActor = ObjectUtils::GetActorOf(ObjectPath);
+			// When displaying object from local machine...
+			// ... the "Add Actor" button has added an actor without properties to the model; however objects without assigned properties are not transmitted to server.
+			const bool bContainsOwningActor = OwningActor.IsSet() && PropertiesModel->ContainsObjects({ *OwningActor });
+
+			// When displaying object from remote machine...
+			// ... we only see objects with actual properties assigned.
+			const bool bIsSubobjectOfActor = OwningActor.IsSet() && ObjectPath.ToString().Contains(OwningActor->ToString());
+			// ... if ObjectData is an actor, we must also consider whether any of its subobjects is contained in the model
+			bool bContainsAnySubobject = false;
+			PropertiesModel->ForEachSubobject(ObjectPath, [&bContainsAnySubobject](const FSoftObjectPath& Child){ bContainsAnySubobject = true; return EBreakBehavior::Break; });
+			
+			return !bIsInModel && !bContainsOwningActor && !bIsSubobjectOfActor && !bContainsAnySubobject;
 		}));
 		return SelectedItems;
 	}
@@ -190,9 +206,11 @@ namespace UE::ConcertSharedSlate
 
 	TSharedRef<SWidget> SReplicationStreamViewer::CreateOutlinerSection(const FArguments& InArgs)
 	{
+		const FGetObjectClass GetObjectClassDelegate = FGetObjectClass::CreateSP(this, &SReplicationStreamViewer::GetObjectClass);
+		
 		TArray<FObjectColumnEntry> Columns = InArgs._ObjectColumns;
-		Columns.Add(ReplicationColumns::TopLevel::LabelColumn(PropertiesModel.ToSharedRef(), NameModel.Get()));
-		Columns.Add(ReplicationColumns::TopLevel::TypeColumn(PropertiesModel.ToSharedRef()));
+		Columns.Add(ReplicationColumns::TopLevel::LabelColumn(NameModel.Get(), GetObjectClassDelegate));
+		Columns.Add(ReplicationColumns::TopLevel::TypeColumn(GetObjectClassDelegate));
 		
 		const bool bHasNoOutlinerObjectsAttribute = InArgs._NoOutlinerObjects.IsBound() || InArgs._NoOutlinerObjects.IsSet(); 
 		const TAttribute<FText> NoObjectsAttribute = bHasNoOutlinerObjectsAttribute ? InArgs._NoOutlinerObjects : LOCTEXT("NoObjects", "No objects to display");
@@ -265,8 +283,9 @@ namespace UE::ConcertSharedSlate
 				]
 				.BodyContent()
 				[
-					SAssignNew(PropertySection, SReplicatedPropertyView, InArgs._PropertyTreeView.ToSharedRef(), PropertiesModel.ToSharedRef())
-					.GetSelectedRootObjects_Lambda([this](){ return GetSelectedOutlinerObjects(); })
+					SAssignNew(PropertySection, SReplicatedPropertyView, InArgs._PropertyAssignmentView.ToSharedRef(), PropertiesModel.ToSharedRef())
+					.GetSelectedRootObjects(this, &SReplicationStreamViewer::GetSelectedOutlinerObjects)
+					.GetObjectClass(this, &SReplicationStreamViewer::GetObjectClass)
 					.NameModel(InArgs._NameModel)
 				]
 			];
@@ -284,7 +303,7 @@ namespace UE::ConcertSharedSlate
 		// Do a complete refresh.
 		// Complete refresh is acceptable because the list is updated infrequently and typically small < 500 items.
 		// An alternative would be to change RefreshObjectData to be called with two variables ObjectsAdded and ObjectsRemoved.
-		PropertiesModel->ForEachReplicatedObject([this, &NewPathToObjectDataCache](const FSoftObjectPath& ObjectPath) mutable
+		IterateDisplayableObjects([this, &NewPathToObjectDataCache](const FSoftObjectPath& ObjectPath) mutable
 		{
 			TOptional<IObjectHierarchyModel::FParentInfo> ParentInfo = ObjectHierarchy->GetParentInfo(ObjectPath);
 			const bool bIsActor = !ParentInfo; 
@@ -311,6 +330,57 @@ namespace UE::ConcertSharedSlate
 			// The tree view requires the item source to only contain the root items. Children are discovered via GetObjectRowChildren. We re-use GetObjectRowChildren to remove any non-root nodes.
 			BuildRootObjectRowData();
 			ReplicatedObjects->RequestRefilter();
+		}
+	}
+
+	void SReplicationStreamViewer::IterateDisplayableObjects(TFunctionRef<void(const FSoftObjectPath& Object)> Delegate) const
+	{
+		// Case: RealModel contains only components but not the owning actor.
+		// In that case, we want the UI to still show the owning actor.
+		// We'll track this with these containers:
+		TSet<FSoftObjectPath> NonActors;
+		TSet<FSoftObjectPath> Actors;
+
+		// Here we only exposes objects that are top level so we skip components, etc.
+		EBreakBehavior BreakBehavior = EBreakBehavior::Continue;
+		PropertiesModel->ForEachReplicatedObject([this, &Delegate, &NonActors, &Actors, &BreakBehavior](const FSoftObjectPath& Object)
+		{
+			Delegate(Object);
+			
+			if (ObjectUtils::IsActor(Object))
+			{
+				Actors.Add(Object);
+			}
+			else
+			{
+				NonActors.Add(Object);
+			}
+			
+			return EBreakBehavior::Continue;
+		});
+
+		// No additional objects to show
+		if (BreakBehavior == EBreakBehavior::Break)
+		{
+			return;
+		}
+
+		// Now determine the top level objects that are not in RealModel but that need to be shown for subobjects that are in RealModel
+		for (const FSoftObjectPath& NonTopLevelObject : NonActors)
+		{
+			const TOptional<FSoftObjectPath> TopLevelObject = ObjectUtils::GetActorOf(NonTopLevelObject);
+			if (!TopLevelObject)
+			{
+				continue;
+			}
+			
+			if (!Actors.Contains(*TopLevelObject))
+			{
+				Delegate(*TopLevelObject);
+				
+				// Avoid calling Delegate again for TopLevelObject
+				Actors.Add(*TopLevelObject);
+			}
 		}
 	}
 
@@ -407,6 +477,25 @@ namespace UE::ConcertSharedSlate
 	{
 		const bool bSkipSubobject = Relationship == EChildRelationship::Subobject && !ObjectViewOptions.ShouldDisplaySubobjects();
 		return !bSkipSubobject;
+	}
+
+	FSoftClassPath SReplicationStreamViewer::GetObjectClass(const FSoftObjectPath& ObjectPath) const
+	{
+		const FSoftClassPath ResolvedClass = PropertiesModel->GetObjectClass(ObjectPath);
+		if (ResolvedClass.IsValid())
+		{
+			return ResolvedClass;
+		}
+
+#if WITH_EDITOR
+		// In the editor, we display the entire hierarchy (see BuildObjectHierarchyIfNeeded) so some items may not be in PropertiesModel.
+		// Example: Add an actor with many components and assign nothing - all of those components will take this path.
+		const UObject* LoadedObject = ObjectPath.ResolveObject();
+		return LoadedObject ? LoadedObject->GetClass() : FSoftClassPath{};
+#else
+		// For non-editor, we should probably consider getting the class information through a delegate.
+		return FSoftClassPath{};
+#endif
 	}
 }
 

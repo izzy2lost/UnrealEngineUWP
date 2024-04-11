@@ -1,0 +1,40 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
+
+#pragma once
+
+#include "Delegates/Delegate.h"
+#include "Templates/SharedPointer.h"
+
+class FName;
+class SWidget;
+
+namespace UE::ConcertSharedSlate
+{
+	template<typename TTreeItemType>
+	class IReplicationTreeColumn;
+
+	/** Holds type definitions that server as input to TReplicationTreeItemTraits (and thus should not be template specialized).  */
+	template<typename TItemType>
+	class TReplicationTreeData
+	{
+	public:
+		
+		DECLARE_DELEGATE_RetVal_OneParam(TSharedPtr<IReplicationTreeColumn<TItemType>>, FGetColumn, const FName& ColumnId);
+		DECLARE_DELEGATE_RetVal_TwoParams(TSharedPtr<SWidget>, FOverrideColumnWidget, const FName& ColumnName, const TItemType& RowData);
+		
+		struct FGenerateRowArgs
+		{
+			/** Gets info about a replication column. */
+			FGetColumn GetColumnDelegate;
+			/** Overrides a column's content widget. */
+			FOverrideColumnWidget OverrideColumnWidgetDelegate;
+
+			/** The text to highlight - equal to search text. */
+			TSharedPtr<FText> HighlightText;
+			/** The name of the column which will have the SExpandableArrow widget for the tree view. */
+			FName ExpandableColumnId;
+			/** Style to use for rows */
+			const FTableRowStyle* RowStyle = nullptr;
+		};
+	};
+}

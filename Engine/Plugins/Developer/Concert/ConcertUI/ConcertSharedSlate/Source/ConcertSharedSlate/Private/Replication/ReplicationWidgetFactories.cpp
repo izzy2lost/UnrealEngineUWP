@@ -5,7 +5,10 @@
 #include "Editor/Model/GenericReplicationStreamModel.h"
 #include "Editor/View/MultiEditor/SMultiReplicationStreamEditor.h"
 #include "Editor/View/ObjectEditor/SBaseReplicationStreamEditor.h"
-#include "Editor/View/ObjectViewer/Property/SPropertyTreeView.h"
+#include "Editor/View/Property/SPerObjectPropertyAssignment.h"
+#include "Editor/View/Property/SPropertyTreeView.h"
+#include "Replication/PropertyAssignmentViewFactory.h"
+#include "Replication/Editor/View/IPropertyAssignmentView.h"
 
 namespace UE::ConcertSharedSlate
 {
@@ -20,7 +23,7 @@ namespace UE::ConcertSharedSlate
 	TSharedRef<IReplicationStreamEditor> CreateBaseStreamEditor(FCreateEditorParams EditorParams, FCreateViewerParams ViewerParams)
 	{
 		return SNew(SBaseReplicationStreamEditor, MoveTemp(EditorParams.DataModel), MoveTemp(EditorParams.ObjectSource), MoveTemp(EditorParams.PropertySource))
-			.PropertyTreeView(MoveTemp(ViewerParams.PropertyTreeView))
+			.PropertyAssignmentView(MoveTemp(ViewerParams.PropertyAssignmentView))
 			.ObjectColumns(MoveTemp(ViewerParams.ObjectColumns))
 			.PrimaryObjectSort(ViewerParams.PrimaryObjectSort)
 			.SecondaryObjectSort(ViewerParams.SecondaryObjectSort)
@@ -45,12 +48,14 @@ namespace UE::ConcertSharedSlate
 			Params.PropertyColumns.Add(ReplicationColumns::Property::LabelColumn());
 		}
 
-		SReplicationTreeView<FReplicatedPropertyData>::FCustomFilter FilterDelegate = Params.FilterItem.IsBound()
-			? SReplicationTreeView<FReplicatedPropertyData>::FCustomFilter::CreateLambda([Filter = MoveTemp(Params.FilterItem)](const TSharedPtr<FReplicatedPropertyData>& Item)
+		SReplicationTreeView<FPropertyData>::FCustomFilter FilterDelegate = Params.FilterItem.IsBound()
+			? SReplicationTreeView<FPropertyData>::FCustomFilter::CreateLambda([Filter = MoveTemp(Params.FilterItem)](const FPropertyData& Item)
 			{
-				return Filter.Execute(*Item.Get()) == EFilterResult::PassesFilter;
+				return Filter.Execute(Item) == EFilterResult::PassesFilter
+					? EItemFilterResult::Include
+					: EItemFilterResult::Exclude;
 			})
-			: SReplicationTreeView<FReplicatedPropertyData>::FCustomFilter{};
+			: SReplicationTreeView<FPropertyData>::FCustomFilter{};
 		
 		return SNew(SPropertyTreeView)
 			.FilterItem(MoveTemp(FilterDelegate))
@@ -63,6 +68,12 @@ namespace UE::ConcertSharedSlate
 			.RightOfSearchBar() [ MoveTemp(Params.RightOfPropertySearchBar.Widget) ]
 			.RowBelowSearchBar() [ MoveTemp(Params.RowBelowSearchBar.Widget) ]
 			.NoItemsContent() [ MoveTemp(Params.NoItemsContent.Widget) ];
+	}
+
+	TSharedRef<IPropertyAssignmentView> CreatePerObjectAssignmentView(FCreatePerObjectAssignmentViewParams Params)
+	{
+		return SNew(SPerObjectPropertyAssignment, Params.PropertyTreeView)
+			.PropertySource(Params.PropertySource);
 	}
 
 	TSharedRef<IMultiReplicationStreamEditor> CreateBaseMultiStreamEditor(FCreateMultiStreamEditorParams EditorParams, FCreateViewerParams ViewerParams)

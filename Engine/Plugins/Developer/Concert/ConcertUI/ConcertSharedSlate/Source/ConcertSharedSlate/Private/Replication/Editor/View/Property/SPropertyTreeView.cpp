@@ -2,7 +2,7 @@
 
 #include "SPropertyTreeView.h"
 
-#include "Replication/Editor/Model/ReplicatedPropertyData.h"
+#include "Replication/Editor/Model/Data/PropertyData.h"
 
 #include "Algo/ForEach.h"
 #include "Replication/Editor/View/Column/PropertyColumnAdapter.h"
@@ -16,7 +16,7 @@ namespace UE::ConcertSharedSlate
 	{
 		ChildSlot
 		[
-			SAssignNew(TreeView, SReplicationTreeView<FReplicatedPropertyData>)
+			SAssignNew(TreeView, SReplicationTreeView<FPropertyData>)
 				.RootItemsSource(&RootPropertyRowData)
 				.OnGetChildren(this, &SPropertyTreeView::GetPropertyRowChildren)
 				.FilterItem(InArgs._FilterItem)
@@ -40,13 +40,13 @@ namespace UE::ConcertSharedSlate
 		}
 		
 		// Try to re-use old instances by using the old ChainToPropertyDataCache. This is also done so the expansion states restore correctly in the tree view.
-		TMap<FConcertPropertyChain, TSharedPtr<FReplicatedPropertyData>> NewChainToPropertyDataCache;
+		TMap<FConcertPropertyChain, TSharedPtr<FPropertyData>> NewChainToPropertyDataCache;
 		
 		PropertyRowData.Empty();
 		for (const FConcertPropertyChain& PropertyChain : PropertiesToDisplay)
 		{
-			const TSharedPtr<FReplicatedPropertyData>* ExistingItem = ChainToPropertyDataCache.Find(PropertyChain);
-			const TSharedRef<FReplicatedPropertyData> Item = ExistingItem ? ExistingItem->ToSharedRef() : AllocatePropertyData(Class, PropertyChain);
+			const TSharedPtr<FPropertyData>* ExistingItem = ChainToPropertyDataCache.Find(PropertyChain);
+			const TSharedRef<FPropertyData> Item = ExistingItem ? ExistingItem->ToSharedRef() : AllocatePropertyData(Class, PropertyChain);
 			PropertyRowData.Emplace(Item);
 			NewChainToPropertyDataCache.Emplace(PropertyChain, Item);
 		}
@@ -62,7 +62,7 @@ namespace UE::ConcertSharedSlate
 
 	void SPropertyTreeView::RequestScrollIntoView(const FConcertPropertyChain& PropertyChain)
 	{
-		const int32 Index = PropertyRowData.IndexOfByPredicate([&PropertyChain](const TSharedPtr<FReplicatedPropertyData>& Data)
+		const int32 Index = PropertyRowData.IndexOfByPredicate([&PropertyChain](const TSharedPtr<FPropertyData>& Data)
 		{
 			return Data->GetProperty() == PropertyChain;
 		});
@@ -73,15 +73,15 @@ namespace UE::ConcertSharedSlate
 		}
 	}
 
-	TSharedRef<FReplicatedPropertyData> SPropertyTreeView::AllocatePropertyData(FSoftClassPath OwningClass, FConcertPropertyChain PropertyChain)
+	TSharedRef<FPropertyData> SPropertyTreeView::AllocatePropertyData(FSoftClassPath OwningClass, FConcertPropertyChain PropertyChain)
 	{
-		return MakeShared<FReplicatedPropertyData>(MoveTemp(OwningClass), MoveTemp(PropertyChain));
+		return MakeShared<FPropertyData>(MoveTemp(OwningClass), MoveTemp(PropertyChain));
 	}
 
 	void SPropertyTreeView::BuildRootPropertyRowData()
 	{
 		RootPropertyRowData.Empty(PropertyRowData.Num());
-		for (const TSharedPtr<FReplicatedPropertyData>& PropertyData : PropertyRowData)
+		for (const TSharedPtr<FPropertyData>& PropertyData : PropertyRowData)
 		{
 			if (PropertyData->GetProperty().IsRootProperty())
 			{
@@ -90,12 +90,12 @@ namespace UE::ConcertSharedSlate
 		}
 	}
 
-	void SPropertyTreeView::GetPropertyRowChildren(TSharedPtr<FReplicatedPropertyData> ReplicatedPropertyData, TFunctionRef<void(TSharedPtr<FReplicatedPropertyData>)> ProcessChild)
+	void SPropertyTreeView::GetPropertyRowChildren(TSharedPtr<FPropertyData> ReplicatedPropertyData, TFunctionRef<void(TSharedPtr<FPropertyData>)> ProcessChild)
 	{
-		TArray<TSharedPtr<FReplicatedPropertyData>> Children;
+		TArray<TSharedPtr<FPropertyData>> Children;
 		
 		// Not the most efficient but it should be fine.
-		for (const TSharedPtr<FReplicatedPropertyData>& Data : PropertyRowData)
+		for (const TSharedPtr<FPropertyData>& Data : PropertyRowData)
 		{
 			if (Data->GetProperty().IsDirectChildOf(ReplicatedPropertyData->GetProperty()))
 			{
@@ -103,7 +103,7 @@ namespace UE::ConcertSharedSlate
 			}
 		}
 
-		Algo::ForEach(Children, [&ProcessChild](const TSharedPtr<FReplicatedPropertyData>& Data){ ProcessChild(Data); });
+		Algo::ForEach(Children, [&ProcessChild](const TSharedPtr<FPropertyData>& Data){ ProcessChild(Data); });
 	}
 }
 

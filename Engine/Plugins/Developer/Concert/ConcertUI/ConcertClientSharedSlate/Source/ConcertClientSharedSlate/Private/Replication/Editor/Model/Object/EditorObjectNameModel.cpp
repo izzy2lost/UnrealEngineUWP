@@ -3,7 +3,7 @@
 #include "EditorObjectNameModel.h"
 
 #include "Internationalization/Text.h"
-#include "Replication/ObjectUtils.h"
+#include "Replication/Utils/ObjectUtils.h"
 
 #include "GameFramework/Actor.h"
 #include "SubobjectDataSubsystem.h"

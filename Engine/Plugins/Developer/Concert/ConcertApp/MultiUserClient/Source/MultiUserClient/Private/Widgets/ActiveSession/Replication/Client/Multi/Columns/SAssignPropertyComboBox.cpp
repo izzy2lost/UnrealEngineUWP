@@ -29,7 +29,7 @@ namespace UE::MultiUserClient
 {
 	namespace AssignPropertyComboBox
 	{
-		TArray<FGuid> GetDisplayedClients(const FReplicationClientManager& ClientManager, const FConcertPropertyChain& DisplayedProperty, const TArray<FSoftObjectPath>& EditedObjects)
+		TArray<FGuid> GetDisplayedClients(const FReplicationClientManager& ClientManager, const FConcertPropertyChain& DisplayedProperty, const TSet<FSoftObjectPath>& EditedObjects)
 		{
 			TArray<FGuid> Clients;
 			ClientManager.ForEachClient([&DisplayedProperty, &EditedObjects, &Clients](const FReplicationClient& Client)
@@ -54,7 +54,7 @@ namespace UE::MultiUserClient
 		const TSharedRef<IConcertClient>& LocalConcertClient,
 		const FReplicationClientManager& ClientManager,
 		const FConcertPropertyChain& DisplayedProperty,
-		const TArray<FSoftObjectPath>& EditedObjects)
+		const TSet<FSoftObjectPath>& EditedObjects)
 	{
 		using SWidgetType = ConcertClientSharedSlate::SHorizontalClientList;
 		const TArray<FGuid> Clients = AssignPropertyComboBox::GetDisplayedClients(ClientManager, DisplayedProperty, EditedObjects);
@@ -324,11 +324,15 @@ namespace UE::MultiUserClient
 		bool bIsAssignedToAnyClient = false;
 		ClientManager->ForEachClient([this, &bIsAssignedToAnyClient](const FReplicationClient& Client)
 		{
-			for (int32 i = 0; !bIsAssignedToAnyClient && i < EditedObjects.Num(); ++i)
+			for (const FSoftObjectPath& EditedObject : EditedObjects)
 			{
-				const FSoftObjectPath& ObjectPath = EditedObjects[i];
+				if (bIsAssignedToAnyClient)
+				{
+					break;
+				}
+				
 				const TSharedRef<ConcertSharedSlate::IEditableReplicationStreamModel> Model = Client.GetClientEditModel();
-				const bool bHasProperty = Model->HasProperty(ObjectPath, Property);
+				const bool bHasProperty = Model->HasProperty(EditedObject, Property);
 				bIsAssignedToAnyClient |= bHasProperty;
 			}
 			

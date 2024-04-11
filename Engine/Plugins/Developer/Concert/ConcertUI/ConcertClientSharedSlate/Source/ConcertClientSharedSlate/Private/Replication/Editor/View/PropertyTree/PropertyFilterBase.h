@@ -6,7 +6,7 @@
 #include "Misc/IFilter.h"
 
 class FFieldClass;
-namespace UE::ConcertSharedSlate { class FReplicatedPropertyData; }
+namespace UE::ConcertSharedSlate { class FPropertyData; }
 
 namespace UE::ConcertClientSharedSlate
 {
@@ -16,14 +16,14 @@ namespace UE::ConcertClientSharedSlate
 	 * This filter inverts the results: all filters are supposed to be inverse filters, i.e. they should be run when
 	 * they are greyed out in the UI. When they are run, they should remove specific properties.
 	 *
-	 * Subclasses simply implement Matches, which figures out whether the property is contained in some FReplicatedPropertyData.
+	 * Subclasses simply implement Matches, which figures out whether the property is contained in some FPropertyData.
 	 */
-	class FPropertyFilterBase : public IFilter<const ConcertSharedSlate::FReplicatedPropertyData&>
+	class FPropertyFilterBase : public IFilter<const ConcertSharedSlate::FPropertyData&>
 	{
 	public:
 		
 		//~ Begin IFilter Interface
-		virtual bool PassesFilter(const ConcertSharedSlate::FReplicatedPropertyData& InItem) const final override
+		virtual bool PassesFilter(const ConcertSharedSlate::FPropertyData& InItem) const final override
 		{
 			return MatchesFilteredForProperty(InItem);
 		}
@@ -36,7 +36,7 @@ namespace UE::ConcertClientSharedSlate
 		FChangedEvent ChangedEventDelegate;
 
 		/** @return Whether this item contains the property this filter is looking for.*/
-		virtual bool MatchesFilteredForProperty(const ConcertSharedSlate::FReplicatedPropertyData& InItem) const = 0;
+		virtual bool MatchesFilteredForProperty(const ConcertSharedSlate::FPropertyData& InItem) const = 0;
 	};
 }
 

@@ -2,8 +2,9 @@
 
 #pragma once
 
-#include "Replication/Editor/View/IPropertyTreeView.h"
+#include "Replication/Utils/ReplicationWidgetDelegates.h"
 #include "Replication/Editor/View/Column/SelectionViewerColumns.h"
+#include "Replication/Editor/View/IPropertyAssignmentView.h"
 
 #include "Misc/Optional.h"
 #include "Widgets/DeclarativeSyntaxSupport.h"
@@ -27,23 +28,26 @@ namespace UE::ConcertSharedSlate
 		{}
 			/** Gets the root objects selected in the object outliner. */
 			SLATE_EVENT(FGetSelectedRootObjects, GetSelectedRootObjects)
+
+			/** Gets the class for the object since the object may not be in the model. */
+			SLATE_EVENT(FGetObjectClass, GetObjectClass)
 		
 			/** Optional. If set, this determines the display text for objects. */
 			SLATE_ARGUMENT(TSharedPtr<IObjectNameModel>, NameModel)
 		SLATE_END_ARGS()
 
-		void Construct(const FArguments& InArgs, TSharedRef<IPropertyTreeView> InPropertyTreeView, TSharedRef<IReplicationStreamModel> InPropertiesModel);
+		void Construct(const FArguments& InArgs, TSharedRef<IPropertyAssignmentView> InPropertyAssignmentView, TSharedRef<IReplicationStreamModel> InPropertiesModel);
 		
 		void RefreshPropertyData();
 		/** Requests that the given column be resorted, if it currently affects the row sorting. */
-		void RequestResortForColumn(const FName& ColumnId) const { ReplicatedProperties->RequestResortForColumn(ColumnId); }
+		void RequestResortForColumn(const FName& ColumnId) const { PropertyAssignmentView->RequestResortForColumn(ColumnId); }
 		
-		TArray<FSoftObjectPath> GetObjectsSelectedForPropertyEditing() const;
+		TSet<FSoftObjectPath> GetObjectsSelectedForPropertyEditing() const;
 
 	private:
 		
-		/** Tree view for replicated properties. Content depends on the current object selected. */
-		TSharedPtr<IPropertyTreeView> ReplicatedProperties;
+		/** In the lower half of the editor, this view presents the properties associated with the object that is currently selected in the upper part of the view. */
+		TSharedPtr<IPropertyAssignmentView> PropertyAssignmentView;
 		
 		/** The model this view is visualizing. */
 		TSharedPtr<IReplicationStreamModel> PropertiesModel;
@@ -62,16 +66,17 @@ namespace UE::ConcertSharedSlate
 		
 		/** Gets the root objects selected in the object outliner. */
 		FGetSelectedRootObjects GetSelectedRootObjectsDelegate;
-
-		/** Used to determine whether to rebuild the entire property data. */
-		TArray<FSoftObjectPath> PreviousSelectedObjects;
+		/** Gets the class for the object since the object may not be in the model. */
+		FGetObjectClass GetObjectClassDelegate;
 
 		TSharedRef<SWidget> CreatePropertiesView(const FArguments& InArgs);
 		
 		/** Given the selected objects, determines whether they all have the same class and returns it if so. */
-		TOptional<FSoftClassPath> GetClassForPropertiesFromSelection(const TArray<FSoftObjectPath>& Objects) const;
+		TOptional<FSoftClassPath> GetClassForPropertiesFromSelection(const TSet<FSoftObjectPath>& Objects) const;
 		/** Sets how to display this widget */
 		void SetPropertyContent(EReplicatedPropertyContent Content) const;
+
+		FSoftClassPath GetObjectClass(const FSoftObjectPath& ObjectPath) const { return GetObjectClassDelegate.Execute(ObjectPath); };
 	};
 }
 

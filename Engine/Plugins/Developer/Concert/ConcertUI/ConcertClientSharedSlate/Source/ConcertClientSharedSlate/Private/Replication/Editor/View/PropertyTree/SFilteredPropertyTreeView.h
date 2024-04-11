@@ -11,7 +11,7 @@
 
 namespace UE::ConcertSharedSlate
 {
-	class FReplicatedPropertyData;
+	class FPropertyData;
 	enum class EFilterResult : uint8;
 }
 
@@ -27,7 +27,7 @@ namespace UE::ConcertClientSharedSlate
 	{
 	public:
 		
-		using FFilterRef = TSharedRef<FFilterBase<const ConcertSharedSlate::FReplicatedPropertyData&>>;
+		using FFilterRef = TSharedRef<FFilterBase<const ConcertSharedSlate::FPropertyData&>>;
 		
 		SLATE_BEGIN_ARGS(SFilteredPropertyTreeView)
 		{}
@@ -62,8 +62,8 @@ namespace UE::ConcertClientSharedSlate
 		FBuildFilterBarResult BuildFilterBar();
 
 		/** Runs all filters through this item */
-		ConcertSharedSlate::EFilterResult PassesFilters(const ConcertSharedSlate::FReplicatedPropertyData& ReplicatedPropertyData) const;
-		bool PassesAnyFilters(const ConcertSharedSlate::FReplicatedPropertyData& ReplicatedPropertyData) const;
+		ConcertSharedSlate::EFilterResult PassesFilters(const ConcertSharedSlate::FPropertyData& ReplicatedPropertyData) const;
+		bool PassesAnyFilters(const ConcertSharedSlate::FPropertyData& ReplicatedPropertyData) const;
 	};
 }
 

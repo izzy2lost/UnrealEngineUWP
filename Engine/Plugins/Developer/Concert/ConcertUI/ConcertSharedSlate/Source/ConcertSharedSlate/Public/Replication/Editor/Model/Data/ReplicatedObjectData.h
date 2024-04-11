@@ -6,7 +6,7 @@
 
 namespace UE::ConcertSharedSlate
 {
-	/** Instanced for each object row in SObjectToPropertyView.*/
+	/** Instanced for each object row in stream viewer / editor UI.*/
 	class FReplicatedObjectData
 	{
 	public:

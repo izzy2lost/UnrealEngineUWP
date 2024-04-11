@@ -5,12 +5,12 @@
 #include "Filters/FilterBase.h"
 #include "Internationalization/Text.h"
 
-namespace UE::ConcertSharedSlate { class FReplicatedPropertyData; }
+namespace UE::ConcertSharedSlate { class FPropertyData; }
 
 namespace UE::ConcertClientSharedSlate
 {
 	/** Base UI filter for filtering properties. Gets rid of all the extra functionality in FFilterBase we do not need. */
-	class FPropertyFrontendFilter : public FFilterBase<const ConcertSharedSlate::FReplicatedPropertyData&>
+	class FPropertyFrontendFilter : public FFilterBase<const ConcertSharedSlate::FPropertyData&>
 	{
 	public:
 
@@ -39,7 +39,7 @@ namespace UE::ConcertClientSharedSlate
 		FText Tooltip;
 	};
 
-	/** Inlines a IFilter<const FReplicatedPropertyData&> at compile time to avoid an additional TSharedPtr<IFilter<const FReplicatedPropertyData&>>. */
+	/** Inlines a IFilter<const FPropertyData&> at compile time to avoid an additional TSharedPtr<IFilter<const FPropertyData&>>. */
 	template<typename TFilterType>
 	class TPropertyFrontendFilter : public FPropertyFrontendFilter
 	{
@@ -67,7 +67,7 @@ namespace UE::ConcertClientSharedSlate
 			});
 		}
 		
-		virtual bool PassesFilter(const ConcertSharedSlate::FReplicatedPropertyData& InItem) const override
+		virtual bool PassesFilter(const ConcertSharedSlate::FPropertyData& InItem) const override
 		{
 			return FilterImplementation.PassesFilter(InItem);
 		}

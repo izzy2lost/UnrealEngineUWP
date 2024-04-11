@@ -1,9 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Replication/Editor/View/DisplayUtils.h"
+#include "Replication/Editor/Utils/DisplayUtils.h"
 
 #include "ConcertLogGlobal.h"
-#include "Replication/ObjectUtils.h"
+#include "Replication/Utils/ObjectUtils.h"
 #include "Replication/Editor/Model/IReplicationStreamModel.h"
 #include "Replication/Editor/Model/Object/IObjectNameModel.h"
 
@@ -58,9 +58,8 @@ namespace UE::ConcertSharedSlate::DisplayUtils
 		return Object.GetName();
 	}
 
-	FText GetObjectTypeText(const IReplicationStreamModel& Model, const FSoftObjectPath& Object)
+	FText GetObjectTypeText(const FSoftClassPath& ClassPath)
 	{
-		const FSoftClassPath ClassPath = Model.GetObjectClass(Object);
 #if WITH_EDITOR
 		if (ClassPath.IsValid())
 		{
@@ -96,9 +95,9 @@ namespace UE::ConcertSharedSlate::DisplayUtils
 
 	}
 
-	FSlateIcon GetObjectIcon(const IReplicationStreamModel& Model, const FSoftObjectPath& Object)
+	FSlateIcon GetObjectIcon(const FSoftClassPath& ClassPath)
 	{
-		if (const FSoftClassPath ClassPath = Model.GetObjectClass(Object); ClassPath.IsValid())
+		if (ClassPath.IsValid())
 		{
 			UClass* Class = ClassPath.ResolveClass();
 			return Class

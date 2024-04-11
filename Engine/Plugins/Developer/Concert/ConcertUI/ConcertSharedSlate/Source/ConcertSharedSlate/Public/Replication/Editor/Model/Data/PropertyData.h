@@ -6,12 +6,12 @@
 
 namespace UE::ConcertSharedSlate
 {
-	/** Instanced for each property row in SObjectToPropertyView.*/
-	class FReplicatedPropertyData
+	/** Instanced for each property row in IPropertyTreeView.*/
+	class FPropertyData
 	{
 	public:
 		
-		FReplicatedPropertyData(FSoftClassPath OwningClass, FConcertPropertyChain Object)
+		FPropertyData(FSoftClassPath OwningClass, FConcertPropertyChain Object)
 			: OwningClass(MoveTemp(OwningClass))
 			, Property(MoveTemp(Object))
 		{}

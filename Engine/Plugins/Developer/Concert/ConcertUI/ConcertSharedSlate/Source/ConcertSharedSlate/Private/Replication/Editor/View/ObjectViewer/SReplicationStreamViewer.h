@@ -4,7 +4,7 @@
 
 #include "Replication/Editor/View/IReplicationStreamViewer.h"
 
-#include "Replication/Editor/Model/ReplicatedObjectData.h"
+#include "Replication/Editor/Model/Data/ReplicatedObjectData.h"
 #include "Replication/Editor/View/Tree/SReplicationTreeView.h"
 #include "Replication/Editor/View/Column/IObjectTreeColumn.h"
 #include "Replication/Editor/View/Column/SelectionViewerColumns.h"
@@ -24,12 +24,13 @@ struct FSoftObjectPath;
 namespace UE::ConcertSharedSlate
 {
 	class SReplicatedPropertyView;
-	class FReplicatedPropertyData;
+	class FPropertyData;
 	class FReplicatedObjectData;
 	class IEditableReplicationStreamModel;
-	class IObjectNameModel;
-	class IReplicationStreamModel;
 	class IObjectHierarchyModel;
+	class IObjectNameModel;
+	class IPropertyAssignmentView;
+	class IReplicationStreamModel;
 	class SPropertyTreeView;
 	
 	enum class EChildRelationship : uint8;
@@ -50,8 +51,8 @@ namespace UE::ConcertSharedSlate
 
 		SLATE_BEGIN_ARGS(SReplicationStreamViewer)
 		{}
-			/** Displays the properties in a tree view */
-			SLATE_ARGUMENT(TSharedPtr<IPropertyTreeView>, PropertyTreeView)
+			/** In the lower half of the editor, this view presents the properties associated with the object that is currently selected in the upper part of the view. */
+			SLATE_ARGUMENT(TSharedPtr<IPropertyAssignmentView>, PropertyAssignmentView)
 		
 			/** Additional columns to add to the object view */
 			SLATE_ARGUMENT(TArray<FObjectColumnEntry>, ObjectColumns)
@@ -87,7 +88,7 @@ namespace UE::ConcertSharedSlate
 		virtual void Refresh() override;
 		virtual void RequestObjectColumnResort(const FName& ColumnId) override;
 		virtual void RequestPropertyColumnResort(const FName& ColumnId) override;
-		virtual TArray<FSoftObjectPath> GetObjectsBeingPropertyEdited() const override;
+		virtual TSet<FSoftObjectPath> GetObjectsBeingPropertyEdited() const override;
 		//~ End IReplicationStreamViewer Interface
 
 		void RequestObjectDataRefresh() { bHasRequestedObjectRefresh = true; }
@@ -145,8 +146,13 @@ namespace UE::ConcertSharedSlate
 		TSharedRef<SWidget> CreateContentWidget(const FArguments& InArgs);
 		TSharedRef<SWidget> CreateOutlinerSection(const FArguments& InArgs);
 		TSharedRef<SWidget> CreatePropertiesSection(const FArguments& InArgs);
-		
+
+		/** Regenerates object row data in the top view */
 		void RefreshObjectData();
+		/** Lists all objects that need an object in the top-view. */
+		void IterateDisplayableObjects(TFunctionRef<void(const FSoftObjectPath& Object)> Delegate) const;
+		
+		/** Regenerates property row data in the bottom videw */
 		void RefreshPropertyData();
 		
 		/** Sets RootObjectRowData to all non-root nodes from ObjectRowData. */
@@ -167,5 +173,7 @@ namespace UE::ConcertSharedSlate
 			RequestPropertyDataRefresh();
 		}
 		bool ShouldDisplayObject(const FSoftObjectPath& Object, EChildRelationship Relationship) const;
+		
+		FSoftClassPath GetObjectClass(const FSoftObjectPath& ObjectPath) const;
 	};
 }

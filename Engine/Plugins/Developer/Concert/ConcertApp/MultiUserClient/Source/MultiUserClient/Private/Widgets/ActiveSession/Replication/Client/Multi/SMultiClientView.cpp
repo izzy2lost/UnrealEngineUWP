@@ -78,6 +78,7 @@ namespace UE::MultiUserClient
 			const TSharedRef<IEditableReplicationStreamModel>& LocalStream = InClientManager.GetLocalClient().GetClientEditModel();
 			return StreamModel->GetEditableStreams().Contains(LocalStream) ? LocalStream.ToSharedPtr() : nullptr;
 		});
+		const TSharedRef<ConcertClientSharedSlate::FSelectPropertyFromUClassModel> PropertySourceModel = MakeShared<ConcertClientSharedSlate::FSelectPropertyFromUClassModel>();
 		
 		ConcertClientSharedSlate::FFilterablePropertyTreeViewParams TreeViewParams
 		{
@@ -89,20 +90,21 @@ namespace UE::MultiUserClient
 			}
 		};
 		TSharedRef<IPropertyTreeView> PropertyTreeView = CreateFilterablePropertyTreeView(MoveTemp(TreeViewParams));
+		TSharedRef<IPropertyAssignmentView> PropertyAssignmentView = CreatePerObjectAssignmentView({ .PropertyTreeView = PropertyTreeView, .PropertySource = PropertySourceModel });
 		
 		FCreateMultiStreamEditorParams Params
 		{
 			.MultiStreamModel = StreamModel.ToSharedRef(),
 			.ConsolidatedObjectModel = ConcertClientSharedSlate::CreateTransactionalStreamModel(),
 			.ObjectSource = MakeShared<ConcertClientSharedSlate::FActorSelectionSourceModel>(),
-			.PropertySource = MakeShared<ConcertClientSharedSlate::FSelectPropertyFromUClassModel>(),
+			.PropertySource = PropertySourceModel,
 			.GetAutoAssignToStreamDelegate = MoveTemp(GetAutoAssignTargetDelegate)
 		};
 		
 		ObjectHierarchy = ConcertClientSharedSlate::CreateObjectHierarchyForComponentHierarchy();
 		FCreateViewerParams ViewerParams
 		{
-			.PropertyTreeView = MoveTemp(PropertyTreeView),
+			.PropertyAssignmentView = MoveTemp(PropertyAssignmentView),
 			.ObjectHierarchy = ObjectHierarchy, // This makes actors have children in the top view
 			.NameModel = ConcertClientSharedSlate::CreateEditorObjectNameModel(), // This makes actors use their labels, and components use the names given in the BP editor
 			.OnExtendObjectsContextMenu = FExtendObjectMenu::CreateSP(this, &SMultiClientView::ExtendObjectContextMenu),
