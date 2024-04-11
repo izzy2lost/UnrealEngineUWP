@@ -2,6 +2,7 @@
 
 #include "Elements/Interfaces/TypedElementDataStorageUiInterface.h"
 
+#include "Elements/Columns/TypedElementLabelColumns.h"
 #include "Elements/Columns/TypedElementMiscColumns.h"
 #include "Elements/Framework/TypedElementColumnUtils.h"
 #include "Elements/Columns/TypedElementSlateWidgetColumns.h"
@@ -93,6 +94,7 @@ TSharedPtr<SWidget> FTypedElementWidgetConstructor::Construct(
 		{
 			if (FinalizeWidget(DataStorage, DataStorageUi, Row, Widget))
 			{
+				SetupDebugColumns(Row, DataStorage, DataStorageUi, Widget);
 				return Widget;
 			}
 		}
@@ -110,6 +112,12 @@ bool FTypedElementWidgetConstructor::SetColumns(ITypedElementDataStorageInterfac
 	return true;
 }
 
+FString FTypedElementWidgetConstructor::GetWidgetLabel(const TSharedPtr<SWidget>& Widget)
+{
+	// The default widget label is simply the type of the widget
+	return Widget->GetType().ToString();
+}
+
 bool FTypedElementWidgetConstructor::FinalizeWidget(
 	ITypedElementDataStorageInterface* DataStorage,
 	ITypedElementDataStorageUiInterface* DataStorageUi,
@@ -117,4 +125,26 @@ bool FTypedElementWidgetConstructor::FinalizeWidget(
 	const TSharedPtr<SWidget>& Widget)
 {
 	return true;
+}
+
+void FTypedElementWidgetConstructor::SetupDebugColumns(TypedElementRowHandle Row, ITypedElementDataStorageInterface* DataStorage, ITypedElementDataStorageUiInterface* DataStorageUi, const TSharedPtr<SWidget>& Widget)
+{
+	bool bAddLabelColumn = true;
+
+	const FString WidgetLabel(GetWidgetLabel(Widget));
+
+	// Only add the label column for widgets that are not created for other widgets. This is to prevent recursively displaying widgets for widgets
+	// in the TEDS-Debugger - we only want top level widgets to be displayed
+	if (const FTypedElementRowReferenceColumn* RowReference = DataStorage->GetColumn<FTypedElementRowReferenceColumn>(Row))
+	{
+		if (DataStorage->HasColumns<FTypedElementSlateWidgetReferenceColumn>(RowReference->Row))
+		{
+			bAddLabelColumn = false;
+		}
+	}
+
+	if(bAddLabelColumn)
+	{
+		DataStorage->AddColumn(Row, FTypedElementLabelColumn{.Label = WidgetLabel} );
+	}
 }

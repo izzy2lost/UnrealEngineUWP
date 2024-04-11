@@ -216,6 +216,7 @@ TSharedPtr<SWidget> FTypedElementLabelWidgetConstructor::Construct(
 		{
 			if (FinalizeWidget(DataStorage, DataStorageUi, Row, Result))
 			{
+				SetupDebugColumns(Row, DataStorage, DataStorageUi, Result);
 				return Result;
 			}
 		}
@@ -243,5 +244,4 @@ bool FTypedElementLabelWidgetConstructor::FinalizeWidget(
 		Widget, MatchedColumnTypes.Num() == 2);
 	return true;
 }
-
 #undef LOCTEXT_NAMESPACE

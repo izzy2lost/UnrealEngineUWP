@@ -22,6 +22,10 @@
 		{
 			"Name": "TedsPropertyEditor",
 			"Type": "Editor"
+		},
+		{
+			"Name": "TedsDebugger",
+			"Type": "Editor"
 		}
 	],
 	"Plugins": [

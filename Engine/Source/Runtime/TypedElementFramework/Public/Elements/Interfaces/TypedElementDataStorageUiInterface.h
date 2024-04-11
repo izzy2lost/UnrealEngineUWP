@@ -77,6 +77,10 @@ protected:
 	TYPEDELEMENTFRAMEWORK_API virtual TSharedPtr<SWidget> CreateWidget(const TypedElementDataStorage::FMetaDataView& Arguments);
 	/** Set any values in columns if needed. The columns provided through GetAdditionalColumnsList() will have already been created. */
 	TYPEDELEMENTFRAMEWORK_API virtual bool SetColumns(ITypedElementDataStorageInterface* DataStorage, TypedElementRowHandle Row);
+	
+	/** Get a user facing label for the widget used in table views. */
+	TYPEDELEMENTFRAMEWORK_API virtual FString GetWidgetLabel(const TSharedPtr<SWidget>& Widget);
+
 	/** 
 	 * Last opportunity to configure anything in the widget or the row. This step can be needed to initialize widgets with data stored
 	 * in columns.
@@ -86,6 +90,17 @@ protected:
 		ITypedElementDataStorageUiInterface* DataStorageUi,
 		TypedElementRowHandle Row,
 		const TSharedPtr<SWidget>& Widget);
+	
+	/** Setup default columns on the widget row
+	 *  TEDS UI TODO - This should be moved to a processor or maybe core TEDS UI
+	 */
+	TYPEDELEMENTFRAMEWORK_API void SetupDebugColumns(
+		TypedElementRowHandle Row,
+		ITypedElementDataStorageInterface* DataStorage,
+		ITypedElementDataStorageUiInterface* DataStorageUi,
+		const TSharedPtr<SWidget>& Widget);
+
+protected:
 
 	TArray<TWeakObjectPtr<const UScriptStruct>> MatchedColumnTypes;
 	const TypedElementDataStorage::FQueryConditions* QueryConditions = nullptr;
