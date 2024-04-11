@@ -56,11 +56,6 @@ FStateTreeEditorStyle::FStateTreeEditorStyle()
 			.SetColorAndOpacity(FLinearColor(230.0f / 255.0f, 230.0f / 255.0f, 230.0f / 255.0f, 0.5f));
 		Set("StateTree.Icon", StateIcon);
 
-		const FTextBlockStyle StateDetailsIcon = FTextBlockStyle(NormalText)
-			.SetFont(FAppStyle::Get().GetFontStyle("FontAwesome.10"))
-		    .SetColorAndOpacity(FLinearColor(230.0f / 255.0f, 230.0f / 255.0f, 230.0f / 255.0f, 0.5f));
-		Set("StateTree.DetailsIcon", StateDetailsIcon);
-
 		const FTextBlockStyle StateTitle = FTextBlockStyle(NormalText)
 			.SetFont(DEFAULT_FONT("Bold", 12))
 			.SetColorAndOpacity(FLinearColor(230.0f / 255.0f, 230.0f / 255.0f, 230.0f / 255.0f, 0.9f));
@@ -128,9 +123,31 @@ FStateTreeEditorStyle::FStateTreeEditorStyle()
 		Set("Details.Bold", FTextBlockStyle(NormalText)
 			.SetFont(FAppStyle::GetFontStyle(TEXT("PropertyWindow.BoldFont"))));
 
+		Set("Details.Italic", FTextBlockStyle(NormalText)
+			.SetFont(FAppStyle::GetFontStyle(TEXT("PropertyWindow.ItalicFont"))));
+
 		Set("Details.Subdued", FTextBlockStyle(NormalText)
 			.SetColorAndOpacity(FSlateColor::UseSubduedForeground())
 			.SetFont(FAppStyle::GetFontStyle(TEXT("PropertyWindow.NormalFont"))));
+	}
+
+	// Normal rich text
+	{
+		Set("Normal.Normal", FTextBlockStyle(NormalText)
+			.SetColorAndOpacity(FSlateColor::UseForeground())
+			.SetFont(DEFAULT_FONT("Regular", 10)));
+
+		Set("Normal.Bold", FTextBlockStyle(NormalText)
+			.SetColorAndOpacity(FSlateColor::UseForeground())
+			.SetFont(DEFAULT_FONT("Bold", 10)));
+
+		Set("Normal.Italic", FTextBlockStyle(NormalText)
+			.SetColorAndOpacity(FSlateColor::UseForeground())
+			.SetFont(DEFAULT_FONT("Italic", 10)));
+
+		Set("Normal.Subdued", FTextBlockStyle(NormalText)
+			.SetColorAndOpacity(FSlateColor::UseSubduedForeground())
+			.SetFont(DEFAULT_FONT("Regular", 10)));
 	}
 
 	// Debugger
@@ -247,15 +264,13 @@ FStateTreeEditorStyle::FStateTreeEditorStyle()
 
 		Set("StateTreeEditor.Debugger.Task.Enter", new CORE_IMAGE_BRUSH_SVG("Starship/Common/arrow-right", CoreStyleConstants::Icon16x16, FStyleColors::Foreground));
 		Set("StateTreeEditor.Debugger.Task.Exit", new CORE_IMAGE_BRUSH_SVG("Starship/Common/arrow-left", CoreStyleConstants::Icon16x16, FStyleColors::Foreground));
-		Set("StateTreeEditor.Debugger.Task.Failed", new CORE_IMAGE_BRUSH_SVG("Starship/Common/close", CoreStyleConstants::Icon16x16, FStyleColors::AccentRed));
+		Set("StateTreeEditor.Debugger.Task.Failed", new CORE_IMAGE_BRUSH_SVG("Starship/Common/close-small", CoreStyleConstants::Icon16x16, FStyleColors::AccentRed));
 		Set("StateTreeEditor.Debugger.Task.Succeeded", new CORE_IMAGE_BRUSH_SVG("Starship/Common/check", CoreStyleConstants::Icon16x16, FStyleColors::AccentGreen));
-		Set("StateTreeEditor.Debugger.Task.Stopped", new CORE_IMAGE_BRUSH_SVG("Starship/Common/close", CoreStyleConstants::Icon16x16, FStyleColors::AccentRed));
+		Set("StateTreeEditor.Debugger.Task.Stopped", new CORE_IMAGE_BRUSH_SVG("Starship/Common/close-small", CoreStyleConstants::Icon16x16, FStyleColors::AccentRed));
 
-		Set("StateTreeEditor.Debugger.Condition", new CORE_IMAGE_BRUSH_SVG("Starship/Common/help", CoreStyleConstants::Icon16x16, FStyleColors::Foreground));
 		Set("StateTreeEditor.Debugger.Condition.Passed", new CORE_IMAGE_BRUSH_SVG("Starship/Common/check", CoreStyleConstants::Icon16x16, FStyleColors::AccentGreen));
-		Set("StateTreeEditor.Debugger.Condition.Failed", new CORE_IMAGE_BRUSH_SVG("Starship/Common/close", CoreStyleConstants::Icon16x16, FStyleColors::AccentRed));
+		Set("StateTreeEditor.Debugger.Condition.Failed", new CORE_IMAGE_BRUSH_SVG("Starship/Common/close-small", CoreStyleConstants::Icon16x16, FStyleColors::AccentRed));
 		Set("StateTreeEditor.Debugger.Condition.OnEvaluating", new CORE_IMAGE_BRUSH_SVG("Starship/Common/Update", CoreStyleConstants::Icon16x16, FStyleColors::AccentYellow));
-		Set("StateTreeEditor.Debugger.Condition.OnTransition", new CORE_IMAGE_BRUSH_SVG("Starship/Common/help", CoreStyleConstants::Icon16x16, FStyleColors::AccentBlue));
 
 		Set("StateTreeEditor.Debugger.Unset", new CORE_IMAGE_BRUSH_SVG("Starship/Common/help", CoreStyleConstants::Icon16x16, FStyleColors::AccentBlack));
 	}
@@ -285,9 +300,11 @@ FStateTreeEditorStyle::FStateTreeEditorStyle()
 		Set("StateTreeEditor.Debugger.ResumeDebuggerAnalysis", new IMAGE_BRUSH_SVG("Starship/Common/Timeline", CoreStyleConstants::Icon16x16));
 
 		Set("StateTreeEditor.Transition.None", new CORE_IMAGE_BRUSH_SVG("Starship/Common/x-circle", CoreStyleConstants::Icon16x16, FSlateColor::UseSubduedForeground()));
-		Set("StateTreeEditor.Transition.Next", new CORE_IMAGE_BRUSH_SVG("Starship/Common/arrow-down", CoreStyleConstants::Icon16x16, FSlateColor::UseSubduedForeground()));
 		Set("StateTreeEditor.Transition.Succeeded", new CORE_IMAGE_BRUSH_SVG("Starship/Common/check", CoreStyleConstants::Icon16x16, FStyleColors::AccentGreen));
-		Set("StateTreeEditor.Transition.Failed", new CORE_IMAGE_BRUSH_SVG("Starship/Common/close", CoreStyleConstants::Icon16x16, FStyleColors::AccentRed));
+		Set("StateTreeEditor.Transition.Failed", new CORE_IMAGE_BRUSH_SVG("Starship/Common/close-small", CoreStyleConstants::Icon16x16, FStyleColors::AccentRed));
+
+		Set("StateTreeEditor.Transition.Succeeded", new CORE_IMAGE_BRUSH_SVG("Starship/Common/check", CoreStyleConstants::Icon16x16, FStyleColors::AccentGreen));
+		Set("StateTreeEditor.Transition.Failed", new CORE_IMAGE_BRUSH_SVG("Starship/Common/close-small", CoreStyleConstants::Icon16x16, FStyleColors::AccentRed));
 	}
 
 	{
@@ -305,8 +322,17 @@ FStateTreeEditorStyle::FStateTreeEditorStyle()
 
 		Set("StateTreeEditor.Conditions", new IMAGE_BRUSH_SVG("Icons/Conditions", CoreStyleConstants::Icon16x16));
 
+		Set("StateTreeEditor.Tasks", new IMAGE_BRUSH_SVG("Icons/Tasks", CoreStyleConstants::Icon16x16));
+
 		Set("StateTreeEditor.StateSubtree", new IMAGE_BRUSH_SVG("Icons/State_Subtree", CoreStyleConstants::Icon16x16));
 		Set("StateTreeEditor.StateLinked", new IMAGE_BRUSH_SVG("Icons/State_Linked", CoreStyleConstants::Icon16x16));
+
+		Set("StateTreeEditor.Transition.Goto", new IMAGE_BRUSH_SVG("Icons/Transition_Goto", CoreStyleConstants::Icon16x16, FStyleColors::Foreground));
+		Set("StateTreeEditor.Transition.Next", new IMAGE_BRUSH_SVG("Icons/Transition_Next", CoreStyleConstants::Icon16x16, FStyleColors::Foreground));
+		Set("StateTreeEditor.Transition.Parent", new IMAGE_BRUSH_SVG("Icons/Transition_Parent", CoreStyleConstants::Icon16x16, FStyleColors::Foreground));
+
+		Set("StateTreeEditor.Transition.Condition", new IMAGE_BRUSH_SVG("Icons/Conditions", CoreStyleConstants::Icon16x16, FStyleColors::AccentBlue));
+		Set("StateTreeEditor.Debugger.Condition.OnTransition", new IMAGE_BRUSH_SVG("Icons/Conditions", CoreStyleConstants::Icon16x16, FStyleColors::AccentBlue));
 	}
 }
 

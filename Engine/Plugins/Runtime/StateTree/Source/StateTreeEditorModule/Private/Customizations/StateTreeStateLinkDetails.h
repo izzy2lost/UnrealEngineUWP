@@ -71,10 +71,8 @@ private:
 	FText GetCurrentStateDesc() const;
 	const FSlateBrush* GetCurrentStateIcon() const;
 	FSlateColor GetCurrentStateColor() const;
-	FSlateFontInfo GetCurrentStateFont() const;
 	bool IsValidLink() const;
 	TOptional<EStateTreeTransitionType> GetTransitionType() const;
-	static FSlateFontInfo GetItemFont(TSharedPtr<FStateTreeStateItem> Item);
 	TSharedRef<ITableRow> GenerateStateItemRow(TSharedPtr<FStateTreeStateItem> Item, const TSharedRef<STableViewBase>& OwnerTable);
 	void GetStateItemChildren(TSharedPtr<FStateTreeStateItem> Item, TArray<TSharedPtr<FStateTreeStateItem>>& OutItems) const;
 	void OnStateItemSelected(TSharedPtr<FStateTreeStateItem> SelectedItem, ESelectInfo::Type);

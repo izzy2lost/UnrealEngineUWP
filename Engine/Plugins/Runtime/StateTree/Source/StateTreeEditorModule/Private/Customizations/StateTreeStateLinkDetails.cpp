@@ -12,7 +12,9 @@
 #include "ScopedTransaction.h"
 #include "StateTreeEditorStyle.h"
 #include "StateTreePropertyHelpers.h"
+#include "TextStyleDecorator.h"
 #include "Widgets/Input/SSearchBox.h"
+#include "Widgets/Text/SRichTextBlock.h"
 
 #define LOCTEXT_NAMESPACE "StateTreeEditor"
 
@@ -88,9 +90,14 @@ void FStateTreeStateLinkDetails::CustomizeHeader(TSharedRef<class IPropertyHandl
 				.AutoWidth()
 				.VAlign(VAlign_Center)
 				[
-					SNew(STextBlock)
+					SNew(SRichTextBlock)
 					.Text(this, &FStateTreeStateLinkDetails::GetCurrentStateDesc)
-					.Font(this, &FStateTreeStateLinkDetails::GetCurrentStateFont)
+					.TextStyle(&FStateTreeEditorStyle::Get().GetWidgetStyle<FTextBlockStyle>("Details.Normal"))
+					.OverflowPolicy(ETextOverflowPolicy::Ellipsis)
+					+SRichTextBlock::Decorator(FTextStyleDecorator::Create(TEXT(""), FStateTreeEditorStyle::Get().GetWidgetStyle<FTextBlockStyle>("Details.Normal")))
+					+SRichTextBlock::Decorator(FTextStyleDecorator::Create(TEXT("b"), FStateTreeEditorStyle::Get().GetWidgetStyle<FTextBlockStyle>("Details.Bold")))
+					+SRichTextBlock::Decorator(FTextStyleDecorator::Create(TEXT("i"), FStateTreeEditorStyle::Get().GetWidgetStyle<FTextBlockStyle>("Details.Italic")))
+					+SRichTextBlock::Decorator(FTextStyleDecorator::Create(TEXT("s"), FStateTreeEditorStyle::Get().GetWidgetStyle<FTextBlockStyle>("Details.Subdued")))
 				]
 			]
 		];
@@ -191,31 +198,31 @@ void FStateTreeStateLinkDetails::CacheStates()
 	if (!bDirectStatesOnly)
 	{
 		RootItem->Children.Add(MakeShared<FStateTreeStateItem>(
-			LOCTEXT("TransitionNone", "None"),
+			LOCTEXT("TransitionNone", "<i>None</>"),
 			LOCTEXT("TransitionNoneTooltip", "No transition."),
 			FStateTreeEditorStyle::Get().GetBrush("StateTreeEditor.Transition.None"),
 			EStateTreeTransitionType::None));
 
 		RootItem->Children.Add(MakeShared<FStateTreeStateItem>(
-			LOCTEXT("TransitionNextState", "Next State"),
+			LOCTEXT("TransitionNextState", "<i>Next State</>"),
 			LOCTEXT("TransitionNextTooltip", "Goto next sibling State."),
 			FStateTreeEditorStyle::Get().GetBrush("StateTreeEditor.Transition.Next"),
 			EStateTreeTransitionType::NextState));
 
 		RootItem->Children.Add(MakeShared<FStateTreeStateItem>(
-			LOCTEXT("TransitionNextSelectableState", "Next Selectable State"),
+			LOCTEXT("TransitionNextSelectableState", "<i>Next Selectable State</>"),
 			LOCTEXT("TransitionNextSelectableTooltip", "Goto next sibling state, whose enter conditions pass."),
 			FStateTreeEditorStyle::Get().GetBrush("StateTreeEditor.Transition.Next"),
 			EStateTreeTransitionType::NextSelectableState));
 
 		RootItem->Children.Add(MakeShared<FStateTreeStateItem>(
-			LOCTEXT("TransitionTreeSucceeded", "Tree Succeeded"),
+			LOCTEXT("TransitionTreeSucceeded", "<i>Tree Succeeded</>"),
 			LOCTEXT("TransitionTreeSuccessTooltip", "Complete tree with success."),
 			FStateTreeEditorStyle::Get().GetBrush("StateTreeEditor.Transition.Succeeded"),
 			EStateTreeTransitionType::Succeeded));
 
 		RootItem->Children.Add(MakeShared<FStateTreeStateItem>(
-			LOCTEXT("TransitionTreeFailed", "Tree Failed"),
+			LOCTEXT("TransitionTreeFailed", "<i>Tree Failed</>"),
 			LOCTEXT("TransitionTreeFailedTooltip", "Complete tree with failure."),
 			FStateTreeEditorStyle::Get().GetBrush("StateTreeEditor.Transition.Failed"),
 			EStateTreeTransitionType::Failed));
@@ -301,24 +308,8 @@ TSharedRef<SWidget> FStateTreeStateLinkDetails::GenerateStatePicker()
 	return MenuWidget;
 }
 
-FSlateFontInfo FStateTreeStateLinkDetails::GetItemFont(TSharedPtr<FStateTreeStateItem> Item)
-{
-	FSlateFontInfo Font = FAppStyle::Get().GetFontStyle("PropertyWindow.NormalFont");
-	if (Item->TransitionType != EStateTreeTransitionType::GotoState)
-	{
-		Font = FAppStyle::Get().GetFontStyle("PropertyWindow.ItalicFont");
-	}
-	else if (Item->bIsSubTree)
-	{
-		Font = FAppStyle::Get().GetFontStyle("PropertyWindow.BoldFont");
-	}
-	return Font;	
-}
-
 TSharedRef<ITableRow> FStateTreeStateLinkDetails::GenerateStateItemRow(TSharedPtr<FStateTreeStateItem> Item, const TSharedRef<STableViewBase>& OwnerTable)
 {
-	const FSlateFontInfo Font = GetItemFont(Item);
-
 	TSharedRef<SHorizontalBox> Container = SNew(SHorizontalBox);
 
 	// Icon
@@ -341,11 +332,16 @@ TSharedRef<ITableRow> FStateTreeStateLinkDetails::GenerateStateItemRow(TSharedPt
 		.VAlign(VAlign_Center)
 		.AutoWidth()
 		[
-			SNew(STextBlock)
-			.Font(Font)
+			SNew(SRichTextBlock)
 			.Text(Item->Desc)
+			.TextStyle(&FStateTreeEditorStyle::Get().GetWidgetStyle<FTextBlockStyle>("Normal.Normal"))
+			.OverflowPolicy(ETextOverflowPolicy::Ellipsis)
 			.ToolTipText(Item->TooltipText)
 			.HighlightText_Lambda([this]() { return SearchBox.IsValid() ? SearchBox->GetText() : FText::GetEmpty(); })
+			+SRichTextBlock::Decorator(FTextStyleDecorator::Create(TEXT(""), FStateTreeEditorStyle::Get().GetWidgetStyle<FTextBlockStyle>("Normal.Normal")))
+			+SRichTextBlock::Decorator(FTextStyleDecorator::Create(TEXT("b"), FStateTreeEditorStyle::Get().GetWidgetStyle<FTextBlockStyle>("Normal.Bold")))
+			+SRichTextBlock::Decorator(FTextStyleDecorator::Create(TEXT("i"), FStateTreeEditorStyle::Get().GetWidgetStyle<FTextBlockStyle>("Normal.Italic")))
+			+SRichTextBlock::Decorator(FTextStyleDecorator::Create(TEXT("s"), FStateTreeEditorStyle::Get().GetWidgetStyle<FTextBlockStyle>("Normal.Subdued")))
 		];
 
 	// Link
@@ -649,16 +645,6 @@ FSlateColor FStateTreeStateLinkDetails::GetCurrentStateColor() const
 		return Path.Last()->Color;
 	}
 	return {};
-}
-
-FSlateFontInfo FStateTreeStateLinkDetails::GetCurrentStateFont() const
-{
-	TArray<TSharedPtr<FStateTreeStateItem>> Path;
-	if (GetCurrentStateItem(Path))
-	{
-		return GetItemFont(Path.Last());
-	}
-	return FAppStyle::Get().GetFontStyle("NormalText");
 }
 
 bool FStateTreeStateLinkDetails::IsValidLink() const

@@ -57,19 +57,19 @@ private:
 	EVisibility GetCompletedTransitionBreakpointVisibility() const;
 	FText GetCompletedTransitionsDesc() const;
 	FText GetCompletedTransitionWithBreakpointDesc() const;
-	FText GetCompletedTransitionsIcon() const;
+	const FSlateBrush* GetCompletedTransitionsIcon() const;
 
 	EVisibility GetSucceededTransitionVisibility() const;
 	EVisibility GetSucceededTransitionBreakpointVisibility() const;
 	FText GetSucceededTransitionDesc() const;
 	FText GetSucceededTransitionWithBreakpointDesc() const;
-	FText GetSucceededTransitionIcon() const;
+	const FSlateBrush* GetSucceededTransitionIcon() const;
 
 	EVisibility GetFailedTransitionVisibility() const;
 	EVisibility GetFailedTransitionBreakpointVisibility() const;
 	FText GetFailedTransitionDesc() const;
 	FText GetFailedTransitionWithBreakpointDesc() const;
-	FText GetFailedTransitionIcon() const;
+	const FSlateBrush* GetFailedTransitionIcon() const;
 
 	EVisibility GetConditionalTransitionsVisibility() const;
 	EVisibility GetConditionalTransitionsBreakpointVisibility() const;
@@ -98,13 +98,14 @@ private:
 
 	static FText GetLinkDescription(const FStateTreeStateLink& Link);
 	FText GetTransitionsDesc(const UStateTreeState& State, const EStateTreeTransitionTrigger Trigger, const FTransitionDescFilterOptions FilterOptions = {}) const;
-	FText GetTransitionsIcon(const UStateTreeState& State, const EStateTreeTransitionTrigger Trigger, const FTransitionDescFilterOptions FilterOptions = {}) const;
+	const FSlateBrush* GetTransitionsIcon(const UStateTreeState& State, const EStateTreeTransitionTrigger Trigger, const FTransitionDescFilterOptions FilterOptions = {}) const;
 	EVisibility GetTransitionsVisibility(const UStateTreeState& State, const EStateTreeTransitionTrigger Trigger) const;
 	EVisibility GetTransitionsBreakpointVisibility(const UStateTreeState& State, const EStateTreeTransitionTrigger Trigger) const;
 
 	bool HasParentTransitionForTrigger(const UStateTreeState& State, const EStateTreeTransitionTrigger Trigger) const;
 
 	bool IsRootState() const;
+	bool IsLeafState() const;
 	bool IsStateSelected() const;
 
 	void HandleNodeLabelTextCommitted(const FText& NewLabel, ETextCommit::Type CommitType) const;
