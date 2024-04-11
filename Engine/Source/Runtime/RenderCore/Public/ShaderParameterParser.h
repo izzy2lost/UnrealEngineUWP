@@ -49,6 +49,9 @@ public:
 			}
 		}
 
+		virtual ~FPlatformConfiguration()
+		{}
+
 		/** Generate shader code for accessing a bindless resource or sampler */
 		virtual FString GenerateBindlessAccess(EBindlessConversionType BindlessType, FStringView FullTypeString, FStringView ArrayNameOverride, FStringView IndexString) const
 		{

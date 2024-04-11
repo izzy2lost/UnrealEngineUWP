@@ -2356,6 +2356,9 @@ struct FVulkanShaderParameterParserPlatformConfiguration : public FShaderParamet
 {
 	FVulkanShaderParameterParserPlatformConfiguration(const FShaderCompilerInput& Input)
 		: FShaderParameterParser::FPlatformConfiguration()
+		, bIsRayTracingShader(Input.IsRayTracingShader())
+		, HitGroupSystemIndexBufferName(FShaderParameterParser::kBindlessSRVPrefix + FString(TEXT("HitGroupSystemIndexBuffer")))
+		, HitGroupSystemVertexBufferName(FShaderParameterParser::kBindlessSRVPrefix + FString(TEXT("HitGroupSystemVertexBuffer")))
 	{
 		EnumAddFlags(Flags, EShaderParameterParserConfigurationFlags::SupportsBindless | EShaderParameterParserConfigurationFlags::BindlessUsesArrays);
 
@@ -2369,11 +2372,28 @@ struct FVulkanShaderParameterParserPlatformConfiguration : public FShaderParamet
 
 	virtual FString GenerateBindlessAccess(EBindlessConversionType BindlessType, FStringView FullTypeString, FStringView ArrayNameOverride, FStringView IndexString) const final
 	{
+		if (bIsRayTracingShader && (BindlessType == EBindlessConversionType::SRV))
+		{
+			// Patch the HitGroupSystemIndexBuffer/HitGroupSystemVertexBuffer indices to use the ones contained in the shader record
+			if (IndexString == HitGroupSystemIndexBufferName)
+			{
+				IndexString = TEXTVIEW("VulkanHitGroupSystemParameters.BindlessHitGroupSystemIndexBuffer");
+			}
+			else if (IndexString == HitGroupSystemVertexBufferName)
+			{
+				IndexString = TEXTVIEW("VulkanHitGroupSystemParameters.BindlessHitGroupSystemVertexBuffer");
+			}
+		}
+
 		// Heap[Index]
 		return FString::Printf(TEXT("%.*s[%.*s]"),
 			ArrayNameOverride.Len(), ArrayNameOverride.GetData(),
 			IndexString.Len(), IndexString.GetData());
 	}
+
+	const bool bIsRayTracingShader;
+	const FString HitGroupSystemIndexBufferName;
+	const FString HitGroupSystemVertexBufferName;
 };
 
 void CompileVulkanShader(const FShaderCompilerInput& Input, const FShaderPreprocessOutput& InPreprocessOutput, FShaderCompilerOutput& Output, const class FString& WorkingDirectory)
