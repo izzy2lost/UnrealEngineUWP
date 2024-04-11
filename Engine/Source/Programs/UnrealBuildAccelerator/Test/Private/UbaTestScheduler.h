@@ -83,6 +83,8 @@ namespace uba
 				u32 queued, activeLocal, activeRemote, finished;
 				do { scheduler.GetStats(queued, activeLocal, activeRemote, finished); } while (finished != 1);
 
+				session.GetServer().DisconnectClients(); // Must make sure all is disconnected since scheduler goes out of scope
+
 				scheduler.Stop();
 				return true;
 			});

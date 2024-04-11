@@ -72,7 +72,8 @@ namespace uba
 			if (m_roots.size() == '~' - ' ') // This is not really true.. as long as value is under 256 we're good
 				return m_logger.Error(TC("Too many roots added (%llu)"), m_roots.size());
 
-			auto& root = m_roots.emplace_back(rp);
+			auto& root = m_roots.emplace_back();
+			root.path = rp;
 
 			ToLower(root.path.data());
 			if (root.path[root.path.size()-1] != PathSeparator)
