@@ -1509,6 +1509,10 @@ void UCommonButtonBase::NativeOnClicked()
 	{
 		BP_OnLockClicked();
 		OnLockClicked().Broadcast();
+		if (OnButtonBaseLockClicked.IsBound())
+		{
+			OnButtonBaseLockClicked.Broadcast(this);
+		}
 	}
 }
 
@@ -1527,6 +1531,10 @@ void UCommonButtonBase::NativeOnDoubleClicked()
 	{
 		BP_OnLockDoubleClicked();
 		OnLockDoubleClicked().Broadcast();
+		if (OnButtonBaseLockDoubleClicked.IsBound())
+		{
+			OnButtonBaseLockDoubleClicked.Broadcast(this);
+		}
 	}
 }
 

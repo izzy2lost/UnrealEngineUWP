@@ -210,6 +210,8 @@ void UCommonButtonGroupBase::OnWidgetAdded(UWidget* NewWidget)
 		Button->OnButtonBaseDoubleClicked.AddUniqueDynamic(this, &UCommonButtonGroupBase::OnHandleButtonBaseDoubleClicked);
 		Button->OnButtonBaseHovered.AddUniqueDynamic(this, &UCommonButtonGroupBase::OnButtonBaseHovered);
 		Button->OnButtonBaseUnhovered.AddUniqueDynamic(this, &UCommonButtonGroupBase::OnButtonBaseUnhovered);
+		Button->OnButtonBaseLockClicked.AddUniqueDynamic(this, &UCommonButtonGroupBase::OnHandleButtonBaseLockClicked);
+		Button->OnButtonBaseLockDoubleClicked.AddUniqueDynamic(this, &UCommonButtonGroupBase::OnHandleButtonBaseLockDoubleClicked);
 
 		Buttons.Emplace(Button);
 
@@ -232,6 +234,8 @@ void UCommonButtonGroupBase::OnWidgetRemoved( UWidget* OldWidget )
 		Button->OnButtonBaseDoubleClicked.RemoveDynamic(this, &UCommonButtonGroupBase::OnHandleButtonBaseDoubleClicked);
 		Button->OnButtonBaseHovered.RemoveDynamic(this, &UCommonButtonGroupBase::OnButtonBaseHovered);
 		Button->OnButtonBaseUnhovered.RemoveDynamic(this, &UCommonButtonGroupBase::OnButtonBaseUnhovered);
+		Button->OnButtonBaseLockClicked.RemoveDynamic(this, &UCommonButtonGroupBase::OnHandleButtonBaseLockClicked);
+		Button->OnButtonBaseLockDoubleClicked.RemoveDynamic(this, &UCommonButtonGroupBase::OnHandleButtonBaseLockDoubleClicked);
 
 		Buttons.RemoveAll( [Button]( TWeakObjectPtr<UCommonButtonBase> Entry ) { return Entry == Button || !Entry.IsValid(); } );
 
@@ -368,6 +372,26 @@ void UCommonButtonGroupBase::OnHandleButtonBaseDoubleClicked(UCommonButtonBase* 
 	{
 		NativeOnButtonBaseDoubleClicked.Broadcast(BaseButton, ClickedIdx);
 		OnButtonBaseDoubleClicked.Broadcast(BaseButton, ClickedIdx);
+	}
+}
+
+void UCommonButtonGroupBase::OnHandleButtonBaseLockClicked(UCommonButtonBase* BaseButton)
+{
+	const int32 ClickedIdx = FindButtonIndex(BaseButton);
+	if (ClickedIdx != INDEX_NONE)
+	{
+		NativeOnButtonBaseLockClicked.Broadcast(BaseButton, ClickedIdx);
+		OnButtonBaseLockClicked.Broadcast(BaseButton, ClickedIdx);
+	}
+}
+
+void UCommonButtonGroupBase::OnHandleButtonBaseLockDoubleClicked(UCommonButtonBase* BaseButton)
+{
+	const int32 ClickedIdx = FindButtonIndex(BaseButton);
+	if (ClickedIdx != INDEX_NONE)
+	{
+		NativeOnButtonBaseLockDoubleClicked.Broadcast(BaseButton, ClickedIdx);
+		OnButtonBaseLockDoubleClicked.Broadcast(BaseButton, ClickedIdx);
 	}
 }
 

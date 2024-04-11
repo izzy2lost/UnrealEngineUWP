@@ -863,6 +863,12 @@ protected:
 
 	UPROPERTY(BlueprintAssignable, Category = "Events", meta = (AllowPrivateAccess = true, DisplayName = "On Unhovered"))
 	FCommonButtonBaseClicked OnButtonBaseUnhovered;
+	
+	UPROPERTY(BlueprintAssignable, Category = "Events", meta = (AllowPrivateAccess = true, DisplayName = "On Lock Clicked"))
+	FCommonButtonBaseClicked OnButtonBaseLockClicked;
+
+	UPROPERTY(BlueprintAssignable, Category = "Events", meta = (AllowPrivateAccess = true, DisplayName = "On Lock Double Clicked"))
+	FCommonButtonBaseClicked OnButtonBaseLockDoubleClicked;
 
 	FUIActionBindingHandle TriggeringBindingHandle;
 	
