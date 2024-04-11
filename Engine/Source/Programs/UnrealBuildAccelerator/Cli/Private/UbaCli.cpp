@@ -1,5 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+#include "UbaCacheClient.h"
+#include "UbaCacheServer.h"
 #include "UbaClient.h"
 #include "UbaCoordinatorWrapper.h"
 #include "UbaFileAccessor.h"
@@ -12,6 +14,7 @@
 #include "UbaStorageClient.h"
 #include "UbaStorageProxy.h"
 #include "UbaStorageServer.h"
+#include "UbaStorageUtils.h"
 #include "UbaVersion.h"
 
 #include "UbaAWS.h"
@@ -75,6 +78,9 @@ namespace uba
 		logger.Info(TC("   -maxcpu=<number>        Max number of processes that can be started. Defaults to \"%u\" on this machine"), DefaultProcessorCount);
 		logger.Info(TC("   -visualizer             Spawn a visualizer that visualizes progress"));
 		logger.Info(TC("   -coordinator=<name>     Load a UbaCoordinator<name>.dll to instantiate a coordinator to get helpers"));
+		logger.Info(TC("   -cache=<host>[:<port>]  Connect to cache server. Will fetch from cache unless -populatecache is set"));
+		logger.Info(TC("   -populatecache          Populate cache server if connected to one"));
+		logger.Info(TC("   -writecachesummary      Write cache summary file about connected cache server"));
 		logger.Info(TC(""));
 		logger.Info(TC("  CoordinatorOptions (if coordinator set):"));
 		logger.Info(TC("   -uri=<address>          Uri to coordinator"));
@@ -142,6 +148,7 @@ namespace uba
 		u32 storageCapacityGb = DefaultCapacityGb;
 		StringBuffer<256> workDir;
 		StringBuffer<128> listenIp;
+		StringBuffer<128> cacheHost;
 		TString coordinatorName;
 		TString coordinatorUri;
 		TString coordinatorPool;
@@ -160,6 +167,10 @@ namespace uba
 		bool deleteCas = false;
 		bool enableStdOut = true;
 		bool printSummary = false;
+		bool populateCache = false;
+		bool writeCacheSummary = false;
+		TString cacheFilterString;
+
 		u32 loopCount = 1;
 
 		enum CommandType
@@ -331,6 +342,21 @@ namespace uba
 			{
 				printSummary = true;
 			}
+			else if (name.Equals(TC("-cache")))
+			{
+				if (value.IsEmpty())
+					return PrintHelp(TC("-cache needs a value"));
+				cacheHost.Append(value);
+			}
+			else if (name.Equals(TC("-populatecache")))
+			{
+				populateCache = true;
+			}
+			else if (name.Equals(TC("-writecachesummary")))
+			{
+				writeCacheSummary = true;
+				cacheFilterString = value.data;
+			}
 			else if (name.Equals(TC("-storeraw")))
 			{
 				storeCompressed = false;
@@ -402,7 +428,7 @@ namespace uba
 				return false;
 			bool success = true;
 			WorkManagerImpl workManager(DefaultProcessorCount);
-			storageServer.TraverseAllCasFiles([&](const CasKey& casKey)
+			storageServer.TraverseAllCasFiles([&](const CasKey& casKey, u64 size)
 				{
 					workManager.AddWork([&, casKey]()
 						{
@@ -461,8 +487,6 @@ namespace uba
 
 		if (getCas)
 		{
-			CasKey key;
-
 			FileAccessor fa(logger, application.c_str());
 			if (!fa.OpenMemoryRead())
 				return logger.Error(TC("Failed to open file %s"), application.c_str());
@@ -470,9 +494,7 @@ namespace uba
 			u8* data = fa.GetData();
 			bool is64Bit = true;
 
-			CasKeyHasher hasher;
-			hasher.Update(data, fileSize);
-			key = ToCasKey(hasher, false);
+			CasKey key = CalculateCasKey(data, fileSize, false, nullptr);
 
 			if (data[0] != 'M' || data[1] != 'Z')
 				is64Bit = false;
@@ -518,21 +540,21 @@ namespace uba
 		NetworkServerCreateInfo nsci(logWriter);
 		//nsci.workerCount = 4;
 		bool ctorSuccess = true;
-		NetworkServer* server = new NetworkServer(ctorSuccess, nsci);
-		auto destroyServer = MakeGuard([&]() { delete server; });
+		NetworkServer& networkServer = *new NetworkServer(ctorSuccess, nsci);
+		auto destroyServer = MakeGuard([&]() { delete &networkServer; });
 		if (!ctorSuccess)
 			return -1;
 
 		bool isRemote = commandType == CommandType_Remote || commandType == CommandType_Agent;
 		bool useScheduler = EndsWith(application.c_str(), application.size(), TC(".yaml"));
 
-		StorageServerCreateInfo storageInfo(*server, g_rootDir.data, logWriter);
+		StorageServerCreateInfo storageInfo(networkServer, g_rootDir.data, logWriter);
 		storageInfo.casCapacityBytes = storageCapacity;
 		storageInfo.storeCompressed = storeCompressed;
-		StorageServer* storage = new StorageServer(storageInfo);
-		auto destroyStorage = MakeGuard([&]() { delete storage; });
+		StorageServer& storageServer = *new StorageServer(storageInfo);
+		auto destroyStorage = MakeGuard([&]() { delete &storageServer; });
 
-		SessionServerCreateInfo info(*storage, *server);
+		SessionServerCreateInfo info(storageServer, networkServer);
 		info.useUniqueId = useScheduler;
 		info.traceEnabled = true;
 		//info.detailedTrace = true;
@@ -541,23 +563,61 @@ namespace uba
 		//info.shouldWriteToDisk = shouldWriteToDisk;
 		info.rootDir = g_rootDir.data;
 		//info.traceName.Append(TC("TESTTRACE"));
+		//info.storeObjFilesCompressed = true;
 		#if UBA_DEBUG_LOG_ENABLED
 		info.remoteLogEnabled = true;
 		#endif
 		//info.remoteTraceEnabled = true;
 
 		info.deleteSessionsOlderThanSeconds = 1;
-		auto session = new SessionServer(info);
-		auto destroySession = MakeGuard([&]() { delete session; });
+		SessionServer& sessionServer = *new SessionServer(info);
+		auto destroySession = MakeGuard([&]() { delete &sessionServer; });
+
+		CacheClient* cacheClient = nullptr;
+		auto ccg = MakeGuard([&]() { if (!cacheClient) return; auto& nc = cacheClient->GetClient(); nc.Disconnect(); delete cacheClient; delete &nc; });
+
+		auto CreateCacheClient = [&]()
+			{
+				auto nc = new NetworkClient(ctorSuccess);
+				cacheClient = new CacheClient(logWriter, storageServer, *nc, sessionServer);
+			};
+
+		if (cacheHost.count)
+		{
+			CreateCacheClient();
+			if (!cacheClient->GetClient().Connect(networkBackend, cacheHost.data, DefaultCachePort))
+			{
+				logger.Error(TC("Failed to connect to cache server"));
+				return -1;
+			}
+
+			if (writeCacheSummary)
+			{
+				StringBuffer<> tempFile(sessionServer.GetTempPath());
+				Guid guid;
+				CreateGuid(guid);
+				tempFile.Append(GuidToString(guid).str).Append(TC(".txt"));
+				if (!cacheClient->WriteCacheSummary(tempFile.data, cacheFilterString.data()))
+					return -1;
+				logger.Info(TC("Cache status summary written to %s"), tempFile.data);
+
+				#if PLATFORM_WINDOWS
+				ShellExecuteW(NULL, L"open", tempFile.data, NULL, NULL, SW_SHOW);
+				#endif
+				return 0;
+			}
+		}
+
+
 
 		if (isRemote)
 		{
-			if (!storage->LoadCasTable(true))
+			if (!storageServer.LoadCasTable(true))
 				return -1;
-			if (!server->StartListen(networkBackend, port, listenIp.data))
+			if (!networkServer.StartListen(networkBackend, port, listenIp.data))
 				return -1;
 		}
-		auto stopServer = MakeGuard([&]() { server->DisconnectClients(); });
+		auto stopServer = MakeGuard([&]() { networkServer.DisconnectClients(); });
 
 		auto stopListen = MakeGuard([&]() { networkBackend.StopListen(); });
 
@@ -575,7 +635,7 @@ namespace uba
 				pinfo.logLineFunc = [](void* userData, const tchar* line, u32 length, LogEntryType type) { ((Logger*)userData)->Log(type, line, length); };
 			pinfo.trackInputs = trackInputs;
 			logger.Info(TC("Running %s %s"), app.c_str(), arg.c_str());
-			ProcessHandle process = session->RunProcess(pinfo, false, enableDetour);
+			ProcessHandle process = sessionServer.RunProcess(pinfo, false, enableDetour);
 			if (process.GetExitCode() != 0)
 				return logger.Error(TC("Error exit code: %u"), process.GetExitCode());
 			u64 time = GetTime() - start;
@@ -596,7 +656,7 @@ namespace uba
 			if (enableStdOut)
 				pinfo.logLineFunc = [](void* userData, const tchar* line, u32 length, LogEntryType type) { ((Logger*)userData)->Log(type, line, length); };
 			logger.Info(TC("Running %s %s"), app.c_str(), arg.c_str());
-			ProcessHandle process = session->RunProcessRemote(pinfo);
+			ProcessHandle process = sessionServer.RunProcessRemote(pinfo);
 			process.WaitForExit(~0u);
 			if (process.GetExitCode() != 0)
 				return logger.Error(TC("Error exit code: %u"), process.GetExitCode());
@@ -609,11 +669,11 @@ namespace uba
 			{
 				Vector<Client> clients;
 				auto slg = MakeGuard([&]() { networkBackend.StopListen(); });
-				clients.resize(4);
+				clients.resize(maxProcessCount == 1 ? 1 : 4);
 				u32 clientIndex = 0;
 				for (auto& c : clients)
 				{
-					ClientInitInfo cii { logWriter, networkBackend, g_rootDir.data, TC("127.0.0.1"), port, TC("DummyZone"), maxProcessCount/4, clientIndex++};
+					ClientInitInfo cii { logWriter, networkBackend, g_rootDir.data, TC("127.0.0.1"), port, TC("DummyZone"), maxProcessCount/u32(clients.size()), clientIndex++};
 					if (!c.Init(cii))
 						return false;
 				}
@@ -629,10 +689,14 @@ namespace uba
 
 		auto RunScheduler = [&](const tchar* yamlFile)
 		{
-			SchedulerCreateInfo info(*session);
+			auto g = MakeGuard([&]() { if (cacheClient) cacheClient->GetClient().Disconnect(); });
+
+			SchedulerCreateInfo info(sessionServer);
 			info.forceRemote = isRemote;
 			info.forceNative = commandType == CommandType_Native;
 			info.maxLocalProcessors = maxProcessCount;
+			info.cacheClient = cacheClient;
+			info.writeToCache = populateCache;
 			Scheduler scheduler(info);
 
 			if (!scheduler.EnqueueFromFile(yamlFile))
@@ -647,10 +711,11 @@ namespace uba
 
 			scheduler.SetProcessFinishedCallback([&](const ProcessHandle& ph)
 				{
-					const tchar* desc = ph.GetStartInfo().description;
+					auto& si = ph.GetStartInfo();
+					const tchar* desc = si.description;
 					if (ph.GetExitCode() != 0 && ph.GetExitCode() != ProcessCancelExitCode)
 					{
-						logger.Error(TC("%s - Error exit code: %u"), desc, ph.GetExitCode());
+						logger.Error(TC("%s - Error exit code: %u (%s %s)"), desc, ph.GetExitCode(), si.application, si.arguments);
 						success = false;
 					}
 					u32 c = ++counter;
@@ -660,6 +725,8 @@ namespace uba
 						extra.Append(TC(" [RemoteExecutor: ")).Append(ph.GetExecutingHost()).Append(']');
 					else if (ph.GetExecutionType() == ProcessExecutionType_Native)
 						extra.Append(TC(" (Not detoured)"));
+					else if (ph.GetExecutionType() == ProcessExecutionType_FromCache)
+						extra.Append(TC(" (From cache)"));
 					logger.Info(TC("[%u/%u] %s%s"), c, queued, desc, extra.data);
 					for (auto& line : ph.GetLogLines())
 						if (line.text != desc && !StartsWith(line.text.c_str(), TC("   Creating library")))
@@ -709,7 +776,7 @@ namespace uba
 			cinfo.oidc = coordinatorOidc.c_str();
 			cinfo.maxCoreCount = 400;
 			cinfo.logging = true;
-			if (!coordinator.Create(logger, coordinatorName.c_str(), cinfo, networkBackend, *server))
+			if (!coordinator.Create(logger, coordinatorName.c_str(), cinfo, networkBackend, networkServer))
 				return false;
 		}
 		auto cg = MakeGuard([&]() { coordinator.Destroy(); });
@@ -747,9 +814,9 @@ namespace uba
 		logger.BeginScope();
 		if (printSummary)
 		{
-			session->PrintSummary(logger);
-			storage->PrintSummary(logger);
-			server->PrintSummary(logger);
+			sessionServer.PrintSummary(logger);
+			storageServer.PrintSummary(logger);
+			networkServer.PrintSummary(logger);
 			SystemStats::GetGlobal().Print(logger, true);
 		}
 		logger.EndScope();
@@ -761,7 +828,9 @@ namespace uba
 #if PLATFORM_WINDOWS
 int wmain(int argc, wchar_t* argv[])
 {
-	return uba::WrappedMain(argc, argv);
+	int res = uba::WrappedMain(argc, argv);
+	Sleep(1); // Here to be able to put a breakpoint just before exit :-)
+	return res;
 }
 #else
 int main(int argc, char* argv[])

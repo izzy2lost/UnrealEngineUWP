@@ -8,6 +8,7 @@
 
 namespace uba
 {
+	class CacheClient;
 	class Process;
 	class ProcessHandle;
 	class Session;
@@ -120,6 +121,15 @@ extern "C"
 	UBA_API void Scheduler_Stop(uba::Scheduler* scheduler);
 	UBA_API void Scheduler_Destroy(uba::Scheduler* scheduler);
 	UBA_API void Scheduler_GetStats(uba::Scheduler* scheduler, uba::u32& outQueued, uba::u32& outActiveLocal, uba::u32& outActiveRemote, uba::u32& outFinished);
+
+	// Cache
+	UBA_API uba::CacheClient* CacheClient_Create(uba::SessionServer* session);
+	UBA_API bool CacheClient_RegisterRoot(uba::CacheClient* cacheClient, const uba::tchar* root, bool includeInKey);
+	UBA_API bool CacheClient_RegisterSystemRoots(uba::CacheClient* cacheClient);
+	UBA_API bool CacheClient_Connect(uba::CacheClient* cacheClient, const uba::tchar* host, int port);
+	UBA_API bool CacheClient_WriteToCache(uba::CacheClient* cacheClient, const uba::ProcessHandle* process);
+	UBA_API bool CacheClient_FetchFromCache(uba::CacheClient* cacheClient, const uba::ProcessStartInfo& info);
+	UBA_API void CacheClient_Destroy(uba::CacheClient* cacheClient);
 
 	// Misc
 	using Uba_CustomAssertHandler = void(const uba::tchar* text);

@@ -1,9 +1,11 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "UbaExports.h"
+#include "UbaAWS.h"
+#include "UbaCacheClient.h"
 #include "UbaNetworkBackendQuic.h"
 #include "UbaNetworkBackendTcp.h"
-#include "UbaAWS.h"
+#include "UbaNetworkClient.h"
 #include "UbaProcess.h"
 #include "UbaScheduler.h"
 #include "UbaStorageServer.h"
@@ -46,11 +48,22 @@ namespace uba
 	{
 	public:
 		NetworkServerWithBackend(bool& outSuccess, const NetworkServerCreateInfo& info, NetworkBackend* nb)
-		: NetworkServer(outSuccess, info), networkBackend(nb)
+		: NetworkServer(outSuccess, info), backend(nb)
 		{
 		}
 
-		NetworkBackend* networkBackend;
+		NetworkBackend* backend;
+	};
+
+	class NetworkClientWithBackend : public NetworkClient
+	{
+	public:
+		NetworkClientWithBackend(bool& outSuccess, const NetworkClientCreateInfo& info, NetworkBackend* nb)
+		: NetworkClient(outSuccess, info), backend(nb)
+		{
+		}
+
+		NetworkBackend* backend;
 	};
 
 	#define UBA_USE_SIGNALHANDLER 0//PLATFORM_LINUX // It might be that we can't use signal handlers in c# processes.. so don't set this to 1
@@ -120,7 +133,7 @@ extern "C"
 	void DestroyServer(uba::NetworkServer* server)
 	{
 		auto s = (uba::NetworkServerWithBackend*)server;
-		auto networkBackend = s->networkBackend;
+		auto networkBackend = s->backend;
 		delete s;
 		delete networkBackend;
 	}
@@ -138,13 +151,13 @@ extern "C"
 		}
 
 		auto s = (NetworkServerWithBackend*)server;
-		return s->StartListen(*s->networkBackend, u16(port), ip, crypto128);
+		return s->StartListen(*s->backend, u16(port), ip, crypto128);
 	}
 
 	void Server_Stop(uba::NetworkServer* server)
 	{
 		auto s = (uba::NetworkServerWithBackend*)server;
-		auto networkBackend = s->networkBackend;
+		auto networkBackend = s->backend;
 		networkBackend->StopListen();
 		server->DisconnectClients();
 	}
@@ -163,7 +176,7 @@ extern "C"
 		}
 
 		auto s = (NetworkServerWithBackend*)server;
-		return s->AddClient(*s->networkBackend, ip, u16(port), crypto128);
+		return s->AddClient(*s->backend, ip, u16(port), crypto128);
 	}
 
 	/*
@@ -438,7 +451,7 @@ uba::StorageClient* CreateStorageClient(uba::NetworkClient& client, const uba::t
 		if (server)
 		{
 			auto& s = (uba::NetworkServerWithBackend&)server->GetServer();
-			s.networkBackend->StopListen();
+			s.backend->StopListen();
 			s.DisconnectClients();
 		}
 		delete server;
@@ -509,6 +522,65 @@ uba::StorageClient* CreateStorageClient(uba::NetworkClient& client, const uba::t
 	void Scheduler_GetStats(uba::Scheduler* scheduler, uba::u32& outQueued, uba::u32& outActiveLocal, uba::u32& outActiveRemote, uba::u32& outFinished)
 	{
 		scheduler->GetStats(outQueued, outActiveLocal, outActiveRemote, outFinished);
+	}
+
+	uba::CacheClient* CacheClient_Create(uba::SessionServer* session)
+	{
+		using namespace uba;
+		LogWriter& writer = session->GetLogWriter();
+		StorageImpl& storage = (StorageImpl&)session->GetStorage();
+
+		auto networkBackend = new NetworkBackendTcp(writer);
+
+		NetworkClientCreateInfo ncci(writer);
+		ncci.receiveTimeoutSeconds = 60;
+		bool ctorSuccess = false;
+		auto networkClient = new NetworkClientWithBackend(ctorSuccess, ncci, networkBackend);
+		if (!ctorSuccess)
+			return nullptr;
+		return new CacheClient(writer, storage, *networkClient, *session);
+	}
+
+	bool CacheClient_RegisterRoot(uba::CacheClient* cacheClient, const uba::tchar* root, bool includeInKey)
+	{
+		return cacheClient->RegisterRoot(root, includeInKey);
+	}
+
+	bool CacheClient_RegisterSystemRoots(uba::CacheClient* cacheClient)
+	{
+		return cacheClient->RegisterSystemRoots();
+	}
+
+	bool CacheClient_Connect(uba::CacheClient* cacheClient, const uba::tchar* host, int port)
+	{
+		using namespace uba;
+		auto& networkClient = (NetworkClientWithBackend&)cacheClient->GetClient();
+
+		if (!networkClient.Connect(*networkClient.backend, host, u16(port)))
+			return false;
+		cacheClient->GetStorage().LoadCasTable();
+		return true;
+	}
+
+	bool CacheClient_WriteToCache(uba::CacheClient* cacheClient, const uba::ProcessHandle* process)
+	{
+		if (!process->GetStartInfo().trackInputs)
+			return false;
+		return cacheClient->WriteToCache(*process);
+	}
+
+	bool CacheClient_FetchFromCache(uba::CacheClient* cacheClient, const uba::ProcessStartInfo& info)
+	{
+		return cacheClient->FetchFromCache(info);
+	}
+
+	void CacheClient_Destroy(uba::CacheClient* cacheClient)
+	{
+		using namespace uba;
+		auto& networkClient = (NetworkClientWithBackend&)cacheClient->GetClient();
+		networkClient.Disconnect();
+		delete cacheClient;
+		delete &networkClient;
 	}
 
 	void Uba_SetCustomAssertHandler(Uba_CustomAssertHandler* handler)

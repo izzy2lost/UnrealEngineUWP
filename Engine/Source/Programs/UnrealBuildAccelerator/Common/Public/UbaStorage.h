@@ -10,7 +10,6 @@
 #include "UbaMemory.h"
 #include "UbaPathUtils.h"
 #include "UbaStats.h"
-#include <oodle2.h>
 
 #define UBA_USE_SPARSEFILE 0
 
@@ -50,7 +49,7 @@ namespace uba
 		virtual bool DropCasFile(const CasKey& casKey, bool forceDelete, const tchar* hint) = 0;
 		virtual bool CalculateCasKey(CasKey& out, const tchar* fileName) = 0;
 		virtual bool CopyOrLink(const CasKey& casKey, const tchar* destination, u32 fileAttributes, bool writeCompressed = false) = 0;
-		virtual bool FakeCopy(const CasKey& casKey, const tchar* destination) = 0;
+		virtual bool FakeCopy(const CasKey& casKey, const tchar* destination, u64 size = 0, u64 lastWritten = 0, bool deleteExisting = true) = 0;
 #if !UBA_USE_SPARSEFILE
 		virtual bool GetCasFileName(StringBufferBase& out, const CasKey& casKey) = 0;
 #endif
@@ -82,6 +81,20 @@ namespace uba
 		WorkManager* workManager = nullptr;
 	};
 
+	struct BufferSlots
+	{
+		u8* Pop();
+		void Push(u8* slot);
+
+		~BufferSlots();
+
+		ReaderWriterLock m_slotsLock;
+		Vector<u8*> m_slots;
+	};
+
+	static constexpr u64 BufferSlotSize = 16*1024*1024;
+	static constexpr u64 BufferSlotHalfSize = BufferSlotSize/2; // This must be three times a msg size or more.
+
 	class StorageImpl : public Storage
 	{
 	public:
@@ -90,6 +103,7 @@ namespace uba
 
 		bool LoadCasTable(bool logStats = true);
 		bool CheckCasContent(u32 workerCount);
+		const tchar* GetTempPath();
 
 		virtual bool SaveCasTable(bool deleteIsRunningfile, bool deleteDropped = true) override;
 		virtual u64 GetStorageCapacity() override;
@@ -110,7 +124,7 @@ namespace uba
 		virtual bool DropCasFile(const CasKey& casKey, bool forceDelete, const tchar* hint) override;
 		virtual bool CalculateCasKey(CasKey& out, const tchar* fileName) override;
 		virtual bool CopyOrLink(const CasKey& casKey, const tchar* destination, u32 fileAttributes, bool writeCompressed = false) override;
-		virtual bool FakeCopy(const CasKey& casKey, const tchar* destination) override;
+		virtual bool FakeCopy(const CasKey& casKey, const tchar* destination, u64 size = 0, u64 lastWritten = 0, bool deleteExisting = true) override;
 #if !UBA_USE_SPARSEFILE
 		virtual bool GetCasFileName(StringBufferBase& out, const CasKey& casKey) override;
 #endif
@@ -147,9 +161,9 @@ namespace uba
 		void AttachEntry(CasEntry& entry);
 		void DetachEntry(CasEntry& entry);
 		void TraverseAllCasFiles(const tchar* dir, u32 recursion, const Function<void(const StringBufferBase& fullPath, const DirectoryEntry& e)>& func);
-		void TraverseAllCasFiles(const Function<void(const CasKey& key)>& func);
+		void TraverseAllCasFiles(const Function<void(const CasKey& key, u64 size)>& func);
 		void CheckAllCasFiles();
-		void HandleOverflow();
+		void HandleOverflow(Set<CasKey>* outDeletedFiles);
 		bool OpenCasDataFile(u32 index, u64 size);
 		bool CreateCasDataFiles();
 
@@ -213,19 +227,10 @@ namespace uba
 
 		DirectoryCache m_dirCache;
 
-		static constexpr u64 BufferSlotSize = 16*1024*1024;
-		static constexpr u64 BufferSlotHalfSize = BufferSlotSize/2; // This must be three times a msg size or more.
-		u8* PopBufferSlot();
-		void PushBufferSlot(u8* slot);
+		BufferSlots m_bufferSlots;
 
-		ReaderWriterLock m_compSlotsLock;
-		Vector<u8*> m_compSlots;
-
-		OodleLZ_Compressor m_createCasCompressor = OodleLZ_Compressor_Kraken;
-		OodleLZ_CompressionLevel m_createCasCompressionLevel = OodleLZ_CompressionLevel_SuperFast;
-
-		OodleLZ_Compressor m_sendCasCompressor = OodleLZ_Compressor_Kraken;
-		OodleLZ_CompressionLevel m_sendCasCompressionLevel = OodleLZ_CompressionLevel_SuperFast;
+		u8 m_casCompressor;
+		u8 m_casCompressionLevel;
 
 		StorageStats m_stats;
 

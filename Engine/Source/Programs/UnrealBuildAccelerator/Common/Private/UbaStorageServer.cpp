@@ -12,6 +12,7 @@ namespace uba
 	,	m_server(info.server)
 	{
 		m_zone = info.zone;
+		m_allowFallback = info.allowFallback;
 		m_writeRecievedCasFilesToDisk = info.writeRecievedCasFilesToDisk;
 
 		if (!CreateGuid(m_uid))
@@ -119,7 +120,7 @@ namespace uba
 				server.m_casDataBuffer.UnmapView(mappedView, TC("OnDisconnected"));
 		}
 		else
-			server.PushBufferSlot(memoryBegin);
+			server.m_bufferSlots.Push(memoryBegin);
 	}
 
 	void StorageServer::OnDisconnected(u32 clientId)
@@ -305,6 +306,8 @@ namespace uba
 				info.proxyPort = proxyPort;
 
 				writer.WriteGuid(m_uid);
+				writer.WriteByte(m_casCompressor);
+				writer.WriteByte(m_casCompressionLevel);
 				return true;
 			}
 
@@ -387,52 +390,59 @@ namespace uba
 
 				CasEntry* casEntry = nullptr;
 				bool has = HasCasFile(casKey, &casEntry); // HasCasFile also writes deferred cas entries if in queue
-				if (!has && !EnsureCasFile(casKey, nullptr))
+				if (!has)
 				{
-					// Last resort.. use hint to load file into cas (hint should be renamed since it is now a critical parameter)
-					// We better check the caskey first to make sure it is matching on the server
+					if (!EnsureCasFile(casKey, nullptr) && m_allowFallback)
+					{
+						// Last resort.. use hint to load file into cas (hint should be renamed since it is now a critical parameter)
+						// We better check the caskey first to make sure it is matching on the server
 
-					CasKey checkedCasKey;
-					{
-						StringKey fileNameKey = CaseInsensitiveFs ? ToStringKeyLower(hint) : ToStringKey(hint);
-						SCOPED_READ_LOCK(m_fileTableLookupLock, lookupLock);
-						auto findIt = m_fileTableLookup.find(fileNameKey);
-						if (findIt != m_fileTableLookup.end())
+						CasKey checkedCasKey;
 						{
-							FileEntry& fileEntry = findIt->second;
-							lookupLock.Leave();
-							SCOPED_READ_LOCK(fileEntry.lock, entryLock);
-							if (fileEntry.verified)
-								checkedCasKey = fileEntry.casKey;
+							StringKey fileNameKey = CaseInsensitiveFs ? ToStringKeyLower(hint) : ToStringKey(hint);
+							SCOPED_READ_LOCK(m_fileTableLookupLock, lookupLock);
+							auto findIt = m_fileTableLookup.find(fileNameKey);
+							if (findIt != m_fileTableLookup.end())
+							{
+								FileEntry& fileEntry = findIt->second;
+								lookupLock.Leave();
+								SCOPED_READ_LOCK(fileEntry.lock, entryLock);
+								if (fileEntry.verified)
+									checkedCasKey = fileEntry.casKey;
+							}
 						}
-					}
-					if (checkedCasKey == CasKeyZero)
-					{
-						m_logger.Info(TC("Server did not find cas for %s in file table lookup. Recalculating cas key"), hint.data);
-						if (!CalculateCasKey(checkedCasKey, hint.data))
+						if (checkedCasKey == CasKeyZero)
 						{
-							m_logger.Error(TC("FetchBegin failed for cas file %s (%s) requested by %s. Can't calculate cas key for file"), CasKeyString(casKey).str, hint.data, GuidToString(connectionInfo.GetUid()).str);
+							m_logger.Info(TC("Server did not find cas for %s in file table lookup. Recalculating cas key"), hint.data);
+							if (!CalculateCasKey(checkedCasKey, hint.data))
+							{
+								m_logger.Error(TC("FetchBegin failed for cas file %s (%s) requested by %s. Can't calculate cas key for file"), CasKeyString(casKey).str, hint.data, GuidToString(connectionInfo.GetUid()).str);
+								writer.WriteU16(0);
+								return false;
+							}
+						}
+
+						if (checkedCasKey != casKey)
+						{
+							m_logger.Error(TC("FetchBegin failed for cas file %s (%s). Server has a source file"), CasKeyString(casKey).str, hint.data);
 							writer.WriteU16(0);
 							return false;
 						}
-					}
 
-					if (checkedCasKey != casKey)
-					{
-						m_logger.Error(TC("FetchBegin failed for cas file %s (%s). Server has a source file"), CasKeyString(casKey).str, hint.data);
-						writer.WriteU16(0);
-						return false;
-					}
-
-					if (!AddCasFile(hint.data, casKey, false))
-					{
-						m_logger.Error(TC("FetchBegin failed for cas file %s (%s). Can't add cas file to database"), CasKeyString(casKey).str, hint.data);
-						writer.WriteU16(0);
-						return true;
+						if (!AddCasFile(hint.data, casKey, false))
+						{
+							m_logger.Error(TC("FetchBegin failed for cas file %s (%s). Can't add cas file to database"), CasKeyString(casKey).str, hint.data);
+							writer.WriteU16(0);
+							return true;
+						}
 					}
 					SCOPED_WRITE_LOCK(m_casLookupLock, lookupLock);
 					auto findIt = m_casLookup.find(casKey);
-					UBA_ASSERT(findIt != m_casLookup.end());
+					if (findIt == m_casLookup.end())
+					{
+						writer.WriteU16(0);
+						return true;
+					}
 					casEntry = &findIt->second;
 				}
 
@@ -528,7 +538,7 @@ namespace uba
 				}
 				else
 				{
-					memoryBegin = PopBufferSlot();
+					memoryBegin = m_bufferSlots.Pop();
 					memoryPos = memoryBegin;
 					u32 toRead = u32(Min(left, BufferSlotSize));
  					if (!ReadFile(m_logger, casFile.data, readFileHandle, memoryBegin, toRead))

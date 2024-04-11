@@ -11,6 +11,7 @@ namespace uba
 	{
 		StorageServerCreateInfo(NetworkServer& s, const tchar* rootDir_, LogWriter& writer) : StorageCreateInfo(rootDir_, writer), server(s) { workManager = &server; }
 		NetworkServer& server;
+		bool allowFallback = true; // Will fallback to file system to recalculate cas if cas content does not exist anymore
 		bool writeRecievedCasFilesToDisk = false;
 		const tchar* zone = TC("");
 	};
@@ -33,6 +34,7 @@ namespace uba
 		void OnDisconnected(u32 clientId);
 		bool HandleMessage(const ConnectionInfo& connectionInfo, u8 messageType, BinaryReader& reader, BinaryWriter& writer);
 		bool WaitForWritten(CasEntry& casEntry, ScopedWriteLock& entryLock, const tchar* hint);
+		using StorageImpl::StoreCasFile;
 
 		u16 PopId();
 		void PushId(u16 id);
@@ -136,6 +138,7 @@ namespace uba
 
 		Vector<TString> m_disallowedPaths;
 
+		bool m_allowFallback;
 		bool m_writeRecievedCasFilesToDisk;
 	};
 }

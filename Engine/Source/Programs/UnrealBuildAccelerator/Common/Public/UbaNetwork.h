@@ -9,17 +9,22 @@ namespace uba
 	// Default constants
 	static constexpr u16 DefaultPort = 1345;
 	static constexpr u16 DefaultStorageProxyPort = DefaultPort + 1;
+	static constexpr u16 DefaultCachePort = DefaultPort + 2;
 	static constexpr u32 SendMaxSize = 256*1024;
 	static constexpr u32 SendDefaultSize = 256*1024;
 
 	static constexpr u8 SystemServiceId = 0;
 	static constexpr u8 StorageServiceId = 1;
 	static constexpr u8 SessionServiceId = 2;
+	static constexpr u8 CacheServiceId = 3;
 	
 	static constexpr u32 SystemNetworkVersion = 1339;
-	static constexpr u32 StorageNetworkVersion = 3;
+	static constexpr u32 StorageNetworkVersion = 4;
 	static constexpr u32 SessionNetworkVersion = 32;
+	static constexpr u32 CacheNetworkVersion = 1;
 
+	static constexpr u32 CachePathTableMaxSize = 32*1024*1024;
+	static constexpr u32 CacheCasKeyTableMaxSize = 32*1024*1024;
 
 	// Messages used over network between client/server (system, storage and session)
 
@@ -98,6 +103,24 @@ namespace uba
 		SessionProcessAvailableResponse_None = 0,
 		SessionProcessAvailableResponse_Disconnect = ~u32(0),
 		SessionProcessAvailableResponse_RemoteExecutionDisabled = ~u32(0) - 1,
+	};
+
+	#define UBA_CACHE_MESSAGES \
+		UBA_CACHE_MESSAGE(Connect) \
+		UBA_CACHE_MESSAGE(StorePathTable) \
+		UBA_CACHE_MESSAGE(StoreCasTable) \
+		UBA_CACHE_MESSAGE(StoreEntry) \
+		UBA_CACHE_MESSAGE(StoreEntryDone) \
+		UBA_CACHE_MESSAGE(FetchPathTable) \
+		UBA_CACHE_MESSAGE(FetchCasTable) \
+		UBA_CACHE_MESSAGE(FetchEntries) \
+		UBA_CACHE_MESSAGE(CreateStatusFile) \
+
+	enum CacheMessageType : u8
+	{
+		#define UBA_CACHE_MESSAGE(x) CacheMessageType_##x,
+		UBA_CACHE_MESSAGES
+		#undef UBA_CACHE_MESSAGE
 	};
 
 	inline constexpr const char EncryptionHandshakeString[] = "This is a test string used to check so encryption keys matches between client and server. This string is 128 characters long...";

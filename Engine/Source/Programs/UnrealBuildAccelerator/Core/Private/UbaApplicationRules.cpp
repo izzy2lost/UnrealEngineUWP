@@ -81,6 +81,10 @@ namespace uba
 			return Contains(file, TC("\\_cl_")); // This file is needed when cl.exe spawns link.exe
 		}
 
+		virtual bool IsCacheable() const override
+		{
+			return true;
+		}
 	};
 
 	class ApplicationRulesLinkExe : public ApplicationRulesVC
@@ -134,6 +138,11 @@ namespace uba
 				|| EndsWith(fileName, fileNameLen, TC(".exe"))
 				|| EndsWith(fileName, fileNameLen, TC(".dll"));
 		}
+
+		virtual bool IsCacheable() const override
+		{
+			return true;
+		}
 	};
 
 	// ==== Clang tool chain ====
@@ -183,6 +192,11 @@ namespace uba
 		}
 
 		virtual bool AllowMiMalloc() const override
+		{
+			return true;
+		}
+
+		virtual bool IsCacheable() const override
 		{
 			return true;
 		}
@@ -318,10 +332,15 @@ namespace uba
 
 		virtual bool IsOutputFile(const tchar* file, u64 fileLen) const override
 		{
-			return EndsWith(file, fileLen, TC(".dummy.h"))
+			return Contains(file, TC(".generated.dummy"))
 				|| EndsWith(file, fileLen, TC(".ispc.bc"))
 				|| EndsWith(file, fileLen, TC(".ispc.txt"))
 				|| EndsWith(file, fileLen, TC(".obj"));
+		}
+
+		virtual bool IsCacheable() const override
+		{
+			return true;
 		}
 	};
 

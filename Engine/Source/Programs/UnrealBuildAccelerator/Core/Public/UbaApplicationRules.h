@@ -124,6 +124,11 @@ namespace uba
 			// Do nothing
 		}
 
+		virtual bool IsCacheable() const
+		{
+			return false;
+		}
+
 		u32 index = ~0u;
 	};
 
