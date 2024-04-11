@@ -542,30 +542,30 @@ void SNiagaraAssetBrowser::OnAssetSelected(const FAssetData& AssetData)
 			.OnAssetTagActivated(this, &SNiagaraAssetBrowser::OnAssetTagActivated)
 			.OnAssetTagActivatedTooltip(LOCTEXT("SecondaryAssetTagButtonTooltip", "\n\nClicking this tag will activate/deactivate its corresponding filter."));
 		
-		TSharedRef<SWidget> Details = SNew(SVerticalBox)
-		+ SVerticalBox::Slot()
-		.AutoHeight()
-		.HAlign(HAlign_Right)
-		[
-			SNew(SCheckBox)
-			.IsChecked(this, &SNiagaraAssetBrowser::OnShouldDisplayViewport)
-			.OnCheckStateChanged(this, &SNiagaraAssetBrowser::OnShouldDisplayViewportChanged)
-			.ToolTipText(this, &SNiagaraAssetBrowser::OnGetShouldDisplayViewportTooltip)
-			.Visibility(this, &SNiagaraAssetBrowser::OnGetShouldDisplayVisibilityCheckbox)
-			[
-				SNew(STextBlock).Text(LOCTEXT("DisplayViewport", "Display Viewport"))
-			]
-		]
-		+ SVerticalBox::Slot()
-		.AutoHeight()
-		[
-			PreviewViewport.ToSharedRef()
-		]
-		+ SVerticalBox::Slot()
-		.AutoHeight()
-		[
-			SelectedAssetDetails
-		];
+		// TSharedRef<SWidget> Details = SNew(SVerticalBox)
+		// + SVerticalBox::Slot()
+		// .AutoHeight()
+		// .HAlign(HAlign_Right)
+		// [
+		// 	SNew(SCheckBox)
+		// 	.IsChecked(this, &SNiagaraAssetBrowser::OnShouldDisplayViewport)
+		// 	.OnCheckStateChanged(this, &SNiagaraAssetBrowser::OnShouldDisplayViewportChanged)
+		// 	.ToolTipText(this, &SNiagaraAssetBrowser::OnGetShouldDisplayViewportTooltip)
+		// 	.Visibility(this, &SNiagaraAssetBrowser::OnGetShouldDisplayVisibilityCheckbox)
+		// 	[
+		// 		SNew(STextBlock).Text(LOCTEXT("DisplayViewport", "Display Viewport"))
+		// 	]
+		// ]
+		// + SVerticalBox::Slot()
+		// .AutoHeight()
+		// [
+		// 	PreviewViewport.ToSharedRef()
+		// ]
+		// + SVerticalBox::Slot()
+		// .AutoHeight()
+		// [
+		// 	SelectedAssetDetails
+		// ];
 
 		// We don't attach the preview currently until some of the issues are resolved
 		AssetBrowserDetailsSlot->AttachWidget(SelectedAssetDetails);

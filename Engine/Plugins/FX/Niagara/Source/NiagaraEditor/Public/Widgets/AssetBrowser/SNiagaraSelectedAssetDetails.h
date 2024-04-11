@@ -80,6 +80,7 @@ public:
 	SLATE_BEGIN_ARGS(SNiagaraSelectedAssetDetails)
 		: _ShowThumbnail(EVisibility::Visible)
 		, _MaxDesiredDescriptionWidth(300.f)
+		, _MaxDesiredPropertiesWidth(300.f)
 		{
 		}
 		SLATE_ATTRIBUTE(EVisibility, ShowThumbnail)
@@ -91,10 +92,16 @@ public:
 		 * Actual width might be increased due to big asset names.
 		 */
 		SLATE_ARGUMENT(float, MaxDesiredDescriptionWidth)
+		SLATE_ARGUMENT(float, MaxDesiredPropertiesWidth)
+
 	SLATE_END_ARGS()
 	
 	/** Constructs this widget with InArgs */
 	void Construct(const FArguments& InArgs, const FAssetData& Asset);
+
+private:
+	FReply CopyAssetPathToClipboard() const;
+	
 private:
 	FAssetData AssetData;
 	TAttribute<EVisibility> ShowThumbnail;
@@ -105,6 +112,7 @@ private:
 	TSharedRef<SWidget> CreateAssetThumbnailWidget();
 	TSharedRef<SWidget> CreateTitleWidget();
 	TSharedRef<SWidget> CreateTypeWidget();
+	TSharedRef<SWidget> CreatePathWidget();
 	TSharedRef<SWidget> CreateDescriptionWidget();
 	TSharedRef<SWidget> CreateOptionalPropertiesList();
 	TSharedRef<SWidget> CreateAssetTagRow();
