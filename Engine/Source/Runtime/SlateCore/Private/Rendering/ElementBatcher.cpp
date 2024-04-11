@@ -572,6 +572,7 @@ void FSlateElementBatcher::AddCachedElements(FSlateCachedElementData& CachedElem
 	TArray<FSlateRenderBatch>& RenderBatchesSDR = BatchData->RenderBatches;
 	TArray<FSlateRenderBatch>& RenderBatchesHDR = BatchDataHDR->RenderBatches;
 
+	ESlatePostRT CachedPostBuffers = ESlatePostRT::None;
 	auto AddBatch = [&](const FSlateRenderBatch& CachedBatch)
 	{
 		if (EnumHasAnyFlags(CachedBatch.GetDrawFlags(), ESlateBatchDrawFlag::HDR))
@@ -582,11 +583,8 @@ void FSlateElementBatcher::AddCachedElements(FSlateCachedElementData& CachedElem
 		{
 			RenderBatchesSDR.Add(CachedBatch);
 		}
-
-		if (const FSlateShaderResource* ShaderResource = CachedBatch.GetShaderResource())
-		{
-			UsedSlatePostBuffers |= ShaderResource->GetUsedSlatePostBuffers();
-		}
+		
+		CachedPostBuffers |= CachedBatch.CachedUsedPostBuffers;
 	};
 
 	RenderBatchesSDR.Reserve(RenderBatchesSDR.Num() + CachedBatches.Num());
@@ -596,6 +594,8 @@ void FSlateElementBatcher::AddCachedElements(FSlateCachedElementData& CachedElem
 	{
 		AddBatch(CachedBatch);
 	}
+
+	UsedSlatePostBuffers |= CachedPostBuffers;
 
 	CachedElementData.CleanupUnusedClipStates();
 
@@ -3146,7 +3146,8 @@ FSlateRenderBatch& FSlateElementBatcher::CreateRenderBatch(
 
 	if (InResource)
 	{
-		UsedSlatePostBuffers |= InResource->GetUsedSlatePostBuffers();
+		NewBatch.CachedUsedPostBuffers = InResource->GetUsedSlatePostBuffers();
+		UsedSlatePostBuffers |= NewBatch.CachedUsedPostBuffers;
 	}
 
 	return NewBatch;
@@ -3171,7 +3172,8 @@ FSlateRenderBatch& FSlateElementBatcher::CreateRenderBatch(
 
 	if (InResource)
 	{
-		UsedSlatePostBuffers |= InResource->GetUsedSlatePostBuffers();
+		NewBatch.CachedUsedPostBuffers = InResource->GetUsedSlatePostBuffers();
+		UsedSlatePostBuffers |= NewBatch.CachedUsedPostBuffers;
 	}
 
 	return NewBatch;

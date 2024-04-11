@@ -230,6 +230,8 @@ public:
 
 	ESlateDrawEffect DrawEffects;
 
+	ESlatePostRT CachedUsedPostBuffers;
+
 	/** Whether or not the batch can be merged with others in the same layer */
 	uint8 bIsMergable : 1;
 
