@@ -407,12 +407,9 @@ namespace Metasound
 						}
 					}
 
-					if (OtherState)
+					if ((nullptr == OtherState) || (OtherState->ID != Binding.GetDataReferenceID()))
 					{
-						if (OtherState->ID != Binding.GetDataReferenceID())
-						{
-							OutUpdates.Add(OtherState->VertexName, *CurrentReference);
-						}
+						OutUpdates.Add(Binding.GetVertex().VertexName, *CurrentReference);
 					}
 				}
 			}

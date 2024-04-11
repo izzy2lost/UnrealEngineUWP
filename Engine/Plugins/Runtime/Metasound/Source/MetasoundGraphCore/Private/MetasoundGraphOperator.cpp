@@ -78,13 +78,18 @@ namespace Metasound
 		}
 	}
 
-	FGraphOperator::FGraphOperator(TUniquePtr<DirectedGraphAlgo::FGraphOperatorData>&& InOperatorState)
+	FGraphOperator::FGraphOperator(TUniquePtr<DirectedGraphAlgo::FStaticGraphOperatorData> InOperatorState)
 	{
 		using namespace DirectedGraphAlgo;
 
 		// Append operators in order.
-		for (const FOperatorID OperatorID : InOperatorState->OperatorOrder)
+		for (const INode* Node: InOperatorState->NodeOrder)
 		{
+			// The Node pointer may not point to a valid memory because there is
+			// nothing ensuring that the node is still alive. GetOperatorID(...)
+			// simply uses the pointer address as the ID and does not access the 
+			// actual underlying INode. 
+			const FOperatorID OperatorID = GetOperatorID(Node);
 			AppendOperator(MoveTemp(InOperatorState->OperatorMap[OperatorID].Operator));
 		}
 
@@ -126,16 +131,6 @@ namespace Metasound
 	void FGraphOperator::SetVertexInterfaceData(FVertexInterfaceData&& InVertexData)
 	{
 		VertexData = InVertexData;
-	}
-
-	FDataReferenceCollection FGraphOperator::GetInputs() const
-	{
-		return VertexData.GetInputs().ToDataReferenceCollection();
-	}
-
-	FDataReferenceCollection FGraphOperator::GetOutputs() const
-	{
-		return VertexData.GetOutputs().ToDataReferenceCollection();
 	}
 
 	void FGraphOperator::BindInputs(FInputVertexInterfaceData& InInputVertexData)
