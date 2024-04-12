@@ -402,12 +402,12 @@ public:
 		const FSlateFontInfo* InFontPtr = NULL, const TSharedPtr< IPropertyTableCell >& InCell = nullptr);
 
 	/**
-	 * Register a floating struct so that the details panel may use it as a property
+	 * Register a floating struct on scope so that the details panel may use it as a property
 	 *
-	 * @param StructClass		The struct to register
+	 * @param StructOnScope		The struct to register
 	 * @return The struct property that may may be associated with the details panel
  	 */
-	virtual FStructProperty* RegisterStructProperty(const UStruct* StructClass);
+	virtual FStructProperty* RegisterStructOnScopeProperty(TSharedRef<FStructOnScope> StructOnScope);
 
 	/**
 	 *
@@ -418,7 +418,7 @@ public:
 
 	FPropertyTypeLayoutCallback GetPropertyTypeCustomization(const FProperty* InProperty,const IPropertyHandle& PropertyHandle, const FCustomPropertyTypeLayoutMap& InstancedPropertyTypeLayoutMap);
 	FPropertyTypeLayoutCallback FindPropertyTypeLayoutCallback(FName PropertyTypeName, const IPropertyHandle& PropertyHandle, const FCustomPropertyTypeLayoutMap& InstancedPropertyTypeLayoutMapp);
-	PROPERTYEDITOR_API bool IsCustomizedStruct(const UStruct* Struct, const FCustomPropertyTypeLayoutMap& InstancePropertyTypeLayoutMap) const;
+	bool IsCustomizedStruct(const UStruct* Struct, const FCustomPropertyTypeLayoutMap& InstancePropertyTypeLayoutMap) const;
 
 	DECLARE_EVENT(PropertyEditorModule, FPropertyEditorOpenedEvent);
 	virtual FPropertyEditorOpenedEvent& OnPropertyEditorOpened() { return PropertyEditorOpened; }

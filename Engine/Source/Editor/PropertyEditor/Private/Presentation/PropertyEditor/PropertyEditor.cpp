@@ -58,17 +58,6 @@ FText FPropertyEditor::GetDisplayName() const
 		return ItemPropertyNode->GetDisplayName();
 	}
 
-	if (const FComplexPropertyNode* ComplexPropertyNode = PropertyNode->AsComplexNode())
-	{
-		const FText DisplayName = ComplexPropertyNode->GetDisplayName();
-
-		// Does this property define its own name?
-		if (!DisplayName.IsEmpty())
-		{
-			return DisplayName;
-		}
-	}
-
 	FString DisplayName;
 	PropertyNode->GetQualifiedName( DisplayName, true );
 	return FText::FromString(DisplayName);

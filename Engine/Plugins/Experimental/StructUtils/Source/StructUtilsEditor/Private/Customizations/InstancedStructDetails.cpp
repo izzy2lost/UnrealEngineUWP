@@ -323,48 +323,12 @@ void FInstancedStructDataDetails::GenerateChildContent(IDetailChildrenBuilder& C
 {
 	// Add the rows for the struct
 	TSharedRef<FInstancedStructProvider> NewStructProvider = MakeShared<FInstancedStructProvider>(StructProperty);
-
-	bool bCustomizedProperty = false;
-
-	const UStruct* BaseStruct = NewStructProvider->GetBaseStructure();
-	if (BaseStruct)
+	
+	TArray<TSharedPtr<IPropertyHandle>> ChildProperties = StructProperty->AddChildStructure(NewStructProvider);
+	for (TSharedPtr<IPropertyHandle> ChildHandle : ChildProperties)
 	{
-		static const FName EditModuleName("PropertyEditor");
-		if (const FPropertyEditorModule* EditModule = FModuleManager::GetModulePtr<FPropertyEditorModule>(EditModuleName))
-		{
-			if (EditModule->IsCustomizedStruct(BaseStruct, FCustomPropertyTypeLayoutMap()))
-			{
-				bCustomizedProperty = true;
-			}
-		}
-	}
-
-	if (bCustomizedProperty)
-	{
-		// Use the struct name instead of the fully-qualified property name
-		const FText Label = BaseStruct->GetDisplayNameText();
-		const FName PropertyName = StructProperty->GetProperty()->GetFName();
-
-		// If the struct has a property customization, then we'll route through AddChildStructure, as it supports
-		// IPropertyTypeCustomization. The other branch is mostly kept as-is for legacy support purposes.
-		IDetailPropertyRow* PropertyRow = ChildBuilder.AddChildStructure(
-			StructProperty.ToSharedRef(), NewStructProvider, PropertyName, Label
-		);
-
-		// Expansion state is not properly persisted for these structures, so let's expanded it by default for now
-		if (PropertyRow)
-		{
-			PropertyRow->ShouldAutoExpand(true);
-		}
-	}
-	else
-	{
-		TArray<TSharedPtr<IPropertyHandle>> ChildProperties = StructProperty->AddChildStructure(NewStructProvider);
-		for (TSharedPtr<IPropertyHandle> ChildHandle : ChildProperties)
-		{
-			IDetailPropertyRow& Row = ChildBuilder.AddProperty(ChildHandle.ToSharedRef());
-			OnChildRowAdded(Row);
-		}
+		IDetailPropertyRow& Row = ChildBuilder.AddProperty(ChildHandle.ToSharedRef());
+		OnChildRowAdded(Row);
 	}
 
 	StructProvider = NewStructProvider;
