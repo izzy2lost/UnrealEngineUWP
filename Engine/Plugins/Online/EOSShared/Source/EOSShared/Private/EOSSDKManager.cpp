@@ -643,6 +643,8 @@ IEOSPlatformHandlePtr FEOSSDKManager::CreatePlatform(EOS_Platform_Options& Platf
 
 		OnPreCreatePlatform.Broadcast(PlatformOptions);
 
+		ApplyOverlayPlatformOptions(PlatformOptions);
+
 		const EOS_HPlatform PlatformHandle = EOS_Platform_Create(&PlatformOptions);
 		if (PlatformHandle)
 		{
@@ -847,6 +849,16 @@ void FEOSSDKManager::SetInvokeOverlayButton(const EOS_HPlatform PlatformHandle)
 				UE_LOG(LogEOSSDK, Verbose, TEXT("[%hs] EOS_UI_SetToggleFriendsButton failed with error: %s"), __FUNCTION__, *LexToString(Result));
 			}
 		}
+	}
+}
+
+void FEOSSDKManager::ApplyOverlayPlatformOptions(EOS_Platform_Options& PlatformOptions)
+{
+	// On consoles, if we're only using the overlay for the AP login flow we can enable auto loading/unloading
+	// so that we only load the KITT DLLs when we open a browser and we unload them after closing the browser
+	if (PlatformOptions.Flags & EOS_PF_DISABLE_SOCIAL_OVERLAY)
+	{
+		PlatformOptions.Flags |= EOS_PF_CONSOLE_ENABLE_OVERLAY_AUTOMATIC_UNLOADING;
 	}
 }
 

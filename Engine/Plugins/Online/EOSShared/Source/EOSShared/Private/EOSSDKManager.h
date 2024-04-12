@@ -92,6 +92,7 @@ protected:
 #endif
 
 	void SetInvokeOverlayButton(const EOS_HPlatform PlatformHandle);
+	void ApplyOverlayPlatformOptions(EOS_Platform_Options& PlatformOptions);
 	EOS_HIntegratedPlatformOptionsContainer CreateIntegratedPlatformOptionsContainer();
 	void ApplyIntegratedPlatformOptions(EOS_HIntegratedPlatformOptionsContainer& Container);
 	virtual void ApplySystemSpecificOptions(const void*& SystemSpecificOptions);
