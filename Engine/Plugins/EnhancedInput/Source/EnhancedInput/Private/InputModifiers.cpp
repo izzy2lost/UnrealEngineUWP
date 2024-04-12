@@ -143,7 +143,8 @@ void UInputModifierDeadZone::PostEditChangeProperty(FPropertyChangedEvent& Prope
 	Super::PostEditChangeProperty(PropertyChangedEvent);
 
 	const FName MemberPropertyName = PropertyChangedEvent.GetMemberPropertyName();
-	if (MemberPropertyName == GET_MEMBER_NAME_CHECKED(UInputModifierDeadZone, LowerThreshold))
+	if (MemberPropertyName == GET_MEMBER_NAME_CHECKED(UInputModifierDeadZone, LowerThreshold) ||
+		MemberPropertyName == GET_MEMBER_NAME_CHECKED(UInputModifierDeadZone, UpperThreshold))
 	{
 		// Clamp the lower threshold to the upper threshold value.
 		if (LowerThreshold > UpperThreshold)
