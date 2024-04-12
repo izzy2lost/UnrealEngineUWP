@@ -14,7 +14,8 @@ Name | Description
 `executor` | `string`<br>The executor to use for jobs
 `localExecutor` | [`LocalExecutorSettings`](#localexecutorsettings)<br>Settings for the local executor
 `perforceExecutor` | [`PerforceExecutorSettings`](#perforceexecutorsettings)<br>Settings for the perforce executor
-`workingDir` | [`DirectoryReference`](#directoryreference)<br>Working directory
+`workingDir` | [`DirectoryReference`](#directoryreference)<br>Working directory for leases and jobs (i.e where files from Perforce will be checked out)
+`logsDir` | [`DirectoryReference`](#directoryreference)<br>Directory where agent and lease logs are written
 `shareMountingEnabled` | `boolean`<br>Whether to mount the specified list of network shares
 `shares` | [`MountNetworkShare`](#mountnetworkshare)`[]`<br>List of network shares to mount
 `processNamesToTerminate` | `string[]`<br>List of process names to terminate after a job

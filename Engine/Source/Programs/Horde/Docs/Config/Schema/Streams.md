@@ -390,6 +390,7 @@ Free-form text entry parameter
 Name | Description
 ---- | -----------
 `type` | Text<br>Type discriminator
+`id` | `string`<br>Identifier for this parameter
 `label` | `string`<br>Name of the parameter associated with this parameter.
 `argument` | `string`<br>Argument to pass to the executor
 `default` | `string`<br>Default value for this argument
@@ -427,6 +428,7 @@ Possible option for a list parameter
 
 Name | Description
 ---- | -----------
+`id` | `string`<br>Identifier for this parameter
 `group` | `string`<br>Optional group heading to display this entry under, if the picker style supports it.
 `text` | `string`<br>Name of the parameter associated with this list.
 `argumentIfEnabled` | `string`<br>Argument to pass with this parameter.
@@ -443,6 +445,7 @@ Allows the user to toggle an option on or off
 Name | Description
 ---- | -----------
 `type` | Bool<br>Type discriminator
+`id` | `string`<br>Identifier for this parameter
 `label` | `string`<br>Name of the parameter associated with this parameter.
 `argumentIfEnabled` | `string`<br>Argument to add if this parameter is enabled
 `argumentsIfEnabled` | `string[]`<br>Argument to add if this parameter is enabled
