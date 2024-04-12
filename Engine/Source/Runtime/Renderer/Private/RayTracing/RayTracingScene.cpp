@@ -15,6 +15,8 @@
 #include "SceneRendering.h"
 #include "RayTracingInstanceCulling.h"
 
+DECLARE_GPU_STAT(RayTracingScene);
+
 BEGIN_SHADER_PARAMETER_STRUCT(FBuildInstanceBufferPassParams, )
 	SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer, InstanceBuffer)
 	SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer, DebugInstanceGPUSceneIndexBuffer)
@@ -224,7 +226,7 @@ void FRayTracingScene::CreateWithInitializationData(FRDGBuilder& GraphBuilder, c
 		PassParams->Scene = View.GetSceneUniforms().GetBuffer(GraphBuilder);
 
 		GraphBuilder.AddPass(
-			RDG_EVENT_NAME("BuildTLASInstanceBuffer"),
+			RDG_EVENT_NAME("RayTracingBuildInstanceBuffer"),
 			PassParams,
 			ERDGPassFlags::Compute,
 			[PassParams,
@@ -280,6 +282,39 @@ void FRayTracingScene::CreateWithInitializationData(FRDGBuilder& GraphBuilder, c
 					PassParams->DebugInstanceGPUSceneIndexBuffer ? PassParams->DebugInstanceGPUSceneIndexBuffer->GetRHI() : nullptr);
 			});
 	}
+}
+
+BEGIN_SHADER_PARAMETER_STRUCT(FRayTracingSceneBuildPassParams, )
+	RDG_BUFFER_ACCESS(ScratchBuffer, ERHIAccess::UAVCompute)
+	RDG_BUFFER_ACCESS(InstanceBuffer, ERHIAccess::SRVCompute)
+	RDG_BUFFER_ACCESS(TLASBuffer, ERHIAccess::BVHWrite)
+
+	RDG_BUFFER_ACCESS(DynamicGeometryScratchBuffer, ERHIAccess::UAVCompute)
+END_SHADER_PARAMETER_STRUCT()
+
+void FRayTracingScene::Build(FRDGBuilder& GraphBuilder, ERDGPassFlags ComputePassFlags, FRDGBufferRef DynamicGeometryScratchBuffer)
+{
+	FRayTracingSceneBuildPassParams* PassParams = GraphBuilder.AllocParameters<FRayTracingSceneBuildPassParams>();
+	PassParams->ScratchBuffer = BuildScratchBuffer;
+	PassParams->InstanceBuffer = InstanceBuffer;
+	PassParams->TLASBuffer = GetBufferChecked();
+	PassParams->DynamicGeometryScratchBuffer = DynamicGeometryScratchBuffer; // TODO: Is this necessary?
+
+	GraphBuilder.AddPass(RDG_EVENT_NAME("RayTracingBuildScene"), PassParams, ComputePassFlags,
+		[this, PassParams](FRHICommandListImmediate& RHICmdList)
+		{
+			SCOPED_GPU_STAT(RHICmdList, RayTracingScene);
+
+			FRayTracingSceneBuildParams BuildParams;
+			BuildParams.Scene = RayTracingSceneRHI;
+			BuildParams.ScratchBuffer = PassParams->ScratchBuffer->GetRHI();
+			BuildParams.ScratchBufferOffset = 0;
+			BuildParams.InstanceBuffer = PassParams->InstanceBuffer->GetRHI();
+			BuildParams.InstanceBufferOffset = 0;
+
+			RHICmdList.BindAccelerationStructureMemory(RayTracingSceneRHI, PassParams->TLASBuffer->GetRHI(), 0);
+			RHICmdList.BuildAccelerationStructure(BuildParams);
+		});
 }
 
 void FRayTracingScene::WaitForTasks() const

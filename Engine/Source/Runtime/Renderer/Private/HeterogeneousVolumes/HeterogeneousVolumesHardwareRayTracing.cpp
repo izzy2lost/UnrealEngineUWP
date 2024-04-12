@@ -258,43 +258,19 @@ void GenerateRayTracingScene(
 	const FGPUScene* EmptyGPUScene = nullptr;
 	RayTracingScene.Create(GraphBuilder, View, EmptyGPUScene);
 
-	// Build TLAS
-	FBuildTLASPassParams* PassParamsTLAS = GraphBuilder.AllocParameters<FBuildTLASPassParams>();
-	PassParamsTLAS->RayTracingSceneScratchBuffer = RayTracingScene.BuildScratchBuffer;
-	PassParamsTLAS->RayTracingSceneInstanceBuffer = RayTracingScene.InstanceBuffer;
-	PassParamsTLAS->RayTracingSceneBuffer = RayTracingScene.GetBufferChecked();
-
 	const bool bRayTracingAsyncBuild = false;//CVarRayTracingAsyncBuild.GetValueOnRenderThread() != 0 && GRHISupportsRayTracingAsyncBuildAccelerationStructure;
 	const ERDGPassFlags ComputePassFlags = bRayTracingAsyncBuild ? ERDGPassFlags::AsyncCompute : ERDGPassFlags::Compute;
-	GraphBuilder.AddPass(
-		RDG_EVENT_NAME("RayTracingScene"),
-		PassParamsTLAS,
-		ComputePassFlags | ERDGPassFlags::NeverCull | ERDGPassFlags::NeverParallel,
-		[
-			PassParamsTLAS,
-			&RayTracingScene,
-			bRayTracingAsyncBuild
-		](FRHIComputeCommandList& RHICmdList)
+	RayTracingScene.Build(GraphBuilder, ComputePassFlags | ERDGPassFlags::NeverCull | ERDGPassFlags::NeverParallel, nullptr);
+
+	AddPass(GraphBuilder, RDG_EVENT_NAME("RayTracingEndUpdate"), [&RayTracingScene, bRayTracingAsyncBuild](FRHICommandListImmediate& RHICmdList)
 		{
-			FRHIRayTracingScene* RayTracingSceneRHI = RayTracingScene.GetRHIRayTracingSceneChecked();
-			FRHIBuffer* AccelerationStructureBuffer = PassParamsTLAS->RayTracingSceneBuffer->GetRHI();
-
-			FRayTracingSceneBuildParams SceneBuildParams;
-			SceneBuildParams.Scene = RayTracingSceneRHI;
-			SceneBuildParams.ScratchBuffer = PassParamsTLAS->RayTracingSceneScratchBuffer->GetRHI();
-			SceneBuildParams.ScratchBufferOffset = 0;
-			SceneBuildParams.InstanceBuffer = PassParamsTLAS->RayTracingSceneInstanceBuffer->GetRHI();
-			SceneBuildParams.InstanceBufferOffset = 0;
-
-			RHICmdList.BindAccelerationStructureMemory(RayTracingSceneRHI, AccelerationStructureBuffer, 0);
-			RHICmdList.BuildAccelerationStructure(SceneBuildParams);
-			// Submit potentially expensive BVH build commands to the GPU as soon as possible.
-			// Avoids a GPU bubble in some CPU-limited cases.
-			RHICmdList.SubmitCommandsHint();
-
-			RHICmdList.Transition(FRHITransitionInfo(RayTracingSceneRHI, ERHIAccess::BVHWrite, ERHIAccess::BVHRead));
-		}
-	);
+			if (!bRayTracingAsyncBuild)
+			{
+				// Submit potentially expensive BVH build commands to the GPU as soon as possible.
+				// Avoids a GPU bubble in some CPU-limited cases.
+				RHICmdList.SubmitCommandsHint();
+			}
+		});
 }
 
 IMPLEMENT_RT_PAYLOAD_TYPE(ERayTracingPayloadType::SparseVoxel, 28);

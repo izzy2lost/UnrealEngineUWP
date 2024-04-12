@@ -66,6 +66,8 @@ public:
 	// Backwards-compatible version of Create() which internally calls CreateRayTracingSceneWithGeometryInstances().
 	void Create(FRDGBuilder& GraphBuilder, const FViewInfo& View, const FGPUScene* GPUScene);
 
+	void Build(FRDGBuilder& GraphBuilder, ERDGPassFlags ComputePassFlags, FRDGBufferRef DynamicGeometryScratchBuffer);
+
 	// Resets the instance list and reserves memory for this frame.
 	void Reset(bool bInstanceDebugDataEnabled);
 
@@ -99,6 +101,8 @@ public:
 	// Returns RDG view of a layer. Can only be used on valid ray tracing scene.
 	RENDERER_API FRDGBufferSRVRef GetLayerView(ERayTracingSceneLayer Layer) const;
 
+	FRDGBufferRef GetInstanceBuffer() const { return InstanceBuffer; }
+
 	TArrayView<const FRayTracingGeometryInstance> GetInstances() const { return MakeArrayView(Instances); }
 
 	FRayTracingGeometryInstance& GetInstance(uint32 InstanceIndex) { return Instances[InstanceIndex]; }
@@ -122,9 +126,6 @@ public:
 	// Used coarse mesh streaming handles during the last TLAS build
 	TArray<Nanite::CoarseMeshStreamingHandle> UsedCoarseMeshStreamingHandles;
 
-	FRDGBufferRef InstanceBuffer;
-	FRDGBufferRef BuildScratchBuffer;
-
 	// Special data for debugging purposes
 	FRDGBufferRef InstanceDebugBuffer = nullptr;
 
@@ -136,7 +137,10 @@ public:
 private:
 	void WaitForTasks() const;
 
-	// RHI object that abstracts mesh instnaces in this scene
+	FRDGBufferRef InstanceBuffer;
+	FRDGBufferRef BuildScratchBuffer;
+
+	// RHI object that abstracts mesh instances in this scene
 	FRayTracingSceneRHIRef RayTracingSceneRHI;
 
 	// Persistently allocated buffer that holds the built TLAS

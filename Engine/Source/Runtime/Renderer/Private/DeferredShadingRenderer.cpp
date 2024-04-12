@@ -283,7 +283,6 @@ DECLARE_CYCLE_STAT(TEXT("DeferredShadingSceneRenderer RenderLightShaftBloom"), S
 DECLARE_CYCLE_STAT(TEXT("DeferredShadingSceneRenderer RenderFinish"), STAT_FDeferredShadingSceneRenderer_RenderFinish, STATGROUP_SceneRendering);
 
 DECLARE_GPU_STAT(RayTracingUpdate);
-DECLARE_GPU_STAT(RayTracingScene);
 DECLARE_GPU_STAT(RayTracingGeometry);
 DECLARE_GPU_STAT(RayTracingDynamicGeometry);
 
@@ -577,10 +576,7 @@ static void DeduplicateRayGenerationShaders(TArray< FRHIRayTracingShader*>& RayG
 }
 
 BEGIN_SHADER_PARAMETER_STRUCT(FBuildAccelerationStructurePassParams, )
-	RDG_BUFFER_ACCESS(RayTracingSceneScratchBuffer, ERHIAccess::UAVCompute)
 	RDG_BUFFER_ACCESS(DynamicGeometryScratchBuffer, ERHIAccess::UAVCompute)
-	RDG_BUFFER_ACCESS(RayTracingSceneInstanceBuffer, ERHIAccess::SRVCompute)
-	RDG_BUFFER_ACCESS(RayTracingSceneBuffer, ERHIAccess::BVHWrite)
 
 	SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, View)
 	SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FSceneUniformParameters, Scene)
@@ -850,8 +846,6 @@ bool FDeferredShadingSceneRenderer::DispatchRayTracingWorldUpdates(FRDGBuilder& 
 			RDG_GPU_MASK_SCOPE(GraphBuilder, FRHIGPUMask::All());
 
 			FBuildAccelerationStructurePassParams* PassParams = GraphBuilder.AllocParameters<FBuildAccelerationStructurePassParams>();
-			PassParams->RayTracingSceneScratchBuffer = nullptr;
-			PassParams->RayTracingSceneInstanceBuffer = nullptr;
 			PassParams->View = ReferenceView.ViewUniformBuffer;
 			PassParams->Scene = GetSceneUniforms().GetBuffer(GraphBuilder);
 			PassParams->DynamicGeometryScratchBuffer = OutDynamicGeometryScratchBuffer;
@@ -871,41 +865,8 @@ bool FDeferredShadingSceneRenderer::DispatchRayTracingWorldUpdates(FRDGBuilder& 
 			});
 		}
 
-		{
-			FBuildAccelerationStructurePassParams* PassParams = GraphBuilder.AllocParameters<FBuildAccelerationStructurePassParams>();
-			PassParams->RayTracingSceneScratchBuffer = Scene->RayTracingScene.BuildScratchBuffer;
-			PassParams->RayTracingSceneInstanceBuffer = Scene->RayTracingScene.InstanceBuffer;
-			PassParams->View = ReferenceView.ViewUniformBuffer;
-			PassParams->Scene = GetSceneUniforms().GetBuffer(GraphBuilder);
-			PassParams->DynamicGeometryScratchBuffer = OutDynamicGeometryScratchBuffer;
-			PassParams->LightGridPacked = nullptr;
-			PassParams->ClusterPageData = nullptr;
-			PassParams->HierarchyBuffer = nullptr;
-			PassParams->RayTracingDataBuffer = nullptr;
-			PassParams->RayTracingSceneBuffer = Scene->RayTracingScene.GetBufferChecked();
-
-			// Use ERDGPassFlags::NeverParallel here too -- see comment above on the previous pass
-			GraphBuilder.AddPass(RDG_EVENT_NAME("RayTracingUpdate"), PassParams, ComputePassFlags | ERDGPassFlags::NeverCull | ERDGPassFlags::NeverParallel,
-				[this, PassParams, bRayTracingAsyncBuild](FRHICommandListImmediate& RHICmdList)
-			{
-				SCOPED_GPU_STAT(RHICmdList, RayTracingScene);
-
-				FRHIRayTracingScene* RayTracingSceneRHI = Scene->RayTracingScene.GetRHIRayTracingSceneChecked();
-				FRHIBuffer* AccelerationStructureBuffer = PassParams->RayTracingSceneBuffer->GetRHI();
-				FRHIBuffer* ScratchBuffer = PassParams->RayTracingSceneScratchBuffer->GetRHI();
-				FRHIBuffer* InstanceBuffer = PassParams->RayTracingSceneInstanceBuffer->GetRHI();
-
-				FRayTracingSceneBuildParams BuildParams;
-				BuildParams.Scene = RayTracingSceneRHI;
-				BuildParams.ScratchBuffer = ScratchBuffer;
-				BuildParams.ScratchBufferOffset = 0;
-				BuildParams.InstanceBuffer = InstanceBuffer;
-				BuildParams.InstanceBufferOffset = 0;
-
-				RHICmdList.BindAccelerationStructureMemory(RayTracingSceneRHI, AccelerationStructureBuffer, 0);
-				RHICmdList.BuildAccelerationStructure(BuildParams);
-			});
-		}
+		// Use ERDGPassFlags::NeverParallel here too -- see comment above on the previous pass
+		RayTracingScene.Build(GraphBuilder, ComputePassFlags | ERDGPassFlags::NeverCull | ERDGPassFlags::NeverParallel, OutDynamicGeometryScratchBuffer);
 	}
 
 	AddPass(GraphBuilder, RDG_EVENT_NAME("RayTracingEndUpdate"), [this, bRayTracingAsyncBuild](FRHICommandListImmediate& RHICmdList)
@@ -979,7 +940,6 @@ void FDeferredShadingSceneRenderer::WaitForRayTracingScene(FRDGBuilder& GraphBui
 
 	FBuildAccelerationStructurePassParams* PassParams = GraphBuilder.AllocParameters<FBuildAccelerationStructurePassParams>();
 	PassParams->Scene = GetSceneUniformBufferRef(GraphBuilder);
-	PassParams->RayTracingSceneScratchBuffer = nullptr;
 	PassParams->DynamicGeometryScratchBuffer = nullptr;
 	PassParams->LightGridPacked = bIsPathTracing ? nullptr : ReferenceView.RayTracingLightGridUniformBuffer; // accessed by FRayTracingLightingMS // Is this needed for anything?
 	PassParams->LumenHardwareRayTracingUniformBuffer = ReferenceView.LumenHardwareRayTracingUniformBuffer;
