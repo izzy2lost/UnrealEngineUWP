@@ -44,7 +44,8 @@ namespace UE
 					, FbxScene* SDKScene
 					, UInterchangeBaseNodeContainer& NodeContainer
 					, TMap<FString, TSharedPtr<FPayloadContextBase, ESPMode::ThreadSafe>>& PayloadContexts
-					, TArray<FbxNode*>& ForceJointNodes);
+					, TArray<FbxNode*>& ForceJointNodes
+					, bool& bBadBindPoseMessageDisplay);
 
 				void AddAnimationRecursively(FbxNode* Node
 					, FbxScene* SDKScene

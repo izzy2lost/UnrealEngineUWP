@@ -1980,8 +1980,9 @@ void FFbxMesh::AddAllMeshes(FbxScene* SDKScene, FbxGeometryConverter* SDKGeometr
 	} // for GeometryCount
 }
 
-bool FFbxMesh::GetGlobalJointBindPoseTransform(FbxScene* SDKScene, FbxNode* Joint, FbxAMatrix& GlobalBindPoseJointMatrix)
+bool FFbxMesh::GetGlobalJointBindPoseTransform(FFbxParser* Parser, FbxScene* SDKScene, FbxNode* Joint, FbxAMatrix& GlobalBindPoseJointMatrix, bool& bBadBindPoseMessageDisplay)
 {
+	FbxManager* SDKManager = SDKScene->GetFbxManager();
 	//First look for Cluster and then look in the bind pose if no cluster was found
 
 	//Search all skeletalmesh(FbxGeometry with valid deformer) using this joint and see if there is a valid FbxCluster
@@ -2037,80 +2038,129 @@ bool FFbxMesh::GetGlobalJointBindPoseTransform(FbxScene* SDKScene, FbxNode* Join
 		return false;
 	};
 
-	const int32 PoseCount = SDKScene->GetPoseCount();
-	for (int32 PoseIndex = 0; PoseIndex < PoseCount; PoseIndex++)
-	{
-		FbxPose* CurrentPose = SDKScene->GetPose(PoseIndex);
-
-		// current pose is bind pose, 
-		if (CurrentPose && CurrentPose->IsBindPose())
+	auto RetrievePoseFromBindPose = [&]()
 		{
-			FString PoseName = CurrentPose->GetName();
-			// all error report status
-			FbxStatus Status;
-
-			FbxArray<FbxNode*> pMissingAncestors, pMissingDeformers, pMissingDeformersAncestors, pWrongMatrices;
-
-			if (CurrentPose->IsValidBindPoseVerbose(Joint, pMissingAncestors, pMissingDeformers, pMissingDeformersAncestors, pWrongMatrices, 0.0001, &Status))
+			const int32 PoseCount = SDKScene->GetPoseCount();
+			for (int32 PoseIndex = 0; PoseIndex < PoseCount; PoseIndex++)
 			{
-				if (AcquireBindPoseMatrix(CurrentPose, GlobalBindPoseJointMatrix, Joint))
-				{
-					return true;
-				}
-			}
-			else
-			{
-				// first try to fix up
-				// add missing ancestors
-				for (int i = 0; i < pMissingAncestors.GetCount(); i++)
-				{
-					FbxAMatrix mat = pMissingAncestors.GetAt(i)->EvaluateGlobalTransform(FBXSDK_TIME_ZERO);
-					CurrentPose->Add(pMissingAncestors.GetAt(i), mat);
-				}
+				FbxPose* CurrentPose = SDKScene->GetPose(PoseIndex);
 
-				pMissingAncestors.Clear();
-				pMissingDeformers.Clear();
-				pMissingDeformersAncestors.Clear();
-				pWrongMatrices.Clear();
-
-				// check it again
-				if (CurrentPose->IsValidBindPose(Joint))
+				// current pose is bind pose, 
+				if (CurrentPose && CurrentPose->IsBindPose())
 				{
-					if (AcquireBindPoseMatrix(CurrentPose, GlobalBindPoseJointMatrix, Joint))
-					{
-						return true;
-					}
-				}
-				else
-				{
-					// first try to find parent who is null group and see if you can try test it again
-					FbxNode* ParentNode = Joint->GetParent();
-					while (ParentNode)
-					{
-						FbxNodeAttribute* Attr = ParentNode->GetNodeAttribute();
-						if (Attr && Attr->GetAttributeType() == FbxNodeAttribute::eNull)
-						{
-							// found it 
-							break;
-						}
+					FString PoseName = CurrentPose->GetName();
+					// all error report status
+					FbxStatus Status;
 
-						// find next parent
-						ParentNode = ParentNode->GetParent();
-					}
+					FbxArray<FbxNode*> pMissingAncestors, pMissingDeformers, pMissingDeformersAncestors, pWrongMatrices;
 
-					if (ParentNode && CurrentPose->IsValidBindPose(ParentNode))
+					if (CurrentPose->IsValidBindPoseVerbose(Joint, pMissingAncestors, pMissingDeformers, pMissingDeformersAncestors, pWrongMatrices, 0.0001, &Status))
 					{
 						if (AcquireBindPoseMatrix(CurrentPose, GlobalBindPoseJointMatrix, Joint))
 						{
 							return true;
 						}
 					}
+					else
+					{
+						// first try to fix up
+						// add missing ancestors
+						for (int i = 0; i < pMissingAncestors.GetCount(); i++)
+						{
+							FbxAMatrix mat = pMissingAncestors.GetAt(i)->EvaluateGlobalTransform(FBXSDK_TIME_ZERO);
+							CurrentPose->Add(pMissingAncestors.GetAt(i), mat);
+						}
+
+						pMissingAncestors.Clear();
+						pMissingDeformers.Clear();
+						pMissingDeformersAncestors.Clear();
+						pWrongMatrices.Clear();
+
+						// check it again
+						if (CurrentPose->IsValidBindPose(Joint))
+						{
+							if (AcquireBindPoseMatrix(CurrentPose, GlobalBindPoseJointMatrix, Joint))
+							{
+								return true;
+							}
+						}
+						else
+						{
+							// first try to find parent who is null group and see if you can try test it again
+							FbxNode* ParentNode = Joint->GetParent();
+							while (ParentNode)
+							{
+								FbxNodeAttribute* Attr = ParentNode->GetNodeAttribute();
+								if (Attr && Attr->GetAttributeType() == FbxNodeAttribute::eNull)
+								{
+									// found it 
+									break;
+								}
+
+								// find next parent
+								ParentNode = ParentNode->GetParent();
+							}
+
+							if (ParentNode && CurrentPose->IsValidBindPose(ParentNode))
+							{
+								if (AcquireBindPoseMatrix(CurrentPose, GlobalBindPoseJointMatrix, Joint))
+								{
+									return true;
+								}
+							}
+						}
+					}
 				}
+			}
+
+			return false;
+		};
+
+	bool bRerieveBindPoseResult = RetrievePoseFromBindPose();
+	// get bind pose
+	if (!bRerieveBindPoseResult)
+	{
+		bool bOriginalBadBindPoseMessageDisplay = bBadBindPoseMessageDisplay;
+		if (!GIsAutomationTesting && !bOriginalBadBindPoseMessageDisplay)
+		{
+			UInterchangeResultWarning_Generic* Message = Parser->AddMessage<UInterchangeResultWarning_Generic>();
+			Message->Text = LOCTEXT("MissingBindPose", "Missing bind pose. Try to recreate bind pose.");
+			bBadBindPoseMessageDisplay = true;
+		}
+		// if failed, delete bind pose, and retry.
+		const int32 PoseCount = SDKScene->GetPoseCount();
+		for (int32 PoseIndex = PoseCount - 1; PoseIndex >= 0; --PoseIndex)
+		{
+			FbxPose* CurrentPose = SDKScene->GetPose(PoseIndex);
+
+			// current pose is bind pose, 
+			if (CurrentPose && CurrentPose->IsBindPose())
+			{
+				SDKScene->RemovePose(PoseIndex);
+				CurrentPose->Destroy();
+			}
+		}
+
+		SDKManager->CreateMissingBindPoses(SDKScene);
+		bRerieveBindPoseResult = RetrievePoseFromBindPose();
+		if (!bRerieveBindPoseResult)
+		{
+			if (!GIsAutomationTesting && !bOriginalBadBindPoseMessageDisplay)
+			{
+				UInterchangeResultWarning_Generic* Message = Parser->AddMessage<UInterchangeResultWarning_Generic>();
+				Message->Text = LOCTEXT("MissingBindPose_RecreateFailed", "Missing bind pose. Recreating bind pose failed.");
+			}
+		}
+		else
+		{
+			if (!GIsAutomationTesting && !bOriginalBadBindPoseMessageDisplay)
+			{
+				UInterchangeResultWarning_Generic* Message = Parser->AddMessage<UInterchangeResultWarning_Generic>();
+				Message->Text = LOCTEXT("MissingBindPose_RecreateSuccess", "Missing bind pose. Recreating bind pose succeeded.");
 			}
 		}
 	}
-
-	return false;
+	return bRerieveBindPoseResult;
 }
 
 bool FFbxMesh::ExtractSkinnedMeshNodeJoints(FbxScene* SDKScene, UInterchangeBaseNodeContainer& NodeContainer, FbxMesh* Mesh, UInterchangeMeshNode* MeshNode)

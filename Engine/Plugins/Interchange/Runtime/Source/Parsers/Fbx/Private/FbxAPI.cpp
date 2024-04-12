@@ -332,20 +332,6 @@ namespace UE
 
 			void FFbxParser::CleanupFbxData()
 			{
-				//////////////////////////////////////////////////////////////////////////
-				// Make sure there is a valid bind pose
-
-				//Find root bones
-				const int32 Default_NbPoses = SDKScene->GetFbxManager()->GetBindPoseCount(SDKScene);
-				// If there are no BindPoses, the following will generate them.
-				SDKScene->GetFbxManager()->CreateMissingBindPoses(SDKScene);
-				//if we created missing bind poses, update the number of bind poses
-				const int32 NbPoses = SDKScene->GetFbxManager()->GetBindPoseCount(SDKScene);
-				if (NbPoses != Default_NbPoses && !GIsAutomationTesting)
-				{
-					UInterchangeResultWarning_Generic* Message = AddMessage<UInterchangeResultWarning_Generic>();
-					Message->Text = LOCTEXT("MissingBindPose", "Missing bind pose - the FBX SDK has created one.");
-				}
 				auto MakeFbxObjectNameUnique = [bKeepFbxNamespaceClosure = bKeepFbxNamespace](FbxObject* Object, TMap<FString, int32>& Names)
 					{
 						FString ObjectName = UTF8_TO_TCHAR(Object->GetName());
