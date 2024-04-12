@@ -71,7 +71,7 @@ private:
 	bool bIsWorkDone;
 
 	uba::NetworkServer* UbaServer = nullptr;
-	uba::Storage* UbaStorageServer = nullptr;
+	uba::StorageServer* UbaStorageServer = nullptr;
 	uba::SessionServer* UbaSessionServer = nullptr;
 	uba::Scheduler* UbaScheduler = nullptr;
 	TUniquePtr<FUbaHordeAgentManager> HordeAgentManager;
