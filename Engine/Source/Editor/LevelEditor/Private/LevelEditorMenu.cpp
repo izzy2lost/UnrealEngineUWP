@@ -26,7 +26,6 @@
 #include "AssetSelection.h"
 #include "EditorBuildUtils.h"
 #include "EditorViewportCommands.h"
-#include "Toolkits/GlobalEditorCommonCommands.h"
 
 #define LOCTEXT_NAMESPACE "LevelEditorMenu"
 
@@ -46,7 +45,7 @@ void FLevelEditorMenu::RegisterLevelEditorMenus()
 			OpenSection.AddMenuEntry( FLevelEditorCommands::Get().NewLevel ).InsertPosition = InsertPos;
 
 			// Open Level
-			OpenSection.AddMenuEntry( FGlobalEditorCommonCommands::Get().OpenLevel ).InsertPosition = InsertPos;
+			OpenSection.AddMenuEntry( FLevelEditorCommands::Get().OpenLevel ).InsertPosition = InsertPos;
 
 			FToolMenuSection& AssetSection = Menu->FindOrAddSection("FileAsset");
 			

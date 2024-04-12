@@ -44,7 +44,6 @@ public:
 
 	/** Level file commands */
 	TSharedPtr< FUICommandInfo > NewLevel;
-	UE_DEPRECATED(5.4, "This command has been moved to FGlobalEditorCommonCommands and is no longer registered.")
 	TSharedPtr< FUICommandInfo > OpenLevel;
 	TSharedPtr< FUICommandInfo > Save;
 	TSharedPtr< FUICommandInfo > SaveAs;
