@@ -82,6 +82,8 @@ namespace UnrealBuildTool
 		/// Don't generate crashlytics data
 		/// </summary>
 		[CommandLine("-alwaysgeneratedsym", Value = "true")]
+		[CommandLine("-EnableDSYM", Value = "true")]
+		[XmlConfigFile(Category = "BuildConfiguration", Name = "bUseDSYMFiles")]
 		public bool bGeneratedSYM = false;
 
 		/// <summary>
