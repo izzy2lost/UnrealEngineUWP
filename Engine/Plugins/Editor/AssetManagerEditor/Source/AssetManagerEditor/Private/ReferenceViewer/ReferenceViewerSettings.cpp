@@ -9,11 +9,6 @@ bool UReferenceViewerSettings::IsSearchDepthLimited() const
 	return bLimitSearchDepth;
 }
 
-bool UReferenceViewerSettings::IsSearchBreadthLimited() const
-{
-	return bLimitSearchBreadth;
-}
-
 bool UReferenceViewerSettings::IsShowSoftReferences() const
 {
 	return bIsShowSoftReferences;
@@ -77,12 +72,6 @@ bool UReferenceViewerSettings::IsShowDependencies() const
 void UReferenceViewerSettings::SetSearchDepthLimitEnabled(bool bNewEnabled)
 {
 	bLimitSearchDepth = bNewEnabled;
-	SaveConfig();
-}
-
-void UReferenceViewerSettings::SetSearchBreadthLimitEnabled(bool bNewEnabled)
-{
-	bLimitSearchBreadth = bNewEnabled;
 	SaveConfig();
 }
 

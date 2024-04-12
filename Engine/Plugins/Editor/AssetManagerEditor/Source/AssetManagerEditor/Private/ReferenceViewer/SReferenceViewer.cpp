@@ -68,6 +68,7 @@ void SReferenceViewer::Construct(const FArguments& InArgs)
 {
 	bRebuildingFilters = false;
 	bNeedsGraphRebuild = false;
+	bNeedsGraphRefilter = false;
 	Settings = GetMutableDefault<UReferenceViewerSettings>();
 
 	// Create an action list and register commands
@@ -402,26 +403,16 @@ void SReferenceViewer::Construct(const FArguments& InArgs)
 						.VAlign(VAlign_Center)
 						.Padding(2.f)
 						[
-							SNew(SCheckBox)
-							.OnCheckStateChanged( this, &SReferenceViewer::OnSearchBreadthEnabledChanged )
-							.IsChecked( this, &SReferenceViewer::IsSearchBreadthEnabledChecked )
-						]
-					
-						+SHorizontalBox::Slot()
-						.AutoWidth()
-						.VAlign(VAlign_Center)
-						.Padding(2.f)
-						[
 							SNew(SBox)
 							.WidthOverride(100)
 							[
 								SAssignNew(BreadthLimitBox, SSpinBox<int32>)
 								.Value(this, &SReferenceViewer::GetSearchBreadthCount)
-								.OnValueChanged(this, &SReferenceViewer::OnSearchBreadthCommitted)
-								.OnValueCommitted_Lambda([this] (int32 NewValue, ETextCommit::Type CommitType) { FSlateApplication::Get().SetKeyboardFocus(GraphEditorPtr, EFocusCause::SetDirectly); } )
+								.OnValueChanged(this, &SReferenceViewer::OnSearchBreadthChanged)
+								.OnValueCommitted(this, &SReferenceViewer::OnSearchBreadthCommited)
 								.MinValue(1)
 								.MaxValue(1000)
-								.MaxSliderValue(50)
+								.MaxSliderValue(1000)
 							]
 						]
 					]
@@ -562,6 +553,15 @@ void SReferenceViewer::Tick( const FGeometry& AllottedGeometry, const double InC
 		bNeedsGraphRebuild = false;
 		RebuildGraph();
 	}
+
+	if (bNeedsGraphRefilter)
+	{
+		bNeedsGraphRefilter = false;
+		if (GraphObj)
+		{
+			GraphObj->RefilterGraph();
+		}
+	}
 }
 
 FReply SReferenceViewer::OnKeyDown(const FGeometry& MyGeometry, const FKeyEvent& InKeyEvent)
@@ -587,7 +587,6 @@ void SReferenceViewer::SetGraphRootIdentifiers(const TArray<FAssetIdentifier>& N
 	if (FixAndHideSearchBreadthLimit > 0)
 	{
 		Settings->SetSearchBreadthLimit(FixAndHideSearchBreadthLimit);
-		Settings->SetSearchBreadthLimitEnabled(true);
 	}
 	bShowCollectionFilter = ReferenceViewerParams.bShowCollectionFilter;
 	bShowPluginFilter = ReferenceViewerParams.bShowPluginFilter;
@@ -991,20 +990,6 @@ void SReferenceViewer::OnSearchReferencerDepthCommitted(int32 NewValue)
 		Settings->SetSearchReferencerDepthLimit(NewValue);
 		RebuildGraph();
 	}
-}
-
-void SReferenceViewer::OnSearchBreadthEnabledChanged( ECheckBoxState NewState )
-{
-	Settings->SetSearchBreadthLimitEnabled(NewState == ECheckBoxState::Checked);
-	if (GraphObj)
-	{
-		GraphObj->RefilterGraph();
-	}
-}
-
-ECheckBoxState SReferenceViewer::IsSearchBreadthEnabledChecked() const
-{
-	return Settings->IsSearchBreadthLimited() ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
 }
 
 void SReferenceViewer::OnEnableCollectionFilterChanged(ECheckBoxState NewState)
@@ -1424,13 +1409,38 @@ int32 SReferenceViewer::GetSearchBreadthCount() const
 	return Settings->GetSearchBreadthLimit();
 }
 
-void SReferenceViewer::OnSearchBreadthCommitted(int32 NewValue)
+void SReferenceViewer::SetSearchBreadthCount(int32 InBreadthValue)
 {
-	Settings->SetSearchBreadthLimit(NewValue);
+	if (!Settings)
+	{
+		return;
+	}
+
+	if (Settings->GetSearchBreadthLimit() != InBreadthValue)
+	{
+		Settings->SetSearchBreadthLimit(InBreadthValue);
+	}
+}
+
+void SReferenceViewer::OnSearchBreadthChanged(int32 InBreadthValue)
+{
+	SetSearchBreadthCount(InBreadthValue);
+
+	bNeedsGraphRefilter = true;
+}
+
+void SReferenceViewer::OnSearchBreadthCommited(int32 InBreadthValue, ETextCommit::Type InCommitType)
+{
+	SetSearchBreadthCount(InBreadthValue);
+
+	bNeedsGraphRefilter = false;
+
 	if (GraphObj)
 	{
 		GraphObj->RefilterGraph();
 	}
+
+	FSlateApplication::Get().SetKeyboardFocus(GraphEditorPtr, EFocusCause::SetDirectly);
 }
 
 void SReferenceViewer::RegisterActions()
@@ -1494,12 +1504,12 @@ void SReferenceViewer::RegisterActions()
 
 	ReferenceViewerActions->MapAction(
 		FAssetManagerEditorCommands::Get().IncreaseBreadth,
-		FExecuteAction::CreateLambda( [this] { OnSearchBreadthCommitted( GetSearchBreadthCount() + 1); } ),
+		FExecuteAction::CreateLambda( [this] { SetSearchBreadthCount( GetSearchBreadthCount() + 1); } ),
 		FCanExecuteAction());
 
 	ReferenceViewerActions->MapAction(
 		FAssetManagerEditorCommands::Get().DecreaseBreadth,
-		FExecuteAction::CreateLambda( [this] { OnSearchBreadthCommitted( GetSearchBreadthCount() - 1); } ),
+		FExecuteAction::CreateLambda( [this] { SetSearchBreadthCount( GetSearchBreadthCount() - 1); } ),
 		FCanExecuteAction());
 
 	ReferenceViewerActions->MapAction(

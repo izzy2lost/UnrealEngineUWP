@@ -118,9 +118,6 @@ private:
 	void OnSearchReferencerDepthCommitted(int32 NewValue);
 	void OnSearchDependencyDepthCommitted(int32 NewValue);
 
-	void OnSearchBreadthEnabledChanged( ECheckBoxState NewState );
-	ECheckBoxState IsSearchBreadthEnabledChecked() const;
-
 	void OnEnableCollectionFilterChanged(ECheckBoxState NewState);
 	ECheckBoxState IsEnableCollectionFilterChecked() const;
 	void CollectionFilterAddMenuEntry(FMenuBuilder& MenuBuilder, const FName& CollectionName);
@@ -162,7 +159,9 @@ private:
 	bool IsShowCodePackagesChecked() const;
 
 	int32 GetSearchBreadthCount() const;
-	void OnSearchBreadthCommitted(int32 NewValue);
+	void SetSearchBreadthCount(int32 InBreadthValue);
+	void OnSearchBreadthChanged(int32 InBreadthValue);
+	void OnSearchBreadthCommited(int32 InBreadthValue, ETextCommit::Type InCommitType);
 
 	TSharedRef<SWidget> GetShowMenuContent();
 
@@ -274,6 +273,7 @@ private:
 
 	/** Used to delay graph rebuilding during spinbox slider interaction */
 	bool bNeedsGraphRebuild;
+	bool bNeedsGraphRefilter;
 	double SliderDelayLastMovedTime = 0.0;
 	double GraphRebuildSliderDelay = 0.25;
 

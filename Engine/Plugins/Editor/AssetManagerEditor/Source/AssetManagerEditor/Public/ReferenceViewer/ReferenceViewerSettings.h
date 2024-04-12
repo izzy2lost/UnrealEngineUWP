@@ -53,8 +53,11 @@ public:
 	int32 GetSearchDependencyDepthLimit() const;
 	void SetSearchDependencyDepthLimit(int32 NewDepthLimit, bool bSaveConfig = true);
 
-	bool IsSearchBreadthLimited() const;
-	void SetSearchBreadthLimitEnabled(bool bNewEnabled);
+	UE_DEPRECATED(5.5, "Search breadth is always limited. Will always return true.")
+	bool IsSearchBreadthLimited() const { return true; }
+
+	UE_DEPRECATED(5.5, "Search breadth is always limited.")
+	void SetSearchBreadthLimitEnabled(bool bNewEnabled) {}
 
 	int32 GetSearchBreadthLimit() const;
 	void SetSearchBreadthLimit(int32 NewBreadthLimit);
@@ -132,8 +135,9 @@ private:
 	int32 MaxSearchDependencyDepth; 
 	
 	/* Whether or not to limit how many siblings can appear */
-	UPROPERTY(config)
-	bool bLimitSearchBreadth;
+	UE_DEPRECATED(5.5, "bLimitSearchBreadth has been deprecated.")
+	UPROPERTY(config, meta = (DeprecatedProperty, DeprecationMessage = "Search breadth is always limited."))
+	bool bLimitSearchBreadth_DEPRECATED;
 	
 	/* The max number of siblings that can appear from a node */
 	UPROPERTY(config)

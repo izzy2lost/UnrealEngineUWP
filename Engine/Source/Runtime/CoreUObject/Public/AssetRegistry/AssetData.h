@@ -1055,11 +1055,7 @@ struct FReferenceViewerParams
 	 * - If >0, it will hide that option and fix the Depth value to this value.
 	 */
 	int32 FixAndHideSearchDepthLimit;
-	/**
-	 * Whether to visually show to the user the option of "Search Breadth Limit" or hide it and fix it to a default value:
-	 * - If 0 or negative, it will show to the user the option of "Search Breadth Limit".
-	 * - If >0, it will hide that option and fix the Breadth value to this value.
-	 */
+	/** Limits Search Breadth to the specified value */
 	int32 FixAndHideSearchBreadthLimit;
 	/** Whether to visually show to the user the option of "Collection Filter" */
 	bool bShowCollectionFilter;

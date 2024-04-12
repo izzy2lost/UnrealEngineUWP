@@ -4,6 +4,7 @@
 #include "Misc/FilterCollection.h"
 #include "ReferenceViewer/EdGraphNode_Reference.h"
 #include "Misc/IFilter.h"
+#include "Misc/ScopedSlowTask.h"
 #include "ReferenceViewer/ReferenceViewerSettings.h"
 #include "EdGraph/EdGraphPin.h"
 #include "AssetRegistry/AssetRegistryModule.h"
@@ -16,6 +17,8 @@
 #include "Interfaces/IPluginManager.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(EdGraph_ReferenceViewer)
+
+#define LOCTEXT_NAMESPACE "EdGraph_ReferenceViewer"
 
 FReferenceNodeInfo::FReferenceNodeInfo(const FAssetIdentifier& InAssetId, bool InbReferencers)
 	: AssetId(InAssetId)
@@ -618,8 +621,24 @@ void UEdGraph_ReferenceViewer::GetSortedLinks(const TArray<FAssetIdentifier>& Id
 	OutLinks.GenerateKeyArray(ReferenceIds);
 	IAssetManagerEditorModule::Get().FilterAssetIdentifiersForCurrentRegistrySource(ReferenceIds, GetReferenceSearchFlags(false), !bReferencers);
 
+
+	// The following for loop might take a long time for certain assets/classes - show a progress bar dialog
+	FScopedSlowTask LinksCleanupTask(OutLinks.Num(), LOCTEXT("LinksCleanupTask", "Processing Reference Viewer graph links"));
+
+	// Used to discriminate lightweight vs. heavy load set of links
+	const bool bIsSlowTask = OutLinks.Num() > 500;
+	if (bIsSlowTask)
+	{
+		LinksCleanupTask.MakeDialog();
+	}
+
 	for (TMap<FAssetIdentifier, EDependencyPinCategory>::TIterator It(OutLinks); It; ++It)
 	{
+		if (bIsSlowTask)
+		{
+			LinksCleanupTask.EnterProgressFrame();
+		}
+
 		if (!IsPackageIdentifierPassingFilter(It.Key()))
 		{
 			It.RemoveCurrent();
@@ -1011,7 +1030,7 @@ bool UEdGraph_ReferenceViewer::ExceedsMaxSearchBreadth(int32 Breadth) const
 	}
 
 	// ExceedsMaxSearchBreadth requires greater or equal than because the Breadth is 1-based indexed
-	return Settings->IsSearchBreadthLimited() && (Breadth >=  Settings->GetSearchBreadthLimit());
+	return Breadth >= Settings->GetSearchBreadthLimit();
 }
 
 UEdGraphNode_Reference* UEdGraph_ReferenceViewer::CreateReferenceNode()
@@ -1039,3 +1058,4 @@ bool UEdGraph_ReferenceViewer::ShouldFilterByPlugin() const
 	return Settings->GetEnablePluginFilter() && CurrentPluginFilter.Num() > 0;
 }
 
+#undef LOCTEXT_NAMESPACE
