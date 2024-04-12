@@ -160,8 +160,13 @@ namespace Jupiter.Implementation
 
 						try
 						{
-							found = await _refService.ExistsAsync(blobNamespace, bucket, key, cancellationToken);
-							break;
+							bool refFound = await _refService.ExistsAsync(blobNamespace, bucket, key, cancellationToken);
+
+							if (refFound)
+							{
+								found = true;
+								break;
+							}
 						}
 						catch (RefNotFoundException)
 						{
