@@ -5,6 +5,8 @@
 #include "TestHarness.h"
 #include "TestDriver.h"
 #include "Interfaces/OnlineIdentityInterface.h"
+#include "Misc/ConfigCacheIni.h"
+#include "Modules/ModuleManager.h"
 
 #include <catch2/catch_test_case_info.hpp>
 #include <catch2/interfaces/catch_interfaces_registry_hub.hpp>
@@ -14,6 +16,13 @@ class OnlineSubsystemTestBase : public Catch::ITestInvoker
 public:
 	void ConstructInternal(FString ServiceName);
 	virtual ~OnlineSubsystemTestBase();
+
+	/* Loads all necessary services for the current test run */
+	static void LoadServiceModules();
+
+	/* Unloads all necessary services for the current test run */
+	static void UnloadServiceModules();
+
 protected:
 
 	OnlineSubsystemTestBase();
@@ -51,6 +60,15 @@ public:
 		TArray<FString> ShouldFailTags;
 		TArray<FString> DisableTestTags;
 	};
+		
+	struct FApplicableServicesConfig
+	{
+		FString Tag;
+		UE::Online::EOnlineServices ServicesType;
+		TArray<FString> ModulesToLoad;
+	};
+
+	static TArray<FApplicableServicesConfig> GetApplicableServices();
 
 	/*
 	* Helper function that calls CheckAllTagsIsIn(const TArray<FString>&, const TArray<FString>&);

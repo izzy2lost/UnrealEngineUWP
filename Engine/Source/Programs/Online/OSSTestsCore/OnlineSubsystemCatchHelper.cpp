@@ -11,12 +11,93 @@
 #include "Helpers/Identity/IdentityLogoutHelper.h"
 #include "OnlineSubsystemNames.h"
 #include "Misc/CommandLine.h"
-#include "Misc/ConfigCacheIni.h"
+
+#include "Online/CoreOnline.h"
 
 TArray<TFunction<void()>>* GetGlobalInitalizers()
 {
 	static TArray<TFunction<void()>> gInitalizersToCallInMain;
 	return &gInitalizersToCallInMain;
+}
+
+TArray<OnlineSubsystemAutoReg::FApplicableServicesConfig> OnlineSubsystemAutoReg::GetApplicableServices()
+{
+	static TArray<FApplicableServicesConfig> ServicesConfig =
+		[]()
+		{
+			TArray<FApplicableServicesConfig> ServicesConfigInit;
+			if (const TCHAR* CmdLine = FCommandLine::Get())	
+			{
+				FString Values;
+				TArray<FString> ServicesTags;
+				if (FParse::Value(CmdLine, TEXT("-Services="), Values, false))
+				{
+					Values.ParseIntoArray(ServicesTags, TEXT(","));
+				}
+
+				if (ServicesTags.IsEmpty())
+				{
+					GConfig->GetArray(TEXT("OnlineServicesTests"), TEXT("DefaultServices"), ServicesTags, GEngineIni);
+				}
+
+				for (const FString& ServicesTag : ServicesTags)
+				{
+					FString ConfigCategory = FString::Printf(TEXT("OnlineServicesTests %s"), *ServicesTag);
+					FApplicableServicesConfig Config;
+					Config.Tag = ServicesTag;
+
+					FString ServicesType;
+					GConfig->GetString(*ConfigCategory, TEXT("ServicesType"), ServicesType, GEngineIni);
+					GConfig->GetArray(*ConfigCategory, TEXT("ModulesToLoad"), Config.ModulesToLoad, GEngineIni);
+
+					LexFromString(Config.ServicesType, *ServicesType);
+					if (Config.ServicesType != UE::Online::EOnlineServices::None)
+					{
+						ServicesConfigInit.Add(MoveTemp(Config));
+					}
+				}
+			}
+
+			return ServicesConfigInit;
+		}();
+
+		return ServicesConfig;
+}
+
+TArray<FString> GetServiceModules()
+{
+	TArray<FString> Modules;
+
+	for (const OnlineSubsystemAutoReg::FApplicableServicesConfig& Config : OnlineSubsystemAutoReg::GetApplicableServices())
+	{
+		for (const FString& Module : Config.ModulesToLoad)
+		{
+			Modules.AddUnique(Module);
+		}
+	}
+
+	return Modules;
+}
+
+void OnlineSubsystemTestBase::LoadServiceModules()
+{
+	for (const FString& Module : GetServiceModules())
+	{
+		FModuleManager::LoadModulePtr<IModuleInterface>(*Module);
+	}
+}
+
+void OnlineSubsystemTestBase::UnloadServiceModules()
+{
+	const TArray<FString>& Modules = GetServiceModules();
+	// Shutdown in reverse order
+	for (int Index = Modules.Num() - 1; Index >= 0; --Index)
+	{
+		if (IModuleInterface* Module = FModuleManager::Get().GetModule(*Modules[Index]))
+		{
+			Module->ShutdownModule();
+		}
+	}
 }
 
 void OnlineSubsystemTestBase::ConstructInternal(FString SubsystemName)
