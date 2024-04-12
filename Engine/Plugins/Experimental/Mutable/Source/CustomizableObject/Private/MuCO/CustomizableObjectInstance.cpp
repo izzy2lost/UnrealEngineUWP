@@ -3333,10 +3333,10 @@ bool UCustomizableInstancePrivate::BuildSkeletonData(const TSharedRef<FUpdateCon
 				BoneInfo.Key = BoneName;
 				BoneInfo.Value = Index;
 			}
-			else
+			else if(const uint32* Hash = ModelResources.BoneNamesMap.Find(BoneName))
 			{
 				const FString BoneNameString = BoneName.ToString();
-				const mu::FBoneName Bone(CityHash32(reinterpret_cast<const char*>(*BoneNameString), BoneNameString.Len() * sizeof(FString::ElementType)));
+				const mu::FBoneName Bone(*Hash);
 				TPair<FName, uint16>& BoneInfo = BoneInfoMap.Add(Bone);
 				BoneInfo.Key = BoneName;
 				BoneInfo.Value = Index;

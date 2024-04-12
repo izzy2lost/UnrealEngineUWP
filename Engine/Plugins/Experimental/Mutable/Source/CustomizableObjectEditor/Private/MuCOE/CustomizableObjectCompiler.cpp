@@ -973,6 +973,14 @@ void FCustomizableObjectCompiler::CompileInternal(UCustomizableObject* Object, c
 		ModelResources.MaterialSlotNames = MoveTemp(GenerationContext.ReferencedMaterialSlotNames);
 		ModelResources.SocketArray = MoveTemp(GenerationContext.SocketArray);
 
+		const int32 NumBones = GenerationContext.UniqueBoneNames.Num();
+		ModelResources.BoneNamesMap.Reserve(NumBones);
+
+		for (auto& It : GenerationContext.UniqueBoneNames)
+		{
+			ModelResources.BoneNamesMap.Add(It.Value, It.Key.Id);
+		}
+
 		for (auto& It : GenerationContext.RemappedBoneNames)
 		{
 			FMutableRemappedBone& RemappedBone = ModelResources.RemappedBoneNames.AddDefaulted_GetRef();

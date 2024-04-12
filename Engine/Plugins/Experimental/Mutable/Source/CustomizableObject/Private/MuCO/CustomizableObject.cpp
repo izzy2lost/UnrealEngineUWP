@@ -550,6 +550,7 @@ void UCustomizableObjectPrivate::SaveCompiledData(FArchive& MemoryWriter, bool b
 	MemoryWriter << LocalModelResources.AnimBpOverridePhysiscAssetsInfo;
 
 	MemoryWriter << LocalModelResources.MaterialSlotNames;
+	MemoryWriter << LocalModelResources.BoneNamesMap;
 	MemoryWriter << LocalModelResources.RemappedBoneNames;
 	MemoryWriter << LocalModelResources.SocketArray;
 
@@ -670,6 +671,7 @@ void UCustomizableObjectPrivate::LoadCompiledData(FArchive& MemoryReader, const 
 		MemoryReader << LocalModelResource.AnimBpOverridePhysiscAssetsInfo;
 
 		MemoryReader << LocalModelResource.MaterialSlotNames;
+		MemoryReader << LocalModelResource.BoneNamesMap;
 		MemoryReader << LocalModelResource.RemappedBoneNames;
 		MemoryReader << LocalModelResource.SocketArray;
 

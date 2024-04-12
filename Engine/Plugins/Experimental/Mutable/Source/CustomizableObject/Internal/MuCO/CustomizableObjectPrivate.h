@@ -602,6 +602,9 @@ struct FModelResources
 	UPROPERTY()
 	TArray<FName> MaterialSlotNames;
 
+	UPROPERTY()
+	TMap<FName, uint32> BoneNamesMap;
+
 	/** Bones remapped due to a hash collision at compile time. FName to (remapped)Hash. */
 	UPROPERTY()
 	TArray<FMutableRemappedBone> RemappedBoneNames;
@@ -879,6 +882,6 @@ public:
 	// This is a manual version number for the binary blobs in this asset.
 	// Increasing it invalidates all the previously compiled models.
 	// Warning: If while merging code both versions have changed, take the highest+1.
-	static constexpr int32 CurrentSupportedVersion = 441;
+	static constexpr int32 CurrentSupportedVersion = 442;
 };
 
