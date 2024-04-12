@@ -520,7 +520,7 @@ float4x4 LWCHackToFloat(FLWCInverseMatrix v) { return (float4x4)0.0f; }
 		/* divergent cases are extremely rare and result simply in rollover from one tile edge to the edge of the next tile */	\
 		/* Values greater than 2^(24+floor(log2(TILE_SIZE-1))) are not converted correctly, because In.Low is assumed to be */	\
 		/* less than half a tile. These values by definition exceed WORLD_MAX, so this is not an issue. */						\
-		FFloatType Tile = INVARIANT(round(In.High / UE_LWC_RENDER_TILE_SIZE));													\
+		FFloatType Tile = round(In.High / UE_LWC_RENDER_TILE_SIZE);																\
 		FFloatType Offset = INVARIANT_ADD(INVARIANT_FMA(Tile, -UE_LWC_RENDER_TILE_SIZE, In.High), In.Low);						\
 																																\
 		return LWCConstructor(Tile, Offset);																					\

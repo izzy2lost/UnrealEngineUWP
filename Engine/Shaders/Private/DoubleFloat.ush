@@ -541,8 +541,8 @@ float4x4 DFFastToTranslatedWorld(FDFMatrix LocalToWorld, FDFVector3 PreViewTrans
 
 FDFVector3 DFMultiplyLHSAndFastTwoSum(float3 Lhs, float Factor, float3 Rhs)
 {
-	const float3 S = INVARIANT(FMA(Lhs, Factor, Rhs));
-	const float3 E = INVARIANT(Rhs - FMA(-Lhs, Factor, S));
+	const float3 S = INVARIANT_FMA(Lhs, Factor, Rhs);
+	const float3 E = INVARIANT_SUB(Rhs, INVARIANT_FMA(-Lhs, Factor, S));
 	return MakeDFVector3(S, E);
 }
 
