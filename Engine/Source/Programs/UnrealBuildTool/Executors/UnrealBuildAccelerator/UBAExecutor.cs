@@ -491,6 +491,11 @@ namespace UnrealBuildTool
 
 			return () =>
 			{
+				if (_bIsCancelled)
+				{
+					HandleActionCancelled(queue, null, action);
+					return Task.CompletedTask;
+				}
 				bool enableDetour = !ForceLocalNoDetour(action) && action.bCanExecuteInUBA && !_forcedRetryActions.ContainsKey(action);
 
 				ProcessStartInfo startInfo = GetActionStartInfo(action, out FileItem? pchItem);
@@ -531,6 +536,12 @@ namespace UnrealBuildTool
 
 			return () =>
 			{
+				if (_bIsCancelled)
+				{
+					HandleActionCancelled(queue, null, action);
+					return Task.CompletedTask;
+				}
+
 				uint knownInputsCount = 0;
 				byte[]? knownInputs = null;
 				if (UBAConfig.bUseKnownInputs)

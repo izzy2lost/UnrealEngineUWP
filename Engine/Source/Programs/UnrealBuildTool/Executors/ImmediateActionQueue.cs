@@ -1098,7 +1098,7 @@ namespace UnrealBuildTool
 				// Canceled
 				if (exitCode == Int32.MaxValue)
 				{
-					Logger.LogInformation("[{CompletedActions}/{TotalActions}] {Description} canceled", completedActions, totalActions, description);
+					//Logger.LogInformation("[{CompletedActions}/{TotalActions}] {Description} canceled", completedActions, totalActions, description);
 					return;
 				}
 
