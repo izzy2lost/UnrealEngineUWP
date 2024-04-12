@@ -10,6 +10,8 @@ namespace UE::NNEHlslShaders::Internal
 		FGlobalShader::ModifyCompilationEnvironment(InParameters, OutEnvironment);
 
 		OutEnvironment.SetDefine(TEXT("THREADGROUP_SIZE_X"), FSoftmaxConstants::NUM_GROUP_THREADS);
+
+		FPermutationDomain PermutationVector(InParameters.PermutationId);
 	}
 
 	IMPLEMENT_GLOBAL_SHADER(TSoftmaxCS, "/NNE/NNEHlslShadersSoftmax.usf", "Softmax", SF_Compute);

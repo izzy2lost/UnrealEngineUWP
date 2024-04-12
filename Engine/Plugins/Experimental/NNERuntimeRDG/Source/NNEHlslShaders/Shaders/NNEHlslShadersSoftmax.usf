@@ -13,6 +13,7 @@ RWBuffer<WORK_TYPE> Output;
 uint Num;
 uint ThreadCountX;
 uint AxisSize;
+uint AfterAxisSize;
 
 #define SOFTMAX_TYPE 0
 #define LOG_SOFTMAX_TYPE 1
@@ -23,7 +24,12 @@ void Softmax(in const uint3 DispatchThreadID : SV_DispatchThreadID)
 	const uint Index = DispatchThreadID.y * ThreadCountX + DispatchThreadID.x;
 	if (Index < Num)
 	{
-		uint SumExpIndex = Index/AxisSize;
+		uint SumExpIndex;
+#if SINGLE_DIMENSION == 0
+		SumExpIndex = Index / AxisSize;
+#else
+		SumExpIndex = (Index / (AfterAxisSize * AxisSize)) * AfterAxisSize + Index % AfterAxisSize;
+#endif
 		WORK_TYPE SumExp = READ(InputSumExp[SumExpIndex]);
 		WORK_TYPE Result = WRITE(exp(READ(Input[Index])) / SumExp);
 
