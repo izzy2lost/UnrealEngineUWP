@@ -7,7 +7,7 @@
 #include "Misc/PackageName.h"
 #include "Misc/ConfigCacheIni.h"
 
-DEFINE_LOG_CATEGORY_STATIC(LogPackageLocalizationCache, Log, All);
+DEFINE_LOG_CATEGORY(LogPackageLocalizationCache);
 
 FPackageLocalizationCultureCache::FPackageLocalizationCultureCache(FPackageLocalizationCache* InOwnerCache, const FString& InCultureName)
 	: OwnerCache(InOwnerCache)
@@ -49,6 +49,7 @@ void FPackageLocalizationCultureCache::ConditionalUpdateCache_NoLock()
 				LocalizedRootPaths.Add(LocalizedRootPath);
 				NewSourceToLocalizedPaths.FindOrAdd(SourceRootPath).Add(LocalizedRootPath);
 			}
+			UE_LOG(LogPackageLocalizationCache, Verbose, TEXT("Processing localized package path '%s'..."), *LocalizedRootPath);
 		}
 	}
 	OwnerCache->FindLocalizedPackages(NewSourceToLocalizedPaths, SourcePackagesToLocalizedPackages);
@@ -169,7 +170,11 @@ FName FPackageLocalizationCultureCache::FindLocalizedPackageName(const FName InS
 	ConditionalUpdateCache_NoLock();
 
 	const TArray<FName>* const FoundPrioritizedLocalizedPackageNames = SourcePackagesToLocalizedPackages.Find(InSourcePackageName);
-	return (FoundPrioritizedLocalizedPackageNames) ? (*FoundPrioritizedLocalizedPackageNames)[0] : NAME_None;
+	const FName LocalizedPackageName = (FoundPrioritizedLocalizedPackageNames) ? (*FoundPrioritizedLocalizedPackageNames)[0] : NAME_None;
+
+	UE_CLOG(!LocalizedPackageName.IsNone(), LogPackageLocalizationCache, Verbose, TEXT("Found localized package '%s' for source package '%s'"), *LocalizedPackageName.ToString(), *InSourcePackageName.ToString());
+
+	return LocalizedPackageName;
 }
 
 FPackageLocalizationCache::FPackageLocalizationCache()

@@ -15,6 +15,8 @@
 
 class FPackageLocalizationCache;
 
+COREUOBJECT_API DECLARE_LOG_CATEGORY_EXTERN(LogPackageLocalizationCache, Log, All);
+
 /** Package localization cache for a specific culture (may contain a chain of cultures internally based on their priority) */
 class FPackageLocalizationCultureCache
 {

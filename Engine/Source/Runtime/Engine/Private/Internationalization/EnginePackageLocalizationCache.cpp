@@ -82,6 +82,8 @@ void FEnginePackageLocalizationCache::FindLocalizedPackages(const TMap<FString, 
 
 		TArray<FName>& PrioritizedLocalizedPackageNames = InOutSourcePackagesToLocalizedPackages.FindOrAdd(SourcePackageName);
 		PrioritizedLocalizedPackageNames.AddUnique(LocalizedAssetData.PackageName);
+
+		UE_LOG(LogPackageLocalizationCache, Verbose, TEXT("Discovered localized package '%s' for source package '%s'"), *LocalizedAssetData.PackageName.ToString(), *SourcePackageName.ToString());
 	}
 }
 
