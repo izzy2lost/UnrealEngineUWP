@@ -33,6 +33,7 @@
 #include "NiagaraVersionMetaData.h"
 #include "PropertyEditorModule.h"
 #include "SGraphActionMenu.h"
+#include "Toolkits/AssetEditorToolkitMenuContext.h"
 #include "Widgets/SNiagaraScriptVersionWidget.h"
 #include "UObject/Linker.h"
 #include "UObject/Package.h"
@@ -93,12 +94,14 @@ void FNiagaraScriptToolkit::RegisterTabSpawners(const TSharedRef<class FTabManag
 
 	InTabManager->RegisterTabSpawner(NodeGraphTabId, FOnSpawnTab::CreateSP(this, &FNiagaraScriptToolkit::SpawnTabNodeGraph))
 		.SetDisplayName( LOCTEXT("NodeGraph", "Node Graph") )
-		.SetGroup(WorkspaceMenuCategoryRef); 
+		.SetGroup(WorkspaceMenuCategoryRef)
+		.SetReadOnlyBehavior(ETabReadOnlyBehavior::Custom);
 
 	InTabManager->RegisterTabSpawner(ScriptDetailsTabId, FOnSpawnTab::CreateSP(this, &FNiagaraScriptToolkit::SpawnTabScriptDetails))
 		.SetDisplayName(LOCTEXT("ScriptDetailsTab", "Script Details"))
 		.SetGroup(WorkspaceMenuCategoryRef)
-		.SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "LevelEditor.Tabs.Details"));
+		.SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "LevelEditor.Tabs.Details"))
+		.SetReadOnlyBehavior(ETabReadOnlyBehavior::Custom);
 
 	InTabManager->RegisterTabSpawner(SelectedDetailsTabId, FOnSpawnTab::CreateSP(this, &FNiagaraScriptToolkit::SpawnTabSelectedDetails))
 		.SetDisplayName(LOCTEXT("SelectedDetailsTab", "Selected Details"))
@@ -363,17 +366,17 @@ void FNiagaraScriptToolkit::InitViewWithVersionedData()
 
 FName FNiagaraScriptToolkit::GetToolkitFName() const
 {
-	return FName("Niagara");
+	return FName("NiagaraScriptEditor");
 }
 
 FText FNiagaraScriptToolkit::GetBaseToolkitName() const
 {
-	return LOCTEXT("AppLabel", "Niagara");
+	return LOCTEXT("AppLabel", "Niagara Script Editor");
 }
 
 FString FNiagaraScriptToolkit::GetWorldCentricTabPrefix() const
 {
-	return LOCTEXT("WorldCentricTabPrefix", "Niagara ").ToString();
+	return LOCTEXT("WorldCentricTabPrefix", "Niagara Script").ToString();
 }
 
 
@@ -392,6 +395,14 @@ TSharedRef<SDockTab> FNiagaraScriptToolkit::SpawnTabNodeGraph( const FSpawnTabAr
 		[
 			SAssignNew(NiagaraScriptGraphWidget, SNiagaraScriptGraph, ScriptViewModel->GetGraphViewModel(), FAssetData(OriginalNiagaraScript.Script))
 			.GraphTitle(LOCTEXT("SpawnGraphTitle", "Script"))
+			.IsEditable(TAttribute<bool>::CreateSPLambda(this, [this]()
+			{
+				return GetOpenMethod() == EAssetOpenMethod::Edit;
+			}))
+			.DisplayAsReadOnly(TAttribute<bool>::CreateSPLambda(this, [this]()
+			{
+				return GetOpenMethod() == EAssetOpenMethod::View;
+			}))
 		];
 }
 
@@ -460,6 +471,11 @@ TSharedRef<SDockTab> FNiagaraScriptToolkit::SpawnTabScriptDetails(const FSpawnTa
 	DetailsView->OnFinishedChangingProperties().AddRaw(this, &FNiagaraScriptToolkit::OnEditedScriptPropertyFinishedChanging);
 	DetailsView->SetObjects(DetailsScriptSelection->GetSelectedObjectsResolved().Array());
 
+	DetailsView->SetIsPropertyEditingEnabledDelegate(FIsPropertyEditingEnabled::CreateLambda([this]
+	{
+		return GetOpenMethod() == EAssetOpenMethod::Edit;
+	}));
+	
 	return SNew(SDockTab)
 		.Label(LOCTEXT("ScriptDetailsTabLabel", "Script Details"))
 		.TabColorScale(GetTabColorScale())
@@ -601,67 +617,76 @@ const FName FNiagaraScriptToolkit::GetNiagaraScriptMessageLogName(FVersionedNiag
 	return LogListingName;
 }
 
+TSharedPtr<FNiagaraScriptToolkit> GetNiagaraScriptToolkitFromMenuContext(UAssetEditorToolkitMenuContext* InContext)
+{
+	if (InContext)
+	{
+		if (TSharedPtr<FAssetEditorToolkit> Toolkit = InContext->Toolkit.Pin())
+		{
+			// Note: This will not detect subclasses of NiagaraScriptToolkit
+			if (Toolkit->GetToolkitFName() == TEXT("NiagaraScriptEditor"))
+			{
+				return StaticCastSharedPtr<FNiagaraScriptToolkit>(Toolkit);
+			}
+		}
+	}
+
+	return nullptr;
+}
+
 void FNiagaraScriptToolkit::ExtendToolbar()
 {
-	struct Local
+	UToolMenu* Menu = UToolMenus::Get()->ExtendMenu("AssetEditor.NiagaraScriptEditor.ToolBar");
+
 	{
-		static void FillToolbar(FToolBarBuilder& ToolbarBuilder, FNiagaraScriptToolkit* ScriptToolkit)
+		FToolMenuSection& ScriptAssetSection = Menu->AddSection("ScriptAsset");
+
+		ScriptAssetSection.InsertPosition = FToolMenuInsert("Asset", EToolMenuInsertType::After);
+		ScriptAssetSection.AddDynamicEntry("ScriptAssetDynamic", FNewToolMenuSectionDelegate::CreateLambda([](FToolMenuSection& InSection)
 		{
-			ToolbarBuilder.BeginSection("Apply");
-			ToolbarBuilder.AddToolBarButton(FNiagaraEditorCommands::Get().Apply,
-				NAME_None, TAttribute<FText>(), TAttribute<FText>(), 
-				FSlateIcon(FAppStyle::Get().GetStyleSetName(), "AssetEditor.Apply"),
-				FName(TEXT("ApplyNiagaraScript")));
-			ToolbarBuilder.EndSection();
+			if(TSharedPtr<FNiagaraScriptToolkit> NiagaraScriptToolkit = GetNiagaraScriptToolkitFromMenuContext(InSection.FindContext<UAssetEditorToolkitMenuContext>()))
+			{				
+				InSection.AddEntry(FToolMenuEntry::InitToolBarButton(FNiagaraEditorCommands::Get().Apply,
+					TAttribute<FText>(), TAttribute<FText>(),
+					FSlateIcon(FAppStyle::Get().GetStyleSetName(), "AssetEditor.Apply")));
 
-			ToolbarBuilder.BeginSection("Compile");
-			ToolbarBuilder.AddToolBarButton(FNiagaraEditorCommands::Get().Compile,
-				NAME_None,
-				TAttribute<FText>(),
-				TAttribute<FText>(ScriptToolkit, &FNiagaraScriptToolkit::GetCompileStatusTooltip),
-				TAttribute<FSlateIcon>(ScriptToolkit, &FNiagaraScriptToolkit::GetCompileStatusImage),
-				FName(TEXT("CompileNiagaraScript")));
-			ToolbarBuilder.AddToolBarButton(FNiagaraEditorCommands::Get().RefreshNodes,
-				NAME_None,
-				TAttribute<FText>(),
-				TAttribute<FText>(ScriptToolkit, &FNiagaraScriptToolkit::GetRefreshStatusTooltip),
-				TAttribute<FSlateIcon>(ScriptToolkit, &FNiagaraScriptToolkit::GetRefreshStatusImage),
-				FName(TEXT("RefreshScriptReferences")));
-			ToolbarBuilder.EndSection();
+				InSection.AddEntry(FToolMenuEntry::InitToolBarButton(FNiagaraEditorCommands::Get().Compile,
+					TAttribute<FText>(),
+					TAttribute<FText>(NiagaraScriptToolkit.ToSharedRef(), &FNiagaraScriptToolkit::GetCompileStatusTooltip),
+					TAttribute<FSlateIcon>(NiagaraScriptToolkit.ToSharedRef(), &FNiagaraScriptToolkit::GetCompileStatusImage)));
 
-			ToolbarBuilder.BeginSection("Versioning");
-			{
-				ToolbarBuilder.AddToolBarButton(FNiagaraEditorCommands::Get().ModuleVersioning, NAME_None,
-                    TAttribute<FText>(ScriptToolkit, &FNiagaraScriptToolkit::GetVersionButtonLabel),
-                    LOCTEXT("NiagaraShowModuleVersionsTooltip", "Manage different versions of this module script."),
-                    FSlateIcon(FAppStyle::GetAppStyleSetName(), "Versions"));
-
-				FUIAction DropdownAction;
-				DropdownAction.IsActionVisibleDelegate = FIsActionButtonVisible::CreateLambda([ScriptToolkit]() { return ScriptToolkit->EditedNiagaraScript.Script->GetAllAvailableVersions().Num() > 1; });
-				ToolbarBuilder.AddComboButton(
-                 DropdownAction,
-                 FOnGetContent::CreateRaw(ScriptToolkit, &FNiagaraScriptToolkit::GenerateVersioningDropdownMenu, ScriptToolkit->GetToolkitCommands()),
-                 FText(),
-                 LOCTEXT("NiagaraShowVersions_ToolTip", "Select version to edit"),
-                 FSlateIcon(FAppStyle::GetAppStyleSetName(), "Versions"),
-                 true);
+				InSection.AddEntry(FToolMenuEntry::InitToolBarButton(FNiagaraEditorCommands::Get().RefreshNodes,
+					TAttribute<FText>(),
+					TAttribute<FText>(NiagaraScriptToolkit.ToSharedRef(), &FNiagaraScriptToolkit::GetRefreshStatusTooltip),
+					TAttribute<FSlateIcon>(NiagaraScriptToolkit.ToSharedRef(), &FNiagaraScriptToolkit::GetRefreshStatusImage)));
 			}
-			ToolbarBuilder.EndSection();
-		}
-	};
+		}));
 
-	TSharedPtr<FExtender> ToolbarExtender = MakeShareable(new FExtender);
+		FToolMenuSection& VersioningSection = Menu->AddSection("Versioning");
 
-	ToolbarExtender->AddToolBarExtension(
-		"Asset",
-		EExtensionHook::After,
-		GetToolkitCommands(),
-		FToolBarExtensionDelegate::CreateStatic(&Local::FillToolbar, this));
+		VersioningSection.AddDynamicEntry("VersioningDynamic", FNewToolMenuSectionDelegate::CreateLambda([](FToolMenuSection& InSection)
+		{
+			if(TSharedPtr<FNiagaraScriptToolkit> NiagaraScriptToolkit = GetNiagaraScriptToolkitFromMenuContext(InSection.FindContext<UAssetEditorToolkitMenuContext>()))
+			{
+				InSection.AddEntry(FToolMenuEntry::InitToolBarButton(FNiagaraEditorCommands::Get().ModuleVersioning,
+				TAttribute<FText>(NiagaraScriptToolkit.ToSharedRef(), &FNiagaraScriptToolkit::GetVersionButtonLabel),
+				LOCTEXT("NiagaraShowModuleVersionsTooltip", "Manage different versions of this module script."),
+					FSlateIcon(FAppStyle::GetAppStyleSetName(), "Versions")));
 
-	AddToolbarExtender(ToolbarExtender);
+				
+				FUIAction DropdownAction;
+				DropdownAction.IsActionVisibleDelegate = FIsActionButtonVisible::CreateLambda([NiagaraScriptToolkit]() { return NiagaraScriptToolkit->EditedNiagaraScript.Script->GetAllAvailableVersions().Num() > 1; });
 
-	FNiagaraEditorModule& NiagaraEditorModule = FModuleManager::LoadModuleChecked<FNiagaraEditorModule>( "NiagaraEditor" );
-	AddToolbarExtender(NiagaraEditorModule.GetToolBarExtensibilityManager()->GetAllExtenders(GetToolkitCommands(), GetEditingObjects()));
+				InSection.AddEntry(FToolMenuEntry::InitComboButton("VersionOptions",
+					DropdownAction,
+					FOnGetContent::CreateSP(NiagaraScriptToolkit.ToSharedRef(), &FNiagaraScriptToolkit::GenerateVersioningDropdownMenu, NiagaraScriptToolkit->GetToolkitCommands()),
+					TAttribute<FText>(), LOCTEXT("NiagaraShowVersions_ToolTip", "Select version to edit"),
+					FSlateIcon(FAppStyle::GetAppStyleSetName(), "Versions"),
+					true					
+					));
+			}			
+		}));
+	}
 }
 
 FSlateIcon FNiagaraScriptToolkit::GetCompileStatusImage() const
@@ -776,15 +801,18 @@ bool FNiagaraScriptToolkit::IsEditScriptDifferentFromOriginalScript() const
 
 void FNiagaraScriptToolkit::OnApply()
 {
-	SCOPE_CYCLE_COUNTER(STAT_NiagaraEditor_ScriptToolkit_OnApply);
-	UE_LOG(LogNiagaraEditor, Log, TEXT("Applying Niagara Script %s"), *GetEditingObjects()[0]->GetName());
-	UpdateOriginalNiagaraScript();
-	FNiagaraEditorModule::Get().ScriptApplied(OriginalNiagaraScript.Script, OriginalNiagaraScript.Version);
+	if(GetOpenMethod() == EAssetOpenMethod::Edit)
+	{
+		SCOPE_CYCLE_COUNTER(STAT_NiagaraEditor_ScriptToolkit_OnApply);
+		UE_LOG(LogNiagaraEditor, Log, TEXT("Applying Niagara Script %s"), *GetEditingObjects()[0]->GetName());
+		UpdateOriginalNiagaraScript();
+		FNiagaraEditorModule::Get().ScriptApplied(OriginalNiagaraScript.Script, OriginalNiagaraScript.Version);
+	}
 }
 
 bool FNiagaraScriptToolkit::OnApplyEnabled() const
 {
-	return IsEditScriptDifferentFromOriginalScript();
+	return IsEditScriptDifferentFromOriginalScript() && GetOpenMethod() == EAssetOpenMethod::Edit;
 }
 
 void FNiagaraScriptToolkit::AddReferencedObjects(FReferenceCollector& Collector)
@@ -914,30 +942,33 @@ void FNiagaraScriptToolkit::UpdateOriginalNiagaraScript()
 
 bool FNiagaraScriptToolkit::OnRequestClose(EAssetEditorCloseReason InCloseReason)
 {
-	if (bChangesDiscarded == false && IsEditScriptDifferentFromOriginalScript())
+	if(GetOpenMethod() == EAssetOpenMethod::Edit)
 	{
-		// find out the user wants to do with this dirty NiagaraScript
-		EAppReturnType::Type YesNoCancelReply = FMessageDialog::Open(EAppMsgType::YesNoCancel,
-			FText::Format(
-				NSLOCTEXT("UnrealEd", "Prompt_NiagaraScriptEditorClose", "Would you like to apply changes to this NiagaraScript to the original NiagaraScript?\n{0}\n(No will lose all changes!)"),
-				FText::FromString(OriginalNiagaraScript.Script->GetPathName())));
-
-		// act on it
-		switch (YesNoCancelReply)
+		if (bChangesDiscarded == false && IsEditScriptDifferentFromOriginalScript())
 		{
-		case EAppReturnType::Yes:
-			// update NiagaraScript and exit
-			UpdateOriginalNiagaraScript();
-			break;
+			// find out the user wants to do with this dirty NiagaraScript
+			EAppReturnType::Type YesNoCancelReply = FMessageDialog::Open(EAppMsgType::YesNoCancel,
+				FText::Format(
+					NSLOCTEXT("UnrealEd", "Prompt_NiagaraScriptEditorClose", "Would you like to apply changes to this NiagaraScript to the original NiagaraScript?\n{0}\n(No will lose all changes!)"),
+					FText::FromString(OriginalNiagaraScript.Script->GetPathName())));
 
-		case EAppReturnType::No:
-			// Set the changes discarded to avoid showing the dialog multiple times when request close is called multiple times on shut down.
-			bChangesDiscarded = true;
-			break;
+			// act on it
+			switch (YesNoCancelReply)
+			{
+			case EAppReturnType::Yes:
+				// update NiagaraScript and exit
+				UpdateOriginalNiagaraScript();
+				break;
 
-		case EAppReturnType::Cancel:
-			// don't exit
-			return false;
+			case EAppReturnType::No:
+				// Set the changes discarded to avoid showing the dialog multiple times when request close is called multiple times on shut down.
+				bChangesDiscarded = true;
+				break;
+
+			case EAppReturnType::Cancel:
+				// don't exit
+				return false;
+			}
 		}
 	}
 

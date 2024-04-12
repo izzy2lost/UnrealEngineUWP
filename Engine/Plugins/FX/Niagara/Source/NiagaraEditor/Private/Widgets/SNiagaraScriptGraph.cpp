@@ -45,6 +45,8 @@ void SNiagaraScriptGraph::Construct(const FArguments& InArgs, TSharedRef<FNiagar
 	GraphTitle = InArgs._GraphTitle;
 	SetForegroundColor(InArgs._ForegroundColor);
 	bShowHeader = InArgs._ShowHeader;
+	IsEditable = InArgs._IsEditable;
+	DisplayAsReadOnly = InArgs._DisplayAsReadOnly;
 
 	GraphEditor = ConstructGraphEditor();
 	if (InArgs._ZoomToFitOnLoad)
@@ -282,7 +284,9 @@ TSharedRef<SGraphEditor> SNiagaraScriptGraph::ConstructGraphEditor()
 		.TitleBar(TitleBarWidget)
 		.GraphToEdit(ViewModel->GetGraph())
 		.GraphEvents(Events)
-		.ShowGraphStateOverlay(false);
+		.ShowGraphStateOverlay(false)
+		.IsEditable(IsEditable)
+		.DisplayAsReadOnly(DisplayAsReadOnly);
 
 	// Set a niagara node factory.
 	CreatedGraphEditor->SetNodeFactory(MakeShareable(new FNiagaraNodeFactory()));

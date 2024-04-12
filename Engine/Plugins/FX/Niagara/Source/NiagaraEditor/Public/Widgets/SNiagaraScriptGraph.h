@@ -19,12 +19,16 @@ class SNiagaraScriptGraph : public SCompoundWidget
 public:
 	SLATE_BEGIN_ARGS(SNiagaraScriptGraph)
 		: _ForegroundColor(FAppStyle::GetColor("Graph.ForegroundColor"))
+		, _IsEditable(true)
+		, _DisplayAsReadOnly(false)
 		, _ZoomToFitOnLoad(false)
 		, _ShowHeader(true)
 	{}
 		/** The text displayed in the title bar of the graph. */
 		SLATE_ATTRIBUTE(FText, GraphTitle)
 		SLATE_ATTRIBUTE(FSlateColor, ForegroundColor)
+		SLATE_ATTRIBUTE(bool, IsEditable)
+		SLATE_ATTRIBUTE(bool, DisplayAsReadOnly)
 		SLATE_ARGUMENT(bool, ZoomToFitOnLoad)
 		SLATE_ARGUMENT(bool, ShowHeader)
 	SLATE_END_ARGS();
@@ -145,7 +149,10 @@ private:
 	TArray<TSharedPtr<INiagaraScriptGraphFocusInfo>> CurrentSearchResults;
 	bool bGraphSearchBoxActive;
 	bool bShowHeader;
-
+	
+	TAttribute<bool> IsEditable;
+	TAttribute<bool> DisplayAsReadOnly;
+	
 	mutable TOptional<int32> ScriptAffectedAssets;
 	FAssetData EditedAsset;
 

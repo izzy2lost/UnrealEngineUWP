@@ -1756,7 +1756,17 @@ bool UNiagaraStackModuleItem::OpenSourceAsset() const
 		if (ModuleFunctionCall.FunctionScript->IsAsset() || GbShowNiagaraDeveloperWindows > 0)
 		{
 			ModuleFunctionCall.FunctionScript->VersionToOpenInEditor = ModuleFunctionCall.SelectedScriptVersion;
-			return GEditor->GetEditorSubsystem<UAssetEditorSubsystem>()->OpenEditorForAsset(ToRawPtr(ModuleFunctionCall.FunctionScript));
+
+			UAssetEditorSubsystem* AssetEditorSubsystem = GEditor->GetEditorSubsystem<UAssetEditorSubsystem>();
+
+			if(AssetEditorSubsystem->CanOpenEditorForAsset(ToRawPtr(ModuleFunctionCall.FunctionScript), EAssetTypeActivationOpenedMethod::Edit, nullptr))
+			{
+				return GEditor->GetEditorSubsystem<UAssetEditorSubsystem>()->OpenEditorForAssets({ToRawPtr(ModuleFunctionCall.FunctionScript)}, EAssetTypeActivationOpenedMethod::Edit);
+			}
+			else if(AssetEditorSubsystem->CanOpenEditorForAsset(ToRawPtr(ModuleFunctionCall.FunctionScript), EAssetTypeActivationOpenedMethod::View, nullptr))
+			{
+				return GEditor->GetEditorSubsystem<UAssetEditorSubsystem>()->OpenEditorForAssets({ToRawPtr(ModuleFunctionCall.FunctionScript)}, EAssetTypeActivationOpenedMethod::View);
+			}			
 		}
 		else if (IsScratchModule())
 		{
