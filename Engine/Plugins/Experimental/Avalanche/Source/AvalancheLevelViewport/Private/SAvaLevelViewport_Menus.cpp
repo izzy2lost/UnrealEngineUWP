@@ -22,10 +22,10 @@
 #include "SViewportToolBar.h"
 #include "Viewport/Interaction/IAvaViewportDataProvider.h"
 #include "ViewportClient/AvaLevelViewportClient.h"
+#include "Widgets/DataTypes/AvaUserInputDialogDataTypeText.h"
 #include "Widgets/Images/SImage.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Input/SSpinBox.h"
-#include "Widgets/InputDataTypes/AvaUserInputDataText.h"
 #include "Widgets/SAvaUserInputDialog.h"
 
 #define LOCTEXT_NAMESPACE "SAvaLevelViewport"
@@ -1029,17 +1029,16 @@ void SAvaLevelViewport::ExecuteSaveAsGuidePreset(const FToolMenuContext& InConte
 		return;
 	}
 
-	TSharedRef<FAvaUserInputTextData> TextInput = MakeShared<FAvaUserInputTextData>(
-		LOCTEXT("NewPreset", "NewPreset"),
-		/* Multiline */ false,
-		/* Max Length */ 30
-	);
+	FAvaUserInputDialogTextData::FParams Params;
+	Params.InitialValue = LOCTEXT("NewPreset", "NewPreset");
+	Params.MaxLength = 30;
+
+	TSharedRef<FAvaUserInputDialogTextData> TextInput = MakeShared<FAvaUserInputDialogTextData>(Params);
 
 	const bool bAccepted = SAvaUserInputDialog::CreateModalDialog(
+		TextInput,
 		SharedThis(this),
-		FText::GetEmpty(),
-		LOCTEXT("NewPresetName", "New Preset Name"),
-		TextInput
+		LOCTEXT("NewPresetName", "New Preset Name")
 	);
 
 	if (!bAccepted)

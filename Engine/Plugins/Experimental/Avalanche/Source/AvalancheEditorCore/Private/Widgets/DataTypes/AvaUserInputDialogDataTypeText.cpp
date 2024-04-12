@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Widgets/InputDataTypes/AvaUserInputDataText.h"
+#include "Widgets/DataTypes/AvaUserInputDialogDataTypeText.h"
 #include "Widgets/Input/SEditableText.h"
 #include "Widgets/Input/SEditableTextBox.h"
 #include "Widgets/Layout/SBorder.h"
@@ -9,21 +9,22 @@
 #include "Widgets/SOverlay.h"
 #include "Widgets/Text/SMultiLineEditableText.h"
 
-#define LOCTEXT_NAMESPACE "FAvaUserInputTextData"
+#define LOCTEXT_NAMESPACE "FAvaUserInputDialogTextData"
 
-FAvaUserInputTextData::FAvaUserInputTextData(const FText& InValue, bool bInAllowMultiline, TOptional<int32> InMaxLength)
-	: Value(InValue)
-	, bAllowMultiline(bInAllowMultiline)
-	, MaxLength(InMaxLength)
+FAvaUserInputDialogTextData::FAvaUserInputDialogTextData(const FParams& InParams)
+	: Value(InParams.InitialValue)
+	, bAllowMultiline(InParams.bAllowMultiline)
+	, MaxLength(InParams.MaxLength)
+	, OnVerifyDelegate(InParams.OnVerifyDelegate)
 {
 }
 
-const FText& FAvaUserInputTextData::GetValue() const
+const FText& FAvaUserInputDialogTextData::GetValue() const
 {
 	return Value;
 }
 
-TSharedRef<SWidget> FAvaUserInputTextData::CreateInputWidget()
+TSharedRef<SWidget> FAvaUserInputDialogTextData::CreateInputWidget()
 {
 	if (bAllowMultiline)
 	{
@@ -49,8 +50,8 @@ TSharedRef<SWidget> FAvaUserInputTextData::CreateInputWidget()
 					[
 						SNew(SMultiLineEditableText)
 						.Text(Value)
-						.OnTextChanged(this, &FAvaUserInputTextData::OnTextChanged)
-						.OnTextCommitted(this, &FAvaUserInputTextData::OnTextCommitted)
+						.OnTextChanged(this, &FAvaUserInputDialogTextData::OnTextChanged)
+						.OnTextCommitted(this, &FAvaUserInputDialogTextData::OnTextCommitted)
 						.AllowMultiLine(true)
 						.VScrollBar(ScrollBar)
 					]
@@ -69,18 +70,18 @@ TSharedRef<SWidget> FAvaUserInputTextData::CreateInputWidget()
 		[
 			SNew(SEditableTextBox)
 			.Text(Value)
-			.OnTextChanged(this, &FAvaUserInputTextData::OnTextChanged)
-			.OnTextCommitted(this, &FAvaUserInputTextData::OnTextCommitted)
-			.OnVerifyTextChanged(this, &FAvaUserInputTextData::OnTextVerify)
+			.OnTextChanged(this, &FAvaUserInputDialogTextData::OnTextChanged)
+			.OnTextCommitted(this, &FAvaUserInputDialogTextData::OnTextCommitted)
+			.OnVerifyTextChanged(this, &FAvaUserInputDialogTextData::OnTextVerify)
 		];
 }
 
-void FAvaUserInputTextData::OnTextChanged(const FText& InValue)
+void FAvaUserInputDialogTextData::OnTextChanged(const FText& InValue)
 {
 	Value = InValue;
 }
 
-void FAvaUserInputTextData::OnTextCommitted(const FText& InValue, ETextCommit::Type InCommitType)
+void FAvaUserInputDialogTextData::OnTextCommitted(const FText& InValue, ETextCommit::Type InCommitType)
 {
 	Value = InValue;
 
@@ -90,7 +91,7 @@ void FAvaUserInputTextData::OnTextCommitted(const FText& InValue, ETextCommit::T
 	}
 }
 
-bool FAvaUserInputTextData::OnTextVerify(const FText& InValue, FText& OutErrorText)
+bool FAvaUserInputDialogTextData::OnTextVerify(const FText& InValue, FText& OutErrorText)
 {
 	if (MaxLength.IsSet() && InValue.ToString().Len() > MaxLength.GetValue())
 	{
@@ -98,7 +99,18 @@ bool FAvaUserInputTextData::OnTextVerify(const FText& InValue, FText& OutErrorTe
 		return false;
 	}
 
+	if (OnVerifyDelegate.IsBound())
+	{
+		return OnVerifyDelegate.Execute(InValue, OutErrorText);
+	}
+
 	return true;
+}
+
+bool FAvaUserInputDialogTextData::IsValueValid()
+{
+	FText Unused;
+	return OnTextVerify(Value, Unused);
 }
 
 #undef LOCTEXT_NAMESPACE
