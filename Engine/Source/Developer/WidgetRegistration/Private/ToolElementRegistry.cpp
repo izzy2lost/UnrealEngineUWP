@@ -26,14 +26,7 @@ FToolElementRegistrationArgs::FToolElementRegistrationArgs( FName InStyleClassNa
 	StyleClassName(InStyleClassName)
 {
 }
-
-FToolElementRegistrationArgs::FToolElementRegistrationArgs( UE::DisplayBuilders::FBuilderKey InBuilderKey ) :
-	ToolElementType(EToolElement::Section)
-	, StyleClassName( InBuilderKey.ToName() )
-	, BuilderKey( InBuilderKey )
-{
-}
-
+	
 TSharedPtr<SWidget> FToolElementRegistrationArgs::GenerateWidget()
 {
 	return nullptr;

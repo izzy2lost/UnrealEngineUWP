@@ -13,8 +13,7 @@ public class WidgetRegistration : ModuleRules
 				"Slate",
 				"Engine",
 				"ToolMenus",
-				"CoreUObject",
-				"EditorConfig"
+				"CoreUObject"
 			});
 
 		PublicIncludePathModuleNames.AddRange(
