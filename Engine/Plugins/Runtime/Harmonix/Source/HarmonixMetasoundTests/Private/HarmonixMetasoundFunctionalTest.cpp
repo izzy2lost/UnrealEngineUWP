@@ -1,6 +1,7 @@
 ﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "HarmonixMetasoundFunctionalTest.h"
+#include "HarmonixFunctionalTestAction.h"
 
 #include "MetasoundGenerator.h"
 #include "Components/AudioComponent.h"
@@ -11,6 +12,7 @@
 #include "Audio/SimpleWaveWriter.h"
 #include "Analysis/MetasoundFrontendVertexAnalyzerAudioBuffer.h"
 #include "HAL/FileManager.h"
+#include "HarmonixDsp/AudioAnalysis/WaveFileComparison.h"
 #include "Interfaces/IPluginManager.h"
 #include "Kismet/KismetSystemLibrary.h"
 #include "Misc/FileHelper.h"
@@ -111,7 +113,7 @@ bool UHarmonixMetasoundFunctionalTestLibrary::ReadAudioFromFile(const FString& F
 	OutNumChannels = -1;
 	OutFormatTag = 0;
 	
-	if (!ensure(FPaths::FileExists(Filepath)))
+	if (!FPaths::FileExists(Filepath))
 	{
 		UE_LOG(LogHarmonixMetasoundTests, Error, TEXT("Failed to read wave file %s: File does not exist"), *Filepath);
 		return false;
@@ -201,9 +203,9 @@ AHarmonixMetasoundFunctionalTest::AHarmonixMetasoundFunctionalTest(const FObject
 
 bool AHarmonixMetasoundFunctionalTest::IsReady_Implementation()
 {
-	bool OutIsReady = AFunctionalTest::IsReady_Implementation();
-
-	return OutIsReady && GeneratorHandle;
+	bool OutIsReady = AFunctionalTest::IsReady_Implementation() && GeneratorHandle;
+	UE_LOG(LogHarmonixMetasoundTests, Log, TEXT("%s -- Is Ready: %d"), *TestLabel, OutIsReady);
+	return OutIsReady;
 }
 
 void AHarmonixMetasoundFunctionalTest::CompareResults()
@@ -256,14 +258,20 @@ void AHarmonixMetasoundFunctionalTest::StartTest()
 {
 	AFunctionalTest::StartTest();
 
+	UE_LOG(LogHarmonixMetasoundTests, Log, TEXT("%s -- StartTest"), *TestLabel);
+	
 	if (AudioComponent && AudioAutoStart)
 	{
 		AudioComponent->Play();
 	}
+
+	ActionSequence->OnStart(this);
 }
 
 void AHarmonixMetasoundFunctionalTest::FinishTest(EFunctionalTestResult TestResult, const FString& Message)
 {
+	ActionSequence->Finish(true);
+	
 	if (AudioComponent)
 	{
 		AudioComponent->Stop();
@@ -274,9 +282,26 @@ void AHarmonixMetasoundFunctionalTest::FinishTest(EFunctionalTestResult TestResu
 	AFunctionalTest::FinishTest(TestResult, Message);
 }
 
+void AHarmonixMetasoundFunctionalTest::Tick(float DeltaSeconds)
+{
+	if (IsRunning())
+	{
+		UE_LOG(LogHarmonixMetasoundTests, Log, TEXT("%s -- Ticking"), *TestLabel);
+		ActionSequence->Tick(this, DeltaSeconds);
+		if (ActionSequence && ActionSequence->IsFinished())
+		{
+			FinishTest(EFunctionalTestResult::Default, TEXT("Test completed"));
+		}
+	}
+	AFunctionalTest::Tick(DeltaSeconds);
+}
+
+
 void AHarmonixMetasoundFunctionalTest::PrepareTest()
 {
 	AFunctionalTest::PrepareTest();
+
+	UE_LOG(LogHarmonixMetasoundTests, Log, TEXT("%s -- PrepareTest"), *TestLabel);
 	
 	if (!AudioComponent)
 	{
@@ -287,6 +312,10 @@ void AHarmonixMetasoundFunctionalTest::PrepareTest()
 	{
 		return;
 	}
+
+	ActionSequence = NewObject<UHarmonixFunctionalTestActionSequence>(this);
+	ActionSequence->ActionSequence = FunctionalTestActions;
+	ActionSequence->Prepare(this);
 
 	AudioComponent->Sound = TestSound;
 	
@@ -336,6 +365,10 @@ void AHarmonixMetasoundFunctionalTest::PrepareTest()
 
 void AHarmonixMetasoundFunctionalTest::OnTestFinishedEvent()
 {
+	UE_LOG(LogHarmonixMetasoundTests, Log, TEXT("%s -- OnTestFinished"), *TestLabel);
+	
+	ActionSequence = nullptr;
+	
 	OnTestFinished.RemoveDynamic(this, &AHarmonixMetasoundFunctionalTest::OnTestFinishedEvent);
 	
 	if (GeneratorHandle)
@@ -353,6 +386,24 @@ void AHarmonixMetasoundFunctionalTest::OnTestFinishedEvent()
 			
 			Generator->RemoveOutputVertexAnalyzer(AudioOutAnalyzerAddress);
 		}
+	}
+
+	if (!WavFilename_Expected.IsEmpty() && !WavFilename_Output.IsEmpty())
+	{
+			
+		TSharedPtr<IPlugin> Plugin = IPluginManager::Get().FindPlugin(TEXT("Harmonix"));
+		check(Plugin);
+		FString TestAudioDir = Plugin->GetContentDir() / TEXT("Editor/Tests/Audio");
+		FString Filepath_Expected = TestAudioDir / WavFilename_Expected;
+
+		static const FString RootPath = FPaths::AudioCaptureDir();
+		FString Filepath_Output = RootPath / WavFilename_Output;
+		
+		Harmonix::Dsp::AudioAnalysis::FWaveFileComparison FileComparison;
+		FileComparison.LoadForCompare(Filepath_Expected, Filepath_Output);
+		float PSNR =  FileComparison.GetPSNR();
+
+		UE_LOG(LogHarmonixMetasoundTests, Log, TEXT("PSNR of files is: %.2f"), PSNR);
 	}
 }
 

@@ -16,6 +16,9 @@ namespace Audio
 	class FSimpleWaveWriter;
 }
 
+class UHarmonixFunctionalTestAction;
+class UHarmonixFunctionalTestActionSequence;
+
 UCLASS()
 class UHarmonixMetasoundFunctionalTestLibrary final : public UBlueprintFunctionLibrary
 {
@@ -64,7 +67,12 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Functional Testing")
 	FString WavFilename_Output;
 
+	UPROPERTY(EditAnywhere, Instanced, Category = "Functional Testing")
+	TArray<TObjectPtr<UHarmonixFunctionalTestAction>> FunctionalTestActions;
+
 	virtual void FinishTest(EFunctionalTestResult TestResult, const FString& Message) override;
+
+	virtual void Tick(float DeltaSeconds) override;
 
 protected:
 	
@@ -84,6 +92,9 @@ protected:
 
 	UPROPERTY(Transient)
 	UMetasoundGeneratorHandle* GeneratorHandle;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UHarmonixFunctionalTestActionSequence> ActionSequence;
 
 	// the audio captured from the metasound
 	Audio::FAlignedFloatBuffer AudioCaptureOutput;
