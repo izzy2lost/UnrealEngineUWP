@@ -34,6 +34,10 @@
 float4 DecalPositionHigh;
 // from SvPosition to decal space (for position), used like this: mul(float4(SvPosition.xyz, 1), SvPositionToDecal);
 float4x4 SvPositionToDecal;
+#if MOBILE_MULTI_VIEW || (INSTANCED_STEREO && MOBILE_MULTI_VIEW)
+// For stereo rendering.
+float4x4 RightEyeSvPositionToDecal;
+#endif
 // to transform position from decal space to world space, for normals use transpose of inverse
 float4x4 DecalToWorld;
 float3 DecalToWorldInvScale;
@@ -49,11 +53,31 @@ float4 DecalColorParam;
 
 // Global decal vertex shader
 void MainVS(
+#if INSTANCED_STEREO && MOBILE_MULTI_VIEW // Mobile multi view fallback path
+	in uint InstanceId : SV_InstanceID,
+	out nointerpolation uint EyeIndex : VIEW_ID,
+	out uint LayerIndex : SV_RenderTargetArrayIndex,
+#elif MOBILE_MULTI_VIEW
+	in nointerpolation uint ViewId : SV_ViewID,
+#endif
 	in float4 InPosition : ATTRIBUTE0,
 	out float4 OutPosition : SV_POSITION
 )
 {
-	OutPosition = mul(InPosition, FrustumComponentToClip);
+#if INSTANCED_STEREO && MOBILE_MULTI_VIEW
+	EyeIndex = GetEyeIndex(InstanceId);
+	LayerIndex = EyeIndex;
+	ResolvedView = ResolveView(EyeIndex);
+#elif MOBILE_MULTI_VIEW
+	ResolvedView = ResolveView(ViewId);
+#endif
+	
+#if MOBILE_MULTI_VIEW || (INSTANCED_STEREO && MOBILE_MULTI_VIEW)
+	float4x4 FrustumToClip = mul(FrustumComponentToClip, ResolvedView.MobileMultiviewDecalTransform);
+#else
+	float4x4 FrustumToClip = FrustumComponentToClip;
+#endif
+	OutPosition = mul(InPosition, FrustumToClip);
 }
 
 #if IS_DECAL && PIXELSHADER
@@ -80,8 +104,8 @@ float4 SvPositionToScreenPosition2(float4 SvPosition)
 
 	float4 Ret;
 
-	Ret.x = ((SvPosition.x - View.ViewRectMin.x) * View.ViewSizeAndInvSize.z) * 2 - 1;
-	Ret.y = ((SvPosition.y - View.ViewRectMin.y) * View.ViewSizeAndInvSize.w) * -2 + 1;
+	Ret.x = ((SvPosition.x - ResolvedView.ViewRectMin.x) * ResolvedView.ViewSizeAndInvSize.z) * 2 - 1;
+	Ret.y = ((SvPosition.y - ResolvedView.ViewRectMin.y) * ResolvedView.ViewSizeAndInvSize.w) * -2 + 1;
 	Ret.z = ConvertFromDeviceZ(SvPosition.z);
 	Ret.w = 1;
 
@@ -94,16 +118,26 @@ float4 SvPositionToScreenPosition2(float4 SvPosition)
 }
 
 // is called in MainPS() from PixelShaderOutputCommon.usf
-void FPixelShaderInOut_MainPS(inout FPixelShaderIn In, inout FPixelShaderOut Out)
+void FPixelShaderInOut_MainPS(inout FPixelShaderIn In, inout FPixelShaderOut Out, uint ArrayIndex)
 {
+#if (MOBILE_MULTI_VIEW || (INSTANCED_STEREO && MOBILE_MULTI_VIEW))
+	ResolvedView = ResolveView(ArrayIndex);
+#else
 	ResolvedView = ResolveView();
+#endif
 
 	float2 ScreenUV = SvPositionToBufferUV(In.SvPosition);
 
 	// make SvPosition appear to be rasterized with the depth from the depth buffer
+#if (MOBILE_MULTI_VIEW || (INSTANCED_STEREO && MOBILE_MULTI_VIEW))
+	In.SvPosition.z = LookupDeviceZ(ScreenUV, ArrayIndex);
+	float4x4 SvPositionToDecalForSlice = ArrayIndex ? RightEyeSvPositionToDecal : SvPositionToDecal;
+#else
 	In.SvPosition.z = LookupDeviceZ(ScreenUV);
-
-	float4 DecalVectorHom = mul(float4(In.SvPosition.xyz,1), SvPositionToDecal);
+	float4x4 SvPositionToDecalForSlice = SvPositionToDecal;
+#endif
+	
+	float4 DecalVectorHom = mul(float4(In.SvPosition.xyz,1), SvPositionToDecalForSlice);
 	float3 OSPosition = DecalVectorHom.xyz / DecalVectorHom.w;
 
 	// clip content outside the decal
@@ -113,7 +147,7 @@ void FPixelShaderInOut_MainPS(inout FPixelShaderIn In, inout FPixelShaderOut Out
 
 	float3 TranslatedWorldPosition = SvPositionToTranslatedWorld(In.SvPosition);
 
-	float3 CameraVector = normalize(PrimaryView.TranslatedWorldCameraOrigin - TranslatedWorldPosition);
+	float3 CameraVector = normalize(ResolvedView.TranslatedWorldCameraOrigin - TranslatedWorldPosition);
 
 	// can be optimized
 	float3 DecalVector = OSPosition * 0.5f + 0.5f;
@@ -208,6 +242,11 @@ void FPixelShaderInOut_MainPS(inout FPixelShaderIn In, inout FPixelShaderOut Out
 		View.VTFeedbackBuffer
 	);
 #endif
+}
+
+void FPixelShaderInOut_MainPS(inout FPixelShaderIn In, inout FPixelShaderOut Out)
+{
+	FPixelShaderInOut_MainPS(In, Out, 0);
 }
 
 //#define PIXELSHADEROUTPUT_MRT0 (DECAL_RENDERTARGET_COUNT > 0)

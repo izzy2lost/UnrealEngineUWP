@@ -54,6 +54,7 @@ class FDeferredDecalVS : public FGlobalShader
 	SHADER_USE_PARAMETER_STRUCT(FDeferredDecalVS, FGlobalShader);
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
+		SHADER_PARAMETER_STRUCT_INCLUDE(FViewShaderParameters, View)
 		SHADER_PARAMETER(FMatrix44f, FrustumComponentToClip)
 		SHADER_PARAMETER_STRUCT_REF(FPrimitiveUniformShaderParameters, PrimitiveUniformBuffer)
 	END_SHADER_PARAMETER_STRUCT()
@@ -87,6 +88,7 @@ public:
 	{
 		DecalPositionHigh.Bind(Initializer.ParameterMap, TEXT("DecalPositionHigh"));
 		SvPositionToDecal.Bind(Initializer.ParameterMap,TEXT("SvPositionToDecal"));
+		RightEyeSvPositionToDecal.Bind(Initializer.ParameterMap, TEXT("RightEyeSvPositionToDecal"));
 		DecalToWorld.Bind(Initializer.ParameterMap,TEXT("DecalToWorld"));
 		DecalToWorldInvScale.Bind(Initializer.ParameterMap, TEXT("DecalToWorldInvScale"));
 		DecalOrientation.Bind(Initializer.ParameterMap,TEXT("DecalOrientation"));
@@ -126,16 +128,29 @@ public:
 			float Ax = -1.0f - 2.0f * View.ViewRect.Min.X * InvViewSize.X;
 			float Ay = 1.0f + 2.0f * View.ViewRect.Min.Y * InvViewSize.Y;
 
-			// todo: we could use InvTranslatedViewProjectionMatrix and TranslatedWorldToComponent for better quality
-			const FMatrix44f SvPositionToDecalValue = FMatrix44f(										// LWC_TODO: Precision loss
-				FMatrix(
-					FPlane(Mx,  0,   0,  0),
-					FPlane( 0, My,   0,  0),
-					FPlane( 0,  0,   1,  0),
-					FPlane(Ax, Ay,   0,  1)
-				) * View.ViewMatrices.GetInvViewProjectionMatrix() * WorldToDecalMatrix);
+			const FMatrix SvPositionToDecalBase(
+				FPlane(Mx, 0, 0, 0),
+				FPlane(0, My, 0, 0),
+				FPlane(0, 0, 1, 0),
+				FPlane(Ax, Ay, 0, 1)
+			);
 
+			// todo: we could use InvTranslatedViewProjectionMatrix and TranslatedWorldToComponent for better quality
+			FMatrix44f SvPositionToDecalValue = FMatrix44f(										// LWC_TODO: Precision loss
+				SvPositionToDecalBase * View.ViewMatrices.GetInvViewProjectionMatrix() * WorldToDecalMatrix);
+			
 			SetShaderValue(BatchedParameters, SvPositionToDecal, SvPositionToDecalValue);
+
+			if (RightEyeSvPositionToDecal.IsBound())
+			{
+				const FViewInfo* InstancedView = View.GetInstancedView();
+				if (InstancedView)
+				{
+					FMatrix44f RightEyeSvPositionToDecalValue = FMatrix44f(										// LWC_TODO: Precision loss
+						SvPositionToDecalBase * InstancedView->ViewMatrices.GetInvViewProjectionMatrix() * WorldToDecalMatrix);
+					SetShaderValue(BatchedParameters, RightEyeSvPositionToDecal, RightEyeSvPositionToDecalValue);
+				}
+			}
 		}
 		if(DecalToWorld.IsBound())
 		{
@@ -164,6 +179,7 @@ public:
 
 private:
 	LAYOUT_FIELD(FShaderParameter, SvPositionToDecal);
+	LAYOUT_FIELD(FShaderParameter, RightEyeSvPositionToDecal);
 	LAYOUT_FIELD(FShaderParameter, DecalPositionHigh);
 	LAYOUT_FIELD(FShaderParameter, DecalToWorld);
 	LAYOUT_FIELD(FShaderParameter, DecalToWorldInvScale);
@@ -458,8 +474,18 @@ namespace DecalRendering
 
 	FMatrix ComputeComponentToClipMatrix(const FViewInfo& View, const FMatrix& DecalComponentToWorld)
 	{
-		FMatrix ComponentToWorldMatrixTrans = DecalComponentToWorld.ConcatTranslation(View.ViewMatrices.GetPreViewTranslation());
-		return ComponentToWorldMatrixTrans * View.ViewMatrices.GetTranslatedViewProjectionMatrix();
+		if (View.bIsMobileMultiViewEnabled || UE::StereoRenderUtils::FStereoShaderAspects(View.GetShaderPlatform()).IsMobileMultiViewEnabled())
+		{
+			// In multi view, the rest of the matrix that is multiplied with DecalComponentToWorld in the non-multi view
+			// case is split out in ViewUniformShaderParameters.MobileMultiviewDecalTransform so we can multiply
+			// it later in the shader.
+			return DecalComponentToWorld;
+		}
+		else
+		{
+			FMatrix ComponentToWorldMatrixTrans = DecalComponentToWorld.ConcatTranslation(View.ViewMatrices.GetPreViewTranslation());
+			return ComponentToWorldMatrixTrans * View.ViewMatrices.GetTranslatedViewProjectionMatrix();
+		}
 	}
 
 	bool TryGetDeferredDecalShaders(
@@ -559,6 +585,7 @@ namespace DecalRendering
 			FDeferredDecalVS::FParameters ShaderParameters;
 			ShaderParameters.FrustumComponentToClip = FMatrix44f(FrustumComponentToClip); // LWC_TODO: Precision loss?
 			ShaderParameters.PrimitiveUniformBuffer = GIdentityPrimitiveUniformBuffer.GetUniformBufferRef();
+			ShaderParameters.View = View.GetShaderParameters();
 			SetShaderParameters(RHICmdList, VertexShader, VertexShader.GetVertexShader(), ShaderParameters);
 		}
 
@@ -585,6 +612,7 @@ namespace DecalRendering
 			FDeferredDecalVS::FParameters ShaderParameters;
 			ShaderParameters.FrustumComponentToClip = FMatrix44f(FrustumComponentToClip); // LWC_TODO: Precision loss
 			ShaderParameters.PrimitiveUniformBuffer = GIdentityPrimitiveUniformBuffer.GetUniformBufferRef();
+			ShaderParameters.View = View.GetShaderParameters();
 			SetShaderParameters(RHICmdList, VertexShader, VertexShader.GetVertexShader(), ShaderParameters);
 		}
 	}

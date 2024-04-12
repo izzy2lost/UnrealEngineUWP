@@ -24,6 +24,12 @@ void MainPS
 		FMeshDecalInterpolants MeshDecalInterpolants,
 #endif
 
+#if INSTANCED_STEREO && MOBILE_MULTI_VIEW // Mobile multi view fallback path
+		in nointerpolation uint EyeIndex : VIEW_ID,
+#elif MOBILE_MULTI_VIEW
+		in nointerpolation uint ViewId : SV_ViewID,
+#endif
+
 		in INPUT_POSITION_QUALIFIERS float4 SvPosition : SV_Position		// after all interpolators
 
 		OPTIONAL_IsFrontFace
@@ -137,6 +143,13 @@ void MainPS
 	PixelShaderIn.SvPosition = SvPosition;
 	PixelShaderIn.bIsFrontFace = bIsFrontFace;
 
+uint ArrayIndex = 0;
+#if INSTANCED_STEREO && MOBILE_MULTI_VIEW // Mobile multi view fallback path
+	ArrayIndex = EyeIndex;
+#elif MOBILE_MULTI_VIEW
+	ArrayIndex = ViewId;
+#endif
+
 #if PIXELSHADEROUTPUT_BASEPASS
 	FPixelShaderInOut_MainPS(Interpolants, BasePassInterpolants, PixelShaderIn, PixelShaderOut);
 #elif PIXELSHADEROUTPUT_MESHDECALPASS
@@ -144,7 +157,7 @@ void MainPS
 #elif PIXELSHADEROUTPUT_INTERPOLANTS
 	FPixelShaderInOut_MainPS(Interpolants, PixelShaderIn, PixelShaderOut);
 #else
-	FPixelShaderInOut_MainPS(PixelShaderIn, PixelShaderOut);
+	FPixelShaderInOut_MainPS(PixelShaderIn, PixelShaderOut, ArrayIndex);
 #endif
 
 #if PIXELSHADEROUTPUT_MRT0

@@ -2657,6 +2657,9 @@ void FSceneView::SetupCommonViewUniformBufferParameters(
 	ViewUniformShaderParameters.MobileMultiviewShadowTransform = 
 		FMatrix44f(InViewMatrices.GetScreenToClipMatrix() * InViewMatrices.GetInvTranslatedViewProjectionMatrix() * FTranslationMatrix(-InViewMatrices.GetPreViewTranslation()));
 
+	ViewUniformShaderParameters.MobileMultiviewDecalTransform =
+		FMatrix44f(FTranslationMatrix(InViewMatrices.GetPreViewTranslation()) * InViewMatrices.GetTranslatedViewProjectionMatrix());
+
 	ViewUniformShaderParameters.PrevScreenToTranslatedWorld = 
 		FMatrix44f(InPrevViewMatrices.GetScreenToClipMatrix() * InPrevViewMatrices.GetInvTranslatedViewProjectionMatrix());
 
