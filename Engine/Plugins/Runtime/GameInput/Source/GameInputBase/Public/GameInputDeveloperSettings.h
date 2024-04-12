@@ -389,6 +389,35 @@ public:
 	*/
 	UPROPERTY(EditAnywhere, Config, Category = "Processing Options", meta=(ConfigRestartRequired = true, DisplayName="Process Arcade Sticks (Experimental)"))
 	bool bProcessArcadeStick = false;
+
+	/**
+	 * If true, then we will process the GameInputKindFlightStick type.
+	 *
+	 * Note: This is experimental!
+	 *
+	 * Default: False
+	 */
+	UPROPERTY(EditAnywhere, Config, Category = "Processing Options", meta=(ConfigRestartRequired = true, DisplayName="Process Flight Sticks (Experimental)"))
+	bool bProcessFlightStick = false;
+
+	/** The default value of any flight stick deadzone values. */
+	static constexpr float DefaultFlightStickDeadzone = (7849.0f / 32768.0f);
+
+	/** Deadzone which should be used for Flight Stick Pitch inputs */
+	UPROPERTY(EditAnywhere, Config, Category = "Device Settings|Flight Stick", meta=(EditCondition="bProcessFlightStick"))
+	float FlightStickPitchDeadzone = DefaultFlightStickDeadzone;
+
+	/** Deadzone which should be used for Flight Stick Roll inputs */
+	UPROPERTY(EditAnywhere, Config, Category = "Device Settings|Flight Stick", meta=(EditCondition="bProcessFlightStick"))
+	float FlightStickRollDeadzone = DefaultFlightStickDeadzone;
+
+	/** Deadzone which should be used for Flight Stick Throttle inputs */
+	UPROPERTY(EditAnywhere, Config, Category = "Device Settings|Flight Stick", meta=(EditCondition="bProcessFlightStick"))
+	float FlightStickThrottleDeadzone = DefaultFlightStickDeadzone;
+
+	/** Deadzone which should be used for Flight Stick Yaw inputs */
+	UPROPERTY(EditAnywhere, Config, Category = "Device Settings|Flight Stick", meta=(EditCondition="bProcessFlightStick"))
+	float FlightStickYawDeadzone = DefaultFlightStickDeadzone;
 };
 
 /**
