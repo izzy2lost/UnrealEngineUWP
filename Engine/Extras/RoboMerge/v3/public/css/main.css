@@ -62,7 +62,7 @@ a:focus, a:hover {
 	margin: .1em;
 }
 
-#fixed-footer div#fteButtons {
+#fixed-footer div#buttons {
 	align-self: flex-start;
 }
 
