@@ -251,6 +251,7 @@ void FModelingToolsEditorModeToolkit::RegisterPalettes()
 		Commands.BeginAddBoxPrimitiveTool,
 		Commands.BeginAddSpherePrimitiveTool,
 		Commands.BeginAddCylinderPrimitiveTool,
+		Commands.BeginAddCapsulePrimitiveTool,
 		Commands.BeginAddConePrimitiveTool,
 		Commands.BeginAddTorusPrimitiveTool,
 		Commands.BeginAddArrowPrimitiveTool,
@@ -1853,6 +1854,7 @@ void FModelingToolsEditorModeToolkit::BuildToolPalette(FName PaletteIndex, class
 		ToolbarBuilder.AddToolBarButton(Commands.BeginAddBoxPrimitiveTool);
 		ToolbarBuilder.AddToolBarButton(Commands.BeginAddSpherePrimitiveTool);
 		ToolbarBuilder.AddToolBarButton(Commands.BeginAddCylinderPrimitiveTool);
+		ToolbarBuilder.AddToolBarButton(Commands.BeginAddCapsulePrimitiveTool);
 		ToolbarBuilder.AddToolBarButton(Commands.BeginAddConePrimitiveTool);
 		ToolbarBuilder.AddToolBarButton(Commands.BeginAddTorusPrimitiveTool);
 		ToolbarBuilder.AddToolBarButton(Commands.BeginAddArrowPrimitiveTool);

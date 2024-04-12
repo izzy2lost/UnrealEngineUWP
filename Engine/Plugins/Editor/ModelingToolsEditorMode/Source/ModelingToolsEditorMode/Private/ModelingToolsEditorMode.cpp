@@ -562,6 +562,9 @@ void UModelingToolsEditorMode::Enter()
 	RegisterPrimitiveToolFunc(ToolManagerCommands.BeginAddCylinderPrimitiveTool,
 							  TEXT("BeginAddCylinderPrimitiveTool"),
 							  UAddPrimitiveToolBuilder::EMakeMeshShapeType::Cylinder);
+	RegisterPrimitiveToolFunc(ToolManagerCommands.BeginAddCapsulePrimitiveTool,
+	                          TEXT("BeginAddCapsulePrimitiveTool"),
+	                          UAddPrimitiveToolBuilder::EMakeMeshShapeType::Capsule);
 	RegisterPrimitiveToolFunc(ToolManagerCommands.BeginAddConePrimitiveTool,
 							  TEXT("BeginAddConePrimitiveTool"),
 							  UAddPrimitiveToolBuilder::EMakeMeshShapeType::Cone);

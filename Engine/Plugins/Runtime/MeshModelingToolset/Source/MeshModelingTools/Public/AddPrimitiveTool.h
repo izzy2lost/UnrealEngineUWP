@@ -36,7 +36,8 @@ public:
 		Disc,
 		Torus,
 		Sphere,
-		Stairs
+		Stairs,
+		Capsule
 	};
 
 	virtual bool CanBuildTool(const FToolBuilderState& SceneState) const override;
@@ -372,6 +373,29 @@ public:
 	int VerticalSlices = 16;
 };
 
+UCLASS()
+class MESHMODELINGTOOLS_API UProceduralCapsuleToolProperties : public UProceduralShapeToolProperties
+{
+	GENERATED_BODY()
+
+public:
+	/** Radius of the capsule */
+	UPROPERTY(EditAnywhere, Category = Shape, meta = (UIMin = "1.0", UIMax = "1000.0", ClampMin = "0.0001", ClampMax = "1000000.0", ProceduralShapeSetting))
+	float Radius = 25.f;
+
+	/** Length of cylindrical section of the capsule */
+	UPROPERTY(EditAnywhere, Category = Shape, meta = (UIMin = "1.0", UIMax = "1000.0", ClampMin = "0.0001", ClampMax = "1000000.0", ProceduralShapeSetting))
+	float CylinderLength = 50.f;
+
+	/** Number of slices of the hemispherical end caps. */
+	UPROPERTY(EditAnywhere, Category = Shape, meta = (UIMin = "2", UIMax = "100", ClampMin = "2", ClampMax = "500", ProceduralShapeSetting))
+	int HemisphereSlices = 8;
+
+	/** Number of radial slices of the cylindrical section. */
+	UPROPERTY(EditAnywhere, Category = Shape, meta = (UIMin = "3", UIMax = "100", ClampMin = "3", ClampMax = "500", ProceduralShapeSetting))
+	int CylinderSlices = 16;
+};
+
 UENUM()
 enum class EProceduralStairsType
 {
@@ -558,6 +582,16 @@ class UAddCylinderPrimitiveTool : public UAddPrimitiveTool
 	GENERATED_BODY()
 public:
 	explicit UAddCylinderPrimitiveTool(const FObjectInitializer& ObjectInitializer);
+protected:
+	virtual void GenerateMesh(FDynamicMesh3* OutMesh) const override;
+};
+
+UCLASS()
+class UAddCapsulePrimitiveTool : public UAddPrimitiveTool
+{
+	GENERATED_BODY()
+public:
+	explicit UAddCapsulePrimitiveTool(const FObjectInitializer& ObjectInitializer);
 protected:
 	virtual void GenerateMesh(FDynamicMesh3* OutMesh) const override;
 };

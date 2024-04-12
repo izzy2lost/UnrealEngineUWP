@@ -40,6 +40,7 @@ public:
 
 	TSharedPtr<FUICommandInfo> BeginAddBoxPrimitiveTool;
 	TSharedPtr<FUICommandInfo> BeginAddCylinderPrimitiveTool;
+	TSharedPtr<FUICommandInfo> BeginAddCapsulePrimitiveTool;
 	TSharedPtr<FUICommandInfo> BeginAddConePrimitiveTool;
 	TSharedPtr<FUICommandInfo> BeginAddArrowPrimitiveTool;
 	TSharedPtr<FUICommandInfo> BeginAddRectanglePrimitiveTool;

@@ -17,6 +17,7 @@
 #include "Components/StaticMeshComponent.h"
 #include "Engine/StaticMeshActor.h"
 
+#include "Generators/CapsuleGenerator.h"
 #include "Generators/SweepGenerator.h"
 #include "Generators/GridBoxMeshGenerator.h"
 #include "Generators/RectangleMeshGenerator.h"
@@ -76,6 +77,9 @@ UInteractiveTool* UAddPrimitiveToolBuilder::BuildTool(const FToolBuilderState& S
 		break;
 	case EMakeMeshShapeType::Stairs:
 		NewTool = NewObject<UAddStairsPrimitiveTool>(SceneState.ToolManager);
+		break;
+	case EMakeMeshShapeType::Capsule:
+		NewTool = NewObject<UAddCapsulePrimitiveTool>(SceneState.ToolManager);
 		break;
 	default:
 		break;
@@ -697,6 +701,26 @@ void UAddCylinderPrimitiveTool::GenerateMesh(FDynamicMesh3* OutMesh) const
 	OutMesh->Copy(&CylGen);
 }
 
+
+UAddCapsulePrimitiveTool::UAddCapsulePrimitiveTool(const FObjectInitializer& ObjectInitializer)
+	: Super(ObjectInitializer.SetDefaultSubobjectClass<UProceduralCapsuleToolProperties>(TEXT("ShapeSettings")))
+{
+	AssetName = TEXT("Capsule");
+	UInteractiveTool::SetToolDisplayName(LOCTEXT("CapsuleToolName", "Create Capsule"));
+}
+
+void UAddCapsulePrimitiveTool::GenerateMesh(FDynamicMesh3* OutMesh) const
+{
+	FCapsuleGenerator CapGen;
+	const UProceduralCapsuleToolProperties* CapsuleSettings = Cast<UProceduralCapsuleToolProperties>(ShapeSettings);
+	CapGen.Radius = CapsuleSettings->Radius;
+	CapGen.SegmentLength = CapsuleSettings->CylinderLength;
+	CapGen.NumHemisphereArcSteps = CapsuleSettings->HemisphereSlices;
+	CapGen.NumCircleSteps = CapsuleSettings->CylinderSlices;
+	CapGen.bPolygroupPerQuad = ShapeSettings->PolygroupMode == EMakeMeshPolygroupMode::PerQuad;
+	CapGen.Generate();
+	OutMesh->Copy(&CapGen);
+}
 
 
 UAddConePrimitiveTool::UAddConePrimitiveTool(const FObjectInitializer& ObjectInitializer)
