@@ -3,10 +3,8 @@
 using System;
 using System.Collections.Generic;
 using EpicGames.Core;
-using EpicGames.Horde;
 using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Jobs.Templates;
-using Google.Protobuf.WellKnownTypes;
 using MongoDB.Bson.Serialization.Attributes;
 
 namespace Horde.Server.Jobs.Templates

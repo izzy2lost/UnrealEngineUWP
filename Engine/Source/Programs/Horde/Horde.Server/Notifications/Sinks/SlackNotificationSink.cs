@@ -2164,7 +2164,7 @@ namespace Horde.Server.Notifications.Sinks
 					{
 						string path = uri.LocalPath;
 
-						int atIdx = path.IndexOf('@');
+						int atIdx = path.IndexOf('@', StringComparison.Ordinal);
 						if (atIdx != -1 && Int32.TryParse(path.Substring(atIdx + 1), out int change))
 						{
 							int existingChange;
