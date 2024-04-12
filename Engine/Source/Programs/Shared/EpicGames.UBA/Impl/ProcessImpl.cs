@@ -16,10 +16,10 @@ namespace EpicGames.UBA
 
 		#region DllImport
 		[DllImport("UbaHost", CharSet = CharSet.Auto)]
-		static extern IntPtr CreateProcessStartInfo(string application, string arguments, string workingDir, string description, uint priorityClass, ulong outputStatsThresholdMs, bool trackInputs, string logFile, ExitCallback? exit);
+		static extern IntPtr ProcessStartInfo_Create(string application, string arguments, string workingDir, string description, uint priorityClass, ulong outputStatsThresholdMs, bool trackInputs, string logFile, ExitCallback? exit);
 
 		[DllImport("UbaHost", CharSet = CharSet.Auto)]
-		static extern void DestroyProcessStartInfo(IntPtr server);
+		static extern void ProcessStartInfo_Destroy(IntPtr server);
 		#endregion
 
 		public ProcessStartInfoImpl(ProcessStartInfo info, bool needCallback)
@@ -29,7 +29,7 @@ namespace EpicGames.UBA
 				ExitCallbackDelegate = RaiseExited;
 			}
 
-			_handle = CreateProcessStartInfo(info.Application, info.Arguments, info.WorkingDirectory, info.Description, (uint)info.Priority, info.OutputStatsThresholdMs, info.TrackInputs, info.LogFile?? String.Empty, ExitCallbackDelegate);
+			_handle = ProcessStartInfo_Create(info.Application, info.Arguments, info.WorkingDirectory, info.Description, (uint)info.Priority, info.OutputStatsThresholdMs, info.TrackInputs, info.LogFile?? String.Empty, ExitCallbackDelegate);
 		}
 
 		void RaiseExited(IntPtr userData, IntPtr handle)
@@ -59,7 +59,7 @@ namespace EpicGames.UBA
 
 			if (_handle != IntPtr.Zero)
 			{
-				DestroyProcessStartInfo(_handle);
+				ProcessStartInfo_Destroy(_handle);
 				_handle = IntPtr.Zero;
 			}
 		}

@@ -16,11 +16,11 @@ namespace EpicGames.UBA
 
 		#region DllImport
 		[DllImport("UbaHost", CharSet = CharSet.Auto)]
-		static extern IntPtr CreateSessionServerCreateInfo(IntPtr storage, IntPtr client, IntPtr logger, string rootDir, string traceOutputFile,
+		static extern IntPtr SessionServerCreateInfo_Create(IntPtr storage, IntPtr client, IntPtr logger, string rootDir, string traceOutputFile,
 			bool disableCustomAllocator, bool launchVisualizer, bool resetCas, bool writeToDisk, bool detailedTrace, bool allowWaitOnMem, bool allowKillOnMem, bool storeObjFilesCompressed);
 
 		[DllImport("UbaHost", CharSet = CharSet.Auto)]
-		static extern void DestroySessionServerCreateInfo(IntPtr server);
+		static extern void SessionServerCreateInfo_Destroy(IntPtr server);
 		#endregion
 
 		public SessionServerCreateInfoImpl(IStorageServer storage, IServer client, ILogger logger, SessionServerCreateInfo info)
@@ -28,7 +28,7 @@ namespace EpicGames.UBA
 			_storage = storage;
 			_client = client;
 			_logger = logger;
-			_handle = CreateSessionServerCreateInfo(_storage.GetHandle(), _client.GetHandle(), _logger.GetHandle(), info.RootDirectory, info.TraceOutputFile, info.DisableCustomAllocator, info.LaunchVisualizer, info.ResetCas, info.WriteToDisk, info.DetailedTrace, info.AllowWaitOnMem, info.AllowKillOnMem, info.StoreObjFilesCompressed);
+			_handle = SessionServerCreateInfo_Create(_storage.GetHandle(), _client.GetHandle(), _logger.GetHandle(), info.RootDirectory, info.TraceOutputFile, info.DisableCustomAllocator, info.LaunchVisualizer, info.ResetCas, info.WriteToDisk, info.DetailedTrace, info.AllowWaitOnMem, info.AllowKillOnMem, info.StoreObjFilesCompressed);
 		}
 
 		#region IDisposable
@@ -48,7 +48,7 @@ namespace EpicGames.UBA
 
 			if (_handle != IntPtr.Zero)
 			{
-				DestroySessionServerCreateInfo(_handle);
+				SessionServerCreateInfo_Destroy(_handle);
 				_handle = IntPtr.Zero;
 			}
 		}
@@ -72,7 +72,7 @@ namespace EpicGames.UBA
 
 		#region DllImport
 		[DllImport("UbaHost", CharSet = CharSet.Auto)]
-		static extern IntPtr CreateSessionServer(IntPtr info);
+		static extern IntPtr SessionServer_Create(IntPtr info);
 
 		[DllImport("UbaHost", CharSet = CharSet.Auto)]
 		static extern void SessionServer_SetRemoteProcessAvailable(IntPtr server, RemoteProcessSlotAvailableCallback func);
@@ -114,7 +114,7 @@ namespace EpicGames.UBA
 		static extern void SessionServer_CancelAll(IntPtr server);
 
 		[DllImport("UbaHost", CharSet = CharSet.Auto)]
-		static extern void DestroySessionServer(IntPtr server);
+		static extern void SessionServer_Destroy(IntPtr server);
 		#endregion
 
 		public SessionServerImpl(ISessionServerCreateInfo info)
@@ -122,7 +122,7 @@ namespace EpicGames.UBA
 			_info = info;
 			_remoteProcessSlotAvailableCallbackDelegate = RaiseRemoteProcessSlotAvailable;
 			_remoteProcessReturnedCallbackDelegate = RaiseRemoteProcessReturned;
-			_handle = CreateSessionServer(_info.GetHandle());
+			_handle = SessionServer_Create(_info.GetHandle());
 			SessionServer_SetRemoteProcessAvailable(_handle, _remoteProcessSlotAvailableCallbackDelegate);
 			SessionServer_SetRemoteProcessReturned(_handle, _remoteProcessReturnedCallbackDelegate);
 		}
@@ -144,7 +144,7 @@ namespace EpicGames.UBA
 
 			if (_handle != IntPtr.Zero)
 			{
-				DestroySessionServer(_handle);
+				SessionServer_Destroy(_handle);
 				_handle = IntPtr.Zero;
 			}
 		}

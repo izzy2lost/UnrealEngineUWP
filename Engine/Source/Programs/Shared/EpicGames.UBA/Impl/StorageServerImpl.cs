@@ -14,10 +14,10 @@ namespace EpicGames.UBA
 
 		#region DllImport
 		[DllImport("UbaHost", CharSet = CharSet.Auto)]
-		static extern IntPtr CreateStorageServer(IntPtr server, string rootDir, ulong casCapacityBytes, bool storeCompressed, IntPtr logger, string zone);
+		static extern IntPtr StorageServer_Create(IntPtr server, string rootDir, ulong casCapacityBytes, bool storeCompressed, IntPtr logger, string zone);
 
 		[DllImport("UbaHost", CharSet = CharSet.Auto)]
-		static extern void DestroyStorageServer(IntPtr server);
+		static extern void StorageServer_Destroy(IntPtr server);
 
 		[DllImport("UbaHost", CharSet = CharSet.Auto)]
 		static extern void StorageServer_SaveCasTable(IntPtr server);
@@ -30,7 +30,7 @@ namespace EpicGames.UBA
 		{
 			_server = server;
 			_logger = logger;
-			_handle = CreateStorageServer(_server.GetHandle(), info.RootDirectory, info.CapacityBytes, info.StoreCompressed, _logger.GetHandle(), info.Zone);
+			_handle = StorageServer_Create(_server.GetHandle(), info.RootDirectory, info.CapacityBytes, info.StoreCompressed, _logger.GetHandle(), info.Zone);
 			Utils.DisallowedPaths().ToList().ForEach(x => RegisterDisallowedPath(x));
 		}
 
@@ -51,7 +51,7 @@ namespace EpicGames.UBA
 
 			if (_handle != IntPtr.Zero)
 			{
-				DestroyStorageServer(_handle);
+				StorageServer_Destroy(_handle);
 				_handle = IntPtr.Zero;
 			}
 		}

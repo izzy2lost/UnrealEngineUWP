@@ -12,23 +12,23 @@ namespace EpicGames.UBA
 
 		#region DllImport
 		[DllImport("UbaHost", CharSet = CharSet.Auto)]
-		static extern IntPtr CreateServer(IntPtr logger, int workerCount, int sendSize, int receiveTimeoutSeconds, bool useQuic);
+		static extern IntPtr NetworkServer_Create(IntPtr logger, int workerCount, int sendSize, int receiveTimeoutSeconds, bool useQuic);
 
 		[DllImport("UbaHost", CharSet = CharSet.Auto)]
-		static extern void DestroyServer(IntPtr server);
+		static extern void NetworkServer_Destroy(IntPtr server);
 
 		// Server Imports
 		[DllImport("UbaHost", CharSet = CharSet.Auto)]
-		static extern bool Server_StartListen(IntPtr server, int port, string ip, string crypto);
+		static extern bool NetworkServer_StartListen(IntPtr server, int port, string ip, string crypto);
 
 		[DllImport("UbaHost", CharSet = CharSet.Auto)]
-		static extern bool Server_AddClient(IntPtr server, string ip, int port, string crypto);
+		static extern bool NetworkServer_AddClient(IntPtr server, string ip, int port, string crypto);
 
 		[DllImport("UbaHost", CharSet = CharSet.Auto)]
-		static extern bool Server_AddNamedConnection(IntPtr server, string name);
+		static extern bool NetworkServer_AddNamedConnection(IntPtr server, string name);
 
 		[DllImport("UbaHost", CharSet = CharSet.Auto)]
-		static extern bool Server_Stop(IntPtr server);
+		static extern bool NetworkServer_Stop(IntPtr server);
 
 		const int DEFAULT_PORT = 1345;
 		#endregion
@@ -36,7 +36,7 @@ namespace EpicGames.UBA
 		public ServerImpl(int maxWorkers, int sendSize, ILogger logger, bool useQuic)
 		{
 			_logger = logger;
-			_handle = CreateServer(_logger.GetHandle(), maxWorkers, sendSize, 60, useQuic); // We know this code is using 5s pings.. so 60 seconds timeout on recv socket is good
+			_handle = NetworkServer_Create(_logger.GetHandle(), maxWorkers, sendSize, 60, useQuic); // We know this code is using 5s pings.. so 60 seconds timeout on recv socket is good
 		}
 
 		#region IDisposable
@@ -57,7 +57,7 @@ namespace EpicGames.UBA
 
 			if (_handle != IntPtr.Zero)
 			{
-				DestroyServer(_handle);
+				NetworkServer_Destroy(_handle);
 				_handle = IntPtr.Zero;
 			}
 		}
@@ -68,16 +68,16 @@ namespace EpicGames.UBA
 		public IntPtr GetHandle() => _handle;
 
 		/// <inheritdoc/>
-		public bool StartServer(string ip = "", int port = -1, string crypto = "") => Server_StartListen(_handle, port > 0 ? port : DEFAULT_PORT, ip, crypto);
+		public bool StartServer(string ip = "", int port = -1, string crypto = "") => NetworkServer_StartListen(_handle, port > 0 ? port : DEFAULT_PORT, ip, crypto);
 
 		/// <inheritdoc/>
-		public void StopServer() => Server_Stop(_handle);
+		public void StopServer() => NetworkServer_Stop(_handle);
 
 		/// <inheritdoc/>
-		public bool AddClient(string ip, int port, string crypto = "") => Server_AddClient(_handle, ip, port, crypto);
+		public bool AddClient(string ip, int port, string crypto = "") => NetworkServer_AddClient(_handle, ip, port, crypto);
 
 		/// <inheritdoc/>
-		public bool AddNamedConnection(string name) => Server_AddNamedConnection(_handle, name);
+		public bool AddNamedConnection(string name) => NetworkServer_AddNamedConnection(_handle, name);
 		#endregion
 	}
 }
