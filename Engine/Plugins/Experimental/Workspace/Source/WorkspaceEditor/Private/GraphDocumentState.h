@@ -20,8 +20,8 @@ struct FGraphDocumentState : public FWorkspaceDocumentState
 	{}
 
 	UPROPERTY()
-	FVector2D ViewLocation;
+	FVector2D ViewLocation = FVector2D::Zero();
 
 	UPROPERTY()
-	float ZoomAmount;
+	float ZoomAmount = 0.f;
 };
