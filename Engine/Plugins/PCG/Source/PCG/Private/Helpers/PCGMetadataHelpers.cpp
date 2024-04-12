@@ -162,15 +162,12 @@ namespace PCGMetadataHelpers
 				// Presence of attribute was already checked before, this should not return null
 				check(SourceAttribute);
 
-				// Copy the attribute using the first entry of the source attribute as the default value (there is just a single entry or none). If there is no first entry, will be the default value anyway.
-				auto CreateAttribute = [TargetMetadata, SourceAttribute, LocalDestinationAttribute](auto Dummy) -> FPCGMetadataAttributeBase*
+				if (FPCGMetadataAttributeBase* NewAttr = TargetMetadata->CopyAttribute(SourceAttribute, LocalDestinationAttribute, /*bKeepParent=*/false, /*bCopyEntries=*/true,/*bCopyValues=*/true))
 				{
-					using AttributeType = decltype(Dummy);
-					AttributeType DefaultValue = static_cast<const FPCGMetadataAttribute<AttributeType>*>(SourceAttribute)->GetValue(PCGMetadataEntryKey(0));
-					return PCGMetadataElementCommon::ClearOrCreateAttribute<AttributeType>(TargetMetadata, LocalDestinationAttribute, DefaultValue);
-				};
-
-				if (!PCGMetadataAttribute::CallbackWithRightType(SourceAttribute->GetTypeId(), std::move(CreateAttribute)))
+					// To keep the previous behavior, we force the copied attribute to have its default value set to the first entry.
+					NewAttr->SetDefaultValueToFirstEntry();
+				}
+				else
 				{
 					PCGLog::LogWarningOnGraph(FText::Format(LOCTEXT("FailedCreateNewAttribute", "Failed to create new attribute '{0}'"), FText::FromName(LocalDestinationAttribute)));
 					continue;

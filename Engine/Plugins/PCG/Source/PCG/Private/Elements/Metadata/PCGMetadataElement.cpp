@@ -86,10 +86,18 @@ void UPCGMetadataOperationSettings::ApplyDeprecation(UPCGNode* InOutNode)
 TArray<FPCGPinProperties> UPCGMetadataOperationSettings::InputPinProperties() const
 {
 	TArray<FPCGPinProperties> Properties;
-	FPCGPinProperties& InputPinProperty = Properties.Emplace_GetRef(PCGPinConstants::DefaultInputLabel, EPCGDataType::Point);
+	FPCGPinProperties& InputPinProperty = Properties.Emplace_GetRef(PCGPinConstants::DefaultInputLabel, EPCGDataType::PointOrParam);
 	InputPinProperty.SetRequiredPin();
 
 	Properties.Emplace(PCGMetadataOperationSettings::AttributeLabel, EPCGDataType::Param, /*bInAllowMultipleConnections=*/ false, /*bAllowMultipleData=*/ false, PCGMetadataOperationSettings::AttributeTooltip);
+	return Properties;
+}
+
+TArray<FPCGPinProperties> UPCGMetadataOperationSettings::OutputPinProperties() const
+{
+	TArray<FPCGPinProperties> Properties;
+	Properties.Emplace(PCGPinConstants::DefaultOutputLabel, EPCGDataType::PointOrParam);
+
 	return Properties;
 }
 
@@ -121,25 +129,16 @@ bool FPCGMetadataOperationElement::ExecuteInternal(FPCGContext* Context) const
 	for (const FPCGTaggedData& Input : Inputs)
 	{
 		FPCGTaggedData& Output = Outputs.Add_GetRef(Input);
-
-		const UPCGSpatialData* SpatialInput = Cast<const UPCGSpatialData>(Input.Data);
-
-		if (!SpatialInput)
-		{
-			PCGE_LOG(Error, GraphAndLog, LOCTEXT("InvalidInputData", "Invalid input data type, must be of type Spatial"));
-			continue;
-		}
-
-		const UPCGPointData* OriginalData = SpatialInput->ToPointData(Context);
+		const UPCGData* OriginalData = Input.Data;
 
 		if (!OriginalData)
 		{
-			PCGE_LOG(Error, GraphAndLog, LOCTEXT("UnableToGetPointData", "Unable to get point data from input"));
+			PCGE_LOG(Error, GraphAndLog, LOCTEXT("InvalidInputData", "Invalid input data"));
 			continue;
 		}
 
 		const UPCGData* SourceData = SourceAttributeSet ? static_cast<const UPCGData*>(SourceAttributeSet) : static_cast<const UPCGData*>(OriginalData);
-		const UPCGMetadata* SourceMetadata = SourceAttributeSet ? SourceAttributeSet->Metadata : OriginalData->Metadata;
+		const UPCGMetadata* SourceMetadata = SourceAttributeSet ? SourceAttributeSet->Metadata : OriginalData->ConstMetadata();
 
 		if (!SourceMetadata)
 		{
@@ -150,21 +149,28 @@ bool FPCGMetadataOperationElement::ExecuteInternal(FPCGContext* Context) const
 		// Early out when trying to copy all attributes from self, since nothing will happen
 		if (!SourceAttributeSet && Settings->bCopyAllAttributes)
 		{
-			PCGE_LOG(Verbose, LogOnly, LOCTEXT("TrivialCopy", "Copying all attributes on itself is a trivial operation."));
+			PCGE_LOG(Verbose, LogOnly, LOCTEXT("TrivialAllCopy", "Copying all attributes on itself is a trivial operation."));
 			continue;
 		}
 
-		UPCGPointData* SampledData = CastChecked<UPCGPointData>(OriginalData->DuplicateData());
+		// Early out when trying to copy same value to self
+		if (!SourceAttributeSet && Settings->InputSource == Settings->OutputTarget)
+		{
+			PCGE_LOG(Verbose, LogOnly, LOCTEXT("TrivialCopy", "Copying attribute to itself is a trivial operation."));
+			continue;
+		}
+
+		UPCGData* OutputData = OriginalData->DuplicateData();
 		bool bSuccess = false;
 		if (Settings->bCopyAllAttributes)
 		{
-			bSuccess = PCGMetadataHelpers::CopyAllAttributes(SourceData, SampledData, Context);
+			bSuccess = PCGMetadataHelpers::CopyAllAttributes(SourceData, OutputData, Context);
 		}
 		else
 		{
 			PCGMetadataHelpers::FPCGCopyAttributeParams Params{};
 			Params.SourceData = SourceData;
-			Params.TargetData = SampledData;
+			Params.TargetData = OutputData;
 			Params.InputSource = Settings->InputSource;
 			Params.OutputTarget = Settings->OutputTarget;
 			Params.OptionalContext = Context;
@@ -175,7 +181,7 @@ bool FPCGMetadataOperationElement::ExecuteInternal(FPCGContext* Context) const
 
 		if (bSuccess)
 		{
-			Output.Data = SampledData;
+			Output.Data = OutputData;
 		}
 	}
 
