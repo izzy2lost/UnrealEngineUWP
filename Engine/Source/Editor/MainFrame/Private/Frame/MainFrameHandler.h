@@ -67,6 +67,13 @@ public:
 	 */
 	bool CanCloseEditor()
 	{
+		// We don't want to close the editor if we are recreating the mainframe module
+		IMainFrameModule& MainFrameModule = FModuleManager::LoadModuleChecked<IMainFrameModule>(TEXT("MainFrame"));
+		if (MainFrameModule.IsRecreatingDefaultMainFrame())
+		{
+			return false;
+		}
+
 		if ( FSlateApplication::IsInitialized() && !FSlateApplication::Get().IsNormalExecution())
 		{
 			// DEBUGGER EXIT PATH
@@ -136,7 +143,6 @@ public:
 			}
 			
 			// Allow Plugins and other systems to prevent close 
-			IMainFrameModule& MainFrameModule = FModuleManager::LoadModuleChecked<IMainFrameModule>(TEXT("MainFrame"));
 			bOkToExit = bOkToExit && MainFrameModule.ExecuteCanCloseEditorDelegates();
 
 			// Prompt for save and quit only if we did not launch a gameless rocket exe or are in demo mode or we are asking for a close to recreate the Default Main Frame
