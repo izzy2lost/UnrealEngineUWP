@@ -1077,7 +1077,20 @@ export class NodeBot extends PerforceStatefulBot implements NodeBotInterface {
 			filesByUser.set(lockedFile.user, [...(filesByUser.get(lockedFile.user) || []), lockedFile.depotPath])
 		}
 
-		filesByClient.forEach((files,client) => this.p4.revertFiles(files,client))
+		let results = await Promise.all(Array.from(filesByClient.entries()).map(async ([client,files]) => 
+			{ 
+				try { 
+					await this.p4.revertFiles(files,client)
+				} catch (reason) {
+					return { success: false, message: reason }
+				}
+				return { success: true }
+			}))
+		results = results.filter(result => !result.success)
+		
+		if (results.length > 0) {
+			return { success: false, message: results.map(result => result.message).join('\n') }
+		}
 
 		if (this.slackMessages) {
 			

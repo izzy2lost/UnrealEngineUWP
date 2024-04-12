@@ -172,7 +172,7 @@ function unlockVerify() {
     }).fail(function(jqXHR, textStatus, errMsg) {
         try {
             transitionDisplayUnlockResults()
-            unlockFailure(`${textStatus}: ${errMsg}`)
+            unlockFailure(jqXHR.responseText)
         }
         catch (err) {
             unlockFailure(`Error encountered displaying unlock files failure: ${err}`)
