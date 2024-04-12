@@ -139,6 +139,9 @@ struct FPCGWorldRayHitQueryParams : public FPCGWorldCommonQueryParams
 	// examples: bReturnFaceIndex, bReturnPhysicalMaterial, some ignore patterns
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Data, meta = (PCG_Overridable))
+	bool bIgnoreBackfaceHits = false;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Data, meta = (PCG_Overridable))
 	bool bApplyMetadataFromLandscape = false;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Data, meta = (PCG_Overridable))
@@ -152,7 +155,7 @@ class UPCGWorldRayHitData : public UPCGSurfaceData
 	GENERATED_BODY()
 
 public:
-	PCG_API void Initialize(UWorld* InWorld, const FBox& InBounds = FBox(EForceInit::ForceInit));
+	PCG_API void Initialize(UWorld* InWorld, const FTransform& InTransform, const FBox& InBounds = FBox(EForceInit::ForceInit), const FBox& InLocalBounds = FBox(EForceInit::ForceInit));
 
 	// ~Begin UPCGData interface
 	virtual void AddToCrc(FArchiveCrc32& Ar, bool bFullDataCrc) const override;
@@ -164,6 +167,7 @@ public:
 	virtual bool IsBounded() const override { return !!Bounds.IsValid; }
 	virtual bool SamplePoint(const FTransform& Transform, const FBox& Bounds, FPCGPoint& OutPoint, UPCGMetadata* OutMetadata) const override;
 	virtual bool HasNonTrivialTransform() const override { return true; }
+	virtual FVector GetNormal() const override { return Transform.GetRotation().GetUpVector(); }
 protected:
 	virtual UPCGSpatialData* CopyInternal() const override;
 	//~End UPCGSpatialData interface
@@ -173,7 +177,7 @@ public:
 	virtual bool SupportsBoundedPointData() const { return true; }
 	virtual const UPCGPointData* CreatePointData(FPCGContext* Context) const override { return CreatePointData(Context, FBox(EForceInit::ForceInit)); }
 	virtual const UPCGPointData* CreatePointData(FPCGContext* Context, const FBox& InBounds) const override;
-	// ~End UPCGConcreteDataWithPointCache interface
+	// ~End UPCGSpatialDataWithPointCache interface
 
 	UPROPERTY()
 	TWeakObjectPtr<UWorld> World = nullptr;

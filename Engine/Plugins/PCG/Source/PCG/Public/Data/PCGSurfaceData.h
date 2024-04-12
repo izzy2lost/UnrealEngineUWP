@@ -21,11 +21,17 @@ public:
 	virtual bool HasNonTrivialTransform() const override { return true; }
 	//~End UPCGSpatialData interface
 
+	const FTransform& GetTransform() const { return Transform; }
+	const FBox& GetLocalBounds() const { return LocalBounds; }
+
 protected:
 	void CopyBaseSurfaceData(UPCGSurfaceData* NewSurfaceData) const;
 
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = SpatialData)
 	FTransform Transform;
+
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = SpatialData)
+	FBox LocalBounds = FBox(EForceInit::ForceInit);
 };
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2

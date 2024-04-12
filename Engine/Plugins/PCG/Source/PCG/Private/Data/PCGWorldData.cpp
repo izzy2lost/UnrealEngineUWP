@@ -226,10 +226,12 @@ UPCGSpatialData* UPCGWorldVolumetricData::CopyInternal() const
 }
 
 /** World Ray Hit data implementation */
-void UPCGWorldRayHitData::Initialize(UWorld* InWorld, const FBox& InBounds)
+void UPCGWorldRayHitData::Initialize(UWorld* InWorld, const FTransform& InTransform, const FBox& InBounds, const FBox& InLocalBounds)
 {
 	World = InWorld;
+	Transform = InTransform;
 	Bounds = InBounds;
+	LocalBounds = InLocalBounds;
 }
 
 void UPCGWorldRayHitData::AddToCrc(FArchiveCrc32& Ar, bool bFullDataCrc) const
@@ -254,13 +256,11 @@ bool UPCGWorldRayHitData::SamplePoint(const FTransform& InTransform, const FBox&
 	Params.bTraceComplex = QueryParams.bTraceComplex;
 	Params.bReturnPhysicalMaterial = (PhysicalMaterialAttribute != nullptr);
 
-	// Project the InTransform location on the ray origin plane
-	const FVector PointLocation = InTransform.GetLocation();
-	FVector RayStart = PointLocation - ((PointLocation - QueryParams.RayOrigin) | QueryParams.RayDirection) * QueryParams.RayDirection;
-	FVector RayEnd = RayStart + QueryParams.RayDirection * QueryParams.RayLength;
+	FVector RayOrigin = InTransform.GetLocation() - ((InTransform.GetLocation() - QueryParams.RayOrigin) | QueryParams.RayDirection) * QueryParams.RayDirection;
+	FVector RayEnd = RayOrigin + QueryParams.RayDirection * QueryParams.RayLength;
 
 	TArray<FHitResult> Hits;
-	World->LineTraceMultiByObjectType(Hits, RayStart, RayEnd, ObjectQueryParams, Params);
+	World->LineTraceMultiByObjectType(Hits, RayOrigin, RayEnd, ObjectQueryParams, Params);
 
 	for (const FHitResult& Hit : Hits)
 	{
@@ -324,7 +324,7 @@ bool UPCGWorldRayHitData::SamplePoint(const FTransform& InTransform, const FBox&
 		}
 
 		bool bHitOnLandscape = false;
-		if (QueryParams.bIgnoreLandscapeHits || QueryParams.bApplyMetadataFromLandscape)
+		if (QueryParams.bIgnoreLandscapeHits || QueryParams.bApplyMetadataFromLandscape || QueryParams.bIgnoreBackfaceHits)
 		{
 			bHitOnLandscape = HitComponent->GetOwner() && HitComponent->GetOwner()->IsA<ALandscapeProxy>();
 		}
@@ -332,6 +332,16 @@ bool UPCGWorldRayHitData::SamplePoint(const FTransform& InTransform, const FBox&
 		if (QueryParams.bIgnoreLandscapeHits && bHitOnLandscape)
 		{
 			continue;
+		}
+
+		// Optionally skip backface hits
+		if (QueryParams.bIgnoreBackfaceHits)
+		{
+			// If its a landscape, we cull if the normal is negative in Z direction (landscape normal is always the +Z axis). If not, then we cull if the impact normal and the ray are headed in the same direction
+			if ((bHitOnLandscape && Hit.ImpactNormal.Z < 0) || (QueryParams.RayDirection).Dot(Hit.ImpactNormal) > 0)
+			{
+				continue;
+			}
 		}
 
 		// Finally, fill in OutPoint - we're done
@@ -401,11 +411,9 @@ const UPCGPointData* UPCGWorldRayHitData::CreatePointData(FPCGContext* Context, 
 		return Data;
 	}
 
-	PCGSurfaceSampler::FSurfaceSamplerParams SamplerParams;
-	if (SamplerParams.Initialize(nullptr, Context, EffectiveBounds))
-	{
-		Data = PCGSurfaceSampler::SampleSurface(Context, this, nullptr, SamplerParams);
-	}
+	// The default params will be fine in this case
+	const PCGSurfaceSampler::FSurfaceSamplerParams Params;
+	Data = PCGSurfaceSampler::SampleSurface(Context, /*InSurface=*/this, /*InBoundingShape=*/nullptr, EffectiveBounds, Params);
 
 	return Data;
 }

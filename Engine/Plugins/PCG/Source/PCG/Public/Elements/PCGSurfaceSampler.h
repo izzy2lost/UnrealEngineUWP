@@ -11,7 +11,7 @@
 
 class UPCGNode;
 class UPCGPointData;
-class UPCGSpatialData;
+class UPCGSurfaceData;
 class UPCGSurfaceSamplerSettings;
 
 namespace PCGSurfaceSamplerConstants
@@ -22,9 +22,10 @@ namespace PCGSurfaceSamplerConstants
 
 namespace PCGSurfaceSampler
 {
-	// TODO: Factor out "computed values" that shouldn't be exposed to the external user into a more appropriate state
 	struct FSurfaceSamplerParams
 	{
+		void InitializeFromSettings(const UPCGSurfaceSamplerSettings* Settings);
+
 		float PointsPerSquaredMeter = 1.0f;
 		FVector PointExtents = FVector::One() * 0.5f;
 		float Looseness = 0.0f;
@@ -33,45 +34,58 @@ namespace PCGSurfaceSampler
 #if WITH_EDITORONLY_DATA
 		bool bKeepZeroDensityPoints = false;
 #endif
+	};
 
-		bool Initialize(const UPCGSurfaceSamplerSettings* Settings, const FPCGContext* Context, const FBox& InputBounds);
+	struct FSurfaceSamplerData
+	{
+		bool Initialize(const UPCGSurfaceSamplerSettings* Settings, const FPCGContext* Context, const FBox& InEffectiveGridBounds, const FTransform& InSurfaceTransform = FTransform::Identity);
+		bool Initialize(const FPCGContext* Context, const FBox& InEffectiveGridBounds, const FTransform& InSurfaceTransform = FTransform::Identity);
+
 		FIntVector2 ComputeCellIndices(int32 Index) const;
 
+		FSurfaceSamplerParams Params;
+
+		/** Whether the pre-projected points need a local->world transformation. */
+		bool bNeedsLocalTransformation = false;
+
 		/** Computed values **/
-		FVector InterstitialDistance;
-		FVector InnerCellSize;
-		FVector CellSize;
+		FVector InterstitialDistance = FVector::ZeroVector;
+		FVector InnerCellSize = FVector::ZeroVector;
+		FVector CellSize = FVector::ZeroVector;
 
-		int32 CellMinX;
-		int32 CellMaxX;
-		int32 CellMinY;
-		int32 CellMaxY;
-		int32 CellCount;
-		float Ratio;
-		int Seed;
+		int32 CellMinX = 0;
+		int32 CellMaxX = 0;
+		int32 CellMinY = 0;
+		int32 CellMaxY = 0;
+		int32 CellCount = 0;
+		float Ratio = 0.f;
+		int Seed = 0;
 
-		FVector::FReal InputBoundsMinZ;
-		FVector::FReal InputBoundsMaxZ;
+		/** The displacement of the pre-projected, pre-sampled points. */
+		FVector::FReal PreProjectionDisplacement = 0.0;
+
+		/** Will be applied to pre-sampled points to transform them onto the pre-projection plane. */
+		FMatrix PreProjectionTransform = FMatrix::Identity;
 	};
 
 	struct FSurfaceSamplerExecutionState
 	{
 		const UPCGSpatialData* BoundingShape = nullptr;
 		FBox BoundingShapeBounds = FBox(EForceInit::ForceInit);
-		TArray<const UPCGSpatialData*> GeneratingShapes;
+		TArray<const UPCGSurfaceData*> GeneratingShapes;
 	};
 
 	struct FSurfaceSamplerIterationState
 	{
-		FSurfaceSamplerParams Settings;
+		FSurfaceSamplerData SamplerData;
 		UPCGPointData* OutputPoints = nullptr;
 	};
 
 	/** Sample a surface and returns the resulting point data. Can't be timesliced. */
-	UPCGPointData* SampleSurface(FPCGContext* Context, const UPCGSpatialData* InSurface, const UPCGSpatialData* InBoundingShape, const FSurfaceSamplerParams& ExecutionSettings);
+	UPCGPointData* SampleSurface(FPCGContext* Context, const UPCGSurfaceData* InSurface, const UPCGSpatialData* InBoundingShape, const FBox& EffectiveBounds, const FSurfaceSamplerParams& ExecutionParams);
 
 	/** Sample a surface and write the results in the given point data. Can be timesliced, and will return false if the processing is not done, true otherwise. */
-	bool SampleSurface(FPCGContext* Context, const FSurfaceSamplerParams& Settings, const UPCGSpatialData* InSurface, const UPCGSpatialData* InBoundingShape, UPCGPointData* SampledData, const bool bTimeSlicingIsEnabled = false);
+	bool SampleSurface(FPCGContext* Context, const FSurfaceSamplerData& SamplerData, const UPCGSurfaceData* InSurface, const UPCGSpatialData* InBoundingShape, UPCGPointData* SampledData, const bool bTimeSlicingIsEnabled = false);
 }
 
 UCLASS(MinimalAPI, BlueprintType, ClassGroup = (Procedural))
