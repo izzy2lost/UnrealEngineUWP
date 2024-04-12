@@ -5,11 +5,13 @@
 #include "AssetRegistry/IAssetRegistry.h"
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "AssetToolsModule.h"
+#include "AssetViewUtils.h"
 #include "Editor.h"
 #include "Editor/Transactor.h"
 #include "EditorScriptingHelpers.h"
 #include "FileHelpers.h"
 #include "HAL/FileManager.h"
+#include "Misc/EngineBuildSettings.h"
 #include "Misc/PackageName.h"
 #include "Misc/ScopedSlowTask.h"
 #include "Modules/ModuleManager.h"
@@ -1271,6 +1273,21 @@ bool UEditorAssetSubsystem::SaveAsset(const FString& AssetsToSave, bool bOnlyIfI
 
 	// Save without a prompt
 	return UEditorLoadingAndSavingUtils::SavePackages(Packages, bOnlyIfIsDirty);
+}
+
+int32 UEditorAssetSubsystem::GetAssetFilenameLengthForCooking(const FString& AssetPath)
+{
+	const FString PackagePath = FPackageName::ObjectPathToPackageName(AssetPath);
+	return AssetViewUtils::GetPackageLengthForCooking(PackagePath, FEngineBuildSettings::IsInternalBuild());
+}
+
+int32 UEditorAssetSubsystem::GetLoadedAssetFilenameLengthForCooking(const UObject* Asset)
+{
+	if (Asset)
+	{
+		return AssetViewUtils::GetPackageLengthForCooking(Asset->GetPackage()->GetName(), FEngineBuildSettings::IsInternalBuild());
+	}
+	return 0;
 }
 
 bool UEditorAssetSubsystem::SaveDirectory(const FString& DirectoryPath, bool bOnlyIfIsDirty, bool bRecursive)

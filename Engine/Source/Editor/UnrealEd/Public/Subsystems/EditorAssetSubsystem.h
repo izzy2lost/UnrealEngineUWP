@@ -272,6 +272,14 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | Asset")
 	UNREALED_API bool SaveAsset(const FString& AssetToSave, bool bOnlyIfIsDirty = true);
 
+	/** Returns the length of the computed cooked package name and path */
+	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | Asset")
+	UNREALED_API int32 GetAssetFilenameLengthForCooking(const FString& AssetPath);
+
+	/** Returns the length of the computed cooked package name and path */
+	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | Asset")
+	UNREALED_API int32 GetLoadedAssetFilenameLengthForCooking(const UObject* Asset);
+
 	/**
 	 * Save the packages the assets live in inside the directory. All objects that are in the directory will be saved.
 	 * Will try to checkout the file first. Assets will be loaded before being saved.
