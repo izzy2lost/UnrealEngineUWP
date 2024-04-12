@@ -4981,6 +4981,11 @@ TArray<UPackage*> ULandscapeInfo::GetModifiedPackages() const
 	return LocalModifiedPackages;
 }
 
+bool ULandscapeInfo::IsPackageModified(UPackage* InPackage) const
+{
+	return ModifiedPackages.Contains(InPackage);
+}
+
 void ULandscapeInfo::MarkModifiedPackagesAsDirty()
 {
 	for (TWeakObjectPtr<UPackage> WeakPackagePtr : ModifiedPackages)
@@ -6338,6 +6343,14 @@ UE::Landscape::EOutdatedDataFlags ALandscapeProxy::GetOutdatedDataFlags() const
 	if (!IsNaniteMeshUpToDate())
 	{
 		OutdatedDataFlags |= UE::Landscape::EOutdatedDataFlags::NaniteMeshes;
+	}
+
+	if (ULandscapeInfo* Info = GetLandscapeInfo())
+	{
+		if (Info->IsPackageModified(GetPackage()))
+		{
+			OutdatedDataFlags |= UE::Landscape::EOutdatedDataFlags::PackageModified;
+		}
 	}
 
 	return OutdatedDataFlags;

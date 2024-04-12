@@ -122,6 +122,15 @@ void SActionableMessageViewportWidget::Construct(const FArguments& InArgs)
 			SNew(SButton)
 			.ButtonStyle(&FCoreStyle::Get().GetWidgetStyle<FButtonStyle>("HoverHintOnly"))
 			.IsEnabled(true)
+			.ToolTipText_Lambda([this]()
+			{
+				if (!bExpanded)
+				{
+					return LOCTEXT("ActionableMessages.CollapsedWarning", "Your project has warnings that need to be resolved. Click for details.");
+				}
+
+				return FText();
+			})
 			.OnClicked_Lambda([this]()
 			{
 				bExpanded = !bExpanded;

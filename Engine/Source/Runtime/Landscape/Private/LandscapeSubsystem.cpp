@@ -29,6 +29,7 @@
 #include "Engine/Canvas.h"
 #include "EngineUtils.h"
 #include "Misc/ScopedSlowTask.h"
+#include "Algo/ForEach.h"
 #include "Algo/Transform.h"
 #include "Algo/RemoveIf.h"
 #include "Algo/Unique.h"
@@ -634,8 +635,11 @@ void ULandscapeSubsystem::BuildPhysicalMaterial()
 	PhysicalMaterialBuilder->Rebuild();
 }
 
+// Deprecated :
 TArray<ALandscapeProxy*> ULandscapeSubsystem::GetOutdatedProxies(UE::Landscape::EOutdatedDataFlags InMatchingOutdatedDataFlags, bool bInMustMatchAllFlags) const
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(ULandscapeSubsystem::GetOutdatedProxies);
+
 	UWorld* World = GetWorld();
 	if (!World || World->IsGameWorld())
 	{
@@ -654,6 +658,33 @@ TArray<ALandscapeProxy*> ULandscapeSubsystem::GetOutdatedProxies(UE::Landscape::
 		[](const TWeakObjectPtr<ALandscapeProxy>& InProxyPtr) { return InProxyPtr.Get(); });
 
 	return FinalProxiesToBuild;
+}
+
+TArray<TTuple<ALandscapeProxy*, UE::Landscape::EOutdatedDataFlags>> ULandscapeSubsystem::GetOutdatedProxyDetails(UE::Landscape::EOutdatedDataFlags InMatchingOutdatedDataFlags, bool bInMustMatchAllFlags) const
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(ULandscapeSubsystem::GetOutdatedProxyDetails);
+
+	UWorld* World = GetWorld();
+	if (!World || World->IsGameWorld())
+	{
+		return {};
+	}
+
+	TArray<TTuple<ALandscapeProxy*, UE::Landscape::EOutdatedDataFlags>> OutdatedProxies;
+	OutdatedProxies.Reserve(Proxies.Num());
+	for (TWeakObjectPtr<ALandscapeProxy> Proxy : Proxies)
+	{
+		if (ALandscapeProxy* ValidProxy = Proxy.Get())
+		{
+			const UE::Landscape::EOutdatedDataFlags ProxyOutdatedDataFlags = ValidProxy->GetOutdatedDataFlags();
+			if ((bInMustMatchAllFlags && EnumHasAllFlags(ProxyOutdatedDataFlags, InMatchingOutdatedDataFlags))
+				|| (!bInMustMatchAllFlags && EnumHasAnyFlags(ProxyOutdatedDataFlags, InMatchingOutdatedDataFlags)))
+			{
+				OutdatedProxies.Add({ValidProxy, ProxyOutdatedDataFlags});
+			}
+		}
+	}
+	return OutdatedProxies;
 }
 
 void ULandscapeSubsystem::BuildNanite(TArrayView<ALandscapeProxy*> InProxiesToBuild, bool bForceRebuild)
@@ -866,45 +897,45 @@ void ULandscapeSubsystem::DisplayMessages(FCanvas* Canvas, float& XPos, float& Y
 
 bool ULandscapeSubsystem::GetActionableMessage(FActionableMessage& OutActionableMessage)
 {
+	using namespace UE::Landscape;
+
 	TRACE_CPUPROFILER_EVENT_SCOPE(ULandscapeSubsystem::GetActionableMessage);
 
-	const FText DefaultMessage = LOCTEXT("DefaultLandscapeModified.Message", "Landscape is not up to date");
-	const FText DefaultTooltip = LOCTEXT("DefaultLandscapeModified.ToolTip", "Assets that affect the Landscape have changed. Rebuild the Landscape to see the results.");
+	const FText DefaultTooltip = LOCTEXT("DefaultLandscapeModified.ToolTip", "Assets that affect the Landscape may have changed. Rebuild the Landscape to see the results.");
 	const FText DefaultActionMessage = LOCTEXT("DefaultLandscapeModified.Action", "Rebuild");
 
-	const TArray<ALandscapeProxy*> OutdatedGrassMapProxies = GetOutdatedProxies(UE::Landscape::EOutdatedDataFlags::GrassMaps, /*bInMustMatchAllFlags = */false);
-	const TArray<ALandscapeProxy*> OutdatedPhysicalMaterialProxies = GetOutdatedProxies(UE::Landscape::EOutdatedDataFlags::PhysicalMaterials, /*bInMustMatchAllFlags = */false);
-	const TArray<ALandscapeProxy*> OutdatedNaniteProxies = GetOutdatedProxies(UE::Landscape::EOutdatedDataFlags::NaniteMeshes, /*bInMustMatchAllFlags = */false);
-	
-	const int32 OutdatedGrassmapProxiesCount = OutdatedGrassMapProxies.Num();
-	const int32 OutdatedPhysicalMaterialProxiesCount = OutdatedPhysicalMaterialProxies.Num();
-	const int32 OutdatedNaniteProxiesCount = OutdatedNaniteProxies.Num();
-
-	const int32 OutdatedFlags = ((OutdatedGrassmapProxiesCount > 0) ? 1 : 0) + ((OutdatedPhysicalMaterialProxiesCount > 0) ? 1 : 0) + ((OutdatedNaniteProxiesCount > 0) ? 1 : 0);
-
-	if (HasModifiedLandscapes())
+	const TArray<TTuple<ALandscapeProxy*, EOutdatedDataFlags>> OutdatedProxies = GetOutdatedProxyDetails(EOutdatedDataFlags::All, /*bInMustMatchAllFlags = */false);
+	TArray<int32> NumOutdatedProxyPerFlag;
+	NumOutdatedProxyPerFlag.AddDefaulted(GetOutdatedDataFlagIndex(EOutdatedDataFlags::Last) + 1);
+	int32 NumTotalOutdatedProxy = 0;
+	EOutdatedDataFlags OutdatedFlagsUnion = EOutdatedDataFlags::None;
+	Algo::ForEach(OutdatedProxies, [&OutdatedProxies, &NumOutdatedProxyPerFlag, &NumTotalOutdatedProxy, &OutdatedFlagsUnion](const TTuple<ALandscapeProxy*, EOutdatedDataFlags>& ProxyAndFlag)
 	{
-		OutActionableMessage.Message = LOCTEXT("LandscapeModified.Message", "Landscape assets are out of date");
-		OutActionableMessage.Tooltip = LOCTEXT("LandscapeModified.Tooltip", "The Landscape actors visible in your level have been modified as a result of changes to other assets.\nThese changes need to be applied to the Landscape assets.");
-		OutActionableMessage.ActionMessage = LOCTEXT("LandscapeModified.Action", "Update");
-		OutActionableMessage.ActionCallback = UE::Landscape::MarkModifiedLandscapesAsDirty;
+		++NumTotalOutdatedProxy;
+		OutdatedFlagsUnion |= ProxyAndFlag.Value;
 
-		return true;
-	}
-	
-	if (OutdatedFlags > 1)
+		uint32 RemainingFlags = static_cast<uint32>(ProxyAndFlag.Value);
+		while (RemainingFlags != 0)
+		{
+			uint32 FlagIndex = FBitSet::GetAndClearNextBit(RemainingFlags);
+			++NumOutdatedProxyPerFlag[FlagIndex];
+		}
+	});
+
+	// If more than 1 action is required, go with a BuildAll action
+	if (FMath::CountBits(static_cast<uint64>(OutdatedFlagsUnion)) > 1)
 	{
-		OutActionableMessage.Message = DefaultMessage;
+		OutActionableMessage.Message = FText::Format(LOCTEXT("SeveralLandscapeDataOutdated.Message", "{0} Landscape {0}|plural(one=actor,other=actors) {0}|plural(one=is,other=are) out of date and {0}|plural(one=needs,other=need) to be rebuilt"), NumTotalOutdatedProxy);;
 		OutActionableMessage.Tooltip = DefaultTooltip;
 		OutActionableMessage.ActionMessage = DefaultActionMessage;
 		OutActionableMessage.ActionCallback = UE::Landscape::BuildAll;
 
 		return true;
 	}
-	
-	if (OutdatedGrassmapProxiesCount > 0)
+
+	if (int32 OutdatedProxiesCount = NumOutdatedProxyPerFlag[GetOutdatedDataFlagIndex(EOutdatedDataFlags::GrassMaps)])
 	{
-		OutActionableMessage.Message = FText::Format(LOCTEXT("GRASS_MAPS_NEED_TO_BE_REBUILT_FMT", "{0} Landscape {0}|plural(one=actor,other=actors) with grass maps {0}|plural(one=needs,other=need) to be rebuilt"), OutdatedGrassmapProxiesCount);
+		OutActionableMessage.Message = FText::Format(LOCTEXT("GRASS_MAPS_NEED_TO_BE_REBUILT_FMT", "{0} Landscape {0}|plural(one=actor,other=actors) with grass maps {0}|plural(one=needs,other=need) to be rebuilt"), OutdatedProxiesCount);
 		OutActionableMessage.Tooltip = DefaultTooltip;
 		OutActionableMessage.ActionMessage = DefaultActionMessage;
 		OutActionableMessage.ActionCallback = UE::Landscape::BuildGrassMaps;
@@ -912,9 +943,9 @@ bool ULandscapeSubsystem::GetActionableMessage(FActionableMessage& OutActionable
 		return true;
 	}
 	
-	if (OutdatedPhysicalMaterialProxiesCount > 0)
+	if (int32 OutdatedProxiesCount = NumOutdatedProxyPerFlag[GetOutdatedDataFlagIndex(EOutdatedDataFlags::PhysicalMaterials)])
 	{
-		OutActionableMessage.Message = FText::Format(LOCTEXT("LANDSCAPE_PHYSICALMATERIAL_NEED_TO_BE_REBUILT_FMT", "{0} Landscape {0}|plural(one=actor,other=actors) with physical materials {0}|plural(one=needs,other=need) to be rebuilt"), OutdatedPhysicalMaterialProxiesCount);
+		OutActionableMessage.Message = FText::Format(LOCTEXT("LANDSCAPE_PHYSICALMATERIAL_NEED_TO_BE_REBUILT_FMT", "{0} Landscape {0}|plural(one=actor,other=actors) with physical materials {0}|plural(one=needs,other=need) to be rebuilt"), OutdatedProxiesCount);
 		OutActionableMessage.Tooltip = DefaultTooltip;
 		OutActionableMessage.ActionMessage = DefaultActionMessage;
 		OutActionableMessage.ActionCallback = UE::Landscape::BuildPhysicalMaterial;
@@ -922,12 +953,22 @@ bool ULandscapeSubsystem::GetActionableMessage(FActionableMessage& OutActionable
 		return true;
 	}
 
-	if (OutdatedNaniteProxiesCount > 0)
+	if (int32 OutdatedProxiesCount = NumOutdatedProxyPerFlag[GetOutdatedDataFlagIndex(EOutdatedDataFlags::NaniteMeshes)])
 	{
-		OutActionableMessage.Message = FText::Format(LOCTEXT("LANDSCAPE_NANITE_MESHES_NEED_TO_BE_REBUILT_FMT", "{0} Landscape {0}|plural(one=actor,other=actors) with Nanite meshes {0}|plural(one=needs,other=need) to be rebuilt"), OutdatedNaniteProxiesCount);
+		OutActionableMessage.Message = FText::Format(LOCTEXT("LANDSCAPE_NANITE_MESHES_NEED_TO_BE_REBUILT_FMT", "{0} Landscape {0}|plural(one=actor,other=actors) with Nanite meshes {0}|plural(one=needs,other=need) to be rebuilt"), OutdatedProxiesCount);
 		OutActionableMessage.Tooltip = DefaultTooltip;
 		OutActionableMessage.ActionMessage = DefaultActionMessage;
 		OutActionableMessage.ActionCallback = UE::Landscape::BuildNanite;
+
+		return true;
+	}
+
+	if (int32 OutdatedProxiesCount = NumOutdatedProxyPerFlag[GetOutdatedDataFlagIndex(EOutdatedDataFlags::PackageModified)])
+	{
+		OutActionableMessage.Message = FText::Format(LOCTEXT("LandscapeModified.Message", "{0} Landscape {0}|plural(one=actor,other=actors) {0}|plural(one=is,other=are) out of date and {0}|plural(one=needs,other=need) to be rebuilt"), OutdatedProxiesCount);
+		OutActionableMessage.Tooltip = LOCTEXT("LandscapeModified.Tooltip", "The Landscape actors visible in your level have been modified as a result of changes to other assets.\nThese changes need to be applied to the Landscape assets.");
+		OutActionableMessage.ActionMessage = LOCTEXT("LandscapeModified.Action", "Update");
+		OutActionableMessage.ActionCallback = UE::Landscape::MarkModifiedLandscapesAsDirty;
 
 		return true;
 	}

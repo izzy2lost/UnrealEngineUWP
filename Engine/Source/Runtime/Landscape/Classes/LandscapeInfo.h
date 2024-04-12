@@ -263,6 +263,7 @@ public:
 	LANDSCAPE_API void OnModifiedPackageSaved(UPackage* InPackage);
 	LANDSCAPE_API int32 GetModifiedPackageCount() const;
 	LANDSCAPE_API TArray<UPackage*> GetModifiedPackages() const;
+	LANDSCAPE_API bool IsPackageModified(UPackage* InPackage) const;
 	LANDSCAPE_API void MarkModifiedPackagesAsDirty();
 
 	/** Landscapes are a bit special in that they contain derived data within their source data, which can be updated on-the-fly depending on many external factors (e.g. a procedural edit layer can invalidate some 
