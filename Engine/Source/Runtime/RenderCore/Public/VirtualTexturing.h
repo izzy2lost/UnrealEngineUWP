@@ -374,6 +374,7 @@ public:
 		, DepthInTiles(InDepthInTiles)
 		, FrameDeleted(0u)
 		, NumRefs(0)
+		, bIsWaitingToMap(false)
 		, PageTableFormat(EVTPageTableFormat::UInt32)
 		, SpaceID(~0u)
 		, MaxLevel(0u)
@@ -436,6 +437,7 @@ protected:
 	uint32 DepthInTiles;
 	uint32 FrameDeleted;
 	int32 NumRefs;
+	bool bIsWaitingToMap;
 
 	// should be set explicitly by derived class constructor
 	EVTPageTableFormat PageTableFormat;

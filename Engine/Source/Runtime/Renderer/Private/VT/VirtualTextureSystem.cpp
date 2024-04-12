@@ -687,6 +687,7 @@ IAllocatedVirtualTexture* FVirtualTextureSystem::AllocateVirtualTexture(FRHIComm
 	if (bAnyLayerProducerWantsPersistentHighestMip)
 	{
 		AllocatedVTsToMap.Add(AllocatedVT);
+		AllocatedVT->bIsWaitingToMap = true;
 	}
 
 	// Add to deterministic map that should apply across runs.
@@ -1593,6 +1594,12 @@ void FVirtualTextureSystem::GatherRequestsTask(const FGatherRequestsParameters& 
 			continue;
 		}
 
+		if (AllocatedVT->bIsWaitingToMap)
+		{
+			// If the VT is still waiting to map locked pages, don't map other pages first
+			continue;
+		}
+
 		const uint32 MaxLevel = AllocatedVT->GetMaxLevel();
 
 		check(AllocatedVT->GetNumPageTableLayers() == Space->GetNumPageTableLayers());
@@ -2403,10 +2410,11 @@ void FVirtualTextureSystem::SubmitRequests(FRHICommandList& RHICmdList, ERHIFeat
 		uint32 Index = 0u;
 		while (Index < (uint32)AllocatedVTsToMap.Num())
 		{
-			const IAllocatedVirtualTexture* AllocatedVT = AllocatedVTsToMap[Index];
+			IAllocatedVirtualTexture* AllocatedVT = AllocatedVTsToMap[Index];
 			if (AllocatedVT->TryMapLockedTiles(this))
 			{
 				AllocatedVTsToMap.RemoveAtSwap(Index, EAllowShrinking::No);
+				AllocatedVT->bIsWaitingToMap = false;
 			}
 			else
 			{
@@ -2895,7 +2903,7 @@ float FVirtualTextureSystem::GetGlobalMipBias() const
 bool FVirtualTextureSystem::IsPendingRootPageMap(IAllocatedVirtualTexture* AllocatedVT) const
 {
 	UE::TScopeLock Lock(Mutex);
-	return AllocatedVTsToMap.Find(AllocatedVT) != INDEX_NONE;
+	return AllocatedVT->bIsWaitingToMap;
 }
 
 #if !UE_BUILD_SHIPPING
