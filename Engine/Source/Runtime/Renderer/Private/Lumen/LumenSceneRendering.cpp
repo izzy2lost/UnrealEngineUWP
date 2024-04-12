@@ -2471,8 +2471,10 @@ FLumenSceneFrameTemporaries::FLumenSceneFrameTemporaries(const TArray<FViewInfo>
 	}
 	else
 	{
-		ViewOrigins.SetNum(Views.Num());
-		for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ++ViewIndex)
+		// Limit the number of view origin to LUMEN_MAX_VIEWS to avoid issue down the pipe.
+		const int32 ViewCount = FMath::Min(LUMEN_MAX_VIEWS, Views.Num());
+		ViewOrigins.SetNum(ViewCount);
+		for (int32 ViewIndex = 0; ViewIndex < ViewCount; ++ViewIndex)
 		{
 			ViewOrigins[ViewIndex].Init(Views[ViewIndex]);
 		}
