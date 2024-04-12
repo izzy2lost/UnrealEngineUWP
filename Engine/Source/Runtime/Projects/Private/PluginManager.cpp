@@ -379,7 +379,6 @@ FPlugin::FPlugin(const FString& InFileName, const FPluginDescriptor& InDescripto
 	, Type(InType)
 	, bEnabled(false)
 	, bIsMounted(false)
-	, bIsExplicitlyLoadedLocalizationDataMounted(false)
 {
 
 }
@@ -2890,7 +2889,7 @@ void FPluginManager::GetLocalizationPathsForEnabledPlugins( TArray<FString>& Out
 	for (const FDiscoveredPluginMap::ElementType& PluginPair : AllPlugins)
 	{
 		const TSharedRef<FPlugin>& Plugin = DiscoveredPluginMapUtils::ResolvePluginFromMapVal(PluginPair.Value);
-		if (!Plugin->bEnabled || (Plugin->GetDescriptor().bExplicitlyLoaded && !Plugin->bIsExplicitlyLoadedLocalizationDataMounted) || Plugin->GetDescriptor().LocalizationTargets.Num() == 0)
+		if (!Plugin->bEnabled || (Plugin->GetDescriptor().bExplicitlyLoaded && Plugin->ExplicitlyLoadedLocalizationDataMountedRefCount == 0) || Plugin->GetDescriptor().LocalizationTargets.Num() == 0)
 		{
 			continue;
 		}
@@ -3243,9 +3242,10 @@ bool FPluginManager::MountExplicitlyLoadedPluginLocalizationData(const FString& 
 		return false;
 	}
 
-	if (Plugin->bIsExplicitlyLoadedLocalizationDataMounted)
+	if (Plugin->ExplicitlyLoadedLocalizationDataMountedRefCount > 0)
 	{
 		// Already loaded
+		++Plugin->ExplicitlyLoadedLocalizationDataMountedRefCount;
 		UE_LOG(LogPluginManager, Verbose, TEXT("Ignoring request to mount plugin localization for '%s' as the localization data was already mounted."), *PluginName);
 		return false;
 	}
@@ -3258,7 +3258,7 @@ bool FPluginManager::MountExplicitlyLoadedPluginLocalizationData(const FString& 
 	}
 
 	UE_LOG(LogPluginManager, Log, TEXT("Mounting plugin localization for '%s'..."), *PluginName);
-	Plugin->bIsExplicitlyLoadedLocalizationDataMounted = true;
+	Plugin->ExplicitlyLoadedLocalizationDataMountedRefCount = 1;
 
 	// Notify that additional localization data should be loaded
 	TArray<FString> AdditionalLocResPaths;
@@ -3286,7 +3286,15 @@ bool FPluginManager::UnmountExplicitlyLoadedPluginLocalizationData(const FString
 		return false;
 	}
 
-	if (!Plugin->bIsExplicitlyLoadedLocalizationDataMounted)
+	if (Plugin->ExplicitlyLoadedLocalizationDataMountedRefCount > 1)
+	{
+		// Not possible to unload yet
+		UE_LOG(LogPluginManager, Verbose, TEXT("Ignoring request to unmount plugin localization for '%s' as the localization data ref-count was %d."), *PluginName, Plugin->ExplicitlyLoadedLocalizationDataMountedRefCount);
+		--Plugin->ExplicitlyLoadedLocalizationDataMountedRefCount;
+		return false;
+	}
+
+	if (Plugin->ExplicitlyLoadedLocalizationDataMountedRefCount == 0)
 	{
 		// Already unloaded
 		UE_LOG(LogPluginManager, Verbose, TEXT("Ignoring request to unmount plugin localization for '%s' as the localization data was not mounted."), *PluginName);
@@ -3308,7 +3316,7 @@ bool FPluginManager::UnmountExplicitlyLoadedPluginLocalizationData(const FString
 	}
 
 	UE_LOG(LogPluginManager, Log, TEXT("Unmounting plugin localization for '%s'..."), *PluginName);
-	Plugin->bIsExplicitlyLoadedLocalizationDataMounted = false;
+	Plugin->ExplicitlyLoadedLocalizationDataMountedRefCount = 0;
 
 	// Notify that additional localization data should be unloaded
 	TArray<FString> AdditionalLocResPaths;
@@ -3499,9 +3507,9 @@ bool FPluginManager::UnmountExplicitlyLoadedPlugin(const FString& PluginName, FT
 	}
 
 	// Notify that additional localization data should be unloaded
-	if (Plugin->bIsExplicitlyLoadedLocalizationDataMounted && Plugin->Descriptor.LocalizationTargets.Num() > 0 && !IsEngineExitRequested())
+	if (Plugin->ExplicitlyLoadedLocalizationDataMountedRefCount > 0 && Plugin->Descriptor.LocalizationTargets.Num() > 0 && !IsEngineExitRequested())
 	{
-		Plugin->bIsExplicitlyLoadedLocalizationDataMounted = false;
+		Plugin->ExplicitlyLoadedLocalizationDataMountedRefCount = 0;
 
 		TArray<FString> AdditionalLocResPaths;
 		PluginLocalizationUtils::GetLocalizationPathsForPlugin(*Plugin, AdditionalLocResPaths);

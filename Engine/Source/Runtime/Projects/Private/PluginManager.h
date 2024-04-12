@@ -43,10 +43,10 @@ public:
 	bool bIsMounted : 1;
 
 	/**
-	 * True if an explicitly loaded plugin has also mounted its localization data.
+	 * >0 if an explicitly loaded plugin has also mounted its localization data.
 	 * @note Unused for non-explicitly loaded plugins.
 	 */
-	bool bIsExplicitlyLoadedLocalizationDataMounted : 1;
+	uint8 ExplicitlyLoadedLocalizationDataMountedRefCount = 0;
 
 	/**
 	 * FPlugin constructor

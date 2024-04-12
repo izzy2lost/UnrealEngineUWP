@@ -472,13 +472,15 @@ public:
 
 	/**
 	 * Start loading localization data for an explicitly loaded plugin that has previously been mounted via one of the MountExplicitlyLoadedPlugin functions.
+	 * @note Localization data is ref-counted, so this should be paired with a call to UnmountExplicitlyLoadedPluginLocalizationData.
 	 * @return True if localization data started to load, or false if the plugin was missing or had no localization data to load.
 	 */
 	virtual bool MountExplicitlyLoadedPluginLocalizationData(const FString& PluginName) = 0;
 
 	/**
 	 * Start unloading localization data for an explicitly loaded plugin that had its localization data mounted via MountExplicitlyLoadedPluginLocalizationData.
-	 * @note Localization data is also automatically unloaded when calling UnmountExplicitlyLoadedPlugin.
+	 * @note Localization data is ref-counted, so this should be paired with a call to MountExplicitlyLoadedPluginLocalizationData.
+	 * @note Localization data is also automatically (and regardless of ref-count) unloaded when calling UnmountExplicitlyLoadedPlugin.
 	 * @return True if localization data started to unload, or false if the plugin was missing or had no localization data to unload.
 	 */
 	virtual bool UnmountExplicitlyLoadedPluginLocalizationData(const FString& PluginName) = 0;
