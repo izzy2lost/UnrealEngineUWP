@@ -15,6 +15,19 @@ namespace PropertyEditorUtils
 	PROPERTYEDITOR_API void GetPropertyOptions(TArray<UObject*>& InOutContainers, FString& InOutPropertyPath, TArray<TSharedPtr<FString>>& InOutOptions);
 
 	/**
+	 * Calculates the possible drop-down options for the specified property path
+	 * The resulting option 
+	 * @param	InOutContainers		The container objects to resolve the property path against
+	 * @param	InOutPropertyPath	The property path
+	 * @param	InOutOptions		The resulting options
+	 */
+	PROPERTYEDITOR_API inline void GetPropertyOptions(
+		TArray<UObject*>& InOutContainers,
+		FString& InOutPropertyPath,
+		TArray<FString>& OutOptions,
+		TArray<FText>* OutDisplayNames);
+
+	/**
 	 * Get all allowed and disallowed classes according to meta data
 	 * @param	ObjectList			The list of object that owns the property
 	 * @param	Property			The FProperty that contains the meta data

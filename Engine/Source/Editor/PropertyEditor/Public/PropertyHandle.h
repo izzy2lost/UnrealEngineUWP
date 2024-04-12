@@ -575,6 +575,12 @@ public:
 	virtual bool GeneratePossibleValues(TArray< TSharedPtr<FString> >& OutOptionStrings, TArray< FText >& OutToolTips, TArray<bool>& OutRestrictedItems) = 0;
 
 	/**
+	* Generates a list of possible enum/class options for the property
+	* DisplayNames is optional
+	*/
+	virtual bool GeneratePossibleValues(TArray<FString>& OutOptionStrings, TArray< FText >& OutToolTips, TArray<bool>& OutRestrictedItems, TArray<FText>* OutDisplayNames) = 0;
+
+	/**
 	 * Marks this property has hidden by customizaton (will not show up in the default place)
 	 */
 	virtual void MarkHiddenByCustomization() = 0;

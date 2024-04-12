@@ -150,9 +150,11 @@ void SPropertyEditorCombo::GenerateComboBoxStrings( TArray< TSharedPtr<FString> 
 		return;
 	}
 
+	TArray<FString> ValueStrings;
 	TArray<FText> BasicTooltips;
-
-	bUsesAlternateDisplayValues = ComboArgs.PropertyHandle->GeneratePossibleValues(OutComboBoxStrings, BasicTooltips, OutRestrictedItems);
+	TArray<FText> DisplayNames;
+	
+	bUsesAlternateDisplayValues = ComboArgs.PropertyHandle->GeneratePossibleValues(ValueStrings, BasicTooltips, OutRestrictedItems, &DisplayNames);
 
 	// If we regenerate the entries, let's make sure that the currently selected item has the same shared pointer as
 	// the newly generated item with the same value, so that the generation of elements won't immediately result in a
@@ -179,67 +181,28 @@ void SPropertyEditorCombo::GenerateComboBoxStrings( TArray< TSharedPtr<FString> 
 	AlternateDisplayValueToInternalValue.Reset();
 	InternalValueToAlternateDisplayValue.Reset();
 	if (const FProperty* Property = ComboArgs.PropertyHandle->GetProperty();
-		bUsesAlternateDisplayValues && !Property->IsA(FStrProperty::StaticClass()))
+		bUsesAlternateDisplayValues)
 	{
-		// currently only enum properties can use alternate display values; this 
-		// might change, so assert here so that if support is expanded to other 
-		// property types without updating this block of code, we'll catch it quickly
-		const UEnum* Enum = nullptr;
-		if (const FByteProperty* ByteProperty = CastField<FByteProperty>(Property))
+		if (ensureMsgf(ValueStrings.Num() == DisplayNames.Num(), TEXT("Mismatched Value and DisplayNames Array")))
 		{
-			Enum = ByteProperty->Enum;
-		}
-		else if (const FEnumProperty* EnumProperty = CastField<FEnumProperty>(Property))
-		{
-			Enum = EnumProperty->GetEnum();
-		}
-		check(Enum != nullptr);
-
-		const TMap<FName, FText> EnumValueDisplayNameOverrides = PropertyEditorHelpers::GetEnumValueDisplayNamesFromPropertyOverride(Property, Enum);
-		auto FindEnumValueIndex = [&EnumValueDisplayNameOverrides, &Enum](const FString& ValueString) -> int32
-		{
-			for (const TTuple<FName, FText>& EnumValueDisplayNameOverridePair : EnumValueDisplayNameOverrides)
+			AlternateDisplayValueToInternalValue.Reserve(ValueStrings.Num());
+			InternalValueToAlternateDisplayValue.Reserve(ValueStrings.Num());
+			for (int32 Index = 0, End = ValueStrings.Num(); Index < End; ++Index)
 			{
-				if (EnumValueDisplayNameOverridePair.Value.ToString() == ValueString)
-				{
-					return Enum->GetIndexByName(EnumValueDisplayNameOverridePair.Key);
-				}
+				AlternateDisplayValueToInternalValue.Emplace(DisplayNames[Index].ToString(), ValueStrings[Index]);
+				InternalValueToAlternateDisplayValue.Emplace(ValueStrings[Index], DisplayNames[Index].ToString());
 			}
-
-			for (int32 ValIndex = 0; ValIndex < Enum->NumEnums() - 1; ++ValIndex)
-			{
-				const FString EnumName = Enum->GetNameStringByIndex(ValIndex);
-				const FString DisplayName = Enum->GetDisplayNameTextByIndex(ValIndex).ToString();
-
-				if (DisplayName.Len() > 0)
-				{
-					if (DisplayName == ValueString)
-					{
-						return ValIndex;
-					}
-				}
-
-				if (EnumName == ValueString)
-				{
-					return ValIndex;
-				}
-			}
-
-			return INDEX_NONE;
-		};
-
-		for (const TSharedPtr<FString>& ValueStringPtr : OutComboBoxStrings)
-		{
-			const int32 EnumIndex = FindEnumValueIndex(*ValueStringPtr);
-			check(EnumIndex != INDEX_NONE);
-
-			const FString EnumValue = Enum->GetNameStringByIndex(EnumIndex);
-			if (EnumValue != *ValueStringPtr)
-			{
-				AlternateDisplayValueToInternalValue.Add(*ValueStringPtr, EnumValue);
-				InternalValueToAlternateDisplayValue.Add(EnumValue, *ValueStringPtr);
-			}
+			Algo::Transform(DisplayNames, OutComboBoxStrings, [](const FText& Str) { return MakeShared<FString>(Str.ToString()); });
 		}
+		else
+		{
+			bUsesAlternateDisplayValues = false;
+			Algo::Transform(ValueStrings, OutComboBoxStrings, [](const FString& Str) { return MakeShared<FString>(Str); });
+		}
+	}
+	else
+	{
+		Algo::Transform(ValueStrings, OutComboBoxStrings, [](const FString& Str) { return MakeShared<FString>(Str); });
 	}
 
 	// For enums, look for rich tooltip information

@@ -3101,6 +3101,24 @@ FPropertyAccess::Result FPropertyHandleBase::GetPerObjectValue( const int32 Obje
 
 bool FPropertyHandleBase::GeneratePossibleValues(TArray< TSharedPtr<FString> >& OutOptionStrings, TArray< FText >& OutToolTips, TArray<bool>& OutRestrictedItems)
 {
+	TArray<FText> DisplayNames;
+	TArray<FString> ValueStrings;
+	const bool bUsesDisplayNames = GeneratePossibleValues(ValueStrings, OutToolTips, OutRestrictedItems, &DisplayNames);
+
+	if (bUsesDisplayNames)
+	{
+		Algo::Transform(DisplayNames, OutOptionStrings, [](const FText& Str) { return MakeShared<FString>(Str.ToString()); });
+	}
+	else
+	{
+		Algo::Transform(ValueStrings, OutOptionStrings, [](const FString& Str) { return MakeShared<FString>(Str); });
+	}
+	
+	return bUsesDisplayNames;
+}
+
+bool FPropertyHandleBase::GeneratePossibleValues(TArray<FString>& OutOptionStrings, TArray< FText >& OutToolTips, TArray<bool>& OutRestrictedItems, TArray<FText>* OutDisplayNames)
+{
 	FProperty* Property = GetProperty();
 	if (Property == nullptr)
 	{
@@ -3173,17 +3191,23 @@ bool FPropertyHandleBase::GeneratePossibleValues(TArray< TSharedPtr<FString> >& 
 				const bool bIsRestricted = GenerateRestrictionToolTip(EnumName, RestrictionTooltip) || RestrictedEnumValues.Contains(Enum->GetNameByIndex(EnumIndex));
 				OutRestrictedItems.Add(bIsRestricted);
 
-				if (EnumDisplayName.Len() == 0)
-				{
-					EnumDisplayName = MoveTemp(EnumName);
-				}
-				else
-				{
-					bUsesAlternateDisplayValues = true;
-				}
+				const bool bHasDisplayName = EnumDisplayName.Len() > 0;
 
-				TSharedPtr< FString > EnumStr(new FString(EnumDisplayName));
-				OutOptionStrings.Add(EnumStr);
+				if (OutDisplayNames)
+				{
+					if (bHasDisplayName)
+					{
+						OutDisplayNames->Add(FText::FromString(EnumDisplayName));
+						bUsesAlternateDisplayValues = true;
+					}
+					else
+					{
+						// Added to ensure matching index of DisplayNames to ValueStrings
+						OutDisplayNames->Add(FText::FromString(EnumName));
+					}
+				}
+				
+				OutOptionStrings.Add(EnumName);
 
 				FText EnumValueToolTip = bIsRestricted ? RestrictionTooltip : Enum->GetToolTipTextByIndex(EnumIndex);
 				OutToolTips.Add(MoveTemp(EnumValueToolTip));
@@ -3204,7 +3228,12 @@ bool FPropertyHandleBase::GeneratePossibleValues(TArray< TSharedPtr<FString> >& 
 			TArray<UObject*> OuterObjects;
 			GetOuterObjects(OuterObjects);
 
-			PropertyEditorUtils::GetPropertyOptions(OuterObjects, GetOptionsFunctionName, OutOptionStrings);
+			PropertyEditorUtils::GetPropertyOptions(OuterObjects, GetOptionsFunctionName, OutOptionStrings, OutDisplayNames);
+
+			if (OutDisplayNames && !OutDisplayNames->IsEmpty())
+			{
+				bUsesAlternateDisplayValues = true;
+			}
 		}
 	}
 	else if( Property->IsA(FClassProperty::StaticClass()) || Property->IsA(FSoftClassProperty::StaticClass()) )		
@@ -3213,8 +3242,12 @@ bool FPropertyHandleBase::GeneratePossibleValues(TArray< TSharedPtr<FString> >& 
 			? CastFieldChecked<FClassProperty>(Property)->MetaClass
 			: CastFieldChecked<FSoftClassProperty>(Property)->MetaClass;
 
-		TSharedPtr< FString > NoneStr( new FString( TEXT("None") ) );
+		FString NoneStr( TEXT("None") );
 		OutOptionStrings.Add( NoneStr );
+		if (OutDisplayNames)
+		{
+			OutDisplayNames->Add(FText::FromString(NoneStr));
+		}
 
 		const bool bAllowAbstract = Property->GetOwnerProperty()->HasMetaData(TEXT("AllowAbstract"));
 		const bool bBlueprintBaseOnly = Property->GetOwnerProperty()->HasMetaData(TEXT("BlueprintBaseOnly"));
@@ -3231,7 +3264,11 @@ bool FPropertyHandleBase::GeneratePossibleValues(TArray< TSharedPtr<FString> >& 
 					&& (!InterfaceThatMustBeImplemented || It->ImplementsInterface(InterfaceThatMustBeImplemented))
 					&& (!bAllowOnlyPlaceable || !It->HasAnyClassFlags(CLASS_Abstract | CLASS_NotPlaceable)))
 				{
-					OutOptionStrings.Add(TSharedPtr< FString >(new FString(It->GetName())));
+					OutOptionStrings.Add(It->GetName());
+					if (OutDisplayNames)
+					{
+						OutDisplayNames->Add(FText::FromString(It->GetName()));
+					}
 				}
 			}
 		}
