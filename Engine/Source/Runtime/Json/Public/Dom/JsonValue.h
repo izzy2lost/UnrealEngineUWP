@@ -250,3 +250,223 @@ public:
 protected:
 	virtual FString GetType() const override {return TEXT("Null");}
 };
+
+namespace UE::Json
+{
+
+template<typename T, typename = typename std::enable_if<!std::is_same_v<T, FJsonValue>>>
+static JsonSimpleValueVariant ToSimpleJsonVariant(const T& InSimpleValue)
+{
+	using InSimpleValueType = std::decay_t<decltype(InSimpleValue)>;
+	if constexpr (std::is_same_v<InSimpleValueType, bool> || std::is_same_v<InSimpleValueType, FString>)
+	{
+		return JsonSimpleValueVariant(TInPlaceType<T>(), InSimpleValue);
+	}
+	else
+	{
+		return JsonSimpleValueVariant(TInPlaceType<JsonNumberValueVariants>(), JsonNumberValueVariants(TInPlaceType<T>(), InSimpleValue));
+	}
+}
+
+static JsonSimpleValueVariant ToSimpleJsonVariant(const FJsonValue& InJsonValue)
+{
+	if (!InJsonValue.PreferStringRepresentation())
+	{
+		if (InJsonValue.Type == EJson::Boolean)
+		{
+			return JsonSimpleValueVariant(TInPlaceType<bool>(), InJsonValue.AsBool());
+		}
+		else if (InJsonValue.Type == EJson::Number)
+		{
+			const double JsonNumber_v = InJsonValue.AsNumber();
+
+			/* If the Json Number Value requires a decimal point, then we read in the value as a double, otherwise, we read it in as an int */
+			if (FString::SanitizeFloat(JsonNumber_v, 0).Contains(TEXT(".")))
+			{
+				return ToSimpleJsonVariant(JsonNumber_v);
+			}
+			else
+			{
+				return ToSimpleJsonVariant(FMath::RoundToInt64(JsonNumber_v));
+			}
+		}
+	}
+
+	return JsonSimpleValueVariant(TInPlaceType<FString>(), InJsonValue.AsString());
+}
+
+} // namespace UE::Json
+
+/* Global operators */
+
+static bool operator==(const JsonNumberValueVariants& Lhs, const FString& Rhs)
+{
+	return Rhs.IsNumeric() && ::Visit([Rhs](const auto& StoredNumber)
+		{
+			using StoredNumberType = std::decay_t<decltype(StoredNumber)>;
+			if constexpr (std::is_same_v<StoredNumberType, float> || std::is_same_v<StoredNumberType, double>)
+			{
+				return FString::SanitizeFloat(StoredNumber, 0) == Rhs;
+			}
+			else
+			{
+				return StoredNumber == FCString::Atoi64(*Rhs);
+			}
+		}, Lhs);
+}
+
+static bool operator!=(const JsonNumberValueVariants& Lhs, const FString& Rhs)
+{
+	return !(Lhs == Rhs);
+}
+
+static bool operator==(const FString& Lhs, const JsonNumberValueVariants& Rhs)
+{
+	return Rhs == Lhs;
+}
+
+static bool operator!=(const FString& Lhs, const JsonNumberValueVariants& Rhs)
+{
+	return !(Lhs == Rhs);
+}
+
+////////////////////////////////////////////////////////////
+
+static FString ToString(const JsonNumberValueVariants& InNumberVariant)
+{
+	return ::Visit([](auto& StoredNumber)
+		{
+			using StoredNumberType = std::decay_t<decltype(StoredNumber)>;
+			if constexpr (std::is_same_v<StoredNumberType, float> || std::is_same_v<StoredNumberType, double>)
+			{
+				return FString::SanitizeFloat(StoredNumber, 0);
+			}
+			else
+			{
+				return FString::Printf(TEXT("%lld"), static_cast<int64>(StoredNumber));
+			}
+		}, InNumberVariant);
+}
+
+static bool operator==(const JsonNumberValueVariants& Lhs, const JsonNumberValueVariants& Rhs)
+{
+	const bool bLhsIsFloat = Lhs.IsType<float>() || Lhs.IsType<double>();
+	const bool bRhsIsFloat = Rhs.IsType<float>() || Rhs.IsType<double>();
+	if (bLhsIsFloat || bRhsIsFloat)
+	{
+		return ToString(Lhs) == ToString(Rhs);
+	}
+	else
+	{
+		auto CastToInt64Functor = [](auto& StoredNumber)
+			{
+				return static_cast<int64>(StoredNumber);
+			};
+
+		const int64 LhsValue = ::Visit(CastToInt64Functor, Lhs);
+		const int64 RhsValue = ::Visit(CastToInt64Functor, Rhs);
+
+		return LhsValue == RhsValue;
+	}
+}
+
+static bool operator!=(const JsonNumberValueVariants& Lhs, const JsonNumberValueVariants& Rhs)
+{
+	return !(Lhs == Rhs);
+}
+
+////////////////////////////////////////////////////////////
+
+static bool operator==(const JsonSimpleValueVariant& Lhs, const JsonSimpleValueVariant& Rhs)
+{
+	if (Lhs.IsType<bool>())
+	{
+		if (Rhs.IsType<bool>())
+		{
+			return Lhs.Get<bool>() == Rhs.Get<bool>();
+		}
+		else if (Rhs.IsType<FString>())
+		{
+			if (Lhs.Get<bool>())
+			{
+				return Rhs.Get<FString>().Equals(TEXT("true"), ESearchCase::IgnoreCase) ||
+					Rhs.Get<FString>().Equals(TEXT("1"), ESearchCase::IgnoreCase);
+			}
+			else
+			{
+				return Rhs.Get<FString>().Equals(TEXT("false"), ESearchCase::IgnoreCase) ||
+					Rhs.Get<FString>().Equals(TEXT("0"), ESearchCase::IgnoreCase);
+			}
+		}
+		else // RhsType.IsType<JsonNumberValueVariants>()
+		{
+			return ::Visit([&Lhs](const auto& RhsStoredNumber)
+				{
+					using RhsStoredNumberType = std::decay_t<decltype(RhsStoredNumber)>;
+					if constexpr (std::is_same_v<RhsStoredNumberType, float> || std::is_same_v<RhsStoredNumberType, double>)
+					{
+						if (!FString::SanitizeFloat(RhsStoredNumber, 0).Contains(TEXT(".")))
+						{
+							const int64 RhsStoredNumberAsInt = FMath::RoundToInt64(RhsStoredNumber);
+							if (Lhs.Get<bool>())
+							{
+								return RhsStoredNumberAsInt == 1;
+							}
+							else
+							{
+								return RhsStoredNumberAsInt == 0;
+							}
+						}
+						else
+						{
+							return false;
+						}
+					}
+					else
+					{
+						if (Lhs.Get<bool>())
+						{
+							return RhsStoredNumber == 1;
+						}
+						else
+						{
+							return RhsStoredNumber == 0;
+						}
+					}
+				}, Rhs.Get<JsonNumberValueVariants>());
+		}
+	}
+	else if (Lhs.IsType<JsonNumberValueVariants>())
+	{
+		if (Rhs.IsType<JsonNumberValueVariants>())
+		{
+			return Lhs.Get<JsonNumberValueVariants>() == Rhs.Get<JsonNumberValueVariants>();
+		}
+		else // RhsType.IsType<bool>() || RhsType.IsType<FString>()
+		{
+			// Swapping args to avoid code duplication
+			return Rhs == Lhs;
+		}
+	}
+	else // Lhs.IsType<FString>()
+	{
+		if (Rhs.IsType<FString>())
+		{
+			return Lhs.Get<FString>() == Rhs.Get<FString>();
+		}
+		else if (Rhs.IsType<bool>())
+		{
+			// Swapping args to avoid code duplication
+			return Rhs == Lhs;
+		}
+		else // RhsType.IsType<JsonNumberValueVariants>()
+		{
+			return Lhs.Get<FString>() == Rhs.Get<JsonNumberValueVariants>();
+		}
+	}
+}
+
+static bool operator!=(const JsonSimpleValueVariant& Lhs, const JsonSimpleValueVariant& Rhs)
+{
+	return !(Lhs == Rhs);
+}

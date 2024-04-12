@@ -27,6 +27,7 @@ struct FJsonSerializerBase
 	virtual void Serialize(FStringView Name, float& Value) = 0;
 	virtual void Serialize(FStringView Name, double& Value) = 0;
 	virtual void Serialize(FStringView Name, FDateTime& Value) = 0;
+	virtual void Serialize(FStringView Name, JsonSimpleValueVariant& InVariant) = 0;
 	virtual void SerializeArray(FJsonSerializableArray& Array) = 0;
 	virtual void SerializeArray(FStringView Name, FJsonSerializableArray& Value) = 0;
 	virtual void SerializeArray(FStringView Name, FJsonSerializableArrayInt& Value) = 0;
@@ -36,6 +37,7 @@ struct FJsonSerializerBase
 	virtual void SerializeMap(FStringView Name, FJsonSerializableKeyValueMapArrayInt& Map) = 0;
 	virtual void SerializeMap(FStringView Name, FJsonSerializableKeyValueMapInt64& Map) = 0;
 	virtual void SerializeMap(FStringView Name, FJsonSerializableKeyValueMapFloat& Map) = 0;
+	virtual void SerializeMap(FStringView Name, FJsonSerializableKeySimpleValueVariantMap& Map) = 0;
 	virtual void SerializeSimpleMap(FJsonSerializableKeyValueMap& Map) = 0;
 	virtual void SerializeMapSafe(FStringView Name, FJsonSerializableKeyValueMap& Map) = 0;
 	virtual TSharedPtr<FJsonObject> GetObject() = 0;

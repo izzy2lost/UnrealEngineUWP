@@ -2,6 +2,8 @@
 
 #include "Serialization/JsonSerializerReader.h"
 
+#include "Dom/JsonValue.h"
+
 FJsonSerializerReader::FJsonSerializerReader(TSharedPtr<FJsonObject> InJsonObject)
 	: JsonObject(InJsonObject)
 {
@@ -128,6 +130,15 @@ void FJsonSerializerReader::Serialize(FStringView Name, FDateTime& Value)
 	}
 }
 
+void FJsonSerializerReader::Serialize(FStringView Name, JsonSimpleValueVariant& InVariant)
+{
+	TSharedPtr<FJsonValue> FieldValue = JsonObject->TryGetField(Name);
+	if (FieldValue.IsValid())
+	{
+		InVariant = UE::Json::ToSimpleJsonVariant(*FieldValue);
+	}
+}
+
 void FJsonSerializerReader::SerializeArray(FJsonSerializableArray& Array) 
 {
 	// @todo - higher level serialization is expecting a Json Object
@@ -246,6 +257,22 @@ void FJsonSerializerReader::SerializeMap(FStringView Name, FJsonSerializableKeyV
 		{
 			const float Value = (float)Pair.Value->AsNumber();
 			Map.Add(Pair.Key, Value);
+		}
+	}
+}
+
+void FJsonSerializerReader::SerializeMap(FStringView Name, FJsonSerializableKeySimpleValueVariantMap& Map)
+{
+	if (JsonObject->HasTypedField<EJson::Object>(Name))
+	{
+		TSharedPtr<FJsonObject> JsonMap = JsonObject->GetObjectField(Name);
+		// Iterate all of the keys and their values
+		for (const TPair<FString, TSharedPtr<FJsonValue>>& Pair : JsonMap->Values)
+		{
+			if (Pair.Value.IsValid())
+			{
+				Map.Add(Pair.Key, UE::Json::ToSimpleJsonVariant(*Pair.Value));
+			}
 		}
 	}
 }

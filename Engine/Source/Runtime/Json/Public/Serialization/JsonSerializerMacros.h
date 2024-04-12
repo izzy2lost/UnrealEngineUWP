@@ -56,6 +56,28 @@
 			} \
 		}
 
+#define JSON_SERIALIZE_OPTIONAL_MAP(JsonName, JsonMap) \
+	if (Serializer.IsLoading() && !JsonMap.IsSet() && Serializer.GetObject().IsValid() && Serializer.GetObject()->HasTypedField<EJson::Object>(TEXTVIEW(JsonName))) \
+	{ \
+		JsonMap.Emplace(); \
+	} \
+	\
+	if (JsonMap.IsSet()) \
+	{ \
+		Serializer.SerializeMap(TEXTVIEW(JsonName), JsonMap.GetValue()); \
+	}
+
+#define JSON_SERIALIZE_OPTIONAL_ARRAY(JsonName, JsonArray) \
+	if (Serializer.IsLoading() && !JsonArray.IsSet() && Serializer.GetObject().IsValid() && Serializer.GetObject()->HasTypedField<EJson::Array>(TEXTVIEW(JsonName))) \
+	{ \
+		JsonArray.Emplace(); \
+	} \
+	\
+	if (JsonArray.IsSet()) \
+	{ \
+		Serializer.SerializeArray(TEXTVIEW(JsonName), JsonArray.GetValue()); \
+	}
+
 #define JSON_SERIALIZE_ARRAY(JsonName, JsonArray) \
 		Serializer.SerializeArray(TEXTVIEW(JsonName), JsonArray)
 		

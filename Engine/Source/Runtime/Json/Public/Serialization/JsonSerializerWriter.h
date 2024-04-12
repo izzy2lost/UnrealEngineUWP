@@ -170,6 +170,26 @@ public:
 			JsonWriter->WriteValue(Name, Value.ToIso8601());
 		}
 	}
+
+	virtual void Serialize(FStringView Name, JsonSimpleValueVariant& InVariant) override
+	{
+		::Visit([this, &Name](auto& StoredValue)
+			{
+				using StoredValueType = std::decay_t<decltype(StoredValue)>;
+				if constexpr (std::is_same_v<StoredValueType, JsonNumberValueVariants>)
+				{
+					::Visit([this, &Name](auto& StoredNumberValue)
+						{
+							JsonWriter->WriteValue(Name, StoredNumberValue);
+						}, StoredValue);
+				}
+				else
+				{
+					JsonWriter->WriteValue(Name, StoredValue);
+				}
+			}, InVariant);
+	}
+
 	/**
 	 * Serializes an array of values
 	 *
@@ -316,6 +336,31 @@ public:
 		for (FJsonSerializableKeyValueMapFloat::ElementType& Pair : Map)
 		{
 			Serialize(*Pair.Key, Pair.Value);
+		}
+		JsonWriter->WriteObjectEnd();
+	}
+
+	virtual void SerializeMap(FStringView Name, FJsonSerializableKeySimpleValueVariantMap& Map) override
+	{
+		JsonWriter->WriteObjectStart(Name);
+		// Iterate all of the keys and their values
+		for (TPair<FString, JsonSimpleValueVariant>& Pair : Map)
+		{
+			::Visit([this, &Pair](auto& StoredValue)
+				{
+					using StoredValueType = std::decay_t<decltype(StoredValue)>;
+					if constexpr (std::is_same_v<StoredValueType, JsonNumberValueVariants>)
+					{
+						::Visit([this, &Pair](auto& StoredNumberValue)
+							{
+								Serialize(*Pair.Key, StoredNumberValue);
+							}, StoredValue);
+					}
+					else
+					{
+						Serialize(*Pair.Key, StoredValue);
+					}
+				}, Pair.Value);
 		}
 		JsonWriter->WriteObjectEnd();
 	}

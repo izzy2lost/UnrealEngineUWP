@@ -175,7 +175,16 @@ bool FJsonValue::CompareEqual( const FJsonValue& Lhs, const FJsonValue& Rhs )
 {
 	if (Lhs.Type != Rhs.Type)
 	{
-		return false;
+		const bool bLhsIsSimpleVariant = Lhs.Type == EJson::Boolean || Lhs.Type == EJson::Number || Lhs.Type == EJson::String;
+		const bool bRhsIsSimpleVariant = Rhs.Type == EJson::Boolean || Rhs.Type == EJson::Number || Rhs.Type == EJson::String;
+		if (bLhsIsSimpleVariant && bRhsIsSimpleVariant)
+		{
+			return UE::Json::ToSimpleJsonVariant(Lhs) == UE::Json::ToSimpleJsonVariant(Rhs);
+		}
+		else
+		{
+			return false;
+		}
 	}
 
 	switch (Lhs.Type)
