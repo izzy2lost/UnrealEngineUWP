@@ -1,7 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#pragma once
-
 #include "ModularFeatures/SharedMemoryMediaInitializerFeature.h"
 
 #include "SharedMemoryMediaOutput.h"
