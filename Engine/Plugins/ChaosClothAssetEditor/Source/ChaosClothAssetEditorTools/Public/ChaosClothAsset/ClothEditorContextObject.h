@@ -23,8 +23,13 @@ class CHAOSCLOTHASSETEDITORTOOLS_API UClothEditorContextObject : public UObject
 	GENERATED_BODY()
 
 public:
+	void Init(TWeakPtr<SDataflowGraphEditor> DataflowGraphEditor, TWeakPtr<Dataflow::FEngineContext> DataflowContext, UE::Chaos::ClothAsset::EClothPatternVertexType InConstructionViewMode, TWeakPtr<FManagedArrayCollection> SelectedClothCollection, bool bInUsingInputCollection);
 
-	void Init(TWeakPtr<SDataflowGraphEditor> DataflowGraphEditor, UE::Chaos::ClothAsset::EClothPatternVertexType InConstructionViewMode, TWeakPtr<FManagedArrayCollection> SelectedClothCollection, TWeakPtr<FManagedArrayCollection> SelectedInputClothCollection = nullptr);
+	UE_DEPRECATED(5.5, "Use the Init with a DataflowContext")
+	void Init(TWeakPtr<SDataflowGraphEditor> InDataflowGraphEditor, UE::Chaos::ClothAsset::EClothPatternVertexType InConstructionViewMode, TWeakPtr<FManagedArrayCollection> InSelectedClothCollection, TWeakPtr<FManagedArrayCollection> InSelectedInputClothCollection = nullptr)
+	{
+		Init(InDataflowGraphEditor, nullptr, InConstructionViewMode, InSelectedClothCollection, false);
+	}
 
 	/**
 	* Get a single selected node of the specified type. Return nullptr if the specified node is not selected, or if multiple nodes are selected
@@ -48,19 +53,38 @@ public:
 
 		return nullptr;
 	}
+	
+	TWeakPtr<Dataflow::FEngineContext> GetDataflowContext() const 
+	{
+		return DataflowContext;
+	}
 
-	void SetClothCollection(UE::Chaos::ClothAsset::EClothPatternVertexType ViewMode, TWeakPtr<FManagedArrayCollection> ClothCollection, TWeakPtr<FManagedArrayCollection> InputClothCollection = nullptr);
+	void SetDataflowContext(TWeakPtr<Dataflow::FEngineContext> InDataflowContext)
+	{
+		DataflowContext = InDataflowContext;
+	}
+
+	void SetClothCollection(UE::Chaos::ClothAsset::EClothPatternVertexType ViewMode, TWeakPtr<FManagedArrayCollection> ClothCollection, bool bInUsingInputCollection);
+
+	UE_DEPRECATED(5.5, "SetClothCollection no longer takes a separate InputClothCollection argument")
+	void SetClothCollection(UE::Chaos::ClothAsset::EClothPatternVertexType ViewMode, TWeakPtr<FManagedArrayCollection> ClothCollection, TWeakPtr<FManagedArrayCollection> InputClothCollection = nullptr)
+	{
+		SetClothCollection(ViewMode, ClothCollection, false);
+	}
 
 	const TWeakPtr<const FManagedArrayCollection> GetSelectedClothCollection() const { return SelectedClothCollection; }
-	const TWeakPtr<const FManagedArrayCollection> GetSelectedInputClothCollection() const { return SelectedInputClothCollection; }
+	UE_DEPRECATED(5.5, "There is no longer a separate input cloth collection.")
+	const TWeakPtr<const FManagedArrayCollection> GetSelectedInputClothCollection() const { return SelectedClothCollection; }
 	UE::Chaos::ClothAsset::EClothPatternVertexType GetConstructionViewMode() const { return ConstructionViewMode; }
+	bool IsUsingInputCollection() const { return bUsingInputCollection; }
 private:
 
 	TWeakPtr<SDataflowGraphEditor> DataflowGraphEditor;
+	TWeakPtr<Dataflow::FEngineContext> DataflowContext;
 
 	UE::Chaos::ClothAsset::EClothPatternVertexType ConstructionViewMode;
 	TWeakPtr<const FManagedArrayCollection> SelectedClothCollection;
-	TWeakPtr<const FManagedArrayCollection> SelectedInputClothCollection;
+	bool bUsingInputCollection = false;
 };
 
 

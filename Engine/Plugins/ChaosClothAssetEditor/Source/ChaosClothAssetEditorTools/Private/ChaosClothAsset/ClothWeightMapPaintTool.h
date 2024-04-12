@@ -31,6 +31,7 @@ class UWeightMapSmoothBrushOpProps;
 class UClothEditorContextObject;
 class UPolygonSelectionMechanic;
 struct FChaosClothAssetAddWeightMapNode;
+enum class EChaosClothAssetWeightMapOverrideType : uint8;
 
 DECLARE_STATS_GROUP(TEXT("WeightMapPaintTool"), STATGROUP_WeightMapPaintTool, STATCAT_Advanced);
 DECLARE_CYCLE_STAT(TEXT("WeightMapPaintTool_UpdateROI"), WeightMapPaintTool_UpdateROI, STATGROUP_WeightMapPaintTool);
@@ -251,6 +252,9 @@ public:
 
 	UPROPERTY(EditAnywhere, Category = UpdateNode, meta = (DisplayName = "Name"))
 	FString Name;
+
+	UPROPERTY(EditAnywhere, Category = UpdateNode)
+	EChaosClothAssetWeightMapOverrideType MapOverrideType;
 
 private:
 
@@ -476,6 +480,8 @@ protected:
 	// realtime visualization
 	void OnDynamicMeshComponentChanged(UDynamicMeshComponent* Component, const FMeshVertexChange* Change, bool bRevert);
 	FDelegateHandle OnDynamicMeshComponentChangedHandle;
+
+	TConstArrayView<float> InputWeightMap;
 
 	UE::Geometry::FDynamicMeshWeightAttribute* ActiveWeightMap;
 	double GetCurrentWeightValue(int32 VertexId) const;

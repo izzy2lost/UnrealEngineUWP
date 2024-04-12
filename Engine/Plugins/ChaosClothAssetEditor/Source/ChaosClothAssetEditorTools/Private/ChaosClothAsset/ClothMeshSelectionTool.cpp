@@ -255,6 +255,7 @@ void UClothMeshSelectionTool::Setup()
 	// Setup non-manifold mapping if necessary
 	if (ClothEditorContextObject)
 	{
+		ensure(ClothEditorContextObject->IsUsingInputCollection());
 		if (const TSharedPtr<const FManagedArrayCollection> ClothCollection = ClothEditorContextObject->GetSelectedClothCollection().Pin())
 		{
 			PreviewMesh->ProcessMesh([this, ClothCollection](const FDynamicMesh3& Mesh)
@@ -620,8 +621,10 @@ void UClothMeshSelectionTool::ApplyAction(EClothMeshSelectionToolActions ActionT
 
 void UClothMeshSelectionTool::ImportFromCollection(bool bImportFromSecondarySet)
 {
-	if (const TSharedPtr<const FManagedArrayCollection> ClothCollection = ClothEditorContextObject->GetSelectedInputClothCollection().Pin())
+	if (const TSharedPtr<const FManagedArrayCollection> ClothCollection = ClothEditorContextObject->GetSelectedClothCollection().Pin())
 	{
+		ensure(ClothEditorContextObject->IsUsingInputCollection());
+
 		using namespace UE::Chaos::ClothAsset;
 		const FCollectionClothSelectionConstFacade SelectionFacade(ClothCollection.ToSharedRef());
 		if (SelectionFacade.IsValid())

@@ -4,6 +4,7 @@
 
 #include "BaseCharacterFXEditorMode.h"
 #include "GeometryBase.h"
+#include "Dataflow/DataflowObjectInterface.h"
 #include "Delegates/IDelegateInstance.h"
 #include "ChaosClothAsset/ClothPatternVertexType.h"
 #include "ClothEditorMode.generated.h"
@@ -29,6 +30,7 @@ class UDataflow;
 class UDataflowComponent;
 class SDataflowGraphEditor;
 struct FManagedArrayCollection;
+
 namespace UE::Chaos::ClothAsset
 {
 class FChaosClothPreviewScene;
@@ -177,12 +179,13 @@ private:
 	void FirstTimeFocusRestSpaceViewport();
 
 	// intended to be called by the toolkit when selected node in the Dataflow graph changes
-	void SetSelectedClothCollection(TSharedPtr<FManagedArrayCollection> Collection, TSharedPtr<FManagedArrayCollection> InputCollection = nullptr);
+	void SetSelectedClothCollection(TSharedPtr<FManagedArrayCollection> Collection, TSharedPtr<FManagedArrayCollection> InputCollection = nullptr, bool bDeferDynamicMeshInitForTool = false);
 
 	// gets the currently selected cloth collection, as specified by the toolkit
 	TSharedPtr<FManagedArrayCollection> GetClothCollection();
 	TSharedPtr<FManagedArrayCollection> GetInputClothCollection();
 
+	void SetDataflowContext(TWeakPtr<Dataflow::FEngineContext> InDataflowContext);
 	void SetDataflowGraphEditor(TSharedPtr<SDataflowGraphEditor> InGraphEditor);
 	
 	void StartToolForSelectedNode(const UObject* SelectedNode);
@@ -250,6 +253,11 @@ private:
 
 	TWeakPtr<UE::Chaos::ClothAsset::FChaosClothEditorRestSpaceViewportClient, ESPMode::ThreadSafe> RestSpaceViewportClient;
 
+	// The dynamic mesh component needs to be reinitialized on next tick.
+	bool bDynamicMeshComponentInitDeferred = false;
+	// Use the input collection to build the dynamic mesh component (used by tools).
+	bool bDynamicMeshUseInputCollection = false;
+
 	// The first time we get a valid mesh, refocus the camera on it
 	bool bFirstValid2DMesh = true;
 	bool bFirstValid3DMesh = true;
@@ -298,7 +306,7 @@ private:
 
 	UPROPERTY()
 	TObjectPtr<UEditorInteractiveToolsContext> ActiveToolsContext = nullptr;
-
+	TWeakPtr<Dataflow::FEngineContext> DataflowContext;
 	TSharedPtr<FManagedArrayCollection> SelectedClothCollection = nullptr;
 	TSharedPtr<FManagedArrayCollection> SelectedInputClothCollection = nullptr;
 

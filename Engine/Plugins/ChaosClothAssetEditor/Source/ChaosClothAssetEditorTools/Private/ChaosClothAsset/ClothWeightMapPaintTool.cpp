@@ -31,6 +31,7 @@
 
 #include "CanvasTypes.h"
 #include "CanvasItem.h"
+#include "ChaosClothAsset/ClothCollectionGroup.h"
 #include "ChaosClothAsset/ClothEditorContextObject.h"
 #include "ChaosClothAsset/ClothPatternVertexType.h"
 #include "ChaosClothAsset/CollectionClothFacade.h"
@@ -195,6 +196,7 @@ void UClothEditorWeightMapPaintTool::Setup()
 
 	UpdateWeightMapProperties = NewObject<UClothEditorUpdateWeightMapProperties>(this);
 	UpdateWeightMapProperties->Name = WeightMapNodeToUpdate->Name;
+	UpdateWeightMapProperties->MapOverrideType = WeightMapNodeToUpdate->MapOverrideType;
 
 	UpdateWeightMapProperties->WatchProperty(WeightMapNodeToUpdate->Name, [this](const FString& NewName)
 	{
@@ -356,9 +358,12 @@ void UClothEditorWeightMapPaintTool::Setup()
 	// configure panels
 	UpdateSubToolType(FilterProperties->SubToolType);
 
-	// Setup DynamicMeshToWeight conversion
+	const bool bIsRenderMode = ClothEditorContextObject && (ClothEditorContextObject->GetConstructionViewMode() == UE::Chaos::ClothAsset::EClothPatternVertexType::Render);
+	// Setup DynamicMeshToWeight conversion and get Input weight map (if it exists)
+	InputWeightMap = TConstArrayView<float>();
 	if (ClothEditorContextObject)
 	{
+		ensure(ClothEditorContextObject->IsUsingInputCollection());
 		if (TSharedPtr<const FManagedArrayCollection> ClothCollection = ClothEditorContextObject->GetSelectedClothCollection().Pin())
 		{
 			using namespace UE::Chaos::ClothAsset;
@@ -394,7 +399,6 @@ void UClothEditorWeightMapPaintTool::Setup()
 				WeightToDynamicMesh = Cloth.GetSimVertex2DLookup();
 			}
 
-			const bool bIsRenderMode = ClothEditorContextObject->GetConstructionViewMode() == EClothPatternVertexType::Render;
 			const int32 NumPatterns = bIsRenderMode ? Cloth.GetNumRenderPatterns() : Cloth.GetNumSimPatterns();		
 			
 			PatternTriangleOffsetAndNum.SetNum(NumPatterns);
@@ -429,7 +433,20 @@ void UClothEditorWeightMapPaintTool::Setup()
 			{
 				ShowHideProperties->ShowPatterns.Add({ PatternID, false });
 			}
-		
+
+			// Find the map if it exists.
+			if (TSharedPtr<Dataflow::FEngineContext> DataflowContext = ClothEditorContextObject->GetDataflowContext().Pin())
+			{
+				const FName InputName = WeightMapNodeToUpdate->GetInputName(*DataflowContext);
+				if (bIsRenderMode)
+				{
+					InputWeightMap = Cloth.GetUserDefinedAttribute<float>(InputName, ClothCollectionGroup::RenderVertices);
+				}
+				else
+				{
+					InputWeightMap = Cloth.GetWeightMap(InputName);
+				}
+			}
 		}
 	}
 
@@ -444,34 +461,38 @@ void UClothEditorWeightMapPaintTool::Setup()
 	ActiveWeightMap->SetName(FName("PaintLayer"));
 
 	// Copy weights from selected node to the preview mesh
-	const bool bIsRenderMode = (ClothEditorContextObject->GetConstructionViewMode() == UE::Chaos::ClothAsset::EClothPatternVertexType::Render);
-	const TArray<float>& CurrentWeights = bIsRenderMode ? WeightMapNodeToUpdate->GetRenderVertexWeights() : WeightMapNodeToUpdate->GetVertexWeights();
+	const int32 NumExpectedWeights = bHaveDynamicMeshToWeightConversion ? WeightToDynamicMesh.Num() : Mesh->MaxVertexID();
+	TArray<float> CurrentWeights;
+	CurrentWeights.SetNumZeroed(NumExpectedWeights);
+	if (bIsRenderMode)
+	{
+		WeightMapNodeToUpdate->CalculateFinalRenderVertexWeightValues(InputWeightMap, TArrayView<float>(CurrentWeights));
+	}
+	else
+	{
+		WeightMapNodeToUpdate->CalculateFinalVertexWeightValues(InputWeightMap, TArrayView<float>(CurrentWeights));
+	}
 	
 	if (bHaveDynamicMeshToWeightConversion)
 	{
-		if (WeightToDynamicMesh.Num() == CurrentWeights.Num())	// Only copy node weights if they match the number of mesh vertices
+		for (int32 WeightID = 0; WeightID < CurrentWeights.Num(); ++WeightID)
 		{
-			for (int32 WeightID = 0; WeightID < CurrentWeights.Num(); ++WeightID)
+			for (const int32 VertexID : WeightToDynamicMesh[WeightID])
 			{
-				for (const int32 VertexID : WeightToDynamicMesh[WeightID])
-				{
-					ActiveWeightMap->SetValue(VertexID, &CurrentWeights[WeightID]);
-				}
+				ActiveWeightMap->SetValue(VertexID, &CurrentWeights[WeightID]);
 			}
 		}
 	}
 	else
 	{
-		if (Mesh->MaxVertexID() == CurrentWeights.Num())	// Only copy node weights if they match the number of mesh vertices
+		for (int32 VertexID = 0; VertexID < CurrentWeights.Num(); ++VertexID)
 		{
-			for (int32 VertexID = 0; VertexID < CurrentWeights.Num(); ++VertexID)
-			{
-				ActiveWeightMap->SetValue(VertexID, &CurrentWeights[VertexID]);
-			}
+			ActiveWeightMap->SetValue(VertexID, &CurrentWeights[VertexID]);
 		}
 	}
 
 	UpdateWeightMapProperties->Name = WeightMapNodeToUpdate->Name;
+	UpdateWeightMapProperties->MapOverrideType = WeightMapNodeToUpdate->MapOverrideType;
 	SetToolPropertySourceEnabled(UpdateWeightMapProperties, true);
 
 	DynamicMeshComponent->EnableSecondaryTriangleBuffers(
@@ -1756,10 +1777,10 @@ void UClothEditorWeightMapPaintTool::OnTick(float DeltaTime)
 
 bool UClothEditorWeightMapPaintTool::CanAccept() const
 {
-	return bAnyChangeMade || UpdateWeightMapProperties->Name != WeightMapNodeToUpdate->Name;
+	return bAnyChangeMade || 
+		UpdateWeightMapProperties->Name != WeightMapNodeToUpdate->Name || 
+		UpdateWeightMapProperties->MapOverrideType != WeightMapNodeToUpdate->MapOverrideType;
 }
-
-
 
 FColor UClothEditorWeightMapPaintTool::GetColorForWeightValue(double WeightValue)
 {
@@ -1953,25 +1974,41 @@ void UClothEditorWeightMapPaintTool::UpdateSelectedNode()
 	GetCurrentWeightMap(CurrentWeights);
 
 	check(WeightMapNodeToUpdate);
-	const bool bIsRenderMode = (ClothEditorContextObject->GetConstructionViewMode() == UE::Chaos::ClothAsset::EClothPatternVertexType::Render);
+	WeightMapNodeToUpdate->MapOverrideType = UpdateWeightMapProperties->MapOverrideType;
+	WeightMapNodeToUpdate->Name = UpdateWeightMapProperties->Name;
 
-	TArray<float>& NodeWeights = bIsRenderMode ? WeightMapNodeToUpdate->GetRenderVertexWeights() : WeightMapNodeToUpdate->GetVertexWeights();
+	const bool bIsRenderMode = (ClothEditorContextObject->GetConstructionViewMode() == UE::Chaos::ClothAsset::EClothPatternVertexType::Render);
 
 	if (bHaveDynamicMeshToWeightConversion)
 	{
+		TArray<float> NodeWeights;
 		NodeWeights.Init(0.f, WeightToDynamicMesh.Num());
 		for (int32 DynamicMeshIdx = 0; DynamicMeshIdx < CurrentWeights.Num(); ++DynamicMeshIdx)
 		{
 			NodeWeights[DynamicMeshToWeight[DynamicMeshIdx]] = CurrentWeights[DynamicMeshIdx];
 		}
+
+		if (bIsRenderMode)
+		{
+			WeightMapNodeToUpdate->SetRenderVertexWeights(InputWeightMap, NodeWeights);
+		}
+		else
+		{
+			WeightMapNodeToUpdate->SetVertexWeights(InputWeightMap, NodeWeights);
+		}
 	}
 	else
 	{
-		NodeWeights = CurrentWeights;
+		if (bIsRenderMode)
+		{
+			WeightMapNodeToUpdate->SetRenderVertexWeights(InputWeightMap, CurrentWeights);
+		}
+		else
+		{
+			WeightMapNodeToUpdate->SetVertexWeights(InputWeightMap, CurrentWeights);
+		}
 	}
 	
-	WeightMapNodeToUpdate->Name = UpdateWeightMapProperties->Name;
-
 	WeightMapNodeToUpdate->Invalidate();
 }
 

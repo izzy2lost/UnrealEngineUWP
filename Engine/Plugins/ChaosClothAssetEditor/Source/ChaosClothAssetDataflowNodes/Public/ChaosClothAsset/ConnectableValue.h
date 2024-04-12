@@ -12,7 +12,7 @@ struct FChaosClothAssetConnectableStringValue
 
 	/** The value for this property. */
 	UPROPERTY(EditAnywhere, Category = "Value")
-	FString StringValue = TEXT("StringValue");
+	FString StringValue;
 
 	/** The string value override value for when the StringValue has a connection that replaces the provided string value. */
 	UPROPERTY(VisibleAnywhere, Category = "Value", Transient)
@@ -26,7 +26,7 @@ struct FChaosClothAssetConnectableIStringValue
 
 	/** The value for this property. */
 	UPROPERTY(EditAnywhere, Category = "Value", Meta = (DataflowInput))
-	FString StringValue = TEXT("StringValue");
+	FString StringValue;
 
 	/**
 	  * Whether the property could import fabrics datas or not
@@ -52,7 +52,7 @@ struct FChaosClothAssetConnectableIOStringValue
 
 	/** The value for this property. */
 	UPROPERTY(EditAnywhere, Category = "Value", Meta = (DataflowInput, DataflowOutput, DataflowPassthrough = "StringValue"))
-	FString StringValue = TEXT("StringValue");
+	FString StringValue;
 
 	/** The string value override value for when the StringValue has a connection that replaces the provided string value. */
 	UPROPERTY(VisibleAnywhere, Category = "Value", Transient)

@@ -494,6 +494,8 @@ void FChaosClothAssetEditorToolkit::PostInitAssetEditor()
 
 	ClothMode->DataflowGraph = GetDataflow();
 	ClothMode->SetDataflowGraphEditor(GraphEditor);
+	DataflowContext = TSharedPtr<Dataflow::FEngineContext>(new Dataflow::FClothAssetDataflowContext(GetAsset(), GetDataflow(), Dataflow::FTimestamp::Invalid));
+	ClothMode->SetDataflowContext(DataflowContext);
 
 	// Handle Dataflow asset reload event
 	OnPackageReloadedDelegateHandle = FCoreUObjectDelegates::OnPackageReloaded.AddSP(this, &FChaosClothAssetEditorToolkit::HandlePackageReloaded);
@@ -855,11 +857,7 @@ void FChaosClothAssetEditorToolkit::EvaluateNode(FDataflowNode* Node, bool bForc
 		}
 
 		// Set evaluation context
-		if (!DataflowContext)
-		{
-			DataflowContext = TSharedPtr<Dataflow::FEngineContext>(new Dataflow::FClothAssetDataflowContext(ClothAsset, Dataflow, Dataflow::FTimestamp::Invalid));
-			bForceOperation = true;
-		}
+		check(DataflowContext);
 		if (bForceOperation)
 		{
 			LastDataflowNodeTimestamp = Dataflow::FTimestamp::Invalid;
@@ -1258,7 +1256,10 @@ void FChaosClothAssetEditorToolkit::OnNodeSelectionChanged(const TSet<UObject*>&
 			}
 
 			// Update the Construction viewport with the newly selected node's Collection
-			ClothMode->SetSelectedClothCollection(Collection, InputCollection);
+			// Defer updating the dynamic mesh component when single selecting since tools want the dynamic mesh collection 
+			//   to be built from the InputCollection rather than the (Output)Collection.
+			const bool bDeferDynamicMeshInitForTool = NewSelection.Num() == 1;
+			ClothMode->SetSelectedClothCollection(Collection, InputCollection, bDeferDynamicMeshInitForTool);
 		}
 
 		if (Outliner)

@@ -4,6 +4,7 @@
 
 #include "Dataflow/DataflowTerminalNode.h"
 #include "GeometryCollection/ManagedArrayCollection.h"
+#include "ChaosClothAsset/ConnectableValue.h"
 #include "AddWeightMapNode.generated.h"
 
 UENUM()
@@ -24,6 +25,18 @@ enum class EChaosClothAssetWeightMapMeshType : uint8
 	Both
 };
 
+/** How the map stored on the AddWeightMapNode should be applied to an existing map. If no map exists, it is treated as zero.*/
+UENUM()
+enum class EChaosClothAssetWeightMapOverrideType : uint8
+{
+	/** The full map is stored and reapplied.*/
+	ReplaceAll,
+	/** Only changed values are stored and reapplied. */
+	ReplaceChanged,
+	/** Add values. */
+	Add
+};
+
 
 /** Painted weight map attributes node. */
 PRAGMA_DISABLE_DEPRECATION_WARNINGS  // For deprecated VertexWeights in copy constructor (Clang)
@@ -34,16 +47,17 @@ struct FChaosClothAssetAddWeightMapNode : public FDataflowTerminalNode
 	DATAFLOW_NODE_DEFINE_INTERNAL(FChaosClothAssetAddWeightMapNode, "AddWeightMap", "Cloth", "Cloth Add Weight Map")
 
 public:
+	static constexpr float ReplaceChangedPassthroughValue = UE_BIG_NUMBER;
 
 	UPROPERTY(Meta = (DataflowInput, DataflowOutput, DataflowPassthrough = "Collection"))
 	FManagedArrayCollection Collection;
 
 	/**
 	 * The collection used to transfer weight map from.
-	 * Connecting a collection containing a weight map sharing the same name as the one
-	 * created with this node will transfer the weights to the input collection vertices.
+	 * Connecting a collection containing a weight map with Input Name (or Name if Input Name is empty) 
+	 * will transfer the weights to the input collection vertices.
 	 * Note this operation only happens once when the TransferCollection is first connected, or updated.
-	 * Changing the Name or the TransferType will also redo the transfer operation.
+	 * Changing the InputName or the TransferType will also redo the transfer operation.
 	 */
 	UPROPERTY(Meta = (DataflowInput))
 	FManagedArrayCollection TransferCollection;
@@ -51,6 +65,15 @@ public:
 	/** The name to be set as a weight map attribute. */
 	UPROPERTY(EditAnywhere, Category = "Add Weight Map", Meta = (DataflowOutput))
 	FString Name;
+
+	/** The name to populate this map from and override based on Map Override Type. Name will be used if Input Name is empty.*/
+	UPROPERTY(EditAnywhere, Category = "Add Weight Map")
+	FChaosClothAssetConnectableIStringValue InputName = {TEXT("")};
+
+	/** How to apply this node's weight values onto existing maps. Changing this value will change the output map. 
+	 *  To change how the node's stored weights are calculated, change the equivalent value on the Weight Map Paint Tool context.*/
+	UPROPERTY(EditAnywhere, Category = "Add Weight Map")
+	EChaosClothAssetWeightMapOverrideType MapOverrideType = EChaosClothAssetWeightMapOverrideType::ReplaceAll;
 
 	/**
 	 * The type of transfer used to transfer the weight map when a TransferCollection is connected.
@@ -79,6 +102,16 @@ private:
 
 	UPROPERTY()
 	TArray<float> RenderVertexWeights;
+
+	// These methods are exported for UClothEditorWeightMapPaintTool which lives in a different module.
+	FName CHAOSCLOTHASSETDATAFLOWNODES_API GetInputName(Dataflow::FContext& Context) const;
+
+	void CHAOSCLOTHASSETDATAFLOWNODES_API SetVertexWeights(const TConstArrayView<float> InputMap, const TArray<float>& FinalValues);
+	void CHAOSCLOTHASSETDATAFLOWNODES_API SetRenderVertexWeights(const TConstArrayView<float> InputMap, const TArray<float>& FinalValues);
+
+	// Input and FinalOutputMap can be the same array, but should not otherwise be interleaved.
+	void CHAOSCLOTHASSETDATAFLOWNODES_API CalculateFinalVertexWeightValues(const TConstArrayView<float> InputMap, TArrayView<float> FinalOutputMap) const;
+	void CHAOSCLOTHASSETDATAFLOWNODES_API CalculateFinalRenderVertexWeightValues(const TConstArrayView<float> InputMap, TArrayView<float> FinalOutputMap) const;
 
 	//~ Begin FDataflowNode interface
 	virtual void SetAssetValue(TObjectPtr<UObject> Asset, Dataflow::FContext& Context) const override;

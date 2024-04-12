@@ -231,6 +231,7 @@ void UChaosClothAssetEditorMode::RegisterClothTool(TSharedPtr<FUICommandInfo> UI
 			TArray<UE::Chaos::ClothAsset::EClothPatternVertexType> SupportedModes;
 			ClothToolBuilder->GetSupportedViewModes(SupportedModes);
 
+			bDynamicMeshUseInputCollection = true;
 			if (SupportedModes.Num() > 0 && !SupportedModes.Contains(this->GetConstructionViewMode()))
 			{
 				if (!bShouldRestoreSavedConstructionViewMode)
@@ -242,6 +243,21 @@ void UChaosClothAssetEditorMode::RegisterClothTool(TSharedPtr<FUICommandInfo> UI
 
 				// switch to the preferred view mode for the tool that's about to start
 				this->SetConstructionViewMode(SupportedModes[0]);
+			}
+			else
+			{
+				bool bCurrentDynamicMeshIsInput = false;
+				if (const UEditorInteractiveToolsContext* const RestSpaceToolsContext = GetInteractiveToolsContext())
+				{
+					if (const UClothEditorContextObject* const EditorContextObject = RestSpaceToolsContext->ContextObjectStore->FindContext<UClothEditorContextObject>())
+					{
+						bCurrentDynamicMeshIsInput = EditorContextObject->IsUsingInputCollection();
+					}
+				}
+				if (!bCurrentDynamicMeshIsInput || bDynamicMeshComponentInitDeferred)
+				{
+					ReinitializeDynamicMeshComponents();
+				}
 			}
 
 			// Check if we need to disable wireframe mode before starting tool.
@@ -380,6 +396,7 @@ void UChaosClothAssetEditorMode::OnToolEnded(UInteractiveToolManager* Manager, U
 		bShouldRestoreConstructionViewSeams = false;
 	}
 
+	bDynamicMeshUseInputCollection = false;
 	if (bShouldRestoreSavedConstructionViewMode)
 	{
 		SetConstructionViewMode(SavedConstructionViewMode);
@@ -527,14 +544,22 @@ bool UChaosClothAssetEditorMode::IsComponentSelected(const UPrimitiveComponent* 
 }
 
 
-void UChaosClothAssetEditorMode::SetSelectedClothCollection(TSharedPtr<FManagedArrayCollection> Collection, TSharedPtr<FManagedArrayCollection> InputCollection)
+void UChaosClothAssetEditorMode::SetSelectedClothCollection(TSharedPtr<FManagedArrayCollection> Collection, TSharedPtr<FManagedArrayCollection> InputCollection, bool bDeferDynamicMeshInitForTool)
 {
 	SelectedClothCollection = Collection;
 	SelectedInputClothCollection = InputCollection;
-	ReinitializeDynamicMeshComponents();
 
-	// The first time we get a valid mesh, refocus the camera on it
-	FirstTimeFocusRestSpaceViewport();
+	if (bDeferDynamicMeshInitForTool)
+	{
+		bDynamicMeshComponentInitDeferred = true;
+	}
+	else
+	{
+		ReinitializeDynamicMeshComponents();
+
+		// The first time we get a valid mesh, refocus the camera on it
+		FirstTimeFocusRestSpaceViewport();
+	}
 }
 
 TSharedPtr<FManagedArrayCollection> UChaosClothAssetEditorMode::GetClothCollection()
@@ -789,8 +814,9 @@ void UChaosClothAssetEditorMode::ReinitializeDynamicMeshComponents()
 	DynamicMeshComponentParentActor = nullptr;
 	WireframeDraw = nullptr;
 	ClothSeamDraw = nullptr;
+	bDynamicMeshComponentInitDeferred = false;
 
-	TSharedPtr<FManagedArrayCollection> Collection = GetClothCollection();
+	TSharedPtr<FManagedArrayCollection> Collection = bDynamicMeshUseInputCollection ? GetInputClothCollection() : GetClothCollection();
 	if (!Collection)
 	{
 		return;
@@ -928,7 +954,7 @@ void UChaosClothAssetEditorMode::ReinitializeDynamicMeshComponents()
 	UClothEditorContextObject* EditorContextObject = RestSpaceToolsContext->ContextObjectStore->FindContext<UClothEditorContextObject>();
 	if (ensure(EditorContextObject))
 	{
-		EditorContextObject->SetClothCollection(ConstructionViewMode, Collection, GetInputClothCollection());
+		EditorContextObject->SetClothCollection(ConstructionViewMode, Collection, bDynamicMeshUseInputCollection);
 	}
 }
 
@@ -1185,6 +1211,10 @@ void UChaosClothAssetEditorMode::ModeTick(float DeltaTime)
 		NodeTypeForPendingToolStart = FName();
 	}
 
+	if (bDynamicMeshComponentInitDeferred)
+	{
+		ReinitializeDynamicMeshComponents();
+	}
 
 	if (PreviewScene->GetWorld())
 	{
@@ -1464,8 +1494,8 @@ void UChaosClothAssetEditorMode::InitializeContextObject()
 		EditorContextObject = NewObject<UClothEditorContextObject>();
 		RestSpaceToolsContext->ContextObjectStore->AddContextObject(EditorContextObject);
 	}
-
-	EditorContextObject->Init(DataflowGraphEditor, ConstructionViewMode, SelectedClothCollection, SelectedInputClothCollection);
+	constexpr bool bUsingInputCollection = false;
+	EditorContextObject->Init(DataflowGraphEditor, DataflowContext, ConstructionViewMode, SelectedClothCollection, bUsingInputCollection);
 
 	check(EditorContextObject);
 
@@ -1478,6 +1508,16 @@ void UChaosClothAssetEditorMode::DeleteContextObject()
 	{
 		RestSpaceToolsContext->ContextObjectStore->RemoveContextObject(ClothEditorContextObject);
 	}
+}
+
+void UChaosClothAssetEditorMode::SetDataflowContext(TWeakPtr<Dataflow::FEngineContext> InDataflowContext)
+{
+	DataflowContext = InDataflowContext;
+	UEditorInteractiveToolsContext* const RestSpaceToolsContext = GetInteractiveToolsContext();
+	if (UClothEditorContextObject* ClothEditorContextObject = RestSpaceToolsContext->ContextObjectStore->FindContext<UClothEditorContextObject>())
+	{
+		ClothEditorContextObject->SetDataflowContext(DataflowContext);
+	}	
 }
 
 void UChaosClothAssetEditorMode::SetDataflowGraphEditor(TSharedPtr<SDataflowGraphEditor> InGraphEditor)
