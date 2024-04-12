@@ -239,6 +239,8 @@ void FChooserTableEditor::RegisterToolbar()
 			TAttribute<FText>(),
 			FSlateIcon("EditorStyle", "FullBlueprintEditor.EditGlobalOptions")));
 
+		Section.AddEntry(FToolMenuEntry::InitToolBarButton(Commands.AutoPopulateAll));
+
 
 		Section.AddDynamicEntry("DebuggingCommands", FNewToolMenuSectionDelegate::CreateLambda([](FToolMenuSection& InSection)
 		{
@@ -290,17 +292,9 @@ void FChooserTableEditor::RegisterMenus()
 	{
 		FToolMenuSection& Section = ToolMenu->AddSection("ChooserTableRow", TAttribute<FText>());
 	
-		Section.AddEntry(FToolMenuEntry::InitMenuEntry(
-			Commands.Delete,
-			TAttribute<FText>(),
-			TAttribute<FText>(),
-			FSlateIcon()));
-	
-		Section.AddEntry(FToolMenuEntry::InitMenuEntry(
-			Commands.Disable,
-			TAttribute<FText>(),
-			TAttribute<FText>(),
-			FSlateIcon()));
+		Section.AddEntry(FToolMenuEntry::InitMenuEntry(Commands.Delete));
+		Section.AddEntry(FToolMenuEntry::InitMenuEntry(Commands.Disable));
+		Section.AddEntry(FToolMenuEntry::InitMenuEntry(Commands.AutoPopulateSelection));
 	}
 
 	
@@ -349,12 +343,22 @@ void FChooserTableEditor::BindCommands()
 		FExecuteAction::CreateSP(this, &FChooserTableEditor::SelectRootProperties));
 	
 	ToolkitCommands->MapAction(
+		Commands.AutoPopulateAll,
+		FExecuteAction::CreateSP(this, &FChooserTableEditor::AutoPopulateAll));
+	
+	ToolkitCommands->MapAction(
 		Commands.RemoveDisabledData,
 		FExecuteAction::CreateSP(this, &FChooserTableEditor::RemoveDisabledData));
 	
 	ToolkitCommands->MapAction(
 		Commands.Delete,
 		FExecuteAction::CreateSP(this, &FChooserTableEditor::DeleteSelection),
+		FCanExecuteAction::CreateSP(this, &FChooserTableEditor::HasSelection)
+		);
+
+	ToolkitCommands->MapAction(
+		Commands.AutoPopulateSelection,
+		FExecuteAction::CreateSP(this, &FChooserTableEditor::AutoPopulateSelection),
 		FCanExecuteAction::CreateSP(this, &FChooserTableEditor::HasSelection)
 		);
 	
@@ -894,7 +898,6 @@ void FChooserTableEditor::UpdateTableColumns()
 							));
 				}
 
-
 				MenuBuilder.AddMenuEntry(LOCTEXT("Delete Column", "Delete"), LOCTEXT("Delete Column ToolTip", "Remove this column and all its data from the table"), FSlateIcon(),
 					FUIAction(
 						FExecuteAction::CreateLambda([this, Chooser, ColumnIndex, &Column]()
@@ -902,6 +905,18 @@ void FChooserTableEditor::UpdateTableColumns()
 							DeleteColumn(ColumnIndex);
 						})
 						));
+
+				if(Column.AutoPopulates())
+				{
+					MenuBuilder.AddMenuEntry(LOCTEXT("Auto Populate", "Auto Populate"), LOCTEXT("Auto Populate ToolTip", "Auto populate cell values for this colun"), FSlateIcon(),
+						FUIAction(
+							FExecuteAction::CreateLambda([this, &Column]()
+							{
+								const FScopedTransaction Transaction(LOCTEXT("Auto Populate Column", "Auto Populate Column"));
+								AutoPopulateColumn(Column);
+							})
+							));
+				}
 			
 				MenuBuilder.AddSubMenu(LOCTEXT("Input Type", "Input Type"),
 					LOCTEXT("InputTypeToolTip", "Change input parameter type"),
@@ -1393,6 +1408,73 @@ void FChooserTableEditor::DeleteSelectedRows()
 	UpdateTableRows();
 }
 	
+void FChooserTableEditor::AutoPopulateColumn(FChooserColumnBase& Column)
+{
+	if (UChooserTable* Chooser = GetChooser())
+	{
+		const int RowCount = Chooser->ResultsStructs.Num();
+		if (Column.AutoPopulates())
+		{
+			for (int i = 0; i < RowCount; ++i)
+			{
+				if (Chooser->ResultsStructs[i].IsValid())
+				{
+					if (UObject* ReferencedObject = Chooser->ResultsStructs[i].Get<FObjectChooserBase>().GetReferencedObject()) 
+					{
+						Column.AutoPopulate(i, ReferencedObject);
+					}
+				}
+			}
+		}
+	}
+}
+
+void FChooserTableEditor::AutoPopulateRow(int Index)
+{
+	if (UChooserTable* Chooser = GetChooser())
+	{
+		if (Chooser->ResultsStructs.IsValidIndex(Index) && Chooser->ResultsStructs[Index].IsValid())
+		{
+			if (UObject* ReferencedObject = Chooser->ResultsStructs[Index].Get<FObjectChooserBase>().GetReferencedObject()) 
+			{
+				for (FInstancedStruct& ColumnData : Chooser->ColumnsStructs)
+				{
+					FChooserColumnBase& Column = ColumnData.GetMutable<FChooserColumnBase>();
+					Column.AutoPopulate(Index, ReferencedObject);
+				}
+			}
+		}
+	}
+}
+	
+void FChooserTableEditor::AutoPopulateSelection()
+{
+	if (UChooserTable* Chooser = GetChooser())
+	{
+		const FScopedTransaction Transaction(LOCTEXT("Auto Populate Chooser", "Auto Populate All"));
+		Chooser->Modify();
+		for(UChooserRowDetails* RowDetails : SelectedRows)
+		{
+			AutoPopulateRow(RowDetails->Row);
+		}
+	}
+}
+
+void FChooserTableEditor::AutoPopulateAll()
+{
+	if (UChooserTable* Chooser = GetChooser())
+	{
+		const FScopedTransaction Transaction(LOCTEXT("Auto Populate Chooser", "Auto Populate All"));
+		Chooser->Modify();
+		for (FInstancedStruct& ColumnData : Chooser->ColumnsStructs)
+		{
+			FChooserColumnBase& Column = ColumnData.GetMutable<FChooserColumnBase>();
+			AutoPopulateColumn(Column);
+		}
+	}
+}
+
+	
 inline bool FChooserTableEditor::HasSelection()
 {
 	if (CurrentSelectionType == ESelectionType::Column)
@@ -1493,3 +1575,4 @@ void FChooserTableEditor::RegisterWidgets()
 }
 
 #undef LOCTEXT_NAMESPACE
+

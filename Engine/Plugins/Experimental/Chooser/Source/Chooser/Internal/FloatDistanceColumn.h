@@ -9,6 +9,7 @@
 #include "ChooserPropertyAccess.h"
 #include "InstancedStruct.h"
 #include "Serialization/MemoryReader.h"
+#include "Templates/SubclassOf.h"
 #include "FloatDistanceColumn.generated.h"
 
 USTRUCT()
@@ -18,8 +19,24 @@ struct FChooserFloatDistanceRowData
 
 	UPROPERTY(EditAnywhere, Category=Runtime)
 	float Value=0;
+
+#if WITH_EDITORONLY_DATA
+	// Set this property to lock the current cell value, preventing it from being updated by AutoPopulate
+	UPROPERTY(EditAnywhere, Category=Runtime)
+	bool DisableAutoPopulate = false;
+#endif
 };
 
+UCLASS(Blueprintable)
+class UFloatAutoPopulator : public UObject
+{
+	GENERATED_BODY()
+public:
+	UFUNCTION(BlueprintImplementableEvent)
+	void AutoPopulate(UObject* Object, bool& Success, float& Value);
+	
+	virtual void NativeAutoPopulate(UObject* InObject, bool& OutSuccess, float& OutValue) { AutoPopulate(InObject, OutSuccess, OutValue); }
+};
 
 USTRUCT()
 struct CHOOSER_API FFloatDistanceColumn : public FChooserColumnBase
@@ -57,6 +74,10 @@ struct CHOOSER_API FFloatDistanceColumn : public FChooserColumnBase
 #if WITH_EDITORONLY_DATA
 	UPROPERTY(EditAnywhere, Category="Data")
 	FChooserFloatDistanceRowData DefaultRowValue;
+
+	// Optional class to auto populate column data based on the result asset
+	UPROPERTY(EditAnywhere, Category = "Data")
+	TSubclassOf<UFloatAutoPopulator> AutoPopulator;
 #endif
 	
 	UPROPERTY(EditAnywhere, Category="Data")
@@ -82,6 +103,9 @@ struct CHOOSER_API FFloatDistanceColumn : public FChooserColumnBase
 
 	virtual void AddToDetails(FInstancedPropertyBag& PropertyBag, int32 ColumnIndex, int32 RowIndex) override;
 	virtual void SetFromDetails(FInstancedPropertyBag& PropertyBag, int32 ColumnIndex, int32 RowIndex) override;
+
+	virtual bool AutoPopulates() const override { return AutoPopulator != nullptr; }
+	virtual void AutoPopulate(int32 RowIndex, UObject* OutputObject) override;
 #endif
 	
 	virtual void PostLoad() override

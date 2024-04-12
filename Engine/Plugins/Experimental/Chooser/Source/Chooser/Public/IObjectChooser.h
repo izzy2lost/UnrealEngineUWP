@@ -109,4 +109,9 @@ public:
 	}
 
 	virtual void GetDebugName(FString& OutDebugName) const {};
+
+#if WITH_EDITOR
+	// for implementations with a reference to an asset or other object, get the object for use in editor
+	virtual UObject* GetReferencedObject() const { return nullptr; };
+#endif
 };

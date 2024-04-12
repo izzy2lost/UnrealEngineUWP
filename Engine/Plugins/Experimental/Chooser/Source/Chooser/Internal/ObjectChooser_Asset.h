@@ -13,7 +13,11 @@ struct CHOOSER_API FAssetChooser : public FObjectChooserBase
 	
 	// FObjectChooserBase interface
 	virtual UObject* ChooseObject(FChooserEvaluationContext& Context) const final override;
-public: 
+
+#if WITH_EDITOR
+	virtual UObject* GetReferencedObject() const override { return Asset; }
+#endif
+	
 	UPROPERTY(EditAnywhere, Category = "Parameters")
 	TObjectPtr<UObject> Asset;
 };
@@ -25,7 +29,11 @@ struct CHOOSER_API FSoftAssetChooser : public FObjectChooserBase
 
 	// FObjectChooserBase interface
 	virtual UObject* ChooseObject(FChooserEvaluationContext& Context) const final override;
-public: 
+	
+#if WITH_EDITOR
+	virtual UObject* GetReferencedObject() const override { return Asset.LoadSynchronous(); }
+#endif
+	
 	UPROPERTY(EditAnywhere, Category = "Parameters")
 	TSoftObjectPtr<UObject> Asset;
 };

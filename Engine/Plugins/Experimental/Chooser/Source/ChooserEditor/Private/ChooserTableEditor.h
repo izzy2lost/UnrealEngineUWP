@@ -96,6 +96,11 @@ namespace UE::ChooserEditor
 		bool IsSelectionDisabled();
 		void ToggleDisableSelection();
 		void DeleteSelection();
+
+		void AutoPopulateColumn(FChooserColumnBase& Column);
+		void AutoPopulateRow(int Index);
+		void AutoPopulateSelection();
+		void AutoPopulateAll();
 		
 		void UpdateTableRows();
 		void SelectColumn(UChooserTable* Chooser, int Index);

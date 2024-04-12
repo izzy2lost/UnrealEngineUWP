@@ -14,6 +14,23 @@ FFloatDistanceColumn::FFloatDistanceColumn()
 }
 
 #if WITH_EDITOR
+void FFloatDistanceColumn::AutoPopulate(int32 RowIndex, UObject* OutputObject)
+{
+	if (AutoPopulator)
+	{
+		if (RowValues.IsValidIndex(RowIndex) && !RowValues[RowIndex].DisableAutoPopulate) 
+		{
+			float Result = 0.f;
+			bool Success = false;
+			static_cast<UFloatAutoPopulator*>(AutoPopulator->GetDefaultObject())->NativeAutoPopulate(OutputObject, Success, Result);
+			if (Success)
+			{
+				RowValues[RowIndex].Value = Result;
+			}
+		}
+	}
+}
+
 bool FFloatDistanceColumn::EditorTestFilter(int32 RowIndex) const
 {
 	if (!bFilterOverMaxDistance)

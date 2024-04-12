@@ -442,6 +442,7 @@ namespace UE::ChooserEditor
 					Editor->ClearSelectedRows();
 					for(int Index = InsertRowIndex; Index < InsertRowIndex + NewResults.Num(); Index++)
 					{
+						Editor->AutoPopulateRow(Index);
 						Editor->SelectRow(Index, false);
 					}
 				}

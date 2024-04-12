@@ -71,6 +71,9 @@ public:
 	// using a virtual fucntion to identify them (rather than hard coding a specific type) to potentially support multiple varieties of randomization column.
 	virtual bool IsRandomizeColumn() const { return false; }
 
+	virtual bool AutoPopulates() const { return false; }
+	virtual void AutoPopulate(int32 RowIndex, UObject* OutputObject) { };
+
 	virtual float EditorTestCost(int32 RowIndex) const { return 0.0f; }
 	virtual bool EditorTestFilter(int32 RowIndex) const { return false; }
 
