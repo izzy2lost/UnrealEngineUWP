@@ -4,6 +4,7 @@
 #include "Containers/Array.h"
 #include "PrimitiveComponentId.h"
 #include "Templates/RefCounting.h"
+#include "Templates/Function.h"
 
 class UWorld;
 class FSceneInterface;
@@ -48,6 +49,11 @@ struct FPrimitiveStats
 	TArray<FPrimitiveLODStats> LODStats;
 };
 
+struct FComponentInterfaceImplementation
+{
+	UClass*	Class;
+	TFunction<void*(UObject*)> Resolver;
+};
 
 class IPrimitiveComponent
 {
@@ -92,6 +98,15 @@ public:
 	virtual HHitProxy* CreateMeshHitProxy(int32 SectionIndex, int32 MaterialIndex) = 0;
 #endif
 	virtual HHitProxy* CreatePrimitiveHitProxies(TArray<TRefCountPtr<HHitProxy> >& OutHitProxies) = 0;
+	
+	ENGINE_API static void AddImplementer(const FComponentInterfaceImplementation& Implementer);
+
+protected:
+
+	template<class T> 
+	friend class TComponentInterfaceIterator;
+
+	ENGINE_API static TArray<FComponentInterfaceImplementation> Implementers;
 };
 
 class IStaticMeshComponent
@@ -109,6 +124,16 @@ public:
 		// use the non-const version and return it as a const object to avoid duplicating the code in implementers
 		return (const_cast<IStaticMeshComponent*>(this))->GetPrimitiveComponentInterface();
 	}
+	
+	ENGINE_API static void AddImplementer(const FComponentInterfaceImplementation& Implementer);
+
+protected:
+
+	template<class T> 
+	friend class TComponentInterfaceIterator;
+
+	ENGINE_API static TArray<FComponentInterfaceImplementation> Implementers;
+	
 };
 
 

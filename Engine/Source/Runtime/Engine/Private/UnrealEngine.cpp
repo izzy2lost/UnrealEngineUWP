@@ -308,6 +308,9 @@ void FEngineModule::StartupModule()
 	USkinnedMeshComponent::BindWorldDelegates();
 #endif
 
+	IPrimitiveComponent::AddImplementer({UPrimitiveComponent::StaticClass(),  [](UObject* Obj){return Cast<UPrimitiveComponent>(Obj)->GetPrimitiveComponentInterface();}});
+	IStaticMeshComponent::AddImplementer({UStaticMeshComponent::StaticClass(), [](UObject* Obj){return Cast<UStaticMeshComponent>(Obj)->GetStaticMeshComponentInterface();}});
+
 #if OBJECT_TRACE_ENABLED
 	FObjectTrace::Init();
 #endif

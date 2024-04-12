@@ -15,6 +15,7 @@
 #include "Logging/LogMacros.h"
 #include "HAL/LowLevelMemStats.h"
 #include "Misc/ScopeRWLock.h"
+#include "Components/ComponentInterfaceIterator.h"
 
 #define LOCTEXT_NAMESPACE "ObjectCache"
 
@@ -383,11 +384,11 @@ void Validate()
 	int32 ErrorCount = 0;
 	{
 		FObjectReverseLookupCache<UStaticMesh, IStaticMeshComponent> TempLookup;
-		for (TObjectIterator<UStaticMeshComponent> It(RF_ClassDefaultObject, true /*bIncludeDerivedClasses*/, GetObjectCacheInternalFlagsExclusion()); It; ++It)
+		for (TComponentInterfaceIterator<IStaticMeshComponent> It(RF_ClassDefaultObject, true /*bIncludeDerivedClasses*/, GetObjectCacheInternalFlagsExclusion()); It; ++It)
 		{
 			if (It->GetStaticMesh())
 			{
-				TempLookup.Update((*It)->GetStaticMeshComponentInterface(), { It->GetStaticMesh() } );
+				TempLookup.Update(*It, { It->GetStaticMesh() } );
 			}
 		}
 		ErrorCount += TempLookup.Compare(GStaticMeshToComponentLookupCache);
@@ -434,14 +435,14 @@ void Validate()
 	// Scan and compare UMaterialInterface -> UPrimitiveComponent
 	{
 		FObjectReverseLookupCache<UMaterialInterface, IPrimitiveComponent> TempLookup;
-		for (TObjectIterator<UPrimitiveComponent> It(RF_ClassDefaultObject, true /*bIncludeDerivedClasses*/, GetObjectCacheInternalFlagsExclusion()); It; ++It)
+		for (TComponentInterfaceIterator<IPrimitiveComponent> It(RF_ClassDefaultObject, true /*bIncludeDerivedClasses*/, GetObjectCacheInternalFlagsExclusion()); It; ++It)
 		{
-			UPrimitiveComponent* Component = *It;
-			if (Component->IsRenderStateCreated() && Component->SceneProxy && !Component->IsRenderStateDirty())
+			IPrimitiveComponent* Component = *It;
+			if (Component->IsRenderStateCreated() && Component->GetSceneProxy() && !Component->IsRenderStateDirty())
 			{
 				TArray<UMaterialInterface*> UsedMaterials;
 				Component->GetUsedMaterials(UsedMaterials);
-				TempLookup.Update(Component->GetPrimitiveComponentInterface(), UsedMaterials);
+				TempLookup.Update(Component, UsedMaterials);
 			}
 		}
 		ErrorCount += TempLookup.Compare(GMaterialToPrimitiveLookupCache);
@@ -674,9 +675,9 @@ TObjectCacheIterator<IPrimitiveComponent> FObjectCacheContext::GetPrimitiveCompo
 
 		TArray<IPrimitiveComponent*> Array;
 		Array.Reserve(4096);
-		for (TObjectIterator<UPrimitiveComponent> It(RF_ClassDefaultObject, true /*bIncludeDerivedClasses*/, GetObjectCacheInternalFlagsExclusion()); It; ++It)
+		for (TComponentInterfaceIterator<IPrimitiveComponent> It(RF_ClassDefaultObject, true /*bIncludeDerivedClasses*/, GetObjectCacheInternalFlagsExclusion()); It; ++It)
 		{
-			Array.Add((*It)->GetPrimitiveComponentInterface());
+			Array.Add(*It);
 		}
 		PrimitiveComponents = MoveTemp(Array);
 	}
@@ -694,9 +695,9 @@ TObjectCacheIterator<IStaticMeshComponent> FObjectCacheContext::GetStaticMeshCom
 
 		TArray<IStaticMeshComponent*> Array;
 		Array.Reserve(4096);
-		for (TObjectIterator<UStaticMeshComponent> It(RF_ClassDefaultObject, true /*bIncludeDerivedClasses*/, GetObjectCacheInternalFlagsExclusion()); It; ++It)
+		for (TComponentInterfaceIterator<IStaticMeshComponent> It(RF_ClassDefaultObject, true /*bIncludeDerivedClasses*/, GetObjectCacheInternalFlagsExclusion()); It; ++It)
 		{
-			Array.Add((*It)->GetStaticMeshComponentInterface());
+			Array.Add(*It);
 		}
 		StaticMeshComponents = MoveTemp(Array);
 	}
