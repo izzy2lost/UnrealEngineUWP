@@ -30,21 +30,31 @@ struct FStateTreeRunParallelStateTreeTaskInstanceData
 * Less efficient then Linked Asset state, it has the advantage of allowing multiple trees to run in parallel.
 */
 USTRUCT(meta = (DisplayName = "Run Parallel Tree", Category = "Common"))
-struct FStateTreeRunParallelStateTreeTask : public FStateTreeTaskCommonBase
+struct STATETREEMODULE_API FStateTreeRunParallelStateTreeTask : public FStateTreeTaskCommonBase
 {
 	GENERATED_BODY()
 	using FInstanceDataType = FStateTreeRunParallelStateTreeTaskInstanceData;
 	
 	FStateTreeRunParallelStateTreeTask();
 
+#if WITH_EDITORONLY_DATA
+	// Sets event handling priority
+	void SetEventHandlingPriority(const EStateTreeTransitionPriority NewPriority)
+	{
+		EventHandlingPriority = NewPriority;
+	}
+#endif	
+	
 protected:
 	virtual const UStruct* GetInstanceDataType() const override { return FInstanceDataType::StaticStruct(); }
 
 	virtual EStateTreeRunStatus EnterState(FStateTreeExecutionContext& Context, const FStateTreeTransitionResult& Transitions) const override;
 	virtual EStateTreeRunStatus Tick(FStateTreeExecutionContext& Context, const float DeltaTime) const override;
+	virtual void TriggerTransitions(FStateTreeExecutionContext& Context) const override;
 	virtual void ExitState(FStateTreeExecutionContext& Context, const FStateTreeTransitionResult& Transition) const override;
 
 #if WITH_EDITOR
+	virtual EDataValidationResult Compile(FStateTreeDataView InstanceDataView, TArray<FText>& ValidationMessages) override;
 	virtual void PostEditInstanceDataChangeChainProperty(const FPropertyChangedChainEvent& PropertyChangedEvent, FStateTreeDataView InstanceDataView) override;
 	virtual void PostLoad(FStateTreeDataView InstanceDataView) override;
 	virtual FText GetDescription(const FGuid& ID, FStateTreeDataView InstanceDataView, const IStateTreeBindingLookup& BindingLookup, EStateTreeNodeFormatting Formatting = EStateTreeNodeFormatting::Text) const override;
@@ -55,4 +65,17 @@ protected:
 	/** If set the task will look at the linked state tree override to replace the state tree it's running. */
 	UPROPERTY(EditAnywhere, Category = Parameter)
 	FGameplayTag StateTreeOverrideTag;
+
+#if WITH_EDITORONLY_DATA
+	/**
+	 * At what priority the events should be handled in the parallel State Tree.
+	 * If set to 'Normal' the order of the States in the State Tree will define the handling order.
+	 * If the priority is set to Low, the main tree is let to handle the transitions first.
+	 * If set to High or above, the parallel tree has change to handle events first.
+	 * If multiple tasks has same priority, the State order of the States defines the handling order.
+	 * The tree handling order is: States and handle from leaf to root, tasks before and handled before transitions per State.
+	 */
+	UPROPERTY(EditAnywhere, Category = Parameter)
+	EStateTreeTransitionPriority EventHandlingPriority = EStateTreeTransitionPriority::Normal;
+#endif // WITH_EDITORONLY_DATA	
 };

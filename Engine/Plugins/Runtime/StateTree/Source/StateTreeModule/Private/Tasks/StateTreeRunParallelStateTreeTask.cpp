@@ -10,6 +10,7 @@ FStateTreeRunParallelStateTreeTask::FStateTreeRunParallelStateTreeTask()
 {
 	bShouldCopyBoundPropertiesOnTick = false;
 	bShouldCopyBoundPropertiesOnExitState = false;
+	bShouldAffectTransitions = true;
 }
 
 EStateTreeRunStatus FStateTreeRunParallelStateTreeTask::EnterState(FStateTreeExecutionContext& Context, const FStateTreeTransitionResult& Transitions) const
@@ -21,6 +22,12 @@ EStateTreeRunStatus FStateTreeRunParallelStateTreeTask::EnterState(FStateTreeExe
 		return EStateTreeRunStatus::Failed;
 	}
 
+	// Share event queue with parent tree.
+	if (FStateTreeInstanceData* OuterInstanceData = Context.GetMutableInstanceData())
+	{
+		InstanceData.TreeInstanceData.SetSharedEventQueue(OuterInstanceData->GetSharedMutableEventQueue());
+	}
+	
 	InstanceData.RunningStateTree = StateTreeToRun.GetStateTree();
 	FStateTreeExecutionContext ParallelTreeContext(Context, *InstanceData.RunningStateTree, InstanceData.TreeInstanceData);
 	if (!ParallelTreeContext.IsValid())
@@ -45,7 +52,24 @@ EStateTreeRunStatus FStateTreeRunParallelStateTreeTask::Tick(FStateTreeExecution
 		return EStateTreeRunStatus::Failed;
 	}
 
-	return ParallelTreeContext.Tick(DeltaTime);
+	return ParallelTreeContext.TickUpdateTasks(DeltaTime);
+}
+
+void FStateTreeRunParallelStateTreeTask::TriggerTransitions(FStateTreeExecutionContext& Context) const
+{
+	FInstanceDataType& InstanceData = Context.GetInstanceData(*this);
+	if (!InstanceData.RunningStateTree)
+	{
+		return;
+	}
+
+	FStateTreeExecutionContext ParallelTreeContext(Context, *InstanceData.RunningStateTree, InstanceData.TreeInstanceData);
+	if (!ParallelTreeContext.IsValid())
+	{
+		return;
+	}
+
+	ParallelTreeContext.TickTriggerTransitions();
 }
 
 void FStateTreeRunParallelStateTreeTask::ExitState(FStateTreeExecutionContext& Context, const FStateTreeTransitionResult& Transition) const
@@ -79,6 +103,13 @@ const FStateTreeReference& FStateTreeRunParallelStateTreeTask::GetStateTreeToRun
 }
 
 #if WITH_EDITOR
+EDataValidationResult FStateTreeRunParallelStateTreeTask::Compile(FStateTreeDataView InstanceDataView, TArray<FText>& ValidationMessages)
+{
+	TransitionHandlingPriority = EventHandlingPriority;
+
+	return EDataValidationResult::Valid;
+}
+
 void FStateTreeRunParallelStateTreeTask::PostEditInstanceDataChangeChainProperty(const FPropertyChangedChainEvent& PropertyChangedEvent, FStateTreeDataView InstanceDataView)
 {
 	if (PropertyChangedEvent.Property && PropertyChangedEvent.Property->GetFName() == GET_MEMBER_NAME_CHECKED(FStateTreeRunParallelStateTreeTaskInstanceData, StateTree))

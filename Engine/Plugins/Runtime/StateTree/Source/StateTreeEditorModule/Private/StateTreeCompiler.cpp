@@ -634,6 +634,7 @@ bool FStateTreeCompiler::CreateStateTasksAndParameters()
 			CompactState.EventDataIndex = FStateTreeIndex16(InstanceDataIndex++);
 			CompactState.RequiredEventToEnter.Tag = State->RequiredEventToEnter.Tag;
 			CompactState.RequiredEventToEnter.PayloadStruct = State->RequiredEventToEnter.PayloadStruct;
+			CompactState.bConsumeEventOnSelect = State->RequiredEventToEnter.bConsumeEventOnSelect;
 
 			FStateTreeBindableStructDesc Desc;
 			Desc.Struct = FStateTreeEvent::StaticStruct();
@@ -940,6 +941,7 @@ bool FStateTreeCompiler::CreateStateTransitions()
 			{
 				CompactTransition.RequiredEvent.Tag = Transition.RequiredEvent.Tag;
 				CompactTransition.RequiredEvent.PayloadStruct = Transition.RequiredEvent.PayloadStruct;
+				CompactTransition.bConsumeEventOnSelect = Transition.RequiredEvent.bConsumeEventOnSelect;
 
 				FStateTreeBindableStructDesc Desc;
 				Desc.Struct = FStateTreeEvent::StaticStruct();

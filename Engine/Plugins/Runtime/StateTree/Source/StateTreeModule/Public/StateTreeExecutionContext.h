@@ -154,12 +154,27 @@ public:
 	EStateTreeRunStatus Stop(const EStateTreeRunStatus CompletionStatus = EStateTreeRunStatus::Stopped);
 
 	/**
-	 * Tick the state tree logic.
+	 * Tick the state tree logic, updates the tasks and triggers transitions.
 	 * @param DeltaTime time to advance the logic.
 	 * @returns tree run status after the tick.
 	 */
 	EStateTreeRunStatus Tick(const float DeltaTime);
 
+	/**
+	 * Tick the state tree logic partially, updates the tasks.
+	 * For full update TickTriggerTransitions() should be called after.
+	 * @param DeltaTime time to advance the logic.
+	 * @returns tree run status after the partial tick.
+	 */
+	EStateTreeRunStatus TickUpdateTasks(const float DeltaTime);
+	
+	/**
+	 * Tick the state tree logic partially, triggers the transitions.
+	 * For full update TickUpdateTasks() should be called before.
+	 * @returns tree run status after the partial tick.
+	 */
+	EStateTreeRunStatus TickTriggerTransitions();
+	
 	/** @return the tree run status. */
 	EStateTreeRunStatus GetStateTreeRunStatus() const;
 
@@ -195,43 +210,60 @@ public:
 	TArray<FName> GetActiveStateNames() const;
 
 	/** Sends event for the StateTree. */
-	UE_DEPRECATED(5.2, "Use AddEvent() with individual parameters instead.")
-	void SendEvent(const FStateTreeEvent& Event) const;
-
-	/** Sends event for the StateTree. */
 	void SendEvent(const FGameplayTag Tag, const FConstStructView Payload = FConstStructView(), const FName Origin = FName()) const;
 
-	/** Iterates over all events. Can only be used during StateTree tick. Expects a lambda which takes const FStateTreeSharedEvent& Event, and returns EStateTreeLoopEvents. */
+	/**
+	 * Iterates over all events.
+	 * @param Function a lambda which takes const FStateTreeSharedEvent& Event, and returns EStateTreeLoopEvents.
+	 */
 	template<typename TFunc>
 	typename TEnableIf<TIsInvocable<TFunc, FStateTreeSharedEvent>::Value, void>::Type ForEachEvent(TFunc&& Function) const
 	{
-		for (const FStateTreeSharedEvent& Event : EventsToProcess)
+		if (!EventQueue)
 		{
-			if (Function(Event) == EStateTreeLoopEvents::Break)
-			{
-				break;
-			}
+			return;
 		}
+		EventQueue->template ForEachEvent(Function);
 	}
 
-	/** Iterates over all events. Can only be used during StateTree tick. Expects a lambda which takes const FStateTreeEvent& Event, and returns EStateTreeLoopEvents. Less preferable than FStateTreeSharedEvent version. */
+	/**
+	 * Iterates over all events.
+	 * @param Function a lambda which takes const FStateTreeSharedEvent& Event, and returns EStateTreeLoopEvents.
+	 * Less preferable than FStateTreeSharedEvent version.
+	 */
 	template<typename TFunc>
 	typename TEnableIf<TIsInvocable<TFunc, FStateTreeEvent>::Value, void>::Type ForEachEvent(TFunc&& Function) const
 	{
-		for (const FStateTreeSharedEvent& Event : EventsToProcess)
+		if (!EventQueue)
 		{
-			if (Function(*Event) == EStateTreeLoopEvents::Break)
-			{
-				break;
-			}
+			return;
 		}
+		EventQueue->template ForEachEvent([Function](const FStateTreeSharedEvent& Event)
+		{
+			return Function(*Event);
+		});
 	}
 
 	/** @return events to process this tick. */
-	TArrayView<FStateTreeSharedEvent> GetMutableEventsToProcessView() { return EventsToProcess; }
+	TArrayView<FStateTreeSharedEvent> GetMutableEventsToProcessView()
+	{
+		return EventQueue ? EventQueue->GetMutableEventsView() : TArrayView<FStateTreeSharedEvent>();
+	}
 
 	/** @return events to process this tick. */
-	TConstArrayView<FStateTreeSharedEvent> GetEventsToProcessView() const { return EventsToProcess; }
+	TConstArrayView<FStateTreeSharedEvent> GetEventsToProcessView() const
+	{
+		return EventQueue ? EventQueue->GetMutableEventsView() : TArrayView<FStateTreeSharedEvent>();
+	}
+
+	/** Consumes and removes the specified event from the event queue. */
+	void ConsumeEvent(const FStateTreeSharedEvent& Event)
+	{
+		if (EventQueue)
+		{
+			EventQueue->ConsumeEvent(Event);
+		}
+	}
 
 	UE_DEPRECATED(5.5, "Use GetEventsToProcessView() instead.")
 	TConstArrayView<FStateTreeEvent> GetEventsToProcess() const { return {}; }
@@ -239,12 +271,7 @@ public:
 	/** @return true if there is a pending event with specified tag. */
 	bool HasEventToProcess(const FGameplayTag Tag) const
 	{
-		if (EventsToProcess.IsEmpty())
-		{
-			return false;
-		}
-		
-		return EventsToProcess.ContainsByPredicate([Tag](const FStateTreeSharedEvent& Event)
+		return GetEventsToProcessView().ContainsByPredicate([Tag](const FStateTreeSharedEvent& Event)
 		{
 			check(Event.IsValid());
 			return Event->Tag.MatchesTag(Tag);
@@ -531,6 +558,16 @@ protected:
 	 */
 	EStateTreeRunStatus TickTasks(const float DeltaTime);
 
+	/** Common functionality shared by the tick methods. */
+	EStateTreeRunStatus TickPrelude();
+	EStateTreeRunStatus TickPostlude();
+
+	/** Handles task ticking part of the tick. */
+	void TickUpdateTasksInternal(const float DeltaTime);
+	
+	/** Handles transition triggering part of the tick. */
+	void TickTriggerTransitionsInternal();
+
 	/**
 	 * Checks all conditions at given range
 	 * @return True if all conditions pass.
@@ -594,13 +631,15 @@ protected:
 	/** @return StateTree execution state from the instance storage. */
 	FStateTreeExecutionState& GetExecState()
 	{
-		return *InstanceData.GetMutableExecutionState();
+		check(InstanceDataStorage);
+		return InstanceDataStorage->GetMutableExecutionState();
 	}
 
 	/** @return const StateTree execution state from the instance storage. */
 	const FStateTreeExecutionState& GetExecState() const
 	{
-		return *InstanceData.GetExecutionState();
+		check(InstanceDataStorage);
+		return InstanceDataStorage->GetExecutionState();
 	}
 
 	/** @return String describing state status for logging and debug. */
@@ -671,14 +710,14 @@ protected:
 	/** Data storage of the instance data, cached for less indirections. */
 	FStateTreeInstanceStorage* InstanceDataStorage = nullptr;
 
+	/** Events queue to use, cached for less indirections. */
+	TSharedPtr<FStateTreeEventQueue> EventQueue;
+
 	/** Pointer to linked state tree overrides. */
 	const FStateTreeReferenceOverrides* LinkedStateTreeOverrides = nullptr;
 	
 	/** Data view of the context data. */
 	TArray<FStateTreeDataView, TConcurrentLinearArrayAllocator<FDefaultBlockAllocationTag>> ContextAndExternalDataViews;
-
-	/** Events to process in current tick. */
-	TArray<FStateTreeSharedEvent, TConcurrentLinearArrayAllocator<FDefaultBlockAllocationTag>> EventsToProcess;
 
 	FOnCollectStateTreeExternalData CollectExternalDataDelegate;
 

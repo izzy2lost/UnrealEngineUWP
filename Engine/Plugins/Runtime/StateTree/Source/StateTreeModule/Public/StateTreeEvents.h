@@ -15,6 +15,8 @@ enum class EStateTreeLoopEvents : uint8
 	Next,
 	/** Stops the event handling loop. */
 	Break,
+	/** Consumes and removes the current event. */
+	Consume,
 };
 
 /**
@@ -156,8 +158,11 @@ struct STATETREEMODULE_API FStateTreeEventQueue
 		return SharedEvents;
 	}
 
-	UE_DEPRECATED(5.5, "Use GetEventsView() instead.")
-	TConstArrayView<FStateTreeEvent> GetEvents() const { return {};	}
+	/** @return view to all the events in the buffer. */
+	TArrayView<FStateTreeSharedEvent> GetMutableEventsView()
+	{
+		return SharedEvents;
+	}
 
 	/** Resets the events in the event queue */
 	void Reset()
@@ -165,6 +170,12 @@ struct STATETREEMODULE_API FStateTreeEventQueue
 		SharedEvents.Reset();
 	}
 
+	/** @return true if the queue has any events. */
+	bool HasEvents() const
+	{
+		return !SharedEvents.IsEmpty();
+	}
+	
 	/**
 	 * Buffers and event to be sent to the State Tree.
 	 * @param Owner Optional pointer to an owner UObject that is used for logging errors.
@@ -173,6 +184,33 @@ struct STATETREEMODULE_API FStateTreeEventQueue
 	 * @param Origin Optional name identifying the origin of the event.
 	 */
 	void SendEvent(const UObject* Owner, const FGameplayTag& Tag, const FConstStructView Payload = FConstStructView(), const FName Origin = FName());
+
+	/** Consumes and removes the specified event from the event queue. */
+	void ConsumeEvent(const FStateTreeSharedEvent& Event);
+
+	/**
+	 * Iterates over all events.
+	 * @param Function a lambda which takes const FStateTreeSharedEvent& Event, and returns EStateTreeLoopEvents.
+	 */
+	template<typename TFunc>
+	void ForEachEvent(TFunc&& Function) const
+	{
+		for (TArray<FStateTreeSharedEvent>::TConstIterator It(SharedEvents); It; ++It)
+		{
+			const EStateTreeLoopEvents Result = Function(*It);
+			if (Result == EStateTreeLoopEvents::Break)
+			{
+				break;
+			}
+			if (Result == EStateTreeLoopEvents::Consume)
+			{
+				It.RemoveCurrent();
+			}
+		}
+	}
+
+	UE_DEPRECATED(5.5, "Use GetEventsView() instead.")
+	TConstArrayView<FStateTreeEvent> GetEvents() const { return {};	}
 
 protected:
 	// Used by FStateTreeExecutionState to implement deprecated functionality.

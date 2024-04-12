@@ -13,6 +13,8 @@
 #include "ProfilingDebugging/CsvProfiler.h"
 #include "Logging/LogScopedVerbosityOverride.h"
 
+#include "Engine/World.h"
+
 #define STATETREE_LOG(Verbosity, Format, ...) UE_VLOG_UELOG(GetOwner(), LogStateTree, Verbosity, TEXT("%s: ") Format, *GetInstanceDescription(), ##__VA_ARGS__)
 #define STATETREE_CLOG(Condition, Verbosity, Format, ...) UE_CVLOG_UELOG((Condition), GetOwner(), LogStateTree, Verbosity, TEXT("%s: ") Format, *GetInstanceDescription(), ##__VA_ARGS__)
 
@@ -113,6 +115,8 @@ FStateTreeExecutionContext::FStateTreeExecutionContext(UObject& InOwner, const U
 
 		InstanceDataStorage = &InstanceData.GetMutableStorage();
 		check(InstanceDataStorage);
+		
+		EventQueue = InstanceData.GetSharedMutableEventQueue();
 	}
 	else
 	{
@@ -133,6 +137,8 @@ FStateTreeExecutionContext::FStateTreeExecutionContext(const FStateTreeExecution
 			const int32 TargetIndex = TargetDataDesc.Handle.DataHandle.GetIndex();
 			ContextAndExternalDataViews[TargetIndex] = InContextToCopy.ContextAndExternalDataViews[TargetIndex];
 		}
+		
+		EventQueue = InstanceData.GetSharedMutableEventQueue();
 	}
 	else
 	{
@@ -403,11 +409,6 @@ EStateTreeRunStatus FStateTreeExecutionContext::Stop(EStateTreeRunStatus Complet
 
 	EStateTreeRunStatus Result = Exec.TreeRunStatus;
 	
-	// Capture events added between ticks.
-	FStateTreeEventQueue& EventQueue = InstanceData.GetMutableEventQueue();
-	EventsToProcess = EventQueue.GetEventsView();
-	EventQueue.Reset();
-
 	// Exit states if still in some valid state.
 	if (Exec.TreeRunStatus == EStateTreeRunStatus::Running)
 	{
@@ -438,14 +439,14 @@ EStateTreeRunStatus FStateTreeExecutionContext::Stop(EStateTreeRunStatus Complet
 	// Destruct all allocated instance data (does not shrink the buffer). This will invalidate Exec too.
 	InstanceData.Reset();
 
+	// External data needs to be recollected if this exec context is reused.
+	bActiveExternalDataCollected = false;
+
 	return Result;
 }
 
-EStateTreeRunStatus FStateTreeExecutionContext::Tick(const float DeltaTime)
+EStateTreeRunStatus FStateTreeExecutionContext::TickPrelude()
 {
-	CSV_SCOPED_TIMING_STAT_EXCLUSIVE(StateTree_Tick);
-	STATETREE_TRACE_SCOPED_PHASE(EStateTreeUpdatePhase::TickStateTree);
-
 	if (!IsValid())
 	{
 		STATETREE_LOG(Warning, TEXT("%hs: StateTree context is not initialized properly ('%s' using StateTree '%s')"),
@@ -460,7 +461,6 @@ EStateTreeRunStatus FStateTreeExecutionContext::Tick(const float DeltaTime)
 		return EStateTreeRunStatus::Failed;
 	}
 
-	FStateTreeEventQueue& EventQueue = InstanceData.GetMutableEventQueue();
 	FStateTreeExecutionState& Exec = GetExecState();
 
 	// No ticking if the tree is done or stopped.
@@ -477,10 +477,88 @@ EStateTreeRunStatus FStateTreeExecutionContext::Tick(const float DeltaTime)
 
 	// From this point any calls to Stop should be deferred.
 	Exec.CurrentPhase = EStateTreeUpdatePhase::TickStateTree;
+
+	return EStateTreeRunStatus::Running;
+}
+
+
+EStateTreeRunStatus FStateTreeExecutionContext::TickPostlude()
+{
+	FStateTreeExecutionState& Exec = GetExecState();
+
+	// Reset phase since we are now safe to stop.
+	Exec.CurrentPhase = EStateTreeUpdatePhase::Unset;
+
+	// Use local for resulting run state since Stop will reset the instance data.
+	EStateTreeRunStatus Result = Exec.TreeRunStatus;
 	
-	// Capture events added between ticks.
-	EventsToProcess = EventQueue.GetEventsView();
-	EventQueue.Reset();
+	if (Exec.RequestedStop != EStateTreeRunStatus::Unset)
+	{
+		STATETREE_LOG_AND_TRACE(VeryVerbose, TEXT("Processing Deferred Stop"));
+		Result = Stop(Exec.RequestedStop);
+	}
+
+	return Result;
+}
+
+EStateTreeRunStatus FStateTreeExecutionContext::Tick(const float DeltaTime)
+{
+	CSV_SCOPED_TIMING_STAT_EXCLUSIVE(StateTree_Tick);
+	STATETREE_TRACE_SCOPED_PHASE(EStateTreeUpdatePhase::TickStateTree);
+
+//	STATETREE_LOG_AND_TRACE(Warning, TEXT("Tick %f"), GetWorld()->GetTimeSeconds());
+
+	const EStateTreeRunStatus PreludeResult = TickPrelude();
+	if (PreludeResult != EStateTreeRunStatus::Running)
+	{
+		return PreludeResult;
+	}
+
+	TickUpdateTasksInternal(DeltaTime);
+	TickTriggerTransitionsInternal();
+
+	return TickPostlude();
+}
+
+EStateTreeRunStatus FStateTreeExecutionContext::TickUpdateTasks(const float DeltaTime)
+{
+	CSV_SCOPED_TIMING_STAT_EXCLUSIVE(StateTree_Tick);
+	STATETREE_TRACE_SCOPED_PHASE(EStateTreeUpdatePhase::TickStateTree);
+
+//	STATETREE_LOG_AND_TRACE(Warning, TEXT("TickUpdateTasks %f"), GetWorld()->GetTimeSeconds());
+
+	const EStateTreeRunStatus PreludeResult = TickPrelude();
+	if (PreludeResult != EStateTreeRunStatus::Running)
+	{
+		return PreludeResult;
+	}
+
+	TickUpdateTasksInternal(DeltaTime);
+	
+	return TickPostlude();
+}
+	
+EStateTreeRunStatus FStateTreeExecutionContext::TickTriggerTransitions()
+{
+	CSV_SCOPED_TIMING_STAT_EXCLUSIVE(StateTree_Tick);
+	STATETREE_TRACE_SCOPED_PHASE(EStateTreeUpdatePhase::TickStateTree);
+
+//	STATETREE_LOG_AND_TRACE(Warning, TEXT("TickTriggerTransitions %f"), GetWorld()->GetTimeSeconds());
+
+	const EStateTreeRunStatus PreludeResult = TickPrelude();
+	if (PreludeResult != EStateTreeRunStatus::Running)
+	{
+		return PreludeResult;
+	}
+
+	TickTriggerTransitionsInternal();
+
+	return TickPostlude();
+}
+
+void FStateTreeExecutionContext::TickUpdateTasksInternal(const float DeltaTime)
+{
+	FStateTreeExecutionState& Exec = GetExecState();
 	
 	// Update the delayed transitions.
 	for (FStateTreeTransitionDelayedState& DelayedState : Exec.DelayedTransitions)
@@ -503,93 +581,73 @@ EStateTreeRunStatus FStateTreeExecutionContext::Tick(const float DeltaTime)
 				StateCompleted();
 			}
 		}
-
-		// The state selection is repeated up to MaxIteration time. This allows failed EnterState() to potentially find a new state immediately.
-		// This helps event driven StateTrees to not require another event/tick to find a suitable state.
-		static constexpr int32 MaxIterations = 5;
-		for (int32 Iter = 0; Iter < MaxIterations; Iter++)
-		{
-			// Append events accumulated during the tick, so that transitions can immediately act on them.
-			// We'll consume the events only if they lead to state change below (EnterState is treated the same as Tick),
-			// or let them be processed next frame if no transition.
-			EventsToProcess.Append(EventQueue.GetEventsView());
-
-			// Trigger conditional transitions or state succeed/failed transitions. First tick transition is handled here too.
-			if (TriggerTransitions())
-			{
-				STATETREE_TRACE_SCOPED_PHASE(EStateTreeUpdatePhase::ApplyTransitions);
-				STATETREE_TRACE_TRANSITION_EVENT(NextTransitionSource, EStateTreeTraceEventType::OnTransition);
-				NextTransitionSource.Reset();
-
-				// We have committed to state change, consume events that were accumulated during the tick above.
-				EventQueue.Reset();
-
-				ExitState(NextTransition);
-
-				// Tree succeeded or failed.
-				if (NextTransition.TargetState.IsCompletionState())
-				{
-					// Transition to a terminal state (succeeded/failed), or default transition failed.
-					Exec.TreeRunStatus = NextTransition.TargetState.ToCompletionStatus();
-
-					// Stop evaluators and global tasks.
-					StopEvaluatorsAndGlobalTasks(Exec.TreeRunStatus);
-
-					// No active states or global tasks anymore, reset frames.
-					Exec.ActiveFrames.Reset();
-
-					break;
-				}
-
-				// Append and consume the events accumulated during the state exit.
-				EventsToProcess.Append(EventQueue.GetEventsView());
-				EventQueue.Reset();
-
-				// Enter state tasks can fail/succeed, treat it same as tick.
-				const EStateTreeRunStatus LastTickStatus = EnterState(NextTransition);
-
-				NextTransition.Reset();
-
-				Exec.LastTickStatus = LastTickStatus;
-
-				// Consider events so far processed. Events sent during EnterState went into EventQueue, and are processed in next iteration.
-				EventsToProcess.Reset();
-
-				// Report state completed immediately.
-				if (Exec.LastTickStatus != EStateTreeRunStatus::Running)
-				{
-					StateCompleted();
-				}
-			}
-
-			// Stop as soon as have found a running state.
-			if (Exec.LastTickStatus == EStateTreeRunStatus::Running)
-			{
-				break;
-			}
-		}
 	}
 	else
 	{
 		STATETREE_TRACE_LOG_EVENT(TEXT("Global tasks completed (%s), stopping the tree"), *UEnum::GetDisplayValueAsText(EvalAndGlobalTaskStatus).ToString());
 		Exec.RequestedStop = EvalAndGlobalTaskStatus;
 	}
+}
 
-	EventsToProcess.Reset();
+void FStateTreeExecutionContext::TickTriggerTransitionsInternal()
+{
+	FStateTreeExecutionState& Exec = GetExecState();
 
-	// Reset phase since we are now safe to stop.
-	Exec.CurrentPhase = EStateTreeUpdatePhase::Unset;
-
-	// Use local for resulting run state since Stop will reset the instance data.
-	EStateTreeRunStatus Result = Exec.TreeRunStatus;
-	
+	// If stop is requested, do not try to trigger transitions.
 	if (Exec.RequestedStop != EStateTreeRunStatus::Unset)
 	{
-		STATETREE_LOG_AND_TRACE(VeryVerbose, TEXT("Processing Deferred Stop"));
-		Result = Stop(Exec.RequestedStop);
+		return;
 	}
 
-	return Result;
+	// The state selection is repeated up to MaxIteration time. This allows failed EnterState() to potentially find a new state immediately.
+	// This helps event driven StateTrees to not require another event/tick to find a suitable state.
+	static constexpr int32 MaxIterations = 5;
+	for (int32 Iter = 0; Iter < MaxIterations; Iter++)
+	{
+		// Trigger conditional transitions or state succeed/failed transitions. First tick transition is handled here too.
+		if (TriggerTransitions())
+		{
+			STATETREE_TRACE_SCOPED_PHASE(EStateTreeUpdatePhase::ApplyTransitions);
+			STATETREE_TRACE_TRANSITION_EVENT(NextTransitionSource, EStateTreeTraceEventType::OnTransition);
+			NextTransitionSource.Reset();
+
+			ExitState(NextTransition);
+
+			// Tree succeeded or failed.
+			if (NextTransition.TargetState.IsCompletionState())
+			{
+				// Transition to a terminal state (succeeded/failed), or default transition failed.
+				Exec.TreeRunStatus = NextTransition.TargetState.ToCompletionStatus();
+
+				// Stop evaluators and global tasks.
+				StopEvaluatorsAndGlobalTasks(Exec.TreeRunStatus);
+
+				// No active states or global tasks anymore, reset frames.
+				Exec.ActiveFrames.Reset();
+
+				break;
+			}
+
+			// Enter state tasks can fail/succeed, treat it same as tick.
+			const EStateTreeRunStatus LastTickStatus = EnterState(NextTransition);
+
+			NextTransition.Reset();
+
+			Exec.LastTickStatus = LastTickStatus;
+
+			// Report state completed immediately.
+			if (Exec.LastTickStatus != EStateTreeRunStatus::Running)
+			{
+				StateCompleted();
+			}
+		}
+
+		// Stop as soon as have found a running state.
+		if (Exec.LastTickStatus == EStateTreeRunStatus::Running)
+		{
+			break;
+		}
+	}
 }
 
 EStateTreeRunStatus FStateTreeExecutionContext::GetStateTreeRunStatus() const
@@ -609,11 +667,6 @@ EStateTreeRunStatus FStateTreeExecutionContext::GetStateTreeRunStatus() const
 	return EStateTreeRunStatus::Failed;
 }
 
-void FStateTreeExecutionContext::SendEvent(const FStateTreeEvent& Event) const
-{
-	SendEvent(Event.Tag, Event.Payload, Event.Origin);
-}
-
 void FStateTreeExecutionContext::SendEvent(const FGameplayTag Tag, const FConstStructView Payload, const FName Origin) const
 {
 	CSV_SCOPED_TIMING_STAT_EXCLUSIVE(StateTree_SendEvent);
@@ -627,8 +680,8 @@ void FStateTreeExecutionContext::SendEvent(const FGameplayTag Tag, const FConstS
 
 	STATETREE_LOG_AND_TRACE(Verbose, TEXT("Send Event '%s'"), *Tag.ToString());
 
-	FStateTreeEventQueue& EventQueue = InstanceData.GetMutableEventQueue();
-	EventQueue.SendEvent(&Owner, Tag, Payload, Origin);
+	FStateTreeEventQueue& LocalEventQueue = InstanceData.GetMutableEventQueue();
+	LocalEventQueue.SendEvent(&Owner, Tag, Payload, Origin);
 }
 
 void FStateTreeExecutionContext::RequestTransition(const FStateTreeTransitionRequest& Request)
@@ -1890,7 +1943,7 @@ EStateTreeRunStatus FStateTreeExecutionContext::TickEvaluatorsAndGlobalTasks(con
 			{
 				// Used to stop ticking tasks after one fails, but we still want to keep updating the data views so that property binding works properly.
 				bool bShouldTickTasks = true;
-				const bool bHasEvents = !EventsToProcess.IsEmpty();
+				const bool bHasEvents = EventQueue && EventQueue->HasEvents();
 
 				for (int32 TaskIndex = CurrentStateTree->GlobalTasksBegin; TaskIndex < (CurrentStateTree->GlobalTasksBegin + CurrentStateTree->GlobalTasksNum); TaskIndex++)
 				{
@@ -2316,7 +2369,7 @@ EStateTreeRunStatus FStateTreeExecutionContext::TickTasks(const float DeltaTime)
 	EStateTreeRunStatus Result = EStateTreeRunStatus::Running;
 	int32 NumTotalTasks = 0;
 
-	const bool bHasEvents = !EventsToProcess.IsEmpty();
+	const bool bHasEvents = EventQueue && EventQueue->HasEvents();
 
 	Exec.CompletedFrameIndex = FStateTreeIndex16::Invalid;
 	Exec.CompletedStateHandle = FStateTreeStateHandle::Invalid;
@@ -2522,18 +2575,45 @@ bool FStateTreeExecutionContext::TestAllConditions(const FStateTreeExecutionFram
 
 FString FStateTreeExecutionContext::DebugGetEventsAsString() const
 {
-	FString Result;
-	for (const FStateTreeSharedEvent& Event : EventsToProcess)
+	FStringBuilderBase StrBuilder;
+	
+	if (EventQueue)
 	{
-		if (!Result.IsEmpty())
+		for (const FStateTreeSharedEvent& Event : EventQueue->GetEventsView())
 		{
-			Result += TEXT(", ");
-		}
+			if (Event.IsValid())
+			{
+				if (StrBuilder.Len() > 0)
+				{
+					StrBuilder += TEXT(", ");
+				}
 
-		check(Event.IsValid());
-		Result += Event->Tag.ToString();
+				const bool bHasTag = Event->Tag.IsValid();
+				const bool bHasPayload = Event->Payload.GetScriptStruct() != nullptr;
+			
+				if (bHasTag || bHasPayload)
+				{
+					StrBuilder.Appendf(TEXT("("));
+				
+					if (bHasTag)
+					{
+						StrBuilder.Appendf(TEXT("Tag: '%s'"), *Event->Tag.ToString()); 
+					}
+					if (bHasTag && bHasPayload)
+					{
+						StrBuilder.Appendf(TEXT(", "));
+					}
+					if (bHasPayload)
+					{
+						StrBuilder.Appendf(TEXT(" Payload: '%s'"), *Event->Payload.GetScriptStruct()->GetName()); 
+					}
+					StrBuilder.Appendf(TEXT(") "));
+				}
+			}
+		}
 	}
-	return Result;
+	
+	return StrBuilder.ToString();
 }
 
 bool FStateTreeExecutionContext::RequestTransition(
@@ -2570,6 +2650,25 @@ bool FStateTreeExecutionContext::RequestTransition(
 		NextTransition.NextActiveFrames = StateSelectionResult.GetSelectedFrames();
 		NextTransition.NextActiveFrameEvents = StateSelectionResult.GetFramesStateSelectionEvents();
 
+		// Consume events from states, if required. 
+		for (int32 FrameIndex = 0; FrameIndex < NextTransition.NextActiveFrames.Num(); FrameIndex++)
+		{
+			const FStateTreeExecutionFrame& Frame = NextTransition.NextActiveFrames[FrameIndex]; 
+			const FStateTreeFrameStateSelectionEvents& FrameEvents = NextTransition.NextActiveFrameEvents[FrameIndex];
+
+			for (int32 StateIndex = 0; StateIndex < Frame.ActiveStates.Num(); StateIndex++)
+			{
+				if (FrameEvents.Events[StateIndex].IsValid())
+				{
+					const FCompactStateTreeState& State = Frame.StateTree->States[StateIndex];
+					if (State.bConsumeEventOnSelect)
+					{
+						 ConsumeEvent(FrameEvents.Events[StateIndex]);
+					}
+				}
+			}
+		}
+		
 		STATETREE_LOG(Verbose, TEXT("Transition on state '%s' -[%s]-> state '%s'"),
 			*GetSafeStateName(CurrentFrame, CurrentFrame.ActiveStates.Last()),
 			*GetSafeStateName(CurrentFrame, NextState),
@@ -2614,9 +2713,9 @@ bool FStateTreeExecutionContext::TriggerTransitions()
 	FAllowDirectTransitionsScope AllowDirectTransitionsScope(*this); // Set flag for the scope of this function to allow direct transitions without buffering.
 	FStateTreeExecutionState& Exec = GetExecState();
 
-	if (EventsToProcess.Num() > 0)
+	if (EventQueue && EventQueue->HasEvents())
 	{
-		STATETREE_LOG_AND_TRACE(Verbose, TEXT("Trigger transitions with events [%s]"), *DebugGetEventsAsString());
+		STATETREE_LOG_AND_TRACE(Verbose, TEXT("Trigger transitions with events: %s"), *DebugGetEventsAsString());
 	}
 
 	NextTransition.Reset();
@@ -2641,17 +2740,48 @@ bool FStateTreeExecutionContext::TriggerTransitions()
 	InstanceData.ResetTransitionRequests();
 
 	//
-	// Check tick, event, and task based transitions first.
+	// Collect tick, event, and task based transitions.
 	//
+	struct FTransitionHandler
+	{
+		FTransitionHandler() = default;
+		
+		FTransitionHandler(const uint8 InFrameIndex, const FStateTreeStateHandle InStateHandle, const EStateTreeTransitionPriority InPriority)
+			: StateHandle(InStateHandle)
+			, TaskIndex(FStateTreeIndex16::Invalid)
+			, FrameIndex(InFrameIndex)
+			, Priority(InPriority)
+		{
+		}
+
+		FTransitionHandler(const uint8 InFrameIndex, const FStateTreeStateHandle InStateHandle, const FStateTreeIndex16 InTaskIndex, const EStateTreeTransitionPriority InPriority)
+			: StateHandle(InStateHandle)
+			, TaskIndex(InTaskIndex)
+			, FrameIndex(InFrameIndex)
+			, Priority(InPriority)
+		{
+		}
+
+		FStateTreeStateHandle StateHandle;
+		FStateTreeIndex16 TaskIndex = FStateTreeIndex16::Invalid;
+		uint8 FrameIndex = 0;
+		EStateTreeTransitionPriority Priority = EStateTreeTransitionPriority::Normal;
+
+		bool operator<(const FTransitionHandler& Other) const
+		{
+			// Highest priority first.
+			return Priority > Other.Priority;
+		}
+	};
+
+	TArray<FTransitionHandler, TInlineAllocator<16>> TransitionHandlers;
+
 	if (Exec.ActiveFrames.Num() > 0)
 	{
-		for (int32 FrameIndex = 0; FrameIndex < Exec.ActiveFrames.Num(); FrameIndex++)
+		for (int32 FrameIndex = Exec.ActiveFrames.Num() - 1; FrameIndex >= 0; FrameIndex--)
 		{
-			FStateTreeExecutionFrame* CurrentParentFrame = FrameIndex > 0 ? &Exec.ActiveFrames[FrameIndex - 1] : nullptr;
 			FStateTreeExecutionFrame& CurrentFrame = Exec.ActiveFrames[FrameIndex];
 			const UStateTree* CurrentStateTree = CurrentFrame.StateTree;
-
-			FCurrentlyProcessedFrameScope FrameScope(*this, CurrentParentFrame, CurrentFrame);
 
 			for (int32 StateIndex = CurrentFrame.ActiveStates.Num() - 1; StateIndex >= 0; StateIndex--)
 			{
@@ -2663,205 +2793,239 @@ bool FStateTreeExecutionContext::TriggerTransitions()
 				{
 					continue;
 				}
-				
-				FCurrentlyProcessedStateScope StateScope(*this, StateHandle);
-				STATETREE_TRACE_SCOPED_STATE(StateHandle);
 
+				// Transition tasks.
 				if (State.bHasTransitionTasks)
 				{
-					STATETREE_CLOG(State.TasksNum > 0, VeryVerbose, TEXT("%*sTrigger task transitions in state '%s'"), StateIndex*UE::StateTree::DebugIndentSize, TEXT(""), *DebugGetStatePath(Exec.ActiveFrames, &CurrentFrame, StateIndex));
-
 					for (int32 TaskIndex = (State.TasksBegin + State.TasksNum) - 1; TaskIndex >= State.TasksBegin; TaskIndex--)
 					{
 						const FStateTreeTaskBase& Task = CurrentStateTree->Nodes[TaskIndex].Get<const FStateTreeTaskBase>();
-						const FStateTreeDataView TaskInstanceView = GetDataView(CurrentParentFrame, CurrentFrame, Task.InstanceDataHandle);
-						FNodeInstanceDataScope DataScope(*this, Task.InstanceDataHandle, TaskInstanceView);
-
-						// Ignore disabled task
-						if (Task.bTaskEnabled == false)
-						{
-							STATETREE_LOG(VeryVerbose, TEXT("%*sSkipped 'TriggerTransitions' for disabled Task: '%s'"), UE::StateTree::DebugIndentSize, TEXT(""), *Task.Name.ToString());
-							continue;
-						}
-
 						if (Task.bShouldAffectTransitions)
 						{
-							STATETREE_LOG(VeryVerbose, TEXT("%*sTriggerTransitions: '%s'"), UE::StateTree::DebugIndentSize, TEXT(""), *Task.Name.ToString());
-							STATETREE_TRACE_TASK_EVENT(TaskIndex, TaskInstanceView, EStateTreeTraceEventType::OnEvaluating, EStateTreeRunStatus::Running);
-							check(TaskInstanceView.IsValid());
-							Task.TriggerTransitions(*this);
+							TransitionHandlers.Emplace((uint8)FrameIndex, StateHandle, FStateTreeIndex16(TaskIndex), Task.TransitionHandlingPriority);
 						}
 					}
 				}
 				
-				for (uint8 i = 0; i < State.TransitionsNum; i++)
+				// Regular transitions on state
+				if (State.TransitionsNum > 0)
 				{
-					// All transition conditions must pass
-					const int16 TransitionIndex = State.TransitionsBegin + i;
-					const FCompactStateTransition& Transition = CurrentStateTree->Transitions[TransitionIndex];
-
-					// Skip disabled transitions
-					if (Transition.bTransitionEnabled == false)
-					{
-						continue;
-					}
-					
-					// No need to test the transition if same or higher priority transition has already been processed.
-					if (Transition.Priority <= NextTransition.Priority)
-					{
-						continue;
-					}
-
-					// Skip completion transitions
-					if (EnumHasAnyFlags(Transition.Trigger, EStateTreeTransitionTrigger::OnStateCompleted))
-					{
-						continue;
-					}
-
-					// If a delayed transition has passed the delay, and remove it from the queue, and try trigger it.
-					if (Transition.HasDelay())
-					{
-						bool bTriggeredDelayedTransition = false;
-						const TArray<FStateTreeTransitionDelayedState, TInlineAllocator<8>> ExpiredDelayedStates = Exec.FindAndRemoveExpiredDelayedTransitions(CurrentFrame.StateTree, FStateTreeIndex16(TransitionIndex));
-						for (const FStateTreeTransitionDelayedState& DelayedState : ExpiredDelayedStates)
-						{
-							STATETREE_LOG(Verbose, TEXT("Passed delayed transition from '%s' (%s) -> '%s'"),
-								*GetSafeStateName(CurrentFrame, CurrentFrame.ActiveStates.Last()), *State.Name.ToString(), *GetSafeStateName(CurrentFrame, Transition.State));
-
-							// Trigger Delayed Transition when the delay has passed.
-							if (RequestTransition(CurrentFrame, Transition.State, Transition.Priority, &DelayedState.CapturedEvent, Transition.Fallback))
-							{
-								NextTransitionSource = FStateTreeTransitionSource(FStateTreeIndex16(TransitionIndex), Transition.State, Transition.Priority);
-								bTriggeredDelayedTransition = true;
-								break;
-							}
-						}
-
-						if (bTriggeredDelayedTransition)
-						{
-							continue;
-						}
-					}
-
-					TArray<const FStateTreeSharedEvent*, TInlineAllocator<8>> TransitionEvents;
-
-					if (Transition.Trigger == EStateTreeTransitionTrigger::OnEvent)
-					{
-						check(Transition.RequiredEvent.IsValid());
-
-						TConstArrayView<FStateTreeSharedEvent> EventsQueue = GetEventsToProcessView();
-						for (const FStateTreeSharedEvent& Event : EventsQueue)
-						{
-							check(Event.IsValid());
-							if (Transition.RequiredEvent.DoesEventMatchDesc(*Event))
-							{
-								TransitionEvents.Emplace(&Event);
-							}
-						}
-					}
-					else if (Transition.Trigger == EStateTreeTransitionTrigger::OnTick)
-					{
-						TransitionEvents.Emplace();
-					}
-					
-					for (const FStateTreeSharedEvent* TransitionEvent : TransitionEvents)
-					{
-						bool bPassed = false; 
-						{
-							FCurrentlyProcessedTransitionEventScope TransitionEventScope(*this, TransitionEvent ? TransitionEvent->Get() : nullptr);
-							STATETREE_TRACE_TRANSITION_EVENT(FStateTreeTransitionSource(FStateTreeIndex16(TransitionIndex), Transition.State, Transition.Priority), EStateTreeTraceEventType::OnEvaluating);
-							STATETREE_TRACE_SCOPED_PHASE(EStateTreeUpdatePhase::TransitionConditions);
-							bPassed = TestAllConditions(CurrentParentFrame, CurrentFrame, Transition.ConditionsBegin, Transition.ConditionsNum);
-						}
-
-						if (bPassed)
-						{
-							// If the transitions is delayed, set up the delay. 
-							if (Transition.HasDelay())
-							{
-								uint32 TransitionEventHash = 0u;
-								if (TransitionEvent && TransitionEvent->IsValid())
-								{		
-									TransitionEventHash = GetTypeHash(*TransitionEvent->Get());
-								}
-
-								const bool bIsDelayedTransitionExisting = Exec.DelayedTransitions.ContainsByPredicate([StateTree = CurrentFrame.StateTree, TransitionIndex, TransitionEventHash](const FStateTreeTransitionDelayedState& DelayedState)
-								{
-									return DelayedState.StateTree == StateTree && DelayedState.TransitionIndex.Get() == TransitionIndex && DelayedState.CapturedEventHash == TransitionEventHash;
-								});
-
-								if (!bIsDelayedTransitionExisting)
-								{
-									// Initialize new delayed transition.
-									const float DelayDuration = Transition.Delay.GetRandomDuration();
-									if (DelayDuration > 0.0f)
-									{
-										FStateTreeTransitionDelayedState& DelayedState = Exec.DelayedTransitions.AddDefaulted_GetRef();
-										DelayedState.StateTree = CurrentFrame.StateTree;
-										DelayedState.TransitionIndex = FStateTreeIndex16(TransitionIndex);
-										DelayedState.TimeLeft = DelayDuration;
-										DelayedState.CapturedEvent = *TransitionEvent;
-										DelayedState.CapturedEventHash = TransitionEventHash;
-
-										BeginDelayedTransition(DelayedState);
-										STATETREE_LOG(Verbose, TEXT("Delayed transition triggered from '%s' (%s) -> '%s' %.1fs"),
-											*GetSafeStateName(CurrentFrame, CurrentFrame.ActiveStates.Last()), *State.Name.ToString(), *GetSafeStateName(CurrentFrame, Transition.State), DelayedState.TimeLeft);
-									
-										// Delay state added, skip requesting the transition.
-										continue;
-									}
-									// Fallthrough to request transition if duration was zero. 
-								}
-								else
-								{
-									// We get here if the transitions re-triggers during the delay, on which case we'll just ignore it.
-									continue;
-								}
-							}
-
-							if (RequestTransition(CurrentFrame, Transition.State, Transition.Priority, TransitionEvent, Transition.Fallback))
-							{
-								NextTransitionSource = FStateTreeTransitionSource(FStateTreeIndex16(TransitionIndex), Transition.State, Transition.Priority);
-								break;
-							}
-						}
-					}
+					TransitionHandlers.Emplace((uint8)FrameIndex, StateHandle, EStateTreeTransitionPriority::Normal);
 				}
 			}
 
 			if (CurrentFrame.bIsGlobalFrame)
 			{
-				// Global frame
+				// Global transition tasks.
 				if (CurrentFrame.StateTree->bHasGlobalTransitionTasks)
 				{
-					STATETREE_LOG(VeryVerbose, TEXT("Trigger global task transitions"));
 					for (int32 TaskIndex = (CurrentStateTree->GlobalTasksBegin + CurrentStateTree->GlobalTasksNum) - 1; TaskIndex >= CurrentFrame.StateTree->GlobalTasksBegin; TaskIndex--)
 					{
-						const FStateTreeTaskBase& Task =  CurrentStateTree->Nodes[TaskIndex].Get<const FStateTreeTaskBase>();
-						const FStateTreeDataView TaskInstanceView = GetDataView(CurrentParentFrame, CurrentFrame, Task.InstanceDataHandle);
-						FNodeInstanceDataScope DataScope(*this, Task.InstanceDataHandle, TaskInstanceView);
-
-						// Ignore disabled task
-						if (Task.bTaskEnabled == false)
-						{
-							STATETREE_LOG(VeryVerbose, TEXT("%*sSkipped 'TriggerTransitions' for disabled Task: '%s'"), UE::StateTree::DebugIndentSize, TEXT(""), *Task.Name.ToString());
-							continue;
-						}
-
+						const FStateTreeTaskBase& Task = CurrentStateTree->Nodes[TaskIndex].Get<const FStateTreeTaskBase>();
 						if (Task.bShouldAffectTransitions)
 						{
-							STATETREE_LOG(VeryVerbose, TEXT("%*sTriggerTransitions: '%s'"), UE::StateTree::DebugIndentSize, TEXT(""), *Task.Name.ToString());
-							STATETREE_TRACE_TASK_EVENT(TaskIndex, TaskInstanceView, EStateTreeTraceEventType::OnEvaluating, EStateTreeRunStatus::Running);
-							check(TaskInstanceView.IsValid());
-							Task.TriggerTransitions(*this);
+							TransitionHandlers.Emplace((uint8)FrameIndex, FStateTreeStateHandle(), FStateTreeIndex16(TaskIndex), Task.TransitionHandlingPriority);
+						}
+					}
+				}				
+			}
+		}
+
+		// Sort by priority and adding order.
+		TransitionHandlers.StableSort();
+	}
+
+	//
+	// Process task and state transitions in priority order. 
+	//
+	for (const FTransitionHandler& Handler : TransitionHandlers)
+	{
+		const int32 FrameIndex = Handler.FrameIndex;
+		FStateTreeExecutionFrame* CurrentParentFrame = FrameIndex > 0 ? &Exec.ActiveFrames[FrameIndex - 1] : nullptr;
+		FStateTreeExecutionFrame& CurrentFrame = Exec.ActiveFrames[FrameIndex];
+		const UStateTree* CurrentStateTree = CurrentFrame.StateTree;
+
+		FCurrentlyProcessedFrameScope FrameScope(*this, CurrentParentFrame, CurrentFrame);
+		FCurrentlyProcessedStateScope StateScope(*this, Handler.StateHandle);
+		STATETREE_TRACE_SCOPED_STATE(Handler.StateHandle);
+
+		if (Handler.TaskIndex.IsValid())
+		{
+			const FStateTreeTaskBase& Task = CurrentStateTree->Nodes[Handler.TaskIndex.Get()].Get<const FStateTreeTaskBase>();
+
+			// Ignore disabled task
+			if (Task.bTaskEnabled == false)
+			{
+				STATETREE_LOG(VeryVerbose, TEXT("%*sSkipped 'TriggerTransitions' for disabled Task: '%s'"), UE::StateTree::DebugIndentSize, TEXT(""), *Task.Name.ToString());
+				continue;
+			}
+
+			const FStateTreeDataView TaskInstanceView = GetDataView(CurrentParentFrame, CurrentFrame, Task.InstanceDataHandle);
+			FNodeInstanceDataScope DataScope(*this, Task.InstanceDataHandle, TaskInstanceView);
+
+			STATETREE_LOG(VeryVerbose, TEXT("%*sTriggerTransitions: '%s'"), UE::StateTree::DebugIndentSize, TEXT(""), *Task.Name.ToString());
+			STATETREE_TRACE_TASK_EVENT(Handler.TaskIndex.Get(), TaskInstanceView, EStateTreeTraceEventType::OnEvaluating, EStateTreeRunStatus::Running);
+			check(TaskInstanceView.IsValid());
+			Task.TriggerTransitions(*this);
+		}
+		else if (Handler.StateHandle.IsValid())
+		{
+			const FCompactStateTreeState& State = CurrentStateTree->States[Handler.StateHandle.Index];
+
+			// Transitions
+			for (uint8 i = 0; i < State.TransitionsNum; i++)
+			{
+				// All transition conditions must pass
+				const int16 TransitionIndex = State.TransitionsBegin + i;
+				const FCompactStateTransition& Transition = CurrentStateTree->Transitions[TransitionIndex];
+
+				// Skip disabled transitions
+				if (Transition.bTransitionEnabled == false)
+				{
+					continue;
+				}
+				
+				// No need to test the transition if same or higher priority transition has already been processed.
+				if (Transition.Priority <= NextTransition.Priority)
+				{
+					continue;
+				}
+
+				// Skip completion transitions
+				if (EnumHasAnyFlags(Transition.Trigger, EStateTreeTransitionTrigger::OnStateCompleted))
+				{
+					continue;
+				}
+
+				// If a delayed transition has passed the delay, and remove it from the queue, and try trigger it.
+				if (Transition.HasDelay())
+				{
+					bool bTriggeredDelayedTransition = false;
+					const TArray<FStateTreeTransitionDelayedState, TInlineAllocator<8>> ExpiredDelayedStates = Exec.FindAndRemoveExpiredDelayedTransitions(CurrentFrame.StateTree, FStateTreeIndex16(TransitionIndex));
+					for (const FStateTreeTransitionDelayedState& DelayedState : ExpiredDelayedStates)
+					{
+						STATETREE_LOG(Verbose, TEXT("Passed delayed transition from '%s' (%s) -> '%s'"),
+							*GetSafeStateName(CurrentFrame, CurrentFrame.ActiveStates.Last()), *State.Name.ToString(), *GetSafeStateName(CurrentFrame, Transition.State));
+
+						// Trigger Delayed Transition when the delay has passed.
+						if (RequestTransition(CurrentFrame, Transition.State, Transition.Priority, &DelayedState.CapturedEvent, Transition.Fallback))
+						{
+							// If the transition was successfully requested with a specific event, consume and remove the event, it's been used.  
+							if (DelayedState.CapturedEvent.IsValid() && Transition.bConsumeEventOnSelect)
+							{
+								ConsumeEvent(DelayedState.CapturedEvent);
+							}
+
+							NextTransitionSource = FStateTreeTransitionSource(FStateTreeIndex16(TransitionIndex), Transition.State, Transition.Priority);
+							bTriggeredDelayedTransition = true;
+							break;
+						}
+					}
+
+					if (bTriggeredDelayedTransition)
+					{
+						continue;
+					}
+				}
+
+				TArray<const FStateTreeSharedEvent*, TInlineAllocator<8>> TransitionEvents;
+
+				if (Transition.Trigger == EStateTreeTransitionTrigger::OnEvent)
+				{
+					check(Transition.RequiredEvent.IsValid());
+
+					TConstArrayView<FStateTreeSharedEvent> EventsQueue = GetEventsToProcessView();
+					for (const FStateTreeSharedEvent& Event : EventsQueue)
+					{
+						check(Event.IsValid());
+						if (Transition.RequiredEvent.DoesEventMatchDesc(*Event))
+						{
+							TransitionEvents.Emplace(&Event);
 						}
 					}
 				}
+				else if (Transition.Trigger == EStateTreeTransitionTrigger::OnTick)
+				{
+					TransitionEvents.Emplace();
+				}
 				
+				for (const FStateTreeSharedEvent* TransitionEvent : TransitionEvents)
+				{
+					bool bPassed = false; 
+					{
+						FCurrentlyProcessedTransitionEventScope TransitionEventScope(*this, TransitionEvent ? TransitionEvent->Get() : nullptr);
+						STATETREE_TRACE_TRANSITION_EVENT(FStateTreeTransitionSource(FStateTreeIndex16(TransitionIndex), Transition.State, Transition.Priority), EStateTreeTraceEventType::OnEvaluating);
+						STATETREE_TRACE_SCOPED_PHASE(EStateTreeUpdatePhase::TransitionConditions);
+						bPassed = TestAllConditions(CurrentParentFrame, CurrentFrame, Transition.ConditionsBegin, Transition.ConditionsNum);
+					}
+
+					if (bPassed)
+					{
+						// If the transitions is delayed, set up the delay. 
+						if (Transition.HasDelay())
+						{
+							uint32 TransitionEventHash = 0u;
+							if (TransitionEvent && TransitionEvent->IsValid())
+							{		
+								TransitionEventHash = GetTypeHash(*TransitionEvent->Get());
+							}
+
+							const bool bIsDelayedTransitionExisting = Exec.DelayedTransitions.ContainsByPredicate([StateTree = CurrentFrame.StateTree, TransitionIndex, TransitionEventHash](const FStateTreeTransitionDelayedState& DelayedState)
+							{
+								return DelayedState.StateTree == StateTree && DelayedState.TransitionIndex.Get() == TransitionIndex && DelayedState.CapturedEventHash == TransitionEventHash;
+							});
+
+							if (!bIsDelayedTransitionExisting)
+							{
+								// Initialize new delayed transition.
+								const float DelayDuration = Transition.Delay.GetRandomDuration();
+								if (DelayDuration > 0.0f)
+								{
+									FStateTreeTransitionDelayedState& DelayedState = Exec.DelayedTransitions.AddDefaulted_GetRef();
+									DelayedState.StateTree = CurrentFrame.StateTree;
+									DelayedState.TransitionIndex = FStateTreeIndex16(TransitionIndex);
+									DelayedState.TimeLeft = DelayDuration;
+									DelayedState.CapturedEvent = *TransitionEvent;
+									DelayedState.CapturedEventHash = TransitionEventHash;
+
+									BeginDelayedTransition(DelayedState);
+									STATETREE_LOG(Verbose, TEXT("Delayed transition triggered from '%s' (%s) -> '%s' %.1fs"),
+										*GetSafeStateName(CurrentFrame, CurrentFrame.ActiveStates.Last()), *State.Name.ToString(), *GetSafeStateName(CurrentFrame, Transition.State), DelayedState.TimeLeft);
+								
+									// Delay state added, skip requesting the transition.
+									continue;
+								}
+								// Fallthrough to request transition if duration was zero. 
+							}
+							else
+							{
+								// We get here if the transitions re-triggers during the delay, on which case we'll just ignore it.
+								continue;
+							}
+						}
+
+						if (RequestTransition(CurrentFrame, Transition.State, Transition.Priority, TransitionEvent, Transition.Fallback))
+						{
+							// If the transition was successfully requested with a specific event, consume and remove the event, it's been used.  
+							if (TransitionEvent && Transition.bConsumeEventOnSelect)
+							{
+								ConsumeEvent(*TransitionEvent);
+							}
+							
+							NextTransitionSource = FStateTreeTransitionSource(FStateTreeIndex16(TransitionIndex), Transition.State, Transition.Priority);
+							break;
+						}
+					}
+				}
 			}
 		}
 	}
 
+	// All events have had the change to be reacted to, clear the event queue (if this instance owns it).
+	if (InstanceData.IsOwningEventQueue())
+	{
+		EventQueue->Reset();
+	}
 
 	//
 	// Check state completion transitions.

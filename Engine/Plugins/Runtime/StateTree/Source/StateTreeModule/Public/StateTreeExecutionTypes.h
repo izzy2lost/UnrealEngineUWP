@@ -710,7 +710,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 #endif	
 };
 
- /** Contains StateTree events used during State Selection for a single execution frame. */
+/** Contains StateTree events used during State Selection for a single execution frame. */
 struct FStateTreeFrameStateSelectionEvents
 {
 	TStaticArray<FStateTreeSharedEvent, FStateTreeActiveStates::MaxStates> Events;

@@ -30,3 +30,11 @@ void FStateTreeEventQueue::SendEvent(const UObject* Owner, const FGameplayTag& T
 
 	SharedEvents.Emplace(Tag, Payload, Origin);
 }
+
+void FStateTreeEventQueue::ConsumeEvent(const FStateTreeSharedEvent& Event)
+{
+	SharedEvents.RemoveAll([&EventToRemove = Event](const FStateTreeSharedEvent& Event)
+	{
+		return Event == EventToRemove;
+	});
+}

@@ -133,7 +133,10 @@ UENUM(BlueprintType)
 enum class EStateTreeTransitionPriority : uint8
 {
 	None UMETA(Hidden),
-	
+
+	/** Low priority. */
+	Low,
+
 	/** Normal priority. */
 	Normal,
 	
@@ -543,7 +546,6 @@ struct STATETREEMODULE_API FCompactStateTransition
 	GENERATED_BODY()
 
 	explicit FCompactStateTransition()
-		: bTransitionEnabled(true)
 	{
 	}
 
@@ -587,7 +589,11 @@ struct STATETREEMODULE_API FCompactStateTransition
 
 	/** Indicates if the transition is enabled and should be considered. */
 	UPROPERTY()
-	uint8 bTransitionEnabled : 1;
+	uint8 bTransitionEnabled : 1 = true;
+
+	/** If set to true, the required event is consumed (later state selection cannot react to it) if state selection can be made. */
+	UPROPERTY()
+	uint8 bConsumeEventOnSelect : 1 = true;
 };
 
 /**
@@ -699,6 +705,10 @@ struct STATETREEMODULE_API FCompactStateTreeState
 	/** True if the state is Enabled (i.e. not explicitly marked as disabled). */
 	UPROPERTY()
 	uint8 bEnabled : 1 = true;
+
+	/** If set to true, the required event is consumed (later state selection cannot react to it) if state selection can be made. */
+	UPROPERTY()
+	uint8 bConsumeEventOnSelect : 1 = true;
 };
 
 USTRUCT()

@@ -88,18 +88,40 @@ struct STATETREEMODULE_API FStateTreeInstanceStorage
 {
 	GENERATED_BODY()
 
+	FStateTreeInstanceStorage();
+	FStateTreeInstanceStorage(const FStateTreeInstanceStorage& Other);
+	FStateTreeInstanceStorage(FStateTreeInstanceStorage&& Other) noexcept;
+
+	FStateTreeInstanceStorage& operator=(const FStateTreeInstanceStorage& Other);
+	FStateTreeInstanceStorage& operator=(FStateTreeInstanceStorage&& Other) noexcept;
+
 	/** @return reference to the event queue. */
 	FStateTreeEventQueue& GetMutableEventQueue()
 	{
-		return EventQueue;
+		return *EventQueue;
 	}
 
 	/** @return reference to the event queue. */
 	const FStateTreeEventQueue& GetEventQueue() const
 	{
+		return *EventQueue;
+	}
+
+	/** @return true if the storage owns the event queue. */
+	bool IsOwningEventQueue() const
+	{
+		return bIsOwningEventQueue;
+	}
+
+	/** @return shared pointer to the event queue. */
+	const TSharedRef<FStateTreeEventQueue>& GetSharedMutableEventQueue()
+	{
 		return EventQueue;
 	}
 
+	/** Sets event queue from another storage. Marks the event queue not owned. */
+	void SetSharedEventQueue(const TSharedRef<FStateTreeEventQueue>& InSharedEventQueue);
+	
 	/** 
 	 * Buffers a transition request to be sent to the State Tree.
 	 * @param Owner Optional pointer to an owner UObject that is used for logging errors.
@@ -210,6 +232,12 @@ struct STATETREEMODULE_API FStateTreeInstanceStorage
 	{
 		return GlobalParameters.GetMutableValue();
 	}
+
+	/** Note, called by FStateTreeInstanceData. */
+	void AddStructReferencedObjects(FReferenceCollector& Collector);
+
+	/** Resets the storage to initial state. */
+	void Reset();
 	
 	UE_DEPRECATED(5.4, "Use Num() instead.")
 	int32 NumStructs() const { return 0; }
@@ -224,28 +252,30 @@ struct STATETREEMODULE_API FStateTreeInstanceStorage
 	bool IsValid() const { return false; }
 
 protected:
-	/** Execution state of the state tree instance. */
-	UPROPERTY()
-	FStateTreeExecutionState ExecutionState;
-
-	/** Struct instances */
+	/** Struct instances (Not transient, as we use FStateTreeInstanceData to store default values for instance data) */
 	UPROPERTY()
 	FInstancedStructContainer InstanceStructs;
 
+	/** Execution state of the state tree instance. */
+	UPROPERTY(Transient)
+	FStateTreeExecutionState ExecutionState;
+
 	/** Temporary instances */
-	UPROPERTY()
+	UPROPERTY(Transient)
 	TArray<FStateTreeTemporaryInstanceData> TemporaryInstances;
 
-	/** Events */
-	UPROPERTY()
-	FStateTreeEventQueue EventQueue;
+	/** Events (Transient) */
+	TSharedRef<FStateTreeEventQueue> EventQueue = MakeShared<FStateTreeEventQueue>();
 
+	/* True if the storage owns the event queue. */
+	bool bIsOwningEventQueue = true;
+	
 	/** Requested transitions */
-	UPROPERTY()
+	UPROPERTY(Transient)
 	TArray<FStateTreeTransitionRequest> TransitionRequests;
 
 	/** Global parameters */
-	UPROPERTY()
+	UPROPERTY(Transient)
 	FInstancedPropertyBag GlobalParameters;
 
 	friend struct FStateTreeInstanceData;
@@ -266,10 +296,10 @@ struct STATETREEMODULE_API FStateTreeInstanceData
 
 	FStateTreeInstanceData();
 	FStateTreeInstanceData(const FStateTreeInstanceData& Other);
-	FStateTreeInstanceData(FStateTreeInstanceData&& Other);
+	FStateTreeInstanceData(FStateTreeInstanceData&& Other) noexcept;
 
 	FStateTreeInstanceData& operator=(const FStateTreeInstanceData& Other);
-	FStateTreeInstanceData& operator=(FStateTreeInstanceData&& Other);
+	FStateTreeInstanceData& operator=(FStateTreeInstanceData&& Other) noexcept;
 
 	~FStateTreeInstanceData();
 	
@@ -350,6 +380,13 @@ struct STATETREEMODULE_API FStateTreeInstanceData
 	/** @return reference to the event queue. */
 	FStateTreeEventQueue& GetMutableEventQueue();
 	const FStateTreeEventQueue& GetEventQueue() const;
+	const TSharedRef<FStateTreeEventQueue>& GetSharedMutableEventQueue();
+
+	/** @return true if the instance data owns its' event queue. */
+	bool IsOwningEventQueue() const;
+
+	/** Sets event queue from another instance data. Marks the event queue not owned. */
+	void SetSharedEventQueue(const TSharedRef<FStateTreeEventQueue>& InSharedEventQueue);
 
 	/** 
 	 * Buffers a transition request to be sent to the State Tree.

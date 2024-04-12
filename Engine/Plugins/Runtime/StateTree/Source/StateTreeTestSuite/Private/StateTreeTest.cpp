@@ -6,6 +6,7 @@
 #include "StateTreeEditorData.h"
 #include "StateTreeCompiler.h"
 #include "Conditions/StateTreeCommonConditions.h"
+#include "Tasks/StateTreeRunParallelStateTreeTask.h"
 #include "StateTreeTestTypes.h"
 #include "Engine/World.h"
 #include "Async/ParallelFor.h"
@@ -2975,6 +2976,149 @@ struct FStateTreeTest_NestedOverride : FAITestBase
 	}
 };
 IMPLEMENT_AI_INSTANT_TEST(FStateTreeTest_NestedOverride, "System.StateTree.NestedOverride");
+
+// Test parallel tree event priority handling.
+struct FStateTreeTest_ParallelEventPriority : FAITestBase
+{
+	EStateTreeTransitionPriority ParallelTreePriority = EStateTreeTransitionPriority::Normal;
+	
+	virtual bool InstantTest() override
+	{
+		FStateTreeCompilerLog Log;
+		
+		const FGameplayTag EventTag = UE::StateTree::Tests::FNativeGameplayTags::Get().TestTag;
+
+		// Parallel tree
+		// - Root
+		//   - State1 ?-> State2
+		//   - State2
+		UStateTree& StateTreePar = UE::StateTree::Tests::NewStateTree(&GetWorld());
+		UStateTreeEditorData& EditorDataPar = *Cast<UStateTreeEditorData>(StateTreePar.EditorData);
+
+		UStateTreeState& RootPar = EditorDataPar.AddSubTree(FName(TEXT("Root")));
+		UStateTreeState& State1 = RootPar.AddChildState(FName(TEXT("State1")));
+		UStateTreeState& State2 = RootPar.AddChildState(FName(TEXT("State2")));
+
+		TStateTreeEditorNode<FTestTask_Stand>& Task1 = State1.AddTask<FTestTask_Stand>(FName(TEXT("Task1")));
+		Task1.GetNode().TicksToCompletion = 100;
+		State1.AddTransition(EStateTreeTransitionTrigger::OnEvent, EventTag, EStateTreeTransitionType::NextState);
+
+		TStateTreeEditorNode<FTestTask_Stand>& Task2 = State2.AddTask<FTestTask_Stand>(FName(TEXT("Task2")));
+		Task2.GetNode().TicksToCompletion = 100;
+
+		{
+			FStateTreeCompiler Compiler(Log);
+			const bool bResult = Compiler.Compile(StateTreePar);
+			AITEST_TRUE("StateTreePar should get compiled", bResult);
+		}
+
+		// Main asset
+		// - Root [StateTreePar]
+		//   - State3 ?-> State4
+		//   - State4
+		UStateTree& StateTree = UE::StateTree::Tests::NewStateTree(&GetWorld());
+		UStateTreeEditorData& EditorData = *Cast<UStateTreeEditorData>(StateTree.EditorData);
+
+		UStateTreeState& Root = EditorData.AddSubTree(FName(TEXT("Root")));
+		UStateTreeState& State3 = Root.AddChildState(FName(TEXT("State3")));
+		UStateTreeState& State4 = Root.AddChildState(FName(TEXT("State4")));
+
+		TStateTreeEditorNode<FStateTreeRunParallelStateTreeTask>& TaskPar = Root.AddTask<FStateTreeRunParallelStateTreeTask>();
+		TaskPar.GetNode().SetEventHandlingPriority(ParallelTreePriority);
+		
+		TaskPar.GetInstanceData().StateTree.SetStateTree(&StateTreePar);
+
+		TStateTreeEditorNode<FTestTask_Stand>& Task3 = State3.AddTask<FTestTask_Stand>(FName(TEXT("Task3")));
+		Task3.GetNode().TicksToCompletion = 100;
+		State3.AddTransition(EStateTreeTransitionTrigger::OnEvent, EventTag, EStateTreeTransitionType::NextState);
+
+		TStateTreeEditorNode<FTestTask_Stand>& Task4 = State4.AddTask<FTestTask_Stand>(FName(TEXT("Task4")));
+		Task4.GetNode().TicksToCompletion = 100;
+		
+		{
+			FStateTreeCompiler Compiler(Log);
+			const bool bResult = Compiler.Compile(StateTree);
+			AITEST_TRUE("StateTree should get compiled", bResult);
+		}
+
+		const FString TickStr(TEXT("Tick"));
+		const FString EnterStateStr(TEXT("EnterState"));
+		const FString ExitStateStr(TEXT("ExitState"));
+
+		// Run StateTreePar in parallel with the main tree.
+		// Both trees have a transition on same event.
+		// Setting the priority to Low, should make the main tree to take the transition.
+		EStateTreeRunStatus Status = EStateTreeRunStatus::Unset;
+		FStateTreeInstanceData InstanceData;
+		FTestStateTreeExecutionContext Exec(StateTree, StateTree, InstanceData);
+		const bool bInitSucceeded = Exec.IsValid();
+		AITEST_TRUE("StateTree should init", bInitSucceeded);
+
+		Status = Exec.Start();
+		AITEST_EQUAL("Start should complete with Running", Status, EStateTreeRunStatus::Running);
+		AITEST_TRUE("StateTree should enter Task1, Task3", Exec.Expect(Task1.GetName(), EnterStateStr).Then(Task3.GetName(), EnterStateStr));
+		Exec.LogClear();
+
+		Status = Exec.Tick(0.1f);
+		AITEST_EQUAL("Tick should complete with Running", Status, EStateTreeRunStatus::Running);
+		AITEST_TRUE("StateTree should tick Task1, Task3", Exec.Expect(Task1.GetName(), TickStr).Then(Task3.GetName(), TickStr));
+		Exec.LogClear();
+
+		Exec.SendEvent(EventTag);
+
+		// If the parallel tree priority is < Normal, then it should always be handled after the main tree.
+		// If the parallel tree priority is Normal, then the state order decides (leaf to root)
+		// If the parallel tree priority is > Normal, then it should always be handled before the main tree.
+		if (ParallelTreePriority <= EStateTreeTransitionPriority::Normal)
+		{
+			// Main tree should do the transition.
+			Status = Exec.Tick(0.1f);
+			AITEST_EQUAL("Tick should complete with Running", Status, EStateTreeRunStatus::Running);
+			AITEST_TRUE("StateTree should enter Task4", Exec.Expect(Task4.GetName(), EnterStateStr));
+			Exec.LogClear();
+
+			Status = Exec.Tick(0.1f);
+			AITEST_EQUAL("Tick should complete with Running", Status, EStateTreeRunStatus::Running);
+			AITEST_TRUE("StateTree should tick Task1, Task4", Exec.Expect(Task1.GetName(), TickStr).Then(Task4.GetName(), TickStr));
+			Exec.LogClear();
+		}
+		else
+		{
+			// Parallel tree should do the transition.
+			Status = Exec.Tick(0.1f);
+			AITEST_EQUAL("Tick should complete with Running", Status, EStateTreeRunStatus::Running);
+			AITEST_TRUE("StateTree should enter Task2", Exec.Expect(Task2.GetName(), EnterStateStr));
+			Exec.LogClear();
+
+			Status = Exec.Tick(0.1f);
+			AITEST_EQUAL("Tick should complete with Running", Status, EStateTreeRunStatus::Running);
+			AITEST_TRUE("StateTree should tick Task2, Task3", Exec.Expect(Task2.GetName(), TickStr).Then(Task3.GetName(), TickStr));
+			Exec.LogClear();
+		}
+		
+		return true;
+	}
+};
+IMPLEMENT_AI_INSTANT_TEST(FStateTreeTest_ParallelEventPriority, "System.StateTree.ParallelEventPriority");
+
+
+struct FStateTreeTest_ParallelEventPriority_Low : FStateTreeTest_ParallelEventPriority
+{
+	FStateTreeTest_ParallelEventPriority_Low()
+	{
+		ParallelTreePriority = EStateTreeTransitionPriority::Low;
+	}
+};
+IMPLEMENT_AI_INSTANT_TEST(FStateTreeTest_ParallelEventPriority_Low, "System.StateTree.ParallelEventPriority.Low");
+
+struct FStateTreeTest_ParallelEventPriority_High : FStateTreeTest_ParallelEventPriority
+{
+	FStateTreeTest_ParallelEventPriority_High()
+	{
+		ParallelTreePriority = EStateTreeTransitionPriority::High;
+	}
+};
+IMPLEMENT_AI_INSTANT_TEST(FStateTreeTest_ParallelEventPriority_High, "System.StateTree.ParallelEventPriority.High");
 
 UE_ENABLE_OPTIMIZATION_SHIP
 

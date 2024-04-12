@@ -103,6 +103,9 @@ struct STATETREEMODULE_API FStateTreeTaskBase : public FStateTreeNodeBase
 	/** True if the node is Enabled (i.e. not explicitly disabled in the asset). */
 	UPROPERTY()
 	uint8 bTaskEnabled : 1;
+
+	UPROPERTY()
+	EStateTreeTransitionPriority TransitionHandlingPriority = EStateTreeTransitionPriority::Normal;
 };
 
 /**

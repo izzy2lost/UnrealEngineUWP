@@ -3,6 +3,7 @@
 #pragma once
 
 #include "IStateTreeSchemaProvider.h"
+#include "StateTreeNodeBase.h"
 #include "StateTreeEditorNode.h"
 #include "StateTreeEditorTypes.h"
 #include "StateTreeEvents.h"
@@ -33,6 +34,10 @@ struct FStateTreeEventDesc
 	UPROPERTY(EditDefaultsOnly, Category = "Event")
 	TObjectPtr<const UScriptStruct> PayloadStruct;
 
+	/** If set to true, the event is consumed (later state selection cannot react to it) if state selection can be made. */
+	UPROPERTY(EditDefaultsOnly, Category = "Event")
+	bool bConsumeEventOnSelect = true;
+	
 	bool IsValid() const
 	{
 		return Tag.IsValid() || PayloadStruct;
@@ -82,8 +87,8 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		FStateTreeEditorNode& CondNode = Conditions.AddDefaulted_GetRef();
 		CondNode.ID = FGuid::NewGuid();
 		CondNode.Node.InitializeAs<T>(Forward<TArgs>(InArgs)...);
-		T& Cond = CondNode.Node.GetMutable<T>();
-		if (const UScriptStruct* InstanceType = Cast<const UScriptStruct>(Cond.GetInstanceDataType()))
+		const FStateTreeNodeBase& Node = CondNode.Node.GetMutable<FStateTreeNodeBase>();
+		if (const UScriptStruct* InstanceType = Cast<const UScriptStruct>(Node.GetInstanceDataType()))
 		{
 			CondNode.Instance.InitializeAs(InstanceType);
 		}
@@ -101,6 +106,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	UPROPERTY(EditDefaultsOnly, Category = "Transition")
 	EStateTreeTransitionTrigger Trigger = EStateTreeTransitionTrigger::OnStateCompleted;
 
+	/** Defines the event required to be present during state selection for the transition to trigger. */
 	UPROPERTY(EditDefaultsOnly, Category = "Transition", DisplayName = "Required Event")
 	FStateTreeEventDesc RequiredEvent; 
 
@@ -246,8 +252,8 @@ public:
 		FStateTreeEditorNode& CondNode = EnterConditions.AddDefaulted_GetRef();
 		CondNode.ID = FGuid::NewGuid();
 		CondNode.Node.InitializeAs<T>(Forward<TArgs>(InArgs)...);
-		T& Cond = CondNode.Node.GetMutable<T>();
-		if (const UScriptStruct* InstanceType = Cast<const UScriptStruct>(Cond.GetInstanceDataType()))
+		const FStateTreeNodeBase& Node = CondNode.Node.GetMutable<FStateTreeNodeBase>();
+		if (const UScriptStruct* InstanceType = Cast<const UScriptStruct>(Node.GetInstanceDataType()))
 		{
 			CondNode.Instance.InitializeAs(InstanceType);
 		}
@@ -264,8 +270,8 @@ public:
 		FStateTreeEditorNode& TaskItem = Tasks.AddDefaulted_GetRef();
 		TaskItem.ID = FGuid::NewGuid();
 		TaskItem.Node.InitializeAs<T>(Forward<TArgs>(InArgs)...);
-		T& Task = TaskItem.Node.GetMutable<T>();
-		if (const UScriptStruct* InstanceType = Cast<const UScriptStruct>(Task.GetInstanceDataType()))
+		const FStateTreeNodeBase& Node = TaskItem.Node.GetMutable<FStateTreeNodeBase>();
+		if (const UScriptStruct* InstanceType = Cast<const UScriptStruct>(Node.GetInstanceDataType()))
 		{
 			TaskItem.Instance.InitializeAs(InstanceType);
 		}
@@ -354,6 +360,7 @@ public:
 	UPROPERTY(EditDefaultsOnly, Category = "State", meta=(InlineEditConditionToggle))
 	bool bHasRequiredEventToEnter = false;
 
+	/** Defines the event required to be present during state selection for the state to be selected. */
 	UPROPERTY(EditDefaultsOnly, Category = "State", meta = (EditCondition = "bHasRequiredEventToEnter"))
 	FStateTreeEventDesc RequiredEventToEnter;
 
