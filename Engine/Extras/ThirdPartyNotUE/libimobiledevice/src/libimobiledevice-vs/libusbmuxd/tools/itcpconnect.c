@@ -142,9 +142,9 @@ static void *run_ctos_loop(void *arg)
 			break;
 		} else {
 			// send to local socket
-			fprintf(stderr, "sending %d bytes >>", recv_len);
-			fwrite(buffer, 1, recv_len, stderr);
-			fprintf(stderr, "<<\n");
+//			fprintf(stderr, "sending %d bytes >>", recv_len);
+//			fwrite(buffer, 1, recv_len, stderr);
+//			fprintf(stderr, "<<\n");
 			sent = socket_send(cdata->sfd, buffer, recv_len);
 			if (sent < recv_len) {
 				if (sent <= 0) {

@@ -38,10 +38,17 @@
 #endif
 #ifndef WIN32
 #include <signal.h>
+#include <sys/time.h>
+#else
+#define atoll(S) _atoi64(S)
+#include <sysinfoapi.h>
 #endif
 #include "common/utils.h"
 
-#define COPY_BUFFER_SIZE 8192
+
+#define PULL_BUFFER_SIZE 4000000	// values over 4MB seem to fail
+#define PUSH_BUFFER_SIZE 64000000
+
 #define MAX_REMOTE_PATH 256
 #define AFC_SERVICE_NAME "com.apple.afc"
 #define AFC2_SERVICE_NAME "com.apple.afc2"
@@ -63,7 +70,7 @@ static void print_commands()
 	printf("  ls <pathname>\t\t\tList files on the device in path specified.\n");
 	printf("  mkdir [-p] <pathname>\t\tCreate the directory in the path specified.\n"
 		"  \t\t\t\t-p : create parent directories if they do not exist\n");
-	printf("  rm <pathname>\t\t\tRemove the path specified.\n");
+	printf("  rm [-r] <pathname>\t\tRemove the path specified.\n");
 	printf("  push [-p] <local> <remote>\tPush the local file or directory to the remote pathname. \n"
 		"  \t\t\t\t-p : create parent directories if they do not exist\n");
 	printf("  pull <remote> [local]\t\tPull the remote file or directory and save it in the specified local\n"
@@ -91,6 +98,40 @@ static void print_usage()
 	print_commands();
 }
 
+
+static int afc_stat(afc_client_t afc, char* pathname, uint64_t *st_size, int *st_mode)
+{
+	*st_size = 0;
+	*st_mode = 0;
+
+	char** file_information;
+	int result = afc_get_file_info(afc, pathname, &file_information);
+	if (result != AFC_E_SUCCESS) {
+
+		return -result;
+	}
+
+	for (int i = 0; file_information[i]; i += 2) {
+		if (!strcmp(file_information[i], "st_ifmt")) {
+			if (!strcmp(file_information[i + 1], "S_IFDIR")) {
+				*st_mode = S_IFDIR;
+			}
+			else
+			if (!strcmp(file_information[i + 1], "S_IFREG")) {
+				*st_mode = S_IFREG;
+			}
+		}
+		else
+		if (!strcmp(file_information[i], "st_size")) {
+			*st_size = atoll(file_information[i + 1]);
+		}
+	}
+
+	afc_dictionary_free(file_information);
+
+	return 0;
+}
+
 static int command_ls(afc_client_t afc, char* path)
 {
 	char **dirs = NULL;
@@ -103,7 +144,26 @@ static int command_ls(afc_client_t afc, char* path)
 	}
 
 	for (int i = 0; dirs[i]; i++) {
-		printf("%s\n", dirs[i]);
+
+		uint64_t st_size;
+		int st_mode;
+
+		char filepath[MAX_REMOTE_PATH];
+		strcpy(filepath, path);
+		strcat(filepath,"/");
+		strcat(filepath, dirs[i]);
+
+		if (afc_stat(afc, filepath, &st_size, &st_mode) == 0)
+		{
+			switch (st_mode) {
+			case S_IFDIR:
+				printf("%-60s%16s\n", dirs[i], "[DIR]");
+				break;
+			case S_IFREG:
+				printf("%-60s%16"PRId64"\n", dirs[i], st_size);
+				break;
+			}		
+		}
 	}
 
 	afc_dictionary_free(dirs);
@@ -111,9 +171,9 @@ static int command_ls(afc_client_t afc, char* path)
 	return 0;
 }
 
-static int command_rm(afc_client_t afc, char* path)
+static int command_rm(afc_client_t afc, char* path, int removecontents)
 {
-	afc_error_t result = afc_remove_path(afc, path);
+	afc_error_t result = removecontents ? afc_remove_path_and_contents(afc, path) : afc_remove_path(afc, path);
 	if (result != AFC_E_SUCCESS) {
 		fprintf(stderr, "rm: Failed to remove remote path %s (%d).\n", path, result);
 		return -result;
@@ -151,7 +211,7 @@ static int command_mkdir(afc_client_t afc, char* remote, int makeparents)
 static int command_pull_file(afc_client_t afc, char* remote, char* local)
 {
 	uint64_t handle = 0;
-	char buffer[COPY_BUFFER_SIZE];
+
 
 	afc_error_t  result = afc_file_open(afc, remote, AFC_FOPEN_RDONLY, &handle);
 	if (result != AFC_E_SUCCESS) {
@@ -173,17 +233,28 @@ static int command_pull_file(afc_client_t afc, char* remote, char* local)
 	afc_file_tell(afc, handle, &file_size);
 	afc_file_seek(afc, handle, 0, SEEK_SET);
 
-	printf("Pulling %s to %s (%"PRId64" bytes)\n", remote, local, file_size);
+	uint32_t use_buffer_size = file_size > PULL_BUFFER_SIZE ? PULL_BUFFER_SIZE : (uint32_t)file_size + 1;
+	char* buffer = (char*)malloc(use_buffer_size);
+
+	printf("Pulling %s to %s (%"PRId64" bytes)", remote, local, file_size);
+
+#ifdef WIN32
+	DWORD t1 = GetTickCount();
+#else
+	struct timeval t1, t2;
+	gettimeofday(&t1, NULL);
+#endif
 
 	uint32_t  bytes_read = 0;
 	do
 	{
-		result = afc_file_read(afc, handle, buffer, COPY_BUFFER_SIZE, &bytes_read);
+		result = afc_file_read(afc, handle, buffer, use_buffer_size, &bytes_read);
 		if (result != AFC_E_SUCCESS)
 		{
 			fprintf(stderr, "pull: Error reading from remote file %s (%d).\n", remote, result);
 			fclose(fp);
 			afc_file_close(afc, handle);
+			free(buffer);
 			return -1;
 		}
 
@@ -192,50 +263,35 @@ static int command_pull_file(afc_client_t afc, char* remote, char* local)
 				fprintf(stderr, "pull: Error writing to local file %s.\n", local);
 				fclose(fp);
 				afc_file_close(afc, handle);
+				free(buffer);
 				return -1;
 			}
 			total_bytes_written += bytes_read;
 		}
-	} while(bytes_read == COPY_BUFFER_SIZE);
+	} while(bytes_read == use_buffer_size);
 
 	fclose(fp);
 	afc_file_close(afc, handle);
 
 	if (total_bytes_written != file_size)
 	{
-		fprintf(stderr, "pull: File size mismatch downloading %s (only %"PRId64" of %"PRId64" downloaded).\n", remote, total_bytes_written, file_size);
+		fprintf(stderr, "\npull: File size mismatch downloading %s (only %"PRId64" of %"PRId64" downloaded).\n", remote, total_bytes_written, file_size);
+		free(buffer);
 		return -1;
 	}
 
+#ifdef WIN32
+	DWORD t2 = GetTickCount();
+	double elapsed = (double)(t2 - t1) / 1000;
+#else
+	gettimeofday(&t2, NULL);
+	double elapsed = (double)(t2.tv_sec - t1.tv_sec) + (double)((t2.tv_usec - t1.tv_usec) / 1000000);
+#endif
+
+	printf("\rPulled %s to %s (%"PRId64" bytes in %0.2lf seconds, %0.2f MB/sec)\n", remote, local, file_size, elapsed, elapsed == 0.0 ? 0 : (float)file_size / (float)elapsed / 1024 / 1024);
+
+	free(buffer);
 	return 0;
-}
-
-static int afc_stat(afc_client_t afc, char* pathname)
-{
-	int result = 0;
-	char** file_information;
-	result = afc_get_file_info(afc, pathname, &file_information);
-	if (result != AFC_E_SUCCESS) {
-		return -result;
-	}
-
-	for (int i = 0; file_information[i]; i+=2) {
-		if (!strcmp(file_information[i], "st_ifmt")) {
-			if (!strcmp(file_information[i+1], "S_IFDIR")) {
-				result = S_IFDIR;
-			}
-			else
-			if (!strcmp(file_information[i + 1], "S_IFREG")) {
-				result = S_IFREG;
-			}
-
-			break;
-		}
-	}
-
-	afc_dictionary_free(file_information);
-
-	return result;
 }
 
 static int command_pull(afc_client_t afc, char* remote, char* local);
@@ -289,18 +345,27 @@ static int command_pull(afc_client_t afc, char* remote, char* local)
 			local = ++p;
 	}
 
-	int statret = afc_stat(afc, remote);
-	switch (statret) {
-	case S_IFDIR:
-		return command_pull_dir(afc, remote, local);
-		break;
-	case S_IFREG:
-		return command_pull_file(afc, remote, local);
-		break;
-	default:
-		fprintf(stderr, "pull: Failed to get file info for %s (%d).\n", remote, statret);
-		return statret;
+	uint64_t st_size;
+	int st_mode;
+	int statret = afc_stat(afc, remote, &st_size, &st_mode);
+	if (statret == 0)
+	{
+		switch (st_mode) {
+		case S_IFDIR:
+			return command_pull_dir(afc, remote, local);
+			break;
+		case S_IFREG:
+			return command_pull_file(afc, remote, local);
+			break;
+		default:
+			fprintf(stderr, "pull: Failed to get file type info for %s.\n", remote);
+		}
 	}
+	else
+	{
+		fprintf(stderr, "pull: Failed to get file info for %s (%d).\n", remote, statret);
+	}
+	return statret;
 }
 
 static int command_push(afc_client_t afc, char* local, char* remote, int makedirs);
@@ -344,7 +409,6 @@ static int command_push_dir(afc_client_t afc, char* local, char* remote)
 static int command_push_file(afc_client_t afc, char* local, char* remote, int makedirs)
 {
 	uint64_t handle = 0;
-	char buffer[COPY_BUFFER_SIZE];
 
 	FILE* fp = fopen(local, "rb");
 	if (!fp) {
@@ -378,12 +442,22 @@ static int command_push_file(afc_client_t afc, char* local, char* remote, int ma
 	file_size = ftell(fp);
 	fseek(fp, 0, SEEK_SET);
 
-	printf("Pushing %s to %s (%u bytes)\n", local, remote, file_size);
+	uint64_t use_buffer_size = file_size > PUSH_BUFFER_SIZE ? PUSH_BUFFER_SIZE : file_size + 1;
+	char* buffer = (char*)malloc(use_buffer_size);
+
+	printf("Pushing %s to %s (%u bytes)", local, remote, file_size);
+	
+#ifdef WIN32
+	DWORD t1 = GetTickCount();
+#else
+	struct timeval t1, t2;
+	gettimeofday(&t1, NULL);
+#endif
 
 	size_t  bytes_read = 0;
 	do
 	{
-		bytes_read = fread(buffer, 1, COPY_BUFFER_SIZE, fp);
+		bytes_read = fread(buffer, 1, use_buffer_size, fp);
 
 		if (bytes_read > 0) {
 
@@ -391,15 +465,26 @@ static int command_push_file(afc_client_t afc, char* local, char* remote, int ma
 			result = afc_file_write(afc, handle, buffer, (uint32_t)bytes_read, &bytes_written);
 			if (result != AFC_E_SUCCESS || bytes_written != bytes_read)
 			{
-				fprintf(stderr, "push: Error writing to remote file %s (%d).\n", remote, result);
+				fprintf(stderr, "push: Error writing to remote file %s (%d).", remote, result);
 				fclose(fp);
 				afc_file_close(afc, handle);
+				free(buffer);
 				return -1;
 			}
 
 			total_bytes_written += bytes_written;
 		}
-	} while (bytes_read == COPY_BUFFER_SIZE);
+	} while (bytes_read == use_buffer_size);
+
+#ifdef WIN32
+	DWORD t2 = GetTickCount();
+	double elapsed = (double)(t2 - t1) / 1000;
+#else
+	gettimeofday(&t2, NULL);
+	double elapsed = (double)(t2.tv_sec - t1.tv_sec) + (double)((t2.tv_usec - t1.tv_usec) / 1000000);
+#endif
+
+	printf("\rPushed %s to %s (%u bytes in %0.2lf seconds, %0.2f MB/sec)\n", local, remote, file_size, elapsed, elapsed == 0.0 ? 0 : (float)file_size / (float)elapsed / 1024 / 1024);
 
 	fclose(fp);
 	afc_file_close(afc, handle);
@@ -407,9 +492,11 @@ static int command_push_file(afc_client_t afc, char* local, char* remote, int ma
 	if (total_bytes_written != file_size)
 	{
 		fprintf(stderr, "push: File size mismatch downloading %s (only %u of %u downloaded).\n", remote, total_bytes_written, file_size);
+		free(buffer);
 		return -1;
 	}
 
+	free(buffer);
 	return 0;
 }
 
@@ -439,18 +526,29 @@ static int command_push(afc_client_t afc, char* local, char* remote, int makedir
 static int process_command(afc_client_t afc, int argc, char* argv[])
 {
 	if (argc > 0 && !strcmp(argv[0], "ls")) {
-		if (!argv[1] || !*argv[1]) {
+		int arg = 1;
+		if (!argv[arg] || !*argv[arg]) {
+
 			fprintf(stderr, "ls: missing path parameter\n");
 			return -1;
 		}
-		command_ls(afc, argv[1]);
+		command_ls(afc, argv[arg]);
 	}
 	else if (argc > 0 && !strcmp(argv[0], "rm")) {
-		if (!argv[1] || !*argv[1]) {
+		int arg = 1;
+		int removecontents = 0;
+		if (argv[1] && !strcmp(argv[1], "-r"))
+		{
+			removecontents = 1;
+			arg++;
+		}
+
+		if (!argv[arg] || !*argv[arg]) {
 			fprintf(stderr, "rm: missing path parameter\n");
 			return -1;
 		}
-		command_rm(afc, argv[1]);
+
+		command_rm(afc, argv[arg], removecontents);
 	}
 	else if (argc > 0 && !strcmp(argv[0], "mkdir")) {
 		int arg = 1;
