@@ -10,7 +10,6 @@
 #include "MuT/ASTOpMeshRemoveMask.h"
 #include "MuT/ASTOpMeshAddTags.h"
 #include "MuT/ASTOpSwitch.h"
-#include "MuT/StreamsPrivate.h"
 
 
 namespace mu

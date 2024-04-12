@@ -22,20 +22,11 @@ namespace mu
 
 
     //! This node selects an output Scalar from a set of input Scalars based on a parameter.
-	//! \ingroup model
     class MUTABLETOOLS_API NodeScalarSwitch : public NodeScalar
 	{
 	public:
 
-		//-----------------------------------------------------------------------------------------
-		// Life cycle
-		//-----------------------------------------------------------------------------------------
-
         NodeScalarSwitch();
-
-		void SerialiseWrapper(OutputArchive& arch) const override;
-		static void Serialise( const NodeScalarSwitch* pNode, OutputArchive& arch );
-        static NodeScalarSwitchPtr StaticUnserialise( InputArchive& arch );
 
 		//-----------------------------------------------------------------------------------------
 		// Node Interface

@@ -20,15 +20,7 @@ namespace mu
 	{
 	public:
 
-		//-----------------------------------------------------------------------------------------
-		// Life cycle
-		//-----------------------------------------------------------------------------------------
-
 		NodeModifierMeshClipWithUVMask();
-
-		void SerialiseWrapper(OutputArchive& arch) const override;
-		static void Serialise( const NodeModifierMeshClipWithUVMask* pNode, OutputArchive& arch );
-		static Ptr<NodeModifierMeshClipWithUVMask> StaticUnserialise( InputArchive& arch );
 
 		//-----------------------------------------------------------------------------------------
         // Node interface

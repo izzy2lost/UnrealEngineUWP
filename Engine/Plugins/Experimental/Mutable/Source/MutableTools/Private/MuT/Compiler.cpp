@@ -34,7 +34,6 @@
 #include "MuT/Table.h"
 #include "Trace/Detail/Channel.h"
 
-#include <string>		// Required for deserialisation of old data
 #include <inttypes.h>	// Required for 64-bit printf macros
 
 
@@ -51,6 +50,15 @@ namespace mu
 
         return s_textureLayoutStrategyName[(int)s];
     }
+
+
+	//---------------------------------------------------------------------------------------------
+	FProxyFileContext::FProxyFileContext()
+	{
+		uint32 Seed = FPlatformTime::Cycles();
+		FRandomStream RandomStream = FRandomStream((int32)Seed);
+		CurrentFileIndex = RandomStream.GetUnsignedInt();
+	}
 
 
     //---------------------------------------------------------------------------------------------

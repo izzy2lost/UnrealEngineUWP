@@ -27,7 +27,6 @@ namespace mu
 
 
 	//! Node that defines a scalar model parameter.
-	//! \ingroup model
 	class MUTABLETOOLS_API NodeScalarParameter : public NodeScalar
 	{
 	public:
@@ -37,10 +36,6 @@ namespace mu
 		//-----------------------------------------------------------------------------------------
 
 		NodeScalarParameter();
-
-		void SerialiseWrapper(OutputArchive& arch) const override;
-		static void Serialise( const NodeScalarParameter* pNode, OutputArchive& arch );
-		static NodeScalarParameterPtr StaticUnserialise( InputArchive& arch );
 
 		//-----------------------------------------------------------------------------------------
 		// Node Interface

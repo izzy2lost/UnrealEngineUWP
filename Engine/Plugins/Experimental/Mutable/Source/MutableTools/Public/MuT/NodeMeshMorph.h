@@ -20,16 +20,7 @@ namespace mu
 	{
 	public:
 
-		//-----------------------------------------------------------------------------------------
-		// Life cycle
-		//-----------------------------------------------------------------------------------------
-
 		NodeMeshMorph();
-
-		void SerialiseWrapper(OutputArchive& arch) const override;
-		static void Serialise( const NodeMeshMorph* pNode, OutputArchive& arch );
-		static Ptr<NodeMeshMorph> StaticUnserialise( InputArchive& arch );
-
 
 		//-----------------------------------------------------------------------------------------
 		// Node Interface

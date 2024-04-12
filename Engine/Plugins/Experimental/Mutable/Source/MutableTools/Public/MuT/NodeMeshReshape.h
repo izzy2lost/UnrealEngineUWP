@@ -13,21 +13,11 @@ namespace mu
 	struct FBoneName;
 
 	//! Node that morphs a base mesh with one or two weighted targets from a sequence.
-	//! \ingroup model
 	class MUTABLETOOLS_API NodeMeshReshape : public NodeMesh
 	{
 	public:
 
-		//-----------------------------------------------------------------------------------------
-		// Life cycle
-		//-----------------------------------------------------------------------------------------
-
 		NodeMeshReshape();
-
-		void SerialiseWrapper(OutputArchive& arch) const override;
-		static void Serialise( const NodeMeshReshape* pNode, OutputArchive& arch );
-		static Ptr<NodeMeshReshape> StaticUnserialise( InputArchive& arch );
-
 
 		//-----------------------------------------------------------------------------------------
 		// Node Interface

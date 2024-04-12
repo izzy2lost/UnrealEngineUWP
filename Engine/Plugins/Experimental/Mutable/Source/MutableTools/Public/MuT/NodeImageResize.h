@@ -20,9 +20,6 @@ namespace mu
 	typedef Ptr<NodeImageResize> NodeImageResizePtr;
 	typedef Ptr<const NodeImageResize> NodeImageResizePtrConst;
 
-	class InputArchive;
-	class OutputArchive;
-
 
 	//! Node that multiplies the colors of an image, channel by channel.
 	//! \ingroup model
@@ -30,15 +27,7 @@ namespace mu
 	{
 	public:
 
-		//-----------------------------------------------------------------------------------------
-		// Life cycle
-		//-----------------------------------------------------------------------------------------
-
 		NodeImageResize();
-
-		void SerialiseWrapper(OutputArchive& arch) const override;
-		static void Serialise( const NodeImageResize* pNode, OutputArchive& arch );
-		static NodeImageResizePtr StaticUnserialise( InputArchive& arch );
 
 
 		//-----------------------------------------------------------------------------------------

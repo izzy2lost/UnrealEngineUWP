@@ -7,12 +7,34 @@
 #include "MuT/AST.h"
 #include "MuT/ErrorLogPrivate.h"
 #include "MuT/NodeObjectPrivate.h"
-#include "MuT/StreamsPrivate.h"
 #include "MuR/Operations.h"
 
 
 namespace mu
 {
+	/** Statistics about the proxy file usage. */
+	struct FProxyFileContext
+	{
+		FProxyFileContext();
+
+		/** Options */
+
+		/** Minimum data size in bytes to dumpt it to the disk. */
+		uint64 MinProxyFileSize = 1024 * 1024;
+
+		/** When creating temporary files, number of retries in case the OS-level call fails. */
+		uint64 MaxFileCreateAttempts = 256;
+
+		/** Statistics */
+		std::atomic<uint64> FilesWritten = 0;
+		std::atomic<uint64> FilesRead = 0;
+		std::atomic<uint64> BytesWritten = 0;
+		std::atomic<uint64> BytesRead = 0;
+
+		/** Internal data. */
+		std::atomic<uint64> CurrentFileIndex = 0;
+	};
+
 		
     //!
     class CompilerOptions::Private

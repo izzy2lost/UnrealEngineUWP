@@ -23,12 +23,9 @@ namespace mu
 	typedef Ptr<NodeLayoutBlocks> NodeLayoutBlocksPtr;
 	typedef Ptr<const NodeLayoutBlocks> NodeLayoutBlocksPtrConst;
 
-	class InputArchive;
-	class OutputArchive;
 
 	//! This node is used to define the texture layout for a texture coordinates channel of a
 	//! constant mesh.
-	//! \ingroup model
 	class MUTABLETOOLS_API NodeLayout : public Node
 	{
 	public:
@@ -42,23 +39,11 @@ namespace mu
 		};
 
 		//-----------------------------------------------------------------------------------------
-		// Life cycle
-		//-----------------------------------------------------------------------------------------
-
-		static void Serialise( const NodeLayout* pNode, OutputArchive& arch );
-		static NodeLayoutPtr StaticUnserialise( InputArchive& arch );
-
-
-		//-----------------------------------------------------------------------------------------
 		// Node Interface
 		//-----------------------------------------------------------------------------------------
 
 		const FNodeType* GetType() const override;
 		static const FNodeType* GetStaticType();
-
-		//-----------------------------------------------------------------------------------------
-		// Own Interface
-		//-----------------------------------------------------------------------------------------
 
 
 		//-----------------------------------------------------------------------------------------
@@ -80,21 +65,11 @@ namespace mu
 	//! This node is used to define the texture layout for a texture coordinates channel of a
 	//! constant mesh.
 	//! The blocks defined here will be set to the channel of the mesh were this node is connected.
-	//! \ingroup model
 	class MUTABLETOOLS_API NodeLayoutBlocks : public NodeLayout
 	{
 	public:
 
-		//-----------------------------------------------------------------------------------------
-		// Life cycle
-		//-----------------------------------------------------------------------------------------
-
 		NodeLayoutBlocks();
-
-		void SerialiseWrapper(OutputArchive& arch) const override;
-		static void Serialise( const NodeLayoutBlocks* pNode, OutputArchive& arch );
-		static NodeLayoutBlocksPtr StaticUnserialise( InputArchive& arch );
-
 
 		//-----------------------------------------------------------------------------------------
 		// Node Interface

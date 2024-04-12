@@ -7,7 +7,6 @@
 #include "MuT/Node.h"
 #include "MuT/NodeColour.h"
 
-
 namespace mu
 {
 
@@ -26,16 +25,7 @@ namespace mu
 	{
 	public:
 
-		//-----------------------------------------------------------------------------------------
-		// Life cycle
-		//-----------------------------------------------------------------------------------------
-
 		NodeColourParameter();
-
-		void SerialiseWrapper(OutputArchive& arch) const override;
-		static void Serialise( const NodeColourParameter* pNode, OutputArchive& arch );
-		static NodeColourParameterPtr StaticUnserialise( InputArchive& arch );
-
 
 		//-----------------------------------------------------------------------------------------
 		// Node Interface

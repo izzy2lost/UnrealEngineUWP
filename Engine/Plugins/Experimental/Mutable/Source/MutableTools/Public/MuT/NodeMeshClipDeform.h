@@ -16,16 +16,7 @@ namespace mu
 	{
 	public:
 
-		//-----------------------------------------------------------------------------------------
-		// Life cycle
-		//-----------------------------------------------------------------------------------------
-
 		NodeMeshClipDeform();
-
-		void SerialiseWrapper(OutputArchive& arch) const override;
-		static void Serialise( const NodeMeshClipDeform* pNode, OutputArchive& arch );
-		static Ptr<NodeMeshClipDeform> StaticUnserialise( InputArchive& arch );
-
 
 		//-----------------------------------------------------------------------------------------
 		// Node Interface

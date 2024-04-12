@@ -24,15 +24,7 @@ namespace mu
 	{
 	public:
 
-		//-----------------------------------------------------------------------------------------
-		// Life cycle
-		//-----------------------------------------------------------------------------------------
-
 		NodeModifierMeshClipMorphPlane();
-
-		void SerialiseWrapper(OutputArchive& arch) const override;
-		static void Serialise( const NodeModifierMeshClipMorphPlane* pNode, OutputArchive& arch );
-		static NodeModifierMeshClipMorphPlanePtr StaticUnserialise( InputArchive& arch );
 
 		//-----------------------------------------------------------------------------------------
         // Node interface
@@ -45,7 +37,6 @@ namespace mu
         // Own interface
 		//-----------------------------------------------------------------------------------------
 
-		//! \param 
 		void SetPlane(float centerX, float centerY, float centerZ, float normalX, float normalY, float normalZ);
 		void SetParams(float dist, float factor);
 		void SetMorphEllipse(float radius1, float radius2, float rotation);

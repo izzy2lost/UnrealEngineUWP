@@ -18,7 +18,6 @@ namespace mu
 
 
     //! %Base class of any node that outputs a scalar value.
-	//! \ingroup model
 	class MUTABLETOOLS_API NodeScalar : public Node
 	{
 	public:
@@ -37,13 +36,6 @@ namespace mu
 
 			None
 		};
-
-		//-----------------------------------------------------------------------------------------
-		// Life cycle
-		//-----------------------------------------------------------------------------------------
-
-		static void Serialise( const NodeScalar* pNode, OutputArchive& arch );
-		static NodeScalarPtr StaticUnserialise( InputArchive& arch );
 
 
 		//-----------------------------------------------------------------------------------------

@@ -7,7 +7,6 @@
 #include "HAL/PlatformMath.h"
 #include "Misc/AssertionMacros.h"
 #include "MuR/Types.h"
-#include "MuT/StreamsPrivate.h"
 
 
 namespace mu

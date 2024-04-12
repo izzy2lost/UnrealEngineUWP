@@ -27,15 +27,7 @@ namespace mu
 	{
 	public:
 
-		//-----------------------------------------------------------------------------------------
-		// Life cycle
-		//-----------------------------------------------------------------------------------------
-
 		NodeImageGradient();
-
-		void SerialiseWrapper(OutputArchive& arch) const override;
-		static void Serialise( const NodeImageGradient* pNode, OutputArchive& arch );
-		static NodeImageGradientPtr StaticUnserialise( InputArchive& arch );
 
 
 		//-----------------------------------------------------------------------------------------

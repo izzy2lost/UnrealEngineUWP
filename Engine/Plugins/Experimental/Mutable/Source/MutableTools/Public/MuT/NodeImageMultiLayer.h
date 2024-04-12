@@ -18,9 +18,6 @@ namespace mu
     typedef Ptr<NodeImageMultiLayer> NodeImageMultiLayerPtr;
     typedef Ptr<const NodeImageMultiLayer> NodeImageMultiLayerPtrConst;
 
-	class InputArchive;
-	class OutputArchive;
-
 
     //! This node applies any numbre of layer blending effect on a base image using a mask and a
     //! blended image. The number of layers depends on a scalar input of this node.
@@ -29,16 +26,7 @@ namespace mu
 	{
 	public:
 
-		//-----------------------------------------------------------------------------------------
-		// Life cycle
-		//-----------------------------------------------------------------------------------------
-
         NodeImageMultiLayer();
-
-		void SerialiseWrapper(OutputArchive& arch) const override;
-		static void Serialise( const NodeImageMultiLayer* pNode, OutputArchive& arch );
-        static NodeImageMultiLayerPtr StaticUnserialise( InputArchive& arch );
-
 
 		//-----------------------------------------------------------------------------------------
 		// Node Interface

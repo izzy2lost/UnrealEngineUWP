@@ -31,15 +31,7 @@ namespace mu
 	{
 	public:
 
-		//-----------------------------------------------------------------------------------------
-		// Life cycle
-		//-----------------------------------------------------------------------------------------
-
 		NodeColourSampleImage();
-
-		void SerialiseWrapper(OutputArchive& arch) const override;
-		static void Serialise( const NodeColourSampleImage* pNode, OutputArchive& arch );
-		static NodeColourSampleImagePtr StaticUnserialise( InputArchive& arch );
 
 
 		//-----------------------------------------------------------------------------------------

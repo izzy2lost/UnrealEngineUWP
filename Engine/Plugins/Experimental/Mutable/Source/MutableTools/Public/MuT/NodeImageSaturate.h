@@ -20,28 +20,15 @@ namespace mu
 	typedef Ptr<NodeImageSaturate> NodeImageSaturatePtr;
 	typedef Ptr<const NodeImageSaturate> NodeImageSaturatePtrConst;
 
-	class InputArchive;
-	class OutputArchive;
-
 
 	//! Change the saturation of an image. This node can be used to increase the saturation with a
 	//! factor bigger than 1, or to decrease it or desaturate it completely with a factor smaller
 	//! than 1 or 0.
-	//! \ingroup model
 	class MUTABLETOOLS_API NodeImageSaturate : public NodeImage
 	{
 	public:
 
-		//-----------------------------------------------------------------------------------------
-		// Life cycle
-		//-----------------------------------------------------------------------------------------
-
 		NodeImageSaturate();
-
-		void SerialiseWrapper(OutputArchive& arch) const override;
-		static void Serialise( const NodeImageSaturate* pNode, OutputArchive& arch );
-		static NodeImageSaturatePtr StaticUnserialise( InputArchive& arch );
-
 
 		//-----------------------------------------------------------------------------------------
 		// Node Interface

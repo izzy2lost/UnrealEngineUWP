@@ -19,20 +19,11 @@ namespace mu
 	struct FBoneName;
 
     //! This node applies a geometric transform represented by a 4x4 matrix to a mesh
-	//! \ingroup model
     class MUTABLETOOLS_API NodeMeshClipMorphPlane : public NodeMesh
 	{
 	public:
 
-		//-----------------------------------------------------------------------------------------
-		// Life cycle
-		//-----------------------------------------------------------------------------------------
-
 		NodeMeshClipMorphPlane();
-
-		void SerialiseWrapper(OutputArchive& arch) const override;
-		static void Serialise( const NodeMeshClipMorphPlane* pNode, OutputArchive& arch );
-        static NodeMeshClipMorphPlanePtr StaticUnserialise( InputArchive& arch );
 
 		//-----------------------------------------------------------------------------------------
 		// Node Interface
@@ -49,7 +40,6 @@ namespace mu
         NodeMeshPtr GetSource() const;
 		void SetSource( NodeMesh* );
 
-        //! \param 
 		void SetPlane(float centerX, float centerY, float centerZ, float normalX, float normalY, float normalZ);
 		void SetParams(float dist, float factor);
 		void SetMorphEllipse(float radius1, float radius2, float rotation);

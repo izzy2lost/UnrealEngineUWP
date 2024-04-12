@@ -23,15 +23,7 @@ namespace mu
 	{
 	public:
 
-		//-----------------------------------------------------------------------------------------
-		// Life cycle
-		//-----------------------------------------------------------------------------------------
-
 		NodeObjectGroup();
-
-		void SerialiseWrapper(OutputArchive& arch) const override;
-		static void Serialise( const NodeObjectGroup* pNode, OutputArchive& arch );
-		static NodeObjectGroupPtr StaticUnserialise( InputArchive& arch );
 
 
 		//-----------------------------------------------------------------------------------------

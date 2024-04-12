@@ -16,8 +16,6 @@ namespace mu
 
 	class Mesh;
 	class Image;
-	class InputArchive;
-	class OutputArchive;
 
 	/** Types of the values for the table cells. */
 	enum class ETableColumnType : uint32
@@ -39,13 +37,7 @@ namespace mu
 	{
 	public:
 
-		//-----------------------------------------------------------------------------------------
-		// Life cycle.
-		//-----------------------------------------------------------------------------------------
 		Table();
-
-		static void Serialise( const Table* p, OutputArchive& arch );
-		static Ptr<Table> StaticUnserialise( InputArchive& arch );
 
 		//-----------------------------------------------------------------------------------------
 		// Own interface

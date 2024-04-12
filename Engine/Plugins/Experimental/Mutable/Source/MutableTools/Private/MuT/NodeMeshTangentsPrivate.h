@@ -4,7 +4,6 @@
 
 #include "MuT/NodeMeshPrivate.h"
 #include "MuT/NodeMeshTangents.h"
-#include "MuT/AST.h"
 
 
 namespace mu
@@ -18,25 +17,6 @@ namespace mu
 		static FNodeType s_type;
 
 		NodeMeshPtr m_pSource;
-
-		//!
-		void Serialise( OutputArchive& arch ) const
-		{
-            uint32_t ver = 0;
-			arch << ver;
-
-			arch << m_pSource;
-		}
-
-		//!
-		void Unserialise( InputArchive& arch )
-		{
-            uint32_t ver;
-			arch >> ver;
-			check(ver==0);
-
-			arch >> m_pSource;
-		}
 
 		// NodeMesh::Private interface
         NodeLayoutPtr GetLayout( int index ) const override;

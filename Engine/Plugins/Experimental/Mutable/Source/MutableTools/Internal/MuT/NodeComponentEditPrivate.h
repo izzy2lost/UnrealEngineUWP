@@ -29,27 +29,6 @@ namespace mu
 
         TArray<NodeSurfacePtr> m_surfaces;
 
-		//!
-		void Serialise( OutputArchive& arch ) const
-		{
-            uint32_t ver = 2;
-			arch << ver;
-
-			arch << m_pParent;
-            arch << m_surfaces;
-		}
-
-		//!
-		void Unserialise( InputArchive& arch )
-		{
-            uint32_t ver;
-			arch >> ver;
-			check(ver == 2);
-
-            arch >> m_pParent;
-            arch >> m_surfaces;
-		}
-
 
 		// NodeComponent::Private interface
 		const NodeComponentNew::Private* GetParentComponentNew() const override;

@@ -27,21 +27,11 @@ namespace mu
 
 
 	//! Node that defines a string model parameter.
-	//! \ingroup model
 	class MUTABLETOOLS_API NodeStringParameter : public NodeString
 	{
 	public:
 
-		//-----------------------------------------------------------------------------------------
-		// Life cycle
-		//-----------------------------------------------------------------------------------------
-
 		NodeStringParameter();
-
-		void SerialiseWrapper(OutputArchive& arch) const override;
-		static void Serialise( const NodeStringParameter* pNode, OutputArchive& arch );
-		static NodeStringParameterPtr StaticUnserialise( InputArchive& arch );
-
 
 		//-----------------------------------------------------------------------------------------
 		// Node Interface

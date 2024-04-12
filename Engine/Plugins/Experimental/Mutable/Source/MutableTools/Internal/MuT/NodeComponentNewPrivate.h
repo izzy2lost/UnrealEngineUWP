@@ -32,44 +32,6 @@ namespace mu
 
         TArray<NodeSurfacePtr> m_surfaces;
 
-		//!
-		void Serialise( OutputArchive& arch ) const
-		{
-            uint32_t ver = 4;
-			
-			arch << ver;
-
-			arch << m_name;
-			arch << m_id;
-            arch << m_surfaces;
-        }
-
-		//!
-		void Unserialise( InputArchive& arch )
-		{
-            uint32_t ver;
-			arch >> ver;
-			check(ver>=2 && ver<=4);
-
-			if (ver <= 3)
-			{
-				std::string Temp;
-				arch>>Temp;
-				m_name = Temp.c_str();
-			}
-			else
-			{
-				arch >> m_name;
-			}
-
-			if (ver >= 3)
-			{
-				arch >> m_id;
-			}
-
-            arch >> m_surfaces;
-		}
-
 		// NodeComponent::Private interface
         const NodeComponentNew::Private* GetParentComponentNew() const override
 		{

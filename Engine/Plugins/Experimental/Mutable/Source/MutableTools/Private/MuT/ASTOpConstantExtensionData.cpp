@@ -4,7 +4,6 @@
 
 #include "HAL/UnrealMemory.h"
 #include "MuR/ModelPrivate.h"
-#include "MuT/StreamsPrivate.h"
 
 
 namespace mu

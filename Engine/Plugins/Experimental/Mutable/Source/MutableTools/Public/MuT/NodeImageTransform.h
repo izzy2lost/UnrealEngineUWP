@@ -19,9 +19,6 @@ namespace mu
 	typedef Ptr<NodeImageTransform> NodeImageTransformPtr;
 	typedef Ptr<const NodeImageTransform> NodeImageTransformPtrConst;
 
-	class InputArchive;
-	class OutputArchive;
-
 	enum class EAddressMode;
 
 	//! Node that multiplies the colors of an image, channel by channel.
@@ -30,16 +27,7 @@ namespace mu
 	{
 	public:
 
-		//-----------------------------------------------------------------------------------------
-		// Life cycle
-		//-----------------------------------------------------------------------------------------
-
 		NodeImageTransform();
-
-		void SerialiseWrapper(OutputArchive& arch) const override;
-		static void Serialise( const NodeImageTransform* pNode, OutputArchive& arch );
-		static NodeImageTransformPtr StaticUnserialise( InputArchive& arch );
-
 
 		//-----------------------------------------------------------------------------------------
 		// Node Interface

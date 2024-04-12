@@ -22,21 +22,11 @@ namespace mu
 
 
 	//! This node selects an output image from a set of input images based on a parameter.
-	//! \ingroup model
 	class MUTABLETOOLS_API NodeImageSwitch : public NodeImage
 	{
 	public:
 
-		//-----------------------------------------------------------------------------------------
-		// Life cycle
-		//-----------------------------------------------------------------------------------------
-
 		NodeImageSwitch();
-
-		void SerialiseWrapper(OutputArchive& arch) const override;
-		static void Serialise( const NodeImageSwitch* pNode, OutputArchive& arch );
-		static NodeImageSwitchPtr StaticUnserialise( InputArchive& arch );
-
 
 		//-----------------------------------------------------------------------------------------
 		// Node Interface

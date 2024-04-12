@@ -22,7 +22,6 @@
 #include "MuT/ASTOpImageTransform.h"
 #include "MuT/ASTOpImageMipmap.h"
 #include "MuT/ASTOpSwitch.h"
-#include "MuT/StreamsPrivate.h"
 
 namespace mu
 {

@@ -22,14 +22,7 @@ namespace mu
 	{
 	public:
 
-		//-----------------------------------------------------------------------------------------
-		// Life cycle
-		//-----------------------------------------------------------------------------------------
 		NodeExtensionDataSwitch();
-
-		void SerialiseWrapper(OutputArchive& arch) const override;
-		static void Serialise(const NodeExtensionDataSwitch* pNode, OutputArchive& arch);
-		static NodeExtensionDataSwitchPtr StaticUnserialise(InputArchive& arch);
 
 		//-----------------------------------------------------------------------------------------
 		// Node Interface

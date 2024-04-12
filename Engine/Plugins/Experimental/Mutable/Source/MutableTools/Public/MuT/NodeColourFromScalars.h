@@ -27,16 +27,7 @@ namespace mu
 	{
 	public:
 
-		//-----------------------------------------------------------------------------------------
-		// Life cycle
-		//-----------------------------------------------------------------------------------------
-
 		NodeColourFromScalars();
-
-		void SerialiseWrapper(OutputArchive& arch) const override;
-		static void Serialise( const NodeColourFromScalars* pNode, OutputArchive& arch );
-		static NodeColourFromScalarsPtr StaticUnserialise( InputArchive& arch );
-
 
 		//-----------------------------------------------------------------------------------------
 		// Node Interface

@@ -22,21 +22,11 @@ namespace mu
 
 
 	//! Node that morphs a base mesh with one or two weighted targets from a sequence.
-	//! \ingroup model
 	class MUTABLETOOLS_API NodeMeshGeometryOperation : public NodeMesh
 	{
 	public:
 
-		//-----------------------------------------------------------------------------------------
-		// Life cycle
-		//-----------------------------------------------------------------------------------------
-
 		NodeMeshGeometryOperation();
-
-		void SerialiseWrapper(OutputArchive& arch) const override;
-		static void Serialise( const NodeMeshGeometryOperation* pNode, OutputArchive& arch );
-		static NodeMeshGeometryOperationPtr StaticUnserialise( InputArchive& arch );
-
 
 		//-----------------------------------------------------------------------------------------
 		// Node Interface

@@ -17,21 +17,11 @@ namespace mu
 	typedef Ptr<const NodeImageInvert> NodeImageInvertPtrConst;
 
 	//! Node that inverts the colors of an image, channel by channel
-	//! \ingroup model
-
 	class MUTABLETOOLS_API NodeImageInvert : public NodeImage
 	{
 	public:
 
-		//-----------------------------------------------------------------------------------------
-		// Life cycle
-		//-----------------------------------------------------------------------------------------
-
 		NodeImageInvert();
-
-		static void Serialise(const NodeImageInvert* pNode, OutputArchive& arch);
-		void SerialiseWrapper(OutputArchive& arch) const override;
-		static NodeImageInvertPtr StaticUnserialise(InputArchive& arch);
 
 
 		//-----------------------------------------------------------------------------------------

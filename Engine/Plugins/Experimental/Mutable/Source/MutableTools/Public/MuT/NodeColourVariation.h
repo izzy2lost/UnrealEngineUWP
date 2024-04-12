@@ -22,15 +22,8 @@ namespace mu
     class MUTABLETOOLS_API NodeColourVariation : public NodeColour
     {
     public:
-        //-----------------------------------------------------------------------------------------
-        // Life cycle
-        //-----------------------------------------------------------------------------------------
 
         NodeColourVariation();
-
-		void SerialiseWrapper(OutputArchive& arch) const override;
-		static void Serialise( const NodeColourVariation* pNode, OutputArchive& arch );
-        static NodeColourVariationPtr StaticUnserialise( InputArchive& arch );
 
         //-----------------------------------------------------------------------------------------
         // Node Interface

@@ -3,7 +3,6 @@
 
 #pragma once
 
-#include "Math/UnrealMathSSE.h"
 #include "MuR/Ptr.h"
 #include "MuR/RefCounted.h"
 #include "MuT/Node.h"
@@ -15,12 +14,9 @@ namespace mu
 
 	// Forward definitions
 	class NodeScalar;
-	class NodeColour;
 	class NodeMesh;
 	class NodeProjector;
 	class NodeImageProject;
-	class InputArchive;
-	class OutputArchive;
 
 	//!
 	//! \ingroup model
@@ -28,16 +24,7 @@ namespace mu
 	{
 	public:
 
-		//-----------------------------------------------------------------------------------------
-		// Life cycle
-		//-----------------------------------------------------------------------------------------
-
 		NodeImageProject();
-
-		void SerialiseWrapper(OutputArchive& arch) const override;
-		static void Serialise( const NodeImageProject* pNode, OutputArchive& arch );
-		static Ptr<NodeImageProject> StaticUnserialise( InputArchive& arch );
-
 
 		//-----------------------------------------------------------------------------------------
 		// Node Interface

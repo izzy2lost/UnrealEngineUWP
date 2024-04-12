@@ -23,15 +23,7 @@ namespace mu
 	{
 	public:
 
-		//-----------------------------------------------------------------------------------------
-		// Life cycle
-		//-----------------------------------------------------------------------------------------
-
 		NodeStringConstant();
-
-		void SerialiseWrapper(OutputArchive& arch) const override;
-		static void Serialise( const NodeStringConstant* pNode, OutputArchive& arch );
-		static NodeStringConstantPtr StaticUnserialise( InputArchive& arch );
 
 
 		//-----------------------------------------------------------------------------------------

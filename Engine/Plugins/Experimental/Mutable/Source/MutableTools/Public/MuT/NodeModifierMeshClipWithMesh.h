@@ -21,15 +21,7 @@ namespace mu
 	{
 	public:
 
-		//-----------------------------------------------------------------------------------------
-		// Life cycle
-		//-----------------------------------------------------------------------------------------
-
 		NodeModifierMeshClipWithMesh();
-
-		void SerialiseWrapper(OutputArchive& arch) const override;
-		static void Serialise( const NodeModifierMeshClipWithMesh* pNode, OutputArchive& arch );
-		static Ptr<NodeModifierMeshClipWithMesh> StaticUnserialise( InputArchive& arch );
 
 		//-----------------------------------------------------------------------------------------
         // Node interface
@@ -42,7 +34,6 @@ namespace mu
         // Own interface
 		//-----------------------------------------------------------------------------------------
 
-		//! \param 
 		void SetClipMesh(NodeMesh*);
 
 		//-----------------------------------------------------------------------------------------

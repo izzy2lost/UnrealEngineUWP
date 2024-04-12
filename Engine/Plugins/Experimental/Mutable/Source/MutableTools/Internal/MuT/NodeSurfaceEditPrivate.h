@@ -36,19 +36,6 @@ namespace mu
 		{
 			NodeImagePtr m_pExtend;
 			NodePatchImagePtr m_pPatch;
-
-			//!
-			void Serialise( OutputArchive& arch ) const
-			{
-				arch << m_pExtend;
-				arch << m_pPatch;
-			}
-
-			void Unserialise( InputArchive& arch )
-			{
-				arch >> m_pExtend;
-				arch >> m_pPatch;
-			}
 		};
 
 		TArray<FTexture> m_textures;
@@ -58,50 +45,6 @@ namespace mu
 
 		//! Factor of the morph
 		NodeScalarPtr m_pFactor;
-
-		//!
-		void Serialise( OutputArchive& arch ) const
-		{
-            uint32_t ver = 5;
-			arch << ver;
-
-			arch << m_pParent;
-			arch << m_pMesh;
-            arch << m_pMorph;
-            arch << m_morphIsTarget;
-            arch << m_textures;
-            arch << m_tags;
-			arch << m_pFactor;
-        }
-
-		//!
-		void Unserialise( InputArchive& arch )
-		{
-            uint32_t ver;
-			arch >> ver;
-            check( ver>=4 && ver<=5 );
-
-			arch >> m_pParent;
-			arch >> m_pMesh;
-			arch >> m_pMorph;
-            arch >> m_morphIsTarget;
-			arch >> m_textures;
-			if (ver <= 4)
-			{
-				TArray <std::string> Temp;
-				arch >> Temp;
-				m_tags.SetNum(Temp.Num());
-				for (int32 i=0; i<Temp.Num(); ++i)
-				{
-					m_tags[i] = Temp[i].c_str();
-				}
-			}
-			else
-			{
-				arch >> m_tags;
-			}
-			arch >> m_pFactor;
-        }
 	};
 
 }

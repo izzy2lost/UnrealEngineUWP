@@ -26,20 +26,11 @@ namespace mu
 
 
 	//! This node provides the meshes stored in the column of a table.
-	//! \ingroup transform
 	class MUTABLETOOLS_API NodeMeshTable : public NodeMesh
 	{
 	public:
 
-		//-----------------------------------------------------------------------------------------
-		// Life cycle
-		//-----------------------------------------------------------------------------------------
-
 		NodeMeshTable();
-
-		void SerialiseWrapper(OutputArchive& arch) const override;
-		static void Serialise( const NodeMeshTable* pNode, OutputArchive& arch );
-		static NodeMeshTablePtr StaticUnserialise( InputArchive& arch );
 
 
 		//-----------------------------------------------------------------------------------------

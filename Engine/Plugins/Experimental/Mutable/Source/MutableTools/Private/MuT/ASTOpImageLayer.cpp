@@ -2,7 +2,6 @@
 
 #include "MuT/ASTOpImageLayer.h"
 
-#include "MuT/StreamsPrivate.h"
 #include "MuT/ASTOpImagePatch.h"
 #include "MuT/ASTOpImageLayerColor.h"
 #include "MuT/ASTOpImageSwizzle.h"

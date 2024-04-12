@@ -17,20 +17,11 @@ namespace mu
     typedef Ptr<const NodeScalarVariation> NodeScalarVariationPtrConst;
 
 
-    //!
-    //! \ingroup model
-    class MUTABLETOOLS_API NodeScalarVariation : public NodeScalar
+     class MUTABLETOOLS_API NodeScalarVariation : public NodeScalar
     {
     public:
-        //-----------------------------------------------------------------------------------------
-        // Life cycle
-        //-----------------------------------------------------------------------------------------
-
+ 
         NodeScalarVariation();
-
-		void SerialiseWrapper(OutputArchive& arch) const override;
-		static void Serialise( const NodeScalarVariation* pNode, OutputArchive& arch );
-        static NodeScalarVariationPtr StaticUnserialise( InputArchive& arch );
 
         //-----------------------------------------------------------------------------------------
         // Node Interface

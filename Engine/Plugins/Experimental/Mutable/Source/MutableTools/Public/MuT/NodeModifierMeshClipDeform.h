@@ -28,15 +28,7 @@ namespace mu
 	{
 	public:
 
-		//-----------------------------------------------------------------------------------------
-		// Life cycle
-		//-----------------------------------------------------------------------------------------
-
 		NodeModifierMeshClipDeform();
-
-		void SerialiseWrapper(OutputArchive& arch) const override;
-		static void Serialise( const NodeModifierMeshClipDeform* pNode, OutputArchive& arch );
-		static NodeModifierMeshClipDeformPtr StaticUnserialise( InputArchive& arch );
 
 		//-----------------------------------------------------------------------------------------
         // Node interface
@@ -49,7 +41,6 @@ namespace mu
         // Own interface
 		//-----------------------------------------------------------------------------------------
 
-		//! \param 
 		void SetClipMesh( NodeMesh* InClipMesh);
 		void SetBindingMethod(EShapeBindingMethod BindingMethod);
 	

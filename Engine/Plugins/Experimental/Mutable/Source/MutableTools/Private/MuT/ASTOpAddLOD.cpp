@@ -5,7 +5,6 @@
 #include "HAL/PlatformMath.h"
 #include "MuR/ModelPrivate.h"
 #include "MuR/RefCounted.h"
-#include "MuT/StreamsPrivate.h"
 
 
 namespace mu

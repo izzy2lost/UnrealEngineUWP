@@ -16,9 +16,6 @@ namespace mu
 	typedef Ptr<NodeImageLuminance> NodeImageLuminancePtr;
 	typedef Ptr<const NodeImageLuminance> NodeImageLuminancePtrConst;
 
-	class InputArchive;
-	class OutputArchive;
-
 
 	//! Calculate the luminance of an image into a new single-channel image..
 	//! \ingroup model
@@ -26,16 +23,7 @@ namespace mu
 	{
 	public:
 
-		//-----------------------------------------------------------------------------------------
-		// Life cycle
-		//-----------------------------------------------------------------------------------------
-
 		NodeImageLuminance();
-
-		void SerialiseWrapper(OutputArchive& arch) const override;
-		static void Serialise( const NodeImageLuminance* pNode, OutputArchive& arch );
-		static NodeImageLuminancePtr StaticUnserialise( InputArchive& arch );
-
 
 		//-----------------------------------------------------------------------------------------
 		// Node Interface

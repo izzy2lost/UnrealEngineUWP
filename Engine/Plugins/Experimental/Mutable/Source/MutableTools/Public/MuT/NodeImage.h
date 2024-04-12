@@ -57,13 +57,6 @@ namespace mu
 			None
 		};
 
-		//-----------------------------------------------------------------------------------------
-		// Life cycle
-		//-----------------------------------------------------------------------------------------
-
-		static void Serialise( const NodeImage* pNode, OutputArchive& arch );
-		static NodeImagePtr StaticUnserialise( InputArchive& arch );
-
 
 		//-----------------------------------------------------------------------------------------
 		// Node Interface

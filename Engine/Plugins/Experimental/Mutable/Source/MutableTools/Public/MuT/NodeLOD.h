@@ -1,6 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-
 #pragma once
 
 #include "MuR/Ptr.h"
@@ -26,21 +25,11 @@ namespace mu
 
 
 	//! Node that creates a new level of detail by assembling several object components.
-	//! \ingroup model
 	class MUTABLETOOLS_API NodeLOD : public Node
 	{
 	public:
 
-		//-----------------------------------------------------------------------------------------
-		// Life cycle
-		//-----------------------------------------------------------------------------------------
-
 		NodeLOD();
-
-		void SerialiseWrapper(OutputArchive& arch) const override;
-		static void Serialise( const NodeLOD* pNode, OutputArchive& arch );
-		static NodeLODPtr StaticUnserialise( InputArchive& arch );
-
 
 		//-----------------------------------------------------------------------------------------
 		// Node Interface

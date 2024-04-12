@@ -41,20 +41,11 @@ namespace mu
 	//! This node modifies a node of the parent object of the object that this node belongs to.
     //! It allows to extend, cut and morph the parent Surface's meshes.
     //! It also allows to patch the parent Surface's textures.
-	//! \ingroup model
     class MUTABLETOOLS_API NodeSurfaceEdit : public NodeSurface
 	{
 	public:
 
-		//-----------------------------------------------------------------------------------------
-		// Life cycle
-		//-----------------------------------------------------------------------------------------
-
         NodeSurfaceEdit();
-
-		void SerialiseWrapper(OutputArchive& arch) const override;
-		static void Serialise( const NodeSurfaceEdit* pNode, OutputArchive& arch );
-        static NodeSurfaceEditPtr StaticUnserialise( InputArchive& arch );
 
 		//-----------------------------------------------------------------------------------------
 		// Node Interface

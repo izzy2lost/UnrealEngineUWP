@@ -20,27 +20,15 @@ namespace mu
 	typedef Ptr<Table> TablePtr;
 	typedef Ptr<const Table> TablePtrConst;
 
-	class InputArchive;
-	class OutputArchive;
 	struct FImageDesc;
 
 
 	//! This node provides the meshes stored in the column of a table.
-	//! \ingroup transform
 	class MUTABLETOOLS_API NodeImageTable : public NodeImage
 	{
 	public:
 
-		//-----------------------------------------------------------------------------------------
-		// Life cycle
-		//-----------------------------------------------------------------------------------------
-
 		NodeImageTable();
-
-		void SerialiseWrapper(OutputArchive& arch) const override;
-		static void Serialise( const NodeImageTable* pNode, OutputArchive& arch );
-		static NodeImageTablePtr StaticUnserialise( InputArchive& arch );
-
 
 		//-----------------------------------------------------------------------------------------
 		// Node Interface

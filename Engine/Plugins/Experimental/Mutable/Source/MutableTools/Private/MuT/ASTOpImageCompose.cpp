@@ -14,7 +14,6 @@
 #include "MuR/Types.h"
 #include "MuT/ASTOpConstantResource.h"
 #include "MuT/ASTOpImagePixelFormat.h"
-#include "MuT/StreamsPrivate.h"
 
 
 namespace mu

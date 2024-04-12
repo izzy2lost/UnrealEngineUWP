@@ -18,20 +18,11 @@ namespace mu
 
 
 	//! This node removes from a mesh A all the faces that are also part of a mesh B.
-	//! \ingroup model
     class MUTABLETOOLS_API NodeMeshMakeMorph : public NodeMesh
 	{
 	public:
 
-		//-----------------------------------------------------------------------------------------
-		// Life cycle
-		//-----------------------------------------------------------------------------------------
-
         NodeMeshMakeMorph();
-
-		void SerialiseWrapper(OutputArchive& arch) const override;
-		static void Serialise( const NodeMeshMakeMorph* pNode, OutputArchive& arch );
-        static NodeMeshMakeMorphPtr StaticUnserialise( InputArchive& arch );
 
 		//-----------------------------------------------------------------------------------------
 		// Node Interface

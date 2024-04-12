@@ -22,21 +22,11 @@ namespace mu
 
 
 	//! This node provides the meshes stored in the column of a table.
-	//! \ingroup transform
 	class MUTABLETOOLS_API NodeScalarTable : public NodeScalar
 	{
 	public:
 
-		//-----------------------------------------------------------------------------------------
-		// Life cycle
-		//-----------------------------------------------------------------------------------------
-
 		NodeScalarTable();
-
-		void SerialiseWrapper(OutputArchive& arch) const override;
-		static void Serialise( const NodeScalarTable* pNode, OutputArchive& arch );
-		static NodeScalarTablePtr StaticUnserialise( InputArchive& arch );
-
 
 		//-----------------------------------------------------------------------------------------
 		// Node Interface

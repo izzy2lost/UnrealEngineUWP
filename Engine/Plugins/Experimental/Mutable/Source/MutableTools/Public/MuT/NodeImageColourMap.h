@@ -16,9 +16,6 @@ namespace mu
 	typedef Ptr<NodeImageColourMap> NodeImageColourMapPtr;
 	typedef Ptr<const NodeImageColourMap> NodeImageColourMapPtrConst;
 
-	class InputArchive;
-	class OutputArchive;
-
 
 	//! This node changes the colours of a selectd part of the image, applying a colour map from
 	//! conteined in another image.
@@ -27,15 +24,7 @@ namespace mu
 	{
 	public:
 
-		//-----------------------------------------------------------------------------------------
-		// Life cycle
-		//-----------------------------------------------------------------------------------------
-
 		NodeImageColourMap();
-
-		void SerialiseWrapper(OutputArchive& arch) const override;
-		static void Serialise( const NodeImageColourMap* pNode, OutputArchive& arch );
-		static NodeImageColourMapPtr StaticUnserialise( InputArchive& arch );
 
 
 		//-----------------------------------------------------------------------------------------

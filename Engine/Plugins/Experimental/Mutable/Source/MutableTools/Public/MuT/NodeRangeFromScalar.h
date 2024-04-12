@@ -13,8 +13,6 @@ namespace mu
     class NodeScalar;
 
 
-	//! 
-	//! \ingroup model
     class MUTABLETOOLS_API NodeRangeFromScalar : public NodeRange
 	{
 	public:
@@ -24,10 +22,6 @@ namespace mu
 		//-----------------------------------------------------------------------------------------
 
         NodeRangeFromScalar();
-
-		void SerialiseWrapper(OutputArchive& arch) const override;
-		static void Serialise( const NodeRangeFromScalar* pNode, OutputArchive& arch );
-        static Ptr<NodeRangeFromScalar> StaticUnserialise( InputArchive& arch );
 
 
 		//-----------------------------------------------------------------------------------------

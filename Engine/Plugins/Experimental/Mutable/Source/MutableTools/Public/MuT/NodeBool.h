@@ -32,13 +32,6 @@ namespace mu
 			None
 		};
 
-		//-----------------------------------------------------------------------------------------
-		// Life cycle
-		//-----------------------------------------------------------------------------------------
-
-		static void Serialise( const NodeBool* pNode, OutputArchive& arch );
-		static Ptr<NodeBool> StaticUnserialise( InputArchive& arch );
-
 
 		//-----------------------------------------------------------------------------------------
 		// Node Interface
@@ -72,15 +65,7 @@ namespace mu
 	{
 	public:
 
-		//-----------------------------------------------------------------------------------------
-		// Life cycle
-		//-----------------------------------------------------------------------------------------
-
 		NodeBoolConstant();
-
-		static void Serialise( const NodeBoolConstant* pNode, OutputArchive& arch );
-		void SerialiseWrapper(OutputArchive& arch) const override;
-		static Ptr<NodeBoolConstant> StaticUnserialise( InputArchive& arch );
 
 
 		//-----------------------------------------------------------------------------------------
@@ -127,16 +112,7 @@ namespace mu
 	{
 	public:
 
-		//-----------------------------------------------------------------------------------------
-		// Life cycle
-		//-----------------------------------------------------------------------------------------
-
 		NodeBoolParameter();
-
-		void SerialiseWrapper(OutputArchive& arch) const override;
-		static void Serialise( const NodeBoolParameter* pNode, OutputArchive& arch );
-		static Ptr<NodeBoolParameter> StaticUnserialise( InputArchive& arch );
-
 
 		//-----------------------------------------------------------------------------------------
 		// Node Interface
@@ -187,16 +163,7 @@ namespace mu
 	{
 	public:
 
-		//-----------------------------------------------------------------------------------------
-		// Life cycle
-		//-----------------------------------------------------------------------------------------
-
 		NodeBoolNot();
-
-		void SerialiseWrapper(OutputArchive& arch) const override;
-		static void Serialise( const NodeBoolNot* pNode, OutputArchive& arch );
-		static Ptr<NodeBoolNot> StaticUnserialise( InputArchive& arch );
-
 
 		//-----------------------------------------------------------------------------------------
 		// Node Interface
@@ -240,16 +207,7 @@ namespace mu
 	{
 	public:
 
-		//-----------------------------------------------------------------------------------------
-		// Life cycle
-		//-----------------------------------------------------------------------------------------
-
 		NodeBoolAnd();
-
-		void SerialiseWrapper(OutputArchive& arch) const override;
-		static void Serialise( const NodeBoolAnd* pNode, OutputArchive& arch );
-		static Ptr<NodeBoolAnd> StaticUnserialise( InputArchive& arch );
-
 
 		//-----------------------------------------------------------------------------------------
 		// Node Interface

@@ -9,62 +9,13 @@
 #include "MuR/MeshBufferSet.h"
 #include "MuR/MeshPrivate.h"
 #include "MuR/MutableMath.h"
-#include "MuR/Serialisation.h"
-#include "MuR/SerialisationPrivate.h"
 #include "MuT/NodeLayoutPrivate.h"
-#include "MuT/NodePrivate.h"
 
 
 namespace mu
 {
 
-	//---------------------------------------------------------------------------------------------
-	//---------------------------------------------------------------------------------------------
-	//---------------------------------------------------------------------------------------------
-	// Static initialisation
-	//---------------------------------------------------------------------------------------------
 	static FNodeType s_nodeLayoutType = FNodeType( "NodeLayout", Node::GetStaticType() );
-
-
-	//---------------------------------------------------------------------------------------------
-	void NodeLayout::Serialise( const NodeLayout* p, OutputArchive& arch )
-	{
-        uint32 ver = 0;
-		arch << ver;
-
-	#define SERIALISE_CHILDREN( C, ID ) \
-		( p->GetType()==C::GetStaticType() )					\
-		{ 														\
-			const C* pTyped = static_cast<const C*>(p);			\
-            arch << (uint32_t)ID;								\
-			C::Serialise( pTyped, arch );						\
-		}														\
-
-		if SERIALISE_CHILDREN( NodeLayoutBlocks				, 0 )
-		//else if SERIALISE_CHILDREN( NodeMeshIdentity		, 1 )
-
-#undef SERIALISE_CHILDREN
-	}
-
-
-	//---------------------------------------------------------------------------------------------
-	NodeLayoutPtr NodeLayout::StaticUnserialise( InputArchive& arch )
-	{
-        uint32 ver;
-		arch >> ver;
-		check( ver == 0 );
-
-        uint32 id;
-		arch >> id;
-
-		switch (id)
-		{
-		case 0 :  return NodeLayoutBlocks::StaticUnserialise( arch ); break;
-		default : check(false);
-		}
-
-		return 0;
-	}
 
 
 	//---------------------------------------------------------------------------------------------
@@ -81,14 +32,8 @@ namespace mu
 	}
 
 
-
 	//---------------------------------------------------------------------------------------------
-	//---------------------------------------------------------------------------------------------
-	//---------------------------------------------------------------------------------------------
-	// Static initialisation
-	//---------------------------------------------------------------------------------------------
-	FNodeType NodeLayoutBlocks::Private::s_type =
-			FNodeType( "LayoutBlocks", NodeLayout::GetStaticType() );
+	FNodeType NodeLayoutBlocks::Private::s_type = FNodeType( "LayoutBlocks", NodeLayout::GetStaticType() );
 
 
 	//---------------------------------------------------------------------------------------------

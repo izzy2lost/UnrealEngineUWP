@@ -28,20 +28,11 @@ namespace mu
 	//! - if three meshes are set, the first one is 0.0 the second one is 0.5 and the third one 1.0
 	//! regardless of the input slots used: If B and C are set, but not A, B will be at weight 0
 	//! and C will be at weight 1
-	//! \ingroup model
 	class MUTABLETOOLS_API NodeMeshInterpolate : public NodeMesh
 	{
 	public:
 
-		//-----------------------------------------------------------------------------------------
-		// Life cycle
-		//-----------------------------------------------------------------------------------------
-
 		NodeMeshInterpolate();
-
-		void SerialiseWrapper(OutputArchive& arch) const override;
-		static void Serialise( const NodeMeshInterpolate* pNode, OutputArchive& arch );
-		static NodeMeshInterpolatePtr StaticUnserialise( InputArchive& arch );
 
 
 		//-----------------------------------------------------------------------------------------

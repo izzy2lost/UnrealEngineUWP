@@ -17,18 +17,11 @@ namespace mu
 	typedef Ptr<const NodeImageNormalComposite> NodeImageNormalCompositePtrConst;
 
 	//! Node that inverts the colors of an image, channel by channel
-	//! \ingroup model
-
 	class MUTABLETOOLS_API NodeImageNormalComposite : public NodeImage
 	{
 	public:
 
 		NodeImageNormalComposite();
-
-		void SerialiseWrapper(OutputArchive& arch) const override;
-		static void Serialise(const NodeImageNormalComposite* pNode, OutputArchive& arch);
-		static NodeImageNormalCompositePtr StaticUnserialise(InputArchive& arch);
-
 
 		//-----------------------------------------------------------------------------------------
 		// Node Interface

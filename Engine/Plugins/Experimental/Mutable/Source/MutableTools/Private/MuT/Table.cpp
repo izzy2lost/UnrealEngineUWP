@@ -34,22 +34,6 @@ namespace mu
 	}
 
 
-	//---------------------------------------------------------------------------------------------
-	void Table::Serialise( const Table* p, OutputArchive& arch )
-	{
-		arch << *p->m_pD;
-	}
-
-
-	//---------------------------------------------------------------------------------------------
-	Ptr<Table> Table::StaticUnserialise( InputArchive& arch )
-	{
-		Ptr<Table> pResult = new Table();
-		arch >> *pResult->m_pD;
-		return pResult;
-	}
-
-
 	Table::Private* Table::GetPrivate() const
 	{
 		return m_pD;

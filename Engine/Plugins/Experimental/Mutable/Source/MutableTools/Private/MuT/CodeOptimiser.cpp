@@ -4,7 +4,6 @@
 
 #include "MuT/ErrorLogPrivate.h"
 #include "MuT/AST.h"
-#include "MuT/StreamsPrivate.h"
 #include "MuT/ASTOpInstanceAdd.h"
 #include "MuT/ASTOpConditional.h"
 #include "MuT/ASTOpSwitch.h"

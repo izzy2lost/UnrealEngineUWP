@@ -16,21 +16,13 @@ namespace mu
     typedef Ptr<NodeMeshVariation> NodeMeshVariationPtr;
     typedef Ptr<const NodeMeshVariation> NodeMeshVariationPtrConst;
 
-
     //!
     //! \ingroup model
     class MUTABLETOOLS_API NodeMeshVariation : public NodeMesh
     {
     public:
-        //-----------------------------------------------------------------------------------------
-        // Life cycle
-        //-----------------------------------------------------------------------------------------
 
         NodeMeshVariation();
-
-		void SerialiseWrapper(OutputArchive& arch) const override;
-		static void Serialise( const NodeMeshVariation* pNode, OutputArchive& arch );
-        static NodeMeshVariationPtr StaticUnserialise( InputArchive& arch );
 
         //-----------------------------------------------------------------------------------------
         // Node Interface

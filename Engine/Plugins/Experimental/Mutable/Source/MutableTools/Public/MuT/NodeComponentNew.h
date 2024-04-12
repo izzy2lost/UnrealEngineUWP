@@ -32,15 +32,7 @@ namespace mu
 	{
 	public:
 
-		//-----------------------------------------------------------------------------------------
-		// Life cycle
-		//-----------------------------------------------------------------------------------------
-
 		NodeComponentNew();
-
-		void SerialiseWrapper(OutputArchive& arch) const override;
-		static void Serialise( const NodeComponentNew* pNode, OutputArchive& arch );
-		static NodeComponentNewPtr StaticUnserialise( InputArchive& arch );
 
 		//-----------------------------------------------------------------------------------------
         // Node interface

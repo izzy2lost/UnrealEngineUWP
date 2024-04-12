@@ -17,9 +17,6 @@ namespace mu
     typedef Ptr<NodeImageConstant> NodeImageConstantPtr;
     typedef Ptr<const NodeImageConstant> NodeImageConstantPtrConst;
 
-	class InputArchive;
-	class OutputArchive;
-
 
 	/** Node that outputs a constant image.
 	* This node also supports "image references".
@@ -28,15 +25,7 @@ namespace mu
 	{
 	public:
 
-		//-----------------------------------------------------------------------------------------
-		// Life cycle
-		//-----------------------------------------------------------------------------------------
-
 		NodeImageConstant();
-
-		void SerialiseWrapper(OutputArchive& arch) const override;
-		static void Serialise( const NodeImageConstant* pNode, OutputArchive& arch );
-		static NodeImageConstantPtr StaticUnserialise( InputArchive& arch );
 
 		//-----------------------------------------------------------------------------------------
 		// Node Interface

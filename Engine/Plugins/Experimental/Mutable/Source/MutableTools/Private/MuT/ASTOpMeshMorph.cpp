@@ -2,7 +2,6 @@
 
 #include "MuT/ASTOpMeshMorph.h"
 
-#include "MuT/StreamsPrivate.h"
 #include "MuT/ASTOpMeshAddTags.h"
 #include "MuR/ModelPrivate.h"
 #include "MuR/RefCounted.h"

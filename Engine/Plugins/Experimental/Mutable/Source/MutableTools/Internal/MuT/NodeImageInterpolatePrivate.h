@@ -18,27 +18,6 @@ namespace mu
 
 		NodeScalarPtr m_pFactor;
 		TArray<NodeImagePtr> m_targets;
-
-		//!
-		void Serialise( OutputArchive& arch ) const
-		{
-            uint32_t ver = 0;
-			arch << ver;
-
-			arch << m_pFactor;
-			arch << m_targets;
-		}
-
-		//!
-		void Unserialise( InputArchive& arch )
-		{
-            uint32_t ver;
-			arch >> ver;
-			check(ver==0);
-
-			arch >> m_pFactor;
-			arch >> m_targets;
-		}
 	};
 
 

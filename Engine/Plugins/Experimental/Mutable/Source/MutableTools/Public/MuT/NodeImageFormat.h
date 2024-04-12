@@ -17,9 +17,6 @@ namespace mu
 	typedef Ptr<NodeImageFormat> NodeImageFormatPtr;
 	typedef Ptr<const NodeImageFormat> NodeImageFormatPtrConst;
 
-	class InputArchive;
-	class OutputArchive;
-
 
 	//! Node that composes a new image by gathering pixel data from channels in other images.
 	//! \ingroup model
@@ -27,15 +24,7 @@ namespace mu
 	{
 	public:
 
-		//-----------------------------------------------------------------------------------------
-		// Life cycle
-		//-----------------------------------------------------------------------------------------
-
 		NodeImageFormat();
-
-		void SerialiseWrapper(OutputArchive& arch) const override;
-		static void Serialise( const NodeImageFormat* pNode, OutputArchive& arch );
-		static NodeImageFormatPtr StaticUnserialise( InputArchive& arch );
 
 
 		//-----------------------------------------------------------------------------------------

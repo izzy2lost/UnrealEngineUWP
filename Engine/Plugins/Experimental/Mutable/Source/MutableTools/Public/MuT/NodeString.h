@@ -18,7 +18,6 @@ namespace mu
 
 
     //! %Base class of any node that outputs a string value.
-	//! \ingroup model
 	class MUTABLETOOLS_API NodeString : public Node
 	{
 	public:
@@ -31,14 +30,6 @@ namespace mu
 
 			None
 		};
-
-		//-----------------------------------------------------------------------------------------
-		// Life cycle
-		//-----------------------------------------------------------------------------------------
-
-		static void Serialise( const NodeString* pNode, OutputArchive& arch );
-		static NodeStringPtr StaticUnserialise( InputArchive& arch );
-
 
 		//-----------------------------------------------------------------------------------------
 		// Node Interface

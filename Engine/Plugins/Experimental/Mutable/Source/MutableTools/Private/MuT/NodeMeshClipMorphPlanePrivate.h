@@ -4,7 +4,6 @@
 
 #include "MuT/NodeMeshPrivate.h"
 #include "MuT/NodeMeshClipMorphPlane.h"
-#include "MuT/AST.h"
 
 #include "MuR/MutableMath.h"
 #include "MuR/Skeleton.h"
@@ -67,81 +66,6 @@ namespace mu
 		// Max distance a vertex can have to the bone in order to be affected. A negative value
 		// means no limit.
 		float m_maxEffectRadius;
-
-		//!
-		void Serialise( OutputArchive& arch ) const
-		{
-            uint32 ver = 6;
-			arch << ver;
-
-			arch << m_pSource;
-			arch << m_origin;
-			arch << m_normal;
-			arch << m_dist;
-			arch << m_factor;
-			arch << m_radius1;
-			arch << m_radius2;
-			arch << m_rotation;
-			arch << m_vertexSelectionType;
-			arch << m_selectionBoxOrigin;
-			arch << m_selectionBoxRadius;
-			arch << m_tags;
-			arch << m_vertexSelectionBone;
-			arch << m_maxEffectRadius;
-		}
-
-		//!
-		void Unserialise( InputArchive& arch )
-		{
-            uint32 ver;
-			arch >> ver;
-            check(ver>=3&&ver<=5);
-
-			arch >> m_pSource;
-			arch >> m_origin;
-			arch >> m_normal;
-			arch >> m_dist;
-			arch >> m_factor;
-			arch >> m_radius1;
-			arch >> m_radius2;
-			arch >> m_rotation;
-			arch >> m_vertexSelectionType;
-			arch >> m_selectionBoxOrigin;
-			arch >> m_selectionBoxRadius;
-
-			if (ver >= 5)
-			{
-				arch >> m_tags;
-			}
-			else
-			{
-				TArray<std::string> Temp;
-				arch >> Temp;
-				m_tags.SetNum(Temp.Num());
-				for (int32 i=0;i<Temp.Num();++i)
-				{
-					m_tags[i] = Temp[i].c_str();
-				}
-			}
-
-			if (ver >= 6)
-			{
-				arch >> m_vertexSelectionBone;
-			}
-			else if (ver >= 4)
-			{
-				uint16 BoneId = 0;
-				arch >> BoneId;
-				m_vertexSelectionBone.Id = BoneId;
-			}
-			else
-			{
-				string OldVertexSelectionBone;
-				arch >> OldVertexSelectionBone;
-				m_vertexSelectionBone.Id = 0;
-			}
-			arch >> m_maxEffectRadius;
-		}
 
         // NodeMesh::Private interface
         NodeLayoutPtr GetLayout( int index ) const override;

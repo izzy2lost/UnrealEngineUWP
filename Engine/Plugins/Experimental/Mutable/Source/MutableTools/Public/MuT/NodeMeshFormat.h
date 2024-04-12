@@ -11,25 +11,14 @@ namespace mu
 {
 
 	// Forward definitions
-	class InputArchive;
 	class FMeshBufferSet;
-	class OutputArchive;
 
-	/** This node can change the buffer formats of a mesh vertices, indices and faces.
-	*/
+	/** This node can change the buffer formats of a mesh vertices, indices and faces. */
 	class MUTABLETOOLS_API NodeMeshFormat : public NodeMesh
 	{
 	public:
 
-		//-----------------------------------------------------------------------------------------
-		// Life cycle
-		//-----------------------------------------------------------------------------------------
-
 		NodeMeshFormat();
-
-		void SerialiseWrapper(OutputArchive& arch) const override;
-		static void Serialise( const NodeMeshFormat* pNode, OutputArchive& arch );
-		static Ptr<NodeMeshFormat> StaticUnserialise( InputArchive& arch );
 
 		//-----------------------------------------------------------------------------------------
 		// Node Interface

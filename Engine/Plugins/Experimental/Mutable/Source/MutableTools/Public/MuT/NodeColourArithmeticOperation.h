@@ -4,7 +4,6 @@
 
 #include "MuR/Ptr.h"
 #include "MuR/RefCounted.h"
-#include "MuR/Serialisation.h"
 #include "MuT/Node.h"
 #include "MuT/NodeColour.h"
 
@@ -24,16 +23,7 @@ namespace mu
 	{
 	public:
 
-		//-----------------------------------------------------------------------------------------
-		// Life cycle
-		//-----------------------------------------------------------------------------------------
-
 		NodeColourArithmeticOperation();
-
-		void SerialiseWrapper(OutputArchive& arch) const override;
-		static void Serialise( const NodeColourArithmeticOperation* pNode, OutputArchive& arch );
-		static NodeColourArithmeticOperationPtr StaticUnserialise( InputArchive& arch );
-
 
 		//-----------------------------------------------------------------------------------------
 		// Node Interface
@@ -91,7 +81,5 @@ namespace mu
 
 	};
 
-
-	MUTABLE_DEFINE_ENUM_SERIALISABLE(NodeColourArithmeticOperation::OPERATION)
 	
 }

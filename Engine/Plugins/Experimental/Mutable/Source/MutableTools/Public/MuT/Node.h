@@ -5,14 +5,6 @@
 #include "HAL/Platform.h"
 #include "MuR/RefCounted.h"
 
-namespace mu { class InputArchive; }
-namespace mu { class OutputArchive; }
-
-
-//! This tag is used to identify files containing serialised Node hierarchies. The tag is not added
-//! or checked by the Node serialisation methods, but the involved tools should take care of it.
-#define MUTABLE_SOURCE_MODEL_FILETAG	"amsm"
-
 
 namespace mu
 {
@@ -38,9 +30,7 @@ namespace mu
 	typedef Ptr<const NodeMap> NodeMapPtrConst;
 
 
-	//! Information about the type of a node, to provide some means to the tools to deal generically
-	//! with nodes.
-	//! \ingroup tools
+	/** Information about the type of a node, to provide some means to the tools to deal generically with nodes. */
 	struct FNodeType
 	{
 		FNodeType();
@@ -64,7 +54,6 @@ namespace mu
 			return false;
 		}
 	};
-
 
 
     //! %Base class for all graphs used in the source data to define models and transforms.
@@ -96,15 +85,6 @@ namespace mu
 
 			None
 		};
-
-		//-----------------------------------------------------------------------------------------
-		// Life cycle
-		//-----------------------------------------------------------------------------------------
-
-		static void Serialise( const Node* pNode, OutputArchive& arch );
-		virtual void SerialiseWrapper(OutputArchive& arch) const = 0;
-		static Ptr<Node> StaticUnserialise( InputArchive& arch );
-
 
 		//-----------------------------------------------------------------------------------------
 		// Own Interface

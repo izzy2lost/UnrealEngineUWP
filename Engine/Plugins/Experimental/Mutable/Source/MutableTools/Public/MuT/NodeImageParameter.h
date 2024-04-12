@@ -10,8 +10,6 @@
 
 namespace mu
 {
-	class InputArchive;
-	class OutputArchive;
 	class NodeRange;
 
     //! Node that defines a Image model parameter.
@@ -20,16 +18,7 @@ namespace mu
 	{
 	public:
 
-		//-----------------------------------------------------------------------------------------
-		// Life cycle
-		//-----------------------------------------------------------------------------------------
-
         NodeImageParameter();
-
-		void SerialiseWrapper(OutputArchive& arch) const override;
-		static void Serialise( const NodeImageParameter* pNode, OutputArchive& arch );
-        static Ptr<NodeImageParameter> StaticUnserialise( InputArchive& arch );
-
 
 		//-----------------------------------------------------------------------------------------
 		// Node Interface

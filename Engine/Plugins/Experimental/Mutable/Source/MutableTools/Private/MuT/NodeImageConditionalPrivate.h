@@ -6,8 +6,6 @@
 #include "MuT/NodeImageConditional.h"
 #include "MuT/NodeImagePrivate.h"
 #include "MuT/NodeBool.h"
-#include "MuT/AST.h"
-
 
 namespace mu
 {
@@ -23,28 +21,6 @@ namespace mu
         NodeImagePtr m_true;
         NodeImagePtr m_false;
 
-		//!
-		void Serialise( OutputArchive& arch ) const
-		{
-            uint32_t ver = 0;
-			arch << ver;
-
-            arch << m_parameter;
-            arch << m_true;
-            arch << m_false;
-        }
-
-		//!
-		void Unserialise( InputArchive& arch )
-		{
-            uint32_t ver;
-			arch >> ver;
-			check(ver==0);
-
-            arch >> m_parameter;
-            arch >> m_true;
-            arch >> m_false;
-        }
 	};
 
 

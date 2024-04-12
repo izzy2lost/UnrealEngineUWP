@@ -33,60 +33,6 @@ namespace mu
 		bool bEnableTextureSeamCorrection = true;
 		ESamplingMethod SamplingMethod = ESamplingMethod::Point;
 		EMinFilterMethod MinFilterMethod = EMinFilterMethod::None;
-
-		//!
-		void Serialise( OutputArchive& arch ) const
-		{
-            uint32 ver = 5;
-			arch << ver;
-
-			arch << m_pProjector;
-			arch << m_pMesh;
-			arch << m_pAngleFadeStart;
-			arch << m_pAngleFadeEnd;
-			arch << m_pImage;
-            arch << m_pMask;
-            arch << m_layout;
-			arch << m_imageSize;
-			arch << bIsRGBFadingEnabled;
-			arch << bIsAlphaFadingEnabled;
-			arch << bEnableTextureSeamCorrection;
-			arch << SamplingMethod;
-			arch << MinFilterMethod;
-		}
-
-		//!
-		void Unserialise( InputArchive& arch )
-		{
-            uint32 ver;
-			arch >> ver;
-            check(ver>=2 && ver<=5);
-
-			arch >> m_pProjector;
-			arch >> m_pMesh;
-			arch >> m_pAngleFadeStart;
-			arch >> m_pAngleFadeEnd;
-			arch >> m_pImage;
-			arch >> m_pMask;
-            arch >> m_layout;
-			arch >> m_imageSize;
-			if (ver >= 3)
-			{
-				arch >> bIsRGBFadingEnabled;
-				arch >> bIsAlphaFadingEnabled;
-			}
-
-			if (ver >= 5)
-			{
-				arch >> bEnableTextureSeamCorrection;
-			}
-
-			if (ver >= 4)
-			{
-				arch >> SamplingMethod;
-				arch >> MinFilterMethod;
-			}
-		}
 	};
 
 

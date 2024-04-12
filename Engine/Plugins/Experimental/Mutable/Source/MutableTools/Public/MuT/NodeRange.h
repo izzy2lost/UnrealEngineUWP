@@ -18,7 +18,6 @@ namespace mu
 
 
     //! %Base class of any node that outputs a range.
-	//! \ingroup model
     class MUTABLETOOLS_API NodeRange : public Node
 	{
 	public:
@@ -30,13 +29,6 @@ namespace mu
 
 			None
 		};
-
-		//-----------------------------------------------------------------------------------------
-		// Life cycle
-		//-----------------------------------------------------------------------------------------
-
-        static void Serialise( const NodeRange* pNode, OutputArchive& arch );
-        static NodeRangePtr StaticUnserialise( InputArchive& arch );
 
 
 		//-----------------------------------------------------------------------------------------

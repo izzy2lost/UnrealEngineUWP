@@ -42,20 +42,11 @@ namespace mu
 
 
     //! This node makes a new Surface from several meshes and images.
-	//! \ingroup model
     class MUTABLETOOLS_API NodeSurfaceNew : public NodeSurface
 	{
 	public:
 
-		//-----------------------------------------------------------------------------------------
-		// Life cycle
-		//-----------------------------------------------------------------------------------------
-
         NodeSurfaceNew();
-
-		void SerialiseWrapper(OutputArchive& arch) const override;
-		static void Serialise( const NodeSurfaceNew* pNode, OutputArchive& arch );
-        static NodeSurfaceNewPtr StaticUnserialise( InputArchive& arch );
 
 		//-----------------------------------------------------------------------------------------
 		// Node Interface

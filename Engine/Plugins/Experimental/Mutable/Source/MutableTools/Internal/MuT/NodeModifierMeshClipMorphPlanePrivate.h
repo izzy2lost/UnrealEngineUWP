@@ -4,7 +4,6 @@
 
 #include "MuT/NodeModifierPrivate.h"
 #include "MuT/NodeModifierMeshClipMorphPlane.h"
-#include "MuT/AST.h"
 
 #include "MuR/MutableMath.h"
 #include "MuR/Skeleton.h"
@@ -61,66 +60,6 @@ namespace mu
 		// Max distance a vertex can have to the bone in order to be affected. A negative value
 		// means no limit.
 		float m_maxEffectRadius;
-
-        //!
-        void Serialise( OutputArchive& arch ) const
-        {
-            NodeModifier::Private::Serialise(arch);
-
-			uint32 ver = 4;
-            arch << ver;
-
-            arch << m_origin;
-            arch << m_normal;
-            arch << m_dist;
-            arch << m_factor;
-            arch << m_radius1;
-            arch << m_radius2;
-            arch << m_rotation;
-            arch << m_vertexSelectionType;
-            arch << m_selectionBoxOrigin;
-            arch << m_selectionBoxRadius;
-            arch << m_vertexSelectionBone;
-			arch << m_maxEffectRadius;
-        }
-
-        //!
-        void Unserialise( InputArchive& arch )
-        {
-            NodeModifier::Private::Unserialise( arch );
-
-            uint32 ver;
-            arch >> ver;
-            check(ver>=2);
-
-            arch >> m_origin;
-            arch >> m_normal;
-            arch >> m_dist;
-            arch >> m_factor;
-            arch >> m_radius1;
-            arch >> m_radius2;
-            arch >> m_rotation;
-            arch >> m_vertexSelectionType;
-            arch >> m_selectionBoxOrigin;
-            arch >> m_selectionBoxRadius;
-			if (ver >= 4)
-			{
-				arch >> m_vertexSelectionBone;
-			}
-			else if (ver == 3)
-			{
-				uint16 BoneId = 0;
-				arch >> BoneId;
-				m_vertexSelectionBone.Id = BoneId;
-			}
-			else
-			{
-				string OldVertexSelectionBone;
-				arch >> OldVertexSelectionBone;
-				m_vertexSelectionBone.Id = 0;
-			}
-			arch >> m_maxEffectRadius;
-        }
 
     };
 

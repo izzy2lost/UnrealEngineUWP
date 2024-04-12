@@ -26,7 +26,6 @@
 #include "MuCOE/UnrealEditorPortabilityHelpers.h"
 #include "MuR/SystemPrivate.h"
 #include "MuT/ErrorLog.h"
-#include "MuT/Streams.h"
 #include "MuT/TypeInfo.h"
 #include "Widgets/SNullWidget.h"
 #include "Widgets/Colors/SColorBlock.h"
@@ -353,60 +352,6 @@ void SMutableCodeViewer::Construct(const FArguments& InArgs, const TSharedPtr<mu
 	FToolBarBuilder ToolbarBuilder(TSharedPtr<const FUICommandList>(), FMultiBoxCustomization::None, TSharedPtr<FExtender>(), true);
 	ToolbarBuilder.SetLabelVisibility(EVisibility::Visible);
 	ToolbarBuilder.SetStyle(&FAppStyle::Get(), "SlimToolBar");
-
-	ToolbarBuilder.BeginSection("Export");
-
-	// Tree Sizes
-	constexpr float OperationsColumnWidth = 0.90f;
-	constexpr float ExtraDataColumnWidth = 0.10f;
-	
-	// Export
-	ToolbarBuilder.AddToolBarButton(
-		FUIAction(
-			FExecuteAction::CreateLambda([InMutableModel]()
-				{
-					TArray<FString> SaveFilenames;
-					IDesktopPlatform* DesktopPlatform = FDesktopPlatformModule::Get();
-					bool bSave = false;
-					if (DesktopPlatform)
-					{
-						const FString LastExportPath = FEditorDirectories::Get().GetLastDirectory(ELastDirectory::GENERIC_EXPORT);
-						const FString FileTypes = TEXT("Mutable compiled data files|*.mutable_compiled|All files|*.*");
-						bSave = DesktopPlatform->SaveFileDialog(
-							FSlateApplication::Get().FindBestParentWindowHandleForDialogs(nullptr),
-							TEXT("Export Mutable compiled object"),
-							*LastExportPath,
-							TEXT("exported.mutable_compiled"),
-							*FileTypes,
-							EFileDialogFlags::None,
-							SaveFilenames
-						);
-					}
-
-					if (bSave)
-					{
-						const FString SaveFileName = FString(SaveFilenames[0]);
-
-						mu::OutputFileStream Stream(SaveFileName);
-						Stream.Write(MUTABLE_COMPILED_MODEL_FILETAG, 4);
-						mu::OutputArchive Archive(&Stream);
-						mu::Model::Serialise(InMutableModel.Get(), Archive);
-						const uint32_t CodeVersion = MUTABLE_COMPILED_MODEL_CODE_VERSION;
-						Stream.Write((const uint8*)&CodeVersion, sizeof(uint32_t));
-						Stream.Flush();
-
-						FEditorDirectories::Get().SetLastDirectory(ELastDirectory::GENERIC_EXPORT, SaveFileName);
-					}
-				})
-			),
-			NAME_None,
-			LOCTEXT("ExportMutableCode", "Export"),
-			LOCTEXT("ExportMutableCodeTooltip", "Export a debug mutable compiled file."),
-			FSlateIcon(),
-			EUserInterfaceActionType::Button
-		);
-		
-	ToolbarBuilder.EndSection();
 
 	ToolbarBuilder.AddWidget(SNew(STextBlock).Text(FText::FromString(InArgs._DataTag)));
 
@@ -2863,82 +2808,6 @@ void SMutableCodeViewer::PreviewMutableMatrix(const FMatrix44f& Mat)
 void SMutableCodeViewer::PreviewMutableShape(const mu::FShape* Shape)
 {
 	UE_LOG(LogMutable, Warning, TEXT("Previewer for Mutable Shapes not yet implemented"))
-}
-
-
-
-FReply SMutableCodeViewer::OnDragOver(const FGeometry& MyGeometry, const FDragDropEvent& DragDropEvent)
-{
-	if (TSharedPtr<FExternalDragOperation> DragDropOp = DragDropEvent.GetOperationAs<FExternalDragOperation>())
-	{
-		if (DragDropOp->HasFiles())
-		{
-			// For now, only allow a single file.
-			const TArray<FString>& Files = DragDropOp->GetFiles();
-			if (Files.Num() == 1)
-			{
-				const FString DraggedFileExtension = FPaths::GetExtension(Files[0], true);
-				if (DraggedFileExtension == TEXT(".mutable_compiled"))
-				{
-					// Dump source model to a file.
-					mu::InputFileStream stream(Files[0]);
-
-					char MutableSourceTag[4] = {};
-					stream.Read(MutableSourceTag, 4);
-
-					if (!FMemory::Memcmp(MutableSourceTag, MUTABLE_COMPILED_MODEL_FILETAG, 4))
-					{
-						return FReply::Handled();
-					}
-
-					return FReply::Unhandled();
-				}
-			}
-		}
-	}
-
-	return FReply::Unhandled();
-}
-
-
-FReply SMutableCodeViewer::OnDrop(const FGeometry& MyGeometry, const FDragDropEvent& DragDropEvent)
-{
-	SCompoundWidget::OnDrop(MyGeometry, DragDropEvent);
-
-	if (TSharedPtr<FExternalDragOperation> DragDropOp = DragDropEvent.GetOperationAs<FExternalDragOperation>())
-	{
-		if (DragDropOp->HasFiles())
-		{
-			// For now, only allow a single file.
-			const TArray<FString>& Files = DragDropOp->GetFiles();
-			if (Files.Num() == 1)
-			{
-				const FString DraggedFileExtension = FPaths::GetExtension(Files[0], true);
-				if (DraggedFileExtension == TEXT(".mutable_compiled"))
-				{
-					// Read a mutable compiled model file.
-					mu::InputFileStream stream(Files[0]);
-
-					char MutableSourceTag[4] = {};
-					stream.Read(MutableSourceTag, 4);
-
-					if (!FMemory::Memcmp(MutableSourceTag, MUTABLE_COMPILED_MODEL_FILETAG, 4))
-					{
-						mu::InputArchive arch(&stream);
-						TSharedPtr<mu::Model, ESPMode::ThreadSafe> Model = mu::Model::StaticUnserialise(arch);
-						TArray<TSoftObjectPtr<UTexture>> DummyReferencedTextures;
-						SetCurrentModel(Model, DummyReferencedTextures);
-
-						TreeView->RequestTreeRefresh();
-
-						return FReply::Handled();
-					}
-				}
-			}
-		}
-	}
-
-	return FReply::Unhandled();
 }
 
 

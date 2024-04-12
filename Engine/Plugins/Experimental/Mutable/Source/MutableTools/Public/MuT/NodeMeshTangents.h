@@ -18,20 +18,11 @@ namespace mu
 
 
 	//! This node rebuilds the tangents and binormals of the source mesh.
-	//! \ingroup model
 	class MUTABLETOOLS_API NodeMeshTangents : public NodeMesh
 	{
 	public:
 
-		//-----------------------------------------------------------------------------------------
-		// Life cycle
-		//-----------------------------------------------------------------------------------------
-
 		NodeMeshTangents();
-
-		void SerialiseWrapper(OutputArchive& arch) const override;
-		static void Serialise( const NodeMeshTangents* pNode, OutputArchive& arch );
-		static NodeMeshTangentsPtr StaticUnserialise( InputArchive& arch );
 
 		//-----------------------------------------------------------------------------------------
 		// Node Interface

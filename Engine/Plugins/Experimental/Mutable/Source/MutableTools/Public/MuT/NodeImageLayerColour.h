@@ -20,9 +20,6 @@ namespace mu
 	typedef Ptr<NodeImageLayerColour> NodeImageLayerColourPtr;
 	typedef Ptr<const NodeImageLayerColour> NodeImageLayerColourPtrConst;
 
-	class InputArchive;
-	class OutputArchive;
-
 
 	//! This node applies a layer blending effect on a base image using a mask and a colour.
 	//! \ingroup model
@@ -30,16 +27,7 @@ namespace mu
 	{
 	public:
 
-		//-----------------------------------------------------------------------------------------
-		// Life cycle
-		//-----------------------------------------------------------------------------------------
-
 		NodeImageLayerColour();
-
-		void SerialiseWrapper(OutputArchive& arch) const override;
-		static void Serialise( const NodeImageLayerColour* pNode, OutputArchive& arch );
-		static NodeImageLayerColourPtr StaticUnserialise( InputArchive& arch );
-
 
 		//-----------------------------------------------------------------------------------------
 		// Node Interface

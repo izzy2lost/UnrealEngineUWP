@@ -22,20 +22,11 @@ namespace mu
 
 
 	//! This node selects an output Surface from a set of input Surfaces based on a parameter.
-	//! \ingroup model
 	class MUTABLETOOLS_API NodeSurfaceSwitch : public NodeSurface
 	{
 	public:
 
-		//-----------------------------------------------------------------------------------------
-		// Life cycle
-		//-----------------------------------------------------------------------------------------
-
 		NodeSurfaceSwitch();
-
-		void SerialiseWrapper(OutputArchive& arch) const override;
-		static void Serialise( const NodeSurfaceSwitch* pNode, OutputArchive& arch );
-		static NodeSurfaceSwitchPtr StaticUnserialise( InputArchive& arch );
 
 
 		//-----------------------------------------------------------------------------------------

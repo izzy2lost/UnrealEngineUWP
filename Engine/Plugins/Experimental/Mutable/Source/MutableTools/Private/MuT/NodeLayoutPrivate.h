@@ -5,7 +5,6 @@
 #include "MuT/NodePrivate.h"
 #include "MuT/NodeLayout.h"
 #include "MuT/NodeImage.h"
-#include "MuT/AST.h"
 
 
 namespace mu
@@ -33,25 +32,6 @@ namespace mu
 		static FNodeType s_type;
 
 		LayoutPtr m_pLayout;
-
-		//!
-		void Serialise( OutputArchive& arch ) const
-		{
-            uint32_t ver = 0;
-			arch << ver;
-
-			arch << m_pLayout;
-		}
-
-		//!
-		void Unserialise( InputArchive& arch )
-		{
-            uint32_t ver;
-			arch >> ver;
-			check(ver==0);
-
-			arch >> m_pLayout;
-		}
 
         // NodeLayout::Private interface
         Layout* GetLayout() override

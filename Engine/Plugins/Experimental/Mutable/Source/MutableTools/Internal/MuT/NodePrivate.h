@@ -41,23 +41,6 @@ namespace mu
         m_pD = nullptr;										\
     }														\
                                                             \
-    void N::Serialise( const N* p, OutputArchive& arch )	\
-    {														\
-        arch << *p->m_pD;									\
-    }														\
-                                                            \
-	void N::SerialiseWrapper( OutputArchive& arch ) const	\
-	{														\
-		N::Serialise(this, arch);							\
-	}														\
-                                                            \
-    Ptr<N> N::StaticUnserialise( InputArchive& arch )		\
-    {														\
-        Ptr<N> pResult = new N();							\
-        arch >> *pResult->m_pD;								\
-        return pResult;										\
-    }														\
-                                                            \
     N::Private* N::GetPrivate() const						\
     {														\
         return m_pD;										\

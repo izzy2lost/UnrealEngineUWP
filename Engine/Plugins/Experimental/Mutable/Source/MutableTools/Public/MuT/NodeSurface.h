@@ -17,9 +17,7 @@ namespace mu
     typedef Ptr<const NodeSurface> NodeSurfacePtrConst;
 
 
-
     //! This class is the parent of all nodes that output a Surface.
-	//! \ingroup model
     class MUTABLETOOLS_API NodeSurface : public Node
 	{
 	public:
@@ -34,13 +32,6 @@ namespace mu
 
 			None
 		};
-
-		//-----------------------------------------------------------------------------------------
-		// Life cycle
-		//-----------------------------------------------------------------------------------------
-
-        static void Serialise( const NodeSurface* pNode, OutputArchive& arch );
-        static NodeSurfacePtr StaticUnserialise( InputArchive& arch );
 
 		//-----------------------------------------------------------------------------------------
 		// Node Interface

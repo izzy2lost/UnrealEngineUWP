@@ -24,21 +24,11 @@ namespace mu
 
 	//! Node that outputs a constant mesh.
 	//! It allows to define the layouts for the texture channels of the constant mesh
-	//! \ingroup model
 	class MUTABLETOOLS_API NodeMeshConstant : public NodeMesh
 	{
 	public:
 
-		//-----------------------------------------------------------------------------------------
-		// Life cycle
-		//-----------------------------------------------------------------------------------------
-
 		NodeMeshConstant();
-
-		void SerialiseWrapper(OutputArchive& arch) const override;
-		static void Serialise( const NodeMeshConstant* pNode, OutputArchive& arch );
-		static NodeMeshConstantPtr StaticUnserialise( InputArchive& arch );
-
 
 		//-----------------------------------------------------------------------------------------
 		// Node Interface

@@ -3,7 +3,6 @@
 #include "MuT/ASTOpMeshClipMorphPlane.h"
 
 #include "MuT/ASTOpMeshAddTags.h"
-#include "MuT/StreamsPrivate.h"
 #include "MuR/ModelPrivate.h"
 #include "MuR/RefCounted.h"
 #include "MuR/Types.h"

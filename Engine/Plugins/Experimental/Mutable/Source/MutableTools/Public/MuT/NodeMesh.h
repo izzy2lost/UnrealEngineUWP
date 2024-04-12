@@ -17,7 +17,6 @@ namespace mu
 
 
     //! %Base class of any node that outputs a mesh.
-	//! \ingroup model
 	class MUTABLETOOLS_API NodeMesh : public Node
 	{
 	public:
@@ -46,14 +45,6 @@ namespace mu
 
 			None
 		};
-
-		//-----------------------------------------------------------------------------------------
-		// Life cycle
-		//-----------------------------------------------------------------------------------------
-
-		static void Serialise( const NodeMesh* pNode, OutputArchive& arch );
-		static NodeMeshPtr StaticUnserialise( InputArchive& arch );
-
 
 		//-----------------------------------------------------------------------------------------
 		// Node Interface

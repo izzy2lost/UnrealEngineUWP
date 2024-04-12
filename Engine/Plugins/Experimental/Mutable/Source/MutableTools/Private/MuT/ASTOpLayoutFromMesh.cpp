@@ -22,7 +22,6 @@
 #include "MuT/ASTOpMeshAddTags.h"
 #include "MuT/ASTOpSwitch.h"
 #include "MuT/ASTOpLayoutMerge.h"
-#include "MuT/StreamsPrivate.h"
 
 
 namespace mu

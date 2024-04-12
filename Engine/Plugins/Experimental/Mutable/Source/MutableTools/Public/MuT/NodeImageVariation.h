@@ -16,9 +16,6 @@ namespace mu
     typedef Ptr<NodeImageVariation> NodeImageVariationPtr;
     typedef Ptr<const NodeImageVariation> NodeImageVariationPtrConst;
 
-	class InputArchive;
-	class OutputArchive;
-
 
     //!
     //! \ingroup model
@@ -30,10 +27,6 @@ namespace mu
         //-----------------------------------------------------------------------------------------
 
         NodeImageVariation();
-
-		void SerialiseWrapper(OutputArchive& arch) const override;
-		static void Serialise( const NodeImageVariation* pNode, OutputArchive& arch );
-        static NodeImageVariationPtr StaticUnserialise( InputArchive& arch );
 
         //-----------------------------------------------------------------------------------------
         // Node Interface

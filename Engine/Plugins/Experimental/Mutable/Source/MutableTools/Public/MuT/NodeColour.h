@@ -38,13 +38,6 @@ namespace mu
 			None
 		};
 
-        //-----------------------------------------------------------------------------------------
-        // Life cycle
-        //-----------------------------------------------------------------------------------------
-
-        static void Serialise( const NodeColour* pNode, OutputArchive& arch );
-        static NodeColourPtr StaticUnserialise( InputArchive& arch );
-
 
         //-----------------------------------------------------------------------------------------
         // Node Interface

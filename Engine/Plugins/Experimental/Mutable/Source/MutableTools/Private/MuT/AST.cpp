@@ -13,7 +13,6 @@
 #include "MuT/ASTOpMeshRemoveMask.h"
 #include "MuT/ASTOpImageMultiLayer.h"
 #include "MuT/ASTOpParameter.h"
-#include "MuT/StreamsPrivate.h"
 #include "MuT/Platform.h"
 #include "MuT/ErrorLogPrivate.h"
 #include "Trace/Detail/Channel.h"

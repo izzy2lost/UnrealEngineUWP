@@ -16,7 +16,6 @@
 #include "MuT/ASTOpImagePatch.h"
 #include "MuT/ASTOpImagePixelFormat.h"
 #include "MuT/ASTOpSwitch.h"
-#include "MuT/StreamsPrivate.h"
 
 
 namespace mu

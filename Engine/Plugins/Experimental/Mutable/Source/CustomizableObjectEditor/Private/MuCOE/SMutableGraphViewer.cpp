@@ -41,7 +41,6 @@
 #include "MuT/NodeSurfaceEdit.h"
 #include "MuT/NodeSurfaceSwitch.h"
 #include "MuT/NodeSurfaceVariation.h"
-#include "MuT/Streams.h"
 #include "MuT/NodeLOD.h"
 #include "MuT/NodeMeshConstant.h"
 #include "MuT/NodeMeshFormat.h"
@@ -210,50 +209,6 @@ void SMutableGraphViewer::Construct(const FArguments& InArgs, const mu::NodePtr&
 	FToolBarBuilder ToolbarBuilder(TSharedPtr<const FUICommandList>(), FMultiBoxCustomization::None, TSharedPtr<FExtender>(), true);
 	ToolbarBuilder.SetLabelVisibility(EVisibility::Visible);
 	ToolbarBuilder.SetStyle(&FAppStyle::Get(), "SlimToolBar");
-
-	// Export
-	ToolbarBuilder.AddToolBarButton(
-		FUIAction(
-			FExecuteAction::CreateLambda([InRootNode]()
-				{
-					TArray<FString> SaveFilenames;
-					IDesktopPlatform* DesktopPlatform = FDesktopPlatformModule::Get();
-					bool bSave = false;
-					if (!DesktopPlatform) return;
-
-					FString LastExportPath = FEditorDirectories::Get().GetLastDirectory(ELastDirectory::GENERIC_EXPORT);
-					FString FileTypes = TEXT("Mutable source data files|*.mutable_source|All files|*.*");
-					bSave = DesktopPlatform->SaveFileDialog(
-						FSlateApplication::Get().FindBestParentWindowHandleForDialogs(nullptr),
-						TEXT("Export Mutable object"),
-						*LastExportPath,
-						TEXT("exported.mutable_source"),
-						*FileTypes,
-						EFileDialogFlags::None,
-						SaveFilenames
-					);
-
-					if (!bSave) return;
-
-					// Dump source model to a file.
-					FString SaveFileName = FString(SaveFilenames[0]);
-					mu::OutputFileStream stream(SaveFileName);
-					stream.Write(MUTABLE_SOURCE_MODEL_FILETAG, 4);
-					mu::OutputArchive arch(&stream);
-					mu::Node::Serialise(InRootNode.get(), arch);
-					stream.Flush();
-
-					FEditorDirectories::Get().SetLastDirectory(ELastDirectory::GENERIC_EXPORT, SaveFileName);
-				})
-			),
-			NAME_None,
-			LOCTEXT("ExportMutableGraph", "Export"),
-			LOCTEXT("ExportMutableGraphTooltip", "Export a debug mutable graph file."),
-			FSlateIcon(),
-			EUserInterfaceActionType::Button
-		);
-		
-	ToolbarBuilder.EndSection();
 
 	ToolbarBuilder.AddWidget(SNew(STextBlock).Text(MakeAttributeLambda([this]() { return FText::FromString(DataTag); })));
 
@@ -903,82 +858,6 @@ void SMutableGraphViewer::TreeExpandUnique()
 	}
 }
 
-
-FReply SMutableGraphViewer::OnDragOver(const FGeometry& MyGeometry, const FDragDropEvent& DragDropEvent)
-{
-	if (TSharedPtr<FExternalDragOperation> DragDropOp = DragDropEvent.GetOperationAs<FExternalDragOperation>())
-	{
-		if (DragDropOp->HasFiles())
-		{
-			// For now, only allow a single file.
-			const TArray<FString>& Files = DragDropOp->GetFiles();
-			if (Files.Num() == 1)
-			{
-				const FString DraggedFileExtension = FPaths::GetExtension(Files[0], true);
-				if (DraggedFileExtension == TEXT(".mutable_source"))
-				{
-					// Dump source model to a file.
-					mu::InputFileStream stream(Files[0]);
-
-					char MutableSourceTag[4] = {};
-					stream.Read(MutableSourceTag, 4);
-
-					if (!FMemory::Memcmp(MutableSourceTag, MUTABLE_SOURCE_MODEL_FILETAG, 4))
-					{
-						return FReply::Handled();
-					}
-
-					return FReply::Unhandled();
-				}
-			}
-		}
-	}
-
-	return FReply::Unhandled();
-}
-
-
-FReply SMutableGraphViewer::OnDrop(const FGeometry& MyGeometry, const FDragDropEvent& DragDropEvent)
-{
-	SCompoundWidget::OnDrop(MyGeometry, DragDropEvent);
-
-	if (TSharedPtr<FExternalDragOperation> DragDropOp = DragDropEvent.GetOperationAs<FExternalDragOperation>())
-	{
-		if (DragDropOp->HasFiles())
-		{
-			// For now, only allow a single file.
-			const TArray<FString>& Files = DragDropOp->GetFiles();
-			if (Files.Num() == 1)
-			{
-				const FString DraggedFileExtension = FPaths::GetExtension(Files[0], true);
-				if (DraggedFileExtension == TEXT(".mutable_source"))
-				{
-					// Dump source model to a file.
-					mu::InputFileStream stream(Files[0]);
-
-					char MutableSourceTag[4] = {};
-					stream.Read(MutableSourceTag, 4);
-
-					if (!FMemory::Memcmp(MutableSourceTag, MUTABLE_SOURCE_MODEL_FILETAG, 4))
-					{
-						mu::InputArchive arch(&stream);
-						RootNode = mu::Node::StaticUnserialise( arch );
-						DataTag = FString("dropped-file ") + FPaths::GetCleanFilename(Files[0]);
-						RebuildTree();
-
-						return FReply::Handled();
-					}
-
-					return FReply::Unhandled();
-				}
-			}
-		}
-
-		return FReply::Unhandled();
-	}
-
-	return FReply::Unhandled();
-}
 
 #undef LOCTEXT_NAMESPACE 
 

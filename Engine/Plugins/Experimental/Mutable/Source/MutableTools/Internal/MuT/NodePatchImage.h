@@ -24,20 +24,11 @@ namespace mu
 
     //! Node that allows to modify an image from an object by blending other images on specific
     //! layout blocks.
-    //! \ingroup model
-    class MUTABLETOOLS_API NodePatchImage : public Node
+	class MUTABLETOOLS_API NodePatchImage : public Node
     {
     public:
 
-        //-----------------------------------------------------------------------------------------
-        // Life cycle
-        //-----------------------------------------------------------------------------------------
-
         NodePatchImage();
-
-		void SerialiseWrapper(OutputArchive& arch) const override;
-		static void Serialise( const NodePatchImage* pNode, OutputArchive& arch );
-        static NodePatchImagePtr StaticUnserialise( InputArchive& arch );
 
 
         //-----------------------------------------------------------------------------------------

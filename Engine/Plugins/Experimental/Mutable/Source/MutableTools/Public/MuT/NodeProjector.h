@@ -30,7 +30,6 @@ namespace mu
 
 
     //! Base class of any node that outputs a Projector.
-	//! \ingroup model
 	class MUTABLETOOLS_API NodeProjector : public Node
 	{
 	public:
@@ -43,14 +42,6 @@ namespace mu
 
 			None
 		};
-
-		//-----------------------------------------------------------------------------------------
-		// Life cycle
-		//-----------------------------------------------------------------------------------------
-
-		static void Serialise( const NodeProjector* pNode, OutputArchive& arch );
-		static NodeProjectorPtr StaticUnserialise( InputArchive& arch );
-
 
 		//-----------------------------------------------------------------------------------------
 		// Node Interface
@@ -77,20 +68,11 @@ namespace mu
 
 
 	//! This node outputs a predefined Projector value.
-	//! \ingroup model
 	class MUTABLETOOLS_API NodeProjectorConstant : public NodeProjector
 	{
 	public:
 
-		//-----------------------------------------------------------------------------------------
-		// Life cycle
-		//-----------------------------------------------------------------------------------------
-
 		NodeProjectorConstant();
-
-		void SerialiseWrapper(OutputArchive& arch) const override;
-		static void Serialise( const NodeProjectorConstant* pNode, OutputArchive& arch );
-		static NodeProjectorConstantPtr StaticUnserialise( InputArchive& arch );
 
 		//-----------------------------------------------------------------------------------------
 		// Node Interface
@@ -134,20 +116,11 @@ namespace mu
 
 
 	//! Node that defines a Projector model parameter.
-	//! \ingroup model
 	class MUTABLETOOLS_API NodeProjectorParameter : public NodeProjector
 	{
 	public:
 
-		//-----------------------------------------------------------------------------------------
-		// Life cycle
-		//-----------------------------------------------------------------------------------------
-
 		NodeProjectorParameter();
-
-		void SerialiseWrapper(OutputArchive& arch) const override;
-		static void Serialise( const NodeProjectorParameter* pNode, OutputArchive& arch );
-		static NodeProjectorParameterPtr StaticUnserialise( InputArchive& arch );
 
 		//-----------------------------------------------------------------------------------------
 		// Node Interface

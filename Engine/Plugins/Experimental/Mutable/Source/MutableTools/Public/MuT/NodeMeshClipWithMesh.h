@@ -23,15 +23,7 @@ namespace mu
 	{
 	public:
 
-		//-----------------------------------------------------------------------------------------
-		// Life cycle
-		//-----------------------------------------------------------------------------------------
-
 		NodeMeshClipWithMesh();
-
-		void SerialiseWrapper(OutputArchive& arch) const override;
-		static void Serialise( const NodeMeshClipWithMesh* pNode, OutputArchive& arch );
-        static NodeMeshClipWithMeshPtr StaticUnserialise( InputArchive& arch );
 
 		//-----------------------------------------------------------------------------------------
 		// Node Interface
@@ -48,7 +40,6 @@ namespace mu
         NodeMeshPtr GetSource() const;
 		void SetSource(NodeMesh*);
 
-        //! \param 
 		void SetClipMesh(NodeMesh*);
 
 		//! Add a tag to the clip morph operation, which will only affect surfaces with the same tag

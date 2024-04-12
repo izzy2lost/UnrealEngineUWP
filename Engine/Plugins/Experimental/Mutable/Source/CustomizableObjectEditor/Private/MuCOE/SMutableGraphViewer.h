@@ -42,10 +42,6 @@ public:
 
 	void Construct(const FArguments& InArgs, const mu::NodePtr& InRootNode);
 
-	// SWidget interface
-	FReply OnDragOver(const FGeometry& MyGeometry, const FDragDropEvent& DragDropEvent) override;
-	FReply OnDrop(const FGeometry& MyGeometry, const FDragDropEvent& DragDropEvent) override;
-
 	// FGCObject interface
 	virtual void AddReferencedObjects(FReferenceCollector& Collector) override;
 	virtual FString GetReferencerName() const override;

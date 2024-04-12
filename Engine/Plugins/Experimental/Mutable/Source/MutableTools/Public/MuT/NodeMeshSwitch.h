@@ -22,21 +22,11 @@ namespace mu
 
 
 	//! This node selects an output Mesh from a set of input Meshs based on a parameter.
-	//! \ingroup model
 	class MUTABLETOOLS_API NodeMeshSwitch : public NodeMesh
 	{
 	public:
 
-		//-----------------------------------------------------------------------------------------
-		// Life cycle
-		//-----------------------------------------------------------------------------------------
-
 		NodeMeshSwitch();
-
-		void SerialiseWrapper(OutputArchive& arch) const override;
-		static void Serialise( const NodeMeshSwitch* pNode, OutputArchive& arch );
-		static NodeMeshSwitchPtr StaticUnserialise( InputArchive& arch );
-
 
 		//-----------------------------------------------------------------------------------------
 		// Node Interface

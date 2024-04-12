@@ -6,13 +6,9 @@
 
 #include "MuT/NodeScalarConstant.h"
 #include "MuT/NodeImage.h"
-#include "MuT/AST.h"
-#include "MuR/ParametersPrivate.h"
-
 
 namespace mu
 {
-
 
 	class NodeScalarConstant::Private : public NodeScalar::Private
 	{
@@ -21,25 +17,6 @@ namespace mu
 		static FNodeType s_type;
 
 		float m_value;
-
-		//!
-		void Serialise( OutputArchive& arch ) const
-		{
-            uint32_t ver = 0;
-			arch << ver;
-
-			arch << m_value;
-		}
-
-		//!
-		void Unserialise( InputArchive& arch )
-		{
-            uint32_t ver;
-			arch >> ver;
-			check(ver==0);
-
-			arch >> m_value;
-		}
 	};
 
 

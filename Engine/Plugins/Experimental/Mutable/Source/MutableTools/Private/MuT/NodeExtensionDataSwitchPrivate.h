@@ -17,24 +17,5 @@ namespace mu
 
 		NodeScalarPtr Parameter;
 		TArray<NodeExtensionDataPtr> Options;
-
-		void Serialise(OutputArchive& Archive) const
-		{
-			uint32_t Version = 0;
-			Archive << Version;
-
-			Archive << Parameter;
-			Archive << Options;
-		}
-
-		void Unserialise(InputArchive& Archive)
-		{
-			uint32 Version;
-			Archive >> Version;
-			check(Version == 0);
-
-			Archive >> Parameter;
-			Archive >> Options;
-		}
 	};
 }

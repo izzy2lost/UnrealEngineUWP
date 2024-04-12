@@ -14,20 +14,11 @@ namespace mu
 	class NodeLOD;
 
 	//! Node that creates a new object by setting its levels-of-detail and its children.
-	//! \ingroup model
 	class MUTABLETOOLS_API NodeObjectNew : public NodeObject
 	{
 	public:
 
-		//-----------------------------------------------------------------------------------------
-		// Life cycle
-		//-----------------------------------------------------------------------------------------
-
 		NodeObjectNew();
-
-		void SerialiseWrapper(OutputArchive& arch) const override;
-		static void Serialise( const NodeObjectNew* pNode, OutputArchive& arch );
-		static Ptr<NodeObjectNew> StaticUnserialise( InputArchive& arch );
 
 
 		//-----------------------------------------------------------------------------------------

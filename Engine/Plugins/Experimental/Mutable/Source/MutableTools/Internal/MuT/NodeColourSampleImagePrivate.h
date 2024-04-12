@@ -6,7 +6,6 @@
 #include "MuT/NodeColourSampleImage.h"
 #include "MuT/NodeScalar.h"
 #include "MuT/NodeImage.h"
-#include "MuT/AST.h"
 
 
 namespace mu
@@ -22,29 +21,6 @@ namespace mu
 		NodeImagePtr m_pImage;
 		NodeScalarPtr m_pX;
 		NodeScalarPtr m_pY;
-
-		//!
-		void Serialise( OutputArchive& arch ) const
-		{
-            uint32_t ver = 0;
-			arch << ver;
-
-			arch << m_pImage;
-			arch << m_pX;
-			arch << m_pY;
-		}
-
-		//!
-		void Unserialise( InputArchive& arch )
-		{
-            uint32_t ver;
-			arch >> ver;
-			check(ver==0);
-
-			arch >> m_pImage;
-			arch >> m_pX;
-			arch >> m_pY;
-		}
 	};
 
 

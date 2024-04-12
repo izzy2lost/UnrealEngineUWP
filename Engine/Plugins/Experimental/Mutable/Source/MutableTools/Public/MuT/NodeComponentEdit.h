@@ -21,7 +21,6 @@ namespace mu
     typedef Ptr<const NodeSurface> NodeSurfacePtrConst;
 
 
-
 	//! This node modifies a node of the parent object of the object that this node belongs to.
 	//! It allows to extend, cut and morph the parent component's meshes.
 	//! It also allows to patch the parent component's textures.
@@ -30,15 +29,7 @@ namespace mu
 	{
 	public:
 
-		//-----------------------------------------------------------------------------------------
-		// Life cycle
-		//-----------------------------------------------------------------------------------------
-
 		NodeComponentEdit();
-
-		void SerialiseWrapper(OutputArchive& arch) const override;
-		static void Serialise( const NodeComponentEdit* pNode, OutputArchive& arch );
-		static NodeComponentEditPtr StaticUnserialise( InputArchive& arch );
 
 		//-----------------------------------------------------------------------------------------
         // Node interface

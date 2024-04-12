@@ -18,7 +18,6 @@
 #include "MuT/ASTOpImageLayerColor.h"
 #include "MuT/ASTOpImageRasterMesh.h"
 #include "MuT/ASTOpSwitch.h"
-#include "MuT/StreamsPrivate.h"
 
 namespace mu
 {

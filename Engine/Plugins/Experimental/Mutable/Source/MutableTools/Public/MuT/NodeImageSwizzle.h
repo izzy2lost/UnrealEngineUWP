@@ -17,9 +17,6 @@ namespace mu
 	typedef Ptr<NodeImageSwizzle> NodeImageSwizzlePtr;
 	typedef Ptr<const NodeImageSwizzle> NodeImageSwizzlePtrConst;
 
-	class InputArchive;
-	class OutputArchive;
-
 
 	//! Node that composes a new image by gathering pixel data from channels in other images.
 	//! \ingroup model
@@ -27,16 +24,7 @@ namespace mu
 	{
 	public:
 
-		//-----------------------------------------------------------------------------------------
-		// Life cycle
-		//-----------------------------------------------------------------------------------------
-
 		NodeImageSwizzle();
-
-		void SerialiseWrapper(OutputArchive& arch) const override;
-		static void Serialise( const NodeImageSwizzle* pNode, OutputArchive& arch );
-		static NodeImageSwizzlePtr StaticUnserialise( InputArchive& arch );
-
 
 		//-----------------------------------------------------------------------------------------
 		// Node Interface

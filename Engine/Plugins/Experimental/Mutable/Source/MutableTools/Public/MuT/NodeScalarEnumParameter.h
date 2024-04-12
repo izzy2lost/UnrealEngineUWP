@@ -27,20 +27,11 @@ namespace mu
 
 
 	//! Node that defines a scalar model parameter to be selected from a set of named values.
-	//! \ingroup model
 	class MUTABLETOOLS_API NodeScalarEnumParameter : public NodeScalar
 	{
 	public:
 
-		//-----------------------------------------------------------------------------------------
-		// Life cycle
-		//-----------------------------------------------------------------------------------------
-
 		NodeScalarEnumParameter();
-
-		void SerialiseWrapper(OutputArchive& arch) const override;
-		static void Serialise( const NodeScalarEnumParameter* pNode, OutputArchive& arch );
-		static NodeScalarEnumParameterPtr StaticUnserialise( InputArchive& arch );
 
 		//-----------------------------------------------------------------------------------------
 		// Node Interface

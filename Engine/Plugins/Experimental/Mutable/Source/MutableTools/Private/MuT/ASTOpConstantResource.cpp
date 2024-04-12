@@ -2,10 +2,7 @@
 
 #include "MuT/ASTOpConstantResource.h"
 
-#include "Containers/Array.h"
-#include "HAL/PlatformMath.h"
-#include "Hash/CityHash.h"
-#include "Misc/AssertionMacros.h"
+#include "MuT/CompilerPrivate.h"
 #include "MuR/Layout.h"
 #include "MuR/Mesh.h"
 #include "MuR/ModelPrivate.h"
@@ -14,11 +11,133 @@
 #include "MuR/Serialisation.h"
 #include "MuR/Skeleton.h"
 #include "MuR/Types.h"
-#include "MuT/StreamsPrivate.h"
+#include "Containers/Array.h"
+#include "HAL/PlatformMath.h"
+#include "HAL/PlatformFileManager.h"
+#include "Hash/CityHash.h"
+#include "Misc/AssertionMacros.h"
+#include "GenericPlatform/GenericPlatformFile.h"
 
+#include <inttypes.h> // Required for 64-bit printf macros
 
 namespace mu
 {
+
+	//---------------------------------------------------------------------------------------------
+	//---------------------------------------------------------------------------------------------
+	//---------------------------------------------------------------------------------------------
+	template<class R>
+	class MUTABLETOOLS_API ResourceProxyTempFile : public ResourceProxy<R>
+	{
+	private:
+		Ptr<const R> Resource;
+		FString FileName;
+		uint64 FileSize = 0;
+		FCriticalSection Mutex;
+
+		FProxyFileContext& Options;
+
+	public:
+		ResourceProxyTempFile(const R* resource, FProxyFileContext& InOptions)
+			: Options(InOptions)
+		{
+			IPlatformFile& PlatformFile = FPlatformFileManager::Get().GetPlatformFile();
+
+			if (!resource)
+			{
+				return;
+			}
+
+			FScopeLock Lock(&Mutex);
+
+			OutputMemoryStream stream;
+			OutputArchive arch(&stream);
+			R::Serialise(resource, arch);
+
+			if (stream.GetBufferSize() <= Options.MinProxyFileSize)
+			{
+				Resource = resource;
+			}
+			else
+			{
+				FileSize = stream.GetBufferSize();
+
+				FString Prefix = FPlatformProcess::UserTempDir();
+
+				uint32 PID = FPlatformProcess::GetCurrentProcessId();
+				Prefix += FString::Printf(TEXT("mut.temp.%u"), PID);
+
+				FString FinalTempPath;
+				IFileHandle* ResourceFile = nullptr;
+				uint64 AttemptCount = 0;
+				while (!ResourceFile && AttemptCount < Options.MaxFileCreateAttempts)
+				{
+					uint64 ThisThreadFileIndex = Options.CurrentFileIndex.load();
+					while (!Options.CurrentFileIndex.compare_exchange_strong(ThisThreadFileIndex, ThisThreadFileIndex + 1));
+
+					FinalTempPath = Prefix + FString::Printf(TEXT(".%.16" PRIx64), ThisThreadFileIndex);
+					ResourceFile = PlatformFile.OpenWrite(*FinalTempPath);
+					++AttemptCount;
+				}
+
+				if (!ResourceFile)
+				{
+					UE_LOG(LogMutableCore, Error, TEXT("Failed to create temporary file. Disk full?"));
+					check(false);
+				}
+
+				ResourceFile->Write((const uint8*)stream.GetBuffer(), stream.GetBufferSize());
+				delete ResourceFile;
+
+				FileName = FinalTempPath;
+				Options.FilesWritten++;
+				Options.BytesWritten += stream.GetBufferSize();
+			}
+		}
+
+		~ResourceProxyTempFile()
+		{
+			FScopeLock Lock(&Mutex);
+
+			if (!FileName.IsEmpty())
+			{
+				// Delete temp file
+				FPlatformFileManager::Get().GetPlatformFile().DeleteFile(*FileName);
+				FileName.Empty();
+			}
+		}
+
+		Ptr<const R> Get() override
+		{
+			FScopeLock Lock(&Mutex);
+
+			Ptr<const R> r;
+			if (Resource)
+			{
+				// cached
+				r = Resource;
+			}
+			else if (!FileName.IsEmpty())
+			{
+				TArray<char> buf;
+				buf.SetNumUninitialized(FileSize);
+				IFileHandle* resourceFile = FPlatformFileManager::Get().GetPlatformFile().OpenRead(*FileName);
+				check(resourceFile);
+				resourceFile->Read((uint8*)buf.GetData(), FileSize);
+				delete resourceFile;
+
+				InputMemoryStream stream(buf.GetData(), FileSize);
+				InputArchive arch(&stream);
+				r = R::StaticUnserialise(arch);
+
+				Options.FilesRead++;
+				Options.BytesRead += FileSize;
+			}
+			return r;
+		}
+
+	};
+
 
 	//-------------------------------------------------------------------------------------------------
 	//-------------------------------------------------------------------------------------------------

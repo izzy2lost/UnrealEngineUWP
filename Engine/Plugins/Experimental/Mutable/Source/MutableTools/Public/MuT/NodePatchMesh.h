@@ -2,7 +2,6 @@
 
 #pragma once
 
-
 #include "MuR/Ptr.h"
 #include "MuR/RefCounted.h"
 #include "MuT/Node.h"
@@ -17,21 +16,11 @@ namespace mu
 
 	class NodeMesh;
 
-	//!
-	//! \ingroup model
 	class MUTABLETOOLS_API NodePatchMesh : public Node
 	{
 	public:
 
-		//-----------------------------------------------------------------------------------------
-		// Life cycle
-		//-----------------------------------------------------------------------------------------
-
 		NodePatchMesh();
-
-		void SerialiseWrapper(OutputArchive& arch) const override;
-		static void Serialise( const NodePatchMesh* pNode, OutputArchive& arch );
-		static NodePatchMeshPtr StaticUnserialise( InputArchive& arch );
 
 		//-----------------------------------------------------------------------------------------
 		// Node Interface
