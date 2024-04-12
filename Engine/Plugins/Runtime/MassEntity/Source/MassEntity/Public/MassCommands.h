@@ -83,7 +83,7 @@ struct MASSENTITY_API FMassBatchedCommand
 		, DebugName(DebugName)
 	{}
 #endif // CSV_PROFILER || WITH_MASSENTITY_DEBUG
-	virtual ~FMassBatchedCommand() { Reset(); }
+	virtual ~FMassBatchedCommand() {}
 
 	virtual void Execute(FMassEntityManager& System) const = 0;
 	virtual void Reset()
@@ -95,7 +95,7 @@ struct MASSENTITY_API FMassBatchedCommand
 	EMassCommandOperationType GetOperationType() const { return OperationType; }
 
 	template<typename T>
-	static uint32 GetCommandIndex()
+	FORCENOINLINE static uint32 GetCommandIndex()
 	{
 		static const uint32 ThisTypesStaticIndex = CommandsCounter++;
 		return ThisTypesStaticIndex;
@@ -363,7 +363,8 @@ struct FMassCommandAddFragmentInstances : public FMassBatchedEntityCommand
 protected:
 	virtual void Reset() override
 	{
-		Fragments.Reset();
+		Fragments.Reset(); 
+		FragmentsAffected.Reset();
 		Super::Reset();
 	}
 
@@ -388,7 +389,7 @@ protected:
 	}
 
 	mutable UE::Mass::TMultiArray<TOthers...> Fragments;
-	const FMassFragmentBitSet FragmentsAffected;
+	FMassFragmentBitSet FragmentsAffected;
 };
 
 template<typename... TOthers>

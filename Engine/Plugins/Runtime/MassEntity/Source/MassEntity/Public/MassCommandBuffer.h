@@ -11,58 +11,42 @@
 //@TODO: Consider debug information in case there is an assert when replaying the command buffer
 // (e.g., which system added the command, or even file/line number in development builds for the specific call via a macro)
 
-#define COMMAND_PUSHING_CHECK() \
-checkf(IsFlushing() == false, TEXT("Trying to push commands is not supported while the given buffer is being flushed")); \
-checkf(OwnerThreadId == FPlatformTLS::GetCurrentThreadId(), TEXT("Commands can be pushed only in the same thread where the command buffer was created."))
-
 struct MASSENTITY_API FMassCommandBuffer
 {
 public:
-	FMassCommandBuffer();
+	FMassCommandBuffer() = default;
 	~FMassCommandBuffer();
 
 	/** Adds a new entry to a given TCommand batch command instance */
 	template< template<typename... TArgs> typename TCommand, typename... TArgs >
 	void PushCommand(const FMassEntityHandle Entity, TArgs&&... InArgs)
 	{
-		COMMAND_PUSHING_CHECK();
-
 		LLM_SCOPE_BYNAME(TEXT("Mass/PushCommand"));
 		TCommand<TArgs...>& Instance = CreateOrAddCommand<TCommand<TArgs...>>();
 		Instance.Add(Entity, Forward<TArgs>(InArgs)...);
-		++ActiveCommandsCounter;
 	}
 
 	template<typename TCommand, typename... TArgs>
 	void PushCommand(TArgs&&... InArgs)
 	{
-		COMMAND_PUSHING_CHECK();
-
 		LLM_SCOPE_BYNAME(TEXT("Mass/PushCommand"));
 		TCommand& Instance = CreateOrAddCommand<TCommand>();
 		Instance.Add(Forward<TArgs>(InArgs)...);
-		++ActiveCommandsCounter;
 	}
 
 	/** Adds a new entry to a given TCommand batch command instance */
 	template< typename TCommand>
 	void PushCommand(const FMassEntityHandle Entity)
 	{
-		COMMAND_PUSHING_CHECK();
-
 		LLM_SCOPE_BYNAME(TEXT("Mass/PushCommand"));
 		CreateOrAddCommand<TCommand>().Add(Entity);
-		++ActiveCommandsCounter;
 	}
 
 	template< typename TCommand>
 	void PushCommand(TConstArrayView<FMassEntityHandle> Entities)
 	{
-		COMMAND_PUSHING_CHECK();
-
 		LLM_SCOPE_BYNAME(TEXT("Mass/PushCommand"));
 		CreateOrAddCommand<TCommand>().Add(Entities);
-		++ActiveCommandsCounter;
 	}
 
 	template<typename T>
@@ -161,7 +145,13 @@ public:
 
 	bool HasPendingCommands() const 
 	{
-		return ActiveCommandsCounter > 0;
+		bool bHasCommands = false;		
+		for (int32 i = 0; i < CommandInstances.Num() && !bHasCommands; ++i)
+		{
+			bHasCommands = CommandInstances[i] && CommandInstances[i]->HasWork();
+		}
+
+		return bHasCommands;
 	}
 	bool IsFlushing() const { return bIsFlushing; }
 
@@ -173,6 +163,7 @@ private:
 	{
 		const int32 Index = FMassBatchedCommand::GetCommandIndex<T>();
 
+		UE_MT_SCOPED_WRITE_ACCESS(PendingBatchCommandsDetector);
 		if (CommandInstances.IsValidIndex(Index) == false)
 		{
 			CommandInstances.AddZeroed(Index - CommandInstances.Num() + 1);
@@ -188,38 +179,14 @@ private:
 		return *NewCommandInstance;
 	}
 
-	/** 
-	 * Executes all accumulated commands. 
-	 * @return whether any commands have actually been executed
-	 */
-	bool Flush(FMassEntityManager& EntityManager);
+	void Flush(FMassEntityManager& EntityManager);
 	void CleanUp();
 
 	FCriticalSection AppendingCommandsCS;
 
 	UE_MT_DECLARE_RW_ACCESS_DETECTOR(PendingBatchCommandsDetector);
-	/** 
-	 * Commands created for this specific command buffer. All commands in the array are unique (by type) and reusable 
-	 * with subsequent PushCommand calls
-	 */
 	TArray<FMassBatchedCommand*> CommandInstances;
-	/** 
-	 * Commands appended to this command buffer (via FMassCommandBuffer::MoveAppend). These commands are just naive list
-	 * of commands, potentially containing duplicates with multiple MoveAppend calls. Once appended these commands are 
-	 * not being reused and consumed, destructively, during flushing
-	 */
-	TArray<FMassBatchedCommand*> AppendedCommandInstances;
-
-	int32 ActiveCommandsCounter = 0;
 
 	/** Indicates that this specific MassCommandBuffer is currently flushing its contents */
 	bool bIsFlushing = false;
-
-	/** 
-	 * Identifies the thread where given FMassCommandBuffer instance was created. Adding commands from other
-	 * threads is not supported and we use this value to check that
-	 */
-	const uint32 OwnerThreadId;
 };
-
-#undef COMMAND_PUSHING_CHECK
