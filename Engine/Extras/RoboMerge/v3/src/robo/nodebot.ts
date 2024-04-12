@@ -1593,9 +1593,21 @@ export class NodeBot extends PerforceStatefulBot implements NodeBotInterface {
 		let isManualChange = numTargets > 0 ? result.info.targets![0].flags.has('manual') : false;
 		if (change.forceCreateAShelf || (change.isUserRequest && !change.forceStompChanges) || isManualChange) {
 			if (!optWorkspaceOverride && numTargets == 1) {
-				result.info.targetWorkspaceForShelf = await p4util.chooseBestWorkspaceForUser(this.p4, result.info.owner||result.info.author, result.info.targets![0].branch.stream)
+				const targetStream = result.info.targets![0].branch.stream ? result.info.targets![0].branch.stream.toLowerCase() : undefined
+				const targetWorkspaceDef = await p4util.chooseBestWorkspaceForUser(this.p4, result.info.owner||result.info.author, targetStream)
+				if (targetWorkspaceDef) {
+					result.info.targetWorkspaceForShelf = targetWorkspaceDef.client
+					if (targetWorkspaceDef.Stream) {
+						result.info.targetWorkspaceIsPartialMatch = targetWorkspaceDef.Stream.toLowerCase() == targetStream
+					}
+				}
 				optWorkspaceOverride = result.info.targetWorkspaceForShelf
-				this.nodeBotLogger.info(`Chose workspace ${optWorkspaceOverride}`)
+				if (result.info.targetWorkspaceIsPartialMatch) {
+					this.nodeBotLogger.info(`Chose workspace ${optWorkspaceOverride} (${targetWorkspaceDef!.Stream}) as a partial match for ${targetStream}`)
+				}
+				else {
+					this.nodeBotLogger.info(`Chose workspace ${optWorkspaceOverride}`)
+				}
 			}
 			if (optWorkspaceOverride) {
 				// see if we need to talk to an edge server to create the shelf
@@ -2128,6 +2140,12 @@ export class NodeBot extends PerforceStatefulBot implements NodeBotInterface {
 
 			if (postIntegrate && pending.change.targetWorkspaceForShelf) {
 				message += `\n\nShelved ${pending.newCl} in workspace ${pending.change.targetWorkspaceForShelf}`
+
+				if (pending.change.targetWorkspaceIsPartialMatch) {
+					message += `\n\n*NOTE: The target workspace was not an exact match for the shelved files. `
+					message += "You may need to remap the workspace to the target stream, move the files to "
+					message += "another workspace, or create a workspace for these files and reconsider again.*"
+				}
 			}
 
 			if (this.slackMessages) {

@@ -143,6 +143,7 @@ export interface TargetInfo {
 	author: string
 
 	targetWorkspaceForShelf?: string // Filled in during the reconsider in case of a createShelf nodeop request
+	targetWorkspaceIsPartialMatch?: boolean // Filled in during the reconsider with whether the workspace match was partial or not
 	sendNoShelfNotification: boolean // Used for internal use shelves, such as stomp changes
 
 	forceStompChanges: boolean

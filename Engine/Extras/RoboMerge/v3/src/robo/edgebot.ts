@@ -849,9 +849,24 @@ class EdgeBotImpl extends PerforceStatefulBot {
 		// Find a suitable workspace from one of the owner's workspaces
 		else if (!forApproval) {
 			// use p4.find_workspaces to find a workspace (owned by the user) for this change if this is a stream branch
-			targetWorkspace = await p4util.chooseBestWorkspaceForUser(this.p4, owner, branch_stream)
+			const targetWorkspaceDef = await p4util.chooseBestWorkspaceForUser(this.p4, owner, branch_stream)
+			if (targetWorkspaceDef) {
+				targetWorkspace = targetWorkspaceDef.client
+				if (targetWorkspaceDef.Stream) {
+					pending.change.targetWorkspaceIsPartialMatch = targetWorkspaceDef.Stream.toLowerCase() == branch_stream
+				}
+				if (pending.change.targetWorkspaceIsPartialMatch) {
+					this.edgeBotLogger.info(`Chose workspace ${targetWorkspace} (${targetWorkspaceDef.Stream}) as a partial match for ${branch_stream}`)
+				}
+				else {
+					this.edgeBotLogger.info(`Chose workspace ${targetWorkspace}`)
+				}
+			}
+			else {
+				targetWorkspace = undefined
+				this.edgeBotLogger.error(`Unable to find workspace for ${branch_stream}`)
+			}
 			pending.change.targetWorkspaceForShelf = targetWorkspace
-			this.edgeBotLogger.info(`Chose workspace ${targetWorkspace}`)
 		}
 
 		// log if we couldn't find a workspace

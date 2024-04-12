@@ -255,14 +255,17 @@ export async function chooseBestWorkspaceForUser(p4: PerforceContext, user: stri
 				let stream = def.Stream
 				if (stream) {
 					const matchlen = matchPrefix(stream.toLowerCase(), branch_stream)
-					if (matchlen > target_match) {
+					if (matchlen == branch_stream.length) {
+						return def
+					}
+					else if (matchlen > target_match) {
 						target_match = matchlen
 						targetWorkspace = def
 					}
 				}
 			}
 		}
-		return targetWorkspace.client
+		return targetWorkspace
 	}
 
 	return undefined
