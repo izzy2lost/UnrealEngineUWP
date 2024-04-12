@@ -464,10 +464,20 @@ namespace HarmonixMetasound
 				{
 					SeekTick = Event->Msg.Get<MidiClockMessageTypes::FAdvanceThru>().ThruTick + 1;
 				}
+				// These lower three branches shouldn't be hit in practice, but putting them here for completeness
 				else if (Event->Msg.IsType<MidiClockMessageTypes::FLoop>())
 				{
 					SeekTick = Event->Msg.Get<MidiClockMessageTypes::FLoop>().LoopStartTick;
 				}
+				else if (Event->Msg.IsType<MidiClockMessageTypes::FTempoChange>())
+				{
+					SeekTick = Event->Msg.Get<MidiClockMessageTypes::FTempoChange>().Tick;
+				}
+				else if (Event->Msg.IsType<MidiClockMessageTypes::FTimeSignatureChange>())
+				{
+					SeekTick = Event->Msg.Get<MidiClockMessageTypes::FTimeSignatureChange>().Tick;
+				}
+
 				SeekTo(StartFrame, CalculateMappedTick(SeekTick), PrerollBars);
 				StartFrame = Event->BlockFrameIndex + 1;
 			}
