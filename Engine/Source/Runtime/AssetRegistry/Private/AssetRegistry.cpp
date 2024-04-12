@@ -836,6 +836,13 @@ UAssetRegistryImpl::UAssetRegistryImpl(const FObjectInitializer& ObjectInitializ
 
 	UE::AssetRegistry::Impl::FInitializeContext Context{ *this };
 
+	if (HasAnyFlags(RF_ClassDefaultObject))
+	{
+		check(UE::AssetRegistry::Private::IAssetRegistrySingleton::Singleton == nullptr && IAssetRegistryInterface::Default == nullptr);
+		UE::AssetRegistry::Private::IAssetRegistrySingleton::Singleton = this;
+		IAssetRegistryInterface::Default = &GAssetRegistryInterface;
+	}
+
 	{
 		LLM_SCOPE(ELLMTag::AssetRegistry);
 		UE::AssetRegistry::FInterfaceWriteScopeLock InterfaceScopeLock(InterfaceLock);
@@ -1075,13 +1082,6 @@ void FAssetRegistryImpl::RebuildAssetDependencyGathererMapIfNeeded()
 
 void UAssetRegistryImpl::InitializeEvents(UE::AssetRegistry::Impl::FInitializeContext& Context)
 {
-	if (HasAnyFlags(RF_ClassDefaultObject))
-	{
-		check(UE::AssetRegistry::Private::IAssetRegistrySingleton::Singleton == nullptr && IAssetRegistryInterface::Default == nullptr);
-		UE::AssetRegistry::Private::IAssetRegistrySingleton::Singleton = this;
-		IAssetRegistryInterface::Default = &GAssetRegistryInterface;
-	}
-
 	if (Context.bRedirectorsNeedSubscribe)
 	{
 		TDelegate<bool(const FString&, FString&)> PackageResolveDelegate;
