@@ -220,8 +220,10 @@ private:
 	bool RemoveExternalDataLayerInstance(UExternalDataLayerInstance* ExternalDataLayerInstance);
 	ENGINE_API UExternalDataLayerInstance* GetExternalDataLayerInstance(const UExternalDataLayerAsset* InExternalDataLayerAsset);
 
+#if WITH_EDITOR
 	// ExternalPackage Data Layer Instances
 	ENGINE_API void InitializeExternalPackageDataLayerInstances();
+#endif
 
 	ENGINE_API void OnDataLayerManagerInitialized();
 	ENGINE_API void OnDataLayerManagerDeinitialized();

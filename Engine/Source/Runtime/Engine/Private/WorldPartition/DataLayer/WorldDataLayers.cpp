@@ -1203,12 +1203,14 @@ TSet<TObjectPtr<UDataLayerInstance>>& AWorldDataLayers::GetDataLayerInstances()
 	return DataLayerInstances;
 }
 
+#if WITH_EDITOR
 void AWorldDataLayers::InitializeExternalPackageDataLayerInstances()
 {
 	check(IsUsingExternalPackageDataLayerInstances());
 	ExternalPackageDataLayerInstances.Append(LoadedExternalPackageDataLayerInstances);
 	LoadedExternalPackageDataLayerInstances.Reset();
 }
+#endif
 
 void AWorldDataLayers::OnDataLayerManagerInitialized()
 {
