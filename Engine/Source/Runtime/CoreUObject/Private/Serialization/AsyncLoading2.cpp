@@ -5208,16 +5208,16 @@ void FAsyncPackage2::ImportPackagesRecursiveInner(FAsyncLoadingThreadState2& Thr
 						FPackageName::GetExplanationForUnavailablePackage(ImportedPackageNameToLoad, Explanation);
 						if (Explanation.Len())
 						{
-							FMessageLog("LoadErrors").Warning(FText::Format(NSLOCTEXT("Core", "AsyncLoading_SkippedPackage_Explanation", "While trying to load package {MissingPackage}, a dependent package {DependentPackage} was not available. Additional explanatory information follows:\n{Explanation}"),
-								FText::FromString(PackagePathToLoadString),
-								FText::FromString(ImportedPackageNameToLoadString),
-								FText::FromString(Explanation.ToString())));
+							FMessageLog("LoadErrors").Warning(FText::FormatNamed(NSLOCTEXT("Core", "AsyncLoading_SkippedPackage_Explanation", "While trying to load package {MissingPackage}, a dependent package {DependentPackage} was not available. Additional explanatory information follows:\n{Explanation}"),
+								TEXT("MissingPackage"), FText::FromString(PackagePathToLoadString),
+								TEXT("DependentPackage"), FText::FromString(ImportedPackageNameToLoadString),
+								TEXT("Explanation"), FText::FromString(Explanation.ToString())));
 						}
 						else
 						{
-							FMessageLog("LoadErrors").Warning(FText::Format(NSLOCTEXT("Core", "AsyncLoading_SkippedPackage_NoExplanation", "While trying to load package {MissingPackage}, a dependent package {DependentPackage} was not available. No additional explanation was available."),
-								FText::FromString(PackagePathToLoadString),
-								FText::FromString(ImportedPackageNameToLoadString)));
+							FMessageLog("LoadErrors").Warning(FText::FormatNamed(NSLOCTEXT("Core", "AsyncLoading_SkippedPackage_NoExplanation", "While trying to load package {MissingPackage}, a dependent package {DependentPackage} was not available. No additional explanation was available."),
+								TEXT("MissingPackage"), FText::FromString(PackagePathToLoadString),
+								TEXT("DependentPackage"), FText::FromString(ImportedPackageNameToLoadString)));
 						}
 
 						return false;
