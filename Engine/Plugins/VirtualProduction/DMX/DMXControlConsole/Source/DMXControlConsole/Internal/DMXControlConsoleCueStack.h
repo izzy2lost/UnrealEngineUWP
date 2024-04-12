@@ -16,12 +16,9 @@ struct FDMXControlConsoleCue
 {
 	GENERATED_BODY()
 
-	/** Constructor */
-	FDMXControlConsoleCue();
-
 	/** The unique id of this cue */
-	UPROPERTY()
-	FGuid CueID;
+	UPROPERTY(meta = (IgnoreForMemberInitializationTest))
+	FGuid CueID = FGuid::NewGuid();
 
 	/** The name label of this cue */
 	UPROPERTY()
@@ -29,7 +26,7 @@ struct FDMXControlConsoleCue
 
 	/** The color of this cue */
 	UPROPERTY()
-	FLinearColor CueColor;
+	FLinearColor CueColor = FLinearColor::White;
 
 	/** A fader object to value map */
 	UPROPERTY()

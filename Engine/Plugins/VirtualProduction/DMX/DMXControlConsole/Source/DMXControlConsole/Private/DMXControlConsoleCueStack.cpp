@@ -7,11 +7,6 @@
 #include "Layouts/Controllers/DMXControlConsoleControllerBase.h"
 
 
-FDMXControlConsoleCue::FDMXControlConsoleCue()
-	: CueID(FGuid::NewGuid())
-{
-}
-
 void UDMXControlConsoleCueStack::AddNewCue(const TArray<UDMXControlConsoleFaderBase*>& Faders, const FString CueLabel, const FLinearColor CueColor)
 {
 	if (Faders.IsEmpty())
