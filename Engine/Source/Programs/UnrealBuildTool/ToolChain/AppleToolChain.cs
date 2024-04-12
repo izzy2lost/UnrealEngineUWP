@@ -360,9 +360,22 @@ namespace UnrealBuildTool
 			FileReference OutputVersionFile = FileReference.Combine(ProductDirectory, "Intermediate/Build/Versions.xcconfig");
 			DestFile = FileItem.GetItemByFileReference(OutputVersionFile);
 
+			// grab a changlist version if we have it to pass to the script to use if desired
+			int Changelist = 0;
+			BuildVersion Version;
+			if (BuildVersion.TryRead(BuildVersion.GetDefaultFileName(), out Version))
+			{
+				Changelist = Version.Changelist;
+			}
+
 			// make path to the script
-			FileItem BundleScript = FileItem.GetItemByFileReference(FileReference.Combine(Unreal.EngineDirectory, "Build/BatchFiles/Mac/UpdateVersionAfterBuild.sh"));
-			UpdateVersionAction.CommandArguments = $"\"{BundleScript.AbsolutePath}\" \"{ProductDirectory}\" {LinkEnvironment.Platform}";
+			FileReference VersionScript = FileReference.Combine(ProductDirectory, "Build/BatchFiles/Mac/UpdateVersionAfterBuild.sh");
+			if (!FileReference.Exists(VersionScript))
+			{
+				VersionScript = FileReference.Combine(Unreal.EngineDirectory, "Build/BatchFiles/Mac/UpdateVersionAfterBuild.sh");
+			}
+			FileItem BundleScript = FileItem.GetItemByFileReference(VersionScript);
+			UpdateVersionAction.CommandArguments = $"\"{BundleScript.AbsolutePath}\" \"{ProductDirectory}\" {LinkEnvironment.Platform} {Changelist}";
 			UpdateVersionAction.PrerequisiteItems.Add(Prerequisite);
 			UpdateVersionAction.PrerequisiteItems.Add(BundleScript);
 			UpdateVersionAction.ProducedItems.Add(DestFile);

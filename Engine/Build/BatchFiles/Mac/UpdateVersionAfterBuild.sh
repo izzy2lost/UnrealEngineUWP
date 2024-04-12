@@ -2,12 +2,19 @@
 
 # $1 is path to product directory (engine, program or project)
 # $2 is the platform we are incrementing
+# $3 is the changlist number if known
 
 PRODUCT_NAME=$(basename "$1")
 VERSION_FILE_DIR="$1/Build/$2"
 VERSION_FILE="$VERSION_FILE_DIR/$PRODUCT_NAME.PackageVersionCounter"
 
-VERSION="0.1"
+if [ -z $3 ]; then
+	CL=0
+else
+	CL=$3
+fi
+
+VERSION="$CL.1"
 # increment version in the counter file
 if [ -f "$VERSION_FILE" ]; then
 	VERSION=$(cat "$VERSION_FILE")
@@ -49,8 +56,8 @@ fi
 XCCONFIG_FILE="$1/Intermediate/Build/Versions.xcconfig"
 
 mkdir -p "$1/Intermediate/Build"
-echo "UE_MAC_BUILD_VERSION = $MAC_VERSION" > "$XCCONFIG_FILE"
-echo "UE_IOS_BUILD_VERSION = $IOS_VERSION" >> "$XCCONFIG_FILE"
-echo "UE_TVOS_BUILD_VERSION = $TVOS_VERSION" >> "$XCCONFIG_FILE"
-echo "UE_VISIONOS_BUILD_VERSION = $VISIONOS_VERSION" >> "$XCCONFIG_FILE"
+echo "UE_MAC_BUILD_VERSION = $CL.$MAC_VERSION" > "$XCCONFIG_FILE"
+echo "UE_IOS_BUILD_VERSION = $CL.$IOS_VERSION.$CL" >> "$XCCONFIG_FILE"
+echo "UE_TVOS_BUILD_VERSION = $CL.$TVOS_VERSION.$CL" >> "$XCCONFIG_FILE"
+echo "UE_VISIONOS_BUILD_VERSION = $CL.$VISIONOS_VERSION.$CL" >> "$XCCONFIG_FILE"
 
