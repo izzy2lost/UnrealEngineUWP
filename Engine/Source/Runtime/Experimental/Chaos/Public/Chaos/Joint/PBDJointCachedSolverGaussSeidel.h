@@ -68,20 +68,20 @@ struct FAxisConstraintDatas
 	struct alignas(16) FDataSimd
 	{
 		FDataSimd() 
-			: ConstraintSoftStiffnessSimd(VectorZeroFloat())
-			, ConstraintSoftDampingSimd(VectorZeroFloat())
-			, ConstraintLimitsSimd(VectorZeroFloat())
+			: ConstraintSoftStiffness(VectorZeroFloat())
+			, ConstraintSoftDamping(VectorZeroFloat())
+			, ConstraintLimits(VectorZeroFloat())
 		{}
 
-		VectorRegister4Float ConstraintHardStiffnessSimd;
-		VectorRegister4Float ConstraintSoftStiffnessSimd;
-		VectorRegister4Float ConstraintSoftDampingSimd;
-		VectorRegister4Float ConstraintArmsSimd[3][2];
-		VectorRegister4Float ConstraintAxisSimd[3];
-		VectorRegister4Float ConstraintLimitsSimd;
-		VectorRegister4Float ConstraintSoftIMSimd;
-		VectorRegister4Float ConstraintHardIMSimd;
-		VectorRegister4Float ConstraintDRAxisSimd[3][2];
+		VectorRegister4Float ConstraintHardStiffness;
+		VectorRegister4Float ConstraintSoftStiffness;
+		VectorRegister4Float ConstraintSoftDamping;
+		VectorRegister4Float ConstraintArms[3][2];
+		VectorRegister4Float ConstraintAxis[3];
+		VectorRegister4Float ConstraintLimits;
+		VectorRegister4Float ConstraintSoftIM;
+		VectorRegister4Float ConstraintHardIM;
+		VectorRegister4Float ConstraintDRAxis[3][2];
 		VectorRegister4Float ConstraintCX;
 		VectorRegister4Float ConstraintLambda;
 	};
@@ -104,7 +104,7 @@ struct FAxisConstraintDatas
 	union
 	{
 		FDataSimd Simd;
-		FData D;
+		FData Data;
 	};
 
 	FVec3 ConstraintMaxLambda;
@@ -239,7 +239,7 @@ struct FAxisConstraintDatas
 					ConstraintLambdas[2] = VectorReplicate(PositionConstraints.Simd.ConstraintLambda, 2);
 					for (int32 Axis = 0; Axis < 3; ++Axis)
 					{
-						ImpulseSimd = VectorMultiplyAdd(ConstraintLambdas[Axis], PositionConstraints.Simd.ConstraintAxisSimd[Axis], ImpulseSimd);
+						ImpulseSimd = VectorMultiplyAdd(ConstraintLambdas[Axis], PositionConstraints.Simd.ConstraintAxis[Axis], ImpulseSimd);
 					}
 				}
 				if (PositionDrives.bUseSimd)
@@ -250,7 +250,7 @@ struct FAxisConstraintDatas
 					ConstraintLambdas[2] = VectorReplicate(PositionDrives.Simd.ConstraintLambda, 2);
 					for (int32 Axis = 0; Axis < 3; ++Axis)
 					{
-						ImpulseSimd = VectorMultiplyAdd(ConstraintLambdas[Axis], PositionDrives.Simd.ConstraintAxisSimd[Axis], ImpulseSimd);
+						ImpulseSimd = VectorMultiplyAdd(ConstraintLambdas[Axis], PositionDrives.Simd.ConstraintAxis[Axis], ImpulseSimd);
 					}
 				}
 				FVec3f Impulsef;
@@ -262,11 +262,11 @@ struct FAxisConstraintDatas
 			{
 				if (!PositionConstraints.bUseSimd && PositionConstraints.bValidDatas[Axis])
 				{
-					Impulse += PositionConstraints.D.ConstraintLambda[Axis] * PositionConstraints.D.ConstraintAxis[Axis];
+					Impulse += PositionConstraints.Data.ConstraintLambda[Axis] * PositionConstraints.Data.ConstraintAxis[Axis];
 				}
 				if (!PositionDrives.bUseSimd && PositionDrives.bValidDatas[Axis])
 				{
-					Impulse += PositionDrives.D.ConstraintLambda[Axis] * PositionDrives.D.ConstraintAxis[Axis];
+					Impulse += PositionDrives.Data.ConstraintLambda[Axis] * PositionDrives.Data.ConstraintAxis[Axis];
 				}
 			}
 			return Impulse;
@@ -287,7 +287,7 @@ struct FAxisConstraintDatas
 					ConstraintLambdas[2] = VectorReplicate(RotationConstraints.Simd.ConstraintLambda, 2);
 					for (int32 Axis = 0; Axis < 3; ++Axis)
 					{
-						ImpulseSimd = VectorMultiplyAdd(ConstraintLambdas[Axis], RotationConstraints.Simd.ConstraintAxisSimd[Axis], ImpulseSimd);
+						ImpulseSimd = VectorMultiplyAdd(ConstraintLambdas[Axis], RotationConstraints.Simd.ConstraintAxis[Axis], ImpulseSimd);
 					}
 				}
 				if (RotationDrives.bUseSimd)
@@ -298,7 +298,7 @@ struct FAxisConstraintDatas
 					ConstraintLambdas[2] = VectorReplicate(RotationDrives.Simd.ConstraintLambda, 2);
 					for (int32 Axis = 0; Axis < 3; ++Axis)
 					{
-						ImpulseSimd = VectorMultiplyAdd(ConstraintLambdas[Axis], RotationDrives.Simd.ConstraintAxisSimd[Axis], ImpulseSimd);
+						ImpulseSimd = VectorMultiplyAdd(ConstraintLambdas[Axis], RotationDrives.Simd.ConstraintAxis[Axis], ImpulseSimd);
 					}
 				}
 				FVec3f Impulsef;
@@ -310,11 +310,11 @@ struct FAxisConstraintDatas
 			{
 				if (!RotationConstraints.bUseSimd && RotationConstraints.bValidDatas[Axis])
 				{
-					Impulse += RotationConstraints.D.ConstraintLambda[Axis] * RotationConstraints.D.ConstraintAxis[Axis];
+					Impulse += RotationConstraints.Data.ConstraintLambda[Axis] * RotationConstraints.Data.ConstraintAxis[Axis];
 				}
 				if (!RotationDrives.bUseSimd && RotationDrives.bValidDatas[Axis])
 				{
-					Impulse += RotationDrives.D.ConstraintLambda[Axis] * RotationDrives.D.ConstraintAxis[Axis];
+					Impulse += RotationDrives.Data.ConstraintLambda[Axis] * RotationDrives.Data.ConstraintAxis[Axis];
 				}
 			}
 			return Impulse;
