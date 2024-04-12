@@ -646,6 +646,10 @@ void AWorldDataLayers::OnLoadedActorRemovedFromLevel()
 
 	if (IsUsingExternalPackageDataLayerInstances())
 	{
+		// Validation will sometimes load the world without invoking the full initialization of its systems so
+		// perform a minimal initialization on ExternalPackage DataLayerInstances so that we can iterate over them
+		InitializeExternalPackageDataLayerInstances();
+
 		// Iterate on Data Layer Instances excluding Transient Data Layer Instances
 		for (UDataLayerInstance* DataLayerInstance : GetDataLayerInstances())
 		{
@@ -1199,13 +1203,23 @@ TSet<TObjectPtr<UDataLayerInstance>>& AWorldDataLayers::GetDataLayerInstances()
 	return DataLayerInstances;
 }
 
+void AWorldDataLayers::InitializeExternalPackageDataLayerInstances()
+{
+	check(IsUsingExternalPackageDataLayerInstances());
+	ExternalPackageDataLayerInstances.Append(LoadedExternalPackageDataLayerInstances);
+	LoadedExternalPackageDataLayerInstances.Reset();
+}
+
 void AWorldDataLayers::OnDataLayerManagerInitialized()
 {
 #if WITH_EDITOR
 	ConditionalPostLoad();
 	// At this point, LoadedExternalPackageDataLayerInstances are fully loaded, transfer them to the DataLayerInstances list.
-	ExternalPackageDataLayerInstances.Append(LoadedExternalPackageDataLayerInstances);
-	LoadedExternalPackageDataLayerInstances.Reset();
+	if (IsUsingExternalPackageDataLayerInstances())
+	{
+		InitializeExternalPackageDataLayerInstances();
+	}
+	
 	if (IsRunningCookCommandlet())
 	{
 		// Embed external DataLayerInstances when cooking

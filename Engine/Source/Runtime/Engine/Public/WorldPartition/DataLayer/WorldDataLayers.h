@@ -117,6 +117,7 @@ public:
 	ENGINE_API bool IsUsingExternalPackageDataLayerInstances() const { return bUseExternalPackageDataLayerInstances; }
 	ENGINE_API bool SetUseExternalPackageDataLayerInstances(bool bInNewValue, bool bInInteractiveMode = false);
 
+
 	ENGINE_API bool CanReferenceDataLayerAsset(const UDataLayerAsset* InDataLayerAsset, FText* OutFailureReason) const;
 #endif
 
@@ -218,6 +219,9 @@ private:
 	bool AddExternalDataLayerInstance(UExternalDataLayerInstance* ExternalDataLayerInstance);
 	bool RemoveExternalDataLayerInstance(UExternalDataLayerInstance* ExternalDataLayerInstance);
 	ENGINE_API UExternalDataLayerInstance* GetExternalDataLayerInstance(const UExternalDataLayerAsset* InExternalDataLayerAsset);
+
+	// ExternalPackage Data Layer Instances
+	ENGINE_API void InitializeExternalPackageDataLayerInstances();
 
 	ENGINE_API void OnDataLayerManagerInitialized();
 	ENGINE_API void OnDataLayerManagerDeinitialized();
