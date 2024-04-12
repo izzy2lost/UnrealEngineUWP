@@ -163,6 +163,7 @@ const TCHAR* LexToString(EInstallBundleResult Result)
 		TEXT("UserCancelledError"),
 		TEXT("InitializationError"),
 		TEXT("InitializationPending"),
+		TEXT("MetadataError"),
 	};
 
 	return InstallBundleUtil::TLexToString(Result, Strings);
@@ -175,6 +176,7 @@ const TCHAR* LexToString(EInstallBundleReleaseResult Result)
 		TEXT("OK"),
 		TEXT("ManifestArchiveError"),
 		TEXT("UserCancelledError"),
+		TEXT("MetadataError"),
 	};
 
 	return InstallBundleUtil::TLexToString(Result, Strings);

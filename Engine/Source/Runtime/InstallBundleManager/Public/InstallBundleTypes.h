@@ -174,6 +174,7 @@ enum class EInstallBundleResult : uint32
 	UserCancelledError,
 	InitializationError,
 	InitializationPending,
+	MetadataError,
 	Count,
 };
 INSTALLBUNDLEMANAGER_API const TCHAR* LexToString(EInstallBundleResult Result);
@@ -198,6 +199,7 @@ enum class EInstallBundleReleaseResult : uint32
 	OK,
 	ManifestArchiveError,
 	UserCancelledError,
+	MetadataError,
 	Count,
 };
 INSTALLBUNDLEMANAGER_API const TCHAR* LexToString(EInstallBundleReleaseResult Result);
