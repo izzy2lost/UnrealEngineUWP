@@ -291,6 +291,7 @@ class EdgeBotImpl extends PerforceStatefulBot {
 		if (pending.change.userRequest) {
 			const owner = getIntegrationOwner(pending) || pending.change.author
 			const shelfMsg = `${owner}, please merge this change by hand.\nMore info at ${this.sourceNode.getBotUrl()}\n\n` + failure.description
+			pending.change.additionalDescriptionText = `#ROBOMERGE-CONFLICT from-shelf\n`
 			await this.shelveChangelist(pending, false, shelfMsg)
 			this.edgeBotLogger.info(`${logMessage}. Shelved CL ${pending.newCl} for ${owner} to resolve manually (from reconsider).`)
 			return
