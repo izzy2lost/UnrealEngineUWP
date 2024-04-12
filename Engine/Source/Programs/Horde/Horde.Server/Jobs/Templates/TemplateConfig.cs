@@ -6,6 +6,7 @@ using System.ComponentModel.DataAnnotations;
 using System.IO;
 using System.Text.Json.Serialization;
 using EpicGames.Core;
+using EpicGames.Horde;
 using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Jobs.Templates;
 using Horde.Server.Configuration;
@@ -145,6 +146,12 @@ namespace Horde.Server.Jobs.Templates
 			if (String.IsNullOrEmpty(baseName))
 			{
 				baseName = "unnamed";
+			}
+
+			const int MaxBaseLength = StringId.MaxLength - 10;
+			if (baseName.Length > MaxBaseLength)
+			{
+				baseName = baseName.Substring(0, MaxBaseLength);
 			}
 
 			ParameterId parameterId = ParameterId.Sanitize(baseName);

@@ -2,6 +2,7 @@
 
 using System;
 using System.Reflection;
+using EpicGames.Core;
 using EpicGames.Horde;
 using MongoDB.Bson.Serialization;
 using MongoDB.Bson.Serialization.Serializers;
@@ -17,7 +18,7 @@ namespace Horde.Server.Utilities
 		readonly TConverter _converter = new TConverter();
 
 		/// <inheritdoc/>
-		public override TValue Deserialize(BsonDeserializationContext context, BsonDeserializationArgs args) => _converter.FromStringId(new StringId(context.Reader.ReadString()));
+		public override TValue Deserialize(BsonDeserializationContext context, BsonDeserializationArgs args) => _converter.FromStringId(new StringId(new Utf8String(context.Reader.ReadString()), StringId.Validate.None));
 
 		/// <inheritdoc/>
 		public override void Serialize(BsonSerializationContext context, BsonSerializationArgs args, TValue value) => context.Writer.WriteString(_converter.ToStringId(value).ToString());

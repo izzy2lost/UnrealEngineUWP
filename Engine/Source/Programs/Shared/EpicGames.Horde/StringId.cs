@@ -92,7 +92,7 @@ namespace EpicGames.Horde
 		public static StringId Sanitize(string text)
 		{
 			StringBuilder result = new StringBuilder();
-			for (int idx = 0; idx < text.Length; idx++)
+			for (int idx = 0; idx < text.Length && result.Length < MaxLength; idx++)
 			{
 				char character = (char)text[idx];
 				if (character >= 'A' && character <= 'Z')
