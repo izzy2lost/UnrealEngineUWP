@@ -1016,11 +1016,12 @@ bool UModularRigController::DeleteModule(const FString& InModulePath, bool bSetu
 	}
 #endif
 
-	// Unparent children (add them to root)
-	TArray<FRigModuleReference*> PreviousChildren = Module->CachedChildren;
-	for (const FRigModuleReference* Child : PreviousChildren)
+	// Delete children
+	TArray<FString> ChildrenPaths;
+	Algo::Transform(Module->CachedChildren, ChildrenPaths, [](const FRigModuleReference* Child){ return Child->GetPath(); });
+	for (const FString& ChildPath : ChildrenPaths)
 	{
-		ReparentModule(Child->GetPath(), FString(), bSetupUndo);
+		DeleteModule(ChildPath, bSetupUndo);
 	}
 
 	Model->DeletedModules.Add(*Module);
