@@ -98,6 +98,7 @@ namespace UE::ConcertClientSharedSlate
 			[
 				SAssignNew(ScrollBox, SScrollBox)
 				.Orientation(Orient_Horizontal)
+				.ToolTipText(InArgs._ListToolTipText)
 			]
 		];
 	}

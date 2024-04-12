@@ -30,11 +30,12 @@ namespace UE::MultiUserClient
 		SLATE_BEGIN_ARGS(SMultiClientView){}
 		SLATE_END_ARGS()
 
-		void Construct(const FArguments& InArgs, TSharedRef<IConcertClient> InConcertClient, FReplicationClientManager& InClientManager, IClientSelectionModel& InDisplayClientsModel);
+		void Construct(const FArguments& InArgs, TSharedRef<IConcertClient> InConcertClient, FReplicationClientManager& InClientManager UE_LIFETIMEBOUND, IClientSelectionModel& InDisplayClientsModel UE_LIFETIMEBOUND);
 		virtual ~SMultiClientView() override;
 
 	private:
 
+		TSharedPtr<IConcertClient> ConcertClient;
 		FReplicationClientManager* ClientManager = nullptr;
 		IClientSelectionModel* SelectionModel = nullptr;
 		

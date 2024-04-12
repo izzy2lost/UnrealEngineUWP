@@ -1,11 +1,11 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "FrequencyContextMenuUtils.h"
+#include "ContextMenuUtils.h"
 
-#include "Algo/AnyOf.h"
 #include "Replication/Client/ReplicationClientManager.h"
 #include "Replication/Util/FrequencyUtils.h"
 
+#include "Algo/AnyOf.h"
 #include "Async/Async.h"
 #include "Async/TaskGraphInterfaces.h"
 #include "Framework/Commands/UIAction.h"
@@ -17,7 +17,7 @@
 
 #define LOCTEXT_NAMESPACE "FrequencyContextMenuUtils"
 
-namespace UE::MultiUserClient::FrequencyContextMenuUtils
+namespace UE::MultiUserClient::ContextMenuUtils
 {
 	namespace Private
 	{
@@ -179,8 +179,8 @@ namespace UE::MultiUserClient::FrequencyContextMenuUtils
 					: LOCTEXT("NotApplicable.AllRealtime", "This object is repliacting in realtime");
 			}
 		};
-		
-		static void AppendReplicationModeToggleButtons(FMenuBuilder& MenuBuilder, const FSoftObjectPath& ContextObject, TAttribute<FInlineClientArray> Clients, FReplicationClientManager& InClientManager)
+
+		static void AddReplicationModeSubMenu(FMenuBuilder& MenuBuilder, const FSoftObjectPath& ContextObject, TAttribute<FInlineClientArray> Clients, FReplicationClientManager& InClientManager)
 		{
 			const auto SetReplicationMode = [ContextObject, Clients, &InClientManager](const EConcertObjectReplicationMode ModeToSet)
 			{
@@ -236,47 +236,6 @@ namespace UE::MultiUserClient::FrequencyContextMenuUtils
 				);
 		}
 
-		static void AddReplicationModeSubMenu(FMenuBuilder& MenuBuilder, const FSoftObjectPath& ContextObject, TAttribute<FInlineClientArray> GetClientsAttribute, FReplicationClientManager& InClientManager)
-		{
-			const auto GetText = [ContextObject, GetClientsAttribute, &InClientManager](FText Mixed, FText Specified, FText Realtime)
-			{
-				const FInlineClientArray& Clients = GetClientsAttribute.Get();
-				const TOptional<EConcertObjectReplicationMode> Mode = FrequencyUtils::FindSharedReplicationMode(ContextObject, Clients, InClientManager);
-				if (!Mode)
-				{
-					return Mixed;
-				}
-				switch (*Mode)
-				{
-				case EConcertObjectReplicationMode::SpecifiedRate: return Specified;
-				case EConcertObjectReplicationMode::Realtime: return Realtime;
-				default: return FText::GetEmpty();
-				}
-			};
-
-			constexpr bool bOpenSubMenuOnClick = false;
-			constexpr bool bShouldCloseWindowAfterMenuSelection = false;
-			MenuBuilder.AddSubMenu(
-				TAttribute<FText>::CreateLambda([GetText]()
-				{
-					const FText MixedLabel = LOCTEXT("Mixed.Label", "Mixed mode"); 
-					const FText SpecifiedLabel = LOCTEXT("Specified.Label", "Specified mode"); 
-					const FText RealtimeLabel = LOCTEXT("Realtime.Label", "Realtime mode"); 
-					return GetText(MixedLabel, SpecifiedLabel, RealtimeLabel);
-				}),
-				TAttribute<FText>::CreateLambda([GetText]()
-				{
-					const FText MixedTooltip = LOCTEXT("Mixed.Tooltip", "Multiple clients are replicating the object with different modes."); 
-					return GetText(MixedTooltip, GetSpecifiedRateTooltip(), GetRealtimeTooltip());
-				}),
-				FNewMenuDelegate::CreateLambda([ContextObject, GetClientsAttribute, &InClientManager](FMenuBuilder& MenuBuilder)
-				{
-					AppendReplicationModeToggleButtons(MenuBuilder, ContextObject, GetClientsAttribute, InClientManager);
-				}),
-				bOpenSubMenuOnClick, FSlateIcon(), bShouldCloseWindowAfterMenuSelection
-			);
-		}
-
 		static void SharedAppendFrequencyToMenu(FMenuBuilder& MenuBuilder, const FSoftObjectPath& ContextObject, TAttribute<FInlineClientArray> GetClientsAttribute, FReplicationClientManager& InClientManager)
 		{
 			// No frequency section if the object is not registered by any clients
@@ -296,7 +255,7 @@ namespace UE::MultiUserClient::FrequencyContextMenuUtils
 			AddReplicationModeSubMenu(MenuBuilder, ContextObject, GetClientsAttribute, InClientManager);
 
 			// Replication rate, only enabled if Specified Rate
-			constexpr bool bNoIndent = true;
+			constexpr bool bNoIndent = false;
 			constexpr bool bSearchable = true;
 			MenuBuilder.AddWidget(
 				SNew(Private::SFrequencyNumericBox, InClientManager)

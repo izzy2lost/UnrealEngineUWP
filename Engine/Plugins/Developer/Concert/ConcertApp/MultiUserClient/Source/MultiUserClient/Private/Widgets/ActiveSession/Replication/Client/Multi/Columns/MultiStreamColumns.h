@@ -27,7 +27,7 @@ namespace UE::ConcertSharedSlate
 namespace UE::MultiUserClient::MultiStreamColumns
 {
 	const extern FName ReplicationToggleColumnId;
-	const extern FName ReassignOwnershipColumnId;
+	const extern FName AssignedClientsColumnId;
 	const extern FName AssignPropertyColumnId;
 	
 	/* @see ETopLevelColumnOrder and EReplicationPropertyColumnOrder */
@@ -65,7 +65,7 @@ namespace UE::MultiUserClient::MultiStreamColumns
 	 * @param ClientManager Used to access all clients for display in the combo box drop-down
 	 * @param ColumnsSortPriority The order relative to the other columns
 	 */
-	ConcertSharedSlate::FObjectColumnEntry ReassignOwnership(
+	ConcertSharedSlate::FObjectColumnEntry AssignedClientsColumn(
 		TSharedRef<IConcertClient> ConcertClient,
 		TAttribute<TSharedPtr<ConcertSharedSlate::IMultiReplicationStreamEditor>> MultiStreamModelAttribute,
 		TAttribute<ConcertSharedSlate::IObjectHierarchyModel*> ObjectHierarchyModelAttribute,

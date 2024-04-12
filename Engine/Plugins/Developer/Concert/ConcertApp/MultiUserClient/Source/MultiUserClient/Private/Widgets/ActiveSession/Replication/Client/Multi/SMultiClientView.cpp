@@ -12,9 +12,9 @@
 #include "Replication/Editor/View/IMultiReplicationStreamEditor.h"
 #include "Replication/Editor/View/IReplicationStreamEditor.h"
 #include "Replication/Editor/Model/ObjectSource/ActorSelectionSourceModel.h"
-#include "Widgets/ActiveSession/Replication/Client/FrequencyContextMenuUtils.h"
 #include "Widgets/ActiveSession/Replication/Client/Multi/Columns/MultiStreamColumns.h"
 #include "Widgets/ActiveSession/Replication/Client/SReplicationStatus.h"
+#include "Widgets/ActiveSession/Replication/Client/Context/ContextMenuUtils.h"
 
 #include "Widgets/SBoxPanel.h"
 
@@ -26,6 +26,7 @@ namespace UE::MultiUserClient
 	{
 		StreamModel = MakeShared<FMultiStreamModel>(InDisplayClientsModel, InClientManager);
 
+		ConcertClient = MoveTemp(InConcertClient);
 		ClientManager = &InClientManager;
 		ClientManager->OnRemoteClientsChanged().AddSP(this, &SMultiClientView::RebuildClientSubscriptions);
 		SelectionModel = &InDisplayClientsModel;
@@ -40,7 +41,7 @@ namespace UE::MultiUserClient
 			+SVerticalBox::Slot()
 			.FillHeight(1.f)
 			[
-				CreateEditorContent(InConcertClient, InClientManager)
+				CreateEditorContent(ConcertClient.ToSharedRef(), InClientManager)
 			]
 		];
 		
@@ -110,7 +111,7 @@ namespace UE::MultiUserClient
 			.ObjectColumns =
 			{
 				MultiStreamColumns::ReplicationToggle(InConcertClient, ObjectHierarchyAttribute, InClientManager),
-				MultiStreamColumns::ReassignOwnership(InConcertClient, MultiStreamEditorAttribute, ObjectHierarchyAttribute, InClientManager.GetReassignmentLogic(), InClientManager)
+				MultiStreamColumns::AssignedClientsColumn(InConcertClient, MultiStreamEditorAttribute, ObjectHierarchyAttribute, InClientManager.GetReassignmentLogic(), InClientManager)
 			}
 		};
 		
@@ -172,7 +173,7 @@ namespace UE::MultiUserClient
 	void SMultiClientView::OnClientChanged() const
 	{
 		// When reassignment operations complete, the content of the columns changes so a resort is required.
-		StreamEditor->GetEditorBase().RequestObjectColumnResort(MultiStreamColumns::ReassignOwnershipColumnId);
+		StreamEditor->GetEditorBase().RequestObjectColumnResort(MultiStreamColumns::AssignedClientsColumnId);
 		StreamEditor->GetEditorBase().RequestPropertyColumnResort(MultiStreamColumns::AssignPropertyColumnId);
 	}
 
@@ -184,7 +185,20 @@ namespace UE::MultiUserClient
 
 	void SMultiClientView::ExtendObjectContextMenu(FMenuBuilder& MenuBuilder, TConstArrayView<FSoftObjectPath> ContextObjects) const
 	{
-		FrequencyContextMenuUtils::AddFrequencyOptionsIfOneContextObject_MultiClient(MenuBuilder, ContextObjects, *ClientManager);
+		ContextMenuUtils::AddFrequencyOptionsIfOneContextObject_MultiClient(MenuBuilder, ContextObjects, *ClientManager);
+
+		if (ContextObjects.Num() == 1)
+		{
+			ContextMenuUtils::AddReassignmentOptions(
+				MenuBuilder,
+				ContextObjects[0],
+				*ConcertClient,
+				*ClientManager,
+				*ObjectHierarchy,
+				ClientManager->GetReassignmentLogic(),
+				*StreamEditor
+				);
+		}
 	}
 }
 

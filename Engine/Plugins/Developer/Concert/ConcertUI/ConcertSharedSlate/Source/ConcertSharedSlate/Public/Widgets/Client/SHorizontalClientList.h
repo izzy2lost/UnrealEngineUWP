@@ -50,6 +50,9 @@ namespace UE::ConcertClientSharedSlate
 			
 			/** Defaults to placing the local client first (if contained) and sorting alphabetically otherwise. */
 			SLATE_EVENT(FSortPredicate, SortPredicate)
+
+			/** Tooltip text to display when the list is non-empty. */
+			SLATE_ATTRIBUTE(FText, ListToolTipText)
 			
 			/** The widget to display when the list is empty */
 			SLATE_NAMED_SLOT(FArguments, EmptyListSlot)
