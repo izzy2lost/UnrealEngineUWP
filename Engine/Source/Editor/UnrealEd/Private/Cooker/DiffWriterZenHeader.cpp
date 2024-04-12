@@ -80,7 +80,7 @@ FStringView FDiffWriterZenHeader::GetObjectIndexPathName(FPackageObjectIndex Pac
 		}
 		else
 		{
-			*PathName = TEXT("<UnknownScriptImport>");
+			*PathName = FString::Printf(TEXT("<UnknownScriptImport:%" UINT64_FMT ">"), PackageObjectIndex.Value());
 		}
 	}
 	else if (PackageObjectIndex.IsPackageImport())

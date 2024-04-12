@@ -592,6 +592,8 @@ void FAccumulator::OnFirstSaveComplete(FStringView LooseFilePath, int64 InHeader
 
 void FAccumulator::OnSecondSaveComplete(int64 InHeaderSize)
 {
+	Globals.Initialize(PackageHeaderFormat);
+
 	check(bFirstSaveComplete); // Should have been set in OnFirstSaveComplete
 	if (HeaderSize != InHeaderSize)
 	{
