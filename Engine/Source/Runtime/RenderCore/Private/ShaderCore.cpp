@@ -35,6 +35,7 @@
 #include "ShaderCompilerCore.h"
 #include "ShaderCompilerDefinitions.h"
 #include "ShaderCompilerJobTypes.h"
+#include "ShaderDiagnostics.h"
 #include "Stats/StatsMisc.h"
 #include "String/Find.h"
 #include "Tasks/Task.h"
@@ -50,11 +51,6 @@
 #include "Windows/HideWindowsPlatformTypes.h"
 #endif
 
-static TAutoConsoleVariable<int32> CVarShaderDevelopmentMode(
-	TEXT("r.ShaderDevelopmentMode"),
-	0,
-	TEXT("0: Default, 1: Enable various shader development utilities, such as the ability to retry on failed shader compile, and extra logging as shaders are compiled."),
-	ECVF_Default);
 
 static TAutoConsoleVariable<bool> CVarDumpDebugInfoForCacheHits(
 	TEXT("r.ShaderCompiler.DumpDebugInfoForCacheHits"),
@@ -68,7 +64,7 @@ void UpdateShaderDevelopmentMode()
 	// r.ShaderDevelopmentMode==1 results in all LogShaders log messages being displayed.
 	// if r.ShaderDevelopmentMode isn't set, we leave the category alone (it defaults to Error, but we can be overriding it to something higher)
 	bool bLogShadersUnsuppressed = UE_LOG_ACTIVE(LogShaders, Log);
-	bool bDesiredLogShadersUnsuppressed = CVarShaderDevelopmentMode.GetValueOnGameThread() == 1;
+	bool bDesiredLogShadersUnsuppressed = IsShaderDevelopmentModeEnabled();
 
 	if (bLogShadersUnsuppressed != bDesiredLogShadersUnsuppressed)
 	{

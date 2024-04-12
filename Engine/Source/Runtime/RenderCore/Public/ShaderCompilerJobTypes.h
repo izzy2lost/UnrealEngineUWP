@@ -166,6 +166,7 @@ public:
 
 	/** Calls the specified predicate for each single compile job, i.e. FShaderCompileJob and each stage of FShaderPipelineCompileJob. */
 	void ForEachSingleShaderJob(const TFunction<void(const FShaderCompileJob& SingleJob)>& Predicate) const;
+	void ForEachSingleShaderJob(const TFunction<void(FShaderCompileJob& SingleJob)>& Predicate);
 
 	/** This returns a unique id for a shader compiler job */
 	RENDERCORE_API static uint32 GetNextJobId();
@@ -350,11 +351,11 @@ inline void FShaderCommonCompileJob::Destroy() const
 	}
 }
 
-inline void FShaderCommonCompileJob::ForEachSingleShaderJob(const TFunction<void(const FShaderCompileJob&)>& Predicate) const
+inline void FShaderCommonCompileJob::ForEachSingleShaderJob(const TFunction<void(const FShaderCompileJob&)>& Function) const
 {
 	if (const FShaderCompileJob* SingleJob = GetSingleShaderJob())
 	{
-		Predicate(*SingleJob);
+		Function(*SingleJob);
 	}
 	else if (const FShaderPipelineCompileJob* PipelineJob = GetShaderPipelineJob())
 	{
@@ -362,7 +363,25 @@ inline void FShaderCommonCompileJob::ForEachSingleShaderJob(const TFunction<void
 		{
 			if (const FShaderCompileJob* SingleStageJob = StageJob->GetSingleShaderJob())
 			{
-				Predicate(*SingleStageJob);
+				Function(*SingleStageJob);
+			}
+		}
+	}
+}
+
+inline void FShaderCommonCompileJob::ForEachSingleShaderJob(const TFunction<void(FShaderCompileJob&)>& Function)
+{
+	if (FShaderCompileJob* SingleJob = GetSingleShaderJob())
+	{
+		Function(*SingleJob);
+	}
+	else if (FShaderPipelineCompileJob* PipelineJob = GetShaderPipelineJob())
+	{
+		for (TRefCountPtr<FShaderCompileJob>& StageJob : PipelineJob->StageJobs)
+		{
+			if (FShaderCompileJob* SingleStageJob = StageJob->GetSingleShaderJob())
+			{
+				Function(*SingleStageJob);
 			}
 		}
 	}

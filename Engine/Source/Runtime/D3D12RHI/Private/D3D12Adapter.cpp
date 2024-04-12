@@ -12,6 +12,7 @@ D3D12Adapter.cpp:D3D12 Adapter implementation.
 #include "Misc/CommandLine.h"
 #include "Misc/EngineVersion.h"
 #include "Misc/OutputDeviceRedirector.h"
+#include "ShaderDiagnostics.h"
 #include "DataDrivenShaderPlatformInfo.h"
 #include "Windows/AllowWindowsPlatformTypes.h"
 #include "GenericPlatform/GenericPlatformCrashContext.h"
@@ -490,10 +491,9 @@ void FD3D12Adapter::CreateRootDevice(bool bWithDebug)
 #if !PLATFORM_CPU_ARM_FAMILY && (PLATFORM_WINDOWS)
 	if (IsRHIDeviceAMD() && FD3D12DynamicRHI::GetD3DRHI()->GetAmdAgsContext())
 	{
-		auto* CVarShaderDevelopmentMode = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.ShaderDevelopmentMode"));
 		auto* CVarDisableEngineAndAppRegistration = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.DisableEngineAndAppRegistration"));
 
-		const bool bDisableEngineRegistration = (CVarShaderDevelopmentMode && CVarShaderDevelopmentMode->GetValueOnAnyThread() != 0) ||
+		const bool bDisableEngineRegistration = IsShaderDevelopmentModeEnabled() ||
 			(CVarDisableEngineAndAppRegistration && CVarDisableEngineAndAppRegistration->GetValueOnAnyThread() != 0);
 		const bool bDisableAppRegistration = bDisableEngineRegistration || !FApp::HasProjectName();
 

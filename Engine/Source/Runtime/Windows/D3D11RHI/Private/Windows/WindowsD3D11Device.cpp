@@ -26,6 +26,7 @@
 #include "GenericPlatform/GenericPlatformCrashContext.h"
 #include "RHIValidation.h"
 #include "RHIUtilities.h"
+#include "ShaderDiagnostics.h"
 #include "HDRHelper.h"
 #include "GlobalShader.h"
 
@@ -1597,9 +1598,8 @@ void FD3D11DynamicRHI::InitD3DDevice()
 			};
 
 			// Engine registration can be disabled via console var. Also disable automatically if ShaderDevelopmentMode is on.
-			auto* CVarShaderDevelopmentMode = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.ShaderDevelopmentMode"));
 			auto* CVarDisableEngineAndAppRegistration = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.DisableEngineAndAppRegistration"));
-			const bool bDisableEngineRegistration = (CVarShaderDevelopmentMode && CVarShaderDevelopmentMode->GetValueOnAnyThread() != 0) || 
+			const bool bDisableEngineRegistration = IsShaderDevelopmentModeEnabled() || 
 				(CVarDisableEngineAndAppRegistration && CVarDisableEngineAndAppRegistration->GetValueOnAnyThread() != 0);
 			const bool bDisableAppRegistration = bDisableEngineRegistration || !FApp::HasProjectName();
 

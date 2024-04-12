@@ -23,6 +23,7 @@
 #include "VulkanResourceCollection.h"
 #include "RHIValidation.h"
 #include "RHIUtilities.h"
+#include "ShaderDiagnostics.h"
 #include "IHeadMountedDisplayModule.h"
 #include "VulkanRenderpass.h"
 #include "VulkanTransientResourceAllocator.h"
@@ -656,10 +657,9 @@ void FVulkanDynamicRHI::Shutdown()
 void FVulkanDynamicRHI::CreateInstance()
 {
 	// Engine registration can be disabled via console var. Also disable automatically if ShaderDevelopmentMode is on.
-	auto* CVarShaderDevelopmentMode = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.ShaderDevelopmentMode"));
 	auto* CVarDisableEngineAndAppRegistration = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.DisableEngineAndAppRegistration"));
 	bool bDisableEngineRegistration = (CVarDisableEngineAndAppRegistration && CVarDisableEngineAndAppRegistration->GetValueOnAnyThread() != 0) ||
-		(CVarShaderDevelopmentMode && CVarShaderDevelopmentMode->GetValueOnAnyThread() != 0);
+		IsShaderDevelopmentModeEnabled();
 
 	// Use the API version stored in the profile
 	ApiVersion = GetVulkanApiVersionForFeatureLevel(GMaxRHIFeatureLevel, false);

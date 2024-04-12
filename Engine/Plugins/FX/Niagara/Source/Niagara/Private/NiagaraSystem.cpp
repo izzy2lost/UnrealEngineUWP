@@ -48,6 +48,7 @@
 #include "UObject/LinkerLoad.h"
 #include "UObject/Package.h"
 #include "PipelineStateCache.h"
+#include "ShaderDiagnostics.h"
 #include "NiagaraDataChannel.h"
 #include "UObject/UObjectIterator.h"
 
@@ -3378,8 +3379,7 @@ bool UNiagaraSystem::RequestCompile(bool bForce, FNiagaraSystemUpdateContext* Op
 		ForceGraphToRecompileOnNextCheck();
 
 		// if we're forcing a recompile in development mode then flush the shader file cache to catch any datainterface files that may have been edited
-		static IConsoleVariable* CVarShaderDevMode = IConsoleManager::Get().FindConsoleVariable(TEXT("r.ShaderDevelopmentMode"));
-		if (CVarShaderDevMode && CVarShaderDevMode->GetInt() != 0)
+		if (IsShaderDevelopmentModeEnabled())
 		{
 			FlushShaderFileCache();
 		}
