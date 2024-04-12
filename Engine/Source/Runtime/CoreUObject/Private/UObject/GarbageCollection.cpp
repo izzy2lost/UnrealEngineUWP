@@ -5828,7 +5828,7 @@ void FReachabilityAnalysisState::PerformReachabilityAnalysisAndConditionallyPurg
 				const double ReferenceProcessingTotalTimeMs = ReferenceProcessingTotalTime * 1000;
 				const double IncrementalMarkPhaseTotalTimeMs = IncrementalMarkPhaseTotalTime * 1000;
 				UE_LOG(LogGarbage, Log, TEXT("GC Reachability Analysis total time: %.2f ms (%.2f ms on reference traversal)"), IncrementalMarkPhaseTotalTimeMs, ReferenceProcessingTotalTimeMs);
-				FString ExtraDetail = WITH_VERSE_VM ? FString::Printf(TEXT("and %d verse cells"), Stats.NumVerseCells) : FString();
+				FString ExtraDetail = WITH_VERSE_VM ? FString::Printf(TEXT("and %d Verse cells"), Stats.NumVerseCells) : FString();
 				UE_LOG(LogGarbage, Log, TEXT("%.2f ms for %sGC - %d refs/ms while processing %d references from %d objects %s with %d clusters"),
 					IncrementalMarkPhaseTotalTimeMs,
 					bForceNonIncrementalReachability ? TEXT("") : TEXT("Incremental "),
