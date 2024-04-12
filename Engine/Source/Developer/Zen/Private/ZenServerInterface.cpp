@@ -2267,12 +2267,26 @@ FZenServiceInstance::ConditionalUpdateLocalInstall()
 	}
 
 #if PLATFORM_WINDOWS
-	FString InTreeSymbolFilePath = FPaths::SetExtension(InTreeServicePath, TEXT("pdb"));
-	FString InstallSymbolFilePath = FPaths::SetExtension(InstallServicePath, TEXT("pdb"));
-
-	if (FileManager.FileExists(*InTreeSymbolFilePath) && (bMainExecutablesUpdated || !FileManager.FileExists(*InstallSymbolFilePath)))
+	struct FZenExecutable
 	{
-		AttemptFileCopyWithRetries(*InstallSymbolFilePath, *InTreeSymbolFilePath, 1.0);
+		FString& InTreeFilePath;
+		FString& InstallFilePath;
+	};
+	const FZenExecutable ZenExecutables[] = {
+		// Service executable (zenserver.exe)
+		{InTreeServicePath, InstallServicePath},
+		// Utility executable (zen.exe)
+		{InTreeUtilityPath, InstallUtilityPath},
+	};
+	for (const FZenExecutable& Executable : ZenExecutables)
+	{
+		FString InTreeSymbolFilePath = FPaths::SetExtension(Executable.InTreeFilePath, TEXT("pdb"));
+		FString InstallSymbolFilePath = FPaths::SetExtension(Executable.InstallFilePath, TEXT("pdb"));
+
+		if (FileManager.FileExists(*InTreeSymbolFilePath) && (bMainExecutablesUpdated || !FileManager.FileExists(*InstallSymbolFilePath)))
+		{
+			AttemptFileCopyWithRetries(*InstallSymbolFilePath, *InTreeSymbolFilePath, 1.0);
+		}
 	}
 #endif
 
