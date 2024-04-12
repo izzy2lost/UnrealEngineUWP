@@ -324,7 +324,7 @@ void AddLumenStreamingViewOrigins(const FSceneViewFamily& ViewFamily, TArray<FVe
 			}
 		}
 
-		if (bAddOrigin)
+		if (bAddOrigin && OutOrigins.Num() < LUMEN_MAX_VIEWS)
 		{
 			OutOrigins.Add(StreamViewOrigin);
 		}
