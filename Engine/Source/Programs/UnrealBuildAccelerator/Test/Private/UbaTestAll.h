@@ -29,7 +29,6 @@ namespace uba
 		UBA_TEST(TestDetouredTestApp) \
 		UBA_TEST(TestRemoteDetouredTestApp) \
 		UBA_TEST(TestCompactPathTable) \
-		UBA_TEST(TestRootPaths) \
 
 
 #define UBA_POSIX_TESTS \
@@ -50,6 +49,7 @@ namespace uba
 		UBA_TEST(TestCustomService) \
 		UBA_TEST(TestStdOutLocal) \
 		UBA_TEST(TestStdOutViaCmd) \
+		UBA_TEST(TestRootPaths) \
 
 
 #define UBA_LINUX_TESTS \

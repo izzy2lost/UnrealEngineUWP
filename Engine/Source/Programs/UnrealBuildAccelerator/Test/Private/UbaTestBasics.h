@@ -343,13 +343,21 @@ namespace uba
 
 	bool TestRootPaths(Logger& logger, const StringBufferBase& rootDir)
 	{
-		RootPaths paths;
-		if (!paths.RegisterRoot(logger, TC("c:\\temp\\")))
-			return false;
-		if (!paths.RegisterRoot(logger, TC("e:\\temp\\")))
-			return false;
+		#if PLATFORM_WINDOWS
+		const tchar root1[] = TC("c:\\temp\\");
+		const tchar root2[] = TC("e:\\temp\\");
+		const tchar str[] = TC("e:\\temp\\foo");
+		#else
+		const tchar root1[] = TC("/mnt/c/");
+		const tchar root2[] = TC("/mnt/e/");
+		const tchar str[] = TC("/mnt/e/foo");
+		#endif
 
-		tchar str[] = TC("e:\\temp\\foo");
+		RootPaths paths;
+		if (!paths.RegisterRoot(logger, root1))
+			return false;
+		if (!paths.RegisterRoot(logger, root2))
+			return false;
 
 		bool success = true;
 		StringBuffer<> temp;
@@ -360,7 +368,7 @@ namespace uba
 				{
 					if (strLen != 1)
 						success = false;
-					if (str[0] != RootPaths::RootStartByte+2)
+					if (str[0] != RootPaths::RootStartByte + (IsWindows ? 2 : 1))
 						success = false;
 					rootPos = str[0];
 				}

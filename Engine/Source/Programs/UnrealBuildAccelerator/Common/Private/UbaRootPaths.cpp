@@ -11,8 +11,8 @@ namespace uba
 {
 	bool RootPaths::RegisterRoot(Logger& logger, const tchar* rootPath, bool includeInKey)
 	{
-		// Register rootPath both with single path separators and double path separators because text files store them with double path separators
-
+		// Register rootPath both with single path separators and double path separators on windows because text files store them with double path separators
+		#if PLATFORM_WINDOWS
 		StringBuffer<> doubleSlash;
 		for (const tchar* it=rootPath; *it; ++it)
 		{
@@ -22,6 +22,10 @@ namespace uba
 		}
 
 		const tchar* rootPaths[] = { rootPath, doubleSlash.data };
+		#else
+		const tchar* rootPaths[] = { rootPath };
+		#endif
+
 		for (const tchar* rp : rootPaths)
 		{
 			u32 index = u32(m_roots.size());
