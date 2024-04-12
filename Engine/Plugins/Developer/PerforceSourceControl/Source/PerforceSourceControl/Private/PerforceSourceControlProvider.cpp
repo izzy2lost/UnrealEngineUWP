@@ -910,7 +910,7 @@ ECommandResult::Type FPerforceSourceControlProvider::SwitchWorkspace(FStringView
 		P4Settings.SetWorkspace(WorkspaceName);
 	}
 
-	UE_LOG(LogSourceControl, Log, TEXT("Switched workspaces from '%s' to '%s%%'"), *OldWorkspaceName, *WorkspaceName);
+	UE_LOG(LogSourceControl, Log, TEXT("Switched workspaces from '%s' to '%s'"), *OldWorkspaceName, *WorkspaceName);
 
 	return ECommandResult::Succeeded;
 }
