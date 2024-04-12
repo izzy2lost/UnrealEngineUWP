@@ -362,7 +362,7 @@ namespace UnrealBuildTool
 
 			// grab a changlist version if we have it to pass to the script to use if desired
 			int Changelist = 0;
-			BuildVersion Version;
+			BuildVersion? Version;
 			if (BuildVersion.TryRead(BuildVersion.GetDefaultFileName(), out Version))
 			{
 				Changelist = Version.Changelist;
