@@ -49,6 +49,7 @@ class ITableRow;
 class SWidget;
 class UToolMenu;
 struct FAssetData;
+struct FFiltersAdditionalParams;
 struct FGeometry;
 struct FHistoryData;
 struct FPathViewConfig;
@@ -77,6 +78,10 @@ public:
 		, _AllowClassesFolder(false)
 		, _AllowReadOnlyFolders(true)
 		, _ShowFavorites(false)
+		, _CanShowDevelopersFolder(false)
+		, _ForceShowEngineContent(false)
+		, _ForceShowPluginContent(false)
+		, _ShowViewOptions(false)
 		, _SelectionMode( ESelectionMode::Multi )
 		{}
 
@@ -115,6 +120,18 @@ public:
 
 		/** If true, the favorites expander will be displayed */
 		SLATE_ARGUMENT(bool, ShowFavorites);
+
+		/** Indicates if the 'Show Developers' option should be enabled or disabled */
+		SLATE_ARGUMENT(bool, CanShowDevelopersFolder)
+
+		/** Should always show engine content */
+		SLATE_ARGUMENT(bool, ForceShowEngineContent)
+
+		/** Should always show plugin content */
+		SLATE_ARGUMENT(bool, ForceShowPluginContent)
+
+		/** Should show the filter setting button. Note: If ExternalSearch is valid, then view options are not shown regardless of this setting */
+		SLATE_ARGUMENT(bool, ShowViewOptions)
 
 		/** If true, redirectors are taken into consideration when deciding if folders are empty */
 		SLATE_ATTRIBUTE(bool, ShowRedirectors);
@@ -361,6 +378,30 @@ private:
 	/** Create a favorites view. */
 	TSharedRef<SWidget> CreateFavoritesView();
 
+	/** Register menu for when the view combo button is clicked */
+	static void RegisterGetViewButtonMenu();
+
+	/** Populate the given params for this PathView */
+	void PopulateFilterAdditionalParams(FFiltersAdditionalParams& OutParams);
+
+	/** Whether or not it's possible to show C++ content */
+	bool IsToggleShowCppContentAllowed() const;
+
+	/** Whether or not it's possible to toggle developers content */
+	bool IsToggleShowDevelopersContentAllowed() const;
+
+	/** Whether or not it's possible to toggle engine content */
+	bool IsToggleShowEngineContentAllowed() const;
+
+	/** Whether or not it's possible to toggle plugin content */
+	bool IsToggleShowPluginContentAllowed() const;
+
+	/** Whether or not it's possible to show localized content */
+	bool IsToggleShowLocalizedContentAllowed() const;
+
+	/** Handler for when the view combo button is clicked */
+	TSharedRef<SWidget> GetViewButtonContent();
+
 protected:
 	/** A helper class to manage PreventTreeItemChangedDelegateCount by incrementing it when constructed (on the stack) and decrementing when destroyed */
 	class FScopedPreventTreeItemChangedDelegate
@@ -436,7 +477,7 @@ protected:
 	TSharedPtr<FPathPermissionList> CustomFolderPermissionList;
 
 	TAttribute<bool> bShowRedirectors;
-	bool bLastShowRedirectors;
+	bool bLastShowRedirectors = false;
 
 private:
 	/** Used to track if the list of last expanded path should be updated */
@@ -452,19 +493,28 @@ private:
 	FOnGetContentBrowserItemContextMenu OnGetItemContextMenu;
 
 	/** If > 0, the selection or expansion changed delegate will not be called. Used to update the tree from an external source or in certain bulk operations. */
-	int32 PreventTreeItemChangedDelegateCount;
+	int32 PreventTreeItemChangedDelegateCount = 0;
 
 	/** Initial set of item categories that this view should show - may be adjusted further by things like AllowClassesFolder */
-	EContentBrowserItemCategoryFilter InitialCategoryFilter;
+	EContentBrowserItemCategoryFilter InitialCategoryFilter = EContentBrowserItemCategoryFilter::IncludeAll;
 
 	/** If false, the context menu will not open when right clicking an item in the tree */
-	bool bAllowContextMenu;
+	bool bAllowContextMenu : 1;
 
 	/** If false, the classes folder will not be added to the tree automatically */
-	bool bAllowClassesFolder;
+	bool bAllowClassesFolder : 1;
 
 	/** If true, read only folders will be displayed */
-	bool bAllowReadOnlyFolders;
+	bool bAllowReadOnlyFolders : 1;
+
+	/** Indicates if the 'Show Developers' option should be enabled or disabled */
+	bool bCanShowDevelopersFolder : 1;
+
+	/** If true, engine content is always shown */
+	bool bForceShowEngineContent : 1;
+
+	/** If true, plugin content is always shown */
+	bool bForceShowPluginContent : 1;
 
 	/** The title of this path view */
 	FText TreeTitle;

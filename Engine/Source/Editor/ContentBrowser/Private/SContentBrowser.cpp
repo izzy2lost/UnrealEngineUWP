@@ -1259,11 +1259,12 @@ TSharedRef<SWidget> SContentBrowser::CreatePathView(const FContentBrowserConfig*
 					.ShowTreeTitle(false)
 					.ShowSeparator(false)
 				   	.ShowRedirectors_Lambda([this]() { return ContentBrowserUtils::ShouldShowRedirectors(FilterListPtr); })
-					.AllowClassesFolder(true)
 					.AddMetaData<FTagMetaData>(FTagMetaData(TEXT("ContentBrowserSources")))
 					.ExternalSearch(SourcesSearch)
 					.PluginPathFilters(PluginPathFilters)
 					.OwningContentBrowserName(InstanceName)
+					.AllowClassesFolder(Config != nullptr ? Config->bCanShowClasses : true)
+					.CanShowDevelopersFolder(Config != nullptr ? Config->bCanShowDevelopersFolder : true)
 				]
 			]
 		];

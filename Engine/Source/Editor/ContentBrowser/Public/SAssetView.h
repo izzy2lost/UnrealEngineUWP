@@ -73,6 +73,7 @@ struct FAssetViewInstanceConfig;
 struct FCharacterEvent;
 struct FCollectionNameType;
 struct FContentBrowserInstanceConfig;
+struct FFiltersAdditionalParams;
 struct FFocusEvent;
 struct FGeometry;
 struct FKeyEvent;
@@ -529,6 +530,9 @@ private:
 	/** Fill in menu content for when the view combo button is clicked */
 	void PopulateViewButtonMenu(UToolMenu* Menu);
 
+	/** Populate the given params for this AssetView */
+	void PopulateFilterAdditionalParams(FFiltersAdditionalParams& OutParams);
+
 	/** Toggle whether folders should be shown or not */
 	void ToggleShowFolders();
 
@@ -615,9 +619,6 @@ private:
 
 	/** @return true when the collections view is docked */
 	bool HasDockedCollections() const;
-
-	/** Toggle whether C++ content should be shown or not */
-	void ToggleShowCppContent();
 
 	/** Whether or not it's possible to show C++ content */
 	bool IsToggleShowCppContentAllowed() const;

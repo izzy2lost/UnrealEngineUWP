@@ -13,7 +13,9 @@
 #include "ContentBrowserDataSubsystem.h"
 #include "ContentBrowserItemData.h"
 #include "ContentBrowserLog.h"
+#include "ContentBrowserMenuUtils.h"
 #include "ContentBrowserModule.h"
+#include "ContentBrowserPathViewMenuContexts.h"
 #include "ContentBrowserPluginFilters.h"
 #include "ContentBrowserSingleton.h"
 #include "ContentBrowserUtils.h"
@@ -57,11 +59,13 @@
 #include "Styling/ISlateStyle.h"
 #include "Textures/SlateIcon.h"
 #include "ToolMenu.h"
+#include "ToolMenus.h"
 #include "ToolMenuSection.h"
 #include "Trace/Detail/Channel.h"
 #include "Types/WidgetActiveTimerDelegate.h"
 #include "UObject/UObjectGlobals.h"
 #include "UObject/UnrealNames.h"
+#include "Widgets/Input/SComboButton.h"
 #include "Widgets/Input/SSearchBox.h"
 #include "Widgets/Layout/SBorder.h"
 #include "Widgets/Layout/SBox.h"
@@ -884,6 +888,9 @@ void SPathView::Construct( const FArguments& InArgs )
 	bAllowClassesFolder = InArgs._AllowClassesFolder;
 	bAllowReadOnlyFolders = InArgs._AllowReadOnlyFolders;
 	bShowRedirectors = InArgs._ShowRedirectors;
+	bCanShowDevelopersFolder = InArgs._CanShowDevelopersFolder;
+	bForceShowEngineContent = InArgs._ForceShowEngineContent;
+	bForceShowPluginContent = InArgs._ForceShowPluginContent;
 	bLastShowRedirectors = bShowRedirectors.Get(false);
 	PreventTreeItemChangedDelegateCount = 0;
 	TreeTitle = LOCTEXT("AssetTreeTitle", "Asset Tree");
@@ -967,6 +974,23 @@ void SPathView::Construct( const FArguments& InArgs )
 				.Visibility(InArgs._SearchBarVisibility)
 				[
 					SearchPtr->GetWidget()
+				]
+			]
+
+			+SHorizontalBox::Slot()
+			.Padding(4.f, 0.f, 0.f, 0.f)
+			.AutoWidth()
+			[
+				SNew(SComboButton)
+				.Visibility(InArgs._ShowViewOptions ? EVisibility::Visible : EVisibility::Collapsed)
+				.ComboButtonStyle(&FAppStyle::Get().GetWidgetStyle<FComboButtonStyle>("SimpleComboButton"))
+				.OnGetMenuContent(this, &SPathView::GetViewButtonContent)
+				.HasDownArrow(false)
+				.ButtonContent()
+				[
+					SNew(SImage)
+					.ColorAndOpacity(FSlateColor::UseForeground())
+					.Image(FAppStyle::Get().GetBrush("Icons.Settings"))
 				]
 			]
 		);
@@ -1468,9 +1492,9 @@ EContentBrowserItemAttributeFilter SPathView::GetContentBrowserItemAttributeFilt
 	}
 	
 	return EContentBrowserItemAttributeFilter::IncludeProject
-			| (bDisplayEngineContent ? EContentBrowserItemAttributeFilter::IncludeEngine : EContentBrowserItemAttributeFilter::IncludeNone)
-			| (bDisplayPluginContent ? EContentBrowserItemAttributeFilter::IncludePlugins : EContentBrowserItemAttributeFilter::IncludeNone)
-			| (bDisplayDevelopersContent ? EContentBrowserItemAttributeFilter::IncludeDeveloper : EContentBrowserItemAttributeFilter::IncludeNone)
+			| (bDisplayEngineContent || bForceShowEngineContent ? EContentBrowserItemAttributeFilter::IncludeEngine : EContentBrowserItemAttributeFilter::IncludeNone)
+			| (bDisplayPluginContent || bForceShowPluginContent ? EContentBrowserItemAttributeFilter::IncludePlugins : EContentBrowserItemAttributeFilter::IncludeNone)
+			| (bDisplayDevelopersContent && bCanShowDevelopersFolder ? EContentBrowserItemAttributeFilter::IncludeDeveloper : EContentBrowserItemAttributeFilter::IncludeNone)
 			| (bDisplayL10NContent ? EContentBrowserItemAttributeFilter::IncludeLocalized : EContentBrowserItemAttributeFilter::IncludeNone);
 }
 
@@ -2417,6 +2441,86 @@ TSharedRef<SWidget> SPathView::CreateFavoritesView()
 		];
 }
 
+void SPathView::RegisterGetViewButtonMenu()
+{
+	if (!UToolMenus::Get()->IsMenuRegistered("ContentBrowser.PathViewOptions"))
+	{
+		UToolMenu* Menu = UToolMenus::Get()->RegisterMenu("ContentBrowser.PathViewOptions");
+		Menu->bCloseSelfOnly = true;
+		Menu->AddDynamicSection("DynamicContent", FNewToolMenuDelegate::CreateLambda([](UToolMenu* InMenu)
+		{
+			FName ContextOwningContentBrowserName = NAME_None;
+			FFiltersAdditionalParams Params;
+			if (UContentBrowserPathViewContextMenuContext* Context = InMenu->FindContext<UContentBrowserPathViewContextMenuContext>())
+			{
+				if (Context->PathView.IsValid())
+				{
+					TSharedPtr<SPathView> PathView = Context->PathView.Pin();
+					PathView->PopulateFilterAdditionalParams(Params);
+
+					if (!PathView->OwningContentBrowserName.IsNone())
+					{
+						ContextOwningContentBrowserName = PathView->OwningContentBrowserName;
+					}
+				}
+
+				if (ContextOwningContentBrowserName.IsNone() && !Context->OwningContentBrowserName.IsNone())
+				{
+					ContextOwningContentBrowserName = Context->OwningContentBrowserName;
+				}
+
+				ContentBrowserMenuUtils::AddFiltersToMenu(InMenu, ContextOwningContentBrowserName, Params);
+			}
+		}));
+	}
+}
+
+void SPathView::PopulateFilterAdditionalParams(FFiltersAdditionalParams& OutParams)
+{
+	OutParams.CanShowCPPClasses = FCanExecuteAction::CreateSP(this, &SPathView::IsToggleShowCppContentAllowed);
+	OutParams.CanShowDevelopersContent = FCanExecuteAction::CreateSP(this, &SPathView::IsToggleShowDevelopersContentAllowed);
+	OutParams.CanShowEngineFolder = FCanExecuteAction::CreateSP(this, &SPathView::IsToggleShowEngineContentAllowed);
+	OutParams.CanShowPluginFolder = FCanExecuteAction::CreateSP(this, &SPathView::IsToggleShowPluginContentAllowed);
+	OutParams.CanShowLocalizedContent = FCanExecuteAction::CreateSP(this, &SPathView::IsToggleShowLocalizedContentAllowed);
+}
+
+bool SPathView::IsToggleShowCppContentAllowed() const
+{
+	return bAllowClassesFolder;
+}
+
+bool SPathView::IsToggleShowDevelopersContentAllowed() const
+{
+	return bCanShowDevelopersFolder;
+}
+
+bool SPathView::IsToggleShowEngineContentAllowed() const
+{
+	return !bForceShowEngineContent;
+}
+
+bool SPathView::IsToggleShowPluginContentAllowed() const
+{
+	return !bForceShowPluginContent;
+}
+
+bool SPathView::IsToggleShowLocalizedContentAllowed() const
+{
+	return true;
+}
+
+TSharedRef<SWidget> SPathView::GetViewButtonContent()
+{
+	SPathView::RegisterGetViewButtonMenu();
+
+	UContentBrowserPathViewContextMenuContext* Context = NewObject<UContentBrowserPathViewContextMenuContext>();
+	Context->PathView = SharedThis(this);
+	Context->OwningContentBrowserName = OwningContentBrowserName;
+
+	const FToolMenuContext MenuContext(Context);
+					
+	return UToolMenus::Get()->GenerateWidget("ContentBrowser.PathViewOptions", MenuContext);
+}
 
 void SFavoritePathView::Construct(const FArguments& InArgs)
 {

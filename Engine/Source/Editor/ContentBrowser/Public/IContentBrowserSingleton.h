@@ -388,6 +388,18 @@ struct FPathPickerConfig
 	/** Whether to call OnPathSelected during construction for DefaultPath if DefaultPath is allowed */
 	bool bNotifyDefaultPathSelected : 1;
 
+	/** Indicates if the 'Show Developers' option should be enabled or disabled */
+	bool bCanShowDevelopersFolder;
+
+	/** Indicates if engine content should always be shown */
+	bool bForceShowEngineContent;
+
+	/** Indicates if plugin content should always be shown */
+	bool bForceShowPluginContent;
+
+	/** if true, will add the filter setting to the path picker */
+	bool bShowViewOptions;
+
 	FPathPickerConfig()
 		: bFocusSearchBoxWhenOpened(true)
 		, bAllowContextMenu(true)
@@ -397,6 +409,10 @@ struct FPathPickerConfig
 		, bOnPathSelectedPassesVirtualPaths(false)
 		, bShowFavorites(true)
 		, bNotifyDefaultPathSelected(false)
+		, bCanShowDevelopersFolder(true)
+		, bForceShowEngineContent(false)
+		, bForceShowPluginContent(false)
+		, bShowViewOptions(false)
 	{}
 };
 

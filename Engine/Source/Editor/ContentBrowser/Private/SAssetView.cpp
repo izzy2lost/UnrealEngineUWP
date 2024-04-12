@@ -16,6 +16,7 @@
 #include "ContentBrowserDataSubsystem.h"
 #include "ContentBrowserLog.h"
 #include "ContentBrowserMenuContexts.h"
+#include "ContentBrowserMenuUtils.h"
 #include "ContentBrowserModule.h"
 #include "ContentBrowserSingleton.h"
 #include "ContentBrowserUtils.h"
@@ -2630,13 +2631,24 @@ void SAssetView::RegisterGetViewButtonMenu()
 		Menu->bCloseSelfOnly = true;
 		Menu->AddDynamicSection("DynamicContent", FNewToolMenuDelegate::CreateLambda([](UToolMenu* InMenu)
 		{
+			FName OwningContentBrowserName = NAME_None;
+			FFiltersAdditionalParams FilterParams;
 			if (UContentBrowserAssetViewContextMenuContext* Context = InMenu->FindContext<UContentBrowserAssetViewContextMenuContext>())
 			{
 				if (Context->AssetView.IsValid())
 				{
-					Context->AssetView.Pin()->PopulateViewButtonMenu(InMenu);
+					const TSharedPtr<SAssetView> AssetView = Context->AssetView.Pin();
+					AssetView->PopulateViewButtonMenu(InMenu);
+					AssetView->PopulateFilterAdditionalParams(FilterParams);
+				}
+
+				if (Context->OwningContentBrowser.IsValid())
+				{
+					OwningContentBrowserName = Context->OwningContentBrowser.Pin()->GetInstanceName();
 				}
 			}
+
+			ContentBrowserMenuUtils::AddFiltersToMenu(InMenu, OwningContentBrowserName, FilterParams);
 		}));
 	}
 }
@@ -2818,74 +2830,6 @@ void SAssetView::PopulateViewButtonMenu(UToolMenu* Menu)
 	}
 
 	{
-		FToolMenuSection& Section = Menu->AddSection("Content", LOCTEXT("ContentHeading", "Content"));
-		Section.AddMenuEntry(
-			"ShowCppClasses",
-			LOCTEXT("ShowCppClassesOption", "Show C++ Classes"),
-			LOCTEXT("ShowCppClassesOptionToolTip", "Show C++ classes in the view?"),
-			FSlateIcon(),
-			FUIAction(
-				FExecuteAction::CreateSP( this, &SAssetView::ToggleShowCppContent ),
-				FCanExecuteAction::CreateSP( this, &SAssetView::IsToggleShowCppContentAllowed ),
-				FIsActionChecked::CreateSP( this, &SAssetView::IsShowingCppContent )
-			),
-			EUserInterfaceActionType::ToggleButton
-		);
-
-		Section.AddMenuEntry(
-			"ShowDevelopersContent",
-			LOCTEXT("ShowDevelopersContentOption", "Show Developers Content"),
-			LOCTEXT("ShowDevelopersContentOptionToolTip", "Show developers content in the view?"),
-			FSlateIcon(),
-			FUIAction(
-				FExecuteAction::CreateSP( this, &SAssetView::ToggleShowDevelopersContent ),
-				FCanExecuteAction::CreateSP( this, &SAssetView::IsToggleShowDevelopersContentAllowed ),
-				FIsActionChecked::CreateSP( this, &SAssetView::IsShowingDevelopersContent )
-				),
-			EUserInterfaceActionType::ToggleButton
-		);
-
-		Section.AddMenuEntry(
-			"ShowEngineFolder",
-			LOCTEXT("ShowEngineFolderOption", "Show Engine Content"),
-			LOCTEXT("ShowEngineFolderOptionToolTip", "Show engine content in the view?"),
-			FSlateIcon(),
-			FUIAction(
-				FExecuteAction::CreateSP( this, &SAssetView::ToggleShowEngineContent ),
-				FCanExecuteAction::CreateSP( this, &SAssetView::IsToggleShowEngineContentAllowed),
-				FIsActionChecked::CreateSP( this, &SAssetView::IsShowingEngineContent )
-			),
-			EUserInterfaceActionType::ToggleButton
-		);
-
-		Section.AddMenuEntry(
-			"ShowPluginFolder",
-			LOCTEXT("ShowPluginFolderOption", "Show Plugin Content"),
-			LOCTEXT("ShowPluginFolderOptionToolTip", "Show plugin content in the view?"),
-			FSlateIcon(),
-			FUIAction(
-				FExecuteAction::CreateSP( this, &SAssetView::ToggleShowPluginContent ),
-				FCanExecuteAction::CreateSP(this, &SAssetView::IsToggleShowPluginContentAllowed),
-				FIsActionChecked::CreateSP( this, &SAssetView::IsShowingPluginContent )
-			),
-			EUserInterfaceActionType::ToggleButton
-		);
-
-		Section.AddMenuEntry(
-			"ShowLocalizedContent",
-			LOCTEXT("ShowLocalizedContentOption", "Show Localized Content"),
-			LOCTEXT("ShowLocalizedContentOptionToolTip", "Show localized content in the view?"),
-			FSlateIcon(),
-			FUIAction(
-				FExecuteAction::CreateSP(this, &SAssetView::ToggleShowLocalizedContent),
-				FCanExecuteAction::CreateSP(this, &SAssetView::IsToggleShowLocalizedContentAllowed),
-				FIsActionChecked::CreateSP(this, &SAssetView::IsShowingLocalizedContent)
-				),
-			EUserInterfaceActionType::ToggleButton
-			);
-	}
-
-	{
 		FToolMenuSection& Section = Menu->AddSection("Search", LOCTEXT("SearchHeading", "Search"));
 		Section.AddMenuEntry(
 			"IncludeClassName",
@@ -3008,6 +2952,15 @@ void SAssetView::PopulateViewButtonMenu(UToolMenu* Menu)
 			);
 		}
 	}
+}
+
+void SAssetView::PopulateFilterAdditionalParams(FFiltersAdditionalParams& OutParams)
+{
+	OutParams.CanShowCPPClasses = FCanExecuteAction::CreateSP(this, &SAssetView::IsToggleShowCppContentAllowed);
+	OutParams.CanShowDevelopersContent = FCanExecuteAction::CreateSP(this, &SAssetView::IsToggleShowDevelopersContentAllowed);
+	OutParams.CanShowEngineFolder = FCanExecuteAction::CreateSP(this, &SAssetView::IsToggleShowEngineContentAllowed);
+	OutParams.CanShowPluginFolder = FCanExecuteAction::CreateSP(this, &SAssetView::IsToggleShowPluginContentAllowed);
+	OutParams.CanShowLocalizedContent = FCanExecuteAction::CreateSP(this, &SAssetView::IsToggleShowLocalizedContentAllowed);
 }
 
 void SAssetView::ToggleShowFolders()
@@ -3339,23 +3292,6 @@ bool SAssetView::HasDockedCollections() const
 	}
 
 	return GetDefault<UContentBrowserSettings>()->GetDockCollections();
-}
-
-void SAssetView::ToggleShowCppContent()
-{
-	check(IsToggleShowCppContentAllowed());
-
-	bool bNewState = !GetDefault<UContentBrowserSettings>()->GetDisplayCppFolders();
-
-	if (FContentBrowserInstanceConfig* Config = GetContentBrowserConfig())
-	{
-		bNewState = !Config->bShowCppFolders;
-		Config->bShowCppFolders = bNewState;
-		UContentBrowserConfig::Get()->SaveEditorConfig();
-	}
-
-	GetMutableDefault<UContentBrowserSettings>()->SetDisplayCppFolders(bNewState);
-	GetMutableDefault<UContentBrowserSettings>()->PostEditChange();
 }
 
 bool SAssetView::IsToggleShowCppContentAllowed() const

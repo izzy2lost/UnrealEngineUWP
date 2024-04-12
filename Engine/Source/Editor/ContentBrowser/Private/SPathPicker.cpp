@@ -51,12 +51,16 @@ void SPathPicker::Construct( const FArguments& InArgs )
 		.OnGetItemContextMenu(this, &SPathPicker::GetItemContextMenu) // TODO: Allow this to be wholesale overridden via the picker config
 		.FocusSearchBoxWhenOpened(InArgs._PathPickerConfig.bFocusSearchBoxWhenOpened)
 		.AllowContextMenu(InArgs._PathPickerConfig.bAllowContextMenu)
-		.AllowClassesFolder(InArgs._PathPickerConfig.bAllowClassesFolder)
 		.AllowReadOnlyFolders(InArgs._PathPickerConfig.bAllowReadOnlyFolders)
 		.SelectionMode(ESelectionMode::Single)
 		.CustomFolderPermissionList(InArgs._PathPickerConfig.CustomFolderPermissionList)
 		.ShowFavorites(InArgs._PathPickerConfig.bShowFavorites)
 		.DefaultPath(InArgs._PathPickerConfig.bAddDefaultPath ? InArgs._PathPickerConfig.DefaultPath : FString{})
+		.AllowClassesFolder(InArgs._PathPickerConfig.bAllowClassesFolder)
+		.CanShowDevelopersFolder(InArgs._PathPickerConfig.bCanShowDevelopersFolder)
+		.ForceShowEngineContent(InArgs._PathPickerConfig.bForceShowEngineContent)
+		.ForceShowPluginContent(InArgs._PathPickerConfig.bForceShowPluginContent)
+		.ShowViewOptions(InArgs._PathPickerConfig.bShowViewOptions)
 	];
 	// clang-format on
 
