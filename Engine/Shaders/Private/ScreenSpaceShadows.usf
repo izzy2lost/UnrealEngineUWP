@@ -202,7 +202,7 @@ void ScreenSpaceShadowsUpsamplePS(
 {
 	float Output;
 	float SceneDepth;
-	UpsampleShadowFactors(SVPos, ScissorRectMinAndSize, OneOverDownsampleFactor, ShadowFactorsTexture, ShadowFactorsSampler, Output, SceneDepth);
+	UpsampleShadowFactors(SVPos, ScissorRectMinAndSize, OneOverDownsampleFactor, 0, POSITIVE_INFINITY, ShadowFactorsTexture, ShadowFactorsSampler, Output, SceneDepth);
 
 	OutColor = EncodeLightAttenuation(half4(Output, Output, Output, Output));
 }

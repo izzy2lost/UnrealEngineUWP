@@ -113,6 +113,30 @@ FloatDeriv4 ConstructFloatDeriv4(float4 InValue, float4 InDdx, float4 InDdy)
 #define NearDepthValue (HAS_INVERTED_Z_BUFFER ? 1.0f : 0.0f)
 #define FarDepthValue  (HAS_INVERTED_Z_BUFFER ? 0.0f : 1.0f)
 
+float NearestDeviceDepth(float DepthA, 
+                         float DepthB,
+                         float DepthC = FarDepthValue
+)
+{
+#if HAS_INVERTED_Z_BUFFER
+	return max3(DepthA, DepthB, DepthC);
+#else
+	return min3(DepthA, DepthB, DepthC);
+#endif
+}
+
+float FarthestDeviceDepth(float DepthA, 
+                          float DepthB,
+                          float DepthC = NearDepthValue
+)
+{
+#if HAS_INVERTED_Z_BUFFER
+	return min3(DepthA, DepthB, DepthC);
+#else
+	return max3(DepthA, DepthB, DepthC);
+#endif
+}
+
 const static MaterialFloat PI = 3.1415926535897932f;
 const static float MaxHalfFloat = 65504.0f;
 const static float Max11BitsFloat = 65024.0f;

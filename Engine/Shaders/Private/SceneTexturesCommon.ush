@@ -86,6 +86,16 @@ float LookupDeviceZ(uint2 PixelPos)
 #endif
 }
 
+/** Returns 4 DeviceZ values, which is the z value stored in the depth buffer. */
+float4 GatherDeviceZ( float2 ScreenUV )
+{
+#if SCENE_TEXTURES_DISABLED
+	return (float4)SCENE_TEXTURES_DISABLED_SCENE_DEPTH_VALUE;
+#else
+	return SceneTexturesStruct.SceneDepthTexture.GatherRed(GlobalBilinearClampedSampler, ScreenUV);
+#endif
+}
+
 /** Returns clip space W, which is world space distance along the View Z axis. */
 float CalcSceneDepth(uint2 PixelPos)
 {
@@ -191,7 +201,7 @@ float4 CalcFullSceneColor(float2 ScreenUV)
 float LookupDeviceZ( float2 ScreenUV, float ArrayIndex )
 {
 #if	SCENE_TEXTURES_DISABLED
-	return FarDepthValue;
+	return SCENE_TEXTURES_DISABLED_SCENE_DEPTH_VALUE;
 #elif FORCE_DEPTH_TEXTURE_READS || PLATFORM_NEEDS_DEPTH_TEXTURE_READS
 	// native Depth buffer lookup
 	#if INSTANCED_STEREO || MOBILE_MULTI_VIEW
@@ -227,6 +237,36 @@ float LookupDeviceZ( float2 ScreenUV, float ArrayIndex )
 float LookupDeviceZ( float2 ScreenUV )
 {
 	return LookupDeviceZ(ScreenUV, 0);
+}
+
+/** Returns 4 DeviceZ values, which is the z value stored in the depth buffer. */
+float4 GatherDeviceZ( float2 ScreenUV )
+{
+#if	SCENE_TEXTURES_DISABLED
+	return SCENE_TEXTURES_DISABLED_SCENE_DEPTH_VALUE;
+#elif FORCE_DEPTH_TEXTURE_READS || PLATFORM_NEEDS_DEPTH_TEXTURE_READS
+	// native Depth buffer lookup
+	#if INSTANCED_STEREO || MOBILE_MULTI_VIEW
+	return MobileSceneTextures.SceneDepthTextureArray.GatherRed(MobileSceneTextures.SceneDepthTextureSampler, float3(ScreenUV.xy,ArrayIndex));
+	#else
+		return MobileSceneTextures.SceneDepthTexture.GatherRed(MobileSceneTextures.SceneDepthTextureSampler, ScreenUV);
+	#endif
+#elif (USE_SCENE_DEPTH_AUX && !MOBILE_DEFERRED_SHADING)
+	// SceneDepth texture is discarded after BasePass (with forward shading) 
+	// instead fetch DeviceZ from SceneDepthAuxTexture
+	#if INSTANCED_STEREO || MOBILE_MULTI_VIEW
+		return MobileSceneTextures.SceneDepthAuxTextureArray.GatherRed(MobileSceneTextures.SceneDepthAuxTextureSampler, float3(ScreenUV.xy,ArrayIndex));
+	#else
+		return MobileSceneTextures.SceneDepthAuxTexture.GatherRed(MobileSceneTextures.SceneDepthAuxTextureSampler, ScreenUV);
+	#endif
+#else
+	// native Depth buffer lookup
+	#if INSTANCED_STEREO || MOBILE_MULTI_VIEW
+		return MobileSceneTextures.SceneDepthTextureArray.GatherRed(MobileSceneTextures.SceneDepthTextureSampler, float3(ScreenUV.xy,ArrayIndex));
+	#else
+		return MobileSceneTextures.SceneDepthTexture.GatherRed(MobileSceneTextures.SceneDepthTextureSampler, ScreenUV);
+	#endif
+#endif
 }
 
 /** Returns clip space W, which is world space distance along the View Z axis. Note if you need DeviceZ LookupDeviceZ() is the faster option */
