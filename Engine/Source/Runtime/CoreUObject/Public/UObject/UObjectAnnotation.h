@@ -88,11 +88,21 @@ private:
 		{
 			bool bWasEmpty = false;
 			{
-				FScopeLock AnnotationMapLock(&AnnotationMapCritical);
-				AnnotationCacheKey = Object;
-				AnnotationCacheValue = MoveTemp(LocalAnnotation);
-				bWasEmpty = (AnnotationMap.Num() == 0);
-				AnnotationMap.Add(AnnotationCacheKey, AnnotationCacheValue);
+				// We hit this from many locations, for now lets open around adding this, and if we happen to be in a transcation
+				// and abort after we have added let us use the UObject to remove it from the annotation map
+				UE_AUTORTFM_OPEN(
+				{
+					FScopeLock AnnotationMapLock(&AnnotationMapCritical);
+					AnnotationCacheKey = Object;
+					AnnotationCacheValue = MoveTemp(LocalAnnotation);
+					bWasEmpty = (AnnotationMap.Num() == 0);
+					AnnotationMap.Add(AnnotationCacheKey, AnnotationCacheValue);
+				});
+
+				UE_AUTORTFM_ONABORT(
+				{
+					RemoveAnnotation(Object);
+				});
 			}
 
 			if (bWasEmpty)
@@ -102,7 +112,15 @@ private:
 				if (bAutoRemove)
 #endif
 				{
-					GUObjectArray.AddUObjectDeleteListener(this);
+					UE_AUTORTFM_OPEN(
+					{
+						GUObjectArray.AddUObjectDeleteListener(this);
+					});
+
+					UE_AUTORTFM_ONABORT(
+					{
+						GUObjectArray.RemoveUObjectDeleteListener(this);
+					});
 				}
 			}
 		}
@@ -165,28 +183,31 @@ public:
 	 */
 	void RemoveAnnotation(const UObjectBase *Object)
 	{
-		check(Object);
-		bool bHadElements = false;
-		bool bIsNowEmpty = false;
-		// Avoid holding the lock while we call GUObjectArray.RemoveUObjectDeleteListener as it could deadlock
+		AutoRTFM::OnCommit([this, Object]
 		{
-			FScopeLock AnnotationMapLock(&AnnotationMapCritical);
-			AnnotationCacheKey = Object;
-			AnnotationCacheValue = TAnnotation();
-			bHadElements = (AnnotationMap.Num() > 0);
-			AnnotationMap.Remove(AnnotationCacheKey);
-			bIsNowEmpty = (AnnotationMap.Num() == 0);
-		}
-		if (bHadElements && bIsNowEmpty)
-		{
-			// we are removing the last one, so if we are auto removing or verifying removal, unregister now
-#if (UE_BUILD_SHIPPING || UE_BUILD_TEST)
-			if (bAutoRemove)
-#endif
+			check(Object);
+			bool bHadElements = false;
+			bool bIsNowEmpty = false;
+			// Avoid holding the lock while we call GUObjectArray.RemoveUObjectDeleteListener as it could deadlock
 			{
-				GUObjectArray.RemoveUObjectDeleteListener(this);
+				FScopeLock AnnotationMapLock(&AnnotationMapCritical);
+				AnnotationCacheKey = Object;
+				AnnotationCacheValue = TAnnotation();
+				bHadElements = (AnnotationMap.Num() > 0);
+				AnnotationMap.Remove(AnnotationCacheKey);
+				bIsNowEmpty = (AnnotationMap.Num() == 0);
 			}
-		}
+			if (bHadElements && bIsNowEmpty)
+			{
+				// we are removing the last one, so if we are auto removing or verifying removal, unregister now
+#if (UE_BUILD_SHIPPING || UE_BUILD_TEST)
+				if (bAutoRemove)
+#endif
+				{
+					GUObjectArray.RemoveUObjectDeleteListener(this);
+				}
+			}
+		});
 	}
 	/**
 	 * Removes all annotation from the annotation list. 

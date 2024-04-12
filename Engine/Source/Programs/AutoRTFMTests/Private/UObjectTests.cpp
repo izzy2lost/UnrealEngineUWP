@@ -5,6 +5,7 @@
 #include <AutoRTFM/AutoRTFM.h>
 #include "UObject/GCObject.h"
 #include "UObject/ReachabilityAnalysis.h"
+#include "UObject/UObjectAnnotation.h"
 
 TEST_CASE("UObject.NewObject")
 {
@@ -134,4 +135,66 @@ TEST_CASE("UObject.MarkAsReachable")
 
 	// Reset it back just incase another test required the original time limit.
 	SetReachabilityAnalysisTimeLimit(Original);
+}
+
+
+namespace
+{
+	struct FTestAnnotation
+	{
+		// Default value, if it doesnt exist it will return a default value one
+		int TestAnnotationNumber = 32;
+
+		bool IsDefault() const
+		{
+			return false;
+		}
+	};
+	FUObjectAnnotationSparse<FTestAnnotation, true> GTestAnnotation;
+}
+
+TEST_CASE("UObject.TestAddAnnotation")
+{
+	SECTION("Create")
+	{
+		UMyAutoRTFMTestObject* Outer = NewObject<UMyAutoRTFMTestObject>();
+		UMyAutoRTFMTestObject* Object = nullptr;
+
+		AutoRTFM::Commit([&]
+			{
+				Object = NewObject<UMyAutoRTFMTestObject>(Outer);
+
+				FTestAnnotation Temp;
+				Temp.TestAnnotationNumber = 70;
+
+				GTestAnnotation.AddAnnotation(Object, Temp);
+			});
+
+		REQUIRE(nullptr != Object);
+		REQUIRE(42 == Object->Value);
+		REQUIRE(Object->IsInOuter(Outer));
+		REQUIRE(55 == Outer->Value);
+		REQUIRE(70 == GTestAnnotation.GetAnnotation(Object).TestAnnotationNumber);
+	}
+
+	SECTION("Abort")
+	{
+		UMyAutoRTFMTestObject* Outer = NewObject<UMyAutoRTFMTestObject>();
+		UMyAutoRTFMTestObject* Object = nullptr;
+
+		Object = NewObject<UMyAutoRTFMTestObject>(Outer);
+
+		REQUIRE(AutoRTFM::ETransactionResult::AbortedByRequest == AutoRTFM::Transact([&]
+			{
+
+				FTestAnnotation Temp;
+				Temp.TestAnnotationNumber = 70;
+
+				GTestAnnotation.AddAnnotation(Object, Temp);
+
+				AutoRTFM::AbortTransaction();
+			}));
+
+		REQUIRE(32 == GTestAnnotation.GetAnnotation(Object).TestAnnotationNumber);
+	}
 }
