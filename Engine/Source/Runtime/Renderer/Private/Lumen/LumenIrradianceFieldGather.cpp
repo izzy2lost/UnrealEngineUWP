@@ -345,9 +345,12 @@ FSSDSignalTextures FDeferredShadingSceneRenderer::RenderLumenIrradianceFieldGath
 			FComputeShaderUtils::GetGroupCount(View.ViewRect.Size(), FIrradianceFieldGatherCS::GetGroupSize()));
 	}
 
+	const FRDGSystemTextures& SystemTextures = FRDGSystemTextures::Get(GraphBuilder);
+
 	FSSDSignalTextures DenoiserOutputs;
 	DenoiserOutputs.Textures[0] = DiffuseIndirect;
-	DenoiserOutputs.Textures[1] = RoughSpecularIndirect;
+	DenoiserOutputs.Textures[1] = SystemTextures.Black;
+	DenoiserOutputs.Textures[2] = RoughSpecularIndirect;
 
 	return DenoiserOutputs;
 }
