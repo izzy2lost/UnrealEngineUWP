@@ -7,6 +7,10 @@
 #include "Engine/PoseWatchRenderData.h"
 #include "ReferenceSkeleton.h"
 
+static TAutoConsoleVariable<bool> CVarDisablePoseWatchRendering(
+	TEXT("a.DisablePoseWatchRendering"),
+	false,
+	TEXT("Disable all active pose watches from being drawn."));
 
 namespace SkeletalDebugRendering
 {
@@ -180,6 +184,11 @@ void DrawBonesFromPoseWatch(
 	const bool bUseWorldTransform
 )
 {
+	if (CVarDisablePoseWatchRendering.GetValueOnAnyThread())
+	{
+		return;
+	}
+
 	const TArray<FTransform>& InBoneTransforms = PoseWatch.GetBoneTransforms();
 	const TArray<FBoneIndexType>& InRequiredBones = PoseWatch.GetRequiredBones();
 	if (InRequiredBones.Num() == 0 || InBoneTransforms.Num() < InRequiredBones.Num())
@@ -194,14 +203,14 @@ void DrawBonesFromPoseWatch(
 	const TArray<int32>& ParentIndices = PoseWatch.GetParentIndices();
 
 	TArray<FTransform> UseWorldTransforms;
-	UseWorldTransforms.AddDefaulted(ParentIndices.Num());
+	UseWorldTransforms.AddDefaulted(InBoneTransforms.Num());
 	
 	TArray<FBoneIndexType> UseRequiredBones;
 	UseRequiredBones.Reserve(InRequiredBones.Num());
 
 	for (const FBoneIndexType& BoneIndex : InRequiredBones)
 	{
-		if (ParentIndices.IsValidIndex(BoneIndex))
+		if (ParentIndices.IsValidIndex(BoneIndex) && InBoneTransforms.IsValidIndex(BoneIndex))
 		{
 			const int32 ParentIndex = ParentIndices[BoneIndex];
 

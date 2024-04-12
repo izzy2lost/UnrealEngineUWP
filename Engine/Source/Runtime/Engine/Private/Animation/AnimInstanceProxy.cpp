@@ -3367,25 +3367,6 @@ void FAnimInstanceProxy::RegisterWatchedPose(const FCompactPose& Pose, const FBl
 						PoseWatch.Object = GetAnimInstanceObject();
 						PoseWatch.PoseWatch->SetIsNodeEnabled(true);
 
-						/*
-						for (FCompactPoseBoneIndex BoneIndex : Pose.ForEachBoneIndex())
-						{
-							FMeshPoseBoneIndex MeshBoneIndex = Pose.GetBoneContainer().MakeMeshPoseIndex(BoneIndex);
-
-							int32 ParentIndex = Pose.GetBoneContainer().GetParentBoneIndex(MeshBoneIndex.GetInt());
-
-							if (ParentIndex == INDEX_NONE)
-							{
-								WorldTransforms[MeshBoneIndex.GetInt()] = Pose[BoneIndex] * MeshComponent->GetComponentTransform();
-							}
-							else
-							{
-								WorldTransforms[MeshBoneIndex.GetInt()] = Pose[BoneIndex] * WorldTransforms[ParentIndex];
-							}
-							BoneColors[MeshBoneIndex.GetInt()] = BoneColor;
-						}
-						*/
-
 						TArray<FTransform> BoneTransforms;
 						BoneTransforms.AddUninitialized(Pose.GetBoneContainer().GetNumBones());
 
@@ -3420,35 +3401,10 @@ void FAnimInstanceProxy::RegisterWatchedPose(const FCSPose<FCompactPose>& Pose, 
 
 void FAnimInstanceProxy::RegisterWatchedPose(const FCSPose<FCompactPose>& Pose, const FBlendedCurve& InCurve, int32 LinkID)
 {
-	if (bIsBeingDebugged)
-	{
-		FAnimBlueprintDebugData* DebugData = GetAnimBlueprintDebugData();
-		if (DebugData)
-		{
-			if (USkeletalMeshComponent* SkelMeshComponent = GetSkelMeshComponent())
-			{
-				for (FAnimNodePoseWatch& PoseWatch : DebugData->AnimNodePoseWatch)
-				{
-					if (PoseWatch.PoseWatch && PoseWatch.NodeID == LinkID)
-					{
-						FCompactPose TempPose;
-						FCSPose<FCompactPose>::ConvertComponentPosesToLocalPoses(Pose, TempPose);
-						PoseWatch.Object = GetAnimInstanceObject();
-						PoseWatch.PoseWatch->SetIsNodeEnabled(true);
+	FCompactPose LocalPose;
+	FCSPose<FCompactPose>::ConvertComponentPosesToLocalPoses(Pose, LocalPose);
 
-						const TArray<FTransform, FAnimStackAllocator>& BoneTransforms = TempPose.GetBones();
-						const TArray<FBoneIndexType>& TmpRequiredBones = TempPose.GetBoneContainer().GetBoneIndicesArray();
-						PoseWatch.SetPose(TmpRequiredBones, BoneTransforms);
-						PoseWatch.SetCurves(InCurve);
-						PoseWatch.SetWorldTransform(SkelMeshComponent->GetComponentTransform());
-
-						TRACE_ANIM_POSE_WATCH(*this, PoseWatch.PoseWatchPoseElement, PoseWatch.NodeID, PoseWatch.GetBoneTransforms(), PoseWatch.GetCurves(), PoseWatch.GetRequiredBones(), PoseWatch.GetWorldTransform(), PoseWatch.PoseWatchPoseElement->GetIsVisible());
-						break;
-					}
-				}
-			}
-		}
-	}
+	RegisterWatchedPose(LocalPose, InCurve, LinkID);
 }
 #endif
 
