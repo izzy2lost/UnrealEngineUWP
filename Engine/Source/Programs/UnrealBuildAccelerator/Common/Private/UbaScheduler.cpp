@@ -6,6 +6,7 @@
 #include "UbaNetworkServer.h"
 #include "UbaProcess.h"
 #include "UbaProcessStartInfoHolder.h"
+#include "UbaRootPaths.h"
 #include "UbaSessionServer.h"
 #include "UbaStringBuffer.h"
 
@@ -95,6 +96,8 @@ namespace uba
 	Scheduler::~Scheduler()
 	{
 		Stop();
+		for (auto rt : m_rootPaths)
+			delete rt;
 	}
 
 	void Scheduler::Start()
@@ -403,7 +406,7 @@ namespace uba
 						ProcessStartInfo& si = exitInfo->startInfo->startInfo;
 						u64 startTime = GetTime();
 
-						if (m_cacheClient->FetchFromCache(si))
+						if (m_cacheClient->FetchFromCache(*m_rootPaths[0], si))
 						{
 							auto process = new CachedProcess(si);
 							ProcessHandle ph(process);
@@ -513,7 +516,7 @@ namespace uba
 		delete si;
 
 		if (m_writeToCache && exitCode == 0 && process.GetStartInfo().trackInputs)
-			m_cacheClient->WriteToCache(ph);
+			m_cacheClient->WriteToCache(*m_rootPaths[0], ph);
 
 		ph.m_process = nullptr;
 	}
@@ -708,13 +711,11 @@ namespace uba
 				}
 				case InsideArray_CacheRoots:
 				{
-					if (m_cacheClient)
-					{
-						if (Equals(valueStart, TC("SystemRoots")))
-							m_cacheClient->RegisterSystemRoots();
-						else
-							m_cacheClient->RegisterRoot(valueStart);
-					}
+					auto& rootPaths = *m_rootPaths.emplace_back(new RootPaths());
+					if (Equals(valueStart, TC("SystemRoots")))
+						rootPaths.RegisterSystemRoots(logger);
+					else
+						rootPaths.RegisterRoot(logger, valueStart);
 					return true;
 				}
 				case InsideArray_Processes:

@@ -5,11 +5,14 @@
 
 namespace uba
 {
-	CompactPathTable::CompactPathTable(u64 reserveSize, u64 reserveOffsetsCount)
+	CompactPathTable::CompactPathTable(u64 reserveSize, Version version, u64 reservePathCount, u64 reserveSegmentCount)
 	{
 		m_reserveSize = reserveSize;
-		if (reserveOffsetsCount)
-			m_offsets.reserve(reserveOffsetsCount);
+		if (reservePathCount)
+			m_offsets.reserve(reservePathCount);
+		if (reserveSegmentCount)
+			m_segmentOffsets.reserve(reserveSegmentCount);
+		m_version = version;
 	}
 
 	u32 CompactPathTable::Add(const tchar* str, u64 strLen, u32* outRequiredCasTableSize)
@@ -58,15 +61,55 @@ namespace uba
 
 		u64 segLen = strLen - (seg - str);
 		u8 bytesForParent = Get7BitEncodedCount(parentOffset);
-		u64 bytesForString = GetStringWriteSize(seg, segLen);
 
-		u64 memSize = bytesForParent + bytesForString;
-		u8* mem = (u8*)m_mem.AllocateNoLock(memSize, 1, TC(""));
-		BinaryWriter writer(mem, 0, memSize);
-		writer.Write7BitEncoded(parentOffset);
-		writer.WriteString(seg, segLen);
-		insres.first->second = u32(mem - m_mem.memory);
-		return insres.first->second;
+		if (m_version == V0)
+		{
+			u64 bytesForString = GetStringWriteSize(seg, segLen);
+
+			u64 memSize = bytesForParent + bytesForString;
+			u8* mem = (u8*)m_mem.AllocateNoLock(memSize, 1, TC(""));
+			BinaryWriter writer(mem, 0, memSize);
+			writer.Write7BitEncoded(parentOffset);
+			writer.WriteString(seg, segLen);
+			insres.first->second = u32(mem - m_mem.memory);
+			return insres.first->second;
+		}
+		else
+		{
+			StringKey segmentKey = ToStringKeyNoCheck(seg, segLen);
+			auto insres2 = m_segmentOffsets.try_emplace(segmentKey);
+			if (insres2.second)
+			{
+				// Put string directly after current element and set segment offset to 0
+				u64 bytesForString = GetStringWriteSize(seg, segLen);
+				u64 memSize = bytesForParent + 1 + bytesForString;
+				u8* mem = (u8*)m_mem.AllocateNoLock(memSize, 1, TC(""));
+				BinaryWriter writer(mem, 0, memSize);
+				writer.Write7BitEncoded(parentOffset);
+				writer.Write7BitEncoded(0);
+				writer.WriteString(seg, segLen);
+				u32 offset = u32(mem - m_mem.memory);
+				insres.first->second = offset;
+				insres2.first->second = offset + bytesForParent + 1;
+				return offset;
+			}
+
+			#if 0
+			StringBuffer<> temp;
+			BinaryReader reader(m_mem.memory, insres2.first->second, 1000);
+			reader.ReadString(temp);
+			UBA_ASSERT(temp.count == segLen && wcsncmp(temp.data, seg, segLen) == 0);
+			#endif
+
+			u32 strOffset = insres2.first->second;
+			u64 memSize = bytesForParent + Get7BitEncodedCount(strOffset);
+			u8* mem = (u8*)m_mem.AllocateNoLock(memSize, 1, TC(""));
+			BinaryWriter writer(mem, 0, memSize);
+			writer.Write7BitEncoded(parentOffset);
+			writer.Write7BitEncoded(strOffset);
+			insres.first->second = u32(mem - m_mem.memory);
+			return insres.first->second;
+		}
 	}
 
 	void CompactPathTable::GetString(StringBufferBase& out, u64 offset) const
@@ -86,16 +129,36 @@ namespace uba
 			offsets[offsetCount] = u32(offset);
 		}
 
-		bool isFirst = true;
-		for (u32 i=offsetCount;i; --i)
+		if (m_version == V0)
 		{
-			reader.SetPosition(offsets[i-1]);
-			reader.Read7BitEncoded();
+			bool isFirst = true;
+			for (u32 i=offsetCount;i; --i)
+			{
+				reader.SetPosition(offsets[i-1]);
+				reader.Read7BitEncoded();
 
-			if (!isFirst)
-				out.Append(PathSeparator);
-			isFirst = false;
-			reader.ReadString(out);
+				if (!isFirst)
+					out.Append(PathSeparator);
+				isFirst = false;
+				reader.ReadString(out);
+			}
+		}
+		else
+		{
+			bool isFirst = true;
+			for (u32 i=offsetCount;i; --i)
+			{
+				reader.SetPosition(offsets[i-1]);
+				reader.Read7BitEncoded();
+				u32 strOffset = u32(reader.Read7BitEncoded());
+				if (strOffset != 0)
+					reader.SetPosition(strOffset);
+
+				if (!isFirst)
+					out.Append(PathSeparator);
+				isFirst = false;
+				reader.ReadString(out);
+			}
 		}
 	}
 
@@ -127,26 +190,54 @@ namespace uba
 		if (!writtenSize)
 			reader2.Skip(1);
 
-		while (reader2.GetLeft())
+		if (m_version == V0)
 		{
-			u32 offset = u32(reader2.GetPosition());
-			reader2.Read7BitEncoded();
-			reader2.SkipString();
-			StringBuffer<> str;
-			GetString(str, offset);
-			if (CaseInsensitiveFs)
-				str.MakeLower();
-			m_offsets.try_emplace(ToStringKey(str), offset);
+			while (reader2.GetLeft())
+			{
+				u32 offset = u32(reader2.GetPosition());
+				reader2.Read7BitEncoded();
+				reader2.SkipString();
+				StringBuffer<> str;
+				GetString(str, offset);
+				if (CaseInsensitiveFs)
+					str.MakeLower();
+				m_offsets.try_emplace(ToStringKeyNoCheck(str.data, str.count), offset);
+			}
+		}
+		else
+		{
+			while (reader2.GetLeft())
+			{
+				u32 offset = u32(reader2.GetPosition());
+				reader2.Read7BitEncoded();
+				u64 stringOffset = reader2.Read7BitEncoded();
+				if (!stringOffset)
+				{
+					u32 strOffset = u32(reader2.GetPosition());
+					StringBuffer<> seg;
+					reader2.ReadString(seg);
+					m_segmentOffsets.try_emplace(ToStringKeyNoCheck(seg.data, seg.count), strOffset);
+				}
+				StringBuffer<> str;
+				GetString(str, offset);
+				if (CaseInsensitiveFs)
+					str.MakeLower();
+				m_offsets.try_emplace(ToStringKeyNoCheck(str.data, str.count), offset);
+			}
 		}
 	}
 
 	void CompactPathTable::Swap(CompactPathTable& other)
 	{
 		m_offsets.swap(other.m_offsets);
+		m_segmentOffsets.swap(other.m_segmentOffsets);
 		m_mem.Swap(other.m_mem);
 		u64 rs = m_reserveSize;
 		m_reserveSize = other.m_reserveSize;
 		other.m_reserveSize = rs;
+		Version v = m_version;
+		m_version = other.m_version;
+		other.m_version = v;
 	}
 
 	CompactCasKeyTable::CompactCasKeyTable(u64 reserveSize, u64 reserveOffsetsCount)

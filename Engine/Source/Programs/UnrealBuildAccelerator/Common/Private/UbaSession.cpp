@@ -1217,7 +1217,7 @@ namespace uba
 			si.rules = GetRules(si);
 
 		void* env = GetProcessEnvironmentVariables();
-		u32 id = ++m_processIdCounter;
+		u32 id = CreateProcessId();
 		auto process = new ProcessImpl(*this, id, parent);
 		ProcessHandle h(process);
 		process->Start(startInfo, realApplication.data, realWorkingDir, m_runningRemote, env, async, enableDetour);
@@ -1311,6 +1311,7 @@ namespace uba
 	Storage& Session::GetStorage() { return m_storage; }
 	Logger& Session::GetLogger() { return m_logger; }
 	LogWriter& Session::GetLogWriter() { return m_logger.m_writer; }
+	Trace& Session::GetTrace() { return m_trace; }
 
 	const ApplicationRules* Session::GetRules(const ProcessStartInfo& si)
 	{
@@ -1381,6 +1382,10 @@ namespace uba
 	const tchar* Session::GetTempPath()
 	{
 		return m_tempPath.data;
+	}
+	u32 Session::CreateProcessId()
+	{
+		return ++m_processIdCounter;
 	}
 
 	void Session::ProcessAdded(Process& process, u32 sessionId)

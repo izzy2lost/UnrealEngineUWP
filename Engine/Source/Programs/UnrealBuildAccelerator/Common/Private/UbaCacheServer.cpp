@@ -12,7 +12,7 @@ namespace uba
 
 	struct CacheServer::Connection
 	{
-		Connection() : m_pathTable(8*1024*1024), m_casKeyTable(8*1024*1024) {}
+		Connection() : m_pathTable(8*1024*1024, CompactPathTable::V1), m_casKeyTable(8*1024*1024) {}
 		CompactPathTable m_pathTable;
 		CompactCasKeyTable m_casKeyTable;
 
@@ -36,7 +36,7 @@ namespace uba
 	:	m_logger(writer, TC("UbaCacheServer"))
 	,	m_server(server)
 	,	m_storage(storage)
-	,	m_pathTable(CachePathTableMaxSize)
+	,	m_pathTable(CachePathTableMaxSize, CompactPathTable::V1)
 	,	m_casKeyTable(CacheCasKeyTableMaxSize)
 	{
 		m_rootDir.count = GetFullPathNameW(rootDir, m_rootDir.capacity, m_rootDir.data, NULL);
@@ -430,15 +430,22 @@ namespace uba
 			UnorderedMap<u32, u32> oldToNewPathOffset;
 			u32 oldSize = m_pathTable.GetSize();
 			{
-				u64 reservedPathOffsets = usedPathOffsets.size()*2; // Trying to estimate offset count
-				CompactPathTable newPathTable(CachePathTableMaxSize, reservedPathOffsets);
+				CompactPathTable newPathTable(CachePathTableMaxSize, CompactPathTable::V1, m_pathTable.GetPathCount(), m_pathTable.GetSegmentCount());
 				oldToNewPathOffset.reserve(usedPathOffsets.size());
 
 				for (u32 pathOffset : usedPathOffsets)
 				{
 					StringBuffer<> temp;
 					m_pathTable.GetString(temp, pathOffset);
-					auto res = oldToNewPathOffset.try_emplace(pathOffset, newPathTable.AddNoLock(temp.data, temp.count));
+					u32 newOffset = newPathTable.AddNoLock(temp.data, temp.count);
+
+					#if 0
+					StringBuffer<> test;
+					newPathTable.GetString(test, newOffset);
+					UBA_ASSERT(test.Equals(temp.data));
+					#endif
+
+					auto res = oldToNewPathOffset.try_emplace(pathOffset, newOffset);
 					UBA_ASSERT(res.second);(void)res;
 				}
 				m_pathTable.Swap(newPathTable);
@@ -633,6 +640,13 @@ namespace uba
 			UBA_ASSERT(path.count);
 
 			u32 pathOffset = m_pathTable.Add(path.data, path.count);
+
+			#if 0
+			StringBuffer<> test;
+			m_pathTable.GetString(test, pathOffset);
+			UBA_ASSERT(test.Equals(path.data));
+			#endif
+
 			u32 casKeyOffset = m_casKeyTable.Add(casKey, pathOffset);
 			inputs.insert(casKeyOffset);
 			bytesForInput += Get7BitEncodedCount(casKeyOffset);
@@ -726,6 +740,13 @@ namespace uba
 			StringBuffer<> path;
 			connection.m_casKeyTable.GetPathAndKey(path, casKey, connection.m_pathTable, outputOffset);
 			u32 pathOffset = m_pathTable.Add(path.data, path.count);
+
+			#if 0
+			StringBuffer<> test;
+			m_pathTable.GetString(test, pathOffset);
+			UBA_ASSERT(test.Equals(path.data));
+			#endif
+
 			u32 casKeyOffset = m_casKeyTable.Add(casKey, pathOffset);
 			outputs.insert(casKeyOffset);
 			bytesForOutput += Get7BitEncodedCount(casKeyOffset);

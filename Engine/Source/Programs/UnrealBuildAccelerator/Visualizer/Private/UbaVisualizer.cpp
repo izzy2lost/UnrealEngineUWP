@@ -26,33 +26,104 @@ enum
 
 namespace uba
 {
-	class LineCountLogger : public Logger
-	{
-	public:
-		virtual void BeginScope() override {}
-		virtual void EndScope() override {}
-		virtual void Log(LogEntryType type, const wchar_t* str, u32 strLen) override { ++lineCount; }
-		u32 lineCount = 0;
-	};
-
 	class DrawTextLogger : public Logger
 	{
 	public:
-		DrawTextLogger(HDC h, const RECT& r, int fh) : hdc(h), rect(r), fontHeight(fh) {}
+		DrawTextLogger(HWND hw, HDC h, int fh, HBRUSH bb)
+		:	hwnd(hw)
+		,	hdc(h)
+		,	fontHeight(fh)
+		,	backgroundBrush(bb)
+		{
+			textColor = GetTextColor(hdc);
+		}
 
 		virtual void BeginScope() override {}
 		virtual void EndScope() override {}
 		virtual void Log(LogEntryType type, const wchar_t* str, u32 strLen) override
 		{
-			DrawTextW(hdc, str, strLen, &rect, DT_SINGLELINE);
-			rect.top += fontHeight;
+			RECT textRect{0,0,0,0};
+			DrawTextW(hdc, str, strLen, &textRect, DT_CALCRECT);
+
+			lines.emplace_back(TString(str, strLen), textOffset, height, textColor);
+			width = Max(width, int(textRect.right + textOffset));
+			height += fontHeight;
 		}
 
-		DrawTextLogger& SetColor(COLORREF c) { SetTextColor(hdc, c); return *this; }
+		void AddSpace(int space = 5)
+		{
+			height += space;
+		}
 
+		void AddTextOffset(int offset)
+		{
+			textOffset += offset;
+		}
+
+		void AddWidth(int extra)
+		{
+			extraWidth += extra;
+		}
+
+		void DrawAtPos(int x, int y)
+		{
+			RECT r;
+			r.left = x;
+			r.top = y;
+			r.right = r.left + width;
+			r.bottom = r.top + height;
+
+			RECT clientRect;
+			GetClientRect(hwnd, &clientRect);
+
+			if (r.right > clientRect.right)
+				OffsetRect(&r, -width, 0);
+			if (r.bottom > clientRect.bottom)
+			{
+				OffsetRect(&r, 0, clientRect.bottom - r.bottom);
+				if (r.top < 0)
+					OffsetRect(&r, 0, -r.top);
+			}
+
+			RECT fillRect = r;
+			fillRect.right += 2 + extraWidth;
+			FillRect(hdc, &fillRect, backgroundBrush);
+
+			for (auto& line : lines)
+			{
+				RECT tr = r;
+				tr.left += line.left;
+				tr.top += line.top;
+				SetTextColor(hdc, line.color);
+				DrawTextW(hdc, line.str.data(), u32(line.str.size()), &tr, DT_SINGLELINE);
+			}
+		}
+
+		void DrawAtCursor()
+		{
+			POINT p;
+			GetCursorPos(&p);
+			ScreenToClient(hwnd, &p);
+			p.x += 3;
+			p.y += 3;
+			DrawAtPos(p.x, p.y);
+		}
+
+		DrawTextLogger& SetColor(COLORREF c) { textColor = c; return *this; }
+
+		int width = 0;
+		int height = 0;
+		int textOffset = 2;
+		int extraWidth = 0;
+		struct Line { TString str; int left; int top; COLORREF color; };
+		Vector<Line> lines;
+
+		HWND hwnd;
 		HDC hdc;
-		RECT rect;
 		int fontHeight;
+		HBRUSH backgroundBrush;
+		COLORREF textColor;
+		bool isFirst = true;
 	};
 
 	class WriteTextLogger : public Logger
@@ -1150,30 +1221,15 @@ namespace uba
 		if (m_processSelected)
 		{
 			TraceView::Process& process = *m_traceView.GetProcess(m_processSelectedLocation);
-			bool hasStorageStats = false;
-			u32 lineCount = 4;
 			u64 duration = 0;
 			
-			int width = 290;
 			Vector<TString> logLines;
 			u32 maxCharCount = 50u;
 
 			bool hasExited = process.stop != ~u64(0);
 			if (hasExited)
 			{
-				LineCountLogger counter;
-				process.processStats.Print(counter, m_traceView.frequency);
-				u32 prevLineCount = counter.lineCount;
-				process.sessionStats.Print(counter, m_traceView.frequency);
-				process.storageStats.Print(counter, m_traceView.frequency);
-				process.systemStats.Print(counter, false, m_traceView.frequency);
-				hasStorageStats = prevLineCount != counter.lineCount;
-				lineCount = 6 + counter.lineCount;
-				if (hasStorageStats)
-					lineCount += 6;
 				duration = process.stop - process.start;
-				if (process.exitCode != 0)
-					++lineCount;
 
 				if (!process.logLines.empty())
 				{
@@ -1191,10 +1247,6 @@ namespace uba
 							left -= toCopy;
 						}
 					}
-
-					width = Max(width, int(lineMaxCount) * 7 + 2*14);
-
-					lineCount += u32(logLines.size()) + 1;
 				}
 			}
 			else
@@ -1202,91 +1254,113 @@ namespace uba
 				duration = playTime - process.start;
 			}
 
-			int height = lineCount*m_popupFontHeight;
-
-			POINT p;
-			GetClientCursorPos(p);
-			RECT r;
-			r.left = p.x;
-			r.top = p.y;
-			r.right = r.left + width;
-			r.bottom = r.top + height;
-
-			if (r.right > clientRect.right)
-				OffsetRect(&r, -width, 0);
-			if (r.bottom > clientRect.bottom)
-			{
-				OffsetRect(&r, 0, clientRect.bottom - r.bottom);
-				if (r.top < 0)
-					OffsetRect(&r, 0, -r.top);
-			}
-
-			FillRect(hdc, &r, m_tooltipBackgroundBrush);
-
-			r.top += 5;
 			SelectObject(hdc, m_popupFont);
-			DrawTextLogger logger(hdc, r, m_popupFontHeight);
+			DrawTextLogger logger(m_hwnd, hdc, m_popupFontHeight, m_tooltipBackgroundBrush);
 
+			logger.AddTextOffset(-10); // Remove spaces in the front
+			logger.AddWidth(3);
+
+			logger.AddSpace(2);
 			logger.Info(L"  %ls", process.description.c_str());
 			logger.Info(L"  Start:     %ls", TimeToText(process.start, true).str);
 			logger.Info(L"  Duration:  %ls", TimeToText(duration, true).str);
 			if (hasExited && process.exitCode != 0)
 				logger.Info(L"  ExitCode:  %u", process.exitCode);
-			logger.Info(L"");
 
 			if (process.stop != ~u64(0))
 			{
-				logger.Info(L"  ----------- Process stats -----------");
-				process.processStats.Print(logger, m_traceView.frequency);
-				if (hasStorageStats)
+				BinaryReader reader(process.stats.data(), 0, process.stats.size());
+				ProcessStats processStats;
+				SessionStats sessionStats;
+				StorageStats storageStats;
+				SystemStats systemStats;
+				CacheStats cacheStats;
+
+				if (process.cacheFetch)
+				{
+					cacheStats.Read(reader, m_traceView.version);
+					if (process.exitCode == 0)
+					{
+						storageStats.Read(reader);
+						systemStats.Read(reader);
+					}
+				}
+				else
+				{
+					processStats.Read(reader, m_traceView.version);
+
+					if (reader.GetLeft())
+					{
+						sessionStats.Read(reader, m_traceView.version);
+						storageStats.Read(reader);
+						systemStats.Read(reader);
+					}
+				}
+
+				if (processStats.hostTotalTime)
+				{
+					logger.Info(L"");
+					logger.Info(L"  ----------- Process stats -----------");
+					processStats.Print(logger, m_traceView.frequency);
+				}
+
+				if (!sessionStats.IsEmpty())
 				{
 					logger.Info(L"");
 					logger.Info(L"  ----------- Session stats -----------");
-					process.sessionStats.Print(logger, m_traceView.frequency);
+					sessionStats.Print(logger, m_traceView.frequency);
+				}
+
+				if (!storageStats.IsEmpty())
+				{
 					logger.Info(L"");
 					logger.Info(L"  ----------- Storage stats -----------");
-					process.storageStats.Print(logger, m_traceView.frequency);
+					storageStats.Print(logger, m_traceView.frequency);
+				}
+
+				if (!cacheStats.IsEmpty())
+				{
+					logger.Info(L"");
+					logger.Info(L"  ------------ Cache stats ------------");
+					cacheStats.Print(logger, m_traceView.frequency);
+				}
+
+				if (!systemStats.IsEmpty())
+				{
 					logger.Info(L"");
 					logger.Info(L"  ----------- System stats ------------");
-					process.systemStats.Print(logger, false, m_traceView.frequency);
+					systemStats.Print(logger, false, m_traceView.frequency);
 				}
 
 				if (!logLines.empty())
 				{
+					logger.Info(L"");
 					logger.Info(L"  ---------------- Log ----------------");
-					logger.rect.left += 14;
+					logger.AddTextOffset(14);
 					for (auto& line : logLines)
 						logger.Log(LogEntryType_Info, line.c_str(), u32(line.size()));
 				}
 			}
+			logger.AddSpace(3);
+			logger.DrawAtCursor();
 		}
 		else if (m_workSelected && selectedWork.description)
 		{
-			int width = 290;
-			int height = 3*m_popupFontHeight;
-			POINT p;
-			GetClientCursorPos(p);
-			RECT r;
-			r.left = p.x;
-			r.top = p.y;
-			r.right = r.left + width;
-			r.bottom = r.top + height;
-
 			u64 duration;
 			if (selectedWork.stop != ~u64(0))
 				duration = selectedWork.stop - selectedWork.start;
 			else
 				duration = playTime - selectedWork.start;
 
-			r.bottom += 10;
-			FillRect(hdc, &r, m_tooltipBackgroundBrush);
-
-			r.top += 5;
 			SelectObject(hdc, m_popupFont);
-			DrawTextLogger logger(hdc, r, m_popupFontHeight);
+			DrawTextLogger logger(m_hwnd, hdc, m_popupFontHeight, m_tooltipBackgroundBrush);
+
+			logger.AddSpace();
 			logger.Info(L"  %ls", selectedWork.description);
 			logger.Info(L"  Start:     %ls", TimeToText(selectedWork.start, true).str);
 			logger.Info(L"  Duration:  %ls", TimeToText(duration, true).str);
+			logger.AddSpace();
+			logger.DrawAtCursor();
 		}
 		else if (m_sessionSelectedIndex != ~0u)
 		{
@@ -1335,39 +1409,17 @@ namespace uba
 		}
 		else if (m_statsSelected)
 		{
-			int width = 160;
-			int lineCount = m_stats.ping ? 5 : 4;
-			int height = lineCount * m_popupFontHeight + 6;
-
-			POINT p;
-			GetCursorPos(&p);
-			ScreenToClient(m_hwnd, &p);
-			RECT r;
-			r.left = p.x;
-			r.top = p.y;
-			r.right = r.left + width;
-			r.bottom = r.top + height;
-
-			if (r.right > clientRect.right)
-				OffsetRect(&r, -width, 0);
-			if (r.bottom > clientRect.bottom)
-			{
-				OffsetRect(&r, 0, -height);
-				if (r.top < 0)
-					OffsetRect(&r, 0, -r.top);
-			}
-			FillRect(hdc, &r, m_tooltipBackgroundBrush);
-
-			r.top += 3;
-
 			SelectObject(hdc, m_popupFont);
-			DrawTextLogger logger(hdc, r, m_popupFontHeight);
+			DrawTextLogger logger(m_hwnd, hdc, m_popupFontHeight, m_tooltipBackgroundBrush);
+			logger.AddSpace(3);
 			logger.SetColor(m_cpuColor).Info(L"  Cpu: %.1f%%", m_stats.cpuLoad * 100.0f);
 			logger.SetColor(m_memColor).Info(L"  Mem: %ls/%ls", BytesToText(m_stats.memTotal - m_stats.memAvail).str, BytesToText(m_stats.memTotal).str);
 			logger.SetColor(m_recvColor).Info(L"  Recv: %ls/s", BytesToText(m_stats.recvBytesPerSecond).str);
 			logger.SetColor(m_sendColor).Info(L"  Send: %ls/s", BytesToText(m_stats.sendBytesPerSecond).str);
 			if (m_stats.ping)
 				logger.Info(L"  Ping: %ls", TimeToText(m_stats.ping, false, m_traceView.frequency).str);
+			logger.AddSpace(3);
+			logger.DrawAtCursor();
 		}
 		else if (m_buttonSelected != ~0u)
 		{
@@ -1381,33 +1433,11 @@ namespace uba
 				L"workers (threads on host taking care of requests from helpers)",
 			};
 
-			int width = int(wcslen(tooltip[m_buttonSelected])+5) * 7 + 5;
-			int lineCount = 1;
-			int height = lineCount * m_popupFontHeight;
-
-			POINT p;
-			GetCursorPos(&p);
-			ScreenToClient(m_hwnd, &p);
-			RECT r;
-			r.left = p.x;
-			r.top = p.y;
-			r.right = r.left + width;
-			r.bottom = r.top + height;
-
-			if (r.right > clientRect.right)
-				OffsetRect(&r, -width, 0);
-			if (r.bottom > clientRect.bottom)
-			{
-				OffsetRect(&r, 0, -height);
-				if (r.top < 0)
-					OffsetRect(&r, 0, -r.top);
-			}
-			FillRect(hdc, &r, m_tooltipBackgroundBrush);
-
 			bool vis = m_visibleComponents[m_buttonSelected];
 			SelectObject(hdc, m_popupFont);
-			DrawTextLogger logger(hdc, r, m_popupFontHeight);
+			DrawTextLogger logger(m_hwnd, hdc, m_popupFontHeight, m_tooltipBackgroundBrush);
 			logger.Info(L"%ls %ls", vis ? L"Hide" : L"Show", tooltip[m_buttonSelected]);
+			logger.DrawAtCursor();
 		}
 		else if (m_timelineSelected)
 		{
@@ -1448,17 +1478,11 @@ namespace uba
 					b.Append('0');
 				b.AppendValue(milliseconds);
 
-				RECT r;
-				r.left = left + 4;
-				r.top = timelineTop - 20;
-				r.right = left + b.count*8;
-				r.bottom = r.top + 15;
-
-				FillRect(hdc, &r, m_tooltipBackgroundBrush);
 				SelectObject(hdc, m_popupFont);
-				DrawTextLogger logger(hdc, r, m_popupFontHeight);
+				DrawTextLogger logger(m_hwnd, hdc, m_popupFontHeight, m_tooltipBackgroundBrush);
 
 				logger.Info(L"%s", b.data);
+				logger.DrawAtPos(left + 4, timelineTop - 20);
 			}
 		}
 		else if (m_fetchedFilesSelected != ~0u)
@@ -1467,32 +1491,13 @@ namespace uba
 			auto& fetchedFiles = session.fetchedFiles;
 			if (!fetchedFiles.empty() && !fetchedFiles[0].hint.empty())
 			{
+				/*
 				int colWidth = 500;
 				int width = colWidth * 2;
 				int height = Min(int(clientRect.bottom), int(fetchedFiles.size() * m_popupFontHeight));
 
-
-				POINT p;
-				GetCursorPos(&p);
-				ScreenToClient(m_hwnd, &p);
-				RECT r;
-				r.left = p.x;
-				r.top = p.y;
-				r.right = r.left + width;
-				r.bottom = r.top + height;
-
-				if (r.right > clientRect.right)
-					OffsetRect(&r, -width, 0);
-				if (r.bottom > clientRect.bottom)
-				{
-					OffsetRect(&r, 0, -height);
-					if (r.top < 0)
-						OffsetRect(&r, 0, -r.top);
-				}
-				FillRect(hdc, &r, m_tooltipBackgroundBrush);
-
 				SelectObject(hdc, m_font);
-				DrawTextLogger logger(hdc, r, FontHeight);
+				DrawTextLogger logger(m_hwnd, hdc, r, FontHeight, m_tooltipBackgroundBrush);
 				for (auto& f : fetchedFiles)
 				{
 					if (f.hint == TC("KnownInput"))
@@ -1509,6 +1514,8 @@ namespace uba
 					}
 					logger.Info(L"%s", f.hint.c_str());
 				}
+				logger.DrawAtCursor();
+				*/
 			}
 		}
 	}
@@ -1528,9 +1535,9 @@ namespace uba
 		else if (process.exitCode != 0)
 			brush = m_processBrushes[selected].error;
 
-		u64 writeFilesTime = Max(process.processStats.writeFiles.time, process.processStats.sendFiles.time);
+		u64 writeFilesTime = process.writeFilesTime;
 
-		if (!done || process.exitCode != 0 || !m_showCreateWriteColors || (TimeToMs(writeFilesTime, m_traceView.frequency) < 300 && TimeToMs(process.processStats.createFile.time, m_traceView.frequency) < 300))
+		if (!done || process.exitCode != 0 || !m_showCreateWriteColors || (TimeToMs(writeFilesTime, m_traceView.frequency) < 300 && TimeToMs(process.createFilesTime, m_traceView.frequency) < 300))
 		{
 			if (writingBitmap)
 				rect.right = 256;
@@ -1544,7 +1551,7 @@ namespace uba
 		RECT main = rect;
 		int width = rect.right - rect.left;
 
-		double recvPart = (double(ConvertTime(m_traceView, process.processStats.createFile.time)) / duration);
+		double recvPart = (double(ConvertTime(m_traceView, process.createFilesTime)) / duration);
 		if (int headSize = int(recvPart * width))
 		{
 			UBA_ASSERT(headSize > 0);
@@ -2082,23 +2089,38 @@ namespace uba
 			out.Info(L"  Duration:  %ls", TimeToText(process.stop - process.start, true).str);
 		if (hasExited && process.exitCode != 0)
 			out.Info(L"  ExitCode:  %u", process.exitCode);
-		out.Info(L"");
 
 		if (process.stop != ~u64(0))
 		{
+			out.Info(L"");
+
+			BinaryReader reader(process.stats.data(), 0, process.stats.size());
+			ProcessStats processStats;
+			SessionStats sessionStats;
+			StorageStats storageStats;
+			SystemStats systemStats;
+
+			processStats.Read(reader, m_traceView.version);
+			if (reader.GetLeft())
+			{
+				sessionStats.Read(reader, m_traceView.version);
+				storageStats.Read(reader);
+				systemStats.Read(reader);
+			}
+
 			out.Info(L"  ----------- Process stats -----------");
-			process.processStats.Print(out, m_traceView.frequency);
+			processStats.Print(out, m_traceView.frequency);
 			if (hasStorageStats)
 			{
 				out.Info(L"");
 				out.Info(L"  ----------- Session stats -----------");
-				process.sessionStats.Print(out, m_traceView.frequency);
+				sessionStats.Print(out, m_traceView.frequency);
 				out.Info(L"");
 				out.Info(L"  ----------- Storage stats -----------");
-				process.storageStats.Print(out, m_traceView.frequency);
+				storageStats.Print(out, m_traceView.frequency);
 				out.Info(L"");
 				out.Info(L"  ----------- System stats ------------");
-				process.systemStats.Print(out, false, m_traceView.frequency);
+				systemStats.Print(out, false, m_traceView.frequency);
 			}
 		}
 	}
@@ -2368,7 +2390,7 @@ namespace uba
 				for (auto& session : m_traceView.sessions)
 					for (auto& processor : session.processors)
 						for (auto& process : processor.processes)
-							if (TimeToMs(Max(process.processStats.writeFiles.time, process.processStats.sendFiles.time), m_traceView.frequency) >= 300 || TimeToMs(process.processStats.createFile.time, m_traceView.frequency) >= 300)
+							if (TimeToMs(process.writeFilesTime, m_traceView.frequency) >= 300 || TimeToMs(process.createFilesTime, m_traceView.frequency) >= 300)
 								process.bitmapDirty = true;
 
 			UpdateScrollbars(true);

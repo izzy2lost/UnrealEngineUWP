@@ -24,10 +24,10 @@ namespace uba
 			u32 bitmapOffset = 0;
 			bool bitmapDirty = true;
 			bool returned = false;
-			ProcessStats processStats;
-			SessionStats sessionStats;
-			StorageStats storageStats;
-			SystemStats systemStats;
+			bool cacheFetch = false;
+			u64 createFilesTime = 0;
+			u64 writeFilesTime = 0;
+			Vector<u8> stats;
 			Vector<ProcessLogLine> logLines;
 		};
 
@@ -165,6 +165,9 @@ namespace uba
 		Guid ReadClientId(TraceView& out, BinaryReader& reader);
 		TraceView::Session& GetSession(TraceView& out, u32 sessionIndex);
 		TraceView::Session* GetSession(TraceView& out, const Guid& clientUid);
+
+		TraceView::Process* ProcessBegin(TraceView& out, u32 sessionIndex, u32 id, u64 time, const tchar* description);
+		TraceView::Process* ProcessEnd(TraceView& out, u32& outSessionIndex, u32 id, u64 time);
 
 		UnorderedMap<u32, TraceView::ProcessLocation> m_activeProcesses;
 

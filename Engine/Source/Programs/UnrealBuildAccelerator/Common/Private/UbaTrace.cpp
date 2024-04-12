@@ -339,6 +339,21 @@ namespace uba
 		writer.WriteByte(statusType);
 	}
 
+	void Trace::CacheBeginFetch(u32 fetchId, const tchar* description)
+	{
+		BEGIN_TRACE_ENTRY(TraceType_CacheBeginFetch);
+		writer.Write7BitEncoded(fetchId);
+		writer.WriteString(description);
+	}
+
+	void Trace::CacheEndFetch(u32 fetchId, bool success, const u8* data, u64 dataSize)
+	{
+		BEGIN_TRACE_ENTRY(TraceType_CacheEndFetch);
+		writer.Write7BitEncoded(fetchId);
+		writer.WriteBool(success);
+		writer.WriteBytes(data, dataSize);
+	}
+
 	TraceChannel::TraceChannel(Logger& logger) : m_logger(logger)
 	{
 	}

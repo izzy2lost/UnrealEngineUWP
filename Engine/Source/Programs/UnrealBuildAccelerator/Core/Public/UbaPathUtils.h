@@ -202,7 +202,7 @@ namespace uba
 			++charLen;
 		}
 
-		UBA_ASSERT(charLen <= bufferCharCapacity);
+		UBA_ASSERTF(charLen <= bufferCharCapacity, TC("Buffer overflow (Capacity %llu) fixing path %s"), fileName);
 
 		if (outBufferCharLen)
 			*outBufferCharLen = u32(charLen - 1); // Remove terminator

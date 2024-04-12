@@ -473,39 +473,7 @@ namespace uba
 				}
 			}
 
-			TraceView::Processor* processor = nullptr;
-			TraceView::Session& session = GetSession(out, sessionIndex);
-
-			u32 processorIndex = 0;
-			for (u32 i=0, e=u32(session.processors.size()); i!=e; ++i)
-			{
-				auto& it = session.processors[i];
-				if (it.processes.back().stop == ~u64(0))
-					continue;
-				processorIndex = i;
-				processor = &it;
-				break;
-			}
-			if (!processor)
-			{
-				processorIndex = u32(session.processors.size());
-				session.processors.emplace_back();
-				processor = &session.processors.back();
-			}
-
-			processor->processes.emplace_back();
-			auto& process = processor->processes.back();
-
-			m_activeProcesses.try_emplace(id, TraceView::ProcessLocation{sessionIndex, processorIndex, u32(processor->processes.size() - 1)});
-			
-			++session.processActiveCount;
-			++out.totalProcessActiveCount;
-
-			process.id = id;
-			process.description = desc.data;
-			process.start = time;
-			process.stop = ~u64(0);
-			process.exitCode = ~0u;
+			ProcessBegin(out, sessionIndex, id, time, desc.data);
 			break;
 		}
 		case TraceType_ProcessExited:
@@ -522,28 +490,32 @@ namespace uba
 				}
 			}
 
-			auto findIt = m_activeProcesses.find(id);
-			if (findIt == m_activeProcesses.end())
-				return false;
-			TraceView::ProcessLocation active = findIt->second;
-			m_activeProcesses.erase(findIt);
+			u32 sessionIndex;
+			TraceView::Process& process = *ProcessEnd(out, sessionIndex, id, time);
 
-			auto& session = GetSession(out, active.sessionIndex);
-			++session.processExitedCount;
-			--session.processActiveCount;
+			process.exitCode = exitCode;
 
-			++out.totalProcessExitedCount;
-			--out.totalProcessActiveCount;
+			ProcessStats processStats;
+			SessionStats sessionStats;
+			StorageStats storageStats;
+			SystemStats systemStats;
 
-			TraceView::Process& process = session.processors[active.processorIndex].processes[active.processIndex];
-			process.processStats.Read(reader, out.version);
-			bool isRemote = active.sessionIndex != 0;
+			const u8* dataStart = reader.GetPositionData();
+			processStats.Read(reader, out.version);
+
+			bool isRemote = sessionIndex != 0;
 			if (isRemote && out.version >= 7)
 			{
-				process.sessionStats.Read(reader, out.version);
-				process.storageStats.Read(reader);
-				process.systemStats.Read(reader);
+				sessionStats.Read(reader, out.version);
+				storageStats.Read(reader);
+				systemStats.Read(reader);
 			}
+			const u8* dataEnd = reader.GetPositionData();
+			process.stats.resize(dataEnd - dataStart);
+			memcpy(process.stats.data(), dataStart, dataEnd - dataStart);
+
+			process.createFilesTime = processStats.createFile.time;
+			process.writeFilesTime = Max(processStats.writeFiles.time, processStats.sendFiles.time);
 
 			if (out.version >= 22)
 			{
@@ -568,9 +540,6 @@ namespace uba
 				}
 			}
 
-			process.exitCode = exitCode;
-			process.stop = time;
-			process.bitmapDirty = true;
 			break;
 		}
 		case TraceType_ProcessEnvironmentUpdated:
@@ -588,10 +557,16 @@ namespace uba
 
 			auto& processes = session.processors[active.processorIndex].processes;
 			TraceView::Process& process = processes[active.processIndex];
-			process.processStats.Read(reader, out.version);
-			process.sessionStats.Read(reader, out.version);
-			process.storageStats.Read(reader);
-			process.systemStats.Read(reader);
+
+			ProcessStats processStats;
+			SessionStats sessionStats;
+			StorageStats storageStats;
+			SystemStats systemStats;
+			processStats.Read(reader, out.version);
+			sessionStats.Read(reader, out.version);
+			storageStats.Read(reader);
+			systemStats.Read(reader);
+
 			process.exitCode = 0u;
 			process.stop = time;
 			process.bitmapDirty = true;
@@ -908,6 +883,39 @@ namespace uba
 			out.strings.push_back(reader.ReadString());
 			break;
 		}
+		case TraceType_CacheBeginFetch:
+		{
+			u32 id = u32(reader.Read7BitEncoded());
+			StringBuffer<> desc;
+			reader.ReadString(desc);
+			ProcessBegin(out, 0, id, time, desc.data)->cacheFetch = true;
+			break;
+		}
+		case TraceType_CacheEndFetch:
+		{
+			u32 id = u32(reader.Read7BitEncoded());
+			bool success = reader.ReadBool();
+
+			u32 sessionIndex;
+			TraceView::Process& process = *ProcessEnd(out, sessionIndex, id, time);
+			process.exitCode = 0;//success ? 0 : -1;
+			process.returned = !success;
+
+			CacheStats cacheStats;
+			SystemStats systemStats;
+			StorageStats storageStats;
+			const u8* dataStart = reader.GetPositionData();
+			cacheStats.Read(reader, out.version);
+			if (success)
+			{
+				storageStats.Read(reader);
+				systemStats.Read(reader);
+			}
+			const u8* dataEnd = reader.GetPositionData();
+			process.stats.resize(dataEnd - dataStart);
+			memcpy(process.stats.data(), dataStart, dataEnd - dataStart);
+			break;
+		}
 		}
 		return true;
 	}
@@ -973,5 +981,66 @@ namespace uba
 		//UBA_ASSERTF(false, L"Failed to get session for clientUid %ls", GuidToString(clientUid).str);
 		return nullptr;
 	}
+
+	TraceView::Process* TraceReader::ProcessBegin(TraceView& out, u32 sessionIndex, u32 id, u64 time, const tchar* description)
+	{
+		TraceView::Processor* processor = nullptr;
+		TraceView::Session& session = GetSession(out, sessionIndex);
+
+		u32 processorIndex = 0;
+		for (u32 i=0, e=u32(session.processors.size()); i!=e; ++i)
+		{
+			auto& it = session.processors[i];
+			if (it.processes.back().stop == ~u64(0))
+				continue;
+			processorIndex = i;
+			processor = &it;
+			break;
+		}
+		if (!processor)
+		{
+			processorIndex = u32(session.processors.size());
+			session.processors.emplace_back();
+			processor = &session.processors.back();
+		}
+
+		processor->processes.emplace_back();
+		auto& process = processor->processes.back();
+
+		m_activeProcesses.try_emplace(id, TraceView::ProcessLocation{sessionIndex, processorIndex, u32(processor->processes.size() - 1)});
+			
+		++session.processActiveCount;
+		++out.totalProcessActiveCount;
+
+		process.id = id;
+		process.description = description;
+		process.start = time;
+		process.stop = ~u64(0);
+		process.exitCode = ~0u;
+		return &process;
+	}
+
+	TraceView::Process* TraceReader::ProcessEnd(TraceView& out, u32& outSessionIndex, u32 id, u64 time)
+	{
+		auto findIt = m_activeProcesses.find(id);
+		if (findIt == m_activeProcesses.end())
+			return nullptr;
+		TraceView::ProcessLocation active = findIt->second;
+		m_activeProcesses.erase(findIt);
+		outSessionIndex = active.sessionIndex;
+		auto& session = GetSession(out, active.sessionIndex);
+		++session.processExitedCount;
+		--session.processActiveCount;
+
+		++out.totalProcessExitedCount;
+		--out.totalProcessActiveCount;
+
+		TraceView::Process& process = session.processors[active.processorIndex].processes[active.processIndex];
+
+		process.stop = time;
+		process.bitmapDirty = true;
+		return &process;
+	}
+
 #endif // PLATFORM_WINDOWS
 }

@@ -52,12 +52,14 @@ namespace uba
 		TraceType_FileStoreLight,
 		TraceType_StatusUpdate,
 		TraceType_SessionNotification,
+		TraceType_CacheBeginFetch,
+		TraceType_CacheEndFetch,
 	};
 
 	using Color = u32;
 	inline Color toColor(u8 r, u8 g, u8 b) { return (r << 16) + (g << 8) + b; }
 
-	static constexpr u32 TraceVersion = 24;
+	static constexpr u32 TraceVersion = 25;
 	static constexpr u32 TraceReadCompatibilityVersion = 6;
 
 	class Trace : public WorkTracker
@@ -87,6 +89,9 @@ namespace uba
 		void BeginWork(u32 workIndex, const tchar* desc);
 		void EndWork(u32 workIndex);
 		void StatusUpdate(u32 statusIndex, u32 statusNameIndent, const tchar* statusName, u32 statusTextIndent, const tchar* statusText, LogEntryType statusType);
+
+		void CacheBeginFetch(u32 fetchId, const tchar* description);
+		void CacheEndFetch(u32 fetchId, bool success, const u8* data, u64 dataSize);
 
 		bool StopWrite(const tchar* writeFileName);
 

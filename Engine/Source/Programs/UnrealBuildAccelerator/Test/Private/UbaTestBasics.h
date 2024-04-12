@@ -13,6 +13,7 @@
 #include "UbaEvent.h"
 #include "UbaFile.h"
 #include "UbaLogger.h"
+#include "UbaRootPaths.h"
 #include "UbaThread.h"
 #include "UbaTimer.h"
 #include "UbaDirectoryIterator.h"
@@ -311,22 +312,75 @@ namespace uba
 
 	bool TestCompactPathTable(Logger& logger, const StringBufferBase& rootDir)
 	{
-		CompactPathTable table(64*1024);
+		for (u32 i=0;i!=2; ++i)
+		{
+			CompactPathTable table(64*1024, CompactPathTable::Version(i));
 
-		StringBuffer<> str;
-		str.Append("foo").EnsureEndsWithSlash().Append("bar");
-		u32 offset = table.Add(str.data, str.count);
+			StringBuffer<> str;
+			str.Append("foo").EnsureEndsWithSlash().Append("bar");
+			u32 offset = table.Add(str.data, str.count);
 
-		StringBuffer<> str2;
-		table.GetString(str2, offset);
-		if (!str.Equals(str2.data))
+			StringBuffer<> str2;
+			table.GetString(str2, offset);
+			if (!str.Equals(str2.data))
+				return false;
+
+			str.Clear().Append(PathSeparator).Append("foo").Append(PathSeparator).Append("bar");
+			offset = table.Add(str.data, str.count);
+			table.GetString(str2.Clear(), offset);
+			if (!str.Equals(str2.data))
+				return false;
+
+			CompactPathTable table2(64*1024, CompactPathTable::Version(i));
+			BinaryReader reader(table.GetMemory(), 0, table.GetSize());
+			table2.ReadMem(reader, true);
+			u32 offset2 = table2.Add(str.data, str.count);
+			if (offset != offset2)
+				return false;
+		}
+		return true;
+	}
+
+	bool TestRootPaths(Logger& logger, const StringBufferBase& rootDir)
+	{
+		RootPaths paths;
+		if (!paths.RegisterRoot(logger, TC("c:\\temp\\")))
+			return false;
+		if (!paths.RegisterRoot(logger, TC("e:\\temp\\")))
 			return false;
 
-		str.Clear().Append(PathSeparator).Append("foo").Append(PathSeparator).Append("bar");
-		offset = table.Add(str.data, str.count);
-		table.GetString(str2.Clear(), offset);
-		if (!str.Equals(str2.data))
+		tchar str[] = TC("e:\\temp\\foo");
+
+		bool success = true;
+		StringBuffer<> temp;
+		u32 rootPos = ~0u;
+		paths.NormalizeString(logger, str, sizeof_array(str), [&](const tchar* str, u64 strLen, u32 rp)
+			{
+				if (rp != ~0u)
+				{
+					if (strLen != 1)
+						success = false;
+					if (str[0] != RootPaths::RootStartByte+2)
+						success = false;
+					rootPos = str[0];
+				}
+				else
+				{
+					temp.Append(str, strLen);
+					if (!temp.Equals(TC("foo")))
+						success = false;
+				}
+			}, TC(""));
+
+		if (!success)
 			return false;
+
+		StringBuffer<> newStr;
+		auto& root = paths.GetRoot(rootPos - RootPaths::RootStartByte);
+		newStr.Append(root.path).Append(temp);
+		if (!newStr.Equals(str))
+			return false;
+
 		return true;
 	}
 }

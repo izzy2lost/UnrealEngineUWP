@@ -195,7 +195,19 @@ namespace uba
 	#endif
 }
 
-template<> struct std::hash<uba::Guid> { size_t operator()(const uba::Guid& g) const { std::hash<uba::u64> hash; return hash(((uba::u64*)&g)[0]) ^ hash(((uba::u64*)&g)[1]); } };
-template<> struct std::hash<uba::StringKey> { size_t operator()(const uba::StringKey& g) const { return g.a ^ g.b; } };
+//template<> struct std::hash<uba::Guid> { size_t operator()(const uba::Guid& g) const { std::hash<uba::u64> hash; return hash(((uba::u64*)&g)[0]) ^ hash(((uba::u64*)&g)[1]); } };
+template<> struct std::hash<uba::StringKey> { size_t operator()(const uba::StringKey& g) const { return g.a; } };
 template<> struct std::hash<uba::CasKey> { size_t operator()(const uba::CasKey& g) const { return g.a ^ g.b ^ g.c; } };
 
+template <class Map> 
+void PrintMapInfo(const char* name, const Map& map)
+{
+    double l = map.size() / double(map.bucket_count());
+    double c = 0.0;
+    for (auto& kv : map)
+        c += map.bucket_size(map.bucket(kv.first));
+    c /= map.size();
+
+    double quality = 1.0 - std::max(0.0, c / (1 + l) - 1);
+	printf("%s Size: %llu Buckets: %llu Quality: %f\r\n", name, map.size(), map.bucket_count(), quality);
+}

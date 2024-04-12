@@ -37,6 +37,7 @@ namespace uba
 		Atomic<u32> count;
 		void Add(const Timer& o) { time += o.time; count += o.count; }
 		void operator+=(const Timer& o) { time += o.time; count += o.count; }
+		bool operator==(const Timer& o) const { return time == o.time && count == o.count; }
 	};
 
 	struct ExtendedTimer : Timer

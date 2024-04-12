@@ -56,6 +56,14 @@ namespace uba
 			logger.Info(TC(""));
 	}
 
+	bool SystemStats::IsEmpty()
+	{
+		#define UBA_SYSTEM_STAT(T) if (T.count) return false;
+		UBA_SYSTEM_STATS
+		#undef UBA_SYSTEM_STAT
+		return true;
+	}
+
 	void SystemStats::Add(const SystemStats& other)
 	{
 		#define UBA_SYSTEM_STAT(var) var += other.var;
@@ -131,6 +139,14 @@ namespace uba
 			logger.Info(TC("  DecompressToMem      %6u %9s"), decompressToMem.count.load(), TimeToText(decompressToMem.time, false, frequency).str);
 	}
 
+	bool StorageStats::IsEmpty()
+	{
+		#define UBA_STORAGE_STAT(type, var) if (var != type()) return false;
+		UBA_STORAGE_STATS
+		#undef UBA_STORAGE_STAT
+		return true;
+	}
+
 	thread_local StorageStats* t_storageStats;
 
 	StorageStats* StorageStats::GetCurrent()
@@ -189,6 +205,14 @@ namespace uba
 		#undef UBA_SESSION_STAT
 	}
 
+	bool SessionStats::IsEmpty()
+	{
+		#define UBA_SESSION_STAT(type, var, ver) if (var.count) return false;
+		UBA_SESSION_STATS
+		#undef UBA_SESSION_STAT
+		return true;
+	}
+
 	thread_local SessionStats* t_sessionStats;
 
 	SessionStats* SessionStats::GetCurrent()
@@ -232,5 +256,34 @@ namespace uba
 		logger.Info(TC("  MemoryPressureWait          %9s"), TimeToText(waitMemPressure, false, frequency).str);
 		logger.Info(TC("  ProcessesKilled             %9llu"), killCount);
 		logger.Info(TC(""));
+	}
+
+	void CacheStats::Write(BinaryWriter& writer)
+	{
+		#define UBA_CACHE_STAT(type, var, ver) uba::Write(writer, var);
+		UBA_CACHE_STATS
+		#undef UBA_CACHE_STAT
+	}
+
+	void CacheStats::Read(BinaryReader& reader, u32 version)
+	{
+		#define UBA_CACHE_STAT(type, var, ver) if (ver <= version) uba::Read(reader, var);
+		UBA_CACHE_STATS
+		#undef UBA_CACHE_STAT
+	}
+
+	void CacheStats::Print(Logger& logger, u64 frequency)
+	{
+		#define UBA_CACHE_STAT(type, var, ver) LogStat(logger, #var, var, frequency);
+		UBA_CACHE_STATS
+		#undef UBA_CACHE_STAT
+	}
+
+	bool CacheStats::IsEmpty()
+	{
+		#define UBA_CACHE_STAT(type, var, ver) if (var.count) return false;
+		UBA_CACHE_STATS
+		#undef UBA_CACHE_STAT
+		return true;
 	}
 }

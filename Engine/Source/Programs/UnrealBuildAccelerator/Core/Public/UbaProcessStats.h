@@ -149,6 +149,7 @@ namespace uba
 		void Read(BinaryReader& reader);
 		void Write(BinaryWriter& writer);
 		void Print(Logger& logger, bool writeHeader, u64 frequency = GetFrequency());
+		bool IsEmpty();
 		void Add(const SystemStats& other);
 		static SystemStats& GetCurrent();
 		static SystemStats& GetGlobal();

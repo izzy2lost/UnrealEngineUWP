@@ -253,7 +253,7 @@ namespace uba
 	{
 		FlushDeadProcesses();
 		ValidateStartInfo(startInfo);
-		u32 processId = ++m_processIdCounter;
+		u32 processId = CreateProcessId();
 		RemoteProcess* remoteProcess = new RemoteProcess(this, startInfo, processId, weight);
 		
 		if (knownInputsCount)
@@ -451,7 +451,7 @@ namespace uba
 
 	u32 SessionServer::BeginExternalProcess(const tchar* description)
 	{
-		u32 processId = ++m_processIdCounter;
+		u32 processId = CreateProcessId();
 		m_trace.ProcessAdded(0, processId, description);
 		return processId;
 	}

@@ -14,7 +14,9 @@ namespace uba
 	class CompactPathTable
 	{
 	public:
-		CompactPathTable(u64 reserveSize, u64 reserveOffsetsCount = 0);
+		enum Version : u8 { V0, V1 };
+
+		CompactPathTable(u64 reserveSize, Version version, u64 reservePathCount = 0, u64 reserveSegmentCount = 0);
 
 		u32 Add(const tchar* str, u64 strLen, u32* outRequiredCasTableSize = nullptr);
 		u32 AddNoLock(const tchar* str, u64 strLen);
@@ -27,12 +29,17 @@ namespace uba
 		void ReadMem(BinaryReader& reader, bool populateLookup);
 		void Swap(CompactPathTable& other);
 
+		u64 GetPathCount() { return m_offsets.size(); }
+		u64 GetSegmentCount() { return m_segmentOffsets.size(); }
+
 	private:
 		u32 InternalAdd(const tchar* str, const tchar* stringKeyString, u64 strLen);
 		ReaderWriterLock m_lock;
 		MemoryBlock m_mem;
 		UnorderedMap<StringKey, u32> m_offsets;
+		UnorderedMap<StringKey, u32> m_segmentOffsets;
 		u64 m_reserveSize;
+		Version m_version;
 	};
 
 	class CompactCasKeyTable

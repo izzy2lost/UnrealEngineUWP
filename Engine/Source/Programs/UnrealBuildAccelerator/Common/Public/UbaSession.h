@@ -68,11 +68,14 @@ namespace uba
 		Storage& GetStorage(); // Storage (only used when remote machines are connected)
 		Logger& GetLogger(); // Logger used for logging 
 		LogWriter& GetLogWriter(); // LogWriter used by logger
+		Trace& GetTrace(); // Trace written to be session
 		const ApplicationRules* GetRules(const ProcessStartInfo& si); // Get application rules used for process
 		const tchar* GetTempPath(); // Path for temp files used for current session
 		bool ShouldStoreObjFilesCompressed() { return m_storeObjFilesCompressed; }
 
 		virtual ~Session();
+
+		u32 CreateProcessId();
 
 	protected:
 		Session(const SessionCreateInfo& info, const tchar* logPrefix, bool runningRemote, WorkManager* workManager = nullptr);

@@ -41,6 +41,7 @@ namespace uba
 		void Read(BinaryReader& reader);
 		void Add(const StorageStats& other);
 		void Print(Logger& logger, u64 frequency = GetFrequency());
+		bool IsEmpty();
 		static StorageStats* GetCurrent();
 	};
 
@@ -77,6 +78,7 @@ namespace uba
 		void Read(BinaryReader& reader, u32 version);
 		void Add(const SessionStats& other);
 		void Print(Logger& logger, u64 frequency = GetFrequency());
+		bool IsEmpty();
 		static SessionStats* GetCurrent();
 	};
 
@@ -116,4 +118,21 @@ namespace uba
 		void Print(Logger& logger, u64 frequency = GetFrequency());
 	};
 
+	#define UBA_CACHE_STATS \
+		UBA_CACHE_STAT(Timer, fetchEntries, 0) \
+		UBA_CACHE_STAT(Timer, fetchCasTable, 0) \
+		UBA_CACHE_STAT(Timer, testEntries, 0) \
+		UBA_CACHE_STAT(Timer, fetchOutput, 0) \
+
+    struct CacheStats
+	{
+		#define UBA_CACHE_STAT(type, var, ver) type var;
+		UBA_CACHE_STATS
+		#undef UBA_CACHE_STAT
+
+		void Write(BinaryWriter& writer);
+		void Read(BinaryReader& reader, u32 version);
+		void Print(Logger& logger, u64 frequency = GetFrequency());
+		bool IsEmpty();
+	};
 }

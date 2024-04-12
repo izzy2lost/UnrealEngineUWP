@@ -10,6 +10,7 @@ namespace uba
 {
 	class CacheClient;
 	class Process;
+	class RootPaths;
 	class SessionServer;
 	struct NextProcessInfo;
 	struct ProcessStartInfoHolder;
@@ -126,6 +127,7 @@ namespace uba
 		Atomic<u32> m_finishedProcesses;
 
 		CacheClient* m_cacheClient;
+		Vector<RootPaths*> m_rootPaths;
 		bool m_writeToCache;
 
 		Scheduler(const Scheduler&) = delete;

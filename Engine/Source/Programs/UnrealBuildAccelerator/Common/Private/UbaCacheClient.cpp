@@ -4,32 +4,20 @@
 #include "UbaFileAccessor.h"
 #include "UbaNetworkMessage.h"
 #include "UbaProcess.h"
+#include "UbaRootPaths.h"
 #include "UbaStorage.h"
 #include "UbaStorageUtils.h"
 
-#if PLATFORM_WINDOWS
-#include <shlobj_core.h>
-#endif
-
 namespace uba
 {
-	static constexpr u8 RootStartByte = ' ';
-
-	struct CacheClient::Root
-	{
-		TString path;
-		StringKey shortestPathKey;
-		bool includeInKey;
-	};
-
 	CacheClient::CacheClient(LogWriter& writer, StorageImpl& storage, NetworkClient& client, Session& session)
 	:	m_logger(writer, TC("UbaCacheClient"))
 	,	m_storage(storage)
 	,	m_client(client)
 	,	m_session(session)
-	,	m_serverPathTable(CachePathTableMaxSize)
+	,	m_serverPathTable(CachePathTableMaxSize, CompactPathTable::V1)
 	,	m_serverCasKeyTable(CacheCasKeyTableMaxSize)
-	,	m_sendPathTable(8*1024*1024)
+	,	m_sendPathTable(8*1024*1024, CompactPathTable::V1)
 	,	m_sendCasKeyTable(8*1024*1024)
 	{
 		m_client.RegisterOnConnected([this]()
@@ -54,76 +42,7 @@ namespace uba
 
 	CacheClient::~CacheClient() = default;
 
-	bool CacheClient::RegisterRoot(const tchar* rootPath, bool includeInKey)
-	{
-		// Register rootPath both with single path separators and double path separators because text files store them with double path separators
-
-		StringBuffer<> doubleSlash;
-		for (const tchar* it=rootPath; *it; ++it)
-		{
-			doubleSlash.Append(*it);
-			if (*it == PathSeparator)
-				doubleSlash.Append(PathSeparator);
-		}
-
-		const tchar* rootPaths[] = { rootPath, doubleSlash.data };
-		for (const tchar* rp : rootPaths)
-		{
-			if (m_roots.size() == '~' - ' ') // This is not really true.. as long as value is under 256 we're good
-				return m_logger.Error(TC("Too many roots added (%llu)"), m_roots.size());
-
-			auto& root = m_roots.emplace_back();
-			root.path = rp;
-
-			ToLower(root.path.data());
-			if (root.path[root.path.size()-1] != PathSeparator)
-				return m_logger.Error(TC("Root path must end with separator"));
-
-			root.includeInKey = includeInKey;
-
-			m_longestRoot = Max(u32(root.path.size()), m_longestRoot);
-
-			if (!m_shortestRoot || root.path.size() < m_shortestRoot)
-			{
-				m_shortestRoot = u32(root.path.size());
-				for (auto& r : m_roots)
-					r.shortestPathKey = ToStringKeyNoCheck(r.path.data(), m_shortestRoot);
-			}
-			else
-				root.shortestPathKey = ToStringKeyNoCheck(root.path.data(), m_shortestRoot);
-		}
-		return true;
-	}
-
-	bool CacheClient::RegisterSystemRoots()
-	{
-		#if PLATFORM_WINDOWS
-		StringBuffer<MaxPath> dir;
-		dir.count = GetSystemDirectory(dir.data, dir.capacity);
-		RegisterRoot(dir.EnsureEndsWithSlash().data, false); // Ignore files from here.. we do expect them not to affect the output of a process
-		
-		dir.count = GetEnvironmentVariable(TC("ProgramW6432"), dir.Clear().data, dir.capacity);
-		RegisterRoot(dir.EnsureEndsWithSlash().data, true);
-
-		dir.count = GetEnvironmentVariable(TC("ProgramFiles(x86)"), dir.Clear().data, dir.capacity);
-		RegisterRoot(dir.EnsureEndsWithSlash().data, true);
-
-		dir.count = GetEnvironmentVariable(TC("ProgramFiles(x86)"), dir.Clear().data, dir.capacity);
-		RegisterRoot(dir.EnsureEndsWithSlash().data, true);
-
-		PWSTR path;
-		if (!SUCCEEDED(SHGetKnownFolderPath(FOLDERID_ProgramData, 0, NULL, &path)))
-			return false;
-		RegisterRoot(dir.Clear().Append(path).EnsureEndsWithSlash().data, true);
-		CoTaskMemFree(path);
-
-		#else
-		UBA_ASSERT(false);
-		#endif
-		return true;
-	}
-
-	bool CacheClient::WriteToCache(const ProcessHandle& process)
+	bool CacheClient::WriteToCache(const RootPaths& rootPaths, const ProcessHandle& process)
 	{
 		if (!m_connected)
 			return false;
@@ -132,7 +51,7 @@ namespace uba
 		if (!si.trackInputs)
 			return false;
 
-		CasKey cmdKey = GetCmdKey(si);
+		CasKey cmdKey = GetCmdKey(rootPaths, si);
 		if (cmdKey == CasKeyZero)
 			return false;
 
@@ -178,7 +97,7 @@ namespace uba
 			}
 			else if (path.EndsWith(TC(".rsp"))) // Paths can be absolute in rsp files so we need to normalize those paths
 			{
-				casKey = AsCompressed(NormalizeAndHashFile(path.data), true);
+				casKey = AsCompressed(rootPaths.NormalizeAndHashFile(m_logger, path.data), true);
 			}
 			else if (path[path.count-1] == ':')
 			{
@@ -188,21 +107,20 @@ namespace uba
 			}
 
 			// Find root for path in order to be able to normalize it.
-			u32 rootIndex = FindRootIndex(path);
-			if (rootIndex == ~0u)
+			auto root = rootPaths.FindRoot(path);
+			if (!root)
 			{
 				m_logger.Info(TC("FILE WITHOUT ROOT: %s"), path.data);
 				success = false;
 				continue;
 			}
 
-			auto& root = m_roots[rootIndex];
-			if (!root.includeInKey)
+			if (!root->includeInKey)
 				continue;
 
-			u32 rootLen = u32(root.path.size());
-			TString qualifiedPath = path.data + rootLen - 2;
-			qualifiedPath[0] = tchar(RootStartByte + rootIndex);
+			u32 rootLen = u32(root->path.size());
+			TString qualifiedPath = path.data + rootLen - 1;
+			qualifiedPath[0] = tchar(RootPaths::RootStartByte + root->index);
 
 			u32 pathOffset = m_sendPathTable.Add(qualifiedPath.c_str(), u32(qualifiedPath.size()), &requiredPathTableSize);
 
@@ -217,7 +135,7 @@ namespace uba
 
 			// .dep.json contains absolute paths, need to normalize file
 			if (isOutput && path.EndsWith(TC(".dep.json"))) // TODO: More data driven approach. Also, hash does not match content atm.
-				casKey = AsCompressed(NormalizeAndHashFile(path.data), true);
+				casKey = AsCompressed(rootPaths.NormalizeAndHashFile(m_logger, path.data), true);
 
 			// Get file caskey using storage
 			if (casKey == CasKeyZero)
@@ -248,24 +166,50 @@ namespace uba
 			return false;
 
 		// actual cache entry now when we know server has the needed tables
-		if (!SendCacheEntry(cmdKey, inputsStringToCasKey, outputsStringToCasKey))
+		if (!SendCacheEntry(rootPaths, cmdKey, inputsStringToCasKey, outputsStringToCasKey))
 			return false;
 
 		return true;
 	}
 
-	bool CacheClient::FetchFromCache(const ProcessStartInfo& info)
+	bool CacheClient::FetchFromCache(const RootPaths& rootPaths, const ProcessStartInfo& info)
 	{
 		if (!m_connected)
 			return false;
 
-		CasKey cmdKey = GetCmdKey(info);
+		CacheStats cacheStats;
+		StorageStats storageStats;
+		SystemStats systemStats;
+
+		StorageStatsScope __(storageStats);
+		SystemStatsScope _(systemStats);
+
+		CasKey cmdKey = GetCmdKey(rootPaths, info);
 		if (cmdKey == CasKeyZero)
 			return false;
 
-		StackBinaryReader<SendMaxSize> reader;
+		u8 memory[SendMaxSize];
+
+		u32 fetchId = m_session.CreateProcessId();
+		m_session.GetTrace().CacheBeginFetch(fetchId, info.description);
+		bool success = false;
+		auto tg = MakeGuard([&]()
+			{
+				cacheStats.testEntries.time -= cacheStats.fetchCasTable.time;
+				BinaryWriter writer(memory, 0, sizeof_array(memory));
+				cacheStats.Write(writer);
+				if (success)
+				{
+					storageStats.Write(writer);
+					systemStats.Write(writer);
+				}
+				m_session.GetTrace().CacheEndFetch(fetchId, success, memory, writer.GetPosition());
+			});
+
+		BinaryReader reader(memory, 0, sizeof_array(memory));
 
 		{
+			TimerScope ts(cacheStats.fetchEntries);
 			// Fetch entries.. server will provide as many as fits. TODO: Should it be possible to ask for more entries?
 			StackBinaryWriter<32> writer;
 			NetworkMessage msg(m_client, CacheServiceId, CacheMessageType_FetchEntries, writer);
@@ -281,56 +225,63 @@ namespace uba
 		u32 entryCount = reader.ReadU16();
 		for (u32 i=0; i!=entryCount; ++i)
 		{
-			bool isMatch = true;
-			u64 inputSize = reader.Read7BitEncoded();
-			const u8* inputEnd = reader.GetPositionData() + inputSize;
-			while (reader.GetPositionData() != inputEnd)
+			u64 outputSize = 0;
 			{
-				u32 casKeyOffset = u32(reader.Read7BitEncoded());
-
-				auto insres = offsetIsMatch.try_emplace(casKeyOffset);
-				if (insres.second)
+				TimerScope ts(cacheStats.testEntries);
+				bool isMatch = true;
+				u64 inputSize = reader.Read7BitEncoded();
+				const u8* inputEnd = reader.GetPositionData() + inputSize;
+				while (reader.GetPositionData() != inputEnd)
 				{
-					if (casKeyOffset >= m_serverCasKeyTable.GetSize())
-						if (!FetchCasTable())
+					u32 casKeyOffset = u32(reader.Read7BitEncoded());
+
+					auto insres = offsetIsMatch.try_emplace(casKeyOffset);
+					if (insres.second)
+					{
+						if (casKeyOffset >= m_serverCasKeyTable.GetSize())
+						{
+							TimerScope ts2(cacheStats.fetchCasTable);
+							if (!FetchCasTable())
+								return false;
+						}
+
+						StringBuffer<MaxPath> path;
+						CasKey cacheCasKey;
+						if (!GetLocalPathAndCasKey(rootPaths, path, cacheCasKey, m_serverCasKeyTable, m_serverPathTable, casKeyOffset))
 							return false;
+						UBA_ASSERT(IsCompressed(cacheCasKey));
 
-					StringBuffer<MaxPath> path;
-					CasKey cacheCasKey;
-					if (!GetLocalPathAndCasKey(path, cacheCasKey, m_serverCasKeyTable, m_serverPathTable, casKeyOffset))
-						return false;
-					UBA_ASSERT(IsCompressed(cacheCasKey));
+						CasKey localCasKey;
+						if (path.EndsWith(TC(".rsp")) || path.EndsWith(TC(".dep.json"))) // Need to normalize caskey for these files since they contain absolute paths
+						{
+							localCasKey = AsCompressed(rootPaths.NormalizeAndHashFile(m_logger, path.data), true);
+						}
+						else
+						{
+							bool deferCreation = true;
+							m_storage.StoreCasFile(localCasKey, path.data, CasKeyZero, deferCreation);
+							UBA_ASSERT(localCasKey == CasKeyZero || IsCompressed(localCasKey));
+						}
 
-					CasKey localCasKey;
-					if (path.EndsWith(TC(".rsp")) || path.EndsWith(TC(".dep.json"))) // Need to normalize caskey for these files since they contain absolute paths
-					{
-						localCasKey = AsCompressed(NormalizeAndHashFile(path.data), true);
-					}
-					else
-					{
-						bool deferCreation = true;
-						m_storage.StoreCasFile(localCasKey, path.data, CasKeyZero, deferCreation);
-						UBA_ASSERT(localCasKey == CasKeyZero || IsCompressed(localCasKey));
+						insres.first->second = localCasKey == cacheCasKey;
 					}
 
-					insres.first->second = localCasKey == cacheCasKey;
+					if (!insres.first->second)
+					{
+						reader.Skip(inputEnd -  reader.GetPositionData());
+						isMatch = false;
+						break;
+					}
 				}
 
-				if (!insres.first->second)
+				outputSize = reader.Read7BitEncoded();
+
+				// No match, test next entry
+				if (!isMatch)
 				{
-					reader.Skip(inputEnd -  reader.GetPositionData());
-					isMatch = false;
-					break;
+					reader.Skip(outputSize);
+					continue;
 				}
-			}
-
-			u64 outputSize = reader.Read7BitEncoded();
-
-			// No match, test next entry
-			if (!isMatch)
-			{
-				reader.Skip(outputSize);
-				continue;
 			}
 
 			// Fetch output files from cache (and some files need to be "denormalized" before written to disk
@@ -343,9 +294,11 @@ namespace uba
 					if (!FetchCasTable())
 						return false;
 
+				TimerScope ts(cacheStats.fetchOutput);
+
 				StringBuffer<MaxPath> path;
 				CasKey casKey;
-				if (!GetLocalPathAndCasKey(path, casKey, m_serverCasKeyTable, m_serverPathTable, casKeyOffset))
+				if (!GetLocalPathAndCasKey(rootPaths, path, casKey, m_serverCasKeyTable, m_serverPathTable, casKeyOffset))
 					return false;
 				UBA_ASSERT(IsCompressed(casKey));
 
@@ -370,8 +323,8 @@ namespace uba
 						u64 rootOffset = reader2.Read7BitEncoded();
 						if (u64 toWrite = rootOffset - lastWritten)
 							memcpy(localBlock.Allocate(toWrite, 1, TC("")), fileStart + lastWritten, toWrite);
-						u8 rootIndex = fileStart[rootOffset] - RootStartByte;
-						auto& root = m_roots[rootIndex];
+						u8 rootIndex = fileStart[rootOffset] - RootPaths::RootStartByte;
+						auto& root = rootPaths.GetRoot(rootIndex);
 
 						#if PLATFORM_WINDOWS
 						StringBuffer<> pathTemp;
@@ -415,6 +368,7 @@ namespace uba
 					return false;
 			}
 
+			success = true;
 			return true;
 		}
 
@@ -485,7 +439,7 @@ namespace uba
 		return true;
 	}
 
-	bool CacheClient::SendCacheEntry(const CasKey& cmdKey, const Map<u32, u32>& inputsStringToCasKey, const Map<u32, u32>& outputsStringToCasKey)
+	bool CacheClient::SendCacheEntry(const RootPaths& rootPaths, const CasKey& cmdKey, const Map<u32, u32>& inputsStringToCasKey, const Map<u32, u32>& outputsStringToCasKey)
 	{
 		StackBinaryReader<1024> reader;
 		{
@@ -516,7 +470,7 @@ namespace uba
 
 			StringBuffer<MaxPath> path;
 			CasKey casKey;
-			if (!GetLocalPathAndCasKey(path, casKey, m_sendCasKeyTable, m_sendPathTable, casKeyOffset))
+			if (!GetLocalPathAndCasKey(rootPaths, path, casKey, m_sendCasKeyTable, m_sendPathTable, casKeyOffset))
 				return false;
 
 			casKey = AsCompressed(casKey, true);
@@ -577,7 +531,7 @@ namespace uba
 							}
 						};
 
-					if (!NormalizeString<char>((const char*)file.GetData(), file.GetSize(), handleString, path.data))
+					if (!rootPaths.NormalizeString<char>(m_logger, (const char*)file.GetData(), file.GetSize(), handleString, path.data))
 						return false;
 
 					if (!rootOffsets.empty())
@@ -657,7 +611,7 @@ namespace uba
 		return true;
 	}
 
-	CasKey CacheClient::GetCmdKey(const ProcessStartInfo& info)
+	CasKey CacheClient::GetCmdKey(const RootPaths& rootPaths, const ProcessStartInfo& info)
 	{
 		CasKeyHasher hasher;
 
@@ -670,7 +624,7 @@ namespace uba
 
 		// Add arguments list to key
 		auto hashString = [&](const tchar* str, u64 strLen, u32 rootPos) { hasher.Update(str, strLen*sizeof(tchar)); };
-		if (!NormalizeString(info.arguments, TStrlen(info.arguments), hashString, TC("")))
+		if (!rootPaths.NormalizeString(m_logger, info.arguments, TStrlen(info.arguments), hashString, TC("")))
 			return CasKeyZero;
 
 		// Add content of rsp file to key (This will cost a bit of perf since we need to normalize.. should this be part of key?)
@@ -685,7 +639,7 @@ namespace uba
 					if (rspStart[1] != ':')
 						rsp.Append(info.workingDir).EnsureEndsWithSlash();
 					rsp.Append(rspStart, rspEnd - rspStart);
-					CasKey rspCasKey = NormalizeAndHashFile(rsp.data);
+					CasKey rspCasKey = rootPaths.NormalizeAndHashFile(m_logger, rsp.data);
 					hasher.Update(&rspCasKey, sizeof(CasKey));
 				}
 			}
@@ -694,96 +648,7 @@ namespace uba
 		return ToCasKey(hasher, false);
 	}
 
-	u32 CacheClient::FindRootIndex(const StringBufferBase& path)
-	{
-		if (path.count < m_shortestRoot)
-			return ~0u;
-
-		StringBuffer<MaxPath> shortPath;
-		shortPath.Append(path.data, m_shortestRoot).MakeLower();
-		StringKey key = ToStringKeyNoCheck(shortPath.data, m_shortestRoot);
-		for (u32 i=0, e=u32(m_roots.size()); i!=e; ++i)
-		{
-			auto& root = m_roots[i];
-			if (key != root.shortestPathKey)
-				continue;
-			if (!path.StartsWith(root.path.c_str()))
-				continue;
-			return i;
-		}
-		return ~0u;
-	}
-
-	template<typename CharType, typename Func>
-	bool CacheClient::NormalizeString(const CharType* str, u64 strLen, const Func& func, const tchar* hint)
-	{
-		auto strEnd = str + strLen;
-		auto searchPos = str;
-
-		u32 destPos = 0;
-
-		while (true)
-		{
-			auto absPathChars = searchPos;
-			CharType lastChar = 0;
-			while (absPathChars < strEnd && !(lastChar == ':' && *absPathChars == '\\'))
-			{
-				lastChar = *absPathChars;
-				++absPathChars;
-			}
-		
-			if (absPathChars == strEnd)
-			{
-				func(searchPos, strEnd - searchPos, ~0u);
-				return true;
-			}
-
-			auto pathStart = absPathChars - 2;
-
-			auto pathEndOrMore = pathStart;
-			while (pathEndOrMore < strEnd && *pathEndOrMore != '\n')
-				++pathEndOrMore;
-
-			u32 lenOrMore = u32(pathEndOrMore - pathStart);
-			u32 toCopy = Min(lenOrMore, m_longestRoot);
-			StringBuffer<512> path;
-			path.Append(pathStart, toCopy);
-
-			u32 rootIndex = FindRootIndex(path);
-			if (rootIndex == ~0u)
-			{
-				m_logger.Info(TC("PATH WITHOUT ROOT: %s (inside file %s)"), path.data, hint);
-				return false;
-			}
-
-			if (u32 len = u32(pathStart - searchPos))
-			{
-				destPos += len;
-				func(searchPos, len, ~0u);
-			}
-			CharType temp = RootStartByte + CharType(rootIndex);
-			func(&temp, 1, destPos);
-			destPos += 1;
-
-			searchPos = pathStart + u32(m_roots[rootIndex].path.size()) - 1;
-		}
-	}
-
-	CasKey CacheClient::NormalizeAndHashFile(const tchar* filename)
-	{
-		FileAccessor file(m_logger, filename);
-		if (!file.OpenMemoryRead())
-			return CasKeyZero;
-
-		CasKeyHasher hasher;
-		auto hashString = [&](const char* str, u64 strLen, u32 rootPos) { hasher.Update(str, strLen); };
-		if (!NormalizeString<char>((const char*)file.GetData(), file.GetSize(), hashString, filename))
-			return CasKeyZero;
-
-		return ToCasKey(hasher, false);
-	}
-
-	bool CacheClient::GetLocalPathAndCasKey(StringBufferBase& outPath, CasKey& outKey, CompactCasKeyTable& casKeyTable, CompactPathTable& pathTable, u32 offset)
+	bool CacheClient::GetLocalPathAndCasKey(const RootPaths& rootPaths, StringBufferBase& outPath, CasKey& outKey, CompactCasKeyTable& casKeyTable, CompactPathTable& pathTable, u32 offset)
 	{
 		if (!m_connected)
 			return false;
@@ -794,13 +659,11 @@ namespace uba
 		casKeyTable.GetPathAndKey(normalizedPath, outKey, pathTable, offset);
 		UBA_ASSERT(normalizedPath.count);
 
-		StringBuffer<8> rootIndexStr;
-		rootIndexStr.Append(normalizedPath.data, normalizedPath.First(PathSeparator) - normalizedPath.data);
-		u32 rootIndex = rootIndexStr[0] - RootStartByte;
-		auto& root = m_roots[rootIndex];
+		u32 rootIndex = normalizedPath[0] - RootPaths::RootStartByte;
+		auto& root = rootPaths.GetRoot(rootIndex);
 
 		StringBuffer<MaxPath> path;
-		outPath.Append(root.path).Append(normalizedPath.data + rootIndexStr.count + 1);
+		outPath.Append(root.path).Append(normalizedPath.data + 1);
 		return true;
 	}
 }
