@@ -719,7 +719,7 @@ namespace Horde.Server.Perforce
 
 			try
 			{
-				IPerforceConnection connection = await PerforceConnection.CreateAsync(settings, logger);
+				using IPerforceConnection connection = await PerforceConnection.CreateAsync(settings, logger);
 				await connection.GetInfoAsync(InfoOptions.ShortOutput, cancellationToken);
 				return new ServerHealth(PerforceServerStatus.Healthy, "Server responded to \"p4 info\"");
 			}

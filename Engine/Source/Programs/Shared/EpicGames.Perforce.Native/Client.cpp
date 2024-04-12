@@ -13,8 +13,11 @@ THIRD_PARTY_INCLUDES_START
 #include "p4/i18napi.h"
 #include "p4/charset.h"
 #include "p4/md5.h"
+#include "p4/p4libs.h"
+#include "p4/signaler.h"
 #include "ThirdParty/gzip.h"
 #pragma warning(pop)
+#include <signal.h>
 #include <assert.h>
 THIRD_PARTY_INCLUDES_END
 
@@ -709,8 +712,21 @@ public:
 	}
 };
 
+struct FClientGlobalInit
+{
+	FClientGlobalInit()
+	{
+		Error e;
+		P4Libraries::Initialize(P4LIBRARIES_INIT_ALL, &e);
+		signal(SIGINT, SIG_DFL); // unset the default set by global signaler in C++ so it does not exit 
+		signaler.Disable(); // disable the global signaler memory tracking at runtime
+	}
+};
+
 extern "C" NATIVE_API FClient* Client_Create(const FSettings* Settings, FWriteBuffer* WriteBuffer, FOnBufferReadyFn* OnBufferReady)
 {
+	static FClientGlobalInit GlobalInit;
+
 	FClient* Client = new FClient(WriteBuffer, OnBufferReady);
 
 	if (Settings != nullptr)
