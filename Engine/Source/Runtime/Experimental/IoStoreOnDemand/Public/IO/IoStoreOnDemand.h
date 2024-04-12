@@ -28,6 +28,7 @@ struct FAnalyticsEventAttribute;
 struct FIoContainerSettings;
 struct FIoStoreWriterSettings;
 namespace UE::IoStore { struct FOnDemandEndpoint; }
+namespace UE::IoStore { class FOnDemandIoStore; }
 using FIoBlockHash = uint32;
 
 // Custom initialization allows users to control when
@@ -209,6 +210,7 @@ struct FIoStoreUploadParams
 	int32 MaxConcurrentUploads = 16;
 	bool bDeleteContainerFiles = true;
 	bool bDeletePakFiles = true;
+	bool bPerContainerTocs = false;
 
 	/** If we should write out the .iochunktoc to disk as well as uploading it. */
 	bool bWriteTocToDisk = false;
@@ -344,10 +346,18 @@ enum class EOnDemandInitResult
 
 struct FOnDemandMountArgs
 {
+	/** Mount an already serialized TOC. */
+	TOptional<FOnDemandToc> Toc;
+	/** Mandatory ID to be used for unmounting all container file(s) included in the TOC. */
 	FString MountId;
+	/** Download the TOC from the specified URL. */
 	FString Url;
+	/** Serialize the TOC from the specified file path. */
+	FString FilePath;
+	/** Directory path for any additonal content downloaded as part of the TOC. */
 	FString InstallDirectory;
-	bool bInstall = false;
+	/** Whether to download and install container chunks to local storage. */
+	bool bInstall = true;
 };
 
 struct FOnDemandMountResult
@@ -368,6 +378,7 @@ private:
 	TOptional<bool> DeferredEnabled;
 	TOptional<bool> DeferredAbandonCache;
 	TOptional<bool> DeferredBulkOptionalEnabled;
+	TUniquePtr<FOnDemandIoStore> IoStore;
 
 public:
 	UE_API void SetBulkOptionalEnabled(bool bInEnabled);

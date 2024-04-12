@@ -11,6 +11,8 @@ struct FAnalyticsEventAttribute;
 namespace UE::IoStore
 {
 
+class FOnDemandIoStore;
+
 struct FDistributedEndpointUrl
 {
 	FString EndpointUrl;
@@ -33,15 +35,14 @@ struct FDistributedEndpointUrl
 	}
 };
 
-struct FOnDemandEndpoint
+struct FOnDemandEndpointConfig
 {
 	FString DistributionUrl;
 	FString FallbackUrl;
 
 	TArray<FString> ServiceUrls;
 	FString TocPath;
-
-	bool bForceTocDownload = false;
+	FString TocFilePath;
 
 	bool IsValid() const
 	{
@@ -55,7 +56,6 @@ class IOnDemandIoDispatcherBackend
 public:
 	virtual ~IOnDemandIoDispatcherBackend() = default;
 
-	virtual void Mount(const FOnDemandEndpoint& Endpoint) = 0;
 	virtual void SetBulkOptionalEnabled(bool bInEnabled) = 0;
 	virtual void SetEnabled(bool bInEnabled) = 0;
 	virtual bool IsEnabled() const = 0;
@@ -63,6 +63,9 @@ public:
 	virtual void ReportAnalytics(TArray<FAnalyticsEventAttribute>& OutAnalyticsArray) const = 0;
 };
 
-TSharedPtr<IOnDemandIoDispatcherBackend> MakeOnDemandIoDispatcherBackend(TUniquePtr<IIasCache>&& Cache);
+TSharedPtr<IOnDemandIoDispatcherBackend> MakeOnDemandIoDispatcherBackend(
+	const FOnDemandEndpointConfig& Config,
+	FOnDemandIoStore& IoStore,
+	TUniquePtr<IIasCache>&& Cache);
 
 } // namespace UE::IoStore

@@ -19,6 +19,7 @@
 #include "Misc/Parse.h"
 #include "Misc/PathViews.h"
 #include "Modules/ModuleManager.h"
+#include "OnDemandIoStore.h"
 #include "OnDemandHttpClient.h"
 #include "OnDemandIoDispatcherBackend.h"
 #include "Serialization/Archive.h"
@@ -51,6 +52,7 @@ DEFINE_LOG_CATEGORY(LogIas);
 namespace UE::IoStore
 {
 
+////////////////////////////////////////////////////////////////////////////////
 FString GIasOnDemandTocExt = TEXT(".uondemandtoc");
 
 bool GIasSuspendSystem = false;
@@ -140,7 +142,7 @@ static bool ApplyEncryptionKeyFromString(const FString& GuidKeyPair)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-static bool TryParseConfigContent(const FString& ConfigContent, const FString& ConfigFileName, FOnDemandEndpoint& OutEndpoint)
+static bool TryParseConfigContent(const FString& ConfigContent, const FString& ConfigFileName, FOnDemandEndpointConfig& OutEndpoint)
 {
 	if (ConfigContent.IsEmpty())
 	{
@@ -192,7 +194,7 @@ static bool TryParseConfigContent(const FString& ConfigContent, const FString& C
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-static bool TryParseConfigFileFromPlatformPackage(FOnDemandEndpoint& OutEndpoint)
+static bool TryParseConfigFileFromPlatformPackage(FOnDemandEndpointConfig& OutConfig)
 {
 	const FString ConfigFileName = TEXT("IoStoreOnDemand.ini");
 	const FString ConfigPath = FPaths::Combine(TEXT("Cloud"), ConfigFileName);
@@ -200,7 +202,7 @@ static bool TryParseConfigFileFromPlatformPackage(FOnDemandEndpoint& OutEndpoint
 	if (FPlatformMisc::FileExistsInPlatformPackage(ConfigPath))
 	{
 		const FString ConfigContent = FPlatformMisc::LoadTextFileFromPlatformPackage(ConfigPath);
-		return TryParseConfigContent(ConfigContent, ConfigFileName, OutEndpoint);
+		return TryParseConfigContent(ConfigContent, ConfigFileName, OutConfig);
 	}
 	else
 	{
@@ -209,17 +211,41 @@ static bool TryParseConfigFileFromPlatformPackage(FOnDemandEndpoint& OutEndpoint
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-bool TryParseConfigFile(const FString& ConfigPath, FOnDemandEndpoint& OutEndpoint)
+bool TryParseEndpointConfig(const TCHAR* CommandLine, FOnDemandEndpointConfig& OutConfig)
 {
-	const FString ConfigFileName = TEXT("IoStoreOnDemand.ini");
-	FString ConfigContent; 
-
-	if (!FFileHelper::LoadFileToString(ConfigContent, &IPlatformFile::GetPlatformPhysical(), *ConfigPath))
+	OutConfig = FOnDemandEndpointConfig();
+#if !UE_BUILD_SHIPPING
+	FString UrlParam;
+	if (FParse::Value(CommandLine, TEXT("Ias.TocUrl="), UrlParam))
 	{
-		return false;
+		FStringView UrlView(UrlParam);
+		if (UrlView.StartsWith(TEXTVIEW("http://")) && UrlView.EndsWith(TEXTVIEW(".iochunktoc")))
+		{
+			int32 Delim = INDEX_NONE;
+			if (UrlView.RightChop(7).FindChar(TEXT('/'), Delim))
+			{
+				OutConfig.ServiceUrls.Add(FString(UrlView.Left(7 +  Delim)));
+				OutConfig.TocPath = UrlView.RightChop(OutConfig.ServiceUrls[0].Len() + 1);
+			}
+		}
+	}
+	else
+#endif
+	{
+		if (TryParseConfigFileFromPlatformPackage(OutConfig))
+		{
+			TStringBuilder<256> TocFilePath;
+			FPathViews::Append(TocFilePath, TEXT("Cloud"), FPaths::GetBaseFilename(OutConfig.TocPath));
+			TocFilePath.Append(TEXT(".iochunktoc"));
+
+			if (FPlatformMisc::FileExistsInPlatformPackage(*TocFilePath))
+			{
+				OutConfig.TocFilePath = TocFilePath;
+			}
+		}
 	}
 
-	return TryParseConfigContent(ConfigContent, ConfigFileName, OutEndpoint);
+	return OutConfig.IsValid();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1387,8 +1413,9 @@ TIoStatusOr<FIoStoreUploadResult> UploadContainerFiles(
 	FString ChunksRelativePath = UploadParams.BucketPrefix.IsEmpty() ? TEXT("Chunks") : FString::Printf(TEXT("%s/Chunks"), *UploadParams.BucketPrefix);
 	ChunksRelativePath.ToLowerInline();
 
-	bool bWritePerContainerToc = false;
-	GConfig->GetBool(TEXT("Ias"), TEXT("CreatePerContainerTocs"), bWritePerContainerToc, GEngineIni);
+	bool bPerContainerTocsConfigValue = false;
+	GConfig->GetBool(TEXT("Ias"), TEXT("CreatePerContainerTocs"), bPerContainerTocsConfigValue, GEngineIni);
+	const bool bWritePerContainerToc = bPerContainerTocsConfigValue || UploadParams.bPerContainerTocs;
 
 	uint64 TotalUploadedChunks = 0;
 	uint64 TotalUploadedBytes = 0;
@@ -2551,24 +2578,19 @@ void FIoStoreOnDemandModule::InitializeInternal()
 	// Make sure we haven't called initialize before
 	check(!HttpIoDispatcherBackend.IsValid());
 
-	FOnDemandEndpoint Endpoint;
-	
-	FString UrlParam;
-	if (FParse::Value(CommandLine, TEXT("Ias.TocUrl="), UrlParam))
+	FOnDemandEndpointConfig EndpointConfig;
+	if (TryParseEndpointConfig(CommandLine, EndpointConfig) == false)
 	{
-		FStringView UrlView(UrlParam);
-		if (UrlView.StartsWith(TEXTVIEW("http://")) && UrlView.EndsWith(TEXTVIEW(".iochunktoc")))
-		{
-			int32 Delim = INDEX_NONE;
-			if (UrlView.RightChop(7).FindChar(TEXT('/'), Delim))
-			{
-				Endpoint.ServiceUrls.Add(FString(UrlView.Left(7 +  Delim)));
-				Endpoint.TocPath = UrlView.RightChop(Endpoint.ServiceUrls[0].Len() + 1);
+		return;
+	}
 
-				// Since the user has provided a url to download the .iochunktoc from we should
-				// assume that they want to download it rather than use anything on disk.
-				Endpoint.bForceTocDownload = true;
-			}
+	if (IoStore.IsValid() == false)
+	{
+		IoStore = MakeUnique<FOnDemandIoStore>();
+		if (FIoStatus Status = IoStore->Initialize(); !Status.IsOk())
+		{
+			UE_LOG(LogIas, Error, TEXT("Failed to initialize I/O store on demand, reason '%s'"), *Status.ToString());
+			return;
 		}
 	}
 
@@ -2577,15 +2599,6 @@ void FIoStoreOnDemandModule::InitializeInternal()
 		if (FParse::Value(CommandLine, TEXT("Ias.EncryptionKey="), EncryptionKey))
 		{
 			ApplyEncryptionKeyFromString(EncryptionKey);
-		}
-	}
-
-	if (!Endpoint.IsValid())
-	{
-		Endpoint = FOnDemandEndpoint();
-		if (!TryParseConfigFileFromPlatformPackage(Endpoint))
-		{
-			return;
 		}
 	}
 
@@ -2608,8 +2621,8 @@ void FIoStoreOnDemandModule::InitializeInternal()
 			(CacheConfig.DiskQuota > 0) ? TEXT("init-fail") : TEXT("zero-quota"));
 	}
 
-	HttpIoDispatcherBackend = MakeOnDemandIoDispatcherBackend(MoveTemp(Cache));
-	HttpIoDispatcherBackend->Mount(Endpoint);
+	HttpIoDispatcherBackend = MakeOnDemandIoDispatcherBackend(EndpointConfig, *IoStore, MoveTemp(Cache));
+
 	int32 BackendPriority = -10;
 #if !UE_BUILD_SHIPPING
 	if (FParse::Param(CommandLine, TEXT("Ias")))
@@ -2630,6 +2643,52 @@ void FIoStoreOnDemandModule::InitializeInternal()
 	}
 	
 	FIoDispatcher::Get().Mount(HttpIoDispatcherBackend.ToSharedRef(), BackendPriority);
+
+	bool bUsePerContainerTocsConfigValue = false;
+	if (GConfig)
+	{
+		GConfig->GetBool(TEXT("Ias"), TEXT("UsePerContainerTocs"), bUsePerContainerTocsConfigValue, GEngineIni);
+	}
+	bool bUsePerContainerTocsParam = false;
+#if !UE_BUILD_SHIPPING
+	bUsePerContainerTocsParam = FParse::Param(CommandLine, TEXT("Ias.UsePerContainerTocs"));
+#endif
+
+	const bool bUsePerContainerTocs = bUsePerContainerTocsConfigValue || bUsePerContainerTocsParam;
+	UE_LOG(LogIas, Log, TEXT("Using per container TOCs=%s"), bUsePerContainerTocs ? TEXT("True") : TEXT("False"));
+
+	TOptional<FOnDemandMountArgs> MountArgs;
+	if (EndpointConfig.TocFilePath.IsEmpty() == false)
+	{
+		if (bUsePerContainerTocs == false)
+		{
+			MountArgs.Emplace(FOnDemandMountArgs
+			{
+				.MountId = EndpointConfig.TocFilePath,
+				.FilePath = EndpointConfig.TocFilePath
+			});
+		}
+	}
+	else if (!EndpointConfig.ServiceUrls.IsEmpty() && !EndpointConfig.TocPath.IsEmpty())
+	{
+		const FString TocUrl = EndpointConfig.ServiceUrls[0] / EndpointConfig.TocPath;
+		MountArgs.Emplace(FOnDemandMountArgs
+		{
+			.MountId = TocUrl,
+			.Url = TocUrl
+		});
+	}
+
+	if (MountArgs)
+	{
+		IoStore->Mount(
+			MoveTemp(MountArgs.GetValue()),
+			[](TIoStatusOr<FOnDemandMountResult> MountResult)
+			{
+				UE_CLOG(!MountResult.IsOk(), LogIas, Error,
+					TEXT("Failed to mount TOC, reason '%s'"), *MountResult.Status().ToString());
+			});
+	}
 }
 	
 void FIoStoreOnDemandModule::StartupModule()
