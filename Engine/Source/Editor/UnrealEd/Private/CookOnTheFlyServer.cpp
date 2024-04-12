@@ -6118,6 +6118,7 @@ void UCookOnTheFlyServer::SaveCookedPackage(UE::Cook::FSaveCookedPackageContext&
 			UE_SCOPED_HIERARCHICAL_COOKTIMER(GEditorSavePackage);
 			UE_TRACK_REFERENCING_PLATFORM_SCOPED(TargetPlatform);
 
+			TMap<UObject*, FObjectSaveOverride> SaveOverrides;
 			FArchiveCookData CookData(*TargetPlatform, *Context.ArchiveCookContext);
 			FSavePackageArgs SaveArgs;
 			SaveArgs.TopLevelFlags = Context.FlagsToCook;
@@ -6127,6 +6128,7 @@ void UCookOnTheFlyServer::SaveCookedPackage(UE::Cook::FSaveCookedPackageContext&
 			SaveArgs.ArchiveCookData = &CookData;
 			SaveArgs.bSlowTask = false;
 			SaveArgs.SavePackageContext = Context.SavePackageContext;
+			SaveArgs.InOutSaveOverrides = &SaveOverrides;
 
 			Context.PackageWriter->UpdateSaveArguments(SaveArgs);
 			for(;;)

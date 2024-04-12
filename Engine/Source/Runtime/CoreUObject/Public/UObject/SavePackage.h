@@ -22,6 +22,7 @@
 #include "Templates/UniquePtr.h"
 #include "Templates/UnrealTemplate.h"
 #include "UObject/NameTypes.h"
+#include "UObject/ObjectSaveOverride.h"
 #include "UObject/Package.h"
 
 class ITargetPlatform;
@@ -91,6 +92,12 @@ struct FSavePackageArgs
 	FSavePackageContext* SavePackageContext = nullptr;
 	UE_DEPRECATED(4.27, "UPackage::Guid has not been used by the engine for a long time and it will be removed.")
 	TOptional<FGuid> OutputPackageGuid;
+
+	/**
+	 * In/Out list of property overrides per object to apply to during save. This list can be extended by PreSave functions
+	 * during the save.
+	 */
+	TMap<UObject*, FObjectSaveOverride>* InOutSaveOverrides = nullptr;
 
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS;
 	FSavePackageArgs() = default;

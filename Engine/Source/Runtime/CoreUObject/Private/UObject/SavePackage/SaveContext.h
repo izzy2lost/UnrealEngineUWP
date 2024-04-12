@@ -489,6 +489,10 @@ public:
 			ObjectSaveContext.CookType = SaveArgs.ArchiveCookData->CookContext.GetCookType();
 			ObjectSaveContext.CookingDLC = SaveArgs.ArchiveCookData->CookContext.GetCookingDLC();
 		}
+		if (SaveArgs.InOutSaveOverrides)
+		{
+			ObjectSaveContext.SaveOverrides = MoveTemp(*SaveArgs.InOutSaveOverrides);
+		}
 
 		// Setup the harvesting flags and generate the context for harvesting the package
 		SetupHarvestingRealms();
@@ -499,6 +503,13 @@ public:
 		if (bPostSaveRootRequired && Asset)
 		{
 			UE::SavePackageUtilities::CallPostSaveRoot(Asset, ObjectSaveContext, bNeedPreSaveCleanup);
+		}
+
+		// Move the SaveOverrides that we copied and/or modified onto our ObjectSaveContext back to the
+		// InOut SaveOverrides parameter on the SaveArgs.
+		if (SaveArgs.InOutSaveOverrides)
+		{
+			*SaveArgs.InOutSaveOverrides = MoveTemp(ObjectSaveContext.SaveOverrides);
 		}
 	}
 
