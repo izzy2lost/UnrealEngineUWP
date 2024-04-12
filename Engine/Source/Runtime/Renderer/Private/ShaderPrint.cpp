@@ -187,7 +187,7 @@ namespace ShaderPrint
 	public:
 		void InitRHI(FRHICommandListBase&) override
 		{
-			Buffer = AllocatePooledBuffer(FRDGBufferDesc::CreateStructuredDesc(4, GetCountersUintSize()), TEXT("ShaderPrint.EmptyValueBuffer"));
+			Buffer = AllocatePooledBuffer(FRDGBufferDesc::CreateBufferDesc(4, GetCountersUintSize()), TEXT("ShaderPrint.EmptyValueBuffer"));
 		}
 	};
 
