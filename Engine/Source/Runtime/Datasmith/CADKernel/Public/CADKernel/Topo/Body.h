@@ -1,7 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #pragma once
 
-#include "CADKernel/Core/Entity.h"
+#include "CADKernel/Core/CADEntity.h"
 #include "CADKernel/Core/MetadataDictionary.h"
 #include "CADKernel/Geo/GeoEnum.h"
 #include "CADKernel/Topo/Shell.h"

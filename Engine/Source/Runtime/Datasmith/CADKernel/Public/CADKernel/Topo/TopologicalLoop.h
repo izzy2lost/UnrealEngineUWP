@@ -2,7 +2,7 @@
 #pragma once
 
 #include "CADKernel/Core/CADKernelArchive.h"
-#include "CADKernel/Core/Entity.h"
+#include "CADKernel/Core/CADEntity.h"
 #include "CADKernel/Core/OrientedEntity.h"
 #include "CADKernel/Geo/GeoEnum.h"
 #include "CADKernel/Math/Boundary.h"

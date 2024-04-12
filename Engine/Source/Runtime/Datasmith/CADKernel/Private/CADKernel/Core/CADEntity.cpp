@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "CADKernel/Core/Entity.h"
+#include "CADKernel/Core/CADEntity.h"
 
 #include "CADKernel/Core/EntityGeom.h"
 

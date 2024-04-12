@@ -2,7 +2,7 @@
 #pragma once
 
 #include "CADKernel/Core/CADKernelArchive.h"
-#include "CADKernel/Core/Entity.h"
+#include "CADKernel/Core/CADEntity.h"
 #include "CADKernel/Core/EntityGeom.h"
 #include "CADKernel/Topo/TopologicalShapeEntity.h"
 #include "CoreTypes.h"

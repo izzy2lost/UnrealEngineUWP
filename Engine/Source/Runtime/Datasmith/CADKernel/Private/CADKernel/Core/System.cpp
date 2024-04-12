@@ -2,7 +2,7 @@
 #include "CADKernel/Core/System.h"
 
 #include "CADKernel/Core/Database.h"
-#include "CADKernel/Core/Entity.h"
+#include "CADKernel/Core/CADEntity.h"
 #include "CADKernel/UI/Visu.h"
 #include "CADKernel/Utils/Util.h"
 

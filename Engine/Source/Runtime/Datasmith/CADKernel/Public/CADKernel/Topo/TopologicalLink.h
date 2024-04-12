@@ -1,7 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #pragma once
 
-#include "CADKernel/Core/Entity.h" 
+#include "CADKernel/Core/CADEntity.h" 
 #include "CADKernel/Math/Point.h"
 #include "CADKernel/Topo/TopologicalEntity.h"
 #include "CADKernel/UI/Message.h"

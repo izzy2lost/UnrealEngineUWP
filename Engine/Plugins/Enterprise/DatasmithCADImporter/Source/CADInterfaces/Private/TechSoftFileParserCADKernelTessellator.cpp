@@ -10,7 +10,7 @@
 #include "TechSoftBridge.h"
 #include "TUniqueTechSoftObj.h"
 
-#include "CADKernel/Core/Entity.h"
+#include "CADKernel/Core/CADEntity.h"
 #include "CADKernel/Core/Session.h"
 #include "CADKernel/Core/Types.h"
 

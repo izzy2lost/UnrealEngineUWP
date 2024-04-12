@@ -9,7 +9,7 @@
 #include "StaticMeshAttributes.h"
 #include "StaticMeshOperations.h"
 
-#include "CADKernel/Core/Entity.h"
+#include "CADKernel/Core/CADEntity.h"
 #include "CADKernel/Core/MetadataDictionary.h"
 #include "CADKernel/Core/Session.h"
 #include "CADKernel/Core/Types.h"

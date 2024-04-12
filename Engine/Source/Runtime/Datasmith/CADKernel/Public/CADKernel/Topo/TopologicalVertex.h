@@ -2,7 +2,7 @@
 #pragma once
 
 #include "CADKernel/Core/CADKernelArchive.h"
-#include "CADKernel/Core/Entity.h"
+#include "CADKernel/Core/CADEntity.h"
 #include "CADKernel/Core/HaveStates.h"
 #include "CADKernel/Core/Types.h"
 #include "CADKernel/Math/Point.h"
