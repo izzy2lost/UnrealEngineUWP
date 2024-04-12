@@ -934,7 +934,7 @@ BOOL Detoured_GetFileAttributesExW(LPCWSTR lpFileName, GET_FILEEX_INFO_LEVELS fI
 		return True_GetFileAttributesExW(lpFileName, fInfoLevelId, lpFileInformation);
 	}
 
-	StringBuffer<> fixedName;
+	StringBuffer<MaxPath> fixedName;
 	FixPath(fixedName, lpFileName);
 
 	if (!g_rules->CanExist(fixedName.data))
@@ -956,7 +956,7 @@ DWORD Detoured_GetFileAttributesW(LPCWSTR lpFileName)
 		return res;
 	}
 
-	StringBuffer<> fixedPath;
+	StringBuffer<MaxPath> fixedPath;
 	if (!FixPath(fixedPath, lpFileName))
 		return INVALID_FILE_ATTRIBUTES;
 
