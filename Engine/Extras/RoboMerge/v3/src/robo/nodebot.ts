@@ -512,7 +512,7 @@ export class NodeBot extends PerforceStatefulBot implements NodeBotInterface {
 		const prevValue = this._forceSetLastCl_NoReset(value)
 
 		if (prevValue !== value) {
-			this.onForcedLastCl(this.displayName, value, prevValue, culprit, reason)
+			this.onForcedLastCl(this.displayName, this.branch.upperName, value, prevValue, culprit, reason)
 		}
 		return prevValue
 	}
@@ -523,8 +523,8 @@ export class NodeBot extends PerforceStatefulBot implements NodeBotInterface {
 		throw err
 	}
 
-	onForcedLastCl(nodeOrEdgeName: string, forcedCl: number, previousCl: number, culprit: string, reason: string) {
-		this.conflicts.onForcedLastCl({nodeOrEdgeName, forcedCl, previousCl, culprit, reason})
+	onForcedLastCl(nodeOrEdgeName: string, targetBranchUpperName: string, forcedCl: number, previousCl: number, culprit: string, reason: string) {
+		this.conflicts.onForcedLastCl({nodeOrEdgeName, sourceBranchUpperName: this.branch.upperName, targetBranchUpperName, forcedCl, previousCl, culprit, reason})
 	}
 
 	persistQueuedChanges() {

@@ -736,19 +736,34 @@ export class BotNotifications implements BotEventHandler {
 
 	onNonSkipLastClChange(details: ForcedCl) {
 		if (this.slackMessages) {
-			this.slackMessages.postNonConflictMessage({
-				title: details.nodeOrEdgeName + ' forced to new CL',
-				text: details.reason,
-				style: SlackMessageStyles.WARNING,
-				fields: [{
-					title: 'By', short: true, value: details.culprit
-				}, {
-					title: 'Changelists', short: true, value: `${makeClLink(details.previousCl)} -> ${makeClLink(details.forcedCl)}`
-				}],
-				title_link: this.externalRobomergeUrl + '#' + this.botname,
-				mrkdwn: true,
-				channel: this.slackChannel // Default to the configured channel
-			}) 
+			let channelsToPostTo = []		
+			const additionalChannelInfo = this.additionalBlockChannelIds.get(details.sourceBranchUpperName + '|' + details.targetBranchUpperName)
+			if (additionalChannelInfo) {
+				const [sideChannel, postOnlyToSideChannel] = additionalChannelInfo
+				if (!postOnlyToSideChannel) {
+					channelsToPostTo.push(this.slackChannel)
+				}
+				channelsToPostTo.push(sideChannel)
+			}
+			else {
+				channelsToPostTo.push(this.slackChannel)
+			}
+
+			for (let slackChannel of channelsToPostTo) {
+				this.slackMessages.postNonConflictMessage({
+					title: details.nodeOrEdgeName + ' forced to new CL',
+					text: details.reason,
+					style: SlackMessageStyles.WARNING,
+					fields: [{
+						title: 'By', short: true, value: details.culprit
+					}, {
+						title: 'Changelists', short: true, value: `${makeClLink(details.previousCl)} -> ${makeClLink(details.forcedCl)}`
+					}],
+					title_link: this.externalRobomergeUrl + '#' + this.botname,
+					mrkdwn: true,
+					channel: slackChannel // Default to the configured channel
+				}) 
+			}
 		}
 	}
 

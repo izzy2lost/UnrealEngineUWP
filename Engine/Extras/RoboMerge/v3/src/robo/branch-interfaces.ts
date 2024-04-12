@@ -214,6 +214,8 @@ export interface AlreadyIntegrated {
 
 export interface ForcedCl {
 	nodeOrEdgeName: string
+	sourceBranchUpperName: string
+	targetBranchUpperName: string
 	forcedCl: number
 	previousCl: number
 	culprit: string

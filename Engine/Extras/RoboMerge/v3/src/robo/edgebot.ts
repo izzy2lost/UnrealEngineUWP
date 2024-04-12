@@ -972,7 +972,7 @@ class EdgeBotImpl extends PerforceStatefulBot {
 		}
 
 		// trigger events
-		this.sourceNode.onForcedLastCl(this.displayName, value, prevValue, culprit, reason)
+		this.sourceNode.onForcedLastCl(this.displayName, this.targetBranch.upperName, value, prevValue, culprit, reason)
 		
 		return prevValue
 	}
