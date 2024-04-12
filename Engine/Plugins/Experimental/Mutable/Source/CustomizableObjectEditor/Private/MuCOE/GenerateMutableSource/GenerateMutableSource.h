@@ -697,8 +697,8 @@ struct FMutableGraphGenerationContext
 	TArray<const USkeleton*> ReferencedSkeletons;
 
 	// Array of unique Bone identifiers. 
-	TMap<mu::FBoneName, FName> UniqueBoneNames;
-	TMap<FName, mu::FBoneName> RemappedBoneNames; // Bone identifiers that had a collision.
+	TMap<mu::FBoneName, FString> UniqueBoneNames;
+	TMap<FString, mu::FBoneName> RemappedBoneNames; // Bone identifiers that had a collision.
 
 	// Used to aviod Nodes with duplicated ids
 	TMap<FGuid, TArray<const UObject*>> NodeIdsMap;

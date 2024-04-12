@@ -176,7 +176,7 @@ struct FCompilationOptions
 	bool b16BitBoneWeightsEnabled = false;
 
 	// Used to enable skin weight profiles.
-	bool bSkinWeightProfilesEnabled = true;
+	bool bSkinWeightProfilesEnabled = false;
 
 	// Used to enable physics asset merge.
 	bool bPhysicsAssetMergeEnabled = false;

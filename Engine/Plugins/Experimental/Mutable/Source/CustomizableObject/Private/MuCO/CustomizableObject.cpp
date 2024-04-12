@@ -551,7 +551,6 @@ void UCustomizableObjectPrivate::SaveCompiledData(FArchive& MemoryWriter, bool b
 
 	MemoryWriter << LocalModelResources.MaterialSlotNames;
 	MemoryWriter << LocalModelResources.BoneNamesMap;
-	MemoryWriter << LocalModelResources.RemappedBoneNames;
 	MemoryWriter << LocalModelResources.SocketArray;
 
 	MemoryWriter << LocalModelResources.SkinWeightProfilesInfo;
@@ -672,7 +671,6 @@ void UCustomizableObjectPrivate::LoadCompiledData(FArchive& MemoryReader, const 
 
 		MemoryReader << LocalModelResource.MaterialSlotNames;
 		MemoryReader << LocalModelResource.BoneNamesMap;
-		MemoryReader << LocalModelResource.RemappedBoneNames;
 		MemoryReader << LocalModelResource.SocketArray;
 
 		MemoryReader << LocalModelResource.SkinWeightProfilesInfo;

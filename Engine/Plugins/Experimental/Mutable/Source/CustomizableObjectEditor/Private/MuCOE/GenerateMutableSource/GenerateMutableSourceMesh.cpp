@@ -3063,12 +3063,13 @@ mu::NodeMeshPtr GenerateMutableSourceMesh(const UEdGraphPin* Pin,
 
 				if (GenerationContext.Options.bSkinWeightProfilesEnabled)
 				{
-					FSkeletalMeshModel* ImportModel = TypedNodeSkel->SkeletalMesh->GetImportedModel();
-
-					for (const auto& SkinWeightProfile : ImportModel->LODModels[LODIndex].SkinWeightProfiles)
+					if (ImportedModel && ImportedModel->LODModels.IsValidIndex(LODIndex))
 					{
-						const int32 ProfileId = static_cast<int32>(GenerationContext.GetSkinWeightProfileIdUnique(SkinWeightProfile.Key));
-						MeshData.SkinWeightProfilesSemanticIndices.AddUnique(ProfileId);
+						for (const auto& SkinWeightProfile : ImportedModel->LODModels[LODIndex].SkinWeightProfiles)
+						{
+							const int32 ProfileId = static_cast<int32>(GenerationContext.GetSkinWeightProfileIdUnique(SkinWeightProfile.Key));
+							MeshData.SkinWeightProfilesSemanticIndices.AddUnique(ProfileId);
+						}
 					}
 				}
 

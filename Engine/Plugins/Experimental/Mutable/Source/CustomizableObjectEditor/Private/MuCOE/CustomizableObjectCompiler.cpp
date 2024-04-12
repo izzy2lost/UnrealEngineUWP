@@ -973,7 +973,7 @@ void FCustomizableObjectCompiler::CompileInternal(UCustomizableObject* Object, c
 		ModelResources.MaterialSlotNames = MoveTemp(GenerationContext.ReferencedMaterialSlotNames);
 		ModelResources.SocketArray = MoveTemp(GenerationContext.SocketArray);
 
-		const int32 NumBones = GenerationContext.UniqueBoneNames.Num();
+		const int32 NumBones = GenerationContext.UniqueBoneNames.Num() + GenerationContext.RemappedBoneNames.Num();
 		ModelResources.BoneNamesMap.Reserve(NumBones);
 
 		for (auto& It : GenerationContext.UniqueBoneNames)
@@ -983,9 +983,7 @@ void FCustomizableObjectCompiler::CompileInternal(UCustomizableObject* Object, c
 
 		for (auto& It : GenerationContext.RemappedBoneNames)
 		{
-			FMutableRemappedBone& RemappedBone = ModelResources.RemappedBoneNames.AddDefaulted_GetRef();
-			RemappedBone.Name = It.Key; // BoneName
-			RemappedBone.Hash = It.Value.Id; // mu::FBoneName
+			ModelResources.BoneNamesMap.Add(It.Key, It.Value.Id);
 		}
 
 		ModelResources.SkinWeightProfilesInfo = MoveTemp(GenerationContext.SkinWeightProfilesInfo);

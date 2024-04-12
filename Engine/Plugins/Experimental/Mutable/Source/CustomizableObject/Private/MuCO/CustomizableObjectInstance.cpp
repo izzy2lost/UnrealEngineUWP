@@ -3327,15 +3327,9 @@ bool UCustomizableInstancePrivate::BuildSkeletonData(const TSharedRef<FUpdateCon
 		for (int32 Index = 0; Index < RawRefBoneCount; ++Index)
 		{
 			const FName BoneName = RawRefBoneInfo[Index].Name;
-			if (const FMutableRemappedBone* RemappedBone = ModelResources.RemappedBoneNames.FindByKey(BoneName))
+			const FString BoneNameString = BoneName.ToString().ToLower();
+			if(const uint32* Hash = ModelResources.BoneNamesMap.Find(BoneNameString))
 			{
-				TPair<FName, uint16>& BoneInfo = BoneInfoMap.Add(mu::FBoneName(RemappedBone->Hash));
-				BoneInfo.Key = BoneName;
-				BoneInfo.Value = Index;
-			}
-			else if(const uint32* Hash = ModelResources.BoneNamesMap.Find(BoneName))
-			{
-				const FString BoneNameString = BoneName.ToString();
 				const mu::FBoneName Bone(*Hash);
 				TPair<FName, uint16>& BoneInfo = BoneInfoMap.Add(Bone);
 				BoneInfo.Key = BoneName;

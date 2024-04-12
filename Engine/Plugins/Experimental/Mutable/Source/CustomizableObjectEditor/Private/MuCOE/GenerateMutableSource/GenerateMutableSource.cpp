@@ -376,14 +376,14 @@ void FMutableGraphGenerationContext::GenerateSharedSurfacesUniqueIds()
 
 bool FMutableGraphGenerationContext::FindBone(const FName& InBoneName, mu::FBoneName& OutBoneName) const
 {
-	const FString BoneNameString = InBoneName.ToString();
+	const FString BoneNameString = InBoneName.ToString().ToLower();
 	OutBoneName.Id = CityHash32(reinterpret_cast<const char*>(*BoneNameString), BoneNameString.Len() * sizeof(FString::ElementType));
 	if (UniqueBoneNames.Contains(OutBoneName))
 	{
 		return true;
 	}
 
-	if (const mu::FBoneName* BoneName = RemappedBoneNames.Find(InBoneName))
+	if (const mu::FBoneName* BoneName = RemappedBoneNames.Find(BoneNameString))
 	{
 		OutBoneName = *BoneName;
 		return true;
@@ -395,15 +395,15 @@ bool FMutableGraphGenerationContext::FindBone(const FName& InBoneName, mu::FBone
 
 mu::FBoneName FMutableGraphGenerationContext::GetBoneUnique(const FName& InBoneName)
 {
-	const FString BoneNameString = InBoneName.ToString();
+	const FString BoneNameString = InBoneName.ToString().ToLower();
 	mu::FBoneName Bone(CityHash32(reinterpret_cast<const char*>(*BoneNameString), BoneNameString.Len() * sizeof(FString::ElementType)));
 
 	bool bNewRemappedBoneName = false;
 
-	FName& BoneName = UniqueBoneNames.FindOrAdd(Bone, InBoneName);
+	FString& BoneName = UniqueBoneNames.FindOrAdd(Bone, BoneNameString);
 	while (BoneName != InBoneName)
 	{
-		if (mu::FBoneName* RemappedBoneName = RemappedBoneNames.Find(InBoneName))
+		if (mu::FBoneName* RemappedBoneName = RemappedBoneNames.Find(BoneNameString))
 		{
 			Bone.Id = RemappedBoneName->Id;
 			break;
@@ -414,12 +414,12 @@ mu::FBoneName FMutableGraphGenerationContext::GetBoneUnique(const FName& InBoneN
 
 		// Increase Id in an attempt to make it unique again.
 		++Bone.Id;
-		BoneName = UniqueBoneNames.FindOrAdd(Bone, InBoneName);
+		BoneName = UniqueBoneNames.FindOrAdd(Bone, BoneNameString);
 	}
 
 	if (bNewRemappedBoneName)
 	{
-		RemappedBoneNames.Add(InBoneName, Bone);
+		RemappedBoneNames.Add(BoneNameString, Bone);
 	}
 
 	return Bone;
