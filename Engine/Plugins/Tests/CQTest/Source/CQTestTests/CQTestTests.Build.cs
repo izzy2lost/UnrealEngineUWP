@@ -16,6 +16,7 @@ public class CQTestTests : ModuleRules
 					"Engine",
 					"InputCore",
 					"EnhancedInput",
+					"Slate",
 					"CQTest"
 				 }
 			);

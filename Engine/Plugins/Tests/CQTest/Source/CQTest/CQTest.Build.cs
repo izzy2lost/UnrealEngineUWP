@@ -16,7 +16,8 @@ public class CQTest : ModuleRules
 					"Core",
 					"CoreUObject",
 					"Engine",
-					"EnhancedInput"
+					"EnhancedInput",
+					"Slate"
 				 }
 			);
 

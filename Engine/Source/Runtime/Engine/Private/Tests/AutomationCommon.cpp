@@ -302,6 +302,7 @@ void FTestConsoleVariable::Set(const FString& Value)
 		}
 
 		ConsoleVariable->AsVariable()->SetWithCurrentPriority(*Value);
+		UE_LOG(LogEngineAutomationTests, Verbose, TEXT("CVar '%s' was set with the value '%s'."), *ConsoleVariableName, *Value);
 	}
 }
 
@@ -324,6 +325,7 @@ void FTestConsoleVariable::Restore()
 		if (ensure(ConsoleVariable))
 		{
 			ConsoleVariable->AsVariable()->SetWithCurrentPriority(*OriginalValue);
+			UE_LOG(LogEngineAutomationTests, Verbose, TEXT("CVar '%s' was restored with the original value '%s'."), *ConsoleVariableName, *OriginalValue);
 		}
 
 		bModified = false;

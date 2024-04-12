@@ -103,7 +103,7 @@ private:
 };
 
 /**
- * Utility for setting and management of the test environment
+ * Utility for setting and management of temporary CVars
  * Will handle restoring the Console Variables (CVars) back to the original state on destruction.
  */
 struct FScopedTestEnvironment
