@@ -923,11 +923,11 @@ bool FDeferredShadingSceneRenderer::DispatchRayTracingWorldUpdates(FRDGBuilder& 
 	return true;
 }
 
-static void ReleaseRaytracingResources(FRDGBuilder& GraphBuilder, TArrayView<FViewInfo> Views, FRayTracingScene &RayTracingScene, bool bIsLastRenderer)
+static void ReleaseRaytracingResources(FRDGBuilder& GraphBuilder, FRayTracingScene &RayTracingScene, bool bIsLastRenderer)
 {
 	// Keep mask the same as what's already set (which will be the view mask) if TLAS updates should be masked to the view
 	RDG_GPU_MASK_SCOPE(GraphBuilder, GRayTracingMultiGpuTLASMask ? GraphBuilder.RHICmdList.GetGPUMask() : FRHIGPUMask::All());
-	AddPass(GraphBuilder, RDG_EVENT_NAME("ReleaseRayTracingResources"), [Views, &RayTracingScene, bIsLastRenderer](FRHICommandListImmediate& RHICmdList)
+	AddPass(GraphBuilder, RDG_EVENT_NAME("ReleaseRayTracingResources"), [&RayTracingScene, bIsLastRenderer](FRHICommandListImmediate& RHICmdList)
 	{
 		if (RayTracingScene.IsCreated())
 		{
@@ -935,13 +935,6 @@ static void ReleaseRaytracingResources(FRDGBuilder& GraphBuilder, TArrayView<FVi
 			if (bIsLastRenderer)
 			{
 				RHICmdList.ClearRayTracingBindings(RayTracingScene.GetRHIRayTracingScene());
-			}
-
-			// Track if we ended up rendering anything this frame.  After rendering all view families, we'll release the
-			// ray tracing scene resources if nothing used ray tracing.
-			if (RayTracingScene.GetInstances().Num() > 0)
-			{
-				RayTracingScene.bUsedThisFrame = true;
 			}
 		}
 	});
@@ -3369,7 +3362,7 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 		GetSceneExtensionsRenderers().PostRender(GraphBuilder);
 
 #if RHI_RAYTRACING
-		ReleaseRaytracingResources(GraphBuilder, Views, Scene->RayTracingScene, bIsLastSceneRenderer);
+		ReleaseRaytracingResources(GraphBuilder, Scene->RayTracingScene, bIsLastSceneRenderer);
 #endif //  RHI_RAYTRACING
 	}
 

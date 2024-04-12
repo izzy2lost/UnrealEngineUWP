@@ -69,8 +69,7 @@ public:
 	// Resets the instance list and reserves memory for this frame.
 	void Reset(bool bInstanceDebugDataEnabled);
 
-	// Similar to Reset(), but also releases any persistent CPU and GPU memory allocations.
-	void ResetAndReleaseResources();
+	void EndFrame();
 
 	// Allocates temporary memory that will be valid until the next Reset().
 	// Can be used to store temporary instance transforms, user data, etc.
@@ -110,7 +109,6 @@ public:
 
 	// Public members for initial refactoring step (previously were public members of FViewInfo).
 
-	bool bUsedThisFrame = false;
 	uint32 NumMissShaderSlots = 1; // we must have a default miss shader, so always include it from the start
 	uint32 NumCallableShaderSlots = 0;
 	TArray<FRayTracingShaderCommand> CallableCommands;
@@ -170,6 +168,8 @@ private:
 	TArray<FRayTracingInstanceDebugData> InstancesDebugData;
 
 	bool bInstanceDebugDataEnabled = false;
+
+	bool bUsedThisFrame = false;
 };
 
 #endif // RHI_RAYTRACING

@@ -4569,9 +4569,6 @@ void FSceneRenderer::CreateSceneRenderers(TArrayView<const FSceneViewFamily*> In
 					}
 				}
 			}
-
-			// Clear flag that tracks whether ray tracing was used this frame
-			SceneRenderers[0]->Scene->RayTracingScene.bUsedThisFrame = false;
 		});
 	}
 #endif  // RHI_RAYTRACING
@@ -5135,11 +5132,7 @@ static void RenderViewFamilies_RenderThread(FRHICommandListImmediate& RHICmdList
 	}
 
 #if RHI_RAYTRACING
-	// Release the ray tracing scene resources if ray tracing wasn't used
-	if (!Scene->RayTracingScene.bUsedThisFrame)
-	{
-		Scene->RayTracingScene.ResetAndReleaseResources();
-	}
+	Scene->RayTracingScene.EndFrame();
 #endif  // RHI_RAYTRACING
 
 #if STATS

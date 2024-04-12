@@ -63,6 +63,8 @@ void FRayTracingScene::CreateWithInitializationData(FRDGBuilder& GraphBuilder, c
 	// Make sure that all async tasks complete before we run initialization code again and create new tasks.
 	WaitForTasks();
 
+	bUsedThisFrame = true;
+
 	FRHICommandListBase& RHICmdList = GraphBuilder.RHICmdList;
 
 	static const uint8 NumLayers = uint8(ERayTracingSceneLayer::NUM);
@@ -393,15 +395,17 @@ void FRayTracingScene::Reset(bool bInInstanceDebugDataEnabled)
 
 	Instances.Reset();
 	InstancesDebugData.Reset();
-	NumMissShaderSlots = 1;
-	NumCallableShaderSlots = 0;
 	CallableCommands.Reset();
 	UniformBuffers.Reset();
 	GeometriesToBuild.Reset();
 	UsedCoarseMeshStreamingHandles.Reset();
 
+	NumMissShaderSlots = 1;
+	NumCallableShaderSlots = 0;
+
 	Allocator.Flush();
 
+	RayTracingSceneRHI = nullptr;
 	BuildScratchBuffer = nullptr;
 	InstanceDebugBuffer = nullptr;
 	DebugInstanceGPUSceneIndexBuffer = nullptr;
@@ -409,19 +413,25 @@ void FRayTracingScene::Reset(bool bInInstanceDebugDataEnabled)
 	bInstanceDebugDataEnabled = bInInstanceDebugDataEnabled;
 }
 
-void FRayTracingScene::ResetAndReleaseResources()
+void FRayTracingScene::EndFrame()
 {
 	Reset(false);
 
-	Instances.Empty();
-	InstancesDebugData.Empty();
-	CallableCommands.Empty();
-	UniformBuffers.Empty();
-	GeometriesToBuild.Empty();
-	UsedCoarseMeshStreamingHandles.Empty();
-	RayTracingSceneBuffer = nullptr;
-	RayTracingScenePooledBuffer = nullptr;
-	RayTracingSceneRHI = nullptr;
+	// Release the resources if ray tracing wasn't used
+	if (!bUsedThisFrame)
+	{
+		Instances.Empty();
+		InstancesDebugData.Empty();
+		CallableCommands.Empty();
+		UniformBuffers.Empty();
+		GeometriesToBuild.Empty();
+		UsedCoarseMeshStreamingHandles.Empty();
+
+		RayTracingSceneBuffer = nullptr;
+		RayTracingScenePooledBuffer = nullptr;
+	}
+
+	bUsedThisFrame = false;
 }
 
 #endif // RHI_RAYTRACING
