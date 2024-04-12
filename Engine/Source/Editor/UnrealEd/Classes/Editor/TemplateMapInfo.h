@@ -26,10 +26,6 @@ struct FTemplateMapInfo
 	UPROPERTY(config, meta = (AllowedClasses = "/Script/Engine.World"))
 	FSoftObjectPath Map;
 
-	/** Optional localization name for this map template  */
-	UPROPERTY(config)
-	FString LocKeyName;
-
 	/** Optional display name override for this map template  */
 	UPROPERTY(config)
 	FText DisplayName;
