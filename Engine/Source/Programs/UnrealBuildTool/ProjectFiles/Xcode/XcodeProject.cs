@@ -1462,17 +1462,43 @@ namespace UnrealBuildTool.XcodeProjectXcconfig
 			// (note bInstallOnly which will make this onle run when archiving)
 			List<string> DsymScript = new();
 
+			bool bUsePremadeDSYMInXcArchive;
+			// get ini file for the platform
+			ConfigHierarchy PlatformIni = ConfigCache.ReadHierarchy(ConfigHierarchyType.Engine, UnrealData.ConfigDirectory, Platform);
+			PlatformIni.TryGetValue("/Script/MacTargetPlatform.XcodeProjectSettings", "bUsePremadeDSYMInXcArchive", out bUsePremadeDSYMInXcArchive);
+
+			if (bUsePremadeDSYMInXcArchive)
+			{
+				DsymScript.AddRange(new string[]
+				{
+					"set -e",
+					"",
+					"# Copy a dsym from next to the executable",
+					"SRC_DSYM=\\\"${UE_BINARIES_DIR}/${UE_UBT_BINARY_SUBPATH}.dSYM\\\"",
+					"if [[ -e \\\"${SRC_DSYM}\\\" ]]; then",
+					"  echo Using pre-existing dSYM at \\\"${SRC_DSYM}\\\"",
+					"  ditto \\\"${SRC_DSYM}\\\" \\\"${DWARF_DSYM_FOLDER_PATH}/${DWARF_DSYM_FILE_NAME}\\\"",
+					"fi"
+				});
+			}
+			else
+			{
+				DsymScript.AddRange(new string[]
+				{
+					"set -e",
+					"",
+					"# Run the wrapper dsym generator",
+					"\\\"${UE_ENGINE_DIR}/Build/BatchFiles/Mac/GenerateUniversalDSYM.sh\\\" \\\"${CONFIGURATION_BUILD_DIR}/${EXECUTABLE_PATH}\\\" \\\"${DWARF_DSYM_FOLDER_PATH}/${DWARF_DSYM_FILE_NAME}\\\"",
+				});
+			}
 			DsymScript.AddRange(new string[]
 			{
-				"set -e",
-				"",
-				"# Run the wrapper dsym generator",
-				"\\\"${UE_ENGINE_DIR}/Build/BatchFiles/Mac/GenerateUniversalDSYM.sh\\\" \\\"${CONFIGURATION_BUILD_DIR}/${EXECUTABLE_PATH}\\\" \\\"${DWARF_DSYM_FOLDER_PATH}/${DWARF_DSYM_FILE_NAME}\\\"",
 				"strip -no_code_signature_warning -D \\\"${CONFIGURATION_BUILD_DIR}/${EXECUTABLE_PATH}\\\"",
 				"",
 				"# Remove any unused architectures from dylibs in the .app (param1) that don't match the executable (param2). Also error if a dylib is missing arches",
 				"\\\"${UE_ENGINE_DIR}/Build/BatchFiles/Mac/ThinApp.sh\\\" \\\"${CONFIGURATION_BUILD_DIR}/${CONTENTS_FOLDER_PATH}\\\" \\\"${CONFIGURATION_BUILD_DIR}/${EXECUTABLE_PATH}\\\"",
 			});
+
 			string DsymScriptInput = $"\\\"$(CONFIGURATION_BUILD_DIR)/$(EXECUTABLE_PATH)\\\"";
 			string DsymScriptOutput = $"\\\"$(DWARF_DSYM_FOLDER_PATH)/$(DWARF_DSYM_FILE_NAME)\\\"";
 			XcodeShellScriptBuildPhase DsymScriptPhase = new("Generate dsym for archive, and strip", DsymScript, new string[] { DsymScriptInput }, new string[] { DsymScriptOutput }, bInstallOnly: true);
