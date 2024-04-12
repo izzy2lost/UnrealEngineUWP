@@ -26,11 +26,9 @@
 					...parseOptions(location.search)
 				})));
 			},
-		// error: function(xhr, error, status) {
-		// 	robomergeUser = undefined;
-		// 	setError(xhr, error);
-		// 	callback(null);
-		// }
+			error: function(xhr, error, status) {
+				window.location = window.origin + "/login?redirect=/allbots";
+			}
 		})
 	</script>
 </head>
