@@ -53,6 +53,10 @@ private:
 	EVisibility GetLinkedStateVisibility() const;
 	FText GetLinkedStateDesc() const;
 
+	bool GetStateWarnings(FText* OutText) const;
+	EVisibility GetWarningsVisibility() const;
+	FText GetWarningsTooltipText() const;
+
 	EVisibility GetCompletedTransitionVisibility() const;
 	EVisibility GetCompletedTransitionBreakpointVisibility() const;
 	FText GetCompletedTransitionsDesc() const;

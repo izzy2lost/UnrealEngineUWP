@@ -409,6 +409,13 @@ bool FStateTreeCompiler::CreateStateRecursive(UStateTreeState& State, const FSta
 
 	FStateTreeCompilerLogStateScope LogStateScope(&State, Log);
 
+	if (State.Type == EStateTreeStateType::LinkedAsset
+		|| State.Type == EStateTreeStateType::Linked)
+	{
+		Log.Reportf(EMessageSeverity::Warning,
+			TEXT("Linked State cannot have child states, because the state selection will enter to the linked state on activation."));
+	}
+
 	const int32 StateIdx = StateTree->States.AddDefaulted();
 	FCompactStateTreeState& CompactState = StateTree->States[StateIdx];
 	CompactState.Name = State.Name;
