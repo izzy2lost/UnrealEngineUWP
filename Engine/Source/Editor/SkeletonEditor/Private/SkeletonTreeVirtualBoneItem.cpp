@@ -16,6 +16,7 @@
 #include "SocketDragDropOp.h"
 #include "Editor.h"
 #include "ScopedTransaction.h"
+#include "Preferences/PersonaOptions.h"
 
 #define LOCTEXT_NAMESPACE "FSkeletonTreeVirtualBoneItem"
 
@@ -91,6 +92,26 @@ void FSkeletonTreeVirtualBoneItem::GenerateWidgetForNameColumn(TSharedPtr< SHori
 		.AutoWidth()
 		[
 			InlineWidget.ToSharedRef()
+		];
+	
+	Box->AddSlot()
+		.AutoWidth()
+		.Padding(4, 0, 0, 0)
+		.VAlign(VAlign_Center)
+		[
+			SNew (STextBlock)
+			.ColorAndOpacity(this, &FSkeletonTreeVirtualBoneItem::GetBoneTextColor, InIsSelected)
+			.Text_Lambda( [BoneName=BoneName, EditableSkeleton=GetEditableSkeleton()]() -> FText
+			{
+				const int32 BoneIndex = EditableSkeleton->GetSkeleton().GetReferenceSkeleton().FindBoneIndex(BoneName);
+				return FText::Format(LOCTEXT("VirtualBoneIndexValue", "<{0}>"), FText::AsNumber(BoneIndex));
+			})
+			.Font(this, &FSkeletonTreeVirtualBoneItem::GetBoneTextFont)
+			.ToolTipText( LOCTEXT("VirtualBoneIndexTooltip", "The index of this virtual bone in the reference skeleton's flat list of bones.") )
+			.Visibility_Lambda([]() -> EVisibility
+			{
+				return GetDefault<UPersonaOptions>()->bShowBoneIndexes ? EVisibility::Visible : EVisibility::Collapsed;
+			})
 		];
 }
 

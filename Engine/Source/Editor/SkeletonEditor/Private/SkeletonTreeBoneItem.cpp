@@ -23,6 +23,7 @@
 #include "UObject/Package.h"
 #include "Editor.h"
 #include "ScopedTransaction.h"
+#include "Preferences/PersonaOptions.h"
 
 #define LOCTEXT_NAMESPACE "FSkeletonTreeBoneItem"
 
@@ -82,7 +83,7 @@ void FSkeletonTreeBoneItem::GenerateWidgetForNameColumn( TSharedPtr< SHorizontal
 		UDebugSkelMeshComponent* PreviewComponent = GetSkeletonTree()->GetPreviewScene()->GetPreviewMeshComponent();
 		CacheLODChange(PreviewComponent);
 	}	
-	
+
 	FText ToolTip = GetBoneToolTip();
 	Box->AddSlot()
 		.AutoWidth()
@@ -95,6 +96,26 @@ void FSkeletonTreeBoneItem::GenerateWidgetForNameColumn( TSharedPtr< SHorizontal
 			.HighlightText( FilterText )
 			.Font(this, &FSkeletonTreeBoneItem::GetBoneTextFont)
 			.ToolTipText( ToolTip )
+		];
+
+	Box->AddSlot()
+		.AutoWidth()
+		.Padding(4, 0, 0, 0)
+		.VAlign(VAlign_Center)
+		[
+			SNew (STextBlock)
+			.ColorAndOpacity(this, &FSkeletonTreeBoneItem::GetBoneTextColor, InIsSelected)
+			.Text_Lambda( [BoneName=BoneName, EditableSkeleton=GetEditableSkeleton()]() -> FText
+			{
+				const int32 BoneIndex = EditableSkeleton->GetSkeleton().GetReferenceSkeleton().FindBoneIndex(BoneName);
+				return FText::Format(LOCTEXT("BoneIndexValue", "<{0}>"), FText::AsNumber(BoneIndex));
+			})
+			.Font(this, &FSkeletonTreeBoneItem::GetBoneTextFont)
+			.ToolTipText( LOCTEXT("BoneIndexTooltip", "The index of this bone in the reference skeleton's flat list of bones.") )
+			.Visibility_Lambda([]() -> EVisibility
+			{
+				return GetDefault<UPersonaOptions>()->bShowBoneIndexes ? EVisibility::Visible : EVisibility::Collapsed;
+			})
 		];
 }
 
