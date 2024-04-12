@@ -2,7 +2,7 @@ name: live_link_vcam
 description: A rebuild of the Live Link VCAM app for Flutter, enabling cross-platform deployment.
 publish_to: 'none'
 
-version: 1.0.0+1
+version: 2.0.0+32867938
 
 environment:
   sdk: '>=3.1.0 <4.0.0'
