@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "LumenRadianceCache.h"
+#include "LumenRadianceCacheInternal.h"
 #include "RendererPrivate.h"
 #include "ScenePrivate.h"
 #include "SceneUtils.h"
@@ -15,7 +16,7 @@ int32 GRadianceCacheUpdate = 1;
 FAutoConsoleVariableRef CVarRadianceCacheUpdate(
 	TEXT("r.Lumen.RadianceCache.Update"),
 	GRadianceCacheUpdate,
-	TEXT("Whether to update radiance cache every frame"),
+	TEXT("Whether to update radiance cache every frame. Useful for debugging."),
 	ECVF_RenderThreadSafe
 );
 
@@ -23,7 +24,7 @@ int32 GRadianceCacheForceFullUpdate = 0;
 FAutoConsoleVariableRef CVarRadianceForceFullUpdate(
 	TEXT("r.Lumen.RadianceCache.ForceFullUpdate"),
 	GRadianceCacheForceFullUpdate,
-	TEXT(""),
+	TEXT("Whether to update entuire radiance cache once. Useful for debugging."),
 	ECVF_RenderThreadSafe
 );
 
@@ -1109,18 +1110,6 @@ float GetSupersampleDistanceFromCamera(const FUpdateInputs& Inputs)
 	return GLumenRadianceCacheSupersampleDistanceFromCamera;
 }
 
-class FRadianceCacheSetup
-{
-public:
-	TArray<FRadianceCacheClipmap> LastFrameClipmaps;
-	FRDGTextureRef DepthProbeAtlasTexture;
-	FRDGTextureRef FinalIrradianceAtlas;
-	FRDGTextureRef ProbeOcclusionAtlas;
-	FRDGTextureRef FinalRadianceAtlas;
-	FRDGTextureRef RadianceProbeAtlasTextureSource;
-	bool bPersistentCache;
-};
-
 void UpdateRadianceCaches(
 	FRDGBuilder& GraphBuilder, 
 	const FLumenSceneFrameTemporaries& FrameTemporaries,
@@ -1987,49 +1976,40 @@ void UpdateRadianceCaches(
 			}
 		}
 
-		for (int32 RadianceCacheIndex = 0; RadianceCacheIndex < InputArray.Num(); RadianceCacheIndex++)
+		if (Lumen::UseHardwareRayTracedRadianceCache(ViewFamily))
 		{
-			const FUpdateInputs& Inputs = InputArray[RadianceCacheIndex];
-			const FRadianceCacheInputs& RadianceCacheInputs = Inputs.RadianceCacheInputs;
-			const FViewInfo& View = Inputs.View;
-			const FRadianceCacheSetup& Setup = SetupOutputArray[RadianceCacheIndex];
-
-			FLumenCardTracingParameters TracingParameters;
-			GetLumenCardTracingParameters(GraphBuilder, View, *Scene->GetLumenSceneData(View), FrameTemporaries, /*bSurfaceCacheFeedback*/ false, TracingParameters);
-
-			FUpdateOutputs& Outputs = OutputArray[RadianceCacheIndex];
-			FRadianceCacheState& RadianceCacheState = Outputs.RadianceCacheState;
-			FRadianceCacheInterpolationParameters& RadianceCacheParameters = Outputs.RadianceCacheParameters;
-
-			FRDGTextureUAVRef RadianceProbeAtlasTextureUAV = GraphBuilder.CreateUAV(FRDGTextureUAVDesc(Setup.RadianceProbeAtlasTextureSource));
-			FRDGTextureUAVRef DepthProbeTextureUAV = GraphBuilder.CreateUAV(FRDGTextureUAVDesc(Setup.DepthProbeAtlasTexture));
-			const int32 MaxNumProbes = RadianceCacheInputs.ProbeAtlasResolutionInProbes.X * RadianceCacheInputs.ProbeAtlasResolutionInProbes.Y;
-			const int32 MaxProbeTraceTileResolution = RadianceCacheInputs.RadianceProbeResolution / FRadianceCacheTraceFromProbesCS::GetGroupSize() * 2;
-
-			if (Lumen::UseHardwareRayTracedRadianceCache(*View.Family))
+			RenderLumenHardwareRayTracingRadianceCache(
+				GraphBuilder,
+				Scene,
+				FrameTemporaries,
+				InputArray,
+				OutputArray,
+				SetupOutputArray,
+				ProbeTraceTileAllocator,
+				ProbeTraceTileData,
+				ProbeTraceData,
+				HardwareRayTracingRayAllocatorBuffer,
+				TraceProbesIndirectArgs,
+				ComputePassFlags);
+		}
+		else
+		{
+			for (int32 RadianceCacheIndex = 0; RadianceCacheIndex < InputArray.Num(); RadianceCacheIndex++)
 			{
-				RenderLumenHardwareRayTracingRadianceCache(
-					GraphBuilder,
-					Scene,
-					GetSceneTextureParameters(GraphBuilder, View),
-					View,
-					TracingParameters,
-					RadianceCacheParameters,
-					Inputs.Configuration,
-					MaxNumProbes,
-					MaxProbeTraceTileResolution,
-					ProbeTraceData[RadianceCacheIndex],
-					ProbeTraceTileData[RadianceCacheIndex],
-					ProbeTraceTileAllocator[RadianceCacheIndex],
-					TraceProbesIndirectArgs[RadianceCacheIndex],
-					HardwareRayTracingRayAllocatorBuffer[RadianceCacheIndex],
-					RadianceCacheHardwareRayTracingIndirectArgs[RadianceCacheIndex],
-					RadianceProbeAtlasTextureUAV,
-					DepthProbeTextureUAV,
-					ComputePassFlags);
-			}
-			else
-			{
+				const FUpdateInputs& Inputs = InputArray[RadianceCacheIndex];
+				const FRadianceCacheInputs& RadianceCacheInputs = Inputs.RadianceCacheInputs;
+				const FViewInfo& View = Inputs.View;
+				const FRadianceCacheSetup& Setup = SetupOutputArray[RadianceCacheIndex];
+
+				FLumenCardTracingParameters TracingParameters;
+				GetLumenCardTracingParameters(GraphBuilder, View, *Scene->GetLumenSceneData(View), FrameTemporaries, /*bSurfaceCacheFeedback*/ false, TracingParameters);
+
+				FUpdateOutputs& Outputs = OutputArray[RadianceCacheIndex];
+				FRadianceCacheInterpolationParameters& RadianceCacheParameters = Outputs.RadianceCacheParameters;
+
+				FRDGTextureUAVRef RadianceProbeAtlasTextureUAV = GraphBuilder.CreateUAV(FRDGTextureUAVDesc(Setup.RadianceProbeAtlasTextureSource));
+				FRDGTextureUAVRef DepthProbeTextureUAV = GraphBuilder.CreateUAV(FRDGTextureUAVDesc(Setup.DepthProbeAtlasTexture));
+
 				FRadianceCacheTraceFromProbesCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FRadianceCacheTraceFromProbesCS::FParameters>();
 				PassParameters->TracingParameters = TracingParameters;
 				SetupLumenDiffuseTracingParametersForProbe(View, PassParameters->IndirectTracingParameters, -1.0f);

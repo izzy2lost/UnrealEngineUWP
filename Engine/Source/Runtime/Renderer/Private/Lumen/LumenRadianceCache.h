@@ -121,26 +121,6 @@ namespace LumenRadianceCache
 		bool bPropagateGlobalLightingChange,
 		ERDGPassFlags ComputePassFlags = ERDGPassFlags::Compute);
 
-	void RenderLumenHardwareRayTracingRadianceCache(
-		FRDGBuilder& GraphBuilder,
-		const FScene* Scene,
-		const FSceneTextureParameters& SceneTextures,
-		const FViewInfo& View,
-		const FLumenCardTracingParameters& TracingParameters,
-		const LumenRadianceCache::FRadianceCacheInterpolationParameters& RadianceCacheParameters,
-		FRadianceCacheConfiguration Configuration,
-		int32 MaxNumProbes,
-		int32 MaxProbeTraceTileResolution,
-		FRDGBufferRef ProbeTraceData,
-		FRDGBufferRef ProbeTraceTileData,
-		FRDGBufferRef ProbeTraceTileAllocator,
-		FRDGBufferRef TraceProbesIndirectArgs,
-		FRDGBufferRef HardwareRayTracingRayAllocatorBuffer,
-		FRDGBufferRef RadianceCacheHardwareRayTracingIndirectArgs,
-		FRDGTextureUAVRef RadianceProbeAtlasTextureUAV,
-		FRDGTextureUAVRef DepthProbeTextureUAV,
-		ERDGPassFlags ComputePassFlags);
-
 	ERDGPassFlags GetLumenSceneLightingComputePassFlags(const FEngineShowFlags& EngineShowFlags);
 }
 
