@@ -143,6 +143,8 @@ public sealed class ManagedWorkspaceMaterializer : IWorkspaceMaterializer
 		scope.Span.SetTag("Cluster", _agentWorkspace.Cluster);
 		scope.Span.SetTag("Incremental", _agentWorkspace.Incremental);
 		scope.Span.SetTag("Method", _agentWorkspace.Method);
+		scope.Span.SetTag("Stream", _agentWorkspace.Stream);
+		scope.Span.SetTag("Partitioned", _agentWorkspace.Partitioned);
 		scope.Span.SetTag("UseCacheFile", _useCacheFile);
 		return scope;
 	}
