@@ -141,10 +141,19 @@ protected: // Common SourceControl Code
 private:
 	FString CommandName;
 
+	/*
+	 * Sometimes the command will have to create and own the source control provider and be responsible for
+	 * cleaning it up once the command has finished. In these cases we store the pointer to the provider
+	 * that we own, here.
+	 */
 	TUniquePtr<ISourceControlProvider> OwnedSCCProvider;
 
 protected:
 
+	/*
+	 * Pointer to the source control provider that the command should use.This can either be to a provider
+	 * that the command owns in 'OwnedSCCProvider' or one provided for us by the source control api.
+	 */
 	ISourceControlProvider* SCCProvider = nullptr;
 
 	

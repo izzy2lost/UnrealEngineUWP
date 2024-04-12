@@ -123,14 +123,11 @@ bool FCommand::TryConnectToSourceControl(FStringView ClientSpecName)
 		// If the project has been set then we can use the default source control provider
 		if (!ISourceControlModule::Get().GetProvider().IsEnabled())
 		{
-			// TODO - Warning
 			ISourceControlModule::Get().SetProvider(FName("Perforce"));
 		}
 
 		SCCProvider = &ISourceControlModule::Get().GetProvider();
 		SCCProvider->Init(true);
-
-		return SCCProvider->IsAvailable();
 	}
 	else
 	{
@@ -146,23 +143,29 @@ bool FCommand::TryConnectToSourceControl(FStringView ClientSpecName)
 		{
 			SCCProvider = OwnedSCCProvider.Get();
 			SCCProvider->Init(true);
-
-			if (SCCProvider->IsAvailable())
-			{
-				return true;
-			}
-			else
-			{
-				UE_LOG(LogVirtualizationTool, Error, TEXT("Failed to establish a perforce connection"));
-				return false;
-			}
-
 		}
 		else
 		{
-			UE_LOG(LogVirtualizationTool, Error, TEXT("Failed to instantiate a perforce revision control connection"));
+			UE_LOG(LogVirtualizationTool, Error, TEXT("\tFailed to instantiate a perforce revision control connection"));
 			return false;
 		}
+	}
+
+	if (SCCProvider->IsAvailable())
+	{
+		TMap<ISourceControlProvider::EStatus, FString> StatusMap = SCCProvider->GetStatus();
+
+		if (FString* Server = StatusMap.Find(ISourceControlProvider::EStatus::Port))
+		{
+			UE_LOG(LogVirtualizationTool, Display, TEXT("\tSuccessfully connected to server '%s'"), **Server);
+		}
+		
+		return true;
+	}
+	else
+	{
+		UE_LOG(LogVirtualizationTool, Error, TEXT("\tFailed to establish a perforce connection"));
+		return false;
 	}
 }
 
