@@ -1501,8 +1501,12 @@ void UIKRetargetProcessor::Initialize(
 		UIKRetargeter* InRetargeterAsset,
 		const bool bSuppressWarnings)
 {
-	// don't attempt reinitialization with same assets
-	if (RetargeterAsset == InRetargeterAsset && AssetVersionInitializedWith == InRetargeterAsset->GetVersion())
+	// don't attempt reinitialization unless inputs have changed
+	const bool bSameTargetMesh = TargetSkeleton.SkeletalMesh == TargetSkeletalMesh;
+	const bool bSameSourceMesh = SourceSkeleton.SkeletalMesh == SourceSkeletalMesh;
+	const bool bSameAsset = RetargeterAsset == InRetargeterAsset;
+	const bool bSameAssetVersion = AssetVersionInitializedWith == InRetargeterAsset->GetVersion();
+	if (bSameAsset && bSameAssetVersion && bSameTargetMesh && bSameSourceMesh)
 	{
 		return;
 	}

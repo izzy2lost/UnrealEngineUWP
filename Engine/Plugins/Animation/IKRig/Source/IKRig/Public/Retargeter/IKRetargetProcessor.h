@@ -576,7 +576,7 @@ private:
 
 	/** Only true once Initialize() has successfully completed.*/
 	bool bIsInitialized = false;
-	int32 AssetVersionInitializedWith = -1;
+	int32 AssetVersionInitializedWith = -2;
 	/** true when roots are able to be retargeted */
 	bool bRootsInitialized = false;
 	/** true when at least one pair of bone chains is able to be retargeted */
