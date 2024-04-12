@@ -285,6 +285,16 @@ bool ABrush::CanReplaceSelectedActor(FText& OutReason) const
 	return BrushUtils::CanDeleteOrReplaceCommon(this, OutReason);
 }
 
+bool ABrush::IsActorLabelEditable() const
+{
+	if (!Super::IsActorLabelEditable())
+	{
+		return false;
+	}
+
+	return !FActorEditorUtils::IsABuilderBrush(this);
+}
+
 void ABrush::PostLoad()
 {
 	Super::PostLoad();

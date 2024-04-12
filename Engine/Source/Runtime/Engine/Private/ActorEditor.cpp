@@ -1271,7 +1271,12 @@ void AActor::SetActorLabel(const FString& NewActorLabelDirty, bool bMarkDirty)
 
 bool AActor::IsActorLabelEditable() const
 {
-	return bActorLabelEditable && !FActorEditorUtils::IsABuilderBrush(this);
+	if (IsInLevelInstance() && !IsInEditLevelInstance())
+	{
+		return false;
+	}
+
+	return bActorLabelEditable;
 }
 
 void AActor::ClearActorLabel()

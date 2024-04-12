@@ -183,6 +183,7 @@ public:
 	ENGINE_API virtual bool SupportsExternalPackaging() const override;
 	ENGINE_API virtual bool CanDeleteSelectedActor(FText& OutReason) const override;
 	ENGINE_API virtual bool CanReplaceSelectedActor(FText& OutReason) const override;
+	ENGINE_API virtual bool IsActorLabelEditable() const override;
 public:
 
 	ENGINE_API virtual void InitPosRotScale();
