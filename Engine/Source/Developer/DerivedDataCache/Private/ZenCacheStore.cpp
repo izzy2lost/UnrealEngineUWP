@@ -1486,16 +1486,19 @@ private:
 
 	IHttpReceiver* OnComplete(IHttpResponse& Response) final
 	{
-		FMemoryView MemoryView = MakeMemoryView(BodyArray);
+		if (Response.GetErrorCode() == EHttpErrorCode::None)
 		{
-			FMemoryReaderView Ar(MemoryView);
-			if (Zen::Http::TryLoadCbPackage(Package, Ar))
+			FMemoryView MemoryView = MakeMemoryView(BodyArray);
 			{
-				return Next;
+				FMemoryReaderView Ar(MemoryView);
+				if (Zen::Http::TryLoadCbPackage(Package, Ar))
+				{
+					return Next;
+				}
 			}
+			FMemoryReaderView Ar(MemoryView);
+			Package.TryLoad(Ar);
 		}
-		FMemoryReaderView Ar(MemoryView);
-		Package.TryLoad(Ar);
 		return Next;
 	}
 
