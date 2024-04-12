@@ -21,10 +21,12 @@ class UMVVMViewClassExtension : public UObject
 
 public:
 	//~ Functions to be overriden in a user-defined UMVVMViewMyWidgetExtension class
+	virtual void OnViewConstructed(UUserWidget* UserWidget, UMVVMView* View) {};
 	virtual void OnSourcesInitialized(UUserWidget* UserWidget, UMVVMView* View) {};
 	virtual void OnBindingsInitialized(UUserWidget* UserWidget, UMVVMView* View) {};
 	virtual void OnEventsInitialized(UUserWidget* UserWidget, UMVVMView* View) {};
 	virtual void OnEventsUninitialized(UUserWidget* UserWidget, UMVVMView* View) {};
 	virtual void OnBindingsUninitialized(UUserWidget* UserWidget, UMVVMView* View) {};
 	virtual void OnSourcesUninitialized(UUserWidget* UserWidget, UMVVMView* View) {};
+	virtual void OnViewDestructed(UUserWidget* UserWidget, UMVVMView* View) {};
 };

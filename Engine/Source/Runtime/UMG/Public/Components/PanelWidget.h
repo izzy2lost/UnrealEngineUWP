@@ -58,6 +58,31 @@ public:
 	UFUNCTION(BlueprintCallable, Category="Widget|Panel")
 	UMG_API UPanelSlot* AddChild(UWidget* Content);
 
+	/**
+	 * Adds a new child widget to the container. Creates the slot using the
+	 * template passed to it. Note that a new UPanelSlot object is created
+	 * and the SlotTemplate is only used as a template.
+	 */
+	UMG_API UPanelSlot* AddChild(UWidget* Content, UPanelSlot* SlotTemplate);
+
+	/**
+	 * Inserts a widget at a specific index.  This does not update the live slate version, it requires
+	 * a rebuild of the whole UI to see a change.
+	 */
+	UMG_API UPanelSlot* InsertChildAt(int32 Index, UWidget* Content);
+
+	/**
+	 * Inserts a widget at a specific index. Creates the slot using the
+	 * template passed to it. Note that a new UPanelSlot object is created
+	 * and the SlotTemplate is only used as a template.
+	 */
+	UMG_API UPanelSlot* InsertChildAt(int32 Index, UWidget* Content, UPanelSlot* SlotTemplate);
+
+	/**
+	 * Moves the child widget from its current index to the new index provided.
+	 */
+	UMG_API void ShiftChild(int32 Index, UWidget* Child);
+
 #if WITH_EDITOR
 
 	/**
@@ -76,17 +101,6 @@ public:
 	 * @return true if the CurrentChild was found and the swap occurred, otherwise false.
 	 */
 	UMG_API virtual bool ReplaceChild(UWidget* CurrentChild, UWidget* NewChild);
-
-	/**
-	 * Inserts a widget at a specific index.  This does not update the live slate version, it requires
-	 * a rebuild of the whole UI to see a change.
-	 */
-	UMG_API UPanelSlot* InsertChildAt(int32 Index, UWidget* Content);
-
-	/**
-	 * Moves the child widget from its current index to the new index provided.
-	 */
-	UMG_API void ShiftChild(int32 Index, UWidget* Child);
 
 	UMG_API virtual void SetDesignerFlags(EWidgetDesignFlags NewFlags) override;
 
@@ -147,16 +161,16 @@ public:
 	UMG_API virtual void PostLoad() override;
 	// End UObject
 
+	virtual UClass* GetSlotClass() const
+	{
+		return UPanelSlot::StaticClass();
+	}
+
 protected:
 
 #if WITH_EDITOR
 	UMG_API virtual TSharedRef<SWidget> RebuildDesignWidget(TSharedRef<SWidget> Content) override;
 #endif
-
-	virtual UClass* GetSlotClass() const
-	{
-		return UPanelSlot::StaticClass();
-	}
 
 	virtual void OnSlotAdded(UPanelSlot* InSlot)
 	{

@@ -1036,6 +1036,27 @@ void FMVVMViewBlueprintCompiler::CreateRequiredProperties(const FWidgetBlueprint
 			}
 		}
 	}
+
+	for (FMVVMExtensionItem& Extension : BlueprintView->GetOuterUMVVMWidgetBlueprintExtension_View()->BlueprintExtensions)
+	{
+		if (ensure(Extension.ExtensionObj))
+		{
+			TArray<Compiler::FBlueprintViewUserWidgetProperty> Properties = Extension.ExtensionObj->AddProperties();
+			for (const Compiler::FBlueprintViewUserWidgetProperty& Property : Properties)
+			{
+				FCompilerUserWidgetProperty& CompilerUserWidgetProperty = NeededUserWidgetProperties.AddDefaulted_GetRef();
+
+				CompilerUserWidgetProperty.AuthoritativeClass = Property.AuthoritativeClass;
+				CompilerUserWidgetProperty.Name = Property.Name;
+				CompilerUserWidgetProperty.DisplayName = Property.DisplayName;
+				CompilerUserWidgetProperty.bExposeOnSpawn = Property.bExposeOnSpawn;
+				CompilerUserWidgetProperty.bPrivate = Property.bPrivate;
+				CompilerUserWidgetProperty.bReadOnly = Property.bReadOnly;
+				CompilerUserWidgetProperty.CategoryName = Property.CategoryName;
+				CompilerUserWidgetProperty.CreationType = FCompilerUserWidgetProperty::ECreationType::CreateOnlyIfDoesntExist;
+			}
+		}
+	}
 }
 
 

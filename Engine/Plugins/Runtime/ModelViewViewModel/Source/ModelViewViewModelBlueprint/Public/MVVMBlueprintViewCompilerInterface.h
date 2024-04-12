@@ -61,6 +61,19 @@ enum class EMessageType
 	Error = 2
 };
 
+struct FBlueprintViewUserWidgetProperty
+{
+	UClass* AuthoritativeClass = nullptr;
+	FName Name;
+	FText DisplayName;
+	FString CategoryName;
+	bool bExposeOnSpawn = false;
+	bool bPrivate = false;
+	bool bReadOnly = false;
+
+	const FProperty* Property = nullptr;
+};
+
 /**
  * Exposed interface of MVVMViewBlueprintCompiler to be used in view extensions (MVVMViewBlueprintViewExtension) at precompile step
  */

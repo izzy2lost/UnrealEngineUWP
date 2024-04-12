@@ -75,6 +75,11 @@ void UMVVMView::Construct()
 	check(GeneratedViewClass);
 	check(bConstructed == false);
 
+	for (UMVVMViewClassExtension* Extension : GeneratedViewClass->GetViewClassExtensions())
+	{
+		Extension->OnViewConstructed(GetUserWidget(), this);
+	}
+
 	if (GeneratedViewClass->DoesInitializeSourcesOnConstruct())
 	{
 		InitializeSources();
@@ -104,6 +109,11 @@ void UMVVMView::Destruct()
 
 	UninitializeEvents();
 	UninitializeSources(); // and bindings
+
+	for (UMVVMViewClassExtension* Extension : GeneratedViewClass->GetViewClassExtensions())
+	{
+		Extension->OnViewDestructed(GetUserWidget(), this);
+	}
 }
 
 

@@ -138,7 +138,7 @@ private:
 	 * They can be a Widget, a viewmodel, or any object owned by the UserWidget.
 	 * They can be source or destination.
 	 */
-	struct FCompilerUserWidgetProperty
+	struct FCompilerUserWidgetProperty : Compiler::FBlueprintViewUserWidgetProperty
 	{
 		enum class ECreationType
 		{
@@ -146,19 +146,10 @@ private:
 			CreateIfDoesntExist,
 			CreateOnlyIfDoesntExist,
 		};
-		UClass* AuthoritativeClass = nullptr;
-		FName Name;
-		FText DisplayName;
-		FString CategoryName;
 		FString BlueprintSetter;
 		ECreationType CreationType = ECreationType::None;
-		bool bExposeOnSpawn = false;
-		bool bPrivate = false;
-		bool bReadOnly = false;
 		bool bInstanced = false;
 		bool bInstanceExposed = false;
-
-		const FProperty* Property = nullptr;
 	};
 	TArray<FCompilerUserWidgetProperty> NeededUserWidgetProperties;
 

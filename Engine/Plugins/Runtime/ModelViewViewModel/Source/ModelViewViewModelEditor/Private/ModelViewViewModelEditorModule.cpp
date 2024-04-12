@@ -7,6 +7,7 @@
 #include "BlueprintModes/WidgetBlueprintApplicationModes.h"
 #include "Customizations/MVVMBlueprintViewModelContextCustomization.h"
 #include "Customizations/MVVMListViewBaseExtensionCustomizationExtender.h"
+#include "Customizations/MVVMPanelWidgetExtensionCustomizationExtender.h"
 #include "Customizations/MVVMPropertyBindingExtension.h"
 #include "Extensions/MVVMBlueprintViewExtension.h"
 #include "Framework/Application/SlateApplication.h"
@@ -48,6 +49,9 @@ void FModelViewViewModelEditorModule::StartupModule()
 
 	ListViewBaseCustomizationExtender = UE::MVVM::FMVVMListViewBaseExtensionCustomizationExtender::MakeInstance();
 	UMGEditorModule.AddWidgetCustomizationExtender(ListViewBaseCustomizationExtender.ToSharedRef());
+
+	PanelWidgetCustomizationExtender = UE::MVVM::FMVVMPanelWidgetExtensionCustomizationExtender::MakeInstance();
+	UMGEditorModule.AddWidgetCustomizationExtender(PanelWidgetCustomizationExtender.ToSharedRef());
 
 	UMGEditorModule.RegisterInstancedCustomPropertyTypeLayout(
 		FMVVMBlueprintViewModelContext::StaticStruct()->GetStructPathName()
