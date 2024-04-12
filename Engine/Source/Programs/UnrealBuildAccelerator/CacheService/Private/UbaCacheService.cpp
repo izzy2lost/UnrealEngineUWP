@@ -42,11 +42,9 @@ namespace uba
 		logger.Info(TC("   UbaCacheService v%s"), Version);
 		logger.Info(TC("-------------------------------------------"));
 		logger.Info(TC(""));
-		logger.Info(TC("  UbaCacheService.exe [options...]"));
-		logger.Info(TC(""));
-		logger.Info(TC("  Options:"));
-		logger.Info(TC("   -dir=<rootdir>          The directory used to store data. Defaults to \"%s\""), DefaultRootDir);
-		logger.Info(TC("   -port=[<host>:]<port>   The ip/name and port (default: %u) to listen for clients on"), DefaultCachePort);
+		logger.Info(TC("  -dir=<rootdir>          The directory used to store data. Defaults to \"%s\""), DefaultRootDir);
+		logger.Info(TC("  -port=[<host>:]<port>   The ip/name and port (default: %u) to listen for clients on"), DefaultCachePort);
+		logger.Info(TC("  -capacity=<gigaby>      Capacity of local store. Defaults to %u gigabytes"), DefaultCapacityGb);
 		logger.Info(TC(""));
 		return -1;
 	}
@@ -152,6 +150,11 @@ namespace uba
 				if ((g_rootDir.count = GetFullPathNameW(value.Replace('/', PathSeparator).data, g_rootDir.capacity, g_rootDir.data, nullptr)) == 0)
 					return PrintHelp(StringBuffer<>().Appendf(TC("-dir has invalid path %s"), g_rootDir.data).data);
 			}
+			else if (name.Equals(TC("-capacity")))
+			{
+				if (!value.Parse(storageCapacityGb))
+					return PrintHelp(TC("Invalid value for -capacity"));
+			}
 			else if (name.Equals(TC("-?")))
 			{
 				return PrintHelp(TC(""));
@@ -208,6 +211,7 @@ namespace uba
 		storageInfo.casCapacityBytes = storageCapacity;
 		storageInfo.storeCompressed = storeCompressed;
 		storageInfo.allowFallback = false;
+		storageInfo.manuallyHandleOverflow = true;
 		storageInfo.writeRecievedCasFilesToDisk = true;
 		StorageServer storageServer(storageInfo);
 

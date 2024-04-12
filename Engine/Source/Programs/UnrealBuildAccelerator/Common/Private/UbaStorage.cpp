@@ -99,7 +99,7 @@ namespace uba
 		UBA_ASSERT(!entry.mappingHandle.IsValid());
 #endif
 
-		if (!m_casCapacityBytes || m_overflowReported || m_casTotalBytes <= m_casCapacityBytes)
+		if (!m_casCapacityBytes || m_overflowReported || m_casTotalBytes <= m_casCapacityBytes || m_manuallyHandleOverflow)
 			return;
 
 		#if UBA_USE_SPARSEFILE
@@ -1087,6 +1087,7 @@ namespace uba
 	{
 		m_casCapacityBytes = info.casCapacityBytes;
 		m_storeCompressed = info.storeCompressed;
+		m_manuallyHandleOverflow = info.manuallyHandleOverflow;
 		m_rootDir.count = GetFullPathNameW(info.rootDir, m_rootDir.capacity, m_rootDir.data, NULL);
 		m_rootDir.Replace('/', PathSeparator).EnsureEndsWithSlash();
 
@@ -1294,7 +1295,9 @@ namespace uba
 			CheckAllCasFiles();
 			resave = true;
 		}
-		HandleOverflow(nullptr);
+
+		if (!m_manuallyHandleOverflow)
+			HandleOverflow(nullptr);
 
 		if (resave)
 		{

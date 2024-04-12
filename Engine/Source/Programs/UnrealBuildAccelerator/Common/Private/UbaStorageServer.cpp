@@ -834,7 +834,7 @@ namespace uba
 						casEntry.beingWritten = false;
 					}
 
-					bool isPersistentStore = false;
+					bool isPersistentStore = m_writeRecievedCasFilesToDisk;
 					if (isPersistentStore)
 						CasEntryWritten(*activeStore.casEntry, totalWritten);
 

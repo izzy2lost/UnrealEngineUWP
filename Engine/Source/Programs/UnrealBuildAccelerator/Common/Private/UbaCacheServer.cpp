@@ -314,7 +314,7 @@ namespace uba
 			m_storage.TraverseAllCasFiles([&](const CasKey& casKey, u64 size) { totalCasSize += size; existingCas.try_emplace(casKey, CasFileInfo{size, 0ull}); });
 			m_logger.Detail(TC("  Found %llu cas files (%s)"), existingCas.size(), TimeToText(GetTime() - traverseStartTime).str);
 		}
-		u64 totalCasCount = existingCas.size();
+		u64 totalCasCount = existingCas.size() + deletedCasCount;
 
 		u64 now = GetSystemTimeAsFileTime();
 		u64 oldest = now;

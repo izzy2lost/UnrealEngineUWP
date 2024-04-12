@@ -78,6 +78,7 @@ namespace uba
 		u64 casCapacityBytes = 20llu * 1024 * 1024 * 1024;
 		u32 maxParallelCopyOrLink = 1000;
 		bool storeCompressed = true;
+		bool manuallyHandleOverflow = false;
 		WorkManager* workManager = nullptr;
 	};
 
@@ -210,6 +211,7 @@ namespace uba
 		u32 m_casDroppedCount = 0;
 		bool m_overflowReported = false;
 		bool m_storeCompressed = false;
+		bool m_manuallyHandleOverflow = false;
 
 		u32 m_maxParallelCopyOrLink;
 		ReaderWriterLock m_activeCopyOrLinkLock;
