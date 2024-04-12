@@ -25,6 +25,11 @@ namespace Chaos
 		}
 	}
 
+	void FModuleFactoryRegister::Reset()
+	{
+		RegisteredFactories.Reset();
+	}
+
 	bool FModuleFactoryRegister::ContainsFactory(int32 TypeID)
 	{
 		return RegisteredFactories.Contains(TypeID);

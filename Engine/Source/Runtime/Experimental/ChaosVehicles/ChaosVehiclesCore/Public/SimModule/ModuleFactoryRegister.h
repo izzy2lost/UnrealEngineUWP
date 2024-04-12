@@ -22,6 +22,7 @@ public:
 
 	void RegisterFactory(int32 TypeID, TWeakPtr<IFactoryModule> InFactory);
 	void RemoveFactory(TWeakPtr<IFactoryModule> InFactory);
+	void Reset();
 	bool ContainsFactory(int32 TypeID);
 	TSharedPtr<Chaos::FModuleNetData> GenerateNetData(int32 TypeID, int32 SimArrayIndex);
 

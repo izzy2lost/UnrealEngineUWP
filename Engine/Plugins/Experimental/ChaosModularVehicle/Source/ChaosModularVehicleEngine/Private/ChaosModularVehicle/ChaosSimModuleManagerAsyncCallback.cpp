@@ -271,22 +271,18 @@ bool FNetworkModularVehicleStates::NetSerialize(FArchive& Ar, class UPackageMap*
 				Ar << ModuleType;
 				Ar << SimArrayIndex;
 
-				if (!ModuleData.IsEmpty())
-				{
-					ensure(I <= ModuleData.Num());
-				}
-
 				if (ModuleData.Num() != NumNetModules)
 				{
 					ModuleData.Reserve(NumNetModules);
 
 					if (TSharedPtr<Chaos::FModuleNetData> Data = Chaos::FModuleFactoryRegister::Get().GenerateNetData(ModuleType, SimArrayIndex))
 					{
+						Data->Serialize(Ar);
 						ModuleData.Emplace(Data);
 					}
 					else
 					{
-						checkf(false, TEXT("Module net data factory has not been registered, use FModuleFactoryRegister::Get().RegisterFactory()"));
+						ensureMsgf(false, TEXT("Module net data factory has not been registered, use FModuleFactoryRegister::Get().RegisterFactory()"));
 					}
 
 				}
@@ -297,9 +293,9 @@ bool FNetworkModularVehicleStates::NetSerialize(FArchive& Ar, class UPackageMap*
 			int32 ModuleType = (int32)ModuleData[I]->GetType();
 			Ar << ModuleType;
 			Ar << ModuleData[I]->SimArrayIndex;
+			ModuleData[I]->Serialize(Ar);
 		}
 
-		ModuleData[I]->Serialize(Ar);
 	}
 
 	return true;
