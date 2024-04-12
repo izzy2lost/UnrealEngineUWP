@@ -447,7 +447,9 @@ private:
 	bool RemoveAssetData(Impl::FEventContext& EventContext, FAssetData* AssetData);
 
 #if WITH_EDITOR
-	/** 
+	/** Called when two assets have the same ID but different packages. Logs it and returns which one to keep. */
+	FAssetData* ResolveAssetIdCollision(FAssetData& A, FAssetData& B);
+	/**
 	 * Calls PostLoadAssetRegistryTags on the CDO of the asset class this data represents.
 	 * @param AssetData Existing asset data
 	 * @return Returns false if the required parent UClass is not yet available
