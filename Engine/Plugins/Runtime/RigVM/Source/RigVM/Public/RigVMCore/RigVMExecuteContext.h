@@ -39,6 +39,8 @@ struct FRigVMExecuteContext;
 struct FRigVMExtendedExecuteContext;
 struct FRigVMLogSettings;
 
+extern RIGVM_API TAutoConsoleVariable<bool> CVarRigVMReportAllMessages;
+
 USTRUCT()
 struct RIGVM_API FRigVMSlice
 {
@@ -399,6 +401,10 @@ struct FRigVMExecuteContext
 		if (FRigVMLog* Log = GetLog())
 		{
 			Log->Report(InLogSettings, InFunctionName, InInstructionIndex, InMessage);
+		}
+		else if(CVarRigVMReportAllMessages.GetValueOnAnyThread())
+		{
+			Logf(InLogSettings, TEXT("Instruction[%d] '%s': '%s'"), InstructionIndex, *InFunctionName.ToString(), *InMessage);
 		}
 	}
 #endif
