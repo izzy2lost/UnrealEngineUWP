@@ -4422,7 +4422,8 @@ public: \
 	if (!TestNotNull(TEXT(#Pointer), Pointer))\
 	{\
 		return false;\
-	}
+	}\
+	CA_ASSUME(Pointer);
 
 //////////////////////////////////////////////////
 // Basic Latent Commands
