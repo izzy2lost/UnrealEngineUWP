@@ -169,10 +169,6 @@ CSV_DEFINE_STAT(AndroidMemory, Mem_TotalUsed);
 static int GTrimMemoryForegroundLevel = 0;
 CSV_DEFINE_STAT(AndroidMemory, TrimMemoryForegroundLevel);
 
-CSV_DEFINE_STAT(AndroidMemory, MemAdvisor_DeviceMemFreeMb);
-CSV_DEFINE_STAT(AndroidMemory, MemAdvisor_DeviceMemUsedMb);
-static FAndroidPlatformMemory::FMemAdviceStats GDeviceMemAdviceStats;
-
 void FAndroidStats::Init(bool bEnableHWCPipe)
 {
 	(void)bEnableHWCPipe;
@@ -268,7 +264,6 @@ void FAndroidStats::UpdateAndroidStats()
 		LastCollectionTime = CurrentTime;
 		CPUTemp = FAndroidMisc::GetCPUTemperature();
 
-		GDeviceMemAdviceStats = FAndroidPlatformMemory::GetDeviceMemAdviceStats();
 		MemStats = FAndroidPlatformMemory::GetStats();
 	}
 
@@ -284,12 +279,6 @@ void FAndroidStats::UpdateAndroidStats()
 	CSV_CUSTOM_STAT_DEFINED(Mem_RSS, (int)(MemStats.VMRss / (1024 * 1024)), ECsvCustomStatOp::Set);
 	CSV_CUSTOM_STAT_DEFINED(Mem_TotalUsed, (int)(MemStats.UsedPhysical / (1024 * 1024)), ECsvCustomStatOp::Set);
 	
-	if(GDeviceMemAdviceStats.IsValid())
-	{
-		CSV_CUSTOM_STAT_DEFINED(MemAdvisor_DeviceMemFreeMb, (int)(GDeviceMemAdviceStats.MemFree/(1024*1024)), ECsvCustomStatOp::Set);
-		CSV_CUSTOM_STAT_DEFINED(MemAdvisor_DeviceMemUsedMb, (int)(GDeviceMemAdviceStats.MemUsed/(1024*1024)), ECsvCustomStatOp::Set);
-	}
-
 	static const uint32 MaxFrequencyGroupStats = 4;
 	const int32 MaxCoresStatsSupport = 16;
 	int32 NumCores = FMath::Min(FAndroidMisc::NumberOfCores(), MaxCoresStatsSupport);
