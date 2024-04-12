@@ -241,7 +241,7 @@ void SConsoleInputBox::Construct(const FArguments& InArgs)
 				.MinDesiredWidth(300.f)
 				.MaxDesiredWidth(this, &SConsoleInputBox::GetSelectionListMaxWidth)
 				[
-					SAssignNew(SuggestionListView, SListView< TSharedPtr<FString> >)
+					SAssignNew(SuggestionListView, SListView< TSharedPtr<FConsoleSuggestion> >)
 					.ListItemsSource(&Suggestions.SuggestionsList)
 					.SelectionMode( ESelectionMode::Single )							// Ideally the mouse over would not highlight while keyboard controls the UI
 					.OnGenerateRow(this, &SConsoleInputBox::MakeSuggestionListItemWidget)
@@ -269,14 +269,14 @@ void SConsoleInputBox::Tick( const FGeometry& AllottedGeometry, const double InC
 }
 
 
-void SConsoleInputBox::SuggestionSelectionChanged(TSharedPtr<FString> NewValue, ESelectInfo::Type SelectInfo)
+void SConsoleInputBox::SuggestionSelectionChanged(TSharedPtr<FConsoleSuggestion> NewValue, ESelectInfo::Type SelectInfo)
 {
 	if(bIgnoreUIUpdate)
 	{
 		return;
 	}
 
-	Suggestions.SelectedSuggestion = Suggestions.SuggestionsList.IndexOfByPredicate([&NewValue](const TSharedPtr<FString>& InSuggestion)
+	Suggestions.SelectedSuggestion = Suggestions.SuggestionsList.IndexOfByPredicate([&NewValue](const TSharedPtr<FConsoleSuggestion>& InSuggestion)
 	{
 		return InSuggestion == NewValue;
 	});
@@ -309,11 +309,11 @@ FOptionalSize SConsoleInputBox::GetSelectionListMaxWidth() const
 	return FMath::Max(300.0f, WidgetWorkArea.GetSize().X - 12.0f);
 }
 
-TSharedRef<ITableRow> SConsoleInputBox::MakeSuggestionListItemWidget(TSharedPtr<FString> Text, const TSharedRef<STableViewBase>& OwnerTable)
+TSharedRef<ITableRow> SConsoleInputBox::MakeSuggestionListItemWidget(TSharedPtr<FConsoleSuggestion> Suggestion, const TSharedRef<STableViewBase>& OwnerTable)
 {
-	check(Text.IsValid());
+	check(Suggestion.IsValid());
 
-	FString SanitizedText = *Text;
+	FString SanitizedText = Suggestion->Name;
 	SanitizedText.ReplaceInline(TEXT("\r\n"), TEXT("\n"), ESearchCase::CaseSensitive);
 	SanitizedText.ReplaceInline(TEXT("\r"), TEXT(" "), ESearchCase::CaseSensitive);
 	SanitizedText.ReplaceInline(TEXT("\n"), TEXT(" "), ESearchCase::CaseSensitive);
@@ -326,6 +326,7 @@ TSharedRef<ITableRow> SConsoleInputBox::MakeSuggestionListItemWidget(TSharedPtr<
 			.TextStyle(FOutputLogStyle::Get(), "Log.Normal")
 			.HighlightText(Suggestions.SuggestionsHighlight)
 			.ColorAndOpacity(FSlateColor::UseForeground())
+			.ToolTipText(FText::FromString(Suggestion->Help))
 		];
 }
 
@@ -339,11 +340,11 @@ void SConsoleInputBox::OnTextChanged(const FText& InText)
 	const FString& InputTextStr = InputText->GetText().ToString();
 	if(!InputTextStr.IsEmpty())
 	{
-		TArray<FString> AutoCompleteList;
+		TArray<FConsoleSuggestion> AutoCompleteList;
 		
 		if (ActiveCommandExecutor)
 		{
-			ActiveCommandExecutor->GetAutoCompleteSuggestions(*InputTextStr, AutoCompleteList);
+			ActiveCommandExecutor->GetSuggestedCompletions(*InputTextStr, AutoCompleteList);
 		}
 		else
 		{
@@ -360,31 +361,30 @@ void SConsoleInputBox::OnTextChanged(const FText& InText)
 					return;
 				}
 
-				AutoCompleteList.Add(Name);
+				AutoCompleteList.Add(FConsoleSuggestion(Name, CVar->GetHelp()));
 			};
 
 			IConsoleManager::Get().ForEachConsoleObjectThatContains(FConsoleObjectVisitor::CreateLambda(OnConsoleVariable), *InputTextStr);
-			AutoCompleteList.Append(GetDefault<UConsoleSettings>()->GetFilteredManualAutoCompleteCommands(InputTextStr));
+			//AutoCompleteList.Append(GetDefault<UConsoleSettings>()->GetFilteredManualAutoCompleteCommands(InputTextStr));
 		}
-		AutoCompleteList.Sort([InputTextStr](const FString& A, const FString& B)
+		AutoCompleteList.Sort([InputTextStr](const FConsoleSuggestion& A, const FConsoleSuggestion& B)
 		{ 
-			if (A.StartsWith(InputTextStr))
+			if (A.Name.StartsWith(InputTextStr))
 			{
-				if (!B.StartsWith(InputTextStr))
+				if (!B.Name.StartsWith(InputTextStr))
 				{
 					return true;
 				}
 			}
 			else
 			{
-				if (B.StartsWith(InputTextStr))
+				if (B.Name.StartsWith(InputTextStr))
 				{
 					return false;
 				}
 			}
 
-			return A < B;
-
+			return A.Name < B.Name;
 		});
 
 
@@ -479,14 +479,19 @@ FReply SConsoleInputBox::OnPreviewKeyDown(const FGeometry& MyGeometry, const FKe
 			const bool bShowHistory = InputText->GetText().IsEmpty() || KeyEvent.IsControlDown();
 			if (bShowHistory)
 			{
-				TArray<FString> History;
+				TArray<FString> HistoryNames;
 				if (ActiveCommandExecutor)
 				{
-					ActiveCommandExecutor->GetExecHistory(History);
+					ActiveCommandExecutor->GetExecHistory(HistoryNames);
 				}
 				else
 				{
-					IConsoleManager::Get().GetConsoleHistory(TEXT(""), History);
+					IConsoleManager::Get().GetConsoleHistory(TEXT(""), HistoryNames);
+				}
+				TArray<FConsoleSuggestion> History;
+				for (const FString& Name : HistoryNames)
+				{
+					History.Add(FConsoleSuggestion(Name, FString()));
 				}
 				SetSuggestions(History, FText::GetEmpty());
 				
@@ -531,12 +536,12 @@ FReply SConsoleInputBox::OnPreviewKeyDown(const FGeometry& MyGeometry, const FKe
 	return FReply::Unhandled();
 }
 
-void SConsoleInputBox::SetSuggestions(TArray<FString>& Elements, FText Highlight)
+void SConsoleInputBox::SetSuggestions(TArray<FConsoleSuggestion>& Elements, FText Highlight)
 {
 	FString SelectionText;
 	if (Suggestions.HasSelectedSuggestion())
 	{
-		SelectionText = *Suggestions.GetSelectedSuggestion();
+		SelectionText = Suggestions.GetSelectedSuggestion()->Name;
 	}
 
 	Suggestions.Reset();
@@ -544,9 +549,9 @@ void SConsoleInputBox::SetSuggestions(TArray<FString>& Elements, FText Highlight
 
 	for(int32 i = 0; i < Elements.Num(); ++i)
 	{
-		Suggestions.SuggestionsList.Add(MakeShared<FString>(Elements[i]));
+		Suggestions.SuggestionsList.Add(MakeShared<FConsoleSuggestion>(Elements[i]));
 
-		if (Elements[i] == SelectionText)
+		if (Elements[i].Name == SelectionText)
 		{
 			Suggestions.SelectedSuggestion = i;
 		}
@@ -582,12 +587,12 @@ void SConsoleInputBox::MarkActiveSuggestion()
 	bIgnoreUIUpdate = true;
 	if (Suggestions.HasSelectedSuggestion())
 	{
-		TSharedPtr<FString> SelectedSuggestion = Suggestions.GetSelectedSuggestion();
+		TSharedPtr<FConsoleSuggestion> SelectedSuggestion = Suggestions.GetSelectedSuggestion();
 
 		SuggestionListView->SetSelection(SelectedSuggestion);
 		SuggestionListView->RequestScrollIntoView(SelectedSuggestion);	// Ideally this would only scroll if outside of the view
 
-		InputText->SetText(FText::FromString(*SelectedSuggestion));
+		InputText->SetText(FText::FromString(SelectedSuggestion->Name));
 	}
 	else
 	{

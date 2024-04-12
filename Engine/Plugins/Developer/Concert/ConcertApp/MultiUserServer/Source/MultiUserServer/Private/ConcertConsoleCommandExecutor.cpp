@@ -35,7 +35,7 @@ namespace UE::MultiUserServer
 		return LOCTEXT("ConsoleCommandExecutorHintText", "Enter Console Command");
 	}
 
-	void FConcertConsoleCommandExecutor::GetAutoCompleteSuggestions(const TCHAR* Input, TArray<FString>& Out)
+	void FConcertConsoleCommandExecutor::GetSuggestedCompletions(const TCHAR* Input, TArray<FConsoleSuggestion>& Out)
 	{
 		auto OnConsoleVariable = [&Out](const TCHAR *Name, IConsoleObject* CVar)
 		{
@@ -44,11 +44,14 @@ namespace UE::MultiUserServer
 				return;
 			}
 
-			Out.Add(Name);
+			Out.Add(FConsoleSuggestion(Name, CVar->GetHelp()));
 		};
 
 		IConsoleManager::Get().ForEachConsoleObjectThatContains(FConsoleObjectVisitor::CreateLambda(OnConsoleVariable), Input);
-		Out.Append(GetDefault<UConsoleSettings>()->GetFilteredManualAutoCompleteCommands(Input));
+		for (const FString& Name : GetDefault<UConsoleSettings>()->GetFilteredManualAutoCompleteCommands(Input))
+		{
+			Out.Add(FConsoleSuggestion(Name, FString()));
+		}
 	}
 
 	void FConcertConsoleCommandExecutor::GetExecHistory(TArray<FString>& Out)

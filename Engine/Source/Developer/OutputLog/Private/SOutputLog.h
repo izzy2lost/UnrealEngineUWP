@@ -109,11 +109,11 @@ protected:
 	FOptionalSize GetSelectionListMaxWidth() const;
 
 	/** Makes the widget for the suggestions messages in the list view */
-	TSharedRef<ITableRow> MakeSuggestionListItemWidget(TSharedPtr<FString> Message, const TSharedRef<STableViewBase>& OwnerTable);
+	TSharedRef<ITableRow> MakeSuggestionListItemWidget(TSharedPtr<FConsoleSuggestion> Message, const TSharedRef<STableViewBase>& OwnerTable);
 
-	void SuggestionSelectionChanged(TSharedPtr<FString> NewValue, ESelectInfo::Type SelectInfo);
+	void SuggestionSelectionChanged(TSharedPtr<FConsoleSuggestion> NewValue, ESelectInfo::Type SelectInfo);
 		
-	void SetSuggestions(TArray<FString>& Elements, FText Highlight);
+	void SetSuggestions(TArray<FConsoleSuggestion>& Elements, FText Highlight);
 
 	void MarkActiveSuggestion();
 
@@ -182,7 +182,7 @@ private:
 			}
 		}
 
-		TSharedPtr<FString> GetSelectedSuggestion() const
+		TSharedPtr<FConsoleSuggestion> GetSelectedSuggestion() const
 		{
 			return SuggestionsList.IsValidIndex(SelectedSuggestion) ? SuggestionsList[SelectedSuggestion] : nullptr;
 		}
@@ -191,7 +191,7 @@ private:
 		int32 SelectedSuggestion;
 
 		/** All log messages stored in this widget for the list view */
-		TArray<TSharedPtr<FString>> SuggestionsList;
+		TArray<TSharedPtr<FConsoleSuggestion>> SuggestionsList;
 
 		/** Highlight text to use for the suggestions list */
 		FText SuggestionsHighlight;
@@ -204,7 +204,7 @@ private:
 	TSharedPtr< SMenuAnchor > SuggestionBox;
 
 	/** The list view for showing all log messages. Should be replaced by a full text editor */
-	TSharedPtr< SListView< TSharedPtr<FString> > > SuggestionListView;
+	TSharedPtr< SListView< TSharedPtr<FConsoleSuggestion> > > SuggestionListView;
 
 	/** Active list of suggestions */
 	FSuggestions Suggestions;

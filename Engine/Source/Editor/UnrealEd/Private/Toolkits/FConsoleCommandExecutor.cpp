@@ -36,7 +36,7 @@ FText FConsoleCommandExecutor::GetHintText() const
 	return LOCTEXT("ConsoleCommandExecutorHintText", "Enter Console Command");
 }
 
-void FConsoleCommandExecutor::GetAutoCompleteSuggestions(const TCHAR* Input, TArray<FString>& Out)
+void FConsoleCommandExecutor::GetSuggestedCompletions(const TCHAR* Input, TArray<FConsoleSuggestion>& Out)
 {
 	auto OnConsoleVariable = [&Out](const TCHAR *Name, IConsoleObject* CVar)
 	{
@@ -51,11 +51,14 @@ void FConsoleCommandExecutor::GetAutoCompleteSuggestions(const TCHAR* Input, TAr
 			return;
 		}
 
-		Out.Add(Name);
+		Out.Add(FConsoleSuggestion(Name, CVar->GetHelp()));
 	};
 
 	IConsoleManager::Get().ForEachConsoleObjectThatContains(FConsoleObjectVisitor::CreateLambda(OnConsoleVariable), Input);
-	Out.Append(GetDefault<UConsoleSettings>()->GetFilteredManualAutoCompleteCommands(Input));
+	for (const FString& CommandName : GetDefault<UConsoleSettings>()->GetFilteredManualAutoCompleteCommands(Input))
+	{
+		Out.Add(FConsoleSuggestion(CommandName, FString()));
+	}
 }
 
 void FConsoleCommandExecutor::GetExecHistory(TArray<FString>& Out)

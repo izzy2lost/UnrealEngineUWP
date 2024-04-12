@@ -717,6 +717,19 @@ private:
 	FDelegateHandle Handle;
 };
 
+struct FConsoleSuggestion
+{
+	FString Name;
+	FString Help;
+
+	FConsoleSuggestion(FString InName, FString InHelp)
+	: Name(InName)
+	, Help(InHelp)
+	{}
+
+	FConsoleSuggestion()
+	{}
+};
 
 /**
  * Handles executing console commands
@@ -756,9 +769,15 @@ public:
 	virtual FText GetHintText() const = 0;
 
 	/**
-	 * Get the list of auto-complete suggestions for the given command.
-	 */
-	virtual void GetAutoCompleteSuggestions(const TCHAR* Input, TArray<FString>& Out) = 0;
+	* Get the list of auto-complete suggestions for the given command.
+	*/
+	virtual void GetSuggestedCompletions(const TCHAR* Input, TArray<FConsoleSuggestion>& Out) = 0;
+
+	/**
+	* Get the list of auto-complete suggestions for the given command.
+	*/
+	UE_DEPRECATED(5.5, "Use GetSuggestedCompletions instead")
+	virtual void GetAutoCompleteSuggestions(const TCHAR* Input, TArray<FString>& Out){};
 
 	/**
 	 * Get the list of commands that this executor has recently processed.

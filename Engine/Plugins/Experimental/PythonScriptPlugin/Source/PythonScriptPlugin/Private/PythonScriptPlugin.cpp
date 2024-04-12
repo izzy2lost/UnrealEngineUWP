@@ -245,7 +245,7 @@ FText FPythonCommandExecutor::GetHintText() const
 	return LOCTEXT("PythonCommandExecutorHintText", "Enter Python script or a filename");
 }
 
-void FPythonCommandExecutor::GetAutoCompleteSuggestions(const TCHAR* Input, TArray<FString>& Out)
+void FPythonCommandExecutor::GetSuggestedCompletions(const TCHAR* Input, TArray<FConsoleSuggestion>& Out)
 {
 }
 
@@ -324,7 +324,7 @@ FText FPythonREPLCommandExecutor::GetHintText() const
 	return LOCTEXT("PythonREPLCommandExecutorHintText", "Enter a Python statement");
 }
 
-void FPythonREPLCommandExecutor::GetAutoCompleteSuggestions(const TCHAR* Input, TArray<FString>& Out)
+void FPythonREPLCommandExecutor::GetSuggestedCompletions(const TCHAR* Input, TArray<FConsoleSuggestion>& Out)
 {
 }
 
