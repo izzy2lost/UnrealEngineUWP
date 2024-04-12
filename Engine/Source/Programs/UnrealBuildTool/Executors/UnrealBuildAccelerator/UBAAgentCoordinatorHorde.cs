@@ -108,10 +108,11 @@ namespace UnrealBuildTool
 
 			if (_client != null)
 			{
+				IComputeClient client = _client;
+				_client = null;
 				// Set CPU resource need to zero (will also expire on the server if not updated)
 				await UpdateCpuCoreNeedAsync(0);
-				await _client.DisposeAsync();
-				_client = null;
+				await client.DisposeAsync();
 			}
 
 			await _serviceProvider.DisposeAsync();
@@ -610,12 +611,12 @@ namespace UnrealBuildTool
 			{
 				_timer?.Change(Timeout.Infinite, Timeout.Infinite);
 
-				if (_cancellationSource!.IsCancellationRequested)
+				if (_cancellationSource!.IsCancellationRequested || _hordeSessionTask == null)
 				{
 					return;
 				}
 
-				UBAHordeSession? hordeSession = await _hordeSessionTask!;
+				UBAHordeSession? hordeSession = await _hordeSessionTask;
 
 				if (hordeSession == null)
 				{
@@ -712,6 +713,7 @@ namespace UnrealBuildTool
 			}
 
 			UBAHordeSession? hordeSession = await _hordeSessionTask;
+			_hordeSessionTask = null;
 			if (hordeSession != null)
 			{
 				await hordeSession.DisposeAsync();
