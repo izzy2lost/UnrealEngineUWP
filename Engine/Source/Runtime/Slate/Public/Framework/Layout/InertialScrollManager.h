@@ -37,11 +37,20 @@ public:
 	/** Updates the current scroll velocity. Call every frame. */
 	SLATE_API void UpdateScrollVelocity(const float InDeltaTime);
 
-	/** Instantly end the inertial scroll */
-	SLATE_API void ClearScrollVelocity();
+	/** 
+	 * Stop the accumulation of inertial scroll. 
+	 * @param bInShouldStopScrollNow true implies the scroll will stop instantly, else the list will scroll until any accumulated scroll offset is cleared.
+	 */
+	SLATE_API void ClearScrollVelocity(bool bInShouldStopScrollNow = false);
 
 	/** Gets the calculated velocity of the scroll. */
 	float GetScrollVelocity() const { return ScrollVelocity; }
+
+	/** Gets the the value of bShouldStopScrollNow. */
+	bool GetShouldStopScrollNow() const { return bShouldStopScrollNow; }
+
+	/** Set the value of bShouldStopScrollNow to false. */
+	void ResetShouldStopScrollNow() { bShouldStopScrollNow = false; }
 
 private:
 	struct FScrollSample
@@ -60,6 +69,9 @@ private:
 
 	/** The current velocity of the scroll */
 	float ScrollVelocity;
+
+	/** When true, the list will stop scrolling */
+	bool bShouldStopScrollNow = false;
 
 	/** Samples older than this amount of time will be discarded. */
 	double SampleTimeout;

@@ -290,6 +290,13 @@ void STableViewBase::Tick( const FGeometry& AllottedGeometry, const double InCur
 			const EScrollIntoViewResult ScrollIntoViewResult = ScrollIntoView(PanelGeometry);
 
 			double TargetScrollOffset = GetTargetScrollOffset();
+			
+			if (InertialScrollManager.GetShouldStopScrollNow())
+			{
+				TargetScrollOffset = DesiredScrollOffset = CurrentScrollOffset;
+				InertialScrollManager.ResetShouldStopScrollNow();
+			}
+
 			if((bStartedTouchInteraction && bEnableTouchAnimatedScrolling) || (!bStartedTouchInteraction && bEnableAnimatedScrolling))
 			{
 				CurrentScrollOffset = FMath::FInterpTo(CurrentScrollOffset, TargetScrollOffset, (double)InDeltaTime, 12.0);
@@ -398,8 +405,8 @@ FReply STableViewBase::OnPreviewMouseButtonDown( const FGeometry& MyGeometry, co
 {
 	if (bEnableTouchScrolling && MouseEvent.IsTouchEvent())
 	{
-		// Clear any inertia 
-		this->InertialScrollManager.ClearScrollVelocity();
+		// Clear any inertia
+		InertialScrollManager.ClearScrollVelocity(true);
 		// We have started a new interaction; track how far the user has moved since they put their finger down.
 		AmountScrolledWhileRightMouseDown = 0;
 
@@ -419,7 +426,7 @@ FReply STableViewBase::OnPreviewMouseButtonDown( const FGeometry& MyGeometry, co
 FReply STableViewBase::OnMouseButtonDown( const FGeometry& MyGeometry, const FPointerEvent& MouseEvent )
 {
 	// Zero the scroll velocity so the list stops immediately on mouse down, even if the user does not drag
-	this->InertialScrollManager.ClearScrollVelocity();
+	InertialScrollManager.ClearScrollVelocity(true);
 
 	if (MouseEvent.GetEffectingButton() == EKeys::RightMouseButton)
 	{

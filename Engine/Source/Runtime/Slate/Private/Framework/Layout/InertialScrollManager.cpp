@@ -63,7 +63,8 @@ void FInertialScrollManager::UpdateScrollVelocity(const float InDeltaTime)
 	}
 }
 
-void FInertialScrollManager::ClearScrollVelocity()
+void FInertialScrollManager::ClearScrollVelocity(bool bInShouldStopScrollNow)
 {
+	bShouldStopScrollNow = ScrollVelocity != 0 ? bInShouldStopScrollNow : false;
 	ScrollVelocity = 0;
 }
