@@ -369,6 +369,8 @@ extern "C"
 	}
 	void SessionServer_CancelAll(uba::SessionServer* server)
 	{
+		++server->GetServer().GetLogger().isMuted; // Mute forever
+		++server->GetLogger().isMuted; // Mute forever
 		server->CancelAllProcessesAndWait();
 	}
 	void SessionServer_SetCustomCasKeyFromTrackedInputs(uba::SessionServer* server, uba::ProcessHandle* handle, const uba::tchar* fileName, const uba::tchar* workingDir)
@@ -531,19 +533,19 @@ extern "C"
 		return true;
 	}
 
-	bool CacheClient_WriteToCache(uba::CacheClient* cacheClient, uba::RootPaths* rootPaths, const uba::ProcessHandle* process)
+	bool CacheClient_WriteToCache(uba::CacheClient* cacheClient, uba::RootPaths* rootPaths, uba::u32 bucket, const uba::ProcessHandle* process)
 	{
 		using namespace uba;
 		auto& si = process->GetStartInfo();
 		if (!si.trackInputs)
 			return false;
-		return cacheClient->WriteToCache(*rootPaths, *process);
+		return cacheClient->WriteToCache(*rootPaths, bucket, *process);
 	}
 
-	bool CacheClient_FetchFromCache(uba::CacheClient* cacheClient, uba::RootPaths* rootPaths, const uba::ProcessStartInfo& info)
+	bool CacheClient_FetchFromCache(uba::CacheClient* cacheClient, uba::RootPaths* rootPaths, uba::u32 bucket, const uba::ProcessStartInfo& info)
 	{
 		using namespace uba;
-		return cacheClient->FetchFromCache(*rootPaths, info);
+		return cacheClient->FetchFromCache(*rootPaths, bucket, info);
 	}
 
 	void CacheClient_Destroy(uba::CacheClient* cacheClient)
@@ -566,25 +568,4 @@ extern "C"
 		uba::FindImports(binary, [&](const uba::tchar* importName, bool isKnown) { func(importName, userData); });
 #endif
 	}
-
-
-	// Deprecated.. delete as soon as binaries are updated and code is using new api
-	UBA_DEP_API uba::NetworkServer* CreateServer(uba::LogWriter& writer, uba::u32 workerCount, uba::u32 sendSize, uba::u32 receiveTimeoutSeconds, bool useQuic) { return NetworkServer_Create(writer, workerCount, sendSize, receiveTimeoutSeconds, useQuic); }
-	UBA_DEP_API void DestroyServer(uba::NetworkServer* server) { NetworkServer_Destroy(server); }
-	UBA_DEP_API bool Server_StartListen(uba::NetworkServer* server, int port, const uba::tchar* ip, const uba::tchar* crypto) { return NetworkServer_StartListen(server, port, ip, crypto); }
-	UBA_DEP_API void Server_Stop(uba::NetworkServer* server) { NetworkServer_Stop(server); }
-	UBA_DEP_API bool Server_AddClient(uba::NetworkServer* server, const uba::tchar* ip, int port, const uba::tchar* crypto)	{ return NetworkServer_AddClient(server, ip, port, crypto); }
-	UBA_DEP_API uba::ProcessStartInfo* CreateProcessStartInfo(const uba::tchar* application, const uba::tchar* arguments, const uba::tchar* workingDir, const uba::tchar* description, uba::u32 priorityClass, uba::u64 outputStatsThresholdMs, bool trackInputs, const uba::tchar* logFile, ProcessHandle_ExitCallback* exit) { return ProcessStartInfo_Create(application, arguments, workingDir, description, priorityClass, outputStatsThresholdMs, trackInputs, logFile, exit); }
-	UBA_DEP_API void DestroyProcessStartInfo(uba::ProcessStartInfo* info) { ProcessStartInfo_Destroy(info); }
-	UBA_DEP_API uba::Storage* CreateStorageServer(uba::NetworkServer& server, const uba::tchar* rootDir, uba::u64 casCapacityBytes, bool storeCompressed, uba::LogWriter& writer, const uba::tchar* zone) { return StorageServer_Create(server, rootDir, casCapacityBytes, storeCompressed, writer, zone); }
-	UBA_DEP_API void DestroyStorageServer(uba::Storage* storageServer) { StorageServer_Destroy((uba::StorageServer*)storageServer); }
-	UBA_DEP_API uba::SessionServerCreateInfo* CreateSessionServerCreateInfo(uba::StorageServer& storage, uba::NetworkServer& client, uba::LogWriter& writer, const uba::tchar* rootDir, const uba::tchar* traceOutputFile,
-		bool disableCustomAllocator, bool launchVisualizer, bool resetCas, bool writeToDisk, bool detailedTrace, bool allowWaitOnMem = false, bool allowKillOnMem = false, bool storeObjFilesCompressed = false)
-	{
-		return SessionServerCreateInfo_Create(storage, client, writer, rootDir, traceOutputFile, disableCustomAllocator, launchVisualizer, resetCas, writeToDisk, detailedTrace, allowWaitOnMem, allowKillOnMem, storeObjFilesCompressed);
-	}
-	UBA_DEP_API void DestroySessionServerCreateInfo(uba::SessionServerCreateInfo* info) { SessionServerCreateInfo_Destroy(info); }
-	UBA_DEP_API uba::SessionServer* CreateSessionServer(const uba::SessionServerCreateInfo& info) { return SessionServer_Create(info); }
-	UBA_DEP_API void DestroySessionServer(uba::SessionServer* server) { SessionServer_Destroy(server); }
-	UBA_DEP_API void Storage_DeleteFile(uba::Storage* storage, const uba::tchar* file) { storage->DeleteCasForFile(file); }
 }

@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "UbaCacheClient.h"
+#include "UbaCompactTables.h"
 #include "UbaFileAccessor.h"
 #include "UbaNetworkMessage.h"
 #include "UbaProcess.h"
@@ -10,15 +11,37 @@
 
 namespace uba
 {
+	struct CacheClient::Bucket
+	{
+		Bucket(u32 id_)
+		:	id(id_)
+		,	serverPathTable(CachePathTableMaxSize, CompactPathTable::V1)
+		,	serverCasKeyTable(CacheCasKeyTableMaxSize)
+		,	sendPathTable(CachePathTableMaxSize, CompactPathTable::V1)
+		,	sendCasKeyTable(CacheCasKeyTableMaxSize)
+		{
+		}
+
+		u32 id = 0;
+
+		CompactPathTable serverPathTable;
+		CompactCasKeyTable serverCasKeyTable;
+
+		CompactPathTable sendPathTable;
+		CompactCasKeyTable sendCasKeyTable;
+
+		ReaderWriterLock pathTableNetworkLock;
+		u32 pathTableSizeSent = 0;
+
+		ReaderWriterLock casKeyTableNetworkLock;
+		u32 casKeyTableSizeSent = 0;
+	};
+
 	CacheClient::CacheClient(LogWriter& writer, StorageImpl& storage, NetworkClient& client, Session& session)
 	:	m_logger(writer, TC("UbaCacheClient"))
 	,	m_storage(storage)
 	,	m_client(client)
 	,	m_session(session)
-	,	m_serverPathTable(CachePathTableMaxSize, CompactPathTable::V1)
-	,	m_serverCasKeyTable(CacheCasKeyTableMaxSize)
-	,	m_sendPathTable(8*1024*1024, CompactPathTable::V1)
-	,	m_sendCasKeyTable(8*1024*1024)
 	{
 		m_client.RegisterOnConnected([this]()
 			{
@@ -42,7 +65,7 @@ namespace uba
 
 	CacheClient::~CacheClient() = default;
 
-	bool CacheClient::WriteToCache(const RootPaths& rootPaths, const ProcessHandle& process)
+	bool CacheClient::WriteToCache(const RootPaths& rootPaths, u32 bucketId, const ProcessHandle& process)
 	{
 		if (!m_connected)
 			return false;
@@ -66,6 +89,10 @@ namespace uba
 		u32 requiredPathTableSize = 0;
 		u32 requiredCasTableSize = 0;
 		bool success = true;
+
+		SCOPED_WRITE_LOCK(m_bucketsLock, bucketsLock);
+		Bucket& bucket = m_buckets.try_emplace(bucketId, bucketId).first->second;
+		bucketsLock.Leave();
 
 		// Traverse all inputs and outputs. to create cache entry that we can send to server
 		while (true)
@@ -122,7 +149,7 @@ namespace uba
 			TString qualifiedPath = path.data + rootLen - 1;
 			qualifiedPath[0] = tchar(RootPaths::RootStartByte + root->index);
 
-			u32 pathOffset = m_sendPathTable.Add(qualifiedPath.c_str(), u32(qualifiedPath.size()), &requiredPathTableSize);
+			u32 pathOffset = bucket.sendPathTable.Add(qualifiedPath.c_str(), u32(qualifiedPath.size()), &requiredPathTableSize);
 
 			if (!isOutput) // Output files should be removed from input files.. For example when cl.exe compiles pch it reads previous pch file and we don't want it to be input
 				if (outputsStringToCasKey.find(pathOffset) != outputsStringToCasKey.end())
@@ -148,7 +175,7 @@ namespace uba
 			}
 
 			UBA_ASSERT(IsCompressed(casKey));
-			insres.first->second = m_sendCasKeyTable.Add(casKey, pathOffset, &requiredCasTableSize);
+			insres.first->second = bucket.sendCasKeyTable.Add(casKey, pathOffset, &requiredCasTableSize);
 		}
 
 		if (!success)
@@ -158,21 +185,21 @@ namespace uba
 			m_logger.Warning(TC("NO OUTPUTS FROM process %s"), process.GetStartInfo().description); 
 
 		// Make sure server has enough of the path table to be able to resolve offsets from cache entry
-		if (!SendPathTable(requiredPathTableSize))
+		if (!SendPathTable(bucket, requiredPathTableSize))
 			return false;
 
 		// Make sure server has enough of the cas table to be able to resolve offsets from cache entry
-		if (!SendCasTable(requiredCasTableSize))
+		if (!SendCasTable(bucket, requiredCasTableSize))
 			return false;
 
 		// actual cache entry now when we know server has the needed tables
-		if (!SendCacheEntry(rootPaths, cmdKey, inputsStringToCasKey, outputsStringToCasKey))
+		if (!SendCacheEntry(bucket, rootPaths, cmdKey, inputsStringToCasKey, outputsStringToCasKey))
 			return false;
 
 		return true;
 	}
 
-	bool CacheClient::FetchFromCache(const RootPaths& rootPaths, const ProcessStartInfo& info)
+	bool CacheClient::FetchFromCache(const RootPaths& rootPaths, u32 bucketId, const ProcessStartInfo& info)
 	{
 		if (!m_connected)
 			return false;
@@ -208,11 +235,16 @@ namespace uba
 
 		BinaryReader reader(memory, 0, sizeof_array(memory));
 
+		SCOPED_WRITE_LOCK(m_bucketsLock, bucketsLock);
+		Bucket& bucket = m_buckets.try_emplace(bucketId, bucketId).first->second;
+		bucketsLock.Leave();
+
 		{
 			TimerScope ts(cacheStats.fetchEntries);
 			// Fetch entries.. server will provide as many as fits. TODO: Should it be possible to ask for more entries?
 			StackBinaryWriter<32> writer;
 			NetworkMessage msg(m_client, CacheServiceId, CacheMessageType_FetchEntries, writer);
+			writer.Write7BitEncoded(bucket.id);
 			writer.WriteCasKey(cmdKey);
 			if (!msg.Send(reader))
 				return false;
@@ -238,16 +270,16 @@ namespace uba
 					auto insres = offsetIsMatch.try_emplace(casKeyOffset);
 					if (insres.second)
 					{
-						if (casKeyOffset >= m_serverCasKeyTable.GetSize())
+						if (casKeyOffset >= bucket.serverCasKeyTable.GetSize())
 						{
 							TimerScope ts2(cacheStats.fetchCasTable);
-							if (!FetchCasTable())
+							if (!FetchCasTable(bucket))
 								return false;
 						}
 
 						StringBuffer<MaxPath> path;
 						CasKey cacheCasKey;
-						if (!GetLocalPathAndCasKey(rootPaths, path, cacheCasKey, m_serverCasKeyTable, m_serverPathTable, casKeyOffset))
+						if (!GetLocalPathAndCasKey(bucket, rootPaths, path, cacheCasKey, bucket.serverCasKeyTable, bucket.serverPathTable, casKeyOffset))
 							return false;
 						UBA_ASSERT(IsCompressed(cacheCasKey));
 
@@ -290,15 +322,15 @@ namespace uba
 			while (reader.GetPositionData() != outputEnd)
 			{
 				u32 casKeyOffset = u32(reader.Read7BitEncoded());
-				if (casKeyOffset >= m_serverCasKeyTable.GetSize())
-					if (!FetchCasTable())
+				if (casKeyOffset >= bucket.serverCasKeyTable.GetSize())
+					if (!FetchCasTable(bucket))
 						return false;
 
 				TimerScope ts(cacheStats.fetchOutput);
 
 				StringBuffer<MaxPath> path;
 				CasKey casKey;
-				if (!GetLocalPathAndCasKey(rootPaths, path, casKey, m_serverCasKeyTable, m_serverPathTable, casKeyOffset))
+				if (!GetLocalPathAndCasKey(bucket, rootPaths, path, casKey, bucket.serverCasKeyTable, bucket.serverPathTable, casKeyOffset))
 					return false;
 				UBA_ASSERT(IsCompressed(casKey));
 
@@ -393,21 +425,22 @@ namespace uba
 		return true;
 	}
 
-	bool CacheClient::SendPathTable(u32 requiredPathTableSize)
+	bool CacheClient::SendPathTable(Bucket& bucket, u32 requiredPathTableSize)
 	{
-		SCOPED_WRITE_LOCK(m_pathTableNetworkLock, lock);
-		if (requiredPathTableSize <= m_pathTableSizeSent)
+		SCOPED_WRITE_LOCK(bucket.pathTableNetworkLock, lock);
+		if (requiredPathTableSize <= bucket.pathTableSizeSent)
 			return true;
 
-		u32 left = requiredPathTableSize - m_pathTableSizeSent;
+		u32 left = requiredPathTableSize - bucket.pathTableSizeSent;
 		while (left)
 		{
 			StackBinaryWriter<SendMaxSize> writer;
 			NetworkMessage msg(m_client, CacheServiceId, CacheMessageType_StorePathTable, writer);
-			u32 toSend = Min(requiredPathTableSize - m_pathTableSizeSent, u32(m_client.GetMessageMaxSize() - 32));
+			writer.Write7BitEncoded(bucket.id);
+			u32 toSend = Min(requiredPathTableSize - bucket.pathTableSizeSent, u32(m_client.GetMessageMaxSize() - 32));
 			left -= toSend;
-			writer.WriteBytes(m_sendPathTable.GetMemory() + m_pathTableSizeSent, toSend);
-			m_pathTableSizeSent += toSend;
+			writer.WriteBytes(bucket.sendPathTable.GetMemory() + bucket.pathTableSizeSent, toSend);
+			bucket.pathTableSizeSent += toSend;
 
 			StackBinaryReader<16> reader;
 			if (!msg.Send(reader))
@@ -416,21 +449,22 @@ namespace uba
 		return true;
 	}
 
-	bool CacheClient::SendCasTable(u32 requiredCasTableSize)
+	bool CacheClient::SendCasTable(Bucket& bucket, u32 requiredCasTableSize)
 	{
-		SCOPED_WRITE_LOCK(m_casKeyTableNetworkLock, lock);
-		if (requiredCasTableSize <= m_casKeyTableSizeSent)
+		SCOPED_WRITE_LOCK(bucket.casKeyTableNetworkLock, lock);
+		if (requiredCasTableSize <= bucket.casKeyTableSizeSent)
 			return true;
 
-		u32 left = requiredCasTableSize - m_casKeyTableSizeSent;
+		u32 left = requiredCasTableSize - bucket.casKeyTableSizeSent;
 		while (left)
 		{
 			StackBinaryWriter<SendMaxSize> writer;
 			NetworkMessage msg(m_client, CacheServiceId, CacheMessageType_StoreCasTable, writer);
-			u32 toSend = Min(requiredCasTableSize - m_casKeyTableSizeSent, u32(m_client.GetMessageMaxSize() - 32));
+			writer.Write7BitEncoded(bucket.id);
+			u32 toSend = Min(requiredCasTableSize - bucket.casKeyTableSizeSent, u32(m_client.GetMessageMaxSize() - 32));
 			left -= toSend;
-			writer.WriteBytes(m_sendCasKeyTable.GetMemory() + m_casKeyTableSizeSent, toSend);
-			m_casKeyTableSizeSent += toSend;
+			writer.WriteBytes(bucket.sendCasKeyTable.GetMemory() + bucket.casKeyTableSizeSent, toSend);
+			bucket.casKeyTableSizeSent += toSend;
 
 			StackBinaryReader<16> reader;
 			if (!msg.Send(reader))
@@ -439,13 +473,14 @@ namespace uba
 		return true;
 	}
 
-	bool CacheClient::SendCacheEntry(const RootPaths& rootPaths, const CasKey& cmdKey, const Map<u32, u32>& inputsStringToCasKey, const Map<u32, u32>& outputsStringToCasKey)
+	bool CacheClient::SendCacheEntry(Bucket& bucket, const RootPaths& rootPaths, const CasKey& cmdKey, const Map<u32, u32>& inputsStringToCasKey, const Map<u32, u32>& outputsStringToCasKey)
 	{
 		StackBinaryReader<1024> reader;
 		{
 			StackBinaryWriter<SendMaxSize> writer;
 
 			NetworkMessage msg(m_client, CacheServiceId, CacheMessageType_StoreEntry, writer);
+			writer.Write7BitEncoded(bucket.id);
 			writer.WriteCasKey(cmdKey);
 
 			writer.Write7BitEncoded(outputsStringToCasKey.size());
@@ -470,7 +505,7 @@ namespace uba
 
 			StringBuffer<MaxPath> path;
 			CasKey casKey;
-			if (!GetLocalPathAndCasKey(rootPaths, path, casKey, m_sendCasKeyTable, m_sendPathTable, casKeyOffset))
+			if (!GetLocalPathAndCasKey(bucket, rootPaths, path, casKey, bucket.sendCasKeyTable, bucket.sendPathTable, casKeyOffset))
 				return false;
 
 			casKey = AsCompressed(casKey, true);
@@ -559,6 +594,7 @@ namespace uba
 		// Send done.. confirm to server
 		StackBinaryWriter<SendMaxSize> writer;
 		NetworkMessage msg(m_client, CacheServiceId, CacheMessageType_StoreEntryDone, writer);
+		writer.Write7BitEncoded(bucket.id);
 		writer.WriteCasKey(cmdKey);
 		if (!msg.Send(reader))
 			return false;
@@ -566,19 +602,20 @@ namespace uba
 		return true;
 	}
 
-	bool CacheClient::FetchCasTable()
+	bool CacheClient::FetchCasTable(Bucket& bucket)
 	{
-		SCOPED_WRITE_LOCK(m_casKeyTableNetworkLock, lock);
+		SCOPED_WRITE_LOCK(bucket.casKeyTableNetworkLock, lock);
 
 		StackBinaryReader<SendMaxSize> reader;
 		{
-			//SCOPED_WRITE_LOCK(m_pathTableNetworkLock, lock);
+			//SCOPED_WRITE_LOCK(bucket.pathTableNetworkLock, lock);
 			u32 targetSize = ~0u;
-			while (m_serverCasKeyTable.GetSize() < targetSize)
+			while (bucket.serverCasKeyTable.GetSize() < targetSize)
 			{
 				StackBinaryWriter<16> writer;
 				NetworkMessage msg(m_client, CacheServiceId, CacheMessageType_FetchCasTable, writer);
-				writer.WriteU32(m_serverCasKeyTable.GetSize());
+				writer.Write7BitEncoded(bucket.id);
+				writer.WriteU32(bucket.serverCasKeyTable.GetSize());
 
 				reader.Reset();
 				if (!msg.Send(reader))
@@ -587,16 +624,17 @@ namespace uba
 				if (targetSize == ~0u)
 					targetSize = size;
 
-				m_serverCasKeyTable.ReadMem(reader, false);
+				bucket.serverCasKeyTable.ReadMem(reader, false);
 			}
 		}
 		{
 			u32 targetSize = ~0u;
-			while (m_serverPathTable.GetSize() < targetSize)
+			while (bucket.serverPathTable.GetSize() < targetSize)
 			{
 				StackBinaryWriter<16> writer;
 				NetworkMessage msg(m_client, CacheServiceId, CacheMessageType_FetchPathTable, writer);
-				writer.WriteU32(m_serverPathTable.GetSize());
+				writer.Write7BitEncoded(bucket.id);
+				writer.WriteU32(bucket.serverPathTable.GetSize());
 
 				reader.Reset();
 				if (!msg.Send(reader))
@@ -605,7 +643,7 @@ namespace uba
 				if (targetSize == ~0u)
 					targetSize = size;
 
-				m_serverPathTable.ReadMem(reader, false);
+				bucket.serverPathTable.ReadMem(reader, false);
 			}
 		}
 		return true;
@@ -648,12 +686,12 @@ namespace uba
 		return ToCasKey(hasher, false);
 	}
 
-	bool CacheClient::GetLocalPathAndCasKey(const RootPaths& rootPaths, StringBufferBase& outPath, CasKey& outKey, CompactCasKeyTable& casKeyTable, CompactPathTable& pathTable, u32 offset)
+	bool CacheClient::GetLocalPathAndCasKey(Bucket& bucket, const RootPaths& rootPaths, StringBufferBase& outPath, CasKey& outKey, CompactCasKeyTable& casKeyTable, CompactPathTable& pathTable, u32 offset)
 	{
 		if (!m_connected)
 			return false;
 
-		SCOPED_READ_LOCK(m_casKeyTableNetworkLock, lock); // TODO: Is this needed?
+		SCOPED_READ_LOCK(bucket.casKeyTableNetworkLock, lock); // TODO: Is this needed?
 
 		StringBuffer<MaxPath> normalizedPath;
 		casKeyTable.GetPathAndKey(normalizedPath, outKey, pathTable, offset);

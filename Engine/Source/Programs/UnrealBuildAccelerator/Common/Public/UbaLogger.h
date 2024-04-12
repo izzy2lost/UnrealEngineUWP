@@ -51,7 +51,7 @@ namespace uba
 	{
 		MutableLogger(LogWriter& writer, const tchar* prefix) : LoggerWithWriter(writer, prefix) {}
 		virtual void Log(LogEntryType type, const tchar* str, u32 strLen) override { if (!isMuted) LoggerWithWriter::Log(type, str, strLen); }
-		Atomic<bool> isMuted;
+		Atomic<u32> isMuted;
 	};
 
 	class FilteredLogWriter : public LogWriter

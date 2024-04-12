@@ -804,9 +804,21 @@ namespace uba
 		}
 	}
 
+	void NetworkServer::DoWork(u32 count)
+	{
+		while (count--)
+			if (!DoAdditionalWork())
+				return;
+	}
+
 	u32 NetworkServer::GetWorkerCount()
 	{
 		return m_maxWorkerCount;
+	}
+
+	MutableLogger& NetworkServer::GetLogger()
+	{
+		return m_logger;
 	}
 
 	u64 NetworkServer::GetTotalSentBytes()

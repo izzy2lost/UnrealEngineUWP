@@ -2,16 +2,19 @@
 
 #pragma once
 
-#include "UbaCompactTables.h"
 #include "UbaLogger.h"
+#include "UbaMemory.h"
 
 namespace uba
 {
+	class CompactCasKeyTable;
+	class CompactPathTable;
 	class NetworkClient;
 	class ProcessHandle;
 	class RootPaths;
 	class Session;
 	class StorageImpl;
+	struct CasKey;
 	struct ProcessStartInfo;
 
 	class CacheClient
@@ -20,8 +23,8 @@ namespace uba
 		CacheClient(LogWriter& writer, StorageImpl& storage, NetworkClient& client, Session& session);
 		~CacheClient();
 
-		bool WriteToCache(const RootPaths& rootPaths, const ProcessHandle& process);
-		bool FetchFromCache(const RootPaths& rootPaths, const ProcessStartInfo& info);
+		bool WriteToCache(const RootPaths& rootPaths, u32 bucketId, const ProcessHandle& process);
+		bool FetchFromCache(const RootPaths& rootPaths, u32 bucketId, const ProcessStartInfo& info);
 
 		bool WriteCacheSummary(const tchar* destinationFile, const tchar* filterString = nullptr);
 
@@ -30,14 +33,16 @@ namespace uba
 		inline StorageImpl& GetStorage() { return m_storage; }
 
 	private:
-		bool SendPathTable(u32 requiredPathTableSize);
-		bool SendCasTable(u32 requiredCasTableSize);
-		bool SendCacheEntry(const RootPaths& rootPaths, const CasKey& cmdKey, const Map<u32, u32>& inputsStringToCasKey, const Map<u32, u32>& outputsStringToCasKey);
-		bool FetchCasTable();
+		struct Bucket;
+
+		bool SendPathTable(Bucket& bucket, u32 requiredPathTableSize);
+		bool SendCasTable(Bucket& bucket, u32 requiredCasTableSize);
+		bool SendCacheEntry(Bucket& bucket, const RootPaths& rootPaths, const CasKey& cmdKey, const Map<u32, u32>& inputsStringToCasKey, const Map<u32, u32>& outputsStringToCasKey);
+		bool FetchCasTable(Bucket& bucket);
 
 		CasKey GetCmdKey(const RootPaths& rootPaths, const ProcessStartInfo& info);
 
-		bool GetLocalPathAndCasKey(const RootPaths& rootPaths, StringBufferBase& outPath, CasKey& outKey, CompactCasKeyTable& casKeyTable, CompactPathTable& pathTable, u32 offset);
+		bool GetLocalPathAndCasKey(Bucket& bucket, const RootPaths& rootPaths, StringBufferBase& outPath, CasKey& outKey, CompactCasKeyTable& casKeyTable, CompactPathTable& pathTable, u32 offset);
 
 		MutableLogger m_logger;
 		StorageImpl& m_storage;
@@ -46,18 +51,12 @@ namespace uba
 
 		Atomic<bool> m_connected;
 
-		CompactPathTable m_serverPathTable;
-		CompactCasKeyTable m_serverCasKeyTable;
-
-		CompactPathTable m_sendPathTable;
-		CompactCasKeyTable m_sendCasKeyTable;
-
-		ReaderWriterLock m_pathTableNetworkLock;
-		u32 m_pathTableSizeSent = 0;
-
-		ReaderWriterLock m_casKeyTableNetworkLock;
-		u32 m_casKeyTableSizeSent = 0;
+		ReaderWriterLock m_bucketsLock;
+		UnorderedMap<u32, Bucket> m_buckets;
 
 		ReaderWriterLock m_sendOneAtTheTimeLock;
+
+		CacheClient(const CacheClient&) = delete;
+		CacheClient& operator=(const CacheClient&) = delete;
 	};
 }

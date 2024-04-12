@@ -1129,8 +1129,6 @@ namespace uba
 
 	void Session::CancelAllProcessesAndWait(bool terminate)
 	{
-		m_logger.isMuted = true;
-
 		bool isEmpty = false;
 		bool isFirst = true;
 		while (!isEmpty)
@@ -1149,6 +1147,7 @@ namespace uba
 				isFirst = false;
 				if (!processes.empty())
 					m_logger.Info(TC("Cancelling %llu processes and wait for them to exit"), processes.size());
+				++m_logger.isMuted;
 			}
 
 			for (auto& process : processes)
@@ -1167,7 +1166,7 @@ namespace uba
 				process.WaitForExit(100000);
 		}
 
-		m_logger.isMuted = false;
+		--m_logger.isMuted;
 	}
 
 	ProcessHandle Session::RunProcess(const ProcessStartInfo& startInfo, bool async, bool enableDetour)
@@ -1309,7 +1308,7 @@ namespace uba
 
 	const tchar* Session::GetId() { return m_id.data; }
 	Storage& Session::GetStorage() { return m_storage; }
-	Logger& Session::GetLogger() { return m_logger; }
+	MutableLogger& Session::GetLogger() { return m_logger; }
 	LogWriter& Session::GetLogWriter() { return m_logger.m_writer; }
 	Trace& Session::GetTrace() { return m_trace; }
 

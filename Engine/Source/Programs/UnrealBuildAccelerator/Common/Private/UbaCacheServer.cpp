@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "UbaCacheServer.h"
+#include "UbaCompactTables.h"
 #include "UbaBinaryReaderWriter.h"
 #include "UbaFileAccessor.h"
 #include "UbaNetworkServer.h"
@@ -10,14 +11,45 @@ namespace uba
 {
 	static constexpr u32 CacheFileVersion = 1;
 
-	struct CacheServer::Connection
+	struct CacheServer::CacheEntry
 	{
-		Connection() : m_pathTable(8*1024*1024, CompactPathTable::V1), m_casKeyTable(8*1024*1024) {}
-		CompactPathTable m_pathTable;
-		CompactCasKeyTable m_casKeyTable;
+		u64 creationTime;
+		Vector<u8> inputCasKeyOffsets;
+		Vector<u8> outputCasKeyOffsets;
+	};
+
+	struct CacheServer::ConnectionBucket
+	{
+		ConnectionBucket() : pathTable(CachePathTableMaxSize, CompactPathTable::V1), casKeyTable(CacheCasKeyTableMaxSize) {}
+		CompactPathTable pathTable;
+		CompactCasKeyTable casKeyTable;
 
 		ReaderWriterLock cacheEntryLookupLock;
 		UnorderedMap<CasKey, CacheEntry> cacheEntryLookup;
+	};
+
+	struct CacheServer::Connection
+	{
+		UnorderedMap<u32, ConnectionBucket> buckets;
+	};
+
+	struct CacheServer::CacheEntries
+	{
+		ReaderWriterLock lock;
+		List<CacheEntry> entries;
+	};
+
+	struct CacheServer::Bucket
+	{
+		Bucket() : m_pathTable(CachePathTableMaxSize, CompactPathTable::V1), m_casKeyTable(CacheCasKeyTableMaxSize) {}
+		ReaderWriterLock m_cacheEntryLookupLock;
+		UnorderedMap<CasKey, CacheEntries> m_cacheEntryLookup;
+
+		CompactPathTable m_pathTable;
+		CompactCasKeyTable m_casKeyTable;
+
+		u64 totalEntryCount = 0;
+		u64 totalEntrySize = 0;
 	};
 
 	const tchar* ToString(CacheMessageType type)
@@ -36,8 +68,6 @@ namespace uba
 	:	m_logger(writer, TC("UbaCacheServer"))
 	,	m_server(server)
 	,	m_storage(storage)
-	,	m_pathTable(CachePathTableMaxSize, CompactPathTable::V1)
-	,	m_casKeyTable(CacheCasKeyTableMaxSize)
 	{
 		m_rootDir.count = GetFullPathNameW(rootDir, m_rootDir.capacity, m_rootDir.data, NULL);
 		m_rootDir.Replace('/', PathSeparator).EnsureEndsWithSlash();
@@ -72,59 +102,74 @@ namespace uba
 
 		FileAccessor file(m_logger, fileName.data);
 		if (!file.OpenMemoryRead(0, false))
+		{
+			m_logger.Detail(TC("No database found. Starting a new one at %s"), fileName.data);
 			return true;
+		}
 		BinaryReader reader(file.GetData(), 0, file.GetSize());
 
 		u32 version = reader.ReadU32();
 		if (version != CacheFileVersion)
 			return true;
 
-		u32 pathTableSize = reader.ReadU32();
-		if (pathTableSize)
-		{
-			BinaryReader pathTableReader(reader.GetPositionData(), 0, pathTableSize);
-			m_pathTable.ReadMem(pathTableReader, true);
-			reader.Skip(pathTableSize);
-		}
-
-		u32 casKeyTableSize = reader.ReadU32();
-		if (casKeyTableSize)
-		{
-			BinaryReader casKeyTableReader(reader.GetPositionData(), 0, casKeyTableSize);
-			m_casKeyTable.ReadMem(casKeyTableReader, true);
-			reader.Skip(casKeyTableSize);
-		}
-
-		u32 entryLookupCount = reader.ReadU32();
-		m_cacheEntryLookup.reserve(entryLookupCount);
-
+		u32 totalPathTableSize = 0;
+		u32 totalCasKeyTableSize = 0;
 		u64 totalCacheEntryCount = 0;
-		while (reader.GetLeft())
+
+		u32 bucketCount = reader.ReadU32();
+		while (bucketCount--)
 		{
-			auto insres = m_cacheEntryLookup.try_emplace(reader.ReadCasKey());
-			UBA_ASSERT(insres.second);
-			auto& cacheEntries = insres.first->second;
-			u32 cacheEntryCount = reader.ReadU32();
-			totalCacheEntryCount += cacheEntryCount;
+			u32 bucketId = reader.ReadU32();
+			Bucket& bucket = m_buckets[bucketId];
 
-			while (cacheEntryCount--)
+			u32 pathTableSize = reader.ReadU32();
+			if (pathTableSize)
 			{
-				auto& cacheEntry = cacheEntries.entries.emplace_back();
+				BinaryReader pathTableReader(reader.GetPositionData(), 0, pathTableSize);
+				bucket.m_pathTable.ReadMem(pathTableReader, true);
+				reader.Skip(pathTableSize);
+			}
+			totalPathTableSize += pathTableSize;
 
-				cacheEntry.creationTime = reader.ReadU64();
+			u32 casKeyTableSize = reader.ReadU32();
+			if (casKeyTableSize)
+			{
+				BinaryReader casKeyTableReader(reader.GetPositionData(), 0, casKeyTableSize);
+				bucket.m_casKeyTable.ReadMem(casKeyTableReader, true);
+				reader.Skip(casKeyTableSize);
+			}
+			totalCasKeyTableSize += casKeyTableSize;
 
-				u32 inputSize = reader.ReadU32();
-				cacheEntry.inputCasKeyOffsets.resize(inputSize);
-				reader.ReadBytes(cacheEntry.inputCasKeyOffsets.data(), inputSize);
+			u32 entryLookupCount = reader.ReadU32();
+			bucket.m_cacheEntryLookup.reserve(entryLookupCount);
 
-				u32 outputSize = reader.ReadU32();
-				cacheEntry.outputCasKeyOffsets.resize(outputSize);
-				reader.ReadBytes(cacheEntry.outputCasKeyOffsets.data(), outputSize);
+			while (entryLookupCount--)
+			{
+				auto insres = bucket.m_cacheEntryLookup.try_emplace(reader.ReadCasKey());
+				UBA_ASSERT(insres.second);
+				auto& cacheEntries = insres.first->second;
+				u32 cacheEntryCount = reader.ReadU32();
+				totalCacheEntryCount += cacheEntryCount;
+
+				while (cacheEntryCount--)
+				{
+					auto& cacheEntry = cacheEntries.entries.emplace_back();
+
+					cacheEntry.creationTime = reader.ReadU64();
+
+					u32 inputSize = reader.ReadU32();
+					cacheEntry.inputCasKeyOffsets.resize(inputSize);
+					reader.ReadBytes(cacheEntry.inputCasKeyOffsets.data(), inputSize);
+
+					u32 outputSize = reader.ReadU32();
+					cacheEntry.outputCasKeyOffsets.resize(outputSize);
+					reader.ReadBytes(cacheEntry.outputCasKeyOffsets.data(), outputSize);
+				}
 			}
 		}
 
 		u64 duration = GetTime() - startTime;
-		m_logger.Detail(TC("Database loaded from %s in %s (contained %s paths, %s keys, %llu cache entries)"), fileName.data, TimeToText(duration).str, BytesToText(pathTableSize).str, BytesToText(casKeyTableSize).str, totalCacheEntryCount);
+		m_logger.Detail(TC("Database loaded from %s in %s (%llu bucket(s) containing %s paths, %s keys, %llu cache entries)"), fileName.data, TimeToText(duration).str, m_buckets.size(), BytesToText(totalPathTableSize).str, BytesToText(totalCasKeyTableSize).str, totalCacheEntryCount);
 		return true;
 	}
 
@@ -182,35 +227,44 @@ namespace uba
 
 		Write(CacheFileVersion);
 
-		u32 pathTableSize = m_pathTable.GetSize();
-		Write(pathTableSize);
-		WriteBytes(m_pathTable.GetMemory(), pathTableSize);
+		Write(u32(m_buckets.size()));
 
-		u32 casKeyTableSize = m_casKeyTable.GetSize();
-		Write(casKeyTableSize);
-		WriteBytes(m_casKeyTable.GetMemory(), casKeyTableSize);
-
-		u32 entryLookupCount = u32(m_cacheEntryLookup.size());
-		Write(entryLookupCount);
-
-		for (auto& kv : m_cacheEntryLookup)
+		for (auto& kv : m_buckets)
 		{
+			Bucket& bucket = kv.second;
+
 			Write(kv.first);
 
-			u32 cacheEntryCount = u32(kv.second.entries.size());
-			Write(cacheEntryCount);
+			u32 pathTableSize = bucket.m_pathTable.GetSize();
+			Write(pathTableSize);
+			WriteBytes(bucket.m_pathTable.GetMemory(), pathTableSize);
 
-			for (CacheEntry& entry : kv.second.entries)
+			u32 casKeyTableSize = bucket.m_casKeyTable.GetSize();
+			Write(casKeyTableSize);
+			WriteBytes(bucket.m_casKeyTable.GetMemory(), casKeyTableSize);
+
+			u32 entryLookupCount = u32(bucket.m_cacheEntryLookup.size());
+			Write(entryLookupCount);
+
+			for (auto& kv2 : bucket.m_cacheEntryLookup)
 			{
-				WriteBytes(&entry.creationTime, sizeof(entry.creationTime));
+				Write(kv2.first);
 
-				u32 inputSize = u32(entry.inputCasKeyOffsets.size());
-				Write(inputSize);
-				WriteBytes(entry.inputCasKeyOffsets.data(), inputSize);
+				u32 cacheEntryCount = u32(kv2.second.entries.size());
+				Write(cacheEntryCount);
 
-				u32 outputSize = u32(entry.outputCasKeyOffsets.size());
-				Write(outputSize);
-				WriteBytes(entry.outputCasKeyOffsets.data(), outputSize);
+				for (CacheEntry& entry : kv2.second.entries)
+				{
+					WriteBytes(&entry.creationTime, sizeof(entry.creationTime));
+
+					u32 inputSize = u32(entry.inputCasKeyOffsets.size());
+					Write(inputSize);
+					WriteBytes(entry.inputCasKeyOffsets.data(), inputSize);
+
+					u32 outputSize = u32(entry.outputCasKeyOffsets.size());
+					Write(outputSize);
+					WriteBytes(entry.outputCasKeyOffsets.data(), outputSize);
+				}
 			}
 		}
 
@@ -262,111 +316,119 @@ namespace uba
 		}
 		u64 totalCasCount = existingCas.size();
 
-		Vector<u64*> touchedCas;
-
 		u64 now = GetSystemTimeAsFileTime();
 		u64 oldest = now;
 
 
-		u64 totalEntryCount = 0;
-		u64 totalEntrySize = 0;
-		u64 deleteEntryCount = 0;
+		Atomic<u64> deleteEntryCount;
 
 		u64 deleteCacheEntriesStartTime = GetTime();
 		do
 		{
 			oldest = now;
-			totalEntryCount = 0;
-			totalEntrySize = 0;
 
-			for (auto li=m_cacheEntryLookup.begin(), le=m_cacheEntryLookup.end(); li!=le;)
+			ReaderWriterLock existingCasLock;
+
+			m_server.ParallelFor(16, m_buckets, [&](auto& it)
 			{
-				// There is currently no idea saving more than 256kb worth of entries per lookup key (because that is what fetch max returns).. so let's wipe out
-				// all the entries that overflow that number
-				u64 capacityLeft = SendMaxSize - 32;
+				Vector<u64*> touchedCas;
 
-				CacheEntries& entries = li->second;
-				for (auto i=entries.entries.begin(), e=entries.entries.end(); i!=e;)
+				Bucket& bucket = it->second;
+				bucket.totalEntryCount = 0;
+				bucket.totalEntrySize = 0;
+
+				for (auto li=bucket.m_cacheEntryLookup.begin(), le=bucket.m_cacheEntryLookup.end(); li!=le;)
 				{
-					auto& entry = *i;
-					auto& inputs = entry.inputCasKeyOffsets;
-					auto& outputs = entry.outputCasKeyOffsets;
+					// There is currently no idea saving more than 256kb worth of entries per lookup key (because that is what fetch max returns).. so let's wipe out
+					// all the entries that overflow that number
+					u64 capacityLeft = SendMaxSize - 32;
 
-					bool deleteEntry = false;
+					CacheEntries& entries = li->second;
+					for (auto i=entries.entries.begin(), e=entries.entries.end(); i!=e;)
+					{
+						auto& entry = *i;
+						auto& inputs = entry.inputCasKeyOffsets;
+						auto& outputs = entry.outputCasKeyOffsets;
 
-					u64 neededSize = Get7BitEncodedCount(inputs.size()) + inputs.size() + Get7BitEncodedCount(outputs.size()) + outputs.size();
-					if (neededSize > capacityLeft)
-					{
-						deleteEntry = true;
-						capacityLeft = 0;
-					}
-					else
-					{
-						// Traverse outputs and check if cas files exists for each output, if not, delete entry.
-						touchedCas.clear();
-						BinaryReader reader2(outputs.data(), 0, outputs.size());
-						while (reader2.GetLeft())
+						bool deleteEntry = false;
+
+						u64 neededSize = Get7BitEncodedCount(inputs.size()) + inputs.size() + Get7BitEncodedCount(outputs.size()) + outputs.size();
+						if (neededSize > capacityLeft)
 						{
-							u64 offset = reader2.Read7BitEncoded();
-							CasKey casKey;
-							m_casKeyTable.GetKey(casKey, offset);
-							UBA_ASSERT(IsCompressed(casKey));
-							auto findIt = existingCas.find(casKey);
-							if (findIt == existingCas.end())
-								deleteEntry = true;
-							else
-								touchedCas.push_back(&findIt->second.refCount);
+							deleteEntry = true;
+							capacityLeft = 0;
 						}
-					}
-
-					// Check if there are keys that use removed caskey as input and delete those too
-					if (!deleteEntry && !deletedCasFiles.empty())
-					{
-						BinaryReader reader2(inputs.data(), 0, inputs.size());
-						while (reader2.GetLeft())
+						else
 						{
-							u64 offset = reader2.Read7BitEncoded();
-							CasKey casKey;
-							m_casKeyTable.GetKey(casKey, offset);
-							if (deletedCasFiles.find(casKey) != deletedCasFiles.end())
+							// Traverse outputs and check if cas files exists for each output, if not, delete entry.
+							touchedCas.clear();
+							BinaryReader reader2(outputs.data(), 0, outputs.size());
+							while (reader2.GetLeft())
 							{
-								deleteEntry = true;
-								break;
+								u64 offset = reader2.Read7BitEncoded();
+								CasKey casKey;
+								bucket.m_casKeyTable.GetKey(casKey, offset);
+								UBA_ASSERT(IsCompressed(casKey));
+								auto findIt = existingCas.find(casKey);
+								if (findIt == existingCas.end())
+									deleteEntry = true;
+								else
+									touchedCas.push_back(&findIt->second.refCount);
 							}
 						}
+
+						// Check if there are keys that use removed caskey as input and delete those too
+						if (!deleteEntry && !deletedCasFiles.empty())
+						{
+							BinaryReader reader2(inputs.data(), 0, inputs.size());
+							while (reader2.GetLeft())
+							{
+								u64 offset = reader2.Read7BitEncoded();
+								CasKey casKey;
+								bucket.m_casKeyTable.GetKey(casKey, offset);
+								if (deletedCasFiles.find(casKey) != deletedCasFiles.end())
+								{
+									deleteEntry = true;
+									break;
+								}
+							}
+						}
+
+						// Remove entry from entries list and skip increasing ref count of cas files
+						if (deleteEntry)
+						{
+							++deleteEntryCount;
+							i = entries.entries.erase(i);
+							e = entries.entries.end();
+							continue;
+						}
+
+						++bucket.totalEntryCount;
+						bucket.totalEntrySize += neededSize;
+
+						capacityLeft -= neededSize;
+
+						SCOPED_WRITE_LOCK(existingCasLock, l);
+						if (!oldest || entry.creationTime < oldest)
+							oldest = entry.creationTime;
+
+						for (u64* v : touchedCas)
+							++(*v);
+						l.Leave();
+
+						++i;
 					}
 
-					// Remove entry from entries list and skip increasing ref count of cas files
-					if (deleteEntry)
+					if (!entries.entries.empty())
 					{
-						++deleteEntryCount;
-						i = entries.entries.erase(i);
-						e = entries.entries.end();
+						++li;
 						continue;
 					}
 
-					++totalEntryCount;
-					totalEntrySize += neededSize;
-
-					capacityLeft -= neededSize;
-
-					if (!oldest || entry.creationTime < oldest)
-						oldest = entry.creationTime;
-
-					for (u64* v : touchedCas)
-						++(*v);
-					++i;
+					li = bucket.m_cacheEntryLookup.erase(li);
+					le = bucket.m_cacheEntryLookup.end();
 				}
-
-				if (!entries.entries.empty())
-				{
-					++li;
-					continue;
-				}
-
-				li = m_cacheEntryLookup.erase(li);
-				le = m_cacheEntryLookup.end();
-			}
+			});
 
 			// Reset deleted cas files and update it again..
 			deletedCasFiles.clear();
@@ -391,131 +453,145 @@ namespace uba
 		}
 		while (!deletedCasFiles.empty()); // if cas files are deleted we need to do another loop and check cache entry inputs to see if files were inputs
 
-		m_logger.Detail(TC("  Deleted %llu cas files and %llu cache entries (%s)"), deletedCasCount, deleteEntryCount, TimeToText(GetTime() - deleteCacheEntriesStartTime).str);
+		m_logger.Detail(TC("  Deleted %llu cas files and %llu cache entries (%s)"), deletedCasCount, deleteEntryCount.load(), TimeToText(GetTime() - deleteCacheEntriesStartTime).str);
 
-		if ( deleteEntryCount || forceAllSteps)
+		Atomic<u32> bucketCounter;
+		m_server.ParallelFor(16, m_buckets, [&](auto& it)
 		{
-			UnorderedSet<u32> usedCasKeyOffsets;
+			u64 bucketStartTime = GetTime();
 
-			// Collect all caskeys that are used by cache entries.
-			for (auto& kv : m_cacheEntryLookup)
+			Bucket& bucket = it->second;
+			u32 bucketIndex = bucketCounter++;
+
+			if (deleteEntryCount || forceAllSteps)
 			{
-				for (auto& entry : kv.second.entries)
+				UnorderedSet<u32> usedCasKeyOffsets;
+
+				// Collect all caskeys that are used by cache entries.
+				for (auto& kv2 : bucket.m_cacheEntryLookup)
 				{
-					auto collectUsedCasKeyOffsets = [&](const Vector<u8>& offsets)
-						{
-							BinaryReader reader2(offsets.data(), 0, offsets.size());
-							while (reader2.GetLeft())
-								usedCasKeyOffsets.insert(u32(reader2.Read7BitEncoded()));
-						};
-					collectUsedCasKeyOffsets(entry.inputCasKeyOffsets);
-					collectUsedCasKeyOffsets(entry.outputCasKeyOffsets);
+					for (auto& entry : kv2.second.entries)
+					{
+						auto collectUsedCasKeyOffsets = [&](const Vector<u8>& offsets)
+							{
+								BinaryReader reader2(offsets.data(), 0, offsets.size());
+								while (reader2.GetLeft())
+									usedCasKeyOffsets.insert(u32(reader2.Read7BitEncoded()));
+							};
+						collectUsedCasKeyOffsets(entry.inputCasKeyOffsets);
+						collectUsedCasKeyOffsets(entry.outputCasKeyOffsets);
+					}
 				}
-			}
 
-			u64 recreatePathTableStart = GetTime();
+				u64 recreatePathTableStart = GetTime();
 
-			// Traverse all caskeys in caskey table and figure out which ones we can delete
-			UnorderedSet<u32> usedPathOffsets;
-			usedPathOffsets.reserve(usedCasKeyOffsets.size());
+				// Traverse all caskeys in caskey table and figure out which ones we can delete
+				UnorderedSet<u32> usedPathOffsets;
+				usedPathOffsets.reserve(usedCasKeyOffsets.size());
 
-			for (u32 casKeyOffset : usedCasKeyOffsets)
-			{
-				BinaryReader reader2(m_casKeyTable.GetMemory(), casKeyOffset, m_casKeyTable.GetSize());
-				u32 pathOffset = u32(reader2.Read7BitEncoded());
-				usedPathOffsets.insert(pathOffset);
-			}
-
-			// Build new path table based on used offsets
-			UnorderedMap<u32, u32> oldToNewPathOffset;
-			u32 oldSize = m_pathTable.GetSize();
-			{
-				CompactPathTable newPathTable(CachePathTableMaxSize, CompactPathTable::V1, m_pathTable.GetPathCount(), m_pathTable.GetSegmentCount());
-				oldToNewPathOffset.reserve(usedPathOffsets.size());
-
-				for (u32 pathOffset : usedPathOffsets)
-				{
-					StringBuffer<> temp;
-					m_pathTable.GetString(temp, pathOffset);
-					u32 newOffset = newPathTable.AddNoLock(temp.data, temp.count);
-
-					#if 0
-					StringBuffer<> test;
-					newPathTable.GetString(test, newOffset);
-					UBA_ASSERT(test.Equals(temp.data));
-					#endif
-
-					auto res = oldToNewPathOffset.try_emplace(pathOffset, newOffset);
-					UBA_ASSERT(res.second);(void)res;
-				}
-				m_pathTable.Swap(newPathTable);
-			}
-			m_logger.Detail(TC("  Recreated path table. %s -> %s (%s)"), BytesToText(oldSize).str, BytesToText(m_pathTable.GetSize()).str, TimeToText(GetTime() - recreatePathTableStart).str);
-
-
-			// Build new caskey table based on used offsets
-			u64 recreateCasKeyTableStart = GetTime();
-			UnorderedMap<u32, u32> oldToNewCasKeyOffset;
-			oldSize = m_casKeyTable.GetSize();
-			{
-				oldToNewCasKeyOffset.reserve(usedCasKeyOffsets.size());
-				CompactCasKeyTable newCasKeyTable(CacheCasKeyTableMaxSize, usedCasKeyOffsets.size());
 				for (u32 casKeyOffset : usedCasKeyOffsets)
 				{
-					BinaryReader reader2(m_casKeyTable.GetMemory(), casKeyOffset, m_casKeyTable.GetSize());
-					u32 oldPathOffset = u32(reader2.Read7BitEncoded());
-					CasKey casKey = reader2.ReadCasKey();
-					auto findIt = oldToNewPathOffset.find(oldPathOffset);
-					UBA_ASSERT(findIt != oldToNewPathOffset.end());
-					auto res = oldToNewCasKeyOffset.try_emplace(casKeyOffset, newCasKeyTable.Add(casKey, findIt->second));
-					UBA_ASSERT(res.second);(void)res;
+					BinaryReader reader2(bucket.m_casKeyTable.GetMemory(), casKeyOffset, bucket.m_casKeyTable.GetSize());
+					u32 pathOffset = u32(reader2.Read7BitEncoded());
+					usedPathOffsets.insert(pathOffset);
 				}
-				m_casKeyTable.Swap(newCasKeyTable);
-			}
-			m_logger.Detail(TC("  Recreated caskey table. %s -> %s (%s)"), BytesToText(oldSize).str, BytesToText(m_casKeyTable.GetSize()).str, TimeToText(GetTime() - recreateCasKeyTableStart).str);
 
-
-			// Update all casKeyOffsets
-			u64 updateEntriesStart = GetTime();
-			for (auto& kv : m_cacheEntryLookup)
-			{
-				for (auto& entry : kv.second.entries)
+				// Build new path table based on used offsets
+				UnorderedMap<u32, u32> oldToNewPathOffset;
+				u32 oldSize = bucket.m_pathTable.GetSize();
 				{
-					auto updateCasKeyOffsets = [&](Vector<u8>& offsets)
-						{
-							Set<u32> newOffsets; // Want these sorted since that is what we get from uploads
-							u32 newOffsetsSize = 0;
-							BinaryReader reader2(offsets.data(), 0, offsets.size());
-							while (reader2.GetLeft())
-							{
-								u32 oldOffset = u32(reader2.Read7BitEncoded());
-								auto findIt = oldToNewCasKeyOffset.find(oldOffset);
-								UBA_ASSERT(findIt != oldToNewCasKeyOffset.end());
-								u32 newOffset = findIt->second;
-								if (newOffsets.insert(newOffset).second)
-									newOffsetsSize += Get7BitEncodedCount(newOffset);
-								else
-								{
-									StringBuffer<> temp;
-									CasKey key;
-									m_casKeyTable.GetPathAndKey(temp, key, m_pathTable, newOffset);
-									m_logger.Info(TC("Found duplicate of %s in cache entry"), temp.data);
-								}
-							}
+					CompactPathTable newPathTable(CachePathTableMaxSize, CompactPathTable::V1, bucket.m_pathTable.GetPathCount(), bucket.m_pathTable.GetSegmentCount());
+					oldToNewPathOffset.reserve(usedPathOffsets.size());
 
-							offsets.resize(newOffsetsSize);
-							BinaryWriter writer2(offsets.data(), 0, newOffsetsSize);
-							for (u32 offset : newOffsets)
-								writer2.Write7BitEncoded(offset);
-							UBA_ASSERT(writer2.GetPosition() == newOffsetsSize);
-						};
-					updateCasKeyOffsets(entry.inputCasKeyOffsets);
-					updateCasKeyOffsets(entry.outputCasKeyOffsets);
+					for (u32 pathOffset : usedPathOffsets)
+					{
+						StringBuffer<> temp;
+						bucket.m_pathTable.GetString(temp, pathOffset);
+						u32 newOffset = newPathTable.AddNoLock(temp.data, temp.count);
+
+						#if 0
+						StringBuffer<> test;
+						newPathTable.GetString(test, newOffset);
+						UBA_ASSERT(test.Equals(temp.data));
+						#endif
+
+						auto res = oldToNewPathOffset.try_emplace(pathOffset, newOffset);
+						UBA_ASSERT(res.second);(void)res;
+					}
+					bucket.m_pathTable.Swap(newPathTable);
 				}
+				m_logger.Detail(TC("    Bucket %u Recreated path table. %s -> %s (%s)"), bucketIndex, BytesToText(oldSize).str, BytesToText(bucket.m_pathTable.GetSize()).str, TimeToText(GetTime() - recreatePathTableStart).str);
+
+
+				// Build new caskey table based on used offsets
+				u64 recreateCasKeyTableStart = GetTime();
+				UnorderedMap<u32, u32> oldToNewCasKeyOffset;
+				oldSize = bucket.m_casKeyTable.GetSize();
+				{
+					oldToNewCasKeyOffset.reserve(usedCasKeyOffsets.size());
+					CompactCasKeyTable newCasKeyTable(CacheCasKeyTableMaxSize, usedCasKeyOffsets.size());
+					for (u32 casKeyOffset : usedCasKeyOffsets)
+					{
+						BinaryReader reader2(bucket.m_casKeyTable.GetMemory(), casKeyOffset, bucket.m_casKeyTable.GetSize());
+						u32 oldPathOffset = u32(reader2.Read7BitEncoded());
+						CasKey casKey = reader2.ReadCasKey();
+						auto findIt = oldToNewPathOffset.find(oldPathOffset);
+						UBA_ASSERT(findIt != oldToNewPathOffset.end());
+						auto res = oldToNewCasKeyOffset.try_emplace(casKeyOffset, newCasKeyTable.Add(casKey, findIt->second));
+						UBA_ASSERT(res.second);(void)res;
+					}
+					bucket.m_casKeyTable.Swap(newCasKeyTable);
+				}
+				m_logger.Detail(TC("    Bucket %u Recreated caskey table. %s -> %s (%s)"), bucketIndex, BytesToText(oldSize).str, BytesToText(bucket.m_casKeyTable.GetSize()).str, TimeToText(GetTime() - recreateCasKeyTableStart).str);
+
+
+				// Update all casKeyOffsets
+				u64 updateEntriesStart = GetTime();
+
+				auto updateCasKeyOffsets = [&](Vector<u8>& offsets)
+					{
+						Set<u32> newOffsets; // Want these sorted since that is what we get from uploads
+						u32 newOffsetsSize = 0;
+						BinaryReader reader2(offsets.data(), 0, offsets.size());
+						while (reader2.GetLeft())
+						{
+							u32 oldOffset = u32(reader2.Read7BitEncoded());
+							auto findIt = oldToNewCasKeyOffset.find(oldOffset);
+							UBA_ASSERT(findIt != oldToNewCasKeyOffset.end());
+							u32 newOffset = findIt->second;
+							if (newOffsets.insert(newOffset).second)
+								newOffsetsSize += Get7BitEncodedCount(newOffset);
+							else
+							{
+								StringBuffer<> temp;
+								CasKey key;
+								bucket.m_casKeyTable.GetPathAndKey(temp, key, bucket.m_pathTable, newOffset);
+								m_logger.Info(TC("Found duplicate of %s in cache entry"), temp.data);
+							}
+						}
+
+						offsets.resize(newOffsetsSize);
+						BinaryWriter writer2(offsets.data(), 0, newOffsetsSize);
+						for (u32 offset : newOffsets)
+							writer2.Write7BitEncoded(offset);
+						UBA_ASSERT(writer2.GetPosition() == newOffsetsSize);
+					};
+
+				m_server.ParallelFor(16, bucket.m_cacheEntryLookup, [&](auto& it)
+					{
+						CacheEntries& entries = it->second;(void)entries;
+						for (auto& entry : entries.entries)
+						{
+							updateCasKeyOffsets(entry.inputCasKeyOffsets);
+							updateCasKeyOffsets(entry.outputCasKeyOffsets);
+						}
+					});
+
+				m_logger.Detail(TC("    Bucket %u Updated cache entries with new tables (%s)"), bucketIndex, TimeToText(GetTime() - updateEntriesStart).str);
 			}
 
-			m_logger.Detail(TC("  Updated cache entries with new tables (%s)"), TimeToText(GetTime() - updateEntriesStart).str);
-		}
+			m_logger.Info(TC("    Bucket %u Done (%s). CacheEntries: %llu (%s) PathTable: %s CasTable: %s"), bucketIndex, TimeToText(GetTime() - bucketStartTime).str, bucket.totalEntryCount, BytesToText(bucket.totalEntrySize).str, BytesToText(bucket.m_pathTable.GetSize()).str, BytesToText(bucket.m_casKeyTable.GetSize()).str);
+		});
 
 		if (entriesAdded || deletedCasCount || deleteEntryCount || forceAllSteps)
 		{
@@ -526,7 +602,7 @@ namespace uba
 		}
 
 		u64 oldestTime = MsToTime(GetFileTimeAsSeconds(now - oldest)*1000);
-		m_logger.Info(TC("Maintenance done! (%s). CacheEntries: %llu (%s) CasFiles: %llu (%s) PathTable: %s CasTable: %s OldestEntry: %s"), TimeToText(GetTime() - startTime).str, totalEntryCount, BytesToText(totalEntrySize).str, totalCasCount, BytesToText(totalCasSize).str, BytesToText(m_pathTable.GetSize()).str, BytesToText(m_casKeyTable.GetSize()).str, TimeToText(oldestTime, true).str);
+		m_logger.Info(TC("Maintenance done! (%s) CasFiles: %llu (%s) OldestEntry: %s"), TimeToText(GetTime() - startTime).str, totalCasCount - deletedCasCount, BytesToText(totalCasSize).str, TimeToText(oldestTime, true).str);
 
 		return true;
 	}
@@ -554,40 +630,52 @@ namespace uba
 		}
 		case CacheMessageType_StorePathTable:
 		{
+			u32 bucketId = u32(reader.Read7BitEncoded());
 			SCOPED_WRITE_LOCK(m_connectionsLock, lock);
 			auto& connection = m_connections[connectionInfo.GetId()];
+			auto& connectionBucket = connection.buckets[bucketId];
 			lock.Leave();
-			connection.m_pathTable.ReadMem(reader, false);
+			connectionBucket.pathTable.ReadMem(reader, false);
 			return true;
 		}
 		case CacheMessageType_StoreCasTable:
 		{
+			u32 bucketId = u32(reader.Read7BitEncoded());
 			SCOPED_WRITE_LOCK(m_connectionsLock, lock);
 			auto& connection = m_connections[connectionInfo.GetId()];
+			auto& connectionBucket = connection.buckets[bucketId];
 			lock.Leave();
-			connection.m_casKeyTable.ReadMem(reader, false);
+			connectionBucket.casKeyTable.ReadMem(reader, false);
 			return true;
 		}
 		case CacheMessageType_StoreEntry:
 		{
+			u32 bucketId = u32(reader.Read7BitEncoded());
 			SCOPED_WRITE_LOCK(m_connectionsLock, lock);
 			auto& connection = m_connections[connectionInfo.GetId()];
+			auto& connectionBucket = connection.buckets[bucketId];
 			lock.Leave();
-			return HandleStoreEntry(connection, reader, writer);
+			return HandleStoreEntry(bucketId, connectionBucket, reader, writer);
 		}
 		case CacheMessageType_StoreEntryDone:
 		{
+			u32 bucketId = u32(reader.Read7BitEncoded());
 			SCOPED_WRITE_LOCK(m_connectionsLock, lock);
 			auto& connection = m_connections[connectionInfo.GetId()];
+			auto& connectionBucket = connection.buckets[bucketId];
 			lock.Leave();
 			CasKey cmdKey = reader.ReadCasKey();
 
-			SCOPED_WRITE_LOCK(connection.cacheEntryLookupLock, lock2);
-			auto findIt = connection.cacheEntryLookup.find(cmdKey);
-			if (findIt != connection.cacheEntryLookup.end())
+			SCOPED_WRITE_LOCK(connectionBucket.cacheEntryLookupLock, lock2);
+			auto findIt = connectionBucket.cacheEntryLookup.find(cmdKey);
+			if (findIt != connectionBucket.cacheEntryLookup.end())
 			{
-				SCOPED_WRITE_LOCK(m_cacheEntryLookupLock, lock3);
-				auto insres = m_cacheEntryLookup.try_emplace(cmdKey);
+				SCOPED_WRITE_LOCK(m_bucketsLock, bucketsLock);
+				Bucket& bucket = m_buckets[bucketId];
+				bucketsLock.Leave();
+
+				SCOPED_WRITE_LOCK(bucket.m_cacheEntryLookupLock, lock3);
+				auto insres = bucket.m_cacheEntryLookup.try_emplace(cmdKey);
 				auto& cacheEntries = insres.first->second;
 				lock2.Leave();
 
@@ -615,7 +703,7 @@ namespace uba
 		}
 	}
 
-	bool CacheServer::HandleStoreEntry(Connection& connection, BinaryReader& reader, BinaryWriter& writer)
+	bool CacheServer::HandleStoreEntry(u32 bucketId, ConnectionBucket& connectionBucket, BinaryReader& reader, BinaryWriter& writer)
 	{
 		CasKey cmdKey = reader.ReadCasKey();
 
@@ -627,6 +715,10 @@ namespace uba
 
 		u64 outputStartOffset = reader.GetPosition();
 
+		SCOPED_WRITE_LOCK(m_bucketsLock, bucketsLock);
+		Bucket& bucket = m_buckets[bucketId];
+		bucketsLock.Leave();
+
 		while (reader.GetLeft())
 		{
 			u32 offset = u32(reader.Read7BitEncoded());
@@ -636,18 +728,18 @@ namespace uba
 
 			CasKey casKey;
 			StringBuffer<> path;
-			connection.m_casKeyTable.GetPathAndKey(path, casKey, connection.m_pathTable, offset);
+			connectionBucket.casKeyTable.GetPathAndKey(path, casKey, connectionBucket.pathTable, offset);
 			UBA_ASSERT(path.count);
 
-			u32 pathOffset = m_pathTable.Add(path.data, path.count);
+			u32 pathOffset = bucket.m_pathTable.Add(path.data, path.count);
 
 			#if 0
 			StringBuffer<> test;
-			m_pathTable.GetString(test, pathOffset);
+			bucket.m_pathTable.GetString(test, pathOffset);
 			UBA_ASSERT(test.Equals(path.data));
 			#endif
 
-			u32 casKeyOffset = m_casKeyTable.Add(casKey, pathOffset);
+			u32 casKeyOffset = bucket.m_casKeyTable.Add(casKey, pathOffset);
 			inputs.insert(casKeyOffset);
 			bytesForInput += Get7BitEncodedCount(casKeyOffset);
 
@@ -662,8 +754,8 @@ namespace uba
 				w2.Write7BitEncoded(input);
 		}
 
-		SCOPED_WRITE_LOCK(m_cacheEntryLookupLock, lock);
-		auto insres = m_cacheEntryLookup.try_emplace(cmdKey);
+		SCOPED_WRITE_LOCK(bucket.m_cacheEntryLookupLock, lock);
+		auto insres = bucket.m_cacheEntryLookup.try_emplace(cmdKey);
 		auto& cacheEntries = insres.first->second;
 		lock.Leave();
 
@@ -690,7 +782,7 @@ namespace uba
 				u32 existingOffset = u32(r2.Read7BitEncoded());
 				CasKey casKey;
 				StringBuffer<> path;
-				m_casKeyTable.GetPathAndKey(path, casKey, m_pathTable, existingOffset);
+				bucket.m_casKeyTable.GetPathAndKey(path, casKey, bucket.m_pathTable, existingOffset);
 				existing.try_emplace(path.data, casKey);
 			}
 
@@ -701,7 +793,7 @@ namespace uba
 				u32 outputOffset = u32(reader.Read7BitEncoded());
 				CasKey casKey;
 				StringBuffer<> path;
-				connection.m_casKeyTable.GetPathAndKey(path, casKey, connection.m_pathTable, outputOffset);
+				connectionBucket.casKeyTable.GetPathAndKey(path, casKey, connectionBucket.pathTable, outputOffset);
 
 				auto findIt = existing.find(path.data);
 				if (findIt == existing.end())
@@ -738,16 +830,16 @@ namespace uba
 			u32 outputOffset = u32(reader.Read7BitEncoded());
 			CasKey casKey;
 			StringBuffer<> path;
-			connection.m_casKeyTable.GetPathAndKey(path, casKey, connection.m_pathTable, outputOffset);
-			u32 pathOffset = m_pathTable.Add(path.data, path.count);
+			connectionBucket.casKeyTable.GetPathAndKey(path, casKey, connectionBucket.pathTable, outputOffset);
+			u32 pathOffset = bucket.m_pathTable.Add(path.data, path.count);
 
 			#if 0
 			StringBuffer<> test;
-			m_pathTable.GetString(test, pathOffset);
+			bucket.m_pathTable.GetString(test, pathOffset);
 			UBA_ASSERT(test.Equals(path.data));
 			#endif
 
-			u32 casKeyOffset = m_casKeyTable.Add(casKey, pathOffset);
+			u32 casKeyOffset = bucket.m_casKeyTable.Add(casKey, pathOffset);
 			outputs.insert(casKeyOffset);
 			bytesForOutput += Get7BitEncodedCount(casKeyOffset);
 
@@ -773,8 +865,8 @@ namespace uba
 		}
 		else
 		{
-			SCOPED_WRITE_LOCK(connection.cacheEntryLookupLock, lock3);
-			bool res = connection.cacheEntryLookup.try_emplace(cmdKey, std::move(newEntry)).second;
+			SCOPED_WRITE_LOCK(connectionBucket.cacheEntryLookupLock, lock3);
+			bool res = connectionBucket.cacheEntryLookup.try_emplace(cmdKey, std::move(newEntry)).second;
 			UBA_ASSERT(res);(void)res;
 		}
 
@@ -787,34 +879,52 @@ namespace uba
 
 	bool CacheServer::HandleFetchPathTable(BinaryReader& reader, BinaryWriter& writer)
 	{
+		u32 bucketId = u32(reader.Read7BitEncoded());
+
+		SCOPED_WRITE_LOCK(m_bucketsLock, bucketsLock);
+		Bucket& bucket = m_buckets[bucketId];
+		bucketsLock.Leave();
+
 		u32 haveSize = reader.ReadU32();
-		u32 size = m_pathTable.GetSize();
+		u32 size = bucket.m_pathTable.GetSize();
 		writer.WriteU32(size);
 		u32 toSend = Min(u32(writer.GetCapacityLeft()), size - haveSize);
-		writer.WriteBytes(m_pathTable.GetMemory() + haveSize, toSend);
+		writer.WriteBytes(bucket.m_pathTable.GetMemory() + haveSize, toSend);
 		return true;
 	}
 
 	bool CacheServer::HandleFetchCasTable(BinaryReader& reader, BinaryWriter& writer)
 	{
+		u32 bucketId = u32(reader.Read7BitEncoded());
+
+		SCOPED_WRITE_LOCK(m_bucketsLock, bucketsLock);
+		Bucket& bucket = m_buckets[bucketId];
+		bucketsLock.Leave();
+
 		u32 haveSize = reader.ReadU32();
-		u32 size = m_casKeyTable.GetSize();
+		u32 size = bucket.m_casKeyTable.GetSize();
 		writer.WriteU32(size);
 		u32 toSend = Min(u32(writer.GetCapacityLeft()), size - haveSize);
-		writer.WriteBytes(m_casKeyTable.GetMemory() + haveSize, toSend);
+		writer.WriteBytes(bucket.m_casKeyTable.GetMemory() + haveSize, toSend);
 		return true;
 	}
 
 	bool CacheServer::HandleFetchEntries(BinaryReader& reader, BinaryWriter& writer)
 	{
+		u32 bucketId = u32(reader.Read7BitEncoded());
+
+		SCOPED_WRITE_LOCK(m_bucketsLock, bucketsLock);
+		Bucket& bucket = m_buckets[bucketId];
+		bucketsLock.Leave();
+
 		CasKey cmdKey = reader.ReadCasKey();
 
 		u16& entryCount = *(u16*)writer.AllocWrite(2);
 		entryCount = 0;
 
-		SCOPED_READ_LOCK(m_cacheEntryLookupLock, lock);
-		auto findIt = m_cacheEntryLookup.find(cmdKey);
-		if (findIt == m_cacheEntryLookup.end())
+		SCOPED_READ_LOCK(bucket.m_cacheEntryLookupLock, lock);
+		auto findIt = bucket.m_cacheEntryLookup.find(cmdKey);
+		if (findIt == bucket.m_cacheEntryLookup.end())
 			return true;
 		auto& cacheEntries = findIt->second;
 		lock.Leave();
@@ -845,7 +955,6 @@ namespace uba
 		reader.ReadString(filterString);
 
 		SCOPED_READ_LOCK(m_maintenanceLock, lock);
-		SCOPED_READ_LOCK(m_cacheEntryLookupLock, lock2);
 
 		StringBuffer<> tempFile(m_storage.GetTempPath());
 		Guid guid;
@@ -875,18 +984,62 @@ namespace uba
 
 		u64 now = GetSystemTimeAsFileTime();
 
-		for (auto& kv : m_cacheEntryLookup)
+		SCOPED_READ_LOCK(m_bucketsLock, bucketsLock);
+		for (auto& kv : m_buckets)
 		{
-			CacheEntries& entries = kv.second;
-			SCOPED_READ_LOCK(entries.lock, lock3);
+			Bucket& bucket = kv.second;
+			SCOPED_READ_LOCK(bucket.m_cacheEntryLookupLock, lock2);
 
-			Set<u32> visibleIndices;
-			if (filterString.count)
+			for (auto& kv2 : bucket.m_cacheEntryLookup)
 			{
+				CacheEntries& entries = kv2.second;
+				SCOPED_READ_LOCK(entries.lock, lock3);
+
+				Set<u32> visibleIndices;
+				if (filterString.count)
+				{
+					u32 index = 0;
+					for (auto& entry : entries.entries)
+					{
+						auto findString = [&](const Vector<u8>& offsets)
+							{
+								BinaryReader reader2(offsets.data(), 0, offsets.size());
+								while (reader2.GetLeft())
+								{
+									u64 offset = reader2.Read7BitEncoded();
+									CasKey casKey;
+									StringBuffer<> path;
+									bucket.m_casKeyTable.GetPathAndKey(path, casKey, bucket.m_pathTable, offset);
+									if (path.Contains(filterString.data))
+										return true;
+								}
+								return false;
+							};
+
+						if (findString(entry.inputCasKeyOffsets) || findString(entry.outputCasKeyOffsets))
+							visibleIndices.insert(index);
+						++index;
+					}
+					if (visibleIndices.empty())
+						continue;
+				}
+
+
+				StringBuffer<> line;
+				writeLine(CasKeyString(kv2.first).str);
 				u32 index = 0;
 				for (auto& entry : entries.entries)
 				{
-					auto findString = [&](const Vector<u8>& offsets)
+					if (!visibleIndices.empty() && visibleIndices.find(index) == visibleIndices.end())
+					{
+						++index;
+						continue;
+					}
+
+					u64 age = MsToTime(GetFileTimeAsSeconds(now - entry.creationTime)*1000);
+					writeLine(line.Clear().Appendf(TC("  #%u (%s ago)"), index, TimeToText(age, true).str).data);
+
+					auto writeOffsets = [&](const Vector<u8>& offsets)
 						{
 							BinaryReader reader2(offsets.data(), 0, offsets.size());
 							while (reader2.GetLeft())
@@ -894,54 +1047,17 @@ namespace uba
 								u64 offset = reader2.Read7BitEncoded();
 								CasKey casKey;
 								StringBuffer<> path;
-								m_casKeyTable.GetPathAndKey(path, casKey, m_pathTable, offset);
-								if (path.Contains(filterString.data))
-									return true;
+								bucket.m_casKeyTable.GetPathAndKey(path, casKey, bucket.m_pathTable, offset);
+								writeLine(line.Clear().Appendf(TC("    %s - %s"), path.data, CasKeyString(casKey).str).data);
 							}
-							return false;
 						};
 
-					if (findString(entry.inputCasKeyOffsets) || findString(entry.outputCasKeyOffsets))
-						visibleIndices.insert(index);
+					writeLine(line.Clear().Append (TC("   Inputs:")).data);
+					writeOffsets(entry.inputCasKeyOffsets);
+					writeLine(line.Clear().Append (TC("   Outputs:")).data);
+					writeOffsets(entry.outputCasKeyOffsets);
 					++index;
 				}
-				if (visibleIndices.empty())
-					continue;
-			}
-
-
-			StringBuffer<> line;
-			writeLine(CasKeyString(kv.first).str);
-			u32 index = 0;
-			for (auto& entry : entries.entries)
-			{
-				if (!visibleIndices.empty() && visibleIndices.find(index) == visibleIndices.end())
-				{
-					++index;
-					continue;
-				}
-
-				u64 age = MsToTime(GetFileTimeAsSeconds(now - entry.creationTime)*1000);
-				writeLine(line.Clear().Appendf(TC("  #%u (%s ago)"), index, TimeToText(age, true).str).data);
-
-				auto writeOffsets = [&](const Vector<u8>& offsets)
-					{
-						BinaryReader reader2(offsets.data(), 0, offsets.size());
-						while (reader2.GetLeft())
-						{
-							u64 offset = reader2.Read7BitEncoded();
-							CasKey casKey;
-							StringBuffer<> path;
-							m_casKeyTable.GetPathAndKey(path, casKey, m_pathTable, offset);
-							writeLine(line.Clear().Appendf(TC("    %s - %s"), path.data, CasKeyString(casKey).str).data);
-						}
-					};
-
-				writeLine(line.Clear().Append (TC("   Inputs:")).data);
-				writeOffsets(entry.inputCasKeyOffsets);
-				writeLine(line.Clear().Append (TC("   Outputs:")).data);
-				writeOffsets(entry.outputCasKeyOffsets);
-				++index;
 			}
 		}
 

@@ -2,20 +2,19 @@
 
 #pragma once
 
-#include "UbaNetwork.h"
-#include "UbaSessionServerCreateInfo.h"
-#include "UbaProcessStartInfo.h"
+#include "UbaLogWriter.h"
+#include "UbaDefaultConstants.h"
 
 namespace uba
 {
 	class CacheClient;
+	class NetworkServer;
 	class Process;
 	class ProcessHandle;
 	class RootPaths;
 	class Session;
 	class SessionServer;
 	class Scheduler;
-	class Storage;
 	class StorageServer;
 	struct ProcessStartInfo;
 	struct SessionServerCreateInfo;
@@ -49,9 +48,9 @@ extern "C"
 	// NetworkServer
 	UBA_API uba::NetworkServer* NetworkServer_Create(uba::LogWriter& writer = uba::g_consoleLogWriter, uba::u32 workerCount = 64, uba::u32 sendSize = uba::SendDefaultSize, uba::u32 receiveTimeoutSeconds = 60, bool useQuic = false);
 	UBA_API void NetworkServer_Destroy(uba::NetworkServer* server);
-	UBA_API bool NetworkServer_StartListen(uba::NetworkServer* server, int port, const uba::tchar* ip, const uba::tchar* crypto = nullptr);
+	UBA_API bool NetworkServer_StartListen(uba::NetworkServer* server, int port = uba::DefaultPort, const uba::tchar* ip = nullptr, const uba::tchar* crypto = nullptr);
 	UBA_API void NetworkServer_Stop(uba::NetworkServer* server);
-	UBA_API bool NetworkServer_AddClient(uba::NetworkServer* server, const uba::tchar* ip, int port, const uba::tchar* crypto = nullptr);
+	UBA_API bool NetworkServer_AddClient(uba::NetworkServer* server, const uba::tchar* ip, int port = uba::DefaultPort, const uba::tchar* crypto = nullptr);
 
 	// StorageServer
 	UBA_API uba::StorageServer* StorageServer_Create(uba::NetworkServer& server, const uba::tchar* rootDir, uba::u64 casCapacityBytes, bool storeCompressed, uba::LogWriter& writer = uba::g_consoleLogWriter, const uba::tchar* zone = TC(""));
@@ -123,8 +122,8 @@ extern "C"
 	// Cache
 	UBA_API uba::CacheClient* CacheClient_Create(uba::SessionServer* session);
 	UBA_API bool CacheClient_Connect(uba::CacheClient* cacheClient, const uba::tchar* host, int port);
-	UBA_API bool CacheClient_WriteToCache(uba::CacheClient* cacheClient, uba::RootPaths* rootPaths, const uba::ProcessHandle* process);
-	UBA_API bool CacheClient_FetchFromCache(uba::CacheClient* cacheClient, uba::RootPaths* rootPaths, const uba::ProcessStartInfo& info);
+	UBA_API bool CacheClient_WriteToCache(uba::CacheClient* cacheClient, uba::RootPaths* rootPaths, uba::u32 bucket, const uba::ProcessHandle* process);
+	UBA_API bool CacheClient_FetchFromCache(uba::CacheClient* cacheClient, uba::RootPaths* rootPaths, uba::u32 bucket, const uba::ProcessStartInfo& info);
 	UBA_API void CacheClient_Destroy(uba::CacheClient* cacheClient);
 
 	// Misc
@@ -133,23 +132,4 @@ extern "C"
 
 	using ImportFunc = void(const uba::tchar* importName, void* userData);
 	UBA_API void Uba_FindImports(const uba::tchar* binary, ImportFunc* func, void* userData);
-
-
-
-
-	// Deprecated.. delete as soon as binaries are updated and code is using new api
-	#define UBA_DEP_API UBA_API
-	UBA_DEP_API uba::NetworkServer* CreateServer(uba::LogWriter& writer = uba::g_consoleLogWriter, uba::u32 workerCount = 64, uba::u32 sendSize = uba::SendDefaultSize, uba::u32 receiveTimeoutSeconds = 60, bool useQuic = false);
-	UBA_DEP_API void DestroyServer(uba::NetworkServer* server);
-	UBA_DEP_API bool Server_StartListen(uba::NetworkServer* server, int port, const uba::tchar* ip, const uba::tchar* crypto = nullptr);
-	UBA_DEP_API void Server_Stop(uba::NetworkServer* server);
-	UBA_DEP_API bool Server_AddClient(uba::NetworkServer* server, const uba::tchar* ip, int port, const uba::tchar* crypto = nullptr);
-	UBA_DEP_API uba::ProcessStartInfo* CreateProcessStartInfo(const uba::tchar* application, const uba::tchar* arguments, const uba::tchar* workingDir, const uba::tchar* description, uba::u32 priorityClass, uba::u64 outputStatsThresholdMs, bool trackInputs, const uba::tchar* logFile, ProcessHandle_ExitCallback* exit);
-	UBA_DEP_API void DestroyProcessStartInfo(uba::ProcessStartInfo* info);
-	UBA_DEP_API uba::Storage* CreateStorageServer(uba::NetworkServer& server, const uba::tchar* rootDir, uba::u64 casCapacityBytes, bool storeCompressed, uba::LogWriter& writer = uba::g_consoleLogWriter, const uba::tchar* zone = TC(""));
-	UBA_DEP_API void DestroyStorageServer(uba::Storage* storageServer);
-	UBA_DEP_API void Storage_DeleteFile(uba::Storage* storage, const uba::tchar* file);
-	UBA_DEP_API uba::SessionServer* CreateSessionServer(const uba::SessionServerCreateInfo& info);
-	UBA_DEP_API void DestroySessionServer(uba::SessionServer* server);
 }
-

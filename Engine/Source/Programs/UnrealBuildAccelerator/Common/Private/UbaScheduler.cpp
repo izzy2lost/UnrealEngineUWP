@@ -406,7 +406,7 @@ namespace uba
 						ProcessStartInfo& si = exitInfo->startInfo->startInfo;
 						u64 startTime = GetTime();
 
-						if (m_cacheClient->FetchFromCache(*m_rootPaths[0], si))
+						if (m_cacheClient->FetchFromCache(*m_rootPaths[0], 0, si))
 						{
 							auto process = new CachedProcess(si);
 							ProcessHandle ph(process);
@@ -516,7 +516,7 @@ namespace uba
 		delete si;
 
 		if (m_writeToCache && exitCode == 0 && process.GetStartInfo().trackInputs)
-			m_cacheClient->WriteToCache(*m_rootPaths[0], ph);
+			m_cacheClient->WriteToCache(*m_rootPaths[0], 0, ph);
 
 		ph.m_process = nullptr;
 	}

@@ -66,7 +66,7 @@ namespace uba
 		const tchar* GetId(); // Id for session. Will be "yymmdd_hhmmss" unless SessionCreateInfo.useUniqueId is set to false
 		u32 GetActiveProcessCount(); // Current active processes running inside session
 		Storage& GetStorage(); // Storage (only used when remote machines are connected)
-		Logger& GetLogger(); // Logger used for logging 
+		MutableLogger& GetLogger(); // Logger used for logging 
 		LogWriter& GetLogWriter(); // LogWriter used by logger
 		Trace& GetTrace(); // Trace written to be session
 		const ApplicationRules* GetRules(const ProcessStartInfo& si); // Get application rules used for process

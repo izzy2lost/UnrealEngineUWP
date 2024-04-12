@@ -73,6 +73,7 @@ namespace uba
 		//void UnregisterOnConnection(u8 id);
 
 		virtual void AddWork(const Function<void()>& work, u32 count, const tchar* desc) override final;
+		virtual void DoWork(u32 count = 1) override final;
 		virtual u32 GetWorkerCount() override final;
 
 		struct ClientStats
@@ -82,6 +83,7 @@ namespace uba
 			u32 connectionCount = 0;
 		};
 
+		MutableLogger& GetLogger();
 		u64 GetTotalSentBytes();
 		u64 GetTotalRecvBytes();
 		u32 GetConnectionCount();
@@ -108,7 +110,7 @@ namespace uba
 
 		void RemoveDisconnectedConnections();
 
-		LoggerWithWriter m_logger;
+		MutableLogger m_logger;
 
 		CryptoKey m_listenCrypto = InvalidCryptoKey;
 		Guid m_uid;
