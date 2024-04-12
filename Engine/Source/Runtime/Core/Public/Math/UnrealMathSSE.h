@@ -3476,7 +3476,7 @@ FORCEINLINE VectorRegister4Int VectorDoubleToInt(const VectorRegister4Double& Ve
 {
 	VectorRegister4Int A = _mm_cvttpd_epi32(Vec.GetXY());
 	VectorRegister4Int B = _mm_cvttpd_epi32(Vec.GetZW());
-	return _mm_xor_si128(A, _mm_shuffle_epi32(B, SHUFFLEMASK(2, 3, 0, 1)));
+	return _mm_unpacklo_epi64(A, B);
 }
 
 FORCEINLINE VectorRegister4Int VectorShuffleByte4(const VectorRegister4Int& Vec, const VectorRegister4Int& Mask)

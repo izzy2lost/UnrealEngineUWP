@@ -302,6 +302,14 @@ FORCEINLINE constexpr VectorRegister2Double MakeVectorRegister2DoubleConstant(do
 	return VectorRegister2Double { X, Y };
 }
 
+FORCEINLINE VectorRegister4Int MakeVectorRegisterInt64(int64 X, int64 Y)
+{
+	VectorRegister4Int Vec;
+	((int64&)Vec.V[0]) = X;
+	((int64&)Vec.V[2]) = Y;
+	return Vec;
+}
+
 /*=============================================================================
  *	Constants:
  *============================================================================*/
@@ -2497,6 +2505,33 @@ FORCEINLINE VectorRegister4Int VectorFloatToInt(const VectorRegister4Double& A)
 		(int32)A.V[3]);
 }
 
+FORCEINLINE VectorRegister4Int VectorDoubleToInt(const VectorRegister4Double& A)
+{
+	return VectorFloatToInt(A);
+}
+
+FORCEINLINE VectorRegister4Int VectorShuffleByte4(const VectorRegister4Int& Vec, const VectorRegister4Int& Mask)
+{
+	const int8* VecPtr = (const int8*)&Vec;
+	const uint8* MaskPtr = (const uint8*)&Mask;
+	
+	VectorRegister4Int OutVec;
+	int8* OutPtr = (int8*)&OutVec;
+	
+	constexpr uint32 NumBytes = sizeof(VectorRegister4Int);
+
+	// We use 0x10 here to denote zero fill which is compatible with both SSE, which uses >= 0x80,
+	// and Neon, which uses >= number of source bytes
+	constexpr uint32 ZeroFill = NumBytes;
+
+	for (uint32 Index = 0; Index < NumBytes; ++Index)
+	{
+		uint32 M = MaskPtr[Index];
+		OutPtr[Index] = (M < ZeroFill) ? VecPtr[M] : 0;
+	}
+	
+	return OutVec;
+}
 
 //Loads and stores
 
@@ -2580,11 +2615,43 @@ FORCEINLINE VectorRegister4Int VectorIntLoad1(const void* Ptr)
 		IntSplat);
 }
 
+/**
+* Loads 2 int64s from unaligned memory.
+*
+* @param Ptr	Unaligned memory pointer to the 2 int64s
+* @return		VectorRegister4Int(Ptr[0], Ptr[1])
+*/
+
+FORCEINLINE VectorRegister4Int VectorInt64Load(const void* Ptr)
+{
+	int64* IntPtr = (int64*)Ptr;
+	return MakeVectorRegisterInt64(
+		IntPtr[0],
+		IntPtr[1]);
+}
+
+/**
+* Loads 2 doubles from unaligned memory.
+*
+* @param Ptr	Unaligned memory pointer to the 2 doubles
+* @return		VectorRegister2Double(Ptr[0], Ptr[1])
+*/
+
+FORCEINLINE VectorRegister2Double VectorDoubleLoad(const void* Ptr)
+{
+	double* DoublePtr = (double*)Ptr;
+	return MakeVectorRegister2Double(
+		DoublePtr[0],
+		DoublePtr[1]);
+}
+
 #define VectorSetZero()								MakeVectorRegisterFloat(0.f, 0.f, 0.f, 0.f)
 #define VectorSet1(F)								VectorSetFloat1(F)
 #define VectorIntSet1(F)							MakeVectorRegisterInt(F, F, F, F)
 #define VectorCastIntToFloat(Vec)                   VectorLoad((float*)(Vec.V))
 #define VectorCastFloatToInt(Vec)                   VectorIntLoad(Vec.V)
+#define VectorCastDoubleToInt(Vec)                  VectorInt64Load(Vec.V)
+#define VectorCastIntToDouble(Vec)                  VectorDoubleLoad(Vec.V)
 #define VectorShuffleImmediate(Vec, I0, I1, I2, I3) VectorShuffle(Vec, Vec, I3, I2, I1, I0) // ShuffleImmediate shuffle is reversed from our logical shuffle.
 #define VectorShiftLeftImm(Vec, ImmAmt)             static_assert(false, "Unimplemented") // TODO: implement
 #define VectorShiftRightImmArithmetic(Vec, ImmAmt)  static_assert(false, "Unimplemented") // TODO: implement

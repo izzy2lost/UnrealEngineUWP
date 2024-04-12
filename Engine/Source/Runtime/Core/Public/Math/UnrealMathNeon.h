@@ -2861,6 +2861,19 @@ FORCEINLINE VectorRegister4Int VectorFloatToInt(const VectorRegister4Double& A)
 	return VectorFloatToInt(MakeVectorRegisterFloatFromDouble(A));
 }
 
+FORCEINLINE VectorRegister4Int VectorDoubleToInt(const VectorRegister4Double& Vec)
+{
+	VectorRegister2Int64 A = vcvtq_s64_f64(Vec.XY);
+	VectorRegister2Int64 B = vcvtq_s64_f64(Vec.ZW);
+	
+	return vcombine_s32(vqmovn_s64(A), vqmovn_s64(B));
+}
+
+FORCEINLINE VectorRegister4Int VectorShuffleByte4(const VectorRegister4Int& Vec, const VectorRegister4Int& Mask)
+{
+	return vqtbl1q_u8(Vec, Mask);
+}
+
 //Loads and stores
 
 /**
@@ -2911,6 +2924,8 @@ FORCEINLINE VectorRegister4Int VectorFloatToInt(const VectorRegister4Double& A)
 #define VectorSet1(F)                               vdupq_n_f32(F)
 #define VectorCastIntToFloat(Vec)                   ((VectorRegister4f)vreinterpretq_f32_s32(Vec))
 #define VectorCastFloatToInt(Vec)					((VectorRegister4i)vreinterpretq_s32_f32(Vec))
+#define VectorCastDoubleToInt(Vec)                  ((VectorRegister2Int64)vreinterpretq_s64_f64(Vec))
+#define VectorCastIntToDouble(Vec)                  ((VectorRegister2Double)vreinterpretq_f64_s64(Vec))
 #define VectorShiftLeftImm(Vec, ImmAmt)             vshlq_n_s32(Vec, ImmAmt)
 #define VectorShiftRightImmArithmetic(Vec, ImmAmt)  vshrq_n_s32(Vec, ImmAmt)
 #define VectorShiftRightImmLogical(Vec, ImmAmt)     vshrq_n_u32(Vec, ImmAmt)
