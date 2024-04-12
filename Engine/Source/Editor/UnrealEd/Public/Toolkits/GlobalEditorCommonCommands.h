@@ -46,5 +46,8 @@ public:
 	TSharedPtr<FUICommandInfo> SelectNextConsoleExecutor;
 	TSharedPtr<FUICommandInfo> OpenOutputLogDrawer;
 	TSharedPtr<FUICommandInfo> OpenContentBrowserDrawer;
+
+	/** Level file commands */
+	TSharedPtr<FUICommandInfo> OpenLevel;
 };
 
