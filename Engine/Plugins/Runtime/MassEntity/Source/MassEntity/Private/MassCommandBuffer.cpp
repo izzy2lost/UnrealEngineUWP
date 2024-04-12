@@ -139,10 +139,9 @@ bool FMassCommandBuffer::Flush(FMassEntityManager& EntityManager)
 				
 		for (int32 k = 0; k < CommandsOrder.Num() && CommandsOrder[k].IsValid(); ++k)
 		{
-			const int32 CommandIndex = CommandsOrder[k].Index;
-			FMassBatchedCommand* Command = CommandIndex < OwnedCommandsCount
-				? CommandInstances[CommandIndex]
-				: AppendedCommandInstances[CommandIndex - OwnedCommandsCount];
+			FMassBatchedCommand* Command = k < OwnedCommandsCount
+				? CommandInstances[CommandsOrder[k].Index]
+				: AppendedCommandInstances[CommandsOrder[k].Index - OwnedCommandsCount];
 			check(Command)
 
 #if CSV_PROFILER
