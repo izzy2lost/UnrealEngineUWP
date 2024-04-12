@@ -291,8 +291,13 @@ export class IPC {
 							}
 						}
 					}
-					if (!hasAutomergeTarget && edge.flags.has('automatic') && edge.source.stream == changeToConsider.node) {
-						hasAutomergeTarget = true
+					if (!hasAutomergeTarget && edge.flags.has('automatic')) {
+						if (typeof changeToConsider.node === 'string') {
+							hasAutomergeTarget = edge.source.stream == changeToConsider.node
+						}
+						else {
+							hasAutomergeTarget = edge.source.stream == changeToConsider.node.stream
+						}
 					}
 					if (includeInResults && hasAutomergeTarget) {
 						break
