@@ -39,6 +39,7 @@
 #include "UObject/PropertyBag.h"
 #include "UObject/PropertyBagRepository.h"
 #include "UObject/PropertyOptional.h"
+#include "UObject/PropertyPathNameTree.h"
 #include "UObject/StructOnScope.h"
 #include "UObject/StructScriptLoader.h"
 #include "UObject/PropertyHelper.h"
@@ -582,6 +583,27 @@ IMPLEMENT_CORE_INTRINSIC_CLASS(UField, UObject,
 /*-----------------------------------------------------------------------------
 	UStruct implementation.
 -----------------------------------------------------------------------------*/
+
+static bool PropertyTypeContainsStructOrEnum(UE::FPropertyTypeName Type)
+{
+	const FName Name = Type.GetName();
+	if ((Name == NAME_StructProperty) ||
+		(Name == NAME_EnumProperty) ||
+		(Name == NAME_ByteProperty && Type.GetParameterCount() > 0))
+	{
+		return true;
+	}
+	const int32 Count = Type.GetParameterCount();
+	for (int32 Index = 1; Index < Count; ++Index)
+	{
+		if (PropertyTypeContainsStructOrEnum(Type.GetParameter(Index)))
+		{
+			return true;
+		}
+	}
+	// Handle parameter 0 at the end to give the compiler freedom to make this a tail call.
+	return Count > 0 && PropertyTypeContainsStructOrEnum(Type.GetParameter(0));
+}
 
 #if WITH_EDITORONLY_DATA
 static int32 GetNextFieldPathSerialNumber()
@@ -1489,22 +1511,9 @@ void UStruct::SerializeVersionedTaggedProperties(FStructuredArchive::FSlot Slot,
 		else
 #endif // WITH_TEXT_ARCHIVE_SUPPORT
 		{
-			auto TryFindPropertyBag = [PropertyBag = (FPropertyBag*)nullptr, bSearched = false, SerializeContext]() mutable -> FPropertyBag*
-			{
-				if (bSearched)
-				{
-					return PropertyBag;
-				}
-				bSearched = true;
-				if (SerializeContext && SerializeContext->bSerializeUnknownProperty)
-				{
-					if (UObject* Object = SerializeContext->SerializedObject)
-					{
-						PropertyBag = FPropertyBagRepository::Get().CreateOuterBag(Object);
-					}
-				}
-				return PropertyBag;
-			};
+			// Track whether the unknown property tree has been looked up.
+			FPropertyPathNameTree* UnknownPropertyTree = nullptr;
+			bool bSearchedForUnknownPropertyTree = false;
 
 			// Load tagged properties.
 			FStructuredArchive::FStream PropertiesStream = Slot.EnterStream();
@@ -1625,6 +1634,8 @@ void UStruct::SerializeVersionedTaggedProperties(FStructuredArchive::FSlot Slot,
 					SerializedPropertyPath.Emplace(SerializeContext, Segment, UE::ESerializedPropertyPathNotify::Yes);
 				}
 
+				bool bTryStoreUnknownPropertyPath = false;
+
 				if (Property)
 				{
 	#if WITH_EDITOR
@@ -1666,13 +1677,11 @@ void UStruct::SerializeVersionedTaggedProperties(FStructuredArchive::FSlot Slot,
 							}
 						}
 
-						bool bTryLoadIntoPropertyBag = false;
-
 						switch (Property->ConvertFromType(Tag, ValueSlot, Data, DefaultsStruct, Defaults))
 						{
 							case EConvertFromTypeResult::Converted:
 								bAdvanceProperty = true;
-								bTryLoadIntoPropertyBag = true;
+								bTryStoreUnknownPropertyPath = true;
 								break;
 
 							case EConvertFromTypeResult::Serialized:
@@ -1686,7 +1695,7 @@ void UStruct::SerializeVersionedTaggedProperties(FStructuredArchive::FSlot Slot,
 										*WriteToString<32>(Tag.Name), *WriteToString<32>(GetFName()),
 										*WriteToString<32>(Tag.Type), *WriteToString<32>(PropID),
 										*UnderlyingArchive.GetArchiveName());
-									bTryLoadIntoPropertyBag = true;
+									bTryStoreUnknownPropertyPath = true;
 								}
 								else
 								{
@@ -1700,45 +1709,68 @@ void UStruct::SerializeVersionedTaggedProperties(FStructuredArchive::FSlot Slot,
 								break;
 
 							case EConvertFromTypeResult::CannotConvert:
-								bTryLoadIntoPropertyBag = true;
+								bTryStoreUnknownPropertyPath = true;
 								break;
 
 							default:
 								checkNoEntry();
 								break;
 						}
+					}
+				}
+				else
+				{
+					bTryStoreUnknownPropertyPath = true;
+				}
 
-						if (bTryLoadIntoPropertyBag)
+				// Track the path for an unknown property and serialize it to track any unknown property within it.
+				if (UNLIKELY(bTryStoreUnknownPropertyPath))
+				{
+					if (!bSearchedForUnknownPropertyTree)
+					{
+						bSearchedForUnknownPropertyTree = true;
+						if (SerializeContext && SerializeContext->bSerializeUnknownProperty)
 						{
-							if (FPropertyBag* PropertyBag = TryFindPropertyBag())
+							if (UObject* Object = SerializeContext->SerializedObject)
 							{
-								Tag.SetProperty(nullptr);
-								UnderlyingArchive.Seek(StartOfProperty);
-								FStructuredArchive::FSlot ValueSlotCopy = PropertyRecord.EnterField(TEXT("Value"));
-								PropertyBag->LoadPropertyByTag(SerializeContext->SerializedPropertyPath, Tag, ValueSlotCopy, Property->ContainerPtrToValuePtrForDefaults<uint8>(DefaultsStruct, Defaults, Tag.ArrayIndex));
+								UnknownPropertyTree = FPropertyBagRepository::Get().CreateUnknownPropertyTree(Object);
 							}
 						}
 					}
-				}
-				else if (FPropertyBag* PropertyBag = TryFindPropertyBag(); PropertyBag && SerializeContext)
-				{
-					// TODO: Might we find defaults in a property bag for Defaults?
-					FStructuredArchive::FSlot ValueSlot = PropertyRecord.EnterField(TEXT("Value"));
-					PropertyBag->LoadPropertyByTag(SerializeContext->SerializedPropertyPath, Tag, ValueSlot);
-					
-					// we still want to set overrides for loose properties because they will be used by the IDO.
-					if (!UnderlyingArchive.IsTransacting())
+
+					if (UnknownPropertyTree)
 					{
-						if (FOverriddenPropertySet* OverriddenProperties = FOverridableSerializationLogic::GetOverriddenProperties())
+						UnknownPropertyTree->Add(SerializeContext->SerializedPropertyPath);
+
+						const bool bSerializeValue = PropertyTypeContainsStructOrEnum(Tag.GetType());
+						const bool bRestoreOverrideOperation = Tag.OverrideOperation != EOverriddenPropertyOperation:: None && !Property && !UnderlyingArchive.IsTransacting();
+
+						// Try to construct a field from the property tag for serialization and overrides.
+						if (bSerializeValue || bRestoreOverrideOperation)
 						{
-							// No need to restore none operations
-							if (Tag.OverrideOperation != EOverriddenPropertyOperation::None)
+							TUniquePtr<FField> TempField(FField::TryConstruct(Tag.Type, {}, Tag.Name, RF_NoFlags));
+							if (FProperty* TempProperty = CastField<FProperty>(TempField.Get()); TempProperty && TempProperty->LoadTypeName(Tag.GetType()))
 							{
-								// SetOverriddenPropertyOperation only needs to know the property name so we'll just construct a dummy property
-								FProperty* PropertyToOverride = CastField<FProperty>(FField::TryConstruct(Tag.Type, {}, Tag.Name, RF_NoFlags));
-								check(PropertyToOverride);
-								OverriddenProperties->SetOverriddenPropertyOperation(Tag.OverrideOperation, UnderlyingArchive.GetSerializedPropertyChain(), PropertyToOverride);
-								delete PropertyToOverride;
+								TempProperty->Link(UnderlyingArchive);
+
+								// Serialize the value if it contains a struct or enum because only those may contain an unknown property.
+								if (bSerializeValue)
+								{
+									UnderlyingArchive.Seek(StartOfProperty);
+									FStructuredArchive::FSlot ValueSlotCopy = PropertyRecord.EnterField(TEXT("Value"));
+									void* TempData = TempProperty->AllocateAndInitializeValue();
+									Tag.SerializeTaggedProperty(ValueSlotCopy, TempProperty, (uint8*)TempData, nullptr);
+									TempProperty->DestroyAndFreeValue(TempData);
+								}
+
+								// Restore overrides for unknown properties.
+								if (bRestoreOverrideOperation)
+								{
+									if (FOverriddenPropertySet* OverriddenProperties = FOverridableSerializationLogic::GetOverriddenProperties())
+									{
+										OverriddenProperties->SetOverriddenPropertyOperation(Tag.OverrideOperation, UnderlyingArchive.GetSerializedPropertyChain(), TempProperty);
+									}
+								}
 							}
 						}
 					}

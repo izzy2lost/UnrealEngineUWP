@@ -14,6 +14,7 @@ namespace UE
 
 class FPropertyBag;
 class FPropertyPathName;
+class FPropertyPathNameTree;
 
 // Singleton class tracking property bag association with objects
 class FPropertyBagRepository : public FGCObject
@@ -22,7 +23,8 @@ class FPropertyBagRepository : public FGCObject
 	{
 		void Destroy();
 		
-		FPropertyBag* Bag = nullptr;		// The existence of an association implies the existence of the bag. TODO: Ref bags via handle? Store as value?
+		FPropertyBag* Bag = nullptr; // TODO: Ref bags via handle? Store as value?
+		FPropertyPathNameTree* Tree = nullptr;
 		TObjectPtr<UObject> InstanceDataObject = nullptr;
 	};
 	// TODO: Make private throughout and extend access permissions here or in wrapper classes? Don't want engine code modifying bags outside of serializers and details panels.
@@ -65,6 +67,11 @@ public:
 	// TODO: Restrict bag creation to actor creation and UStruct::SerializeVersionedTaggedProperties?
 	// Object owner is tracked internally
 	FPropertyBag* CreateOuterBag(const UObject* Owner);
+
+	/**
+	 * Finds or creates a property path name tree to collect unknown property paths within the owner.
+	 */
+	FPropertyPathNameTree* CreateUnknownPropertyTree(const UObject* Owner);
 
 	// Future version for reworked InstanceDataObjects - track InstanceDataObject rather than bag (directly):
 	/**

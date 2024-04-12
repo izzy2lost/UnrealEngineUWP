@@ -4,15 +4,14 @@
 
 #include "HAL/Platform.h"
 
+class FFieldVariant;
 class FProperty;
 class UClass;
 class UObject;
 class UStruct;
-class FProperty;
-class FFieldVariant;
 
-namespace UE { class FPropertyBag; }
 namespace UE { class FPropertyPathName; }
+namespace UE { class FPropertyPathNameTree; }
 
 namespace UE
 {
@@ -24,8 +23,8 @@ namespace UE
  */
 bool IsInstanceDataObjectSupportEnabled(UObject* Object = nullptr);
 
-/** Generate a UClass that contains the union of the properties of PropertyBag and OwnerClass. */
-UClass* CreateInstanceDataObjectClass(const FPropertyBag* PropertyBag, UClass* OwnerClass, UObject* Outer);
+/** Generate a UClass that contains the union of the properties of PropertyTree and OwnerClass. */
+UClass* CreateInstanceDataObjectClass(const FPropertyPathNameTree* PropertyTree, UClass* OwnerClass, UObject* Outer);
 
 /** Mark a property within the object as having been set during deserialization. */
 void MarkPropertySetBySerialization(UObject* Object, const FPropertyPathName& Path);

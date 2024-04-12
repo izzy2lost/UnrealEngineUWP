@@ -3,6 +3,7 @@
 #include "UObject/InstanceDataObjectUtils.h"
 
 #include "HAL/IConsoleManager.h"
+#include "Misc/ReverseIterate.h"
 #include "UObject/Class.h"
 #include "UObject/EnumProperty.h"
 #include "UObject/Field.h"
@@ -10,6 +11,7 @@
 #include "UObject/PropertyHelper.h"
 #include "UObject/PropertyBagRepository.h"
 #include "UObject/PropertyOptional.h"
+#include "UObject/PropertyPathNameTree.h"
 #include "UObject/UnrealType.h"
 
 static const FName NAME_ValuesSetBySerialization(ANSITEXTVIEW("_ValuesSetBySerialization"));
@@ -311,13 +313,12 @@ namespace UE
 		return true;
 	}
 
-	static UStruct* CreateInstanceDataObjectStructRec(const UClass* StructClass, UStruct* TemplateStruct,
-		UObject* Outer, const TMap<FWildcardPropertyPathName, TMap<FName, const FProperty*>>& LooseProperties, FWildcardPropertyPathName& Path);
-	template <typename TStructType>
-	TStructType* CreateInstanceDataObjectStructRec(UStruct* TemplateStruct, UObject* Outer,
-		const TMap<FWildcardPropertyPathName, TMap<FName, const FProperty*>>& LooseProperties, FWildcardPropertyPathName& Path)
+	static UStruct* CreateInstanceDataObjectStructRec(const UClass* StructClass, UStruct* TemplateStruct, UObject* Outer, const FPropertyPathNameTree* PropertyTree);
+
+	template <typename StructType>
+	StructType* CreateInstanceDataObjectStructRec(UStruct* TemplateStruct, UObject* Outer, const FPropertyPathNameTree* PropertyTree)
 	{
-		return CastChecked<TStructType>(CreateInstanceDataObjectStructRec(TStructType::StaticClass(), TemplateStruct, Outer, LooseProperties, Path));
+		return CastChecked<StructType>(CreateInstanceDataObjectStructRec(StructType::StaticClass(), TemplateStruct, Outer, PropertyTree));
 	}
 
 	static FPropertyPathNameSegment CreateSegmentFromProperty(const FProperty* Inner, int32 Index = INDEX_NONE)
@@ -349,8 +350,7 @@ namespace UE
 	}
 
 	// recursively re-instances all structs contained by this property to include loose properties
-	static void ConvertToInstanceDataObjectProperty(FProperty* Property, FPropertyTypeName PropertyType, UObject* Outer,
-		const TMap<FWildcardPropertyPathName, TMap<FName, const FProperty*>>& LooseProperties, FWildcardPropertyPathName& Path)
+	static void ConvertToInstanceDataObjectProperty(FProperty* Property, FPropertyTypeName PropertyType, UObject* Outer, const FPropertyPathNameTree* PropertyTree)
 	{
 #if WITH_EDITORONLY_DATA
 		if (!Property->HasMetaData(NAME_DisplayName))
@@ -363,7 +363,8 @@ namespace UE
 			}
 		}
 #endif
-const auto TrySetContainsLooseProperties = [](FProperty* Property, const FFieldVariant& Inner)
+
+		const auto TrySetContainsLooseProperties = [](FProperty* Property, const FFieldVariant& Inner)
 		{
 #if WITH_EDITORONLY_DATA
 			if (Inner.HasMetaData(NAME_ContainsLoosePropertiesMetadata))
@@ -372,7 +373,7 @@ const auto TrySetContainsLooseProperties = [](FProperty* Property, const FFieldV
 			}
 #endif
 		};
-		
+
 		if (FStructProperty* AsStructProperty = CastField<FStructProperty>(Property))
 		{
 			if (!AsStructProperty->Struct->UseNativeSerialization())
@@ -400,7 +401,7 @@ const auto TrySetContainsLooseProperties = [](FProperty* Property, const FFieldV
 					OriginalName = WriteToString<256>(OriginalNameBuilder.Build()).ToView();
 				}
 #endif
-				UInstanceDataObjectStruct* Struct = CreateInstanceDataObjectStructRec<UInstanceDataObjectStruct>(AsStructProperty->Struct, Outer, LooseProperties, Path);
+				UInstanceDataObjectStruct* Struct = CreateInstanceDataObjectStructRec<UInstanceDataObjectStruct>(AsStructProperty->Struct, Outer, PropertyTree);
 				if (const FName StructGuidName = PropertyType.GetParameterName(1); !StructGuidName.IsNone())
 				{
 					FGuid::Parse(StructGuidName.ToString(), Struct->Guid);
@@ -417,32 +418,40 @@ const auto TrySetContainsLooseProperties = [](FProperty* Property, const FFieldV
 		}
 		else if (FArrayProperty* AsArrayProperty = CastField<FArrayProperty>(Property))
 		{
-			ConvertToInstanceDataObjectProperty(AsArrayProperty->Inner, PropertyType.GetParameter(0), Outer, LooseProperties, Path);
+			ConvertToInstanceDataObjectProperty(AsArrayProperty->Inner, PropertyType.GetParameter(0), Outer, PropertyTree);
 			TrySetContainsLooseProperties(AsArrayProperty, AsArrayProperty->Inner);
 		}
 		else if (FSetProperty* AsSetProperty = CastField<FSetProperty>(Property))
 		{
-			ConvertToInstanceDataObjectProperty(AsSetProperty->ElementProp, PropertyType.GetParameter(0), Outer, LooseProperties, Path);
+			ConvertToInstanceDataObjectProperty(AsSetProperty->ElementProp, PropertyType.GetParameter(0), Outer, PropertyTree);
 			TrySetContainsLooseProperties(AsSetProperty, AsSetProperty->ElementProp);
 		}
 		else if (FMapProperty* AsMapProperty = CastField<FMapProperty>(Property))
 		{
-			Path.Push({NAME_IDOMapKey});
-			ConvertToInstanceDataObjectProperty(AsMapProperty->KeyProp, PropertyType.GetParameter(0), Outer, LooseProperties, Path);
-			Path.Pop();
+			const FPropertyPathNameTree* KeyTree = nullptr;
+			const FPropertyPathNameTree* ValueTree = nullptr;
+			if (PropertyTree)
+			{
+				FPropertyPathName Path;
+				Path.Push({NAME_IDOMapKey});
+				PropertyTree->Find(&KeyTree, Path);
+				Path.Pop();
+				Path.Push({NAME_IDOMapValue});
+				PropertyTree->Find(&ValueTree, Path);
+				Path.Pop();
+			}
+
+			ConvertToInstanceDataObjectProperty(AsMapProperty->KeyProp, PropertyType.GetParameter(0), Outer, KeyTree);
 			TrySetContainsLooseProperties(AsMapProperty, AsMapProperty->KeyProp);
-			
-			Path.Push({NAME_IDOMapValue});
-			ConvertToInstanceDataObjectProperty(AsMapProperty->ValueProp, PropertyType.GetParameter(1), Outer, LooseProperties, Path);
-			Path.Pop();
+			ConvertToInstanceDataObjectProperty(AsMapProperty->ValueProp, PropertyType.GetParameter(1), Outer, ValueTree);
 			TrySetContainsLooseProperties(AsMapProperty, AsMapProperty->ValueProp);
 		}
 		else if (FOptionalProperty* AsOptionalProperty = CastField<FOptionalProperty>(Property))
 		{
-			ConvertToInstanceDataObjectProperty(AsOptionalProperty->GetValueProperty(), PropertyType.GetParameter(0), Outer, LooseProperties, Path);
+			ConvertToInstanceDataObjectProperty(AsOptionalProperty->GetValueProperty(), PropertyType.GetParameter(0), Outer, PropertyTree);
 			TrySetContainsLooseProperties(AsOptionalProperty, AsOptionalProperty->GetValueProperty());
 		}
-		
+
 #if WITH_EDITORONLY_DATA
 		if (Property->GetBoolMetaData(NAME_IsLooseMetadata) || Property->GetBoolMetaData(NAME_ContainsLoosePropertiesMetadata))
 		{
@@ -463,7 +472,7 @@ const auto TrySetContainsLooseProperties = [](FProperty* Property, const FFieldV
 			MarkPropertyAsLoose(AsArrayProperty->Inner);
 		}
 		else if (const FSetProperty* AsSetProperty = CastField<FSetProperty>(Property))
-		{
+{
 			MarkPropertyAsLoose(AsSetProperty->ElementProp);
 		}
 		else if (const FMapProperty* AsMapProperty = CastField<FMapProperty>(Property))
@@ -477,167 +486,92 @@ const auto TrySetContainsLooseProperties = [](FProperty* Property, const FFieldV
 		}
 	}
 
-	// copy template property then convert it into an InstanceDataObject property by adding loose properties
-	static FProperty* CreateInstanceDataObjectProperty(const FProperty* TemplateProperty, UObject* Outer,
-		const TMap<FWildcardPropertyPathName, TMap<FName, const FProperty*>>& LooseProperties, FWildcardPropertyPathName& Path, bool bIsLoose)
-	{
-		FProperty* InstanceDataObjectProperty = CastFieldChecked<FProperty>(FField::Duplicate(TemplateProperty, Outer));
-#if WITH_EDITORONLY_DATA
-		FField::CopyMetaData(TemplateProperty, InstanceDataObjectProperty);
-#endif
-		if (bIsLoose)
-		{
-			MarkPropertyAsLoose(InstanceDataObjectProperty);
-		}
-		
-		ConvertToInstanceDataObjectProperty(InstanceDataObjectProperty, Path.GetSegment(Path.GetSegmentCount() - 1).Type, Outer, LooseProperties, Path);
-		return InstanceDataObjectProperty;
-	}
-
-	// return a copy of Path with all the indices set to -1. This way all container elements will have the same wildcard path
-	static FWildcardPropertyPathName ConvertToWildcardPath(const FPropertyPathName& Path)
-	{
-		FWildcardPropertyPathName Result = Path;
-		// make path a wildcard path
-		for (int I = 0; I < Result.GetSegmentCount(); ++I)
-		{
-			FPropertyPathNameSegment Segment = Result.GetSegment(I);
-			Segment.Index = INDEX_NONE;
-			Result.SetSegment(I, Segment);
-		}
-		return Result;
-	}
-
-	// recursively add all the wildcard paths of both Property and all it's sub-Properties to OutLooseProperties
-	static void AddWildcardedProperties(TMap<FWildcardPropertyPathName, TMap<FName, const FProperty*>>& OutProperties, FWildcardPropertyPathName& ParentPath, const FProperty* Property)
-	{
-		OutProperties.FindOrAdd(ParentPath).Add(Property->GetFName(), Property);
-		
-		ParentPath.Push(CreateSegmentFromProperty(Property));
-		if (const FStructProperty* AsStructProperty = CastField<FStructProperty>(Property))
-		{
-			for (const FProperty* SubProperty : TFieldRange<FProperty>(AsStructProperty->Struct))
-			{
-				AddWildcardedProperties(OutProperties, ParentPath, SubProperty);
-			}
-		}
-		else if (const FArrayProperty* AsArrayProperty = CastField<FArrayProperty>(Property))
-		{
-			AddWildcardedProperties(OutProperties, ParentPath, AsArrayProperty->Inner);
-		}
-		else if (const FSetProperty* AsSetProperty = CastField<FSetProperty>(Property))
-		{
-			AddWildcardedProperties(OutProperties, ParentPath, AsSetProperty->ElementProp);
-		}
-		else if (const FMapProperty* AsMapProperty = CastField<FMapProperty>(Property))
-		{
-			AddWildcardedProperties(OutProperties, ParentPath, AsMapProperty->KeyProp);
-			AddWildcardedProperties(OutProperties, ParentPath, AsMapProperty->ValueProp);
-		}
-		else if (const FOptionalProperty* AsOptionalProperty = CastField<FOptionalProperty>(Property))
-		{
-			AddWildcardedProperties(OutProperties, ParentPath, AsOptionalProperty->GetValueProperty());
-		}
-		ParentPath.Pop();
-	}
-
-	// construct a map that keys a parent struct by it's wildcard path and returns an array of all it's loose properties
-	static TMap<FWildcardPropertyPathName, TMap<FName, const FProperty*>> GetWildcardedLooseProperties(const FPropertyBag* PropertyBag)
-	{
-		
-		TMap<FWildcardPropertyPathName, TMap<FName, const FProperty*>> LooseProperties;
-		if (PropertyBag)
-		{
-			for (FPropertyBag::FConstIterator Itr = PropertyBag->CreateConstIterator(); Itr; ++Itr)
-			{
-				FWildcardPropertyPathName ParentPath = ConvertToWildcardPath(Itr.GetPath());
-				ParentPath.Pop();
-				const FProperty* Property = Itr.GetProperty();
-				if (ensure(Property))
-				{
-					AddWildcardedProperties(LooseProperties, ParentPath, Property);
-				}
-			}
-		}
-		
-		return LooseProperties;
-	}
-	
 	// constructs an InstanceDataObject struct by merging the properties in 
-	static UStruct* CreateInstanceDataObjectStructRec(const UClass* StructClass, UStruct* TemplateStruct,
-		UObject* Outer, const TMap<FWildcardPropertyPathName, TMap<FName, const FProperty*>>& LooseProperties, FWildcardPropertyPathName& Path)
+	static UStruct* CreateInstanceDataObjectStructRec(const UClass* StructClass, UStruct* TemplateStruct, UObject* Outer, const FPropertyPathNameTree* PropertyTree)
 	{
-		UStruct* Super = nullptr;
+		TSet<FPropertyPathName> SuperPropertyPathsFromTree;
 
-		const TMap<FName, const FProperty*>* BagProperties = LooseProperties.Find(Path);
+		// UClass is required to inherit from UObject
+		UStruct* Super = (StructClass == UClass::StaticClass()) ? UObject::StaticClass() : nullptr;
 
-		auto MatchesBagProperty = [&BagProperties](const FProperty* Property)
-		{
-			if (BagProperties)
-			{
-				if (const FProperty* const* Found = BagProperties->Find(Property->GetFName()))
-				{
-					return (*Found)->SameType(Property);
-				}
-			}
-			return false;
-		};
-		
 		if (TemplateStruct)
 		{
-			const FName SuperName(TemplateStruct->GetName() + TEXT("_Super"));
-			Super = NewObject<UStruct>(Outer, StructClass, MakeUniqueObjectName(nullptr, StructClass, SuperName));
-			
+			{
+				const FName SuperName(WriteToString<128>(TemplateStruct->GetName(), TEXTVIEW("_Super")));
+				UStruct* NewSuper = NewObject<UStruct>(Outer, StructClass, MakeUniqueObjectName(nullptr, StructClass, SuperName));
+				NewSuper->SetSuperStruct(Super);
+				Super = NewSuper;
+			}
+
 			// Gather properties for Super Struct
 			TArray<FProperty*> SuperProperties;
 			for (const FProperty* TemplateProperty : TFieldRange<FProperty>(TemplateStruct))
 			{
-				if (MatchesBagProperty(TemplateProperty))
-				{
-					// this property was determined to be loose despite it being in the template.
-					// this likely occurred due to an entire struct instance being loose and that instance becoming a template
-					continue;
-				}
-				Path.Push(CreateSegmentFromProperty(TemplateProperty));
-				FProperty* SuperProperty = CreateInstanceDataObjectProperty(TemplateProperty, Super, LooseProperties, Path, false);
-				
-				Path.Pop();
+				FProperty* SuperProperty = CastFieldChecked<FProperty>(FField::Duplicate(TemplateProperty, Super));
 				SuperProperties.Add(SuperProperty);
+
+			#if WITH_EDITORONLY_DATA
+				FField::CopyMetaData(TemplateProperty, SuperProperty);
+			#endif
+
+				FPropertyTypeName Type;
+				{
+					FPropertyTypeNameBuilder TypeBuilder;
+					TemplateProperty->SaveTypeName(TypeBuilder);
+					Type = TypeBuilder.Build();
+				}
+
+				// Find the sub-tree containing unknown properties for this template property.
+				const FPropertyPathNameTree* SubTree = nullptr;
+				if (PropertyTree)
+				{
+					FPropertyPathName Path;
+					Path.Push({TemplateProperty->GetFName(), Type});
+					if (PropertyTree->Find(&SubTree, Path))
+					{
+						SuperPropertyPathsFromTree.Add(MoveTemp(Path));
+					}
+				}
+
+				ConvertToInstanceDataObjectProperty(SuperProperty, Type, Super, SubTree);
 			}
 
-			if (StructClass == UClass::StaticClass())
-			{
-				// UClasses are required to inherit from a UObject class
-				Super->SetSuperStruct(UObject::StaticClass());
-			}
-		    
 			// AddCppProperty expects reverse property order for StaticLink to work correctly
-			for (int32 I = SuperProperties.Num() - 1; I >= 0; --I)
+			for (FProperty* Property : ReverseIterate(SuperProperties))
 			{
-				Super->AddCppProperty(SuperProperties[I]);
+				Super->AddCppProperty(Property);
 			}
 			Super->Bind();
-			Super->StaticLink(/*RelinkExistingProperties*/true);
-		}
-		else if (StructClass == UClass::StaticClass())
-		{
-			// UClasses are required to inherit from a UObject class
-			Super = UObject::StaticClass();
+			Super->StaticLink(/*bRelinkExistingProperties*/true);
 		}
 
-		const FName InstanceDataObjectName = (TemplateStruct) ? FName(TemplateStruct->GetName() + TEXT("_InstanceDataObject")) : FName(TEXT("InstanceDataObject"));
+		const FName InstanceDataObjectName = (TemplateStruct) ? FName(WriteToString<128>(TemplateStruct->GetName(), TEXTVIEW("_InstanceDataObject"))) : FName(TEXTVIEW("InstanceDataObject"));
 		UStruct* Result = NewObject<UStruct>(Outer, StructClass, MakeUniqueObjectName(nullptr, StructClass, InstanceDataObjectName));
+		Result->SetSuperStruct(Super);
 
 		// Gather "loose" properties for child Struct
 		TArray<FProperty*> LooseInstanceDataObjectProperties;
-		if (BagProperties)
+		if (PropertyTree)
 		{
-			for (const TPair<FName, const FProperty*>& BagProperty : *BagProperties)
+			for (FPropertyPathNameTree::FConstIterator It = PropertyTree->CreateConstIterator(); It; ++It)
 			{
-				Path.Push(CreateSegmentFromProperty(BagProperty.Value));
-				FProperty* LooseProperty = CreateInstanceDataObjectProperty(BagProperty.Value, Result, LooseProperties, Path, true);
-				Path.Pop();
-				LooseInstanceDataObjectProperties.Add(LooseProperty);
+				FName Name = It.GetName();
+				FPropertyTypeName Type = It.GetType();
+				FPropertyPathName Path;
+				Path.Push({Name, Type});
+				if (!SuperPropertyPathsFromTree.Contains(Path))
+				{
+					// Construct a property from the type and try to use it to serialize the value.
+					FField* Field = FField::TryConstruct(Type.GetName(), Result, Name, RF_NoFlags);
+					if (FProperty* Property = CastField<FProperty>(Field); Property && Property->LoadTypeName(Type))
+					{
+						MarkPropertyAsLoose(Property);
+						ConvertToInstanceDataObjectProperty(Property, Type, Result, It.GetSubTree());
+						LooseInstanceDataObjectProperties.Add(Property);
+						continue;
+					}
+					delete Field;
+				}
 			}
 		}
 
@@ -650,15 +584,13 @@ const auto TrySetContainsLooseProperties = [](FProperty* Property, const FFieldV
 			Result->AddCppProperty(ValuesSetBySerializationProperty);
 		}
 
-		Result->SetSuperStruct(Super);
-		
 		// AddCppProperty expects reverse property order for StaticLink to work correctly
-		for (int32 I = LooseInstanceDataObjectProperties.Num() - 1; I >= 0; --I)
+		for (FProperty* Property : ReverseIterate(LooseInstanceDataObjectProperties))
 		{
-			Result->AddCppProperty(LooseInstanceDataObjectProperties[I]);
+			Result->AddCppProperty(Property);
 		}
 		Result->Bind();
-		Result->StaticLink(/*RelinkExistingProperties*/true);
+		Result->StaticLink(/*bRelinkExistingProperties*/true);
 		return Result;
 	}
 
@@ -697,11 +629,9 @@ const auto TrySetContainsLooseProperties = [](FProperty* Property, const FFieldV
 			CLASS_EditInlineNew | CLASS_CollapseCategories | CLASS_Const | CLASS_CompiledFromBlueprint | CLASS_HasInstancedReference);
 	}
 
-	UClass* CreateInstanceDataObjectClass(const FPropertyBag* PropertyBag, UClass* OwnerClass, UObject* Outer)
+	UClass* CreateInstanceDataObjectClass(const FPropertyPathNameTree* PropertyTree, UClass* OwnerClass, UObject* Outer)
 	{
-		const TMap<FWildcardPropertyPathName, TMap<FName, const FProperty*>> LooseProperties = GetWildcardedLooseProperties(PropertyBag);
-		FWildcardPropertyPathName ParentPath;
-		UClass* Result = CreateInstanceDataObjectStructRec<UClass>(OwnerClass, Outer, LooseProperties, ParentPath);
+		UClass* Result = CreateInstanceDataObjectStructRec<UClass>(OwnerClass, Outer, PropertyTree);
 #if WITH_EDITORONLY_DATA
 		if (const FString& DisplayName = OwnerClass->GetMetaData(NAME_DisplayName); !DisplayName.IsEmpty())
 		{

@@ -9,6 +9,7 @@
 #include "UObject/Object.h"
 #include "UObject/UObjectGlobals.h"
 #include "UObject/PropertyBag.h"
+#include "UObject/PropertyPathNameTree.h"
 #include "UObject/UObjectHash.h"
 #include "UObject/UObjectThreadContext.h"
 #include "UObject/LinkerLoad.h"
@@ -176,14 +177,34 @@ void FPropertyBagRepository::CleanupLevel(const UObject* Level)
 FPropertyBag* FPropertyBagRepository::CreateOuterBag(const UObject* Owner)
 {
 	FPropertyBagRepositoryLock LockRepo(this);
-	const FPropertyBagAssociationData* BagData = AssociatedData.Find(Owner);
-	if(!BagData)
+	FPropertyBagAssociationData* BagData = AssociatedData.Find(Owner);
+	if (!BagData)
 	{
 		FPropertyBagAssociationData NewBagData;
-		NewBagData.Bag = new FPropertyBag;
 		BagData = &AssociatedData.Emplace(Owner, NewBagData);
 	}
+	if (!BagData->Bag)
+	{
+		BagData->Bag = new FPropertyBag;
+	}
 	return BagData->Bag;
+}
+
+// TODO: Create these by class on construction?
+FPropertyPathNameTree* FPropertyBagRepository::CreateUnknownPropertyTree(const UObject* Owner)
+{
+	FPropertyBagRepositoryLock LockRepo(this);
+	FPropertyBagAssociationData* BagData = AssociatedData.Find(Owner);
+	if (!BagData)
+	{
+		FPropertyBagAssociationData NewBagData;
+		BagData = &AssociatedData.Emplace(Owner, NewBagData);
+	}
+	if (!BagData->Tree)
+	{
+		BagData->Tree = new FPropertyPathNameTree;
+	}
+	return BagData->Tree;
 }
 
 UObject* FPropertyBagRepository::CreateInstanceDataObject(UObject* Owner, FArchive* Archive)
@@ -206,8 +227,9 @@ void FPropertyBagRepository::DestroyOuterBag(const UObject* Owner)
 
 bool FPropertyBagRepository::RequiresFixup(const UObject* Object) const
 {
-	const FPropertyBag* PropertyBag = FindBag(Object);
-	return !PropertyBag || PropertyBag->IsEmpty();
+	FPropertyBagRepositoryLock LockRepo(this);
+	const FPropertyBagAssociationData* BagData = AssociatedData.Find(Object);
+	return BagData && BagData->Tree && !BagData->Tree->IsEmpty() && BagData->InstanceDataObject;
 }
 
 bool FPropertyBagRepository::RemoveAssociationUnsafe(const UObject* Owner)
@@ -304,10 +326,10 @@ FString FPropertyBagRepository::GetReferencerName() const
 void FPropertyBagRepository::CreateInstanceDataObjectUnsafe(UObject* Owner, FPropertyBagAssociationData& BagData, FArchive* Archive)
 {
 	check(!BagData.InstanceDataObject);	// No repeated calls
-	const FPropertyBag* PropertyBag = BagData.Bag;
+	const FPropertyPathNameTree* PropertyTree = BagData.Tree;
 	// construct InstanceDataObject class
 	// TODO: should we put the InstanceDataObject or it's class in a package?
-	const UClass* InstanceDataObjectClass = CreateInstanceDataObjectClass(PropertyBag, Owner->GetClass(), GetTransientPackage());
+	const UClass* InstanceDataObjectClass = CreateInstanceDataObjectClass(PropertyTree, Owner->GetClass(), GetTransientPackage());
 
 	TObjectPtr<UObject>* OuterPtr;
 	if (FPropertyBagAssociationData* OuterData = AssociatedData.Find(Owner->GetOuter()))
