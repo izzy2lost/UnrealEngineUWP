@@ -5393,9 +5393,22 @@ bool FAssetDataGatherer::IsMonitored(FStringView LocalPath) const
 	return Discovery->IsMonitored(NormalizeLocalPath(LocalPath));
 }
 
+static const TCHAR* VerseExtensions[] = { TEXT(".verse"), TEXT(".vmodule") };
 bool FAssetDataGatherer::IsVerseFile(FStringView FilePath)
 {
-	return FilePath.EndsWith(TEXT(".verse")) || FilePath.EndsWith(TEXT(".vmodule"));
+	for (const TCHAR* Extension : VerseExtensions)
+	{
+		if (FilePath.EndsWith(Extension))
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
+TConstArrayView<const TCHAR*> FAssetDataGatherer::GetVerseFileExtensions()
+{
+	return TConstArrayView<const TCHAR*>(VerseExtensions, UE_ARRAY_COUNT(VerseExtensions));
 }
 
 void FAssetDataGatherer::SetIsIdle(bool bInIsIdle)

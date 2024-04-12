@@ -237,6 +237,8 @@ public:
 
 	/** Determine, based on the file extension, if the given file path is a Verse file */
 	static bool IsVerseFile(FStringView FilePath);
+	/** Return the list of extensions that indicate verse files. */
+	static TConstArrayView<const TCHAR*> GetVerseFileExtensions();
 
 	/**
 	 * Reads FAssetData information out of a previously initialized package reader

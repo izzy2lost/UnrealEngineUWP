@@ -269,12 +269,14 @@ public:
 	void WaitForGathererIdleIfSynchronous();
 	/** Waits for the gatherer to be idle. */
 	void WaitForGathererIdle(float TimeoutSeconds);
-	/** Callback type for TickGatherer */
+	/** Callback types for TickGatherer */
 	typedef TFunctionRef<void(const TMultiMap<FName, FAssetData*>&)> FAssetsFoundCallback;
+	typedef TFunctionRef<void(const TRingBuffer<FName>&)> FVerseFilesFoundCallback;
 	/** Consume any results from the gatherer and return its status */
 	Impl::EGatherStatus TickGatherer(Impl::FEventContext& EventContext,
 		Impl::FClassInheritanceContext& InheritanceContext, Impl::FInterruptionContext& InOutInterruptionContext,
-		TOptional<FAssetsFoundCallback> AssetsFoundCallback = TOptional<FAssetsFoundCallback>());
+		TOptional<FAssetsFoundCallback> AssetsFoundCallback = TOptional<FAssetsFoundCallback>(),
+		TOptional<FVerseFilesFoundCallback> VerseFilesFoundCallback = TOptional<FVerseFilesFoundCallback>());
 
 	/** Send a log message with the search statistics. 
 	 *  StartTime is used to report wall clock search time in the case of background scan

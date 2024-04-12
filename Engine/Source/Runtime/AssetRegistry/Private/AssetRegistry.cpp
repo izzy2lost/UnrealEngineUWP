@@ -4519,7 +4519,7 @@ bool FAssetRegistryImpl::ClassRequiresGameThreadProcessing(const UClass* Class) 
 
 Impl::EGatherStatus FAssetRegistryImpl::TickGatherer(Impl::FEventContext& EventContext,
 	Impl::FClassInheritanceContext& InheritanceContext, Impl::FInterruptionContext& InOutInterruptionContext,
-	TOptional<FAssetsFoundCallback> AssetsFoundCallback)
+	TOptional<FAssetsFoundCallback> AssetsFoundCallback, TOptional<FVerseFilesFoundCallback> VerseFilesFoundCallback)
 {
 	using namespace UE::AssetRegistry::Impl;
 	bool bLocalIsInGameThread = IsInGameThread();
@@ -4773,6 +4773,11 @@ Impl::EGatherStatus FAssetRegistryImpl::TickGatherer(Impl::FEventContext& EventC
 	if (BackgroundResults.VerseFiles.Num())
 	{
 		LazyStartTimer();
+		if (VerseFilesFoundCallback.IsSet())
+		{
+			VerseFilesFoundCallback.GetValue()(BackgroundResults.VerseFiles);
+		}
+
 		VerseFilesGathered(EventContext, BackgroundResults.VerseFiles, InOutInterruptionContext);
 		if (InOutInterruptionContext.ShouldExitEarly())
 		{
@@ -5618,6 +5623,7 @@ void FAssetRegistryImpl::ScanPathsSynchronous(Impl::FScanPathContext& Context)
 	// If we are forcing a rescan, then delete any old assets that no longer exist. If we are not forcing a rescan,
 	// then there should not be any old assets that no longer exist, so we skip the cost of searching for them.
 	TSet<FSoftObjectPath> OldAssetsToRemove;
+	TSet<FName> OldVerseFilesToRemove;
 	if (Context.bForceRescan)
 	{
 		// Initialize OldAssetsToRemove to the list of all assets in the given paths.
@@ -5639,12 +5645,28 @@ void FAssetRegistryImpl::ScanPathsSynchronous(Impl::FScanPathContext& Context)
 					OldAssetsToRemove.Add(AssetData.ToSoftObjectPath());
 					return true;
 				});
+			for (FName PackagePath : CompiledFilter.PackagePaths)
+			{
+				TArray<FName>* VerseFiles = CachedVerseFilesByPath.Find(PackagePath);
+				if (VerseFiles)
+				{
+					OldVerseFilesToRemove.Append(*VerseFiles);
+				}
+			}
 		}
 		for (const FString& PackageName : Context.PackageFiles)
 		{
 			for (const FAssetData* AssetData : State.GetAssetsByPackageName(FName(*PackageName)))
 			{
 				OldAssetsToRemove.Add(AssetData->ToSoftObjectPath());
+			}
+			for (const TCHAR* Extension : FAssetDataGatherer::GetVerseFileExtensions())
+			{
+				FName VerseName(*WriteToString<256>(PackageName, Extension), FNAME_Find);
+				if (!VerseName.IsNone() && CachedVerseFiles.Contains(VerseName))
+				{
+					OldVerseFilesToRemove.Add(VerseName);
+				}
 			}
 		}
 	}
@@ -5718,10 +5740,22 @@ void FAssetRegistryImpl::ScanPathsSynchronous(Impl::FScanPathContext& Context)
 			}
 		}
 	};
+	auto VerseFileFoundCallback =
+		[&OldVerseFilesToRemove]
+		(const TRingBuffer<FName>& InFoundVerseFiles)
+		{
+			if (!OldVerseFilesToRemove.IsEmpty())
+			{
+				for (const FName VerseFile : InFoundVerseFiles)
+				{
+					OldVerseFilesToRemove.Remove(VerseFile);
+				}
+			}
+		};
 
 	Impl::FInterruptionContext InterruptionContext(-1., -1.);
 	Context.Status = TickGatherer(Context.EventContext, Context.InheritanceContext,	InterruptionContext,
-		FAssetsFoundCallback(AssetsFoundCallback));
+		FAssetsFoundCallback(AssetsFoundCallback), FVerseFilesFoundCallback(VerseFileFoundCallback));
 
 	// Temporary hack/partial solution. The expectation is that this function will return cause all assets
 	// under the specified directories to be ingested into the registry. However, one of the early steps
@@ -5776,10 +5810,15 @@ void FAssetRegistryImpl::ScanPathsSynchronous(Impl::FScanPathContext& Context)
 #endif
 	for (FSoftObjectPath& OldAssetToRemove : OldAssetsToRemove)
 	{
-		bool bOutRemovedAssetData;
-		bool bOutRemovedPackageData;
-		State.RemoveAssetData(OldAssetToRemove, true /* bRemoveDependencyData */,
-			bOutRemovedAssetData, bOutRemovedPackageData);
+		FAssetData* AssetDataToRemove = const_cast<FAssetData*>(State.GetAssetByObjectPath(OldAssetToRemove));
+		if (AssetDataToRemove)
+		{
+			RemoveAssetData(Context.EventContext, AssetDataToRemove);
+		}
+	}
+	for (FName OldVerseFileToRemove : OldVerseFilesToRemove)
+	{
+		RemoveVerseFile(Context.EventContext, OldVerseFileToRemove);
 	}
 }
 
