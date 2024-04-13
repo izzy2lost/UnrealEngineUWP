@@ -30,6 +30,9 @@ public:
 	UPROPERTY(Config, EditAnywhere, Category="Preview")
 	bool bPreviewCheckerBoard = false;
 
+	UPROPERTY(Config, EditAnywhere, Category = "Page Details", meta = (DisplayName = "Show RC Properties"))
+	bool bPageDetailsShowProperties = false;
+
 	/** Current macro collection used by the rundown editor. */
 	UPROPERTY(Config, EditAnywhere, Category="Macros")
 	TSoftObjectPtr<UAvaRundownMacroCollection> MacroCollection;

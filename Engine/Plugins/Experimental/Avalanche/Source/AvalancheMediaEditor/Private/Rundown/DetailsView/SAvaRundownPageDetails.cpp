@@ -1,8 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "SAvaRundownPageDetails.h"
+
 #include "Async/Async.h"
-#include "AvaMediaEditorSettings.h"
 #include "Framework/Application/SlateApplication.h"
 #include "IAvaMediaModule.h"
 #include "Input/Reply.h"
@@ -10,6 +10,7 @@
 #include "RemoteControl/Controllers/SAvaRundownRCControllerPanel.h"
 #include "Rundown/AvaRundown.h"
 #include "Rundown/AvaRundownEditor.h"
+#include "Rundown/AvaRundownEditorSettings.h"
 #include "Rundown/AvaRundownManagedInstanceCache.h"
 #include "Rundown/AvaRundownPage.h"
 #include "Rundown/DetailsView/RemoteControl/Properties/SAvaRundownPageRemoteControlProps.h"
@@ -24,6 +25,15 @@
 #include "Widgets/Text/STextBlock.h"
 
 #define LOCTEXT_NAMESPACE "SAvaRundownPageDetails"
+
+namespace UE::AvaMedia::RundownEditor::Private
+{
+	bool ShouldPageDetailsShowProperties()
+	{
+		const UAvaRundownEditorSettings* RundownEditorSettings = UAvaRundownEditorSettings::Get();
+		return RundownEditorSettings && RundownEditorSettings->bPageDetailsShowProperties;
+	}
+}
 
 void SAvaRundownPageDetails::Construct(const FArguments& InArgs, const TSharedPtr<FAvaRundownEditor>& InRundownEditor)
 {
@@ -175,7 +185,7 @@ void SAvaRundownPageDetails::Construct(const FArguments& InArgs, const TSharedPt
 			.AutoHeight()
 			[
 				SAssignNew(RemoteControlProps, SAvaRundownPageRemoteControlProps, InRundownEditor)
-				.Visibility(UAvaMediaEditorSettings::Get().bPlaybackShowPropertyList ? EVisibility::Visible : EVisibility::Collapsed)
+				.Visibility(UE::AvaMedia::RundownEditor::Private::ShouldPageDetailsShowProperties() ? EVisibility::Visible : EVisibility::Collapsed)
 			]
 		]
 	];
@@ -244,17 +254,19 @@ void SAvaRundownPageDetails::OnManagedInstanceCacheEntryInvalidated(const FSoftO
 
 FReply SAvaRundownPageDetails::ToggleExposedPropertiesVisibility()
 {
-	UAvaMediaEditorSettings& MediaEditorSettings = UAvaMediaEditorSettings::GetMutable();
-	MediaEditorSettings.bPlaybackShowPropertyList = !MediaEditorSettings.bPlaybackShowPropertyList;
-	MediaEditorSettings.SaveConfig();
+	if (UAvaRundownEditorSettings* RundownEditorSettings = UAvaRundownEditorSettings::GetMutable())
+	{
+		RundownEditorSettings->bPageDetailsShowProperties = !RundownEditorSettings->bPageDetailsShowProperties;
+		RundownEditorSettings->SaveConfig();
 
-	if (MediaEditorSettings.bPlaybackShowPropertyList)
-	{
-		RemoteControlProps->SetVisibility(EVisibility::SelfHitTestInvisible);
-	}
-	else
-	{
-		RemoteControlProps->SetVisibility(EVisibility::Collapsed);
+		if (RundownEditorSettings->bPageDetailsShowProperties)
+		{
+			RemoteControlProps->SetVisibility(EVisibility::SelfHitTestInvisible);
+		}
+		else
+		{
+			RemoteControlProps->SetVisibility(EVisibility::Collapsed);
+		}
 	}
 
 	return FReply::Handled();
@@ -262,7 +274,7 @@ FReply SAvaRundownPageDetails::ToggleExposedPropertiesVisibility()
 
 const FSlateBrush* SAvaRundownPageDetails::GetExposedPropertiesVisibilityBrush() const
 {
-	if (UAvaMediaEditorSettings::Get().bPlaybackShowPropertyList)
+	if (UE::AvaMedia::RundownEditor::Private::ShouldPageDetailsShowProperties())
 	{
 		return FAppStyle::GetBrush(TEXT("Level.VisibleHighlightIcon16x"));
 	}
