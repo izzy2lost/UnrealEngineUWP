@@ -39,7 +39,9 @@ namespace Chaos
 
 	extern bool bChaos_Collision_UseCapsuleTriMesh2;
 	extern int32 Chaos_Collision_ConvexTriMeshMode;
-	
+	extern bool bChaos_Collision_ConvexTriMeshInsideCull;
+	extern bool bChaos_Collision_ConvexTriMeshBackFaceCull;
+
 	namespace CVars
 	{
 #if CHAOS_DEBUG_DRAW
@@ -102,6 +104,16 @@ namespace Chaos
 			const FTriangle& Triangle = ContactGenerator.GetTriangle(TriangleIndex);
 			const FVec3 TriangleNormal = ContactGenerator.GetTriangleNormal(TriangleIndex);
 
+			// If the convex origin is inside the triangle, ignore it
+			if (bChaos_Collision_ConvexTriMeshInsideCull)
+			{
+				const FReal ConvexDistance = FVec3::DotProduct(Triangle.GetCentroid() - Convex.GetCenterOfMass(), TriangleNormal);
+				if (ConvexDistance > 0)
+				{
+					return;
+				}
+			}
+
 			// Find the closest feature between the Convex at its initial position X and the Triangle
 			Private::FConvexContactPoint ClosestContact;
 			const bool bFoundClosestContact = Private::FindClosestFeatures(Convex, Triangle, TriangleNormal, FVec3(0), CullDistance, ClosestContact);
@@ -119,6 +131,23 @@ namespace Chaos
 					FDebugDrawQueue::GetInstance().DrawDebugLine(P, P + 10.0f * N, FColor::Black, false, CVars::ChaosSolverDebugDebugDrawSettings.DrawDuration, (uint8)CVars::ChaosSolverDebugDebugDrawSettings.DrawPriority, 1.5f * CVars::ChaosSolverDebugDebugDrawSettings.LineThickness);
 				}
 				#endif
+
+				// Backface cull based on closest contact normal
+				const FReal TriangleDotNormal = FVec3::DotProduct(TriangleNormal, ClosestContact.ShapeContactNormal);
+				if (bChaos_Collision_ConvexTriMeshBackFaceCull)
+				{
+					if (TriangleDotNormal < 0)
+					{
+						return;
+					}
+				}
+
+				// Cull distance is zero for back faces
+				const FReal EffectiveCullDistance = (TriangleDotNormal < 0) ? FReal(0.0) : CullDistance;
+				if (ClosestContact.Phi > EffectiveCullDistance)
+				{
+					return;
+				}
 
 				// Use the mesh info to correct the normal - this corrects edge and vertex normals if they are
 				// outside the range allowed by the set of triangles sharing the feature
@@ -140,8 +169,8 @@ namespace Chaos
 				#endif
 
 				// Back face culling based on the corrected feature
-				const FReal TriangleDotNormal = FVec3::DotProduct(TriangleNormal, ClosestContact.ShapeContactNormal);
-				if (TriangleDotNormal < 0)
+				const FReal TriangleDotCorrectedNormal = FVec3::DotProduct(TriangleNormal, ClosestContact.ShapeContactNormal);
+				if (TriangleDotCorrectedNormal < 0)
 				{
 					return;
 				}
