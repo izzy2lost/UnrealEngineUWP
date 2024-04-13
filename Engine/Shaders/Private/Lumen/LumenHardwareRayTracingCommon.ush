@@ -157,7 +157,6 @@ struct FRayTracedLightingContext
 	bool bHiResSurface;					// Whether to sample high res surface cache data or low res always resident pages
 	bool bAcceptFirstHitAndEndSearch;
 	bool bIsShadowRay;
-	bool bCalculateHitVelocity;
 	bool bUseBookmark;
 	bool bMeshSectionVisibilityTest;
 };
@@ -190,7 +189,6 @@ FRayTracedLightingContext CreateRayTracedLightingContext(
 	Context.bHiResSurface = false;
 	Context.bAcceptFirstHitAndEndSearch = false;
 	Context.bIsShadowRay = false;
-	Context.bCalculateHitVelocity = false;
 	Context.bUseBookmark = false;
 	Context.bMeshSectionVisibilityTest = bMeshSectionVisibilityTest;
 	return Context;
@@ -232,7 +230,7 @@ struct FRayTracedLightingResult
 	float3 Radiance;
 
 	float3 GeometryWorldNormal;
-	float3 WorldVelocity;
+	uint SceneInstanceIndex;
 
 	bool bValidSurfaceCache;
 	uint MaterialShaderIndex;
@@ -250,7 +248,7 @@ FRayTracedLightingResult CreateRayTracedLightingResult()
 	Result.bIsRadianceCompleted = true;
 	Result.Radiance = 0;
 	Result.GeometryWorldNormal = 0.0f;
-	Result.WorldVelocity = 0;
+	Result.SceneInstanceIndex = LUMEN_INVALID_SCENE_INSTANCE_INDEX;
 	Result.bValidSurfaceCache = false;
 	Result.MaterialShaderIndex = RAY_TRACING_DEFERRED_MATERIAL_KEY_INVALID;
 	Result.Bookmark.PackedData[0] = 0xFFFFFFFF;
@@ -280,12 +278,7 @@ FRayTracedLightingResult CreateRayTracedLightingResult(
 		Result.bIsRadianceCompleted = SurfaceCacheSample.bValid;
 		Result.Radiance = SurfaceCacheSample.Radiance;
 		Result.GeometryWorldNormal = MinimalRayResult.HitNormal;
-	}
-
-	if (MinimalRayResult.bHit && Context.bCalculateHitVelocity)
-	{
-		float3 TranslatedWorldPosition = Ray.Origin + Ray.Direction * MinimalRayResult.HitT;
-		Result.WorldVelocity = TranslatedWorldPosition - CalcPrevTranslatedWorldPositionFromGPUSceneInstanceIndex(TranslatedWorldPosition, MinimalRayResult.SceneInstanceIndex);
+		Result.SceneInstanceIndex = MinimalRayResult.SceneInstanceIndex;
 	}
 
 	// Force a black hit when reached max iterations without hitting anything

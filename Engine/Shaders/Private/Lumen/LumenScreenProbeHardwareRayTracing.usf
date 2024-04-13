@@ -119,7 +119,6 @@ LUMEN_HARDWARE_RAY_TRACING_ENTRY(LumenScreenProbeGatherHardwareRayTracing)
 			MaxTraversalIterations,
 			MeshSectionVisibilityTest != 0);
 
-		Context.bCalculateHitVelocity = true;
 		Context.MinTraceDistanceToSampleSurfaceCache = MinTraceDistanceToSampleSurfaceCache;
 
 		#if LUMEN_HARDWARE_INLINE_RAYTRACING
@@ -163,7 +162,8 @@ LUMEN_HARDWARE_RAY_TRACING_ENTRY(LumenScreenProbeGatherHardwareRayTracing)
 		if (Result.bIsHit)
 		{
 			float3 HitTranslatedWorldPosition = Ray.Origin + Ray.Direction * Result.TraceHitDistance;
-			bMoving = IsTraceMoving(TranslatedWorldPosition, SceneDepth, ScreenProbeAtlasCoord, HitTranslatedWorldPosition, Result.WorldVelocity);
+			float3 HitWorldVelocity = HitTranslatedWorldPosition - CalcPrevTranslatedWorldPositionFromGPUSceneInstanceIndex(HitTranslatedWorldPosition, Result.SceneInstanceIndex);
+			bMoving = IsTraceMoving(TranslatedWorldPosition, SceneDepth, ScreenProbeAtlasCoord, HitTranslatedWorldPosition, HitWorldVelocity);
 		}
 
 		Result.Radiance += GetSkylightLeaking(Ray.Direction, Result.TraceHitDistance);
