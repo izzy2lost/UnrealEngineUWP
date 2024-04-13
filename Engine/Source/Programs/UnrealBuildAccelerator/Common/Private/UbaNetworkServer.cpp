@@ -865,8 +865,11 @@ namespace uba
 			if (m_createdWorkerCount != m_maxWorkerCount)
 				return false;
 			lock2.Leave();
+
 			auto worker = t_worker;
-			UBA_ASSERT(worker);
+			if (!worker)
+				return false;
+
 			auto oldContext = worker->m_context;
 			WorkerContext context(*this);
 			worker->m_context = &context;

@@ -517,7 +517,7 @@ namespace uba
 			m_trace.SessionDisconnect(sessionId);
 
 			sessionName.Append(s.name);
-			UBA_ASSERT(s.usedSlotCount == returnCount);
+			UBA_ASSERTF(s.usedSlotCount == returnCount, TC("Used slot count different than return count (%u vs %u)"), s.usedSlotCount, returnCount);
 			s.usedSlotCount -= returnCount;
 
 			if (s.enabled)

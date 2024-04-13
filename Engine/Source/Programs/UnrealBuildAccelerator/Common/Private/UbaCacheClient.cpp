@@ -9,6 +9,8 @@
 #include "UbaStorage.h"
 #include "UbaStorageUtils.h"
 
+#define UBA_LOG_CACHE_INFO 0
+
 namespace uba
 {
 	struct CacheClient::Bucket
@@ -196,6 +198,11 @@ namespace uba
 		if (!SendCacheEntry(bucket, rootPaths, cmdKey, inputsStringToCasKey, outputsStringToCasKey))
 			return false;
 
+
+		#if UBA_LOG_CACHE_INFO
+		m_logger.Info(TC("WRITECACHE: %s -> %u %s"), si.description, bucketId, CasKeyString(cmdKey).str);
+		#endif
+
 		return true;
 	}
 
@@ -255,6 +262,11 @@ namespace uba
 
 		// Traverse entries and test inputs against local machine
 		u32 entryCount = reader.ReadU16();
+
+		#if UBA_LOG_CACHE_INFO
+		auto mg = MakeGuard([&]() { m_logger.Info(TC("FETCHCACHE %s: %s -> %u %s (%u)"), success ? TC("SUCC") : TC("FAIL"), info.description, bucketId, CasKeyString(cmdKey).str, entryCount); });
+		#endif
+
 		for (u32 i=0; i!=entryCount; ++i)
 		{
 			u64 outputSize = 0;

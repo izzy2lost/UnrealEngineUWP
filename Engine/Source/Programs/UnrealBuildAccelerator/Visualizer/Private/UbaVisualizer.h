@@ -82,6 +82,7 @@ namespace uba
 			HBRUSH returned = 0;
 			HBRUSH recv = 0;
 			HBRUSH send = 0;
+			HBRUSH cacheFetch = 0;
 		};
 
 		ProcessBrushes m_processBrushes[2]; // Non-selected and selected

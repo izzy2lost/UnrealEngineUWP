@@ -345,6 +345,8 @@ namespace uba
 			m_processBrushes[1].success = CreateSolidBrush(RGB(10, 140, 10));
 			m_processBrushes[0].send = CreateSolidBrush(RGB(10, 115, 10));
 			m_processBrushes[1].send = CreateSolidBrush(RGB(10, 145, 10));
+			m_processBrushes[0].cacheFetch = CreateSolidBrush(RGB(24, 112, 110));
+			m_processBrushes[1].cacheFetch = CreateSolidBrush(RGB(31, 143, 138));
 
 			m_workBrush = CreateSolidBrush(RGB(70, 70, 100));
 
@@ -379,6 +381,9 @@ namespace uba
 			m_processBrushes[1].success = CreateSolidBrush(RGB(20, 220, 20));
 			m_processBrushes[0].send = CreateSolidBrush(RGB(80, 210, 80));
 			m_processBrushes[1].send = CreateSolidBrush(RGB(90, 250, 90));
+
+			m_processBrushes[0].cacheFetch = CreateSolidBrush(RGB(150, 150, 200));
+			m_processBrushes[1].cacheFetch = CreateSolidBrush(RGB(170, 170, 200));
 
 			m_workBrush = CreateSolidBrush(RGB(150, 150, 200));
 
@@ -1532,6 +1537,8 @@ namespace uba
 			brush = m_processBrushes[selected].returned;
 		else if (!done)
 			brush = m_processBrushes[selected].inProgress;
+		else if (process.cacheFetch)
+			brush = m_processBrushes[selected].cacheFetch;
 		else if (process.exitCode != 0)
 			brush = m_processBrushes[selected].error;
 
