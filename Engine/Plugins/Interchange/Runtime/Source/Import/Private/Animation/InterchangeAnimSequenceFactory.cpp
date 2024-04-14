@@ -418,6 +418,7 @@ namespace UE::Interchange::Private
 
 		TArray<FString> SkeletonNodes;
 		GetSkeletonSceneNodeFlatListRecursive(NodeContainer, SkeletonRootUid, SkeletonNodes);
+		TArray<FString> NonAnimatedSkeletonNodes = SkeletonNodes;
 
 		TMap<FString, FInterchangeAnimationPayLoadKey> PayloadKeys;
 		AnimSequenceFactoryNode->GetSceneNodeAnimationPayloadKeys(PayloadKeys);
@@ -463,6 +464,8 @@ namespace UE::Interchange::Private
 
 			for (TTuple< const UInterchangeSceneNode*, UE::Interchange::FAnimationPayloadData>& AnimationPayload : BoneTrackData.PreProcessedAnimationPayloads)
 			{
+				NonAnimatedSkeletonNodes.Remove(AnimationPayload.Key->GetUniqueID());
+
 				const FName BoneName = FName(*(AnimationPayload.Key->GetDisplayLabel()));
 				UE::Interchange::FAnimationPayloadData& AnimationTransformPayload = AnimationPayload.Value;
 				
@@ -576,6 +579,42 @@ namespace UE::Interchange::Private
 				}
 				Controller.AddBoneCurve(BoneName, bShouldTransact);
 				Controller.SetBoneTrackKeys(BoneName, RawTrack.PosKeys, RawTrack.RotKeys, RawTrack.ScaleKeys, bShouldTransact);
+			}
+
+			//For joint with no animation, verify if the bind pose equal the local time 0 pose.
+			// If not, Add one animation track with only one transform key at time 0 with the Local transform.
+			for (const FString& NonAnimatedSkeletonNodeUID : NonAnimatedSkeletonNodes)
+			{
+				if (const UInterchangeSceneNode* SkeletonNode = Cast<UInterchangeSceneNode>(NodeContainer->GetNode(NonAnimatedSkeletonNodeUID)))
+				{
+					//check if BindPose exists and if it does does it equal to LocalTransform
+					FTransform LocalBindPoseTransform;
+					FTransform LocalTransform;
+					if (SkeletonNode->GetCustomBindPoseLocalTransform(LocalBindPoseTransform)
+						&& SkeletonNode->GetCustomLocalTransform(LocalTransform)
+						&& !LocalBindPoseTransform.Equals(LocalTransform))
+					{
+						//If we bake the mesh and the current non animated node is the root joint, get the global transform instead of the local
+						if (bBakeMeshes && SkeletonNode->GetUniqueID().Equals(SkeletonRootUid))
+						{
+							if (const UInterchangeSceneNode* RootJointNode = Cast<UInterchangeSceneNode>(NodeContainer->GetNode(SkeletonRootUid)))
+							{
+								RootJointNode->GetCustomGlobalTransform(NodeContainer, GlobalOffsetTransform, LocalTransform);
+							}
+						}
+						FTransform3f AnimKeyTransform = static_cast<FTransform3f>(LocalTransform);
+						const FName BoneName = FName(*(SkeletonNode->GetDisplayLabel()));
+						//Add only one transform key at time 0 since this node is not animated
+						FRawAnimSequenceTrack RawTrack;
+						TArray<float> TimeKeys;
+						RawTrack.ScaleKeys.Add(AnimKeyTransform.GetScale3D());
+						RawTrack.PosKeys.Add(AnimKeyTransform.GetLocation());
+						RawTrack.RotKeys.Add(AnimKeyTransform.GetRotation());
+						TimeKeys.Add(0);
+						Controller.AddBoneCurve(BoneName, bShouldTransact);
+						Controller.SetBoneTrackKeys(BoneName, RawTrack.PosKeys, RawTrack.RotKeys, RawTrack.ScaleKeys, bShouldTransact);
+					}
+				}
 			}
 		}
 

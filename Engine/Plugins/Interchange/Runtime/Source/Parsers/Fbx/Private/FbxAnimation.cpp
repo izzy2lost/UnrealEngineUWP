@@ -456,13 +456,10 @@ namespace UE::Interchange::Private
 		FbxScene* SDKScene = nullptr;
 		FbxNode* Node = nullptr;
 		bool IsNodeAnimated = false;
-		bool IsEmptyAnimation = false;	//Report true if Node->Lcl transforms return empty (indicating identity Transform setting for the Animation),
-										//		while the Node (outside of Animation) has a non-identity transform
-										//(We only report true for AddSkeletalTransformAnimation for IsNodeAnimated.)
 		FbxAnimStack* CurrentAnimStack = nullptr;
 	};
 
-	void GetFbxTransformCurves(FGetFbxTransformCurvesParameters& Parameters, const int32& AnimationIndex, UInterchangeSceneNode* SceneNode)
+	void GetFbxTransformCurves(FGetFbxTransformCurvesParameters& Parameters, const int32& AnimationIndex)
 	{
 		if (!ensure(Parameters.SDKScene) || !ensure(Parameters.Node))
 		{
@@ -520,27 +517,6 @@ namespace UE::Interchange::Private
 					{
 						Parameters.IsNodeAnimated = true;
 					}
-				}
-			}
-		}
-
-		if (!Parameters.IsNodeAnimated)
-		{
-			//At this point this flag means that the Local Transform curves have no values.
-			// This could also mean that the node is animated to Identity in case the Node's original transform is not Identity:
-			FTransform LocalTransform;
-			if (SceneNode->GetCustomBindPoseLocalTransform(LocalTransform))
-			{
-				if (!LocalTransform.Equals(FTransform::Identity))
-				{
-					Parameters.IsEmptyAnimation = true;
-				}
-			}
-			else if (SceneNode->GetCustomLocalTransform(LocalTransform))
-			{
-				if (!LocalTransform.Equals(FTransform::Identity))
-				{
-					Parameters.IsEmptyAnimation = true;
 				}
 			}
 		}
@@ -852,9 +828,9 @@ namespace UE::Interchange::Private
 		, const int32& AnimationIndex)
 	{
 		FGetFbxTransformCurvesParameters Parameters(SDKScene, Node);
-		GetFbxTransformCurves(Parameters, AnimationIndex, SceneNode);
+		GetFbxTransformCurves(Parameters, AnimationIndex);
 
-		if (Parameters.IsNodeAnimated || Parameters.IsEmptyAnimation)
+		if (Parameters.IsNodeAnimated)
 		{
 			FString PayLoadKey = Parser.GetFbxHelper()->GetFbxNodeHierarchyName(Node) + TEXT("_") + FString::FromInt(AnimationIndex) + TEXT("_SkeletalAnimationPayloadKey");
 			if (ensure(!PayloadContexts.Contains(PayLoadKey)))
