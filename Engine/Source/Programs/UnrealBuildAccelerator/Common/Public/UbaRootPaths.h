@@ -91,7 +91,7 @@ namespace uba
 			func(&temp, 1, destPos);
 			destPos += 1;
 
-			searchPos = pathStart + root->path.size() - 1;
+			searchPos = pathStart + root->path.size();
 		}
 	}
 }

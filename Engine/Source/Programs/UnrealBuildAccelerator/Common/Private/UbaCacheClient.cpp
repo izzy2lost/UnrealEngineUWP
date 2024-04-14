@@ -382,7 +382,7 @@ namespace uba
 
 						if (u32 toWrite = rootPathLen - 1)
 							memcpy(localBlock.Allocate(toWrite, 1, TC("")), rootPath, toWrite);
-						lastWritten = rootOffset + 2;
+						lastWritten = rootOffset + 1;
 					}
 
 					u64 fileSize = rootOffsets - sizeof(u32);
