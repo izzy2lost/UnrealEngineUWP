@@ -87,7 +87,8 @@ class ExportAppleBuild : BuildCommand
 		Logger.LogInformation($"Running 'xcodebuild {CommandLine}'...");
 
 		int Return;
-		Utils.RunLocalProcessAndReturnStdOut("/usr/bin/xcodebuild", CommandLine, Logger, out Return);
+		string Output = Utils.RunLocalProcessAndReturnStdOut("/usr/bin/xcodebuild", CommandLine, null, out Return);
+		Logger.LogInformation(Output);
 
 		return (ExitCode)Return;
 	}
