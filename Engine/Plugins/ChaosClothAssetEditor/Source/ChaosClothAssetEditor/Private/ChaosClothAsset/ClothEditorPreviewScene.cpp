@@ -173,7 +173,6 @@ void FChaosClothPreviewScene::AddReferencedObjects(FReferenceCollector& Collecto
 	Collector.AddReferencedObject(ClothComponent);
 	Collector.AddReferencedObject(SkeletalMeshComponent);
 	Collector.AddReferencedObject(SceneActor);
-	Collector.AddReferencedObject(PreviewAnimInstance);
 }
 
 
@@ -186,7 +185,7 @@ void FChaosClothPreviewScene::UpdateSkeletalMeshAnimation()
 
 	if (PreviewSceneDescription->AnimationAsset)
 	{
-		PreviewAnimInstance = NewObject<UAnimSingleNodeInstance>(SkeletalMeshComponent);
+		TObjectPtr<UAnimSingleNodeInstance> PreviewAnimInstance = NewObject<UAnimSingleNodeInstance>(SkeletalMeshComponent);
 		PreviewAnimInstance->SetAnimationAsset(PreviewSceneDescription->AnimationAsset);
 
 		SkeletalMeshComponent->SetAnimationMode(EAnimationMode::AnimationSingleNode);
@@ -259,10 +258,6 @@ void FChaosClothPreviewScene::SceneDescriptionPropertyChanged(const FName& Prope
 
 	if (PropertyName == GET_MEMBER_NAME_CHECKED(UChaosClothPreviewSceneDescription, AnimationAsset))
 	{
-		if (!PreviewSceneDescription->AnimationAsset)
-		{
-			PreviewAnimInstance = nullptr;
-		}
 		UpdateSkeletalMeshAnimation();
 
 		if (UChaosClothAsset* const ClothAsset = ClothComponent->GetClothAsset())
@@ -370,12 +365,24 @@ void FChaosClothPreviewScene::SetClothAsset(UChaosClothAsset* Asset)
 
 UAnimSingleNodeInstance* FChaosClothPreviewScene::GetPreviewAnimInstance()
 {
-	return PreviewAnimInstance;
+	check(SkeletalMeshComponent);
+
+	if (SkeletalMeshComponent->AnimScriptInstance)
+	{
+		return CastChecked<UAnimSingleNodeInstance>(SkeletalMeshComponent->AnimScriptInstance);
+	}
+	return nullptr;
 }
 
 const UAnimSingleNodeInstance* const FChaosClothPreviewScene::GetPreviewAnimInstance() const
 {
-	return PreviewAnimInstance;
+	check(SkeletalMeshComponent);
+
+	if (SkeletalMeshComponent->AnimScriptInstance)
+	{
+		return CastChecked<UAnimSingleNodeInstance>(SkeletalMeshComponent->AnimScriptInstance);
+	}
+	return nullptr;
 }
 
 void FChaosClothPreviewScene::SetGizmoDataBinder(TSharedPtr<FTransformGizmoDataBinder> InDataBinder)

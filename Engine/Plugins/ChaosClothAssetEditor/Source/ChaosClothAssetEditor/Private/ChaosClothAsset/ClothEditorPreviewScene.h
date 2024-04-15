@@ -124,8 +124,6 @@ private:
 
 	TSharedPtr<FAssetEditorModeManager> ClothPreviewEditorModeManager;
 
-	TObjectPtr<UAnimSingleNodeInstance> PreviewAnimInstance;
-
 	TObjectPtr<AActor> SceneActor;
 
 	TObjectPtr<UChaosClothComponent> ClothComponent;
