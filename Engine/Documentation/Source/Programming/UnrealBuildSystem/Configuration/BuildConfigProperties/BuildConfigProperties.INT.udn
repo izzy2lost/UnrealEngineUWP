@@ -236,8 +236,6 @@ $ IWYUBaseLogFileName : Specifies the file to use for logging.
 
 $ bStripSymbols : Whether to strip iOS symbols or not (implied by Shipping config).
 
-$ bUseDSYMFiles : Enables the generation of .dsym files. This can be disabled to enable faster iteration times during development.
-
 $ bSkipClangValidation : Disables clang build verification checks on static libraries
 
 $ bEnableAddressSanitizer : Enables address sanitizer (ASan). Only supported for Visual Studio 2019 16.7.0 and up.
@@ -253,6 +251,8 @@ $ bEnableMemorySanitizer : Enables memory sanitizer (MSan)
 $ bTuneDebugInfoForLLDB : Turns on tuning of debug info for LLDB
 
 $ bDisableDumpSyms : Whether to globally disable calling dump_syms
+
+$ bUseDSYMFiles : Enables the generation of .dsym files. This can be disabled to enable faster iteration times during development.
 
 $ bWriteSarif : Whether .sarif files containing errors and warnings are written alongside each .obj, if supported
 
