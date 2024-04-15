@@ -21,7 +21,7 @@ namespace PropertyEditorUtils
 	 * @param	InOutPropertyPath	The property path
 	 * @param	InOutOptions		The resulting options
 	 */
-	PROPERTYEDITOR_API inline void GetPropertyOptions(
+	PROPERTYEDITOR_API void GetPropertyOptions(
 		TArray<UObject*>& InOutContainers,
 		FString& InOutPropertyPath,
 		TArray<FString>& OutOptions,
