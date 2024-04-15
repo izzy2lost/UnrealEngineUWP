@@ -20,7 +20,7 @@ void FillBuildSettingsFromMutableFormat(FTextureBuildSettings& Settings, bool& b
 void MutableToImageCore(const mu::Image* InMutable, FImage& CoreImage, int32 LOD);
 
 /** */
-void ImageCoreToMutable(const FCompressedImage2D& Compressed, mu::Image* Mutable, int32 LOD);
+bool ImageCoreToMutable(const FCompressedImage2D& Compressed, mu::Image* Mutable, int32 LOD);
 
 /** Convert an Unreal platform pixel format to Mutable. */
 MUTABLETOOLS_API extern mu::EImageFormat UnrealToMutablePixelFormat(EPixelFormat PlatformFormat, bool bHasAlpha);
