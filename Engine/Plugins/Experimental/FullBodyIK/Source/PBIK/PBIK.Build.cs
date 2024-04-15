@@ -13,7 +13,7 @@ public class PBIK : ModuleRules
 			{
 				"Core",
 				"RigVM",
-				"ControlRig"
+				"ControlRig",
 			}
 			);
 
@@ -24,6 +24,16 @@ public class PBIK : ModuleRules
 			}
 			);
 
-		
+		if (Target.bBuildEditor == true)
+		{
+			PublicDependencyModuleNames.Add("ControlRigDeveloper");
+			PublicDependencyModuleNames.Add("ControlRigEditor");
+
+			PrivateDependencyModuleNames.Add("Engine");
+			PrivateDependencyModuleNames.Add("AssetTools");
+			PrivateDependencyModuleNames.Add("UnrealEd");
+			PrivateDependencyModuleNames.Add("RigVMDeveloper");
+			PrivateDependencyModuleNames.Add("RigVMEditor");
+		}
 	}
 }
