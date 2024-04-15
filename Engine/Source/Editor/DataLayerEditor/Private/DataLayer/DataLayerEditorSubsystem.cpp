@@ -817,21 +817,44 @@ UWorld* UDataLayerEditorSubsystem::GetWorld() const
 	return GEditor->GetEditorWorldContext().World();
 }
 
-bool UDataLayerEditorSubsystem::SetParentDataLayer(UDataLayerInstance* DataLayerInstance, UDataLayerInstance* ParentDataLayer)
+void UDataLayerEditorSubsystem::SetParentDataLayerForDataLayers(const TArray<UDataLayerInstance*>& DataLayers, UDataLayerInstance* ParentDataLayer)
 {
-	if (DataLayerInstance->CanBeChildOf(ParentDataLayer))
+	SetParentDataLayerForDataLayersInternal(DataLayers, ParentDataLayer);
+}
+
+bool UDataLayerEditorSubsystem::SetParentDataLayerForDataLayersInternal(const TArray<UDataLayerInstance*>& DataLayers, UDataLayerInstance* ParentDataLayer)
+{
+	bool bResult = false;
+	bool bLoadingStateChanged = false;
+
+	for (UDataLayerInstance* DataLayerInstance : DataLayers)
 	{
-		const bool bIsLoaded = DataLayerInstance->IsEffectiveLoadedInEditor();
-		DataLayerInstance->SetParent(ParentDataLayer);
+		if (DataLayerInstance->CanBeChildOf(ParentDataLayer))
+		{
+			const bool bIsLoaded = DataLayerInstance->IsEffectiveLoadedInEditor();
+			DataLayerInstance->SetParent(ParentDataLayer);
+			if (bIsLoaded != DataLayerInstance->IsEffectiveLoadedInEditor())
+			{
+				bLoadingStateChanged = true;
+			}
+			bResult = true;
+		}
+	}
+	if (bResult)
+	{
 		BroadcastDataLayerChanged(EDataLayerAction::Reset, NULL, NAME_None);
 		UpdateAllActorsVisibility(true, true);
-		if (bIsLoaded != DataLayerInstance->IsEffectiveLoadedInEditor())
+		if (bLoadingStateChanged)
 		{
 			OnDataLayerEditorLoadingStateChanged(true);
 		}
-		return true;
 	}
-	return false;
+	return bResult;
+}
+
+bool UDataLayerEditorSubsystem::SetParentDataLayer(UDataLayerInstance* DataLayerInstance, UDataLayerInstance* ParentDataLayer)
+{
+	return SetParentDataLayerForDataLayersInternal({ DataLayerInstance }, ParentDataLayer);
 }
 
 bool UDataLayerEditorSubsystem::AddActorToDataLayer(AActor* Actor, UDataLayerInstance* DataLayerInstance)

@@ -612,6 +612,15 @@ public:
 	bool SetParentDataLayer(UDataLayerInstance* DataLayer, UDataLayerInstance* ParentDataLayer);
 
 	/**
+	 * Sets a Parent DataLayer for a specified list of DataLayers
+	 * 
+	 *  @param DataLayers		The child DataLayers.
+	 *  @param ParentDataLayer	The parent DataLayer.
+	 */
+	UFUNCTION(BlueprintCallable, Category = DataLayers)
+	void SetParentDataLayerForDataLayers(const TArray<UDataLayerInstance*>& DataLayers, UDataLayerInstance* ParentDataLayer);
+
+	/**
 	 * Deletes all of the provided DataLayers
 	 *
 	 * @param DataLayersToDelete	A valid list of DataLayer.
@@ -755,6 +764,7 @@ private:
 	void OnSelectionChanged();
 	void RebuildSelectedDataLayersFromEditorSelection();
 	const TSet<TWeakObjectPtr<const UDataLayerInstance>>& GetSelectedDataLayersFromEditorSelection() const;
+	bool SetParentDataLayerForDataLayersInternal(const TArray<UDataLayerInstance*>& DataLayers, UDataLayerInstance* ParentDataLayer);
 
 	bool UpdateAllActorsVisibility(const bool bNotifySelectionChange, const bool bRedrawViewports, ULevel* InLevel);
 

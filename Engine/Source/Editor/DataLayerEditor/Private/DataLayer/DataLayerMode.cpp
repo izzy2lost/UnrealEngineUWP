@@ -1166,10 +1166,7 @@ void FDataLayerMode::SetParentDataLayer(const TArray<UDataLayerInstance*> DataLa
 		if (!ValidDataLayers.IsEmpty())
 		{
 			const FScopedTransaction Transaction(LOCTEXT("DataLayerOutlinerChangeDataLayersParent", "Change Data Layers Parent"));
-			for (UDataLayerInstance* DataLayerInstance : ValidDataLayers)
-			{
-				DataLayerEditorSubsystem->SetParentDataLayer(DataLayerInstance, ParentDataLayer);
-			}
+			DataLayerEditorSubsystem->SetParentDataLayerForDataLayers(ValidDataLayers, ParentDataLayer);
 		}
 	}
 }
