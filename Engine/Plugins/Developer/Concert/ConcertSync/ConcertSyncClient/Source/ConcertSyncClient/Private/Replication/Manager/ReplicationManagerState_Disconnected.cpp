@@ -17,8 +17,8 @@ namespace UE::ConcertSyncClient::Replication
 	
 	FReplicationManagerState_Disconnected::FReplicationManagerState_Disconnected(
 		TSharedRef<IConcertClientSession> LiveSession,
-		IConcertClientReplicationBridge* ReplicationBridge,
-			FReplicationManager& Owner
+		IConcertClientReplicationBridge& ReplicationBridge,
+		FReplicationManager& Owner
 		)
 		: FReplicationManagerState(Owner)
 		, LiveSession(MoveTemp(LiveSession))

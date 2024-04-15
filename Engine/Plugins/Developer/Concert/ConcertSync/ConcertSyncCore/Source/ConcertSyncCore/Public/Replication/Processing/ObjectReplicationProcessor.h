@@ -58,7 +58,7 @@ namespace UE::ConcertSyncCore
 		/**
 		 * @param DataSource Source of the data that is to be sent
 		 */
-		FObjectReplicationProcessor(TSharedRef<IReplicationDataSource> DataSource);
+		FObjectReplicationProcessor(IReplicationDataSource& DataSource UE_LIFETIMEBOUND);
 		virtual ~FObjectReplicationProcessor() = default;
 		
 		virtual void ProcessObjects(const FProcessObjectsParams& Params);
@@ -71,7 +71,7 @@ namespace UE::ConcertSyncCore
 			FConcertReplicatedObjectId ObjectInfo;
 		};
 
-		FORCEINLINE IReplicationDataSource& GetDataSource() const { return DataSource.Get(); }
+		FORCEINLINE IReplicationDataSource& GetDataSource() const { return DataSource; }
 		
 		/** Processes the object. */
 		virtual void ProcessObject(const FObjectProcessArgs& Args) = 0;
@@ -79,6 +79,6 @@ namespace UE::ConcertSyncCore
 	private:
 		
 		/** Abstracts where replication data comes from: could be generated (clients) or received (server or client) */
-		const TSharedRef<IReplicationDataSource> DataSource;
+		IReplicationDataSource& DataSource;
 	};
 }

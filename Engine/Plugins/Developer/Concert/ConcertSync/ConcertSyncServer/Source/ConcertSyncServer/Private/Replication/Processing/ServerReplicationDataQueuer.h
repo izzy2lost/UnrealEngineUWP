@@ -21,7 +21,7 @@ namespace UE::ConcertSyncServer::Replication
 		friend class SharedPointerInternals::TIntrusiveReferenceController;
 	public:
 		
-		static TSharedRef<FServerReplicationDataQueuer> Make(const FGuid& OwningClientEndpointId, TSharedRef<ConcertSyncCore::FObjectReplicationCache> InReplicationCache);
+		static TSharedRef<FServerReplicationDataQueuer> Make(const FGuid& OwningClientEndpointId, ConcertSyncCore::FObjectReplicationCache& InReplicationCache UE_LIFETIMEBOUND);
 		
 		//~ Begin IReplicationCacheUser Interface
 		virtual bool WantsToAcceptObject(const FConcertReplicatedObjectId& Object) const override;

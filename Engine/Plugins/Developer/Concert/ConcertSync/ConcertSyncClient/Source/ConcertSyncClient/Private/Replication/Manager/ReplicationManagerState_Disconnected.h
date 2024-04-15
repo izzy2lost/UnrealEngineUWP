@@ -17,8 +17,8 @@ namespace UE::ConcertSyncClient::Replication
 
 		FReplicationManagerState_Disconnected(
 			TSharedRef<IConcertClientSession> LiveSession,
-			IConcertClientReplicationBridge* ReplicationBridge,
-			FReplicationManager& Owner
+			IConcertClientReplicationBridge& ReplicationBridge UE_LIFETIMEBOUND,
+			FReplicationManager& Owner UE_LIFETIMEBOUND
 			);
 
 		//~ Begin IConcertClientReplicationManager Interface
@@ -33,6 +33,6 @@ namespace UE::ConcertSyncClient::Replication
 		/** Passed to FReplicationManagerState_Handshaking */
 		TSharedRef<IConcertClientSession> LiveSession;
 		/** Passed to FReplicationManagerState_Handshaking */
-		IConcertClientReplicationBridge* ReplicationBridge;
+		IConcertClientReplicationBridge& ReplicationBridge;
 	};
 }

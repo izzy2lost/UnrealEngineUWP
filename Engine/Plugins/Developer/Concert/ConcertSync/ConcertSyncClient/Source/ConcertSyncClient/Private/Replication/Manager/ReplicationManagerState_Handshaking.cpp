@@ -15,7 +15,7 @@ namespace UE::ConcertSyncClient::Replication
 		FJoinReplicatedSessionArgs RequestArgs,
 		TPromise<FJoinReplicatedSessionResult> JoinSessionPromise,
 		TSharedRef<IConcertClientSession> LiveSession,
-		IConcertClientReplicationBridge* ReplicationBridge,
+		IConcertClientReplicationBridge& ReplicationBridge,
 		FReplicationManager& Owner
 		)
 		: FReplicationManagerState(Owner)

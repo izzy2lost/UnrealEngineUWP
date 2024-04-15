@@ -3,23 +3,20 @@
 #pragma once
 
 #include "ReplicationManagerState.h"
+#include "Replication/Formats/IObjectReplicationFormat.h"
 #include "Replication/Processing/ClientReplicationDataCollector.h"
 #include "Replication/Processing/ClientReplicationDataQueuer.h"
+#include "Replication/Processing/ObjectReplicationApplierProcessor.h"
+#include "Replication/Processing/ObjectReplicationReceiver.h"
 #include "Replication/Processing/ObjectReplicationSender.h"
 #include "Replication/Processing/Proxy/ObjectProcessorProxy_Frequency.h"
 
 class IConcertClientSession;
 
-namespace UE::ConcertSyncCore
-{
-	class FObjectReplicationReceiver;
-}
+namespace UE::ConcertSyncCore { class FObjectReplicationReceiver; }
 
 namespace UE::ConcertSyncClient::Replication
 {
-	class FObjectReplicationApplierProcessor;
-	class FObjectReplicationSender;
-	
 	/**
 	 * State for when the client has successfully completed a replication handshake.
 	 *
@@ -33,9 +30,9 @@ namespace UE::ConcertSyncClient::Replication
 
 		FReplicationManagerState_Connected(
 			TSharedRef<IConcertClientSession> LiveSession,
-			IConcertClientReplicationBridge* ReplicationBridge,
+			IConcertClientReplicationBridge& ReplicationBridge UE_LIFETIMEBOUND,
 			TArray<FConcertReplicationStream> StreamDescriptions,
-			FReplicationManager& Owner
+			FReplicationManager& Owner UE_LIFETIMEBOUND
 			);
 		virtual ~FReplicationManagerState_Connected() override;
 
@@ -57,16 +54,16 @@ namespace UE::ConcertSyncClient::Replication
 		/** Passed to FReplicationManagerState_Disconnected */
 		const TSharedRef<IConcertClientSession> LiveSession;
 		/** Passed to FReplicationManagerState_Disconnected */
-		IConcertClientReplicationBridge* const ReplicationBridge;
+		IConcertClientReplicationBridge& ReplicationBridge;
 		/** The streams this client has registered with the server. */
 		TArray<FConcertReplicationStream> RegisteredStreams;
 		
 		/** The format this client will use for sending & receiving data. */
-		const TSharedRef<ConcertSyncCore::IObjectReplicationFormat> ReplicationFormat;
+		const TUniquePtr<ConcertSyncCore::IObjectReplicationFormat> ReplicationFormat;
 
 		// Sending
 		/** Used as source of replication data. */
-		const TSharedRef<FClientReplicationDataCollector> ReplicationDataSource;
+		FClientReplicationDataCollector ReplicationDataSource;
 		
 		/** Sends to remote endpoint and makes sure the objects are replicated at the specified frequency settings. */
 		using FDataRelayThrottledByFrequency = ConcertSyncCore::TObjectProcessorProxy_Frequency<ConcertSyncCore::FObjectReplicationSender>;
@@ -77,11 +74,11 @@ namespace UE::ConcertSyncClient::Replication
 		/** Stores data received by Receiver until it is consumed by ReceivedReplicationQueuer. */
 		const TSharedRef<ConcertSyncCore::FObjectReplicationCache> ReceivedDataCache;
 		/** Receives data from remote endpoints via message bus.  */
-		const TSharedRef<ConcertSyncCore::FObjectReplicationReceiver> Receiver;
-		/** Queues data until is can be processed. */
+		ConcertSyncCore::FObjectReplicationReceiver Receiver;
+		/** Queues data until is can be processed. Shared because FObjectReplicationCache API expects it. */
 		const TSharedRef<FClientReplicationDataQueuer> ReceivedReplicationQueuer;
 		/** Processes data from ReceivedReplicationQueuer once we tick. */
-		const TSharedRef<FObjectReplicationApplierProcessor> ReplicationApplier;
+		FObjectReplicationApplierProcessor ReplicationApplier;
 
 		//~ Begin FReplicationManagerState Interface
 		virtual void OnEnterState() override;
@@ -101,8 +98,8 @@ namespace UE::ConcertSyncClient::Replication
 		
 		/** Updates replicated objects affected by the change request. */
 		void UpdateReplicatedObjectsAfterStreamChange(const FConcertReplication_ChangeStream_Request& Request, const FConcertReplication_ChangeStream_Response& Response);
-		void HandleRemovingReplicatedObjects(const FConcertReplication_ChangeStream_Request& Request) const;
-		void RevertRemovingReplicatedObjects(const FConcertReplication_ChangeStream_Request& Request) const;
+		void HandleRemovingReplicatedObjects(const FConcertReplication_ChangeStream_Request& Request);
+		void RevertRemovingReplicatedObjects(const FConcertReplication_ChangeStream_Request& Request);
 
 		/**
 		 * Updates the objects which should be replicated after changing authority.
@@ -110,9 +107,9 @@ namespace UE::ConcertSyncClient::Replication
 		 * @note Request is accepted as && because this function rewrites its memory when looking at rejections.
 		 * Since the request was already sent to the server it is assumed the request can just contain trash after.
 		 */
-		void UpdateReplicatedObjectsAfterAuthorityChange(FConcertReplication_ChangeAuthority_Request&& Request, const FConcertReplication_ChangeAuthority_Response& Response) const;
-		void HandleReleasingReplicatedObjects(const FConcertReplication_ChangeAuthority_Request& Request) const;
-		void RevertReleasingReplicatedObjects(const FConcertReplication_ChangeAuthority_Request& Request) const;
+		void UpdateReplicatedObjectsAfterAuthorityChange(FConcertReplication_ChangeAuthority_Request&& Request, const FConcertReplication_ChangeAuthority_Response& Response);
+		void HandleReleasingReplicatedObjects(const FConcertReplication_ChangeAuthority_Request& Request);
+		void RevertReleasingReplicatedObjects(const FConcertReplication_ChangeAuthority_Request& Request);
 		
 		/** Callback to Sender for obtaining an object's frequency settings. */
 		FConcertObjectReplicationSettings GetObjectFrequencySettings(const FConcertReplicatedObjectId& Object) const;

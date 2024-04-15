@@ -42,11 +42,11 @@ namespace UE::ConcertSyncTests::Replication::Handshake
 		FClientInfo& Client = ConnectClient();
 		const TSharedRef<IConcertClientReplicationBridge> BridgeMock = MakeShared<FConcertClientReplicationBridgeMock>();
 		const TSharedPtr<IConcertClientSession>& ClientSession = Client.ClientSessionMock;
-		const TSharedRef<IConcertClientReplicationManager> ClientReplicationManager_Primary = CreateClientReplicationManager(ClientSession.ToSharedRef(), &BridgeMock.Get());
+		const TSharedRef<IConcertClientReplicationManager> ClientReplicationManager_Primary = CreateClientReplicationManager(ClientSession.ToSharedRef(), BridgeMock.Get());
 		FClientInfo& Client_Secondary = ConnectClient();
 		const TSharedRef<IConcertClientReplicationBridge> BridgeMock_Secondary = MakeShared<FConcertClientReplicationBridgeMock>();
 		const TSharedPtr<IConcertClientSession>& ClientSession_Secondary = Client_Secondary.ClientSessionMock;
-		const TSharedRef<IConcertClientReplicationManager> ClientReplicationManager_Secondary = CreateClientReplicationManager(ClientSession_Secondary.ToSharedRef(), &BridgeMock_Secondary.Get());
+		const TSharedRef<IConcertClientReplicationManager> ClientReplicationManager_Secondary = CreateClientReplicationManager(ClientSession_Secondary.ToSharedRef(), BridgeMock_Secondary.Get());
 
 		// Stream 
 		FConcertReplicationStream StreamDescription;

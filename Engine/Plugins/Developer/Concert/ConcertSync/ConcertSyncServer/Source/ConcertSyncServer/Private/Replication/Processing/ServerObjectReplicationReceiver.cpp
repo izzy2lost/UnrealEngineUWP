@@ -10,12 +10,12 @@
 namespace UE::ConcertSyncServer::Replication
 {
 	FServerObjectReplicationReceiver::FServerObjectReplicationReceiver(
-		TSharedRef<FAuthorityManager> AuthorityManager,
-		TSharedRef<IConcertSession> Session,
-		TSharedRef<ConcertSyncCore::FObjectReplicationCache> ReplicationCache
+		const FAuthorityManager& AuthorityManager,
+		IConcertSession& Session,
+		ConcertSyncCore::FObjectReplicationCache& ReplicationCache
 		)
-		: FObjectReplicationReceiver(MoveTemp(Session), MoveTemp(ReplicationCache))
-		, AuthorityManager(MoveTemp(AuthorityManager))
+		: FObjectReplicationReceiver(Session, ReplicationCache)
+		, AuthorityManager(AuthorityManager)
 	{}
 
 	bool FServerObjectReplicationReceiver::ShouldAcceptObject(
@@ -25,6 +25,6 @@ namespace UE::ConcertSyncServer::Replication
 		) const
 	{
 		const FConcertReplicatedObjectId ReplicatedObjectInfo { { StreamEvent.StreamId, ObjectEvent.ReplicatedObject }, SessionContext.SourceEndpointId };
-		return AuthorityManager->HasAuthorityToChange(ReplicatedObjectInfo);
+		return AuthorityManager.HasAuthorityToChange(ReplicatedObjectInfo);
 	}
 }

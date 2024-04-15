@@ -11,18 +11,18 @@
 namespace UE::ConcertSyncClient::Replication
 {
 	FObjectReplicationApplierProcessor::FObjectReplicationApplierProcessor(
-		IConcertClientReplicationBridge* ReplicationBridge,
-		TSharedRef<ConcertSyncCore::IObjectReplicationFormat> ReplicationFormat,
-		TSharedRef<ConcertSyncCore::IReplicationDataSource> DataSource
+		IConcertClientReplicationBridge& ReplicationBridge,
+		ConcertSyncCore::IObjectReplicationFormat& ReplicationFormat,
+		ConcertSyncCore::IReplicationDataSource& DataSource
 		)
-		: FObjectReplicationProcessor(MoveTemp(DataSource))
+		: FObjectReplicationProcessor(DataSource)
 		, ReplicationBridge(ReplicationBridge)
-		, ReplicationFormat(MoveTemp(ReplicationFormat))
+		, ReplicationFormat(ReplicationFormat)
 	{}
 
 	void FObjectReplicationApplierProcessor::ProcessObject(const FObjectProcessArgs& Args)
 	{
-		UObject* Object = ReplicationBridge->FindObjectIfAvailable(Args.ObjectInfo.Object);
+		UObject* Object = ReplicationBridge.FindObjectIfAvailable(Args.ObjectInfo.Object);
 		if (!Object)
 		{
 			UE_LOG(LogConcert, Error, TEXT("Replication: Object %s is unavailable. The data source should not have reported it."), *Args.ObjectInfo.Object.ToString());
@@ -37,12 +37,12 @@ namespace UE::ConcertSyncClient::Replication
 			// TODO DP UE-193659: This is very hacky and leaves performance on the table... this is in case ApplyReplicationEvent updates the transform
 			if (USceneComponent* SceneComponent = Cast<USceneComponent>(Object))
 			{
-				ReplicationFormat->ApplyReplicationEvent(*Object, Payload);
+				ReplicationFormat.ApplyReplicationEvent(*Object, Payload);
 				SceneComponent->UpdateComponentToWorld();
 			}
 			else
 			{
-				ReplicationFormat->ApplyReplicationEvent(*Object, Payload);
+				ReplicationFormat.ApplyReplicationEvent(*Object, Payload);
 			}
 		});
 		// This should not happen. If it does, we're wasting  network bandwidth.

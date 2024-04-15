@@ -24,8 +24,6 @@ namespace UE::ConcertSyncCore
 	{
 	public:
 
-		virtual ~FReplicationDataQueuer() override;
-
 		//~ Begin IReplicationDataSource Interface
 		virtual void ForEachPendingObject(TFunctionRef<void(const FConcertReplicatedObjectId&)> ProcessItemFunc) const override;
 		virtual int32 NumObjects() const override;
@@ -39,7 +37,7 @@ namespace UE::ConcertSyncCore
 	protected:
 
 		/** Called by subclass factory functions. */
-		void BindToCache(TSharedRef<FObjectReplicationCache> InReplicationCache);
+		void BindToCache(FObjectReplicationCache& InReplicationCache UE_LIFETIMEBOUND);
 		
 	private:
 
@@ -47,6 +45,6 @@ namespace UE::ConcertSyncCore
 		TMap<FConcertReplicatedObjectId, TSharedPtr<const FConcertReplication_ObjectReplicationEvent>> PendingEvents;
 
 		/** Provides us with replication events and shares them effectively. */
-		TSharedPtr<FObjectReplicationCache> ReplicationCache;
+		FObjectReplicationCache* ReplicationCache = nullptr;
 	};
 }

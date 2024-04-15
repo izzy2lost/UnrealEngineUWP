@@ -18,7 +18,7 @@ namespace UE::ConcertSyncClient::TestInterface
 {
 	extern CONCERTSYNCCLIENT_API TSharedRef<IConcertClientReplicationManager> CreateClientReplicationManager(
 		TSharedRef<IConcertClientSession> InLiveSession,
-		IConcertClientReplicationBridge* InBridge
+		IConcertClientReplicationBridge& InBridge UE_LIFETIMEBOUND
 		);
 
 	extern CONCERTSYNCCLIENT_API TSharedRef<IConcertClientReplicationBridge> CreateClientReplicationBridge();

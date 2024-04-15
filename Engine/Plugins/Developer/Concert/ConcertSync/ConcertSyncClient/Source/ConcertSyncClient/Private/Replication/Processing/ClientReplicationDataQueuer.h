@@ -16,7 +16,7 @@ namespace UE::ConcertSyncClient::Replication
 		friend class SharedPointerInternals::TIntrusiveReferenceController;
 	public:
 
-		static TSharedRef<FClientReplicationDataQueuer> Make(IConcertClientReplicationBridge* ReplicationBridge, TSharedRef<ConcertSyncCore::FObjectReplicationCache> InReplicationCache);
+		static TSharedRef<FClientReplicationDataQueuer> Make(IConcertClientReplicationBridge& ReplicationBridge UE_LIFETIMEBOUND, ConcertSyncCore::FObjectReplicationCache& InReplicationCache UE_LIFETIMEBOUND);
 		
 		//~ Begin IReplicationCacheUser Interface
 		virtual bool WantsToAcceptObject(const FConcertReplicatedObjectId& Object) const override;
@@ -24,10 +24,10 @@ namespace UE::ConcertSyncClient::Replication
 
 	private:
 		
-		FClientReplicationDataQueuer(IConcertClientReplicationBridge* ReplicationBridge);
+		FClientReplicationDataQueuer(IConcertClientReplicationBridge& ReplicationBridge UE_LIFETIMEBOUND);
 
 		/** Used to determine whether the object is currently alive. */
-		IConcertClientReplicationBridge* ReplicationBridge;
+		IConcertClientReplicationBridge& ReplicationBridge;
 	};
 }
 

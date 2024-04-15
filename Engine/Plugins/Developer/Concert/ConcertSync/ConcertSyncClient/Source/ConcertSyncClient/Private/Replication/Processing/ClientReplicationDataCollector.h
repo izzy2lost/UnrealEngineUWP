@@ -36,15 +36,9 @@ namespace UE::ConcertSyncClient::Replication
 
 		DECLARE_DELEGATE_RetVal(const TArray<FConcertReplicationStream>*, FGetClientStreams);
 
-		/**
-		 * @param InReplicationBridge 
-		 * @param InReplicationFormat 
-		 * @param InGetStreamsDelegate 
-		 * @param ClientId 
-		 */
 		FClientReplicationDataCollector(
-			IConcertClientReplicationBridge* InReplicationBridge,
-			TSharedRef<ConcertSyncCore::IObjectReplicationFormat> InReplicationFormat,
+			IConcertClientReplicationBridge& InReplicationBridge UE_LIFETIMEBOUND,
+			ConcertSyncCore::IObjectReplicationFormat& InReplicationFormat UE_LIFETIMEBOUND,
 			FGetClientStreams InGetStreamsDelegate,
 			const FGuid& InClientId
 			);
@@ -83,9 +77,9 @@ namespace UE::ConcertSyncClient::Replication
 	private:
 
 		/** Gets and tracks replicated objects */
-		IConcertClientReplicationBridge* Bridge;
+		IConcertClientReplicationBridge& Bridge;
 		/** Used to create the replication data sent to the server. */
-		const TSharedRef<ConcertSyncCore::IObjectReplicationFormat> ReplicationFormat;
+		ConcertSyncCore::IObjectReplicationFormat& ReplicationFormat;
 
 		/** Gets the stream of the managed client. */
 		const FGetClientStreams GetStreamsDelegate;

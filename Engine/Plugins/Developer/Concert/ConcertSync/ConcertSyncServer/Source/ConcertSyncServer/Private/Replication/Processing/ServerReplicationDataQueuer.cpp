@@ -8,11 +8,11 @@ namespace UE::ConcertSyncServer::Replication
 {
 	TSharedRef<FServerReplicationDataQueuer> FServerReplicationDataQueuer::Make(
 		const FGuid& OwningClientEndpointId,
-		TSharedRef<ConcertSyncCore::FObjectReplicationCache> InReplicationCache
+		ConcertSyncCore::FObjectReplicationCache& InReplicationCache
 		)
 	{
 		TSharedRef<FServerReplicationDataQueuer> Result = MakeShared<FServerReplicationDataQueuer>(OwningClientEndpointId);
-		Result->BindToCache(MoveTemp(InReplicationCache));
+		Result->BindToCache(InReplicationCache);
 		return Result;
 	}
 

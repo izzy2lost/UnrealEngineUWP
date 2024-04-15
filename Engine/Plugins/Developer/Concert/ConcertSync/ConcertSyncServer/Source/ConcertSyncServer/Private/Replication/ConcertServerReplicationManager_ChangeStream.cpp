@@ -155,13 +155,13 @@ namespace UE::ConcertSyncServer::Replication
 		
 		const FGuid SendingClientId = ConcertSessionContext.SourceEndpointId;
 		const TUniquePtr<FConcertReplicationClient>* SendingClient = Clients.Find(SendingClientId);
-		if (SendingClient && Private::ShouldAcceptRequest(Request, *SendingClient->Get(), AuthorityManager.Get(), Response))
+		if (SendingClient && Private::ShouldAcceptRequest(Request, *SendingClient->Get(), AuthorityManager, Response))
 		{
 			// If the client had authority over any objects that were removed by this request, authority must be cleaned up
 			ConcertSyncCore::Replication::ChangeStreamUtils::ForEachObjectLosingAuthority(Request, SendingClient->Get()->GetStreamDescriptions(),
 				[this, &SendingClientId](const FConcertObjectInStreamID& RemovedObject)
 				{
-					AuthorityManager->RemoveAuthority({ RemovedObject, SendingClientId});
+					AuthorityManager.RemoveAuthority({ RemovedObject, SendingClientId});
 					return EBreakBehavior::Continue;
 				});
 			

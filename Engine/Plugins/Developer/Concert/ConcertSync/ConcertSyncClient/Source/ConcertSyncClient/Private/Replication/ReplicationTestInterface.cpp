@@ -15,7 +15,7 @@ namespace UE::ConcertSyncClient::TestInterface
 {
 	CONCERTSYNCCLIENT_API TSharedRef<IConcertClientReplicationManager> CreateClientReplicationManager(
 		TSharedRef<IConcertClientSession> InLiveSession,
-		IConcertClientReplicationBridge* InBridge
+		IConcertClientReplicationBridge& InBridge
 		)
 	{
 		const TSharedRef<Replication::FReplicationManager> Result = MakeShared<Replication::FReplicationManager>(MoveTemp(InLiveSession), InBridge);

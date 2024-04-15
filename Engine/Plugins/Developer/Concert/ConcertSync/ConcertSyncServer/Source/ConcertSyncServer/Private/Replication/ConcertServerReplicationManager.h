@@ -5,9 +5,11 @@
 #include "AuthorityManager.h"
 #include "ConcertMessages.h"
 #include "ConcertReplicationClient.h"
-#include "Processing/ServerObjectReplicationReceiver.h"
+#include "Replication/Formats/IObjectReplicationFormat.h"
 #include "Replication/IConcertServerReplicationManager.h"
 #include "Replication/Messages/Handshake.h"
+#include "Replication/Processing/ObjectReplicationCache.h"
+#include "Replication/Processing/ServerObjectReplicationReceiver.h"
 
 #include "Templates/SharedPointer.h"
 #include "Templates/Tuple.h"
@@ -49,7 +51,7 @@ namespace UE::ConcertSyncServer::Replication
 		explicit FConcertServerReplicationManager(TSharedRef<IConcertServerSession> InLiveSession);
 		virtual ~FConcertServerReplicationManager() override;
 
-		const FAuthorityManager& GetAuthorityManager() const { return AuthorityManager.Get(); }
+		const FAuthorityManager& GetAuthorityManager() const { return AuthorityManager; }
 
 		//~ Begin IAuthorityManagerGetters Interface
 		virtual void ForEachStream(const FGuid& ClientEndpointId, TFunctionRef<EBreakBehavior(const FConcertReplicationStream& Stream)> Callback) const override;
@@ -62,13 +64,13 @@ namespace UE::ConcertSyncServer::Replication
 		TSharedRef<IConcertServerSession> Session;
 		
 		/** Responsible for analysing received replication data. */
-		TSharedRef<ConcertSyncCore::IObjectReplicationFormat> ReplicationFormat;
+		TUniquePtr<ConcertSyncCore::IObjectReplicationFormat> ReplicationFormat;
 
 		/** Responds to client requests to changing authority and can be asked whether an object change is valid to take place. */
-		TSharedRef<FAuthorityManager> AuthorityManager;
+		FAuthorityManager AuthorityManager;
 		
 		/** Received replication events are put into the ReplicationCache. The cache is used to relay data to clients latently. */
-		TSharedRef<ConcertSyncCore::FObjectReplicationCache> ReplicationCache;
+		const TSharedRef<ConcertSyncCore::FObjectReplicationCache> ReplicationCache;
 		/** Receives replication events from all endpoints. */
 		FServerObjectReplicationReceiver ReplicationDataReceiver;
 

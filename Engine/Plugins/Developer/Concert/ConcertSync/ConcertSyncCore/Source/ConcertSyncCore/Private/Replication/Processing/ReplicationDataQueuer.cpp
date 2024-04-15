@@ -6,14 +6,6 @@
 
 namespace UE::ConcertSyncCore
 {
-	FReplicationDataQueuer::~FReplicationDataQueuer()
-	{
-		if (ensure(ReplicationCache))
-		{
-			ReplicationCache->UnregisterDataCacheUser(AsShared());
-		}
-	}
-
 	void FReplicationDataQueuer::ForEachPendingObject(TFunctionRef<void(const FConcertReplicatedObjectId&)> ProcessItemFunc) const
 	{
 		for (auto It = PendingEvents.CreateConstIterator(); It; ++It)
@@ -50,12 +42,9 @@ namespace UE::ConcertSyncCore
 		PendingEvents.Add(Object, MoveTemp(Data));
 	}
 	
-	void FReplicationDataQueuer::BindToCache(TSharedRef<FObjectReplicationCache> InReplicationCache)
+	void FReplicationDataQueuer::BindToCache(FObjectReplicationCache& InReplicationCache)
 	{
-		if (ensure(!ReplicationCache))
-		{
-			ReplicationCache = MoveTemp(InReplicationCache);
-			ReplicationCache->RegisterDataCacheUser(AsShared());
-		}
+		ReplicationCache = &InReplicationCache;
+		ReplicationCache->RegisterDataCacheUser(AsShared());
 	}
 }

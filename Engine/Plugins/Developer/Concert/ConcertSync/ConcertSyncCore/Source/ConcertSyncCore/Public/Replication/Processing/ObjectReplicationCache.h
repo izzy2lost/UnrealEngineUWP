@@ -54,7 +54,7 @@ namespace UE::ConcertSyncCore
 	{
 	public:
 
-		FObjectReplicationCache(TSharedRef<IObjectReplicationFormat> ReplicationFormat);
+		FObjectReplicationCache(IObjectReplicationFormat& ReplicationFormat UE_LIFETIMEBOUND);
 
 		/**
 		 * Called when new data is received for an object and shares it with any IObjectCacheUser that is possibly interested in it.
@@ -72,7 +72,7 @@ namespace UE::ConcertSyncCore
 	private:
 
 		/** Used for combining events to save network bandwidth. */
-		TSharedRef<IObjectReplicationFormat> ReplicationFormat;
+		IObjectReplicationFormat& ReplicationFormat;
 
 		/** Everyone who registered for receiving data. */
 		TArray<TSharedRef<IReplicationCacheUser>> CacheUsers;

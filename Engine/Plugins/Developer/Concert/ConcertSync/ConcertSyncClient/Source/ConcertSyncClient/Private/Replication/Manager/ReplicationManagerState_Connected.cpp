@@ -70,7 +70,7 @@ namespace UE::ConcertSyncClient::Replication
 	
 	FReplicationManagerState_Connected::FReplicationManagerState_Connected(
 		TSharedRef<IConcertClientSession> LiveSession,
-		IConcertClientReplicationBridge* ReplicationBridge,
+		IConcertClientReplicationBridge& ReplicationBridge,
 		TArray<FConcertReplicationStream> StreamDescriptions,
 		FReplicationManager& Owner
 		)
@@ -79,24 +79,24 @@ namespace UE::ConcertSyncClient::Replication
 		, ReplicationBridge(ReplicationBridge)
 		, RegisteredStreams(MoveTemp(StreamDescriptions))
 		// TODO DP: Use config to determine which replication format to use
-		, ReplicationFormat(MakeShared<ConcertSyncCore::FFullObjectFormat>())
-		, ReplicationDataSource(MakeShared<FClientReplicationDataCollector>(
+		, ReplicationFormat(MakeUnique<ConcertSyncCore::FFullObjectFormat>())
+		, ReplicationDataSource(
 			ReplicationBridge,
-			ReplicationFormat,
+			*ReplicationFormat,
 			FClientReplicationDataCollector::FGetClientStreams::CreateLambda([this]()
 			{
 				return &RegisteredStreams;
 			}),
 			LiveSession->GetSessionClientEndpointId()
-			))
+			)
 		, Sender(
 			ConcertSyncCore::FGetObjectFrequencySettings::CreateRaw(this, &FReplicationManagerState_Connected::GetObjectFrequencySettings),
-			LiveSession->GetSessionServerEndpointId(), LiveSession, ReplicationDataSource
+			LiveSession->GetSessionServerEndpointId(), *LiveSession, ReplicationDataSource
 			)
-		, ReceivedDataCache(MakeShared<ConcertSyncCore::FObjectReplicationCache>(ReplicationFormat))
-		, Receiver(MakeShared<ConcertSyncCore::FObjectReplicationReceiver>(LiveSession, ReceivedDataCache))
-		, ReceivedReplicationQueuer(FClientReplicationDataQueuer::Make(ReplicationBridge, ReceivedDataCache))
-		, ReplicationApplier(MakeShared<FObjectReplicationApplierProcessor>(ReplicationBridge, ReplicationFormat, ReceivedReplicationQueuer))
+		, ReceivedDataCache(MakeShared<ConcertSyncCore::FObjectReplicationCache>(*ReplicationFormat))
+		, Receiver(*LiveSession, *ReceivedDataCache)
+		, ReceivedReplicationQueuer(FClientReplicationDataQueuer::Make(ReplicationBridge, *ReceivedDataCache))
+		, ReplicationApplier(ReplicationBridge, *ReplicationFormat, *ReceivedReplicationQueuer)
 	{}
 
 	FReplicationManagerState_Connected::~FReplicationManagerState_Connected()
@@ -225,13 +225,13 @@ namespace UE::ConcertSyncClient::Replication
 	{
 		TSet<FGuid> Result;
 		int32 ExpectedNumStreams = 0;
-		ReplicationDataSource->ForEachOwnedObject([this, &Callback, &Result, &ExpectedNumStreams](const FSoftObjectPath& ObjectPath)
+		ReplicationDataSource.ForEachOwnedObject([this, &Callback, &Result, &ExpectedNumStreams](const FSoftObjectPath& ObjectPath)
 		{
 			// Reuse TSet (if possible) for a slightly better memory footprint
 			ExpectedNumStreams = FMath::Max(ExpectedNumStreams, Result.Num());
 			Result.Empty(Result.Num());
 			
-			ReplicationDataSource->AppendOwningStreamsForObject(ObjectPath, Result);
+			ReplicationDataSource.AppendOwningStreamsForObject(ObjectPath, Result);
 			return Callback(ObjectPath, MoveTemp(Result));
 		});
 		return EAuthorityEnumerationResult::Iterated;
@@ -242,7 +242,7 @@ namespace UE::ConcertSyncClient::Replication
 		) const
 	{
 		TSet<FGuid> Result;
-		ReplicationDataSource->AppendOwningStreamsForObject(ObjectPath, Result);
+		ReplicationDataSource.AppendOwningStreamsForObject(ObjectPath, Result);
 		return Result;
 	}
 
@@ -256,7 +256,7 @@ namespace UE::ConcertSyncClient::Replication
 		// TODO UE-190714: We should set a time budget for the client so ticking does not cause frame spikes
 		const ConcertSyncCore::FProcessObjectsParams Params { DeltaTime };
 		Sender.ProcessObjects(Params);
-		ReplicationApplier->ProcessObjects(Params);
+		ReplicationApplier.ProcessObjects(Params);
 	}
 
 	void FReplicationManagerState_Connected::UpdateReplicatedObjectsAfterStreamChange(const FConcertReplication_ChangeStream_Request& Request, const FConcertReplication_ChangeStream_Response& Response)
@@ -290,7 +290,7 @@ namespace UE::ConcertSyncClient::Replication
 		
 		for (const TPair<FSoftObjectPath, TArray<FGuid>>& ModifiedObject : BundledModifiedObjects)
 		{
-			ReplicationDataSource->OnObjectStreamModified(ModifiedObject.Key, ModifiedObject.Value);
+			ReplicationDataSource.OnObjectStreamModified(ModifiedObject.Key, ModifiedObject.Value);
 		}
 	}
 
@@ -310,23 +310,23 @@ namespace UE::ConcertSyncClient::Replication
 		}
 	}
 
-	void FReplicationManagerState_Connected::HandleRemovingReplicatedObjects(const FConcertReplication_ChangeStream_Request& Request) const
+	void FReplicationManagerState_Connected::HandleRemovingReplicatedObjects(const FConcertReplication_ChangeStream_Request& Request)
 	{
 		Private::ForEachObjectRemovedFromStreams(Request, [this](const FSoftObjectPath& Object, const TArray<FGuid>& RemovedStreams)
 		{
-			ReplicationDataSource->RemoveReplicatedObjectStreams(Object, RemovedStreams);
+			ReplicationDataSource.RemoveReplicatedObjectStreams(Object, RemovedStreams);
 		});
 	}
 
-	void FReplicationManagerState_Connected::RevertRemovingReplicatedObjects(const FConcertReplication_ChangeStream_Request& Request) const
+	void FReplicationManagerState_Connected::RevertRemovingReplicatedObjects(const FConcertReplication_ChangeStream_Request& Request)
 	{
 		Private::ForEachObjectRemovedFromStreams(Request, [this](const FSoftObjectPath& Object, const TArray<FGuid>& RemovedStreams)
 		{
-			ReplicationDataSource->AddReplicatedObjectStreams(Object, RemovedStreams);
+			ReplicationDataSource.AddReplicatedObjectStreams(Object, RemovedStreams);
 		});
 	}
 
-	void FReplicationManagerState_Connected::UpdateReplicatedObjectsAfterAuthorityChange(FConcertReplication_ChangeAuthority_Request&& Request, const FConcertReplication_ChangeAuthority_Response& Response) const
+	void FReplicationManagerState_Connected::UpdateReplicatedObjectsAfterAuthorityChange(FConcertReplication_ChangeAuthority_Request&& Request, const FConcertReplication_ChangeAuthority_Response& Response)
 	{
 		OnPreAuthorityChangedDelegate.Broadcast(Request, { Response });
 		ON_SCOPE_EXIT{ OnPostAuthorityChangedDelegate.Broadcast(); };
@@ -351,24 +351,24 @@ namespace UE::ConcertSyncClient::Replication
 			const bool bWasFullyRejected = ReplicatedStreams.StreamIds.IsEmpty(); 
 			if (!bWasFullyRejected)
 			{
-				ReplicationDataSource->AddReplicatedObjectStreams(TakeAuthority.Key, ReplicatedStreams.StreamIds);
+				ReplicationDataSource.AddReplicatedObjectStreams(TakeAuthority.Key, ReplicatedStreams.StreamIds);
 			}
 		}
 	}
 
-	void FReplicationManagerState_Connected::HandleReleasingReplicatedObjects(const FConcertReplication_ChangeAuthority_Request& Request) const
+	void FReplicationManagerState_Connected::HandleReleasingReplicatedObjects(const FConcertReplication_ChangeAuthority_Request& Request)
 	{
 		for (const TPair<FSoftObjectPath, FConcertStreamArray>& ReleaseAuthority : Request.ReleaseAuthority)
 		{
-			ReplicationDataSource->RemoveReplicatedObjectStreams(ReleaseAuthority.Key, ReleaseAuthority.Value.StreamIds);
+			ReplicationDataSource.RemoveReplicatedObjectStreams(ReleaseAuthority.Key, ReleaseAuthority.Value.StreamIds);
 		}
 	}
 
-	void FReplicationManagerState_Connected::RevertReleasingReplicatedObjects(const FConcertReplication_ChangeAuthority_Request& Request) const
+	void FReplicationManagerState_Connected::RevertReleasingReplicatedObjects(const FConcertReplication_ChangeAuthority_Request& Request)
 	{
 		for (const TPair<FSoftObjectPath, FConcertStreamArray>& ReleaseAuthority : Request.ReleaseAuthority)
 		{
-			ReplicationDataSource->AddReplicatedObjectStreams(ReleaseAuthority.Key, ReleaseAuthority.Value.StreamIds);
+			ReplicationDataSource.AddReplicatedObjectStreams(ReleaseAuthority.Key, ReleaseAuthority.Value.StreamIds);
 		}
 	}
 

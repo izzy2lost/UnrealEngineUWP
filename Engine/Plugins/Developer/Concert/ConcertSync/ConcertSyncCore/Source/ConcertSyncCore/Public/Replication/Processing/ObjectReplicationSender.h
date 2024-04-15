@@ -23,8 +23,8 @@ namespace UE::ConcertSyncCore
 		 */
 		FObjectReplicationSender(
 			const FGuid& TargetEndpointId,
-			TSharedRef<IConcertSession> Session,
-			TSharedRef<IReplicationDataSource> DataSource
+			IConcertSession& Session UE_LIFETIMEBOUND, 
+			IReplicationDataSource& DataSource UE_LIFETIMEBOUND
 			);
 		
 		//~ Begin FObjectReplicationProcessor Interface
@@ -43,7 +43,7 @@ namespace UE::ConcertSyncCore
 		const FGuid TargetEndpointId;
 		
 		/** The session through which replication messages are sent. */
-		const TSharedRef<IConcertSession> Session;
+		IConcertSession& Session;
 
 		/** This event is filled in ProcessObjects and finally sent to TargetEndpointId. */
 		FConcertReplication_BatchReplicationEvent EventToSend;

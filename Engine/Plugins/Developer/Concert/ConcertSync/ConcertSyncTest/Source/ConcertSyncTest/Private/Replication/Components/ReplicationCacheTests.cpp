@@ -125,8 +125,9 @@ namespace UE::ConcertSyncTests
 		const FSoftObjectPath ObjectPath(TEXT("/Game/World.World:PersistentLevel.StaticMeshActor0"));
 		const FGuid DummySendingClientId = FGuid::NewGuid();
 		const FConcertReplicatedObjectId ObjectID{ { StreamId, ObjectPath }, DummySendingClientId};
-		
-		TSharedRef<ConcertSyncCore::FObjectReplicationCache> Cache = MakeShared<ConcertSyncCore::FObjectReplicationCache>(MakeShared<FTestReplicationFormat>());
+
+		FTestReplicationFormat TestFormat;
+		TSharedRef<ConcertSyncCore::FObjectReplicationCache> Cache = MakeShared<ConcertSyncCore::FObjectReplicationCache>(TestFormat);
 		TSharedRef<FTestReplicationCacheUser> User_NeverConsume = MakeShared<FTestReplicationCacheUser>(*this, ObjectID, EReplicationCacheTestFlags::NeverConsume);
 		TSharedRef<FTestReplicationCacheUser> User_NeverReceive = MakeShared<FTestReplicationCacheUser>(*this, ObjectID, EReplicationCacheTestFlags::NeverReceive);
 		TSharedRef<FTestReplicationCacheUser> User_ConsumeManually = MakeShared<FTestReplicationCacheUser>(*this, ObjectID);

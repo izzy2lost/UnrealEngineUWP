@@ -29,8 +29,8 @@ namespace UE::ConcertSyncServer::Replication
 		FConcertReplicationClient(
 			TArray<FConcertReplicationStream> StreamDescriptions,
 			const FGuid& ClientEndpointId,
-			TSharedRef<IConcertSession> Session,
-			TSharedRef<ConcertSyncCore::FObjectReplicationCache> ReplicationCache,
+			IConcertSession& Session UE_LIFETIMEBOUND,
+			ConcertSyncCore::FObjectReplicationCache& ReplicationCache UE_LIFETIMEBOUND,
 			ConcertSyncCore::FGetObjectFrequencySettings GetObjectFrequencySettingsDelegate
 			);
 

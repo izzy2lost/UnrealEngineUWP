@@ -10,7 +10,7 @@
 
 namespace UE::ConcertSyncClient::Replication
 {
-	FReplicationManager::FReplicationManager(TSharedRef<IConcertClientSession> InLiveSession, IConcertClientReplicationBridge* InBridge)
+	FReplicationManager::FReplicationManager(TSharedRef<IConcertClientSession> InLiveSession, IConcertClientReplicationBridge& InBridge)
 		: Session(MoveTemp(InLiveSession))
 		, Bridge(InBridge)
 	{}

@@ -8,8 +8,8 @@
 
 namespace UE::ConcertSyncCore
 {
-	FObjectReplicationCache::FObjectReplicationCache(TSharedRef<IObjectReplicationFormat> ReplicationFormat)
-		: ReplicationFormat(MoveTemp(ReplicationFormat))
+	FObjectReplicationCache::FObjectReplicationCache(IObjectReplicationFormat& ReplicationFormat)
+		: ReplicationFormat(ReplicationFormat)
 	{}
 
 	int32 FObjectReplicationCache::StoreUntilConsumed(const FGuid& SendingEndpointId, const FGuid& OriginStreamId, const FConcertReplication_ObjectReplicationEvent& ObjectReplicationEvent)
@@ -29,7 +29,7 @@ namespace UE::ConcertSyncCore
 				if (EventDataPin && !CombineOnceDetection.Contains(EventDataPin.Get()))
 				{
 					CombineOnceDetection.Add(EventDataPin.Get());
-					ReplicationFormat->CombineReplicationEvents(EventDataPin->SerializedPayload, ObjectReplicationEvent.SerializedPayload);
+					ReplicationFormat.CombineReplicationEvents(EventDataPin->SerializedPayload, ObjectReplicationEvent.SerializedPayload);
 				}
 			}
 		}

@@ -3,7 +3,6 @@
 #pragma once
 
 #include "Replication/Processing/ObjectReplicationReceiver.h"
-#include "Templates/SharedPointer.h"
 
 namespace UE::ConcertSyncServer::Replication
 {
@@ -14,7 +13,11 @@ namespace UE::ConcertSyncServer::Replication
 	{
 	public:
 
-		FServerObjectReplicationReceiver(TSharedRef<FAuthorityManager> AuthorityManager, TSharedRef<IConcertSession> Session, TSharedRef<ConcertSyncCore::FObjectReplicationCache> ReplicationCache);
+		FServerObjectReplicationReceiver(
+			const FAuthorityManager& AuthorityManager UE_LIFETIMEBOUND,
+			IConcertSession& Session UE_LIFETIMEBOUND,
+			ConcertSyncCore::FObjectReplicationCache& ReplicationCache UE_LIFETIMEBOUND
+			);
 
 	protected:
 
@@ -25,7 +28,7 @@ namespace UE::ConcertSyncServer::Replication
 	private:
 
 		/** Used to determine whether a client has authority over objects. */
-		TSharedRef<FAuthorityManager> AuthorityManager;
+		const FAuthorityManager& AuthorityManager;
 	};
 }
 

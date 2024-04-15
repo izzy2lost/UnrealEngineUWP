@@ -25,10 +25,10 @@ namespace UE::ConcertSyncServer::Replication
 	
 	FConcertServerReplicationManager::FConcertServerReplicationManager(TSharedRef<IConcertServerSession> InLiveSession)
 		: Session(MoveTemp(InLiveSession))
-		, ReplicationFormat(MakeShared<ConcertSyncCore::FFullObjectFormat>())
-		, AuthorityManager(MakeShared<FAuthorityManager>(*this, Session))
-		, ReplicationCache(MakeShared<ConcertSyncCore::FObjectReplicationCache>(ReplicationFormat))
-		, ReplicationDataReceiver(AuthorityManager, Session, ReplicationCache)
+		, ReplicationFormat(MakeUnique<ConcertSyncCore::FFullObjectFormat>())
+		, AuthorityManager(*this, Session)
+		, ReplicationCache(MakeShared<ConcertSyncCore::FObjectReplicationCache>(*ReplicationFormat))
+		, ReplicationDataReceiver(AuthorityManager, *Session, *ReplicationCache)
 	{
 		Session->RegisterCustomRequestHandler<FConcertReplication_Join_Request, FConcertReplication_Join_Response>(this, &FConcertServerReplicationManager::HandleJoinReplicationSessionRequest);
 		Session->RegisterCustomRequestHandler<FConcertReplication_QueryReplicationInfo_Request, FConcertReplication_QueryReplicationInfo_Response>(this, &FConcertServerReplicationManager::HandleQueryReplicationInfoRequest);
@@ -127,8 +127,8 @@ namespace UE::ConcertSyncServer::Replication
 			MakeUnique<FConcertReplicationClient>(
 				MoveTemp(StreamDescriptions),
 				ClientId,
-				Session,
-				ReplicationCache,
+				*Session,
+				*ReplicationCache,
 				ConcertSyncCore::FGetObjectFrequencySettings::CreateRaw(this, &FConcertServerReplicationManager::GetObjectFrequencySettings)
 			)
 		);
@@ -205,7 +205,7 @@ namespace UE::ConcertSyncServer::Replication
 				ObjectInfo.Object = Pair.Key;
 				ObjectInfo.StreamId = StreamId;
 				
-				if (AuthorityManager->HasAuthorityToChange(ObjectInfo))
+				if (AuthorityManager.HasAuthorityToChange(ObjectInfo))
 				{
 					Info.AuthoredObjects.Add(Pair.Key);
 				}
@@ -228,7 +228,7 @@ namespace UE::ConcertSyncServer::Replication
 		UE_LOG(LogConcert, Log, TEXT("Received replication leave request from endpoint %s"), *ClientEndpointId.ToString());
 		
 		Clients.Remove(ClientEndpointId);
-		AuthorityManager->OnClientLeft(ClientEndpointId);
+		AuthorityManager.OnClientLeft(ClientEndpointId);
 	}
 
 	void FConcertServerReplicationManager::OnConnectionChanged(IConcertServerSession& ConcertServerSession, EConcertClientStatus ConcertClientStatus, const FConcertSessionClientInfo& ClientInfo)
@@ -237,7 +237,7 @@ namespace UE::ConcertSyncServer::Replication
 		if (ConcertClientStatus == EConcertClientStatus::Disconnected)
 		{
 			Clients.Remove(ClientEndpointId);
-			AuthorityManager->OnClientLeft(ClientEndpointId);
+			AuthorityManager.OnClientLeft(ClientEndpointId);
 		}
 	}
 

@@ -15,9 +15,9 @@ namespace UE::ConcertSyncClient::Replication
 	public:
 
 		FObjectReplicationApplierProcessor(
-			IConcertClientReplicationBridge* ReplicationBridge,
-			TSharedRef<ConcertSyncCore::IObjectReplicationFormat> ReplicationFormat,
-			TSharedRef<ConcertSyncCore::IReplicationDataSource> DataSource
+			IConcertClientReplicationBridge& ReplicationBridge UE_LIFETIMEBOUND,
+			ConcertSyncCore::IObjectReplicationFormat& ReplicationFormat UE_LIFETIMEBOUND,
+			ConcertSyncCore::IReplicationDataSource& DataSource UE_LIFETIMEBOUND
 			);
 		
 	protected:
@@ -29,10 +29,10 @@ namespace UE::ConcertSyncClient::Replication
 	private:
 
 		/** Retrieves objects for applying replication data to. */
-		IConcertClientReplicationBridge* ReplicationBridge;
+		IConcertClientReplicationBridge& ReplicationBridge;
 
 		/** Unpacks replication data and applies it to an UObject instance. */
-		TSharedRef<ConcertSyncCore::IObjectReplicationFormat> ReplicationFormat;
+		ConcertSyncCore::IObjectReplicationFormat& ReplicationFormat;
 	};
 }
 

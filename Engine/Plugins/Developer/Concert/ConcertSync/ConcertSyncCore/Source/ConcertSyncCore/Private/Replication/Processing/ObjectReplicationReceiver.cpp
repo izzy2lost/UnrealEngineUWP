@@ -13,16 +13,16 @@ namespace UE::ConcertSyncCore
 {
 	static TAutoConsoleVariable<bool> CVarLogReceivedObjects(TEXT("Concert.Replication.LogReceivedObjects"), false, TEXT("Enable Concert logging for received replicated objects."));
 	
-	FObjectReplicationReceiver::FObjectReplicationReceiver(TSharedRef<IConcertSession> Session, TSharedRef<FObjectReplicationCache> ReplicationCache)
-		: Session(MoveTemp(Session))
-		, ReplicationCache(MoveTemp(ReplicationCache))
+	FObjectReplicationReceiver::FObjectReplicationReceiver(IConcertSession& Session, FObjectReplicationCache& ReplicationCache)
+		: Session(Session)
+		, ReplicationCache(ReplicationCache)
 	{
-		Session->RegisterCustomEventHandler<FConcertReplication_BatchReplicationEvent>(this, &FObjectReplicationReceiver::HandleBatchReplicationEvent);
+		Session.RegisterCustomEventHandler<FConcertReplication_BatchReplicationEvent>(this, &FObjectReplicationReceiver::HandleBatchReplicationEvent);
 	}
 
 	FObjectReplicationReceiver::~FObjectReplicationReceiver()
 	{
-		Session->UnregisterCustomEventHandler<FConcertReplication_BatchReplicationEvent>(this);
+		Session.UnregisterCustomEventHandler<FConcertReplication_BatchReplicationEvent>(this);
 	}
 
 	void FObjectReplicationReceiver::HandleBatchReplicationEvent(const FConcertSessionContext& SessionContext, const FConcertReplication_BatchReplicationEvent& Event)
@@ -42,7 +42,7 @@ namespace UE::ConcertSyncCore
 			{
 				if (ShouldAcceptObject(SessionContext, StreamEvent, ObjectEvent))
 				{
-					const int32 NumAccepted = ReplicationCache->StoreUntilConsumed(SessionContext.SourceEndpointId, StreamEvent.StreamId, ObjectEvent);
+					const int32 NumAccepted = ReplicationCache.StoreUntilConsumed(SessionContext.SourceEndpointId, StreamEvent.StreamId, ObjectEvent);
 					NumCacheUsages += NumAccepted;
 					NumOfAcceptedObjectChanges += NumAccepted == 0 ? 0 : 1;
 				}

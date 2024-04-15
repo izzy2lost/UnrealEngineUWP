@@ -15,12 +15,12 @@ namespace UE::ConcertSyncCore
 	
 	FObjectReplicationSender::FObjectReplicationSender(
 		const FGuid& TargetEndpointId,
-		TSharedRef<IConcertSession> Session,
-		TSharedRef<IReplicationDataSource> DataSource
+		IConcertSession& Session,
+		IReplicationDataSource& DataSource
 		)
-		: FObjectReplicationProcessor(MoveTemp(DataSource))
+		: FObjectReplicationProcessor(DataSource)
 		, TargetEndpointId(TargetEndpointId)
-		, Session(MoveTemp(Session))
+		, Session(Session)
 	{}
 
 	void FObjectReplicationSender::ProcessObjects(const FProcessObjectsParams& Params)
@@ -36,7 +36,7 @@ namespace UE::ConcertSyncCore
 				*TargetEndpointId.ToString()
 				);
 			
-			Session->SendCustomEvent(EventToSend, TargetEndpointId,
+			Session.SendCustomEvent(EventToSend, TargetEndpointId,
 				// Replication is always unreliable - if it fails to deliver we'll send updated data soon again
 				// TODO: In regular intervals send CRC values to detect that a change is missing
 				EConcertMessageFlags::None

@@ -18,7 +18,7 @@ namespace UE::ConcertSyncClient::Replication
 		friend FReplicationManagerState; 
 	public:
 		
-		FReplicationManager(TSharedRef<IConcertClientSession> InLiveSession, IConcertClientReplicationBridge* InBridge);
+		FReplicationManager(TSharedRef<IConcertClientSession> InLiveSession, IConcertClientReplicationBridge& InBridge UE_LIFETIMEBOUND);
 		virtual ~FReplicationManager() override;
 
 		/** Starts accepting join requests. Must be called separately from constructor because of TSharedFromThis asserting if SharedThis is called in constructor. */
@@ -46,7 +46,7 @@ namespace UE::ConcertSyncClient::Replication
 		/** Session instance this manager was created for. */
 		TSharedRef<IConcertClientSession> Session;
 		/** The replication bridge is responsible for applying received data and generating data to send. */
-		IConcertClientReplicationBridge* Bridge;
+		IConcertClientReplicationBridge& Bridge;
 
 		/** The current state this manager is in, e.g. waiting for connection request, connecting, connected, etc. */
 		TSharedPtr<FReplicationManagerState> CurrentState;

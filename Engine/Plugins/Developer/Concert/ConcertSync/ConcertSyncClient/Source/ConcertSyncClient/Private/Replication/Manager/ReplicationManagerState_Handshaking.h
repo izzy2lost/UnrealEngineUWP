@@ -21,8 +21,8 @@ namespace UE::ConcertSyncClient::Replication
 			FJoinReplicatedSessionArgs RequestArgs,
 			TPromise<FJoinReplicatedSessionResult> JoinSessionPromise,
 			TSharedRef<IConcertClientSession> LiveSession,
-			IConcertClientReplicationBridge* ReplicationBridge,
-			FReplicationManager& Owner
+			IConcertClientReplicationBridge& ReplicationBridge UE_LIFETIMEBOUND,
+			FReplicationManager& Owner UE_LIFETIMEBOUND
 			);
 		virtual ~FReplicationManagerState_Handshaking() override;
 		
@@ -44,7 +44,7 @@ namespace UE::ConcertSyncClient::Replication
 		/** Passed to FReplicationManagerState_Handshaking */
 		TSharedRef<IConcertClientSession> LiveSession;
 		/** Passed to FReplicationManagerState_Handshaking */
-		IConcertClientReplicationBridge* ReplicationBridge;
+		IConcertClientReplicationBridge& ReplicationBridge;
 
 		//~ Begin FReplicationManagerState Interface
 		virtual void OnEnterState() override;
