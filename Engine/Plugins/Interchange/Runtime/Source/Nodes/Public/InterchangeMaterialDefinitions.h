@@ -450,6 +450,7 @@ namespace Interchange
 			namespace Parameters
 			{
 				const FName TransmissionColor = TEXT("TransmissionColor"); // Type: vector3
+				const FName SurfaceCoverage = TEXT("SurfaceCoverage"); // Type: float
 			}
 		}
 

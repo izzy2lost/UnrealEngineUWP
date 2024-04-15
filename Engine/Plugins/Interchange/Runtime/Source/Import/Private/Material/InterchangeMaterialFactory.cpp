@@ -1641,20 +1641,38 @@ void UInterchangeMaterialFactory::SetupMaterial(UMaterial* Material, const FImpo
 
 	// Thin Translucent
 	{
-		FString TransmissionColorUid;
-		FString OutputName;
+		FString TransmissionColorUid, SurfaceCoverageUid;
+		FString TransmissionColorOutputName, SurfaceCoverageOutputName;
 
-		if (MaterialFactoryNode->GetTransmissionColorConnection(TransmissionColorUid, OutputName))
+		const bool bHasTransmissionColor = MaterialFactoryNode->GetTransmissionColorConnection(TransmissionColorUid, TransmissionColorOutputName);
+		const bool bHasSurfaceCoverage = MaterialFactoryNode->GetSurfaceCoverageConnection(SurfaceCoverageUid, SurfaceCoverageOutputName);
+		if(bHasTransmissionColor || bHasSurfaceCoverage)
 		{
 			const UInterchangeMaterialExpressionFactoryNode* TransmissionColorNode = Cast<UInterchangeMaterialExpressionFactoryNode>(Arguments.NodeContainer->GetNode(TransmissionColorUid));
+			const UInterchangeMaterialExpressionFactoryNode* SurfaceCoverageNode = Cast<UInterchangeMaterialExpressionFactoryNode>(Arguments.NodeContainer->GetNode(SurfaceCoverageUid));
 
-			if (TransmissionColorNode)
+			UMaterialExpression* ThinTranslucentMaterialOutput = nullptr;
+
+			if(TransmissionColorNode)
 			{
-				if (UMaterialExpression* TransmissionColorExpression = Builder.CreateExpressionsForNode(*TransmissionColorNode))
+				if(UMaterialExpression* TransmissionColorExpression = Builder.CreateExpressionsForNode(*TransmissionColorNode))
 				{
-					UMaterialExpression* ThinTranslucentMaterialOutput = CreateMaterialExpression(Material, nullptr, UMaterialExpressionThinTranslucentMaterialOutput::StaticClass());
-					
-					TransmissionColorExpression->ConnectExpression(ThinTranslucentMaterialOutput->GetInput(0), GetOutputIndex(*TransmissionColorExpression, OutputName));
+					ThinTranslucentMaterialOutput = CreateMaterialExpression(Material, nullptr, UMaterialExpressionThinTranslucentMaterialOutput::StaticClass());
+
+					TransmissionColorExpression->ConnectExpression(ThinTranslucentMaterialOutput->GetInput(0), GetOutputIndex(*TransmissionColorExpression, TransmissionColorOutputName));
+				}
+			}
+
+			if(SurfaceCoverageNode)
+			{
+				if(UMaterialExpression* SurfaceCoverageExpression = Builder.CreateExpressionsForNode(*SurfaceCoverageNode))
+				{
+					if(!ThinTranslucentMaterialOutput)
+					{
+						ThinTranslucentMaterialOutput = CreateMaterialExpression(Material, nullptr, UMaterialExpressionThinTranslucentMaterialOutput::StaticClass());
+					}
+
+					SurfaceCoverageExpression->ConnectExpression(ThinTranslucentMaterialOutput->GetInput(1), GetOutputIndex(*SurfaceCoverageExpression, SurfaceCoverageOutputName));
 				}
 			}
 		}

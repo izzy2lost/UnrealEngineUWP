@@ -1066,8 +1066,9 @@ bool UInterchangeGenericMaterialPipeline::HasThinTranslucency(const UInterchange
 	using namespace UE::Interchange::Materials::ThinTranslucent;
 
 	const bool bHasTransmissionColorInput = UInterchangeShaderPortsAPI::HasInput(ShaderGraphNode, Parameters::TransmissionColor);
+	const bool bHasSurfaceCoverageInput = UInterchangeShaderPortsAPI::HasInput(ShaderGraphNode, Parameters::SurfaceCoverage);
 
-	return bHasTransmissionColorInput;
+	return bHasTransmissionColorInput || bHasSurfaceCoverageInput;
 }
 
 bool UInterchangeGenericMaterialPipeline::IsMetalRoughModel(const UInterchangeShaderGraphNode* ShaderGraphNode) const
@@ -1515,6 +1516,24 @@ bool UInterchangeGenericMaterialPipeline::HandleThinTranslucent(const UInterchan
 			if (ExpressionFactoryNode.Get<0>())
 			{
 				MaterialFactoryNode->ConnectOutputToTransmissionColor(ExpressionFactoryNode.Get<0>()->GetUniqueID(), ExpressionFactoryNode.Get<1>());
+			}
+
+			bShadingModelHandled = true;
+		}
+	}
+
+	// Surface Coverage
+	{
+		const bool bHasInput = UInterchangeShaderPortsAPI::HasInput(ShaderGraphNode, Parameters::SurfaceCoverage);
+
+		if(bHasInput)
+		{
+			TTuple<UInterchangeMaterialExpressionFactoryNode*, FString> ExpressionFactoryNode =
+				CreateMaterialExpressionForInput(MaterialFactoryNode, ShaderGraphNode, Parameters::SurfaceCoverage.ToString(), MaterialFactoryNode->GetUniqueID());
+
+			if(ExpressionFactoryNode.Get<0>())
+			{
+				MaterialFactoryNode->ConnectOutputToSurfaceCoverage(ExpressionFactoryNode.Get<0>()->GetUniqueID(), ExpressionFactoryNode.Get<1>());
 			}
 
 			bShadingModelHandled = true;
