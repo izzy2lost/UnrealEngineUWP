@@ -881,7 +881,18 @@ public:
 	 * To avoid copies, the callback is called from within the ReadLock.
 	 * DO NOT CALL AssetRegistry functions from the callback; doing so will create a deadlock.
 	 */
+	UE_DEPRECATED(5.5, "ReadLockEnumerateTagToAssetDatas with TArray has been deprecated. Use ReadLockEnumerateTagToAssetDatas with EnumerateAssets callback instead.")
 	virtual void ReadLockEnumerateTagToAssetDatas(TFunctionRef<void(FName TagName, const TArray<const FAssetData*>& Assets)> Callback) const = 0;
+
+	typedef TFunctionRef<bool(const FAssetData* AssetData)> FAssetDataFunc;
+	typedef TFunctionRef<bool(FAssetDataFunc AssetCallback)> FEnumerateAssetDatasFunc;
+
+	/**
+	 * Enumerate all pairs in State->TagToAssetDataMapAssetRegistry and call a callback on each pair.
+	 * To avoid copies, the callback is called from within the ReadLock.
+	 * DO NOT CALL AssetRegistry functions from the callback; doing so will create a deadlock.
+	 */
+	virtual void ReadLockEnumerateAllTagToAssetDatas(TFunctionRef<bool(FName TagName, FEnumerateAssetDatasFunc EnumerateAssets)> Callback) const = 0;
 
 	/**
 	 * Predicate called to decide whether to recurse into a reference when setting manager references

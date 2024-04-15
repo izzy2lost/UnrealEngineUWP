@@ -387,8 +387,8 @@ TArray<FName> UAssetTagsSubsystem::GetCollections()
 		FStringView CollectionTagPrefix(FAssetData::GetCollectionTagPrefix());
 
 		FString TagNameStr;
-		AssetRegistry.ReadLockEnumerateTagToAssetDatas(
-			[&TagNameStr, &CollectionTagPrefix, &CollectionNames](FName TagName, const TArray<const FAssetData*>& Assets)
+		AssetRegistry.ReadLockEnumerateAllTagToAssetDatas(
+			[&TagNameStr, &CollectionTagPrefix, &CollectionNames](FName TagName, IAssetRegistry::FEnumerateAssetDatasFunc EnumerateAssets)
 			{
 				TagName.ToString(TagNameStr);
 				if (FStringView(TagNameStr).StartsWith(CollectionTagPrefix, ESearchCase::IgnoreCase))
@@ -396,6 +396,8 @@ TArray<FName> UAssetTagsSubsystem::GetCollections()
 					const FString TrimmedTagNameStr = TagNameStr.Mid(CollectionTagPrefix.Len());
 					CollectionNames.Add(*TrimmedTagNameStr);
 				}
+
+				return true;
 			});
 	}
 #endif	// WITH_EDITOR

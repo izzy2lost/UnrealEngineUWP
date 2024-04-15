@@ -256,16 +256,18 @@ int32 UAssetRegistryExportCommandlet::Main(const FString& CmdLineParams)
 		// Find all the assets that are of the requested primary asset types. These we'll use as roots for the 
 		// dependency listing.
 		TArray<const FAssetData*> PrimaryAssets;
-		const TArray<const FAssetData*>& AssetsWithPrimaryAssetType = AssetRegistry.GetAssetsByTagName(FPrimaryAssetId::PrimaryAssetTypeTag);
-		for (const FAssetData* GFD : AssetsWithPrimaryAssetType)
-		{
-			FName PrimaryAssetType;
-			if (GFD->GetTagValue(FPrimaryAssetId::PrimaryAssetTypeTag, PrimaryAssetType) &&
-				DependencyListAssetTypeNames.Contains(PrimaryAssetType))
+		AssetRegistry.EnumerateAssetsByTagName(FPrimaryAssetId::PrimaryAssetTypeTag, 
+			[&DependencyListAssetTypeNames, &PrimaryAssets](const FAssetData* GFD)
 			{
-				PrimaryAssets.Add(GFD);
-			}
-		}
+				FName PrimaryAssetType;
+				if (GFD->GetTagValue(FPrimaryAssetId::PrimaryAssetTypeTag, PrimaryAssetType) &&
+					DependencyListAssetTypeNames.Contains(PrimaryAssetType))
+				{
+					PrimaryAssets.Add(GFD);
+				}
+
+				return true;
+			});
 
 		
 		UE_LOG(LogAssetRegistryExport, Display, TEXT("ListDependencies matching PrimaryAssets discovered %s"), *NumberString(PrimaryAssets.Num()));
@@ -274,16 +276,18 @@ int32 UAssetRegistryExportCommandlet::Main(const FString& CmdLineParams)
 		TSet<const FAssetData*> RemainingAssetsWithSize;
 		uint64 TotalCompressedBytes = 0;
 		{
-			const TArray<const FAssetData*>& AssetsWithSize = AssetRegistry.GetAssetsByTagName(UE::AssetRegistry::Stage_ChunkCompressedSizeFName);
-			for (const FAssetData* AD : AssetsWithSize)
-			{
-				uint64 CompressedSize = 0;
-				if (AD->GetTagValue(UE::AssetRegistry::Stage_ChunkCompressedSizeFName, CompressedSize))
+			AssetRegistry.EnumerateAssetsByTagName(UE::AssetRegistry::Stage_ChunkCompressedSizeFName,
+				[&RemainingAssetsWithSize, &TotalCompressedBytes](const FAssetData* AD)
 				{
-					TotalCompressedBytes += CompressedSize;
-					RemainingAssetsWithSize.Add(AD);
-				}
-			}
+					uint64 CompressedSize = 0;
+					if (AD->GetTagValue(UE::AssetRegistry::Stage_ChunkCompressedSizeFName, CompressedSize))
+					{
+						TotalCompressedBytes += CompressedSize;
+						RemainingAssetsWithSize.Add(AD);
+					}
+
+					return true;
+				});
 		}
 
 		const TMap<FName, const FAssetPackageData*>& AllPackages = AssetRegistry.GetAssetPackageDataMap();

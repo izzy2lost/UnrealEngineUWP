@@ -841,8 +841,8 @@ bool AssetDataMatchesTag(const FAssetData* AssetData, const TPair<FName, TOption
 	}
 }
 
-template<typename CallbackType>
-void FilterAssets(TArray<const FAssetData*>& InOutResults, const TMap<FName, TArray<FAssetData*>>& AccelerationMap,
+template<typename CallbackType, typename AccelerationMapType>
+void FilterAssets(TArray<const FAssetData*>& InOutResults, const AccelerationMapType& AccelerationMap,
 	const TMultiMap<FName, TOptional<FString>>& TagsAndValues, CallbackType&& FunctionToKeepAsset, int32 FilterComplexity)
 {
 	TArray<TArray<const FAssetData*>, TInlineAllocator<10>> Matches;
@@ -852,7 +852,7 @@ void FilterAssets(TArray<const FAssetData*>& InOutResults, const TMap<FName, TAr
 	for (const TPair<FName, TOptional<FString>>& TagPair : TagsAndValues)
 	{
 		TArray<const FAssetData*>& Results = Matches.Emplace_GetRef();
-		if (const TArray<FAssetData*>* TagAssets = AccelerationMap.Find(TagPair.Key))
+		if (const auto TagAssets = AccelerationMap.Find(TagPair.Key))
 		{
 			Results.Reserve(TagAssets->Num());
 			for (FAssetData* AssetData : *TagAssets)
@@ -1981,11 +1981,16 @@ void FAssetRegistryState::SetAssetDatas(TArrayView<FAssetData> AssetDatas, const
 		{
 			for (const TPair<FName, FAssetTagValueRef>& Pair : AssetData.TagsAndValues)
 			{
-				TArray<FAssetData*>& TagAssets = CachedAssetsByTag.FindOrAdd(Pair.Key);
+				TSet<FAssetData*>& TagAssets = CachedAssetsByTag.FindOrAdd(Pair.Key);
 				TagAssets.Add(&AssetData);
 			}
 		}
-		ShrinkMultimap(CachedAssetsByTag);
+
+		CachedAssetsByTag.Shrink();
+		for (TPair<FName, TSet<FAssetData*>>& Pair : CachedAssetsByTag)
+		{
+			Pair.Value.Shrink();
+		}
 	};
 
 	if (Options.ParallelWorkers <= 1)
@@ -2030,7 +2035,7 @@ void FAssetRegistryState::AddAssetData(FAssetData* AssetData)
 	{
 		FName Key = TagIt.Key();
 
-		TArray<FAssetData*>& TagAssets = CachedAssetsByTag.FindOrAdd(Key);
+		TSet<FAssetData*>& TagAssets = CachedAssetsByTag.FindOrAdd(Key);
 		TagAssets.Add(AssetData);
 	}
 }
@@ -2057,11 +2062,10 @@ void FAssetRegistryState::AddTagsToAssetData(const FSoftObjectPath& InObjectPath
 
 void FAssetRegistryState::FilterTags(const FAssetRegistrySerializationOptions& Options)
 {
-	// Calling SetTagsOnExistingAsset for any changed tags is slow because the elements of 
-	// CachedAssetsByTag are unsorted TArrays and removal of the AssetData from its old
-	// CachedAssetsByTag is slow. For cases where many Assets change it is therefore faster
-	// just to recreate CachedAssetsByTag rather than trying to update them.
-	for (TPair<FName, TArray<FAssetData*>>& Pair : CachedAssetsByTag)
+	// Calling SetTagsOnExistingAsset for any changed tags might be slow.
+	// For cases where many Assets change it might be faster to recreate CachedAssetsByTag
+	// rather than trying to update its elements for each Asset change
+	for (TPair<FName, TSet<FAssetData*>>& Pair : CachedAssetsByTag)
 	{
 		Pair.Value.Reset();
 	}
@@ -2096,10 +2100,10 @@ void FAssetRegistryState::SetTagsOnExistingAsset(FAssetData* AssetData, FAssetDa
 
 		if (!NewTags.Contains(FNameKey))
 		{
-			TArray<FAssetData*>* OldTagAssets = CachedAssetsByTag.Find(FNameKey);
+			TSet<FAssetData*>* OldTagAssets = CachedAssetsByTag.Find(FNameKey);
 			if (OldTagAssets)
 			{
-				OldTagAssets->RemoveSingleSwap(AssetData);
+				OldTagAssets->Remove(AssetData);
 			}
 		}
 	}
@@ -2222,8 +2226,8 @@ void FAssetRegistryState::UpdateAssetData(FAssetData* AssetData, FAssetData&& Ne
 
 			if (!NewAssetData.TagsAndValues.Contains(FNameKey))
 			{
-				TArray<FAssetData*>* OldTagAssets = CachedAssetsByTag.Find(FNameKey);
-				OldTagAssets->RemoveSingleSwap(AssetData);
+				TSet<FAssetData*>* OldTagAssets = CachedAssetsByTag.Find(FNameKey);
+				OldTagAssets->Remove(AssetData);
 			}
 		}
 
@@ -2233,7 +2237,7 @@ void FAssetRegistryState::UpdateAssetData(FAssetData* AssetData, FAssetData&& Ne
 
 			if (!AssetData->TagsAndValues.Contains(FNameKey))
 			{
-				TArray<FAssetData*>& NewTagAssets = CachedAssetsByTag.FindOrAdd(FNameKey);
+				TSet<FAssetData*>& NewTagAssets = CachedAssetsByTag.FindOrAdd(FNameKey);
 				NewTagAssets.Add(AssetData);
 			}
 		}
@@ -2348,8 +2352,8 @@ void FAssetRegistryState::RemoveAssetData(FAssetData* AssetData, const FCachedAs
 
 	for (auto TagIt = AssetData->TagsAndValues.CreateConstIterator(); TagIt; ++TagIt)
 	{
-		TArray<FAssetData*>* OldTagAssets = CachedAssetsByTag.Find(TagIt.Key());
-		OldTagAssets->RemoveSingleSwap(AssetData);
+		TSet<FAssetData*>* OldTagAssets = CachedAssetsByTag.Find(TagIt.Key());
+		OldTagAssets->Remove(AssetData);
 	}
 
 	// Only remove dependencies and package data if there are no other known assets in the package
@@ -2665,7 +2669,11 @@ static void PrintAssetDataMap(FString Name, const MapType& AssetMap, TStringBuil
 		++ValidCount;
 
 		Items.Reset();
-		Items.Append(AssetArray);
+		Items.Reserve(AssetArray.Num());
+		for (const auto& It : AssetArray)
+		{
+			Items.Add(It);
+		}
 		Items.Sort([](const FAssetData& A, const FAssetData& B)
 			{ return A.GetSoftObjectPath().LexicalLess(B.GetSoftObjectPath()); }
 		);

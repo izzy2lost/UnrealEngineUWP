@@ -4194,14 +4194,16 @@ void SContentBrowser::OnAssetSearchSuggestionFilter(const FText& SearchText, TAr
 
 		const FText MetaDataCategoryName = NSLOCTEXT("ContentBrowser", "MetaDataCategoryName", "Meta-Data");
 		FString TagNameStr;
-		AssetRegistry.ReadLockEnumerateTagToAssetDatas(
-			[&PassesValueFilter, &PossibleSuggestions, &MetaDataCategoryName, &TagNameStr](FName TagName, const TArray<const FAssetData*>& Assets)
+		AssetRegistry.ReadLockEnumerateAllTagToAssetDatas(
+			[&PassesValueFilter, &PossibleSuggestions, &MetaDataCategoryName, &TagNameStr](FName TagName, IAssetRegistry::FEnumerateAssetDatasFunc EnumerateAssets)
 			{
 				TagName.ToString(TagNameStr);
 				if (PassesValueFilter(TagNameStr))
 				{
 					PossibleSuggestions.Add(FAssetSearchBoxSuggestion{ TagNameStr, FText::FromString(TagNameStr), MetaDataCategoryName });
 				}
+
+				return true;
 			});
 	}
 

@@ -5469,7 +5469,7 @@ const TSet<FName>& UAssetRegistryImpl::GetCachedEmptyPackages() const
 bool UAssetRegistryImpl::ContainsTag(FName TagName) const
 {
 	UE::AssetRegistry::FInterfaceReadScopeLock InterfaceScopeLock(InterfaceLock);
-	return GuardedData.GetState().GetTagToAssetDatasMap().Contains(TagName);
+	return GuardedData.GetState().ContainsTag(TagName);
 }
 
 namespace UE::AssetRegistry
@@ -8573,11 +8573,21 @@ void FEventContext::Append(FEventContext&& Other)
 
 void UAssetRegistryImpl::ReadLockEnumerateTagToAssetDatas(TFunctionRef<void(FName TagName, const TArray<const FAssetData*>& Assets)> Callback) const
 {
+	UE_LOG(LogAssetRegistry, Error, TEXT("ReadLockEnumerateTagToAssetDatas has been deprecated. Use ReadLockEnumerateAllTagToAssetDatas instead."));
+
 	UE::AssetRegistry::FInterfaceReadScopeLock InterfaceScopeLock(InterfaceLock);
-	for (const TPair<FName, const TArray<const FAssetData*>>& Pair : GuardedData.GetState().GetTagToAssetDatasMap())
+	GuardedData.GetState().EnumerateTags([Callback](FName TagName)
 	{
-		Callback(Pair.Key, Pair.Value);
-	}
+		TArray<const FAssetData*> EmptyArray;
+		Callback(TagName, EmptyArray);
+		return true;
+	});
+}
+
+void UAssetRegistryImpl::ReadLockEnumerateAllTagToAssetDatas(TFunctionRef<bool(FName TagName, IAssetRegistry::FEnumerateAssetDatasFunc EnumerateAssets)> Callback) const
+{
+	UE::AssetRegistry::FInterfaceReadScopeLock InterfaceScopeLock(InterfaceLock);
+	GuardedData.GetState().EnumerateTagToAssetDatas(Callback);
 }
 
 void UAssetRegistryImpl::Broadcast(UE::AssetRegistry::Impl::FEventContext& EventContext)

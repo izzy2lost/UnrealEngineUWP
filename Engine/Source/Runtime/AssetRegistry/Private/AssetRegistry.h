@@ -202,7 +202,9 @@ public:
 
 	virtual void Tick (float DeltaTime) override;
 
+	UE_DEPRECATED(5.5, "ReadLockEnumerateTagToAssetDatas with TArray has been deprecated. Use ReadLockEnumerateAllTagToAssetDatas instead.")
 	virtual void ReadLockEnumerateTagToAssetDatas(TFunctionRef<void(FName TagName, const TArray<const FAssetData*>& Assets)> Callback) const override;
+	virtual void ReadLockEnumerateAllTagToAssetDatas(TFunctionRef<bool(FName TagName, IAssetRegistry::FEnumerateAssetDatasFunc EnumerateAssets)> Callback) const override;
 
 	virtual bool IsPathBeautificationNeeded(const FString& InAssetPath) const override;
 

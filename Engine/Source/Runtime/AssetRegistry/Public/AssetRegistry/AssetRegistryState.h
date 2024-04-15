@@ -393,21 +393,89 @@ public:
 	}
 
 	/**
+	 * Enumerates all tags of any asset in the AssetRegistry
+	 *
+	 * @param Callback the function for each tag
+	 */
+	void EnumerateTags(TFunctionRef<bool(FName TagName)> Callback) const
+	{
+		for (const TPair<FName, TSet<FAssetData*>>& Pair : CachedAssetsByTag)
+		{
+			if (!Callback(Pair.Key))
+			{
+				break;
+			}
+		}
+	}
+
+	/** Return whether the given TagName occurs in the tags of any asset in the AssetRegistry */
+	bool ContainsTag(FName TagName) const
+	{
+		return CachedAssetsByTag.Contains(TagName);
+	}
+
+	/**
 	 * Gets the asset data for the specified asset tag
 	 *
 	 * @param TagName the tag name to search for
 	 * @return An array of AssetData*, empty if nothing found
 	 */
+	UE_DEPRECATED(5.5, "GetAssetsByTagName has been deprecated. Please use EnumerateAssetsByTagName")
 	const TArray<const FAssetData*>& GetAssetsByTagName(const FName TagName) const
 	{
+		ensureMsgf(false, TEXT("GetAssetsByTagName has been deprecated. Please use EnumerateAssetsByTagName"));
 		static TArray<const FAssetData*> InvalidArray;
-		const TArray<FAssetData*>* FoundAssetArray = CachedAssetsByTag.Find(TagName);
-		if (FoundAssetArray)
-		{
-			return reinterpret_cast<const TArray<const FAssetData*>&>(*FoundAssetArray);
-		}
-
 		return InvalidArray;
+	}
+
+	/**
+	 * Enumerates the asset data for the specified asset tag
+	 *
+	 * @param TagName the tag name to search for
+	 * @param Callback the function called for each asset data
+	 */
+	void EnumerateAssetsByTagName(const FName TagName, TFunctionRef<bool(const FAssetData* AssetData)> Callback) const
+	{
+		const TSet<FAssetData*>* FoundAssets = CachedAssetsByTag.Find(TagName);
+		if (FoundAssets)
+		{
+			for (const FAssetData* AssetData : *FoundAssets)
+			{
+				if (!Callback(AssetData))
+				{
+					break;
+				}
+			}
+		}
+	}
+
+	/**
+	 * Enumerates all tags of any asset in the AssetRegistry including function that can be called to enumerate assets for each tag
+	 *
+	 * @param Callback the function for each tag pair
+	 */
+	void EnumerateTagToAssetDatas(TFunctionRef<bool(FName TagName, IAssetRegistry::FEnumerateAssetDatasFunc EnumerateAssets)> Callback) const
+	{
+		for (const TPair<FName, TSet<FAssetData*>>& Pair : CachedAssetsByTag)
+		{
+			const bool bKeepEnumerating = Callback(Pair.Key, [&Pair](IAssetRegistry::FAssetDataFunc AssetCallback)
+				{
+					for (const FAssetData* AssetData : Pair.Value)
+					{
+						if (!AssetCallback(AssetData))
+						{
+							return false;
+						}
+					}
+
+					return true;
+				});
+
+			if (!bKeepEnumerating)
+			{
+				break;
+			}
+		}
 	}
 
 	/** Returns const version of internal ObjectPath->AssetData map for fast iteration */
@@ -417,9 +485,12 @@ public:
 	}
 
 	/** Returns const version of internal Tag->AssetDatas map for fast iteration */
+	UE_DEPRECATED(5.5, "GetTagToAssetDatasMap has been deprecated. Please use EnumerateTags or EnumerateTagToAssetDatas")
 	const TMap<FName, const TArray<const FAssetData*>> GetTagToAssetDatasMap() const
 	{
-		return reinterpret_cast<const TMap<FName, const TArray<const FAssetData*>>&>(CachedAssetsByTag);
+		ensureMsgf(false, TEXT("GetTagToAssetDatasMap has been deprecated. Please use EnumerateTags or EnumerateTagToAssetDatas"));
+		static TMap<FName, const TArray<const FAssetData*>> InvalidMap;
+		return InvalidMap;
 	}
 
 	/** Returns const version of internal PackageName->PackageData map for fast iteration */
@@ -638,7 +709,7 @@ private:
 	TMap<FTopLevelAssetPath, TArray<FAssetData*> > CachedAssetsByClass;
 
 	/** The map of asset tag to asset data for assets saved to disk */
-	TMap<FName, TArray<FAssetData*> > CachedAssetsByTag;
+	TMap<FName, TSet<FAssetData*> > CachedAssetsByTag;
 
 	/** A map of object names to dependency data */
 	TMap<FAssetIdentifier, FDependsNode*> CachedDependsNodes;
