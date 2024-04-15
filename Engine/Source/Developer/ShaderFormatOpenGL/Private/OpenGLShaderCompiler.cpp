@@ -1818,7 +1818,7 @@ void ParseReflectionData(const FShaderCompilerInput& ShaderInput, CrossCompiler:
 		ReflectionBindings.GatherInputAttributes(Reflection);
 		for (SpvReflectInterfaceVariable* Var : ReflectionBindings.InputAttributes)
 		{
-			if (Var->storage_class == SpvStorageClassInput && Var->built_in == -1)
+			if (Var->storage_class == SpvStorageClassInput && Var->built_in == -1 && Frequency == SF_Vertex)
 			{
 				unsigned Location = Var->location;
 				unsigned SemanticIndex = Location;
@@ -2874,9 +2874,8 @@ static bool CompileToGlslWithShaderConductor(
 	// Initialize compilation options for ShaderConductor
 	CrossCompiler::FShaderConductorOptions Options;
 	Options.bDisableScalarBlockLayout = true;
-	Options.bRemapAttributeLocations = true;
-	Options.bPreserveStorageInput = true;
-    Options.bForceStorageImageFormat = true;
+	Options.bRemapAttributeLocations = (Frequency == SF_Vertex);
+	Options.bForceStorageImageFormat = true;
 	Options.bWarningsAsErrors = Input.Environment.CompilerFlags.Contains(CFLAG_WarningsAsErrors);
 	
 	// Enable HLSL 2021 if specified
