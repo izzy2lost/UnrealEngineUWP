@@ -5,6 +5,7 @@
 #include "UObject/Object.h"
 #include "Containers/Array.h"
 #include "Containers/Set.h"
+#include "Templates/SubclassOf.h"
 
 #if WITH_EDITOR
 #include "UObject/ScriptInterface.h"
