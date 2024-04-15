@@ -822,9 +822,10 @@ public:
 	 * Indicates that this material is safe to use with the light function atlas:
 	 *  - texture coordinates are manipulated in a way that works.
 	 *  - world position and depth are not used in the graph or do work with the atlas.
+	 * Forces all deferred lights to go the fast batched lighting code path (no screen shadow mask).
 	 */
-	UPROPERTY(EditAnywhere, Category = LightFunctionMaterial)
-	uint8 bCompatibleWithLightFunctionAtlas : 1;
+	UPROPERTY(EditAnywhere, Category = LightFunctionMaterial, meta = (DisplayName = "Compatible With Light Function Atlas"))
+	uint8 bForceCompatibleWithLightFunctionAtlas : 1;
 
 	/** 
 	 * Whether to automatically set usage flags based on what the material is applied to in the editor.

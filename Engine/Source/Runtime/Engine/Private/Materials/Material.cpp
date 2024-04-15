@@ -1021,7 +1021,7 @@ UMaterial::UMaterial(const FObjectInitializer& ObjectInitializer)
 	bUsedWithHeterogeneousVolumes = false;
 
 	// We default to false=incompatible, and rely onto the automatic detection executed from the HLSLTranslator.
-	bCompatibleWithLightFunctionAtlas = false;
+	bForceCompatibleWithLightFunctionAtlas = false;
 
 	bUseEmissiveForDynamicAreaLighting = false;
 	RefractionDepthBias = 0.0f;
