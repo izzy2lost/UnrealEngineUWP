@@ -132,5 +132,19 @@ namespace Horde.Server.Tests.Tools
 				Assert.IsTrue(fileData.AsSpan().SequenceEqual(outputFileData.AsSpan()));
 			}
 		}
+
+		public static async Task<byte[]> CreateZipFileDataAsync(string fileName, string fileData)
+		{
+			using MemoryStream stream = new ();
+			using (ZipArchive archive = new (stream, ZipArchiveMode.Create))
+			{
+				ZipArchiveEntry entry = archive.CreateEntry(fileName);
+				await using (Stream entryStream = entry.Open())
+				{
+					await entryStream.WriteAsync(Encoding.UTF8.GetBytes(fileData));
+				}
+			}
+			return stream.ToArray();
+		}
 	}
 }
