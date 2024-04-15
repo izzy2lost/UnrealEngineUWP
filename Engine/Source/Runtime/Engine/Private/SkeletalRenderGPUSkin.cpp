@@ -762,14 +762,7 @@ void FSkeletalMeshObjectGPUSkin::ProcessUpdatedDynamicData(
 
 			if (ClothSimulationData)
 			{
-				ClothShaderData->ClothBlendWeight = DynamicData->ClothBlendWeight;
-				ClothShaderData->WorldScale = (FVector3f)WorldScale;
-				ClothShaderData->UpdateClothSimulationData(RHICmdList, ClothSimulationData->Positions, ClothSimulationData->Normals, RevisionNumber, OwnerName);
-
 				ClothToLocal = FMatrix44f(ClothSimulationData->ComponentRelativeTransform.ToMatrixWithScale());
-
-				// Transform from cloth space to local space. Cloth space is relative to cloth root bone, local space is component space.
-				ClothShaderData->GetClothToLocalForWriting() = ClothToLocal;
 			}
 		}
 
@@ -797,6 +790,17 @@ void FSkeletalMeshObjectGPUSkin::ProcessUpdatedDynamicData(
 				Mode == EGPUSkinCacheEntryMode::RayTracing ? SkinCacheEntryForRayTracing : SkinCacheEntry);
 
 			bAllowAddToSkinCache = bSectionUsingSkinCache;
+		}
+
+		// Process the cloth simulation once we know for sure we aren't using the skin cache for this section.
+		if (!bSectionUsingSkinCache && ClothSimulationData)
+		{
+			ClothShaderData->ClothBlendWeight = DynamicData->ClothBlendWeight;
+			ClothShaderData->WorldScale = (FVector3f)WorldScale;
+			ClothShaderData->UpdateClothSimulationData(RHICmdList, ClothSimulationData->Positions, ClothSimulationData->Normals, RevisionNumber, OwnerName);
+
+			// Transform from cloth space to local space. Cloth space is relative to cloth root bone, local space is component space.
+			ClothShaderData->GetClothToLocalForWriting() = ClothToLocal;
 		}
 
 		bAllSectionsUsingSkinCache &= bSectionUsingSkinCache;
