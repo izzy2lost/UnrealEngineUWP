@@ -180,14 +180,33 @@ void FStateTreeStateDetails::CustomizeDetails(IDetailLayoutBuilder& DetailBuilde
 	MakeArrayCategory(DetailBuilder, "Transitions", LOCTEXT("StateDetailsTransitions", "Transitions"), 4, TransitionsProperty);
 
 	// Refresh the UI when the type changes.	
-	TSharedPtr<IPropertyUtilities> PropUtils = DetailBuilder.GetPropertyUtilities();
-	TypeProperty->SetOnPropertyValueChanged(FSimpleDelegate::CreateLambda([PropUtils] ()
+	PropUtils = DetailBuilder.GetPropertyUtilities();
+	TypeProperty->SetOnPropertyValueChanged(FSimpleDelegate::CreateLambda([PropUtils = PropUtils] ()
 	{
 		if (PropUtils.IsValid())
 		{
 			PropUtils->ForceRefresh();
 		}
 	}));
+}
+
+void FStateTreeStateDetails::PostUndo(bool bSuccess)
+{
+	// Refresh view on undo or redo so that the customization based on e.g. State type will be reflected correctly.
+	if (PropUtils.IsValid())
+	{
+		PropUtils->ForceRefresh();
+	}
+	
+}
+
+void FStateTreeStateDetails::PostRedo(bool bSuccess)
+{
+	// Refresh view on undo or redo so that the customization based on e.g. State type will be reflected correctly.
+	if (PropUtils.IsValid())
+	{
+		PropUtils->ForceRefresh();
+	}
 }
 
 void FStateTreeStateDetails::MakeArrayCategory(IDetailLayoutBuilder& DetailBuilder, FName CategoryName, const FText& DisplayName, int32 SortOrder, TSharedPtr<IPropertyHandle> PropertyHandle)
