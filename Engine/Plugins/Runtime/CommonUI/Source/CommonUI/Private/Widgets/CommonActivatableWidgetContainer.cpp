@@ -122,8 +122,9 @@ void UCommonActivatableWidgetContainerBase::ReleaseSlateResources(bool bReleaseC
 	MyInputGuard.Reset();
 	MySwitcher.Reset();
 	ReleasedWidgets.Empty();
+	WidgetList.Reset();
 
-	GeneratedWidgetsPool.ReleaseAllSlateResources();
+	GeneratedWidgetsPool.ReleaseAll(true);
 }
 
 void UCommonActivatableWidgetContainerBase::OnWidgetRebuilt()
