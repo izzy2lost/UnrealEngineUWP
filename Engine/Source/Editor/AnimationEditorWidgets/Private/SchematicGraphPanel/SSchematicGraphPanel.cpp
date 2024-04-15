@@ -1239,7 +1239,7 @@ void SSchematicGraphPanel::AdjustPositionWithDPIScale(FVector2d& InOutPosition, 
 	{
 		const float WidgetX = CachedGeometry.GetAbsolutePosition().X;
 		const float WidgetY = CachedGeometry.GetAbsolutePosition().Y;
-		DPIScale = 1.f / 2.f;//FPlatformApplicationMisc::GetDPIScaleFactorAtPoint(WidgetX, WidgetY);
+		DPIScale = 1.f / FPlatformApplicationMisc::GetDPIScaleFactorAtPoint(WidgetX, WidgetY);
 	}
 	if (bInverse)
 	{
