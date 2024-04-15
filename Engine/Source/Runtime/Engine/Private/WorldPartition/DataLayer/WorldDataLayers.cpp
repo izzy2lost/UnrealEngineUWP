@@ -248,6 +248,7 @@ void AWorldDataLayers::SetDataLayerRuntimeState(const UDataLayerInstance* InData
 		LoadedDataLayerNames.Remove(InDataLayerInstance->GetDataLayerFName());
 		ActiveDataLayerNames.Remove(InDataLayerInstance->GetDataLayerFName());
 		LocalLoadedDataLayerNames.Remove(InDataLayerInstance->GetDataLayerFName());
+		LocalActiveDataLayerNames.Remove(InDataLayerInstance->GetDataLayerFName());
 
 		if (InState == EDataLayerRuntimeState::Loaded)
 		{
