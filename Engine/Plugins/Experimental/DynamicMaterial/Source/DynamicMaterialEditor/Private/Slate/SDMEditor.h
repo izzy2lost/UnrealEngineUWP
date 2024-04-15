@@ -146,7 +146,7 @@ protected:
 	void OnValuesUpdated(UDynamicMaterialModel* InMaterialModel);
 	void OnSlotsUpdated(UDynamicMaterialModel* InMaterialModel);
 
-	bool IsGlobalOpacityEnabled() const;
+	EVisibility GetGlobalOpacityVisibility() const;
 
 	bool IsPropertyValidForModel(EDMMaterialPropertyType InProperty) const;
 	ECheckBoxState GetSlotCheckState(EDMMaterialPropertyType InProperty) const;
