@@ -85,6 +85,7 @@ bool FInsightsTestUtils::FileContainsString(const FString& PathToFile, const FSt
 	{
 		if (!FPaths::FileExists(PathToFile))
 		{
+			Test->AddInfo("Unable to find EngineTest.log at " + PathToFile);
 			FPlatformProcess::Sleep(0.1f);
 		}
 		else
