@@ -758,7 +758,6 @@ public:
 		{
 			NewEnum = NewObject<UPythonGeneratedEnum>(EnumOuter, *EnumName, RF_Public | RF_Transient);
 			NewEnum->SetMetaData(TEXT("DisplayName"), *PyUtil::GetGeneratedTypeDisplayName(PyType));
-			NewEnum->SetMetaData(TEXT("BlueprintType"), TEXT("true"));
 		}
 		NewEnum->EnumValueDefs.Reset();
 
