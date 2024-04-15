@@ -16,7 +16,19 @@
 #include "Materials/MaterialInstanceDynamic.h"
 #include "MarkActorRenderStateDirtyTask.h"
 
+#if WITH_EDITOR
+#include "Editor.h"
+#include "Framework/Notifications/NotificationManager.h"
+#include "Logging/MessageLog.h"
+#include "Misc/MapErrors.h"
+#include "Misc/UObjectToken.h"
+#include "Subsystems/AssetEditorSubsystem.h"
+#include "Widgets/Notifications/SNotificationList.h"
+#endif
+
 #include UE_INLINE_GENERATED_CPP_BY_NAME(DecalComponent)
+
+#define LOCTEXT_NAMESPACE "DecalComponent"
 
 static TAutoConsoleVariable<float> CVarDecalFadeDurationScale(
 	TEXT("r.Decal.FadeDurationScale"),
@@ -396,6 +408,36 @@ FBoxSphereBounds UDecalComponent::CalcBounds(const FTransform& LocalToWorld) con
 	return FBoxSphereBounds(FVector(0, 0, 0), DecalSize, DecalSize.Size()).TransformBy(LocalToWorld);
 }
 
+void UDecalComponent::OnRegister()
+{
+	Super::OnRegister();
+
+#if WITH_EDITOR
+	if (DecalMaterial && DecalMaterial->GetMaterial()->MaterialDomain != MD_DeferredDecal && GEditor)
+	{
+		static TWeakPtr<class SNotificationItem> NotificationHandle;
+		if (!NotificationHandle.IsValid())
+		{
+			FNotificationInfo Info(LOCTEXT("DecalMaterial_Notify", "Decal Material must use Deferred Decal Material Domain."));
+			Info.bFireAndForget = true;
+			Info.ExpireDuration = 8.0f;
+			Info.SubText = FText::Format(
+				LOCTEXT("DecalMaterial_NotifySubtext", "Decal materials must use the Deferred Decal Material Domain.\nEither select a valid material for {0} or open the current material and select the Deferred Decal Material Domain."), 
+				FText::FromString(GetOwner()->GetActorNameOrLabel()));
+			Info.HyperlinkText = FText::Format(
+				LOCTEXT("DecalMaterial_Hyperlink", "Open {0}"), 
+				FText::FromString(DecalMaterial->GetName()));
+			Info.Hyperlink = FSimpleDelegate::CreateWeakLambda(this, [this]
+				{
+					GEditor->GetEditorSubsystem<UAssetEditorSubsystem>()->OpenEditorForAsset(DecalMaterial);
+				});
+
+			NotificationHandle = FSlateNotificationManager::Get().AddNotification(Info);
+		}
+	}
+#endif
+}
+
 void UDecalComponent::BeginPlay()
 {
 	Super::BeginPlay();
@@ -436,4 +478,24 @@ void UDecalComponent::DestroyRenderState_Concurrent()
 	GetWorld()->Scene->RemoveDecal(this);
 }
 
+#if WITH_EDITOR
 
+void UDecalComponent::CheckForErrors()
+{
+	Super::CheckForErrors();
+
+	if (DecalMaterial && DecalMaterial->GetMaterial()->MaterialDomain != MD_DeferredDecal)
+	{
+		FFormatNamedArguments Arguments;
+		Arguments.Add(TEXT("ComponentName"), FText::FromString(GetName()));
+		Arguments.Add(TEXT("OwnerName"), FText::FromString(GetNameSafe(GetOwner())));
+
+		FMessageLog("MapCheck").Warning()
+			->AddToken(FUObjectToken::Create(this))
+			->AddToken(FTextToken::Create(FText::Format(LOCTEXT("DecalMaterial_MapCheck", "{ComponentName}::{OwnerName} has a DecalMaterial that doesn't use the Deferred Decal Material Domain."), Arguments)));
+	}
+}
+
+#endif // WITH_EDITOR
+
+#undef LOCTEXT_NAMESPACE

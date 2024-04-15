@@ -178,12 +178,16 @@ public:
 
 	
 	//~ Begin UActorComponent Interface
+	ENGINE_API virtual void OnRegister() override;
 	ENGINE_API virtual void BeginPlay() override;
 	ENGINE_API virtual void CreateRenderState_Concurrent(FRegisterComponentContext* Context) override;
 	ENGINE_API virtual void DestroyRenderState_Concurrent() override;
 	ENGINE_API virtual void SendRenderTransform_Concurrent() override;
 	ENGINE_API virtual const UObject* AdditionalStatObject() const override;
 	ENGINE_API virtual void PrecachePSOs() override;
+#if WITH_EDITOR
+	ENGINE_API virtual void CheckForErrors() override;
+#endif
 	//~ End UActorComponent Interface
 	
 	//~ Begin UObject Interface. 

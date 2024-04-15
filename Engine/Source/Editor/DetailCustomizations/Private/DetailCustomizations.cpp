@@ -49,6 +49,7 @@
 #include "DataTableCustomization.h"
 #include "DateTimeStructCustomization.h"
 #include "DebugCameraControllerSettingsCustomization.h"
+#include "DecalComponentDetails.h"
 #include "Delegates/Delegate.h"
 #include "DeviceProfileDetails.h"
 #include "DialogueStructsCustomizations.h"
@@ -476,6 +477,8 @@ void FDetailCustomizationsModule::RegisterObjectCustomizations()
 	RegisterCustomClassLayout("BoundsCopyComponent", FOnGetDetailCustomizationInstance::CreateStatic(&FBoundsCopyComponentDetailsCustomization::MakeInstance));
 
 	RegisterCustomClassLayout("SoundNodeDistanceCrossFade", FOnGetDetailCustomizationInstance::CreateStatic(&FCrossFadeCustomization::MakeInstance));
+	
+	RegisterCustomClassLayout("DecalComponent", FOnGetDetailCustomizationInstance::CreateStatic(&FDecalComponentDetails::MakeInstance));
 }
 
 #define LOCTEXT_NAMESPACE "DetailsSections"
