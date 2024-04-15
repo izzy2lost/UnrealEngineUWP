@@ -985,17 +985,10 @@ void UEditorEngine::CancelRequestPlaySession()
 
 bool UEditorEngine::SaveMapsForPlaySession()
 {
-	// Prompt the user to save the level if it has not been saved before. 
-	// An unmodified but unsaved blank template level does not appear in the dirty packages check below.
-	if (FEditorFileUtils::GetFilename(GWorld).Len() == 0)
-	{
-		if (!FEditorFileUtils::SaveCurrentLevel())
-		{
-			return false;
-		}
-	}
+	// Detect if we're dealing with an unsaved newly created world
+	const bool bNewlyCreatedWorld = (FEditorFileUtils::GetFilename(GWorld).Len() == 0);
 
-	// Also save dirty packages, this is required because we're going to be launching a session outside of our normal process
+	// Save dirty packages, this is required because we're going to be launching a session outside of our normal process
 	const bool bPromptUserToSave      = true;
 	const bool bSaveMapPackages       = true;
 	const bool bSaveContentPackages   = true;
@@ -1005,6 +998,24 @@ bool UEditorEngine::SaveMapsForPlaySession()
 	if (!FEditorFileUtils::SaveDirtyPackages(bPromptUserToSave, bSaveMapPackages, bSaveContentPackages, bFastSave, bNotifyNoPackagesSaved, bCanBeDeclined))
 	{
 		return false;
+	}
+
+	// Prompt the user to save the level if it has not been saved before. 
+	// An unmodified but unsaved blank template level does not appear in the dirty packages check below.
+	if (FEditorFileUtils::GetFilename(GWorld).Len() == 0)
+	{		
+		bool bSaved = FEditorFileUtils::SaveCurrentLevel();
+		
+		if (!bSaved)
+		{
+			return false;
+		}
+	}
+
+	// In the case we're dealing with a newly created world it must be reloaded after being saved
+	if (bNewlyCreatedWorld)
+	{
+		FEditorFileUtils::LoadMap(FEditorFileUtils::GetFilename(GWorld));
 	}
 
 	return true;
