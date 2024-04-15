@@ -129,43 +129,28 @@ FAudioWidgetsStyle::FAudioWidgetsStyle()
 	/**
 	**AudioMaterialKnob Style
 	*/
-	UMaterialInterface* KnobDefaultMaterial = LoadObject<UMaterialInterface>(nullptr, TEXT("/AudioWidgets/AudioMaterialSlate/MI_AudioMaterialKnob.MI_AudioMaterialKnob"));
-
-	Set("AudioMaterialKnob.Style", FAudioMaterialKnobStyle()
-		.SetMaterial(KnobDefaultMaterial));
+	Set("AudioMaterialKnob.Style", FAudioMaterialKnobStyle());
 
 	/**
 	**AudioMaterialMeter Style
 	*/
-	UMaterialInterface* MeterDefaultMaterial = LoadObject<UMaterialInterface>(nullptr, TEXT("/AudioWidgets/AudioMaterialSlate/MI_AudioMaterialMeter.MI_AudioMaterialMeter"));
-
-	Set("AudioMaterialMeter.Style", FAudioMaterialMeterStyle()
-		.SetMaterial(MeterDefaultMaterial));
+	Set("AudioMaterialMeter.Style", FAudioMaterialMeterStyle());
 
 	/**
 	**AudioMaterialEnvelope Style
 	*/
-	UMaterialInterface* EnvelopeDefaultMaterial = LoadObject<UMaterialInterface>(nullptr, TEXT("/AudioWidgets/AudioMaterialSlate/MI_AudioMaterialEnvelope_ADSR.MI_AudioMaterialEnvelope_ADSR"));
-
-	Set("AudioMaterialEnvelope.Style", FAudioMaterialEnvelopeStyle()
-		.SetMaterial(EnvelopeDefaultMaterial));
+	Set("AudioMaterialEnvelope.Style", FAudioMaterialEnvelopeStyle());
 
 	/**
 	**AudioMaterialButton Style
 	*/
-	UMaterialInterface* ButtonDefaultMaterial = LoadObject<UMaterialInterface>(nullptr, TEXT("/AudioWidgets/AudioMaterialSlate/MI_AudioMaterialButton.MI_AudioMaterialButton"));
-
-	Set("AudioMaterialButton.Style", FAudioMaterialButtonStyle()
-		.SetMaterial(ButtonDefaultMaterial));
+	Set("AudioMaterialButton.Style", FAudioMaterialButtonStyle());
 
 	/**
 	**AudioMaterialSlider Style
 	*/
-	UMaterialInterface* SliderDefaultMaterial = LoadObject<UMaterialInterface>(nullptr, TEXT("/AudioWidgets/AudioMaterialSlate/MI_AudioMaterialRoundedSlider.MI_AudioMaterialRoundedSlider"));
-
 	Set("AudioMaterialSlider.Style", FAudioMaterialSliderStyle()
-		.SetTextBoxStyle(FAudioTextBoxStyle::GetDefault())
-		.SetMaterial(SliderDefaultMaterial));
+		.SetTextBoxStyle(FAudioTextBoxStyle::GetDefault()));
 
 	FSlateStyleRegistry::RegisterSlateStyle(*this);
 }

@@ -4,6 +4,13 @@
 #include "AudioMaterialSlate/AudioMaterialSlateTypes.h"
 #include "Styling/StyleDefaults.h"
 
+namespace AudioMaterialSlateTypesPrivate
+{
+	#define PLUGIN_BASE_DIR FString("/AudioWidgets/AudioMaterialSlate/")
+}
+
+using namespace AudioMaterialSlateTypesPrivate;
+
 FAudioMaterialWidgetStyle::FAudioMaterialWidgetStyle()
 	:DesiredSize(32.f, 32.f)
 {
@@ -28,7 +35,10 @@ FAudioMaterialButtonStyle::FAudioMaterialButtonStyle()
 	, ButtonPressedShadowColor(FLinearColor::Gray)
 	, ButtonPressedOutlineColor(FLinearColor::Blue)
 {
-	DesiredSize = FVector2f(128.f, 128.f);
+	FString Path = PLUGIN_BASE_DIR + "MI_AudioMaterialButton.MI_AudioMaterialButton";
+	Material = LoadObject<UMaterialInterface>(nullptr, *Path);
+
+	DesiredSize = FVector2f(128.f, 128.f);	
 }
 
 const FName FAudioMaterialButtonStyle::TypeName(TEXT("FAudioMaterialButtonStyle"));
@@ -51,6 +61,9 @@ FAudioMaterialSliderStyle::FAudioMaterialSliderStyle()
 	, HandleOutlineColor(FLinearColor(0.15f, 0.15f, 0.15f, 1.f))
 	, TextBoxStyle(FAudioTextBoxStyle::GetDefault())
 {
+	FString Path = PLUGIN_BASE_DIR + "MI_AudioMaterialRoundedSlider.MI_AudioMaterialRoundedSlider";
+	Material = LoadObject<UMaterialInterface>(nullptr, *Path);
+
 	DesiredSize = FVector2f(30.f, 250.f);
 }
 
@@ -78,6 +91,9 @@ FAudioMaterialKnobStyle::FAudioMaterialKnobStyle()
 	, KnobBarFillMaxColor(FLinearColor::White)
 	, KnobBarFillTintColor(FLinearColor::White)
 {
+	FString Path = PLUGIN_BASE_DIR + "MI_AudioMaterialKnob.MI_AudioMaterialKnob";
+	Material = LoadObject<UMaterialInterface>(nullptr, *Path);
+
 	DesiredSize = FVector2f(128.f,128.f);
 }
 
@@ -109,6 +125,9 @@ FAudioMaterialMeterStyle::FAudioMaterialMeterStyle()
 	, DecibelsPerHash(5)
 	, Font(FStyleDefaults::GetFontInfo(5))
 {
+	FString Path = PLUGIN_BASE_DIR + "MI_AudioMaterialMeter.MI_AudioMaterialMeter";
+	Material = LoadObject<UMaterialInterface>(nullptr, *Path);
+
 	DesiredSize = FVector2f(25.f, 512.f);
 }
 
@@ -130,6 +149,9 @@ FAudioMaterialEnvelopeStyle::FAudioMaterialEnvelopeStyle()
 	, BackgroundColor(FLinearColor::Black)
 	, OutlineColor(FLinearColor::Gray)
 {
+	FString Path = PLUGIN_BASE_DIR + "MI_AudioMaterialEnvelope_ADSR.MI_AudioMaterialEnvelope_ADSR";
+	Material = LoadObject<UMaterialInterface>(nullptr, *Path);
+
 	DesiredSize = FVector2f(256.f, 256.f);
 }
 
