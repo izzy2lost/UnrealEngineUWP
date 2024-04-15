@@ -377,6 +377,8 @@ enum EClassCastFlags : uint64
 	CASTCLASS_FOptionalProperty				= 0x0100000000000000,
 	CASTCLASS_FVValueProperty				= 0x0200000000000000,
 	CASTCLASS_FVRestValueProperty			= 0x0400000000000000,
+	CASTCLASS_FUtf8StrProperty				= 0x1000000000000000,
+	CASTCLASS_FAnsiStrProperty				= 0x2000000000000000,
 };
 
 #define CASTCLASS_AllFlags ((EClassCastFlags)0xFFFFFFFFFFFFFFFF)

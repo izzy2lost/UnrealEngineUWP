@@ -60,6 +60,9 @@
 #include "Modules/ModuleManager.h"
 #include "UObject/EnumProperty.h"
 #include "UObject/TextProperty.h"
+#include "UObject/StrProperty.h"
+#include "UObject/AnsiStrProperty.h"
+#include "UObject/Utf8StrProperty.h"
 #include "UObject/FieldPathProperty.h"
 #include "UObject/MetaData.h"
 #include "HAL/LowLevelMemTracker.h"
@@ -6070,6 +6073,18 @@ namespace UECodeGen_Private
 			}
 			break;
 #endif
+
+			case EPropertyGenFlags::Utf8Str:
+			{
+				NewProp = NewFProperty<FUtf8StrProperty, FUtf8StrPropertyParams>(Outer, *PropBase);
+			}
+			break;
+
+			case EPropertyGenFlags::AnsiStr:
+			{
+				NewProp = NewFProperty<FAnsiStrProperty, FAnsiStrPropertyParams>(Outer, *PropBase);
+			}
+			break;
 		}
 
 		NewProp->ArrayDim = PropBase->ArrayDim;

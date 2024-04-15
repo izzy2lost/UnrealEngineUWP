@@ -3447,6 +3447,8 @@ namespace UECodeGen_Private
 		LargeWorldCoordinatesReal = 0x20,
 		Optional          = 0x21,
 		VValue            = 0x22,
+		Utf8Str           = 0x23,
+		AnsiStr           = 0x24,
 
 		// Property-specific flags
 		NativeBool        = 0x40,
@@ -3824,6 +3826,8 @@ namespace UECodeGen_Private
 	typedef FClassPropertyParams   FClassPtrPropertyParams;
 	typedef FObjectPropertyParams  FSoftObjectPropertyParams;
 	typedef FGenericPropertyParams FVerseValuePropertyParams;
+	typedef FGenericPropertyParams FUtf8StrPropertyParams;
+	typedef FGenericPropertyParams FAnsiStrPropertyParams;
 
 	struct FFunctionParams
 	{
