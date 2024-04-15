@@ -333,20 +333,14 @@ public:
 	template<typename T = BaseStructT, typename = std::enable_if_t<std::is_base_of_v<BaseStructT, std::decay_t<T>>>>
 	TInstancedStruct& operator=(const TInstancedStruct<T>& InOther)
 	{
-		if (this != &InOther)
-		{
-			InstancedStruct = InOther.InstancedStruct;
-		}
+		InstancedStruct = InOther.InstancedStruct;
 		return *this;
 	}
 
 	template<typename T = BaseStructT, typename = std::enable_if_t<std::is_base_of_v<BaseStructT, std::decay_t<T>>>>
 	TInstancedStruct& operator=(TInstancedStruct<T>&& InOther)
 	{
-		if (this != &InOther)
-		{
-			InstancedStruct = MoveTemp(InOther.InstancedStruct);
-		}
+		InstancedStruct = MoveTemp(InOther.InstancedStruct);
 		return *this;
 	}
 
