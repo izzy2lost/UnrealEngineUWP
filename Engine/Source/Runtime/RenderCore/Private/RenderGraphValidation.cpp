@@ -1418,9 +1418,9 @@ void FRDGBarrierValidation::ValidateBarrierBatchBegin(const FRDGPass* Pass, cons
 			UE_LOG(LogRDG, Display, TEXT("\t\tMip(%d), Array(%d), Slice(%d): [%s, %s] -> [%s, %s]"),
 				Transition.MipIndex, Transition.ArraySlice, Transition.PlaneSlice,
 				*GetRHIAccessName(Transition.AccessBefore),
-				*GetRHIPipelineName(Batch.DebugPipelinesToBegin),
+				*GetRHIPipelineName(Batch.PipelinesToBegin),
 				*GetRHIAccessName(Transition.AccessAfter),
-				*GetRHIPipelineName(Batch.DebugPipelinesToEnd));
+				*GetRHIPipelineName(Batch.PipelinesToEnd));
 		}
 	}
 
@@ -1441,9 +1441,9 @@ void FRDGBarrierValidation::ValidateBarrierBatchBegin(const FRDGPass* Pass, cons
 			Buffer->GetRHIUnchecked(),
 			Buffer->Name,
 			*GetRHIAccessName(Transition.AccessBefore),
-			*GetRHIPipelineName(Batch.DebugPipelinesToBegin),
+			*GetRHIPipelineName(Batch.PipelinesToBegin),
 			*GetRHIAccessName(Transition.AccessAfter),
-			*GetRHIPipelineName(Batch.DebugPipelinesToEnd));
+			*GetRHIPipelineName(Batch.PipelinesToEnd));
 	}
 }
 

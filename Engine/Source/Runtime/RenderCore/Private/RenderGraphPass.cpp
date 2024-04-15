@@ -103,8 +103,6 @@ FRDGBarrierBatchBegin::FRDGBarrierBatchBegin(ERHIPipeline InPipelineToBegin, ERH
 #if RDG_ENABLE_DEBUG
 	, DebugPasses(InPlace, nullptr)
 	, DebugName(InDebugName)
-	, DebugPipelinesToBegin(InPipelineToBegin)
-	, DebugPipelinesToEnd(InPipelinesToEnd)
 #endif
 {
 #if RDG_ENABLE_DEBUG
@@ -118,8 +116,6 @@ FRDGBarrierBatchBegin::FRDGBarrierBatchBegin(ERHIPipeline InPipelinesToBegin, ER
 #if RDG_ENABLE_DEBUG
 	, DebugPasses(InDebugPasses)
 	, DebugName(InDebugName)
-	, DebugPipelinesToBegin(InPipelinesToBegin)
-	, DebugPipelinesToEnd(InPipelinesToEnd)
 #endif
 {}
 
@@ -281,7 +277,7 @@ FRDGBarrierBatchBegin& FRDGPass::GetEpilogueBarriersToBeginForAll(FRDGAllocator&
 {
 	if (!EpilogueBarriersToBeginForAll)
 	{
-		EpilogueBarriersToBeginForAll = Allocator.AllocNoDestruct<FRDGBarrierBatchBegin>(Pipeline, ERHIPipeline::All, GetEpilogueBarriersToBeginDebugName(ERHIPipeline::AsyncCompute), this);
+		EpilogueBarriersToBeginForAll = Allocator.AllocNoDestruct<FRDGBarrierBatchBegin>(Pipeline, ERHIPipeline::All, GetEpilogueBarriersToBeginDebugName(ERHIPipeline::All), this);
 		CreateQueue.Emplace(EpilogueBarriersToBeginForAll);
 	}
 	return *EpilogueBarriersToBeginForAll;

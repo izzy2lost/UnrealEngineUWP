@@ -151,8 +151,6 @@ private:
 	TArray<FRDGViewableResource*, FRDGArrayAllocator> DebugTransitionResources;
 	TArray<FRDGViewableResource*, FRDGArrayAllocator> DebugAliasingResources;
 	const TCHAR* DebugName;
-	ERHIPipeline DebugPipelinesToBegin;
-	ERHIPipeline DebugPipelinesToEnd;
 #endif
 
 	friend class FRDGBarrierBatchEnd;
