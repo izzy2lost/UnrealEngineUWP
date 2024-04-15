@@ -317,8 +317,8 @@ void SMutableParametersWidget::GenerateAndAttachParameterSlate(const int32 Param
 						SNew(STextBlock)
 						.Text_Lambda([this, ParamIndex, RangeIndex, OptionNamesAttribute]() -> FText
 						{
-							const int32 Value = MutableParameters->GetIntValue(ParamIndex, RangeIndex);
-							const int32 ValueIndex = MutableParameters->GetIntValueIndex(ParamIndex, Value);
+							const int32 Value = MutableParameters ? MutableParameters->GetIntValue(ParamIndex, RangeIndex) : 0;
+							const int32 ValueIndex = MutableParameters ? MutableParameters->GetIntValueIndex(ParamIndex, Value) : 0;
 
 							return FText::FromString(*OptionNamesAttribute[ValueIndex]);
 						})
