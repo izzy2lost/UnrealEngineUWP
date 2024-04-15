@@ -10,6 +10,7 @@ public class IoStoreOnDemand : ModuleRules
 		PublicDependencyModuleNames.Add("TraceLog");
 		PrivateDependencyModuleNames.AddRange(
 			new string[] {
+				"CoreUObject",
 				"HTTP",
 				"Json",
 				"Analytics"
