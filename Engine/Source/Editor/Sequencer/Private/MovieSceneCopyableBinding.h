@@ -27,6 +27,9 @@ public:
 	UPROPERTY(TextExportTransient)
 	TArray<TObjectPtr<UObject>> SpawnableObjectTemplates;
 
+	UPROPERTY()
+	int32 NumSpawnableObjectTemplates;
+
 	/**
 	 * Tracks are also owned by the owning Movie Sequence. We manually copy the tracks out of a binding when we copy,
 	 * because the binding stores them as a reference to a privately owned object. We store these copied tracks here,
@@ -53,6 +56,9 @@ public:
 	UPROPERTY()
 	TArray<FName> Tags;
 
+	UPROPERTY(TextExportTransient)
+	TArray<TObjectPtr<UMovieSceneCustomBinding>> CustomBindings;	
+	
 	UPROPERTY()
-	TArray<TObjectPtr<UMovieSceneCustomBinding>> CustomBindings;
+	int32 NumCustomBindings;
 };

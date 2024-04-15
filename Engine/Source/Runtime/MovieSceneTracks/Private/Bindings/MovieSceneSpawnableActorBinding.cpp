@@ -475,7 +475,7 @@ UMovieSceneCustomBinding* UMovieSceneSpawnableActorBinding::CreateNewCustomBindi
 
 		if (NewCustomBinding)
 		{
-			AActor* SpawnedActor = Cast<AActor>(StaticDuplicateObject(Actor, NewCustomBinding, TemplateName, RF_AllFlags & ~RF_Transient));
+			AActor* SpawnedActor = Cast<AActor>(StaticDuplicateObject(Actor, &OwnerMovieScene, TemplateName, RF_AllFlags & ~RF_Transient));
 			SpawnedActor->DetachFromActor(FDetachmentTransformRules(EDetachmentRule::KeepRelative, false));
 #if WITH_EDITORONLY_DATA
 			SpawnedActor->bIsEditorPreviewActor = false;
