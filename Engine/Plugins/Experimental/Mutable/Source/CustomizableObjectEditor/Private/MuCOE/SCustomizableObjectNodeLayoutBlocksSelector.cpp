@@ -16,6 +16,7 @@
 #include "Widgets/Layout/SBorder.h"
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/Text/STextBlock.h"
+#include "ScopedTransaction.h"
 
 class SWidget;
 
@@ -207,6 +208,9 @@ void SCustomizableObjectNodeLayoutBlocksSelector::OnSelectAll()
 
 		if (Layouts.Num() && Layouts.IsValidIndex(CurrentNode->ParentLayoutIndex))
 		{
+			const FScopedTransaction Transaction(LOCTEXT("OnSelectAll", "Select All"));
+			CurrentNode->Modify();
+			
 			UCustomizableObjectLayout* Layout = Layouts[CurrentNode->ParentLayoutIndex];
 
 			for( const FCustomizableObjectLayoutBlock& Block : Layout->Blocks )
@@ -217,7 +221,6 @@ void SCustomizableObjectNodeLayoutBlocksSelector::OnSelectAll()
 			BlocksLabel->SetText(FText::FromString(FString::Printf(TEXT("%d blocks selected"), CurrentNode->BlockIds.Num())));
 
 			LayoutGridWidget->SetSelectedBlocks( CurrentNode->BlockIds );
-			CurrentNode->GetGraph()->MarkPackageDirty();
 		}
 	}
 }
@@ -227,12 +230,13 @@ void SCustomizableObjectNodeLayoutBlocksSelector::OnSelectNone()
 {
 	if ( CurrentNode )
 	{
+		const FScopedTransaction Transaction(LOCTEXT("OnSelectNone", "Unselect All"));
+		CurrentNode->Modify();
+
 		CurrentNode->BlockIds.Reset();
 		LayoutGridWidget->SetSelectedBlocks( CurrentNode->BlockIds );
 
 		BlocksLabel->SetText(LOCTEXT("0 blocks selected", "0 blocks selected"));
-
-		CurrentNode->GetGraph()->MarkPackageDirty();
 	}
 }
 
@@ -261,11 +265,12 @@ void SCustomizableObjectNodeLayoutBlocksSelector::OnSelectionChanged( const TArr
 {
 	if ( CurrentNode )
 	{
+		const FScopedTransaction Transaction(LOCTEXT("OnSelectionChanged", "Change Blocks Selection"));
+		CurrentNode->Modify();
+		
 		CurrentNode->BlockIds = selected;
-
+		
 		BlocksLabel->SetText( FText::FromString( FString::Printf( TEXT("%d blocks selected"),selected.Num() ) ) );
-
-		CurrentNode->GetGraph()->MarkPackageDirty();
 	}
 }
 

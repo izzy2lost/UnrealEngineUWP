@@ -24,7 +24,7 @@ struct FSlateBrush;
 
 #define LOCTEXT_NAMESPACE "CustomizableObjectEditor"
 
-/** Simple representation of the backbuffer for drawin UVs. */
+/** Simple representation of the backbuffer for drawing UVs. */
 class FSlateCanvasRenderTarget : public FRenderTarget
 {
 public:
@@ -80,10 +80,7 @@ private:
 class FUVCanvasDrawer : public ICustomSlateElement
 {
 public:
-	~FUVCanvasDrawer()
-	{
-		delete RenderTarget;
-	};
+	virtual ~FUVCanvasDrawer() override;
 
 	/** Set the canvas area and all required data to paint the UVs.
 	 * 
@@ -97,7 +94,7 @@ public:
 
 private:
 
-	virtual void Draw_RenderThread(class FRHICommandListImmediate& RHICmdList, const void* InWindowBackBuffer, const FSlateCustomDrawParams& Params) override;
+	virtual void Draw_RenderThread(FRHICommandListImmediate& RHICmdList, const void* InWindowBackBuffer, const FSlateCustomDrawParams& Params) override;
 
 	/** Basic function to draw a block in the canvas */
 	void DrawBlock(FBatchedElements* BatchedElements, const FHitProxyId HitProxyId, const FRect2D& BlockRect, FColor Color);
@@ -112,10 +109,10 @@ private:
 	FVector2D Size;
 
 	/** Size of the Layout Grid */
-	FIntPoint GridSize;
+	FIntPoint GridSize = FIntPoint(0, 0);
 
 	/** Cell Size */
-	float CellSize;
+	float CellSize = 0.0f;
 
 	/** Drawing Data. */
 	TArray<FVector2D> UVLayout;
@@ -124,7 +121,7 @@ private:
 	TArray<FGuid> SelectedBlocks;
 
 	/** Layout Mode */
-	ELayoutGridMode LayoutMode;
+	ELayoutGridMode LayoutMode = ELGM_Show;
 
 	FSlateCanvasRenderTarget* RenderTarget = new FSlateCanvasRenderTarget();
 };
@@ -145,18 +142,8 @@ void SCustomizableObjectLayoutGrid::Construct( const FArguments& InArgs )
 	OnSetBlockPriority = InArgs._OnSetBlockPriority;
 	OnSetReduceBlockSymmetrically = InArgs._OnSetReduceBlockSymmetrically;
 	OnSetReduceBlockByTwo = InArgs._OnSetReduceBlockByTwo;
-
-	HasDragged = false;
-	Dragging = false;
-	Resizing = false;
-	ResizeCursor = false;
-	Selecting = false;
-
-	PaddingAmount = FVector2D::Zero();
-	DistanceFromOrigin = FVector2D::Zero();
-	Zoom = 1;
-
-	UVCanvasDrawer = TSharedPtr<FUVCanvasDrawer, ESPMode::ThreadSafe>(new FUVCanvasDrawer());
+	
+	UVCanvasDrawer = TSharedPtr<FUVCanvasDrawer>(new FUVCanvasDrawer());
 	UVCanvasDrawer->SetLayoutMode(Mode);
 }
 
@@ -441,7 +428,7 @@ FReply SCustomizableObjectLayoutGrid::OnMouseButtonDown( const FGeometry& MyGeom
 							.MaxValue(INT_MAX)
 							.MaxSliderValue(100)
 							.AllowSpin(SelectedBlocks.Num() == 1)
-							.Value(this, &SCustomizableObjectLayoutGrid::GetBlockPriortyValue)
+							.Value(this, &SCustomizableObjectLayoutGrid::GetBlockPriorityValue)
 							.UndeterminedString(LOCTEXT("MultipleValues", "Multiples Values"))
 							.OnValueChanged(this, &SCustomizableObjectLayoutGrid::OnBlockPriorityChanged)
 							.EditableTextBoxStyle(&UE_MUTABLE_GET_WIDGETSTYLE<FEditableTextBoxStyle>("NormalEditableTextBox"))
@@ -929,7 +916,7 @@ void SCustomizableObjectLayoutGrid::SetSelectedBlocks( const TArray<FGuid>& bloc
 }
 
 
-TArray<FGuid> SCustomizableObjectLayoutGrid::GetSelectedBlocks() const
+const TArray<FGuid>& SCustomizableObjectLayoutGrid::GetSelectedBlocks() const
 {
 	return SelectedBlocks;
 }
@@ -1056,7 +1043,7 @@ bool SCustomizableObjectLayoutGrid::MouseOnBlock(FGuid BlockId, FVector2D MouseP
 }
 
 
-TOptional<int32> SCustomizableObjectLayoutGrid::GetBlockPriortyValue() const
+TOptional<int32> SCustomizableObjectLayoutGrid::GetBlockPriorityValue() const
 {
 	if (SelectedBlocks.Num())
 	{
@@ -1176,6 +1163,13 @@ void SCustomizableObjectLayoutGrid::OnReduceBlockByTwoChanged(ECheckBoxState InC
 
 
 // Canvas Drawer --------------------------------------------------------------
+
+
+FUVCanvasDrawer::~FUVCanvasDrawer()
+{
+	delete RenderTarget;
+}
+
 
 void FUVCanvasDrawer::Initialize(const FIntRect& InCanvasRect, const FIntRect& InClippingRect, const FVector2D& InOrigin, const FVector2D& InSize, const FIntPoint& InGridSize, const float InCellSize)
 {

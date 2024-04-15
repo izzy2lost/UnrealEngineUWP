@@ -13,7 +13,6 @@ struct FGeometry;
 struct FGuid;
 struct FKeyEvent;
 struct FPointerEvent;
-//#include "PreviewScene.h"
 
 enum class ECheckBoxState : uint8;
 
@@ -43,7 +42,7 @@ enum EFixedReductionOptions
 	EFRO_RedyceByTwo
 };
 
-/** */
+
 class SCustomizableObjectLayoutGrid : public SCompoundWidget
 {
 
@@ -75,22 +74,22 @@ public:
 	SLATE_END_ARGS()
 
 	void Construct( const FArguments& InArgs );
-	~SCustomizableObjectLayoutGrid();
+	virtual ~SCustomizableObjectLayoutGrid() override;
 
 	// SWidgetInterface
-	int32 OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeometry, const FSlateRect& MyClippingRect, FSlateWindowElementList& OutDrawElements, int32 LayerId, const FWidgetStyle& InWidgetStyle, bool bParentEnabled ) const override;
-	void Tick( const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime ) override;
+	virtual int32 OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeometry, const FSlateRect& MyClippingRect, FSlateWindowElementList& OutDrawElements, int32 LayerId, const FWidgetStyle& InWidgetStyle, bool bParentEnabled ) const override;
+	virtual void Tick( const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime ) override;
 
-	FReply OnMouseButtonDown( const FGeometry& MyGeometry, const FPointerEvent& MouseEvent ) override;
-	FReply OnMouseButtonUp( const FGeometry& MyGeometry, const FPointerEvent& MouseEvent ) override;
-	FReply OnMouseMove( const FGeometry& MyGeometry, const FPointerEvent& MouseEvent ) override;
-	FReply OnMouseWheel(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent) override;
+	virtual FReply OnMouseButtonDown( const FGeometry& MyGeometry, const FPointerEvent& MouseEvent ) override;
+	virtual FReply OnMouseButtonUp( const FGeometry& MyGeometry, const FPointerEvent& MouseEvent ) override;
+	virtual FReply OnMouseMove( const FGeometry& MyGeometry, const FPointerEvent& MouseEvent ) override;
+	virtual FReply OnMouseWheel(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent) override;
 
-	bool SupportsKeyboardFocus() const override { return true; }
-	FReply OnKeyDown(const FGeometry& MyGeometry, const FKeyEvent& InKeyEvent) override;
+	virtual bool SupportsKeyboardFocus() const override { return true; }
+	virtual FReply OnKeyDown(const FGeometry& MyGeometry, const FKeyEvent& InKeyEvent) override;
 
-	FCursorReply OnCursorQuery(const FGeometry& MyGeometry, const FPointerEvent& CursorEvent) const override;
-	FVector2D ComputeDesiredSize(float) const override;
+	virtual FCursorReply OnCursorQuery(const FGeometry& MyGeometry, const FPointerEvent& CursorEvent) const override;
+	virtual FVector2D ComputeDesiredSize(float) const override;
 
 	// Own interface
 
@@ -99,7 +98,7 @@ public:
 	void SetSelectedBlocks( const TArray<FGuid>& blocks );
 
 	/** */
-	TArray<FGuid> GetSelectedBlocks() const;
+	const TArray<FGuid>& GetSelectedBlocks() const;
 
 	/** Calls the delegate to delete the selected blocks */
 	void DeleteSelectedBlocks();
@@ -121,7 +120,7 @@ public:
 	void SetBlocks( const FIntPoint& GridSize, const TArray<FCustomizableObjectLayoutBlock>& Blocks);
 
 	/** Gets the priority value of the selected blocks */
-	TOptional<int32> GetBlockPriortyValue() const;
+	TOptional<int32> GetBlockPriorityValue() const;
 
 	/** Callback when the priority of a block changes */
 	void OnBlockPriorityChanged(int32 InValue);
@@ -163,9 +162,9 @@ private:
 	TArray<FVector2f> UnassignedUVLayoutVertices;
 
 	/** Layout mode */
-	ELayoutGridMode Mode;
+	ELayoutGridMode Mode = ELGM_Show;
 
-	float CellSize;
+	float CellSize = 0.0f;
 
 	/** Map to relate Block ids with blocks data */
 	TMap<FGuid,FBlockWidgetData> BlockRects;
@@ -174,24 +173,24 @@ private:
 	TArray<FGuid> SelectedBlocks;
 	TArray<FGuid> PossibleSelectedBlocks;
 
-	/** Bools needed for the Block Management */
+	/** Booleans needed for the Block Management */
 	/** Indicates when we have dragged the mouse after click */
-	bool HasDragged;
+	bool HasDragged = false;
 
 	/** Indicates when we are dragging the mouse */
-	bool Dragging;
+	bool Dragging = false;
 	
 	/** Indicates when we are resizing a block */
-	bool Resizing;
+	bool Resizing = false;
 	
 	/** Indicates when we have to change the mouse cursor */
-	bool ResizeCursor;
+	bool ResizeCursor = false;
 	
 	/** Indicates when we are making a selection */
-	bool Selecting;
+	bool Selecting = false;
 	
 	/** Indicates when we are padding */
-	bool Padding;
+	bool Padding = false;
 
 	/** Position where the drag started */
 	FVector2D DragStart;
@@ -199,17 +198,17 @@ private:
 	/** Position where the layout grid starts to be drawn */
 	FVector2D DrawOrigin;
 
-	/** Ammount of padding since start draging */
-	FVector2D PaddingAmount;
+	/** Amount of padding since start dragging */
+	FVector2D PaddingAmount = FVector2D::Zero();
 
 	/** Position where the padding started */
 	FVector2D PaddingStart;
 
 	/** Distance from the origin in the padding movement */
-	FVector2D DistanceFromOrigin;
+	FVector2D DistanceFromOrigin = FVector2D::Zero();
 
 	/** Level of zoom */
-	int32 Zoom;
+	int32 Zoom = 1;
 
 	/** Selection Rectangle */
 	FRect2D SelectionRect;
@@ -221,6 +220,5 @@ private:
 	FVector2D CurrentMousePosition;
 
 	/** Custom Slate drawing element. Used to improve the UVs drawing performance. */
-	TSharedPtr<class FUVCanvasDrawer, ESPMode::ThreadSafe> UVCanvasDrawer;
-
+	TSharedPtr<class FUVCanvasDrawer> UVCanvasDrawer;
 };

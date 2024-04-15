@@ -11,6 +11,7 @@
 #include "Widgets/Input/STextComboBox.h"
 #include "Widgets/Layout/SGridPanel.h"
 #include "Widgets/SToolTip.h"
+#include "ScopedTransaction.h"
 
 class ISlateStyle;
 class SWidget;
@@ -181,13 +182,15 @@ void SCustomizableObjectNodeLayoutBlocksEditor::OnAddBlock()
 {
 	if (CurrentLayout)
 	{
-		FCustomizableObjectLayoutBlock block;
-		CurrentLayout->Blocks.Add( block );
-		CurrentLayout->MarkPackageDirty();
+		const FScopedTransaction Transaction(LOCTEXT("OnAddBlock", "Add Block"));
+		CurrentLayout->Modify();
+
+		FCustomizableObjectLayoutBlock Block;
+		CurrentLayout->Blocks.Add(Block);
 
 		if (LayoutGridWidget.IsValid())
 		{
-			LayoutGridWidget->SetSelectedBlock(block.Id);
+			LayoutGridWidget->SetSelectedBlock(Block.Id);
 		}
 	}
 }
@@ -197,9 +200,11 @@ void SCustomizableObjectNodeLayoutBlocksEditor::OnAddBlockAt(const FIntPoint Min
 {
 	if (CurrentLayout)
 	{
+		const FScopedTransaction Transaction(LOCTEXT("OnAddBlockAt", "Add Block"));
+		CurrentLayout->Modify();
+		
 		FCustomizableObjectLayoutBlock block(Min,Max);
 		CurrentLayout->Blocks.Add(block);
-		CurrentLayout->MarkPackageDirty();
 	}
 }
 
@@ -210,25 +215,16 @@ void SCustomizableObjectNodeLayoutBlocksEditor::OnRemoveBlock()
 	{
 		if (LayoutGridWidget.IsValid())
 		{
-			bool Change = false;
+			const FScopedTransaction Transaction(LOCTEXT("OnRemoveBlock", "Remove Block"));
+			CurrentLayout->Modify();
 
-			TArray<FGuid> selected = LayoutGridWidget->GetSelectedBlocks();
-			for (int i=0; i<CurrentLayout->Blocks.Num();)
+			const TArray<FGuid>& Selected = LayoutGridWidget->GetSelectedBlocks();
+			for (TArray<FCustomizableObjectLayoutBlock>::TIterator It = CurrentLayout->Blocks.CreateIterator(); It; ++It)
 			{
-				if (selected.Contains(CurrentLayout->Blocks[i].Id))
+				if (Selected.Contains(It->Id))
 				{
-					Change = true;
-					CurrentLayout->Blocks.RemoveAt(i);
+					It.RemoveCurrent();
 				}
-				else
-				{
-					++i;
-				}
-			}
-
-			if (Change)
-			{
-				CurrentLayout->MarkPackageDirty();
 			}
 		}
 	}
@@ -239,6 +235,9 @@ void SCustomizableObjectNodeLayoutBlocksEditor::OnGenerateBlocks()
 {
 	if (CurrentLayout)
 	{
+		const FScopedTransaction Transaction(LOCTEXT("OnGenerateBlocks", "Generate Blocks"));
+		CurrentLayout->Modify();
+		
 		CurrentLayout->GenerateBlocksFromUVs();
 	}
 }
@@ -258,6 +257,9 @@ void SCustomizableObjectNodeLayoutBlocksEditor::OnBlockChanged( FGuid BlockId, F
 {
 	if (CurrentLayout)
 	{
+		const FScopedTransaction Transaction(LOCTEXT("OnBlockChanged", "Edit Block"));
+		CurrentLayout->Modify();
+		
 		for (FCustomizableObjectLayoutBlock& B : CurrentLayout->Blocks)
 		{
 			if (B.Id == BlockId)
@@ -265,7 +267,7 @@ void SCustomizableObjectNodeLayoutBlocksEditor::OnBlockChanged( FGuid BlockId, F
 				B.Min = Block.Min;
 				B.Max = Block.Max;
 
-				CurrentLayout->MarkPackageDirty();
+				break;
 			}
 		}
 	}
@@ -276,16 +278,18 @@ void SCustomizableObjectNodeLayoutBlocksEditor::OnSetBlockPriority(int32 InValue
 {
 	if (CurrentLayout)
 	{
+		const FScopedTransaction Transaction(LOCTEXT("OnSetBlockPriority", "Change Block Priority"));
+		CurrentLayout->Modify();
+		
 		if (LayoutGridWidget.IsValid())
 		{
-			TArray<FGuid> SelectedBlocks = LayoutGridWidget->GetSelectedBlocks();
+			const TArray<FGuid>& SelectedBlocks = LayoutGridWidget->GetSelectedBlocks();
 
-			for (int i = 0; i < CurrentLayout->Blocks.Num(); ++i)
+			for (FCustomizableObjectLayoutBlock& Block : CurrentLayout->Blocks)
 			{
-				if (SelectedBlocks.Contains(CurrentLayout->Blocks[i].Id))
+				if (SelectedBlocks.Contains(Block.Id))
 				{
-					CurrentLayout->Blocks[i].Priority = InValue;
-					CurrentLayout->MarkPackageDirty();
+					Block.Priority = InValue;
 				}
 			}
 		}
@@ -299,14 +303,16 @@ void SCustomizableObjectNodeLayoutBlocksEditor::OnSetBlockReductionSymmetry(bool
 	{
 		if (LayoutGridWidget.IsValid())
 		{
-			TArray<FGuid> SelectedBlocks = LayoutGridWidget->GetSelectedBlocks();
+			const FScopedTransaction Transaction(LOCTEXT("OnSetBlockReductionSymmetry", "Change Block Symetry"));
+			CurrentLayout->Modify();
+			
+			const TArray<FGuid>& SelectedBlocks = LayoutGridWidget->GetSelectedBlocks();
 
-			for (int i = 0; i < CurrentLayout->Blocks.Num(); ++i)
+			for (FCustomizableObjectLayoutBlock& Block : CurrentLayout->Blocks)
 			{
-				if (SelectedBlocks.Contains(CurrentLayout->Blocks[i].Id))
+				if (SelectedBlocks.Contains(Block.Id))
 				{
-					CurrentLayout->Blocks[i].bReduceBothAxes = bInValue;
-					CurrentLayout->MarkPackageDirty();
+					Block.bReduceBothAxes = bInValue;
 				}
 			}
 		}
@@ -320,14 +326,16 @@ void SCustomizableObjectNodeLayoutBlocksEditor::OnSetBlockReductionByTwo(bool bI
 	{
 		if (LayoutGridWidget.IsValid())
 		{
-			TArray<FGuid> SelectedBlocks = LayoutGridWidget->GetSelectedBlocks();
+			const FScopedTransaction Transaction(LOCTEXT("OnSetBlockReductionByTwo", "Change Block Reduction By Two"));
+			CurrentLayout->Modify();
+			
+			const TArray<FGuid>& SelectedBlocks = LayoutGridWidget->GetSelectedBlocks();
 
-			for (int i = 0; i < CurrentLayout->Blocks.Num(); ++i)
+			for (FCustomizableObjectLayoutBlock& Block : CurrentLayout->Blocks)
 			{
-				if (SelectedBlocks.Contains(CurrentLayout->Blocks[i].Id))
+				if (SelectedBlocks.Contains(Block.Id))
 				{
-					CurrentLayout->Blocks[i].bReduceByTwo = bInValue;
-					CurrentLayout->MarkPackageDirty();
+					Block.bReduceByTwo = bInValue;
 				}
 			}
 		}
