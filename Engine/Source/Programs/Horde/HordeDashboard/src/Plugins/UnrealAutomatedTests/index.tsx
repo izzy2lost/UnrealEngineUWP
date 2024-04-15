@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-import { Plugin, PluginMount } from "..";
+import { Plugin, PluginMount } from "../pluginTypes";
 import { TestPassSummaryView } from "./components/UnrealAutomatedTests";
 
 class UnrealAutomatedTestsPlugin implements Plugin {

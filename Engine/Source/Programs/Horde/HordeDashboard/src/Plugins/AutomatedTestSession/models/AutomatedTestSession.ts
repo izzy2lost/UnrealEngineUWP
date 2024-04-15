@@ -1152,7 +1152,7 @@ export class TestSessionCollection implements Loader {
         while (!result.done) {
             const sessionInfo = result.value.TestSessionInfo;
             if (sessionInfo) {
-                tests.push(...Object.values(result.value.TestSessionInfo.Tests));
+                tests.push(...Object.values(result.value.TestSessionInfo.Tests) as TestResult[]);
             }
             result = iterator.next();
         }
@@ -1234,7 +1234,7 @@ export class TestSessionCollection implements Loader {
         const iterator = this._datahandler.iterItemsByChange();
         let change = iterator.next();
         while (!change.done) {
-            change.value.forEach((item) => {
+            (change.value as TestDataWrapper[]).forEach((item) => {
                 const session = item.getDataHandler() as TestSessionWrapper;
                 if (session.Name === sessionName) {
                     if (!this._includePreflight && session.PreFlightChange) {

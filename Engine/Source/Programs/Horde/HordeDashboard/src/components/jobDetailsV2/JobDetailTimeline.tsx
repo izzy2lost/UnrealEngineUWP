@@ -17,6 +17,9 @@ import { getHordeStyling } from "../../styles/Styles";
 
 type SelectionType = d3.Selection<SVGGElement, unknown, null, undefined>;
 
+// There are some bad @type/d3 mappings
+const _d3 = d3 as any;
+
 type Batch = GetBatchResponse & {
    utcStart: Date;
    utcFinish: Date;
@@ -257,7 +260,7 @@ class TimelineDataView extends JobDataView {
             lanes.push({ batches: [batch] });
          } else {
             const lane = bestLane(batch, clanes);
-            console.assert(lane);
+            console.assert(!!lane);
             lane!.batches.push(batch);
          }
 
@@ -451,11 +454,11 @@ class TimelineRenderer {
       };
 
 
-      const X = d3.map(spans, (s) => s);
-      const Y = d3.map(spans, (s) => s.lane);
+      const X = (d3 as any).map(spans, (s) => s);
+      const Y = (d3 as any).map(spans, (s) => s.lane);
 
       let yDomain: any = Y;
-      yDomain = new d3.InternSet(yDomain);
+      yDomain = new (d3 as any).InternSet(yDomain);
 
       const I = d3.range(X.length);
 
@@ -468,7 +471,7 @@ class TimelineRenderer {
          .domain([dataView.minTime!, dataView.maxTime!].map(d => d.getTime() / 1000))
          .range([margin.left, width - margin.right])
 
-      const yScale = d3.scalePoint(yDomain, yRange).round(true).padding(yPadding);
+      const yScale = (d3 as any).scalePoint(yDomain, yRange).round(true).padding(yPadding);
 
       let svg = this.svg;
 
@@ -487,7 +490,7 @@ class TimelineRenderer {
 
       const g = svg.append("g")
          .selectAll()
-         .data(d3.group(I, i => Y[i]))
+         .data((d3 as any).group(I, i => Y[i]))
          .join("g")
 
       const waitColor = dashboard.darktheme ? "#5B6367" : "#D3D2D1";
@@ -652,8 +655,8 @@ class TimelineRenderer {
             return;
          }
 
-         let mouseX = d3.pointer(event)[0];
-         let mouseY = d3.pointer(event)[1];
+         let mouseX = (d3 as any).pointer(event)[0];
+         let mouseY = (d3 as any).pointer(event)[1];
 
          const span = closestData(mouseX, mouseY);
 
@@ -683,7 +686,7 @@ class TimelineRenderer {
                .attr("stroke-width", 0)
          }
 
-         dataView.tooltip.update(span, d3.pointer(event, container)[0], d3.pointer(event, container)[1]);
+         dataView.tooltip.update(span, (d3 as any).pointer(event, container)[0], (d3 as any).pointer(event, container)[1]);
 
       }
 
@@ -713,7 +716,7 @@ class TimelineRenderer {
 
       svg.on("mousemove", (event) => handleMouseMove(event));
       svg.on("mouseleave", (event) => { handleMouseLeave(event); })
-      svg.on("wheel", (event) => { event.preventDefault(); })
+      svg.on("wheel", (event) => { (event as any).preventDefault(); })
 
    }
 

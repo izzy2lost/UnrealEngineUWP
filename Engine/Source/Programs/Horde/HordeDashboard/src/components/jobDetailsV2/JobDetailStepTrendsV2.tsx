@@ -20,6 +20,9 @@ import { getHordeStyling } from "../../styles/Styles";
 
 const sideRail: ISideRailLink = { text: "Trends", url: "rail_step_trends" };
 
+// Handle bad "@types/d3" types, fix if addressed upstream
+const _d3 = d3 as any;
+
 class Tooltip {
 
    constructor() {
@@ -221,7 +224,7 @@ class StepTrendsDataView extends JobDataView {
 
 type SelectionType = d3.Selection<SVGGElement, unknown, null, undefined>;
 type Zoom = d3.ZoomBehavior<Element, unknown>;
-type Scalar = d3.ScaleLinear<number, number, never>;
+type Scalar = d3.ScaleLinear<number, number>;
 
 class StepTrendsRenderer {
 
@@ -327,7 +330,7 @@ class StepTrendsRenderer {
       const arrowPoints = [[0, 0], [0, 10], [10, 5]] as any;
       svg.append("marker")
          .attr("id", "cmarker")
-         .attr('viewBox', [0, 0, 10, 10])
+         .attr('viewBox', [0, 0, 10, 10] as any)
          .attr("refX", 5)
          .attr("refY", 5)
          .attr("markerWidth", 5)
@@ -514,8 +517,8 @@ class StepTrendsRenderer {
             return;
          }
 
-         let mouseX = d3.pointer(event)[0];
-         let mouseY = d3.pointer(event)[1];
+         let mouseX = _d3.pointer(event)[0];
+         let mouseY = _d3.pointer(event)[1];
 
          const ref = closestData(mouseX, mouseY);
 
@@ -538,11 +541,11 @@ class StepTrendsRenderer {
          if (ref) {
             this.showToolTip()
          }
-         dataView.tooltip.update(ref, d3.pointer(event, container)[0], mouseY, ref?.change);
+         dataView.tooltip.update(ref, _d3.pointer(event, container)[0], mouseY, ref?.change);
       }
 
       // events
-      svg.on("wheel", (event) => { event.preventDefault(); })
+      svg.on("wheel", (event:any) => { event.preventDefault(); })
 
       svg.on("mousemove", (event) => { this.showToolTip(true); handleMouseMove(event); });
       svg.on("mouseleave", (event) => { if (!dataView.tooltip.frozen) dataView.tooltip.update(undefined); })

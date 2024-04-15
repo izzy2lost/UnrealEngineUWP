@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-import { Plugin, PluginMount } from "..";
+import { Plugin, PluginMount } from "../pluginTypes";
 import { TestReportView, ReportLinkItemPane } from "./components/SimpleReport";
 
 class SimpleTestReportPlugin implements Plugin {

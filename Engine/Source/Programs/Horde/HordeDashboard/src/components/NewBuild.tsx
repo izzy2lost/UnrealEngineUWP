@@ -1516,7 +1516,7 @@ export const NewBuild: React.FC<{ streamId: string; show: boolean; onClose: (new
 
       const submit = async () => {
 
-         if (!!process.env.REACT_APP_HORDE_DEBUG_NEW_JOB) {
+         if (!!import.meta.env.VITE_HORDE_DEBUG_NEW_JOB) {
 
             console.log("Debug Job Submit");
             console.log(JSON.stringify(data));

@@ -454,7 +454,7 @@ export class JobDetailsV2 extends PollBase {
 
       const labels = this.labels;
 
-      if (!labels || idx >= labels.length) {
+      if (!labels || (idx as number)>= labels.length) {
          return undefined;
       }
 

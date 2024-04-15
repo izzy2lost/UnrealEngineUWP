@@ -51,9 +51,7 @@ const RouteError: React.FC = () => {
 
 const Main: React.FC = () => {
 
-   const [init, setInit] = useState(false);
-   const [pluginsLoaded, setPluginsLoaded] = useState(false);
-   
+   const [init, setInit] = useState(false);   
 
    if (window.location.pathname === "/login") {
       return <HordeLoginView/>
@@ -71,7 +69,7 @@ const Main: React.FC = () => {
 
       backend.init().then(() => {
 
-         backend.getCurrentUser().then(user => {
+         backend.getCurrentUser().then(() => {
 
             setInit(true);
             return null;
@@ -108,12 +106,7 @@ const Main: React.FC = () => {
       </ThemeProvider>);
    }
 
-   if (!pluginsLoaded) {
-      hordePlugins.loadPlugins(config.plugins).finally(() => {
-         setPluginsLoaded(true);
-      })
-      return <ThemeProvider applyTo='body' theme={dashboard.darktheme ? darkTheme : lightTheme} />;
-   }
+   hordePlugins.loadPlugins(config.plugins);
 
    if (!router) {
 

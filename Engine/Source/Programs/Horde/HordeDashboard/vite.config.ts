@@ -1,0 +1,51 @@
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
+
+const proxyTarget = "http://127.0.0.1:13340"
+const debug = false;
+
+// https://vitejs.dev/config/
+export default defineConfig({
+  plugins: [react({
+    babel: {
+      parserOpts: {
+        plugins: ['decorators-legacy'],
+      },
+    },
+  })],
+  build: {
+    chunkSizeWarningLimit: 8192
+  },
+  server: {
+    proxy: {
+      '/api': {
+        target: proxyTarget,
+        changeOrigin: true
+      },
+    }
+  },
+  preview: {
+    proxy: {
+      '/api': {
+        target: proxyTarget,
+        changeOrigin: true,
+        secure: false,
+        ws: true,
+        configure: (proxy, _options) => {
+          proxy.on('error', (err, _req, _res) => {
+            if (debug)
+              console.log('proxy error', err);
+          });
+          proxy.on('proxyReq', (proxyReq, req, _res) => {
+            if (debug)
+              console.log('Sending Request to the Target:', req.method, req.url);
+          });
+          proxy.on('proxyRes', (proxyRes, req, _res) => {
+            if (debug)
+              console.log('Received Response from the Target:', proxyRes.statusCode, req.url);
+          });
+        },
+      }
+    }
+  }
+})

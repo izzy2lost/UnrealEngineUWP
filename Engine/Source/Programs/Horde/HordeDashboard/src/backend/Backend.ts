@@ -1928,7 +1928,7 @@ export class Backend {
     // server url if on a separate origin from dashboard, as with local development and a debug token
     get serverUrl(): string {
 
-        const url = process.env.REACT_APP_HORDE_BACKEND;
+        const url = import.meta.env.VITE_HORDE_BACKEND;
 
         if (!url) {
             return "";
@@ -1939,7 +1939,7 @@ export class Backend {
 
     get debugToken(): string {
 
-        const token = process.env.REACT_APP_HORDE_DEBUG_TOKEN;
+        const token = import.meta.env.VITE_HORDE_DEBUG_TOKEN;
 
         if (!token) {
             return "";

@@ -1,5 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
-import { Plugin, PluginMount } from "..";
+import { Plugin, PluginMount } from "../pluginTypes";
 import { ExampleBar } from "./routes/ExampleBar";
 import { JobDetailPluginExample } from "./components/JobDetailPluginExample";
 

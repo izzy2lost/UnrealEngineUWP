@@ -14,6 +14,9 @@ import { getHordeStyling } from "../styles/Styles";
 
 type PoolId = string;
 
+// Handle bad "@types/d3" types, fix if addressed upstream
+const _d3 = d3 as any;
+
 type SelectionType = d3.Selection<SVGGElement, unknown, null, undefined>;
 type ScalarTime = d3.ScaleTime<number, number>
 type DivSelectionType = d3.Selection<HTMLDivElement, unknown, null, undefined>;
@@ -669,9 +672,9 @@ class PoolTelemetryGraph {
          .append("path")
          .attr("class", function (d) { return "telemetryArea " + (data.streamSelectors[d.key] ?? d.key); })
          .style("shapeRendering", "geometricPrecision")
-         .style("fill", function (d) { return colors[d.key] ?? schemaColor(d.key) })
+         .style("fill", function (d) { return colors[d.key] ?? schemaColor(d.key) as any })
          .attr("d", area as any)
-         .on("mouseover", (e, d) => { highlight(e, e.target.classList[1], true) })
+         .on("mouseover", (e:any) => { highlight(e, e.target.classList[1], true) })
          .on("mouseleave", (e, d) => { noHighlight(e, d) });
 
       // legend
@@ -687,8 +690,8 @@ class PoolTelemetryGraph {
          .attr("y", function (d, i) { return posy + 10 + i * (size + 5 + 4) })
          .attr("width", size)
          .attr("height", size)
-         .style("fill", function (d: any) { return colors[d] ?? schemaColor(d) })
-         .on("mouseover", highlight)
+         .style("fill", function (d: any) { return colors[d] ?? schemaColor(d) as any })
+         .on("mouseover", highlight as any)
          .on("mouseleave", noHighlight)
 
       svg.selectAll("legendlabels")
@@ -704,7 +707,7 @@ class PoolTelemetryGraph {
          .style("alignment-baseline", "middle")
          .style("font-family", "Horde Open Sans Regular")
          .style("font-size", "13px")
-         .on("mouseover", highlight)
+         .on("mouseover", highlight as any)
          .on("mouseleave", noHighlight)
 
       // tooltip
@@ -721,7 +724,7 @@ class PoolTelemetryGraph {
       //.style("pointer-events", "none")
 
       svg.on("mousemove", (event) => this.handleMouseMove(event))
-      svg.on("wheel", (event) => {
+      svg.on("wheel", (event:any) => {
          if (event.wheelDelta < 0) {
             updateChart(undefined);
          }
@@ -805,7 +808,7 @@ class PoolTelemetryGraph {
          return data.streamNamesReverse[streamName] === sid;
       });
 
-      const closest = this.closestData(d3.pointer(event)[0]);
+      const closest = this.closestData(_d3.pointer(event)[0]);
       if (!closest) {
          this.updateTooltip(false);
          return undefined;
@@ -902,7 +905,7 @@ class PoolTelemetryGraph {
 
       text += "</div>";
 
-      this.updateTooltip(true, d3.pointer(event)[0], d3.pointer(event)[1], text);
+      this.updateTooltip(true, _d3.pointer(event)[0], _d3.pointer(event)[1], text);
 
    }
 

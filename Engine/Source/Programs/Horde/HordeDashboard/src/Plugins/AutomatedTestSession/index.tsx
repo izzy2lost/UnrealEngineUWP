@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-import { Plugin, PluginMount } from "..";
+import { Plugin, PluginMount } from "../pluginTypes";
 import { TestSessionView, TestSessionViewAll, BuildHealthTestSessionView, routePath } from "./components/AutomatedTestSession";
 
 class AutomatedTestSessionPlugin implements Plugin {

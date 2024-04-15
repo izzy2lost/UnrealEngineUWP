@@ -5,9 +5,12 @@ import dashboard from "../../backend/Dashboard";
 import { displayTimeZone, msecToElapsed } from "../../base/utilities/timeUtils";
 import { graphColors } from "./TelemetryData";
 
+// Handle bad "@types/d3" types, fix if addressed upstream
+const _d3 = d3 as any;
+
 type SelectionType = d3.Selection<SVGGElement, unknown, null, undefined>;
 type Zoom = d3.ZoomBehavior<Element, unknown>;
-type Scalar = d3.ScaleLinear<number, number, never>;
+type Scalar = d3.ScaleLinear<number, number>;
 
 type DataPoint = [number, number, string, number, number];
 
@@ -75,7 +78,7 @@ export class TelemetryLineRenderer {
          .attr("height", height);
 
       const points = allMetrics.map((m, index) => [x(m.time.getTime() / 1000), y(m.value), m.key, legend.indexOf(m.key) % graphColors.length, index]) as DataPoint[];
-      const groups = d3.rollup(points, v => Object.assign(v, { z: v[0][2] }), d => d[2]);
+      const groups = _d3.rollup(points, v => Object.assign(v, { z: v[0][2] }), d => d[2]);
       const gvalues = Array.from(groups.values());
 
       const line = d3.line().curve(d3.curveMonotoneX);
@@ -223,8 +226,8 @@ export class TelemetryLineRenderer {
 
       const handleMouseMove = (event: any) => {
 
-         const mouseX = d3.pointer(event)[0];
-         const mouseY = d3.pointer(event)[1];
+         const mouseX = _d3.pointer(event)[0];
+         const mouseY = _d3.pointer(event)[1];
 
          // find closest point on x axis for each data key
          const closestX = new Map<string, DataPoint>();

@@ -17,6 +17,9 @@ import { getHordeStyling } from '../../styles/Styles';
 
 type SelectionType = d3.Selection<SVGGElement, unknown, null, undefined>;
 
+// Handle bad "@types/d3" types, fix if addressed upstream
+const _d3 = d3 as any;
+
 class Tooltip {
 
    constructor() {
@@ -269,7 +272,7 @@ class BisectionRenderer {
          changeSet.clear();
       }
 
-      const X = d3.map(Array.from(changeSet).sort((a, b) => a - b), (t) => t);
+      const X = _d3.map(Array.from(changeSet).sort((a, b) => a - b), (t) => t);
       const I = d3.range(X.length);
 
       let svg = this.svg;
@@ -361,10 +364,10 @@ class BisectionRenderer {
             return;
          }
 
-         let mouseX = d3.pointer(event)[0];
-         let mouseY = d3.pointer(event)[1];
+         let mouseX = _d3.pointer(event)[0];
+         let mouseY = _d3.pointer(event)[1];
          const change = closestCL(mouseX, mouseY);
-         this.tooltip.update(this.bisection, change, Math.floor(d3.pointer(event, container)[0]), Math.floor(d3.pointer(event, container)[1]));
+         this.tooltip.update(this.bisection, change, Math.floor(_d3.pointer(event, container)[0]), Math.floor(_d3.pointer(event, container)[1]));
       }
 
       const handleMouseLeave = (event: any) => {

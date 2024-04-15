@@ -1,70 +1,50 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-import React from 'react';
-
-// render components with top level routes
-export type PluginRoute = {
-    path: string;
-    component: React.FC;
-}
-
-// render components with specific mount points
-export enum PluginMount {
-    JobDetailPanel,
-    TestReportPanel,
-    TestReportLink,
-    BuildHealthSummary,
-}
-
-export type PluginComponent = {
-    mount: PluginMount;       
-    component: React.FC<any>;
-    // optional unique identifier for the component
-    id?:string;
-}
-
-export interface Plugin {
-    name: string;
-    routes?: PluginRoute[];
-    components?: PluginComponent[];
-}
+import { Plugin, PluginMount, PluginRoute, PluginComponent } from "./pluginTypes";
+import SimpleTestReportPlugin from "./SimpleTestReport"
+import AutomatedTestSessionPlugin from "./AutomatedTestSession"
+import UnrealAutomatedTestsPlugin from "./UnrealAutomatedTests"
 
 export class Plugins {
 
-    get routes(): PluginRoute[] {
-        return this.plugins.map(p => p.routes ?? []).flat();
-    }
+   get routes(): PluginRoute[] {
+      return this.plugins.map(p => p.routes ?? []).flat();
+   }
 
-    getComponents(mount: PluginMount, id?:string): PluginComponent[] {
-        return this.plugins.map(p => {
-            return p.components?.filter(c => c.mount === mount && c.id === id) ?? [];
-        }).flat();
-    }
+   getComponents(mount: PluginMount, id?: string): PluginComponent[] {
+      return this.plugins.map(p => {
+         return p.components?.filter(c => c.mount === mount && c.id === id) ?? [];
+      }).flat();
+   }
 
-    loadPlugins(pluginList: string[] | undefined): Promise<void> {
+   loadPlugins(pluginList: string[] | undefined): void {
 
-        console.log("loading plugins...");
+      console.log("loading plugins...");
 
-        return new Promise<void>((resolve) => {
+      this.plugins.push(...[AutomatedTestSessionPlugin, SimpleTestReportPlugin, UnrealAutomatedTestsPlugin]);
 
-            if (!pluginList || !pluginList.length || this.plugins.length) {
-                return resolve();
-            }
+      /*
+      return new Promise<void>((resolve) => {
 
-            Promise.all(pluginList.map(async (plugin: any) => {
-                await import(`./${plugin}`).then((m: any) => {
-                    this.plugins.push(m.default);
-                    console.log(`loaded plugin: ${plugin}`);
-                }).catch((reason: any) => {
-                    console.error(`unable to load plugin: ${plugin}, ${reason}`);
-                });
-            })).finally(() => {
-                resolve();
+         if (!pluginList || !pluginList.length || this.plugins.length) {
+            return resolve();
+         }
+
+         Promise.all(pluginList.map(async (plugin: any) => {
+            await import(`./${plugin}/index.js`).then((m: any) => {
+               this.plugins.push(m.default);
+               console.log(`loaded plugin: ${plugin}`);
+            }).catch((reason: any) => {
+               console.error(`unable to load plugin: ${plugin}, ${reason}`);
             });
-        });
-    }
+         })).finally(() => {
+            resolve();
+         });
+      });
+      */
+   }
 
-    private plugins: Plugin[] = [];
+   private plugins: Plugin[] = [];
 
 }
 
