@@ -257,7 +257,7 @@ struct FRDGScope
 		}
 
 		template <typename TScopeType>
-		static constexpr uint32 GetTypeIndex()
+		static constexpr SIZE_T GetTypeIndex()
 		{
 			return TImpl::template IndexOfType<TScopeType>();
 		}

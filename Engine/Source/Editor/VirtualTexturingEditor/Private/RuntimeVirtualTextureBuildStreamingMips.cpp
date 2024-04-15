@@ -195,7 +195,7 @@ namespace RuntimeVirtualTexture
 		}
 
 		// Spin up slow task UI
-		const float TaskWorkRender = NumTilesX * NumTilesY;
+		const float TaskWorkRender = static_cast<float>(NumTilesX * NumTilesY);
 		const float TextureBuildTaskMultiplier = 0.25f;
 		const float TaskWorkBuildBulkData = TaskWorkRender * TextureBuildTaskMultiplier;
 		FScopedSlowTask Task(TaskWorkRender + TaskWorkBuildBulkData, FText::AsCultureInvariant(InComponent->GetStreamingTexture()->GetName()));
@@ -263,7 +263,7 @@ namespace RuntimeVirtualTexture
 						Desc.UVToWorld = Transform;
 						Desc.WorldBounds = Bounds;
 						Desc.MaterialType = MaterialType;
-						Desc.MaxLevel = MaxLevel;
+						Desc.MaxLevel = IntCastChecked<uint8>(MaxLevel);
 						Desc.bClearTextures = true;
 						Desc.bIsThumbnails = false;
 						Desc.FixedColor = FixedColor;
@@ -275,7 +275,7 @@ namespace RuntimeVirtualTexture
 						Desc.PageDescs[0].DestBox[1] = TileBox;
 						Desc.PageDescs[0].DestBox[2] = TileBox;
 						Desc.PageDescs[0].UVRange = UVRange;
-						Desc.PageDescs[0].vLevel = RenderLevel;
+						Desc.PageDescs[0].vLevel = IntCastChecked<uint8>(RenderLevel);
 
 						RuntimeVirtualTexture::RenderPagesStandAlone(GraphBuilder, Desc);
 

@@ -78,7 +78,7 @@ namespace
 			FindAllMaterials(RuntimeVirtualTexture, Materials, Functions);
 
 			int32 TaskCount = Materials.Num() + Functions.Num();
-			FScopedSlowTask Task(TaskCount, LOCTEXT("RuntimeVirtualTexture_FixMaterialUsageProgress", "Fixing materials for Runtime Virtual Texture usage..."));
+			FScopedSlowTask Task(static_cast<float>(TaskCount), LOCTEXT("RuntimeVirtualTexture_FixMaterialUsageProgress", "Fixing materials for Runtime Virtual Texture usage..."));
 			Task.MakeDialog();
 
 			for (UMaterial* Material : Materials)

@@ -39,9 +39,9 @@ ENUM_CLASS_FLAGS(EOutdatedDataFlags);
 
 inline uint32 GetOutdatedDataFlagIndex(EOutdatedDataFlags InFlag)
 {
-	const uint64 InFlagAsUInt64 = static_cast<uint64>(InFlag);
-	check((InFlagAsUInt64 > static_cast<uint64>(EOutdatedDataFlags::None)) && (InFlagAsUInt64 < static_cast<uint64>(EOutdatedDataFlags::LastPlusOne)) && (FMath::CountBits(InFlagAsUInt64) == 1u));
-	return FMath::CountTrailingZeros(InFlagAsUInt64);
+	const uint32 InFlagAsUInt32 = static_cast<uint32>(InFlag);
+	check((InFlagAsUInt32 > static_cast<uint32>(EOutdatedDataFlags::None)) && (InFlagAsUInt32 < static_cast<uint32>(EOutdatedDataFlags::LastPlusOne)) && (FMath::CountBits(InFlagAsUInt32) == 1u));
+	return FMath::CountTrailingZeros(InFlagAsUInt32);
 }
 
 } // namespace UE::Landscape
