@@ -141,7 +141,7 @@ public static class OpenTelemetryHelper
 		{
 			builder.AddOtlpExporter(name, exporter =>
 			{
-				exporter.Endpoint = exporterSettings.Endpoint;
+				exporter.Endpoint = exporterSettings.Endpoint!;
 				exporter.Protocol = Enum.TryParse(exporterSettings.Protocol, true, out OtlpExportProtocol protocol) ? protocol : OtlpExportProtocol.Grpc;
 			});
 		}
@@ -162,7 +162,7 @@ public static class OpenTelemetryHelper
 		{
 			builder.AddOtlpExporter(name, exporter =>
 			{
-				exporter.Endpoint = exporterSettings.Endpoint;
+				exporter.Endpoint = exporterSettings.Endpoint!;
 				exporter.Protocol = Enum.TryParse(exporterSettings.Protocol, true, out OtlpExportProtocol protocol) ? protocol : OtlpExportProtocol.Grpc;
 			});
 		}
