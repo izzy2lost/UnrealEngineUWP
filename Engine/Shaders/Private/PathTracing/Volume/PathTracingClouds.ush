@@ -225,8 +225,8 @@ FVolumeShadedResult CloudsGetDensity(float3 TranslatedWorldPos)
 		);
 		CallShader(CloudCallableShaderId, Payload);
 		Data = Payload.GetVolumetricCallableShaderOutput();
-#endif
 	}
+#endif
 	const FSampleCloudMaterialResult CloudResult = DecodeCloudResult(Data);
 	Result.SigmaT        = CloudResult.Extinction;
 	Result.SigmaSDualHG  = CloudResult.Albedo * Result.SigmaT;
