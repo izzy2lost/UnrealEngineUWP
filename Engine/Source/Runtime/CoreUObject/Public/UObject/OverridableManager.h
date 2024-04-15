@@ -13,6 +13,8 @@
  *************************************************************************************
  */
 
+#ifdef WITH_EDITORONLY_DATA
+
 /**
  * Struct holding the shared ptr of the overridden properties
  */
@@ -78,6 +80,8 @@ private:
 		return const_cast<UObject*>(Found ? Found : &Object);
 	}
 };
+
+#endif // WITH_EDITORONLY_DATA
 
 enum class EOverriddenState : uint8
 {
@@ -268,6 +272,8 @@ public:
 protected:
 	FOverridableManager();
 
+#ifdef WITH_EDITORONLY_DATA
 	FOverriddenPropertyAnnotations OverriddenObjectAnnotations;
+#endif // WITH_EDITORONLY_DATA 
 };
 
