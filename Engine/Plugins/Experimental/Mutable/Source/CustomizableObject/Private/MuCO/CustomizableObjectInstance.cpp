@@ -1832,7 +1832,8 @@ bool UCustomizableInstancePrivate::UpdateSkeletalMesh_PostBeginUpdate0(UCustomiz
 		}
 		else
 		{
-			SkeletalMeshes[Component.Id] = NewObject<USkeletalMesh>(GetTransientPackage(), NAME_None, RF_Transient);
+			FName SkeletalMeshName = GenerateUniqueNameFromCOInstance(*Public);
+			SkeletalMeshes[Component.Id] = NewObject<USkeletalMesh>(GetTransientPackage(), SkeletalMeshName, RF_Transient);
 		}
 
 		USkeletalMesh* SkeletalMesh = SkeletalMeshes[Component.Id];

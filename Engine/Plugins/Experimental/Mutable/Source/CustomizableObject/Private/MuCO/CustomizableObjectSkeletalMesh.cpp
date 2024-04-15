@@ -9,12 +9,23 @@
 #include "MuCO/CustomizableObjectInstance.h"
 #include "MuCO/CustomizableObjectMeshUpdate.h"
 
+FName GenerateUniqueNameFromCOInstance(const UCustomizableObjectInstance& Instance)
+{
+	FString BaseName = FString("MutableSkMesh-") + Instance.GetCustomizableObject()->GetName();
+	FName SkeletalMeshName = MakeUniqueObjectName(GetTransientPackage(), USkeletalMesh::StaticClass(), FName(BaseName), 
+							                      EUniqueObjectNameOptions::GloballyUnique);
+
+	return SkeletalMeshName;
+}
+
+
 UCustomizableObjectSkeletalMesh* UCustomizableObjectSkeletalMesh::CreateSkeletalMesh(const TSharedRef<FUpdateContextPrivate>& OperationData, const UCustomizableObjectInstance& Instance, const int32 InComponentIndex)
 {
 	UCustomizableObject* CustomizableObject = Instance.GetCustomizableObject();
 	check(CustomizableObject);
 
-	UCustomizableObjectSkeletalMesh* OutSkeletalMesh = NewObject<UCustomizableObjectSkeletalMesh>();
+	FName SkeletalMeshName = GenerateUniqueNameFromCOInstance(Instance);
+	UCustomizableObjectSkeletalMesh* OutSkeletalMesh = NewObject<UCustomizableObjectSkeletalMesh>(GetTransientPackage(), SkeletalMeshName, RF_Transient);
 	
 	// Debug info
 	OutSkeletalMesh->CustomizableObjectPathName = GetNameSafe(CustomizableObject);
