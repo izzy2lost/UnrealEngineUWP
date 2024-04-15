@@ -136,6 +136,7 @@ FDataLayerMode::FDataLayerMode(const FDataLayerModeParams& Params)
 
 	USelection::SelectionChangedEvent.AddRaw(this, &FDataLayerMode::OnLevelSelectionChanged);
 	USelection::SelectObjectEvent.AddRaw(this, &FDataLayerMode::OnLevelSelectionChanged);
+	FCoreUObjectDelegates::PostLoadMapWithWorld.AddRaw(this, &FDataLayerMode::OnPostLoadMapWithWorld);
 
 	UWorldPartitionEditorPerProjectUserSettings* SharedSettings = GetMutableDefault<UWorldPartitionEditorPerProjectUserSettings>();
 	bHideEditorDataLayers = SharedSettings->bHideEditorDataLayers;
@@ -251,6 +252,7 @@ FDataLayerMode::~FDataLayerMode()
 {
 	USelection::SelectionChangedEvent.RemoveAll(this);
 	USelection::SelectObjectEvent.RemoveAll(this);
+	FCoreUObjectDelegates::PostLoadMapWithWorld.RemoveAll(this);
 }
 
 TSharedRef<FSceneOutlinerFilter> FDataLayerMode::CreateHideEditorDataLayersFilter()
@@ -2333,6 +2335,11 @@ void FDataLayerMode::SynchronizeSelection()
 			}
 		}
 	}
+}
+
+void FDataLayerMode::OnPostLoadMapWithWorld(UWorld* World)
+{
+	SceneOutliner->FullRefresh();
 }
 
 void FDataLayerMode::OnLevelSelectionChanged(UObject* Obj)
