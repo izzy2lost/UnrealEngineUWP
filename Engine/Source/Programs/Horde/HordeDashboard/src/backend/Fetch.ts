@@ -2,6 +2,7 @@
 
 import { ErrorHandler, ErrorInfo } from "../components/ErrorHandler";
 import { GetDashboardChallengeResponse } from "./Api";
+import userInactivity from "./UserInactivity";
 //import { setDatadogUser } from './Datadog';
 
 export enum ChallengeStatus {
@@ -395,6 +396,10 @@ export class Fetch {
         if (this.withCredentials) {
             headers["Authorization"] = this.authorization!;
         }
+        
+        // Report how idle the user has been on current page in each HTTP request
+        // This helps identify how much load potentially unused pages generate on the Horde server
+        headers["X-Horde-LastUserActivity"] = userInactivity.getSecondsSinceLastActivity().toString();
 
         return headers;
     }
