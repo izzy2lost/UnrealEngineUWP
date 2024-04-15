@@ -29,8 +29,3 @@ UMaterialExpression* UDMMaterialPropertyEmissiveColor::GetDefaultInput(
 {
 	return CreateConstant(InBuildState, FVector::OneVector);
 }
-
-void UDMMaterialPropertyEmissiveColor::OnSlotAdded(UDMMaterialSlot* InSlot)
-{
-	UDMMaterialPropertyBaseColor::AddDefaultRGBLayer(EDMMaterialPropertyType::EmissiveColor, InSlot);
-}

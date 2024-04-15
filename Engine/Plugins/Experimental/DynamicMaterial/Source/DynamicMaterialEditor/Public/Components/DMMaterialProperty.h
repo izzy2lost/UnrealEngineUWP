@@ -59,7 +59,7 @@ public:
 
 	virtual UMaterialExpression* GetDefaultInput(const TSharedRef<FDMMaterialBuildState>& InBuildState) const;
 
-	virtual void OnSlotAdded(UDMMaterialSlot* InSlot) {}
+	virtual void OnSlotAdded(UDMMaterialSlot* InSlot);
 
 	//~ Begin UDMMaterialComponent
 	virtual void Update(EDMUpdateType InUpdateType) override;

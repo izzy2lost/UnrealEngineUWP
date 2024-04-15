@@ -303,7 +303,15 @@ void FDynamicMaterialEditorModule::StartupModule()
 
 	UDMMaterialValueTexture::GetDefaultRGBTexture.BindLambda([]()
 		{
-			return UDynamicMaterialEditorSettings::Get()->DefaultRGBTexture.LoadSynchronous();
+			if (const TSoftObjectPtr<UTexture>* TexturePtr = UDynamicMaterialEditorSettings::Get()->DefaultSlotTextures.Find(EDMMaterialPropertyType::BaseColor))
+			{
+				if (UTexture* Texture = TexturePtr->LoadSynchronous())
+				{
+					return Texture;
+				}
+			}
+
+			return UDynamicMaterialEditorSettings::Get()->DefaultMask.LoadSynchronous();
 		});
 
 	FDMValueDetailsRowExtensions::Get().RegisterRowExtensions();

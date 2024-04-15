@@ -13,13 +13,10 @@ class DYNAMICMATERIALEDITOR_API UDMMaterialPropertyOpacity : public UDMMaterialP
 	GENERATED_BODY()
 
 public:
-	static void AddDefaultOpacityLayer(EDMMaterialPropertyType InMaterialProperty, UDMMaterialSlot* InSlot);
-
 	UDMMaterialPropertyOpacity();
 
 	//~ Begin UDMMaterialProperty
 	virtual bool IsValidForModel(UDynamicMaterialModelEditorOnlyData& InModelEditorOnlyData) const override;
 	virtual UMaterialExpression* GetDefaultInput(const TSharedRef<FDMMaterialBuildState>& InBuildState) const override;
-	virtual void OnSlotAdded(UDMMaterialSlot* InSlot) override;
 	//~ End UDMMaterialProperty
 };

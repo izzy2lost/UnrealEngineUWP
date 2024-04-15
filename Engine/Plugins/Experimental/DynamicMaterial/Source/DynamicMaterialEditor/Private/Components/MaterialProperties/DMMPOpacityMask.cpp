@@ -22,8 +22,3 @@ UMaterialExpression* UDMMaterialPropertyOpacityMask::GetDefaultInput(
 {
 	return CreateConstant(InBuildState, 1.f);
 }
-
-void UDMMaterialPropertyOpacityMask::OnSlotAdded(UDMMaterialSlot* InSlot)
-{
-	UDMMaterialPropertyOpacity::AddDefaultOpacityLayer(EDMMaterialPropertyType::OpacityMask, InSlot);
-}

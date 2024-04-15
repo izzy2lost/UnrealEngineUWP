@@ -70,10 +70,20 @@ UDynamicMaterialEditorSettings::UDynamicMaterialEditorSettings()
 
 	ResetAllLayoutSettings();
 
-	DefaultRGBTexture = TSoftObjectPtr<UTexture>(FSoftObjectPath(TEXT("Texture2D'/DynamicMaterial/T_Default_Texture.T_Default_Texture'")));
-	DefaultOpaqueTexture = TSoftObjectPtr<UTexture>(FSoftObjectPath(TEXT("Texture2D'/Engine/EngineResources/WhiteSquareTexture.WhiteSquareTexture'")));
-	DefaultPreviewCanvasTexture = nullptr;
-	DefaultOpacitySlotMask = TSoftObjectPtr<UTexture>(FSoftObjectPath(TEXT("/Script/Engine.Texture2D'/DynamicMaterial/Textures/T_DM_HorizontalGradient.T_DM_HorizontalGradient'")));
+	DefaultMask = TSoftObjectPtr<UTexture>(FSoftObjectPath(TEXT("Texture2D'/Engine/EngineResources/WhiteSquareTexture.WhiteSquareTexture'")));
+
+	DefaultSlotTextures.Emplace(EDMMaterialPropertyType::BaseColor,           FSoftObjectPath(TEXT("Texture2D'/DynamicMaterial/T_Default_Texture.T_Default_Texture'")));
+	DefaultSlotTextures.Emplace(EDMMaterialPropertyType::Opacity,             FSoftObjectPath(TEXT("/Script/Engine.Texture2D'/DynamicMaterial/Textures/T_DM_HorizontalGradient.T_DM_HorizontalGradient'")));
+	DefaultSlotTextures.Emplace(EDMMaterialPropertyType::Metallic,            FSoftObjectPath(TEXT("/Script/Engine.Texture2D'/DynamicMaterial/Textures/SlotDefaults/T_MD_Metallic.T_MD_Metallic'")));
+	DefaultSlotTextures.Emplace(EDMMaterialPropertyType::Specular,            FSoftObjectPath(TEXT("")));
+	DefaultSlotTextures.Emplace(EDMMaterialPropertyType::Roughness,           FSoftObjectPath(TEXT("/Script/Engine.Texture2D'/DynamicMaterial/Textures/SlotDefaults/T_MD_Roughness.T_MD_Roughness'")));
+	DefaultSlotTextures.Emplace(EDMMaterialPropertyType::Anisotropy,          FSoftObjectPath(TEXT("")));
+	DefaultSlotTextures.Emplace(EDMMaterialPropertyType::Normal,              FSoftObjectPath(TEXT("/Script/Engine.Texture2D'/DynamicMaterial/Textures/SlotDefaults/T_MD_Normal.T_MD_Normal'")));
+	DefaultSlotTextures.Emplace(EDMMaterialPropertyType::Tangent,             FSoftObjectPath(TEXT("")));
+	DefaultSlotTextures.Emplace(EDMMaterialPropertyType::WorldPositionOffset, FSoftObjectPath(TEXT("")));
+	DefaultSlotTextures.Emplace(EDMMaterialPropertyType::AmbientOcclusion,    FSoftObjectPath(TEXT("/Script/Engine.Texture2D'/DynamicMaterial/Textures/SlotDefaults/T_MD_AmbientOcclusion.T_MD_AmbientOcclusion'")));
+	DefaultSlotTextures.Emplace(EDMMaterialPropertyType::Refraction,          FSoftObjectPath(TEXT("")));
+	DefaultSlotTextures.Emplace(EDMMaterialPropertyType::PixelDepthOffset,    FSoftObjectPath(TEXT("")));
 
 	FDMMaterialChannelListPreset Opaque;
 	Opaque.bRGB = true;

@@ -166,20 +166,14 @@ public:
 	bool bShowTooltipPreview;
 
 	/** The size of the preview image when displayed in the tooltip. */
-	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "ToolTips", meta = (EditCondition = "bShowTooltipPreview == true", ClampMin = "128", UIMin = "128", ClampMax = "2048", UIMax = "2048"))
+	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "ToolTips", meta = (EditCondition = "bShowTooltipPreview", ClampMin = "128", UIMin = "128", ClampMax = "2048", UIMax = "2048"))
 	int32 TooltipTextureSize;
 
-	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Preview", meta=(DisplayName = "Default RGB Texture"))
-	TSoftObjectPtr<UTexture> DefaultRGBTexture;
-
 	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Preview")
-	TSoftObjectPtr<UTexture> DefaultOpaqueTexture;
+	TSoftObjectPtr<UTexture> DefaultMask;
 
-	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Preview")
-	TSoftObjectPtr<UTexture> DefaultPreviewCanvasTexture;
-
-	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Preview")
-	TSoftObjectPtr<UTexture> DefaultOpacitySlotMask;
+	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Channels", meta = (EditFixedSize))
+	TMap<EDMMaterialPropertyType, TSoftObjectPtr<UTexture>> DefaultSlotTextures;
 
 	/*
 	 * Add paths to search for custom effects.

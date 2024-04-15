@@ -18,6 +18,5 @@ public:
 	//~ Begin UDMMaterialProperty
 	virtual bool IsValidForModel(UDynamicMaterialModelEditorOnlyData& InModelEditorOnlyData) const override;
 	virtual UMaterialExpression* GetDefaultInput(const TSharedRef<FDMMaterialBuildState>& InBuildState) const override;
-	virtual void OnSlotAdded(UDMMaterialSlot* InSlot) override;
 	//~ End UDMMaterialProperty
 };

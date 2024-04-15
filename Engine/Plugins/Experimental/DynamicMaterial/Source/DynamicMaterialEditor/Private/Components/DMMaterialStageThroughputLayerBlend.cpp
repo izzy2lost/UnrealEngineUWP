@@ -145,7 +145,7 @@ void UDMMaterialStageThroughputLayerBlend::AddDefaultInput(int32 InInputIndex) c
 			UDMMaterialValueTexture* InputTexture = Cast<UDMMaterialValueTexture>(InputValue->GetValue());
 			check(InputTexture);
 
-			InputTexture->SetDefaultValue(UDynamicMaterialEditorSettings::Get()->DefaultOpaqueTexture.LoadSynchronous());
+			InputTexture->SetDefaultValue(UDynamicMaterialEditorSettings::Get()->DefaultMask.LoadSynchronous());
 			InputTexture->ApplyDefaultValue();
 			break;
 		}

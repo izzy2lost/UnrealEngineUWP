@@ -2,8 +2,16 @@
 
 #include "Components/DMMaterialProperty.h"
 #include "Components/DMMaterialSlot.h"
+#include "Components/DMMaterialStageThroughputLayerBlend.h"
+#include "Components/DMMaterialSubStage.h"
+#include "Components/MaterialStageBlends/DMMSBNormal.h"
+#include "Components/MaterialStageExpressions/DMMSETextureSample.h"
+#include "Components/MaterialStageInputs/DMMSIExpression.h"
+#include "Components/MaterialStageInputs/DMMSIValue.h"
+#include "Components/MaterialValues/DMMaterialValueTexture.h"
 #include "DMPrivate.h"
 #include "DMValueDefinition.h"
+#include "DynamicMaterialEditorSettings.h"
 #include "Materials/MaterialExpressionConstant.h"
 #include "Materials/MaterialExpressionConstant2Vector.h"
 #include "Materials/MaterialExpressionConstant3Vector.h"
@@ -97,6 +105,93 @@ void UDMMaterialProperty::ResetInputConnectionMap()
 UMaterialExpression* UDMMaterialProperty::GetDefaultInput(const TSharedRef<FDMMaterialBuildState>& InBuildState) const
 {
 	return nullptr;
+}
+
+void UDMMaterialProperty::OnSlotAdded(UDMMaterialSlot* InSlot)
+{
+	UTexture* BaseTexture = nullptr;
+
+	if (const TSoftObjectPtr<UTexture>* TexturePtr = UDynamicMaterialEditorSettings::Get()->DefaultSlotTextures.Find(MaterialProperty))
+	{
+		if (UTexture* Texture = TexturePtr->LoadSynchronous())
+		{
+			BaseTexture = Texture;
+		}
+	}
+
+	if (!BaseTexture)
+	{
+		return;
+	}
+
+	UDMMaterialStage* DefaultStage = UDMMaterialStageBlend::CreateStage(UDMMaterialStageBlendNormal::StaticClass());
+	check(DefaultStage);
+
+	UDMMaterialStage* MaskStage = UDMMaterialStageThroughputLayerBlend::CreateStage();
+	check(MaskStage);
+
+	InSlot->AddLayerWithMask(MaterialProperty, DefaultStage, MaskStage);
+
+	UDMMaterialStageInputExpression* BaseInputExpression = UDMMaterialStageInputExpression::ChangeStageInput_Expression(
+		DefaultStage,
+		UDMMaterialStageExpressionTextureSample::StaticClass(),
+		UDMMaterialStageBlendNormal::InputB,
+		FDMMaterialStageConnectorChannel::WHOLE_CHANNEL,
+		0,
+		FDMMaterialStageConnectorChannel::WHOLE_CHANNEL
+	);
+
+	if (UDMMaterialStageExpressionTextureSample* BaseInputTextureSample = Cast<UDMMaterialStageExpressionTextureSample>(BaseInputExpression->GetMaterialStageExpression()))
+	{
+		if (UDMMaterialStage* BaseTextureInputStage = BaseInputExpression->GetSubStage())
+		{
+			const TArray<UDMMaterialStageInput*> BaseTextureStageInputs = BaseTextureInputStage->GetInputs();
+
+			for (UDMMaterialStageInput* BaseTextureStageInput : BaseTextureStageInputs)
+			{
+				if (UDMMaterialStageInputValue* BaseTextureInputValue = Cast<UDMMaterialStageInputValue>(BaseTextureStageInput))
+				{
+					if (UDMMaterialValueTexture* BaseTextureValue = Cast<UDMMaterialValueTexture>(BaseTextureInputValue->GetValue()))
+					{
+						BaseTextureValue->SetDefaultValue(BaseTexture);
+						BaseTextureValue->ApplyDefaultValue();
+						break;
+					}
+				}
+			}
+		}
+	}
+
+	if (UTexture* MaskTexture = UDynamicMaterialEditorSettings::Get()->DefaultMask.LoadSynchronous())
+	{
+		const TArray<UDMMaterialStageInput*> MaskStageInputs = MaskStage->GetInputs();
+
+		for (UDMMaterialStageInput* MaskStageInput : MaskStageInputs)
+		{
+			if (UDMMaterialStageInputExpression* MaskInputExpression = Cast<UDMMaterialStageInputExpression>(MaskStageInput))
+			{
+				if (UDMMaterialStageExpressionTextureSample* MaskInputTextureSample = Cast<UDMMaterialStageExpressionTextureSample>(MaskInputExpression->GetMaterialStageExpression()))
+				{
+					if (UDMMaterialStage* MaskTextureInputStage = MaskInputExpression->GetSubStage())
+					{
+						const TArray<UDMMaterialStageInput*> MaskTextureStageInputs = MaskTextureInputStage->GetInputs();
+
+						for (UDMMaterialStageInput* MaskTextureStageInput : MaskTextureStageInputs)
+						{
+							if (UDMMaterialStageInputValue* MaskTextureInputValue = Cast<UDMMaterialStageInputValue>(MaskTextureStageInput))
+							{
+								if (UDMMaterialValueTexture* MaskTextureValue = Cast<UDMMaterialValueTexture>(MaskTextureInputValue->GetValue()))
+								{
+									MaskTextureValue->SetDefaultValue(MaskTexture);
+									MaskTextureValue->ApplyDefaultValue();
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
 }
 
 void UDMMaterialProperty::Update(EDMUpdateType InUpdateType)
