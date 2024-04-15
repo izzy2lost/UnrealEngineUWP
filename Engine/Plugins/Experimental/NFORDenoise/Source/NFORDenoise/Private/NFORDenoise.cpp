@@ -124,6 +124,8 @@ public:
 				return;
 			}
 
+			RDG_EVENT_SCOPE(GraphBuilder, "AddFrame");
+
 			FRDGFrameCache RDGFrameCache;
 			RDGFrameCache.Radiance = GraphBuilder.CreateTexture(Inputs.ColorTex->Desc,TEXT("Radiance"));
 			RDGFrameCache.RadianceVariance = GraphBuilder.CreateTexture(Inputs.VarianceTex->Desc, TEXT("RadianceVariance"));

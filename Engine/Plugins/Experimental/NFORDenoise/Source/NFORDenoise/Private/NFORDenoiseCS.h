@@ -38,6 +38,13 @@ namespace NFORDenoise
 		MAX
 	};
 
+	enum class ENonLocalMeanAtlasType : uint32
+	{
+		OneSymmetricPair,
+		TwoSymmetricPair,
+		MAX
+	};
+
 	enum class EAlbedoDivideRecoverPhase : uint32
 	{
 		Disabled,
@@ -266,6 +273,14 @@ namespace NFORDenoise
 		SHADER_PARAMETER(float, Bandwidth)
 	END_SHADER_PARAMETER_STRUCT()
 
+	BEGIN_SHADER_PARAMETER_STRUCT(FNonLocalMeanWeightAtlasDispatchParameters, )
+		SHADER_PARAMETER(int32, DispatchId)
+		SHADER_PARAMETER(FIntPoint, DispatchTileSize)
+		SHADER_PARAMETER(int32, DispatchTileCount)
+		SHADER_PARAMETER(FIntRect, SeparableFilteringRegion)
+		SHADER_PARAMETER(FIntVector, DispatchRegionSize)
+	END_SHADER_PARAMETER_STRUCT()
+
 	FNonLocalMeanParameters GetNonLocalMeanParameters(int32 PatchSize, int32 PatchDistance, float Bandwidth);
 
 	// Output the non-local mean filtered image (feature) based on variance
@@ -310,9 +325,6 @@ namespace NFORDenoise
 	//		 Dim: WxHx3, WxHx?
 	// Output: Buffer holding  weights for each pixel
 	//		 Dim: WxHx(2*N+1)^2, where N = NLMParams.PatchDistance
-	//		 TODO?: optimize weights sharing as center(i,j) with offset (dx,dy) has
-	//		 w(i,j,dx,dy)=(i+dx,j+dy,-dx,-dy), 
-
 	class FNonLocalMeanWeightsCS : public FGlobalShader
 	{
 		DECLARE_GLOBAL_SHADER(FNonLocalMeanWeightsCS)
@@ -341,6 +353,90 @@ namespace NFORDenoise
 		using FPermutationDomain = TShaderPermutationDomain<FDimensionVarianceType, FDimensionUseGuide, FDimensionImageChannelCount, FDimensionSeparateSourceTarget, FDimPreAlbedoDivide>;
 	};
 
+	// Optimize the weights query.
+	class FNonLocalMeanGetSqauredDistanceToAtlasCS : public FGlobalShader
+	{
+		DECLARE_GLOBAL_SHADER(FNonLocalMeanGetSqauredDistanceToAtlasCS)
+		SHADER_USE_PARAMETER_STRUCT(FNonLocalMeanGetSqauredDistanceToAtlasCS, FGlobalShader)
+	public:
+		BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
+			SHADER_PARAMETER_STRUCT_INCLUDE(FNonLocalMeanFilteringCS::FParameters, CommonParameters)
+			SHADER_PARAMETER_STRUCT_INCLUDE(FNonLocalMeanWeightAtlasDispatchParameters, NLMWeightAtlasDispatchParameters)
+			SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture2D, TargetImage)
+			SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture2D, TargetVariance)
+			SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D, RWNLMWeightAtlas)
+			SHADER_PARAMETER(FIntPoint, NLMWeightAtlasSize)
+		END_SHADER_PARAMETER_STRUCT()
+
+		static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& InParameters, FShaderCompilerEnvironment& OutEnvironment)
+		{
+			FGlobalShader::ModifyCompilationEnvironment(InParameters, OutEnvironment);
+			OutEnvironment.SetDefine(TEXT("THREAD_GROUP_SIZE"), NON_LOCAL_MEAN_THREAD_GROUP_SIZE);
+		}
+
+		class FDimensionVarianceType : SHADER_PERMUTATION_ENUM_CLASS("IMAGE_VARIANCE_TYPE", EVarianceType);
+		class FDimensionImageChannelCount : SHADER_PERMUTATION_RANGE_INT("SOURCE_CHANNEL_COUNT", 1, static_cast<int>(EImageChannelCount::MAX));
+		class FDimensionSeparateSourceTarget : SHADER_PERMUTATION_BOOL("NONLOCALMEAN_SEPARATE_SOURCE");
+		class FDimPreAlbedoDivide : SHADER_PERMUTATION_ENUM_CLASS("PRE_ALBEDO_DIVIDE", EAlbedoDivideRecoverPhase);
+		class FDimAtlasType : SHADER_PERMUTATION_ENUM_CLASS("NONLOCALMEAN_ATLAS_TYPE", ENonLocalMeanAtlasType);
+		using FPermutationDomain = TShaderPermutationDomain<FDimensionVarianceType, FDimensionImageChannelCount, FDimensionSeparateSourceTarget, FDimPreAlbedoDivide, FDimAtlasType>;
+	};
+
+	class FNonLocalMeanSeperableFilterPatchSqauredDistanceCS : public FGlobalShader
+	{
+		DECLARE_GLOBAL_SHADER(FNonLocalMeanSeperableFilterPatchSqauredDistanceCS)
+		SHADER_USE_PARAMETER_STRUCT(FNonLocalMeanSeperableFilterPatchSqauredDistanceCS, FGlobalShader)
+	public:
+		BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
+			SHADER_PARAMETER_STRUCT_INCLUDE(FNonLocalMeanParameters, NLMParams)
+			SHADER_PARAMETER_STRUCT_INCLUDE(FNonLocalMeanWeightAtlasDispatchParameters, NLMWeightAtlasDispatchParameters)
+			SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture2D, NLMWeightAtlasSource)
+			SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D, RWNLMWeightAtlasTarget)
+			SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer, RWNLMWeights)
+			SHADER_PARAMETER(FIntVector, SeperableRegionSize)
+		END_SHADER_PARAMETER_STRUCT()
+
+		static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& InParameters, FShaderCompilerEnvironment& OutEnvironment)
+		{
+			FGlobalShader::ModifyCompilationEnvironment(InParameters, OutEnvironment);
+			OutEnvironment.SetDefine(TEXT("THREAD_GROUP_SIZE"), NON_LOCAL_MEAN_THREAD_GROUP_SIZE);
+		}
+
+		enum class ESeperablePassType : int32
+		{
+			Horizontal,
+			Vertical,
+			MAX
+		};
+
+		class FDimensionSeperablePassType : SHADER_PERMUTATION_ENUM_CLASS("NONLOCALMEAN_SEPRERABLE_PASS", ESeperablePassType);
+		class FDimPreAlbedoDivide : SHADER_PERMUTATION_ENUM_CLASS("PRE_ALBEDO_DIVIDE", EAlbedoDivideRecoverPhase);
+		class FDimAtlasType : SHADER_PERMUTATION_ENUM_CLASS("NONLOCALMEAN_ATLAS_TYPE", ENonLocalMeanAtlasType);
+		using FPermutationDomain = TShaderPermutationDomain<FDimensionSeperablePassType, FDimPreAlbedoDivide, FDimAtlasType>;
+	};
+
+	// Reshape the layout of the buffer to target
+	// From XxYx[W/B] (each element is of size B) to W*X*Y
+	class FNonLocalMeanReshapeBufferCS : public FGlobalShader
+	{
+		DECLARE_GLOBAL_SHADER(FNonLocalMeanReshapeBufferCS)
+		SHADER_USE_PARAMETER_STRUCT(FNonLocalMeanReshapeBufferCS, FGlobalShader)
+	public:
+		BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
+			SHADER_PARAMETER_STRUCT_INCLUDE(FNonLocalMeanParameters, NLMParams)
+			SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<float2>, SourceBuffer)
+			SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<float>, RWTargetBuffer)
+			SHADER_PARAMETER(FIntVector4, SourceBufferDim)
+			SHADER_PARAMETER(FIntVector, TargetBufferDim)
+			SHADER_PARAMETER(int32, HalfOffsetSearchCount)
+		END_SHADER_PARAMETER_STRUCT()
+
+		static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& InParameters, FShaderCompilerEnvironment& OutEnvironment)
+		{
+			FGlobalShader::ModifyCompilationEnvironment(InParameters, OutEnvironment);
+			OutEnvironment.SetDefine(TEXT("THREAD_GROUP_SIZE"), NON_LOCAL_MEAN_THREAD_GROUP_SIZE);
+		}
+	};
 
 	//--------------------------------------------------------------------------------------------------------------------
 	// Collaborative filtering shaders

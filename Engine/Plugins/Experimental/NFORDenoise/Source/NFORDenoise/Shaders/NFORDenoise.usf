@@ -46,6 +46,30 @@
 #define NONLOCALMEAN_DISTACNE_PATCH 1
 #define NONLOCALMEAN_WEIGHT_TYPE	NONLOCALMEAN_PATCHONLY
 
+#define NONLOCALMEAN_SEPERABLE_FILTER_HORIZONTAL	0
+#define NONLOCALMEAN_SEPERABLE_FILTER_VERTICAL		1
+
+#ifndef NONLOCALMEAN_SEPRERABLE_PASS
+#define NONLOCALMEAN_SEPRERABLE_PASS NONLOCALMEAN_SEPERABLE_FILTER_HORIZONTAL
+#endif
+
+#define NONLOCALMEAN_ATLAS_ONE_SYMMETRIC_PAIR	0
+#define NONLOCALMEAN_ATLAS_TWO_SYMMETRIC_PAIR	1
+
+#ifndef NONLOCALMEAN_ATLAS_TYPE
+#define NONLOCALMEAN_ATLAS_TYPE NONLOCALMEAN_ATLAS_TWO_SYMMETRIC_PAIR
+#endif
+
+#if NONLOCALMEAN_ATLAS_TYPE == NONLOCALMEAN_ATLAS_ONE_SYMMETRIC_PAIR
+#define TAtlasValueType float2
+#elif NONLOCALMEAN_ATLAS_TYPE == NONLOCALMEAN_ATLAS_TWO_SYMMETRIC_PAIR
+#define TAtlasValueType float4
+#else
+#error NONLOCALMEAN_ATLAS_TYPE is not supported.
+#endif
+
+#define NONLOCALMEAN_ATLAS_SYMMETRIC_PAIR_COUNT (NONLOCALMEAN_ATLAS_TYPE+1)
+
 #ifndef NUM_FEATURE
 #define NUM_FEATURE 0
 #endif
@@ -312,6 +336,13 @@ int PatchSize;
 int PatchDistance;
 float Bandwidth;
 
+// Dispatch parameters
+int DispatchId;
+int2 DispatchTileSize;
+int DispatchTileCount;
+int4 SeparableFilteringRegion;
+int3 DispatchRegionSize;
+
 Texture2D<TPixelValue> Image;
 Texture2D<TImageVariance> Variance;
 
@@ -323,25 +354,77 @@ Texture2D<TImageVariance> TargetVariance;
 #define TargetVariance Variance
 #endif
 
-float GetSquaredDistance(int2 P, int2 Q, float VarianceScale = 1.0f)
+struct FImageContext
 {
+	TPixelValue Value;
+	float Variance;
+};
+
+FImageContext GetImageContext(int2 Position, Texture2D<TPixelValue> inImage, Texture2D inVariance, float VarianceScale = 1.0f)
+{
+	FImageContext ImageContext = (FImageContext)0;
+
 	// Use mirrored position. Clamp to boarder has artifacts at border.
-	P = GetMirroredPosition(P, TextureSize); 
-	Q = GetMirroredPosition(Q, TextureSize); 
+	Position = GetMirroredPosition(Position, TextureSize);
 
-	TPixelValue Cp = GetImageValue(P, Image);
-	TPixelValue Cq = GetImageValue(Q, TargetImage);
+	ImageContext.Value = GetImageValue(Position, inImage);
+	ImageContext.Variance = GetImageVariance(Position, inVariance, VarianceChannelOffset) * VarianceScale;
 
-	float VarP = GetImageVariance(P, Variance, VarianceChannelOffset) * VarianceScale;
-	float VarQ = GetImageVariance(Q, TargetVariance, VarianceChannelOffset) * VarianceScale;
+	return ImageContext;
+}
 
-	const float Epsilon =  1e-8f; // Small enough to preserve dark areas
+// Note that GetSquaredDistance(P,Q) != GetSquaredDistance(Q,P), So we cannot share the weight with this asymetric distance.
+float GetSquaredDistance(TPixelValue Cp, float VarP, TPixelValue Cq, float VarQ)
+{
+	const float Epsilon = 1e-8f; // Small enough to preserve dark areas
 
-	float dpq = (Length2(Cp - Cq) - (VarP + min(VarP, VarQ))) / (Epsilon + Pow2(Bandwidth)*(VarP + VarQ));
-	
+	float dpq = (Length2(Cp - Cq) - (VarP + min(VarP, VarQ))) / (Epsilon + Pow2(Bandwidth) * (VarP + VarQ));
+
 	const float MaxDistance = 10000;
 	dpq = min(dpq, MaxDistance);
 
+	return dpq;
+}
+
+// Get the both way x=GetSquaredDistance(P,Q) and y=GetSquaredDistance(Q,P) together.
+float2 GetSymmetricSquaredDistance(TPixelValue Cp, float VarP, TPixelValue Cq, float VarQ)
+{
+	const float Epsilon = 1e-8f; // Small enough to preserve dark areas
+
+	float VarPQMin = min(VarP, VarQ);
+	float2 VarPQ = float2((VarP + VarPQMin), (VarQ + VarPQMin));
+
+	float2 dpq = (Length2(Cp - Cq) - VarPQ) / (Epsilon + Pow2(Bandwidth) * (VarP + VarQ));
+
+	const float MaxDistance = 10000;
+	dpq = min(dpq, MaxDistance);
+
+	return dpq;
+}
+
+float GetSquaredDistance(FImageContext PCtx, FImageContext QCtx)
+{
+	return GetSquaredDistance(PCtx.Value, PCtx.Variance, QCtx.Value, QCtx.Variance);
+}
+
+float GetSquaredDistance(int2 P, int2 Q, float VarianceScale = 1.0f)
+{
+	FImageContext PCtx = GetImageContext(P, Image, Variance, VarianceScale);
+	FImageContext QCtx = GetImageContext(Q, TargetImage, TargetVariance, VarianceScale);
+	float dpq = GetSquaredDistance(PCtx, QCtx);
+	return dpq;
+}
+
+float2 GetSymmetricSquaredDistance(FImageContext PCtx, FImageContext QCtx)
+{
+	return GetSymmetricSquaredDistance(PCtx.Value, PCtx.Variance, QCtx.Value, QCtx.Variance);
+}
+
+float2 GetSymmetricSquaredDistance(int2 P, int2 Q, float VarianceScale = 1.0f)
+{
+	FImageContext PCtx = GetImageContext(P, Image, Variance, VarianceScale);
+	FImageContext QCtx = GetImageContext(Q, TargetImage, TargetVariance, VarianceScale);
+	float2 dpq = GetSymmetricSquaredDistance(PCtx, QCtx);
 	return dpq;
 }
 
@@ -351,9 +434,9 @@ float GetPatchSquaredDistance(int2 P, int2 Q)
 
 	// TODO: z-order for performance improvement?
 	float Sum = 0;
-	for (int y = -PatchSize; y < PatchSize; ++y)
+	for (int y = -PatchSize; y <= PatchSize; ++y)
 	{
-		for (int x = -PatchSize; x < PatchSize; ++x)
+		for (int x = -PatchSize; x <= PatchSize; ++x)
 		{
 			int2 Pij = P + int2(x, y);
 			int2 Qij = Q + int2(x, y);
@@ -364,6 +447,25 @@ float GetPatchSquaredDistance(int2 P, int2 Q)
 	// ||Pp - Pq||^2
 	float PathSquareDistance = max(0, Sum / Pow2(2 * PatchSize + 1));
 	return PathSquareDistance;
+}
+
+TAtlasValueType GetNonLocalMeanWeight(int2 P, int2 Q, TAtlasValueType PatchPQSqaureDistance)
+{
+	TAtlasValueType NonLocalMeanWeight = (TAtlasValueType)0;
+#if NONLOCALMEAN_WEIGHT_TYPE == NONLOCALMEAN_PATCHONLY
+	NonLocalMeanWeight = FastExp(-PatchPQSqaureDistance);
+#elif NONLOCALMEAN_WEIGHT_TYPE == NONLOCALMEAN_DISTACNE_PATCH
+	#error not implemented
+	const float SigmaS = 2.0f;//TODO: move to CVar
+	NonLocalMeanWeight = FastExp(-length2(P - Q) / (2 * Pow2(SigmaS))) * FastExp(-PatchPQSqaureDistance);
+#endif
+
+#if PRE_ALBEDO_DIVIDE == PRE_ALBEDO_DIVIDE_DISABLED
+	const TAtlasValueType kMinFloat16 = (TAtlasValueType)0.000000059604645f;
+	//without albedo divide, below is better when scattering results.
+	NonLocalMeanWeight = max(kMinFloat16, NonLocalMeanWeight);
+#endif
+	return NonLocalMeanWeight;
 }
 
 // P is on source image, Q is on target image
@@ -451,6 +553,176 @@ void NonLocalMeanWeightsCS(in const uint3 DispatchThreadID : SV_DispatchThreadID
 		int2 Offset = int2(i % PatchDiameter, i / PatchDiameter) - int2(PatchDistance, PatchDistance);
 		int2 Q = Position + Offset;
 		NonLocalMeanWeights[BufferOffset + i] = GetNonLocalMeanWeight(Position, Q);
+	}
+}
+
+RWTexture2D<TAtlasValueType> RWNLMWeightAtlas;
+int2 NLMWeightAtlasSize;
+
+uint2 GetAtlasPosition(uint3 DispatchThreadID, uint2 TileRegionSize,uint2 Offset = 0)
+{
+	uint2 TileId = uint2(DispatchThreadID.z % DispatchTileSize.x, DispatchThreadID.z / DispatchTileSize.x);
+	uint2 TileOffset = TileId * TileRegionSize;
+	uint2 AtlasPosition = TileOffset + DispatchThreadID.xy + Offset;
+
+	return AtlasPosition;
+}
+
+[numthreads(THREAD_GROUP_SIZE, THREAD_GROUP_SIZE, THREAD_GROUP_SIZE)]
+void NonLocalMeanGetSqauredDistanceToAtlasCS(in const uint3 DispatchThreadID : SV_DispatchThreadID)
+{
+	if (any(DispatchThreadID >= DispatchRegionSize))
+	{
+		return;
+	}
+
+	const float VarianceScale = 1.0f;
+
+	// Query the current position.
+	uint2 Position = DispatchThreadID.xy + SeparableFilteringRegion.xy;
+	FImageContext PContext = GetImageContext(Position, Image, Variance, VarianceScale);
+
+	// Calculate the symmetric squared distance.
+	int BaseOffsetIndex = (DispatchId * DispatchTileCount + DispatchThreadID.z) * NONLOCALMEAN_ATLAS_SYMMETRIC_PAIR_COUNT;
+	int PatchSearchWidth = PatchDistance * 2 + 1;
+
+	TAtlasValueType Distances = (TAtlasValueType)0;
+	FImageContext QContext;
+
+	UNROLL
+	for (int i = 0; i < NONLOCALMEAN_ATLAS_SYMMETRIC_PAIR_COUNT; ++i)
+	{
+		int OffsetIndex = BaseOffsetIndex + i;
+
+		int2 Offset = int2(OffsetIndex % PatchSearchWidth, OffsetIndex / PatchSearchWidth) - int2(PatchDistance, PatchDistance);
+		int2 Q = Position + Offset;
+
+		QContext = GetImageContext(Q, TargetImage, TargetVariance, VarianceScale);
+		float2 Distance = GetSymmetricSquaredDistance(PContext, QContext);
+		Distances[i * 2 + 0] = Distance.x;
+		Distances[i * 2 + 1] = Distance.y;
+	}
+
+	uint2 AtlasPosition = GetAtlasPosition(DispatchThreadID, DispatchRegionSize.xy);
+	RWNLMWeightAtlas[AtlasPosition] = Distances;
+}
+
+RWBuffer<TAtlasValueType> RWNLMWeights;
+Texture2D<TAtlasValueType> NLMWeightAtlasSource;
+RWTexture2D<TAtlasValueType> RWNLMWeightAtlasTarget;
+int3 SeperableRegionSize;
+
+[numthreads(THREAD_GROUP_SIZE, THREAD_GROUP_SIZE, THREAD_GROUP_SIZE)]
+void NonLocalMeanSeperableFilterPatchSqauredDistanceCS(in const uint3 DispatchThreadID : SV_DispatchThreadID)
+{
+	if (any(DispatchThreadID >= SeperableRegionSize))
+	{
+		return;
+	}
+
+#if NONLOCALMEAN_SEPRERABLE_PASS == NONLOCALMEAN_SEPERABLE_FILTER_HORIZONTAL
+	int2 Direction = int2(1, 0);
+	uint2 Offset = 0;
+#elif NONLOCALMEAN_SEPRERABLE_PASS == NONLOCALMEAN_SEPERABLE_FILTER_VERTICAL
+	int2 Direction = int2(0, 1);
+	uint2 Offset = uint2(PatchSize,PatchSize); // Don't need to run the vertical filter  for the outside patch region.
+#endif
+
+	uint2 AtlasPosition = GetAtlasPosition(DispatchThreadID, DispatchRegionSize.xy, Offset);
+
+	TAtlasValueType Sum = (TAtlasValueType)0;
+	for (int i = -PatchSize; i <= PatchSize; ++i)
+	{
+		int2 Pij = AtlasPosition + i * Direction;
+		Sum += NLMWeightAtlasSource[Pij];
+	}
+
+	Sum /= (2 * PatchSize + 1);
+
+#if NONLOCALMEAN_SEPRERABLE_PASS == NONLOCALMEAN_SEPERABLE_FILTER_HORIZONTAL
+	RWNLMWeightAtlasTarget[AtlasPosition] = Sum;
+#elif NONLOCALMEAN_SEPRERABLE_PASS == NONLOCALMEAN_SEPERABLE_FILTER_VERTICAL
+	uint2 Q = 0;
+	TAtlasValueType PatchSquareDistance = max(0, Sum);
+	TAtlasValueType PatchWeight0 = GetNonLocalMeanWeight(AtlasPosition, Q, PatchSquareDistance);
+	
+	// Write to buffer with dimension layout XxYxNumB (each element is of size Count(TAtlasValueType,float)/2)
+	const uint x = DispatchThreadID.x;
+	const uint X = SeperableRegionSize.x;
+	const uint y = DispatchThreadID.y;
+	const uint Y = SeperableRegionSize.y;
+	const uint z = DispatchId * DispatchTileCount + DispatchThreadID.z;
+
+	const uint SaveIndex =  x + X * (y + z * Y);
+	RWNLMWeights[SaveIndex] = PatchWeight0;
+#endif
+}
+
+Buffer<float2> SourceBuffer;
+RWBuffer<float> RWTargetBuffer;
+int4 SourceBufferDim;// B,X+2*pd, Y+2*pd, Wb
+int3 TargetBufferDim;// W, X, Y
+int HalfOffsetSearchCount;
+
+float2 GetInputFromBuffer(uint x, uint y, uint w)
+{
+	const uint B = SourceBufferDim.x;
+	const uint X = SourceBufferDim.y;
+	const uint Y = SourceBufferDim.z;
+	const uint Wb = SourceBufferDim.w;
+
+	const uint b = w % B;
+	const uint wb = w / B;
+
+	const uint InputIndex = b + B * (x + X * (y + Y * wb));
+	return SourceBuffer[InputIndex];
+}
+
+void WriteWeight(uint2 PixelPosition, uint2 WeightPosition, float Weight)
+{
+	const uint PatchDiemeter = 2 * PatchDistance + 1;
+	uint w = WeightPosition.x + WeightPosition.y * PatchDiemeter;
+	uint OutputIndex = w + PixelPosition.x * TargetBufferDim.x + PixelPosition.y * TargetBufferDim.x * TargetBufferDim.y;
+	RWTargetBuffer[OutputIndex] = Weight;
+}
+
+[numthreads(THREAD_GROUP_SIZE, THREAD_GROUP_SIZE, THREAD_GROUP_SIZE)]
+void NonLocalMeanReshapeBufferCS(in const uint3 DispatchThreadID : SV_DispatchThreadID)
+{
+	uint3 ReshapeDim = uint3(SourceBufferDim.y, SourceBufferDim.z, HalfOffsetSearchCount);
+	if (any(DispatchThreadID >= ReshapeDim.xyz))
+	{
+		return;
+	}
+	
+	const uint x2pd = DispatchThreadID.x;
+	const uint y2pd = DispatchThreadID.y;
+	const uint w	= DispatchThreadID.z;
+
+	// Get from input
+	float2 PatchWeights = GetInputFromBuffer(x2pd, y2pd, w);// .x stores (x,y)->P, weights
+															// .y stores P ->(x,y) weights
+	// For a given w index in upper matrix, convert to (i,j), find the mapping to lower coordinate.
+	const uint PatchWidth = 2 * PatchDistance + 1;
+	const int2 WeightCenterPoint = int2(PatchDistance, PatchDistance);
+	int2 WeightCoordinateP = int2 (w % PatchWidth, w / PatchWidth);
+	int2 DeltaXY = WeightCoordinateP - WeightCenterPoint;
+	int2 WeightCoordinateQ = WeightCenterPoint - DeltaXY;
+	int2 CoordinateXY2pd = int2(x2pd,y2pd);
+	int2 CoordinateP2pd = CoordinateXY2pd + DeltaXY;
+	
+	// Save (x,y) -> P weights
+	int2 RegionSize = TargetBufferDim.yz;
+	int2 CoordinateXY = CoordinateXY2pd - PatchDistance;
+	if (all(CoordinateXY < RegionSize) && all(CoordinateXY >= 0))
+	{
+		WriteWeight(CoordinateXY, WeightCoordinateP, PatchWeights.x);
+	}
+	// Save P -> (x,y) weights if it's inside the region.
+	int2 CoordinateP = CoordinateP2pd - PatchDistance;
+	if (all(CoordinateP < RegionSize) && all (CoordinateP >= 0))
+	{
+		WriteWeight(CoordinateP, WeightCoordinateQ, PatchWeights.y);
 	}
 }
 
