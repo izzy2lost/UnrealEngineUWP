@@ -51,5 +51,3 @@ namespace UE::ConcertSharedSlate
 		}
 	};
 }
-
-#undef LOCTEXT_NAMESPACE
