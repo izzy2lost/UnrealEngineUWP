@@ -38,7 +38,7 @@ void FViewportSettings::SetDefaultTarget(FName DefaultTargetName)
 
 UMaterial* FViewportSettings::GetDefaultMaterial()
 {
-	UMaterial* LoadedMaterial = TextureGraphEngine::GetMaterialManager()->LoadMaterial(TEXT("Scene/DefaultMaterial"));
+	UMaterial* LoadedMaterial = TextureGraphEngine::GetMaterialManager()->LoadMaterial(TEXT("Scene/M_BasicMaterial"));
 
 	check(LoadedMaterial)
 
@@ -66,6 +66,7 @@ void FViewportSettings::InitDefaultSettings(FName InitialTargetName)
 		OnMaterialUpdate();
 		SetDefaultTarget(InitialTargetName);
 	}
+
 }
 
 bool FViewportSettings::RemoveMaterialMappingForTarget(const FName OutputNode)
@@ -111,7 +112,7 @@ void FViewportSettings::OnMaterialUpdate()
 			}
 		}
 
-		OnViewportMaterialChangeEvent.Broadcast();
+		OnViewportMaterialChangedEvent.Broadcast();
 	}
 }
 

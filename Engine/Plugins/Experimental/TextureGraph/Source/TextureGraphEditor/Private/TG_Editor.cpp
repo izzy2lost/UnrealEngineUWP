@@ -206,8 +206,9 @@ void FTG_Editor::InitEditor(const EToolkitMode::Type Mode, const TSharedPtr< cla
 
 	FViewportSettings& ViewportSettings = EditedTextureGraph->GetSettings()->GetViewportSettings();
 
-	ViewportSettings.OnViewportMaterialChangeEvent.AddSP(this, &FTG_Editor::OnViewportSettingsChanged);
+	ViewportSettings.OnViewportMaterialChangedEvent.AddSP(this, &FTG_Editor::OnViewportSettingsChanged);
 	ViewportSettings.OnMaterialMappingChangedEvent.AddSP(this, &FTG_Editor::OnMaterialMappingChanged);
+	EditedTextureGraph->GetSettings()->OnPreviewMeshChangedEvent.AddSP(this, &FTG_Editor::OnPreviewMeshChangedEvent);
 
 	TextureGraphEngine::RegisterErrorReporter(EditedTextureGraph, std::make_shared<FTG_EditorErrorReporter>(this));
 
@@ -369,7 +370,7 @@ void FTG_Editor::InitEditor(const EToolkitMode::Type Mode, const TSharedPtr< cla
 	}
 	
 	// Set the preview mesh for the material.  This call must occur after the toolbar is initialized.
-	if (!SetPreviewAssetByName(*EditedTextureGraph->PreviewMesh.ToString()))
+	if (!SetPreviewAssetByName(*EditedTextureGraph->GetSettings()->GetPreviewMesh().GetPath()))
 	{
 		// The material preview mesh couldn't be found or isn't loaded.  Default to the one of the primitive types.
 		GetEditorViewport()->InitPreviewMesh();
@@ -670,6 +671,11 @@ void FTG_Editor::OnRenderingDone(UMixInterface* TextureGraph, const FInvalidatio
 	{
 		RefreshNodePreview(GraphEditorWidget->GetSelectedNodes(), Details, true);
 	}
+}
+
+void FTG_Editor::OnPreviewMeshChangedEvent()
+{
+	SetPreviewAsset(EditedTextureGraph->GetSettings()->GetPreviewMesh());
 }
 
 void FTG_Editor::OnViewportSettingsChanged()
@@ -1001,7 +1007,7 @@ TSharedRef<SDockTab> FTG_Editor::SpawnTab_Viewport(const FSpawnTabArgs& Args)
 	ViewportTabContent->Initialize(MakeViewportFunc, DockableTab, LayoutId);
 	
 	// Set the preview mesh for the material.  This call must occur after the toolbar is initialized.
-	if (!SetPreviewAssetByName(*EditedTextureGraph->PreviewMesh.ToString()))
+	if (!SetPreviewAssetByName(*EditedTextureGraph->GetSettings()->GetPreviewMesh().GetPath()))
 	{
 		// The material preview mesh couldn't be found or isn't loaded.  Default to the one of the primitive types.
 		GetEditorViewport()->InitPreviewMesh();

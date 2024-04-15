@@ -469,7 +469,10 @@ void STG_EditorViewport::UpdateRenderMode()
 
 void STG_EditorViewport::InitPreviewMesh()
 {
-	SetPreviewAsset(GUnrealEd->GetThumbnailManager()->EditorCube);
+	UStaticMesh* Primitive = GUnrealEd->GetThumbnailManager()->EditorCube;
+	SetPreviewAsset(Primitive);
+	TG_EditorPtr.Pin().Get()->GetTextureGraphInterface()->GetSettings()->SetPreviewMesh(Primitive);	
+			
 }
 
 bool STG_EditorViewport::IsPreviewPrimitiveChecked(EThumbnailPrimType PrimType) const
@@ -493,7 +496,7 @@ void STG_EditorViewport::OnSetPreviewPrimitive(EThumbnailPrimType PrimType, bool
 		if (Primitive != nullptr)
 		{
 			SetPreviewAsset(Primitive);
-			TG_EditorPtr.Pin().Get()->GetTextureGraphInterface()->PreviewMesh = Primitive->GetPathName();	
+			TG_EditorPtr.Pin().Get()->GetTextureGraphInterface()->GetSettings()->SetPreviewMesh(Primitive);	
 			
 			RefreshViewport();
 		}
@@ -502,7 +505,6 @@ void STG_EditorViewport::OnSetPreviewPrimitive(EThumbnailPrimType PrimType, bool
 
 void STG_EditorViewport::OnSetPreviewMeshFromSelection()
 {
-	//TODO: Need to enable the code. 
 	bool bFoundPreviewMesh = false;
 	FEditorDelegates::LoadSelectedAssetsIfNeeded.Broadcast();
 
@@ -519,7 +521,7 @@ void STG_EditorViewport::OnSetPreviewMeshFromSelection()
 				if (ComponentClass->IsChildOf(UMeshComponent::StaticClass()))
 				{
 					SetPreviewAsset(TestAsset);
-					TG_Interface->PreviewMesh = TestAsset->GetPathName();
+					TG_Interface->GetSettings()->SetPreviewMesh(Cast<UStaticMesh>(TestAsset));
 					bFoundPreviewMesh = true;
 				}
 			}
@@ -528,9 +530,6 @@ void STG_EditorViewport::OnSetPreviewMeshFromSelection()
 
 	if (bFoundPreviewMesh)
 	{
-		//FTG_Editor::UpdateThumbnailInfoPreviewMesh(TG_Interface);
-
-		//TG_Interface->MarkPackageDirty();
 		RefreshViewport();
 	}
 	else

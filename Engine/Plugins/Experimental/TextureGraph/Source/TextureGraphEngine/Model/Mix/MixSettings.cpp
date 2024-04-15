@@ -127,11 +127,16 @@ void UMixSettings::PostEditChangeProperty(FPropertyChangedEvent& PropertyChanged
 
 	if (MemberPropertyName == GET_MEMBER_NAME_CHECKED(UMixSettings, ViewportSettings))
 	{
-		if(Name == "Material")
+		if(Name == GET_MEMBER_NAME_CHECKED(FViewportSettings, Material))
 		{
 			ViewportSettings.OnMaterialUpdate();	
 		}
 	}
+	if (MemberPropertyName == GET_MEMBER_NAME_CHECKED(UMixSettings, PreviewMesh))
+	{
+		OnPreviewMeshChangedEvent.Broadcast();
+	}
+	
 }
 
 void UMixSettings::PostEditChangeChainProperty(FPropertyChangedChainEvent& PropertyChangedEvent)

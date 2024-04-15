@@ -169,6 +169,7 @@ private:
 	bool											GetTabSelected(const FName TabID);
 
 	void											OnRenderingDone(UMixInterface* TextureGraph, const FInvalidationDetails* Details);
+	void											OnPreviewMeshChangedEvent();
 	void											OnViewportSettingsChanged();
 	void											OnMaterialMappingChanged();
 	/** Log Graph in console */
