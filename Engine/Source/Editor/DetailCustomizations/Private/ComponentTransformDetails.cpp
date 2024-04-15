@@ -1070,9 +1070,9 @@ void FComponentTransformDetails::OnZScaleMirrored()
 
 void FComponentTransformDetails::CacheDetails()
 {
-	FVector CurLoc;
+	FVector CurLoc = FVector::ZeroVector;
 	FRotator CurRot;
-	FVector CurScale;
+	FVector CurScale = FVector::ZeroVector;
 	bIsEnabledCache = true;
 	for( int32 ObjectIndex = 0; ObjectIndex < SelectedObjects.Num(); ++ObjectIndex )
 	{

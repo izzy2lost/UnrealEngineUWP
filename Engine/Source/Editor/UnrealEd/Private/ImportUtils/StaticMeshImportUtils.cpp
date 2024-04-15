@@ -540,7 +540,8 @@ bool StaticMeshImportUtils::AddCapsuleGeomFromVerts(const TArray<FVector3f>& Ver
 		return false;
 	}
 
-	FVector3f AxisStart, AxisEnd;
+	FVector3f AxisStart = FVector3f::ZeroVector;
+	FVector3f AxisEnd = FVector3f::ZeroVector;
 	float MaxDistSqr = 0.f;
 
 	for (int32 IndexA = 0; IndexA < Verts.Num() - 1; IndexA++)

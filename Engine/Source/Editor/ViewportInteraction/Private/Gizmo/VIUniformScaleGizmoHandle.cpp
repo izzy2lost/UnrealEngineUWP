@@ -45,7 +45,7 @@ void UUniformScaleGizmoHandleGroup::UpdateGizmoHandleGroup( const FTransform& Lo
 	UStaticMeshComponent* UniformScaleHandle = Handle.HandleMesh;
 	if (UniformScaleHandle != nullptr)	// Can be null if no handle for this specific placement
 	{
-		FVector HandleRelativeLocation;
+		FVector HandleRelativeLocation = FVector::ZeroVector;
 		if ( !bUsePivotAsLocation )
 		{
 			UniformScaleHandle->SetRelativeLocation( HandleRelativeLocation );

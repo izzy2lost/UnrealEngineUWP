@@ -6719,15 +6719,15 @@ TArray<AActor*> UEditorEngine::AddExportTextActors(const FString& ExportText, bo
 				// Send notification about a new actor being created
 				ULevel::LevelDirtiedEvent.Broadcast();
 				NoteSelectionChange();
+
+	            if( !bSilent )
+	            {
+		            UE_LOG(LogEditor, Log,
+			            TEXT("Added '%d' actor(s) to level at %0.2f,%0.2f,%0.2f"),
+			            NewActors.Num(), Location.X, Location.Y, Location.Z );
+	            }
 			}
 		}
-	}
-
-	if( NewActors.Num() > 0 && !bSilent )
-	{
-		UE_LOG(LogEditor, Log,
-			TEXT("Added '%d' actor(s) to level at %0.2f,%0.2f,%0.2f"),
-			NewActors.Num(), Location.X, Location.Y, Location.Z );
 	}
 
 	return NewActors;
