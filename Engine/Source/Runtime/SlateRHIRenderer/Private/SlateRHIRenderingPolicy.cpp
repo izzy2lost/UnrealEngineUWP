@@ -169,7 +169,7 @@ void FSlateRHIRenderingPolicy::BuildRenderingBuffers(FRHICommandListImmediate& R
 	SET_DWORD_STAT(STAT_SlateVertexCount, InBatchData.GetFinalVertexData().Num());
 }
 
-static FSceneView* CreateSceneView( FSceneViewFamilyContext* ViewFamilyContext, FSlateBackBuffer& BackBuffer, const FMatrix& ViewProjectionMatrix, const FIntRect InViewRect)
+static FSceneView* CreateSceneView( FSceneViewFamilyContext* ViewFamilyContext, FSlateBackBuffer& BackBuffer, const FMatrix& ViewProjectionMatrix, const FSlateRenderingParams& Params)
 {
 	QUICK_SCOPE_CYCLE_COUNTER(STAT_Slate_CreateSceneView);
 	// In loading screens, the engine is NULL, so we skip out.
@@ -178,7 +178,7 @@ static FSceneView* CreateSceneView( FSceneViewFamilyContext* ViewFamilyContext, 
 		return nullptr;
 	}
 	
-	FIntRect ViewRect = InViewRect;
+	FIntRect ViewRect = Params.ViewRect;
 	if (ViewRect.IsEmpty())
 	{
 		ViewRect = FIntRect(FIntPoint(0, 0), BackBuffer.GetSizeXY());
@@ -211,6 +211,9 @@ static FSceneView* CreateSceneView( FSceneViewFamilyContext* ViewFamilyContext, 
 		View->ViewMatrices,
 		FViewMatrices()
 	);
+
+	// Always Update cursor position in realtime for slate
+	ViewUniformShaderParameters.CursorPosition = Params.CursorPostion;
 
 	// TODO LWC
 	ViewUniformShaderParameters.WorldViewOriginHigh = (FVector3f)View->ViewMatrices.GetViewOrigin();
@@ -728,7 +731,7 @@ void FSlateRHIRenderingPolicy::DrawElements(
 				.SetTime(Params.Time)
 				.SetRealtimeUpdate(true)
 			);
-			SceneViews[i] = CreateSceneView(SceneViewFamilyContexts[i], BackBuffer, FMatrix(Params.ViewProjectionMatrix), Params.ViewRect);
+			SceneViews[i] = CreateSceneView(SceneViewFamilyContexts[i], BackBuffer, FMatrix(Params.ViewProjectionMatrix), Params);
 		}
 
 		SceneViewFamilyContexts[NumScenes - 1] = new FSceneViewFamilyContext
@@ -742,7 +745,7 @@ void FSlateRHIRenderingPolicy::DrawElements(
 			.SetTime(Params.Time)
 			.SetRealtimeUpdate(true)
 		);
-		SceneViews[NumScenes - 1] = CreateSceneView(SceneViewFamilyContexts[NumScenes - 1], BackBuffer, FMatrix(Params.ViewProjectionMatrix), Params.ViewRect);
+		SceneViews[NumScenes - 1] = CreateSceneView(SceneViewFamilyContexts[NumScenes - 1], BackBuffer, FMatrix(Params.ViewProjectionMatrix), Params);
 	}
 
 	TShaderMapRef<FSlateElementVS> GlobalVertexShader(GetGlobalShaderMap(GMaxRHIShaderPlatform));

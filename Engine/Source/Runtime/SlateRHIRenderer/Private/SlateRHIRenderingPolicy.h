@@ -34,6 +34,7 @@ struct FSlateRenderingParams
 	FMatrix44f ViewProjectionMatrix;
 	FVector2f ViewOffset;
 	FIntRect ViewRect;
+	FIntPoint CursorPostion;
 	FGameTime Time;
 	TRefCountPtr<IPooledRenderTarget> UITarget;
 	EDisplayColorGamut HDRDisplayColorGamut;
@@ -45,6 +46,7 @@ struct FSlateRenderingParams
 		: ViewProjectionMatrix(InViewProjectionMatrix)
 		, ViewOffset(0.f, 0.f)
 		, ViewRect(FIntRect())
+		, CursorPostion(FIntPoint())
 		, Time(InTime)
 		, HDRDisplayColorGamut(EDisplayColorGamut::sRGB_D65)
 		, UsedSlatePostBuffers(ESlatePostRT::None)

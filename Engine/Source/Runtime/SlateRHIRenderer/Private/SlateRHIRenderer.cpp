@@ -140,6 +140,7 @@ struct FSlateDrawWindowCommandParams
 	FSlateRHIRenderer* Renderer;
 	FSlateWindowElementList* WindowElementList;
 	SWindow* Window;
+	FIntPoint CursorPostion;
 	FIntRect ViewRect;
 	ESlatePostRT UsedSlatePostBuffers;
 #if WANTS_DRAW_MESH_EVENTS
@@ -1021,6 +1022,7 @@ void RenderSlateBatch(FTextureRHIRef SlateRenderTarget, bool bClear, bool bIsHDR
 				RenderParams.bIsHDR = bIsHDR;
 				RenderParams.HDRDisplayColorGamut = ViewportInfo.HDRDisplayColorGamut;
 				RenderParams.ViewRect = DrawCommandParams.ViewRect;
+				RenderParams.CursorPostion = DrawCommandParams.CursorPostion;
 				RenderParams.UsedSlatePostBuffers = DrawCommandParams.UsedSlatePostBuffers;
 				if (ViewportInfo.bSceneHDREnabled && !bIsHDR)
 				{
@@ -1924,10 +1926,22 @@ void FSlateRHIRenderer::DrawWindows_Private(FSlateDrawBuffer& WindowDrawBuffer)
 
 					FSlateDrawWindowCommandParams Params;
 
+					FVector2f CursorPosition = FSlateApplication::Get().GetCursorPos();
+
+					CursorPosition -= Window->GetPositionInScreen();
+					if (TSharedPtr<ISlateViewport> Viewport = Window->GetViewport())
+					{
+						if (TSharedPtr<SWidget> ViewportWidget = Viewport->GetWidget().Pin())
+						{
+							CursorPosition -= ViewportWidget->GetPaintSpaceGeometry().AbsolutePosition;
+						}
+					}
+
 					Params.Renderer = this;
 					Params.WindowElementList = &ElementList;
 					Params.Window = Window;
 					Params.ViewRect = GetViewRect();
+					Params.CursorPostion = FIntPoint(CursorPosition.X, CursorPosition.Y);
 					Params.UsedSlatePostBuffers = UsedSlatePostBufferBits;
 #if WANTS_DRAW_MESH_EVENTS
 					Params.WindowTitle = Window->GetTitle().ToString();
