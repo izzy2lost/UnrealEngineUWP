@@ -4668,9 +4668,6 @@ void FScene::Release()
 	ENQUEUE_RENDER_COMMAND(FReleaseCommand)(
 		[Scene](FRHICommandListImmediate& RHICmdList)
 		{
-			// Finish all pending scene rendering destruction work before deleting the scene.
-			FSceneRenderer::CleanUp(RHICmdList);
-
 			// Flush any remaining batched primitive update commands before deleting the scene.
 			FUpdateParameters UpdateParameters;
 			UpdateParameters.bDestruction = true;
@@ -4681,6 +4678,9 @@ void FScene::Release()
 				Scene->Update(GraphBuilder, UpdateParameters);
 				GraphBuilder.Execute();
 			}
+
+			// Wait for RDG to complete async deletion as scene extensions can be allocated through RDG.
+			FRDGBuilder::WaitForAsyncDeleteTask();
 
 			delete Scene;
 		});
