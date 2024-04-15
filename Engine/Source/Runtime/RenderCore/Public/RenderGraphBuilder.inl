@@ -623,7 +623,7 @@ UE::Tasks::FTask FRDGBuilder::AddCommandListSetupTask(
 	{
 		SCOPED_NAMED_EVENT(CreateCommandList, FColor::Emerald);
 		RHICmdListTask = new FRHICommandList(RHICmdList.GetGPUMask());
-		ParallelSetup.CommandLists.Emplace(RHICmdListTask);
+		RHICmdList.QueueAsyncCommandListSubmit(RHICmdListTask);
 	}
 
 	auto OuterLambda = [this, TaskLambda = MoveTemp(TaskLambda), RHICmdListTask, bAllocateCommandListForTask]() mutable

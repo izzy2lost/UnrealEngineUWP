@@ -933,15 +933,11 @@ private:
 		/** Array of all tasks for variants of AddSetupTask. */
 		TArray<UE::Tasks::FTask, FRDGArrayAllocator> Tasks;
 
-		/** Array of all command lists to submit for AddCommandListSetupTask. */
-		TArray<FRHICommandListImmediate::FQueuedCommandList, FConcurrentLinearArrayAllocator> CommandLists;
-
 		bool bEnabled = false;
 
 	} ParallelSetup;
 
 	void WaitForParallelSetupTasks();
-	void SubmitParallelSetupTasks();
 
 	/////////////////////////////////////////////////////////////////////////////
 	// Parallel Execution

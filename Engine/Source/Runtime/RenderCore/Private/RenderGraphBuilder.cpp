@@ -1618,15 +1618,6 @@ void FRDGBuilder::WaitForParallelSetupTasks()
 	}
 }
 
-void FRDGBuilder::SubmitParallelSetupTasks()
-{
-	if (!ParallelSetup.CommandLists.IsEmpty())
-	{
-		RHICmdList.QueueAsyncCommandListSubmit(ParallelSetup.CommandLists);
-		ParallelSetup.CommandLists.Empty();
-	}
-}
-
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
 void FRDGBuilder::Execute()
@@ -1666,7 +1657,6 @@ void FRDGBuilder::Execute()
 
 	if (!IsImmediateMode())
 	{
-		SubmitParallelSetupTasks();
 		BeginFlushResourcesRHI();
 		WaitForParallelSetupTasks();
 
@@ -1895,7 +1885,6 @@ void FRDGBuilder::Execute()
 		FinalizeResources();
 	}
 
-	SubmitParallelSetupTasks();
 	EndFlushResourcesRHI();
 	WaitForParallelSetupTasks();
 
