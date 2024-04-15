@@ -8,6 +8,7 @@
 #include "Containers/Ticker.h"
 #include "Containers/Map.h"
 #include "Containers/Queue.h"
+#include "PixelFormat.h"
 
 #include "Tasks/Task.h"
 
@@ -58,15 +59,20 @@ private:
 	struct FUnrealMutableImageInfo
 	{
 		FUnrealMutableImageInfo() {}
-		FUnrealMutableImageInfo(const mu::ImagePtr& InImage, class UTexture2D* InTextureToLoad) : Image(InImage), TextureToLoad(InTextureToLoad) { }
+		FUnrealMutableImageInfo(const mu::ImagePtr& InImage, UTexture2D* InTextureToLoad);
 
 		mu::ImagePtr Image;
 
 		/** If the above Image has not been loaded in the game thread, the TextureToLoad bulk data will be loaded
-		* from the Mutable thread when it's needed
-		*/
+		* from the Mutable thread when it's needed */
 		TObjectPtr<UTexture2D> TextureToLoad = nullptr;
-
+		EPixelFormat Format = PF_Unknown;
+		mu::EImageFormat MutableFormat = mu::EImageFormat::IF_NONE;
+		int32 NumMips = 0;
+		int32 FirstAvailableMip = -1;
+		int32 SizeX = 0;
+		int32 SizeY = 0;
+		
 		/** true of the reference maintained by the user. */
 		bool ReferencesUser = false;
 		
