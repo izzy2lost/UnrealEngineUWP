@@ -1150,9 +1150,6 @@ private:
 	FRigVMGraphModifiedEvent ModifiedEventStatic;
 	void HandleModifiedEvent(ERigVMGraphNotifType InNotifType, URigVMGraph* InGraph, UObject* InSubject);
 
-	bool IsValidGraph() const;
-	bool IsValidSchema() const;
-	bool IsGraphEditable() const;
 	bool IsValidNodeForGraph(const URigVMNode* InNode);
 	bool IsValidPinForGraph(const URigVMPin* InPin);
 	bool IsValidLinkForGraph(const URigVMLink* InLink);
@@ -1181,6 +1178,10 @@ private:
 	bool RemoveDecorator(URigVMNode* InNode, const FName& InDecoratorName, bool bSetupUndoRedo = true);
 
 protected:
+
+	bool IsValidGraph() const;
+	bool IsValidSchema() const;
+	bool IsGraphEditable() const;
 
 #if WITH_EDITOR
 	URigVMUnitNode* AddUnitNode(UScriptStruct* InScriptStruct, TSubclassOf<URigVMUnitNode> InUnitNodeClass, const FName& InMethodName, const FVector2D& InPosition, const FString& InNodeName, bool bSetupUndoRedo, bool bPrintPythonCommand);
