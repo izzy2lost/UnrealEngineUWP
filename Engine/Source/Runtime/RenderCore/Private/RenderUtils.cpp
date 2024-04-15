@@ -901,7 +901,13 @@ RENDERCORE_API void RenderUtilsInit()
 			}
 			else
 			{
-				DesiredRayTracingMode = ERayTracingMode::Enabled;
+				// if not using EnableOnDemand, check r.Raytracing.Enable during initialization (changing the cvar at runtime will have no effect)
+				static const auto RayTracingEnableCVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.Raytracing.Enable"));
+
+				if (RayTracingEnableCVar && RayTracingEnableCVar->GetValueOnAnyThread() != 0)
+				{
+					DesiredRayTracingMode = ERayTracingMode::Enabled;
+				}
 			}
 		}
 

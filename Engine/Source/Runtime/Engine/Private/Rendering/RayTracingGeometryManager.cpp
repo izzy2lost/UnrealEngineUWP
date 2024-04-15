@@ -18,7 +18,8 @@ static bool bHasRayTracingEnableChanged = false;
 static TAutoConsoleVariable<int32> CVarRayTracingEnable(
 	TEXT("r.RayTracing.Enable"),
 	1,
-	TEXT("Runtime toggle for switching raytracing on/off (experimental)."),
+	TEXT("Whether ray tracing is enabled at runtime.\n")
+	TEXT("If r.RayTracing.EnableOnDemand is enabled, ray tracing can be toggled on/off at runtime. Otherwise this is only checked during initialization."),
 	FConsoleVariableDelegate::CreateLambda([](IConsoleVariable* InVariable)
 		{
 			FGlobalComponentRecreateRenderStateContext Context;

@@ -541,7 +541,7 @@ class URendererSettings : public UDeveloperSettings
 	 */
 	UPROPERTY(config, EditAnywhere, Category = HardwareRayTracing, meta = (
 		ConsoleVariable = "r.RayTracing", DisplayName = "Support Hardware Ray Tracing",
-		ToolTip = "Support Hardware Ray Tracing features.  Requires 'Support Compute Skincache' before project is allowed to set this.",
+		ToolTip = "Support Hardware Ray Tracing features.  Requires 'Support Compute Skin Cache' before project is allowed to set this.",
 		ConfigRestartRequired = true))
 		uint32 bEnableRayTracing : 1;
 
