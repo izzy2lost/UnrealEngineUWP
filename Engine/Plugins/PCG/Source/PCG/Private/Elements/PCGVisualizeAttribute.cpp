@@ -8,9 +8,6 @@
 #include "Data/PCGPointData.h"
 #include "Metadata/Accessors/PCGAttributeAccessorHelpers.h"
 
-#include "LevelEditorViewport.h"
-#include "Math/UnrealMathUtility.h"
-
 #define LOCTEXT_NAMESPACE "PCGVisualizeAttributeElement"
 
 FPCGElementPtr UPCGVisualizeAttributeSettings::CreateElement() const
@@ -115,51 +112,27 @@ bool FPCGVisualizeAttribute::ExecuteInternal(FPCGContext* Context) const
 		TArray<FDebugRenderSceneProxy::FText3d> DebugStrings;
 		DebugStrings.Reserve(FMath::Min(Points.Num(), Settings->PointLimit));
 
-		// TODO: Optimize which points will be drawn by other measures, rather than only by Index and Distance
+		// TODO: Optimize which points will be drawn by distance, or other measures, rather than by Index
 		// Debug messages are already culled by camera frustum, but a point limit is desired to prevent overloading
-
-		// Store the number of points we add debug info too
-		int count = 0;
-
-		// Get the current camera location to use with the distance check
-		FViewportCameraTransform& ViewTransform = GCurrentLevelEditingViewportClient->GetViewTransform();
-		FVector CurrentCameraLocation = ViewTransform.GetLocation();
-
-		for (int I = 0; I < Points.Num(); ++I)
+		for (int I = 0; I < Points.Num() && I < Settings->PointLimit; ++I)
 		{
-			// Break when the number of points exceed the point limit
-			if (count > Settings->PointLimit) {
-				break;
-			}
+			FStringBuilderBase CompoundedString;
 
-			// Get the current point location and the distance between it and the camera
-			FVector CurrentPointLocation = Points[I].Transform.GetLocation();
-			float Distance = FVector::DistSquared(CurrentPointLocation, CurrentCameraLocation);
+			CompoundedString += Settings->CustomPrefixString;
 
-			// If the distance is smaller than the max allowed distance, do the display of attribute
-			if (Distance < FMath::Square(Settings->MaxDistance))
+			if (Settings->bPrefixWithIndex)
 			{
-				FStringBuilderBase CompoundedString;
-
-				CompoundedString += Settings->CustomPrefixString;
-
-				if (Settings->bPrefixWithIndex)
-				{
-					CompoundedString += FString::Printf(TEXT("[%d]"), I);
-				}
-
-				if (Settings->bPrefixWithAttributeName)
-				{
-					CompoundedString += FString::Printf(TEXT("[%s]"), *InputSource.GetDisplayText().ToString());
-				}
-
-				CompoundedString = FString::Printf(TEXT("%s %s"), *CompoundedString, *ValuesToString[I]);
-
-				DebugStrings.Emplace(CompoundedString.ToString(), Points[I].Transform.GetLocation() + Settings->LocalOffset, Settings->Color);
-
-				// Increment the count
-				count += 1;
+				CompoundedString += FString::Printf(TEXT("[%d]"), I);
 			}
+
+			if (Settings->bPrefixWithAttributeName)
+			{
+				CompoundedString += FString::Printf(TEXT("[%s]"), *InputSource.GetDisplayText().ToString());
+			}
+
+			CompoundedString = FString::Printf(TEXT("%s %s"), *CompoundedString, *ValuesToString[I]);
+
+			DebugStrings.Emplace(CompoundedString.ToString(), Points[I].Transform.GetLocation() + Settings->LocalOffset, Settings->Color);
 		}
 
 		check(DebugDrawComponent);

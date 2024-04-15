@@ -62,12 +62,8 @@ public:
 	double Duration = 30.0;
 
 	/** The limit of points to draw debug messages. */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable, ClampMin = "1"))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable, ClampMin = "1", ClampMax="4096"))
 	int32 PointLimit = 4096;
-
-	/** The Max Distance from the camera that the points will show debug info. */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable, ClampMin = "0.0"))
-	double MaxDistance = 10000;
 
 	/** The visualizer is enabled. Useful for dynamically overriding. */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable))
