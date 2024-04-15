@@ -1,5 +1,8 @@
 # Unreleased
 
+# 1.1.1
+* Fixes to helm chart when using ServiceAccounts for authentication and configuring replication
+
 # 1.1.0
 * Added ability to specify a access token if using ServiceAccounts to the ServiceCredentials (allowing for replication to function when no OIDC configuration is present)
 * Fixed issue with blob stats using statements which did not work for CosmosDB by disabling them which means blob stats will not function for CosmosDB (this feature is not enabled by default anyway)
