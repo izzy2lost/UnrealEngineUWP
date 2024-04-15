@@ -342,19 +342,10 @@ void FSetProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, co
 				ElementProp->InitializeValue(TempElementStorage);
 			}
 
-			// Disable serialization of unknown properties until the TODO in the loop is addressed.
-			TOptional<TGuardValue<bool>> SerializeUnknownProperty;
-			if (Context)
-			{
-				SerializeUnknownProperty.Emplace(Context->bSerializeUnknownProperty, false);
-			}
-
 			FSerializedPropertyScope SerializedProperty(UnderlyingArchive, ElementProp, this);
 			// Read remaining items into container
 			for (; Num; --Num)
 			{
-				// TODO: SetIndex on Context->SerializedPropertyPath and remove the element from the bag later if it existed.
-
 				// Read key into temporary storage
 				ElementProp->SerializeItem(ElementsArray.EnterElement(), TempElementStorage);
 
