@@ -2554,8 +2554,6 @@ void FDynamicBeam2EmitterData::RenderLines(const FParticleSystemSceneProxy* Prox
 		FVector	LastPosition, LastDrawPosition, LastTangent;
 		// The current position
 		FVector	CurrPosition, CurrDrawPosition;
-		// The target
-		FVector	TargetPosition, TargetDrawPosition;
 		// The next target
 		FVector	NextTargetPosition, NextTargetDrawPosition, TargetTangent;
 		// The interperted draw position
@@ -2566,8 +2564,6 @@ void FDynamicBeam2EmitterData::RenderLines(const FParticleSystemSceneProxy* Prox
 
 		FVector Location;
 		FVector EndPoint;
-		FVector Offset;
-		FVector LastOffset;
 		float	fStrength;
 		float	fTargetStrength;
 
@@ -2666,7 +2662,7 @@ void FDynamicBeam2EmitterData::RenderLines(const FParticleSystemSceneProxy* Prox
 
 			bool	bLocked	= BEAM2_TYPEDATA_LOCKED(BeamPayloadData->Lock_Max_NumNoisePoints);
 
-			FVector	UseNoisePoint, CheckNoisePoint;
+			FVector	CheckNoisePoint;
 			FVector	NoiseDir;
 
 			// Reset the texture coordinate
@@ -3553,8 +3549,6 @@ int32 FDynamicBeam2EmitterData::FillData_Noise(FAsyncBufferFillData& Me) const
 	FVector	LastPosition, LastDrawPosition, LastTangent;
 	// The current position
 	FVector	CurrPosition, CurrDrawPosition;
-	// The target
-	FVector	TargetPosition, TargetDrawPosition;
 	// The next target
 	FVector	NextTargetPosition, NextTargetDrawPosition, TargetTangent;
 	// The interperted draw position
@@ -3687,7 +3681,7 @@ int32 FDynamicBeam2EmitterData::FillData_Noise(FAsyncBufferFillData& Me) const
 
 			bool	bLocked	= BEAM2_TYPEDATA_LOCKED(BeamPayloadData->Lock_Max_NumNoisePoints);
 
-			FVector	UseNoisePoint, CheckNoisePoint;
+			FVector	CheckNoisePoint;
 			FVector	NoiseDir;
 
 			for (int32 SheetIndex = 0; SheetIndex < Source.Sheets; SheetIndex++)
@@ -4099,7 +4093,7 @@ int32 FDynamicBeam2EmitterData::FillData_Noise(FAsyncBufferFillData& Me) const
 
 			bool	bLocked	= BEAM2_TYPEDATA_LOCKED(BeamPayloadData->Lock_Max_NumNoisePoints);
 
-			FVector	UseNoisePoint, CheckNoisePoint;
+			FVector	CheckNoisePoint;
 			FVector	NoiseDir;
 
 			for (int32 SheetIndex = 0; SheetIndex < Source.Sheets; SheetIndex++)
@@ -4516,8 +4510,6 @@ int32 FDynamicBeam2EmitterData::FillData_InterpolatedNoise(FAsyncBufferFillData&
 	FVector	LastPosition, LastDrawPosition, LastTangent;
 	// The current position
 	FVector	CurrPosition, CurrDrawPosition;
-	// The target
-	FVector	TargetPosition, TargetDrawPosition;
 	// The next target
 	FVector	NextTargetPosition, NextTargetDrawPosition, TargetTangent;
 	// The interperted draw position
@@ -4664,7 +4656,7 @@ int32 FDynamicBeam2EmitterData::FillData_InterpolatedNoise(FAsyncBufferFillData&
 
 		bool	bLocked	= BEAM2_TYPEDATA_LOCKED(BeamPayloadData->Lock_Max_NumNoisePoints);
 
-		FVector	UseNoisePoint, CheckNoisePoint;
+		FVector	CheckNoisePoint;
 		FVector	NoiseDir;
 
 		for (int32 SheetIndex = 0; SheetIndex < Source.Sheets; SheetIndex++)

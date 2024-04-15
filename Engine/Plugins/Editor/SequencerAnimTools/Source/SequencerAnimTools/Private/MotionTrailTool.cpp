@@ -289,7 +289,6 @@ void UMotionTrailTool::GizmoTransformChanged(UTransformProxy* Proxy, FTransform 
 	for (const TUniquePtr<UE::SequencerAnimTools::FTrailHierarchy>& TrailHierarchy : TrailHierarchies)
 	{
 		FVector WidgetLocation = Transform.GetLocation();
-		FVector Location;
 		bool bIsHandled = TrailHierarchy->ApplyDelta(LocationDiff, Diff.GetRotation().Rotator(), WidgetLocation);
 		if (bIsHandled)
 		{
@@ -328,7 +327,6 @@ void UMotionTrailTool::UpdateGizmoVisibility()
 
 		for (const TUniquePtr<UE::SequencerAnimTools::FTrailHierarchy>& TrailHierarchy : TrailHierarchies)
 		{
-			FVector Location;
 			bool bIsHandled = TrailHierarchy->IsAnythingSelected();
 			if (bIsHandled)
 			{
@@ -449,7 +447,6 @@ bool UMotionTrailTool::SomeKeysAreSelected() const
 
 	for (const TUniquePtr<UE::SequencerAnimTools::FTrailHierarchy>& TrailHierarchy : TrailHierarchies)
 	{
-		FVector Location;
 		bool bIsHandled = TrailHierarchy->IsAnythingSelected();
 		if (bIsHandled)
 		{

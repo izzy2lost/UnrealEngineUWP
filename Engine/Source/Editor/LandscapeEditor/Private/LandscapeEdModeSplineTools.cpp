@@ -781,8 +781,8 @@ public:
 		}
 
 		float t, t0, t1, tseg;
-		FVector Location, Location0, Location1;
-		FVector Tangent, Tangent0, Tangent1;
+		FVector Location0, Location1;
+		FVector Tangent0, Tangent1;
 		Segment->FindNearest(LocalLocation, t0, Location0, Tangent0);
 		NewSegment->FindNearest(LocalLocation, t1, Location1, Tangent1);
 

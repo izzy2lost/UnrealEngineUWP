@@ -27,7 +27,6 @@ FVector::FReal UEnvQueryGenerator_Donut::GetArcBisectorAngle(FEnvQueryInstance& 
 {
 	FRotator::FReal BisectAngle = 0.;
 
-	FVector Direction;
 	if (bDefineArc)
 	{
 		if (ArcDirection.DirMode == EEnvDirection::TwoPoints)

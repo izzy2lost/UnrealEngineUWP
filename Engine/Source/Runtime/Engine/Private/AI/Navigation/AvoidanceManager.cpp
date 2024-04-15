@@ -447,8 +447,6 @@ FVector UAvoidanceManager::GetAvoidanceVelocity_Internal(const FNavAvoidanceData
 			FVector PointAWorld = inAvoidanceData.Center;
 			FVector PointBRelative = OtherObject.Center - PointAWorld;
 			FVector TowardB, SidewaysFromB;
-			FVector VelAdjustment;
-			FVector VelAfterAdjustment;
 			float RadiusB = OtherObject.Radius + inAvoidanceData.Radius;
 
 			PointBRelative.Z = 0.0f;

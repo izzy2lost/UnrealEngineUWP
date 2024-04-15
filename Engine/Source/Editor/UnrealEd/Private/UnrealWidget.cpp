@@ -648,7 +648,6 @@ void FWidget::AbsoluteConvertMouseToAxis_TranslateRotateZ(const FMatrix& InputCo
                                                           FAbsoluteMovementParams& InOutParams, FVector& OutDrag,
                                                           FRotator& OutRotation)
 {
-	FVector LineToUse;
 	switch (CurrentAxis)
 	{
 	case EAxisList::X: {

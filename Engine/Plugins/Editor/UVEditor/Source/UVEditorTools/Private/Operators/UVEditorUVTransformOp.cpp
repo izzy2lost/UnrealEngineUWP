@@ -69,7 +69,6 @@ void FUVEditorUVTransformBaseOp::RebuildBoundingBoxes()
 
 	ParallelFor(NumComponents, [&](int32 k)
 		{
-			FVector3d VertexPos[3];
 			PerComponentBoundingBoxes[k] = FAxisAlignedBox2d::Empty();
 			const TArray<int>& Vertices = (*UVComponents)[k].Indices;
 			for (int32 Vid : Vertices)

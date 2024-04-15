@@ -2865,8 +2865,6 @@ bool UParticleModuleLocationSkelVertSurface::GetParticleLocation(FParticleEmitte
 			}
 			else
 			{
-				FVector VertPos;
-
 				OutPosition = (Verts[0] + Verts[1] + Verts[2]) / 3.0f;
 			}
 

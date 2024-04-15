@@ -238,7 +238,6 @@ static bool CalculateRootMotion(
 		return false;
 	}
 
-	FVector Velocity;
 	switch (AnalysisProperties->FunctionAxis)
 	{
 	case EAnalysisRootMotionAxis::Speed:

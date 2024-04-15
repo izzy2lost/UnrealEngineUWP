@@ -262,7 +262,6 @@ void TMeshTangents<RealType>::ComputeTriangleTangents(const FDynamicMeshUVOverla
 		Mesh->GetTriVertices(TriangleID, TriVertices[0], TriVertices[1], TriVertices[2]);
 		FVector2f TriUVs[3];
 		UVOverlay->GetTriElements(TriangleID, TriUVs[0], TriUVs[1], TriUVs[2]);
-		FVector3f TriNormals[3];
 		FVector3d TriNormal = Mesh->GetTriNormal(TriangleID);
 
 		FVector3d Tangent, Bitangent;

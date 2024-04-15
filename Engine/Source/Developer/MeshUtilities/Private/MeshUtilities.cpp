@@ -4583,8 +4583,7 @@ bool FMeshUtilities::BuildSkeletalMesh_Legacy(FSkeletalMeshLODModel& LODModel
 
 				FMatrix	TextureToLocal = ParameterToTexture.Inverse() * ParameterToLocal;
 				FVector3f	TangentX = FVector4f(TextureToLocal.TransformVector(FVector(1, 0, 0)).GetSafeNormal()),
-					TangentY = FVector4f(TextureToLocal.TransformVector(FVector(0, 1, 0)).GetSafeNormal()),
-					TangentZ;
+					TangentY = FVector4f(TextureToLocal.TransformVector(FVector(0, 1, 0)).GetSafeNormal());
 
 				TangentX = TangentX - TriangleNormal * (TangentX | TriangleNormal);
 				TangentY = TangentY - TriangleNormal * (TangentY | TriangleNormal);

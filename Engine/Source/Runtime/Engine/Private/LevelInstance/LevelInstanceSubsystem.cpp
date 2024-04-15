@@ -1042,7 +1042,6 @@ bool ULevelInstanceSubsystem::GetLevelInstanceBoundsFromPackage(const FTransform
 	FBox LevelBounds;
 	if (ULevel::GetLevelBoundsFromPackage(LevelPackage, LevelBounds))
 	{
-		FVector LevelBoundsLocation;
 		FVector BoundsLocation;
 		FVector BoundsExtent;
 		LevelBounds.GetCenterAndExtents(BoundsLocation, BoundsExtent);

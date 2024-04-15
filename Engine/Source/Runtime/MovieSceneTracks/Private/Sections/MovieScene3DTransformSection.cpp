@@ -840,10 +840,6 @@ EMovieSceneChannelProxyType UMovieScene3DTransformSection::CacheChannelProxy()
 
 TSharedPtr<FStructOnScope> UMovieScene3DTransformSection::GetKeyStruct(TArrayView<const FKeyHandle> KeyHandles)
 {
-	FVector  StartingLocation;
-	FRotator StartingRotation;
-	FVector  StartingScale;
-
 	TArrayView<FMovieSceneDoubleChannel* const> DoubleChannels = ChannelProxy->GetChannels<FMovieSceneDoubleChannel>();
 
 	TOptional<TTuple<FKeyHandle, FFrameNumber>> LocationKeys[3] = {
