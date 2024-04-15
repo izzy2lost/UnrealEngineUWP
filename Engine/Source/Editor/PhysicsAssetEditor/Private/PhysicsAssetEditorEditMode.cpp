@@ -122,7 +122,32 @@ void FPhysicsAssetEditorEditMode::GetOnScreenDebugInfo(TArray<FText>& OutDebugIn
 bool FPhysicsAssetEditorEditMode::StartTracking(FEditorViewportClient* InViewportClient, FViewport* InViewport)
 {
 	const EAxisList::Type CurrentAxis = InViewportClient->GetCurrentWidgetAxis();
-	if(!SharedData->bRunningSimulation && !SharedData->bManipulating && CurrentAxis != EAxisList::None)
+	if (CurrentAxis == EAxisList::None)
+	{
+		return false; // not manipulating a required axis
+	}
+		
+	return HandleBeginTransform();
+}
+
+bool FPhysicsAssetEditorEditMode::EndTracking(FEditorViewportClient* InViewportClient, FViewport* InViewport)
+{
+	return HandleEndTransform(InViewportClient);
+}
+
+bool FPhysicsAssetEditorEditMode::BeginTransform(const FGizmoState& InState)
+{
+	return HandleBeginTransform();
+}
+
+bool FPhysicsAssetEditorEditMode::EndTransform(const FGizmoState& InState)
+{
+	return HandleEndTransform(Owner->GetFocusedViewportClient());
+}
+
+bool FPhysicsAssetEditorEditMode::HandleBeginTransform()
+{
+	if (!SharedData->bRunningSimulation && !SharedData->bManipulating)
 	{
 		if(SharedData->GetSelectedBody() || SharedData->GetSelectedConstraint())
 		{
@@ -176,7 +201,7 @@ bool FPhysicsAssetEditorEditMode::StartTracking(FEditorViewportClient* InViewpor
 	return SharedData->bManipulating;
 }
 
-bool FPhysicsAssetEditorEditMode::EndTracking(FEditorViewportClient* InViewportClient, FViewport* InViewport)
+bool FPhysicsAssetEditorEditMode::HandleEndTransform(FEditorViewportClient* InViewportClient) const
 {
 	if (SharedData->bManipulating)
 	{
@@ -202,7 +227,11 @@ bool FPhysicsAssetEditorEditMode::EndTracking(FEditorViewportClient* InViewportC
 
 		GEditor->EndTransaction();
 		SharedData->RefreshPhysicsAssetChange(SharedData->PhysicsAsset, false);
-		InViewport->Invalidate();
+
+		if (InViewportClient)
+		{
+			InViewportClient->Invalidate();
+		}
 
 		return true;
 	}

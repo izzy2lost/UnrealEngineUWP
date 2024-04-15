@@ -296,31 +296,56 @@ bool FAnimNodeEditMode::StartTracking(FEditorViewportClient* InViewportClient, F
 
 	if (WidgetMode != UE::Widget::WM_None && CurrentAxis != EAxisList::None)
 	{
-		if (!bInTransaction)
-		{
-			GEditor->BeginTransaction(LOCTEXT("EditSkelControlNodeTransaction", "Edit Skeletal Control Node"));
-
-			for (EditorRuntimeNodePair CurrentNodePair : SelectedAnimNodes)
-			{
-				if (CurrentNodePair.EditorAnimNode != nullptr)
-				{
-					CurrentNodePair.EditorAnimNode->SetFlags(RF_Transactional);
-					CurrentNodePair.EditorAnimNode->Modify();
-				}
-			}
-
-			bInTransaction = true;
-		}
-
-		bManipulating = true;
-
-		return true;
+		return HandleBeginTransform();
 	}
 	
 	return IAnimNodeEditMode::StartTracking(InViewportClient, InViewport);
 }
 
 bool FAnimNodeEditMode::EndTracking(FEditorViewportClient* InViewportClient, FViewport* InViewport)
+{
+	if (HandleEndTransform())
+	{
+		return true;
+	}
+
+	return IAnimNodeEditMode::EndTracking(InViewportClient, InViewport);
+}
+
+bool FAnimNodeEditMode::BeginTransform(const FGizmoState& InState)
+{
+	return HandleBeginTransform();
+}
+
+bool FAnimNodeEditMode::EndTransform(const FGizmoState& InState)
+{
+	return HandleEndTransform();
+}
+
+bool FAnimNodeEditMode::HandleBeginTransform()
+{
+	if (!bInTransaction)
+	{
+		GEditor->BeginTransaction(LOCTEXT("EditSkelControlNodeTransaction", "Edit Skeletal Control Node"));
+
+		for (EditorRuntimeNodePair CurrentNodePair : SelectedAnimNodes)
+		{
+			if (CurrentNodePair.EditorAnimNode != nullptr)
+			{
+				CurrentNodePair.EditorAnimNode->SetFlags(RF_Transactional);
+				CurrentNodePair.EditorAnimNode->Modify();
+			}
+		}
+
+		bInTransaction = true;
+	}
+
+	bManipulating = true;
+
+	return true;
+}
+
+bool FAnimNodeEditMode::HandleEndTransform()
 {
 	if (bManipulating)
 	{
@@ -334,8 +359,7 @@ bool FAnimNodeEditMode::EndTracking(FEditorViewportClient* InViewportClient, FVi
 
 		return true;
 	}
-
-	return IAnimNodeEditMode::EndTracking(InViewportClient, InViewport);
+	return false;
 }
 
 bool FAnimNodeEditMode::InputKey(FEditorViewportClient* InViewportClient, FViewport* InViewport, FKey InKey, EInputEvent InEvent)

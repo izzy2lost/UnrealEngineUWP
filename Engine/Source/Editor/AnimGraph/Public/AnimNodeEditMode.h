@@ -89,6 +89,11 @@ public:
 		FAnimNode_Base* RuntimeAnimNode;
 	};
 
+	// Start IGizmoEdModeInterface overrides
+	virtual bool BeginTransform(const FGizmoState& InState) override;
+	virtual bool EndTransform(const FGizmoState& InState) override;
+	// End IGizmoEdModeInterface overrides
+	
 protected:
 	// local conversion functions for drawing
 	static void ConvertToComponentSpaceTransform(const USkeletalMeshComponent* SkelComp, const FTransform & InTransform, FTransform & OutCSTransform, int32 BoneIndex, EBoneControlSpace Space);
@@ -107,6 +112,10 @@ protected:
 
 	const bool IsManipulatingWidget() const { return bManipulating; }
 
+	// Manage the start and end of a transform action in the viewport.
+	bool HandleBeginTransform();
+	bool HandleEndTransform();
+	
 	TArray< EditorRuntimeNodePair > SelectedAnimNodes;	// Selected Anim Graph Nodes
 	TArray< EditorRuntimeNodePair > PoseWatchedAnimNodes; 	// Pose Watched Anim Graph Nodes. 
 

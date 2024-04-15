@@ -53,6 +53,11 @@ public:
 	virtual bool ReceivedFocus(FEditorViewportClient* ViewportClient, FViewport* Viewport);
 	virtual bool LostFocus(FEditorViewportClient* ViewportClient, FViewport* Viewport);
 
+	// Start IGizmoEdModeInterface overrides
+	virtual bool BeginTransform(const FGizmoState& InState) override;
+	virtual bool EndTransform(const FGizmoState& InState) override;
+	// End IGizmoEdModeInterface overrides
+	
 private:
 	/** Simulation mouse forces */
 	bool SimMousePress(FEditorViewportClient* InViewportClient, FKey Key);
@@ -80,6 +85,10 @@ private:
 
 	/** Returns the identifier for the constraint frame (child or parent) in which the manipulator widget should be drawn. */
 	EConstraintFrame::Type GetConstraintFrameForWidget() const;
+
+	// Manage the start and end of a transform action in the viewport.
+	bool HandleBeginTransform();
+	bool HandleEndTransform(FEditorViewportClient* InViewportClient) const;
 
 private:
 	/** Shared data */
