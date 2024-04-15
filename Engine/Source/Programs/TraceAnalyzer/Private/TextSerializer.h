@@ -28,10 +28,36 @@ public:
 	virtual bool Commit() = 0;
 
 	//////////////////////////////////////////////////
+	// Attributes
+
+	void BeginAttributeSet()
+	{
+		AttributeCount = 0;
+	}
+
+	void BeginAttribute()
+	{
+		if (AttributeCount == 0)
+		{
+			AppendChar('\t');
+		}
+		else
+		{
+			AppendChar(' ');
+		}
+		++AttributeCount;
+	}
+
+	void EndAttribute()
+	{
+	}
+
+	//////////////////////////////////////////////////
 	// NEW_EVENT
 
 	void BeginNewEventHeader()
 	{
+		BeginAttributeSet();
 		if (bWriteEventHeader)
 		{
 #if !UE_TRACE_ANALYSIS_DEBUG
@@ -42,12 +68,14 @@ public:
 			}
 #endif
 			bLastWasNewEvent = true;
-			Append("\tNEW_EVENT : ");
+			BeginAttribute();
+			Append("NEW_EVENT :");
+			EndAttribute();
 		}
 	}
 	void EndNewEventHeader()
 	{
-		if (bWriteEventHeader)
+		if (AttributeCount > 0)
 		{
 			AppendChar('\n');
 		}
@@ -58,14 +86,14 @@ public:
 	}
 	void BeginField()
 	{
+		BeginAttributeSet();
 		if (bWriteEventHeader)
 		{
-			Append("\t\tFIELD : ");
+			AppendChar('\t');
 		}
-		else
-		{
-			Append("\tFIELD : ");
-		}
+		BeginAttribute();
+		Append("FIELD :");
+		EndAttribute();
 	}
 	void EndField()
 	{
@@ -84,21 +112,20 @@ public:
 
 	void BeginEvent(uint32 CtxThreadId)
 	{
+		BeginAttributeSet();
 		if (bWriteEventHeader)
 		{
 			bLastWasNewEvent = false;
+			BeginAttribute();
 			if (CtxThreadId != (uint32)-1)
 			{
-				Appendf("\tEVENT [%u]", CtxThreadId);
+				Appendf("EVENT [%u]", CtxThreadId);
 			}
 			else
 			{
-				Append("\tEVENT");
+				Append("EVENT");
 			}
-		}
-		else
-		{
-			AppendChar('\t');
+			EndAttribute();
 		}
 	}
 
@@ -106,26 +133,18 @@ public:
 	{
 		if (bWriteEventHeader)
 		{
-			Appendf(" %s.%s", LoggerName, Name);
+			BeginAttribute();
+			Appendf("%s.%s :", LoggerName, Name);
+			EndAttribute();
 		}
-	}
-
-	void BeginEventFields()
-	{
-		if (bWriteEventHeader)
-		{
-			Append(" : ");
-		}
-	}
-
-	void NextEventField()
-	{
-		AppendChar(' ');
 	}
 
 	void EndEvent()
 	{
-		AppendChar('\n');
+		if (AttributeCount > 0)
+		{
+			AppendChar('\n');
+		}
 	}
 
 	//////////////////////////////////////////////////
@@ -204,19 +223,20 @@ public:
 		AppendChar('=');
 	}
 
-	void WriteString(const ANSICHAR* Name, const ANSICHAR* Value)             { WriteKey(Name); WriteValueString(Value); }
-	void WriteString(const ANSICHAR* Name, const ANSICHAR* Value, uint32 Len) { WriteKey(Name); WriteValueString(Value, Len); }
-	void WriteBool(const ANSICHAR* Name, bool Value)                          { WriteKey(Name); WriteValueBool(Value); }
-	void WriteInteger(const ANSICHAR* Name, int64 Value)                      { WriteKey(Name); WriteValueInt64(Value); }
-	void WriteIntegerHex(const ANSICHAR* Name, int64 Value)                   { WriteKey(Name); WriteValueHex64(uint64(Value)); }
-	void WriteFloat(const ANSICHAR* Name, float Value)                        { WriteKey(Name); WriteValueFloat(Value); }
-	void WriteDouble(const ANSICHAR* Name, double Value)                      { WriteKey(Name); WriteValueDouble(Value); }
-	void WriteNull(const ANSICHAR* Name)                                      { WriteKey(Name); WriteValueNull(); }
-	void WriteBinary(const ANSICHAR* Name, const void* Data, uint32 Size)     { WriteKey(Name); WriteValueBinary(Data, Size); }
+	void WriteAttributeString(const ANSICHAR* Name, const ANSICHAR* Value)             { BeginAttribute(); WriteKey(Name); WriteValueString(Value);        EndAttribute(); }
+	void WriteAttributeString(const ANSICHAR* Name, const ANSICHAR* Value, uint32 Len) { BeginAttribute(); WriteKey(Name); WriteValueString(Value, Len);   EndAttribute(); }
+	void WriteAttributeBool(const ANSICHAR* Name, bool Value)                          { BeginAttribute(); WriteKey(Name); WriteValueBool(Value);          EndAttribute(); }
+	void WriteAttributeInteger(const ANSICHAR* Name, int64 Value)                      { BeginAttribute(); WriteKey(Name); WriteValueInt64(Value);         EndAttribute(); }
+	void WriteAttributeIntegerHex(const ANSICHAR* Name, int64 Value)                   { BeginAttribute(); WriteKey(Name); WriteValueHex64(uint64(Value)); EndAttribute(); }
+	void WriteAttributeFloat(const ANSICHAR* Name, float Value)                        { BeginAttribute(); WriteKey(Name); WriteValueFloat(Value);         EndAttribute(); }
+	void WriteAttributeDouble(const ANSICHAR* Name, double Value)                      { BeginAttribute(); WriteKey(Name); WriteValueDouble(Value);        EndAttribute(); }
+	void WriteAttributeNull(const ANSICHAR* Name)                                      { BeginAttribute(); WriteKey(Name); WriteValueNull();               EndAttribute(); }
+	void WriteAttributeBinary(const ANSICHAR* Name, const void* Data, uint32 Size)     { BeginAttribute(); WriteKey(Name); WriteValueBinary(Data, Size);   EndAttribute(); }
 
 protected:
 	bool bWriteEventHeader = true;
 	bool bLastWasNewEvent = false;
+	uint32 AttributeCount = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
