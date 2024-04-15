@@ -388,8 +388,6 @@ class FDistanceFieldShadowingUpsamplePS : public FGlobalShader
 		SHADER_PARAMETER(float, NearFadePlaneOffset)
 		SHADER_PARAMETER(float, InvNearFadePlaneLength)
 		SHADER_PARAMETER(float, OneOverDownsampleFactor)
-		SHADER_PARAMETER(float, MinDepth)
-		SHADER_PARAMETER(float, MaxDepth)
 	END_SHADER_PARAMETER_STRUCT()
 
 	class FUpsample : SHADER_PERMUTATION_BOOL("SHADOW_FACTORS_UPSAMPLE_REQUIRED");
@@ -761,22 +759,6 @@ bool FSceneRenderer::ShouldPrepareHeightFieldScene() const
 		&& SupportsHeightFieldShadows(Scene->GetFeatureLevel(), Scene->GetShaderPlatform());
 }
 
-void GetDistanceFieldShadowRange(const FProjectedShadowInfo* ProjectedShadowInfo, EDistanceFieldPrimitiveType PrimitiveType, float& OutMinDepth, float& OutMaxDepth)
-{
-	if (ProjectedShadowInfo->bDirectionalLight)
-	{
-		OutMinDepth = ProjectedShadowInfo->CascadeSettings.SplitNear - ProjectedShadowInfo->CascadeSettings.SplitNearFadeRegion;
-		OutMaxDepth = ProjectedShadowInfo->CascadeSettings.SplitFar;
-	}
-	else
-	{
-		check(PrimitiveType != DFPT_HeightField);
-		//@todo - set these up for point lights as well
-		OutMinDepth = 0.0f;
-		OutMaxDepth = HALF_WORLD_MAX;
-	}
-}
-
 void RayTraceShadows(
 	FRDGBuilder& GraphBuilder,
 	bool bAsyncCompute,
@@ -850,7 +832,18 @@ void RayTraceShadows(
 		PassParameters->TwoSidedMeshDistanceBiasScale = GDFShadowTwoSidedMeshDistanceBiasScale;
 		PassParameters->Substrate = Substrate::BindSubstrateGlobalUniformParameters(View);
 
-		GetDistanceFieldShadowRange(ProjectedShadowInfo, PrimitiveType, PassParameters->MinDepth, PassParameters->MaxDepth);
+		if (ProjectedShadowInfo->bDirectionalLight)
+		{
+			PassParameters->MinDepth = ProjectedShadowInfo->CascadeSettings.SplitNear - ProjectedShadowInfo->CascadeSettings.SplitNearFadeRegion;
+			PassParameters->MaxDepth = ProjectedShadowInfo->CascadeSettings.SplitFar;
+		}
+		else
+		{
+			check(!bHeightfield);
+			//@todo - set these up for point lights as well
+			PassParameters->MinDepth = 0.0f;
+			PassParameters->MaxDepth = HALF_WORLD_MAX;
+		}
 
 		PassParameters->DownsampleFactor = GetDFShadowDownsampleFactor();
 		const FIntPoint OutputBufferSize = OutputTexture->Desc.Extent;
@@ -1120,8 +1113,6 @@ void FProjectedShadowInfo::RenderRayTracedDistanceFieldProjection(
 		PassParameters->PS.ShadowFactorsSampler = TStaticSamplerState<SF_Bilinear>::GetRHI();
 		PassParameters->PS.ScissorRectMinAndSize = FIntRect(ScissorRect.Min, ScissorRect.Size());
 		PassParameters->PS.OneOverDownsampleFactor = 1.0f / GetDFShadowDownsampleFactor();
-
-		GetDistanceFieldShadowRange(this, DFPT_SignedDistanceField, PassParameters->PS.MinDepth, PassParameters->PS.MaxDepth);
 
 		if (bDirectionalLight && CascadeSettings.FadePlaneLength > 0)
 		{

@@ -11,16 +11,7 @@
 #include "Common.ush"
 #include "ComputeShaderUtils.ush"
 
-void UpsampleShadowFactors(
-	float4 SVPos, 
-	int4 ScissorRectMinAndSize, 
-	float OneOverDownsampleFactor, 
-	float ShadowFactorsMinDepth, 
-	float ShadowFactorsMaxDepth, 
-	Texture2D ShadowFactorsTexture, 
-	SamplerState ShadowFactorsSampler, 
-	out float ShadowFactor, 
-	out float SceneDepth)
+void UpsampleShadowFactors(float4 SVPos, int4 ScissorRectMinAndSize, float OneOverDownsampleFactor, Texture2D ShadowFactorsTexture, SamplerState ShadowFactorsSampler, out float ShadowFactor, out float SceneDepth)
 {
 	float2 BufferUV = SvPositionToBufferUV(SVPos);
 
@@ -59,20 +50,16 @@ void UpsampleShadowFactors(
 
 	float Epsilon = .0001f;
 
-	float4 ShadowFactors = float4(TextureValues00.x, TextureValues10.x, TextureValues01.x, TextureValues11.x);
 	float4 CornerDepths = abs(float4(TextureValues00.y, TextureValues10.y, TextureValues01.y, TextureValues11.y));
-
-	// Ignore pixels marked as non-shadowed if they lie outside the DF shadows range.
-	// Shadowed pixels outside the range are marked as valid, these could be from heightfield traces.
-	float4 CornerDepthsValid = 
-		or(
-			and(ShadowFactorsMinDepth.xxxx < CornerDepths, CornerDepths < ShadowFactorsMaxDepth.xxxx),
-			ShadowFactors < 1.0
-		);
 	float4 DepthWeights = 1.0f / (abs(CornerDepths - SceneDepth.xxxx) + Epsilon);
-	float4 FinalWeights = CornerWeights * CornerDepthsValid * DepthWeights;
+	float4 FinalWeights = CornerWeights * DepthWeights;
 
-	float InterpolatedResult = dot(ShadowFactors, FinalWeights) / max(dot(FinalWeights, 1), Epsilon);
+	float InterpolatedResult = 
+		(FinalWeights.x * TextureValues00.x 
+		+ FinalWeights.y * TextureValues10.x
+		+ FinalWeights.z * TextureValues01.x 
+		+ FinalWeights.w * TextureValues11.x)
+		/ dot(FinalWeights, 1);
 
 	ShadowFactor = InterpolatedResult;
 #else
