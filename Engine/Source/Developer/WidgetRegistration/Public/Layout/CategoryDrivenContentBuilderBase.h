@@ -5,18 +5,21 @@
 
 #include "FToolkitWidgetStyle.h"
 #include "ToolElementRegistry.h"
+#include "Widgets/SBoxPanel.h"
+#include "Widgets/Layout/SSplitter.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
-
+#include "BuilderKey.h"
 
 class SWidget;
 class FToolElement;
 
-struct FCategoryDrivenContentBuilderArgs;
+class FCategoryDrivenContentBuilderArgs;
+// class FAcceptSingleItemDropZoneHandler;
 
 /**
  * The FToolElementRegistrationArgs which is specified for Toolkits
  */
-class WIDGETREGISTRATION_API FCategoryDrivenContentBuilderBase : public FToolElementRegistrationArgs
+class FCategoryDrivenContentBuilderBase : public FToolElementRegistrationArgs
 {
 public:
 
@@ -38,7 +41,7 @@ public:
 	 * A constructor for the FCategoryDrivenContentBuilderBase which defines the builder name
 	 * @param InBuilderName the name for the builder
 	 */
-	explicit  FCategoryDrivenContentBuilderBase( FName InBuilderName );
+	explicit  FCategoryDrivenContentBuilderBase( FName InBuilderName = "FCategoryDrivenContentBuilderBase" );
 
 	/**
 	 * A constructor for the FCategoryDrivenContentBuilderBase which takes a
@@ -68,29 +71,29 @@ public:
 	 * @param Visibility If Visibility == EVisibility::Collapsed, the category button labels
 	 * will be shown, else they will not be shown.
 	 */
-	void SetCategoryButtonLabelVisibility(EVisibility Visibility);
+	WIDGETREGISTRATION_API void SetCategoryButtonLabelVisibility(EVisibility Visibility);
 
 	/**
-	 * Sets category button label visibility to Visiblity. It also reinitializes the
+	 * Sets category button label visibility to Visibility. It also reinitializes the
 	 * category toolbar data, as the toolbar's LabelVisibility member is now stale.
 	 *
 	 * @param bIsCategoryButtonLabelVisible If bIsCategoryButtonLabelVisible == true,
 	 * the category button labels will be shown, else they will not be shown.
 	 */
-	void SetCategoryButtonLabelVisibility(bool bIsCategoryButtonLabelVisible);
+	WIDGETREGISTRATION_API void SetCategoryButtonLabelVisibility(bool bIsCategoryButtonLabelVisible);
 
 	/**
-	 * RefreshCategoryToolbarWidget refreshes the UI display of the category toolbar 
+	 * refreshes the UI display of the category toolbar 
 	 */
-	void RefreshCategoryToolbarWidget();
+	WIDGETREGISTRATION_API void RefreshCategoryToolbarWidget();
 
 	/** Implements the generation of the TSharedPtr<SWidget> */
-	virtual TSharedPtr<SWidget> GenerateWidget() override;
+	WIDGETREGISTRATION_API virtual TSharedPtr<SWidget> GenerateWidget() override;
 
 	/** Creates the Toolbar for the widget with the FUICommandInfos that load the Palettes */
 	TSharedRef<SWidget> CreateToolbarWidget() const;
 
-	/** returns a TSharedPointer to the FToolbarBuilder with the FUICommandInfos that load the Palettes */
+	/** @return a TSharedPointer to the FToolbarBuilder with the FUICommandInfos that load the Palettes */
 	TSharedPtr<FToolBarBuilder> GetLoadPaletteToolbar();
 	
 	/** a TSharedPointer to the FToolElement for the vertical toolbar */
@@ -105,14 +108,6 @@ private:
 	TSharedPtr<SWidget> ToolkitWidget;
 
 	/**
-	 * Returns true if the FUICommandInfo with the name CommandName is the active tool palette,
-	 * else it returns false
-	 *
-	 * @param CommandName the name of the FUICommandInfo we are checking to see if it is the active tool palette
-	 */
-	virtual ECheckBoxState IsActiveToolPalette(FName CommandName) const = 0;
-
-	/**
 	 * Creates the SWidget
 	 */
 	void CreateWidget();
@@ -124,15 +119,15 @@ private:
 	TSharedPtr<SVerticalBox> ToolkitWidgetContainerVBox;
 
 protected:
-	virtual void ProvideSelectedCategoryContent( FName ActiveCategoryName = NAME_None) = 0;
+	virtual void UpdateContentForCategory( FName ActiveCategoryName = NAME_None, FText InActiveCategoryText = FText::GetEmpty() ) = 0;
 	
-	/** The SVerticalBox which holds all but the vertical toolbar in a Toolkit */
-	TSharedPtr<SVerticalBox> ToolkitWidgetVBox;
+	/** The SVerticalBox which holds the main content ~ -all but the Category chooser */
+	TSharedPtr<SVerticalBox> MainContentVerticalBox;
 	
 	/** the tool element registry this class will use to register UI tool elements */
 	static FToolElementRegistry ToolRegistry;
 	
-	/** Specifies what happens if you click the category button of an already-active catogory */
+	/** Specifies what happens if you click the category button of an already-active category */
 	ECategoryReclickBehavior CategoryReclickBehavior = ECategoryReclickBehavior::NoEffect;
 	
 	/** The current FToolkitWidgetStyle */
@@ -156,15 +151,30 @@ protected:
 
 	/** Name of this builder */
 	FName BuilderName;
+	
+	/**
+	 * the name of the currently selected/active category
+	 */
+	FName ActiveCategoryName;
 };
 
 /**
  * A struct to provide arguments for a FCategoryDrivenContentBuilderBase
  */
-struct FCategoryDrivenContentBuilderArgs
+class FCategoryDrivenContentBuilderArgs
 {
 public:
-	WIDGETREGISTRATION_API FCategoryDrivenContentBuilderArgs( FName InBuilderName );
+	/**
+	* Constructor taking the builder name and the FBuilderKey
+	*
+	* @param InBuilderName the name of the builder
+	* @param InKey the FBuilderKey for this 
+	*/
+	WIDGETREGISTRATION_API FCategoryDrivenContentBuilderArgs(
+		FName InBuilderName, const UE::DisplayBuilders:: FBuilderKey& InKey = UE::DisplayBuilders::FBuilderKeys::Get().None() );
+
+	/** the FBuilderKey for this */
+	UE::DisplayBuilders::FBuilderKey Key;
 
 	/** Name of this builder */
 	FName BuilderName;
@@ -175,4 +185,16 @@ public:
 
 	/** Specifies what happens if you click the category button of an already-active category */
 	FCategoryDrivenContentBuilderBase::ECategoryReclickBehavior CategoryReclickBehavior;
+
+	/** The FName of the favorites Category, if one exists */
+	FName FavoritesCommandName;
+
+	/** The label/title of the initially selected category  */
+	FText CategoryLabel;
+	
+	/** The name of the initially selected category */
+	FName ActiveCategoryName;
+	
+	
+	// TSharedPtr<FAcceptSingleItemDropZoneHandler> FavoritesDropZoneHandler;
 };

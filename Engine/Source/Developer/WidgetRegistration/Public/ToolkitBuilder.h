@@ -131,13 +131,13 @@ public:
 	 * @param InToolkitCommandList  the toolkit FUICommandList
 	 * @param InToolkitSections The FToolkitSections for this toolkit builder
 	 */
-	FToolkitBuilder(
+	explicit FToolkitBuilder(
 	FName ToolbarCustomizationName,
 	TSharedPtr<FUICommandList> InToolkitCommandList,
 	TSharedPtr<FToolkitSections> InToolkitSections);
 
 	/** default constructor */
-	FToolkitBuilder(FToolkitBuilderArgs& Args);
+	explicit FToolkitBuilder(FToolkitBuilderArgs& Args);
 
 	virtual ~FToolkitBuilder() override;
 
@@ -169,7 +169,7 @@ public:
 	 * will be regenerated to reflect it.  */
 	virtual void UpdateWidget() override;
 
-	/** returns true is there is an active palette selected, else it returns false */
+	/** @return true is there is an active palette selected, else it returns false */
 	bool HasActivePalette() const;
 
 	/*
@@ -180,7 +180,7 @@ public:
 	void SetActivePaletteOnLoad(const FUICommandInfo* Command);
 	
 	/**
-	 * Returns true if the FUICommandInfo with the name CommandName is the active tool palette,
+	 * @return true if the FUICommandInfo with the name CommandName is the active tool palette,
 	 * else it returns false
 	 *
 	 * @param CommandName the name of the FUICommandInfo we are checking to see if it is the active tool palette
@@ -290,7 +290,7 @@ private:
 	 */
 	TSharedRef<SWidget> GetContextMenuContent(const FName CommandName);
 	
-	/** returns a TSharedPointer to the FToolbarBuilder with the FUICommandInfos that load the Palettes */
+	/** @return a TSharedPointer to the FToolbarBuilder with the FUICommandInfos that load the Palettes */
 	TSharedRef<SWidget> GetToolPaletteWidget() const;
 	
 	void CreatePaletteWidget(FToolPalette& Palette, FToolElement& Element);
@@ -304,7 +304,7 @@ private:
 	 */
 	void ToggleCommandInPalette(TSharedRef<FEditablePalette> Palette, FString CommandNameString);
 		
-	/* Returns true if the Toolkit builder has some tools that are currently active/selected */
+	/* @return true if the Toolkit builder has some tools that are currently active/selected */
 	bool HasSelectedToolSet() const;
 
 	/**
@@ -312,7 +312,7 @@ private:
 	 * 
 	 * @param ActiveCategoryName 
 	 */
-	virtual void ProvideSelectedCategoryContent( FName ActiveCategoryName = NAME_None ) override;
+	virtual void UpdateContentForCategory( FName ActiveCategoryName = NAME_None, FText InActiveCategoryText = FText::GetEmpty() ) override;
 
 	/**
 	 * Gets the EVisibility of the active tool title. This should only be visible if a tool is currently chosen in the palette.

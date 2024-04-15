@@ -25,14 +25,14 @@ namespace UE::DisplayBuilders
 		WIDGETREGISTRATION_API FName ToName() const;
 
 		/** 
-		 * Returns a combined key with Suffix
+		 * @return a combined key with Suffix
 		 * 
 		 * @param Suffix the FName that will provide the Suffix for the combined Key
 		 */
 		FString  GetKeyWithSuffix( const FName Suffix ) const;
 
 		/**
-		* returns true if this builder is set to None, meaning that it has not been initialized
+		* @return true if this builder is set to None, meaning that it has not been initialized
 		*/
 		bool IsNone() const;
 		

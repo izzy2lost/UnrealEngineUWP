@@ -35,12 +35,12 @@ public:
 	static void Shutdown();
 
 	/**
-	 * Returns the Command manager for Builders
+	 * @return the Command manager for Builders
 	 */
 	const FBuilderCommandCreationManager& GetCommandManager();
 	
 	/**
-	 * Returns the Drag and Drop manager for Builders
+	 * @return the Drag and Drop manager for Builders
 	 */
 	// FBuilderDragAndDropManager& GetDragAndDropManager();
 };

@@ -33,7 +33,7 @@ class WIDGETREGISTRATION_API  UBuilderPersistenceManager : public UEditorConfigB
 
 public:
 	/**
-	 * Returns the default named favorites array for the Builder with FBuilderKey Key, if one exists, else an empty array is returned
+	 * @return the default named favorites array for the Builder with FBuilderKey Key, if one exists, else an empty array is returned
 	 * 
 	 * @param Key the FBuilderKey to retrieve the favorites for
 	 */
@@ -48,7 +48,7 @@ public:
 	void SetPersistedFavoritesNamesArray( const UE::DisplayBuilders::FBuilderKey& Key, TArray<FName>& Favorites );
 
 	/**
-	 * Returns the an array for the Builder with FBuilderKey Key and the suffix that the array was persisted with, if one exists, else an empty array is returned
+	 * @return the an array for the Builder with FBuilderKey Key and the suffix that the array was persisted with, if one exists, else an empty array is returned
 	 * 
 	 * @param Key the FBuilderKey to retrieve the FNames array for
 	 * @param PersistenceKeySuffix the suffix to add to the FBuilderKey to persist the array of FNames with

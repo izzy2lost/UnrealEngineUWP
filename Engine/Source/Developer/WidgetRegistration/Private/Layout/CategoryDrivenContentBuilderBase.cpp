@@ -1,10 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Layout/CategoryDrivenContentBuilderBase.h"
-
 #include "ToolbarRegistrationArgs.h"
-
-
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/Layout/SSplitter.h"
 #include "Widgets/SBoxPanel.h"
@@ -21,23 +18,18 @@ namespace UE::CategoryDrivenContentBuilderBase::Private
 
 FToolElementRegistry FCategoryDrivenContentBuilderBase::ToolRegistry = FToolElementRegistry::Get();
 
-FCategoryDrivenContentBuilderBase::FCategoryDrivenContentBuilderBase
-	(
-		FName InBuilderName
-	) :
-	FToolElementRegistrationArgs( UE::CategoryDrivenContentBuilderBase::Private::StyleName ),
-        CategoryReclickBehavior( ECategoryReclickBehavior::NoEffect) ,
-	BuilderName( InBuilderName )
+FCategoryDrivenContentBuilderBase::FCategoryDrivenContentBuilderBase ( FName InBuilderName ) :
+	FToolElementRegistrationArgs( InBuilderName )
+	, CategoryReclickBehavior( ECategoryReclickBehavior::NoEffect)
+	, BuilderName( InBuilderName )
 {
 }
 
-FCategoryDrivenContentBuilderBase::FCategoryDrivenContentBuilderBase
-	(
-		FCategoryDrivenContentBuilderArgs& Args
-	) :
-	FToolElementRegistrationArgs(Args.BuilderName ),
-	CategoryReclickBehavior( Args.CategoryReclickBehavior ),
-	BuilderName(Args.BuilderName)
+FCategoryDrivenContentBuilderBase::FCategoryDrivenContentBuilderBase( FCategoryDrivenContentBuilderArgs& Args ) :
+	FToolElementRegistrationArgs( Args.Key )
+	, CategoryReclickBehavior( Args.CategoryReclickBehavior )
+	, BuilderName(Args.BuilderName)
+	, ActiveCategoryName( Args.ActiveCategoryName )
 {
 }
 
@@ -74,8 +66,12 @@ void FCategoryDrivenContentBuilderBase::InitCategoryToolbarContainerWidget()
 
 void FCategoryDrivenContentBuilderBase::RefreshCategoryToolbarWidget()
 {
-	FToolElementRegistrationKey Key = FToolElementRegistrationKey(BuilderName, EToolElement::Toolbar);
-	VerticalToolbarElement = ToolRegistry.GetToolElementSP(Key);
+	if ( !LoadPaletteToolBarBuilder.IsValid() )
+	{
+		return;
+	}
+	FToolElementRegistrationKey ElementKey = FToolElementRegistrationKey(BuilderName, EToolElement::Toolbar);
+	VerticalToolbarElement = ToolRegistry.GetToolElementSP(ElementKey);
 	const TSharedRef<FToolbarRegistrationArgs> VerticalToolbarRegistrationArgs = MakeShareable<FToolbarRegistrationArgs>(
 		new FToolbarRegistrationArgs(LoadPaletteToolBarBuilder.ToSharedRef()));
 	
@@ -93,7 +89,11 @@ void FCategoryDrivenContentBuilderBase::RefreshCategoryToolbarWidget()
 
 TSharedPtr<SWidget> FCategoryDrivenContentBuilderBase::GenerateWidget()
 {
-	if (!ToolkitWidgetContainerVBox)
+	if ( !LoadPaletteToolBarBuilder.IsValid() )
+	{
+		return SNullWidget::NullWidget;
+	}
+	if (!ToolkitWidgetContainerVBox )
 	{
 		CreateWidget();
 	}
@@ -103,10 +103,11 @@ TSharedPtr<SWidget> FCategoryDrivenContentBuilderBase::GenerateWidget()
 
 void FCategoryDrivenContentBuilderBase::CreateWidget()
 {
-	ToolkitWidgetVBox = ToolkitWidgetVBox.IsValid() ? ToolkitWidgetVBox : SNew(SVerticalBox);
-	ToolkitWidgetVBox->ClearChildren();
+	MainContentVerticalBox = MainContentVerticalBox.IsValid() ? MainContentVerticalBox : SNew(SVerticalBox);
+	MainContentVerticalBox->ClearChildren();
 	RefreshCategoryToolbarWidget();
-	ProvideSelectedCategoryContent();
+	UpdateContentForCategory( ActiveCategoryName );
+	
 
 	ToolkitWidgetContainerVBox = SNew(SVerticalBox)
 	+ SVerticalBox::Slot().AutoHeight() [ *FSeparatorTemplates::SmallHorizontalPanelNoBorder()  ]
@@ -125,7 +126,7 @@ void FCategoryDrivenContentBuilderBase::CreateWidget()
 		+ SSplitter::Slot()
 		.SizeRule(SSplitter::FractionOfParent)
 			[
-				ToolkitWidgetVBox->AsShared()
+				MainContentVerticalBox->AsShared()
 			];
 	
 		ToolkitWidgetContainerVBox->AddSlot()
@@ -136,16 +137,21 @@ void FCategoryDrivenContentBuilderBase::CreateWidget()
 		];
 }
 
-FCategoryDrivenContentBuilderArgs::FCategoryDrivenContentBuilderArgs(FName InBuilderName):
-                                                                                                      BuilderName( InBuilderName ),
-                                                                                                      bShowCategoryButtonLabels(false),
-                                                                                                      CategoryReclickBehavior(FCategoryDrivenContentBuilderBase::ECategoryReclickBehavior::NoEffect)
+FCategoryDrivenContentBuilderArgs::FCategoryDrivenContentBuilderArgs(
+	FName InBuilderName
+	, const UE::DisplayBuilders::FBuilderKey& InKey ) :
+		Key( InKey )
+		, BuilderName( InBuilderName )
+		, bShowCategoryButtonLabels(false)
+		, CategoryReclickBehavior(FCategoryDrivenContentBuilderBase::ECategoryReclickBehavior::NoEffect)
+		, FavoritesCommandName( NAME_None )
+		, CategoryLabel( FText::GetEmpty() )
+		, ActiveCategoryName( NAME_None )
 {
 }
 
 void FCategoryDrivenContentBuilderBase::SetCategoryButtonLabelVisibility(EVisibility Visibility)
 {
-
 	CategoryButtonLabelVisibility = Visibility;
 	InitializeCategoryToolbar();
 }

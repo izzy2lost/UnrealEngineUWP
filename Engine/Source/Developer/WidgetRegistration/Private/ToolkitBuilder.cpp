@@ -464,18 +464,18 @@ EVisibility FToolkitBuilder::GetActiveToolTitleVisibility() const
 	return ActiveToolDisplayName.IsEmpty() ? EVisibility::Collapsed : EVisibility::Visible;
 }
 
-void FToolkitBuilder::ProvideSelectedCategoryContent( FName ActiveCategoryName )
+void FToolkitBuilder::UpdateContentForCategory( FName InActiveCategoryName, FText InActiveCategoryText )
 {
 	TSharedPtr<SHorizontalBox> ToolNameHeaderBox;
 	
-	if ( !ToolkitWidgetVBox.IsValid() )
+	if ( !MainContentVerticalBox.IsValid() )
 	{
 		return;
 	}
 	
 	if (ToolkitSections->ModeWarningArea)
 	{
-		ToolkitWidgetVBox->AddSlot()
+		MainContentVerticalBox->AddSlot()
 		.AutoHeight()
 		.HAlign(HAlign_Fill)
 		.Padding(5)
@@ -484,7 +484,7 @@ void FToolkitBuilder::ProvideSelectedCategoryContent( FName ActiveCategoryName )
 		];
 	}
 	
-	ToolkitWidgetVBox->AddSlot()
+	MainContentVerticalBox->AddSlot()
 	.AutoHeight()
 	.HAlign(HAlign_Fill)
 	.Padding(0)
@@ -492,12 +492,12 @@ void FToolkitBuilder::ProvideSelectedCategoryContent( FName ActiveCategoryName )
 			GetToolPaletteWidget()
 		];
 
-	ToolkitWidgetVBox->AddSlot()
+	MainContentVerticalBox->AddSlot()
 		.AutoHeight()
 		[ *FSeparatorTemplates::SmallHorizontalBackgroundNoBorder().BindVisibility(
 			TAttribute<EVisibility>::CreateLambda([this] () { return ActivePaletteButtonVisibility; }))];
 	
-	ToolkitWidgetVBox->AddSlot()
+	MainContentVerticalBox->AddSlot()
 		.AutoHeight()
 		.HAlign(HAlign_Fill)
 		.Padding(0)
@@ -541,7 +541,7 @@ void FToolkitBuilder::ProvideSelectedCategoryContent( FName ActiveCategoryName )
 
 	if (ToolkitSections->ToolWarningArea)
 	{
-		ToolkitWidgetVBox->AddSlot()
+		MainContentVerticalBox->AddSlot()
 		.AutoHeight()
 		.HAlign(HAlign_Fill)
 		.Padding(5)
@@ -552,7 +552,7 @@ void FToolkitBuilder::ProvideSelectedCategoryContent( FName ActiveCategoryName )
 
 	if (ToolkitSections->DetailsView)
 	{
-		ToolkitWidgetVBox->AddSlot()
+		MainContentVerticalBox->AddSlot()
 		.HAlign(HAlign_Fill)
 		.FillHeight(1.f)
 			[
@@ -567,7 +567,7 @@ void FToolkitBuilder::ProvideSelectedCategoryContent( FName ActiveCategoryName )
 	}
 	if (ToolkitSections->Footer)
 	{
-		ToolkitWidgetVBox->AddSlot()
+		MainContentVerticalBox->AddSlot()
 			.AutoHeight()
 			.HAlign(HAlign_Fill)
 			.VAlign(VAlign_Bottom)

@@ -42,7 +42,7 @@ public:
 	void UnregisterCommandForBuilder( UE::DisplayBuilders::FBuilderInput& OutBuilderInput ) const;
 
 	/**
-	 * returns the singleton of the FBuilderCommandCreationManager
+	 * @return the singleton of the FBuilderCommandCreationManager
 	 */
 	static const FBuilderCommandCreationManager& Get();
 };

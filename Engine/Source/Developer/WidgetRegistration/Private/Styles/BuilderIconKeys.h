@@ -51,7 +51,7 @@ public:
 	
 
 	/**
-	 * returns the FSlateIcon for this FBuilderIconKey
+	 * @return the FSlateIcon for this FBuilderIconKey
 	 */
 	FSlateIcon GetSlateIcon() const;
 

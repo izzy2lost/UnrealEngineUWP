@@ -88,7 +88,7 @@ namespace UE::DisplayBuilders
 		static FBuilderInput NullInput;
 		
 		/**
-		 * returns true if the input name is equivalent to Name_NONE
+		 * @return true if the input name is equivalent to Name_NONE
 		 */
 		bool IsNameNone() const;
 

@@ -2,66 +2,283 @@
 
 
 #include "Layout/CategoryDrivenContentBuilder.h"
-#include "ToolkitBuilder.h"
-#include "Templates/SharedPointer.h"
 
-FCategoryDrivenContentBuilder ::FCategoryDrivenContentBuilder(FCategoryDrivenContentBuilderArgs& Args):
-	FCategoryDrivenContentBuilderBase( Args  )
+#include "Containers/ColumnWrappingContainerTemplates.h"
+#include "DataVisualization/ZeroStateBuilder.h"
+#include "DataVisualization/ZeroStateBuilderTemplates.h"
+#include "Templates/SharedPointer.h"
+#include "Framework/MultiBox/SToolBarButtonBlock.h"
+#include "Inputs/BuilderInputManager.h"
+#include "Input/DragAndDrop.h"
+// #include "Inputs/DragAndDrop/AcceptSingleItemDropZoneHandler.h"
+#include "Layout/Containers/ColumnWrappingContainer.h"
+#include "Layout/Containers/SimpleTitleContainer.h"
+#include "Persistence/BuilderPersistenceManager.h"
+#include "Layout/Containers/SlateBuilder.h"
+#include "Styling/ToolBarStyle.h"
+
+#define LOCTEXT_NAMESPACE "CategoryDrivenContentBuilder"
+
+const TArray<FName>& FCategoryDrivenContentBuilder::GetFavorites() const
 {
+	return Favorites;
+}
+
+TSharedRef<SWidget> FCategoryDrivenContentBuilder::CreateFavoritesContextMenu( FString FavoritesItemName )
+{
+	bool bInShouldCloseWindowAfterMenuSelection = true;
+	TSharedPtr< const FUICommandList > InCommandList;
+	
+	FMenuBuilder MenuBuilder(bInShouldCloseWindowAfterMenuSelection, InCommandList);
+
+	UBuilderPersistenceManager::Get()->PersistArrayOfNames( BuilderKey, BuilderKey.ToName(), Favorites );
+
+	const FText ItemText = Favorites.Contains( FavoritesItemName ) ?
+		LOCTEXT("CategoryDrivenContentBuilder_RemoveFromFavorites", "Remove from Favorites") :
+		LOCTEXT("CategoryDrivenContentBuilder_AddToFavorites", "Add to Favorites");
+		
+	const FUIAction ItemAction(FExecuteAction::CreateSP( this, &FCategoryDrivenContentBuilder::ToggleFavorite, FName( FavoritesItemName ) ) );
+	MenuBuilder.AddMenuEntry(ItemText, ItemText, FSlateIcon(), ItemAction);
+		
+	return MenuBuilder.MakeWidget();
+}
+
+FCategoryDrivenContentBuilder::FCategoryDrivenContentBuilder(FCategoryDrivenContentBuilderArgs& Args):
+	FCategoryDrivenContentBuilderBase(Args )
+	, FavoritesCategoryName( Args.FavoritesCommandName )
+	, CategoryLabel( Args.CategoryLabel )
+	, TitleContainer( nullptr )
+	, bIsFilledWithWidget( false )
+	, bShowNoCategorySelection( false )
+	/*, FavoritesDropZoneHandler( Args.FavoritesDropZoneHandler )*/
+{
+	Favorites = UBuilderPersistenceManager::Get()->GetPersistedFavoritesNamesArray( BuilderKey );
+	ActiveCategoryName = Args.ActiveCategoryName;
 }
 
 FCategoryDrivenContentBuilder::~FCategoryDrivenContentBuilder()
 {
-	ProvideSelectedCategoryContentDelegate.Unbind();
+	UpdateContentForCategoryDelegate.Unbind();
 }
 
-void FCategoryDrivenContentBuilder::ProvideSelectedCategoryContent( FName InActiveCommandName )
+void FCategoryDrivenContentBuilder::UpdateContentForCategory( FName InActiveCategoryName, FText InActiveCategoryText )
 {
-	ActiveCommandName = InActiveCommandName;
+	bShowNoCategorySelection = false;
+	ChildBuilderArray.Empty();
+
+	ActiveCategoryName = InActiveCategoryName;
+	
 	UpdateWidget();
 }
 
+void FCategoryDrivenContentBuilder::ToggleFavorite( FName InFavoriteCommandName )
+{
+	if  ( Favorites.Contains( InFavoriteCommandName  ) )
+	{
+		Favorites.Remove( InFavoriteCommandName );
+	}
+	else
+	{
+		Favorites.Add( InFavoriteCommandName );
+	}
+
+	UBuilderPersistenceManager::Get()->SetPersistedFavoritesNamesArray( BuilderKey, Favorites );
+	UpdateWidget();
+}
+
+void FCategoryDrivenContentBuilder::AddFavorite(FName InFavoriteCommandName)
+{
+	if ( !Favorites.Contains( InFavoriteCommandName ) )
+	{
+		ToggleFavorite( InFavoriteCommandName );
+	}
+}
+
+void FCategoryDrivenContentBuilder::AddBuilder(TSharedRef<SWidget> Widget)
+{
+	bIsFilledWithWidget = false;
+	ChildBuilderArray.Add( MakeShared<FSlateBuilder>( Widget ) );
+}
+
+void FCategoryDrivenContentBuilder::FillWithBuilder(TSharedRef<SWidget> Widget)
+{
+	ChildBuilderArray.Empty();
+	ChildBuilderArray.Add( MakeShared<FSlateBuilder>( Widget ) );
+	bIsFilledWithWidget = true;
+}
+
+void FCategoryDrivenContentBuilder::ClearCategoryContent()
+{
+	MainContentVerticalBox->ClearChildren();
+	ChildBuilderArray.Empty();
+}
 
 void FCategoryDrivenContentBuilder::InitializeCategoryToolbar()
 {
-	for ( const TSharedPtr<FUICommandInfo>& Command : ContentLoaderCommands )
+	for ( TTuple<FName, UE::DisplayBuilders::FBuilderInput>  Pair : CategoryNameToBuilderInputMap )
 	{
+		FButtonArgs ButtonArgs = Pair.Value.ButtonArgs;
+		const TSharedPtr<const FUICommandInfo> Command = ButtonArgs.Command;
+		const FName CommandName = Command->GetCommandName();
+		
 		LoadToolPaletteCommandList->MapAction(
 			Command,
-			FExecuteAction::CreateSP(this, &FCategoryDrivenContentBuilder::ProvideSelectedCategoryContent, Command->GetCommandName()),
-			FCanExecuteAction(),
-			FGetActionCheckState::CreateSP(this, &FCategoryDrivenContentBuilder::IsActiveToolPalette,
-			                               Command->GetCommandName())
+			FExecuteAction::CreateSP(this, &FCategoryDrivenContentBuilder::UpdateContentForCategory,
+				CommandName, Command->GetLabel() ),
+			FCanExecuteAction::CreateLambda([] { return true; }),
+			FGetActionCheckState::CreateLambda([this, CommandName] ()
+			{
+				if ( !bShowNoCategorySelection )
+				{
+					return ActiveCategoryName == CommandName ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;		
+				}
+				return ECheckBoxState::Unchecked;
+			}
+			)
 		);
-		LoadPaletteToolBarBuilder->AddToolBarButton(Command);
+
+		LoadPaletteToolBarBuilder->AddToolBarButton( ButtonArgs );
 	}
+}
+
+TSharedPtr<SWidget> FCategoryDrivenContentBuilder::GenerateWidget()
+{
+	TSharedRef<SWidget> Widget = FCategoryDrivenContentBuilderBase::GenerateWidget().ToSharedRef();
+
+	if ( !ActiveCategoryName.IsNone() )
+	{
+		UpdateContentForCategory( ActiveCategoryName );
+	}
+
+	return Widget;
 }
 
 void FCategoryDrivenContentBuilder::UpdateWidget()
 {
-	ToolkitWidgetVBox->ClearChildren();
-
-	if ( ProvideSelectedCategoryContentDelegate.IsBound() )
+	if ( !CategoryNameToBuilderInputMap.IsEmpty() )
 	{
-		TSharedRef<SWidget> Widget =  ProvideSelectedCategoryContentDelegate.Execute( ActiveCommandName );
-		ToolkitWidgetVBox->AddSlot()
-		.FillHeight(1.0f)
-		.VAlign(VAlign_Fill)
-		 [
-		   Widget
-		 ];
+		CategoryLabel = FText::GetEmpty();
+	
+		if ( const UE::DisplayBuilders::FBuilderInput* Input = CategoryNameToBuilderInputMap.Find( ActiveCategoryName ) )
+		{
+			CategoryLabel = (*Input).Label;
+		
+			if ( LoadPaletteToolBarBuilder && !bShowNoCategorySelection )
+			{
+				//	LoadPaletteToolBarBuilder->SetLastSelectedCommandIndex( (*Input).Index );
+			}
+		}
+
+		FName Name = bShowNoCategorySelection ? NAME_None : ActiveCategoryName;
+		FText Text = bShowNoCategorySelection ? FText::GetEmpty() : CategoryLabel;
+		UpdateContentForCategoryDelegate.ExecuteIfBound(  Name, Text );
+		FSimpleTitleContainerArgs Args{ CategoryLabel };
+		Args.bIsHeaderHiddenOnCreate = bShowNoCategorySelection;
+		TSharedPtr<FZeroStateBuilder> ZeroStateBuilder;
+	
+		TitleContainer = MakeShared<FSimpleTitleContainer>( Args );
+		bool bIsFavoritesCategory = ActiveCategoryName == FavoritesCategoryName;
+	
+		if ( bIsFilledWithWidget && ChildBuilderArray.Num() == 1 )
+		{
+			TitleContainer->SetBody( ChildBuilderArray[0] );
+		}
+		else if ( !ChildBuilderArray.IsEmpty() )
+		{
+			if ( !ColumnWrappingContainer.IsValid() )
+			{
+				ColumnWrappingContainer = FColumnWrappingContainerTemplates::Get().GetBestFitColumnsWithSmallCells();			
+			}
+
+			ColumnWrappingContainer->SetBuilders( ChildBuilderArray );
+			TitleContainer->SetBody
+			( 
+				ColumnWrappingContainer->GenerateWidgetSharedRef()
+			);
+		}
+		else
+		{
+			ZeroStateBuilder = bIsFavoritesCategory ?
+				                   FZeroStateBuilderTemplates::Get().GetFavorites(
+					                   LOCTEXT("CategoryDrivenContentBuilder_NoFavoritesYetDragActorsToAdd",
+					                           "No favorites yet.\n\n To create favorites, drag actors from other categories and drop them on the Favorites star.")) :
+
+				                   FZeroStateBuilderTemplates::Get().GetDefault(
+					                   LOCTEXT("CategoryDrivenContentBuilder_NoActorsMatchSearch",
+					                           "No actors match your search."));
+		}
+
+		const bool bIsZeroState = ZeroStateBuilder.IsValid();
+
+		MainContentVerticalBox->ClearChildren();
+		MainContentVerticalBox->AddSlot()
+		                      .FillHeight(1.0f)
+		                      .VAlign(VAlign_Fill)
+		                      .HAlign( bIsZeroState ? HAlign_Center : HAlign_Fill )
+		[
+			bIsZeroState ?
+				SNew(SBox)
+				[
+					ZeroStateBuilder->GenerateWidgetSharedRef()
+				]:
+				TitleContainer->GenerateWidgetSharedRef()
+		];
+	}
+}
+
+void FCategoryDrivenContentBuilder::SetShowNoCategorySelection(bool bInShowNoCategorySelection)
+{
+	if (bShowNoCategorySelection != bInShowNoCategorySelection)
+	{
+		bShowNoCategorySelection = bInShowNoCategorySelection;
+		const UE::DisplayBuilders::FBuilderInput* Input = CategoryNameToBuilderInputMap.Find( ActiveCategoryName );
+
+		/*if ( bShowNoCategorySelection )
+		{
+			LoadPaletteToolBarBuilder->SetLastSelectedCommandIndex( INDEX_NONE );
+		}
+		else if ( Input != nullptr)
+		{
+			LoadPaletteToolBarBuilder->SetLastSelectedCommandIndex( (*Input).Index );
+		}*/
 	}
 }
 
 void FCategoryDrivenContentBuilder::SetCommands(TArray<TSharedPtr<FUICommandInfo>> InContentLoaderCommands)
 {
-	ContentLoaderCommands = InContentLoaderCommands;
-	const bool bForceSmallIcons = true; 
+	// TODO delete method
+}
+
+void FCategoryDrivenContentBuilder::InitializeCategoryButtons(TArray<UE::DisplayBuilders::FBuilderInput> InBuilderInputArray)
+{
+	CategoryNameToBuilderInputMap.Empty();
 	
-	Style = FToolkitStyle::Get().GetWidgetStyle<FToolkitWidgetStyle>("FToolkitWidgetStyle");
+	for ( int32 Index = 0; Index < InBuilderInputArray.Num(); Index++ )
+	{
+		UE::DisplayBuilders::FBuilderInput& BuilderInput = InBuilderInputArray[Index];
+		BuilderInput.Index = Index;
+		
+		if ( BuilderInput.Name == FavoritesCategoryName /*&& FavoritesDropZoneHandler.IsValid()*/ )
+		{
+			/*if ( FavoritesDropZoneHandler.IsValid() )
+			{
+				 FavoritesDropZoneHandler->OnAcceptDrop =
+					FAcceptSingleItemDropZoneHandler::FOnAcceptDrop::CreateSP( this, &FCategoryDrivenContentBuilder::AddFavorite );
+				 BuilderInput.ButtonArgs.DropZoneHandler = FavoritesDropZoneHandler; 
+			}*/
+			BuilderInput.ButtonArgs.IconOverride = FSlateIcon(FAppStyle::Get().GetStyleSetName(), "Icons.Favorites.Small");
+		}
+		CategoryNameToBuilderInputMap.Add( BuilderInput.Name, BuilderInput );
+	}
+	
+	constexpr bool bForceSmallIcons = true; 
+	
 	LoadToolPaletteCommandList = MakeShared<FUICommandList>();
 	LoadPaletteToolBarBuilder = MakeShared<FVerticalToolBarBuilder>(LoadToolPaletteCommandList, FMultiBoxCustomization::None, TSharedPtr<FExtender>(), bForceSmallIcons);
+	LoadPaletteToolBarBuilder->SetStyle(&FAppStyle::Get(), "FCategoryDrivenContentBuilderToolbar");
 	LoadPaletteToolBarBuilder->SetLabelVisibility( CategoryButtonLabelVisibility );
-	ToolkitWidgetVBox = SNew(SVerticalBox);
+	MainContentVerticalBox = SNew(SVerticalBox);
 	InitializeCategoryToolbar();
 }
+
+#undef LOCTEXT_NAMESPACE

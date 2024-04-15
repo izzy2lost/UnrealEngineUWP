@@ -1737,7 +1737,7 @@ void FStarshipEditorStyle::FStyle::SetupGeneralStyles()
 		FVerticalToolBarStyle.SetBackgroundPadding(   FMargin(6.0f, 4.0f));
 		FVerticalToolBarStyle.ButtonStyle.SetNormalPadding(FMargin(12.0f, 6.0f));
 		FVerticalToolBarStyle.ButtonStyle.SetPressedPadding(FMargin(12.0f, 6.0f));
-		FVerticalToolBarStyle.SetExpandBrush(IMAGE_BRUSH("Icons/toolbar_expand_16x", Icon8x8));
+		FVerticalToolBarStyle.SetExpandBrush(CORE_IMAGE_BRUSH_SVG("Starship/Common/ellipsis-horizontal-narrow", FVector2D(16, 16)));
 		FVerticalToolBarStyle.SetIconPadding(FMargin(8.0f, 8.0f));
 		FVerticalToolBarStyle.SetIconPaddingWithVisibleLabel(FMargin(8.0f, 8.0f, 8.0f, 2.0f));
  
@@ -1758,6 +1758,14 @@ void FStarshipEditorStyle::FStyle::SetupGeneralStyles()
 		FVerticalToolBarStyle.SetButtonPadding(FMargin(0.0f, 4.0f, 0.0f, 0.f));
 		FVerticalToolBarStyle.SetToggleButtonStyle(CheckBoxStyle);
 		Set("FVerticalToolBar", FVerticalToolBarStyle);
+	}
+
+	{
+		// FCategoryDrivenContentBuilder vertical toolbar style
+		FToolBarStyle CategoryDrivenContentBuilderToolBarStyle = GetWidgetStyle<FToolBarStyle>("FVerticalToolBar");
+		CategoryDrivenContentBuilderToolBarStyle.SetIconPaddingWithVisibleLabel(FMargin(8.0f, 12.0f, 8.0f, 8.0f));
+		CategoryDrivenContentBuilderToolBarStyle.SetButtonContentMaxWidth( 56.0f );
+		Set("FCategoryDrivenContentBuilderToolbar", CategoryDrivenContentBuilderToolBarStyle);
 	}
 	
 	// Vertical ToolPalette 
@@ -4481,6 +4489,7 @@ void FStarshipEditorStyle::FStyle::SetupLevelEditorStyle()
 
 		Set( "PlacementBrowser.Asset.Background", new FSlateRoundedBoxBrush(FStyleColors::Recessed, 6.f));
 		Set( "PlacementBrowser.Asset.LabelBack", new BOX_BRUSH("Starship/PlacementBrowser/LabelBack_18x", 6.f/18.f, FStyleColors::Dropdown));
+		Set( "PlacementBrowser.Asset.ThumbnailBackground", new FSlateRoundedBoxBrush(FStyleColors::Dropdown, 6 ));
 
 		FLinearColor DimBackground = FLinearColor( FColor( 64, 64, 64 ) );
 		FLinearColor DimBackgroundHover = FLinearColor( FColor( 50, 50, 50 ) );
