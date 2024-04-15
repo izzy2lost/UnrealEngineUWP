@@ -515,7 +515,7 @@ static void RenderRaytracedDirectionalShadowVolume(
 
 void FDeferredShadingSceneRenderer::PrepareRayTracingVolumetricFogShadows(const FViewInfo& View, const FScene& Scene, TArray<FRHIRayTracingShader*>& OutRayGenShaders)
 {
-	const bool bEnabled = Scene.bHasRayTracedLights && ::ShouldRenderVolumetricFog(&Scene, *View.Family) && GVolumetricFogInjectRaytracedLights;
+	const bool bEnabled = Scene.bHasLightsWithRayTracedShadows && ::ShouldRenderVolumetricFog(&Scene, *View.Family) && GVolumetricFogInjectRaytracedLights;
 	if (!bEnabled)
 	{
 		return;
@@ -564,7 +564,7 @@ const FProjectedShadowInfo* GetShadowForInjectionIntoVolumetricFog(const FVisibl
 
 bool LightHasRayTracedShadows(const FLightSceneInfo* LightSceneInfo)
 {
-	return ShouldRenderRayTracingShadowsForLight(*LightSceneInfo->Proxy) && GVolumetricFogInjectRaytracedLights;
+	return GetLightOcclusionType(*LightSceneInfo->Proxy) == FLightOcclusionType::Raytraced && GVolumetricFogInjectRaytracedLights;
 }
 
 bool LightNeedsSeparateInjectionIntoVolumetricFogForOpaqueShadow(const FViewInfo& View, const FLightSceneInfo* LightSceneInfo, const FVisibleLightInfo& VisibleLightInfo)

@@ -306,7 +306,7 @@ void FDeferredShadingSceneRenderer::PrepareRayTracingShadows(const FViewInfo& Vi
 	// We have to check if ray tracing is enabled on any of the scene lights. The Scene.bHasRayTracedLights is computed using ShouldRenderRayTracingShadowsForLight() helper, 
 	// which handles various override conditions.
 
-	if (Scene.bHasRayTracedLights == false)
+	if (Scene.bHasLightsWithRayTracedShadows == false)
 	{
 		return;
 	}

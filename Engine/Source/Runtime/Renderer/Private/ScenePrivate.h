@@ -3121,7 +3121,7 @@ public:
 	FRayTracingScene RayTracingScene;
 	FRayTracingScene HeterogeneousVolumesRayTracingScene;
 
-	bool bHasRayTracedLights = false;
+	bool bHasLightsWithRayTracedShadows = false;
 	void UpdateRayTracedLights();
 #endif // RHI_RAYTRACING
 

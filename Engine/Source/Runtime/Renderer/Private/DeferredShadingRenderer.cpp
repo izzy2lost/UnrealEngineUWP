@@ -2690,7 +2690,8 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 			}
 
 #if RHI_RAYTRACING
-			if (IsRayTracingEnabled())
+			// Only used by ray traced shadows
+			if (IsRayTracingEnabled() && Scene->bHasLightsWithRayTracedShadows)
 			{
 				RenderDitheredLODFadingOutMask(GraphBuilder, Views[0], SceneTextures.Depth.Target);
 			}
@@ -3378,7 +3379,7 @@ bool AnyRayTracingPassEnabled(const FScene* Scene, const FViewInfo& View)
 		|| ShouldRenderRayTracingTranslucency(View)
 		|| ShouldRenderRayTracingSkyLight(Scene->SkyLight, View.GetShaderPlatform())
 		|| ShouldRenderRayTracingShadows()
-		|| Scene->bHasRayTracedLights
+		|| Scene->bHasLightsWithRayTracedShadows
 		|| ShouldRenderPluginRayTracingGlobalIllumination(View)
         || Lumen::AnyLumenHardwareRayTracingPassEnabled(Scene, View)
 		|| ManyLights::UseHardwareRayTracing(*View.Family)

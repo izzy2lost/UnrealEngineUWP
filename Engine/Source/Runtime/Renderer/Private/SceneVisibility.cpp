@@ -1554,7 +1554,8 @@ void FRelevancePacket::ComputeRelevance(FDynamicPrimitiveIndexList& DynamicPrimi
 									}
 								}
 #if RHI_RAYTRACING
-								if (IsRayTracingEnabled())
+								// Only used by ray traced shadows
+								if (IsRayTracingEnabled() && Scene.bHasLightsWithRayTracedShadows)
 								{
 									if (MarkMask & EMarkMaskBits::StaticMeshFadeOutDitheredLODMapMask)
 									{
