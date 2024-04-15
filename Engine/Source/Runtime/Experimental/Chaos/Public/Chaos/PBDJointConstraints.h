@@ -360,6 +360,8 @@ namespace Chaos
 		// Called by the joint solver at the end of the constraint solver phase
 		CHAOS_API void SetSolverResults(const int32 ConstraintIndex, const FVec3& LinearImpulse, const FVec3& AngularImpulse, const bool bIsBroken, const FSolverBody* SolverBody0, const FSolverBody* SolverBody1);
 
+		CHAOS_API const TBitArray<>& GetDirtyConstraintFlags();
+
 		// @todo(chaos): only needed for RBAN, and should be private or moved to the solver
 		CHAOS_API int32 GetConstraintIsland(int32 ConstraintIndex) const;
 		CHAOS_API int32 GetConstraintLevel(int32 ConstraintIndex) const;
@@ -416,6 +418,7 @@ namespace Chaos
 		TArray<FPBDJointSettings> ConstraintSettings;
 		TArray<FParticlePair> ConstraintParticles;
 		TArray<FPBDJointState> ConstraintStates;
+		TBitArray<> ConstraintDirtyFlags;
 
 		FHandles Handles;
 		FConstraintHandleAllocator HandleAllocator;

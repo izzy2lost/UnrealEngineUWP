@@ -104,7 +104,6 @@ private:
 	FJointConstraint* Constraint_GT;
 	FPBDJointConstraintHandle* Constraint_PT;
 	FParticlePair OriginalParticleHandles_PT;
-	bool bInitialized = false;
 };
 
 

@@ -695,10 +695,13 @@ namespace Chaos
 		TArray<FPBDJointSettings> SortedConstraintSettings;
 		TArray<FParticlePair> SortedConstraintParticles;
 		TArray<FPBDJointState> SortedConstraintStates;
-		SortedHandles.Reserve(SortedIndices.Num());
-		SortedConstraintSettings.Reserve(SortedIndices.Num());
-		SortedConstraintParticles.Reserve(SortedIndices.Num());
-		SortedConstraintStates.Reserve(SortedIndices.Num());
+		TBitArray<> SortedConstraintDirtyFlags;
+		const int32 NumToSort = SortedIndices.Num();
+		SortedHandles.Reserve(NumToSort);
+		SortedConstraintSettings.Reserve(NumToSort);
+		SortedConstraintParticles.Reserve(NumToSort);
+		SortedConstraintStates.Reserve(NumToSort);
+		SortedConstraintDirtyFlags.Reserve(NumToSort);
 
 		for (int32 SortedConstraintIndex = 0; SortedConstraintIndex < SortedIndices.Num(); ++SortedConstraintIndex)
 		{
@@ -708,6 +711,7 @@ namespace Chaos
 			SortedConstraintSettings.Add(ConstraintSettings[UnsortedConstraintIndex]);
 			SortedConstraintParticles.Add(ConstraintParticles[UnsortedConstraintIndex]);
 			SortedConstraintStates.Add(ConstraintStates[UnsortedConstraintIndex]);
+			SortedConstraintDirtyFlags.Add(ConstraintDirtyFlags[UnsortedConstraintIndex]);
 
 			Handles[UnsortedConstraintIndex]->SetConstraintIndex(SortedConstraintIndex);
 		}
@@ -716,6 +720,7 @@ namespace Chaos
 		Swap(ConstraintSettings, SortedConstraintSettings);
 		Swap(ConstraintParticles, SortedConstraintParticles);
 		Swap(ConstraintStates, SortedConstraintStates);
+		Swap(ConstraintDirtyFlags, SortedConstraintDirtyFlags);
 	}
 
 
@@ -954,7 +959,10 @@ namespace Chaos
 
 	void FPBDJointConstraints::AddConstraintsToGraph(Private::FPBDIslandManager& IslandManager)
 	{
-		for (int32 ConstraintIndex = 0; ConstraintIndex < GetNumConstraints(); ++ConstraintIndex)
+		const int32 NumJointConstraints = GetNumConstraints();
+		ConstraintDirtyFlags.Init(false, NumJointConstraints);
+
+		for (int32 ConstraintIndex = 0; ConstraintIndex < NumJointConstraints; ++ConstraintIndex)
 		{
 			FPBDJointConstraintHandle* ConstraintHandle = GetConstraintHandle(ConstraintIndex);
 			check(ConstraintHandle != nullptr);
@@ -962,9 +970,14 @@ namespace Chaos
 			const bool bIsInGraph = ConstraintHandle->IsInConstraintGraph();
 			const bool bShouldBeInGraph = ShouldBeInGraph(ConstraintIndex);
 
-			if (bShouldBeInGraph && !bIsInGraph)
+			if (bShouldBeInGraph)
 			{
-				IslandManager.AddConstraint(ContainerId, ConstraintHandle, GetConstrainedParticles(ConstraintIndex));
+				ConstraintDirtyFlags[ConstraintIndex] = true;
+
+				if(!bIsInGraph)
+				{
+					IslandManager.AddConstraint(ContainerId, ConstraintHandle, GetConstrainedParticles(ConstraintIndex));
+				}
 			}
 			else if (bIsInGraph && !bShouldBeInGraph)
 			{
@@ -987,6 +1000,11 @@ namespace Chaos
 		{
 			ApplyPlasticityLimits(ConstraintIndex, *SolverBody0, *SolverBody1);
 		}
+	}
+
+	const TBitArray<>& FPBDJointConstraints::GetDirtyConstraintFlags()
+	{
+		return ConstraintDirtyFlags;
 	}
 
 	bool FPBDJointConstraints::ShouldBeInGraph(const int32 ConstraintIndex) const
