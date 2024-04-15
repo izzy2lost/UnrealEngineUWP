@@ -82,7 +82,15 @@ void UDMXControlConsoleFaderGroupController::UnPossess(UDMXControlConsoleFaderGr
 		return;
 	}
 	
-	const TArray<UDMXControlConsoleElementController*> Controllers = GetAllElementControllersFromFaderGroup(InFaderGroup);
+	TArray<UDMXControlConsoleElementController*> Controllers = GetAllElementControllersFromFaderGroup(InFaderGroup);
+	// Ensure that matrix cell controllers are destroyed after their element controllers
+	Algo::StableSortBy(Controllers, 
+		[](const UDMXControlConsoleElementController* ElementController)
+		{
+			const bool bIsMatrixCellController = IsValid(Cast<UDMXControlConsoleMatrixCellController>(ElementController));
+			return bIsMatrixCellController;
+		});
+
 	for (UDMXControlConsoleElementController* Controller : Controllers)
 	{
 		if (Controller)
