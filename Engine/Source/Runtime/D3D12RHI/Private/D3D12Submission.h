@@ -191,7 +191,26 @@ struct FD3D12QueryRange
 	TRefCountPtr<FD3D12QueryHeap> Heap;
 	uint32 Start = 0, End = 0;
 
+	FD3D12QueryRange() = default;
+	FD3D12QueryRange(FD3D12QueryHeap* Heap, uint32 Start, uint32 End)
+		: Heap(Heap)
+		, Start(Start)
+		, End(End)
+	{}
+
 	inline bool IsFull() const;
+
+	bool operator == (FD3D12QueryRange const& RHS) const
+	{
+		return Heap  == RHS.Heap
+			&& Start == RHS.Start
+			&& End   == RHS.End;
+	}
+
+	bool operator < (FD3D12QueryRange const& RHS) const
+	{
+		return Start < RHS.Start;
+	}
 };
 
 struct FD3D12CommitReservedResourceDesc

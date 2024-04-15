@@ -150,7 +150,7 @@ public:
 	uint32 NumCommandListsInBatch = 0;
 
 	// Query ranges/locations to be resolved when the submission thread receives a command list which is still open.
-	TArray<FD3D12QueryRange   > PendingQueryRanges;
+	TMap<FD3D12QueryHeap*, TArray<FD3D12QueryRange>> PendingQueryRanges;
 	TArray<FD3D12QueryLocation> PendingTimestampQueries;
 	TArray<FD3D12QueryLocation> PendingOcclusionQueries;
 	TArray<FD3D12QueryLocation> PendingPipelineStatsQueries;
