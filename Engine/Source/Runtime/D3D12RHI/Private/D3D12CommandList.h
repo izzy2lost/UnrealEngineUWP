@@ -238,7 +238,7 @@ public:
 #endif
 
 private:
-	void WriteTimestamp(FD3D12QueryLocation const& Location);
+	void WriteTimestamp(FD3D12QueryLocation const& Location, ED3D12QueryPosition Position);
 
 	// Contents of the state struct are reset when the command list is recycled
 	struct FState

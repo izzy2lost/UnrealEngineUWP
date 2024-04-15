@@ -358,20 +358,43 @@ void FD3D12CommandList::EndQuery(FD3D12QueryLocation const& Location)
 		break;
 
 	case D3D12_QUERY_TYPE_TIMESTAMP:
-		WriteTimestamp(Location);
-
-		// Command list begin/end timestamps are handled separately by the 
-		// submission thread, so shouldn't be in the TimestampQueries array.
-		if (Location.Type != ED3D12QueryType::CommandListBegin && Location.Type != ED3D12QueryType::CommandListEnd)
 		{
-			State.TimestampQueries.Add(Location);
+			ED3D12QueryPosition Position;
+			switch (Location.Type)
+			{
+			default:
+				checkf(false, TEXT("Query location type is not a top or bottom of pipe timestamp."));
+				Position = ED3D12QueryPosition::BottomOfPipe;
+				break;
+
+			case ED3D12QueryType::CommandListBegin:
+			case ED3D12QueryType::IdleBegin:
+				Position = ED3D12QueryPosition::TopOfPipe;
+				break;
+
+			case ED3D12QueryType::CommandListEnd:
+			case ED3D12QueryType::IdleEnd:
+			case ED3D12QueryType::AdjustedMicroseconds:
+			case ED3D12QueryType::AdjustedRaw:
+				Position = ED3D12QueryPosition::BottomOfPipe;
+				break;
+			}
+
+			WriteTimestamp(Location, Position);
+
+			// Command list begin/end timestamps are handled separately by the 
+			// submission thread, so shouldn't be in the TimestampQueries array.
+			if (Location.Type != ED3D12QueryType::CommandListBegin && Location.Type != ED3D12QueryType::CommandListEnd)
+			{
+				State.TimestampQueries.Add(Location);
+			}
 		}
 		break;
 	}
 }
 
 #if D3D12RHI_PLATFORM_USES_TIMESTAMP_QUERIES
-void FD3D12CommandList::WriteTimestamp(FD3D12QueryLocation const& Location)
+void FD3D12CommandList::WriteTimestamp(FD3D12QueryLocation const& Location, ED3D12QueryPosition Position)
 {
 	GraphicsCommandList()->EndQuery(
 		Location.Heap->GetD3DQueryHeap(),

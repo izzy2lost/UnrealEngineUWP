@@ -146,6 +146,15 @@ enum class ED3D12QueryType
 	Occlusion
 };
 
+enum class ED3D12QueryPosition
+{
+	// Query result should be written before any future command list work is started.
+	TopOfPipe,
+
+	// Query result should be written after all prior command list work has completed.
+	BottomOfPipe
+};
+
 // The location of a single (timestamp or occlusion) query result.
 struct FD3D12QueryLocation
 {
