@@ -318,13 +318,21 @@ RWCoherentByteAddressBuffer						SplitWorkQueue_DataBuffer;
 RWCoherentStructuredBuffer( FWorkQueueState )	SplitWorkQueue_StateBuffer;
 uint											SplitWorkQueue_Size;
 
-static const FGlobalWorkQueue SplitWorkQueue = { SplitWorkQueue_DataBuffer, SplitWorkQueue_StateBuffer, 0, SplitWorkQueue_Size };
+// TODO: Use function to return a non-const variable before setting it in the queue to work around issue in bindless, remove when fixed in DXC
+RWCoherentByteAddressBuffer                     GetSplitWorkQueue_DataBuffer() { return SplitWorkQueue_DataBuffer; }
+RWCoherentStructuredBuffer( FWorkQueueState )   GetSplitWorkQueue_StateBuffer() { return SplitWorkQueue_StateBuffer; }
+
+static const FGlobalWorkQueue SplitWorkQueue = { GetSplitWorkQueue_DataBuffer(), GetSplitWorkQueue_StateBuffer(), 0, SplitWorkQueue_Size };
 #else
 RWByteAddressBuffer						SplitWorkQueue_DataBuffer;
 RWStructuredBuffer< FWorkQueueState >	SplitWorkQueue_StateBuffer;
 uint									SplitWorkQueue_Size;
 
-static const FOutputQueue SplitWorkQueue = { SplitWorkQueue_DataBuffer, SplitWorkQueue_StateBuffer, 0, SplitWorkQueue_Size };
+// TODO: Use function to return a non-const variable before setting it in the queue to work around issue in bindless, remove when fixed in DXC
+RWByteAddressBuffer						GetSplitWorkQueue_DataBuffer() { return SplitWorkQueue_DataBuffer; }
+RWStructuredBuffer< FWorkQueueState >	GetSplitWorkQueue_StateBuffer() { return SplitWorkQueue_StateBuffer; }
+
+static const FOutputQueue SplitWorkQueue = { GetSplitWorkQueue_DataBuffer(), GetSplitWorkQueue_StateBuffer(), 0, SplitWorkQueue_Size };
 #endif
 #endif
 
@@ -333,7 +341,12 @@ RWStructuredBuffer< FWorkQueueState >	OccludedPatches_StateBuffer;
 uint									OccludedPatches_Size;
 
 #if OCCLUDED_PATCHES_QUEUE	// TODO: Remove once shader rewriter has been fixed (UE-202409)
-static const FOutputQueue OccludedPatches = { OccludedPatches_DataBuffer, OccludedPatches_StateBuffer, 0, OccludedPatches_Size };
+
+// TODO: Use function to return a non-const variable before setting it in the queue to work around issue in bindless, remove when fixed in DXC
+RWByteAddressBuffer						GetOccludedPatches_DataBuffer() { return OccludedPatches_DataBuffer; }
+RWStructuredBuffer< FWorkQueueState >	GetOccludedPatches_StateBuffer() { return OccludedPatches_StateBuffer; }
+
+static const FOutputQueue OccludedPatches = { GetOccludedPatches_DataBuffer(), GetOccludedPatches_StateBuffer(), 0, OccludedPatches_Size };
 #endif
 
 ByteAddressBuffer	VisiblePatches;
