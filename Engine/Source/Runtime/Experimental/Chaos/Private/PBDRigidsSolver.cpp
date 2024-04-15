@@ -2181,11 +2181,10 @@ namespace Chaos
 			ensure(PullData->DirtyJointConstraints.Num() == 0);	//we only fill this once per frame
 			PullData->DirtyJointConstraints.Reserve(JointConstraintPhysicsProxies_Internal.Num());
 
-			TBitArray<>::FConstIterator It(GetJointConstraints().GetDirtyConstraintFlags());
-			for(; It; ++It)
+			for(int32 Idx = 0; Idx < JointConstraintPhysicsProxies_Internal.Num(); ++Idx)
 			{
 				PullData->DirtyJointConstraints.AddDefaulted();
-				JointConstraintPhysicsProxies_Internal[It.GetIndex()]->BufferPhysicsResults(PullData->DirtyJointConstraints.Last());
+				JointConstraintPhysicsProxies_Internal[Idx]->BufferPhysicsResults(PullData->DirtyJointConstraints.Last());
 			}
 		}
 
