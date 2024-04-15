@@ -86,7 +86,7 @@ namespace UE::Interchange::Gltf::Private
 		double TimeDelta = Seconds[kp1Index] - Seconds[kIndex];
 		double Time = (CurrentRequestedTimeStamp - Seconds[kIndex]) / TimeDelta;
 
-		T Value;
+		T Value = {};
 		switch (Interpolation)
 		{
 		case GLTF::FAnimation::EInterpolation::Linear:

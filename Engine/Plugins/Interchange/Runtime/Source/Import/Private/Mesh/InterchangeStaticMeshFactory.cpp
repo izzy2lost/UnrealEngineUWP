@@ -1312,8 +1312,8 @@ bool UInterchangeStaticMeshFactory::AddCapsuleGeomFromVertices(const FImportAsse
 		return false;
 	}
 
-	FVector AxisStart;
-	FVector AxisEnd;
+	FVector AxisStart = FVector::ZeroVector;
+	FVector AxisEnd = FVector::ZeroVector;
 	float MaxDistSqr = 0.f;
 
 	for (int32 IndexA = 0; IndexA < VertexPositions.GetNumElements() - 1; IndexA++)
