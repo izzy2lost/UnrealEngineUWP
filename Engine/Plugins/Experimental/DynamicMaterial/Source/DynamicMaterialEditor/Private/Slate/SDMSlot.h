@@ -23,6 +23,7 @@ class UDMMaterialStageGradient;
 class UDMMaterialStageInputValue;
 class UDMMaterialValue;
 class UDMMaterialValueFloat1;
+class UDMRenderTargetRenderer;
 enum class EDMMaterialLayerStage : uint8;
 struct FDMScopedUITransaction;
 struct FPropertyChangedEvent;
@@ -61,9 +62,11 @@ public:
 	void InvalidateSlotSettingsRowWidget();
 	void InvalidateComponentEditWidget();
 
-	void AddNewLayer_NewLocalValue(EDMValueType InType);
+	void AddNewLayer_NewLocalValue(EDMValueType InValueType);
+	void AddNewLayer_NewLocalValue(TSubclassOf<UDMMaterialValue> InValueClass);
 	void AddNewLayer_GlobalValue(UDMMaterialValue* InValue);
-	void AddNewLayer_NewGlobalValue(EDMValueType InType);
+	void AddNewLayer_NewGlobalValue(EDMValueType InValueType);
+	void AddNewLayer_NewGlobalValue(TSubclassOf<UDMMaterialValue> InValueClass);
 	void AddNewLayer_Slot(UDMMaterialSlot* InSlot, EDMMaterialPropertyType InMaterialProperty);
 	void AddNewLayer_Expression(TSubclassOf<UDMMaterialStageExpression> InExpressionClass, EDMMaterialLayerStage LayerEnabledMask);
 	void AddNewLayer_Blend(TSubclassOf<UDMMaterialStageBlend> InBlendClass);
@@ -71,6 +74,7 @@ public:
 	void AddNewLayer_UV();
 	void AddNewLayer_MaterialFunction();
 	void AddNewLayer_SceneTexture();
+	void AddNewLayer_Renderer(TSubclassOf<UDMRenderTargetRenderer> InRendererClass);
 
 	void RemoveSlot();
 

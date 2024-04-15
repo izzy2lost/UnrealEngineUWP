@@ -45,8 +45,10 @@ public:
 #if WITH_EDITOR
 	static const FName ValueName;
 
+	static UDMMaterialValue* CreateMaterialValue(UDynamicMaterialModel* InMaterialModel, const FString& InName, EDMValueType InValueType, bool bInLocal);
+
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	static UDMMaterialValue* CreateMaterialValue(UDynamicMaterialModel* InMaterialModel, const FString& InName, EDMValueType InType, bool bInLocal);
+	static UDMMaterialValue* CreateMaterialValue(UDynamicMaterialModel* InMaterialModel, const FString& InName, TSubclassOf<UDMMaterialValue> InValueClass, bool bInLocal);
 #endif
  
 	UFUNCTION(BlueprintPure, Category = "Material Designer")

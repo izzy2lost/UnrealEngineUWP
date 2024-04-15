@@ -8,29 +8,35 @@
 #include "Kismet/BlueprintFunctionLibrary.h"
 #include "DMValueDefinition.generated.h"
 
+class UDMMaterialValue;
+
 USTRUCT(BlueprintType)
 struct DYNAMICMATERIAL_API FDMValueDefinition
 {
 	GENERATED_BODY()
 
 	FDMValueDefinition()
-		: FDMValueDefinition(EDMValueType::VT_None, 0, FText::GetEmpty(), {})
+		: FDMValueDefinition(EDMValueType::VT_None, 0, FText::GetEmpty(), {}, TSubclassOf<UDMMaterialValue>())
 	{		
 	}
 
-	FDMValueDefinition(EDMValueType InType, uint8 InFloatCount, const FText& InDisplayName, const TArray<FText>& InChannelNames)
+	FDMValueDefinition(EDMValueType InType, uint8 InFloatCount, const FText& InDisplayName, const TArray<FText>& InChannelNames, 
+		TSubclassOf<UDMMaterialValue> InValueClass)
 		: Type(InType)
 		, FloatCount(InFloatCount)
 		, DisplayName(InDisplayName)
 		, ChannelNames(InChannelNames)
+		, ValueClass(InValueClass)
 	{
 	}
 
-	FDMValueDefinition(EDMValueType InType, uint8 InFloatCount, FText&& InDisplayName, TArray<FText>&& InChannelNames)
+	FDMValueDefinition(EDMValueType InType, uint8 InFloatCount, FText&& InDisplayName, TArray<FText>&& InChannelNames, 
+		TSubclassOf<UDMMaterialValue> InValueClass)
 		: Type(InType)
 		, FloatCount(InFloatCount)
 		, DisplayName(MoveTemp(InDisplayName))
 		, ChannelNames(MoveTemp(InChannelNames))
+		, ValueClass(InValueClass)
 	{
 	}
 
@@ -49,6 +55,8 @@ struct DYNAMICMATERIAL_API FDMValueDefinition
 	/** To be consistent without OutputChannel, 1 is the first channel, not 0. */
 	const FText& GetChannelName(int32 InChannel) const;
 
+	TSubclassOf<UDMMaterialValue> GetValueClass() const;
+
 protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Material Designer")
 	EDMValueType Type;
@@ -61,6 +69,9 @@ protected:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Material Designer")
 	TArray<FText> ChannelNames;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Material Designer")
+	TSubclassOf<UDMMaterialValue> ValueClass;
 };
 
 UCLASS(BlueprintType)
@@ -75,7 +86,7 @@ public:
 	UFUNCTION(BlueprintPure, CallInEditor, Category = "Material Designer")
 	static const FDMValueDefinition& GetValueDefinition(EDMValueType InValueType);
 
-	UFUNCTION(BlueprintPure, CallInEditor, Category = "Material Designer", Meta = (DisplayName = "Are Types Compatible"))
+	UFUNCTION(BlueprintPure, CallInEditor, Category = "Material Designer", meta = (DisplayName = "Are Types Compatible"))
 	static bool BP_AreTypesCompatible(EDMValueType A, EDMValueType B, int32 AChannel, int32 BChannel)
 	{
 		return AreTypesCompatible(A, B, AChannel, BChannel);

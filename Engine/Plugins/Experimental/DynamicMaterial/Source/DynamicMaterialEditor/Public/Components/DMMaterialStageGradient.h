@@ -14,7 +14,7 @@ struct FDMMaterialBuildState;
 /**
  * A node which represents UV-based gradient.
  */
-UCLASS(Abstract, BlueprintType, ClassGroup = "Material Designer", meta = (DisplayName = "Material Designer Stage Gradient"))
+UCLASS(Abstract, BlueprintType, Blueprintable, ClassGroup = "Material Designer", meta = (DisplayName = "Material Designer Stage Gradient"))
 class DYNAMICMATERIALEDITOR_API UDMMaterialStageGradient : public UDMMaterialStageThroughput
 {
 	GENERATED_BODY()

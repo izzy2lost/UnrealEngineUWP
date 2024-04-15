@@ -5,7 +5,7 @@
 #include "Components/DMMaterialStageExpression.h"
 #include "DMMSETextureSampleBase.generated.h"
 
-UCLASS(BlueprintType, ClassGroup = "Material Designer")
+UCLASS(BlueprintType, Blueprintable, ClassGroup = "Material Designer")
 class DYNAMICMATERIALEDITOR_API UDMMaterialStageExpressionTextureSampleBase : public UDMMaterialStageExpression
 {
 	GENERATED_BODY()
@@ -34,8 +34,12 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
 	virtual void SetClampTextureEnabled(bool bInValue);
 
+	//~ Begin UObject
+	virtual void PostEditChangeProperty(FPropertyChangedEvent& InPropertyChangedEvent) override;
+	//~ End UObject
+
 protected:
-	UPROPERTY(EditInstanceOnly, BlueprintReadOnly, Setter=SetClampTextureEnabled, Category = "Material Designer", 
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter = SetClampTextureEnabled, BlueprintSetter = SetClampTextureEnabled, Category = "Material Designer",
 		meta=(ToolTip="Forces a material rebuild.", LowPriority, NotKeyframeable, AllowPrivateAccess = "true"))
 	bool bClampTexture;
 

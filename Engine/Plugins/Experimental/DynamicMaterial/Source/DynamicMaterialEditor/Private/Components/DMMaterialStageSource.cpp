@@ -99,7 +99,7 @@ void UDMMaterialStageSource::GenerateClassList()
 			continue;
 		}
 
-		if (MSEClass->ClassFlags & (CLASS_Abstract | CLASS_Hidden | CLASS_Deprecated | CLASS_NewerVersionExists))
+		if (MSEClass->HasAnyClassFlags(UE::DynamicMaterial::InvalidClassFlags))
 		{
 			continue;
 		}

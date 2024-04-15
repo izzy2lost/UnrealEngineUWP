@@ -243,6 +243,11 @@ void UDMMaterialStageInputThroughput::PostEditorDuplicate(UDynamicMaterialModel*
 
 FText UDMMaterialStageInputThroughput::GetComponentDescription() const
 {
+	if (UDMMaterialStageThroughput* Throughput = GetMaterialStageThroughput())
+	{
+		return Throughput->GetComponentDescription();
+	}
+
 	if (TSubclassOf<UDMMaterialStageThroughput> MaterialStageThroughputClass = GetMaterialStageThroughputClass())
 	{
 		check(MaterialStageThroughputClass.Get());

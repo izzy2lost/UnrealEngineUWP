@@ -69,7 +69,7 @@ UDMMaterialStageGradient* UDMMaterialStageGradient::ChangeStageSource_Gradient(U
 	}
 
 	check(InGradientClass);
-	check(!(InGradientClass->ClassFlags & (CLASS_Abstract | CLASS_Hidden | CLASS_Deprecated | CLASS_NewerVersionExists)));
+	check(!InGradientClass->HasAnyClassFlags(UE::DynamicMaterial::InvalidClassFlags));
 
 	return InStage->ChangeSource<UDMMaterialStageGradient>(InGradientClass);
 }

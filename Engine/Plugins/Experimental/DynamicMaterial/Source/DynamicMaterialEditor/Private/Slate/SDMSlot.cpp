@@ -9,7 +9,9 @@
 #include "Components/DMMaterialStageFunction.h"
 #include "Components/DMMaterialStageGradient.h"
 #include "Components/DMMaterialStageThroughputLayerBlend.h"
+#include "Components/DMMaterialSubStage.h"
 #include "Components/DMMaterialValue.h"
+#include "Components/DMRenderTargetRenderer.h"
 #include "Components/MaterialStageBlends/DMMSBNormal.h"
 #include "Components/MaterialStageExpressions/DMMSESceneTexture.h"
 #include "Components/MaterialStageExpressions/DMMSETextureSample.h"
@@ -20,6 +22,7 @@
 #include "Components/MaterialStageInputs/DMMSITextureUV.h"
 #include "Components/MaterialStageInputs/DMMSIValue.h"
 #include "Components/MaterialValues/DMMaterialValueFloat1.h"
+#include "Components/MaterialValues/DMMaterialValueRenderTarget.h"
 #include "DetailLayoutBuilder.h"
 #include "DMBlueprintFunctionLibrary.h"
 #include "DMPrivate.h"
@@ -892,6 +895,13 @@ void SDMSlot::InvalidateComponentEditWidget()
 	bInvalidateComponentEditWidget = true;
 }
 
+void SDMSlot::AddNewLayer_NewLocalValue(EDMValueType InValueType)
+{
+	AddNewLayer_NewLocalValue(
+		UDMValueDefinitionLibrary::GetValueDefinition(InValueType).GetValueClass()
+	);
+}
+
 void SDMSlot::RefreshHeaderPropertyListWidget()
 {
 	bInvalidateHeaderWidget = false;
@@ -1305,7 +1315,7 @@ UDMMaterialLayerObject* SDMSlot::AddNewLayer(UDMMaterialStage* InNewBaseStage, U
 	return Layer;
 }
 
-void SDMSlot::AddNewLayer_NewLocalValue(EDMValueType InType)
+void SDMSlot::AddNewLayer_NewLocalValue(TSubclassOf<UDMMaterialValue> InValueClass)
 {
 	UDMMaterialSlot* Slot = SlotWeak.Get();
 
@@ -1321,7 +1331,7 @@ void SDMSlot::AddNewLayer_NewLocalValue(EDMValueType InType)
 		NewBase, 
 		UDMMaterialStageBlend::InputB,
 		FDMMaterialStageConnectorChannel::WHOLE_CHANNEL, 
-		InType,
+		InValueClass,
 		FDMMaterialStageConnectorChannel::WHOLE_CHANNEL
 	);
 }
@@ -1358,7 +1368,14 @@ void SDMSlot::AddNewLayer_GlobalValue(UDMMaterialValue* InValue)
 	);
 }
 
-void SDMSlot::AddNewLayer_NewGlobalValue(EDMValueType InType)
+void SDMSlot::AddNewLayer_NewGlobalValue(EDMValueType InValueType)
+{
+	AddNewLayer_NewGlobalValue(
+		UDMValueDefinitionLibrary::GetValueDefinition(InValueType).GetValueClass()
+	);
+}
+
+void SDMSlot::AddNewLayer_NewGlobalValue(TSubclassOf<UDMMaterialValue> InValueClass)
 {
 	UDMMaterialSlot* Slot = SlotWeak.Get();
 
@@ -1374,7 +1391,7 @@ void SDMSlot::AddNewLayer_NewGlobalValue(EDMValueType InType)
 		NewStage, 
 		UDMMaterialStageBlend::InputB,
 		FDMMaterialStageConnectorChannel::WHOLE_CHANNEL,
-		InType, 
+		InValueClass,
 		FDMMaterialStageConnectorChannel::WHOLE_CHANNEL
 	);
 }
@@ -1587,6 +1604,21 @@ void SDMSlot::AddNewLayer_SceneTexture()
 			FDMMaterialStageConnectorChannel::FOURTH_CHANNEL
 		);
 	}
+}
+
+void SDMSlot::AddNewLayer_Renderer(TSubclassOf<UDMRenderTargetRenderer> InRendererClass)
+{
+	UDMMaterialSlot* Slot = SlotWeak.Get();
+
+	if (!ensure(Slot))
+	{
+		return;
+	}
+
+	UDMMaterialStage* NewBase = UDMMaterialStageBlend::CreateStage(UDMMaterialStageBlendNormal::StaticClass());
+	AddNewLayer(NewBase);
+
+	UDMBlueprintFunctionLibrary::SetStageInputToRenderer(NewBase, InRendererClass, UDMMaterialStageBlend::InputB);
 }
 
 #undef LOCTEXT_NAMESPACE

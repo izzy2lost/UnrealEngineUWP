@@ -770,7 +770,7 @@ UDMMaterialStageInput* UDMMaterialStage::ChangeInput(TSubclassOf<UDMMaterialStag
 	check(InputConnectors.IsValidIndex(InInputIdx));
 
 	check(InInputClass.Get());
-	check(!(InInputClass->ClassFlags & (CLASS_Abstract | CLASS_Hidden | CLASS_Deprecated | CLASS_NewerVersionExists)));
+	check(!InInputClass->HasAnyClassFlags(UE::DynamicMaterial::InvalidClassFlags));
 
 	if (UDMMaterialStageThroughput* ThroughputCDO = Cast<UDMMaterialStageThroughput>(InInputClass->GetDefaultObject(true)))
 	{
@@ -1215,7 +1215,7 @@ UDMMaterialStageSource* UDMMaterialStage::ChangeSource(TSubclassOf<UDMMaterialSt
 	}
 
 	check(InSourceClass);
-	check(!(InSourceClass->ClassFlags & (CLASS_Abstract | CLASS_Hidden | CLASS_Deprecated | CLASS_NewerVersionExists)));
+	check(!InSourceClass->HasAnyClassFlags(UE::DynamicMaterial::InvalidClassFlags));
 
 	UDMMaterialStageSource* NewSource = NewObject<UDMMaterialStageSource>(this, InSourceClass, NAME_None, RF_Transactional);
 	check(NewSource);

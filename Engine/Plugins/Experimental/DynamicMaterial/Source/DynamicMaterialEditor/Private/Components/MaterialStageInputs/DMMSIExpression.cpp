@@ -61,7 +61,7 @@ UDMMaterialStageInputExpression* UDMMaterialStageInputExpression::ChangeStageSou
 	}
 
 	check(InExpressionClass);
-	check(!(InExpressionClass->ClassFlags & (CLASS_Abstract | CLASS_Hidden | CLASS_Deprecated | CLASS_NewerVersionExists)));
+	check(!InExpressionClass->HasAnyClassFlags(UE::DynamicMaterial::InvalidClassFlags));
 
 	UDMMaterialStageInputExpression* NewInputExpression = InStage->ChangeSource<UDMMaterialStageInputExpression>(
 		[InExpressionClass](UDMMaterialStage* InStage, UDMMaterialStageSource* InNewSource)
@@ -83,7 +83,7 @@ UDMMaterialStageInputExpression* UDMMaterialStageInputExpression::ChangeStageInp
 	check(Source);
 
 	check(InExpressionClass);
-	check(!(InExpressionClass->ClassFlags & (CLASS_Abstract | CLASS_Hidden | CLASS_Deprecated | CLASS_NewerVersionExists)));
+	check(!InExpressionClass->HasAnyClassFlags(UE::DynamicMaterial::InvalidClassFlags));
 
 	UDMMaterialStageInputExpression* NewInputExpression = InStage->ChangeInput<UDMMaterialStageInputExpression>(
 		InInputIdx, InInputChannel, InOutputIdx, InOutputChannel,

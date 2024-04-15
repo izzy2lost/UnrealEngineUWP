@@ -6,6 +6,7 @@
 #include "Components/MaterialValues/DMMaterialValueFloat1.h"
 #include "DMComponentPath.h"
 #include "DMDefs.h"
+#include "DMValueDefinition.h"
 #include "Material/DynamicMaterialInstance.h"
 #include "Model/IDynamicMaterialModelEditorOnlyDataInterface.h"
 
@@ -150,9 +151,14 @@ UDMMaterialValue* UDynamicMaterialModel::GetValueByIndex(int32 Index) const
 	return nullptr;
 }
 
-UDMMaterialValue* UDynamicMaterialModel::AddValue(EDMValueType InType)
+UDMMaterialValue* UDynamicMaterialModel::AddValue(EDMValueType InValueType)
 {
-	UDMMaterialValue* NewValue = UDMMaterialValue::CreateMaterialValue(this, TEXT(""), InType, false);
+	return AddValue(UDMValueDefinitionLibrary::GetValueDefinition(InValueType).GetValueClass());
+}
+
+UDMMaterialValue* UDynamicMaterialModel::AddValue(TSubclassOf<UDMMaterialValue> InValueClass)
+{
+	UDMMaterialValue* NewValue = UDMMaterialValue::CreateMaterialValue(this, TEXT(""), InValueClass, false);
 	Values.Add(NewValue);
 
 	if (IDynamicMaterialModelEditorOnlyDataInterface* ModelEditorOnlyData = GetEditorOnlyData())

@@ -33,6 +33,7 @@ public:
 	virtual void SetTilingType(ELinearGradientTileType InType);
 
 protected:
-	UPROPERTY(EditInstanceOnly, BlueprintReadOnly, Getter=GetTilingType, Setter=SetTilingType, Category = "Material Designer")
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Getter = GetTilingType, Setter=SetTilingType, BlueprintSetter = SetTilingType, 
+		Category = "Material Designer")
 	ELinearGradientTileType Tiling;
 };

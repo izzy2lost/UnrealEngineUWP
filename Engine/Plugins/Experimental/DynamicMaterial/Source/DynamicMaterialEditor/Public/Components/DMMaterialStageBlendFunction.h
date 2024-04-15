@@ -9,7 +9,7 @@ class UMaterialExpression;
 class UMaterialFunctionInterface;
 struct FDMMaterialBuildState;
 
-UCLASS(Abstract, BlueprintType, ClassGroup = "Material Designer")
+UCLASS(Abstract, BlueprintType, Blueprintable, ClassGroup = "Material Designer")
 class DYNAMICMATERIALEDITOR_API UDMMaterialStageBlendFunction : public UDMMaterialStageBlend
 {
 	GENERATED_BODY()

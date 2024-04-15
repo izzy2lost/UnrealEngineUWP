@@ -22,26 +22,36 @@ public:
 
 	static UDMMaterialStage* CreateStage(UDMMaterialValue* InValue, UDMMaterialLayerObject* InLayer = nullptr);
 
+	static UDMMaterialStageInputValue* ChangeStageSource_NewLocalValue(UDMMaterialStage* InStage, EDMValueType InValueType);
+
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	static UDMMaterialStageInputValue* ChangeStageSource_NewLocalValue(UDMMaterialStage* InStage, EDMValueType InType);
+	static UDMMaterialStageInputValue* ChangeStageSource_NewLocalValue(UDMMaterialStage* InStage, TSubclassOf<UDMMaterialValue> InValueClass);
 
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
 	static UDMMaterialStageInputValue* ChangeStageSource_Value(UDMMaterialStage* InStage, UDMMaterialValue* InValue);
 
+	static UDMMaterialStageInputValue* ChangeStageSource_NewValue(UDMMaterialStage* InStage, EDMValueType InValueType);
+
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	static UDMMaterialStageInputValue* ChangeStageSource_NewValue(UDMMaterialStage* InStage, EDMValueType InType);
+	static UDMMaterialStageInputValue* ChangeStageSource_NewValue(UDMMaterialStage* InStage, TSubclassOf<UDMMaterialValue> InValueClass);
+
+	static UDMMaterialStageInputValue* ChangeStageInput_NewLocalValue(UDMMaterialStage* InStage, int32 InInputIdx, int32 InInputChannel,
+		EDMValueType InValueType, int32 InOutputChannel);
 
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
 	static UDMMaterialStageInputValue* ChangeStageInput_NewLocalValue(UDMMaterialStage* InStage, int32 InInputIdx, int32 InInputChannel,
-		EDMValueType InType, int32 InOutputChannel);
+		TSubclassOf<UDMMaterialValue> InValueClass, int32 InOutputChannel);
 
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
 	static UDMMaterialStageInputValue* ChangeStageInput_Value(UDMMaterialStage* InStage, int32 InInputIdx, int32 InInputChannel,
 		UDMMaterialValue* InValue, int32 InOutputChannel);
 
+	static UDMMaterialStageInputValue* ChangeStageInput_NewValue(UDMMaterialStage* InStage, int32 InInputIdx, int32 InInputChannel,
+		EDMValueType InValueType, int32 InOutputChannel);
+
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
 	static UDMMaterialStageInputValue* ChangeStageInput_NewValue(UDMMaterialStage* InStage, int32 InInputIdx, int32 InInputChannel,
-		EDMValueType InType, int32 InOutputChannel);
+		TSubclassOf<UDMMaterialValue> InValueClass, int32 InOutputChannel);
 
 	virtual FText GetComponentDescription() const override;
 	virtual FText GetChannelDescription(const FDMMaterialStageConnectorChannel& Channel) override;

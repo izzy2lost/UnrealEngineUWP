@@ -16,7 +16,7 @@ struct FDMMaterialBuildState;
 /**
  * A node which represents a blend operation.
  */
-UCLASS(Abstract, BlueprintType, ClassGroup = "Material Designer", meta = (DisplayName = "Material Designer Stage Blend"))
+UCLASS(Abstract, BlueprintType, Blueprintable, ClassGroup = "Material Designer", meta = (DisplayName = "Material Designer Stage Blend"))
 class DYNAMICMATERIALEDITOR_API UDMMaterialStageBlend : public UDMMaterialStageThroughput
 {
 	GENERATED_BODY()

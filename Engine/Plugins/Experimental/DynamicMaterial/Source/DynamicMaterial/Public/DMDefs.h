@@ -15,7 +15,7 @@ UENUM(BlueprintType)
 enum class EDMMaterialPropertyType : uint8
 {
 	None = 0,
-	BaseColor UMETA(ShortName = "Base Color"),
+	BaseColor,
 	EmissiveColor UMETA(ShortName = "Emissive"),
 	Opacity,
 	OpacityMask UMETA(ShortName = "Mask"),
@@ -50,7 +50,7 @@ enum class EDMValueType : uint8
 	VT_Float_Any,
 	VT_Texture,
 	VT_ColorAtlas,
-	VT_Text,
+	VT_Unused,
 	VT_MAX
 };
 
@@ -167,6 +167,7 @@ namespace UE::DynamicMaterial
 	FString DYNAMICMATERIAL_API CreateNodeComment(const ANSICHAR* InFile, int InLine, const ANSICHAR* InFunction, const FString* InComment = nullptr);
 
 	constexpr int32 RenameFlags = REN_DontCreateRedirectors | REN_DoNotDirty | REN_ForceNoResetLoaders | REN_NonTransactional;
+	constexpr EClassFlags InvalidClassFlags = CLASS_Abstract | CLASS_Hidden | CLASS_Deprecated | CLASS_NewerVersionExists;
 }
 
 #define UE_DM_NodeComment_Default UE::DynamicMaterial::CreateNodeComment(__FILE__, __LINE__, __FUNCTION__)

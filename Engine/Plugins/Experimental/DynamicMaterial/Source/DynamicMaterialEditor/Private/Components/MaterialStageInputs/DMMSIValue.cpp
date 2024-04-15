@@ -34,7 +34,15 @@ UDMMaterialStage* UDMMaterialStageInputValue::CreateStage(UDMMaterialValue* InVa
 	return NewStage;
 }
 
-UDMMaterialStageInputValue* UDMMaterialStageInputValue::ChangeStageSource_NewLocalValue(UDMMaterialStage* InStage, EDMValueType InType)
+UDMMaterialStageInputValue* UDMMaterialStageInputValue::ChangeStageSource_NewLocalValue(UDMMaterialStage* InStage, EDMValueType InValueType)
+{
+	return ChangeStageSource_NewLocalValue(
+		InStage,
+		UDMValueDefinitionLibrary::GetValueDefinition(InValueType).GetValueClass()
+	);
+}
+
+UDMMaterialStageInputValue* UDMMaterialStageInputValue::ChangeStageSource_NewLocalValue(UDMMaterialStage* InStage, TSubclassOf<UDMMaterialValue> InValueClass)
 {
 	check(InStage);
 
@@ -57,7 +65,7 @@ UDMMaterialStageInputValue* UDMMaterialStageInputValue::ChangeStageSource_NewLoc
 
 	// Don't add via the builder, just parent it to the builder.
 	// It won't appear in the global value list.
-	UDMMaterialValue* NewValue = UDMMaterialValue::CreateMaterialValue(MaterialModel, TEXT(""), InType, true);
+	UDMMaterialValue* NewValue = UDMMaterialValue::CreateMaterialValue(MaterialModel, TEXT(""), InValueClass, true);
 	check(NewValue);
 
 	UDMMaterialStageInputValue* InputValue = InStage->ChangeSource<UDMMaterialStageInputValue>(
@@ -101,7 +109,16 @@ UDMMaterialStageInputValue* UDMMaterialStageInputValue::ChangeStageSource_Value(
 	return InputValue;
 }
 
-UDMMaterialStageInputValue* UDMMaterialStageInputValue::ChangeStageSource_NewValue(UDMMaterialStage* InStage, EDMValueType InType)
+UDMMaterialStageInputValue* UDMMaterialStageInputValue::ChangeStageSource_NewValue(UDMMaterialStage* InStage, EDMValueType InValueType)
+{
+	return ChangeStageSource_NewValue(
+		InStage,
+		UDMValueDefinitionLibrary::GetValueDefinition(InValueType).GetValueClass()
+	);
+}
+
+UDMMaterialStageInputValue* UDMMaterialStageInputValue::ChangeStageSource_NewValue(UDMMaterialStage* InStage, 
+	TSubclassOf<UDMMaterialValue> InValueClass)
 {
 	check(InStage);
 
@@ -122,7 +139,7 @@ UDMMaterialStageInputValue* UDMMaterialStageInputValue::ChangeStageSource_NewVal
 	UDynamicMaterialModel* MaterialModel = ModelEditorOnlyData->GetMaterialModel();
 	check(MaterialModel);
 
-	UDMMaterialValue* NewValue = MaterialModel->AddValue(InType);
+	UDMMaterialValue* NewValue = MaterialModel->AddValue(InValueClass);
 	check(NewValue);
 
 	UDMMaterialStageInputValue* InputValue = InStage->ChangeSource<UDMMaterialStageInputValue>(
@@ -135,8 +152,20 @@ UDMMaterialStageInputValue* UDMMaterialStageInputValue::ChangeStageSource_NewVal
 	return InputValue;
 }
 
+UDMMaterialStageInputValue* UDMMaterialStageInputValue::ChangeStageInput_NewLocalValue(UDMMaterialStage* InStage, int32 InInputIdx, 
+	int32 InInputChannel, EDMValueType InValueType, int32 InOutputChannel)
+{
+	return ChangeStageInput_NewLocalValue(
+		InStage,
+		InInputIdx,
+		InInputChannel,
+		UDMValueDefinitionLibrary::GetValueDefinition(InValueType).GetValueClass(),
+		InOutputChannel
+	);
+}
+
 UDMMaterialStageInputValue* UDMMaterialStageInputValue::ChangeStageInput_NewLocalValue(UDMMaterialStage* InStage,
-	int32 InInputIdx, int32 InInputChannel, EDMValueType InType, int32 InOutputChannel)
+	int32 InInputIdx, int32 InInputChannel, TSubclassOf<UDMMaterialValue> InValueClass, int32 InOutputChannel)
 {
 	check(InStage);
 
@@ -148,7 +177,7 @@ UDMMaterialStageInputValue* UDMMaterialStageInputValue::ChangeStageInput_NewLoca
 
 	const TArray<FDMMaterialStageConnector>& InputConnectors = Throughput->GetInputConnectors();
 	check(InputConnectors.IsValidIndex(InInputIdx));
-	check(Throughput->CanInputAcceptType(InInputIdx, InType));
+	check(Throughput->CanInputAcceptType(InInputIdx, InValueClass.GetDefaultObject()->GetType()));
 
 	UDMMaterialLayerObject* Layer = InStage->GetLayer();
 	check(Layer);
@@ -164,7 +193,7 @@ UDMMaterialStageInputValue* UDMMaterialStageInputValue::ChangeStageInput_NewLoca
 
 	// Don't add via the builder, just parent it to the builder.
 	// It won't appear in the global value list.
-	UDMMaterialValue* NewValue = UDMMaterialValue::CreateMaterialValue(MaterialModel, TEXT(""), InType, true);
+	UDMMaterialValue* NewValue = UDMMaterialValue::CreateMaterialValue(MaterialModel, TEXT(""), InValueClass, true);
 	check(NewValue);
 
 	UDMMaterialStageInputValue* NewInputValue = InStage->ChangeInput<UDMMaterialStageInputValue>(
@@ -232,7 +261,20 @@ UDMMaterialStageInputValue* UDMMaterialStageInputValue::ChangeStageInput_Value(U
 	return NewInputValue;
 }
 
-UDMMaterialStageInputValue* UDMMaterialStageInputValue::ChangeStageInput_NewValue(UDMMaterialStage* InStage, int32 InInputIdx, int32 InInputChannel, EDMValueType InType, int32 InOutputChannel)
+UDMMaterialStageInputValue* UDMMaterialStageInputValue::ChangeStageInput_NewValue(UDMMaterialStage* InStage, int32 InInputIdx, 
+	int32 InInputChannel, EDMValueType InValueType, int32 InOutputChannel)
+{
+	return ChangeStageInput_NewValue(
+		InStage,
+		InInputIdx,
+		InInputChannel,
+		UDMValueDefinitionLibrary::GetValueDefinition(InValueType).GetValueClass(),
+		InOutputChannel
+	);
+}
+
+UDMMaterialStageInputValue* UDMMaterialStageInputValue::ChangeStageInput_NewValue(UDMMaterialStage* InStage, int32 InInputIdx, 
+	int32 InInputChannel, TSubclassOf<UDMMaterialValue> InValueClass, int32 InOutputChannel)
 {
 	check(InStage);
 
@@ -244,7 +286,7 @@ UDMMaterialStageInputValue* UDMMaterialStageInputValue::ChangeStageInput_NewValu
 
 	const TArray<FDMMaterialStageConnector>& InputConnectors = Throughput->GetInputConnectors();
 	check(InputConnectors.IsValidIndex(InInputIdx));
-	check(Throughput->CanInputAcceptType(InInputIdx, InType));
+	check(Throughput->CanInputAcceptType(InInputIdx, InValueClass.GetDefaultObject()->GetType()));
 
 	UDMMaterialLayerObject* Layer = InStage->GetLayer();
 	check(Layer);
@@ -258,7 +300,7 @@ UDMMaterialStageInputValue* UDMMaterialStageInputValue::ChangeStageInput_NewValu
 	UDynamicMaterialModel* MaterialModel = ModelEditorOnlyData->GetMaterialModel();
 	check(MaterialModel);
 
-	UDMMaterialValue* NewValue = MaterialModel->AddValue(InType);
+	UDMMaterialValue* NewValue = MaterialModel->AddValue(InValueClass);
 	check(NewValue);
 
 	UDMMaterialStageInputValue* NewInputValue = InStage->ChangeInput<UDMMaterialStageInputValue>(

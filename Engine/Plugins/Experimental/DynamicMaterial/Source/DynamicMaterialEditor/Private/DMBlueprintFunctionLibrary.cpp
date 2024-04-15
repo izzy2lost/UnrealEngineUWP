@@ -12,11 +12,13 @@
 #include "Components/DMMaterialStageThroughput.h"
 #include "Components/DMMaterialStageThroughputLayerBlend.h"
 #include "Components/DMMaterialSubStage.h"
+#include "Components/DMRenderTargetRenderer.h"
 #include "Components/MaterialStageBlends/DMMSBNormal.h"
 #include "Components/MaterialStageExpressions/DMMSETextureSample.h"
 #include "Components/MaterialStageInputs/DMMSIExpression.h"
 #include "Components/MaterialStageInputs/DMMSITextureUV.h"
 #include "Components/MaterialStageInputs/DMMSIValue.h"
+#include "Components/MaterialValues/DMMaterialValueRenderTarget.h"
 #include "Components/MaterialValues/DMMaterialValueTexture.h"
 #include "Components/PrimitiveComponent.h"
 #include "DMEDefs.h"
@@ -361,4 +363,50 @@ bool UDMBlueprintFunctionLibrary::ExportGeneratedMaterial(UDynamicMaterialModel*
 	Package->FullyLoad();
 
 	return true;
+}
+
+void UDMBlueprintFunctionLibrary::SetStageInputToRenderer(UDMMaterialStage* InStage, TSubclassOf<UDMRenderTargetRenderer> InRendererClass, int32 InInputIndex)
+{
+	UDMMaterialStageInputExpression* InputExpression = UDMMaterialStageInputExpression::ChangeStageInput_Expression(
+		InStage,
+		UDMMaterialStageExpressionTextureSample::StaticClass(),
+		InInputIndex,
+		FDMMaterialStageConnectorChannel::WHOLE_CHANNEL,
+		0,
+		FDMMaterialStageConnectorChannel::THREE_CHANNELS
+	);
+
+	if (!ensure(InputExpression))
+	{
+		return;
+	}
+
+	UDMMaterialSubStage* SubStage = InputExpression->GetSubStage();
+
+	if (!ensure(SubStage))
+	{
+		return;
+	}
+
+	UDMMaterialStageInputValue* InputValue = UDMMaterialStageInputValue::ChangeStageInput_NewLocalValue(
+		SubStage,
+		0,
+		FDMMaterialStageConnectorChannel::WHOLE_CHANNEL,
+		UDMMaterialValueRenderTarget::StaticClass(),
+		FDMMaterialStageConnectorChannel::WHOLE_CHANNEL
+	);
+
+	if (!ensure(InputValue))
+	{
+		return;
+	}
+
+	UDMMaterialValueRenderTarget* RenderTargetValue = Cast<UDMMaterialValueRenderTarget>(InputValue->GetValue());
+
+	if (!RenderTargetValue)
+	{
+		return;
+	}
+
+	UDMRenderTargetRenderer::CreateRenderTargetRenderer(InRendererClass, RenderTargetValue);
 }

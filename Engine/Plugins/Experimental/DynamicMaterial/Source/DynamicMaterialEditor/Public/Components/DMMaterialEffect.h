@@ -24,7 +24,7 @@ enum class EDMMaterialEffectTarget : uint8
 	Slot      = 1 << 3
 };
 
-UCLASS(Abstract, BlueprintType, ClassGroup = "Material Designer", Meta = (DisplayName = "Material Designer Effect"))
+UCLASS(Abstract, BlueprintType, Blueprintable, ClassGroup = "Material Designer", meta = (DisplayName = "Material Designer Effect"))
 class DYNAMICMATERIALEDITOR_API UDMMaterialEffect : public UDMMaterialComponent
 {
 	GENERATED_BODY()

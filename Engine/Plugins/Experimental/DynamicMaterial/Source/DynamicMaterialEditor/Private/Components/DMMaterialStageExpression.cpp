@@ -100,7 +100,7 @@ UDMMaterialStageExpression* UDMMaterialStageExpression::ChangeStageSource_Expres
 	}
 
 	check(InExpressionClass);
-	check(!(InExpressionClass->ClassFlags & (CLASS_Abstract | CLASS_Hidden | CLASS_Deprecated | CLASS_NewerVersionExists)));
+	check(!InExpressionClass->HasAnyClassFlags(UE::DynamicMaterial::InvalidClassFlags));
 
 	return InStage->ChangeSource<UDMMaterialStageExpression>(InExpressionClass);
 }
@@ -127,7 +127,7 @@ void UDMMaterialStageExpression::GenerateExpressionList()
 			continue;
 		}
 
-		if (ExpressionClass->ClassFlags & (CLASS_Abstract | CLASS_Hidden | CLASS_Deprecated | CLASS_NewerVersionExists))
+		if (ExpressionClass->HasAnyClassFlags(UE::DynamicMaterial::InvalidClassFlags))
 		{
 			continue;
 		}

@@ -1,6 +1,16 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "DMValueDefinition.h"
+
+#include "Components/MaterialValues/DMMaterialValueBool.h"
+#include "Components/MaterialValues/DMMaterialValueColorAtlas.h"
+#include "Components/MaterialValues/DMMaterialValueFloat1.h"
+#include "Components/MaterialValues/DMMaterialValueFloat2.h"
+#include "Components/MaterialValues/DMMaterialValueFloat3RGB.h"
+#include "Components/MaterialValues/DMMaterialValueFloat3RPY.h"
+#include "Components/MaterialValues/DMMaterialValueFloat3XYZ.h"
+#include "Components/MaterialValues/DMMaterialValueFloat4.h"
+#include "Components/MaterialValues/DMMaterialValueTexture.h"
 #include "Containers/Map.h"
 
 #define LOCTEXT_NAMESPACE "DMValueDefinition"
@@ -16,8 +26,7 @@ namespace UE::MaterialDesigner::Private
 			EDMValueType::VT_Float3_XYZ,
 			EDMValueType::VT_Float4_RGBA,
 			EDMValueType::VT_Texture,
-			EDMValueType::VT_ColorAtlas,
-			EDMValueType::VT_Text
+			EDMValueType::VT_ColorAtlas
 	};
 
 	const TMap<EDMValueType, FDMValueDefinition> TypeDefinitions = {
@@ -25,26 +34,30 @@ namespace UE::MaterialDesigner::Private
 			{EDMValueType::VT_None,
 			0,
 			LOCTEXT("None", "None"),
-			{}}
+			{},
+			TSubclassOf<UDMMaterialValue>()}
 		},
 		{EDMValueType::VT_Bool,
 			{EDMValueType::VT_Bool,
 			0,
 			LOCTEXT("Bool", "Bool"),
-			{LOCTEXT("Value", "Value")}}
+			{LOCTEXT("Value", "Value")},
+			UDMMaterialValueBool::StaticClass()}
 		},
 		{EDMValueType::VT_Float1,
 			{EDMValueType::VT_Float1,
 			1,
 			LOCTEXT("Float", "Float"),
-			{LOCTEXT("Value", "Value")}}
+			{LOCTEXT("Value", "Value")},
+			UDMMaterialValueFloat1::StaticClass()}
 		},
 		{EDMValueType::VT_Float2,
 			{EDMValueType::VT_Float2,
 			2,
 			LOCTEXT("Vector2D", "Vector 2D"),
 			{LOCTEXT("U", "U"),
-				LOCTEXT("V", "V")}}
+				LOCTEXT("V", "V")},
+			UDMMaterialValueFloat2::StaticClass()}
 		},
 		{EDMValueType::VT_Float3_RPY,
 			{EDMValueType::VT_Float3_RPY,
@@ -52,7 +65,8 @@ namespace UE::MaterialDesigner::Private
 			LOCTEXT("Rotator", "Rotator"),
 			{LOCTEXT("Roll", "Roll"),
 				LOCTEXT("Pitch", "Pitch"),
-				LOCTEXT("Yaw", "Yaw")}}
+				LOCTEXT("Yaw", "Yaw")},
+			UDMMaterialValueFloat3RPY::StaticClass()}
 		},
 		{EDMValueType::VT_Float3_RGB,
 			{EDMValueType::VT_Float3_RGB,
@@ -60,7 +74,8 @@ namespace UE::MaterialDesigner::Private
 			LOCTEXT("ColorRGB", "Color (RGB)"),
 			{LOCTEXT("Red", "Red"),
 				LOCTEXT("Green", "Green"),
-				LOCTEXT("Blue", "Blue")}}
+				LOCTEXT("Blue", "Blue")},
+			UDMMaterialValueFloat3RGB::StaticClass()}
 		},
 		{EDMValueType::VT_Float3_XYZ,
 			{EDMValueType::VT_Float3_XYZ,
@@ -68,7 +83,8 @@ namespace UE::MaterialDesigner::Private
 			LOCTEXT("Vector3D", "Vector 3D"),
 			{LOCTEXT("X", "X"),
 				LOCTEXT("Y", "Y"),
-				LOCTEXT("Z", "Z")}}
+				LOCTEXT("Z", "Z")},
+			UDMMaterialValueFloat3XYZ::StaticClass()}
 		},
 		{EDMValueType::VT_Float4_RGBA,
 			{EDMValueType::VT_Float4_RGBA,
@@ -77,19 +93,22 @@ namespace UE::MaterialDesigner::Private
 			{LOCTEXT("Red", "Red"),
 				LOCTEXT("Green", "Green"),
 				LOCTEXT("Blue", "Blue"),
-				LOCTEXT("Alpha", "Alpha")}}
+				LOCTEXT("Alpha", "Alpha")},
+			UDMMaterialValueFloat4::StaticClass()}
 		},
 		{EDMValueType::VT_Float_Any,
 			{EDMValueType::VT_Float_Any,
 			0,
 			LOCTEXT("FloatAny", "Float (Any)"),
-			{}}
+			{},
+			UDMMaterialValueFloat4::StaticClass()}
 		},
 		{EDMValueType::VT_Texture,
 			{EDMValueType::VT_Texture,
 			0,
 			LOCTEXT("Texture", "Texture"),
-			{}}
+			{},
+			UDMMaterialValueTexture::StaticClass()}
 		},
 		{EDMValueType::VT_ColorAtlas,
 			{EDMValueType::VT_ColorAtlas,
@@ -98,13 +117,8 @@ namespace UE::MaterialDesigner::Private
 			{LOCTEXT("Red", "Red"),
 				LOCTEXT("Green", "Green"),
 				LOCTEXT("Blue", "Blue"),
-				LOCTEXT("Alpha", "Alpha")}}
-		},
-		{EDMValueType::VT_Text,
-			{EDMValueType::VT_Text,
-			0,
-			LOCTEXT("Text", "Text"),
-			{}}
+				LOCTEXT("Alpha", "Alpha")},
+			UDMMaterialValueColorAtlas::StaticClass()}
 		}
 	};
 }
@@ -243,6 +257,11 @@ const FText& FDMValueDefinition::GetChannelName(int32 InChannel) const
 
 	static const FText Error = LOCTEXT("Error", "Error");
 	return Error;
+}
+
+TSubclassOf<UDMMaterialValue> FDMValueDefinition::GetValueClass() const
+{
+	return ValueClass;
 }
 
 const TArray<EDMValueType>& UDMValueDefinitionLibrary::GetValueTypes()

@@ -85,8 +85,10 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Material Designer")
 	UDMMaterialValue* GetValueByIndex(int32 Index) const;
 
+	UDMMaterialValue* AddValue(EDMValueType InValueType);
+
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	UDMMaterialValue* AddValue(EDMValueType InType);
+	UDMMaterialValue* AddValue(TSubclassOf<UDMMaterialValue> InValueClass);
 
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
 	void AddRuntimeComponentReference(UDMMaterialComponent* InValue);

@@ -30,20 +30,24 @@ const FString UDMMaterialValue::ParameterPathToken = FString(TEXT("Parameter"));
 #if WITH_EDITOR
 const FName UDMMaterialValue::ValueName = "Value";
 
+UDMMaterialValue* UDMMaterialValue::CreateMaterialValue(UDynamicMaterialModel* InMaterialModel, const FString& InName, 
+	EDMValueType InValueType, bool bInLocal)
+{
+	return CreateMaterialValue(
+		InMaterialModel,
+		InName,
+		UDMValueDefinitionLibrary::GetValueDefinition(InValueType).GetValueClass(),
+		bInLocal
+	);
+}
+
 UDMMaterialValue* UDMMaterialValue::CreateMaterialValue(UDynamicMaterialModel* InMaterialModel, const FString& InName,
-	EDMValueType InType, bool bInLocal)
+	TSubclassOf<UDMMaterialValue> InValueClass, bool bInLocal)
 {
 	check(InMaterialModel);
  
-	TStrongObjectPtr<UClass>* ValueClassPtr = TypeClasses.Find(InType);
-	check(ValueClassPtr);
- 
-	UClass* ValueClass = (*ValueClassPtr).Get();
-	check(ValueClass);
- 
-	UDMMaterialValue* NewValue = NewObject<UDMMaterialValue>(InMaterialModel, ValueClass, NAME_None, RF_Transactional);
+	UDMMaterialValue* NewValue = NewObject<UDMMaterialValue>(InMaterialModel, InValueClass, NAME_None, RF_Transactional);
 	check(NewValue);
-	NewValue->Type = InType;
 	NewValue->bLocal = bInLocal;
  
 	if (InName.IsEmpty() == false)

@@ -212,6 +212,20 @@ void UDMMaterialStageExpressionTextureSampleBase::SetClampTextureEnabled(bool bI
 	Update(EDMUpdateType::Value);
 }
 
+void UDMMaterialStageExpressionTextureSampleBase::PostEditChangeProperty(FPropertyChangedEvent& InPropertyChangedEvent)
+{
+	Super::PostEditChangeProperty(InPropertyChangedEvent);
+
+	static const FName ClampTextureName = GET_MEMBER_NAME_CHECKED(UDMMaterialStageExpressionTextureSampleBase, bClampTexture);
+
+	const FName PropertyName = InPropertyChangedEvent.GetMemberPropertyName();
+
+	if (PropertyName == ClampTextureName)
+	{
+		Update(EDMUpdateType::Structure);
+	}
+}
+
 void UDMMaterialStageExpressionTextureSampleBase::UpdateMask()
 {
 	UDMMaterialStage* BaseTextureSampleStage = GetStage();
@@ -378,9 +392,13 @@ void UDMMaterialStageExpressionTextureSampleBase::UpdateMask()
 	UDMMaterialStage* MaskTextureSampleStage = MaskTextureSample->GetStage();
 	check(MaskTextureSampleStage);
 
-	UDMMaterialStageInputValue::ChangeStageInput_NewLocalValue(MaskTextureSampleStage, 0,
-		FDMMaterialStageConnectorChannel::WHOLE_CHANNEL, BaseTextureValue->GetType(),
-		FDMMaterialStageConnectorChannel::WHOLE_CHANNEL);
+	UDMMaterialStageInputValue::ChangeStageInput_NewLocalValue(
+		MaskTextureSampleStage, 
+		0,
+		FDMMaterialStageConnectorChannel::WHOLE_CHANNEL,
+		UDMMaterialValueTexture::StaticClass(),
+		FDMMaterialStageConnectorChannel::WHOLE_CHANNEL
+	);
 
 	UDMMaterialStageInputValue* NewInputValue = Cast<UDMMaterialStageInputValue>(MaskTextureSampleStage->GetInputs().Last());
 	check(NewInputValue);

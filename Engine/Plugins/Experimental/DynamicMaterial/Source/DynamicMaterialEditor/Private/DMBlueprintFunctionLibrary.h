@@ -10,6 +10,7 @@
 class AActor;
 class UDMMaterialStage;
 class UDMMaterialStageInputValue;
+class UDMRenderTargetRenderer;
 class UDynamicMaterialModel;
 class UTexture;
 struct FDMObjectMaterialProperty;
@@ -34,4 +35,6 @@ public:
 	static bool ExportMaterialInstance(UDynamicMaterialModel* InMaterialModel, const FString& InSavePath);
 
 	static bool ExportGeneratedMaterial(UDynamicMaterialModel* InMaterialModel, const FString& InSavePath);
+
+	static void SetStageInputToRenderer(UDMMaterialStage* InStage, TSubclassOf<UDMRenderTargetRenderer> InRendererClass, int32 InInputIndex);
 };

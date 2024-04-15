@@ -32,7 +32,7 @@ enum class EDMExpressionMenu : uint8
 /**
  * A node which directly represents an material expression (or function).
  */
-UCLASS(Abstract, BlueprintType, ClassGroup = "Material Designer", meta = (DisplayName = "Material Designer Stage Expression"))
+UCLASS(Abstract, BlueprintType, Blueprintable, ClassGroup = "Material Designer", meta = (DisplayName = "Material Designer Stage Expression"))
 class DYNAMICMATERIALEDITOR_API UDMMaterialStageExpression : public UDMMaterialStageThroughput
 {
 	GENERATED_BODY()
