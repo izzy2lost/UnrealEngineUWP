@@ -2657,7 +2657,6 @@ TOptional<UEdGraphSchema_K2::FSearchForAutocastFunctionResults> UEdGraphSchema_K
 			return false;
 		};
 
-		const FAutocastFunctionMap& AutocastFunctionMap = FAutocastFunctionMap::Get();
 		if (!FindAndSetCastFunction(OutputPinType, InputPinType))
 		{
 			// Since single-precision float interfaces have been deprecated,
