@@ -56,65 +56,85 @@ FCustomizableObjectCompiler::FCustomizableObjectCompiler() : FCustomizableObject
 
 
 
-bool FCustomizableObjectCompiler::Tick()
+bool FCustomizableObjectCompiler::Tick(bool bBlocking)
 {
+	bool bFinished = true;
+
+	if (bBlocking && AsynchronousStreamableHandlePtr)
+	{
+		bFinished = false;
+		AsynchronousStreamableHandlePtr->CancelHandle();
+		
+		UCustomizableObjectSystem::GetInstance()->GetPrivate()->StreamableManager.RequestSyncLoad(ArrayAssetToStream);
+		PreloadingReferencerAssetsCallback(false);
+	}
+	
+	if (PreloadingReferencerAssets)
+	{
+		bFinished = false;
+	}
+	
 	if (CompileTask)
 	{
+		bFinished = false;
 		CompileTask->Tick();
-	}
-	
-	bool bUpdated = false;
-
-	if (CompileTask.IsValid() && CompileTask->IsCompleted())
-	{
-		UE_LOG(LogMutable, Verbose, TEXT("PROFILE: [ %16.8f ] Finishing Compilation task for Object %s."), FPlatformTime::Seconds(), *CurrentObject->GetName());
-
-		FinishCompilation();
-
-		if (SaveDDTask.IsValid())
+		
+		if (CompileTask->IsCompleted())
 		{
-			SaveCODerivedData();
+			UE_LOG(LogMutable, Verbose, TEXT("PROFILE: [ %16.8f ] Finishing Compilation task for Object %s."), FPlatformTime::Seconds(), *CurrentObject->GetName());
+
+			FinishCompilationTask();
+
+			if (SaveDDTask.IsValid())
+			{
+				SaveCODerivedData();
+			}
+			else
+			{
+				SetCompilationState(ECustomizableObjectCompilationState::Completed);
+
+				RemoveCompileNotification();
+
+				NotifyCompilationErrors();
+			}
+
+			UE_LOG(LogMutable, Verbose, TEXT("PROFILE: [ %16.8f ] Finished Compilation task."), FPlatformTime::Seconds());
+			UE_LOG(LogMutable, Verbose, TEXT("PROFILE: -----------------------------------------------------------"));
+
+			CleanCachedReferencers();
+			UpdateArrayGCProtect();
+
+			CompilationLogsContainer.ClearMessagesArray();
 		}
-		else
+	}
+
+	if (SaveDDTask)
+	{
+		bFinished = false;
+
+		if (SaveDDTask->IsCompleted())
 		{
-			bUpdated = true;
 			SetCompilationState(ECustomizableObjectCompilationState::Completed);
-
-			RemoveCompileNotification();
-
-			NotifyCompilationErrors();
-		}
-
-		UE_LOG(LogMutable, Verbose, TEXT("PROFILE: [ %16.8f ] Finished Compilation task."), FPlatformTime::Seconds());
-		UE_LOG(LogMutable, Verbose, TEXT("PROFILE: -----------------------------------------------------------"));
-
-		CleanCachedReferencers();
-		UpdateArrayGCProtect();
-
-		CompilationLogsContainer.ClearMessagesArray();
-	}
-
-	if (SaveDDTask.IsValid() && SaveDDTask->IsCompleted())
-	{
-		SetCompilationState(ECustomizableObjectCompilationState::Completed);
-
-		bUpdated = true;
-
-		FinishSavingDerivedData();
+		
+			FinishSavingDerivedDataTask();
 	
-		CurrentObject->GetPrivate()->PostCompile();
+			CurrentObject->GetPrivate()->PostCompile();
 
-		UE_LOG(LogMutable, Verbose, TEXT("PROFILE: [ %16.8f ] Finished Saving Derived Data task."), FPlatformTime::Seconds());
-		UE_LOG(LogMutable, Verbose, TEXT("PROFILE: -----------------------------------------------------------"));
+			UE_LOG(LogMutable, Verbose, TEXT("PROFILE: [ %16.8f ] Finished Saving Derived Data task."), FPlatformTime::Seconds());
+			UE_LOG(LogMutable, Verbose, TEXT("PROFILE: -----------------------------------------------------------"));
+		}
 	}
+	
 
 	if (CompilationLaunchPending)
 	{
+		bFinished = false;
+
 		CompilationLaunchPending = false;
 		LaunchMutableCompile();
 	}
 
-	return bUpdated;
+	return bFinished;
 }
 
 
@@ -143,27 +163,26 @@ bool FCustomizableObjectCompiler::IsRootObject(const UCustomizableObject* Object
 }
 
 
-void FCustomizableObjectCompiler::PreloadingReferencerAssetsCallback(UCustomizableObject* Object, FCustomizableObjectCompiler* CustomizableObjectCompiler, const FCompilationOptions Options, bool bAsync)
+void FCustomizableObjectCompiler::PreloadingReferencerAssetsCallback(bool bAsync)
 {
 	UE_LOG(LogMutable, Verbose, TEXT("PROFILE: [ %16.8f ] Preload asynchronously assets end."), FPlatformTime::Seconds());
 
-	if (CustomizableObjectCompiler->GetCurrentGAsyncLoadingTimeLimit() != -1.0f)
+	if (CurrentGAsyncLoadingTimeLimit != -1.0f)
 	{
 		static IConsoleVariable* CVAsyncLoadingTimeLimit = IConsoleManager::Get().FindConsoleVariable(TEXT("s.AsyncLoadingTimeLimit"));
 		if (CVAsyncLoadingTimeLimit)
 		{
-			CVAsyncLoadingTimeLimit->Set(CustomizableObjectCompiler->GetCurrentGAsyncLoadingTimeLimit());
+			CVAsyncLoadingTimeLimit->Set(CurrentGAsyncLoadingTimeLimit);
 		}
-		CustomizableObjectCompiler->SetCurrentGAsyncLoadingTimeLimit(-1.0f);
+		CurrentGAsyncLoadingTimeLimit = -1.0f;
 	}
 
-	CustomizableObjectCompiler->UpdateArrayGCProtect();
-	CustomizableObjectCompiler->SetPreloadingReferencerAssets(false);
-	UCustomizableObjectSystem::GetInstance()->UnlockObject(Object);
+	UpdateArrayGCProtect();
+	PreloadingReferencerAssets = false;
 
 	TRACE_END_REGION(UE_MUTABLE_PRELOAD_REGION);
 
-	CustomizableObjectCompiler->CompileInternal(Object, Options, bAsync);
+	CompileInternal(bAsync);
 }
 
 
@@ -231,6 +250,7 @@ void FCustomizableObjectCompiler::Compile(UCustomizableObject& Object, const FCo
 	}
 
 	CurrentObject = &Object;
+	Options = InOptions;
 
 	PreloadingReferencerAssets = true;
 	TRACE_BEGIN_REGION(UE_MUTABLE_PRELOAD_REGION);
@@ -240,8 +260,7 @@ void FCustomizableObjectCompiler::Compile(UCustomizableObject& Object, const FCo
 	TArray<FName> ArrayReferenceNames;
 	AddCachedReferencers(*Object.GetOuter()->GetPathName(), ArrayReferenceNames);
 
-	TArray<FSoftObjectPath> ArrayAssetToStream;
-
+	ArrayAssetToStream.Empty();
 	for (FAssetData& Element : ArrayAssetData)
 	{
 		ArrayAssetToStream.Add(Element.GetSoftObjectPath());
@@ -269,7 +288,7 @@ void FCustomizableObjectCompiler::Compile(UCustomizableObject& Object, const FCo
 				CVAsyncLoadingTimeLimit->Set(MaxConvertToMutableTextureTime * 1000.0f);
 			}
 
-			AsynchronousStreamableHandlePtr = Streamable.RequestAsyncLoad(ArrayAssetToStream, FStreamableDelegate::CreateStatic(PreloadingReferencerAssetsCallback, &Object, this, InOptions, bAsync));
+			AsynchronousStreamableHandlePtr = Streamable.RequestAsyncLoad(ArrayAssetToStream, FStreamableDelegate::CreateRaw(this, &FCustomizableObjectCompiler::PreloadingReferencerAssetsCallback, bAsync));
 			bAssetsLoaded = false;
 		}
 		else
@@ -281,7 +300,7 @@ void FCustomizableObjectCompiler::Compile(UCustomizableObject& Object, const FCo
 
 	if (bAssetsLoaded)
 	{
-		PreloadingReferencerAssetsCallback(&Object, this, InOptions, bAsync);
+		PreloadingReferencerAssetsCallback(bAsync);
 	}
 }
 
@@ -842,13 +861,16 @@ void FCustomizableObjectCompiler::SetCompilationState(ECustomizableObjectCompila
 }
 
 
-void FCustomizableObjectCompiler::CompileInternal(UCustomizableObject* Object, const FCompilationOptions& InOptions, bool bAsync)
+void FCustomizableObjectCompiler::CompileInternal(bool bAsync)
 {
 	MUTABLE_CPUPROFILER_SCOPE(FCustomizableObjectCompiler::Compile)
 	
 	SetCompilationState(ECustomizableObjectCompilationState::Failed);
 
-	if (!Object) return;
+	if (!CurrentObject)
+	{
+		return;
+	}
 
 	if (bAsync && CompileTask.IsValid()) // Don't start compilation if there's a compilation running
 	{
@@ -857,48 +879,43 @@ void FCustomizableObjectCompiler::CompileInternal(UCustomizableObject* Object, c
 	}
 
 	UE_LOG(LogMutable, Log, TEXT("PROFILE: [ %16.8f ] FCustomizableObjectCompiler::Compile start."), FPlatformTime::Seconds());
-
-	CurrentObject = Object;
-
+	
 	// This is redundant but necessary to keep static analysis happy.
-	if (!Object || !CurrentObject) return;
+	if (!CurrentObject)
+	{
+		return;
+	}
 
-	Options = InOptions;
 	Options.CustomizableObjectNumBoneInfluences = CustomizableObjectNumBoneInfluences;
-	Options.bRealTimeMorphTargetsEnabled = Object->bEnableRealTimeMorphTargets;
-	Options.bClothingEnabled = Object->bEnableClothing;
-	Options.b16BitBoneWeightsEnabled = Object->bEnable16BitBoneWeights;
-	Options.bSkinWeightProfilesEnabled = Object->bEnableAltSkinWeightProfiles;
-	Options.bPhysicsAssetMergeEnabled = Object->bEnablePhysicsAssetMerge;
-	Options.bAnimBpPhysicsManipulationEnabled = Object->bEnableAnimBpPhysicsAssetsManipualtion;
-	Options.bUseDiskCompilation = Object->CompileOptions.bUseDiskCompilation;
-	Options.ImageTiling = Object->CompileOptions.ImageTiling;
+	Options.bRealTimeMorphTargetsEnabled = CurrentObject->bEnableRealTimeMorphTargets;
+	Options.bClothingEnabled = CurrentObject->bEnableClothing;
+	Options.b16BitBoneWeightsEnabled = CurrentObject->bEnable16BitBoneWeights;
+	Options.bSkinWeightProfilesEnabled = CurrentObject->bEnableAltSkinWeightProfiles;
+	Options.bPhysicsAssetMergeEnabled = CurrentObject->bEnablePhysicsAssetMerge;
+	Options.bAnimBpPhysicsManipulationEnabled = CurrentObject->bEnableAnimBpPhysicsAssetsManipualtion;
+	Options.bUseDiskCompilation = CurrentObject->CompileOptions.bUseDiskCompilation;
+	Options.ImageTiling = CurrentObject->CompileOptions.ImageTiling;
 
-	if (!InOptions.bIsCooking && IsRunningCookCommandlet())
+	if (!Options.bIsCooking && IsRunningCookCommandlet())
 	{
-		UE_LOG(LogMutable, Display, TEXT("Editor compilation suspended for Customizable Object [%s]. Can not compile COs when the cook commandlet is running. "), *Object->GetName());
+		UE_LOG(LogMutable, Display, TEXT("Editor compilation suspended for Customizable Object [%s]. Can not compile COs when the cook commandlet is running. "), *CurrentObject->GetName());
+		UCustomizableObjectSystem::GetInstance()->UnlockObject(CurrentObject);
 		return;
 	}
+	
+	UE_LOG(LogMutable, Display, TEXT("Started Customizable Object Compile %s."), *CurrentObject->GetName());
 
-	if (Object->GetPrivate()->IsLocked() || !UCustomizableObjectSystem::GetInstance()->LockObject(Object))
+	if (Options.bIsCooking && Options.TargetPlatform)
 	{
-		UE_LOG(LogMutable, Display, TEXT("Customizable Object is already being compiled or updated %s. Please wait a few seconds and try again."), *Object->GetName());
-		return;
+		UE_LOG(LogMutable, Display, TEXT("Compiling Customizable Object %s for platform %s."), *CurrentObject->GetName(), *Options.TargetPlatform->PlatformName());
 	}
 
-	UE_LOG(LogMutable, Display, TEXT("Started Customizable Object Compile %s."), *Object->GetName());
-
-	if (InOptions.bIsCooking && InOptions.TargetPlatform)
+	if (Options.bIsCooking && Options.bForceLargeLODBias)
 	{
-		UE_LOG(LogMutable, Display, TEXT("Compiling Customizable Object %s for platform %s."), *Object->GetName(), *InOptions.TargetPlatform->PlatformName());
+		UE_LOG(LogMutable, Display, TEXT("Compiling Customizable Object with %d LODBias."), Options.DebugBias);
 	}
 
-	if (InOptions.bIsCooking && InOptions.bForceLargeLODBias)
-	{
-		UE_LOG(LogMutable, Display, TEXT("Compiling Customizable Object with %d LODBias."), InOptions.DebugBias);
-	}
-
-	FMutableGraphGenerationContext GenerationContext(Object, this, Options);
+	FMutableGraphGenerationContext GenerationContext(CurrentObject, this, Options);
 	GenerationContext.ParamNamesToSelectedOptions = ParamNamesToSelectedOptions;
 
 	// If we don't have the target platform yet (in editor) we need to get it
@@ -919,7 +936,7 @@ void FCustomizableObjectCompiler::CompileInternal(UCustomizableObject* Object, c
 	// Generate the mutable node expression
 	FText ErrorMessage;
 	bool bIsRootObject = false;
-	mu::NodeObjectPtr MutableRoot = GenerateMutableRoot(Object, GenerationContext, ErrorMessage, bIsRootObject);
+	mu::NodeObjectPtr MutableRoot = GenerateMutableRoot(CurrentObject, GenerationContext, ErrorMessage, bIsRootObject);
 
 	if (!MutableRoot)
 	{
@@ -932,9 +949,9 @@ void FCustomizableObjectCompiler::CompileInternal(UCustomizableObject* Object, c
 			CompilerLog(FText::FromString(TEXT("Failed to generate the mutable node graph. Object not built.")), nullptr);
 		}
 
-		if (Object->GetPrivate()->IsLocked())
+		if (CurrentObject->GetPrivate()->IsLocked())
 		{
-			UCustomizableObjectSystem::GetInstance()->UnlockObject(Object);
+			UCustomizableObjectSystem::GetInstance()->UnlockObject(CurrentObject);
 		}
 
 		RemoveCompileNotification();
@@ -942,7 +959,7 @@ void FCustomizableObjectCompiler::CompileInternal(UCustomizableObject* Object, c
 	else
 	{
 		// Always work with the ModelResources (Editor) when compiling. They'll be copied to the cooked version during PreSave.
-		FModelResources& ModelResources = Object->GetPrivate()->GetModelResources(false);
+		FModelResources& ModelResources = CurrentObject->GetPrivate()->GetModelResources(false);
 		ModelResources = FModelResources();
 		
 		ModelResources.ReferenceSkeletalMeshesData = MoveTemp(GenerationContext.ReferenceSkeletalMeshesData);
@@ -1039,9 +1056,9 @@ void FCustomizableObjectCompiler::CompileInternal(UCustomizableObject* Object, c
 		}
 		
 		// Clothing	
-		Object->ClothMeshToMeshVertData = MoveTemp(GenerationContext.ClothMeshToMeshVertData);
-		Object->ContributingClothingAssetsData = MoveTemp(GenerationContext.ContributingClothingAssetsData);
-		Object->ClothSharedConfigsData.Empty();
+		CurrentObject->ClothMeshToMeshVertData = MoveTemp(GenerationContext.ClothMeshToMeshVertData);
+		CurrentObject->ContributingClothingAssetsData = MoveTemp(GenerationContext.ContributingClothingAssetsData);
+		CurrentObject->ClothSharedConfigsData.Empty();
 
 		// A clothing backend, e.g. Chaos cloth, can use 2 config files, one owned by the asset, and another that is shared 
 		// among all assets in a SkeletalMesh. When merging different assets in a skeletalmesh we need to make sure only one of 
@@ -1055,13 +1072,13 @@ void FCustomizableObjectCompiler::CompileInternal(UCustomizableObject* Object, c
 		};
 		
 		// Find shared configs to be used (One of each type) 
-		for (FCustomizableObjectClothingAssetData& ClothingAssetData : Object->ContributingClothingAssetsData)
+		for (FCustomizableObjectClothingAssetData& ClothingAssetData : CurrentObject->ContributingClothingAssetsData)
 		{
 			 for (FCustomizableObjectClothConfigData& ClothConfigData : ClothingAssetData.ConfigsData)
 			 {
 				  if (IsSharedConfigData(ClothConfigData))
 				  {
-					  FCustomizableObjectClothConfigData* FoundConfig = Object->ClothSharedConfigsData.FindByPredicate(
+					  FCustomizableObjectClothConfigData* FoundConfig = CurrentObject->ClothSharedConfigsData.FindByPredicate(
 						   [Name = ClothConfigData.ConfigName](const FCustomizableObjectClothConfigData& Other)
 						   {
 							   return Name == Other.ConfigName;
@@ -1069,43 +1086,43 @@ void FCustomizableObjectCompiler::CompileInternal(UCustomizableObject* Object, c
 
 					  if (!FoundConfig)
 					  {
-						   Object->ClothSharedConfigsData.AddDefaulted_GetRef() = ClothConfigData;
+						   CurrentObject->ClothSharedConfigsData.AddDefaulted_GetRef() = ClothConfigData;
 					  }
 				  }
 			 }
 		}
 		
 		// Remove shared configs
-		for (FCustomizableObjectClothingAssetData& ClothingAssetData : Object->ContributingClothingAssetsData)
+		for (FCustomizableObjectClothingAssetData& ClothingAssetData : CurrentObject->ContributingClothingAssetsData)
 		{
 			 ClothingAssetData.ConfigsData.RemoveAllSwap(IsSharedConfigData);
 		}
 
-		Object->GetPrivate()->GroupNodeMap = GenerationContext.GroupNodeMap;
+		CurrentObject->GetPrivate()->GroupNodeMap = GenerationContext.GroupNodeMap;
 
 		if (GenerationContext.Options.OptimizationLevel == 0)
 		{
 			// If the optimization level is "none" disable texture streaming, because textures are all referenced
 			// unreal assets and progressive generation is not supported.
-			Object->GetPrivate()->bDisableTextureStreaming = true;
+			CurrentObject->GetPrivate()->bDisableTextureStreaming = true;
 		}
 		else
 		{
-			Object->GetPrivate()->bDisableTextureStreaming = false;
+			CurrentObject->GetPrivate()->bDisableTextureStreaming = false;
 		}
 		
-		Object->GetPrivate()->bIsCompiledWithoutOptimization = GenerationContext.Options.OptimizationLevel < UE_MUTABLE_MAX_OPTIMIZATION;
+		CurrentObject->GetPrivate()->bIsCompiledWithoutOptimization = GenerationContext.Options.OptimizationLevel < UE_MUTABLE_MAX_OPTIMIZATION;
 
-		Object->GetPrivate()->GetAlwaysLoadedExtensionData() = MoveTemp(GenerationContext.AlwaysLoadedExtensionData);
+		CurrentObject->GetPrivate()->GetAlwaysLoadedExtensionData() = MoveTemp(GenerationContext.AlwaysLoadedExtensionData);
 
-		Object->GetPrivate()->GetStreamedExtensionData().Empty(GenerationContext.StreamedExtensionData.Num());
+		CurrentObject->GetPrivate()->GetStreamedExtensionData().Empty(GenerationContext.StreamedExtensionData.Num());
 		for (UCustomizableObjectResourceDataContainer* Container : GenerationContext.StreamedExtensionData)
 		{
-			Object->GetPrivate()->GetStreamedExtensionData().Emplace(Container);
+			CurrentObject->GetPrivate()->GetStreamedExtensionData().Emplace(Container);
 		}
 
 #if WITH_EDITORONLY_DATA
-		Object->GetPrivate()->CustomizableObjectPathMap = GenerationContext.CustomizableObjectPathMap;
+		CurrentObject->GetPrivate()->CustomizableObjectPathMap = GenerationContext.CustomizableObjectPathMap;
 #endif
 
 		ModelResources.NumComponents = GenerationContext.NumMeshComponentsInRoot;
@@ -1113,7 +1130,7 @@ void FCustomizableObjectCompiler::CompileInternal(UCustomizableObject* Object, c
 		ModelResources.NumLODsToStream = GenerationContext.bEnableLODStreaming ? GenerationContext.NumMaxLODsToStream : 0;
 		ModelResources.FirstLODAvailable = GenerationContext.FirstLODAvailable;
 
-		Object->GetPrivate()->GetStreamedResourceData() = MoveTemp(GenerationContext.StreamedResourceData);
+		CurrentObject->GetPrivate()->GetStreamedResourceData() = MoveTemp(GenerationContext.StreamedResourceData);
 
 		// Pass-through textures
 		TArray<FMutableSourceTextureData> NewCompileTimeReferencedTextures;
@@ -1143,7 +1160,7 @@ void FCustomizableObjectCompiler::CompileInternal(UCustomizableObject* Object, c
 			// Notice that, to avoid automatic compilations/warnings, the set of referencing objects set found here must coincide with the set found when loading the
 			// model (discard previous compilations) or when showing PIE warnings.
 			TArray<FName> ReferencingObjectNames;
-			GetReferencingPackages(*Object, ReferencingObjectNames);
+			GetReferencingPackages(*CurrentObject, ReferencingObjectNames);
 
 			for (const FName& ReferencingObjectName : ReferencingObjectNames)
 			{
@@ -1156,8 +1173,8 @@ void FCustomizableObjectCompiler::CompileInternal(UCustomizableObject* Object, c
 			}
 			
 			// Copy final array of participating objects
-			Object->GetPrivate()->ParticipatingObjects = MoveTemp(GenerationContext.ParticipatingObjects);
-			Object->GetPrivate()->DirtyParticipatingObjects.Empty();
+			CurrentObject->GetPrivate()->ParticipatingObjects = MoveTemp(GenerationContext.ParticipatingObjects);
+			CurrentObject->GetPrivate()->DirtyParticipatingObjects.Empty();
 		}
 
 		if (CompileTask.IsValid()) // Don't start compilation if there's a compilation running
@@ -1169,9 +1186,9 @@ void FCustomizableObjectCompiler::CompileInternal(UCustomizableObject* Object, c
 
 		// Lock the object to prevent instance updates while compiling. It's ignored and returns false if it's already locked
 		// Will unlock in the FinishCompilation call.
-		if (!Object->GetPrivate()->IsLocked())
+		if (!CurrentObject->GetPrivate()->IsLocked())
 		{
-			UCustomizableObjectSystem::GetInstance()->LockObject(Object);
+			UCustomizableObjectSystem::GetInstance()->LockObject(CurrentObject);
 		}
 
 		CompileTask = MakeShareable(new FCustomizableObjectCompileRunnable(MutableRoot));
@@ -1183,14 +1200,14 @@ void FCustomizableObjectCompiler::CompileInternal(UCustomizableObject* Object, c
 		{
 			CompileTask->Init();
 			CompileTask->Run();
-			FinishCompilation();
+			FinishCompilationTask();
 
 			if (SaveDDTask.IsValid())
 			{
 				SaveDDTask->Init();
 				SaveDDTask->Run();
-				CurrentObject->GetPrivate()->GetModel()->GetPrivate()->UnloadRoms();
-				FinishSavingDerivedData();
+				Model->GetPrivate()->UnloadRoms();
+				FinishSavingDerivedDataTask();
 			}
 
 			CleanCachedReferencers();
@@ -1229,7 +1246,7 @@ void FCustomizableObjectCompiler::CompileInternal(UCustomizableObject* Object, c
 		//Checking if there is the population plugin
 		if (FModuleManager::Get().IsModuleLoaded("CustomizableObjectPopulation"))
 		{
-			ICustomizableObjectPopulationModule::Get().RecompilePopulations(Object);
+			ICustomizableObjectPopulationModule::Get().RecompilePopulations(CurrentObject);
 		}
 	}
 }
@@ -1303,12 +1320,12 @@ mu::NodePtr FCustomizableObjectCompiler::Export(UCustomizableObject* Object, con
 }
 
 
-void FCustomizableObjectCompiler::FinishCompilation()
+void FCustomizableObjectCompiler::FinishCompilationTask()
 {
 	check(CompileTask.IsValid());
 
 	UpdateCompilerLogData();
-	TSharedPtr<mu::Model, ESPMode::ThreadSafe> Model = CompileTask->Model;
+	Model = CompileTask->Model;
 
 	// Generate a map that using the resource id tells the offset and size of the resource inside the bulk data
 	// At this point it is assumed that all data goes into a single file.
@@ -1333,8 +1350,6 @@ void FCustomizableObjectCompiler::FinishCompilation()
 
 	// Generate ParameterProperties and IntParameterLookUpTable
 	CurrentObject->GetPrivate()->UpdateParameterPropertiesFromModel(Model);
-
-	CurrentObject->GetPrivate()->SetModel(Model, GenerateIdentifier(*CurrentObject));
 	
 	// Reset all instances, as the parameters may need to be rebuilt.
 	for (TObjectIterator<UCustomizableObjectInstance> It; It; ++It)
@@ -1357,22 +1372,25 @@ void FCustomizableObjectCompiler::FinishCompilation()
 	{
 		TRACE_BEGIN_REGION(UE_MUTABLE_SAVEDD_REGION);
 
-		SaveDDTask = MakeShareable(new FCustomizableObjectSaveDDRunnable(CurrentObject, Options));
+		SaveDDTask = MakeShareable(new FCustomizableObjectSaveDDRunnable(CurrentObject, Options, Model));
 	}
 	else
 	{
-		CurrentObject->GetPrivate()->GetModel()->GetPrivate()->UnloadRoms();
+		Model->GetPrivate()->UnloadRoms();
 
 		// when skipping the SaveDerivedData task unlock the object so that instances can be updated
 		UCustomizableObjectSystem::GetInstance()->UnlockObject(CurrentObject);
+
+		CurrentObject->GetPrivate()->SetModel(Model, GenerateIdentifier(*CurrentObject));
 	}
 
 	UE_LOG(LogMutable, Display, TEXT("Finished Customizable Object Compile %s."), *CurrentObject->GetName());
 }
 
-void FCustomizableObjectCompiler::FinishSavingDerivedData()
+
+void FCustomizableObjectCompiler::FinishSavingDerivedDataTask()
 {
-	MUTABLE_CPUPROFILER_SCOPE(FinishSavingDerivedData)
+	MUTABLE_CPUPROFILER_SCOPE(FinishSavingDerivedDataTask)
 
 	check(SaveDDTask.IsValid());
 
@@ -1384,16 +1402,19 @@ void FCustomizableObjectCompiler::FinishSavingDerivedData()
 				SaveDDTask->BulkDataBytes,
 				SaveDDTask->MorphDataBytes);
 	}
+	
 
-	// Order matters
-	SaveDDThread.Reset();
-	SaveDDTask.Reset();
-
-	CurrentObject->GetPrivate()->GetModel()->GetPrivate()->UnloadRoms();
+	Model->GetPrivate()->UnloadRoms();
 	
 	// Unlock the object so that instances can be updated
 	UCustomizableObjectSystem::GetInstance()->UnlockObject(CurrentObject);
 
+	CurrentObject->GetPrivate()->SetModel(Model, GenerateIdentifier(*CurrentObject));
+
+	// Order matters
+	SaveDDThread.Reset();
+	SaveDDTask.Reset();
+	
 	RemoveCompileNotification();
 
 	NotifyCompilationErrors();

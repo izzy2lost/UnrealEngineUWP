@@ -3076,8 +3076,7 @@ namespace impl
 
 		// Next Task: Load Unreal Assets
 		//-------------------------------------------------------------
-		FStreamableManager* StreamManager = System->GetPrivate()->bBlocking ? nullptr : &System->GetPrivate()->StreamableManager;
-		UE::Tasks::FTask Game_LoadUnrealAssets = ObjectInstancePrivateData->LoadAdditionalAssetsAndData(OperationData, StreamManager);
+		UE::Tasks::FTask Game_LoadUnrealAssets = ObjectInstancePrivateData->LoadAdditionalAssetsAndData(OperationData, System->GetPrivate()->StreamableManager, !System->GetPrivate()->bBlocking);
 
 		// Next-next Task: Convert Resources
 		//-------------------------------------------------------------
@@ -4109,7 +4108,7 @@ void UCustomizableObjectSystem::StartNextRecompile()
 		FCompilationOptions Options = CustomizableObject->CompileOptions;
 		Options.bSilentCompilation = true;
 		check(GetPrivate()->RecompileCustomizableObjectsCompiler != nullptr);
-		GetPrivate()->RecompileCustomizableObjectsCompiler->Compile(*CustomizableObject, Options, true);
+		GetPrivate()->RecompileCustomizableObjectsCompiler->Compile(*CustomizableObject, Options, !GetPrivate()->bBlocking);
 	}
 }
 
@@ -4180,7 +4179,7 @@ void UCustomizableObjectSystem::TickRecompileCustomizableObjects()
 	
 	if (GetPrivate()->RecompileCustomizableObjectsCompiler)
 	{
-		bUpdated = GetPrivate()->RecompileCustomizableObjectsCompiler->Tick() || GetPrivate()->RecompileCustomizableObjectsCompiler->GetCompilationState() == ECustomizableObjectCompilationState::Failed;
+		bUpdated = GetPrivate()->RecompileCustomizableObjectsCompiler->Tick(GetPrivate()->bBlocking) || GetPrivate()->RecompileCustomizableObjectsCompiler->GetCompilationState() == ECustomizableObjectCompilationState::Failed;
 	}
 
 	if (bUpdated)

@@ -47,8 +47,9 @@ public:
 	
 	virtual void Compile(UCustomizableObject& Object, const FCompilationOptions& Options, bool bAsync) {};
 
-	virtual bool Tick() { return false; }
-	virtual void ForceFinishCompilation() {};
+	/** Return true if no further ticks are required. In other words, all work has completed. */
+	virtual bool Tick(bool bBlocking) { return true; }
+	virtual void ForceFinishCompilation() {}
 
 	// Return true if this object doesn't reference a parent object.
 	virtual bool IsRootObject(const UCustomizableObject* Object) const { return true; }
@@ -690,7 +691,8 @@ class CUSTOMIZABLEOBJECT_API UCustomizableObjectPrivate : public UObject
 
 public:
 	UCustomizableObjectPrivate();
-	
+
+	/** Must be called after unlocking the CustomizableObject. */
 	void SetModel(const TSharedPtr<mu::Model, ESPMode::ThreadSafe>& Model, const FGuid Identifier);
 	const TSharedPtr<mu::Model, ESPMode::ThreadSafe>& GetModel();
 	TSharedPtr<const mu::Model, ESPMode::ThreadSafe> GetModel() const;

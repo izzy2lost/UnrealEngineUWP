@@ -254,11 +254,11 @@ void FCustomizableObjectCompileRunnable::Tick()
 }
 
 
-FCustomizableObjectSaveDDRunnable::FCustomizableObjectSaveDDRunnable(UCustomizableObject* CustomizableObject, const FCompilationOptions& InOptions)
+FCustomizableObjectSaveDDRunnable::FCustomizableObjectSaveDDRunnable(UCustomizableObject* CustomizableObject, const FCompilationOptions& InOptions, TSharedPtr<mu::Model> InModel)
 {
 	MUTABLE_CPUPROFILER_SCOPE(FCustomizableObjectSaveDDRunnable::FCustomizableObjectSaveDDRunnable)
 		
-	Model = CustomizableObject->GetPrivate()->GetModel();
+	Model = InModel;
 	Options = InOptions;
 	
 	CustomizableObjectHeader.InternalVersion = CustomizableObject->GetPrivate()->CurrentSupportedVersion;

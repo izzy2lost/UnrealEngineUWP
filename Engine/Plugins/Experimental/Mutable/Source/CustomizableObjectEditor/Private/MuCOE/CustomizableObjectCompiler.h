@@ -31,7 +31,7 @@ public:
 	CUSTOMIZABLEOBJECTEDITOR_API ECustomizableObjectCompilationState GetCompilationState() const override { return State;  };
 	
 	/** Check for pending compilation process. Returns true if an object has been updated. */
-	CUSTOMIZABLEOBJECTEDITOR_API virtual bool Tick() override;
+	CUSTOMIZABLEOBJECTEDITOR_API virtual bool Tick(bool bBlocking) override;
 
 	/** Generate the Mutable Graph from the Unreal Graph. */
 	mu::NodePtr Export(UCustomizableObject* Object, const FCompilationOptions& Options, TArray<TSoftObjectPtr<UTexture>>& OutRuntimeReferencedTextures, TArray<FMutableSourceTextureData>& OutCompilerReferencedTextures);
@@ -40,8 +40,8 @@ public:
 	void CompilerLog(const FText& Message, const UObject* Context = nullptr, const EMessageSeverity::Type MessageSeverity = EMessageSeverity::Warning, const bool bAddBaseObjectInfo = true, const ELoggerSpamBin SpamBin = ELoggerSpamBin::ShowAll);
 	void NotifyCompilationErrors() const;
 
-	void FinishCompilation();
-	void FinishSavingDerivedData();
+	void FinishCompilationTask();
+	void FinishSavingDerivedDataTask();
 	virtual void ForceFinishCompilation() override;
 
 	void AddCompileNotification(const FText& CompilationStep) const;
@@ -62,18 +62,6 @@ public:
 	/** Simply add CO elements from ArrayAssetData to ArrayGCProtect when they've been loaded from ArrayAssetData */
 	void UpdateArrayGCProtect();
 
-	/** Getter of CurrentGAsyncLoadingTimeLimit */
-	float GetCurrentGAsyncLoadingTimeLimit() { return CurrentGAsyncLoadingTimeLimit; }
-
-	/** Setter for CurrentGAsyncLoadingTimeLimit */
-	void SetCurrentGAsyncLoadingTimeLimit(float Value) { CurrentGAsyncLoadingTimeLimit = Value; }
-
-	/** Getter of PreloadingReferencerAssets */
-	bool GetPreloadingReferencerAssets() { return PreloadingReferencerAssets; }
-
-	/** Setter for PreloadingReferencerAssets */
-	void SetPreloadingReferencerAssets(bool Value) { PreloadingReferencerAssets = Value; }
-
 	// This is used to restrict Group nodes to compile only the SelectedOption and discard all the others
 	void AddCompileOnlySelectedOption(const FString& ParamName, const FString& OptionValue);
 	// This clears all restrictions and let's a full compilation happen
@@ -90,14 +78,13 @@ private:
 	// Object containing all error and warning logs raised during compilation.
 	FCompilationMessageCache CompilationLogsContainer;
 	
-private:
 	void SetCompilationState(ECustomizableObjectCompilationState InState);
 
 	ECustomizableObjectCompilationState State = ECustomizableObjectCompilationState::None;
 	
-	void CompileInternal(UCustomizableObject* Object, const FCompilationOptions& Options, bool bAsync = false);
+	void CompileInternal(bool bAsync = false);
 
-	static void PreloadingReferencerAssetsCallback(UCustomizableObject* Object, FCustomizableObjectCompiler* CustomizableObjectCompiler, const FCompilationOptions Options, bool bAsync);
+	void PreloadingReferencerAssetsCallback(bool bAsync);
 	
 	void ProcessChildObjectsRecursively(UCustomizableObject* Object, FMutableGraphGenerationContext &GenerationContext);
 
@@ -125,7 +112,8 @@ private:
 	/** Array where to put the names of the already processed child in ProcessChildObjectsRecursively */
 	TArray<FName> ArrayAlreadyProcessedChild;
 
-
+	TArray<FSoftObjectPath> ArrayAssetToStream;
+	
 	// Will output to Mutable Log the warning and error messages generated during the CO compilation
 	// and update the values of NumWarnings and NumErrors
 	void UpdateCompilerLogData();
@@ -218,6 +206,7 @@ private:
 	TMap<FString, FString> ParamNamesToSelectedOptions;
 
 	/** Pointer to the Asynchronous Preloading process call back */
-	TSharedPtr<struct FStreamableHandle> AsynchronousStreamableHandlePtr;
-	
+	TSharedPtr<FStreamableHandle> AsynchronousStreamableHandlePtr;
+
+	TSharedPtr<mu::Model, ESPMode::ThreadSafe> Model;
 };

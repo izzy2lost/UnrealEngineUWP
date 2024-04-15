@@ -88,7 +88,7 @@ class FCustomizableObjectSaveDDRunnable : public FRunnable
 {
 public:
 
-	FCustomizableObjectSaveDDRunnable(class UCustomizableObject* CustomizableObject, const FCompilationOptions& Options);
+	FCustomizableObjectSaveDDRunnable(UCustomizableObject* CustomizableObject, const FCompilationOptions& Options, TSharedPtr<mu::Model> InModel);
 
 	// FRunnable interface
 	uint32 Run() override;
@@ -99,10 +99,8 @@ public:
 
 	const ITargetPlatform* GetTargetPlatform() const;
 
-	//
-	FCompilationOptions Options;
-
 private:
+	FCompilationOptions Options;
 
 	MutableCompiledDataStreamHeader CustomizableObjectHeader;
 

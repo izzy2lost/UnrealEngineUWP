@@ -324,12 +324,14 @@ void FCustomizableObjectEditor::InitCustomizableObjectEditor(const EToolkitMode:
 	OnObjectPropertySelectionChanged(NULL);
 	OnInstancePropertySelectionChanged(NULL);
 	FCoreUObjectDelegates::OnObjectModified.AddRaw(this, &FCustomizableObjectEditor::OnObjectModified);
-
+	
 	UCustomizableObjectPrivate* CustomizableObjectPrivate = CustomizableObject->GetPrivate();
 
 	CustomizableObjectPrivate->Status.GetOnStateChangedDelegate().AddRaw(this, &FCustomizableObjectEditor::OnCustomizableObjectStatusChanged);
 	const FCustomizableObjectStatusTypes::EState CurrentStatus = CustomizableObjectPrivate->Status.Get();
 	OnCustomizableObjectStatusChanged(CurrentStatus, CurrentStatus);
+
+	CustomizableObject->GetPostCompileDelegate().AddSP(this, &FCustomizableObjectEditor::OnPostCompile);
 }
 
 
@@ -1776,21 +1778,7 @@ bool FCustomizableObjectEditor::IsTickable() const
 
 void FCustomizableObjectEditor::Tick(float InDeltaTime)
 {
-	const bool bUpdated = Compiler.Tick();
-	
-	if (bUpdated && CustomizableObject->IsCompiled())
-	{
-		if (!PreviewCustomizableSkeletalComponents.IsEmpty() && !PreviewSkeletalMeshComponents.IsEmpty())
-		{
-			CreatePreviewComponents();
-
-			PreviewInstance->UpdateSkeletalMeshAsync(true, true);
-		}
-		else
-		{
-			CreatePreviewInstance();
-		}
-	}
+	Compiler.Tick(false);
 }
 
 
@@ -2137,6 +2125,21 @@ void FCustomizableObjectEditor::FindProperty(const FProperty* Property, const vo
 				FindProperty(MapProperty->ValueProp, MapValuePtr, FindString, Context, bFound);
 			}
 		}
+	}
+}
+
+
+void FCustomizableObjectEditor::OnPostCompile()
+{
+	if (!PreviewCustomizableSkeletalComponents.IsEmpty() && !PreviewSkeletalMeshComponents.IsEmpty())
+	{
+		CreatePreviewComponents();
+
+		PreviewInstance->UpdateSkeletalMeshAsync(true, true);
+	}
+	else
+	{
+		CreatePreviewInstance();
 	}
 }
 

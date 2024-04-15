@@ -221,6 +221,7 @@ private:
 	/** Open the Texture Analyzer tab */
 	void OpenTextureAnalyzerTab();
 
+	void OnPostCompile();
 public:
 	/** Static to reuse code with FCustomizableObjectEditor. */
 	static void HideGizmo(const TSharedPtr<ICustomizableObjectInstanceEditor>& Editor,
@@ -281,9 +282,6 @@ private:
 
 	/** Scene preview settings widget */
 	TSharedPtr<SWidget> AdvancedPreviewSettingsWidget;
-
-	/** Object compiler */
-	TUniquePtr<FCustomizableObjectCompiler> Compiler;
 
 	/** Pose asset when doing drag and drop of an UPoseAsset to the viewport */
 	UPoseAsset* PoseAsset;

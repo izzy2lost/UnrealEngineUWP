@@ -19,7 +19,6 @@
 #include "MuCO/CustomizableObjectInstance.h"
 #include "MuCO/CustomizableObjectSystem.h"
 #include "MuCO/CustomizableSkeletalComponent.h"
-#include "MuCOE/CustomizableObjectCompiler.h"
 #include "MuCOE/CustomizableObjectEditorActions.h"
 #include "MuCO/ICustomizableObjectEditorModule.h"
 #include "MuCOE/CustomizableObjectEditorViewportClient.h"
@@ -226,11 +225,7 @@ FCustomizableObjectInstanceEditor::~FCustomizableObjectInstanceEditor()
 	Viewport.Reset();
 
 	FCoreUObjectDelegates::OnObjectModified.Remove(OnObjectModifiedHandle);
-	if (Compiler)
-	{
-		Compiler->ForceFinishCompilation();
-	}
-
+	
 	if (const UCustomizableObject* CustomizableObject = CustomizableObjectInstance->GetCustomizableObject())
 	{
 		CustomizableObject->GetPrivate()->Status.GetOnStateChangedDelegate().RemoveAll(this);		
@@ -330,6 +325,8 @@ void FCustomizableObjectInstanceEditor::InitCustomizableObjectInstanceEditor( co
 			bOnlyRuntimeParameters = false;
 			InCustomizableObjectInstance->GetPrivate()->bShowOnlyRuntimeParameters = false;
 		}
+		
+		CustomizableObject->GetPostCompileDelegate().AddSP(this, &FCustomizableObjectInstanceEditor::OnPostCompile);
 	}
 }
 
@@ -703,26 +700,7 @@ bool FCustomizableObjectInstanceEditor::IsTickable(void) const
 void FCustomizableObjectInstanceEditor::Tick(float InDeltaTime)
 {
 	check(CustomizableObjectInstance);
-	if (Compiler && Compiler->Tick())
-	{
-		if (const UCustomizableObject* CustomizableObject = CustomizableObjectInstance->GetCustomizableObject();
-			CustomizableObject && CustomizableObject->GetPrivate()->GetSource())
-		{
-			if (PreviewCustomizableSkeletalComponents.Num() > 0)
-			{
-				CustomizableObjectInstance->UpdateSkeletalMeshAsync(true, true);
-			}
-			else
-			{
-				CreatePreviewInstance();
-			}
-
-			CustomizableInstanceDetailsView->ForceRefresh();
-		}
-
-		Compiler.Reset();
-	}
-
+	
 	// If we want to show the Relevant/Runtime parameters, we need to refresh the details view to make sure that the scroll bar appears		
 	if (bOnlyRelevantParameters != CustomizableObjectInstance->GetPrivate()->bShowOnlyRelevantParameters)
 	{
@@ -775,9 +753,28 @@ void FCustomizableObjectInstanceEditor::OpenTextureAnalyzerTab()
 }
 
 
+void FCustomizableObjectInstanceEditor::OnPostCompile()
+{
+	const UCustomizableObject* CustomizableObject = CustomizableObjectInstance->GetCustomizableObject();
+	if (CustomizableObject && CustomizableObject->GetPrivate()->GetSource())
+	{
+		if (PreviewCustomizableSkeletalComponents.Num() > 0)
+		{
+			CustomizableObjectInstance->UpdateSkeletalMeshAsync(true, true);
+		}
+		else
+		{
+			CreatePreviewInstance();
+		}
+
+		CustomizableInstanceDetailsView->ForceRefresh();
+	}
+}
+
+
 void FCustomizableObjectInstanceEditor::HideGizmo(const TSharedPtr<ICustomizableObjectInstanceEditor>& Editor,
-	const TSharedPtr<SCustomizableObjectEditorViewportTabBody>& Viewport,
-	const TSharedPtr<IDetailsView>& InstanceDetailsView)
+                                                  const TSharedPtr<SCustomizableObjectEditorViewportTabBody>& Viewport,
+                                                  const TSharedPtr<IDetailsView>& InstanceDetailsView)
 {
 	HideGizmoProjectorParameter(Editor, Viewport, InstanceDetailsView);
 }

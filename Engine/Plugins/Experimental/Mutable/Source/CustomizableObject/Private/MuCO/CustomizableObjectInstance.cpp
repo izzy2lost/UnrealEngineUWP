@@ -4648,7 +4648,7 @@ FAutoConsoleVariableRef CVarMutableHighPriorityLoading(
 	TEXT("If enabled, the request to load additional assets will have high priority."));
 
 UE::Tasks::FTask UCustomizableInstancePrivate::LoadAdditionalAssetsAndData(
-		const TSharedRef<FUpdateContextPrivate>& OperationData, FStreamableManager* StreamableManager)
+		const TSharedRef<FUpdateContextPrivate>& OperationData, FStreamableManager& StreamableManager, bool bAsync)
 {
 	MUTABLE_CPUPROFILER_SCOPE(UCustomizableInstancePrivate::LoadAdditionalAssetsAndDataAsync);
 
@@ -4941,19 +4941,16 @@ UE::Tasks::FTask UCustomizableInstancePrivate::LoadAdditionalAssetsAndData(
 	{	
 		UE::Tasks::FTaskEvent AssetAsyncLoadCompletionEvent = StreamingCompletionEvents.Emplace_GetRef(TEXT("AssetAsyncLoadCompletionEvent"));
 
-		if (StreamableManager)
+		if (bAsync)
 		{
-			StreamingHandle = StreamableManager->RequestAsyncLoad(
+			StreamingHandle = StreamableManager.RequestAsyncLoad(
 					AssetsToStream, 
 					FStreamableDelegate::CreateUObject(this, &UCustomizableInstancePrivate::AdditionalAssetsAsyncLoaded, AssetAsyncLoadCompletionEvent),
 					bEnableHighPriorityLoading ? FStreamableManager::AsyncLoadHighPriority : FStreamableManager::DefaultAsyncLoadPriority);			
 		}
 		else
 		{
-			for (const FSoftObjectPath& Asset : AssetsToStream)
-			{
-				Asset.TryLoad();
-			}
+			StreamableManager.RequestSyncLoad(AssetsToStream);
 			
 			AdditionalAssetsAsyncLoaded(AssetAsyncLoadCompletionEvent);
 		}

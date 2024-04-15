@@ -374,7 +374,9 @@ private:
 	  * @param Context UObject Context where this string has been found.
 	  * @param bFound Mark as true if any property has been found. */
 	void FindProperty(const FProperty* Property, const void* Container, const FString& FindString, const UObject& Context, bool& bFound);
-	
+
+	void OnPostCompile();
+
 public:
 	void OnCustomizableObjectStatusChanged(FCustomizableObjectStatus::EState PreviousState, FCustomizableObjectStatus::EState CurrentState);
 
