@@ -75,6 +75,23 @@ namespace AutoRTFM
 				return false;
 			case EAutoRTFMEnabledState::AutoRTFM_Enabled:
 			case EAutoRTFMEnabledState::AutoRTFM_ForcedEnabled:
+			case EAutoRTFMEnabledState::AutoRTFM_EnabledForAllVerse:
+				return true;
+			}
+#else
+			return false;
+#endif
+		}
+
+		bool IsAutoRTFMRuntimeEnabledForAllVerse()
+		{
+			// #noop if AutoRTFM is not compiled in
+#if UE_AUTORTFM
+			switch (GAutoRTFMRuntimeEnabled)
+			{
+			default:
+				return false;
+			case EAutoRTFMEnabledState::AutoRTFM_EnabledForAllVerse:
 				return true;
 			}
 #else

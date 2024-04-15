@@ -584,6 +584,9 @@ namespace ForTheRuntime
 
 		// Force enable AutoRTFM - once set the AutoRTFM runtime cannot be re-enabled.
 		AutoRTFM_ForcedEnabled,
+
+		// Enable AutoRTFM for *all* Verse code (not just failure contexts).
+		AutoRTFM_EnabledForAllVerse,
 	};
 
 	// Set whether the AutoRTFM runtime is enabled or disabled.
@@ -591,6 +594,9 @@ namespace ForTheRuntime
 
 	// Query whether the AutoRTFM runtime is enabled.
 	UE_AUTORTFM_API bool IsAutoRTFMRuntimeEnabled();
+
+	// Query whether the AutoRTFM runtime is enabled for *all* Verse code (not just failure contexts).
+	UE_AUTORTFM_API bool IsAutoRTFMRuntimeEnabledForAllVerse();
 
 	// Manually create a new transaction from open code and push it as a transaction nest.
 	// Can only be called within an already active parent transaction (EG. this cannot start
