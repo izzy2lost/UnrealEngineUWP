@@ -944,6 +944,18 @@ bool FStateTreeCompiler::CreateStateTransitions()
 				return false;
 			}
 
+			if (CompactTransition.State.IsValid()
+				&& !CompactTransition.State.IsCompletionState())
+			{
+				FCompactStateTreeState& TransitionTargetState = StateTree->States[CompactTransition.State.Index];
+				if (TransitionTargetState.Type == EStateTreeStateType::Subtree)
+				{
+					Log.Reportf(EMessageSeverity::Warning,
+						TEXT("Transitioning directly to a Subtree State '%s' is not recommended, as it may have unexpected results. Subtree States should be used with Linked States instead."),
+						*TransitionTargetState.Name.ToString());
+				}
+			}
+			
 			if (Transition.Trigger == EStateTreeTransitionTrigger::OnEvent)
 			{
 				CompactTransition.RequiredEvent.Tag = Transition.RequiredEvent.Tag;
@@ -965,13 +977,14 @@ bool FStateTreeCompiler::CreateStateTransitions()
 					return false;
 				}
 
-				if (!CompactTransition.State.IsCompletionState())
+				if (CompactTransition.State.IsValid()
+					&& !CompactTransition.State.IsCompletionState())
 				{
 					FCompactStateTreeState& TransitionTargetState = StateTree->States[CompactTransition.State.Index];
 					if (TransitionTargetState.RequiredEventToEnter.IsValid() && !TransitionTargetState.RequiredEventToEnter.IsSubsetOfAnotherDesc(CompactTransition.RequiredEvent))
 					{
 						Log.Reportf(EMessageSeverity::Error, Desc,
-							TEXT("On Event transition to %s will never succeed as transition and state required events are incompatible."),
+							TEXT("On Event transition to '%s' will never succeed as transition and state required events are incompatible."),
 							*TransitionTargetState.Name.ToString());
 						return false;
 					}
