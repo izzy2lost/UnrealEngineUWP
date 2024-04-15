@@ -225,6 +225,7 @@ public:
 	virtual FLinearColor GetColorForNode(FGuid InNodeGuid, int32 InLayerIndex) const;
 	virtual FText GetToolTipForNode(FGuid InNodeGuid) const;
 	virtual float GetScaleForNode(FGuid InNodeGuid) const;
+	void AdjustPositionWithDPIScale(FVector2d& InOutPosition, bool bInverse = false) const;
 
 	virtual bool IsAutoGroupingEnabled() const;
 	virtual float GetAutoGroupingDistance() const;

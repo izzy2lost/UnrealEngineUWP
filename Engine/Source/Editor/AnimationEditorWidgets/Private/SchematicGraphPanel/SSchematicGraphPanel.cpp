@@ -1185,13 +1185,8 @@ FVector2d SSchematicGraphPanel::GetPositionForNode(FGuid InNodeGuid) const
 			FVector2d Position = GraphData->GetPositionOffsetForNode(Node);
 			Position += GraphData->GetPositionForNode(Node);
 
-			if(!DPIScale.IsSet())
-			{
-				const float WidgetX = CachedGeometry.GetAbsolutePosition().X;
-				const float WidgetY = CachedGeometry.GetAbsolutePosition().Y;
-				DPIScale = 1.f / FPlatformApplicationMisc::GetDPIScaleFactorAtPoint(WidgetX, WidgetY);
-			}
-			return DPIScale.GetValue() * Position;
+			AdjustPositionWithDPIScale(Position);
+			return Position;
 		}
 	}
 	return FVector2d::ZeroVector;
@@ -1236,6 +1231,24 @@ float SSchematicGraphPanel::GetScaleForNode(FGuid InNodeGuid) const
 		return GraphData->GetScaleForNode(InNodeGuid);
 	}
 	return 1.f;
+}
+
+void SSchematicGraphPanel::AdjustPositionWithDPIScale(FVector2d& InOutPosition, bool bInverse) const
+{
+	if(!DPIScale.IsSet())
+	{
+		const float WidgetX = CachedGeometry.GetAbsolutePosition().X;
+		const float WidgetY = CachedGeometry.GetAbsolutePosition().Y;
+		DPIScale = 1.f / 2.f;//FPlatformApplicationMisc::GetDPIScaleFactorAtPoint(WidgetX, WidgetY);
+	}
+	if (bInverse)
+	{
+		InOutPosition /= DPIScale.GetValue();
+	}
+	else
+	{
+		InOutPosition *= DPIScale.GetValue();
+	}
 }
 
 bool SSchematicGraphPanel::IsAutoGroupingEnabled() const
@@ -1443,8 +1456,13 @@ void SSchematicGraphPanel::UpdateAutoGroupingForNodes()
 		GroupNodeGuidByHash.Add(Pair.Key, Node->GetGuid());
 
 		// move the group node to the right location
-		const FVector2d AveragePosition = NodePositionPerHash.FindChecked(*PositionHash); 
-		Pair.Value->SetPosition(AveragePosition);
+		const FVector2d AveragePosition = NodePositionPerHash.FindChecked(*PositionHash);
+
+		// The average position is already adjusted for DPI scale
+		// The position on the FSchematicGraphNode should not have that correction, we need to undo the scale
+		FVector2d AveragePositionWithoutDPIScale = AveragePosition;
+		AdjustPositionWithDPIScale(AveragePositionWithoutDPIScale, true);
+		Pair.Value->SetPosition(AveragePositionWithoutDPIScale);
 
 		// also update the widget since it has an animated position
 		if(const SSchematicGraphNode* Widget = FindNode(Node->GetGuid()))
