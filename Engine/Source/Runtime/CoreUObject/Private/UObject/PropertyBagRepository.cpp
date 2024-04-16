@@ -16,6 +16,7 @@
 #include "UObject/InstanceDataObjectUtils.h"
 #include "UObject/Package.h"
 #include "Templates/UnrealTemplate.h"
+#include "UObject/PropertyOptional.h"
 
 #if WITH_EDITOR
 #include "HAL/IConsoleManager.h"
@@ -125,16 +126,6 @@ FPropertyBagRepository& FPropertyBagRepository::Get()
 FPropertyBagRepository::FPropertyBagRepository()
 {
 	PropertyBagPlaceholderTypeRegistry = MakeUnique<FPropertyBagPlaceholderTypeRegistry>();
-#if WITH_EDITOR
-	FCoreUObjectDelegates::OnObjectModified.AddLambda([](const UObject* Object)
-	{
-		// if this object is an InstanceDataObject, modify it's owner as well
-		if (const UObject* Owner = Get().FindInstanceForDataObject(Object))
-		{
-			const_cast<UObject*>(Owner)->Modify();
-		}
-	});
-#endif
 }
 
 void FPropertyBagRepository::ReassociateObjects(const TMap<UObject*, UObject*>& ReplacedObjects)
@@ -171,6 +162,316 @@ void FPropertyBagRepository::CleanupLevel(const UObject* Level)
 	{
 		RemoveAssociationUnsafe(Instance);
 	}
+}
+
+static FProperty* FindPropertyByNameAndType(const UStruct* Struct, FName InName, FName Type)
+{
+	for (FProperty* Property = Struct->PropertyLink; Property != nullptr; Property = Property->PropertyLinkNext)
+	{
+		if (Property->GetFName() == InName && Property->GetID() == Type)
+		{
+			return Property;
+		}
+	}
+
+	return nullptr;
+}
+
+static void ConstructRemappedPropertyChain(const FEditPropertyChain& Chain, FEditPropertyChain& NewChain, const UObject* Destination)
+{
+	UStruct* Struct = Destination->GetClass();
+	for (FEditPropertyChain::TDoubleLinkedListNode* Itr = Chain.GetHead(); Itr; Itr = Itr->GetNextNode())
+	{
+		FProperty* Property = Itr->GetValue();
+		NewChain.AddTail(FindPropertyByNameAndType(Struct, Property->GetFName(), Property->GetID()));
+		Property = NewChain.GetTail()->GetValue();
+
+		// iterate the struct to look in
+		if (FOptionalProperty* AsOptionalProperty = CastField<FOptionalProperty>(Property))
+		{
+			Property = AsOptionalProperty->GetValueProperty();
+		}
+		else if (FArrayProperty* AsArrayProperty = CastField<FArrayProperty>(Property))
+		{
+			Property = AsArrayProperty->Inner;
+		}
+		else if (FSetProperty* AsSetProperty = CastField<FSetProperty>(Property))
+		{
+			Property = AsSetProperty->ElementProp;
+		}
+		else if (FMapProperty* AsMapProperty = CastField<FMapProperty>(Property))
+		{
+			Property = AsMapProperty->ValueProp;
+		}
+		
+		if (FStructProperty* AsStructProperty = CastField<FStructProperty>(Property))
+		{
+			Struct = AsStructProperty->Struct;
+		}
+		else
+		{
+			check(Itr->GetNextNode() == nullptr);
+		}
+
+		// remap active and active member nodes
+		if (Chain.GetActiveNode() == Itr)
+		{
+			NewChain.SetActivePropertyNode(NewChain.GetTail()->GetValue());
+		}
+		if (Chain.GetActiveMemberNode() == Itr)
+		{
+			NewChain.SetActiveMemberPropertyNode(NewChain.GetTail()->GetValue());
+		}
+	}
+}
+
+static void* ResolveChangePath(const void* StructData, FPropertyChangedChainEvent& ChangeEvent, bool bGrowContainersWhenNeeded = false)
+{
+	if (ChangeEvent.PropertyChain.GetHead() == nullptr)
+	{
+		return nullptr;
+	}
+		
+	FEditPropertyChain::TDoubleLinkedListNode* PropertyNode = ChangeEvent.PropertyChain.GetHead();
+	void* MemoryPtr = const_cast<void*>(StructData);
+	do
+	{
+		const FProperty* Property = PropertyNode->GetValue();
+		MemoryPtr = Property->ContainerPtrToValuePtr<uint8>(MemoryPtr);
+		PropertyNode = PropertyNode->GetNextNode();
+		
+		const int32 ArrayIndex = ChangeEvent.GetArrayIndex(Property->GetName());
+		if (PropertyNode && ArrayIndex != INDEX_NONE)
+		{
+			if (const FArrayProperty* ArrayProperty = CastField<FArrayProperty>(Property->GetOwnerProperty()))
+			{
+				FScriptArrayHelper ArrayHelper(ArrayProperty, MemoryPtr);
+				if(!ArrayHelper.IsValidIndex(ArrayIndex))
+				{
+					return nullptr;
+				}
+				MemoryPtr = ArrayHelper.GetRawPtr(ArrayIndex);
+
+				// skip to the next property node already
+				PropertyNode = PropertyNode->GetNextNode();
+			}
+			if (const FSetProperty* SetProperty = CastField<FSetProperty>(Property->GetOwnerProperty()))
+			{
+				FScriptSetHelper SetHelper(SetProperty, MemoryPtr);
+				if(!SetHelper.IsValidIndex(ArrayIndex))
+				{
+					return nullptr;
+				}
+				MemoryPtr = SetHelper.GetElementPtr(ArrayIndex);
+
+				// skip to the next property node already
+				PropertyNode = PropertyNode->GetNextNode();
+			}
+			if (const FMapProperty* MapProperty = CastField<FMapProperty>(Property->GetOwnerProperty()))
+			{
+				FScriptMapHelper MapHelper(MapProperty, MemoryPtr);
+				if(!MapHelper.IsValidIndex(ArrayIndex))
+				{
+					return nullptr;
+				}
+				MemoryPtr = MapHelper.GetValuePtr(ArrayIndex);
+
+				// skip to the next property node already
+				PropertyNode = PropertyNode->GetNextNode();
+			}
+		}
+	}
+	while (PropertyNode);
+
+	return MemoryPtr;
+}
+static void CopyProperty(const FProperty* SourceProperty, const void* SourceValue, const FProperty* DestProperty, void* DestValue)
+{
+	check(SourceProperty->GetID() == DestProperty->GetID());
+	if (SourceProperty->SameType(DestProperty))
+	{
+		SourceProperty->CopySingleValue(DestValue, SourceValue);
+	}
+	else if (const FStructProperty* SourcePropertyAsStruct = CastField<FStructProperty>(SourceProperty))
+	{
+		const UStruct* SourceStruct = SourcePropertyAsStruct->Struct;
+		UStruct* DestStruct = CastFieldChecked<FStructProperty>(DestProperty)->Struct;
+		for (FProperty* SourceChild : TFieldRange<FProperty>(SourceStruct))
+		{
+			if (FProperty* DestChild = FindPropertyByNameAndType(DestStruct, SourceChild->GetFName(), SourceChild->GetID()))
+			{
+				CopyProperty(SourceChild, SourceChild->ContainerPtrToValuePtr<void>(SourceValue),
+					DestChild, DestChild->ContainerPtrToValuePtr<void>(DestValue));
+			}
+		}
+	}
+	else if (const FOptionalProperty* SourcePropertyAsOptional = CastField<FOptionalProperty>(SourceProperty))
+	{
+		const FOptionalProperty* DestPropertyAsOptional = CastFieldChecked<FOptionalProperty>(DestProperty);
+		FOptionalPropertyLayout SourceOptionalLayout(SourcePropertyAsOptional->GetValueProperty());
+		FOptionalPropertyLayout DestOptionalLayout(DestPropertyAsOptional->GetValueProperty());
+		if (!SourceOptionalLayout.IsSet(SourceValue))
+		{
+			DestOptionalLayout.MarkUnset(DestValue);
+		}
+		else
+		{
+			const void* SourceChildValue = SourceOptionalLayout.GetValuePointerForRead(SourceValue);
+			void* DestChildValue = DestOptionalLayout.MarkSetAndGetInitializedValuePointerToReplace(DestValue);
+			
+			CopyProperty(SourceOptionalLayout.GetValueProperty(), SourceChildValue,
+				DestOptionalLayout.GetValueProperty(), DestChildValue);
+		}
+	}
+	else if (const FArrayProperty* SourcePropertyAsArray = CastField<FArrayProperty>(SourceProperty))
+	{
+		const FArrayProperty* DestPropertyAsArray = CastFieldChecked<FArrayProperty>(DestProperty);
+		FScriptArrayHelper SourceArray(SourcePropertyAsArray, SourceValue);
+		FScriptArrayHelper DestArray(DestPropertyAsArray, DestValue);
+		DestArray.Resize(SourceArray.Num());
+		for (int32 I = 0; I < SourceArray.Num(); ++I)
+		{
+			CopyProperty(SourcePropertyAsArray->Inner, SourceArray.GetElementPtr(I),
+					DestPropertyAsArray->Inner, DestArray.GetElementPtr(I));
+		}
+	}
+	else if (const FSetProperty* SourcePropertyAsSet = CastField<FSetProperty>(SourceProperty))
+	{
+		const FSetProperty* DestPropertyAsSet = CastFieldChecked<FSetProperty>(DestProperty);
+		FScriptSetHelper SourceSet(SourcePropertyAsSet, SourceValue);
+		FScriptSetHelper DestSet(DestPropertyAsSet, DestValue);
+		DestSet.Set->Empty(0, DestSet.SetLayout);
+		for (FScriptSetHelper::FIterator Itr = SourceSet.CreateIterator(); Itr; ++Itr)
+		{
+			void* DestChild = DestSet.GetElementPtr(DestSet.AddUninitializedValue());
+			DestSet.ElementProp->InitializeValue(DestChild);
+			
+			CopyProperty(SourceSet.ElementProp, SourceSet.GetElementPtr(Itr.GetInternalIndex()),
+					DestSet.ElementProp, DestChild);
+		}
+		DestSet.Rehash();
+	}
+	else if (const FMapProperty* SourcePropertyAsMap = CastField<FMapProperty>(SourceProperty))
+	{
+		const FMapProperty* DestPropertyAsMap = CastFieldChecked<FMapProperty>(DestProperty);
+		FScriptMapHelper SourceMap(SourcePropertyAsMap, SourceValue);
+		FScriptMapHelper DestMap(DestPropertyAsMap, DestValue);
+		DestMap.EmptyValues();
+		for (FScriptMapHelper::FIterator Itr = SourceMap.CreateIterator(); Itr; ++Itr)
+		{
+			void* DestChildKey = DestMap.GetKeyPtr(DestMap.AddUninitializedValue());
+			DestMap.KeyProp->InitializeValue(DestChildKey);
+			
+			CopyProperty(SourceMap.KeyProp, SourceMap.GetKeyPtr(Itr.GetInternalIndex()),
+					DestMap.KeyProp, DestChildKey);
+			
+			void* DestChildValue = DestMap.GetValuePtr(DestMap.AddUninitializedValue());
+			DestMap.ValueProp->InitializeValue(DestChildValue);
+			
+			CopyProperty(SourceMap.ValueProp, SourceMap.GetValuePtr(Itr.GetInternalIndex()),
+					DestMap.ValueProp, DestChildValue);
+		}
+		DestMap.Rehash();
+	}
+}
+
+static void AddProperty(const FProperty* SourceProperty, const void* SourceValue, const FProperty* DestProperty, void* DestValue, int32 ArrayIndex)
+{
+	if (const FArrayProperty* SourcePropertyAsArray = CastField<FArrayProperty>(SourceProperty))
+	{
+		const FArrayProperty* DestPropertyAsArray = CastFieldChecked<FArrayProperty>(DestProperty);
+		FScriptArrayHelper SourceArray(SourcePropertyAsArray, SourceValue);
+        FScriptArrayHelper DestArray(DestPropertyAsArray, DestValue);
+		if (DestArray.Num() < ArrayIndex + 1)
+		{
+			DestArray.Resize(ArrayIndex + 1);
+		}
+		CopyProperty(SourcePropertyAsArray->Inner, SourceArray.GetElementPtr(ArrayIndex),
+			DestPropertyAsArray->Inner, DestArray.GetElementPtr(ArrayIndex));
+	}
+	else if (const FSetProperty* SourcePropertyAsSet = CastField<FSetProperty>(SourceProperty))
+	{
+		const FSetProperty* DestPropertyAsSet = CastFieldChecked<FSetProperty>(DestProperty);
+		FScriptSetHelper SourceSet(SourcePropertyAsSet, SourceValue);
+        FScriptSetHelper DestSet(DestPropertyAsSet, DestValue);
+		int32 DestArrayIndex = DestSet.AddUninitializedValue();
+		
+		void* DestElementPtr = DestSet.GetElementPtr(DestArrayIndex);
+		DestPropertyAsSet->ElementProp->InitializeValue(DestElementPtr);
+		CopyProperty(SourcePropertyAsSet->ElementProp, SourceSet.GetElementPtr(ArrayIndex),
+			DestPropertyAsSet->ElementProp, DestElementPtr);
+		DestSet.Rehash();
+	}
+	else if (const FMapProperty* SourcePropertyAsMap = CastField<FMapProperty>(SourceProperty))
+	{
+		const FMapProperty* DestPropertyAsMap = CastFieldChecked<FMapProperty>(DestProperty);
+		FScriptMapHelper SourceMap(SourcePropertyAsMap, SourceValue);
+		FScriptMapHelper DestMap(DestPropertyAsMap, DestValue);
+		int32 DestArrayIndex = DestMap.AddUninitializedValue();
+
+		void* DestKeyPtr = DestMap.GetKeyPtr(DestArrayIndex);
+		DestPropertyAsMap->KeyProp->InitializeValue(DestKeyPtr);
+		CopyProperty(SourcePropertyAsMap->KeyProp, SourceMap.GetKeyPtr(ArrayIndex),
+			DestPropertyAsMap->KeyProp, DestKeyPtr);
+		
+		void* DestValuePtr = DestMap.GetValuePtr(DestArrayIndex);
+		DestPropertyAsMap->ValueProp->InitializeValue(DestValuePtr);
+		CopyProperty(SourcePropertyAsMap->ValueProp, SourceMap.GetValuePtr(ArrayIndex),
+			DestPropertyAsMap->ValueProp, DestValuePtr);
+		DestMap.Rehash();
+	}
+}
+
+void FPropertyBagRepository::PostEditChangeChainProperty(const UObject* Object, FPropertyChangedChainEvent& PropertyChangedEvent)
+{
+#if WITH_EDITOR
+	static TSet<TSoftObjectPtr<UObject>> ChangeCallbacksToSkip;
+	if (ChangeCallbacksToSkip.Remove(Object))
+	{
+		// avoids infinite recursion
+		return;
+	}
+	
+	auto CopyChanges = [&PropertyChangedEvent](const UObject* Source, UObject* Dest) 
+	{
+		FEditPropertyChain RemappedChain;
+		ConstructRemappedPropertyChain(PropertyChangedEvent.PropertyChain, RemappedChain, Dest);
+		Dest->PreEditChange(RemappedChain);
+
+		FPropertyChangedChainEvent RemappedChangeEvent(RemappedChain, PropertyChangedEvent);
+		const void* SourceData = ResolveChangePath(Source, PropertyChangedEvent);
+		void* DestData = ResolveChangePath(Dest, RemappedChangeEvent, true);
+		FProperty* SourceProperty = PropertyChangedEvent.PropertyChain.GetTail()->GetValue();
+		FProperty* DestProperty = RemappedChangeEvent.PropertyChain.GetTail()->GetValue();
+
+		if (PropertyChangedEvent.ChangeType == EPropertyChangeType::ArrayAdd)
+		{
+			int32 ArrayIndex = PropertyChangedEvent.GetArrayIndex(SourceProperty->GetName());
+			check(ArrayIndex != INDEX_NONE);
+			AddProperty(SourceProperty, SourceData, DestProperty, DestData, ArrayIndex);
+		}
+		else
+		{
+			CopyProperty(SourceProperty, SourceData, DestProperty, DestData);
+		}
+		
+		
+		Dest->PostEditChangeChainProperty(RemappedChangeEvent);
+	};
+	
+	if (UObject* Ido = Get().FindInstanceDataObject(Object))
+	{
+		// if this object is an instance, modify it's IDO as well
+		ChangeCallbacksToSkip.Add(Ido); // avoid infinite recursion
+		CopyChanges(Object, Ido);
+	}
+	else if (UObject* Instance = const_cast<UObject*>(Get().FindInstanceForDataObject(Object)))
+	{
+		// if this object is an InstanceDataObject, modify it's owner as well
+		ChangeCallbacksToSkip.Add(Instance); // avoid infinite recursion
+		CopyChanges(Object, Instance);
+	}
+#endif
 }
 
 // TODO: Create these by class on construction?

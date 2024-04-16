@@ -555,6 +555,7 @@ void UObject::PostEditChangeChainProperty(FPropertyChangedChainEvent& PropertyCh
 	PostEditChangeProperty(PropertyEvent);
 
 	FOverridableManager::Get().PostOverrideProperty(*this, PropertyChangedEvent, PropertyChangedEvent.PropertyChain);
+	UE::FPropertyBagRepository::PostEditChangeChainProperty(this, PropertyChangedEvent);
 }
 
 bool UObject::CanEditChange( const FProperty* InProperty ) const

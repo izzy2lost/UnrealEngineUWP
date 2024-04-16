@@ -98,6 +98,8 @@ public:
 	 */
 	COREUOBJECT_API void CleanupLevel(const UObject* Level);
 
+	static void PostEditChangeChainProperty(const UObject* Object, FPropertyChangedChainEvent& PropertyChangedEvent);
+
 	/**
 	 * RequiresFixup - test if InstanceDataObject properties perfectly match object instance properties. This is necessary for the object to be published in UEFN.    
 	 * @param Object	- Object to test.
