@@ -3,6 +3,7 @@
 #pragma once
 
 #include "Scheduler/AnimNextSchedulePort.h"
+#include "Param/AnimNextEditorParam.h"
 #include "AnimNextSchedulePort_AnimNextMeshComponentPose.generated.h"
 
 UCLASS(DisplayName = "AnimNext Mesh Component Pose")
