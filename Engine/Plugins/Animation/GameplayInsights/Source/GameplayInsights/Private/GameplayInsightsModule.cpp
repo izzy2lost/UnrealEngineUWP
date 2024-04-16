@@ -193,28 +193,8 @@ void FGameplayInsightsModule::StartupModule()
 			IUnrealInsightsModule& UnrealInsightsModule = FModuleManager::LoadModuleChecked<IUnrealInsightsModule>("TraceInsights");
 			if (!UnrealInsightsModule.GetStoreClient())
 			{
-#if WITH_TRACE_STORE
-				UE_LOG(LogCore, Display, TEXT("GameplayInsights module auto-connecting to internal trace server..."));
-				// Create the Store Service.
-				FString StoreDir = FPaths::ProjectSavedDir() / TEXT("TraceSessions");
-				UE::Trace::FStoreService::FDesc StoreServiceDesc;
-				StoreServiceDesc.StoreDir = *StoreDir;
-				StoreServiceDesc.RecorderPort = 0; // Let system decide port
-				StoreServiceDesc.ThreadCount = 2;
-				StoreService = TSharedPtr<UE::Trace::FStoreService>(UE::Trace::FStoreService::Create(StoreServiceDesc));
-
-				FCoreDelegates::OnPreExit.AddLambda([this]() {
-					StoreService.Reset();
-				});
-
-				// Connect to our newly created store and setup the insights module
-				UnrealInsightsModule.ConnectToStore(TEXT("localhost"), StoreService->GetPort());
-				UE::Trace::SendTo(TEXT("localhost"), StoreService->GetRecorderPort());
-#else
 				UE_LOG(LogCore, Display, TEXT("GameplayInsights module auto-connecting to local trace server..."));
 				UnrealInsightsModule.ConnectToStore(TEXT("127.0.0.1"));
-#endif // WITH_TRACE_STORE
-
 				UnrealInsightsModule.CreateSessionViewer(false);
 			}
 		});

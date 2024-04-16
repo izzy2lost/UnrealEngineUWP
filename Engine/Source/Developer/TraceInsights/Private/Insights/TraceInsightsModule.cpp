@@ -177,23 +177,7 @@ void FTraceInsightsModule::UnregisterComponent(TSharedPtr<IInsightsComponent> Co
 
 void FTraceInsightsModule::CreateDefaultStore()
 {
-#if WITH_TRACE_STORE
-	const FString StoreDir = FPaths::ProjectSavedDir() / TEXT("TraceSessions");
-
-	// Create the Store Service.
-	UE::Trace::FStoreService::FDesc StoreServiceDesc;
-	StoreServiceDesc.StoreDir = *StoreDir;
-	StoreServiceDesc.RecorderPort = 1981;
-	StoreServiceDesc.ThreadCount = 2;
-	StoreService.Reset(UE::Trace::FStoreService::Create(StoreServiceDesc));
-
-	if (StoreService.IsValid())
-	{
-		ConnectToStore(TEXT("127.0.0.1"), StoreService->GetPort());
-	}
-#else
 	ConnectToStore(TEXT("127.0.0.1"));
-#endif // WITH_TRACE_STORE
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////

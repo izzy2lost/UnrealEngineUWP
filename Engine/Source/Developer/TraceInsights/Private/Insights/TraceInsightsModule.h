@@ -7,16 +7,6 @@
 #include "Framework/Docking/TabManager.h"
 #include "Trace/StoreService.h"
 
-namespace UE
-{
-namespace Trace
-{
-#if WITH_TRACE_STORE
-	class FStoreService;
-#endif
-}
-}
-
 namespace TraceServices
 {
 	class IAnalysisService;
@@ -110,11 +100,6 @@ protected:
 	void UpdateAppTitle();
 
 	void HandleCodeAccessorOpenFileFailed(const FString& Filename);
-
-protected:
-#if WITH_TRACE_STORE
-	TUniquePtr<UE::Trace::FStoreService> StoreService;
-#endif
 
 	TSharedPtr<TraceServices::IAnalysisService> TraceAnalysisService;
 	TSharedPtr<TraceServices::IModuleService> TraceModuleService;
