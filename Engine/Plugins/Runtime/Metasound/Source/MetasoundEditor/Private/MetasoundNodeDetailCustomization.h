@@ -188,6 +188,20 @@ namespace Metasound
 			virtual TArray<IDetailPropertyRow*> CustomizeLiteral(UMetasoundEditorGraphMemberDefaultLiteral& InLiteral, IDetailLayoutBuilder& InDetailLayout) override;
 		};
 
+		class FMetasoundBoolLiteralCustomization : public FMetasoundDefaultLiteralCustomizationBase
+		{
+			TWeakObjectPtr<UMetasoundEditorGraphMemberDefaultBool> BoolLiteral;
+
+		public:
+			FMetasoundBoolLiteralCustomization(IDetailCategoryBuilder& InDefaultCategoryBuilder)
+				: FMetasoundDefaultLiteralCustomizationBase(InDefaultCategoryBuilder)
+			{
+			}
+			virtual ~FMetasoundBoolLiteralCustomization();
+
+			virtual TArray<IDetailPropertyRow*> CustomizeLiteral(UMetasoundEditorGraphMemberDefaultLiteral& InLiteral, IDetailLayoutBuilder& InDetailLayout) override;
+		};
+
 		// Customization to support drag-and-drop of Proxy UObject types on underlying members that are structs.
 		// Struct ownership of objects required to customize asset filters based on dynamic UObject MetaSound Registry DataTypes.
 		class FMetasoundObjectArrayLiteralCustomization : public FMetasoundDefaultLiteralCustomizationBase
@@ -219,6 +233,16 @@ namespace Metasound
 			virtual TUniquePtr<FMetasoundDefaultLiteralCustomizationBase> CreateLiteralCustomization(IDetailCategoryBuilder& DefaultCategoryBuilder) const override
 			{
 				return TUniquePtr<FMetasoundDefaultLiteralCustomizationBase>(new FMetasoundFloatLiteralCustomization(DefaultCategoryBuilder));
+			}
+		};
+		
+		// Customization to support bool widgets (ex. Buttons)
+		class FMetasoundBoolLiteralCustomizationFactory : public IMemberDefaultLiteralCustomizationFactory
+		{
+		public:
+			virtual TUniquePtr<FMetasoundDefaultLiteralCustomizationBase> CreateLiteralCustomization(IDetailCategoryBuilder& DefaultCategoryBuilder) const override
+			{
+				return TUniquePtr<FMetasoundDefaultLiteralCustomizationBase>(new FMetasoundBoolLiteralCustomization(DefaultCategoryBuilder));
 			}
 		};
 

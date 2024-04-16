@@ -3,6 +3,7 @@
 #pragma once
 
 #include "AudioMaterialSlate/AudioMaterialSlateTypes.h"
+#include "AudioWidgetsStyle.h"
 #include "Framework/SlateDelegates.h"
 #include "Styling/ISlateStyle.h"
 #include "Styling/SlateWidgetStyleAsset.h"
@@ -19,6 +20,7 @@ class AUDIOWIDGETS_API SAudioMaterialButton : public SLeafWidget
 {
 public:
 	SLATE_BEGIN_ARGS(SAudioMaterialButton)
+	: _AudioMaterialButtonStyle(&FAudioWidgetsStyle::Get().GetWidgetStyle<FAudioMaterialButtonStyle>("AudioMaterialButton.Style"))
 	{}
 
 	/** The owner object*/
@@ -42,7 +44,10 @@ public:
 	void SetPressedState(bool InPressedState);
 
 	/** Apply new material to be used to render the Slate.*/
-	void ApplyNewMaterial();
+	UMaterialInstanceDynamic* ApplyNewMaterial();
+
+	/**Set desired size of the Slate*/
+	void SetDesiredSizeOverride(const FVector2D InSize);
 
 public:
 
@@ -66,10 +71,16 @@ private:
 	// Holds the owner of the Slate
 	TWeakObjectPtr<UObject> Owner;
 
+	// Holds the Modifiable Material that represent the Button
+	mutable TWeakObjectPtr<UMaterialInstanceDynamic> DynamicMaterial;
+
 	// Holds the style for the Slate
 	const FAudioMaterialButtonStyle* AudioMaterialButtonStyle = nullptr;
 
 	//Current pressed state of this button
 	TAttribute<bool> bIsPressedAttribute = false;
+
+	// Holds the optional desired size for the Slate
+	TAttribute<TOptional<FVector2D>> DesiredSizeOverride;
 
 };

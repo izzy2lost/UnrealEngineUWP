@@ -50,10 +50,16 @@ public:
 	UPROPERTY(EditAnywhere, Category = DefaultValue)
 	FMetasoundEditorGraphMemberDefaultBoolRef Default;
 
+	UPROPERTY(EditAnywhere, Category = Widget, meta = (DisplayName = "Widget"))
+	EMetasoundBoolMemberDefaultWidget WidgetType = EMetasoundBoolMemberDefaultWidget::None;
+
 	virtual FMetasoundFrontendLiteral GetDefault() const override;
 	virtual EMetasoundFrontendLiteralType GetLiteralType() const override;
 	virtual void SetFromLiteral(const FMetasoundFrontendLiteral& InLiteral) override;
 	virtual void UpdatePreviewInstance(const Metasound::FVertexName& InParameterName, TScriptInterface<IAudioParameterControllerInterface>& InParameterInterface) const override;
+
+	void SetDefault(const bool InDefault);
+	const bool GetDefault();
 };
 
 UCLASS(MinimalAPI)

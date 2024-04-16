@@ -28,6 +28,13 @@ enum class EMetasoundMemberDefaultWidget : uint8
 };
 
 UENUM()
+enum class EMetasoundBoolMemberDefaultWidget : uint8
+{
+	None,
+	Button
+};
+
+UENUM()
 enum class EMetasoundActiveDetailView : uint8
 {
 	Metasound,

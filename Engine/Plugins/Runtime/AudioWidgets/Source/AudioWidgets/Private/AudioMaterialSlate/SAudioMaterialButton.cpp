@@ -3,8 +3,8 @@
 
 #include "AudioMaterialSlate/SAudioMaterialButton.h"
 #include "AudioMaterialSlate/AudioMaterialSlateTypes.h"
-#include "SlateOptMacros.h"
 #include "Components/Widget.h"
+#include "SlateOptMacros.h"
 
 BEGIN_SLATE_FUNCTION_BUILD_OPTIMIZATION
 void SAudioMaterialButton::Construct(const FArguments& InArgs)
@@ -24,49 +24,72 @@ void SAudioMaterialButton::SetPressedState(bool InPressedState)
 	CommitNewState(InPressedState);
 }
 
-void SAudioMaterialButton::ApplyNewMaterial()
+UMaterialInstanceDynamic* SAudioMaterialButton::ApplyNewMaterial()
 {
 	if (AudioMaterialButtonStyle)
 	{
-		AudioMaterialButtonStyle->CreateDynamicMaterial(Owner.Get());
+		DynamicMaterial = AudioMaterialButtonStyle->CreateDynamicMaterial(Owner.Get());
 	}
+	return DynamicMaterial.Get();
+}
+
+void SAudioMaterialButton::SetDesiredSizeOverride(const FVector2D InSize)
+{
+	SetAttribute(DesiredSizeOverride, TAttribute<TOptional<FVector2D>>(InSize),EInvalidateWidgetReason::Layout);
 }
 
 int32 SAudioMaterialButton::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeometry, const FSlateRect& MyCullingRect, FSlateWindowElementList& OutDrawElements, int32 LayerId, const FWidgetStyle& InWidgetStyle, bool bParentEnabled) const
 {
 	if (AudioMaterialButtonStyle)
 	{
-		UMaterialInstanceDynamic* DynamicMaterial = AudioMaterialButtonStyle->GetDynamicMaterial();
-
-		if (IsValid(DynamicMaterial))
+		if (DynamicMaterial.IsValid())
 		{
-			DynamicMaterial->SetVectorParameterValue(FName("MainColor"), AudioMaterialButtonStyle->ButtonMainColor);
-			DynamicMaterial->SetVectorParameterValue(FName("ShadowColor"), AudioMaterialButtonStyle->ButtonShadowColor);
-			DynamicMaterial->SetVectorParameterValue(FName("SmoothBevelColor"), AudioMaterialButtonStyle->ButtonAccentColor);
-			DynamicMaterial->SetVectorParameterValue(FName("Color_1"), AudioMaterialButtonStyle->ButtonPressedMainColor);
-			DynamicMaterial->SetVectorParameterValue(FName("Color_2"), AudioMaterialButtonStyle->ButtonPressedShadowColor);
-			DynamicMaterial->SetVectorParameterValue(FName("LedColor"), AudioMaterialButtonStyle->ButtonPressedOutlineColor);
-			DynamicMaterial->SetScalarParameterValue(FName("Click"), bIsPressedAttribute.Get());
+			DynamicMaterial.Get()->SetVectorParameterValue(FName("MainColor"), AudioMaterialButtonStyle->ButtonMainColor);
+			DynamicMaterial.Get()->SetVectorParameterValue(FName("ShadowColor"), AudioMaterialButtonStyle->ButtonShadowColor);
+			DynamicMaterial.Get()->SetVectorParameterValue(FName("SmoothBevelColor"), AudioMaterialButtonStyle->ButtonAccentColor);
+			DynamicMaterial.Get()->SetVectorParameterValue(FName("Color_1"), AudioMaterialButtonStyle->ButtonPressedMainColor);
+			DynamicMaterial.Get()->SetVectorParameterValue(FName("Color_2"), AudioMaterialButtonStyle->ButtonPressedShadowColor);
+			DynamicMaterial.Get()->SetVectorParameterValue(FName("LedColor"), AudioMaterialButtonStyle->ButtonPressedOutlineColor);
+			DynamicMaterial.Get()->SetScalarParameterValue(FName("Click"), bIsPressedAttribute.Get());
 
-			DynamicMaterial->SetScalarParameterValue(FName("LocalWidth"), AllottedGeometry.GetLocalSize().X);
-			DynamicMaterial->SetScalarParameterValue(FName("LocalHeigth"), AllottedGeometry.GetLocalSize().Y);			
+			DynamicMaterial.Get()->SetScalarParameterValue(FName("LocalWidth"), AllottedGeometry.GetLocalSize().X);
+			DynamicMaterial.Get()->SetScalarParameterValue(FName("LocalHeigth"), AllottedGeometry.GetLocalSize().Y);		
+			
+			const bool bEnabled = ShouldBeEnabled(bParentEnabled);
+			const ESlateDrawEffect DrawEffects = bEnabled ? ESlateDrawEffect::None : ESlateDrawEffect::DisabledEffect;
+
+			const FLinearColor FinalColorAndOpacity(InWidgetStyle.GetColorAndOpacityTint());
+
+			const float AllotedWidth = AllottedGeometry.GetLocalSize().X;
+			const float AllotedHeight = AllottedGeometry.GetLocalSize().Y;
+
+			const float ButtonRadius = FMath::Min(AllotedWidth, AllotedHeight) * 0.5f;
+			const FVector2D ButtonMidPoint(AllottedGeometry.GetLocalSize() * 0.5f);
+			const FVector2D ButtonDiameter(ButtonRadius * 2);
+
+			FSlateBrush Brush;
+			Brush.SetResourceObject(DynamicMaterial.Get());
+			FSlateDrawElement::MakeBox(OutDrawElements, LayerId++, AllottedGeometry.ToPaintGeometry(ButtonDiameter , FSlateLayoutTransform(ButtonMidPoint-ButtonRadius)),&Brush, DrawEffects, FinalColorAndOpacity);
 		}
-
-		const bool bEnabled = ShouldBeEnabled(bParentEnabled);
-		const ESlateDrawEffect DrawEffects = bEnabled ? ESlateDrawEffect::None : ESlateDrawEffect::DisabledEffect;
-
-		const FLinearColor FinalColorAndOpacity(InWidgetStyle.GetColorAndOpacityTint());
-
-		FSlateBrush Brush;
-		Brush.SetResourceObject(DynamicMaterial);
-		FSlateDrawElement::MakeBox(OutDrawElements, LayerId++, AllottedGeometry.ToPaintGeometry(),&Brush, DrawEffects, FinalColorAndOpacity);
-	}
+		else
+		{
+			if (AudioMaterialButtonStyle)
+			{
+				DynamicMaterial = AudioMaterialButtonStyle->CreateDynamicMaterial(Owner.Get());
+			}
+		}
+	}	
 
 	return LayerId;
 }
 
 FVector2D SAudioMaterialButton::ComputeDesiredSize(float) const
 {
+	if (DesiredSizeOverride.Get().IsSet())
+	{
+		return DesiredSizeOverride.Get().GetValue();
+	}
+
 	if (AudioMaterialButtonStyle)
 	{
 		return FVector2D(AudioMaterialButtonStyle->DesiredSize);

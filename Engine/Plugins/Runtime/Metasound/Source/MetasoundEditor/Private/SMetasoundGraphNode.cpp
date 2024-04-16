@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #include "SMetasoundGraphNode.h"
 
+#include "AudioMaterialSlate/SAudioMaterialButton.h"
 #include "AudioMaterialSlate/SAudioMaterialLabeledKnob.h"
 #include "AudioMaterialSlate/SAudioMaterialLabeledSlider.h"
 #include "AudioParameterControllerInterface.h"
@@ -669,7 +670,7 @@ namespace Metasound
 			TSharedPtr<SWidget> OuterContentBox; // currently only used for input float nodes to accommodate the input widget
 
 			// If editable float input node and not constructor input, check if custom widget required
-			bool bShowInputWidget = false;
+			bool bShowContentWidget = false;
 			if (UMetasoundEditorGraphInput* GraphMember = Cast<UMetasoundEditorGraphInput>(GetMetaSoundMember()))
 			{
 				const UMetasoundEditorGraph* OwningGraph = GraphMember->GetOwningGraph();
@@ -682,7 +683,7 @@ namespace Metasound
 						static const FVector2D SliderDesiredSizeVertical = FVector2D(30.0f, 250.0f);
 						static const FVector2D RadialSliderDesiredSize = FVector2D(56.0f, 87.0f);
 
-						bShowInputWidget = true;
+						bShowContentWidget = true;
 
 						auto OnValueChangedLambda = [DefaultFloat, GraphMember, this](float Value)
 						{
@@ -960,6 +961,56 @@ namespace Metasound
 							}
 						});
 					}
+					else if (UMetasoundEditorGraphMemberDefaultBool* DefaultBool = Cast<UMetasoundEditorGraphMemberDefaultBool>(GraphMember->GetLiteral()); Metasound::Editor::GraphNodePrivate::UseAudioMaterialWidgets)
+					{
+						bool bIsNotTriggerNode = GraphMember->GetDataType() != Metasound::GetMetasoundDataTypeName<Metasound::FTrigger>();
+
+						if ((bIsNotTriggerNode && IsValid(DefaultBool)) && DefaultBool->WidgetType != EMetasoundBoolMemberDefaultWidget::None)
+						{
+							constexpr float WidgetPadding = 3.0f;
+							static const FVector2D ButtonDesiredSize = FVector2D(56.0f, 87.0f);
+
+							auto OnboolValueChangedLambda = [DefaultBool, GraphMember, this](bool Value)
+								{
+									if (MaterialButtonWidget.IsValid())
+									{
+										if (!bIsInputWidgetTransacting)
+										{
+											GEditor->BeginTransaction(LOCTEXT("MetasoundGraphNode_MetasoundSetInputDefault", "Set MetaSound Input Default"));
+											bIsInputWidgetTransacting = true;
+										}
+										GraphMember->GetOwningGraph()->GetMetasound()->Modify();
+										DefaultBool->Modify();
+
+										constexpr bool bPostTransaction = true;
+										DefaultBool->SetDefault(Value);
+										GraphMember->UpdateFrontendDefaultLiteral(bPostTransaction);
+									}
+								};
+
+							bShowContentWidget = true;
+							SAssignNew(OuterContentBox, SVerticalBox)
+								+ SVerticalBox::Slot()
+								.HAlign(HAlign_Right)
+								.VAlign(VAlign_Center)
+								.AutoHeight()
+								[
+									ContentBox.ToSharedRef()
+								]
+								+ SVerticalBox::Slot()
+								.HAlign(HAlign_Fill)
+								.VAlign(VAlign_Top)
+								.Padding(WidgetPadding, 0.0f, WidgetPadding, WidgetPadding)
+								.AutoHeight()
+								[
+									SAssignNew(MaterialButtonWidget, SAudioMaterialButton)
+										.OnBooleanValueChanged_Lambda(OnboolValueChangedLambda)									
+								];
+
+							MaterialButtonWidget->SetPressedState(DefaultBool->GetDefault());
+							MaterialButtonWidget->SetDesiredSizeOverride(ButtonDesiredSize);
+						}
+					}
 				}
 			}
 	
@@ -1007,7 +1058,7 @@ namespace Metasound
 				.VAlign(VAlign_Fill)
 				.Padding(FMargin(0,3))
 				[
-					(bShowInputWidget ? OuterContentBox : ContentBox).ToSharedRef()
+					(bShowContentWidget ? OuterContentBox : ContentBox).ToSharedRef()
 				];
 		}
 

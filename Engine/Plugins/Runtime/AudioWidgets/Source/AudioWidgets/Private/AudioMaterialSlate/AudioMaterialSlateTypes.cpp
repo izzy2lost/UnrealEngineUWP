@@ -11,6 +11,23 @@ namespace AudioMaterialSlateTypesPrivate
 
 using namespace AudioMaterialSlateTypesPrivate;
 
+namespace AudioWidgets
+{
+	namespace SlateTypesPrivate
+	{
+		static const FLinearColor ButtonMainColor(0.098958f, 0.098958f, 0.098958f, 1.f);
+		static const FLinearColor ButtonAccentColor(0.341146f, 0.341146f, 0.341146f, 1.f);
+		static const FLinearColor ButtonPressedShadowColor(0.126558f, 0.138653f, 0.15f, 1.f);
+
+		static const FLinearColor BarMainColor(0.008f, 0.008f, 0.008f, 1.f);
+		static const FLinearColor BarAccentColor(0.005f, 0.005f, 0.005f, 1.f);
+		static const FLinearColor HandleMainColor(0.2f, 0.2f, 0.25f, 1.f);
+		static const FLinearColor HandleOutlineColor(0.15f, 0.15f, 0.15f, 1.f);
+	}
+}
+
+using namespace AudioWidgets;
+
 FAudioMaterialWidgetStyle::FAudioMaterialWidgetStyle()
 	:DesiredSize(32.f, 32.f)
 {
@@ -28,11 +45,11 @@ UMaterialInstanceDynamic* FAudioMaterialWidgetStyle::CreateDynamicMaterial(UObje
 }
 
 FAudioMaterialButtonStyle::FAudioMaterialButtonStyle()
-	: ButtonMainColor(FLinearColor::Gray)
+	: ButtonMainColor(SlateTypesPrivate::ButtonMainColor)
 	, ButtonShadowColor(FLinearColor::Black)
-	, ButtonAccentColor(FLinearColor::Gray)
+	, ButtonAccentColor(SlateTypesPrivate::ButtonAccentColor)
 	, ButtonPressedMainColor(FLinearColor::White)
-	, ButtonPressedShadowColor(FLinearColor::Gray)
+	, ButtonPressedShadowColor(SlateTypesPrivate::ButtonPressedShadowColor)
 	, ButtonPressedOutlineColor(FLinearColor::Blue)
 {
 	FString Path = PLUGIN_BASE_DIR + "MI_AudioMaterialButton.MI_AudioMaterialButton";
@@ -54,11 +71,11 @@ const FAudioMaterialButtonStyle& FAudioMaterialButtonStyle::GetDefault()
 }
 
 FAudioMaterialSliderStyle::FAudioMaterialSliderStyle()
-	: BarMainColor(FLinearColor(0.008f, 0.008f, 0.008f,1.f))
+	: BarMainColor(SlateTypesPrivate::BarMainColor)
 	, BarShadowColor(FLinearColor::Black)
-	, BarAccentColor(FLinearColor(0.005f, 0.005f, 0.005f, 1.f))
-	, HandleMainColor(FLinearColor(0.2f, 0.2f, 0.25f, 1.f))
-	, HandleOutlineColor(FLinearColor(0.15f, 0.15f, 0.15f, 1.f))
+	, BarAccentColor(SlateTypesPrivate::BarAccentColor)
+	, HandleMainColor(SlateTypesPrivate::HandleMainColor)
+	, HandleOutlineColor(SlateTypesPrivate::HandleOutlineColor)
 	, TextBoxStyle(FAudioTextBoxStyle::GetDefault())
 {
 	FString Path = PLUGIN_BASE_DIR + "MI_AudioMaterialRoundedSlider.MI_AudioMaterialRoundedSlider";

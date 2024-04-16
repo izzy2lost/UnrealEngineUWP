@@ -361,6 +361,59 @@ namespace Metasound
 			return DefaultRows;
 		}
 
+		FMetasoundBoolLiteralCustomization::~FMetasoundBoolLiteralCustomization()
+		{
+		}
+
+		TArray<IDetailPropertyRow*> FMetasoundBoolLiteralCustomization::CustomizeLiteral(UMetasoundEditorGraphMemberDefaultLiteral& InLiteral, IDetailLayoutBuilder& InDetailLayout)
+		{
+			check(DefaultCategoryBuilder);
+
+			UMetasoundEditorGraphMemberDefaultBool* DefaultBool = Cast<UMetasoundEditorGraphMemberDefaultBool>(&InLiteral);
+			if (!ensure(DefaultBool))
+			{
+				return { };
+			}
+			BoolLiteral = DefaultBool;
+
+			TArray<IDetailPropertyRow*> DefaultRows;
+			TSharedPtr<IPropertyHandle> DefaultValueHandle;
+			IDetailPropertyRow* Row = DefaultCategoryBuilder->AddExternalObjectProperty(TArray<UObject*>({ DefaultBool }), GET_MEMBER_NAME_CHECKED(UMetasoundEditorGraphMemberDefaultBool, Default));
+			if (ensure(Row))
+			{
+				DefaultRows.Add(Row);
+				DefaultValueHandle = Row->GetPropertyHandle();
+			}
+
+			// Enable widget options for editable inputs only 
+			bool bShowWidgetOptions = false;
+			if (const UMetasoundEditorGraphInput* ParentMember = Cast <UMetasoundEditorGraphInput>(InLiteral.GetParentMember()))
+			{								
+				if (const UMetasoundEditorGraph* OwningGraph = ParentMember->GetOwningGraph())
+				{
+					// Disable widget options for constructor inputs for now to prevent changing default value via widget while playing 
+					bShowWidgetOptions = OwningGraph->IsEditable() && ParentMember->GetVertexAccessType() == EMetasoundFrontendVertexAccessType::Reference;
+				}
+			}
+
+			// add input widget properties
+			if (bShowWidgetOptions)
+			{
+				Frontend::FDataTypeRegistryInfo DataTypeInfo;
+				MemberCustomizationPrivate::GetDataTypeFromElementPropertyHandle(DefaultValueHandle, DataTypeInfo);
+
+				//TODO: Check if using AudioMaterialSlates, only then add.
+				//Only display widgetType option if this is not trigger
+				if (MemberCustomizationPrivate::GetPrimitiveTypeName(DataTypeInfo) != Metasound::GetMetasoundDataTypeName<Metasound::FTrigger>())
+				{
+					IDetailCategoryBuilder& WidgetCategoryBuilder = InDetailLayout.EditCategory("EditorOptions");
+					DefaultRows.Add(WidgetCategoryBuilder.AddExternalObjectProperty(TArray<UObject*>({ DefaultBool }), GET_MEMBER_NAME_CHECKED(UMetasoundEditorGraphMemberDefaultBool, WidgetType)));
+				}
+			}
+
+			return DefaultRows;
+		}
+
 		TArray<IDetailPropertyRow*> FMetasoundObjectArrayLiteralCustomization::CustomizeLiteral(UMetasoundEditorGraphMemberDefaultLiteral& InLiteral, IDetailLayoutBuilder& InDetailLayout)
 		{
 			check(DefaultCategoryBuilder);

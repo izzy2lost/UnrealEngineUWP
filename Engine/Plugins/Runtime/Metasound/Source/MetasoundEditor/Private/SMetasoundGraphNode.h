@@ -14,6 +14,7 @@
 
 // Forward Declarations
 class SAudioInputWidget;
+class SAudioMaterialButton;
 class SGraphPin;
 class SVerticalBox;
 class UMetasoundEditorGraphMember;
@@ -79,6 +80,8 @@ namespace Metasound
 
 			// Slider widget for float input
 			TSharedPtr<SAudioInputWidget> InputWidget;
+			//Button Widget for bool input.
+			TSharedPtr <SAudioMaterialButton> MaterialButtonWidget;
 			// Handle for on value changed delegate for input slider 
 			FDelegateHandle InputSliderOnValueChangedDelegateHandle;
 			// Handle for on input slider range changed  

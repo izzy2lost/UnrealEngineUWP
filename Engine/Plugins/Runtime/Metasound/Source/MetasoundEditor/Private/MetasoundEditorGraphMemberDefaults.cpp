@@ -69,6 +69,16 @@ void UMetasoundEditorGraphMemberDefaultBool::UpdatePreviewInstance(const Metasou
 	InParameterInterface->SetBoolParameter(InParameterName, Default.Value);
 }
 
+void UMetasoundEditorGraphMemberDefaultBool::SetDefault(const bool InDefault)
+{
+	Default.Value = InDefault;
+}
+
+const bool UMetasoundEditorGraphMemberDefaultBool::GetDefault()
+{
+	return Default.Value;
+}
+
 FMetasoundFrontendLiteral UMetasoundEditorGraphMemberDefaultBoolArray::GetDefault() const
 {
 	TArray<bool> BoolArray;
