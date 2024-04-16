@@ -112,6 +112,8 @@ public:
 
 private:
 
+	virtual void Tick(float DeltaT) override;
+
 	// Create the PreviewAnimationInstance if the AnimationAsset and SkeletalMesh both exist, and set the animation to run on the SkeletalMeshComponent
 	void UpdateSkeletalMeshAnimation();
 
@@ -119,6 +121,8 @@ private:
 	void UpdateClothComponentAttachment();
 
 	bool IsComponentSelected(const UPrimitiveComponent* InComponent);
+
+	void HandlePackageReloaded(const EPackageReloadPhase InPackageReloadPhase, FPackageReloadedEvent* InPackageReloadedEvent);
 
 	TObjectPtr<UChaosClothPreviewSceneDescription> PreviewSceneDescription;
 
@@ -131,6 +135,18 @@ private:
 	TObjectPtr<USkeletalMeshComponent> SkeletalMeshComponent;
 
 	TSharedPtr<FTransformGizmoDataBinder> DataBinder = nullptr;
+
+	struct FAnimState
+	{
+		float Time;
+		bool bIsReverse;
+		bool bIsLooping;
+		bool bIsPlaying;
+	};
+	TOptional<FAnimState> SavedAnimState;
+
+	FDelegateHandle OnPackageReloadedDelegateHandle;
+
 };
 } // namespace UE::Chaos::ClothAsset
 

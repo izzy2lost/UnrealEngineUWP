@@ -5,6 +5,7 @@
 #include "ChaosClothAsset/ClothEditor.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Animation/SkeletalMeshActor.h"
+#include "Engine/SkeletalMesh.h"
 #include "AssetEditorModeManager.h"
 #include "Elements/Framework/EngineElementsLibrary.h"
 #include "Animation/AnimSingleNodeInstance.h"
@@ -17,7 +18,7 @@
 #include "Transforms/TransformGizmoDataBinder.h"
 #include "Framework/Notifications/NotificationManager.h"
 #include "Widgets/Notifications/SNotificationList.h"
-
+#include "UObject/PackageReload.h"
 
 #define LOCTEXT_NAMESPACE "UChaosClothEditorPreviewScene"
 
@@ -147,6 +148,7 @@ FChaosClothPreviewScene::FChaosClothPreviewScene(FPreviewScene::ConstructionValu
 	ClothComponent->SelectionOverrideDelegate = UPrimitiveComponent::FSelectionOverride::CreateRaw(this, &FChaosClothPreviewScene::IsComponentSelected);
 	ClothComponent->RegisterComponentWithWorld(GetWorld());
 	
+	OnPackageReloadedDelegateHandle = FCoreUObjectDelegates::OnPackageReloaded.AddRaw(this, &FChaosClothPreviewScene::HandlePackageReloaded);
 }
 
 FChaosClothPreviewScene::~FChaosClothPreviewScene()
@@ -163,6 +165,8 @@ FChaosClothPreviewScene::~FChaosClothPreviewScene()
 		ClothComponent->SelectionOverrideDelegate.Unbind();
 		ClothComponent->UnregisterComponent();
 	}
+
+	FCoreUObjectDelegates::OnPackageReloaded.Remove(OnPackageReloadedDelegateHandle);
 }
 
 void FChaosClothPreviewScene::AddReferencedObjects(FReferenceCollector& Collector)
@@ -175,6 +179,22 @@ void FChaosClothPreviewScene::AddReferencedObjects(FReferenceCollector& Collecto
 	Collector.AddReferencedObject(SceneActor);
 }
 
+void FChaosClothPreviewScene::Tick(float DeltaT)
+{
+	FAdvancedPreviewScene::Tick(DeltaT);
+
+	if (SavedAnimState)
+	{
+		if (UAnimSingleNodeInstance* const AnimInstance = GetPreviewAnimInstance())
+		{
+			AnimInstance->SetPosition(SavedAnimState->Time);
+			AnimInstance->SetReverse(SavedAnimState->bIsReverse);
+			AnimInstance->SetLooping(SavedAnimState->bIsLooping);
+			AnimInstance->SetPlaying(SavedAnimState->bIsPlaying);
+		}
+		SavedAnimState.Reset();
+	}
+}
 
 void FChaosClothPreviewScene::UpdateSkeletalMeshAnimation()
 {
@@ -232,6 +252,15 @@ void FChaosClothPreviewScene::SceneDescriptionPropertyChanged(const FName& Prope
 	if (PropertyName == GET_MEMBER_NAME_CHECKED(UChaosClothPreviewSceneDescription, SkeletalMeshAsset))
 	{
 		check(SkeletalMeshComponent);
+
+		if (const UAnimSingleNodeInstance* const AnimInstance = GetPreviewAnimInstance())
+		{
+			SavedAnimState = FAnimState();
+			SavedAnimState->Time = AnimInstance->GetCurrentTime();
+			SavedAnimState->bIsReverse = AnimInstance->IsReverse();
+			SavedAnimState->bIsLooping = AnimInstance->IsLooping();
+			SavedAnimState->bIsPlaying = AnimInstance->IsPlaying();
+		}
 
 		SkeletalMeshComponent->SetSkeletalMeshAsset(PreviewSceneDescription->SkeletalMeshAsset);
 
@@ -389,6 +418,31 @@ void FChaosClothPreviewScene::SetGizmoDataBinder(TSharedPtr<FTransformGizmoDataB
 {
 	DataBinder = InDataBinder;
 }
+
+
+void FChaosClothPreviewScene::HandlePackageReloaded(const EPackageReloadPhase InPackageReloadPhase, FPackageReloadedEvent* InPackageReloadedEvent)
+{
+	if (InPackageReloadPhase == EPackageReloadPhase::PrePackageFixup)
+	{
+		for (const TPair<UObject*, UObject*>& RepointPair : InPackageReloadedEvent->GetRepointedObjects())
+		{
+			if (RepointPair.Key == PreviewSceneDescription->SkeletalMeshAsset.Get())
+			{
+				// If we are going to be reloading the SkeletalMesh, first save the animation state since the AnimInstance will be reinitialized when the component is reregistered.
+				// Note we restore from the saved state in the Tick function above because AnimInstance reinitialization happens /after/ all reload delegates are called.
+				if (const UAnimSingleNodeInstance* const AnimInstance = GetPreviewAnimInstance())
+				{
+					SavedAnimState = FAnimState();
+					SavedAnimState->Time = AnimInstance->GetCurrentTime();
+					SavedAnimState->bIsReverse = AnimInstance->IsReverse();
+					SavedAnimState->bIsLooping = AnimInstance->IsLooping();
+					SavedAnimState->bIsPlaying = AnimInstance->IsPlaying();
+				}
+			}
+		}
+	}
+}
+
 
 } // namespace UE::Chaos::ClothAsset
 
