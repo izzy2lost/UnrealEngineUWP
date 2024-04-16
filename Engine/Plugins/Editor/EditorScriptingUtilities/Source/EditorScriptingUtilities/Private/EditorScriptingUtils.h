@@ -39,11 +39,6 @@ namespace EditorScriptingUtils
 	bool IsAValidPathForCreateNewAsset(const FString& ObjectPath, FString& OutFailureReason);
 
 	/*
-	 * Check if the Path have a valid root
-	 */
-	bool HasValidRoot(const FString& ObjectPath);
-
-	/*
 	 * From "AssetClass'/Game/Folder/Package.Asset'", "AssetClass /Game/Folder/Package.Asset", "/Game/Folder/Package.Asset", "/Game/Folder/MyAsset" "/Game/Folder/Package.Asset:InnerAsset.2ndInnerAsset"
 	 * and convert to "/Game/Folder/Package.Asset"
 	 * @note: Object name is inferred from package name when missing
