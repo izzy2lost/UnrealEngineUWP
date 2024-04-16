@@ -1685,7 +1685,7 @@ uint32 FOnDemandIoBackend::Run()
 
 	if (DistributionUrl.IsValid())
 	{
-		if (ResolveDistributedEndpoint(DistributionUrl))
+		if (ResolveDistributedEndpoint(DistributionUrl) == false)
 		{
 			UE_LOG(LogIas, Error, TEXT("Failed to resolve CDN endpoints from distribution URL"));
 			BackendStatus.SetHttpEnabled(false);
