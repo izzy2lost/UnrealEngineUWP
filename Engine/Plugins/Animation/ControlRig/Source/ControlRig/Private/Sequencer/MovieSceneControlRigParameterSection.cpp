@@ -741,8 +741,9 @@ struct FParameterTransformChannelEditorData
 		FMovieSceneContext Context(FMovieSceneEvaluationRange(KeyTime, TickResolution));
 		EvalTrack.Interrogate(Context, InterrogationData, Object);
 
-		FVector CurrentPos; FRotator CurrentRot;
-		FVector CurrentScale;
+		FVector CurrentPos = FVector::ZeroVector;
+		FRotator CurrentRot;
+		FVector CurrentScale = FVector::ZeroVector;
 
 		for (const FEulerTransformInterrogationData& Transform : InterrogationData.Iterate<FEulerTransformInterrogationData>(UMovieSceneControlRigParameterSection::GetTransformInterrogationKey()))
 		{

@@ -162,7 +162,7 @@ void FAdaptiveTessellator::FindSplit( uint32 TriIndex )
 	FVector3f& Displacement1 = Displacements[ Indexes[ TriIndex * 3 + 1 ] ];
 	FVector3f& Displacement2 = Displacements[ Indexes[ TriIndex * 3 + 2 ] ];
 
-	FVector3f	BestSplit;
+	FVector3f	BestSplit = FVector3f::ZeroVector;
 	float		BestError = -1.0f;
 
 	auto GetError = [&]( const FVector3f& Barycentrics )
@@ -305,7 +305,7 @@ void FAdaptiveTessellator::FindSplitBVH( uint32 TriIndex )
 	for( uint32 EdgeIndex = 0; EdgeIndex < 3; EdgeIndex++ )
 		bCouldFlipEdge[ EdgeIndex ] = CouldFlipEdge( TriIndex * 3 + EdgeIndex );
 
-	FVector3f	BestSplit;
+	FVector3f	BestSplit = FVector3f::ZeroVector;
 	float		BestError = -1.0f;
 
 	struct FNode

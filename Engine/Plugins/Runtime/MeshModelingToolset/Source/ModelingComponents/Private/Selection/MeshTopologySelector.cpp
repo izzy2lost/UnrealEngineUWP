@@ -103,7 +103,7 @@ bool FMeshTopologySelector::FindSelectedElement(const FSelectionSettings& Settin
 	// end up using this result.
 	double RayParameter = -1;
 	int HitTriangleID = IndexConstants::InvalidID;
-	FVector3d TriangleHitPos;
+	FVector3d TriangleHitPos = FVector3d::ZeroVector;
 	bool bActuallyHitSurface = (Spatial != nullptr) ? Spatial->FindNearestHitTriangle(Ray, RayParameter, HitTriangleID, SpatialQueryOptions) : false;
 	if (bActuallyHitSurface)
 	{
@@ -118,7 +118,7 @@ bool FMeshTopologySelector::FindSelectedElement(const FSelectionSettings& Settin
 	
 	// Deal with corner hits first (and edges that project to a corner)
 	FGroupTopologySelection CornerResults;
-	FVector3d CornerPosition;
+	FVector3d CornerPosition = FVector3d::ZeroVector;
 	int32 CornerSegmentEdgeID = 0;
 	bool bHaveCornerHit = false;
 	if (Settings.bEnableCornerHits || (Settings.bEnableEdgeHits && Settings.bPreferProjectedElement))
@@ -131,7 +131,7 @@ bool FMeshTopologySelector::FindSelectedElement(const FSelectionSettings& Settin
 
 	// If corner selection didn't yield results, try edge selection
 	FGroupTopologySelection EdgeResults;
-	FVector3d EdgePosition;
+	FVector3d EdgePosition = FVector3d::ZeroVector;
 	int32 EdgeSegmentEdgeID = 0;
 	bool bHaveEdgeHit = false;
 	if (Settings.bEnableEdgeHits || (Settings.bEnableFaceHits && Settings.bPreferProjectedElement))

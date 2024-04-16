@@ -439,7 +439,7 @@ static TSharedPtr<FApproximationMeshData> GenerateApproximationMesh(
 	}
 
 	// make ground plane
-	FVector3d GroundPlaneOrigin;
+	FVector3d GroundPlaneOrigin = FVector3d::ZeroVector;
 	FPlane3d GroundClipPlane;
 	bool bHaveGroundClipPlane = false;
 	if (Options.GroundPlanePolicy == IGeometryProcessing_ApproximateActors::EGroundPlanePolicy::FixedZHeightGroundPlane)

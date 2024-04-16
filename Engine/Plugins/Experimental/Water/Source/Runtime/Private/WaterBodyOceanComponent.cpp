@@ -246,16 +246,16 @@ bool UWaterBodyOceanComponent::GenerateWaterBodyMesh(UE::Geometry::FDynamicMesh3
 	}
 	
 	int32 IslandBottomLeft = INDEX_NONE;
-	FVector3d IslandBottomLeftVertex;
+	FVector3d IslandBottomLeftVertex = FVector3d::ZeroVector;
 
 	int32 IslandBottomRight = INDEX_NONE;
-	FVector3d IslandBottomRightVertex;
+	FVector3d IslandBottomRightVertex = FVector3d::ZeroVector;
 	
 	int32 IslandTopRight = INDEX_NONE;
-	FVector3d IslandTopRightVertex;
+	FVector3d IslandTopRightVertex = FVector3d::ZeroVector;
 
 	int32 IslandTopLeft = INDEX_NONE;
-	FVector3d IslandTopLeftVertex;
+	FVector3d IslandTopLeftVertex = FVector3d::ZeroVector;
 
 	check(OutMesh.Attributes());
 	FDynamicMeshColorOverlay* ColorOverlay = OutMesh.Attributes()->PrimaryColors();

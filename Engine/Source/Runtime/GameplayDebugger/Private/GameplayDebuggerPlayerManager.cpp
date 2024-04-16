@@ -285,7 +285,7 @@ const FGameplayDebuggerPlayerData* AGameplayDebuggerPlayerManager::GetPlayerData
 void AGameplayDebuggerPlayerManager::GetViewPoint(const APlayerController& OwnerPC, FVector& OutViewLocation, FVector& OutViewDirection)
 {
 	UWorld* World = OwnerPC.GetWorld();
-	FVector CameraLocation;
+	FVector CameraLocation = FVector::ZeroVector;
 	FRotator CameraRotation;
 	if (OwnerPC.Player)
 	{

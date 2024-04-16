@@ -1424,7 +1424,7 @@ void HullsFromGeometry(
 				return Chaos::FConvexPtr(new Chaos::FConvex(HullPts, UE_KINDA_SMALL_NUMBER));
 			};
 			Chaos::FConvexPtr Hull = nullptr;
-			FVector HullPivot;
+			FVector HullPivot = FVector::ZeroVector;
 
 			if (OptionalDecompositionSettings)
 			{
