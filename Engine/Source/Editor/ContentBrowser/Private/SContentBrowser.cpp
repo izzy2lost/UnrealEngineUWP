@@ -1179,7 +1179,6 @@ TSharedRef<SWidget> SContentBrowser::CreateFavoritesView(const FContentBrowserCo
 				.ShowTreeTitle(false)
 				.ShowSeparator(false)
 				.AllowClassesFolder(true)
-				.CanShowDevelopersFolder(true)
 				.OwningContentBrowserName(InstanceName)
 				.AddMetaData<FTagMetaData>(FTagMetaData(TEXT("ContentBrowserFavorites")))
 				.ExternalSearch(FavoritesSearch)
