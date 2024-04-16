@@ -1045,7 +1045,6 @@ namespace UnrealBuildTool
 
 			// Needs evalulation
 			"deadcode.DeadStores",
-			"security.FloatLoopCounter",
 		};
 
 		/// <summary>
