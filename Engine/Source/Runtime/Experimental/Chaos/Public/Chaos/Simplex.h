@@ -635,7 +635,6 @@ namespace Chaos
 	template <typename T>
 	TVec3<T> SimplexFindClosestToOrigin2(TVec3<T>* Simplex, int32& NumVerts, T* OutBarycentric, TVec3<T>* A, TVec3<T>* B)
 	{
-		TVec3<T> ClosestPoint;
 		switch (NumVerts)
 		{
 		case 1:

@@ -626,7 +626,6 @@ void CreateNonoverlappingConvexHulls(
 	{
 		OutCenter = (CloseA + CloseB) * .5;
 		OutNormal = Normal;
-		Chaos::FVec3 GJKCenter;
 		Chaos::FReal BestScore = ScoreCutPlane(A, B, FChaosPlane(OutCenter, OutNormal), bOneSidedCut, OutCenter, OutNormal);
 		Chaos::FVec3 MassSepNormal = (B.GetCenterOfMass() - A.GetCenterOfMass());
 		if (MassSepNormal.Normalize() && BestScore > 0)

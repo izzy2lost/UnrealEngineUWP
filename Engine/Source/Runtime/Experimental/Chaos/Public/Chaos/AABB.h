@@ -114,7 +114,6 @@ namespace Chaos
 
 		FORCEINLINE TAABB<T, d> GetIntersection(const TAABB<T, d>& Other) const
 		{
-			TVector<T, 3> Tmp;
 			return TAABB<T, d>(MMin.ComponentwiseMax(Other.MMin), MMax.ComponentwiseMin(Other.MMax));
 		}
 

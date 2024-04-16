@@ -1319,7 +1319,6 @@ namespace Chaos
 		FVec2 ClippedFlatRayEnd;
 
 		// Data for fast box cast
-		FVec3 Min, Max, HitPoint;
 		bool bParallel[3];
 		FVec3 InvDir;
 
@@ -1487,7 +1486,6 @@ namespace Chaos
 			Seen.Add(StartCell);
 
 			// Data for fast box cast
-			FVec3 Min, Max, HitPoint;
 			bool bParallel[3];
 			FVec3 InvDir;
 

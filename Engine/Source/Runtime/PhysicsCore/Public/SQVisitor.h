@@ -446,9 +446,9 @@ private:
 	}
 #endif
 
-	const FVector StartPoint;
-	const FVector Dir;
-	const FVector HalfExtents;
+	const FVector StartPoint = FVector::ZeroVector;
+	const FVector Dir = FVector::ZeroVector;
+	const FVector HalfExtents = FVector::ZeroVector;
 	FHitFlags OutputFlags;
 	bool bAnyHit;
 	const ChaosInterface::FQueryDebugParams DebugParams;
