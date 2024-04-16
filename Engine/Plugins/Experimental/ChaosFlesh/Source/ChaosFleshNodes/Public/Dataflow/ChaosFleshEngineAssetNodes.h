@@ -310,7 +310,7 @@ public:
 	bool bDeleteHiddenFaces = false;
 
 	UPROPERTY(EditAnywhere, Category = "Dataflow")
-	FString TargetComponentIndex = "";
+	FString TargetGeometryIndex = "";
 
 	FIsolateComponentNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)

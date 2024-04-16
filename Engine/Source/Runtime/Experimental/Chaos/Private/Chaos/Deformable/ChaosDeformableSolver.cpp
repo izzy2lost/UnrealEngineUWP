@@ -31,6 +31,7 @@
 #include "GeometryCollection/Facades/CollectionVertexBoneWeightsFacade.h"
 #include "GeometryCollection/Facades/CollectionPositionTargetFacade.h"
 #include "GeometryCollection/Facades/CollectionConstraintOverrideFacade.h"
+#include "GeometryCollection/Facades/CollectionMeshFacade.h"
 #include "GeometryCollection/Facades/CollectionMuscleActivationFacade.h"
 #include "Misc/FileHelper.h"
 #include "HAL/PlatformFileManager.h"
@@ -1158,19 +1159,17 @@ namespace Chaos::Softs
 								ParticleComponentIndex[i + Offset] = ComponentOffset;
 							}
 							int NewComponentOffset = ComponentOffset;
-							if (const TManagedArray<int32>* ComponentIndex = Rest->FindAttribute<int32>("ComponentIndex", FGeometryCollection::VerticesGroup))
-							{
-								ensureMsgf(ComponentIndex->Num() == Vertex->Num(), TEXT("ComponentIndex size is not equal to vertex size"));
-								for (int32 i = 0; i < ComponentIndex->Num(); i++) {
-									if ((*ComponentIndex)[i] < 0)
-									{
-										ParticleComponentIndex[i + Offset] = (*ComponentIndex)[i]; //Isolated Nodes
-									}
-									else
-									{
-										ParticleComponentIndex[i + Offset] = ComponentOffset + (*ComponentIndex)[i];
-										NewComponentOffset = NewComponentOffset < ParticleComponentIndex[i + Offset] ? ParticleComponentIndex[i + Offset] : NewComponentOffset;
-									}
+							GeometryCollection::Facades::FCollectionMeshFacade MeshFacade(*Rest);
+							TArray<int32> ComponentIndex = MeshFacade.GetGeometryGroupIndexArray();
+							for (int32 i = 0; i < ComponentIndex.Num(); i++) {
+								if (ComponentIndex[i] < 0)
+								{
+									ParticleComponentIndex[i + Offset] = ComponentIndex[i]; //Isolated Nodes
+								}
+								else
+								{
+									ParticleComponentIndex[i + Offset] = ComponentOffset + ComponentIndex[i];
+									NewComponentOffset = NewComponentOffset < ParticleComponentIndex[i + Offset] ? ParticleComponentIndex[i + Offset] : NewComponentOffset;
 								}
 							}
 							ComponentOffset = NewComponentOffset + 1;
@@ -1201,7 +1200,7 @@ namespace Chaos::Softs
 					{
 						NRing = SurfaceTriangleMesh->GetNRing(VertexId, NRadius-1);
 					}
-					else
+					else if (NRadius == 1)
 					{
 						NRing.Add(VertexId);
 					}
@@ -1213,7 +1212,7 @@ namespace Chaos::Softs
 							TriangleSet.Add(CoincidentTriangles[j]);
 						}
 					}
-				}
+				},true //force single-threaded
 			);
 		}
 	}

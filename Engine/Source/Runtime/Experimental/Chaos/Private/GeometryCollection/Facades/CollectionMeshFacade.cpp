@@ -166,6 +166,22 @@ namespace GeometryCollection::Facades
 		}
 	}
 
+	const TArray<int32> FCollectionMeshFacade::GetGeometryGroupIndexArray() const
+	{
+		TArray<int32> GroupIndexArray;
+		const TManagedArray<FVector3f>& Vertices = VertexAttribute.Get();
+		const TManagedArray<int32>& VertexStarts = VertexStartAttribute.Get();
+		const TManagedArray<int32>& VertexCounts = VertexCountAttribute.Get();
+		GroupIndexArray.Init(INDEX_NONE, Vertices.Num());
+		for (int32 GroupIdx = 0; GroupIdx < VertexStarts.Num(); ++GroupIdx)
+		{
+			for (int32 LocalIdx = 0; LocalIdx < VertexCounts[GroupIdx]; ++LocalIdx)
+			{
+				GroupIndexArray[VertexStarts[GroupIdx] + LocalIdx] = GroupIdx;
+			}
+		}
+		return GroupIndexArray;
+	}
 };
 
 

@@ -198,7 +198,7 @@ void FGeometryCollectionTransferVertexScalarAttributeNode::PairedGeometryTransfe
 					}
 				}
 				Chaos::TVec3<float> CoordDiff = (CoordMaxs - CoordMins) * VertexRadiusRatio;
-				SphereRadius = Chaos::FReal(FGenericPlatformMath::Min(CoordDiff[0], FGenericPlatformMath::Min(CoordDiff[1], CoordDiff[2])));
+				SphereRadius = Chaos::FReal(FGenericPlatformMath::Max(CoordDiff[0], FGenericPlatformMath::Max(CoordDiff[1], CoordDiff[2])));
 
 				TArray<Chaos::TSphere<Chaos::FReal, 3>*> VertexSpherePtrs;
 				TArray<Chaos::TSphere<Chaos::FReal, 3>> VertexSpheres;
@@ -349,7 +349,7 @@ void FGeometryCollectionTransferVertexScalarAttributeNode::NearestVertexTransfer
 		}
 	}
 	Chaos::TVec3<float> CoordDiff = (CoordMaxs - CoordMins) * VertexRadiusRatio;
-	SphereRadius = Chaos::FReal(FGenericPlatformMath::Min(CoordDiff[0], FGenericPlatformMath::Min(CoordDiff[1], CoordDiff[2])));
+	SphereRadius = Chaos::FReal(FGenericPlatformMath::Max(CoordDiff[0], FGenericPlatformMath::Max(CoordDiff[1], CoordDiff[2])));
 
 	TArray<Chaos::TSphere<Chaos::FReal, 3>*> VertexSpherePtrs;
 	TArray<Chaos::TSphere<Chaos::FReal, 3>> VertexSpheres;

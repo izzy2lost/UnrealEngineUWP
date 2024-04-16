@@ -13,6 +13,7 @@
 #include "Dataflow/DataflowInputOutput.h"
 #include "Dataflow/DataflowObjectInterface.h"
 #include "Dataflow/DataflowNodeFactory.h"
+#include "GeometryCollection/Facades/CollectionMeshFacade.h"
 #include "GeometryCollection/Facades/CollectionMuscleActivationFacade.h"
 #include "GeometryCollection/TransformCollection.h"
 #include UE_INLINE_GENERATED_CPP_BY_NAME(ChaosFleshEngineAssetNodes)
@@ -447,48 +448,37 @@ void FComputeMuscleActivationDataNode::Evaluate(Dataflow::FContext& Context, con
 						TArray<TArray<int32>> MuscleActivationElements;
 						TArray<int32> OriginNodes;
 						TArray<int32> InsertionNodes;
-						if (TManagedArray<int32>* ComponentIndex = InCollection.FindAttribute<int32>("ComponentIndex", FGeometryCollection::VerticesGroup))
+						GeometryCollection::Facades::FCollectionMeshFacade MeshFacade(InCollection);
+						TArray<int32> ComponentIndex = MeshFacade.GetGeometryGroupIndexArray();
+						TMap<int32, int32> ComponentToIndex; //Component index to muscle index
+						for (int32 i = 0; i < InOriginIndices.Num(); i++)
 						{
-							TMap<int32, int32> ComponentToIndex; //Component index to muscle index
-							for (int32 i = 0; i < InOriginIndices.Num(); i++)
+							if (!ComponentToIndex.Contains(ComponentIndex[InOriginIndices[i]]))
 							{
-								if (!ComponentToIndex.Contains((*ComponentIndex)[InOriginIndices[i]]))
-								{
-									//TODO: use one pair of separately defined origin and insertion for each muscle instead of choosing the first from kinematic origins and last from insertions
-									ComponentToIndex.Add((*ComponentIndex)[InOriginIndices[i]], OriginNodes.Num());
-									OriginNodes.Add(InOriginIndices[i]);
-								}
-							}
-							InsertionNodes.Init(INDEX_NONE, OriginNodes.Num());
-							for (int32 i = 0; i < InInsertionIndices.Num(); i++)
-							{
-								if (!ComponentToIndex.Contains((*ComponentIndex)[InInsertionIndices[i]]))
-								{
-									ensureMsgf(false, TEXT("No origin in this component"));
-								}
-								else if (InsertionNodes[ComponentToIndex[(*ComponentIndex)[InInsertionIndices[i]]]] == INDEX_NONE)
-								{
-									InsertionNodes[ComponentToIndex[(*ComponentIndex)[InInsertionIndices[i]]]] = InInsertionIndices[i];
-								}
-							}
-							MuscleActivationElements.SetNum(OriginNodes.Num());
-							for (int32 ElemIdx = 0; ElemIdx < Elements->Num(); ElemIdx++)
-							{
-								if (ComponentToIndex.Contains((*ComponentIndex)[(*Elements)[ElemIdx][0]]))
-								{
-									MuscleActivationElements[ComponentToIndex[(*ComponentIndex)[(*Elements)[ElemIdx][0]]]].Add(ElemIdx);
-								}
+								//TODO: use one pair of separately defined origin and insertion for each muscle instead of choosing the first from kinematic origins and last from insertions
+								ComponentToIndex.Add(ComponentIndex[InOriginIndices[i]], OriginNodes.Num());
+								OriginNodes.Add(InOriginIndices[i]);
 							}
 						}
-						else
+						InsertionNodes.Init(INDEX_NONE, OriginNodes.Num());
+						for (int32 i = 0; i < InInsertionIndices.Num(); i++)
 						{
-							MuscleActivationElements.SetNum(1);
-							for (int32 i = 0; i < Elements->Num(); i++)
+							if (!ComponentToIndex.Contains(ComponentIndex[InInsertionIndices[i]]))
 							{
-								MuscleActivationElements[0].Add(i);
+								ensureMsgf(false, TEXT("No origin in this component"));
 							}
-							OriginNodes.Add(InOriginIndices[0]);
-							InsertionNodes.Add(InInsertionIndices[0]);
+							else if (InsertionNodes[ComponentToIndex[ComponentIndex[InInsertionIndices[i]]]] == INDEX_NONE)
+							{
+								InsertionNodes[ComponentToIndex[ComponentIndex[InInsertionIndices[i]]]] = InInsertionIndices[i];
+							}
+						}
+						MuscleActivationElements.SetNum(OriginNodes.Num());
+						for (int32 ElemIdx = 0; ElemIdx < Elements->Num(); ElemIdx++)
+						{
+							if (ComponentToIndex.Contains(ComponentIndex[(*Elements)[ElemIdx][0]]))
+							{
+								MuscleActivationElements[ComponentToIndex[ComponentIndex[(*Elements)[ElemIdx][0]]]].Add(ElemIdx);
+							}
 						}
 						OriginInsertionRestLength.SetNum(OriginNodes.Num());
 
@@ -540,8 +530,7 @@ void FComputeIslandsNode::Evaluate(Dataflow::FContext& Context, const FDataflowO
 			FTetrahedralCollection::TetrahedronAttribute, FTetrahedralCollection::TetrahedralGroup);
 
 
-		if (InCollection.HasAttributes({
-			MType<int32>("ComponentIndex", FGeometryCollection::VerticesGroup) }) && Elements)
+		if (Elements)
 		{
 
 			int32 VertsNum = InCollection.NumElements(FGeometryCollection::VerticesGroup);
@@ -640,54 +629,49 @@ void FGenerateOriginInsertionNode::Evaluate(Dataflow::FContext& Context, const F
 		// these via an input on the node...
 		//
 		auto DoubleVert = [](FVector3f V) { return FVector3d(V.X, V.Y, V.Z); };
-		if (TManagedArray<int32>* ComponentIndex = InCollection.FindAttribute<int32>("ComponentIndex", FGeometryCollection::VerticesGroup))
+		GeometryCollection::Facades::FCollectionMeshFacade MeshFacade(InCollection);
+		TArray<int32> ComponentIndex = MeshFacade.GetGeometryGroupIndexArray();
+		// Origin vertices
+		if (!InOriginIndices.IsEmpty())
 		{
-			// Origin vertices
-			if (!InOriginIndices.IsEmpty())
+			for (int32 i = 0; i < InOriginIndices.Num(); ++i)
 			{
-				for (int32 i = 0; i < InOriginIndices.Num(); ++i)
+				if (InOriginIndices[i] < Vertex->Num())
 				{
-					if (InOriginIndices[i] < Vertex->Num())
+					for (int32 j = 0; j < Vertex->Num(); ++j)
 					{
-						for (int32 j = 0; j < Vertex->Num(); ++j)
+						if (ComponentIndex[InOriginIndices[i]] == ComponentIndex[j] 
+							&& ComponentIndex[InOriginIndices[i]] >= 0
+							&& ComponentIndex[j] >= 0
+							&& ((*Vertex)[InOriginIndices[i]] - (*Vertex)[j]).Size() < Radius)
 						{
-							if ((*ComponentIndex)[InOriginIndices[i]] == (*ComponentIndex)[j] 
-								&& (*ComponentIndex)[InOriginIndices[i]] >= 0
-								&& (*ComponentIndex)[j] >= 0
-								&& ((*Vertex)[InOriginIndices[i]] - (*Vertex)[j]).Size() < Radius)
-							{
-								OutOriginIndices.Add(j);
-							}
-						}
-					}
-				}
-			}
-
-			// Insertion vertices
-			if (!InInsertionIndices.IsEmpty())
-			{
-				for (int32 i = 0; i < InInsertionIndices.Num(); ++i)
-				{
-					if (InInsertionIndices[i] < Vertex->Num())
-					{
-						for (int32 j = 0; j < Vertex->Num(); ++j)
-						{
-							if ((*ComponentIndex)[InInsertionIndices[i]] == (*ComponentIndex)[j]
-								&& (*ComponentIndex)[InInsertionIndices[i]] >= 0
-								&& (*ComponentIndex)[j] >= 0
-								&& ((*Vertex)[InInsertionIndices[i]] - (*Vertex)[j]).Size() < Radius)
-							{
-								OutInsertionIndices.Add(j);
-							}
+							OutOriginIndices.Add(j);
 						}
 					}
 				}
 			}
 		}
 
-		//
-		// Set output(s)
-		//
+		// Insertion vertices
+		if (!InInsertionIndices.IsEmpty())
+		{
+			for (int32 i = 0; i < InInsertionIndices.Num(); ++i)
+			{
+				if (InInsertionIndices[i] < Vertex->Num())
+				{
+					for (int32 j = 0; j < Vertex->Num(); ++j)
+					{
+						if (ComponentIndex[InInsertionIndices[i]] == ComponentIndex[j]
+							&& ComponentIndex[InInsertionIndices[i]] >= 0
+							&& ComponentIndex[j] >= 0
+							&& ((*Vertex)[InInsertionIndices[i]] - (*Vertex)[j]).Size() < Radius)
+						{
+							OutInsertionIndices.Add(j);
+						}
+					}
+				}
+			}
+		}
 
 		SetValue(Context, MoveTemp(InCollection), &Collection);
 		SetValue(Context, MoveTemp(OutOriginIndices), &OriginIndicesOut);
@@ -701,37 +685,35 @@ void FIsolateComponentNode::Evaluate(Dataflow::FContext& Context, const FDataflo
 	{	
 		FManagedArrayCollection InCollection = GetValue<FManagedArrayCollection>(Context, &Collection);
 		TArray<int32> DeleteList;
-		if (TManagedArray<FIntVector>* Indices = InCollection.FindAttribute<FIntVector>("Indices", FGeometryCollection::FacesGroup))
+		TManagedArray<FIntVector>* Indices = InCollection.FindAttribute<FIntVector>("Indices", FGeometryCollection::FacesGroup);
+		TManagedArray<bool>*FaceVisibility = InCollection.FindAttribute<bool>("Visible", FGeometryCollection::FacesGroup);
+		TManagedArray<int32>* FaceStart = InCollection.FindAttribute<int32>("FaceStart", FGeometryCollection::GeometryGroup);
+		TManagedArray<int32>* FaceCount = InCollection.FindAttribute<int32>("FaceCount", FGeometryCollection::GeometryGroup);
+		if (Indices && FaceVisibility && FaceStart && FaceCount)
 		{
-			if (TManagedArray<bool>* FaceVisibility = InCollection.FindAttribute<bool>("Visible", FGeometryCollection::FacesGroup))
+			FaceVisibility->Fill(false);
+			TSet<int32> GeometrySet;
+			TArray<FString> StrArray;
+			TargetGeometryIndex.ParseIntoArray(StrArray, *FString(" "));
+			for (FString GeometryIdx : StrArray)
 			{
-				if (TManagedArray<int32>* ComponentIndex = InCollection.FindAttribute<int32>("ComponentIndex", FGeometryCollection::VerticesGroup))
-				{	
-					TSet<int32> ComponentSet;
-					TArray<FString> StrArray;
-					TargetComponentIndex.ParseIntoArray(StrArray, *FString(" "));
-					for (FString Elem : StrArray)
-					{
-						if (Elem.Len() && FCString::IsNumeric(*Elem))
-						{
-							ComponentSet.Add(FCString::Atoi(*Elem));
-						}
-					}
-					for (int32 i = 0; i < Indices->Num(); i++)
-					{
-						if (!ComponentSet.Contains((*ComponentIndex)[(*Indices)[i][0]]))
-						{
-							(*FaceVisibility)[i] = false;
-							DeleteList.AddUnique(i);
-						}
-					}
+				if (GeometryIdx.Len() && FCString::IsNumeric(*GeometryIdx))
+				{
+					GeometrySet.Add(FCString::Atoi(*GeometryIdx));
 				}
 			}
-		}
-		if (bDeleteHiddenFaces)
-		{
-			DeleteList.Sort();
-			InCollection.RemoveElements(FGeometryCollection::FacesGroup, DeleteList);
+			for (TSet<int32>::TConstIterator It = GeometrySet.CreateConstIterator(); It; ++It)
+			{
+				for (int32 FaceIdx = (*FaceStart)[*It]; FaceIdx < (*FaceStart)[*It] + (*FaceCount)[*It]; FaceIdx++)
+				{
+					(*FaceVisibility)[FaceIdx] = true;
+					DeleteList.Add(FaceIdx);
+				}
+			}
+			if (bDeleteHiddenFaces)
+			{
+				InCollection.RemoveElements(FGeometryCollection::FacesGroup, DeleteList);
+			}
 		}
 		SetValue(Context, MoveTemp(InCollection), &Collection);
 	}
