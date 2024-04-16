@@ -79,6 +79,7 @@ namespace UE::Chaos::ClothAsset
 
 	private:
 		bool ShouldEnableSolver(bool bSolverCurrentlyEnabled) const;
+		void UpdateClothLODs();
 
 		// Internal physics thread object
 		friend class FClothSimulationProxyParallelTask;

@@ -196,7 +196,15 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		}
 
 		// It still needs to write back to the GT cache as the context has changed
-		WriteSimulationData();
+		UpdateClothLODs();
+		if (ClothComponent.IsSimulationEnabled())
+		{
+			WriteSimulationData();
+		}
+		else
+		{
+			CurrentSimulationData.Reset();
+		}
 
 		return false;  // Not simulating
 	}
@@ -354,6 +362,39 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		}
 	}
 
+	void FClothSimulationProxy::UpdateClothLODs()
+	{
+		using namespace ::Chaos;
+
+		bool bAnyLODsChanged = false;
+		for (const TUniquePtr<FClothingSimulationCloth>& Cloth : Cloths)
+		{
+			const int32 AssetIndex = Cloth->GetGroupId();
+
+			if (!Cloth->GetMesh())
+			{
+				continue;  // Invalid or empty cloth
+			}
+
+			// If the LOD has changed while the simulation is suspended, the cloth still needs to be updated with the correct LOD data
+			PRAGMA_DISABLE_DEPRECATION_WARNINGS  // TODO: CHAOS_IS_CLOTHINGSIMULATIONMESH_ABSTRACT
+			const int32 LODIndex = Cloth->GetMesh()->GetLODIndex();
+			PRAGMA_ENABLE_DEPRECATION_WARNINGS
+			if (LODIndex != Cloth->GetLODIndex(Solver.Get()))
+			{
+				if (!ClothComponent.IsSimulationEnabled())
+				{
+					// Mark the cloth as needing to be reset so it doesn't both proxy-deforming lod transitions.
+					Cloth->Reset();
+				}
+				bAnyLODsChanged = true;
+			}
+		}
+		if (bAnyLODsChanged)
+		{
+			Solver->Update(Softs::FSolverReal(0.));  // Update for LOD switching, but do not simulate
+		}
+	}
 
 	void FClothSimulationProxy::WriteSimulationData()
 	{
@@ -362,6 +403,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		CSV_SCOPED_TIMING_STAT(Animation, Cloth);
 		TRACE_CPUPROFILER_EVENT_SCOPE(FClothSimulationProxy_WriteSimulationData);
 		SCOPE_CYCLE_COUNTER(STAT_ClothSimulationProxy_WriteSimulationData);
+
 
 		USkinnedMeshComponent* LeaderPoseComponent = nullptr;
 		if (ClothComponent.LeaderPoseComponent.IsValid())
@@ -406,13 +448,11 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 			}
 
 			// If the LOD has changed while the simulation is suspended, the cloth still needs to be updated with the correct LOD data
-PRAGMA_DISABLE_DEPRECATION_WARNINGS  // TODO: CHAOS_IS_CLOTHINGSIMULATIONMESH_ABSTRACT
+			// This should be handled by calling UpdateClothLODs when not ticking/simulating.
+			PRAGMA_DISABLE_DEPRECATION_WARNINGS  // TODO: CHAOS_IS_CLOTHINGSIMULATIONMESH_ABSTRACT
 			const int32 LODIndex = Cloth->GetMesh()->GetLODIndex();
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
-			if (LODIndex != Cloth->GetLODIndex(Solver.Get()))
-			{
-				Solver->Update(Softs::FSolverReal(0.));  // Update for LOD switching, but do not simulate
-			}
+			PRAGMA_ENABLE_DEPRECATION_WARNINGS
+			ensure(LODIndex == Cloth->GetLODIndex(Solver.Get()));
 
 			if (Cloth->GetParticleRangeId(Solver.Get()) == INDEX_NONE || Cloth->GetLODIndex(Solver.Get()) == INDEX_NONE)
 			{

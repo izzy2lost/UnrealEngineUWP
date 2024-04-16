@@ -56,9 +56,7 @@ UChaosClothAsset* UChaosClothComponent::GetClothAsset() const
 
 bool UChaosClothComponent::IsSimulationSuspended() const
 {
-	static IConsoleVariable* const CVarClothPhysics = IConsoleManager::Get().FindConsoleVariable(TEXT("p.ClothPhysics"));
-
-	return bSuspendSimulation || !ClothSimulationProxy.IsValid() || (CVarClothPhysics && !CVarClothPhysics->GetBool());
+	return bSuspendSimulation || !IsSimulationEnabled();
 }
 
 bool UChaosClothComponent::IsSimulationEnabled() const
@@ -361,7 +359,7 @@ void UChaosClothComponent::GetUpdateClothSimulationData_AnyThread(TMap<int32, FC
 		OutBlendWeight = BlendWeight;
 		OutClothSimulData = LeaderPoseClothComponent->ClothSimulationProxy->GetCurrentSimulationData_AnyThread();
 	}
-	else if (bEnableSimulation && !bBindToLeaderComponent && ClothSimulationProxy)
+	else if (IsSimulationEnabled() && !bBindToLeaderComponent && ClothSimulationProxy)
 	{
 		OutBlendWeight = BlendWeight;
 		OutClothSimulData = ClothSimulationProxy->GetCurrentSimulationData_AnyThread();
