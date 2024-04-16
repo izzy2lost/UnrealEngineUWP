@@ -57,6 +57,10 @@ void UseDefaultPlatformFile()
 
 void SetProjectNameAndDirectory()
 {
+	// There may be cases on some platforms that you need to verify files are in the filesystem, 
+	// and this call was needed to correctly initalize the system.
+	FPaths::ProjectDir();
+
 	FString ProjectFileOrName;
 	FString ProjectDirOverride;
 
