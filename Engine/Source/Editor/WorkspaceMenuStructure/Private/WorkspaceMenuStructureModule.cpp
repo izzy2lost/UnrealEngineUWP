@@ -141,16 +141,18 @@ public:
 
 public:
 	FWorkspaceMenuStructure()
-		: MenuRoot ( FWorkspaceItem::NewGroup(LOCTEXT( "WorkspaceMenu_Root", "Menu Root" )) )
-		, ToolsMenuRoot ( FWorkspaceItem::NewGroup(LOCTEXT( "WorkspaceToolsMenu_Root", "Tools Menu Root" )) )
-		, LevelEditorCategory ( MenuRoot->AddGroup(LOCTEXT( "WorkspaceMenu_LevelEditorCategory", "Level Editor" ), FSlateIcon(), true) )
-		, ToolsCategory ( ToolsMenuRoot->AddGroup(LOCTEXT( "WorkspaceMenu_ToolsCategory", "Tools" ), FSlateIcon(), true) )
-		, DeveloperToolsCategory ( ToolsMenuRoot->AddGroup(LOCTEXT("WorkspaceMenu_DeveloperToolsCategory", "Instrumentation"), FSlateIcon()) )
-		, DeveloperToolsLogCategory ( MenuRoot->AddGroup(LOCTEXT("WorkspaceMenu_DeveloperToolsLogCategory", "Log"), FSlateIcon(), true))
-		, EditOptions( FWorkspaceItem::NewGroup(LOCTEXT( "WorkspaceEdit_Options", "Edit Options" )) )
+		: MenuRoot(FWorkspaceItem::NewGroup(LOCTEXT("WorkspaceMenu_Root", "Menu Root")))
+		, ToolsMenuRoot(FWorkspaceItem::NewGroup(LOCTEXT("WorkspaceToolsMenu_Root", "Tools Menu Root")))
+		, LevelEditorCategory(MenuRoot->AddGroup(
+			  "LevelEditorCategory", LOCTEXT("WorkspaceMenu_LevelEditorCategory", "Level Editor"), FSlateIcon(), true))
+		, ToolsCategory(ToolsMenuRoot->AddGroup(
+			  "ToolsCategory", LOCTEXT("WorkspaceMenu_ToolsCategory", "Tools"), FSlateIcon(), true))
+		, DeveloperToolsCategory(ToolsMenuRoot->AddGroup(
+			  "DeveloperToolsCategory", LOCTEXT("WorkspaceMenu_DeveloperToolsCategory", "Instrumentation"), FSlateIcon()))
+		, DeveloperToolsLogCategory(MenuRoot->AddGroup(
+			  "DeveloperToolsLogCategory", LOCTEXT("WorkspaceMenu_DeveloperToolsLogCategory", "Log"), FSlateIcon(), true))
+		, EditOptions(FWorkspaceItem::NewGroup(LOCTEXT("WorkspaceEdit_Options", "Edit Options")))
 	{
-
-
 		ResetLevelEditorCategory();
 		ResetToolsCategory();
 	}
