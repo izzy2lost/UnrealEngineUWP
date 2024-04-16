@@ -203,7 +203,7 @@ FMeshDrawCommandStatsManager::FMeshDrawCommandStatsManager()
 					
 					if (TotalPrimitivesUntracked)
 					{
-						OutMessages.Add(Severity, FText::FromString(FString::Printf(TEXT("%5dK - Total Untracked"), TotalPrimitivesUntracked)));
+						OutMessages.Add(Severity, FText::FromString(FString::Printf(TEXT("%5dK - Total Untracked"), TotalPrimitivesUntracked / 1000)));
 					}
 				}
 				else
