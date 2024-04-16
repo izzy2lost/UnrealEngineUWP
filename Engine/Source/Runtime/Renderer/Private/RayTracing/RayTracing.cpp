@@ -1444,6 +1444,8 @@ namespace RayTracing
 		View.RayTracingSceneInitTask = FFunctionGraphTask::CreateAndDispatchWhenReady(
 			[&View, &RayTracingScene]()
 			{
+				FTaskTagScope TaskTagScope(ETaskTag::EParallelRenderingThread);
+
 				TRACE_CPUPROFILER_EVENT_SCOPE(RayTracingSceneInitTask);
 				View.RayTracingSceneInitData = RayTracingScene.BuildInitializationData();
 			},
