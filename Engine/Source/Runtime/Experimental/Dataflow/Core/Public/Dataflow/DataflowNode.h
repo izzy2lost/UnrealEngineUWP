@@ -275,6 +275,8 @@ struct FDataflowNode
 
 	DATAFLOWCORE_API virtual bool ValidateConnections();
 
+	DATAFLOWCORE_API virtual void ValidateProperties();
+
 	bool HasValidConnections() const { return bHasValidConnections; }
 
 	virtual bool IsA(FName InType) const 
@@ -347,7 +349,7 @@ namespace Dataflow
 		[](const ::Dataflow::FNewNodeParameters& InParam){							\
 				TUniquePtr<A> Val = MakeUnique<A>(::Dataflow::FNodeParameters{		\
 					InParam.Name, InParam.OwningObject}, InParam.Guid);				\
-				Val->ValidateConnections(); return Val;});
+				Val->ValidateProperties();Val->ValidateConnections();return Val;});
 
 #define DATAFLOW_NODE_RENDER_TYPE(A, B)												\
 	virtual TArray<::Dataflow::FRenderingParameter> GetRenderParametersImpl() const {		\
