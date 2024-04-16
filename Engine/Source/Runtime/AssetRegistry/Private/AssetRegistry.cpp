@@ -2228,9 +2228,16 @@ bool UAssetRegistryImpl::GetAssets(const FARFilter& InFilter, TArray<FAssetData>
 	{
 		return false;
 	}
+	return GetAssets(CompiledFilter, OutAssetData, bSkipARFilteredAssets);
+}
+
+bool UAssetRegistryImpl::GetAssets(const FARCompiledFilter& CompiledFilter, TArray<FAssetData>& OutAssetData,
+	bool bSkipARFilteredAssets) const
+{
+	using namespace UE::AssetRegistry::Utils;
 
 	TSet<FName> PackagesToSkip;
-	if (!InFilter.bIncludeOnlyOnDiskAssets)
+	if (!CompiledFilter.bIncludeOnlyOnDiskAssets)
 	{
 		bool bStopIterationUnused;
 		EnumerateMemoryAssets(CompiledFilter, PackagesToSkip, bStopIterationUnused,
@@ -2250,6 +2257,34 @@ bool UAssetRegistryImpl::GetAssets(const FARFilter& InFilter, TArray<FAssetData>
 				return true;
 			}, bSkipARFilteredAssets);
 	}
+	return true;
+}
+
+bool UAssetRegistryImpl::GetInMemoryAssets(const FARFilter& InFilter, TArray<FAssetData>& OutAssetData, bool bSkipARFilteredAssets) const 
+{
+	using namespace UE::AssetRegistry::Utils;
+
+	FARCompiledFilter CompiledFilter;
+	CompileFilter(InFilter, CompiledFilter);
+	if (CompiledFilter.IsEmpty() || !IsFilterValid(CompiledFilter))
+	{
+		return false;
+	}
+	return GetInMemoryAssets(CompiledFilter, OutAssetData, bSkipARFilteredAssets);
+}
+
+bool UAssetRegistryImpl::GetInMemoryAssets(const FARCompiledFilter& CompiledFilter, TArray<FAssetData>& OutAssetData, bool bSkipARFilteredAssets) const 
+{
+	using namespace UE::AssetRegistry::Utils;
+	TSet<FName> PackagesToSkipUnused;
+	bool bStopIterationUnused;
+	EnumerateMemoryAssets(CompiledFilter, PackagesToSkipUnused, bStopIterationUnused,
+		InterfaceLock, GuardedData.GetState(),
+		[&OutAssetData](FAssetData&& AssetData)
+		{
+			OutAssetData.Add(MoveTemp(AssetData));
+			return true;
+		}, bSkipARFilteredAssets);
 	return true;
 }
 
