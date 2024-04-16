@@ -150,7 +150,7 @@ static FGlobalBoundShaderState GOcclusionTestBoundShaderState;
  * This method decompresses data if necessary and caches it based on the bucket and chunk index in the view state.
  * InScene is passed in, as the Scene pointer in the class itself may be null, if it was allocated without a scene.
  */
-const uint8* FSceneViewState::GetPrecomputedVisibilityData(FViewInfo& View, const FScene* InScene)
+const uint8* FSceneViewState::ResolvePrecomputedVisibilityData(FViewInfo& View, const FScene* InScene)
 {
 	const uint8* PrecomputedVisibilityData = NULL;
 	if (InScene->PrecomputedVisibilityHandler && GAllowPrecomputedVisibility && View.Family->EngineShowFlags.PrecomputedVisibility)
@@ -176,12 +176,22 @@ const uint8* FSceneViewState::GetPrecomputedVisibilityData(FViewInfo& View, cons
 			}
 		}
 
+		//Determine view origin
+		FVector ViewOrigin = View.ViewMatrices.GetViewOrigin();
+#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
+		if (const FViewMatrices* FrozenViewMatrices = GetFrozenViewMatrices())
+		{
+			// Use the frozen view for culling so we can test that it's working
+			ViewOrigin = FrozenViewMatrices->GetViewOrigin();
+		}
+#endif
+
 		// Calculate the bucket that ViewOrigin falls into
 		// Cells are hashed into buckets to reduce search time
-		const float FloatOffsetX = (View.ViewMatrices.GetViewOrigin().X - Handler.PrecomputedVisibilityCellBucketOriginXY.X) / Handler.PrecomputedVisibilityCellSizeXY;
+		const float FloatOffsetX = (ViewOrigin.X - Handler.PrecomputedVisibilityCellBucketOriginXY.X) / Handler.PrecomputedVisibilityCellSizeXY;
 		// FMath::TruncToInt rounds toward 0, we want to always round down
 		const int32 BucketIndexX = FMath::Abs((FMath::TruncToInt(FloatOffsetX) - (FloatOffsetX < 0.0f ? 1 : 0)) / Handler.PrecomputedVisibilityCellBucketSizeXY % Handler.PrecomputedVisibilityNumCellBuckets);
-		const float FloatOffsetY = (View.ViewMatrices.GetViewOrigin().Y -Handler.PrecomputedVisibilityCellBucketOriginXY.Y) / Handler.PrecomputedVisibilityCellSizeXY;
+		const float FloatOffsetY = (ViewOrigin.Y -Handler.PrecomputedVisibilityCellBucketOriginXY.Y) / Handler.PrecomputedVisibilityCellSizeXY;
 		const int32 BucketIndexY = FMath::Abs((FMath::TruncToInt(FloatOffsetY) - (FloatOffsetY < 0.0f ? 1 : 0)) / Handler.PrecomputedVisibilityCellBucketSizeXY % Handler.PrecomputedVisibilityNumCellBuckets);
 		const int32 PrecomputedVisibilityBucketIndex = BucketIndexY * Handler.PrecomputedVisibilityCellBucketSizeXY + BucketIndexX;
 
@@ -193,7 +203,7 @@ const uint8* FSceneViewState::GetPrecomputedVisibilityData(FViewInfo& View, cons
 			// Construct the cell's bounds
 			const FBox CellBounds(CurrentCell.Min, CurrentCell.Min + FVector(Handler.PrecomputedVisibilityCellSizeXY, Handler.PrecomputedVisibilityCellSizeXY, Handler.PrecomputedVisibilityCellSizeZ));
 			// Check if ViewOrigin is inside the current cell
-			if (CellBounds.IsInside(View.ViewMatrices.GetViewOrigin()))
+			if (CellBounds.IsInside(ViewOrigin))
 			{
 				// Reuse a cached decompressed chunk if possible
 				if (CachedVisibilityChunk

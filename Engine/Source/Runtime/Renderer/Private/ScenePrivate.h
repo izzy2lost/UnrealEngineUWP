@@ -841,7 +841,7 @@ public:
 	/** Storage to which compressed visibility chunks are uncompressed at runtime. */
 	TArray<uint8> DecompressedVisibilityChunk;
 
-	/** Cached visibility data from the last call to GetPrecomputedVisibilityData. */
+	/** Cached visibility data from the last call to ResolvePrecomputedVisibilityData. */
 	const TArray<uint8>* CachedVisibilityChunk;
 	int32 CachedVisibilityHandlerId;
 	int32 CachedVisibilityBucketIndex;
@@ -1269,7 +1269,7 @@ public:
 	 * This method decompresses data if necessary and caches it based on the bucket and chunk index in the view state.
 	 * InScene is passed in, as the Scene pointer in the class itself may be null, if it was allocated without a scene.
 	 */
-	const uint8* GetPrecomputedVisibilityData(FViewInfo& View, const FScene* InScene);
+	const uint8* ResolvePrecomputedVisibilityData(FViewInfo& View, const FScene* InScene);
 
 	/**
 	 * Cleans out old entries from the primitive occlusion history, and resets unused pending occlusion queries.

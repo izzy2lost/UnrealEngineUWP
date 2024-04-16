@@ -4140,7 +4140,10 @@ void FVisibilityTaskData::LaunchVisibilityTasks(const UE::Tasks::FTask& BeginIni
 		if (ViewPacket.ViewState)
 		{
 			SCOPE_CYCLE_COUNTER(STAT_DecompressPrecomputedOcclusion);
-			ViewPacket.View.PrecomputedVisibilityData = ViewPacket.ViewState->GetPrecomputedVisibilityData(ViewPacket.View, &Scene);
+			if (ViewPacket.View.PrecomputedVisibilityData = ViewPacket.ViewState->ResolvePrecomputedVisibilityData(ViewPacket.View, &Scene))
+			{
+				SceneRenderer.bUsedPrecomputedVisibility = true;
+			}
 		}
 	}
 
@@ -4528,19 +4531,19 @@ void FVisibilityTaskData::ProcessRenderThreadTasks()
 
 		for (FVisibilityViewPacket& ViewPacket : ViewPackets)
 		{
+			SCOPED_NAMED_EVENT(OcclusionCull, FColor::Magenta);
+			const int32 NumCulledPrimitives = PrecomputedOcclusionCull(ViewPacket, PrimitiveRange);
+
 			if (ViewPacket.OcclusionCull.ContextIfSerial)
 			{
-				SCOPED_NAMED_EVENT(OcclusionCull, FColor::Magenta);
-				const int32 NumCulledPrimitives = PrecomputedOcclusionCull(ViewPacket, PrimitiveRange);
-
 				ViewPacket.OcclusionCull.ContextIfSerial->Map(RHICmdList);
 				ViewPacket.OcclusionCull.ContextIfSerial->AddPrimitives(PrimitiveRange);
 				ViewPacket.OcclusionCull.ContextIfSerial->Unmap(RHICmdList);
+			}
 
-				if (NumCulledPrimitives > 0)
-				{
-					TaskConfig.OcclusionCull.NumCulledPrimitives.fetch_add(NumCulledPrimitives, std::memory_order_relaxed);
-				}
+			if (NumCulledPrimitives > 0)
+			{
+				TaskConfig.OcclusionCull.NumCulledPrimitives.fetch_add(NumCulledPrimitives, std::memory_order_relaxed);
 			}
 
 			ViewPacket.Tasks.OcclusionCull.Trigger();
