@@ -83,7 +83,7 @@ namespace ChaosTest {
 	 * Joint constraints test with the fixed body held in place with a position constraint.
 	 * Joint body swings under the fixed body at fixed distance.
 	 */
-	template<typename TEvolution>
+	template<typename TEvolution, bool bUseSimd = false>
 	void PositionAndJoint()
 	{
 		const int32 Iterations = 10;
@@ -106,6 +106,7 @@ namespace ChaosTest {
 
 		TVec2<TGeometryParticleHandle<FReal, 3>*> JointParticles = { Dynamics[0], Dynamics[1] };
 		FPBDJointConstraints JointConstraints;
+		JointConstraints.SetUseSimd(bUseSimd);
 		JointConstraints.AddConstraint(JointParticles, FRigidTransform3(JointConstraintPosition, FRotation3::FromIdentity()));
 		Evolution.AddConstraintContainer(JointConstraints);
 
@@ -331,6 +332,8 @@ namespace ChaosTest {
 	{
 		ChaosTest::Position<FPBDRigidsEvolutionGBF>();
 		ChaosTest::PositionAndJoint<FPBDRigidsEvolutionGBF>();
+		constexpr bool bTestSimdSolver = true;
+		ChaosTest::PositionAndJoint<FPBDRigidsEvolutionGBF, bTestSimdSolver>();
 		ChaosTest::SuspensionConstraintHardstop<FPBDRigidsEvolutionGBF>();
 		ChaosTest::SuspensionConstraintSpring<FPBDRigidsEvolutionGBF>();
 
