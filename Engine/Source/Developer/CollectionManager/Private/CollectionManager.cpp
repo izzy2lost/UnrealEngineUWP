@@ -975,7 +975,7 @@ bool FCollectionManager::IsValidCollectionName(const FString& CollectionName, EC
 	}
 
 	// Make sure the new name only contains valid characters
-	if (!CollectionNameFinal.IsValidXName(INVALID_OBJECTNAME_CHARACTERS INVALID_LONGPACKAGE_CHARACTERS, &*OutError))
+	if (!CollectionNameFinal.IsValidXName(INVALID_OBJECTNAME_CHARACTERS INVALID_LONGPACKAGE_CHARACTERS, OutError))
 	{
 		return false;
 	}
