@@ -153,7 +153,7 @@ bool URuntimeHashExternalStreamingObjectBase::OnPopulateGeneratedPackageForCook(
 	if (PrepareForCook(InCookContext))
 	{
 		// We provide a new name for the URuntimeHashExternalStreamingObjectBase in the package so that we have a stable name (for cook determinism)
-		return Rename(TEXT("RuntimeHashExternalStreamingObjectBase"), InGeneratedPackage, REN_DontCreateRedirectors);
+		return Rename(URuntimeHashExternalStreamingObjectBase::GetCookedExternalStreamingObjectName(), InGeneratedPackage, REN_DontCreateRedirectors);
 	}
 	return false;
 }

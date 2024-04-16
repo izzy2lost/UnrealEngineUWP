@@ -378,7 +378,7 @@ bool FWorldPartitionLevelHelper::RemapLevelCellPathInContentBundle(ULevel* Level
 {
 	FString CellPath = ContentBundleEditor->GetExternalStreamingObjectPackagePath();
 	CellPath += TEXT(".");
-	CellPath += ContentBundleEditor->GetStreamingObject()->GetName();
+	CellPath += URuntimeHashExternalStreamingObjectBase::GetCookedExternalStreamingObjectName();
 	CellPath += TEXT(".");
 	CellPath += Cell->GetName();
 	FSetWorldPartitionRuntimeCell SetWorldPartitionRuntimeCell(Level, FSoftObjectPath(CellPath));

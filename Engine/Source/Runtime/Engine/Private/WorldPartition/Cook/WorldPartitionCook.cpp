@@ -152,7 +152,7 @@ bool UWorldPartition::PopulateGeneratedPackageForCook(IWorldPartitionCookPackage
 		FStringBuilderBase CookPackageObjectPath;
 		CookPackageObjectPath += ExternalDataLayerManager->GetExternalStreamingObjectPackagePath(ExternalDataLayerAsset);
 		CookPackageObjectPath += TEXT(".");
-		CookPackageObjectPath += StreamingObject->GetName();
+		CookPackageObjectPath += URuntimeHashExternalStreamingObjectBase::GetCookedExternalStreamingObjectName();
 		CookPackageObjectPath += TEXT(".");
 		CookPackageObjectPath += Cast<UObject>(InCookPackageObject)->GetName();
 		return FSoftObjectPath(*CookPackageObjectPath);
