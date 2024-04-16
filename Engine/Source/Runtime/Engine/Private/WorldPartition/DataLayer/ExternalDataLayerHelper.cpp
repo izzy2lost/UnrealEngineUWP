@@ -99,7 +99,7 @@ void FExternalDataLayerHelper::GetExternalDataLayerUIDs(const FAssetData& Asset,
 
 namespace UE::Private::ExternalDataLayerHelper
 {
-	static bool ValidateAssetUsingAssetReferenceRestrictions(const UObject* InAsset, const TSet<UObject*>& InReferencedAssets, TSet<FString>& OutInvalidReferenceReasons)
+	static bool ValidateAssetUsingAssetReferenceRestrictions(const UObject* InAsset, const TSet<UObject*>& InReferencedAssets, TMap<FString, TArray<FString>>& OutInvalidReferenceReasons)
 	{
 		if (!InAsset)
 		{
@@ -118,9 +118,11 @@ namespace UE::Private::ExternalDataLayerHelper
 				for (UObject* ReferencedAsset : InReferencedAssets)
 				{
 					FText FailureReason;
-					if (!AssetReferenceFilter->PassesFilter(FAssetData(ReferencedAsset), &FailureReason))
+					FAssetData ReferencedAssetData(ReferencedAsset);
+					if (!AssetReferenceFilter->PassesFilter(ReferencedAssetData, &FailureReason))
 					{
-						OutInvalidReferenceReasons.Add(FailureReason.ToString());
+						const FString MountPoint = FPackageName::GetPackageMountPoint(ReferencedAssetData.PackagePath.ToString()).ToString();
+						OutInvalidReferenceReasons.FindOrAdd(FailureReason.ToString()).Add(FString::Printf(TEXT("%s (Mount Point: %s)"), *ReferencedAssetData.GetObjectPathString(), *MountPoint));
 						++ErrorCount;
 					}
 				}
@@ -193,7 +195,9 @@ bool FExternalDataLayerHelper::CanMoveActorsToExternalDataLayer(const TArray<AAc
 
 		// Gather actor asset references
 		TSet<UObject*> ActorReferencedAssets;
-		FFindReferencedAssets::BuildAssetList(InActor, IgnoreClasses, IgnorePackages, ActorReferencedAssets, true);
+		const bool bIncludeDefaultRefs = false;
+		const bool bOnlyDirectReferences = true;
+		FFindReferencedAssets::BuildAssetList(InActor, IgnoreClasses, IgnorePackages, ActorReferencedAssets, bIncludeDefaultRefs, bOnlyDirectReferences);
 		TArray<UObject*> ReferencedContent;
 		InActor->GetReferencedContentObjects(ReferencedContent);
 		// Remove itself and its data layer assets from the list
@@ -208,19 +212,30 @@ bool FExternalDataLayerHelper::CanMoveActorsToExternalDataLayer(const TArray<AAc
 		}
 
 		// Validate if there are restrictions between the world or the new data layer asset and the actor asset references
-		TSet<FString> InvalidReferenceReasons;
+		TMap<FString, TArray<FString>> InvalidReferences;
 		const UObject* Referencer = NewExternalDataLayerAsset ? (UObject*)NewExternalDataLayerAsset : (UObject*)InActor->GetLevel();
-		if (!UE::Private::ExternalDataLayerHelper::ValidateAssetUsingAssetReferenceRestrictions(Referencer, ActorReferencedAssets, InvalidReferenceReasons))
+		if (!UE::Private::ExternalDataLayerHelper::ValidateAssetUsingAssetReferenceRestrictions(Referencer, ActorReferencedAssets, InvalidReferences))
 		{
-			const FString JoinedReasons = FString::Join(InvalidReferenceReasons, TEXT("\n"));
+			FStringBuilderBase StringBuilder;
+			for (auto& [Reason, InvalidReferenceAssets] : InvalidReferences)
+			{
+				const FString JoinedInvalidReferences = FString::Join(InvalidReferenceAssets, TEXT(", "));
+				StringBuilder.Appendf(TEXT(" - Reason: %s\n - Invalid References: \n"), *Reason);
+				for (const FString& InvalidReference : InvalidReferenceAssets)
+				{
+					StringBuilder.Appendf(TEXT("   - %s\n"), *InvalidReference);
+				}
+			}
+			const FString JoinedReasons = StringBuilder.ToString();
+			
 			if (NewExternalDataLayerAsset)
 			{
-				OutFailureReason = FText::Format(LOCTEXT("CantMoveActorToEDLReferenceRestrictions", "Can't move Actor {0} to External Data Layer {1}. Reason: {2}."), FText::FromString(InActor->GetName()), FText::FromString(NewExternalDataLayerAsset->GetName()), FText::FromString(JoinedReasons));
+				OutFailureReason = FText::Format(LOCTEXT("CantMoveActorToEDLReferenceRestrictions", "Can't move Actor {0} to External Data Layer {1}.\n{2}"), FText::FromString(InActor->GetName()), FText::FromString(NewExternalDataLayerAsset->GetName()), FText::FromString(JoinedReasons));
 			}
 			else
 			{
 				check(OldExternalDataLayerAsset);
-				OutFailureReason = FText::Format(LOCTEXT("CantRemoveEDLFromActorReferenceRestrictions", "Can't remove External Data Layer {0} from Actor {1}. Reason: {2}."), FText::FromString(OldExternalDataLayerAsset->GetName()), FText::FromString(InActor->GetName()), FText::FromString(JoinedReasons));
+				OutFailureReason = FText::Format(LOCTEXT("CantRemoveEDLFromActorReferenceRestrictions", "Can't remove External Data Layer {0} from Actor {1}.\n{2}"), FText::FromString(OldExternalDataLayerAsset->GetName()), FText::FromString(InActor->GetName()), FText::FromString(JoinedReasons));
 			}
 			return false;
 		}

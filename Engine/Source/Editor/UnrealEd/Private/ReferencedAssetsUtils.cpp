@@ -138,7 +138,7 @@ bool FFindReferencedAssets::ShouldSearchForAssets( const UObject* Object, const 
 /**
  * Returns a list of all assets referenced by the specified UObject.
  */
-void FFindReferencedAssets::BuildAssetList(UObject *Object, const TArray<UClass*>& IgnoreClasses, const TArray<UPackage*>& IgnorePackages, TSet<UObject*>& ReferencedAssets, bool bIncludeDefaultRefs)
+void FFindReferencedAssets::BuildAssetList(UObject *Object, const TArray<UClass*>& IgnoreClasses, const TArray<UPackage*>& IgnorePackages, TSet<UObject*>& ReferencedAssets, bool bIncludeDefaultRefs, bool bOnlyDirectReferences)
 {
 	TArray<FReferencedAssets> LocalReferencers;
 
@@ -159,8 +159,8 @@ void FFindReferencedAssets::BuildAssetList(UObject *Object, const TArray<UClass*
 	}
 
 	// Add to the list of referenced assets.
-	FFindAssetsArchive( Object, LocalReferencers.Last().AssetList, NULL, /*MaxRecursion=*/0, /*bIncludeClasses=*/true, bIncludeDefaultRefs );
-
+	const int32 MaxRecursionDepth = bOnlyDirectReferences ? 1 : 0;
+	FFindAssetsArchive( Object, LocalReferencers.Last().AssetList, NULL, MaxRecursionDepth, /*bIncludeClasses=*/true, bIncludeDefaultRefs );
 	ReferencedAssets = LocalReferencers.Last().AssetList;
 }
 
