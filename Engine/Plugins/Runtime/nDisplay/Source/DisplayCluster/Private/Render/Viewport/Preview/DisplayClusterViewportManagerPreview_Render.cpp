@@ -173,7 +173,6 @@ bool FDisplayClusterViewportManagerPreview::InitializeClusterNodePreview(const E
 							if (ViewIt.IsViewportContextCanBeRendered() && ViewFamily->RenderTarget)
 							{
 								// Calculate the player's view information.
-								FVector  ViewLocation;
 								FRotator ViewRotation;
 								if (FSceneView* View = ViewportPtr->ViewportPreview->CalcSceneView(*ViewFamily, ViewIt.ContextNum))
 								{

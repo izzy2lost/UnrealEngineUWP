@@ -1056,9 +1056,9 @@ void FAvaLevelViewportComponentTransformDetails::CacheTransform()
 		CachedScale.Z = SelectionScale.Z;
 	}
 
-	FVector CurLoc;
+	FVector CurLoc = FVector::ZeroVector;
 	FRotator CurRot;
-	FVector CurScale;
+	FVector CurScale = FVector::ZeroVector;
 	bool bFirstObject = true;
 	bool bSkipFirst = false;
 

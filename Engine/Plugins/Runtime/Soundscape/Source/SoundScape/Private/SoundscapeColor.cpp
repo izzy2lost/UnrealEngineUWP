@@ -432,9 +432,9 @@ void UActiveSoundscapeColor::CalculateSpawnParams()
 			// Get the new sound's start time
 			NewSoundParams.StartTime = PlaybackBehavior.bRandomizeStartingSeekTime ? FMath::FRandRange(0.0f, Sound->Duration) : 0.0f;
 
-			FVector ListenerLocation;
-			FVector ListenerForward;
-			FVector ListenerUp;
+			FVector ListenerLocation = FVector::ZeroVector;
+			FVector ListenerForward = FVector::ZeroVector;
+			FVector ListenerUp = FVector::ZeroVector;
 
 			if (FAudioDevice* AudioDevice = World->GetAudioDeviceRaw())
 			{

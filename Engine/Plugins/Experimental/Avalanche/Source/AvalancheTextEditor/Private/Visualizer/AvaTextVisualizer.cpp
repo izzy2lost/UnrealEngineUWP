@@ -535,7 +535,7 @@ bool FAvaTextVisualizer::HandleInputDeltaInternal(FEditorViewportClient* InViewp
 					float GradientRot = InitialGradientRotation;
 					float RotIncrZ = InAccumulatedTranslation.Z * FTextVisualizerStatics::GradientRotHandleScale;
 
-					FVector HandleToCenter;
+					FVector HandleToCenter = FVector::ZeroVector;
 
 					if (bEditingGradientRotation_EndHandle)
 					{

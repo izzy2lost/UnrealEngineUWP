@@ -55,7 +55,7 @@ void FAvaClonerActorVisualizer::StoreInitialValues()
 	{
 		const ECEClonerPlane Plane = HoneycombLayout->GetPlane();
 
-		FVector Spacing;
+		FVector Spacing = FVector::ZeroVector;
 		if (Plane == ECEClonerPlane::XY)
 		{
 			Spacing = FVector(HoneycombLayout->GetWidthSpacing(), HoneycombLayout->GetHeightSpacing(), 0);

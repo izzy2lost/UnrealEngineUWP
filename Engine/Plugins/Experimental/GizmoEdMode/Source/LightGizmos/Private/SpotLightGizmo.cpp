@@ -113,7 +113,6 @@ void USpotLightGizmo::Shutdown()
 FInputRayHit USpotLightGizmo::BeginHoverSequenceHitTest(const FInputDeviceRay& PressPos)
 {
 	FHitResult HitResult;
-	FVector HitAxis;
 	FTransform DragTransform;
 
 	if (HitTest(PressPos.WorldRay, HitResult, DragTransform))
@@ -300,7 +299,6 @@ void USpotLightGizmo::OnBeginDrag(const FInputDeviceRay& Ray)
 
 	FRay HitCheckRay(Start, End - Start);
 	FHitResult HitResult;
-	FVector HitAxis;
 	FTransform DragTransform;
 
 	// Check if any of the components were hit

@@ -321,7 +321,7 @@ bool UPackedVectorTest::ExecuteWriteDoubleReadFloatTest(TMap<FString, bool>& Tes
 
 			const double ScalarValue = Test.TestValues[ValueIt];
 			const FVector3d WriteValue(ScalarValue);
-			FVector3f ReadValue;
+			FVector3f ReadValue = FVector3f::ZeroVector;
 
 			const bool bOverflowOrNan = !Test.Writer(WriteValue, Writer);
 			bool LocalSuccess = !Writer.GetError();

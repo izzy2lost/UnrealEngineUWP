@@ -41,7 +41,7 @@ public:
 
 		// Calc static normal and plane
 		bool bAverageNormalValid = false;
-		FVector AverageNormal;
+		FVector AverageNormal = FVector::ZeroVector;
 
 		for (int32 TriIdx = 0; TriIdx < TriNum; ++TriIdx)
 		{

@@ -1248,7 +1248,7 @@ bool FAvaSnapOperation::SnapDragLocation(const TArray<FAvaSnapPoint>& InDraggedA
 			// Single axis movement
 			if (DraggedAxisCount == 1)
 			{
-				FVector DragDirection;
+				FVector DragDirection = FVector::ZeroVector;
 
 				if (bIsDraggingX)
 				{
