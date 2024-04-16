@@ -341,6 +341,24 @@ void UExponentialHeightFogComponent::SetVolumetricFogDistance(float NewValue)
 	}
 }
 
+void UExponentialHeightFogComponent::SetVolumetricFogStartDistance(float NewValue)
+{
+	if (VolumetricFogStartDistance != NewValue)
+	{
+		VolumetricFogStartDistance = NewValue;
+		MarkRenderStateDirty();
+	}
+}
+
+void UExponentialHeightFogComponent::SetVolumetricFogNearFadeInDistance(float NewValue)
+{
+	if (VolumetricFogNearFadeInDistance != NewValue)
+	{
+		VolumetricFogNearFadeInDistance = NewValue;
+		MarkRenderStateDirty();
+	}
+}
+
 void UExponentialHeightFogComponent::SetSecondFogData(FExponentialHeightFogData NewValue)
 {
 	if(SecondFogData.FogDensity != NewValue.FogDensity ||

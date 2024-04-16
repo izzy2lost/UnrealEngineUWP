@@ -180,7 +180,7 @@ class UExponentialHeightFogComponent : public USceneComponent
 	/** 
 	 * Distance from the camera that the volumetric fog will start, in world units. 
 	 */
-	UPROPERTY(BlueprintReadOnly, interp, Category= VolumetricFog, meta=(DisplayName = "Start Distance", UIMin = "0", UIMax = "5000"))
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category= VolumetricFog, meta=(DisplayName = "Start Distance", UIMin = "0", UIMax = "5000"))
 	float VolumetricFogStartDistance;
 
 	/** 
@@ -278,6 +278,12 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category="Rendering|VolumetricFog")
 	ENGINE_API void SetVolumetricFogDistance(float NewValue);
+
+	UFUNCTION(BlueprintCallable, Category = "Rendering|VolumetricFog")
+	ENGINE_API void SetVolumetricFogStartDistance(float NewValue);
+
+	UFUNCTION(BlueprintCallable, Category = "Rendering|VolumetricFog")
+	ENGINE_API void SetVolumetricFogNearFadeInDistance(float NewValue);
 
 	UFUNCTION(BlueprintCallable, Category="Rendering|VolumetricFog")
 	ENGINE_API void SetSecondFogData(FExponentialHeightFogData NewValue);
