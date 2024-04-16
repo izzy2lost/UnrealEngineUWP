@@ -353,7 +353,7 @@ namespace Chaos {
 				TVec2<int32>(1,3),
 				TVec2<int32>(2,3)
 			};
-			TVec3<T> ClosestEdgePoint;
+			TVec3<T> ClosestEdgePoint = TVec3<T>::ZeroVector;
 			T ClosestEdgeAlpha(0);
 			int32 ClosestEdgeIndex = INDEX_NONE;
 			T ClosestEdgeDistSq = std::numeric_limits<T>::max();
