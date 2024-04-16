@@ -85,9 +85,13 @@ void FPackageLocalizationCultureCache::RemoveRootSourcePath(const FString& InRoo
 	}
 
 	// Remove all packages under this root
+	FNameBuilder SourcePackageName;
 	for (auto It = SourcePackagesToLocalizedPackages.CreateIterator(); It; ++It)
 	{
-		if (It->Key.ToString().StartsWith(InRootPath))
+		SourcePackageName.Reset();
+		It->Key.AppendString(SourcePackageName);
+
+		if (SourcePackageName.ToView().StartsWith(InRootPath))
 		{
 			It.RemoveCurrent();
 			continue;
@@ -233,6 +237,19 @@ FPackageLocalizationCache::~FPackageLocalizationCache()
 
 	FPackageName::OnContentPathMounted().RemoveAll(this);
 	FPackageName::OnContentPathDismounted().RemoveAll(this);
+}
+
+void FPackageLocalizationCache::InvalidateRootSourcePath(const FString& InRootPath)
+{
+	FScopeLock Lock(&LocalizedCachesCS);
+
+	for (auto& CultureCachePair : AllCultureCaches)
+	{
+		CultureCachePair.Value->RemoveRootSourcePath(InRootPath);
+		CultureCachePair.Value->AddRootSourcePath(InRootPath);
+	}
+
+	bPackageNameToAssetGroupDirty = true;
 }
 
 void FPackageLocalizationCache::ConditionalUpdateCache()

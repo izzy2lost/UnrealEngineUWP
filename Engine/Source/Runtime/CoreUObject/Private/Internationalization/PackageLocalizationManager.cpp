@@ -163,6 +163,14 @@ FName FPackageLocalizationManager::FindLocalizedPackageNameNoCache(const FName I
 	return NAME_None;
 }
 
+void FPackageLocalizationManager::InvalidateRootSourcePath(const FString& InRootPath)
+{
+	if (ActiveCache.IsValid())
+	{
+		ActiveCache->InvalidateRootSourcePath(InRootPath);
+	}
+}
+
 void FPackageLocalizationManager::ConditionalUpdateCache()
 {
 	if (ActiveCache.IsValid())

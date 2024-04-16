@@ -61,6 +61,12 @@ public:
 	COREUOBJECT_API FName FindLocalizedPackageNameForCulture(const FName InSourcePackageName, const FString& InCultureName);
 
 	/**
+	 * Invalidate any cached state for the given root source path, and add it to the queue of things to process when ConditionalUpdateCache is called.
+	 * eg) when new asset registry state is loaded for a plugin that may invalidate its cached data
+	 */
+	COREUOBJECT_API void InvalidateRootSourcePath(const FString& InRootPath);
+
+	/**
 	 * Update this cache, but only if it is dirty.
 	 */
 	COREUOBJECT_API void ConditionalUpdateCache();

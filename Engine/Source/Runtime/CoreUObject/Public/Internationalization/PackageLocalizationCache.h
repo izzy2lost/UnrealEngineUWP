@@ -114,6 +114,7 @@ public:
 	COREUOBJECT_API virtual ~FPackageLocalizationCache();
 
 	//~ IPackageLocalizationCache interface
+	COREUOBJECT_API virtual void InvalidateRootSourcePath(const FString& InRootPath) override;
 	COREUOBJECT_API virtual void ConditionalUpdateCache() override;
 	COREUOBJECT_API virtual FName FindLocalizedPackageName(const FName InSourcePackageName) override;
 	COREUOBJECT_API virtual FName FindLocalizedPackageNameForCulture(const FName InSourcePackageName, const FString& InCultureName) override;
