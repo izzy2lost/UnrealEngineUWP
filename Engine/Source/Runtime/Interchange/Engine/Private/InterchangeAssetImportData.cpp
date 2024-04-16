@@ -280,6 +280,12 @@ void UInterchangeAssetImportData::ProcessTranslatorCache() const
 {
 	if (UInterchangeManager::IsInterchangeImportEnabled())
 	{
+		//Verify our transient object was not garbage collect
+		if (TransientTranslatorSettings && (TransientTranslatorSettings->IsGarbageEliminationEnabled() || TransientTranslatorSettings->HasAnyFlags(RF_BeginDestroyed | RF_FinishDestroyed)) )
+		{
+			TransientTranslatorSettings = nullptr;
+		}
+
 		//de-serialize
 		if (!TransientTranslatorSettings && !CachedTranslatorSettings.Key.IsEmpty())
 		{

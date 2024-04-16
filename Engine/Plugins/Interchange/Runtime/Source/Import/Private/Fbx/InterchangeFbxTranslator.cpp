@@ -303,9 +303,9 @@ void UInterchangeFbxTranslator::SetSettings(const UInterchangeTranslatorSettings
 		CacheFbxTranslatorSettings->ClearInternalFlags(EInternalObjectFlags::Async);
 		CacheFbxTranslatorSettings = nullptr;
 	}
-	if (InterchangeTranslatorSettings)
+	if (const UInterchangeFbxTranslatorSettings* InterchangeFbxTranslatorSettings = Cast<UInterchangeFbxTranslatorSettings>(InterchangeTranslatorSettings))
 	{
-		CacheFbxTranslatorSettings = DuplicateObject<UInterchangeFbxTranslatorSettings>(Cast<UInterchangeFbxTranslatorSettings>(InterchangeTranslatorSettings), GetTransientPackage());
+		CacheFbxTranslatorSettings = DuplicateObject<UInterchangeFbxTranslatorSettings>(InterchangeFbxTranslatorSettings, GetTransientPackage());
 		CacheFbxTranslatorSettings->ClearInternalFlags(EInternalObjectFlags::Async);
 		CacheFbxTranslatorSettings->SetFlags(RF_Standalone);
 	}
