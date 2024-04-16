@@ -484,4 +484,33 @@ public:
 	* @return true if the task completed successfully.
 	*/
 	virtual bool GetOidcTokenStatus(const FString& RootDir, const FString& ProjectFileName, const FString& ProviderIdentifier, FFeedbackContext* Warn, int& OutStatus) = 0;
+
+	/**
+	* Get the URL of the configured Horde server.
+	*
+	* @param OutHordeUrl        URL of the Horde server
+	* @return true if a valid URL is returned.
+	*/
+	virtual bool GetHordeUrl(FString& OutHordeUrl) = 0;
+
+	/**
+	* Gets an access token for the given Horde Server.
+	*
+	* @param HordeUrl           URL of the Horde server.
+	* @param bUnattended		True to indicate that no user interaction should be assumed
+	* @param Warn				Feedback context to use for progress updates
+	* @param OutToken			The allocated access token
+	* @param OutTokenExpiresAt	When the token expires
+	* @param bOutWasInteractiveLogin	True if the interactive login flow was used
+	* @return true if the task completed successfully.
+	*/
+	virtual bool GetHordeAccessToken(const FString& HordeUrl, bool bUnattended, FFeedbackContext* Warn, FString& OutToken, FDateTime& OutTokenExpiresAt, bool& bOutWasInteractiveLogin) = 0;
+
+	/**
+	* Get the URL of the configured Horde server for the system, ignoring the default editor settings.
+	*
+	* @param OutHordeUrl        URL of the Horde server
+	* @return true if a valid URL is returned.
+	*/
+	virtual bool GetDefaultHordeUrl(FString& OutHordeUrl) = 0;
 };

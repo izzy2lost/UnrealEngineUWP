@@ -117,7 +117,7 @@ namespace OidcToken
 						}
 					}
 
-					if (!tokenInfo.IsValid)
+					if (!tokenInfo.IsValid(DateTimeOffset.Now))
 					{
 						throw new Exception("Failed to allocate a token");
 					}
@@ -264,6 +264,11 @@ namespace OidcToken
 		/// The provider identifier you wish to login to
 		/// </summary>
 		[Required] public string Service { get; set; } = null!;
+
+		/// <summary>
+		/// URL of the horde server to read provider information from
+		/// </summary>
+		public Uri? HordeUrl { get; set; }
 
 		/// <summary>
 		/// The mode we are running OidcToken in

@@ -810,89 +810,15 @@ bool FDesktopPlatformBase::IsUnrealBuildToolRunning()
 
 bool FDesktopPlatformBase::GetOidcAccessToken(const FString& RootDir, const FString& ProjectFileName, const FString& ProviderIdentifier, bool bUnattended, FFeedbackContext* Warn, FString& OutToken, FDateTime& OutTokenExpiresAt, bool& bOutWasInteractiveLogin)
 {
-	IFileManager::Get().MakeDirectory(*FPaths::ProjectIntermediateDir(), /*bTree*/ true);
-	FString ResultFilePath = FPaths::CreateTempFilename(*FPaths::ProjectIntermediateDir(), TEXT("oidcToken.json"));
-	ON_SCOPE_EXIT
-	{
-		IFileManager::Get().Delete(*ResultFilePath, false /* RequireExists */, true /* EvenIfReadOnly */, true /* Quiet */);
-	};
-
-	FString Arguments = TEXT(" ");
-	Arguments += FString::Printf(TEXT(" --Service=\"%s\""), *ProviderIdentifier);
-	Arguments += FString::Printf(TEXT(" --OutFile=\"%s\""), *ResultFilePath);
+	FString BaseArguments;
+	BaseArguments += FString::Printf(TEXT(" --Service=\"%s\""), *ProviderIdentifier);
 	if (ProjectFileName.Len() > 0)
 	{
-		Arguments += FString::Printf(TEXT(" --project=\"%s\""), *IFileManager::Get().ConvertToAbsolutePathForExternalAppForRead(*FPaths::GetPath(*ProjectFileName)));
-	}
-	FString UnattendedArguments = Arguments;
-	UnattendedArguments += TEXT(" --Unattended=true");
-
-	// first we attempt to fetch a token using cached offline tokens, thus setting unattended
-	bool bRes = true;
-	int32 ExitCode;
-	FString ProcessStdout;
-	bRes = InvokeOidcTokenToolSync(LOCTEXT("GetOidcAccessToken", "Fetching OIDC Access Token..."), RootDir, UnattendedArguments, Warn, ExitCode, ProcessStdout);
-
-	bOutWasInteractiveLogin = false;
-
-	if (ExitCode == 10)
-	{
-		bRes = GetOidcAccessTokenInteractive(RootDir, Arguments, bUnattended, Warn, ExitCode);
-
-		bOutWasInteractiveLogin = true;
-
-		if (!bRes)
-		{
-			if (bUnattended)
-			{
-				UE_LOG(LogDesktopPlatform, Warning, TEXT("Unable to allocate an access token. Unattended set so unable to complete interactive login. Make sure you start the editor and login once or log in using UGS or using the UGS cli command 'login'. Provider used: '%s'. Ran OidcToken (project file is '%s', exe path is '%s')"), *ProviderIdentifier, *ProjectFileName, *GetOidcTokenExecutableFilename(RootDir));
-			}
-			else
-			{
-				UE_LOG(LogDesktopPlatform, Error, TEXT("Unable to allocate an access token. Interactive login failed, make sure you are assigned access and are able to login in the created browser window. Provider used: '%s'. Ran OidcToken (project file is '%s', exe path is '%s')"), *ProviderIdentifier, *ProjectFileName, *GetOidcTokenExecutableFilename(RootDir));
-			}
-			return false;
-		}
+		BaseArguments += FString::Printf(TEXT(" --project=\"%s\""), *IFileManager::Get().ConvertToAbsolutePathForExternalAppForRead(*FPaths::GetPath(*ProjectFileName)));
 	}
 
-	if (!bRes)
-	{
-		UE_LOG(LogDesktopPlatform, Warning, TEXT("Failed to run OidcToken (project file is '%s', exe path is '%s'). ExitCode: %i"), *ProjectFileName, *GetOidcTokenExecutableFilename(RootDir), ExitCode);
-		return false;
-	}
-	
-	// Read the file to a string
-	FString TokenText;
-	if(FFileHelper::LoadFileToString(TokenText, *ResultFilePath))
-	{
-		// deserialize the json file
-		TSharedPtr< FJsonObject > Object;
-		TSharedRef< TJsonReader<> > Reader = TJsonReaderFactory<>::Create(TokenText);
-		if(FJsonSerializer::Deserialize(Reader, Object) && Object.IsValid())
-		{
-			FString Token;
-			FString ExpiresAt;
-			if(Object->TryGetStringField(TEXT("Token"), Token) && Object->TryGetStringField(TEXT("ExpiresAt"), ExpiresAt))
-			{
-				OutToken = Token;
-
-				FDateTime::ParseIso8601(*ExpiresAt, OutTokenExpiresAt);
-
-				// Remove the output file if its still around
-				IFileManager::Get().Delete(*ResultFilePath, true, false, true);
-
-				return true;
-			}
-		}
-	}
-
-	UE_LOG(LogDesktopPlatform, Warning, TEXT("Failed to run OidcToken (project file is '%s', exe path is '%s'). No result file found at '%s', closed with exit code: %d"), *ProjectFileName, *GetOidcTokenExecutableFilename(RootDir), *ResultFilePath, ExitCode);
-
-	// Remove the output file if its still around
-	IFileManager::Get().Delete(*ResultFilePath, true, false, true);
-	return false;
+	return GetOidcAccessTokenInternal(RootDir, BaseArguments, bUnattended, Warn, OutToken, OutTokenExpiresAt, bOutWasInteractiveLogin);
 }
-
 
 bool FDesktopPlatformBase::GetOidcTokenStatus(const FString& RootDir, const FString& ProjectFileName, const FString& ProviderIdentifier, FFeedbackContext* Warn, int& OutStatus)
 {
@@ -936,6 +862,159 @@ bool FDesktopPlatformBase::GetOidcTokenStatus(const FString& RootDir, const FStr
 			}
 		}
 	}
+
+	// Remove the output file if its still around
+	IFileManager::Get().Delete(*ResultFilePath, true, false, true);
+	return false;
+}
+
+bool FDesktopPlatformBase::GetHordeUrl(FString& OutHordeUrl)
+{
+	struct FServerUrlInitializer
+	{
+		static FString Get(IDesktopPlatform* DesktopPlatform)
+		{
+			FString Url;
+			if (!GConfig->GetString(TEXT("/Script/UnrealEd.EditorSettings"), TEXT("HordeUrl"), Url, GEditorSettingsIni) || Url.IsEmpty())
+			{
+				DesktopPlatform->GetDefaultHordeUrl(Url);
+			}
+			return Url;
+		}
+	};
+
+	static FString CachedValue = FServerUrlInitializer::Get(this);
+
+	OutHordeUrl = CachedValue;
+	return !OutHordeUrl.IsEmpty();
+}
+
+bool FDesktopPlatformBase::GetHordeAccessToken(const FString& HordeUrl, bool bUnattended, FFeedbackContext* Warn, FString& OutToken, FDateTime& OutTokenExpiresAt, bool& bOutWasInteractiveLogin)
+{
+	FString Token = FPlatformMisc::GetEnvironmentVariable(TEXT("UE_HORDE_TOKEN"));
+	if (!Token.IsEmpty())
+	{
+		FString Url = FPlatformMisc::GetEnvironmentVariable(TEXT("UE_HORDE_URL"));
+		if (Url == HordeUrl)
+		{
+			OutToken = Token;
+			OutTokenExpiresAt = FDateTime();
+			return true;
+		}
+	}
+
+	FString BaseArguments = FString::Printf(TEXT(" --HordeUrl=\"%s\""), *HordeUrl);
+	return GetOidcAccessTokenInternal(FPaths::EngineDir(), BaseArguments, bUnattended, Warn, OutToken, OutTokenExpiresAt, bOutWasInteractiveLogin);
+}
+
+bool FDesktopPlatformBase::GetDefaultHordeUrl(FString& OutHordeUrl)
+{
+	struct FServerUrlInitializer
+	{
+		static FString Get()
+		{
+			FString Url = FPlatformMisc::GetEnvironmentVariable(TEXT("UE_HORDE_URL"));
+			if (!Url.IsEmpty())
+			{
+				return Url;
+			}
+
+#if PLATFORM_WINDOWS
+			if (FWindowsPlatformMisc::QueryRegKey(HKEY_CURRENT_USER, TEXT("SOFTWARE\\Epic Games\\Horde"), TEXT("Url"), Url) && !Url.IsEmpty())
+			{
+				return Url;
+			}
+
+			if (FWindowsPlatformMisc::QueryRegKey(HKEY_LOCAL_MACHINE, TEXT("SOFTWARE\\Epic Games\\Horde"), TEXT("Url"), Url) && !Url.IsEmpty())
+			{
+				return Url;
+			}
+#endif
+			return FString();
+		}
+	};
+
+	static FString CachedValue = FServerUrlInitializer::Get();
+
+	OutHordeUrl = CachedValue;
+	return !OutHordeUrl.IsEmpty();
+}
+
+bool FDesktopPlatformBase::GetOidcAccessTokenInternal(const FString& RootDir, const FString& BaseArguments, bool bUnattended, FFeedbackContext* Warn, FString& OutToken, FDateTime& OutTokenExpiresAt, bool& bOutWasInteractiveLogin)
+{
+	IFileManager::Get().MakeDirectory(*FPaths::ProjectIntermediateDir(), /*bTree*/ true);
+	FString ResultFilePath = FPaths::CreateTempFilename(*FPaths::ProjectIntermediateDir(), TEXT("oidcToken.json"));
+	ON_SCOPE_EXIT
+	{
+		IFileManager::Get().Delete(*ResultFilePath, false /* RequireExists */, true /* EvenIfReadOnly */, true /* Quiet */);
+	};
+
+	FString Arguments = TEXT(" ") + BaseArguments;
+	Arguments += FString::Printf(TEXT(" --OutFile=\"%s\""), *ResultFilePath);
+
+	FString UnattendedArguments = Arguments;
+	UnattendedArguments += TEXT(" --Unattended=true");
+
+	// first we attempt to fetch a token using cached offline tokens, thus setting unattended
+	bool bRes = true;
+	int32 ExitCode;
+	FString ProcessStdout;
+	bRes = InvokeOidcTokenToolSync(LOCTEXT("GetOidcAccessToken", "Fetching OIDC Access Token..."), RootDir, UnattendedArguments, Warn, ExitCode, ProcessStdout);
+
+	bOutWasInteractiveLogin = false;
+
+	if (ExitCode == 10)
+	{
+		bRes = GetOidcAccessTokenInteractive(RootDir, Arguments, bUnattended, Warn, ExitCode);
+
+		bOutWasInteractiveLogin = true;
+
+		if (!bRes)
+		{
+			if (bUnattended)
+			{
+				UE_LOG(LogDesktopPlatform, Warning, TEXT("Unable to allocate an access token. Unattended set so unable to complete interactive login. Make sure you start the editor and login once or log in using UGS or using the UGS cli command 'login'. (Ran '%s%s')"), *GetOidcTokenExecutableFilename(RootDir), *Arguments);
+			}
+			else
+			{
+				UE_LOG(LogDesktopPlatform, Error, TEXT("Unable to allocate an access token. Interactive login failed, make sure you are assigned access and are able to login in the created browser window. (Ran '%s%s')"), *GetOidcTokenExecutableFilename(RootDir), *Arguments);
+			}
+			return false;
+		}
+	}
+
+	if (!bRes)
+	{
+		UE_LOG(LogDesktopPlatform, Warning, TEXT("Failed to run OidcToken ('%s%s'). ExitCode: %i"), *GetOidcTokenExecutableFilename(RootDir), *Arguments, ExitCode);
+		return false;
+	}
+	
+	// Read the file to a string
+	FString TokenText;
+	if(FFileHelper::LoadFileToString(TokenText, *ResultFilePath))
+	{
+		// deserialize the json file
+		TSharedPtr< FJsonObject > Object;
+		TSharedRef< TJsonReader<> > Reader = TJsonReaderFactory<>::Create(TokenText);
+		if(FJsonSerializer::Deserialize(Reader, Object) && Object.IsValid())
+		{
+			FString Token;
+			FString ExpiresAt;
+			if(Object->TryGetStringField(TEXT("Token"), Token) && Object->TryGetStringField(TEXT("ExpiresAt"), ExpiresAt))
+			{
+				OutToken = Token;
+
+				FDateTime::ParseIso8601(*ExpiresAt, OutTokenExpiresAt);
+
+				// Remove the output file if its still around
+				IFileManager::Get().Delete(*ResultFilePath, true, false, true);
+
+				return true;
+			}
+		}
+	}
+
+	UE_LOG(LogDesktopPlatform, Warning, TEXT("Failed to run OidcToken ('%s%s'). No result file found at '%s', closed with exit code: %d"), *GetOidcTokenExecutableFilename(RootDir), *Arguments, *ResultFilePath, ExitCode);
 
 	// Remove the output file if its still around
 	IFileManager::Get().Delete(*ResultFilePath, true, false, true);
