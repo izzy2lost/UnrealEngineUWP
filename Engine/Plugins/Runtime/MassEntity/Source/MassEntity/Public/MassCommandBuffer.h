@@ -181,13 +181,11 @@ private:
 		}
 		else if (CommandInstances[Index])
 		{
-			return (T&)(*CommandInstances[Index]);
+			return (T&)(*CommandInstances[Index].Get());
 		}
 
-		T* NewCommandInstance = new T();
-		check(NewCommandInstance);
-		CommandInstances[Index] = NewCommandInstance;
-		return *NewCommandInstance;
+		CommandInstances[Index] = MakeUnique<T>();
+		return (T&)(*CommandInstances[Index].Get());
 	}
 
 	/** 
@@ -204,24 +202,24 @@ private:
 	 * Commands created for this specific command buffer. All commands in the array are unique (by type) and reusable 
 	 * with subsequent PushCommand calls
 	 */
-	TArray<FMassBatchedCommand*> CommandInstances;
+	TArray<TUniquePtr<FMassBatchedCommand>> CommandInstances;
 	/** 
 	 * Commands appended to this command buffer (via FMassCommandBuffer::MoveAppend). These commands are just naive list
 	 * of commands, potentially containing duplicates with multiple MoveAppend calls. Once appended these commands are 
 	 * not being reused and consumed, destructively, during flushing
 	 */
-	TArray<FMassBatchedCommand*> AppendedCommandInstances;
+	TArray<TUniquePtr<FMassBatchedCommand>> AppendedCommandInstances;
 
 	int32 ActiveCommandsCounter = 0;
 
 	/** Indicates that this specific MassCommandBuffer is currently flushing its contents */
 	bool bIsFlushing = false;
 
-	/**
-	* Identifies the thread where given FMassCommandBuffer instance was created. Adding commands from other
-	* threads is not supported and we use this value to check that.
-	* Note that it could be const since we set it in the constructor, but we need to recache on server forking.
-	*/
+	/** 
+	 * Identifies the thread where given FMassCommandBuffer instance was created. Adding commands from other
+	 * threads is not supported and we use this value to check that.
+	 * Note that it could be const since we set it in the constructor, but we need to recache on server forking.
+	 */
 	uint32 OwnerThreadId;
 };
 
