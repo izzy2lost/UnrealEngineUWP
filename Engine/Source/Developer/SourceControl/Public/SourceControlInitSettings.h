@@ -19,7 +19,15 @@ public:
 		OverrideExisting,
 	};
 
-	enum class EConfigBehavior
+	enum class ECmdLineFlags : uint8
+	{
+		/** Do not read any settings from the commandline */
+		None,
+		/** Read all available settings from the commandline */
+		ReadAll
+	};
+
+	enum class EConfigBehavior : uint8
 	{
 		/** Can both read from, and save to the ini file*/
 		ReadWrite,
@@ -30,6 +38,7 @@ public:
 	};
 
 	FSourceControlInitSettings(EBehavior Behavior);
+	FSourceControlInitSettings(EBehavior Behavior, ECmdLineFlags CmdLineFlags);
 	~FSourceControlInitSettings() = default;
 
 	void SetConfigBehavior(EConfigBehavior Behavior);
@@ -43,10 +52,14 @@ public:
 	bool HasOverrides() const;
 	bool IsOverridden(FStringView SettingName) const;
 
+	void SetCmdLineFlags(ECmdLineFlags Flags);
+	bool ShouldReadFromCmdLine() const;
+
 private:
 
-	EBehavior OverrideBehavior = EBehavior::OverrideAll;
-	EConfigBehavior ConfigBehavior = EConfigBehavior::ReadWrite;
+	EBehavior OverrideBehavior		= EBehavior::OverrideAll;
+	ECmdLineFlags CmdLineFlags		= ECmdLineFlags::None;
+	EConfigBehavior ConfigBehavior	= EConfigBehavior::ReadWrite;
 
 	TMap<FString, FString> Settings;
 };

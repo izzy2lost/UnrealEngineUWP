@@ -38,31 +38,41 @@ namespace
 		IdleConnectionDisconnectSeconds,
 		TEXT("The number of seconds a perforce connection will be kept open without activity before being automatically disconnected"),
 		ECVF_Default);
+
+	void ParseCmdLineSetting(FSourceControlInitSettings& Settings)
+	{
+		if (!Settings.ShouldReadFromCmdLine())
+		{
+			return;
+		}
+
+		auto ParseCmdLineSetting = [&Settings](const TCHAR* SettingKey) -> void
+			{
+				FString SettingValue;
+				if (FParse::Value(FCommandLine::Get(), *WriteToString<64>(SettingKey, TEXT("=")), SettingValue))
+				{
+					Settings.AddSetting(SettingKey, SettingValue);
+				}
+			};
+
+		ParseCmdLineSetting(TEXT("P4Port"));
+		ParseCmdLineSetting(TEXT("P4User"));
+		ParseCmdLineSetting(TEXT("P4Client"));
+		ParseCmdLineSetting(TEXT("P4Host"));
+		ParseCmdLineSetting(TEXT("P4Passwd"));
+		ParseCmdLineSetting(TEXT("P4Changelist"));
+	}
 }
 
 FPerforceSourceControlProvider::FPerforceSourceControlProvider()
 	: PerforceSCCSettings(*this, FStringView())
-	, InitialSettings(FSourceControlInitSettings::EBehavior::OverrideExisting)
+	, InitialSettings(FSourceControlInitSettings::EBehavior::OverrideExisting, FSourceControlInitSettings::ECmdLineFlags::ReadAll)
 	, OwnerName(TEXT("Default"))
 	, bServerAvailable(false)
 	, bLoginError(false)
 	, PersistentConnection(nullptr)
 {
-	auto ParseCmdLineSetting = [this](const TCHAR* SettingKey) -> void
-	{
-		FString SettingValue;
-		if (FParse::Value(FCommandLine::Get(), *WriteToString<64>(SettingKey, TEXT("=")), SettingValue))
-		{
-			InitialSettings.AddSetting(SettingKey, SettingValue);
-		}
-	};
-
-	ParseCmdLineSetting(TEXT("P4Port"));
-	ParseCmdLineSetting(TEXT("P4User"));
-	ParseCmdLineSetting(TEXT("P4Client"));
-	ParseCmdLineSetting(TEXT("P4Host"));
-	ParseCmdLineSetting(TEXT("P4Passwd"));
-	ParseCmdLineSetting(TEXT("P4Changelist"));
+	ParseCmdLineSetting(InitialSettings);
 
 	AccessSettings().LoadSettings();
 }
@@ -75,6 +85,9 @@ FPerforceSourceControlProvider::FPerforceSourceControlProvider(const FStringView
 	, bLoginError(false)
 	, PersistentConnection(nullptr)
 {
+	
+	ParseCmdLineSetting(InitialSettings);
+
 	AccessSettings().SetAllowSave(InInitialSettings.CanWriteToConfigFile());
 	AccessSettings().SetAllowLoad(InInitialSettings.CanReadFromConfigFile());
 
