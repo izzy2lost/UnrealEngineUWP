@@ -23,6 +23,8 @@ SamplerState ColorSampler;
 SamplerState VelocitySampler;
 SamplerState DepthSampler;
 
+int CheckerboardEnabled;
+
 #if USE_POST_MOTION_BLUR_TRANSLUCENCY
 
 Texture2D PostMotionBlurTranslucencyTexture;
@@ -128,6 +130,8 @@ void MainPS(
 	float2 ScreenPosAtTileCenter = (PixelPosAtTileCenter - Velocity_ScreenPosToViewportBias) / Velocity_ScreenPosToViewportScale;
 
 	// World aligned checkerboards
+	OutColor = float4(0, 0, 0, 1);
+	if (CheckerboardEnabled)
 	{
 		float DeviceZ = DepthTexture.SampleLevel(SharedDepthSampler, UV, 0).r;
 		float SceneDepth = ConvertFromDeviceZ(DeviceZ);

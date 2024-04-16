@@ -67,6 +67,15 @@ namespace
 		0,
 		TEXT("For projects with motion blur enabled, this allows motion blur to be enabled even while in VR."));
 
+	TAutoConsoleVariable<int32> CVarVisualizeMotionBlurEnableCheckerboard(
+		TEXT("r.MotionBlur.VisualizeCheckerboard"),
+		1,
+		TEXT("Enables checkerboard visualization when Visualize Motion Blur show flag is enabled.\n")
+		TEXT("0: off\n")
+		TEXT("1: on (default)\n"),
+		ECVF_RenderThreadSafe
+	);
+
 	FMatrix GetPreviousWorldToClipMatrix(const FViewInfo& View)
 	{
 		if (View.Family->EngineShowFlags.CameraInterpolation)
@@ -514,6 +523,8 @@ class FMotionBlurVisualizePS : public FMotionBlurShader
 		SHADER_PARAMETER_SAMPLER(SamplerState, ColorSampler)
 		SHADER_PARAMETER_SAMPLER(SamplerState, VelocitySampler)
 		SHADER_PARAMETER_SAMPLER(SamplerState, DepthSampler)
+
+		SHADER_PARAMETER(int, CheckerboardEnabled)
 
 		RENDER_TARGET_BINDING_SLOTS()
 	END_SHADER_PARAMETER_STRUCT()
@@ -1132,6 +1143,7 @@ FScreenPassTextureSlice AddVisualizeMotionBlurPass(FRDGBuilder& GraphBuilder, co
 	PassParameters->VelocitySampler = GetMotionBlurVelocitySampler();
 	PassParameters->DepthSampler = GetMotionBlurVelocitySampler();
 	PassParameters->RenderTargets[0] = Output.GetRenderTargetBinding();
+	PassParameters->CheckerboardEnabled = CVarVisualizeMotionBlurEnableCheckerboard.GetValueOnRenderThread();
 
 	TShaderMapRef<FMotionBlurVisualizePS> PixelShader(View.ShaderMap);
 
