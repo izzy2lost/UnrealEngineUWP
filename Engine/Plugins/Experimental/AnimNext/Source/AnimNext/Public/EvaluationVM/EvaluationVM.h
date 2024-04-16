@@ -28,7 +28,8 @@ namespace UE::AnimNext
 	template<typename Type>
 	constexpr uint32 GetTypeID()
 	{
-		checkf(false, TEXT("Not implemented! See ANIM_NEXT_ENABLE_EVALUATION_STACK_USAGE for details and register your type"));
+		static_assert(sizeof(Type) != sizeof(Type),
+			"Not implemented! See ANIM_NEXT_ENABLE_EVALUATION_STACK_USAGE for details and register your type");
 		return 0;
 	}
 
