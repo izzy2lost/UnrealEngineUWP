@@ -298,7 +298,9 @@ TSharedRef<SWidget> FMovieSceneBindingPropertyInfoDetailCustomization::OnGetConv
 	TSharedPtr<ISequencer> Sequencer = SequencerPtr.Pin();
 	if (Sequencer.IsValid() && StructPropertyHandle->IsValidHandle())
 	{
-		FSequencerUtilities::AddConvertBindingMenu(MenuBuilder, Sequencer.ToSharedRef(), BindingGuid, BindingIndex, [this, &StructBuilder, &CustomizationUtils]()
+		TArray<FSequencerConvertBindingInfo> Bindings;
+		Bindings.Add({BindingGuid, BindingIndex});
+		FSequencerUtilities::AddConvertBindingMenu(MenuBuilder, Sequencer.ToSharedRef(), Bindings, [this, &StructBuilder, &CustomizationUtils]()
 			{
 				if (IDetailsView* DetailsView = StructBuilder.GetParentCategory().GetParentLayout().GetDetailsView())
 				{
@@ -422,8 +424,8 @@ void ULevelSequenceEditorSubsystem::Initialize(FSubsystemCollectionBase& Collect
 
 	AssignActorMenuExtender = MakeShareable(new FExtender);
 	AssignActorMenuExtender->AddMenuExtension("Possessable", EExtensionHook::First, CommandList, FMenuExtensionDelegate::CreateLambda([this](FMenuBuilder& MenuBuilder) {
-		// Only add menu entries where the focused sequence is a ULevelSequence
-		if (!GetActiveSequencer())
+
+		if (!IsSelectedBindingRootPossessable())
 		{
 			return;
 		}
@@ -440,8 +442,8 @@ void ULevelSequenceEditorSubsystem::Initialize(FSubsystemCollectionBase& Collect
 	// For now we have the binding properties being a separate menu. When the UX is worked out we will likely merge the AssignActor menu away.
 	BindingPropertiesMenuExtender = MakeShareable(new FExtender);
 	BindingPropertiesMenuExtender->AddMenuExtension("Possessable", EExtensionHook::First, CommandList, FMenuExtensionDelegate::CreateLambda([this](FMenuBuilder& MenuBuilder) {
-		// Only add menu entries where the focused sequence is a ULevelSequence
-		if (!GetActiveSequencer())
+		
+		if (!IsSelectedBindingRootPossessable())
 		{
 			return;
 		}
@@ -477,7 +479,7 @@ void ULevelSequenceEditorSubsystem::Initialize(FSubsystemCollectionBase& Collect
 
 	BindingPropertiesMenuExtender->AddMenuExtension("CustomBinding", EExtensionHook::First, CommandList, FMenuExtensionDelegate::CreateLambda([this](FMenuBuilder& MenuBuilder) {
 		// Only add menu entries where the focused sequence is a ULevelSequence
-		if (!GetActiveSequencer())
+		if (!IsSelectedBindingRootPossessable())
 		{
 			return;
 		}
@@ -2490,6 +2492,32 @@ void ULevelSequenceEditorSubsystem::RebindComponent(const TArray<FMovieSceneBind
 	{
 		Sequencer->NotifyMovieSceneDataChanged(EMovieSceneDataChangeType::MovieSceneStructureItemsChanged);
 	}
+}
+
+bool ULevelSequenceEditorSubsystem::IsSelectedBindingRootPossessable()
+{
+	TSharedPtr<ISequencer> Sequencer = GetActiveSequencer();
+	if (Sequencer)
+	{
+		TArray<FGuid> ObjectBindings;
+		Sequencer->GetSelectedObjects(ObjectBindings);
+		if (ObjectBindings.Num() >= 0)
+		{
+			UMovieSceneSequence* Sequence = Sequencer->GetFocusedMovieSceneSequence();
+			UMovieScene* MovieScene = Sequence ? Sequence->GetMovieScene() : nullptr;
+			if (MovieScene)
+			{
+				if (FMovieScenePossessable* Possessable = MovieScene->FindPossessable(ObjectBindings[0]))
+				{
+					if (!Possessable->GetParent().IsValid())
+					{
+						return true;
+					}
+				}
+			}
+		}
+	}
+	return false;
 }
 
 void ULevelSequenceEditorSubsystem::RefreshBindingDetails(IDetailsView* DetailsView, FGuid ObjectBindingID)

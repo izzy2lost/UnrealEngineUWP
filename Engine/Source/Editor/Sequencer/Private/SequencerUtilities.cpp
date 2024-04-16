@@ -71,6 +71,9 @@
 #include "ClassViewerFilter.h"
 #include "Framework/Application/SlateApplication.h"
 #include "SequencerCommands.h"
+#include "MVVM/Selection/Selection.h"
+#include "UnrealEdGlobals.h"
+#include "Misc/FeedbackContext.h"
 
 #define LOCTEXT_NAMESPACE "FSequencerUtilities"
 
@@ -3884,83 +3887,154 @@ void FSequencerUtilities::HandleTemplateActorClassPicked(UClass* ChosenClass, TS
 	}
 }
 
-void FSequencerUtilities::AddConvertBindingMenu(FMenuBuilder& MenuBuilder, TSharedRef<ISequencer> Sequencer, FGuid ObjectBindingID, int32 BindingIndex, TFunction<void()> OnBindingChanged)
+void FSequencerUtilities::AddConvertBindingMenu(FMenuBuilder& MenuBuilder, TSharedRef<ISequencer> Sequencer, const TArray<FSequencerConvertBindingInfo>& BindingsToConvert, TFunction<void()> OnBindingChanged)
 {
 	UMovieSceneSequence* Sequence = Sequencer->GetFocusedMovieSceneSequence();
 	UMovieScene* MovieScene = Sequence ? Sequence->GetMovieScene() : nullptr;
 
-	if (!MovieScene || !ObjectBindingID.IsValid())
+	if (!MovieScene || BindingsToConvert.IsEmpty())
 	{
 		return;
 	}
 
-	FMovieSceneSpawnable* Spawnable = MovieScene->FindSpawnable(ObjectBindingID);
+	auto ConvertBindings = [Sequencer, MovieScene, BindingsToConvert, OnBindingChanged](TFunction<FMovieScenePossessable*(FGuid,int32)> DoConvert) {
+		using namespace UE::Sequencer;
 
-	if (Spawnable)
-	{
-		MenuBuilder.AddMenuEntry(FSequencerCommands::Get().ConvertToPossessable, NAME_None, LOCTEXT("ConvertToPossessable", "Possessable"));
-		MenuBuilder.AddMenuEntry(
-			LOCTEXT("ConvertToPossessable", "Possessable"),
-			LOCTEXT("ConvertToPossessableTooltip", "Convert selected binding to a possessable"),
-			FSlateIcon(),
-			FUIAction(FExecuteAction::CreateLambda([Sequencer, ObjectBindingID, BindingIndex, OnBindingChanged]() 
-				{ 
-					FSequencerUtilities::ConvertToPossessable(Sequencer, ObjectBindingID, BindingIndex); 
-					if (OnBindingChanged != nullptr)
-					{
-						OnBindingChanged();
-					}
-				})));
-	}
-	else if (const FMovieSceneBindingReferences* BindingReferences = Sequencer->GetFocusedMovieSceneSequence()->GetBindingReferences())
-	{
-		TArrayView<const FMovieSceneBindingReference> BindingReferencesList = Sequencer->GetFocusedMovieSceneSequence()->GetBindingReferences()->GetReferences(ObjectBindingID);
-		if (BindingReferencesList.IsValidIndex(BindingIndex))
+		if (MovieScene->IsReadOnly())
 		{
-			if (BindingReferencesList[BindingIndex].CustomBinding != nullptr)
+			FSequencerUtilities::ShowReadOnlyError();
+			return;
+		}
+
+		if (BindingsToConvert.Num() > 0)
+		{
+			const FScopedTransaction Transaction(LOCTEXT("ConvertSelectedNodesPossessable", "Convert Selected Nodes to Possessables"));
+			MovieScene->Modify();
+
+			FScopedSlowTask SlowTask(BindingsToConvert.Num(), LOCTEXT("ConvertPossessablesProgress", "Converting Selected Spawnable Nodes to Possessables"));
+			SlowTask.MakeDialog(true);
+
+			TArray<AActor*> PossessedActors;
+			for (const FSequencerConvertBindingInfo& BindingInfo : BindingsToConvert)
 			{
-				MenuBuilder.AddMenuEntry(
-					LOCTEXT("ConvertToPossessable", "Possessable"),
-					LOCTEXT("ConvertToPossessableTooltip", "Convert selected binding to a possessable"),
-					FSlateIcon(),
-					FUIAction(FExecuteAction::CreateLambda([Sequencer, ObjectBindingID, BindingIndex, OnBindingChanged]() 
-						{ 
-							FSequencerUtilities::ConvertToPossessable(Sequencer, ObjectBindingID, BindingIndex);
-							if (OnBindingChanged != nullptr)
-							{
-								OnBindingChanged();
-							}
-						})));
+				SlowTask.EnterProgressFrame();
+
+				FMovieScenePossessable* Possessable = DoConvert(BindingInfo.BindingID, BindingInfo.BindingIndex);
+
+				Sequencer->ForceEvaluate();
+
+				for (TWeakObjectPtr<> WeakObject : Sequencer->FindBoundObjects(Possessable->GetGuid(), Sequencer->GetFocusedTemplateID()))
+				{
+					if (AActor* PossessedActor = Cast<AActor>(WeakObject.Get()))
+					{
+						PossessedActors.Add(PossessedActor);
+					}
+				}
+
+				if (GWarn->ReceivedUserCancel())
+				{
+					break;
+				}
 			}
 
-			const FMovieSceneBindingReference& CurrentBindingReference = BindingReferencesList[BindingIndex];
-			UE::UniversalObjectLocator::FResolveParams LocatorResolveParams(Sequencer->GetSharedPlaybackState()->GetPlaybackContext());
-			FMovieSceneBindingResolveParams BindingResolveParams{ Sequence, ObjectBindingID, Sequencer->GetFocusedTemplateID()};
-			if (UObject* CurrentBoundObject = BindingReferences->ResolveSingleBinding(BindingResolveParams, BindingIndex, LocatorResolveParams, Sequencer->GetSharedPlaybackState()))
+			if (PossessedActors.Num())
 			{
-				TArrayView<const TSubclassOf<UMovieSceneCustomBinding>> PrioritySortedCustomBindingTypes = Sequencer->GetSupportedCustomBindingTypes();
-				for (const TSubclassOf<UMovieSceneCustomBinding>& CustomBindingType : PrioritySortedCustomBindingTypes)
+				const bool bNotifySelectionChanged = true;
+				const bool bDeselectBSP = true;
+				const bool bWarnAboutTooManyActors = false;
+				const bool bSelectEvenIfHidden = false;
+
+				GEditor->GetSelectedActors()->Modify();
+				GEditor->GetSelectedActors()->BeginBatchSelectOperation();
+				GEditor->SelectNone(bNotifySelectionChanged, bDeselectBSP, bWarnAboutTooManyActors);
+				for (auto PossessedActor : PossessedActors)
 				{
-					if (CustomBindingType
-						&& (!CurrentBindingReference.CustomBinding
-							|| CurrentBindingReference.CustomBinding->GetClass() != CustomBindingType)
-						&& CustomBindingType->GetDefaultObject<UMovieSceneCustomBinding>()->SupportsConversionFromBinding(CurrentBindingReference, CurrentBoundObject))
+					GEditor->SelectActor(PossessedActor, true, bNotifySelectionChanged, bSelectEvenIfHidden);
+				}
+				GEditor->GetSelectedActors()->EndBatchSelectOperation();
+				GEditor->NoteSelectionChange();
+
+				Sequencer->NotifyMovieSceneDataChanged(EMovieSceneDataChangeType::MovieSceneStructureItemsChanged);
+			}
+		}
+		if (OnBindingChanged != nullptr)
+		{
+			OnBindingChanged();
+		}
+	};
+
+	// Can convert to possessable
+	if (Algo::AllOf(BindingsToConvert, [&Sequence, &MovieScene](const FSequencerConvertBindingInfo& BindingInfo) {
+		if (FMovieSceneSpawnable* Spawnable = MovieScene->FindSpawnable(BindingInfo.BindingID))
+		{
+			return true;
+		}
+		else if (const FMovieSceneBindingReferences* BindingReferences = Sequence->GetBindingReferences())
+		{
+			TArrayView<const FMovieSceneBindingReference> BindingReferencesList = BindingReferences->GetReferences(BindingInfo.BindingID);
+			if (BindingReferencesList.IsValidIndex(BindingInfo.BindingIndex) && BindingReferencesList[BindingInfo.BindingIndex].CustomBinding != nullptr)
+			{
+				return true;
+			}
+		}
+		return false;
+	}))
+	{
+		MenuBuilder.AddMenuEntry(
+			LOCTEXT("ConvertToPossessable", "Possessable"),
+			LOCTEXT("ConvertToPossessableTooltip", "Convert selected binding(s) to a possessable"),
+			FSlateIcon(),
+			FUIAction(FExecuteAction::CreateLambda([Sequencer, MovieScene, BindingsToConvert, ConvertBindings, OnBindingChanged]()
+			{
+				ConvertBindings([Sequencer](FGuid BindingID, int32 BindingIndex){return FSequencerUtilities::ConvertToPossessable(Sequencer, BindingID, BindingIndex);});
+			})));
+	}
+	
+	// Can convert to custom bindings
+
+	TArrayView<const TSubclassOf<UMovieSceneCustomBinding>> PrioritySortedCustomBindingTypes = Sequencer->GetSupportedCustomBindingTypes();
+	for (const TSubclassOf<UMovieSceneCustomBinding>& CustomBindingType : PrioritySortedCustomBindingTypes)
+	{
+		if (Algo::AllOf(BindingsToConvert, [&Sequence, &MovieScene, &CustomBindingType, Sequencer](const FSequencerConvertBindingInfo& BindingInfo) 
+		{
+			if (FMovieSceneSpawnable* Spawnable = MovieScene->FindSpawnable(BindingInfo.BindingID))
+			{
+				if (UObject* CurrentBoundObject = Spawnable->GetObjectTemplate())
+				{
+					return CustomBindingType && CustomBindingType->GetDefaultObject<UMovieSceneCustomBinding>()->SupportsBindingCreationFromObject(CurrentBoundObject);
+				}
+			}
+			else if (const FMovieSceneBindingReferences* BindingReferences = Sequence->GetBindingReferences())
+			{
+				TArrayView<const FMovieSceneBindingReference> BindingReferencesList = Sequencer->GetFocusedMovieSceneSequence()->GetBindingReferences()->GetReferences(BindingInfo.BindingID);
+
+				if (const FMovieSceneBindingReference* CurrentBindingReference = BindingReferences->GetReference(BindingInfo.BindingID, BindingInfo.BindingIndex))
+				{
+					UE::UniversalObjectLocator::FResolveParams LocatorResolveParams(Sequencer->GetSharedPlaybackState()->GetPlaybackContext());
+					FMovieSceneBindingResolveParams BindingResolveParams{ Sequence, BindingInfo.BindingID, Sequencer->GetFocusedTemplateID() };
+					if (UObject* CurrentBoundObject = BindingReferences->ResolveSingleBinding(BindingResolveParams, BindingInfo.BindingIndex, LocatorResolveParams, Sequencer->GetSharedPlaybackState()))
 					{
-						MenuBuilder.AddMenuEntry(
-							CustomBindingType->GetDefaultObject<UMovieSceneCustomBinding>()->GetBindingTypePrettyName(),
-							FText::Format(LOCTEXT("ConvertToCustomBindingTooltip", "Convert selected binding to {0}"), CustomBindingType->GetDefaultObject<UMovieSceneCustomBinding>()->GetBindingTypePrettyName()),
-							FSlateIcon(),
-							FUIAction(FExecuteAction::CreateLambda([Sequencer, ObjectBindingID, CustomBindingType, BindingIndex, OnBindingChanged]() 
-								{ 
-									FSequencerUtilities::ConvertToCustomBinding(Sequencer, ObjectBindingID, CustomBindingType, BindingIndex); 
-									if (OnBindingChanged != nullptr)
-									{
-										OnBindingChanged();
-									}
-								})));
+						if (CustomBindingType
+							&& (!CurrentBindingReference->CustomBinding
+								|| CurrentBindingReference->CustomBinding->GetClass() != CustomBindingType)
+							&& CustomBindingType->GetDefaultObject<UMovieSceneCustomBinding>()->SupportsConversionFromBinding(*CurrentBindingReference, CurrentBoundObject))
+						{
+							return true;
+						}
 					}
 				}
 			}
+			return false;
+		}))
+		{
+			MenuBuilder.AddMenuEntry(
+				CustomBindingType->GetDefaultObject<UMovieSceneCustomBinding>()->GetBindingTypePrettyName(),
+				FText::Format(LOCTEXT("ConvertToCustomBindingTooltip", "Convert selected binding to {0}"), CustomBindingType->GetDefaultObject<UMovieSceneCustomBinding>()->GetBindingTypePrettyName()),
+				FSlateIcon(),
+				FUIAction(FExecuteAction::CreateLambda([Sequencer, MovieScene, BindingsToConvert, ConvertBindings, CustomBindingType, OnBindingChanged]()
+				{
+					ConvertBindings([Sequencer, CustomBindingType](FGuid BindingID, int32 BindingIndex){return FSequencerUtilities::ConvertToCustomBinding(Sequencer, BindingID, CustomBindingType, BindingIndex);});
+				})));
 		}
 	}
 }

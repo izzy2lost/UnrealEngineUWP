@@ -165,6 +165,18 @@ struct FMovieScenePasteBindingsParams
 	bool bDuplicateExistingActors;
 };
 
+USTRUCT()
+struct FSequencerConvertBindingInfo
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	FGuid BindingID;
+
+	UPROPERTY()
+	int32 BindingIndex;
+};
+
 struct SEQUENCER_API FSequencerUtilities
 {
 	/* Creates a button (used for +Section) that opens a ComboButton with a user-defined sub-menu content. */
@@ -256,5 +268,5 @@ struct SEQUENCER_API FSequencerUtilities
 	// Functions allowing menus to be built for modifying bindings
 	static void AddChangeClassMenu(FMenuBuilder& MenuBuilder, TSharedRef<ISequencer> Sequencer, FGuid Guid, int32 BindingIndex, TFunction<void()> OnBindingChanged);
 	static void HandleTemplateActorClassPicked(UClass* ChosenClass, TSharedRef<ISequencer> Sequencer, FGuid Guid, int32 BindingIndex, TFunction<void()> OnBindingChanged);
-	static void AddConvertBindingMenu(FMenuBuilder& MenuBuilder, TSharedRef<ISequencer> Sequencer, FGuid Guid, int32 BindingIndex, TFunction<void()> OnBindingChanged);
+	static void AddConvertBindingMenu(FMenuBuilder& MenuBuilder, TSharedRef<ISequencer> Sequencer, const TArray<FSequencerConvertBindingInfo>& BindingsToConvert, TFunction<void()> OnBindingChanged);
 };

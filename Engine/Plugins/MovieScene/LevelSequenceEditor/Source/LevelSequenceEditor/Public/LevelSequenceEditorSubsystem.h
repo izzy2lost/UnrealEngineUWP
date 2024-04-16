@@ -282,6 +282,8 @@ private:
 	void GetRebindComponentNames(TArray<FName>& OutComponentNames);
 	void RebindComponentMenu(FMenuBuilder& MenuBuilder);
 
+	bool IsSelectedBindingRootPossessable();
+
 	FDelegateHandle OnSequencerCreatedHandle;
 
 	/* List of sequencers that have been created */

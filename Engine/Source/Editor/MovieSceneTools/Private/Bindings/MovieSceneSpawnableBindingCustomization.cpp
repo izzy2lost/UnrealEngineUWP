@@ -17,6 +17,7 @@
 #include "MovieScene.h"
 #include "MovieSceneSection.h"
 #include "Tracks/MovieSceneBindingLifetimeTrack.h"
+#include "Tracks/MovieSceneSpawnTrack.h"
 
 TSharedRef<IDetailCustomization> FMovieSceneSpawnableBindingCustomization::MakeInstance(UMovieScene* InMovieScene, FGuid InBindingGuid)
 {
@@ -45,11 +46,21 @@ void FMovieSceneSpawnableBindingCustomization::OnSpawnOwnershipChanged()
 			// Overwrite the completion state for all spawn sections to ensure the expected behaviour.
 			EMovieSceneCompletionMode NewCompletionMode = *SpawnOwnership == ESpawnOwnership::InnerSequence ? EMovieSceneCompletionMode::RestoreState : EMovieSceneCompletionMode::KeepState;
 
-			// Make all binding lifetime sections retain state
+			// Make all binding lifetime and spawn track sections retain state
 			UMovieSceneBindingLifetimeTrack* BindingLifetimeTrack = MovieScene->FindTrack<UMovieSceneBindingLifetimeTrack>(BindingGuid);
 			if (BindingLifetimeTrack)
 			{
 				for (UMovieSceneSection* Section : BindingLifetimeTrack->GetAllSections())
+				{
+					Section->Modify();
+					Section->EvalOptions.CompletionMode = NewCompletionMode;
+				}
+			}
+
+			UMovieSceneSpawnTrack* SpawnTrack = MovieScene->FindTrack<UMovieSceneSpawnTrack>(BindingGuid);
+			if (SpawnTrack)
+			{
+				for (UMovieSceneSection* Section : SpawnTrack->GetAllSections())
 				{
 					Section->Modify();
 					Section->EvalOptions.CompletionMode = NewCompletionMode;

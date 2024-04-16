@@ -172,12 +172,14 @@ void FLevelSequenceCustomization::ExtendObjectBindingContextMenu(FMenuBuilder& M
 	TSharedPtr<FSequencerEditorViewModel> EditorViewModel = Sequencer->GetViewModel();
 
 	FGuid ObjectBindingID = ObjectBindingModel->GetObjectGuid();
-	UMovieScene* MovieScene = Sequencer->GetFocusedMovieSceneSequence()->GetMovieScene();
+	UMovieSceneSequence* Sequence = Sequencer->GetFocusedMovieSceneSequence();
+	UMovieScene* MovieScene = Sequence->GetMovieScene();
 
 	if (!MovieScene || !ObjectBindingID.IsValid())
 	{
 		return;
 	}
+	bool bShowConvert = true;
 
 	FMovieSceneSpawnable* Spawnable = MovieScene->FindSpawnable(ObjectBindingID);
 
@@ -231,33 +233,21 @@ void FLevelSequenceCustomization::ExtendObjectBindingContextMenu(FMenuBuilder& M
 		MenuBuilder.AddMenuEntry(FSequencerCommands::Get().SaveCurrentSpawnableState);
 
 		MenuBuilder.AddSubMenu(
-			LOCTEXT("ConvertBindingLabel", "Convert Binding To..."),
-			LOCTEXT("ConvertBindingLabelTooltip", "Convert this binding into another binding type"),
-			FNewMenuDelegate::CreateLambda([=](FMenuBuilder& MenuBuilder) { FSequencerUtilities::AddConvertBindingMenu(MenuBuilder, Sequencer.ToSharedRef(), ObjectBindingID, 0, TFunction<void()>()); }));
-
-		MenuBuilder.AddSubMenu(
 				LOCTEXT("DynamicSpawn", "Dynamic Spawn"),
 				LOCTEXT("DynamicSpawnTooltip", "Specify a Blueprint method that will spawn or otherwise acquire a compatible actor for this binding"),
 				FNewMenuDelegate::CreateRaw(this, &FLevelSequenceCustomization::AddDynamicSpawnMenu, ObjectBindingModel));
 
 		MenuBuilder.EndSection();
 	}
-	else
+	else if (FMovieScenePossessable* Possessable = MovieScene->FindPossessable(ObjectBindingID))
 	{
+		bShowConvert = !Possessable->GetParent().IsValid();
 		bool bCustomBinding = false;
 		bool bMultipleBindings = false;
 		if (const FMovieSceneBindingReferences* BindingReferences = Sequencer->GetFocusedMovieSceneSequence()->GetBindingReferences())
 		{
 			bCustomBinding = Algo::AnyOf(BindingReferences->GetReferences(ObjectBindingID), [](const FMovieSceneBindingReference& Reference) { return Reference.CustomBinding; });
 			bMultipleBindings = BindingReferences->GetReferences(ObjectBindingID).Num() > 1;
-		}
-
-		if (!bMultipleBindings)
-		{
-			MenuBuilder.AddSubMenu(
-				LOCTEXT("ConvertBindingLabel", "Convert Binding To..."),
-				LOCTEXT("ConvertBindingLabelTooltip", "Convert this binding into another binding type"),
-				FNewMenuDelegate::CreateLambda([=](FMenuBuilder& MenuBuilder) {FSequencerUtilities::AddConvertBindingMenu(MenuBuilder, Sequencer.ToSharedRef(), ObjectBindingID, 0, TFunction<void()>()); }));
 		}
 
 		// Regular possessable
@@ -313,6 +303,29 @@ void FLevelSequenceCustomization::ExtendObjectBindingContextMenu(FMenuBuilder& M
 
 			MenuBuilder.EndSection();
 		}
+	}
+	
+	if (bShowConvert)
+	{
+		// Binding conversion
+		MenuBuilder.AddSubMenu(
+			LOCTEXT("ConvertBindingLabel", "Convert Selected Binding(s) To..."),
+			LOCTEXT("ConvertBindingLabelTooltip", "Convert selected bindings into another binding type"),
+			FNewMenuDelegate::CreateLambda([Sequencer, Sequence](FMenuBuilder& MenuBuilder) 
+			{ 
+					TArray<FSequencerConvertBindingInfo> Bindings;
+					const FMovieSceneBindingReferences* BindingReferences = Sequence->GetBindingReferences();
+					for (TViewModelPtr<IObjectBindingExtension> ObjectBindingNode : Sequencer->GetViewModel()->GetSelection()->Outliner.Filter<IObjectBindingExtension>())
+					{
+						int32 BindingIndex = 0;
+						for (const FMovieSceneBindingReference& Reference : BindingReferences->GetReferences(ObjectBindingNode->GetObjectGuid()))
+						{
+							Bindings.Add({ Reference.ID, BindingIndex++ });
+						}
+					}
+
+				FSequencerUtilities::AddConvertBindingMenu(MenuBuilder, Sequencer.ToSharedRef(), Bindings, TFunction<void()>()); 
+			}));
 	}
 
 	MenuBuilder.BeginSection("Import/Export", LOCTEXT("ImportExportMenuSectionName", "Import/Export"));
