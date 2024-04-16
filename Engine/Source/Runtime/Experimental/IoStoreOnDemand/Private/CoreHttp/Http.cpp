@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Client.h"
+#include "CoreHttp/Client.h"
 
 #if !defined(NO_UE_INCLUDES)
 #include <Containers/Array.h>
