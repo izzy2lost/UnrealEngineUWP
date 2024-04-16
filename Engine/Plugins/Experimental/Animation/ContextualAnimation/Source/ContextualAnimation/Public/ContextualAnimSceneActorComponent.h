@@ -254,6 +254,7 @@ protected:
 		bool bAllowPhysicsRotationDuringAnimRootMotion = false;
 		bool bUseControllerDesiredRotation = false;
 		bool bOrientRotationToMovement = false;
+		bool bSimulatePhysics = false;
 		EMovementMode MovementMode = EMovementMode::MOVE_Walking;
 		TArray<TTuple<ECollisionChannel, ECollisionResponse>> CollisionResponses;
 	};

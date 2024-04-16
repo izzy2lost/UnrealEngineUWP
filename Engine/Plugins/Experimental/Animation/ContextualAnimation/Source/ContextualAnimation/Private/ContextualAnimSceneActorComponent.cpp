@@ -1064,6 +1064,7 @@ void UContextualAnimSceneActorComponent::SetMovementState(const FContextualAnimS
 		CharacterPropertiesBackup.bUseControllerDesiredRotation = MovementComp->bUseControllerDesiredRotation;
 		CharacterPropertiesBackup.bOrientRotationToMovement = MovementComp->bOrientRotationToMovement;
 		CharacterPropertiesBackup.MovementMode = MovementComp->MovementMode;
+		CharacterPropertiesBackup.bSimulatePhysics = MovementComp->UpdatedPrimitive && MovementComp->UpdatedPrimitive->IsSimulatingPhysics();
 
 		// Disable movement correction.
 		MovementComp->bIgnoreClientMovementErrorChecksAndCorrection = true;
@@ -1072,6 +1073,11 @@ void UContextualAnimSceneActorComponent::SetMovementState(const FContextualAnimS
 		MovementComp->bAllowPhysicsRotationDuringAnimRootMotion = false;
 		MovementComp->bUseControllerDesiredRotation = false;
 		MovementComp->bOrientRotationToMovement = false;
+
+		if (UPrimitiveComponent* const UpdatedPrimitive = MovementComp->UpdatedPrimitive)
+		{
+			UpdatedPrimitive->SetSimulatePhysics(false);
+		}
 
 		if (MovementComp->MovementMode != DesiredMoveMode)
 		{
@@ -1090,6 +1096,10 @@ void UContextualAnimSceneActorComponent::RestoreMovementState(const FContextualA
 		MovementComp->bUseControllerDesiredRotation = CharacterPropertiesBackup.bUseControllerDesiredRotation;
 		MovementComp->bOrientRotationToMovement = CharacterPropertiesBackup.bOrientRotationToMovement;
 		MovementComp->SetMovementMode(CharacterPropertiesBackup.MovementMode);
+		if(UPrimitiveComponent* const UpdatedPrimitive = MovementComp->UpdatedPrimitive)
+		{
+			UpdatedPrimitive->SetSimulatePhysics(CharacterPropertiesBackup.bSimulatePhysics);
+		}
 	}
 }
 
