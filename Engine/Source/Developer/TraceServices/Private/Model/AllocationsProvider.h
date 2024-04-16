@@ -73,6 +73,7 @@ public:
 	bool HasTagFromPtrScope(uint32 ThreadId, uint8 Tracker) const;
 
 	uint32 GetNumErrors() const { return NumErrors; }
+	uint32 GetNumWarnings() const { return NumWarnings; }
 
 private:
 	void BuildTagPath(FStringBuilderBase& OutString, FStringView Name, TagIdType ParentTagId);
@@ -86,6 +87,7 @@ private:
 	TMap<TagIdType, FTagEntry> TagMap;
 	TArray<TTuple<TagIdType, FString>> PendingTags;
 	uint32 NumErrors = 0;
+	uint32 NumWarnings = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
