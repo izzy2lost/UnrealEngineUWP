@@ -192,10 +192,12 @@ void UProxyTable::BeginDestroy()
 	Super::BeginDestroy();
 }
 
-static void OutputStructData(const FRuntimeProxyValue& EntryValueData, FChooserEvaluationContext& Context)
+static void OutputStructData(const UProxyTable* ProxyTable, const FRuntimeProxyValue& EntryValueData, FChooserEvaluationContext& Context)
 {
 	for (const FProxyStructOutput& StructOutput : EntryValueData.OutputStructData)
 	{
+		VALIDATE_CHOOSER_CONTEXT(EntryValueData.ProxyAsset, EntryValueData.ProxyAsset->ContextData, Context);
+
 		// copy each struct output value
 		void* TargetData = nullptr;
 		const UStruct* StructType = nullptr;
@@ -204,6 +206,11 @@ static void OutputStructData(const FRuntimeProxyValue& EntryValueData, FChooserE
 			if (StructType == StructOutput.Value.GetScriptStruct())
 			{
 				StructOutput.Value.GetScriptStruct()->CopyScriptStruct(TargetData, StructOutput.Value.GetMemory());
+			}
+			else
+			{
+				UE_LOG(LogChooser, Warning, TEXT("Proxy Table %s Struct Output Type mismatch for Proxy Asset: %s"),
+					ToCStr(ProxyTable->GetName()), ToCStr(EntryValueData.ProxyAsset->GetName()));
 			}
 		}
 	}
@@ -219,7 +226,7 @@ UObject* UProxyTable::FindProxyObject(const FGuid& Key, FChooserEvaluationContex
 
 		UObject* Result = EntryValue.ChooseObject(Context);
 
-		OutputStructData(EntryValueData, Context);
+		OutputStructData(this, EntryValueData, Context);
 
 		return Result;
 	}
@@ -229,20 +236,20 @@ UObject* UProxyTable::FindProxyObject(const FGuid& Key, FChooserEvaluationContex
 
 FObjectChooserBase::EIteratorStatus UProxyTable::FindProxyObjectMulti(const FGuid& Key, FChooserEvaluationContext &Context, FObjectChooserBase::FObjectChooserIteratorCallback Callback) const
 {
-		const int FoundIndex = Algo::BinarySearch(Keys, Key);
-    	if (FoundIndex != INDEX_NONE)
-    	{
-    		const FRuntimeProxyValue& EntryValueData = RuntimeValues[FoundIndex];
-    		const FObjectChooserBase &EntryValue = EntryValueData.Value.Get<const FObjectChooserBase>();
+	const int FoundIndex = Algo::BinarySearch(Keys, Key);
+    if (FoundIndex != INDEX_NONE)
+    {
+    	const FRuntimeProxyValue& EntryValueData = RuntimeValues[FoundIndex];
+    	const FObjectChooserBase &EntryValue = EntryValueData.Value.Get<const FObjectChooserBase>();
     
-    		FObjectChooserBase::EIteratorStatus Result = EntryValue.ChooseMulti(Context, Callback);
+    	FObjectChooserBase::EIteratorStatus Result = EntryValue.ChooseMulti(Context, Callback);
     
-			OutputStructData(EntryValueData, Context);
+		OutputStructData(this, EntryValueData, Context);
     
-    		return Result;
-    	}
+    	return Result;
+    }
     	
-    	return FObjectChooserBase::EIteratorStatus::Continue;
+    return FObjectChooserBase::EIteratorStatus::Continue;
 }
 
 UProxyTable::UProxyTable(const FObjectInitializer& Initializer)

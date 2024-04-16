@@ -13,6 +13,8 @@ FObjectChooserBase::EIteratorStatus FLookupProxy::ChooseMulti(FChooserEvaluation
 {
 	if (Proxy)
 	{
+		VALIDATE_CHOOSER_CONTEXT(Proxy, Proxy->ContextData, Context);
+
 		if (const FChooserParameterProxyTableBase* ProxyTableParameter = ProxyTable.GetPtr<FChooserParameterProxyTableBase>())
 		{
 			const UProxyTable* Table = nullptr;
@@ -34,6 +36,7 @@ UObject* FLookupProxy::ChooseObject(FChooserEvaluationContext& Context) const
 {
 	if (Proxy)
 	{
+		VALIDATE_CHOOSER_CONTEXT(Proxy, Proxy->ContextData, Context);
 		if (const FChooserParameterProxyTableBase* ProxyTableParameter = ProxyTable.GetPtr<FChooserParameterProxyTableBase>())
 		{
 			const UProxyTable* Table = nullptr;

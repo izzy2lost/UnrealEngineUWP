@@ -186,6 +186,13 @@ struct FContextObjectTypeStruct : public FContextObjectTypeBase
 
 namespace UE::Chooser
 {
+#if WITH_EDITORONLY_DATA
+	CHOOSER_API void RuntimeValidateContext(const UObject* Asset, const TArray<FInstancedStruct>& ContextData, FChooserEvaluationContext& Context);
+#define VALIDATE_CHOOSER_CONTEXT(Asset,ContextData,Context) UE::Chooser::RuntimeValidateContext(Asset, ContextData, Context)
+#else
+#define VALIDATE_CHOOSER_CONTEXT(Asset,ContextData,Context)
+#endif
+
 	struct FResolvedPropertyChainResult
 	{
 		uint8* Container = nullptr;

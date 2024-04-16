@@ -15,6 +15,12 @@
 
 #define LOCTEXT_NAMESPACE "ChooserPropertyAccess"
 
+TAutoConsoleVariable<bool> CVarEnableDetailedWarnings(
+	TEXT("Choosers.EnableDetailedWarnings"),
+	false,
+	TEXT("Enable detailed context validation with warnings when choosers are evaluated on an incorrect context. \n0: Disable (default), 1: Enable"),
+	ECVF_Default);
+
 TAutoConsoleVariable<bool> CVarUseCompiledPropertyChainsInEditor(
 	TEXT("Choosers.UseCompiledPropertyChainsInEditor"),
 	false,
@@ -304,6 +310,84 @@ void FChooserPropertyBinding::Compile(IHasContextClass* Owner, bool bForce)
 
 namespace UE::Chooser
 {
+	
+	void RuntimeValidateContext(const UObject* Chooser, const TArray<FInstancedStruct>& ContextData, FChooserEvaluationContext& Context)
+	{
+		if (!CVarEnableDetailedWarnings.GetValueOnAnyThread())
+		{
+			return;
+		}
+
+		int ContextNum = ContextData.Num();
+		for (int i = 0; i < ContextNum; i++)
+		{
+			const FContextObjectTypeClass* ExpectedClassType = ContextData[i].GetPtr<FContextObjectTypeClass>();
+			const FContextObjectTypeStruct* ExpectedStructType = ContextData[i].GetPtr<FContextObjectTypeStruct>();
+
+			if (ExpectedClassType)
+			{
+				if (Context.Params.IsValidIndex(i) && Context.Params[i].IsValid())
+				{
+					if (FChooserEvaluationInputObject* InputObjectParam = Context.Params[i].GetPtr<FChooserEvaluationInputObject>())
+					{
+						if (InputObjectParam->Object)
+						{
+							if (!InputObjectParam->Object->GetClass()->IsChildOf(ExpectedClassType->Class))
+							{
+								UE_LOG(LogChooser, Warning, TEXT("Chooser Table: %s ContextData entry %d expects an object of type %s, but an object of type %s was passed in."),
+									ToCStr(Chooser->GetName()), i, ToCStr(ExpectedClassType->Class->GetName()), ToCStr(InputObjectParam->Object->GetClass()->GetName()));
+							}
+						}
+						else
+						{
+							UE_LOG(LogChooser, Warning, TEXT("Chooser Table: %s ContextData entry %d expects an object of type %s, but null was passed in."),
+								ToCStr(Chooser->GetName()), i, ToCStr(ExpectedClassType->Class->GetName()));
+						}
+
+					}
+					else
+					{
+						UE_LOG(LogChooser, Warning, TEXT("Chooser Table: %s ContextData entry %d expects an object of type %s, but was passed a struct of type %s."),
+							ToCStr(Chooser->GetName()), i, ToCStr(ExpectedClassType->Class->GetName()), ToCStr(Context.Params[i].GetScriptStruct()->GetName()));
+					}
+				}
+				else
+				{
+					UE_LOG(LogChooser, Warning, TEXT("Chooser Table: %s ContextData entry %d expects an object of type %s, but nothing was passed in."),
+						ToCStr(Chooser->GetName()), i, ToCStr(ExpectedClassType->Class->GetName()));
+				}
+			}
+			else if (ExpectedStructType)
+			{
+				if (Context.Params.IsValidIndex(i) && Context.Params[i].IsValid())
+				{
+					if (FChooserEvaluationInputObject* InputObjectParam = Context.Params[i].GetPtr<FChooserEvaluationInputObject>())
+					{
+						UE_LOG(LogChooser, Warning, TEXT("Chooser Table: %s ContextData entry %d expects an struct of type %s, but was passed a object of type %s."),
+							ToCStr(Chooser->GetName()), i, ToCStr(ExpectedStructType->Struct->GetName()), ToCStr(InputObjectParam->Object->GetClass()->GetName()));
+					}
+					else
+					{
+						if (Context.Params[i].GetScriptStruct() != ExpectedStructType->Struct)
+						{
+							UE_LOG(LogChooser, Warning, TEXT("Chooser Table: %s ContextData entry %d expects an struct of type %s, but was passed a struct of type %s."),
+								ToCStr(Chooser->GetName()), i, ToCStr(ExpectedStructType->Struct->GetName()), ToCStr(Context.Params[i].GetScriptStruct()->GetName()));
+						}
+					}
+				}
+				else
+				{
+					UE_LOG(LogChooser, Warning, TEXT("Chooser Table: %s ContextData entry %d expects an struct of type %s, but nothing was passed in."),
+						ToCStr(Chooser->GetName()), i, ToCStr(ExpectedStructType->Struct->GetName()));
+				}
+			}
+			else
+			{
+				UE_LOG(LogChooser, Warning, TEXT("Chooser Table: %s  ContextData entry %i is of unknown type or none."), ToCStr(Chooser->GetName()), i);
+			}
+		}
+	}
+
 
 	bool ResolveCompiledPropertyChain(FChooserEvaluationContext& Context, const FChooserPropertyBinding& Binding, FResolvedPropertyChainResult& Result)
 	{

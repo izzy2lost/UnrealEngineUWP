@@ -259,7 +259,7 @@ void UChooserTable::PostEditUndo()
 void UChooserTable::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
 {
 	UObject::PostEditChangeProperty(PropertyChangedEvent);
-	
+
 	if (PropertyChangedEvent.Property)
 	{
 		static FName OutputObjectTypeName = "OutputObjectType";
@@ -295,7 +295,7 @@ void UChooserTable::PostEditChangeProperty(FPropertyChangedEvent& PropertyChange
 void UChooserTable::IterateRecentContextObjects(TFunction<void(const FString&)> Callback) const
 {
 	FScopeLock Lock(&DebugLock);
-	for(const FString& ObjectName : RecentContextObjects)
+	for (const FString& ObjectName : RecentContextObjects)
 	{
 		Callback(ObjectName);
 	}
@@ -306,7 +306,7 @@ void UChooserTable::UpdateDebugging(FChooserEvaluationContext& Context) const
 	FScopeLock Lock(&DebugLock);
 
 	const UChooserTable* ContextOwner = GetContextOwner();
-	
+
 	for (const FStructView& Param : Context.Params)
 	{
 		if (const FChooserEvaluationInputObject* ObjectParam = Param.GetPtr<const FChooserEvaluationInputObject>())
@@ -314,8 +314,8 @@ void UChooserTable::UpdateDebugging(FChooserEvaluationContext& Context) const
 			if (UObject* ContextObject = ObjectParam->Object)
 			{
 				RecentContextObjects.Add(ContextObject->GetName());
-				
-				if (ContextObject->GetName() == ContextOwner->GetDebugTargetName()) 
+
+				if (ContextObject->GetName() == ContextOwner->GetDebugTargetName())
 				{
 					bDebugTestValuesValid = true;
 					Context.DebuggingInfo.bCurrentDebugTarget = true;
@@ -332,13 +332,13 @@ void UChooserTable::UpdateDebugging(FChooserEvaluationContext& Context) const
 FObjectChooserBase::EIteratorStatus UChooserTable::EvaluateChooser(FChooserEvaluationContext& Context, const UChooserTable* Chooser, FObjectChooserBase::FObjectChooserIteratorCallback Callback)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(EvaluateChooser);
-	
+
 	if (Chooser == nullptr)
 	{
 		return FObjectChooserBase::EIteratorStatus::Continue;
 	}
 
-	// todo validate that parameter types in context data match
+	VALIDATE_CHOOSER_CONTEXT(Chooser, Chooser->ContextData, Context);
 
 #if WITH_EDITOR
 	{
