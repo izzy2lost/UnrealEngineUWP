@@ -26,6 +26,16 @@ FDynamicSkelMeshObjectDataNanite::FDynamicSkelMeshObjectDataNanite(
 	UpdateRefToLocalMatrices(ReferenceToLocal, InComponent, InRenderData, LODIndex);
 	UpdateBonesRemovedByLOD(ReferenceToLocal, InComponent, ETransformsToUpdate::Current);
 
+	CurrentBoneTransforms.SetNumUninitialized(ReferenceToLocal.Num());
+
+	const int64 ReferenceToLocalCount = int64(ReferenceToLocal.Num());
+	const FMatrix44f* ReferenceToLocalPtr = ReferenceToLocal.GetData();
+	FMatrix3x4* CurrentBoneTransformsPtr = CurrentBoneTransforms.GetData();
+
+	TransposeTransforms(CurrentBoneTransformsPtr, ReferenceToLocalPtr, ReferenceToLocalCount);
+
+	bool bUpdatePrevious = false;
+
 	switch (InPreviousBoneTransformUpdateMode)
 	{
 	case EPreviousBoneTransformUpdateMode::None:
@@ -34,18 +44,32 @@ FDynamicSkelMeshObjectDataNanite::FDynamicSkelMeshObjectDataNanite(
 		// For now we'll just redundantly update and upload previous transforms
 		UpdatePreviousRefToLocalMatrices(PrevReferenceToLocal, InComponent, InRenderData, LODIndex);
 		UpdateBonesRemovedByLOD(PrevReferenceToLocal, InComponent, ETransformsToUpdate::Previous);
+		bUpdatePrevious = true;
 		break;
 
 	case EPreviousBoneTransformUpdateMode::UpdatePrevious:
 		UpdatePreviousRefToLocalMatrices(PrevReferenceToLocal, InComponent, InRenderData, LODIndex);
 		UpdateBonesRemovedByLOD(PrevReferenceToLocal, InComponent, ETransformsToUpdate::Previous);
+		bUpdatePrevious = true;
 		break;
 
 	case EPreviousBoneTransformUpdateMode::DuplicateCurrentToPrevious:
 		// TODO: Nanite-Skinning likely possible we can just return ReferenceToLocal here rather than cloning it into previous
 		// Need to make sure it's safe when next update mode = None
 		PrevReferenceToLocal = ReferenceToLocal;
+		PreviousBoneTransforms = CurrentBoneTransforms;
 		break;
+	}
+
+	if (bUpdatePrevious)
+	{
+		PreviousBoneTransforms.SetNumUninitialized(PrevReferenceToLocal.Num());
+		const FMatrix44f* PrevReferenceToLocalPtr = PrevReferenceToLocal.GetData();
+
+		const int64 PrevReferenceToLocalCount = int64(PrevReferenceToLocal.Num());
+		FMatrix3x4* PreviousBoneTransformsPtr = PreviousBoneTransforms.GetData();
+
+		TransposeTransforms(PreviousBoneTransformsPtr, PrevReferenceToLocalPtr, PrevReferenceToLocalCount);
 	}
 
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
@@ -278,6 +302,16 @@ const TArray<FMatrix44f>& FSkeletalMeshObjectNanite::GetReferenceToLocalMatrices
 const TArray<FMatrix44f>& FSkeletalMeshObjectNanite::GetPrevReferenceToLocalMatrices() const
 {
 	return DynamicData->PrevReferenceToLocal;
+}
+
+const TArray<FMatrix3x4>* FSkeletalMeshObjectNanite::GetCurrentBoneTransforms() const
+{
+	return &DynamicData->CurrentBoneTransforms;
+}
+
+const TArray<FMatrix3x4>* FSkeletalMeshObjectNanite::GetPreviousBoneTransforms() const
+{
+	return &DynamicData->PreviousBoneTransforms;
 }
 
 int32 FSkeletalMeshObjectNanite::GetLOD() const

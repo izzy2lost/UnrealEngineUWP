@@ -20,6 +20,7 @@
 #include "SkeletalMeshTypes.h"
 #include "RenderMath.h"
 #include "Async/Mutex.h"
+#include "Matrix3x4.h"
 
 class FPrimitiveDrawInterface;
 class FVertexFactory;
@@ -76,8 +77,8 @@ struct FSkinBatchVertexFactoryUserData
 class FSkeletalMeshObject : public FDeferredCleanupInterface
 {
 public:
-	FSkeletalMeshObject(USkinnedMeshComponent* InMeshComponent, FSkeletalMeshRenderData* InSkelMeshRenderData, ERHIFeatureLevel::Type FeatureLevel);
-	virtual ~FSkeletalMeshObject();
+	ENGINE_API FSkeletalMeshObject(USkinnedMeshComponent* InMeshComponent, FSkeletalMeshRenderData* InSkelMeshRenderData, ERHIFeatureLevel::Type FeatureLevel);
+	ENGINE_API virtual ~FSkeletalMeshObject();
 
 	/** 
 	 * Initialize rendering resources for each LOD 
@@ -156,6 +157,18 @@ public:
 		// Not implemented
 		checkNoEntry();
 		return GetReferenceToLocalMatrices();
+	}
+
+	virtual const TArray<FMatrix3x4>* GetCurrentBoneTransforms() const
+	{
+		checkNoEntry();
+		return nullptr;
+	}
+
+	virtual const TArray<FMatrix3x4>* GetPreviousBoneTransforms() const
+	{
+		checkNoEntry();
+		return nullptr;
 	}
 
 	/**

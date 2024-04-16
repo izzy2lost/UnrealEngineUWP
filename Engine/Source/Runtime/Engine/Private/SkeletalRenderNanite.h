@@ -46,6 +46,9 @@ public:
 	TArray<FTransform> ComponentSpaceTransforms;
 #endif
 
+	TArray<FMatrix3x4> CurrentBoneTransforms;
+	TArray<FMatrix3x4> PreviousBoneTransforms;
+
 	// Current LOD for bones being updated
 	int32 LODIndex;
 
@@ -95,6 +98,8 @@ public:
 	ENGINE_API virtual TArray<FTransform>* GetComponentSpaceTransforms() const override;
 	ENGINE_API virtual const TArray<FMatrix44f>& GetReferenceToLocalMatrices() const override;
 	ENGINE_API virtual const TArray<FMatrix44f>& GetPrevReferenceToLocalMatrices() const override;
+	ENGINE_API virtual const TArray<FMatrix3x4>* GetCurrentBoneTransforms() const override;
+	ENGINE_API virtual const TArray<FMatrix3x4>* GetPreviousBoneTransforms() const override;
 
 	virtual int32 GetLOD() const override;
 
