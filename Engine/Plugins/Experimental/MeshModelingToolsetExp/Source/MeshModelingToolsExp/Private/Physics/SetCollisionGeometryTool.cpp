@@ -132,14 +132,10 @@ public:
 			UseShapeGenerator->Generate_Capsules(NewCollision->Geometry);
 			break;
 		case ECollisionGeometryType::ConvexHulls:
-			if (UseShapeGenerator->ConvexDecompositionMaxPieces > 1)
-			{
-				UseShapeGenerator->Generate_ConvexHullDecompositions(NewCollision->Geometry);
-			}
-			else
-			{
-				UseShapeGenerator->Generate_ConvexHulls(NewCollision->Geometry);
-			}
+			UseShapeGenerator->Generate_ConvexHulls(NewCollision->Geometry);
+			break;
+		case ECollisionGeometryType::ConvexDecompositions:
+			UseShapeGenerator->Generate_ConvexHullDecompositions(NewCollision->Geometry);
 			break;
 		case ECollisionGeometryType::SweptHulls:
 			UseShapeGenerator->Generate_ProjectedHulls(NewCollision->Geometry,
@@ -322,11 +318,14 @@ void USetCollisionGeometryTool::Setup()
 	Settings->WatchProperty(Settings->bDetectCapsules, [this](bool) { InvalidateCompute(); });
 	Settings->WatchProperty(Settings->bSimplifyHulls, [this](bool) { InvalidateCompute(); });
 	Settings->WatchProperty(Settings->HullTargetFaceCount, [this](int32) { InvalidateCompute(); });
-	Settings->WatchProperty(Settings->MaxHullsPerMesh, [this](int32) { InvalidateCompute(); });
+	Settings->WatchProperty(Settings->MaxHullsPerShape, [this](int32) { InvalidateCompute(); });
+	Settings->WatchProperty(Settings->bPreSimplifyToEdgeLength, [this](bool) { InvalidateCompute(); });
+	Settings->WatchProperty(Settings->DecompositionTargetEdgeLength, [this](double) { InvalidateCompute(); });
 	Settings->WatchProperty(Settings->ConvexDecompositionSearchFactor, [this](int32) { InvalidateCompute(); });
 	Settings->WatchProperty(Settings->AddHullsErrorTolerance, [this](int32) { InvalidateCompute(); });
 	Settings->WatchProperty(Settings->MinPartThickness, [this](int32) { InvalidateCompute(); });
-	Settings->WatchProperty(Settings->bUseNegativeSpaceInDecomposition, [this](bool) { InvalidateCompute(); });
+	Settings->WatchProperty(Settings->DecompositionMethod, [this](EConvexDecompositionMethod) { InvalidateCompute(); });
+	Settings->WatchProperty(Settings->bLimitHullsPerShape, [this](bool) { InvalidateCompute(); });
 	Settings->WatchProperty(Settings->NegativeSpaceMinRadius, [this](int32) { InvalidateCompute(); });
 	Settings->WatchProperty(Settings->NegativeSpaceTolerance, [this](int32) { InvalidateCompute(); });
 	Settings->WatchProperty(Settings->bIgnoreInternalNegativeSpace, [this](bool) { InvalidateCompute(); });
@@ -445,11 +444,14 @@ TUniquePtr<UE::Geometry::TGenericDataOperator<FPhysicsDataCollection>> USetColli
 	// SimplifyHulls on the shape generator controls simplification on both swept and convex hull paths, but for Swept Hulls UI we leave simplification always enabled
 	Op->UseShapeGenerator->bSimplifyHulls = Settings->GeometryType == ECollisionGeometryType::SweptHulls || Settings->bSimplifyHulls;
 	Op->UseShapeGenerator->HullTargetFaceCount = Settings->HullTargetFaceCount;
-	Op->UseShapeGenerator->ConvexDecompositionMaxPieces = Settings->MaxHullsPerMesh;
+	Op->UseShapeGenerator->bDecompositionPreSimplifyWithEdgeLength = Settings->bPreSimplifyToEdgeLength;
+	Op->UseShapeGenerator->DecompositionPreSimplifyEdgeLength = Settings->DecompositionTargetEdgeLength;
+	Op->UseShapeGenerator->bUseConvexDecompositionMaxPieces = Settings->bLimitHullsPerShape || Settings->DecompositionMethod != EConvexDecompositionMethod::NavigationDriven;
+	Op->UseShapeGenerator->ConvexDecompositionMaxPieces = Settings->MaxHullsPerShape;
 	Op->UseShapeGenerator->ConvexDecompositionSearchFactor = Settings->ConvexDecompositionSearchFactor;
 	Op->UseShapeGenerator->ConvexDecompositionErrorTolerance = Settings->AddHullsErrorTolerance;
 	Op->UseShapeGenerator->ConvexDecompositionMinPartThickness = Settings->MinPartThickness;
-	Op->UseShapeGenerator->bConvexDecompositionProtectNegativeSpace = Settings->bUseNegativeSpaceInDecomposition;
+	Op->UseShapeGenerator->bConvexDecompositionProtectNegativeSpace = Settings->DecompositionMethod == EConvexDecompositionMethod::NavigationDriven;
 	Op->UseShapeGenerator->NegativeSpaceMinRadius = Settings->NegativeSpaceMinRadius;
 	Op->UseShapeGenerator->NegativeSpaceTolerance = Settings->NegativeSpaceTolerance;
 	Op->UseShapeGenerator->bIgnoreInternalNegativeSpace = Settings->bIgnoreInternalNegativeSpace;

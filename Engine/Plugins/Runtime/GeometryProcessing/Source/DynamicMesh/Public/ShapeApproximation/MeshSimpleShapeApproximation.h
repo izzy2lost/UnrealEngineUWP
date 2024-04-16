@@ -68,15 +68,25 @@ public:
 	/** simplification tolerance when simplifying 2D convex hulls, eg for swept/projected hulls */
 	double HullSimplifyTolerance = 1.0;
 
-	/** How many convex pieces to target per mesh when creating convex decompositions.  If ErrorTolerance is set, can create fewer pieces. */
-	int32 ConvexDecompositionMaxPieces = 20;
-	/** How much additional decomposition decomposition + merging to do, as a fraction of max pieces.  Larger values can help better-cover small features, while smaller values create a cleaner decomposition with less overlap between hulls. */
+	/** Whether to use apply an edge-length based simplification to the input before running convex decompositions. Useful for very dense input meshes where the decomposition will be slow to compute. */
+	bool bDecompositionPreSimplifyWithEdgeLength = false;
+	/** If enabled by the above bool flag, pre-simplify input geometry to this edge length before computing convex decompositions. */
+	double DecompositionPreSimplifyEdgeLength = 1.0;
+
+	/** How many convex pieces to target per mesh when creating convex decompositions. Ignored if < 1. If ErrorTolerance or ProtectNegativeSpace are used, can create fewer pieces. */
+	int32 ConvexDecompositionMaxPieces = 1;
+	/** Whether to use the above Max Pieces to drive the convex decomposition. Otherwise, will allow the error tolerances / negative space protection settings to drive the number of pieces generated. */
+	bool bUseConvexDecompositionMaxPieces = true;
+	/** 
+	 * How much additional decomposition decomposition + merging to do, as a fraction of max pieces.  Larger values can help better-cover small features, while smaller values create a cleaner decomposition with less overlap between hulls. 
+	 * Note: Not used if bConvexDecompositionProtectNegativeSpace is true.
+	 */
 	float ConvexDecompositionSearchFactor = .5;
 	/** Error tolerance to guide convex decomposition (in cm); we stop adding new parts if the volume error is below the threshold.  For volumetric errors, value will be cubed. */
 	double ConvexDecompositionErrorTolerance = 0;
 	/** Minimum part thickness for convex decomposition (in cm); hulls thinner than this will be merged into adjacent hulls, if possible. */
 	double ConvexDecompositionMinPartThickness = .1;
-	/** Whether to guide the convex decomposition to prioritize not filling negative space of the input shape */
+	/** Whether to use 'navigation-driven' convex decomposition -- using NegativeSpaceTolerance and NegativeSpaceMinRadius to define space that the decomposition hulls cannot occupy */
 	bool bConvexDecompositionProtectNegativeSpace = false;
 
 	/** Negative space closer to the input than this tolerance distance can be filled in */
