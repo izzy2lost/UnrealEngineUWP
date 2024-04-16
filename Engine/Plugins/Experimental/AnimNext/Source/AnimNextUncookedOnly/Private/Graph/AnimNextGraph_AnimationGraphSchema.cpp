@@ -5,6 +5,7 @@
 #include "AnimNextExecuteContext.h"
 #include "Graph/RigUnit_AnimNextBase.h"
 #include "Param/RigVMDispatch_GetParameter.h"
+#include "Param/RigVMDispatch_GetScopedParameter.h"
 
 bool UAnimNextGraph_AnimationGraphSchema::SupportsUnitFunction(URigVMController* InController, const FRigVMFunction* InUnitFunction) const
 {
@@ -34,8 +35,10 @@ bool UAnimNextGraph_AnimationGraphSchema::SupportsDispatchFactory(URigVMControll
 		{
 			if(DispatchExecuteContextStruct == FAnimNextExecuteContext::StaticStruct())
 			{
-				// We only support the FRigVMDispatch_GetParameter at the moment.
-				return (InDispatchFactory->GetScriptStruct() == FRigVMDispatch_GetParameter::StaticStruct());
+				// We only support the FRigVMDispatch_GetParameter/FRigVMDispatch_GetScopedParameter at the moment.
+				return
+				   (InDispatchFactory->GetScriptStruct() == FRigVMDispatch_GetParameter::StaticStruct() ||
+					InDispatchFactory->GetScriptStruct() == FRigVMDispatch_GetScopedParameter::StaticStruct());
 			}
 		}
 	}

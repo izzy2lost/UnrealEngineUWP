@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "AnimNextRigVMAssetEntry.h"
+#include "IAnimNextRigVMExportInterface.h"
 #include "IAnimNextRigVMGraphInterface.h"
 #include "AnimNextGraph_AnimationGraph.generated.h"
 
@@ -18,12 +19,16 @@ namespace UE::AnimNext::Editor
 
 /** A single entry in an AnimNext graph asset */
 UCLASS(MinimalAPI, Category = "Animation Graphs")
-class UAnimNextGraph_AnimationGraph : public UAnimNextRigVMAssetEntry, public IAnimNextRigVMGraphInterface
+class UAnimNextGraph_AnimationGraph : public UAnimNextRigVMAssetEntry, public IAnimNextRigVMGraphInterface, public IAnimNextRigVMExportInterface
 {
 	GENERATED_BODY()
 
 	friend class UAnimNextGraph_EditorData;
 	friend struct UE::AnimNext::Editor::FUtils;	
+
+	// IAnimNextRigVMExportInterface interface
+	virtual FAnimNextParamType GetExportType() const override;
+	virtual FName GetExportName() const override;
 
 	// UAnimNextRigVMAssetEntry interface
 	virtual FName GetEntryName() const override;

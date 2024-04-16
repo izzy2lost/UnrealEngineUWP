@@ -97,7 +97,7 @@ void FRigVMDispatch_SetLayerParameter::Execute(FRigVMExtendedExecuteContext& InC
 	uint32& ParameterHash = *(uint32*)Handles[2].GetData();
 	if (ParameterHash == 0 && Parameter != NAME_None)
 	{
-		ParameterHash = GetTypeHash(Parameter);
+		ParameterHash = FParamId::CalculateHash(Parameter, NAME_None);
 	}
 
 	uint32& RawTypeHandle = *(uint32*)Handles[3].GetData();

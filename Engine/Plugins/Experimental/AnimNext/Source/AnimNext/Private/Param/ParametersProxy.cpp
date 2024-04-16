@@ -10,7 +10,7 @@ namespace UE::AnimNext
 FParametersProxy::FParametersProxy(UAnimNextGraph* InGraph)
 	: Graph(InGraph)
 	, PropertyBag(InGraph->PropertyBag)
-	, LayerHandle(FParamStack::MakeReferenceLayer(PropertyBag))
+	, LayerHandle(FParamStack::MakeReferenceLayer(NAME_None, PropertyBag))
 {
 	check(Graph);
 }
@@ -22,7 +22,7 @@ void FParametersProxy::Update(float DeltaTime)
 	if(HandlePropertyBag == nullptr || HandlePropertyBag->GetPropertyBagStruct() != Graph->PropertyBag.GetPropertyBagStruct())
 	{
 		PropertyBag = Graph->PropertyBag;
-		LayerHandle = FParamStack::MakeReferenceLayer(PropertyBag);
+		LayerHandle = FParamStack::MakeReferenceLayer(NAME_None, PropertyBag);
 	}
 #endif
 

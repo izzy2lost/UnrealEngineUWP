@@ -2,18 +2,25 @@
 
 #pragma once
 
+#include "Framework/PropertyViewer/IFieldExpander.h"
+#include "Framework/PropertyViewer/IFieldIterator.h"
+#include "Param/AnimNextParam.h"
 #include "Widgets/SCompoundWidget.h"
 #include "Param/ParameterPickerArgs.h"
+#include "Widgets/PropertyViewer/SPropertyViewer.h"
 #include "Widgets/Views/STreeView.h"
+#include "PropertyBag.h"
+#include "Misc/NotifyHook.h"
+#include "Param/AnimNextEditorParam.h"
 
+class IPropertyRowGenerator;
+class IStructureDataProvider;
 class SSearchBox;
 
 namespace UE::AnimNext::Editor
 {
 
-struct FParameterPickerEntry;
-
-class SParameterPicker : public SCompoundWidget
+class SParameterPicker : public SCompoundWidget, public FNotifyHook
 {
 public:
 	SLATE_BEGIN_ARGS(SParameterPicker) {}
@@ -27,38 +34,82 @@ public:
 private:
 	void RefreshEntries();
 
-	void BuildHierarchy();
-
-	void RefreshFilter();
-
-	TSharedRef<ITableRow> HandleGenerateRow(TSharedRef<FParameterPickerEntry> InEntry, const TSharedRef<STableViewBase>& InOwnerTable) const;
-
-	void HandleGetChildren(TSharedRef<FParameterPickerEntry> InEntry, TArray<TSharedRef<FParameterPickerEntry>>& OutChildren) const;
-
-	void HandleSelectionChanged(TSharedPtr<FParameterPickerEntry> InEntry, ESelectInfo::Type InSelectInfo);
+	bool GetFieldInfo(UE::PropertyViewer::SPropertyViewer::FHandle InHandle, const FFieldVariant& InField, FName& OutName, TInstancedStruct<FAnimNextParamInstanceIdentifier>& OutInstanceId, FAnimNextParamType& OutType) const;
 
 	void HandleGetParameterBindings(TArray<FParameterBindingReference>& OutParameterBindings) const;
 
-	bool HandleIsSelectableOrNavigable(TSharedRef<FParameterPickerEntry> InEntry) const;
+	void HandleSetInstanceId(const TInstancedStruct<FAnimNextParamInstanceIdentifier>& InInstanceId);
 
+	void HandleFieldPicked(UE::PropertyViewer::SPropertyViewer::FHandle InHandle, TArrayView<const FFieldVariant> InFields, ESelectInfo::Type InSelectionType);
+
+	TSharedRef<SWidget> HandleGenerateContainer(UE::PropertyViewer::SPropertyViewer::FHandle InHandle, TOptional<FText> InDisplayName);
+
+	// FNotifyHook interface
+	virtual void NotifyPostChange(const FPropertyChangedEvent& PropertyChangedEvent, FEditPropertyChain* PropertyThatChanged) override;
+	
 private:
 	friend class SParameterPickerRow;
 
 	FParameterPickerArgs Args;
-
-	TSharedPtr<STreeView<TSharedRef<FParameterPickerEntry>>> EntriesList;
-
-	TArray<TSharedRef<FParameterPickerEntry>> Entries;
-
-	TArray<TSharedRef<FParameterPickerEntry>> FilteredEntries;
-
-	TArray<TSharedRef<FParameterPickerEntry>> Hierarchy;
-
-	TArray<TSharedRef<FParameterPickerEntry>> FilteredHierarchy;
+	
+	TSharedPtr<UE::PropertyViewer::SPropertyViewer> PropertyViewer;
 
 	FText FilterText;
 
 	TSharedPtr<SSearchBox> SearchBox;
+
+	TInstancedStruct<FAnimNextParamInstanceIdentifier> SelectedInstanceId;
+
+	TSharedPtr<IPropertyRowGenerator> PropertyRowGenerator;
+
+	TSharedPtr<IStructureDataProvider> InstanceIdProvider;
+
+	struct FFieldIterator : UE::PropertyViewer::IFieldIterator
+	{
+		FFieldIterator(FOnFilterParameterType InOnFilterParameterType)
+			: OnFilterParameterType(InOnFilterParameterType)
+		{}
+		
+		virtual TArray<FFieldVariant> GetFields(const UStruct* InStruct) const override;
+
+		FOnFilterParameterType OnFilterParameterType;
+	};
+
+	struct FFieldExpander : UE::PropertyViewer::IFieldExpander
+	{
+		virtual TOptional<const UClass*> CanExpandObject(const FObjectPropertyBase* Property, const UObject* Instance) const override;
+		virtual bool CanExpandScriptStruct(const FStructProperty* StructProperty) const override;
+		virtual TOptional<const UStruct*> GetExpandedFunction(const UFunction* Function) const override;
+	} FieldExpander;
+
+	TUniquePtr<FFieldIterator> FieldIterator;
+
+	struct FContainerInfo
+	{
+		FContainerInfo(const FText& InDisplayName, const FText& InTooltipText, const UStruct* InStruct)
+			: DisplayName(InDisplayName)
+			, TooltipText(InTooltipText)
+			, Struct(InStruct)
+		{}
+
+		FContainerInfo(const FText& InDisplayName, const FText& InTooltipText, const FAssetData& InAssetData, TUniquePtr<FInstancedPropertyBag>&& InPropertyBag)
+			: DisplayName(InDisplayName)
+			, TooltipText(InTooltipText)
+			, Struct(InPropertyBag.Get()->GetPropertyBagStruct())
+			, PropertyBag(MoveTemp(InPropertyBag))
+			, AssetData(InAssetData)
+		{}
+
+		FText DisplayName;
+		FText TooltipText;
+		const UStruct* Struct = nullptr;
+		TUniquePtr<FInstancedPropertyBag> PropertyBag;
+		FAssetData AssetData;
+	};
+	
+	TArray<FContainerInfo> CachedContainers;
+
+	TMap<UE::PropertyViewer::SPropertyViewer::FHandle, int32> ContainerMap;
 };
 
 }

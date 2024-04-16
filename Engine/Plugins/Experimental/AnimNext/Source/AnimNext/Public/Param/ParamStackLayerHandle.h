@@ -151,11 +151,7 @@ public:
 	template<typename WrappedType>
 	WrappedType* As() const
 	{
-		if constexpr (TModels<CStaticClassProvider, WrappedType>::Value)
-		{
-			return Cast<WrappedType>(GetUObjectFromLayer());
-		}
-		else if constexpr (std::is_same_v<WrappedType, FInstancedPropertyBag>)
+		if constexpr (std::is_same_v<WrappedType, FInstancedPropertyBag>)
 		{
 			return GetInstancedPropertyBagFromLayer();
 		}
@@ -171,8 +167,7 @@ private:
 	// Set parameter values
 	ANIMNEXT_API FParamResult SetValuesInternal(TConstArrayView<Private::FParamEntry> InParams);
 
-	// Helpers for As() to hide Layer
-	ANIMNEXT_API UObject* GetUObjectFromLayer() const;
+	// Helper for As() to hide Layer
 	ANIMNEXT_API FInstancedPropertyBag* GetInstancedPropertyBagFromLayer() const;
 
 	// Recursive helper function for SetValues

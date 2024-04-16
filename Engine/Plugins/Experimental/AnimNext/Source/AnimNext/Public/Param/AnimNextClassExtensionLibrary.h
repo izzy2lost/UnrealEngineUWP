@@ -8,7 +8,7 @@
 // Base class for function library-like classes that act to adapt UObjects of a specified type, exposing them to AnimNext parameters.
 // To do this, implement GetSupportedClass, then provide static UFUNCTION members that take the type as an input, e.g.
 // static float GetDeltaSeconds(UWorld* InWorld); 
-UCLASS(Abstract)
+UCLASS(MinimalAPI, Abstract)
 class UAnimNextClassExtensionLibrary : public UObject
 {
 	GENERATED_BODY()

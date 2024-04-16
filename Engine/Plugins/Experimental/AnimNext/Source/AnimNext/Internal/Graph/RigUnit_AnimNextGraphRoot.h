@@ -27,7 +27,7 @@ struct ANIMNEXT_API FRigUnit_AnimNextGraphRoot : public FRigUnit_AnimNextBase
 	virtual bool CanOnlyExistOnce() const override { return true; }
 
 	// The execution result
-	UPROPERTY(EditAnywhere, Category = Result, meta = (Input))
+	UPROPERTY(EditAnywhere, Category = Result, meta = (Input, HideSubPins))
 	FAnimNextTraitHandle Result;
 
 	// In order for this node to be considered an executable RigUnit, it needs a pin to derive from FRigVMExecuteContext

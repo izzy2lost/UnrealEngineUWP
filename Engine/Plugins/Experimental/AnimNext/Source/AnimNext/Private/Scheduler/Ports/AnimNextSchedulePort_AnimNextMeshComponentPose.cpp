@@ -9,13 +9,13 @@
 #include "Components/SkeletalMeshComponent.h"
 #include "Engine/SkeletalMesh.h"
 #include "AnimNextStats.h"
+#include "Component/AnimNextComponent.h"
 #include "Component/AnimNextMeshComponent.h"
-#include "Param/AnimNextParam.h"
+#include "GameFramework/Character.h"
+#include "Scheduler/AnimNextScheduleGraphTask.h"
+#include "Param/AnimNextParamUniversalObjectLocator.h"
 
 DEFINE_STAT(STAT_AnimNext_Port_SkeletalMeshComponent);
-
-UE::AnimNext::FParamId UAnimNextSchedulePort_AnimNextMeshComponentPose::ComponentParamId("UE_AnimNextMeshComponent");
-UE::AnimNext::FParamId UAnimNextSchedulePort_AnimNextMeshComponentPose::ReferencePoseParamId("UE_AnimNextMeshComponent_ReferencePose");
 
 void UAnimNextSchedulePort_AnimNextMeshComponentPose::Run(const UE::AnimNext::FScheduleTermContext& InContext) const
 {
@@ -25,38 +25,36 @@ void UAnimNextSchedulePort_AnimNextMeshComponentPose::Run(const UE::AnimNext::FS
 
 	const FParamStack& ParamStack = FParamStack::Get();
 
-	const TObjectPtr<UAnimNextMeshComponent>* ComponentPtr = ParamStack.GetParamPtr<TObjectPtr<UAnimNextMeshComponent>>(ComponentParamId);
+	const TObjectPtr<USkeletalMeshComponent>* ComponentPtr = ParamStack.GetParamPtr<TObjectPtr<USkeletalMeshComponent>>(GetMeshComponentParamId());
 	if(ComponentPtr == nullptr)
 	{
 		return;
 	}
 
+	TObjectPtr<UAnimNextMeshComponent> Component = Cast<UAnimNextMeshComponent>(*ComponentPtr);
+	if(Component == nullptr)
+	{
+		return;
+	}
+	
 	const FAnimNextGraphLODPose* InputPose = InContext.GetLayerHandle().GetParamPtr<FAnimNextGraphLODPose>(GetTerms()[0].GetId());
 	if(InputPose == nullptr)
 	{
-		return;
+		return; 
 	}
 
 	if(!InputPose->LODPose.IsValid())
 	{
 		return;
 	}
-
-	const FAnimNextGraphReferencePose* GraphReferencePose = ParamStack.GetParamPtr<FAnimNextGraphReferencePose>(ReferencePoseParamId);
-	if(GraphReferencePose == nullptr)
-	{
-		return;
-	}
-
-	UAnimNextMeshComponent* Component = *ComponentPtr;
-
+	
 	USkeletalMesh* SkeletalMesh = Component->GetSkeletalMeshAsset();
 	if(SkeletalMesh == nullptr)
 	{
 		return;
 	}
 
-	const UE::AnimNext::FReferencePose& RefPose = GraphReferencePose->ReferencePose.GetRef<UE::AnimNext::FReferencePose>();
+	const UE::AnimNext::FReferencePose& RefPose = Component->GetReferencePose().ReferencePose.GetRef<UE::AnimNext::FReferencePose>();
 
 	FMemMark MemMark(FMemStack::Get());
 
@@ -87,15 +85,14 @@ TConstArrayView<UE::AnimNext::FScheduleTerm> UAnimNextSchedulePort_AnimNextMeshC
 	return Terms;
 }
 
-TConstArrayView<FAnimNextParam> UAnimNextSchedulePort_AnimNextMeshComponentPose::GetRequiredParameters() const
+TConstArrayView<FAnimNextEditorParam> UAnimNextSchedulePort_AnimNextMeshComponentPose::GetRequiredParameters() const
 {
 	using namespace UE::AnimNext;
 
-	static const FAnimNextParam Params[] =
+	if(RequiredParams.Num() == 0)
 	{
-		FAnimNextParam(ComponentParamId.GetName(), FAnimNextParamType::GetType<TObjectPtr<UAnimNextMeshComponent>>()),
-		FAnimNextParam(ReferencePoseParamId.GetName(), FAnimNextParamType::GetType<FAnimNextGraphReferencePose>()),
-	};
+		RequiredParams.Emplace(GetMeshComponentParamId().GetName(), FAnimNextParamType::GetType<TObjectPtr<UAnimNextMeshComponent>>(), GetCharacterInstanceId());
+	}
 
-	return Params;
+	return RequiredParams;
 }

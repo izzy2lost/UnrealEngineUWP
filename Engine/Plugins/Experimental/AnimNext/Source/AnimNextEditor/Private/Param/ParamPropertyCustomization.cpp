@@ -7,16 +7,20 @@
 #include "EditorUtils.h"
 #include "PropertyHandle.h"
 #include "SParameterPickerCombo.h"
+#include "Modules/ModuleManager.h"
+#include "Param/AnimNextEditorParam.h"
 #include "Param/AnimNextParam.h"
+#include "Param/AnimNextParamInstanceIdentifier.h"
 #include "Param/ParamCompatibility.h"
 #include "Param/ParamUtils.h"
+#include "HAL/PlatformApplicationMisc.h"
 
 #define LOCTEXT_NAMESPACE "ParamPropertyCustomization"
 
 namespace UE::AnimNext::Editor
 {
 
-void FParamPropertyTypeCustomization::CustomizeHeader(TSharedRef<IPropertyHandle> InPropertyHandle, FDetailWidgetRow& InHeaderRow, IPropertyTypeCustomizationUtils& InCustomizationUtils)
+void FParamPropertyCustomization::CustomizeHeader(TSharedRef<IPropertyHandle> InPropertyHandle, FDetailWidgetRow& InHeaderRow, IPropertyTypeCustomizationUtils& InCustomizationUtils)
 {
 	auto GetMetadataProperty = [](const FProperty* InProperty)
 	{
@@ -34,16 +38,13 @@ void FParamPropertyTypeCustomization::CustomizeHeader(TSharedRef<IPropertyHandle
 	};
 
 	PropertyHandle = InPropertyHandle;
-	NamePropertyHandle = InPropertyHandle->GetChildHandle(GET_MEMBER_NAME_CHECKED(FAnimNextParam, Name));
-	TypePropertyHandle = InPropertyHandle->GetChildHandle(GET_MEMBER_NAME_CHECKED(FAnimNextParam, Type));
+	ParamStruct = CastFieldChecked<FStructProperty>(PropertyHandle->GetProperty())->Struct;
 
 	const FProperty* Property = GetMetadataProperty(InPropertyHandle->GetProperty());
 	const FString ParamTypeString = Property->GetMetaData("AllowedParamType");
-	const bool bAllowNone = Property->HasMetaData("AllowNone");
 	FAnimNextParamType FilterType = FAnimNextParamType::FromString(ParamTypeString);
 
 	FParameterPickerArgs PickerArgs;
-	PickerArgs.bShowSourceGraph = false;
 	PickerArgs.bMultiSelect = false;
 	PickerArgs.OnFilterParameterType = FOnFilterParameterType::CreateLambda([FilterType](const FAnimNextParamType& InParameterType)
 	{
@@ -54,61 +55,225 @@ void FParamPropertyTypeCustomization::CustomizeHeader(TSharedRef<IPropertyHandle
 		return EFilterParameterResult::Exclude;
 	});
 	PickerArgs.NewParameterType = FilterType;
-	PickerArgs.OnParameterPicked = FOnParameterPicked::CreateLambda([this](const FParameterBindingReference& InParameterBinding)
+	PickerArgs.OnInstanceIdChanged = FOnInstanceIdChanged::CreateSPLambda(this, [this](const TInstancedStruct<FAnimNextParamInstanceIdentifier>& InInstanceId)
 	{
-		if(PropertyHandle && NamePropertyHandle && TypePropertyHandle)
+		if(PropertyHandle)
 		{
 			PropertyHandle->NotifyPreChange();
-			NamePropertyHandle->SetValue(InParameterBinding.Parameter);
-			TArray<void*> TypeValues;
-			TypePropertyHandle->AccessRawData(TypeValues);
-			for(void* TypePtr : TypeValues)
+			if(ParamStruct == FAnimNextEditorParam::StaticStruct())
 			{
-				FAnimNextParamType& Type = *static_cast<FAnimNextParamType*>(TypePtr);
-				Type = InParameterBinding.Type;
+				PropertyHandle->EnumerateRawData([&InInstanceId](void* RawData, const int32 DataIndex, const int32 NumDatas)
+				{
+					FAnimNextEditorParam& Param = *static_cast<FAnimNextEditorParam*>(RawData);
+					Param.InstanceId = InInstanceId;
+					return true;
+				});
+			}
+			else if(ParamStruct == FAnimNextParam::StaticStruct())
+			{
+				FAnimNextParam ScheduleParam(NAME_None, FAnimNextParamType(), InInstanceId);
+				PropertyHandle->EnumerateRawData([&ScheduleParam](void* RawData, const int32 DataIndex, const int32 NumDatas)
+				{
+					FAnimNextParam& Param = *static_cast<FAnimNextParam*>(RawData);
+					Param.InstanceId = ScheduleParam.InstanceId;
+					return true;
+				});
 			}
 			PropertyHandle->NotifyPostChange(EPropertyChangeType::ValueSet);
-
+			PropertyHandle->NotifyFinishedChangingProperties();
 			Refresh();
 		}
 	});
-	PickerArgs.bAllowNone = bAllowNone;
-	
+
+	PickerArgs.OnParameterPicked = FOnParameterPicked::CreateSPLambda(this, [this](const FParameterBindingReference& InParameterBinding)
+	{
+		if(PropertyHandle)
+		{
+			PropertyHandle->NotifyPreChange();
+
+			if(ParamStruct == FAnimNextEditorParam::StaticStruct())
+			{
+				FAnimNextEditorParam ParamValue(*InParameterBinding.Parameter.ToString(), InParameterBinding.Type, InParameterBinding.InstanceId);
+				PropertyHandle->EnumerateRawData([&ParamValue](void* RawData, const int32 DataIndex, const int32 NumDatas)
+				{
+					FAnimNextEditorParam& Param = *static_cast<FAnimNextEditorParam*>(RawData);
+					Param = ParamValue;
+					return true;
+				});
+			}
+			else if(ParamStruct == FAnimNextParam::StaticStruct())
+			{
+				FAnimNextParam ParamValue(*InParameterBinding.Parameter.ToString(), InParameterBinding.Type, InParameterBinding.InstanceId);
+				PropertyHandle->EnumerateRawData([&ParamValue](void* RawData, const int32 DataIndex, const int32 NumDatas)
+				{
+					FAnimNextParam& Param = *static_cast<FAnimNextParam*>(RawData);
+					Param = ParamValue;
+					return true;
+				});
+			}
+			PropertyHandle->NotifyPostChange(EPropertyChangeType::ValueSet);
+			PropertyHandle->NotifyFinishedChangingProperties();
+			Refresh();
+		}
+	});
+
+	if(ParamStruct == FAnimNextEditorParam::StaticStruct())
+	{
+		TOptional<TInstancedStruct<FAnimNextParamInstanceIdentifier>> CommonInstanceId;
+		PropertyHandle->EnumerateConstRawData([&CommonInstanceId](const void* RawData, const int32 DataIndex, const int32 NumDatas)
+		{
+			const FAnimNextEditorParam& Param = *static_cast<const FAnimNextEditorParam*>(RawData);
+			if(!CommonInstanceId.IsSet())
+			{
+				CommonInstanceId = Param.InstanceId;
+			}
+			else if(CommonInstanceId.GetValue() != Param.InstanceId)
+			{
+				// No common scope, so use a null instance
+				CommonInstanceId = TInstancedStruct<FAnimNextParamInstanceIdentifier>();
+				return false;
+			}
+			return true;
+		});
+
+		PickerArgs.InstanceId = CommonInstanceId.IsSet() ? CommonInstanceId.GetValue() : TInstancedStruct<FAnimNextParamInstanceIdentifier>();
+	}
+	else if(ParamStruct == FAnimNextParam::StaticStruct())
+	{
+		struct FInstanceId
+		{
+			FInstanceId(FName InInstanceId, const UScriptStruct* InInstanceIdType)
+				: InstanceId(InInstanceId)
+				, InstanceIdType(InInstanceIdType)
+			{}
+
+			FName InstanceId;
+			const UScriptStruct* InstanceIdType;
+		};
+		
+		TOptional<FInstanceId> CommonInstanceId;
+		PropertyHandle->EnumerateConstRawData([&CommonInstanceId](const void* RawData, const int32 DataIndex, const int32 NumDatas)
+		{
+			const FAnimNextParam& Param = *static_cast<const FAnimNextParam*>(RawData);
+			if(!CommonInstanceId.IsSet())
+			{
+				if(!Param.InstanceId.IsNone() && Param.InstanceIdType != nullptr)
+				{
+					CommonInstanceId = FInstanceId(Param.InstanceId, Param.InstanceIdType);
+				}
+			}
+			else if(CommonInstanceId.GetValue().InstanceId != Param.InstanceId && CommonInstanceId.GetValue().InstanceIdType != Param.InstanceIdType)
+			{
+				// No common instance ID, so use NAME_None
+				CommonInstanceId = FInstanceId(NAME_None, FAnimNextParamInstanceIdentifier::StaticStruct());
+				return false;
+			}
+			return true;
+		});
+
+		if(CommonInstanceId.IsSet())
+		{
+			PickerArgs.InstanceId.InitializeAsScriptStruct(CommonInstanceId.GetValue().InstanceIdType);
+			PickerArgs.InstanceId.GetMutable().FromName(CommonInstanceId.GetValue().InstanceId);
+		}
+		else
+		{
+			PickerArgs.InstanceId = TInstancedStruct<FAnimNextParamInstanceIdentifier>();
+		}
+	}
+
+	FUIAction CopyAction, PasteAction;
+	PropertyHandle->CreateDefaultPropertyCopyPasteActions(CopyAction, PasteAction);
+
+	DefaultCopyAction = CopyAction.ExecuteAction;
+	CopyAction.ExecuteAction = FExecuteAction::CreateSP(this, &FParamPropertyCustomization::HandleCopy);
+
 	InHeaderRow
+	.CopyAction(CopyAction)
+	.PasteAction(PasteAction)
 	.NameContent()
 	[
-		InPropertyHandle->CreatePropertyNameWidget()
+		PropertyHandle->CreatePropertyNameWidget()
 	]
 	.ValueContent()
 	[
-		SNew(SParameterPickerCombo)
-		.PickerArgs(PickerArgs)
-		.OnGetParameterName_Lambda([this]()
-		{
-			return CachedName;
-		})
-		.OnGetParameterType_Lambda([this]()
-		{
-			return CachedType;
-		})
+		SNew(SVerticalBox)
+		+SVerticalBox::Slot()
+		.AutoHeight()
+		[
+			SNew(SParameterPickerCombo)
+			.PickerArgs(PickerArgs)
+			.OnGetParameterName_Lambda([this]()
+			{
+				return CachedParam.Name;
+			})
+			.OnGetParameterType_Lambda([this]()
+			{
+				return CachedParam.Type;
+			})
+			.OnGetParameterInstanceId_Lambda([this]()
+			{
+				return CachedParam.InstanceId;
+			})
+		]
 	];
 
 	Refresh();
 }
 
-void FParamPropertyTypeCustomization::CustomizeChildren(TSharedRef<IPropertyHandle> InPropertyHandle, IDetailChildrenBuilder& ChildBuilder, IPropertyTypeCustomizationUtils& CustomizationUtils)
+void FParamPropertyCustomization::CustomizeChildren(TSharedRef<IPropertyHandle> InPropertyHandle, IDetailChildrenBuilder& ChildBuilder, IPropertyTypeCustomizationUtils& CustomizationUtils)
 {
 }
 
-void FParamPropertyTypeCustomization::Refresh()
+void FParamPropertyCustomization::Refresh()
 {
-	TArray<void*> TypeValues;
-	TypePropertyHandle->AccessRawData(TypeValues);
-	if(TypeValues.Num() == 1 && TypeValues[0] != nullptr)
+	CachedParam = FAnimNextEditorParam();
+
+	if(ParamStruct == FAnimNextEditorParam::StaticStruct())
 	{
-		CachedType = *static_cast<FAnimNextParamType*>(TypeValues[0]);
+		PropertyHandle->EnumerateConstRawData([this](const void* RawData, const int32 DataIndex, const int32 NumDatas)
+		{
+			if(NumDatas == 1 && RawData != nullptr)
+			{
+				CachedParam = *static_cast<const FAnimNextEditorParam*>(RawData);
+			}
+			return false;
+		});
 	}
-	NamePropertyHandle->GetValue(CachedName);
+	else if(ParamStruct == FAnimNextParam::StaticStruct())
+	{
+		PropertyHandle->EnumerateConstRawData([this](const void* RawData, const int32 DataIndex, const int32 NumDatas)
+		{
+			if(NumDatas == 1 && RawData != nullptr)
+			{
+				CachedParam = FAnimNextEditorParam(*static_cast<const FAnimNextParam*>(RawData));
+			}
+			return false;
+		});
+	}
+}
+
+void FParamPropertyCustomization::HandleCopy()
+{
+	DefaultCopyAction.Execute();
+
+	// We always copy-paste as a FAnimNextEditorParam
+	if(ParamStruct == FAnimNextParam::StaticStruct())
+	{
+		// Grab the clipboard text
+		FString ImportClipboardString;
+		FPlatformApplicationMisc::ClipboardPaste(ImportClipboardString);
+
+		// Import as FAnimNextParam
+		FAnimNextParam ImportedParam;
+		FAnimNextParam::StaticStruct()->ImportText(*ImportClipboardString, &ImportedParam, nullptr, PPF_None, nullptr, FAnimNextParam::StaticStruct()->GetName());
+
+		// Re-export as FAnimNextEditorParam
+		FAnimNextEditorParam ParamToExport(ImportedParam);
+		FString ExportClipboardString;
+		FAnimNextEditorParam::StaticStruct()->ExportText(ExportClipboardString, &ParamToExport, nullptr, nullptr, PPF_None, nullptr);
+		FPlatformApplicationMisc::ClipboardCopy(*ExportClipboardString);
+	}
 }
 
 }

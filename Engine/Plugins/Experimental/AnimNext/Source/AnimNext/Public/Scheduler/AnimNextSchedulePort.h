@@ -8,7 +8,7 @@
 
 class UAnimNextSchedule;
 struct FAnimNextSchedulePortTask;
-struct FAnimNextParam;
+struct FAnimNextEditorParam;
 
 namespace UE::AnimNext
 {
@@ -28,5 +28,5 @@ private:
 	virtual void Run(const UE::AnimNext::FScheduleTermContext& InContext) const PURE_VIRTUAL(UAnimNextSchedulePort::Run, )
 
 	// Get any required parameters for this port
-	virtual TConstArrayView<FAnimNextParam> GetRequiredParameters() const PURE_VIRTUAL(UAnimNextSchedulePort::GetRequiredParameters, return TConstArrayView<FAnimNextParam>(); )
+	virtual TConstArrayView<FAnimNextEditorParam> GetRequiredParameters() const PURE_VIRTUAL(UAnimNextSchedulePort::GetRequiredParameters, return TConstArrayView<FAnimNextEditorParam>(); )
 };

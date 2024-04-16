@@ -30,6 +30,14 @@
 #include "Common/SActionMenu.h"
 #include "AnimNextRigVMAssetEntry.h"
 #include "Editor/RigVMGraphDetailCustomization.h"
+#include "EditorUtils.h"
+#include "IUniversalObjectLocatorEditorModule.h"
+#include "Param/AnimNextParam.h"
+#include "Param/AnimNextLocatorContext.h"
+#include "Param/ObjectCastLocatorEditor.h"
+#include "Param/ObjectFunctionLocatorEditor.h"
+#include "Param/ObjectPropertyLocatorEditor.h"
+#include "Param/SAddParametersDialog.h"
 
 #define LOCTEXT_NAMESPACE "AnimNextEditorModule"
 
@@ -56,8 +64,12 @@ class FModule : public IModule
 
 		PropertyModule.RegisterCustomPropertyTypeLayout(
 			"AnimNextParam",
-			FOnGetPropertyTypeCustomizationInstance::CreateLambda([] { return MakeShared<FParamPropertyTypeCustomization>(); }));
+			FOnGetPropertyTypeCustomizationInstance::CreateLambda([] { return MakeShared<FParamPropertyCustomization>(); }));
 
+		PropertyModule.RegisterCustomPropertyTypeLayout(
+			"AnimNextEditorParam",
+			FOnGetPropertyTypeCustomizationInstance::CreateLambda([] { return MakeShared<FParamPropertyCustomization>(); }));
+		
 		Identifier = MakeShared<FParamNamePropertyTypeIdentifier>();
 		PropertyModule.RegisterCustomPropertyTypeLayout(
 			FNameProperty::StaticClass()->GetFName(),
@@ -104,54 +116,29 @@ class FModule : public IModule
 		SRigVMAssetView::RegisterCategoryFactory("Parameters", [](UAnimNextRigVMAssetEditorData* InEditorData)
 		{
 			UAnimNextGraph_EditorData* EditorData = CastChecked<UAnimNextGraph_EditorData>(InEditorData);
-			return SNew(SSimpleComboButton)
+			UAnimNextRigVMAsset* Asset = UncookedOnly::FUtils::GetAsset(InEditorData);
+			return SNew(SSimpleButton)
 				.Text(LOCTEXT("AddParameterButton", "Add Parameter"))
 				.Icon(FAppStyle::Get().GetBrush("Icons.Plus"))
-				.HasDownArrow(true)
-				.OnGetMenuContent_Lambda([EditorData]()
+				.OnClicked_Lambda([EditorData, Asset]()
 				{
-					FAssetData AssetData(UncookedOnly::FUtils::GetAsset(EditorData));
-					
-					FParameterPickerArgs Args;
-					Args.bMultiSelect = false;
-					Args.bShowSourceGraph = false;
-					Args.bShowBoundParameters = false;
-					Args.bShowBuiltInParameters = false; // Built-In parameters disabled for MVP
-					Args.OnFilterParameter = FOnFilterParameter::CreateLambda([EditorData, AssetData](const FParameterBindingReference& InParameterBinding)
+					TSharedRef<SAddParametersDialog> AddParametersDialog =
+						SNew(SAddParametersDialog, FAssetData(EditorData));
+
+					TArray<FParameterToAdd> ParametersToAdd;
+					if(AddParametersDialog->ShowModal(ParametersToAdd))
 					{
-						// Skip params that are already bound in this graph
-						if(InParameterBinding.Graph == AssetData)
+						if(ParametersToAdd.Num() > 0)
 						{
-							return EFilterParameterResult::Exclude;
-						}
-						
-						return EFilterParameterResult::Include;
-					});
-
-					Args.OnAddParameter = FOnAddParameter::CreateLambda([EditorData](const FParameterToAdd& ParameterToAdd)
-					{
-						FSlateApplication::Get().DismissAllMenus();
-
-						check(EditorData->FindEntry(ParameterToAdd.Name) == nullptr);
-						FScopedTransaction Transaction(LOCTEXT("AddParameter", "Add parameter"));
-						EditorData->AddParameter(ParameterToAdd.Name, ParameterToAdd.Type);
-					});
-					Args.OnParameterPicked = FOnParameterPicked::CreateLambda([EditorData](const FParameterBindingReference& InParameterBinding)
-					{
-						FSlateApplication::Get().DismissAllMenus();
-
-						if (EditorData->FindEntry(InParameterBinding.Parameter) == nullptr)
-						{
-							const FAnimNextParamType Type = UncookedOnly::FUtils::GetParameterTypeFromName(InParameterBinding.Parameter);
-							if (Type.IsValid())
+							FScopedTransaction Transaction(LOCTEXT("AddParameter", "Add parameter"));
+							for (const FParameterToAdd& ParameterToAdd : ParametersToAdd)
 							{
-								EditorData->AddParameter(InParameterBinding.Parameter, Type);
-							};
+								check(EditorData->FindEntry(ParameterToAdd.Name) == nullptr);
+								EditorData->AddParameter(ParameterToAdd.Name, ParameterToAdd.Type);
+							}
 						}
-					});
-					
-					return SNew(SParameterPicker)
-						.Args(Args);
+					}
+					return FReply::Handled();
 				});
 		});
 
@@ -188,6 +175,13 @@ class FModule : public IModule
 					return FReply::Handled();
 				});
 		});
+
+		UE::UniversalObjectLocator::IUniversalObjectLocatorEditorModule& UolEditorModule = FModuleManager::LoadModuleChecked<UE::UniversalObjectLocator::IUniversalObjectLocatorEditorModule>("UniversalObjectLocatorEditor");
+		UolEditorModule.RegisterLocatorEditor("AnimNextObjectFunction", MakeShared<FObjectFunctionLocatorEditor>());
+		UolEditorModule.RegisterLocatorEditor("AnimNextObjectProperty", MakeShared<FObjectPropertyLocatorEditor>());
+		UolEditorModule.RegisterLocatorEditor("AnimNextObjectCast", MakeShared<FObjectCastLocatorEditor>());
+
+		UolEditorModule.RegisterEditorContext("AnimNextContext", MakeShared<FAnimNextLocatorContext>());
 	}
 
 	virtual void ShutdownModule() override
@@ -197,6 +191,7 @@ class FModule : public IModule
 			FPropertyEditorModule& PropertyModule = FModuleManager::LoadModuleChecked<FPropertyEditorModule>("PropertyEditor");
 			PropertyModule.UnregisterCustomPropertyTypeLayout("AnimNextParamType");
 			PropertyModule.UnregisterCustomPropertyTypeLayout("AnimNextParam");
+			PropertyModule.UnregisterCustomPropertyTypeLayout("AnimNextEditorParam");
 			PropertyModule.UnregisterCustomPropertyTypeLayout("NameProperty");
 			PropertyModule.UnregisterCustomClassLayout("AnimNextGraph_Parameter");
 			PropertyModule.UnregisterCustomClassLayout("AnimNextGraph_EdGraphNode");
@@ -209,7 +204,18 @@ class FModule : public IModule
 		UnregisterWorkspaceDocumentTypes();
 
 		SRigVMAssetView::UnregisterCategoryFactory("Parameters");
-		SRigVMAssetView::UnregisterCategoryFactory("Parameter Graphs");
+		SRigVMAssetView::UnregisterCategoryFactory("Event Graphs");
+		SRigVMAssetView::UnregisterCategoryFactory("Animation Graphs");
+
+		if(FModuleManager::Get().IsModuleLoaded("UniversalObjectLocatorEditor"))
+		{
+			UE::UniversalObjectLocator::IUniversalObjectLocatorEditorModule& UolEditorModule = FModuleManager::GetModuleChecked<UE::UniversalObjectLocator::IUniversalObjectLocatorEditorModule>("UniversalObjectLocatorEditor");
+			UolEditorModule.UnregisterLocatorEditor("AnimNextObjectCast");
+			UolEditorModule.UnregisterLocatorEditor("AnimNextObjectFunction");
+			UolEditorModule.UnregisterLocatorEditor("AnimNextObjectProperty");
+
+			UolEditorModule.UnregisterEditorContext("AnimNextContext");
+		}
 	}
 
 	virtual TSharedRef<SWidget> CreateParameterPicker(const FParameterPickerArgs& InArgs) override

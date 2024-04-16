@@ -9,10 +9,11 @@
 #include "AnimNextTickFunctionBinding.h"
 #include "Logging/StructuredLog.h"
 #include "Param/PropertyBagProxy.h"
+#include "Scheduler/ScheduleInitializationContext.h"
 
 DEFINE_STAT(STAT_AnimNext_InitializeEntry);
 
-FAnimNextSchedulerEntry::FAnimNextSchedulerEntry(const UAnimNextSchedule* InSchedule, UObject* InObject, UE::AnimNext::FScheduleHandle InHandle, EAnimNextScheduleInitMethod InInitMethod, TUniqueFunction<void(const UE::AnimNext::FScheduleContext&)>&& InInitializeCallback)
+FAnimNextSchedulerEntry::FAnimNextSchedulerEntry(const UAnimNextSchedule* InSchedule, UObject* InObject, UE::AnimNext::FScheduleHandle InHandle, EAnimNextScheduleInitMethod InInitMethod, TUniqueFunction<void(const UE::AnimNext::FScheduleInitializationContext&)>&& InInitializeCallback)
 	: Schedule(InSchedule)
 	, WeakObject(InObject)
 	, Handle(InHandle)
@@ -98,10 +99,10 @@ void FAnimNextSchedulerEntry::Initialize()
 						TConstArrayView<FAnimNextScheduleInstruction>(&Instruction, 1),
 						TConstArrayView<TWeakObjectPtr<UObject>>(&TargetObject, 1)));
 
-					const FName ExternalTaskName = Schedule->ExternalTasks[Instruction.Operand].ExternalTask;
-					if(ExternalTaskName != NAME_None)
+					const FAnimNextParam& ExternalTaskParam = Schedule->ExternalTasks[Instruction.Operand].ExternalTask;
+					if(ExternalTaskParam.IsValid())
 					{
-						FAnimNextTickFunctionBinding* FoundBinding = ParamStack.GetMutableParamPtr<FAnimNextTickFunctionBinding>(ExternalTaskName);
+						FAnimNextTickFunctionBinding* FoundBinding = ParamStack.GetMutableParamPtr<FAnimNextTickFunctionBinding>(ExternalTaskParam.GetParamId());
 						if(FoundBinding)
 						{
 							check(FoundBinding->Object.Get());
@@ -112,12 +113,12 @@ void FAnimNextSchedulerEntry::Initialize()
 						}
 						else
 						{
-							UE_LOGFMT(LogAnimation, Warning, "AnimNext: Could not bind to external tick function using binding parameters (ExternalTaskName={ExternalTaskName})", ExternalTaskName);
+							UE_LOGFMT(LogAnimation, Warning, "AnimNext: Could not bind to external tick function using binding parameters (ExternalTaskName={ExternalTaskName})", ExternalTaskParam.Name);
 						}
 					}
 					else
 					{
-						UE_LOGFMT(LogAnimation, Warning, "AnimNext: Invalid external tick function binding parameters (ExternalTaskName={ExternalTaskName})", ExternalTaskName);
+						UE_LOGFMT(LogAnimation, Warning, "AnimNext: Invalid external tick function binding parameters (ExternalTaskName={ExternalTaskName})", ExternalTaskParam.Name);
 					}
 					break;
 				}
@@ -128,10 +129,10 @@ void FAnimNextSchedulerEntry::Initialize()
 						TConstArrayView<FAnimNextScheduleInstruction>(&Instruction, 1),
 						TConstArrayView<TWeakObjectPtr<UObject>>(&TargetObject, 1)));
 
-					const FName ExternalTaskName = Schedule->ExternalTasks[Instruction.Operand].ExternalTask;
-					if(ExternalTaskName != NAME_None)
+					const FAnimNextParam& ExternalTaskParam = Schedule->ExternalTasks[Instruction.Operand].ExternalTask;
+					if(ExternalTaskParam.IsValid())
 					{
-						FAnimNextTickFunctionBinding* FoundBinding = ParamStack.GetMutableParamPtr<FAnimNextTickFunctionBinding>(ExternalTaskName);
+						FAnimNextTickFunctionBinding* FoundBinding = ParamStack.GetMutableParamPtr<FAnimNextTickFunctionBinding>(ExternalTaskParam.GetParamId());
 						if(FoundBinding)
 						{
 							TargetObject = FoundBinding->Object.Get();
@@ -204,7 +205,7 @@ void FAnimNextSchedulerEntry::Initialize()
 
 		if(InitializeCallback)
 		{
-			InitializeCallback(Context);
+			InitializeCallback(FScheduleInitializationContext(Context));
 		}
 
 		// Just pause now if we arent needing an initial update
@@ -342,7 +343,7 @@ void FAnimNextSchedulerEntry::OnScheduleCompiled()
 	using namespace UE::AnimNext;
 
 	// Store any user-defined scopes, as the instance data will be going away
-	TUniquePtr<FPropertyBagProxy> RootUserScope = MoveTemp(Context.InstanceData->RootUserScope);
+	TUniquePtr<IParameterSource> RootUserScope = MoveTemp(Context.InstanceData->RootUserScope);
 	TMap<FName, FScheduleInstanceData::FUserScope> UserScopes = MoveTemp(Context.InstanceData->UserScopes);
 
 	ResetBindingsAndInstanceData();

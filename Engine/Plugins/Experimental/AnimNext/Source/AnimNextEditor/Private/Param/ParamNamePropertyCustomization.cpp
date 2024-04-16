@@ -53,7 +53,6 @@ void FParamNamePropertyTypeCustomization::CustomizeHeader(TSharedRef<IPropertyHa
 	FAnimNextParamType FilterType = FAnimNextParamType::FromString(ParamTypeString);
 	
 	FParameterPickerArgs PickerArgs;
-	PickerArgs.bShowSourceGraph = false;
 	PickerArgs.bMultiSelect = false;
 	PickerArgs.OnFilterParameterType = FOnFilterParameterType::CreateLambda([FilterType](const FAnimNextParamType& InParameterType)
 	{
@@ -64,7 +63,7 @@ void FParamNamePropertyTypeCustomization::CustomizeHeader(TSharedRef<IPropertyHa
 		return EFilterParameterResult::Exclude;
 	});
 	PickerArgs.NewParameterType = FilterType;
-	PickerArgs.OnParameterPicked = FOnParameterPicked::CreateLambda([this, WeakPropertyHandle = WeakPropertyHandle](const FParameterBindingReference& InParameterBinding)
+	PickerArgs.OnParameterPicked = FOnParameterPicked::CreateLambda([this](const FParameterBindingReference& InParameterBinding)
 	{
 		if(TSharedPtr<IPropertyHandle> PropertyHandle = WeakPropertyHandle.Pin())
 		{
@@ -75,7 +74,6 @@ void FParamNamePropertyTypeCustomization::CustomizeHeader(TSharedRef<IPropertyHa
 			Refresh();
 		}
 	});
-	PickerArgs.bAllowNone = bAllowNone;
 	
 	InHeaderRow
 	.NameContent()

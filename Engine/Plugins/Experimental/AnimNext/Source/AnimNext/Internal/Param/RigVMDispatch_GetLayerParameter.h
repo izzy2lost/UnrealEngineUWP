@@ -14,7 +14,7 @@ namespace UE::AnimNext::UncookedOnly
 /*
  * Gets a parameter's current value from the graph
  */
-USTRUCT(meta = (DisplayName = "Get Parameter from Graph", Category="Parameters", NodeColor = "0.8, 0, 0.2, 1"))
+USTRUCT(meta = (DisplayName = "Get Graph Parameter", Category="Parameters", NodeColor = "0.8, 0, 0.2, 1"))
 struct ANIMNEXT_API FRigVMDispatch_GetLayerParameter : public FRigVMDispatchFactory
 {
 	GENERATED_BODY()

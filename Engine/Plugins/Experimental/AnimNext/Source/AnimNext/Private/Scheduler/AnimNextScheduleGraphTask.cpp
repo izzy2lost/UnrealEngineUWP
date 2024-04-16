@@ -8,17 +8,53 @@
 #include "Context.h"
 #include "Graph/AnimNext_LODPose.h"
 #include "AnimNextStats.h"
+#include "Component/AnimNextComponent.h"
+#include "Component/AnimNextMeshComponent.h"
+#include "GameFramework/Character.h"
 #include "Logging/StructuredLog.h"
+#include "Param/AnimNextObjectCastLocatorFragment.h"
+#include "Param/AnimNextObjectFunctionLocatorFragment.h"
 #include "Param/AnimNextParam.h"
+#include "Param/AnimNextParamUniversalObjectLocator.h"
 
 DEFINE_STAT(STAT_AnimNext_Task_Graph);
+
+namespace UE::AnimNext
+{
+	// TODO: Currently we hard-code the ACharacter mesh component as the source of the reference pose and LOD index, but this should be a pin-input in the
+	// final schedule incarnation.
+	TInstancedStruct<FAnimNextParamUniversalObjectLocator> GetCharacterInstanceId()
+	{
+		TInstancedStruct<FAnimNextParamUniversalObjectLocator> Locator = TInstancedStruct<FAnimNextParamUniversalObjectLocator>::Make();
+		Locator.GetMutable().Locator.AddFragment<FAnimNextObjectFunctionLocatorFragment>(UAnimNextComponent::StaticClass()->FindFunctionByName("GetOwner"));
+		Locator.GetMutable().Locator.AddFragment<FAnimNextObjectCastLocatorFragment>(ACharacter::StaticClass());
+		return Locator;
+	};
+
+	FName GetCharacterInstanceIdName()
+	{
+		static FName Name(NAME_None);
+		if(Name.IsNone())
+		{
+			const TInstancedStruct<FAnimNextParamUniversalObjectLocator>& Locator = GetCharacterInstanceId();
+			Name = Locator.Get().ToName();
+		}
+		return Name;
+	};
+
+	FParamId GetMeshComponentParamId()
+	{
+		static const FParamId MeshComponentParamId("/Script/Engine.Character:Mesh", GetCharacterInstanceIdName());
+		return MeshComponentParamId;
+	}
+}
 
 UAnimNextGraph* FAnimNextScheduleGraphTask::GetGraphToRun(UE::AnimNext::FParamStack& ParamStack) const
 {
 	UAnimNextGraph* GraphToRun = Graph;
-	if (GraphToRun == nullptr && DynamicGraph != NAME_None)
+	if (GraphToRun == nullptr && DynamicGraph.IsValid())
 	{
-		if(const TObjectPtr<UAnimNextGraph>* FoundGraph = ParamStack.GetParamPtr<TObjectPtr<UAnimNextGraph>>(DynamicGraph))
+		if(const TObjectPtr<UAnimNextGraph>* FoundGraph = ParamStack.GetParamPtr<TObjectPtr<UAnimNextGraph>>(DynamicGraph.GetParamId()))
 		{
 			GraphToRun = *FoundGraph;
 		}
@@ -40,7 +76,7 @@ void FAnimNextScheduleGraphTask::VerifyRequiredParameters(UAnimNextGraph* InGrap
 			FAnimNextParamType SuppliedParameterType;
 			for(const FAnimNextParam& SuppliedParameter : SuppliedParameters)
 			{
-				if(RequiredParameter.Name == SuppliedParameter.Name)
+				if(RequiredParameter.Name == SuppliedParameter.Name && RequiredParameter.InstanceId == SuppliedParameter.InstanceId)
 				{
 					if(RequiredParameter.Type != SuppliedParameter.Type)
 					{
@@ -60,7 +96,7 @@ void FAnimNextScheduleGraphTask::VerifyRequiredParameters(UAnimNextGraph* InGrap
 			
 			if(!bFound)
 			{
-				UE_LOGFMT(LogAnimation, Warning, "    Not Found: {Name}", RequiredParameter.Name);
+				UE_LOGFMT(LogAnimation, Warning, "    Not Found: {Name} (Instance: {Instance}))", RequiredParameter.Name, RequiredParameter.InstanceId);
 			}
 			else if(!bFoundCorrectType)
 			{
@@ -97,23 +133,29 @@ void FAnimNextScheduleGraphTask::RunGraph(const UE::AnimNext::FScheduleContext& 
 	// Allocate our graph instance data
 	if (!GraphCache.GraphInstanceData.IsValid())
 	{
-		GraphToRun->AllocateInstance(GraphCache.GraphInstanceData, EntryPoint);
+		GraphToRun->AllocateInstance(GraphCache.GraphInstanceData, EntryPoint.Name);
 
 		// Only do dynamic verification for dynamic graphs. Static graphs get verified at compile time. 
-		if (Graph == nullptr && DynamicGraph != NAME_None)
+		if (Graph == nullptr && DynamicGraph.IsValid())
 		{
 			VerifyRequiredParameters(GraphToRun);
 		}
 	}
 
-	const FAnimNextGraphReferencePose* GraphReferencePose = ParamStack.GetParamPtr<FAnimNextGraphReferencePose>(GraphToRun->GetReferencePoseParam());
-	if(GraphReferencePose == nullptr || !GraphReferencePose->ReferencePose.IsValid())
+	const TObjectPtr<USkeletalMeshComponent>* ComponentPtr = ParamStack.GetParamPtr<TObjectPtr<USkeletalMeshComponent>>(GetMeshComponentParamId());
+	if(ComponentPtr == nullptr)
 	{
 		return;
 	}
 
-	const int32* GraphLODLevel = ParamStack.GetParamPtr<int32>(GraphToRun->GetCurrentLODParam());
-	if(GraphLODLevel == nullptr)
+	TObjectPtr<UAnimNextMeshComponent> Component = Cast<UAnimNextMeshComponent>(*ComponentPtr);
+	if(Component == nullptr)
+	{
+		return;
+	}
+	
+	const FAnimNextGraphReferencePose GraphReferencePose = Component->GetReferencePose();
+	if(!GraphReferencePose.ReferencePose.IsValid())
 	{
 		return;
 	}
@@ -143,16 +185,18 @@ void FAnimNextScheduleGraphTask::RunGraph(const UE::AnimNext::FScheduleContext& 
 		return;
 	}
 	
-	const UE::AnimNext::FReferencePose& RefPose = GraphReferencePose->ReferencePose.GetRef<UE::AnimNext::FReferencePose>();
+	const UE::AnimNext::FReferencePose& RefPose = GraphReferencePose.ReferencePose.GetRef<UE::AnimNext::FReferencePose>();
+
+	const int32 LODIndex = Component->GetPredictedLODLevel();
 
 	// Create or update our result pose
 	// TODO: Currently forcing additive flag to false here
-	if (OutputPose->LODPose.ShouldPrepareForLOD(RefPose, *GraphLODLevel, false))
+	if (OutputPose->LODPose.ShouldPrepareForLOD(RefPose, LODIndex, false))
 	{
-		OutputPose->LODPose.PrepareForLOD(RefPose, *GraphLODLevel, true, false);
+		OutputPose->LODPose.PrepareForLOD(RefPose, LODIndex, true, false);
 	}
 
-	check(OutputPose->LODPose.LODLevel == *GraphLODLevel);
+	check(OutputPose->LODPose.LODLevel == LODIndex);
 
 	// Internally we use memstack allocation, so we need a mark here
 	FMemStack& MemStack = FMemStack::Get();
@@ -163,5 +207,21 @@ void FAnimNextScheduleGraphTask::RunGraph(const UE::AnimNext::FScheduleContext& 
 	MemStack.Alloc(size_t(FPageAllocator::SmallPageSize) + 1, 16);
 
 	IAnimNextModule::Get().UpdateGraph(GraphCache.GraphInstanceData, InContext.GetDeltaTime());
-	IAnimNextModule::Get().EvaluateGraph(GraphCache.GraphInstanceData, RefPose, *GraphLODLevel, OutputPose->LODPose);
+	IAnimNextModule::Get().EvaluateGraph(GraphCache.GraphInstanceData, RefPose, LODIndex, OutputPose->LODPose);
 }
+
+#if WITH_EDITORONLY_DATA 
+
+TArray<FAnimNextEditorParam> FAnimNextScheduleGraphTask::GetRequiredParametersInternal()
+{
+	using namespace UE::AnimNext;
+
+	const TArray<FAnimNextEditorParam> Params =
+	{
+		FAnimNextEditorParam(GetMeshComponentParamId().GetName(), FAnimNextParamType::GetType<TObjectPtr<UAnimNextMeshComponent>>(), GetCharacterInstanceId()),
+	};
+
+	return Params;
+}
+
+#endif

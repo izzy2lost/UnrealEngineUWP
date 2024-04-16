@@ -16,6 +16,8 @@ namespace UE::AnimNext
 	struct FSchedulePortDefinition;
 	struct FParamStackLayerHandle;
 	struct FScheduleContext;
+	struct FScheduleInitializationContext;
+	struct FScheduleTaskContext;
 }
 
 namespace UE::AnimNext::UncookedOnly
@@ -38,15 +40,15 @@ struct FScheduler
 	// Acquire a handle that binds a schedule
 	// Initial parameter binding can be achieved via InitializeCallback, which is called once the schedule's data
 	// structures have been set up, but before it is first run.
-	static FScheduleHandle AcquireHandle(UObject* InObject, UAnimNextSchedule* InSchedule, EAnimNextScheduleInitMethod InInitMethod, TUniqueFunction<void(const FScheduleContext&)>&& InitializeCallback = nullptr);
+	static ANIMNEXT_API FScheduleHandle AcquireHandle(UObject* InObject, UAnimNextSchedule* InSchedule, EAnimNextScheduleInitMethod InInitMethod, TUniqueFunction<void(const FScheduleInitializationContext&)>&& InitializeCallback = nullptr);
 
 	// Release an already acquired handle
 	// The full release of the binding referenced by the handle map be deferred after this call is made
-	static void ReleaseHandle(UObject* InObject, FScheduleHandle& InHandle);
+	static ANIMNEXT_API void ReleaseHandle(UObject* InObject, FScheduleHandle& InHandle);
 
 	// Enables or disables the schedule parameterization represented by the supplied handle
 	// This operation is deferred until the next time the schedule ticks
-	static void EnableHandle(UObject* InObject, FScheduleHandle InHandle, bool bInEnabled);
+	static ANIMNEXT_API void EnableHandle(UObject* InObject, FScheduleHandle InHandle, bool bInEnabled);
 
 	enum class ETaskRunLocation : int32
 	{
@@ -62,7 +64,7 @@ struct FScheduler
 	// @param	InTaskName		The name of the task in the schedule to run the supplied task relative to
 	// @param	InTaskFunction	The function to run
 	// @param	InLocation		Where to run the task, before or after
-	static void QueueTask(UObject* InObject, FScheduleHandle InHandle, FName InScheduleTaskName, TUniqueFunction<void(const FScheduleContext&)>&& InTaskFunction, ETaskRunLocation InLocation = ETaskRunLocation::Before);
+	static ANIMNEXT_API void QueueTask(UObject* InObject, FScheduleHandle InHandle, FName InScheduleTaskName, TUniqueFunction<void(const FScheduleTaskContext&)>&& InTaskFunction, ETaskRunLocation InLocation = ETaskRunLocation::Before);
 
 private:
 	friend struct UE::AnimNext::UncookedOnly::FUtils;

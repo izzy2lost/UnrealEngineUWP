@@ -19,7 +19,4 @@ public:
 	SLATE_END_ARGS()
 
 	void Construct(const FArguments& InArgs);
-
-protected:
-	virtual void UpdatePinTreeView() override;
 };

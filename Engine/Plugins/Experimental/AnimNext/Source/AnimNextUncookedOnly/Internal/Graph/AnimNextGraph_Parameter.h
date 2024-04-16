@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "AnimNextRigVMAssetEntry.h"
+#include "IAnimNextRigVMExportInterface.h"
 #include "IAnimNextRigVMParameterInterface.h"
 #include "Param/ParamType.h"
 #include "AnimNextGraph_Parameter.generated.h"
@@ -21,13 +22,17 @@ namespace UE::AnimNext::Tests
 }
 
 UCLASS(MinimalAPI, Category = "Parameters")
-class UAnimNextGraph_Parameter : public UAnimNextRigVMAssetEntry, public IAnimNextRigVMParameterInterface
+class UAnimNextGraph_Parameter : public UAnimNextRigVMAssetEntry, public IAnimNextRigVMParameterInterface, public IAnimNextRigVMExportInterface
 {
 	GENERATED_BODY()
 
 	friend class UAnimNextGraph_EditorData;
 	friend class UE::AnimNext::Tests::FEditor_Parameters;
 	friend class UE::AnimNext::Editor::FParameterCustomization;
+
+	// IAnimNextRigVMExportInterface interface
+	virtual FAnimNextParamType GetExportType() const override;
+	virtual FName GetExportName() const override;
 
 	// UAnimNextRigVMAssetEntry interface
 	virtual FName GetEntryName() const override;
@@ -38,6 +43,8 @@ class UAnimNextGraph_Parameter : public UAnimNextRigVMAssetEntry, public IAnimNe
 	// IAnimNextRigVMParameterInterface interface
 	virtual FAnimNextParamType GetParamType() const override;
 	virtual bool SetParamType(const FAnimNextParamType& InType, bool bSetupUndoRedo = true) override;
+	virtual FName GetParamName() const override;
+	virtual void SetParamName(FName InName, bool bSetupUndoRedo = true) override;
 	virtual FInstancedPropertyBag& GetPropertyBag() const override;
 	
 	/** Parameter name we reference */

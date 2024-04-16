@@ -11,6 +11,7 @@
 #include "Scheduler/AnimNextScheduleParamScopeTask.h"
 #include "Scheduler/ScheduleInstanceData.h"
 #include "Scheduler/AnimNextSchedulerWorldSubsystem.h"
+#include "Scheduler/ScheduleTaskContext.h"
 
 namespace UE::AnimNext
 {
@@ -24,9 +25,9 @@ void FScheduleBeginTickFunction::Run(float DeltaTime)
 {
 	while (!PreExecuteTasks.IsEmpty())
 	{
-		TOptional<TUniqueFunction<void(const UE::AnimNext::FScheduleContext&)>> Function = PreExecuteTasks.Dequeue();
+		TOptional<TUniqueFunction<void(const UE::AnimNext::FScheduleTaskContext&)>> Function = PreExecuteTasks.Dequeue();
 		check(Function.IsSet());
-		Function.GetValue()(Entry.Context);
+		Function.GetValue()(FScheduleTaskContext(Entry.Context));
 	}
 
 	// Push any user layer we have at the root
@@ -113,18 +114,18 @@ void FScheduleTickFunction::Run()
 		{
 			while (!PreExecuteTasks.IsEmpty())
 			{
-				TOptional<TUniqueFunction<void(const FScheduleContext&)>> Function = PreExecuteTasks.Dequeue();
+				TOptional<TUniqueFunction<void(const FScheduleTaskContext&)>> Function = PreExecuteTasks.Dequeue();
 				check(Function.IsSet());
-				Function.GetValue()(ScheduleContext);
+				Function.GetValue()(FScheduleTaskContext(ScheduleContext));
 			}
 		}, 
 		[this]()
 		{
 			while (!PostExecuteTasks.IsEmpty())
 			{
-				TOptional<TUniqueFunction<void(const FScheduleContext&)>> Function = PostExecuteTasks.Dequeue();
+				TOptional<TUniqueFunction<void(const FScheduleTaskContext&)>> Function = PostExecuteTasks.Dequeue();
 				check(Function.IsSet());
-				Function.GetValue()(ScheduleContext);
+				Function.GetValue()(FScheduleTaskContext(ScheduleContext));
 			}
 		});
 }
@@ -243,7 +244,33 @@ void FScheduleTickFunction::RunScheduleHelper(const FScheduleContext& InSchedule
 
 FString FScheduleTickFunction::DiagnosticMessage()
 {
-	return TEXT("AnimNextScheduleTickFunction");
+	if(Instructions.Num() == 1)
+	{
+		const FAnimNextScheduleInstruction& Instruction = Instructions[0];
+		switch (Instruction.Opcode)
+		{
+		case EAnimNextScheduleScheduleOpcode::RunGraphTask:
+			return TEXT("AnimNextSchedule::RunGraphTask");
+		case EAnimNextScheduleScheduleOpcode::BeginRunExternalTask:
+			return TEXT("AnimNextSchedule::BeginRunExternalTask");
+		case EAnimNextScheduleScheduleOpcode::EndRunExternalTask:
+			return TEXT("AnimNextSchedule::EndRunExternalTask");
+		case EAnimNextScheduleScheduleOpcode::RunPort:
+			return TEXT("AnimNextSchedule::RunPort");
+		case EAnimNextScheduleScheduleOpcode::RunParamScopeEntry:
+			return TEXT("AnimNextSchedule::RunParamScopeEntry");
+		case EAnimNextScheduleScheduleOpcode::RunParamScopeExit:
+			return TEXT("AnimNextSchedule::RunParamScopeExit");
+		case EAnimNextScheduleScheduleOpcode::RunExternalParamTask:
+			return TEXT("AnimNextSchedule::RunExternalParamTask");
+		default:
+			return TEXT("AnimNextScheduleTickFunction");
+		}
+	}
+	else
+	{
+		return TEXT("AnimNextScheduleTickFunction");
+	}
 }
 
 }

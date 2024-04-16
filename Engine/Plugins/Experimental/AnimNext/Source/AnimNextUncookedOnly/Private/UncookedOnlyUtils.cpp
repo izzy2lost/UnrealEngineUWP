@@ -35,15 +35,22 @@
 #include "Param/RigVMDispatch_GetLayerParameter.h"
 #include "RigVMCompiler/RigVMCompiler.h"
 #include "RigVMCore/RigVM.h"
-#include "Param/ExternalParameterRegistry.h"
-#include "Scheduler/AnimNextExternalTaskBinding.h"
 #include "Scheduler/AnimNextSchedule.h"
 #include "Scheduler/AnimNextSchedulePort.h"
 #include "AnimNextRigVMAsset.h"
 #include "AnimNextRigVMAssetEditorData.h"
 #include "AnimNextRigVMAssetEntry.h"
+#include "AnimNextUncookedOnlyModule.h"
+#include "IAnimNextRigVMExportInterface.h"
+#include "GameFramework/Character.h"
 #include "Graph/AnimNextGraphEntryPoint.h"
 #include "Graph/AnimNextGraph_AnimationGraphSchema.h"
+#include "Logging/StructuredLog.h"
+#include "Param/AnimNextParamInstanceIdentifier.h"
+#include "Param/IParameterSourceType.h"
+#include "Param/RigVMDispatch_GetScopedParameter.h"
+
+#define LOCTEXT_NAMESPACE "AnimNextUncookedOnlyUtils"
 
 namespace UE::AnimNext::UncookedOnly
 {
@@ -94,10 +101,15 @@ namespace Private
 		URigVMNode* RootNode;
 		TArray<FTraitStackMapping> TraitStackNodes;
 
-		explicit FTraitGraph(URigVMNode* InRootNode)
-			: EntryPoint(*InRootNode->FindPin(GET_MEMBER_NAME_STRING_CHECKED(FRigUnit_AnimNextGraphRoot, EntryPoint))->GetDefaultValue())
-			, RootNode(InRootNode)
-		{}
+		explicit FTraitGraph(const UAnimNextGraph* InGraph, URigVMNode* InRootNode)
+			: RootNode(InRootNode)
+		{
+			TStringBuilder<256> StringBuilder;
+			StringBuilder.Append(InGraph->GetPathName());
+			StringBuilder.Append(TEXT(":"));
+			StringBuilder.Append(InRootNode->FindPin(GET_MEMBER_NAME_STRING_CHECKED(FRigUnit_AnimNextGraphRoot, EntryPoint))->GetDefaultValue());
+			EntryPoint = FName(StringBuilder.ToView());
+		}
 	};
 
 	template<typename TraitAction>
@@ -336,7 +348,7 @@ namespace Private
 		}
 	}
 
-	FTraitGraph CollectGraphInfo(const URigVMGraph* VMGraph, URigVMController* VMController)
+	FTraitGraph CollectGraphInfo(const UAnimNextGraph* InGraph,  const URigVMGraph* VMGraph, URigVMController* VMController)
 	{
 		const TArray<URigVMNode*>& VMNodes = VMGraph->GetNodes();
 		URigVMUnitNode* VMRootNode = FindRootNode(VMNodes);
@@ -350,7 +362,7 @@ namespace Private
 		// Make sure we don't have empty input pins
 		AddMissingInputLinks(VMGraph, VMController);
 
-		FTraitGraph TraitGraph(VMRootNode);
+		FTraitGraph TraitGraph(InGraph, VMRootNode);
 
 		TArray<const URigVMNode*> NodesToVisit;
 		NodesToVisit.Add(VMRootNode);
@@ -570,7 +582,7 @@ void FUtils::CompileVM(UAnimNextGraph* InGraph)
 		if(TempGraph->GetSchemaClass() == UAnimNextGraph_AnimationGraphSchema::StaticClass())
 		{
 			// Gather our trait stacks
-			Private::FTraitGraph& TraitGraph = TraitGraphs.Add_GetRef(Private::CollectGraphInfo(TempGraph, TempController->GetControllerForGraph(TempGraph)));
+			Private::FTraitGraph& TraitGraph = TraitGraphs.Add_GetRef(Private::CollectGraphInfo(InGraph, TempGraph, TempController->GetControllerForGraph(TempGraph)));
 			check(!TraitGraph.TraitStackNodes.IsEmpty());
 
 			FAnimNextGraphEntryPoint& EntryPoint = InGraph->EntryPoints.AddDefaulted_GetRef();
@@ -678,17 +690,16 @@ void FUtils::CompileVM(UAnimNextGraph* InGraph)
 
 	// Now that the graph has been re-compiled, re-allocate the previous live instances
 	InGraph->ThawGraphInstances();
-
-	FAssetData AssetData(InGraph);
+	
 	FAnimNextParameterProviderAssetRegistryExports Exports;
-	GetExportedParametersForAsset(AssetData, Exports);
+	GetAssetParameters(EditorData, Exports);
 
 	for(FAnimNextParameterAssetRegistryExportEntry& Entry : Exports.Parameters)
 	{
-		FName ParameterSourceName = FExternalParameterRegistry::FindSourceForParameter(Entry.Name);
-		if(ParameterSourceName != NAME_None)
+		// Required parameters are those that are read in this asset but not bound in this asset as state
+		if(EnumHasAnyFlags(Entry.GetFlags(), EAnimNextParameterFlags::Read) && !EnumHasAnyFlags(Entry.GetFlags(), EAnimNextParameterFlags::Bound))
 		{
-			InGraph->RequiredParameters.Emplace(Entry.Name, Entry.Type);
+			InGraph->RequiredParameters.Emplace(Entry.Name, Entry.Type, Entry.InstanceId);
 		}
 	}
 
@@ -845,11 +856,13 @@ void FUtils::CompileStruct(UAnimNextGraph* InGraph)
 	// Gather all parameters in this asset
 	for(const UAnimNextRigVMAssetEntry* Entry : EditorData->Entries)
 	{
-		if(const IAnimNextRigVMParameterInterface* Binding = Cast<IAnimNextRigVMParameterInterface>(Entry))
+		if(const IAnimNextRigVMParameterInterface* Parameter = Cast<IAnimNextRigVMParameterInterface>(Entry))
 		{
-			const FAnimNextParamType& Type = Binding->GetParamType();
+			const FAnimNextParamType& Type = Parameter->GetParamType();
 			ensure(Type.IsValid());
-			PropertyDescs.Emplace(Entry->GetEntryName(), Type.GetContainerType(), Type.GetValueType(), Type.GetValueTypeObject());
+			const FName Name = Parameter->GetParamName();
+
+			PropertyDescs.Emplace(Name, Type.GetContainerType(), Type.GetValueType(), Type.GetValueTypeObject());
 		}
 	}
 
@@ -1203,44 +1216,104 @@ void FUtils::SetupEventGraph(URigVMController* InController)
 	InController->AddUnitNode(FRigUnit_AnimNextParameterBeginExecution::StaticStruct(), FRigVMStruct::ExecuteName, FVector2D(-200.0f, 0.0f), FString(), false);
 }
 
-FText FUtils::GetParameterDisplayNameText(FName InParameterName)
+FName FUtils::GetParameterNameFromQualifiedName(FName InName)
 {
-	FString NameAsString = InParameterName.ToString();
-	NameAsString.ReplaceCharInline(TEXT('_'), TEXT('.'));
-	return FText::FromString(NameAsString);
+	const FSoftObjectPath SoftObjectPath(InName.ToString());
+	return FName(*SoftObjectPath.GetSubPathString());
+}
+
+FName FUtils::GetQualifiedName(UAnimNextRigVMAsset* InAsset, FName InBaseName)
+{
+	if(InAsset)
+	{
+		TStringBuilder<256> StringBuilder;
+		StringBuilder.Append(InAsset->GetPathName());
+		StringBuilder.Append(TEXT(":"));
+		InBaseName.AppendString(StringBuilder);
+
+		return FName(StringBuilder.ToView());
+	}
+	return InBaseName;
+}
+
+FText FUtils::GetParameterDisplayNameText(FName InParameterName, const TInstancedStruct<FAnimNextParamInstanceIdentifier>& InInstanceId)
+{
+	if(InInstanceId.IsValid())
+	{
+		FText ParameterText;
+		FModule& Module = FModuleManager::GetModuleChecked<FModule>("AnimNextUncookedOnly");
+		if(TSharedPtr<IParameterSourceType> SourceType = Module.FindParameterSourceType(InInstanceId.GetScriptStruct()))
+		{
+			ParameterText = SourceType->GetDisplayText(InInstanceId);
+		}
+
+		TStringBuilder<256> StringBuilder;
+		if(!ParameterText.IsEmpty())
+		{
+			StringBuilder.Append(ParameterText.ToString());
+			StringBuilder.Append(TEXT("."));
+		}
+
+		GetParameterNameFromQualifiedName(InParameterName).AppendString(StringBuilder);
+		return FText::FromStringView(StringBuilder);
+	}
+	else
+	{
+		if(InParameterName.IsNone())
+		{
+			return FText::FromName(InParameterName);
+		}
+		else
+		{
+			const FSoftObjectPath SoftObjectPath(InParameterName.ToString());
+			return FText::Format(LOCTEXT("ParameterNameDisplayFormat", "{0}.{1}"), FText::FromString(SoftObjectPath.GetAssetName()), FText::FromString(SoftObjectPath.GetSubPathString()));
+		}
+	}
+}
+
+FText FUtils::GetParameterTooltipText(FName InParameterName, const TInstancedStruct<FAnimNextParamInstanceIdentifier>& InInstanceId)
+{
+	FTextBuilder TextBuilder;
+	TextBuilder.AppendLine(FText::Format(LOCTEXT("ParameterNameTooltipFormat", "Parameter: {0}"), FText::FromString(InParameterName.ToString())));
+
+	if(InInstanceId.IsValid())
+	{
+		FModule& Module = FModuleManager::GetModuleChecked<FModule>("AnimNextUncookedOnly");
+		if(TSharedPtr<IParameterSourceType> SourceType = Module.FindParameterSourceType(InInstanceId.GetScriptStruct()))
+		{
+			TextBuilder.AppendLine(SourceType->GetTooltipText(InInstanceId));
+		}
+	}
+
+	return TextBuilder.ToText();
 }
 
 FAnimNextParamType FUtils::GetParameterTypeFromName(FName InName)
 {
-	// Check built-in params first as they are cheaper
-	IParameterSourceFactory::FParameterInfo Info;
-	if(FExternalParameterRegistry::FindParameterInfo(InName, Info))
-	{
-		return Info.Type;
-	}
-
 	// Query the asset registry for other params
-	IAssetRegistry& AssetRegistry = FModuleManager::Get().LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry")).Get();
-
-	FAnimNextParameterProviderAssetRegistryExports Exports;
-	GetExportedParametersFromAssetRegistry(Exports);
-	for(const FAnimNextParameterAssetRegistryExportEntry& Export : Exports.Parameters)
+	TMap<FAssetData, FAnimNextParameterProviderAssetRegistryExports> ExportMap;
+	GetExportedParametersFromAssetRegistry(ExportMap);
+	for(const TPair<FAssetData, FAnimNextParameterProviderAssetRegistryExports>& ExportPair : ExportMap)
 	{
-		if(Export.Name == InName)
+		for(const FAnimNextParameterAssetRegistryExportEntry& Parameter : ExportPair.Value.Parameters)
 		{
-			return Export.Type;
+			if(Parameter.Name == InName)
+			{
+				return Parameter.Type;
+			}
 		}
 	}
 
 	return FAnimNextParamType();
 }
+
 bool FUtils::GetExportedParametersForAsset(const FAssetData& InAsset, FAnimNextParameterProviderAssetRegistryExports& OutExports)
 {
 	const FString TagValue = InAsset.GetTagValueRef<FString>(UE::AnimNext::ExportsAnimNextAssetRegistryTag);
 	return FAnimNextParameterProviderAssetRegistryExports::StaticStruct()->ImportText(*TagValue, &OutExports, nullptr, PPF_None, nullptr, FAnimNextParameterProviderAssetRegistryExports::StaticStruct()->GetName()) != nullptr;
 }
 
-bool FUtils::GetExportedParametersFromAssetRegistry(FAnimNextParameterProviderAssetRegistryExports& OutExports)
+bool FUtils::GetExportedParametersFromAssetRegistry(TMap<FAssetData, FAnimNextParameterProviderAssetRegistryExports>& OutExports)
 {
 	TArray<FAssetData> AssetData;
 	IAssetRegistry::GetChecked().GetAssetsByTags({UE::AnimNext::ExportsAnimNextAssetRegistryTag}, AssetData);
@@ -1251,32 +1324,27 @@ bool FUtils::GetExportedParametersFromAssetRegistry(FAnimNextParameterProviderAs
 		FAnimNextParameterProviderAssetRegistryExports AssetExports;
 		if (FAnimNextParameterProviderAssetRegistryExports::StaticStruct()->ImportText(*TagValue, &AssetExports, nullptr, PPF_None, nullptr, FAnimNextParameterProviderAssetRegistryExports::StaticStruct()->GetName()) != nullptr)
 		{
-			for (FAnimNextParameterAssetRegistryExportEntry& Parameter : AssetExports.Parameters)
-			{
-				if (Parameter.Name != NAME_None && Parameter.Type.IsValid() && Parameter.Type.ValueTypeObject != FRigVMUnknownType::StaticStruct())
-				{
-					FAnimNextParameterAssetRegistryExportEntry* ExistingEntry = OutExports.Parameters.FindByPredicate([Name=Parameter.Name](const FAnimNextParameterAssetRegistryExportEntry& Entry)
-					{
-						return Entry.Name == Name;
-					});
-					
-					if (!ExistingEntry)
-					{
-						Parameter.ReferencingAsset = Asset;
-						OutExports.Parameters.Add(Parameter);
-					}
-					else
-					{
-						ensureMsgf(ExistingEntry->Type == Parameter.Type, TEXT("[%s::%s] %s vs [%s::%s] %s"), *ExistingEntry->ReferencingAsset.ToSoftObjectPath().ToString(), *ExistingEntry->Name.ToString(), *ExistingEntry->Type.ToString(), *Asset.ToSoftObjectPath().ToString(), *Parameter.Name.ToString(), *Parameter.Type.ToString());
-
-						ExistingEntry->Flags |= Parameter.Flags;
-					}
-				}
-			}
+			OutExports.Add(Asset, MoveTemp(AssetExports));
 		}
 	}
 
-	return OutExports.Parameters.Num() > 0;
+	return OutExports.Num() > 0;
+}
+
+static void AddParamToSet(const FAnimNextParameterAssetRegistryExportEntry& InNewParam, TSet<FAnimNextParameterAssetRegistryExportEntry>& OutExports)
+{
+	if(FAnimNextParameterAssetRegistryExportEntry* ExistingEntry = OutExports.Find(InNewParam))
+	{
+		if(ExistingEntry->Type != InNewParam.Type)
+		{
+			UE_LOGFMT(LogAnimation, Warning, "Type mismatch between parameter {ParameterName}. {ParamType1} vs {ParamType1}", InNewParam.Name, InNewParam.Type.ToString(), ExistingEntry->Type.ToString());
+		}
+		ExistingEntry->Flags |= InNewParam.Flags;
+	}
+	else
+	{
+		OutExports.Add(InNewParam);
+	}
 }
 
 void FUtils::GetAssetParameters(const UAnimNextRigVMAssetEditorData* EditorData, FAnimNextParameterProviderAssetRegistryExports& OutExports)
@@ -1284,24 +1352,36 @@ void FUtils::GetAssetParameters(const UAnimNextRigVMAssetEditorData* EditorData,
 	OutExports.Parameters.Reset();
 	OutExports.Parameters.Reserve(EditorData->Entries.Num());
 
+	TSet<FAnimNextParameterAssetRegistryExportEntry> ExportSet;
+	GetAssetParameters(EditorData, ExportSet);
+	OutExports.Parameters = ExportSet.Array();
+}
+
+void FUtils::GetAssetParameters(const UAnimNextRigVMAssetEditorData* EditorData, TSet<FAnimNextParameterAssetRegistryExportEntry>& OutExports)
+{
 	for(const UAnimNextRigVMAssetEntry* Entry : EditorData->Entries)
 	{
-		if(const IAnimNextRigVMParameterInterface* ParameterInterface = Cast<IAnimNextRigVMParameterInterface>(Entry))
+		if(const IAnimNextRigVMExportInterface* ExportInterface = Cast<IAnimNextRigVMExportInterface>(Entry))
 		{
 			// TODO: Public/private symbols would influence whether this would be exposed to the asset registry here
-			OutExports.Parameters.Emplace(Entry->GetEntryName(), ParameterInterface->GetParamType(), EAnimNextParameterFlags::Bound);
+			FAnimNextParameterAssetRegistryExportEntry NewParam(ExportInterface->GetExportName(), TInstancedStruct<FAnimNextParamInstanceIdentifier>(), ExportInterface->GetExportType(), EAnimNextParameterFlags::Bound);
+			AddParamToSet(NewParam, OutExports);
 		}
-		else if(const IAnimNextRigVMGraphInterface* GraphInterface = Cast<IAnimNextRigVMGraphInterface>(Entry))
+		if(const IAnimNextRigVMGraphInterface* GraphInterface = Cast<IAnimNextRigVMGraphInterface>(Entry))
 		{
-			// TODO: Public/private symbols would influence whether this would be exposed to the asset registry here
-			OutExports.Parameters.Emplace(Entry->GetEntryName(), FAnimNextParamType::GetType<FAnimNextEntryPoint>(), EAnimNextParameterFlags::Bound);
-
 			GetGraphParameters(GraphInterface->GetRigVMGraph(), OutExports);
 		}
 	}
 }
 
 void FUtils::GetGraphParameters(const URigVMGraph* Graph, FAnimNextParameterProviderAssetRegistryExports& OutExports)
+{
+	TSet<FAnimNextParameterAssetRegistryExportEntry> ExportSet;
+	GetGraphParameters(Graph, ExportSet);
+	OutExports.Parameters = ExportSet.Array();
+}
+
+void FUtils::GetGraphParameters(const URigVMGraph* Graph, TSet<FAnimNextParameterAssetRegistryExportEntry>& OutExports)
 {
 	if (Graph == nullptr)
 	{
@@ -1316,58 +1396,65 @@ void FUtils::GetGraphParameters(const URigVMGraph* Graph, FAnimNextParameterProv
 			const FRigVMDispatchFactory* GetParameterFactory = FRigVMRegistry::Get().FindOrAddDispatchFactory(FRigVMDispatch_GetParameter::StaticStruct());
 			const FName GetParameterNotation = GetParameterFactory->GetTemplate()->GetNotation();
 
+			const FRigVMDispatchFactory* GetScopedParameterFactory = FRigVMRegistry::Get().FindOrAddDispatchFactory(FRigVMDispatch_GetScopedParameter::StaticStruct());
+			const FName GetScopedParameterNotation = GetScopedParameterFactory->GetTemplate()->GetNotation();
+			
 			const FRigVMDispatchFactory* GetLayerParameterFactory = FRigVMRegistry::Get().FindOrAddDispatchFactory(FRigVMDispatch_GetLayerParameter::StaticStruct());
 			const FName GetLayerParameterNotation = GetLayerParameterFactory->GetTemplate()->GetNotation();
 
 			const FRigVMDispatchFactory* SetLayerParameterFactory = FRigVMRegistry::Get().FindOrAddDispatchFactory(FRigVMDispatch_SetLayerParameter::StaticStruct());
 			const FName SetLayerParameterNotation = SetLayerParameterFactory->GetTemplate()->GetNotation();
 
-			const bool bReadParameter = TemplateNode->GetNotation() == GetParameterNotation || TemplateNode->GetNotation() == GetLayerParameterNotation;
+			const bool bIsScopedParameter = TemplateNode->GetNotation() == GetScopedParameterNotation; 
+			const bool bReadParameter = bIsScopedParameter || TemplateNode->GetNotation() == GetParameterNotation || TemplateNode->GetNotation() == GetLayerParameterNotation;
 			const bool bWriteParameter = TemplateNode->GetNotation() == SetLayerParameterNotation;
-			if (bReadParameter || bWriteParameter)
+			const bool bUsesRuntimeStruct = bIsScopedParameter;
+			const bool bUsesName = TemplateNode->GetNotation() == GetLayerParameterNotation || TemplateNode->GetNotation() == SetLayerParameterNotation;
+			const bool bIsParameterNode = bIsScopedParameter || bReadParameter || bWriteParameter;
+
+			const URigVMPin* ParameterPin = TemplateNode->FindPin(FRigVMDispatch_GetParameter::ParameterName.ToString());
+			if (bIsParameterNode && ParameterPin != nullptr)
 			{
-				if (const URigVMPin* NamePin = TemplateNode->FindPin(FRigVMDispatch_GetParameter::ParameterName.ToString()))
+				const FString PinDefaultValue = ParameterPin->GetDefaultValue();
+				if(!PinDefaultValue.IsEmpty())
 				{
-					const FString PinDefaultValue = NamePin->GetDefaultValue();
-					if(!PinDefaultValue.IsEmpty() && PinDefaultValue != TEXT("None"))
+					FAnimNextEditorParam PinParam;
+					if(bUsesRuntimeStruct)
 					{
-						if (const URigVMPin* ValuePin = TemplateNode->FindPin(FRigVMDispatch_GetParameter::ValueName.ToString()))
+						FAnimNextParam AnimNextParam;
+						FAnimNextParam::StaticStruct()->ImportText(*PinDefaultValue, &AnimNextParam, nullptr, PPF_None, nullptr, FAnimNextParam::StaticStruct()->GetName());
+						PinParam = FAnimNextEditorParam(AnimNextParam);
+					}
+					else if(bUsesName)
+					{
+						FName ParameterName = *PinDefaultValue;
+						const URigVMPin* ValuePin = TemplateNode->FindPin(FRigVMDispatch_GetLayerParameter::ValueName.ToString());
+						if (ValuePin != nullptr)
 						{
-							FAnimNextParamType Type = FAnimNextParamType::FromRigVMTemplateArgument(ValuePin->GetTemplateArgumentType());
-							EAnimNextParameterFlags Flags = EAnimNextParameterFlags::NoFlags;
-							if (bReadParameter)
-							{
-								Flags |= EAnimNextParameterFlags::Read;
-							}
-							
-							if (bWriteParameter)
-							{
-								Flags |= EAnimNextParameterFlags::Write;
-							}
-							OutExports.Parameters.Emplace(FName(PinDefaultValue), Type, Flags);
+							const FAnimNextParamType ParamType = FAnimNextParamType::FromRigVMTemplateArgument(FRigVMTemplateArgumentType(FName(*ValuePin->GetCPPType()), ValuePin->GetCPPTypeObject()));
+							PinParam = FAnimNextEditorParam(ParameterName, ParamType, TInstancedStruct<FAnimNextParamInstanceIdentifier>());
 						}
 					}
-				}
-			}
-			else
-			{
-				for(const URigVMPin* Pin : TemplateNode->GetAllPinsRecursively())
-				{
-					if(Pin->GetCPPType() == TEXT("FName"))
+					else
 					{
-						if(Pin->GetCustomWidgetName() == "ParamName")
+						FAnimNextEditorParam::StaticStruct()->ImportText(*PinDefaultValue, &PinParam, nullptr, PPF_None, nullptr, FAnimNextEditorParam::StaticStruct()->GetName());
+					}
+
+					if(PinParam.Type.IsValid())
+					{
+						EAnimNextParameterFlags Flags = EAnimNextParameterFlags::NoFlags;
+						if (bReadParameter)
 						{
-							const FString PinDefaultValue = Pin->GetDefaultValue();
-							if(!PinDefaultValue.IsEmpty() && PinDefaultValue != TEXT("None"))
-							{
-								const FString ParamTypeString = Pin->GetMetaData("AllowedParamType");
-								FAnimNextParamType Type = FAnimNextParamType::FromString(ParamTypeString);
-								if(Type.IsValid())
-								{
-									OutExports.Parameters.Emplace(FName(Pin->GetDefaultValue()), Type, EAnimNextParameterFlags::Read);
-								}
-							}
+							Flags |= EAnimNextParameterFlags::Read;
 						}
+
+						if (bWriteParameter)
+						{
+							Flags |= EAnimNextParameterFlags::Write;
+						}
+
+						FAnimNextParameterAssetRegistryExportEntry NewEntry(PinParam.Name, PinParam.InstanceId, PinParam.Type, Flags);
+						AddParamToSet(NewEntry, OutExports);
 					}
 				}
 			}
@@ -1377,6 +1464,13 @@ void FUtils::GetGraphParameters(const URigVMGraph* Graph, FAnimNextParameterProv
 
 void FUtils::GetScheduleParameters(const UAnimNextSchedule* InSchedule, FAnimNextParameterProviderAssetRegistryExports& OutExports)
 {
+	TSet<FAnimNextParameterAssetRegistryExportEntry> ExportSet;
+	GetScheduleParameters(InSchedule, ExportSet);
+	OutExports.Parameters = ExportSet.Array();
+}
+
+void FUtils::GetScheduleParameters(const UAnimNextSchedule* InSchedule, TSet<FAnimNextParameterAssetRegistryExportEntry>& OutExports)
+{
 	for(UAnimNextScheduleEntry* Entry : InSchedule->Entries)
 	{
 		if (UAnimNextScheduleEntry_Port* PortEntry = Cast<UAnimNextScheduleEntry_Port>(Entry))
@@ -1384,45 +1478,57 @@ void FUtils::GetScheduleParameters(const UAnimNextSchedule* InSchedule, FAnimNex
 			if(PortEntry->Port)
 			{
 				UAnimNextSchedulePort* CDO = PortEntry->Port->GetDefaultObject<UAnimNextSchedulePort>();
-				TConstArrayView<FAnimNextParam> RequiredParameters = CDO->GetRequiredParameters();
-				for(const FAnimNextParam& RequiredParameter : RequiredParameters)
+				TConstArrayView<FAnimNextEditorParam> RequiredParameters = CDO->GetRequiredParameters();
+				for(const FAnimNextEditorParam& RequiredParameter : RequiredParameters)
 				{
 					if(!RequiredParameter.Name.IsNone() && RequiredParameter.Type.IsValid())
 					{
-						OutExports.Parameters.Emplace(RequiredParameter.Name, RequiredParameter.Type, EAnimNextParameterFlags::Read);
+						FAnimNextParameterAssetRegistryExportEntry NewEntry(RequiredParameter.Name, RequiredParameter.InstanceId, RequiredParameter.Type, EAnimNextParameterFlags::Read);
+						AddParamToSet(NewEntry, OutExports);
 					}
 				}
 			}
 		}
 		else if (UAnimNextScheduleEntry_AnimNextGraph* GraphEntry = Cast<UAnimNextScheduleEntry_AnimNextGraph>(Entry))
 		{
-			if(!GraphEntry->DynamicGraph.IsNone())
+			if(GraphEntry->DynamicGraph.IsValid())
 			{
-				OutExports.Parameters.Emplace(GraphEntry->DynamicGraph, FAnimNextParamType::GetType<TObjectPtr<UAnimNextGraph>>(), EAnimNextParameterFlags::Read);
+				FAnimNextParameterAssetRegistryExportEntry NewEntry(GraphEntry->DynamicGraph.Name, GraphEntry->DynamicGraph.InstanceId, GraphEntry->DynamicGraph.Type, EAnimNextParameterFlags::Read);
+				AddParamToSet(NewEntry, OutExports);
 			}
-			for(const FAnimNextParam& ParameterName : GraphEntry->RequiredParameters)
+			for(const FAnimNextEditorParam& RequiredParameter : GraphEntry->RequiredParameters)
 			{
-				OutExports.Parameters.Emplace(ParameterName.Name, ParameterName.Type, EAnimNextParameterFlags::Read);
+				FAnimNextParameterAssetRegistryExportEntry NewEntry(RequiredParameter.Name, RequiredParameter.InstanceId, RequiredParameter.Type, EAnimNextParameterFlags::Read);
+				AddParamToSet(NewEntry, OutExports);
 			}
 		}
 		else if (UAnimNextScheduleEntry_ExternalTask* ExternalTaskEntry = Cast<UAnimNextScheduleEntry_ExternalTask>(Entry))
 		{
-			if(!ExternalTaskEntry->ExternalTask.IsNone())
+			if(ExternalTaskEntry->ExternalTask.IsValid())
 			{
-				OutExports.Parameters.Emplace(ExternalTaskEntry->ExternalTask, FAnimNextParamType::GetType<FAnimNextExternalTaskBinding>(), EAnimNextParameterFlags::Read);
+				FAnimNextParameterAssetRegistryExportEntry NewEntry(ExternalTaskEntry->ExternalTask.Name, ExternalTaskEntry->ExternalTask.InstanceId, ExternalTaskEntry->ExternalTask.Type, EAnimNextParameterFlags::Read);
+				AddParamToSet(NewEntry, OutExports);
 			}
 		}
 		else if (UAnimNextScheduleEntry_ParamScope* ParamScopeTaskEntry = Cast<UAnimNextScheduleEntry_ParamScope>(Entry))
 		{
-			if(!ParamScopeTaskEntry->Scope.IsNone())
+			if(ParamScopeTaskEntry->Scope.IsValid())
 			{
-				OutExports.Parameters.Emplace(ParamScopeTaskEntry->Scope, FAnimNextParamType::GetType<FAnimNextScope>(), EAnimNextParameterFlags::Read);
+				FAnimNextParameterAssetRegistryExportEntry NewEntry(ParamScopeTaskEntry->Scope.Name, ParamScopeTaskEntry->Scope.InstanceId, ParamScopeTaskEntry->Scope.Type, EAnimNextParameterFlags::Read);
+				AddParamToSet(NewEntry, OutExports);
 			}
 		}
 	}
 }
 
 void FUtils::GetBlueprintParameters(const UBlueprint* InBlueprint, FAnimNextParameterProviderAssetRegistryExports& OutExports)
+{
+	TSet<FAnimNextParameterAssetRegistryExportEntry> ExportSet;
+	GetBlueprintParameters(InBlueprint, ExportSet);
+	OutExports.Parameters = ExportSet.Array();
+}
+
+void FUtils::GetBlueprintParameters(const UBlueprint* InBlueprint, TSet<FAnimNextParameterAssetRegistryExportEntry>& OutExports)
 {
 	// Add 'static' params held on components
 	if(InBlueprint->SimpleConstructionScript)
@@ -1435,7 +1541,8 @@ void FUtils::GetBlueprintParameters(const UBlueprint* InBlueprint, FAnimNextPara
 				{
 					if(!Parameter->Scope.IsNone())
 					{
-						OutExports.Parameters.Emplace(Parameter->Scope, FAnimNextParamType::GetType<FAnimNextScope>(), EAnimNextParameterFlags::Read);
+						FAnimNextParameterAssetRegistryExportEntry NewEntry(Parameter->Scope, TInstancedStruct<FAnimNextParamInstanceIdentifier>(), FAnimNextParamType::GetType<FAnimNextScope>(), EAnimNextParameterFlags::Read);
+						AddParamToSet(NewEntry, OutExports);
 					}
 
 					FName Name;
@@ -1445,7 +1552,8 @@ void FUtils::GetBlueprintParameters(const UBlueprint* InBlueprint, FAnimNextPara
 					{
 						FAnimNextParamType Type = FParamTypeHandle::FromProperty(Property).GetType();
 						check(Type.IsValid());
-						OutExports.Parameters.Emplace(Name, Type, EAnimNextParameterFlags::Write);
+						FAnimNextParameterAssetRegistryExportEntry NewEntry(Name, TInstancedStruct<FAnimNextParamInstanceIdentifier>(), Type, EAnimNextParameterFlags::Write);
+						AddParamToSet(NewEntry, OutExports);
 					}
 				}
 			}
@@ -1471,7 +1579,8 @@ void FUtils::GetBlueprintParameters(const UBlueprint* InBlueprint, FAnimNextPara
 				FName ScopeName(*ScopePin->GetDefaultAsString());
 				if(!ScopeName.IsNone())
 				{
-					OutExports.Parameters.Emplace(ScopeName, FAnimNextParamType::GetType<FAnimNextScope>(), EAnimNextParameterFlags::Read);
+					FAnimNextParameterAssetRegistryExportEntry NewEntry(ScopeName, TInstancedStruct<FAnimNextParamInstanceIdentifier>(), FAnimNextParamType::GetType<FAnimNextScope>(), EAnimNextParameterFlags::Read);
+					AddParamToSet(NewEntry, OutExports);
 				}
 
 				UEdGraphPin* NamePin = FunctionNode->FindPinChecked(TEXT("Name"));
@@ -1482,7 +1591,8 @@ void FUtils::GetBlueprintParameters(const UBlueprint* InBlueprint, FAnimNextPara
 					FAnimNextParamType Type = UncookedOnly::FUtils::GetParamTypeFromPinType(ValuePin->PinType);
 					if(Type.IsValid())
 					{
-						OutExports.Parameters.Emplace(ParamName, Type, EAnimNextParameterFlags::Write);
+						FAnimNextParameterAssetRegistryExportEntry NewEntry(ParamName, TInstancedStruct<FAnimNextParamInstanceIdentifier>(), Type, EAnimNextParameterFlags::Write);
+						AddParamToSet(NewEntry, OutExports);
 					}
 				}
 			}
@@ -1663,9 +1773,9 @@ void FUtils::CompileSchedule(UAnimNextSchedule* InSchedule)
 			{
 				bool bValid = true;
 
-				if(GraphEntry->Graph == nullptr && GraphEntry->DynamicGraph == NAME_None)
+				if(GraphEntry->Graph == nullptr && !GraphEntry->DynamicGraph.IsValid())
 				{
-					UE_LOG(LogAnimation, Error, TEXT("AnimNext: Invalid graph or no parameter supplied"));
+					UE_LOG(LogAnimation, Error, TEXT("AnimNext: Invalid graph or invalid parameter supplied"));
 					bValid = false;
 				}
 				else if(GraphEntry->Graph != nullptr)
@@ -1734,12 +1844,12 @@ void FUtils::CompileSchedule(UAnimNextSchedule* InSchedule)
 					GraphTask.TaskIndex = InSchedule->GraphTasks.Num();
 					GraphTask.ParamScopeIndex = InSchedule->NumParameterScopes++;
 					GraphTask.ParamParentScopeIndex = ParentScopeIndex;
-					GraphTask.EntryPoint = GraphEntry->EntryPoint;
+					GraphTask.EntryPoint = FAnimNextParam(GraphEntry->EntryPoint);
 					GraphTask.Graph = GraphEntry->Graph;
-					GraphTask.DynamicGraph = GraphEntry->DynamicGraph;
-					if(GraphEntry->Graph == nullptr && GraphEntry->DynamicGraph != NAME_None)
+					GraphTask.DynamicGraph = FAnimNextParam(GraphEntry->DynamicGraph);
+					if(GraphEntry->Graph == nullptr && GraphEntry->DynamicGraph.IsValid())
 					{
-						GraphTask.SuppliedParameters = GraphEntry->RequiredParameters;
+						Algo::Transform(GraphEntry->RequiredParameters, GraphTask.SuppliedParameters, [](const FAnimNextEditorParam& InParam){ return FAnimNextParam(InParam); });
 						GraphTask.SuppliedParametersHash = SortAndHashParameters(GraphTask.SuppliedParameters);
 					}
 
@@ -1774,7 +1884,7 @@ void FUtils::CompileSchedule(UAnimNextSchedule* InSchedule)
 				ExternalTask.TaskIndex = InSchedule->ExternalTasks.Num();
 				ExternalTask.ParamScopeIndex = InSchedule->NumParameterScopes++;
 				ExternalTask.ParamParentScopeIndex = ParentScopeIndex;
-				ExternalTask.ExternalTask = ExternalTaskEntry->ExternalTask;
+				ExternalTask.ExternalTask = FAnimNextParam(ExternalTaskEntry->ExternalTask);
 				int32 ExternalTaskIndex = InSchedule->ExternalTasks.Add(ExternalTask);
 
 				// Emit the external task
@@ -1796,7 +1906,7 @@ void FUtils::CompileSchedule(UAnimNextSchedule* InSchedule)
 				ParamScopeEntryTask.ParamScopeIndex = ParamScopeIndex;
 				ParamScopeEntryTask.ParamParentScopeIndex = ParentScopeIndex;
 				ParamScopeEntryTask.TickFunctionIndex = InSchedule->NumTickFunctions;
-				ParamScopeEntryTask.Scope = ParamScopeTaskEntry->Scope;
+				ParamScopeEntryTask.Scope = FAnimNextParam(ParamScopeTaskEntry->Scope);
 				ParamScopeEntryTask.Parameters = ParamScopeTaskEntry->Parameters;
 				int32 ParamScopeTaskEntryIndex = InSchedule->ParamScopeEntryTasks.Add(ParamScopeEntryTask);
 
@@ -1818,7 +1928,7 @@ void FUtils::CompileSchedule(UAnimNextSchedule* InSchedule)
 				FAnimNextScheduleParamScopeExitTask ParamScopeExitTask;
 				ParamScopeExitTask.TaskIndex = InSchedule->ParamScopeExitTasks.Num();
 				ParamScopeExitTask.ParamScopeIndex = ParamScopeIndex;
-				ParamScopeExitTask.Scope = ParamScopeTaskEntry->Scope;
+				ParamScopeExitTask.Scope = FAnimNextParam(ParamScopeTaskEntry->Scope);
 				int32 ParamScopeExitTaskIndex = InSchedule->ParamScopeExitTasks.Add(ParamScopeExitTask);
 
 				Emit(EAnimNextScheduleScheduleOpcode::RunParamScopeExit, ParamScopeExitTaskIndex);
@@ -1840,11 +1950,11 @@ void FUtils::CompileSchedule(UAnimNextSchedule* InSchedule)
 		}
 	};
 
-	auto GenerateExternalParameters = [](TArray<TObjectPtr<UAnimNextScheduleEntry>>& InEntries)
+	auto GenerateExternalParameters = [&InSchedule](TArray<TObjectPtr<UAnimNextScheduleEntry>>& InEntries)
 	{
 		struct FParameterTracker
 		{
-			FName SourceName;
+			TInstancedStruct<FAnimNextParamInstanceIdentifier> InstanceId;
 			TArray<TObjectPtr<UAnimNextScheduleEntry>>* BestContainer = nullptr;
 			TSet<FName> ThreadSafeParameters;
 			TSet<FName> NonThreadSafeParameters;
@@ -1852,21 +1962,22 @@ void FUtils::CompileSchedule(UAnimNextSchedule* InSchedule)
 			uint32 BestArrayIndex = MAX_uint32;
 		};
 
+		FModule& Module = FModuleManager::Get().LoadModuleChecked<FModule>("AnimNextUncookedOnly");
+
 		// We need to find the task that is 'earliest' in the DAG for each external parameter, so we track that with this map
 		TMap<FName, FParameterTracker> TrackerMap;
-		auto TrackExternalParameters = [&TrackerMap](TConstArrayView<FAnimNextParam> InParameters, uint32 InDistance, UAnimNextScheduleEntry* InEntry, TArray<TObjectPtr<UAnimNextScheduleEntry>>* InContainer, int32 InArrayIndex, bool bInUpdateDependent)
+		auto TrackExternalParameters = [&InSchedule, &TrackerMap, &Module](TConstArrayView<FAnimNextEditorParam> InParameters, uint32 InDistance, UAnimNextScheduleEntry* InEntry, TArray<TObjectPtr<UAnimNextScheduleEntry>>* InContainer, int32 InArrayIndex, bool bInUpdateDependent)
 		{
-			bool bHasExternal = false;
-			for(const FAnimNextParam& Parameter : InParameters)
-			{
-				// Only add if the parameter name is 'external'
-				FName ParameterSourceName = FExternalParameterRegistry::FindSourceForParameter(Parameter.Name);
-				if(ParameterSourceName != NAME_None)
-				{
-					bHasExternal = true;
-					FParameterTracker& Tracker = TrackerMap.FindOrAdd(ParameterSourceName);
+			using namespace UE::UniversalObjectLocator;
 
-					Tracker.SourceName = ParameterSourceName;
+			bool bHasExternal = false;
+			for(const FAnimNextEditorParam& Parameter : InParameters)
+			{
+				// Only add if the parameter name is 'external' (i.e. it has a valid instance ID)
+				if(Parameter.InstanceId.IsValid() && Parameter.InstanceId.Get().IsValid())
+				{
+					FParameterTracker& Tracker = TrackerMap.FindOrAdd(Parameter.InstanceId.Get().ToName());
+					Tracker.InstanceId = Parameter.InstanceId;
 
 					// Only track array index if this param is update dependent
 					if(bInUpdateDependent && InDistance < Tracker.BestDistance)
@@ -1876,10 +1987,14 @@ void FUtils::CompileSchedule(UAnimNextSchedule* InSchedule)
 						Tracker.BestArrayIndex = InArrayIndex == 0 ? 0 : InArrayIndex - 1;
 					}
 
-					IParameterSourceFactory::FParameterInfo Info;
-					ensure(FExternalParameterRegistry::FindParameterInfo(Parameter.Name, Info));
+					FParameterSourceInfo Info[1];
+					if(TSharedPtr<IParameterSourceType> SourceType = Module.FindParameterSourceType(Parameter.InstanceId.GetScriptStruct()))
+					{
+						SourceType->FindParameterInfo(Parameter.InstanceId, { Parameter.Name }, Info);
+					}
 
-					if(Info.bThreadSafe)
+					// Note that if the above call to FindParameterSourceType or FindParameterInfo fails, this will still default to non-thread safe
+					if(Info[0].bThreadSafe)
 					{
 						Tracker.ThreadSafeParameters.Add(Parameter.Name);
 					}
@@ -1887,6 +2002,8 @@ void FUtils::CompileSchedule(UAnimNextSchedule* InSchedule)
 					{
 						Tracker.NonThreadSafeParameters.Add(Parameter.Name);
 					}
+
+					bHasExternal = true;
 				}
 			}
 			return bHasExternal;
@@ -1906,11 +2023,11 @@ void FUtils::CompileSchedule(UAnimNextSchedule* InSchedule)
 						FAnimNextParameterProviderAssetRegistryExports Exports;
 						if(UncookedOnly::FUtils::GetExportedParametersForAsset(FAssetData(GraphEntry->Graph), Exports))
 						{
-							TArray<FAnimNextParam> RequiredParameters;
+							TArray<FAnimNextEditorParam> RequiredParameters;
 							RequiredParameters.Reserve(Exports.Parameters.Num());
 							for(const FAnimNextParameterAssetRegistryExportEntry& ExportedParameter : Exports.Parameters)
 							{
-								RequiredParameters.Emplace(ExportedParameter.Name, ExportedParameter.Type);
+								RequiredParameters.Emplace(ExportedParameter.Name, ExportedParameter.Type, ExportedParameter.InstanceId);
 							}
 							TrackExternalParameters(RequiredParameters, InDistance, Entry, &InEntries, ArrayIndex, true);
 						}
@@ -1918,28 +2035,22 @@ void FUtils::CompileSchedule(UAnimNextSchedule* InSchedule)
 
 					TrackExternalParameters(GraphEntry->RequiredParameters, InDistance, Entry, &InEntries, ArrayIndex, true);
 
-					// All graphs require access to LOD and ref pose
 					// TODO: need to not require defaults here - use static graph params. In fact, these params should probably be defined at the schedule level.
-					const FAnimNextParam DefaultParams[] =
-					{
-						FAnimNextParam(UAnimNextGraph::DefaultCurrentLODId.GetName(), FAnimNextParamType::GetType<int32>()),
-						FAnimNextParam(UAnimNextGraph::DefaultReferencePoseId.GetName(), FAnimNextParamType::GetType<FAnimNextGraphReferencePose>())
-					};
-					TrackExternalParameters(DefaultParams, InDistance, Entry, &InEntries, ArrayIndex, true);
+					TrackExternalParameters(FAnimNextScheduleGraphTask::GetRequiredParametersInternal(), InDistance, Entry, &InEntries, ArrayIndex, true);
 				}
 				else if (UAnimNextScheduleEntry_Port* PortEntry = Cast<UAnimNextScheduleEntry_Port>(Entry))
 				{
 					if(PortEntry->Port)
 					{
 						UAnimNextSchedulePort* CDO = PortEntry->Port->GetDefaultObject<UAnimNextSchedulePort>();
-						TConstArrayView<FAnimNextParam> RequiredParameters = CDO->GetRequiredParameters();
+						TConstArrayView<FAnimNextEditorParam> RequiredParameters = CDO->GetRequiredParameters();
 						TrackExternalParameters(RequiredParameters, InDistance, Entry, &InEntries, ArrayIndex, true);
 					}
 				}
 				else if (UAnimNextScheduleEntry_ExternalTask* ExternalTaskEntry = Cast<UAnimNextScheduleEntry_ExternalTask>(Entry))
 				{
 					// Note: external task params are not update dependent as this would cause external param updates to occur before tick functions
-					TrackExternalParameters({ FAnimNextParam(ExternalTaskEntry->ExternalTask, FAnimNextParamType::GetType<FAnimNextExternalTaskBinding>() ) }, InDistance, Entry, &InEntries, ArrayIndex, false);
+					TrackExternalParameters({ ExternalTaskEntry->ExternalTask }, InDistance, Entry, &InEntries, ArrayIndex, false);
 				}
 				else if (UAnimNextScheduleEntry_ParamScope* ParamScopeTaskEntry = Cast<UAnimNextScheduleEntry_ParamScope>(Entry))
 				{
@@ -1950,11 +2061,11 @@ void FUtils::CompileSchedule(UAnimNextSchedule* InSchedule)
 							FAnimNextParameterProviderAssetRegistryExports Exports;
 							if(UncookedOnly::FUtils::GetExportedParametersForAsset(FAssetData(Parameters), Exports))
 							{
-								TArray<FAnimNextParam> RequiredParameters;
+								TArray<FAnimNextEditorParam> RequiredParameters;
 								RequiredParameters.Reserve(Exports.Parameters.Num());
 								for(const FAnimNextParameterAssetRegistryExportEntry& ExportedParameter : Exports.Parameters)
 								{
-									RequiredParameters.Emplace(ExportedParameter.Name, ExportedParameter.Type);
+									RequiredParameters.Emplace(ExportedParameter.Name, ExportedParameter.Type, ExportedParameter.InstanceId);
 								}
 								TrackExternalParameters(RequiredParameters, InDistance, Entry, &InEntries, ArrayIndex, true);
 							}
@@ -1989,7 +2100,7 @@ void FUtils::CompileSchedule(UAnimNextSchedule* InSchedule)
 			{
 				TArray<FAnimNextScheduleExternalParameterSource>& ParameterSources = InsertionMap.FindOrAdd({ Container, ArrayIndex, true });
 				FAnimNextScheduleExternalParameterSource& NewSource = ParameterSources.AddDefaulted_GetRef();
-				NewSource.ParameterSource = TrackedParameterPair.Value.SourceName;
+				NewSource.InstanceId = TrackedParameterPair.Value.InstanceId;
 				NewSource.Parameters = TrackedParameterPair.Value.ThreadSafeParameters.Array();
 			}
 
@@ -1997,7 +2108,7 @@ void FUtils::CompileSchedule(UAnimNextSchedule* InSchedule)
 			{
 				TArray<FAnimNextScheduleExternalParameterSource>& ParameterSources = InsertionMap.FindOrAdd({ Container, ArrayIndex, false });
 				FAnimNextScheduleExternalParameterSource& NewSource = ParameterSources.AddDefaulted_GetRef();
-				NewSource.ParameterSource = TrackedParameterPair.Value.SourceName;
+				NewSource.InstanceId = TrackedParameterPair.Value.InstanceId;
 				NewSource.Parameters = TrackedParameterPair.Value.NonThreadSafeParameters.Array();
 			}
 		}
@@ -2079,3 +2190,5 @@ uint64 FUtils::SortAndHashParameters(TArray<FAnimNextParam>& InParameters)
 }
 
 }
+
+#undef LOCTEXT_NAMESPACE

@@ -71,8 +71,6 @@ public:
 	/** Construct a parameter type from the passed in value, container and object type. */
 	FAnimNextParamType(EValueType InValueType, EContainerType InContainerType = EContainerType::None, const UObject* InValueTypeObject = nullptr);
 
-	/** Construct a parameter type from the passed in FRigVMTemplateArgumentType. */
-	static FAnimNextParamType FromRigVMTemplateArgument(const FRigVMTemplateArgumentType& RigVMType);
 private:
 	/** Pointer to object that defines the Enum, Struct, or Class. */
 	UPROPERTY()
@@ -284,6 +282,12 @@ public:
 	/** Get a type from a string */
 	static FAnimNextParamType FromString(const FString& InString);
 
+	/** Get a FRigVMTemplateArgumentType from this type */
+	FRigVMTemplateArgumentType ToRigVMTemplateArgument() const;
+	
+	/** Construct a parameter type from the passed in FRigVMTemplateArgumentType. */
+	static FAnimNextParamType FromRigVMTemplateArgument(const FRigVMTemplateArgumentType& RigVMType);
+	
 	/** Equality operator */
 	friend bool operator==(const FAnimNextParamType& InLHS, const FAnimNextParamType& InRHS)
 	{
@@ -301,7 +305,13 @@ public:
 	{
 		return HashCombineFast(GetTypeHash((uint32)InType.ValueType | ((uint32)InType.ContainerType << 8)), GetTypeHash(InType.ValueTypeObject));
 	}
-	
+
+	/** @return whether this type is explicitly none */
+	bool IsNone() const
+	{
+		return ValueType == EValueType::None && ContainerType == EContainerType::None && !ValueTypeObject;
+	}
+
 	/** @return whether this type actually describes a type */
 	bool IsValid() const
 	{

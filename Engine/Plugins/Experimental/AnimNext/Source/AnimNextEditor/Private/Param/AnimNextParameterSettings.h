@@ -15,12 +15,21 @@ class UAnimNextParameterSettings : public UObject
 	UAnimNextParameterSettings();
 
 public:
-	// Get the type of the last parameter type that we created
+	// Get the type of the last parameter that we created
 	const FAnimNextParamType& GetLastParameterType() const;
 
-	// Set the type of the last parameter type that we created
+	// Set the type of the last parameter that we created
 	void SetLastParameterType(const FAnimNextParamType& InLastParameterType);
+
+	// Get the name of the last parameter that we created
+	FName GetLastParameterName() const;
+
+	// Set the name of the last parameter that we created
+	void SetLastParameterName(FName InLastParameterName);
 private:
 	UPROPERTY(Transient)
 	FAnimNextParamType LastParameterType = FAnimNextParamType::GetType<bool>();
+
+	UPROPERTY(Transient)
+	FName LastParameterName = FName("NewParameter");
 };

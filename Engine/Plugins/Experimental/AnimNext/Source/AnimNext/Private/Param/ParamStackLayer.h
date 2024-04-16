@@ -44,8 +44,7 @@ struct FParamStackLayer
 
 	ANIMNEXT_API FParamResult GetMutableParamData(FParamId InId, FParamTypeHandle InTypeHandle, TArrayView<uint8>& OutParamData);
 	ANIMNEXT_API FParamResult GetMutableParamData(FParamId InId, FParamTypeHandle InTypeHandle, TArrayView<uint8>& OutParamData, FParamTypeHandle& OutParamTypeHandle, FParamCompatibility InRequiredCompatibility = FParamCompatibility::Equal());
-
-	ANIMNEXT_API virtual UObject* AsUObject() { return nullptr; }
+	
 	ANIMNEXT_API virtual FInstancedPropertyBag* AsInstancedPropertyBag() { return nullptr; }
 
 	const Private::FParamEntry* FindEntry(FParamId InId) const;

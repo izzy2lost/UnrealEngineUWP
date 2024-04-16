@@ -4,18 +4,30 @@
 
 #include "CoreMinimal.h"
 #include "AnimNextRigVMAssetEntry.h"
+#include "IAnimNextRigVMExportInterface.h"
 #include "IAnimNextRigVMGraphInterface.h"
+#include "IAnimNextRigVMParameterInterface.h"
 #include "AnimNextGraph_EventGraph.generated.h"
 
 class UAnimNextGraph_EditorData;
 class UAnimNextGraph_EdGraph;
 
+namespace UE::AnimNext::Tests
+{
+	class FEditor_Parameters;
+}
+
 UCLASS(MinimalAPI, Category = "Event Graphs")
-class UAnimNextGraph_EventGraph : public UAnimNextRigVMAssetEntry, public IAnimNextRigVMGraphInterface
+class UAnimNextGraph_EventGraph : public UAnimNextRigVMAssetEntry, public IAnimNextRigVMGraphInterface, public IAnimNextRigVMExportInterface
 {
 	GENERATED_BODY()
 
 	friend class UAnimNextGraph_EditorData;
+	friend class UE::AnimNext::Tests::FEditor_Parameters;
+
+	// IAnimNextRigVMExportInterface interface
+	virtual FAnimNextParamType GetExportType() const override;
+	virtual FName GetExportName() const override;
 
 	// UAnimNextRigVMAssetEntry interface
 	virtual FName GetEntryName() const override { return GraphName; }

@@ -18,6 +18,7 @@ class UAnimNextActorComponentLibrary : public UAnimNextClassExtensionLibrary
 	// UAnimNextClassProxy interface
 	virtual UClass* GetSupportedClass() const override;
 
+public:
 	// Returns the component's tick function
 	UFUNCTION(BlueprintCallable, BlueprintInternalUseOnly)
 	static FAnimNextTickFunctionBinding GetTick(UActorComponent* InComponent);

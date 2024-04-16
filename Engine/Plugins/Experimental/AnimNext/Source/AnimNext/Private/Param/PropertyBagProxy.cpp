@@ -8,7 +8,7 @@ namespace UE::AnimNext
 
 FPropertyBagProxy::FPropertyBagProxy()
 {
-	LayerHandle = FParamStack::MakeReferenceLayer(PropertyBag);
+	LayerHandle = FParamStack::MakeReferenceLayer(NAME_None, PropertyBag);
 }
 
 void FPropertyBagProxy::AddReferencedObjects(FReferenceCollector& Collector)
@@ -22,7 +22,7 @@ void FPropertyBagProxy::AddPropertyAndValue(FName InName, const FProperty* InPro
 	PropertyBag.SetValue(InName, InProperty, InContainerPtr);
 
 	// Recreate the layer handle as the bag layout has changed
-	LayerHandle = FParamStack::MakeReferenceLayer(PropertyBag);
+	LayerHandle = FParamStack::MakeReferenceLayer(NAME_None, PropertyBag);
 }
 
 void FPropertyBagProxy::AddPropertiesAndValues(TConstArrayView<FPropertyAndValue> InPropertiesAndValues)
@@ -45,7 +45,7 @@ void FPropertyBagProxy::AddPropertiesAndValues(TConstArrayView<FPropertyAndValue
 	}
 
 	// Recreate the layer handle as the bag layout has changed
-	LayerHandle = FParamStack::MakeReferenceLayer(PropertyBag);
+	LayerHandle = FParamStack::MakeReferenceLayer(NAME_None, PropertyBag);
 }
 
 }

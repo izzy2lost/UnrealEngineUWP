@@ -12,6 +12,7 @@ struct FAnimNextSchedulerEntry;
 namespace UE::AnimNext
 {
 	struct FScheduleContext;
+	struct FScheduleTaskContext;
 	struct FParamStackLayerHandle;
 }
 
@@ -34,7 +35,7 @@ struct FScheduleBeginTickFunction : public FTickFunction
 
 	void Run(float DeltaTime);
 
-	TSpscQueue<TUniqueFunction<void(const UE::AnimNext::FScheduleContext&)>> PreExecuteTasks;
+	TSpscQueue<TUniqueFunction<void(const UE::AnimNext::FScheduleTaskContext&)>> PreExecuteTasks;
 	FAnimNextSchedulerEntry& Entry;
 	FTickPrerequisite Subsequent;
 };
@@ -86,8 +87,8 @@ struct FScheduleTickFunction : public FTickFunction
 	TConstArrayView<FAnimNextScheduleInstruction> Instructions;
 	TArray<FTickPrerequisite> Subsequents;
 	TConstArrayView<TWeakObjectPtr<UObject>> TargetObjects;
-	TSpscQueue<TUniqueFunction<void(const UE::AnimNext::FScheduleContext&)>> PreExecuteTasks;
-	TSpscQueue<TUniqueFunction<void(const UE::AnimNext::FScheduleContext&)>> PostExecuteTasks;
+	TSpscQueue<TUniqueFunction<void(const UE::AnimNext::FScheduleTaskContext&)>> PreExecuteTasks;
+	TSpscQueue<TUniqueFunction<void(const UE::AnimNext::FScheduleTaskContext&)>> PostExecuteTasks;
 };
 
 }

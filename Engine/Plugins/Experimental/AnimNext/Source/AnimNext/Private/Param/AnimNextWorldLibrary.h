@@ -18,6 +18,7 @@ class UAnimNextWorldLibrary : public UAnimNextClassExtensionLibrary
 	// UAnimNextClassProxy interface
 	virtual UClass* GetSupportedClass() const override;
 
+public:
 	// Returns time in seconds since world was brought up for play, IS stopped when game pauses, IS dilated/clamped
 	UFUNCTION(BlueprintCallable, BlueprintInternalUseOnly)
 	static double GetTimeSeconds(UWorld* InWorld);

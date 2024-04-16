@@ -25,6 +25,12 @@ public:
 	// Set the parameter type
 	virtual bool SetParamType(const FAnimNextParamType& InType, bool bSetupUndoRedo = true) = 0;
 
+	// Get the parameter name (asset path + entry name)
+	virtual FName GetParamName() const = 0;
+
+	// Set the parameter type (only requires the entry name, do not include the asset path)
+	virtual void SetParamName(FName InName, bool bSetupUndoRedo = true) = 0;
+
 	// Access the backing storage property bag for the parameter
 	virtual FInstancedPropertyBag& GetPropertyBag() const = 0;
 };

@@ -84,11 +84,6 @@ FParamResult FParamStackLayerHandle::SetValuesInternal(TConstArrayView<Private::
 	return EParamResult::NotInScope;
 }
 
-UObject* FParamStackLayerHandle::GetUObjectFromLayer() const
-{
-	return Layer->AsUObject();
-}
-
 FInstancedPropertyBag* FParamStackLayerHandle::GetInstancedPropertyBagFromLayer() const
 {
 	return Layer->AsInstancedPropertyBag();

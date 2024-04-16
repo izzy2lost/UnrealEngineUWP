@@ -97,7 +97,7 @@ void UAnimNextSchedulerWorldSubsystem::FlushPendingActions()
 	}
 }
 
-UE::AnimNext::FScheduleHandle UAnimNextSchedulerWorldSubsystem::AcquireHandle(UObject* InObject, UAnimNextSchedule* InSchedule, EAnimNextScheduleInitMethod InInitMethod, TUniqueFunction<void(const UE::AnimNext::FScheduleContext&)>&& InInitializeCallback)
+UE::AnimNext::FScheduleHandle UAnimNextSchedulerWorldSubsystem::AcquireHandle(UObject* InObject, UAnimNextSchedule* InSchedule, EAnimNextScheduleInitMethod InInitMethod, TUniqueFunction<void(const UE::AnimNext::FScheduleInitializationContext&)>&& InInitializeCallback)
 {
 	using namespace UE::AnimNext;
 
@@ -168,7 +168,7 @@ void UAnimNextSchedulerWorldSubsystem::EnableHandle(UE::AnimNext::FScheduleHandl
 	}
 }
 
-void UAnimNextSchedulerWorldSubsystem::QueueTask(UE::AnimNext::FScheduleHandle InHandle, FName InScheduleTaskName, TUniqueFunction<void(const UE::AnimNext::FScheduleContext&)>&& InTaskFunction, UE::AnimNext::FScheduler::ETaskRunLocation InLocation)
+void UAnimNextSchedulerWorldSubsystem::QueueTask(UE::AnimNext::FScheduleHandle InHandle, FName InScheduleTaskName, TUniqueFunction<void(const UE::AnimNext::FScheduleTaskContext&)>&& InTaskFunction, UE::AnimNext::FScheduler::ETaskRunLocation InLocation)
 {
 	using namespace UE::AnimNext;
 
@@ -177,7 +177,7 @@ void UAnimNextSchedulerWorldSubsystem::QueueTask(UE::AnimNext::FScheduleHandle I
 		TUniquePtr<FAnimNextSchedulerEntry>& Entry = Entries[InHandle.Index];
 
 		// TODO: Only supporting scope tasks or "None" for root for now
-		TSpscQueue<TUniqueFunction<void(const UE::AnimNext::FScheduleContext&)>>* Queue = nullptr;
+		TSpscQueue<TUniqueFunction<void(const UE::AnimNext::FScheduleTaskContext&)>>* Queue = nullptr;
 		if(InScheduleTaskName == NAME_None)
 		{
 			Queue = &Entry->BeginTickFunction->PreExecuteTasks;
@@ -186,7 +186,7 @@ void UAnimNextSchedulerWorldSubsystem::QueueTask(UE::AnimNext::FScheduleHandle I
 		{
 			const FAnimNextScheduleParamScopeEntryTask* FoundScope = Entry->Schedule->ParamScopeEntryTasks.FindByPredicate([&InScheduleTaskName](const FAnimNextScheduleParamScopeEntryTask& InTask)
 			{
-				return InTask.Scope == InScheduleTaskName;
+				return InTask.Scope.Name == InScheduleTaskName;
 			});
 
 			if (FoundScope)

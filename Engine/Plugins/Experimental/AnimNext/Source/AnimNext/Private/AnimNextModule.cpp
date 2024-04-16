@@ -1,22 +1,28 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "CoreMinimal.h"
-#include "IAnimNextModule.h"
 #include "AnimNextConfig.h"
-#include "Animation/BlendProfile.h"
-#include "Curves/CurveFloat.h"
-#include "Modules/ModuleManager.h"
-#include "Misc/CoreDelegates.h"
 #include "DataRegistry.h"
-#include "TraitCore/TraitRegistry.h"
-#include "TraitCore/NodeTemplateRegistry.h"
-#include "Graph/AnimNextGraph.h"
-#include "RigVMCore/RigVMRegistry.h"
+#include "IAnimNextModule.h"
+#include "IUniversalObjectLocatorModule.h"
 #include "RigVMRuntimeDataRegistry.h"
 #include "Animation/AnimSequence.h"
-#include "Scheduler/Scheduler.h"
-#include "Param/ExternalParameterRegistry.h"
+#include "Animation/BlendProfile.h"
+#include "Curves/CurveFloat.h"
+#include "Graph/AnimNextGraph.h"
+#include "Modules/ModuleManager.h"
+#include "Param/AnimNextEditorParam.h"
+#include "Param/AnimNextObjectCastLocatorFragment.h"
+#include "Param/AnimNextObjectFunctionLocatorFragment.h"
+#include "Param/AnimNextObjectPropertyLocatorFragment.h"
+#include "Param/AnimNextParam.h"
+#include "Param/AnimNextTag.h"
 #include "Param/ObjectProxyFactory.h"
+#include "RigVMCore/RigVMRegistry.h"
+#include "Scheduler/AnimNextTickFunctionBinding.h"
+#include "Scheduler/Scheduler.h"
+#include "TraitCore/NodeTemplateRegistry.h"
+#include "TraitCore/TraitRegistry.h"
 
 // Enable console commands only in development builds when logging is enabled
 #define WITH_ANIMNEXT_CONSOLE_COMMANDS (!UE_BUILD_SHIPPING && !NO_LOGGING)
@@ -25,9 +31,9 @@
 #include "HAL/IConsoleManager.h"
 #include "UObject/UObjectIterator.h"
 
-#include "TraitCore/TraitTemplate.h"
 #include "TraitCore/NodeDescription.h"
 #include "TraitCore/NodeTemplate.h"
+#include "TraitCore/TraitTemplate.h"
 #endif
 
 namespace UE::AnimNext
@@ -40,6 +46,7 @@ public:
 	{
 		GetMutableDefault<UAnimNextConfig>()->LoadConfig();
 
+		FRigVMRegistry& RigVMRegistry = FRigVMRegistry::Get();
 		static TPair<UClass*, FRigVMRegistry::ERegisterObjectOperation> const AllowedObjectTypes[] =
 		{
 			{ UAnimSequence::StaticClass(), FRigVMRegistry::ERegisterObjectOperation::Class },
@@ -49,16 +56,47 @@ public:
 			{ UAnimNextGraph::StaticClass(), FRigVMRegistry::ERegisterObjectOperation::Class },
 		};
 
-		FRigVMRegistry::Get().RegisterObjectTypes(AllowedObjectTypes);
+		RigVMRegistry.RegisterObjectTypes(AllowedObjectTypes);
 
-		FObjectProxyFactory::Init();
-		FExternalParameterRegistry::Init();
+		static UScriptStruct* const AllowedStructTypes[] =
+		{
+			FAnimNextEditorParam::StaticStruct(),
+			FAnimNextParam::StaticStruct(),
+			FAnimNextScope::StaticStruct(),
+			FAnimNextEntryPoint::StaticStruct(),
+			FUniversalObjectLocator::StaticStruct(),
+			FAnimNextTickFunctionBinding::StaticStruct(),
+		};
+
+		RigVMRegistry.RegisterStructTypes(AllowedStructTypes);
+
+		RegisterParameterSourceFactory("ObjectProxy", MakeShared<FObjectProxyFactory>());
 		FDataRegistry::Init();
 		FTraitRegistry::Init();
 		FNodeTemplateRegistry::Init();
 		FScheduler::Init();
 		FRigVMRuntimeDataRegistry::Init();
 
+		UE::UniversalObjectLocator::IUniversalObjectLocatorModule& UolModule = FModuleManager::Get().LoadModuleChecked<UE::UniversalObjectLocator::IUniversalObjectLocatorModule>("UniversalObjectLocator");
+		FDelayedAutoRegisterHelper(EDelayedRegisterRunPhase::ObjectSystemReady,
+			[&UolModule]
+			{
+				{
+					UE::UniversalObjectLocator::FFragmentTypeParameters FragmentTypeParams("animobjfunc", NSLOCTEXT("Engine", "AnimNextObjectFunctionFragment", "Function"));
+					FragmentTypeParams.PrimaryEditorType = "AnimNextObjectFunction";
+					FAnimNextObjectFunctionLocatorFragment::FragmentType = UolModule.RegisterFragmentType<FAnimNextObjectFunctionLocatorFragment>(FragmentTypeParams);
+				}
+				{
+					UE::UniversalObjectLocator::FFragmentTypeParameters FragmentTypeParams("animobjprop", NSLOCTEXT("Engine", "AnimNextObjectPropertyFragment", "Property"));
+					FragmentTypeParams.PrimaryEditorType = "AnimNextObjectProperty";
+					FAnimNextObjectPropertyLocatorFragment::FragmentType = UolModule.RegisterFragmentType<FAnimNextObjectPropertyLocatorFragment>(FragmentTypeParams);
+				}
+				{
+					UE::UniversalObjectLocator::FFragmentTypeParameters FragmentTypeParams("animobjcast", NSLOCTEXT("Engine", "AnimNextCastFragment", "Cast"));
+					FragmentTypeParams.PrimaryEditorType = "AnimNextObjectCast";
+					FAnimNextObjectCastLocatorFragment::FragmentType = UolModule.RegisterFragmentType<FAnimNextObjectCastLocatorFragment>(FragmentTypeParams);
+				}
+			});
 #if WITH_ANIMNEXT_CONSOLE_COMMANDS
 		if (!IsRunningCommandlet())
 		{
@@ -85,8 +123,7 @@ public:
 		FNodeTemplateRegistry::Destroy();
 		FTraitRegistry::Destroy();
 		FDataRegistry::Destroy();
-		FObjectProxyFactory::Destroy();
-		FExternalParameterRegistry::Destroy();
+		UnregisterParameterSourceFactory("ObjectProxy");
 
 #if WITH_ANIMNEXT_CONSOLE_COMMANDS
 		for (IConsoleObject* Cmd : ConsoleCommands)
@@ -123,6 +160,42 @@ public:
 		{
 			AnimGraphImpl->EvaluateGraph(GraphInstance, RefPose, GraphLODLevel, OutputPose);
 		}
+	}
+
+	virtual TUniquePtr<IParameterSource> CreateParameterSource(const FParameterSourceContext& InContext, const TInstancedStruct<FAnimNextParamInstanceIdentifier>& InInstanceId, TConstArrayView<FName> InRequiredParameters) const override
+	{
+		for(const TPair<FName, TSharedRef<IParameterSourceFactory>>& FactoryPair : ParameterSourceFactories)
+		{
+			// TODO: in future we could introduce a priority system or more complex logic here. For now it is earliest wins as are sources are
+			// all mutually exclusive at the moment.
+			TUniquePtr<IParameterSource> ParameterSource = FactoryPair.Value->CreateParameterSource(InContext, InInstanceId, InRequiredParameters);
+			if(ParameterSource.IsValid())
+			{
+				return ParameterSource;
+			}
+		}
+
+		return nullptr;
+	}
+
+	virtual void RegisterParameterSourceFactory(FName InName, TSharedRef<IParameterSourceFactory> InFactory) override
+	{
+		ParameterSourceFactories.Add(InName, InFactory);
+	}
+
+	virtual void UnregisterParameterSourceFactory(FName InName) override
+	{
+		ParameterSourceFactories.Remove(InName);
+	}
+
+	virtual TSharedPtr<IParameterSourceFactory> FindParameterSourceFactory(FName InName) override
+	{
+		if(TSharedRef<IParameterSourceFactory>* FoundFactory = ParameterSourceFactories.Find(InName))
+		{
+			return *FoundFactory;
+		}
+
+		return nullptr;
 	}
 
 #if WITH_ANIMNEXT_CONSOLE_COMMANDS
@@ -288,6 +361,9 @@ public:
 		LogAnimation.SetVerbosity(OldVerbosity);
 	}
 #endif
+	
+	// All known factories
+	TMap<FName, TSharedRef<IParameterSourceFactory>> ParameterSourceFactories;
 };
 
 IAnimNextModule& IAnimNextModule::Get()

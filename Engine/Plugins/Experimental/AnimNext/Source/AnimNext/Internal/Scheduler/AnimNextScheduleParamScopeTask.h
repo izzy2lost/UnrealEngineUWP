@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Param/AnimNextParam.h"
 #include "AnimNextScheduleParamScopeTask.generated.h"
 
 class UAnimNextSchedule;
@@ -51,9 +52,9 @@ private:
 	UPROPERTY()
 	uint32 TickFunctionIndex = MAX_uint32;
 
-	// The name of the scope
+	// The scope to use
 	UPROPERTY()
-	FName Scope;
+	FAnimNextParam Scope;
 
 	// Parameters to apply in this scopes
 	UPROPERTY()
@@ -80,7 +81,7 @@ private:
 	UPROPERTY()
 	uint32 ParamScopeIndex = MAX_uint32;
 
-	// The name of the scope
+	// The scope to use
 	UPROPERTY()
-	FName Scope;
+	FAnimNextParam Scope;
 };

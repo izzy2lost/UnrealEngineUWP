@@ -17,6 +17,7 @@ namespace UE::AnimNext
 	struct FParamStackLayerHandle;
 	class IParameterSource;
 	struct FPropertyBagProxy;
+	enum class EParameterScopeOrdering : int32;
 }
 
 namespace UE::AnimNext
@@ -33,6 +34,9 @@ struct FScheduleInstanceData : public FGCObject
 	virtual void AddReferencedObjects(FReferenceCollector& Collector) override;
 	virtual FString GetReferencerName() const override;
 
+	// Apply the supplied parameter source to the specified scope, evicting any source that was there previously
+	void ApplyParametersToScope(FName InScope, EParameterScopeOrdering InOrdering, TUniquePtr<IParameterSource>&& InParameters);
+
 	// Get the appropriate params stack given the ID
 	TSharedPtr<FParamStack> GetParamStack(uint32 InIndex) const;
 	
@@ -43,7 +47,7 @@ struct FScheduleInstanceData : public FGCObject
 	FAnimNextSchedulerEntry* Entry = nullptr;
 
 	// Scope for user parameters to be applied at the root of the schedule
-	TUniquePtr<FPropertyBagProxy> RootUserScope;
+	TUniquePtr<IParameterSource> RootUserScope;
 
 	// Pushed layer for the root scope
 	FParamStack::FPushedLayerHandle PushedRootUserLayer;
@@ -51,10 +55,10 @@ struct FScheduleInstanceData : public FGCObject
 	struct FUserScope
 	{
 		// Layer that will be pushed before the scope, allowing the static scope to override the layer
-		TUniquePtr<FPropertyBagProxy> BeforeSource;
+		TUniquePtr<IParameterSource> BeforeSource;
 
 		// Layer that will be pushed after the scope, overriding the static scope
-		TUniquePtr<FPropertyBagProxy> AfterSource;
+		TUniquePtr<IParameterSource> AfterSource;
 	};
 	
 	// Set of dynamic parameter scopes supplied by the user

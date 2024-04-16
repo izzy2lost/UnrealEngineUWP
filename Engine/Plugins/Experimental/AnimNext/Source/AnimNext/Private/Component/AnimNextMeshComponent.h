@@ -7,6 +7,7 @@
 
 struct FAnimNextGraphReferencePose;
 class UAnimNextSchedulePort_AnimNextMeshComponentPose;
+struct FAnimNextScheduleGraphTask;
 
 // Mesh component for use with AnimNext
 UCLASS(MinimalAPI, Blueprintable, meta = (BlueprintSpawnableComponent))
@@ -15,6 +16,7 @@ class UAnimNextMeshComponent : public USkeletalMeshComponent
 	GENERATED_BODY()
 
 	friend class UAnimNextSchedulePort_AnimNextMeshComponentPose;
+	friend struct FAnimNextScheduleGraphTask;
 
 	UAnimNextMeshComponent();
 

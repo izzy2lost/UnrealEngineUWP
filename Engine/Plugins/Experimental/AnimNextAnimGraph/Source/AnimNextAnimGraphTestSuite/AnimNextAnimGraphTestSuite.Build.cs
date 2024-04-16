@@ -29,6 +29,7 @@ namespace UnrealBuildTool.Rules
 						"AnimNextUncookedOnly",
 						"AnimNextEditor",
 						"RigVMDeveloper",
+						"StructUtils",
 					}
 				);
 			}

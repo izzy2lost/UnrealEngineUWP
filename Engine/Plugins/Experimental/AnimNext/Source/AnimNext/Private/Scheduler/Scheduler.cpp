@@ -6,12 +6,8 @@
 #include "Scheduler/ScheduleContext.h"
 #include "Scheduler/AnimNextSchedule.h"
 #include "Scheduler/AnimNextSchedulerWorldSubsystem.h"
-#include "Tasks/Task.h"
-#include "UObject/GCObject.h"
-#include "LODPose.h"
 #include "Engine/World.h"
 #include "Components/SkeletalMeshComponent.h"
-#include "UObject/ObjectKey.h"
 #include "UObject/UObjectIterator.h"
 
 namespace UE::AnimNext
@@ -50,10 +46,8 @@ void FScheduler::Destroy()
 	FWorldDelegates::OnWorldPreActorTick.Remove(Impl.OnWorldPreActorTickHandle);
 }
 
-FScheduleHandle FScheduler::AcquireHandle(UObject* InObject, UAnimNextSchedule* InSchedule, EAnimNextScheduleInitMethod InInitMethod, TUniqueFunction<void(const FScheduleContext&)>&& InInitializeCallback)
+FScheduleHandle FScheduler::AcquireHandle(UObject* InObject, UAnimNextSchedule* InSchedule, EAnimNextScheduleInitMethod InInitMethod, TUniqueFunction<void(const FScheduleInitializationContext&)>&& InInitializeCallback)
 {
-	FScheduleHandle Handle;
-
 	// Check parameters
 	if (InSchedule == nullptr)
 	{
@@ -127,7 +121,7 @@ void FScheduler::EnableHandle(UObject* InObject, FScheduleHandle InHandle, bool 
 	Subsystem->EnableHandle(InHandle, bInEnabled);
 }
 
-void FScheduler::QueueTask(UObject* InObject, FScheduleHandle InHandle, FName InScheduleTaskName, TUniqueFunction<void(const FScheduleContext&)>&& InTaskFunction, ETaskRunLocation InLocation)
+void FScheduler::QueueTask(UObject* InObject, FScheduleHandle InHandle, FName InScheduleTaskName, TUniqueFunction<void(const FScheduleTaskContext&)>&& InTaskFunction, ETaskRunLocation InLocation)
 {
 	if(!InHandle.IsValid())
 	{

@@ -8,6 +8,10 @@
 #include "Param/ParamType.h"
 #include "DetailLayoutBuilder.h"
 #include "EditorUtils.h"
+#include "IAnimNextModule.h"
+#include "IDetailTreeNode.h"
+#include "IPropertyRowGenerator.h"
+#include "IStructureDataProvider.h"
 #include "SAddParametersDialog.h"
 #include "Param/ParameterPickerArgs.h"
 #include "Widgets/Input/SSearchBox.h"
@@ -18,97 +22,100 @@
 #include "Framework/Application/SlateApplication.h"
 #include "ScopedTransaction.h"
 #include "SSimpleButton.h"
+#include "UniversalObjectLocatorEditor.h"
+#include "AnimNextUncookedOnly/Private/AnimNextUncookedOnlyModule.h"
+#include "Component/AnimNextComponent.h"
+#include "Editor/PropertyEditor/Private/SSingleProperty.h"
 #include "Graph/AnimNextGraph.h"
-#include "Param/ExternalParameterRegistry.h"
+#include "Param/AnimNextClassExtensionLibrary.h"
+#include "Param/AnimNextParam.h"
+#include "Param/IParameterSourceType.h"
+#include "Param/ParamUtils.h"
+#include "UObject/UObjectIterator.h"
+#include "Widgets/PropertyViewer/SFieldName.h"
+#include "Widgets/PropertyViewer/SPropertyViewer.h"
+#include "Param/AnimNextParamUniversalObjectLocator.h"
+#include "UniversalObjectLocators/AssetLocatorFragment.h"
 
 #define LOCTEXT_NAMESPACE "SParameterPicker"
 
 namespace UE::AnimNext::Editor
 {
 
-namespace ParameterPicker
+// IStructureDataProvider that allows us to display the instanced struct for instance IDs inline
+class FInstanceIdProvider : public IStructureDataProvider
 {
-static FName Column_Parameter(TEXT("Parameter"));
-static FName Column_Graph(TEXT("Graph"));
-static FName Column_Type(TEXT("Type"));
-static FName Column_New(TEXT("New"));
-}
-
-struct FParameterPickerEntry
-{
-	enum class EFilterResult : uint8
+public:
+	explicit FInstanceIdProvider(TInstancedStruct<FAnimNextParamInstanceIdentifier>& InInstanceId)
+		: InstanceId(InInstanceId)
 	{
-		DoesNotPassFilter	= 0x00,
-		PassesFilter		= 0x01,
-		ChildPassesFilter	= 0x02,
-	};
+	}
 
-	FRIEND_ENUM_CLASS_FLAGS(EFilterResult);
-
-	FParameterPickerEntry() = default;
-
-	FParameterPickerEntry(const FParameterBindingReference& InBinding)
-		: Binding(InBinding)
+	virtual bool IsValid() const override
 	{
-		PinType = UE::AnimNext::UncookedOnly::FUtils::GetPinTypeFromParamType(InBinding.Type);
-		PinIcon = FBlueprintEditorUtils::GetIconFromPin(PinType, /* bIsLarge = */true);
-		PinColor = GetDefault<UEdGraphSchema_K2>()->GetPinTypeColor(PinType);
-		FString ParameterString = Binding.Parameter.ToString();
-		int32 LastUnderscoreLoc = INDEX_NONE;
-		if (ParameterString.FindLastChar(TEXT('_'), LastUnderscoreLoc))
+		return InstanceId.IsValid();
+	}
+	
+	virtual const UStruct* GetBaseStructure() const override
+	{
+		return InstanceId.GetScriptStruct();
+	}
+
+	virtual void GetInstances(TArray<TSharedPtr<FStructOnScope>>& OutInstances, const UStruct* ExpectedBaseStructure) const override
+	{
+		uint8* Memory = const_cast<uint8*>(InstanceId.GetMemory());
+		OutInstances.Add(MakeShared<FStructOnScope>(InstanceId.GetScriptStruct(), Memory));
+	}
+
+	virtual bool IsPropertyIndirection() const override
+	{
+		return true;
+	}
+
+	virtual uint8* GetValueBaseAddress(uint8* ParentValueAddress, const UStruct* ExpectedBaseStructure) const override
+	{
+		if (!ParentValueAddress)
 		{
-			ParameterString.RightChopInline(LastUnderscoreLoc + 1);
+			return nullptr;
 		}
-		DisplayString = MoveTemp(ParameterString);
-	}
 
-	FParameterPickerEntry(FName InName)
-	{
-		Binding.Parameter = InName;
-		FString ParameterString = Binding.Parameter.ToString();
-		int32 LastUnderscoreLoc = INDEX_NONE;
-		if (ParameterString.FindLastChar(TEXT('_'), LastUnderscoreLoc))
+		FInstancedStruct& InstancedStruct = *reinterpret_cast<FInstancedStruct*>(ParentValueAddress);
+		if (ExpectedBaseStructure && InstancedStruct.GetScriptStruct() && InstancedStruct.GetScriptStruct()->IsChildOf(ExpectedBaseStructure))
 		{
-			ParameterString.RightChopInline(LastUnderscoreLoc + 1);
+			return InstancedStruct.GetMutableMemory();
 		}
-		DisplayString = MoveTemp(ParameterString);
+		
+		return nullptr;
 	}
 
-	bool PassesFilter(const FString& InFilterText) const
-	{
-		return Binding.Parameter.ToString().Contains(InFilterText);
-	}
-
-	FString DisplayString;
-
-	FParameterBindingReference Binding;
-
-	FEdGraphPinType PinType;
-
-	const FSlateBrush* PinIcon = nullptr;
-
-	FLinearColor PinColor = FLinearColor::White;
-
-	TSharedPtr<FParameterPickerEntry> Parent;
-
-	TArray<TSharedRef<FParameterPickerEntry>> Children;
-
-	TArray<TSharedRef<FParameterPickerEntry>> FilteredChildren;
-
-	EFilterResult FilterResult = EFilterResult::PassesFilter;
+	TInstancedStruct<FAnimNextParamInstanceIdentifier>& InstanceId;
 };
-
-ENUM_CLASS_FLAGS(FParameterPickerEntry::EFilterResult);
 
 void SParameterPicker::Construct(const FArguments& InArgs)
 {
-	using namespace ParameterPicker;
-
 	Args = InArgs._Args;
+	if(Args.Context == nullptr)
+	{
+		// TODO: This needs to defer to project/schedule/workspace defaults similar to FAnimNextLocatorContext
+		Args.Context = UAnimNextComponent::StaticClass()->GetDefaultObject();
+	}
+
+	SelectedInstanceId = Args.InstanceId;
+	if(!SelectedInstanceId.IsValid())
+	{
+		SelectedInstanceId = TInstancedStruct<FAnimNextParamUniversalObjectLocator>::Make();
+	}
+
+	FieldIterator = MakeUnique<FFieldIterator>(Args.OnFilterParameterType);
 
 	if(Args.OnGetParameterBindings != nullptr)
 	{
 		Args.OnGetParameterBindings->BindSP(this, &SParameterPicker::HandleGetParameterBindings);
+	}
+
+	if(Args.OnSetInstanceId != nullptr)
+	{
+		Args.OnSetInstanceId->BindSP(this, &SParameterPicker::HandleSetInstanceId);
 	}
 
 	if(Args.bFocusSearchWidget)
@@ -119,8 +126,11 @@ void SParameterPicker::Construct(const FArguments& InArgs)
 			{
 				FWidgetPath WidgetToFocusPath;
 				FSlateApplication::Get().GeneratePathToWidgetUnchecked(SearchBox.ToSharedRef(), WidgetToFocusPath);
-				FSlateApplication::Get().SetKeyboardFocus(WidgetToFocusPath, EFocusCause::SetDirectly);
-				WidgetToFocusPath.GetWindow()->SetWidgetToFocusOnActivate(SearchBox);
+				if(WidgetToFocusPath.IsValid())
+				{
+					FSlateApplication::Get().SetKeyboardFocus(WidgetToFocusPath, EFocusCause::SetDirectly);
+					WidgetToFocusPath.GetWindow()->SetWidgetToFocusOnActivate(SearchBox);
+				}
 				return EActiveTimerReturnType::Stop;
 			}
 
@@ -128,542 +138,362 @@ void SParameterPicker::Construct(const FArguments& InArgs)
 		}));
 	}
 
-	TSharedPtr<SHeaderRow> HeaderRow;
-	TSharedRef<SWidget> AddNewParameterWidget = SNullWidget::NullWidget;
+	InstanceIdProvider = MakeShared<FInstanceIdProvider>(SelectedInstanceId);
 
-	if(Args.bAllowNew)
-	{
-		SAssignNew(AddNewParameterWidget, SSimpleButton)
-		.Text(LOCTEXT("AddNewParameterButton", "New Parameter"))
-		.ToolTipText(LOCTEXT("AddColumnHeaderTooltip", "Add a new parameter at global scope"))
-		.Icon(FAppStyle::Get().GetBrush("Icons.Plus"))
-		.OnClicked_Lambda([this]()
-		{
-			FSlateApplication::Get().DismissAllMenus();
-			TSharedRef<SAddParametersDialog> AddParametersDialog =
-				SNew(SAddParametersDialog)
-				.AllowMultiple(false)
-				.OnFilterParameterType(Args.OnFilterParameterType)
-				.InitialParamType(Args.NewParameterType);
-			TArray<FParameterToAdd> ParametersToAdd;
-			if(AddParametersDialog->ShowModal(ParametersToAdd))
-			{
-				if(ParametersToAdd.Num() > 0)
-				{
-					FScopedTransaction Transaction(LOCTEXT("AddParameter", "Add parameter"));
-					for (const FParameterToAdd& ParameterToAdd : ParametersToAdd)
-					{
-						FParameterBindingReference Reference;
-						Reference.Parameter = ParametersToAdd[0].Name;
-						Args.OnAddParameter.ExecuteIfBound(ParametersToAdd[0]);
-						Args.OnParameterPicked.ExecuteIfBound(Reference);
-					}
-				}
-			}
-			return FReply::Handled();
-		});
-	}
+	FPropertyEditorModule& PropertyEditorModule = FModuleManager::Get().LoadModuleChecked<FPropertyEditorModule>("PropertyEditor");
+	FPropertyRowGeneratorArgs PropertyRowGeneratorArgs;
+	PropertyRowGeneratorArgs.NotifyHook = this;
+	PropertyRowGenerator = PropertyEditorModule.CreatePropertyRowGenerator(PropertyRowGeneratorArgs);
+	PropertyRowGenerator->SetStructure(InstanceIdProvider);
 
-
+	check(PropertyRowGenerator->GetRootTreeNodes().Num() > 0);
+	TSharedPtr<IDetailTreeNode> RootNode = PropertyRowGenerator->GetRootTreeNodes()[0];
+	TArray<TSharedRef<IDetailTreeNode>> Children;
+	RootNode->GetChildren(Children);
+	TSharedPtr<IDetailTreeNode> ChildNode = Children[0];
+	const FNodeWidgets NodeWidgets = ChildNode->CreateNodeWidgets();
+	
 	ChildSlot
 	[
-		SNew(SVerticalBox)
-		+SVerticalBox::Slot()
-		.AutoHeight()
-		.Padding(2.0f)
+		SNew(SBox)
+		.WidthOverride(400.0f)
+		.HeightOverride(400.0f)
 		[
-			SNew(SHorizontalBox)
-			+ SHorizontalBox::Slot()
-			.MaxWidth(250.0f)
+			SNew(SVerticalBox)
+			+SVerticalBox::Slot()
+			.AutoHeight()
+			.Padding(Args.bShowInstanceId ? FMargin(0.0f, 2.0f) : FMargin(0.0f))
 			[
-				SAssignNew(SearchBox, SSearchBox)
-				.OnTextChanged_Lambda([this](FText InText)
-				{
-					FilterText = InText;
-					RefreshFilter();
-				})
-			]
-			+ SHorizontalBox::Slot()
-			.HAlign(HAlign_Center)
-			.AutoWidth()
-			[
-				AddNewParameterWidget
-			]
-		]
-		+SVerticalBox::Slot()
-		.FillHeight(1.0f)
-		.Padding(2.0f)
-		[
-			SAssignNew(EntriesList, STreeView<TSharedRef<FParameterPickerEntry>>)
-			.TreeItemsSource(&FilteredHierarchy)
-			.SelectionMode(Args.bMultiSelect ? ESelectionMode::Multi : ESelectionMode::Single)
-			.OnGenerateRow(this, &SParameterPicker::HandleGenerateRow)
-			.OnSelectionChanged(this, &SParameterPicker::HandleSelectionChanged)
-			.OnGetChildren(this, &SParameterPicker::HandleGetChildren)
-			.OnIsSelectableOrNavigable(this, &SParameterPicker::HandleIsSelectableOrNavigable)
-			.ItemHeight(20.0f)
-			.HeaderRow(
-				SAssignNew(HeaderRow, SHeaderRow)
-				+SHeaderRow::Column(Column_Type)
-				.DefaultLabel(FText::GetEmpty())
-				.FixedWidth(24.0f)
-				.HeaderContent()
+				SNew(SHorizontalBox)
+				.Visibility(Args.bShowInstanceId ? EVisibility::Visible : EVisibility::Collapsed)
+				// TODO: slot for picker to switch instance ID types here
+				+SHorizontalBox::Slot()
+				.FillWidth(1.0f)
 				[
-					SNew(SBox)
-					.WidthOverride(16.0f)
-					.HeightOverride(16.0f)
-					.VAlign(VAlign_Center)
-					.HAlign(HAlign_Center)
-					[
-						SNew(SImage)
-						.ColorAndOpacity(FSlateColor::UseForeground())
-						.Image(FAppStyle::GetBrush("Kismet.VariableList.TypeIcon"))
-						.ToolTipText(LOCTEXT("TypeColumnHeaderTooltip", "The parameter's type"))
-					]
+					NodeWidgets.ValueWidget.ToSharedRef()
 				]
-
-				+SHeaderRow::Column(Column_Parameter)
-				.DefaultLabel(LOCTEXT("ParameterColumnHeader", "Parameter"))
-				.ToolTipText(LOCTEXT("ParameterColumnHeaderTooltip", "The parameter's name"))
-				.FillWidth(0.33f)
-			)
+			]
+			+SVerticalBox::Slot()
+			.FillHeight(1.0f)
+			.Padding(2.0f)
+			[
+				SAssignNew(PropertyViewer, UE::PropertyViewer::SPropertyViewer)
+				.OnSelectionChanged(this, &SParameterPicker::HandleFieldPicked)
+				.OnGenerateContainer(this, &SParameterPicker::HandleGenerateContainer)
+				.FieldIterator(FieldIterator.Get())
+				.FieldExpander(&FieldExpander)
+				.bShowSearchBox(true)
+			]
 		]
 	];
 
-	
-	if (Args.bShowSourceGraph)
-	{
-		HeaderRow->AddColumn(
-			SHeaderRow::Column(Column_Graph)
-			.DefaultLabel(LOCTEXT("GraphColumnHeader", "Graph"))
-			.ToolTipText(LOCTEXT("GraphColumnHeaderTooltip", "The graph that has a binding to the parameter"))
-			.FillWidth(0.33f));
-	}
-
-	if(Args.bAllowNew)
-	{
-		HeaderRow->AddColumn(
-			SHeaderRow::Column(Column_New)
-			.DefaultLabel(FText::GetEmpty())
-			.HeaderContentPadding(FMargin(0.0f))
-			.FixedWidth(24.0f)
-			.HeaderContent()
-			[
-				SNew(SButton)
-				.ToolTipText(LOCTEXT("AddColumnHeaderTooltip", "Add a new parameter at global scope"))
-				.ButtonStyle(FAppStyle::Get(), "HoverHintOnly")
-				.OnClicked_Lambda([this]()
-				{
-					FSlateApplication::Get().DismissAllMenus();
-					TSharedRef<SAddParametersDialog> AddParametersDialog =
-						SNew(SAddParametersDialog)
-						.AllowMultiple(false);
-					TArray<FParameterToAdd> ParametersToAdd;
-					if(AddParametersDialog->ShowModal(ParametersToAdd))
-					{
-						if(ParametersToAdd.Num() > 0)
-						{
-							FScopedTransaction Transaction(LOCTEXT("AddParameter", "Add parameter"));
-
-							FParameterBindingReference Reference(ParametersToAdd[0].Name, ParametersToAdd[0].Type);
-							Args.OnParameterPicked.ExecuteIfBound(Reference);
-						}
-					}
-					return FReply::Handled();
-				})
-				[
-					SNew(SBox)
-					.WidthOverride(16.0f)
-					.HeightOverride(16.0f)
-					.VAlign(VAlign_Center)
-					.HAlign(HAlign_Center)
-					[
-						SNew(SImage)
-						.ColorAndOpacity(FSlateColor::UseForeground())
-						.Image(FAppStyle::GetBrush("Icons.Plus"))
-					]
-				]
-			]);
-	}
-	
 	RefreshEntries();
 }
 
 void SParameterPicker::RefreshEntries()
 {
-	Entries.Empty();
+	using namespace UE::UniversalObjectLocator;
 
-	IAssetRegistry& AssetRegistry = FModuleManager::Get().LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry")).Get();
+	PropertyViewer->RemoveAll();
+	CachedContainers.Reset();
+	ContainerMap.Reset();
 
-	FARFilter ARFilter;
-
-	TSet<TTuple<FName, FAssetData>> BoundParameters;
-
-	if(Args.bAllowNone)
+	UncookedOnly::IAnimNextUncookedOnlyModule& Module = FModuleManager::GetModuleChecked<UncookedOnly::IAnimNextUncookedOnlyModule>("AnimNextUncookedOnly");
+	const UStruct* Struct = nullptr;
+	if(SelectedInstanceId.IsValid() && SelectedInstanceId.Get().IsValid())
 	{
-		Entries.Add(MakeShared<FParameterPickerEntry>(FParameterBindingReference(NAME_None, FAnimNextParamType())));
-	}
-	
-	// Find all graphs and their bound parameters
-	if(Args.bShowBoundParameters)
-	{
-		ARFilter.ClassPaths = { UAnimNextGraph::StaticClass()->GetClassPathName() };
-		
-		TArray<FAssetData> GraphAssets;
-		AssetRegistry.GetAssets(ARFilter, GraphAssets);
-
-		for(const FAssetData& GraphAsset : GraphAssets)
+		TSharedPtr<UncookedOnly::IParameterSourceType> SourceType = Module.FindParameterSourceType(SelectedInstanceId.GetScriptStruct());
+		if(SourceType.IsValid())
 		{
-			FAnimNextParameterProviderAssetRegistryExports Exports;
-			if(UncookedOnly::FUtils::GetExportedParametersForAsset(GraphAsset, Exports))
+			Struct = SourceType->GetStruct(SelectedInstanceId);
+		}
+	}
+
+	if(Struct == nullptr || Struct == UAnimNextGraph::StaticClass())
+	{
+		// For AnimNext graphs, we add the structs that are exposed via parameters
+		TMap<FAssetData, FAnimNextParameterProviderAssetRegistryExports> Exports;
+		if(UncookedOnly::FUtils::GetExportedParametersFromAssetRegistry(Exports))
+		{
+			for(const TPair<FAssetData, FAnimNextParameterProviderAssetRegistryExports>& ExportPair : Exports)
 			{
-				for(const FAnimNextParameterAssetRegistryExportEntry& Export : Exports.Parameters)
+				if(ExportPair.Value.Parameters.Num() > 0)
 				{
-					BoundParameters.Add({ Export.Name, GraphAsset });
-					FParameterBindingReference NewReference(Export.Name, Export.Type, GraphAsset);
-					if(!Args.OnFilterParameter.IsBound() || Args.OnFilterParameter.Execute(NewReference) == EFilterParameterResult::Include)
+					// Add a placeholder struct for this asset's properties
+					TArray<FPropertyBagPropertyDesc> PropertyDescs;
+					PropertyDescs.Reserve(ExportPair.Value.Parameters.Num());
+					for(const FAnimNextParameterAssetRegistryExportEntry& ParameterEntry : ExportPair.Value.Parameters)
 					{
-						FAnimNextParamType ParamType = UE::AnimNext::UncookedOnly::FUtils::GetParameterTypeFromName(Export.Name);
-						if(!Args.OnFilterParameterType.IsBound() || Args.OnFilterParameterType.Execute(ParamType) == EFilterParameterResult::Include)
+						if(EnumHasAnyFlags(ParameterEntry.GetFlags(), EAnimNextParameterFlags::Bound) && ParameterEntry.Name != NAME_None)
 						{
-							if (Args.bShowBoundParameters && EnumHasAnyFlags(Export.Flags, EAnimNextParameterFlags::Bound))
+							FParameterBindingReference ParameterBinding;
+							ParameterBinding.Type = ParameterEntry.Type;
+							ParameterBinding.Parameter = UncookedOnly::FUtils::GetParameterNameFromQualifiedName(ParameterEntry.Name);
+							ParameterBinding.Graph = ExportPair.Key;
+
+							if (!Args.OnFilterParameter.IsBound() || Args.OnFilterParameter.Execute(ParameterBinding) == EFilterParameterResult::Include)
 							{
-								TSharedRef<FParameterPickerEntry> NewEntry = MakeShared<FParameterPickerEntry>(NewReference);
-								Entries.Add(NewEntry);
+								if (!Args.OnFilterParameterType.IsBound() || Args.OnFilterParameterType.Execute(ParameterEntry.Type) == EFilterParameterResult::Include)
+								{
+									PropertyDescs.Emplace(ParameterBinding.Parameter, ParameterEntry.Type.GetContainerType(), ParameterEntry.Type.GetValueType(), ParameterEntry.Type.GetValueTypeObject());
+								}
 							}
 						}
 					}
-				}
-			};
-		}
-	}
 
-	// Find all parameters (that have not already been added as bound above)
-	if(Args.bShowUnboundParameters)
-	{
-		FAnimNextParameterProviderAssetRegistryExports AllExports;
-		if(UE::AnimNext::UncookedOnly::FUtils::GetExportedParametersFromAssetRegistry(AllExports))
-		{
-			for(const FAnimNextParameterAssetRegistryExportEntry& ExportEntry : AllExports.Parameters)
-			{
-				if(!BoundParameters.Contains( { ExportEntry.Name, ExportEntry.ReferencingAsset } ))
-				{
-					FParameterBindingReference NewReference(ExportEntry.Name, ExportEntry.Type, ExportEntry.ReferencingAsset);
-
-					if(!Args.OnFilterParameter.IsBound() || Args.OnFilterParameter.Execute(NewReference) == EFilterParameterResult::Include)
+					if(PropertyDescs.Num() > 0)
 					{
-						if (!Args.OnFilterParameterType.IsBound() || Args.OnFilterParameterType.Execute(ExportEntry.Type) == EFilterParameterResult::Include)
-						{
-							TSharedRef<FParameterPickerEntry> NewEntry = MakeShared<FParameterPickerEntry>(NewReference);
-							Entries.Add(NewEntry);
-						}
+						const FText DisplayName = FText::FromName(ExportPair.Key.AssetName);
+						const FText TooltipText = FText::FromString(ExportPair.Key.GetObjectPathString());
+						FContainerInfo& ContainerInfo = CachedContainers.Emplace_GetRef(DisplayName, TooltipText, ExportPair.Key, MakeUnique<FInstancedPropertyBag>());
+						ContainerInfo.PropertyBag->AddProperties(PropertyDescs);
+						UE::PropertyViewer::SPropertyViewer::FHandle Handle = PropertyViewer->AddContainer(ContainerInfo.PropertyBag.Get()->GetPropertyBagStruct(), DisplayName);
+						ContainerMap.Add(Handle, CachedContainers.Num() - 1);
 					}
 				}
 			}
 		}
 	}
-
-	if (Args.bShowBuiltInParameters)
+	else if(Struct != nullptr)
 	{
-		FExternalParameterRegistry::ForEachParameter([this](FName InParameterName, const IParameterSourceFactory::FParameterInfo& InInfo)
+		CachedContainers.Emplace_GetRef(Struct->GetDisplayNameText(), Struct->GetToolTipText(), Struct);
+		if(const UScriptStruct* ScriptStruct = Cast<UScriptStruct>(Struct))
 		{
-			FParameterBindingReference NewReference(InParameterName, InInfo.Type);
-			if (!Args.OnFilterParameter.IsBound() || Args.OnFilterParameter.Execute(NewReference) == EFilterParameterResult::Include)
+			UE::PropertyViewer::SPropertyViewer::FHandle Handle = PropertyViewer->AddContainer(ScriptStruct);
+			ContainerMap.Add(Handle, CachedContainers.Num() - 1);
+		}
+		else if(const UClass* Class = Cast<UClass>(Struct))
+		{
+			UE::PropertyViewer::SPropertyViewer::FHandle Handle = PropertyViewer->AddContainer(Class);
+			ContainerMap.Add(Handle, CachedContainers.Num() - 1);
+
+			// Find any UAnimNextClassExtensionLibrary classes to extend this class
+			for(TObjectIterator<UClass> It; It; ++It)
 			{
-				if (!Args.OnFilterParameterType.IsBound() || Args.OnFilterParameterType.Execute(InInfo.Type) == EFilterParameterResult::Include)
+				UClass* LibraryClass = *It;
+				if(LibraryClass->HasAnyClassFlags(CLASS_Abstract) || !LibraryClass->HasAnyClassFlags(CLASS_Native) || !LibraryClass->IsChildOf(UAnimNextClassExtensionLibrary::StaticClass()))
 				{
-					Entries.Add(MakeShared<FParameterPickerEntry>(NewReference));
+					continue;
 				}
+
+				UClass* ExtendedClass = LibraryClass->GetDefaultObject<UAnimNextClassExtensionLibrary>()->GetSupportedClass();
+				if(ExtendedClass == nullptr)
+				{
+					continue;
+				}
+
+				if(!Class->IsChildOf(ExtendedClass))
+				{
+					continue;
+				}
+
+				CachedContainers.Emplace_GetRef(LibraryClass->GetDisplayNameText(), LibraryClass->GetToolTipText(), LibraryClass);
+				Handle = PropertyViewer->AddContainer(LibraryClass);
+				ContainerMap.Add(Handle, CachedContainers.Num() - 1);
 			}
-		});
+		}
 	}
-
-	BuildHierarchy();
-
-	RefreshFilter();
 }
 
-void SParameterPicker::BuildHierarchy()
+bool SParameterPicker::GetFieldInfo(UE::PropertyViewer::SPropertyViewer::FHandle InHandle, const FFieldVariant& InField, FName& OutName, TInstancedStruct<FAnimNextParamInstanceIdentifier>& OutInstanceId, FAnimNextParamType& OutType) const
 {
-	Hierarchy.Reset();
-
-	TMap<FName, TSharedRef<FParameterPickerEntry>> NameMap;
-	NameMap.Reserve(Entries.Num());
-
-	for (const TSharedRef<FParameterPickerEntry>& Entry : Entries)
+	if(const int32* ContainerIndexPtr = ContainerMap.Find(InHandle))
 	{
-		NameMap.Add(Entry->Binding.Parameter, Entry);
-	}
-
-	TArray< TSharedRef<FParameterPickerEntry>> NewEntries;
-	for (const TSharedRef<FParameterPickerEntry>& Entry : Entries)
-	{
-		// Parse name into separators
-		TStringBuilder<256> WholeParameterString;
-		Entry->Binding.Parameter.ToString(WholeParameterString);
-
-		TStringBuilder<256> PartialParameterString;
-
-		// We use '_' as a separator here as:
-		// - Each param is a UObject in editor and uses its object name, so we cannot use '.'
-		// - This maps nicely to Verse tags that use '_' to hierarchically define their relationship
-		TSharedPtr<FParameterPickerEntry> Parent = nullptr;
-		UE::String::ParseTokens(WholeParameterString, TEXT('_'), [this, &PartialParameterString, &NameMap, &Parent, &NewEntries](FStringView InStringView)
+		const FContainerInfo& ContainerInfo = CachedContainers[*ContainerIndexPtr];
+		if(UFunction* Function = InField.Get<UFunction>())
 		{
-			if(Parent.IsValid())
+			check(Function->GetReturnProperty());
+			OutType = FParamTypeHandle::FromProperty(Function->GetReturnProperty()).GetType();
+			OutName = *Function->GetPathName();
+			OutInstanceId = SelectedInstanceId;
+		}
+		else if(FProperty* Property = InField.Get<FProperty>())
+		{
+			OutType = FParamTypeHandle::FromProperty(Property).GetType();
+			if(ContainerInfo.PropertyBag.IsValid())
 			{
-				// Have a parent, so add child if it doesnt exist already
-				PartialParameterString += TEXT('_');
-				PartialParameterString += InStringView;
-
-				const FName ParameterName(InStringView);
-				const FName PartialParameterName(PartialParameterString);
-				if (TSharedRef<FParameterPickerEntry>* ExistingEntry = NameMap.Find(PartialParameterName))
-				{
-					(*ExistingEntry)->Parent = Parent;
-					if (!Parent->Children.ContainsByPredicate([&ExistingEntry](const TSharedRef<FParameterPickerEntry>& InEntry) { return (*ExistingEntry)->Binding.Parameter == InEntry->Binding.Parameter; }))
-					{
-						Parent->Children.Add(*ExistingEntry);
-					}
-					Parent = *ExistingEntry;
-				}
-				else
-				{
-					TSharedRef<FParameterPickerEntry> NewEntry = MakeShared<FParameterPickerEntry>(PartialParameterName);
-					NewEntry->Parent = Parent;
-					if (!Parent->Children.ContainsByPredicate([&NewEntry](const TSharedRef<FParameterPickerEntry>& InEntry) { return NewEntry->Binding.Parameter == InEntry->Binding.Parameter; }))
-					{
-						Parent->Children.Add(NewEntry);
-					}
-					Parent = NameMap.Add(PartialParameterName, NewEntry);
-					NewEntries.Add(NewEntry);
-				}
+				// Properties from property bags are assumed to use the asset that they come from
+				ensure(ContainerInfo.AssetData.IsValid());
+				TStringBuilder<256> StringBuilder;
+				ContainerInfo.AssetData.AppendObjectPath(StringBuilder);
+				StringBuilder.Append(TEXT(":"));
+				Property->GetFName().AppendString(StringBuilder);
+				OutName = FName(StringBuilder.ToView());
+				OutInstanceId = TInstancedStruct<FAnimNextParamUniversalObjectLocator>::Make();
+				OutInstanceId.GetMutable<FAnimNextParamUniversalObjectLocator>().Locator.Reset();
+				OutInstanceId.GetMutable<FAnimNextParamUniversalObjectLocator>().Locator.AddFragment<FAssetLocatorFragment>(ContainerInfo.AssetData);
 			}
 			else
 			{
-				PartialParameterString += InStringView;
-
-				// Add root item if it doesnt exist already
-				const FName ParameterName(InStringView);
-				if (TSharedRef<FParameterPickerEntry>* ExistingParent = NameMap.Find(ParameterName))
-				{
-					Parent = *ExistingParent;
-				}
-				else
-				{
-					TSharedRef<FParameterPickerEntry> NewEntry = MakeShared<FParameterPickerEntry>(ParameterName);
-					Parent = NameMap.Add(ParameterName, NewEntry);
-					NewEntries.Add(NewEntry);
-				}
-
-				if (!Hierarchy.ContainsByPredicate([&Parent](const TSharedRef<FParameterPickerEntry>& InEntry){ return Parent->Binding.Parameter == InEntry->Binding.Parameter; }))
-				{
-					Hierarchy.Add(Parent.ToSharedRef());
-				}
-			}
-		}, UE::String::EParseTokensOptions::SkipEmpty);
-	}
-
-	Entries.Append(NewEntries);
-}
-
-void SParameterPicker::RefreshFilter()
-{
-	FilteredEntries.Reset();
-	FilteredHierarchy.Reset();
-	const FString FilterTextAsString = FilterText.ToString();
-
-	for (const TSharedRef<FParameterPickerEntry>& Entry : Entries)
-	{
-		Entry->FilterResult = FParameterPickerEntry::EFilterResult::DoesNotPassFilter;
-	}
-
-	for(const TSharedRef<FParameterPickerEntry>& Entry : Entries)
-	{
-		Entry->FilteredChildren.Reset();
-		if(Entry->PassesFilter(FilterTextAsString))
-		{
-			Entry->FilterResult |= FParameterPickerEntry::EFilterResult::PassesFilter;
-			FilteredEntries.Add(Entry);
-
-			if(FilterTextAsString.Len() > 0)
-			{
-				TSharedPtr< FParameterPickerEntry> ParentEntry = Entry->Parent;
-				while (ParentEntry.IsValid())
-				{
-					ParentEntry->FilterResult |= FParameterPickerEntry::EFilterResult::ChildPassesFilter;
-					ParentEntry = ParentEntry->Parent;
-				}
-			}
-		}
-	}
-
-	TArray<TSharedRef<FParameterPickerEntry>> Stack;
-	Stack.Reserve(16);
-	for (const TSharedRef<FParameterPickerEntry>& Entry : Hierarchy)
-	{
-		Stack.Add(Entry);
-	}
-
-	while (Stack.Num() > 0)
-	{
-		TSharedRef<FParameterPickerEntry> Top = Stack.Top();
-		Stack.Pop(EAllowShrinking::No);
-
-		if (Top->FilterResult != FParameterPickerEntry::EFilterResult::DoesNotPassFilter)
-		{
-			if (!Top->Parent.IsValid())
-			{
-				FilteredHierarchy.Add(Top);
-			}
-			else
-			{
-				Top->Parent->FilteredChildren.Add(Top);
-			}
-
-			for (const TSharedRef<FParameterPickerEntry>& ChildEntry : Top->Children)
-			{
-				Stack.Add(ChildEntry);
-			}
-
-			if (EnumHasAnyFlags(Top->FilterResult, FParameterPickerEntry::EFilterResult::ChildPassesFilter))
-			{
-				EntriesList->SetItemExpansion(Top, true);
-			}
-		}
-	}
-
-	EntriesList->RequestTreeRefresh();
-}
-
-class SParameterPickerRow : public SMultiColumnTableRow<TSharedRef<FParameterPickerEntry>>
-{
-	SLATE_BEGIN_ARGS(SParameterPickerRow) {}
-	SLATE_END_ARGS()
-
-	void Construct(const FArguments& InArgs, const TSharedRef<STableViewBase>& InOwnerTableView, TSharedRef<FParameterPickerEntry> InEntry, TSharedRef<const SParameterPicker> InParameterPicker)
-	{
-		Entry = InEntry;
-		ParameterPicker = InParameterPicker;
-		SMultiColumnTableRow<TSharedRef<FParameterPickerEntry>>::Construct( SMultiColumnTableRow<TSharedRef<FParameterPickerEntry>>::FArguments(), InOwnerTableView);
-	}
-
-	virtual TSharedRef<SWidget> GenerateWidgetForColumn(const FName& InColumnName) override
-	{
-		using namespace ParameterPicker;
-
-		if (InColumnName == Column_Type)
-		{
-			return
-				SNew(SHorizontalBox)
-				.Visibility(Entry->Binding.Type.IsValid() ? EVisibility::Visible : EVisibility::Hidden)
-				+ SHorizontalBox::Slot()
-				.HAlign(HAlign_Center)
-				.VAlign(VAlign_Center)
-				.Padding(2.0f)
-				.AutoWidth()
-				[
-					SNew(SImage)
-					.Image(Entry->PinIcon)
-					.ColorAndOpacity(Entry->PinColor)
-					.ToolTipText_Lambda([this]() -> FText
-					{
-						return FText::FromString(Entry->Binding.Type.ToString());
-					})
-				];
-		}
-		else if(InColumnName == Column_Parameter)
-		{
-			return
-				SNew(SHorizontalBox)
-				+SHorizontalBox::Slot()
-				.HAlign(HAlign_Center)
-				.VAlign(VAlign_Center)
-				.Padding(2.0f)
-				.AutoWidth()
-				[
-					SNew(SExpanderArrow, SharedThis(this))
-					.IndentAmount(8)
-				]
-				+SHorizontalBox::Slot()
-				.VAlign(VAlign_Center)
-				.Padding(2.0f)
-				.FillWidth(1.0f)
-				[
-					SNew(STextBlock)
-					.Font(IDetailLayoutBuilder::GetDetailFont())
-					.Text(FText::FromString(Entry->DisplayString))
-					.ToolTipText(FText::Format(LOCTEXT("ParameterPathTooltip", "{1}::{0}"), UncookedOnly::FUtils::GetParameterDisplayNameText(Entry->Binding.Parameter), FText::FromName(Entry->Binding.Asset.AssetName)))
-					.HighlightText_Lambda([this]()
-					{
-						return ParameterPicker.Pin()->FilterText;
-					})
-				];
-		}
-		else if(InColumnName == Column_Graph)
-		{
-			if(Entry->Binding.Graph.IsValid())
-			{
-				return
-					SNew(SBox)
-					.VAlign(VAlign_Center)
-					[
-						SNew(STextBlock)
-						.Font(IDetailLayoutBuilder::GetDetailFont())
-						.Text(FText::FromName(Entry->Binding.Graph.AssetName))
-						.ToolTipText(FText::FromName(Entry->Binding.Graph.PackageName))
-					];
+				OutName = *Property->GetPathName();
+				OutInstanceId = SelectedInstanceId;
 			}
 		}
 
-		return SNullWidget::NullWidget;
+		return true;
 	}
-	
-	TWeakPtr<const SParameterPicker> ParameterPicker;
-	TSharedPtr<FParameterPickerEntry> Entry;
-};
 
-TSharedRef<ITableRow> SParameterPicker::HandleGenerateRow(TSharedRef<FParameterPickerEntry> InEntry, const TSharedRef<STableViewBase>& InOwnerTable) const
-{
-	return SNew(SParameterPickerRow, InOwnerTable, InEntry, SharedThis(this));
-}
-
-void SParameterPicker::HandleGetChildren(TSharedRef<FParameterPickerEntry> InEntry, TArray<TSharedRef<FParameterPickerEntry>>& OutChildren) const
-{
-	OutChildren = InEntry->FilteredChildren;
-}
-
-void SParameterPicker::HandleSelectionChanged(TSharedPtr<FParameterPickerEntry> InEntry, ESelectInfo::Type InSelectInfo)
-{
-	Args.OnSelectionChanged.ExecuteIfBound();
-
-	if(!Args.bMultiSelect && EntriesList->GetNumItemsSelected() == 1 && Args.OnParameterPicked.IsBound())
-	{
-		TArray<TSharedRef<FParameterPickerEntry>> SelectedEntries;
-		EntriesList->GetSelectedItems(SelectedEntries);
-
-		if(SelectedEntries[0]->Binding.Type.IsValid() || Args.bAllowNone)
-		{
-			Args.OnParameterPicked.ExecuteIfBound(SelectedEntries[0]->Binding);
-		}
-	}
+	return false;
 }
 
 void SParameterPicker::HandleGetParameterBindings(TArray<FParameterBindingReference>& OutParameterBindings) const
 {
-	TArray<TSharedRef<FParameterPickerEntry>> SelectedEntries;
-	EntriesList->GetSelectedItems(SelectedEntries);
+	TArray<UE::PropertyViewer::SPropertyViewer::FSelectedItem> SelectedItems = PropertyViewer->GetSelectedItems();
 
-	for(TSharedRef<FParameterPickerEntry>& Entry : SelectedEntries)
+	for(UE::PropertyViewer::SPropertyViewer::FSelectedItem& SelectedItem : SelectedItems)
 	{
-		OutParameterBindings.Emplace(Entry->Binding);
+		if(SelectedItem.Fields.Num() > 0 && SelectedItem.Fields.Last().Num() > 0)
+		{
+			if(const int32* ContainerIndexPtr = ContainerMap.Find(SelectedItem.Handle))
+			{
+				const FContainerInfo& ContainerInfo = CachedContainers[*ContainerIndexPtr];
+				FAnimNextParamType Type;
+				FName Name;
+				TInstancedStruct<FAnimNextParamInstanceIdentifier> InstanceId;
+				if(GetFieldInfo(SelectedItem.Handle, SelectedItem.Fields.Last().Last(), Name, InstanceId, Type))
+				{
+					if(ensure(Type.IsValid() && !Name.IsNone()))
+					{
+						FParameterBindingReference NewReference;
+						NewReference.Parameter = Name;
+						NewReference.InstanceId = InstanceId;
+						NewReference.Type = Type;
+						NewReference.Graph = ContainerInfo.AssetData;
+						OutParameterBindings.Emplace(NewReference);
+					}
+				}
+			}
+		}
 	}
 }
 
-bool SParameterPicker::HandleIsSelectableOrNavigable(TSharedRef<FParameterPickerEntry> InEntry) const
+void SParameterPicker::HandleSetInstanceId(const TInstancedStruct<FAnimNextParamInstanceIdentifier>& InInstanceId)
 {
-	// Only allow selecting items that have valid parameters
-	return InEntry->Binding.Type.IsValid();
+	SelectedInstanceId = InInstanceId;
+	RefreshEntries();
+}
+
+void SParameterPicker::HandleFieldPicked(UE::PropertyViewer::SPropertyViewer::FHandle InHandle, TArrayView<const FFieldVariant> InFields, ESelectInfo::Type InSelectionType)
+{
+	if(InFields.Num() == 1)
+	{
+		FAnimNextParamType Type;
+		FName Name;
+		TInstancedStruct<FAnimNextParamInstanceIdentifier> InstanceId;
+		if(GetFieldInfo(InHandle, InFields.Last(), Name, InstanceId, Type))
+		{
+			if(ensure(Type.IsValid() && !Name.IsNone()))
+			{
+				UncookedOnly::IAnimNextUncookedOnlyModule& Module = FModuleManager::GetModuleChecked<UncookedOnly::IAnimNextUncookedOnlyModule>("AnimNextUncookedOnly");
+				if(InstanceId.IsValid() && InstanceId.Get().IsValid())
+				{
+					TSharedPtr<UncookedOnly::IParameterSourceType> SourceType = Module.FindParameterSourceType(InstanceId.GetScriptStruct());
+					if(SourceType.IsValid())
+					{
+						const UStruct* Struct = SourceType->GetStruct(InstanceId);
+						if(Struct && Struct == UAnimNextGraph::StaticClass())
+						{
+							// Invalidate the instance ID if this is an AnimNext graph, as they dont have instances
+							InstanceId.Reset();
+						}
+					}
+				}
+
+				FParameterBindingReference Reference(Name, Type, InstanceId);
+				Args.OnParameterPicked.ExecuteIfBound(Reference);
+			}
+		}
+	}
+}
+
+TSharedRef<SWidget> SParameterPicker::HandleGenerateContainer(UE::PropertyViewer::SPropertyViewer::FHandle InHandle, TOptional<FText> InDisplayName)
+{
+	if(int32* ContainerIndexPtr = ContainerMap.Find(InHandle))
+	{
+		if(CachedContainers.IsValidIndex(*ContainerIndexPtr))
+		{
+			FContainerInfo& ContainerInfo = CachedContainers[*ContainerIndexPtr];
+
+			return SNew(SHorizontalBox)
+			+SHorizontalBox::Slot()
+			.AutoWidth()
+			.HAlign(HAlign_Right)
+			.VAlign(VAlign_Center)
+			[
+				SNew(SImage)
+				.Image(FAppStyle::GetBrush("ClassIcon.Object"))
+			]
+			+SHorizontalBox::Slot()
+			.Padding(4.0f)
+			[
+				SNew(STextBlock)
+				.Text(ContainerInfo.DisplayName)
+				.ToolTipText(ContainerInfo.TooltipText)
+			];
+		}
+	}
+
+	return SNullWidget::NullWidget;
+}
+
+void SParameterPicker::NotifyPostChange(const FPropertyChangedEvent& PropertyChangedEvent, FEditPropertyChain* PropertyThatChanged)
+{
+	Args.OnInstanceIdChanged.ExecuteIfBound(SelectedInstanceId);
+	RefreshEntries();
+}
+
+TArray<FFieldVariant> SParameterPicker::FFieldIterator::GetFields(const UStruct* InStruct) const
+{
+	auto PassesFilterChecks = [this](const FProperty* InProperty)
+	{
+		if(InProperty && OnFilterParameterType.IsBound())
+		{
+			FAnimNextParamType Type = FParamTypeHandle::FromProperty(InProperty).GetType();
+			return OnFilterParameterType.Execute(Type) == EFilterParameterResult::Include;
+		}
+
+		return false;
+	};
+	
+	TArray<FFieldVariant> Result;
+	for (TFieldIterator<FProperty> PropertyIt(InStruct, EFieldIteratorFlags::IncludeSuper); PropertyIt; ++PropertyIt)
+	{
+		FProperty* Property = *PropertyIt;
+		if (FParamUtils::CanUseProperty(Property))
+		{
+			if(PassesFilterChecks(Property))
+			{
+				Result.Add(FFieldVariant(Property));
+			}
+		}
+	}
+	for (TFieldIterator<UFunction> FunctionIt(InStruct, EFieldIteratorFlags::IncludeSuper); FunctionIt; ++FunctionIt)
+	{
+		UFunction* Function = *FunctionIt;
+		if (FParamUtils::CanUseFunction(Function))
+		{
+			if(PassesFilterChecks(Function->GetReturnProperty()))
+			{
+				Result.Add(FFieldVariant(Function));
+			}
+		}
+	}
+	return Result;
+}
+
+TOptional<const UClass*> SParameterPicker::FFieldExpander::CanExpandObject(const FObjectPropertyBase* Property, const UObject* Instance) const
+{
+	return TOptional<const UClass*>();
+}
+
+bool SParameterPicker::FFieldExpander::CanExpandScriptStruct(const FStructProperty* StructProperty) const
+{
+	return false;
+}
+
+TOptional<const UStruct*> SParameterPicker::FFieldExpander::GetExpandedFunction(const UFunction* Function) const
+{
+	return TOptional<const UStruct*>();
 }
 
 }

@@ -9,7 +9,9 @@
 #include "Graph/AnimNextGraph_Parameter.h"
 #include "Graph/AnimNextGraph_EditorData.h"
 #include "Graph/AnimNextGraph_AnimationGraph.h"
+#include "Graph/AnimNextGraph_EventGraph.h"
 #include "Graph/GraphFactory.h"
+#include "Param/RigVMDispatch_GetParameter.h"
 #if WITH_EDITOR
 #include "ScopedTransaction.h"
 #include "Editor.h"
@@ -28,6 +30,8 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FEditor_Parameters, "Animation.AnimNext.Editor.
 bool FEditor_Parameters::RunTest(const FString& InParameters)
 {
 	using namespace UE::AnimNext;
+
+	ON_SCOPE_EXIT{ FUtils::CleanupAfterTests(); };
 
 	const TStrongObjectPtr<UFactory> GraphFactory(NewObject<UAnimNextGraphFactory>());
 	UAnimNextGraph* Graph = Cast<UAnimNextGraph>(GraphFactory->FactoryCreateNew(UAnimNextGraph::StaticClass(), GetTransientPackage(), TEXT("TestAnimNextGraph"), RF_Transient, nullptr, nullptr, NAME_None));
@@ -71,14 +75,17 @@ bool FEditor_Parameters::RunTest(const FString& InParameters)
 	AddExpectedError(TEXT("UAnimNextGraph_EditorData::AddParameter: Invalid parameter name supplied."));
 	AddErrorIfFalse(EditorData->AddParameter(NAME_None, FAnimNextParamType::GetType<bool>()) == nullptr, TEXT("Expected invalid argument to fail"));
 
-	auto TestParameterType = [this, EditorData](FAnimNextParamType InType)
+	auto TestParameterType = [this, EditorData](FAnimNextParamType InType, bool bInRemove = true)
 	{
 		UAnimNextGraph_Parameter* TypedParameter = EditorData->AddParameter(TEXT("TestParam0"), InType);
 		const bool bValidParameter = TypedParameter != nullptr;
 		if (bValidParameter && AddErrorIfFalse(bValidParameter, FString::Printf(TEXT("Could not create new parameter of type %s in graph."), *InType.ToString())))
 		{
 			AddErrorIfFalse(TypedParameter->GetParamType() == InType, TEXT("Incorrect parameter type found"));
-			EditorData->RemoveEntry(TypedParameter);
+			if(bInRemove)
+			{
+				EditorData->RemoveEntry(TypedParameter);
+			}
 		}
 	};
 
@@ -121,10 +128,9 @@ bool FEditor_Parameters::RunTest(const FString& InParameters)
 	GEditor->UndoTransaction();
 
 	// Add graph
-	UAnimNextGraph_EventGraph* EventGraph = nullptr;
 	{
 		FScopedTransaction Transaction(FText::GetEmpty());
-		EventGraph = EditorData->AddEventGraph(TEXT("TestGraph"));
+		UAnimNextGraph_EventGraph* EventGraph = EditorData->AddEventGraph(TEXT("TestGraph"));
 		AddErrorIfFalse(EventGraph != nullptr, TEXT("Could not create new event graph in graph."));
 	}
 
@@ -135,12 +141,41 @@ bool FEditor_Parameters::RunTest(const FString& InParameters)
 	AddErrorIfFalse(EditorData->Entries.Num() == 1, FString::Printf(TEXT("Unexpected entry count found in graph (Have %d, expected 1)."), EditorData->Entries.Num()));
 	GEditor->UndoTransaction();
 
-	FUtils::CleanupAfterTests();
+	// Add graph and add parameter getters and setters to it, testing compilation
+	{
+		TestParameterType(FAnimNextParamType::GetType<bool>(), false);
+
+		IAnimNextRigVMParameterInterface* ParameterEntry = CastChecked<IAnimNextRigVMParameterInterface>(EditorData->FindEntry("TestParam0"));
+		UE_RETURN_ON_ERROR(ParameterEntry != nullptr, TEXT("Could not find new parameter entry."));
+
+		UAnimNextGraph_EventGraph* EventGraph = EditorData->AddEventGraph(TEXT("TestGraph1"));
+		AddErrorIfFalse(EventGraph != nullptr, TEXT("Could not create new event graph in graph."));
+
+		URigVMGraph* RigVMGraph = EventGraph->GetRigVMGraph();
+		UE_RETURN_ON_ERROR(RigVMGraph->GetNodes().Num() == 1, TEXT("Unexpected number of nodes in new event graph."));
+
+		URigVMNode* EventNode = RigVMGraph->GetNodes()[0];
+		check(EventNode);
+		URigVMPin* ExecutePin = EventNode->FindPin("ExecuteContext");
+		UE_RETURN_ON_ERROR(ExecutePin != nullptr, TEXT("Could find initial execute pin."));
+
+		UAnimNextGraph_Controller* Controller = Cast<UAnimNextGraph_Controller>(EditorData->GetController(EventGraph->GetRigVMGraph()));
+		URigVMNode* GetParameterNode = Controller->AddGetAnimNextGraphParameterNode(FVector2D::ZeroVector, ParameterEntry->GetParamName(), FAnimNextParamType::GetType<bool>());
+		UE_RETURN_ON_ERROR(GetParameterNode != nullptr, TEXT("Could not add GetParameter node."));
+
+		URigVMNode* SetParameterNode = Controller->AddSetAnimNextGraphParameterNode(FVector2D::ZeroVector, ParameterEntry->GetParamName(), FAnimNextParamType::GetType<bool>());
+		UE_RETURN_ON_ERROR(SetParameterNode != nullptr, TEXT("Could not add SetParameter node."));
+
+		UE_RETURN_ON_ERROR(Controller->AddLink(ExecutePin, SetParameterNode->FindPin("ExecuteContext")), TEXT("Could not link SetParameter node."));
+
+		const FString ValuePin = FRigVMDispatch_GetParameter::ValueName.ToString(); 
+		UE_RETURN_ON_ERROR(Controller->AddLink(GetParameterNode->FindPin(ValuePin), SetParameterNode->FindPin(ValuePin)), TEXT("Could not link value pins."));
+	}
 
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FEditor_Parameters_Python, "Animation.AnimNext.Editor.Parameters.Python", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FEditor_Parameters_Python, "Animation.AnimNext.Editor.PythonParameters", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
 bool FEditor_Parameters_Python::RunTest(const FString& InParameters)
 {

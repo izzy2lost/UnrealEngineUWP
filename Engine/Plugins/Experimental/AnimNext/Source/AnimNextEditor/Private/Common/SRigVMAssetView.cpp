@@ -802,7 +802,7 @@ class SRigVMAssetViewRow : public SMultiColumnTableRow<TSharedRef<FRigVMAssetVie
 					.OnVerifyTextChanged_Lambda([this](const FText& InNewText, FText& OutErrorText)
 					{
 						const FString NewString = InNewText.ToString();
-						if (!FUtils::IsValidEntryNameString(NewString, OutErrorText))
+						if (!FUtils::IsValidParameterNameString(NewString, OutErrorText))
 						{
 							return false;
 						}
@@ -822,14 +822,7 @@ class SRigVMAssetViewRow : public SMultiColumnTableRow<TSharedRef<FRigVMAssetVie
 					{
 						if(UAnimNextRigVMAssetEntry* AssetEntry = Cast<UAnimNextRigVMAssetEntry>(Entry->WeakEntry.Get()))
 						{
-							if(IAnimNextRigVMParameterInterface* ParameterInterface = Cast<IAnimNextRigVMParameterInterface>(AssetEntry))
-							{
-								return UncookedOnly::FUtils::GetParameterDisplayNameText(AssetEntry->GetEntryName());
-							}
-							else
-							{
-								return FText::FromName(AssetEntry->GetEntryName());
-							}
+							return FText::FromName(AssetEntry->GetEntryName());
 						}
 						return FText::GetEmpty();
 					})
@@ -854,9 +847,7 @@ class SRigVMAssetViewRow : public SMultiColumnTableRow<TSharedRef<FRigVMAssetVie
 					if (const IAnimNextRigVMParameterInterface* ParameterInterface = Cast<IAnimNextRigVMParameterInterface>(AssetEntry))
 					{
 						FInstancedPropertyBag& PropertyBag = ParameterInterface->GetPropertyBag();
-						const FName ParameterName = AssetEntry->GetEntryName();
-
-
+						const FName ParameterName = ParameterInterface->GetParamName();
 						if (const FPropertyBagPropertyDesc* PropertyDesc = PropertyBag.FindPropertyDescByName(ParameterName))
 						{
 							if (PropertyDesc->ContainerTypes.IsEmpty()) // avoid trying to inline containers

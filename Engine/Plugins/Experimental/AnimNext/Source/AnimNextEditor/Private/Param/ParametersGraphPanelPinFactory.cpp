@@ -1,10 +1,13 @@
 ﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "ParametersGraphPanelPinFactory.h"
+#include "SGraphPinParam.h"
 #include "SGraphPinParamName.h"
 #include "EdGraphSchema_K2.h"
 #include "EdGraph/RigVMEdGraph.h"
 #include "EdGraph/RigVMEdGraphNode.h"
+#include "Param/AnimNextParam.h"
+#include "Param/AnimNextEditorParam.h"
 
 namespace UE::AnimNext::Editor
 {
@@ -18,12 +21,19 @@ TSharedPtr<SGraphPin> FParametersGraphPanelPinFactory::CreatePin_Internal(UEdGra
 {
 	if (URigVMEdGraphNode* RigNode = Cast<URigVMEdGraphNode>(InPin->GetOwningNode()))
 	{
-		URigVMEdGraph* RigGraph = Cast<URigVMEdGraph>(RigNode->GetGraph());
-
 		URigVMPin* ModelPin = RigNode->GetModelPinFromPinPath(InPin->GetName());
 		if (ModelPin)
 		{
-			if(ModelPin->GetCustomWidgetName() == "ParamName")
+			if(InPin->PinType.PinCategory == UEdGraphSchema_K2::PC_Struct && (InPin->PinType.PinSubCategoryObject.Get() == FAnimNextEditorParam::StaticStruct() || InPin->PinType.PinSubCategoryObject.Get() == FAnimNextParam::StaticStruct()))
+			{
+				const FString ParamTypeString = ModelPin->GetMetaData("AllowedParamType");
+				FAnimNextParamType FilterType = FAnimNextParamType::FromString(ParamTypeString);
+				return SNew(SGraphPinParam, InPin)
+					.ModelPin(ModelPin)
+					.GraphNode(RigNode)
+					.FilterType(FilterType);
+			}
+			else if(ModelPin->GetCustomWidgetName() == "ParamName")
 			{
 				const FString ParamTypeString = ModelPin->GetMetaData("AllowedParamType");
 				FAnimNextParamType FilterType = FAnimNextParamType::FromString(ParamTypeString);
@@ -36,7 +46,14 @@ TSharedPtr<SGraphPin> FParametersGraphPanelPinFactory::CreatePin_Internal(UEdGra
 	}
 	else if(UEdGraphNode* EdGraphNode = InPin->GetOwningNode())
 	{
-		if(EdGraphNode->GetPinMetaData(InPin->GetFName(), "CustomWidget") == "ParamName")
+		if(InPin->PinType.PinCategory == UEdGraphSchema_K2::PC_Struct && (InPin->PinType.PinSubCategoryObject.Get() == FAnimNextEditorParam::StaticStruct() || InPin->PinType.PinSubCategoryObject.Get() == FAnimNextParam::StaticStruct()))
+		{
+			const FString ParamTypeString = EdGraphNode->GetPinMetaData(InPin->GetFName(), "AllowedParamType");
+			FAnimNextParamType FilterType = FAnimNextParamType::FromString(ParamTypeString);
+			return SNew(SGraphPinParam, InPin)
+				.FilterType(FilterType);
+		}
+		else if(EdGraphNode->GetPinMetaData(InPin->GetFName(), "CustomWidget") == "ParamName")
 		{
 			const FString ParamTypeString = EdGraphNode->GetPinMetaData(InPin->GetFName(), "AllowedParamType");
 			FAnimNextParamType FilterType = FAnimNextParamType::FromString(ParamTypeString);

@@ -4,10 +4,14 @@
 
 #include "CoreMinimal.h"
 #include "Graph/AnimNext_LODPose.h"
+#include "Param/AnimNextParam.h"
+#include "Param/ParamId.h"
 #include "AnimNextScheduleGraphTask.generated.h"
 
 class UAnimNextGraph;
-struct FAnimNextParam;
+struct FAnimNextEditorParam;
+struct FAnimNextParamUniversalObjectLocator;
+template<typename T> struct TInstancedStruct;
 
 namespace UE::AnimNext
 {
@@ -20,6 +24,13 @@ namespace UE::AnimNext
 namespace UE::AnimNext::UncookedOnly
 {
 	struct FUtils;
+}
+
+namespace UE::AnimNext
+{
+	extern TInstancedStruct<FAnimNextParamUniversalObjectLocator> GetCharacterInstanceId();
+	extern FName GetCharacterInstanceIdName();
+	extern FParamId GetMeshComponentParamId();
 }
 
 USTRUCT()
@@ -42,6 +53,10 @@ private:
 	// Verify graph's required parameters are satisfied by this task's supplied parameters
 	void VerifyRequiredParameters(UAnimNextGraph* InGraphToRun) const;
 
+#if WITH_EDITORONLY_DATA 
+	// Get required parameters needed for internal operation
+	ANIMNEXT_API static TArray<FAnimNextEditorParam> GetRequiredParametersInternal();
+#endif
 private:
 	UPROPERTY()
 	uint32 TaskIndex = MAX_uint32;
@@ -53,13 +68,13 @@ private:
 	uint32 ParamParentScopeIndex = MAX_uint32;
 
 	UPROPERTY()
-	FName EntryPoint;
+	FAnimNextParam EntryPoint;
 
 	UPROPERTY()
 	TObjectPtr<UAnimNextGraph> Graph = nullptr;
 
 	UPROPERTY()
-	FName DynamicGraph;
+	FAnimNextParam DynamicGraph;
 
 	// Index of each term in the schedule intermediates
 	UPROPERTY()

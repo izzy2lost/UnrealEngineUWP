@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Param/AnimNextParam.h"
 #include "AnimNextScheduleExternalTask.generated.h"
 
 class UAnimNextSchedule;
@@ -44,5 +45,5 @@ private:
 	uint32 ParamParentScopeIndex = MAX_uint32;
 
 	UPROPERTY()
-	FName ExternalTask;
+	FAnimNextParam ExternalTask;
 };

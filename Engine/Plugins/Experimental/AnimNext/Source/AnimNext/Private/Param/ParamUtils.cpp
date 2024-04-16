@@ -2,9 +2,11 @@
 
 #include "Param/ParamUtils.h"
 
+#include "UniversalObjectLocator.h"
 #include "Component/AnimNextMeshComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Animation/AnimSequence.h"
+#include "Param/AnimNextClassExtensionLibrary.h"
 #include "Param/ParamType.h"
 #include "Param/ParamTypeHandle.h"
 #include "Param/ParamCompatibility.h"
@@ -406,5 +408,99 @@ FParamCompatibility FParamUtils::GetCompatibility(const FAnimNextParamType& InLH
 {
 	return GetCompatibility(InLHS.GetHandle(), InRHS.GetHandle());
 }
+
+bool FParamUtils::CanUseFunction(const UFunction* InFunction)
+{
+	UClass* FunctionClass = InFunction->GetOuterUClass();
+	if(FunctionClass->IsChildOf(UAnimNextClassExtensionLibrary::StaticClass()))
+	{
+		UAnimNextClassExtensionLibrary* CDO = FunctionClass->GetDefaultObject<UAnimNextClassExtensionLibrary>();
+		const UClass* ExtendedClass = CDO->GetSupportedClass();
+		
+		// Check 'hoisted' functions on BPFLs
+		if(!InFunction->HasAllFunctionFlags(FUNC_BlueprintCallable | FUNC_Static | FUNC_Native | FUNC_Public))
+		{
+			return false;
+		}
+
+		if(InFunction->NumParms != 2)
+		{
+			return false;
+		}
+		
+		int32 ParamIndex = 0;
+		for(TFieldIterator<FProperty> It(InFunction); It && (It->PropertyFlags & CPF_Parm); ++It, ++ParamIndex)
+		{
+			// Check first parameter is an object of the expected class
+			if(ParamIndex == 0)
+			{
+				FObjectProperty* ObjectProperty = CastField<FObjectProperty>(*It);
+				if(ObjectProperty == nullptr)
+				{ 
+					return false;
+				}
+				
+				if(!ObjectProperty->PropertyClass->IsChildOf(ExtendedClass))
+				{
+					return false;
+				}
+			}
+
+			// Check return value
+			if(ParamIndex == 1 && !It->HasAnyPropertyFlags(CPF_ReturnParm))
+			{
+				return false;
+			}
+		}
+	}
+	else
+	{
+		// We add only 'accessor' functions (no params apart from the return value) that have valid return types
+		const FProperty* ReturnProperty = InFunction->GetReturnProperty();
+		if(ReturnProperty == nullptr || InFunction->NumParms != 1 || !InFunction->HasAnyFunctionFlags(FUNC_BlueprintCallable))
+		{
+			return false;
+		}
+
+		const FParamTypeHandle TypeHandle = FParamTypeHandle::FromProperty(ReturnProperty);
+		if(!TypeHandle.IsValid())
+		{
+			return false;
+		}
+	}
+
+	return true;
+}
+
+bool FParamUtils::CanUseProperty(const FProperty* InProperty)
+{
+	if(!InProperty->HasAnyPropertyFlags(CPF_Edit | CPF_EditConst | CPF_BlueprintVisible) || InProperty->HasAnyPropertyFlags(CPF_Deprecated | CPF_EditorOnly))
+	{
+		return false;
+	}
+
+	const FParamTypeHandle TypeHandle = FParamTypeHandle::FromProperty(InProperty);
+	if(!TypeHandle.IsValid())
+	{
+		return false;
+	}
+
+	return true;
+}
+
+FName FParamUtils::LocatorToName(const FUniversalObjectLocator& InLocator)
+{
+	// By default the string representation of an empty UOL is "uobj://none", so we shortcut here for FName consistency 
+	if(InLocator.IsEmpty())
+	{
+		return NAME_None; 
+	}
+
+	TStringBuilder<1024> StringBuilder;
+	InLocator.ToString(StringBuilder);
+	ensure(StringBuilder.Len() < NAME_SIZE);
+	return FName(StringBuilder.ToView());
+}
+
 
 }

@@ -48,7 +48,6 @@ class SParameterToLink : public SCompoundWidget
 void SLinkParametersDialog::Construct(const FArguments& InArgs)
 {
 	FParameterPickerArgs ParameterPickerArgs;
-	ParameterPickerArgs.bShowUnboundParameters = false;
 	ParameterPickerArgs.OnGetParameterBindings = &OnGetParameterBindings;
 	ParameterPickerArgs.OnSelectionChanged = FSimpleDelegate::CreateSP(this, &SLinkParametersDialog::HandleSelectionChanged);
 	ParameterPickerArgs.OnFilterParameter = InArgs._OnFilterParameter;

@@ -20,6 +20,77 @@ FAnimNextParamType::FAnimNextParamType(EValueType InValueType, EContainerType In
 {
 }
 
+FRigVMTemplateArgumentType FAnimNextParamType::ToRigVMTemplateArgument() const
+{
+	auto GetTypeInternal = [this]()
+	{
+		switch(ValueType)
+		{
+		case EValueType::None:
+			return FRigVMTemplateArgumentType();
+		case EValueType::Bool:
+			return FRigVMTemplateArgumentType(RigVMTypeUtils::BoolTypeName);
+		case EValueType::Byte:
+			return FRigVMTemplateArgumentType(RigVMTypeUtils::UInt8Type);
+		case EValueType::Int32:
+			return FRigVMTemplateArgumentType(RigVMTypeUtils::Int32Type);
+		case EValueType::Int64:
+			return FRigVMTemplateArgumentType(RigVMTypeUtils::Int64Type);
+		case EValueType::Float:
+			return FRigVMTemplateArgumentType(RigVMTypeUtils::FloatType);
+		case EValueType::Double:
+			return FRigVMTemplateArgumentType(RigVMTypeUtils::DoubleType);
+		case EValueType::Name:
+			return FRigVMTemplateArgumentType(RigVMTypeUtils::FNameType);
+		case EValueType::String:
+			return FRigVMTemplateArgumentType(RigVMTypeUtils::FStringType);
+		case EValueType::Text:
+			return FRigVMTemplateArgumentType(RigVMTypeUtils::FTextType);
+		case EValueType::Enum:
+			if(const UEnum* Enum = Cast<UEnum>(ValueTypeObject.Get()))
+			{
+				return FRigVMTemplateArgumentType(const_cast<UEnum*>(Enum));
+			}
+		case EValueType::Struct:
+			if(const UScriptStruct* Struct = Cast<UScriptStruct>(ValueTypeObject.Get()))
+			{
+				return FRigVMTemplateArgumentType(const_cast<UScriptStruct*>(Struct));
+			}
+			break;
+		case EValueType::Object:
+			if(const UClass* Class = Cast<UClass>(ValueTypeObject.Get()))
+			{
+				return FRigVMTemplateArgumentType(const_cast<UClass*>(Class));
+			}
+			break;
+		case EValueType::SoftObject:
+			return FRigVMTemplateArgumentType();
+		case EValueType::Class:
+			if(const UClass* Class = Cast<UClass>(ValueTypeObject.Get()))
+			{
+				return FRigVMTemplateArgumentType(const_cast<UClass*>(Class), RigVMTypeUtils::EClassArgType::AsClass);
+			}
+			break;
+		case EValueType::SoftClass:
+			return FRigVMTemplateArgumentType();
+		default:
+			break;
+		}
+
+		return FRigVMTemplateArgumentType();
+	};
+
+	switch(ContainerType)
+	{
+	case EContainerType::None:
+		return GetTypeInternal();
+	case EContainerType::Array:
+		return GetTypeInternal().ConvertToArray();
+	default:
+		return FRigVMTemplateArgumentType();
+	}
+}
+
 FAnimNextParamType FAnimNextParamType::FromRigVMTemplateArgument(const FRigVMTemplateArgumentType& RigVMType)
 {
 	FAnimNextParamType Type;	
@@ -39,6 +110,10 @@ FAnimNextParamType FAnimNextParamType::FromRigVMTemplateArgument(const FRigVMTem
 	if (CPPType == RigVMTypeUtils::BoolTypeName)
 	{
 		Type.ValueType = EPropertyBagPropertyType::Bool;
+	}
+	else if (CPPType == RigVMTypeUtils::UInt8Type)
+	{
+		Type.ValueType = EPropertyBagPropertyType::Byte;
 	}
 	else if (CPPType == RigVMTypeUtils::Int32TypeName || CPPType == IntTypeName)
 	{

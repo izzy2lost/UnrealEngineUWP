@@ -35,7 +35,7 @@ namespace UE::AnimNext
 		Graph.EntryPoints.Reset();
 
 		FAnimNextGraphEntryPoint& EntryPoint = Graph.EntryPoints.AddDefaulted_GetRef();
-		EntryPoint.EntryPointName = FRigUnit_AnimNextGraphRoot::DefaultEntryPoint;
+		EntryPoint.EntryPointName = Graph.GetDefaultEntryPoint();
 		EntryPoint.RootTraitHandle = FAnimNextEntryPointHandle(NodeHandles[0]);
 		Graph.ExecuteDefinition = ExecuteDefinition;
 		Graph.SharedDataArchiveBuffer = SharedDataArchiveBuffer;
@@ -48,7 +48,7 @@ namespace UE::AnimNext
 		const FTraitReader::EErrorState ErrorState = TraitReader.ReadGraph(Graph.SharedDataBuffer);
 		if (ErrorState == FTraitReader::EErrorState::None)
 		{
-			Graph.ResolvedRootTraitHandles.Add(FRigUnit_AnimNextGraphRoot::DefaultEntryPoint, TraitReader.ResolveEntryPointHandle(Graph.EntryPoints[0].RootTraitHandle));
+			Graph.ResolvedRootTraitHandles.Add(Graph.GetDefaultEntryPoint(), TraitReader.ResolveEntryPointHandle(Graph.EntryPoints[0].RootTraitHandle));
 
 			for (FNodeHandle& NodeHandle : NodeHandles)
 			{

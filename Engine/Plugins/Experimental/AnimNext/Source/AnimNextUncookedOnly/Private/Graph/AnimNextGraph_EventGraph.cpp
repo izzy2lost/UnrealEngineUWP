@@ -1,7 +1,26 @@
 ﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Graph/AnimNextGraph_EventGraph.h"
+
+#include "AnimNextRigVMAsset.h"
+#include "UncookedOnlyUtils.h"
 #include "Graph/AnimNextGraph_EdGraph.h"
+#include "Param/AnimNextTag.h"
+#include "Param/ParamType.h"
+
+FAnimNextParamType UAnimNextGraph_EventGraph::GetExportType() const
+{
+	return FAnimNextParamType::GetType<FAnimNextEntryPoint>();
+}
+
+FName UAnimNextGraph_EventGraph::GetExportName() const
+{
+	if(UAnimNextRigVMAsset* OuterAsset = GetTypedOuter<UAnimNextRigVMAsset>())
+	{
+		return UE::AnimNext::UncookedOnly::FUtils::GetQualifiedName(OuterAsset, GraphName);
+	}
+	return GraphName;
+}
 
 FText UAnimNextGraph_EventGraph::GetDisplayName() const
 {

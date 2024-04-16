@@ -121,6 +121,12 @@ private:
 		return Id.GetName();
 	}
 
+	// Get the instance ID of this parameter
+	FName GetInstanceId() const
+	{
+		return Id.GetInstanceId();
+	}
+
 	// Get the hash of this parameter
 	uint32 GetHash() const
 	{
@@ -138,7 +144,7 @@ private:
 
 	// ID of the parameter
 	FParamId Id;
-	
+
 	// The type of the param
 	FParamTypeHandle TypeHandle;
 

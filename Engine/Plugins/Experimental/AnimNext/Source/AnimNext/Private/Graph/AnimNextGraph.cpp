@@ -27,9 +27,6 @@ DEFINE_STAT(STAT_AnimNext_Graph_UpdateParamLayer);
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(AnimNextGraph)
 
-const UE::AnimNext::FParamId UAnimNextGraph::DefaultReferencePoseId = UE::AnimNext::FParamId("UE_AnimNextMeshComponent_ReferencePose");
-const UE::AnimNext::FParamId UAnimNextGraph::DefaultCurrentLODId = UE::AnimNext::FParamId("UE_AnimNextMeshComponent_PredictedLODLevel");
-
 UAnimNextGraph::UAnimNextGraph(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
@@ -52,7 +49,7 @@ void UAnimNextGraph::AllocateInstanceImpl(FAnimNextGraphInstance* ParentGraphIns
 
 	Instance.Release();
 
-	const FName EntryPoint = (InEntryPoint == NAME_None) ? DefaultEntryPoint : InEntryPoint;
+	const FName EntryPoint = (InEntryPoint == NAME_None) ? GetDefaultEntryPoint() : InEntryPoint;
 	const FAnimNextTraitHandle ResolvedRootTraitHandle = ResolvedRootTraitHandles.FindRef(EntryPoint);
 	if (!ResolvedRootTraitHandle.IsValid())
 	{
@@ -125,16 +122,6 @@ void UAnimNextGraph::UpdateLayer(UE::AnimNext::FParamStackLayerHandle& InHandle,
 	}
 }
 
-void UAnimNextGraph::PostLoad()
-{
-	using namespace UE::AnimNext;
-
-	Super::PostLoad();
-
-	ReferencePoseId = FParamId(ReferencePose);
-	CurrentLODId = FParamId(CurrentLOD);
-}
-
 void UAnimNextGraph::Serialize(FArchive& Ar)
 {
 	Super::Serialize(Ar);
@@ -172,6 +159,8 @@ void UAnimNextGraph::Serialize(FArchive& Ar)
 				LoadFromArchiveBuffer(SharedDataArchiveBuffer);
 			}
 		}
+
+		SetDefaultEntryPoint(DefaultEntryPoint);
 	}
 	else if (Ar.IsSaving())
 	{
@@ -194,6 +183,16 @@ void UAnimNextGraph::Serialize(FArchive& Ar)
 #endif
 	}
 }
+
+#if WITH_EDITOR
+void UAnimNextGraph::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
+{
+	if(PropertyChangedEvent.Property && PropertyChangedEvent.Property->GetFName() == GET_MEMBER_NAME_CHECKED(UAnimNextGraph, DefaultEntryPoint))
+	{
+		SetDefaultEntryPoint(DefaultEntryPoint); 
+	}
+}
+#endif
 
 TConstArrayView<UE::AnimNext::FScheduleTerm> UAnimNextGraph::GetTerms() const
 {
@@ -232,7 +231,7 @@ bool UAnimNextGraph::LoadFromArchiveBuffer(const TArray<uint8>& InSharedDataArch
 	else
 	{
 		SharedDataBuffer.Empty(0);
-		ResolvedRootTraitHandles.Add(FRigUnit_AnimNextGraphRoot::DefaultEntryPoint, FAnimNextTraitHandle());
+		ResolvedRootTraitHandles.Add(GetDefaultEntryPoint(), FAnimNextTraitHandle());
 		return false;
 	}
 }
@@ -260,3 +259,19 @@ void UAnimNextGraph::ThawGraphInstances()
 	}
 }
 #endif
+
+void UAnimNextGraph::SetDefaultEntryPoint(FName InEntryPoint)
+{
+	DefaultEntryPoint = InEntryPoint;
+
+	TStringBuilder<256> StringBuilder;
+	StringBuilder.Append(GetPathName());
+	StringBuilder.Append(TEXT(":"));
+	DefaultEntryPoint.AppendString(StringBuilder);
+	CachedDefaultEntryPoint = FName(StringBuilder.ToView());
+}
+
+FName UAnimNextGraph::GetDefaultEntryPoint() const
+{
+	return CachedDefaultEntryPoint;
+}

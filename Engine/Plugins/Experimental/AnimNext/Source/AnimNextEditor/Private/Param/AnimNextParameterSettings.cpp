@@ -21,3 +21,13 @@ void UAnimNextParameterSettings::SetLastParameterType(const FAnimNextParamType& 
 {
 	LastParameterType = InLastParameterType;
 }
+
+FName UAnimNextParameterSettings::GetLastParameterName() const
+{
+	return LastParameterName;
+}
+
+void UAnimNextParameterSettings::SetLastParameterName(FName InLastParameterName)
+{
+	LastParameterName = InLastParameterName;
+}

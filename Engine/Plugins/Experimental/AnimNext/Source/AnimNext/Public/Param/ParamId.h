@@ -44,7 +44,16 @@ struct ANIMNEXT_API FParamId
 	// Make a parameter ID from an FName, generating the hash
 	explicit FParamId(FName InName)
 		: Name(InName)
-		, Hash(GetTypeHash(InName))
+		, InstanceId(NAME_None)
+		, Hash(CalculateHash(InName, NAME_None))
+	{
+	}
+
+	// Make a parameter ID from an FName and instance ID, generating the hash
+	explicit FParamId(FName InName, FName InInstanceId)
+		: Name(InName)
+		, InstanceId(InInstanceId)
+		, Hash(CalculateHash(InName, InInstanceId))
 	{
 	}
 
@@ -53,7 +62,16 @@ struct ANIMNEXT_API FParamId
 		: Name(InName)
 		, Hash(InHash)
 	{
-		checkSlow(Hash == GetTypeHash(Name));
+		checkSlow(CalculateHash(InName, NAME_None) == InHash);
+	}
+
+	// Make a parameter ID from a name, an instance ID and hash
+	explicit FParamId(FName InName, FName InInstanceId, uint32 InHash)
+		: Name(InName)
+		, InstanceId(InInstanceId)
+		, Hash(InHash)
+	{
+		checkSlow(CalculateHash(InName, InInstanceId) == InHash);
 	}
 
 	// Get the name of this param
@@ -62,6 +80,12 @@ struct ANIMNEXT_API FParamId
 		return Name;
 	}
 
+	// Get the instance ID of this param
+	FName GetInstanceId() const
+	{
+		return InstanceId;
+	}
+	
 	// Get the hash of this param
 	uint32 GetHash() const
 	{
@@ -74,9 +98,18 @@ struct ANIMNEXT_API FParamId
 		return Hash != 0;
 	}
 
+	// Get the hash of a parameter name/instance ID combination
+	static uint32 CalculateHash(FName InName, FName InInstanceId)
+	{
+		return HashCombineFast(GetTypeHash(InName), GetTypeHash(InInstanceId));
+	}
+	
 private:
 	// Parameter name
 	FName Name;
+
+	// Parameter instance ID
+	FName InstanceId;
 
 	// Name hash
 	uint32 Hash = 0;

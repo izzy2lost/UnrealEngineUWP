@@ -198,7 +198,9 @@ public:
 	static ANIMNEXT_API FParamStackLayerHandle MakeValueLayer(const FInstancedPropertyBag& InInstancedPropertyBag);
 
 	// Create a cached parameter layer from an instanced property bag. This layer will reference the supplied property bag and does not transfer ownership.
-	static ANIMNEXT_API FParamStackLayerHandle MakeReferenceLayer(FInstancedPropertyBag& InInstancedPropertyBag);
+	// @param	InInstanceId					The instance ID to apply to the supplied parameters (as arguments to their FParamId)
+	// @param	InInstancedPropertyBag	THe property bag to reference
+	static ANIMNEXT_API FParamStackLayerHandle MakeReferenceLayer(FName InInstanceId, FInstancedPropertyBag& InInstancedPropertyBag);
 
 	// Create a cached parameter layer by remapping the entries from another layer
 	// Original layer continues to own the memory

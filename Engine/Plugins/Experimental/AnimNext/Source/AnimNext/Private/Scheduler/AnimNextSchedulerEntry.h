@@ -14,6 +14,7 @@ namespace UE::AnimNext
 {
 	struct FScheduleHandle;
 	struct FParamStack;
+	struct FScheduleInitializationContext;
 }
 
 // Root memory owner of a parameterized schedule 
@@ -23,7 +24,7 @@ struct FAnimNextSchedulerEntry
 	GENERATED_BODY()
 
 	FAnimNextSchedulerEntry() = default;
-	FAnimNextSchedulerEntry(const UAnimNextSchedule* InSchedule, UObject* InObject, UE::AnimNext::FScheduleHandle InHandle, EAnimNextScheduleInitMethod InInitMethod, TUniqueFunction<void(const UE::AnimNext::FScheduleContext&)>&& InInitializeCallback);
+	FAnimNextSchedulerEntry(const UAnimNextSchedule* InSchedule, UObject* InObject, UE::AnimNext::FScheduleHandle InHandle, EAnimNextScheduleInitMethod InInitMethod, TUniqueFunction<void(const UE::AnimNext::FScheduleInitializationContext&)>&& InInitializeCallback);
 	~FAnimNextSchedulerEntry();
 
 	// Setup the entry
@@ -76,7 +77,7 @@ struct FAnimNextSchedulerEntry
 	TArray<TUniquePtr<UE::AnimNext::FScheduleTickFunction>> TickFunctions;
 
 	// Callback to run on intialization
-	TUniqueFunction<void(const UE::AnimNext::FScheduleContext&)> InitializeCallback;
+	TUniqueFunction<void(const UE::AnimNext::FScheduleInitializationContext&)> InitializeCallback;
 
 	// Current delta time, updated each time the schedule runs
 	float DeltaTime = 0.0f;

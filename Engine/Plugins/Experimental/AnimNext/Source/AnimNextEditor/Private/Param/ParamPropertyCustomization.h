@@ -4,12 +4,12 @@
 
 #include "IPropertyTypeCustomization.h"
 #include "PropertyEditorModule.h"
-#include "Param/ParamType.h"
+#include "Param/AnimNextEditorParam.h"
 
 namespace UE::AnimNext::Editor
 {
 
-class FParamPropertyTypeCustomization : public IPropertyTypeCustomization
+class FParamPropertyCustomization : public IPropertyTypeCustomization
 {
 private:
 	// IPropertyTypeCustomization interface
@@ -18,13 +18,14 @@ private:
 
 	void Refresh();
 
+	void HandleCopy();
+
 private:
 	TSharedPtr<IPropertyHandle> PropertyHandle;
-	TSharedPtr<IPropertyHandle> NamePropertyHandle;
-	TSharedPtr<IPropertyHandle> TypePropertyHandle;
-	FName CachedName = NAME_None;
+	FAnimNextEditorParam CachedParam;
 	FText CachedNameText;
-	FAnimNextParamType CachedType;
+	UScriptStruct* ParamStruct = nullptr;
+	FExecuteAction DefaultCopyAction;
 };
 
 }

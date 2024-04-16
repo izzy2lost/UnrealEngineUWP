@@ -3,13 +3,18 @@
 #pragma once
 
 #include "SGraphPin.h"
+#include "UniversalObjectLocator.h"
+#include "Param/AnimNextParamUniversalObjectLocator.h"
 #include "Param/ParamType.h"
 
+class URigVMGraph;
+enum class ERigVMGraphNotifType : uint8;
 class URigVMPin;
 class URigVMEdGraphNode;
 
 namespace UE::AnimNext::Editor
 {
+class SParameterPickerCombo;
 
 // A pin widget that allows picking using an AnimNext parameter picker
 class SGraphPinParamName : public SGraphPin
@@ -32,6 +37,10 @@ class SGraphPinParamName : public SGraphPin
 private:
 	virtual TSharedRef<SWidget>	GetDefaultValueWidget() override;
 
+	void UpdateCachedParamType();
+
+	void HandleGraphModified(ERigVMGraphNotifType InType, URigVMGraph* InGraph, UObject* InSubject);
+	
 	URigVMPin* ModelPin = nullptr;
 
 	URigVMEdGraphNode* Node = nullptr;
@@ -39,6 +48,14 @@ private:
 	FAnimNextParamType FilterType;
 
 	FAnimNextParamType CachedType;
+
+	// The asset this pin is being edited within
+	FAssetData AssetData;
+
+	TSharedPtr<SParameterPickerCombo> PickerCombo;
+
+	// Instance Id corresponding to AssetData
+	TInstancedStruct<FAnimNextParamUniversalObjectLocator> InstanceId;
 };
 
 }

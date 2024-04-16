@@ -13,6 +13,11 @@
 #include "RigVMModel/Nodes/RigVMTemplateNode.h"
 #include "RigVMModel/RigVMPin.h"
 #include "RigVMCore/RigVMRegistry.h"
+#include "RigVMModel/RigVMClient.h"
+#include "AnimNextRigVMAsset.h"
+#include "EdGraph/RigVMEdGraphNode.h"
+#include "Graph/AnimNextGraph_Controller.h"
+#include "UniversalObjectLocators/AssetLocatorFragment.h"
 
 #define LOCTEXT_NAMESPACE "SGraphPinParamName"
 
@@ -24,6 +29,12 @@ void SGraphPinParamName::Construct(const FArguments& InArgs, UEdGraphPin* InPin)
 	ModelPin = InArgs._ModelPin;
 	Node = InArgs._GraphNode;
 	FilterType = InArgs._FilterType;
+	InstanceId = TInstancedStruct<FAnimNextParamUniversalObjectLocator>::Make();
+
+	if(ModelPin && ModelPin->GetGraph())
+	{
+		ModelPin->GetGraph()->OnModified().AddSP(this, &SGraphPinParamName::HandleGraphModified);
+	}
 
 	SGraphPin::Construct(SGraphPin::FArguments(), InPin);
 }
@@ -31,12 +42,12 @@ void SGraphPinParamName::Construct(const FArguments& InArgs, UEdGraphPin* InPin)
 TSharedRef<SWidget> SGraphPinParamName::GetDefaultValueWidget()
 {
 	FParameterPickerArgs Args;
-	Args.bShowSourceGraph = false;
 	Args.bMultiSelect = false;
+	Args.bShowInstanceId = false;
 
-	CachedType = UncookedOnly::FUtils::GetParameterTypeFromName(FName(*GraphPinObj->DefaultValue));
+	UpdateCachedParamType();
 
-	// Check whether this is a Set/Get parameter node, and if so only show bound parameters
+	// Check whether this is a Set/Get parameter node, and if so only show parameters in the current asset
 	if (ModelPin)
 	{
 		if (const URigVMTemplateNode* TemplateNode = Cast<URigVMTemplateNode>(ModelPin->GetOuter()))
@@ -49,18 +60,29 @@ TSharedRef<SWidget> SGraphPinParamName::GetDefaultValueWidget()
 
 			if (TemplateNode->GetNotation() == GetLayerParameterNotation || TemplateNode->GetNotation() == SetLayerParameterNotation)
 			{
-				Args.bShowUnboundParameters = false;
+				AssetData = FAssetData(ModelPin->GetTypedOuter<UAnimNextRigVMAsset>());
+				InstanceId.GetMutable().Locator.Reset();
+				InstanceId.GetMutable().Locator.AddFragment<FAssetLocatorFragment>(AssetData);
 			}
 		}
 	}
-	
+
 	Args.OnParameterPicked = FOnParameterPicked::CreateLambda([this](const FParameterBindingReference& InParameterBinding)
 	{
 		FScopedTransaction Transaction(LOCTEXT("SelectParameter", "Select Parameter"));
-		GraphPinObj->Modify();
-		GraphPinObj->GetSchema()->TrySetDefaultValue(*GraphPinObj, InParameterBinding.Parameter.ToString());
 
-		CachedType = UncookedOnly::FUtils::GetParameterTypeFromName(FName(*GraphPinObj->DefaultValue));
+		if(ModelPin && Node)
+		{
+			UAnimNextGraph_Controller* Controller = CastChecked<UAnimNextGraph_Controller>(Node->GetController());
+			Controller->SetAnimNextParameterNode(Node->GetModelNode(), InParameterBinding.Parameter, InParameterBinding.Type, InstanceId);
+		}
+		else
+		{
+			GraphPinObj->Modify();
+			GraphPinObj->GetSchema()->TrySetDefaultValue(*GraphPinObj, InParameterBinding.Parameter.ToString());
+		}
+
+		UpdateCachedParamType();
 	});
 	
 	Args.OnFilterParameterType = FOnFilterParameterType::CreateLambda([this](const FAnimNextParamType& InParamType)-> EFilterParameterResult
@@ -77,18 +99,69 @@ TSharedRef<SWidget> SGraphPinParamName::GetDefaultValueWidget()
 
 		return EFilterParameterResult::Include;
 	});
+
+	Args.OnFilterParameter = FOnFilterParameter::CreateLambda([this](const FParameterBindingReference& InParameterBinding)
+	{
+		if(AssetData.IsValid())
+		{
+			return InParameterBinding.Graph == AssetData ? EFilterParameterResult::Include : EFilterParameterResult::Exclude;
+		}
+
+		return EFilterParameterResult::Include;
+	});
+	
 	Args.NewParameterType = FilterType;
 	
-	return SNew(SParameterPickerCombo)
+	return SAssignNew(PickerCombo, SParameterPickerCombo)
 		.PickerArgs(Args)
 		.OnGetParameterName_Lambda([this]()
 		{
-			return FName(*GraphPinObj->DefaultValue);
+			if(ModelPin && Node)
+			{
+				return FName(*ModelPin->GetDefaultValue());
+			}
+			else
+			{
+				return FName(*GraphPinObj->DefaultValue);
+			}
 		})
 		.OnGetParameterType_Lambda([this]()
 		{
 			return CachedType;
+		})
+		.OnGetParameterInstanceId_Lambda([this]()
+		{
+			return InstanceId;
 		});
+}
+
+void SGraphPinParamName::UpdateCachedParamType()
+{
+	if(ModelPin && Node)
+	{
+		CachedType = UncookedOnly::FUtils::GetParameterTypeFromName(FName(*ModelPin->GetDefaultValue()));
+	}
+	else
+	{
+		CachedType = UncookedOnly::FUtils::GetParameterTypeFromName(FName(*GraphPinObj->DefaultValue));
+	}
+
+	if(PickerCombo)
+	{
+		PickerCombo->RequestRefresh();
+	}
+}
+
+void SGraphPinParamName::HandleGraphModified(ERigVMGraphNotifType InType, URigVMGraph* InGraph, UObject* InSubject)
+{
+	switch (InType)
+	{
+	case ERigVMGraphNotifType::PinDefaultValueChanged:
+		UpdateCachedParamType();
+		break;
+	default:
+		break;
+	}
 }
 
 }

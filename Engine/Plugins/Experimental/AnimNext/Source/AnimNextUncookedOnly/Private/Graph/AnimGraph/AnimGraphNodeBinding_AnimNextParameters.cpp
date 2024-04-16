@@ -517,7 +517,7 @@ TSharedRef<SWidget> UAnimGraphNodeBinding_AnimNextParameters::MakePropertyBindin
 									if (ComparisonName == FName(Iter.Key(), 0))
 									{
 										Iter.RemoveCurrent();
-									}
+									} 
 								}
 							}
 							else if (bIsArrayElement)
@@ -536,7 +536,7 @@ TSharedRef<SWidget> UAnimGraphNodeBinding_AnimNextParameters::MakePropertyBindin
 							FAnimNextAnimGraphNodeParameterBinding NewBinding;
 							NewBinding.BindingName = InArgs.BindingName;
 							NewBinding.ParameterName = InBinding.Parameter;
-							NewBinding.CachedParameterNameText = UncookedOnly::FUtils::GetParameterDisplayNameText(NewBinding.ParameterName);
+							NewBinding.CachedParameterNameText = UncookedOnly::FUtils::GetParameterDisplayNameText(NewBinding.ParameterName, InBinding.InstanceId);
 							NewBinding.ArrayIndex = PinArrayIndex;
 							Binding->PropertyBindings.Add(InArgs.BindingName, NewBinding);
 						}
@@ -550,7 +550,6 @@ TSharedRef<SWidget> UAnimGraphNodeBinding_AnimNextParameters::MakePropertyBindin
 				});
 				Args.NewParameterType = FParamTypeHandle::FromProperty(PropertyToBindTo).GetType();
 				Args.bMultiSelect = false;
-				Args.bShowSourceGraph = false;
 			
 				MenuBuilder.AddWidget(
 					SNew(SBox)

@@ -10,6 +10,7 @@
 #include "PropertyBagDetails.h"
 #include "UncookedOnlyUtils.h"
 #include "Param/RigVMDispatch_GetParameter.h"
+#include "String/ParseTokens.h"
 
 #define LOCTEXT_NAMESPACE "AnimNextEditorUtils"
 
@@ -310,54 +311,51 @@ void FUtils::GetFilteredVariableTypeTree(TArray<TSharedPtr<UEdGraphSchema_K2::FP
 };
 
 
-FName FUtils::GetNewParameterName(const TCHAR* InBaseName, TArrayView<FName> InAdditionalExistingNames)
+FName FUtils::GetNewParameterName(FName InBaseName, const FAssetData& InAssetData, TArrayView<FName> InExistingNames)
 {
-	FAnimNextParameterProviderAssetRegistryExports Exports;
-	UE::AnimNext::UncookedOnly::FUtils::GetExportedParametersFromAssetRegistry(Exports);
-
-	auto NameExists = [&Exports, &InAdditionalExistingNames](const TCHAR* InName)
+	auto NameExists = [&InExistingNames, &InAssetData](FName InName)
 	{
-		for(const FAnimNextParameterAssetRegistryExportEntry& Parameter : Exports.Parameters)
+		for(FName AdditionalName : InExistingNames)
 		{
-			if(Parameter.Name.ToString() == InName)
+			if(AdditionalName == InName)
 			{
 				return true;
 			}
 		}
 
-		for(FName AdditionalName : InAdditionalExistingNames)
+		if(DoesParameterNameExistInAsset(InName, InAssetData))
 		{
-			if(AdditionalName.ToString() == InName)
-			{
-				return true;
-			}
+			return true;
 		}
-
+		
 		return false;
 	};
 
 	if(!NameExists(InBaseName))
 	{
 		// Early out - name is valid
-		return FName(InBaseName);
+		return InBaseName;
 	}
-	
+
 	int32 PostFixIndex = 0;
+	TStringBuilder<128> StringBuilder;
 	while(true)
 	{
-		TStringBuilder<128> StringBuilder;
-		StringBuilder.Appendf(TEXT("%s_%d"), InBaseName, PostFixIndex++);
+		StringBuilder.Reset();
+		InBaseName.GetDisplayNameEntry()->AppendNameToString(StringBuilder);
+		StringBuilder.Appendf(TEXT("_%d"), PostFixIndex++);
 
-		if(!NameExists(StringBuilder.ToString()))
+		FName TestName(StringBuilder.ToString()); 
+		if(!NameExists(TestName))
 		{
-			return FName(StringBuilder.ToString());
+			return TestName;
 		}
 	}
 
 	return NAME_None;
 }
 
-bool FUtils::IsValidEntryNameString(FStringView InStringView, FText& OutErrorText)
+bool FUtils::IsValidParameterNameString(FStringView InStringView, FText& OutErrorText)
 {
 	// See if this can be represented as an FName
 	if(!FName::IsValidXName(InStringView, INVALID_NAME_CHARACTERS, &OutErrorText))
@@ -365,10 +363,10 @@ bool FUtils::IsValidEntryNameString(FStringView InStringView, FText& OutErrorTex
 		return false;
 	}
 
-	return IsValidEntryName(FName(InStringView), OutErrorText);
+	return IsValidParameterName(FName(InStringView), OutErrorText);
 }
 
-bool FUtils::IsValidEntryName(const FName InName, FText& OutErrorText)
+bool FUtils::IsValidParameterName(const FName InName, FText& OutErrorText)
 {
 	const FString NewString = InName.ToString();
 
@@ -379,11 +377,9 @@ bool FUtils::IsValidEntryName(const FName InName, FText& OutErrorText)
 	}
 
 	// Check start
-	if (NewString[0] == TEXT('.') ||
-		FChar::IsUnderscore(NewString[0]) ||
-		FChar::IsDigit(NewString[0]))
+	if (FChar::IsDigit(NewString[0]))
 	{
-		OutErrorText = LOCTEXT("Error_Start", "Name cannot start with an underscore, period or digit");
+		OutErrorText = LOCTEXT("Error_Start", "Name cannot start with a digit");
 		return false;
 	}
 
@@ -391,25 +387,17 @@ bool FUtils::IsValidEntryName(const FName InName, FText& OutErrorText)
 	for (int32 CharIndex = 0; bAllowed && CharIndex < NewString.Len(); ++CharIndex)
 	{
 		bAllowed &= FChar::IsAlnum(NewString[CharIndex]) ||
-					FChar::IsUnderscore(NewString[CharIndex]) ||
-					NewString[CharIndex] == TEXT('.');
+					FChar::IsUnderscore(NewString[CharIndex]);
 	}
 
 	// Make sure the new name only contains valid characters
 	if (!bAllowed)
 	{
-		OutErrorText = LOCTEXT("Error_CharacterNotAllowed", "Only alpha-numerical, underscore or period characters are allowed");
+		OutErrorText = LOCTEXT("Error_CharacterNotAllowed", "Only alpha-numerical or underscore characters are allowed");
 		return false;
 	}
 
 	return true;
-}
-
-bool FUtils::DoesParameterNameExist(const FName InName)
-{
-	FAnimNextParameterProviderAssetRegistryExports Exports;
-	UncookedOnly::FUtils::GetExportedParametersFromAssetRegistry(Exports);
-	return Exports.Parameters.ContainsByPredicate([InName](const FAnimNextParameterAssetRegistryExportEntry& Entry) { return Entry.Name == InName; });
 }
 
 bool FUtils::DoesParameterNameExistInAsset(const FName InName, const FAssetData& InAsset)

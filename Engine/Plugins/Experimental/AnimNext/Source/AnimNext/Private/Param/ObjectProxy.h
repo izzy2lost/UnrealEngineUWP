@@ -2,12 +2,15 @@
 
 #pragma once
 
+#include "Param/ClassProxy.h"
 #include "Param/IParameterSource.h"
 #include "PropertyBag.h"
+#include "UObject/GCObject.h"
+
+class UAnimNextParameterSchema;
 
 namespace UE::AnimNext
 {
-	struct FObjectAccessor;
 	enum class EClassProxyParameterAccessType : int32;
 }
 
@@ -63,7 +66,7 @@ struct FObjectProxy : public IParameterSource
 {
 	FObjectProxy() = delete;
 
-	FObjectProxy(UObject* InObject, const TSharedRef<FObjectAccessor>& InObjectAccessor);
+	FObjectProxy(const UObject* InObject, FStringView InObjectLocatorPath, const TSharedRef<FClassProxy>& InClassProxy);
 
 	// IParameterSource interface
 	virtual void Update(float DeltaTime) override;
@@ -74,7 +77,7 @@ struct FObjectProxy : public IParameterSource
 	void RequestParameterCache(TConstArrayView<FName> InParameterNames);
 
 	// The object that this proxy wraps
-	TWeakObjectPtr<UObject> Object;
+	TObjectPtr<const UObject> Object;
 
 	// Cache of properties, fetched from Object
 	FInstancedPropertyBag ParameterCache;
@@ -88,8 +91,8 @@ struct FObjectProxy : public IParameterSource
 	// Map of parameter name to index in ParametersToUpdate array
 	TMap<FName, int32> ParameterNameMap;
 
-	// Object accessor used to lookup parameters
-	TSharedRef<FObjectAccessor> ObjectAccessor;
+	// Class proxy defining the 'layout' of the object
+	TSharedRef<FClassProxy> ClassProxy;
 
 	// The name of the root parameter
 	FName RootParameterName;

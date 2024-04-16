@@ -6,11 +6,13 @@
 #include "Param/ParameterPickerArgs.h"
 #include "EdGraph/EdGraphPin.h"
 
+struct FAnimNextParamInstanceIdentifier;
 struct FAnimNextParamType;
 
 namespace UE::AnimNext::Editor
 {
-class SParameterPicker;
+	class SParameterPicker;
+	class SGraphPinParam;
 }
 
 namespace UE::AnimNext::Editor
@@ -21,6 +23,9 @@ using FOnGetParameterName = TDelegate<FName(void)>;
 
 /** Retrieves the parameter type to display */
 using FOnGetParameterType = TDelegate<FAnimNextParamType(void)>;
+
+/** Retrieves the parameter scope to display */
+using FOnGetParameterInstanceId = TDelegate<TInstancedStruct<FAnimNextParamInstanceIdentifier>(void)>;
 
 class SParameterPickerCombo : public SCompoundWidget
 {
@@ -36,6 +41,9 @@ public:
 	/** Retrieves the parameter type to display */
 	SLATE_EVENT(FOnGetParameterType, OnGetParameterType)
 
+	/** Retrieves the parameter instance ID to display */
+	SLATE_EVENT(FOnGetParameterInstanceId, OnGetParameterInstanceId)
+
 	SLATE_END_ARGS()
 
 	void Construct(const FArguments& InArgs);
@@ -49,6 +57,9 @@ private:
 	// Retrieves the parameter type to display
 	FOnGetParameterType OnGetParameterTypeDelegate;
 
+	// Retrieves the parameter instance ID to display
+	FOnGetParameterInstanceId OnGetParameterInstanceIdDelegate;
+
 	// Cached pin type
 	FEdGraphPinType PinType;
 
@@ -58,8 +69,14 @@ private:
 	// Cached display name
 	FText ParameterNameText;
 
+	// Cached tooltip
+	FText ParameterNameTooltipText;
+
 	// Cached parameter type
 	FAnimNextParamType ParameterType;
+
+	// Cached parameter instance ID
+	TInstancedStruct<FAnimNextParamInstanceIdentifier> ParameterInstanceId;
 
 	// Cached icon
 	const FSlateBrush* Icon = nullptr;
@@ -69,6 +86,14 @@ private:
 
 	// Picker widget used to focus after the popup is displayed
 	TWeakPtr<SParameterPicker> PickerWidget;
+
+	// Arguments for the picker popup
+	FParameterPickerArgs PickerArgs;
+
+	bool bRefreshRequested = false;
+
+	friend class SGraphPinParam;
+	friend class SGraphPinParamName;
 };
 
 }

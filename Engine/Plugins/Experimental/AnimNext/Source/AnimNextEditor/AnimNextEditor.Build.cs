@@ -45,6 +45,10 @@ namespace UnrealBuildTool.Rules
 					"EditorWidgets",
 					"WorkspaceEditor",
 					"ContentBrowser",
+					"UniversalObjectLocator",
+					"UniversalObjectLocatorEditor",
+					"Kismet",
+					"AdvancedWidgets",
 				}
 			);
 		}

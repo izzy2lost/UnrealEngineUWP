@@ -3,53 +3,21 @@
 #include "Component/AnimNextComponent.h"
 
 #include "Blueprint/BlueprintExceptionInfo.h"
-#include "Param/ParamUtils.h"
 #include "Scheduler/Scheduler.h"
 #include "Scheduler/ScheduleContext.h"
 #include "Param/PropertyBagProxy.h"
+#include "Scheduler/ScheduleTaskContext.h"
+#include "Scheduler/ScheduleInitializationContext.h"
 
 namespace UE::AnimNext::Private
 {
 
-static void SetValuesInScopeHelper(FScheduleInstanceData& InInstanceData, FName InScope, EAnimNextParameterScopeOrdering InOrdering, TConstArrayView<FPropertyBagProxy::FPropertyAndValue> InPropertiesAndValues)
+template<typename ContextType>
+static void SetValuesInScopeHelper(const ContextType& InContext, FName InScope, EAnimNextParameterScopeOrdering InOrdering, TConstArrayView<FPropertyBagProxy::FPropertyAndValue> InPropertiesAndValues)
 {
-	// apply to root
-	if(InScope == NAME_None)
-	{
-		if(!InInstanceData.RootUserScope.IsValid())
-		{
-			InInstanceData.RootUserScope = MakeUnique<FPropertyBagProxy>();
-		}
-
-		InInstanceData.RootUserScope->AddPropertiesAndValues(InPropertiesAndValues);
-	}
-	else // apply to specified scope
-	{
-		FScheduleInstanceData::FUserScope& ScopeSource = InInstanceData.UserScopes.FindOrAdd(InScope);
-		TUniquePtr<FPropertyBagProxy>* ProxyToUse = nullptr;
-		switch(InOrdering)
-		{
-		default:
-		case EAnimNextParameterScopeOrdering::Before:
-			if(!ScopeSource.BeforeSource.IsValid())
-			{
-				ScopeSource.BeforeSource = MakeUnique<FPropertyBagProxy>();
-			}
-			ProxyToUse = &ScopeSource.BeforeSource;
-			break;
-		case EAnimNextParameterScopeOrdering::After:
-			if(!ScopeSource.AfterSource.IsValid())
-			{
-				ScopeSource.AfterSource = MakeUnique<FPropertyBagProxy>();
-			}
-			ProxyToUse = &ScopeSource.AfterSource;
-			break;
-		}
-
-		check(ProxyToUse && ProxyToUse->IsValid());
-
-		(*ProxyToUse)->AddPropertiesAndValues(InPropertiesAndValues);
-	}
+	TUniquePtr<FPropertyBagProxy> PropertyBagProxy = MakeUnique<FPropertyBagProxy>();
+	PropertyBagProxy->AddPropertiesAndValues(InPropertiesAndValues);
+	InContext.ApplyParametersToScope(InScope, (EParameterScopeOrdering)InOrdering, MoveTemp(PropertyBagProxy));
 }
 
 }
@@ -63,10 +31,8 @@ void UAnimNextComponent::OnRegister()
 	if (Schedule)
 	{
 		// Initialization callback to set up any persistent external parameters
-		auto Initialize = [this](const FScheduleContext& InContext)
+		auto Initialize = [this](const FScheduleInitializationContext& InContext)
 		{
-			FScheduleInstanceData& InstanceData = InContext.GetInstanceData();
-
 			// First group params into scopes
 			TMap<FName, TArray<UAnimNextComponentParameter*, TInlineAllocator<4>>, TInlineSetAllocator<4>> ParamsByScope;
 			for(UAnimNextComponentParameter* Parameter : Parameters)
@@ -90,7 +56,7 @@ void UAnimNextComponent::OnRegister()
 				}
 
 				// NOTE: Layer is always applied 'before' currently. If we have a use case for 'After' we can add it to UAnimNextComponentParameter
-				Private::SetValuesInScopeHelper(InContext.GetInstanceData(), ParamPair.Key, EAnimNextParameterScopeOrdering::Before, PropertiesAndValues);
+				Private::SetValuesInScopeHelper(InContext, ParamPair.Key, EAnimNextParameterScopeOrdering::Before, PropertiesAndValues);
 			}
 		};
 
@@ -106,7 +72,6 @@ void UAnimNextComponent::OnUnregister()
 	Super::OnUnregister();
 
 	FScheduler::ReleaseHandle(this, SchedulerHandle);
-	SchedulerHandle.Invalidate();
 }
 
 void UAnimNextComponent::SetParameterInScope(FName Scope, EAnimNextParameterScopeOrdering Ordering, FName Name, int32 Value)
@@ -162,13 +127,13 @@ DEFINE_FUNCTION(UAnimNextComponent::execSetParameterInScope)
 	const void* ValuePtr = ValueProp->ContainerPtrToValuePtr<void>(ContainerPtr);
 	NewProperty->SetValue_InContainer(PropertyBag->GetMutableValue().GetMemory(), ValuePtr);
 
-	FScheduler::QueueTask(P_THIS, P_THIS->SchedulerHandle, Scope, [Scope, Name, NewProperty, PropertyBag = MoveTemp(PropertyBag), Ordering](const FScheduleContext& InContext) mutable
+	FScheduler::QueueTask(P_THIS, P_THIS->SchedulerHandle, Scope, [Scope, Name, NewProperty, PropertyBag = MoveTemp(PropertyBag), Ordering](const FScheduleTaskContext& InContext) mutable
 	{
 		FPropertyBagProxy::FPropertyAndValue PropertyAndValue;
 		PropertyAndValue.Name = Name;
 		PropertyAndValue.Property = NewProperty;
 		PropertyAndValue.ContainerPtr = PropertyBag->GetValue().GetMemory();
-		Private::SetValuesInScopeHelper(InContext.GetInstanceData(), Scope, Ordering, { PropertyAndValue });
+		Private::SetValuesInScopeHelper(InContext, Scope, Ordering, { PropertyAndValue });
 	});
 
 	P_NATIVE_END;

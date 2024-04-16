@@ -63,7 +63,7 @@ class UAnimNextSchedulerWorldSubsystem : public UWorldSubsystem
 	void FlushPendingActions();
 
 	// Acquire a handle that binds a schedule with the supplied parameters
-	UE::AnimNext::FScheduleHandle AcquireHandle(UObject* InObject, UAnimNextSchedule* InSchedule, EAnimNextScheduleInitMethod InInitMethod, TUniqueFunction<void(const UE::AnimNext::FScheduleContext&)>&& InInitializeCallback);
+	UE::AnimNext::FScheduleHandle AcquireHandle(UObject* InObject, UAnimNextSchedule* InSchedule, EAnimNextScheduleInitMethod InInitMethod, TUniqueFunction<void(const UE::AnimNext::FScheduleInitializationContext&)>&& InInitializeCallback);
 
 	// Release an already acquired handle
 	// The full release of the binding referenced by the handle will be deferred after this call is made
@@ -78,7 +78,7 @@ class UAnimNextSchedulerWorldSubsystem : public UWorldSubsystem
 	// @param	InTaskName		The name of the task in the schedule to run the supplied task relative to
 	// @param	InTaskFunction	The function to run
 	// @param	InLocation		Where to run the task, before or after
-	void QueueTask(UE::AnimNext::FScheduleHandle InHandle, FName InScheduleTaskName, TUniqueFunction<void(const UE::AnimNext::FScheduleContext&)>&& InTaskFunction, UE::AnimNext::FScheduler::ETaskRunLocation InLocation);
+	void QueueTask(UE::AnimNext::FScheduleHandle InHandle, FName InScheduleTaskName, TUniqueFunction<void(const UE::AnimNext::FScheduleTaskContext&)>&& InTaskFunction, UE::AnimNext::FScheduler::ETaskRunLocation InLocation);
 
 #if WITH_EDITOR
 	// Refresh any entries that use the provided schedule as it has been recompiled.

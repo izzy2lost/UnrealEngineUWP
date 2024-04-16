@@ -7,11 +7,13 @@
 #include "Scheduler/AnimNextSchedulerEntry.h"
 #include "Scheduler/AnimNextSchedulePort.h"
 #include "AnimNextStats.h"
-#include "Param/ExternalParameterRegistry.h"
+#include "IAnimNextModule.h"
+#include "Modules/ModuleManager.h"
 #include "Param/IParameterSourceFactory.h"
 #include "Param/ParametersProxy.h"
 #include "Param/PropertyBagProxy.h"
 #include "Scheduler/AnimNextScheduleExternalParamTask.h"
+#include "Scheduler/ScheduleInitializationContext.h"
 
 DEFINE_STAT(STAT_AnimNext_CreateInstanceData);
 
@@ -72,8 +74,10 @@ FScheduleInstanceData::FScheduleInstanceData(const FScheduleContext& InScheduleC
 	}
 
 	// Set up external parameters
-	FExternalParameterContext ExternalParameterContext;
-	ExternalParameterContext.Object = Entry->WeakObject.Get();
+	IAnimNextModule& AnimNextModule = FModuleManager::GetModuleChecked<IAnimNextModule>("AnimNext");
+
+	FParameterSourceContext ParameterSourceContext;
+	ParameterSourceContext.Object = Entry->WeakObject.Get();
 
 	const float DeltaTime = InScheduleContext.GetDeltaTime();
 	for(int32 ExternalParamSourceIndex = 0; ExternalParamSourceIndex < ExternalParamCaches.Num(); ++ExternalParamSourceIndex)
@@ -82,7 +86,7 @@ FScheduleInstanceData::FScheduleInstanceData(const FScheduleContext& InScheduleC
 
 		for(const FAnimNextScheduleExternalParameterSource& ParameterSource : InSchedule->ExternalParamTasks[ExternalParamSourceIndex].ParameterSources)
 		{
-			if(TUniquePtr<IParameterSource> NewParameterSource = FExternalParameterRegistry::CreateParameterSource(ExternalParameterContext, ParameterSource.ParameterSource, ParameterSource.Parameters))
+			if(TUniquePtr<IParameterSource> NewParameterSource = AnimNextModule.CreateParameterSource(ParameterSourceContext, ParameterSource.InstanceId, ParameterSource.Parameters))
 			{
 				// Initial update is required to populate the cache
 				// TODO: This needs to move outside this function once we run initialization off the game thread, depending on thread-safety
@@ -99,7 +103,7 @@ FScheduleInstanceData::FScheduleInstanceData(const FScheduleContext& InScheduleC
 	IntermediatesData = InSchedule->IntermediatesData;
 
 	// Make a hosting layer for the intermediates
-	IntermediatesLayer = FParamStack::MakeReferenceLayer(IntermediatesData);
+	IntermediatesLayer = FParamStack::MakeReferenceLayer(NAME_None, IntermediatesData);
 
 	// Resize remapped intermediate data layers for port tasks, they will be allocated lazily later
 	PortTermLayers.SetNum(InSchedule->Ports.Num());
@@ -109,7 +113,7 @@ FScheduleInstanceData::~FScheduleInstanceData() = default;
 
 void FScheduleInstanceData::AddReferencedObjects(FReferenceCollector& Collector)
 {
-	for (TPair<FName, FUserScope>& ParamPair : UserScopes)
+	for (const TPair<FName, FUserScope>& ParamPair : UserScopes)
 	{
 		if(ParamPair.Value.AfterSource.IsValid())
 		{
@@ -124,6 +128,14 @@ void FScheduleInstanceData::AddReferencedObjects(FReferenceCollector& Collector)
 	for (FGraphCache& GraphCache : GraphCaches)
 	{
 		Collector.AddPropertyReferencesWithStructARO(FAnimNextGraphInstancePtr::StaticStruct(), &GraphCache.GraphInstanceData);
+	}
+
+	for(const FExternalParamCache& ExternalParamCache : ExternalParamCaches)
+	{
+		for(const TUniquePtr<IParameterSource>& ParameterSource : ExternalParamCache.ParameterSources)
+		{
+			ParameterSource->AddReferencedObjects(Collector);
+		}
 	}
 }
 
@@ -141,6 +153,28 @@ TSharedPtr<FParamStack> FScheduleInstanceData::GetParamStack(uint32 InIndex) con
 	else
 	{
 		return ParamStacks[InIndex];
+	}
+}
+
+void FScheduleInstanceData::ApplyParametersToScope(FName InScope, EParameterScopeOrdering InOrdering, TUniquePtr<IParameterSource>&& InParameters)
+{
+	if (InScope == NAME_None)
+	{
+		RootUserScope = MoveTemp(InParameters);
+	}
+	else // apply to specified scope
+	{
+		FScheduleInstanceData::FUserScope& ScopeSource = UserScopes.FindOrAdd(InScope);
+		switch (InOrdering)
+		{
+		default:
+		case EParameterScopeOrdering::Before:
+			ScopeSource.BeforeSource = MoveTemp(InParameters);
+			break;
+		case EParameterScopeOrdering::After:
+			ScopeSource.AfterSource = MoveTemp(InParameters);
+			break;
+		}
 	}
 }
 

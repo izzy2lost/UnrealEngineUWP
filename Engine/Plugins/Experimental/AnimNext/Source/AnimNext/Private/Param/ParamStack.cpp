@@ -25,7 +25,7 @@ struct FInstancedPropertyBagLayer : FParamStackLayer, FGCObject
 {
 	FInstancedPropertyBagLayer() = delete;
 
-	explicit FInstancedPropertyBagLayer(FInstancedPropertyBag& InPropertyBag, bool bInMutable)
+	explicit FInstancedPropertyBagLayer(FName InInstanceId, FInstancedPropertyBag& InPropertyBag, bool bInMutable)
 		: FParamStackLayer(InPropertyBag.GetPropertyBagStruct() ? InPropertyBag.GetPropertyBagStruct()->GetPropertyDescs().Num() : 0)
 	{
 		if (const UPropertyBag* PropertyBagStruct = InPropertyBag.GetPropertyBagStruct())
@@ -36,7 +36,7 @@ struct FInstancedPropertyBagLayer : FParamStackLayer, FGCObject
 			for (uint32 DescIndex = 0; DescIndex < static_cast<uint32>(Descs.Num()); ++DescIndex)
 			{
 				const FPropertyBagPropertyDesc& Desc = Descs[DescIndex];
-				const FParamId ParamId(Desc.Name);
+				const FParamId ParamId(Desc.Name, InInstanceId);
 				uint8* DataPtr = StructView.GetMemory() + Desc.CachedProperty->GetOffset_ForInternal();
 				uint32 ParamIndex = Params.Emplace(ParamId, FParamTypeHandle::FromPropertyBagPropertyDesc(Desc), TArrayView<uint8>(DataPtr, Desc.CachedProperty->GetSize()), true, true);
 				HashTable.Add(ParamId.GetHash(), ParamIndex);
@@ -57,7 +57,7 @@ struct FInstancedPropertyBagValueLayer : FInstancedPropertyBagLayer
 	FInstancedPropertyBagValueLayer() = delete;
 
 	explicit FInstancedPropertyBagValueLayer(FInstancedPropertyBag&& InPropertyBag, bool bInMutable)
-		: FInstancedPropertyBagLayer(InPropertyBag, bInMutable)
+		: FInstancedPropertyBagLayer(NAME_None, InPropertyBag, bInMutable)
 		, PropertyBag(MoveTemp(InPropertyBag))
 	{}
 
@@ -81,8 +81,8 @@ struct FInstancedPropertyBagReferenceLayer : FInstancedPropertyBagLayer
 {
 	FInstancedPropertyBagReferenceLayer() = delete;
 
-	explicit FInstancedPropertyBagReferenceLayer(FInstancedPropertyBag& InPropertyBag, bool bInMutable)
-		: FInstancedPropertyBagLayer(InPropertyBag, bInMutable)
+	explicit FInstancedPropertyBagReferenceLayer(FName InInstanceId, FInstancedPropertyBag& InPropertyBag, bool bInMutable)
+		: FInstancedPropertyBagLayer(InInstanceId, InPropertyBag, bInMutable)
 		, PropertyBag(InPropertyBag)
 	{}
 
@@ -309,9 +309,9 @@ FParamStackLayerHandle FParamStack::MakeValueLayer(const FInstancedPropertyBag& 
 	return FParamStackLayerHandle(MoveTemp(Layer));
 }
 
-FParamStackLayerHandle FParamStack::MakeReferenceLayer(FInstancedPropertyBag& InPropertyBag)
+FParamStackLayerHandle FParamStack::MakeReferenceLayer(FName InInstanceId, FInstancedPropertyBag& InPropertyBag)
 {
-	TUniquePtr<FParamStackLayer> Layer = MakeUnique<FInstancedPropertyBagReferenceLayer>(InPropertyBag, true);
+	TUniquePtr<FParamStackLayer> Layer = MakeUnique<FInstancedPropertyBagReferenceLayer>(InInstanceId, InPropertyBag, true);
 	return FParamStackLayerHandle(MoveTemp(Layer));
 }
 
@@ -519,7 +519,7 @@ const Private::FParamEntry* FParamStack::FindParam(FParamId InId) const
 {
 	for(uint32 Index = LayerHash.First(InId.GetHash()); LayerHash.IsValid(Index); Index = LayerHash.Next(Index))
 	{
-		if (EntryStack[Index]->GetName() == InId.GetName())
+		if (EntryStack[Index]->GetName() == InId.GetName() && EntryStack[Index]->GetInstanceId() == InId.GetInstanceId())
 		{
 			return EntryStack[Index];
 		}

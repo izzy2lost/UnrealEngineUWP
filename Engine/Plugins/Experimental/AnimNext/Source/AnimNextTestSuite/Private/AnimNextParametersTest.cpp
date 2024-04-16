@@ -1,14 +1,21 @@
 ﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "CoreMinimal.h"
+#include "AnimNextTest.h"
 #include "Context.h"
+#include "UncookedOnlyUtils.h"
 #include "Misc/AutomationTest.h"
 #include "Param/ParamType.h"
 #include "Param/ParamTypeHandle.h"
 #include "Animation/AnimSequence.h"
 #include "Animation/AnimMontage.h"
 #include "Async/ParallelFor.h"
+#include "Graph/AnimNextGraph.h"
+#include "Graph/AnimNextGraph_EditorData.h"
+#include "Graph/AnimNextGraph_Parameter.h"
+#include "Graph/GraphFactory.h"
 #include "Param/ParamStack.h"
+#include "UObject/StrongObjectPtr.h"
 
 // AnimNext Parameters Tests
 
@@ -517,7 +524,7 @@ bool FParamStackTest::RunTest(const FString& InParameters)
 		PropertyBag.SetValueBool("Param1", true);
 		PropertyBag.SetValueInt32("Param2", 5);
 
-		FParamStackLayerHandle Layer = FParamStack::MakeReferenceLayer(PropertyBag);
+		FParamStackLayerHandle Layer = FParamStack::MakeReferenceLayer(NAME_None, PropertyBag);
 
 		FParamStack Stack;
 

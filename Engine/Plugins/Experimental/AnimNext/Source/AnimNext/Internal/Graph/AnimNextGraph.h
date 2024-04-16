@@ -27,6 +27,7 @@ struct FAnimNextGraphInstancePtr;
 struct FAnimNextGraphInstance;
 class UAnimNextSchedule;
 struct FAnimNextScheduleGraphTask;
+struct FAnimNextEditorParam;
 struct FAnimNextParam;
 
 namespace UE::AnimNext
@@ -62,14 +63,13 @@ class ANIMNEXT_API UAnimNextGraph : public UAnimNextRigVMAsset, public IAnimNext
 	GENERATED_BODY()
 
 public:
-	static const UE::AnimNext::FParamId DefaultReferencePoseId;
-	static const UE::AnimNext::FParamId DefaultCurrentLODId;
-
 	UAnimNextGraph(const FObjectInitializer& ObjectInitializer);
 
 	// UObject interface
-	virtual void PostLoad() override;
 	virtual void Serialize(FArchive& Ar) override;
+#if WITH_EDITOR
+	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
+#endif
 
 	// IAnimNextScheduleTermInterface interface
 	virtual TConstArrayView<UE::AnimNext::FScheduleTerm> GetTerms() const override;
@@ -84,12 +84,6 @@ public:
 	// @param	OutInstance					The instance to allocate data for
 	// @param	InEntryPoint				The entry point to use. If this is NAME_None then the default entry point for this graph is used
 	void AllocateInstance(FAnimNextGraphInstance& InOutParentGraphInstance, FAnimNextGraphInstancePtr& OutInstance, FName InEntryPoint = NAME_None) const;
-
-	// Get the parameter to use to access the reference pose
-	UE::AnimNext::FParamId GetReferencePoseParam() const { return ReferencePoseId; }
-
-	// Get the parameter to use to access the current LOD
-	UE::AnimNext::FParamId GetCurrentLODParam() const { return CurrentLODId; }
 
 	// Update the parameter layer, if any
 	void UpdateLayer(UE::AnimNext::FParamStackLayerHandle& InHandle, float InDeltaTime) const;
@@ -110,6 +104,12 @@ protected:
 	// During graph compilation, once compilation is done we thaw existing graph instances to reallocate their memory
 	void ThawGraphInstances();
 #endif
+
+	// Get the fully-qualified default entry point name (/Path/To/Asset.Asset:EntryPoint)
+	FName GetDefaultEntryPoint() const;
+
+	// Set the default entry point name (unqualified)
+	void SetDefaultEntryPoint(FName InEntryPoint);
 
 	friend class UAnimNextGraphFactory;
 	friend class UAnimNextGraph_EditorData;
@@ -156,20 +156,13 @@ protected:
 	UPROPERTY()
 	TArray<TObjectPtr<UObject>> GraphReferencedObjects;
 
-	// The entry point that this graph defaults to using
+	// The entry point that this graph defaults to using (unqualified by asset). Use GetDefaultEntryPoint to get the fully-qualified name.
 	UPROPERTY(EditAnywhere, Category = "Graph")
 	FName DefaultEntryPoint = FRigUnit_AnimNextGraphRoot::DefaultEntryPoint;
 
-	// The parameter to use to access the reference pose
-	UPROPERTY(EditAnywhere, Category = "Graph", meta=(CustomWidget = "ParamName", AllowedParamType = "FAnimNextGraphReferencePose"))
-	FName ReferencePose = DefaultReferencePoseId.GetName();
-
-	// The parameter to use to access the current LOD
-	UPROPERTY(EditAnywhere, Category = "Graph", meta=(CustomWidget = "ParamName", AllowedParamType = "int32"))
-	FName CurrentLOD = DefaultCurrentLODId.GetName();
-
-	UE::AnimNext::FParamId ReferencePoseId = UE::AnimNext::FParamId(ReferencePose);
-	UE::AnimNext::FParamId CurrentLODId = UE::AnimNext::FParamId(CurrentLOD);
+	// Cached fully-qualified entry point, set via by SetDefaultEntryPoint.
+	UPROPERTY(Transient)
+	FName CachedDefaultEntryPoint = NAME_None;
 
 	// Hash of required parameters
 	UPROPERTY()

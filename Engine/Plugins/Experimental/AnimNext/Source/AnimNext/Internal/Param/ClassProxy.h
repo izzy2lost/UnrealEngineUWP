@@ -23,8 +23,8 @@ enum class EClassProxyParameterAccessType : int32
 // Cached info about how a class property or function maps to a parameter
 struct FClassProxyParameter
 {
-	// The parameter name that this proxy corresponds to (within this class - object accessors act as prefixes of this name)
-	FName ClassParameterName;
+	// The parameter name that this proxy corresponds to
+	FName ParameterName;
 
 	// The function to call to get this parameter
 	TWeakObjectPtr<UFunction> Function;
@@ -36,10 +36,13 @@ struct FClassProxyParameter
 	// The type of the property
 	FAnimNextParamType Type;
 
-	// How this parameter ies accessed
+	// How this parameter is accessed
 	EClassProxyParameterAccessType AccessType;
 
 #if WITH_EDITOR
+	// Name to display in editor
+	FText DisplayName;
+
 	// Tooltip to display in editor
 	FText Tooltip;
 
@@ -52,6 +55,9 @@ struct FClassProxyParameter
 struct FClassProxy
 {
 	explicit FClassProxy(const UClass* InClass);
+
+	// Refresh the cached class info
+	void Refresh(const UClass* InClass);
 
 	// The class that this proxy wraps
 	TWeakObjectPtr<const UClass> Class;

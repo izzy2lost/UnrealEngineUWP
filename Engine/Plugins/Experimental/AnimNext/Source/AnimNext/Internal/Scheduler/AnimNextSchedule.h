@@ -4,6 +4,8 @@
 
 #include "CoreMinimal.h"
 #include "AnimNextScheduleGraphTask.h"
+#include "Param/AnimNextEditorParam.h"
+#include "Param/AnimNextParam.h"
 #include "Scheduler/AnimNextSchedulePortTask.h"
 #include "Scheduler/AnimNextScheduleExternalTask.h"
 #include "Scheduler/AnimNextScheduleParamScopeTask.h"
@@ -17,7 +19,7 @@ class UAnimNextSchedule;
 class UAnimNextSchedulerWorldSubsystem;
 class UAnimNextComponent;
 struct FAnimNextSchedulerEntry;
-struct FAnimNextParam;
+struct FAnimNextEditorParam;
 
 namespace UE::AnimNext
 {
@@ -80,16 +82,16 @@ private:
 	TObjectPtr<UAnimNextGraph> Graph = nullptr;
 
 	// Parameter to get the graph from dynamically
-	UPROPERTY(EditAnywhere, Category = "Graph", meta = (CustomWidget = "ParamName", AllowedParamType = "TObjectPtr<UAnimNextGraph>", AllowNone))
-	FName DynamicGraph;
+	UPROPERTY(EditAnywhere, Category = "Graph", meta = (AllowedParamType = "TObjectPtr<UAnimNextGraph>"))
+	FAnimNextEditorParam DynamicGraph;
 
 	// An optional entry point to use when running the supplied graph
-	UPROPERTY(EditAnywhere, Category = "Graph", meta = (CustomWidget = "ParamName", AllowedParamType = "FName", AllowNone))
-	FName EntryPoint;
+	UPROPERTY(EditAnywhere, Category = "Graph", meta = (AllowedParamType = "FAnimNextEntryPoint"))
+	FAnimNextEditorParam EntryPoint;
 
 	// All parameters that are required by this graph to run (only required if dynamic as static graph params can be discovered by the compiler)
-	UPROPERTY(EditAnywhere, Category = "Graph", meta = (CustomWidget = "ParamName"))
-	TArray<FAnimNextParam> RequiredParameters;
+	UPROPERTY(EditAnywhere, Category = "Graph")
+	TArray<FAnimNextEditorParam> RequiredParameters;
 
 	// The intermediate terms used by the graph
 	UPROPERTY(EditAnywhere, Category = "Graph")
@@ -122,8 +124,8 @@ private:
 	friend struct UE::AnimNext::UncookedOnly::FUtils;
 
 	// The external task we wrap
-	UPROPERTY(EditAnywhere, Category = "External Task", meta = (CustomWidget = "ParamName", AllowedParamType = "FAnimNextExternalTaskBinding"))
-	FName ExternalTask;
+	UPROPERTY(EditAnywhere, Category = "External Task", meta = (AllowedParamType = "FAnimNextExternalTaskBinding"))
+	FAnimNextEditorParam ExternalTask;
 };
 
 UCLASS(MinimalAPI, DisplayName="Scope")
@@ -138,8 +140,8 @@ private:
 	virtual void GetPreloadDependencies(TArray<UObject*>& OutDeps) override;
 
 	// The scope to use
-	UPROPERTY(EditAnywhere, Category = "Parameters", meta = (CustomWidget = "ParamName", AllowedParamType = "FAnimNextScope"))
-	FName Scope;
+	UPROPERTY(EditAnywhere, Category = "Parameters", meta = (AllowedParamType = "FAnimNextScope"))
+	FAnimNextEditorParam Scope;
 
 	// Parameters to apply in this scope
 	UPROPERTY(EditAnywhere, Category = "Parameters")

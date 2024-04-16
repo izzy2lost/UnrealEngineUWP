@@ -23,10 +23,10 @@ void FAnimNextScheduleParamScopeEntryTask::RunParamScopeEntry(const UE::AnimNext
 	check(ScopeCache.PushedLayers.Num() == 0);
 
 	// Update & push user params (before scope)
-	FScheduleInstanceData::FUserScope* FoundUserScope = InstanceData.UserScopes.Find(Scope);
+	FScheduleInstanceData::FUserScope* FoundUserScope = InstanceData.UserScopes.Find(Scope.Name);
 	if (FoundUserScope && FoundUserScope->BeforeSource.IsValid())
 	{
-		FPropertyBagProxy& UserParameterSource = *FoundUserScope->BeforeSource.Get();
+		IParameterSource& UserParameterSource = *FoundUserScope->BeforeSource.Get();
 		UserParameterSource.Update(DeltaTime);
 		ScopeCache.PushedLayers.Add(ParamStack.PushLayer(UserParameterSource.GetLayerHandle()));
 	}
@@ -43,7 +43,7 @@ void FAnimNextScheduleParamScopeEntryTask::RunParamScopeEntry(const UE::AnimNext
 	// Update & push user params (after scope)
 	if (FoundUserScope && FoundUserScope->AfterSource.IsValid())
 	{
-		FPropertyBagProxy& UserParameterSource = *FoundUserScope->AfterSource.Get();
+		IParameterSource& UserParameterSource = *FoundUserScope->AfterSource.Get();
 		UserParameterSource.Update(DeltaTime);
 		ScopeCache.PushedLayers.Add(ParamStack.PushLayer(UserParameterSource.GetLayerHandle()));
 	}

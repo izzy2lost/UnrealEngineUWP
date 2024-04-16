@@ -51,11 +51,12 @@ bool FParameterToAdd::IsValid(FText& OutReason) const
 	return true; 
 }
 
-void SAddParametersDialog::Construct(const FArguments& InArgs)
+void SAddParametersDialog::Construct(const FArguments& InArgs, const FAssetData& InAsset)
 {
 	using namespace AddParametersDialog;
 
 	OnFilterParameterType = InArgs._OnFilterParameterType;
+	Asset = InAsset;
 
 	SWindow::Construct(SWindow::FArguments()
 		.Title(LOCTEXT("WindowTitle", "Add Parameters"))
@@ -87,7 +88,7 @@ void SAddParametersDialog::Construct(const FArguments& InArgs)
 				+SVerticalBox::Slot()
 				.FillHeight(1.0f)
 				[
-					SAssignNew(EntriesList, SListView<TSharedRef<FParameterToAdd>>)
+					SAssignNew(EntriesList, SListView<TSharedRef<FParameterToAddEntry>>)
 					.ListItemsSource(&Entries)
 					.OnGenerateRow(this, &SAddParametersDialog::HandleGenerateRow)
 					.ItemHeight(20.0f)
@@ -149,6 +150,7 @@ void SAddParametersDialog::Construct(const FArguments& InArgs)
 						})
 						.OnClicked_Lambda([this]()
 						{
+							bOKPressed = true;
 							RequestDestroyWindow();
 							return FReply::Handled();
 						})
@@ -162,7 +164,6 @@ void SAddParametersDialog::Construct(const FArguments& InArgs)
 						.ToolTipText(LOCTEXT("CancelButtonTooltip", "Cancel adding new parameters"))
 						.OnClicked_Lambda([this]()
 						{
-							bCancelPressed = true;
 							RequestDestroyWindow();
 							return FReply::Handled();
 						})
@@ -175,18 +176,29 @@ void SAddParametersDialog::Construct(const FArguments& InArgs)
 	AddEntry(InArgs._InitialParamType);
 }
 
+FReply SAddParametersDialog::OnKeyDown(const FGeometry& MyGeometry, const FKeyEvent& InKeyEvent)
+{
+	if(InKeyEvent.GetKey() == EKeys::Escape)
+	{
+		RequestDestroyWindow();
+		return FReply::Handled();
+	}
+
+	return FReply::Unhandled();
+}
+
 void SAddParametersDialog::AddEntry(const FAnimNextParamType& InParamType)
 {
 	const UAnimNextParameterSettings* Settings = GetDefault<UAnimNextParameterSettings>();
 	
 	TArray<FName> PendingNames;
 	PendingNames.Reserve(Entries.Num());
-	for(const TSharedRef<FParameterToAdd>& QueuedAdd : Entries)
+	for(const TSharedRef<FParameterToAddEntry>& QueuedAdd : Entries)
 	{
 		PendingNames.Add(QueuedAdd->Name);
 	}
-	FName ParameterName = FUtils::GetNewParameterName(TEXT("NewParameter"), PendingNames);
-	Entries.Add(MakeShared<FParameterToAdd>(InParamType.IsValid() ? InParamType : Settings->GetLastParameterType(), ParameterName));
+	FName ParameterName = FUtils::GetNewParameterName(Settings->GetLastParameterName(), Asset, PendingNames);
+	Entries.Add(MakeShared<FParameterToAddEntry>(InParamType.IsValid() ? InParamType : Settings->GetLastParameterType(), ParameterName));
 
 	RefreshEntries();
 }
@@ -196,17 +208,17 @@ void SAddParametersDialog::RefreshEntries()
 	EntriesList->RequestListRefresh();
 }
 
-class SParameterToAdd : public SMultiColumnTableRow<TSharedRef<FParameterToAdd>>
+class SParameterToAdd : public SMultiColumnTableRow<TSharedRef<SAddParametersDialog::FParameterToAddEntry>>
 {
 	SLATE_BEGIN_ARGS(SParameterToAdd) {}
 	SLATE_END_ARGS()
 
-	void Construct(const FArguments& InArgs, const TSharedRef<STableViewBase>& InOwnerTableView, TSharedRef<FParameterToAdd> InEntry, TSharedRef<SAddParametersDialog> InDialog)
+	void Construct(const FArguments& InArgs, const TSharedRef<STableViewBase>& InOwnerTableView, TSharedRef<SAddParametersDialog::FParameterToAddEntry> InEntry, TSharedRef<SAddParametersDialog> InDialog)
 	{
 		Entry = InEntry;
 		WeakDialog = InDialog;
 		
-		SMultiColumnTableRow<TSharedRef<FParameterToAdd>>::Construct( SMultiColumnTableRow<TSharedRef<FParameterToAdd>>::FArguments(), InOwnerTableView);
+		SMultiColumnTableRow<TSharedRef<SAddParametersDialog::FParameterToAddEntry>>::Construct( SMultiColumnTableRow<TSharedRef<SAddParametersDialog::FParameterToAddEntry>>::FArguments(), InOwnerTableView);
 	}
 
 	virtual TSharedRef<SWidget> GenerateWidgetForColumn(const FName& InColumnName) override
@@ -215,53 +227,67 @@ class SParameterToAdd : public SMultiColumnTableRow<TSharedRef<FParameterToAdd>>
 
 		if(InColumnName == Column_Name)
 		{
-			return
+			TSharedPtr<SInlineEditableTextBlock> EditableText;
+			TSharedRef<SWidget> Widget =
 				SNew(SBox)
 				.HAlign(HAlign_Left)
 				.VAlign(VAlign_Center)
 				[
-					SNew(SInlineEditableTextBlock)
+					SAssignNew(EditableText, SInlineEditableTextBlock)
 					.Font(IDetailLayoutBuilder::GetDetailFont())
 					.IsSelected(this, &SParameterToAdd::IsSelectedExclusively)
 					.ToolTipText(LOCTEXT("NameTooltip", "The name of the new parameter"))
 					.Text_Lambda([this]()
 					{
-						return UncookedOnly::FUtils::GetParameterDisplayNameText(Entry->Name);
+						return FText::FromName(Entry->Name);
 					})
 					.OnTextCommitted_Lambda([this](const FText& InText, ETextCommit::Type InCommitType)
 					{
-						const FString UserInput = InText.ToString();
-						// Parse out segments to collapse adjacent delimiters
-						TStringBuilder<128> RebuiltInput;
-						UE::String::ParseTokensMultiple(UserInput, { TEXT('.'), TEXT('_') }, [&RebuiltInput](const FStringView InToken)
-						{
-							if(RebuiltInput.Len() != 0)
-							{
-								RebuiltInput.Append(TEXT("_"));
-							}
-							RebuiltInput.Append(InToken);
-						}, String::EParseTokensOptions::SkipEmpty);
-						Entry->Name = RebuiltInput.ToString();
+						Entry->Name = *InText.ToString();
+
+						UAnimNextParameterSettings* Settings = GetMutableDefault<UAnimNextParameterSettings>();
+						Settings->SetLastParameterName(Entry->Name);
 					})
 					.OnVerifyTextChanged_Lambda([this](const FText& InNewText, FText& OutErrorText)
 					{
 						const FString NewString = InNewText.ToString();
 
-						if(!FUtils::IsValidEntryNameString(NewString, OutErrorText))
+						if(!FUtils::IsValidParameterNameString(NewString, OutErrorText))
 						{
 							return false;
 						}
 
-						const FName Name(*NewString);
-						if(FUtils::DoesParameterNameExist(Name))
+						if(TSharedPtr<SAddParametersDialog> Dialog = WeakDialog.Pin())
 						{
-							OutErrorText = LOCTEXT("Error_NameExists", "This name already exists in the project");
-							return false;
+							const FName Name(*NewString);
+							if(FUtils::DoesParameterNameExistInAsset(Name, Dialog->Asset))
+							{
+								OutErrorText = LOCTEXT("Error_NameExists", "This name already exists in the project");
+								return false;
+							}
+
+							return true;
 						}
 
-						return true;
+						return false;
 					})
 				];
+
+			if(Entry->bIsNew)
+			{
+				EditableText->RegisterActiveTimer(1/60.0f, FWidgetActiveTimerDelegate::CreateSPLambda(EditableText.Get(), [WeakEditableText = TWeakPtr<SInlineEditableTextBlock>(EditableText)](double, float)
+				{
+					if(TSharedPtr<SInlineEditableTextBlock> PinnedEditableText = WeakEditableText.Pin())
+					{
+						PinnedEditableText->EnterEditingMode();
+					}
+					return EActiveTimerReturnType::Stop;
+				}));
+	
+				Entry->bIsNew = false;
+			}
+
+			return Widget;
 		}
 		else if(InColumnName == Column_Type)
 		{
@@ -345,11 +371,11 @@ class SParameterToAdd : public SMultiColumnTableRow<TSharedRef<FParameterToAdd>>
 		return SNullWidget::NullWidget;
 	}
 
-	TSharedPtr<FParameterToAdd> Entry;
+	TSharedPtr<SAddParametersDialog::FParameterToAddEntry> Entry;
 	TWeakPtr<SAddParametersDialog> WeakDialog;
 };
 
-TSharedRef<ITableRow> SAddParametersDialog::HandleGenerateRow(TSharedRef<FParameterToAdd> InEntry, const TSharedRef<STableViewBase>& InOwnerTable)
+TSharedRef<ITableRow> SAddParametersDialog::HandleGenerateRow(TSharedRef<FParameterToAddEntry> InEntry, const TSharedRef<STableViewBase>& InOwnerTable)
 {
 	return SNew(SParameterToAdd, InOwnerTable, InEntry, SharedThis(this));
 }
@@ -358,10 +384,10 @@ bool SAddParametersDialog::ShowModal(TArray<FParameterToAdd>& OutParameters)
 {
 	FSlateApplication::Get().AddModalWindow(SharedThis(this), FGlobalTabmanager::Get()->GetRootWindow());
 
-	if(!bCancelPressed)
+	if(bOKPressed)
 	{
 		bool bHasValid = false;
-		for(TSharedRef<FParameterToAdd>& Entry : Entries)
+		for(TSharedRef<FParameterToAddEntry>& Entry : Entries)
 		{
 			if(Entry->IsValid())
 			{
@@ -374,7 +400,7 @@ bool SAddParametersDialog::ShowModal(TArray<FParameterToAdd>& OutParameters)
 	return false;
 }
 
-TSharedRef<SWidget> SAddParametersDialog::HandleGetAddParameterMenuContent(TSharedPtr<FParameterToAdd> InEntry)
+TSharedRef<SWidget> SAddParametersDialog::HandleGetAddParameterMenuContent(TSharedPtr<FParameterToAddEntry> InEntry)
 {
 	using namespace AddParametersDialog;
 

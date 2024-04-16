@@ -61,18 +61,7 @@ void FAnimNode_AnimNextGraph::Update_AnyThread(const FAnimationUpdateContext& Co
 
 		PropagateInputProperties(Context.AnimInstanceProxy->GetAnimInstanceObject());
 
-		const int32 LODLevel = Context.AnimInstanceProxy->GetLODLevel();
-
-		UE::AnimNext::FAnimGraphParamStackScope Scope(Context);
-
-		FParamStack& ParamStack = FParamStack::Get();
-		FParamStack::FPushedLayerHandle LayerHandle = ParamStack.PushValues(
-			AnimNextGraph->GetCurrentLODParam(), LODLevel
-		);
-
 		UE::AnimNext::UpdateGraph(GraphInstance, Context.GetDeltaTime());
-
-		ParamStack.PopLayer(LayerHandle);
 	}
 
 	FAnimNode_CustomProperty::Update_AnyThread(Context);
@@ -90,20 +79,7 @@ void FAnimNode_AnimNextGraph::Initialize_AnyThread(const FAnimationInitializeCon
 
 	if (!GraphInstance.IsValid() && AnimNextGraph)
 	{
-		// If we don't have an instance yet, create one
-		UE::AnimNext::FAnimGraphParamStackScope Scope(Context);
-
-		// Populate our param stack since our instance data might need it during construction
-		const int32 LODLevel = Context.AnimInstanceProxy->GetLODLevel();
-
-		FParamStack& ParamStack = FParamStack::Get();
-		FParamStack::FPushedLayerHandle LayerHandle = ParamStack.PushValues(
-			AnimNextGraph->GetCurrentLODParam(), LODLevel
-		);
-
 		AnimNextGraph->AllocateInstance(GraphInstance);
-
-		ParamStack.PopLayer(LayerHandle);
 	}
 
 	FAnimNode_CustomProperty::Initialize_AnyThread(Context);
@@ -137,13 +113,6 @@ void FAnimNode_AnimNextGraph::Evaluate_AnyThread(FPoseContext& Output)
 		const UE::AnimNext::FReferencePose& RefPose = RefPoseHandle.GetRef<UE::AnimNext::FReferencePose>();
 		FAnimNextGraphLODPose ResultPose(FLODPoseHeap(RefPose, LODLevel, true, Output.ExpectsAdditivePose()));
 
-		FAnimGraphParamStackScope Scope(Output);
-		FParamStack& ParamStack = FParamStack::Get();
-		FParamStack::FPushedLayerHandle LayerHandle = ParamStack.PushValues(
-			AnimNextGraph->GetReferencePoseParam(), GraphReferencePose,
-			AnimNextGraph->GetCurrentLODParam(), LODLevel
-		);
-
 		{
 			const FEvaluationProgram EvaluationProgram = UE::AnimNext::EvaluateGraph(GraphInstance);
 
@@ -171,8 +140,6 @@ void FAnimNode_AnimNextGraph::Evaluate_AnyThread(FPoseContext& Output)
 		}
 
 		FGenerationTools::RemapPose(ResultPose.LODPose, Output);
-
-		ParamStack.PopLayer(LayerHandle);
 	}
 	else
 	{

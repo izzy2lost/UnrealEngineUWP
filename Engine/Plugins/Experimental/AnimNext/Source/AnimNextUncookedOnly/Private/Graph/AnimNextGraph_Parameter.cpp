@@ -1,20 +1,23 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Graph/AnimNextGraph_Parameter.h"
+
+#include "UncookedOnlyUtils.h"
 #include "Graph/AnimNextGraph.h"
-#include "Param/ExternalParameterRegistry.h"
+#include "Param/AnimNextTag.h"
+
+FAnimNextParamType UAnimNextGraph_Parameter::GetExportType() const
+{
+	return GetParamType();
+}
+
+FName UAnimNextGraph_Parameter::GetExportName() const
+{
+	return GetParamName();
+}
 
 FAnimNextParamType UAnimNextGraph_Parameter::GetParamType() const
 {
-	using namespace UE::AnimNext;
-
-	// Look in built-in parameters
-	IParameterSourceFactory::FParameterInfo Info;
-	if(FExternalParameterRegistry::FindParameterInfo(ParameterName, Info))
-	{
-		return Info.Type;
-	}
-
 	return Type;
 }
 
@@ -35,6 +38,20 @@ bool UAnimNextGraph_Parameter::SetParamType(const FAnimNextParamType& InType, bo
 	BroadcastModified();
 
 	return true;
+}
+
+FName UAnimNextGraph_Parameter::GetParamName() const
+{
+	if(UAnimNextRigVMAsset* OuterAsset = GetTypedOuter<UAnimNextRigVMAsset>())
+	{
+		return UE::AnimNext::UncookedOnly::FUtils::GetQualifiedName(OuterAsset, ParameterName);
+	}
+	return ParameterName;
+}
+
+void UAnimNextGraph_Parameter::SetParamName(FName InName, bool bSetupUndoRedo)
+{
+	SetEntryName(InName, bSetupUndoRedo);
 }
 
 FInstancedPropertyBag& UAnimNextGraph_Parameter::GetPropertyBag() const
@@ -63,13 +80,5 @@ FText UAnimNextGraph_Parameter::GetDisplayName() const
 
 FText UAnimNextGraph_Parameter::GetDisplayNameTooltip() const
 {
-	using namespace UE::AnimNext;
-
-	IParameterSourceFactory::FParameterInfo Info;
-	if(FExternalParameterRegistry::FindParameterInfo(ParameterName, Info))
-	{
-		return Info.Tooltip;
-	}
-	
-	return FText::FromName(ParameterName);
+	return FText::FromString(Comment);
 }

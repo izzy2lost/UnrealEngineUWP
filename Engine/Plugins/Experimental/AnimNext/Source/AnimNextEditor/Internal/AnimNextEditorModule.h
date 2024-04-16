@@ -16,6 +16,7 @@ class IModule : public IModuleInterface
 {
 public:
 	// Create a parameter picker
+	// @param  InArgs          Arguments used for configuring the picker
 	virtual TSharedRef<SWidget> CreateParameterPicker(const FParameterPickerArgs& InArgs) = 0;
 };
 

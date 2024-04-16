@@ -46,15 +46,15 @@ namespace UE::AnimNext
 			const FSharedData* SharedData = Binding.GetSharedData<FSharedData>();
 			UE::AnimNext::FParamStack& ParamStack = UE::AnimNext::FParamStack::Get();
 
-			int32& UpdateCount = ParamStack.GetMutableParam<int32>("UpdateCount");
+			int32& UpdateCount = ParamStack.GetMutableParam<int32>("/Engine/Transient.TestAnimNextGraph:UpdateCount");
 			UpdateCount++;
 
-			ParamStack.GetMutableParam<int32>("SomeInt32") = SharedData->SomeInt32;
-			ParamStack.GetMutableParam<float>("SomeFloat") = SharedData->SomeFloat;
+			ParamStack.GetMutableParam<int32>("/Engine/Transient.TestAnimNextGraph:SomeInt32") = SharedData->SomeInt32;
+			ParamStack.GetMutableParam<float>("/Engine/Transient.TestAnimNextGraph:SomeFloat") = SharedData->SomeFloat;
 
-			ParamStack.GetMutableParam<int32>("SomeLatentInt32") = SharedData->GetSomeLatentInt32(Binding);				// MathAdd with constants, latent
-			ParamStack.GetMutableParam<int32>("SomeOtherLatentInt32") = SharedData->GetSomeOtherLatentInt32(Binding);	// GetParameter, latent
-			ParamStack.GetMutableParam<float>("SomeLatentFloat") = SharedData->GetSomeLatentFloat(Binding);				// Inline value, not latent
+			ParamStack.GetMutableParam<int32>("/Engine/Transient.TestAnimNextGraph:SomeLatentInt32") = SharedData->GetSomeLatentInt32(Binding);				// MathAdd with constants, latent
+			ParamStack.GetMutableParam<int32>("/Engine/Transient.TestAnimNextGraph:SomeOtherLatentInt32") = SharedData->GetSomeOtherLatentInt32(Binding);	// GetParameter, latent
+			ParamStack.GetMutableParam<float>("/Engine/Transient.TestAnimNextGraph:SomeLatentFloat") = SharedData->GetSomeLatentFloat(Binding);				// Inline value, not latent
 		}
 
 		// IEvaluate impl
@@ -62,9 +62,10 @@ namespace UE::AnimNext
 		{
 			IEvaluate::PostEvaluate(Context, Binding);
 
+			const FSharedData* SharedData = Binding.GetSharedData<FSharedData>();
 			UE::AnimNext::FParamStack& ParamStack = UE::AnimNext::FParamStack::Get();
-
-			int32& EvaluateCount = ParamStack.GetMutableParam<int32>("EvaluateCount");
+			
+			int32& EvaluateCount = ParamStack.GetMutableParam<int32>("/Engine/Transient.TestAnimNextGraph:EvaluateCount");
 			EvaluateCount++;
 		}
 	};
@@ -269,13 +270,13 @@ bool FAnimationAnimNextRuntimeTest_GraphExecute::RunTest(const FString& InParame
 		AnimNextGraph->AllocateInstance(GraphInstance);
 
 		FParamStack::FPushedLayerHandle LayerHandle = ParamStack->PushValues(
-			"UpdateCount", (int32)0,
-			"EvaluateCount", (int32)0,
-			"SomeInt32", (int32)0,
-			"SomeFloat", 0.0f,
-			"SomeLatentInt32", (int32)0,
-			"SomeOtherLatentInt32", (int32)0,
-			"SomeLatentFloat", 0.0f
+			"/Engine/Transient.TestAnimNextGraph:UpdateCount", (int32)0,
+			"/Engine/Transient.TestAnimNextGraph:EvaluateCount", (int32)0,
+			"/Engine/Transient.TestAnimNextGraph:SomeInt32", (int32)0,
+			"/Engine/Transient.TestAnimNextGraph:SomeFloat", 0.0f,
+			"/Engine/Transient.TestAnimNextGraph:SomeLatentInt32", (int32)0,
+			"/Engine/Transient.TestAnimNextGraph:SomeOtherLatentInt32", (int32)0,
+			"/Engine/Transient.TestAnimNextGraph:SomeLatentFloat", 0.0f
 		);
 
 		{
@@ -283,13 +284,13 @@ bool FAnimationAnimNextRuntimeTest_GraphExecute::RunTest(const FString& InParame
 			(void)UE::AnimNext::EvaluateGraph(GraphInstance);
 		}
 
-		AddErrorIfFalse(ParamStack->GetParam<int32>("UpdateCount") == 1, "FAnimationAnimNextRuntimeTest_GraphExecute -> Unexpected update count");
-		AddErrorIfFalse(ParamStack->GetParam<int32>("EvaluateCount") == 1, "FAnimationAnimNextRuntimeTest_GraphExecute -> Unexpected evaluate count");
-		AddErrorIfFalse(ParamStack->GetParam<int32>("SomeInt32") == 78, "FAnimationAnimNextRuntimeTest_GraphExecute -> Unexpected SomeInt32 value");
-		AddErrorIfFalse(ParamStack->GetParam<float>("SomeFloat") == 142.33f, "FAnimationAnimNextRuntimeTest_GraphExecute -> Unexpected SomeFloat value");
-		AddErrorIfFalse(ParamStack->GetParam<int32>("SomeLatentInt32") == 3, "FAnimationAnimNextRuntimeTest_GraphExecute -> Unexpected SomeLatentInt32 value");
-		AddErrorIfFalse(ParamStack->GetParam<int32>("SomeOtherLatentInt32") == 3, "FAnimationAnimNextRuntimeTest_GraphExecute -> Unexpected SomeOtherLatentInt32 value");
-		AddErrorIfFalse(ParamStack->GetParam<float>("SomeLatentFloat") == 34.0f, "FAnimationAnimNextRuntimeTest_GraphExecute -> Unexpected SomeLatentFloat value");
+		AddErrorIfFalse(ParamStack->GetParam<int32>("/Engine/Transient.TestAnimNextGraph:UpdateCount") == 1, "FAnimationAnimNextRuntimeTest_GraphExecute -> Unexpected update count");
+		AddErrorIfFalse(ParamStack->GetParam<int32>("/Engine/Transient.TestAnimNextGraph:EvaluateCount") == 1, "FAnimationAnimNextRuntimeTest_GraphExecute -> Unexpected evaluate count");
+		AddErrorIfFalse(ParamStack->GetParam<int32>("/Engine/Transient.TestAnimNextGraph:SomeInt32") == 78, "FAnimationAnimNextRuntimeTest_GraphExecute -> Unexpected SomeInt32 value");
+		AddErrorIfFalse(ParamStack->GetParam<float>("/Engine/Transient.TestAnimNextGraph:SomeFloat") == 142.33f, "FAnimationAnimNextRuntimeTest_GraphExecute -> Unexpected SomeFloat value");
+		AddErrorIfFalse(ParamStack->GetParam<int32>("/Engine/Transient.TestAnimNextGraph:SomeLatentInt32") == 3, "FAnimationAnimNextRuntimeTest_GraphExecute -> Unexpected SomeLatentInt32 value");
+		AddErrorIfFalse(ParamStack->GetParam<int32>("/Engine/Transient.TestAnimNextGraph:SomeOtherLatentInt32") == 3, "FAnimationAnimNextRuntimeTest_GraphExecute -> Unexpected SomeOtherLatentInt32 value");
+		AddErrorIfFalse(ParamStack->GetParam<float>("/Engine/Transient.TestAnimNextGraph:SomeLatentFloat") == 34.0f, "FAnimationAnimNextRuntimeTest_GraphExecute -> Unexpected SomeLatentFloat value");
 
 		ParamStack->PopLayer(LayerHandle);
 		GraphInstance.Release();
@@ -321,7 +322,7 @@ bool FAnimationAnimNextRuntimeTest_GraphExecuteLatent::RunTest(const FString& In
 
 		UE_RETURN_ON_ERROR(EditorData->AddAnimationGraph(FRigUnit_AnimNextGraphRoot::DefaultEntryPoint, false) != nullptr, "FAnimationAnimNextRuntimeTest_GraphExecuteLatent -> Failed to add animation graph");
 
-		URigVMController* Controller = EditorData->GetRigVMClient()->GetController(EditorData->GetRigVMClient()->GetDefaultModel());
+		UAnimNextGraph_Controller* Controller = Cast<UAnimNextGraph_Controller>(EditorData->GetRigVMClient()->GetController(EditorData->GetRigVMClient()->GetDefaultModel()));
 		UE_RETURN_ON_ERROR(Controller != nullptr, "FAnimationAnimNextRuntimeTest_GraphExecuteLatent -> Failed to get RigVM controller");
 
 		// Find graph entry point
@@ -396,14 +397,8 @@ bool FAnimationAnimNextRuntimeTest_GraphExecuteLatent::RunTest(const FString& In
 		}
 
 		{
-			const FRigVMDispatchFactory* GetParameterFactory = FRigVMRegistry::Get().RegisterFactory(FRigVMDispatch_GetParameter::StaticStruct());
-			const FName GetParameterNotation = GetParameterFactory->GetTemplate()->GetNotation();
-
-			URigVMNode* GetParameterNode = Controller->AddTemplateNode(GetParameterNotation);
+			URigVMNode* GetParameterNode = Controller->AddGetAnimNextParameterNode(FVector2D::ZeroVector, UncookedOnly::FUtils::GetQualifiedName(AnimNextGraph, "SomeSourceInt"), FAnimNextParamType::GetType<int32>());
 			UE_RETURN_ON_ERROR(GetParameterNode != nullptr, TEXT("FAnimationAnimNextRuntimeTest_GraphExecuteLatent -> Failed to create GetParameter node"));
-
-			UE_RETURN_ON_ERROR(Controller->ResolveWildCardPin(GetParameterNode->FindPin(TEXT("Value")), RigVMTypeUtils::TypeIndex::Int32), TEXT("FAnimationAnimNextRuntimeTest_GraphExecuteLatent -> Failed to resolve wildcard for GetParameter node"));
-			Controller->SetPinDefaultValue(GetParameterNode->FindPin(TEXT("Parameter"))->GetPinPath(), TEXT("SomeSourceInt"));
 
 			Controller->AddLink(
 				GetParameterNode->FindPin(TEXT("Value")),
@@ -417,14 +412,14 @@ bool FAnimationAnimNextRuntimeTest_GraphExecuteLatent::RunTest(const FString& In
 		AnimNextGraph->AllocateInstance(GraphInstance);
 
 		FParamStack::FPushedLayerHandle LayerHandle = ParamStack->PushValues(
-			"UpdateCount", (int32)0,
-			"EvaluateCount", (int32)0,
-			"SomeSourceInt", (int32)1223,
-			"SomeInt32", (int32)0,
-			"SomeFloat", 0.0f,
-			"SomeLatentInt32", (int32)0,
-			"SomeOtherLatentInt32", (int32)0,
-			"SomeLatentFloat", 0.0f
+			UncookedOnly::FUtils::GetQualifiedName(AnimNextGraph, "UpdateCount"), (int32)0,
+			UncookedOnly::FUtils::GetQualifiedName(AnimNextGraph, "EvaluateCount"), (int32)0,
+			UncookedOnly::FUtils::GetQualifiedName(AnimNextGraph, "SomeSourceInt"), (int32)1223,
+			UncookedOnly::FUtils::GetQualifiedName(AnimNextGraph, "SomeInt32"), (int32)0,
+			UncookedOnly::FUtils::GetQualifiedName(AnimNextGraph, "SomeFloat"), 0.0f,
+			UncookedOnly::FUtils::GetQualifiedName(AnimNextGraph, "SomeLatentInt32"), (int32)0,
+			UncookedOnly::FUtils::GetQualifiedName(AnimNextGraph, "SomeOtherLatentInt32"), (int32)0,
+			UncookedOnly::FUtils::GetQualifiedName(AnimNextGraph, "SomeLatentFloat"), 0.0f
 		);
 
 		{
@@ -432,13 +427,13 @@ bool FAnimationAnimNextRuntimeTest_GraphExecuteLatent::RunTest(const FString& In
 			(void)UE::AnimNext::EvaluateGraph(GraphInstance);
 		}
 
-		AddErrorIfFalse(ParamStack->GetParam<int32>("UpdateCount") == 1, "FAnimationAnimNextRuntimeTest_GraphExecuteLatent -> Unexpected update count");
-		AddErrorIfFalse(ParamStack->GetParam<int32>("EvaluateCount") == 1, "FAnimationAnimNextRuntimeTest_GraphExecuteLatent -> Unexpected evaluate count");
-		AddErrorIfFalse(ParamStack->GetParam<int32>("SomeInt32") == 78, "FAnimationAnimNextRuntimeTest_GraphExecuteLatent -> Unexpected SomeInt32 value");
-		AddErrorIfFalse(ParamStack->GetParam<float>("SomeFloat") == 142.33f, "FAnimationAnimNextRuntimeTest_GraphExecuteLatent -> Unexpected SomeFloat value");
-		AddErrorIfFalse(ParamStack->GetParam<int32>("SomeLatentInt32") == 33, "FAnimationAnimNextRuntimeTest_GraphExecuteLatent -> Unexpected SomeLatentInt32 value");
-		AddErrorIfFalse(ParamStack->GetParam<int32>("SomeOtherLatentInt32") == 1223, "FAnimationAnimNextRuntimeTest_GraphExecuteLatent -> Unexpected SomeOtherLatentInt32 value");
-		AddErrorIfFalse(ParamStack->GetParam<float>("SomeLatentFloat") == 1123.31f, "FAnimationAnimNextRuntimeTest_GraphExecuteLatent -> Unexpected SomeLatentFloat value");
+		AddErrorIfFalse(ParamStack->GetParam<int32>(UncookedOnly::FUtils::GetQualifiedName(AnimNextGraph, "UpdateCount")) == 1, "FAnimationAnimNextRuntimeTest_GraphExecuteLatent -> Unexpected update count");
+		AddErrorIfFalse(ParamStack->GetParam<int32>(UncookedOnly::FUtils::GetQualifiedName(AnimNextGraph, "EvaluateCount")) == 1, "FAnimationAnimNextRuntimeTest_GraphExecuteLatent -> Unexpected evaluate count");
+		AddErrorIfFalse(ParamStack->GetParam<int32>(UncookedOnly::FUtils::GetQualifiedName(AnimNextGraph, "SomeInt32")) == 78, "FAnimationAnimNextRuntimeTest_GraphExecuteLatent -> Unexpected SomeInt32 value");
+		AddErrorIfFalse(ParamStack->GetParam<float>(UncookedOnly::FUtils::GetQualifiedName(AnimNextGraph, "SomeFloat")) == 142.33f, "FAnimationAnimNextRuntimeTest_GraphExecuteLatent -> Unexpected SomeFloat value");
+		AddErrorIfFalse(ParamStack->GetParam<int32>(UncookedOnly::FUtils::GetQualifiedName(AnimNextGraph, "SomeLatentInt32")) == 33, "FAnimationAnimNextRuntimeTest_GraphExecuteLatent -> Unexpected SomeLatentInt32 value");
+		AddErrorIfFalse(ParamStack->GetParam<int32>(UncookedOnly::FUtils::GetQualifiedName(AnimNextGraph, "SomeOtherLatentInt32")) == 1223, "FAnimationAnimNextRuntimeTest_GraphExecuteLatent -> Unexpected SomeOtherLatentInt32 value");
+		AddErrorIfFalse(ParamStack->GetParam<float>(UncookedOnly::FUtils::GetQualifiedName(AnimNextGraph, "SomeLatentFloat")) == 1123.31f, "FAnimationAnimNextRuntimeTest_GraphExecuteLatent -> Unexpected SomeLatentFloat value");
 
 		ParamStack->PopLayer(LayerHandle);
 		GraphInstance.Release();

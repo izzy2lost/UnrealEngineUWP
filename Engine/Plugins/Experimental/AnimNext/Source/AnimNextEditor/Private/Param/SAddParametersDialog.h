@@ -35,31 +35,44 @@ public:
 
 	SLATE_END_ARGS()
 
-	void Construct(const FArguments& InArgs);
+	void Construct(const FArguments& InArgs, const FAssetData& InAsset);
 
 	bool ShowModal(TArray<FParameterToAdd>& OutParameters);
 
 private:
+	virtual FReply OnKeyDown(const FGeometry& MyGeometry, const FKeyEvent& InKeyEvent) override;
+
 	void AddEntry(const FAnimNextParamType& InParamType = FAnimNextParamType());
 
 	void RefreshEntries();
 
-	TSharedRef<ITableRow> HandleGenerateRow(TSharedRef<FParameterToAdd> InEntry, const TSharedRef<STableViewBase>& InOwnerTable);
+	struct FParameterToAddEntry : FParameterToAdd
+	{
+		FParameterToAddEntry() = default;
 
-	TSharedRef<SWidget> HandleGetAddParameterMenuContent(TSharedPtr<FParameterToAdd> InEntry);
+		FParameterToAddEntry(const FAnimNextParamType& InType, FName InName)
+			: FParameterToAdd(InType, InName)
+		{}
+
+		bool bIsNew = true;
+	};
+
+	TSharedRef<ITableRow> HandleGenerateRow(TSharedRef<FParameterToAddEntry> InEntry, const TSharedRef<STableViewBase>& InOwnerTable);
+
+	TSharedRef<SWidget> HandleGetAddParameterMenuContent(TSharedPtr<FParameterToAddEntry> InEntry);
 	
 private:
 	friend class SParameterToAdd;
 
-	TSharedPtr<SWrapBox> QueuedParametersBox;
+	TSharedPtr<SListView<TSharedRef<FParameterToAddEntry>>> EntriesList;
 
-	TSharedPtr<SListView<TSharedRef<FParameterToAdd>>> EntriesList;
-
-	TArray<TSharedRef<FParameterToAdd>> Entries;
+	TArray<TSharedRef<FParameterToAddEntry>> Entries;
 
 	FOnFilterParameterType OnFilterParameterType;
 
-	bool bCancelPressed = false;
+	FAssetData Asset;
+
+	bool bOKPressed = false;
 };
 
 }

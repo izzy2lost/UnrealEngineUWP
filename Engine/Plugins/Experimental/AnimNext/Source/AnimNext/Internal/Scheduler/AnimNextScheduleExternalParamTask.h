@@ -3,10 +3,12 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "InstancedStruct.h"
 #include "AnimNextScheduleExternalParamTask.generated.h"
 
 class UAnimNextSchedule;
 struct FAnimNextSchedulerEntry;
+struct FAnimNextParamInstanceIdentifier;
 
 namespace UE::AnimNext
 {
@@ -25,9 +27,9 @@ struct FAnimNextScheduleExternalParameterSource
 {
 	GENERATED_BODY()
 
-	// Parameter source name to use
+	// Locator for this parameter source
 	UPROPERTY()
-	FName ParameterSource;
+	TInstancedStruct<FAnimNextParamInstanceIdentifier> InstanceId;
 
 	// Names of all parameters that are required in this task
 	UPROPERTY()

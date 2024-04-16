@@ -1,18 +1,16 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "ObjectProxy.h"
-
-#include "ClassProxy.h"
-#include "ObjectAccessor.h"
+#include "Param/ClassProxy.h"
 #include "Param/ParamStack.h"
 
 namespace UE::AnimNext
 {
 
-FObjectProxy::FObjectProxy(UObject* InObject, const TSharedRef<FObjectAccessor>& InObjectAccessor)
+FObjectProxy::FObjectProxy(const UObject* InObject, FStringView InObjectLocatorPath, const TSharedRef<FClassProxy>& InClassProxy)
 	: Object(InObject)
-	, ObjectAccessor(InObjectAccessor)
-	, RootParameterName(ObjectAccessor->AccessorName)
+	, ClassProxy(InClassProxy)
+	, RootParameterName(InObjectLocatorPath)
 {
 	// Always supply the root parameter in index 0
 	ParameterCache.AddProperty(RootParameterName, EPropertyBagPropertyType::Object, InObject->GetClass());
@@ -24,9 +22,9 @@ void FObjectProxy::Update(float DeltaTime)
 	const UPropertyBag* PropertyBag = ParameterCache.GetPropertyBagStruct();
 	TConstArrayView<FPropertyBagPropertyDesc> PropertyDescs = PropertyBag->GetPropertyDescs();
 	uint8* StructData = ParameterCache.GetMutableValue().GetMemory();
-	UObject* ResolvedObject = Object.Get();
-	PropertyDescs[0].CachedProperty->SetValue_InContainer(StructData, &ResolvedObject);
-	if(ResolvedObject)
+	UObject* NonConstObject = const_cast<UObject*>(Object.Get());
+	PropertyDescs[0].CachedProperty->SetValue_InContainer(StructData, &Object);
+	if(Object != nullptr)
 	{
 		for(int32 ParameterIndex = 0; ParameterIndex < ParametersToUpdate.Num(); ++ParameterIndex)
 		{
@@ -42,7 +40,7 @@ void FObjectProxy::Update(float DeltaTime)
 					checkSlow(SourceProperty);
 					checkSlow(SourceProperty->GetClass() == ResultProperty->GetClass());
 
-					const void* SourceBuffer = SourceProperty->ContainerPtrToValuePtr<const void>(ResolvedObject);
+					const void* SourceBuffer = SourceProperty->ContainerPtrToValuePtr<const void>(Object);
 					SourceProperty->CopyCompleteValue(ResultBuffer, SourceBuffer);
 					break;
 				}
@@ -50,10 +48,10 @@ void FObjectProxy::Update(float DeltaTime)
 				{
 					UFunction* Function = ParameterToUpdate.GetFunction();
 					checkSlow(Function);
-					checkSlow(ResolvedObject->GetClass()->IsChildOf(Function->GetOuterUClass()));
+					checkSlow(Object->GetClass()->IsChildOf(Function->GetOuterUClass()));
 
-					FFrame Stack(ResolvedObject, Function, nullptr, nullptr, Function->ChildProperties);
-					Function->Invoke(ResolvedObject, Stack, ResultBuffer);
+					FFrame Stack(NonConstObject, Function, nullptr, nullptr, Function->ChildProperties);
+					Function->Invoke(NonConstObject, Stack, ResultBuffer);
 					break;
 				}
 			case EClassProxyParameterAccessType::HoistedFunction:
@@ -62,12 +60,12 @@ void FObjectProxy::Update(float DeltaTime)
 					checkSlow(Function);
 
 					const FObjectProperty* ObjectProperty = CastFieldChecked<FObjectProperty>(PropertyDescs[0].CachedProperty);
-					check(ResolvedObject->GetClass()->IsChildOf(ObjectProperty->PropertyClass));
+					check(Object->GetClass()->IsChildOf(ObjectProperty->PropertyClass));
 					UObject** ObjectBuffer = ObjectProperty->ContainerPtrToValuePtr<UObject*>(StructData);
-					*ObjectBuffer = ResolvedObject;
+					*ObjectBuffer = NonConstObject;
 
-					FFrame Stack(ResolvedObject, Function, ObjectBuffer, nullptr, Function->ChildProperties);
-					Function->Invoke(ResolvedObject, Stack, ResultBuffer);
+					FFrame Stack(NonConstObject, Function, ObjectBuffer, nullptr, Function->ChildProperties);
+					Function->Invoke(NonConstObject, Stack, ResultBuffer);
 					break;
 				}
 			default:
@@ -91,9 +89,9 @@ void FObjectProxy::RequestParameterCache(TConstArrayView<FName> InParameterNames
 	{
 		if(!ParameterNameMap.Contains(ParameterName))
 		{
-			if(const int32* ParameterIndexPtr = ObjectAccessor->RemappedParametersMap.Find(ParameterName))
+			if(const int32* ParameterIndexPtr = ClassProxy->ParameterNameMap.Find(ParameterName))
 			{
-				const FClassProxyParameter& ClassProxyParameter = ObjectAccessor->ClassProxy->Parameters[*ParameterIndexPtr];
+				const FClassProxyParameter& ClassProxyParameter = ClassProxy->Parameters[*ParameterIndexPtr];
 
 				FAnimNextObjectProxyParameter& NewParameterToUpdate = ParametersToUpdate.AddDefaulted_GetRef();
 				NewParameterToUpdate.AccessType = ClassProxyParameter.AccessType;
@@ -111,11 +109,12 @@ void FObjectProxy::RequestParameterCache(TConstArrayView<FName> InParameterNames
 	ParameterCache.AddProperties(PropertyDescsToAdd);
 
 	// Recreate layer handle as layout has changed
-	LayerHandle = FParamStack::MakeReferenceLayer(ParameterCache);
+	LayerHandle = FParamStack::MakeReferenceLayer(RootParameterName, ParameterCache);
 }
 
 void FObjectProxy::AddReferencedObjects(FReferenceCollector& Collector)
 {
+	Collector.AddReferencedObject(Object);
 	ParameterCache.AddStructReferencedObjects(Collector);
 }
 
