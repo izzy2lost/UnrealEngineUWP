@@ -853,6 +853,15 @@ const FSlateBrush* SStateTreeViewRow::GetSelectorIcon() const
 				return FStateTreeEditorStyle::Get().GetBrush("StateTreeEditor.TrySelectChildrenInOrder");
 			}
 		}
+		else if (State->SelectionBehavior == EStateTreeStateSelectionBehavior::TrySelectChildrenAtUniformRandom)
+		{
+			if (State->Children.IsEmpty())
+			{
+				return FStateTreeEditorStyle::Get().GetBrush("StateTreeEditor.TryEnterState");			
+			}
+
+			return FStateTreeEditorStyle::Get().GetBrush("StateTreeEditor.TrySelectCHildrenAtRandom");
+		}
 		else if (State->SelectionBehavior == EStateTreeStateSelectionBehavior::TryFollowTransitions)
 		{
 			return FStateTreeEditorStyle::Get().GetBrush("StateTreeEditor.TryFollowTransitions");
