@@ -186,7 +186,8 @@ public:
 	void BuildAccelerationStructure(
 		FVulkanCommandListContext& CommandContext, 
 		FVulkanResourceMultiBuffer* ScratchBuffer, uint32 ScratchOffset, 
-		FVulkanResourceMultiBuffer* InstanceBuffer, uint32 InstanceOffset);
+		FVulkanResourceMultiBuffer* InstanceBuffer, uint32 InstanceOffset,
+		EAccelerationStructureBuildMode BuildMode);
 
 	virtual FRHIShaderResourceView* GetOrCreateMetadataBufferSRV(FRHICommandListImmediate& RHICmdList) override final
 	{
@@ -226,7 +227,8 @@ private:
 		TUniquePtr<FVulkanView> View;
 		FRayTracingAccelerationStructureSize SizeInfo;
 		uint32 BufferOffset;
-		uint32 ScratchBufferOffset;
+		uint32 BuildScratchOffset;
+		uint32 UpdateScratchOffset;
 	};
 
 	TArray<FLayerData> Layers;

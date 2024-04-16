@@ -63,6 +63,7 @@ DECLARE_DWORD_ACCUMULATOR_STAT(TEXT("Triangles in all BL acceleration structures
 DECLARE_DWORD_COUNTER_STAT(TEXT("Built BL AS (per frame)"), STAT_VulkanRayTracingBuiltBLAS, STATGROUP_VulkanRayTracing);
 DECLARE_DWORD_COUNTER_STAT(TEXT("Updated BL AS (per frame)"), STAT_VulkanRayTracingUpdatedBLAS, STATGROUP_VulkanRayTracing);
 DECLARE_DWORD_COUNTER_STAT(TEXT("Built TL AS (per frame)"), STAT_VulkanRayTracingBuiltTLAS, STATGROUP_VulkanRayTracing);
+DECLARE_DWORD_COUNTER_STAT(TEXT("Updated TL AS (per frame)"), STAT_VulkanRayTracingUpdatedTLAS, STATGROUP_VulkanRayTracing);
 
 DECLARE_MEMORY_STAT(TEXT("Total BL AS Memory"), STAT_VulkanRayTracingBLASMemory, STATGROUP_VulkanRayTracing);
 DECLARE_MEMORY_STAT(TEXT("Static BL AS Memory"), STAT_VulkanRayTracingStaticBLASMemory, STATGROUP_VulkanRayTracing);
@@ -591,6 +592,7 @@ static void GetTLASBuildData(
 	const uint32 NumInstances,
 	const VkDeviceAddress InstanceBufferAddress,
 	ERayTracingAccelerationStructureFlags BuildFlags,
+	EAccelerationStructureBuildMode BuildMode,
 	FVkRtTLASBuildData& BuildData)
 {
 	VkDeviceOrHostAddressConstKHR InstanceBufferDeviceAddress = {};
@@ -602,7 +604,7 @@ static void GetTLASBuildData(
 	BuildData.Geometry.geometry.instances.data = InstanceBufferDeviceAddress;
 
 	BuildData.GeometryInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR;
-	BuildData.GeometryInfo.mode = VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR;
+	BuildData.GeometryInfo.mode = BuildMode == EAccelerationStructureBuildMode::Build ? VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR : VK_BUILD_ACCELERATION_STRUCTURE_MODE_UPDATE_KHR;
 	BuildData.GeometryInfo.flags = TranslateRayTracingAccelerationStructureFlags(BuildFlags);
 	BuildData.GeometryInfo.geometryCount = 1;
 	BuildData.GeometryInfo.pGeometries = &BuildData.Geometry;
@@ -683,10 +685,12 @@ FVulkanRayTracingScene::FVulkanRayTracingScene(FRayTracingSceneInitializer2 InIn
 
 		Layer.SizeInfo = RHICalcRayTracingSceneSize(Initializer.NumNativeInstancesPerLayer[LayerIndex], Initializer.BuildFlags);
 		Layer.BufferOffset = Align(SizeInfo.ResultSize, GRHIRayTracingAccelerationStructureAlignment);
-		Layer.ScratchBufferOffset = Align(SizeInfo.BuildScratchSize, GRHIRayTracingScratchBufferAlignment);
+		Layer.BuildScratchOffset = Align(SizeInfo.BuildScratchSize, GRHIRayTracingScratchBufferAlignment);
+		Layer.UpdateScratchOffset = Align(SizeInfo.UpdateScratchSize, GRHIRayTracingScratchBufferAlignment);
 
 		SizeInfo.ResultSize = Layer.BufferOffset + Layer.SizeInfo.ResultSize;
-		SizeInfo.BuildScratchSize = Layer.ScratchBufferOffset + Layer.SizeInfo.BuildScratchSize;
+		SizeInfo.BuildScratchSize = Layer.BuildScratchOffset + Layer.SizeInfo.BuildScratchSize;
+		SizeInfo.UpdateScratchSize = Layer.UpdateScratchOffset + Layer.SizeInfo.UpdateScratchSize;
 	}
 
 	const uint32 ParameterBufferSize = FMath::Max<uint32>(1, Initializer.NumTotalSegments) * sizeof(FVulkanRayTracingGeometryParameters);
@@ -753,8 +757,11 @@ void FVulkanRayTracingScene::BindBuffer(FRHIBuffer* InBuffer, uint32 InBufferOff
 void FVulkanRayTracingScene::BuildAccelerationStructure(
 	FVulkanCommandListContext& CommandContext,
 	FVulkanResourceMultiBuffer* InScratchBuffer, uint32 InScratchOffset,
-	FVulkanResourceMultiBuffer* InInstanceBuffer, uint32 InInstanceOffset)
+	FVulkanResourceMultiBuffer* InInstanceBuffer, uint32 InInstanceOffset,
+	EAccelerationStructureBuildMode BuildMode)
 {
+	const bool bIsUpdate = BuildMode == EAccelerationStructureBuildMode::Update;
+
 	// Build a metadata buffer	that contains VulkanRHI-specific per-geometry parameters that allow us to access
 	// vertex and index buffers from shaders that use inline ray tracing.
 	BuildPerInstanceGeometryParameterBuffer(CommandContext);
@@ -766,9 +773,11 @@ void FVulkanRayTracingScene::BuildAccelerationStructure(
 
 	if (InScratchBuffer == nullptr)
 	{
+		const uint64 ScratchBufferSize = bIsUpdate ? SizeInfo.UpdateScratchSize : SizeInfo.BuildScratchSize;
+
 		TRHICommandList_RecursiveHazardous<FVulkanCommandListContext> RHICmdList(&CommandContext);
 		FRHIResourceCreateInfo ScratchBufferCreateInfo(TEXT("BuildScratchTLAS"));
-		ScratchBuffer = RHICmdList.CreateBuffer(SizeInfo.BuildScratchSize, BUF_StructuredBuffer | BUF_RayTracingScratch, 0, ERHIAccess::UAVCompute, ScratchBufferCreateInfo);
+		ScratchBuffer = RHICmdList.CreateBuffer(ScratchBufferSize, BUF_StructuredBuffer | BUF_RayTracingScratch, 0, ERHIAccess::UAVCompute, ScratchBufferCreateInfo);
 		InScratchBuffer = ResourceCast(ScratchBuffer.GetReference());
 		InScratchOffset = 0;
 	}
@@ -795,11 +804,14 @@ void FVulkanRayTracingScene::BuildAccelerationStructure(
 		const FLayerData& Layer = Layers[LayerIndex];
 
 		FVkRtTLASBuildData& BuildData = BuildDatas[LayerIndex];
-		GetTLASBuildData(Device->GetInstanceHandle(), Initializer.NumNativeInstancesPerLayer[LayerIndex], InstanceBufferAddress, Initializer.BuildFlags, BuildData);
+		GetTLASBuildData(Device->GetInstanceHandle(), Initializer.NumNativeInstancesPerLayer[LayerIndex], InstanceBufferAddress, Initializer.BuildFlags, BuildMode, BuildData);
+
+		const uint64 LayerScratchOffset = bIsUpdate ? Layer.UpdateScratchOffset : Layer.BuildScratchOffset;
 
 		checkf(Layer.View.IsValid(), TEXT("A buffer must be bound to the ray tracing scene before it can be built."));
 		BuildData.GeometryInfo.dstAccelerationStructure = Layer.View->GetAccelerationStructureView().Handle;
-		BuildData.GeometryInfo.scratchData.deviceAddress = InScratchBuffer->GetDeviceAddress() + InScratchOffset + Layer.ScratchBufferOffset;
+		BuildData.GeometryInfo.srcAccelerationStructure = bIsUpdate ? Layer.View->GetAccelerationStructureView().Handle : nullptr;
+		BuildData.GeometryInfo.scratchData.deviceAddress = InScratchBuffer->GetDeviceAddress() + InScratchOffset + LayerScratchOffset;
 
 		GeometryInfos[LayerIndex] = BuildData.GeometryInfo;
 
@@ -811,7 +823,14 @@ void FVulkanRayTracingScene::BuildAccelerationStructure(
 
 		pBuildRanges[LayerIndex] = &TLASBuildRangeInfo;
 
-		INC_DWORD_STAT(STAT_VulkanRayTracingBuiltTLAS);
+		if (bIsUpdate)
+		{
+			INC_DWORD_STAT(STAT_VulkanRayTracingUpdatedTLAS);
+		}
+		else
+		{
+			INC_DWORD_STAT(STAT_VulkanRayTracingBuiltTLAS);
+		}
 
 		InstanceBaseOffset += Initializer.NumNativeInstancesPerLayer[LayerIndex];
 	}
@@ -1090,7 +1109,7 @@ FRayTracingAccelerationStructureSize FVulkanDynamicRHI::RHICalcRayTracingSceneSi
 {
 	FVkRtTLASBuildData BuildData;
 	const VkDeviceAddress InstanceBufferAddress = 0; // No device address available when only querying TLAS size
-	GetTLASBuildData(Device->GetInstanceHandle(), MaxInstances, InstanceBufferAddress, Flags, BuildData);
+	GetTLASBuildData(Device->GetInstanceHandle(), MaxInstances, InstanceBufferAddress, Flags, EAccelerationStructureBuildMode::Build, BuildData);
 
 	FRayTracingAccelerationStructureSize Result;
 	Result.ResultSize = BuildData.SizesInfo.accelerationStructureSize;
@@ -1280,7 +1299,8 @@ void FVulkanCommandListContext::RHIBuildAccelerationStructure(const FRayTracingS
 	Scene->BuildAccelerationStructure(
 		*this, 
 		ScratchBuffer, SceneBuildParams.ScratchBufferOffset, 
-		InstanceBuffer, SceneBuildParams.InstanceBufferOffset);
+		InstanceBuffer, SceneBuildParams.InstanceBufferOffset,
+		SceneBuildParams.BuildMode);
 }
 
 template<typename ShaderType>

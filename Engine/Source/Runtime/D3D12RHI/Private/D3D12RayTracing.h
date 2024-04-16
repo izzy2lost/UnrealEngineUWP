@@ -112,7 +112,8 @@ public:
 
 	void BuildAccelerationStructure(FD3D12CommandContext& CommandContext,
 		FD3D12Buffer* ScratchBuffer, uint32 ScratchBufferOffset,
-		FD3D12Buffer* InstanceBuffer, uint32 InstanceBufferOffset
+		FD3D12Buffer* InstanceBuffer, uint32 InstanceBufferOffset,
+		EAccelerationStructureBuildMode BuildMode
 	);
 
 	struct FLayerData
@@ -120,7 +121,8 @@ public:
 		D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS BuildInputs = {};
 		FRayTracingAccelerationStructureSize SizeInfo = {};
 		uint32 BufferOffset;
-		uint32 ScratchBufferOffset;
+		uint32 BuildScratchOffset;
+		uint32 UpdateScratchOffset;
 	};
 
 	TArray<FLayerData> Layers;

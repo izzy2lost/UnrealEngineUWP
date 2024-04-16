@@ -565,6 +565,8 @@ struct FRayTracingSceneBuildParams
 	// Buffer of native ray tracing instance descriptors. Must be in SRV state.
 	FRHIBuffer* InstanceBuffer = nullptr;
 	uint32 InstanceBufferOffset = 0;
+
+	EAccelerationStructureBuildMode BuildMode = EAccelerationStructureBuildMode::Build;
 };
 
 struct FCopyBufferRegionParams
