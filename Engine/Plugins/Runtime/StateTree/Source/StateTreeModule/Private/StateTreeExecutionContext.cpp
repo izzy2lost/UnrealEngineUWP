@@ -3835,7 +3835,42 @@ bool FStateTreeExecutionContext::SelectStateInternal(
 				return true;
 			}
 		}
+		else if (NextState.SelectionBehavior == EStateTreeStateSelectionBehavior::TrySelectChildrenAtUniformRandom)
+		{
+			if (NextState.HasChildren())
+			{
+				STATETREE_TRACE_SCOPED_STATE_PHASE(NextStateHandle, EStateTreeUpdatePhase::TrySelectBehavior);
 
+				TArray<uint16, TInlineAllocator<8>> RandomChildStates;
+				for (uint16 ChildState = NextState.ChildrenBegin; ChildState < NextState.ChildrenEnd; ChildState = CurrentStateTree->States[ChildState].GetNextSibling())
+				{
+					RandomChildStates.Push(ChildState);
+				}
+
+				const uint32 LastIndex = RandomChildStates.Num() - 1;
+				for (uint32 Index = 0; Index < LastIndex; ++Index)
+				{
+					// Get a random integer in [Index, Num)
+					const uint32 IndexToSwap = InstanceDataStorage->GetRandomStream().RandRange(Index, LastIndex);
+					RandomChildStates.Swap(Index, IndexToSwap);
+				}
+
+				for (uint16 ChildState : RandomChildStates)
+				{
+					if (SelectStateInternal(CurrentParentFrame, CurrentFrame, CurrentFrameInActiveFrames, { FStateTreeStateHandle(ChildState) }, OutSelectionResult))
+					{
+						// Selection succeeded
+						return true;
+					}
+				}
+			}
+			else
+			{
+				// Select this state (For backwards compatibility)
+				STATETREE_TRACE_STATE_EVENT(NextStateHandle, EStateTreeTraceEventType::OnStateSelected);
+				return true;
+			}
+		}
 		// State could not be selected, restore.
 		CurrentFrame.NumCurrentlyActiveStates = PrevNumCurrentlyActiveStates;
 		CurrentFrame.ActiveStates.Pop();

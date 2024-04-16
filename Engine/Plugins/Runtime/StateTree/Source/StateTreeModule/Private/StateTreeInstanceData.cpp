@@ -83,7 +83,10 @@ namespace UE::StateTree
 // FStateTreeInstanceStorage
 //----------------------------------------------------------------//
 
-FStateTreeInstanceStorage::FStateTreeInstanceStorage() = default;
+FStateTreeInstanceStorage::FStateTreeInstanceStorage()
+	: RandomStream(FPlatformTime::Cycles())
+{
+}
 
 FStateTreeInstanceStorage::FStateTreeInstanceStorage(const FStateTreeInstanceStorage& Other)
 	: InstanceStructs(Other.InstanceStructs)
@@ -92,6 +95,7 @@ FStateTreeInstanceStorage::FStateTreeInstanceStorage(const FStateTreeInstanceSto
 	, EventQueue(MakeShared<FStateTreeEventQueue>(*Other.EventQueue))
 	, TransitionRequests(Other.TransitionRequests)
 	, GlobalParameters(Other.GlobalParameters)
+	, RandomStream(Other.RandomStream)
 {
 }
 
@@ -102,6 +106,7 @@ FStateTreeInstanceStorage::FStateTreeInstanceStorage(FStateTreeInstanceStorage&&
 	, EventQueue(Other.EventQueue)
 	, TransitionRequests(MoveTemp(Other.TransitionRequests))
 	, GlobalParameters(MoveTemp(Other.GlobalParameters))
+	, RandomStream(MoveTemp(Other.RandomStream))
 {
 	Other.EventQueue = MakeShared<FStateTreeEventQueue>();
 }
@@ -114,6 +119,7 @@ FStateTreeInstanceStorage& FStateTreeInstanceStorage::operator=(const FStateTree
 	EventQueue = MakeShared<FStateTreeEventQueue>(*Other.EventQueue);
 	TransitionRequests = Other.TransitionRequests;
 	GlobalParameters = Other.GlobalParameters;
+	RandomStream = Other.RandomStream;
 
 	return *this;
 }
@@ -127,6 +133,7 @@ FStateTreeInstanceStorage& FStateTreeInstanceStorage::operator=(FStateTreeInstan
 	Other.EventQueue = MakeShared<FStateTreeEventQueue>();
 	TransitionRequests = MoveTemp(Other.TransitionRequests);
 	GlobalParameters = MoveTemp(Other.GlobalParameters);
+	RandomStream = MoveTemp(Other.RandomStream);
 
 	return *this;
 }
@@ -251,6 +258,11 @@ void FStateTreeInstanceStorage::SetGlobalParameters(const FInstancedPropertyBag&
 	GlobalParameters = Parameters;
 }
 
+void FStateTreeInstanceStorage::SetRandomSeed(int32 Seed)
+{
+	RandomStream.Initialize(Seed);
+}
+
 void FStateTreeInstanceStorage::AddStructReferencedObjects(FReferenceCollector& Collector)
 {
 	Collector.AddPropertyReferencesWithStructARO(TBaseStructure<FStateTreeInstanceStorage>::Get(), this);
@@ -267,6 +279,7 @@ void FStateTreeInstanceStorage::Reset()
 	ExecutionState.Reset();
 	TemporaryInstances.Reset();
 	GlobalParameters.Reset();
+	RandomStream.Reset();
 }
 
 //----------------------------------------------------------------//
@@ -388,6 +401,11 @@ int32 FStateTreeInstanceData::GetEstimatedMemoryUsage() const
 	}
 
 	return Size;
+}
+
+void FStateTreeInstanceData::SetRandomSeed(int32 Seed)
+{
+	GetMutableStorage().SetRandomSeed(Seed);
 }
 
 bool FStateTreeInstanceData::Identical(const FStateTreeInstanceData* Other, uint32 PortFlags) const

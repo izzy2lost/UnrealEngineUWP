@@ -94,11 +94,15 @@ enum class EStateTreeStateSelectionBehavior : uint8
 	/** When state is considered for selection, it is selected even if it has child states. */
 	TryEnterState UMETA(DisplayName = "Try Enter"),
 
-	/** When state is considered for selection, try to selects the first child state (in order they appear in the child list). If no child states are present, behaves like SelectState. */
+	/** When state is considered for selection, try to select the first child state (in order they appear in the child list). If no child states are present, behaves like SelectState. */
 	TrySelectChildrenInOrder UMETA(DisplayName = "Try Select Children In Order"),
 	
+	/** When state is considered for selection, shuffle the order of child states and try to select the first one. If no child states are present, behaves like SelectState. */
+	TrySelectChildrenAtUniformRandom UMETA(DisplayName = "Try Select Children At Uniform Random"),
+
 	/** When state is considered for selection, try to trigger the transitions instead. */
 	TryFollowTransitions UMETA(DisplayName = "Try Follow Transitions"),
+
 };
 
 
