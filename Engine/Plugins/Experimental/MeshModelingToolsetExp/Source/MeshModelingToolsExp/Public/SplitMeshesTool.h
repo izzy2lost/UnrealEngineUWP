@@ -24,15 +24,39 @@ protected:
 	virtual const FToolTargetTypeRequirements& GetTargetRequirements() const override;
 };
 
-
+// Methods for splitting meshes
+UENUM()
+enum class ESplitMeshesMethod : uint8
+{
+	// Split meshes based on the triangle-connected regions of the mesh
+	ByMeshTopology,
+	// Split meshes based on triangle-connected regions, and consider vertices to be connected if they are within a tolerance distance
+	ByVertexOverlap,
+	// Split meshes based on material ID
+	ByMaterialID,
+	// Split meshes based on PolyGroup ID
+	ByPolyGroup
+};
 
 UCLASS()
 class MESHMODELINGTOOLSEXP_API USplitMeshesToolProperties : public UInteractiveToolPropertySet
 {
 	GENERATED_BODY()
 public:
+	UPROPERTY(EditAnywhere, Category = Options, meta = (EditCondition = "!bIsInSelectionMode", EditConditionHides, HideEditConditionToggle))
+	ESplitMeshesMethod SplitMethod = ESplitMeshesMethod::ByMeshTopology;
+
+	UPROPERTY(EditAnywhere, Category = Options, meta = (ClampMin = .0001, UIMax = 1.0, EditCondition = "!bIsInSelectionMode && SplitMethod == ESplitMeshesMethod::ByVertexOverlap", EditConditionHides, HideEditConditionToggle))
+	double ConnectVerticesThreshold = 0.01;
+
 	UPROPERTY(EditAnywhere, Category = Options)
 	bool bTransferMaterials = true;
+
+	UPROPERTY(EditAnywhere, Category = Options)
+	bool bShowPreview = true;
+
+	UPROPERTY()
+	bool bIsInSelectionMode = false;
 };
 
 
@@ -77,4 +101,13 @@ protected:
 	int32 NoSplitCount = 0;
 
 	void UpdateSplitMeshes();
+
+private:
+	// Preview how the meshes are to be split
+	UPROPERTY()
+	TArray<TObjectPtr<UPreviewGeometry>> PerTargetPreviews;
+	UPROPERTY()
+	TObjectPtr<UMaterialInterface> PreviewMaterial = nullptr;
+
+	void UpdatePreviewVisibility(bool bShowPreview);
 };
