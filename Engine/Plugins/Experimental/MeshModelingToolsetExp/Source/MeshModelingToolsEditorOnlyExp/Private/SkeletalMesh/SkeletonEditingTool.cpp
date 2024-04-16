@@ -1303,8 +1303,11 @@ void USkeletonEditingTool::OnClickPress(const FInputDeviceRay& InPressPos)
 {
 	if (PendingFunction)
 	{
-		PendingFunction();
-		PendingFunction.Reset();
+		if (!bDeferUntilFocused)
+		{
+			PendingFunction();
+			PendingFunction.Reset();
+		}
 	}
 	else
 	{ // make sure that the PendingFunction handles BeginChange if it needs to
@@ -1314,6 +1317,11 @@ void USkeletonEditingTool::OnClickPress(const FInputDeviceRay& InPressPos)
 
 void USkeletonEditingTool::OnClickDrag(const FInputDeviceRay& InDragPos)
 {
+	if (bDeferUntilFocused)
+	{
+		return;
+	}
+	
 	if (Operation != EEditingOperation::Create)
 	{
 		return;
@@ -1532,6 +1540,9 @@ void USkeletonEditingTool::OnTerminateDragSequence()
 
 void USkeletonEditingTool::OnTick(float DeltaTime)
 {
+	const FViewport* Viewport = GetToolManager()->GetContextQueriesAPI()->GetFocusedViewport();
+	bDeferUntilFocused = Viewport && !Viewport->HasFocus();
+	
 	if (PendingFunction)
 	{
 		PendingFunction();
@@ -1548,9 +1559,11 @@ void USkeletonEditingTool::OnTick(float DeltaTime)
 
 FInputRayHit USkeletonEditingTool::CanBeginClickDragSequence(const FInputDeviceRay& InPressPos)
 {
+	static const FInputRayHit InvalidRayHit;
+	
 	if (Properties->bEnableComponentSelection)
 	{
-		return FInputRayHit();
+		return InvalidRayHit;
 	}
 	
 	PendingFunction.Reset();
@@ -1559,12 +1572,14 @@ FInputRayHit USkeletonEditingTool::CanBeginClickDragSequence(const FInputDeviceR
 	FViewport* Viewport = GetToolManager()->GetContextQueriesAPI()->GetFocusedViewport();
 	if (!Viewport)
 	{
-		return FInputRayHit();
+		return InvalidRayHit;
 	}
+
+	bDeferUntilFocused = !Viewport->HasFocus();
 	
 	if (GizmoWrapper && GizmoWrapper->IsGizmoHit(InPressPos))
 	{
-		return FInputRayHit();
+		return InvalidRayHit;
 	}
 	
 	auto PickBone = [&]() -> int32
@@ -1596,7 +1611,7 @@ FInputRayHit USkeletonEditingTool::CanBeginClickDragSequence(const FInputDeviceR
 		{
 			const FReferenceSkeleton& ReferenceSkeleton = Modifier->GetReferenceSkeleton();
 			ParentBones(ReferenceSkeleton.GetBoneName(BoneIndex));
-			return FInputRayHit();
+			return InvalidRayHit;
 		}
 		
 		// otherwise, update current selection
@@ -1618,7 +1633,7 @@ FInputRayHit USkeletonEditingTool::CanBeginClickDragSequence(const FInputDeviceR
 	{
 		Selection.Empty();
 		Properties->Name = GetCurrentBone();
-		return FInputRayHit();
+		return InvalidRayHit;
 	}
 
 	// if we're in creation mode then create a new bone
@@ -1643,7 +1658,7 @@ FInputRayHit USkeletonEditingTool::CanBeginClickDragSequence(const FInputDeviceR
 		}
 	}
 	
-	return FInputRayHit();
+	return InvalidRayHit;
 }
 
 TWeakObjectPtr<USkeletonModifier> USkeletonEditingTool::GetModifier() const
