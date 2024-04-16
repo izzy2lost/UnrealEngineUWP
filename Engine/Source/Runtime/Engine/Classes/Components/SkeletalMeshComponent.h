@@ -572,6 +572,11 @@ public:
 	// helper function to get the member name and verify it exists, without making it public
 	static ENGINE_API const FName& GetAnimationModePropertyNameChecked();
 
+	// helper function to get the member name and verify it exists, without making it public
+#if WITH_EDITORONLY_DATA
+	static ENGINE_API FName GetSkeletalMeshAssetPropertyNameChecked();
+#endif // WITH_EDITORONLY_DATA
+
 private:
 	/** Teleport type to use on the next update */
 	ETeleportType PendingTeleportType;

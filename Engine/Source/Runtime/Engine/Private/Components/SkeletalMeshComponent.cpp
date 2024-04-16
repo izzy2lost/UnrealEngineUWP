@@ -4771,6 +4771,14 @@ const FName& USkeletalMeshComponent::GetAnimationModePropertyNameChecked()
 	return Name;
 }
 
+#if WITH_EDITORONLY_DATA
+FName USkeletalMeshComponent::GetSkeletalMeshAssetPropertyNameChecked()
+{
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	return GET_MEMBER_NAME_CHECKED(USkeletalMeshComponent, SkeletalMeshAsset);
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+}
+#endif // WITH_EDITORONLY_DATA
 
 TArray<FTransform> USkeletalMeshComponent::GetBoneSpaceTransforms() 
 {
