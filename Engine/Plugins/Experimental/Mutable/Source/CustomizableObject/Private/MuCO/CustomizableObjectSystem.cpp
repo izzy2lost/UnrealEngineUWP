@@ -2254,25 +2254,25 @@ namespace impl
 
 						// Vectors
 						Surface.FirstVector = OperationData->InstanceUpdateData.Vectors.Num();
-						Surface.VectorCount = MutableInstance->GetVectorCount(BaseLODIndex, ComponentIndex, InstanceSurfaceIndex);
+						Surface.VectorCount = MutableInstance->GetVectorCount(BaseLODIndex, ComponentIndex, BaseSurfaceIndex);
 						for (int32 VectorIndex = 0; VectorIndex < Surface.VectorCount; ++VectorIndex)
 						{
 							MUTABLE_CPUPROFILER_SCOPE(GetVector);
 							OperationData->InstanceUpdateData.Vectors.Push({});
 							FInstanceUpdateData::FVector& Vector = OperationData->InstanceUpdateData.Vectors.Last();
-							Vector.Name = MutableInstance->GetVectorName(BaseLODIndex, ComponentIndex, InstanceSurfaceIndex, VectorIndex);
-							Vector.Vector = MutableInstance->GetVector(BaseLODIndex, ComponentIndex, InstanceSurfaceIndex, VectorIndex);
+							Vector.Name = MutableInstance->GetVectorName(BaseLODIndex, ComponentIndex, BaseSurfaceIndex, VectorIndex);
+							Vector.Vector = MutableInstance->GetVector(BaseLODIndex, ComponentIndex, BaseSurfaceIndex, VectorIndex);
 						}
 
 						// Scalars
 						Surface.FirstScalar = OperationData->InstanceUpdateData.Scalars.Num();
-						Surface.ScalarCount = MutableInstance->GetScalarCount(BaseLODIndex, ComponentIndex, InstanceSurfaceIndex);
+						Surface.ScalarCount = MutableInstance->GetScalarCount(BaseLODIndex, ComponentIndex, BaseSurfaceIndex);
 						for (int32 ScalarIndex = 0; ScalarIndex < Surface.ScalarCount; ++ScalarIndex)
 						{
 							MUTABLE_CPUPROFILER_SCOPE(GetScalar)
 
-							const FName ScalarName = MutableInstance->GetScalarName(BaseLODIndex, ComponentIndex, InstanceSurfaceIndex, ScalarIndex);
-							const float ScalarValue = MutableInstance->GetScalar(BaseLODIndex, ComponentIndex, InstanceSurfaceIndex, ScalarIndex);
+							const FName ScalarName = MutableInstance->GetScalarName(BaseLODIndex, ComponentIndex, BaseSurfaceIndex, ScalarIndex);
+							const float ScalarValue = MutableInstance->GetScalar(BaseLODIndex, ComponentIndex, BaseSurfaceIndex, ScalarIndex);
 							
 							FString EncodingMaterialIdString = "__MutableMaterialId";
 							
@@ -2292,14 +2292,14 @@ namespace impl
 
 						// Images
 						Surface.FirstImage = OperationData->InstanceUpdateData.Images.Num();
-						Surface.ImageCount = MutableInstance->GetImageCount(BaseLODIndex, ComponentIndex, InstanceSurfaceIndex);
+						Surface.ImageCount = MutableInstance->GetImageCount(BaseLODIndex, ComponentIndex, BaseSurfaceIndex);
 						for (int32 ImageIndex = 0; ImageIndex < Surface.ImageCount; ++ImageIndex)
 						{
 							MUTABLE_CPUPROFILER_SCOPE(GetImageId);
 
 							const int32 UpdateDataImageIndex = OperationData->InstanceUpdateData.Images.AddDefaulted();
 							FInstanceUpdateData::FImage& Image = OperationData->InstanceUpdateData.Images.Last();
-							Image.Name = MutableInstance->GetImageName(BaseLODIndex, ComponentIndex, InstanceSurfaceIndex, ImageIndex);
+							Image.Name = MutableInstance->GetImageName(BaseLODIndex, ComponentIndex, BaseSurfaceIndex, ImageIndex);
 							Image.ImageID = MutableInstance->GetImageId(BaseLODIndex, ComponentIndex, BaseSurfaceIndex, ImageIndex);
 							Image.FullImageSizeX = 0;
 							Image.FullImageSizeY = 0;
