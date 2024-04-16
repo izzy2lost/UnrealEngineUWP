@@ -3197,6 +3197,9 @@ struct FRayTracingSceneInitializer2
 	// Defines whether data in this scene should persist between frames.
 	// Currently only single-frame lifetime is supported.
 	ERayTracingSceneLifetime Lifetime = RTSL_SingleFrame;
+	
+	// Controls the flags of the ray tracing scene build.
+	ERayTracingAccelerationStructureFlags BuildFlags = ERayTracingAccelerationStructureFlags::FastTrace;
 
 	FName DebugName;
 

@@ -28,14 +28,6 @@ static FAutoConsoleVariableRef CVarVulkanRayTracingMaxBatchedCompaction(
 	ECVF_ReadOnly
 );
 
-static bool GVulkanRayTracingTLASPreferFastTrace = true;
-static FAutoConsoleVariableRef CVarVulkanRayTracingTLASPreferFastTraceTLAS(
-	TEXT("r.Vulkan.RayTracing.TLASPreferFastTraceTLAS"),
-	GVulkanRayTracingTLASPreferFastTrace,
-	TEXT("Prefer fast trace for TLAS build (default = true)\n"),
-	ECVF_ReadOnly
-);
-
 static int32 GVulkanRayTracingAllowDeferredOperation = -1;
 static FAutoConsoleVariableRef CVarVulkanRayTracingAllowDeferredOperation(
 	TEXT("r.Vulkan.RayTracing.AllowDeferredOperation"),
@@ -148,6 +140,30 @@ static bool ShouldCompactAfterBuild(ERayTracingAccelerationStructureFlags BuildF
 {
 	return EnumHasAllFlags(BuildFlags, ERayTracingAccelerationStructureFlags::AllowCompaction | ERayTracingAccelerationStructureFlags::FastTrace)
 		&& !EnumHasAnyFlags(BuildFlags, ERayTracingAccelerationStructureFlags::AllowUpdate);
+}
+
+static VkBuildAccelerationStructureFlagBitsKHR TranslateRayTracingAccelerationStructureFlags(ERayTracingAccelerationStructureFlags Flags)
+{
+	uint32 Result = {};
+
+	auto HandleFlag = [&Flags, &Result](ERayTracingAccelerationStructureFlags Engine, VkBuildAccelerationStructureFlagBitsKHR Native)
+		{
+			if (EnumHasAllFlags(Flags, Engine))
+			{
+				Result |= (uint32)Native;
+				EnumRemoveFlags(Flags, Engine);
+			}
+		};
+
+	HandleFlag(ERayTracingAccelerationStructureFlags::AllowUpdate, VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_UPDATE_BIT_KHR);
+	HandleFlag(ERayTracingAccelerationStructureFlags::AllowCompaction, VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_COMPACTION_BIT_KHR);
+	HandleFlag(ERayTracingAccelerationStructureFlags::FastTrace, VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR);
+	HandleFlag(ERayTracingAccelerationStructureFlags::FastBuild, VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_BUILD_BIT_KHR);
+	HandleFlag(ERayTracingAccelerationStructureFlags::MinimizeMemory, VK_BUILD_ACCELERATION_STRUCTURE_LOW_MEMORY_BIT_KHR);
+
+	checkf(!EnumHasAnyFlags(Flags, Flags), TEXT("Some ERayTracingAccelerationStructureFlags entries were not handled"));
+
+	return VkBuildAccelerationStructureFlagBitsKHR(Result);
 }
 
 static ERayTracingAccelerationStructureFlags GetRayTracingAccelerationStructureBuildFlags(const FRayTracingGeometryInitializer& Initializer)
@@ -574,6 +590,7 @@ static void GetTLASBuildData(
 	const VkDevice Device,
 	const uint32 NumInstances,
 	const VkDeviceAddress InstanceBufferAddress,
+	ERayTracingAccelerationStructureFlags BuildFlags,
 	FVkRtTLASBuildData& BuildData)
 {
 	VkDeviceOrHostAddressConstKHR InstanceBufferDeviceAddress = {};
@@ -586,9 +603,7 @@ static void GetTLASBuildData(
 
 	BuildData.GeometryInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR;
 	BuildData.GeometryInfo.mode = VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR;
-	BuildData.GeometryInfo.flags = GVulkanRayTracingTLASPreferFastTrace ? 
-										VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR :
-										VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_BUILD_BIT_KHR;
+	BuildData.GeometryInfo.flags = TranslateRayTracingAccelerationStructureFlags(BuildFlags);
 	BuildData.GeometryInfo.geometryCount = 1;
 	BuildData.GeometryInfo.pGeometries = &BuildData.Geometry;
 
@@ -655,8 +670,6 @@ FVulkanRayTracingScene::FVulkanRayTracingScene(FRayTracingSceneInitializer2 InIn
 {
 	INC_DWORD_STAT(STAT_VulkanRayTracingAllocatedTLAS);
 
-	const ERayTracingAccelerationStructureFlags BuildFlags = ERayTracingAccelerationStructureFlags::FastTrace; // #yuriy_todo: pass this in
-
 	SizeInfo = {};
 
 	const uint32 NumLayers = Initializer.NumNativeInstancesPerLayer.Num();
@@ -668,7 +681,7 @@ FVulkanRayTracingScene::FVulkanRayTracingScene(FRayTracingSceneInitializer2 InIn
 	{
 		FLayerData& Layer = Layers[LayerIndex];
 
-		Layer.SizeInfo = RHICalcRayTracingSceneSize(Initializer.NumNativeInstancesPerLayer[LayerIndex], BuildFlags);
+		Layer.SizeInfo = RHICalcRayTracingSceneSize(Initializer.NumNativeInstancesPerLayer[LayerIndex], Initializer.BuildFlags);
 		Layer.BufferOffset = Align(SizeInfo.ResultSize, GRHIRayTracingAccelerationStructureAlignment);
 		Layer.ScratchBufferOffset = Align(SizeInfo.BuildScratchSize, GRHIRayTracingScratchBufferAlignment);
 
@@ -782,7 +795,7 @@ void FVulkanRayTracingScene::BuildAccelerationStructure(
 		const FLayerData& Layer = Layers[LayerIndex];
 
 		FVkRtTLASBuildData& BuildData = BuildDatas[LayerIndex];
-		GetTLASBuildData(Device->GetInstanceHandle(), Initializer.NumNativeInstancesPerLayer[LayerIndex], InstanceBufferAddress, BuildData);
+		GetTLASBuildData(Device->GetInstanceHandle(), Initializer.NumNativeInstancesPerLayer[LayerIndex], InstanceBufferAddress, Initializer.BuildFlags, BuildData);
 
 		checkf(Layer.View.IsValid(), TEXT("A buffer must be bound to the ray tracing scene before it can be built."));
 		BuildData.GeometryInfo.dstAccelerationStructure = Layer.View->GetAccelerationStructureView().Handle;
@@ -1077,7 +1090,7 @@ FRayTracingAccelerationStructureSize FVulkanDynamicRHI::RHICalcRayTracingSceneSi
 {
 	FVkRtTLASBuildData BuildData;
 	const VkDeviceAddress InstanceBufferAddress = 0; // No device address available when only querying TLAS size
-	GetTLASBuildData(Device->GetInstanceHandle(), MaxInstances, InstanceBufferAddress, BuildData);
+	GetTLASBuildData(Device->GetInstanceHandle(), MaxInstances, InstanceBufferAddress, Flags, BuildData);
 
 	FRayTracingAccelerationStructureSize Result;
 	Result.ResultSize = BuildData.SizesInfo.accelerationStructureSize;

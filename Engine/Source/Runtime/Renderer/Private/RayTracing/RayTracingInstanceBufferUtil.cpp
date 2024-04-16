@@ -30,7 +30,8 @@ FRayTracingSceneWithGeometryInstances CreateRayTracingSceneWithGeometryInstances
 	uint8 NumLayers,
 	uint32 NumShaderSlotsPerGeometrySegment,
 	uint32 NumMissShaderSlots,
-	uint32 NumCallableShaderSlots)
+	uint32 NumCallableShaderSlots,
+	ERayTracingAccelerationStructureFlags BuildFlags)
 {
 	const uint32 NumSceneInstances = Instances.Num();
 
@@ -50,6 +51,7 @@ FRayTracingSceneWithGeometryInstances CreateRayTracingSceneWithGeometryInstances
 	Initializer.SegmentPrefixSum.SetNumUninitialized(NumSceneInstances);
 	Initializer.NumNativeInstancesPerLayer.SetNumZeroed(NumLayers);
 	Initializer.NumTotalSegments = 0;
+	Initializer.BuildFlags = BuildFlags;
 
 	Experimental::TSherwoodMap<FRHIRayTracingGeometry*, uint32> UniqueGeometries;
 
@@ -113,14 +115,6 @@ FRayTracingSceneWithGeometryInstances CreateRayTracingSceneWithGeometryInstances
 	Output.Scene = RHICreateRayTracingScene(MoveTemp(Initializer));
 
 	return MoveTemp(Output);
-}
-
-FRayTracingSceneWithGeometryInstances CreateRayTracingSceneWithGeometryInstances(
-	TArrayView<FRayTracingGeometryInstance> Instances,
-	uint32 NumShaderSlotsPerGeometrySegment,
-	uint32 NumMissShaderSlots)
-{
-	return CreateRayTracingSceneWithGeometryInstances(Instances, 1, NumShaderSlotsPerGeometrySegment, NumMissShaderSlots);
 }
 
 void FillRayTracingInstanceUploadBuffer(

@@ -17,6 +17,15 @@
 
 DECLARE_GPU_STAT(RayTracingScene);
 
+static TAutoConsoleVariable<int32> CVarRayTracingSceneBuildMode(
+	TEXT("r.RayTracing.Scene.BuildMode"),
+	1,
+	TEXT("Controls the mode in which ray tracing scene is built:\n")
+	TEXT(" 0: Fast build\n")
+	TEXT(" 1: Fast trace (default)\n"),
+	ECVF_RenderThreadSafe | ECVF_Scalability
+);
+
 BEGIN_SHADER_PARAMETER_STRUCT(FBuildInstanceBufferPassParams, )
 	SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer, InstanceBuffer)
 	SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer, DebugInstanceGPUSceneIndexBuffer)
@@ -36,12 +45,17 @@ FRayTracingScene::~FRayTracingScene()
 
 FRayTracingSceneWithGeometryInstances FRayTracingScene::BuildInitializationData() const
 {
+	ERayTracingAccelerationStructureFlags BuildFlags = CVarRayTracingSceneBuildMode.GetValueOnRenderThread()
+		? ERayTracingAccelerationStructureFlags::FastTrace
+		: ERayTracingAccelerationStructureFlags::FastBuild;
+
 	return CreateRayTracingSceneWithGeometryInstances(
 		Instances,
 		uint8(ERayTracingSceneLayer::NUM),
 		RAY_TRACING_NUM_SHADER_SLOTS,
 		NumMissShaderSlots,
-		NumCallableShaderSlots);
+		NumCallableShaderSlots,
+		BuildFlags);
 }
 
 void FRayTracingScene::Create(FRDGBuilder& GraphBuilder, const FViewInfo& View, const FGPUScene* GPUScene)

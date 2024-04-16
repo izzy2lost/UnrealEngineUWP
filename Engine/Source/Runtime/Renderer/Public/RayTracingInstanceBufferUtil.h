@@ -74,13 +74,8 @@ RENDERER_API FRayTracingSceneWithGeometryInstances CreateRayTracingSceneWithGeom
 	uint8 NumLayers,
 	uint32 NumShaderSlotsPerGeometrySegment,
 	uint32 NumMissShaderSlots,
-	uint32 NumCallableShaderSlots = 0);
-
-UE_DEPRECATED(5.1, "Specify NumLayers instead.")
-RENDERER_API FRayTracingSceneWithGeometryInstances CreateRayTracingSceneWithGeometryInstances(
-	TArrayView<FRayTracingGeometryInstance> Instances,
-	uint32 NumShaderSlotsPerGeometrySegment,
-	uint32 NumMissShaderSlots);
+	uint32 NumCallableShaderSlots = 0,
+	ERayTracingAccelerationStructureFlags BuildFlags = ERayTracingAccelerationStructureFlags::FastTrace);
 
 // Helper function to fill upload buffers required by BuildRayTracingInstanceBuffer with instance descriptors
 // Transforms of CPU instances are copied to OutTransformData

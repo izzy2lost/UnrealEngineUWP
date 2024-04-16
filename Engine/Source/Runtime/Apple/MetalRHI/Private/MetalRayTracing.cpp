@@ -435,8 +435,6 @@ void FMetalRayTracingGeometry::RebuildDescriptors()
 FMetalRayTracingScene::FMetalRayTracingScene(FRayTracingSceneInitializer2 InInitializer)
 	: Initializer(MoveTemp(InInitializer))
 {
-	const ERayTracingAccelerationStructureFlags BuildFlags = ERayTracingAccelerationStructureFlags::FastTrace; // #yuriy_todo: pass this in
-
 	SizeInfo = {};
 
 	const uint32 NumLayers = Initializer.NumNativeInstancesPerLayer.Num();
