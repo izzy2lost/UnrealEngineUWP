@@ -377,8 +377,7 @@ public:
 
 	static bool IsVertexProgrammable(const FMaterialShaderParameters& MaterialParameters)
 	{
-		return MaterialParameters.bHasVertexPositionOffsetConnected ||
-			(NaniteTessellationSupported() && MaterialParameters.bIsTessellationEnabled);
+		return MaterialParameters.bHasVertexPositionOffsetConnected || MaterialParameters.bIsTessellationEnabled;
 	}
 
 	static bool IsVertexProgrammable(uint32 MaterialBitFlags)

@@ -95,12 +95,6 @@ static TAutoConsoleVariable<int32> CVarNaniteUseComputeMaterials(
 	ECVF_RenderThreadSafe
 );
 
-static TAutoConsoleVariable<int32> CVarNaniteAllowTessellation(
-	TEXT("r.Nanite.AllowTessellation"),
-	0, // Off by default
-	TEXT("Whether to enable support for (highly experimental) Nanite runtime tessellation"),
-	ECVF_RenderThreadSafe | ECVF_ReadOnly);
-
 static TAutoConsoleVariable<int32> CVarNaniteAllowSplineMeshes(
 	TEXT("r.Nanite.AllowSplineMeshes"),
 	1,

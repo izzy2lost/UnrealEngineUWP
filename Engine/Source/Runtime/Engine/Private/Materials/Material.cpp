@@ -6789,11 +6789,6 @@ bool UMaterial::IsPropertySupported(EMaterialProperty InProperty) const
 {
 	bool bSupported = true;
 
-	if (InProperty == MP_Displacement && !NaniteTessellationSupported())
-	{
-		return false;
-	}
-
 	if (Substrate::IsSubstrateEnabled())
 	{
 		bSupported = false;

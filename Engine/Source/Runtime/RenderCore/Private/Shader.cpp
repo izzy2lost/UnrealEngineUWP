@@ -2724,7 +2724,6 @@ void ShaderMapAppendKey(EShaderPlatform Platform, FShaderKeyGenerator& KeyGen)
 
 	if (UseNanite(Platform))
 	{
-		static const auto CVarAllowTess = IConsoleManager::Get().FindConsoleVariable(TEXT("r.Nanite.AllowTessellation"));
 		static const auto CVarAllowCSMat = IConsoleManager::Get().FindConsoleVariable(TEXT("r.Nanite.AllowComputeMaterials"));
 		static const auto CVarAllowPSMat = IConsoleManager::Get().FindConsoleVariable(TEXT("r.Nanite.AllowLegacyMaterials"));
 		static const auto CVarAllowSpline = IConsoleManager::Get().FindConsoleVariable(TEXT("r.Nanite.AllowSplineMeshes"));
@@ -2732,7 +2731,7 @@ void ShaderMapAppendKey(EShaderPlatform Platform, FShaderKeyGenerator& KeyGen)
 
 		KeyGen.AppendSeparator();
 		KeyGen.Append(TEXT("Nanite-Tess"));
-		KeyGen.Append(CVarAllowTess ? CVarAllowTess->GetInt() : 0);
+		KeyGen.Append(1);
 		KeyGen.AppendDebugText(TEXT("CSMat"));
 		KeyGen.Append(CVarAllowCSMat ? CVarAllowCSMat->GetInt() : 0);
 		KeyGen.AppendDebugText(TEXT("Spline"));

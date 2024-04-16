@@ -1263,13 +1263,6 @@ bool UseNaniteFastTileClear()
 	return NaniteComputeMaterialsSupported() && (CVarNaniteFastTileClear && CVarNaniteFastTileClear->GetInt() != 0);
 }
 
-bool NaniteTessellationSupported()
-{
-	static const auto AllowTessellation = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.Nanite.AllowTessellation"));
-	static const bool bAllowTessellation = (AllowTessellation && AllowTessellation->GetValueOnAnyThread() != 0);
-	return bAllowTessellation;
-}
-
 bool NaniteSplineMeshesSupported()
 {
 	static const auto AllowSplineMeshes = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.Nanite.AllowSplineMeshes"));
@@ -1288,7 +1281,7 @@ bool UseNaniteTessellation()
 {
 	static const auto TessellationVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.Nanite.Tessellation"));
 	const bool bTessellation = (TessellationVar && TessellationVar->GetValueOnAnyThread() != 0);
-	return bTessellation && NaniteTessellationSupported();
+	return bTessellation;
 }
 
 bool DoesRuntimeSupportNanite(EShaderPlatform ShaderPlatform, bool bCheckForAtomicSupport, bool bCheckForProjectSetting)

@@ -83,11 +83,10 @@ static TAutoConsoleVariable<int32> CVarNaniteProgrammableRaster(
 	ECVF_RenderThreadSafe
 );
 
-// NOTE: Heavily WIP and experimental - do not use!
 static TAutoConsoleVariable<int32> CVarNaniteTessellation(
 	TEXT("r.Nanite.Tessellation"),
-	0,
-	TEXT("Whether to enable (highly experimental) runtime tessellation."),
+	1,
+	TEXT("Whether to enable runtime tessellation."),
 	FConsoleVariableDelegate::CreateLambda([](IConsoleVariable* InVariable)
 	{
 		FGlobalComponentRecreateRenderStateContext Context;
@@ -1083,11 +1082,6 @@ class FInitVisiblePatchesArgsCS : public FNaniteGlobalShader
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
 	{
-		if (!NaniteTessellationSupported())
-		{
-			return false;
-		}
-
 		return FNaniteGlobalShader::ShouldCompilePermutation(Parameters);
 	}
 
@@ -1144,12 +1138,6 @@ class FRasterBinBuild_CS : public FNaniteGlobalShader
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
 	{
 		FPermutationDomain PermutationVector(Parameters.PermutationId);
-
-		if (PermutationVector.Get<FPatches>() && !NaniteTessellationSupported())
-		{
-			return false;
-		}
-		
 		return FNaniteGlobalShader::ShouldCompilePermutation(Parameters);
 	}
 
@@ -1275,11 +1263,6 @@ class FPatchSplitCS : public FNaniteGlobalShader
 	{
 		FPermutationDomain PermutationVector(Parameters.PermutationId);
 
-		if (!NaniteTessellationSupported())
-		{
-			return false;
-		}
-
 		if (PermutationVector.Get<FVirtualTextureTargetDim>() && !PermutationVector.Get<FMultiViewDim>())
 		{
 			return false;
@@ -1325,12 +1308,6 @@ class InitClearSplitQueueArgsCS : public FNaniteGlobalShader
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
 	{
 		FPermutationDomain PermutationVector(Parameters.PermutationId);
-
-		if (!NaniteTessellationSupported())
-		{
-			return false;
-		}
-
 		return FNaniteGlobalShader::ShouldCompilePermutation(Parameters);
 	}
 
@@ -1359,11 +1336,6 @@ class ClearSplitQueueCS : public FNaniteGlobalShader
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
 	{
 		FPermutationDomain PermutationVector(Parameters.PermutationId);
-
-		if (!NaniteTessellationSupported())
-		{
-			return false;
-		}
 
 		return FNaniteGlobalShader::ShouldCompilePermutation(Parameters);
 	}
@@ -1539,7 +1511,7 @@ class FMicropolyRasterizeCS : public FNaniteMaterialShader
 		if (PermutationVector.Get<FTessellationDim>() || PermutationVector.Get<FPatchesDim>())
 		{
 			// TODO Don't compile useless shaders for default material
-			if (!NaniteTessellationSupported() || (!Parameters.MaterialParameters.bIsDefaultMaterial && !Parameters.MaterialParameters.bIsTessellationEnabled))
+			if (!Parameters.MaterialParameters.bIsDefaultMaterial && !Parameters.MaterialParameters.bIsTessellationEnabled)
 			{
 				return false;
 			}
@@ -5464,7 +5436,7 @@ void FRenderer::DrawGeometry(
 	FRDGBufferRef VisiblePatchesMainArgs = nullptr;
 	FRDGBufferRef VisiblePatchesPostArgs = nullptr;
 
-	if( NaniteTessellationSupported() )
+	// Tessellation
 	{
 		FRDGBufferDesc CandidateDesc = FRDGBufferDesc::CreateByteAddressDesc( 16 * FGlobalResources::GetMaxCandidatePatches() );
 		FRDGBufferDesc VisibleDesc   = FRDGBufferDesc::CreateByteAddressDesc( 16 * FGlobalResources::GetMaxVisiblePatches() );
