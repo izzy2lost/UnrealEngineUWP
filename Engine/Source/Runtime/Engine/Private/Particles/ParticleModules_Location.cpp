@@ -987,13 +987,14 @@ void UParticleModuleLocationPrimitiveCylinder::SpawnEx(FParticleEmitterInstance*
 
 
 	// Determine the unit direction
-	FVector vUnitDir, vUnitDirTemp;
+	FVector vUnitDir = FVector::ZeroVector;
 
 	bool bFoundValidValue = false;
 	int32 NumberOfAttempts = 0;
 	float RadiusSquared = fStartRadius * fStartRadius;
 	while (!bFoundValidValue)
 	{
+		FVector vUnitDirTemp;
 		DetermineUnitDirection(Owner, vUnitDirTemp, InRandomStream);
 		vUnitDir[RadialIndex0]	= vUnitDirTemp[RadialIndex0];
 		vUnitDir[RadialIndex1]	= vUnitDirTemp[RadialIndex1];
@@ -2048,7 +2049,7 @@ bool UParticleModuleLocationBoneSocket::GetSocketInfoForSourceIndex(FModuleLocat
 bool UParticleModuleLocationBoneSocket::GetBoneInfoForSourceIndex(FModuleLocationBoneSocketInstancePayload* InstancePayload, USkeletalMeshComponent* SourceComponent, int32 SourceIndex, FMatrix& OutBoneMatrix, FVector& OutOffset)const
 {
 	int32 BoneIndex = INDEX_NONE;
-	FVector Offset;
+	FVector Offset = FVector::ZeroVector;
 	if (SourceType == BONESOCKETSOURCE_Sockets)
 	{
 		USkeletalMeshSocket* Socket = nullptr;

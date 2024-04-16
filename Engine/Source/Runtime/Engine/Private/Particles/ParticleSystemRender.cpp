@@ -3176,8 +3176,8 @@ int32 FDynamicBeam2EmitterData::FillVertexData_NoNoise(FAsyncBufferFillData& Me)
 
 			FVector EndPoint	= Particle->Location;
 			FVector Location	= (FVector)BeamPayloadData->SourcePoint;
-			FVector Right, Up;
-			FVector WorkingUp;
+			FVector Right;
+			FVector Up			= FVector::ZeroVector;
 
 			Right = Location - EndPoint;
 			Right.Normalize();
@@ -3214,6 +3214,7 @@ int32 FDynamicBeam2EmitterData::FillVertexData_NoNoise(FAsyncBufferFillData& Me)
 			// For the direct case, this isn't a big deal, as it will not require much work per sheet.
 			for (int32 SheetIndex = 0; SheetIndex < Source.Sheets; SheetIndex++)
 			{
+				FVector WorkingUp;
 				if (SheetIndex)
 				{
 					float	Angle		= ((float)UE_PI / (float)Source.Sheets) * SheetIndex;
@@ -3367,8 +3368,7 @@ int32 FDynamicBeam2EmitterData::FillVertexData_NoNoise(FAsyncBufferFillData& Me)
 			FVector Location;
 			FVector EndPoint;
 			FVector Right;
-			FVector Up;
-			FVector WorkingUp;
+			FVector Up = FVector::ZeroVector;
 			float	fU;
 
 			float	Tex_U2 = 0.0f;
@@ -3393,6 +3393,7 @@ int32 FDynamicBeam2EmitterData::FillVertexData_NoNoise(FAsyncBufferFillData& Me)
 					}
 				}
 
+				FVector WorkingUp;
 				if (SheetIndex)
 				{
 					Angle		= ((float)UE_PI / (float)Source.Sheets) * SheetIndex;

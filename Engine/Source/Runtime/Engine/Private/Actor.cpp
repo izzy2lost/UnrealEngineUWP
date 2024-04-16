@@ -1001,8 +1001,8 @@ void AActor::PostLoadSubobjects(FObjectInstancingGraph* OuterInstanceGraph)
 	USceneComponent* OldRootParent = (OldRoot ? OldRoot->GetAttachParent() : nullptr);
 	bool bHadRoot = !!OldRoot;
 	FRotator OldRotation;
-	FVector OldTranslation;
-	FVector OldScale;
+	FVector OldTranslation = FVector::ZeroVector;
+	FVector OldScale = FVector::ZeroVector;
 	if (bHadRoot)
 	{
 		OldRotation = OldRoot->GetRelativeRotation();

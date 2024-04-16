@@ -1910,94 +1910,88 @@ bool UParticleModuleBeamSource::ResolveSourceData(FParticleBeam2EmitterInstance*
 						BeamInst->ResolveSource();
 					}
 
-					if (BeamInst->SourceEmitter)
+					if (BeamInst->SourceEmitter && BeamInst->SourceEmitter->ParticleIndices)
 					{
-						FVector CalcSourcePosition;
-
 						int32 SourceIndex = LastSelectedParticleIndex;
 
-						if (BeamInst->SourceEmitter && BeamInst->SourceEmitter->ParticleIndices)
+						if (SourceIndex != -1)
 						{
-							if (SourceIndex != -1)
+							FBaseParticle* SourceParticle = BeamInst->SourceEmitter->GetParticleDirect(SourceIndex);
+							if (SourceParticle == NULL || SourceParticle->RelativeTime>1.0f)
 							{
-								FBaseParticle* SourceParticle = BeamInst->SourceEmitter->GetParticleDirect(SourceIndex);
-								if (SourceParticle == NULL || SourceParticle->RelativeTime>1.0f)
-								{
-									// If the previous particle is not found, force the trail to pick a new one
-									SourceIndex = -1;
-								}
-							}
-
-							if (SourceIndex == -1)
-							{
-								int32 Index = 0;
-								// TODO: add selection method and random selection
-								/*
-								switch (SelectionMethod)
-								{
-								case EPSSM_Random:
-								{
-								Index = FMath::TruncToInt(FMath::FRand() * BeamInst->SourceEmitter->ActiveParticles);
-								}
-								break;
-
-								case EPSSM_Sequential:*/
-								{
-									if (++LastSelectedParticleIndex >= BeamInst->SourceEmitter->ActiveParticles)
-									{
-										LastSelectedParticleIndex = 0;
-									}
-									Index = LastSelectedParticleIndex;
-								}
-								/*
-								break;
-								}
-								*/
-
-								if (SourceIndex == BeamInst->SourceEmitter->ParticleIndices[Index])
-								{
-									Index = -1;
-								}
-
-								SourceIndex = (Index != -1) ? BeamInst->SourceEmitter->ParticleIndices[Index] : -1;
-							}
-
-							bool bEncounteredNaNError = false;
-
-							// Grab the particle
-
-							UParticleSystemComponent* Comp = BeamInst->SourceEmitter->Component;
-							FBaseParticle* SourceParticle = (SourceIndex >= 0) ? BeamInst->SourceEmitter->GetParticleDirect(SourceIndex) : nullptr;
-							if (SourceParticle != nullptr)
-							{
-								const FVector WorldOrigin = BeamInst->SourceEmitter->SimulationToWorld.GetOrigin();
-
-								if (!ensureMsgf(!SourceParticle->Location.ContainsNaN(), TEXT("NaN in SourceParticle Location. Template: %s, Component: %s"), Comp ? *GetNameSafe(Comp->Template) : TEXT("UNKNOWN"), *GetPathNameSafe(Comp)) ||
-									!ensureMsgf(!SourceParticle->OldLocation.ContainsNaN(), TEXT("NaN in SourceParticle OldLocation. Template: %s, Component: %s"), Comp ? *GetNameSafe(Comp->Template) : TEXT("UNKNOWN"), *GetPathNameSafe(Comp)) ||
-									!ensureMsgf(!WorldOrigin.ContainsNaN(), TEXT("NaN in WorldOrigin. Template: %s, Component: %s"), Comp ? *GetNameSafe(Comp->Template) : TEXT("UNKNOWN"), *GetPathNameSafe(Comp))
-									)
-								{
-									// Contains NaN!
-									bEncounteredNaNError = true;
-								}
-								else
-								{
-									CalcSourcePosition = SourceParticle->Location + WorldOrigin;
-								}
-							}
-							else
-							{
-								// Fall back to the emitter location??
-								CalcSourcePosition = Comp->GetComponentLocation();
-								//@todo. How to handle this... can potentially cause a jump from the emitter to the
-								// particle...
-								SourceIndex = -1;//No valid particle source;
+								// If the previous particle is not found, force the trail to pick a new one
+								SourceIndex = -1;
 							}
 						}
 
-						//@todo. fill this in correctly...
-						BeamData->SourcePoint = CalcSourcePosition;
-						bSetSource = true;
+						if (SourceIndex == -1)
+						{
+							int32 Index = 0;
+							// TODO: add selection method and random selection
+							/*
+							switch (SelectionMethod)
+							{
+							case EPSSM_Random:
+							{
+							Index = FMath::TruncToInt(FMath::FRand() * BeamInst->SourceEmitter->ActiveParticles);
+							}
+							break;
+
+							case EPSSM_Sequential:*/
+							{
+								if (++LastSelectedParticleIndex >= BeamInst->SourceEmitter->ActiveParticles)
+								{
+									LastSelectedParticleIndex = 0;
+								}
+								Index = LastSelectedParticleIndex;
+							}
+							/*
+							break;
+							}
+							*/
+
+							if (SourceIndex == BeamInst->SourceEmitter->ParticleIndices[Index])
+							{
+								Index = -1;
+							}
+
+							SourceIndex = (Index != -1) ? BeamInst->SourceEmitter->ParticleIndices[Index] : -1;
+						}
+
+						bool bEncounteredNaNError = false;
+
+						// Grab the particle
+
+						UParticleSystemComponent* Comp = BeamInst->SourceEmitter->Component;
+						FBaseParticle* SourceParticle = (SourceIndex >= 0) ? BeamInst->SourceEmitter->GetParticleDirect(SourceIndex) : nullptr;
+						if (SourceParticle != nullptr)
+						{
+							const FVector WorldOrigin = BeamInst->SourceEmitter->SimulationToWorld.GetOrigin();
+
+							if (!ensureMsgf(!SourceParticle->Location.ContainsNaN(), TEXT("NaN in SourceParticle Location. Template: %s, Component: %s"), Comp ? *GetNameSafe(Comp->Template) : TEXT("UNKNOWN"), *GetPathNameSafe(Comp)) ||
+								!ensureMsgf(!SourceParticle->OldLocation.ContainsNaN(), TEXT("NaN in SourceParticle OldLocation. Template: %s, Component: %s"), Comp ? *GetNameSafe(Comp->Template) : TEXT("UNKNOWN"), *GetPathNameSafe(Comp)) ||
+								!ensureMsgf(!WorldOrigin.ContainsNaN(), TEXT("NaN in WorldOrigin. Template: %s, Component: %s"), Comp ? *GetNameSafe(Comp->Template) : TEXT("UNKNOWN"), *GetPathNameSafe(Comp))
+								)
+							{
+								// Contains NaN!
+								bEncounteredNaNError = true;
+							}
+							else
+							{
+								BeamData->SourcePoint = SourceParticle->Location + WorldOrigin;
+								bSetSource = true;
+							}
+						}
+						else
+						{
+							// Fall back to the emitter location??
+							BeamData->SourcePoint = Comp->GetComponentLocation();
+							bSetSource = true;
+
+							//@todo. How to handle this... can potentially cause a jump from the emitter to the
+							// particle...
+							SourceIndex = -1;//No valid particle source;
+						}
 					}
 				}
 			}
@@ -2378,7 +2372,7 @@ bool UParticleModuleBeamTarget::ResolveTargetData(FParticleBeam2EmitterInstance*
 
 					if (BeamInst->TargetEmitter)
 					{
-						FVector LocalTargetPosition;
+						FVector LocalTargetPosition = FVector::ZeroVector;
 
 						int32 TargetIndex = LastSelectedParticleIndex;
 
