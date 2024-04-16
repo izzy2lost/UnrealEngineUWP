@@ -82,7 +82,7 @@ if (botname === '__TEST__') {
 		// also flag for applying reverse entry too? would apply to branchspecs, not so simple for resolver
 		const propertiesToPropagate: [keyof NodeOptions, keyof EdgeOptions, ConfigBlendMode | null][] = [
 			['additionalSlackChannelForBlockages', 'additionalSlackChannel', null],
-			['postMessagesToAdditionalChannelOnly', 'postOnlyToAdditionalChannel', null],
+			['postMessagesToAdditionalChannelOnly', 'postOnlyToAdditionalChannel', 'override'],
 			['lastGoodCLPath', 'lastGoodCLPath', null],
 			['waitingForCISLink', 'waitingForCISLink', null],
 			['disallowSkip', 'disallowSkip', null],
