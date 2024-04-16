@@ -676,6 +676,7 @@ TArray<FTypedElementHandle> PlaceAssetUsingFactory(UObject* Asset, TScriptInterf
 			FActorSpawnParameters SpawnParams;
 			SpawnParams.ObjectFlags = ObjectFlags;
 			SpawnParams.Name = Name;
+			SpawnParams.bTemporaryEditorActor = FLevelEditorViewportClient::IsDroppingPreviewActor();
 
 			if (AActor* PlacedActor = ActorFactory->CreateActor(Asset, DesiredLevel, ActorTransform, SpawnParams))
 			{
