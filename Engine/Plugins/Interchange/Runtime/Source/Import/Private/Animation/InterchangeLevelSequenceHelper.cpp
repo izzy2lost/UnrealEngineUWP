@@ -15,15 +15,18 @@
 #include "Components/SplineComponent.h"
 #include "Components/StaticMeshComponent.h"
 
+#include "Engine/SkeletalMesh.h"
+#include "Engine/StaticMesh.h"
 #include "MovieScene.h"
 #include "MovieSceneSection.h"
 #include "Tracks/MovieSceneBoolTrack.h"
 #include "Tracks/MovieSceneByteTrack.h"
 #include "Tracks/MovieSceneColorTrack.h"
-#include "Tracks/MovieSceneVectorTrack.h"
 #include "Tracks/MovieSceneEnumTrack.h"
 #include "Tracks/MovieSceneFloatTrack.h"
 #include "Tracks/MovieSceneIntegerTrack.h"
+#include "Tracks/MovieSceneObjectPropertyTrack.h"
+#include "Tracks/MovieSceneVectorTrack.h"
 #include "Tracks/MovieSceneVisibilityTrack.h"
 
 namespace UE::Interchange::Private
@@ -345,18 +348,22 @@ namespace UE::Interchange::Private
 			{EInterchangePropertyTracks::SkinnedMeshVisibilityBasedAnimTickOption, {UMovieSceneEnumTrack::StaticClass()->GetName(),  GET_MEMBER_NAME_STRING_CHECKED(USkinnedMeshComponent, VisibilityBasedAnimTickOption) , TEXT("Visibility Based Anim Tick Option"), StaticEnum<EVisibilityBasedAnimTickOption>()}},
 
 			// Skeletal Mesh
+#if WITH_EDITORONLY_DATA
+			{EInterchangePropertyTracks::SkeletalMesh, {UMovieSceneObjectPropertyTrack::StaticClass()->GetName(),  USkeletalMeshComponent::GetSkeletalMeshAssetPropertyNameChecked().ToString(), TEXT("Skeletal Mesh Asset"), USkeletalMesh::StaticClass()}},
+#endif
 			{EInterchangePropertyTracks::SkeletalMeshAllowClothActors, {UMovieSceneBoolTrack::StaticClass()->GetName(),  GET_MEMBER_NAME_STRING_CHECKED(USkeletalMeshComponent, bAllowClothActors) , TEXT("Allow Cloth Actors")}},
 			{EInterchangePropertyTracks::SkeletalMeshAnimationMode, {UMovieSceneEnumTrack::StaticClass()->GetName(),  GET_MEMBER_NAME_STRING_CHECKED(USkeletalMeshComponent, USkeletalMeshComponent::GetAnimationModePropertyNameChecked()) , TEXT("Animation Mode"), StaticEnum<EAnimationMode::Type>()}},
 			{EInterchangePropertyTracks::SkeletalMeshClothBlendWeight, {UMovieSceneFloatTrack::StaticClass()->GetName(),  GET_MEMBER_NAME_STRING_CHECKED(USkeletalMeshComponent, ClothBlendWeight) , TEXT("Cloth Blend Weight")}},
 			{EInterchangePropertyTracks::SkeletalMeshClothMaxDistanceScale, {UMovieSceneFloatTrack::StaticClass()->GetName(),  GET_MEMBER_NAME_STRING_CHECKED(USkeletalMeshComponent, ClothMaxDistanceScale) , TEXT("Cloth Max Distance Scale")}},
 			
-			// Static Mesh
+			// Static Mesh				
+			{EInterchangePropertyTracks::StaticMesh, {UMovieSceneObjectPropertyTrack::StaticClass()->GetName(), UStaticMeshComponent::GetMemberNameChecked_StaticMesh().ToString() , TEXT("Static Mesh"), UStaticMesh::StaticClass()}},
 			{EInterchangePropertyTracks::StaticMeshDistanceFieldSelfShadowBias, {UMovieSceneFloatTrack::StaticClass()->GetName(),  GET_MEMBER_NAME_STRING_CHECKED(UStaticMeshComponent, DistanceFieldSelfShadowBias) , TEXT("Distance Field Self Shadow Bias")}},
 			{EInterchangePropertyTracks::StaticMeshEvaluateWorldPositionOffset, {UMovieSceneBoolTrack::StaticClass()->GetName(),  GET_MEMBER_NAME_STRING_CHECKED(UStaticMeshComponent, bEvaluateWorldPositionOffset) , TEXT("Evaluate World Position Offset")}},
 			{EInterchangePropertyTracks::StaticMeshEvaluateWorldPositionOffsetInRayTracing, {UMovieSceneBoolTrack::StaticClass()->GetName(),  GET_MEMBER_NAME_STRING_CHECKED(UStaticMeshComponent, bEvaluateWorldPositionOffsetInRayTracing) , TEXT("Evaluate World Position Offset in Ray Tracing")}},
 			{EInterchangePropertyTracks::StaticMeshForcedLodModel, {UMovieSceneIntegerTrack::StaticClass()->GetName(),  GET_MEMBER_NAME_STRING_CHECKED(UStaticMeshComponent, ForcedLodModel) , TEXT("Forced Lod Model")}},
 			{EInterchangePropertyTracks::StaticMeshReverseCulling, {UMovieSceneBoolTrack::StaticClass()->GetName(),  GET_MEMBER_NAME_STRING_CHECKED(UStaticMeshComponent, bReverseCulling) , TEXT("Reverse Culling")}},
-			{EInterchangePropertyTracks::StaticMeshWorldPositionOffsetDisableDistance, {UMovieSceneIntegerTrack::StaticClass()->GetName(),  GET_MEMBER_NAME_STRING_CHECKED(UStaticMeshComponent, WorldPositionOffsetDisableDistance) , TEXT("World Position Offset Disable Distance")}},			
+			{EInterchangePropertyTracks::StaticMeshWorldPositionOffsetDisableDistance, {UMovieSceneIntegerTrack::StaticClass()->GetName(),  GET_MEMBER_NAME_STRING_CHECKED(UStaticMeshComponent, WorldPositionOffsetDisableDistance) , TEXT("World Position Offset Disable Distance")}},
 		}
 	{}
 
@@ -395,23 +402,29 @@ namespace UE::Interchange::Private
 			PropertyTrack->RemoveAllAnimationData();
 		}
 
-		if(InterchangePropertyTrack->EnumClass)
+		if(UEnum* const* EnumClass = InterchangePropertyTrack->VariantProperty.TryGet<UEnum*>())
 		{
 			if(UMovieSceneByteTrack* ByteTrack = Cast<UMovieSceneByteTrack>(PropertyTrack))
 			{
-				ByteTrack->SetEnum(InterchangePropertyTrack->EnumClass);
+				ByteTrack->SetEnum(*EnumClass);
 			}
 		}
-
-		if(InterchangePropertyTrack->NumChannelsUsed.IsSet())
+		else if(const int32* NumChannelsUsed = InterchangePropertyTrack->VariantProperty.TryGet<int32>())
 		{
 			if(UMovieSceneDoubleVectorTrack* DoubleVectorTrack = Cast<UMovieSceneDoubleVectorTrack>(PropertyTrack))
 			{
-				DoubleVectorTrack->SetNumChannelsUsed(*InterchangePropertyTrack->NumChannelsUsed);
+				DoubleVectorTrack->SetNumChannelsUsed(*NumChannelsUsed);
 			}
 			else if(UMovieSceneFloatVectorTrack* FloatVectorTrack = Cast<UMovieSceneFloatVectorTrack>(PropertyTrack))
 			{
-				FloatVectorTrack->SetNumChannelsUsed(*InterchangePropertyTrack->NumChannelsUsed);
+				FloatVectorTrack->SetNumChannelsUsed(*NumChannelsUsed);
+			}
+		}
+		else if(UClass* const* ObjectPropertyClass = InterchangePropertyTrack->VariantProperty.TryGet<UClass*>())
+		{
+			if(UMovieSceneObjectPropertyTrack* ObjectPropertyTrack = Cast<UMovieSceneObjectPropertyTrack>(PropertyTrack))
+			{
+				ObjectPropertyTrack->PropertyClass = *ObjectPropertyClass;
 			}
 		}
 

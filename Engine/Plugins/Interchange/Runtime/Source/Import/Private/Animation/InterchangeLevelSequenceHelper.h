@@ -67,21 +67,27 @@ namespace UE::Interchange::Private
 				: ClassType{ MoveTemp(ClassType) }
 				, Path{ MoveTemp(Path) }
 				, Name{ MoveTemp(Name) }
-				, EnumClass{EnumClass}
+				, VariantProperty{ TInPlaceType<UEnum*>{}, EnumClass}
 			{}
 
 			FInterchangeProperty(FString&& ClassType, FString&& Path, FString&& Name, int32 NumChannelsUsed)
-				: ClassType{ std::move(ClassType) }
+				: ClassType{ MoveTemp(ClassType) }
 				, Path{ MoveTemp(Path) }
 				, Name{ MoveTemp(Name) }
-				, NumChannelsUsed{ NumChannelsUsed }
+				, VariantProperty{ TInPlaceType<int32>{}, NumChannelsUsed }
+			{}
+
+			FInterchangeProperty(FString && ClassType, FString && Path, FString && Name, UClass * ObjectPropertyClass)
+				: ClassType{ MoveTemp(ClassType) }
+				, Path{ MoveTemp(Path) }
+				, Name{ MoveTemp(Name) }
+				, VariantProperty{ TInPlaceType<UClass*>{}, ObjectPropertyClass }
 			{}
 
 			FString ClassType; // Float, Double, Byte, etc. Basically the class name of the UMovieSceneTrack
 			FString Path;
 			FName Name;
-			UEnum* EnumClass = nullptr; // Only used for Enum property tracks
-			TOptional<int32> NumChannelsUsed; // Only used for Vector property tracks (Vector tracks can only have 2-4 channels)
+			TVariant<UEnum*, int32, UClass*> VariantProperty; // These are mutually exclusive, we can only have one of a kind (Either an Enum, or Number of channels used for a Vector, or an Object Path)
 		};
 
 		TMap<EInterchangePropertyTracks, FInterchangeProperty> PropertyTracks;

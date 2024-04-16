@@ -325,6 +325,7 @@ enum class EInterchangePropertyTracks : int32
 	SkinnedMeshVisibilityBasedAnimTickOption,
 
 	/** Skeletal Mesh Properties */
+	SkeletalMesh,
 	SkeletalMeshAllowClothActors,
 	SkeletalMeshAnimationMode,
 	SkeletalMeshClothBlendWeight,
@@ -337,6 +338,8 @@ enum class EInterchangePropertyTracks : int32
 	StaticMeshForcedLodModel,
 	StaticMeshReverseCulling,
 	StaticMeshWorldPositionOffsetDisableDistance,
+
+	StaticMesh,
 
 	None = -1 UMETA(hidden),
 };

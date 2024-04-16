@@ -20,6 +20,7 @@
 #include "Channels/MovieSceneDoubleChannel.h"
 #include "Channels/MovieSceneIntegerChannel.h"
 #include "Channels/MovieSceneByteChannel.h"
+#include "Channels/MovieSceneObjectPathChannel.h"
 #include "LevelSequence.h"
 #include "MovieScene.h"
 #include "MovieSceneSection.h"
@@ -148,7 +149,7 @@ namespace UE::Interchange::Private
 		{
 			const FFrameRate& FrameRate = MovieScene->GetTickResolution();
 
-			TMovieSceneChannelData<ValueType> Data = Channel.GetData();
+			auto Data = Channel.GetData();
 
 			Data.Reset();
 
@@ -166,7 +167,14 @@ namespace UE::Interchange::Private
 					this->MaxFrameNumber = FrameNumber;
 				}
 
-				Data.AddKey(FrameNumber, Values[KeyIndex]);
+				if constexpr(std::is_same_v<ChannelType, FMovieSceneObjectPathChannel>)
+				{
+					Data.AddKey(FrameNumber, FSoftObjectPath{ Values[KeyIndex] }.TryLoad());
+				}
+				else
+				{
+					Data.AddKey(FrameNumber, Values[KeyIndex]);
+				}
 			}
 		}
 
@@ -482,6 +490,7 @@ namespace UE::Interchange::Private
 		const FName IntegerChannelTypeName = FMovieSceneIntegerChannel::StaticStruct()->GetFName();
 		const FName BoolChannelTypeName = FMovieSceneBoolChannel::StaticStruct()->GetFName();
 		const FName EnumChannelTypeName = FMovieSceneByteChannel::StaticStruct()->GetFName();
+		const FName ObjectPathChannelTypeName = FMovieSceneObjectPathChannel::StaticStruct()->GetFName();
 
 		auto CopyToChannel = [this](auto Channel, const FRichCurve& Curve)
 		{
@@ -538,33 +547,39 @@ namespace UE::Interchange::Private
 			const bool bIsIntegerChannel = (ChannelTypeName == IntegerChannelTypeName);
 			const bool bIsDoubleChannel = (ChannelTypeName == DoubleChannelTypeName);
 			const bool bIsFloatChannel = (ChannelTypeName == FloatChannelTypeName);
+			const bool bIsObjectPathChannel = (ChannelTypeName == ObjectPathChannelTypeName);
 
 			if(!bIsBoolChannel &&
 			   !bIsEnumChannel &&
 			   !bIsIntegerChannel &&
 			   !bIsDoubleChannel &&
-			   !bIsFloatChannel)
+			   !bIsFloatChannel &&
+			   !bIsObjectPathChannel)
 			{
 				continue;
 			}
 
 			TArrayView<FMovieSceneChannel* const> Channels = ChannelEntry.GetChannels();
-			int32 NumChannels = (bIsBoolChannel || bIsEnumChannel || bIsIntegerChannel) ? PayloadData->StepCurves.Num() : PayloadData->Curves.Num();
+			int32 NumChannels = (bIsBoolChannel || bIsEnumChannel || bIsIntegerChannel || bIsObjectPathChannel) ? PayloadData->StepCurves.Num() : PayloadData->Curves.Num();
 			NumChannels = FMath::Min(NumChannels, Channels.Num());
 			for(int32 Index = 0; Index < NumChannels; ++Index)
 			{
 				FMovieSceneChannelHandle Channel = ChannelProxy.MakeHandle(ChannelTypeName, Index);
 				if(bIsBoolChannel)
 				{
-					UpdateStepChannel(*(Channel.Cast<FMovieSceneBoolChannel>().Get()), PayloadData->StepCurves[Index].KeyTimes, PayloadData->StepCurves[0].BooleanKeyValues.GetValue());
+					UpdateStepChannel(*(Channel.Cast<FMovieSceneBoolChannel>().Get()), PayloadData->StepCurves[Index].KeyTimes, PayloadData->StepCurves[Index].BooleanKeyValues.GetValue());
 				}
 				else if(bIsEnumChannel)
 				{
-					UpdateStepChannel(*(Channel.Cast<FMovieSceneByteChannel>().Get()), PayloadData->StepCurves[Index].KeyTimes, PayloadData->StepCurves[0].ByteKeyValues.GetValue());
+					UpdateStepChannel(*(Channel.Cast<FMovieSceneByteChannel>().Get()), PayloadData->StepCurves[Index].KeyTimes, PayloadData->StepCurves[Index].ByteKeyValues.GetValue());
 				}
 				else if(bIsIntegerChannel)
 				{
-					UpdateStepChannel(*(Channel.Cast<FMovieSceneIntegerChannel>().Get()), PayloadData->StepCurves[Index].KeyTimes, PayloadData->StepCurves[0].IntegerKeyValues.GetValue());
+					UpdateStepChannel(*(Channel.Cast<FMovieSceneIntegerChannel>().Get()), PayloadData->StepCurves[Index].KeyTimes, PayloadData->StepCurves[Index].IntegerKeyValues.GetValue());
+				}
+				else if(bIsObjectPathChannel)
+				{
+					UpdateStepChannel(*(Channel.Cast<FMovieSceneObjectPathChannel>().Get()), PayloadData->StepCurves[Index].KeyTimes, PayloadData->StepCurves[Index].StringKeyValues.GetValue());
 				}
 				else if(bIsFloatChannel)
 				{
