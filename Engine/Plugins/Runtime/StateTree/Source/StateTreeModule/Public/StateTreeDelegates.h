@@ -60,6 +60,10 @@ extern STATETREEMODULE_API FOnPostCompile OnPostCompile;
 DECLARE_DELEGATE_RetVal_OneParam(bool, FOnRequestCompile, UStateTree& /*StateTreeToCompile*/);
 extern STATETREEMODULE_API FOnRequestCompile OnRequestCompile;
 
+/** Request the editor hash of the given state tree. */
+DECLARE_DELEGATE_RetVal_OneParam(uint32, FOnRequestEditorHash, const UStateTree& /*StateTreeToHash*/);
+extern STATETREEMODULE_API FOnRequestEditorHash OnRequestEditorHash;
+
 #endif // WITH_EDITOR
 
 #if WITH_STATETREE_DEBUGGER

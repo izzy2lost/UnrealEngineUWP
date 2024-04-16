@@ -14,6 +14,7 @@ FOnStateParametersChanged OnStateParametersChanged;
 FOnBreakpointsChanged OnBreakpointsChanged;
 FOnPostCompile OnPostCompile;
 FOnRequestCompile OnRequestCompile;
+FOnRequestEditorHash OnRequestEditorHash;
 #endif // WITH_EDITOR
 
 #if WITH_STATETREE_DEBUGGER

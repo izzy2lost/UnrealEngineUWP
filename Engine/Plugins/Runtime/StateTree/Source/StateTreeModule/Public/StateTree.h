@@ -172,6 +172,12 @@ public:
 
 	/** Calculates runtime memory usage for different sections of the tree. */
 	TArray<FStateTreeMemoryUsage> CalculateEstimatedMemoryUsage() const;
+
+	/** Called when the editor is preparing to start a pie session. */
+	void OnPreBeginPIE(const bool bIsSimulating);
+
+	/** Compile the state trees if the editor hash data as changed since the last compilation. */
+	void CompileIfChanged();
 #endif
 
 #if WITH_EDITORONLY_DATA

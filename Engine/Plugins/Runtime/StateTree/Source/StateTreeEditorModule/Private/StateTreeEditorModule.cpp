@@ -73,6 +73,7 @@ namespace UE::StateTree::Editor
 void FStateTreeEditorModule::StartupModule()
 {
 	UE::StateTree::Delegates::OnRequestCompile.BindStatic(&UE::StateTree::Editor::CompileStateTree);
+	UE::StateTree::Delegates::OnRequestEditorHash.BindStatic(&UE::StateTree::Editor::CalcAssetHash);
 
 #if WITH_STATETREE_DEBUGGER
 	FStateTreeDebuggerCommands::Register();
