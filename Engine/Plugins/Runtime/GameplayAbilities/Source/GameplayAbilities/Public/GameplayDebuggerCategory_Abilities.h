@@ -14,7 +14,7 @@ class APlayerController;
 class UAbilitySystemComponent;
 class UPackageMap;
 
-class FGameplayDebuggerCategory_Abilities : public FGameplayDebuggerCategory
+class GAMEPLAYABILITIES_API FGameplayDebuggerCategory_Abilities : public FGameplayDebuggerCategory
 {
 public:
 	FGameplayDebuggerCategory_Abilities();
