@@ -2,8 +2,9 @@
 
 #include "/Engine/Private/Common.ush"
 
-RWBuffer<uint>	RWPixelShaderOutput;
-RWBuffer<uint>	RWVertexShaderOutput;
+// NOTE: using a structured buffer here as workaround for UE-212251
+RWStructuredBuffer<uint>	RWPixelShaderOutput;
+RWStructuredBuffer<uint>	RWVertexShaderOutput;
 
 void TestGraphicsUAVWriteMainVS(
 	in float4 VertexPosition : ATTRIBUTE0,
