@@ -3,7 +3,6 @@
 #include "GeometryCollection/GeometryCollectionEngineUtility.h"
 
 #include "Chaos/Utilities.h"
-#include "DynamicMesh/DynamicMesh3.h"
 #include "Engine/SkeletalMesh.h"
 #include "GeometryCollection/GeometryCollection.h"
 #include "GeometryCollection/GeometryCollectionCache.h"
@@ -13,6 +12,7 @@
 #include "MeshDescription.h"
 #include "Modules/ModuleInterface.h"
 #include "Modules/ModuleManager.h"
+
 
 #if WITH_EDITOR
 #include "MeshUtilities.h"
@@ -473,14 +473,11 @@ void GeometryCollectionEngineUtility::GenerateConnectedComponents(const USkeleta
 	constexpr int32 LODIndex = 0;
 	if (InSkeletalMesh->HasMeshDescription(LODIndex))
 	{
-		FMeshDescription SourceMesh;
-		UE::Geometry::FDynamicMesh3 DynamicMesh;
-		FMeshDescriptionToDynamicMesh Converter;
-		InSkeletalMesh->CloneMeshDescription(LODIndex, SourceMesh);
-		Converter.Convert(&SourceMesh, DynamicMesh);
+		FMeshDescription MeshDescription;
+		InSkeletalMesh->CloneMeshDescription(LODIndex, MeshDescription);
 
 		TArray<int32> VertexComponentID;
-		VertexComponentID.Init(INDEX_NONE, DynamicMesh.MaxVertexID());
+		VertexComponentID.Init(INDEX_NONE, MeshDescription.Vertices().Num());
 
 		int32 MaxComponentID = INDEX_NONE;
 		for (int VisitedVertexIdx = 0; VisitedVertexIdx < VertexComponentID.Num(); VisitedVertexIdx++)
@@ -494,10 +491,10 @@ void GeometryCollectionEngineUtility::GenerateConnectedComponents(const USkeleta
 				while (!Neighbors.IsEmpty())
 				{
 					int32 CurrentVertex = Neighbors.Pop();
-					for (int32 EdgeID : DynamicMesh.VtxEdgesItr(CurrentVertex))
+					for (int32 EdgeID : MeshDescription.GetVertexConnectedEdgeIDs(CurrentVertex))
 					{
-						const FDynamicMesh3::FEdge& Edge = DynamicMesh.GetEdge(EdgeID);
-						int NewVertex = Edge.Vert[0] == CurrentVertex ? Edge.Vert[1] : Edge.Vert[0];
+						const TArrayView<const FVertexID>& Edge = MeshDescription.GetEdgeVertices(EdgeID);
+						int NewVertex = Edge[0] == CurrentVertex ? Edge[1] : Edge[0];
 						if (VertexComponentID[NewVertex] == INDEX_NONE)
 						{
 							Neighbors.Push(NewVertex);
@@ -512,9 +509,9 @@ void GeometryCollectionEngineUtility::GenerateConnectedComponents(const USkeleta
 		TriangleCount = 0;
 		SourceTriangleIndex.Init(TArray< FIntVector2 >(), MaxComponentID + 1);
 		SourceTriangleVertices.Init(TArray<FIntVector>(), MaxComponentID + 1);
-		for (int32 TriangleID : DynamicMesh.TriangleIndicesItr())
+		for (FTriangleID TriangleID : MeshDescription.Triangles().GetElementIDs())
 		{
-			const FIntVector3& Triangle = DynamicMesh.GetTriangle(TriangleID);
+			const TArrayView<const FVertexID>& Triangle = MeshDescription.GetTriangleVertices(TriangleID);
 			int32 ComponentID = VertexComponentID[Triangle[0]];
 			for (int k = 1; k < 3; k++)
 			{
@@ -523,14 +520,14 @@ void GeometryCollectionEngineUtility::GenerateConnectedComponents(const USkeleta
 					return;
 				}
 			}
-			SourceTriangleVertices[ComponentID].Add(Triangle);
+			SourceTriangleVertices[ComponentID].Add(FIntVector3(Triangle[0], Triangle[1], Triangle[2]));
 			SourceTriangleIndex[ComponentID].Add(FIntVector2(TriangleID, INDEX_NONE));
 			TriangleCount++;
 		}
 
 		// Build Remapping
 		int32 CurrentRemapIndex = 0;
-		VertexComponentMap.Init(INDEX_NONE, DynamicMesh.MaxVertexID());
+		VertexComponentMap.Init(INDEX_NONE, MeshDescription.Vertices().Num());
 		for (TArray<FIntVector>& Component : SourceTriangleVertices)
 		{
 			for (FIntVector& Triangle : Component)
