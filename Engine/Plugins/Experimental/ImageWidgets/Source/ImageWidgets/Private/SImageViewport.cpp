@@ -8,6 +8,7 @@
 #include "ImageWidgetsCommands.h"
 #include "ImageWidgetsStyle.h"
 #include "SImageViewportToolbar.h"
+#include "Framework/Application/SlateApplication.h"
 #include "Widgets/Text/SRichTextBlock.h"
 #include "Widgets/Text/STextBlock.h"
 
@@ -168,11 +169,21 @@ namespace UE::ImageWidgets
 			return DrawSettings.Get();
 		};
 
+		auto GetDPIScaleFactor = [this]
+		{
+			if (const TSharedPtr<SWindow> TopLevelWindow = FSlateApplication::Get().FindWidgetWindow(SharedThis(this)); TopLevelWindow.IsValid())
+			{
+				return TopLevelWindow->GetDPIScaleFactor();
+			}
+			return 1.0f;
+		};
+		
 		ImageViewportClient = MakeShareable(new FImageViewportClient(
 			StaticCastWeakPtr<SEditorViewport>(AsWeak()),
 			FGetImageSize::CreateLambda(GetImageSize),
 			FDrawImage::CreateLambda(DrawImage),
 			FGetDrawSettings::CreateLambda(GetDrawSettings),
+			FGetDPIScaleFactor::CreateLambda(GetDPIScaleFactor),
 			InArgs._ControllerSettings.DefaultZoomMode));
 
 		SEditorViewport::Construct(SEditorViewport::FArguments());

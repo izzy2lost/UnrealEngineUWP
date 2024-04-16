@@ -9,6 +9,8 @@ namespace UE::ImageWidgets
 {
 	/**
 	 * Camera controller for the 2D viewport supporting panning and zooming.
+	 *
+	 * Note: All function parameters relating to the viewport need to be passed in with DPI scaling taken into account!
 	 */
 	class FImageViewportController
 	{
@@ -29,14 +31,14 @@ namespace UE::ImageWidgets
 
 		explicit FImageViewportController(EZoomMode DefaultZoomMode);
 
-		void Pan(FVector2d Delta);
-		void Reset(FIntPoint ImageSize, FIntPoint ViewportSize);
-		void ZoomIn(FVector2d CursorPos, const FIntPoint& ImageSize);
-		void ZoomOut(FVector2d CursorPos, const FIntPoint& ImageSize);
+		void Pan(FVector2d ViewportDeltaWithDPIScaling);
+		void Reset(FIntPoint ImageSize, FVector2d ViewportSizeWithDPIScaling);
+		void ZoomIn(FVector2d CursorPixelPos, FIntPoint ImageSize);
+		void ZoomOut(FVector2d CursorPixelPos, FIntPoint ImageSize);
 
 		FVector2d GetPan(FVector2d Drag) const;
 		FZoomSettings GetZoom() const;
-		void SetZoom(EZoomMode ZoomMode, double Zoom, const FIntPoint& ImageSize, const FIntPoint& ViewportSize);
+		void SetZoom(EZoomMode ZoomMode, double Zoom, FIntPoint ImageSize, FVector2d ViewportSizeWithDPIScaling);
 
 	private:
 		FVector2d PanAmount;

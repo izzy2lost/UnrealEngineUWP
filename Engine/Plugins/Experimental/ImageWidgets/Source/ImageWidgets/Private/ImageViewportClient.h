@@ -14,6 +14,7 @@ namespace UE::ImageWidgets
 	DECLARE_DELEGATE_RetVal(FIntPoint, FGetImageSize)
 	DECLARE_DELEGATE_ThreeParams(FDrawImage, FViewport*, FCanvas*, const IImageViewer::FDrawProperties&)
 	DECLARE_DELEGATE_RetVal(SImageViewport::FDrawSettings, FGetDrawSettings)
+	DECLARE_DELEGATE_RetVal(float, FGetDPIScaleFactor)
 
 	/**
 	 * Viewport client for controlling the camera and drawing viewport contents. 
@@ -22,7 +23,8 @@ namespace UE::ImageWidgets
 	{
 	public:
 		FImageViewportClient(const TWeakPtr<SEditorViewport>& InViewport, FGetImageSize&& InGetImageSize, FDrawImage&& InDrawImage,
-		                     FGetDrawSettings&& InGetDrawSettings, SImageViewport::FControllerSettings::EDefaultZoomMode DefaultZoomMode);
+		                     FGetDrawSettings&& InGetDrawSettings, FGetDPIScaleFactor&& InGetDPIScaleFactor,
+		                     SImageViewport::FControllerSettings::EDefaultZoomMode DefaultZoomMode);
 		virtual ~FImageViewportClient() override;
 
 		virtual void Draw(FViewport* InViewport, FCanvas* Canvas) override;
@@ -54,15 +56,18 @@ namespace UE::ImageWidgets
 			uint32 CheckerSize = 0;
 		};
 
-		FVector2d GetCurrentDrag() const;
-		IImageViewer::FDrawProperties::FPlacement GetPlacementProperties(FVector2d ViewportSize, FVector2d TextureSize) const;
+		FVector2d GetCurrentDragWithDPIScaling() const;
+		IImageViewer::FDrawProperties::FPlacement GetPlacementProperties(FIntPoint ImageSize, FVector2d ViewportSizeWithDPIScaling) const;
 		IImageViewer::FDrawProperties::FMip GetMipProperties() const;
 
 		void CreateOrDestroyCheckerTextureIfSettingsChanged(const SImageViewport::FDrawSettings& DrawSettings);
 
+		FVector2d GetViewportSizeWithDPIScaling() const;
+
 		FGetImageSize GetImageSize;
 		FDrawImage DrawImage;
 		FGetDrawSettings GetDrawSettings;
+		FGetDPIScaleFactor GetDPIScaleFactor;
 
 		bool bDragging = false;
 		FIntPoint DraggingStart;

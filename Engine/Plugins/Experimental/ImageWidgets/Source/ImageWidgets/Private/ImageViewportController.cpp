@@ -80,45 +80,45 @@ namespace UE::ImageWidgets
 		}
 	}
 
-	FImageViewportController::FImageViewportController(EZoomMode DefaultZoomMode)
-		:DefaultZoomMode(DefaultZoomMode)
+	FImageViewportController::FImageViewportController(const EZoomMode DefaultZoomMode)
+		: DefaultZoomMode(DefaultZoomMode)
 	{
 		Reset({0, 0}, {0, 0});
 	}
 
-	void FImageViewportController::Pan(FVector2d Delta)
+	void FImageViewportController::Pan(const FVector2d ViewportDeltaWithDPIScaling)
 	{
-		PanAmount += Delta;
+		PanAmount += ViewportDeltaWithDPIScaling;
 	}
 
-	void FImageViewportController::Reset(FIntPoint ImageSize, FIntPoint ViewportSize)
+	void FImageViewportController::Reset(const FIntPoint ImageSize, const FVector2d ViewportSizeWithDPIScaling)
 	{
-		SetZoom(DefaultZoomMode, 1.0, ImageSize, ViewportSize);
+		SetZoom(DefaultZoomMode, 1.0, ImageSize, ViewportSizeWithDPIScaling);
 
 		PanAmount = FVector2d::Zero();
 	}
 
-	void FImageViewportController::ZoomIn(FVector2d CursorPos, const FIntPoint& ImageSize)
+	void FImageViewportController::ZoomIn(const FVector2d CursorPixelPos, const FIntPoint ImageSize)
 	{
 		const double OldZoom = ZoomSettings.Zoom;
 
 		ZoomSettings.Mode = EZoomMode::Custom;
 		ZoomSettings.Zoom = ImageViewportController_Local::ZoomIn(ZoomSettings.Zoom);
 
-		PanAmount = ImageViewportController_Local::AdjustPan(PanAmount, OldZoom, ZoomSettings.Zoom, CursorPos, FVector2d(ImageSize.X, ImageSize.Y));
+		PanAmount = ImageViewportController_Local::AdjustPan(PanAmount, OldZoom, ZoomSettings.Zoom, CursorPixelPos, ImageSize);
 	}
 
-	void FImageViewportController::ZoomOut(FVector2d CursorPos, const FIntPoint& ImageSize)
+	void FImageViewportController::ZoomOut(const FVector2d CursorPixelPos, const FIntPoint ImageSize)
 	{
 		const double OldZoom = ZoomSettings.Zoom;
 
 		ZoomSettings.Mode = EZoomMode::Custom;
 		ZoomSettings.Zoom = ImageViewportController_Local::ZoomOut(ZoomSettings.Zoom);
 
-		PanAmount = ImageViewportController_Local::AdjustPan(PanAmount, OldZoom, ZoomSettings.Zoom, CursorPos, FVector2d(ImageSize.X, ImageSize.Y));
+		PanAmount = ImageViewportController_Local::AdjustPan(PanAmount, OldZoom, ZoomSettings.Zoom, CursorPixelPos, ImageSize);
 	}
 
-	FVector2d FImageViewportController::GetPan(FVector2d Drag) const
+	FVector2d FImageViewportController::GetPan(const FVector2d Drag) const
 	{
 		return PanAmount + Drag;
 	}
@@ -128,7 +128,7 @@ namespace UE::ImageWidgets
 		return ZoomSettings;
 	}
 
-	void FImageViewportController::SetZoom(const EZoomMode ZoomMode, const double Zoom, const FIntPoint& ImageSize, const FIntPoint& ViewportSize)
+	void FImageViewportController::SetZoom(const EZoomMode ZoomMode, const double Zoom, const FIntPoint ImageSize, const FVector2d ViewportSizeWithDPIScaling)
 	{
 		ZoomSettings.Mode = ZoomMode;
 
@@ -138,13 +138,13 @@ namespace UE::ImageWidgets
 			return;
 		}
 
-		if (ImageSize == FIntPoint::ZeroValue || ViewportSize == FIntPoint::ZeroValue)
+		if (ImageSize == FIntPoint::ZeroValue || ViewportSizeWithDPIScaling == FVector2d::Zero())
 		{
 			ZoomSettings.Zoom = 1.0;
 			return;
 		}
 
-		const FVector2d SizeRatio = FVector2d(ViewportSize) / ImageSize;
+		const FVector2d SizeRatio = ViewportSizeWithDPIScaling / ImageSize;
 		const double SizeRatioMin = SizeRatio.GetMin();
 
 		if (ZoomSettings.Mode == EZoomMode::Fill)

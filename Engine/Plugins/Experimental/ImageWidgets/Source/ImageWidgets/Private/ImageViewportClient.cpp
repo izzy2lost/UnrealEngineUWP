@@ -98,11 +98,13 @@ void DestroyCheckerTexture(TStrongObjectPtr<UTexture2D>& CheckerTexture)
 }
 
 FImageViewportClient::FImageViewportClient(const TWeakPtr<SEditorViewport>& InEditorViewport, FGetImageSize&& InGetImageSize, FDrawImage&& InDrawImage,
-                                           FGetDrawSettings&& InGetDrawSettings, SImageViewport::FControllerSettings::EDefaultZoomMode DefaultZoomMode)
+                                           FGetDrawSettings&& InGetDrawSettings, FGetDPIScaleFactor&& InGetDPIScaleFactor,
+                                           SImageViewport::FControllerSettings::EDefaultZoomMode DefaultZoomMode)
 	: FEditorViewportClient(nullptr, nullptr, InEditorViewport)
 	, GetImageSize(MoveTemp(InGetImageSize))
 	, DrawImage(MoveTemp(InDrawImage))
 	, GetDrawSettings(MoveTemp(InGetDrawSettings))
+	, GetDPIScaleFactor(MoveTemp(InGetDPIScaleFactor))
 	, Controller(static_cast<FImageViewportController::EZoomMode>(DefaultZoomMode))
 {
 	check(GetImageSize.IsBound());
@@ -133,7 +135,8 @@ void FImageViewportClient::Draw(FViewport* InViewport, FCanvas* Canvas)
 		return;
 	}
 
-	CachedPlacement = GetPlacementProperties({InViewport->GetSizeXY()}, {ImageSize});
+	const FVector2d ViewportSizeWithDPIScaling = FVector2d(InViewport->GetSizeXY()) / GetDPIScaleFactor.Execute();	
+	CachedPlacement = GetPlacementProperties(ImageSize, ViewportSizeWithDPIScaling);
 	bCachedPlacementIsValid = true;
 
 	const IImageViewer::FDrawProperties::FMip MipProperties = GetMipProperties();
@@ -164,7 +167,7 @@ void FImageViewportClient::Draw(FViewport* InViewport, FCanvas* Canvas)
 				Background.UV1 = FVector2D(ImageSize) / CheckerTexture->GetSizeX();
 
 				BatchedElementParameters = new FBatchedElementTexture2DPreviewParameters(
-					-1, 0, 0, false, false, false, false, false, false/*MipProperties.bUsePointSampling*/);
+					-1, 0, 0, false, false, false, false, false, false);
 				Background.BatchedElementParameters = BatchedElementParameters.GetReference();
 			}
 		}
@@ -221,9 +224,7 @@ bool FImageViewportClient::InputKey(const FInputKeyEventArgs& EventArgs)
 
 		if (EventArgs.Key == EKeys::F)
 		{
-			const FIntPoint ImageSize = GetImageSize.Execute();
-			const FIntPoint ViewportSize = Viewport->GetSizeXY();
-			Controller.Reset(ImageSize, ViewportSize);
+			Controller.Reset(GetImageSize.Execute(), GetViewportSizeWithDPIScaling());
 
 			return true;
 		}
@@ -258,7 +259,9 @@ void FImageViewportClient::TrackingStopped()
 
 		FIntPoint DraggingEnd;
 		Viewport->GetMousePos(DraggingEnd);
-		Controller.Pan(DraggingEnd - DraggingStart);
+		const float DPIScaleFactor = GetDPIScaleFactor.Execute();
+
+		Controller.Pan(FVector2d(DraggingEnd - DraggingStart) / DPIScaleFactor);
 	}
 
 	RequiredCursorVisibiltyAndAppearance.bDontResetCursor = true;
@@ -278,26 +281,25 @@ void FImageViewportClient::SetMipLevel(int32 InMipLevel)
 
 void FImageViewportClient::ResetController(FIntPoint ImageSize)
 {
-	Controller.Reset(ImageSize, Viewport->GetSizeXY());
+	Controller.Reset(ImageSize, GetViewportSizeWithDPIScaling());
 }
 
 void FImageViewportClient::ResetZoom(FIntPoint ImageSize)
 {		
 	const FImageViewportController::FZoomSettings ZoomSettings = Controller.GetZoom();
-	Controller.SetZoom(ZoomSettings.Mode, ZoomSettings.Zoom, ImageSize, Viewport->GetSizeXY());
+	Controller.SetZoom(ZoomSettings.Mode, ZoomSettings.Zoom, ImageSize, GetViewportSizeWithDPIScaling());
 }
 
 FImageViewportController::FZoomSettings FImageViewportClient::GetZoom() const
 {
-	return Controller.GetZoom();
+	FImageViewportController::FZoomSettings ZoomSettings = Controller.GetZoom();
+	ZoomSettings.Zoom *= GetDPIScaleFactor.Execute();
+	return ZoomSettings;
 }
 
 void FImageViewportClient::SetZoom(FImageViewportController::EZoomMode Mode, double Zoom)
 {
-	const FIntPoint ImageSize = GetImageSize.Execute();
-	const FIntPoint ViewportSize = Viewport->GetSizeXY();
-
-	Controller.SetZoom(Mode, Zoom, ImageSize, ViewportSize);
+	Controller.SetZoom(Mode, Zoom, GetImageSize.Execute(), GetViewportSizeWithDPIScaling());
 }
 
 TPair<bool, FVector2d> FImageViewportClient::GetPixelCoordinatesUnderCursor() const
@@ -307,8 +309,9 @@ TPair<bool, FVector2d> FImageViewportClient::GetPixelCoordinatesUnderCursor() co
 		return {false, FVector2d::Zero()};
 	}
 
-	const FVector2d MousePos(CurrentMousePos.X + 0.5, CurrentMousePos.Y + 0.5);
-	const FVector2d CurrentDrag = GetCurrentDrag();
+	const float DPIScaleFactor = GetDPIScaleFactor.Execute();
+	const FVector2d MousePos((CurrentMousePos.X + 0.5) / DPIScaleFactor, (CurrentMousePos.Y + 0.5) / DPIScaleFactor);
+	const FVector2d CurrentDrag = GetCurrentDragWithDPIScaling();
 
 	FVector2d CursorPos = FVector2d(MousePos) - CachedPlacement.Offset + CurrentDrag;
 	CursorPos /= CachedPlacement.ZoomFactor;
@@ -316,26 +319,30 @@ TPair<bool, FVector2d> FImageViewportClient::GetPixelCoordinatesUnderCursor() co
 	return {true, CursorPos};
 }
 
-FVector2d FImageViewportClient::GetCurrentDrag() const
+FVector2d FImageViewportClient::GetCurrentDragWithDPIScaling() const
 {
 	if (bDragging)
 	{
 		FIntPoint DraggingEnd;
 		Viewport->GetMousePos(DraggingEnd);
-		return DraggingEnd - DraggingStart;
+
+		const float DPIScaleFactor = GetDPIScaleFactor.Execute();
+
+		return FVector2d(DraggingEnd - DraggingStart) / DPIScaleFactor;
 	}
 	return FVector2d::Zero();;
 }
 
-IImageViewer::FDrawProperties::FPlacement FImageViewportClient::GetPlacementProperties(FVector2d ViewportSize, FVector2d ImageSize) const
+IImageViewer::FDrawProperties::FPlacement FImageViewportClient::GetPlacementProperties(const FIntPoint ImageSize,
+                                                                                       const FVector2d ViewportSizeWithDPIScaling) const
 {
-	const FVector2d CurrentDrag = GetCurrentDrag();
+	const FVector2d CurrentDrag = GetCurrentDragWithDPIScaling();
 	const FVector2d Pan = Controller.GetPan(CurrentDrag);
 
 	const double ZoomFactor = Controller.GetZoom().Zoom;
 
-	const FVector2d TileSize = ImageSize * ZoomFactor;
-	const FVector2d TileOffset = (ViewportSize - TileSize) / 2 + Pan;
+	const FVector2d TileSize = FVector2d(ImageSize) * ZoomFactor;
+	const FVector2d TileOffset = (ViewportSizeWithDPIScaling - TileSize) / 2 + Pan;
 
 	return {TileOffset, TileSize, ZoomFactor};
 }
@@ -371,6 +378,14 @@ void FImageViewportClient::CreateOrDestroyCheckerTextureIfSettingsChanged(const 
 
 		CachedCheckerTextureSettings = NewCheckerTextureSettings;
 	}
+}
+
+FVector2d FImageViewportClient::GetViewportSizeWithDPIScaling() const
+{
+	const FIntPoint ViewportSize = Viewport->GetSizeXY();
+	const float DPIScaleFactor = GetDPIScaleFactor.Execute();
+
+	return FVector2d(ViewportSize) / DPIScaleFactor;
 }
 }
 

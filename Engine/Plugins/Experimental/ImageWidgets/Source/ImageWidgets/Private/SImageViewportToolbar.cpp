@@ -145,7 +145,7 @@ namespace UE::ImageWidgets
 	{
 		const FImageViewportController::FZoomSettings ZoomSettings = ViewportClient->GetZoom();
 
-		const double Zoom = ViewportClient->GetZoom().Zoom;
+		const double Zoom = ZoomSettings.Zoom;
 		FNumberFormattingOptions FormattingOptions;
 		FormattingOptions.SetMaximumFractionalDigits(Zoom < 1.0 ? (Zoom < 0.1 ? 2 : 1) : 0);
 		const FText ZoomPercentage = FText::AsPercent(Zoom, &FormattingOptions);
