@@ -1847,6 +1847,7 @@ bool FCollectionManager::SetCollectionColor(FName CollectionName, ECollectionSha
 			{
 				*OutError = LOCTEXT("Error_DoesntExist", "The collection doesn't exist.");
 			}
+			return false;
 		}
 
 		(*CollectionRefPtr)->SetCollectionColor(NewColor);
