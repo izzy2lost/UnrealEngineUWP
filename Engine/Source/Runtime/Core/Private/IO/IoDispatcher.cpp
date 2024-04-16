@@ -808,12 +808,14 @@ private:
 						Request.Backend = &Backend.Value.Get();
 					}
 					Backend.Value->ResolveIoRequests(MoveTemp(Batch), Unresolved);
-					if (Unresolved.IsEmpty())
+					Batch = MoveTemp(Unresolved);
+					if (Batch.IsEmpty())
 					{
 						break;
 					}
-					Batch = MoveTemp(Unresolved);
 				}
+
+				Unresolved = MoveTemp(Batch);
 
 				int32 UnresolvedCount = 0;
 				while (FIoRequestImpl* Request = Unresolved.PopHead())
