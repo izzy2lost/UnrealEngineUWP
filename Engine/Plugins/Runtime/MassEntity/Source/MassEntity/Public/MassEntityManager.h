@@ -22,6 +22,7 @@ struct FMassArchetypeEntityCollection;
 class FOutputDevice;
 struct FMassDebugger;
 enum class EMassFragmentAccess : uint8;
+enum class EForkProcessRole : uint8;
 
 /** 
  * The type responsible for hosting Entities managing Archetypes.
@@ -565,6 +566,9 @@ public:
 #endif // WITH_MASSENTITY_DEBUG
 
 protected:
+	/** Called on the child process upon process's forking */
+	void OnPostFork(EForkProcessRole Role);
+
 	void GetMatchingArchetypes(const FMassFragmentRequirements& Requirements, TArray<FMassArchetypeHandle>& OutValidArchetypes, const uint32 FromArchetypeDataVersion) const;
 	
 	/** 
@@ -654,6 +658,7 @@ private:
 	bool bInitialized = false;
 	bool bFirstCommandFlush = true;
 
+	FDelegateHandle OnPostForkHandle;
 
 	//-----------------------------------------------------------------------------
 	// DEPRECATED

@@ -65,6 +65,11 @@ std::atomic<uint32> FMassBatchedCommand::CommandsCounter;
 //////////////////////////////////////////////////////////////////////
 // FMassCommandBuffer
 
+FMassCommandBuffer::FMassCommandBuffer()
+	: OwnerThreadId(FPlatformTLS::GetCurrentThreadId())
+{	
+}
+
 FMassCommandBuffer::~FMassCommandBuffer()
 {
 	ensureMsgf(HasPendingCommands() == false, TEXT("Destroying FMassCommandBuffer while there are still unprocessed commands. These operations will never be performed now."));
@@ -75,7 +80,12 @@ FMassCommandBuffer::~FMassCommandBuffer()
 	}
 }
 
-void FMassCommandBuffer::Flush(FMassEntityManager& EntityManager)
+void FMassCommandBuffer::ForceUpdateCurrentThreadID()
+{
+	OwnerThreadId = FPlatformTLS::GetCurrentThreadId();
+}
+
+bool FMassCommandBuffer::Flush(FMassEntityManager& EntityManager)
 {
 	check(!bIsFlushing);
 	TGuardValue FlushingGuard(bIsFlushing, true);
@@ -83,7 +93,7 @@ void FMassCommandBuffer::Flush(FMassEntityManager& EntityManager)
 	// short-circuit exit
 	if (HasPendingCommands() == false)
 	{
-		return;
+		return false;
 	}
 
 	{
@@ -115,18 +125,29 @@ void FMassCommandBuffer::Flush(FMassEntityManager& EntityManager)
 			bool IsValid() const { return GroupOrder < MAX_int32; }
 			bool operator<(const FBatchedCommandsSortedIndex& Other) const { return GroupOrder < Other.GroupOrder; }
 		};
+		
 		TArray<FBatchedCommandsSortedIndex> CommandsOrder;
-		CommandsOrder.Reserve(CommandInstances.Num());
-		for (int32 i = 0; i < CommandInstances.Num(); ++i)
+		const int32 OwnedCommandsCount = CommandInstances.Num();
+
+		CommandsOrder.Reserve(OwnedCommandsCount);
+		for (int32 i = 0; i < OwnedCommandsCount; ++i)
 		{
 			const FMassBatchedCommand* Command = CommandInstances[i];
 			CommandsOrder.Add(FBatchedCommandsSortedIndex(i, (Command && Command->HasWork())? CommandTypeOrder[(int)Command->GetOperationType()] : MAX_int32));
+		}
+		for (int32 i = 0; i < AppendedCommandInstances.Num(); ++i)
+		{
+			const FMassBatchedCommand* Command = AppendedCommandInstances[i];
+			CommandsOrder.Add(FBatchedCommandsSortedIndex(i + OwnedCommandsCount, (Command && Command->HasWork()) ? CommandTypeOrder[(int)Command->GetOperationType()] : MAX_int32));
 		}
 		CommandsOrder.StableSort();
 				
 		for (int32 k = 0; k < CommandsOrder.Num() && CommandsOrder[k].IsValid(); ++k)
 		{
-			FMassBatchedCommand* Command = CommandInstances[CommandsOrder[k].Index];
+			const int32 CommandIndex = CommandsOrder[k].Index;
+			FMassBatchedCommand* Command = CommandIndex < OwnedCommandsCount
+				? CommandInstances[CommandIndex]
+				: AppendedCommandInstances[CommandIndex - OwnedCommandsCount];
 			check(Command)
 
 #if CSV_PROFILER
@@ -145,18 +166,35 @@ void FMassCommandBuffer::Flush(FMassEntityManager& EntityManager)
 			Command->Execute(EntityManager);
 			Command->Reset();
 		}
+
+		// explicitly destroy the appended commands (stored in AppendedCommandInstances)
+		for (FMassBatchedCommand* Command : AppendedCommandInstances)
+		{
+			delete Command;
+		}
+		AppendedCommandInstances.Reset();
+
+		ActiveCommandsCounter = 0;
 	}
+
+	return true;
 }
  
 void FMassCommandBuffer::CleanUp()
 {
 	for (FMassBatchedCommand* Command : CommandInstances)
 	{
-		if (Command)
-		{
-			Command->Reset();
-		}
+		delete Command;
 	}
+	CommandInstances.Reset();
+
+	for (FMassBatchedCommand* Command : AppendedCommandInstances)
+	{
+		delete Command;
+	}
+	AppendedCommandInstances.Reset();
+
+	ActiveCommandsCounter = 0;
 }
 
 void FMassCommandBuffer::MoveAppend(FMassCommandBuffer& Other)
@@ -169,7 +207,10 @@ void FMassCommandBuffer::MoveAppend(FMassCommandBuffer& Other)
 	{
 		FScopeLock Lock(&AppendingCommandsCS);
 		UE_MT_SCOPED_WRITE_ACCESS(PendingBatchCommandsDetector);
-		CommandInstances.Append(MoveTemp(Other.CommandInstances));
+		AppendedCommandInstances.Append(MoveTemp(Other.CommandInstances));
+		AppendedCommandInstances.Append(MoveTemp(Other.AppendedCommandInstances));
+		ActiveCommandsCounter += Other.ActiveCommandsCounter;
+		Other.ActiveCommandsCounter = 0;
 	}
 }
 

@@ -9,6 +9,8 @@
 #include "VisualLogger/VisualLogger.h"
 #include "MassExecutionContext.h"
 #include "MassDebugger.h"
+#include "Misc/Fork.h"
+#include "Misc/CoreDelegates.h"
 
 
 const FMassEntityHandle FMassEntityManager::InvalidEntity;
@@ -106,6 +108,12 @@ void FMassEntityManager::Initialize()
 	SerialNumberGenerator.fetch_add(FMath::Max(1,NumReservedEntities));
 
 	DeferredCommandBuffer = MakeShareable(new FMassCommandBuffer());
+	
+	// if we get forked we need to update the command buffer's CurrentThreadID
+	if (FForkProcessHelper::IsForkRequested())
+	{
+		OnPostForkHandle = FCoreDelegates::OnPostFork.AddSP(AsShared(), &FMassEntityManager::OnPostFork);
+	}
 
 	// creating these bitset instances to populate respective bitset types' StructTrackers
 	FMassFragmentBitSet Fragments;
@@ -165,6 +173,8 @@ void FMassEntityManager::Deinitialize()
 {
 	if (bInitialized)
 	{
+		FCoreDelegates::OnPostFork.Remove(OnPostForkHandle);
+
 		// closing down so no point in actually flushing commands, but need to clean them up to avoid warnings on destruction
 		DeferredCommandBuffer->CleanUp();
 
@@ -178,6 +188,21 @@ void FMassEntityManager::Deinitialize()
 	{
 		UE_LOG(LogMass, Log, TEXT("Calling %hs on already deinitialized entity manager owned by %s")
 			, __FUNCTION__, *GetNameSafe(Owner.Get()));
+	}
+}
+
+void FMassEntityManager::OnPostFork(EForkProcessRole Role)
+{
+	if (Role == EForkProcessRole::Child)
+	{
+		if (!DeferredCommandBuffer)
+		{
+			DeferredCommandBuffer = MakeShareable(new FMassCommandBuffer());
+		}
+		else
+		{
+			DeferredCommandBuffer->ForceUpdateCurrentThreadID();
+		}
 	}
 }
 
