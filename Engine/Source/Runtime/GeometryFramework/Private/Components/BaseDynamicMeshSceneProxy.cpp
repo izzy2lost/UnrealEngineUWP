@@ -51,18 +51,19 @@ namespace UE::DynamicMesh
 FBaseDynamicMeshSceneProxy::FBaseDynamicMeshSceneProxy(UBaseDynamicMeshComponent* Component)
 	: FPrimitiveSceneProxy(Component),
 	ParentBaseComponent(Component),
-	ColorSpaceTransformMode(Component->GetVertexColorSpaceTransformMode()),
 	bEnableRaytracing(Component->GetEnableRaytracing()),
 	bEnableViewModeOverrides(Component->GetViewModeOverridesEnabled()),
 	bPreferStaticDrawPath(Component->GetMeshDrawPath() == EDynamicMeshDrawPath::StaticDraw)
 {
+	MeshRenderBufferSetConverter.ColorSpaceTransformMode = Component->GetVertexColorSpaceTransformMode();
+
 	if (Component->GetColorOverrideMode() == EDynamicMeshComponentColorOverrideMode::Constant)
 	{
-		ConstantVertexColor = Component->GetConstantOverrideColor();
-		bIgnoreVertexColors = true;
+		MeshRenderBufferSetConverter.ConstantVertexColor = Component->GetConstantOverrideColor();
+		MeshRenderBufferSetConverter.bIgnoreVertexColors = true;
 	}
 
-	bUsePerTriangleNormals = Component->GetFlatShadingEnabled();
+	MeshRenderBufferSetConverter.bUsePerTriangleNormals = Component->GetFlatShadingEnabled();
 	
 	SetCollisionData();
 
@@ -327,7 +328,7 @@ void FBaseDynamicMeshSceneProxy::GetDynamicMeshElements(const TArray<const FScen
 
 				// do we need separate one of these for each MeshRenderBufferSet?
 				FDynamicPrimitiveUniformBuffer& DynamicPrimitiveUniformBuffer = Collector.AllocateOneFrameResource<FDynamicPrimitiveUniformBuffer>();
-				DynamicPrimitiveUniformBuffer.Set(Collector.GetRHICommandList(), GetLocalToWorld(), PreviousLocalToWorld, GetBounds(), GetLocalBounds(), GetLocalBounds(), true, bHasPrecomputedVolumetricLightmap, bOutputVelocity, GetCustomPrimitiveData());
+				DynamicPrimitiveUniformBuffer.Set(Collector.GetRHICommandList(), GetLocalToWorld(), PreviousLocalToWorld, GetActorPosition(), GetBounds(), GetLocalBounds(), GetLocalBounds(), true, bHasPrecomputedVolumetricLightmap, bOutputVelocity, GetCustomPrimitiveData());
 
 				// If we want Wireframe-on-Shaded, we have to draw the solid. If View Mode Overrides are enabled, the solid
 				// will be replaced with it's wireframe, so we might as well not. 

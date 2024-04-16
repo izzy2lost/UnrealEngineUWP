@@ -440,26 +440,26 @@ void UDynamicMeshComponent::FastNotifyColorsUpdated()
 	FDynamicMeshSceneProxy* Proxy = GetCurrentSceneProxy();
 	if (Proxy && AllowFastUpdate())
 	{
-		if (HasTriangleColorFunction() && Proxy->bUsePerTriangleColor == false )
+		if (HasTriangleColorFunction() && Proxy->MeshRenderBufferSetConverter.bUsePerTriangleColor == false )
 		{
-			Proxy->bUsePerTriangleColor = true;
-			Proxy->PerTriangleColorFunc = [this](const FDynamicMesh3* MeshIn, int TriangleID) { return GetTriangleColor(MeshIn, TriangleID); };
+			Proxy->MeshRenderBufferSetConverter.bUsePerTriangleColor = true;
+			Proxy->MeshRenderBufferSetConverter.PerTriangleColorFunc = [this](const FDynamicMesh3* MeshIn, int TriangleID) { return GetTriangleColor(MeshIn, TriangleID); };
 		} 
-		else if ( !HasTriangleColorFunction() && Proxy->bUsePerTriangleColor == true)
+		else if ( !HasTriangleColorFunction() && Proxy->MeshRenderBufferSetConverter.bUsePerTriangleColor == true)
 		{
-			Proxy->bUsePerTriangleColor = false;
-			Proxy->PerTriangleColorFunc = nullptr;
+			Proxy->MeshRenderBufferSetConverter.bUsePerTriangleColor = false;
+			Proxy->MeshRenderBufferSetConverter.PerTriangleColorFunc = nullptr;
 		}
 
-		if (HasVertexColorRemappingFunction() && Proxy->bApplyVertexColorRemapping == false)
+		if (HasVertexColorRemappingFunction() && Proxy->MeshRenderBufferSetConverter.bApplyVertexColorRemapping == false)
 		{
-			Proxy->bApplyVertexColorRemapping = true;
-			Proxy->VertexColorRemappingFunc = [this](FVector4f& Color) { RemapVertexColor(Color); };
+			Proxy->MeshRenderBufferSetConverter.bApplyVertexColorRemapping = true;
+			Proxy->MeshRenderBufferSetConverter.VertexColorRemappingFunc = [this](FVector4f& Color) { RemapVertexColor(Color); };
 		}
-		else if (!HasVertexColorRemappingFunction() && Proxy->bApplyVertexColorRemapping == true)
+		else if (!HasVertexColorRemappingFunction() && Proxy->MeshRenderBufferSetConverter.bApplyVertexColorRemapping == true)
 		{
-			Proxy->bApplyVertexColorRemapping = false;
-			Proxy->VertexColorRemappingFunc = nullptr;
+			Proxy->MeshRenderBufferSetConverter.bApplyVertexColorRemapping = false;
+			Proxy->MeshRenderBufferSetConverter.VertexColorRemappingFunc = nullptr;
 		}
 
 		Proxy->FastUpdateVertices(false, false, true, false);
@@ -961,25 +961,25 @@ FPrimitiveSceneProxy* UDynamicMeshComponent::CreateSceneProxy()
 
 		if (TriangleColorFunc)
 		{
-			NewProxy->bUsePerTriangleColor = true;
-			NewProxy->PerTriangleColorFunc = [this](const FDynamicMesh3* MeshIn, int TriangleID) { return GetTriangleColor(MeshIn, TriangleID); };
+			NewProxy->MeshRenderBufferSetConverter.bUsePerTriangleColor = true;
+			NewProxy->MeshRenderBufferSetConverter.PerTriangleColorFunc = [this](const FDynamicMesh3* MeshIn, int TriangleID) { return GetTriangleColor(MeshIn, TriangleID); };
 		}
 		else if ( GetColorOverrideMode() == EDynamicMeshComponentColorOverrideMode::Polygroups )
 		{
-			NewProxy->bUsePerTriangleColor = true;
-			NewProxy->PerTriangleColorFunc = [this](const FDynamicMesh3* MeshIn, int TriangleID) { return GetGroupColor(MeshIn, TriangleID); };
+			NewProxy->MeshRenderBufferSetConverter.bUsePerTriangleColor = true;
+			NewProxy->MeshRenderBufferSetConverter.PerTriangleColorFunc = [this](const FDynamicMesh3* MeshIn, int TriangleID) { return GetGroupColor(MeshIn, TriangleID); };
 		}
 
 		if (HasVertexColorRemappingFunction())
 		{
-			NewProxy->bApplyVertexColorRemapping = true;
-			NewProxy->VertexColorRemappingFunc = [this](FVector4f& Color) { RemapVertexColor(Color); };
+			NewProxy->MeshRenderBufferSetConverter.bApplyVertexColorRemapping = true;
+			NewProxy->MeshRenderBufferSetConverter.VertexColorRemappingFunc = [this](FVector4f& Color) { RemapVertexColor(Color); };
 		}
 
 		if (SecondaryTriFilterFunc)
 		{
-			NewProxy->bUseSecondaryTriBuffers = true;
-			NewProxy->SecondaryTriFilterFunc = [this](const FDynamicMesh3* MeshIn, int32 TriangleID) 
+			NewProxy->MeshRenderBufferSetConverter.bUseSecondaryTriBuffers = true;
+			NewProxy->MeshRenderBufferSetConverter.SecondaryTriFilterFunc = [this](const FDynamicMesh3* MeshIn, int32 TriangleID)
 			{ 
 				return (SecondaryTriFilterFunc) ? SecondaryTriFilterFunc(MeshIn, TriangleID) : false;
 			};
