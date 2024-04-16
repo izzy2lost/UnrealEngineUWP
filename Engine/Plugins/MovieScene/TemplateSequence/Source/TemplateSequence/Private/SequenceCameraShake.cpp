@@ -108,6 +108,11 @@ void USequenceCameraShakePattern::ScrubShakePatternImpl(const FCameraShakePatter
 	const float BlendWeight = State.Scrub(Params.AbsoluteTime);
 	if (State.IsPlaying())
 	{
+		if (Player->GetPlaybackStatus() != EMovieScenePlayerStatus::Playing)
+		{
+			Player->Play(bRandomSegment, bRandomSegment);
+		}
+
 		const FFrameRate InputRate = Player->GetInputRate();
 		const FFrameTime NewPosition = Params.AbsoluteTime * PlayRate * InputRate;
 		UpdateCamera(NewPosition, Params.POV, OutResult);
