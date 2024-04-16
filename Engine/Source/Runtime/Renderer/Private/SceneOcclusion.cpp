@@ -1213,11 +1213,6 @@ static void AllocateOcclusionTests(FViewOcclusionQueriesPerView& QueriesPerView,
 				}
 			}
 
-			// Don't do primitive occlusion if we have a view parent or are frozen - only applicable to Debug & Development.
-#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
-			ViewQuery.bFlushQueries &= (!ViewState->bIsFrozen);
-#endif
-
 			bBatchedQueries |= (View.IndividualOcclusionQueries.HasBatches() || View.GroupedOcclusionQueries.HasBatches() || ViewQuery.bFlushQueries);
 		}
 	}
