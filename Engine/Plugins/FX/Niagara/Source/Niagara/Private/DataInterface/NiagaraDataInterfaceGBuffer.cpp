@@ -184,7 +184,7 @@ void UNiagaraDataInterfaceGBuffer::SetShaderParameters(const FNiagaraDataInterfa
 			VelocityTexture = UE::FXRenderingUtils::GetSceneVelocityTexture(SimulationSceneViews[0]);
 		}
 		
-		if (VelocityTexture == nullptr)
+		if (VelocityTexture == nullptr || !VelocityTexture->HasBeenProduced())
 		{
 			VelocityTexture = Context.GetComputeDispatchInterface().GetBlackTexture(Context.GetGraphBuilder(), ETextureDimension::Texture2D);
 		}
