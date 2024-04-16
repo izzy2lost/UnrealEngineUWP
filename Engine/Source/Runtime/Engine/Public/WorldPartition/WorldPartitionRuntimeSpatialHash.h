@@ -353,8 +353,9 @@ public:
 
 	ENGINE_API void ForEachStreamingGrid(TFunctionRef<void(const FSpatialHashStreamingGrid&)> Func) const;
 
-protected:
 	ENGINE_API const FSpatialHashStreamingGrid* GetStreamingGridByName(FName InGridName) const;
+
+protected:
 	ENGINE_API void ForEachStreamingGrid(TFunctionRef<void(FSpatialHashStreamingGrid&)> Func);
 	ENGINE_API void ForEachStreamingGridBreakable(TFunctionRef<bool(const FSpatialHashStreamingGrid&)> Func) const;
 
