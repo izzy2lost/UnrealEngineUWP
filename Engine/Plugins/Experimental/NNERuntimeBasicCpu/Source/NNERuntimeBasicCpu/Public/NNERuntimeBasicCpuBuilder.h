@@ -52,6 +52,7 @@ namespace UE::NNE::RuntimeBasic
 			ReLU = 0,
 			ELU = 1,
 			TanH = 2,
+			GELU = 3,
 		};
 
 		/** Construct a new Model Builder with the given random seed. */
@@ -155,6 +156,9 @@ namespace UE::NNE::RuntimeBasic
 
 		/** Makes a ELU Activation Layer */
 		FModelBuilderElement MakeELU(const uint32 InputOutputSize);
+
+		/** Makes a GELU Activation Layer */
+		FModelBuilderElement MakeGELU(const uint32 InputOutputSize);
 
 		/** Makes a TanH Activation Layer */
 		FModelBuilderElement MakeTanH(const uint32 InputOutputSize);

@@ -11,6 +11,11 @@ inline float NNERuntimeBasicCPUSigmoid(const float X)
 	return 1.0f / (1.0f + exp(-X));
 }
 
+inline float NNERuntimeBasicCPUGELU(const float X)
+{
+	return X * NNERuntimeBasicCPUSigmoid(1.702f * X);
+}
+
 export void NNERuntimeBasicCPUOperatorNormalize(
 	uniform float Output[],
 	uniform const float Input[],
@@ -207,6 +212,20 @@ export void NNERuntimeBasicCPUOperatorELU(
 	{
 		const float Value = Input[BatchIdx * InputStride + Idx];
 		Output[BatchIdx * OutputStride + Idx] = select(Value > 0.0f, Value, exp(Value) - 1.0f);
+	}
+}
+
+export void NNERuntimeBasicCPUOperatorGELU(
+	uniform float Output[],
+	uniform const float Input[],
+	uniform const int BatchNum,
+	uniform const int Num,
+	uniform const int OutputStride,
+	uniform const int InputStride)
+{
+	foreach(BatchIdx = 0 ... BatchNum, Idx = 0 ... Num)
+	{
+		Output[BatchIdx * OutputStride + Idx] = NNERuntimeBasicCPUGELU(Input[BatchIdx * InputStride + Idx]);
 	}
 }
 
