@@ -391,6 +391,9 @@ void UModelingToolsEditorMode::Enter()
 	// skin weights.
 	GetInteractiveToolsContext()->TargetManager->AddTargetFactory(NewObject<USkeletalMeshComponentReadOnlyToolTargetFactory>(GetToolManager()));
 
+	// Register builders for the generic component tool target, to support tools that only need the primitive component (e.g. the transform tool)
+	GetInteractiveToolsContext()->TargetManager->AddTargetFactory(NewObject<UPrimitiveComponentToolTargetFactory>(GetToolManager()));
+
 	// listen to post-build
 	GetToolManager()->OnToolPostBuild.AddUObject(this, &UModelingToolsEditorMode::OnToolPostBuild);
 
