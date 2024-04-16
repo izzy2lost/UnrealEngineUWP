@@ -1161,7 +1161,12 @@ protected:
 	virtual int32 DDX(int32 A) override;
 	virtual int32 DDY(int32 A) override;
 
-	int32 Derivative(int32 A, const TCHAR* Component);
+	enum class EDervativeComponent
+	{
+		X, 
+		Y,
+	};
+	int32 Derivative(int32 A, EDervativeComponent Component);
 
 	virtual int32 AntialiasedTextureMask(int32 Tex, int32 UV, float Threshold, uint8 Channel) override;
 	virtual int32 DepthOfFieldFunction(int32 Depth, int32 FunctionValueIndex) override;
