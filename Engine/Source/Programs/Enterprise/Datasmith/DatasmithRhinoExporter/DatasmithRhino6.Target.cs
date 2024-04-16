@@ -138,7 +138,7 @@ public abstract class DatasmithRhinoBaseTarget : TargetRules
 		PostBuildSteps.Add(string.Format(@"sed -i '' 's/""<AssemblyFileVersion>""/""{1}""/' ""{0}""", CustomAssemblyInfoPath, VersionString));
 	}
 
-	public string GetRhinoThirdPartyFolder()
+	public virtual string GetRhinoThirdPartyFolder()
 	{
 		return Path.Combine("$(EngineDir)", "Restricted", "NotForLicensees", "Source", "ThirdParty", "Enterprise", "RhinoCommonSDK_" + GetVersion());
 	}
