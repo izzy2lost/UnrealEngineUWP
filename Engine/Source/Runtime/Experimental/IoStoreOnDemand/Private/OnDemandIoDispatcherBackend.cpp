@@ -5,7 +5,6 @@
 #include "AnalyticsEventAttribute.h"
 #include "Containers/BitArray.h"
 #include "Containers/StringView.h"
-#include "CoreHttp/LatencyTesting.h"
 #include "DistributionEndpoints.h"
 #include "GenericPlatform/GenericPlatformCrashContext.h"
 #include "HAL/Event.h"
@@ -51,6 +50,7 @@ namespace UE::IoStore
 ///////////////////////////////////////////////////////////////////////////////
 
 extern FString GIasOnDemandTocExt;
+void LatencyTest(FStringView, FStringView, uint32, TArrayView<int32>);
 
 ///////////////////////////////////////////////////////////////////////////////
 int32 GIasHttpPrimaryEndpoint = 0;
@@ -209,7 +209,7 @@ static void LatencyTest(FStringView Url, FStringView Path)
 	TRACE_CPUPROFILER_EVENT_SCOPE(IasBackend::LatencyTest);
 
 	int32 Results[4] = {};
-	UE::IoStore::HTTP::LatencyTest(Url, Path, GIasHttpTimeOutMs, MakeArrayView(Results));
+	LatencyTest(Url, Path, GIasHttpTimeOutMs, MakeArrayView(Results));
 	UE_LOG(LogIas, Log, TEXT("Endpoint '%s' latency test (ms): %d %d %d %d"),
 		Url.GetData(), Results[0], Results[1], Results[2], Results[3]);
 }
@@ -223,7 +223,7 @@ static int32 LatencyTest(TConstArrayView<FString> Urls, FStringView Path, std::a
 	for (int32 Idx = 0; Idx < Urls.Num() && !bCancel.load(std::memory_order_relaxed); ++Idx)
 	{
 		int32 LatencyMs = -1;
-		UE::IoStore::HTTP::LatencyTest(Urls[Idx], Path, GIasHttpTimeOutMs, MakeArrayView(&LatencyMs, 1));
+		LatencyTest(Urls[Idx], Path, GIasHttpTimeOutMs, MakeArrayView(&LatencyMs, 1));
 		if (LatencyMs > 0)
 		{
 			return Idx;

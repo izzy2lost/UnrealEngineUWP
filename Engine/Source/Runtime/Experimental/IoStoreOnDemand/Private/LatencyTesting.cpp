@@ -1,20 +1,20 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "LatencyTesting.h"
-
-#include "Client.h"
 #include "Containers/StringConv.h"
 #include "Containers/StringView.h"
+#include "CoreHttp/Client.h"
 #include "HAL/PlatformTime.h"
 #include "IO/IoStoreOnDemand.h"
 #include "Misc/StringBuilder.h"
 #include "Templates/Function.h"
 
-namespace UE::IoStore::HTTP
+namespace UE::IoStore
 {
 
 void LatencyTest(FStringView InUrl, FStringView InPath, uint32 InTimeOutMs, TArrayView<int32> OutResults)
 {
+	using namespace HTTP;
+
 	auto AnsiUrl = StringCast<ANSICHAR>(InUrl.GetData(), InUrl.Len());
 
 	FConnectionPool::FParams PoolParams;
@@ -66,4 +66,4 @@ void LatencyTest(FStringView InUrl, FStringView InPath, uint32 InTimeOutMs, TArr
 	UE_LOG(LogIas, Log, TEXT("Testing endpoint %s"), ANSI_TO_TCHAR(ConnectionDesc.ToString()));
 }
 
-} // namespace UE::IoStore::HTTP
+} // namespace UE::IoStore
