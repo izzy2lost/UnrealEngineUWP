@@ -182,7 +182,10 @@
 	<Property Name="LazyLoadZenTestArgs" Value="$(LazyLoadTestArgs) -zenloader" />
 
 	<!-- Gauntlet arguments for all runs -->
-	<Property Name="GauntletArgs" Value="-build=editor -verbose -tempdir=&quot;$(RootDir)/Tests&quot;"/>
+	<Property Name="GauntletArgs" Value="-build=editor -tempdir=&quot;$(RootDir)/Tests&quot;"/>
+	<!-- TSAN prints to stdout/stderr. Using -VeryVerbose allows those streams to be redirected and captured by Gauntlet -->
+	<Property Name="GauntletArgs" Value="$(GauntletArgs) -VeryVerbose" If="'$(WithTSAN)'=='true'"/>
+	<Property Name="GauntletArgs" Value="$(GauntletArgs) -verbose" If="'$(WithTSAN)'=='false'"/>
 	<Property Name="GauntletArgs" Value="$(GauntletArgs) -branch=$(Branch) -ECBranch=&quot;$(Branch)&quot; -ECChangelist=&quot;$(Change)&quot;"/>
 	<Property Name="GauntletArgs" Value="$(GauntletArgs) -maxduration=28800"/>
 

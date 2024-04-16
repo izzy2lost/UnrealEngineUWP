@@ -332,6 +332,16 @@ namespace EpicGames.Core
 		public static EventId Systemic_Max { get; } = new EventId(799);
 
 		/// <summary>
+		/// Generic Sanitizer Error
+		/// </summary>
+		public static EventId Sanitizer { get; } = new EventId(800);
+
+		/// <summary>
+		/// Thread Sanitizer Error
+		/// </summary>
+		public static EventId Sanitizer_Thread{ get; } = new EventId(801);
+
+		/// <summary>
 		/// Horde error codes
 		/// </summary>
 		public static EventId Horde { get; } = new EventId(1000);
