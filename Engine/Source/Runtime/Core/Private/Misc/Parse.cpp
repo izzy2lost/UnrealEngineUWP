@@ -799,8 +799,9 @@ bool FParse::Token( const TCHAR*& Str, TCHAR* Result, int32 MaxLen, bool UseEsca
 {
 	int32 Len=0;
 
-	// Skip preceeding spaces and tabs.
-	while( FChar::IsWhitespace(*Str) )
+	// Skip preceeding delimiters (either spaces and tabs or custom delimiters)
+	while((SingleCharacterDelimiter == TEXT('\0') && (FChar::IsWhitespace(*Str)))
+		|| ((SingleCharacterDelimiter != TEXT('\0') && *Str == SingleCharacterDelimiter)))
 	{
 		Str++;
 	}
@@ -849,9 +850,6 @@ bool FParse::Token( const TCHAR*& Str, TCHAR* Result, int32 MaxLen, bool UseEsca
 				if ((SingleCharacterDelimiter != TEXT('\0') && Character == SingleCharacterDelimiter)
 					|| (SingleCharacterDelimiter == TEXT('\0') && (FChar::IsWhitespace(Character))))
 				{
-					// Consume the delimiter. If it's whitespace this isn't critical since we'll consume it at the start
-					// of the next call to Token() but if it's not whitespace we won't, so we better do it now.
-					Str++;
 					break;
 				}
 			}

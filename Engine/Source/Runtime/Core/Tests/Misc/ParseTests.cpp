@@ -576,5 +576,54 @@ TEST_CASE("Parse::GrammaredCLIParse::Callback", "[Smoke]")
 	}
 }
 
+TEST_CASE("Parse::Token", "[Parse][Token][Smoke]")
+{
+	const int32 BufferLen = 256;
+	TCHAR Buffer[BufferLen];
+
+	SECTION("Space Delimited")
+	{
+		const TCHAR* Line = TEXT("a=a1 b=b2 c=c3");
+		FParse::Token(Line, Buffer, BufferLen, false);
+		CHECK(FCString::Strcmp(Buffer, TEXT("a=a1"))==0);
+		CHECK_MESSAGE(TEXT("FParse::Token unexpectedly consumed trailing whitespace"), Line[0] == TEXT(' '));
+		FParse::Token(Line, Buffer, BufferLen, false);
+		CHECK(FCString::Strcmp(Buffer, TEXT("b=b2")) == 0);
+		CHECK_MESSAGE(TEXT("FParse::Token unexpectedly consumed trailing whitespace"), Line[0] == TEXT(' '));
+	}
+
+	SECTION("Custom Delimiter")
+	{
+		const TCHAR* Line = TEXT("-ini:EditorPerProjectUserSettings:[/Script/Project.Setting]:GameFeaturePluginActiveProfile=\"My Default\"");
+		FParse::Token(Line, Buffer, BufferLen, false, TEXT(':'));
+		CHECK(FCString::Strcmp(Buffer, TEXT("-ini")) == 0);
+		FParse::Token(Line, Buffer, BufferLen, false, TEXT(':'));
+		CHECK(FCString::Strcmp(Buffer, TEXT("EditorPerProjectUserSettings")) == 0);
+		FParse::Token(Line, Buffer, BufferLen, false, TEXT(':'));
+		CHECK(FCString::Strcmp(Buffer, TEXT("[/Script/Project.Setting]")) == 0);
+		FParse::Token(Line, Buffer, BufferLen, false, TEXT(':'));
+		CHECK(FCString::Strcmp(Buffer, TEXT("GameFeaturePluginActiveProfile=\"My Default\"")) == 0);
+	}
+
+	SECTION("Leading/Trailing Delimiters")
+	{
+		{
+			const TCHAR* Line = TEXT(":::Foo::Bar::");
+			FParse::Token(Line, Buffer, BufferLen, false, TEXT(':'));
+			CHECK(FCString::Strcmp(Buffer, TEXT("Foo")) == 0);
+			FParse::Token(Line, Buffer, BufferLen, false, TEXT(':'));
+			CHECK(FCString::Strcmp(Buffer, TEXT("Bar")) == 0);
+			CHECK(FParse::Token(Line, Buffer, BufferLen, false, TEXT(':')) == false);
+		}
+		{
+			const TCHAR* Line = TEXT("   Foo  Bar  ");
+			FParse::Token(Line, Buffer, BufferLen, false);
+			CHECK(FCString::Strcmp(Buffer, TEXT("Foo")) == 0);
+			FParse::Token(Line, Buffer, BufferLen, false);
+			CHECK(FCString::Strcmp(Buffer, TEXT("Bar")) == 0);
+			CHECK(FParse::Token(Line, Buffer, BufferLen, false) == false);
+		}
+	}
+}
 #endif
 	
