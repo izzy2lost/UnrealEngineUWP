@@ -623,7 +623,7 @@ void FSceneProxyBase::OnMaterialsUpdated()
 	CombinedMaterialRelevance = FMaterialRelevance();
 	MaxWPOExtent = 0.0f;
 	MinMaxMaterialDisplacement = FVector2f::Zero();
-	MaterialDisplacementFadeOutSize = UE_MAX_FLT;
+	MaterialDisplacementFadeOutSize = 0.0f;
 	bHasVertexProgrammableRaster = false;
 	bHasPixelProgrammableRaster = false;
 	bHasDynamicDisplacement = false;
