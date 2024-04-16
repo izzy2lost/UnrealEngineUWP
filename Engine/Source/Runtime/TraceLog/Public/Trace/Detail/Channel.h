@@ -3,6 +3,7 @@
 #pragma once
 
 #include "Trace/Config.h"
+#include "Trace/Trace.h"
 
 #if UE_TRACE_ENABLED
 
@@ -11,13 +12,6 @@
 namespace UE {
 namespace Trace {
 
-struct FChannelInfo
-{
-	const ANSICHAR* Name;
-	const ANSICHAR* Desc;
-	bool bIsEnabled;
-	bool bIsReadOnly;
-};
 
 typedef bool ChannelIterCallback(const FChannelInfo& OutChannelInfo, void*);
 

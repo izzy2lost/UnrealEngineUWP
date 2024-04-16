@@ -113,7 +113,13 @@ struct FInitializeDesc
 	OnConnectFunc*	OnConnectionFunc	= nullptr;
 };
 
-struct FChannelInfo;
+struct FChannelInfo
+{
+	const ANSICHAR* Name;
+	const ANSICHAR* Desc;
+	bool bIsEnabled;
+	bool bIsReadOnly;
+};
 
 typedef void*		AllocFunc(SIZE_T, uint32);
 typedef void		FreeFunc(void*, SIZE_T);
