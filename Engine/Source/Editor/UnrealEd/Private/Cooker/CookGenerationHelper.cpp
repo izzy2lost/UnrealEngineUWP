@@ -1408,11 +1408,7 @@ void FGenerationHelper::SetBeginCookConfigSettings()
 	FString SaveOrder;
 	GConfig->GetString(TEXT("CookSettings"), TEXT("MPCookGeneratorSaveOrder"), SaveOrder, GEditorIni);
 	FParse::Value(FCommandLine::Get(), TEXT("-MPCookGeneratorSaveOrder="), SaveOrder);
-	if (SaveOrder == TEXT("None"))
-	{
-		GenerationHelperPrivate::RequiredSaveOrder = GenerationHelperPrivate::ERequiredSaveOrder::None;
-	}
-	else if (SaveOrder == TEXT("GeneratorFirst"))
+	if (SaveOrder == TEXT("GeneratorFirst"))
 	{
 		GenerationHelperPrivate::RequiredSaveOrder = GenerationHelperPrivate::ERequiredSaveOrder::GeneratorFirst;
 	}
@@ -1422,9 +1418,13 @@ void FGenerationHelper::SetBeginCookConfigSettings()
 	}
 	else
 	{
-		// UE-211211: Make RequiredSaveOrder::GeneratorFirst the default until we have
-		// changed WorldPartitionCookPackageSplitter to handle the new allowed ordering.
-		GenerationHelperPrivate::RequiredSaveOrder = GenerationHelperPrivate::ERequiredSaveOrder::GeneratorFirst;
+		if (!SaveOrder.IsEmpty() && SaveOrder != TEXT("None"))
+		{
+			UE_LOG(LogCook, Error,
+				TEXT("Invalid setting Editor:[CookSettings]:MPCookGeneratorSaveOrder=%s. Expected values are 'GeneratorFirst', 'GeneratedFirst', or 'None'. Falling back to default 'None'."),
+				*SaveOrder);
+		}
+		GenerationHelperPrivate::RequiredSaveOrder = GenerationHelperPrivate::ERequiredSaveOrder::None;
 	}
 }
 
