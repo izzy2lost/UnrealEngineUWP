@@ -889,6 +889,9 @@ void SMultiBoxWidget::CreateSearchTextWidget()
 	TSharedRef<SBox> SearchBox =
 		SNew(SBox)
 			.Padding(FMargin(8, 0, 8, 0))
+			.Visibility_Lambda([this]() -> EVisibility {
+				return ShouldShowMenuSearchField() ? EVisibility::Visible : EVisibility::Collapsed;
+			})
 			[
 				SearchTextWidget.ToSharedRef()
 			];
@@ -1807,12 +1810,6 @@ void SMultiBoxWidget::FilterMultiBoxEntries()
 			It.Key()->SetVisibility(EVisibility::Visible);
 		}
 
-		// Reset the visibility of the search field.
-		if (SearchBlockWidget.IsValid())
-		{
-			SearchBlockWidget->SetVisibility(ShouldShowMenuSearchField() ? EVisibility::Visible : EVisibility::Collapsed);
-		}
-
 		// Hide the sub-menus widgets that were made visible by searching this multi-box hierarchy.
 		for (TPair<TSharedPtr<const FMultiBlock>, TSharedPtr<FFlattenSearchableBlockInfo>>& Pair: FlattenSearchableBlocks)
 		{
@@ -1898,7 +1895,6 @@ TSharedPtr<SWidget> SMultiBoxWidget::GetSearchTextWidget()
 void SMultiBoxWidget::SetSearchBlockWidget(TSharedPtr<SWidget> InWidget)
 {
 	SearchBlockWidget = InWidget;
-	InWidget->SetVisibility(ShouldShowMenuSearchField() ? EVisibility::Visible : EVisibility::Collapsed);
 }
 
 void SMultiBoxWidget::AddSearchElement( TSharedPtr<SWidget> BlockWidget, FText BlockDisplayText )
