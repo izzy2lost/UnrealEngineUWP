@@ -18,7 +18,10 @@ void UBuilderPersistenceManager::Initialize()
 
 void UBuilderPersistenceManager::ShutDown()
 {
-	Instance->RemoveFromRoot();
+	if ( UObjectInitialized() )
+	{
+		Instance->RemoveFromRoot();
+	}
 	Instance = nullptr;
 }
 
