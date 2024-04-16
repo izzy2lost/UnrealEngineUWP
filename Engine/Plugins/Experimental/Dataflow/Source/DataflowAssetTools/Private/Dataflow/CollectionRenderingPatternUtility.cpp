@@ -80,7 +80,7 @@ namespace Dataflow
 					const FIndex3i ColorElementTri = ColorOverlay->GetTriangle(TriangleID);
 					for (int TriVertIndex = 0; TriVertIndex < 3; ++TriVertIndex)
 					{
-						FVector4f Color(Colors[Tri[TriVertIndex]]); Color.W = 1.0f;
+						FVector4f Color(Colors[Remapping[Tri[TriVertIndex]]]); Color.W = 1.0f;
 						ColorOverlay->SetElement(ColorElementTri[TriVertIndex], Color);
 					}
 				};

@@ -1339,8 +1339,11 @@ bool FGeometryCollectionEngineConversion::AppendSkeletalMesh(const USkeletalMesh
 								if (ColorOverlay->IsElement(SourceInstanceID))
 								{
 									FVector4f InstColor = ColorOverlay->GetElement(SourceInstanceID);
-									UE::Geometry::LinearColors::SRGBToLinear(InstColor);
-									//Color[TargetVertexIndex] = FLinearColor(InstColor);
+									if (Converter.bTransformVertexColorsLinearToSRGB)
+									{
+										UE::Geometry::LinearColors::SRGBToLinear(InstColor);
+									}
+									Color[TargetVertexIndex] = FLinearColor(InstColor);
 								}
 							}
 
