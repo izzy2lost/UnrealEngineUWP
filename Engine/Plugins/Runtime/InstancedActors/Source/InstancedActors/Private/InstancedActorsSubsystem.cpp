@@ -89,6 +89,7 @@ namespace InstancedActorsCVars
 UInstancedActorsSubsystem::UInstancedActorsSubsystem()
 {
 	SettingsType = FInstancedActorsSettings::StaticStruct();
+	InstancedActorsManagerClass = AInstancedActorsManager::StaticClass();
 }
 
 UInstancedActorsSubsystem* UInstancedActorsSubsystem::Get(UObject* WorldContextObject)
@@ -367,7 +368,7 @@ void UInstancedActorsSubsystem::RemoveModifierVolume(const FInstancedActorsModif
 #if WITH_EDITOR
 FInstancedActorsInstanceHandle UInstancedActorsSubsystem::InstanceActor(TSubclassOf<AActor> ActorClass, FTransform InstanceTransform, ULevel* Level, const FGameplayTagContainer& InstanceTags)
 {
-	return InstanceActor(ActorClass, InstanceTransform, Level, InstanceTags, AInstancedActorsManager::StaticClass());
+	return InstanceActor(ActorClass, InstanceTransform, Level, InstanceTags, InstancedActorsManagerClass);
 }
 
 FInstancedActorsInstanceHandle UInstancedActorsSubsystem::InstanceActor(TSubclassOf<AActor> ActorClass, FTransform InstanceTransform, ULevel* Level, const FGameplayTagContainer& InstanceTags, TSubclassOf<AInstancedActorsManager> ManagerClass)
@@ -376,6 +377,15 @@ FInstancedActorsInstanceHandle UInstancedActorsSubsystem::InstanceActor(TSubclas
 	if (!ensureMsgf(!World->IsGameWorld(), TEXT("Instanced Actors doesn't yet support runtime addition of instances. Skipping instance creation")))
 	{
 		return FInstancedActorsInstanceHandle();
+	}
+
+	if (!ManagerClass)
+	{
+		if (!ensureMsgf(InstancedActorsManagerClass, TEXT("%hs called with ManagerClass being None and default InstancedActorsManagerClass not being set"), __FUNCTION__))
+		{
+			return FInstancedActorsInstanceHandle();
+		}
+		ManagerClass = InstancedActorsManagerClass;
 	}
 
 	// Ensure settings presence for ActorClass

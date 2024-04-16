@@ -170,6 +170,9 @@ protected:
 	UPROPERTY(Transient)
 	TObjectPtr<UActorPartitionSubsystem> ActorPartitionSubsystem;
 
+	UPROPERTY()
+	TSubclassOf<AInstancedActorsManager> InstancedActorsManagerClass;
+
 	// Spatially indexed managers. TSparseArray used for stable indices which can be spatially indexed by THierarchicalHashGrid2D
 	// @todo Managers should be indexable by cell coord hashes within their levels, we could leverage this for more efficient spatial
 	//       indexing by keeping a cellcoord hash map per tile
