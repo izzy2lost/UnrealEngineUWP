@@ -163,6 +163,11 @@ namespace EpicGames.BuildGraph
 		public Dictionary<string, string> Annotations { get; } = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
 		/// <summary>
+		/// Ignore modified files matching the patterns provided
+		/// </summary>
+		public List<string> IgnoreModified { get; set; } = new List<string>();
+
+		/// <summary>
 		/// Diagnostics to output if executing this node
 		/// </summary>
 		public List<BgDiagnosticDef> Diagnostics { get; } = new List<BgDiagnosticDef>();
@@ -190,7 +195,8 @@ namespace EpicGames.BuildGraph
 		/// <param name="inputDependencies">Nodes which this node is dependent on for its inputs</param>
 		/// <param name="orderDependencies">Nodes which this node needs to run after. Should include all input dependencies.</param>
 		/// <param name="requiredTokens">Optional tokens which must be required for this node to run</param>
-		public BgNodeDef(string name, IReadOnlyList<BgNodeOutput> inputs, IReadOnlyList<string> outputNames, IReadOnlyList<BgNodeDef> inputDependencies, IReadOnlyList<BgNodeDef> orderDependencies, IReadOnlyList<FileReference> requiredTokens)
+		/// <param name="ignoreModified">File patterns to ignore when checking for modified timestamps</param>
+		public BgNodeDef(string name, IReadOnlyList<BgNodeOutput> inputs, IReadOnlyList<string> outputNames, IReadOnlyList<BgNodeDef> inputDependencies, IReadOnlyList<BgNodeDef> orderDependencies, IReadOnlyList<FileReference> requiredTokens, IReadOnlyList<string> ignoreModified)
 			: this(name, null, outputNames)
 		{
 			Name = name;
@@ -198,6 +204,7 @@ namespace EpicGames.BuildGraph
 			InputDependencies.AddRange(inputDependencies);
 			OrderDependencies.AddRange(orderDependencies);
 			RequiredTokens.AddRange(requiredTokens);
+			IgnoreModified.AddRange(ignoreModified);
 		}
 
 		/// <summary>

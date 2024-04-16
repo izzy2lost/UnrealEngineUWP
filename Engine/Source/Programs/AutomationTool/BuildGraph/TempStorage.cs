@@ -17,6 +17,7 @@ using System.Xml;
 using System.Xml.Serialization;
 using UnrealBuildTool;
 using Microsoft.Extensions.Logging;
+using System.Text;
 
 using static AutomationTool.CommandUtils;
 
@@ -893,8 +894,9 @@ namespace AutomationTool
 		/// </summary>
 		/// <param name="NodeName">The node which created the storage block</param>
 		/// <param name="OutputName">Name of the block to retrieve. May be null or empty.</param>
+		/// <param name="IgnoreModified">Filter for files to ignore</param>
 		/// <returns>Manifest of the files retrieved</returns>
-		public TempStorageManifest Retrieve(string NodeName, string OutputName)
+		public TempStorageManifest Retrieve(string NodeName, string OutputName, FileFilter IgnoreModified)
 		{
 			using (IScope Scope = GlobalTracer.Instance.BuildSpan("RetrieveFromTempStorage").StartActive())
 			{
@@ -954,14 +956,28 @@ namespace AutomationTool
 				}
 
 				// Check all the local files are as expected
-				bool bAllMatch = true;
+				List<string> ModifiedFileMessages = new List<string>();
 				foreach(TempStorageFile File in Manifest.Files)
 				{
-					bAllMatch &= File.Compare(RootDir);
+					string Message;
+					if (!File.Compare(RootDir, out Message) && !IgnoreModified.Matches(File.RelativePath))
+					{
+						ModifiedFileMessages.Add(Message);
+					}
 				}
-				if(!bAllMatch)
+				if(ModifiedFileMessages.Count > 0)
 				{
-					throw new AutomationException("Files have been modified");
+					string modifiedFileList = "";
+					if (ModifiedFileMessages.Count < 100)
+					{
+						modifiedFileList = String.Join("\n", ModifiedFileMessages.Select(x => $"  {x}"));
+					}
+					else
+					{
+						modifiedFileList = String.Join("\n", ModifiedFileMessages.Take(100).Select(x => $"  {x}"));
+						modifiedFileList += $"\n  ...and {ModifiedFileMessages.Count - 100} more.";
+					}
+					throw new AutomationException($"Files have been modified:\n{modifiedFileList}");
 				}
 
 				// Update the stats and return
@@ -1475,10 +1491,10 @@ namespace AutomationTool
 			TempStore.Archive("TestNode", "NamedOutput", NamedOutput.Keys.ToArray(), true);
 			
 			// Check both outputs are still ok
-			TempStorageManifest DefaultManifest = TempStore.Retrieve("TestNode", null);
+			TempStorageManifest DefaultManifest = TempStore.Retrieve("TestNode", null, new FileFilter());
 			CheckManifest(WorkingDir, DefaultManifest, DefaultOutput);
 
-			TempStorageManifest NamedManifest = TempStore.Retrieve("TestNode", "NamedOutput");
+			TempStorageManifest NamedManifest = TempStore.Retrieve("TestNode", "NamedOutput", new FileFilter());
 			CheckManifest(WorkingDir, NamedManifest, NamedOutput);
 
 			// Delete local temp storage and the working directory and try again
@@ -1491,7 +1507,7 @@ namespace AutomationTool
 			bool bGotManifest = false;
 			try
 			{
-				TempStore.Retrieve("TestNode", null);
+				TempStore.Retrieve("TestNode", null, new FileFilter());
 				bGotManifest = true;
 			}
 			catch
@@ -1504,7 +1520,7 @@ namespace AutomationTool
 			}
 
 			// Second one should be fine
-			TempStorageManifest NamedManifestFromShared = TempStore.Retrieve("TestNode", "NamedOutput");
+			TempStorageManifest NamedManifestFromShared = TempStore.Retrieve("TestNode", "NamedOutput", new FileFilter());
 			CheckManifest(WorkingDir, NamedManifestFromShared, NamedOutput);
 		}
 

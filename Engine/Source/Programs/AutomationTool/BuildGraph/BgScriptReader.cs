@@ -287,8 +287,8 @@ namespace AutomationTool
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public BgScriptNode(string name, IReadOnlyList<BgNodeOutput> inputs, IReadOnlyList<string> outputNames, IReadOnlyList<BgNodeDef> inputDependencies, IReadOnlyList<BgNodeDef> orderDependencies, IReadOnlyList<FileReference> requiredTokens)
-			: base(name, inputs, outputNames, inputDependencies, orderDependencies, requiredTokens)
+		public BgScriptNode(string name, IReadOnlyList<BgNodeOutput> inputs, IReadOnlyList<string> outputNames, IReadOnlyList<BgNodeDef> inputDependencies, IReadOnlyList<BgNodeDef> orderDependencies, IReadOnlyList<FileReference> requiredTokens, IReadOnlyList<string> ignoreModified)
+			: base(name, inputs, outputNames, inputDependencies, orderDependencies, requiredTokens, ignoreModified)
 		{
 		}
 	}
@@ -1368,6 +1368,7 @@ namespace AutomationTool
 				bool bRunEarly = ReadBooleanAttribute(element, "RunEarly", false);
 				bool bNotifyOnWarnings = ReadBooleanAttribute(element, "NotifyOnWarnings", true);
 				Dictionary<string, string> annotations = ReadAnnotationsAttribute(element, "Annotations");
+				string[] ignoreModified = ReadListAttribute(element, "IgnoreModified");
 
 				// Resolve all the inputs we depend on
 				HashSet<BgNodeOutput> inputs = ResolveInputReferences(element, requiresNames);
@@ -1432,7 +1433,7 @@ namespace AutomationTool
 				if (CheckNameIsUnique(element, name))
 				{
 					// Add it to the node lookup
-					BgScriptNode newNode = new BgScriptNode(name, inputs.ToArray(), validOutputNames.ToArray(), inputDependencies.ToArray(), orderDependencies.ToArray(), requiredTokens.ToArray());
+					BgScriptNode newNode = new BgScriptNode(name, inputs.ToArray(), validOutputNames.ToArray(), inputDependencies.ToArray(), orderDependencies.ToArray(), requiredTokens.ToArray(), ignoreModified.ToArray());
 					newNode.RunEarly = bRunEarly;
 					newNode.NotifyOnWarnings = bNotifyOnWarnings;
 					foreach ((string key, string value) in annotations)

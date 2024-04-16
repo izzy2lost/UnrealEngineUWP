@@ -173,6 +173,11 @@ namespace AutomationTool
 				writer.WriteAttributeString("RunEarly", node.RunEarly.ToString());
 			}
 
+			if (node.IgnoreModified.Count > 0)
+			{
+				writer.WriteAttributeString("IgnoreModified", String.Join(";", node.IgnoreModified));
+			}
+
 			BgScriptNode scriptNode = (BgScriptNode)node;
 			foreach (BgTask task in scriptNode.Tasks)
 			{

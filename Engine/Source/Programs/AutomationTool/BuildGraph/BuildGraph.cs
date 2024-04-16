@@ -1015,6 +1015,9 @@ namespace AutomationTool
 			// Register something to execute cleanup commands
 			using CleanupScriptRunner CleanupRunner = new CleanupScriptRunner(Logger);
 
+			// Create a filter for modified files that should be ignored
+			FileFilter IgnoreModifiedFilter = new FileFilter(Node.IgnoreModified);
+
 			// Create the mapping of tag names to file sets
 			Dictionary<string, HashSet<FileReference>> TagNameToFileSet = new Dictionary<string, HashSet<FileReference>>();
 
@@ -1034,7 +1037,7 @@ namespace AutomationTool
 				Scope.Span.SetTag("blocks", InputStorageBlocks.Count);
 				foreach (TempStorageBlock InputStorageBlock in InputStorageBlocks)
 				{
-					TempStorageManifest Manifest = Storage.Retrieve(InputStorageBlock.NodeName, InputStorageBlock.OutputName);
+					TempStorageManifest Manifest = Storage.Retrieve(InputStorageBlock.NodeName, InputStorageBlock.OutputName, IgnoreModifiedFilter);
 					InputManifests[InputStorageBlock] = Manifest;
 				}
 				Scope.Span.SetTag("size", InputManifests.Sum(x => x.Value.GetTotalSize()));
@@ -1083,7 +1086,7 @@ namespace AutomationTool
 			foreach (TempStorageFile File in InputManifests.Values.SelectMany(x => x.Files))
 			{
 				string Message;
-				if (!ModifiedFiles.ContainsKey(File.RelativePath) && !File.Compare(Unreal.RootDirectory, out Message))
+				if (!ModifiedFiles.ContainsKey(File.RelativePath) && !File.Compare(Unreal.RootDirectory, out Message) && !IgnoreModifiedFilter.Matches(File.RelativePath))
 				{
 					// look up the previous nodes to help with error diagnosis
 					List<string> PreviousNodeNames = InputManifests.Where(x => x.Value.Files.Contains(File))
@@ -1102,14 +1105,14 @@ namespace AutomationTool
 				string modifiedFileList = "";
 				if (ModifiedFiles.Count < 100)
 				{
-					modifiedFileList = String.Join("\n", ModifiedFiles.Select(x => x.Value));
+					modifiedFileList = String.Join("\n", ModifiedFiles.Select(x => $"  {x.Value}"));
 				}
 				else
 				{
-					modifiedFileList = String.Join("\n", ModifiedFiles.Take(100).Select(x => x.Value));
-					modifiedFileList += $"{Environment.NewLine}And {ModifiedFiles.Count - 100} more.";
+					modifiedFileList = String.Join("\n", ModifiedFiles.Take(100).Select(x => $"  {x.Value}"));
+					modifiedFileList += $"\n  ...and {ModifiedFiles.Count - 100} more.";
 				}
-				throw new AutomationException("Build {0} from a previous step have been modified:\n{1}", (ModifiedFiles.Count == 1) ? "product" : "products", modifiedFileList);
+				throw new AutomationException("Build {0} from a previous step have been modified:\n{1}\nOutput overlapping artifacts to a different location, or ignore them using the Node's IgnoreModified attribute.", (ModifiedFiles.Count == 1) ? "product" : "products", modifiedFileList);
 			}
 
 			// Determine all the output files which are required to be copied to temp storage (because they're referenced by nodes in another agent)
