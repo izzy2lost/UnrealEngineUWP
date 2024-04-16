@@ -617,7 +617,7 @@ void FSceneProxyBase::OnMaterialsUpdated()
 	CombinedMaterialRelevance = FMaterialRelevance();
 	MaxWPOExtent = 0.0f;
 	MinMaxMaterialDisplacement = FVector2f::Zero();
-	MaterialDisplacementFadeOutSize = 0.0f;
+	MaterialDisplacementFadeOutSize = UE_MAX_FLT;
 	bHasVertexProgrammableRaster = false;
 	bHasPixelProgrammableRaster = false;
 	bHasDynamicDisplacement = false;
@@ -719,6 +719,11 @@ void FSceneProxyBase::OnMaterialsUpdated()
 				MaterialDisplacementFadeOutSize = 0.0f;
 			}
 		}
+	}
+
+	if (!bHasDynamicDisplacement)
+	{
+		MaterialDisplacementFadeOutSize = 0.0f;
 	}
 }
 
