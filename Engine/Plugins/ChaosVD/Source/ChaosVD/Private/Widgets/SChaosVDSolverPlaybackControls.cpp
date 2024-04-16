@@ -132,6 +132,11 @@ SChaosVDSolverPlaybackControls::~SChaosVDSolverPlaybackControls()
 		}
 
 		PlaybackControllerPtr->ReleaseExclusivePlaybackControls(*this);
+		
+		if (TSharedPtr<FChaosVDScene> Scene = PlaybackControllerPtr->GetControllerScene().Pin())
+		{
+			Scene->OnSolverVisibilityUpdated().RemoveAll(this);
+		}
 	}
 }
 
