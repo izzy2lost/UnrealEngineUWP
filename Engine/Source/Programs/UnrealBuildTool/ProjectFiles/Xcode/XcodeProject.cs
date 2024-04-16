@@ -1449,11 +1449,19 @@ namespace UnrealBuildTool.XcodeProjectXcconfig
 					"",
 					$"echo \\\"Syncing ${{STAGED_DIR}}{SyncSourceSubdir} to ${{CONFIGURATION_BUILD_DIR}}/${{CONTENTS_FOLDER_PATH}}{SyncDestSubdir}\\\"",
 					$"rsync -a --delete {ExcludeString} \\\"${{STAGED_DIR}}{SyncSourceSubdir}/\\\" \\\"${{CONFIGURATION_BUILD_DIR}}/${{CONTENTS_FOLDER_PATH}}{SyncDestSubdir}\\\"",
-					"if [[ -e \\\"${STAGED_DIR}/uecommandline.txt\\\" ]]; then",
-					"  echo \\\"Syncing ${STAGED_DIR}/uecommandline.txt to ${CONFIGURATION_BUILD_DIR}/${CONTENTS_FOLDER_PATH}\\\"",
-					"  cp \\\"${STAGED_DIR}/uecommandline.txt\\\" \\\"${CONFIGURATION_BUILD_DIR}/${CONTENTS_FOLDER_PATH}\\\"",
-					"fi"
 				});
+
+				// copy uecommandline.txt for IOS type platforms
+				if (Platform != UnrealTargetPlatform.Mac)
+				{
+					CopyScript.AddRange(new string[]
+					{
+						"if [[ -e \\\"${STAGED_DIR}/uecommandline.txt\\\" ]]; then",
+						"  echo \\\"Syncing ${STAGED_DIR}/uecommandline.txt to ${CONFIGURATION_BUILD_DIR}/${CONTENTS_FOLDER_PATH}\\\"",
+						"  cp \\\"${STAGED_DIR}/uecommandline.txt\\\" \\\"${CONFIGURATION_BUILD_DIR}/${CONTENTS_FOLDER_PATH}\\\"",
+						"fi"
+					});
+				}
 			}
 
 			// run this script every time, but xcode will show a warning if there isn't _some_ output
