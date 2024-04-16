@@ -365,6 +365,7 @@ void ALevelSequenceActor::InitializePlayer()
 		// Level sequence is already loaded. Initialize the player if it's not already initialized with this sequence
 		if (LevelSequenceAsset != GetSequencePlayer()->GetSequence() || GetSequencePlayer()->GetEvaluationTemplate().GetRunner() == nullptr)
 		{
+			GetSequencePlayer()->SetPlaybackSettings(PlaybackSettings);
 			GetSequencePlayer()->Initialize(LevelSequenceAsset, GetLevel(), CameraSettings);
 		}
 	}
