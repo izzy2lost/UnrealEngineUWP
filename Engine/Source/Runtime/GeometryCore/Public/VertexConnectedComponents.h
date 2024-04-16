@@ -206,7 +206,6 @@ public:
 	void ConnectCloseVertices(const TriangleMeshType& Mesh, double CloseVertexThreshold, int32 KeepSizeThreshold = 0)
 	{
 		TPointHashGrid3d<int32> VertexHash(CloseVertexThreshold * 3, -1);
-		TArray<int32> Neighbors;
 		for (int32 VID = 0; VID < Mesh.MaxVertexID(); VID++)
 		{
 			if (!Mesh.IsVertex(VID))
@@ -219,17 +218,16 @@ public:
 				continue;
 			}
 
+			int32 MaxSetSize = Mesh.VertexCount();
 			FVector3d Pt = Mesh.GetVertex(VID);
-			Neighbors.Reset();
-			VertexHash.FindPointsInBall(Pt, CloseVertexThreshold, [&Mesh, Pt](int32 OtherVID)
+			VertexHash.EnumeratePointsInBall(Pt, CloseVertexThreshold, [&Mesh, Pt](int32 OtherVID)
 				{
-					// TODO: could return MaxReal if OtherVID is already in the same component so we skip union-ing it?
 					return DistanceSquared(Pt, Mesh.GetVertex(OtherVID));
-				}, Neighbors);
-			for (int32 NbrVID : Neighbors)
-			{
-				DisjointSet.Union(SetID, NbrVID);
-			}
+				}, [this, SetID, MaxSetSize](const int32& NbrVID, double DistSq) 
+				{
+					int32 UnionSetID = DisjointSet.Union(SetID, NbrVID);
+					return DisjointSet.Sizes[UnionSetID] < MaxSetSize; // stop iterating if all vertices are in the same component
+				});
 			VertexHash.InsertPointUnsafe(VID, Pt);
 		}
 	}
