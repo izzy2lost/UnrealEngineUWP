@@ -139,29 +139,56 @@ FPCGElementPtr UPCGUserParameterGetSettings::CreateElement() const
 	return MakeShared<FPCGUserParameterGetElement>();
 }
 
+TArray<FPCGPinProperties> UPCGGenericUserParameterGetSettings::OutputPinProperties() const
+{
+	TArray<FPCGPinProperties> PinProperties;
+	PinProperties.Emplace(PCGPinConstants::DefaultOutputLabel, EPCGDataType::Param);
+
+	return PinProperties;
+}
+
+FString UPCGGenericUserParameterGetSettings::GetAdditionalTitleInformation() const
+{
+	return PropertyPath;
+}
+
+FPCGElementPtr UPCGGenericUserParameterGetSettings::CreateElement() const
+{
+	return MakeShared<FPCGUserParameterGetElement>();
+}
+
 bool FPCGUserParameterGetElement::ExecuteInternal(FPCGContext* Context) const
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGUserParameterGetElement::Execute);
 
 	check(Context);
 
-	const UPCGUserParameterGetSettings* Settings = Context->GetInputSettings<UPCGUserParameterGetSettings>();
-	check(Settings);
-
-	const FName PropertyName = Settings->PropertyName;
-
 	FConstStructView Parameters = PCGUserParameterGetSettings::GetFirstValidLayout(*Context);
 	const UScriptStruct* PropertyBag = Parameters.GetScriptStruct();
 
-	const FProperty* Property = PropertyBag ? PropertyBag->FindPropertyByName(PropertyName) : nullptr;
+	bool bForceObjectAndStructExtraction = false;
+	FPCGAttributePropertySelector InputSelector;
+	FName OutputAttributeName;
 
-	if (!Property)
+	if (const UPCGUserParameterGetSettings* Settings = Context->GetInputSettings<UPCGUserParameterGetSettings>())
 	{
-		PCGE_LOG(Error, GraphAndLog, FText::Format(LOCTEXT("InvalidProperty", "Could not find the property '{0}' in the user parameters"), FText::FromName(PropertyName)));
+		bForceObjectAndStructExtraction = Settings->bForceObjectAndStructExtraction;
+		InputSelector = FPCGAttributePropertySelector::CreateAttributeSelector(Settings->PropertyName);
+		OutputAttributeName = Settings->PropertyName;
+	}
+	else if (const UPCGGenericUserParameterGetSettings* GenericSettings = Context->GetInputSettings<UPCGGenericUserParameterGetSettings>())
+	{
+		bForceObjectAndStructExtraction = GenericSettings->bForceObjectAndStructExtraction;
+		InputSelector = FPCGAttributePropertySelector::CreateSelectorFromString(GenericSettings->PropertyPath);
+		OutputAttributeName = GenericSettings->OutputAttributeName;
+	}
+	else
+	{
+		checkNoEntry();
 		return true;
 	}
 
-	PCGPropertyHelpers::FExtractorParameters ExtractorParameters{ Parameters.GetMemory(), PropertyBag, FPCGAttributePropertySelector::CreateAttributeSelector(PropertyName), PropertyName, Settings->bForceObjectAndStructExtraction, /*bPropertyNeedsToBeVisible=*/false};
+	PCGPropertyHelpers::FExtractorParameters ExtractorParameters{ Parameters.GetMemory(), PropertyBag, InputSelector, OutputAttributeName, bForceObjectAndStructExtraction, /*bPropertyNeedsToBeVisible=*/false};
 
 	// Don't care for object traversed in non-editor build, since it is only useful for tracking.
 	TSet<FSoftObjectPath>* ObjectTraversedPtr = nullptr;
@@ -173,6 +200,11 @@ bool FPCGUserParameterGetElement::ExecuteInternal(FPCGContext* Context) const
 	if (UPCGParamData* ParamData = PCGPropertyHelpers::ExtractPropertyAsAttributeSet(ExtractorParameters, Context, ObjectTraversedPtr))
 	{
 		Context->OutputData.TaggedData.Emplace_GetRef().Data = ParamData;
+	}
+	else
+	{
+		PCGE_LOG(Error, GraphAndLog, FText::Format(LOCTEXT("InvalidProperty", "Could not find the property '{0}' in the user parameters"), InputSelector.GetDisplayText()));
+		return true;
 	}
 
 	// Register dynamic tracking
