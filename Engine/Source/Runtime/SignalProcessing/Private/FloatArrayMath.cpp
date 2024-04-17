@@ -804,6 +804,39 @@ namespace Audio
 		return Max;
 	}
 
+	void ArrayMultiply(TArrayView<const float> InFloatBufferA, TArrayView<const float> InFloatBufferB, TArrayView<float> OutBuffer)
+	{
+		CSV_SCOPED_TIMING_STAT(Audio_Dsp, ArrayMultiply);
+		checkf((InFloatBufferA.Num() == InFloatBufferB.Num()) && (InFloatBufferA.Num() == OutBuffer.Num()), TEXT("Input buffers must be equal length"));
+
+		const int32 Num = InFloatBufferA.Num();
+
+		if (bAudio_FloatArrayMath_ISPC_Enabled)
+		{
+#if INTEL_ISPC
+			ispc::ArrayMultiply(InFloatBufferA.GetData(), InFloatBufferB.GetData(), OutBuffer.GetData(), Num);
+#endif
+		}
+		else
+		{
+			const int32 NumToSimd = Num & MathIntrinsics::SimdMask;
+
+			for (int32 i = 0; i < NumToSimd; i += AUDIO_NUM_FLOATS_PER_VECTOR_REGISTER)
+			{
+				VectorRegister4Float Input1 = VectorLoad(&InFloatBufferA[i]);
+				VectorRegister4Float Input2 = VectorLoad(&InFloatBufferB[i]);
+
+				VectorRegister4Float Output = VectorMultiply(Input1, Input2);
+				VectorStore(Output, &OutBuffer[i]);
+			}
+
+			for (int32 i = NumToSimd; i < Num; ++i)
+			{
+				OutBuffer[i] = InFloatBufferA[i] * InFloatBufferB[i];
+			}
+		}
+	}
+
 	void ArrayMultiplyInPlace(TArrayView<const float> InFloatBuffer, TArrayView<float> BufferToMultiply)
 	{
 		CSV_SCOPED_TIMING_STAT(Audio_Dsp, ArrayMultiplyInPlace);

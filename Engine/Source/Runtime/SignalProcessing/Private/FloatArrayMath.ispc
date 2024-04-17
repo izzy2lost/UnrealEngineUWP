@@ -239,6 +239,20 @@ export void ArrayMinMaxNormalize(const uniform float InDataPtr[],
 	}
 }
 
+export void ArrayMultiply(const uniform float InFloatBuffer[],
+						  const uniform float BufferToMultiply[],
+						  uniform float OutDataPtr[],
+						  const uniform int NumSamples)
+{
+	foreach(i = 0 ... NumSamples)
+	{
+		const varying float Input = InFloatBuffer[i];
+		const varying float Output = BufferToMultiply[i];
+
+		OutDataPtr[i] = Input * Output;
+	}
+}
+
 export void ArrayMultiplyInPlace(const uniform float InFloatBuffer[],
 									uniform float BufferToMultiply[],
 									const uniform int NumSamples)

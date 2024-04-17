@@ -116,6 +116,9 @@ namespace Audio
 	 */
 	SIGNALPROCESSING_API float ArrayMaxAbsValue(const TArrayView<const float> InView);
 
+	/** Multiply the second buffer by the first buffer. */
+	SIGNALPROCESSING_API void ArrayMultiply(TArrayView<const float> InFloatBufferA, TArrayView<const float> InFloatBufferB, TArrayView<float> OutBuffer);
+
 	/** Multiply the second buffer in place by the first buffer. */
 	SIGNALPROCESSING_API void ArrayMultiplyInPlace(TArrayView<const float> InFloatBuffer, TArrayView<float> BufferToMultiply);
 
