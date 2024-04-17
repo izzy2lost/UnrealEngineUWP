@@ -3929,8 +3929,9 @@ void FEdModeLandscape::SetCurrentLayer(int32 InLayerIndex)
 	if (ALandscape* Landscape = GetLandscape())
 	{
 		const FLandscapeLayer* Layer = Landscape->GetLayerConst(InLayerIndex);
-		check((Layer != nullptr) && (Layer->EditLayer != nullptr));
-		if (Layer->EditLayer->IsA<ULandscapeEditLayerSplines>())
+		if (Landscape->HasLayersContent() 
+			&& ensure(Layer && Layer->EditLayer)
+			&& Layer->EditLayer->IsA<ULandscapeEditLayerSplines>())
 		{
 			SetCurrentToolMode("ToolMode_Manage", false);
 			SetCurrentTool(FName("Splines"));
