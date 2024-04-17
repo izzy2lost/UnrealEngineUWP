@@ -5,7 +5,7 @@
 
 #include "DatasmithSceneFactory.h"
 #include "DatasmithSceneExporter.h"
-#include "DatasmithMaxSceneParser.h"
+#include "DatasmithMaxSceneHelper.h"
 #include "DatasmithMaxLogger.h"
 #include "DatasmithExportOptions.h"
 #include "DatasmithMaxSceneExporter.h"
