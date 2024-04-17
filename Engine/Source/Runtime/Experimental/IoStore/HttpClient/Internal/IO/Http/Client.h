@@ -10,7 +10,7 @@
 #	define IAS_HTTP_WITH_PERF !UE_BUILD_SHIPPING
 #endif
 
-#define UE_API
+#define UE_API IOSTOREHTTPCLIENT_API
 
 ////////////////////////////////////////////////////////////////////////////////
 class FIoBuffer;
@@ -53,7 +53,7 @@ struct	FActivity;
 class UE_API FConnectionPool
 {
 public:
-	struct FParams
+	struct UE_API FParams
 	{
 		int32				SetHostFromUrl(FAnsiStringView Url);
 		FAnsiStringView		HostName;

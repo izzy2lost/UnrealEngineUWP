@@ -1,13 +1,12 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "CoreHttp/Client.h"
+#include "IO/Http/Client.h"
 
 #if !defined(NO_UE_INCLUDES)
 #include <Containers/Array.h>
 #include <HAL/CriticalSection.h>
 #include <HAL/IConsoleManager.h>
 #include <IO/IoBuffer.h>
-#include <LatencyInjector.h>
 #include <Math/UnrealMathUtility.h>
 #include <Memory/MemoryView.h>
 #include <Misc/ScopeExit.h>
@@ -19,6 +18,8 @@
 #endif
 
 #include <atomic>
+
+#include "LatencyInjector.h"
 
 #include "Misc.inl"
 #include "Socket.inl"

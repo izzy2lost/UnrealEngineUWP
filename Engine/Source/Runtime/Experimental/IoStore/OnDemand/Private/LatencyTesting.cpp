@@ -2,9 +2,9 @@
 
 #include "Containers/StringConv.h"
 #include "Containers/StringView.h"
-#include "CoreHttp/Client.h"
 #include "HAL/PlatformTime.h"
 #include "IO/IoStoreOnDemand.h"
+#include "IO/Http/Client.h"
 #include "Misc/StringBuilder.h"
 #include "Templates/Function.h"
 

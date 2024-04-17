@@ -8,7 +8,6 @@
 #include "HAL/PlatformTime.h"
 #include "IO/IoChunkEncoding.h"
 #include "IasCache.h"
-#include "LatencyInjector.h"
 #include "Misc/Base64.h"
 #include "Misc/CommandLine.h"
 #include "Misc/ConfigCacheIni.h"
@@ -2601,8 +2600,6 @@ void FIoStoreOnDemandModule::InitializeInternal()
 			ApplyEncryptionKeyFromString(EncryptionKey);
 		}
 	}
-
-	FLatencyInjector::Initialize(CommandLine);
 
 	TUniquePtr<IIasCache> Cache;
 	FIasCacheConfig CacheConfig = GetIasCacheConfig(CommandLine);

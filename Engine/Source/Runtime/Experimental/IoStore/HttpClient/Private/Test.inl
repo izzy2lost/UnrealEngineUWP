@@ -720,7 +720,7 @@ static void HttpTest(const ANSICHAR* TestHost)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-IOSTOREONDEMAND_API void IasHttpTest(const ANSICHAR* TestHost="localhost")
+IOSTOREHTTPCLIENT_API void IasHttpTest(const ANSICHAR* TestHost="localhost")
 {
 #if PLATFORM_WINDOWS
 	WSADATA WsaData;

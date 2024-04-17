@@ -2,9 +2,9 @@
 
 #pragma once
 
-#include "CoreHttp/Client.h"
 #include "Containers/StringView.h"
 #include "Containers/UnrealString.h"
+#include "IO/Http/Client.h"
 #include "IO/IoBuffer.h"
 #include "IO/IoOffsetLength.h"
 #include "IO/IoStatus.h"
