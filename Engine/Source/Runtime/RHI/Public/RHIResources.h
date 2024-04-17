@@ -206,7 +206,9 @@ private:
 	FName OwnerName;
 #endif
 
+#if DO_CHECK
 	static thread_local FRHIResource const* CurrentlyDeleting;
+#endif
 
 	friend FRHICommandListImmediate;
 };

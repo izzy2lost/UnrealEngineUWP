@@ -13,7 +13,10 @@
 UE::TConsumeAllMpmcQueue<FRHIResource*> PendingDeletes;
 UE::TConsumeAllMpmcQueue<FRHIResource*> PendingDeletesWithLifetimeExtension;
 
+#if DO_CHECK
+// Used to check that we only enter the FRHIResource destructor via the FRHIResource::DeleteResources() function.
 thread_local FRHIResource const* FRHIResource::CurrentlyDeleting = nullptr;
+#endif
 
 FRHIResource::FRHIResource(ERHIResourceType InResourceType)
 	: ResourceType(InResourceType)
@@ -32,7 +35,9 @@ FRHIResource::~FRHIResource()
 {
 	check(IsEngineExitRequested() || CurrentlyDeleting == this);
 	check(AtomicFlags.GetNumRefs(std::memory_order_relaxed) == 0); // this should not have any outstanding refs
+#if DO_CHECK
 	CurrentlyDeleting = nullptr;
+#endif
 
 #if RHI_ENABLE_RESOURCE_INFO
 	EndTrackingResource(this);
@@ -41,33 +46,15 @@ FRHIResource::~FRHIResource()
 
 void FRHIResource::MarkForDelete() const
 {
-	if (CurrentlyDeleting)
+	if (!AtomicFlags.MarkForDelete(std::memory_order_release))
 	{
-		if (!AtomicFlags.IsMarkedForDelete(std::memory_order_release))
+		if (bAllowExtendLifetime)
 		{
-			// We hit refcount zero while destructing another RHI resource, and we're not already marked for delete.
-			// The current resource is nested inside the previous one, so can be destructed immediately.
-			FRHIResource const* Previous = CurrentlyDeleting;
-
-			CurrentlyDeleting = this;
-			delete this;
-
-			check(CurrentlyDeleting == nullptr);
-			CurrentlyDeleting = Previous;
+			PendingDeletesWithLifetimeExtension.ProduceItem(const_cast<FRHIResource*>(this));
 		}
-	}
-	else
-	{
-		if (!AtomicFlags.MarkForDelete(std::memory_order_release))
+		else
 		{
-			if (bAllowExtendLifetime)
-			{
-				PendingDeletesWithLifetimeExtension.ProduceItem(const_cast<FRHIResource*>(this));
-			}
-			else
-			{
-				PendingDeletes.ProduceItem(const_cast<FRHIResource*>(this));
-			}
+			PendingDeletes.ProduceItem(const_cast<FRHIResource*>(this));
 		}
 	}
 }
@@ -78,7 +65,9 @@ void FRHIResource::DeleteResources(TArray<FRHIResource*> const& Resources)
 	{
 		if (Resource->AtomicFlags.Deleting())
 		{
+#if DO_CHECK
 			CurrentlyDeleting = Resource;
+#endif
 			delete Resource;
 
 			check(CurrentlyDeleting == nullptr);
