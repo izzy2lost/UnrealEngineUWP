@@ -3610,11 +3610,11 @@ void UGeometryCollectionComponent::UnregisterCustomRenderer()
 
 void UGeometryCollectionComponent::ReregisterAllCustomRenderers()
 {
-	for (TObjectIterator<UGeometryCollectionComponent> It; It; ++It)
+	for (TObjectIterator<UGeometryCollectionComponent> It(RF_ClassDefaultObject, true, EInternalObjectFlags::Garbage); It; ++It)
 	{
 		It->UnregisterCustomRenderer();
 	}
-	for (TObjectIterator<UGeometryCollectionComponent> It; It; ++It)
+	for (TObjectIterator<UGeometryCollectionComponent> It(RF_ClassDefaultObject, true, EInternalObjectFlags::Garbage); It; ++It)
 	{
 		It->RegisterCustomRenderer();
 		It->RefreshCustomRenderer();
