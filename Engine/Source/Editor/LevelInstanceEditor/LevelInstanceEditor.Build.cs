@@ -39,7 +39,8 @@ public class LevelInstanceEditor : ModuleRules
 				"InteractiveToolsFramework",
 				"EditorInteractiveToolsFramework",
 				"TypedElementFramework",
-				"TypedElementRuntime"
+				"TypedElementRuntime",
+				"SceneOutliner"
 			}
 		);
 

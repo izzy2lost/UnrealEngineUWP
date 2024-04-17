@@ -2044,6 +2044,19 @@ void FStarshipEditorStyle::FStyle::SetupWorldPartitionStyles()
 	Set("WorldPartition.FocusSelection", new IMAGE_BRUSH_SVG("WorldPartition/FramingSelection_20", Icon16x16));
 	Set("WorldPartition.FocusLoadedRegions", new IMAGE_BRUSH_SVG("WorldPartition/FrameRegions_20", Icon16x16));
 	Set("WorldPartition.FocusWorld", new IMAGE_BRUSH_SVG("WorldPartition/FrameWorld_20", Icon16x16));
+
+	// Level Instance
+	Set("LevelInstance.ColumnOverrideHereEditable", new IMAGE_BRUSH_SVG("Starship/LevelInstance/ColumnOverrideHere", Icon16x16, FStyleColors::AccentBlue));
+	Set("LevelInstance.ColumnOverrideHere", new IMAGE_BRUSH_SVG("Starship/LevelInstance/ColumnOverrideHere", Icon16x16, FStyleColors::AccentGray));
+
+	Set("LevelInstance.ColumnOverrideContainerHereEditable", new IMAGE_BRUSH_SVG("Starship/LevelInstance/ColumnOverrideContainerHere", Icon16x16, FStyleColors::AccentBlue));
+	Set("LevelInstance.ColumnOverrideContainerHere", new IMAGE_BRUSH_SVG("Starship/LevelInstance/ColumnOverrideContainerHere", Icon16x16, FStyleColors::AccentGray));
+
+	Set("LevelInstance.ColumnOverrideContainerInsideEditable", new IMAGE_BRUSH_SVG("Starship/LevelInstance/ColumnOverrideContainerInside", Icon16x16, FStyleColors::AccentBlue));
+	Set("LevelInstance.ColumnOverrideContainerInside", new IMAGE_BRUSH_SVG("Starship/LevelInstance/ColumnOverrideContainerInside", Icon16x16, FStyleColors::AccentGray));
+
+	Set("LevelInstance.ColumnOverrideContainerEditable", new IMAGE_BRUSH_SVG("Starship/LevelInstance/ColumnOverrideContainer", Icon16x16, FStyleColors::AccentBlue));
+	Set("LevelInstance.ColumnOverrideContainer", new IMAGE_BRUSH_SVG("Starship/LevelInstance/ColumnOverrideContainer", Icon16x16, FStyleColors::AccentGray));
 }
 
 void FStarshipEditorStyle::FStyle::SetupSequencerStyles()

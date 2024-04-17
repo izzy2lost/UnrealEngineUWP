@@ -2,6 +2,7 @@
 #include "LevelInstanceEditorModule.h"
 #include "LevelInstanceActorDetails.h"
 #include "LevelInstancePivotDetails.h"
+#include "LevelInstanceSceneOutlinerColumn.h"
 #include "PackedLevelActorUtils.h"
 #include "LevelInstanceFilterPropertyTypeCustomization.h"
 #include "LevelInstance/LevelInstanceSubsystem.h"
@@ -49,6 +50,8 @@
 #include "ScopedTransaction.h"
 #include "ISCSEditorUICustomization.h"
 #include "EdModeInteractiveToolsContext.h"
+#include "SceneOutlinerModule.h"
+#include "SceneOutlinerFwd.h"
 
 IMPLEMENT_MODULE( FLevelInstanceEditorModule, LevelInstanceEditor );
 
@@ -647,28 +650,32 @@ struct FLevelInstanceMenuUtils
 				{
 					if (!LevelInstanceSubsystem->CanResetPropertyOverrides(SelectedLevelInstance))
 					{
-						return;
+						bCanResetAllLevelInstances = false;
+						break;
 					}
 				}
 
-				FToolMenuSection& Section = CreateLevelSection(Menu);
-				FToolUIAction UIAction;
-				UIAction.ExecuteAction.BindLambda([LevelInstanceSubsystem, CopySelectedLevelInstance = SelectedLevelInstances](const FToolMenuContext& MenuContext)
+				if (bCanResetAllLevelInstances)
 				{
-					for (ILevelInstanceInterface* LevelInstanceInterface : CopySelectedLevelInstance)
-					{
-						LevelInstanceSubsystem->ResetPropertyOverrides(LevelInstanceInterface);
-					}
-				});
+					FToolMenuSection& Section = CreateLevelSection(Menu);
+					FToolUIAction UIAction;
+					UIAction.ExecuteAction.BindLambda([LevelInstanceSubsystem, CopySelectedLevelInstance = SelectedLevelInstances](const FToolMenuContext& MenuContext)
+						{
+							for (ILevelInstanceInterface* LevelInstanceInterface : CopySelectedLevelInstance)
+							{
+								LevelInstanceSubsystem->ResetPropertyOverrides(LevelInstanceInterface);
+							}
+						});
 
-				Section.AddMenuEntry(
-					"ResetLevelInstancePropertyOverrides",
-					LOCTEXT("ResetLevelInstancePropertyOverrides", "Reset Override(s)"),
-					TAttribute<FText>(),
-					TAttribute<FSlateIcon>(),
-					UIAction);
+					Section.AddMenuEntry(
+						"ResetLevelInstancePropertyOverrides",
+						LOCTEXT("ResetLevelInstancePropertyOverrides", "Reset Override(s)"),
+						TAttribute<FText>(),
+						TAttribute<FSlateIcon>(),
+						UIAction);
 
-				return;
+					return;
+				}
 			}
 
 			if (SelectedActors.Num() > 0)
@@ -1033,6 +1040,8 @@ void FLevelInstanceEditorModule::StartupModule()
 		// Create a Behavior source for the default EdModeTools (when we aren't in the LevelInstanceEditorMode)
 		DefaultBehaviorSource = ULevelInstanceEditorMode::CreateDefaultModeBehaviorSource(GLevelEditorModeTools().GetInteractiveToolsContext());
 		GLevelEditorModeTools().GetInteractiveToolsContext()->InputRouter->RegisterSource(DefaultBehaviorSource.GetInterface());
+
+		RegisterLevelInstanceColumn();
 	}
 
 	ULevelInstanceSubsystem::RegisterPrimitiveColorHandler();
@@ -1059,11 +1068,42 @@ void FLevelInstanceEditorModule::ShutdownModule()
 
 	EditorLevelUtils::CanMoveActorToLevelDelegate.RemoveAll(this);
 
-	if (!IsRunningCommandlet() && GLevelEditorModeToolsIsValid())
+	if (!IsRunningCommandlet())
 	{
-		GLevelEditorModeTools().OnEditorModeIDChanged().RemoveAll(this);
-		GLevelEditorModeTools().GetInteractiveToolsContext()->InputRouter->DeregisterSource(DefaultBehaviorSource.GetInterface());
-		DefaultBehaviorSource = nullptr;
+		if (GLevelEditorModeToolsIsValid())
+		{
+			GLevelEditorModeTools().OnEditorModeIDChanged().RemoveAll(this);
+			GLevelEditorModeTools().GetInteractiveToolsContext()->InputRouter->DeregisterSource(DefaultBehaviorSource.GetInterface());
+			DefaultBehaviorSource = nullptr;
+		}
+		UnregisterLevelInstanceColumn();
+	}
+}
+
+TSharedRef<ISceneOutlinerColumn> FLevelInstanceEditorModule::CreateLevelInstanceColumn(ISceneOutliner& SceneOutliner) const
+{
+	return MakeShareable(new FLevelInstanceSceneOutlinerColumn(SceneOutliner));
+}
+
+void FLevelInstanceEditorModule::RegisterLevelInstanceColumn()
+{
+	if (GetDefault<ULevelInstanceSettings>()->IsPropertyOverrideEnabled())
+	{
+		FSceneOutlinerModule& SceneOutlinerModule = FModuleManager::LoadModuleChecked<FSceneOutlinerModule>("SceneOutliner");
+
+		FSceneOutlinerColumnInfo ColumnInfo(ESceneOutlinerColumnVisibility::Invisible, 8,
+			FCreateSceneOutlinerColumn::CreateRaw(this, &FLevelInstanceEditorModule::CreateLevelInstanceColumn),
+			true, TOptional<float>(), LOCTEXT("LevelInstanceColumnName", "Level Instance"));
+
+		SceneOutlinerModule.RegisterDefaultColumnType<FLevelInstanceSceneOutlinerColumn>(ColumnInfo);
+	}
+}
+
+void FLevelInstanceEditorModule::UnregisterLevelInstanceColumn()
+{
+	if (FSceneOutlinerModule* SceneOutlinerModulePtr = FModuleManager::GetModulePtr<FSceneOutlinerModule>("SceneOutliner"))
+	{
+		SceneOutlinerModulePtr->UnRegisterColumnType<FLevelInstanceSceneOutlinerColumn>();
 	}
 }
 

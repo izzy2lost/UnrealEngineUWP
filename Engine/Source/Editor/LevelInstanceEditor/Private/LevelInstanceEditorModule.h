@@ -13,6 +13,8 @@ class ULevel;
 class IInputBehaviorSource;
 enum class EMapChangeType : uint8;
 class ILevelEditor;
+class ISceneOutliner;
+class ISceneOutlinerColumn;
 
 /**
  * The module holding all of the UI related pieces for LevelInstance management
@@ -56,6 +58,10 @@ private:
 		
 	void OnLevelEditorCreated(TSharedPtr<ILevelEditor> InLevelEditor);
 	void RegisterToFirstLevelEditor();
+
+	void RegisterLevelInstanceColumn();
+	void UnregisterLevelInstanceColumn();
+	TSharedRef<ISceneOutlinerColumn> CreateLevelInstanceColumn(ISceneOutliner& SceneOutliner) const;
 
 	class FPropertyEditorPolicy : public PropertyEditorPolicy::IEditConstPolicy, 
 								  public PropertyEditorPolicy::IArchetypePolicy
