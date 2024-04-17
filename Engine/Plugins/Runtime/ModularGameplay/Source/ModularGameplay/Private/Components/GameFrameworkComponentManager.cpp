@@ -190,9 +190,11 @@ void UGameFrameworkComponentManager::AddReceiverInternal(AActor* Receiver)
 
 		if (FExtensionHandlerEvent* HandlerEvent = ReceiverClassToEventMap.Find(ReceiverClassPath))
 		{
-			for (const TPair<FDelegateHandle, FExtensionHandlerDelegate>& Pair : *HandlerEvent)
+			// Copy the execution list so it isn't invalidated
+			FExtensionHandlerEvent HandlerCopy = *HandlerEvent;
+			for (const TPair<FDelegateHandle, TSharedRef<FExtensionHandlerRegisteredDelegate>>& Pair : HandlerCopy)
 			{
-				Pair.Value.Execute(Receiver, NAME_ReceiverAdded);
+				Pair.Value->Execute(Receiver, NAME_ReceiverAdded);
 			}
 		}
 	}
@@ -359,9 +361,11 @@ TSharedPtr<FComponentRequestHandle> UGameFrameworkComponentManager::AddExtension
 	FComponentRequestReceiverClassPath ReceiverClassPath(ReceiverClass);
 	FExtensionHandlerEvent& HandlerEvent = ReceiverClassToEventMap.FindOrAdd(ReceiverClassPath);
 
-	// This is a fake multicast delegate using a map
+	// This is a fake multicast delegate using a map, we store it in shared memory to avoid things being reallocated during execution
+	// This avoids copying the delegate itself which is often expensive
 	FDelegateHandle DelegateHandle(FDelegateHandle::EGenerateNewHandleType::GenerateNewHandle);
-	HandlerEvent.Add(DelegateHandle, ExtensionHandler);
+	TSharedRef<FExtensionHandlerRegisteredDelegate> RegisteredHandler = MakeShared<FExtensionHandlerRegisteredDelegate>(MoveTemp(ExtensionHandler));
+	HandlerEvent.Add(DelegateHandle, RegisteredHandler);
 
 	if (UClass* ReceiverClassPtr = ReceiverClass.Get())
 	{
@@ -375,7 +379,7 @@ TSharedPtr<FComponentRequestHandle> UGameFrameworkComponentManager::AddExtension
 				{
 					if (ActorIt->IsActorInitialized())
 					{
-						ExtensionHandler.Execute(*ActorIt, NAME_ExtensionAdded);
+						RegisteredHandler->Execute(*ActorIt, NAME_ExtensionAdded);
 					}
 				}
 			}
@@ -395,9 +399,10 @@ void UGameFrameworkComponentManager::RemoveExtensionHandler(const TSoftClassPtr<
 
 	if (FExtensionHandlerEvent* HandlerEvent = ReceiverClassToEventMap.Find(ReceiverClassPath))
 	{
-		FExtensionHandlerDelegate* HandlerDelegate = HandlerEvent->Find(DelegateHandle);
+		TSharedRef<FExtensionHandlerRegisteredDelegate>* HandlerDelegate = HandlerEvent->Find(DelegateHandle);
 		if (ensure(HandlerDelegate))
 		{
+			TSharedRef<FExtensionHandlerRegisteredDelegate> HandlerRef = *HandlerDelegate;
 			// Call it once on unregister
 			if (UClass* ReceiverClassPtr = ReceiverClass.Get())
 			{
@@ -412,7 +417,7 @@ void UGameFrameworkComponentManager::RemoveExtensionHandler(const TSoftClassPtr<
 						{
 							if (ActorIt->IsActorInitialized())
 							{
-								HandlerDelegate->Execute(*ActorIt, NAME_ExtensionRemoved);
+								HandlerRef->Execute(*ActorIt, NAME_ExtensionRemoved);
 							}
 						}
 					}
@@ -423,6 +428,8 @@ void UGameFrameworkComponentManager::RemoveExtensionHandler(const TSoftClassPtr<
 				// Actor class is not in memory, there will be no actor instances
 			}
 
+			// This stops it from executing further up the stack
+			HandlerRef->bRemoved = true;
 			HandlerEvent->Remove(DelegateHandle);
 
 			if (HandlerEvent->IsEmpty())
@@ -457,9 +464,11 @@ void UGameFrameworkComponentManager::SendExtensionEventInternal(AActor* Receiver
 		FComponentRequestReceiverClassPath ReceiverClassPath(Class);
 		if (FExtensionHandlerEvent* HandlerEvent = ReceiverClassToEventMap.Find(ReceiverClassPath))
 		{
-			for (const TPair<FDelegateHandle, FExtensionHandlerDelegate>& Pair : *HandlerEvent)
+			// Copy the execution list so it isn't invalidated
+			FExtensionHandlerEvent HandlerCopy = *HandlerEvent;
+			for (const TPair<FDelegateHandle, TSharedRef<FExtensionHandlerRegisteredDelegate>>& Pair : HandlerCopy)
 			{
-				Pair.Value.Execute(Receiver, EventName);
+				Pair.Value->Execute(Receiver, EventName);
 			}
 		}
 	}
@@ -563,6 +572,7 @@ UGameFrameworkComponentManager::FActorFeatureRegisteredDelegate::FActorFeatureRe
 	, DelegateHandle(FDelegateHandle::EGenerateNewHandleType::GenerateNewHandle)
 	, RequiredFeatureName(InFeatureName)
 	, RequiredInitState(InInitState)
+	, bRemoved(false)
 {
 
 }
@@ -572,12 +582,18 @@ UGameFrameworkComponentManager::FActorFeatureRegisteredDelegate::FActorFeatureRe
 	, DelegateHandle(FDelegateHandle::EGenerateNewHandleType::GenerateNewHandle)
 	, RequiredFeatureName(InFeatureName)
 	, RequiredInitState(InInitState)
+	, bRemoved(false)
 {
 
 }
 
 void UGameFrameworkComponentManager::FActorFeatureRegisteredDelegate::Execute(AActor* OwningActor, FName FeatureName, UObject* Implementer, FGameplayTag FeatureState)
 {
+	if (bRemoved)
+	{
+		return;
+	}
+
 	FActorInitStateChangedParams Params(OwningActor, FeatureName, Implementer, FeatureState);
 	if (Delegate.IsBound())
 	{
@@ -588,6 +604,15 @@ void UGameFrameworkComponentManager::FActorFeatureRegisteredDelegate::Execute(AA
 	else if (BPDelegate.IsBound())
 	{
 		BPDelegate.Execute(Params);
+	}
+}
+
+UGameFrameworkComponentManager::FActorFeatureData::~FActorFeatureData()
+{
+	for (TSharedRef<FActorFeatureRegisteredDelegate>& RegisteredDelegate : RegisteredDelegates)
+	{
+		// This ensures it will not execute if cleared during delegate iteration
+		RegisteredDelegate->bRemoved = true;
 	}
 }
 
@@ -826,18 +851,16 @@ FDelegateHandle UGameFrameworkComponentManager::RegisterAndCallForActorInitState
 		// We often register delegates before registering states
 		FActorFeatureData& ActorStruct = FindOrAddActorData(Actor);
 
-		FActorFeatureRegisteredDelegate& RegisteredDelegate = ActorStruct.RegisteredDelegates.Emplace_GetRef(MoveTemp(Delegate), FeatureName, RequiredState);
-
-		// Cache handle as delegate could invalidate it
-		FDelegateHandle ReturnHandle = RegisteredDelegate.DelegateHandle;
+		TSharedRef<FActorFeatureRegisteredDelegate> RegisteredDelegate = MakeShared<FActorFeatureRegisteredDelegate>(MoveTemp(Delegate), FeatureName, RequiredState);
+		ActorStruct.RegisteredDelegates.Add(RegisteredDelegate);
 
 		if (bCallImmediately)
 		{
-			FActorFeatureRegisteredDelegate DelegateCopy = RegisteredDelegate;
-			CallDelegateForMatchingFeatures(Actor, DelegateCopy);
+			// The shared ref keeps the delegate alive in case it gets unregistered
+			CallDelegateForMatchingFeatures(Actor, *RegisteredDelegate);
 		}		
 		
-		return ReturnHandle;
+		return RegisteredDelegate->DelegateHandle;
 	}
 
 	return FDelegateHandle();
@@ -850,15 +873,13 @@ bool UGameFrameworkComponentManager::RegisterAndCallForActorInitState(AActor* Ac
 		// We often register delegates before registering states
 		FActorFeatureData& ActorStruct = FindOrAddActorData(Actor);
 
-		FActorFeatureRegisteredDelegate& RegisteredDelegate = ActorStruct.RegisteredDelegates.Emplace_GetRef(MoveTemp(Delegate), FeatureName, RequiredState);
-
-		// Cache handle as delegate could invalidate it
-		FDelegateHandle ReturnHandle = RegisteredDelegate.DelegateHandle;
+		TSharedRef<FActorFeatureRegisteredDelegate> RegisteredDelegate = MakeShared<FActorFeatureRegisteredDelegate>(MoveTemp(Delegate), FeatureName, RequiredState);
+		ActorStruct.RegisteredDelegates.Add(RegisteredDelegate);
 
 		if (bCallImmediately)
 		{
-			FActorFeatureRegisteredDelegate DelegateCopy = RegisteredDelegate;
-			CallDelegateForMatchingFeatures(Actor, DelegateCopy);
+			// The shared ref keeps the delegate alive in case it gets unregistered
+			CallDelegateForMatchingFeatures(Actor, *RegisteredDelegate);
 		}
 
 		return true;
@@ -875,14 +896,7 @@ bool UGameFrameworkComponentManager::UnregisterActorInitStateDelegate(AActor* Ac
 
 		if (ActorStruct)
 		{
-			int32 FoundIndex = GetIndexForRegisteredDelegate(ActorStruct->RegisteredDelegates, Handle);
-
-			if (FoundIndex >= 0)
-			{
-				Handle.Reset();
-				ActorStruct->RegisteredDelegates.RemoveAt(FoundIndex);
-				return true;
-			}
+			return RemoveActorFeatureDelegateFromList(ActorStruct->RegisteredDelegates, Handle);
 		}
 	}
 
@@ -897,13 +911,7 @@ bool UGameFrameworkComponentManager::UnregisterActorInitStateDelegate(AActor* Ac
 
 		if (ActorStruct)
 		{
-			int32 FoundIndex = GetIndexForRegisteredDelegate(ActorStruct->RegisteredDelegates, DelegateToRemove);
-
-			if (FoundIndex >= 0)
-			{
-				ActorStruct->RegisteredDelegates.RemoveAt(FoundIndex);
-				return true;
-			}
+			return RemoveActorFeatureDelegateFromList(ActorStruct->RegisteredDelegates, DelegateToRemove);
 		}
 	}
 
@@ -915,23 +923,18 @@ FDelegateHandle UGameFrameworkComponentManager::RegisterAndCallForClassInitState
 	if (ensure(!ActorClass.IsNull() && Delegate.IsBound() && !FeatureName.IsNone()))
 	{
 		FComponentRequestReceiverClassPath ReceiverClassPath(ActorClass);
-		TArray<FActorFeatureRegisteredDelegate>& RegisteredDelegates = ClassFeatureChangeDelegates.FindOrAdd(ReceiverClassPath);
+		FActorFeatureDelegateList& RegisteredDelegates = ClassFeatureChangeDelegates.FindOrAdd(ReceiverClassPath);
 
-		FActorFeatureRegisteredDelegate& RegisteredDelegate = RegisteredDelegates.Emplace_GetRef(MoveTemp(Delegate), FeatureName, RequiredState);
-
-		// Cache handle as delegate could invalidate it
-		FDelegateHandle ReturnHandle = RegisteredDelegate.DelegateHandle;
-
+		TSharedRef<FActorFeatureRegisteredDelegate> RegisteredDelegate = MakeShared<FActorFeatureRegisteredDelegate>(MoveTemp(Delegate), FeatureName, RequiredState);
+		RegisteredDelegates.Add(RegisteredDelegate);
+	
 		if (bCallImmediately)
 		{
-			// If RealClass isn't valid yet, there can't be any instances
-			UClass* RealClass = ActorClass.Get();
-
-			FActorFeatureRegisteredDelegate DelegateCopy = RegisteredDelegate;
-			CallDelegateForMatchingActors(RealClass, DelegateCopy);
+			// A null actor class means there are no registered instances and the call is ignored
+			CallDelegateForMatchingActors(ActorClass.Get(), *RegisteredDelegate);
 		}
 
-		return ReturnHandle;
+		return RegisteredDelegate->DelegateHandle;
 	}
 
 	return FDelegateHandle();
@@ -942,20 +945,15 @@ bool UGameFrameworkComponentManager::RegisterAndCallForClassInitState(TSoftClass
 	if (ensure(!ActorClass.IsNull() && Delegate.IsBound() && !FeatureName.IsNone()))
 	{
 		FComponentRequestReceiverClassPath ReceiverClassPath(ActorClass);
-		TArray<FActorFeatureRegisteredDelegate>& RegisteredDelegates = ClassFeatureChangeDelegates.FindOrAdd(ReceiverClassPath);
+		FActorFeatureDelegateList& RegisteredDelegates = ClassFeatureChangeDelegates.FindOrAdd(ReceiverClassPath);
 
-		FActorFeatureRegisteredDelegate& RegisteredDelegate = RegisteredDelegates.Emplace_GetRef(MoveTemp(Delegate), FeatureName, RequiredState);
-
-		// Cache handle as delegate could invalidate it
-		FDelegateHandle ReturnHandle = RegisteredDelegate.DelegateHandle;
+		TSharedRef<FActorFeatureRegisteredDelegate> RegisteredDelegate = MakeShared<FActorFeatureRegisteredDelegate>(MoveTemp(Delegate), FeatureName, RequiredState);
+		RegisteredDelegates.Add(RegisteredDelegate);
 
 		if (bCallImmediately)
 		{
-			// If RealClass isn't valid yet, there can't be any instances
-			UClass* RealClass = ActorClass.Get();
-
-			FActorFeatureRegisteredDelegate DelegateCopy = RegisteredDelegate;
-			CallDelegateForMatchingActors(RealClass, DelegateCopy);
+			// A null actor class means there are no registered instances and the call is ignored
+			CallDelegateForMatchingActors(ActorClass.Get(), *RegisteredDelegate);
 		}
 
 		return true;
@@ -969,18 +967,11 @@ bool UGameFrameworkComponentManager::UnregisterClassInitStateDelegate(const TSof
 	if (!ActorClass.IsNull() && Handle.IsValid())
 	{
 		FComponentRequestReceiverClassPath ReceiverClassPath(ActorClass);
-		TArray<FActorFeatureRegisteredDelegate>* RegisteredDelegates = ClassFeatureChangeDelegates.Find(ReceiverClassPath);
+		FActorFeatureDelegateList* RegisteredDelegates = ClassFeatureChangeDelegates.Find(ReceiverClassPath);
 
 		if (RegisteredDelegates)
 		{
-			int32 FoundIndex = GetIndexForRegisteredDelegate(*RegisteredDelegates, Handle);
-
-			if (FoundIndex >= 0)
-			{
-				Handle.Reset();
-				RegisteredDelegates->RemoveAt(FoundIndex);
-				return true;
-			}
+			return RemoveActorFeatureDelegateFromList(*RegisteredDelegates, Handle);
 		}
 	}
 
@@ -992,23 +983,16 @@ bool UGameFrameworkComponentManager::UnregisterClassInitStateDelegate(TSoftClass
 	if (!ActorClass.IsNull() && DelegateToRemove.IsBound())
 	{
 		FComponentRequestReceiverClassPath ReceiverClassPath(ActorClass);
-		TArray<FActorFeatureRegisteredDelegate>* RegisteredDelegates = ClassFeatureChangeDelegates.Find(ReceiverClassPath);
+		FActorFeatureDelegateList* RegisteredDelegates = ClassFeatureChangeDelegates.Find(ReceiverClassPath);
 
 		if (RegisteredDelegates)
 		{
-			int32 FoundIndex = GetIndexForRegisteredDelegate(*RegisteredDelegates, DelegateToRemove);
-
-			if (FoundIndex >= 0)
-			{
-				RegisteredDelegates->RemoveAt(FoundIndex);
-				return true;
-			}
+			return RemoveActorFeatureDelegateFromList(*RegisteredDelegates, DelegateToRemove);
 		}
 	}
 
 	return false;
 }
-
 
 const UGameFrameworkComponentManager::FActorFeatureState* UGameFrameworkComponentManager::FindFeatureStateStruct(const FActorFeatureData* ActorStruct, FName FeatureName, FGameplayTag RequiredState) const
 {
@@ -1053,80 +1037,65 @@ void UGameFrameworkComponentManager::ProcessFeatureStateChange(AActor* Actor, co
 void UGameFrameworkComponentManager::CallFeatureStateDelegates(AActor* Actor, FActorFeatureState StateChange)
 {
 	FActorFeatureData* ActorStruct = ActorFeatureMap.Find(FObjectKey(Actor));
-	int32 DelegateIndex = 0;
-	bool bMoreActorDelegates = true;
-	bool bMoreClassDelegates = true;
-	UClass* ClassToCheck = Actor->GetClass();
+	FActorFeatureDelegateList QueuedDelegates;
 
-	while (ActorStruct)
+	// Should only be called inside ProcessFeatureStateChange
+	ensure(CurrentStateChange != INDEX_NONE);
+
+	if (ActorStruct)
 	{
-		if (bMoreActorDelegates)
+		for (TSharedRef<FActorFeatureRegisteredDelegate>& DelegateRef : ActorStruct->RegisteredDelegates)
 		{
-			// First check the actor-specific delegates in order
-
-			if (ActorStruct->RegisteredDelegates.IsValidIndex(DelegateIndex))
+			FActorFeatureRegisteredDelegate& RegisteredDelegate = *DelegateRef;
+			if ((RegisteredDelegate.RequiredFeatureName.IsNone() || RegisteredDelegate.RequiredFeatureName == StateChange.FeatureName)
+				&& (!RegisteredDelegate.RequiredInitState.IsValid() || IsInitStateAfterOrEqual(StateChange.CurrentState, RegisteredDelegate.RequiredInitState)))
 			{
-				FActorFeatureRegisteredDelegate& RegisteredDelegate = ActorStruct->RegisteredDelegates[DelegateIndex];
-
-				if ((RegisteredDelegate.RequiredFeatureName.IsNone() || RegisteredDelegate.RequiredFeatureName == StateChange.FeatureName)
-					&& (!RegisteredDelegate.RequiredInitState.IsValid() || IsInitStateAfterOrEqual(StateChange.CurrentState, RegisteredDelegate.RequiredInitState)))
-				{
-					// TODO remove invalid delegates now?
-					RegisteredDelegate.Execute(Actor, StateChange.FeatureName, StateChange.Implementer.Get(), StateChange.CurrentState);
-
-					// That could have invalidated anything
-					ActorStruct = ActorFeatureMap.Find(FObjectKey(Actor));
-				}
-
-				DelegateIndex++;
-			}
-			else
-			{
-				DelegateIndex = 0;
-				bMoreActorDelegates = false;
+				// Queue delegates now in case the registered list changes during execution
+				// If new delegates are registered, they are handled at registration time if bCallImmediately is used
+				QueuedDelegates.Add(DelegateRef);
 			}
 		}
-		else if (ClassToCheck)
+
+		UClass* ClassToCheck = Actor->GetClass();
+		while (ClassToCheck)
 		{
 			// Now check the general class delegates
-
 			FComponentRequestReceiverClassPath ReceiverClassPath(ClassToCheck);
-			TArray<FActorFeatureRegisteredDelegate>* FoundDelegates = ClassFeatureChangeDelegates.Find(ReceiverClassPath);
+			FActorFeatureDelegateList* FoundDelegates = ClassFeatureChangeDelegates.Find(ReceiverClassPath);
 
-			if (FoundDelegates && FoundDelegates->IsValidIndex(DelegateIndex))
+			if (FoundDelegates)
 			{
-				FActorFeatureRegisteredDelegate& RegisteredDelegate = (*FoundDelegates)[DelegateIndex];
-
-				if ((RegisteredDelegate.RequiredFeatureName.IsNone() || RegisteredDelegate.RequiredFeatureName == StateChange.FeatureName)
-					&& (!RegisteredDelegate.RequiredInitState.IsValid() || IsInitStateAfterOrEqual(StateChange.CurrentState, RegisteredDelegate.RequiredInitState)))
+				for (TSharedRef<FActorFeatureRegisteredDelegate>& DelegateRef : *FoundDelegates)
 				{
-					// TODO remove invalid delegates now?
-					RegisteredDelegate.Execute(Actor, StateChange.FeatureName, StateChange.Implementer.Get(), StateChange.CurrentState);
+					FActorFeatureRegisteredDelegate& RegisteredDelegate = *DelegateRef;
+					if ((RegisteredDelegate.RequiredFeatureName.IsNone() || RegisteredDelegate.RequiredFeatureName == StateChange.FeatureName)
+						&& (!RegisteredDelegate.RequiredInitState.IsValid() || IsInitStateAfterOrEqual(StateChange.CurrentState, RegisteredDelegate.RequiredInitState)))
+					{
+						QueuedDelegates.Add(DelegateRef);
+					}
 
-					// That could have invalidated anything
-					ActorStruct = ActorFeatureMap.Find(FObjectKey(Actor));
 				}
+			}
 
-				DelegateIndex++;
-			}
-			else
-			{
-				// Start over with parent class
-				DelegateIndex = 0;
-				ClassToCheck = ClassToCheck->GetSuperClass();
-			}
+			ClassToCheck = ClassToCheck->GetSuperClass();
 		}
-		else
-		{
-			return;
-		}
+	}
+
+	// Now execute the queued delegates, if they are removed Execute will skip them
+	for (TSharedRef<FActorFeatureRegisteredDelegate>& QueuedDelegate : QueuedDelegates)
+	{
+		QueuedDelegate->Execute(Actor, StateChange.FeatureName, StateChange.Implementer.Get(), StateChange.CurrentState);
 	}
 }
 
 void UGameFrameworkComponentManager::CallDelegateForMatchingFeatures(AActor* Actor, FActorFeatureRegisteredDelegate& RegisteredDelegate)
 {
 	FActorFeatureData* ActorStruct = ActorFeatureMap.Find(FObjectKey(Actor));
-	int32 StateIndex = 0;
+
+	if (ActorStruct == nullptr)
+	{
+		return;
+	}
 
 	// If feature is specified, just call the one
 	if (!RegisteredDelegate.RequiredFeatureName.IsNone())
@@ -1141,20 +1110,20 @@ void UGameFrameworkComponentManager::CallDelegateForMatchingFeatures(AActor* Act
 		return;
 	}
 	
-	// If feature is not specified, iterate them all
-	while (ActorStruct && ActorStruct->RegisteredStates.IsValidIndex(StateIndex))
+	// If feature is not specified, iterate and run on all valid ones
+	TArray<FActorFeatureState> QueuedStates;
+	for (FActorFeatureState& FeatureState : ActorStruct->RegisteredStates)
 	{
-		const FActorFeatureState* FoundStruct = &ActorStruct->RegisteredStates[StateIndex];
-
-		if (!RegisteredDelegate.RequiredInitState.IsValid() || IsInitStateAfterOrEqual(FoundStruct->CurrentState, RegisteredDelegate.RequiredInitState))
+		if (!RegisteredDelegate.RequiredInitState.IsValid() || IsInitStateAfterOrEqual(FeatureState.CurrentState, RegisteredDelegate.RequiredInitState))
 		{
-			RegisteredDelegate.Execute(Actor, FoundStruct->FeatureName, FoundStruct->Implementer.Get(), FoundStruct->CurrentState);
-
-			// That could have invalidated anything
-			ActorStruct = ActorFeatureMap.Find(FObjectKey(Actor));
+			// Make a copy in case the state memory is invalidated
+			QueuedStates.Add(FeatureState);
 		}
+	}
 
-		StateIndex++;
+	for (FActorFeatureState& FeatureState : QueuedStates)
+	{
+		RegisteredDelegate.Execute(Actor, FeatureState.FeatureName, FeatureState.Implementer.Get(), FeatureState.CurrentState);
 	}
 }
 
@@ -1200,28 +1169,33 @@ UGameFrameworkComponentManager::FActorFeatureData& UGameFrameworkComponentManage
 	return ActorStruct;
 }
 
-int32 UGameFrameworkComponentManager::GetIndexForRegisteredDelegate(TArray<FActorFeatureRegisteredDelegate>& DelegatesToSearch, FDelegateHandle SearchHandle) const
+bool UGameFrameworkComponentManager::RemoveActorFeatureDelegateFromList(FActorFeatureDelegateList& DelegateList, FDelegateHandle& SearchHandle) const
 {
-	for (int32 i = DelegatesToSearch.Num() - 1; i >= 0; i--)
+	for (int32 i = DelegateList.Num() - 1; i >= 0; i--)
 	{
-		if (DelegatesToSearch[i].DelegateHandle == SearchHandle)
+		if (DelegateList[i]->DelegateHandle == SearchHandle)
 		{
-			return i;
+			DelegateList[i]->bRemoved = true;
+			DelegateList.RemoveAt(i);
+			SearchHandle.Reset();
+			return true;
 		}
 	}
 
-	return INDEX_NONE;
+	return false;
 }
 
-int32 UGameFrameworkComponentManager::GetIndexForRegisteredDelegate(TArray<FActorFeatureRegisteredDelegate>& DelegatesToSearch, FActorInitStateChangedBPDelegate SearchDelegate) const
+bool UGameFrameworkComponentManager::RemoveActorFeatureDelegateFromList(FActorFeatureDelegateList& DelegateList, FActorInitStateChangedBPDelegate SearchDelegate) const
 {
-	for (int32 i = DelegatesToSearch.Num() - 1; i >= 0; i--)
+	for (int32 i = DelegateList.Num() - 1; i >= 0; i--)
 	{
-		if (DelegatesToSearch[i].BPDelegate == SearchDelegate)
+		if (DelegateList[i]->BPDelegate == SearchDelegate)
 		{
-			return i;
+			DelegateList[i]->bRemoved = true;
+			DelegateList.RemoveAt(i);
+			return true;
 		}
 	}
 
-	return INDEX_NONE;
+	return false;
 }
