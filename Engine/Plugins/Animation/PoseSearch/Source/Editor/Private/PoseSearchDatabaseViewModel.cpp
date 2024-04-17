@@ -27,6 +27,7 @@
 #include "PoseSearchDatabasePreviewScene.h"
 #include "PoseSearchEditor.h"
 #include "PropertyEditorModule.h"
+#include "PoseSearch/PoseSearchMultiSequence.h"
 
 namespace UE::PoseSearch
 {
@@ -671,6 +672,52 @@ bool FDatabaseViewModel::IsEnabled(int32 AnimationAssetIndex) const
 		if (const FPoseSearchDatabaseAnimationAssetBase* DatabaseAnimationAsset = Database->GetAnimationAssetBase(AnimationAssetIndex))
 		{
 			return DatabaseAnimationAsset->IsEnabled();
+		}
+	}
+
+	return false;
+}
+
+bool FDatabaseViewModel::SetAnimationAsset(int32 AnimationAssetIndex, UObject* AnimAsset)
+{
+	if (UPoseSearchDatabase* Database = GetPoseSearchDatabase())
+	{
+		if (FPoseSearchDatabaseAnimationAssetBase* DatabaseAnimationAsset = Database->GetMutableAnimationAssetBase(AnimationAssetIndex))
+		{
+			Database->Modify();
+
+			// Ensure that our target database item matches the input object's class.
+			UClass* AssetClass = AnimAsset->GetClass();
+			if (AssetClass == DatabaseAnimationAsset->GetAnimationAssetStaticClass())
+			{
+				if (AssetClass->IsChildOf( UAnimSequence::StaticClass()))
+				{
+					FPoseSearchDatabaseSequence* DatabaseSequenceAsset = static_cast<FPoseSearchDatabaseSequence*>(DatabaseAnimationAsset);
+					DatabaseSequenceAsset->Sequence = Cast<UAnimSequence>(AnimAsset);
+				}
+				else if (AssetClass->IsChildOf(UAnimComposite::StaticClass()))
+				{
+					FPoseSearchDatabaseAnimComposite* DatabaseCompositeAsset = static_cast<FPoseSearchDatabaseAnimComposite*>(DatabaseAnimationAsset);
+					DatabaseCompositeAsset->AnimComposite = Cast<UAnimComposite>(AnimAsset);
+				}
+				else if (AssetClass->IsChildOf(UAnimMontage::StaticClass()))
+				{
+					FPoseSearchDatabaseAnimMontage* DatabaseMontageAsset = static_cast<FPoseSearchDatabaseAnimMontage*>(DatabaseAnimationAsset);
+					DatabaseMontageAsset->AnimMontage = Cast<UAnimMontage>(AnimAsset);
+				}
+				else if (AssetClass->IsChildOf(UBlendSpace::StaticClass()))
+				{
+					FPoseSearchDatabaseBlendSpace* DatabaseBlendSpaceAsset = static_cast<FPoseSearchDatabaseBlendSpace*>(DatabaseAnimationAsset);
+					DatabaseBlendSpaceAsset->BlendSpace = Cast<UBlendSpace>(AnimAsset);
+				}
+				else if (AssetClass->IsChildOf(UPoseSearchMultiSequence::StaticClass()))
+				{
+					FPoseSearchDatabaseMultiSequence* DatabaseMultiSequenceAsset = static_cast<FPoseSearchDatabaseMultiSequence*>(DatabaseAnimationAsset);
+					DatabaseMultiSequenceAsset->MultiSequence = Cast<UPoseSearchMultiSequence>(AnimAsset);
+				}
+
+				return true;
+			}
 		}
 	}
 

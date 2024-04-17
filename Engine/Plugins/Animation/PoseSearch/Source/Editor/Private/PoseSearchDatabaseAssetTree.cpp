@@ -40,8 +40,6 @@ namespace UE::PoseSearch
 		TSharedRef<FDatabaseViewModel> InEditorViewModel)
 	{
 		EditorViewModel = InEditorViewModel;
-		
-		ColumnSizeData.SetValueColumnWidth(0.6f);
 
 		CreateCommandList();
 

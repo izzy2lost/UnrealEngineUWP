@@ -65,6 +65,9 @@ namespace UE::PoseSearch
 		TWeakPtr<FDatabaseAssetTreeNode> WeakAssetTreeNode;
 		TWeakPtr<FDatabaseViewModel> EditorViewModel;
 		TWeakPtr<SDatabaseAssetTree> SkeletonView;
+		
+		FColor AssetTypeColor;
+		TSharedPtr<SOverlay> AssetThumbnailOverlay;
 	};
 }
 

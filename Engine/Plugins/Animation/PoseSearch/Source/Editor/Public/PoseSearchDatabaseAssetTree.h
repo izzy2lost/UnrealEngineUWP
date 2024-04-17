@@ -40,7 +40,6 @@ namespace UE::PoseSearch
 		void FinalizeTreeChanges(bool bRecoverSelection = false, bool bRefreshView = true);
 
 		void SetSelectedItem(int32 SourceAssetIdx, bool bClearSelection);
-		FDetailColumnSizeData& GetColumnSizeData() { return ColumnSizeData; }
 		
 	protected:
 		TWeakPtr<FDatabaseViewModel> EditorViewModel;
@@ -117,8 +116,6 @@ namespace UE::PoseSearch
 		void OnConvertToBranchIn();
 
 		friend SDatabaseAssetListItem;
-
-		FDetailColumnSizeData ColumnSizeData;
 		
 	protected:
 		// Called when an item is selected/deselected
