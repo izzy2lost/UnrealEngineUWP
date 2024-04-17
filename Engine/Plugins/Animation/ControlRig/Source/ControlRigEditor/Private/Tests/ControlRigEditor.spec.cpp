@@ -18,7 +18,7 @@
 
 
 BEGIN_DEFINE_SPEC(
-	FControlRigEditorSpec, "Editor.Content",
+	FControlRigEditorSpec, "Animation.Editor",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 	
 	UControlRigBlueprint* ControlRigBlueprint = nullptr;
