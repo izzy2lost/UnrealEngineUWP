@@ -737,18 +737,23 @@ inline const int32 NumInlineShaderBindings = 10;
 struct FMeshDrawCommandDebugData
 {
 #if MESH_DRAW_COMMAND_DEBUG_DATA
+	// sorted from larger to smaller to minimize padding
+	TShaderRef<FShader> VertexShader;
+	TShaderRef<FShader> PixelShader;
 	const FPrimitiveSceneProxy* PrimitiveSceneProxyIfNotUsingStateBuckets;
 	const FMaterial* Material;
 	const FMaterialRenderProxy* MaterialRenderProxy;
-	TShaderRef<FShader> VertexShader;
-	TShaderRef<FShader> PixelShader;
+#if PSO_PRECACHING_VALIDATE
+	// so far these are only used for PSO precaching validation
 	const FVertexFactory* VertexFactory;
 	const FVertexFactoryType* VertexFactoryType;
+#endif
+	FName ResourceName;
+#if PSO_PRECACHING_VALIDATE
+	uint32 PSOCollectorIndex;
+#endif
 	int8 LODIndex;
 	uint8 SegmentIndex;
-	uint32 PSOCollectorIndex;
-	FName ResourceName;
-	FString MaterialName;
 #endif
 };
 
@@ -1911,7 +1916,13 @@ public:
 class FCachedPassMeshDrawListContextDeferred : public FCachedPassMeshDrawListContext
 {
 public:
-	FCachedPassMeshDrawListContextDeferred(FScene& InScene) : FCachedPassMeshDrawListContext(InScene) {}
+	FCachedPassMeshDrawListContextDeferred(FScene& InScene) : FCachedPassMeshDrawListContext(InScene)
+	{
+		if (LIKELY(bUseGPUScene))
+		{
+			DeferredCommandHashes.Reserve(DeferredCommands.Max());
+		}
+	}
 
 	virtual void FinalizeCommand(
 		const FMeshBatch& MeshBatch, 
@@ -1928,7 +1939,7 @@ public:
 	void DeferredFinalizeMeshDrawCommands(const TArrayView<FPrimitiveSceneInfo*>& SceneInfos, int32 Start, int32 End);
 
 private:
-	TArray<FMeshDrawCommand> DeferredCommands;
+	TArray<FMeshDrawCommand, TInlineAllocator<192>> DeferredCommands;
 	TArray<Experimental::FHashType> DeferredCommandHashes;
 };
 

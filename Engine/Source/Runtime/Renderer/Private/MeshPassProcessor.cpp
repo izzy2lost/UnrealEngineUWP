@@ -1667,13 +1667,14 @@ void FMeshDrawCommand::SetDebugData(const FPrimitiveSceneProxy* PrimitiveScenePr
 	DebugData.MaterialRenderProxy = MaterialRenderProxy;
 	DebugData.VertexShader = UntypedShaders.VertexShader;
 	DebugData.PixelShader = UntypedShaders.PixelShader;
-	DebugData.VertexFactory = VertexFactory;
-	DebugData.VertexFactoryType = VertexFactory->GetType();
 	DebugData.LODIndex = MeshBatch.LODIndex;
 	DebugData.SegmentIndex = MeshBatch.SegmentIndex;
-	DebugData.PSOCollectorIndex = PSOCollectorIndex;
 	DebugData.ResourceName =  PrimitiveSceneProxy ? PrimitiveSceneProxy->GetResourceName() : FName();
-	DebugData.MaterialName = MaterialRenderProxy->GetMaterialName();
+#if PSO_PRECACHING_VALIDATE
+	DebugData.VertexFactory = VertexFactory;
+	DebugData.VertexFactoryType = VertexFactory->GetType();
+	DebugData.PSOCollectorIndex = PSOCollectorIndex;
+#endif
 }
 #endif
 
@@ -1691,7 +1692,7 @@ void FMeshDrawCommand::GetStatsData(FVisibleMeshDrawCommandStatsData& OutVisible
 	OutVisibleStatsData.LODIndex = DebugData.LODIndex;
 	OutVisibleStatsData.SegmentIndex = DebugData.SegmentIndex;
 	OutVisibleStatsData.ResourceName = DebugData.ResourceName;
-	OutVisibleStatsData.MaterialName = DebugData.MaterialName;
+	OutVisibleStatsData.MaterialName = DebugData.MaterialRenderProxy->GetMaterialName();
 #endif
 }
 #endif // MESH_DRAW_COMMAND_STATS
@@ -2262,7 +2263,7 @@ FMeshDrawCommand::FMeshDrawEvent::FMeshDrawEvent(const FMeshDrawCommand& MeshDra
 		  RHICmdList
 		, GShowMaterialDrawEvents != 0
 		, TEXT("%s %s (%u instances)")
-		, MeshDrawCommand.DebugData.MaterialName
+		, MeshDrawCommand.DebugData.MaterialRenderProxy->GetMaterialName()
 		, MeshDrawCommand.DebugData.ResourceName
 		, MeshDrawCommand.NumInstances * InstanceFactor
 	)
