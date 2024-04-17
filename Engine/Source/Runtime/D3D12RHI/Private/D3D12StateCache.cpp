@@ -619,7 +619,7 @@ void FD3D12StateCache::ApplyResources(const FD3D12RootSignature* const pRootSign
 #if D3D12RHI_USE_CONSTANT_BUFFER_VIEWS
 	CBVSlotMask CurrentShaderDirtyCBVSlots[SF_NumStandardFrequencies] = {};
 #endif
-	UAVSlotMask CurrentShaderDirtyUAVSlots = 0;
+	UAVSlotMask CurrentShaderDirtyUAVSlots[SF_NumStandardFrequencies] = {};
 	uint32 NumUAVs = 0;
 	uint32 NumSRVs[SF_NumStandardFrequencies] = {};
 #if D3D12RHI_USE_CONSTANT_BUFFER_VIEWS
@@ -627,28 +627,34 @@ void FD3D12StateCache::ApplyResources(const FD3D12RootSignature* const pRootSign
 #endif
 	uint32 NumViews = 0;
 
-	const EShaderFrequency UAVStage = StartStage == SF_Compute ? SF_Compute : SF_Pixel;
+	EShaderFrequency ComputeUAVStages[] = {SF_Compute};
+	EShaderFrequency GraphicsUAVStages[] = {SF_Vertex, SF_Pixel};
+
+	TArrayView<EShaderFrequency> UAVStages = StartStage == SF_Compute ? MakeArrayView(ComputeUAVStages) : MakeArrayView(GraphicsUAVStages);
 
 	for (uint32 iTries = 0; iTries < 2; ++iTries)
 	{
 		if (bUAVs)
 		{
-			const UAVSlotMask CurrentShaderUAVRegisterMask = BitMask<UAVSlotMask>(PipelineState.Common.CurrentShaderUAVCounts[UAVStage]);
-			CurrentShaderDirtyUAVSlots = CurrentShaderUAVRegisterMask & PipelineState.Common.UAVCache.DirtySlotMask[UAVStage];
-			if (CurrentShaderDirtyUAVSlots)
+			for (EShaderFrequency UAVStage : UAVStages)
 			{
-				if (ResourceBindingTier <= D3D12_RESOURCE_BINDING_TIER_2)
+				const UAVSlotMask CurrentShaderUAVRegisterMask = BitMask<UAVSlotMask>(PipelineState.Common.CurrentShaderUAVCounts[UAVStage]);
+				CurrentShaderDirtyUAVSlots[UAVStage] = CurrentShaderUAVRegisterMask & PipelineState.Common.UAVCache.DirtySlotMask[UAVStage];
+				if (CurrentShaderDirtyUAVSlots[UAVStage])
 				{
-					// Tier 1 and 2 HW requires the full number of UAV descriptors defined in the root signature's descriptor table.
-					NumUAVs = pRootSignature->MaxUAVCount(UAVStage);
-				}
-				else
-				{
-					NumUAVs = PipelineState.Common.CurrentShaderUAVCounts[UAVStage];
-				}
+					if (ResourceBindingTier <= D3D12_RESOURCE_BINDING_TIER_2)
+					{
+						// Tier 1 and 2 HW requires the full number of UAV descriptors defined in the root signature's descriptor table.
+						NumUAVs = pRootSignature->MaxUAVCount(UAVStage);
+					}
+					else
+					{
+						NumUAVs = PipelineState.Common.CurrentShaderUAVCounts[UAVStage];
+					}
 
-				check(NumUAVs > 0 && NumUAVs <= MAX_UAVS);
-				NumViews += NumUAVs;
+					check(NumUAVs > 0 && NumUAVs <= MAX_UAVS);
+					NumViews += NumUAVs;
+				}
 			}
 		}
 
@@ -725,11 +731,16 @@ void FD3D12StateCache::ApplyResources(const FD3D12RootSignature* const pRootSign
 	uint32 ViewHeapSlot = DescriptorCache.GetCurrentViewHeap()->ReserveSlots(NumViews);
 
 	// Unordered access views
-	if (CurrentShaderDirtyUAVSlots)
 	{
 		SCOPE_CYCLE_COUNTER(STAT_D3D12ApplyStateSetUAVTime);
-		const D3D12_GPU_DESCRIPTOR_HANDLE BindDescriptor = DescriptorCache.BuildUAVTable(UAVStage, pRootSignature, PipelineState.Common.UAVCache, CurrentShaderDirtyUAVSlots, NumUAVs, ViewHeapSlot);
-		DescriptorCache.SetUAVTable(UAVStage, pRootSignature, PipelineState.Common.UAVCache, NumUAVs, BindDescriptor);
+		for (EShaderFrequency UAVStage : UAVStages)
+		{
+			if (CurrentShaderDirtyUAVSlots[UAVStage])
+			{
+				const D3D12_GPU_DESCRIPTOR_HANDLE BindDescriptor = DescriptorCache.BuildUAVTable(UAVStage, pRootSignature, PipelineState.Common.UAVCache, CurrentShaderDirtyUAVSlots[UAVStage], NumUAVs, ViewHeapSlot);
+				DescriptorCache.SetUAVTable(UAVStage, pRootSignature, PipelineState.Common.UAVCache, NumUAVs, BindDescriptor);
+			}
+		}
 	}
 
 	// Shader resource views

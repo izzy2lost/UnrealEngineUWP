@@ -521,6 +521,12 @@
 #define PLATFORM_SUPPORTS_VERTEX_SHADER_SRVS 1
 #endif
 
+// Whether the platform supports binding UAVs to the vertex shader stage.
+#ifndef PLATFORM_SUPPORTS_VERTEX_SHADER_UAVS
+#define PLATFORM_SUPPORTS_VERTEX_SHADER_UAVS 0
+#endif
+
+
 // ---------------------------------------------------- Compiler specific defaults and fallbacks
 
 #if !defined(PLATFORM_BREAK)

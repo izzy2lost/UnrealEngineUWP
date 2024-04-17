@@ -13,5 +13,6 @@ class FRHIGraphicsUAVTests
 public:
 
 	static bool Test_GraphicsUAV_PixelShader(FRHICommandListImmediate& RHICmdList);
+	static bool Test_GraphicsUAV_VertexShader(FRHICommandListImmediate& RHICmdList);
 };
 

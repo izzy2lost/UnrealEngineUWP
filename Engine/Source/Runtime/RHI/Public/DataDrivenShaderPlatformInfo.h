@@ -99,6 +99,7 @@ class FGenericDataDrivenShaderPlatformInfo
 	uint32 bSupportsWaterIndirectDraw : 1;
 	uint32 bSupportsAsyncPipelineCompilation : 1;
 	uint32 bSupportsVertexShaderSRVs : 1; // Whether SRVs can be bound to vertex shaders (may be independent from ManualVertexFetch)
+	uint32 bSupportsVertexShaderUAVs : int32(ERHIFeatureSupport::NumBits); // Whether UAVs can be bound to vertex shaders. Requires run-time check of GRHIGlobals.SupportsVertexShaderUAVs.
 	uint32 bSupportsManualVertexFetch : 1;
 	uint32 bRequiresReverseCullingOnMobile : 1;
 	uint32 bOverrideFMaterial_NeedsGBufferEnabled : 1;
@@ -675,6 +676,12 @@ public:
 	{
 		check(IsValid(Platform));
 		return Infos[Platform].bSupportsVertexShaderSRVs;
+	}
+
+	static FORCEINLINE_DEBUGGABLE const ERHIFeatureSupport GetSupportsVertexShaderUAVs(const FStaticShaderPlatform Platform)
+	{
+		check(IsValid(Platform));
+		return ERHIFeatureSupport(Infos[Platform].bSupportsVertexShaderUAVs);
 	}
 
 	static FORCEINLINE_DEBUGGABLE const bool GetSupportsManualVertexFetch(const FStaticShaderPlatform Platform)

@@ -140,6 +140,9 @@ struct FRHIGlobals
 	// true if the RHI supports Pixel Shader UAV
 	bool SupportsPixelShaderUAVs = true;
 
+	// true if the RHI supports Vertex Shader UAV
+	bool SupportsVertexShaderUAVs = false;
+
 	/** true if PF_G8 render targets are supported */
 	TRHIGlobal<bool> SupportsRenderTargetFormat_PF_G8 = true;
 

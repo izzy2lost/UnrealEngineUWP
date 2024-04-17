@@ -278,10 +278,12 @@ D3D12_GPU_DESCRIPTOR_HANDLE FD3D12DescriptorCache::BuildUAVTable(EShaderFrequenc
 
 void FD3D12DescriptorCache::SetUAVTable(EShaderFrequency ShaderStage, const FD3D12RootSignature* RootSignature, FD3D12UnorderedAccessViewCache& Cache, uint32 SlotsNeeded, const D3D12_GPU_DESCRIPTOR_HANDLE& BindDescriptor)
 {
-	check(ShaderStage == SF_Compute || ShaderStage == SF_Pixel);
+	check(ShaderStage == SF_Compute || ShaderStage == SF_Pixel || ShaderStage == SF_Vertex);
 	const uint32 RootParameterIndex = RootSignature->UAVRDTBindSlot(ShaderStage);
 
-	if (ShaderStage == SF_Pixel)
+	check(FD3D12RootSignature::IsValidBindSlot(RootParameterIndex));
+
+	if (ShaderStage == SF_Pixel || ShaderStage == SF_Vertex)
 	{
 		Context.GraphicsCommandList()->SetGraphicsRootDescriptorTable(RootParameterIndex, BindDescriptor);
 	}

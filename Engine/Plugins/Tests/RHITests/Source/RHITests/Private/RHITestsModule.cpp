@@ -100,7 +100,8 @@ static bool RunTests_RenderThread(FRHICommandListImmediate& RHICmdList)
 	// ------------------------------------------------
 	{
 		RUN_TEST(FRHIGraphicsUAVTests::Test_GraphicsUAV_PixelShader(RHICmdList));
-	}	
+		RUN_TEST(FRHIGraphicsUAVTests::Test_GraphicsUAV_VertexShader(RHICmdList));
+	}
 
 	// @todo - add more tests
 	return bResult;

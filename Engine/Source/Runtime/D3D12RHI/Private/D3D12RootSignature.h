@@ -20,6 +20,7 @@ enum ERootParameterKeys
 	VS_CBVs,
 	VS_RootCBVs,
 	VS_Samplers,
+	VS_UAVs,
 	GS_SRVs,
 	GS_CBVs,
 	GS_RootCBVs,
@@ -36,7 +37,7 @@ enum ERootParameterKeys
 	ALL_CBVs,
 	ALL_RootCBVs,
 	ALL_Samplers,
-	ALL_UAVs,
+	ALL_UAVs, // non-VS stages (PS, CS, etc.)
 	RPK_RootParameterKeyCount,
 };
 
@@ -176,8 +177,14 @@ public:
 
 	inline uint32 UAVRDTBindSlot(EShaderFrequency ShaderStage) const
 	{
-		check(ShaderStage == SF_Pixel || ShaderStage == SF_Compute);
-		return BindSlotMap[ALL_UAVs];
+		check(ShaderStage == SF_Pixel || ShaderStage == SF_Vertex || ShaderStage == SF_Compute);
+		const uint32 MapSlotIndex = ShaderStage == SF_Vertex ? VS_UAVs : ALL_UAVs;
+		return BindSlotMap[MapSlotIndex];
+	}
+
+	inline static bool IsValidBindSlot(uint32 BindSlotMapIndex)
+	{
+		return BindSlotMapIndex < InvalidBindSlotMapIndex;
 	}
 
 	inline bool HasUAVs() const { return bHasUAVs; }
@@ -239,7 +246,7 @@ private:
 			return;
 		}
 
-		check(*pBindSlot == 0xFF);
+		check(*pBindSlot == InvalidBindSlotMapIndex);
 		*pBindSlot = RootParameterIndex;
 
 		bHasSamplers = true;
@@ -263,7 +270,7 @@ private:
 			return;
 		}
 
-		check(*pBindSlot == 0xFF);
+		check(*pBindSlot == InvalidBindSlotMapIndex);
 		*pBindSlot = RootParameterIndex;
 
 		bHasSRVs = true;
@@ -287,7 +294,7 @@ private:
 			return;
 		}
 
-		check(*pBindSlot == 0xFF);
+		check(*pBindSlot == InvalidBindSlotMapIndex);
 		*pBindSlot = RootParameterIndex;
 
 		bHasCBVs = true;
@@ -311,7 +318,7 @@ private:
 			return;
 		}
 
-		check(*pBindSlot == 0xFF);
+		check(*pBindSlot == InvalidBindSlotMapIndex);
 		*pBindSlot = RootParameterIndex;
 
 		bHasRootCBs = true;
@@ -319,11 +326,12 @@ private:
 
 	inline void SetUAVRDTBindSlot(EShaderFrequency SF, uint8 RootParameterIndex)
 	{
-		check(SF == SF_Pixel || SF == SF_Compute || SF == SF_NumFrequencies);
+		check(SF == SF_Pixel || SF == SF_Vertex || SF == SF_Compute || SF == SF_NumFrequencies);
 
-		uint8* pBindSlot = &BindSlotMap[ALL_UAVs];
+		const uint32 MapSlotIndex = SF == SF_Vertex ? VS_UAVs : ALL_UAVs;
+		uint8* pBindSlot = &BindSlotMap[MapSlotIndex];
 
-		check(*pBindSlot == 0xFF);
+		check(*pBindSlot == InvalidBindSlotMapIndex);
 		*pBindSlot = RootParameterIndex;
 
 		bHasUAVs = true;
@@ -445,6 +453,7 @@ private:
 
 	TRefCountPtr<ID3D12RootSignature> RootSignature;
 	uint8 BindSlotMap[RPK_RootParameterKeyCount];	// This map uses an enum as a key to lookup the root parameter index
+	static constexpr uint8 InvalidBindSlotMapIndex = 0xFF;
 	ShaderStage Stage[SF_NumFrequencies];
 	TRefCountPtr<ID3DBlob> RootSignatureBlob;
 

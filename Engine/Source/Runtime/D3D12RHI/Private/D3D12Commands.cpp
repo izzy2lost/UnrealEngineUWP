@@ -1023,13 +1023,13 @@ static void SetShaderParametersOnContext(
 	{
 		if (Parameter.Type == FRHIShaderParameterResource::EType::UnorderedAccessView)
 		{
-			if (ShaderFrequency == SF_Pixel || ShaderFrequency == SF_Compute)
+			if (ShaderFrequency == SF_Pixel || ShaderFrequency == SF_Vertex|| ShaderFrequency == SF_Compute)
 			{
 				Binder.SetUAV(static_cast<FRHIUnorderedAccessView*>(Parameter.Resource), Parameter.Index, true);
 			}
 			else
 			{
-				checkf(false, TEXT("TShaderRHI Can't have compute shader to be set. UAVs are not supported on vertex, tessellation and geometry shaders."));
+				checkf(false, TEXT("TShaderRHI Can't have compute shader to be set. UAVs are not supported tessellation and geometry shaders."));
 			}
 		}
 	}
@@ -1114,13 +1114,13 @@ static void SetShaderUnbindsOnContext(
 			Context.StateCache.SetShaderResourceView(ShaderFrequency, nullptr, Unbind.Index);
 			break;
 		case FRHIShaderParameterUnbind::EType::UnorderedAccessView:
-			if (ShaderFrequency == SF_Pixel || ShaderFrequency == SF_Compute)
+			if (ShaderFrequency == SF_Pixel || ShaderFrequency == SF_Vertex || ShaderFrequency == SF_Compute)
 			{
 				Context.StateCache.SetUAV(ShaderFrequency, Unbind.Index, nullptr);
 			}
 			else
 			{
-				checkf(false, TEXT("TShaderRHI Can't have compute shader to be set. UAVs are not supported on vertex, tessellation and geometry shaders."));
+				checkf(false, TEXT("TShaderRHI Can't have compute shader to be set. UAVs are not supported tessellation and geometry shaders."));
 			}
 			break;
 		default:

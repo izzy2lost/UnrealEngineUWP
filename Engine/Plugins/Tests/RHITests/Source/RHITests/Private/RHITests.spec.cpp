@@ -184,5 +184,11 @@ void FAutomationRHITest::Define()
 			bool bResult = RunOnRenderThreadSynchronous(FRHIGraphicsUAVTests::Test_GraphicsUAV_PixelShader);
 			TestEqual("Pixel shader UAV failed", bResult, 1);
 		});
+
+		It("Vertex shader UAV", [this]()
+		{
+			bool bResult = RunOnRenderThreadSynchronous(FRHIGraphicsUAVTests::Test_GraphicsUAV_VertexShader);
+			TestEqual("Vixel shader UAV failed", bResult, 1);
+		});
 	});
 }

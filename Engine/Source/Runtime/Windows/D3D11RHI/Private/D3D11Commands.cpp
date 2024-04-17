@@ -353,13 +353,13 @@ struct FD3D11ResourceBinder
 		{
 			RHI.InternalSetUAVCS(Index, FD3D11DynamicRHI::ResourceCast(InUnorderedAccessView));
 		}
-		else if (ShaderFrequency == SF_Pixel)
+		else if (ShaderFrequency == SF_Pixel || ShaderFrequency == SF_Vertex)
 		{
-			RHI.InternalSetUAVPS(Index, FD3D11DynamicRHI::ResourceCast(InUnorderedAccessView));
+			RHI.InternalSetUAVVSPS(Index, FD3D11DynamicRHI::ResourceCast(InUnorderedAccessView));
 		}
 		else
 		{
-			checkf(false, TEXT("UAVs are not supported on vertex and geometry shaders."));
+			checkf(false, TEXT("UAVs are only supported in compute, pixel and vertex shaders."));
 		}
 	}
 
@@ -630,7 +630,7 @@ void FD3D11DynamicRHI::InternalSetUAVCS(uint32 BindIndex, FD3D11UnorderedAccessV
 	Direct3DDeviceIMContext->CSSetUnorderedAccessViews(BindIndex, 1, &D3D11UAV, &InitialCount);
 }
 
-void FD3D11DynamicRHI::InternalSetUAVPS(uint32 BindIndex, FD3D11UnorderedAccessView* UnorderedAccessViewRHI)
+void FD3D11DynamicRHI::InternalSetUAVVSPS(uint32 BindIndex, FD3D11UnorderedAccessView* UnorderedAccessViewRHI)
 {
 	check(BindIndex < D3D11_PS_CS_UAV_REGISTER_COUNT);
 	if (CurrentUAVs[BindIndex] != UnorderedAccessViewRHI)
@@ -1032,46 +1032,51 @@ void FD3D11DynamicRHI::CommitGraphicsResourceTables()
 	FD3D11BoundShaderState* RESTRICT CurrentBoundShaderState = (FD3D11BoundShaderState*)BoundShaderStateHistory.GetLast();
 	check(CurrentBoundShaderState);
 
-	auto* PixelShader = CurrentBoundShaderState->GetPixelShader();
-	if (PixelShader)
+	bool bRTVInvalidate = false;
+	uint32 UAVMask = 0;
+
+	if (auto* Shader = CurrentBoundShaderState->GetPixelShader())
 	{
-		// Because d3d11 binding uses the same slots for UAVs and RTVs, we have to rebind when two shaders with different sets of rendertargets are bound,
-		// as they can potentially be used by UAVs, which can cause them to unbind RTVs used by subsequent shaders.
-		bool bRTVInvalidate = false;
-		uint32 UAVMask = PixelShader->UAVMask & CurrentRTVOverlapMask;
-		if (GDX11ReduceRTVRebinds && 
-			(0 != ((~CurrentUAVMask) & UAVMask) && CurrentUAVMask == (CurrentUAVMask & UAVMask)))
-		{
-			//if the mask only -adds- uav binds, no RTs will be missing so we just grow the mask
-			CurrentUAVMask = UAVMask;
-		}
-		else if (CurrentUAVMask != UAVMask)
-		{
-			bRTVInvalidate = true;
-			CurrentUAVMask = UAVMask;
-		}
-
-		if (bRTVInvalidate)
-		{
-			CommitRenderTargets(true);
-			DirtyUniformBuffers[SF_Pixel] = -1;
-		}
-
-		SetResourcesFromTables(PixelShader);
-
-		if (UAVSChanged)
-		{
-			CommitUAVs();
-		}
+		UAVMask |= Shader->UAVMask & CurrentRTVOverlapMask;
+		SetResourcesFromTables(Shader);
 	}
 
 	if (auto* Shader = CurrentBoundShaderState->GetVertexShader())
 	{
+		UAVMask |= Shader->UAVMask & CurrentRTVOverlapMask;
 		SetResourcesFromTables(Shader);
 	}
 	if (auto* Shader = CurrentBoundShaderState->GetGeometryShader())
 	{
+		UAVMask |= Shader->UAVMask & CurrentRTVOverlapMask;
 		SetResourcesFromTables(Shader);
+	}
+
+	// Because d3d11 binding uses the same slots for UAVs and RTVs, we have to rebind when two shaders with different sets of rendertargets are bound,
+	// as they can potentially be used by UAVs, which can cause them to unbind RTVs used by subsequent shaders.
+	if (GDX11ReduceRTVRebinds &&
+		(0 != ((~CurrentUAVMask) & UAVMask) && CurrentUAVMask == (CurrentUAVMask & UAVMask)))
+	{
+		//if the mask only -adds- uav binds, no RTs will be missing so we just grow the mask
+		CurrentUAVMask = UAVMask;
+	}
+	else if (CurrentUAVMask != UAVMask)
+	{
+		bRTVInvalidate = true;
+		CurrentUAVMask = UAVMask;
+	}
+
+	if (bRTVInvalidate)
+	{
+		CommitRenderTargets(true);
+		DirtyUniformBuffers[SF_Pixel] = -1;
+		DirtyUniformBuffers[SF_Vertex] = -1;
+		DirtyUniformBuffers[SF_Geometry] = -1;
+	}
+
+	if (UAVSChanged)
+	{
+		CommitUAVs();
 	}
 }
 

@@ -542,7 +542,7 @@ void FD3D12RootSignature::InternalAnalyzeSignature(const RootSignatureDescType& 
 {
 	// Reset members to default values.
 	{
-		FMemory::Memset(BindSlotMap, 0xFF, sizeof(BindSlotMap));
+		FMemory::Memset(BindSlotMap, InvalidBindSlotMapIndex, sizeof(BindSlotMap));
 		bHasUAVs = false;
 		bHasSRVs = false;
 		bHasCBVs = false;
@@ -704,7 +704,7 @@ void FD3D12RootSignature::InternalAnalyzeSignature(const RootSignatureDescType& 
 				UpdateCBVRegisterMaskWithDescriptor(CurrentVisibleSF, CurrentParameter.Descriptor);
 
 				// The first CBV for this stage must come first in the root signature, and subsequent root CBVs for this stage must be contiguous.
-				check(0xFF != CBVRDBindSlot(CurrentVisibleSF, 0));
+				check(InvalidBindSlotMapIndex != CBVRDBindSlot(CurrentVisibleSF, 0));
 				check(i == CBVRDBindSlot(CurrentVisibleSF, 0) + CurrentParameter.Descriptor.ShaderRegister);
 			}
 			break;

@@ -145,6 +145,7 @@ void FGenericDataDrivenShaderPlatformInfo::SetDefaultValues()
 	bSupportsWaterIndirectDraw = true;
 	bSupportsAsyncPipelineCompilation = true;
 	bSupportsVertexShaderSRVs = true; // Explicitly overriden to false for ES 3.1 platforms via DDPI ini
+	bSupportsVertexShaderUAVs = uint32(ERHIFeatureSupport::Unsupported);
 	bSupportsManualVertexFetch = true;
 	bSupportsVolumeTextureAtomics = true;
 	bSupportsClipDistance = true;
@@ -277,6 +278,7 @@ void FGenericDataDrivenShaderPlatformInfo::ParseDataDrivenShaderInfo(const FConf
 	GET_SECTION_BOOL_HELPER(bSupportsWaterIndirectDraw);
 	GET_SECTION_BOOL_HELPER(bSupportsAsyncPipelineCompilation);
 	GET_SECTION_BOOL_HELPER(bSupportsVertexShaderSRVs);
+	GET_SECTION_SUPPORT_HELPER(bSupportsVertexShaderUAVs);
 	GET_SECTION_BOOL_HELPER(bSupportsManualVertexFetch);
 	GET_SECTION_BOOL_HELPER(bRequiresReverseCullingOnMobile);
 	GET_SECTION_BOOL_HELPER(bOverrideFMaterial_NeedsGBufferEnabled);
@@ -477,6 +479,7 @@ void FGenericDataDrivenShaderPlatformInfo::UpdatePreviewPlatforms()
 				PREVIEW_USE_RUNTIME_VALUE(MaxMeshShaderThreadGroupSize);
 				PREVIEW_USE_RUNTIME_VALUE(bSupportsSceneDataCompressedTransforms);
 				PREVIEW_USE_RUNTIME_VALUE(bSupportsVertexShaderSRVs);
+				PREVIEW_USE_RUNTIME_VALUE(bSupportsVertexShaderUAVs);
 				PREVIEW_USE_RUNTIME_VALUE(bSupportsManualVertexFetch);
 				PREVIEW_USE_RUNTIME_VALUE(bSupportsRealTypes);
 				PREVIEW_USE_RUNTIME_VALUE(bSupportsUniformBufferObjects);

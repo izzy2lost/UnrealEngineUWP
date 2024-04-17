@@ -1318,7 +1318,7 @@ const FD3D12RootSignature* FD3D12Adapter::GetRootSignature(const FBoundShaderSta
 
 	const D3D12_RESOURCE_BINDING_TIER ResourceBindingTier = GetResourceBindingTier();
 
-	QuantizeBoundShaderStateCommon(QBSS, FD3D12DynamicRHI::ResourceCast(BSS.GetVertexShader()),        ResourceBindingTier, SV_Vertex);
+	QuantizeBoundShaderStateCommon(QBSS, FD3D12DynamicRHI::ResourceCast(BSS.GetVertexShader()),        ResourceBindingTier, SV_Vertex, true /*bAllowUAVs*/);
 #if PLATFORM_SUPPORTS_MESH_SHADERS
 	QuantizeBoundShaderStateCommon(QBSS, FD3D12DynamicRHI::ResourceCast(BSS.GetMeshShader()),          ResourceBindingTier, SV_Mesh);
 	QuantizeBoundShaderStateCommon(QBSS, FD3D12DynamicRHI::ResourceCast(BSS.GetAmplificationShader()), ResourceBindingTier, SV_Amplification);

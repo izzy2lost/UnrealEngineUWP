@@ -204,6 +204,10 @@ FD3D11DynamicRHI::FD3D11DynamicRHI(IDXGIFactory1* InDXGIFactory1, D3D_FEATURE_LE
 	GRHIMaxDispatchThreadGroupsPerDimension.Y = D3D11_CS_DISPATCH_MAX_THREAD_GROUPS_PER_DIMENSION;
 	GRHIMaxDispatchThreadGroupsPerDimension.Z = D3D11_CS_DISPATCH_MAX_THREAD_GROUPS_PER_DIMENSION;
 
+	// All D3D11.1 hardware on Windows 8+ supports binding UAVs to Vertex Shaders.
+	// Enable run-time support if corresponding bit is set in DDSPI.
+	GRHIGlobals.SupportsVertexShaderUAVs = true;
+
 	GRHIGlobals.NeedsShaderUnbinds = true;
 
 	GRHITransitionPrivateData_SizeInBytes = sizeof(FD3D11TransitionData);

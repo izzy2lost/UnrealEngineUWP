@@ -414,7 +414,8 @@ namespace D3D12ShaderUtils
 		}
 #endif
 
-		Creator.AddTable(ERootSignatureVisibility::All, ERootSignatureRangeType::UAV, MAX_UAVS);
+		Creator.AddTable(ERootSignatureVisibility::Pixel, ERootSignatureRangeType::UAV, MAX_UAVS);
+		Creator.AddTable(ERootSignatureVisibility::Vertex, ERootSignatureRangeType::UAV, MAX_UAVS);
 
 		if (EnumHasAnyFlags(InFlags, ED3D12RootSignatureFlags::RootConstants))
 		{

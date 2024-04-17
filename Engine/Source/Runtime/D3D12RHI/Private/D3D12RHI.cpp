@@ -257,6 +257,10 @@ FD3D12DynamicRHI::FD3D12DynamicRHI(const TArray<TSharedPtr<FD3D12Adapter>>& Chos
 	GRHISupportsRHIOnTaskThread = true;
 
 	GRHIGlobals.NeedsShaderUnbinds = true;
+
+	// All D3D12 hardware supports binding UAVs to Vertex Shaders.
+	// Enable run-time support if corresponding bit is set in DDSPI.
+	GRHIGlobals.SupportsVertexShaderUAVs = true;
 }
 
 void FD3D12DynamicRHI::PostInit()
