@@ -61,7 +61,6 @@ protected:
 	FLinearColor StatusCheckedOutColor;
 	FLinearColor StatusCheckedOutByOtherUserColor;
 	FLinearColor StatusNotAtHeadRevisionColor;
-	FLinearColor StatusOpenForAddColor;
 	
 private:
 	static FName StyleName;
