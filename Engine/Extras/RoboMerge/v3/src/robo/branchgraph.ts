@@ -81,8 +81,8 @@ if (botname === '__TEST__') {
 	private propagateSourcePropertiesToEdges() {
 		// also flag for applying reverse entry too? would apply to branchspecs, not so simple for resolver
 		const propertiesToPropagate: [keyof NodeOptions, keyof EdgeOptions, ConfigBlendMode | null][] = [
-			['additionalSlackChannelForBlockages', 'additionalSlackChannel', null],
-			['postMessagesToAdditionalChannelOnly', 'postOnlyToAdditionalChannel', 'override'],
+			['additionalSlackChannelForBlockages', 'additionalSlackChannel', 'override'],
+			['postMessagesToAdditionalChannelOnly', 'postOnlyToAdditionalChannel', null],
 			['lastGoodCLPath', 'lastGoodCLPath', null],
 			['waitingForCISLink', 'waitingForCISLink', null],
 			['disallowSkip', 'disallowSkip', null],
