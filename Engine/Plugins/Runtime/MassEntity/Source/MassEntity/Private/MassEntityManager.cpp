@@ -451,7 +451,8 @@ FMassEntityHandle FMassEntityManager::CreateEntity(const FMassArchetypeHandle& A
 	check(ArchetypeHandle.IsValid());
 
 	const FMassEntityHandle Entity = ReserveEntity();
-	InternalBuildEntity(Entity, ArchetypeHandle, SharedFragmentValues);
+	InternalBuildEntity(Entity, GetOrCreateSuitableArchetype(ArchetypeHandle, SharedFragmentValues.GetSharedFragmentBitSet()), SharedFragmentValues);
+
 	return Entity;
 }
 
