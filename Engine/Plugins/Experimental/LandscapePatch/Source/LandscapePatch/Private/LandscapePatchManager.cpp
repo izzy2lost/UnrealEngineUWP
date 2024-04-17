@@ -120,8 +120,19 @@ UTextureRenderTarget2D* ALandscapePatchManager::RenderLayer_Native(const FLandsc
 {
 	using namespace LandscapePatchManagerLocals;
 
-	// Used to determine whether we need to remove any invalid brushes
+	// Used for removing invalid brushes. We remove from the index map immediately but then remove
+	// from the array and update other indices at the very end.
 	bool bHaveInvalidPatches = false;
+	int32 MinRemovedIndex = PatchComponents.Num();
+	auto RemoveComponentFromIndexMap = [this, &MinRemovedIndex](TSoftObjectPtr<ULandscapePatchComponent>& Component)
+	{
+		int32 RemovedIndex = -1;
+		if (PatchToIndex.RemoveAndCopyValue(Component, RemovedIndex))
+		{
+			MinRemovedIndex = FMath::Min(MinRemovedIndex, RemovedIndex);
+		}
+	};
+
 	FLandscapeBrushParameters BrushParameters = InParameters;
 
 	// TODO: There are many uncertainties in how we iterate across the height patches and have them
@@ -145,6 +156,7 @@ UTextureRenderTarget2D* ALandscapePatchManager::RenderLayer_Native(const FLandsc
 			// with destroyed patches not being removed, for instance through saving the manager but not the
 			// patch actor.
 			UE_LOG(LogLandscapePatch, Warning, TEXT("ALandscapePatchManager: Found an invalid patch in patch manager. It will be removed."));
+			RemoveComponentFromIndexMap(Component);
 			bHaveInvalidPatches = true;
 			continue;
 		}
@@ -157,6 +169,7 @@ UTextureRenderTarget2D* ALandscapePatchManager::RenderLayer_Native(const FLandsc
 			// a dead patch that actually needs removal.
 			UE_LOG(LogLandscapePatch, Warning, TEXT("ALandscapePatchManager: Found a pending patch pointer in patch manager that "
 				"turned out to be invalid. It will be removed."));
+			RemoveComponentFromIndexMap(Component);
 			Component = nullptr;
 			bHaveInvalidPatches = true;
 			continue;
@@ -192,7 +205,12 @@ UTextureRenderTarget2D* ALandscapePatchManager::RenderLayer_Native(const FLandsc
 	{
 		PatchComponents.RemoveAll([](TSoftObjectPtr<ULandscapePatchComponent> Component) {
 			return Component.IsNull();
-			});
+		});
+		// Update forward indices
+		for (int32 i = MinRemovedIndex; i < PatchComponents.Num(); ++i)
+		{
+			PatchToIndex.Add(PatchComponents[i], i);
+		}
 	}
 
 	return BrushParameters.CombinedResult;
@@ -249,7 +267,7 @@ void ALandscapePatchManager::SetTargetLandscape(ALandscape* InTargetLandscape)
 
 bool ALandscapePatchManager::ContainsPatch(ULandscapePatchComponent* Patch) const
 {
-	return PatchComponents.Contains(Patch);
+	return PatchToIndex.Contains(TSoftObjectPtr<ULandscapePatchComponent>(Patch));
 }
 
 void ALandscapePatchManager::AddPatch(ULandscapePatchComponent* Patch)
@@ -261,7 +279,9 @@ void ALandscapePatchManager::AddPatch(ULandscapePatchComponent* Patch)
 		if (!ContainsPatch(Patch))
 		{
 			Modify();
-			PatchComponents.Add(TSoftObjectPtr<ULandscapePatchComponent>(Patch));
+			TSoftObjectPtr<ULandscapePatchComponent> PatchSoftPtr(Patch);
+			PatchComponents.Add(PatchSoftPtr);
+			PatchToIndex.Add(PatchSoftPtr, PatchComponents.Num()-1);
 		}
 
 		if (Patch->GetPatchManager() != this)
@@ -287,7 +307,20 @@ bool ALandscapePatchManager::RemovePatch(ULandscapePatchComponent* Patch)
 	if (Patch && ContainsPatch(Patch))
 	{
 		Modify();
-		bRemoved = PatchComponents.Remove(TSoftObjectPtr<ULandscapePatchComponent>(Patch)) > 0;
+		TSoftObjectPtr<ULandscapePatchComponent> PatchSoftPtr(Patch);
+		bRemoved = PatchComponents.Remove(PatchSoftPtr) > 0;
+		if (bRemoved)
+		{
+			int32 RemovedIndex = -1;
+			if (PatchToIndex.RemoveAndCopyValue(PatchSoftPtr, RemovedIndex))
+			{
+				for (int32 i = RemovedIndex; i < PatchComponents.Num(); ++i)
+				{
+					PatchToIndex.Add(PatchComponents[i], i);
+				}
+			}
+			
+		}
 
 		// No need to update if the patch was already disabled.Important to avoid needlessly updating while dragging 
 		// a blueprint with a disabled patch (since construction scripts constantly add and remove).
@@ -296,18 +329,28 @@ bool ALandscapePatchManager::RemovePatch(ULandscapePatchComponent* Patch)
 			RequestLandscapeUpdate();
 		}
 	}
-	
+
 	return bRemoved;
 }
 
 int32 ALandscapePatchManager::GetIndexOfPatch(const ULandscapePatchComponent* Patch) const
 {
-	return PatchComponents.IndexOfByKey(Patch);
+	if (const int32* Index = PatchToIndex.Find(TSoftObjectPtr<ULandscapePatchComponent>(Patch)))
+	{
+		return *Index;
+	}
+	return INDEX_NONE;
 }
 
 void ALandscapePatchManager::MovePatchToIndex(ULandscapePatchComponent* Patch, int32 Index)
 {
-	if (!Patch || Index < 0 || GetIndexOfPatch(Patch) == Index)
+	if (!Patch || Index < 0)
+	{
+		return;
+	}
+
+	int32 OriginalIndex = GetIndexOfPatch(Patch);
+	if (OriginalIndex == Index)
 	{
 		return;
 	}
@@ -321,6 +364,18 @@ void ALandscapePatchManager::MovePatchToIndex(ULandscapePatchComponent* Patch, i
 
 	Index = FMath::Clamp(Index, 0, PatchComponents.Num());
 	PatchComponents.Insert(TSoftObjectPtr<ULandscapePatchComponent>(Patch), Index);
+
+	// Update our index lookup structure
+	int32 OtherEndOfChangedIndices = OriginalIndex < 0 ? PatchComponents.Num() - 1
+		: FMath::Min(OriginalIndex, PatchComponents.Num() - 1);
+
+	int32 StartIndex = FMath::Min(Index, OtherEndOfChangedIndices);
+	int32 EndIndex = FMath::Max(Index, OtherEndOfChangedIndices);
+
+	for (int32 i = StartIndex; i <= EndIndex; ++i)
+	{
+		PatchToIndex.Add(PatchComponents[i], i);
+	}
 
 	if (Patch->IsEnabled())
 	{
@@ -435,6 +490,17 @@ void ALandscapePatchManager::PostEditChangeProperty(FPropertyChangedEvent& Prope
 		&& (PropertyChangedEvent.Property->GetFName() == GET_MEMBER_NAME_CHECKED(ALandscapePatchManager, DetailPanelLandscape)))
 	{
 		SetTargetLandscape(DetailPanelLandscape.Get());
+	}
+}
+
+void ALandscapePatchManager::PostLoad()
+{
+	Super::PostLoad();
+
+	PatchToIndex.Reset();
+	for (int32 i = 0; i < PatchComponents.Num(); ++i)
+	{
+		PatchToIndex.Add(PatchComponents[i], i);
 	}
 }
 

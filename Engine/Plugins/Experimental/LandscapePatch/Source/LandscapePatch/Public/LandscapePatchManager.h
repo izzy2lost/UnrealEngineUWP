@@ -101,13 +101,14 @@ public:
 	virtual void PostEditUndo() override;
 	virtual void PreSave(FObjectPreSaveContext SaveContext) override;
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
+	virtual void PostLoad() override;
 #endif
 	virtual bool IsEditorOnly() const override { return true; }
 	virtual bool NeedsLoadForClient() const override { return false; }
 	virtual bool NeedsLoadForServer() const override { return false; }
 
 protected:
-	
+
 	UPROPERTY()
 	TArray<TSoftObjectPtr<ULandscapePatchComponent>> PatchComponents;
 
@@ -131,6 +132,10 @@ private:
 	// so we want to detect this case.
 	bool bDirtiedByConstructionScript = false;
 #endif
+
+	// Transient table to speed up Contains and IndexOf queries, which are very slow for an array of TSoftObjectPtr's.
+	UPROPERTY(Transient)
+	TMap<TSoftObjectPtr<ULandscapePatchComponent>, int32> PatchToIndex;
 };
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2

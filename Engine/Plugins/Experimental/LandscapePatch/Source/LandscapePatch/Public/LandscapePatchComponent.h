@@ -190,8 +190,6 @@ struct FLandscapePatchComponentInstanceData : public FSceneComponentInstanceData
 
 	UPROPERTY()
 	TSoftObjectPtr<ALandscapePatchManager> PatchManager = nullptr;
-	UPROPERTY()
-	int32 IndexInManager = -1;
 	
 	UPROPERTY()
 	bool bDirtiedByConstructionScript = false;

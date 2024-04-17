@@ -469,10 +469,6 @@ FLandscapePatchComponentInstanceData::FLandscapePatchComponentInstanceData(const
 	bDirtiedByConstructionScript = Patch->bDirtiedByConstructionScript;
 
 	PatchManager = Patch->GetPatchManager();
-	if (PatchManager)
-	{
-		IndexInManager = PatchManager->GetIndexOfPatch(Patch);
-	}
 #endif
 }
 
@@ -501,17 +497,11 @@ void ULandscapePatchComponent::ApplyComponentInstanceData(FLandscapePatchCompone
 		PreviousPatchManager = PatchManager;
 		Landscape = PatchManager.IsValid() ? PatchManager->GetOwningLandscape() : nullptr;
 
-		if (PatchManager.IsValid() && ComponentInstanceData->IndexInManager >= 0)
+		if (PatchManager.IsValid())
 		{
-			int32 CurrentIndexInManager = PatchManager->GetIndexOfPatch(this);
-			if (!ensure(CurrentIndexInManager >= 0))
+			if (!ensure(PatchManager->ContainsPatch(this)))
 			{
 				PatchManager->AddPatch(this);
-				PatchManager->MarkModifiedInConstructionScript();
-			}
-			if (!ensure(CurrentIndexInManager == ComponentInstanceData->IndexInManager))
-			{
-				PatchManager->MovePatchToIndex(this, ComponentInstanceData->IndexInManager);
 				PatchManager->MarkModifiedInConstructionScript();
 			}
 		}
@@ -528,12 +518,9 @@ void ULandscapePatchComponent::ApplyComponentInstanceData(FLandscapePatchCompone
 		// add ourselves to our patch manager if it was saved without this patch. Calling SetPatchManager
 		// does all of that for us, except we need to track whether we modified the patch manager we keep.
 
-		bool bModifiedPatchManager = !ComponentInstanceData->PatchManager->ContainsPatch(this) 
-			|| ComponentInstanceData->PatchManager->GetIndexOfPatch(this) != ComponentInstanceData->IndexInManager;
+		bool bModifiedPatchManager = !ComponentInstanceData->PatchManager->ContainsPatch(this);
 
 		SetPatchManager(ComponentInstanceData->PatchManager.Get());
-
-		PatchManager->MovePatchToIndex(this, ComponentInstanceData->IndexInManager);
 
 		if (bModifiedPatchManager)
 		{
