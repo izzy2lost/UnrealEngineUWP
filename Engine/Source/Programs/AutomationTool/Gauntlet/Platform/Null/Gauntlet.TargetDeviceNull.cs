@@ -71,9 +71,9 @@ namespace Gauntlet
 			CommandLine = InCommandLine;
 		}
 
-		public IAppInstance Run(UnrealAppConfig AppConfiguration)
+		public IAppInstance Run()
 		{
-			return Device.Run(AppConfiguration, this);
+			return Device.Run(this);
 		}
 	}
 
@@ -136,7 +136,7 @@ namespace Gauntlet
 
 		public CommandUtils.ERunOptions RunOptions { get; set; }
 
-		public IAppInstance Run(UnrealAppConfig AppConfiguration, IAppInstall App)
+		public IAppInstance Run(IAppInstall App)
 		{
 			NullAppInstall NullApp = App as NullAppInstall;
 

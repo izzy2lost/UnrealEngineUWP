@@ -20,7 +20,7 @@ namespace Gauntlet
 		/// Create a running instance of the app
 		/// </summary>
 		/// <returns></returns>
-		IAppInstance Run(UnrealAppConfig AppConfiguration);
+		IAppInstance Run();
 
 		/// <summary>
 		/// The device that we'll be run on

@@ -438,7 +438,7 @@ namespace Gauntlet
 
 			PopulateDirectoryMappings(Path.GetDirectoryName(DeviceArtifactPath));
 
-			return new AndroidAppInstall(this, AppConfig.ProjectName, Build.AndroidPackageName, AppConfig.CommandLine);
+			return new AndroidAppInstall(this, AppConfig.ProjectName, Build.AndroidPackageName, AppConfig.CommandLine, AppConfig.ProjectFile, AppConfig.Build.Configuration);
 		}
 
 		public void CopyAdditionalFiles(UnrealAppConfig AppConfig, IEnumerable<UnrealFileToCopy> FilesToCopy)
@@ -463,31 +463,22 @@ namespace Gauntlet
 			CopyAdditionalFiles(null, FilesToCopy);
 		}
 
-		public IAppInstance Run(UnrealAppConfig AppConfig, IAppInstall App)
+		public IAppInstance Run(IAppInstall App)
 		{
+			if (App is not AndroidAppInstall Install)
+			{
+				throw new AutomationException("AppInstall is of incorrect type {0}! Must be of type AndroidAppInstall", App.GetType().Name);
+			}
+
 			bool bAFSEnablePlugin;
 			string AFSToken = "";
 			bool bIsShipping;
 			bool bAFSIncludeInShipping;
 			bool bAFSAllowExternalStartInShipping;
 			bool useADB = true;
-			if (AppConfig != null)
+			if (UsingAndroidFileServer(Install.ProjectFile, Install.Configuration, out bAFSEnablePlugin, out AFSToken, out bIsShipping, out bAFSIncludeInShipping, out bAFSAllowExternalStartInShipping))
 			{
-				AndroidBuild Build = AppConfig.Build as AndroidBuild;
-				if (Build == null)
-				{
-					throw new AutomationException("Unsupported build type {0} for Android!", AppConfig.Build.GetType());
-				}
-
-				if (UsingAndroidFileServer(AppConfig.ProjectFile, Build.Configuration, out bAFSEnablePlugin, out AFSToken, out bIsShipping, out bAFSIncludeInShipping, out bAFSAllowExternalStartInShipping))
-				{
-					useADB = false;
-				}
-			}
-
-			if (App is not AndroidAppInstall Install)
-			{
-				throw new AutomationException("AppInstall is of incorrect type {0}! Must be of type AndroidAppInstall", App.GetType().Name);
+				useADB = false;
 			}
 
 			if(!IsOn)
@@ -1412,7 +1403,7 @@ namespace Gauntlet
 
 			CopyCommandlineFile(AppConfig, AppConfig.CommandLine, Build.AndroidPackageName, AppConfig.ProjectName, Build.UsesExternalFilesDir);
 
-			AndroidAppInstall AppInstall = new AndroidAppInstall(this, InApkPath: ApkPath, AppConfig.ProjectName, Build.AndroidPackageName, AppConfig.CommandLine);
+			AndroidAppInstall AppInstall = new AndroidAppInstall(this, InApkPath: ApkPath, AppConfig.ProjectName, Build.AndroidPackageName, AppConfig.CommandLine, AppConfig.ProjectFile, Build.Configuration);
 
 			return AppInstall;
 		}
@@ -1435,16 +1426,22 @@ namespace Gauntlet
 
 		public string ApkPath { get; protected set; }
 
-		public AndroidAppInstall(TargetDeviceAndroid InDevice, string InName, string InAndroidPackageName, string InCommandLine, string InAppTag = "UE")
+		public FileReference ProjectFile { get; protected set; }
+
+		public UnrealTargetConfiguration Configuration { get; protected set; }
+
+		public AndroidAppInstall(TargetDeviceAndroid InDevice, string InName, string InAndroidPackageName, string InCommandLine, FileReference InProjectFile, UnrealTargetConfiguration InConfiguration, string InAppTag = "UE")
 		{
 			AndroidDevice = InDevice;
 			Name = InName;
 			AndroidPackageName = InAndroidPackageName;
 			CommandLine = InCommandLine;
 			AppTag = InAppTag;
+			ProjectFile = InProjectFile;
+			Configuration = InConfiguration;
 		}
 
-		public AndroidAppInstall(TargetDeviceAndroid InDevice, string InApkPath, string InName, string InAndroidPackageName, string InCommandLine, string InAppTag = "UE")
+		public AndroidAppInstall(TargetDeviceAndroid InDevice, string InApkPath, string InName, string InAndroidPackageName, string InCommandLine, FileReference InProjectFile, UnrealTargetConfiguration InConfiguration, string InAppTag = "UE")
 		{
 			AndroidDevice = InDevice;
 			ApkPath = InApkPath;
@@ -1452,11 +1449,13 @@ namespace Gauntlet
 			AndroidPackageName = InAndroidPackageName;
 			CommandLine = InCommandLine;
 			AppTag = InAppTag;
+			ProjectFile = InProjectFile;
+			Configuration = InConfiguration;
 		}
 
-		public IAppInstance Run(UnrealAppConfig AppConfiguration)
+		public IAppInstance Run()
 		{
-			return AndroidDevice.Run(AppConfiguration, this);
+			return AndroidDevice.Run(this);
 		}
 	}
 

@@ -442,7 +442,7 @@ namespace Gauntlet
 			try
 			{
 				Log.Info("Starting deferred {0} on {1}", Role, CurrentInstall.Device);
-				IAppInstance Instance = CurrentInstall.Run(null);
+				IAppInstance Instance = CurrentInstall.Run();
 				IDeviceUsageReporter.RecordStart(Instance.Device.Name, Instance.Device.Platform, IDeviceUsageReporter.EventType.Test);
 
 				if (Instance != null || Globals.CancelSignalled)
@@ -1500,7 +1500,7 @@ namespace Gauntlet
 						try
 						{
 							Log.Info("Starting {0} on {1}", InstallRoleKV.Value, CurrentInstall.Device);
-							IAppInstance Instance = CurrentInstall.Run(InstallsToConfig[CurrentInstall]);
+							IAppInstance Instance = CurrentInstall.Run();
 							IDeviceUsageReporter.RecordStart(Instance.Device.Name, Instance.Device.Platform, IDeviceUsageReporter.EventType.Test);
 
 							if (Instance != null || Globals.CancelSignalled)
@@ -1770,7 +1770,7 @@ namespace Gauntlet
 				try
 				{
 					Log.Info("Launching {Install} on {Device}", Install, RolesToDevices[Role]);
-					IAppInstance AppInstance = Install.Run(Config);
+					IAppInstance AppInstance = Install.Run();
 
 					if (AppInstance == null)
 					{

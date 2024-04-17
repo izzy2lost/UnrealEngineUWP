@@ -59,7 +59,7 @@ namespace Gauntlet
 			return Install;
 		}
 
-		public override IAppInstance Run(UnrealAppConfig AppConfiguration, IAppInstall App)
+		public override IAppInstance Run(IAppInstall App)
 		{
 			WindowsAppInstall WinApp = App as WindowsAppInstall;
 

@@ -103,7 +103,7 @@ namespace Gauntlet
 				Log.Info("Installing build on device {0}", Device.Name);
 
 				IAppInstall Install = Device.InstallApplication(Config);
-				Device.Run(Config, Install);
+				Device.Run(Install);
 
 				TimeSpan Elapsed = (DateTime.Now - StartTime);
 				Log.Info("Installed on device {0} in {1:D2}m:{2:D2}s", Device.Name, Elapsed.Minutes, Elapsed.Seconds);
