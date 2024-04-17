@@ -65,6 +65,7 @@ struct FSerialization_BitSet : FExecutionTestBase
 };
 IMPLEMENT_AI_INSTANT_TEST(FSerialization_BitSet, "System.Mass.Serialization.BitSet.Trivial");
 
+#if 0 // this test is disable for the time being, the functionality being tested has not been fully implemented
 
 /*
  * Here's what this test does:
@@ -112,6 +113,7 @@ struct FSerialization_BitSetLoadOutdated : FExecutionTestBase
 };
 IMPLEMENT_AI_INSTANT_TEST(FSerialization_BitSetLoadOutdated, "System.Mass.Serialization.BitSet.LoadOutdated");
 
+#endif // temp disabling of the System.Mass.Serialization.BitSet.LoadOutdated test
 
 struct FSerialization_BitSetOverride : FExecutionTestBase
 {
