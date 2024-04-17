@@ -162,7 +162,11 @@ namespace UnrealGameSync
 
 					ServiceCollection services = new ServiceCollection();
 					services.AddLogging(builder => builder.AddProvider(new LoggerProviderAdapter(logger)));
-					services.AddHorde(options => { options.ServerUrl = hordeServerUrl; options.AllowAuthPrompt = true; });
+					services.AddHorde(options => 
+					{ 
+						options.ServerUrl = hordeServerUrl; 
+						options.AllowAuthPrompt = true; 
+					});
 
 					await using ServiceProvider serviceProvider = services.BuildServiceProvider();
 					IHordeClient hordeClient = serviceProvider.GetRequiredService<IHordeClient>();
@@ -182,7 +186,7 @@ namespace UnrealGameSync
 						await SafeDeleteDirectoryContentsWithRetryAsync(applicationFolder, cancellationToken);
 
 						// Download and extract the data
-						IStorageClient storageClient = hordeClient.CreateStorageClient(toolId);
+						using IStorageClient storageClient = hordeClient.CreateStorageClient(toolId);
 						IBlobHandle handle = storageClient.CreateBlobHandle(deployment.Locator);
 
 						DirectoryNode rootNode = await handle.ReadBlobAsync<DirectoryNode>(cancellationToken: cancellationToken);
