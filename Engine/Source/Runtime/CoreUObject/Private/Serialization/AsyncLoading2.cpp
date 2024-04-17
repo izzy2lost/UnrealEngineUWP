@@ -6963,7 +6963,7 @@ bool FAsyncPackage2::EventDrivenSerializeExport(const FAsyncPackageHeaderData& H
 
 	UE_ASYNC_PACKAGE_CLOG(
 		Export.CookedSerialSize != uint64(Ar->Tell() - Pos), Fatal, Desc, TEXT("ObjectSerializationError"),
-		TEXT("%s: Serial size mismatch: Expected read size %d, Actual read size %d"),
+		TEXT("%s: Serial size mismatch: Expected read size %lld, Actual read size %lld"),
 		Object ? *Object->GetFullName() : TEXT("null"), Export.CookedSerialSize, uint64(Ar->Tell() - Pos));
 
 	Ar->ExportBufferEnd();

@@ -1854,9 +1854,9 @@ void FRDGBuilder::Execute()
 
 			}, MakeArrayView<UE::Tasks::FTask>({ CollectPassBarriersTask, AllocatePooledBuffersTask, AllocatePooledTexturesTask }), TaskPriority);
 
-			CreateViewsTask = AddCommandListSetupTask([this, Views = MoveTemp(CollectResourceContext.Views)] (FRHICommandListBase& RHICmdListTask)
+			CreateViewsTask = AddCommandListSetupTask([this, InViews = MoveTemp(CollectResourceContext.Views)] (FRHICommandListBase& RHICmdListTask)
 			{
-				CreateViews(RHICmdListTask, Views);
+				CreateViews(RHICmdListTask, InViews);
 
 			}, MakeArrayView<UE::Tasks::FTask>({ AllocatePooledBuffersTask, AllocatePooledTexturesTask, SubmitBufferUploadsTask}), TaskPriority);
 

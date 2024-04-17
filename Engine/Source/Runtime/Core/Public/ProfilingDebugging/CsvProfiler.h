@@ -119,7 +119,7 @@ struct FCsvDeclaredStat;
 #else
   #define CSV_CATEGORY_INDEX(CategoryName)						
   #define CSV_CATEGORY_INDEX_GLOBAL								
-  #define CSV_STAT_FNAME(StatName)								
+  #define CSV_STAT_FNAME(StatName)	NAME_None							
   #define CSV_SCOPED_TIMING_STAT(Category,StatName)				
   #define CSV_SCOPED_TIMING_STAT_GLOBAL(StatName)					
   #define CSV_SCOPED_TIMING_STAT_EXCLUSIVE(StatName)

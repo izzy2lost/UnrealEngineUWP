@@ -1407,7 +1407,10 @@ public:
 		__asm__ __volatile__("prfm pldl1keep, [%[ptr]]\n" ::[ptr] "r"(Ptr) : );
 #	endif
 #else
-#	error Unknown architecture
+		// any other architecture must implement this function so this is not called, but we can't use any convenience functions 
+		// like unimplemented() or checkf(), so just crash with a comment that if you get here, implement Prefetch!
+		int* A = (int*)3;
+		*A = 13;
 #endif
 	}
 

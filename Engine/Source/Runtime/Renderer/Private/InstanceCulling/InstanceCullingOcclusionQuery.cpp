@@ -344,14 +344,14 @@ struct FInstanceCullingOcclusionQueryDeferredContext
 
 	void Execute()
 	{
-		if (bExecuted)
+		if (bFunctionExecuted)
 		{
 			return;
 		}
 
 		TRACE_CPUPROFILER_EVENT_SCOPE(FInstanceCullingOcclusionQueryDeferredContext::Execute);
 
-		bExecuted = true;
+		bFunctionExecuted = true;
 
 		const FParallelMeshDrawCommandPass& MeshDrawCommandPass = View->ParallelMeshDrawCommandPasses[MeshPass];
 
@@ -485,7 +485,7 @@ struct FInstanceCullingOcclusionQueryDeferredContext
 	}
 
 	// Execute function may be called multiple times, but we only want to run computations once
-	bool bExecuted = false;
+	bool bFunctionExecuted = false;
 
 	// If this is false, then some late validation have failed and rendering should be skipped
 	bool bValid = false;

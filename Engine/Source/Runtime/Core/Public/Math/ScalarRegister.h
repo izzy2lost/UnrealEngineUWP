@@ -12,7 +12,9 @@
 * scalar implementation, so the scalar code is maintained and enabled when vector intrinsics are off.
 */
 //Currently disabled because FBoneAtom became FTransform and we want to iterate quickly on it.
+#ifndef ENABLE_VECTORIZED_TRANSFORM
 #define ENABLE_VECTORIZED_TRANSFORM		PLATFORM_ENABLE_VECTORINTRINSICS
+#endif
 
 #if ENABLE_VECTORIZED_TRANSFORM
 

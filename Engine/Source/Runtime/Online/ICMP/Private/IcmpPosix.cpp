@@ -15,6 +15,7 @@
 #include <netinet/ip_icmp.h>
 #include <netdb.h>
 #include <poll.h>
+#include <unistd.h>
 
 namespace IcmpPosix
 {

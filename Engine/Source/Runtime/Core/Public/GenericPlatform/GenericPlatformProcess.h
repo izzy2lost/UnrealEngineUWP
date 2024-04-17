@@ -793,7 +793,7 @@ struct FGenericPlatformProcess
 	 */
 	static FORCEINLINE void Yield()
 	{
-#if PLATFORM_CPU_X86_FAMILY
+#if PLATFORM_USE_SSE2_FOR_THREAD_YIELD
 		_mm_pause();
 #elif PLATFORM_CPU_ARM_FAMILY
 #	if !defined(__clang__)
@@ -802,7 +802,8 @@ struct FGenericPlatformProcess
 		__builtin_arm_yield();
 #	endif
 #else
-#	error Unsupported architecture!
+	// the platform with other architectures must override this to not have this function be called
+	unimplemented();
 #endif
 	}
 
@@ -822,7 +823,8 @@ struct FGenericPlatformProcess
 #elif __has_builtin(__builtin_readcyclecounter)
 			return __builtin_readcyclecounter();
 #else
-#	error Unsupported architecture!
+	// the platform with other architectures must override this to not have this function be called
+	unimplemented();
 #endif
 		};
 
