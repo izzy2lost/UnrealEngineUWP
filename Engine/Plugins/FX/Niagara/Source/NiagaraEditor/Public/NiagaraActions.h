@@ -93,7 +93,7 @@ private:
 class FNiagaraMenuActionCollector
 {
 public:
-	void AddAction(TSharedPtr<FNiagaraMenuAction> Action, int32 SortOrder, const FString& Category = FString());
+	void AddAction(TSharedPtr<FNiagaraMenuAction> Action, int32 SortOrder);
 	void AddAllActionsTo(FGraphActionListBuilderBase& ActionBuilder);
 
 private:
@@ -101,7 +101,6 @@ private:
 	{
 		TSharedPtr<FNiagaraMenuAction> Action;
 		int32 SortOrder;
-		FString Category;
 	};
 
 	TArray<FCollectedAction> Actions;

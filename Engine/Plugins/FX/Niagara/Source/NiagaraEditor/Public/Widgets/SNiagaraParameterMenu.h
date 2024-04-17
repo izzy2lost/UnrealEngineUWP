@@ -106,8 +106,7 @@ public:
 		TArray<FNiagaraVariable>& Variables,
 		const FGuid& InNamespaceId = FGuid(),
 		const FText& Category = FText::GetEmpty(),
-		int32 SortOrder = 0,
-		const FString& RootCategory = FString());
+		int32 SortOrder = 0);
 
 	void AddMakeNewGroup(
 		FNiagaraMenuActionCollector& Collector,

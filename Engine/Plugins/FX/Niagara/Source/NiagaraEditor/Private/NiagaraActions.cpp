@@ -52,9 +52,9 @@ void FNiagaraMenuAction::SetParameterVariable(const FNiagaraVariable& InParamete
 	ParameterVariable = InParameterVariable;
 }
 
-void FNiagaraMenuActionCollector::AddAction(TSharedPtr<FNiagaraMenuAction> Action, int32 SortOrder, const FString& Category)
+void FNiagaraMenuActionCollector::AddAction(TSharedPtr<FNiagaraMenuAction> Action, int32 SortOrder)
 {
-	Actions.Add({Action, SortOrder, Category});
+	Actions.Add({Action, SortOrder});
 }
 
 void FNiagaraMenuActionCollector::AddAllActionsTo(FGraphActionListBuilderBase& ActionBuilder)
@@ -97,7 +97,7 @@ void FNiagaraMenuActionCollector::AddAllActionsTo(FGraphActionListBuilderBase& A
 	
 	for (const FCollectedAction& Entry : Actions)
 	{
-		ActionBuilder.AddAction(Entry.Action, Entry.Category);
+		ActionBuilder.AddAction(Entry.Action);
 	}
 }
 
