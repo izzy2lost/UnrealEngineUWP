@@ -2260,19 +2260,6 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 			}
 			return FRDGTextureRef(nullptr);
 		};
-
-		// Kick off async compute cloud early if all depth has been written in the prepass
-		if (bShouldRenderVolumetricCloud && bAsyncComputeVolumetricCloud && DepthPass.EarlyZPassMode == DDM_AllOpaque && !bHasRayTracedOverlay)
-		{
-			HalfResolutionDepthCheckerboardMinMaxTexture = CreateHalfResolutionDepthCheckerboardMinMax(GraphBuilder, Views, SceneTextures.Depth.Resolve);
-			QuarterResolutionDepthMinMaxTexture = GenerateQuarterResDepthMinMaxTexture(GraphBuilder, Views, HalfResolutionDepthCheckerboardMinMaxTexture);
-
-			bool bSkipVolumetricRenderTarget = false;
-			bool bSkipPerPixelTracing = true;
-			bool bAccumulateAlphaHoldOut = false;
-			RenderVolumetricCloud(GraphBuilder, SceneTextures, bSkipVolumetricRenderTarget, bSkipPerPixelTracing, bAccumulateAlphaHoldOut,
-				HalfResolutionDepthCheckerboardMinMaxTexture, QuarterResolutionDepthMinMaxTexture, true, InstanceCullingManager);
-		}
 		
 		FRDGTextureRef ForwardScreenSpaceShadowMaskTexture = nullptr;
 		FRDGTextureRef ForwardScreenSpaceShadowMaskHairTexture = nullptr;
@@ -2532,6 +2519,21 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 				/*bHasLumenLights*/ false,
 				AsyncLumenIndirectLightingOutputs);
 
+			// Kick off volumetric clouds async dispatch after Lumen
+			// Lumen has a dependency on the opaque so should run first
+			// Volumetric Clouds have a depedency on translucent, so should run second and overlap opaque work after Lumen async is done
+			if (bShouldRenderVolumetricCloud && bAsyncComputeVolumetricCloud)
+			{
+				HalfResolutionDepthCheckerboardMinMaxTexture = CreateHalfResolutionDepthCheckerboardMinMax(GraphBuilder, Views, SceneTextures.Depth.Resolve);
+				QuarterResolutionDepthMinMaxTexture = GenerateQuarterResDepthMinMaxTexture(GraphBuilder, Views, HalfResolutionDepthCheckerboardMinMaxTexture);
+
+				bool bSkipVolumetricRenderTarget = false;
+				bool bSkipPerPixelTracing = true;
+				bool bAccumulateAlphaHoldOut = false;
+				RenderVolumetricCloud(GraphBuilder, SceneTextures, bSkipVolumetricRenderTarget, bSkipPerPixelTracing, bAccumulateAlphaHoldOut,
+					HalfResolutionDepthCheckerboardMinMaxTexture, QuarterResolutionDepthMinMaxTexture, true, InstanceCullingManager);
+			}
+
 			// If we haven't already rendered shadow maps, render them now (due to forward shading or r.shadow.ShadowMapsRenderEarly)
 			if (!bShadowMapsRenderedEarly)
 			{
@@ -2590,19 +2592,6 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 					*this,
 					ViewFamily.EngineShowFlags.VirtualShadowMapPersistentData);
 			}
-		}
-
-		// If not all depth is written during the prepass, kick off async compute cloud after basepass
-		if (bShouldRenderVolumetricCloud && bAsyncComputeVolumetricCloud && DepthPass.EarlyZPassMode != DDM_AllOpaque && !bHasRayTracedOverlay)
-		{
-			HalfResolutionDepthCheckerboardMinMaxTexture = CreateHalfResolutionDepthCheckerboardMinMax(GraphBuilder, Views, SceneTextures.Depth.Resolve);
-			QuarterResolutionDepthMinMaxTexture = GenerateQuarterResDepthMinMaxTexture(GraphBuilder, Views, HalfResolutionDepthCheckerboardMinMaxTexture);
-
-			bool bSkipVolumetricRenderTarget = false;
-			bool bSkipPerPixelTracing = true;
-			bool bAccumulateAlphaHoldOut = false;
-			RenderVolumetricCloud(GraphBuilder, SceneTextures, bSkipVolumetricRenderTarget, bSkipPerPixelTracing, bAccumulateAlphaHoldOut,
-				HalfResolutionDepthCheckerboardMinMaxTexture, QuarterResolutionDepthMinMaxTexture, true, InstanceCullingManager);
 		}
 
 		if (CustomDepthPassLocation == ECustomDepthPassLocation::AfterBasePass)
