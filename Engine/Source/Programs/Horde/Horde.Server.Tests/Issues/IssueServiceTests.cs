@@ -18,6 +18,7 @@ using EpicGames.Horde.Projects;
 using EpicGames.Horde.Storage;
 using EpicGames.Horde.Streams;
 using EpicGames.Horde.Users;
+using EpicGames.Perforce;
 using Horde.Server.Issues;
 using Horde.Server.Jobs;
 using Horde.Server.Jobs.Graphs;
@@ -29,7 +30,6 @@ using Horde.Server.Streams;
 using Horde.Server.Tests.Stubs.Services;
 using Horde.Server.Users;
 using HordeAgent.Horde.Agent.Parser;
-using HordeAgent.Horde.Agent.Utility;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -354,7 +354,7 @@ namespace Horde.Server.Tests.Issues
 			IStorageClient storageClient = StorageService.CreateClient(Namespace.Logs);
 			await using (TestJsonLogger logger = new TestJsonLogger(LogFileService, logId, storageClient))
 			{
-				PerforceLogger perforceLogger = new PerforceLogger(logger);
+				PerforceMetadataLogger perforceLogger = new PerforceMetadataLogger(logger);
 				perforceLogger.AddClientView(_autoSdkDir, "//depot/CarefullyRedist/...", 12345);
 				perforceLogger.AddClientView(_workspaceDir, "//UE4/Main/...", 12345);
 

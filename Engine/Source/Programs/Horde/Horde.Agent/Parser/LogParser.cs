@@ -26,14 +26,7 @@ namespace Horde.Agent.Parser
 				IgnorePatterns.Add(new Regex(ignorePattern, RegexOptions.Compiled));
 			}
 
-			foreach (Type type in Assembly.GetExecutingAssembly().GetTypes())
-			{
-				if (type.IsClass && typeof(ILogEventMatcher).IsAssignableFrom(type))
-				{
-					ILogEventMatcher matcher = (ILogEventMatcher)Activator.CreateInstance(type)!;
-					Matchers.Add(matcher);
-				}
-			}
+			AddMatchersFromAssembly(Assembly.GetExecutingAssembly());
 		}
 
 		/// <summary>

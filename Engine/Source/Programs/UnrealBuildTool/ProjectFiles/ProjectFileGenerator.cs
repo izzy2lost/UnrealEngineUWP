@@ -2040,10 +2040,18 @@ namespace UnrealBuildTool
 
 			if (bIncludeEnginePrograms)
 			{
-				FileReference TestsProjectFileName = FileReference.Combine(ProgramsDirectory, "UnrealBuildTool.Tests", "UnrealBuildTool.Tests.csproj");
-				if (FileReference.Exists(TestsProjectFileName))
+				FileReference UatTestsProjectFileName = FileReference.Combine(ProgramsDirectory, "AutomationTool.Tests", "AutomationTool.Tests.csproj");
+				if (FileReference.Exists(UatTestsProjectFileName))
 				{
-					VCSharpProjectFile UbtTestsProject = new VCSharpProjectFile(TestsProjectFileName, Logger);
+					VCSharpProjectFile UatTestsProject = new VCSharpProjectFile(UatTestsProjectFileName, Logger);
+					AddExistingProjectFile(UatTestsProject, bNeedsAllPlatformAndConfigurations: true, bForceDevelopmentConfiguration: true);
+					ProgramsFolder.ChildProjects.Add(UatTestsProject);
+				}
+
+				FileReference UbtTestsProjectFileName = FileReference.Combine(ProgramsDirectory, "UnrealBuildTool.Tests", "UnrealBuildTool.Tests.csproj");
+				if (FileReference.Exists(UbtTestsProjectFileName))
+				{
+					VCSharpProjectFile UbtTestsProject = new VCSharpProjectFile(UbtTestsProjectFileName, Logger);
 					AddExistingProjectFile(UbtTestsProject, bNeedsAllPlatformAndConfigurations: true, bForceDevelopmentConfiguration: true);
 					ProgramsFolder.ChildProjects.Add(UbtTestsProject);
 				}

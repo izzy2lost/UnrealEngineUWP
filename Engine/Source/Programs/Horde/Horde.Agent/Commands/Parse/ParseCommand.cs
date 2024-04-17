@@ -2,8 +2,8 @@
 
 using System.ComponentModel;
 using EpicGames.Core;
+using EpicGames.Perforce;
 using Horde.Agent.Parser;
-using Horde.Agent.Utility;
 using Microsoft.Extensions.Logging;
 
 namespace Horde.Agent.Commands.Parse
@@ -60,7 +60,7 @@ namespace Horde.Agent.Commands.Parse
 			// Read the file and pipe it through the event parser
 			using (FileStream inputStream = FileReference.Open(InputFile, FileMode.Open, FileAccess.Read))
 			{
-				PerforceLogger jsonLogger = new PerforceLogger(logger);
+				PerforceMetadataLogger jsonLogger = new PerforceMetadataLogger(logger);
 				jsonLogger.AddClientView(WorkspaceDir ?? DirectoryReference.GetCurrentDirectory(), $"{Stream}/...", Change ?? 1);
 
 				using (LogParser parser = new LogParser(jsonLogger, ignorePatterns))

@@ -1,17 +1,19 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+using System;
+using System.Collections.Generic;
+using System.IO;
 using System.Text;
 using System.Text.Json;
 using EpicGames.Core;
-using EpicGames.Perforce;
 using Microsoft.Extensions.Logging;
 
-namespace Horde.Agent.Utility
+namespace EpicGames.Perforce
 {
 	/// <summary>
 	/// Logger which adds Perforce depot path and changelist information to file annotations
 	/// </summary>
-	public class PerforceLogger : ILogger
+	public class PerforceMetadataLogger : ILogger
 	{
 		class ClientView
 		{
@@ -39,7 +41,7 @@ namespace Horde.Agent.Utility
 		/// Constructor
 		/// </summary>
 		/// <param name="inner"></param>
-		public PerforceLogger(ILogger inner)
+		public PerforceMetadataLogger(ILogger inner)
 		{
 			_inner = inner;
 		}
@@ -84,7 +86,7 @@ namespace Horde.Agent.Utility
 		public bool IsEnabled(LogLevel logLevel) => _inner.IsEnabled(logLevel);
 
 		/// <inheritdoc/>
-		public IDisposable? BeginScope<TState>(TState state) where TState : notnull => _inner.BeginScope(state);
+		public IDisposable BeginScope<TState>(TState state) => _inner.BeginScope(state);
 
 		static bool ReadFirstLogProperty(ref Utf8JsonReader reader)
 		{

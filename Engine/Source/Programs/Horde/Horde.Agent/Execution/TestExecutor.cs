@@ -3,6 +3,7 @@
 using System.Diagnostics.CodeAnalysis;
 using EpicGames.Core;
 using EpicGames.Horde.Jobs;
+using EpicGames.Perforce;
 using Horde.Agent.Parser;
 using Horde.Agent.Utility;
 using Horde.Common.Rpc;
@@ -191,7 +192,7 @@ namespace Horde.Agent.Execution
 				logger.LogInformation("Credential: {CredentialName}={CredentialValue}", credential.Key, credential.Value);
 			}
 
-			PerforceLogger perforceLogger = new PerforceLogger(logger);
+			PerforceMetadataLogger perforceLogger = new PerforceMetadataLogger(logger);
 			perforceLogger.AddClientView(new DirectoryReference("D:\\Test"), "//UE4/Main/...", 12345);
 
 			using (LogParser filter = new LogParser(perforceLogger, new List<string>()))

@@ -13,6 +13,7 @@ using System.Linq;
 using System.Text.RegularExpressions;
 
 #nullable enable
+#pragma warning disable MA0048
 
 namespace AutomationUtils.Matchers
 {

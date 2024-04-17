@@ -6,8 +6,7 @@ using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
 using EpicGames.Core;
-using Horde.Agent.Parser;
-using Horde.Agent.Utility;
+using EpicGames.Perforce;
 using Microsoft.Extensions.Logging;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
@@ -28,7 +27,7 @@ namespace Horde.Agent.Tests
 
 			public List<LogEvent> _events = new List<LogEvent>();
 
-			public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null!;
+			public IDisposable BeginScope<TState>(TState state) => null!;
 
 			public bool IsEnabled(LogLevel logLevel) => true;
 
@@ -843,19 +842,20 @@ namespace Horde.Agent.Tests
 
 		static List<LogEvent> Parse(string text, DirectoryReference workspaceDir)
 		{
-			List<string> ignorePatterns = new List<string>();
-
 			byte[] textBytes = Encoding.UTF8.GetBytes(text);
 
 			Random generator = new Random(0);
 
 			LoggerCapture logger = new LoggerCapture();
 
-			PerforceLogger perforceLogger = new PerforceLogger(logger);
+			PerforceMetadataLogger perforceLogger = new PerforceMetadataLogger(logger);
 			perforceLogger.AddClientView(workspaceDir, "//UE4/Main/...", 12345);
 
-			using (LogParser parser = new LogParser(perforceLogger, ignorePatterns))
+			using (LogEventParser parser = new LogEventParser(perforceLogger))
 			{
+				parser.AddMatchersFromAssembly(typeof(AutomationTool.Automation).Assembly);
+				parser.AddMatchersFromAssembly(typeof(UnrealBuildTool.TargetRules).Assembly);
+
 				int pos = 0;
 				while (pos < textBytes.Length)
 				{
