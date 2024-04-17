@@ -56,8 +56,6 @@ public:
 
 	/** Provides the caller with the warning and error messages produced during compilation */
 	virtual void GetCompilationMessages(TArray<FText>& OutWarningMessages, TArray<FText>& OutErrorMessages) const = 0;
-	
-	virtual ECustomizableObjectCompilationState GetCompilationState() const;
 };
 
 
@@ -183,7 +181,7 @@ struct FCustomizableObjectStatusTypes
 		Loading = 0, // Waiting for PostLoad and Asset Registry to finish.
 		ModelLoaded, // Model loaded correctly.
 		NoModel, // No model (due to no model not found and automatic compilations disabled).
-		// Compiling, // Compiling the CO.
+		// Compiling, // Compiling the CO. Equivalent to UCustomizableObject::IsLocked = true.
 
 		Count,
 	};
@@ -203,17 +201,21 @@ struct FCustomizableObjectStatusTypes
 using FCustomizableObjectStatus = FStateMachine<FCustomizableObjectStatusTypes>;
 
 
-UENUM()
-enum class ECustomizableObjectCompilationState : uint8
+
+enum class ECompilationStatePrivate : uint8
 {
-	//
 	None,
-	// 
 	InProgress,
-	//
-	Completed,
-	//
-	Failed
+	Completed
+};
+
+
+enum class ECompilationResultPrivate : uint8
+{
+	Unknown, // Not compiled yet (compilation may be in progress).
+	Success, // No errors or warnings.
+	Errors, // At least have one error. Can have warnings.
+	Warnings, // Only warnings.
 };
 
 
@@ -857,7 +859,8 @@ public:
 	/** This is a non-user-controlled flag to disable streaming (set at object compilation time, depending on optimization). */
 	bool bDisableTextureStreaming = false;
 	
-	ECustomizableObjectCompilationState CompilationState = ECustomizableObjectCompilationState::None;
+	ECompilationStatePrivate CompilationState = ECompilationStatePrivate::None;
+	ECompilationResultPrivate CompilationResult = ECompilationResultPrivate::Unknown;
 	
 	FPostCompileDelegate PostCompileDelegate;
 

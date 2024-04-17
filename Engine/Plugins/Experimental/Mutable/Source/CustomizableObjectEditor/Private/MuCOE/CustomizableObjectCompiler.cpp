@@ -91,7 +91,7 @@ bool FCustomizableObjectCompiler::Tick(bool bBlocking)
 			}
 			else
 			{
-				SetCompilationState(ECustomizableObjectCompilationState::Completed);
+			    SetCompilationState(ECompilationStatePrivate::Completed, GetCompilationResult());
 
 				RemoveCompileNotification();
 
@@ -114,7 +114,7 @@ bool FCustomizableObjectCompiler::Tick(bool bBlocking)
 
 		if (SaveDDTask->IsCompleted())
 		{
-			SetCompilationState(ECustomizableObjectCompilationState::Completed);
+		    SetCompilationState(ECompilationStatePrivate::Completed, GetCompilationResult());
 		
 			FinishSavingDerivedDataTask();
 	
@@ -190,11 +190,20 @@ void FCustomizableObjectCompiler::Compile(UCustomizableObject& Object, const FCo
 {
 	TRACE_BEGIN_REGION(UE_MUTABLE_COMPILE_REGION);
 
+	CurrentObject= Object;
+
+	if (CurrentObject->GetPrivate()->CompilationState == ECompilationStatePrivate::InProgress)
+	{
+		UE_LOG(LogMutable, Warning, TEXT("Failed to compile Customizable Object [%s]. Object already being compiled."), *Object.GetName());
+		return;
+	}
+	
+	SetCompilationState(ECompilationStatePrivate::InProgress, ECompilationResultPrivate::Unknown);
+
 	if (!UCustomizableObjectSystem::IsActive())
 	{
 		UE_LOG(LogMutable, Warning, TEXT("Failed to compile Customizable Object [%s]. Mutable is disabled. To enable it set the CVar Mutable.Enabled to true."), *Object.GetName());
-		SetCompilationState(ECustomizableObjectCompilationState::Failed);
-
+		SetCompilationState(ECompilationStatePrivate::Completed, ECompilationResultPrivate::Errors);
 		return;
 	}
 
@@ -202,8 +211,7 @@ void FCustomizableObjectCompiler::Compile(UCustomizableObject& Object, const FCo
 	{
 		UE_LOG(LogMutable, Warning, TEXT("In Customizable Object [%s], the VersionBridge asset [%s] does not implement the required UCustomizableObjectVersionBridgeInterface."), 
 			*Object.GetName(), *Object.VersionBridge.GetName());
-		SetCompilationState(ECustomizableObjectCompilationState::Failed);
-
+		SetCompilationState(ECompilationStatePrivate::Completed, ECompilationResultPrivate::Errors);
 		return;
 	}
 
@@ -230,10 +238,10 @@ void FCustomizableObjectCompiler::Compile(UCustomizableObject& Object, const FCo
 	bool LockResult = System->LockObject(&Object);
 
 	if (!LockResult)
-	{		
+	{
 		UE_LOG(LogMutable, Warning, TEXT("%s"), *Message);
 		FSlateNotificationManager::Get().AddNotification(Info);
-
+		SetCompilationState(ECompilationStatePrivate::Completed, ECompilationResultPrivate::Errors);
 		return;
 	}
 
@@ -844,19 +852,36 @@ float FCustomizableObjectCompiler::ComputeAsyncLoadingTimeLimit()
 	return Value;
 }
 
+
+ECompilationResultPrivate FCustomizableObjectCompiler::GetCompilationResult() const
+{
+	if (CompilationLogsContainer.GetErrorCount())
+	{
+		return ECompilationResultPrivate::Errors;
+	}
+	else if (CompilationLogsContainer.GetWarningCount(true))
+	{
+		return ECompilationResultPrivate::Warnings;
+	}
+	else
+	{
+		return ECompilationResultPrivate::Success;
+	}
+}
+
+
 void FCustomizableObjectCompiler::GetCompilationMessages(TArray<FText>& OutWarningMessages, TArray<FText>& OutErrorMessages) const
 {
 	CompilationLogsContainer.GetMessages(OutWarningMessages,OutErrorMessages);
 }
 
 
-void FCustomizableObjectCompiler::SetCompilationState(ECustomizableObjectCompilationState InState)
+void FCustomizableObjectCompiler::SetCompilationState(ECompilationStatePrivate State, ECompilationResultPrivate Result) const
 {
-	State = InState;
-	
 	if (CurrentObject)
 	{
-		CurrentObject->GetPrivate()->CompilationState = InState;
+		CurrentObject->GetPrivate()->CompilationState = State;
+		CurrentObject->GetPrivate()->CompilationResult = Result;
 	}
 }
 
@@ -865,16 +890,16 @@ void FCustomizableObjectCompiler::CompileInternal(bool bAsync)
 {
 	MUTABLE_CPUPROFILER_SCOPE(FCustomizableObjectCompiler::Compile)
 	
-	SetCompilationState(ECustomizableObjectCompilationState::Failed);
-
 	if (!CurrentObject)
 	{
+		SetCompilationState(ECompilationStatePrivate::Completed, ECompilationResultPrivate::Errors);
 		return;
 	}
 
 	if (bAsync && CompileTask.IsValid()) // Don't start compilation if there's a compilation running
 	{
 		UE_LOG(LogMutable, Log, TEXT("FCustomizableObjectCompiler::Compile An object is already being compiled."));
+		SetCompilationState(ECompilationStatePrivate::Completed, ECompilationResultPrivate::Errors);
 		return;
 	}
 
@@ -883,6 +908,7 @@ void FCustomizableObjectCompiler::CompileInternal(bool bAsync)
 	// This is redundant but necessary to keep static analysis happy.
 	if (!CurrentObject)
 	{
+		SetCompilationState(ECompilationStatePrivate::Completed, ECompilationResultPrivate::Errors);
 		return;
 	}
 
@@ -899,7 +925,8 @@ void FCustomizableObjectCompiler::CompileInternal(bool bAsync)
 	if (!Options.bIsCooking && IsRunningCookCommandlet())
 	{
 		UE_LOG(LogMutable, Display, TEXT("Editor compilation suspended for Customizable Object [%s]. Can not compile COs when the cook commandlet is running. "), *CurrentObject->GetName());
-		UCustomizableObjectSystem::GetInstance()->UnlockObject(CurrentObject);
+		SetCompilationState(ECompilationStatePrivate::Completed, ECompilationResultPrivate::Errors);
+        UCustomizableObjectSystem::GetInstance()->UnlockObject(CurrentObject);
 		return;
 	}
 	
@@ -1194,7 +1221,6 @@ void FCustomizableObjectCompiler::CompileInternal(bool bAsync)
 		CompileTask = MakeShareable(new FCustomizableObjectCompileRunnable(MutableRoot));
 		CompileTask->Options = Options;
 		CompileTask->ReferencedTextures = NewCompileTimeReferencedTextures;
-		SetCompilationState(ECustomizableObjectCompilationState::InProgress);
 
 		if (!bAsync)
 		{
@@ -1215,7 +1241,7 @@ void FCustomizableObjectCompiler::CompileInternal(bool bAsync)
 
 			CurrentObject->GetPrivate()->PostCompile(); 
 
-			SetCompilationState(ECustomizableObjectCompilationState::Completed);
+			SetCompilationState(ECompilationStatePrivate::Completed, GetCompilationResult());
 		}
 		else
 		{

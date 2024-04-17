@@ -15,6 +15,17 @@ enum class ECustomizableObjectOptimizationLevel : uint8
 	Maximum
 };
 
+
+UENUM()
+enum class ECustomizableObjectCompilationState : uint8
+{
+	None,
+	InProgress,
+	Completed,
+	Failed
+};
+
+
 /**
  * Functions we want to be able to call on CustomizableObjects at edit time - could
  * be exposed to cook as well.

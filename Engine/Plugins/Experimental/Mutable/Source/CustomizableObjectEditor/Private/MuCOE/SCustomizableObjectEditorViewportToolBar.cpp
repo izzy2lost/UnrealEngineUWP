@@ -45,7 +45,7 @@ void SCustomizableObjectEditorViewportToolBar::Construct(const FArguments& InArg
 
 	TSharedRef<SCustomizableObjectEditorViewportTabBody> ViewportRef = Viewport.Pin().ToSharedRef();
 
-	WeakEditor = ViewportRef->CustomizableObjectEditorPtr;
+	WeakEditor = ViewportRef->WeakEditor;
 	
 	TSharedRef<SHorizontalBox> LeftToolbar = SNew(SHorizontalBox)
 
@@ -126,121 +126,25 @@ void SCustomizableObjectEditorViewportToolBar::Construct(const FArguments& InArg
 
 	ChildSlot
 		[
-			SNew(SVerticalBox)
-			+ SVerticalBox::Slot()
-			.VAlign(VAlign_Top)
+		SNew(SBorder)
+			.BorderImage(UE_MUTABLE_GET_BRUSH("NoBorder"))
+			.ForegroundColor(UE_MUTABLE_GET_SLATECOLOR(DefaultForegroundName))
 			[
-				SNew(SBorder)
-				.BorderImage(UE_MUTABLE_GET_BRUSH("NoBorder"))
-				.ForegroundColor(UE_MUTABLE_GET_SLATECOLOR(DefaultForegroundName))
+				SNew(SVerticalBox)
+				+ SVerticalBox::Slot()
+				.AutoHeight()
 				[
-					SNew(SVerticalBox)
-					+ SVerticalBox::Slot()
-					.AutoHeight()
+					SNew(SHorizontalBox)
+					+ SHorizontalBox::Slot()
+					.HAlign(HAlign_Left)
 					[
-						SNew(SHorizontalBox)
-						+ SHorizontalBox::Slot()
-						.HAlign(HAlign_Left)
-						[
-							LeftToolbar
-						]
-					]
-				]
-			]
-	
-			+ SVerticalBox::Slot()
-			.HAlign(HAlign_Center)
-			.VAlign(VAlign_Center)
-			.AutoHeight()
-			[
-				SNew(SScaleBox)
-				.Stretch(EStretch::ScaleToFit)
-				[
-					SAssignNew(CompileErrorLayout, SButton)
-					.ButtonStyle(&FButtonStyle::GetDefault())
-					.ButtonColorAndOpacity(ButtonColor2)
-					.ForegroundColor(ButtonColor2)
-					.HAlign(HAlign_Center)
-					.VAlign(VAlign_Center)
-					.Visibility(this, &SCustomizableObjectEditorViewportToolBar::GetShowCompileErrorOverlay)
-					.Content()
-					[
-						SNew(STextBlock)
-						.Text(this, &SCustomizableObjectEditorViewportToolBar::GetCompileErrorOverlayText)
-						.Justification(ETextJustify::Center)
-						.ColorAndOpacity(FSlateColor(TextColor2))
-						.Font(Info)
+						LeftToolbar
 					]
 				]
 			]
 		];
 
 	SViewportToolBar::Construct(SViewportToolBar::FArguments());
-}
-
-
-EVisibility SCustomizableObjectEditorViewportToolBar::GetShowCompileErrorOverlay() const
-{
-	return GetCompileErrorOverlayText().IsEmpty() ? EVisibility::Hidden : EVisibility::Visible;
-}
-
-
-FText SCustomizableObjectEditorViewportToolBar::GetCompileErrorOverlayText() const
-{
-	const TSharedPtr<ICustomizableObjectInstanceEditor> Editor = WeakEditor.Pin();
-	if (!Editor)
-	{
-		return {};
-	}
-
-	bool bLoading = false;
-
-	const UObject* EditingObject = (*Editor->GetObjectsCurrentlyBeingEdited())[0];
-	if (const UCustomizableObject* CustomizableObject = Cast<UCustomizableObject>(EditingObject))
-	{
-		bLoading = CustomizableObject->GetPrivate()->Status.Get() == FCustomizableObjectStatusTypes::EState::Loading;
-	}
-	else if (const UCustomizableObjectInstance* Instance = Cast<UCustomizableObjectInstance>(EditingObject))
-	{
-		const UCustomizableObject* InstanceCustomizableObject = Instance->GetCustomizableObject();
-		bLoading = InstanceCustomizableObject && InstanceCustomizableObject->GetPrivate()->Status.Get() == FCustomizableObjectStatusTypes::EState::Loading;
-	}
-
-	if (bLoading)
-	{
-		return LOCTEXT("LoadingAssets", "Loading Customizable Object");
-	}
-
-	const UCustomizableObjectInstance* Instance = Editor->GetPreviewInstance();
-	if (!Instance)
-	{
-		return LOCTEXT("NoPreviewInstance", "No Preview Instance");
-	}
-
-	const UCustomizableObjectSystem* System = UCustomizableObjectSystem::GetInstanceChecked();
-	
-	if (System->IsUpdating(Instance))
-	{
-		return LOCTEXT("UpdatingSkeletalMesh", "Updating Skeletal Mesh");
-	}
-
-	const UCustomizableInstancePrivate* PrivateInstance = Instance->GetPrivate();
-	
-	switch (PrivateInstance->SkeletalMeshStatus)
-	{
-	case ESkeletalMeshStatus::NotGenerated:
-		return LOCTEXT("NoSkeletalMeshGenerated", "No Skeletal Mesh Generated");
-				
-	case ESkeletalMeshStatus::Error:
-		return LOCTEXT("ErrorUpdatingSkeletalMesh", "Error Updating Skeletal Mesh");
-
-	case ESkeletalMeshStatus::Success:
-		return {};
-
-	default:
-		unimplemented();
-		return {};
-	}
 }
 
 

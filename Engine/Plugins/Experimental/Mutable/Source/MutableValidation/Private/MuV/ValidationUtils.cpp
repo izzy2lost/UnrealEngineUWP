@@ -10,6 +10,7 @@
 #include "MuCO/CustomizableObjectPrivate.h"
 #include "MuCO/CustomizableObjectSystem.h"
 #include "Interfaces/ITargetPlatform.h"
+#include "MuCOE/CustomizableObjectEditorFunctionLibrary.h"
 
 void PrepareAssetRegistry()
 {
@@ -81,9 +82,8 @@ bool CompileCustomizableObject(UCustomizableObject* InCustomizableObject, const 
     const int64 CompilationEndRealPeakBytes = CompilationStartBytes + CompilationEndPeakBytes;
 	
     // Get the compilation result
-    const ECustomizableObjectCompilationState CompilationEndResult = Compiler->GetCompilationState();
-	
-    const bool bWasCoCompilationSuccessful = CompilationEndResult == ECustomizableObjectCompilationState::Completed;
+    const bool bWasCoCompilationSuccessful = InCustomizableObject->GetPrivate()->CompilationResult == ECompilationResultPrivate::Success ||
+    	InCustomizableObject->GetPrivate()->CompilationResult == ECompilationResultPrivate::Warnings;
     if (bWasCoCompilationSuccessful)
     {
     	UE_LOG(LogMutable, Display, TEXT("The compilation of the %s model was succesfull."), *InCustomizableObject->GetName());
@@ -93,6 +93,7 @@ bool CompileCustomizableObject(UCustomizableObject* InCustomizableObject, const 
     	UE_LOG(LogMutable, Error, TEXT("The compilation of the %s model failed."), *InCustomizableObject->GetName());
     }
 
+	const ECustomizableObjectCompilationState CompilationEndResult = bWasCoCompilationSuccessful ? ECustomizableObjectCompilationState::Completed : ECustomizableObjectCompilationState::Failed;
 	
 	// Print MTU parseable logs only if asked. The addition of duplicated entries in MongoDB is not available so this way we avoid having to handle them
 	// when we are sure we do not require it.

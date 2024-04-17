@@ -221,7 +221,6 @@ private:
 	/** Open the Texture Analyzer tab */
 	void OpenTextureAnalyzerTab();
 
-	void OnPostCompile();
 public:
 	/** Static to reuse code with FCustomizableObjectEditor. */
 	static void HideGizmo(const TSharedPtr<ICustomizableObjectInstanceEditor>& Editor,
@@ -240,6 +239,10 @@ public:
 		const TSharedPtr<IDetailsView>& InstanceDetailsView);
 	
 private:
+	void CreatePreviewComponents();
+	
+	void OnPostCompile();
+	
 	/** The currently viewed object. */
 	TObjectPtr<UCustomizableObjectInstance> CustomizableObjectInstance;
 	TArray<TObjectPtr<UCustomizableSkeletalComponent>> PreviewCustomizableSkeletalComponents;

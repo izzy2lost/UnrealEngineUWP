@@ -9,8 +9,8 @@
 #include "Framework/Commands/UICommandList.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "MuCO/CustomizableObjectInstance.h"
+#include "MuCO/CustomizableObjectInstancePrivate.h"
 #include "MuCOE/CustomizableObjectEditorActions.h"
-#include "MuCOE/CustomizableObjectEditorUtilities.h"
 #include "MuCOE/CustomizableObjectEditorViewportClient.h"
 #include "MuCOE/CustomizableObjectEditorViewportLODCommands.h"
 #include "MuCOE/CustomizableObjectEditorViewportMenuCommands.h"
@@ -21,6 +21,9 @@
 #include "MuCOE/UnrealEditorPortabilityHelpers.h"
 #include "Settings/LevelEditorViewportSettings.h"
 #include "UnrealEdGlobals.h"
+#include "AssetRegistry/AssetRegistryModule.h"
+#include "MuCO/CustomizableObjectPrivate.h"
+#include "MuCO/CustomizableObjectSystem.h"
 #include "Widgets/Input/STextComboBox.h"
 
 class UCustomizableObject;
@@ -30,11 +33,18 @@ struct FCustomizableObjectProjector;
 struct FGeometry;
 
 
-void SCustomizableObjectEditorViewport::Construct(const FArguments& InArgs, const FCustomizableObjectEditorViewportRequiredArgs& InRequiredArgs)
-{
-	PreviewScenePtr = InRequiredArgs.PreviewScene;
-	TabBodyPtr = InRequiredArgs.TabBody;
+#define LOCTEXT_NAMESPACE "CustomizableObjectEditorViewportToolBar"
 
+
+void SCustomizableObjectEditorViewport::Construct(const FArguments& InArgs,
+	const TWeakPtr<FCustomizableObjectPreviewScene>& PreviewScene,
+	const TWeakPtr<SCustomizableObjectEditorViewportTabBody>& TabBody,
+	const TWeakPtr<ICustomizableObjectInstanceEditor>& Editor)
+{
+	PreviewScenePtr = PreviewScene;
+	TabBodyPtr = TabBody;
+	WeakEditor = Editor;
+	
 	SEditorViewport::Construct(
 		SEditorViewport::FArguments()
 		.IsEnabled(FSlateApplication::Get().GetNormalExecutionAttribute())
@@ -46,7 +56,7 @@ void SCustomizableObjectEditorViewport::Construct(const FArguments& InArgs, cons
 
 TSharedRef<FEditorViewportClient> SCustomizableObjectEditorViewport::MakeEditorViewportClient()
 {
-	LevelViewportClient = MakeShareable(new FCustomizableObjectEditorViewportClient(TabBodyPtr.Pin()->CustomizableObjectEditorPtr, PreviewScenePtr.Pin().Get(), SharedThis(this)));
+	LevelViewportClient = MakeShareable(new FCustomizableObjectEditorViewportClient(TabBodyPtr.Pin()->WeakEditor, PreviewScenePtr.Pin().Get(), SharedThis(this)));
 
 	LevelViewportClient->ViewportType = LVT_Perspective;
 	LevelViewportClient->bSetListenerPosition = false;
@@ -65,11 +75,116 @@ TSharedPtr<FSceneViewport>& SCustomizableObjectEditorViewport::GetSceneViewport(
 }
 
 
-TSharedPtr<SWidget> SCustomizableObjectEditorViewport::MakeViewportToolbar()
+void SCustomizableObjectEditorViewport::PopulateViewportOverlays(TSharedRef<SOverlay> Overlay)
 {
-	return SNew(SCustomizableObjectEditorViewportToolBar, TabBodyPtr.Pin(), SharedThis(this))
-		.Cursor(EMouseCursor::Default);
+	FTextBlockStyle NormalTextStyle = FAppStyle::GetWidgetStyle<FTextBlockStyle>("NormalText");
+	FTextBlockStyle CompileOverlayText = FTextBlockStyle(NormalTextStyle).SetFontSize(18);
+	
+	Overlay->AddSlot()
+	.VAlign(VAlign_Top)
+	[
+		SNew(SCustomizableObjectEditorViewportToolBar, TabBodyPtr.Pin(), SharedThis(this)).Cursor(EMouseCursor::Default)
+	];
+	Overlay->AddSlot()
+	.VAlign(VAlign_Center)
+	.HAlign(HAlign_Center)
+	[
+		SNew(STextBlock)
+		.Visibility(this, &SCustomizableObjectEditorViewport::GetShowCompileErrorOverlay)
+		.Text_Raw(this, &SCustomizableObjectEditorViewport::GetCompileErrorOverlayText)
+		.TextStyle(&CompileOverlayText)
+		.ColorAndOpacity(FLinearColor::White)
+		.ShadowOffset(FVector2D(1.5, 1.5))
+		.ShadowColorAndOpacity(FLinearColor(0, 0, 0, 0.9f))
+	];
 }
+
+
+EVisibility SCustomizableObjectEditorViewport::GetShowCompileErrorOverlay() const
+{
+	return GetCompileErrorOverlayText().IsEmpty() ? EVisibility::Hidden : EVisibility::Visible;
+}
+
+
+FText SCustomizableObjectEditorViewport::GetCompileErrorOverlayText() const
+{
+	const TSharedPtr<ICustomizableObjectInstanceEditor> Editor = WeakEditor.Pin();
+	if (!Editor)
+	{
+		return {};
+	}
+
+	const UObject* EditingObject = (*Editor->GetObjectsCurrentlyBeingEdited())[0];
+
+	const UCustomizableObject* Object = nullptr;
+	const UCustomizableObjectInstance* Instance = nullptr;
+
+	if (auto* CastObject = Cast<UCustomizableObject>(EditingObject))
+	{
+		Object = CastObject;
+		Instance = Editor->GetPreviewInstance();
+	}
+	else if (auto* CastInstance = Cast<UCustomizableObjectInstance>(EditingObject))
+	{
+		Object = CastInstance->GetCustomizableObject();
+		Instance = CastInstance;
+	}
+	else
+	{
+		check(false);
+	}
+
+	if (!Object)
+	{
+		return LOCTEXT("NoPreviewInstance", "No Customizable Object");
+	}
+
+	const FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
+	if (AssetRegistryModule.Get().IsLoadingAssets())
+	{
+		return LOCTEXT("LoadingAssetRegistry", "Loading Asset Registry...");
+	}
+	
+	if (Object->GetPrivate()->Status.Get() == FCustomizableObjectStatusTypes::EState::Loading)
+	{
+		return LOCTEXT("Loading", "Loading...");
+	}
+	
+	if (Object->GetPrivate()->CompilationState == ECompilationStatePrivate::InProgress)
+	{
+		return LOCTEXT("Compiling", "Compiling...");
+	}
+	
+	if (!Instance) // Only happens if Mutable has compilations disabled and the CO was not compiled.
+	{
+		return LOCTEXT("EmptyPreview", "Empty Preview");
+	}
+	
+	const UCustomizableObjectSystem* System = UCustomizableObjectSystem::GetInstanceChecked();
+	
+	if (System->IsUpdating(Instance))
+	{
+		return LOCTEXT("Updating", "Updating...");
+	}
+
+	if (Object->GetPrivate()->CompilationResult == ECompilationResultPrivate::Errors) // Compilation errors have more priority than Update errors
+	{
+		return LOCTEXT("ErrorCompiling", "Error Compiling");
+	}
+
+	if (Instance->GetPrivate()->SkeletalMeshStatus == ESkeletalMeshStatus::Error)
+	{
+		return LOCTEXT("ErrorUpdating", "Error Updating");
+	}
+
+	if (!Instance->HasAnySkeletalMesh())
+	{
+		return LOCTEXT("EmptyPreview", "Empty Preview");
+	}
+	
+	return {};
+}
+
 
 void SCustomizableObjectEditorViewport::OnUndoRedo()
 {
@@ -84,37 +199,26 @@ void SCustomizableObjectEditorViewportTabBody::Construct(const FArguments& InArg
 {
 	UICommandList = MakeShareable(new FUICommandList);
 
-	CustomizableObjectEditorPtr = InArgs._CustomizableObjectEditor;
+	WeakEditor = InArgs._CustomizableObjectEditor;
 
 	FCustomizableObjectEditorViewportMenuCommands::Register();
-	//FAnimViewportShowCommands::Register();
 	FCustomizableObjectEditorViewportLODCommands::Register();
-	//FAnimViewportPlaybackCommands::Register();
 
 	FPreviewScene::ConstructionValues SceneConstructValues;
 	SceneConstructValues.bShouldSimulatePhysics = true;
 
 	PreviewScenePtr = MakeShareable(new FCustomizableObjectPreviewScene(SceneConstructValues));
-	//PreviewScenePtr->GetWorld()->WorldType = EWorldType::Editor; // Needed for custom depth pass for screenshot with no background
-
-	FCustomizableObjectEditorViewportRequiredArgs ViewportArgs(PreviewScenePtr.ToSharedRef(),SharedThis(this));
-	//(InSkeletonTree, InPreviewScene, SharedThis(this), InAssetEditorToolkit, InOnUndoRedo);
-
-	ViewportWidget = SNew(SCustomizableObjectEditorViewport, ViewportArgs);
-
-
+	
+	ViewportWidget = SNew(SCustomizableObjectEditorViewport, PreviewScenePtr.ToSharedRef(), SharedThis(this), WeakEditor);
 
 	this->ChildSlot
 		[
 			SNew(SVerticalBox)
-
 			+ SVerticalBox::Slot()
-			.Padding(2.0f)
 			.AutoHeight()
 			[
 				BuildToolBar()
 			]
-
 			+SVerticalBox::Slot()
 			.FillHeight(1)
 			[
@@ -123,9 +227,7 @@ void SCustomizableObjectEditorViewportTabBody::Construct(const FArguments& InArg
 		];
 
 	LevelViewportClient = StaticCastSharedPtr<FCustomizableObjectEditorViewportClient>(ViewportWidget->GetViewportClient());
-
-	//PreviewSkeletalMeshComponent = 0;
-
+	
 	BindCommands();
 }
 
@@ -573,7 +675,7 @@ int32 SCustomizableObjectEditorViewportTabBody::GetViewportCameraSpeed()
 
 TSharedRef<SWidget> SCustomizableObjectEditorViewportTabBody::BuildToolBar()
 {
-	FToolBarBuilder CommandToolbarBuilder(UICommandList, FMultiBoxCustomization::None);
+	FSlimHorizontalToolBarBuilder CommandToolbarBuilder(UICommandList, FMultiBoxCustomization::None);
 	{
 		CommandToolbarBuilder.AddToolBarButton(FCustomizableObjectEditorViewportCommands::Get().SetShowGrid);
 		CommandToolbarBuilder.AddToolBarButton(FCustomizableObjectEditorViewportCommands::Get().SetShowSky);
@@ -584,12 +686,11 @@ TSharedRef<SWidget> SCustomizableObjectEditorViewportTabBody::BuildToolBar()
 
 		CommandToolbarBuilder.AddComboButton(
 			FUIAction(),
-			FOnGetContent::CreateSP(
-				this,
-				&SCustomizableObjectEditorViewportTabBody::GenerateUVMaterialOptionsMenuContent),
+			FOnGetContent::CreateSP(this, &SCustomizableObjectEditorViewportTabBody::GenerateUVMaterialOptionsMenuContent),
 			TAttribute<FText>(),
 			TAttribute<FText>(),
-			FSlateIcon());
+			FSlateIcon(),
+			true);
 	}
 	CommandToolbarBuilder.EndSection();
 
@@ -598,21 +699,7 @@ TSharedRef<SWidget> SCustomizableObjectEditorViewportTabBody::BuildToolBar()
 	CommandToolbarBuilder.AddToolBarButton(FCustomizableObjectEditorViewportCommands::Get().BakeInstance);
 	CommandToolbarBuilder.EndSection();
 
-
-	return
-		SNew(SHorizontalBox)
-
-		+ SHorizontalBox::Slot()
-		.Padding(4, 0)
-		[
-			SNew(SBorder)
-			.Padding(0)
-		.BorderImage(UE_MUTABLE_GET_BRUSH("NoBorder"))
-		.IsEnabled(FSlateApplication::Get().GetNormalExecutionAttribute())
-		[
-			CommandToolbarBuilder.MakeWidget()
-		]
-		];
+	return CommandToolbarBuilder.MakeWidget();
 }
 
 
@@ -970,3 +1057,6 @@ FLinearColor SCustomizableObjectEditorViewportTabBody::GetViewportBackgroundColo
 {
 	return LevelViewportClient->GetBackgroundColor();
 }
+
+
+#undef LOCTEXT_NAMESPACE

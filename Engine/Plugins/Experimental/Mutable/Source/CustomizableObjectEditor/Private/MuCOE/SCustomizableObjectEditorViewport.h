@@ -6,6 +6,8 @@
 #include "MuCOE/CustomizableObjectEditorViewportClient.h"
 #include "UObject/GCObject.h"
 
+class FCustomizableObjectPreviewScene;
+class SCustomizableObjectEditorViewportTabBody;
 enum ERotationGridMode : int;
 enum EViewModeIndex : int;
 namespace EAnimationMode { enum Type : int; }
@@ -31,22 +33,6 @@ struct FGeometry;
 enum class ECustomizableObjectProjectorType : uint8;
 
 
-struct FCustomizableObjectEditorViewportRequiredArgs
-{
-	FCustomizableObjectEditorViewportRequiredArgs(
-		const TSharedRef<class FCustomizableObjectPreviewScene>& InPreviewScene,
-		TSharedRef<class SCustomizableObjectEditorViewportTabBody> InTabBody 
-	)
-		: PreviewScene(InPreviewScene)
-		, TabBody(InTabBody)
-	{}
-
-	TSharedRef<FCustomizableObjectPreviewScene> PreviewScene;
-
-	TSharedRef<SCustomizableObjectEditorViewportTabBody> TabBody;
-};
-
-
 //////////////////////////////////////////////////////////////////////////
 // SCustomizableObjectEditorViewport: the pure viewport widget
 
@@ -56,19 +42,26 @@ public:
 	SLATE_BEGIN_ARGS(SCustomizableObjectEditorViewport)	{}
 	SLATE_END_ARGS()
 
-	void Construct(const FArguments& InArgs, const FCustomizableObjectEditorViewportRequiredArgs& InRequiredArgs);
+	void Construct(const FArguments& InArgs,
+		const TWeakPtr<FCustomizableObjectPreviewScene>& PreviewScene,
+		const TWeakPtr<SCustomizableObjectEditorViewportTabBody>& TabBody,
+		const TWeakPtr<ICustomizableObjectInstanceEditor>& Editor);
+
+	// SEditorViewport interface
+	virtual TSharedRef<FEditorViewportClient> MakeEditorViewportClient() override;
+	virtual void PopulateViewportOverlays(TSharedRef<SOverlay> Overlay) override;
+	// End of SEditorViewport interface
 
 	TSharedPtr<FSceneViewport>& GetSceneViewport();
 
-protected:
-	// SEditorViewport interface
-	virtual TSharedRef<FEditorViewportClient> MakeEditorViewportClient() override;
-	virtual TSharedPtr<SWidget> MakeViewportToolbar() override;
-	// End of SEditorViewport interface
-
+private:
 	/**  Handle undo/redo by refreshing the viewport */
 	void OnUndoRedo();
 
+	EVisibility GetShowCompileErrorOverlay() const;
+
+	FText GetCompileErrorOverlayText() const;
+	
 	// Viewport client
 	TSharedPtr<FCustomizableObjectEditorViewportClient> LevelViewportClient;
 
@@ -79,6 +72,9 @@ protected:
 	TWeakPtr<FCustomizableObjectPreviewScene> PreviewScenePtr;
 
 	TWeakPtr<SCustomizableObjectViewportToolBar> ToolbarPtr;
+
+	/** Weak pointer of the open editor */
+	TWeakPtr<ICustomizableObjectInstanceEditor> WeakEditor;
 };
 
 
@@ -198,7 +194,7 @@ public:
 	TSharedPtr<FCustomizableObjectEditorViewportClient> GetViewportClient() const;
 
 	// Pointer back to the editor tool that owns us.
-	TWeakPtr<ICustomizableObjectInstanceEditor> CustomizableObjectEditorPtr;
+	TWeakPtr<ICustomizableObjectInstanceEditor> WeakEditor;
 
 	//void SetEditorTransformViewportToolbar(TWeakPtr<class SCustomizableObjectEditorTransformViewportToolbar> EditorTransformViewportToolbarParam);
 	void SetViewportToolbarTransformWidget(TWeakPtr<class SWidget> TransformWidget);

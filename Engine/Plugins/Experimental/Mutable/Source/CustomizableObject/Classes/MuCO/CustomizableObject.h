@@ -28,7 +28,7 @@ class UCustomizableObjectPrivate;
 struct FFrame;
 struct FStreamableHandle;
 template <typename FuncType> class TFunctionRef;
-enum class ECustomizableObjectCompilationState : uint8;
+enum class ECompilationStatePrivate : uint8;
 
 DECLARE_MULTICAST_DELEGATE(FPostCompileDelegate)
  

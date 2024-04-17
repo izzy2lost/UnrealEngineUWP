@@ -103,13 +103,7 @@ private:
 	TOptional<float> OnGetFloorOffset() const;
 	/** Called when the floor offset slider is adjusted in the perspective viewport */
 	void OnFloorOffsetChanged(float NewValue);
-
-	// Called to show / hide Customizable Object compile error
-	EVisibility GetShowCompileErrorOverlay() const;
-
-	// Called to modify the instance compile status overlay information text
-	FText GetCompileErrorOverlayText() const;
-
+	
 	ECheckBoxState IsRotationGridSnapChecked() const;
 	void HandleToggleRotationGridSnap(ECheckBoxState InState);
 	FText GetRotationGridLabel() const;

@@ -285,9 +285,6 @@ private:
 	
 	void CreatePreviewInstance();
 
-	/** Returns true if successful */
-	bool CreatePreviewComponent(int32 ComponentIndex);
-
 	/** Binds commands associated with the Static Mesh Editor. */
 	void BindCommands();
 	

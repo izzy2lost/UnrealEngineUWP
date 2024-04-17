@@ -879,7 +879,7 @@ bool UCustomizableObject::ConditionalAutoCompile()
 	}
 
 	// Don't re-compile objects if they failed to compile. 
-	if (GetPrivate()->CompilationState == ECustomizableObjectCompilationState::Failed)
+	if (GetPrivate()->CompilationResult == ECompilationResultPrivate::Errors)
 	{
 		return false;
 	}
@@ -2011,11 +2011,6 @@ TObjectPtr<UEdGraph>& UCustomizableObjectPrivate::GetSource() const
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
-
-ECustomizableObjectCompilationState FCustomizableObjectCompilerBase::GetCompilationState() const
-{
-	return ECustomizableObjectCompilationState::None;
-}
 
 
 void UCustomizableObjectBulk::PostLoad()

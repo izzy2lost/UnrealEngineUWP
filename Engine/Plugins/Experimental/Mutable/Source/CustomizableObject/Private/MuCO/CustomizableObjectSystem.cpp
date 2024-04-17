@@ -4179,7 +4179,7 @@ void UCustomizableObjectSystem::TickRecompileCustomizableObjects()
 	
 	if (GetPrivate()->RecompileCustomizableObjectsCompiler)
 	{
-		bUpdated = GetPrivate()->RecompileCustomizableObjectsCompiler->Tick(GetPrivate()->bBlocking) || GetPrivate()->RecompileCustomizableObjectsCompiler->GetCompilationState() == ECustomizableObjectCompilationState::Failed;
+		bUpdated = GetPrivate()->RecompileCustomizableObjectsCompiler->Tick(GetPrivate()->bBlocking);
 	}
 
 	if (bUpdated)

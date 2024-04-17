@@ -42,12 +42,14 @@ ECustomizableObjectCompilationState UCustomizableObjectEditorFunctionLibrary::Co
 
 	CustomizableObject->GetOutermost()->SetDirtyFlag(bPackageWasDirty);
 
+	const bool bCompilationSuccess = CustomizableObject->GetPrivate()->CompilationResult == ECompilationResultPrivate::Success ||
+		CustomizableObject->GetPrivate()->CompilationResult == ECompilationResultPrivate::Warnings;
+	
 	const double CurrentTime = FPlatformTime::Seconds();
 	UE_LOG( LogMutable, Display,
 		TEXT("Synchronously Compiled %s %s in %f seconds"),
 		*ObjectPath, 
-		Compiler.GetCompilationState() == ECustomizableObjectCompilationState::Completed ? 
-		TEXT("successfully") : TEXT("unsuccessfully"),
+		bCompilationSuccess ? TEXT("successfully") : TEXT("unsuccessfully"),
 		CurrentTime - StartTime
 	);
 
@@ -56,5 +58,5 @@ ECustomizableObjectCompilationState UCustomizableObjectEditorFunctionLibrary::Co
 		UE_LOG(LogMutable, Warning, TEXT("CO not marked as compiled"));
 	}
 
-	return Compiler.GetCompilationState();
+	return bCompilationSuccess ? ECustomizableObjectCompilationState::Completed : ECustomizableObjectCompilationState::Failed;
 }

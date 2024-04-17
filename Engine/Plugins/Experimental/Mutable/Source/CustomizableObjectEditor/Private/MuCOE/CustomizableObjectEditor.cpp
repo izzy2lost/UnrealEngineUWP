@@ -353,41 +353,6 @@ void FCustomizableObjectEditor::SelectNode(const UEdGraphNode* Node)
 }
 
 
-bool FCustomizableObjectEditor::CreatePreviewComponent(int32 ComponentIndex)
-{
-	if (!PreviewCustomizableSkeletalComponents.IsValidIndex(ComponentIndex))
-	{
-		PreviewCustomizableSkeletalComponents.AddZeroed(ComponentIndex - PreviewCustomizableSkeletalComponents.Num() + 1);
-		check(PreviewCustomizableSkeletalComponents.IsValidIndex(ComponentIndex) && !PreviewCustomizableSkeletalComponents.IsValidIndex(ComponentIndex + 1));
-	}
-
-	PreviewCustomizableSkeletalComponents[ComponentIndex] = NewObject<UCustomizableSkeletalComponent>(UCustomizableSkeletalComponent::StaticClass());
-
-	if (PreviewCustomizableSkeletalComponents[ComponentIndex])
-	{
-		PreviewCustomizableSkeletalComponents[ComponentIndex]->CustomizableObjectInstance = PreviewInstance;
-		PreviewCustomizableSkeletalComponents[ComponentIndex]->ComponentIndex = ComponentIndex;
-
-		if (!PreviewSkeletalMeshComponents.IsValidIndex(ComponentIndex))
-		{
-			PreviewSkeletalMeshComponents.AddZeroed(ComponentIndex - PreviewSkeletalMeshComponents.Num() + 1);
-			check(PreviewSkeletalMeshComponents.IsValidIndex(ComponentIndex) && !PreviewSkeletalMeshComponents.IsValidIndex(ComponentIndex + 1));
-		}
-
-		PreviewSkeletalMeshComponents[ComponentIndex] = NewObject<UDebugSkelMeshComponent>(GetTransientPackage(), NAME_None, RF_Transient);
-
-		if (PreviewSkeletalMeshComponents[ComponentIndex])
-		{
-			PreviewCustomizableSkeletalComponents[ComponentIndex]->AttachToComponent(PreviewSkeletalMeshComponents[ComponentIndex], FAttachmentTransformRules::KeepRelativeTransform);
-
-			return true;
-		}
-	}
-
-	return false;
-}
-
-
 void FCustomizableObjectEditor::CreatePreviewInstance()
 {
 	OnUpdatePreviewInstanceWork.Add([this]()
@@ -2131,16 +2096,8 @@ void FCustomizableObjectEditor::FindProperty(const FProperty* Property, const vo
 
 void FCustomizableObjectEditor::OnPostCompile()
 {
-	if (!PreviewCustomizableSkeletalComponents.IsEmpty() && !PreviewSkeletalMeshComponents.IsEmpty())
-	{
-		CreatePreviewComponents();
-
-		PreviewInstance->UpdateSkeletalMeshAsync(true, true);
-	}
-	else
-	{
-		CreatePreviewInstance();
-	}
+	CreatePreviewComponents();
+	PreviewInstance->UpdateSkeletalMeshAsync(true, true);
 }
 
 
@@ -2482,49 +2439,30 @@ void FCustomizableObjectEditor::GetExternalChildObjects(const UCustomizableObjec
 
 void FCustomizableObjectEditor::CreatePreviewComponents()
 {
-	// Getting the number of mesh components from the root node
-	int32 NumMeshComponents = 0;
-
-	if (CustomizableObject->GetPrivate()->GetSource())
+	for (const TObjectPtr<UCustomizableSkeletalComponent>& Component : PreviewCustomizableSkeletalComponents)
 	{
-		TArray<UCustomizableObjectNodeObject*> RootNode;
-		CustomizableObject->GetPrivate()->GetSource()->GetNodesOfClass< UCustomizableObjectNodeObject>(RootNode);
-
-		for (int32 i = 0; i < RootNode.Num(); ++i)
-		{
-			if (RootNode[i]->bIsBase)
-			{
-				NumMeshComponents = RootNode[i]->NumMeshComponents;
-				break;
-			}
-		}
+		Component->DestroyComponent();
 	}
+	PreviewCustomizableSkeletalComponents.Empty();
 
-	if (NumMeshComponents != PreviewSkeletalMeshComponents.Num())
+	for (const TObjectPtr<UDebugSkelMeshComponent>& Component : PreviewSkeletalMeshComponents)
 	{
-		if (NumMeshComponents > PreviewSkeletalMeshComponents.Num())
-		{
-			PreviewSkeletalMeshComponents.AddZeroed(NumMeshComponents - PreviewSkeletalMeshComponents.Num());
-			PreviewCustomizableSkeletalComponents.AddZeroed(NumMeshComponents - PreviewCustomizableSkeletalComponents.Num());
-		}
-		else
-		{
-			PreviewSkeletalMeshComponents.SetNumZeroed(NumMeshComponents, EAllowShrinking::No);
-			PreviewCustomizableSkeletalComponents.SetNumZeroed(NumMeshComponents, EAllowShrinking::No);
-		}
+		Component->DestroyComponent();
+	}
+	PreviewSkeletalMeshComponents.Empty();
 
-		for (int32 ComponentIndex = 0; ComponentIndex < PreviewSkeletalMeshComponents.Num(); ++ComponentIndex)
-		{
-			if (!PreviewSkeletalMeshComponents[ComponentIndex])
-			{
-				if (!CreatePreviewComponent(ComponentIndex))
-				{
-					PreviewSkeletalMeshComponents.Empty();
-					PreviewCustomizableSkeletalComponents.Empty();
-					break;
-				}
-			}
-		}
+	for (int32 ComponentIndex = 0; ComponentIndex < CustomizableObject->GetComponentCount(); ++ComponentIndex)
+	{
+		UCustomizableSkeletalComponent* PreviewCustomizableSkeletalComponent = NewObject<UCustomizableSkeletalComponent>(UCustomizableSkeletalComponent::StaticClass());
+		UDebugSkelMeshComponent* PreviewSkeletalMeshComponent = NewObject<UDebugSkelMeshComponent>(GetTransientPackage(), NAME_None, RF_Transient);
+
+		PreviewCustomizableSkeletalComponent->bSkipSetReferenceSkeletalMesh = true;
+		PreviewCustomizableSkeletalComponent->CustomizableObjectInstance = PreviewInstance;
+		PreviewCustomizableSkeletalComponent->ComponentIndex = ComponentIndex;
+		PreviewCustomizableSkeletalComponent->AttachToComponent(PreviewSkeletalMeshComponent, FAttachmentTransformRules::KeepRelativeTransform);
+
+		PreviewCustomizableSkeletalComponents.Add(PreviewCustomizableSkeletalComponent);
+		PreviewSkeletalMeshComponents.Add(PreviewSkeletalMeshComponent);
 	}
 }
 

@@ -128,11 +128,11 @@ EDataValidationResult UAssetValidator_CustomizableObjects::IsCustomizableObjectV
 	TArray<FText> CachedValidationWarnings;
 	
 	// Map with all the possible compilation states. We use this so at the end we can know if any of those states was returned by any of the compilation runs
-	TMap<ECustomizableObjectCompilationState,bool>PossibleEndCompilationStates;
-	PossibleEndCompilationStates.Add(ECustomizableObjectCompilationState::Completed,false);
-	PossibleEndCompilationStates.Add(ECustomizableObjectCompilationState::None,false);
-	PossibleEndCompilationStates.Add(ECustomizableObjectCompilationState::Failed,false);
-	PossibleEndCompilationStates.Add(ECustomizableObjectCompilationState::InProgress,false);
+	TMap<ECompilationResultPrivate,bool>PossibleEndCompilationStates;
+	PossibleEndCompilationStates.Add(ECompilationResultPrivate::Unknown, false);
+	PossibleEndCompilationStates.Add(ECompilationResultPrivate::Success, false);
+	PossibleEndCompilationStates.Add(ECompilationResultPrivate::Errors, false);
+	PossibleEndCompilationStates.Add(ECompilationResultPrivate::Warnings, false);
 	PossibleEndCompilationStates.Shrink();
 	
 	// Iterate over the compilation options that we want to test and perform the compilation
@@ -167,7 +167,7 @@ EDataValidationResult UAssetValidator_CustomizableObjects::IsCustomizableObjectV
 		}
 
 		// Flag the array with end results to have the current output as true since it was produced by this execution
-		ECustomizableObjectCompilationState CompilationEndResult = Compiler->GetCompilationState();
+		ECompilationResultPrivate CompilationEndResult = RootObject->GetPrivate()->CompilationResult;
 		bool* Value = PossibleEndCompilationStates.Find(CompilationEndResult);
 		check (Value);		// If this fails it may mean we are getting a compilation state we are not considering. 
 		*Value = true;
@@ -194,13 +194,11 @@ EDataValidationResult UAssetValidator_CustomizableObjects::IsCustomizableObjectV
 	// Return informed guess about what the validation state of this object should be
 
 	// If it contains invalid states then notify about it too:
-	// ECustomizableObjectCompilationState::InProgress should not be possible since we are compiling synchronously.
-	check (*PossibleEndCompilationStates.Find(ECustomizableObjectCompilationState::InProgress) == false);
 	// ECustomizableObjectCompilationState::None would mean the resource is locked (and should not be)
-	check (*PossibleEndCompilationStates.Find(ECustomizableObjectCompilationState::None) == false);
+	check (*PossibleEndCompilationStates.Find(ECompilationResultPrivate::Unknown) == false);
 	
 	// If one or more tests failed to ran then the result must be invalid
-	if (*PossibleEndCompilationStates.Find(ECustomizableObjectCompilationState::Failed) == true)
+	if (*PossibleEndCompilationStates.Find(ECompilationResultPrivate::Errors) == true)
 	{
 		// Early CO compilation error (before starting mutable compilation) -> Output is invalid
 		Result = EDataValidationResult::Invalid;

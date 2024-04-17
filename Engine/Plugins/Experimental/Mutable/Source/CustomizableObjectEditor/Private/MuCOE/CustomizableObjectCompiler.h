@@ -28,8 +28,6 @@ public:
 	// FCustomizableObjectCompilerBase interface
 	CUSTOMIZABLEOBJECTEDITOR_API bool IsRootObject(const class UCustomizableObject* Object) const override;
 	
-	CUSTOMIZABLEOBJECTEDITOR_API ECustomizableObjectCompilationState GetCompilationState() const override { return State;  };
-	
 	/** Check for pending compilation process. Returns true if an object has been updated. */
 	CUSTOMIZABLEOBJECTEDITOR_API virtual bool Tick(bool bBlocking) override;
 
@@ -71,16 +69,14 @@ public:
 	void ForceFinishBeforeStartCompilation(UCustomizableObject* Object);
 
 	// Getter of AsynchronousStreamableHandlePtr
-	TSharedPtr<struct FStreamableHandle> GetAsynchronousStreamableHandlePtr() { return AsynchronousStreamableHandlePtr; }
+	TSharedPtr<FStreamableHandle> GetAsynchronousStreamableHandlePtr() { return AsynchronousStreamableHandlePtr; }
 
 private:
 
 	// Object containing all error and warning logs raised during compilation.
 	FCompilationMessageCache CompilationLogsContainer;
-	
-	void SetCompilationState(ECustomizableObjectCompilationState InState);
 
-	ECustomizableObjectCompilationState State = ECustomizableObjectCompilationState::None;
+	void SetCompilationState(ECompilationStatePrivate State, ECompilationResultPrivate Result) const;
 	
 	void CompileInternal(bool bAsync = false);
 
@@ -178,6 +174,8 @@ private:
 	* Also assigned to MaxConvertToMutableTextureTime
 	* @return value in milliseconds to use for AsyncLoadingTimeLimit and MaxConvertToMutableTextureTime */
 	float ComputeAsyncLoadingTimeLimit();
+	
+    ECompilationResultPrivate GetCompilationResult() const;
 	
 public:
 	

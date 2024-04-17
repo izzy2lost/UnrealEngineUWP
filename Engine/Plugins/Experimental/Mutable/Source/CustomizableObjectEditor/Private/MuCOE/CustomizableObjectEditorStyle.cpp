@@ -56,9 +56,11 @@ FString FCustomizableObjectEditorStyle::RelativePathToPluginPath(const FString& 
 }
 
 
-#define IMAGE_PLUGIN_BRUSH( RelativePath, ... ) FSlateImageBrush( FCustomizableObjectEditorStyle::RelativePathToPluginPath( RelativePath, ".png" ), __VA_ARGS__ )
-#define IMAGE_BRUSH(Style, RelativePath, ... ) FSlateImageBrush( Style->RootToContentDir( RelativePath, TEXT(".png") ), __VA_ARGS__ )
-#define IMAGE_BRUSH_SVG( Style, RelativePath, ... ) FSlateVectorImageBrush( Style->RootToContentDir(RelativePath, TEXT(".svg")), __VA_ARGS__)
+#define IMAGE_PLUGIN_BRUSH(Style, RelativePath, ... ) FSlateImageBrush(Style->RootToContentDir( RelativePath, TEXT(".png")), __VA_ARGS__)
+
+#define IMAGE_BRUSH(Style, RelativePath, ... ) FSlateImageBrush(Style->RootToCoreContentDir( RelativePath, TEXT(".png")), __VA_ARGS__)
+#define IMAGE_BRUSH_SVG( Style, RelativePath, ... ) FSlateVectorImageBrush(Style->RootToCoreContentDir(RelativePath, TEXT(".svg")), __VA_ARGS__)
+
 
 TSharedRef<FSlateStyleSet> FCustomizableObjectEditorStyle::Create()
 {
@@ -69,8 +71,9 @@ TSharedRef<FSlateStyleSet> FCustomizableObjectEditorStyle::Create()
 	const FVector2D Icon64x64(64.0f, 64.0f);
 
 	TSharedRef< FSlateStyleSet > Style = MakeShareable(new FSlateStyleSet("CustomizableObjectEditorStyle"));
-	Style->SetContentRoot(FPaths::EngineContentDir() / TEXT("Editor/Slate"));
-
+	Style->SetCoreContentRoot(FPaths::EngineContentDir() / TEXT("Editor/Slate"));
+	Style->SetContentRoot(FPaths::EnginePluginsDir() / TEXT("Experimental/Mutable/Content"));
+	
 	Style->Set("CustomizableObjectEditor.Save", new IMAGE_BRUSH_SVG(Style, "Starship/Common/SaveCurrent", Icon40x40));
 	Style->Set("CustomizableObjectEditor.Save.Small", new IMAGE_BRUSH_SVG(Style, "Starship/Common/SaveCurrent", Icon20x20));
 	Style->Set("CustomizableObjectEditor.Compile", new IMAGE_BRUSH_SVG(Style, "Starship/MainToolbar/compile", Icon40x40));
@@ -125,7 +128,7 @@ TSharedRef<FSlateStyleSet> FCustomizableObjectEditorStyle::Create()
 	Style->Set("CustomizableObjectEditorViewport.SetShowGrid", new IMAGE_BRUSH_SVG(Style, "Starship/Common/Grid", Icon20x20));
 	Style->Set("CustomizableObjectEditorViewport.SetShowSky", new IMAGE_BRUSH_SVG(Style, "Starship/Common/Reflections", Icon20x20));
 	Style->Set("CustomizableObjectEditorViewport.SetDrawUVs", new IMAGE_BRUSH_SVG(Style, "Starship/Common/SetDrawUVs", Icon20x20));
-	Style->Set("CustomizableObjectEditorViewport.BakeInstance", new IMAGE_BRUSH_SVG(Style, "Starship/MainToolbar/compile", Icon20x20));
+	Style->Set("CustomizableObjectEditorViewport.BakeInstance", new IMAGE_PLUGIN_BRUSH(Style, "Icons/BakerIcon", Icon40x40));
 
 	Style->Set("COEditorViewportLODCommands.TranslateMode", new IMAGE_BRUSH_SVG(Style, "Starship/EditorViewport/translate", Icon20x20));
 	Style->Set("COEditorViewportLODCommands.RotateMode", new IMAGE_BRUSH_SVG(Style, "Starship/EditorViewport/rotate", Icon20x20));
@@ -151,13 +154,7 @@ TSharedRef<FSlateStyleSet> FCustomizableObjectEditorStyle::Create()
 	Style->Set("CustomizableObjectDebugger.GenerateMutableGraph.Small", new IMAGE_BRUSH_SVG(Style, "Starship/Common/blueprint", Icon20x20));
 	Style->Set("CustomizableObjectDebugger.CompileMutableCode", new IMAGE_BRUSH_SVG(Style, "Starship/MainToolbar/Compile", Icon40x40));
 	Style->Set("CustomizableObjectDebugger.CompileMutableCode.Small", new IMAGE_BRUSH_SVG(Style, "Starship/MainToolbar/Compile", Icon20x20));
-
-	//Style->Set("ClassIcon.CustomizableObject", new IMAGE_PLUGIN_BRUSH("Icons/Icon_CustomObject_16x16", Icon16x16));
-	//Style->Set("ClassThumbnail.CustomizableObject", new IMAGE_PLUGIN_BRUSH("Icons/Icon_CustomObject_64x64.png", Icon64x64));
-	//Style->Set("ClassIcon.CustomizableObjectInstance", new IMAGE_PLUGIN_BRUSH("Icons/Icon_CustomObjectInstance_16x16.png", Icon16x16));
-	//Style->Set("ClassThumbnail.CustomizableObjectInstance", new IMAGE_PLUGIN_BRUSH("Icons/Icon_CustomObjectInstance_64x64.png", Icon64x64));
-
-
+	
 	FTableRowStyle PerformanceReportRowStyle = FAppStyle::Get().GetWidgetStyle<FTableRowStyle>("TableView.Row");
 	PerformanceReportRowStyle.SetEvenRowBackgroundBrush(*FAppStyle::Get().GetBrush("Brushes.AccentBrown"));
 	PerformanceReportRowStyle.SetOddRowBackgroundBrush(*FAppStyle::Get().GetBrush("Brushes.AccentGray"));
