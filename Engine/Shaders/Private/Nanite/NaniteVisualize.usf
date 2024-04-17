@@ -554,16 +554,13 @@ void VisualizeCS(uint3 DTID : SV_DispatchThreadID, uint3 GID : SV_GroupID)
 			switch (GetPixelProgrammableVisMode())
 			{
 			case NANITE_PIXEL_PROG_VIS_MODE_DEFAULT:
-				bHighlight = MaterialFlags.bPixelDiscard || MaterialFlags.bPixelDepthOffset || MaterialFlags.bDisplacement;
+				bHighlight = MaterialFlags.bPixelDiscard || MaterialFlags.bPixelDepthOffset;
 				break;
 			case NANITE_PIXEL_PROG_VIS_MODE_MASKED_ONLY:
 				bHighlight = MaterialFlags.bPixelDiscard;
 				break;
 			case NANITE_PIXEL_PROG_VIS_MODE_PDO_ONLY:
 				bHighlight = MaterialFlags.bPixelDepthOffset;
-				break;
-			case NANITE_PIXEL_PROG_VIS_MODE_TESS_ONLY:
-				bHighlight = MaterialFlags.bDisplacement;
 				break;
 			default:
 				break;
