@@ -332,6 +332,8 @@ private:
 	TMap<TWeakObjectPtr<UPrimitiveComponent>, FReplicatedPhysicsTarget> ComponentToTargets_DEPRECATED; // This collection is keeping the legacy flow working until fully deprecated in a future release
 	TArray<FReplicatedPhysicsTarget> ReplicatedTargetsQueue;
 	FPhysScene* PhysScene;
+	TWeakObjectPtr<UNetworkPhysicsSettingsComponent> SettingsCurrent;
+
 
 	FPhysicsReplicationAsync* PhysicsReplicationAsync;
 	FPhysicsReplicationAsyncInput* AsyncInput;	//async data being written into before we push into callback

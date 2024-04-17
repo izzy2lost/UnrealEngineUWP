@@ -23,6 +23,8 @@ namespace PhysicsReplicationCVars
 }
 
 
+TMap<AActor*, UNetworkPhysicsSettingsComponent*> UNetworkPhysicsSettingsComponent::ObjectToSettings_External = TMap<AActor*, UNetworkPhysicsSettingsComponent*>();
+
 UNetworkPhysicsSettingsComponent::UNetworkPhysicsSettingsComponent()
 {
 	bWantsInitializeComponent = true;
@@ -55,6 +57,7 @@ void UNetworkPhysicsSettingsComponent::InitializeComponent()
 								FNetworkPhysicsSettingsAsyncInput* AsyncInput = NetworkPhysicsSettingsAsync->GetProducerInputData_External();
 								AsyncInput->PhysicsObject = PhysicsObject;
 								AsyncInput->Settings.GeneralSettings = GeneralSettings;
+								AsyncInput->Settings.DefaultReplicationSettings = DefaultReplicationSettings;
 								AsyncInput->Settings.ResimulationSettings = ResimulationSettings;
 								AsyncInput->Settings.PredictiveInterpolationSettings = PredictiveInterpolationSettings;
 							}
@@ -63,6 +66,11 @@ void UNetworkPhysicsSettingsComponent::InitializeComponent()
 				}
 			}
 		}
+	}
+
+	if (AActor* Owner = GetOwner())
+	{
+		UNetworkPhysicsSettingsComponent::ObjectToSettings_External.Add(Owner, this);
 	}
 }
 
@@ -82,6 +90,11 @@ void UNetworkPhysicsSettingsComponent::UninitializeComponent()
 		}
 	}
 	NetworkPhysicsSettingsAsync = nullptr;
+
+	if (AActor* Owner = GetOwner())
+	{
+		UNetworkPhysicsSettingsComponent::ObjectToSettings_External.Remove(Owner);
+	}
 }
 
 void UNetworkPhysicsSettingsComponent::BeginPlay()
@@ -100,6 +113,11 @@ void UNetworkPhysicsSettingsComponent::BeginPlay()
 	}
 }
 
+UNetworkPhysicsSettingsComponent* UNetworkPhysicsSettingsComponent::GetSettingsForActor(AActor* Owner)
+{
+	UNetworkPhysicsSettingsComponent** Value = ObjectToSettings_External.Find(Owner);
+	return Value ? *Value : nullptr;
+}
 
 #pragma region // FNetworkPhysicsSettingsComponentAsync
 
