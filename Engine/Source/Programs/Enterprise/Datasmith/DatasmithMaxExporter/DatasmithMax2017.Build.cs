@@ -70,10 +70,6 @@ namespace UnrealBuildTool.Rules
 					PublicAdditionalLibraries.Add(Path.Combine(LibraryPaths, "Maxscrpt.lib"));
 					PublicAdditionalLibraries.Add(Path.Combine(LibraryPaths, "mesh.lib"));
 				}
-				else
-				{
-					throw new BuildException("3ds Max Exporter - SDK doesn't exist {0}.", MaxSDKLocation);
-				}
 			}
 
 			// Itoo ForestPack/RailClone API
