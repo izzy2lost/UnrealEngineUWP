@@ -198,7 +198,7 @@ namespace UnrealBuildTool.XcodeProjectXcconfig
 							}
 							else
 							{
-								throw ex;
+								throw;
 							}
 						}
 					}

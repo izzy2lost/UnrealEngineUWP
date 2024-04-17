@@ -497,7 +497,7 @@ namespace UnrealBuildTool
 						// Ignore any optional plugins
 						if (Reference.bOptional)
 						{
-							Logger.LogDebug("Ignored optional reference to '%s' plugin; plugin was not found.", Reference.Name);
+							Logger.LogDebug("Ignored optional reference to '{Plugin}' plugin; plugin was not found.", Reference.Name);
 							continue;
 						}
 

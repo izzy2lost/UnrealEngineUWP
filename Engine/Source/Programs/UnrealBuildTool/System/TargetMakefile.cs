@@ -690,8 +690,8 @@ namespace UnrealBuildTool
 				// Check if the arguments are different
 				if (!Enumerable.SequenceEqual(Makefile.AdditionalArguments!, Arguments))
 				{
-					Logger.LogDebug("Old command line arguments:\n", String.Join(' ', Makefile.AdditionalArguments!));
-					Logger.LogDebug("New command line arguments:\n", String.Join(' ', Arguments));
+					Logger.LogDebug("Old command line arguments:\n{Args}", String.Join(' ', Makefile.AdditionalArguments!));
+					Logger.LogDebug("New command line arguments:\n{Args}", String.Join(' ', Arguments));
 					ReasonNotLoaded = "command line arguments changed";
 					return null;
 				}
@@ -725,8 +725,8 @@ namespace UnrealBuildTool
 				string CurrentExternalMetadata = UEBuildPlatform.GetBuildPlatform(Platform).GetExternalBuildMetadata(ProjectFile);
 				if (String.Compare(CurrentExternalMetadata, Makefile.ExternalMetadata, StringComparison.Ordinal) != 0)
 				{
-					Logger.LogDebug("Old metadata:\n", Makefile.ExternalMetadata);
-					Logger.LogDebug("New metadata:\n", CurrentExternalMetadata);
+					Logger.LogDebug("Old metadata:\n{Metadata}", Makefile.ExternalMetadata);
+					Logger.LogDebug("New metadata:\n{Metadata}", CurrentExternalMetadata);
 					ReasonNotLoaded = "build metadata has changed";
 					return null;
 				}
