@@ -32,7 +32,7 @@ protected:
 	virtual void Uninitialize();
 
 	virtual void GetPropertyOverridesForActor(const FActorContainerID& InContainerID, const FGuid& InActorGuid, TArray<FWorldPartitionRuntimeCellPropertyOverride>& OutPropertyOverrides) const override;
-	ENGINE_API void GetPropertyOverridesForActor(const FActorContainerID& InContainerID, const FActorContainerID& InContextContainerID, const FGuid& InActorGuid, TArray<const FActorPropertyOverride*>& OutPropertyOverrides) const;
+	ENGINE_API void GetPropertyOverridesForActor(const FActorContainerID& InContainerID, const FActorContainerID& InContextContainerID, const FGuid& InActorGuid, TArray<FLevelInstanceActorPropertyOverride>& OutPropertyOverrides) const;
 
 	virtual void RegisterContainer(const FInitializeParams& InParams) override;
 	virtual void UnregisterContainer() override;

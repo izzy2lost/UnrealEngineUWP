@@ -10,7 +10,7 @@
 #include "WorldPartition/LevelInstance/LevelInstancePropertyOverrideDesc.h"
 #include "LevelInstance/LevelInstancePropertyOverrideAsset.h"
 #include "LevelInstance/LevelInstanceSettings.h"
-
+#include "LevelInstance/LevelInstanceInterface.h"
 
 void ULevelInstanceContainerInstance::Initialize(const FInitializeParams& InParams)
 {
@@ -167,7 +167,7 @@ void ULevelInstanceContainerInstance::GetPropertyOverridesForActor(const FActorC
 	}
 }
 
-void ULevelInstanceContainerInstance::GetPropertyOverridesForActor(const FActorContainerID& InContainerID, const FActorContainerID& InContextContainerID, const FGuid& InActorGuid, TArray<const FActorPropertyOverride*>& OutPropertyOverrides) const
+void ULevelInstanceContainerInstance::GetPropertyOverridesForActor(const FActorContainerID& InContainerID, const FActorContainerID& InContextContainerID, const FGuid& InActorGuid, TArray<FLevelInstanceActorPropertyOverride>& OutPropertyOverrides) const
 {
 	if (!ULevelInstanceSettings::Get()->IsPropertyOverrideEnabled())
 	{
@@ -190,7 +190,16 @@ void ULevelInstanceContainerInstance::GetPropertyOverridesForActor(const FActorC
 			{
 				if (const FActorPropertyOverride* FoundActorOverride = FoundContainerOverride->ActorOverrides.Find(InActorGuid))
 				{
-					OutPropertyOverrides.Add(FoundActorOverride);
+					if (const UActorDescContainerInstance* ParentContainerInstancePtr = ParentContainerInstance.Get())
+					{
+						if (const FWorldPartitionActorDescInstance* ParentActorDescInstance = ParentContainerInstance->GetActorDescInstance(GetContainerActorGuid()))
+						{
+							if (const ILevelInstanceInterface* ParentLevelInstance = Cast<ILevelInstanceInterface>(ParentActorDescInstance->GetActor()))
+							{
+								OutPropertyOverrides.Add(FLevelInstanceActorPropertyOverride(ParentLevelInstance->GetLevelInstanceID(), FoundActorOverride));
+							}
+						}
+					}
 				}
 			}
 		}

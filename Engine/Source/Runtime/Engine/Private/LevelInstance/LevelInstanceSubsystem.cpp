@@ -3282,7 +3282,27 @@ const ILevelInstanceInterface* ULevelInstanceSubsystem::GetLevelInstanceProperty
 	return GetLevelInstancePropertyOverridesEditOwner(const_cast<ILevelInstanceInterface*>(LevelInstance));
 }
 
-bool ULevelInstanceSubsystem::GetLevelInstancePropertyOverridesForActor(const AActor* Actor, FActorContainerID PropertyOverrideContext, TArray<const FActorPropertyOverride*>& OutPropertyOverrides) const
+bool ULevelInstanceSubsystem::HasEditableLevelInstancePropertyOverrides(TArray<FLevelInstanceActorPropertyOverride>& InPropertyOverrides) const
+{
+	// Return true if one of the property overrides is from an editable level instance
+	for (const FLevelInstanceActorPropertyOverride& LevelInstanceActorPropertyOverride : InPropertyOverrides)
+	{
+		if (LevelInstanceActorPropertyOverride.LevelInstanceID.IsValid())
+		{
+			if (AActor* LevelInstanceActor = Cast<AActor>(GetLevelInstance(LevelInstanceActorPropertyOverride.LevelInstanceID)))
+			{
+				if (!LevelInstanceActor->IsInLevelInstance() || LevelInstanceActor->IsInEditLevelInstance())
+				{
+					return true;
+				}
+			}
+		}
+	}
+
+	return false;
+}
+
+bool ULevelInstanceSubsystem::GetLevelInstancePropertyOverridesForActor(const AActor* Actor, FActorContainerID PropertyOverrideContext, TArray<FLevelInstanceActorPropertyOverride>& OutPropertyOverrides) const
 {
 	if (ILevelInstanceInterface* OwningLevelInstance = GetParentLevelInstance(Actor))
 	{
@@ -3368,10 +3388,10 @@ bool ULevelInstanceSubsystem::FPropertyOverrideEdit::Save(ILevelInstanceInterfac
 			
 	// Serialize current edit overrides
 	NewPropertyOverride->SerializePropertyOverrides(LevelInstanceOverrideOwner, LevelStreaming);
-			
-	// Set new property override before saving
-	LevelInstanceOverrideOwner->SetPropertyOverrideAsset(NewPropertyOverride);
-
+	
+	// Reset to nullptr if override is empty
+	LevelInstanceOverrideOwner->SetPropertyOverrideAsset(!NewPropertyOverride->GetPropertyOverridesPerContainer().IsEmpty() ? NewPropertyOverride : nullptr);
+	
 	// This will be used when initializing the ActorDesc to distinguish between saving the LevelInstance actor normally or through Property override save
 	TGuardValue<bool> SavingGuard(NewPropertyOverride->bSavingOverrideEdit, true);
 	if (FEditorFileUtils::PromptForCheckoutAndSave({ OverrideOwnerActor->GetPackage() }, /*bCheckDirty*/false, /*bPromptToSave*/false) != FEditorFileUtils::PR_Success)
@@ -3380,7 +3400,7 @@ bool ULevelInstanceSubsystem::FPropertyOverrideEdit::Save(ILevelInstanceInterfac
 		LevelInstanceOverrideOwner->SetPropertyOverrideAsset(ExistingPropertyOverride);
 		OverrideOwnerActor->GetPackage()->SetDirtyFlag(bWasDirty);
 		return false;
-	}	
+	}
 
 	return true;
 }

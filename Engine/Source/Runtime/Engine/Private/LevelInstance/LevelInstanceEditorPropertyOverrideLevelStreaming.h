@@ -68,6 +68,7 @@ private:
 	void OnActorReplacedEvent(FWorldPartitionActorDescInstance* InActorDescInstance);
 	void OnPreInitializeContainerInstance(UActorDescContainerInstance::FInitializeParams& InInitParams, UActorDescContainerInstance* InContainerInstance);
 	virtual void OnCurrentStateChanged(ELevelStreamingState InPrevState, ELevelStreamingState InNewState) override;
+	void OnObjectPropertyChanged(UObject* Object, struct FPropertyChangedEvent& Event);
 
 	static UWorld* LoadArchetypeWorld(const FString& InWorldPackageName, const FString& InSuffix);
 	static void UnloadArchetypeWorld(UWorld* InWorld);

@@ -106,8 +106,12 @@ UENUM()
 enum class ELevelInstanceFlags : uint8
 {
 	None = 0,
+	/** Actor is inside an Level Instance editing hierarchy (used to show post process effect) */
 	IsInEditHierarchy = 1,
+	/** Actor has property overrides applied */
 	HasPropertyOverrides = 2,
+	/** Actor has property overrides from a top level editable level instance */
+	HasEditablePropertyOverrides = 4 
 };
 
 ENUM_CLASS_FLAGS(ELevelInstanceFlags)
@@ -302,15 +306,16 @@ private:
 
 #if WITH_EDITORONLY_DATA
 	/** Whether this actor belongs to a level instance or not and what type of level instance. */
-	UPROPERTY(Transient)
+	UPROPERTY(Transient, NonTransactional)
 	ELevelInstanceType LevelInstanceType;
 
 	/** Flags related to level instances for this actor. */
-	UPROPERTY(Transient)
+	UPROPERTY(Transient, NonTransactional)
 	ELevelInstanceFlags LevelInstanceFlags;
 
 	friend struct FSetActorIsInLevelInstance;
 	friend struct FAddActorLevelInstanceFlags;
+	friend struct FRemoveActorLevelInstanceFlags;
 
 public:
 	UPROPERTY(EditAnywhere, AdvancedDisplay, Category = LevelInstance, meta = (Tooltip = "If checked, this Actor will only get loaded in a main world (persistent level), it will not be loaded through Level Instances."))
@@ -369,10 +374,16 @@ public:
 		return EnumHasAnyFlags(LevelInstanceFlags, ELevelInstanceFlags::IsInEditHierarchy);
 	}
 
-	/** iF true, this actor or one of its components has property overrides applied. */
+	/** If true, this actor or one of its components has property overrides applied. */
 	bool HasLevelInstancePropertyOverrides() const
 	{
 		return EnumHasAnyFlags(LevelInstanceFlags, ELevelInstanceFlags::HasPropertyOverrides);
+	}
+
+	/** If true, this actor or one of its components has property overrides applied from an editable level instance (level instance is in a non readonly level) */
+	bool HasEditableLevelLevelInstancePropertyOverrides() const
+	{
+		return EnumHasAnyFlags(LevelInstanceFlags, ELevelInstanceFlags::HasEditablePropertyOverrides);
 	}
 
 	/** If true, the actor belongs to a level instance. */
@@ -4611,6 +4622,19 @@ private:
 	FAddActorLevelInstanceFlags(AActor* InActor, ELevelInstanceFlags InFlagsToAdd)
 	{
 		EnumAddFlags(InActor->LevelInstanceFlags, InFlagsToAdd);
+	}
+
+	friend class ULevelStreamingLevelInstance;
+	friend class ULevelStreamingLevelInstanceEditor;
+	friend class ULevelStreamingLevelInstanceEditorPropertyOverride;
+};
+
+struct FRemoveActorLevelInstanceFlags
+{
+private:
+	FRemoveActorLevelInstanceFlags(AActor* InActor, ELevelInstanceFlags InFlagsToRemove)
+	{
+		EnumRemoveFlags(InActor->LevelInstanceFlags, InFlagsToRemove);
 	}
 
 	friend class ULevelStreamingLevelInstance;

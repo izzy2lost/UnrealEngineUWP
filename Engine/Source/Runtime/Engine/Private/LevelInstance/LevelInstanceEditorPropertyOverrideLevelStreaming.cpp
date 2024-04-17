@@ -120,8 +120,8 @@ void ULevelStreamingLevelInstanceEditorPropertyOverride::ApplyPropertyOverrides(
 			if(ApplyActorType == EApplyActorType::Archetype || ApplyActorType == EApplyActorType::ActorAndArchetype)
 			{
 				// Gather Archetype Contextual Property Overrides and apply them to the archetype actor (Archetype will get overrides applied up to the Property Edit Owner)
-				TArray<const FActorPropertyOverride*> ArchetypePropertyOverrides;
-				if (LevelInstanceSubsystem->GetLevelInstancePropertyOverridesForActor(Actor, ArchetypeContextContainerID, ArchetypePropertyOverrides))
+				TArray<FLevelInstanceActorPropertyOverride> LevelInstanceArchetypePropertyOverrides;
+				if (LevelInstanceSubsystem->GetLevelInstancePropertyOverridesForActor(Actor, ArchetypeContextContainerID, LevelInstanceArchetypePropertyOverrides))
 				{
 					AActor* ArchetypeActor = CastChecked<AActor>(GetArchetypeForObject(Actor));
 
@@ -135,9 +135,9 @@ void ULevelStreamingLevelInstanceEditorPropertyOverride::ApplyPropertyOverrides(
 					bool bAppliedProperties = false;
 					if (ApplyPropertyOverrideType == EApplyPropertyOverrideType::PreConstructionScript || ApplyPropertyOverrideType == EApplyPropertyOverrideType::PreAndPostConstruction)
 					{
-						for (const FActorPropertyOverride* ActorPropertyOverride : ArchetypePropertyOverrides)
+						for (const FLevelInstanceActorPropertyOverride& LevelInstanceActorPropertyOverride : LevelInstanceArchetypePropertyOverrides)
 						{
-							bAppliedProperties |= ULevelInstancePropertyOverrideAsset::ApplyPropertyOverrides(ActorPropertyOverride, ArchetypeActor, false);
+							bAppliedProperties |= ULevelInstancePropertyOverrideAsset::ApplyPropertyOverrides(LevelInstanceActorPropertyOverride.ActorPropertyOverride, ArchetypeActor, false);
 						}
 					}
 					
@@ -150,9 +150,9 @@ void ULevelStreamingLevelInstanceEditorPropertyOverride::ApplyPropertyOverrides(
 					// If we are applying Post Construction Script overrides do it now
 					if (ApplyPropertyOverrideType == EApplyPropertyOverrideType::PostConstructionScript || ApplyPropertyOverrideType == EApplyPropertyOverrideType::PreAndPostConstruction)
 					{
-						for (const FActorPropertyOverride* ActorPropertyOverride : ArchetypePropertyOverrides)
+						for (const FLevelInstanceActorPropertyOverride& LevelInstanceActorPropertyOverride : LevelInstanceArchetypePropertyOverrides)
 						{
-							ULevelInstancePropertyOverrideAsset::ApplyPropertyOverrides(ActorPropertyOverride, ArchetypeActor, true);
+							ULevelInstancePropertyOverrideAsset::ApplyPropertyOverrides(LevelInstanceActorPropertyOverride.ActorPropertyOverride, ArchetypeActor, true);
 						}
 					}
 
@@ -161,14 +161,17 @@ void ULevelStreamingLevelInstanceEditorPropertyOverride::ApplyPropertyOverrides(
 					{
 						ApplyTransform(ArchetypeActor, LevelTransform, true);
 					}
+
+					// Flag needed so we can track properly in OnObjectPropertyChanged
+					FAddActorLevelInstanceFlags AddFlags(ArchetypeActor, ELevelInstanceFlags::HasPropertyOverrides);
 				}
 			}
 
 			if(ApplyActorType == EApplyActorType::Actor || ApplyActorType == EApplyActorType::ActorAndArchetype)
 			{	
 				// Gather Contextual Property Overrides and apply them to the actor
-				TArray<const FActorPropertyOverride*> ActorPropertyOverrides;
-				if (LevelInstanceSubsystem->GetLevelInstancePropertyOverridesForActor(Actor, ContextContainerID, ActorPropertyOverrides))
+				TArray<FLevelInstanceActorPropertyOverride> LevelInstanceActorPropertyOverrides;
+				if (LevelInstanceSubsystem->GetLevelInstancePropertyOverridesForActor(Actor, ContextContainerID, LevelInstanceActorPropertyOverrides))
 				{
 					// If we have Property Overrides we need to Remove the level transform before applying them in case the Relative transform of the actors was modified
 					if (bInAlreadyAppliedTransformOnActors && Actor->GetRootComponent())
@@ -179,9 +182,9 @@ void ULevelStreamingLevelInstanceEditorPropertyOverride::ApplyPropertyOverrides(
 					bool bAppliedProperties = false;
 					if (ApplyPropertyOverrideType == EApplyPropertyOverrideType::PreConstructionScript || ApplyPropertyOverrideType == EApplyPropertyOverrideType::PreAndPostConstruction)
 					{
-						for (const FActorPropertyOverride* ActorPropertyOverride : ActorPropertyOverrides)
+						for (const FLevelInstanceActorPropertyOverride& LevelInstanceActorPropertyOverride : LevelInstanceActorPropertyOverrides)
 						{
-							bAppliedProperties |= ULevelInstancePropertyOverrideAsset::ApplyPropertyOverrides(ActorPropertyOverride, Actor, false);
+							bAppliedProperties |= ULevelInstancePropertyOverrideAsset::ApplyPropertyOverrides(LevelInstanceActorPropertyOverride.ActorPropertyOverride, Actor, false);
 						}
 					}
 
@@ -193,9 +196,9 @@ void ULevelStreamingLevelInstanceEditorPropertyOverride::ApplyPropertyOverrides(
 
 					if (ApplyPropertyOverrideType == EApplyPropertyOverrideType::PostConstructionScript || ApplyPropertyOverrideType == EApplyPropertyOverrideType::PreAndPostConstruction)
 					{
-						for (const FActorPropertyOverride* ActorPropertyOverride : ActorPropertyOverrides)
+						for (const FLevelInstanceActorPropertyOverride& LevelInstanceActorPropertyOverride : LevelInstanceActorPropertyOverrides)
 						{
-							ULevelInstancePropertyOverrideAsset::ApplyPropertyOverrides(ActorPropertyOverride, Actor, true);
+							ULevelInstancePropertyOverrideAsset::ApplyPropertyOverrides(LevelInstanceActorPropertyOverride.ActorPropertyOverride, Actor, true);
 						}
 					}
 
@@ -207,7 +210,12 @@ void ULevelStreamingLevelInstanceEditorPropertyOverride::ApplyPropertyOverrides(
 					}
 
 					// Flag actor as being overriden
-					FAddActorLevelInstanceFlags AddFlags(Actor, ELevelInstanceFlags::HasPropertyOverrides);
+					ELevelInstanceFlags FlagsToAdd = ELevelInstanceFlags::HasPropertyOverrides;
+					if (LevelInstanceSubsystem->HasEditableLevelInstancePropertyOverrides(LevelInstanceActorPropertyOverrides))
+					{
+						EnumAddFlags(FlagsToAdd, ELevelInstanceFlags::HasEditablePropertyOverrides);
+					}
+					FAddActorLevelInstanceFlags AddFlags(Actor, FlagsToAdd);
 				}
 			}
 		}
@@ -226,6 +234,32 @@ void ULevelStreamingLevelInstanceEditorPropertyOverride::OnLoadedActorsAddedToLe
 	// This callback gets called after applying transform to new actors and calling ReRunConstructionScript on them
 	const bool bAlreadyAppliedTransformOnActors = true;
 	ApplyPropertyOverrides(InActors, bAlreadyAppliedTransformOnActors, EApplyPropertyOverrideType::PostConstructionScript);
+}
+
+void ULevelStreamingLevelInstanceEditorPropertyOverride::OnObjectPropertyChanged(UObject* Object, struct FPropertyChangedEvent& Event)
+{
+	if (Event.ChangeType != EPropertyChangeType::Interactive)
+	{
+		AActor* Actor = Object->IsA<AActor>() ? Cast<AActor>(Object) : Object->GetTypedOuter<AActor>();
+		if (Actor && Actor->GetLevel() == GetLoadedLevel())
+		{
+			FActorPropertyOverride ActorOverride;
+			if (!ULevelInstancePropertyOverrideAsset::SerializeActorPropertyOverrides(this, Actor, /*bForReset=*/true, ActorOverride))
+			{
+				ELevelInstanceFlags FlagsToRemove = ELevelInstanceFlags::HasEditablePropertyOverrides;
+				if (AActor* ArchetypeActor = Cast<AActor>(GetArchetypeForObject(Actor)); ArchetypeActor && !ArchetypeActor->HasLevelInstancePropertyOverrides())
+				{
+					EnumAddFlags(FlagsToRemove, ELevelInstanceFlags::HasPropertyOverrides);
+				}
+				FRemoveActorLevelInstanceFlags RemoveFlags(Actor, FlagsToRemove);
+			}
+			else
+			{
+				ELevelInstanceFlags FlagsToAdd = ELevelInstanceFlags::HasPropertyOverrides | ELevelInstanceFlags::HasEditablePropertyOverrides;
+				FAddActorLevelInstanceFlags AddFlags(Actor, FlagsToAdd);
+			}
+		}
+	}
 }
 
 void ULevelStreamingLevelInstanceEditorPropertyOverride::OnPreInitializeContainerInstance(UActorDescContainerInstance::FInitializeParams& InInitParams, UActorDescContainerInstance* InContainerInstance)
@@ -290,6 +324,8 @@ void ULevelStreamingLevelInstanceEditorPropertyOverride::Unload(ULevelStreamingL
 		ULevelInstanceSubsystem* LevelInstanceSubsystem = LevelStreaming->GetWorld()->GetSubsystem<ULevelInstanceSubsystem>();
 		check(LevelInstanceSubsystem);
 			
+		FCoreUObjectDelegates::OnObjectPropertyChanged.RemoveAll(LevelStreaming);
+
 		LoadedLevel->OnLoadedActorAddedToLevelPreEvent.RemoveAll(LevelStreaming);
 		LoadedLevel->OnLoadedActorAddedToLevelPostEvent.RemoveAll(LevelStreaming);
 	
@@ -333,6 +369,8 @@ void ULevelStreamingLevelInstanceEditorPropertyOverride::OnCurrentStateChanged(E
 				
 		// For now this class doesn't support partial loading, but if at some point it does this is needed to apply the property overrides when new actors get loaded in
 		Level->OnLoadedActorAddedToLevelPostEvent.AddUObject(this, &ULevelStreamingLevelInstanceEditorPropertyOverride::OnLoadedActorsAddedToLevelPostEvent);
+
+		FCoreUObjectDelegates::OnObjectPropertyChanged.AddUObject(this, &ULevelStreamingLevelInstanceEditorPropertyOverride::OnObjectPropertyChanged);
 
 		// Push editing state to child actors
 		for (AActor* Actor : Level->Actors)

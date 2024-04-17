@@ -46,62 +46,62 @@ struct FLevelInstancePropertyOverrideUtils
 		static int32 SizeOfEmptyArchive = GetSizeOfEmptyArchive();
 		return SizeOfEmptyArchive;
 	}
-
-	static bool SerializeActorPropertyOverrides(ULevelStreamingLevelInstanceEditorPropertyOverride* InLevelStreaming, AActor* InActor, bool bForReset, FActorPropertyOverride& OutActorPropertyOverrides)
-	{
-		AActor* ActorArchetype = Cast<AActor>(InLevelStreaming->GetArchetypeForObject(InActor));
-		check(ActorArchetype->GetTypedOuter<ULevel>() == InLevelStreaming->GetArchetypeLevel());
-
-		// Gather sub objects
-		TArray<UObject*> Objects;
-		GetObjectsWithOuter(InActor, Objects, true, RF_Transient, EInternalObjectFlags::Garbage);
-
-		Objects.Add(InActor);
-
-		// Reset table
-		OutActorPropertyOverrides.ReferenceTable = FPropertyOverrideReferenceTable();
-
-		TArray<uint8> Payload;
-		// Serialize SubObjects
-		const FString ActorName = InActor->GetName();
-		for (UObject* Object : Objects)
-		{
-			Payload.Reset();
-			FWorldPartitionPropertyOverrideWriter Writer(Payload);
-			FWorldPartitionPropertyOverrideArchive Archive(Writer, OutActorPropertyOverrides.ReferenceTable);
-			UObject* Archetype = InLevelStreaming->GetArchetypeForObject(Object);
-			if (Archetype->GetTypedOuter<ULevel>() == InLevelStreaming->GetArchetypeLevel())
-			{
-				uint8* ToSerialize = bForReset ? (uint8*)Archetype : (uint8*)Object;
-				uint8* Default = bForReset ? (uint8*)Object : (uint8*)Archetype;
-				Object->GetClass()->SerializeTaggedProperties(Archive, ToSerialize, Object->GetClass(), Default);
-
-				if (Payload.Num() != GetEmptyArchiveSize())
-				{
-					const FString ObjectSubPathString = FSoftObjectPath(Object).GetSubPathString();
-					const int32 IndexOfActorName = ObjectSubPathString.Find(ActorName);
-					const FString SubObjectPathString = ObjectSubPathString.Mid(IndexOfActorName + ActorName.Len() + 1);
-
-					FSubObjectPropertyOverride& SubObjectOverride = OutActorPropertyOverrides.SubObjectOverrides.Add(SubObjectPathString);
-					SubObjectOverride.SerializedTaggedProperties = MoveTemp(Payload);
-				}
-			}
-			else
-			{
-				UE_LOG(LogLevelInstance, Warning, TEXT("Failed to find Property Override Archetype for: %s"), *Object->GetPathName());
-			}
-		}
-
-		if (!OutActorPropertyOverrides.SubObjectOverrides.IsEmpty())
-		{
-			// Cache actor so that we can serialize its ActorDesc
-			OutActorPropertyOverrides.Actor = InActor;
-			return true;
-		}
-
-		return false;
-	}
 };
+
+bool ULevelInstancePropertyOverrideAsset::SerializeActorPropertyOverrides(ULevelStreamingLevelInstanceEditorPropertyOverride* InLevelStreaming, AActor* InActor, bool bForReset, FActorPropertyOverride& OutActorPropertyOverrides)
+{
+	AActor* ActorArchetype = Cast<AActor>(InLevelStreaming->GetArchetypeForObject(InActor));
+	check(ActorArchetype->GetTypedOuter<ULevel>() == InLevelStreaming->GetArchetypeLevel());
+
+	// Gather sub objects
+	TArray<UObject*> Objects;
+	GetObjectsWithOuter(InActor, Objects, true, RF_Transient, EInternalObjectFlags::Garbage);
+
+	Objects.Add(InActor);
+
+	// Reset table
+	OutActorPropertyOverrides.ReferenceTable = FPropertyOverrideReferenceTable();
+
+	TArray<uint8> Payload;
+	// Serialize SubObjects
+	const FString ActorName = InActor->GetName();
+	for (UObject* Object : Objects)
+	{
+		Payload.Reset();
+		FWorldPartitionPropertyOverrideWriter Writer(Payload);
+		FWorldPartitionPropertyOverrideArchive Archive(Writer, OutActorPropertyOverrides.ReferenceTable);
+		UObject* Archetype = InLevelStreaming->GetArchetypeForObject(Object);
+		if (Archetype->GetTypedOuter<ULevel>() == InLevelStreaming->GetArchetypeLevel())
+		{
+			uint8* ToSerialize = bForReset ? (uint8*)Archetype : (uint8*)Object;
+			uint8* Default = bForReset ? (uint8*)Object : (uint8*)Archetype;
+			Object->GetClass()->SerializeTaggedProperties(Archive, ToSerialize, Object->GetClass(), Default);
+
+			if (Payload.Num() != FLevelInstancePropertyOverrideUtils::GetEmptyArchiveSize())
+			{
+				const FString ObjectSubPathString = FSoftObjectPath(Object).GetSubPathString();
+				const int32 IndexOfActorName = ObjectSubPathString.Find(ActorName);
+				const FString SubObjectPathString = ObjectSubPathString.Mid(IndexOfActorName + ActorName.Len() + 1);
+
+				FSubObjectPropertyOverride& SubObjectOverride = OutActorPropertyOverrides.SubObjectOverrides.Add(SubObjectPathString);
+				SubObjectOverride.SerializedTaggedProperties = MoveTemp(Payload);
+			}
+		}
+		else
+		{
+			UE_LOG(LogLevelInstance, Warning, TEXT("Failed to find Property Override Archetype for: %s"), *Object->GetPathName());
+		}
+	}
+
+	if (!OutActorPropertyOverrides.SubObjectOverrides.IsEmpty())
+	{
+		// Cache actor so that we can serialize its ActorDesc
+		OutActorPropertyOverrides.Actor = InActor;
+		return true;
+	}
+
+	return false;
+}
 
 TSoftObjectPtr<ULevelInstancePropertyOverrideAsset> ULevelInstancePropertyOverrideAsset::GetSourceAssetPtr() const
 {
@@ -182,7 +182,7 @@ void ULevelInstancePropertyOverrideAsset::ResetPropertyOverridesForActor(ULevelS
 
 	// Serialize Reset
 	FActorPropertyOverride ActorOverride;
-	if (FLevelInstancePropertyOverrideUtils::SerializeActorPropertyOverrides(InLevelStreaming, InActor, /*bForReset=*/true, ActorOverride))
+	if (SerializeActorPropertyOverrides(InLevelStreaming, InActor, /*bForReset=*/true, ActorOverride))
 	{
 		// Apply Reset
 		ApplyPropertyOverrides(&ActorOverride, InActor, false);
@@ -244,7 +244,7 @@ void ULevelInstancePropertyOverrideAsset::SerializePropertyOverrides(ILevelInsta
 							
 					// Serialize Overrides
 					FActorPropertyOverride OutActorPropertyOverride;
-					if (FLevelInstancePropertyOverrideUtils::SerializeActorPropertyOverrides(InLevelStreaming, Actor, /*bForReset=*/false, OutActorPropertyOverride))
+					if (SerializeActorPropertyOverrides(InLevelStreaming, Actor, /*bForReset=*/false, OutActorPropertyOverride))
 					{
 						FContainerPropertyOverride& ContainerOverride = PropertyOverridesPerContainer.FindOrAdd(ContainerPath);
 						FActorPropertyOverride& ActorOverride = ContainerOverride.ActorOverrides.Add(Actor->GetActorGuid(), MoveTemp(OutActorPropertyOverride));

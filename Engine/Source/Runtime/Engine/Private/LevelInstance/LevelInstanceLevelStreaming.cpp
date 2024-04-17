@@ -172,8 +172,8 @@ void ULevelStreamingLevelInstance::ApplyPropertyOverrides(const TArray<AActor*>&
 				if (IsValid(Actor))
 				{
 					// Gather Contextual Property Overrides and apply them
-					TArray<const FActorPropertyOverride*> ActorPropertyOverrides;
-					if (LevelInstanceSubsystem->GetLevelInstancePropertyOverridesForActor(Actor, ContextContainerID, ActorPropertyOverrides))
+					TArray<FLevelInstanceActorPropertyOverride> LevelInstanceActorPropertyOverrides;
+					if (LevelInstanceSubsystem->GetLevelInstancePropertyOverridesForActor(Actor, ContextContainerID, LevelInstanceActorPropertyOverrides))
 					{
 						// If we have Property Overrides we need to Remove the level transform before applying them in case the Relative transform of the actors was modified
 						if (bInAlreadyAppliedTransformOnActors && Actor->GetRootComponent())
@@ -184,9 +184,9 @@ void ULevelStreamingLevelInstance::ApplyPropertyOverrides(const TArray<AActor*>&
 						bool bAppliedProperties = false;
 						if (InApplyPropertyOverrideType == EApplyPropertieOverrideType::PreConstruction || InApplyPropertyOverrideType == EApplyPropertieOverrideType::PreAndPostConstruction)
 						{
-							for (const FActorPropertyOverride* ActorPropertyOverride : ActorPropertyOverrides)
+							for (const FLevelInstanceActorPropertyOverride& LevelInstanceActorPropertyOverride : LevelInstanceActorPropertyOverrides)
 							{
-								bAppliedProperties |= ULevelInstancePropertyOverrideAsset::ApplyPropertyOverrides(ActorPropertyOverride, Actor, false);
+								bAppliedProperties |= ULevelInstancePropertyOverrideAsset::ApplyPropertyOverrides(LevelInstanceActorPropertyOverride.ActorPropertyOverride, Actor, false);
 							}
 						}
 
@@ -198,9 +198,9 @@ void ULevelStreamingLevelInstance::ApplyPropertyOverrides(const TArray<AActor*>&
 
 						if (InApplyPropertyOverrideType == EApplyPropertieOverrideType::PostConstruction || InApplyPropertyOverrideType == EApplyPropertieOverrideType::PreAndPostConstruction)
 						{
-							for (const FActorPropertyOverride* ActorPropertyOverride : ActorPropertyOverrides)
+							for (const FLevelInstanceActorPropertyOverride& LevelInstanceActorPropertyOverride : LevelInstanceActorPropertyOverrides)
 							{
-								ULevelInstancePropertyOverrideAsset::ApplyPropertyOverrides(ActorPropertyOverride, Actor, true);
+								ULevelInstancePropertyOverrideAsset::ApplyPropertyOverrides(LevelInstanceActorPropertyOverride.ActorPropertyOverride, Actor, true);
 							}
 						}
 						
@@ -212,7 +212,12 @@ void ULevelStreamingLevelInstance::ApplyPropertyOverrides(const TArray<AActor*>&
 						}
 
 						// Flag actor as being overriden
-						FAddActorLevelInstanceFlags AddFlags(Actor, ELevelInstanceFlags::HasPropertyOverrides);
+						ELevelInstanceFlags FlagsToAdd = ELevelInstanceFlags::HasPropertyOverrides;
+						if (LevelInstanceSubsystem->HasEditableLevelInstancePropertyOverrides(LevelInstanceActorPropertyOverrides))
+						{
+							EnumAddFlags(FlagsToAdd, ELevelInstanceFlags::HasEditablePropertyOverrides);
+						}
+						FAddActorLevelInstanceFlags AddFlags(Actor, FlagsToAdd);
 					}
 				}
 			}

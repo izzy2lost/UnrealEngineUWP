@@ -8,6 +8,7 @@
 #include "UObject/Object.h"
 #include "WorldPartition/WorldPartitionActorContainerID.h"
 #include "WorldPartition/WorldPartitionPropertyOverride.h"
+#include "LevelInstance/LevelInstanceTypes.h"
 
 #include "LevelInstancePropertyOverrideAsset.generated.h"
 
@@ -15,6 +16,16 @@ class ULevelStreamingLevelInstanceEditorPropertyOverride;
 class ILevelInstanceInterface;
 class ULevelStreamingLevelInstanceEditorPropertyOverride;
 class FLevelInstancePropertyOverrideDesc;
+
+struct FLevelInstanceActorPropertyOverride
+{
+	FLevelInstanceActorPropertyOverride(const FLevelInstanceID& InLevelInstanceID, const FActorPropertyOverride* InActorPropertyOverride)
+		: LevelInstanceID(InLevelInstanceID)
+		, ActorPropertyOverride(InActorPropertyOverride) {}
+
+	FLevelInstanceID LevelInstanceID;
+	const FActorPropertyOverride* ActorPropertyOverride = nullptr;
+};
 
 UCLASS(MinimalAPI, NotBlueprintable)
 class ULevelInstancePropertyOverrideAsset : public UWorldPartitionPropertyOverride
@@ -31,6 +42,8 @@ private:
 	// Begin UWorldPartitionPropertyOverride Interface
 	using UWorldPartitionPropertyOverride::ApplyPropertyOverrides;
 	// End UWorldPartitionPropertyOverride Interface
+
+	static bool SerializeActorPropertyOverrides(ULevelStreamingLevelInstanceEditorPropertyOverride* InLevelStreaming, AActor* InActor, bool bForReset, FActorPropertyOverride& OutActorPropertyOverrides);
 
 	void Initialize(const TSoftObjectPtr<UWorld> InWorldAsset) { WorldAsset = InWorldAsset; }
 	void SerializePropertyOverrides(ILevelInstanceInterface* InLevelInstanceOverrideOwner, ULevelStreamingLevelInstanceEditorPropertyOverride* InLevelStreamingInterface);
