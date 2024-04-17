@@ -19,7 +19,7 @@ struct FSequentialPartialNetBlobHandlerInitParams
 	const USequentialPartialNetBlobHandlerConfig* Config;
 };
 
-UCLASS(Config=Engine)
+UCLASS(Config=Engine, MinimalAPI)
 class USequentialPartialNetBlobHandlerConfig : public UObject
 {
 	GENERATED_BODY()
