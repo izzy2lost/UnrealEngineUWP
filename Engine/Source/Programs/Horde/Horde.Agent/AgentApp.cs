@@ -90,9 +90,9 @@ namespace Horde.Agent
 #pragma warning restore IL3000 // Avoid accessing Assembly file path when publishing as a single file		
 
 		/// <summary>
-		/// The current application version
+		/// The current application version from compile-time generated version
 		/// </summary>
-		public static string Version { get; } = GetVersion();
+		public static string Version { get; } = VersionInfo.Version;
 
 		/// <summary>
 		/// Default settings for json serialization
@@ -332,39 +332,6 @@ namespace Horde.Agent
 
 			ITracer openTracer = OpenTracingTracerFactory.WrapTracer(Tracer.Instance);
 			GlobalTracer.Register(openTracer);
-		}
-
-		/// <summary>
-		/// Gets the version of the current assembly
-		/// </summary>
-		/// <returns></returns>
-		[SuppressMessage("SingleFile", "IL3000:Avoid accessing Assembly file path when publishing as a single file", Justification = "Has fallback handling")]
-		static string GetVersion()
-		{
-			try
-			{
-				string? assemblyPath = Assembly.GetExecutingAssembly().Location;
-				if (String.IsNullOrEmpty(assemblyPath))
-				{
-					// It's possible the current assembly is packaged as self-contained, try resolving path another way
-					assemblyPath = Process.GetCurrentProcess().MainModule?.FileName;
-				}
-
-				if (assemblyPath != null)
-				{
-					string? version = FileVersionInfo.GetVersionInfo(assemblyPath).ProductVersion;
-					if (version != null)
-					{
-						return version;
-					}
-				}
-			}
-			catch
-			{
-				// Ignore
-			}
-
-			return "unknown";
 		}
 
 		/// <summary>

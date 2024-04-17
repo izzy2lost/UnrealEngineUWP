@@ -136,6 +136,7 @@
     <Compile Include="../../../../Restricted/*/Source/Programs/Horde/Horde.Agent/**/*.cs">
       <Link>$([System.Text.RegularExpressions.Regex]::Replace(%(FullPath), '^.+?[\\/]Horde.Agent[\\/]', ''))</Link>
     </Compile>
+    <Compile Include="$(IntermediateOutputPath)VersionInfo.cs" />
   </ItemGroup>
 
   <ItemGroup>
@@ -204,6 +205,18 @@
 
     <MakeDir Directories="$(FullSymbolsDir)" />
     <Copy SourceFiles="@(Files)" DestinationFolder="$(FullSymbolsDir)" />
+  </Target>
+
+  <!-- Encode version in a source file as inferring version from assemblies is unreliable on platform-specific binaries -->
+  <Target Name="PrepareVersionInfo" BeforeTargets="BeforeBuild">
+    <PropertyGroup>
+      <TemplateFile>Utility/VersionInfo.cs.template</TemplateFile>
+      <OutputFile>$(IntermediateOutputPath)/VersionInfo.cs</OutputFile>
+    </PropertyGroup>
+    <ReadLinesFromFile File="$(TemplateFile)">
+      <Output TaskParameter="Lines" ItemName="Lines"/>
+    </ReadLinesFromFile>
+    <WriteLinesToFile File="$(OutputFile)" Lines="@(Lines->Replace('$VERSION$', '$(InformationalVersion)'))" Overwrite="true" Encoding="UTF-8"/>
   </Target>
   
 </Project>
