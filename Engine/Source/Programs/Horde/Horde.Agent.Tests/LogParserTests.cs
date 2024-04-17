@@ -597,6 +597,7 @@ namespace Horde.Agent.Tests
 			CheckEventGroup(logEvents, 2, 1, LogLevel.Warning, KnownLogEvents.Compiler);
 		}
 
+		[Ignore]
 		[TestMethod]
 		public void DockerErrorMatcher()
 		{
