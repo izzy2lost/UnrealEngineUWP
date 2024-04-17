@@ -21,7 +21,7 @@ namespace UE::IoStore::Tool
 {
 
 ////////////////////////////////////////////////////////////////////////////////
-static int32 CurlCommandEntry(const FContext& Context)
+static int32 PurlCommandEntry(const FContext& Context)
 {
 #if PLATFORM_WINDOWS
 	WSADATA WsaData;
@@ -90,10 +90,10 @@ static int32 CurlCommandEntry(const FContext& Context)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-static FCommand CurlCommand(
-	CurlCommandEntry,
-	TEXT("Curl"),
-	TEXT("Uses IAS HTTP client to download a URL"),
+static FCommand PurlCommand(
+	PurlCommandEntry,
+	TEXT("Purl"),
+	TEXT("Uses IoStore's HTTP client to download a URL"),
 	{
 		TArgument<FStringView>(TEXT("Url"), TEXT("Url to download")),
 		TArgument<FStringView>(TEXT("-Method"), TEXT("Request method")),
