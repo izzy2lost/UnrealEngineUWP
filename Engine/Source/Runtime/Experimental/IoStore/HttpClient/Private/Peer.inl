@@ -346,7 +346,7 @@ void FHttpPeer::AssignProto()
 	if (Ssl == nullptr)
 		return;
 
-	const char* AlpnProto;
+	const char* AlpnProto = nullptr;
 	uint32 AlpnProtoLen;
 	SSL_get0_alpn_selected(Ssl, &(const uint8*&)AlpnProto, &AlpnProtoLen);
 	if (AlpnProto == nullptr)
