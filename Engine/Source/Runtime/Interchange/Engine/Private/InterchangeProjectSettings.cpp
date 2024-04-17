@@ -155,7 +155,10 @@ bool FInterchangeProjectSettingsUtils::ShouldShowPipelineStacksConfigurationDial
 		}
 	}
 
-	bShowImportDialog &= (bReImport ? ImportSettings.bShowImportDialogAtReimport : true);
+	if (const UInterchangeEditorSettings* InterchangeEditorSettings = GetDefault<UInterchangeEditorSettings>())
+	{
+		bShowImportDialog &= (bReImport ? InterchangeEditorSettings->bShowImportDialogAtReimport : true);
+	}
 
 	return bShowImportDialog;
 }

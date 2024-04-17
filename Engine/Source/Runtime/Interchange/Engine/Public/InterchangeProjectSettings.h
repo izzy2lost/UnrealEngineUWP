@@ -59,10 +59,6 @@ struct FInterchangeImportSettings
 	/** If enabled, the import option dialog will show when interchange import.*/
 	UPROPERTY(EditAnywhere, Category = "Pipeline")
 	bool bShowImportDialog = true;
-
-	/** If enabled, the import option dialog will show when interchange re-import.*/
-	UPROPERTY(EditAnywhere, Category = "Pipeline", meta = (EditCondition = "bShowImportDialog", EditConditionHides))
-	bool bShowImportDialogAtReimport = false;
 };
 
 USTRUCT()
@@ -159,4 +155,15 @@ public:
 	static INTERCHANGEENGINE_API void SetDefaultPipelineStackName(const bool bIsSceneImport, const UInterchangeSourceData& SourceData, const FName StackName);
 
 	static INTERCHANGEENGINE_API bool ShouldShowPipelineStacksConfigurationDialog(const bool bIsSceneImport, const bool bReImport, const UInterchangeSourceData& SourceData);
+};
+
+UCLASS(config = EditorPerProjectUserSettings, meta = (DisplayName = Interchange), MinimalAPI)
+class UInterchangeEditorSettings : public UDeveloperSettings
+{
+	GENERATED_BODY()
+
+public:
+	/** If enabled, the import option dialog will show when interchange re-import.*/
+	UPROPERTY(EditAnywhere, config, Category = "Show Dialog")
+	bool bShowImportDialogAtReimport = false;
 };
