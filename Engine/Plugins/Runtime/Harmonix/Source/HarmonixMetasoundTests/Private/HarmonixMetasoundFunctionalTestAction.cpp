@@ -20,3 +20,19 @@ void UHarmonixMetasoundFunctionalTestActionSetAudioParameter::OnStart_Implementa
 		}
 	}
 }
+
+void UHarmonixMetasoundFunctionalTestActionSetWaitForAudioFinished::OnStart_Implementation(AFunctionalTest* Test)
+{
+	if (Test)
+	{
+		if (TObjectPtr<UAudioComponent> AudioComponent = Test->FindComponentByClass<UAudioComponent>())
+		{
+			AudioComponent->OnAudioFinished.AddDynamic(this, &UHarmonixMetasoundFunctionalTestActionSetWaitForAudioFinished::OnAudioFinished);
+		}
+	}
+}
+
+void UHarmonixMetasoundFunctionalTestActionSetWaitForAudioFinished::OnAudioFinished()
+{
+	Finish(true);
+}

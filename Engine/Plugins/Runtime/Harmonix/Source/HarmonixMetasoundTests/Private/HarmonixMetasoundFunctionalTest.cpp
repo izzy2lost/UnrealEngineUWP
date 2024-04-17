@@ -63,7 +63,7 @@ bool UHarmonixMetasoundFunctionalTestLibrary::AddOutputLogger(UMetasoundGenerato
 	);
 	if (!ReturnValue)
 	{
-		UE_LOG(LogHarmonixMetasoundTests, Log, TEXT("Failed to add logger for output: %s"), *OutputName.ToString());
+		UE_LOG(LogHarmonixMetasoundTests, Error, TEXT("Failed to add logger for output: %s"), *OutputName.ToString());
 	}
 	return ReturnValue;
 }
@@ -373,17 +373,17 @@ void AHarmonixMetasoundFunctionalTest::OnTestFinishedEvent()
 	
 	if (GeneratorHandle)
 	{
+
+#if WITH_EDITOR
+		// only write out the test results to a file when running in editor. 
+		if (!WavFilename_Output.IsEmpty() )
+		{
+			UHarmonixMetasoundFunctionalTestLibrary::WriteAudioToFile(WavFilename_Output, AudioCaptureSampleRate, 1, AudioCaptureOutput);
+		}
+#endif
+
 		if (TSharedPtr<Metasound::FMetasoundGenerator> Generator = GeneratorHandle->GetGenerator())
 		{
-			
-#if WITH_EDITOR
-			// only write out the test results to a file when running in editor. 
-			if (!WavFilename_Output.IsEmpty() )
-			{
-				UHarmonixMetasoundFunctionalTestLibrary::WriteAudioToFile(WavFilename_Output, Generator->OperatorSettings.GetSampleRate(), 1, AudioCaptureOutput);
-			}
-#endif
-			
 			Generator->RemoveOutputVertexAnalyzer(AudioOutAnalyzerAddress);
 		}
 	}

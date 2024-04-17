@@ -17,3 +17,14 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Functional Testing")
 	FAudioParameter AudioParameter;
 };
+
+UCLASS(NotBlueprintable, Meta=(DisplayName="Wait For Audio Finished"))
+class UHarmonixMetasoundFunctionalTestActionSetWaitForAudioFinished : public UHarmonixFunctionalTestAction
+{
+	GENERATED_BODY()
+public:
+	virtual void OnStart_Implementation(AFunctionalTest* Test) override;
+protected:
+	UFUNCTION()
+	void OnAudioFinished();
+};
