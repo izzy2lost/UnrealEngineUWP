@@ -12,7 +12,6 @@ class UObject;
 namespace UE
 {
 
-class FPropertyBag;
 class FPropertyPathName;
 class FPropertyPathNameTree;
 
@@ -22,8 +21,7 @@ class FPropertyBagRepository : public FGCObject
 	struct FPropertyBagAssociationData
 	{
 		void Destroy();
-		
-		FPropertyBag* Bag = nullptr; // TODO: Ref bags via handle? Store as value?
+
 		FPropertyPathNameTree* Tree = nullptr;
 		TObjectPtr<UObject> InstanceDataObject = nullptr;
 	};
@@ -35,10 +33,9 @@ class FPropertyBagRepository : public FGCObject
 private:
 	friend class FPropertyBagRepositoryLock;
 	mutable FCriticalSection CriticalSection;
-	
+
 	// Lifetimes/ownership:
 	// Managed within UObjectBase and synced with object lifetime. The repo tracks pointers to bags, not the bags themselves.
-	// FPropertyBag destruction handles destruction of sub-bags automatically, via the FPropertyBagProperty tracking them.
 
 	/** Map of objects/subobjects to their top level property bag. */
 	// TODO: Currently will only exist in editor world, but could tracking per world make some sense for teardown in future? We're relying on object destruction to occur properly to free these up. 
@@ -63,10 +60,6 @@ public:
 
 	// Reclaim space - TODO: Hook up to GC.
 	void ShrinkMaps();
-	
-	// TODO: Restrict bag creation to actor creation and UStruct::SerializeVersionedTaggedProperties?
-	// Object owner is tracked internally
-	FPropertyBag* CreateOuterBag(const UObject* Owner);
 
 	/**
 	 * Finds or creates a property path name tree to collect unknown property paths within the owner.
@@ -106,18 +99,14 @@ public:
 	 * @return			- Does the object's InstanceDataObject contain any loose properties requiring user fixup before the object may be published?
 	 */
 	COREUOBJECT_API bool RequiresFixup(const UObject* Object) const;
-	
-	// Accessors
-	COREUOBJECT_API bool HasBag(const UObject* Owner) const;
-	COREUOBJECT_API FPropertyBag* FindBag(const UObject* Owner);
-	COREUOBJECT_API const FPropertyBag* FindBag(const UObject* Owner) const;
 
+	// Accessors
 	COREUOBJECT_API bool HasInstanceDataObject(const UObject* Owner) const;
 	COREUOBJECT_API UObject* FindInstanceDataObject(const UObject* Owner);
 	COREUOBJECT_API const UObject* FindInstanceDataObject(const UObject* Owner) const;
 
 	COREUOBJECT_API const UObject* FindInstanceForDataObject(const UObject* InstanceDataObject) const;
-	
+
 	// query whether a property in an object was set when the object was deserialized
 	COREUOBJECT_API static bool WasPropertySetBySerialization(UObject* Object, const FPropertyPathName& Path);
 	// query whether a property in Struct was set when the struct was deserialized
@@ -165,7 +154,7 @@ private:
 
 	// Delete owner reference and disassociate all data. Returns success.
 	bool RemoveAssociationUnsafe(const UObject* Owner);
-	
+
 	// Instantiate InstanceDataObject within BagData. Returns InstanceDataObject object. 
 	void CreateInstanceDataObjectUnsafe(UObject* Owner, FPropertyBagAssociationData& BagData, FArchive* Archive = nullptr);
 };

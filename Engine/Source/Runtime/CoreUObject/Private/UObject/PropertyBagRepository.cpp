@@ -8,7 +8,6 @@
 #include "UObject/GarbageCollection.h"
 #include "UObject/Object.h"
 #include "UObject/UObjectGlobals.h"
-#include "UObject/PropertyBag.h"
 #include "UObject/PropertyPathNameTree.h"
 #include "UObject/UObjectHash.h"
 #include "UObject/UObjectThreadContext.h"
@@ -108,10 +107,10 @@ public:
 
 void FPropertyBagRepository::FPropertyBagAssociationData::Destroy()
 {
-	delete Bag;
-	Bag = nullptr;
-	
-	if(InstanceDataObject && InstanceDataObject->IsValidLowLevel())
+	delete Tree;
+	Tree = nullptr;
+
+	if (InstanceDataObject && InstanceDataObject->IsValidLowLevel())
 	{
 		InstanceDataObject = nullptr;
 	}
@@ -475,23 +474,6 @@ void FPropertyBagRepository::PostEditChangeChainProperty(const UObject* Object, 
 }
 
 // TODO: Create these by class on construction?
-FPropertyBag* FPropertyBagRepository::CreateOuterBag(const UObject* Owner)
-{
-	FPropertyBagRepositoryLock LockRepo(this);
-	FPropertyBagAssociationData* BagData = AssociatedData.Find(Owner);
-	if (!BagData)
-	{
-		FPropertyBagAssociationData NewBagData;
-		BagData = &AssociatedData.Emplace(Owner, NewBagData);
-	}
-	if (!BagData->Bag)
-	{
-		BagData->Bag = new FPropertyBag;
-	}
-	return BagData->Bag;
-}
-
-// TODO: Create these by class on construction?
 FPropertyPathNameTree* FPropertyBagRepository::CreateUnknownPropertyTree(const UObject* Owner)
 {
 	FPropertyBagRepositoryLock LockRepo(this);
@@ -547,26 +529,6 @@ bool FPropertyBagRepository::RemoveAssociationUnsafe(const UObject* Owner)
 	// in that scenario, there's a chance we have a namespace associated with it. Remove that namespace.
 	Namespaces.Remove(Owner);
 	return false;
-}
-
-bool FPropertyBagRepository::HasBag(const UObject* Object) const
-{
-	// TODO: Should be consistent across all objects of a given type, so handle via TStructOpsTypeTraits or similar?
-	FPropertyBagRepositoryLock LockRepo(this);
-	//return AssociatedData.Contains(Object);	// Better approach? Object data should guarantee existence of bag.
-	return FindBag(Object) != nullptr;
-}
-
-FPropertyBag* FPropertyBagRepository::FindBag(const UObject* Object)
-{
-	FPropertyBagRepositoryLock LockRepo(this);
-	const FPropertyBagAssociationData* BagData = AssociatedData.Find(Object);
-	return BagData ? BagData->Bag : nullptr;
-}
-
-const FPropertyBag* FPropertyBagRepository::FindBag(const UObject* Object) const
-{
-	return const_cast<FPropertyBagRepository*>(this)->FindBag(Object);
 }
 
 bool FPropertyBagRepository::HasInstanceDataObject(const UObject* Object) const
@@ -709,7 +671,9 @@ void FPropertyBagRepository::CreateInstanceDataObjectUnsafe(UObject* Owner, FPro
 	}
 	else
 	{
-		ensureMsgf(BagData.Bag == nullptr, TEXT("Linker missing when generating IDO for an object with loose properties. Loose properties will be lost"));
+		ensureMsgf(BagData.Tree == nullptr,
+			TEXT("Linker missing when generating IDO for an object with unknown properties. The unknown properties will be lost. Path: %s"),
+			*Owner->GetPathName());
 		// copy data from owner to IDO
 		CopyTaggedProperties(Owner, BagData.InstanceDataObject);
 	}
