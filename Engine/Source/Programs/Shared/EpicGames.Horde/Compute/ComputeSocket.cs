@@ -579,6 +579,12 @@ namespace EpicGames.Horde.Compute
 						for (int offset = 0; offset < size;)
 						{
 							int read = await transport.RecvAsync(memory.Slice(offset, size - offset), cancellationToken);
+							if (read == 0)
+							{
+								// Return true to avoid logic in ReadPacketAsync() from trying to read the whole message from a closed stream
+								_logger.LogDebug("Unexpected end of stream while parsing message for channel {Id}; discarding message.", id);
+								return true;
+							}
 							offset += read;
 						}
 
