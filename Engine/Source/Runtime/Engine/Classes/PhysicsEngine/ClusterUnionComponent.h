@@ -231,7 +231,8 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Cluster Union")
 	ENGINE_API TArray<AActor*> GetActors();
 
-	UFUNCTION(BlueprintCallable, Category = "Cluster Union")
+	UE_DEPRECATED(5.5, "SetIsAnchored is deprecated, Use SetSimulatePhysics instead")
+	UFUNCTION(BlueprintCallable, Category = "Cluster Union", meta = (DeprecatedFunction, DeprecationMessage = "SetIsAnchored is deprecated, Use SetSimulatePhysics instead"))
 	ENGINE_API virtual void SetIsAnchored(bool bIsAnchored);
 
 	ENGINE_API bool IsAnchored() const;

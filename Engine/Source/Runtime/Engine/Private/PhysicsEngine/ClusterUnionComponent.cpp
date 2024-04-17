@@ -621,6 +621,8 @@ TArray<AActor*> UClusterUnionComponent::GetActors()
 
 void UClusterUnionComponent::SetIsAnchored(bool bIsAnchored)
 {
+	// deprecated - should not be called anymore
+	ensure(false);
 	if (!PhysicsProxy)
 	{
 		return;
@@ -1332,7 +1334,6 @@ void UClusterUnionComponent::OnRep_RigidState()
 		return;
 	}
 
-	PhysicsProxy->SetIsAnchored_External(ReplicatedRigidState.bIsAnchored);
 	SetRigidState(static_cast<Chaos::EObjectStateType>(ReplicatedRigidState.ObjectState));
 }
 
@@ -1384,6 +1385,8 @@ void UClusterUnionComponent::SetRigidState(Chaos::EObjectStateType ObjectState)
 	if (PhysicsProxy)
 	{
 		PhysicsProxy->SetObjectState_External(ObjectState);
+		const bool bIsDynamic = (ObjectState == Chaos::EObjectStateType::Dynamic || ObjectState == Chaos::EObjectStateType::Sleeping);
+		PhysicsProxy->SetIsAnchored_External(!bIsDynamic);
 	}
 }
 
