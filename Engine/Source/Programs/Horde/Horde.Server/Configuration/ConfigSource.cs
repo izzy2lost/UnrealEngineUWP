@@ -8,7 +8,9 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
+using EpicGames.Horde.Users;
 using EpicGames.Perforce;
+using Horde.Server.Accounts;
 using Horde.Server.Users;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
@@ -37,7 +39,16 @@ namespace Horde.Server.Configuration
 		/// <param name="uris">Locations of the config files to query</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Config file data</returns>
-		Task<IConfigFile[]> GetAsync(Uri[] uris, CancellationToken cancellationToken);
+		Task<IConfigFile[]> GetFilesAsync(Uri[] uris, CancellationToken cancellationToken);
+
+		/// <summary>
+		/// Gets summary infomration for sending notifications
+		/// </summary>
+		/// <param name="files">New files for the configuration</param>
+		/// <param name="prevFiles">Previous set of files for the configuration</param>
+		/// <param name="updateInfo">Information about the update</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		Task GetUpdateInfoAsync(IReadOnlyDictionary<Uri, string> files, IReadOnlyDictionary<Uri, string>? prevFiles, ConfigUpdateInfo updateInfo, CancellationToken cancellationToken);
 	}
 
 	/// <summary>
@@ -54,7 +65,7 @@ namespace Horde.Server.Configuration
 		/// <returns>Config file data</returns>
 		public static async Task<IConfigFile> GetAsync(this IConfigSource source, Uri uri, CancellationToken cancellationToken)
 		{
-			IConfigFile[] result = await source.GetAsync(new[] { uri }, cancellationToken);
+			IConfigFile[] result = await source.GetFilesAsync(new[] { uri }, cancellationToken);
 			return result[0];
 		}
 	}
@@ -105,7 +116,7 @@ namespace Horde.Server.Configuration
 		}
 
 		/// <inheritdoc/>
-		public Task<IConfigFile[]> GetAsync(Uri[] uris, CancellationToken cancellationToken)
+		public Task<IConfigFile[]> GetFilesAsync(Uri[] uris, CancellationToken cancellationToken)
 		{
 			IConfigFile[] result = new IConfigFile[uris.Length];
 			for (int idx = 0; idx < uris.Length; idx++)
@@ -119,6 +130,10 @@ namespace Horde.Server.Configuration
 			}
 			return Task.FromResult(result);
 		}
+
+		/// <inheritdoc/>
+		public Task GetUpdateInfoAsync(IReadOnlyDictionary<Uri, string> files, IReadOnlyDictionary<Uri, string>? prevFiles, ConfigUpdateInfo updateInfo, CancellationToken cancellationToken)
+			=> Task.CompletedTask;
 	}
 
 	/// <summary>
@@ -177,7 +192,7 @@ namespace Horde.Server.Configuration
 		}
 
 		/// <inheritdoc/>
-		public async Task<IConfigFile[]> GetAsync(Uri[] uris, CancellationToken cancellationToken)
+		public async Task<IConfigFile[]> GetFilesAsync(Uri[] uris, CancellationToken cancellationToken)
 		{
 			IConfigFile[] files = new IConfigFile[uris.Length];
 			for (int idx = 0; idx < uris.Length; idx++)
@@ -218,6 +233,10 @@ namespace Horde.Server.Configuration
 			}
 			return files;
 		}
+
+		/// <inheritdoc/>
+		public Task GetUpdateInfoAsync(IReadOnlyDictionary<Uri, string> files, IReadOnlyDictionary<Uri, string>? prevFiles, ConfigUpdateInfo updateInfo, CancellationToken cancellationToken)
+			=> Task.CompletedTask;
 	}
 
 	/// <summary>
@@ -274,7 +293,7 @@ namespace Horde.Server.Configuration
 		}
 
 		/// <inheritdoc/>
-		public async Task<IConfigFile[]> GetAsync(Uri[] uris, CancellationToken cancellationToken)
+		public async Task<IConfigFile[]> GetFilesAsync(Uri[] uris, CancellationToken cancellationToken)
 		{
 			Dictionary<Uri, IConfigFile> results = new Dictionary<Uri, IConfigFile>();
 			foreach (IGrouping<string, Uri> group in uris.GroupBy(x => x.Host))
@@ -372,6 +391,45 @@ namespace Horde.Server.Configuration
 
 			IPerforceConnection connection = await PerforceConnection.CreateAsync(connectionSettings.ToPerforceSettings(), _logger);
 			return connection;
+		}
+
+		/// <inheritdoc/>
+		public async Task GetUpdateInfoAsync(IReadOnlyDictionary<Uri, string> files, IReadOnlyDictionary<Uri, string>? prevFiles, ConfigUpdateInfo updateInfo, CancellationToken cancellationToken)
+		{
+			foreach (IGrouping<string, KeyValuePair<Uri, string>> group in files.Where(x => x.Key.Scheme == PerforceConfigSource.Scheme).GroupBy(x => x.Key.Host))
+			{
+				// Figure out the most recent changelist
+				int change = group.Select(x => Int32.Parse(x.Value)).Max();
+				updateInfo.Status.Add($"Perforce changelist ({group.Key}): {change}");
+
+				// Find all the users that have committed changes
+				if (prevFiles != null)
+				{
+					using IPerforceConnection perforce = await ConnectAsync(group.Key, cancellationToken);
+					foreach ((Uri uri, string revision) in group)
+					{
+						string? prevRevision;
+						if (prevFiles.TryGetValue(uri, out prevRevision))
+						{
+							string fileSpec = $"{uri.LocalPath}@{prevRevision},{revision}";
+							await FindAuthorsAsync(perforce, fileSpec, updateInfo.Authors, cancellationToken);
+						}
+					}
+				}
+			}
+		}
+
+		async Task FindAuthorsAsync(IPerforceConnection perforce, string fileSpec, HashSet<UserId> authors, CancellationToken cancellationToken)
+		{
+			List<ChangesRecord> records = await perforce.GetChangesAsync(ChangesOptions.None, -1, ChangeStatus.Submitted, fileSpec, cancellationToken);
+			foreach (ChangesRecord record in records)
+			{
+				IUser? user = await _userCollection.FindUserByLoginAsync(record.User, cancellationToken);
+				if (user != null)
+				{
+					authors.Add(user.Id);
+				}
+			}
 		}
 	}
 }

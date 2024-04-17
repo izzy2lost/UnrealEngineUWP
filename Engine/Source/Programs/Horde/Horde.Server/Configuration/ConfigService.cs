@@ -10,6 +10,7 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
+using EpicGames.Horde.Users;
 using EpicGames.Redis;
 using Horde.Server.Projects;
 using Horde.Server.Server;
@@ -30,7 +31,7 @@ namespace Horde.Server.Configuration
 	/// <summary>
 	/// Information about the updated config
 	/// </summary>
-	public record class ConfigUpdateInfo(Dictionary<Uri, string> Sources, Exception? Exception);
+	public record class ConfigUpdateInfo(List<string> Status, HashSet<UserId> Authors, Exception? Exception);
 
 	/// <summary>
 	/// Service which processes runtime configuration data.
@@ -217,7 +218,7 @@ namespace Horde.Server.Configuration
 
 			public void Add(OverrideConfigFile file) => _overrides.Add(file.Uri, file);
 
-			public async Task<IConfigFile[]> GetAsync(Uri[] uris, CancellationToken cancellationToken)
+			public async Task<IConfigFile[]> GetFilesAsync(Uri[] uris, CancellationToken cancellationToken)
 			{
 				IConfigFile[] files = new IConfigFile[uris.Length];
 				for (int idx = 0; idx < uris.Length; idx++)
@@ -229,12 +230,16 @@ namespace Horde.Server.Configuration
 					}
 					else
 					{
-						file = (await _inner.GetAsync(new[] { uris[idx] }, cancellationToken))[0];
+						file = (await _inner.GetFilesAsync(new[] { uris[idx] }, cancellationToken))[0];
 					}
 					files[idx] = file;
 				}
 				return files;
 			}
+
+			/// <inheritdoc/>
+			public Task GetUpdateInfoAsync(IReadOnlyDictionary<Uri, string> files, IReadOnlyDictionary<Uri, string>? prevFiles, ConfigUpdateInfo updateInfo, CancellationToken cancellationToken)
+				=> Task.CompletedTask;
 		}
 
 		/// <summary>
@@ -393,7 +398,7 @@ namespace Horde.Server.Configuration
 			{
 				if (snapshot == null || await IsOutOfDateAsync(snapshot, cancellationToken))
 				{
-					snapshot = await CreateSnapshotGuardedAsync(cancellationToken);
+					snapshot = await CreateSnapshotGuardedAsync(snapshot?.Dependencies, cancellationToken);
 					if (snapshot != null)
 					{
 						try
@@ -445,24 +450,35 @@ namespace Horde.Server.Configuration
 		/// <summary>
 		/// Create a new snapshot object, catching any exceptions and sending notifications
 		/// </summary>
+		/// <param name="prevFiles">Previous snapshot data</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>New config snapshot</returns>
-		async Task<ConfigSnapshot?> CreateSnapshotGuardedAsync(CancellationToken cancellationToken)
+		async Task<ConfigSnapshot?> CreateSnapshotGuardedAsync(IReadOnlyDictionary<Uri, string>? prevFiles, CancellationToken cancellationToken)
 		{
 			try
 			{
 				ConfigSnapshot snapshot = await CreateSnapshotAsync(cancellationToken);
 				await _health.UpdateAsync(HealthStatus.Healthy);
-				OnConfigUpdate?.Invoke(new ConfigUpdateInfo(snapshot.Dependencies, null));
+				await NotifyConfigUpdateAsync(snapshot.Dependencies, prevFiles, null, cancellationToken);
 				return snapshot;
 			}
-			catch (Exception ex)
+			catch (ConfigException ex)
 			{
 				_logger.LogError(ex, "Exception while updating config: {Message}", ex.Message);
 				await _health.UpdateAsync(HealthStatus.Unhealthy, ex.Message);
-				OnConfigUpdate?.Invoke(new ConfigUpdateInfo(new Dictionary<Uri, string>(), ex));
+				await NotifyConfigUpdateAsync(ex.GetContext().Files.ToDictionary(x => x.Key, x => x.Value.Revision), prevFiles, ex, cancellationToken);
 				return null;
 			}
+		}
+
+		async Task NotifyConfigUpdateAsync(IReadOnlyDictionary<Uri, string> files, IReadOnlyDictionary<Uri, string>? prevFiles, Exception? exception, CancellationToken cancellationToken)
+		{
+			ConfigUpdateInfo info = new ConfigUpdateInfo(new List<string>(), new HashSet<UserId>(), exception);
+			foreach (IConfigSource source in _sources.Values)
+			{
+				await source.GetUpdateInfoAsync(files, prevFiles, info, cancellationToken);
+			}
+			OnConfigUpdate?.Invoke(info);
 		}
 
 		internal Uri GetGlobalConfigUri()
@@ -631,7 +647,7 @@ namespace Horde.Server.Configuration
 						return true;
 					}
 
-					IConfigFile[] files = await source.GetAsync(pairs.ConvertAll(x => x.Key), cancellationToken);
+					IConfigFile[] files = await source.GetFilesAsync(pairs.ConvertAll(x => x.Key), cancellationToken);
 					for (int idx = 0; idx < pairs.Length; idx++)
 					{
 						if (!files[idx].Revision.Equals(pairs[idx].Value, StringComparison.Ordinal))

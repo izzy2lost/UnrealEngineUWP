@@ -2157,39 +2157,25 @@ namespace Horde.Server.Notifications.Sinks
 			}
 			else
 			{
-				Dictionary<string, int> perforceClusterToChange = new Dictionary<string, int>();
-				foreach (Uri uri in info.Sources.Keys)
-				{
-					if (uri.Scheme == PerforceConfigSource.Scheme)
-					{
-						string path = uri.LocalPath;
-
-						int atIdx = path.IndexOf('@', StringComparison.Ordinal);
-						if (atIdx != -1 && Int32.TryParse(path.Substring(atIdx + 1), out int change))
-						{
-							int existingChange;
-							if (!perforceClusterToChange.TryGetValue(uri.Host, out existingChange) || change > existingChange)
-							{
-								perforceClusterToChange[uri.Host] = change;
-							}
-						}
-					}
-				}
-
 				// Can only send updates after failures by checking the result of this delete
 				await DeleteMessageStateAsync(_settings.ConfigNotificationChannel, EventId, cancellationToken);
 
 				SlackMessage message = new SlackMessage();
 				message.AddSection($"*Config Update Succeeded*");
 
-				if(perforceClusterToChange.Count > 0)
+				if (info.Status.Count > 0)
 				{
-					List<string> lines = new List<string>();
-					foreach ((string clusterName, int change) in perforceClusterToChange)
+					message.AddSection(String.Join("\n", info.Status));
+				}
+				if (info.Authors.Count > 0)
+				{
+					List<string> mentions = new List<string>();
+					foreach (UserId userId in info.Authors)
 					{
-						lines.Add($"Perforce changelist ({clusterName}): {change}");
+						string mention = await FormatMentionAsync(userId, DefaultAllowMentions, cancellationToken);
+						mentions.Add(mention);
 					}
-					message.AddSection(String.Join("\n", lines));
+					message.AddSection($"cc {String.Join(", ", mentions)}");
 				}
 
 				await SendMessageAsync(_settings.ConfigNotificationChannel, message, cancellationToken);
