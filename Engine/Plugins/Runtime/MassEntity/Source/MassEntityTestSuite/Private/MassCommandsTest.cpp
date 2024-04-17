@@ -5,7 +5,7 @@
 #include "MassEntityTestTypes.h"
 #include "MassEntityTypes.h"
 #include "MassEntityView.h"
-
+#include "MassExecutionContext.h"
 #include "Algo/Sort.h"
 #include "Algo/RandomShuffle.h"
 
@@ -240,6 +240,60 @@ struct FCommands_DeferredFunction : FEntityTestBase
 	}
 };
 IMPLEMENT_AI_INSTANT_TEST(FCommands_DeferredFunction, "System.Mass.Commands.DeferredFunction");
+
+// pushing commands while the main buffer is being flushed
+struct FCommands_PushWhileFlushing : FEntityTestBase
+{
+	virtual bool InstantTest() override
+	{
+		constexpr int32 Count = 5;
+
+		// here's what we want to do:
+		// 1. Create a Count number of Int entities
+		// 2. Register TagA observer that will add a float fragment when the tag is added
+		//	a. The observer will use EntityManager.Defer() directly for the testing purposes - it should use Context.Defer() in real world scenarios
+		// 3. Add TagA to all the created Entities
+		// 4. Test if all the affected entities have the float fragment after the flushing
+
+		TArray<FMassEntityHandle> Entities;
+		EntityManager->BatchCreateEntities(IntsArchetype, Count, Entities);
+		for (const FMassEntityHandle& EntityHandle : Entities)
+		{
+			AITEST_NULL(TEXT("None of the freshly created entities is expexted to contain a float fragment")
+				, EntityManager->GetFragmentDataPtr<FTestFragment_Float>(EntityHandle));
+		}
+
+
+		UMassTestProcessorBase* ObserverProcessor = NewObject<UMassTestProcessorBase>();
+		ObserverProcessor->ForEachEntityChunkExecutionFunction = [](FMassExecutionContext& Context)
+			{
+				for (const FMassEntityHandle& EntityHandle : Context.GetEntities())
+				{
+					Context.GetEntityManagerChecked().Defer().AddFragment<FTestFragment_Float>(EntityHandle);
+				}
+			};
+		FMassObserverManager& ObserverManager = EntityManager->GetObserverManager();
+		ObserverManager.AddObserverInstance(*FTestTag_A::StaticStruct(), EMassObservedOperation::Add, *ObserverProcessor);
+
+		EntityManager->Defer().PushCommand<FMassCommandAddTag<FTestTag_A>>(Entities);
+		for (const FMassEntityHandle& EntityHandle : Entities)
+		{
+			AITEST_NULL(TEXT("Pushing the AddTag command should not result in adding the float fragment")
+				, EntityManager->GetFragmentDataPtr<FTestFragment_Float>(EntityHandle));
+		}
+
+		EntityManager->FlushCommands();
+		
+		for (const FMassEntityHandle& EntityHandle : Entities)
+		{
+			AITEST_NOT_NULL(TEXT("After flushing all the observed entities should have the float fragment")
+				, EntityManager->GetFragmentDataPtr<FTestFragment_Float>(EntityHandle));
+		}
+
+		return true;
+	}
+};
+IMPLEMENT_AI_INSTANT_TEST(FCommands_PushWhileFlushing, "System.Mass.Commands.PushWhileFlushing");
 
 #endif // WITH_MASSENTITY_DEBUG
 } // FMassCommandsTest

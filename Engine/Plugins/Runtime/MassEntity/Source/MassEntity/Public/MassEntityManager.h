@@ -453,13 +453,15 @@ public:
 	 */
 	bool IsProcessing() const { return ProcessingScopeCount > 0; }
 
-	FMassCommandBuffer& Defer() const { return *DeferredCommandBuffer.Get(); }
+	FMassCommandBuffer& Defer() const { return *DeferredCommandBuffers[OpenedCommandBufferIndex].Get(); }
 	/** 
 	 * @param InCommandBuffer if not set then the default command buffer will be flushed. If set and there's already 
 	 *		a command buffer being flushed (be it the main one or a previously requested one) then this command buffer 
 	 *		will be queue itself.
 	 */
-	void FlushCommands(const TSharedPtr<FMassCommandBuffer>& InCommandBuffer = TSharedPtr<FMassCommandBuffer>());
+	void FlushCommands(TSharedPtr<FMassCommandBuffer>& InCommandBuffer);
+
+	void FlushCommands();
 
 	/** 
 	 * Depending on the current state of Manager's command buffer the function will either move all the commands out of 
@@ -614,8 +616,15 @@ private:
 	TArray<int32> EntityFreeIndexList;
 
 	std::atomic<bool> bCommandBufferFlushingInProgress = false;
-	TSharedPtr<FMassCommandBuffer> DeferredCommandBuffer;
-	TMpscQueue<TSharedPtr<FMassCommandBuffer>> FlushedCommandBufferQueue;
+	/**
+	 * This index will be enough to control which buffer is available for pushing commands since flashing is taking place 
+	 * in the game thread and pushing commands to the buffer fetched by Defer() is only supported also on the game thread
+	 * (due to checking the cached thread ID).
+	 * The whole CL aims to support non-mass code trying to push commands while the flushing is going on (as triggered
+	 * by MassObservers reacting to the commands being flushed currently).
+	 */
+	uint8 OpenedCommandBufferIndex = 0;
+	TStaticArray<TSharedPtr<FMassCommandBuffer>, 2> DeferredCommandBuffers;
 
 	std::atomic<int32> SerialNumberGenerator = 0;
 	std::atomic<int32> ProcessingScopeCount = 0;

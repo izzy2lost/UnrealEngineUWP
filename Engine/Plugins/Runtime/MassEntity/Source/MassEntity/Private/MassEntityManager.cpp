@@ -11,6 +11,7 @@
 #include "MassDebugger.h"
 #include "Misc/Fork.h"
 #include "Misc/CoreDelegates.h"
+#include "Algo/Find.h"
 
 
 const FMassEntityHandle FMassEntityManager::InvalidEntity;
@@ -61,11 +62,16 @@ FMassEntityManager::~FMassEntityManager()
 
 void FMassEntityManager::GetResourceSizeEx(FResourceSizeEx& CumulativeResourceSize)
 {
-	const SIZE_T MyExtraSize = Entities.GetAllocatedSize() + 
-		EntityFreeIndexList.GetAllocatedSize() +
-		(DeferredCommandBuffer != nullptr ? DeferredCommandBuffer->GetAllocatedSize() : 0) +
-		FragmentHashToArchetypeMap.GetAllocatedSize() +
-		FragmentTypeToArchetypeMap.GetAllocatedSize();
+	SIZE_T MyExtraSize = Entities.GetAllocatedSize()
+		+ EntityFreeIndexList.GetAllocatedSize()
+		+ FragmentHashToArchetypeMap.GetAllocatedSize()
+		+ FragmentTypeToArchetypeMap.GetAllocatedSize();
+
+	for (const TSharedPtr<FMassCommandBuffer>& CommandBuffer : DeferredCommandBuffers)
+	{
+		MyExtraSize += (CommandBuffer ? CommandBuffer->GetAllocatedSize() : 0);
+	}
+	
 	CumulativeResourceSize.AddDedicatedSystemMemoryBytes(MyExtraSize);
 
 	for (const auto& KVP : FragmentHashToArchetypeMap)
@@ -107,8 +113,11 @@ void FMassEntityManager::Initialize()
 	Entities.Add();
 	SerialNumberGenerator.fetch_add(FMath::Max(1,NumReservedEntities));
 
-	DeferredCommandBuffer = MakeShareable(new FMassCommandBuffer());
-	
+	for (TSharedPtr<FMassCommandBuffer>& CommandBuffer : DeferredCommandBuffers)
+	{
+		CommandBuffer = MakeShareable(new FMassCommandBuffer());
+	}
+
 	// if we get forked we need to update the command buffer's CurrentThreadID
 	if (FForkProcessHelper::IsForkRequested())
 	{
@@ -176,7 +185,13 @@ void FMassEntityManager::Deinitialize()
 		FCoreDelegates::OnPostFork.Remove(OnPostForkHandle);
 
 		// closing down so no point in actually flushing commands, but need to clean them up to avoid warnings on destruction
-		DeferredCommandBuffer->CleanUp();
+		for (TSharedPtr<FMassCommandBuffer>& CommandBuffer : DeferredCommandBuffers)
+		{
+			if (CommandBuffer)
+			{
+				CommandBuffer->CleanUp();
+			}
+		}
 
 #if WITH_MASSENTITY_DEBUG
 		FMassDebugger::UnregisterEntityManager(*this);
@@ -195,13 +210,16 @@ void FMassEntityManager::OnPostFork(EForkProcessRole Role)
 {
 	if (Role == EForkProcessRole::Child)
 	{
-		if (!DeferredCommandBuffer)
+		for (TSharedPtr<FMassCommandBuffer>& CommandBuffer : DeferredCommandBuffers)
 		{
-			DeferredCommandBuffer = MakeShareable(new FMassCommandBuffer());
-		}
-		else
-		{
-			DeferredCommandBuffer->ForceUpdateCurrentThreadID();
+			if (CommandBuffer)
+			{
+				CommandBuffer->ForceUpdateCurrentThreadID();
+			}
+			else
+			{
+				CommandBuffer = MakeShareable(new FMassCommandBuffer());
+			}
 		}
 	}
 }
@@ -1609,66 +1627,77 @@ void FMassEntityManager::GetMatchingArchetypes(const FMassFragmentRequirements& 
 FMassExecutionContext FMassEntityManager::CreateExecutionContext(const float DeltaSeconds)
 {
 	FMassExecutionContext ExecutionContext(*this, DeltaSeconds);
-	ExecutionContext.SetDeferredCommandBuffer(DeferredCommandBuffer);
+	ExecutionContext.SetDeferredCommandBuffer(DeferredCommandBuffers[OpenedCommandBufferIndex]);
 	return MoveTemp(ExecutionContext);
 }
 
-void FMassEntityManager::FlushCommands(const TSharedPtr<FMassCommandBuffer>& InCommandBuffer)
+void FMassEntityManager::FlushCommands(TSharedPtr<FMassCommandBuffer>& InCommandBuffer)
+{
+	if (!ensureMsgf(IsInGameThread(), TEXT("Calling %hs is supported only on the Game Tread"), __FUNCTION__))
+	{
+		return;
+	}
+	if (!ensureMsgf(IsProcessing() == false, TEXT("Calling %hs is not supported while Mass Processing is active. Call FMassEntityManager::AppendCommands instead."), __FUNCTION__))
+	{
+		return;
+	}
+
+	if (InCommandBuffer && InCommandBuffer->HasPendingCommands()
+		&& (Algo::Find(DeferredCommandBuffers, InCommandBuffer) == nullptr))
+	{
+		AppendCommands(InCommandBuffer);
+	}
+	FlushCommands();
+}
+
+void FMassEntityManager::FlushCommands()
 {
 	constexpr int32 MaxIterations = 5;
 
-	if (InCommandBuffer)
+	if (!ensureMsgf(IsInGameThread(), TEXT("Calling %hs is supported only on the Game Tread"), __FUNCTION__))
 	{
-		if (InCommandBuffer->HasPendingCommands())
-		{
-			FlushedCommandBufferQueue.Enqueue(InCommandBuffer);
-		}
+		return;
 	}
-	else
+	if (!ensureMsgf(IsProcessing() == false, TEXT("Calling %hs is not supported while Mass Processing is active. Call FMassEntityManager::AppendCommands instead."), __FUNCTION__))
 	{
-		if (DeferredCommandBuffer->HasPendingCommands())
-		{
-			FlushedCommandBufferQueue.Enqueue(DeferredCommandBuffer);
-		}
+		return;
 	}
 
 	if (bCommandBufferFlushingInProgress == false && IsProcessing() == false)
 	{
-		bCommandBufferFlushingInProgress = true;
-		
-		const int32 IterationsLimit = bFirstCommandFlush ? MAX_int32 : MaxIterations;
-		int32 IterationsCounter = 0;
-		TOptional<TSharedPtr<FMassCommandBuffer>> CurrentCommandBuffer = FlushedCommandBufferQueue.Dequeue();
-
-		while (IterationsCounter < IterationsLimit && CurrentCommandBuffer.IsSet())
+		ON_SCOPE_EXIT
 		{
-			IterationsCounter++;
-			(*CurrentCommandBuffer)->Flush(*this);
-			CurrentCommandBuffer = FlushedCommandBufferQueue.Dequeue();
-		}
-		ensure(IterationsCounter >= IterationsLimit || CurrentCommandBuffer.IsSet() == false);
-		UE_CVLOG_UELOG(IterationsCounter >= IterationsLimit, GetOwner(), LogMass, Error, TEXT("Reached loop count limit while flushing commands"));
+			bCommandBufferFlushingInProgress = false;
+		};
+		bCommandBufferFlushingInProgress = true;
 
-		bCommandBufferFlushingInProgress = false;
+		int32 IterationCount = 0;
+		do 
+		{
+			const int32 CommandBufferIndexToFlush = OpenedCommandBufferIndex;
+
+			// buffer swap. Code instigated by observers can still use Defer() to push commands.
+			OpenedCommandBufferIndex = (OpenedCommandBufferIndex + 1) % DeferredCommandBuffers.Num();
+			ensureMsgf(DeferredCommandBuffers[OpenedCommandBufferIndex]->HasPendingCommands() == false
+				, TEXT("The freshly opened command buffer is expected to be empty upon switching"));
+
+			DeferredCommandBuffers[CommandBufferIndexToFlush]->Flush(*this);
+
+			// repeat if there were commands submitted while commands were being flushed (by observers for example)
+		} while (DeferredCommandBuffers[OpenedCommandBufferIndex]->HasPendingCommands() && ++IterationCount < MaxIterations);
+
+		UE_CVLOG_UELOG(IterationCount >= MaxIterations, GetOwner(), LogMass, Error, TEXT("Reached loop count limit while flushing commands. Limiting the number of commands pushed during commands flushing could help."));
 	}
 }
 
 void FMassEntityManager::AppendCommands(TSharedPtr<FMassCommandBuffer>& InOutCommandBuffer)
 {
-	if (!ensureMsgf(InOutCommandBuffer != DeferredCommandBuffer, TEXT("We don't expect AppendCommands to be called with EntityManager's command buffer as the input parameter")))
+	if (!ensureMsgf(Algo::Find(DeferredCommandBuffers, InOutCommandBuffer) == nullptr
+		, TEXT("We don't expect AppendCommands to be called with EntityManager's command buffer as the input parameter")))
 	{
 		return;
 	}
-	else if (DeferredCommandBuffer->IsFlushing())
-	{
-		// in this case we'll add InOutCommandBuffer to FlushedCommandBufferQueue
-		FlushCommands(InOutCommandBuffer);
-	}
-	else
-	{
-		// otherwise we just move all the commands out of InOutCommandBuffer and into the main buffer
-		DeferredCommandBuffer->MoveAppend(*InOutCommandBuffer.Get());
-	}
+	Defer().MoveAppend(*InOutCommandBuffer.Get());
 }
 
 void FMassEntityManager::SetDebugName(const FString& NewDebugGame) 
