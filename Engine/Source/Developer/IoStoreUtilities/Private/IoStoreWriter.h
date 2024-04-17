@@ -24,6 +24,7 @@ struct FIoStoreWriterSettings
 	uint64 MaxPartitionSize = 0;
 	bool bEnableFileRegions = false;
 	bool bCompressionEnableDDC = false;
+	bool bValidateChunkHashes = false;
 };
 
 struct FIoStoreWriterResult
@@ -97,10 +98,12 @@ class IIoStoreWriteRequest
 public:
 	virtual ~IIoStoreWriteRequest() = default;
 
-	// Launches any async operations necessary in order to access the buffer. CompletionEvent is set once it's ready, which may be immediate.
-	virtual void PrepareSourceBufferAsync(FGraphEventRef CompletionEvent) = 0;
 	virtual uint64 GetOrderHint() = 0;
 	virtual TArrayView<const FFileRegion> GetRegions() = 0;
+	virtual const FIoHash* GetChunkHash() = 0;
+
+	// Launches any async operations necessary in order to access the buffer. CompletionEvent is set once it's ready, which may be immediate.
+	virtual void PrepareSourceBufferAsync(FGraphEventRef CompletionEvent) = 0;
 
 	// Only valid after the completion event passed to PrepareSourceBufferAsync has fired.
 	virtual const FIoBuffer* GetSourceBuffer() = 0;
@@ -132,14 +135,14 @@ public:
 	* Chunks provided *MUST* decompress to bits that hash to the exact value provided in InChunkKey (i.e. be exactly the same bits),
 	* and also be the same number of blocks (i.e. same CompressionBlockSize)
 	*/
-	virtual bool RetrieveChunk(const FIoContainerId& InContainerId, const FIoChunkHash& InChunkHash, const FIoChunkId& InChunkId, TUniqueFunction<void(TIoStatusOr<FIoStoreCompressedReadResult>)> InCompletionCallback) = 0;
+	virtual bool RetrieveChunk(const FIoContainerId& InContainerId, const FIoHash& InChunkHash, const FIoChunkId& InChunkId, TUniqueFunction<void(TIoStatusOr<FIoStoreCompressedReadResult>)> InCompletionCallback) = 0;
 
 	/* 
 	* Quick synchronous existence check that returns the number of blocks for the chunk. This is used to set up
 	* the necessary structures without needing to read the source data for the chunk. This might be called from
 	* multiple threads as it has to happen after we have the source hash computed.
 	*/
-	virtual bool ChunkExists(const FIoContainerId& InContainerId, const FIoChunkHash& InChunkHash, const FIoChunkId& InChunkId, uint32& OutNumChunkBlocks) = 0;
+	virtual bool ChunkExists(const FIoContainerId& InContainerId, const FIoHash& InChunkHash, const FIoChunkId& InChunkId, uint32& OutNumChunkBlocks) = 0;
 
 	/*
 	* Returns the compression block size that was used to break up the IoChunks in the source containers. If this is different than what we want, 
@@ -153,20 +156,6 @@ public:
 	virtual void NotifyAddedToWriter(const FIoContainerId& InContainerId, const FString& InContainerName) = 0;
 };
 
-/**
-*	Allows the IIoStoreWriter to avoid loading and hashing chunks, saving pak/stage time, as the normal
-*	process involved loading the chunks, hashing them, freeing them, making some decisions, then loading
-*	them _again_ for compression/writting. It's completely fine for this to not have all available hashes,
-*	but they have to match when provided!
-*/
-class IIoStoreWriterHashDatabase
-{
-public:
-	virtual ~IIoStoreWriterHashDatabase() = default;
-	virtual bool FindHashForChunkId(const FIoChunkId& ChunkId, FIoChunkHash& OutHash) const = 0;
-};
-
-
 class IIoStoreWriter
 {
 public:
@@ -177,7 +166,6 @@ public:
 	*	from previous containers instead of recompressing input data. This must be set before any writes are appended.
 	*/
 	virtual void SetReferenceChunkDatabase(TSharedPtr<IIoStoreWriterReferenceChunkDatabase> ReferenceChunkDatabase) = 0;
-	virtual void SetHashDatabase(TSharedPtr<IIoStoreWriterHashDatabase> HashDatabase, bool bVerifyHashDatabase) = 0;
 	virtual void EnableDiskLayoutOrdering(const TArray<TUniquePtr<FIoStoreReader>>& PatchSourceReaders = TArray<TUniquePtr<FIoStoreReader>>()) = 0;
 	virtual void Append(const FIoChunkId& ChunkId, FIoBuffer Chunk, const FIoWriteOptions& WriteOptions, uint64 OrderHint = MAX_uint64) = 0;
 	virtual void Append(const FIoChunkId& ChunkId, IIoStoreWriteRequest* Request, const FIoWriteOptions& WriteOptions) = 0;

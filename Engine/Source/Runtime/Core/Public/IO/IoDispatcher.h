@@ -89,7 +89,9 @@ private:
 	int32			Order = 0;
 };
 
-class FIoChunkHash
+class
+UE_DEPRECATED(5.5, "FIoChunkHash is deprecated. Use FIoHash instead.")
+FIoChunkHash
 {
 public:
 	friend uint32 GetTypeHash(const FIoChunkHash& InChunkHash)
@@ -523,8 +525,12 @@ struct FIoContainerSettings
 struct FIoStoreTocChunkInfo
 {
 	FIoChunkId Id;
-	FString FileName;
+	FIoHash ChunkHash;
+	UE_DEPRECATED(5.5, "Hash of type FIoChunkHash is deprecated. Use ChunkHash of type FIoHash instead.")
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	FIoChunkHash Hash;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	FString FileName;
 	uint64 Offset;
 	uint64 OffsetOnDisk;
 	uint64 Size;
@@ -536,6 +542,14 @@ struct FIoStoreTocChunkInfo
 	bool bForceUncompressed;
 	bool bIsMemoryMapped;
 	bool bIsCompressed;
+
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS // Compilers can complain about deprecated members in compiler generated code
+	FIoStoreTocChunkInfo() = default;
+	FIoStoreTocChunkInfo(const FIoStoreTocChunkInfo&) = default;
+	FIoStoreTocChunkInfo(FIoStoreTocChunkInfo&&) = default;
+	FIoStoreTocChunkInfo& operator=(FIoStoreTocChunkInfo&) = default;
+	FIoStoreTocChunkInfo& operator=(FIoStoreTocChunkInfo&&) = default;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 };
 
 struct FIoStoreTocCompressedBlockInfo

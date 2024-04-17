@@ -29,6 +29,7 @@ enum class EIoStoreTocVersion : uint8
 	PerfectHashWithOverflow,
 	OnDemandMetaData,
 	RemovedOnDemandMetaData,
+	ReplaceIoChunkHashWithIoHash,
 	LatestPlusOne,
 	Latest = LatestPlusOne - 1
 };
@@ -90,7 +91,7 @@ ENUM_CLASS_FLAGS(FIoStoreTocEntryMetaFlags);
 struct FIoStoreTocEntryMeta
 {
 	// Source data hash (i.e. not the on disk data)
-	FIoChunkHash ChunkHash;
+	FIoHash ChunkHash;
 	FIoStoreTocEntryMetaFlags Flags;
 };
 

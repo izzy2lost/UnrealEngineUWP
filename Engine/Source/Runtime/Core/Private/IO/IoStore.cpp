@@ -277,7 +277,10 @@ FIoStoreTocChunkInfo FIoStoreTocResource::GetTocChunkInfo(int32 TocEntryIndex) c
 	FIoStoreTocChunkInfo ChunkInfo;
 	ChunkInfo.Id = ChunkIds[TocEntryIndex];
 	ChunkInfo.ChunkType = ChunkInfo.Id.GetChunkType();
-	ChunkInfo.Hash = Meta.ChunkHash;
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	ChunkInfo.Hash = FIoChunkHash::CreateFromIoHash(Meta.ChunkHash);
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	ChunkInfo.ChunkHash = Meta.ChunkHash;
 	ChunkInfo.bHasValidFileName = false;
 	ChunkInfo.bIsCompressed = EnumHasAnyFlags(Meta.Flags, FIoStoreTocEntryMetaFlags::Compressed);
 	ChunkInfo.bIsMemoryMapped = EnumHasAnyFlags(Meta.Flags, FIoStoreTocEntryMetaFlags::MemoryMapped);
@@ -1270,8 +1273,28 @@ FIoStatus FIoStoreTocResource::Read(const TCHAR* TocFilePath, EIoStoreTocReadOpt
 	{
 		const uint8* TocMeta = (uint8*)DirectoryIndexBuffer + Header.DirectoryIndexSize;
 
-		const FIoStoreTocEntryMeta* ChunkMetas = reinterpret_cast<const FIoStoreTocEntryMeta*>(TocMeta);
-		OutTocResource.ChunkMetas = MakeArrayView<FIoStoreTocEntryMeta const>(ChunkMetas, Header.TocEntryCount);
+		if (Header.Version >= static_cast<uint8>(EIoStoreTocVersion::ReplaceIoChunkHashWithIoHash))
+		{
+			const FIoStoreTocEntryMeta* ChunkMetas = reinterpret_cast<const FIoStoreTocEntryMeta*>(TocMeta);
+			OutTocResource.ChunkMetas = MakeArrayView<FIoStoreTocEntryMeta const>(ChunkMetas, Header.TocEntryCount);
+		}
+		else
+		{
+			struct FIoStoreTocEntryMetaOld
+			{
+				uint8 ChunkHash[32];
+				FIoStoreTocEntryMetaFlags Flags;
+			};
+			const FIoStoreTocEntryMetaOld* ChunkMetas = reinterpret_cast<const FIoStoreTocEntryMetaOld*>(TocMeta);
+			TConstArrayView<FIoStoreTocEntryMetaOld> OldChunkMetas = MakeArrayView<FIoStoreTocEntryMetaOld const>(ChunkMetas, Header.TocEntryCount);
+			OutTocResource.ChunkMetas.Reserve(OldChunkMetas.Num());
+			for (const FIoStoreTocEntryMetaOld& OldChunkMeta : OldChunkMetas)
+			{
+				FIoStoreTocEntryMeta& ChunkMeta = OutTocResource.ChunkMetas.Emplace_GetRef();
+				FMemory::Memcpy(ChunkMeta.ChunkHash.GetBytes(), &OldChunkMeta.ChunkHash, sizeof ChunkMeta.ChunkHash);
+				ChunkMeta.Flags = OldChunkMeta.Flags;
+			}
+		}
 	}
 
 	if (Header.Version < static_cast<uint8>(EIoStoreTocVersion::PartitionSize))

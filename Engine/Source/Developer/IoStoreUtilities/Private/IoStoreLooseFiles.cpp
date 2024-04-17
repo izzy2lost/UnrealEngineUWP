@@ -64,9 +64,6 @@ public:
 	virtual void SetReferenceChunkDatabase(TSharedPtr<IIoStoreWriterReferenceChunkDatabase> ReferenceChunkDatabase) override
 	{ }
 
-	virtual void SetHashDatabase(TSharedPtr<IIoStoreWriterHashDatabase> HashDatabase, bool bVerifyHashDatabase) override
-	{ }
-
 	virtual void EnableDiskLayoutOrdering(const TArray<TUniquePtr<FIoStoreReader>>& PatchSourceReaders = TArray<TUniquePtr<FIoStoreReader>>())
 	{ }
 
@@ -106,6 +103,11 @@ public:
 			TArrayView<const FFileRegion> GetRegions()
 			{
 				return TArrayView<const FFileRegion>();
+			}
+
+			virtual const FIoHash* GetChunkHash() override
+			{
+				return nullptr;
 			}
 
 			FIoBuffer SourceBuffer;

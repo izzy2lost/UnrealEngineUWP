@@ -74,7 +74,7 @@ FCbWriter& operator<<(FCbWriter& Writer, const FPackageStoreEntryResource& Packa
 	return Writer;
 }
 
-FPackageStoreEntryResource FPackageStoreEntryResource::FromCbObject(const FCbObject& Obj)
+FPackageStoreEntryResource FPackageStoreEntryResource::FromCbObject(FCbObjectView Obj)
 {
 	FPackageStoreEntryResource Entry;
 
@@ -92,7 +92,7 @@ FPackageStoreEntryResource FPackageStoreEntryResource::FromCbObject(const FCbObj
 	
 	if (Obj["shadermaphashes"])
 	{
-		for (FCbField& ArrayField : Obj["shadermaphashes"].AsArray())
+		for (FCbFieldView& ArrayField : Obj["shadermaphashes"].AsArrayView())
 		{
 			FSHAHash& ShaderMapHash = Entry.ShaderMapHashes.AddDefaulted_GetRef();
 			ShaderMapHash.FromString(FUTF8ToTCHAR(ArrayField.AsString()));

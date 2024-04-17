@@ -43,7 +43,7 @@ struct FIoStoreWriteQueueEntry
 	class FIoStoreWriter* Writer = nullptr;
 	IIoStoreWriteRequest* Request = nullptr;
 	FIoChunkId ChunkId;
-	FIoChunkHash ChunkHash;
+	FIoHash ChunkHash;
 	/** Hash of the block data as it would be found on disk after compression and encryption */
 	FIoHash ChunkDiskHash;
 
@@ -61,6 +61,7 @@ struct FIoStoreWriteQueueEntry
 	uint64 Offset = 0;
 	TArray<FChunkBlock> ChunkBlocks;
 	FIoWriteOptions Options;
+	FName CompressionMethod = NAME_None;
 	FGraphEventRef HashBarrier;
 	FGraphEventRef HashTask;
 	FGraphEventRef BeginCompressionBarrier;
@@ -535,11 +536,6 @@ public:
 		// Add ourselves to the reference chunk db's list of possibles
 		ReferenceChunkDatabase->NotifyAddedToWriter(ContainerSettings.ContainerId, FPaths::GetBaseFilename(TocFilePath));
 	}
-	void SetHashDatabase(TSharedPtr<IIoStoreWriterHashDatabase> InHashDatabase, bool bInVerifyHashDatabase)
-	{
-		HashDatabase = InHashDatabase;
-		bVerifyHashDatabase = bInVerifyHashDatabase;
-	}
 
 	void EnumerateChunks(TFunction<bool(FIoStoreTocChunkInfo&&)>&& Callback) const
 	{
@@ -585,7 +581,7 @@ public:
 			PatchSourceReader->EnumerateChunks([this, &PrevEntryLink, &LayoutEntriesWithOffsets](const FIoStoreTocChunkInfo& ChunkInfo)
 				{
 					FLayoutEntry* PreviousBuildEntry = new FLayoutEntry();
-					PreviousBuildEntry->Hash = ChunkInfo.Hash;
+					PreviousBuildEntry->ChunkHash = ChunkInfo.ChunkHash;
 					PreviousBuildEntry->PartitionIndex = ChunkInfo.PartitionIndex;
 					PreviousBuildEntry->CompressedSize = ChunkInfo.CompressedSize;
 					LayoutEntriesWithOffsets.Emplace(ChunkInfo.Offset, PreviousBuildEntry);
@@ -635,70 +631,63 @@ public:
 		check(!bHasFlushed);
 		checkf(ChunkId.IsValid(), TEXT("ChunkId is not valid!"));
 
+		WriterContext->TotalChunksCount.IncrementExchange();
 		FIoStoreWriteQueueEntry* Entry = new FIoStoreWriteQueueEntry();
+		Entries.Add(Entry);
 		Entry->Writer = this;
 		Entry->Sequence = Entries.Num();
-		WriterContext->TotalChunksCount.IncrementExchange();
-		Entries.Add(Entry);
 		Entry->ChunkId = ChunkId;
 		Entry->Options = WriteOptions;
+		Entry->CompressionMethod = CompressionMethodForEntry(WriteOptions);
 		Entry->Request = Request;		
 		Entry->BeginCompressionBarrier = FGraphEvent::CreateGraphEvent();
 		Entry->FinishCompressionBarrier = FGraphEvent::CreateGraphEvent();
 		Entry->FinishEncryptionAndSigningBarrier = FGraphEvent::CreateGraphEvent();
 		Entry->BeginWriteBarrier = FGraphEvent::CreateGraphEvent();
 		Entry->WriteFinishedEvent = FGraphEvent::CreateGraphEvent();
-		
-		bool bTestHashValid = false;
-		FIoChunkHash TestHash;
-		// If we can get the hash without reading the whole thing and hashing it, do so
-		// to avoid the IO.
-		if (HashDatabase.IsValid() &&
-			HashDatabase->FindHashForChunkId(ChunkId, Entry->ChunkHash))
+
+		// If we can get the hash without reading the whole thing and hashing it, do so to avoid the IO.
+		if (const FIoHash* ChunkHash = Request->GetChunkHash(); ChunkHash != nullptr)
 		{
-			if (bVerifyHashDatabase == false)
+			check(!ChunkHash->IsZero());
+			Entry->ChunkHash = *ChunkHash;
+			if (WriterContext->WriterSettings.bValidateChunkHashes == false)
 			{
 				// If we aren't validating then we just use it and bail.
 				WriterContext->HashDbChunksCount.IncrementExchange();
 				WriterContext->HashDbChunksByType[(int8)Entry->ChunkId.GetChunkType()].IncrementExchange();
 				WriterContext->HashedChunksCount.IncrementExchange();
 
-				if (ReferenceChunkDatabase.IsValid() && CompressionMethodForEntry(Entry) != NAME_None)
+				if (ReferenceChunkDatabase.IsValid() && Entry->CompressionMethod != NAME_None)
 				{
 					Entry->bLoadingFromReferenceDb = ReferenceChunkDatabase->ChunkExists(ContainerSettings.ContainerId, Entry->ChunkHash, Entry->ChunkId, Entry->NumChunkBlocksFromRefDb);
 					Entry->bCouldBeFromReferenceDb = true;
 				}
 				return;
 			}
-
-			// If we are validating, copy the hash out and run the normal path
-			// to check against it.
-			TestHash = Entry->ChunkHash;
-			bTestHashValid = true;
+			// If we are validating run the normal path to verify it.
 		}
 		// Otherwise, we have to do the load & hash
 
 		Entry->HashBarrier = FGraphEvent::CreateGraphEvent();
-
-		FGraphEventArray HashPrereqs;
-		HashPrereqs.Add(Entry->HashBarrier);
-		Entry->HashTask = FFunctionGraphTask::CreateAndDispatchWhenReady([this, Entry, TestHash, bTestHashValid]()
+		Entry->HashTask = FFunctionGraphTask::CreateAndDispatchWhenReady([this, Entry]()
 		{
 			TRACE_CPUPROFILER_EVENT_SCOPE(HashChunk);
 			const FIoBuffer* SourceBuffer = Entry->Request->GetSourceBuffer();
-			Entry->ChunkHash = FIoChunkHash::HashBuffer(SourceBuffer->Data(), SourceBuffer->DataSize());
-			WriterContext->HashedChunksCount.IncrementExchange();
+			FIoHash ChunkHash = FIoHash::HashBuffer(SourceBuffer->Data(), SourceBuffer->DataSize());
 
-			if (bVerifyHashDatabase && bTestHashValid)
+			if (!Entry->ChunkHash.IsZero() && Entry->ChunkHash != ChunkHash)
 			{
-				if (TestHash != Entry->ChunkHash)
-				{
-					UE_LOG(LogIoStore, Warning, TEXT("HashDb Validation Failed: ChunkId %s has mismatching hash"), *LexToString(Entry->ChunkId));
-				}
+				UE_LOG(LogIoStore, Warning, TEXT("Hash Validation Failed: ChunkId %s has mismatching hash, new calculated '%s' vs old cached '%s'"),
+					*LexToString(Entry->ChunkId),
+					*LexToString(ChunkHash),
+					*LexToString(Entry->ChunkHash));
 			}
 
+			Entry->ChunkHash = ChunkHash;
+			WriterContext->HashedChunksCount.IncrementExchange();
 
-			if (ReferenceChunkDatabase.IsValid() && CompressionMethodForEntry(Entry) != NAME_None)
+			if (ReferenceChunkDatabase.IsValid() && Entry->CompressionMethod != NAME_None)
 			{
 				Entry->bLoadingFromReferenceDb = ReferenceChunkDatabase->ChunkExists(ContainerSettings.ContainerId, Entry->ChunkHash, Entry->ChunkId, Entry->NumChunkBlocksFromRefDb);
 				Entry->bCouldBeFromReferenceDb = true;
@@ -706,7 +695,9 @@ public:
 
 			// Release the source data buffer, it will be reloaded later when we start compressing the chunk
 			Entry->Request->FreeSourceBuffer();
-		}, TStatId(), &HashPrereqs, ENamedThreads::AnyHiPriThreadHiPriTask);
+		}, TStatId(), Entry->HashBarrier, ENamedThreads::AnyHiPriThreadHiPriTask);
+
+		// Kick off the source buffer read to run the hash task
 		Entry->Request->PrepareSourceBufferAsync(Entry->HashBarrier);
 	}
 
@@ -746,6 +737,11 @@ public:
 			TArrayView<const FFileRegion> GetRegions()
 			{
 				return TArrayView<const FFileRegion>();
+			}
+
+			virtual const FIoHash* GetChunkHash() override
+			{
+				return nullptr;
 			}
 
 			FIoBuffer SourceBuffer;
@@ -1124,7 +1120,7 @@ private:
 		FLayoutEntry* Next = nullptr;
 		uint64 IdealOrder = 0;
 		uint64 CompressedSize = uint64(-1);
-		FIoChunkHash Hash;
+		FIoHash ChunkHash;
 		FIoStoreWriteQueueEntry* QueueEntry = nullptr;
 		int32 PartitionIndex = -1;
 	};
@@ -1152,7 +1148,7 @@ private:
 			FLayoutEntry* FindPreviousEntry = PreviousBuildLayoutEntryByChunkId.FindRef(WriteQueueEntry->ChunkId);
 			if (FindPreviousEntry)
 			{
-				if (FindPreviousEntry->Hash != WriteQueueEntry->ChunkHash)
+				if (FindPreviousEntry->ChunkHash != WriteQueueEntry->ChunkHash)
 				{
 					WriteQueueEntry->bModified = true;
 				}
@@ -1339,11 +1335,11 @@ private:
 		return !Ar.IsError();
 	}
 
-	FName CompressionMethodForEntry(FIoStoreWriteQueueEntry* Entry) const
+	FName CompressionMethodForEntry(const FIoWriteOptions& Options) const
 	{
 		FName CompressionMethod = NAME_None;
 		const FIoStoreWriterSettings& WriterSettings = WriterContext->WriterSettings;
-		if (ContainerSettings.IsCompressed() && !Entry->Options.bForceUncompressed && !Entry->Options.bIsMemoryMapped)
+		if (ContainerSettings.IsCompressed() && !Options.bForceUncompressed && !Options.bIsMemoryMapped)
 		{
 			CompressionMethod = WriterSettings.CompressionMethod;
 		}
@@ -1435,8 +1431,6 @@ private:
 
 		const FIoStoreWriterSettings& WriterSettings = WriterContext->WriterSettings;
 
-		FName CompressionMethod = CompressionMethodForEntry(Entry);
-
 		const FIoBuffer* SourceBuffer = Entry->Request->GetSourceBuffer();
 		Entry->UncompressedSize.Emplace(SourceBuffer->DataSize());
 
@@ -1459,7 +1453,7 @@ private:
 			{
 				FChunkBlock& Block = Entry->ChunkBlocks[BlockIndex];
 				Block.IoBuffer = WriterContext->AllocCompressionBuffer(NumChunkBlocks);
-				Block.CompressionMethod = CompressionMethod;
+				Block.CompressionMethod = Entry->CompressionMethod;
 				Block.UncompressedSize = FMath::Min(BytesToProcess, WriterSettings.CompressionBlockSize);
 				Block.UncompressedData = UncompressedData;
 				BytesToProcess -= Block.UncompressedSize;
@@ -1467,7 +1461,7 @@ private:
 			}
 		}
 
-		if (CompressionMethod == NAME_None)
+		if (Entry->CompressionMethod == NAME_None)
 		{
 			for (FChunkBlock& Block : Entry->ChunkBlocks)
 			{
@@ -1486,7 +1480,7 @@ private:
 		if (bUseDDCCompression)
 		{
 			TStringBuilder<256> CacheKeySuffix;
-			CacheKeySuffix.Append(Entry->ChunkHash.ToString());
+			CacheKeySuffix.Append(LexToString(Entry->ChunkHash));
 			WriterSettings.CompressionMethod.AppendString(CacheKeySuffix);
 			CacheKeySuffix.Append(FCompression::GetCompressorDDCSuffix(WriterSettings.CompressionMethod));
 			CacheKeySuffix.Appendf(TEXT("%d_%d"),
@@ -1517,7 +1511,12 @@ private:
 				Entry->bStoreCompressedDataInDDC = true;
 			}
 		}
-		
+
+		ScheduleCompressionTasks(Entry);
+	}
+
+	void ScheduleCompressionTasks(FIoStoreWriteQueueEntry* Entry)
+	{
 		for (FChunkBlock& Block : Entry->ChunkBlocks)
 		{
 			WriterContext->ScheduledCompressionTasksCount.IncrementExchange();
@@ -1595,9 +1594,10 @@ private:
 			// database if we DO hit this, however...
 			UE_LOG(LogIoStore, Warning, TEXT("ChunkId was added twice in container %s, %s, file %s hash %s vs %s"), 
 				*FPaths::GetBaseFilename(TocFilePath),
-				*LexToString(Entry->ChunkId), *Entry->Options.FileName,
-				*TocBuilder.GetTocResource().ChunkMetas[*FindExistingIndex].ChunkHash.ToString(),
-				*Entry->ChunkHash.ToString()
+				*LexToString(Entry->ChunkId),
+				*Entry->Options.FileName,
+				*LexToString(TocBuilder.GetTocResource().ChunkMetas[*FindExistingIndex].ChunkHash),
+				*LexToString(Entry->ChunkHash)
 				);
 
 			checkf(TocBuilder.GetTocResource().ChunkMetas[*FindExistingIndex].ChunkHash == Entry->ChunkHash, TEXT("Chunk id has already been added with different content"));
@@ -1793,8 +1793,6 @@ private:
 	bool						bHasFlushed = false;
 	bool						bHasResult = false;
 	TSharedPtr<IIoStoreWriterReferenceChunkDatabase> ReferenceChunkDatabase;
-	TSharedPtr<IIoStoreWriterHashDatabase> HashDatabase;
-	bool						bVerifyHashDatabase = false;
 
 
 	friend class FIoStoreWriterContextImpl;
@@ -1894,6 +1892,7 @@ void FIoStoreWriterContextImpl::Flush()
 
 void FIoStoreWriterContextImpl::BeginCompressionThreadFunc()
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(BeginCompressionThread);
 	for (;;)
 	{
 		FIoStoreWriteQueueEntry* Entry = BeginCompressionQueue.DequeueOrWait();
@@ -1914,6 +1913,7 @@ void FIoStoreWriterContextImpl::BeginCompressionThreadFunc()
 
 void FIoStoreWriterContextImpl::BeginEncryptionAndSigningThreadFunc()
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(BeginEncryptionAndSigningThread);
 	for (;;)
 	{
 		FIoStoreWriteQueueEntry* Entry = BeginEncryptionAndSigningQueue.DequeueOrWait();
@@ -1948,6 +1948,7 @@ void FIoStoreWriterContextImpl::BeginEncryptionAndSigningThreadFunc()
 
 void FIoStoreWriterContextImpl::FinishEncryptionAndSigningThreadFunc()
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(FinishEncryptionAndSigningThread);
 	for (;;)
 	{
 		FIoStoreWriteQueueEntry* Entry = FinishEncryptionAndSigningQueue.DequeueOrWait();
@@ -1974,6 +1975,7 @@ void FIoStoreWriterContextImpl::FinishEncryptionAndSigningThreadFunc()
 
 void FIoStoreWriterContextImpl::WriterThreadFunc()
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(WriterThread);
 	for (;;)
 	{
 		FIoStoreWriteQueueEntry* Entry = WriterQueue.DequeueOrWait();
