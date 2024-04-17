@@ -16,6 +16,8 @@
 #include "Chaos/Deformable/GaussSeidelWeakConstraints.h"
 #include "Chaos/Deformable/GaussSeidelMainConstraint.h"
 #include "Chaos/Deformable/MuscleActivationConstraints.h"
+#include "Chaos/Deformable/GaussSeidelCorotatedCodimensionalConstraints.h"
+#include "Chaos/Deformable/GaussSeidelLinearCodimensionalConstraints.h"
 #include "Chaos/XPBDWeakConstraints.h"
 #include "Chaos/BlendedXPBDCorotatedConstraints.h"
 #include "Chaos/XPBDGridBasedCorotatedConstraints.h"
@@ -124,7 +126,7 @@ namespace Chaos::Softs
 		CHAOS_API void UpdateTransientConstraints();
 		CHAOS_API void PostProcessTransientConstraints();
 		CHAOS_API void InitializeKinematicParticles(FFleshThreadingProxy&);
-		CHAOS_API void InitializeTetrahedralConstraint(FFleshThreadingProxy&);
+		CHAOS_API void InitializeTetrahedralOrTriangleConstraint(FFleshThreadingProxy&);
 		CHAOS_API void InitializeGidBasedConstraints(FFleshThreadingProxy&);
 		CHAOS_API void InitializeGaussSeidelConstraints(FFleshThreadingProxy& Proxy);
 		CHAOS_API void InitializeWeakConstraint(FFleshThreadingProxy&);
@@ -183,6 +185,8 @@ namespace Chaos::Softs
 		TArray<TUniquePtr<Softs::FXPBDCorotatedConstraints<Softs::FSolverReal, Softs::FSolverParticles>>> CorotatedConstraints;
 		TUniquePtr<Softs::FGaussSeidelCorotatedConstraints<Softs::FSolverReal, Softs::FSolverParticles>> GSCorotatedConstraints;
 		TUniquePtr<Softs::FGaussSeidelNeohookeanConstraints<Softs::FSolverReal, Softs::FSolverParticles>> GSNeohookeanConstraints;
+		TUniquePtr<Softs::FGaussSeidelCorotatedCodimensionalConstraints<Softs::FSolverReal, Softs::FSolverParticles>> GSCorotatedCodConstraints;
+		TUniquePtr<Softs::FGaussSeidelLinearCodimensionalConstraints<Softs::FSolverReal, Softs::FSolverParticles>> GSLinearCodConstraints;
 		TUniquePtr<Softs::FGaussSeidelWeakConstraints<Softs::FSolverReal, Softs::FSolverParticles>> GSWeakConstraints;
 		TArray<TUniquePtr<Softs::FXPBDWeakConstraints<Softs::FSolverReal, Softs::FSolverParticles>>> WeakConstraints;
 		TArray<TUniquePtr<Softs::FBlendedXPBDCorotatedConstraints<Softs::FSolverReal, Softs::FSolverParticles>>> BlendedCorotatedConstraints;
@@ -192,6 +196,7 @@ namespace Chaos::Softs
 		TUniquePtr<Softs::FPBDTriangleMeshCollisions> TriangleMeshCollisions;
 		TArrayCollectionArray<const UObject*> MObjects;
 		TUniquePtr <TArray<TVec3<int32>>> SurfaceElements;
+		TUniquePtr <TArray<TVec3<int32>>> TetmeshSurfaceElements;
 		TUniquePtr <TArray<Chaos::TVec4<int32>>> AllElements;
 		TUniquePtr <FTriangleMesh> SurfaceTriangleMesh;
 		TUniquePtr <TArray<int32>> SurfaceVertices;
@@ -204,6 +209,8 @@ namespace Chaos::Softs
 		TUniquePtr <TArray<TArray<int32>>> AllSecondIndices;
 		TUniquePtr <TArray<FSolverReal>> AllWeights;
 		TUniquePtr <TArray<FSolverReal>> AllSecondWeights;
+		TUniquePtr <TArray<TVec3<int32>>> AllUnconstrainedSurfaceElementsCorotatedCod;  //correspond to the triangle mesh elements that are simulated using corotated cod
+		TUniquePtr <TArray<TVec3<int32>>> AllUnconstrainedSurfaceElementsSkin;          //correspond to the triangle mesh elements that are simulated using linear cod constraints
 		TArray<int32> ParticleComponentIndex;
 		TMap<int32, TSet<int32>> ParticleTriangleExclusionMap;
 		//Muscle Activation Variables

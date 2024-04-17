@@ -170,6 +170,9 @@ protected:
 	void EvaluateTetWild(Dataflow::FContext& Context, TUniquePtr<FFleshCollection>& InCollection, const UE::Geometry::FDynamicMesh3& DynamicMesh) const;
 };
 
+
+
+
 namespace Dataflow
 {
 	void ChaosFleshTetrahedralNodes();

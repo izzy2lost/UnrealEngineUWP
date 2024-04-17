@@ -15,6 +15,9 @@
 #include "Dataflow/ChaosFleshPositionTargetInitializationNodes.h"
 #include "Dataflow/ChaosFleshSkeletalBindingsNode.h"
 #include "Dataflow/ChaosFleshTetrahedralNodes.h"
+#include "Dataflow/ChaosFleshTriangleMeshSimulationPropertiesNode.h"
+#include "Dataflow/ChaosFleshSkinSimulationPropertiesNode.h"
+#include "Dataflow/ChaosFleshSetFleshDefaultPropertiesNode.h"
 #include "Modules/ModuleManager.h"
 
 #define LOCTEXT_NAMESPACE "ChaosFleshNodes"
@@ -34,6 +37,9 @@ void IChaosFleshNodesPlugin::StartupModule()
 	Dataflow::ChaosFleshRadialTetrahedronNodes();
 	Dataflow::RegisterChaosFleshImportGEONodes();
 	DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FCreateTetrahedronDataflowNode);
+	DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FTriangleMeshSimulationPropertiesDataflowNodes);
+	DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FSkinSimulationPropertiesDataflowNodes);
+	DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FSetFleshDefaultPropertiesNode);
 }
 
 void IChaosFleshNodesPlugin::ShutdownModule()

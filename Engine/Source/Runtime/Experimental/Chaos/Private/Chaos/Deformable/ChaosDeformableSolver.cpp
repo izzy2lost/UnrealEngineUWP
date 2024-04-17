@@ -55,7 +55,7 @@ DECLARE_CYCLE_STAT(TEXT("Chaos.Deformable.Solver.InitializeSimulationObjects"), 
 DECLARE_CYCLE_STAT(TEXT("Chaos.Deformable.Solver.InitializeSimulationObject"), STAT_ChaosDeformableSolver_InitializeSimulationObject, STATGROUP_Chaos);
 DECLARE_CYCLE_STAT(TEXT("Chaos.Deformable.Solver.InitializeDeformableParticles"), STAT_ChaosDeformableSolver_InitializeDeformableParticles, STATGROUP_Chaos);
 DECLARE_CYCLE_STAT(TEXT("Chaos.Deformable.Solver.InitializeKinematicParticles"), STAT_ChaosDeformableSolver_InitializeKinematicParticles, STATGROUP_Chaos);
-DECLARE_CYCLE_STAT(TEXT("Chaos.Deformable.Solver.InitializeTetrahedralConstraint"), STAT_ChaosDeformableSolver_InitializeTetrahedralConstraint, STATGROUP_Chaos);
+DECLARE_CYCLE_STAT(TEXT("Chaos.Deformable.Solver.InitializeTetrahedralOrTriangleConstraint"), STAT_ChaosDeformableSolver_InitializeTetrahedralOrTriangleConstraint, STATGROUP_Chaos);
 DECLARE_CYCLE_STAT(TEXT("Chaos.Deformable.Solver.InitializeGidBasedConstraints"), STAT_ChaosDeformableSolver_InitializeGidBasedConstraints, STATGROUP_Chaos);
 DECLARE_CYCLE_STAT(TEXT("Chaos.Deformable.Solver.InitializeWeakConstraints"), STAT_ChaosDeformableSolver_InitializeWeakConstraints, STATGROUP_Chaos);
 DECLARE_CYCLE_STAT(TEXT("Chaos.Deformable.Solver.InitializeKinematicConstraint"), STAT_ChaosDeformableSolver_InitializeKinematicConstraint, STATGROUP_Chaos);
@@ -141,6 +141,7 @@ namespace Chaos::Softs
 		if (Property.bDoSelfCollision || Property.CacheToFile)
 		{
 			SurfaceElements.Reset(new TArray<Chaos::TVec3<int32>>());
+			TetmeshSurfaceElements.Reset(new TArray<Chaos::TVec3<int32>>());
 		}
 
 		if (Property.bDoSelfCollision)
@@ -163,6 +164,8 @@ namespace Chaos::Softs
 			GSWeakConstraints.Reset(new FGaussSeidelWeakConstraints<FSolverReal, FSolverParticles>({}, {}, {}, {}, {}, GDeformableXPBDWeakConstraintParams));
 			MuscleActivationConstraints.Reset(new FMuscleActivationConstraints<FSolverReal, FSolverParticles>());
 		}
+		AllUnconstrainedSurfaceElementsCorotatedCod.Reset(new TArray<Chaos::TVec3<int32>>());
+		AllUnconstrainedSurfaceElementsSkin.Reset(new TArray<Chaos::TVec3<int32>>());
 
 		InitializeKinematicConstraint();
 		Frame = 0;
@@ -385,7 +388,7 @@ namespace Chaos::Softs
 					InitializeKinematicParticles(*Proxy);
 					InitializeWeakConstraint(*Proxy);
 					InitializeMuscleActivation(*Proxy);
-					InitializeTetrahedralConstraint(*Proxy);
+					InitializeTetrahedralOrTriangleConstraint(*Proxy);
 					InitializeGidBasedConstraints(*Proxy);
 					InitializeGaussSeidelConstraints(*Proxy);
 				}
@@ -751,9 +754,9 @@ namespace Chaos::Softs
 	}
 
 
-	void FDeformableSolver::InitializeTetrahedralConstraint(FFleshThreadingProxy& Proxy)
+	void FDeformableSolver::InitializeTetrahedralOrTriangleConstraint(FFleshThreadingProxy& Proxy)
 	{
-		PERF_SCOPE(STAT_ChaosDeformableSolver_InitializeTetrahedralConstraint);
+		PERF_SCOPE(STAT_ChaosDeformableSolver_InitializeTetrahedralOrTriangleConstraint);
 
 		const FManagedArrayCollection& Rest = Proxy.GetRestCollection();
 
@@ -924,6 +927,80 @@ namespace Chaos::Softs
 			}
 
 		}
+
+		const FIntVector2& Range = Proxy.GetSolverParticleRange();
+		if (const TManagedArray<int32>* TriangleMeshIndices = Rest.FindAttribute<int32>("ObjectIndices", "TriangleMesh"))
+		{
+			if (const TManagedArray<FIntVector>* Indices = Rest.FindAttribute<FIntVector>("Indices", FGeometryCollection::FacesGroup))
+			{
+				if (const TManagedArray<int32>* FaceStarts = Rest.FindAttribute<int32>("FaceStart", FGeometryCollection::GeometryGroup))
+				{
+					if (const TManagedArray<int32>* FaceCounts = Rest.FindAttribute<int32>("FaceCount", FGeometryCollection::GeometryGroup))
+					{
+						if (const TManagedArray<int32>* VertexStarts = Rest.FindAttribute<int32>("VertexStart", FGeometryCollection::GeometryGroup))
+						{
+							if (const TManagedArray<int32>* VertexCounts = Rest.FindAttribute<int32>("VertexCount", FGeometryCollection::GeometryGroup))
+							{
+								if (const TManagedArray<bool>* bUseSkinConstraints = Rest.FindAttribute<bool>("SkinConstraints", "TriangleMesh"))
+								{
+									for (int32 i = 0; i < TriangleMeshIndices->Num(); i++)
+									{
+										const int32 ObjectIndex = (*TriangleMeshIndices)[i];
+										const int32 FaceStartIndex = (*FaceStarts)[ObjectIndex];
+										const int32 FaceNum = (*FaceCounts)[ObjectIndex];
+										if ((*bUseSkinConstraints)[i])
+										{
+											int32 SurfaceOffset = AllUnconstrainedSurfaceElementsSkin->Num();
+											AllUnconstrainedSurfaceElementsSkin->SetNum(SurfaceOffset + FaceNum);
+											for (int32 e = FaceStartIndex; e < FaceStartIndex + FaceNum; e++)
+											{
+												for (int32 j = 0; j < 3; j++)
+												{
+													(*AllUnconstrainedSurfaceElementsSkin)[e - FaceStartIndex + SurfaceOffset][j] = (*Indices)[e][j];
+												}
+											}
+										}
+										else
+										{
+											int32 SurfaceOffset = AllUnconstrainedSurfaceElementsCorotatedCod->Num();
+											AllUnconstrainedSurfaceElementsCorotatedCod->SetNum(SurfaceOffset + FaceNum);
+											for (int32 e = FaceStartIndex; e < FaceStartIndex + FaceNum; e++)
+											{
+												for (int32 j = 0; j < 3; j++)
+												{
+													(*AllUnconstrainedSurfaceElementsCorotatedCod)[e - FaceStartIndex + SurfaceOffset][j] = (*Indices)[e][j];
+												}
+											}
+										}
+									}
+								}
+								else
+								{
+									for (int32 i = 0; i < TriangleMeshIndices->Num(); i++)
+									{
+										const int32 ObjectIndex = (*TriangleMeshIndices)[i];
+										const int32 FaceStartIndex = (*FaceStarts)[ObjectIndex];
+										const int32 FaceNum = (*FaceCounts)[ObjectIndex];
+										int32 SurfaceOffset = AllUnconstrainedSurfaceElementsCorotatedCod->Num();
+										AllUnconstrainedSurfaceElementsCorotatedCod->SetNum(SurfaceOffset + FaceNum);
+										for (int32 e = FaceStartIndex; e < FaceStartIndex + FaceNum; e++)
+										{
+											for (int32 j = 0; j < 3; j++)
+											{
+												(*AllUnconstrainedSurfaceElementsCorotatedCod)[e - FaceStartIndex + SurfaceOffset][j] = (*Indices)[e][j];
+											}
+										}
+									}
+								}
+							}
+						}
+							
+					}
+					
+				}
+			}
+		
+		}
 	}
 
 
@@ -979,7 +1056,7 @@ namespace Chaos::Softs
 				}
 				if (uint32 NumIncident = IncidentElementsPointer->Num())
 				{
-					int32 IncidentOffSet = AllIncidentElements->Num();
+					int32 IncidentOffSet = Range[0];
 					AllIncidentElements->SetNum(IncidentOffSet + NumIncident); 
 					AllIncidentElementsLocal->SetNum(IncidentOffSet + NumIncident);
 					for (uint32 i = 0; i < NumIncident; ++i)
@@ -1126,6 +1203,7 @@ namespace Chaos::Softs
 		PERF_SCOPE(STAT_ChaosDeformableSolver_InitializeSelfCollisionVariables);
 		int32 VertexOffset = 0;
 		SurfaceElements->SetNum(0);
+		TetmeshSurfaceElements->SetNum(0);
 		int ComponentOffset = 0;
 
 		for (FThreadingProxy* InProxy : UninitializedProxys_Internal)
@@ -1181,6 +1259,73 @@ namespace Chaos::Softs
 
 		SurfaceTriangleMesh->Init(*SurfaceElements);
 		SurfaceTriangleMesh->GetVertexSetAsArray(*SurfaceVertices);
+
+		VertexOffset = 0;
+
+		for (FThreadingProxy* InProxy : UninitializedProxys_Internal)
+		{
+			if (FFleshThreadingProxy* Proxy = InProxy->As<FFleshThreadingProxy>())
+			{
+				if (const FManagedArrayCollection* Rest = &Proxy->GetRestCollection())
+				{
+					if (const TManagedArray<FVector3f>* Vertex = Rest->FindAttribute<FVector3f>("Vertex", FGeometryCollection::VerticesGroup))
+					{
+						if (const TManagedArray<FIntVector>* Indices = Rest->FindAttribute<FIntVector>("Indices", FGeometryCollection::FacesGroup))
+						{
+							if (const TManagedArray<int32>* TriangleMeshIndices = Rest->FindAttribute<int32>("ObjectIndices", "TriangleMesh"))
+							{
+								if (const TManagedArray<int32>* FaceStarts = Rest->FindAttribute<int32>("FaceStart", FGeometryCollection::GeometryGroup))
+								{
+									if (const TManagedArray<int32>* FaceCounts = Rest->FindAttribute<int32>("FaceCount", FGeometryCollection::GeometryGroup))
+									{
+										TSet<int32> TriMeshObjects;
+										for (const int32 ObjectIndex: (*TriangleMeshIndices))
+										{
+											TriMeshObjects.Add(ObjectIndex);
+										}
+										for (int32 i = 0; i < FaceStarts->Num(); i++) 
+										{
+											if (!TriMeshObjects.Contains(i))
+											{
+												const int32 FaceStartIndex = (*FaceStarts)[i];
+												const int32 FaceNum = (*FaceCounts)[i];
+
+												int32 SurfaceOffset = TetmeshSurfaceElements->Num();
+												TetmeshSurfaceElements->SetNum(SurfaceOffset + FaceNum);
+												for (int32 e = FaceStartIndex; e < FaceStartIndex + FaceNum; e++)
+												{
+													for (int32 j = 0; j < 3; j++)
+													{
+														(*TetmeshSurfaceElements)[e - FaceStartIndex + SurfaceOffset][j] = (*Indices)[e][j];
+													}
+												}
+											}
+										}
+									}
+								}
+								
+							}
+							else
+							{
+								int32 SurfaceOffset = TetmeshSurfaceElements->Num();
+								TetmeshSurfaceElements->SetNum(SurfaceOffset + Indices->Num());
+								for (int32 i = 0; i < Indices->Num(); i++)
+								{
+									for (int32 j = 0; j < 3; j++)
+									{
+										(*TetmeshSurfaceElements)[i + SurfaceOffset][j] = VertexOffset + (*Indices)[i][j];
+									}
+								}
+							}
+						}
+						VertexOffset += Vertex->Num();
+					}
+				}
+			}
+		}
+		SurfaceTriangleMesh->Init(*TetmeshSurfaceElements);
+
+
 		TriangleMeshCollisions.Reset(new FPBDTriangleMeshCollisions(
 			0, Evolution->Particles().Size(), *SurfaceTriangleMesh, false, false));
 		ParticleTriangleExclusionMap.Reset();
@@ -1249,6 +1394,36 @@ namespace Chaos::Softs
 		PERF_SCOPE(STAT_ChaosDeformableSolver_InitializeGaussSeidelConstraintVariables);
 
 		GSMainConstraint.Reset(new Chaos::Softs::FGaussSeidelMainConstraint<FSolverReal, FSolverParticles>(Evolution->Particles(), Property.bDoQuasistatics, Property.bUseSOR, Property.OmegaSOR, GSParallelMax));
+
+		if (AllUnconstrainedSurfaceElementsCorotatedCod->Num() > 0) 
+		{
+			GSCorotatedCodConstraints.Reset(new Chaos::Softs::FGaussSeidelCorotatedCodimensionalConstraints<FSolverReal, FSolverParticles>(
+				Evolution->Particles(), *AllUnconstrainedSurfaceElementsCorotatedCod, false, Property.EMesh));
+			TArray<TArray<int32>> IncidentElements, IncidentElementsLocal;
+			GSMainConstraint->AddStaticConstraints(GSCorotatedCodConstraints->GetConstraintsArray(), IncidentElements, IncidentElementsLocal);
+
+			int32 StaticIndex = GSMainConstraint->AddStaticConstraintResidualAndHessianRange(1);
+
+			GSMainConstraint->StaticConstraintResidualAndHessian()[StaticIndex] = [this](const FSolverParticles& Particles, const int32 ElementIndex, const int32 ElementIndexLocal, const FSolverReal Dt, TVec3<FSolverReal>& ParticleResidual, Chaos::PMatrix<FSolverReal, 3, 3>& ParticleHessian)
+			{
+				this->GSCorotatedCodConstraints->AddHyperelasticResidualAndHessian(Particles, ElementIndex, ElementIndexLocal, Dt, ParticleResidual, ParticleHessian);
+			};
+		}
+
+		if (AllUnconstrainedSurfaceElementsSkin->Num() > 0)
+		{
+			GSLinearCodConstraints.Reset(new Chaos::Softs::FGaussSeidelLinearCodimensionalConstraints<FSolverReal, FSolverParticles>(
+				Evolution->Particles(), *AllUnconstrainedSurfaceElementsSkin, false, Property.EMesh));
+			TArray<TArray<int32>> IncidentElements, IncidentElementsLocal;
+			GSMainConstraint->AddStaticConstraints(GSLinearCodConstraints->GetConstraintsArray(), IncidentElements, IncidentElementsLocal);
+
+			int32 StaticIndex = GSMainConstraint->AddStaticConstraintResidualAndHessianRange(1);
+
+			GSMainConstraint->StaticConstraintResidualAndHessian()[StaticIndex] = [this](const FSolverParticles& Particles, const int32 ElementIndex, const int32 ElementIndexLocal, const FSolverReal Dt, TVec3<FSolverReal>& ParticleResidual, Chaos::PMatrix<FSolverReal, 3, 3>& ParticleHessian)
+			{
+				this->GSLinearCodConstraints->AddHyperelasticResidualAndHessian(Particles, ElementIndex, ElementIndexLocal, Dt, ParticleResidual, ParticleHessian);
+			};
+		}
 
 		if (Property.bUseGSNeohookean)
 		{
@@ -1521,7 +1696,7 @@ namespace Chaos::Softs
 				if (FFleshThreadingProxy* Proxy = BaseProxyPair.Value->As<FFleshThreadingProxy>())
 				{
 					InitializeMuscleActivation(*Proxy);
-					InitializeTetrahedralConstraint(*Proxy);
+					InitializeTetrahedralOrTriangleConstraint(*Proxy);
 					InitializeGidBasedConstraints(*Proxy);
 					InitializeGaussSeidelConstraints(*Proxy);
 				}
