@@ -341,6 +341,7 @@ UDynamicMesh* UGeometryScriptLibrary_MeshPrimitiveFunctions::AppendCapsule(
 	float LineLength,
 	int32 HemisphereSteps,
 	int32 CircleSteps,
+	int32 SegmentSteps,
 	EGeometryScriptPrimitiveOriginMode Origin,
 	UGeometryScriptDebug* Debug)
 {
@@ -355,6 +356,7 @@ UDynamicMesh* UGeometryScriptLibrary_MeshPrimitiveFunctions::AppendCapsule(
 	CapsuleGenerator.SegmentLength = FMath::Max(FMathf::ZeroTolerance, LineLength);
 	CapsuleGenerator.NumHemisphereArcSteps = FMath::Max(2, HemisphereSteps);
 	CapsuleGenerator.NumCircleSteps = FMath::Max(3, CircleSteps);
+	CapsuleGenerator.NumSegmentSteps = FMath::Max(0, SegmentSteps);
 	CapsuleGenerator.bPolygroupPerQuad = (PrimitiveOptions.PolygroupMode == EGeometryScriptPrimitivePolygroupMode::PerQuad);
 	CapsuleGenerator.Generate();
 

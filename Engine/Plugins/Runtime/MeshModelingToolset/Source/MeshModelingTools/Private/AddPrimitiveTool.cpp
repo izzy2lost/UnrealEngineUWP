@@ -717,6 +717,7 @@ void UAddCapsulePrimitiveTool::GenerateMesh(FDynamicMesh3* OutMesh) const
 	CapGen.SegmentLength = CapsuleSettings->CylinderLength;
 	CapGen.NumHemisphereArcSteps = CapsuleSettings->HemisphereSlices;
 	CapGen.NumCircleSteps = CapsuleSettings->CylinderSlices;
+	CapGen.NumSegmentSteps = CapsuleSettings->CylinderSubdivisions;
 	CapGen.bPolygroupPerQuad = ShapeSettings->PolygroupMode == EMakeMeshPolygroupMode::PerQuad;
 	CapGen.Generate();
 	OutMesh->Copy(&CapGen);

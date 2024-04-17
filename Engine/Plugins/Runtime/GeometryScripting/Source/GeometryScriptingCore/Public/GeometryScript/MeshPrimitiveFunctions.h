@@ -232,8 +232,25 @@ public:
 		float LineLength = 75,
 		int32 HemisphereSteps = 5,
 		int32 CircleSteps = 8,
+		int32 SegmentSteps = 0,
 		EGeometryScriptPrimitiveOriginMode Origin = EGeometryScriptPrimitiveOriginMode::Base,
 		UGeometryScriptDebug* Debug = nullptr);
+
+	// Version of append capsule without SegmentSteps parameter
+	UE_DEPRECATED(5.5, "Use AppendCapsule with the SegmentSteps parameter, instead")
+	static UDynamicMesh* AppendCapsule(
+		UDynamicMesh* TargetMesh,
+		FGeometryScriptPrimitiveOptions PrimitiveOptions,
+		FTransform Transform,
+		float Radius = 30,
+		float LineLength = 75,
+		int32 HemisphereSteps = 5,
+		int32 CircleSteps = 8,
+		EGeometryScriptPrimitiveOriginMode Origin = EGeometryScriptPrimitiveOriginMode::Base,
+		UGeometryScriptDebug* Debug = nullptr)
+	{
+		return AppendCapsule(TargetMesh, PrimitiveOptions, Transform, Radius, LineLength, HemisphereSteps, CircleSteps, 0, Origin, Debug);
+	}
 
 	/**
 	* Appends a 3D Cylinder (with optional end caps) to the Target Mesh.

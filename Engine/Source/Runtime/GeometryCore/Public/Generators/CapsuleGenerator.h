@@ -38,6 +38,9 @@ public:
 	/** Number of vertices along each circle */
 	int NumCircleSteps = 3;
 
+	/** Number of subdivisions lengthwise along the cylindrical section */
+	int NumSegmentSteps = 0;
+
 	/** If true, each quad gets a separate polygroup, otherwise the entire mesh is a single polygroup */
 	bool bPolygroupPerQuad = false;
 
@@ -81,6 +84,18 @@ private:
 				}
 			}
 
+			// add intermediate loops along the cylindrical section
+			double SegStepSize = 1.0 / (double)(NumSegmentSteps + 1.0);
+			double SegAlong = SegStepSize;
+			for (int32 SegStep = 0; SegStep < NumSegmentSteps; ++SegStep, SegAlong += SegStepSize)
+			{
+				for (t = 0, Theta = 0; t < NumCircleSteps; ++t, ++VtxIdx, Theta += Dtheta)
+				{
+					FVector3d Normal(FMath::Cos(Theta), FMath::Sin(Theta), 0.0);
+					SetVertex(VtxIdx, Normal * Radius + Offset * (1 - SegAlong), FVector3f(Normal));
+				}
+			}
+
 			// add points for second arc section
 			for (p = 1, Phi = FMathd::HalfPi; p < NumHemisphereArcSteps; ++p, Phi += Dphi) // NB: this skips the poles.
 			{
@@ -99,26 +114,46 @@ private:
 
 	void GenerateUVVertices()
 	{
-		// generate the UV's
-		int32 NumPhi = (2 * NumHemisphereArcSteps);
-		const float DUVphi = 1.0f / float(NumPhi - 1);
+		// generate the UVs
+		int32 NumPhi = (2 * NumHemisphereArcSteps + NumSegmentSteps);
 		const float DUVtheta = -1.0f / float(NumCircleSteps);
-
 		int32 UVIdx = 0;
-		int32 p,t;
-		float UVPhi, UVTheta;
-		for ( p = 1, UVPhi = DUVphi; p < NumPhi - 1; ++p, UVPhi += DUVphi)
+
+		// helper to add UVs for a given range in Phi
+		auto AddUVSpan = [this, &UVIdx, DUVtheta](int32 StepStart, int32 NumSteps, float PhiStart, float PhiStepSize)
 		{
-			for (t = 0, UVTheta = 1; t < NumCircleSteps; ++t, ++UVIdx, UVTheta += DUVtheta)
+			float UVPhi = PhiStart;
+			int32 PIdx = StepStart;
+			for (; PIdx < StepStart + NumSteps; ++PIdx, UVPhi += PhiStepSize)
 			{
+				float UVTheta = 1;
+				for (int32 t = 0; t < NumCircleSteps; ++t, ++UVIdx, UVTheta += DUVtheta)
+				{
+					UVs[UVIdx] = FVector2f(UVTheta, UVPhi);
+					UVParentVertex[UVIdx] = PIdx * NumCircleSteps + t;
+				}
 				UVs[UVIdx] = FVector2f(UVTheta, UVPhi);
-				UVParentVertex[UVIdx] = (p - 1) * NumCircleSteps + t;
+				UVParentVertex[UVIdx] = PIdx * NumCircleSteps; // Wrap around
+				++UVIdx;
 			}
-			UVs[UVIdx] = FVector2f(UVTheta, UVPhi);
-			UVParentVertex[UVIdx] = (p - 1) * NumCircleSteps; // Wrap around
-			++UVIdx;
-		}
-		int32 NorthPoleVtxIdx = (NumPhi - 2) * NumCircleSteps;
+			return PIdx;
+		};
+
+		const float PhiSpan = static_cast<float>(2 * Radius + SegmentLength);
+		const float HemisphereStepSize = static_cast<float>(Radius) / (PhiSpan * static_cast<float>(NumHemisphereArcSteps - 1));
+		// add the first hemisphere cap (except the pole)
+		int32 PIdx = AddUVSpan(1, NumHemisphereArcSteps - 1, HemisphereStepSize, HemisphereStepSize);
+
+		// add the cylindrical section
+		const float SegmentStepSize = static_cast<float>(SegmentLength) / (PhiSpan * static_cast<float>(NumSegmentSteps + 1));
+		PIdx = AddUVSpan(PIdx, NumSegmentSteps, static_cast<float>(Radius) / PhiSpan + SegmentStepSize, SegmentStepSize);
+
+		// add the closing hemisphere end-cap (except the pole)
+		AddUVSpan(PIdx, NumHemisphereArcSteps - 1, static_cast<float>(Radius + SegmentLength) / PhiSpan, HemisphereStepSize);
+
+		int32 NorthPoleVtxIdx = (NumPhi - 2 + NumSegmentSteps) * NumCircleSteps;
+		float UVTheta;
+		int32 t;
 		for (t = 0, UVTheta = 1 + DUVtheta; t < NumCircleSteps; ++t, ++UVIdx, UVTheta += DUVtheta)
 		{
 			UVs[UVIdx] = FVector2f(UVTheta, 0.0);
@@ -143,7 +178,7 @@ private:
 
 	void OutputEquatorialTriangles()
 	{
-		int32 NumPhi = (2 * NumHemisphereArcSteps);
+		int32 NumPhi = (2 * NumHemisphereArcSteps + NumSegmentSteps);
 		int32 TriIdx = 0, PolyIdx = 0;
 
 		// Generate equatorial triangles
@@ -184,7 +219,7 @@ private:
 
 	void OutputPolarTriangles()
 	{
-		int32 NumPhi = (2 * NumHemisphereArcSteps);
+		int32 NumPhi = (2 * NumHemisphereArcSteps + NumSegmentSteps);
 		const int32 NumEquatorialVtx = (NumPhi - 2) * NumCircleSteps;
 		const int32 NumEquatorialUVVtx = (NumPhi - 2) * (NumCircleSteps + 1);
 		const int32 NorthPoleVtxIdx = NumEquatorialVtx;
@@ -230,9 +265,9 @@ public:
 		NumHemisphereArcSteps = FMath::Max(NumHemisphereArcSteps, 2);
 		int32 NumPhi = (2 * NumHemisphereArcSteps);
 		NumCircleSteps = FMath::Max(NumCircleSteps, 3);
-		const int32 NumVertices = (NumPhi - 2) * NumCircleSteps + 2;
-		const int32 NumUVs = (NumPhi - 2) * (NumCircleSteps + 1) + (2 * NumCircleSteps);
-		const int32 NumTris = (NumPhi - 2) * NumCircleSteps * 2;
+		const int32 NumVertices = (NumPhi - 2 + NumSegmentSteps) * NumCircleSteps + 2;
+		const int32 NumUVs = (NumPhi - 2 + NumSegmentSteps) * (NumCircleSteps + 1) + (2 * NumCircleSteps);
+		const int32 NumTris = (NumPhi - 2 + NumSegmentSteps) * NumCircleSteps * 2;
 		SetBufferSizes(NumVertices, NumTris, NumUVs, NumVertices);
 
 		GenerateVertices();

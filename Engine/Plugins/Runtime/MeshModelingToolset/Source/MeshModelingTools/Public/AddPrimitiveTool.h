@@ -394,6 +394,10 @@ public:
 	/** Number of radial slices of the cylindrical section. */
 	UPROPERTY(EditAnywhere, Category = Shape, meta = (UIMin = "3", UIMax = "100", ClampMin = "3", ClampMax = "500", ProceduralShapeSetting))
 	int CylinderSlices = 16;
+
+	/** Number of lengthwise subdivisions along cylindrical section */
+	UPROPERTY(EditAnywhere, Category = Shape, meta = (UIMin = "0", UIMax = "100", ClampMin = "0", ClampMax = "500", ProceduralShapeSetting))
+	int CylinderSubdivisions = 1;
 };
 
 UENUM()
