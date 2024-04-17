@@ -259,8 +259,6 @@ protected:
 	// Helper function to create and initialize per-actor-class UInstancedActorsData's, optionally further partitioned by InstanceTags
 	UInstancedActorsData& GetOrCreateActorInstanceData(TSubclassOf<AActor> ActorClass, const FInstancedActorsTagSet& InstanceTags);
 
-	virtual UInstancedActorsData* CreateNextInstanceActorData(TSubclassOf<AActor> ActorClass, const FInstancedActorsTagSet& InstanceTags);
-
 	// Used to set the right properties on the editor ISMCs so we can do per-instance selection.
 	virtual void PreRegisterAllComponents() override;
 #endif
@@ -313,10 +311,6 @@ protected:
 
 	UPROPERTY(Transient)
 	TMap<TObjectPtr<UInstancedStaticMeshComponent>, int32> ISMComponentToInstanceDataMap;
-
-	/** Class to be spawned to represent individual actor class instances. */
-	UPROPERTY(EditAnywhere, Category=InstancedActor)
-	TSubclassOf<UInstancedActorsData> InstancedActorsDataClass;
 
 private:
 #if WITH_EDITORONLY_DATA

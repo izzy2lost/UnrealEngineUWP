@@ -137,7 +137,6 @@ namespace UE::InstancedActors
 //-----------------------------------------------------------------------------
 AInstancedActorsManager::AInstancedActorsManager()
 {
-	InstancedActorsDataClass = UInstancedActorsData::StaticClass();
 	bReplicateUsingRegisteredSubObjectList = true;
 	bReplicates = true;
 	SetNetDormancy(DORM_DormantAll);
@@ -621,23 +620,6 @@ void AInstancedActorsManager::SetGridGuid(const FGuid& InGuid)
 	ManagerGridGuid = InGuid;
 }
 
-UInstancedActorsData* AInstancedActorsManager::CreateNextInstanceActorData(TSubclassOf<AActor> ActorClass, const FInstancedActorsTagSet& InstanceTags)
-{
-	check(InstancedActorsDataClass);
-
-	UInstancedActorsData* NewInstanceData = NewObject<UInstancedActorsData>(this, InstancedActorsDataClass);
-	// @todo it's conceivable the NextInstanceDataID will overflow. We need to use some handle system in place instead. 
-	NewInstanceData->ID = NextInstanceDataID++;
-	NewInstanceData->ActorClass = ActorClass;
-	NewInstanceData->Tags = InstanceTags;
-	check(Algo::NoneOf(PerActorClassInstanceData, [NewInstanceData](UInstancedActorsData* InstanceData)
-		{
-			return InstanceData->ID == NewInstanceData->ID;
-		}));
-
-	return NewInstanceData;
-}
-
 UInstancedActorsData& AInstancedActorsManager::GetOrCreateActorInstanceData(TSubclassOf<AActor> ActorClass, const FInstancedActorsTagSet& InstanceTags)
 {
 	checkf(HasActorBegunPlay() == false, TEXT("AInstancedActorsManager doesn't yet support runtime addition of instances"));
@@ -653,7 +635,16 @@ UInstancedActorsData& AInstancedActorsManager::GetOrCreateActorInstanceData(TSub
 		return **InstanceData;
 	}
 
-	UInstancedActorsData* NewInstanceData = CreateNextInstanceActorData(ActorClass, InstanceTags);
+	UInstancedActorsData* NewInstanceData = NewObject<UInstancedActorsData>(this);
+	// @todo it's conceivable the NextInstanceDataID will overflow. We need to use some handle system in place instead. 
+	NewInstanceData->ID = NextInstanceDataID++;
+	NewInstanceData->ActorClass = ActorClass;
+	NewInstanceData->Tags = InstanceTags;
+	check(Algo::NoneOf(PerActorClassInstanceData, [NewInstanceData](UInstancedActorsData* InstanceData)
+		{ 
+			return InstanceData->ID == NewInstanceData->ID; 
+		}));
+
 	PerActorClassInstanceData.Add(NewInstanceData);
 
 	// Get or create exemplar actor to derive entities from
