@@ -10,7 +10,7 @@ namespace ChaosTest {
 
 	// Set up a test with a non-breakable joint, then manually break it.
 	// Verify that the break callback is called and the joint is disabled.
-	template <typename TEvolution>
+	template <typename TEvolution, bool bUseSimd = false>
 	void JointBreak_ManualBreak()
 	{
 		const int32 NumIterations = 1;
@@ -21,6 +21,7 @@ namespace ChaosTest {
 		FJointChainTest<TEvolution> Test(NumIterations, Gravity);
 		Test.InitChain(2, FVec3(0,0,-1));
 		Test.Create();
+		Test.Evolution.GetJointConstraints().SetUseSimd(bUseSimd);
 
 		bool bBrokenCallbackCalled = false;
 		Test.Evolution.GetJointConstraints().SetBreakCallback([&bBrokenCallbackCalled](FPBDJointConstraintHandle* Constraint)
@@ -59,12 +60,13 @@ namespace ChaosTest {
 
 	GTEST_TEST(AllEvolutions, JointBreakTests_TestManualBreak)
 	{
-		JointBreak_ManualBreak<FPBDRigidsEvolutionGBF>();
+		JointBreak_ManualBreak<FPBDRigidsEvolutionGBF, false>();
+		JointBreak_ManualBreak<FPBDRigidsEvolutionGBF, true>();
 	}
 
 	// 1 Kinematic Body with 1 Dynamic body hanging from it by a breakable constraint.
 	// Constraint break force is larger than M x G, so joint should not break.
-	template <typename TEvolution>
+	template <typename TEvolution, bool bUseSimd = false>
 	void JointBreak_UnderLinearThreshold()
 	{
 		const int32 NumIterations = 1;
@@ -74,7 +76,7 @@ namespace ChaosTest {
 
 		FJointChainTest<TEvolution> Test(NumIterations, Gravity);
 		Test.InitChain(2, FVec3(0, 0, -1));
-
+		Test.Evolution.GetJointConstraints().SetUseSimd(bUseSimd);
 		// Joint should break only if Threshold < MG
 		// So not in this test
 		Test.JointSettings[0].LinearBreakForce = 1.1f * Test.ParticleMasses[1] * Gravity;
@@ -101,12 +103,13 @@ namespace ChaosTest {
 
 	GTEST_TEST(AllEvolutions, JointBreakTests_TestUnderLinearThreshold)
 	{
-		JointBreak_UnderLinearThreshold<FPBDRigidsEvolutionGBF>();
+		JointBreak_UnderLinearThreshold<FPBDRigidsEvolutionGBF, false>();
+		JointBreak_UnderLinearThreshold<FPBDRigidsEvolutionGBF, true>();
 	}
 
 	// 1 Kinematic Body with 2 Dynamic bodies hanging from it by a breakable constraint.
 	// Constraint break forces are larger than M x G, so joint should not break.
-	template <typename TEvolution>
+	template <typename TEvolution, bool bUseSimd>
 	void JointBreak_UnderLinearThreshold2()
 	{
 		const int32 NumIterations = 1;
@@ -116,6 +119,7 @@ namespace ChaosTest {
 
 		FJointChainTest<TEvolution> Test(NumIterations, Gravity);
 		Test.InitChain(3, FVec3(0, 0, -1));
+		Test.Evolution.GetJointConstraints().SetUseSimd(bUseSimd);
 
 		// Joint should break only if Threshold < MG
 		// So not in this test
@@ -146,12 +150,13 @@ namespace ChaosTest {
 
 	GTEST_TEST(AllEvolutions, JointBreakTests_TestUnderLinearThreshold2)
 	{
-		JointBreak_UnderLinearThreshold2<FPBDRigidsEvolutionGBF>();
+		JointBreak_UnderLinearThreshold2<FPBDRigidsEvolutionGBF, false>();
+		JointBreak_UnderLinearThreshold2<FPBDRigidsEvolutionGBF, true>();
 	}
 
 	// 1 Kinematic Body with 1 Dynamic body hanging from it by a breakable constraint.
 	// Constraint break force is less than M x G, so joint should break.
-	template <typename TEvolution>
+	template <typename TEvolution, bool bUseSimd>
 	void JointBreak_OverLinearThreshold()
 	{
 		const int32 NumIterations = 1;
@@ -161,7 +166,7 @@ namespace ChaosTest {
 
 		FJointChainTest<TEvolution> Test(NumIterations, Gravity);
 		Test.InitChain(2, FVec3(0,0,-1));
-
+		Test.Evolution.GetJointConstraints().SetUseSimd(bUseSimd);
 		// Joint should break only if Threshold < MG
 		// So yes in this test
 		Test.JointSettings[0].LinearBreakForce = 0.9f * Test.ParticleMasses[1] * Gravity;
@@ -188,7 +193,8 @@ namespace ChaosTest {
 
 	GTEST_TEST(AllEvolutions, JointBreakTests_TestOverLinearThreshold)
 	{
-		JointBreak_OverLinearThreshold<FPBDRigidsEvolutionGBF>();
+		JointBreak_OverLinearThreshold<FPBDRigidsEvolutionGBF, false>();
+		JointBreak_OverLinearThreshold<FPBDRigidsEvolutionGBF, true>();
 	}
 
 
@@ -204,7 +210,6 @@ namespace ChaosTest {
 
 		FJointChainTest<TEvolution> Test(NumIterations, Gravity);
 		Test.InitChain(3, FVec3(0, 0, -1));
-
 		Test.Evolution.GetJointConstraints().SetUseSimd(bUseSimd);
 
 		// Joint should break only if Threshold < MG
@@ -242,7 +247,7 @@ namespace ChaosTest {
 
 	// 1 Kinematic Body with 1 Dynamic body held vertically by a breakable angular constraint.
 	// Constraint break torque is larger than input torque so constraint will not break.
-	template <typename TEvolution>
+	template <typename TEvolution, bool bUseSimd>
 	void JointBreak_UnderAngularThreshold()
 	{
 		const int32 NumIterations = 1;
@@ -253,7 +258,7 @@ namespace ChaosTest {
 
 		FJointChainTest<TEvolution> Test(NumIterations, Gravity);
 		Test.InitChain(2, FVec3(0, 0, -1));
-
+		Test.Evolution.GetJointConstraints().SetUseSimd(bUseSimd);
 		// Joint should break only if Threshold < MGL
 		// So not in this test
 		Test.JointSettings[0].AngularBreakTorque = 1.1f * Torque.X;
@@ -283,12 +288,13 @@ namespace ChaosTest {
 
 	GTEST_TEST(AllEvolutions, JointBreakTests_TestUnderAngularThreshold)
 	{
-		JointBreak_UnderAngularThreshold<FPBDRigidsEvolutionGBF>();
+		JointBreak_UnderAngularThreshold<FPBDRigidsEvolutionGBF, false>();
+		JointBreak_UnderAngularThreshold<FPBDRigidsEvolutionGBF, true>();
 	}
 
 	// 1 Kinematic Body with 1 Dynamic body held vertically by a breakable angular constraint.
 	// Constraint break torque is less than input torque so constraint will break.
-	template <typename TEvolution>
+	template <typename TEvolution, bool bUseSimd>
 	void JointBreak_OverAngularThreshold()
 	{
 		const int32 NumSolverIterations = 10;
@@ -299,7 +305,7 @@ namespace ChaosTest {
 
 		FJointChainTest<TEvolution> Test(NumSolverIterations, Gravity);
 		Test.InitChain(2, FVec3(0, 0, -1));
-
+		Test.Evolution.GetJointConstraints().SetUseSimd(bUseSimd);
 		// Joint should break only if Threshold < MGL
 		// So not in this test
 		Test.JointSettings[0].AngularBreakTorque = 0.9f * Torque.X;
@@ -329,7 +335,8 @@ namespace ChaosTest {
 
 	GTEST_TEST(AllEvolutions, JointBreakTests_TestOverAngularThreshold)
 	{
-		JointBreak_OverAngularThreshold<FPBDRigidsEvolutionGBF>();
+		JointBreak_OverAngularThreshold<FPBDRigidsEvolutionGBF, false>();
+		JointBreak_OverAngularThreshold<FPBDRigidsEvolutionGBF, true>();
 	}
 
 }

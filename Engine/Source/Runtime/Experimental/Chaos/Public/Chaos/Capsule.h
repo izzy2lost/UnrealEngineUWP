@@ -515,7 +515,7 @@ namespace Chaos
 		// Used for manifold generation
 		const FVec3 GetVertex(int32 VertexIndex) const
 		{
-			FVec3 Result;
+			FVec3 Result(0);
 
 			switch (VertexIndex)
 			{

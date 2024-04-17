@@ -24,7 +24,7 @@ namespace ChaosTest {
 	/**
 	 * Position constraint test
 	 */
-	template<typename TEvolution>
+	template<typename TEvolution, bool bUseSimd>
 	void Position()
 	{
 		{
@@ -38,6 +38,7 @@ namespace ChaosTest {
 			TArray<FVec3> Positions = { FVec3(0) };
 			FPBDPositionConstraints PositionConstraints(MoveTemp(Positions), MoveTemp(Dynamics), 1.f);
 			InitEvolutionSettings(Evolution);
+			Evolution.GetJointConstraints().SetUseSimd(bUseSimd);
 
 			Evolution.AddConstraintContainer(PositionConstraints);
 			Evolution.AdvanceOneTimeStep(0.1);
@@ -57,6 +58,7 @@ namespace ChaosTest {
 			TArray<FVec3> Positions = { FVec3(1) };
 			FPBDPositionConstraints PositionConstraints(MoveTemp(Positions), MoveTemp(Dynamics), 0.5f);
 			Evolution.AddConstraintContainer(PositionConstraints);
+			Evolution.GetJointConstraints().SetUseSimd(bUseSimd);
 
 			// The effect of stiffness parameter (which is set to 0.5 above) is iteration depeendent
 			Evolution.SetNumPositionIterations(1);
@@ -330,10 +332,10 @@ namespace ChaosTest {
 
 	GTEST_TEST(AllEvolutions, Constraints)
 	{
-		ChaosTest::Position<FPBDRigidsEvolutionGBF>();
-		ChaosTest::PositionAndJoint<FPBDRigidsEvolutionGBF>();
-		constexpr bool bTestSimdSolver = true;
-		ChaosTest::PositionAndJoint<FPBDRigidsEvolutionGBF, bTestSimdSolver>();
+		ChaosTest::Position<FPBDRigidsEvolutionGBF, false>();
+		ChaosTest::Position<FPBDRigidsEvolutionGBF, true>();
+		ChaosTest::PositionAndJoint<FPBDRigidsEvolutionGBF, false>();
+		ChaosTest::PositionAndJoint<FPBDRigidsEvolutionGBF, true>();
 		ChaosTest::SuspensionConstraintHardstop<FPBDRigidsEvolutionGBF>();
 		ChaosTest::SuspensionConstraintSpring<FPBDRigidsEvolutionGBF>();
 
