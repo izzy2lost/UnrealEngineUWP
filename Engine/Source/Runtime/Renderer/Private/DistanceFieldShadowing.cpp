@@ -133,6 +133,14 @@ static FAutoConsoleVariableRef CVarCompactCulledObjects(
 	TEXT("Note that each tile can only hold up to r.DFShadowAverageObjectsPerCullTile number of objects when compaction is not used."),
 	ECVF_RenderThreadSafe);
 
+int32 GDFShadowCullingSubsampleDepth = 0;
+static FAutoConsoleVariableRef CVarCullingSubsampleDepth(
+	TEXT("r.DFShadowCullingSubsampleDepth"),
+	GDFShadowCullingSubsampleDepth,
+	TEXT("When deciding whether to cull DF shadows for a pixel, subsample the depthbuffer instead of checking all relevant depth texels. ")
+	TEXT("Decreases bandwidth, but produces artifacts on edges and pixel-sized holes"),
+	ECVF_ReadOnly);
+
 int32 const GDistanceFieldShadowTileSizeX = 8;
 int32 const GDistanceFieldShadowTileSizeY = 8;
 
@@ -367,6 +375,7 @@ class FDistanceFieldShadowingCS : public FGlobalShader
 		OutEnvironment.SetDefine(TEXT("THREADGROUP_SIZEY"), GDistanceFieldShadowTileSizeY);
 		OutEnvironment.SetDefine(TEXT("FORCE_DEPTH_TEXTURE_READS"), 1);
 		OutEnvironment.SetDefine(TEXT("PLATFORM_SUPPORTS_TYPED_UAV_LOAD"), (int32)RHISupports4ComponentUAVReadWrite(Parameters.Platform));
+		OutEnvironment.SetDefine(TEXT("CULLING_SUBSAMPLE_DEPTH"), GDFShadowCullingSubsampleDepth);
 	}
 };
 
@@ -388,6 +397,8 @@ class FDistanceFieldShadowingUpsamplePS : public FGlobalShader
 		SHADER_PARAMETER(float, NearFadePlaneOffset)
 		SHADER_PARAMETER(float, InvNearFadePlaneLength)
 		SHADER_PARAMETER(float, OneOverDownsampleFactor)
+		SHADER_PARAMETER(float, MinDepth)
+		SHADER_PARAMETER(float, MaxDepth)
 	END_SHADER_PARAMETER_STRUCT()
 
 	class FUpsample : SHADER_PERMUTATION_BOOL("SHADOW_FACTORS_UPSAMPLE_REQUIRED");
@@ -759,6 +770,22 @@ bool FSceneRenderer::ShouldPrepareHeightFieldScene() const
 		&& SupportsHeightFieldShadows(Scene->GetFeatureLevel(), Scene->GetShaderPlatform());
 }
 
+void GetDistanceFieldShadowRange(const FProjectedShadowInfo* ProjectedShadowInfo, EDistanceFieldPrimitiveType PrimitiveType, float& OutMinDepth, float& OutMaxDepth)
+{
+	if (ProjectedShadowInfo->bDirectionalLight)
+	{
+		OutMinDepth = ProjectedShadowInfo->CascadeSettings.SplitNear - ProjectedShadowInfo->CascadeSettings.SplitNearFadeRegion;
+		OutMaxDepth = ProjectedShadowInfo->CascadeSettings.SplitFar;
+	}
+	else
+	{
+		check(PrimitiveType != DFPT_HeightField);
+		//@todo - set these up for point lights as well
+		OutMinDepth = 0.0f;
+		OutMaxDepth = HALF_WORLD_MAX;
+	}
+}
+
 void RayTraceShadows(
 	FRDGBuilder& GraphBuilder,
 	bool bAsyncCompute,
@@ -832,18 +859,7 @@ void RayTraceShadows(
 		PassParameters->TwoSidedMeshDistanceBiasScale = GDFShadowTwoSidedMeshDistanceBiasScale;
 		PassParameters->Substrate = Substrate::BindSubstrateGlobalUniformParameters(View);
 
-		if (ProjectedShadowInfo->bDirectionalLight)
-		{
-			PassParameters->MinDepth = ProjectedShadowInfo->CascadeSettings.SplitNear - ProjectedShadowInfo->CascadeSettings.SplitNearFadeRegion;
-			PassParameters->MaxDepth = ProjectedShadowInfo->CascadeSettings.SplitFar;
-		}
-		else
-		{
-			check(!bHeightfield);
-			//@todo - set these up for point lights as well
-			PassParameters->MinDepth = 0.0f;
-			PassParameters->MaxDepth = HALF_WORLD_MAX;
-		}
+		GetDistanceFieldShadowRange(ProjectedShadowInfo, PrimitiveType, PassParameters->MinDepth, PassParameters->MaxDepth);
 
 		PassParameters->DownsampleFactor = GetDFShadowDownsampleFactor();
 		const FIntPoint OutputBufferSize = OutputTexture->Desc.Extent;
@@ -1113,6 +1129,8 @@ void FProjectedShadowInfo::RenderRayTracedDistanceFieldProjection(
 		PassParameters->PS.ShadowFactorsSampler = TStaticSamplerState<SF_Bilinear>::GetRHI();
 		PassParameters->PS.ScissorRectMinAndSize = FIntRect(ScissorRect.Min, ScissorRect.Size());
 		PassParameters->PS.OneOverDownsampleFactor = 1.0f / GetDFShadowDownsampleFactor();
+
+		GetDistanceFieldShadowRange(this, DFPT_SignedDistanceField, PassParameters->PS.MinDepth, PassParameters->PS.MaxDepth);
 
 		if (bDirectionalLight && CascadeSettings.FadePlaneLength > 0)
 		{

@@ -605,8 +605,31 @@ void DistanceFieldShadowingCS(
 
 	float2 ScreenUV = float2((DispatchThreadId.xy * DownsampleFactor + ScissorRectMinAndSize.xy + .5f) * View.BufferSizeAndInvSize.zw);
 	float2 ScreenPosition = (ScreenUV.xy - View.ScreenPositionScaleBias.wz) / View.ScreenPositionScaleBias.xy;
+	
+	float SceneDepth;
+	float FullResFurthestSceneDepth;
+	{
+		int2 TopLeftPixelPosition = DispatchThreadId.xy * DownsampleFactor + ScissorRectMinAndSize.xy;
 
-	float SceneDepth = CalcSceneDepth(ScreenUV);
+		if (DownsampleFactor == 2)
+		{
+#if CULLING_SUBSAMPLE_DEPTH
+			SceneDepth = FullResFurthestSceneDepth = CalcSceneDepth(ScreenUV);
+#else
+			// cull shadow only if no full-resolution pixel falls within range, preventing edge artifacts
+			float4 SceneDepths = GatherDeviceZ(float2(TopLeftPixelPosition + 1) * View.BufferSizeAndInvSize.zw);
+			SceneDepth = ConvertFromDeviceZ(SceneDepths.x);
+			FullResFurthestSceneDepth = ConvertFromDeviceZ(FarthestDeviceDepth(FarthestDeviceDepth(SceneDepths.x, SceneDepths.y, SceneDepths.z), SceneDepths.w));
+#endif
+		}
+		else
+		{
+			float SceneDepth00 = LookupDeviceZ(TopLeftPixelPosition);
+			SceneDepth = ConvertFromDeviceZ(SceneDepth00);
+			FullResFurthestSceneDepth = SceneDepth;
+		}
+	}
+
 	float3 OpaqueTranslatedWorldPosition = mul(float4(GetScreenPositionForProjectionType(ScreenPosition, SceneDepth), SceneDepth, 1), PrimaryView.ScreenToTranslatedWorld).xyz;
 
 	// Distance for directional lights to trace
@@ -614,7 +637,7 @@ void DistanceFieldShadowingCS(
 
 	uint NumIntersectingObjects = GetCulledNumObjects();
 	uint CulledDataParameter = 0;
-	bool bShouldComputeShadowing = SceneDepth > MinDepth && SceneDepth < MaxDepth;
+	bool bShouldComputeShadowing = FullResFurthestSceneDepth > MinDepth && SceneDepth < MaxDepth;
 
 #define USE_CULLING 1
 #if USE_CULLING
@@ -788,7 +811,7 @@ void DistanceFieldShadowingUpsamplePS(
 {
 	float Output;
 	float SceneDepth;
-	UpsampleShadowFactors(SVPos, ScissorRectMinAndSize, OneOverDownsampleFactor, ShadowFactorsTexture, ShadowFactorsSampler, Output, SceneDepth);
+	UpsampleShadowFactors(SVPos, ScissorRectMinAndSize, OneOverDownsampleFactor, MinDepth, MaxDepth, ShadowFactorsTexture, ShadowFactorsSampler, Output, SceneDepth);
 
 	float FarBlendFactor = 1.0f - saturate((SceneDepth - FadePlaneOffset) * InvFadePlaneLength);
 	Output = lerp(1, Output, FarBlendFactor);
