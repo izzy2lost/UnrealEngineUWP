@@ -102,9 +102,6 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Take Recorder")
 	void StartRecordingSource(TArray<UTakeRecorderSource*> InSources, const FQualifiedFrameTime& CurrentFrameTime);
 	
-	UE_DEPRECATED(4.27, "StartRecordingSource with FTimecode has been deprecated, please use StartRecordingSource with FQualifiedFrameTime")
-	void StartRecordingSource(TArray<UTakeRecorderSource*> InSources, const FTimecode& CurrentTimecode);
-
 public:
 
 	/**

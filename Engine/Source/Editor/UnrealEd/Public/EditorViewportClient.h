@@ -355,12 +355,6 @@ public:
 	 */
 	UNREALED_API void AddRealtimeOverride(bool bShouldBeRealtime, FText SystemDisplayName);
 
-	UE_DEPRECATED(4.26, "SetRealtimeOverride is replaced with AddRealtimeOverride, as multiple overrides can now be added.")
-	void SetRealtimeOverride(bool bShouldBeRealtime, FText SystemDisplayName)
-	{
-		AddRealtimeOverride(bShouldBeRealtime, SystemDisplayName);
-	}
-	
 	/**
 	 * Returns whether there's a realtime override registered with the given system name.
 	 */
@@ -373,12 +367,6 @@ public:
 	 * @return Whether any matching realtime override was found.
 	 */
 	UNREALED_API bool RemoveRealtimeOverride(FText SystemDisplayName, bool bCheckMissingOverride = true);
-
-	UE_DEPRECATED(4.26, "RemoveRealtimeOverride now takes a system display name to help remove the correct override.")
-	void RemoveRealtimeOverride()
-	{
-		PopRealtimeOverride();
-	}
 
 	/**
 	 * Removes the last added realtime override.

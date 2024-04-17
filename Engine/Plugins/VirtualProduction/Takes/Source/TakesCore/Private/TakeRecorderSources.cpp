@@ -266,11 +266,6 @@ void UTakeRecorderSources::StartRecordingSource(TArray<UTakeRecorderSource *> In
 }
 
 
-void UTakeRecorderSources::StartRecordingSource(TArray<UTakeRecorderSource *> InSources, const FTimecode& CurrentTimecode)
-{
-	StartRecordingSource(InSources, FQualifiedFrameTime(CurrentTimecode, TargetLevelSequenceDisplayRate)); 
-}
-
 void UTakeRecorderSources::StartRecordingTheseSources(const TArray<UTakeRecorderSource *>& InSources, const FQualifiedFrameTime& CurrentFrameTime)
 {
 	FTimecode CurrentTimecode = FTimecode::FromFrameNumber(FFrameRate::TransformTime(CurrentFrameTime.Time, TargetLevelSequenceTickResolution, TargetLevelSequenceDisplayRate).FloorToFrame(), TargetLevelSequenceDisplayRate);
