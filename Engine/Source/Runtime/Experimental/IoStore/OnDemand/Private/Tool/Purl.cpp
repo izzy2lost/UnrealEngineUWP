@@ -17,6 +17,8 @@
 #	include <Windows/HideWindowsPlatformTypes.h>
 #endif
 
+#include <cstdio>
+
 namespace UE::IoStore::Tool
 {
 
