@@ -39,6 +39,12 @@ class UBrushComponent : public UPrimitiveComponent
 	virtual void PostLoad() override;
 	//~ End UObject Interface
 
+#if WITH_EDITOR
+	//~Begin UActorComponent Interface
+	ENGINE_API virtual void OnRegister() override;
+	//~End UActorComponent Interface
+#endif //WITH_EDITOR
+
 	//~ Begin USceneComponent Interface
 	virtual FBoxSphereBounds CalcBounds(const FTransform& LocalToWorld) const override;
 	virtual bool ShouldCollideWhenPlacing() const override { return true; }

@@ -25,6 +25,10 @@
 #include "PhysicsEngine/BodySetup.h"
 #include "DynamicMeshBuilder.h"
 
+#if WITH_EDITOR
+#include "Editor.h"
+#endif //WITH_EDITOR
+
 #include UE_INLINE_GENERATED_CPP_BY_NAME(BrushComponent)
 
 DEFINE_LOG_CATEGORY_STATIC(LogBrushComponent, Log, All);
@@ -513,6 +517,28 @@ void UBrushComponent::PostLoad()
 	}
 #endif
 }
+
+#if WITH_EDITOR
+void UBrushComponent::OnRegister()
+{
+	Super::OnRegister();
+
+	// BSP can only be rebuilt during a transaction
+	if (!ABrush::GetSuppressBSPRegeneration() && GEditor && GUndo)
+	{
+		if (ABrush* BrushOwner = Cast<ABrush>(GetOwner()))
+		{
+			const bool bIsBrushOwnerBSP = !BrushOwner->IsVolumeBrush() && BrushOwner->IsStaticBrush();
+			// Not checking NavRelavency is intentional to cover cases when it changes from being Nav Relevant to Nav Irrelevant,
+			// we need to clear the previously registered BSP Navigation Data.
+			if (bIsBrushOwnerBSP)
+			{
+				GEditor->RebuildAlteredBSP();
+			}
+		}
+	}
+}
+#endif //WITH_EDITOR
 
 ESceneDepthPriorityGroup UBrushComponent::GetStaticDepthPriorityGroup() const
 {

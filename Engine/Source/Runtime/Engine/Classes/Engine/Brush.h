@@ -190,7 +190,7 @@ public:
 	ENGINE_API virtual void CopyPosRotScaleFrom( ABrush* Other );
 
 	static void SetSuppressBSPRegeneration(bool bSuppress) { bSuppressBSPRegeneration = bSuppress; }
-
+	static bool GetSuppressBSPRegeneration() { return bSuppressBSPRegeneration; }
 private:
 
 	/** An array to keep track of all the levels that need rebuilding. This is checked via NeedsRebuild() in the editor tick and triggers a csg rebuild. */
