@@ -174,15 +174,73 @@ UScriptStruct* FSTMapTable::GetScriptStruct() const
 	return StaticStruct();
 }
 
-bool FSTMapTable::BuildMapBlendingCurve(float InFocus, FRichCurve& OutCurve)
+bool FSTMapTable::BuildParameterCurveAtFocus(float InFocus, int32 InParameterIndex, FRichCurve& OutCurve) const
 {
-	if(FSTMapFocusPoint* FocusPoint = GetFocusPoint(InFocus))
+	if (const FSTMapFocusPoint* FocusPoint = GetFocusPoint(InFocus))
 	{
 		OutCurve = FocusPoint->MapBlendingCurve;
 		return true;
 	}
 
 	return false;
+}
+
+bool FSTMapTable::BuildParameterCurveAtZoom(float InZoom, int32 InParameterIndex, FRichCurve& OutCurve) const
+{
+	for (const FSTMapFocusPoint& FocusPoint : FocusPoints)
+	{
+		FKeyHandle ZoomKeyHandle = FocusPoint.MapBlendingCurve.FindKey(InZoom);
+		if (FocusPoint.MapBlendingCurve.IsKeyHandleValid(ZoomKeyHandle))
+		{
+			const float Value = FocusPoint.MapBlendingCurve.GetKeyValue(ZoomKeyHandle);
+			const FKeyHandle NewKeyHandle = OutCurve.AddKey(FocusPoint.Focus, Value);
+			FRichCurveKey& NewKey = OutCurve.GetKey(NewKeyHandle);
+			NewKey.TangentMode = ERichCurveTangentMode::RCTM_None;
+			NewKey.InterpMode = ERichCurveInterpMode::RCIM_Linear;
+		}
+	}
+
+	return true;
+}
+
+void FSTMapTable::SetParameterCurveKeysAtFocus(float InFocus, int32 InParameterIndex, const FRichCurve& InSourceCurve, TArrayView<const FKeyHandle> InKeys)
+{
+	if (FSTMapFocusPoint* FocusPoint = GetFocusPoint(InFocus))
+	{
+		for (int32 Index = 0; Index < InKeys.Num(); ++Index)
+		{
+			const FKeyHandle Handle = InKeys[Index];
+			const int32 KeyIndex = InSourceCurve.GetIndexSafe(Handle);
+			if (KeyIndex != INDEX_NONE)
+			{
+				//We can't move keys on the time axis so our indices should match
+				const FRichCurveKey& Key = InSourceCurve.GetKey(Handle);
+				FocusPoint->MapBlendingCurve.Keys[KeyIndex] = Key;
+			}
+		}
+
+		FocusPoint->MapBlendingCurve.AutoSetTangents();
+	}
+}
+
+void FSTMapTable::SetParameterCurveKeysAtZoom(float InZoom, int32 InParameterIndex, const FRichCurve& InSourceCurve, TArrayView<const FKeyHandle> InKeys)
+{
+	for (const FKeyHandle& KeyHandle : InKeys)
+	{
+		// Assume the focus keys are put into the source curve in the same order as they are stored internally
+		const int32 KeyIndex = InSourceCurve.GetIndexSafe(KeyHandle);
+		if (KeyIndex != INDEX_NONE)
+		{
+			if (ensure(FocusPoints.IsValidIndex(KeyIndex)))
+			{
+				FSTMapFocusPoint& FocusPoint = FocusPoints[KeyIndex];
+				
+				//We can't move keys on the time axis so our indices should match
+				FocusPoint.MapBlendingCurve.Keys[KeyIndex].Value = InSourceCurve.GetKeyValue(KeyHandle);
+				FocusPoint.MapBlendingCurve.AutoSetTangents();
+			}
+		}
+	}
 }
 
 const FSTMapFocusPoint* FSTMapTable::GetFocusPoint(float InFocus, float InputTolerance) const

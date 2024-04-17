@@ -30,6 +30,7 @@ public:
 	virtual void OnRemoveRequested() const = 0;
 	virtual TSharedRef<ITableRow> MakeTreeRowWidget(const TSharedRef<STableViewBase>& InOwnerTable) = 0;
 	virtual TOptional<float> GetFocus() const { return TOptional<float>(); }
+	virtual TOptional<float> GetZoom() const { return TOptional<float>(); }
 	virtual int32 GetIndex() const { return INDEX_NONE; }
 	virtual void EditItem() {};
 
@@ -106,6 +107,7 @@ public:
 	virtual TSharedRef<ITableRow> MakeTreeRowWidget(const TSharedRef<STableViewBase>& InOwnerTable) override;
 	virtual void OnRemoveRequested() const override;
 	virtual TOptional<float> GetFocus() const override;
+	virtual TOptional<float> GetZoom() const override { return Zoom; }
 	virtual void EditItem() override;
 	//~ End FLensDataListItem interface
 

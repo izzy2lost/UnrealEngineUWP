@@ -69,6 +69,16 @@ struct CAMERACALIBRATIONCORE_API FImageCenterTable : public FBaseLensTable
 
 	using FocusPointType = FImageCenterFocusPoint;
 
+	/** Wrapper for indices of specific parameters for the image center table  */
+	struct FParameters
+	{
+		static constexpr int32 Cx = 0;
+		static constexpr int32 Cy = 1;
+
+		/** Returns if a parameter index is valid */
+		static bool IsValid(int32 InParameterIndex) { return InParameterIndex >= 0 && InParameterIndex < 2; }
+	};
+	
 protected:
 	//~ Begin FBaseDataTable Interface
 	virtual TMap<ELensDataCategory, FLinkPointMetadata> GetLinkedCategories() const override;
@@ -83,13 +93,14 @@ public:
 	virtual int32 GetFocusPointNum() const override { return FocusPoints.Num(); }
 	virtual int32 GetTotalPointNum() const override;
 	virtual UScriptStruct* GetScriptStruct() const override;
+	virtual bool BuildParameterCurveAtFocus(float InFocus, int32 ParameterIndex, FRichCurve& OutCurve) const override;
+	virtual bool BuildParameterCurveAtZoom(float InZoom, int32 ParameterIndex, FRichCurve& OutCurve) const override;
+	virtual void SetParameterCurveKeysAtFocus(float InFocus, int32 InParameterIndex, const FRichCurve& InSourceCurve, TArrayView<const FKeyHandle> InKeys) override;
+	virtual void SetParameterCurveKeysAtZoom(float InZoom, int32 InParameterIndex, const FRichCurve& InSourceCurve, TArrayView<const FKeyHandle> InKeys) override;
+	virtual bool CanEditCurveKeyPositions(int32 InParameterIndex) const override { return true; }
+	virtual bool CanEditCurveKeyAttributes(int32 InParameterIndex) const override { return true; }
+	virtual FText GetParameterValueLabel(int32 InParameterIndex) const override;
 	//~ End FBaseDataTable Interface
-	
-	/** 
-	* Fills OutCurve with all points contained in the given focus 
-	* Returns false if FocusIdentifier is not found or ParameterIndex isn't valid
-	*/
-	bool BuildParameterCurve(float InFocus, int32 ParameterIndex, FRichCurve& OutCurve) const;
 	
 	/** Returns const point for a given focus */
 	const FImageCenterFocusPoint* GetFocusPoint(float InFocus, float InputTolerance = KINDA_SMALL_NUMBER) const;

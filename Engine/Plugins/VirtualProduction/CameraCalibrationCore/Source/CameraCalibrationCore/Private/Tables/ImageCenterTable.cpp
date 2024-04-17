@@ -118,25 +118,127 @@ UScriptStruct* FImageCenterTable::GetScriptStruct() const
 	return StaticStruct();
 }
 
-bool FImageCenterTable::BuildParameterCurve(float InFocus, int32 ParameterIndex, FRichCurve& OutCurve) const
+bool FImageCenterTable::BuildParameterCurveAtFocus(float InFocus, int32 ParameterIndex, FRichCurve& OutCurve) const
 {
-	if(ParameterIndex >= 0 && ParameterIndex < 2)
+	if (!FParameters::IsValid(ParameterIndex))
 	{
-		if(const FImageCenterFocusPoint* FocusPoint = GetFocusPoint(InFocus))
+		return false;
+	}
+	
+	if (const FImageCenterFocusPoint* FocusPoint = GetFocusPoint(InFocus))
+	{
+		if (ParameterIndex == FParameters::Cx)
 		{
-			if(ParameterIndex == 0)
-			{
-				OutCurve = FocusPoint->Cx;
-			}
-			else
-			{
-				OutCurve = FocusPoint->Cy;
-			}
-			return true;
-		}	
+			OutCurve = FocusPoint->Cx;
+		}
+		else
+		{
+			OutCurve = FocusPoint->Cy;
+		}
+		
+		return true;
 	}
 
 	return false;
+}
+
+bool FImageCenterTable::BuildParameterCurveAtZoom(float InZoom, int32 InParameterIndex, FRichCurve& OutCurve) const
+{
+	if (!FParameters::IsValid(InParameterIndex))
+	{
+		return false;
+	}
+	
+	for (const FImageCenterFocusPoint& FocusPoint : FocusPoints)
+	{
+		FImageCenterInfo ZoomPoint;
+		if (FocusPoint.GetPoint(InZoom, ZoomPoint))
+		{
+			const float Value = ZoomPoint.PrincipalPoint[InParameterIndex];
+			const FKeyHandle NewKeyHandle = OutCurve.AddKey(FocusPoint.Focus, Value);
+			FRichCurveKey& NewKey = OutCurve.GetKey(NewKeyHandle);
+			NewKey.TangentMode = ERichCurveTangentMode::RCTM_None;
+			NewKey.InterpMode = ERichCurveInterpMode::RCIM_Linear;
+		}
+	}
+
+	return true;
+}
+
+void FImageCenterTable::SetParameterCurveKeysAtFocus(float InFocus, int32 InParameterIndex, const FRichCurve& InSourceCurve, TArrayView<const FKeyHandle> InKeys)
+{
+	if (!FParameters::IsValid(InParameterIndex))
+	{
+		return;
+	}
+	
+	if (FImageCenterFocusPoint* FocusPoint = GetFocusPoint(InFocus))
+	{
+		FRichCurve* ActiveCurve = nullptr;
+		if (InParameterIndex == FParameters::Cx)
+		{
+			ActiveCurve = &FocusPoint->Cx;
+		}
+		else
+		{
+			ActiveCurve = &FocusPoint->Cy;
+		}
+		
+		for (int32 Index = 0; Index < InKeys.Num(); ++Index)
+		{
+			const FKeyHandle Handle = InKeys[Index];
+			const int32 KeyIndex = InSourceCurve.GetIndexSafe(Handle);
+			if (KeyIndex != INDEX_NONE)
+			{
+				ActiveCurve->Keys[KeyIndex] = InSourceCurve.GetKey(Handle);
+			}
+		}
+
+		ActiveCurve->AutoSetTangents();
+	}
+}
+
+void FImageCenterTable::SetParameterCurveKeysAtZoom(float InZoom, int32 InParameterIndex, const FRichCurve& InSourceCurve, TArrayView<const FKeyHandle> InKeys)
+{
+	if (!FParameters::IsValid(InParameterIndex))
+	{
+		return;
+	}
+	
+	for (const FKeyHandle& KeyHandle : InKeys)
+	{
+		// Assume the focus keys are put into the source curve in the same order as they are stored internally
+		const int32 KeyIndex = InSourceCurve.GetIndexSafe(KeyHandle);
+		if (KeyIndex != INDEX_NONE)
+		{
+			if (ensure(FocusPoints.IsValidIndex(KeyIndex)))
+			{
+				FImageCenterFocusPoint& FocusPoint = FocusPoints[KeyIndex];
+				FImageCenterInfo ZoomPoint;
+				if (!FocusPoint.GetPoint(InZoom, ZoomPoint))
+				{
+					continue;
+				}
+
+				ZoomPoint.PrincipalPoint[InParameterIndex] = InSourceCurve.GetKeyValue(KeyHandle);
+				FocusPoint.SetPoint(InZoom, ZoomPoint);
+
+				if (InParameterIndex == FParameters::Cx)
+				{
+					FocusPoint.Cx.AutoSetTangents();
+				}
+				else
+				{
+					FocusPoint.Cy.AutoSetTangents();
+				}
+			}
+		}
+	}
+}
+
+FText FImageCenterTable::GetParameterValueLabel(int32 InParameterIndex) const
+{
+	return NSLOCTEXT("FImageCenterTable", "ParameterValueLabel", "(normalized)");
 }
 
 const FImageCenterFocusPoint* FImageCenterTable::GetFocusPoint(float InFocus, float InputTolerance) const

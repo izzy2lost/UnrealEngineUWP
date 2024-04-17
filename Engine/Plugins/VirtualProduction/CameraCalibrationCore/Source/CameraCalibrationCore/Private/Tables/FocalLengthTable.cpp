@@ -175,25 +175,238 @@ UScriptStruct* FFocalLengthTable::GetScriptStruct() const
 	return StaticStruct();
 }
 
-bool FFocalLengthTable::BuildParameterCurve(float InFocus, int32 ParameterIndex, FRichCurve& OutCurve) const
+bool FFocalLengthTable::BuildParameterCurveAtFocus(float InFocus, int32 ParameterIndex, FRichCurve& OutCurve) const
 {
-	if(ParameterIndex >= 0 && ParameterIndex < 2)
+	if (!FParameters::IsValidOrAggregate(ParameterIndex))
 	{
-		if(const FFocalLengthFocusPoint* FocusPoint = GetFocusPoint(InFocus))
+		return false;
+	}
+	
+	const FFocalLengthFocusPoint* FocusPoint = GetFocusPoint(InFocus);
+	if (!FocusPoint)
+	{
+		return false;
+	}
+
+	if (ParameterIndex == FParameters::Aggregate)
+	{
+		// The aggregate curve is just the x curve scaled by the lens file's sensor
+		const FRichCurve& ActiveCurve = FocusPoint->Fx;
+		auto HandleIter = ActiveCurve.GetKeyHandleIterator();
+		for (const FRichCurveKey& Key : ActiveCurve.GetConstRefOfKeys())
 		{
-			if(ParameterIndex == 0)
+			ULensFile* LensFilePtr = GetLensFile();
+			const float Scale = LensFilePtr ? LensFilePtr->LensInfo.SensorDimensions.X : 1.0f;
+			OutCurve.AddKey(Key.Time, Key.Value * Scale, false, *HandleIter);
+
+			FRichCurveKey& NewKey = OutCurve.GetKey(*HandleIter);
+			NewKey.TangentMode = Key.TangentMode;
+			NewKey.InterpMode = Key.InterpMode;
+			NewKey.ArriveTangent = Key.ArriveTangent * Scale;
+			NewKey.LeaveTangent = Key.LeaveTangent * Scale;
+			++HandleIter;
+		}
+
+		return true;
+	}
+	else if (ParameterIndex == FParameters::Fx)
+	{
+		OutCurve = FocusPoint->Fx;
+		return true;
+	}
+	else if (ParameterIndex == FParameters::Fy)
+	{
+		OutCurve = FocusPoint->Fy;
+		return true;
+	}
+
+	return false;
+}
+
+bool FFocalLengthTable::BuildParameterCurveAtZoom(float InZoom, int32 InParameterIndex, FRichCurve& OutCurve) const
+{
+	for (const FFocalLengthFocusPoint& FocusPoint : FocusPoints)
+	{
+		FFocalLengthInfo ZoomPoint;
+		if (FocusPoint.GetPoint(InZoom, ZoomPoint))
+		{
+			float Value = ZoomPoint.FxFy.X;
+			if (FParameters::IsValid(InParameterIndex))
 			{
-				OutCurve = FocusPoint->Fx;
+				Value = ZoomPoint.FxFy[InParameterIndex];
 			}
 			else
 			{
-				OutCurve = FocusPoint->Fy;
+				if (ULensFile* LensFilePtr = GetLensFile())
+				{
+					Value = ZoomPoint.FxFy.X * LensFilePtr->LensInfo.SensorDimensions.X;
+				}
 			}
-			return true;
-		}	
+			
+			const FKeyHandle NewKeyHandle = OutCurve.AddKey(FocusPoint.Focus, Value);
+			FRichCurveKey& NewKey = OutCurve.GetKey(NewKeyHandle);
+			NewKey.TangentMode = ERichCurveTangentMode::RCTM_None;
+			NewKey.InterpMode = ERichCurveInterpMode::RCIM_Linear;
+		}
+	}
+
+	return true;
+}
+
+void FFocalLengthTable::SetParameterCurveKeysAtFocus(float InFocus, int32 InParameterIndex, const FRichCurve& InSourceCurve, TArrayView<const FKeyHandle> InKeys)
+{
+	FFocalLengthFocusPoint* FocusPoint = GetFocusPoint(InFocus);
+	if (!FocusPoint)
+	{
+		return;
 	}
 	
-	return false;
+	FRichCurve* ActiveCurve = nullptr;
+	float Scale = 1.0f;
+	int32 FxFyIndex = InParameterIndex;
+	if (InParameterIndex == FParameters::Aggregate)
+	{
+		ActiveCurve = &FocusPoint->Fx;
+		
+		if (ULensFile* LensFilePtr = GetLensFile())
+		{
+			Scale = 1.0f / LensFilePtr->LensInfo.SensorDimensions.X;
+		}
+		
+		FxFyIndex = 0; //mm focal length curve changes Fx
+	}
+	else if (InParameterIndex == FParameters::Fx)
+	{
+		ActiveCurve = &FocusPoint->Fx;
+	}
+	else if (InParameterIndex == FParameters::Fy)
+	{
+		ActiveCurve = &FocusPoint->Fy;
+	}
+
+	if (!ActiveCurve)
+	{
+		return;
+	}
+
+	for (const FKeyHandle& KeyHandle : InKeys)
+	{
+		const int32 KeyIndex = InSourceCurve.GetIndexSafe(KeyHandle);
+		if (KeyIndex != INDEX_NONE)
+		{
+			if(ensure(ActiveCurve->Keys.IsValidIndex(KeyIndex) && FocusPoint->ZoomPoints.IsValidIndex(KeyIndex)))
+			{
+				const FRichCurveKey& SourceKey = InSourceCurve.GetKey(KeyHandle);
+				FRichCurveKey& DestinationKey = ActiveCurve->Keys[KeyIndex];
+				
+				DestinationKey.Value = SourceKey.Value * Scale;
+				DestinationKey.InterpMode = SourceKey.InterpMode;
+				DestinationKey.ArriveTangent = SourceKey.ArriveTangent * Scale;
+				DestinationKey.LeaveTangent = SourceKey.LeaveTangent * Scale;
+				DestinationKey.TangentMode = SourceKey.TangentMode;
+				
+				FocusPoint->ZoomPoints[KeyIndex].FocalLengthInfo.FxFy[FxFyIndex] = SourceKey.Value * Scale;
+			}
+		}
+	}	
+
+	ActiveCurve->AutoSetTangents();
+}
+
+void FFocalLengthTable::SetParameterCurveKeysAtZoom(float InZoom, int32 InParameterIndex, const FRichCurve& InSourceCurve, TArrayView<const FKeyHandle> InKeys)
+{
+	if (!FParameters::IsValidOrAggregate(InParameterIndex))
+	{
+		return;
+	}
+	
+	for (const FKeyHandle& KeyHandle : InKeys)
+	{
+		// Assume the focus keys are put into the source curve in the same order as they are stored internally
+		const int32 KeyIndex = InSourceCurve.GetIndexSafe(KeyHandle);
+		if (KeyIndex != INDEX_NONE)
+		{
+			if (ensure(FocusPoints.IsValidIndex(KeyIndex)))
+			{
+				FFocalLengthFocusPoint& FocusPoint = FocusPoints[KeyIndex];
+				FFocalLengthInfo ZoomPoint;
+				if (!FocusPoint.GetPoint(InZoom, ZoomPoint))
+				{
+					continue;
+				}
+				
+				float Scale = 1.0f;
+				int32 FxFyIndex = InParameterIndex;
+				if (InParameterIndex == FParameters::Aggregate)
+				{
+					if (ULensFile* LensFilePtr = GetLensFile())
+					{
+						Scale = 1.0f / LensFilePtr->LensInfo.SensorDimensions.X;
+					}
+		
+					FxFyIndex = 0; //mm focal length curve changes Fx
+				}
+
+				ZoomPoint.FxFy[FxFyIndex] = InSourceCurve.GetKeyValue(KeyHandle) * Scale;
+				FocusPoint.SetPoint(InZoom, ZoomPoint);
+
+				if (InParameterIndex == FParameters::Fy)
+				{
+					FocusPoint.Fy.AutoSetTangents();
+				}
+				else
+				{
+					FocusPoint.Fx.AutoSetTangents();
+				}
+			}
+		}
+	}
+}
+
+TRange<double> FFocalLengthTable::GetCurveKeyPositionRange(int32 InParameterIndex) const
+{
+	TRange<double> Range = FBaseLensTable::GetCurveKeyPositionRange(InParameterIndex);
+	
+	if (!FParameters::IsValidOrAggregate(InParameterIndex))
+	{
+		return Range;
+	}
+
+	if (InParameterIndex == FParameters::Aggregate)
+	{
+		Range.SetLowerBoundValue(1.0);
+	}
+	else if (ULensFile* LensFilePtr = GetLensFile())
+	{
+		Range.SetLowerBoundValue(1.0 / LensFilePtr->LensInfo.SensorDimensions[InParameterIndex]);
+	}
+
+	return Range;
+}
+
+FText FFocalLengthTable::GetParameterValueLabel(int32 InParameterIndex) const
+{
+	if (!FParameters::IsValidOrAggregate(InParameterIndex))
+	{
+		return FText();
+	}
+	
+	if (InParameterIndex == FParameters::Aggregate)
+	{
+		return NSLOCTEXT("FFocalLengthTable", "ParameterValueMMLabel", "(mm)");
+	}
+	
+	return NSLOCTEXT("FFocalLengthTable", "ParameterValueNormalizedLabel", "(normalized)");
+}
+
+FText FFocalLengthTable::GetParameterValueUnitLabel(int32 InParameterIndex) const
+{
+	if (InParameterIndex == FParameters::Aggregate)
+	{
+		return NSLOCTEXT("FFocalLengthTable", "ParameterUnitLabel", "mm");
+	}
+	
+	return FText();
 }
 
 const FFocalLengthFocusPoint* FFocalLengthTable::GetFocusPoint(float InFocus, float InputTolerance) const

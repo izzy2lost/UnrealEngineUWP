@@ -89,6 +89,12 @@ struct CAMERACALIBRATIONCORE_API FDistortionTable : public FBaseLensTable
 
 	using FocusPointType = FDistortionFocusPoint;
 
+	/** Wrapper for indices of specific parameters for the distortion table  */
+	struct FParameters
+	{
+		static constexpr int32 Aggregate = INDEX_NONE;
+	};
+	
 protected:
 	//~ Begin FBaseDataTable Interface
 	virtual TMap<ELensDataCategory, FLinkPointMetadata> GetLinkedCategories() const override;
@@ -103,13 +109,14 @@ public:
 	virtual int32 GetFocusPointNum() const override { return FocusPoints.Num(); }
 	virtual int32 GetTotalPointNum() const override;
 	virtual UScriptStruct* GetScriptStruct() const override;
+	virtual bool BuildParameterCurveAtFocus(float InFocus, int32 InParameterIndex, FRichCurve& OutCurve) const override;
+	virtual bool BuildParameterCurveAtZoom(float InZoom, int32 InParameterIndex, FRichCurve& OutCurve) const override;
+	virtual void SetParameterCurveKeysAtFocus(float InFocus, int32 InParameterIndex, const FRichCurve& InSourceCurve, TArrayView<const FKeyHandle> InKeys) override;
+	virtual void SetParameterCurveKeysAtZoom(float InZoom, int32 InParameterIndex, const FRichCurve& InSourceCurve, TArrayView<const FKeyHandle> InKeys) override;
+	virtual bool CanEditCurveKeyPositions(int32 InParameterIndex) const override;
+	virtual bool CanEditCurveKeyAttributes(int32 InParameterIndex) const override;
+	virtual FText GetParameterValueLabel(int32 InParameterIndex) const override;
 	//~ End FBaseDataTable Interface
-
-	/** 
-	 * Fills OutCurve with all points contained in the given focus 
-	 * Returns false if FocusIdentifier is not found or ParameterIndex isn't valid
-	 */
-	bool BuildParameterCurve(float InFocus, int32 ParameterIndex, FRichCurve& OutCurve) const;
 
 	/** Returns const point for a given focus */
 	const FDistortionFocusPoint* GetFocusPoint(float InFocus, float InputTolerance = KINDA_SMALL_NUMBER) const;

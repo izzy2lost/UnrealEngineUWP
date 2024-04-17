@@ -185,25 +185,190 @@ UScriptStruct* FNodalOffsetTable::GetScriptStruct() const
 	return StaticStruct();
 }
 
-bool FNodalOffsetTable::BuildParameterCurve(float InFocus, int32 ParameterIndex, EAxis::Type InAxis, FRichCurve& OutCurve) const
+bool FNodalOffsetTable::BuildParameterCurveAtFocus(float InFocus, int32 InParameterIndex, FRichCurve& OutCurve) const
 {
-	if((ParameterIndex >= 0) && (ParameterIndex < 2) && (InAxis != EAxis::None))
+	if (!FParameters::IsValidComposed(InParameterIndex))
 	{
-		if(const FNodalOffsetFocusPoint* FocusPoint = GetFocusPoint(InFocus))
+		return false;
+	}
+
+	int32 Parameter;
+	EAxis::Type Axis;
+	FParameters::Decompose(InParameterIndex, Parameter, Axis);
+	
+	if (const FNodalOffsetFocusPoint* FocusPoint = GetFocusPoint(InFocus))
+	{
+		if (Parameter == FParameters::Location)
 		{
-			if(ParameterIndex == 0)
-			{
-				OutCurve = FocusPoint->LocationOffset[static_cast<uint8>(InAxis) - 1];;
-			}
-			else
-			{
-				OutCurve = FocusPoint->RotationOffset[static_cast<uint8>(InAxis) - 1];
-			}
-			return true;
-		}	
+			OutCurve = FocusPoint->LocationOffset[Axis - 1];
+		}
+		else
+		{
+			OutCurve = FocusPoint->RotationOffset[Axis - 1];
+		}
+		
+		return true;
 	}
 
 	return false;
+}
+
+bool FNodalOffsetTable::BuildParameterCurveAtZoom(float InZoom, int32 InParameterIndex, FRichCurve& OutCurve) const
+{
+	if (!FParameters::IsValidComposed(InParameterIndex))
+	{
+		return false;
+	}
+
+	int32 Parameter;
+	EAxis::Type Axis;
+	FParameters::Decompose(InParameterIndex, Parameter, Axis);
+	
+	for (const FNodalOffsetFocusPoint& FocusPoint : FocusPoints)
+	{
+		FNodalPointOffset ZoomPoint;
+		if (FocusPoint.GetPoint(InZoom, ZoomPoint))
+		{
+			const float Value = Parameter == 0 ? ZoomPoint.LocationOffset[Axis - 1] : ZoomPoint.RotationOffset.Rotator().GetComponentForAxis(Axis);
+			const FKeyHandle NewKeyHandle = OutCurve.AddKey(FocusPoint.Focus, Value);
+			FRichCurveKey& NewKey = OutCurve.GetKey(NewKeyHandle);
+			NewKey.TangentMode = ERichCurveTangentMode::RCTM_None;
+			NewKey.InterpMode = ERichCurveInterpMode::RCIM_Linear;
+		}
+	}
+
+	return true;
+}
+
+void FNodalOffsetTable::SetParameterCurveKeysAtFocus(float InFocus, int32 InParameterIndex, const FRichCurve& InSourceCurve, TArrayView<const FKeyHandle> InKeys)
+{
+	if (!FParameters::IsValidComposed(InParameterIndex))
+	{
+		return;
+	}
+	
+	if (FNodalOffsetFocusPoint* FocusPoint = GetFocusPoint(InFocus))
+	{
+		int32 Parameter;
+		EAxis::Type Axis;
+		FParameters::Decompose(InParameterIndex, Parameter, Axis);
+		
+		FRichCurve* ActiveCurve = nullptr;
+		if (Parameter == FParameters::Location)
+		{
+			ActiveCurve = &FocusPoint->LocationOffset[Axis - 1];
+		}
+		else
+		{
+			ActiveCurve = &FocusPoint->RotationOffset[Axis - 1];
+		}
+		
+		for (int32 Index = 0; Index < InKeys.Num(); ++Index)
+		{
+			const FKeyHandle Handle = InKeys[Index];
+			const int32 KeyIndex = InSourceCurve.GetIndexSafe(Handle);
+			if (KeyIndex != INDEX_NONE)
+			{
+				ActiveCurve->Keys[KeyIndex] = InSourceCurve.GetKey(Handle);
+			}
+		}
+
+		ActiveCurve->AutoSetTangents();
+	}
+}
+
+void FNodalOffsetTable::SetParameterCurveKeysAtZoom(float InZoom, int32 InParameterIndex, const FRichCurve& InSourceCurve, TArrayView<const FKeyHandle> InKeys)
+{
+	if (!FParameters::IsValidComposed(InParameterIndex))
+	{
+		return;
+	}
+
+	int32 Parameter;
+	EAxis::Type Axis;
+	FParameters::Decompose(InParameterIndex, Parameter, Axis);
+	
+	for (const FKeyHandle& KeyHandle : InKeys)
+	{
+		// Assume the focus keys are put into the source curve in the same order as they are stored internally
+		const int32 KeyIndex = InSourceCurve.GetIndexSafe(KeyHandle);
+		if (KeyIndex != INDEX_NONE)
+		{
+			if (ensure(FocusPoints.IsValidIndex(KeyIndex)))
+			{
+				FNodalOffsetFocusPoint& FocusPoint = FocusPoints[KeyIndex];
+				FNodalPointOffset ZoomPoint;
+				if (!FocusPoint.GetPoint(InZoom, ZoomPoint))
+				{
+					continue;
+				}
+
+				if (Parameter == FParameters::Location)
+				{
+					ZoomPoint.LocationOffset[Axis - 1] = InSourceCurve.GetKeyValue(KeyHandle);
+				}
+				else if (Parameter == FParameters::Rotation)
+				{
+					FRotator Rotator = ZoomPoint.RotationOffset.Rotator();
+					Rotator.SetComponentForAxis(Axis, InSourceCurve.GetKeyValue(KeyHandle));
+					ZoomPoint.RotationOffset = Rotator.Quaternion();
+				}
+
+				FocusPoint.SetPoint(InZoom, ZoomPoint);
+
+				if (Parameter == FParameters::Location)
+				{
+					FocusPoint.LocationOffset[Axis - 1].AutoSetTangents();
+				}
+				else if (Parameter == FParameters::Rotation)
+				{
+					FocusPoint.RotationOffset[Axis - 1].AutoSetTangents();
+				}
+			}
+		}
+	}
+}
+
+FText FNodalOffsetTable::GetParameterValueLabel(int32 InParameterIndex) const
+{
+	if (!FParameters::IsValidComposed(InParameterIndex))
+	{
+		return FText();
+	}
+	
+	int32 Parameter;
+	EAxis::Type Axis;
+	FParameters::Decompose(InParameterIndex, Parameter, Axis);
+	
+	if (Parameter == FParameters::Location)
+	{
+		return NSLOCTEXT("FNodalOffsetTable", "LocationParameterValueLabel", "(cm)");
+	}
+	else
+	{
+		return NSLOCTEXT("FNodalOffsetTable", "RotationParameterValueLabel", "(deg)");
+	}
+}
+
+FText FNodalOffsetTable::GetParameterValueUnitLabel(int32 InParameterIndex) const
+{
+	if (!FParameters::IsValidComposed(InParameterIndex))
+	{
+		return FText();
+	}
+	
+	int32 Parameter;
+	EAxis::Type Axis;
+	FParameters::Decompose(InParameterIndex, Parameter, Axis);
+	
+	if (Parameter == FParameters::Location)
+	{
+		return NSLOCTEXT("FNodalOffsetTable", "LocationParameterUnitLabel", "cm");
+	}
+	else
+	{
+		return NSLOCTEXT("FNodalOffsetTable", "RotationParameterUnitLabel", "deg");
+	}
 }
 
 const FNodalOffsetFocusPoint* FNodalOffsetTable::GetFocusPoint(float InFocus, float InputTolerance) const

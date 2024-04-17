@@ -11,6 +11,7 @@ ECurveEditorViewID FLensDataCurveModel::ViewId = ECurveEditorViewID::Invalid;
 FLensDataCurveModel::FLensDataCurveModel(ULensFile* InOwner)
 	: FRichCurveEditorModel(InOwner)
 	, LensFile(InOwner)
+	, ClampOutputRange(TRange<double>(TNumericLimits<double>::Lowest(), TNumericLimits<double>::Max()))
 {
 	check(InOwner);
 
@@ -27,9 +28,38 @@ void FLensDataCurveModel::RemoveKeys(TArrayView<const FKeyHandle> InKeys)
 	//Don't support removing keys from curve editor by default. Specific models can override
 }
 
-void FLensDataCurveModel::SetKeyAttributes(TArrayView<const FKeyHandle> InKeys,	TArrayView<const FKeyAttributes> InAttributes, EPropertyChangeType::Type ChangeType)
+void FLensDataCurveModel::SetKeyPositions(TArrayView<const FKeyHandle> InKeys, TArrayView<const FKeyPosition> InKeyPositions, EPropertyChangeType::Type ChangeType)
 {
-	//Don't support changing interp attributes from curve editor by default. Specific models can override
+	// Re-implementation of FRichCurveEditorModel::SetKeyPosition that only changes the y-axis of the point being edited, as changing the x-axis (focus/zoom) is not supported
+	if (IsReadOnly())
+	{
+		return;
+	}
+
+	if (UObject* Owner = GetOwningObject())
+	{
+		if (IsValid())
+		{
+			Owner->Modify();
+
+			FRichCurve& RichCurve = GetRichCurve();
+			for (int32 Index = 0; Index < InKeys.Num(); ++Index)
+			{
+				FKeyHandle Handle = InKeys[Index];
+				if (RichCurve.IsKeyHandleValid(Handle))
+				{
+					const TRange<double> OutputRange = ClampOutputRange.Get();
+					RichCurve.GetKey(Handle).Value = FMath::Clamp(InKeyPositions[Index].OutputValue, OutputRange.GetLowerBoundValue(), OutputRange.GetUpperBoundValue());
+				}
+			}
+			
+			RichCurve.AutoSetTangents();
+			FPropertyChangedEvent PropertyChangeStruct(nullptr, ChangeType);
+			Owner->PostEditChangeProperty(PropertyChangeStruct);
+
+			CurveModifiedDelegate.Broadcast();
+		}
+	}
 }
 
 bool FLensDataCurveModel::IsValid() const

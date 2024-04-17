@@ -232,6 +232,9 @@ public:
 
 	/** Get data table reference based on given category */
 	const FBaseLensTable* GetDataTable(ELensDataCategory InDataCategory) const;
+
+	/** Get data table reference based on given category */
+	FBaseLensTable* GetDataTable(ELensDataCategory InDataCategory);
 	
 	/** Returns the delegate that is triggered when the LensModel changes */
 	FOnLensFileModelChanged& OnLensFileModelChanged() { return OnLensFileModelChangedDelegate; }

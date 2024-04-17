@@ -1343,6 +1343,11 @@ const FBaseLensTable* ULensFile::GetDataTable(ELensDataCategory InDataCategory) 
 	}
 }
 
+FBaseLensTable* ULensFile::GetDataTable(ELensDataCategory InDataCategory)
+{
+	return const_cast<FBaseLensTable*>(const_cast<const ULensFile*>(this)->GetDataTable(InDataCategory));
+}
+
 void ULensFile::PostInitProperties()
 {
 	Super::PostInitProperties();

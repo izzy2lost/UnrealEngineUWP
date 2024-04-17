@@ -141,14 +141,14 @@ public:
 	virtual int32 GetFocusPointNum() const override { return FocusPoints.Num(); }
 	virtual int32 GetTotalPointNum() const override;
 	virtual UScriptStruct* GetScriptStruct() const override;
+	virtual bool BuildParameterCurveAtFocus(float InFocus, int32 ParameterIndex, FRichCurve& OutCurve) const override;
+	virtual bool BuildParameterCurveAtZoom(float InZoom, int32 ParameterIndex, FRichCurve& OutCurve) const override;
+	virtual void SetParameterCurveKeysAtFocus(float InFocus, int32 InParameterIndex, const FRichCurve& InSourceCurve, TArrayView<const FKeyHandle> InKeys) override;
+	virtual void SetParameterCurveKeysAtZoom(float InZoom, int32 InParameterIndex, const FRichCurve& InSourceCurve, TArrayView<const FKeyHandle> InKeys) override;
+	virtual bool CanEditCurveKeyPositions(int32 InParameterIndex) const override { return false; }
+	virtual bool CanEditCurveKeyAttributes(int32 InParameterIndex) const override { return true; }
 	//~ End FBaseDataTable Interface
 
-	/** 
-	 * Builds the map blending curve into OutCurve
-	 * Returns true if focus point exists
-	 */
-	bool BuildMapBlendingCurve(float InFocus, FRichCurve& OutCurve);
-	
 	/** Returns const point for a given focus */
 	const FSTMapFocusPoint* GetFocusPoint(float InFocus, float InputTolerance = KINDA_SMALL_NUMBER) const;
 

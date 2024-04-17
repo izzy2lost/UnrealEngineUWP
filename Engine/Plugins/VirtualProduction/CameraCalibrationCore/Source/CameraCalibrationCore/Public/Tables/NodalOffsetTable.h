@@ -75,6 +75,26 @@ struct CAMERACALIBRATIONCORE_API FNodalOffsetTable : public FBaseLensTable
 
 	using FocusPointType = FNodalOffsetFocusPoint;
 
+	/** Wrapper for indices of specific parameters for the nodal offset table  */
+	struct FParameters
+	{
+		static constexpr int32 Location = 0;
+		static constexpr int32 Rotation = 1;
+
+		/** Composes the parameter and axis indices into a single value */
+		static int32 Compose(int32 InParameterIndex, EAxis::Type Axis) { return InParameterIndex * 3 + (Axis - 1); }
+
+		/** Composes a combined index into a parameter index and an axis */
+		static void Decompose(int32 InComposedIndex, int32& OutParameterIndex, EAxis::Type& OutAxis)
+		{
+			OutParameterIndex = InComposedIndex / 3;
+			OutAxis = (EAxis::Type)(InComposedIndex % 3 + 1);
+		}
+		
+		/** Returns if a composed parameter index is valid */
+		static bool IsValidComposed(int32 InComposedIndex) { return InComposedIndex >= 0 && InComposedIndex < 6; }
+	};
+	
 protected:
 	//~ Begin FBaseDataTable Interface
 	virtual TMap<ELensDataCategory, FLinkPointMetadata> GetLinkedCategories() const override;
@@ -89,13 +109,15 @@ public:
 	virtual int32 GetFocusPointNum() const override { return FocusPoints.Num(); }
 	virtual int32 GetTotalPointNum() const override;
 	virtual UScriptStruct* GetScriptStruct() const override;
+	virtual bool BuildParameterCurveAtFocus(float InFocus, int32 InParameterIndex, FRichCurve& OutCurve) const override;
+	virtual bool BuildParameterCurveAtZoom(float InZoom, int32 InParameterIndex, FRichCurve& OutCurve) const override;
+	virtual void SetParameterCurveKeysAtFocus(float InFocus, int32 InParameterIndex, const FRichCurve& InSourceCurve, TArrayView<const FKeyHandle> InKeys) override;
+	virtual void SetParameterCurveKeysAtZoom(float InZoom, int32 InParameterIndex, const FRichCurve& InSourceCurve, TArrayView<const FKeyHandle> InKeys) override;
+	virtual bool CanEditCurveKeyPositions(int32 InParameterIndex) const override { return true; }
+	virtual bool CanEditCurveKeyAttributes(int32 InParameterIndex) const override { return true; }
+	virtual FText GetParameterValueLabel(int32 InParameterIndex) const override;
+	virtual FText GetParameterValueUnitLabel(int32 InParameterIndex) const override;
 	//~ End FBaseDataTable Interface
-
-	/** 
-	* Fills OutCurve with all points contained in the given focus 
-	* Returns false if FocusIdentifier is not found or ParameterIndex isn't valid
-	*/
-	bool BuildParameterCurve(float InFocus, int32 ParameterIndex, EAxis::Type InAxis, FRichCurve& OutCurve) const;
 
 	/** Returns const point for a given focus */
 	const FNodalOffsetFocusPoint* GetFocusPoint(float InFocus, float InputTolerance = KINDA_SMALL_NUMBER) const;

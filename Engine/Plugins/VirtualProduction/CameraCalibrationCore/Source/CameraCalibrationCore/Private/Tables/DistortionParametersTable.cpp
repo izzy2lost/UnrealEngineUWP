@@ -113,7 +113,7 @@ UScriptStruct* FDistortionTable::GetScriptStruct() const
 	return StaticStruct();
 }
 
-bool FDistortionTable::BuildParameterCurve(float InFocus, int32 ParameterIndex, FRichCurve& OutCurve) const
+bool FDistortionTable::BuildParameterCurveAtFocus(float InFocus, int32 ParameterIndex, FRichCurve& OutCurve) const
 {
 	if (const FDistortionFocusPoint* ThisFocusPoints = GetFocusPoint(InFocus))
 	{
@@ -136,6 +136,114 @@ bool FDistortionTable::BuildParameterCurve(float InFocus, int32 ParameterIndex, 
 	}
 
 	return false;
+}
+
+bool FDistortionTable::BuildParameterCurveAtZoom(float InZoom, int32 InParameterIndex, FRichCurve& OutCurve) const
+{
+	for (const FDistortionFocusPoint& FocusPoint : FocusPoints)
+	{
+		FDistortionInfo ZoomPoint;
+		if (FocusPoint.GetPoint(InZoom, ZoomPoint))
+		{
+			float Value = 0.0;
+			if (ZoomPoint.Parameters.IsValidIndex(InParameterIndex))
+			{
+				Value = ZoomPoint.Parameters[InParameterIndex];
+			}
+			else
+			{
+				FKeyHandle BlendPointKey = FocusPoint.MapBlendingCurve.FindKey(InZoom);
+				Value = FocusPoint.MapBlendingCurve.GetKeyValue(BlendPointKey);
+			}
+			
+			const FKeyHandle NewKeyHandle = OutCurve.AddKey(FocusPoint.Focus, Value);
+			FRichCurveKey& NewKey = OutCurve.GetKey(NewKeyHandle);
+			NewKey.TangentMode = ERichCurveTangentMode::RCTM_None;
+			NewKey.InterpMode = ERichCurveInterpMode::RCIM_Linear;
+		}
+	}
+
+	return true;
+}
+
+void FDistortionTable::SetParameterCurveKeysAtFocus(float InFocus, int32 InParameterIndex, const FRichCurve& InSourceCurve, TArrayView<const FKeyHandle> InKeys)
+{
+	if (FDistortionFocusPoint* FocusPoint = GetFocusPoint(InFocus))
+	{
+		for (int32 Index = 0; Index < InKeys.Num(); ++Index)
+		{
+			const FKeyHandle Handle = InKeys[Index];
+			const int32 KeyIndex = InSourceCurve.GetIndexSafe(Handle);
+			if (KeyIndex != INDEX_NONE)
+			{
+				//We can't move keys on the time axis so our indices should match
+				const FRichCurveKey& Key = InSourceCurve.GetKey(Handle);
+
+				if (InParameterIndex == FParameters::Aggregate)
+				{
+					FocusPoint->MapBlendingCurve.Keys[KeyIndex] = Key;
+				}
+				else
+				{
+					FocusPoint->SetParameterValue(KeyIndex, Key.Time, InParameterIndex, Key.Value);
+				}
+			}
+		}
+	}
+}
+
+void FDistortionTable::SetParameterCurveKeysAtZoom(float InZoom, int32 InParameterIndex, const FRichCurve& InSourceCurve, TArrayView<const FKeyHandle> InKeys)
+{
+	for (const FKeyHandle& KeyHandle : InKeys)
+	{
+		// Assume the focus keys are put into the source curve in the same order as they are stored internally
+		const int32 KeyIndex = InSourceCurve.GetIndexSafe(KeyHandle);
+		if (KeyIndex != INDEX_NONE)
+		{
+			if (ensure(FocusPoints.IsValidIndex(KeyIndex)))
+			{
+				//We can't move keys on the time axis so our indices should match
+				const FRichCurveKey& Key = InSourceCurve.GetKey(KeyHandle);
+				FDistortionFocusPoint& FocusPoint = FocusPoints[KeyIndex];
+				
+				if (InParameterIndex == FParameters::Aggregate)
+				{
+					FocusPoint.MapBlendingCurve.Keys[KeyIndex] = Key;
+				}
+				else
+				{
+					FDistortionInfo ZoomPoint;
+					if (!FocusPoint.GetPoint(InZoom, ZoomPoint))
+					{
+						continue;
+					}
+					
+					ZoomPoint.Parameters[InParameterIndex] = Key.Value;
+					FocusPoint.SetPoint(InZoom, ZoomPoint);
+				}
+			}
+		}
+	}
+}
+
+bool FDistortionTable::CanEditCurveKeyPositions(int32 InParameterIndex) const
+{
+	return InParameterIndex != FParameters::Aggregate;
+}
+
+bool FDistortionTable::CanEditCurveKeyAttributes(int32 InParameterIndex) const
+{
+	return InParameterIndex == FParameters::Aggregate;
+}
+
+FText FDistortionTable::GetParameterValueLabel(int32 InParameterIndex) const
+{
+	if (InParameterIndex != FParameters::Aggregate)
+	{
+		return NSLOCTEXT("FDistortionTable", "ParameterValueLabel", "(unitless)");
+	}
+	
+	return FText();
 }
 
 const FDistortionFocusPoint* FDistortionTable::GetFocusPoint(float InFocus, float InputTolerance) const
