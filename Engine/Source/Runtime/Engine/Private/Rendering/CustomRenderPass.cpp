@@ -63,6 +63,10 @@ ESceneCaptureSource FCustomRenderPassBase::GetSceneCaptureSource() const
 		return SCS_DeviceDepth;
 	else if (RenderOutput == ERenderOutput::SceneColorAndDepth)
 		return SCS_SceneColorSceneDepth;
+	else if (RenderOutput == ERenderOutput::SceneColorAndAlpha)
+		return SCS_SceneColorHDR;
+	else if (RenderOutput == ERenderOutput::SceneColorNoAlpha)
+		return SCS_SceneColorHDRNoAlpha;
 	else
 		return SCS_MAX;
 }

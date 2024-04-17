@@ -67,7 +67,9 @@ public:
 		SceneDepth,
 		DeviceDepth,
 		/** Used with ERenderMode::DepthAndBasePass. */
-		SceneColorAndDepth
+		SceneColorAndDepth,
+		SceneColorAndAlpha, // The alpha is inverted opacity (throughput).
+		SceneColorNoAlpha,
 	};
 
 	enum class ERenderCaptureType
