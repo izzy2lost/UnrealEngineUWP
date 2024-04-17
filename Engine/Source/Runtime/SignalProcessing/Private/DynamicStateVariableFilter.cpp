@@ -122,8 +122,6 @@ namespace Audio
 			ProcessHighShelf(InSamples, OutSamples, KeySamples, InNumSamples);
 			break;
 		}
-
-		ClearFilterDenormals();
 	}
 
 	void FDynamicStateVariableFilter::ProcessBell(const float* InSamples, float* OutSamples, const float* KeySamples, const int32 InNumSamples)
@@ -282,20 +280,6 @@ namespace Audio
 
 		// scale gain by .5 here to avoid having to do Sqrt later
 		return ConvertToLinear(0.5f * (GainDb + DynamicGain));
-	}
-
-	void FDynamicStateVariableFilter::ClearFilterDenormals()
-	{
-		KeyFilterState.Z1 = Audio::UnderflowClamp(KeyFilterState.Z1);
-		KeyFilterState.Z2 = Audio::UnderflowClamp(KeyFilterState.Z2);
-
-		for (int32 Channel = 0; Channel < NumChannels; ++Channel)
-		{
-			FSVFState& State = FilterState[Channel];
-
-			State.Z1 = Audio::UnderflowClamp(State.Z1);
-			State.Z2 = Audio::UnderflowClamp(State.Z2);
-		}
 	}
 
 	void FDynamicStateVariableFilter::SetFrequency(const float InFrequency)

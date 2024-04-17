@@ -36,6 +36,7 @@ namespace Audio
 	}
 
 	// Clamps floats to 0 if they are in sub-normal range
+	UE_DEPRECATED(5.5, "Audio code relies on denormals flush to zero floating point mode from now on. Please use FScopedFTZFloatMode instead of this API")
 	static FORCEINLINE float UnderflowClamp(const float InValue)
 	{
 		if (InValue > -FLT_MIN && InValue < FLT_MIN)

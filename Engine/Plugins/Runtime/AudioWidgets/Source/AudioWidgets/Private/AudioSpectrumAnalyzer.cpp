@@ -181,8 +181,7 @@ namespace AudioWidgets
 			const float OldValue = ARSmoothedSquaredMagnitudes[Index];
 			const float NewValue = SquaredMagnitudes[Index];
 			const float ARSmootherCoefficient = (NewValue >= OldValue) ? AttackRelease.GetAttackTimeSamples() : AttackRelease.GetReleaseTimeSamples();
-			const float SmoothedValue = FMath::Lerp(NewValue, OldValue, ARSmootherCoefficient);
-			ARSmoothedSquaredMagnitudes[Index] = Audio::UnderflowClamp(SmoothedValue);
+			ARSmoothedSquaredMagnitudes[Index] = FMath::Lerp(NewValue, OldValue, ARSmootherCoefficient);
 		}
 	}
 

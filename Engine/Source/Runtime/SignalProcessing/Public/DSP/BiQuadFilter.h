@@ -31,10 +31,7 @@ namespace Audio
 		FORCEINLINE float ProcessAudio(const float InSample)
 		{
 			// Use the biquad difference eq: y(n) = a0*x(n) + a1*x(n-1) + a2*x(n-2) - b1*y(n-1) - b2*y(n-2) 
-			float Output = A0 * InSample + A1 * X_Z1 + A2 * X_Z2 - B1 * Y_Z1 - B2 * Y_Z2;
-
-			// Clamp the output to 0.0 if in sub-normal float region
-			Output = UnderflowClamp(Output);
+			const float Output = A0 * InSample + A1 * X_Z1 + A2 * X_Z2 - B1 * Y_Z1 - B2 * Y_Z2;
 
 			// Apply the z-transforms
 			Y_Z2 = Y_Z1;

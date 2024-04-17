@@ -133,19 +133,13 @@ namespace Audio
 
 		VectorRegister4Float VG = MakeVectorRegisterFloat(G, G, G, G);
 		VectorRegister4Float VNG = MakeVectorRegisterFloat(-G, -G, -G, -G);
-		VectorRegister4Float VFMIN = MakeVectorRegisterFloat(FLT_MIN, FLT_MIN, FLT_MIN, FLT_MIN);
-		VectorRegister4Float VNFMIN = MakeVectorRegisterFloat(-FLT_MIN, -FLT_MIN, -FLT_MIN, -FLT_MIN);
 
-		for (int32 i = 0; i < InNum; i += 4)
+		for (int32 i = 0; i < InNum; i += AUDIO_NUM_FLOATS_PER_VECTOR_REGISTER)
 		{
 			VectorRegister4Float VInDelay = VectorLoadAligned(&InDelaySamples[i]);
 			VectorRegister4Float VInSamples = VectorLoadAligned(&InSamples[i]);
 			// w[n] = x[n] + G * w[n - D]
 			VectorRegister4Float VOutDelay = VectorMultiplyAdd(VInDelay, VG, VInSamples);
-			
-			// Underflow clamp
-			VectorRegister4Float Mask = VectorBitwiseAnd(VectorCompareGT(VOutDelay, VNFMIN), VectorCompareLT(VOutDelay, VFMIN));
-			VOutDelay = VectorSelect(Mask, GlobalVectorConstants::FloatZero, VOutDelay);
 			VectorStoreAligned(VOutDelay, &OutDelaySamples[i]);
 
 			// y[n] = -G * w[n] + w[n - D]
@@ -156,7 +150,7 @@ namespace Audio
 		// Calculate allpass for remaining samples that we couldn't SIMD
 		for (int32 i = NumToSIMD; i < InNum; i++)
 		{
-			OutDelaySamples[i] = Audio::UnderflowClamp(InDelaySamples[i] * G + InSamples[i]);
+			OutDelaySamples[i] = InDelaySamples[i] * G + InSamples[i];
 			OutSamples[i] = OutDelaySamples[i] * -G + InDelaySamples[i];
 		}
 	}

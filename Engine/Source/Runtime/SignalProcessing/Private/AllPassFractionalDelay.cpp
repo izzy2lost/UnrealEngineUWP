@@ -154,9 +154,6 @@ namespace Audio
 				OutSamples[i] = DelayData[DelayPos - 1] + CoefficientsData[i] * DelayData[DelayPos] - CoefficientsData[i] * OutSamples[i - 1];
 			}
 
-			TArrayView<float> OutSamplesView(OutSamples, InNum);
-			ArrayUnderflowClamp(OutSamplesView);
-
 			Z1 = OutSamples[InNum - 1];
 		}
 		

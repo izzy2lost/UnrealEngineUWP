@@ -68,8 +68,7 @@ namespace Audio
 		for (int32 i = 0; i < NumChannels; ++i)
 		{
 			const float InputSample = InputFrame[i];
-			float Yn = InputSample + B1Curr * (Z1Data[i] - InputSample); // LPF
-			Yn = UnderflowClamp(Yn);
+			const float Yn = InputSample + B1Curr * (Z1Data[i] - InputSample); // LPF
 			Z1Data[i] = Yn;
 			OutputFrame[i] = Yn;
 		}
@@ -87,8 +86,7 @@ namespace Audio
 			B1Curr += B1Delta * !ChannelIndex;
 
 			const float InputSample = InputBuffer[SampleIndex];
-			float Yn = InputSample + B1Curr * (Z1Data[ChannelIndex] - InputSample); // LPF
-			Yn = UnderflowClamp(Yn);
+			const float Yn = InputSample + B1Curr * (Z1Data[ChannelIndex] - InputSample); // LPF
 			Z1Data[ChannelIndex] = Yn;
 			OutputBuffer[SampleIndex] = Yn;
 		}
@@ -106,8 +104,7 @@ namespace Audio
 			B1Curr += B1Delta * !ChannelIndex;
 
 			const float InputSample = InOutBuffer[SampleIndex];
-			float Yn = InputSample + B1Curr * (Z1Data[ChannelIndex] - InputSample); // LPF
-			Yn = UnderflowClamp(Yn);
+			const float Yn = InputSample + B1Curr * (Z1Data[ChannelIndex] - InputSample); // LPF
 			Z1Data[ChannelIndex] = Yn;
 			InOutBuffer[SampleIndex] = Yn;
 		}

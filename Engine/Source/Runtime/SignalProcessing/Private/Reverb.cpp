@@ -367,7 +367,7 @@ namespace Audio
 			// RIGHT PLATE
 
 			// Get input into right plate by adding the left plate's previous sample (feedback path)
-			float RightPlateInput = APF4Out + UnderflowClamp(LeftPlate.PreviousSample);
+			float RightPlateInput = APF4Out + LeftPlate.PreviousSample;
 
 			// Input -> ModulatedAPF
 			float RightPlateModulatedAPFOut = RightPlate.ModulatedAPF.ProcessAudioSample(RightPlateInput);
@@ -397,7 +397,7 @@ namespace Audio
 			// LEFT PLATE
 
 			// Get input into right plate by adding the left plate's previous sample (feedback path)
-			float LeftPlateInput = APF4Out + UnderflowClamp(RightPlate.PreviousSample);
+			float LeftPlateInput = APF4Out + RightPlate.PreviousSample;
 
 			// Input -> ModulatedAPF
 			float LeftPlateModulatedAPFOut = LeftPlate.ModulatedAPF.ProcessAudioSample(LeftPlateInput);

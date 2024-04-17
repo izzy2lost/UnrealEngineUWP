@@ -777,6 +777,8 @@ namespace Audio
 	{	
 		LLM_SCOPE(ELLMTag::AudioMixer);
 
+		FScopedFTZFloatMode FTZ;
+
 		uint32 ReturnVal = 0;
 		FMemory::SetupTLSCachesOnCurrentThread();
 

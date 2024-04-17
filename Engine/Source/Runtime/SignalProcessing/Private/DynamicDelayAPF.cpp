@@ -123,8 +123,6 @@ namespace Audio
 		// w[n] = x[n] + G * w[n - d]
 		ArraySum(InSamplesView, WorkBufferAView, DelayLineInputView);
 
-		ArrayUnderflowClamp(DelayLineInput);
-
 		// Update delay line
 		IntegerDelayLine->RemoveSamples(InNum);
 		IntegerDelayLine->AddSamples(DelayLineInput.GetData(), InNum);

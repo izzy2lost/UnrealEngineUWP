@@ -29,9 +29,8 @@ namespace Audio
 		const float Wn = InputSample + G*WnD;
 
 		// form y(n) = -gw(n) + w(n-D)
-		float Yn = -G*Wn + WnD;
+		const float Yn = -G*Wn + WnD;
 
-		Yn = UnderflowClamp(Yn);
 		this->WriteDelayAndInc(Wn);
 		return Yn;
 	}

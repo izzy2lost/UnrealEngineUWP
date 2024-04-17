@@ -206,6 +206,7 @@ namespace Audio
 	SIGNALPROCESSING_API void ArrayComplexToPower(TArrayView<const float> InRealSamples, TArrayView<const float> InImaginarySamples, TArrayView<float> OutPowerSamples);
 
 	/* Sets a values to zero if value is denormal. Denormal numbers significantly slow down floating point operations. */
+	UE_DEPRECATED(5.5, "Audio code relies on denormals flush to zero floating point mode from now on. Please use FScopedFTZFloatMode instead of this API")
 	SIGNALPROCESSING_API void ArrayUnderflowClamp(TArrayView<float> InOutBuffer);
 
 	/* Clamps the values in a buffer between a min and max value.*/

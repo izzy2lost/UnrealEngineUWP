@@ -84,6 +84,8 @@ public:
 
 	void DoWork()
 	{
+		FScopedFTZFloatMode FTZ;
+
 		switch (TaskType)
 		{
 			case EAudioTaskType::Procedural:
