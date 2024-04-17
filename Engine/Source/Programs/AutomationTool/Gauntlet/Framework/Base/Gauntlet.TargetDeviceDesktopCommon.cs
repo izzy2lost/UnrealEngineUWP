@@ -223,7 +223,7 @@ namespace Gauntlet
             LocalDirectoryMappings.Add(EIntendedBaseCopyDirectory.Saved, Path.Combine(BaseDirectory, "Saved"));
 		}
 
-		public abstract IAppInstance Run(IAppInstall Install);
+		public abstract IAppInstance Run(UnrealAppConfig AppConfiguration, IAppInstall Install);
 
 		protected abstract IAppInstall CreateNativeStagedInstall(UnrealAppConfig AppConfig, NativeStagedBuild Build);
 
@@ -323,9 +323,9 @@ namespace Gauntlet
 			CanAlterCommandArgs = true;
 		}
 
-		public virtual IAppInstance Run()
+		public virtual IAppInstance Run(UnrealAppConfig AppConfiguration)
 		{
-			return Device.Run(this);
+			return Device.Run(AppConfiguration, this);
 		}
 
 		/// <summary>

@@ -1609,8 +1609,8 @@ public class AndroidPlatform : Platform
 				{
 					foreach (OverflowBatchInstallInfo Overflow in OverflowInfo)
 					{
-						string AfsOverflowName = string.Format("^overflow{0}obb", Overflow.OverflowIndex);
-						OverflowInstallCommands.Add(Overflow.bNoOverflowInstall ? AFSCommand + " deletefile '" + AfsOverflowName + "'" : AFSCommand + " push " + Path.GetFileName(Overflow.OverflowName) + " '" + AfsOverflowName + "'");
+						string AFSOverflowName = string.Format("^overflow{0}obb", Overflow.OverflowIndex);
+						OverflowInstallCommands.Add(Overflow.bNoOverflowInstall ? AFSCommand + " deletefile '" + AFSOverflowName + "'" : AFSCommand + " push " + Path.GetFileName(Overflow.OverflowName) + " '" + AFSOverflowName + "'");
 						OverflowInstallCommands.Add("if \"%ERRORLEVEL%\" NEQ \"0\" goto Error");
 					}
 				}
@@ -1718,8 +1718,8 @@ public class AndroidPlatform : Platform
 				{
 					foreach (OverflowBatchInstallInfo Overflow in OverflowInfo)
 					{
-						string AfsOverflowName = string.Format("^overflow{0}obb", Overflow.OverflowIndex);
-						OverflowInstallCommands.Add(Overflow.bNoOverflowInstall ? AFSCommand + " deletefile \"" + AfsOverflowName + "\"" : AFSCommand + " push " + Path.GetFileName(Overflow.OverflowName) + " \"" + AfsOverflowName + "\"");
+						string AFSOverflowName = string.Format("^overflow{0}obb", Overflow.OverflowIndex);
+						OverflowInstallCommands.Add(Overflow.bNoOverflowInstall ? AFSCommand + " deletefile \"" + AFSOverflowName + "\"" : AFSCommand + " push " + Path.GetFileName(Overflow.OverflowName) + " \"" + AFSOverflowName + "\"");
 						OverflowInstallCommands.Add("if \"%ERRORLEVEL%\" NEQ \"0\" goto Error");
 					}
 				}
@@ -2178,6 +2178,15 @@ public class AndroidPlatform : Platform
 
 		return string.Format("{0} {1}", SerialNumber, Args);
 	}
+	private static string GetAFSCommandLine(string SerialNumber, string Args)
+	{
+	    if (string.IsNullOrEmpty(SerialNumber) == false)
+		{
+			SerialNumber = "-s " + SerialNumber;
+		}
+
+		return string.Format("{0} {1}", SerialNumber, Args);
+	}
 
 	static string LastSpewFilename = "";
 
@@ -2223,6 +2232,31 @@ public class AndroidPlatform : Platform
 		string AdbCommand = Environment.ExpandEnvironmentVariables("%ANDROID_HOME%/platform-tools/adb" + (RuntimePlatform.IsWindows ? ".exe" : ""));
 		LastSpewFilename = "";
 		return RunAndLog(CmdEnv, AdbCommand, GetAdbCommandLine(SerialNumber, Args), out SuccessCode, SpewFilterCallback: new ProcessResult.SpewFilterCallbackType(ADBSpewFilter));
+	}
+
+	public static IProcessResult RunAFSCommand(ProjectParams Params, string SerialNumber, string Args, string Input = null, ERunOptions Options = ERunOptions.Default, bool bShouldLogCommand = false)
+	{
+		return RunAFSCommand(SerialNumber, Args, Input, Options, bShouldLogCommand);
+	}
+
+	private static IProcessResult RunAFSCommand(string SerialNumber, string Args, string Input = null, ERunOptions Options = ERunOptions.Default, bool bShouldLogCommand = false)
+	{
+		string AFSExecutable = AndroidExports.GetAFSExecutable(UnrealTargetPlatform.Win64, EpicGames.Core.Log.Logger);
+		AFSExecutable = Path.Combine(Unreal.EngineDirectory.FullName, "Binaries", "DotNET", "Android", "UnrealAndroidFileTool", AFSExecutable);
+		if (Options.HasFlag(ERunOptions.AllowSpew) || Options.HasFlag(ERunOptions.SpewIsVerbose))
+		{
+			LastSpewFilename = "";
+			return Run(AFSExecutable, GetAFSCommandLine(SerialNumber, Args), Input, Options, SpewFilterCallback: new ProcessResult.SpewFilterCallbackType(ADBSpewFilter));
+		}
+		return Run(AFSExecutable, GetAFSCommandLine(SerialNumber, Args), Input, Options);
+	}
+
+	private string RunAndLogAFSCommand(ProjectParams Params, string SerialNumber, string Args, out int SuccessCode)
+	{
+		string AFSExecutable = AndroidExports.GetAFSExecutable(UnrealTargetPlatform.Win64, EpicGames.Core.Log.Logger);
+		AFSExecutable = Path.Combine(Unreal.EngineDirectory.FullName, "Binaries", "DotNET", "Android", "UnrealAndroidFileTool", AFSExecutable);
+		LastSpewFilename = "";
+		return RunAndLog(CmdEnv, AFSExecutable, GetAFSCommandLine(SerialNumber, Args), out SuccessCode, SpewFilterCallback: new ProcessResult.SpewFilterCallbackType(ADBSpewFilter));
 	}
 
 	public override void GetConnectedDevices(ProjectParams Params, out List<string> Devices)

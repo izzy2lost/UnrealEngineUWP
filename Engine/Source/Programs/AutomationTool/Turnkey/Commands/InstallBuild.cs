@@ -128,7 +128,7 @@ namespace Turnkey.Commands
 				if (GauntletDevice != null)
 				{
 					IAppInstall Install = GauntletDevice.InstallApplication(Config);
-					GauntletDevice.Run(Install);
+					GauntletDevice.Run(Config, Install);
 				}
 			}
 		}

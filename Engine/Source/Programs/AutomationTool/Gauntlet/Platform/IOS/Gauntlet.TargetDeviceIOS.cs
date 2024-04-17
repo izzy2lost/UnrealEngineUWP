@@ -152,9 +152,9 @@ namespace Gauntlet
 			IOSDevice = InDevice;
 		}
 
-		public IAppInstance Run()
+		public IAppInstance Run(UnrealAppConfig AppConfiguration)
 		{
-			return Device.Run(this);
+			return Device.Run(AppConfiguration, this);
 		}
 	}
 
@@ -260,7 +260,7 @@ namespace Gauntlet
 
 		public CommandUtils.ERunOptions RunOptions { get; set; }
 
-		public IAppInstance Run(IAppInstall App)
+		public IAppInstance Run(UnrealAppConfig AppConfiguration, IAppInstall App)
 		{
 			IOSAppInstall IOSApp = App as IOSAppInstall;
 

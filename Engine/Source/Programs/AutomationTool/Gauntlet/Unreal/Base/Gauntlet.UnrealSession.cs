@@ -442,7 +442,7 @@ namespace Gauntlet
 			try
 			{
 				Log.Info("Starting deferred {0} on {1}", Role, CurrentInstall.Device);
-				IAppInstance Instance = CurrentInstall.Run();
+				IAppInstance Instance = CurrentInstall.Run(null);
 				IDeviceUsageReporter.RecordStart(Instance.Device.Name, Instance.Device.Platform, IDeviceUsageReporter.EventType.Test);
 
 				if (Instance != null || Globals.CancelSignalled)
@@ -1360,6 +1360,7 @@ namespace Gauntlet
 				}
 
 				Dictionary<IAppInstall, UnrealSessionRole> InstallsToRoles = new Dictionary<IAppInstall, UnrealSessionRole>();
+				Dictionary<IAppInstall, UnrealAppConfig> InstallsToConfig = new Dictionary<IAppInstall, UnrealAppConfig>();
 
 				// create a copy of our list
 				IEnumerable<ITargetDevice> DevicesToInstallOn = UnrealDeviceReservation.ReservedDevices.ToArray();
@@ -1444,6 +1445,7 @@ namespace Gauntlet
 						Role.ConfigureDevice?.Invoke(Device);
 
 						InstallsToRoles[Install] = Role;
+						InstallsToConfig[Install] = AppConfig;
 
 						if (ReinstallPerPass)
 						{
@@ -1454,6 +1456,7 @@ namespace Gauntlet
 					{
 						Install = RolesToInstalls[Role];
 						InstallsToRoles[Install] = Role;
+						InstallsToConfig[Install] = AppConfig;
 						Log.Info("Using previous install of {0} on {1}", Install.Name, Install.Device.Name);
 					}
 				}
@@ -1497,7 +1500,7 @@ namespace Gauntlet
 						try
 						{
 							Log.Info("Starting {0} on {1}", InstallRoleKV.Value, CurrentInstall.Device);
-							IAppInstance Instance = CurrentInstall.Run();
+							IAppInstance Instance = CurrentInstall.Run(InstallsToConfig[CurrentInstall]);
 							IDeviceUsageReporter.RecordStart(Instance.Device.Name, Instance.Device.Platform, IDeviceUsageReporter.EventType.Test);
 
 							if (Instance != null || Globals.CancelSignalled)
@@ -1745,6 +1748,7 @@ namespace Gauntlet
 			{
 				UnrealSessionRole Role = RoleInstall.Key;
 				IAppInstall Install = RoleInstall.Value;
+				UnrealAppConfig Config = RolesToConfigs[Role];
 
 				// InstallOnly roles don't execute a process
 				if (Role.InstallOnly)
@@ -1766,7 +1770,7 @@ namespace Gauntlet
 				try
 				{
 					Log.Info("Launching {Install} on {Device}", Install, RolesToDevices[Role]);
-					IAppInstance AppInstance = Install.Run();
+					IAppInstance AppInstance = Install.Run(Config);
 
 					if (AppInstance == null)
 					{

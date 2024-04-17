@@ -425,7 +425,7 @@ namespace LowLevelTests
 					DeviceWithStateOptions.CachedStateRefresh = QUERY_STATE_INTERVAL;
 				}
 
-				Instance = Device.Run(Install);
+				Instance = Device.Run(AppConfig, Install);
 				IDeviceUsageReporter.RecordStart(Instance.Device.Name, Instance.Device.Platform, IDeviceUsageReporter.EventType.Test);
 			}
 			catch (DeviceException DeviceEx)
@@ -505,7 +505,7 @@ namespace LowLevelTests
 						DeviceWithStateOptions.CachedStateRefresh = QUERY_STATE_INTERVAL;
 					}
 
-					Instance = Device.Run(Install);
+					Instance = Device.Run(AppConfig, Install);
 					IDeviceUsageReporter.RecordStart(Instance.Device.Name, (UnrealTargetPlatform)Instance.Device.Platform, IDeviceUsageReporter.EventType.Test);
 					RunSuccess = true;
 				}

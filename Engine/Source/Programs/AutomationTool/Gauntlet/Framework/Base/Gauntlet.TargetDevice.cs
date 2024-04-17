@@ -87,7 +87,7 @@ namespace Gauntlet
 
 		IAppInstall InstallApplication(UnrealAppConfig AppConfiguration);
 
-		IAppInstance Run(IAppInstall App);
+		IAppInstance Run(UnrealAppConfig AppConfiguration, IAppInstall App);
 
 		/// Begin new flow ///
 

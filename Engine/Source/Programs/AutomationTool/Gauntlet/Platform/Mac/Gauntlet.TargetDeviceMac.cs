@@ -96,7 +96,7 @@ namespace Gauntlet
 			return Install;
 		}
 
-		public override IAppInstance Run(IAppInstall App)
+		public override IAppInstance Run(UnrealAppConfig AppConfiguration, IAppInstall App)
 		{
 			MacAppInstall MacInstall = App as MacAppInstall;
 

@@ -106,7 +106,7 @@ namespace Gauntlet.SelfTest
 				}
 
 				// Run the app and wait for either a timeout or it to exit
-				CurrentTestCase.Instance = CurrentTestCase.Install.Run();
+				CurrentTestCase.Instance = CurrentTestCase.Install.Run(null);
 				CurrentTestCase.bHasStarted = true;
 				AppStartTime = DateTime.Now;
 				return;
