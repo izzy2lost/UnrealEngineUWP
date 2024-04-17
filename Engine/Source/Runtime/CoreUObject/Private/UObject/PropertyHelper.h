@@ -113,7 +113,7 @@ class FSerializedPropertyPathScope
 public:
 	[[nodiscard]] FSerializedPropertyPathScope(FUObjectSerializeContext* InContext, const FPropertyPathNameSegment& InSegment, ESerializedPropertyPathNotify InNotify)
 	{
-		if (InContext && InContext->bTrackSerializedPropertyPath)
+		if (InContext->bTrackSerializedPropertyPath)
 		{
 			Context = InContext;
 			Context->SerializedPropertyPath.Push(InSegment);
@@ -151,7 +151,7 @@ class FSerializedPropertyPathIndexScope
 public:
 	[[nodiscard]] FSerializedPropertyPathIndexScope(FUObjectSerializeContext* InContext, int32 InIndex, ESerializedPropertyPathNotify InNotify)
 	{
-		if (InContext && InContext->bTrackSerializedPropertyPath)
+		if (InContext->bTrackSerializedPropertyPath)
 		{
 			Context = InContext;
 			Context->SerializedPropertyPath.SetIndex(InIndex);

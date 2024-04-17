@@ -623,7 +623,7 @@ void FArrayProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, 
 			}
 		}
 
-		if (Context && Context->bTrackSerializedPropertyPath)
+		if (Context->bTrackSerializedPropertyPath)
 		{
 			// Update the path with types from the inner tag if the outer tag is incomplete.
 			if (const int32 SegmentIndex = Context->SerializedPropertyPath.GetSegmentCount() - 1; SegmentIndex >= 0)

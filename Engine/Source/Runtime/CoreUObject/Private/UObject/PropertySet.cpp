@@ -262,11 +262,7 @@ void FSetProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, co
 		{
 			if (NumElementsToRemove)
 			{
-				TOptional<TGuardValue<bool>> SerializeUnknownProperty;
-				if (Context)
-				{
-					SerializeUnknownProperty.Emplace(Context->bSerializeUnknownProperty, false);
-				}
+				TGuardValue<bool> SerializeUnknownProperty(Context->bSerializeUnknownProperty, false);
 
 				// Load and discard elements to remove, set is empty
 				void* TempElementStorage = FMemory::Malloc(SetLayout.Size);
@@ -308,11 +304,7 @@ void FSetProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, co
 
 			if (NumElementsToRemove)
 			{
-				TOptional<TGuardValue<bool>> SerializeUnknownProperty;
-				if (Context)
-				{
-					SerializeUnknownProperty.Emplace(Context->bSerializeUnknownProperty, false);
-				}
+				TGuardValue<bool> SerializeUnknownProperty(Context->bSerializeUnknownProperty, false);
 
 				TempElementStorage = (uint8*)FMemory::Malloc(SetLayout.Size);
 				ElementProp->InitializeValue(TempElementStorage);
