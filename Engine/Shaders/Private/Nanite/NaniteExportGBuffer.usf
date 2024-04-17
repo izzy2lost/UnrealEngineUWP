@@ -8,6 +8,7 @@
 #include "../BRDF.ush"
 #include "NaniteDataDecode.ush"
 #include "NaniteAttributeDecode.ush"
+#include "NaniteSceneCommon.ush"
 #include "NaniteVertexDeformation.ush"
 
 ByteAddressBuffer MaterialDepthTable;

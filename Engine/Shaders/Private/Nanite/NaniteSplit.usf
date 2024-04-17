@@ -211,7 +211,8 @@ uint FSplitTask::Run()
 	if( !Cull.bIsVisible )
 		return 0;
 
-	float3 TessFactors = GetTessFactors( NaniteView, PointView );
+	const float LowTessDistance = CalcDisplacementLowTessDistance( PrimitiveData, InstanceData, NaniteView );
+	float3 TessFactors = GetTessFactors( NaniteView, PointView, LowTessDistance );
 
 #if 0 // Avoid infinite recursion
 	for( int i = 0; i < 3; i++ )

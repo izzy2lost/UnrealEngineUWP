@@ -8,8 +8,6 @@
 #include "NaniteRasterizationCommon.ush"
 #include "../VirtualShadowMaps/VirtualShadowMapPageAccessCommon.ush"
 #include "../VirtualShadowMaps/VirtualShadowMapPageOverlap.ush"
-#include "NaniteWritePixel.ush"
-#include "NaniteCullingCommon.ush"
 #include "../ComputeShaderUtils.ush"
 #include "../Random.ush"
 
@@ -411,8 +409,11 @@ void ClusterRasterize( uint VisibleIndex, uint GroupThreadIndex )
 #endif
 
 #if NANITE_TESSELLATION
+	float LowTessDistance = 0.0f;
+
 #if USES_DISPLACEMENT
 	MaterialShader.InitDisplacement(RasterBinMeta[ActiveRasterBin].MaterialDisplacementParams);
+	LowTessDistance = CalcDisplacementLowTessDistance(PrimitiveData, InstanceData, NaniteView);
 #endif
 
 	uint TriIndex = TriRange.Start + GroupThreadIndex;
@@ -443,7 +444,7 @@ void ClusterRasterize( uint VisibleIndex, uint GroupThreadIndex )
 	TriPointView[1] = WaveReadLaneAt( PointView, VertLaneIndexes[1] );
 	TriPointView[2] = WaveReadLaneAt( PointView, VertLaneIndexes[2] );
 
-	float3 TessFactors = GetTessFactors( NaniteView, TriPointView );
+	float3 TessFactors = GetTessFactors( NaniteView, TriPointView, LowTessDistance );
 
 	const uint ImmediateSplitLimit = 8;
 
@@ -811,6 +812,11 @@ void PatchRasterize( uint GroupID, uint GroupThreadIndex )
 		GetNaniteMaterialSceneData(VisibleCluster, PrimitiveData, Patches_InstanceData);
 
 		const FNaniteView NaniteView = GetNaniteView(VisibleCluster.ViewId);
+
+		float LowTessDistance = 0.0f;
+#if USE_DISPLACEMENT
+		 LowTessDistance = CalcDisplacementLowTessDistance(PrimitiveData, Patches_InstanceData, NaniteView);
+#endif
 		
 #if NANITE_VERTEX_PROGRAMMABLE || NANITE_PIXEL_PROGRAMMABLE
 		ResolvedView = ResolveView(NaniteView);
@@ -850,7 +856,7 @@ void PatchRasterize( uint GroupID, uint GroupThreadIndex )
 		CornersView[1] = WaveReadLaneAt(InnerPatchCornersView, PatchStartLane + 1);
 		CornersView[2] = WaveReadLaneAt(InnerPatchCornersView, PatchStartLane + 2);
 		
-		const float3 TessFactors = GetTessFactors(NaniteView, CornersView);
+		const float3 TessFactors = GetTessFactors(NaniteView, CornersView, LowTessDistance);
 		Patches_TessellatedPatch.Init(TessFactors, Patches_EncodedPatch.yzw, false);
 		Patches_SplitPatch.Decode(Patches_EncodedPatch);
 #endif

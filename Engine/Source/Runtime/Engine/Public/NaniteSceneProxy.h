@@ -237,6 +237,7 @@ public:
 		bHasPixelProgrammableRaster = false;
 		bHasDynamicDisplacement = false;
 		bReverseCulling = false;
+		bHasPerClusterDisplacementFallbackRaster = false;
 	#if WITH_EDITOR
 		bHasSelectedInstances = false;
 	#endif
@@ -251,6 +252,7 @@ public:
 		bHasPixelProgrammableRaster = false;
 		bHasDynamicDisplacement = false;
 		bReverseCulling = false;
+		bHasPerClusterDisplacementFallbackRaster = false;
 	#if WITH_EDITOR
 		bHasSelectedInstances = false;
 	#endif
@@ -360,6 +362,11 @@ public:
 
 	ENGINE_API float GetMaterialDisplacementFadeOutSize() const;
 
+	inline bool HasPerClusterDisplacementFallbackRaster() const
+	{
+		return bHasPerClusterDisplacementFallbackRaster;
+	}
+
 protected:
 	ENGINE_API void DrawStaticElementsInternal(FStaticPrimitiveDrawInterface* PDI, const FLightCacheInterface* LCI);
 	ENGINE_API void OnMaterialsUpdated();
@@ -381,6 +388,7 @@ protected:
 	uint8 bHasPixelProgrammableRaster : 1;
 	uint8 bHasDynamicDisplacement : 1;
 	uint8 bReverseCulling : 1;
+	uint8 bHasPerClusterDisplacementFallbackRaster : 1;
 #if WITH_EDITOR
 	uint8 bHasSelectedInstances : 1;
 #endif

@@ -384,7 +384,7 @@ void InstanceCull(
 			// enabled in the main view.
 			Cull.bSkipDisplacementFadeOutDistance |= bIsShadowPass;
 
-			bool bEnableWPO = Cull.Distance(PrimitiveData);
+			Cull.Distance(PrimitiveData);
 			bool bCacheAsStatic = false;
 
 			Cull.GlobalClipPlane();
@@ -394,10 +394,10 @@ void InstanceCull(
 			{
 #if VIRTUAL_TEXTURE_TARGET
 				const bool bAllowWPO = VirtualShadowMapIsWPOAllowed(PrimitiveData, NaniteView.TargetLayerIndex);
-				bEnableWPO = bEnableWPO && bAllowWPO;
+				Cull.bEnableWPO = Cull.bEnableWPO && bAllowWPO;
 				bCacheAsStatic = ShouldCacheInstanceAsStatic(InstanceId, (NaniteView.Flags & NANITE_VIEW_FLAG_UNCACHED), bAllowWPO);
 
-				bool bMaterialInvalidates = ShouldMaterialInvalidateShadowCache(PrimitiveData, bEnableWPO);
+				bool bMaterialInvalidates = ShouldMaterialInvalidateShadowCache(PrimitiveData, Cull.bEnableWPO);
 				bool bHasMoved = DynamicData.bHasMoved || bMaterialInvalidates;
 				float PixelEstRadius = CalcClipSpaceRadiusEstimate(Cull.bIsOrtho, InstanceData, DynamicData.LocalToTranslatedWorld, NaniteView.ViewToClip) * float(VSM_VIRTUAL_MAX_RESOLUTION_XY);
 				Cull.PageFlagMask = GetPageFlagMaskForRendering(bCacheAsStatic, bHasMoved)
@@ -457,7 +457,7 @@ void InstanceCull(
 					{
 						Flags |= NANITE_CULLING_FLAG_FALLBACK_RASTER;
 					}
-					if (bEnableWPO)
+					if (Cull.bEnableWPO)
 					{
 						Flags |= NANITE_CULLING_FLAG_ENABLE_WPO;
 					}
@@ -619,7 +619,7 @@ void ProcessPrimaryView(const bool bIsOrtho, FPrimitiveSceneData PrimitiveData, 
 		Cull.bSkipCullGlobalClipPlane = true;
 	}
 	
-	bool bEnableWPO = Cull.Distance( PrimitiveData );
+	Cull.Distance( PrimitiveData );
 	bool bCacheAsStatic = false;
 
 	Cull.GlobalClipPlane();
@@ -636,10 +636,10 @@ void ProcessPrimaryView(const bool bIsOrtho, FPrimitiveSceneData PrimitiveData, 
 #if VIRTUAL_TEXTURE_TARGET
 	{
 		const bool bAllowWPO = VirtualShadowMapIsWPOAllowed(PrimitiveData, NaniteView.TargetLayerIndex);
-		bEnableWPO = bEnableWPO && bAllowWPO;
+		Cull.bEnableWPO = Cull.bEnableWPO && bAllowWPO;
 		bCacheAsStatic = ShouldCacheInstanceAsStatic(InstanceId, (NaniteView.Flags & NANITE_VIEW_FLAG_UNCACHED), bAllowWPO);
 
-		bool bMaterialInvalidates = ShouldMaterialInvalidateShadowCache(PrimitiveData, bEnableWPO);
+		bool bMaterialInvalidates = ShouldMaterialInvalidateShadowCache(PrimitiveData, Cull.bEnableWPO);
 		bool bHasMoved = DynamicData.bHasMoved || bMaterialInvalidates;
 		float PixelEstRadius = CalcClipSpaceRadiusEstimate(Cull.bIsOrtho, InstanceData, DynamicData.LocalToTranslatedWorld, NaniteView.ViewToClip) * float(VSM_VIRTUAL_MAX_RESOLUTION_XY);
 		Cull.PageFlagMask = GetPageFlagMaskForRendering(bCacheAsStatic, bHasMoved)
@@ -697,7 +697,7 @@ void ProcessPrimaryView(const bool bIsOrtho, FPrimitiveSceneData PrimitiveData, 
 				{
 					Node.Flags |= NANITE_CULLING_FLAG_FALLBACK_RASTER;
 				}
-				if (bEnableWPO)
+				if (Cull.bEnableWPO)
 				{
 					Node.Flags |= NANITE_CULLING_FLAG_ENABLE_WPO;
 				}

@@ -560,8 +560,24 @@ struct FNaniteTraversalClusterCullCallback
 		
 		FBoxCull Cull;
 		Cull.Init( NaniteView, ClusterBounds.BoxCenter, ClusterBounds.BoxExtent, InstanceData.NonUniformScale, DynamicData.LocalToTranslatedWorld, DynamicData.PrevLocalToTranslatedWorld );
+
+		// If the cluster isn't already sorted into the fallback bin, and the primitive enables per-cluster displacement fallback
+		// rasterization, we can check to disable displacement at a cluster level.
+		// NOTE: We never do WPO or pixel programmable distance at the cluster level, so skip those;
+		Cull.bSkipDisplacementFadeOutDistance |= 
+			(VisibleCluster.Flags & NANITE_CULLING_FLAG_FALLBACK_RASTER) != 0 ||
+			(PrimitiveData.Flags & PRIMITIVE_SCENE_DATA_FLAG_PER_CLUSTER_DISPLACEMENT_FALLBACK_RASTER) == 0;
+		Cull.bSkipWPODisableDistance = true;
+		Cull.bSkipPixelProgrammableDistance = true;
+
 		Cull.Distance();
 		Cull.GlobalClipPlane();
+		Cull.ProgrammableRasterDistance(PrimitiveData);
+
+		if (Cull.bFallbackRaster)
+		{
+			VisibleCluster.Flags |= NANITE_CULLING_FLAG_FALLBACK_RASTER;
+		}
 
 		bool bInvalidateFromSteamingLODDelta = false;
 		BRANCH

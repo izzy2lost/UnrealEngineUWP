@@ -3,6 +3,7 @@
 #pragma once
 
 #include "../Common.ush"
+#include "NaniteSceneCommon.ush"
 
 #define NANITE_TESSELLATION_PATCH_REFS	1
 #define NANITE_TESSELLATION_NORMALIZE	0
@@ -48,7 +49,20 @@ ByteAddressBuffer TessellationTable_VertsAndIndexes;
 float InvDiceRate;
 uint MaxPatchesPerGroup;
 
-float3 GetTessFactors( FNaniteView NaniteView, float3 PointView[3] )
+float CalcDisplacementLowTessDistance(FPrimitiveSceneData PrimitiveData, FInstanceSceneData InstanceData, FNaniteView NaniteView)
+{
+	const float LowTessSize = PrimitiveData.MaterialDisplacementFadeOutSize;
+	if (LowTessSize == 0.0f)
+	{
+		return 0.0f;
+	}
+
+	// Solve for the view depth at which max displacement equals the fade out size
+	const float MaxDisplacement = GetAbsMaxMaterialDisplacement(PrimitiveData, false /* bFallbackRaster */);
+	return (MaxDisplacement * InstanceData.NonUniformScale.w * NaniteView.LODScale) / LowTessSize;
+}
+
+float3 GetTessFactors( FNaniteView NaniteView, float3 PointView[3], float LowTessDistance )
 {
 #if 0
 	float2 PointPixels[3];
@@ -66,8 +80,9 @@ float3 GetTessFactors( FNaniteView NaniteView, float3 PointView[3] )
 	};
 	TessFactors *= InvDiceRate;
 #else
-	bool bOrtho = NaniteView.ViewToClip[3][3] >= 1;
+	const bool bOrtho = NaniteView.ViewToClip[3][3] >= 1;
 
+	bool3 bDistant = false;
 	float3 TessFactors;
 	for( uint i = 0; i < 3; i++ )
 	{
@@ -78,9 +93,11 @@ float3 GetTessFactors( FNaniteView NaniteView, float3 PointView[3] )
 		float EdgeLength = length( PointView[ i0 ] - PointView[ i1 ] );
 		EdgeScale = bOrtho ? 1.0f : max( EdgeScale, NaniteView.NearPlane );
 		TessFactors[i] = EdgeLength / EdgeScale;
+		bDistant[i] = !bOrtho && LowTessDistance > 0.0f && EdgeScale > LowTessDistance;
 	}
 
-	TessFactors *= NaniteView.LODScale * InvDiceRate;
+	const float LowTessMultiple = 0.25f; // hard-coded for now
+	TessFactors *= NaniteView.LODScale * InvDiceRate * select(bDistant, LowTessMultiple, 1.0f);
 #endif
 	
 	return TessFactors;

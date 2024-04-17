@@ -254,7 +254,8 @@ void CullPerPageDrawCommandsCs(uint3 GroupId : SV_GroupID, int GroupThreadIndex 
 
 			Cull.bSkipWPODisableDistance |= DrawCommandDesc.bMaterialAlwaysEvaluatesWorldPositionOffset;
 
-			bEnableWPO = Cull.Distance( PrimitiveData ) && bEnableWPO;
+			Cull.Distance( PrimitiveData );
+			bEnableWPO = bEnableWPO && Cull.bEnableWPO;
 			
 			// NOTE: Doing this for just the primary view (not mip views) is fine for current logic
 			const bool bAllowWPO = VirtualShadowMapIsWPOAllowed(PrimitiveData, NaniteView.TargetLayerIndex);

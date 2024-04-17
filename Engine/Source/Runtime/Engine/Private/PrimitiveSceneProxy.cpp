@@ -843,16 +843,16 @@ void FPrimitiveSceneProxy::BuildUniformShaderParameters(FPrimitiveUniformShaderP
 			.RayTracingFarField(IsRayTracingFarField())
 			.RayTracingHasGroupId(GetRayTracingGroupId() != FPrimitiveSceneProxy::InvalidRayTracingGroupId);
 
-		if (PrimitiveSceneInfo != nullptr)
-		{
-			Builder.LightmapDataIndex(PrimitiveSceneInfo->GetLightmapDataOffset())
+	if (PrimitiveSceneInfo != nullptr)
+	{
+		Builder.LightmapDataIndex(PrimitiveSceneInfo->GetLightmapDataOffset())
 			.CacheShadowAsStatic(PrimitiveSceneInfo->ShouldCacheShadowAsStatic())
 			.InstanceSceneDataOffset(PrimitiveSceneInfo->GetInstanceSceneDataOffset())
 			.NumInstanceSceneDataEntries(PrimitiveSceneInfo->GetNumInstanceSceneDataEntries())
 			.InstancePayloadDataOffset(PrimitiveSceneInfo->GetInstancePayloadDataOffset())
 			.InstancePayloadDataStride(PrimitiveSceneInfo->GetInstancePayloadDataStride())
 			.PersistentPrimitiveIndex(PrimitiveSceneInfo->GetPersistentIndex().Index);
-		}
+	}
 
 	if (IsNaniteMesh())
 	{
@@ -875,8 +875,10 @@ void FPrimitiveSceneProxy::BuildUniformShaderParameters(FPrimitiveUniformShaderP
 			.NaniteRayTracingDataOffset(NaniteRayTracingDataOffset)
 			.ReverseCulling(bReverseCulling)
 			.PixelProgrammableDistance(PixelProgrammableDistance)
-			.MaterialDisplacementFadeOutSize(MaterialDisplacementFadeOutSize);
+			.MaterialDisplacementFadeOutSize(MaterialDisplacementFadeOutSize)
+			.HasPerClusterDisplacementFallbackRaster(NaniteProxy->HasPerClusterDisplacementFallbackRaster());
 	}
+
 
 	FVector2f InstanceDrawDistanceMinMax;
 	if (GetInstanceDrawDistanceMinMax(InstanceDrawDistanceMinMax))

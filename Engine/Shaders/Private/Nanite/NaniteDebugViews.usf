@@ -8,6 +8,7 @@
 
 #include "NaniteDataDecode.ush"
 #include "NaniteAttributeDecode.ush"
+#include "NaniteSceneCommon.ush"
 
 Texture2D<UlongType> VisBuffer64;
 #if MSAA_SAMPLE_COUNT > 1

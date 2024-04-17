@@ -16,27 +16,7 @@
 #include "NaniteDataDecode.ush"
 #include "NaniteHZBCull.ush"
 #include "NaniteCulling.ush"
-
-#ifndef DISABLE_DISPLACEMENT_BOUNDS
-#define DISABLE_DISPLACEMENT_BOUNDS 0
-#endif
-
-float GetAbsMaxMaterialDisplacement(FPrimitiveSceneData PrimitiveData, bool bFallbackRaster)
-{
-#if DISABLE_DISPLACEMENT_BOUNDS
-	return 0.0f;
-#else
-	const bool bDisplacementDisabled = bFallbackRaster &&
-		(PrimitiveData.PixelProgrammableDistanceSquared > 0.0f || PrimitiveData.MaterialDisplacementFadeOutSize > 0.0f);
-	return bDisplacementDisabled ? 0.0f : max(-PrimitiveData.MinMaterialDisplacement, PrimitiveData.MaxMaterialDisplacement);
-#endif
-}
-
-float3 GetLocalMaxWPOExtent(FPrimitiveSceneData PrimitiveData, FInstanceSceneData InstanceData, bool bEnableWPO = true)
-{
-	const bool bHasAlwaysEvalWPOMaterial = (PrimitiveData.Flags & PRIMITIVE_SCENE_DATA_FLAG_HAS_ALWAYS_EVALUATE_WPO_MATERIALS) != 0;
-	return (bEnableWPO || bHasAlwaysEvalWPOMaterial) ? abs(PrimitiveData.MaxWPOExtent * InstanceData.InvNonUniformScale) : (float3)0;
-}
+#include "NaniteSceneCommon.ush"
 
 float GetGlobalClipPlaneDistance(FNaniteView NaniteView, float3 TranslatedWorldPosition)
 {
@@ -71,6 +51,7 @@ struct FBoxCull
 	bool		bIsVisible;
 	bool		bWasOccluded;
 	bool		bNeedsClipping;
+	bool		bEnableWPO;
 	bool		bFallbackRaster;
 
 #if VIRTUAL_TEXTURE_TARGET
@@ -121,6 +102,7 @@ struct FBoxCull
 		bIsVisible			= true;
 		bWasOccluded		= false;
 		bNeedsClipping		= false;
+		bEnableWPO			= false;
 		bFallbackRaster		= false;
 
 	#if VIRTUAL_TEXTURE_TARGET
@@ -175,15 +157,8 @@ struct FBoxCull
 		}
 	}
 
-	bool Distance( FPrimitiveSceneData PrimitiveData )
+	void Distance( FPrimitiveSceneData PrimitiveData )
 	{
-		const bool bEvaluateWPO		= (PrimitiveData.Flags & PRIMITIVE_SCENE_DATA_FLAG_EVALUATE_WORLD_POSITION_OFFSET) != 0u;
-		const bool bWPODisableDist	= (PrimitiveData.Flags & PRIMITIVE_SCENE_DATA_FLAG_WPO_DISABLE_DISTANCE) != 0u;
-		const bool bDrawDistance	= (PrimitiveData.Flags & PRIMITIVE_SCENE_DATA_FLAG_INSTANCE_DRAW_DISTANCE_CULL) != 0u;
-
-		// Ensure WPO can be disabled at the primitive level
-		bool bEnableWPO = bEvaluateWPO;
-
 		BRANCH
 		if( bIsVisible )
 		{
@@ -199,6 +174,7 @@ struct FBoxCull
 			const float InstanceDrawDistSq = length2( CenterTranslatedWorld - NaniteView.CullingViewOriginTranslatedWorld);
 
 			// Check to cull the instance based on its distance from the main view's location (per-primitive setting)
+			const bool bDrawDistance = (PrimitiveData.Flags & PRIMITIVE_SCENE_DATA_FLAG_INSTANCE_DRAW_DISTANCE_CULL) != 0u;
 			if ( bIsVisible && bDrawDistance && !bSkipDrawDistance )
 			{
 				const float MinDistanceSq = PrimitiveData.InstanceDrawDistanceMinMaxSquared.x;
@@ -206,43 +182,66 @@ struct FBoxCull
 
 				bIsVisible = InstanceDrawDistSq >= MinDistanceSq && InstanceDrawDistSq <= MaxDistanceSq;
 			}
+			
+			ProgrammableRasterDistanceInternal( PrimitiveData, CenterTranslatedWorld, Radius, InstanceDrawDistSq );
+		}
+	}
 
-			BRANCH
-			if ( bIsVisible )
+	void ProgrammableRasterDistance( FPrimitiveSceneData PrimitiveData )
+	{
+		// Test programmable raster distance without instance draw distance
+		const float3 CenterTranslatedWorld = mul( float4( LocalBoxCenter, 1.0f ), LocalToTranslatedWorld ).xyz;
+		const float Radius = length( LocalBoxExtent * NonUniformScale.xyz );
+		const float InstanceDrawDistSq = length2( CenterTranslatedWorld - NaniteView.CullingViewOriginTranslatedWorld);
+		
+		ProgrammableRasterDistanceInternal( PrimitiveData, CenterTranslatedWorld, Radius, InstanceDrawDistSq );
+	}
+
+	void ProgrammableRasterDistanceInternal( 
+		FPrimitiveSceneData PrimitiveData,
+		float3 CenterTranslatedWorld,
+		float Radius,
+		float InstanceDrawDistSq )
+	{
+		const bool bEvaluateWPO		= (PrimitiveData.Flags & PRIMITIVE_SCENE_DATA_FLAG_EVALUATE_WORLD_POSITION_OFFSET) != 0u;
+		const bool bWPODisableDist	= (PrimitiveData.Flags & PRIMITIVE_SCENE_DATA_FLAG_WPO_DISABLE_DISTANCE) != 0u;
+
+		const float PixelProgrammableDistanceSq	= PrimitiveData.PixelProgrammableDistanceSquared;
+		const float DisplacementFadeOutSize		= PrimitiveData.MaterialDisplacementFadeOutSize;
+		const bool bUseFallbackForWPO			= PixelProgrammableDistanceSq <= 0.0f && DisplacementFadeOutSize <= 0.0f;
+		
+		// Ensure WPO can be disabled at the primitive level
+		bEnableWPO = bEvaluateWPO && bIsVisible;
+		bFallbackRaster = false;
+
+		BRANCH
+		if ( bIsVisible )
+		{
+			// Check to disable the instance's WPO based on distance from the main view's location
+			if ( bEnableWPO && bWPODisableDist && !bSkipWPODisableDistance )
 			{
-				const float PixelProgrammableDistanceSq	= PrimitiveData.PixelProgrammableDistanceSquared;
-				const float DisplacementFadeOutSize		= PrimitiveData.MaterialDisplacementFadeOutSize;
-				const bool bUseFallbackForWPO			= PixelProgrammableDistanceSq <= 0.0f && DisplacementFadeOutSize <= 0.0f;
+				bEnableWPO = InstanceDrawDistSq < PrimitiveData.InstanceWPODisableDistanceSquared;
+				bFallbackRaster = bUseFallbackForWPO && !bEnableWPO;
+			}
 
-				// Check to disable the instance's WPO based on distance from the main view's location
-				if ( bEnableWPO && bWPODisableDist && !bSkipWPODisableDistance )
-				{
-					bEnableWPO = InstanceDrawDistSq < PrimitiveData.InstanceWPODisableDistanceSquared;
-					bFallbackRaster = bUseFallbackForWPO && !bEnableWPO;
-				}
+			// Determine if we should use fallback raster bins due to disabling pixel programmable raster
+			if ( PixelProgrammableDistanceSq > 0.0f && !bSkipPixelProgrammableDistance )
+			{
+				bFallbackRaster = InstanceDrawDistSq > PixelProgrammableDistanceSq;
+			}
 
-				// Determine if we should use fallback raster bins due to disabling pixel programmable raster
-				if ( PixelProgrammableDistanceSq > 0.0f && !bSkipPixelProgrammableDistance )
-				{
-					bFallbackRaster = InstanceDrawDistSq > PixelProgrammableDistanceSq;
-				}
-
-				// Also check to use fallback raster bins as a method of disabling tessellation when the object
-				// is at a safe enough distance for all displacement to have been completely faded out
-				if ( !bFallbackRaster && DisplacementFadeOutSize > 0.0f && !bSkipDisplacementFadeOutDistance )
-				{
-					const float SurfaceDepth = max(dot( NaniteView.ViewForward, CenterTranslatedWorld ) - Radius, 0.0f);
-					const float MaxDisplacementProj = GetProjectedEdgeLengthAtDepth(
-							NonUniformScale.w * GetAbsMaxMaterialDisplacement( PrimitiveData, false /* bFallbackRaster */ ),
-							SurfaceDepth,
-							NaniteView );
-					bFallbackRaster = MaxDisplacementProj <= DisplacementFadeOutSize;
-				}
+			// Also check to use fallback raster bins as a method of disabling tessellation when the object
+			// is at a safe enough distance for all displacement to have been completely faded out
+			if ( !bFallbackRaster && DisplacementFadeOutSize > 0.0f && !bSkipDisplacementFadeOutDistance )
+			{
+				const float SurfaceDepth = max(dot( NaniteView.ViewForward, CenterTranslatedWorld ) - Radius, 0.0f);
+				const float MaxDisplacementProj = GetProjectedEdgeLengthAtDepth(
+						NonUniformScale.w * GetAbsMaxMaterialDisplacement( PrimitiveData, false /* bFallbackRaster */ ),
+						SurfaceDepth,
+						NaniteView );
+				bFallbackRaster = MaxDisplacementProj <= DisplacementFadeOutSize;
 			}
 		}
-
-		// "Disable" WPO if the instance isn't visible
-		return bEnableWPO && bIsVisible;
 	}
 
 	FFrustumCullData Frustum()

@@ -11,6 +11,7 @@
 
 #include "NaniteDataDecode.ush"
 #include "NaniteAttributeDecode.ush"
+#include "NaniteSceneCommon.ush"
 
 // .x = platform config
 // .y = tiles wide

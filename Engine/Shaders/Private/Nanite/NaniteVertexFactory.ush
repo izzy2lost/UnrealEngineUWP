@@ -10,6 +10,7 @@
 #endif
 #include "NaniteDataDecode.ush"
 #include "NaniteAttributeDecode.ush"
+#include "NaniteSceneCommon.ush"
 #include "NaniteVertexDeformation.ush"
 
 #ifndef VIRTUAL_TEXTURE_TARGET

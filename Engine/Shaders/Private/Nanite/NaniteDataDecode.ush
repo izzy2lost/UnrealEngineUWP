@@ -366,40 +366,6 @@ FVisibleCluster GetVisibleCluster( uint ClusterIndex )
 	return VisibleCluster;
 }
 
-FInstanceSceneData GetInstanceSceneData( inout FVisibleCluster VisibleCluster, bool bCheckValid = true )
-{
-	FInstanceSceneData InstanceData = GetInstanceSceneData( VisibleCluster.InstanceId, Scene.GPUScene.InstanceDataSOAStride, bCheckValid );
-
-#if NANITE_IMPOSTERS_SUPPORTED
-	// Couldn't have been stored so signals this is an imposter
-	if( VisibleCluster.Flags == (1 << NANITE_NUM_CULLING_FLAG_BITS) )
-	{
-		const uint MaxStreamingPages = 1 << 12;
-		VisibleCluster.PageIndex = MaxStreamingPages + (InstanceData.NaniteRuntimeResourceID & NANITE_MAX_GPU_PAGES_MASK);
-	}
-#endif
-
-	return InstanceData;
-}
-
-FInstanceDynamicData CalculateInstanceDynamicData( FNaniteView NaniteView, FInstanceSceneData InstanceData )
-{
-	float4x4 LocalToTranslatedWorld = DFFastToTranslatedWorld(InstanceData.LocalToWorld, NaniteView.PreViewTranslation);
-	float4x4 PrevLocalToTranslatedWorld = DFFastToTranslatedWorld(InstanceData.PrevLocalToWorld, NaniteView.PrevPreViewTranslation);
-
-	FInstanceDynamicData DynamicData;
-	DynamicData.LocalToTranslatedWorld = LocalToTranslatedWorld;
-	DynamicData.PrevLocalToTranslatedWorld = PrevLocalToTranslatedWorld;
-	DynamicData.bHasMoved = GetGPUSceneFrameNumber() == InstanceData.LastUpdateSceneFrameNumber;
-
-	return DynamicData;
-}
-
-FInstanceSceneData GetInstanceSceneData( uint InstanceId, bool bCheckValid = true )
-{
-	return GetInstanceSceneData( InstanceId, Scene.GPUScene.InstanceDataSOAStride, bCheckValid );
-}
-
 FCluster UnpackCluster(uint4 ClusterData[NANITE_NUM_PACKED_CLUSTER_FLOAT4S])
 {
 	FCluster Cluster;

@@ -163,8 +163,8 @@ bool IsInstanceVisible(FPrimitiveSceneData PrimitiveData, FInstanceSceneData Ins
 		Cull.bSkipWPODisableDistance	= true;
 #endif
 
-		bool bEnableWPO = Cull.Distance( PrimitiveData );
-		if (!bEnableWPO)
+		Cull.Distance( PrimitiveData );
+		if (!Cull.bEnableWPO)
 		{
 			CullingFlags &= ~INSTANCE_CULLING_FLAG_EVALUATE_WPO;
 		}

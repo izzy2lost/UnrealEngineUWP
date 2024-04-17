@@ -198,6 +198,15 @@ FAutoConsoleVariableRef CVarLandscapeNonNaniteVirtualShadowMapInvalidationLODAtt
 	ECVF_RenderThreadSafe | ECVF_Scalability
 );
 
+int32 GLandscapeAllowNanitePerClusterDisplacementDisable = 1;
+static FAutoConsoleVariableRef CLandscapeAllowNanitePerClusterDisplacementDisable(
+	TEXT("r.Landscape.AllowNanitePerClusterDisplacementDisable"),
+	GLandscapeAllowNanitePerClusterDisplacementDisable,
+	TEXT("Allow Nanite landscape to disable displcement on individual clusters in the distance."),
+	FConsoleVariableDelegate::CreateStatic(&OnCVarNeedingRenderStateInvalidationChanged),
+	ECVF_RenderThreadSafe
+);
+
 #if WITH_EDITOR
 extern TAutoConsoleVariable<int32> CVarLandscapeShowDirty;
 #endif
@@ -4837,6 +4846,13 @@ public:
 		}
 
 		CombinedMaterialRelevance.bMasked = bAnySectionMasked;
+
+		// Check to disable per-cluster displacement fallback raster
+		if (GLandscapeAllowNanitePerClusterDisplacementDisable != 0 &&
+			MaterialDisplacementFadeOutSize > 0.0f)
+		{
+			bHasPerClusterDisplacementFallbackRaster = true;
+		}
 
 		// Overwrite filter flags to specify landscape instead of static mesh
 		FilterFlags = ::Nanite::EFilterFlags::Landscape;
