@@ -13,9 +13,15 @@
 #include <Misc/ScopeLock.h>
 #include <Misc/StringBuilder.h>
 #include <ProfilingDebugging/CpuProfilerTrace.h>
+#include <Ssl.h>
+#include <Interfaces/ISslCertificateManager.h>
 #include <Tasks/Task.h>
 #include <Trace/Trace.h>
 #endif
+
+#include <openssl/engine.h>
+#include <openssl/err.h>
+#include <openssl/ssl.h>
 
 #include <atomic>
 
@@ -23,6 +29,7 @@
 
 #include "Misc.inl"
 #include "Socket.inl"
+#include "Peer.inl"
 #include "Socks.inl"
 #include "ConnectionPool.inl"
 #include "Activity.inl"

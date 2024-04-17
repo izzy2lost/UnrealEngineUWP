@@ -4,6 +4,7 @@
 
 #if !defined(NO_UE_INCLUDES)
 #include <Containers/StringView.h>
+#include <Memory/MemoryView.h>
 #endif
 
 #if !defined(IAS_HTTP_WITH_PERF)
@@ -46,7 +47,8 @@ enum class EStatusCodeClass
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-using	FTicket = uint64;
+using	FTicket		= uint64;
+using	FPemCert	= FMemoryView;
 struct	FActivity;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -57,10 +59,12 @@ public:
 	{
 		int32				SetHostFromUrl(FAnsiStringView Url);
 		FAnsiStringView		HostName;
+		FPemCert			VerifyCert;
 		int32				SendBufSize = -1;
 		int32				RecvBufSize = -1;
 		uint32				Port = 0;
 		uint16				ConnectionCount = 1;
+		bool				bUseTls = false;
 		/*
 		enum class ProxyType { Http, Socks4 };
 		Proxy = { ip, port, type }
@@ -187,8 +191,9 @@ public:
 
 	struct FRequestParams
 	{
-		uint32	BufferSize	= 256;
-		bool	bAutoRedirect = false;
+		FPemCert			VerifyCert;
+		uint32				BufferSize		= 256;
+		bool				bAutoRedirect	= false;
 	};
 
 	template <typename... T> [[nodiscard]] FRequest Get(T&&... t)  { return Request("GET",  Forward<T&&>(t)...); }

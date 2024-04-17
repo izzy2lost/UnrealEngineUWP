@@ -19,20 +19,25 @@ public:
 		const ANSICHAR* HostName;
 		uint32			Port = 0;
 		uint32			MaxConnections = 1;
+		FPemCert		VerifyCert;
 	};
 
 					FHost(const FParams& Params);
 	void			SetBufferSize(EDirection Dir, int32 Size);
 	int32			GetBufferSize(EDirection Dir) const;
+	FHttpPeer		Connect();
 	FOutcome		Connect(FSocket& Socket);
 	int32			IsResolved() const;
 	FOutcome		ResolveHostName();
+	bool			WithTls() const				{ return GetVerifyCert().GetData() != nullptr; }
+	FPemCert		GetVerifyCert() const		{ return VerifyCert; }
 	uint32			GetMaxConnections() const	{ return MaxConnections; }
 	uint32			GetIpAddress() const		{ return IpAddresses[0]; }
 	FAnsiStringView	GetHostName() const			{ return HostName; }
 	uint32			GetPort() const				{ return Port; }
 
 private:
+	FPemCert		VerifyCert;
 	const ANSICHAR*	HostName;
 	uint32			IpAddresses[4] = {};
 	int16			SendBufKb = -1;
@@ -43,7 +48,8 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 FHost::FHost(const FParams& Params)
-: HostName(Params.HostName)
+: VerifyCert(Params.VerifyCert)
+, HostName(Params.HostName)
 , Port(uint16(Params.Port))
 , MaxConnections(uint8(Params.MaxConnections))
 {
@@ -51,7 +57,7 @@ FHost::FHost(const FParams& Params)
 
 	if (Port == 0)
 	{
-		Port = 80;
+		Port = (VerifyCert.GetData() == nullptr) ? 80 : 443;
 	}
 }
 
@@ -138,6 +144,32 @@ int32 FHost::IsResolved() const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+FHttpPeer FHost::Connect()
+{
+	FSocket Socket;
+	if (FOutcome Outcome = Connect(Socket); Outcome.IsError())
+	{
+		return FHttpPeer();
+		// return FOutcome::Error("Failed to create socket");
+	}
+
+	if (VerifyCert.GetData() == nullptr)
+	{
+		return FHttpPeer(MoveTemp(Socket));
+	}
+
+	FSslContext SslContext(HostName, VerifyCert);
+	FHttpPeer Peer(MoveTemp(Socket), &SslContext);
+
+	FOutcome Outcome = FOutcome::None();
+	while ((Outcome = Peer.Handshake()).IsWaiting())
+		/*pass*/;
+	check(Outcome.IsOk());
+
+	return Peer;
+}
+
+////////////////////////////////////////////////////////////////////////////////
 FOutcome FHost::Connect(FSocket& Socket)
 {
 	FOutcome Outcome = FOutcome::None();
@@ -215,6 +247,7 @@ int32 FConnectionPool::FParams::SetHostFromUrl(FAnsiStringView Url)
 	}
 
 	HostName = Offsets.HostName.Get(Url);
+	bUseTls = (Offsets.SchemeLength == 5);
 
 	if (Offsets.Port)
 	{
@@ -241,11 +274,20 @@ FConnectionPool::FConnectionPool(const FParams& Params)
 	memcpy(HostDest, Params.HostName.GetData(), HostNameLen);
 	HostDest[HostNameLen] = '\0';
 
+	// Verify
+	FPemCert VerifyCert;
+	if (Params.bUseTls)
+	{
+		VerifyCert = Params.VerifyCert;
+		VerifyCert = (VerifyCert.GetData() != nullptr) ? VerifyCert : FPemCert("", 0);
+	}
+
 	// Init internal object
 	new (Internal) FHost({
 		.HostName		= HostDest,
 		.Port			= Params.Port,
 		.MaxConnections	= Params.ConnectionCount,
+		.VerifyCert		= VerifyCert,
 	});
 	Internal->SetBufferSize(FHost::EDirection::Send, Params.SendBufSize);
 	Internal->SetBufferSize(FHost::EDirection::Recv, Params.RecvBufSize);

@@ -7,7 +7,7 @@ namespace UE::IoStore::HTTP
 
 // {{{1 event-loop-int .........................................................
 
-using FPeerType = FSocket;
+using FPeerType = FHttpPeer;
 
 ////////////////////////////////////////////////////////////////////////////////
 static FOutcome DoSend(FActivity* Activity, FPeerType& Peer)
@@ -349,11 +349,11 @@ static FOutcome DoRecv(FActivity* Activity, FPeerType& Peer, int32& MaxRecvSize)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-static int32 DoRecvDone(FActivity* Activity)
+static void DoRecvDone(FActivity* Activity)
 {
 	if (!FLatencyInjector::HasExpired(Activity->StateParam))
 	{
-		return 1;
+		return;
 	}
 
 	// Notify the user we've received everything
@@ -361,7 +361,6 @@ static int32 DoRecvDone(FActivity* Activity)
 	Activity->Sink(SinkArg);
 
 	Activity_ChangeState(Activity, FActivity::EState::Completed);
-	return 0;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -531,10 +530,10 @@ class FPeerGroup
 public:
 						FPeerGroup() = default;
 						~FPeerGroup();
-	bool				operator == (FPeerType* Rhs) const { return &Peer == Rhs; }
+	bool				operator == (FSocket* Rhs) const { return (const FSocket*)Peer == Rhs; }
 	void				Unwait()			{ check(bWaiting); bWaiting = false; }
-	FPeerType::FWaiter	GetWaiter() const;
-	bool 				Tick(FTickState& State);
+	FSocket::FWaiter	GetWaiter() const;
+	bool				Tick(FTickState& State);
 	void				TickSend(FTickState& State, FHost& Host);
 	void				Fail(FTickState& State, const char* Reason);
 
@@ -559,16 +558,18 @@ FPeerGroup::~FPeerGroup()
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-FPeerType::FWaiter FPeerGroup::GetWaiter() const
+FSocket::FWaiter FPeerGroup::GetWaiter() const
 {
 	if (!bWaiting)
 	{
-		return FPeerType::FWaiter();
+		return FSocket::FWaiter();
 	}
 
-	using EWhat = FPeerType::FWaiter::EWhat;
+	const auto& S = (const FSocket&)Peer;
+
+	using EWhat = FSocket::FWaiter::EWhat;
 	EWhat What = (Recv != nullptr) ? EWhat::Recv : EWhat::Send;
-	return FPeerType::FWaiter(Peer, What);
+	return FSocket::FWaiter(S, What);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -764,7 +765,9 @@ void FPeerGroup::TickSend(FTickState& State, FHost& Host)
 	if (!Peer.IsValid())
 	{
 		IsKeepAlive = 1;
-		FOutcome Outcome = Host.Connect(Peer);
+		Peer = Host.Connect();
+
+		FOutcome Outcome = FOutcome::Ok();
 
 		// We failed to connect, let's bail.
 		if (Outcome.IsError())
@@ -826,10 +829,10 @@ FHostGroup::FHostGroup(FHost& InHost)
 int32 FHostGroup::Wait(const FTickState& State)
 {
 	// Collect groups that are waiting on something
-	TArray<FPeerType::FWaiter, TFixedAllocator<64>> Waiters;
+	TArray<FSocket::FWaiter, TFixedAllocator<64>> Waiters;
 	for (FPeerGroup& Group : PeerGroups)
 	{
-		FPeerType::FWaiter Waiter = Group.GetWaiter();
+		FSocket::FWaiter Waiter = Group.GetWaiter();
 		if (Waiter.IsValid())
 		{
 			Waiters.Add(Waiter);
@@ -853,7 +856,7 @@ int32 FHostGroup::Wait(const FTickState& State)
 	}
 
 	// Actually do the wait
-	int32 Result = FPeerType::Wait(Waiters, PollTimeoutMs);
+	int32 Result = FSocket::Wait(Waiters, PollTimeoutMs);
 	if (Result <= 0)
 	{
 		// If the user opts to not block then we don't accumulate wait time and
@@ -879,7 +882,7 @@ int32 FHostGroup::Wait(const FTickState& State)
 			continue;
 		}
 
-		auto* Candidate = (FPeerType*)(Waiters[i].Candidate);
+		auto* Candidate = (FSocket*)(Waiters[i].Candidate);
 		auto Pred = [Candidate] (auto& Lhs) { return Lhs == Candidate; };
 		FPeerGroup* Group = PeerGroups.FindByPredicate(Pred);
 		check(Group != nullptr);
@@ -1265,6 +1268,15 @@ FRequest FEventLoop::Request(
 	// Create an activity and an emphemeral host
 	Params = (Params != nullptr) ? Params : &GDefaultParams;
 
+	FPemCert VerifyCert;
+	if (UrlOffsets.SchemeLength == 5)
+	{
+		if (VerifyCert = Params->VerifyCert; VerifyCert.GetSize() == 0)
+		{
+			VerifyCert = FPemCert("", 0);
+		}
+	}
+
 	uint32 BufferSize = Params->BufferSize;
 	BufferSize = (BufferSize >= 128) ? BufferSize : 128;
 	BufferSize += sizeof(FHost) + HostName.Len();
@@ -1286,6 +1298,7 @@ FRequest FEventLoop::Request(
 	new (Host) FHost({
 		.HostName	= HostNamePtr,
 		.Port		= Port,
+		.VerifyCert = VerifyCert,
 	});
 
 	return Impl->Request(Method, Path, Activity);
@@ -1299,6 +1312,7 @@ FRequest FEventLoop::Request(
 	const FRequestParams* Params)
 {
 	check(Pool.Ptr != nullptr);
+	check(Params == nullptr || Params->VerifyCert.GetData() == nullptr); // add cert to FConPool instead
 
 	Params = (Params != nullptr) ? Params : &GDefaultParams;
 
@@ -1330,6 +1344,7 @@ bool FEventLoop::Redirect(const FTicketStatus& Status, FTicketSink& OuterSink)
 	FAnsiStringView Location = Response.GetHeader("Location");
 	if (Location.IsEmpty())
 	{
+		// todo: turn source activity into an error?
 		return false;
 	}
 
@@ -1361,12 +1376,16 @@ bool FEventLoop::Redirect(const FTicketStatus& Status, FTicketSink& OuterSink)
 		FHost& Host = *(Activity.Host);
 
 		TAnsiStringBuilder<256> Url;
-		Url << "http://";
+		Url << (Host.WithTls() ? "https" : "http");
+		Url << "://";
 		Url << Host.GetHostName();
 		Url << ":" << Host.GetPort();
 		Url << Location;
 
-		new (&ForwardRequest) FRequest(Request(Method, Url));
+		FRequestParams RequestParams = {
+			.VerifyCert = Host.GetVerifyCert(),
+		};
+		new (&ForwardRequest) FRequest(Request(Method, Url, &RequestParams));
 	}
 	else
 	{
@@ -1400,6 +1419,8 @@ bool FEventLoop::Redirect(const FTicketStatus& Status, FTicketSink& OuterSink)
 
 	// Send the request
 	Send(MoveTemp(ForwardRequest), MoveTemp(OuterSink), Status.GetParam());
+
+	// todo: activity slots should be swapped so original slot matches ticket
 
 	return true;
 }
