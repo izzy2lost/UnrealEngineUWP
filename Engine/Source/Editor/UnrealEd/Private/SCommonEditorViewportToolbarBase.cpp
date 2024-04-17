@@ -24,7 +24,9 @@
 #include "AssetEditorViewportLayout.h"
 #include "SAssetEditorViewport.h"
 #include "ToolMenu.h"
+#include "ToolMenus.h"
 #include "ToolMenuSection.h"
+#include "ShowFlagMenuCommands.h"
 
 
 #define LOCTEXT_NAMESPACE "SCommonEditorViewportToolbarBase"
@@ -636,98 +638,37 @@ TSharedRef<SWidget> SCommonEditorViewportToolbarBase::GenerateCameraMenu() const
 TSharedRef<SWidget> SCommonEditorViewportToolbarBase::GenerateShowMenu() const
 {
 	GetInfoProvider().OnFloatingButtonClicked();
-	TSharedRef<SEditorViewport> ViewportRef = GetInfoProvider().GetViewportWidget();
 
-#if 0
-	const FLevelViewportCommands& Actions = FLevelViewportCommands::Get();
-
-	const TArray<FShowFlagData>& ShowFlagData = GetShowFlagMenuItems();
-
-	TArray<CommonEditorViewportUtils::FShowMenuCommand> ShowMenu[SFG_Max];
-
-	// Get each show flag command and put them in their corresponding groups
-	for( int32 ShowFlag = 0; ShowFlag < ShowFlagData.Num(); ++ShowFlag )
+	static const FName MenuName("ViewportToolbarBase.Show");
+	if (!UToolMenus::Get()->IsMenuRegistered(MenuName))
 	{
-		const FShowFlagData& SFData = ShowFlagData[ShowFlag];
-		
-		ShowMenu[SFData.Group].Add( Actions.ShowFlagCommands[ ShowFlag ] );
-	}
-#endif
-
-	const bool bInShouldCloseWindowAfterMenuSelection = true;
-	FMenuBuilder ShowMenuBuilder(bInShouldCloseWindowAfterMenuSelection, ViewportRef->GetCommandList());
-	{
-
-#if 0
-		ShowMenuBuilder.AddMenuEntry( Actions.UseDefaultShowFlags );
-		
-		if( ShowMenu[SFG_Normal].Num() > 0 )
+		UToolMenu* ShowMenu = UToolMenus::Get()->RegisterMenu(MenuName);
+		ShowMenu->AddDynamicSection("Flags", FNewToolMenuDelegate::CreateLambda([](UToolMenu* InMenu)
 		{
-			// Generate entries for the standard show flags
-			ShowMenuBuilder.BeginSection("LevelViewportShowFlagsCommon", LOCTEXT("CommonShowFlagHeader", "Common Show Flags") );
+			if (UCommonViewportToolbarBaseMenuContext* ContextObject = InMenu->FindContext<UCommonViewportToolbarBaseMenuContext>())
 			{
-				for( int32 EntryIndex = 0; EntryIndex < ShowMenu[SFG_Normal].Num(); ++EntryIndex )
+				if (TSharedPtr<const SCommonEditorViewportToolbarBase> ToolbarWidgetPin = ContextObject->ToolbarWidget.Pin())
 				{
-					ShowMenuBuilder.AddMenuEntry( ShowMenu[SFG_Normal][ EntryIndex ].ShowMenuItem, NAME_None, ShowMenu[SFG_Normal][ EntryIndex ].LabelOverride );
+					ToolbarWidgetPin->FillShowFlagsMenu(InMenu);
 				}
 			}
-			ShowMenuBuilder.EndSection();
-		}
-
-		// Generate entries for the different show flags groups
-		ShowMenuBuilder.BeginSection("LevelViewportShowFlags");
-		{
-			ShowMenuBuilder.AddSubMenu( LOCTEXT("PostProcessShowFlagsMenu", "Post Processing"), LOCTEXT("PostProcessShowFlagsMenu_ToolTip", "Post process show flags"),
-				FNewMenuDelegate::CreateStatic(&CommonEditorViewportUtils::FillShowMenu, ShowMenu[SFG_PostProcess], 0));
-
-			ShowMenuBuilder.AddSubMenu( LOCTEXT("LightTypesShowFlagsMenu", "Light Types"), LOCTEXT("LightTypesShowFlagsMenu_ToolTip", "Light Types show flags"),
-				FNewMenuDelegate::CreateStatic(&CommonEditorViewportUtils::FillShowMenu, ShowMenu[SFG_LightTypes], 0));
-
-			ShowMenuBuilder.AddSubMenu( LOCTEXT("LightingComponentsShowFlagsMenu", "Lighting Components"), LOCTEXT("LightingComponentsShowFlagsMenu_ToolTip", "Lighting Components show flags"),
-				FNewMenuDelegate::CreateStatic(&CommonEditorViewportUtils::FillShowMenu, ShowMenu[SFG_LightingComponents], 0));
-
-			ShowMenuBuilder.AddSubMenu( LOCTEXT("LightingFeaturesShowFlagsMenu", "Lighting Features"), LOCTEXT("LightingFeaturesShowFlagsMenu_ToolTip", "Lighting Features show flags"),
-				FNewMenuDelegate::CreateStatic(&CommonEditorViewportUtils::FillShowMenu, ShowMenu[SFG_LightingFeatures], 0));
-
-			ShowMenuBuilder.AddSubMenu(LOCTEXT("LumenShowFlagsMenu", "Lumen"), LOCTEXT("LumenShowFlagsMenu_ToolTip", "Lumen show flags"),
-				FNewMenuDelegate::CreateStatic(&CommonEditorViewportUtils::FillShowMenu, ShowMenu[SFG_Lumen], 0));
-
-			ShowMenuBuilder.AddSubMenu(LOCTEXT("NaniteShowFlagsMenu", "Nanite"), LOCTEXT("NaniteShowFlagsMenu_ToolTip", "Nanite show flags"),
-				FNewMenuDelegate::CreateStatic(&CommonEditorViewportUtils::FillShowMenu, ShowMenu[SFG_Nanite], 0));
-
-			ShowMenuBuilder.AddSubMenu( LOCTEXT("DeveloperShowFlagsMenu", "Developer"), LOCTEXT("DeveloperShowFlagsMenu_ToolTip", "Developer show flags"),
-				FNewMenuDelegate::CreateStatic(&CommonEditorViewportUtils::FillShowMenu, ShowMenu[SFG_Developer], 0));
-
-			ShowMenuBuilder.AddSubMenu( LOCTEXT("VisualizeShowFlagsMenu", "Visualize"), LOCTEXT("VisualizeShowFlagsMenu_ToolTip", "Visualize show flags"),
-				FNewMenuDelegate::CreateStatic(&CommonEditorViewportUtils::FillShowMenu, ShowMenu[SFG_Visualize], 0));
-
-			ShowMenuBuilder.AddSubMenu( LOCTEXT("AdvancedShowFlagsMenu", "Advanced"), LOCTEXT("AdvancedShowFlagsMenu_ToolTip", "Advanced show flags"),
-				FNewMenuDelegate::CreateStatic(&CommonEditorViewportUtils::FillShowMenu, ShowMenu[SFG_Advanced], 0));
-		}
-		ShowMenuBuilder.EndSection();
-
-
-		FText ShowAllLabel = LOCTEXT("ShowAllLabel", "Show All");
-		FText HideAllLabel = LOCTEXT("HideAllLabel", "Hide All");
-
-		// Show Volumes sub-menu
-		{
-			TArray< FLevelViewportCommands::FShowMenuCommand > ShowVolumesMenu;
-
-			// 'Show All' and 'Hide All' buttons
-			ShowVolumesMenu.Add( FLevelViewportCommands::FShowMenuCommand( Actions.ShowAllVolumes, ShowAllLabel ) );
-			ShowVolumesMenu.Add( FLevelViewportCommands::FShowMenuCommand( Actions.HideAllVolumes, HideAllLabel ) );
-
-			// Get each show flag command and put them in their corresponding groups
-			ShowVolumesMenu += Actions.ShowVolumeCommands;
-
-			ShowMenuBuilder.AddSubMenu( LOCTEXT("ShowVolumesMenu", "Volumes"), LOCTEXT("ShowVolumesMenu_ToolTip", "Show volumes flags"),
-				FNewMenuDelegate::CreateStatic( &FillShowMenu, ShowVolumesMenu, 2 ) );
-		}
-#endif
+		}));
 	}
 
-	return ShowMenuBuilder.MakeWidget();
+	FToolMenuContext NewMenuContext;
+	UCommonViewportToolbarBaseMenuContext* ContextObject = NewObject<UCommonViewportToolbarBaseMenuContext>();
+	ContextObject->ToolbarWidget = SharedThis(this);
+	NewMenuContext.AddObject(ContextObject);
+	if (TSharedPtr<SEditorViewport> ViewportWidget = GetInfoProvider().GetViewportWidget())
+	{
+		NewMenuContext.AppendCommandList(GetInfoProvider().GetViewportWidget()->GetCommandList());
+	}
+	return UToolMenus::Get()->GenerateWidget(MenuName, NewMenuContext);
+}
+
+void SCommonEditorViewportToolbarBase::FillShowFlagsMenu(UToolMenu* InMenu) const
+{
+	FShowFlagMenuCommands::Get().BuildShowFlagsMenu(InMenu);
 }
 
 TSharedRef<SWidget> SCommonEditorViewportToolbarBase::GenerateFOVMenu() const

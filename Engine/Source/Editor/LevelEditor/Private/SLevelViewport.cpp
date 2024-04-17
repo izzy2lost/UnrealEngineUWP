@@ -74,7 +74,6 @@
 #include "Slate/SGameLayerManager.h"
 #include "FoliageType.h"
 #include "IVREditorModule.h"
-#include "ShowFlagMenuCommands.h"
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "AssetRegistry/IAssetRegistry.h"
 #include "BufferVisualizationMenuCommands.h"
@@ -1425,7 +1424,6 @@ void SLevelViewport::BindCommands()
 
 	BindOptionCommands( UICommandListRef );
 	BindViewCommands( UICommandListRef );
-	BindShowCommands( UICommandListRef );
 	BindDropCommands( UICommandListRef );
 
 	if ( ParentLevelEditor.IsValid() )
@@ -1456,7 +1454,7 @@ void SLevelViewport::BindOptionCommands( FUICommandList& OutCommandList )
 	OutCommandList.MapAction(
 		ViewportActions.ToggleGameView,
 		FExecuteAction::CreateSP( this, &SLevelViewport::ToggleGameView ),
-		FCanExecuteAction(),
+		FCanExecuteAction::CreateSP( this, &SLevelViewport::CanToggleGameView ),
 		FIsActionChecked::CreateSP( this, &SLevelViewport::IsInGameView ) );
 
 	OutCommandList.MapAction(
@@ -1639,7 +1637,7 @@ void SLevelViewport::BindShowCommands( FUICommandList& OutCommandList )
 		LevelViewportCommands.UseDefaultShowFlags,
 		FExecuteAction::CreateSP( this, &SLevelViewport::OnUseDefaultShowFlags, false ) );
 
-	FShowFlagMenuCommands::Get().BindCommands(OutCommandList, Client);
+	SEditorViewport::BindShowCommands( OutCommandList );
 
 	// Show Volumes
 	{
@@ -2044,18 +2042,21 @@ void SLevelViewport::OnTakeHighResScreenshot()
 
 void SLevelViewport::ToggleGameView()
 {
-	bool bGameViewEnable = !LevelViewportClient->IsInGameView();
-
-	// "Mode Widget" should not automatically be reactivated by selecting an actor after "Game View" is enabled
-	LevelViewportClient->bAlwaysShowModeWidgetAfterSelectionChanges = bGameViewEnable ? false : true;
-
-	LevelViewportClient->SetGameView(bGameViewEnable);
-
-	if (!bGameViewEnable)
+	if( LevelViewportClient->IsPerspective() )
 	{
-		// LevelViewportClient->bShowWidget is set to "false" when entering game mode
-		// Need to turn it back to "true" when exiting game mode
-		LevelViewportClient->ShowWidget(true);
+		bool bGameViewEnable = !LevelViewportClient->IsInGameView();
+
+		// "Mode Widget" should not automatically be reactivated by selecting an actor after "Game View" is enabled
+		LevelViewportClient->bAlwaysShowModeWidgetAfterSelectionChanges = bGameViewEnable ? false : true;
+
+		LevelViewportClient->SetGameView(bGameViewEnable);
+
+		if (!bGameViewEnable)
+		{
+			// LevelViewportClient->bShowWidget is set to "false" when entering game mode
+			// Need to turn it back to "true" when exiting game mode
+			LevelViewportClient->ShowWidget(true);
+		}
 	}
 }
 

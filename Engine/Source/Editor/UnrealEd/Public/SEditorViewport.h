@@ -152,7 +152,8 @@ protected:
 	virtual void PopulateViewportOverlays(TSharedRef<SOverlay> Overlay) { }
 
 	UNREALED_API virtual void BindCommands();
-	virtual const FSlateBrush* OnGetViewportBorderBrush() const { return NULL; }
+	UNREALED_API virtual void BindShowCommands( FUICommandList& OutCommandList );
+	virtual const FSlateBrush* OnGetViewportBorderBrush() const { return nullptr; }
 	virtual FSlateColor OnGetViewportBorderColorAndOpacity() const { return FLinearColor::Black; }
 	
 	/**

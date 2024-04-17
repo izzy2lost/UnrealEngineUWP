@@ -92,7 +92,8 @@ public class UnrealEd : ModuleRules
 				"AssetTools", 
 				"WidgetRegistration",
 				"GameplayTasks",
-				"TargetPlatform"
+				"TargetPlatform",
+				"CommonMenuExtensions",
 			}
 		);
 

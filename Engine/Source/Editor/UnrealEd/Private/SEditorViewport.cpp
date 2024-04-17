@@ -28,6 +28,7 @@
 #include "Widgets/Colors/SComplexGradient.h"
 #include "Modules/ModuleManager.h"
 #include "ISettingsModule.h"
+#include "ShowFlagMenuCommands.h"
 #if WITH_DUMPGPU
 	#include "RenderGraph.h"
 #endif
@@ -415,7 +416,6 @@ void SEditorViewport::BindCommands()
 	MAP_VIEWMODE_ACTION( Commands.WireframeMode, VMI_BrushWireframe );
 	MAP_VIEWMODE_ACTION( Commands.UnlitMode, VMI_Unlit );
 	MAP_VIEWMODE_ACTION( Commands.LitMode, VMI_Lit );
-	MAP_VIEWMODE_ACTION( Commands.LitWireframeMode, VMI_Lit_Wireframe);
 #if RHI_RAYTRACING
 	if (IsRayTracingAllowed())
 	{
@@ -457,8 +457,6 @@ void SEditorViewport::BindCommands()
 	MAP_VIEWMODE_ACTION( Commands.CollisionPawn, VMI_CollisionPawn);
 	MAP_VIEWMODE_ACTION( Commands.CollisionVisibility, VMI_CollisionVisibility);
 
-	MAP_VIEWMODE_ACTION( Commands.VisualizeLWCComplexity, VMI_LWCComplexity);
-
 	if (GEnableGPUSkinCache)
 	{
 		MAP_VIEWMODE_ACTION(Commands.VisualizeGPUSkinCacheMode, VMI_VisualizeGPUSkinCache);
@@ -477,6 +475,13 @@ void SEditorViewport::BindCommands()
 		MAP_VIEWMODEPARAM_ACTION( Commands.TexStreamAccMaterialTextureScaleSingle[TextureIndex], TextureIndex );
 		MAP_VIEWMODEPARAM_ACTION( Commands.RequiredTextureResolutionSingle[TextureIndex], TextureIndex );
 	}
+
+	BindShowCommands( CommandListRef );
+}
+
+void SEditorViewport::BindShowCommands( FUICommandList& OutCommandList )
+{
+	FShowFlagMenuCommands::Get().BindCommands(OutCommandList, Client);
 }
 
 EVisibility SEditorViewport::OnGetViewportContentVisibility() const

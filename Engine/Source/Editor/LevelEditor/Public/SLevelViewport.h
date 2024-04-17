@@ -195,7 +195,6 @@ public:
 	/**
 	 * @return true if we can toggle game view
 	 */
-	UE_DEPRECATED(5.5, "CanToggleGameView is deprecated. Please update usage to assume that this function would return true in the future. All level viewports should support game view moving forward.")
 	bool CanToggleGameView() const;
 
 	/**
@@ -672,7 +671,7 @@ private:
 	 *
 	 * @param CommandList	The list to bind commands to
 	 */
-	void BindShowCommands( FUICommandList& CommandList );
+	void BindShowCommands( FUICommandList& CommandList ) override;
 
 	/**
 	 * Binds commands for our drag-drop context menu

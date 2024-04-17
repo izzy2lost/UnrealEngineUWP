@@ -10,6 +10,10 @@
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "SViewportToolBar.h"
 #include "IPreviewProfileController.h"
+#include "UObject/Object.h"
+#include "UObject/ObjectMacros.h"
+
+#include "SCommonEditorViewportToolbarBase.generated.h"
 
 // This is the interface that the host of a SCommonEditorViewportToolbarBase must implement
 class ICommonEditorViewportToolbarInfoProvider
@@ -33,18 +37,21 @@ namespace CommonEditorViewportUtils
 		TSharedPtr<FUICommandInfo> ShowMenuItem;
 		FText LabelOverride;
 
+		UE_DEPRECATED(5.5, "Use the version of the show flags builder in FShowFlagMenuCommands")
 		FShowMenuCommand(TSharedPtr<FUICommandInfo> InShowMenuItem, const FText& InLabelOverride)
 			: ShowMenuItem(InShowMenuItem)
 			, LabelOverride(InLabelOverride)
 		{
 		}
 
+		UE_DEPRECATED(5.5, "Use the version of the show flags builder in FShowFlagMenuCommands")
 		FShowMenuCommand(TSharedPtr<FUICommandInfo> InShowMenuItem)
 			: ShowMenuItem(InShowMenuItem)
 		{
 		}
 	};
 
+	UE_DEPRECATED(5.5, "Use the version of the show flags builder in FShowFlagMenuCommands::BuildShowFlagsMenu which takes a UToolMenu instead")
 	static inline void FillShowMenu(class FMenuBuilder& MenuBuilder, TArray<FShowMenuCommand> MenuCommands, int32 EntryOffset)
 	{
 		// Generate entries for the standard show flags
@@ -59,6 +66,15 @@ namespace CommonEditorViewportUtils
 		}
 	}
 }
+
+UCLASS()
+class UNREALED_API UCommonViewportToolbarBaseMenuContext : public UObject
+{
+	GENERATED_BODY()
+
+public:
+	TWeakPtr<const class SCommonEditorViewportToolbarBase> ToolbarWidget;
+};
 
 /**
  * A viewport toolbar widget for an asset or level editor that is placed in a viewport
@@ -179,14 +195,14 @@ protected:
 	/** Extension allowing derived classes to add to left-aligned portion of the toolbar slots.*/
 	virtual void ExtendLeftAlignedToolbarSlots(TSharedPtr<SHorizontalBox> MainBoxPtr, TSharedPtr<SViewportToolBar> ParentToolBarPtr) const {}
 
-protected:
+	UNREALED_API virtual void FillShowFlagsMenu(class UToolMenu* InMenu) const;
+
 	// Returns the info provider for this viewport
 	UNREALED_API ICommonEditorViewportToolbarInfoProvider& GetInfoProvider() const;
 
 	// Get the viewport client
 	UNREALED_API class FEditorViewportClient& GetViewportClient() const;
 
-protected:
 	// Creates the view menu widget (override point for children)
 	UNREALED_API virtual TSharedRef<class SEditorViewportViewMenu> MakeViewMenu();
 
@@ -210,7 +226,7 @@ protected:
 	/** Invoked when the asset viewer profile combo box selection changes. */
 	UNREALED_API void OnAssetViewerProfileComboBoxSelectionChanged(TSharedPtr<FString> NewSelection, ESelectInfo::Type /*SelectInfo*/);
 
-	/** Creates and returns the asset viewr profile combo box.*/
+	/** Creates and returns the asset viewer profile combo box.*/
 	UNREALED_API TSharedRef<SWidget> MakeAssetViewerProfileComboBox();
 
 private:
