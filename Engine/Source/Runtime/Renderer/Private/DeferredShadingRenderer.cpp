@@ -1209,6 +1209,7 @@ void FDeferredShadingSceneRenderer::RenderNanite(FRDGBuilder& GraphBuilder, cons
 				RasterTextureRect,
 				Nanite::EOutputBufferMode::VisBuffer,
 				true, // bClearTarget
+				true, // bAsyncCompute
 				nullptr, 0, // Rect buffers
 				nullptr, // ExternalDepthBuffer
 				false, // bCustomPass

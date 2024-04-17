@@ -319,6 +319,7 @@ bool FSceneRenderer::RenderCustomDepthPass(
 			RasterTextureRect,
 			Nanite::EOutputBufferMode::VisBuffer,
 			true, // bClearTarget
+			true, // bAsyncCompute
 			nullptr, // RectMinMaxBufferSRV
 			0, // NumRects
 			nullptr, // ExternalDepthBuffer

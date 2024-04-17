@@ -62,6 +62,20 @@ static TAutoConsoleVariable<int32> CVarNaniteAsyncRasterizeShadowDepths(
 	ECVF_RenderThreadSafe
 );
 
+static TAutoConsoleVariable<int32> CVarNaniteAsyncRasterizeCustomPass(
+	TEXT("r.Nanite.AsyncRasterization.CustomPass"),
+	1,
+	TEXT("If available, run Nanite compute rasterization of custom passes as asynchronous compute."),
+	ECVF_RenderThreadSafe
+);
+
+static TAutoConsoleVariable<int32> CVarNaniteAsyncRasterizeLumenMeshCards(
+	TEXT("r.Nanite.AsyncRasterization.LumenMeshCards"),
+	0,
+	TEXT("If available, run Nanite compute rasterization of Lumen mesh cards as asynchronous compute."),
+	ECVF_RenderThreadSafe
+);
+
 static TAutoConsoleVariable<int32> CVarNaniteCullInstanceHierarchy(
 	TEXT("r.Nanite.UseSceneInstanceHierarchy"),
 	1,
@@ -451,6 +465,12 @@ static bool UseAsyncComputeForShadowMaps(const FViewFamilyInfo& ViewFamily)
 {
 	// Automatically disabled when Lumen async is enabled, as it then delays graphics pipe too much and regresses overall frame performance
 	return CVarNaniteAsyncRasterizeShadowDepths.GetValueOnRenderThread() != 0 && !Lumen::UseAsyncCompute(ViewFamily);
+}
+
+static bool UseAsyncComputeForCustomPass(const FViewFamilyInfo& ViewFamily)
+{
+	// Automatically disabled when Lumen async is enabled, as it then delays graphics pipe too much and regresses overall frame performance
+	return CVarNaniteAsyncRasterizeCustomPass.GetValueOnRenderThread() != 0 && !Lumen::UseAsyncCompute(ViewFamily);
 }
 
 #if WANTS_DRAW_MESH_EVENTS
@@ -4981,6 +5001,7 @@ FRasterContext InitRasterContext(
 	FIntRect TextureRect,
 	EOutputBufferMode RasterMode,
 	bool bClearTarget,
+	bool bAsyncCompute,
 	FRDGBufferSRVRef RectMinMaxBufferSRV,
 	uint32 NumRects,
 	FRDGTextureRef ExternalDepthBuffer,
@@ -5006,8 +5027,13 @@ FRasterContext InitRasterContext(
 	// Set rasterizer scheduling based on config and platform capabilities.
 	if (CVarNaniteComputeRasterization.GetValueOnRenderThread() != 0)
 	{
-		const bool bUseAsyncCompute = GSupportsEfficientAsyncCompute && (CVarNaniteEnableAsyncRasterization.GetValueOnRenderThread() != 0) && EnumHasAnyFlags(GRHIMultiPipelineMergeableAccessMask, ERHIAccess::UAVMask);
-		RasterContext.RasterScheduling = bUseAsyncCompute ? ERasterScheduling::HardwareAndSoftwareOverlap : ERasterScheduling::HardwareThenSoftware;
+		bAsyncCompute = bAsyncCompute
+			&& GSupportsEfficientAsyncCompute
+			&& (CVarNaniteEnableAsyncRasterization.GetValueOnRenderThread() != 0) 
+			&& EnumHasAnyFlags(GRHIMultiPipelineMergeableAccessMask, ERHIAccess::UAVMask)
+			&& !(bCustomPass && !UseAsyncComputeForCustomPass(ViewFamily));
+		
+		RasterContext.RasterScheduling = bAsyncCompute ? ERasterScheduling::HardwareAndSoftwareOverlap : ERasterScheduling::HardwareThenSoftware;
 	}
 	else
 	{

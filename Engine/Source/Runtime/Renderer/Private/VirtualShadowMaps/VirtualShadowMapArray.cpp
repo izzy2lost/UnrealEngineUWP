@@ -2617,6 +2617,7 @@ void FVirtualShadowMapArray::RenderVirtualShadowMapsNanite(FRDGBuilder& GraphBui
 		VirtualShadowViewRect,
 		Nanite::EOutputBufferMode::DepthOnly,
 		false,	// Clear entire texture
+		true, // bAsyncCompute
 		nullptr, 0,
 		PhysicalPagePoolRDG,
 		false, // Custom pass

@@ -123,6 +123,7 @@ FRasterContext InitRasterContext(
 	FIntRect TextureRect,
 	EOutputBufferMode RasterMode = EOutputBufferMode::VisBuffer,
 	bool bClearTarget = true,
+	bool bAsyncCompute = true,
 	FRDGBufferSRVRef RectMinMaxBufferSRV = nullptr,
 	uint32 NumRects = 0,
 	FRDGTextureRef ExternalDepthBuffer = nullptr,

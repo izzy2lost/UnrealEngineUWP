@@ -193,7 +193,7 @@ FAutoConsoleVariableRef CVarLumenSceneSurfaceCacheResampleLighting(
 );
 
 static TAutoConsoleVariable<int32> CVarLumenSceneSurfaceCacheNaniteMultiView(
-	TEXT("r.LumenScene.SurfaceCache.NaniteMultiView"),
+	TEXT("r.LumenScene.SurfaceCache.Nanite.MultiView"),
 	1,
 	TEXT("Toggle multi view Lumen Nanite Card capture for debugging."),
 	FConsoleVariableDelegate::CreateLambda([](IConsoleVariable* InVariable)
@@ -201,6 +201,12 @@ static TAutoConsoleVariable<int32> CVarLumenSceneSurfaceCacheNaniteMultiView(
 			Lumen::DebugResetSurfaceCache();
 		}),
 	ECVF_RenderThreadSafe);
+
+static TAutoConsoleVariable<int32> CVarLumenSceneSurfaceCacheNaniteAsyncRasterization(
+	TEXT("r.LumenScene.SurfaceCache.Nanite.AsyncRasterization"),
+	0,
+	TEXT("Whether to use Nanite async rasterization for Mesh Card capture."),
+	ECVF_Scalability | ECVF_RenderThreadSafe);
 
 static TAutoConsoleVariable<int32> CVarLumenScenePropagateGlobalLightingChange(
 	TEXT("r.LumenScene.PropagateGlobalLightingChange"),
@@ -2280,6 +2286,7 @@ void FDeferredShadingSceneRenderer::UpdateLumenScene(FRDGBuilder& GraphBuilder, 
 					DepthAtlasRect,
 					Nanite::EOutputBufferMode::VisBuffer,
 					true,
+					/*bAsyncCompute*/ CVarLumenSceneSurfaceCacheNaniteAsyncRasterization.GetValueOnRenderThread() != 0,
 					CardCaptureRectBufferSRV,
 					CardPagesToRender.Num());
 
