@@ -106,7 +106,7 @@ namespace AutomationTool.Tasks
 			{
 				ParseEnvironment(Environment, ';', EnvVars);
 			}
-			if (EnvironmentFile != null)
+			if (!String.IsNullOrEmpty(EnvironmentFile))
 			{
 				ParseEnvironment(FileUtils.ReadAllText(ResolveFile(EnvironmentFile)), '\n', EnvVars);
 			}
