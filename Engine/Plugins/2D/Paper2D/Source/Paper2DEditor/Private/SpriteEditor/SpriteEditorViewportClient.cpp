@@ -714,7 +714,8 @@ void FSpriteEditorViewportClient::UpdateRelatedSpritesList()
 			const FString SourceDimensionString = SpriteAsset.GetTagValueRef<FString>("SourceDimension");
 			if (!SourceUVString.IsEmpty() && !SourceDimensionString.IsEmpty())
 			{
-				FVector2D SourceUV, SourceDimension;
+				FVector2D SourceUV = FVector2D::ZeroVector;
+				FVector2D SourceDimension = FVector2D::ZeroVector;
 				if (SourceUV.InitFromString(*SourceUVString) && SourceDimension.InitFromString(*SourceDimensionString))
 				{
 					FRelatedSprite RelatedSprite;

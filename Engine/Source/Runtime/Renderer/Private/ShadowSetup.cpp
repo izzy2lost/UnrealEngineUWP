@@ -2940,13 +2940,14 @@ void FProjectedShadowInfo::ComputeScissorRectOptim()
 			FLine2d(FVector2d(FullResX, FullResY), FVector2d(-1.0, 0.0)),
 			FLine2d(FVector2d(0.0, FullResY), FVector2d(0.0, -1.0)) };
 
-		FVector2D IntPoint;
-		FVector2D Result;
+		FVector2D Result = FVector2D::ZeroVector;
+
 		float MinDistance = 100000.0f;
 		bool bIntersectionvalid = false;
 
 		for (int Index = 0; Index < 4; Index++)
 		{
+			FVector2D IntPoint;
 			if (Line.IntersectionPoint(Borders[Index], IntPoint))
 			{
 				//check if the point is behind

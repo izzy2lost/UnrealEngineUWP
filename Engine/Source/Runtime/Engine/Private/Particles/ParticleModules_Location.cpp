@@ -2390,7 +2390,7 @@ void UParticleModuleLocationSkelVertSurface::Spawn(FParticleEmitterInstance* Own
 					
 			if (bInheritUV)
 			{
-				FVector2D UseUV;
+				FVector2D UseUV = FVector2D::ZeroVector;
 				if (SourceType == VERTSURFACESOURCE_Vert)
 				{
 					UseUV = SourceComponent->GetVertexUV(SourceIndex, InheritUVChannel);

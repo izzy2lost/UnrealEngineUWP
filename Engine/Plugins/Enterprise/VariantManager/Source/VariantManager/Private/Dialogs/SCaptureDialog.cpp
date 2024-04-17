@@ -51,7 +51,7 @@ void SanitizeWindowSize(float& InOutWidth, float& InOutHeight, const TSharedRef<
 	FIntPoint Res = GEngine->GetGameUserSettings()->GetDesktopResolution();
 
 	float ScaleFactor = 1.0f;
-	FVector2D BorderSize;
+	FVector2D BorderSize = FVector2D::ZeroVector;
 
 	// This might be called on load, where Window hasn't been properly created yet. It will return
 	// 1.0f for DPIScaleFactor every time in that condition

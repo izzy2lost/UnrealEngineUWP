@@ -55,7 +55,7 @@ FVector2f ClosestPointOnSlateRotatedRect(const FVector2f &Point, const FSlateRot
 	Corners[2] = FVector2d(Corners[1]) + FVector2d(RotatedRect.ExtentY);
 	Corners[3] = FVector2d(Corners[0]) + FVector2d(RotatedRect.ExtentY);
 
-	FVector2f RetPoint;
+	FVector2f RetPoint = FVector2f::ZeroVector;
 	float ClosestDistSq = FLT_MAX;
 	for (int32 i = 0; i < NumOfCorners; ++i)
 	{

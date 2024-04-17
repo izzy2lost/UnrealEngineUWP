@@ -56,8 +56,6 @@ void UReporterBase::DrawLine(UCanvas* Canvas,const FVector2D& StartPos,const FVe
 
 void UReporterBase::DrawTriangle(UCanvas* Canvas, const FVector2D& Vertex1, const FVector2D& Vertex2, const FVector2D& Vertex3, const FLinearColor& Color)
 {
-	FVector2D DummyTexCoord;
-	
 	FCanvasTriangleItem TriItem( ToScreenSpace(Vertex1, Canvas), ToScreenSpace(Vertex2, Canvas), ToScreenSpace(Vertex3, Canvas ), GWhiteTexture );
 	TriItem.SetColor( Color );
 	Canvas->DrawItem( TriItem );

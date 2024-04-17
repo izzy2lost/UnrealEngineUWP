@@ -131,7 +131,7 @@ int32 SAudioMaterialMeter::OnPaint(const FPaintArgs& Args, const FGeometry& Allo
 			FVector2D MinValueLabelSize = FontMeasureService->Measure(FString::FromInt(MinValueDb), Style->Font);
 
 			// Get the size of the negative sign to use to offset the label text in horizontal mode
-			FVector2D NegativeSignSize;
+			FVector2D NegativeSignSize = FVector2D::ZeroVector;
 			if (Orientation == Orient_Horizontal)
 			{
 				NegativeSignSize = FontMeasureService->Measure(TEXT("-"), Style->Font);

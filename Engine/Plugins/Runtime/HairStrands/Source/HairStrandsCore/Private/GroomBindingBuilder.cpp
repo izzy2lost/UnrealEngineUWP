@@ -1371,8 +1371,8 @@ namespace GroomBinding_RootProjection
 				}
 
 				float ClosestDistance = FLT_MAX;
-				FTriangleGrid::FTriangle ClosestTriangle;
-				FVector2f ClosestBarycentrics;
+				FTriangleGrid::FTriangle ClosestTriangle = {};
+				FVector2f ClosestBarycentrics = FVector2f::ZeroVector;
 				for (const FTriangleGrid::FCell* Cell : Cells)
 				{
 					for (const FTriangleGrid::FTriangle& CellTriangle : Cell->Triangles)

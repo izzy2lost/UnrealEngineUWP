@@ -105,7 +105,7 @@ namespace Chaos
 
 				case ESteerType::Ackermann:
 				{
-					FVector2D PtA; FVector2D PtB; float SteerLHS; float SteerRHS;
+					float SteerLHS; float SteerRHS;
 					
 					Ackermann.CalculateAkermannAngle(-InNormSteering, SteerLHS, SteerRHS);
 

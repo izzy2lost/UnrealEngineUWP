@@ -2542,7 +2542,6 @@ static void CalcDisplacementFadeSizes(const FDisplacementFadeRange& Range, float
 	else
 	{
 		// Ensure a non-zero domain, a negative slope, and that it doesn't converge at zero
-		FVector2f RangeEdges;
 		FadeSizeStop = EdgesPerPixel * FMath::Max(Range.EndSizePixels, UE_KINDA_SMALL_NUMBER);
 		FadeSizeStart = EdgesPerPixel * FMath::Max(Range.StartSizePixels, Range.EndSizePixels + UE_KINDA_SMALL_NUMBER);
 	}

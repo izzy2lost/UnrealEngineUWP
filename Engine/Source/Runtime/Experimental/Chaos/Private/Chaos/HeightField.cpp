@@ -1315,8 +1315,6 @@ namespace Chaos
 		}
 
 		FReal CurrentLength = Length;
-		FVec2 ClippedFlatRayStart;
-		FVec2 ClippedFlatRayEnd;
 
 		// Data for fast box cast
 		bool bParallel[3];

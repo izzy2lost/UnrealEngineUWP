@@ -201,7 +201,6 @@ static float EdgeMatchTolerance = 0.01f;
 static bool FindNextEdge(FUtilEdge2D& OutNextEdge, const FVector2D& Start, TArray<FUtilEdge2D>& InEdgeSet)
 {
 	float ClosestDistSqr = UE_BIG_NUMBER;
-	FUtilEdge2D OutEdge;
 	int32 OutEdgeIndex = INDEX_NONE;
 	// Search set of edges for one that starts closest to Start
 	for(int32 i=0; i<InEdgeSet.Num(); i++)

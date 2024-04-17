@@ -3346,7 +3346,7 @@ bool ALandscape::RenderMergedTextureInternal(const FTransform& InRenderAreaWorld
 			FIntPoint ComponentKey = It.Key;
 
 			UTexture2D* SourceTexture = nullptr;
-			FVector2D SourceTextureBias;
+			FVector2D SourceTextureBias = FVector2D::ZeroVector;
 			int32 SourceTextureChannel = INDEX_NONE;
 
 			if (bIsHeightmap)

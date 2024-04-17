@@ -237,7 +237,7 @@ void SMoviePipelineGraphPanel::OnCreateComment() const
 		FMovieGraphSchemaAction_NewComment CommentAction;
 		
 		const TSharedPtr<SGraphEditor> GraphEditorPtr = SGraphEditor::FindGraphEditorForGraph(CurrentGraph->PipelineEdGraph);
-		FVector2D Location;
+		FVector2D Location = FVector2D::ZeroVector;
 		if (GraphEditorPtr)
 		{
 			Location = GraphEditorPtr->GetPasteLocation();
