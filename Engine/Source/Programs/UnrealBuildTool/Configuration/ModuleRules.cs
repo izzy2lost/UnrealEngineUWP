@@ -1036,7 +1036,6 @@ namespace UnrealBuildTool
 			"cplusplus.NewDelete",
 			"cplusplus.NewDeleteLeaks",
 			"cplusplus.PlacementNew",
-			"cplusplus.PureVirtualCall",
 			"unix.cstring.NullArg",
 			"unix.Malloc",
 
