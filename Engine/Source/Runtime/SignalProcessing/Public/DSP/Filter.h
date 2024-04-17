@@ -4,7 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "DSP/ModulationMatrix.h"
-#include "DSP/BiQuadFilter.h"
+#include "DSP/Dsp.h"
 
 
 namespace Audio
@@ -74,6 +74,7 @@ namespace Audio
 		SIGNALPROCESSING_API void SetEnabled(const bool bInEnabled);
 
 	protected:
+		struct FBiquadCoeff;
 
 		// Function computes biquad coefficients based on current filter settings
 		SIGNALPROCESSING_API void CalculateBiquadCoefficients();
@@ -85,7 +86,7 @@ namespace Audio
 		EBiquadFilter::Type FilterType;
 
 		// Biquad filter objects for each channel
-		FBiquad* Biquad;
+		FBiquadCoeff* Biquad;
 
 		// The sample rate of the filter
 		float SampleRate;
