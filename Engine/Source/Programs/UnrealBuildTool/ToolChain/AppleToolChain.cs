@@ -241,8 +241,8 @@ namespace UnrealBuildTool
 	{
 		protected class AppleToolChainInfo : ClangToolChainInfo
 		{
-			public AppleToolChainInfo(FileReference Clang, FileReference Archiver, ILogger Logger)
-				: base(Clang, Archiver, Logger)
+			public AppleToolChainInfo(DirectoryReference DeveloperDir, FileReference Clang, FileReference Archiver, ILogger Logger)
+				: base(DeveloperDir, Clang, Archiver, Logger)
 			{
 			}
 
@@ -253,7 +253,6 @@ namespace UnrealBuildTool
 
 		public Lazy<AppleToolChainSettings> ToolChainSettings;
 
-		protected FileReference? ProjectFile;
 		public readonly ReadOnlyTargetRules? Target;
 
 		// cache some ini settings

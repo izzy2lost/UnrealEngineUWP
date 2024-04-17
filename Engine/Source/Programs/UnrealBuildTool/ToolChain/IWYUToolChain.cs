@@ -46,7 +46,7 @@ namespace UnrealBuildTool
 			CrossCompilingArguments.Add($"--sysroot=\"{NormalizeCommandLinePath(BaseLinuxPath!)}\"");
 
 			FileReference ClangPath = FileReference.Combine(BaseLinuxPath!, "bin", $"clang++{BuildHostPlatform.Current.BinarySuffix}");
-			ClangToolChainInfo CompilerToolChainInfo = new ClangToolChainInfo(ClangPath, null!, Logger);
+			ClangToolChainInfo CompilerToolChainInfo = new ClangToolChainInfo(BaseLinuxPath, ClangPath, null!, Logger);
 
 			// starting with clang 16.x the directory naming changed to include major version only
 			string ClangVersionString = (CompilerToolChainInfo.ClangVersion.Major >= 16) ? CompilerToolChainInfo.ClangVersion.Major.ToString() : CompilerToolChainInfo.ClangVersion.ToString();
@@ -56,7 +56,7 @@ namespace UnrealBuildTool
 			string DevPath = ""; //@"include-what-you-use-0.19\vs_projects\bin\RelWithDebInfo";
 
 			FileReference IWYUPath = FileReference.Combine(Unreal.EngineDirectory, RelativePathToIWYUDirectory, DevPath, @"include-what-you-use.exe");
-			return new ClangToolChainInfo(IWYUPath!, null!, Logger);
+			return new ClangToolChainInfo(IWYUPath.Directory, IWYUPath, null!, Logger);
 		}
 
 		protected override string GetFileNameFromExtension(string AbsolutePath, string Extension)

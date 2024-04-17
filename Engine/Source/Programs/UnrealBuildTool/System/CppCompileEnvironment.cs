@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System.Collections.Generic;
+using System.Linq;
 using EpicGames.Core;
 using UnrealBuildBase;
 
@@ -539,6 +540,11 @@ namespace UnrealBuildTool
 		/// Do not add to this set unless a shared response is in use, and only when removing those headers from SystemIncludePaths.
 		/// </summary>
 		public HashSet<DirectoryReference> SharedSystemIncludePaths;
+
+		/// <summary>
+		/// Enumerable of all possible include paths
+		/// </summary>
+		public IEnumerable<DirectoryReference> AllIncludePath => SharedUserIncludePaths.Concat(UserIncludePaths).Concat(SharedSystemIncludePaths).Concat(SystemIncludePaths);
 
 		/// <summary>
 		/// List of paths to search for compiled module interface (*.ifc) files

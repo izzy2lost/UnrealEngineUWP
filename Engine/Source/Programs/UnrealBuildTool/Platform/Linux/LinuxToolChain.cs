@@ -25,7 +25,7 @@ namespace UnrealBuildTool
 			public FileReference BreakpadEncoder { get; init; }
 
 			public LinuxToolChainInfo(DirectoryReference? BaseLinuxPath, DirectoryReference? MultiArchRoot, FileReference Clang, FileReference Archiver, FileReference Objcopy, ILogger Logger)
-				: base(Clang, Archiver, Logger)
+				: base(BaseLinuxPath, Clang, Archiver, Logger)
 			{
 				this.BaseLinuxPath = BaseLinuxPath;
 				this.MultiArchRoot = MultiArchRoot;
@@ -1137,6 +1137,7 @@ namespace UnrealBuildTool
 
 			// Create an action that invokes the linker.
 			Action LinkAction = Graph.CreateAction(ActionType.Link);
+			LinkAction.RootPaths.AddRange(GetEnvironmentBasePaths(LinkEnvironment));
 			LinkAction.WorkingDirectory = Unreal.EngineSourceDirectory;
 
 			string LinkCommandString;
@@ -1581,6 +1582,7 @@ namespace UnrealBuildTool
 				{
 					// Create the action to relink the library. This actions does not overwrite the source file so it can be executed in parallel
 					Action RelinkAction = Graph.CreateAction(ActionType.Link);
+					RelinkAction.RootPaths.AddRange(GetEnvironmentBasePaths(LinkEnvironment));
 					RelinkAction.WorkingDirectory = LinkAction.WorkingDirectory;
 					RelinkAction.StatusDescription = LinkAction.StatusDescription;
 					RelinkAction.CommandDescription = "Relink";

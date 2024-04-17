@@ -126,6 +126,7 @@ namespace UnrealBuildTool
 		protected class ClangToolChainInfo
 		{
 			protected ILogger Logger { get; init; }
+			public DirectoryReference? BasePath { get; init; }
 			public FileReference Clang { get; init; }
 			public FileReference Archiver { get; init; }
 
@@ -133,19 +134,21 @@ namespace UnrealBuildTool
 			public string ClangVersionString => LazyClangVersionString.Value;
 			public string ArchiverVersionString => LazyArchiverVersionString.Value;
 
-			Lazy<Version> LazyClangVersion;
-			Lazy<string> LazyClangVersionString;
-			Lazy<string> LazyArchiverVersionString;
+			readonly Lazy<Version> LazyClangVersion;
+			readonly Lazy<string> LazyClangVersionString;
+			readonly Lazy<string> LazyArchiverVersionString;
 
 			/// <summary>
 			/// Constructor for ClangToolChainInfo
 			/// </summary>
+			/// <param name="BasePath">The base path to the clang sdk root, if available</param>
 			/// <param name="Clang">The path to the compiler</param>
 			/// <param name="Archiver">The path to the archiver</param>
 			/// <param name="Logger">Logging interface</param>
-			public ClangToolChainInfo(FileReference Clang, FileReference Archiver, ILogger Logger)
+			public ClangToolChainInfo(DirectoryReference? BasePath, FileReference Clang, FileReference Archiver, ILogger Logger)
 			{
 				this.Logger = Logger;
+				this.BasePath = BasePath;
 				this.Clang = Clang;
 				this.Archiver = Archiver;
 
@@ -1094,9 +1097,38 @@ namespace UnrealBuildTool
 			Graph.AddAction(new ClangSpecificFileAction(SourceDir, OutputDir, Action, GraphBuilder.ContentLines));
 		}
 
+		protected override IEnumerable<DirectoryItem> GetEnvironmentBasePaths(CppCompileEnvironment CompileEnvironment)
+		{
+			if (GetToolChainInfo().BasePath != null)
+			{
+				yield return DirectoryItem.GetItemByDirectoryReference(GetToolChainInfo().BasePath!);
+			}
+			yield return DirectoryItem.GetItemByDirectoryReference(Unreal.EngineDirectory);
+			if (ProjectFile != null && (!CompileEnvironment.bUseSharedBuildEnvironment || CompileEnvironment.AllIncludePath.Any(x => x.IsUnderDirectory(ProjectFile.Directory))))
+			{
+				yield return DirectoryItem.GetItemByDirectoryReference(ProjectFile.Directory);
+			}
+			yield return DirectoryItem.GetItemByDirectoryReference(Unreal.RootDirectory);
+		}
+
+		protected override IEnumerable<DirectoryItem> GetEnvironmentBasePaths(LinkEnvironment LinkEnvironment)
+		{
+			if (GetToolChainInfo().BasePath != null)
+			{
+				yield return DirectoryItem.GetItemByDirectoryReference(GetToolChainInfo().BasePath!);
+			}
+			yield return DirectoryItem.GetItemByDirectoryReference(Unreal.EngineDirectory);
+			if (ProjectFile != null && LinkEnvironment.InputFiles.Any(x => x.Location.IsUnderDirectory(ProjectFile.Directory)))
+			{
+				yield return DirectoryItem.GetItemByDirectoryReference(ProjectFile.Directory);
+			}
+			yield return DirectoryItem.GetItemByDirectoryReference(Unreal.RootDirectory);
+		}
+
 		protected virtual Action CompileCPPFile(CppCompileEnvironment CompileEnvironment, FileItem SourceFile, DirectoryReference OutputDir, string ModuleName, IActionGraphBuilder Graph, IReadOnlyCollection<string> GlobalArguments, CPPOutput Result)
 		{
 			Action CompileAction = Graph.CreateAction(ActionType.Compile);
+			CompileAction.RootPaths.AddRange(GetEnvironmentBasePaths(CompileEnvironment));
 
 			// If we are using the AutoRTFM compiler, we make the compile action depend on the version of the compiler itself.
 			// This lets us update the compiler (which might not cause a version update of the compiler, which instead tracks
@@ -1167,6 +1199,7 @@ namespace UnrealBuildTool
 			if (PreprocessDepends)
 			{
 				Action PrepassAction = Graph.CreateAction(ActionType.Compile);
+				PrepassAction.RootPaths.AddRange(CompileAction.RootPaths);
 				PrepassAction.PrerequisiteItems.UnionWith(CompileAction.PrerequisiteItems);
 				PrepassAction.PrerequisiteItems.Remove(CompilerResponseFileItem);
 				PrepassAction.CommandDescription = "Preprocess Depends";

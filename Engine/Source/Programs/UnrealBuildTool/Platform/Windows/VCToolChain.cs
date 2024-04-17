@@ -1493,9 +1493,43 @@ namespace UnrealBuildTool
 			}
 		}
 
+		protected override IEnumerable<DirectoryItem> GetEnvironmentBasePaths(CppCompileEnvironment CompileEnvironment)
+		{
+			yield return DirectoryItem.GetItemByDirectoryReference(EnvVars.CompilerDir);
+			if (EnvVars.CompilerDir != EnvVars.ToolChainDir)
+			{
+				yield return DirectoryItem.GetItemByDirectoryReference(EnvVars.ToolChainDir);
+			}
+			yield return DirectoryItem.GetItemByDirectoryReference(EnvVars.WindowsSdkDir);
+			yield return DirectoryItem.GetItemByDirectoryReference(Unreal.EngineDirectory);
+			if (Target.ProjectFile != null && (!CompileEnvironment.bUseSharedBuildEnvironment || CompileEnvironment.AllIncludePath.Any(x => x.IsUnderDirectory(Target.ProjectFile.Directory))))
+			{
+				yield return DirectoryItem.GetItemByDirectoryReference(Target.ProjectFile.Directory);
+			}
+			yield return DirectoryItem.GetItemByDirectoryReference(Unreal.RootDirectory);
+		}
+
+		protected override IEnumerable<DirectoryItem> GetEnvironmentBasePaths(LinkEnvironment LinkEnvironment)
+		{
+			yield return DirectoryItem.GetItemByDirectoryReference(EnvVars.CompilerDir);
+			if (EnvVars.CompilerDir != EnvVars.ToolChainDir)
+			{
+				yield return DirectoryItem.GetItemByDirectoryReference(EnvVars.ToolChainDir);
+			}
+			yield return DirectoryItem.GetItemByDirectoryReference(EnvVars.WindowsSdkDir);
+			yield return DirectoryItem.GetItemByDirectoryReference(Unreal.EngineDirectory);
+			if (Target.ProjectFile != null && LinkEnvironment.InputFiles.Any(x => x.Location.IsUnderDirectory(Target.ProjectFile.Directory)))
+			{
+				yield return DirectoryItem.GetItemByDirectoryReference(Target.ProjectFile.Directory);
+			}
+			yield return DirectoryItem.GetItemByDirectoryReference(Unreal.RootDirectory);
+		}
+
 		private VCCompileAction CreateBaseCompileAction(CppCompileEnvironment CompileEnvironment)
 		{
 			VCCompileAction BaseCompileAction = new VCCompileAction(EnvVars);
+
+			BaseCompileAction.RootPaths.AddRange(GetEnvironmentBasePaths(CompileEnvironment));
 
 			// Add additional response files
 			foreach (FileItem AdditionalRsp in CompileEnvironment.AdditionalResponseFiles)
@@ -2095,6 +2129,7 @@ namespace UnrealBuildTool
 			foreach (FileItem RCFile in InputFiles)
 			{
 				Action CompileAction = Graph.CreateAction(ActionType.Compile);
+				CompileAction.RootPaths.AddRange(GetEnvironmentBasePaths(CompileEnvironment));
 				CompileAction.CommandDescription = "Resource";
 				CompileAction.WorkingDirectory = Unreal.EngineSourceDirectory;
 				CompileAction.CommandPath = EnvVars.ResourceCompilerPath;
@@ -2654,6 +2689,7 @@ namespace UnrealBuildTool
 
 			// Create an action that invokes the linker.
 			Action LinkAction = Graph.CreateAction(ActionType.Link);
+			LinkAction.RootPaths.AddRange(GetEnvironmentBasePaths(LinkEnvironment));
 			string ReadableArch = UnrealArchitectureConfig.ForPlatform(LinkEnvironment.Platform).ConvertToReadableArchitecture(LinkEnvironment.Architecture);
 			LinkAction.CommandDescription += $"Link [{ReadableArch}]";
 			LinkAction.WorkingDirectory = Unreal.EngineSourceDirectory;

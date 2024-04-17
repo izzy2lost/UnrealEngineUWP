@@ -176,6 +176,11 @@ namespace UnrealBuildTool
 		/// </summary>
 		public List<FileItem> DeleteItems { get; } = new List<FileItem>();
 
+		/// <summary>
+		/// Root paths for this action (generally engine root project root, toolchain root, sdk root)
+		/// </summary>
+		public List<DirectoryItem> RootPaths { get; } = new List<DirectoryItem>();
+
 		/// <inheritdoc/>
 		public bool bCanExecuteRemotely { get; set; }
 
@@ -201,6 +206,7 @@ namespace UnrealBuildTool
 		#region Implementation of IAction
 
 		IEnumerable<FileItem> IExternalAction.DeleteItems => DeleteItems;
+		IEnumerable<DirectoryItem> IExternalAction.RootPaths => RootPaths;
 		public DirectoryReference WorkingDirectory => Unreal.EngineSourceDirectory;
 		string IExternalAction.CommandDescription
 		{
@@ -383,6 +389,7 @@ namespace UnrealBuildTool
 			AdditionalPrerequisiteItems = new List<FileItem>(InAction.AdditionalPrerequisiteItems);
 			AdditionalProducedItems = new List<FileItem>(InAction.AdditionalProducedItems);
 			DeleteItems = new List<FileItem>(InAction.DeleteItems);
+			RootPaths = new List<DirectoryItem>(InAction.RootPaths);
 		}
 
 		/// <summary>
@@ -426,6 +433,7 @@ namespace UnrealBuildTool
 			AdditionalPrerequisiteItems = Reader.ReadList(() => Reader.ReadFileItem())!;
 			AdditionalProducedItems = Reader.ReadList(() => Reader.ReadFileItem())!;
 			DeleteItems = Reader.ReadList(() => Reader.ReadFileItem())!;
+			RootPaths = Reader.ReadList(() => Reader.ReadDirectoryItem())!;
 		}
 
 		/// <inheritdoc/>
@@ -466,6 +474,7 @@ namespace UnrealBuildTool
 			Writer.WriteList(AdditionalPrerequisiteItems, Item => Writer.WriteFileItem(Item));
 			Writer.WriteList(AdditionalProducedItems, Item => Writer.WriteFileItem(Item));
 			Writer.WriteList(DeleteItems, Item => Writer.WriteFileItem(Item));
+			Writer.WriteList(RootPaths, Item => Writer.WriteDirectoryItem(Item));
 		}
 
 		/// <summary>

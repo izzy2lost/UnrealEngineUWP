@@ -96,6 +96,11 @@ namespace UnrealBuildTool
 		IEnumerable<FileItem> DeleteItems { get; }
 
 		/// <summary>
+		/// Root paths for this action (generally engine root project root, toolchain root, sdk root)
+		/// </summary>
+		IEnumerable<DirectoryItem> RootPaths { get; }
+
+		/// <summary>
 		/// For C++ source files, specifies a dependency list file used to check changes to header files
 		/// </summary>
 		FileItem? DependencyListFile { get; }
@@ -205,17 +210,23 @@ namespace UnrealBuildTool
 		/// <summary>
 		/// Every file this action depends on.  These files need to exist and be up to date in order for this action to even be considered
 		/// </summary>
-		public SortedSet<FileItem> PrerequisiteItems { get; set; } = new SortedSet<FileItem>();
+		public SortedSet<FileItem> PrerequisiteItems { get; set; } = new();
 
 		/// <summary>
 		/// The files that this action produces after completing
 		/// </summary>
-		public SortedSet<FileItem> ProducedItems { get; set; } = new SortedSet<FileItem>();
+		public SortedSet<FileItem> ProducedItems { get; set; } = new();
 
 		/// <summary>
 		/// Items that should be deleted before running this action
 		/// </summary>
-		public SortedSet<FileItem> DeleteItems { get; set; } = new SortedSet<FileItem>();
+		public SortedSet<FileItem> DeleteItems { get; set; } = new();
+
+		/// <summary>
+		/// Root paths for this action (generally engine root project root, toolchain root, sdk root)
+        /// Order needs to be mainted, so a list is used
+		/// </summary>
+		public List<DirectoryItem> RootPaths { get; set; } = new();
 
 		/// <summary>
 		/// For C++ source files, specifies a dependency list file used to check changes to header files
@@ -300,8 +311,9 @@ namespace UnrealBuildTool
 		IEnumerable<FileItem> IExternalAction.PrerequisiteItems => PrerequisiteItems;
 		IEnumerable<FileItem> IExternalAction.ProducedItems => ProducedItems;
 		IEnumerable<FileItem> IExternalAction.DeleteItems => DeleteItems;
+        IEnumerable<DirectoryItem> IExternalAction.RootPaths => RootPaths;
 
-		public Action(ActionType InActionType)
+        public Action(ActionType InActionType)
 		{
 			ActionType = InActionType;
 
@@ -316,9 +328,10 @@ namespace UnrealBuildTool
 		{
 			ActionType = InOther.ActionType;
 			ArtifactMode = InOther.ArtifactMode;
-			PrerequisiteItems = new SortedSet<FileItem>(InOther.PrerequisiteItems);
-			ProducedItems = new SortedSet<FileItem>(InOther.ProducedItems);
-			DeleteItems = new SortedSet<FileItem>(InOther.DeleteItems);
+			PrerequisiteItems = new(InOther.PrerequisiteItems);
+			ProducedItems = new(InOther.ProducedItems);
+			DeleteItems = new(InOther.DeleteItems);
+            RootPaths = new(InOther.RootPaths);
 			DependencyListFile = InOther.DependencyListFile;
 			WorkingDirectory = InOther.WorkingDirectory;
 			CommandPath = InOther.CommandPath;
@@ -358,7 +371,8 @@ namespace UnrealBuildTool
 			PrerequisiteItems = Reader.ReadSortedSet(() => Reader.ReadFileItem())!;
 			ProducedItems = Reader.ReadSortedSet(() => Reader.ReadFileItem())!;
 			DeleteItems = Reader.ReadSortedSet(() => Reader.ReadFileItem())!;
-			DependencyListFile = Reader.ReadFileItem();
+            RootPaths = Reader.ReadList(() => Reader.ReadDirectoryItem())!;
+            DependencyListFile = Reader.ReadFileItem();
 			bUseActionHistory = Reader.ReadBool();
 			bIsHighPriority = Reader.ReadBool();
 			Weight = Reader.ReadDouble();
@@ -388,6 +402,7 @@ namespace UnrealBuildTool
 			Writer.WriteSortedSet(PrerequisiteItems, Item => Writer.WriteFileItem(Item));
 			Writer.WriteSortedSet(ProducedItems, Item => Writer.WriteFileItem(Item));
 			Writer.WriteSortedSet(DeleteItems, Item => Writer.WriteFileItem(Item));
+            Writer.WriteList(RootPaths, Item => Writer.WriteDirectoryItem(Item));
 			Writer.WriteFileItem(DependencyListFile);
 			Writer.WriteBool(bUseActionHistory);
 			Writer.WriteBool(bIsHighPriority);
@@ -402,116 +417,102 @@ namespace UnrealBuildTool
 		{
 			Action Action = new Action(Object.GetEnumField<ActionType>("Type"));
 
-			ArtifactMode ArtifactMode;
-			if (Object.TryGetEnumField("ArtifactMode", out ArtifactMode))
+			if (Object.TryGetEnumField("ArtifactMode", out ArtifactMode ArtifactMode))
 			{
 				Action.ArtifactMode = ArtifactMode;
 			}
 
-			string? WorkingDirectory;
-			if (Object.TryGetStringField("WorkingDirectory", out WorkingDirectory))
+			if (Object.TryGetStringField("WorkingDirectory", out string? WorkingDirectory))
 			{
 				Action.WorkingDirectory = new DirectoryReference(WorkingDirectory);
 			}
 
-			string? CommandPath;
-			if (Object.TryGetStringField("CommandPath", out CommandPath))
+			if (Object.TryGetStringField("CommandPath", out string? CommandPath))
 			{
 				Action.CommandPath = new FileReference(CommandPath);
 			}
 
-			string? CommandArguments;
-			if (Object.TryGetStringField("CommandArguments", out CommandArguments))
+			if (Object.TryGetStringField("CommandArguments", out string? CommandArguments))
 			{
 				Action.CommandArguments = CommandArguments;
 			}
 
-			string? CommandVersion;
-			if (Object.TryGetStringField("CommandVersion", out CommandVersion))
+			if (Object.TryGetStringField("CommandVersion", out string? CommandVersion))
 			{
 				Action.CommandVersion = CommandVersion;
 			}
 
-			string? CommandDescription;
-			if (Object.TryGetStringField("CommandDescription", out CommandDescription))
+			if (Object.TryGetStringField("CommandDescription", out string? CommandDescription))
 			{
 				Action.CommandDescription = CommandDescription;
 			}
 
-			string? StatusDescription;
-			if (Object.TryGetStringField("StatusDescription", out StatusDescription))
+			if (Object.TryGetStringField("StatusDescription", out string? StatusDescription))
 			{
 				Action.StatusDescription = StatusDescription;
 			}
 
-			bool bCanExecuteRemotely;
-			if (Object.TryGetBoolField("bCanExecuteRemotely", out bCanExecuteRemotely))
+			if (Object.TryGetBoolField("bCanExecuteRemotely", out bool bCanExecuteRemotely))
 			{
 				Action.bCanExecuteRemotely = bCanExecuteRemotely;
 			}
 
-			bool bCanExecuteRemotelyWithSNDBS;
-			if (Object.TryGetBoolField("bCanExecuteRemotelyWithSNDBS", out bCanExecuteRemotelyWithSNDBS))
+			if (Object.TryGetBoolField("bCanExecuteRemotelyWithSNDBS", out bool bCanExecuteRemotelyWithSNDBS))
 			{
 				Action.bCanExecuteRemotelyWithSNDBS = bCanExecuteRemotelyWithSNDBS;
 			}
 
-			bool bCanExecuteRemotelyWithXGE;
-			if (Object.TryGetBoolField("bCanExecuteRemotelyWithXGE", out bCanExecuteRemotelyWithXGE))
+			if (Object.TryGetBoolField("bCanExecuteRemotelyWithXGE", out bool bCanExecuteRemotelyWithXGE))
 			{
 				Action.bCanExecuteRemotelyWithXGE = bCanExecuteRemotelyWithXGE;
 			}
 
-			bool bCanExecuteInUBA;
-			if (Object.TryGetBoolField("bCanExecuteInUBA", out bCanExecuteInUBA))
+			if (Object.TryGetBoolField("bCanExecuteInUBA", out bool bCanExecuteInUBA))
 			{
 				Action.bCanExecuteInUBA = bCanExecuteInUBA;
 			}
 
-			bool bIsGCCCompiler;
-			if (Object.TryGetBoolField("bIsGCCCompiler", out bIsGCCCompiler))
+			if (Object.TryGetBoolField("bIsGCCCompiler", out bool bIsGCCCompiler))
 			{
 				Action.bIsGCCCompiler = bIsGCCCompiler;
 			}
 
-			bool bShouldOutputStatusDescription;
-			if (Object.TryGetBoolField("bShouldOutputStatusDescription", out bShouldOutputStatusDescription))
+			if (Object.TryGetBoolField("bShouldOutputStatusDescription", out bool bShouldOutputStatusDescription))
 			{
 				Action.bShouldOutputStatusDescription = bShouldOutputStatusDescription;
 			}
 
-			bool bProducesImportLibrary;
-			if (Object.TryGetBoolField("bProducesImportLibrary", out bProducesImportLibrary))
+			if (Object.TryGetBoolField("bProducesImportLibrary", out bool bProducesImportLibrary))
 			{
 				Action.bProducesImportLibrary = bProducesImportLibrary;
 			}
 
-			string[]? PrerequisiteItems;
-			if (Object.TryGetStringArrayField("PrerequisiteItems", out PrerequisiteItems))
+			if (Object.TryGetStringArrayField("PrerequisiteItems", out string[]? PrerequisiteItems))
 			{
 				Action.PrerequisiteItems.UnionWith(PrerequisiteItems.Select(x => FileItem.GetItemByPath(x)));
 			}
 
-			string[]? ProducedItems;
-			if (Object.TryGetStringArrayField("ProducedItems", out ProducedItems))
+			if (Object.TryGetStringArrayField("ProducedItems", out string[]? ProducedItems))
 			{
 				Action.ProducedItems.UnionWith(ProducedItems.Select(x => FileItem.GetItemByPath(x)));
 			}
 
-			string[]? DeleteItems;
-			if (Object.TryGetStringArrayField("DeleteItems", out DeleteItems))
+			if (Object.TryGetStringArrayField("DeleteItems", out string[]? DeleteItems))
 			{
 				Action.DeleteItems.UnionWith(DeleteItems.Select(x => FileItem.GetItemByPath(x)));
 			}
 
-			string? DependencyListFile;
-			if (Object.TryGetStringField("DependencyListFile", out DependencyListFile))
+			if (Object.TryGetStringArrayField("RootPaths", out string[]? RootPaths))
+			{
+                Action.RootPaths.AddRange(RootPaths.Select(x => DirectoryItem.GetItemByPath(x)));
+			}
+
+			if (Object.TryGetStringField("DependencyListFile", out string? DependencyListFile))
 			{
 				Action.DependencyListFile = FileItem.GetItemByPath(DependencyListFile);
 			}
 
-			double Weight;
-			if (Object.TryGetDoubleField("Weight", out Weight))
+			if (Object.TryGetDoubleField("Weight", out double Weight))
 			{
 				Action.Weight = Weight;
 			}
@@ -603,6 +604,13 @@ namespace UnrealBuildTool
 			}
 			Writer.WriteArrayEnd();
 
+			Writer.WriteArrayStart("RootPaths");
+			foreach (DirectoryItem RootPath in Action.RootPaths)
+			{
+				Writer.WriteValue(RootPath.FullName);
+			}
+			Writer.WriteArrayEnd();
+
 			if (Action.DependencyListFile != null)
 			{
 				Writer.WriteValue("DependencyListFile", Action.DependencyListFile.AbsolutePath);
@@ -688,6 +696,7 @@ namespace UnrealBuildTool
 		public IEnumerable<FileItem> PrerequisiteItems => Inner.PrerequisiteItems;
 		public IEnumerable<FileItem> ProducedItems => Inner.ProducedItems;
 		public IEnumerable<FileItem> DeleteItems => Inner.DeleteItems;
+		public IEnumerable<DirectoryItem> RootPaths => Inner.RootPaths;
 		public FileItem? DependencyListFile => Inner.DependencyListFile;
 		public DirectoryReference WorkingDirectory => Inner.WorkingDirectory;
 		public FileReference CommandPath => Inner.CommandPath;
