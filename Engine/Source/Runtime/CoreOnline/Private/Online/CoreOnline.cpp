@@ -465,6 +465,7 @@ FString ToLogString(const FOnlineSessionId& Id) { return ToLogStringImpl(Id); }
 FString ToLogString(const FSessionInviteId& Id) { return ToLogStringImpl(Id); }
 FString ToLogString(const FVerifiedAuthTicketId& Id) { return ToLogStringImpl(Id); }
 FString ToLogString(const FVerifiedAuthSessionId& Id) { return ToLogStringImpl(Id); }
+FString ToLogString(const FLoginContinuationId& Id) { return ToLogStringImpl(Id); }
 
 }	/* UE::Online */
 

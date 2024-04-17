@@ -189,6 +189,24 @@ struct FAuthLogout
 	};
 };
 
+struct FAuthLinkAccount
+{
+	static constexpr TCHAR Name[] = TEXT("LinkAccount");
+
+	struct Params
+	{
+		/** The PlatformUserId of the Local User making the request. */
+		FPlatformUserId PlatformUserId = PLATFORMUSERID_NONE;
+		/** The id associated with external auth data used to continue a previous login attempt. */
+		FLoginContinuationId ContinuationId;
+	};
+
+	struct Result
+	{
+		TSharedRef<const FAccountInfo> AccountInfo;
+	};
+};
+
 struct FAuthModifyAccountAttributes
 {
 	static constexpr TCHAR Name[] = TEXT("ModifyAccountAttributes");
@@ -360,6 +378,23 @@ struct FAuthGetAllLocalOnlineUsers
 	};
 };
 
+struct FAuthGetLinkAccountContinuationId
+{
+	static constexpr TCHAR Name[] = TEXT("GetLinkAccountContinuationId");
+
+	struct Params
+	{
+		/** The PlatformUserId of the Local User making the request. */
+		FPlatformUserId PlatformUserId = PLATFORMUSERID_NONE;
+	};
+
+	struct Result
+	{
+		/** The continuation id which identifies the external auth to be linked. */
+		FLoginContinuationId ContinuationId;
+	};
+};
+
 struct FAuthGetRelyingParty
 {
 	static constexpr TCHAR Name[] = TEXT("GetRelyingParty");
@@ -409,6 +444,10 @@ public:
 	/**
 	 * Authenticate a local user. If necessary, retrieve and maintain an access token for the
 	 * duration of the auth session.
+	 * 
+	 * Returns Errors::InvalidUser when no user has been associated with the provided credentials.
+	 * GetLinkAccountContinuationId can then be used to retrieve a continuance token which can be
+	 * used to call LinkAccount to associate credentials with the service.
 	 */
 	virtual TOnlineAsyncOpHandle<FAuthLogin> Login(FAuthLogin::Params&& Params) = 0;
 
@@ -416,6 +455,11 @@ public:
 	 * Concludes the auth session for the local user.
 	 */
 	virtual TOnlineAsyncOpHandle<FAuthLogout> Logout(FAuthLogout::Params&& Params) = 0;
+
+	/**
+	 * Link a logged in account to an external auth method using a continuation token from a previous login attempt.
+	 */
+	virtual TOnlineAsyncOpHandle<FAuthLinkAccount> LinkAccount(FAuthLinkAccount::Params&& Params) = 0;
 
 	/**
 	 * Modify attributes associated with an authenticated account. Signals OnAccountAttributesChanged on completion.
@@ -495,9 +539,14 @@ public:
 	virtual TOnlineResult<FAuthGetAllLocalOnlineUsers> GetAllLocalOnlineUsers(FAuthGetAllLocalOnlineUsers::Params&& Params) const = 0;
 
 	/**
+	 * Retrieve the continuation id from a previous login attempt which used an external auth token and failed with Errors::InvalidUser.
+	 */
+	virtual TOnlineResult<FAuthGetLinkAccountContinuationId> GetLinkAccountContinuationId(FAuthGetLinkAccountContinuationId::Params&& Params) const = 0;
+
+	/**
 	 * Retrieve the relying party to use when fetching an external token to authenticate with this interface.
 	 */
-	virtual TOnlineResult<FAuthGetRelyingParty> GetRelyingParty() const = 0;
+	virtual TOnlineResult<FAuthGetRelyingParty> GetRelyingParty(FAuthGetRelyingParty::Params&& Params) const = 0;
 
 	/**
 	 * Triggered when the login status for a logged in user changes.
@@ -575,6 +624,15 @@ BEGIN_ONLINE_STRUCT_META(FAuthLogout::Params)
 END_ONLINE_STRUCT_META()
 
 BEGIN_ONLINE_STRUCT_META(FAuthLogout::Result)
+END_ONLINE_STRUCT_META()
+
+BEGIN_ONLINE_STRUCT_META(FAuthLinkAccount::Params)
+	ONLINE_STRUCT_FIELD(FAuthLinkAccount::Params, PlatformUserId),
+	ONLINE_STRUCT_FIELD(FAuthLinkAccount::Params, ContinuationId)
+END_ONLINE_STRUCT_META()
+
+BEGIN_ONLINE_STRUCT_META(FAuthLinkAccount::Result)
+	ONLINE_STRUCT_FIELD(FAuthLinkAccount::Result, AccountInfo)
 END_ONLINE_STRUCT_META()
 
 BEGIN_ONLINE_STRUCT_META(FAuthModifyAccountAttributes::Params)
@@ -657,6 +715,14 @@ END_ONLINE_STRUCT_META()
 
 BEGIN_ONLINE_STRUCT_META(FAuthGetAllLocalOnlineUsers::Result)
 	ONLINE_STRUCT_FIELD(FAuthGetAllLocalOnlineUsers::Result, AccountInfo)
+END_ONLINE_STRUCT_META()
+
+BEGIN_ONLINE_STRUCT_META(FAuthGetLinkAccountContinuationId::Params)
+	ONLINE_STRUCT_FIELD(FAuthGetLinkAccountContinuationId::Params, PlatformUserId)
+END_ONLINE_STRUCT_META()
+
+BEGIN_ONLINE_STRUCT_META(FAuthGetLinkAccountContinuationId::Result)
+	ONLINE_STRUCT_FIELD(FAuthGetLinkAccountContinuationId::Result, ContinuationId)
 END_ONLINE_STRUCT_META()
 
 BEGIN_ONLINE_STRUCT_META(FAuthGetRelyingParty::Params)

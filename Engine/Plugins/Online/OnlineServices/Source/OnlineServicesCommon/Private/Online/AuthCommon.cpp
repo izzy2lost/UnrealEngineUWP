@@ -85,6 +85,7 @@ void FAuthCommon::RegisterCommands()
 {
 	RegisterCommand(&FAuthCommon::Login);
 	RegisterCommand(&FAuthCommon::Logout);
+	RegisterCommand(&FAuthCommon::LinkAccount);
 	RegisterCommand(&FAuthCommon::ModifyAccountAttributes);
 	RegisterCommand(&FAuthCommon::QueryExternalServerAuthTicket);
 	RegisterCommand(&FAuthCommon::QueryExternalAuthToken);
@@ -95,6 +96,8 @@ void FAuthCommon::RegisterCommands()
 	RegisterCommand(&FAuthCommon::GetLocalOnlineUserByOnlineAccountId);
 	RegisterCommand(&FAuthCommon::GetLocalOnlineUserByPlatformUserId);
 	RegisterCommand(&FAuthCommon::GetAllLocalOnlineUsers);
+	RegisterCommand(&FAuthCommon::GetLinkAccountContinuationId);
+	RegisterCommand(&FAuthCommon::GetRelyingParty);
 }
 
 TOnlineAsyncOpHandle<FAuthLogin> FAuthCommon::Login(FAuthLogin::Params&& Params)
@@ -107,6 +110,13 @@ TOnlineAsyncOpHandle<FAuthLogin> FAuthCommon::Login(FAuthLogin::Params&& Params)
 TOnlineAsyncOpHandle<FAuthLogout> FAuthCommon::Logout(FAuthLogout::Params&& Params)
 {
 	TOnlineAsyncOpRef<FAuthLogout> Operation = GetOp<FAuthLogout>(MoveTemp(Params));
+	Operation->SetError(Errors::NotImplemented());
+	return Operation->GetHandle();
+}
+
+TOnlineAsyncOpHandle<FAuthLinkAccount> FAuthCommon::LinkAccount(FAuthLinkAccount::Params&& Params)
+{
+	TOnlineAsyncOpRef<FAuthLinkAccount> Operation = GetOp<FAuthLinkAccount>(MoveTemp(Params));
 	Operation->SetError(Errors::NotImplemented());
 	return Operation->GetHandle();
 }
@@ -182,7 +192,12 @@ TOnlineResult<FAuthGetAllLocalOnlineUsers> FAuthCommon::GetAllLocalOnlineUsers(F
 		GetAccountInfoRegistry().GetAllAccountInfo([](const TSharedRef<FAccountInfo>& AccountInfo) { return IsOnlineStatus(AccountInfo->LoginStatus); }) });
 }
 
-TOnlineResult<FAuthGetRelyingParty> FAuthCommon::GetRelyingParty() const
+TOnlineResult<FAuthGetLinkAccountContinuationId> FAuthCommon::GetLinkAccountContinuationId(FAuthGetLinkAccountContinuationId::Params&& Params) const
+{
+	return TOnlineResult<FAuthGetLinkAccountContinuationId>(Errors::NotImplemented());
+}
+
+TOnlineResult<FAuthGetRelyingParty> FAuthCommon::GetRelyingParty(FAuthGetRelyingParty::Params&& Params) const
 {
 	return TOnlineResult<FAuthGetRelyingParty>(Errors::NotImplemented());
 }

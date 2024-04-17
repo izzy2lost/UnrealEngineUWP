@@ -33,6 +33,7 @@ struct FAuthLoginEASImpl
 		FString CredentialsId;
 		TVariant<FString, FExternalAuthToken> CredentialsToken;
 		TArray<FString> Scopes;
+		bool bAutoLinkAccount = true;
 	};
 
 	struct Result
@@ -205,7 +206,7 @@ public:
 	virtual TOnlineAsyncOpHandle<FAuthCancelVerifiedAuthTicket> CancelVerifiedAuthTicket(FAuthCancelVerifiedAuthTicket::Params&& Params) override;
 	virtual TOnlineAsyncOpHandle<FAuthBeginVerifiedAuthSession> BeginVerifiedAuthSession(FAuthBeginVerifiedAuthSession::Params&& Params) override;
 	virtual TOnlineAsyncOpHandle<FAuthEndVerifiedAuthSession> EndVerifiedAuthSession(FAuthEndVerifiedAuthSession::Params&& Params) override;
-	virtual TOnlineResult<FAuthGetRelyingParty> GetRelyingParty() const override;
+	virtual TOnlineResult<FAuthGetRelyingParty> GetRelyingParty(FAuthGetRelyingParty::Params&& Params) const override;
 	// End IAuth
 
 	// Begin FAuthEOSGS
@@ -236,6 +237,24 @@ protected:
 	void OnEASLoginStatusChanged(const EOS_Auth_LoginStatusChangedCallbackInfo* Data);
 
 protected:
+	template <typename ValueType>
+	using TLocalUserArray = TSparseArray<ValueType, TInlineSparseArrayAllocator<MAX_LOCAL_PLAYERS>>;
+
+	struct FLoginContinuationData
+	{
+		FLoginContinuationId ContinuationId;
+		EOS_ContinuanceToken ContinuanceToken;
+		EOS_ELinkAccountFlags LinkAccountFlags = EOS_ELinkAccountFlags::EOS_LA_NoFlags;
+	};
+
+	struct FUserScopedData
+	{
+		FLoginContinuationId LastLoginContinuationId;
+		TArray<FLoginContinuationData> LoginContinuations;
+	};
+
+	uint32 NextLoginContinuationId = 1;
+
 #if !UE_BUILD_SHIPPING
 	static void CheckMetadata();
 #endif
@@ -246,12 +265,17 @@ protected:
 
 	static FAccountId CreateAccountId(const EOS_ProductUserId ProductUserId);
 
+	FUserScopedData* GetUserScopedData(FPlatformUserId PlatformUserId);
+	const FUserScopedData* GetUserScopedData(FPlatformUserId PlatformUserId) const;
+	FUserScopedData* GetOrCreateUserScopedData(FPlatformUserId PlatformUserId);
+
 	EOS_HAuth AuthHandle = nullptr;
 	EOS_HConnect ConnectHandle = nullptr;
 	EOSEventRegistrationPtr OnConnectLoginStatusChangedEOSEventRegistration;
 	EOSEventRegistrationPtr OnConnectAuthNotifyExpirationEOSEventRegistration;
 	EOSEventRegistrationPtr OnAuthLoginStatusChangedEOSEventRegistration;
 	FAccountInfoRegistryEOS AccountInfoRegistryEOS;
+	TLocalUserArray<FUserScopedData> UserScopedData;
 };
 
 namespace Meta {
@@ -261,7 +285,8 @@ BEGIN_ONLINE_STRUCT_META(FAuthLoginEASImpl::Params)
 	ONLINE_STRUCT_FIELD(FAuthLoginEASImpl::Params, CredentialsType),
 	ONLINE_STRUCT_FIELD(FAuthLoginEASImpl::Params, CredentialsId),
 	ONLINE_STRUCT_FIELD(FAuthLoginEASImpl::Params, CredentialsToken),
-	ONLINE_STRUCT_FIELD(FAuthLoginEASImpl::Params, Scopes)
+	ONLINE_STRUCT_FIELD(FAuthLoginEASImpl::Params, Scopes),
+	ONLINE_STRUCT_FIELD(FAuthLoginEASImpl::Params, bAutoLinkAccount)
 END_ONLINE_STRUCT_META()
 
 BEGIN_ONLINE_STRUCT_META(FAuthLoginEASImpl::Result)

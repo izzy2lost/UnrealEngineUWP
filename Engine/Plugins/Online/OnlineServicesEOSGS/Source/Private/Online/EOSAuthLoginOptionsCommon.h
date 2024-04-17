@@ -24,13 +24,14 @@ ENUM_CLASS_FLAGS(EEOSAuthTranslationFlags);
 
 struct FEOSAuthTranslationTraits
 {
-	EOS_ELoginCredentialType Type;
-	EEOSAuthTranslationFlags Flags;
+	EOS_ELoginCredentialType Type = EOS_ELoginCredentialType::EOS_LCT_Password;
+	EEOSAuthTranslationFlags Flags = EEOSAuthTranslationFlags::None;
 };
 
 struct FEOSExternalAuthTranslationTraits
 {
-	EOS_EExternalCredentialType Type;
+	EOS_EExternalCredentialType Type = EOS_EExternalCredentialType::EOS_ECT_EPIC;
+	EOS_ELinkAccountFlags LinkAccountFlags = EOS_ELinkAccountFlags::EOS_LA_NoFlags;
 };
 
 class FEOSAuthLoginOptionsCommon : public EOS_Auth_LoginOptions
@@ -41,6 +42,8 @@ public:
 	FEOSAuthLoginOptionsCommon(FEOSAuthLoginOptionsCommon&&);
 	FEOSAuthLoginOptionsCommon& operator=(FEOSAuthLoginOptionsCommon&&);
 
+	EOS_ELinkAccountFlags GetLinkAccountFlags() const { return LinkAccountFlags; }
+
 protected:
 	FEOSAuthLoginOptionsCommon();
 
@@ -50,6 +53,7 @@ protected:
 	static bool InitSystemAuthCredentialOptions(FEOSAuthLoginOptionsCommon& Options) { return true; }
 
 	EOS_Auth_Credentials CredentialsData;
+	EOS_ELinkAccountFlags LinkAccountFlags = EOS_ELinkAccountFlags::EOS_LA_NoFlags;
 	TArray<char> IdUtf8;
 	TArray<char> TokenUtf8;
 };

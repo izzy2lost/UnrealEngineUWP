@@ -308,6 +308,7 @@ TDefaultErrorResultInternal<FEOSAuthLoginOptions> FEOSAuthLoginOptions::CreateIm
 		FCStringAnsi::Strncpy(EOSAuthLoginOptions.TokenUtf8.GetData(), TCHAR_TO_UTF8(*ExternalAuthToken.Data), EOSAuthLoginOptions.TokenUtf8.Num());
 		EOSAuthLoginOptions.CredentialsData.Token = EOSAuthLoginOptions.TokenUtf8.GetData();
 		EOSAuthLoginOptions.CredentialsData.ExternalType = ExternalAuthTranslationTraits->Type;
+		EOSAuthLoginOptions.LinkAccountFlags = ExternalAuthTranslationTraits->LinkAccountFlags;
 
 		UE_LOG(LogOnlineServices, VeryVerbose, TEXT("FEOSAuthLoginOptions::Create: Using token type: %s, Token data: %.*s"), *ExternalAuthToken.Type.ToString(), ExternalAuthToken.Data.Len(), *ExternalAuthToken.Data);
 	}
@@ -466,6 +467,14 @@ TOnlineAsyncOpHandle<FAuthLogin> FAuthEOSGS::Login(FAuthLogin::Params&& Params)
 	Op->Then([this](TOnlineAsyncOp<FAuthLogin>& InAsyncOp)
 	{
 		const FAuthLogin::Params& Params = InAsyncOp.GetParams();
+
+		// Check that user is valid.
+		if (!Params.PlatformUserId.IsValid())
+		{
+			InAsyncOp.SetError(Errors::InvalidParams());
+			return;
+		}
+
 		TSharedPtr<FAccountInfoEOS> AccountInfoEOS = AccountInfoRegistryEOS.Find(Params.PlatformUserId);
 		if (!AccountInfoEOS)
 		{
@@ -543,19 +552,14 @@ TOnlineAsyncOpHandle<FAuthLogin> FAuthEOSGS::Login(FAuthLogin::Params&& Params)
 			if (AuthTokenResult.IsError())
 			{
 				UE_LOG(LogOnlineServices, Warning, TEXT("[FAuthEOSGS::Login] Failure: GetExternalAuthTokenImpl %s"), *AuthTokenResult.GetErrorValue().GetLogString());
-				InAsyncOp.SetError(Errors::Unknown(MoveTemp(AuthTokenResult.GetErrorValue())));
 
 				// Failed to acquire token - logout EAS.
 				LogoutEASImpl(FAuthLogoutEASImpl::Params{ AccountInfoEOS->EpicAccountId })
-				.Next([Promise = MoveTemp(Promise)](TDefaultErrorResult<FAuthLogoutEASImpl>&& LogoutResult) mutable -> void
+				.Next([AsyncOp = InAsyncOp.AsShared(), Error = MoveTemp(AuthTokenResult.GetErrorValue()), Promise = MoveTemp(Promise)](TDefaultErrorResult<FAuthLogoutEASImpl>&&) mutable -> void
 				{
-					if (LogoutResult.IsError())
-					{
-						UE_LOG(LogOnlineServices, Warning, TEXT("[FAuthEOSGS::Login] Failure: LogoutEASImpl %s"), *LogoutResult.GetErrorValue().GetLogString());
-					}
+					AsyncOp->SetError(MoveTemp(Error));
 					Promise.EmplaceValue(FAuthLoginConnectImpl::Params{});
 				});
-
 				return Future;
 			}
 
@@ -586,23 +590,19 @@ TOnlineAsyncOpHandle<FAuthLogin> FAuthEOSGS::Login(FAuthLogin::Params&& Params)
 
 		// Attempt connect login.
 		LoginConnectImpl(LoginConnectParams)
-		.Next([this, AccountInfoEOS, Op = InAsyncOp.AsShared(), Promise = MoveTemp(Promise)](TDefaultErrorResult<FAuthLoginConnectImpl>&& LoginResult) mutable -> void
+		.Next([this, AccountInfoEOS, AsyncOp = InAsyncOp.AsShared(), Promise = MoveTemp(Promise)](TDefaultErrorResult<FAuthLoginConnectImpl>&& LoginResult) mutable -> void
 		{
 			if (LoginResult.IsError())
 			{
 				UE_LOG(LogOnlineServices, Warning, TEXT("[FAuthEOSGS::Login] Failure: LoginConnectImpl %s"), *LoginResult.GetErrorValue().GetLogString());
-				Op->SetError(Errors::Unknown(MoveTemp(LoginResult.GetErrorValue())));
 
 				// Logout of EAS on login failure if necessary.
 				if (AccountInfoEOS->EpicAccountId)
 				{
 					LogoutEASImpl(FAuthLogoutEASImpl::Params{ AccountInfoEOS->EpicAccountId })
-					.Next([Promise = MoveTemp(Promise)](TDefaultErrorResult<FAuthLogoutEASImpl>&& LogoutResult) mutable -> void
+					.Next([AsyncOp = AsyncOp->AsShared(), Error = MoveTemp(LoginResult.GetErrorValue()), Promise = MoveTemp(Promise)](TDefaultErrorResult<FAuthLogoutEASImpl>&&) mutable -> void
 					{
-						if (LogoutResult.IsError())
-						{
-							UE_LOG(LogOnlineServices, Warning, TEXT("[FAuthEOSGS::Login] Failure: LogoutEASImpl %s"), *LogoutResult.GetErrorValue().GetLogString());
-						}
+						AsyncOp->SetError(MoveTemp(Error));
 						Promise.EmplaceValue();
 					});
 				}
@@ -640,25 +640,23 @@ TOnlineAsyncOpHandle<FAuthLogin> FAuthEOSGS::Login(FAuthLogin::Params&& Params)
 			{
 				FOnlineError ProductUserIdError(Errors::FromEOSResult(ProductUserIdResult));
 				UE_LOG(LogOnlineServices, Warning, TEXT("[FAuthEOSGS::Login] Failure: EOS_ProductUserId_ToString %s"), *ProductUserIdError.GetLogString());
-				InAsyncOp.SetError(Errors::Unknown(MoveTemp(ProductUserIdError)));
 
 				// Handle EAS logout if needed.
 				if (AccountInfoEOS->EpicAccountId)
 				{
 					TPromise<void> Promise;
 					TFuture<void> Future = Promise.GetFuture();
-
 					LogoutEASImpl(FAuthLogoutEASImpl::Params{ AccountInfoEOS->EpicAccountId })
-					.Next([Promise = MoveTemp(Promise)](TDefaultErrorResult<FAuthLogoutEASImpl>&& LogoutResult) mutable -> void
+					.Next([AsyncOp = InAsyncOp.AsShared(), Error = MoveTemp(ProductUserIdError), Promise = MoveTemp(Promise)](TDefaultErrorResult<FAuthLogoutEASImpl>&&) mutable -> void
 					{
-						if (LogoutResult.IsError())
-						{
-							UE_LOG(LogOnlineServices, Warning, TEXT("[FAuthEOSGS::Login] Failure: LogoutEASImpl %s"), *LogoutResult.GetErrorValue().GetLogString());
-						}
+						AsyncOp->SetError(MoveTemp(Error));
 						Promise.EmplaceValue();
 					});
-
 					return Future;
+				}
+				else
+				{
+					InAsyncOp.SetError(MoveTemp(ProductUserIdError));
 				}
 			}
 		}
@@ -751,17 +749,11 @@ TOnlineAsyncOpHandle<FAuthLogout> FAuthEOSGS::Logout(FAuthLogout::Params&& Param
 		{
 			TPromise<void> Promise;
 			TFuture<void> Future = Promise.GetFuture();
-
 			LogoutEASImpl(FAuthLogoutEASImpl::Params{ AccountInfoEOS->EpicAccountId })
-			.Next([this, AccountInfoEOS, Promise = MoveTemp(Promise)](TDefaultErrorResult<FAuthLogoutEASImpl>&& LogoutResult) mutable -> void
+			.Next([Promise = MoveTemp(Promise)](TDefaultErrorResult<FAuthLogoutEASImpl>&&) mutable -> void
 			{
-				if (LogoutResult.IsError())
-				{
-					UE_LOG(LogOnlineServices, Warning, TEXT("[FAuthEOSGS::Logout] Failure: LogoutEASImpl %s"), *LogoutResult.GetErrorValue().GetLogString());
-				}
 				Promise.EmplaceValue();
 			});
-
 			return Future;
 		}
 		else
@@ -809,7 +801,7 @@ TOnlineAsyncOpHandle<FAuthBeginVerifiedAuthSession> FAuthEOSGS::BeginVerifiedAut
 	return Operation->GetHandle();
 }
 
-TOnlineResult<FAuthGetRelyingParty> FAuthEOSGS::GetRelyingParty() const
+TOnlineResult<FAuthGetRelyingParty> FAuthEOSGS::GetRelyingParty(FAuthGetRelyingParty::Params&& Params) const
 {
 	IEOSSDKManager* Manager = IEOSSDKManager::Get();
 	const FString& PlatformConfigName = GetServices<FOnlineServicesEOSGS>().GetEOSPlatformHandle()->GetConfigName();
@@ -890,12 +882,13 @@ TFuture<TDefaultErrorResult<FAuthLoginEASImpl>> FAuthEOSGS::LoginEASImpl(const F
 	}
 
 	const bool bIsPersistentAuthLogin = LoginParams.CredentialsType == LoginCredentialsType::PersistentAuth;
+	const EOS_ELinkAccountFlags LinkAccountFlags = LoginOptionsResult.GetOkValue().GetLinkAccountFlags();
 
 	TPromise<TDefaultErrorResult<FAuthLoginEASImpl>> Promise;
 	TFuture<TDefaultErrorResult<FAuthLoginEASImpl>> Future = Promise.GetFuture();
 
 	EOS_Async(EOS_Auth_Login, AuthHandle, MoveTemp(LoginOptionsResult.GetOkValue()),
-	[AuthHandle = AuthHandle, bIsPersistentAuthLogin, Promise = MoveTemp(Promise)](const EOS_Auth_LoginCallbackInfo* Data) mutable -> void
+	[this, AuthHandle = AuthHandle, bIsPersistentAuthLogin, PlatformUserId = LoginParams.PlatformUserId, LinkAccountFlags, bAutoLinkAccount = LoginParams.bAutoLinkAccount, Promise = MoveTemp(Promise)](const EOS_Auth_LoginCallbackInfo* Data) mutable -> void
 	{
 		UE_LOG(LogOnlineServices, Verbose, TEXT("[FAuthEOSGS::LoginEASImpl] EOS_Auth_Login Result: [%s]"), *LexToString(Data->ResultCode));
 
@@ -905,25 +898,44 @@ TFuture<TDefaultErrorResult<FAuthLoginEASImpl>> FAuthEOSGS::LoginEASImpl(const F
 		}
 		else if (Data->ResultCode == EOS_EResult::EOS_InvalidUser && Data->ContinuanceToken != nullptr)
 		{
-			EOS_Auth_LinkAccountOptions LinkAccountOptions = {};
-			LinkAccountOptions.ApiVersion = 1;
-			LinkAccountOptions.ContinuanceToken = Data->ContinuanceToken;
-			UE_EOS_CHECK_API_MISMATCH(EOS_AUTH_LINKACCOUNT_API_LATEST, 1);
-
-			EOS_Async(EOS_Auth_LinkAccount, AuthHandle, LinkAccountOptions,
-			[Promise = MoveTemp(Promise)](const EOS_Auth_LinkAccountCallbackInfo* Data) mutable -> void
+			if (bAutoLinkAccount)
 			{
-				UE_LOG(LogOnlineServices, Verbose, TEXT("[FAuthEOSGS::LoginEASImpl] EOS_Auth_LinkAccount Result: [%s]"), *LexToString(Data->ResultCode));
+				EOS_Auth_LinkAccountOptions LinkAccountOptions = {};
+				LinkAccountOptions.ApiVersion = 1;
+				LinkAccountOptions.ContinuanceToken = Data->ContinuanceToken;
+				LinkAccountOptions.LinkAccountFlags = LinkAccountFlags;
+				UE_EOS_CHECK_API_MISMATCH(EOS_AUTH_LINKACCOUNT_API_LATEST, 1);
 
-				if (Data->ResultCode == EOS_EResult::EOS_Success)
+				EOS_Async(EOS_Auth_LinkAccount, AuthHandle, LinkAccountOptions,
+				[Promise = MoveTemp(Promise)](const EOS_Auth_LinkAccountCallbackInfo* Data) mutable -> void
 				{
-					Promise.SetValue(TDefaultErrorResult<FAuthLoginEASImpl>(FAuthLoginEASImpl::Result{ Data->LocalUserId }));
+					UE_LOG(LogOnlineServices, Verbose, TEXT("[FAuthEOSGS::LoginEASImpl] EOS_Auth_LinkAccount Result: [%s]"), *LexToString(Data->ResultCode));
+
+					if (Data->ResultCode == EOS_EResult::EOS_Success)
+					{
+						Promise.SetValue(TDefaultErrorResult<FAuthLoginEASImpl>(FAuthLoginEASImpl::Result{ Data->LocalUserId }));
+					}
+					else
+					{
+						Promise.SetValue(TDefaultErrorResult<FAuthLoginEASImpl>(Errors::FromEOSResult(Data->ResultCode)));
+					}
+				});
+			}
+			else
+			{
+				UE_LOG(LogOnlineServices, Verbose, TEXT("[FAuthEOSGS::LoginEASImpl] Saving link account continuance token for manual link account usage."));
+				if (FUserScopedData* UserData = GetOrCreateUserScopedData(PlatformUserId))
+				{
+					UserData->LastLoginContinuationId = FLoginContinuationId(EOnlineServices::Epic, NextLoginContinuationId++);
+					UserData->LoginContinuations.Add(FLoginContinuationData{UserData->LastLoginContinuationId, Data->ContinuanceToken, LinkAccountFlags});
 				}
 				else
 				{
-					Promise.SetValue(TDefaultErrorResult<FAuthLoginEASImpl>(Errors::FromEOSResult(Data->ResultCode)));
+					UE_LOG(LogOnlineServices, Warning, TEXT("[FAuthEOSGS::LoginEASImpl] Failed to access user scoped data."));
 				}
-			});
+
+				Promise.SetValue(TDefaultErrorResult<FAuthLoginEASImpl>(Errors::FromEOSResult(Data->ResultCode)));
+			}
 		}
 		else
 		{
@@ -976,14 +988,14 @@ TFuture<TDefaultErrorResult<FAuthLogoutEASImpl>> FAuthEOSGS::LogoutEASImpl(const
 	EOS_Async(EOS_Auth_Logout, AuthHandle, LogoutOptions,
 	[Promise = MoveTemp(Promise)](const EOS_Auth_LogoutCallbackInfo* Data) mutable -> void
 	{
-		UE_LOG(LogOnlineServices, Verbose, TEXT("[FAuthEOSGS::LogoutEASImpl] EOS_Auth_Logout Result: [%s]"), *LexToString(Data->ResultCode));
-
 		if (Data->ResultCode == EOS_EResult::EOS_Success)
 		{
+			UE_LOG(LogOnlineServices, Verbose, TEXT("[FAuthEOSGS::LogoutEASImpl] EOS_Auth_Logout Result: [%s]"), *LexToString(Data->ResultCode));
 			Promise.SetValue(TDefaultErrorResult<FAuthLogoutEASImpl>(FAuthLogoutEASImpl::Result{}));
 		}
 		else
 		{
+			UE_LOG(LogOnlineServices, Warning, TEXT("[FAuthEOSGS::LogoutEASImpl] EOS_Auth_Logout Result: [%s]"), *LexToString(Data->ResultCode));
 			Promise.SetValue(TDefaultErrorResult<FAuthLogoutEASImpl>(Errors::FromEOSResult(Data->ResultCode)));
 		}
 	});
@@ -1108,7 +1120,7 @@ TOnlineAsyncOpHandle<FAuthConnectLoginRecoveryImpl> FAuthEOSGS::ConnectLoginReco
 		if (AuthTokenResult.IsError())
 		{
 			UE_LOG(LogOnlineServices, Warning, TEXT("[FAuthEOSGS::ConnectLoginRecoveryImplOp] Failure: GetExternalAuthTokenImpl %s"), *AuthTokenResult.GetErrorValue().GetLogString());
-			InAsyncOp.SetError(Errors::Unknown(MoveTemp(AuthTokenResult.GetErrorValue())));
+			InAsyncOp.SetError(MoveTemp(AuthTokenResult.GetErrorValue()));
 
 			// Reinitialize recovery timer.
 			InitializeConnectLoginRecoveryTimer(AccountInfoEOS);
@@ -1132,7 +1144,7 @@ TOnlineAsyncOpHandle<FAuthConnectLoginRecoveryImpl> FAuthEOSGS::ConnectLoginReco
 			if (LoginResult.IsError())
 			{
 				UE_LOG(LogOnlineServices, Warning, TEXT("[FAuthEOSGS::ConnectLoginRecoveryImplOp] Failure: LoginConnectImpl %s"), *LoginResult.GetErrorValue().GetLogString());
-				Op->SetError(Errors::Unknown(MoveTemp(LoginResult.GetErrorValue())));
+				Op->SetError(MoveTemp(LoginResult.GetErrorValue()));
 
 				// Reinitialize recovery timer.
 				InitializeConnectLoginRecoveryTimer(AccountInfoEOS);
@@ -1445,6 +1457,34 @@ void FAuthEOSGS::InitializeConnectLoginRecoveryTimer(const TSharedRef<FAccountIn
 FAccountId FAuthEOSGS::CreateAccountId(const EOS_ProductUserId ProductUserId)
 {
 	return FOnlineAccountIdRegistryEOSGS::Get().FindOrAddAccountId(ProductUserId);
+}
+
+FAuthEOSGS::FUserScopedData* FAuthEOSGS::GetUserScopedData(FPlatformUserId PlatformUserId)
+{
+	const int32 UserIndex = FPlatformMisc::GetUserIndexForPlatformUser(PlatformUserId);
+	return UserScopedData.IsValidIndex(UserIndex) ? &UserScopedData[UserIndex] : nullptr;
+}
+
+const FAuthEOSGS::FUserScopedData* FAuthEOSGS::GetUserScopedData(FPlatformUserId PlatformUserId) const
+{
+	const int32 UserIndex = FPlatformMisc::GetUserIndexForPlatformUser(PlatformUserId);
+	return UserScopedData.IsValidIndex(UserIndex) ? &UserScopedData[UserIndex] : nullptr;
+}
+
+FAuthEOSGS::FUserScopedData* FAuthEOSGS::GetOrCreateUserScopedData(FPlatformUserId PlatformUserId)
+{
+	const int32 UserIndex = FPlatformMisc::GetUserIndexForPlatformUser(PlatformUserId);
+	if (UserIndex == INDEX_NONE)
+	{
+		return nullptr;
+	}
+
+	if (!UserScopedData.IsValidIndex(UserIndex))
+	{
+		UserScopedData.Insert(UserIndex, FUserScopedData());
+	}
+
+	return &UserScopedData[UserIndex];
 }
 
 /* UE::Online */ }
