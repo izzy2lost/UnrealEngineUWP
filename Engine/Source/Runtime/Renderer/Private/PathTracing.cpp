@@ -194,6 +194,16 @@ TAutoConsoleVariable<int32> CVarPathTracingEnableCameraBackfaceCulling(
 	ECVF_RenderThreadSafe
 );
 
+TAutoConsoleVariable<int32> CVarPathTracingEnableReferenceDOF(
+	TEXT("r.PathTracing.EnableReferenceDOF"),
+	-1,
+	TEXT("Should the path tracer ray trace the depth-of-field effect instead of the post-processed effect?\n")
+	TEXT("-1: Inherit from PostProcess settings (default)\n")
+	TEXT(" 0: Disabled\n")
+	TEXT(" 1: Enable\n"),
+	ECVF_RenderThreadSafe
+);
+
 TAutoConsoleVariable<int32> CVarPathTracingEnableReferenceAtmosphere(
 	TEXT("r.PathTracing.EnableReferenceAtmosphere"),
 	-1,
@@ -684,6 +694,12 @@ namespace PathTracing
 		const int32 EnableReferenceAtmosphereCVar = CVarPathTracingEnableReferenceAtmosphere.GetValueOnRenderThread();
 		return EnableReferenceAtmosphereCVar < 0 ? View.FinalPostProcessSettings.PathTracingEnableReferenceAtmosphere != 0 : EnableReferenceAtmosphereCVar != 0;
 	}
+
+	bool UsesReferenceDOF(const FViewInfo& View)
+	{
+		const int32 EnableReferenceDOFCvar = CVarPathTracingEnableReferenceDOF.GetValueOnRenderThread();
+		return EnableReferenceDOFCvar < 0 ? View.FinalPostProcessSettings.PathTracingEnableReferenceDOF != 0 : EnableReferenceDOFCvar != 0;
+	}
 }
 
 // This function prepares the portion of shader arguments that may involve invalidating the path traced state
@@ -719,7 +735,7 @@ static void PreparePathTracingData(const FScene* Scene, const FViewInfo& View, F
 	PathTracingData.CameraFocusDistance = 0;
 	PathTracingData.CameraLensRadius = FVector2f::ZeroVector;
 	if (ShowFlags.DepthOfField &&
-		PPV.PathTracingEnableReferenceDOF &&
+		PathTracing::UsesReferenceDOF(View) &&
 		PPV.DepthOfFieldFocalDistance > 0 &&
 		PPV.DepthOfFieldFstop > 0)
 	{
@@ -3984,6 +4000,11 @@ namespace PathTracing
 	}
 
 	bool UsesReferenceAtmosphere(const FViewInfo& View)
+	{
+		return false;
+	}
+
+	bool UsesReferenceDOF(const FViewInfo& View)
 	{
 		return false;
 	}
