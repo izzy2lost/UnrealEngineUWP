@@ -17,7 +17,8 @@ enum class EEmbeddedPolygonOpMethod : uint8
 	TrimOutside,
 	TrimInside,
 	InsertPolygon,
-	CutThrough
+	CutThrough,
+	CutOutside
 };
 
 namespace UE

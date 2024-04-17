@@ -955,7 +955,7 @@ void FDynamicMeshEditor::SetTriangleNormals(const TArray<int>& Triangles)
 
 
 
-void FDynamicMeshEditor::SetTubeNormals(const TArray<int>& Triangles, const TArray<int>& VertexIDs1, const TArray<int>& MatchedIndices1, const TArray<int>& VertexIDs2, const TArray<int>& MatchedIndices2)
+void FDynamicMeshEditor::SetTubeNormals(const TArray<int>& Triangles, const TArray<int>& VertexIDs1, const TArray<int>& MatchedIndices1, const TArray<int>& VertexIDs2, const TArray<int>& MatchedIndices2, bool bReverseNormals)
 {
 	check(Mesh->HasAttributes());
 	check(MatchedIndices1.Num() == MatchedIndices2.Num());
@@ -998,6 +998,7 @@ void FDynamicMeshEditor::SetTubeNormals(const TArray<int>& Triangles, const TArr
 		MatchedVertNormals[1][Idx] = Normalized(MatchedEdgeNormals[1][LastMatchedIdx] + MatchedEdgeNormals[1][Idx]);
 	}
 
+	float NormalScale = bReverseNormals ? -1.0f : 1.0f;
 	TMap<int, int> VertToElID;
 	for (int Side = 0; Side < 2; Side++)
 	{
@@ -1034,7 +1035,7 @@ void FDynamicMeshEditor::SetTubeNormals(const TArray<int>& Triangles, const TArr
 		for (int Idx = 0; Idx < NumVertices; Idx++)
 		{
 			int VID = VertexIDs[Idx];
-			VertToElID.Add(VID, Normals->AppendElement(VertNormals[Side][Idx]));
+			VertToElID.Add(VID, Normals->AppendElement(NormalScale * VertNormals[Side][Idx]));
 		}
 	}
 	for (int TID : Triangles)
