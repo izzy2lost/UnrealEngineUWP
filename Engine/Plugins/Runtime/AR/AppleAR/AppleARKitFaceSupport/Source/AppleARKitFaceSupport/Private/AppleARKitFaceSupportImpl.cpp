@@ -97,7 +97,16 @@ void FAppleARKitFaceSupport::Init()
 
 void FAppleARKitFaceSupport::Shutdown()
 {
+	if (RemoteLiveLinkPublisher.IsValid())
+	{
+		RemoteLiveLinkPublisher->Shutdown();
+	}
 	RemoteLiveLinkPublisher = nullptr;
+
+	if (LiveLinkFileWriter.IsValid())
+	{
+		LiveLinkFileWriter->Shutdown();
+	}
 	LiveLinkFileWriter = nullptr;
 
 	IModularFeatures::Get().UnregisterModularFeature(GetModularFeatureName(), this);

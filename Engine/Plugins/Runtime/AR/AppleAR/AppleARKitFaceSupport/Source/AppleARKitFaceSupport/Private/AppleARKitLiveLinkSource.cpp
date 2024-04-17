@@ -507,7 +507,7 @@ FAppleARKitLiveLinkFileWriter::FAppleARKitLiveLinkFileWriter(const TCHAR* InFile
 	UAppleARKitSettings::CreateFaceTrackingLogDir();
 }
 
-FAppleARKitLiveLinkFileWriter::~FAppleARKitLiveLinkFileWriter()
+void FAppleARKitLiveLinkFileWriter::Shutdown()
 {
 	// Save on close if desired
 	if (!GetMutableDefault<UAppleARKitSettings>()->ShouldFaceTrackingLogPerFrame())
