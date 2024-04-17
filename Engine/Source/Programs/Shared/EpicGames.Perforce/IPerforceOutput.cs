@@ -2,7 +2,6 @@
 
 using System;
 using System.Buffers.Binary;
-using System.Buffers.Text;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
@@ -499,7 +498,7 @@ namespace EpicGames.Perforce
 			object? record;
 			if (code == ReadOnlyUtf8StringConstants.Stat && statRecordInfo != null)
 			{
-				if (!TryReadTypedRecord(buffer, ref bufferPos, Utf8String.Empty, statRecordInfo, out record))
+				if (!TryReadTypedRecord(buffer, ref bufferPos, statRecordInfo, out record))
 				{
 					response = null;
 					return false;
@@ -507,7 +506,7 @@ namespace EpicGames.Perforce
 			}
 			else if (code == ReadOnlyUtf8StringConstants.Info)
 			{
-				if (!TryReadTypedRecord(buffer, ref bufferPos, Utf8String.Empty, PerforceReflection.InfoRecordInfo, out record))
+				if (!TryReadTypedRecord(buffer, ref bufferPos, PerforceReflection.InfoRecordInfo, out record))
 				{
 					response = null;
 					return false;
@@ -515,7 +514,7 @@ namespace EpicGames.Perforce
 			}
 			else if (code == ReadOnlyUtf8StringConstants.Error)
 			{
-				if (!TryReadTypedRecord(buffer, ref bufferPos, Utf8String.Empty, PerforceReflection.ErrorRecordInfo, out record))
+				if (!TryReadTypedRecord(buffer, ref bufferPos, PerforceReflection.ErrorRecordInfo, out record))
 				{
 					response = null;
 					return false;
@@ -523,7 +522,7 @@ namespace EpicGames.Perforce
 			}
 			else if (code == ReadOnlyUtf8StringConstants.Io)
 			{
-				if (!TryReadTypedRecord(buffer, ref bufferPos, Utf8String.Empty, PerforceReflection.IoRecordInfo, out record))
+				if (!TryReadTypedRecord(buffer, ref bufferPos, PerforceReflection.IoRecordInfo, out record))
 				{
 					response = null;
 					return false;
@@ -551,11 +550,10 @@ namespace EpicGames.Perforce
 		/// </summary>
 		/// <param name="buffer">The buffer to read from</param>
 		/// <param name="bufferPos">Current read position within the buffer</param>
-		/// <param name="requiredSuffix">The required suffix for any subobject arrays.</param>
 		/// <param name="recordInfo">Reflection information for the type being serialized into.</param>
 		/// <param name="record">Receives the record on success</param>
 		/// <returns>The parsed object.</returns>
-		static bool TryReadTypedRecord(ReadOnlyMemory<byte> buffer, ref int bufferPos, Utf8String requiredSuffix, CachedRecordInfo recordInfo, [NotNullWhen(true)] out object? record)
+		static bool TryReadTypedRecord(ReadOnlyMemory<byte> buffer, ref int bufferPos, CachedRecordInfo recordInfo, [NotNullWhen(true)] out object? record)
 		{
 			// Create a bitmask for all the required tags
 			ulong requiredTagsBitMask = 0;
@@ -613,91 +611,24 @@ namespace EpicGames.Perforce
 				tag = tag.Slice(0, suffixIdx);
 
 				// Try to find the matching field
-				CachedTagInfo? tagInfo;
+				TaggedPropertyInfo? tagInfo;
 				if (recordInfo.NameToInfo.TryGetValue(tag, out tagInfo))
 				{
 					requiredTagsBitMask |= tagInfo.RequiredTagBitMask;
 				}
 
-				// Check whether it's a subobject or part of the current object.
-				if (suffix == requiredSuffix)
+				// Find the target object for this tag
+				object? targetRecord = null;
+				if (tagInfo != null)
 				{
-					if (!TryReadValue(buffer, ref bufferPos, newRecord, tagInfo))
-					{
-						record = null;
-						return false;
-					}
+					targetRecord = GetNestedRecord(newRecord, suffix, tagInfo.ParentRecords);
 				}
-				else if (suffix.StartsWith(requiredSuffix) && (requiredSuffix.Length == 0 || suffix[requiredSuffix.Length] == ','))
+
+				// Read the value
+				if (!TryReadValue(buffer, ref bufferPos, targetRecord, tagInfo))
 				{
-					// Part of a subobject. If this record doesn't have any listed subobject type, skip the field and continue.
-					if (tagInfo != null)
-					{
-						// Get the list field
-						System.Collections.IList? list = (System.Collections.IList?)tagInfo.PropertyInfo.GetValue(newRecord);
-						if (list == null)
-						{
-							throw new PerforceException($"Empty list for {tagInfo.PropertyInfo.Name}");
-						}
-
-						// Check the suffix matches the index of the next element
-						ReadIndex(tag, suffix, requiredSuffix, list.Count);
-
-						// Add it to the list
-						if (!TryReadValue(buffer, ref bufferPos, newRecord, tagInfo))
-						{
-							record = null;
-							return false;
-						}
-					}
-					else if (recordInfo.SubElementProperty != null)
-					{
-						// Move back to the start of this tag
-						bufferPos = startBufferPos;
-
-						// Get the list field
-						System.Collections.IList? list = (System.Collections.IList?)recordInfo.SubElementProperty.GetValue(newRecord);
-						if (list == null)
-						{
-							throw new PerforceException($"Invalid field for {recordInfo.SubElementProperty.Name}");
-						}
-
-						// Find the next index
-						int subElementSuffixLength = ReadIndex(tag, suffix, requiredSuffix, list.Count);
-
-						// Parse the subobject and add it to the list
-						object? subRecord;
-						if (!TryReadTypedRecord(buffer, ref bufferPos, suffix.Substring(0, subElementSuffixLength), recordInfo.SubElementRecordInfo!, out subRecord))
-						{
-							record = null;
-							return false;
-						}
-						list.Add(subRecord);
-					}
-					else
-					{
-						// Just discard the value
-						if (!TryReadValue(buffer, ref bufferPos, newRecord, tagInfo))
-						{
-							record = null;
-							return false;
-						}
-					}
-				}
-				else if (tag == ReadOnlyUtf8StringConstants.Func || tag == ReadOnlyUtf8StringConstants.IsSparse)
-				{
-					// Not sure why these fields are in the client output, but they are peppered into filelog results without an element index breaking the parser.
-					if (!TryReadValue(buffer, ref bufferPos, newRecord, null))
-					{
-						record = null;
-						return false;
-					}
-				}
-				else
-				{
-					// Roll back
-					bufferPos = startBufferPos;
-					break;
+					record = null;
+					return false;
 				}
 			}
 
@@ -713,6 +644,50 @@ namespace EpicGames.Perforce
 			return true;
 		}
 
+		static object? GetNestedRecord(object? targetObject, Utf8String suffix, NestedRecordInfo[] nestedRecords)
+		{
+			object? nestedObject = targetObject;
+			foreach (NestedRecordInfo nestedRecord in nestedRecords)
+			{
+				if (suffix.Length == 0)
+				{
+					return null;
+				}
+
+				// Parse the next index
+				int index = 0;
+				while (suffix.Length > 0)
+				{
+					byte character = suffix[0];
+					suffix = suffix[1..];
+
+					if (character >= '0' && character <= '9')
+					{
+						index = (index * 10) + (character - '0');
+					}
+					else
+					{
+						break;
+					}
+				}
+
+				// Get the appropriate object
+				System.Collections.IList? list = (System.Collections.IList?)nestedRecord.PropertyInfo.GetValue(nestedObject);
+				if (list == null)
+				{
+					throw new Exception();
+				}
+				while (index >= list.Count)
+				{
+					list.Add(nestedRecord.CreateInstance());
+				}
+
+				// Move to the nested object
+				nestedObject = list[index];
+			}
+			return nestedObject;
+		}
+
 		/// <summary>
 		/// Reads a value from the input buffer
 		/// </summary>
@@ -721,7 +696,7 @@ namespace EpicGames.Perforce
 		/// <param name="newRecord">The new record</param>
 		/// <param name="tagInfo">The current tag</param>
 		/// <returns></returns>
-		static bool TryReadValue(ReadOnlyMemory<byte> buffer, ref int bufferPos, object newRecord, CachedTagInfo? tagInfo)
+		static bool TryReadValue(ReadOnlyMemory<byte> buffer, ref int bufferPos, object? newRecord, TaggedPropertyInfo? tagInfo)
 		{
 			ReadOnlySpan<byte> bufferSpan = buffer.Span;
 
@@ -740,7 +715,10 @@ namespace EpicGames.Perforce
 				{
 					return false;
 				}
-				tagInfo?.ReadFromString(newRecord, stringValue);
+				if (newRecord != null)
+				{
+					tagInfo?.ReadFromString(newRecord, stringValue);
+				}
 			}
 			else if (valueType == 'i')
 			{
@@ -749,7 +727,10 @@ namespace EpicGames.Perforce
 				{
 					return false;
 				}
-				tagInfo?.ReadFromInteger(newRecord, integerValue);
+				if (newRecord != null)
+				{
+					tagInfo?.ReadFromInteger(newRecord, integerValue);
+				}
 			}
 			else
 			{
@@ -804,56 +785,26 @@ namespace EpicGames.Perforce
 		/// </summary>
 		/// <param name="buffer">The buffer to read from</param>
 		/// <param name="bufferPos">Current read position within the buffer</param>
-		/// <param name="string">Receives the value that was read</param>
+		/// <param name="result">Receives the value that was read</param>
 		/// <returns>True if a string was read from the buffer, false if there was not enough data</returns>
-		static bool TryReadString(ReadOnlyMemory<byte> buffer, ref int bufferPos, out Utf8String @string)
+		static bool TryReadString(ReadOnlyMemory<byte> buffer, ref int bufferPos, out Utf8String result)
 		{
 			int length;
 			if (!TryReadInt(buffer.Span, ref bufferPos, out length))
 			{
-				@string = Utf8String.Empty;
+				result = Utf8String.Empty;
 				return false;
 			}
 
 			if (bufferPos + length > buffer.Length)
 			{
-				@string = Utf8String.Empty;
+				result = Utf8String.Empty;
 				return false;
 			}
 
-			@string = new Utf8String(buffer.Slice(bufferPos, length));
+			result = new Utf8String(buffer.Slice(bufferPos, length));
 			bufferPos += length;
 			return true;
-		}
-
-		/// <summary>
-		/// Checks that the given field suffix starts with the given required suffix and index.
-		/// </summary>
-		/// <param name="tag">The tag name</param>
-		/// <param name="suffix">The text to check</param>
-		/// <param name="requiredSuffix">The required prefix</param>
-		/// <param name="index">The required index</param>
-		/// <returns>True if the index is correct</returns>
-		static int ReadIndex(Utf8String tag, Utf8String suffix, Utf8String requiredSuffix, int index)
-		{
-			int valueStart = 0;
-			if (requiredSuffix.Length > 0)
-			{
-				valueStart = requiredSuffix.Length + 1;
-			}
-
-			int value;
-			int valueLength;
-			if (Utf8Parser.TryParse(suffix.Substring(valueStart), out value, out valueLength))
-			{
-				if (value == index && (valueStart + valueLength == suffix.Length || suffix[valueStart + valueLength] == (byte)','))
-				{
-					return valueStart + valueLength;
-				}
-			}
-
-			string expectedSuffix = (requiredSuffix.Length > 0) ? $"{requiredSuffix},{index}" : $"{index}";
-			throw new PerforceException("Subobject element received out of order: got {0}{1}, expected {0}{2}", tag, suffix, expectedSuffix);
 		}
 	}
 }
