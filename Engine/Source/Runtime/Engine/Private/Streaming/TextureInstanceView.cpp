@@ -63,20 +63,20 @@ void FRenderAssetInstanceView::FBounds4::UnpackBounds(int32 Index, const UPrimit
 }
 
 /** Dynamic Path, this needs to reset all members since the dynamic data is rebuilt from scratch every update (the previous data is given to the async task) */
-void FRenderAssetInstanceView::FBounds4::FullUpdate(int32 Index, const FBoxSphereBounds& Bounds, float InLastRenderTime)
+void FRenderAssetInstanceView::FBounds4::FullUpdate(int32 Index, const FVector& NewOrigin, const FVector& NewBoxExtent, float NewSphereRadius, float InLastRenderTime)
 {
 	check(Index >= 0 && Index < 4);
 
-	OriginX.Component(Index) = Bounds.Origin.X;
-	OriginY.Component(Index) = Bounds.Origin.Y;
-	OriginZ.Component(Index) = Bounds.Origin.Z;
-	RangeOriginX.Component(Index) = Bounds.Origin.X;
-	RangeOriginY.Component(Index) = Bounds.Origin.Y;
-	RangeOriginZ.Component(Index) = Bounds.Origin.Z;
-	ExtentX.Component(Index) = Bounds.BoxExtent.X;
-	ExtentY.Component(Index) = Bounds.BoxExtent.Y;
-	ExtentZ.Component(Index) = Bounds.BoxExtent.Z;
-	RadiusOrComponentScale.Component(Index) = Bounds.SphereRadius;
+	OriginX.Component(Index) = NewOrigin.X;
+	OriginY.Component(Index) = NewOrigin.Y;
+	OriginZ.Component(Index) = NewOrigin.Z;
+	RangeOriginX.Component(Index) = NewOrigin.X;
+	RangeOriginY.Component(Index) = NewOrigin.Y;
+	RangeOriginZ.Component(Index) = NewOrigin.Z;
+	ExtentX.Component(Index) = NewBoxExtent.X;
+	ExtentY.Component(Index) = NewBoxExtent.Y;
+	ExtentZ.Component(Index) = NewBoxExtent.Z;
+	RadiusOrComponentScale.Component(Index) = NewSphereRadius;
 	PackedRelativeBox[Index] = PackedRelativeBox_Identity;
 	MinDistanceSq.Component(Index) = 0;
 	MinRangeSq.Component(Index) = 0;

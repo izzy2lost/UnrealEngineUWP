@@ -550,15 +550,13 @@ void FRenderAssetInstanceState::UpdateBounds(const UPrimitiveComponent* Componen
 	int32* ComponentLink = ComponentMap.Find(Component);
 	if (ComponentLink)
 	{
-		FBoxSphereBounds Bounds = Component->Bounds;
-		Bounds.SphereRadius = Component->GetStreamingScale();
 		int32 ElementIndex = *ComponentLink;
 		while (ElementIndex != INDEX_NONE)
 		{
 			const FElement& Element = Elements[ElementIndex];
 			if (Element.BoundsIndex != INDEX_NONE)
 			{
-				Bounds4[Element.BoundsIndex / 4].FullUpdate(Element.BoundsIndex % 4, Bounds, Component->GetLastRenderTimeOnScreen());
+				Bounds4[Element.BoundsIndex / 4].FullUpdate(Element.BoundsIndex % 4, Component->Bounds.Origin, Component->Bounds.BoxExtent, Component->GetStreamingScale(), Component->GetLastRenderTimeOnScreen());
 			}
 			ElementIndex = Element.NextComponentLink;
 		}
@@ -572,9 +570,7 @@ bool FRenderAssetInstanceState::UpdateBounds(int32 BoundIndex)
 	const UPrimitiveComponent* Component = ensure(Bounds4Components.IsValidIndex(BoundIndex)) ? Bounds4Components[BoundIndex] : nullptr;
 	if (Component)
 	{
-		FBoxSphereBounds Bounds = Component->Bounds;
-		Bounds.SphereRadius = Component->GetStreamingScale();
-		Bounds4[BoundIndex / 4].FullUpdate(BoundIndex % 4, Bounds, Component->GetLastRenderTimeOnScreen());
+		Bounds4[BoundIndex / 4].FullUpdate(BoundIndex % 4, Component->Bounds.Origin, Component->Bounds.BoxExtent, Component->GetStreamingScale(), Component->GetLastRenderTimeOnScreen());
 		return true;
 	}
 	else
@@ -590,29 +586,34 @@ bool FRenderAssetInstanceState::ConditionalUpdateBounds(int32 BoundIndex)
 	const UPrimitiveComponent* Component = ensure(Bounds4Components.IsValidIndex(BoundIndex)) ? Bounds4Components[BoundIndex] : nullptr;
 	if (Component)
 	{
+		const FBoxSphereBounds& Bounds = Component->Bounds;
+
 		if (Component->Mobility != EComponentMobility::Static)
 		{
-			FBoxSphereBounds Bounds = Component->Bounds;
-
 			// Check if the bound is coherent as it could be updated while we read it (from async task).
 			// We don't have to check the position, as if it was partially updated, this should be ok (interp)
-			const float RadiusSquared = FMath::Square<float>(Bounds.SphereRadius);
-			const float XSquared = FMath::Square<float>(Bounds.BoxExtent.X);
-			const float YSquared = FMath::Square<float>(Bounds.BoxExtent.Y);
-			const float ZSquared = FMath::Square<float>(Bounds.BoxExtent.Z);
-
-			if (0.5f * FMath::Min3<float>(XSquared, YSquared, ZSquared) <= RadiusSquared && RadiusSquared <= 2.f * (XSquared + YSquared + ZSquared))
+			static_assert((offsetof(FBoxSphereBounds, BoxExtent) + sizeof(Bounds.BoxExtent)) == (offsetof(FBoxSphereBounds, SphereRadius)), "Memory layout for FBoxSphereBounds has changed");
+			enum
 			{
-				Bounds.SphereRadius = Component->GetStreamingScale();
-				Bounds4[BoundIndex / 4].FullUpdate(BoundIndex % 4, Bounds, Component->GetLastRenderTimeOnScreen());
+				X = 0,
+				Y,
+				Z,
+				R
+			};
+
+			VectorRegister4Float XYZRData = MakeVectorRegisterFloatFromDouble(VectorLoad(&Bounds.BoxExtent.X));		//X,Y,Z,Radius
+			XYZRData = VectorMultiply(XYZRData, XYZRData);
+			AlignedFloat4 XYZRSquared(XYZRData);
+
+			if (0.5f * FMath::Min3<float>(XYZRSquared[X], XYZRSquared[Y], XYZRSquared[Z]) <= XYZRSquared[R] && XYZRSquared[R] <= 2.f * (XYZRSquared[X] + XYZRSquared[Y] + XYZRSquared[Z]))
+			{
+				Bounds4[BoundIndex / 4].FullUpdate(BoundIndex % 4, Bounds.Origin, Bounds.BoxExtent, Component->GetStreamingScale(), Component->GetLastRenderTimeOnScreen());
 				return true;
 			}
 		}
 		else // Otherwise we assume it is guarantied to be good.
 		{
-			FBoxSphereBounds Bounds = Component->Bounds;
-			Bounds.SphereRadius = Component->GetStreamingScale();
-			Bounds4[BoundIndex / 4].FullUpdate(BoundIndex % 4, Bounds, Component->GetLastRenderTimeOnScreen());
+			Bounds4[BoundIndex / 4].FullUpdate(BoundIndex % 4, Bounds.Origin, Bounds.BoxExtent, Component->GetStreamingScale(), Component->GetLastRenderTimeOnScreen());
 			return true;
 		}
 	}
