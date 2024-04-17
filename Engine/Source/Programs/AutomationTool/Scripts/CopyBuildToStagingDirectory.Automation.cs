@@ -474,17 +474,6 @@ namespace AutomationScripts
 			return InternationalizationPreset;
 		}
 
-		private static bool ShouldTreatAsFileServer(ProjectParams Params, DeploymentContext SC)
-		{
-			if (Params.FileServer)
-			{
-				return true;
-			}
-			FileReference ZenStoreMarkerFile = FindZenProjectStoreMarker(Params, SC);
-			bool UseZenServerHost = (ZenStoreMarkerFile != null) && !Params.UsePak(SC.StageTargetPlatform);
-			return UseZenServerHost;
-		}
-
 		public static List<string> GetCulturesToStage(ProjectParams Params, ConfigHierarchy PlatformGameConfig, bool bMustExist = true)
 		{
 			// Initialize cultures to stage.
@@ -1416,7 +1405,7 @@ namespace AutomationScripts
 						}
 
 						// UFS is required when using a file server
-						StagedFileType MovieFileType = ShouldTreatAsFileServer(Params, SC) ? StagedFileType.UFS : StagedFileType.NonUFS;
+						StagedFileType MovieFileType = Params.ShouldTreatAsFileServer(SC) ? StagedFileType.UFS : StagedFileType.NonUFS;
 
 						DirectoryReference EngineMoviesDir = DirectoryReference.Combine(SC.EngineRoot, "Content", "Movies");
 						if (DirectoryReference.Exists(EngineMoviesDir))
@@ -2262,7 +2251,7 @@ namespace AutomationScripts
 			CopyManifestFilesToStageDir(SC, SC.FilesToStage.NonUFSFiles, "NonUFSFiles");
 
 			Dictionary<StagedFileReference, FileReference> UFSFiles = new Dictionary<StagedFileReference, FileReference>(SC.FilesToStage.UFSFiles);
-			bool bStageUnrealFileSystemFiles = !Params.CookOnTheFly && !Params.UsePak(SC.StageTargetPlatform) && !ShouldTreatAsFileServer(Params, SC);
+			bool bStageUnrealFileSystemFiles = !Params.CookOnTheFly && !Params.UsePak(SC.StageTargetPlatform) && !Params.ShouldTreatAsFileServer(SC);
 			if (bStageUnrealFileSystemFiles)
 			{
 				foreach (KeyValuePair<StagedFileReference, FileReference> Pair in SC.CrashReporterUFSFiles)
@@ -5406,6 +5395,7 @@ namespace AutomationScripts
 					DeploymentContexts.Insert(0, SC);
 				}
 
+				SetUpStagingSourceDirectories(Params, SC);
 				SetupCustomStageCopyHandler(Params, SC);
 			}
 

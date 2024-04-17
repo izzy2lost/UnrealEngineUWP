@@ -3206,6 +3206,50 @@ namespace AutomationTool
 			}
 		}
 
+		public FileReference FindZenProjectStoreMarker(DeploymentContext SC)
+		{
+			DirectoryReference ProjectStoreDir = null;
+			if (Stage)
+			{
+				if (SC.PlatformCookDir == null)
+				{
+					throw new AutomationException("FindZenProjectStoreMarker called before PlatformCookDir was populated");
+				}
+				ProjectStoreDir = SC.PlatformCookDir;
+			}
+			else if (Deploy)
+			{
+				ProjectStoreDir = SC.StageDirectory;
+			}
+			if (ProjectStoreDir == null)
+			{
+				return null;
+			}
+			// Check for stage with zenstore without PAK?
+			FileReference PackageStoreManifestFile = FileReference.Combine(ProjectStoreDir, "ue.projectstore");
+			System.IO.FileInfo PackageStoreManifestFileInfo = PackageStoreManifestFile.ToFileInfo();
+			if (PackageStoreManifestFileInfo.Exists)
+			{
+				return PackageStoreManifestFile;
+			}
+			return null;
+		}
+
+		public bool ShouldTreatAsFileServer(DeploymentContext SC)
+		{
+			if (FileServer)
+			{
+				return true;
+			}
+			if (ZenStore)
+			{
+				return true;
+			}
+			FileReference ZenStoreMarkerFile = FindZenProjectStoreMarker(SC);
+			bool UseZenServerHost = (ZenStoreMarkerFile != null) && !UsePak(SC.StageTargetPlatform);
+			return UseZenServerHost;
+		}
+
 		protected bool bLogged = false;
 		public virtual void ValidateAndLog()
 		{
