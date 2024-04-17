@@ -47,7 +47,7 @@ namespace UnrealBuildTool
 		/// <summary>
 		/// The version of the compiler being used
 		/// </summary>
-		public string ToolChainVersion { get; }
+		public string ToolChainVersion { get; set; }
 
 		/// <summary>
 		/// Source file to compile

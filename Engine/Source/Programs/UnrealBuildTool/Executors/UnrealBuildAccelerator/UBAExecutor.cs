@@ -77,6 +77,10 @@ namespace UnrealBuildTool
 		private void PrintConfiguration()
 		{
 			_threadedLogger.LogInformation("  Storage capacity {StoreCapacityGb}Gb", UBAConfig.StoreCapacityGb);
+			if (UBAConfig.bStoreObjFilesCompressed)
+			{
+				_threadedLogger.LogInformation("  Object Compression Allowed");
+			}
 		}
 
 		private async Task WriteActionOutputFileAsync(IEnumerable<LinkedAction> inputActions)

@@ -1617,6 +1617,11 @@ namespace UnrealBuildTool
 			// When compiling with SN-DBS, modules that contain a #import must be built locally
 			BaseCompileAction.bCanExecuteRemotelyWithSNDBS = BaseCompileAction.bCanExecuteRemotely && !CompileEnvironment.bBuildLocallyWithSNDBS;
 
+			if (Target.bAllowUbaCompression)
+			{
+				BaseCompileAction.ToolChainVersion = $"{BaseCompileAction.ToolChainVersion} Compressed";
+			}
+
 			return BaseCompileAction;
 		}
 
@@ -2745,6 +2750,11 @@ namespace UnrealBuildTool
 
 				LinkAction.bCanExecuteRemotely = false;
 				LinkAction.bCanExecuteInUBA = false;
+			}
+
+			if (Target.bAllowUbaCompression)
+			{
+				LinkAction.CommandVersion = $"{LinkAction.CommandVersion} Compressed";
 			}
 
 			Logger.LogDebug("     Linking: {StatusDescription}", LinkAction.StatusDescription);

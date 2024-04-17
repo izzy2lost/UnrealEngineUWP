@@ -402,6 +402,8 @@ namespace UnrealBuildTool
 
 		public bool bWithAssembly => Inner.bWithAssembly;
 
+		public bool bAllowUbaCompression => Inner.bAllowUbaCompression;
+
 		public StaticAnalyzer StaticAnalyzer => Inner.StaticAnalyzer;
 
 		public StaticAnalyzerOutputType StaticAnalyzerOutputType => Inner.StaticAnalyzerOutputType;
