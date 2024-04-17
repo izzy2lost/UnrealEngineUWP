@@ -744,7 +744,10 @@ namespace InstallBundleManagerAnalytics
 		AnalyticsProvider->RecordEvent(TEXT("InstallBundleManager.BundleRequestComplete"), MoveTemp(Attributes));
 	}
 
-	void FireEvent_BundleReleaseRequestStarted(IAnalyticsProviderET* AnalyticsProvider, const FString& BundleName, bool bRemoveFilesIfPossible)
+	void FireEvent_BundleReleaseRequestStarted(IAnalyticsProviderET* AnalyticsProvider, 
+		const FString& BundleName, 
+		bool bRemoveFilesIfPossible,
+		bool bUnmountOnly)
 	{
 		if (AnalyticsProvider == nullptr || InstallBundleUtil::FInstallBundleSuppressAnalytics::IsEnabled())
 		{
@@ -753,12 +756,14 @@ namespace InstallBundleManagerAnalytics
 
 		AnalyticsProvider->RecordEvent(TEXT("InstallBundleManager.BundleReleaseRequestStarted"), MakeAnalyticsEventAttributeArray(
 			TEXT("BundleName"), BundleName,
-			TEXT("RemoveFilesIfPossible"), bRemoveFilesIfPossible));
+			TEXT("RemoveFilesIfPossible"), bRemoveFilesIfPossible,
+			TEXT("UnmountOnly"), bUnmountOnly));
 	}
 
 	void FireEvent_BundleReleaseRequestComplete(IAnalyticsProviderET* AnalyticsProvider, 
 		const FString& BundleName, 
 		bool bRemoveFilesIfPossible, 
+		bool bUnmountOnly,
 		const FString& Result)
 	{
 		if (AnalyticsProvider == nullptr || InstallBundleUtil::FInstallBundleSuppressAnalytics::IsEnabled())
@@ -769,6 +774,7 @@ namespace InstallBundleManagerAnalytics
 		AnalyticsProvider->RecordEvent(TEXT("InstallBundleManager.BundleReleaseRequestComplete"), MakeAnalyticsEventAttributeArray(
 			TEXT("BundleName"), BundleName,
 			TEXT("RemoveFilesIfPossible"), bRemoveFilesIfPossible,
+			TEXT("UnmountOnly"), bUnmountOnly,
 			TEXT("Result"), Result));
 	}
 

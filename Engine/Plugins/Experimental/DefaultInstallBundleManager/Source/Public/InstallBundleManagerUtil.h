@@ -335,10 +335,12 @@ namespace InstallBundleManagerAnalytics
 	 *
 	 * @EventParam BundleName (string) String Name of bundle.
 	 * @EventParam RemoveFilesIfPossible (bool) True if this request will try to clean up files.
+	 * @EventParam UnmountOnly (bool) True if this request is only for unmount
 	 */
 	DEFAULTINSTALLBUNDLEMANAGER_API void FireEvent_BundleReleaseRequestStarted(IAnalyticsProviderET* AnalyticsProvider,
 		const FString& BundleName,
-		bool bRemoveFilesIfPossible);
+		bool bRemoveFilesIfPossible,
+		bool bUnmountOnly);
 
 	/**
 	 * @EventName InstallBundleManager.BundleReleaseRequestComplete
@@ -349,11 +351,13 @@ namespace InstallBundleManagerAnalytics
 	 *
 	 * @EventParam BundleName (string) String Name of bundle.
 	 * @EventParam RemoveFilesIfPossible (bool) True if this request will try to clean up files.
+	 * @EventParam UnmountOnly (bool) True if this request is only for unmount
 	 * @EventParam Result (string) Result of the request
 	 */
 	DEFAULTINSTALLBUNDLEMANAGER_API void FireEvent_BundleReleaseRequestComplete(IAnalyticsProviderET* AnalyticsProvider,
 		const FString& BundleName,
 		bool bRemoveFilesIfPossible,
+		bool bUnmountOnly,
 		const FString& Result);
 
 	/**

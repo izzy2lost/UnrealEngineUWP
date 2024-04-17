@@ -1324,6 +1324,13 @@ void FDefaultInstallBundleManager::UpdateBundleSources(FContentReleaseRequestRef
 		return;
 	}
 
+	if (EnumHasAnyFlags(Request->Flags, EInstallBundleReleaseRequestFlags::SkipReleaseUnmountOnly))
+	{
+		LOG_INSTALL_BUNDLE_MAN_OVERRIDE(Request->LogVerbosityOverride, Display, TEXT("Skipping Updated Sources for Release Request %s"), *Request->BundleName.ToString());
+		Request->StepResult = EContentRequestStepResult::Done;
+		return;
+	}
+
 	// Release from any caches that were reserved
 	for (const TPair<FName, TSharedRef<FInstallBundleCache>>& Pair : BundleCaches)
 	{
@@ -1545,18 +1552,16 @@ void FDefaultInstallBundleManager::MountPaks(FContentRequestRef Request)
 bool FDefaultInstallBundleManager::MountPaksInList(TArrayView<FString> Paths, ELogVerbosity::Type LogVerbosityOverride)
 {
 	FPakPlatformFile* PakPlatformFile = static_cast<FPakPlatformFile*>(FPlatformFileManager::Get().FindPlatformFile(TEXT("PakFile")));
-	if (!PakPlatformFile)
-	{
-		ensureMsgf(false, TEXT("Pak files have not been correctly initalized. Use -UsePaks on the cmdline if you are using the UnrealEditor.exe"));
-		return false; // if FCoreDelegates::MountPak is unbound there is a major issue.
-	}
 
 	// Sort in descending order.
 	Paths.Sort(TGreater<FString>());
 
 	// Find already mounted paks
 	TSet<FString> MountedPaks;
-	PakPlatformFile->GetMountedPakFilenames(MountedPaks);
+	if (PakPlatformFile)
+	{
+		PakPlatformFile->GetMountedPakFilenames(MountedPaks);
+	}
 
 	bool bMountedPaks = false;
 	for (const FString& File : Paths)
@@ -1570,6 +1575,12 @@ bool FDefaultInstallBundleManager::MountPaksInList(TArrayView<FString> Paths, EL
 		{
 			LOG_INSTALL_BUNDLE_MAN_OVERRIDE(LogVerbosityOverride, Warning, TEXT("Pak file: %s already mounted, skipping. \n"), *File);
 			continue;
+		}
+
+		if (!PakPlatformFile)
+		{
+			ensureMsgf(false, TEXT("Pak files have not been correctly initalized. Use -UsePaks on the cmdline if you are using the UnrealEditor.exe"));
+			return false; // if FCoreDelegates::MountPak is unbound there is a major issue.
 		}
 
 		LOG_INSTALL_BUNDLE_MAN_OVERRIDE(LogVerbosityOverride, Verbose, TEXT("Mounting pak file: %s \n"), *File);
@@ -2103,7 +2114,8 @@ void FDefaultInstallBundleManager::TickReleaseRequests()
 
 				InstallBundleManagerAnalytics::FireEvent_BundleReleaseRequestStarted(AnalyticsProvider.Get(),
 					Request->BundleName.ToString(),
-					EnumHasAnyFlags(Request->Flags, EInstallBundleReleaseRequestFlags::RemoveFilesIfPossible));
+					EnumHasAnyFlags(Request->Flags, EInstallBundleReleaseRequestFlags::RemoveFilesIfPossible),
+					EnumHasAnyFlags(Request->Flags, EInstallBundleReleaseRequestFlags::SkipReleaseUnmountOnly));
 
 				ContentReleaseRequests[EContentReleaseRequestBatch::Requested].RemoveAtSwap(i);
 				bRequestComplete = true;
@@ -2154,6 +2166,7 @@ void FDefaultInstallBundleManager::TickReleaseRequests()
 				InstallBundleManagerAnalytics::FireEvent_BundleReleaseRequestComplete(AnalyticsProvider.Get(),
 					Request->BundleName.ToString(),
 					EnumHasAnyFlags(Request->Flags, EInstallBundleReleaseRequestFlags::RemoveFilesIfPossible),
+					EnumHasAnyFlags(Request->Flags, EInstallBundleReleaseRequestFlags::SkipReleaseUnmountOnly),
 					LexToString(Request->Result));
 
 				LOG_INSTALL_BUNDLE_MAN_OVERRIDE(Request->LogVerbosityOverride, Display, TEXT("Removing Release Request %s"), *Request->BundleName.ToString());
@@ -3432,6 +3445,12 @@ TValueOrError<FInstallBundleReleaseRequestInfo, EInstallBundleResult> FDefaultIn
 		return MakeError(EInstallBundleResult::InitializationPending);
 	}
 
+	// RemoveFilesIfPossible and SkipReleaseUnmountOnly are incompatible
+	if (EnumHasAllFlags(Flags, EInstallBundleReleaseRequestFlags::RemoveFilesIfPossible | EInstallBundleReleaseRequestFlags::SkipReleaseUnmountOnly))
+	{
+		return MakeError(EInstallBundleResult::InstallError);
+	}
+
 	LOG_INSTALL_BUNDLE_MAN_OVERRIDE(LogVerbosityOverride, Display, TEXT("RequestReleaseContent"));
 
 	TSet<FName> BundlesToKeep = GatherBundlesForRequest(KeepNames, RetInfo.InfoFlags);
@@ -3491,6 +3510,13 @@ TValueOrError<FInstallBundleReleaseRequestInfo, EInstallBundleResult> FDefaultIn
 		// canceled update has finished.
 		if (ActiveQueuedRequest == nullptr && !bCanceledUpdate)
 		{
+			if (EnumHasAnyFlags(Flags, EInstallBundleReleaseRequestFlags::SkipReleaseUnmountOnly) && GetBundleStatus(*BundleInfo) != EBundleState::Mounted)
+			{
+				RetInfo.InfoFlags |= EInstallBundleRequestInfoFlags::SkippedAlreadyReleasedBundles;
+				LOG_INSTALL_BUNDLE_MAN_OVERRIDE(LogVerbosityOverride, Verbose, TEXT("BundlesToRelease Bundle %s  - Already Unmounted"), *BundleInfo->BundleNameString);
+				continue;
+			}
+
 			// If this bundle is reserved in a cache, a release request cannot be skipped
 			bool bIsReserved = false;
 			for (const FBundleSourceRelevance& SourceRelevance : BundleInfo->ContributingSources)
@@ -3527,24 +3553,42 @@ TValueOrError<FInstallBundleReleaseRequestInfo, EInstallBundleResult> FDefaultIn
 
 		LOG_INSTALL_BUNDLE_MAN_OVERRIDE(LogVerbosityOverride, Display, TEXT("Requesting Release of Bundle %s"), *BundleInfo->BundleNameString);
 
-		if (ActiveQueuedRequest &&
-			!EnumHasAnyFlags(ActiveQueuedRequest->Flags, EInstallBundleReleaseRequestFlags::RemoveFilesIfPossible) &&
-			EnumHasAnyFlags(Flags, EInstallBundleReleaseRequestFlags::RemoveFilesIfPossible))
+		if (ActiveQueuedRequest)
 		{
-			ActiveQueuedRequest->Flags |= EInstallBundleReleaseRequestFlags::RemoveFilesIfPossible;
-
-			// TODO: This assumes that a bundle source that doesn't remove files will always immediatly callback on release.
-			// That is probably a bad assumption, we can't control how the bundle source may be written.
-			// It would be safer to instead in enqueue this with a prereq that there is no pending release
-#if DO_CHECK
-			// Since a request without RemoveFilesIfPossible does no async work after unmounting, it shouldn't be possible to 
-			// call RequestReleaseContent and find an ActiveQueuedRequest that is past the unmounting step.
-			if (ActiveQueuedRequest->Steps.IsValidIndex(ActiveQueuedRequest->iStep))
+			if (!EnumHasAnyFlags(ActiveQueuedRequest->Flags, EInstallBundleReleaseRequestFlags::RemoveFilesIfPossible) &&
+				EnumHasAnyFlags(Flags, EInstallBundleReleaseRequestFlags::RemoveFilesIfPossible))
 			{
-				EContentReleaseRequestState State = ActiveQueuedRequest->Steps[ActiveQueuedRequest->iStep];
-				check(State < EContentReleaseRequestState::UpdatingBundleSources);
-			}
+				ActiveQueuedRequest->Flags |= EInstallBundleReleaseRequestFlags::RemoveFilesIfPossible;
+
+				// TODO: This assumes that a bundle source that doesn't remove files will always immediatly callback on release.
+				// That is probably a bad assumption, we can't control how the bundle source may be written.
+				// It would be safer to instead in enqueue this with a prereq that there is no pending release
+#if DO_CHECK
+				// Since a request without RemoveFilesIfPossible does no async work after unmounting, it shouldn't be possible to 
+				// call RequestReleaseContent and find an ActiveQueuedRequest that is past the unmounting step.
+				if (ActiveQueuedRequest->Steps.IsValidIndex(ActiveQueuedRequest->iStep))
+				{
+					EContentReleaseRequestState State = ActiveQueuedRequest->Steps[ActiveQueuedRequest->iStep];
+					check(State < EContentReleaseRequestState::UpdatingBundleSources);
+				}
 #endif // DO_CHECK
+			}
+
+			if (EnumHasAnyFlags(ActiveQueuedRequest->Flags, EInstallBundleReleaseRequestFlags::SkipReleaseUnmountOnly) &&
+				!EnumHasAnyFlags(Flags, EInstallBundleReleaseRequestFlags::SkipReleaseUnmountOnly))
+			{
+				ActiveQueuedRequest->Flags &= ~EInstallBundleReleaseRequestFlags::SkipReleaseUnmountOnly;
+
+#if DO_CHECK
+				// Since a request with SkipReleaseUnmountOnly does no async work after unmounting, it shouldn't be possible to 
+				// call RequestReleaseContent and find an ActiveQueuedRequest that is past the unmounting step.
+				if (ActiveQueuedRequest->Steps.IsValidIndex(ActiveQueuedRequest->iStep))
+				{
+					EContentReleaseRequestState State = ActiveQueuedRequest->Steps[ActiveQueuedRequest->iStep];
+					check(State < EContentReleaseRequestState::UpdatingBundleSources);
+				}
+#endif // DO_CHECK
+			}
 		}
 
 		if (ActiveQueuedRequest == nullptr)

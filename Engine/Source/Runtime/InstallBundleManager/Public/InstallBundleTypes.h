@@ -208,7 +208,8 @@ enum class EInstallBundleReleaseRequestFlags : uint32
 {
 	None = 0,
 	RemoveFilesIfPossible = (1 << 0),  // Bundle sources must support removal, and bundle must not be part of the source's cache
-	ExplicitRemoveList = (1 << 1),	   // Only attempt to remove explicitly supplied bundles instead of automatically removing dependencies 
+	ExplicitRemoveList = (1 << 1),	   // Only attempt to remove explicitly supplied bundles instead of automatically removing dependencies
+	SkipReleaseUnmountOnly = (1 << 2),   // Unmount but leave content referenced. The inverse of EInstallBundleRequestFlags::SkipMount
 };
 ENUM_CLASS_FLAGS(EInstallBundleReleaseRequestFlags)
 
