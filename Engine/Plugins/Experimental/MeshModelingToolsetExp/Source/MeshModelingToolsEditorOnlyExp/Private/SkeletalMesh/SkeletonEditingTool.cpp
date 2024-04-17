@@ -1675,7 +1675,7 @@ void USkeletonEditingTool::HandleSkeletalMeshModified(const TArray<FName>& InBon
 
 	TArray<FName> BoneNames(InBoneNames);
 	const FReferenceSkeleton& RefSkeleton = Modifier->GetReferenceSkeleton();
-	BoneNames.RemoveAll([&](const FName& BoneName)
+	BoneNames.RemoveAll([&RefSkeleton](const FName& BoneName)
 	{
 		return RefSkeleton.FindRawBoneIndex(BoneName) == INDEX_NONE;
 	});
@@ -1686,9 +1686,9 @@ void USkeletonEditingTool::HandleSkeletalMeshModified(const TArray<FName>& InBon
 			Selection = BoneNames;
 			break;
 		case ESkeletalMeshNotifyType::BonesRemoved:
-			Selection.RemoveAll([&](const FName& BoneName)
+			Selection.RemoveAll([&InBoneNames](const FName& BoneName)
 			{
-				return BoneNames.Contains(BoneName);
+				return InBoneNames.Contains(BoneName);
 			});
 			break;
 		case ESkeletalMeshNotifyType::BonesMoved:
