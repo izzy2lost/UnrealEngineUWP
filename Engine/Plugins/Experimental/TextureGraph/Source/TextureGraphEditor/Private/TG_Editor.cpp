@@ -783,7 +783,7 @@ void FTG_Editor::OnCreateComment()
 		FTG_EdGraphSchemaAction_NewComment CommentAction;
 
 		TSharedPtr<SGraphEditor> GraphEditorPtr = SGraphEditor::FindGraphEditorForGraph(TG_EdGraph);
-		FVector2D Location;
+		FVector2D Location = FVector2D::ZeroVector;
 		if (GraphEditorPtr)
 		{
 			Location = GraphEditorPtr->GetPasteLocation();
