@@ -1052,8 +1052,7 @@ void SCollectionView::DeleteCollectionItems( const TArray<TSharedPtr<FCollection
 	FCollectionManagerModule& CollectionManagerModule = FCollectionManagerModule::GetModule();
 	for (const TSharedPtr<FCollectionItem>& ItemToDelete : ItemsToDelete)
 	{
-		FText Error;
-		if (CollectionManagerModule.Get().DestroyCollection(ItemToDelete->CollectionName, ItemToDelete->CollectionType, &Error))
+		if (CollectionManagerModule.Get().DestroyCollection(ItemToDelete->CollectionName, ItemToDelete->CollectionType))
 		{
 			if (PreviouslySelectedItems.Contains(ItemToDelete))
 			{
@@ -1066,7 +1065,7 @@ void SCollectionView::DeleteCollectionItems( const TArray<TSharedPtr<FCollection
 			const FVector2f& CursorPos = FSlateApplication::Get().GetCursorPos();
 			FSlateRect MessageAnchor(CursorPos.X, CursorPos.Y, CursorPos.X, CursorPos.Y);
 			ContentBrowserUtils::DisplayMessage(
-				FText::Format( LOCTEXT("CollectionDestroyFailed", "Failed to destroy collection. {0}"), Error),
+				FText::Format( LOCTEXT("CollectionDestroyFailed", "Failed to destroy collection. {0}"), CollectionManagerModule.Get().GetLastError() ),
 				MessageAnchor,
 				CollectionTreePtr.ToSharedRef()
 				);
@@ -1233,13 +1232,12 @@ FReply SCollectionView::HandleDragDropOnCollectionTree(const FGeometry& Geometry
 		// Reparent all of the collections in the drag drop so that they are root level items
 		for (const FCollectionNameType& NewChildCollection : DragDropOp->Collections)
 		{
-			FText Error;
 			if (!CollectionManagerModule.Get().ReparentCollection(
 					NewChildCollection.Name, NewChildCollection.Type,
-					NAME_None, ECollectionShareType::CST_All, &Error
+					NAME_None, ECollectionShareType::CST_All
 					))
 			{
-				ContentBrowserUtils::DisplayMessage(Error, Geometry.GetLayoutBoundingRect(), SharedThis(this));
+				ContentBrowserUtils::DisplayMessage(CollectionManagerModule.Get().GetLastError(), Geometry.GetLayoutBoundingRect(), SharedThis(this));
 			}
 		}
 
@@ -1273,14 +1271,14 @@ bool SCollectionView::ValidateDragDropOnCollectionItem(TSharedRef<FCollectionIte
 		bIsValidDrag = true;
 		for (const FCollectionNameType& PotentialChildCollection : DragDropOp->Collections)
 		{
-			FText Error;
 			bIsValidDrag = CollectionManagerModule.Get().IsValidParentCollection(
 				PotentialChildCollection.Name, PotentialChildCollection.Type,
-				CollectionItem->CollectionName, CollectionItem->CollectionType, &Error);
+				CollectionItem->CollectionName, CollectionItem->CollectionType
+				);
 
 			if (!bIsValidDrag)
 			{
-				DragDropOp->SetToolTip(Error, FAppStyle::GetBrush(TEXT("Graph.ConnectorFeedback.Error")));
+				DragDropOp->SetToolTip(CollectionManagerModule.Get().GetLastError(), FAppStyle::GetBrush(TEXT("Graph.ConnectorFeedback.Error")));
 				break;
 			}
 		}
@@ -1323,13 +1321,12 @@ FReply SCollectionView::HandleDragDropOnCollectionItem(TSharedRef<FCollectionIte
 		// Reparent all of the collections in the drag drop so that they are our immediate children
 		for (const FCollectionNameType& NewChildCollection : DragDropOp->Collections)
 		{
-			FText Error;
 			if (!CollectionManagerModule.Get().ReparentCollection(
 					NewChildCollection.Name, NewChildCollection.Type,
-					CollectionItem->CollectionName, CollectionItem->CollectionType, &Error
+					CollectionItem->CollectionName, CollectionItem->CollectionType
 					))
 			{
-				ContentBrowserUtils::DisplayMessage(Error, Geometry.GetLayoutBoundingRect(), SharedThis(this));
+				ContentBrowserUtils::DisplayMessage(CollectionManagerModule.Get().GetLastError(), Geometry.GetLayoutBoundingRect(), SharedThis(this));
 			}
 		}
 
@@ -1352,7 +1349,7 @@ FReply SCollectionView::HandleDragDropOnCollectionItem(TSharedRef<FCollectionIte
 		int32 NumAdded = 0;
 		FText Message;
 		if (CollectionManagerModule.Get().AddToCollection(
-				CollectionItem->CollectionName, CollectionItem->CollectionType, ObjectPaths, &NumAdded, &Message))
+				CollectionItem->CollectionName, CollectionItem->CollectionType, ObjectPaths, &NumAdded))
 		{
 			if (DroppedAssets.Num() == 1)
 			{
@@ -1379,6 +1376,10 @@ FReply SCollectionView::HandleDragDropOnCollectionItem(TSharedRef<FCollectionIte
 				AssetAdded.Workflow = ECollectionTelemetryAssetAddedWorkflow::DragAndDrop;
 				FTelemetryRouter::Get().ProvideTelemetry(AssetAdded);
 			}
+		}
+		else
+		{
+			Message = CollectionManagerModule.Get().GetLastError();
 		}
 
 		// Added items to the collection or failed. Either way, display the message.
@@ -1513,14 +1514,13 @@ bool SCollectionView::CollectionNameChangeCommit( const TSharedPtr< FCollectionI
 			return false;
 		}
 
-		FText Error;
-		if ( !CollectionManagerModule.Get().CreateCollection(NewNameFinal, CollectionItem->CollectionType, CollectionItem->StorageMode, &Error) )
+		if ( !CollectionManagerModule.Get().CreateCollection(NewNameFinal, CollectionItem->CollectionType, CollectionItem->StorageMode) )
 		{
 			// Failed to add the collection, remove it from the list
 			AvailableCollections.Remove(FCollectionNameType(CollectionItem->CollectionName, CollectionItem->CollectionType));
 			UpdateFilteredCollectionItems();
 
-			OutWarningMessage = FText::Format( LOCTEXT("CreateCollectionFailed", "Failed to create the collection. {0}"), Error);
+			OutWarningMessage = FText::Format( LOCTEXT("CreateCollectionFailed", "Failed to create the collection. {0}"), CollectionManagerModule.Get().GetLastError());
 			return false;
 		}
 
@@ -1566,11 +1566,10 @@ bool SCollectionView::CollectionNameChangeCommit( const TSharedPtr< FCollectionI
 		}
 
 		// Otherwise perform the rename
-		FText Error;
-		if ( !CollectionManagerModule.Get().RenameCollection(CollectionItem->CollectionName, CollectionItem->CollectionType, NewNameFinal, CollectionItem->CollectionType, &Error) )
+		if ( !CollectionManagerModule.Get().RenameCollection(CollectionItem->CollectionName, CollectionItem->CollectionType, NewNameFinal, CollectionItem->CollectionType) )
 		{
 			// Failed to rename the collection
-			OutWarningMessage = FText::Format( LOCTEXT("RenameCollectionFailed", "Failed to rename the collection. {0}"), Error);
+			OutWarningMessage = FText::Format( LOCTEXT("RenameCollectionFailed", "Failed to rename the collection. {0}"), CollectionManagerModule.Get().GetLastError());
 			return false;
 		}
 	}
@@ -1607,8 +1606,9 @@ bool SCollectionView::CollectionVerifyRenameCommit(const TSharedPtr< FCollection
 
 	FCollectionManagerModule& CollectionManagerModule = FCollectionManagerModule::GetModule();
 
-	if (!CollectionManagerModule.Get().IsValidCollectionName(NewName, ECollectionShareType::CST_All, &OutErrorMessage))
+	if (!CollectionManagerModule.Get().IsValidCollectionName(NewName, ECollectionShareType::CST_All))
 	{
+		OutErrorMessage = CollectionManagerModule.Get().GetLastError();
 		return false;
 	}
 

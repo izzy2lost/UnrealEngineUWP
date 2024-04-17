@@ -66,7 +66,7 @@ void FCollectionAssetManagement::AddCurrentAssetsToCollection(FCollectionNameTyp
 	bool bSuccess = false;
 	{
 		int32 NumAdded = 0;
-		if (CollectionManagerModule.Get().AddToCollection(InCollectionKey.Name, InCollectionKey.Type, ObjectPaths, &NumAdded, &ResultText))
+		if (CollectionManagerModule.Get().AddToCollection(InCollectionKey.Name, InCollectionKey.Type, ObjectPaths, &NumAdded))
 		{
 			bSuccess = true;
 
@@ -74,6 +74,10 @@ void FCollectionAssetManagement::AddCurrentAssetsToCollection(FCollectionNameTyp
 			Args.Add(TEXT("Number"), NumAdded);
 			Args.Add(TEXT("CollectionName"), FText::FromName(InCollectionKey.Name));
 			ResultText = FText::Format(LOCTEXT("CollectionAssetsAdded", "Added {Number} asset(s) to {CollectionName}"), Args);
+		}
+		else
+		{
+			ResultText = CollectionManagerModule.Get().GetLastError();
 		}
 	}
 
@@ -101,7 +105,7 @@ void FCollectionAssetManagement::RemoveCurrentAssetsFromCollection(FCollectionNa
 	bool bSuccess = false;
 	{
 		int32 NumRemoved = 0;
-		if (CollectionManagerModule.Get().RemoveFromCollection(InCollectionKey.Name, InCollectionKey.Type, ObjectPaths, &NumRemoved, &ResultText))
+		if (CollectionManagerModule.Get().RemoveFromCollection(InCollectionKey.Name, InCollectionKey.Type, ObjectPaths, &NumRemoved))
 		{
 			bSuccess = true;
 
@@ -109,6 +113,10 @@ void FCollectionAssetManagement::RemoveCurrentAssetsFromCollection(FCollectionNa
 			Args.Add(TEXT("Number"), NumRemoved);
 			Args.Add(TEXT("CollectionName"), FText::FromName(InCollectionKey.Name));
 			ResultText = FText::Format(LOCTEXT("CollectionAssetsRemoved", "Removed {Number} asset(s) from {CollectionName}"), Args);
+		}
+		else
+		{
+			ResultText = CollectionManagerModule.Get().GetLastError();
 		}
 	}
 

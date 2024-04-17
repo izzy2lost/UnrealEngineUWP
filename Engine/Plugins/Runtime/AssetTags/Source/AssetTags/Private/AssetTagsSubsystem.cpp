@@ -19,21 +19,16 @@ DEFINE_LOG_CATEGORY_STATIC(LogAssetTags, Log, All);
 namespace AssetTagsSubsystemUtil
 {
 
-void LogLastCollectionManagerError(const FText& Error)
+void LogLastCollectionManagerError(ICollectionManager& CollectionManager)
 {
-	UE_LOG(LogAssetTags, Warning, TEXT("Collection manager error: %s"), *Error.ToString());
+	UE_LOG(LogAssetTags, Warning, TEXT("%s"), *CollectionManager.GetLastError().ToString());
 }
 
-// void LogLastCollectionManagerError(ICollectionManager& CollectionManager)
-// {
-// 	UE_LOG(LogAssetTags, Warning, TEXT("%s"), *CollectionManager.GetLastError().ToString());
-// }
-
-// void LogLastCollectionManagerError()
-// {
-// 	ICollectionManager& CollectionManager = FCollectionManagerModule::GetModule().Get();
-// 	LogLastCollectionManagerError(CollectionManager);
-// }
+void LogLastCollectionManagerError()
+{
+	ICollectionManager& CollectionManager = FCollectionManagerModule::GetModule().Get();
+	LogLastCollectionManagerError(CollectionManager);
+}
 
 FCollectionNameType FindCollectionByName(ICollectionManager& CollectionManager, const FName Name)
 {
@@ -66,10 +61,9 @@ bool UAssetTagsSubsystem::CreateCollection(const FName Name, const ECollectionSc
 {
 	ICollectionManager& CollectionManager = FCollectionManagerModule::GetModule().Get();
 
-	FText Error;
-	if (!CollectionManager.IsValidCollectionName(Name.ToString(), ECollectionShareType::CST_All, &Error))
+	if (!CollectionManager.IsValidCollectionName(Name.ToString(), ECollectionShareType::CST_All))
 	{
-		AssetTagsSubsystemUtil::LogLastCollectionManagerError(Error);
+		AssetTagsSubsystemUtil::LogLastCollectionManagerError(CollectionManager);
 		return false;
 	}
 
@@ -77,9 +71,9 @@ bool UAssetTagsSubsystem::CreateCollection(const FName Name, const ECollectionSc
 	static_assert((int32)ECollectionShareType::CST_Private == (int32)ECollectionScriptingShareType::Private + 1, "ECollectionShareType::CST_Private is expected to be ECollectionScriptingShareType::Private + 1");
 	static_assert((int32)ECollectionShareType::CST_Shared == (int32)ECollectionScriptingShareType::Shared + 1, "ECollectionShareType::CST_Shared is expected to be ECollectionScriptingShareType::Shared + 1");
 
-	if (!CollectionManager.CreateCollection(Name, (ECollectionShareType::Type)((int32)ShareType + 1), ECollectionStorageMode::Static, &Error))
+	if (!CollectionManager.CreateCollection(Name, (ECollectionShareType::Type)((int32)ShareType + 1), ECollectionStorageMode::Static))
 	{
-		AssetTagsSubsystemUtil::LogLastCollectionManagerError(Error);
+		AssetTagsSubsystemUtil::LogLastCollectionManagerError(CollectionManager);
 		return false;
 	}
 
@@ -96,10 +90,9 @@ bool UAssetTagsSubsystem::DestroyCollection(const FName Name)
 		return false;
 	}
 
-	FText Error;
-	if (!CollectionManager.DestroyCollection(ResolvedNameAndType.Name, ResolvedNameAndType.Type, &Error))
+	if (!CollectionManager.DestroyCollection(ResolvedNameAndType.Name, ResolvedNameAndType.Type))
 	{
-		AssetTagsSubsystemUtil::LogLastCollectionManagerError(Error);
+		AssetTagsSubsystemUtil::LogLastCollectionManagerError(CollectionManager);
 		return false;
 	}
 
@@ -116,16 +109,15 @@ bool UAssetTagsSubsystem::RenameCollection(const FName Name, const FName NewName
 		return false;
 	}
 
-	FText Error;
-	if (!CollectionManager.IsValidCollectionName(NewName.ToString(), ECollectionShareType::CST_All, &Error))
+	if (!CollectionManager.IsValidCollectionName(NewName.ToString(), ECollectionShareType::CST_All))
 	{
-		AssetTagsSubsystemUtil::LogLastCollectionManagerError(Error);
+		AssetTagsSubsystemUtil::LogLastCollectionManagerError(CollectionManager);
 		return false;
 	}
 
-	if (!CollectionManager.RenameCollection(ResolvedNameAndType.Name, ResolvedNameAndType.Type, NewName, ResolvedNameAndType.Type, &Error))
+	if (!CollectionManager.RenameCollection(ResolvedNameAndType.Name, ResolvedNameAndType.Type, NewName, ResolvedNameAndType.Type))
 	{
-		AssetTagsSubsystemUtil::LogLastCollectionManagerError(Error);
+		AssetTagsSubsystemUtil::LogLastCollectionManagerError(CollectionManager);
 		return false;
 	}
 
@@ -148,10 +140,9 @@ bool UAssetTagsSubsystem::ReparentCollection(const FName Name, const FName NewPa
 		return false;
 	}
 
-	FText Error;
-	if (!CollectionManager.ReparentCollection(ResolvedNameAndType.Name, ResolvedNameAndType.Type, ResolvedParentNameAndType.Name, ResolvedParentNameAndType.Type, &Error))
+	if (!CollectionManager.ReparentCollection(ResolvedNameAndType.Name, ResolvedNameAndType.Type, ResolvedParentNameAndType.Name, ResolvedParentNameAndType.Type))
 	{
-		AssetTagsSubsystemUtil::LogLastCollectionManagerError(Error);
+		AssetTagsSubsystemUtil::LogLastCollectionManagerError(CollectionManager);
 		return false;
 	}
 
@@ -168,10 +159,9 @@ bool UAssetTagsSubsystem::EmptyCollection(const FName Name)
 		return false;
 	}
 
-	FText Error;
-	if (!CollectionManager.EmptyCollection(ResolvedNameAndType.Name, ResolvedNameAndType.Type, &Error))
+	if (!CollectionManager.EmptyCollection(ResolvedNameAndType.Name, ResolvedNameAndType.Type))
 	{
-		AssetTagsSubsystemUtil::LogLastCollectionManagerError(Error);
+		AssetTagsSubsystemUtil::LogLastCollectionManagerError(CollectionManager);
 		return false;
 	}
 
@@ -188,10 +178,9 @@ bool UAssetTagsSubsystem::K2_AddAssetToCollection(const FName Name, const FSoftO
 		return false;
 	}
 
-	FText Error;
-	if (!CollectionManager.AddToCollection(ResolvedNameAndType.Name, ResolvedNameAndType.Type, AssetPath, &Error))
+	if (!CollectionManager.AddToCollection(ResolvedNameAndType.Name, ResolvedNameAndType.Type, AssetPath))
 	{
-		AssetTagsSubsystemUtil::LogLastCollectionManagerError(Error);
+		AssetTagsSubsystemUtil::LogLastCollectionManagerError(CollectionManager);
 		return false;
 	}
 
@@ -227,10 +216,9 @@ bool UAssetTagsSubsystem::K2_AddAssetsToCollection(const FName Name, const TArra
 		return false;
 	}
 
-	FText Error;
-	if (!CollectionManager.AddToCollection(ResolvedNameAndType.Name, ResolvedNameAndType.Type, AssetPaths, nullptr, &Error))
+	if (!CollectionManager.AddToCollection(ResolvedNameAndType.Name, ResolvedNameAndType.Type, AssetPaths))
 	{
-		AssetTagsSubsystemUtil::LogLastCollectionManagerError(Error);
+		AssetTagsSubsystemUtil::LogLastCollectionManagerError(CollectionManager);
 		return false;
 	}
 
@@ -276,10 +264,9 @@ bool UAssetTagsSubsystem::K2_RemoveAssetFromCollection(const FName Name, const F
 		return false;
 	}
 
-	FText Error;
-	if (!CollectionManager.RemoveFromCollection(ResolvedNameAndType.Name, ResolvedNameAndType.Type, AssetPath, &Error))
+	if (!CollectionManager.RemoveFromCollection(ResolvedNameAndType.Name, ResolvedNameAndType.Type, AssetPath))
 	{
-		AssetTagsSubsystemUtil::LogLastCollectionManagerError(Error);
+		AssetTagsSubsystemUtil::LogLastCollectionManagerError(CollectionManager);
 		return false;
 	}
 
@@ -315,10 +302,9 @@ bool UAssetTagsSubsystem::K2_RemoveAssetsFromCollection(const FName Name, const 
 		return false;
 	}
 
-	FText Error;
-	if (!CollectionManager.RemoveFromCollection(ResolvedNameAndType.Name, ResolvedNameAndType.Type, AssetPaths, nullptr, &Error))
+	if (!CollectionManager.RemoveFromCollection(ResolvedNameAndType.Name, ResolvedNameAndType.Type, AssetPaths))
 	{
-		AssetTagsSubsystemUtil::LogLastCollectionManagerError(Error);
+		AssetTagsSubsystemUtil::LogLastCollectionManagerError(CollectionManager);
 		return false;
 	}
 
