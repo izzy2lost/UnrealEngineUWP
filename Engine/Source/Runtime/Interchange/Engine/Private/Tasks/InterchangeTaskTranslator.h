@@ -26,8 +26,14 @@ namespace UE
 			{
 			}
 
-			static FORCEINLINE ENamedThreads::Type GetDesiredThread()
+			FORCEINLINE ENamedThreads::Type GetDesiredThread()
 			{
+				TSharedPtr<FImportAsyncHelper, ESPMode::ThreadSafe> AsyncHelper = WeakAsyncHelper.Pin();
+				if (AsyncHelper.IsValid() && AsyncHelper->bRunSynchronous)
+				{
+					return ENamedThreads::GameThread_Local;
+				}
+
 				return ENamedThreads::AnyBackgroundThreadNormalTask;
 			}
 			static FORCEINLINE ESubsequentsMode::Type GetSubsequentsMode()

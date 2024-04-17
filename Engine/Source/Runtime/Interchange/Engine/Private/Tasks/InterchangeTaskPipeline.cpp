@@ -100,9 +100,10 @@ void UE::Interchange::FTaskWaitAssetCompilation::DoTask(ENamedThreads::Type Curr
 		{
 			LLM_SCOPE_BYNAME(TEXT("Interchange"));
 			//Compilation status cannot be ask in async thread, query the compile status on the main thread with a small fast function
-			//This ensure we dont stall the main thread until all assets are compile.
+			//This ensure we don't stall the main thread until all assets are compile.
 			bool bCompilationFinish = false;
-			Async(EAsyncExecution::TaskGraphMainThread, [&bCompilationFinish, &ImportedObjects]()
+
+			auto VerifyAssetCompiling = [&bCompilationFinish, &ImportedObjects]()
 				{
 					TRACE_CPUPROFILER_EVENT_SCOPE(UE::Interchange::FTaskWaitAssetCompilation::DoTask::IsCompilingLambda_GameThread);
 					LLM_SCOPE_BYNAME(TEXT("Interchange"));
@@ -130,7 +131,19 @@ void UE::Interchange::FTaskWaitAssetCompilation::DoTask(ENamedThreads::Type Curr
 							}
 						}
 					}
-				}).Wait();
+				};
+
+			if (IsInGameThread())
+			{
+				VerifyAssetCompiling();
+			}
+			else
+			{
+				Async(EAsyncExecution::TaskGraphMainThread, [&VerifyAssetCompiling]()
+					{
+						VerifyAssetCompiling();
+					}).Wait();
+			}
 			return bCompilationFinish;
 		}, 0.05f);
 #endif //WITH_EDITOR

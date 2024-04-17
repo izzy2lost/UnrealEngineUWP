@@ -29,12 +29,7 @@ namespace UE
 		public:
 			explicit FTaskCreateSceneObjects(const FString& InPackageBasePath, const int32 InSourceIndex, TWeakPtr<FImportAsyncHelper> InAsyncHelper, TArrayView<UInterchangeFactoryBaseNode*> InNodes, const UClass* InFactoryClass);
 
-			ENamedThreads::Type GetDesiredThread()
-			{
-				// We are creating the factories in this task so it must execute on the GameThread.
-				// Also, there are no "CreatePackage Task" equivalent for scene objects right now, so the factories must create those on the game thread.
-				return ENamedThreads::GameThread;
-			}
+			ENamedThreads::Type GetDesiredThread();
 
 			static ESubsequentsMode::Type GetSubsequentsMode()
 			{

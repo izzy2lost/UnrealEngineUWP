@@ -710,11 +710,18 @@ void UE::Interchange::FImportResult::SetDone()
 	}
 }
 
-void UE::Interchange::FImportResult::WaitUntilDone()
+void UE::Interchange::FImportResult::WaitUntilDone(bool bSynchronous /*= false*/)
 {
 	if (ImportStatus == EStatus::InProgress)
 	{
-		FTaskGraphInterface::Get().WaitUntilTaskCompletes(GraphEvent);
+		if (bSynchronous)
+		{
+			FTaskGraphInterface::Get().ProcessThreadUntilIdle(ENamedThreads::GameThread_Local);
+		}
+		else
+		{
+			FTaskGraphInterface::Get().WaitUntilTaskCompletes(GraphEvent);
+		}
 	}
 }
 
@@ -935,6 +942,14 @@ UInterchangeManager& UInterchangeManager::GetInterchangeManager()
 					InterchangeManager->StartQueuedTasks(InterchangeManager->bGCEndDelegateCancellAllTask);
 				}
 			});
+		InterchangeManager->GCPreDelegate = FCoreUObjectDelegates::GetPreGarbageCollectDelegate().AddLambda([]()
+			{
+				if (IsInterchangeImportEnabled() && InterchangeManager.IsValid())
+				{
+					const bool bCancel = !GIsEditor;
+					InterchangeManager->WaitUntilAllTasksDone(bCancel);
+				}
+			});
 
 		//We cancel any running task when we pre exit the engine
 		FCoreDelegates::OnEnginePreExit.AddLambda([]()
@@ -960,6 +975,11 @@ UInterchangeManager& UInterchangeManager::GetInterchangeManager()
 			{
 				FCoreUObjectDelegates::GetPostGarbageCollect().Remove(InterchangeManager->GCEndDelegate);
 				InterchangeManager->GCEndDelegate.Reset();
+			}
+			if(InterchangeManager->GCPreDelegate.IsValid())
+			{
+				FCoreUObjectDelegates::GetPreGarbageCollectDelegate().Remove(InterchangeManager->GCPreDelegate);
+				InterchangeManager->GCPreDelegate.Reset();
 			}
 			//Task should have been cancel in the Engine pre exit callback
 			ensure(InterchangeManager->ImportTasks.Num() == 0);
@@ -1507,8 +1527,9 @@ void UInterchangeManager::StartQueuedTasks(bool bCancelAllTasks /*= false*/)
 
 bool UInterchangeManager::ImportAsset(const FString& ContentPath, const UInterchangeSourceData* SourceData, const FImportAssetParameters& ImportAssetParameters, TArray<UObject*>& OutImportedObjects)
 {
-	UE::Interchange::FAssetImportResultRef InterchangeResult = ImportAssetAsync(ContentPath, SourceData, ImportAssetParameters);
-	InterchangeResult->WaitUntilDone();
+	ImportAssetParameters.bRunSynchronous = true;
+	UE::Interchange::FAssetImportResultRef InterchangeResult = ImportInternal(ContentPath, SourceData, ImportAssetParameters, UE::Interchange::EImportType::ImportType_Asset).Get<0>();
+	InterchangeResult->WaitUntilDone(ImportAssetParameters.bRunSynchronous);
 	OutImportedObjects = InterchangeResult->GetImportedObjects();
 	return InterchangeResult->IsValid();
 }
@@ -1521,23 +1542,37 @@ bool UInterchangeManager::ImportAsset(const FString& ContentPath, const UInterch
 
 UE::Interchange::FAssetImportResultRef UInterchangeManager::ImportAssetAsync(const FString& ContentPath, const UInterchangeSourceData* SourceData, const FImportAssetParameters& ImportAssetParameters)
 {
+	ImportAssetParameters.bRunSynchronous = false;
 	return ImportInternal(ContentPath, SourceData, ImportAssetParameters, UE::Interchange::EImportType::ImportType_Asset).Get<0>();
+}
+
+bool UInterchangeManager::ScriptedImportAssetAsync(const FString& ContentPath, const UInterchangeSourceData* SourceData, const FImportAssetParameters& ImportAssetParameters)
+{
+	UE::Interchange::FAssetImportResultRef InterchangeResult = ImportAssetAsync(ContentPath, SourceData, ImportAssetParameters);
+	return InterchangeResult->IsValid();
 }
 
 bool UInterchangeManager::ImportScene(const FString& ContentPath, const UInterchangeSourceData* SourceData, const FImportAssetParameters& ImportAssetParameters)
 {
+	ImportAssetParameters.bRunSynchronous = true;
 	using namespace UE::Interchange;
-
 	TTuple<FAssetImportResultRef, FSceneImportResultRef> ImportResults = ImportInternal(ContentPath, SourceData, ImportAssetParameters, UE::Interchange::EImportType::ImportType_Scene);
-	
-	ImportResults.Get<0>()->WaitUntilDone();
-	ImportResults.Get<1>()->WaitUntilDone();
+	ImportResults.Get<0>()->WaitUntilDone(ImportAssetParameters.bRunSynchronous);
+	ImportResults.Get<1>()->WaitUntilDone(ImportAssetParameters.bRunSynchronous);
+	return ImportResults.Get<0>()->IsValid() && ImportResults.Get<1>()->IsValid();
+}
+
+bool UInterchangeManager::ScriptedImportSceneAsync(const FString& ContentPath, const UInterchangeSourceData* SourceData, const FImportAssetParameters& ImportAssetParameters)
+{
+	using namespace UE::Interchange;
+	TTuple<FAssetImportResultRef, FSceneImportResultRef> ImportResults = ImportSceneAsync(ContentPath, SourceData, ImportAssetParameters);
 	return ImportResults.Get<0>()->IsValid() && ImportResults.Get<1>()->IsValid();
 }
 
 TTuple<UE::Interchange::FAssetImportResultRef, UE::Interchange::FSceneImportResultRef>
 UInterchangeManager::ImportSceneAsync(const FString& ContentPath, const UInterchangeSourceData* SourceData, const FImportAssetParameters& ImportAssetParameters)
 {
+	ImportAssetParameters.bRunSynchronous = false;
 	return ImportInternal(ContentPath, SourceData, ImportAssetParameters, UE::Interchange::EImportType::ImportType_Scene);
 }
 
@@ -1671,6 +1706,7 @@ UInterchangeManager::ImportInternal(const FString& ContentPath, const UInterchan
 
 	TSharedRef<UE::Interchange::FImportAsyncHelper, ESPMode::ThreadSafe> AsyncHelper = CreateAsyncHelper(TaskData, ImportAssetParameters);
 	AsyncHelper->UniqueId = UniqueId;
+	AsyncHelper->bRunSynchronous = ImportAssetParameters.bRunSynchronous;
 
 	//We support only one source currently
 
@@ -1823,7 +1859,7 @@ UInterchangeManager::ImportInternal(const FString& ContentPath, const UInterchan
 				{
 					//Log the source we begin importing
 					UE_LOG(LogInterchangeEngine, Display, TEXT("Interchange start importing source [%s]"), *AsyncHelper->SourceDatas[SourceDataIndex]->ToDisplayString());
-					int32 TranslatorTaskIndex = AsyncHelper->TranslatorTasks.Add(TGraphTask<UE::Interchange::FTaskTranslator>::CreateTask(nullptr, ENamedThreads::GameThread).ConstructAndDispatchWhenReady(SourceDataIndex, AsyncHelper));
+					int32 TranslatorTaskIndex = AsyncHelper->TranslatorTasks.Add(TGraphTask<UE::Interchange::FTaskTranslator>::CreateTask(nullptr, ENamedThreads::GameThread_Local).ConstructAndDispatchWhenReady(SourceDataIndex, AsyncHelper));
 					AsyncHelper->TranslatorTasks[TranslatorTaskIndex]->Wait();
 				}
 				Progress.EnterProgressFrame(1.f);

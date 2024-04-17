@@ -33,6 +33,18 @@ UE::Interchange::FTaskCreateSceneObjects::FTaskCreateSceneObjects(const FString&
 	check(FactoryClass);
 }
 
+ENamedThreads::Type UE::Interchange::FTaskCreateSceneObjects::GetDesiredThread()
+{
+	// We are creating the factories in this task so it must execute on the GameThread.
+	// Also, there are no "CreatePackage Task" equivalent for scene objects right now, so the factories must create those on the game thread.
+	TSharedPtr<FImportAsyncHelper, ESPMode::ThreadSafe> AsyncHelper = WeakAsyncHelper.Pin();
+	if (AsyncHelper.IsValid() && AsyncHelper->bRunSynchronous)
+	{
+		return ENamedThreads::GameThread_Local;
+	}
+	return ENamedThreads::GameThread;
+}
+
 void UE::Interchange::FTaskCreateSceneObjects::DoTask(ENamedThreads::Type CurrentThread, const FGraphEventRef& MyCompletionGraphEvent)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(UE::Interchange::FTaskCreateSceneObjects::DoTask)

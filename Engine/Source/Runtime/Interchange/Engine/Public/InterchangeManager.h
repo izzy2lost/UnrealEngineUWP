@@ -146,7 +146,7 @@ namespace UE
 
 			INTERCHANGEENGINE_API void SetInProgress();
 			INTERCHANGEENGINE_API void SetDone();
-			INTERCHANGEENGINE_API void WaitUntilDone();
+			INTERCHANGEENGINE_API void WaitUntilDone(bool bSynchronous = false);
 
 			// Assets are only made available once they have been completely imported (passed through the entire import pipeline).
 			// While the status isn't EStatus::Done, the list can grow between subsequent calls.
@@ -210,6 +210,8 @@ namespace UE
 			{
 				return TEXT("UE::Interchange::FImportAsyncHelper");
 			}
+
+			bool bRunSynchronous = false;
 
 			/** Unique ID for this async helper. */
 			int32 UniqueId;
@@ -405,6 +407,10 @@ struct FImportAssetParameters
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interchange|ImportAsset", meta=(PinHiddenByDefault))
 	FOnImportDoneDynamic OnSceneImportDone;
 	FOnImportDoneNative OnSceneImportDoneNative;
+
+	// Tell Interchange that import must run synchronously on the game thread.
+	//This is an internal property set by the Import API
+	mutable bool bRunSynchronous;
 };
 
 UCLASS(Transient, BlueprintType, CustomConstructor, MinimalAPI)
@@ -551,32 +557,89 @@ public:
 	INTERCHANGEENGINE_API bool CanReimport(const UObject* Object, TArray<FString>& OutFilenames) const;
 
 	/**
-	 * Call this to start an asset import process. The caller must specify the source data.
+	 * Call this to start a synchronous asset import process.
 	 * This process can import many different assets into the game content.
 	 *
 	 * @Param ContentPath - The path where the imported assets will be created.
 	 * @Param SourceData - The source data input to translate.
 	 * @param ImportAssetParameters - All parameters that need to be passed to the import asset function.
 	 * @return true if the import succeeds, or false otherwise.
+	 * 
+	 * @Note - In blueprint depending on the event you use to start the import its possible to have a deadlock, use the async function if its what you are experimenting
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Interchange | Import Manager")
 	INTERCHANGEENGINE_API bool ImportAsset(const FString& ContentPath, const UInterchangeSourceData* SourceData, const FImportAssetParameters& ImportAssetParameters, TArray<UObject*>& OutImportedObjects);
-	INTERCHANGEENGINE_API bool ImportAsset(const FString& ContentPath, const UInterchangeSourceData* SourceData, const FImportAssetParameters& ImportAssetParameters);
-
-	INTERCHANGEENGINE_API UE::Interchange::FAssetImportResultRef ImportAssetAsync(const FString& ContentPath, const UInterchangeSourceData* SourceData, const FImportAssetParameters& ImportAssetParameters);
 
 	/**
-	 * Call this to start a scene import process. The caller must specify the source data.
-	 * This process can import many different assets and their transforms (USceneComponent), store the result in a Blueprint, and add the Blueprint to the level.
+	 * Call this to start a synchronous asset import process.
+	 * This process can import many different assets into the game content.
+	 *
+	 * @Param ContentPath - The path where the imported assets will be created.
+	 * @Param SourceData - The source data input to translate.
+	 * @param ImportAssetParameters - All parameters that need to be passed to the import asset function.
+	 * @return true if the import succeeds, or false otherwise.
+	 *
+	 */
+	INTERCHANGEENGINE_API bool ImportAsset(const FString& ContentPath, const UInterchangeSourceData* SourceData, const FImportAssetParameters& ImportAssetParameters);
+
+	/**
+	 * Call this to start an asynchronous asset import process.
+	 * This process can import many different assets into the game content.
+	 *
+	 * @Param ContentPath - The path where the imported assets will be created.
+	 * @Param SourceData - The source data input to translate.
+	 * @param ImportAssetParameters - All parameters that need to be passed to the import asset function.
+	 * @return return an import result which can be use to know when the asynchronous import is terminate.
+	 */
+	INTERCHANGEENGINE_API UE::Interchange::FAssetImportResultRef ImportAssetAsync(const FString& ContentPath, const UInterchangeSourceData* SourceData, const FImportAssetParameters& ImportAssetParameters);
+	
+	/**
+	 * Call this from blueprint or python to start an asynchronous asset import process.
+	 * This process can import many different assets into the game content.
+	 *
+	 * @Param ContentPath - The path where the imported assets will be created.
+	 * @Param SourceData - The source data input to translate.
+	 * @param ImportAssetParameters - All parameters that need to be passed to the import asset function.
+	 * @return true if the import was started, or false otherwise.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Interchange | Import Manager")
+	INTERCHANGEENGINE_API bool ScriptedImportAssetAsync(const FString& ContentPath, const UInterchangeSourceData* SourceData, const FImportAssetParameters& ImportAssetParameters);
+
+	/**
+	 * Call this to start a synchronous scene import process.
+	 * This process can import many different assets and their transforms (USceneComponent).
 	 *
 	 * @Param ContentPath - The path where the imported assets will be created.
 	 * @Param SourceData - The source data input to translate. This object will be duplicated to allow thread-safe operations.
 	 * @param ImportAssetParameters - All parameters that need to be passed to the import asset function.
 	 * @return true if the import succeeds, or false otherwise.
+	 * 
+	 * @Note - In blueprint depending on the event you use to start the import its possible to have a deadlock, use the async function if its what you are experimenting
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Interchange | Import Manager")
 	INTERCHANGEENGINE_API bool ImportScene(const FString& ContentPath, const UInterchangeSourceData* SourceData, const FImportAssetParameters& ImportAssetParameters);
 
+	/**
+	 * Call this to start a asynchronous scene import process.
+	 * This process can import many different assets and their transforms (USceneComponent).
+	 *
+	 * @Param ContentPath - The path where the imported assets will be created.
+	 * @Param SourceData - The source data input to translate. This object will be duplicated to allow thread-safe operations.
+	 * @param ImportAssetParameters - All parameters that need to be passed to the import asset function.
+	 * @return true if the import was started, or false otherwise.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Interchange | Import Manager")
+	INTERCHANGEENGINE_API bool ScriptedImportSceneAsync(const FString& ContentPath, const UInterchangeSourceData* SourceData, const FImportAssetParameters& ImportAssetParameters);
+
+	/**
+	 * Call this to start a asynchronous scene import process.
+	 * This process can import many different assets and their transforms (USceneComponent), store the result in a Blueprint, and add the Blueprint to the level.
+	 *
+	 * @Param ContentPath - The path where the imported assets will be created.
+	 * @Param SourceData - The source data input to translate. This object will be duplicated to allow thread-safe operations.
+	 * @param ImportAssetParameters - All parameters that need to be passed to the import asset function.
+	 * @return return a pair of import result which can be use to know when the asynchronous import is terminate.
+	 */
 	INTERCHANGEENGINE_API TTuple<UE::Interchange::FAssetImportResultRef, UE::Interchange::FSceneImportResultRef>
 	ImportSceneAsync(const FString& ContentPath, const UInterchangeSourceData* SourceData, const FImportAssetParameters& ImportAssetParameters);
 
@@ -782,6 +845,7 @@ private:
 
 	//We want to avoid starting an import task during a GC.
 	FDelegateHandle GCEndDelegate;
+	FDelegateHandle GCPreDelegate;
 	bool bGCEndDelegateCancellAllTask = false;
 
 	friend class UE::Interchange::FScopedTranslator;

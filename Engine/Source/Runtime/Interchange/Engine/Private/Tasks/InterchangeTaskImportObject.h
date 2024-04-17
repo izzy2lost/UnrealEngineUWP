@@ -38,6 +38,11 @@ namespace UE::Interchange
 
 		ENamedThreads::Type GetDesiredThread() const
 		{
+			TSharedPtr<FImportAsyncHelper, ESPMode::ThreadSafe> AsyncHelper = WeakAsyncHelper.Pin();
+			if (AsyncHelper.IsValid() && AsyncHelper->bRunSynchronous)
+			{
+				return ENamedThreads::GameThread_Local;
+			}
 			return ENamedThreads::GameThread;
 		}
 
@@ -74,6 +79,11 @@ namespace UE::Interchange
 
 		ENamedThreads::Type GetDesiredThread() const
 		{
+			TSharedPtr<FImportAsyncHelper, ESPMode::ThreadSafe> AsyncHelper = WeakAsyncHelper.Pin();
+			if (AsyncHelper.IsValid() && AsyncHelper->bRunSynchronous)
+			{
+				return ENamedThreads::GameThread_Local;
+			}
 			return ENamedThreads::AnyBackgroundThreadNormalTask;
 		}
 
@@ -114,6 +124,11 @@ namespace UE::Interchange
 
 		ENamedThreads::Type GetDesiredThread() const
 		{
+			TSharedPtr<FImportAsyncHelper, ESPMode::ThreadSafe> AsyncHelper = WeakAsyncHelper.Pin();
+			if (AsyncHelper.IsValid() && AsyncHelper->bRunSynchronous)
+			{
+				return ENamedThreads::GameThread_Local;
+			}
 			return ENamedThreads::GameThread;
 		}
 
