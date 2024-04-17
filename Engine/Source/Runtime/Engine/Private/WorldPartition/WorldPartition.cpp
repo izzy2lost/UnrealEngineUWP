@@ -932,6 +932,7 @@ void UWorldPartition::RegisterDelegates()
 	{
 		if (IsMainWorldPartition())
 		{
+			World->OnWorldPreBeginPlay.AddUObject(this, &UWorldPartition::OnWorldPreBeginPlay);
 			World->OnWorldMatchStarting.AddUObject(this, &UWorldPartition::OnWorldMatchStarting);
 
 #if !UE_BUILD_SHIPPING
@@ -977,6 +978,7 @@ void UWorldPartition::UnregisterDelegates()
 	{
 		if (IsMainWorldPartition())
 		{
+			World->OnWorldPreBeginPlay.RemoveAll(this);
 			World->OnWorldMatchStarting.RemoveAll(this);
 
 #if !UE_BUILD_SHIPPING
@@ -996,10 +998,19 @@ void UWorldPartition::GetOnScreenMessages(FCoreDelegates::FSeverityMessageMap& O
 }
 #endif
 
+void UWorldPartition::OnWorldPreBeginPlay()
+{
+	check(GetWorld()->IsGameWorld());
+	// Wait for any level streaming to complete before DispatchBeginPlay is called on all world actors 
+	// (when the world's bBegunPlay switches to true).
+	GetWorld()->BlockTillLevelStreamingCompleted();
+}
+
 void UWorldPartition::OnWorldMatchStarting()
 {
 	check(GetWorld()->IsGameWorld());
-	// Wait for any level streaming to complete
+	// Wait for any level streaming to complete 
+	// (in case any level streaming was requested by actor's DispatchBeginPlay)
 	GetWorld()->BlockTillLevelStreamingCompleted();
 }
 

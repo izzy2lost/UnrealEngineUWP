@@ -2497,6 +2497,10 @@ public:
 	DECLARE_MULTICAST_DELEGATE(FOnMatchStarting);
 	FOnMatchStarting OnWorldMatchStarting;
 
+	/** Called by WorldSettings's NotifyBeginPlay before calling DispatchBeginPlay on all world actors when world's bBegunPlay switches to true. */
+	DECLARE_MULTICAST_DELEGATE(FOnWorldPreBeginPlay);
+	FOnWorldPreBeginPlay OnWorldPreBeginPlay;
+
 	/** Returns true if gameplay has already started, false otherwise. */
 	bool HasBegunPlay() const;
 

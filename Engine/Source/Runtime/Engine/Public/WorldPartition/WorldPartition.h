@@ -670,6 +670,7 @@ private:
 	static ENGINE_API FAutoConsoleVariableRef CVarUseMakingInvisibleTransactionRequests;
 
 	ENGINE_API void OnWorldMatchStarting();
+	ENGINE_API void OnWorldPreBeginPlay();
 	
 #if WITH_EDITOR
 	ENGINE_API void OnLevelActorDeleted(AActor* Actor);

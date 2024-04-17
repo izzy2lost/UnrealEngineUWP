@@ -328,6 +328,8 @@ void AWorldSettings::NotifyBeginPlay()
 	UWorld* World = GetWorld();
 	if (!World->GetBegunPlay())
 	{
+		World->OnWorldPreBeginPlay.Broadcast();
+
 		for (FActorIterator It(World); It; ++It)
 		{
 			SCOPE_CYCLE_COUNTER(STAT_ActorBeginPlay);
