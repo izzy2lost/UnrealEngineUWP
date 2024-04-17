@@ -291,60 +291,66 @@ namespace ChaosTest {
 
 	GTEST_TEST(JointForceTests, TestAngularDriveForceMode_Damping)
 	{
-		const int32 NumSolverIterations = 20;
-		const FReal Gravity = 0;
-		const FReal Dt = 0.01;
-		const int32 NumBodies = 2;
-
-		const FReal AngularVelocity = 3;
-		const FReal Stiffness = 0;
-		const FReal Damping = 200;
-
-		FJointChainTest<FPBDRigidsEvolutionGBF> Test(NumSolverIterations, Gravity);
-		Test.InitChain(NumBodies, FVec3(0, 0, -1));
-
-		if (!Test.Evolution.GetJointConstraints().GetSettings().bUsePositionBasedDrives)
+		for (int32 IndexSimd = 0; IndexSimd < 2; IndexSimd++)
 		{
-			Test.Evolution.SetNumVelocityIterations(NumSolverIterations);
+			bool bUseSimd = IndexSimd == 0;
+			const int32 NumSolverIterations = 20;
+			const FReal Gravity = 0;
+			const FReal Dt = 0.01;
+			const int32 NumBodies = 2;
+
+			const FReal AngularVelocity = 3;
+			const FReal Stiffness = 0;
+			const FReal Damping = 200;
+
+			FJointChainTest<FPBDRigidsEvolutionGBF> Test(NumSolverIterations, Gravity);
+			Test.InitChain(NumBodies, FVec3(0, 0, -1));
+
+			Test.Evolution.GetJointConstraints().SetUseSimd(bUseSimd);
+
+			if (!Test.Evolution.GetJointConstraints().GetSettings().bUsePositionBasedDrives)
+			{
+				Test.Evolution.SetNumVelocityIterations(NumSolverIterations);
+			}
+
+			// Disable all limits
+			Test.JointSettings[0].LinearMotionTypes = { EJointMotionType::Free, EJointMotionType::Free, EJointMotionType::Free };
+			Test.JointSettings[0].AngularMotionTypes = { EJointMotionType::Free, EJointMotionType::Free, EJointMotionType::Free };
+
+			// Set up the drive in force mode
+			Test.JointSettings[0].bAngularSLerpVelocityDriveEnabled = true;
+			Test.JointSettings[0].AngularDriveForceMode = EJointForceMode::Force;
+			Test.JointSettings[0].AngularDriveStiffness = FVec3(Stiffness, Stiffness, Stiffness);
+			Test.JointSettings[0].AngularDriveDamping = FVec3(Damping, Damping, Damping);
+
+			Test.Create();
+
+			FGenericParticleHandle P1 = Test.GetParticle(1);
+
+			// Give the particle angular velocity so that joint damping has some work to do
+			P1->SetW(FVec3(0, 0, -AngularVelocity));
+
+			// Run the sim
+			Test.Evolution.AdvanceOneTimeStep(Dt);
+			Test.Evolution.EndFrame(Dt);
+
+			// Calculate expected Trque from T = -D.W with implicit integration
+			const FReal I = FConstGenericParticleHandle(Test.GetParticle(1))->I().Z;
+			FReal ExpectedTorqueZ = 0;
+			FReal DQ = 0;
+			for (int32 It = 0; It < NumSolverIterations; ++It)
+			{
+				const FReal W = -AngularVelocity + DQ / Dt;
+				const FReal T = -Damping * W;
+				const FReal DW = ((T - ExpectedTorqueZ) / I) * Dt;
+				DQ += DW * Dt;
+				ExpectedTorqueZ = T;
+			}
+
+			// Check the joint forces agree
+			const FReal TorqueZ = -Test.Evolution.GetJointConstraints().GetConstraintAngularImpulse(0).Z / Dt;
+			EXPECT_NEAR(TorqueZ, ExpectedTorqueZ, 0.1);
 		}
-
-		// Disable all limits
-		Test.JointSettings[0].LinearMotionTypes = { EJointMotionType::Free, EJointMotionType::Free, EJointMotionType::Free };
-		Test.JointSettings[0].AngularMotionTypes = { EJointMotionType::Free, EJointMotionType::Free, EJointMotionType::Free };
-
-		// Set up the drive in force mode
-		Test.JointSettings[0].bAngularSLerpVelocityDriveEnabled = true;
-		Test.JointSettings[0].AngularDriveForceMode = EJointForceMode::Force;
-		Test.JointSettings[0].AngularDriveStiffness = FVec3(Stiffness, Stiffness, Stiffness);
-		Test.JointSettings[0].AngularDriveDamping = FVec3(Damping, Damping, Damping);
-
-		Test.Create();
-
-		FGenericParticleHandle P1 = Test.GetParticle(1);
-
-		// Give the particle angular velocity so that joint damping has some work to do
-		P1->SetW(FVec3(0, 0, -AngularVelocity));
-
-		// Run the sim
-		Test.Evolution.AdvanceOneTimeStep(Dt);
-		Test.Evolution.EndFrame(Dt);
-
-		// Calculate expected Trque from T = -D.W with implicit integration
-		const FReal I = FConstGenericParticleHandle(Test.GetParticle(1))->I().Z;
-		FReal ExpectedTorqueZ = 0;
-		FReal DQ = 0;
-		for (int32 It = 0; It < NumSolverIterations; ++It)
-		{
-			const FReal W = -AngularVelocity + DQ / Dt;
-			const FReal T = -Damping * W;
-			const FReal DW = ((T - ExpectedTorqueZ) / I) * Dt;
-			DQ += DW * Dt;
-			ExpectedTorqueZ = T;
-		}
-
-		// Check the joint forces agree
-		const FReal TorqueZ = -Test.Evolution.GetJointConstraints().GetConstraintAngularImpulse(0).Z / Dt;
-		EXPECT_NEAR(TorqueZ, ExpectedTorqueZ, 0.1);
 	}
 
 	// Check that a hanging mass on a joint drive reaches the correct extension with the correct spring force when using Force mode.
