@@ -4,6 +4,7 @@
 
 #include "IPropertyTypeCustomization.h"
 #include "Widgets/Views/STreeView.h"
+#include "Textures/SlateIcon.h"
 
 struct FObjectKey;
 struct FOptionalSize;
@@ -17,6 +18,8 @@ class SWidget;
 class SSearchBox;
 class SWidgetSwitcher;
 class SEditableText;
+class SBorder;
+class SMenuAnchor;
 class UStateTree;
 class UStateTreeState;
 class UStateTreeEditorData;
@@ -49,8 +52,9 @@ private:
 	TSharedPtr<IPropertyHandle> GetInstancedObjectValueHandle(TSharedPtr<IPropertyHandle> PropertyHandle);
 
 	FOptionalSize GetIndentSize() const;
-	TSharedRef<SWidget> OnGetIndentContent() const;
-
+	FReply HandleIndentPlus();
+	FReply HandleIndentMinus();
+	
 	int32 GetIndent() const;
 	void SetIndent(const int32 Indent) const;
 	bool IsIndent(const int32 Indent) const;
@@ -71,82 +75,49 @@ private:
 	FText GetCloseParens() const;
 
 	EVisibility IsConditionVisible() const;
-	EVisibility IsTaskVisible() const;
+	EVisibility AreIndentButtonsVisible() const;
+	
+	EVisibility IsIconVisible() const;
+	const FSlateBrush* GetIcon() const;
+	FSlateColor GetIconColor() const;
 
 	FReply OnDescriptionClicked(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent) const;
 	FText GetNodeDescription() const;
 	EVisibility IsNodeDescriptionVisible() const;
-	
+
+	FReply OnRowMouseDown(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent);
+	FReply OnRowMouseUp(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent);
+
 	FText GetName() const;
 	void OnNameCommitted(const FText& NewText, ETextCommit::Type InTextCommit) const;
 
 	FText GetNodePickerTooltip() const;
-
-	TSharedRef<SWidget> GeneratePicker();
-	void OnStructPicked(const UScriptStruct* InStruct) const;
-	void OnClassPicked(const UClass* InClass) const;
+	void OnNodePicked(const UStruct* InStruct) const;
 
 	void OnIdentifierChanged(const UStateTree& StateTree);
 	void OnBindingChanged(const FStateTreePropertyPath& SourcePath, const FStateTreePropertyPath& TargetPath);
 	void FindOuterObjects();
 
-	// Stores a category path segment, or a node type.
-	struct FStateTreeNodeTypeItem
-	{
-		bool IsNode() const { return Struct != nullptr; }
-		bool IsCategory() const { return CategoryPath.Num() > 0; }
-		FString GetCategoryName() { return CategoryPath.Num() > 0 ? CategoryPath.Last() : FString(); }
-
-		TArray<FString> CategoryPath;
-		const UStruct* Struct = nullptr;
-		TArray<TSharedPtr<FStateTreeNodeTypeItem>> Children;
-	};
-
-	// Stores per session node expansion state for a node type.
-	struct FCategoryExpansionState
-	{
-		TSet<FString> ExpandedCategories;
-	};
-
-	static void SortNodeTypesFunctionItemsRecursive(TArray<TSharedPtr<FStateTreeNodeTypeItem>>& Items);
-	static TSharedPtr<FStateTreeNodeTypeItem> FindOrCreateItemForCategory(TArray<TSharedPtr<FStateTreeNodeTypeItem>>& Items, TArrayView<FString> CategoryPath);
-	void AddNode(const UStruct* Struct);
-	void CacheNodeTypes();
-	
-	TSharedRef<ITableRow> GenerateNodeTypeRow(TSharedPtr<FStateTreeNodeTypeItem> Item, const TSharedRef<STableViewBase>& OwnerTable);
-	void GetNodeTypeChildren(TSharedPtr<FStateTreeNodeTypeItem> Item, TArray<TSharedPtr<FStateTreeNodeTypeItem>>& OutItems) const;
-	void OnNodeTypeSelected(TSharedPtr<FStateTreeNodeTypeItem> SelectedItem, ESelectInfo::Type);
-	void OnNodeTypeExpansionChanged(TSharedPtr<FStateTreeNodeTypeItem> ExpandedItem, bool bInExpanded);
-	void OnSearchBoxTextChanged(const FText& NewText);
-	int32 FilterNodeTypesChildren(const TArray<FString>& FilterStrings, const bool bParentMatches, const TArray<TSharedPtr<FStateTreeNodeTypeItem>>& SourceArray, TArray<TSharedPtr<FStateTreeNodeTypeItem>>& OutDestArray);
-	void ExpandAll(const TArray<TSharedPtr<FStateTreeNodeTypeItem>>& Items);
-	TArray<TSharedPtr<FStateTreeNodeTypeItem>> GetPathToItemStruct(const UStruct* Struct) const;
-
-	void SaveExpansionState();
-	void RestoreExpansionState();
-	
 	FReply OnBrowseToNodeBlueprint() const;
 	FReply OnEditNodeBlueprint() const;
 	EVisibility IsBrowseToNodeBlueprintVisible() const;
 	EVisibility IsEditNodeBlueprintVisible() const;
 
-	TSharedPtr<FStateTreeNodeTypeItem> RootNode;
-	TSharedPtr<FStateTreeNodeTypeItem> FilteredRootNode;
-	
+	TSharedRef<SWidget> GenerateOptionsMenu();
+	void GeneratePickerMenu(class FMenuBuilder& InMenuBuilder);
+	void OnDeleteNode() const;
+	void OnDeleteAllNodes() const;
+	void OnDuplicateNode() const;
+	void OnRenameNode() const;
+
 	UScriptStruct* BaseScriptStruct = nullptr;
 	UClass* BaseClass = nullptr;
-	TSharedPtr<SComboButton> ComboButton;
-	TSharedPtr<SSearchBox> SearchBox;
-	TSharedPtr<STreeView<TSharedPtr<FStateTreeNodeTypeItem>>> NodeTypeTree;
 	TSharedPtr<SWidgetSwitcher> NameSwitcher;
 	TSharedPtr<SEditableText> NameEdit;
-	bool bIsRestoringExpansion = false;
+	TSharedPtr<SBorder> RowBorder; 
 
 	UStateTreeEditorData* EditorData = nullptr;
 	UStateTree* StateTree = nullptr;
-
-	// Save expansion state for each base node type. The expansion state does not persist between editor sessions. 
-	static TMap<FObjectKey, FCategoryExpansionState> CategoryExpansionStates;
 	
 	TSharedPtr<IPropertyUtilities> PropUtils;
 	TSharedPtr<IPropertyHandle> StructProperty;

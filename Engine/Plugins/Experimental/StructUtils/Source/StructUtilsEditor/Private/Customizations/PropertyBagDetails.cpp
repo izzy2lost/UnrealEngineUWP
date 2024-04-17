@@ -1444,7 +1444,7 @@ void FPropertyBagDetails::CustomizeChildren(TSharedRef<IPropertyHandle> StructPr
 	StructBuilder.AddCustomBuilder(InstanceDetails);
 }
 
-TSharedPtr<SWidget> FPropertyBagDetails::MakeAddPropertyWidget(TSharedPtr<IPropertyHandle> InStructProperty, TSharedPtr<IPropertyUtilities> InPropUtils, EPropertyBagPropertyType DefaultType)
+TSharedPtr<SWidget> FPropertyBagDetails::MakeAddPropertyWidget(TSharedPtr<IPropertyHandle> InStructProperty, TSharedPtr<IPropertyUtilities> InPropUtils, EPropertyBagPropertyType DefaultType, const FSlateColor IconColor)
 {
 	return SNew(SHorizontalBox)
 		+SHorizontalBox::Slot()
@@ -1484,7 +1484,7 @@ TSharedPtr<SWidget> FPropertyBagDetails::MakeAddPropertyWidget(TSharedPtr<IPrope
 			[
 				SNew(SImage)
 				.Image(FAppStyle::GetBrush("Icons.PlusCircle"))
-				.ColorAndOpacity(FSlateColor::UseForeground())
+				.ColorAndOpacity(IconColor)
 			]
 		];
 

@@ -66,8 +66,8 @@ void FStateTreeDebugTextTask::ExitState(FStateTreeExecutionContext& Context, con
 FText FStateTreeDebugTextTask::GetDescription(const FGuid& ID, FStateTreeDataView InstanceDataView, const IStateTreeBindingLookup& BindingLookup, EStateTreeNodeFormatting Formatting) const
 {
 	const FText Format = (Formatting == EStateTreeNodeFormatting::RichText)
-		? LOCTEXT("DebugTextRich", "<b>Debug Text</> {Text}")
-		: LOCTEXT("DebugText", "Debug Text {Text}");
+		? LOCTEXT("DebugTextRich", "<b>Debug Text</> \"{Text}\"")
+		: LOCTEXT("DebugText", "Debug Text \"{Text}\"");
 
 	return FText::FormatNamed(Format,
 		TEXT("Text"), FText::FromString(Text));

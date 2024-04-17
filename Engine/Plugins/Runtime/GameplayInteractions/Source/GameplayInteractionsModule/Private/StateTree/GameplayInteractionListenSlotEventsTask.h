@@ -39,6 +39,14 @@ protected:
 	virtual void ExitState(FStateTreeExecutionContext& Context, const FStateTreeTransitionResult& Transition) const override;
 #if WITH_EDITOR
 	virtual FText GetDescription(const FGuid& ID, FStateTreeDataView InstanceDataView, const IStateTreeBindingLookup& BindingLookup, EStateTreeNodeFormatting Formatting = EStateTreeNodeFormatting::Text) const override;
+	virtual FName GetIconName() const override
+	{
+		return FName("StateTreeEditorStyle|Node.Event");
+	}
+	virtual FColor GetIconColor() const override
+	{
+		return UE::StateTree::Colors::Blue;
+	}
 #endif
 	
 	/** Handle to retrieve USmartObjectSubsystem. */

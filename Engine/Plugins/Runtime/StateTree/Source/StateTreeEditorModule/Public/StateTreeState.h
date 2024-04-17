@@ -137,7 +137,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	UPROPERTY(EditDefaultsOnly, Category = "Transition", meta = (EditCondition = "bDelayTransition", UIMin = "0", ClampMin = "0", UIMax = "25", ClampMax = "25", ForceUnits="s"))
 	float DelayRandomVariance = 0.0f;
 
-	/** Conditions that must pass so that the transition can be triggered. */
+	/** Expression of conditions that need to evaluate to true to allow transition to be triggered. */
 	UPROPERTY(EditDefaultsOnly, Category = "Transition", meta = (BaseStruct = "/Script/StateTreeModule.StateTreeConditionBase", BaseClass = "/Script/StateTreeModule.StateTreeConditionBlueprintBase"))
 	TArray<FStateTreeEditorNode> Conditions;
 
@@ -349,24 +349,22 @@ public:
 	UPROPERTY(EditDefaultsOnly, Category = "State")
 	TObjectPtr<UStateTree> LinkedAsset = nullptr;
 
-	/** Should state's required event and enter conditions be evaluated when transition leads directly to it's child. */
-	UPROPERTY(EditDefaultsOnly, Category = "State")
-	bool bCheckPrerequisitesWhenActivatingChildDirectly = true;
-
 	/** Parameters of this state. If the state is linked to another state or asset, the parameters are for the linked state. */
 	UPROPERTY(EditDefaultsOnly, Category = "State")
 	FStateTreeStateParameters Parameters;
 
-	UPROPERTY(EditDefaultsOnly, Category = "State", meta=(InlineEditConditionToggle))
+	/** Should state's required event and enter conditions be evaluated when transition leads directly to it's child. */
+	UPROPERTY(EditDefaultsOnly, Category = "Enter Conditions")
+	bool bCheckPrerequisitesWhenActivatingChildDirectly = true;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Enter Conditions", meta=(InlineEditConditionToggle))
 	bool bHasRequiredEventToEnter = false;
 
 	/** Defines the event required to be present during state selection for the state to be selected. */
-	UPROPERTY(EditDefaultsOnly, Category = "State", meta = (EditCondition = "bHasRequiredEventToEnter"))
+	UPROPERTY(EditDefaultsOnly, Category = "Enter Conditions", meta = (EditCondition = "bHasRequiredEventToEnter"))
 	FStateTreeEventDesc RequiredEventToEnter;
 
-	UPROPERTY(EditDefaultsOnly, Category = "State", meta = (IgnoreForMemberInitializationTest))
-	FGuid ID;
-
+	/** Expression of enter conditions that needs to evaluate true to allow the state to be selected. */
 	UPROPERTY(EditDefaultsOnly, Category = "Enter Conditions", meta = (BaseStruct = "/Script/StateTreeModule.StateTreeConditionBase", BaseClass = "/Script/StateTreeModule.StateTreeConditionBlueprintBase"))
 	TArray<FStateTreeEditorNode> EnterConditions;
 
@@ -382,6 +380,9 @@ public:
 
 	UPROPERTY()
 	TArray<TObjectPtr<UStateTreeState>> Children;
+
+	UPROPERTY(EditDefaultsOnly, Category = "State", meta = (IgnoreForMemberInitializationTest))
+	FGuid ID;
 
 	UPROPERTY(meta = (ExcludeFromHash))
 	bool bExpanded = true;

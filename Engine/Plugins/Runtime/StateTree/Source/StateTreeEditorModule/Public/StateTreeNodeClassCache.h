@@ -74,16 +74,16 @@ struct STATETREEEDITORMODULE_API FStateTreeNodeClassCache
 	}
 
 	/** Returns know derived Structs based on provided base. If the base Struct is not added as root Struct, nothing is returned. */
-	void GetStructs(UStruct* BaseStruct, TArray<TSharedPtr<FStateTreeNodeClassData>>& AvailableClasses);
+	void GetStructs(const UStruct* BaseStruct, TArray<TSharedPtr<FStateTreeNodeClassData>>& AvailableClasses);
 	
 	/** Returns know derived Classes based on provided base. If the base Class is not added as root Class, nothing is returned. */
-	void GetClasses(UStruct* BaseClass, TArray<TSharedPtr<FStateTreeNodeClassData>>& AvailableClasses)
+	void GetClasses(const UStruct* BaseClass, TArray<TSharedPtr<FStateTreeNodeClassData>>& AvailableClasses)
 	{
 		GetStructs(BaseClass, AvailableClasses);
 	}
 	
 	/** Returns know derived ScriptStructs based on provided base. If the base struct is not added as root ScriptStruct, nothing is returned. */
-	void GetScripStructs(UScriptStruct* BaseStruct, TArray<TSharedPtr<FStateTreeNodeClassData>>& AvailableClasses)
+	void GetScripStructs(const UScriptStruct* BaseStruct, TArray<TSharedPtr<FStateTreeNodeClassData>>& AvailableClasses)
 	{
 		GetStructs(BaseStruct, AvailableClasses);
 	}

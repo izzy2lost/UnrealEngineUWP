@@ -11,6 +11,8 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(StateTreeMoveToTask)
 
+#define LOCTEXT_NAMESPACE "GameplayStateTree"
+
 EStateTreeRunStatus FStateTreeMoveToTask::EnterState(FStateTreeExecutionContext& Context, const FStateTreeTransitionResult& Transition) const
 {
 	FInstanceDataType& InstanceData = Context.GetInstanceData(*this);
@@ -131,3 +133,25 @@ EStateTreeRunStatus FStateTreeMoveToTask::PerformMoveTask(FStateTreeExecutionCon
 	UE_VLOG(Context.GetOwner(), LogStateTree, Error, TEXT("FStateTreeMoveToTask failed because it doesn't have a destination."));
 	return EStateTreeRunStatus::Failed;
 }
+
+#if WITH_EDITOR
+FText FStateTreeMoveToTask::GetDescription(const FGuid& ID, FStateTreeDataView InstanceDataView, const IStateTreeBindingLookup& BindingLookup, EStateTreeNodeFormatting Formatting) const
+{
+	const FInstanceDataType* InstanceData = InstanceDataView.GetPtr<FInstanceDataType>();
+	check(InstanceData);
+
+	FText TargetValue = BindingLookup.GetBindingSourceDisplayName(FStateTreePropertyPath(ID, GET_MEMBER_NAME_CHECKED(FInstanceDataType, TargetActor)), Formatting);
+	if (TargetValue.IsEmpty())
+	{
+		TargetValue = BindingLookup.GetBindingSourceDisplayName(FStateTreePropertyPath(ID, GET_MEMBER_NAME_CHECKED(FInstanceDataType, Destination)), Formatting);
+	}
+
+	if (Formatting == EStateTreeNodeFormatting::RichText)
+	{
+		return FText::Format(LOCTEXT("MoveToRich", "<b>Move To</> {0}"), TargetValue);	
+	}
+	return FText::Format(LOCTEXT("MoveTo", "Move To {0}"), TargetValue);
+}
+#endif // WITH_EDITOR
+
+#undef LOCTEXT_NAMESPACE

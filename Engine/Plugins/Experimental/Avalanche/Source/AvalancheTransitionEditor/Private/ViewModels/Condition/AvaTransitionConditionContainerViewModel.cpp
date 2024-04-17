@@ -146,7 +146,7 @@ TSharedRef<SWidget> FAvaTransitionConditionContainerViewModel::CreateWidget()
 		[
 			SNew(SImage)
 			.ColorAndOpacity(FLinearColor(1, 1, 1, 0.5f))
-			.Image(FStateTreeEditorStyle::Get().GetBrush("StateTreeEditor.Conditions"))
+			.Image(FStateTreeEditorStyle::Get().GetBrush("StateTreeEditor.StateConditions"))
 			.ToolTipText(LOCTEXT("StateHasEnterConditions", "State selection is guarded with enter conditions."))
 		];
 }

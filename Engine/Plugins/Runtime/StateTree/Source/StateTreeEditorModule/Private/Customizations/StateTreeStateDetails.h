@@ -7,8 +7,11 @@
 
 class IDetailLayoutBuilder;
 class IDetailChildrenBuilder;
+class IDetailCategoryBuilder;
 class IPropertyHandle;
 class IPropertyUtilities;
+class SWidget;
+class SComboButton;
 
 class FStateTreeStateDetails : public IDetailCustomization, FSelfRegisteringEditorUndoClient
 {
@@ -24,8 +27,6 @@ protected:
 	//~ FEditorUndoClient
 	virtual void PostUndo(bool bSuccess) override;
 	virtual void PostRedo(bool bSuccess) override;
-
-	void MakeArrayCategory(IDetailLayoutBuilder& DetailBuilder, FName CategoryName, const FText& DisplayName, int32 SortOrder, TSharedPtr<IPropertyHandle> PropertyHandle);
 
 	TSharedPtr<IPropertyUtilities> PropUtils;
 };

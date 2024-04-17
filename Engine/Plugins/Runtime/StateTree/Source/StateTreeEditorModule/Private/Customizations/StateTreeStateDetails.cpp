@@ -1,15 +1,23 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "StateTreeStateDetails.h"
-#include "IDetailChildrenBuilder.h"
 #include "DetailLayoutBuilder.h"
 #include "PropertyCustomizationHelpers.h"
 #include "IPropertyUtilities.h"
+#include "PropertyBagDetails.h"
 #include "StateTree.h"
 #include "StateTreeEditor.h"
 #include "StateTreeEditorData.h"
+#include "StateTreeEditorNodeUtils.h"
+#include "StateTreeEditorStyle.h"
 #include "StateTreeSchema.h"
 #include "Debugger/StateTreeDebuggerUIExtensions.h"
+#include "Widgets/Layout/SBorder.h"
+#include "Widgets/Layout/SBox.h"
+#include "Widgets/SBoxPanel.h"
+#include "Widgets/Images/SImage.h"
+#include "Widgets/Text/STextBlock.h"
+#include "Widgets/Input/SComboButton.h"
 
 #define LOCTEXT_NAMESPACE "StateTreeEditor"
 
@@ -38,6 +46,7 @@ void FStateTreeStateDetails::CustomizeDetails(IDetailLayoutBuilder& DetailBuilde
 	}
 	const UStateTreeSchema* Schema = EditorData ? EditorData->Schema : nullptr;
 	const FString SchemaPath = Schema ? Schema->GetClass()->GetPathName() : FString();
+	TWeakObjectPtr<UStateTreeEditorData> WeakEditorData = EditorData;
 	
 	const TSharedPtr<IPropertyHandle> IDProperty = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UStateTreeState, ID));
 	const TSharedPtr<IPropertyHandle> NameProperty = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UStateTreeState, Name));
@@ -55,9 +64,9 @@ void FStateTreeStateDetails::CustomizeDetails(IDetailLayoutBuilder& DetailBuilde
 	const TSharedPtr<IPropertyHandle> SelectionBehaviorProperty = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UStateTreeState, SelectionBehavior));
 	const TSharedPtr<IPropertyHandle> RequiredEventToEnterProperty = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UStateTreeState, RequiredEventToEnter));
 	const TSharedPtr<IPropertyHandle> CheckPrerequisitesProperty = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UStateTreeState, bCheckPrerequisitesWhenActivatingChildDirectly));
+
+	PropUtils = DetailBuilder.GetPropertyUtilities();
 	
-
-
 	// Never show enabled
 	EnabledProperty->MarkHiddenByCustomization();
 
@@ -73,8 +82,50 @@ void FStateTreeStateDetails::CustomizeDetails(IDetailLayoutBuilder& DetailBuilde
 
 	IDetailCategoryBuilder& StateCategory = DetailBuilder.EditCategory(TEXT("State"), LOCTEXT("StateDetailsState", "State"));
 	StateCategory.SetSortOrder(0);
-
-	StateCategory.HeaderContent(UE::StateTreeEditor::DebuggerExtensions::CreateStateWidget(DetailBuilder, EditorData));
+	{
+		TSharedRef<SHorizontalBox> HeaderContent = SNew(SHorizontalBox)
+			.IsEnabled(PropUtils.ToSharedRef(), &IPropertyUtilities::IsPropertyEditingEnabled)
+			+ SHorizontalBox::Slot()
+			.FillWidth(1.f)
+			.HAlign(HAlign_Right)
+			.VAlign(VAlign_Center)
+			[
+				SNew(SHorizontalBox)
+		
+				// Debugger labels
+				+ SHorizontalBox::Slot()
+				.AutoWidth()
+				.VAlign(VAlign_Center)
+				[
+					UE::StateTreeEditor::DebuggerExtensions::CreateStateWidget(EnabledProperty, EditorData)
+				]
+				// Options
+				+ SHorizontalBox::Slot()
+				.AutoWidth()
+				.VAlign(VAlign_Center)
+				[
+					SNew(SComboButton)
+					.ButtonStyle(FAppStyle::Get(), "SimpleButton")
+					.OnGetMenuContent_Lambda([EnabledProperty, WeakEditorData]()
+					{
+						FMenuBuilder MenuBuilder(/*ShouldCloseWindowAfterMenuSelection*/true, /*CommandList*/nullptr);
+						// Append debugger items.
+						UE::StateTreeEditor::DebuggerExtensions::AppendStateMenuItems(MenuBuilder, EnabledProperty, WeakEditorData.Get());
+						return MenuBuilder.MakeWidget();	
+					})
+					.ToolTipText(LOCTEXT("ItemActions", "Item actions"))
+					.HasDownArrow(false)
+					.ContentPadding(FMargin(4.f, 2.f))
+					.ButtonContent()
+					[
+						SNew(SImage)
+						.Image(FAppStyle::GetBrush("Icons.ChevronDown"))
+						.ColorAndOpacity(FSlateColor::UseForeground())
+					]
+				]
+			];
+		StateCategory.HeaderContent(HeaderContent);
+	}
 
 	// Name
 	NameProperty->MarkHiddenByCustomization();
@@ -127,22 +178,65 @@ void FStateTreeStateDetails::CustomizeDetails(IDetailLayoutBuilder& DetailBuilde
 		];
 	}
 
-	CheckPrerequisitesProperty->MarkHiddenByCustomization();
-	StateCategory.AddProperty(CheckPrerequisitesProperty);
+	// Parameters category
+	const FText ParametersDisplayName = LOCTEXT("EditorStateDetailsParameters", "Parameters");
+	IDetailCategoryBuilder& ParametersCategory = DetailBuilder.EditCategory(TEXT("Parameters"), ParametersDisplayName);
+	ParametersCategory.SetSortOrder(1);
+	{
+		// Show parameters as a category.
+		ParametersProperty->MarkHiddenByCustomization();
 
-	// Parameters
-	ParametersProperty->MarkHiddenByCustomization();
-	StateCategory.AddProperty(ParametersProperty);
+		TSharedPtr<IPropertyHandle> PropertyBagParametersProperty = ParametersProperty->GetChildHandle(TEXT("Parameters")); // FInstancedPropertyBag
+		check(PropertyBagParametersProperty);
 
-	// Event
-	RequiredEventToEnterProperty->MarkHiddenByCustomization();
-	StateCategory.AddProperty(RequiredEventToEnterProperty);
+		const TSharedRef<SHorizontalBox> HeaderContentWidget = SNew(SHorizontalBox)
+			.IsEnabled(PropUtils.ToSharedRef(), &IPropertyUtilities::IsPropertyEditingEnabled)
+			+SHorizontalBox::Slot()
+			.VAlign(VAlign_Center)
+			.Padding(FMargin(4, 0, 0, 0))
+			.AutoWidth()
+			[
+				SNew(STextBlock)
+				.TextStyle(FStateTreeEditorStyle::Get(), "StateTree.Category")
+				.Text(ParametersDisplayName)
+			]
+			+SHorizontalBox::Slot()
+			.FillWidth(1.f)
+			.HAlign(HAlign_Right)
+			.VAlign(VAlign_Center)
+			[
+				FPropertyBagDetails::MakeAddPropertyWidget(PropertyBagParametersProperty, PropUtils.ToSharedRef(), EPropertyBagPropertyType::Bool, FLinearColor(UE::StateTree::Colors::Grey)).ToSharedRef()
+			];
+		ParametersCategory.HeaderContent(HeaderContentWidget, /*FullRowContent*/true);
 
+		TSharedRef<FPropertyBagInstanceDataDetails> InstanceDetails = MakeShareable(new FPropertyBagInstanceDataDetails(PropertyBagParametersProperty, PropUtils.ToSharedRef(), false));
+		ParametersCategory.AddCustomBuilder(InstanceDetails);
+	}
+	
 	// Enter conditions
 	const FName EnterConditionsCategoryName(TEXT("Enter Conditions"));
 	if (Schema && Schema->AllowEnterConditions())
 	{
-		MakeArrayCategory(DetailBuilder, EnterConditionsCategoryName, LOCTEXT("StateDetailsEnterConditions", "Enter Conditions"), 2, EnterConditionsProperty);
+
+		IDetailCategoryBuilder& EnterConditionsCategory = UE::StateTreeEditor::EditorNodeUtils::MakeArrayCategory(
+			DetailBuilder,
+			EnterConditionsProperty,
+			EnterConditionsCategoryName,
+			LOCTEXT("StateDetailsEnterConditions", "Enter Conditions"),
+			FName("StateTreeEditor.Conditions"),
+			UE::StateTree::Colors::Yellow,
+			UE::StateTree::Colors::Yellow.WithAlpha(192),
+			LOCTEXT("EnterConditionsAddTooltip", "Add new Enter Condition"),
+			/*SortOrder*/2);
+		EnterConditionsProperty->MarkHiddenByCustomization();
+
+		// Event
+		RequiredEventToEnterProperty->MarkHiddenByCustomization();
+		EnterConditionsCategory.AddProperty(RequiredEventToEnterProperty);
+
+		// Check Prerequisites
+		CheckPrerequisitesProperty->MarkHiddenByCustomization();
+		EnterConditionsCategory.AddProperty(CheckPrerequisitesProperty);
 	}
 	else
 	{
@@ -155,7 +249,16 @@ void FStateTreeStateDetails::CustomizeDetails(IDetailLayoutBuilder& DetailBuilde
 		if (Schema && Schema->AllowMultipleTasks())
 		{
 			const FName TasksCategoryName(TEXT("Tasks"));
-			MakeArrayCategory(DetailBuilder, TasksCategoryName, LOCTEXT("StateDetailsTasks", "Tasks"), 3, TasksProperty);
+			UE::StateTreeEditor::EditorNodeUtils::MakeArrayCategory(
+				DetailBuilder,
+				TasksProperty,
+				TasksCategoryName,
+				LOCTEXT("StateDetailsTasks", "Tasks"),
+				FName("StateTreeEditor.Tasks"),
+				UE::StateTree::Colors::Cyan,
+				UE::StateTree::Colors::Cyan.WithAlpha(192),
+				LOCTEXT("StateDetailsTasksAddTooltip", "Add new Task"),
+				/*SortOrder*/3);
 			SingleTaskProperty->MarkHiddenByCustomization();
 		}
 		else
@@ -177,10 +280,18 @@ void FStateTreeStateDetails::CustomizeDetails(IDetailLayoutBuilder& DetailBuilde
 	}
 
 	// Transitions
-	MakeArrayCategory(DetailBuilder, "Transitions", LOCTEXT("StateDetailsTransitions", "Transitions"), 4, TransitionsProperty);
+	UE::StateTreeEditor::EditorNodeUtils::MakeArrayCategory(
+		DetailBuilder,
+		TransitionsProperty,
+		"Transitions",
+		LOCTEXT("StateDetailsTransitions", "Transitions"),
+		FName("StateTreeEditor.Transitions"),
+		UE::StateTree::Colors::Magenta,
+		UE::StateTree::Colors::Magenta.WithAlpha(192),
+		LOCTEXT("StateDetailsTransitionsAddTooltip", "Add new Transition"),
+		/*SortOrder*/4);
 
 	// Refresh the UI when the type changes.	
-	PropUtils = DetailBuilder.GetPropertyUtilities();
 	TypeProperty->SetOnPropertyValueChanged(FSimpleDelegate::CreateLambda([PropUtils = PropUtils] ()
 	{
 		if (PropUtils.IsValid())
@@ -205,33 +316,8 @@ void FStateTreeStateDetails::PostRedo(bool bSuccess)
 	// Refresh view on undo or redo so that the customization based on e.g. State type will be reflected correctly.
 	if (PropUtils.IsValid())
 	{
-		PropUtils->ForceRefresh();
+		PropUtils->ForceRefresh(); 
 	}
-}
-
-void FStateTreeStateDetails::MakeArrayCategory(IDetailLayoutBuilder& DetailBuilder, FName CategoryName, const FText& DisplayName, int32 SortOrder, TSharedPtr<IPropertyHandle> PropertyHandle)
-{
-	IDetailCategoryBuilder& Category = DetailBuilder.EditCategory(CategoryName, DisplayName);
-	Category.SetSortOrder(SortOrder);
-
-	const TSharedRef<SHorizontalBox> HeaderContentWidget = SNew(SHorizontalBox)
-		.IsEnabled(DetailBuilder.GetPropertyUtilities(), &IPropertyUtilities::IsPropertyEditingEnabled);
-
-	HeaderContentWidget->AddSlot()
-	.HAlign(HAlign_Right)
-	.VAlign(VAlign_Center)
-	[
-		PropertyHandle->CreateDefaultPropertyButtonWidgets()
-	];
-	Category.HeaderContent(HeaderContentWidget);
-
-	// Add items inline
-	const TSharedRef<FDetailArrayBuilder> Builder = MakeShareable(new FDetailArrayBuilder(PropertyHandle.ToSharedRef(), /*InGenerateHeader*/ false, /*InDisplayResetToDefault*/ true, /*InDisplayElementNum*/ false));
-	Builder->OnGenerateArrayElementWidget(FOnGenerateArrayElementWidget::CreateLambda([](TSharedRef<IPropertyHandle> PropertyHandle, int32 ArrayIndex, IDetailChildrenBuilder& ChildrenBuilder)
-	{
-		ChildrenBuilder.AddProperty(PropertyHandle);
-	}));
-	Category.AddCustomBuilder(Builder, /*bForAdvanced*/ false);
 }
 
 #undef LOCTEXT_NAMESPACE

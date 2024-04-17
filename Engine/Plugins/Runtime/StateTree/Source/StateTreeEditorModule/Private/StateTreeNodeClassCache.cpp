@@ -139,7 +139,7 @@ void FStateTreeNodeClassCache::AddRootStruct(UStruct* RootStruct)
 	InvalidateCache();
 }
 
-void FStateTreeNodeClassCache::GetStructs(UStruct* BaseStruct, TArray<TSharedPtr<FStateTreeNodeClassData>>& AvailableClasses)
+void FStateTreeNodeClassCache::GetStructs(const UStruct* BaseStruct, TArray<TSharedPtr<FStateTreeNodeClassData>>& AvailableClasses)
 {
 	AvailableClasses.Reset();
 	

@@ -15,6 +15,7 @@
 #include "StateTreeViewModel.h"
 #include "Widgets/Views/SListView.h"
 #include "TextStyleDecorator.h"
+#include "Customizations/StateTreeEditorNodeUtils.h"
 #include "Widgets/Text/SRichTextBlock.h"
 
 #define LOCTEXT_NAMESPACE "StateTreeEditor"
@@ -121,7 +122,7 @@ void SStateTreeViewRow::Construct(const FArguments& InArgs, const TSharedRef<STa
 							[
 								SNew(SBorder)
 								.BorderImage(FAppStyle::GetBrush("WhiteBrush"))
-								.BorderBackgroundColor(this, &SStateTreeViewRow::GetTitleColor)
+								.BorderBackgroundColor(this, &SStateTreeViewRow::GetTitleColor, 1.0f, 0.0f)
 								.Padding(FMargin(4.f, 0.f, 12.f, 0.f))
 								.IsEnabled_Lambda([InState]
 									{
@@ -160,7 +161,7 @@ void SStateTreeViewRow::Construct(const FArguments& InArgs, const TSharedRef<STa
 											[
 												SNew(SImage)
 												.ColorAndOpacity(IconTint)
-												.Image(FStateTreeEditorStyle::Get().GetBrush("StateTreeEditor.Conditions"))
+												.Image(FStateTreeEditorStyle::Get().GetBrush("StateTreeEditor.StateConditions"))
 												.ToolTipText(LOCTEXT("StateHasEnterConditions", "State selection is guarded with enter conditions."))
 											]
 										]
@@ -648,8 +649,8 @@ TSharedRef<SHorizontalBox> SStateTreeViewRow::CreateTasksWidget()
 				[
 					SNew(SBorder)
 					.VAlign(VAlign_Center)
-					.BorderImage(FStateTreeEditorStyle::Get().GetBrush("StateTree.Task.Rect"))
-					.BorderBackgroundColor(this, &SStateTreeViewRow::GetTitleColor)
+					.BorderImage(FAppStyle::GetBrush("WhiteBrush"))
+					.BorderBackgroundColor(this, &SStateTreeViewRow::GetTitleColor, 0.25f, 0.25f)
 					.Padding(0)
 					.IsEnabled_Lambda(IsTaskEnabledFunc)
 					[
@@ -658,16 +659,38 @@ TSharedRef<SHorizontalBox> SStateTreeViewRow::CreateTasksWidget()
 						[
 							SNew(SBox)
 							.MaxDesiredWidth(MaxTaskWidth)
+							.Padding(FMargin(6.f, 0.f))
 							[
-								SNew(SRichTextBlock)
-								.Margin(FMargin(6.f, 0.f))
-								.Text(this, &SStateTreeViewRow::GetTaskDesc, TaskId, EStateTreeNodeFormatting::RichText)
-								.ToolTipText(this, &SStateTreeViewRow::GetTaskDesc, TaskId, EStateTreeNodeFormatting::Text)
-								.TextStyle(&FStateTreeEditorStyle::Get().GetWidgetStyle<FTextBlockStyle>("StateTree.Task.Title"))
-								.OverflowPolicy(ETextOverflowPolicy::Ellipsis)
-								+SRichTextBlock::Decorator(FTextStyleDecorator::Create(TEXT(""), FStateTreeEditorStyle::Get().GetWidgetStyle<FTextBlockStyle>("StateTree.Task.Title")))
-								+SRichTextBlock::Decorator(FTextStyleDecorator::Create(TEXT("b"), FStateTreeEditorStyle::Get().GetWidgetStyle<FTextBlockStyle>("StateTree.Task.Title.Bold")))
-								+SRichTextBlock::Decorator(FTextStyleDecorator::Create(TEXT("s"), FStateTreeEditorStyle::Get().GetWidgetStyle<FTextBlockStyle>("StateTree.Task.Title.Subdued")))
+								SNew(SHorizontalBox)
+								+ SHorizontalBox::Slot()
+								.VAlign(VAlign_Center)
+								.HAlign(HAlign_Left)
+								.AutoWidth()
+								[
+									SNew(SBox)
+									.Padding(FMargin(0.f, 0.f, 2.f, 0.f))
+									.Visibility(this, &SStateTreeViewRow::GetTaskIconVisibility, TaskId)
+									[
+										SNew(SImage)
+										.Image(this, &SStateTreeViewRow::GetTaskIcon, TaskId)
+										.ColorAndOpacity(this, &SStateTreeViewRow::GetTaskIconColor, TaskId)
+									]
+								]
+
+								+ SHorizontalBox::Slot()
+								.VAlign(VAlign_Center)
+								.HAlign(HAlign_Left)
+								.AutoWidth()
+								[
+									SNew(SRichTextBlock)
+									.Text(this, &SStateTreeViewRow::GetTaskDesc, TaskId, EStateTreeNodeFormatting::RichText)
+									.ToolTipText(this, &SStateTreeViewRow::GetTaskDesc, TaskId, EStateTreeNodeFormatting::Text)
+									.TextStyle(&FStateTreeEditorStyle::Get().GetWidgetStyle<FTextBlockStyle>("StateTree.Task.Title"))
+									.OverflowPolicy(ETextOverflowPolicy::Ellipsis)
+									+SRichTextBlock::Decorator(FTextStyleDecorator::Create(TEXT(""), FStateTreeEditorStyle::Get().GetWidgetStyle<FTextBlockStyle>("StateTree.Task.Title")))
+									+SRichTextBlock::Decorator(FTextStyleDecorator::Create(TEXT("b"), FStateTreeEditorStyle::Get().GetWidgetStyle<FTextBlockStyle>("StateTree.Task.Title.Bold")))
+									+SRichTextBlock::Decorator(FTextStyleDecorator::Create(TEXT("s"), FStateTreeEditorStyle::Get().GetWidgetStyle<FTextBlockStyle>("StateTree.Task.Title.Subdued")))
+								]
 							]
 						]
 						+ SOverlay::Slot()
@@ -706,24 +729,31 @@ void SStateTreeViewRow::RequestRename() const
 	}
 }
 
-FSlateColor SStateTreeViewRow::GetTitleColor() const
+FSlateColor SStateTreeViewRow::GetTitleColor(const float Alpha, const float Lighten) const
 {
 	const UStateTreeState* State = WeakState.Get();
 	const UStateTreeEditorData* EditorData = WeakEditorData.Get();
 
+	FLinearColor Color(FColor(31, 151, 167));
+	
 	if (State != nullptr && EditorData != nullptr)
 	{
 		if (const FStateTreeEditorColor* FoundColor = EditorData->FindColor(State->ColorRef))
 		{
 			if (IsRootState() || State->Type == EStateTreeStateType::Subtree)
 			{
-				return UE::StateTree::Editor::LerpColorSRGB(FoundColor->Color, FColor::Black, 0.25f);
+				Color = UE::StateTree::Editor::LerpColorSRGB(FoundColor->Color, FColor::Black, 0.25f);
 			}
-			return FoundColor->Color;
+			Color = FoundColor->Color;
 		}
 	}
 
-	return FLinearColor(FColor(31, 151, 167));
+	if (Lighten > 0.0f)
+	{
+		Color = UE::StateTree::Editor::LerpColorSRGB(Color, FColor::White, Lighten);
+	}
+	
+	return Color.CopyWithNewOpacity(Alpha);
 }
 
 FSlateColor SStateTreeViewRow::GetActiveStateColor() const
@@ -924,19 +954,64 @@ FText SStateTreeViewRow::GetStateTypeTooltip() const
 	return FText::GetEmpty();
 }
 
-FText SStateTreeViewRow::GetTaskDesc(FGuid TaskID, EStateTreeNodeFormatting Formatting) const
+const FStateTreeEditorNode* SStateTreeViewRow::GetTaskNodeByID(FGuid TaskID) const
 {
-	FText TaskName;
 	const UStateTreeState* State = WeakState.Get();
 	const UStateTreeEditorData* EditorData = WeakEditorData.Get();
 	if (EditorData != nullptr
 		&& State != nullptr)
 	{
-		const FStateTreeEditorNode* TaskNode = State->Tasks.FindByPredicate([&TaskID](const FStateTreeEditorNode& Node)
+		return State->Tasks.FindByPredicate([&TaskID](const FStateTreeEditorNode& Node)
 		{
 			return Node.ID == TaskID;
 		});
-		if (TaskNode)
+	}
+	return nullptr;
+}
+
+EVisibility SStateTreeViewRow::GetTaskIconVisibility(FGuid TaskID) const
+{
+	bool bHasIcon = false;
+	if (const FStateTreeEditorNode* TaskNode = GetTaskNodeByID(TaskID))
+	{
+		if (const FStateTreeNodeBase* BaseNode = TaskNode->Node.GetPtr<const FStateTreeNodeBase>())
+		{
+			bHasIcon = !BaseNode->GetIconName().IsNone();
+		}
+	}
+	return bHasIcon ? EVisibility::Visible : EVisibility::Collapsed;  	
+}
+
+const FSlateBrush* SStateTreeViewRow::GetTaskIcon(FGuid TaskID) const
+{
+	if (const FStateTreeEditorNode* TaskNode = GetTaskNodeByID(TaskID))
+	{
+		if (const FStateTreeNodeBase* BaseNode = TaskNode->Node.GetPtr<const FStateTreeNodeBase>())
+		{
+			return UE::StateTreeEditor::EditorNodeUtils::ParseIcon(BaseNode->GetIconName()).GetIcon();
+		}
+	}
+	return nullptr;	
+}
+
+FSlateColor SStateTreeViewRow::GetTaskIconColor(FGuid TaskID) const
+{
+	if (const FStateTreeEditorNode* TaskNode = GetTaskNodeByID(TaskID))
+	{
+		if (const FStateTreeNodeBase* BaseNode = TaskNode->Node.GetPtr<const FStateTreeNodeBase>())
+		{
+			return FLinearColor(BaseNode->GetIconColor());
+		}
+	}
+	return FSlateColor::UseForeground();
+}
+
+FText SStateTreeViewRow::GetTaskDesc(FGuid TaskID, EStateTreeNodeFormatting Formatting) const
+{
+	FText TaskName;
+	if (const UStateTreeEditorData* EditorData = WeakEditorData.Get())
+	{
+		if (const FStateTreeEditorNode* TaskNode = GetTaskNodeByID(TaskID))
 		{
 			if (UE::StateTree::Editor::GbDisplayItemIds)
 			{

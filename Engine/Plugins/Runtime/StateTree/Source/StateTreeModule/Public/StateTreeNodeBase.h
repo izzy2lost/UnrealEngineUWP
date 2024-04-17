@@ -89,7 +89,24 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	{
 		return FText::GetEmpty();
 	}
-	
+
+	/**
+	 * @returns name of the icon in format:
+	 *		StyleSetName | StyleName [ | SmallStyleName | StatusOverlayStyleName]
+	 *		SmallStyleName and StatusOverlayStyleName are optional.
+	 *		Example: "StateTreeEditorStyle|Node.Animation" 
+	 */
+	virtual FName GetIconName() const
+	{
+		return FName();
+	}
+
+	/** @return the color to be used with the icon. */
+	virtual FColor GetIconColor() const
+	{
+		return UE::StateTree::Colors::DarkGrey;
+	}
+
 	/**
 	 * Called when binding of any of the properties in the node changes.
 	 * @param ID ID of the item, can be used make property paths to this item.

@@ -10,6 +10,7 @@ class UStateTreeState;
 enum class EStateTreeTransitionTrigger : uint8;
 enum EStateTreeNodeFormatting : uint8;
 struct FStateTreeStateLink;
+struct FStateTreeEditorNode;
 
 class UStateTreeEditorData;
 class SStateTreeView;
@@ -32,7 +33,7 @@ public:
 private:
 	TSharedRef<SHorizontalBox> CreateTasksWidget();
 
-	FSlateColor GetTitleColor() const;
+	FSlateColor GetTitleColor(const float Alpha = 1.0f, const float Lighten = 0.0f) const;
 	FSlateColor GetActiveStateColor() const;
 	FSlateColor GetSubTreeMarkerColor() const;
 	FText GetStateDesc() const;
@@ -46,6 +47,10 @@ private:
 	FText GetSelectorTooltip() const;
 	FText GetStateTypeTooltip() const;
 
+	const FStateTreeEditorNode* GetTaskNodeByID(FGuid TaskID) const;
+	EVisibility GetTaskIconVisibility(FGuid TaskID) const;
+	const FSlateBrush* GetTaskIcon(FGuid TaskID) const;
+	FSlateColor GetTaskIconColor(FGuid TaskID) const;
 	FText GetTaskDesc(FGuid TaskID, EStateTreeNodeFormatting Formatting) const;
 
 	EVisibility GetTasksVisibility() const;

@@ -75,6 +75,16 @@ struct STATETREEMODULE_API FStateTreeTaskBase : public FStateTreeNodeBase
 	 */
 	virtual void TriggerTransitions(FStateTreeExecutionContext& Context) const {};
 
+#if WITH_EDITOR
+	virtual FName GetIconName() const override
+	{
+		return FName("StateTreeEditorStyle|Node.Task");
+	}
+	virtual FColor GetIconColor() const override
+	{
+		return UE::StateTree::Colors::Grey;
+	}
+#endif
 
 #if WITH_GAMEPLAY_DEBUGGER
 	virtual void AppendDebugInfoString(FString& DebugString, const FStateTreeExecutionContext& Context) const;

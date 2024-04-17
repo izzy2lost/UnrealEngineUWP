@@ -23,6 +23,30 @@ namespace UE::StateTree
 	inline const FName SchemaTag(TEXT("Schema"));
 
 	inline const FName SchemaCanBeOverridenTag(TEXT("SchemaCanBeOverriden"));
+
+	namespace Colors
+	{
+		// Common and consistent colors to be used with State Tree nodes.
+		extern const STATETREEMODULE_API FColor Grey;
+		extern const STATETREEMODULE_API FColor DarkGrey;
+		extern const STATETREEMODULE_API FColor Red;
+		extern const STATETREEMODULE_API FColor DarkRed;
+		extern const STATETREEMODULE_API FColor Orange;
+		extern const STATETREEMODULE_API FColor DarkOrange;
+		extern const STATETREEMODULE_API FColor Yellow;
+		extern const STATETREEMODULE_API FColor DarkYellow;
+		extern const STATETREEMODULE_API FColor Green;
+		extern const STATETREEMODULE_API FColor DarkGreen;
+		extern const STATETREEMODULE_API FColor Cyan;
+		extern const STATETREEMODULE_API FColor DarkCyan;
+		extern const STATETREEMODULE_API FColor Blue;
+		extern const STATETREEMODULE_API FColor DarkBlue;
+		extern const STATETREEMODULE_API FColor Purple;
+		extern const STATETREEMODULE_API FColor DarkPurple;
+		extern const STATETREEMODULE_API FColor Magenta;
+		extern const STATETREEMODULE_API FColor DarkMagenta;
+	} // Colors
+
 }; // UE::StateTree
 
 enum class EStateTreeRunStatus : uint8;
