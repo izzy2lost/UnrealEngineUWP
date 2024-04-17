@@ -1507,8 +1507,16 @@ void UWaterBodyComponent::OnPostRegisterAllComponents()
 	UWaterBodyInfoMeshComponent* WaterInfoMeshComponent = GetWaterInfoMeshComponent();
 	const bool bHasConservativeRasterMesh = IsValid(WaterInfoMeshComponent) && WaterInfoMeshComponent->bIsConservativeRasterCompatible;
 	const bool bShouldHaveConservativeRastermesh = CVarWaterBodyBuildConservativeRasterizationMesh.GetValueOnGameThread() != 0;
-	if ((bHasConservativeRasterMesh != bShouldHaveConservativeRastermesh) || GetLinkerCustomVersion(FFortniteMainBranchObjectVersion::GUID) < FFortniteMainBranchObjectVersion::WaterBodyStaticMeshFixup)
+	if (AffectsWaterInfo() && ((bHasConservativeRasterMesh != bShouldHaveConservativeRastermesh) || GetLinkerCustomVersion(FFortniteMainBranchObjectVersion::GUID) < FFortniteMainBranchObjectVersion::WaterBodyStaticMeshFixup))
 	{
+		const IWaterModuleInterface& WaterModule = FModuleManager::GetModuleChecked<IWaterModuleInterface>("Water");
+		if (IWaterEditorServices* WaterEditorServices = WaterModule.GetWaterEditorServices())
+		{
+			if (GetWorld() && GetWorld()->WorldType == EWorldType::Editor)
+			{
+				WaterEditorServices->TryMarkPackageAsModified(GetPackage());
+			}
+		}
 		UpdateWaterBodyRenderData();
 	}
 

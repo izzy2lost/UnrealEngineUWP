@@ -31,6 +31,7 @@ public class WaterEditor : ModuleRules
 				"DeveloperSettings",
 				"AdvancedPreviewScene",
 				"PlacementMode",
+				"ActionableMessage",
 			});
 
 		PublicDependencyModuleNames.AddRange(
