@@ -47,7 +47,8 @@ namespace Chaos
 		TVector(const TVector&) = default;
 		TVector& operator=(const TVector&) = default;
 
-		TVector() {}
+		TVector() = default;
+
 		explicit TVector(const FElement& Element)
 		{
 			for (int32 i = 0; i < NumElements; ++i)
@@ -391,8 +392,8 @@ namespace Chaos
 		using BaseType::Z;
 		using BaseType::W;
 
-		TVector()
-		    : BaseType() {}
+		TVector() = default;
+
 		explicit TVector(const FReal x)
 		    : BaseType(x, x, x, x) {}
 		TVector(const FReal x, const FReal y, const FReal z, const FReal w)
@@ -410,8 +411,8 @@ namespace Chaos
 		using UE::Math::TVector<FRealSingle>::Y;
 		using UE::Math::TVector<FRealSingle>::Z;
 
-		TVector()
-		    : UE::Math::TVector<FRealSingle>() {}
+		TVector() = default;
+
 		explicit TVector(const FRealSingle x)
 		    : UE::Math::TVector<FRealSingle>(x, x, x) {}
 		TVector(const FRealSingle x, const FRealSingle y, const FRealSingle z)
@@ -613,8 +614,8 @@ namespace Chaos
 		using UE::Math::TVector<FRealDouble>::Y;
 		using UE::Math::TVector<FRealDouble>::Z;
 
-		TVector()
-			: UE::Math::TVector<FRealDouble>() {}
+		TVector() = default;
+
 		explicit TVector(const FRealDouble x)
 			: UE::Math::TVector<FRealDouble>(x, x, x) {}
 		TVector(const FRealDouble x, const FRealDouble y, const FRealDouble z)
@@ -813,8 +814,8 @@ namespace Chaos
 		using FVector2f::X;
 		using FVector2f::Y;
 
-		TVector()
-		    : FVector2f() {}
+		TVector() = default;
+
 		TVector(const FRealSingle x)
 		    : FVector2f((decltype(FVector2f::X))x, (decltype(FVector2f::X))x) {}	// LWC_TODO: Remove casts once FVector2f supports variants
 		TVector(const FRealSingle x, const FRealSingle y)
@@ -901,8 +902,8 @@ namespace Chaos
 		using FVector2d::X;
 		using FVector2d::Y;
 
-		TVector()
-		    : FVector2d() {}
+		TVector() = default;
+
 		TVector(const FRealDouble x)
 		    : FVector2d((decltype(FVector2d::X))x, (decltype(FVector2d::X))x) {}	// LWC_TODO: Remove casts once FVector2d supports variants
 		TVector(const FRealDouble x, const FRealDouble y)
@@ -993,7 +994,8 @@ PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		TVector& operator=(const TVector&) = default;
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
-		FORCEINLINE TVector() {}
+		FORCEINLINE TVector() = default;
+
 		FORCEINLINE explicit TVector(T InX)
 		    : X(InX), Y(InX), Z(InX) {}
 		FORCEINLINE TVector(T InX, T InY, T InZ)
@@ -1182,8 +1184,8 @@ PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		TVector& operator=(const TVector&) = default;
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
-		FORCEINLINE TVector()
-		{}
+		FORCEINLINE TVector() = default;
+
 		FORCEINLINE explicit TVector(const FElement InX)
 		    : X(InX), Y(InX)
 		{}

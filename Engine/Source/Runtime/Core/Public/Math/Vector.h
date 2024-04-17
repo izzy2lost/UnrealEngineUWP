@@ -146,7 +146,7 @@ public:
 #endif
 
     /** Default constructor (no initialization). */
-    FORCEINLINE TVector();
+    TVector() = default;
 
     /**
      * Constructor initializing all components to a single T value.
@@ -1440,10 +1440,6 @@ inline TVector<T> TVector<T>::DegreesToRadians(const TVector<T>& DegVector)
 {
     return DegVector * (UE_PI / 180.f);
 }
-
-template<typename T>
-FORCEINLINE TVector<T>::TVector()
-{}
 
 template<typename T>
 FORCEINLINE TVector<T>::TVector(T InF)
