@@ -16,9 +16,17 @@ namespace Harmonix::Dsp::AudioAnalysis
 	{
 		IPlatformFile& PlatformFileApi = FPlatformFileManager::Get().GetPlatformFile();
 		IFileHandle* FileHandle = PlatformFileApi.OpenRead(*Wave1FilePath);
+		if (!FileHandle)
+		{
+			return false;
+		}
 		TSharedRef<FArchive> Wave1Archive = MakeShared<FArchiveFileReaderGeneric>(FileHandle, *Wave1FilePath, FileHandle->Size());
 
 		FileHandle = PlatformFileApi.OpenRead(*Wave2FilePath);
+		if (!FileHandle)
+		{
+			return false;
+		}
 		TSharedRef<FArchive> Wave2Archive = MakeShared<FArchiveFileReaderGeneric>(FileHandle, *Wave2FilePath, FileHandle->Size());
 		
 		return LoadForCompare(*Wave1Archive, *Wave2Archive);
