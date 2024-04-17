@@ -172,7 +172,7 @@ Create a service descriptor file in `/etc/systemd/system/horde-agent.service` (s
     Description=Horde Agent
 
     [Service]
-    ExecStart=dotnet {{ HORDE_PATH }} {{ HORDE_WORKING_DIRECTORY }}
+    ExecStart=dotnet {{ HORDE_PATH }} -WorkingDir={{ HORDE_WORKING_DIRECTORY }}
     WorkingDirectory={{ HORDE_WORKING_DIRECTORY }}
 
     Restart=always
