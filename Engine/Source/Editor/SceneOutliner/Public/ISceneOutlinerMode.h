@@ -89,6 +89,8 @@ public:
 	virtual bool CanCustomizeToolbar() const { return false; }
 	/** Check if an item is interactive */
 	virtual bool CanInteract(const ISceneOutlinerTreeItem& Item) const { return true; }
+	/** Check if we are allowed to repopulate */
+	virtual bool CanPopulate() const { return true; }
 
 	/** Synchronize the mode specific selection with the tree view */
 	virtual void SynchronizeSelection() {}

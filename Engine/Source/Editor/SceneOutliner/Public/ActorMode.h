@@ -53,6 +53,7 @@ struct SCENEOUTLINER_API FActorModeParams
 	bool bHideUnloadedActors = true;
 	bool bHideEmptyFolders = true;
 	bool bCanInteractWithSelectableActorsOnly = true;
+	bool bShouldUpdateContentWhileInPIEFocused = false;
 };
 
 class SCENEOUTLINER_API FActorMode : public ISceneOutlinerMode
@@ -83,6 +84,7 @@ public:
 	virtual FFolder::FRootObject GetPasteTargetRootObject() const override;
 
 	virtual bool CanInteract(const ISceneOutlinerTreeItem& Item) const override;
+	virtual bool CanPopulate() const override;
 	
 	virtual TSharedPtr<FDragDropOperation> CreateDragDropOperation(const FPointerEvent& MouseEvent, const TArray<FSceneOutlinerTreeItemPtr>& InTreeItems) const override;
 	virtual bool ParseDragDrop(FSceneOutlinerDragDropPayload& OutPayload, const FDragDropOperation& Operation) const override;
@@ -133,4 +135,6 @@ protected:
 	bool bAlwaysFrameSelection;
 	/** If True, CanInteract will be restricted to selectable actors only. */
 	bool bCanInteractWithSelectableActorsOnly;
+	/** Should we update content when in PIE and the PIE viewport has focus. */
+	bool bShouldUpdateContentWhileInPIEFocused;
 };

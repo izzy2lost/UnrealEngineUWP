@@ -144,6 +144,9 @@ private:
 	void OnToggleFolderDoubleClickMarkCurrentFolder();
 	bool DoesFolderDoubleClickMarkCurrentFolder() const;
 
+	void OnToggleShouldUpdateContentWhileInPIEFocused();
+	bool ShouldUpdateContentWhileInPIEFocused() const;
+
 	/**
 	 * Get a mutable version of the ActorBrowser config for setting values.
 	 * @returns		The config for this ActorBrowser.

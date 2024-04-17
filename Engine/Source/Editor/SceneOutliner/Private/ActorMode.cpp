@@ -19,6 +19,7 @@
 #include "EditorFolderUtils.h"
 #include "EditorLevelUtils.h"
 #include "EditorModeManager.h"
+#include "Engine/GameViewportClient.h"
 #include "WorldTreeItem.h"
 #include "LevelInstance/LevelInstanceInterface.h"
 #include "LevelInstance/LevelInstanceSubsystem.h"
@@ -30,6 +31,7 @@
 #include "Modules/ModuleManager.h"
 #include "ScopedTransaction.h"
 #include "SSocketChooser.h"
+#include "UnrealClient.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogActorMode, Log, All);
 
@@ -120,6 +122,7 @@ FActorMode::FActorMode(const FActorModeParams& Params)
 	, bHideUnloadedActors(Params.bHideUnloadedActors)
 	, bHideEmptyFolders(Params.bHideEmptyFolders)
 	, bCanInteractWithSelectableActorsOnly(Params.bCanInteractWithSelectableActorsOnly)
+	, bShouldUpdateContentWhileInPIEFocused(Params.bShouldUpdateContentWhileInPIEFocused)
 {
 	SceneOutliner->AddFilter(MakeShared<FActorFilter>(FActorTreeItem::FFilterPredicate::CreateLambda([this](const AActor* Actor)
 	{
@@ -415,6 +418,18 @@ bool FActorMode::CanInteract(const ISceneOutlinerTreeItem& Item) const
 		}
 	}
 	
+	return true;
+}
+
+bool FActorMode::CanPopulate() const
+{
+	if (!bShouldUpdateContentWhileInPIEFocused)
+	{
+		if (UGameViewportClient* GameViewport = RepresentingWorld->GetGameViewport())
+		{
+			return !GameViewport->Viewport || !GameViewport->Viewport->HasFocus();
+		}
+	}
 	return true;
 }
 

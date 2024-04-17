@@ -2308,7 +2308,10 @@ void SSceneOutliner::Tick(const FGeometry& AllottedGeometry, const double InCurr
 	{
 		if( !bIsReentrant )
 		{
-			Populate();
+			if (Mode->CanPopulate())
+			{
+				Populate();
+			}
 		}
 	}
 	SortOutlinerTimer -= InDeltaTime;

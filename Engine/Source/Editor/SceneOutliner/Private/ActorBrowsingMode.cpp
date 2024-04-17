@@ -105,6 +105,7 @@ FActorBrowsingMode::FActorBrowsingMode(SSceneOutliner* InSceneOutliner, TWeakObj
 
 	bHideLevelInstanceHierarchy = LocalSettings.bHideLevelInstanceHierarchy;
 	InSceneOutliner->SetShowTransient(!LocalSettings.bHideTemporaryActors);
+	bShouldUpdateContentWhileInPIEFocused = LocalSettings.bShouldUpdateContentWhileInPIEFocused;
 
 	// Get the OutlinerModule to register FilterInfos with the FilterInfoMap
 	FSceneOutlinerFilterInfo ShowOnlySelectedActorsInfo(LOCTEXT("ToggleShowOnlySelected", "Only Selected"), LOCTEXT("ToggleShowOnlySelectedToolTip", "When enabled, only displays actors that are currently selected."), LocalSettings.bShowOnlySelectedActors, FCreateSceneOutlinerFilter::CreateStatic(&FActorBrowsingMode::CreateShowOnlySelectedActorsFilter));
@@ -543,6 +544,20 @@ void FActorBrowsingMode::InitializeViewMenuExtender(TSharedPtr<FExtender> Extend
 			NAME_None,
 			EUserInterfaceActionType::ToggleButton
 		);
+
+		MenuBuilder.AddMenuEntry(
+			LOCTEXT("ShouldUpdateContentWhileInPIEFocusedLabel", "Update In PIE"),
+			LOCTEXT("ShouldUpdateContentWhileInPIEFocusedLabelTooltip", "When enabled, the Outliner will update in PIE."),
+			FSlateIcon(),
+			FUIAction(
+				FExecuteAction::CreateRaw(this, &FActorBrowsingMode::OnToggleShouldUpdateContentWhileInPIEFocused),
+				FCanExecuteAction(),
+				FIsActionChecked::CreateRaw(this, &FActorBrowsingMode::ShouldUpdateContentWhileInPIEFocused)
+			),
+			NAME_None,
+			EUserInterfaceActionType::ToggleButton
+		);
+
 
 		MenuBuilder.EndSection();
 
@@ -1208,6 +1223,21 @@ bool FActorBrowsingMode::DoesFolderDoubleClickMarkCurrentFolder() const
 	}
 
 	return false;
+}
+
+void FActorBrowsingMode::OnToggleShouldUpdateContentWhileInPIEFocused()
+{
+	if (FActorBrowsingModeConfig* Settings = GetMutableConfig())
+	{
+		Settings->bShouldUpdateContentWhileInPIEFocused = !Settings->bShouldUpdateContentWhileInPIEFocused;
+		bShouldUpdateContentWhileInPIEFocused = Settings->bShouldUpdateContentWhileInPIEFocused;
+		SaveConfig();
+	}
+}
+
+bool FActorBrowsingMode::ShouldUpdateContentWhileInPIEFocused() const
+{
+	return bShouldUpdateContentWhileInPIEFocused;
 }
 
 void FActorBrowsingMode::OnFilterTextCommited(FSceneOutlinerItemSelection& Selection, ETextCommit::Type CommitType)
