@@ -34,6 +34,15 @@ FString TNumericUnitTypeInterface<NumericType>::ToString(const NumericType& Valu
 
 	FNumericUnit<NumericType> FinalValue(Value, UnderlyingUnits);
 
+	if (UserDisplayUnits.IsSet())
+	{
+		auto Converted = FinalValue.ConvertTo(UserDisplayUnits.GetValue());
+		if (Converted.IsSet())
+		{
+			return ToUnitString(Converted.GetValue());
+		}
+	}
+
 	if (FixedDisplayUnits.IsSet())
 	{
 		auto Converted = FinalValue.ConvertTo(FixedDisplayUnits.GetValue());
@@ -54,7 +63,12 @@ TOptional<NumericType> TNumericUnitTypeInterface<NumericType>::FromString(const 
 		return TDefaultNumericTypeInterface<NumericType>::FromString(InString, InExistingValue);
 	}
 
-	EUnit DefaultUnits = FixedDisplayUnits.IsSet() ? FixedDisplayUnits.GetValue() : UnderlyingUnits;
+	// Get displayed units from the user, if set, otherwise the fixed units, or finally the underlying units
+	EUnit DefaultUnits = UserDisplayUnits.IsSet()
+		? UserDisplayUnits.GetValue()
+		: FixedDisplayUnits.IsSet()
+			? FixedDisplayUnits.GetValue()
+			: UnderlyingUnits;
 
 	// Always parse in as a double, to allow for input of higher-order units with decimal numerals into integral types (eg, inputting 0.5km as 500m)
 	TValueOrError<FNumericUnit<double>, FText> NewValue = FNumericUnit<double>::TryParseExpression( *InString, DefaultUnits, InExistingValue );
@@ -62,10 +76,18 @@ TOptional<NumericType> TNumericUnitTypeInterface<NumericType>::FromString(const 
 	{
 		// Convert the number into the correct units
 		EUnit SourceUnits = NewValue.GetValue().Units;
-		if (SourceUnits == EUnit::Unspecified && FixedDisplayUnits.IsSet())
+		if (SourceUnits == EUnit::Unspecified)
 		{
+			// Use the user overridden input units if set
+			if (UserDisplayUnits.IsSet()) 
+			{
+				SourceUnits = UserDisplayUnits.GetValue();
+			}
 			// Use the default supplied input units
-			SourceUnits = FixedDisplayUnits.GetValue();
+			else if (FixedDisplayUnits.IsSet())
+			{
+				SourceUnits = FixedDisplayUnits.GetValue();
+			}
 		}
 		double ConvertedValue = FUnitConversion::Convert(NewValue.GetValue().Value, SourceUnits, UnderlyingUnits);
 		return FMath::Clamp((NumericType)ConvertedValue, TNumericLimits<NumericType>::Lowest(), TNumericLimits<NumericType>::Max());
@@ -83,6 +105,7 @@ bool TNumericUnitTypeInterface<NumericType>::IsCharacterValid(TCHAR InChar) cons
 template<typename NumericType>
 void TNumericUnitTypeInterface<NumericType>::SetupFixedDisplay(const NumericType& InValue)
 {
+	// We calculate this regardless of whether FixedDisplayUnits is used, so that the moment it is used, it's correct
 	EUnit DisplayUnit = FUnitConversion::CalculateDisplayUnit(InValue, UnderlyingUnits);
 	if (DisplayUnit != EUnit::Unspecified)
 	{

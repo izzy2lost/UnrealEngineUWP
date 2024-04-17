@@ -287,7 +287,7 @@ public:
 			{
 				// Create the type interface and set up the default input units if they are compatible
 				TypeInterface = MakeShareable(new TNumericUnitTypeInterface<NumericType>(PropertyUnits.GetValue()));
-				TypeInterface->FixedDisplayUnits = PropertyUnits.GetValue();
+				TypeInterface->UserDisplayUnits = TypeInterface->FixedDisplayUnits = PropertyUnits.GetValue();
 			}
 			// If that's not set, we fall back to Units=xxx which calculates the most appropriate unit to display in
 			else
@@ -500,7 +500,7 @@ private:
 			{
 				// Value hasn't changed, so lets return now
 				if (OrgValue == NewValue)
-				{ 
+				{
 					return;
 				}
 			}

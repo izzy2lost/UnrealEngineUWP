@@ -157,8 +157,11 @@ struct TNumericUnitTypeInterface : TDefaultNumericTypeInterface<NumericType>
 	/** The underlying units which the numeric type are specified in. */
 	const EUnit UnderlyingUnits;
 
-	/** Optional units that this type interface will be fixed on */
+	/** Optional units that this type interface will be fixed on. These are usually auto-calculated by SetupFixedDisplay. */
 	TOptional<EUnit> FixedDisplayUnits;
+
+	/** Optional user-specified units that this type interface will be displayed in. If set, FixedDisplayUnits will be ignored. */
+	TOptional<EUnit> UserDisplayUnits;
 
 	/** Constructor */
 	TNumericUnitTypeInterface(EUnit InUnits);
@@ -172,6 +175,7 @@ struct TNumericUnitTypeInterface : TDefaultNumericTypeInterface<NumericType>
 	/** Check whether the specified typed character is valid */
 	virtual bool IsCharacterValid(TCHAR InChar) const override;
 
-	/** Set up this interface to use a fixed display unit based on the specified value */
+	/** Set up this interface to use a fixed display unit, calculated based on the specified value.
+	 * For example, if underlying units are cm/s, but the provided value is over 100, it will use m/s instead. */
 	void SetupFixedDisplay(const NumericType& InValue);
 };
