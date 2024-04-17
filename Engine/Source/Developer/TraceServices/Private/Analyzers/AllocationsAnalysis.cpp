@@ -262,7 +262,7 @@ bool FAllocationsAnalyzer::OnEvent(uint16 RouteId, EStyle Style, const FOnEventC
 			{
 				const double Seconds = Context.EventTime.AsSeconds(Cycle);
 				check(Seconds >= LastMarkerSeconds);
-				if (ensure((Seconds - LastMarkerSeconds < 60.0) || LastMarkerSeconds == 0.0f))
+				if (ensure((Seconds - LastMarkerSeconds < 5 * 60.0) || LastMarkerSeconds == 0.0f))
 				{
 					LastMarkerCycle = Cycle;
 					LastMarkerSeconds = Seconds;
