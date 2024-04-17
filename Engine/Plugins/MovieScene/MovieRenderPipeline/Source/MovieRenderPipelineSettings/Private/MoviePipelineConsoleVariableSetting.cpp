@@ -220,7 +220,6 @@ void UMoviePipelineConsoleVariableSetting::ApplyCVarSettings(const bool bOverrid
 {
 	if (bOverrideValues)
 	{
-		MergeInOldConsoleVariables();
 		MergeInPresetConsoleVariables();
 		PreviousConsoleVariableValues.Reset();
 		PreviousConsoleVariableValues.SetNumZeroed(MergedConsoleVariables.Num());
@@ -349,22 +348,6 @@ void UMoviePipelineConsoleVariableSetting::PostLoad()
 	Super::PostLoad();
 
 #if WITH_EDITOR
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
-
-	// Convert the old ConsoleVariables map into the new struct array
-	if (!ConsoleVariables_DEPRECATED.IsEmpty())
-	{
-		for (const TPair<FString, float>& Pair : ConsoleVariables_DEPRECATED)
-		{
-			// The converted cvar will be enabled by default
-			CVars.Add(FMoviePipelineConsoleVariableEntry(Pair.Key, Pair.Value));
-		}
-
-		ConsoleVariables_DEPRECATED.Empty();
-	}
-	
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
-
 	// Initialize the CommandInfo structs
 	for (FMoviePipelineConsoleVariableEntry& Entry : CVars)
 	{
@@ -404,43 +387,6 @@ void UMoviePipelineConsoleVariableSetting::PostEditChangeChainProperty(FProperty
 	}
 }
 #endif	// WITH_EDITOR
-
-void UMoviePipelineConsoleVariableSetting::MergeInOldConsoleVariables()
-{
-	// Note: The old cvars in ConsoleVariables are merged in via PostLoad(), which covers most use cases.
-	// However, scripting may have modified ConsoleVariables after initial load, so they need to be
-	// merged in again in certain scenarios, like when cvars are applied.
-	//
-	// Data loss is possible if scripting modified ConsoleVariables, but this method never executes
-	// (ie, MRQ never gets run in PIE). ConsoleVariables is deprecated, thus changes to it will not be saved.
-	
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	
-	for (const TPair<FString, float>& OldCVar : ConsoleVariables_DEPRECATED)
-	{
-		// Copy the value in ConsoleVariables over to CVars if an entry in CVars already exists. Apply the value to the
-		// last matching entry in CVars, since the last entry will win.
-		bool bDidFindNewCVar = false;
-		for (int32 Index = CVars.Num() - 1; Index >= 0; --Index)
-		{
-			FMoviePipelineConsoleVariableEntry& NewCVar = CVars[Index];
-			if (NewCVar.Name == OldCVar.Key)
-			{
-				NewCVar.Value = OldCVar.Value;
-				bDidFindNewCVar = true;
-				break;
-			}
-		}
-
-		// Otherwise, add a new entry to CVars
-		if (!bDidFindNewCVar)
-		{
-			CVars.Add(FMoviePipelineConsoleVariableEntry(OldCVar.Key, OldCVar.Value));
-		}
-	}
-	
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
-}
 
 void UMoviePipelineConsoleVariableSetting::MergeInPresetConsoleVariables()
 {

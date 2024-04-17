@@ -104,16 +104,8 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Movie Render Pipeline")
 	static FTimecode GetRootTimecode(const UMoviePipeline* InMoviePipeline);
 
-	UE_DEPRECATED(5.2, "GetMasterTimecode is deprecated. Please use GetRootTimecode instead")
-	UFUNCTION(BlueprintPure, Category = "Movie Render Pipeline", meta = (DeprecatedFunction, DeprecationMessage = "GetMasterTimecode is deprecated. Please use GetRootTimecode instead"))
-	static FTimecode GetMasterTimecode(const UMoviePipeline* InMoviePipeline) { return GetRootTimecode(InMoviePipeline); }
-
 	UFUNCTION(BlueprintPure, Category = "Movie Render Pipeline")
 	static FFrameNumber GetRootFrameNumber(const UMoviePipeline* InMoviePipeline);
-
-	UE_DEPRECATED(5.2, "GetMasterFrameNumber is deprecated. Please use GetRootFrameNumber instead")
-	UFUNCTION(BlueprintPure, Category = "Movie Render Pipeline", meta = (DeprecatedFunction, DeprecationMessage = "GetMasterFrameNumber is deprecated. Please GetRootFrameNumber instead"))
-	static FFrameNumber GetMasterFrameNumber(const UMoviePipeline* InMoviePipeline) { return GetRootFrameNumber(InMoviePipeline); }
 
 	UFUNCTION(BlueprintPure, Category = "Movie Render Pipeline")
 	static FTimecode GetCurrentShotTimecode(const UMoviePipeline* InMoviePipeline);

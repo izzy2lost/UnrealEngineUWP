@@ -39,9 +39,6 @@ public:
 		return AudioSections;
 	}
 
-	UE_DEPRECATED(5.2, "IsAMasterTrack is deprecated. Please use Cast<UMovieScene>(GetOuter())->ContainsTrack instead")
-	MOVIESCENETRACKS_API bool IsAMasterTrack() const;
-
 public:
 
 	// UMovieSceneTrack interface

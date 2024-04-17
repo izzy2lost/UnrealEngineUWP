@@ -30,12 +30,6 @@ struct FEntityRange;
 struct FEntityAllocation;
 struct FMutualComponentInitializers;
 
-struct UE_DEPRECATED(5.2, "Please use DefineComplexInclusiveComponents()") FComplexInclusivity
-{
-	FComplexInclusivityFilter Filter;
-	FComponentMask ComponentsToInclude;
-};
-
 /**
  * A class that contains all the component factory relationships.
  *
@@ -130,27 +124,6 @@ struct FEntityFactories
 	MOVIESCENE_API int32 ComputeMutuallyInclusiveComponents(EMutuallyInclusiveComponentType MutualTypes, FComponentMask& ComponentMask, FMutualComponentInitializers& OutInitializers);
 
 	MOVIESCENE_API void RunInitializers(const FComponentMask& ParentType, const FComponentMask& ChildType, const FEntityAllocation* ParentAllocation, TArrayView<const int32> ParentAllocationOffsets, const FEntityRange& InChildEntityRange);
-
-public:
-
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
-		using FDeprecatedComplexInclusivity = FComplexInclusivity;
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
-	/**
-	 * Specifies that if an entity matches the given filter, the specified components should be created on it.
-	 */
-	template<typename... ComponentTypes>
-	UE_DEPRECATED(5.2, "Please use DefineComplexInclusiveComponents(const FComplexInclusivityFilter&, initializer_list<FComponentTypeID>)")
-	void DefineComplexInclusiveComponents(const FComplexInclusivityFilter& InFilter, FComponentTypeID InComponent, ComponentTypes... InComponents)
-	{
-		DefineComplexInclusiveComponents(InFilter, std::initializer_list<FComponentTypeID>({ InComponent, InComponents... }), FMutuallyInclusiveComponentParams());
-	}
-
-	/**
-	 * Defines a new complex inclusivity relationship. The helper methods above are easier and preferrable.
-	 */
-	UE_DEPRECATED(5.2, "Please use DefineComplexInclusiveComponents(const FComplexInclusivityFilter&, FComponentTypeID)")
-	MOVIESCENE_API void DefineComplexInclusiveComponents(const FDeprecatedComplexInclusivity& InInclusivity);
 
 private:
 

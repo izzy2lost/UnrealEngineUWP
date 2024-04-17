@@ -33,10 +33,6 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Sequencer|Director")
 	LEVELSEQUENCE_API FQualifiedFrameTime GetRootSequenceTime() const;
 
-	UE_DEPRECATED(5.2, "GetMasterSequenceTime is deprecated. Please use GetRootSequenceTime instead")
-	UFUNCTION(BlueprintCallable, Category = "Sequencer|Director", meta = (DeprecatedFunction, DeprecationMessage = "Use GetRootSequenceTime"))
-	FQualifiedFrameTime GetMasterSequenceTime() const { return GetRootSequenceTime(); }
-
 	/**
 	 * Get the current time for this director's sub-sequence (or the root sequence, if this is a root sequence director)
 	 * @return The current playback position of this director's sequence

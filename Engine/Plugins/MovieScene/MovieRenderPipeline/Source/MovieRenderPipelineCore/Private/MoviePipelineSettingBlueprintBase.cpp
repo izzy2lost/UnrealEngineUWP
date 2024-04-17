@@ -4,11 +4,4 @@
 void UMoviePipelineSetting_BlueprintBase::PostLoad()
 {
 	Super::PostLoad();
-
-#if WITH_EDITOR
-	if (!bIsValidOnMaster_DEPRECATED)
-	{
-		bIsValidOnPrimary = bIsValidOnMaster_DEPRECATED;
-	}
-#endif
 }

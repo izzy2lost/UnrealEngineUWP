@@ -62,17 +62,6 @@ private:
 	virtual void ImportEntityImpl(UMovieSceneEntitySystemLinker* EntityLinker, const FEntityImportParams& Params, FImportedEntity* OutImportedEntity) override;
 
 private:
-	UE_DEPRECATED(5.1, "Use GetDataLayerAssets instead")
-	UFUNCTION(BlueprintPure, Category = "Sequencer|Section")
-	const TArray<FActorDataLayer>& GetDataLayers() const { return DataLayers; }
-
-	UE_DEPRECATED(5.1, "Use SetDataLayerAssets instead")
-	UFUNCTION(BlueprintCallable, Category = "Sequencer|Section")
-	void SetDataLayers(const TArray<FActorDataLayer>& InDataLayers) { DataLayers = InDataLayers; }
-
-	UPROPERTY(meta = (DeprecatedProperty, DeprecationMessage = "Use DataLayer Assets Instead"))
-	TArray<FActorDataLayer> DataLayers;
-
 	/** A list of data layers that should be loaded or unloaded by this section */
 	UPROPERTY(EditAnywhere, Category = DataLayer)
 	TArray<TObjectPtr<UDataLayerAsset>> DataLayerAssets;

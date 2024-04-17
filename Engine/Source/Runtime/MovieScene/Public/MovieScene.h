@@ -609,9 +609,6 @@ public:
 	 */
 	MOVIESCENE_API UMovieSceneTrack* AddTrack(TSubclassOf<UMovieSceneTrack> TrackClass);
 	
-	UE_DEPRECATED(5.2, "AddMasterTrack is deprecated. Please use AddTrack instead")
-	UMovieSceneTrack* AddMasterTrack(TSubclassOf<UMovieSceneTrack> TrackClass) { return AddTrack(TrackClass); }
-
 	/**
 	 * Adds a track.
 	 *
@@ -627,10 +624,6 @@ public:
 		return Cast<TrackClass>(AddTrack(TrackClass::StaticClass()));
 	}
 
-	template<typename TrackClass>
-	UE_DEPRECATED(5.2, "AddMasterTrack is deprecated. Please use AddTrack instead")
-	TrackClass* AddMasterTrack() { return AddTrack<TrackClass>(); }
-
 	/**
 	* Adds a given track as a track
 	*
@@ -640,9 +633,6 @@ public:
 	*/
 	MOVIESCENE_API bool AddGivenTrack(UMovieSceneTrack* InTrack);
 
-	UE_DEPRECATED(5.2, "AddGivenMasterTrack is deprecated. Please use AddGivenTrack instead")
-	bool AddGivenMasterTrack(UMovieSceneTrack* InTrack) { return AddGivenTrack(InTrack); }
-
 	/**
 	 * Finds a track (one not bound to a runtime objects).
 	 *
@@ -651,9 +641,6 @@ public:
 	 * @see AddTrack, GetTracks, IsTrack, RemoveTrack
 	 */
 	MOVIESCENE_API UMovieSceneTrack* FindTrack(TSubclassOf<UMovieSceneTrack> TrackClass) const;
-
-	UE_DEPRECATED(5.2, "FindMasterTrack is deprecated. Please use FindTrack instead")
-	UMovieSceneTrack* FindMasterTrack(TSubclassOf<UMovieSceneTrack> TrackClass) const { return FindTrack(TrackClass); }
 
 	/**
 	 * Finds a track (one not bound to a runtime objects).
@@ -668,10 +655,6 @@ public:
 		return Cast<TrackClass>(FindTrack(TrackClass::StaticClass()));
 	}
 
-	template<typename TrackClass>
-	UE_DEPRECATED(5.2, "FindMasterTrack is deprecated. Please use FindTrack instead")
-	TrackClass* FindMasterTrack() const { return FindTrack<TrackClass>(); }
-
 	/**
 	 * Get all tracks.
 	 *
@@ -683,9 +666,6 @@ public:
 		return Tracks;
 	}
 
-	UE_DEPRECATED(5.2, "GetMasterTracks is deprecated. Please use GetTracks instead")
-	const TArray<UMovieSceneTrack*>& GetMasterTracks() const { return GetTracks(); }
-
 	/**
 	 * Check whether the specified track is a track in this movie scene.
 	 *
@@ -693,12 +673,6 @@ public:
 	 * @see AddTrack, FindTrack, GetTracks, RemoveTrack
 	 */
 	MOVIESCENE_API bool ContainsTrack(const UMovieSceneTrack& Track) const;
-
-	UE_DEPRECATED(5.2, "IsAMasterTrack is deprecated. Please use ContainsTrack instead")
-	bool IsAMasterTrack(const UMovieSceneTrack& Track) const { return ContainsTrack(Track); }
-
-	UE_DEPRECATED(5.2, "RemoveMasterTrack is deprecated. Please use RemoveTrack instead")
-	bool RemoveMasterTrack(UMovieSceneTrack& Track) { return RemoveTrack(Track); }
 
 	/**
 	 * Move all the contents (tracks, child bindings) of the specified binding ID onto another

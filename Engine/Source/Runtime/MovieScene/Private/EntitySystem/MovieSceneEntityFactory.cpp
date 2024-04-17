@@ -265,16 +265,6 @@ void FEntityFactories::DefineComplexInclusiveComponents(const FComplexInclusivit
 	MutualInclusivityGraph.DefineComplexInclusionRule(InFilter, InComponents, MoveTemp(Params));
 }
 
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-void FEntityFactories::DefineComplexInclusiveComponents(const FComplexInclusivity& InInclusivity)
-{
-	for (FComponentMaskIterator It(InInclusivity.ComponentsToInclude.Iterate()); It; ++It)
-	{
-		MutualInclusivityGraph.DefineComplexInclusionRule(InInclusivity.Filter, { FComponentTypeID::FromBitIndex(It.GetIndex()) });
-	}
-}
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
-
 int32 FEntityFactories::ComputeChildComponents(const FComponentMask& ParentComponentMask, FComponentMask& ChildComponentMask)
 {
 	int32 NumNewComponents = 0;

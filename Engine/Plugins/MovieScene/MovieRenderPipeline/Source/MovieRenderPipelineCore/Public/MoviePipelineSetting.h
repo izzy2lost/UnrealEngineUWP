@@ -60,15 +60,6 @@ public:
 	* allows a setting to provide these when the user wants to run in a separate process. This won't
 	* be used when running in the current process because it is too late to modify the command line.
 	*/
-	UE_DEPRECATED(5.0, "Use BuildNewProcessCommandLineArgs instead.")
-	UFUNCTION(BlueprintCallable, Category = "Movie Render Pipeline")
-	void BuildNewProcessCommandLine(UPARAM(ref) FString& InOutUnrealURLParams, UPARAM(ref) FString& InOutCommandLineArgs) const
-	{
-		PRAGMA_DISABLE_DEPRECATION_WARNINGS
-		BuildNewProcessCommandLineImpl(InOutUnrealURLParams, InOutCommandLineArgs); 
-		PRAGMA_ENABLE_DEPRECATION_WARNINGS
-	}
-
 	UFUNCTION(BlueprintCallable, Category = "Movie Render Pipeline")
 	void BuildNewProcessCommandLineArgs(UPARAM(ref) TArray<FString>& InOutUnrealURLParams, UPARAM(ref) TArray<FString>& InOutCommandLineArgs, UPARAM(ref) TArray<FString>& InOutDeviceProfileCvars, UPARAM(ref) TArray<FString>& InOutExecCmds) const { BuildNewProcessCommandLineArgsImpl(InOutUnrealURLParams, InOutCommandLineArgs, InOutDeviceProfileCvars, InOutExecCmds); }
 
@@ -120,9 +111,6 @@ public:
 	/** Can this configuration setting be added to the primary configuration? If not, it will throw an error when trying to add it to the primary configuration. */
 	virtual bool IsValidOnPrimary() const PURE_VIRTUAL(UMoviePipelineSetting::IsValidOnPrimary, return false; );
 
-	UE_DEPRECATED(5.2, "IsValidOnMaster is deprecated. Please use IsValidOnPrimary instead")
-	virtual bool IsValidOnMaster() const { return IsValidOnPrimary(); }
-
 	/**
 	* If true, then this setting will be included when searching for settings even if it was added transiently. This is used for the rare case where a setting
 	* needs to be run (to set reasonable default values) even if the user hasn't added it.
@@ -147,8 +135,6 @@ public:
 	/** Return Key/Value pairs that you wish to be usable in the Output File Name format string or file metadata. This allows settings to add format strings based on their values. */
 	virtual void GetFormatArguments(FMoviePipelineFormatArgs& InOutFormatArgs) const {}
 	
-	UE_DEPRECATED(5.0, "Use BuildNewProcessCommandLineArgsImpl instead.")
-	virtual void BuildNewProcessCommandLineImpl(FString& InOutUnrealURLParams, FString& InOutCommandLineArgs) const { }
 	/** Modify the Unreal URL and Command Line Arguments when preparing the setting to be run in a new process. */
 	virtual void BuildNewProcessCommandLineArgsImpl(TArray<FString>& InOutUnrealURLParams, TArray<FString>& InOutCommandLineArgs, TArray<FString>& InOutDeviceProfileCvars, TArray<FString>& InOutExecCmds) const { }
 

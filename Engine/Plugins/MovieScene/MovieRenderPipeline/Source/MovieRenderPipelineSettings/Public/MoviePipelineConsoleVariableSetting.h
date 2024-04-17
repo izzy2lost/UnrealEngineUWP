@@ -111,14 +111,6 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings")
 	TArray<TScriptInterface<IMovieSceneConsoleVariableTrackInterface>> ConsoleVariablePresets;
 	
-	/** 
-	* An array of key/value pairs for console variable name and the value you wish to set for that cvar.
-	* The existing value will automatically be cached and restored afterwards.
-	*/
-	UE_DEPRECATED(5.2, "ConsoleVariables has been deprecated. Please use the console variable getters/setters (GetConsoleVariables(), RemoveConsoleVariable(), AddOrUpdateConsoleVariable(), and UpdateConsoleVariableEnableState()) instead. If scripting modifies ConsoleVariables, MRQ must be run in PIE to ensure changes are migrated.")
-	UPROPERTY(meta = (DeprecatedProperty, DeprecationMessage = "ConsoleVariables has been deprecated. Please use the console variable getters/setters (GetConsoleVariables(), RemoveConsoleVariable(), AddOrUpdateConsoleVariable(), and UpdateConsoleVariableEnableState()) instead. If scripting modifies ConsoleVariables, MRQ must be run in PIE to ensure changes are migrated."))
-	TMap<FString, float> ConsoleVariables_DEPRECATED;
-
 	/**
 	* An array of console commands to execute when this shot is started. If you need to restore the value 
 	* after the shot, add a matching entry in the EndConsoleCommands array. Because they are commands
@@ -183,9 +175,6 @@ public:
 	// End UObject interface
 
 private:
-	/** If the (deprecated) ConsoleVariables property contains any data, merge it into the new CVars property. */
-	void MergeInOldConsoleVariables();
-	
 	/** Merge together preset and override cvars into MergedConsoleVariables. Discards result of a prior merge (if any). */
 	void MergeInPresetConsoleVariables();
 

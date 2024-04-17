@@ -63,14 +63,6 @@ struct FLevelSequencePlayerSnapshot
 
 	UPROPERTY()
 	FMovieSceneSequenceID ShotID;
-
-private:
-
-	UPROPERTY()
-	FString MasterName_DEPRECATED;
-
-	UPROPERTY()
-	FQualifiedFrameTime MasterTime_DEPRECATED;
 };
 
 /**

@@ -96,10 +96,6 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Sequencer|Sequence", meta = (ScriptMethod))
 	static TArray<UMovieSceneTrack*> GetChildTracks(UMovieSceneFolder* Folder);
 	
-	UE_DEPRECATED(5.2, "GetChildMasterTracks is deprecated. Please use GetChildTracks instead")
-	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Sequencer|Sequence", meta = (ScriptMethod, DeprecatedFunction, DeprecationMessage = "GetChildMasterTracks is deprecated. Please use GetChildTracks instead"))
-	static TArray<UMovieSceneTrack*> GetChildMasterTracks(UMovieSceneFolder* Folder) { return GetChildTracks(Folder); }
-
 	/**
 	 * Add a track to this folder
 	 *
@@ -110,10 +106,6 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Sequencer|Sequence", meta = (ScriptMethod))
 	static bool AddChildTrack(UMovieSceneFolder* Folder, UMovieSceneTrack* InTrack);
 	
-	UE_DEPRECATED(5.2, "AddChildMasterTrack is deprecated. Please use AddChildTrack instead")
-	UFUNCTION(BlueprintCallable, Category = "Sequencer|Sequence", meta = (ScriptMethod, DeprecatedFunction, DeprecationMessage = "AddChildMasterTrack is deprecated. Please use AddChildTrack instead"))
-	static bool AddChildMasterTrack(UMovieSceneFolder* Folder, UMovieSceneTrack* InTrack) { return AddChildTrack(Folder, InTrack); }
-
 	/**
 	 * Remove a track from the given folder
 	 *
@@ -123,10 +115,6 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Sequencer|Sequence", meta=(ScriptMethod))
 	static bool RemoveChildTrack(UMovieSceneFolder* Folder, UMovieSceneTrack* InTrack);
-
-	UE_DEPRECATED(5.2, "RemoveChildMasterTrack is deprecated. Please use RemoveChildTrack instead")
-	UFUNCTION(BlueprintCallable, Category = "Sequencer|Sequence", meta = (ScriptMethod, DeprecatedFunction, DeprecationMessage = "RemoveChildMasterTrack is deprecated. Please use RemoveChildTrack instead"))
-	static bool RemoveChildMasterTrack(UMovieSceneFolder* Folder, UMovieSceneTrack* InTrack) { return RemoveChildTrack(Folder, InTrack); }
 
 	/**
 	 * Get the object bindings contained by this folder

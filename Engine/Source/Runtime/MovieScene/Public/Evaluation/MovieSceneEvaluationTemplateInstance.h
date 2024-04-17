@@ -62,9 +62,6 @@ public:
 	UE_DEPRECATED(5.4, "Use the version without the player parameter")
 	MOVIESCENE_API void EvaluateSynchronousBlocking(FMovieSceneContext Context, IMovieScenePlayer& Player);
 
-	UE_DEPRECATED(5.1, "Use EvaluateSynchronousBlocking instead.")
-	MOVIESCENE_API void Evaluate(FMovieSceneContext Context, IMovieScenePlayer& Player);
-
 	UE_DEPRECATED(5.4, "Director instances are now auto-managed via FSequenceDirectorPlaybackCapability")
 	MOVIESCENE_API void ResetDirectorInstances();
 

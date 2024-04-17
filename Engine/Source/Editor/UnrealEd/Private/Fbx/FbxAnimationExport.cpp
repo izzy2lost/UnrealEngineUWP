@@ -63,21 +63,6 @@ namespace UnFbx
 		return true;
 	}
 
-void FFbxExporter::ExportAnimSequenceToFbx(const UAnimSequence* AnimSeq,
-									 const USkeletalMesh* SkelMesh,
-									 TArray<FbxNode*>& BoneNodes,
-									 FbxAnimLayer* InAnimLayer,
-									 float AnimStartOffset,
-									 float AnimEndOffset,
-									 float AnimPlayRate,
-									 float StartTime)
-{
-	ExportAnimSequenceToFbx(AnimSeq, SkelMesh, BoneNodes, InAnimLayer,
-		AnimSeq->GetDataModel()->GetFrameRate().AsFrameTime(AnimStartOffset),
-		AnimSeq->GetDataModel()->GetFrameRate().AsFrameTime(AnimSeq->GetPlayLength() - AnimEndOffset),
-		AnimPlayRate, StartTime);
-}
-
 void FFbxExporter::ExportAnimSequenceToFbx(const UAnimSequence* AnimSeq, const USkeletalMesh* SkelMesh, TArray<FbxNode*>& BoneNodes, FbxAnimLayer* InAnimLayer, FFrameTime StartFrameTime, FFrameTime EndFrameTime, float FrameRateScale, float StartTime)
 {
 	// stack allocator for extracting curve
