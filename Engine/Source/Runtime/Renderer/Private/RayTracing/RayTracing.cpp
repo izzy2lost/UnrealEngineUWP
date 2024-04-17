@@ -1211,7 +1211,7 @@ namespace RayTracing
 						}
 
 						if ((GRayTracingExcludeTranslucent && RelevantPrimitive.bAllSegmentsTranslucent)
-							|| (GRayTracingExcludeSky && RelevantPrimitive.bIsSky && !bIsPathTracing))
+							|| (GRayTracingExcludeSky && RelevantPrimitive.bIsSky))
 						{
 							continue;
 						}

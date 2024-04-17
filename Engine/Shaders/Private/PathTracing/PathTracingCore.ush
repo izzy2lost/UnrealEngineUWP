@@ -263,7 +263,7 @@ struct FPathState
 		float4 OldAlbedo = Iteration > 0 ? AlbedoTexture[TextureIndex]   : 0;
 		float4 OldNormal = Iteration > 0 ? NormalTexture[TextureIndex]   : 0;
 
-		const float4 PixelValue = float4(Radiance, saturate(Alpha));
+		const float4 PixelValue = float4(Radiance, Alpha);
 
 		const float3 Albedo = GetAlbedo();
 		const float3 Normal = GetNormal();
@@ -554,83 +554,99 @@ FPackedPathTracingPayload TraceTransparentRay(inout FPathState PathState, int Bo
 				}
 			}
 
-			// NOTE: when using analytic raymarching, we can skip all raymarching on the last bounce because we know we don't need a scattering point
 			{
 				// remember the start of our interval before ray marching messes with it
 				float StartVolumeTMin = Interval.VolumeTMin;
 				// Ray marching loop
 				float3 PathThroughput = PathState.PathThroughput;
-				float3 VolumeRadiance = 0;
-				// Limit number of steps to prevent timeouts
-				// TODO: This biases the result! Is there a better way to limit the number of steps?
-				for (int Step = 0; Step < MaxRaymarchSteps; Step++)
-				{
-					FVolumeTrackingResult TrackingResult = VolumeSampleDistance(PathThroughput, PathState.Ray.Origin, PathState.Ray.Direction, Interval, bIsCameraRay, PathState.RandSequence);
-					if (TrackingResult.Distance < 0)
-					{
-						break;
-					}
-
-					if (TrackingResult.bIsCollision)
-					{
-						Interval.VolumeTMin = TrackingResult.Distance;
-						PathThroughput = TrackingResult.Throughput;
-
-						// find out how much volume exists at the current point
-						float3 Ro = PathState.Ray.Origin;
-						float3 Rd = PathState.Ray.Direction;
-						float3 TranslatedWorldPos = Ro + Interval.VolumeTMin * Rd;
-						FVolumeShadedResult Result = VolumeGetDensity(TranslatedWorldPos, Interval.VolumeMask, bIsCameraRay);
-
-						// clamp to make sure we never exceed the majorant (should not be the case, but need to avoid any possible numerical issues)
-						float3 SigmaT = min(Result.SigmaT, TrackingResult.SigmaBar);
-						float3 SigmaN = TrackingResult.SigmaBar - SigmaT;
-
-						if (bIsCameraRay)
-						{
-							PathState.Alpha += Luminance(PathThroughput * (Result.SigmaT - Result.SigmaH));
-						}
-
-						// if this is not the last bounce, consider the possibility of scattering as giving up medium hits
-						if (!bLastBounce)
-						{
-							float3 SigmaS = min(Result.SigmaSRayleigh + Result.SigmaSHG + Result.SigmaSDualHG, SigmaT);
-							// accumulate a signal for the denoiser
-							float3 Albedo = PathState.GetAlbedo();
-							AccumulateAlbedo(SigmaS, PathThroughput, PathState.GetPathRoughness(), Albedo);
-							PathState.SetAlbedoNormal(Albedo, PathState.GetNormal());
-							float3 Contrib = PathThroughput * SigmaS;
-							float SelectionWeight = max3(Contrib.x, Contrib.y, Contrib.z);
-							if (HitSample.Accept(SelectionWeight))
-							{
-								// stash this hit for next time
-								Payload = PackPathTracingPayload(CreateMediumHitPayload(Interval.VolumeTMin, TranslatedWorldPos, Result));
-								PayloadThroughput = Contrib / SelectionWeight;
-							}
-						}
-
-						VolumeRadiance += Result.Emission * PathThroughput;
-						// keep tracing through the volume
-						PathThroughput *= SigmaN;
-					}
-					else
-					{
-						// update the path throughput, knowing that we escaped the medium
-						PathThroughput = TrackingResult.Throughput;
-						// exit the ray marching loop
-						break;
-					}
-				}
-				// accumulate all at once so clamping applies to entire volume contribution
-				AccumulateRadiance(PathState.Radiance, VolumeRadiance, bIsCameraRay);
-
-				// restore interval start now that we are finished with ray marching
-				Interval.VolumeTMin = StartVolumeTMin;
 
 				// In order to use analytic transmittance, the user must have requested it _and_ we must be on an interval with no clouds or heterogeneous volumes
 				const bool bUseAnalyticTransmittance =
 					(VolumeFlags & PATH_TRACER_VOLUME_USE_ANALYTIC_TRANSMITTANCE) != 0 &&
 					(Interval.VolumeMask & (PATH_TRACER_VOLUME_ENABLE_CLOUDS | PATH_TRACER_VOLUME_ENABLE_HETEROGENEOUS_VOLUMES)) == 0;
+				// are there any holdouts on the current segment?
+				const bool bHaveHoldouts =
+					((Interval.VolumeMask << PATH_TRACER_MAX_VOLUMES) & VolumeFlags & (
+						PATH_TRACER_VOLUME_HOLDOUT_ATMOSPHERE |
+						PATH_TRACER_VOLUME_HOLDOUT_CLOUDS |
+						PATH_TRACER_VOLUME_HOLDOUT_FOG |
+						PATH_TRACER_VOLUME_HOLDOUT_HETEROGENEOUS_VOLUMES)) != 0;
+
+				// reasons to enter the ray marching loop:
+				//  - we can't use analytic transmittance (need ray marching for throughput or emission)
+				//  - we are a camera ray and some volumes are flagged as holdouts
+				//  - this is not the last bounce, so we need to select a point for scattering
+				if (!bUseAnalyticTransmittance || (bIsCameraRay && bHaveHoldouts) || !bLastBounce)
+				{
+					float3 VolumeRadiance = 0;
+					// Limit number of steps to prevent timeouts
+					// TODO: This biases the result! Is there a better way to limit the number of steps?
+					for (int Step = 0; Step < MaxRaymarchSteps; Step++)
+					{
+						FVolumeTrackingResult TrackingResult = VolumeSampleDistance(PathThroughput, PathState.Ray.Origin, PathState.Ray.Direction, Interval, bIsCameraRay, PathState.RandSequence);
+						if (TrackingResult.Distance < 0)
+						{
+							break;
+						}
+
+						if (TrackingResult.bIsCollision)
+						{
+							Interval.VolumeTMin = TrackingResult.Distance;
+							PathThroughput = TrackingResult.Throughput;
+
+							// find out how much volume exists at the current point
+							float3 Ro = PathState.Ray.Origin;
+							float3 Rd = PathState.Ray.Direction;
+							float3 TranslatedWorldPos = Ro + Interval.VolumeTMin * Rd;
+							FVolumeShadedResult Result = VolumeGetDensity(TranslatedWorldPos, Interval.VolumeMask, bIsCameraRay);
+
+							// clamp to make sure we never exceed the majorant (should not be the case, but need to avoid any possible numerical issues)
+							float3 SigmaT = min(Result.SigmaT, TrackingResult.SigmaBar);
+							float3 SigmaN = TrackingResult.SigmaBar - SigmaT;
+
+							if (bIsCameraRay)
+							{
+								float3 SigmaH = min(Result.SigmaH, SigmaT);
+								PathState.Alpha += Luminance(PathThroughput * (SigmaT - SigmaH));
+							}
+
+							// if this is not the last bounce, consider the possibility of scattering to give us medium hits
+							if (!bLastBounce)
+							{
+								float3 SigmaS = min(Result.SigmaSRayleigh + Result.SigmaSHG + Result.SigmaSDualHG, SigmaT);
+								// accumulate a signal for the denoiser
+								float3 Albedo = PathState.GetAlbedo();
+								AccumulateAlbedo(SigmaS, PathThroughput, PathState.GetPathRoughness(), Albedo);
+								PathState.SetAlbedoNormal(Albedo, PathState.GetNormal());
+								float3 Contrib = PathThroughput * SigmaS;
+								float SelectionWeight = max3(Contrib.x, Contrib.y, Contrib.z);
+								if (HitSample.Accept(SelectionWeight))
+								{
+									// stash this hit for next time
+									Payload = PackPathTracingPayload(CreateMediumHitPayload(Interval.VolumeTMin, TranslatedWorldPos, Result));
+									PayloadThroughput = Contrib / SelectionWeight;
+								}
+							}
+
+							VolumeRadiance += Result.Emission * PathThroughput;
+							// keep tracing through the volume
+							PathThroughput *= SigmaN;
+						}
+						else
+						{
+							// update the path throughput, knowing that we escaped the medium
+							PathThroughput = TrackingResult.Throughput;
+							// exit the ray marching loop
+							break;
+						}
+					}
+					// accumulate all at once so clamping applies to entire volume contribution
+					AccumulateRadiance(PathState.Radiance, VolumeRadiance, bIsCameraRay);
+				}
+
+				// restore interval start now that we are finished with ray marching
+				Interval.VolumeTMin = StartVolumeTMin;
+
 				if (bUseAnalyticTransmittance)
 				{
 					// analytically handle the transmittance to the next surface (which will be higher quality than the transmittance implicitly computed above and prevent noise with emissive surfaces in volumes)
@@ -651,13 +667,6 @@ FPackedPathTracingPayload TraceTransparentRay(inout FPathState PathState, int Bo
 
 		if (PackedPayload.IsMiss())
 		{
-			// This is for parity with the sky dome mesh behavior.
-			// Output fully opaque alpha if looking through outer space, if atmosphere is not in holdout.
-			if (bIsCameraRay && (VolumeFlags & PATH_TRACER_VOLUME_HOLDOUT_ATMOSPHERE) == 0)
-			{
-				PathState.Alpha += Luminance(PathState.PathThroughput);
-			}
-
 			// Ray didn't hit any real geometry
 			break;
 		}

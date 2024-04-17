@@ -2140,7 +2140,7 @@ RENDERER_API void PrepareSkyTexture_Internal(
 {
 	FRDGTextureDesc SkylightTextureDesc = FRDGTextureDesc::Create2D(
 		FIntPoint(Size, Size),
-		PF_A32B32G32R32F, // half precision might be ok?
+		PF_A32B32G32R32F, // Must use float as CubeMap * Color could have float range (could use half if we didn't include Color in the map)
 		FClearValueBinding::None,
 		TexCreate_ShaderResource | TexCreate_UAV);
 
@@ -2148,7 +2148,7 @@ RENDERER_API void PrepareSkyTexture_Internal(
 
 	FRDGTextureDesc SkylightPdfDesc = FRDGTextureDesc::Create2D(
 		FIntPoint(Size, Size),
-		PF_R32_FLOAT, // half precision might be ok?
+		PF_R32_FLOAT, // Must use float as CubeMap * Color could have float range (could use half if we didn't include Color in the map)
 		FClearValueBinding::None,
 		TexCreate_ShaderResource | TexCreate_UAV,
 		FMath::CeilLogTwo(Size) + 1);
@@ -2545,9 +2545,9 @@ void SetLightParameters(FRDGBuilder& GraphBuilder, FPathTracingRG::FParameters* 
 		}
 	}
 
-	if (bUseAtmosphere)
+	if (bUseAtmosphere && (View.SkyAtmosphereUniformShaderParameters == nullptr ||  !IsSkyAtmosphereHoldout(View.CachedViewUniformShaderParameters->EnvironmentComponentsFlags)))
 	{
-		// show directional lights when atmosphere is enabled
+		// show directional lights when atmosphere is enabled and not marked as holdout
 		// NOTE: there cannot be any skydome in this case
 		PassParameters->SceneVisibleLightCount = NumLights;
 	}
