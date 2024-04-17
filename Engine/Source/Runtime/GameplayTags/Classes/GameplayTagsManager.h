@@ -2,7 +2,6 @@
 
 #pragma once
 
-#include "AssetRegistry/AssetData.h"
 #include "CoreMinimal.h"
 #include "Stats/Stats.h"
 #include "UObject/ObjectMacros.h"
