@@ -133,7 +133,9 @@ public:
 	FOnDemandChunkInfo		GetChunkInfo(const FIoChunkId& ChunkId);
 
 private:
-	bool					Tick(int64 MaxCycles);
+	void					TryEnterTickLoop();
+	void					TickLoop();
+	void					Tick();
 	FIoStatus				ProcessMountRequest(FMountRequest& MountRequest);
 	void					ConditionallyStartTicking();
 	void					OnEncryptionKeyAdded(const FGuid& Id, const FAES::FAESKey& Key);
