@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #pragma once
 
+#include "Messages/MixerSourceTraceMessages.h"
 #include "SAudioCurveView.h"
 #include "Views/TableDashboardViewFactory.h"
 #include "Widgets/Input/SCheckBox.h"
@@ -17,7 +18,7 @@ namespace UE::Audio::Insights
 		FMixerSourceDashboardViewFactory();
 		struct FPlotColumnInfo
 		{
-			const TFunctionRef<float(const IDashboardDataViewEntry& InData)> DataFunc;
+			const TFunctionRef<const ::Audio::TCircularAudioBuffer<FDataPoint>&(const IDashboardDataViewEntry& InData)> DataFunc;
 			const FNumberFormattingOptions* FormatOptions;
 		};
 
@@ -47,13 +48,16 @@ namespace UE::Audio::Insights
 
 	private:
 		void ResetPlots();
+		void OnPIEStarted(bool bSimulating);
 		void OnPIEStopped(bool bSimulating);
+		void OnPIEPaused(bool bSimulating);
+		void OnPIEResumed(bool bSimulating);
 		void UpdatePlotsWidgetsData();
 		void UpdateSoloMuteState();
 
 		// Column information used by plot widgets, keyed by column name. These keys should be a subset of the keys in GetColumns(). 
 		const TMap<FName, FPlotColumnInfo>& GetPlotColumnInfo();
-		const TFunctionRef<float(const IDashboardDataViewEntry& InData)> GetPlotColumnDataFunc(const FName& ColumnName);
+		const TFunctionRef<const ::Audio::TCircularAudioBuffer<FDataPoint>&(const IDashboardDataViewEntry& InData)> GetPlotColumnDataFunc(const FName& ColumnName);
 		const FNumberFormattingOptions* GetPlotColumnNumberFormat(const FName& ColumnName);
 		const FText GetPlotColumnDisplayName(const FName& ColumnName);
 
@@ -90,10 +94,19 @@ namespace UE::Audio::Insights
 		// Column names for plot selector widget 
 		TArray<FName> ColumnNames;
 		
-		double BeginTimestamp = TNumericLimits<double>::Max();
-		double CurrentTimestamp = 0;
+		enum class EPIEState : uint8
+		{
+			Running,
+			Stopped,
+			Paused
+		};
 
-		const static int32 NumPlotWidgets = 2;
+		EPIEState PIEState = EPIEState::Stopped;
+
+		double BeginTimestamp = TNumericLimits<double>::Max();
+		double CurrentTimestamp = 0.0;
+
+		const static int32 NumPlotWidgets = 1;
 		TArray<FName> SelectedPlotColumnNames;
 		TArray<TSharedPtr<SAudioCurveView>> PlotWidgets;
 

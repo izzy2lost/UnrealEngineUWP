@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #include "Providers/MixerSourceTraceProvider.h"
 
+#include "AudioInsightsModule.h"
 #include "Trace/Analyzer.h"
 #include "TraceServices/Model/AnalysisSession.h"
 #include "TraceServices/ModuleService.h"
@@ -42,43 +43,83 @@ namespace UE::Audio::Insights
 			EntryRef.SourceId = Msg.SourceId;
 		});
 
+		TArray<int32, TInlineAllocator<64>> EntriesWithPoppedDataPoints;
+
 		ProcessMessageQueue<FMixerSourceVolumeMessage>(TraceMessages.VolumeMessages, BumpEntryFunc,
-		[](const FMixerSourceVolumeMessage& Msg, TSharedPtr<FMixerSourceDashboardEntry>* OutEntry)
+		[&EntriesWithPoppedDataPoints](const FMixerSourceVolumeMessage& Msg, TSharedPtr<FMixerSourceDashboardEntry>* OutEntry)
 		{
-			(*OutEntry)->Volume = Msg.Volume;
+			if (!EntriesWithPoppedDataPoints.Contains(Msg.PlayOrder))
+			{
+				(*OutEntry)->VolumeDataPoints.Pop((*OutEntry)->VolumeDataPoints.Num());
+				EntriesWithPoppedDataPoints.Add(Msg.PlayOrder);
+			}
+
+			(*OutEntry)->VolumeDataPoints.Push({ Msg.Timestamp, Msg.Volume });
 		});
 
+		EntriesWithPoppedDataPoints.Reset();
 		ProcessMessageQueue<FMixerSourcePitchMessage>(TraceMessages.PitchMessages, BumpEntryFunc,
-		[](const FMixerSourcePitchMessage& Msg, TSharedPtr<FMixerSourceDashboardEntry>* OutEntry)
+		[&EntriesWithPoppedDataPoints](const FMixerSourcePitchMessage& Msg, TSharedPtr<FMixerSourceDashboardEntry>* OutEntry)
 		{
-			(*OutEntry)->Pitch = Msg.Pitch;
+			if (!EntriesWithPoppedDataPoints.Contains(Msg.PlayOrder))
+			{
+				(*OutEntry)->PitchDataPoints.Pop((*OutEntry)->PitchDataPoints.Num());
+				EntriesWithPoppedDataPoints.Add(Msg.PlayOrder);
+			}
+
+			(*OutEntry)->PitchDataPoints.Push({ Msg.Timestamp, Msg.Pitch });
 		});
 
+		EntriesWithPoppedDataPoints.Reset();
 		ProcessMessageQueue<FMixerSourceLPFFreqMessage>(TraceMessages.LPFFreqMessages, BumpEntryFunc,
-		[](const FMixerSourceLPFFreqMessage& Msg, TSharedPtr<FMixerSourceDashboardEntry>* OutEntry)
+		[&EntriesWithPoppedDataPoints](const FMixerSourceLPFFreqMessage& Msg, TSharedPtr<FMixerSourceDashboardEntry>* OutEntry)
 		{
-			(*OutEntry)->LPFFreq = Msg.LPFFrequency;
+			if (!EntriesWithPoppedDataPoints.Contains(Msg.PlayOrder))
+			{
+				(*OutEntry)->LPFFreqDataPoints.Pop((*OutEntry)->LPFFreqDataPoints.Num());
+				EntriesWithPoppedDataPoints.Add(Msg.PlayOrder);
+			}
+
+			(*OutEntry)->LPFFreqDataPoints.Push({ Msg.Timestamp, Msg.LPFFrequency });
 		});
 
+		EntriesWithPoppedDataPoints.Reset();
 		ProcessMessageQueue<FMixerSourceHPFFreqMessage>(TraceMessages.HPFFreqMessages, BumpEntryFunc,
-		[](const FMixerSourceHPFFreqMessage& Msg, TSharedPtr<FMixerSourceDashboardEntry>* OutEntry)
+		[&EntriesWithPoppedDataPoints](const FMixerSourceHPFFreqMessage& Msg, TSharedPtr<FMixerSourceDashboardEntry>* OutEntry)
 		{
-			(*OutEntry)->HPFFreq = Msg.HPFFrequency;
+			if (!EntriesWithPoppedDataPoints.Contains(Msg.PlayOrder))
+			{
+				(*OutEntry)->HPFFreqDataPoints.Pop((*OutEntry)->HPFFreqDataPoints.Num());
+				EntriesWithPoppedDataPoints.Add(Msg.PlayOrder);
+			}
+
+			(*OutEntry)->HPFFreqDataPoints.Push({ Msg.Timestamp, Msg.HPFFrequency });
 		});
 
-		MaxEnvsMap.Reset();
+		EntriesWithPoppedDataPoints.Reset();
 		ProcessMessageQueue<FMixerSourceEnvelopeMessage>(TraceMessages.EnvelopeMessages, BumpEntryFunc,
-		[this](const FMixerSourceEnvelopeMessage& Msg, TSharedPtr<FMixerSourceDashboardEntry>* OutEntry)
+		[&EntriesWithPoppedDataPoints](const FMixerSourceEnvelopeMessage& Msg, TSharedPtr<FMixerSourceDashboardEntry>* OutEntry)
 		{
-			float& MaxEnv = MaxEnvsMap.FindOrAdd(Msg.PlayOrder);
-			MaxEnv = FMath::Max(MaxEnv, Msg.Envelope);
-			(*OutEntry)->Envelope = MaxEnv;
+			if (!EntriesWithPoppedDataPoints.Contains(Msg.PlayOrder))
+			{
+				(*OutEntry)->EnvelopeDataPoints.Pop((*OutEntry)->EnvelopeDataPoints.Num());
+				EntriesWithPoppedDataPoints.Add(Msg.PlayOrder);
+			}
+
+			(*OutEntry)->EnvelopeDataPoints.Push({ Msg.Timestamp, Msg.Envelope });
 		});
 
+		EntriesWithPoppedDataPoints.Reset();
 		ProcessMessageQueue<FMixerSourceDistanceAttenuationMessage>(TraceMessages.DistanceAttenuationMessages, BumpEntryFunc,
-		[](const FMixerSourceDistanceAttenuationMessage& Msg, TSharedPtr<FMixerSourceDashboardEntry>* OutEntry)
+		[&EntriesWithPoppedDataPoints](const FMixerSourceDistanceAttenuationMessage& Msg, TSharedPtr<FMixerSourceDashboardEntry>* OutEntry)
 		{
-			(*OutEntry)->DistanceAttenuation = Msg.DistanceAttenuation;
+			if (!EntriesWithPoppedDataPoints.Contains(Msg.PlayOrder))
+			{
+				(*OutEntry)->DistanceAttenuationDataPoints.Pop((*OutEntry)->DistanceAttenuationDataPoints.Num());
+				EntriesWithPoppedDataPoints.Add(Msg.PlayOrder);
+			}
+
+			(*OutEntry)->DistanceAttenuationDataPoints.Push({ Msg.Timestamp, Msg.DistanceAttenuation });
 		});
 
 		auto GetEntry = [this](const FMixerSourceMessageBase& Msg)
@@ -123,6 +164,14 @@ namespace UE::Audio::Insights
 			virtual bool OnEvent(uint16 RouteId, EStyle Style, const FOnEventContext& Context) override
 			{
 				LLM_SCOPE_BYNAME(TEXT("Insights/FMixerSourceTraceAnalyzer"));
+
+				FTraceModule& TraceModule = FAudioInsightsModule::GetChecked().GetTraceModule();
+
+				const double CurrentTime = FPlatformTime::Seconds();
+				if (TraceModule.GetFirstTimeStamp() < 0.0)
+				{
+					TraceModule.SetFirstTimeStamp(CurrentTime);
+				}
 
 				FMixerSourceMessages& Messages = GetProvider<FMixerSourceTraceProvider>().TraceMessages;
 				switch (RouteId)

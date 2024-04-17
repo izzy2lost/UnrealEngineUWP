@@ -28,8 +28,6 @@ namespace UE::Audio::Insights
 		static FName GetName_Static();
 
 	private:
-		TMap<int32, float> MaxEnvsMap;
-
 		FMixerSourceMessages TraceMessages;
 
 		TSet<FTraceChannelHandle> Channels;

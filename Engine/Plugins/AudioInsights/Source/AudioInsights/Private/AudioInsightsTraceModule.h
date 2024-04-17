@@ -37,6 +37,9 @@ namespace UE::Audio::Insights
 		bool IsTraceAnalysisActive() const;
 		void StopTraceAnalysis() const;
 
+		void SetFirstTimeStamp(double InFirstTimeStamp) { FirstTimeStamp = InFirstTimeStamp; }
+		double GetFirstTimeStamp() const { return FirstTimeStamp; }
+
 	private:
 		static const FName GetName();
 
@@ -45,5 +48,7 @@ namespace UE::Audio::Insights
 
 		TSharedRef<FTraceChannelManager> ChannelManager;
 		TMap<FName, TSharedPtr<FTraceProviderBase>> TraceProviders;
+
+		double FirstTimeStamp = -TNumericLimits<double>::Min();
 	};
 } // namespace UE::Audio::Insights

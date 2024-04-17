@@ -6,6 +6,7 @@
 #include "AudioInsightsDashboardAssetCommands.h"
 #include "AudioInsightsModule.h"
 #include "AudioInsightsStyle.h"
+#include "DSP/Dsp.h"
 #include "Editor.h"
 #include "Internationalization/Text.h"
 #include "IPropertyTypeCustomization.h"
@@ -27,11 +28,24 @@ namespace UE::Audio::Insights
 			return static_cast<const FMixerSourceDashboardEntry&>(InData);
 		};
 
+		float GetLastEntryArrayValue(const ::Audio::TCircularAudioBuffer<FDataPoint>& EnvelopeDataPoints)
+		{
+			float LastValue = 0.0f;
+
+			if (EnvelopeDataPoints.Num() > 0)
+			{
+				const ::Audio::DisjointedArrayView<const FDataPoint> EnvelopeDataPointsDisjointedArrayView = EnvelopeDataPoints.PeekInPlace(EnvelopeDataPoints.Num());
+				LastValue = EnvelopeDataPointsDisjointedArrayView.FirstBuffer.Last().Value;
+			}
+
+			return LastValue;
+		};
+
 		static const FText PlotColumnSelectDescription = LOCTEXT("AudioDashboard_MixerSources_SelectPlotColumnDescription", "Select a column from the table to plot.");
 	} // namespace MixerSourcePrivate
 
 	const double FMixerSourceDashboardViewFactory::MaxPlotHistorySeconds = 5.0;
-	const int32 FMixerSourceDashboardViewFactory::MaxPlotSources = 32;
+	const int32 FMixerSourceDashboardViewFactory::MaxPlotSources = 16;
 
 	FMixerSourceDashboardViewFactory::FMixerSourceDashboardViewFactory()
 	{
@@ -66,7 +80,6 @@ namespace UE::Audio::Insights
 	{
 		auto CreateColumnData = []()
 		{
-
 			return TMap<FName, FTraceTableDashboardViewFactory::FColumnData>
 			{
 				{
@@ -91,7 +104,11 @@ namespace UE::Audio::Insights
 					"Amplitude",
 					{
 						LOCTEXT("Source_EnvColumnDisplayName", "Amp (Peak)"),
-						[](const IDashboardDataViewEntry& InData) { return FText::AsNumber(MixerSourcePrivate::CastEntry(InData).Envelope, FSlateStyle::Get().GetAmpFloatFormat()); },
+						[](const IDashboardDataViewEntry& InData)
+						{
+							const ::Audio::TCircularAudioBuffer<FDataPoint>& EnvelopeDataPoints = MixerSourcePrivate::CastEntry(InData).EnvelopeDataPoints;
+							return FText::AsNumber(MixerSourcePrivate::GetLastEntryArrayValue(EnvelopeDataPoints), FSlateStyle::Get().GetAmpFloatFormat());
+						},
 						false /* bDefaultHidden */,
 						0.12f /* FillWidth */
 					}
@@ -100,7 +117,11 @@ namespace UE::Audio::Insights
 					"Volume",
 					{
 						LOCTEXT("Source_VolumeColumnDisplayName", "Volume"),
-						[](const IDashboardDataViewEntry& InData) { return FText::AsNumber(MixerSourcePrivate::CastEntry(InData).Volume, FSlateStyle::Get().GetAmpFloatFormat()); },
+						[](const IDashboardDataViewEntry& InData)
+						{
+							const ::Audio::TCircularAudioBuffer<FDataPoint>& VolumeDataPoints = MixerSourcePrivate::CastEntry(InData).VolumeDataPoints;
+							return FText::AsNumber(MixerSourcePrivate::GetLastEntryArrayValue(VolumeDataPoints), FSlateStyle::Get().GetAmpFloatFormat());
+						},
 						false /* bDefaultHidden */,
 						0.07f /* FillWidth */
 					}
@@ -109,7 +130,11 @@ namespace UE::Audio::Insights
 					"DistanceAttenuation",
 					{
 						LOCTEXT("Source_AttenuationColumnDisplayName", "Distance Attenuation"),
-						[](const IDashboardDataViewEntry& InData) { return FText::AsNumber(MixerSourcePrivate::CastEntry(InData).DistanceAttenuation, FSlateStyle::Get().GetAmpFloatFormat()); },
+						[](const IDashboardDataViewEntry& InData)
+						{
+							const ::Audio::TCircularAudioBuffer<FDataPoint>& DistanceAttenuationDataPoints = MixerSourcePrivate::CastEntry(InData).DistanceAttenuationDataPoints;
+							return FText::AsNumber(MixerSourcePrivate::GetLastEntryArrayValue(DistanceAttenuationDataPoints), FSlateStyle::Get().GetAmpFloatFormat());
+						},
 						true  /* bDefaultHidden */,
 						0.15f /* FillWidth */
 					}
@@ -118,7 +143,11 @@ namespace UE::Audio::Insights
 					"Pitch",
 					{
 						LOCTEXT("Source_PitchColumnDisplayName", "Pitch"),
-						[](const IDashboardDataViewEntry& InData) { return FText::AsNumber(MixerSourcePrivate::CastEntry(InData).Pitch, FSlateStyle::Get().GetPitchFloatFormat()); },
+						[](const IDashboardDataViewEntry& InData)
+						{
+							const ::Audio::TCircularAudioBuffer<FDataPoint>& PitchDataPoints = MixerSourcePrivate::CastEntry(InData).PitchDataPoints;
+							return FText::AsNumber(MixerSourcePrivate::GetLastEntryArrayValue(PitchDataPoints), FSlateStyle::Get().GetPitchFloatFormat());
+						},
 						false /* bDefaultHidden */,
 						0.06f /* FillWidth */
 					}
@@ -127,7 +156,11 @@ namespace UE::Audio::Insights
 					"LPF",
 					{
 						LOCTEXT("Source_LPFColumnDisplayName", "LPF Freq (Hz)"),
-						[](const IDashboardDataViewEntry& InData) { return FText::AsNumber(MixerSourcePrivate::CastEntry(InData).LPFFreq, FSlateStyle::Get().GetFreqFloatFormat()); },
+						[](const IDashboardDataViewEntry& InData)
+						{
+							const ::Audio::TCircularAudioBuffer<FDataPoint>& LPFFreqDataPoints = MixerSourcePrivate::CastEntry(InData).LPFFreqDataPoints;
+							return FText::AsNumber(MixerSourcePrivate::GetLastEntryArrayValue(LPFFreqDataPoints), FSlateStyle::Get().GetFreqFloatFormat());
+						},
 						true  /* bDefaultHidden */,
 						0.1f /* FillWidth */
 					}
@@ -136,7 +169,11 @@ namespace UE::Audio::Insights
 					"HPF",
 					{
 						LOCTEXT("Source_HPFColumnDisplayName", "HPF Freq (Hz)"),
-						[](const IDashboardDataViewEntry& InData) { return FText::AsNumber(MixerSourcePrivate::CastEntry(InData).HPFFreq, FSlateStyle::Get().GetFreqFloatFormat()); },
+						[](const IDashboardDataViewEntry& InData)
+						{
+							const ::Audio::TCircularAudioBuffer<FDataPoint>& HPFFreqDataPoints = MixerSourcePrivate::CastEntry(InData).HPFFreqDataPoints;
+							return FText::AsNumber(MixerSourcePrivate::GetLastEntryArrayValue(HPFFreqDataPoints), FSlateStyle::Get().GetFreqFloatFormat());
+						},
 						true  /* bDefaultHidden */,
 						0.1f /* FillWidth */
 					}
@@ -204,7 +241,7 @@ namespace UE::Audio::Insights
 					const FMixerSourceDashboardEntry& AData = MixerSourcePrivate::CastEntry(*A.Get());
 					const FMixerSourceDashboardEntry& BData = MixerSourcePrivate::CastEntry(*B.Get());
 
-					return AData.Envelope < BData.Envelope;
+					return MixerSourcePrivate::GetLastEntryArrayValue(AData.EnvelopeDataPoints) < MixerSourcePrivate::GetLastEntryArrayValue(BData.EnvelopeDataPoints);
 				});
 			}
 			else if (SortMode == EColumnSortMode::Descending)
@@ -214,7 +251,7 @@ namespace UE::Audio::Insights
 					const FMixerSourceDashboardEntry& AData = MixerSourcePrivate::CastEntry(*A.Get());
 					const FMixerSourceDashboardEntry& BData = MixerSourcePrivate::CastEntry(*B.Get());
 
-					return BData.Envelope < AData.Envelope;
+					return MixerSourcePrivate::GetLastEntryArrayValue(BData.EnvelopeDataPoints) < MixerSourcePrivate::GetLastEntryArrayValue(AData.EnvelopeDataPoints);
 				});
 			}
 		}
@@ -227,7 +264,7 @@ namespace UE::Audio::Insights
 					const FMixerSourceDashboardEntry& AData = MixerSourcePrivate::CastEntry(*A.Get());
 					const FMixerSourceDashboardEntry& BData = MixerSourcePrivate::CastEntry(*B.Get());
 
-					return AData.Volume < BData.Volume;
+					return MixerSourcePrivate::GetLastEntryArrayValue(AData.VolumeDataPoints) < MixerSourcePrivate::GetLastEntryArrayValue(BData.VolumeDataPoints);
 				});
 			}
 			else if (SortMode == EColumnSortMode::Descending)
@@ -237,7 +274,7 @@ namespace UE::Audio::Insights
 					const FMixerSourceDashboardEntry& AData = MixerSourcePrivate::CastEntry(*A.Get());
 					const FMixerSourceDashboardEntry& BData = MixerSourcePrivate::CastEntry(*B.Get());
 
-					return BData.Volume < AData.Volume;
+					return MixerSourcePrivate::GetLastEntryArrayValue(BData.VolumeDataPoints) < MixerSourcePrivate::GetLastEntryArrayValue(AData.VolumeDataPoints);
 				});
 			}
 		}
@@ -250,7 +287,7 @@ namespace UE::Audio::Insights
 					const FMixerSourceDashboardEntry& AData = MixerSourcePrivate::CastEntry(*A.Get());
 					const FMixerSourceDashboardEntry& BData = MixerSourcePrivate::CastEntry(*B.Get());
 
-					return AData.DistanceAttenuation < BData.DistanceAttenuation;
+					return MixerSourcePrivate::GetLastEntryArrayValue(AData.DistanceAttenuationDataPoints) < MixerSourcePrivate::GetLastEntryArrayValue(BData.DistanceAttenuationDataPoints);
 				});
 			}
 			else if (SortMode == EColumnSortMode::Descending)
@@ -260,7 +297,7 @@ namespace UE::Audio::Insights
 					const FMixerSourceDashboardEntry& AData = MixerSourcePrivate::CastEntry(*A.Get());
 					const FMixerSourceDashboardEntry& BData = MixerSourcePrivate::CastEntry(*B.Get());
 
-					return BData.DistanceAttenuation < AData.DistanceAttenuation;
+					return MixerSourcePrivate::GetLastEntryArrayValue(BData.DistanceAttenuationDataPoints) < MixerSourcePrivate::GetLastEntryArrayValue(AData.DistanceAttenuationDataPoints);
 				});
 			}
 		}
@@ -273,7 +310,7 @@ namespace UE::Audio::Insights
 					const FMixerSourceDashboardEntry& AData = MixerSourcePrivate::CastEntry(*A.Get());
 					const FMixerSourceDashboardEntry& BData = MixerSourcePrivate::CastEntry(*B.Get());
 
-					return AData.Pitch < BData.Pitch;
+					return MixerSourcePrivate::GetLastEntryArrayValue(AData.PitchDataPoints) < MixerSourcePrivate::GetLastEntryArrayValue(BData.PitchDataPoints);
 				});
 			}
 			else if (SortMode == EColumnSortMode::Descending)
@@ -283,7 +320,7 @@ namespace UE::Audio::Insights
 					const FMixerSourceDashboardEntry& AData = MixerSourcePrivate::CastEntry(*A.Get());
 					const FMixerSourceDashboardEntry& BData = MixerSourcePrivate::CastEntry(*B.Get());
 
-					return BData.Pitch < AData.Pitch;
+					return MixerSourcePrivate::GetLastEntryArrayValue(BData.PitchDataPoints) < MixerSourcePrivate::GetLastEntryArrayValue(AData.PitchDataPoints);
 				});
 			}
 		}
@@ -296,7 +333,7 @@ namespace UE::Audio::Insights
 					const FMixerSourceDashboardEntry& AData = MixerSourcePrivate::CastEntry(*A.Get());
 					const FMixerSourceDashboardEntry& BData = MixerSourcePrivate::CastEntry(*B.Get());
 
-					return AData.LPFFreq < BData.LPFFreq;
+					return MixerSourcePrivate::GetLastEntryArrayValue(AData.LPFFreqDataPoints) < MixerSourcePrivate::GetLastEntryArrayValue(BData.LPFFreqDataPoints);
 				});
 			}
 			else if (SortMode == EColumnSortMode::Descending)
@@ -306,7 +343,7 @@ namespace UE::Audio::Insights
 					const FMixerSourceDashboardEntry& AData = MixerSourcePrivate::CastEntry(*A.Get());
 					const FMixerSourceDashboardEntry& BData = MixerSourcePrivate::CastEntry(*B.Get());
 
-					return BData.LPFFreq < AData.LPFFreq;
+					return MixerSourcePrivate::GetLastEntryArrayValue(BData.LPFFreqDataPoints) < MixerSourcePrivate::GetLastEntryArrayValue(AData.LPFFreqDataPoints);
 				});
 			}
 		}
@@ -319,7 +356,7 @@ namespace UE::Audio::Insights
 					const FMixerSourceDashboardEntry& AData = MixerSourcePrivate::CastEntry(*A.Get());
 					const FMixerSourceDashboardEntry& BData = MixerSourcePrivate::CastEntry(*B.Get());
 
-					return AData.HPFFreq < BData.HPFFreq;
+					return MixerSourcePrivate::GetLastEntryArrayValue(AData.HPFFreqDataPoints) < MixerSourcePrivate::GetLastEntryArrayValue(BData.HPFFreqDataPoints);
 				});
 			}
 			else if (SortMode == EColumnSortMode::Descending)
@@ -329,7 +366,7 @@ namespace UE::Audio::Insights
 					const FMixerSourceDashboardEntry& AData = MixerSourcePrivate::CastEntry(*A.Get());
 					const FMixerSourceDashboardEntry& BData = MixerSourcePrivate::CastEntry(*B.Get());
 
-					return BData.HPFFreq < AData.HPFFreq;
+					return MixerSourcePrivate::GetLastEntryArrayValue(BData.HPFFreqDataPoints) < MixerSourcePrivate::GetLastEntryArrayValue(AData.HPFFreqDataPoints);
 				});
 			}
 		}
@@ -349,9 +386,26 @@ namespace UE::Audio::Insights
 		CurrentTimestamp = 0;
 	}
 
+	void FMixerSourceDashboardViewFactory::OnPIEStarted(bool bSimulating)
+	{
+		PIEState = EPIEState::Running;
+	}
+
 	void FMixerSourceDashboardViewFactory::OnPIEStopped(bool bSimulating)
 	{
 		ResetPlots();
+
+		PIEState = EPIEState::Stopped;
+	}
+
+	void FMixerSourceDashboardViewFactory::OnPIEPaused(bool bSimulating)
+	{
+		PIEState = EPIEState::Paused;
+	}
+
+	void FMixerSourceDashboardViewFactory::OnPIEResumed(bool bSimulating)
+	{
+		PIEState = EPIEState::Running;
 	}
 
 #if AUDIO_INSIGHTS_SHOW_SOURCE_CONTEXT_MENU
@@ -583,18 +637,9 @@ namespace UE::Audio::Insights
 			// Only add new sources if there are less than the max 
 			const bool bCanAddNewSources = PlotWidgetMetadataPerCurve->Num() < MaxPlotSources;
 
-			const double PointTime = SourceDataPoint.Timestamp;
-			BeginTimestamp = FMath::Min(BeginTimestamp, PointTime);
-			CurrentTimestamp = FMath::Max(CurrentTimestamp, PointTime);
-			const double DataPointTime = SourceDataPoint.Timestamp - BeginTimestamp;
-
 			// For each column, get the array for this data point's source id and add the value to that data array
-			for (auto Iter = PlotWidgetCurveIdToPointDataMapPerColumn.CreateIterator(); Iter; ++Iter)
+			for (const auto& [ColumnName, DataMap] : PlotWidgetCurveIdToPointDataMapPerColumn)
 			{
-				const FName& ColumnName = Iter.Key();
-				auto DataFunc = GetPlotColumnDataFunc(ColumnName);
-				TSharedPtr<FPointDataPerCurveMap>& DataMap = Iter.Value();
-
 				// Add new data point array
 				if (bCanAddNewSources && !DataMap->Contains(SourceId))
 				{
@@ -605,8 +650,20 @@ namespace UE::Audio::Insights
 				TArray<FPlotCurvePoint>* DataPoints = DataMap->Find(SourceId);
 				if (DataPoints)
 				{
-					const float Value = (DataFunc)(SourceDataPoint);
-					DataPoints->Emplace(DataPointTime, Value);
+					auto DataFunc = GetPlotColumnDataFunc(ColumnName);
+					const ::Audio::TCircularAudioBuffer<FDataPoint>& TimeStampedValues = (DataFunc)(SourceDataPoint);
+
+					const ::Audio::DisjointedArrayView<const FDataPoint> TimeStampedValuesDisjointedArrayView = TimeStampedValues.PeekInPlace(TimeStampedValues.Num());
+					
+					for (const auto& [Timestamp, Value] : TimeStampedValuesDisjointedArrayView.FirstBuffer)
+					{
+						BeginTimestamp   = FMath::Min(BeginTimestamp, Timestamp);
+						CurrentTimestamp = FMath::Max(CurrentTimestamp, Timestamp);
+
+						const double DataPointTime = Timestamp - BeginTimestamp;
+
+						DataPoints->Emplace(DataPointTime, Value);
+					}
 				}
 			}
 
@@ -630,33 +687,31 @@ namespace UE::Audio::Insights
 			}
 		}
 
-		// Remove points that are older than max history limit from the most recent timestamp
-		const static auto RemoveOldCurvePoints = [this](TSharedPtr<FPointDataPerCurveMap> PlotWidgetPointDataPerCurve)
-		{
-			for (auto Iter = PlotWidgetPointDataPerCurve->CreateIterator(); Iter; ++Iter)
-			{
-				TArray<FPlotCurvePoint>& CurvePoints = Iter->Value;
-				for (int32 i = CurvePoints.Num() - 1; i >= 0; --i)
-				{
-					const FPlotCurvePoint& Point = CurvePoints[i];
-					if (Point.Key + BeginTimestamp < CurrentTimestamp - MaxPlotHistorySeconds)
-					{
-						CurvePoints.RemoveAt(i);
-					}
-				}
-			}
-		};
-
 		// Remove old points and set curve data for each widget 
+		const double PlotDrawLimitTimestamp = CurrentTimestamp - BeginTimestamp - (MaxPlotHistorySeconds + 0.2 /* extra grace time to avoid curve cuts being displayed */);
+
 		for (int32 WidgetIndex = 0; WidgetIndex < NumPlotWidgets; ++WidgetIndex)
 		{
-			TSharedPtr<SAudioCurveView> PlotWidget = PlotWidgets[WidgetIndex];
 			const FName& SelectedPlotColumn = SelectedPlotColumnNames[WidgetIndex];
 
-			if (TSharedPtr<FPointDataPerCurveMap> CurveData = *PlotWidgetCurveIdToPointDataMapPerColumn.Find(SelectedPlotColumn))
+			const TSharedPtr<FPointDataPerCurveMap> CurveDataMapPtr = *PlotWidgetCurveIdToPointDataMapPerColumn.Find(SelectedPlotColumn);
+			if (CurveDataMapPtr.IsValid())
 			{
-				RemoveOldCurvePoints(CurveData);
-				PlotWidget->SetCurvesPointData(CurveData);
+				// Remove points that are older than max history limit from the most recent timestamp
+				for (auto& [CurveId, CurvePoints] : *CurveDataMapPtr)
+				{
+					const int32 FoundIndex = CurvePoints.IndexOfByPredicate([&PlotDrawLimitTimestamp](const FDataPoint& InDataPoint)
+					{
+						return InDataPoint.Key >= PlotDrawLimitTimestamp;
+					});
+
+					if (FoundIndex > 0)
+					{
+						CurvePoints.RemoveAt(0, FoundIndex, EAllowShrinking::No);
+					}
+				}
+
+				PlotWidgets[WidgetIndex]->SetCurvesPointData(CurveDataMapPtr);
 			}
 		}
 	}
@@ -670,7 +725,7 @@ namespace UE::Audio::Insights
 				{
 					"Amplitude",
 					{
-						[](const IDashboardDataViewEntry& InData) { return MixerSourcePrivate::CastEntry(InData).Envelope; },
+						[](const IDashboardDataViewEntry& InData) -> const ::Audio::TCircularAudioBuffer<FDataPoint>& { return MixerSourcePrivate::CastEntry(InData).EnvelopeDataPoints; },
 						FSlateStyle::Get().GetAmpFloatFormat()
 					}
 				},
@@ -678,35 +733,35 @@ namespace UE::Audio::Insights
 					"Volume",
 					{
 
-						[](const IDashboardDataViewEntry& InData) { return MixerSourcePrivate::CastEntry(InData).Volume; },
+						[](const IDashboardDataViewEntry& InData) -> const ::Audio::TCircularAudioBuffer<FDataPoint>& { return MixerSourcePrivate::CastEntry(InData).VolumeDataPoints; },
 						FSlateStyle::Get().GetAmpFloatFormat()
 					}
 				},
 				{
 					"DistanceAttenuation",
 					{
-						[](const IDashboardDataViewEntry& InData) { return MixerSourcePrivate::CastEntry(InData).DistanceAttenuation; }, 
+						[](const IDashboardDataViewEntry& InData) -> const ::Audio::TCircularAudioBuffer<FDataPoint>& { return MixerSourcePrivate::CastEntry(InData).DistanceAttenuationDataPoints; },
 						FSlateStyle::Get().GetAmpFloatFormat()
 					}
 				},
 				{
 					"Pitch",
 					{
-						[](const IDashboardDataViewEntry& InData) { return MixerSourcePrivate::CastEntry(InData).Pitch; },
+						[](const IDashboardDataViewEntry& InData) -> const ::Audio::TCircularAudioBuffer<FDataPoint>& { return MixerSourcePrivate::CastEntry(InData).PitchDataPoints; },
 						FSlateStyle::Get().GetPitchFloatFormat()
 					}
 				},
 				{
 					"LPF",
 					{
-						[](const IDashboardDataViewEntry& InData) { return MixerSourcePrivate::CastEntry(InData).LPFFreq; },
+						[](const IDashboardDataViewEntry& InData) -> const ::Audio::TCircularAudioBuffer<FDataPoint>& { return MixerSourcePrivate::CastEntry(InData).LPFFreqDataPoints; },
 							FSlateStyle::Get().GetFreqFloatFormat() 
 					}
 				},
 				{
 					"HPF",
 					{
-						[](const IDashboardDataViewEntry& InData) { return MixerSourcePrivate::CastEntry(InData).HPFFreq; },
+						[](const IDashboardDataViewEntry& InData) -> const ::Audio::TCircularAudioBuffer<FDataPoint>& { return MixerSourcePrivate::CastEntry(InData).HPFFreqDataPoints; },
 						FSlateStyle::Get().GetFreqFloatFormat()
 					}
 				}
@@ -725,7 +780,7 @@ namespace UE::Audio::Insights
 		return nullptr;
 	}
 
-	const TFunctionRef<float(const IDashboardDataViewEntry& InData)> FMixerSourceDashboardViewFactory::GetPlotColumnDataFunc(const FName& ColumnName)
+	const TFunctionRef<const ::Audio::TCircularAudioBuffer<FDataPoint>&(const IDashboardDataViewEntry& InData)> FMixerSourceDashboardViewFactory::GetPlotColumnDataFunc(const FName& ColumnName)
 	{
 		return GetPlotColumnInfo().Find(ColumnName)->DataFunc;
 	}
@@ -763,6 +818,23 @@ namespace UE::Audio::Insights
 		// Create plot widgets
 		auto GetViewRange = [this]()
 		{
+			if (PIEState == EPIEState::Stopped || BeginTimestamp == TNumericLimits<double>::Max())
+			{
+				return TRange<double>(0, MaxPlotHistorySeconds);
+			}
+
+			if (PIEState == EPIEState::Running)
+			{
+				const FTraceModule& TraceModule = FAudioInsightsModule::GetChecked().GetTraceModule();
+				const double FirstTimestamp = TraceModule.GetFirstTimeStamp();
+
+				const double CurrentTime = FPlatformTime::Seconds();
+				const double RelativeCurrentTime = CurrentTime - FirstTimestamp;
+				const double TimestampsDiff = RelativeCurrentTime - (CurrentTimestamp - BeginTimestamp);
+
+				CurrentTimestamp += TimestampsDiff;
+			}
+
 			return TRange<double>(FMath::Max(0, CurrentTimestamp - MaxPlotHistorySeconds - BeginTimestamp), CurrentTimestamp - BeginTimestamp);
 		};
 
@@ -772,7 +844,8 @@ namespace UE::Audio::Insights
 			for (int32 WidgetNum = 0; WidgetNum < NumPlotWidgets; ++WidgetNum)
 			{
 				SAssignNew(PlotWidgets[WidgetNum], SAudioCurveView)
-					.ViewRange_Lambda(GetViewRange);
+				.ViewRange_Lambda(GetViewRange)
+				.PixelSnappingMethod(EWidgetPixelSnapping::Disabled);
 			}
 		}
 
@@ -816,6 +889,8 @@ namespace UE::Audio::Insights
 				SNew(SSimpleTimeSlider)
 				.ViewRange_Lambda(GetViewRange)
 				.ClampRangeHighlightSize(0.0f) // Hide clamp range
+				.ScrubPosition_Lambda([]() { return -1.0; }) // Hide scrub
+				.PixelSnappingMethod(EWidgetPixelSnapping::Disabled)
 			]
 			+ SVerticalBox::Slot()
 			.AutoHeight()
@@ -824,22 +899,9 @@ namespace UE::Audio::Insights
 				CreatePlotColumnComboBoxWidget(0)
 			]
 			+ SVerticalBox::Slot()
-			.AutoHeight()
 			.HAlign(HAlign_Fill)
 			[
 				PlotWidgets[0].ToSharedRef()
-			]
-			+ SVerticalBox::Slot()
-			.AutoHeight()
-			.HAlign(HAlign_Fill)
-			[
-				CreatePlotColumnComboBoxWidget(1)
-			]
-			+ SVerticalBox::Slot()
-			.AutoHeight()
-			.HAlign(HAlign_Fill)
-			[
-				PlotWidgets[1].ToSharedRef()
 			];
 	}
 
@@ -944,7 +1006,11 @@ namespace UE::Audio::Insights
 	TSharedRef<SWidget> FMixerSourceDashboardViewFactory::MakeWidget()
 	{
 		FDashboardFactory::OnActiveAudioDeviceChanged.AddSP(this, &FMixerSourceDashboardViewFactory::ClearMutesAndSolos);
+
+		FEditorDelegates::PostPIEStarted.AddSP(this, &FMixerSourceDashboardViewFactory::OnPIEStarted);
 		FEditorDelegates::EndPIE.AddSP(this, &FMixerSourceDashboardViewFactory::OnPIEStopped);
+		FEditorDelegates::PausePIE.AddSP(this, &FMixerSourceDashboardViewFactory::OnPIEPaused);
+		FEditorDelegates::ResumePIE.AddSP(this, &FMixerSourceDashboardViewFactory::OnPIEResumed);
 
 		TSharedRef<SWidget> MuteSoloWidget = MakeMuteSoloWidget();
 		TSharedRef<SWidget> TableDashboardWidget = FTraceTableDashboardViewFactory::MakeWidget();

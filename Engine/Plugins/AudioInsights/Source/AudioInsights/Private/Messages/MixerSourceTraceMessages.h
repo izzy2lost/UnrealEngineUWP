@@ -2,6 +2,7 @@
 #pragma once
 
 #include "AudioDefines.h"
+#include "DSP/Dsp.h"
 #include "Messages/AnalyzerMessageQueue.h"
 #include "Trace/Analyzer.h"
 #include "Views/TableDashboardViewFactory.h"
@@ -66,20 +67,33 @@ namespace UE::Audio::Insights
 	DEFINE_MIXERSOURCE_PARAM_MESSAGE(FMixerSourceVolumeMessage, Volume, float, 1.0f)
 #undef DEFINE_MIXERSOURCE_PARAM_MESSAGE
 
+	using FDataPoint = TPair<double, float>; // (Timestamp, Value)
+
 	class FMixerSourceDashboardEntry : public FSoundAssetDashboardEntry
 	{
 	public:
-		FMixerSourceDashboardEntry() = default;
+		FMixerSourceDashboardEntry()
+		{
+			constexpr uint32 DataPointsCapacity = 256;
+
+			VolumeDataPoints.SetCapacity(DataPointsCapacity);
+			PitchDataPoints.SetCapacity(DataPointsCapacity);
+			LPFFreqDataPoints.SetCapacity(DataPointsCapacity);
+			HPFFreqDataPoints.SetCapacity(DataPointsCapacity);
+			EnvelopeDataPoints.SetCapacity(DataPointsCapacity);
+			DistanceAttenuationDataPoints.SetCapacity(DataPointsCapacity);
+		}
+
 		virtual ~FMixerSourceDashboardEntry() = default;
 
 		int32 SourceId = INDEX_NONE;
 
-		float Volume = 1.0f;
-		float Pitch = 1.0f;
-		float LPFFreq = MIN_FILTER_FREQUENCY;
-		float HPFFreq = MAX_FILTER_FREQUENCY;
-		float Envelope = 0.0f;
-		float DistanceAttenuation = 0.0f;
+		::Audio::TCircularAudioBuffer<FDataPoint> VolumeDataPoints;
+		::Audio::TCircularAudioBuffer<FDataPoint> PitchDataPoints;
+		::Audio::TCircularAudioBuffer<FDataPoint> LPFFreqDataPoints;
+		::Audio::TCircularAudioBuffer<FDataPoint> HPFFreqDataPoints;
+		::Audio::TCircularAudioBuffer<FDataPoint> EnvelopeDataPoints;
+		::Audio::TCircularAudioBuffer<FDataPoint> DistanceAttenuationDataPoints;
 	};
 
 	class FMixerSourceMessages

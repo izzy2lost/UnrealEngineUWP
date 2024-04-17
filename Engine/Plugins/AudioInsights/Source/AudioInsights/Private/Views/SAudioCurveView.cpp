@@ -252,7 +252,7 @@ int32 SAudioCurveView::PaintGridLines(const FGeometry& AllottedGeometry, const F
 				GridPoints,
 				LineDrawEffects,
 				GridLineColor.Get(),
-				false
+				true
 			);
 			VerticalLineValue += HorizontalAxisIncrement.Get();
 		}
@@ -308,11 +308,6 @@ int32 SAudioCurveView::PaintGridLines(const FGeometry& AllottedGeometry, const F
 
 int32 SAudioCurveView::PaintCurves(const FGeometry& AllottedGeometry, const FSlateRect& MyCullingRect, FSlateWindowElementList& OutDrawElements, int32 LayerId, const FWidgetStyle& InWidgetStyle, bool bParentEnabled) const 
 {
-	static const float LargeFrameTime = 0.25;  // ideally, we could check the recorded frame data for actual frame length
-	
-	const SSimpleTimeSlider::FScrubRangeToScreen RangeToScreen(ViewRange.Get(), AllottedGeometry.GetLocalSize());
-	const FVector2f Size = AllottedGeometry.GetLocalSize();
-
 	// Skip drawing if curve data is not initialized yet
 	if (!PointDataPerCurve || !MetadataPerCurve)
 	{
@@ -325,7 +320,11 @@ int32 SAudioCurveView::PaintCurves(const FGeometry& AllottedGeometry, const FSla
 		return LayerId;
 	}
 
+	const SSimpleTimeSlider::FScrubRangeToScreen RangeToScreen(ViewRange.Get(), AllottedGeometry.GetLocalSize());
 	LayerId = PaintGridLines(AllottedGeometry, MyCullingRect, OutDrawElements, LayerId, InWidgetStyle, bParentEnabled, RangeToScreen);
+	
+	static constexpr float LargeFrameTime = 0.5f; // ideally, we could check the recorded frame data for actual frame length
+	const FVector2f Size = AllottedGeometry.GetLocalSize();
 
 	// Create and draw points per curve
 	for (auto Iter = MetadataPerCurve->CreateConstIterator(); Iter; ++Iter)
@@ -345,7 +344,8 @@ int32 SAudioCurveView::PaintCurves(const FGeometry& AllottedGeometry, const FSla
 		for (int32 i = 0; i < CurvePoints->Num(); i++)
 		{
 			const FCurvePoint& Point = (*CurvePoints)[i];
-			if (Point.Value - PrevX > LargeFrameTime && Points.Num()>1)
+
+			if (Point.Value - PrevX > LargeFrameTime && Points.Num() > 1)
 			{
 				// break the line list - data has stopped and started again
 				FSlateDrawElement::MakeLines(
@@ -355,15 +355,16 @@ int32 SAudioCurveView::PaintCurves(const FGeometry& AllottedGeometry, const FSla
 					Points,
 					LineDrawEffects,
 					CurveMetadata.CurveColor,
-					false
+					true
 				);
 				Points.SetNum(0, EAllowShrinking::No);
 			}
 
 			const float X = RangeToScreen.InputToLocalX(Point.Key);
-			PrevX = Point.Key;
 			const float Y = ValueToLocalY(Size, Point.Value);
-			Points.Add(FVector2f(X, Y));
+			Points.Emplace(X, Y);
+
+			PrevX = Point.Key;
 		}
 
 		FSlateDrawElement::MakeLines(
@@ -373,9 +374,10 @@ int32 SAudioCurveView::PaintCurves(const FGeometry& AllottedGeometry, const FSla
 			Points,
 			LineDrawEffects,
 			CurveMetadata.CurveColor,
-			false
+			true
 		);
 	}
+
 	return LayerId;
 }
 

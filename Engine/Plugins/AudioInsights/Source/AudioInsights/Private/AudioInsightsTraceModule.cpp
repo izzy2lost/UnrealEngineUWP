@@ -69,6 +69,8 @@ namespace UE::Audio::Insights
 			InSession.AddProvider(Pair.Key, nullptr, Pair.Value);
 			InSession.AddAnalyzer(Pair.Value->ConstructAnalyzer());
 		}
+
+		FirstTimeStamp = -TNumericLimits<double>::Min();
 	}
 
 	void FTraceModule::StartTraceAnalysis() const
