@@ -194,7 +194,7 @@ namespace ChaosTest {
 
 	// 1 Kinematic Body with 2 Dynamic bodies hanging from it by a breakable constraint.
 	// Constraint break force is less than M x G, so joint should not break.
-	template <typename TEvolution>
+	template <typename TEvolution, bool bUseSimd = false>
 	void JointBreak_UnderLinearThreshold3()
 	{
 		const int32 NumIterations = 1;
@@ -204,6 +204,8 @@ namespace ChaosTest {
 
 		FJointChainTest<TEvolution> Test(NumIterations, Gravity);
 		Test.InitChain(3, FVec3(0, 0, -1));
+
+		Test.Evolution.GetJointConstraints().SetUseSimd(bUseSimd);
 
 		// Joint should break only if Threshold < MG
 		// So no in this test
@@ -234,6 +236,8 @@ namespace ChaosTest {
 	GTEST_TEST(AllEvolutions, JointBreakTests_TestUnderLinearThreshold3)
 	{
 		JointBreak_UnderLinearThreshold3<FPBDRigidsEvolutionGBF>();
+		constexpr bool bUseSimd = true;
+		JointBreak_UnderLinearThreshold3<FPBDRigidsEvolutionGBF, bUseSimd>();
 	}
 
 	// 1 Kinematic Body with 1 Dynamic body held vertically by a breakable angular constraint.

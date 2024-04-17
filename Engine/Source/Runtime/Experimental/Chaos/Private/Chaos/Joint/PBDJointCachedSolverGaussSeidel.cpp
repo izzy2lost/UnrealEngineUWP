@@ -1064,7 +1064,7 @@ void FPBDJointCachedSolver::ApplyVelocityConstraintSimd()
 			VectorStoreFloat3(DV0, &DV0f[0]);
 			FVec3f DW0f;
 			VectorStoreFloat3(DW0, &DW0f[0]);
-			Body(0).ApplyVelocityDelta(FVec3(DW0f), FVec3(DW0f));
+			Body(0).ApplyVelocityDelta(FVec3(DV0f), FVec3(DW0f));
 		}
 		if (Body(1).IsDynamic())
 		{
@@ -1081,7 +1081,7 @@ void FPBDJointCachedSolver::ApplyVelocityConstraintSimd()
 			VectorStoreFloat3(DV1, &DV1f[0]);
 			FVec3f DW1f;
 			VectorStoreFloat3(DW1, &DW1f[0]);
-			Body(1).ApplyVelocityDelta(FVec3(DW1f), FVec3(DW1f));
+			Body(1).ApplyVelocityDelta(FVec3(DV1f), FVec3(DW1f));
 		}
 	}
 }
