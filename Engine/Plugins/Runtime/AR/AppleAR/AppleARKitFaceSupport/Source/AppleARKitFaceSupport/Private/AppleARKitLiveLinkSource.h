@@ -766,6 +766,7 @@ public:
 
 	// IARKitBlendShapePublisher interface
 	virtual void PublishBlendShapes(FName SubjectName, const FQualifiedFrameTime& FrameTime, const FARBlendShapeMap& FaceBlendShapes, FName DeviceId = NAME_None) override;
+	virtual void Shutdown() override {}
 	// End IARKitBlendShapePublisher
 
 	bool InitSendSocket();
