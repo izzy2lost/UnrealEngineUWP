@@ -59,7 +59,7 @@ private:
 
 		{
 			FNetObjectFilterDefinition& MockDefinition = NewFilterDefinitions.Emplace_GetRef();
-			MockDefinition.FilterName = "Mock";
+			MockDefinition.FilterName = "MockFilter";
 			MockDefinition.ClassName = "/Script/ReplicationSystemTestPlugin.MockNetObjectFilter";
 			MockDefinition.ConfigClassName = "/Script/ReplicationSystemTestPlugin.MockNetObjectFilterConfig";
 		}
@@ -84,8 +84,8 @@ private:
 	void InitFilterHandles()
 	{
 		NotRoutedFilterHandle = Server->GetReplicationSystem()->GetFilterHandle("NotRouted");
-		MockFilterHandle = Server->GetReplicationSystem()->GetFilterHandle("Mock");
-		MockFilter = Cast<UMockNetObjectFilter>(Server->GetReplicationSystem()->GetFilter("Mock"));
+		MockFilterHandle = Server->GetReplicationSystem()->GetFilterHandle("MockFilter");
+		MockFilter = Cast<UMockNetObjectFilter>(Server->GetReplicationSystem()->GetFilter("MockFilter"));
 	}
 
 private:
