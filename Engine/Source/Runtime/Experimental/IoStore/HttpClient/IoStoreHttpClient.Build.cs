@@ -8,13 +8,6 @@ public class IoStoreHttpClient : ModuleRules
 	{
 		PublicDependencyModuleNames.Add("Core");
 		PublicDependencyModuleNames.Add("TraceLog");
-		PrivateDependencyModuleNames.AddRange(
-			new string[] {
-				"OpenSSL",
-				"SSL",
-			}
-		);
-
 		UnsafeTypeCastWarningLevel = WarningLevel.Error; 
 	}
 }
