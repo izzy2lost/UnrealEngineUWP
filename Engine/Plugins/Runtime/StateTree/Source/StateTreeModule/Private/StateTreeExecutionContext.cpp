@@ -504,9 +504,6 @@ EStateTreeRunStatus FStateTreeExecutionContext::TickPostlude()
 EStateTreeRunStatus FStateTreeExecutionContext::Tick(const float DeltaTime)
 {
 	CSV_SCOPED_TIMING_STAT_EXCLUSIVE(StateTree_Tick);
-	STATETREE_TRACE_SCOPED_PHASE(EStateTreeUpdatePhase::TickStateTree);
-
-//	STATETREE_LOG_AND_TRACE(Warning, TEXT("Tick %f"), GetWorld()->GetTimeSeconds());
 
 	const EStateTreeRunStatus PreludeResult = TickPrelude();
 	if (PreludeResult != EStateTreeRunStatus::Running)
@@ -523,9 +520,6 @@ EStateTreeRunStatus FStateTreeExecutionContext::Tick(const float DeltaTime)
 EStateTreeRunStatus FStateTreeExecutionContext::TickUpdateTasks(const float DeltaTime)
 {
 	CSV_SCOPED_TIMING_STAT_EXCLUSIVE(StateTree_Tick);
-	STATETREE_TRACE_SCOPED_PHASE(EStateTreeUpdatePhase::TickStateTree);
-
-//	STATETREE_LOG_AND_TRACE(Warning, TEXT("TickUpdateTasks %f"), GetWorld()->GetTimeSeconds());
 
 	const EStateTreeRunStatus PreludeResult = TickPrelude();
 	if (PreludeResult != EStateTreeRunStatus::Running)
@@ -541,9 +535,6 @@ EStateTreeRunStatus FStateTreeExecutionContext::TickUpdateTasks(const float Delt
 EStateTreeRunStatus FStateTreeExecutionContext::TickTriggerTransitions()
 {
 	CSV_SCOPED_TIMING_STAT_EXCLUSIVE(StateTree_Tick);
-	STATETREE_TRACE_SCOPED_PHASE(EStateTreeUpdatePhase::TickStateTree);
-
-//	STATETREE_LOG_AND_TRACE(Warning, TEXT("TickTriggerTransitions %f"), GetWorld()->GetTimeSeconds());
 
 	const EStateTreeRunStatus PreludeResult = TickPrelude();
 	if (PreludeResult != EStateTreeRunStatus::Running)
