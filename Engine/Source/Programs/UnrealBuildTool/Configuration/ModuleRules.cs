@@ -1040,9 +1040,6 @@ namespace UnrealBuildTool
 			"unix.cstring.NullArg",
 			"unix.Malloc",
 
-			// Android
-			"core.VLASize",
-
 			// Needs evalulation
 			"deadcode.DeadStores",
 		};
