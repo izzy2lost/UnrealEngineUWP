@@ -16,19 +16,20 @@
 	template<> \
 	struct DLL_API ::Metasound::TEnvironmentVariableTypeInfo<VarType> \
 	{ \
-		typedef VarType Type; \
-		static const FMetasoundEnvironmentVariableTypeId TypeId; \
-		\
 	private: \
 		\
-		static const VarType* const TypePtr; \
+		static VarType* TypePtr; \
+	public: \
+		typedef VarType Type; \
+		static FMetasoundEnvironmentVariableTypeId GetTypeId(); \
 	};
 
 #define DEFINE_METASOUND_ENVIRONMENT_VARIABLE_TYPE(VarType) \
-	const VarType* const ::Metasound::TEnvironmentVariableTypeInfo<VarType>::TypePtr = nullptr; \
-	const void* const ::Metasound::TEnvironmentVariableTypeInfo<VarType>::TypeId = static_cast<const FMetasoundEnvironmentVariableTypeId>(&::Metasound::TEnvironmentVariableTypeInfo<VarType>::TypePtr);
+	VarType* ::Metasound::TEnvironmentVariableTypeInfo<VarType>::TypePtr = nullptr; \
+	void const* const ::Metasound::TEnvironmentVariableTypeInfo<VarType>::GetTypeId() { return static_cast<FMetasoundEnvironmentVariableTypeId>(&::Metasound::TEnvironmentVariableTypeInfo<VarType>::TypePtr); }
+
 	
-using FMetasoundEnvironmentVariableTypeId = void const*;
+using FMetasoundEnvironmentVariableTypeId = void const* const;
 
 namespace Metasound
 {
@@ -62,7 +63,7 @@ namespace Metasound
 	{
 		using FTypeInfo = TEnvironmentVariableTypeInfo< std::decay_t<Type> >;
 
-		return FTypeInfo::TypeId;
+		return FTypeInfo::GetTypeId();
 	}
 
 	/** Interface for a metasound environment variable which supports

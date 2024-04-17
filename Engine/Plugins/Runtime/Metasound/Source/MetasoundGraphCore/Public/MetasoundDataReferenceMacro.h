@@ -11,11 +11,11 @@
 	{ \
 		static ModuleApi const TCHAR* TypeName; \
 		static ModuleApi const FText& GetTypeDisplayText(); \
-		static ModuleApi const FMetasoundDataTypeId TypeId; \
+		static ModuleApi ::FMetasoundDataTypeId GetTypeId(); \
 		\
 		private: \
 		\
-		static const DataType* const TypePtr; \
+		static DataType* TypePtr; \
 	};
 
 #define DECLARE_METASOUND_DATA_REFERENCE_ALIAS_TYPES(DataType, DataTypeInfoTypeName, DataReadReferenceTypeName, DataWriteReferenceTypeName) \
@@ -39,14 +39,17 @@
 	DECLARE_METASOUND_DATA_REFERENCE_ALIAS_TYPES(DataType, DataTypeInfoTypeName, DataReadReferenceTypeName, DataWriteReferenceTypeName)
 
 #define DEFINE_METASOUND_DATA_REFERENCE_CORE_TYPE(DataType, DataTypeName, DataTypeLoctextKey) \
+	DataType* ::Metasound::TDataReferenceTypeInfo<DataType>::TypePtr = nullptr; \
 	const TCHAR* ::Metasound::TDataReferenceTypeInfo<DataType>::TypeName = TEXT(DataTypeName); \
 	const FText& ::Metasound::TDataReferenceTypeInfo<DataType>::GetTypeDisplayText() \
 	{ \
 		static const FText DisplayText = NSLOCTEXT("MetaSoundCore_DataReference", DataTypeLoctextKey, DataTypeName); \
 		return DisplayText; \
 	} \
-	const DataType* const ::Metasound::TDataReferenceTypeInfo<DataType>::TypePtr = nullptr; \
-	const void* const ::Metasound::TDataReferenceTypeInfo<DataType>::TypeId = static_cast<const FMetasoundDataTypeId>(&::Metasound::TDataReferenceTypeInfo<DataType>::TypePtr);
+	void const * const ::Metasound::TDataReferenceTypeInfo<DataType>::GetTypeId() \
+	{ \
+		return static_cast<void const * const>(&::Metasound::TDataReferenceTypeInfo<DataType>::TypePtr); \
+	}
 
 #define METASOUND_DATA_TYPE_NAME_VARIABLE_TYPE_SPECIFIER ":Variable"
 #define METASOUND_DATA_TYPE_NAME_ARRAY_TYPE_SPECIFIER ":Array"
