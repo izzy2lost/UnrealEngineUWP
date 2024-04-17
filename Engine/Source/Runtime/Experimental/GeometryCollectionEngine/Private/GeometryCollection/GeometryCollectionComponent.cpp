@@ -1709,6 +1709,7 @@ void UGeometryCollectionComponent::ForceNativeRendering(bool bForce)
 		bForceNativeRenderer = bForce;
 		UnregisterCustomRenderer();
 		RegisterCustomRenderer();
+		RefreshCustomRenderer();
 		MarkRenderStateDirty();
 	}
 }
