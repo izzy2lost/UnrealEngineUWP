@@ -1347,6 +1347,8 @@ void UPCGComponent::OnUnregister()
 		{
 			Subsystem->CancelGeneration(this);
 		}
+
+		Subsystem->OnComponentUnregistered.Broadcast();
 	}
 #endif // WITH_EDITOR
 

@@ -325,6 +325,9 @@ private:
 	/** To be called everytime we need to replicate our extra nodes to the underlying PCGGraph */
 	void ReplicateExtraNodes() const;
 
+	/** Called when a PCG component unregisters. */
+	void OnComponentUnregistered();
+
 	/** Called when a component finishes executing. Useful for updating debugging tools/UIs. */
 	void OnComponentGenerationCompleteOrCancelled(UPCGSubsystem* Subsystem);
 

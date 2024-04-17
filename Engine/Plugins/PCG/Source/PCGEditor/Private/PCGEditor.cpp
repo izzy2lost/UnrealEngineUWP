@@ -2988,6 +2988,12 @@ void FPCGEditor::JumpToDefinition(const UClass* Class) const
 	}
 }
 
+void FPCGEditor::OnComponentUnregistered()
+{
+	// Refresh the debug object tree to avoid stale entries from components that have been unregistered.
+	DebugObjectTreeWidget->RequestRefresh();
+}
+
 void FPCGEditor::OnComponentGenerationCompleteOrCancelled(UPCGSubsystem* Subsystem)
 {
 	DebugObjectTreeWidget->RequestRefresh();
@@ -3026,6 +3032,7 @@ void FPCGEditor::RegisterDelegatesForWorld(UWorld* World)
 
 	if (UPCGSubsystem* Subsystem = UPCGSubsystem::GetInstance(World))
 	{
+		Subsystem->OnComponentUnregistered.AddRaw(this, &FPCGEditor::OnComponentUnregistered);
 		Subsystem->OnComponentGenerationCompleteOrCancelled.AddRaw(this, &FPCGEditor::OnComponentGenerationCompleteOrCancelled);
 	}
 }
@@ -3034,6 +3041,7 @@ void FPCGEditor::UnregisterDelegatesForWorld(UWorld* World)
 {
 	if (UPCGSubsystem* Subsystem = UPCGSubsystem::GetInstance(World))
 	{
+		Subsystem->OnComponentUnregistered.RemoveAll(this);
 		Subsystem->OnComponentGenerationCompleteOrCancelled.RemoveAll(this);
 	}
 }
