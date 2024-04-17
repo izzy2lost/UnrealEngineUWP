@@ -323,8 +323,8 @@ namespace UE { namespace TasksTests
 					Pipe.Launch(UE_SOURCE_LOCATION,
 						[this]
 						{
-							SuspendSignal.Trigger();
 							AddNested(ResumeSignal);
+							SuspendSignal.Trigger();
 						}
 					);
 
@@ -344,7 +344,6 @@ namespace UE { namespace TasksTests
 			FTask Task;
 			{
 				FPipeSuspensionScope Suspension(Pipe);
-				FPlatformProcess::Sleep(0.1f); // let pipe suspension finish its business, which was a bug as pipe was cleared (and unblocked) before AddNested kicked in
 				Task = Pipe.Launch(UE_SOURCE_LOCATION, [] {});
 				verify(!Task.Wait(FTimespan::FromMilliseconds(100)));
 			}
@@ -683,7 +682,37 @@ namespace UE { namespace TasksTests
 			Pipe.WaitUntilEmpty();
 		}
 
-		//for (int i = 0; i != 100000; ++i)
+		{	// waiting until a not empty pipe is empty with prereq
+			FPipe Pipe{ UE_SOURCE_LOCATION };
+			
+			FTaskEvent Prereq{ UE_SOURCE_LOCATION };
+
+			check(!Pipe.HasWork());
+
+			FTask Task1{ Pipe.Launch(UE_SOURCE_LOCATION, [] {}, Prereq) };
+
+			//Make sure the pipe knows about the task even if it has prereq
+			check(Pipe.HasWork());
+
+			check(!Task1.IsCompleted());
+
+			check(!Pipe.WaitUntilEmpty(FTimespan::FromMilliseconds(100)));
+
+			FTask Task2{ Pipe.Launch(UE_SOURCE_LOCATION, [] {}) };
+			check(Task2.Wait(FTimespan::FromMilliseconds(100)));
+
+			check(!Pipe.WaitUntilEmpty(FTimespan::FromMilliseconds(100)));
+
+			check(!Task1.IsCompleted());
+			check(Task2.IsCompleted());
+
+			Prereq.Trigger();
+
+			check(Pipe.WaitUntilEmpty(FTimespan::FromMilliseconds(100)));
+			check(Task1.IsCompleted());
+			check(Task2.IsCompleted());
+		}
+
 		{	// waiting until a not empty pipe is empty
 			FPipe Pipe{ UE_SOURCE_LOCATION };
 			Pipe.Launch(UE_SOURCE_LOCATION, [] {});
