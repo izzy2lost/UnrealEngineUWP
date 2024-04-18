@@ -324,7 +324,7 @@ bool ULyraGameplayAbility::DoesAbilitySatisfyTagRequirements(const UAbilitySyste
 	const FGameplayTag& MissingTag = AbilitySystemGlobals.ActivateFailTagsMissingTag;
 
 	// Check if any of this ability's tags are currently blocked
-	if (AbilitySystemComponent.AreAbilityTagsBlocked(AbilityTags))
+	if (AbilitySystemComponent.AreAbilityTagsBlocked(GetAssetTags()))
 	{
 		bBlocked = true;
 	}
@@ -339,7 +339,7 @@ bool ULyraGameplayAbility::DoesAbilitySatisfyTagRequirements(const UAbilitySyste
 	// Expand our ability tags to add additional required/blocked tags
 	if (LyraASC)
 	{
-		LyraASC->GetAdditionalActivationTagRequirements(AbilityTags, AllRequiredTags, AllBlockedTags);
+		LyraASC->GetAdditionalActivationTagRequirements(GetAssetTags(), AllRequiredTags, AllBlockedTags);
 	}
 
 	// Check to see the required/blocked tags for this ability

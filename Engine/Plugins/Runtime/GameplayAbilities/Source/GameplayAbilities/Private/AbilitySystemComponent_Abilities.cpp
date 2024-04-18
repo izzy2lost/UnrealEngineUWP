@@ -1080,7 +1080,7 @@ void UAbilitySystemComponent::FindAllAbilitiesWithTags(OUT TArray<FGameplayAbili
 			if (bExactMatch)
 			{
 				// check if we match all tags
-				if (AbilityInstance->AbilityTags.HasAll(Tags))
+				if (AbilityInstance->GetAssetTags().HasAll(Tags))
 				{
 					// add the matching handle
 					OutAbilityHandles.Add(CurrentSpec.Handle);
@@ -1090,7 +1090,7 @@ void UAbilitySystemComponent::FindAllAbilitiesWithTags(OUT TArray<FGameplayAbili
 			{
 
 				// check if we match any tags
-				if (AbilityInstance->AbilityTags.HasAny(Tags))
+				if (AbilityInstance->GetAssetTags().HasAny(Tags))
 				{
 					// add the matching handle
 					OutAbilityHandles.Add(CurrentSpec.Handle);
@@ -1120,7 +1120,7 @@ void UAbilitySystemComponent::FindAllAbilitiesMatchingQuery(OUT TArray<FGameplay
 		// ensure the ability instance is valid
 		if (IsValid(AbilityInstance))
 		{
-			if (AbilityInstance->AbilityTags.MatchesQuery(Query))
+			if (AbilityInstance->GetAssetTags().MatchesQuery(Query))
 			{
 				// add the matching handle
 				OutAbilityHandles.Add(CurrentSpec.Handle);
@@ -1295,8 +1295,9 @@ void UAbilitySystemComponent::CancelAbilities(const FGameplayTagContainer* WithT
 			continue;
 		}
 
-		bool WithTagPass = (!WithTags || Spec.Ability->AbilityTags.HasAny(*WithTags));
-		bool WithoutTagPass = (!WithoutTags || !Spec.Ability->AbilityTags.HasAny(*WithoutTags));
+		const FGameplayTagContainer& AbilityTags = Spec.Ability->GetAssetTags();
+		bool WithTagPass = (!WithTags || AbilityTags.HasAny(*WithTags));
+		bool WithoutTagPass = (!WithoutTags || !AbilityTags.HasAny(*WithoutTags));
 
 		if (WithTagPass && WithoutTagPass)
 		{
@@ -1490,8 +1491,8 @@ void UAbilitySystemComponent::GetActivatableGameplayAbilitySpecsByAllMatchingTag
 	}
 
 	for (const FGameplayAbilitySpec& Spec : ActivatableAbilities.Items)
-	{		
-		if (Spec.Ability && Spec.Ability->AbilityTags.HasAll(GameplayTagContainer))
+	{
+		if (Spec.Ability && Spec.Ability->GetAssetTags().HasAll(GameplayTagContainer))
 		{
 			// Consider abilities that are blocked by tags currently if we're supposed to (default behavior).  
 			// That way, we can use the blocking to find an appropriate ability based on tags when we have more than 

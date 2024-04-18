@@ -187,6 +187,9 @@ public:
 	UAbilitySystemComponent* GetAbilitySystemComponentFromActorInfo_Checked() const;
 	UAbilitySystemComponent* GetAbilitySystemComponentFromActorInfo_Ensured() const;
 
+	/** The ability is considered to have these tags. */
+	const FGameplayTagContainer& GetAssetTags() const;
+
 	/** Gets the current actor info bound to this ability - can only be called on instanced abilities. */
 	const FGameplayAbilityActorInfo* GetCurrentActorInfo() const;
 
@@ -485,7 +488,8 @@ public:
 	// --------------------------------------
 
 	/** This ability has these tags */
-	UPROPERTY(EditDefaultsOnly, Category = Tags, meta=(Categories="AbilityTagCategory"))
+	UE_DEPRECATED_FORGAME(5.5, "Use GetAssetTags(). This is being made non-mutable, private and renamed to AssetTags in the future. Use SetAssetTags to set defaults (in constructor only).")
+	UPROPERTY(EditDefaultsOnly, Category = Tags, DisplayName="AssetTags (Default AbilityTags)", meta=(Categories="AbilityTagCategory"))
 	FGameplayTagContainer AbilityTags;
 
 	/** If true, this ability will always replicate input press/release events to the server. */
@@ -527,6 +531,14 @@ public:
 	virtual void OnGameplayTaskDeactivated(UGameplayTask& Task) override;
 
 protected:
+
+	/**
+ 	 * Allows a derived class to set the default GameplayTags that this Ability is considered to have (formerly AbilityTags).
+	 * This can only be called during construction.
+	 * At runtime, the AbilitySpec is queried through a Gameplay Ability's CDO for its AbilityTags which can be a combination of these
+	 * Asset Tags and specifically granted DynamicAbilityTags (all instances generated from an AbilitySpec are expected to share the same AbilityTags).
+	 */
+	void SetAssetTags(const FGameplayTagContainer& InAbilityTags);
 
 	// --------------------------------------
 	//	ShouldAbilityRespondToEvent

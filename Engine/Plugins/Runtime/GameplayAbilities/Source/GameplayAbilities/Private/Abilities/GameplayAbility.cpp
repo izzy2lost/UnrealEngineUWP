@@ -255,9 +255,9 @@ bool UGameplayAbility::DoesAbilitySatisfyTagRequirements(const UAbilitySystemCom
 	UAbilitySystemGlobals& AbilitySystemGlobals = UAbilitySystemGlobals::Get();
 	const FGameplayTag& BlockedTag = AbilitySystemGlobals.ActivateFailTagsBlockedTag;
 	const FGameplayTag& MissingTag = AbilitySystemGlobals.ActivateFailTagsMissingTag;
-
+	
 	// Check if any of this ability's tags are currently blocked
-	if (AbilitySystemComponent.AreAbilityTagsBlocked(AbilityTags))
+	if (AbilitySystemComponent.AreAbilityTagsBlocked(GetAssetTags()))
 	{
 		bBlocked = true;
 	}
@@ -590,7 +590,7 @@ void UGameplayAbility::SetCanBeCanceled(bool bCanBeCanceled)
 		UAbilitySystemComponent* Comp = CurrentActorInfo->AbilitySystemComponent.Get();
 		if (Comp)
 		{
-			Comp->HandleChangeAbilityCanBeCanceled(AbilityTags, this, bCanBeCanceled);
+			Comp->HandleChangeAbilityCanBeCanceled(GetAssetTags(), this, bCanBeCanceled);
 		}
 	}
 }
@@ -615,7 +615,7 @@ void UGameplayAbility::SetShouldBlockOtherAbilities(bool bShouldBlockAbilities)
 		UAbilitySystemComponent* Comp = CurrentActorInfo->AbilitySystemComponent.Get();
 		if (Comp)
 		{
-			Comp->ApplyAbilityBlockAndCancelTags(AbilityTags, this, bIsBlockingOtherAbilities, BlockAbilitiesWithTag, false, CancelAbilitiesWithTag);
+			Comp->ApplyAbilityBlockAndCancelTags(GetAssetTags(), this, bIsBlockingOtherAbilities, BlockAbilitiesWithTag, false, CancelAbilitiesWithTag);
 		}
 	}
 }
@@ -774,13 +774,13 @@ void UGameplayAbility::EndAbility(const FGameplayAbilitySpecHandle Handle, const
 			if (CanBeCanceled())
 			{
 				// If we're still cancelable, cancel it now
-				AbilitySystemComponent->HandleChangeAbilityCanBeCanceled(AbilityTags, this, false);
+				AbilitySystemComponent->HandleChangeAbilityCanBeCanceled(GetAssetTags(), this, false);
 			}
 			
 			if (IsBlockingOtherAbilities())
 			{
 				// If we're still blocking other abilities, cancel now
-				AbilitySystemComponent->ApplyAbilityBlockAndCancelTags(AbilityTags, this, false, BlockAbilitiesWithTag, false, CancelAbilitiesWithTag);
+				AbilitySystemComponent->ApplyAbilityBlockAndCancelTags(GetAssetTags(), this, false, BlockAbilitiesWithTag, false, CancelAbilitiesWithTag);
 			}
 
 			AbilitySystemComponent->ClearAbilityReplicatedDataCache(Handle, CurrentActivationInfo);
@@ -873,7 +873,7 @@ void UGameplayAbility::PreActivate(const FGameplayAbilitySpecHandle Handle, cons
 		CurrentEventData = *TriggerEventData;
 	}
 
-	Comp->HandleChangeAbilityCanBeCanceled(AbilityTags, this, true);
+	Comp->HandleChangeAbilityCanBeCanceled(GetAssetTags(), this, true);
 
 	Comp->AddLooseGameplayTags(ActivationOwnedTags);
 
@@ -897,7 +897,7 @@ void UGameplayAbility::PreActivate(const FGameplayAbilitySpecHandle Handle, cons
 
 	Comp->NotifyAbilityActivated(Handle, this);
 
-	Comp->ApplyAbilityBlockAndCancelTags(AbilityTags, this, true, BlockAbilitiesWithTag, true, CancelAbilitiesWithTag);
+	Comp->ApplyAbilityBlockAndCancelTags(GetAssetTags(), this, true, BlockAbilitiesWithTag, true, CancelAbilitiesWithTag);
 
 	// Spec's active count must be incremented after applying blockor cancel tags, otherwise the ability runs the risk of cancelling itself inadvertantly before it completely activates.
 	FGameplayAbilitySpec* Spec = Comp->FindAbilitySpecFromHandle(Handle);
@@ -1168,6 +1168,17 @@ UAbilitySystemComponent* UGameplayAbility::GetAbilitySystemComponentFromActorInf
 	return AbilitySystemComponent;
 }
 
+const FGameplayTagContainer& UGameplayAbility::GetAssetTags() const
+{
+	return AbilityTags;
+}
+
+void UGameplayAbility::SetAssetTags(const FGameplayTagContainer& InAssetTags)
+{
+	ensureMsgf(HasAnyFlags(RF_NeedInitialization), TEXT("%hs should only be used during construction as GetAbilityTags() are primarily read from the CDO"), __func__);
+	AbilityTags = InAssetTags;
+}
+
 const FGameplayAbilityActorInfo* UGameplayAbility::GetCurrentActorInfo() const
 {
 	ENSURE_ABILITY_IS_INSTANTIATED_OR_RETURN(GetCurrentActorInfo, nullptr);
@@ -1227,12 +1238,12 @@ void UGameplayAbility::ApplyAbilityTagsToGameplayEffectSpec(FGameplayEffectSpec&
 {
 	FGameplayTagContainer& CapturedSourceTags = Spec.CapturedSourceTags.GetSpecTags();
 
-	CapturedSourceTags.AppendTags(AbilityTags);
+	CapturedSourceTags.AppendTags(GetAssetTags());
 
 	// Allow the source object of the ability to propagate tags along as well
 	if (AbilitySpec)
 	{
-		CapturedSourceTags.AppendTags(AbilitySpec->DynamicAbilityTags);
+		CapturedSourceTags.AppendTags(AbilitySpec->GetDynamicSpecSourceTags());
 
 		const IGameplayTagAssetInterface* SourceObjAsTagInterface = Cast<IGameplayTagAssetInterface>(AbilitySpec->SourceObject);
 		if (SourceObjAsTagInterface)

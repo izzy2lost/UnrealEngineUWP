@@ -235,8 +235,15 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	FGameplayAbilityActivationInfo	ActivationInfo;
 
 	/** Optional ability tags that are replicated.  These tags are also captured as source tags by applied gameplay effects. */
+	UE_DEPRECATED(5.5, "Use GetDynamicSpecSourceTags() which better represents what this variable does")
 	UPROPERTY()
 	FGameplayTagContainer DynamicAbilityTags;
+
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	/** Optional tags that are replicated with this AbilitySpec.  The specified tags are captured as a GESpec's Source tags by GE's created with this ability spec (@see UGameplayAbility::MakeOutgoingGameplayEffectSpec). */
+	FGameplayTagContainer& GetDynamicSpecSourceTags() { return DynamicAbilityTags; }
+	const FGameplayTagContainer& GetDynamicSpecSourceTags() const { return DynamicAbilityTags; }
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	/** Non replicating instances of this ability. */
 	UPROPERTY(NotReplicated)

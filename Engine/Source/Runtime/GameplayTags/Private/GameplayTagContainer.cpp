@@ -666,6 +666,10 @@ bool FGameplayTagContainer::MatchesQuery(const FGameplayTagQuery& Query) const
 void FGameplayTagContainer::AppendTags(FGameplayTagContainer const& Other)
 {
 	CONDITIONAL_SCOPE_CYCLE_COUNTER(STAT_FGameplayTagContainer_AppendTags, GEnableGameplayTagDetailedStats);
+	if (Other.IsEmpty())
+	{
+		return;
+	}
 
 	int32 OldTagNum = GameplayTags.Num();
 	GameplayTags.Reserve(OldTagNum + Other.GameplayTags.Num());
