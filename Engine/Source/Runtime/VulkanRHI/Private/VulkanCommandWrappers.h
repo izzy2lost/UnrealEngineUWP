@@ -50,9 +50,11 @@ struct FWrapLayer
 	static void EnumeratePhysicalDevices(VkResult Result, VkInstance Instance, uint32* PhysicalDeviceCount, VkPhysicalDevice* PhysicalDevices) VULKAN_LAYER_BODY
 	static void GetPhysicalDeviceFeatures(VkResult Result, VkPhysicalDevice PhysicalDevice, VkPhysicalDeviceFeatures* Features) VULKAN_LAYER_BODY
 	static void GetPhysicalDeviceFormatProperties(VkResult Result, VkPhysicalDevice PhysicalDevice, VkFormat Format, VkFormatProperties* FormatProperties) VULKAN_LAYER_BODY
+	static void GetPhysicalDeviceFormatProperties2(VkResult Result, VkPhysicalDevice PhysicalDevice, VkFormat Format, VkFormatProperties2* FormatProperties) VULKAN_LAYER_BODY
 	static void GetPhysicalDeviceImageFormatProperties(VkResult Result, VkPhysicalDevice PhysicalDevice, VkFormat Format, VkImageType Type, VkImageTiling Tiling, VkImageUsageFlags Usage, VkImageCreateFlags Flags, VkImageFormatProperties* pImageFormatProperties) VULKAN_LAYER_BODY
 	static void GetPhysicalDeviceProperties(VkResult Result, VkPhysicalDevice PhysicalDevice, VkPhysicalDeviceProperties* FormatProperties) VULKAN_LAYER_BODY
 	static void GetPhysicalDeviceQueueFamilyProperties(VkResult Result, VkPhysicalDevice PhysicalDevice, uint32* QueueFamilyPropertyCount, VkQueueFamilyProperties* QueueFamilyProperties) VULKAN_LAYER_BODY
+	static void GetPhysicalDeviceQueueFamilyProperties2(VkResult Result, VkPhysicalDevice PhysicalDevice, uint32* QueueFamilyPropertyCount, VkQueueFamilyProperties2* QueueFamilyProperties) VULKAN_LAYER_BODY
 	static void GetPhysicalDeviceMemoryProperties(VkResult Result, VkPhysicalDevice PhysicalDevice, VkPhysicalDeviceMemoryProperties* Properties) VULKAN_LAYER_BODY
 	static void GetInstanceProcAddr(VkResult Result, VkInstance Instance, const char* Name, PFN_vkVoidFunction VoidFunction) VULKAN_LAYER_BODY
 	VULKAN_EXTERN_EXPORT static void GetDeviceProcAddr(VkResult Result, VkDevice Device, const char* Name, PFN_vkVoidFunction VoidFunction) VULKAN_LAYER_BODY
@@ -293,6 +295,13 @@ namespace VulkanRHI
 		FWrapLayer::GetPhysicalDeviceFormatProperties(VK_SUCCESS, PhysicalDevice, Format, FormatProperties);
 	}
 
+	static FORCEINLINE_DEBUGGABLE void  vkGetPhysicalDeviceFormatProperties2(VkPhysicalDevice PhysicalDevice, VkFormat Format, VkFormatProperties2* FormatProperties)
+	{
+		FWrapLayer::GetPhysicalDeviceFormatProperties2(VK_RESULT_MAX_ENUM, PhysicalDevice, Format, FormatProperties);
+		VULKANAPINAMESPACE::vkGetPhysicalDeviceFormatProperties2(PhysicalDevice, Format, FormatProperties);
+		FWrapLayer::GetPhysicalDeviceFormatProperties2(VK_SUCCESS, PhysicalDevice, Format, FormatProperties);
+	}
+
 	static FORCEINLINE_DEBUGGABLE VkResult  vkGetPhysicalDeviceImageFormatProperties(VkPhysicalDevice PhysicalDevice, VkFormat Format, VkImageType Type, VkImageTiling Tiling, VkImageUsageFlags Usage, VkImageCreateFlags Flags, VkImageFormatProperties* pImageFormatProperties)
 	{
 		FWrapLayer::GetPhysicalDeviceImageFormatProperties(VK_RESULT_MAX_ENUM, PhysicalDevice, Format, Type, Tiling, Usage, Flags, pImageFormatProperties);
@@ -341,6 +350,13 @@ namespace VulkanRHI
 		FWrapLayer::GetPhysicalDeviceQueueFamilyProperties(VK_RESULT_MAX_ENUM, PhysicalDevice, QueueFamilyPropertyCount, QueueFamilyProperties);
 		VULKANAPINAMESPACE::vkGetPhysicalDeviceQueueFamilyProperties(PhysicalDevice, QueueFamilyPropertyCount, QueueFamilyProperties);
 		FWrapLayer::GetPhysicalDeviceQueueFamilyProperties(VK_SUCCESS, PhysicalDevice, QueueFamilyPropertyCount, QueueFamilyProperties);
+	}
+
+	static FORCEINLINE_DEBUGGABLE void  vkGetPhysicalDeviceQueueFamilyProperties2(VkPhysicalDevice PhysicalDevice, uint32* QueueFamilyPropertyCount, VkQueueFamilyProperties2* QueueFamilyProperties)
+	{
+		FWrapLayer::GetPhysicalDeviceQueueFamilyProperties2(VK_RESULT_MAX_ENUM, PhysicalDevice, QueueFamilyPropertyCount, QueueFamilyProperties);
+		VULKANAPINAMESPACE::vkGetPhysicalDeviceQueueFamilyProperties2(PhysicalDevice, QueueFamilyPropertyCount, QueueFamilyProperties);
+		FWrapLayer::GetPhysicalDeviceQueueFamilyProperties2(VK_SUCCESS, PhysicalDevice, QueueFamilyPropertyCount, QueueFamilyProperties);
 	}
 
 	static FORCEINLINE_DEBUGGABLE void  vkGetPhysicalDeviceMemoryProperties(VkPhysicalDevice PhysicalDevice, VkPhysicalDeviceMemoryProperties* MemoryProperties)

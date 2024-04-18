@@ -849,7 +849,7 @@ namespace VulkanRHI
 
 			VkDeviceFaultCountsEXT FaultCounts;
 			ZeroVulkanStruct(FaultCounts, VK_STRUCTURE_TYPE_DEVICE_FAULT_COUNTS_EXT);
-			Result = vkGetDeviceFaultInfoEXT(DeviceHandle, &FaultCounts, nullptr);
+			Result = VulkanRHI::vkGetDeviceFaultInfoEXT(DeviceHandle, &FaultCounts, nullptr);
 			if (Result == VK_SUCCESS)
 			{
 				VkDeviceFaultInfoEXT FaultInfo;
@@ -867,7 +867,7 @@ namespace VulkanRHI
 				VendorBinaryData.SetNumZeroed(FaultCounts.vendorBinarySize);
 				FaultInfo.pVendorBinaryData = VendorBinaryData.GetData();
 
-				Result = vkGetDeviceFaultInfoEXT(DeviceHandle, &FaultCounts, &FaultInfo);
+				Result = VulkanRHI::vkGetDeviceFaultInfoEXT(DeviceHandle, &FaultCounts, &FaultInfo);
 				if (Result == VK_SUCCESS)
 				{
 					// :todo-jn: match these up to resources

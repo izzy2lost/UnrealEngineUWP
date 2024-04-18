@@ -2244,6 +2244,16 @@ void FWrapLayer::GetPhysicalDeviceFormatProperties(VkResult Result, VkPhysicalDe
 	}
 }
 
+void FWrapLayer::GetPhysicalDeviceFormatProperties2(VkResult Result, VkPhysicalDevice PhysicalDevice, VkFormat Format, VkFormatProperties2* FormatProperties)
+{
+	if (Result == VK_RESULT_MAX_ENUM)
+	{
+#if VULKAN_ENABLE_DUMP_LAYER
+		PrintfBegin(FString::Printf(TEXT("vkGetPhysicalDeviceFormatProperties2(PhysicalDevice=0x%p, Format=%d, FormatProperties2=0x%p)[...]"), PhysicalDevice, (int32)Format, FormatProperties));
+#endif
+	}
+}
+
 #if VULKAN_ENABLE_DUMP_LAYER
 static void DumpImageFormatProperties(const VkImageFormatProperties* pProps)
 {
@@ -3601,6 +3611,16 @@ void FWrapLayer::GetPhysicalDeviceQueueFamilyProperties(VkResult Result, VkPhysi
 	{
 #if VULKAN_ENABLE_DUMP_LAYER
 		PrintfBeginResult(FString::Printf(TEXT("vkGetPhysicalDeviceQueueFamilyProperties(PhysicalDevice=0x%p, QueueFamilyPropertyCount=0x%p, QueueFamilyProperties=0x%p)[...]"), PhysicalDevice, QueueFamilyPropertyCount, QueueFamilyProperties));
+#endif
+	}
+}
+
+void FWrapLayer::GetPhysicalDeviceQueueFamilyProperties2(VkResult Result, VkPhysicalDevice PhysicalDevice, uint32* QueueFamilyPropertyCount, VkQueueFamilyProperties2* QueueFamilyProperties)
+{
+	if (Result == VK_RESULT_MAX_ENUM)
+	{
+#if VULKAN_ENABLE_DUMP_LAYER
+		PrintfBeginResult(FString::Printf(TEXT("vkGetPhysicalDeviceQueueFamilyProperties2(PhysicalDevice=0x%p, QueueFamilyPropertyCount=0x%p, QueueFamilyProperties2=0x%p)[...]"), PhysicalDevice, QueueFamilyPropertyCount, QueueFamilyProperties));
 #endif
 	}
 }
