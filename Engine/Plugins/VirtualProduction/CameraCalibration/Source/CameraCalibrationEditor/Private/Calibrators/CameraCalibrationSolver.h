@@ -56,7 +56,7 @@ enum class ECalibrationFlags : uint32
 	FixFocalLength = 1 << 2,     /** The solver will not optimize the focal length */
 	FixPrincipalPoint = 1 << 3,  /** The solver will not optimize the principal point */
 	FixExtrinsics = 1 << 4,      /** The solver will not optimize the camera extrinsics */
-	FixZeroDistortion = 1 << 5,  /** The solver will fix all distortion values at 0 */
+	FixDistortion = 1 << 5,      /** The solver will fix all distortion values at 0 */
 	FixAspectRatio = 1 << 6      /** The solver will respect the input aspect ratio when solving for Fx and Fy */
 };
 
@@ -77,6 +77,7 @@ public:
 		const FIntPoint ImageSize,
 		const FVector2D& FocalLength,
 		const FVector2D& ImageCenter,
+		const TArray<float>& DistortionParameters,
 		const TArray<FTransform>& CameraPoses,
 		TSubclassOf<ULensModel> LensModel,
 		double PixelAspect,
@@ -103,6 +104,7 @@ public:
 		const FIntPoint ImageSize,
 		const FVector2D& FocalLength,
 		const FVector2D& ImageCenter,
+		const TArray<float>& DistortionParameters,
 		const TArray<FTransform>& CameraPoses,
 		TSubclassOf<ULensModel> LensModel,
 		double PixelAspect,
@@ -152,6 +154,7 @@ public:
 		const FIntPoint ImageSize,
 		const FVector2D& FocalLength,
 		const FVector2D& ImageCenter,
+		const TArray<float>& DistortionParameters,
 		const TArray<FTransform>& CameraPoses,
 		TSubclassOf<ULensModel> LensModel,
 		double PixelAspect,

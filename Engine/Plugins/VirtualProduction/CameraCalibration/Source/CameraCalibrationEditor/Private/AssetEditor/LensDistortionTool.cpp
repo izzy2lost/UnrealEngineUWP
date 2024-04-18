@@ -29,6 +29,10 @@
 
 #define LOCTEXT_NAMESPACE "LensDistortionTool"
 
+#if WITH_EDITOR
+static TAutoConsoleVariable<bool> CVarSolveNodalOffset(TEXT("LensDistortionTool.SolveNodalOffset"), false, TEXT("If true, and if the calibration result contained a valid nodal offset, that offset will be added to the LensFile in addition to distortion."));
+#endif
+
 namespace UE::CameraCalibration::Private::LensDistortionTool
 {
 	static const FString SessionDateTimeField(TEXT("SessionDateTime"));
@@ -503,7 +507,7 @@ void ULensDistortionTool::SaveCalibrationResult()
 			UE_LOG(LogCameraCalibrationEditor, Log, TEXT("The LensFile's data mode was set to ST Map, but the latest calibration result returned distortion parameters. Data mode will change to Parameters."));
 		}
 
-		FScopedTransaction Transaction(LOCTEXT("SaveCurrentDistortionData", "Save Current Distortion Data"));
+		FScopedTransaction Transaction(LOCTEXT("SaveCurrentDistortionData", "Save Calibrated Distortion to Lens Asset"));
 		LensFile->Modify();
 
 		LensFile->AddDistortionPoint(CalibrationResult.EvaluatedFocus, CalibrationResult.EvaluatedZoom, CalibrationResult.Parameters, CalibrationResult.FocalLength);
@@ -517,12 +521,24 @@ void ULensDistortionTool::SaveCalibrationResult()
 			UE_LOG(LogCameraCalibrationEditor, Log, TEXT("The LensFile's data mode was set to Parameters, but the latest calibration result returned an ST Map. Data mode will change to ST Map."));
 		}
 
-		FScopedTransaction Transaction(LOCTEXT("SaveCurrentDistortionData", "Save Current Distortion Data"));
+		FScopedTransaction Transaction(LOCTEXT("SaveCurrentDistortionData", "Save Calibrated Distortion to Lens Asset"));
 		LensFile->Modify();
 
 		LensFile->AddSTMapPoint(CalibrationResult.EvaluatedFocus, CalibrationResult.EvaluatedZoom, CalibrationResult.STMap);
 		LensFile->AddFocalLengthPoint(CalibrationResult.EvaluatedFocus, CalibrationResult.EvaluatedZoom, CalibrationResult.FocalLength);
 		LensFile->AddImageCenterPoint(CalibrationResult.EvaluatedFocus, CalibrationResult.EvaluatedZoom, CalibrationResult.ImageCenter);
+	}
+
+	// If the calibration result contains a meaningful nodal offset result, add it to the Lens File
+	if (CVarSolveNodalOffset.GetValueOnGameThread())
+	{
+		if (!CalibrationResult.NodalOffset.LocationOffset.Equals(FVector::ZeroVector) || !CalibrationResult.NodalOffset.RotationOffset.Equals(FQuat::Identity))
+		{
+			FScopedTransaction Transaction(LOCTEXT("SaveNodalOffsetResult", "Save Calibrated Nodal Offset to Lens Asset"));
+			LensFile->Modify();
+
+			LensFile->AddNodalOffsetPoint(CalibrationResult.EvaluatedFocus, CalibrationResult.EvaluatedFocus, CalibrationResult.NodalOffset);
+		}
 	}
 
 	if (UCameraLensDistortionAlgo* Algo = GetAlgo())

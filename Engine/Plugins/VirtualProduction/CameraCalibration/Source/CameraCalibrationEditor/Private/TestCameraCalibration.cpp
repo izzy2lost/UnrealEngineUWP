@@ -127,7 +127,7 @@ namespace UE::Private::CameraCalibration::AutomatedTests
 			UE_LOG(LogTestCameraCalibration, Log, TEXT("Fix Focal Length: %s"), *GetSolverFlagString(Test.SolverSettings.bFixFocalLength));
 			UE_LOG(LogTestCameraCalibration, Log, TEXT("Fix Image Center: %s"), *GetSolverFlagString(Test.SolverSettings.bFixPrincipalPoint));
 			UE_LOG(LogTestCameraCalibration, Log, TEXT("Fix Extrinsics: %s"), *GetSolverFlagString(Test.SolverSettings.bFixExtrinsics));
-			UE_LOG(LogTestCameraCalibration, Log, TEXT("Fix Zero Distortion: %s"), *GetSolverFlagString(Test.SolverSettings.bFixZeroDistortion));
+			UE_LOG(LogTestCameraCalibration, Log, TEXT("Fix Distortion: %s"), *GetSolverFlagString(Test.SolverSettings.bFixDistortion));
 			UE_LOG(LogTestCameraCalibration, Log, TEXT("Fix Aspect Ratio: %s"), *GetSolverFlagString(Test.SolverSettings.bFixAspectRatio));
 		}
 
@@ -175,9 +175,9 @@ namespace UE::Private::CameraCalibration::AutomatedTests
 		{
 			EnumAddFlags(SolverFlags, ECalibrationFlags::FixExtrinsics);
 		}
-		if (TestSettings->bFixZeroDistortion)
+		if (TestSettings->bFixDistortion)
 		{
-			EnumAddFlags(SolverFlags, ECalibrationFlags::FixZeroDistortion);
+			EnumAddFlags(SolverFlags, ECalibrationFlags::FixDistortion);
 		}
 
 		/** 
@@ -348,7 +348,7 @@ namespace UE::Private::CameraCalibration::AutomatedTests
 		}
 
 		FVector2D CalibratedImageCenter = ImageCenter;
-		TArray<float> CalibratedDistortionParameters;
+		TArray<float> DistortionGuess;
 
 		ULensDistortionSolverOpenCV* TestSolver = NewObject<ULensDistortionSolverOpenCV>();
 
@@ -358,6 +358,7 @@ namespace UE::Private::CameraCalibration::AutomatedTests
 			ImageSize,
 			CalibratedFxFy,
 			CalibratedImageCenter,
+			DistortionGuess,
 			EstimatedCameraPoses,
 			USphericalLensModel::StaticClass(),
 			PixelAspect,
@@ -788,9 +789,9 @@ namespace UE::Private::CameraCalibration::AutomatedTests
 		{
 			EnumAddFlags(SolverFlags, ECalibrationFlags::FixExtrinsics);
 		}
-		if (TestOptional(SolverSettings.bFixZeroDistortion))
+		if (TestOptional(SolverSettings.bFixDistortion))
 		{
-			EnumAddFlags(SolverFlags, ECalibrationFlags::FixZeroDistortion);
+			EnumAddFlags(SolverFlags, ECalibrationFlags::FixDistortion);
 		}
 		if (TestOptional(SolverSettings.bFixAspectRatio))
 		{
@@ -841,6 +842,9 @@ namespace UE::Private::CameraCalibration::AutomatedTests
 		TArray<FTransform> CameraPoseGuesses;
 		CameraPoseGuesses.Empty();
 
+		TArray<float> InitialDistortion;
+		InitialDistortion.Empty();
+
 		const FVector2D FocalLengthGuessInPixels = CalibrationTest.CameraProfile.ConvertFocalLengthToPixels(SolverSettings.FocalLengthGuess);
 
 		FDistortionCalibrationResult Result = TestSolver->Solve(
@@ -849,6 +853,7 @@ namespace UE::Private::CameraCalibration::AutomatedTests
 			CalibrationTest.CameraProfile.ImageSize,
 			FocalLengthGuessInPixels,
 			SolverSettings.ImageCenterGuess,
+			InitialDistortion,
 			CameraPoseGuesses,
 			USphericalLensModel::StaticClass(),
 			1.0,

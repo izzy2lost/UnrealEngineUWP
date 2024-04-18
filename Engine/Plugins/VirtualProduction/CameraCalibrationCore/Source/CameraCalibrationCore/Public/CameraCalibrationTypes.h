@@ -38,6 +38,10 @@ struct FDistortionCalibrationResult
 	UPROPERTY(BlueprintReadWrite, Category = "Distortion")
 	TArray<FTransform> CameraPoses;
 
+	/** Calibrated nodal offset result */
+	UPROPERTY(BlueprintReadWrite, Category = "Distortion")
+	FNodalPointOffset NodalOffset;
+
 	/** Distortion parameters for the model specified by the lens file. And empty parameter array implies that there is a valid ST Map instead. */
 	UPROPERTY(BlueprintReadWrite, Category = "Distortion")
 	FDistortionInfo Parameters;

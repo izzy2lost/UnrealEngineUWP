@@ -4,6 +4,7 @@
 
 #include "CameraLensDistortionAlgo.h"
 
+#include "CameraCalibrationSolver.h"
 #include "LensFile.h"
 
 #include "CameraLensDistortionAlgoPoints.generated.h"
@@ -58,6 +59,10 @@ struct FLensDistortionPointsCameraData
 	// The unique id of the calibrator object. Used to detect calibrator selection changes during a calibration session.
 	UPROPERTY()
 	uint32 CalibratorUniqueId = INDEX_NONE;
+
+	// The camera pose
+	UPROPERTY()
+	FTransform Pose = FTransform::Identity;
 
 	// Input focus from lens file evaluation data
 	UPROPERTY()
@@ -119,15 +124,10 @@ public:
 	virtual FName ShortName() const override { return TEXT("Points"); };
 	virtual void OnDistortionSavedToLens() override;
 
-	virtual bool GetLensDistortion(
-		float& OutFocus,
-		float& OutZoom,
-		FDistortionInfo& OutDistortionInfo,
-		FFocalLengthInfo& OutFocalLengthInfo,
-		FImageCenterInfo& OutImageCenterInfo,
-		TSubclassOf<ULensModel>& OutLensModel,
-		double& OutError,
-		FText& OutErrorMessage) override;
+	virtual FDistortionCalibrationTask BeginCalibration(FText& OutErrorMessage) override;
+	virtual void CancelCalibration() override;
+	virtual bool GetCalibrationStatus(FText& StatusText) const override;
+	virtual bool SupportsAsyncCalibration() override { return true; };
 
 	virtual bool HasCalibrationData() const override;
 	virtual void PreImportCalibrationData() override;
@@ -189,6 +189,9 @@ protected:
 
 	/** The value of the current focal length of the lens (in mm), used to set a guess for the camera intrinsics fx/fy */
 	double FocalLengthEstimate = 0.0;
+
+	/** Solver instance that will run the distortion calibration */
+	TObjectPtr<ULensDistortionSolver> Solver;
 
 protected:
 

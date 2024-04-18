@@ -3,6 +3,8 @@
 #include "CameraCalibrationUtilsPrivate.h"
 
 #include "CalibrationPointComponent.h"
+#include "Calibrators/CameraCalibrationSolver.h"
+#include "CameraCalibrationUtils.h"
 #include "Editor.h"
 #include "Engine/Level.h"
 #include "Engine/Texture2D.h"
@@ -199,5 +201,54 @@ namespace UE::CameraCalibration::Private
 			Texture->GetPlatformData()->Mips[0].BulkData.Unlock();
 			Texture->UpdateResource();
 		}
+	}
+
+	void GroupPointsByCameraPose(TArray<FObjectPoints>& InOutObjectPoints, TArray<FImagePoints>& InOutImagePoints, TArray<FTransform>& InOutCameraPoses)
+	{
+		const int NumPoses = InOutCameraPoses.Num();
+		if (!ensure(NumPoses == InOutObjectPoints.Num()) && (NumPoses == InOutImagePoints.Num()))
+		{
+			return;
+		}
+
+		TArray<FObjectPoints> GroupedObjectPoints;
+		TArray<FImagePoints> GroupedImagePoints;
+		TArray<FTransform> GroupedCameraPoses;
+
+		FTransform LastCameraPose = InOutCameraPoses[0];
+		FTransform CurrentCameraPose;
+
+		FObjectPoints CurrentObjectPoints;
+		FImagePoints CurrentImagePoints;
+		for (int32 PoseIndex = 0; PoseIndex < NumPoses; ++PoseIndex)
+		{
+			CurrentCameraPose = InOutCameraPoses[PoseIndex];
+
+			if (!FCameraCalibrationUtils::IsNearlyEqual(CurrentCameraPose, LastCameraPose))
+			{
+				GroupedCameraPoses.Add(LastCameraPose);
+				LastCameraPose = CurrentCameraPose;
+
+				GroupedObjectPoints.Add(CurrentObjectPoints);
+				CurrentObjectPoints.Points.Reset();
+
+				GroupedImagePoints.Add(CurrentImagePoints);
+				CurrentImagePoints.Points.Reset();
+			}
+
+			CurrentObjectPoints.Points.Append(InOutObjectPoints[PoseIndex].Points);
+			CurrentImagePoints.Points.Append(InOutImagePoints[PoseIndex].Points);
+		}
+
+		if (!CurrentObjectPoints.Points.IsEmpty())
+		{
+			GroupedObjectPoints.Add(CurrentObjectPoints);
+			GroupedImagePoints.Add(CurrentImagePoints);
+			GroupedCameraPoses.Add(LastCameraPose);
+		}
+
+		InOutObjectPoints = GroupedObjectPoints;
+		InOutImagePoints = GroupedImagePoints;
+		InOutCameraPoses = GroupedCameraPoses;
 	}
 }

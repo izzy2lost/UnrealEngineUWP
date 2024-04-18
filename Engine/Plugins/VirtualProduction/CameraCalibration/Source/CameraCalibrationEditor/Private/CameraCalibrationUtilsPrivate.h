@@ -7,6 +7,9 @@
 
 class UCalibrationPointComponent;
 
+struct FObjectPoints;
+struct FImagePoints;
+
 /** Structure representing an aruco marker, including ID, Name, and corner coordinates in 2D image space and 3D world space */
 USTRUCT()
 struct FArucoCalibrationPoint
@@ -52,4 +55,7 @@ namespace UE::CameraCalibration::Private
 
 	/** Set the texture data to the input array of pixels */
 	void SetTextureData(UTexture2D* Texture, const TArray<FColor>& PixelData);
+
+	/** Group the input points together if they share the same camera pose, and output the unique camera poses */
+	void GroupPointsByCameraPose(TArray<FObjectPoints>& InOutObjectPoints, TArray<FImagePoints>& InOutImagePoints, TArray<FTransform>& InOutCameraPoses);
 }

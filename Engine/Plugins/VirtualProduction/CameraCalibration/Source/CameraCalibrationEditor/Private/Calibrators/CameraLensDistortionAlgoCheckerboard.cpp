@@ -39,9 +39,10 @@
 #if WITH_EDITOR
 static TAutoConsoleVariable<bool> CVarUseIntrinsicsGuess(TEXT("LensDistortionCheckerboard.UseIntrinsicsGuess"), true, TEXT("If true, the solver initializes the camera intrinsics to a user-provided estimate. Otherwise, the solver will compute the initial values."));
 static TAutoConsoleVariable<bool> CVarFixExtrinsics(TEXT("LensDistortionCheckerboard.FixExtrinsics"), false, TEXT("If true, the solver will fix the camera extrinsics to the user-provided camera poses"));
-static TAutoConsoleVariable<bool> CVarFixZeroDistortion(TEXT("LensDistortionCheckerboard.FixZeroDistortion"), false, TEXT("If true, the solver will fix all distortion values to always be 0"));
+static TAutoConsoleVariable<bool> CVarFixDistortion(TEXT("LensDistortionCheckerboard.FixDistortion"), false, TEXT("If true, the solver will not optimize distortion, and will use the input distortion values if any are given, or assume zero distortion otherwise."));
 static TAutoConsoleVariable<bool> CVarUseExtrinsicsGuess(TEXT("LensDistortionCheckerboard.UseExtrinsicsGuess"), false, TEXT("If true, the actual checkerboard and camera poses will be used when running the solver"));
 static TAutoConsoleVariable<bool> CVarUseTrackedCalibrator(TEXT("LensDistortionCheckerboard.UseTrackedCalibrator"), false, TEXT("If true, the 3D points of the checkerboard will come from the tracked pose of the object, otherwise, dummy points will be used."));
+static TAutoConsoleVariable<bool> CVarGroupPointsByCameraPose(TEXT("LensDistortionCheckerboard.GroupPointsByCameraPose"), true, TEXT("If true, the points sent to the solver will be grouped together if they share the same camera pose."));
 #endif
 
 const int UCameraLensDistortionAlgoCheckerboard::DATASET_VERSION = 1;
@@ -715,6 +716,10 @@ FDistortionCalibrationTask UCameraLensDistortionAlgoCheckerboard::BeginCalibrati
 			Samples3d.Add(Points3d);
 		}
 	}
+	else if (CVarGroupPointsByCameraPose.GetValueOnGameThread())
+	{
+		UE::CameraCalibration::Private::GroupPointsByCameraPose(Samples3d, Samples2d, CameraPoses);
+	}
 
 	ECalibrationFlags SolverFlags = ECalibrationFlags::None;
 
@@ -733,9 +738,9 @@ FDistortionCalibrationTask UCameraLensDistortionAlgoCheckerboard::BeginCalibrati
 		EnumAddFlags(SolverFlags, ECalibrationFlags::FixExtrinsics);
 	}
 
-	if (CVarFixZeroDistortion.GetValueOnGameThread())
+	if (CVarFixDistortion.GetValueOnGameThread())
 	{
-		EnumAddFlags(SolverFlags, ECalibrationFlags::FixZeroDistortion);
+		EnumAddFlags(SolverFlags, ECalibrationFlags::FixDistortion);
 	}
 
 	if (bFixFocalLength)
@@ -748,11 +753,14 @@ FDistortionCalibrationTask UCameraLensDistortionAlgoCheckerboard::BeginCalibrati
 		EnumAddFlags(SolverFlags, ECalibrationFlags::FixPrincipalPoint);
 	}
 
+	FDistortionInfo DistortionGuess;
+	LensFile->GetDistortionPoint(Focus, Zoom, DistortionGuess);
+
 	const TSubclassOf<ULensModel> Model = LensFile->LensInfo.LensModel;
 	
 	Solver = NewObject<ULensDistortionSolver>(this, Tool->GetSolverClass());
 
-	CalibrationTask = UE::Tasks::Launch(UE_SOURCE_LOCATION, [Solver = Solver, Model, Samples3d, Samples2d, ImageSize, FocalLength, ImageCenter, CameraPoses, PixelAspect, SolverFlags, Focus, Zoom]() mutable
+	CalibrationTask = UE::Tasks::Launch(UE_SOURCE_LOCATION, [Solver = Solver, Model, Samples3d, Samples2d, ImageSize, FocalLength, ImageCenter, DistortionGuess, CameraPoses, PixelAspect, SolverFlags, Focus, Zoom]() mutable
 		{
 			FDistortionCalibrationResult Result = Solver->Solve(
 				Samples3d,
@@ -760,6 +768,7 @@ FDistortionCalibrationTask UCameraLensDistortionAlgoCheckerboard::BeginCalibrati
 				ImageSize,
 				FocalLength,
 				ImageCenter,
+				DistortionGuess.Parameters,
 				CameraPoses,
 				Model,
 				PixelAspect,

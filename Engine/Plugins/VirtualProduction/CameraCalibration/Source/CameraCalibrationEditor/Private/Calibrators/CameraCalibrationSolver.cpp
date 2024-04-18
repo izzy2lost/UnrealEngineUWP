@@ -52,6 +52,7 @@ FDistortionCalibrationResult ULensDistortionSolverOpenCV::Solve_Implementation(
 	const FIntPoint ImageSize,
 	const FVector2D& FocalLength,
 	const FVector2D& ImageCenter,
+	const TArray<float>& DistortionParameters,
 	const TArray<FTransform>& CameraPoses,
 	TSubclassOf<ULensModel> LensModel,
 	double PixelAspect,
@@ -95,17 +96,39 @@ FDistortionCalibrationResult ULensDistortionSolverOpenCV::Solve_Implementation(
 	const int NumDistortionCoefficients = LensModel->GetDefaultObject<ULensModel>()->GetNumParameters();
 	cv::Mat DistCoeffs = cv::Mat(1, NumDistortionCoefficients, CV_64F);
 
-	TArray<float> DefaultCoefficients;
-	LensModel->GetDefaultObject<ULensModel>()->GetDefaultParameterArray(DefaultCoefficients);
-
-	for (int CoeffIndex = 0; CoeffIndex < NumDistortionCoefficients; ++CoeffIndex)
+	// If input parameters were provided, they can be used to initialize the solver. Otherwise, the solver will be initialized with the default values for the input model.
+	if (EnumHasAnyFlags(SolverFlags, ECalibrationFlags::UseIntrinsicGuess) && (DistortionParameters.Num() == NumDistortionCoefficients))
 	{
-		DistCoeffs.at<double>(CoeffIndex) = DefaultCoefficients[CoeffIndex];
+		for (int CoeffIndex = 0; CoeffIndex < NumDistortionCoefficients; ++CoeffIndex)
+		{
+			DistCoeffs.at<double>(CoeffIndex) = DistortionParameters[CoeffIndex];
+		}
+	}
+	else
+	{
+		TArray<float> DefaultCoefficients;
+		LensModel->GetDefaultObject<ULensModel>()->GetDefaultParameterArray(DefaultCoefficients);
+
+		for (int CoeffIndex = 0; CoeffIndex < NumDistortionCoefficients; ++CoeffIndex)
+		{
+			DistCoeffs.at<double>(CoeffIndex) = DefaultCoefficients[CoeffIndex];
+		}
 	}
 
 	if (LensModel == UAnamorphicLensModel::StaticClass())
 	{
 		DistCoeffs.at<double>(0) = PixelAspect;
+	}
+	else if (LensModel == USphericalLensModel::StaticClass())
+	{
+		// The spherical distortion coefficients in our model are in a different order than they appear in the solver
+		// so the initial values need to be rearranged before initializing the solver
+		const double K3 = DistCoeffs.at<double>(2);
+		const double P1 = DistCoeffs.at<double>(3);
+		const double P2 = DistCoeffs.at<double>(4);
+		DistCoeffs.at<double>(2) = P1;
+		DistCoeffs.at<double>(3) = P2;
+		DistCoeffs.at<double>(4) = K3;
 	}
 
 	cv::Size CvImageSize = cv::Size(ImageSize.X, ImageSize.Y);
@@ -272,7 +295,7 @@ FDistortionCalibrationResult ULensDistortionSolverOpenCV::Solve_Implementation(
 			Mask[ParamIndex] = 0;
 		}
 	}
-	if (EnumHasAnyFlags(SolverFlags, ECalibrationFlags::FixZeroDistortion))
+	if (EnumHasAnyFlags(SolverFlags, ECalibrationFlags::FixDistortion))
 	{
 		for (int ParamIndex = 0; ParamIndex < NumDistortionCoefficients; ++ParamIndex)
 		{
@@ -475,6 +498,17 @@ FDistortionCalibrationResult ULensDistortionSolverOpenCV::Solve_Implementation(
 		FOpenCVHelper::MakeCameraPoseFromObjectVectors(Rotation, Translation, CameraPoseForImage);
 
 		Result.CameraPoses.Add(CameraPoseForImage);
+	}
+
+	// If the solver computed exactly one calibrated camera pose, we can compute a tracking offset based on the input camera pose
+	if (Result.CameraPoses.Num() == 1 && CameraPoses.Num() == 1)
+	{
+		const FTransform& TrackedCameraPose = CameraPoses[0];
+		const FTransform& CalibratedCameraPose = Result.CameraPoses[0];
+		const FTransform TrackingOffset = CalibratedCameraPose * TrackedCameraPose.Inverse();
+
+		Result.NodalOffset.LocationOffset = TrackingOffset.GetLocation();
+		Result.NodalOffset.RotationOffset = TrackingOffset.GetRotation();
 	}
 
 	if (LensModel == UAnamorphicLensModel::StaticClass())

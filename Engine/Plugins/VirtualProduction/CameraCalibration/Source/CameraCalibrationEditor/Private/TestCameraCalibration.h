@@ -45,10 +45,10 @@ struct FLocationRotation
 	GENERATED_BODY()
 
 	UPROPERTY()
-	FVector Location;
+	FVector Location = FVector::ZeroVector;
 
 	UPROPERTY()
-	FRotator Rotation;
+	FRotator Rotation = FRotator::ZeroRotator;
 };
 
 /** Description of a camera / lens, useful for projecting 3D calibrator points to 2D */
@@ -129,7 +129,7 @@ struct FSolverSettings
 	TOptional<bool> bFixExtrinsics;
 	
 	UPROPERTY()
-	TOptional<bool> bFixZeroDistortion;
+	TOptional<bool> bFixDistortion;
 	
 	UPROPERTY()
 	TOptional<bool> bFixAspectRatio;
