@@ -165,6 +165,19 @@ namespace Metasound
 			// No op if not supported
 			return true;
 		}
+
+		template<typename ArrayType, typename std::enable_if<TArrayNodeSupport<ArrayType>::bIsArrayNumSupported, bool>::type = true>
+		bool RegisterArrayLastIndexNode()
+		{
+			return ensureAlways(RegisterNodeWithFrontend<Metasound::TArrayLastIndexNode<ArrayType>>());
+		}
+
+		template<typename ArrayType, typename std::enable_if<!TArrayNodeSupport<ArrayType>::bIsArrayNumSupported, bool>::type = true>
+		bool RegisterArrayLastIndexNode()
+		{
+			// No op if not supported
+			return true;
+		}
 	}
 
 	/** Registers all available array nodes which can be instantiated for the given
@@ -183,6 +196,7 @@ namespace Metasound
 		bSuccess = bSuccess && RegisterArrayConcatNode<ArrayType>();
 		bSuccess = bSuccess && RegisterArrayShuffleNode<ArrayType>();
 		bSuccess = bSuccess && RegisterArrayRandomGetNode<ArrayType>();
+		bSuccess = bSuccess && RegisterArrayLastIndexNode<ArrayType>();
 		return bSuccess;
 	}
 }
