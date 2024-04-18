@@ -631,28 +631,31 @@ mu::NodeSurfacePtr GenerateMutableSourceSurface(const UEdGraphPin * Pin, FMutabl
 							const uint32 BaseLODBias = ComputeLODBiasForTexture(GenerationContext, *ReferenceTexture) + SurfaceLODBias;
 							mu::NodeImagePtr LastImage = ResizeTextureByNumMips(ImageNode, BaseLODBias);
 
-							mu::EMipmapFilterType MipGenerationFilterType = Invoke([&]()
+							if (ReferenceTexture->MipGenSettings != TextureMipGenSettings::TMGS_NoMipmaps)
 							{
-								if (ReferenceTexture)
+								mu::EMipmapFilterType MipGenerationFilterType = Invoke([&]()
 								{
-									switch(ReferenceTexture->MipGenSettings)
+									if (ReferenceTexture)
 									{
-									case TextureMipGenSettings::TMGS_SimpleAverage: return mu::EMipmapFilterType::SimpleAverage;
-									case TextureMipGenSettings::TMGS_Unfiltered:    return mu::EMipmapFilterType::Unfiltered;
-									default: return mu::EMipmapFilterType::SimpleAverage;
+										switch (ReferenceTexture->MipGenSettings)
+										{
+											case TextureMipGenSettings::TMGS_SimpleAverage: return mu::EMipmapFilterType::SimpleAverage;
+											case TextureMipGenSettings::TMGS_Unfiltered:    return mu::EMipmapFilterType::Unfiltered;
+											default: return mu::EMipmapFilterType::SimpleAverage;
+										}
 									}
-								}
 
-								return mu::EMipmapFilterType::SimpleAverage;
-							});
+									return mu::EMipmapFilterType::SimpleAverage;
+								});
 
 
-							mu::NodeImageMipmapPtr MipmapImage = new mu::NodeImageMipmap();
-							MipmapImage->SetSource(LastImage.get());
-							MipmapImage->SetMipmapGenerationSettings(MipGenerationFilterType, mu::EAddressMode::None);
+								mu::NodeImageMipmapPtr MipmapImage = new mu::NodeImageMipmap();
+								MipmapImage->SetSource(LastImage.get());
+								MipmapImage->SetMipmapGenerationSettings(MipGenerationFilterType, mu::EAddressMode::None);
 
-							MipmapImage->SetMessageContext(Node);
-							LastImage = MipmapImage;
+								MipmapImage->SetMessageContext(Node);
+								LastImage = MipmapImage;
+							}
 
 							// Apply composite image. This needs to be computed after mipmaps generation. 	
 							if (ReferenceTexture && ReferenceTexture->GetCompositeTexture() && ReferenceTexture->CompositeTextureMode != CTM_Disabled)
@@ -665,12 +668,12 @@ mu::NodeSurfacePtr GenerateMutableSourceSurface(const UEdGraphPin * Pin, FMutabl
 								{
 									switch (CompositeTextureMode)
 									{
-									case CTM_NormalRoughnessToRed: return mu::ECompositeImageMode::CIM_NormalRoughnessToRed;
-									case CTM_NormalRoughnessToGreen: return mu::ECompositeImageMode::CIM_NormalRoughnessToGreen;
-									case CTM_NormalRoughnessToBlue: return mu::ECompositeImageMode::CIM_NormalRoughnessToBlue;
-									case CTM_NormalRoughnessToAlpha: return mu::ECompositeImageMode::CIM_NormalRoughnessToAlpha;
+										case CTM_NormalRoughnessToRed: return mu::ECompositeImageMode::CIM_NormalRoughnessToRed;
+										case CTM_NormalRoughnessToGreen: return mu::ECompositeImageMode::CIM_NormalRoughnessToGreen;
+										case CTM_NormalRoughnessToBlue: return mu::ECompositeImageMode::CIM_NormalRoughnessToBlue;
+										case CTM_NormalRoughnessToAlpha: return mu::ECompositeImageMode::CIM_NormalRoughnessToAlpha;
 
-									default: return mu::ECompositeImageMode::CIM_Disabled;
+										default: return mu::ECompositeImageMode::CIM_Disabled;
 									}
 								}();
 

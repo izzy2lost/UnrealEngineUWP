@@ -2333,6 +2333,7 @@ bool FMutableModelImageProperties::operator!=(const FMutableModelImageProperties
 		FlipGreenChannel != Other.FlipGreenChannel ||
 		IsPassThrough != Other.IsPassThrough ||
 		LODBias != Other.LODBias ||
+		MipGenSettings != Other.MipGenSettings ||
 		LODGroup != Other.LODGroup ||
 		AddressX != Other.AddressX ||
 		AddressY != Other.AddressY;
@@ -2404,6 +2405,7 @@ FArchive& operator<<(FArchive& Ar, FMutableModelImageProperties& ImageProps)
 	}
 
 	Ar << ImageProps.LODBias;
+	Ar << ImageProps.MipGenSettings;
 	Ar << ImageProps.LODGroup;
 
 	Ar << ImageProps.AddressX;

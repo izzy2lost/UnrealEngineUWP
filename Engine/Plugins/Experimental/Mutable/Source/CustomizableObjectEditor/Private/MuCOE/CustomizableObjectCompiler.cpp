@@ -1024,6 +1024,7 @@ void FCustomizableObjectCompiler::CompileInternal(bool bAsync)
 										ImageProp.bFlipGreenChannel,
 										ImageProp.bIsPassThrough,
 										ImageProp.LODBias,
+										ImageProp.MipGenSettings,
 										ImageProp.LODGroup,
 										ImageProp.AddressX, ImageProp.AddressY });
 		}

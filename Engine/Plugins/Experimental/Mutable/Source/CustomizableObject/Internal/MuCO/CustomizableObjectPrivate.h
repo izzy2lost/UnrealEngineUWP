@@ -227,20 +227,22 @@ struct CUSTOMIZABLEOBJECT_API FMutableModelImageProperties
 		, FlipGreenChannel(0)
 		, IsPassThrough(0)
 		, LODBias(0)
+		, MipGenSettings(TextureMipGenSettings::TMGS_FromTextureGroup)
 		, LODGroup(TEXTUREGROUP_World)
 		, AddressX(TA_Clamp)
 		, AddressY(TA_Clamp)
 	{}
 
 	FMutableModelImageProperties(const FString& InTextureParameterName, TextureFilter InFilter, uint32 InSRGB,
-		uint32 InFlipGreenChannel, uint32 bInIsPassThrough, int32 InLODBias, TEnumAsByte<enum TextureGroup> InLODGroup,
-		TEnumAsByte<enum TextureAddress> InAddressX, TEnumAsByte<enum TextureAddress> InAddressY)
+		uint32 InFlipGreenChannel, uint32 bInIsPassThrough, int32 InLODBias, TEnumAsByte<TextureMipGenSettings> InMipGenSettings, 
+		TEnumAsByte<enum TextureGroup> InLODGroup, TEnumAsByte<enum TextureAddress> InAddressX, TEnumAsByte<enum TextureAddress> InAddressY)
 		: TextureParameterName(InTextureParameterName)
 		, Filter(InFilter)
 		, SRGB(InSRGB)
 		, FlipGreenChannel(InFlipGreenChannel)
 		, IsPassThrough(bInIsPassThrough)
 		, LODBias(InLODBias)
+		, MipGenSettings(InMipGenSettings)
 		, LODGroup(InLODGroup)
 		, AddressX(InAddressX)
 		, AddressY(InAddressY)
@@ -264,6 +266,9 @@ struct CUSTOMIZABLEOBJECT_API FMutableModelImageProperties
 
 	UPROPERTY()
 	int32 LODBias;
+
+	UPROPERTY()
+	TEnumAsByte<TextureMipGenSettings> MipGenSettings;
 
 	UPROPERTY()
 	TEnumAsByte<enum TextureGroup> LODGroup;
@@ -880,6 +885,6 @@ public:
 	// This is a manual version number for the binary blobs in this asset.
 	// Increasing it invalidates all the previously compiled models.
 	// Warning: If while merging code both versions have changed, take the highest+1.
-	static constexpr int32 CurrentSupportedVersion = 443;
+	static constexpr int32 CurrentSupportedVersion = 447;
 };
 
