@@ -441,6 +441,9 @@ struct FFortniteMainBranchObjectVersion
 		// Add support for anytype in dataflow
 		DataflowAnyTypeSupport,
 
+		// Adding a new flag in RBAN Solver Setting to be able to use manifolds
+		PhysicsAssetUseManifoldFlags,
+
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,
 		LatestVersion = VersionPlusOne - 1

@@ -38,7 +38,7 @@ FPhysicsAssetSolverSettings::FPhysicsAssetSolverSettings()
 	, MaxDepenetrationVelocity(0.0f)
 	, FixedTimeStep(0.0f)
 	, bUseLinearJointSolver(true)
-	, bUseManifolds(false)
+	, bUseManifolds(true)
 {
 }
 
@@ -141,6 +141,7 @@ void UPhysicsAsset::DeclareConstructClasses(TArray<FTopLevelAssetPath>& OutConst
 void UPhysicsAsset::Serialize(FArchive& Ar)
 {
 	Ar.UsingCustomVersion(FFortniteSeasonBranchObjectVersion::GUID);
+	Ar.UsingCustomVersion(FFortniteMainBranchObjectVersion::GUID);
 
 	Super::Serialize(Ar);
 	Ar << CollisionDisableTable;
@@ -164,6 +165,12 @@ void UPhysicsAsset::Serialize(FArchive& Ar)
 		SolverSettings.ProjectionIterations = SolverIterations.SolverPushOutIterations;
 		SolverSettings.bUseLinearJointSolver = false;
 		SolverSettings.CullDistance = 1.0f;
+	}
+
+	const bool bShouldNotUseManifoldOnOldAsset = (Ar.CustomVer(FFortniteMainBranchObjectVersion::GUID) < FFortniteMainBranchObjectVersion::PhysicsAssetUseManifoldFlags);
+	if (bShouldNotUseManifoldOnOldAsset)
+	{
+		SolverSettings.bUseManifolds = false;
 	}
 
 	Ar.UsingCustomVersion(FFrameworkObjectVersion::GUID);
