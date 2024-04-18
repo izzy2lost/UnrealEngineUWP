@@ -627,6 +627,11 @@ bool FStorageServerPlatformFile::IterateDirectoryStat(const TCHAR* Directory, FD
 	return bResult;
 }
 
+IMappedFileHandle* FStorageServerPlatformFile::OpenMapped(const TCHAR* Filename)
+{
+	return LowerLevel->OpenMapped(Filename);
+}
+
 bool FStorageServerPlatformFile::DirectoryExists(const TCHAR* Directory)
 {
 	TStringBuilder<1024> StorageServerDirectory;
