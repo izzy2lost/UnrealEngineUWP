@@ -40,9 +40,14 @@ namespace UE::PoseSearch
 		virtual FReply OnMouseButtonDoubleClick(const FGeometry& InMyGeometry, const FPointerEvent& InMouseEvent) override;
 
 		
-		EVisibility GetSelectedActorIconVisbility() const;
+		EVisibility GetSelectedActorIconVisibility() const;
 
-		FSlateColor GetNameTextColorAndOpacity() const;
+		void OnAssetPickerObjectChanged(const FAssetData& AssetData);
+		FString GetAssetPickerObjectPath() const;
+		bool GetAssetPickerIsEnabled() const;
+		EVisibility GetAssetPickerCustomContentSlotVisibility() const;
+		FText GetAssetPickerText() const;
+		FSlateColor GetAssetPickerCustomContentSlotTextColor() const;
 		
 		FSlateColor GetLoopingColorAndOpacity() const;
 		FText GetLoopingToolTip() const;

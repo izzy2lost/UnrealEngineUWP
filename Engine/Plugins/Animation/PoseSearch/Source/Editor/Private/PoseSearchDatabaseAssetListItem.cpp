@@ -306,47 +306,23 @@ namespace UE::PoseSearch
 				if (const FPoseSearchDatabaseAnimationAssetBase* DatabaseAnimationAsset = Database->GetAnimationAssetBase(SourceAssetIdx))
 				{
 					SAssignNew(AssetPickerWidget, SObjectPropertyEntryBox)
-					/*.CustomContentSlot()
-					[
-						SNew(STextBlock)
-						.Text(this, &SDatabaseAssetListItem::GetName)
-						.ColorAndOpacity(this, &SDatabaseAssetListItem::GetNameTextColorAndOpacity)
-					]*/
-					.DisplayThumbnail(false)
-					.IsEnabled_Lambda([ViewModelPtr = EditorViewModel.Pin(), TreeNodePtr = WeakAssetTreeNode.Pin()]()
-					{
-						if (const UPoseSearchDatabase* Database = ViewModelPtr->GetPoseSearchDatabase())
-						{
-							if (Database->GetAnimationAssets().IsValidIndex(TreeNodePtr->SourceAssetIdx))
-							{
-								return ViewModelPtr->IsEnabled(TreeNodePtr->SourceAssetIdx);
-							}
-						}
-
-						return false;
-					})
+					.AllowClear(false)
 					.AllowedClass(DatabaseAnimationAsset->GetAnimationAssetStaticClass())
-					.ObjectPath_Lambda([Database, SourceAssetIdx]()
-					{
-						if (const FPoseSearchDatabaseAnimationAssetBase* DatabaseAnimationAsset = Database->GetAnimationAssetBase(SourceAssetIdx))
-						{
-							if (const UObject* AnimAsset = DatabaseAnimationAsset->GetAnimationAsset())
-							{
-								return AnimAsset->GetPathName();
-							}
-						}
-						
-						return FString("");
-					})
-					.OnObjectChanged_Lambda([ViewModel, SourceAssetIdx](const FAssetData& AssetData)
-					{
-						const FScopedTransaction Transaction(LOCTEXT("Edit Asset", "Edit Asset"));
-
-						if (UObject* AnimAsset = AssetData.GetAsset())
-						{
-							ViewModel->SetAnimationAsset(SourceAssetIdx, AnimAsset);
-						}
-					});
+					.DisplayThumbnail(false)
+					.IsEnabled(this, &SDatabaseAssetListItem::GetAssetPickerIsEnabled)
+					.ObjectPath(this, &SDatabaseAssetListItem::GetAssetPickerObjectPath)
+					.OnObjectChanged(this, &SDatabaseAssetListItem::OnAssetPickerObjectChanged)
+					.CustomContentSlot()
+					[
+						// Display warning below picked asset.
+						SNew(STextBlock)
+						.Margin(FMargin(2,0))
+						.Justification(ETextJustify::Left)
+						.Font(FSlateFontInfo(FCoreStyle::GetDefaultFont(),8, "Regular"))
+						.Text(this, &SDatabaseAssetListItem::GetAssetPickerText)
+						.ColorAndOpacity(this, &SDatabaseAssetListItem::GetAssetPickerCustomContentSlotTextColor)
+						.Visibility(this, &SDatabaseAssetListItem::GetAssetPickerCustomContentSlotVisibility)
+					];
 				}
 			}
 
@@ -443,7 +419,7 @@ namespace UE::PoseSearch
 				[
 					SNew(SImage)
 					.Image(FAppStyle::Get().GetBrush("Icons.EyeDropper"))
-					.Visibility_Raw(this, &SDatabaseAssetListItem::GetSelectedActorIconVisbility)
+					.Visibility_Raw(this, &SDatabaseAssetListItem::GetSelectedActorIconVisibility)
 				];
 			}
 			
@@ -512,7 +488,7 @@ namespace UE::PoseSearch
 		}
 	}
 
-	EVisibility SDatabaseAssetListItem::GetSelectedActorIconVisbility() const
+	EVisibility SDatabaseAssetListItem::GetSelectedActorIconVisibility() const
 	{
 		TSharedPtr<FDatabaseViewModel> ViewModelPtr = EditorViewModel.Pin();
 		if (TSharedPtr<FDatabaseAssetTreeNode> AssetTreeNode = WeakAssetTreeNode.Pin())
@@ -526,6 +502,109 @@ namespace UE::PoseSearch
 			}
 		}
 		return EVisibility::Hidden;
+	}
+
+	void SDatabaseAssetListItem::OnAssetPickerObjectChanged(const FAssetData& AssetData)
+	{
+		const TSharedPtr<FDatabaseViewModel> ViewModelPtr = EditorViewModel.Pin();
+
+		if (const TSharedPtr<FDatabaseAssetTreeNode> AssetTreeNode = WeakAssetTreeNode.Pin())
+		{
+			const FScopedTransaction Transaction(LOCTEXT("Edit Asset", "Edit Asset"));
+
+			ViewModelPtr->SetAnimationAsset(AssetTreeNode->SourceAssetIdx, AssetData.GetAsset());
+		}
+	}
+
+	FString SDatabaseAssetListItem::GetAssetPickerObjectPath() const
+	{
+		const TSharedPtr<FDatabaseViewModel> ViewModelPtr = EditorViewModel.Pin();
+
+		if (const TSharedPtr<FDatabaseAssetTreeNode> AssetTreeNode = WeakAssetTreeNode.Pin())
+		{
+			if (const UPoseSearchDatabase* Database = ViewModelPtr->GetPoseSearchDatabase())
+			{
+				if (const FPoseSearchDatabaseAnimationAssetBase* DatabaseAnimationAsset = Database->GetAnimationAssetBase(AssetTreeNode->SourceAssetIdx))
+				{
+					if (const UObject* AnimAsset = DatabaseAnimationAsset->GetAnimationAsset())
+					{
+						return AnimAsset->GetPathName();
+					}
+				}
+			}
+		}
+		
+		return FString("");
+	}
+
+	bool SDatabaseAssetListItem::GetAssetPickerIsEnabled() const
+	{
+		const TSharedPtr<FDatabaseViewModel> ViewModelPtr = EditorViewModel.Pin();
+
+		if (const TSharedPtr<FDatabaseAssetTreeNode> AssetTreeNode = WeakAssetTreeNode.Pin())
+		{
+			if (const UPoseSearchDatabase* Database = ViewModelPtr->GetPoseSearchDatabase())
+			{
+				if (Database->GetAnimationAssets().IsValidIndex(AssetTreeNode->SourceAssetIdx))
+				{
+					return ViewModelPtr->IsEnabled(AssetTreeNode->SourceAssetIdx);
+				}
+			}
+		}
+		
+		return false;
+	}
+
+	EVisibility SDatabaseAssetListItem::GetAssetPickerCustomContentSlotVisibility() const
+	{
+		const TSharedPtr<FDatabaseViewModel> ViewModelPtr = EditorViewModel.Pin();
+							
+		if (const UPoseSearchDatabase* Database = ViewModelPtr->GetPoseSearchDatabase())
+		{
+			if (const TSharedPtr<FDatabaseAssetTreeNode> AssetTreeNode = WeakAssetTreeNode.Pin())
+			{
+				if (const FPoseSearchDatabaseAnimationAssetBase* DatabaseAnimationAssetBase = Database->GetAnimationAssetBase(AssetTreeNode->SourceAssetIdx))
+				{
+					if (DatabaseAnimationAssetBase->IsEnabled())
+					{
+						if (DatabaseAnimationAssetBase->GetAnimationAsset() == nullptr || !DatabaseAnimationAssetBase->IsSkeletonCompatible(Database->Schema))
+						{
+							return EVisibility::Visible;
+						}
+					}
+				}
+			}
+		}
+							
+		return EVisibility::Collapsed;
+	}
+
+	FText SDatabaseAssetListItem::GetAssetPickerText() const
+	{
+		const TSharedPtr<FDatabaseViewModel> ViewModelPtr = EditorViewModel.Pin();
+							
+		if (const UPoseSearchDatabase* Database = ViewModelPtr->GetPoseSearchDatabase())
+		{
+			if (const TSharedPtr<FDatabaseAssetTreeNode> AssetTreeNode = WeakAssetTreeNode.Pin())
+			{
+				if (const FPoseSearchDatabaseAnimationAssetBase* DatabaseAnimationAssetBase = Database->GetAnimationAssetBase(AssetTreeNode->SourceAssetIdx))
+				{
+					if (DatabaseAnimationAssetBase->IsEnabled())
+					{
+						if (DatabaseAnimationAssetBase->GetAnimationAsset() == nullptr)
+						{
+							return LOCTEXT("ErrorNoAsset", "No asset has been selected.");
+						}
+						else if (!DatabaseAnimationAssetBase->IsSkeletonCompatible(Database->Schema))
+						{
+							return LOCTEXT("ErrorIncompatibleSkeleton", "This asset's skeleton is not compatible with the schema's skeleton(s).");
+						}
+					}
+				}
+			}
+		}
+
+		return FText::GetEmpty();
 	}
 
 	FText SDatabaseAssetListItem::GetDisableReselectionToolTip() const
@@ -611,32 +690,27 @@ namespace UE::PoseSearch
 		}
 	}
 
-	FSlateColor SDatabaseAssetListItem::GetNameTextColorAndOpacity() const
+	FSlateColor SDatabaseAssetListItem::GetAssetPickerCustomContentSlotTextColor() const
 	{
-		TSharedPtr<FDatabaseViewModel> ViewModelPtr = EditorViewModel.Pin();
+		const TSharedPtr<FDatabaseViewModel> ViewModelPtr = EditorViewModel.Pin();
+
 		if (const UPoseSearchDatabase* Database = ViewModelPtr->GetPoseSearchDatabase())
 		{
-			if (TSharedPtr<FDatabaseAssetTreeNode> AssetTreeNode = WeakAssetTreeNode.Pin())
+			if (const TSharedPtr<FDatabaseAssetTreeNode> AssetTreeNode = WeakAssetTreeNode.Pin())
 			{
 				if (const FPoseSearchDatabaseAnimationAssetBase* DatabaseAnimationAssetBase = Database->GetAnimationAssetBase(AssetTreeNode->SourceAssetIdx))
 				{
 					if (DatabaseAnimationAssetBase->IsEnabled())
 					{
-						if (DatabaseAnimationAssetBase->bSynchronizeWithExternalDependency)
-						{
-							return FColor::Turquoise;
-						}
-
-						if (!DatabaseAnimationAssetBase->IsSkeletonCompatible(Database->Schema))
+						if (DatabaseAnimationAssetBase->GetAnimationAsset() == nullptr || !DatabaseAnimationAssetBase->IsSkeletonCompatible(Database->Schema))
 						{
 							return FColor::Red;
 						}
-						
-						return FLinearColor::White;
 					}
 				}
 			}
 		}
+		
 		return DisabledColor;
 	}
 
