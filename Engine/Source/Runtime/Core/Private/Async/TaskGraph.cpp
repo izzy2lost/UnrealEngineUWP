@@ -2076,6 +2076,25 @@ private:
 		TaskTrace::FWaitingScope WaitingScope(GetTraceIds(Tasks));
 		TRACE_CPUPROFILER_EVENT_SCOPE(WaitUntilTasksComplete);
 
+#if TASKGRAPH_NEW_FRONTEND
+		// try retraction first and only invoke named thread waiting as a last resort
+		bool bAllTasksCompleted = true;
+		for (const FGraphEventRef& Task : Tasks)
+		{
+			if (Task.IsValid())
+			{
+				Task->TryRetractAndExecute(UE::FTimeout::Never());
+
+				bAllTasksCompleted &= Task->IsCompleted();
+			}
+		}
+
+		if (bAllTasksCompleted)
+		{
+			return;
+		}
+#endif
+
 		ENamedThreads::Type CurrentThread = CurrentThreadIfKnown;
 		if (ENamedThreads::GetThreadIndex(CurrentThreadIfKnown) == ENamedThreads::AnyThread)
 		{
@@ -2117,27 +2136,6 @@ private:
 			ProcessThreadUntilRequestReturn(CurrentThread);
 			return;
 		}
-
-#if TASKGRAPH_NEW_FRONTEND
-		// use the waiting logic of the new frontend, except for named thread tasks
-		bool HasNamedThreadTasks = false;
-		for (const FGraphEventRef& Task : Tasks)
-		{
-			if (!Task->IsNamedThreadTask())
-			{
-				Task->Wait();
-			}
-			else
-			{
-				HasNamedThreadTasks = true;
-			}
-		}
-
-		if (!HasNamedThreadTasks)
-		{
-			return;
-		}
-#endif
 
 		if (!FTaskGraphInterface::IsMultithread())
 		{

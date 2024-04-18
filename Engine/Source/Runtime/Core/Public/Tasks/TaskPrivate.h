@@ -430,6 +430,10 @@ public:
 			// @return true if the task is completed
 			CORE_API bool Wait(FTimeout Timeout);
 
+			// waits for task's completion. Tries to retract the task and execute it in-place, if failed - blocks until the task 
+			// is completed by another thread. 
+			CORE_API void Wait();
+
 			// mimics the old tasks (TaskGraph) behaviour on named threads: waiting for a task on a named thread pulls other tasks from this
 			// named thread queue and executes them
 			CORE_API void WaitWithNamedThreadsSupport();

@@ -79,9 +79,24 @@ namespace UE::Tasks
 			// waits for task's completion with timeout. Tries to retract the task and execute it in-place, if failed - blocks until the task 
 			// is completed by another thread. If timeout is zero, tries to retract the task and returns immedially after that.
 			// @return true if the task is completed
-			bool Wait(FTimespan Timeout = FTimespan::MaxValue()) const
+			bool Wait(FTimespan Timeout) const
 			{
 				return !IsValid() || Pimpl->Wait(FTimeout{ Timeout });
+			}
+
+			// waits for task's completion without timeout. Tries to retract the task and execute it in-place, if failed - blocks until the task 
+			// is completed by another thread.
+			// @return true if the task is completed
+			bool Wait() const
+			{
+				if (IsValid())
+				{
+					Pimpl->Wait();
+				}
+				
+				// we keep the return type as boolean even if always returning true
+				// as we could merge some versions of the Wait API back at some point.
+				return true;
 			}
 
 			// waits for task's completion for at least the specified amount of time, while executing other tasks.

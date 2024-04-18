@@ -193,6 +193,11 @@ namespace UE::Tasks
 			return WaitImpl(Timeout);
 		}
 
+		void FTaskBase::Wait()
+		{
+			WaitWithNamedThreadsSupport();
+		}
+
 		void FTaskBase::WaitWithNamedThreadsSupport()
 		{
 			if (IsCompleted())
@@ -202,6 +207,13 @@ namespace UE::Tasks
 
 			TRACE_CPUPROFILER_EVENT_SCOPE(FTaskBase::WaitWithNamedThreadsSupport);
 			TaskTrace::FWaitingScope WaitingScope(GetTraceId());
+
+			TryRetractAndExecute(FTimeout::Never());
+
+			if (IsCompleted())
+			{
+				return;
+			}
 
 			if (!TryWaitOnNamedThread(*this))
 			{
@@ -289,7 +301,7 @@ namespace UE::Tasks
 			// handle waiting only on a named thread and if not called from inside a task
 			FTaskGraphInterface& TaskGraph = FTaskGraphInterface::Get();
 			ENamedThreads::Type CurrentThread = TaskGraph.GetCurrentThreadIfKnown();
-			if (CurrentThread < ENamedThreads::ActualRenderingThread /* is a named thread? */ && !TaskGraph.IsThreadProcessingTasks(CurrentThread))
+			if (CurrentThread <= ENamedThreads::ActualRenderingThread /* is a named thread? */ && !TaskGraph.IsThreadProcessingTasks(CurrentThread))
 			{
 				// execute other tasks of this named thread while waiting
 				ETaskPriority Dummy;
