@@ -45,6 +45,7 @@ namespace HarmonixMetasound
                             const int32 InPrerollBars,
 							const bool bInKillVoicesOnSeek,
 							const bool bInKillVoicesOnMidiChange);
+		~FMidiPlayerOperator();
 
 		virtual void BindInputs(FInputVertexInterfaceData& InVertexData) override;
 		virtual void BindOutputs(FOutputVertexInterfaceData& InVertexData) override;
@@ -256,6 +257,12 @@ namespace HarmonixMetasound
 		MidiClockOut->RegisterHiResPlayCursor(this);
 		MidiOutPin->SetClock(*MidiClockOut);
 	}
+
+	FMidiPlayerOperator::~FMidiPlayerOperator()
+	{
+		MidiClockOut->UnregisterPlayCursor(this);
+	}
+
 
 	FExternallyClockedMidiPlayerOperator::FExternallyClockedMidiPlayerOperator(const FOperatorSettings& InSettings,
 																			   const FMidiAssetReadRef& InMidiAsset, 
