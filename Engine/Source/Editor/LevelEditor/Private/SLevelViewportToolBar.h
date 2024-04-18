@@ -134,20 +134,20 @@ private:
 	void FillCameraMenu(UToolMenu* Menu) const;
 
 	/**
-	 * Generates menu entries for placed cameras (e.g CameraActors
+	 * Generates menu entries for placed cameras and Scene Capture Actors (e.g CameraActors, SceneCapture)
 	 *
 	 * @param Menu	The menu to add menu entries to
-	 * @param Cameras	The list of cameras to add
+	 * @param Cameras	The list of actors to add
 	 */
-	void GeneratePlacedCameraMenuEntries(UToolMenu* Menu, TArray<ACameraActor*> Cameras) const;
+	void GeneratePlacedCameraMenuEntries(UToolMenu* Menu, TArray<AActor*> LookThroughActors) const;
 
 	/**
-	 * Generates menu entries for placed cameras (e.g CameraActors
+	 * Generates menu entries for placed cameras and Scene Capture Actors (e.g CameraActors, SceneCapture)
 	 *
 	 * @param Section	The menu section to add menu entries to
-	 * @param Cameras	The list of cameras to add
+	 * @param Cameras	The list of actors to add
 	 */
-	void GeneratePlacedCameraMenuEntries(FToolMenuSection& Section, TArray<ACameraActor*> Cameras) const;
+	void GeneratePlacedCameraMenuEntries(FToolMenuSection& Section, TArray<AActor*> LookThroughActors) const;
 
 	/**
 	 * Generates menu entries for changing the type of the viewport
