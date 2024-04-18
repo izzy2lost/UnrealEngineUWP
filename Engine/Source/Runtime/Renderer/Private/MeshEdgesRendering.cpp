@@ -158,6 +158,7 @@ public:
 	TUniquePtr<FRenderTargetTexture> WireframeDepth;
 	TArray<FIntRect> ViewRects;
 	TArray<FMeshEdgesViewSettings> ViewSettings;
+	FMeshEdgesViewFamilySettings ViewFamilySettings = {};
 };
 
 const FMeshEdgesViewSettings& GetMeshEdgesViewSettings(const FSceneViewFamily& ViewFamily, int ViewIndex)
@@ -188,6 +189,17 @@ const FMeshEdgesViewSettings& GetMeshEdgesViewSettings(const FSceneView& View)
 FMeshEdgesViewSettings& GetMeshEdgesViewSettings(FSceneView& View)
 {
 	return const_cast<FMeshEdgesViewSettings&>(GetMeshEdgesViewSettings(AsConst(View)));
+}
+
+const FMeshEdgesViewFamilySettings& GetMeshEdgesViewFamilySettings(const FSceneViewFamily& ViewFamily)
+{
+	FMeshEdgesViewFamilyData* FamilyData = const_cast<FSceneViewFamily&>(ViewFamily).GetOrCreateExtentionData<FMeshEdgesViewFamilyData>();
+	return FamilyData->ViewFamilySettings;
+}
+
+FMeshEdgesViewFamilySettings& GetMeshEdgesViewFamilySettings(FSceneViewFamily& ViewFamily)
+{
+	return const_cast<FMeshEdgesViewFamilySettings&>(GetMeshEdgesViewFamilySettings(AsConst(ViewFamily)));
 }
 
 void RenderMeshEdges(FSceneViewFamily& InViewFamily);
@@ -290,46 +302,47 @@ void RenderMeshEdges(FSceneViewFamily& ViewFamily)
 	}
 
 	FMeshEdgesViewFamilyData* ViewFamilyData = ViewFamily.GetOrCreateExtentionData<FMeshEdgesViewFamilyData>();
+	const FMeshEdgesViewFamilySettings& Settings = ViewFamilyData->ViewFamilySettings;
 
 	ERHIFeatureLevel::Type FeatureLevel = ViewFamily.GetFeatureLevel();
 	FIntPoint DesiredBufferSize = FSceneRenderer::GetDesiredInternalBufferSize(ViewFamily);
 	ViewFamilyData->CreateRenderTargets(FeatureLevel, DesiredBufferSize);
 
-	FEngineShowFlags ShowFlags = ViewFamily.EngineShowFlags;
+	FEngineShowFlags WireframeShowFlags = ViewFamily.EngineShowFlags;
 	{
 		// Render a wireframe view
-		ShowFlags.SetWireframe(true);
+		WireframeShowFlags.SetWireframe(true);
 
 		// Copy the MSAA wireframe view only, don't copy other scene elements
-		ShowFlags.SetSceneCaptureCopySceneDepth(false);
+		WireframeShowFlags.SetSceneCaptureCopySceneDepth(false);
 
 		// Disable rendering of elements that are not needed
-		ShowFlags.SetMeshEdges(false);
-		ShowFlags.SetLighting(false);
-		ShowFlags.SetLightFunctions(false);
-		ShowFlags.SetGlobalIllumination(false);
-		ShowFlags.SetLumenGlobalIllumination(false);
-		ShowFlags.SetLumenReflections(false);
-		ShowFlags.SetDynamicShadows(false);
-		ShowFlags.SetCapsuleShadows(false);
-		ShowFlags.SetDistanceFieldAO(false);
-		ShowFlags.SetFog(false);
-		ShowFlags.SetVolumetricFog(false);
-		ShowFlags.SetCloud(false);
-		ShowFlags.SetDecals(false);
-		ShowFlags.SetAtmosphere(false);
-		ShowFlags.SetPostProcessing(false);
-		ShowFlags.SetCompositeEditorPrimitives(false);
-		ShowFlags.SetGrid(false);
-		//ShowFlags.SetScreenPercentage(false);
-		//ShowFlags.SetTranslucency(false);
+		WireframeShowFlags.SetMeshEdges(false);
+		WireframeShowFlags.SetLighting(false);
+		WireframeShowFlags.SetLightFunctions(false);
+		WireframeShowFlags.SetGlobalIllumination(false);
+		WireframeShowFlags.SetLumenGlobalIllumination(false);
+		WireframeShowFlags.SetLumenReflections(false);
+		WireframeShowFlags.SetDynamicShadows(false);
+		WireframeShowFlags.SetCapsuleShadows(false);
+		WireframeShowFlags.SetDistanceFieldAO(false);
+		WireframeShowFlags.SetFog(false);
+		WireframeShowFlags.SetVolumetricFog(false);
+		WireframeShowFlags.SetCloud(false);
+		WireframeShowFlags.SetDecals(false);
+		WireframeShowFlags.SetAtmosphere(false);
+		WireframeShowFlags.SetPostProcessing(false);
+		WireframeShowFlags.SetCompositeEditorPrimitives(false);
+		WireframeShowFlags.SetGrid(false);
+		//WireframeShowFlags.SetScreenPercentage(false);
+		//WireframeShowFlags.SetTranslucency(false);
 	}
 	
 	FSceneViewFamilyContext CaptureViewFamily(
 		FSceneViewFamily::ConstructionValues(
 			ViewFamilyData->WireframeColor.Get(),
 			ViewFamily.Scene,
-			ShowFlags)
+			WireframeShowFlags)
 		.SetRenderTargetDepth(ViewFamilyData->WireframeDepth.Get())
 		.SetResolveScene(true)
 		.SetRealtimeUpdate(true)
@@ -345,6 +358,8 @@ void RenderMeshEdges(FSceneViewFamily& ViewFamily)
 		// If the main view is low-res this affects the wireframe quality, so the main view should be 100% ideally
 		CaptureViewFamily.SetScreenPercentageInterface(ViewFamily.GetScreenPercentageInterface()->Fork_GameThread(CaptureViewFamily));
 	}
+
+	Settings.OnBeforeWireframeRender(CaptureViewFamily);
 
 	FSceneRenderer* SceneRenderer = FSceneRenderer::CreateSceneRenderer(&CaptureViewFamily, nullptr);
 
