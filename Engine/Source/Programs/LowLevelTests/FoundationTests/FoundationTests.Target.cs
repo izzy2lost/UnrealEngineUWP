@@ -11,6 +11,8 @@ public class FoundationTestsTarget : TestTargetRules
 		bWithLowLevelTestsOverride = true;
 		bCompileWithPluginSupport = true;
 
+		bCompileAgainstCoreUObject = true;
+
 		bBuildWithEditorOnlyData = Target.Platform.IsInGroup(UnrealPlatformGroup.Desktop)
 			&& (Target.Configuration == UnrealTargetConfiguration.Debug || Target.Configuration == UnrealTargetConfiguration.Development);
 	}
