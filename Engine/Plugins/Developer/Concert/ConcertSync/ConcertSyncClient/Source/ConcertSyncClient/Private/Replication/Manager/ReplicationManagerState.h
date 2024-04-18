@@ -28,10 +28,15 @@ namespace UE::ConcertSyncClient::Replication
 		virtual TFuture<FConcertReplication_ChangeStream_Response> ChangeStream(FConcertReplication_ChangeStream_Request Args) override { return MakeFulfilledPromise<FConcertReplication_ChangeStream_Response>().GetFuture(); }
 		virtual EAuthorityEnumerationResult ForEachClientOwnedObject(TFunctionRef<EBreakBehavior(const FSoftObjectPath& Object, TSet<FGuid>&& OwningStreams)> Callback) const override { return EAuthorityEnumerationResult::NoAuthorityAvailable; }
 		virtual TSet<FGuid> GetClientOwnedStreamsForObject(const FSoftObjectPath& ObjectPath) const override { return {}; }
+		virtual ESyncControlEnumerationResult ForEachSyncControlledObject(TFunctionRef<EBreakBehavior(const FConcertObjectInStreamID& Object)> Callback) const override { return ESyncControlEnumerationResult::NoneAvailable; }
+		virtual uint32 NumSyncControlledObjects() const override { return 0; }
+		virtual bool HasSyncControl(const FConcertObjectInStreamID& Object) const override { return false; }
 		virtual FOnPreStreamsChanged& OnPreStreamsChanged() override { return OnPreStreamsChangedDelegate; } 
 		virtual FOnPostStreamsChanged& OnPostStreamsChanged() override { return OnPostStreamsChangedDelegate; }
 		virtual FOnPreAuthorityChanged& OnPreAuthorityChanged() override { return OnPreAuthorityChangedDelegate; }
 		virtual FOnPostAuthorityChanged& OnPostAuthorityChanged() override { return OnPostAuthorityChangedDelegate; }
+		virtual FSyncControlChanged& OnPreSyncControlChanged() override { return OnPreSyncControlChangedDelegate; }
+		virtual FSyncControlChanged& OnPostSyncControlChanged() override { return OnPostSyncControlChangedDelegate; }
 		//~ End IConcertClientReplicationManager Interface
 
 	protected:
@@ -40,6 +45,8 @@ namespace UE::ConcertSyncClient::Replication
 		FOnPostStreamsChanged OnPostStreamsChangedDelegate;
 		FOnPreAuthorityChanged OnPreAuthorityChangedDelegate;
 		FOnPostAuthorityChanged OnPostAuthorityChangedDelegate;
+		FSyncControlChanged OnPreSyncControlChangedDelegate;
+		FSyncControlChanged OnPostSyncControlChangedDelegate;
 
 		/**
 		 * Subclasses can change the state with this function.

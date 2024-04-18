@@ -62,7 +62,7 @@ namespace UE::ConcertSyncClient::Replication
 				if (Response.JoinErrorCode == EJoinReplicationErrorCode::Success)
 				{
 					This->ChangeState(
-						MakeShared<FReplicationManagerState_Connected>(This->LiveSession, This->ReplicationBridge, MoveTemp(This->RequestArgs.Streams), This->GetOwner())
+						MakeShared<FReplicationManagerState_Connected>(This->LiveSession, This->ReplicationBridge, This->GetOwner(), MoveTemp(This->RequestArgs.Streams), Response.SyncControl)
 						);
 				}
 				else

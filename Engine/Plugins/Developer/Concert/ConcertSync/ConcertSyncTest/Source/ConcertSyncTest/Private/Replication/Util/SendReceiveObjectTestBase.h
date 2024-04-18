@@ -60,7 +60,6 @@ namespace UE::ConcertSyncTests::Replication
 		//~ End FSendReceiveTestBase Interface
 		
 		/**
-		 * bHasServerReceivedData and bHasClientReceivedData are reset to false prior to sending.
 		 * Sets test values on TestObject and sends it to the receiver.
 		 * If the data arrived, bHasServerReceivedData and bHasClientReceivedData are true.
 		 */

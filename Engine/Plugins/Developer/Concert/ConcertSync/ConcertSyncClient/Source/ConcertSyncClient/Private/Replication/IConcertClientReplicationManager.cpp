@@ -114,3 +114,21 @@ TMap<FSoftObjectPath, TSet<FGuid>> IConcertClientReplicationManager::GetClientOw
 	});
 	return Result;
 }
+
+TSet<FConcertObjectInStreamID> IConcertClientReplicationManager::GetSyncControlledObjects() const
+{
+	TSet<FConcertObjectInStreamID> Result;
+	const uint32 NumObjects = NumSyncControlledObjects();
+	if (NumObjects == 0)
+	{
+		return Result;
+	}
+	
+	Result.Reserve(NumObjects);
+	ForEachSyncControlledObject([&](const FConcertObjectInStreamID& Object)
+	{
+		Result.Add(Object);
+		return EBreakBehavior::Continue;
+	});
+	return Result;
+}

@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "SyncControl.h"
 #include "Replication/Data/ReplicationStream.h"
 #include "Handshake.generated.h"
 
@@ -84,6 +85,10 @@ struct FConcertReplication_Join_Response
 	/** More information about ErrorCode to help the user resolve the issue. */
 	UPROPERTY()
 	FString DetailedErrorMessage;
+
+	/** This is the initial sync control this client has */
+	UPROPERTY()
+	FConcertReplication_ChangeSyncControl SyncControl;
 };
 
 /** Sent by client to notify server that no more replication data should be sent. */

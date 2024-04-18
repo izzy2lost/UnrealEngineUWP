@@ -5,11 +5,13 @@
 #include "AuthorityManager.h"
 #include "ConcertMessages.h"
 #include "ConcertReplicationClient.h"
+#include "Enumeration/IRegistrationEnumerator.h"
 #include "Replication/Formats/IObjectReplicationFormat.h"
 #include "Replication/IConcertServerReplicationManager.h"
 #include "Replication/Messages/Handshake.h"
 #include "Replication/Processing/ObjectReplicationCache.h"
 #include "Replication/Processing/ServerObjectReplicationReceiver.h"
+#include "SyncControlManager.h"
 
 #include "Templates/SharedPointer.h"
 #include "Templates/Tuple.h"
@@ -43,7 +45,7 @@ namespace UE::ConcertSyncServer::Replication
 	 */
 	class FConcertServerReplicationManager
 		: public IConcertServerReplicationManager
-		, public IAuthorityManagerGetters
+		, public IRegistrationEnumerator
 		, public FNoncopyable
 	{
 	public:
@@ -53,10 +55,13 @@ namespace UE::ConcertSyncServer::Replication
 
 		const FAuthorityManager& GetAuthorityManager() const { return AuthorityManager; }
 
-		//~ Begin IAuthorityManagerGetters Interface
+		//~ Begin IStreamEnumerator Interface
 		virtual void ForEachStream(const FGuid& ClientEndpointId, TFunctionRef<EBreakBehavior(const FConcertReplicationStream& Stream)> Callback) const override;
-		virtual void ForEachSendingClient(TFunctionRef<EBreakBehavior(const FGuid& ClientEndpointId)> Callback) const override;
-		//~ End IAuthorityManagerGetters Interface
+		//~ End IStreamEnumerator Interface
+		
+		//~ Begin IClientEnumerator Interface
+		virtual void ForEachReplicationClient(TFunctionRef<EBreakBehavior(const FGuid& ClientEndpointId)> Callback) const override;
+		//~ End IClientEnumerator Interface
 
 	private:
 		
@@ -68,6 +73,8 @@ namespace UE::ConcertSyncServer::Replication
 
 		/** Responds to client requests to changing authority and can be asked whether an object change is valid to take place. */
 		FAuthorityManager AuthorityManager;
+		/** Decides whether clients should be replicating. Clients may replicate when they have authority and there are other clients listening for that data. */
+		FSyncControlManager SyncControlManager;
 		
 		/** Received replication events are put into the ReplicationCache. The cache is used to relay data to clients latently. */
 		const TSharedRef<ConcertSyncCore::FObjectReplicationCache> ReplicationCache;
@@ -98,6 +105,8 @@ namespace UE::ConcertSyncServer::Replication
 		void HandleLeaveReplicationSessionRequest(const FConcertSessionContext& ConcertSessionContext, const FConcertReplication_LeaveEvent& EventData);
 		void OnConnectionChanged(IConcertServerSession& ConcertServerSession, EConcertClientStatus ConcertClientStatus, const FConcertSessionClientInfo& ConcertSessionClientInfo);
 
+		void OnClientLeftReplication(const FGuid& EndpointId);
+		
 		/**
 		 * Ticks all clients which causes clients to process pending data and send it to the corresponding endpoints.
 		 * 

@@ -11,6 +11,7 @@
 template<typename ResultType>
 class TFuture;
 
+struct FConcertReplication_ChangeSyncControl;
 struct FConcertReplicationStream;
 
 namespace UE::ConcertSyncClient::Replication
@@ -70,7 +71,7 @@ public:
 	 * @note This future can finish on any thread (e.g. when message endpoint times out); usually it finishes on the game thread.  
 	 */
 	virtual EStreamEnumerationResult ForEachRegisteredStream(TFunctionRef<EBreakBehavior(const FConcertReplicationStream& Stream)> Callback) const = 0;
-	/** @return Whether this manager is has any registered streams (basically whether ForEachRegisteredStream returns EStreamEnumerationResult::Iterated). */
+	/** @return Whether this manager has any registered streams (basically whether ForEachRegisteredStream returns EStreamEnumerationResult::Iterated). */
 	bool HasRegisteredStreams() const;
 	/** @return The streams registered with the server. */
 	TArray<FConcertReplicationStream> GetRegisteredStreams() const;
@@ -95,6 +96,16 @@ public:
 	virtual TSet<FGuid> GetClientOwnedStreamsForObject(const FSoftObjectPath& ObjectPath) const = 0;
 	/** @return All owned objects and associated owning streams. */
 	TMap<FSoftObjectPath, TSet<FGuid>> GetClientOwnedObjects() const;
+
+	enum class ESyncControlEnumerationResult { NoneAvailable, Iterated };
+	/** Iterates through all objects the server told the client to replicate, which happens when this client has taken authority and another client wants to receive the data. */
+	virtual ESyncControlEnumerationResult ForEachSyncControlledObject(TFunctionRef<EBreakBehavior(const FConcertObjectInStreamID& Object)> Callback) const = 0;
+	/** @return Number of items ForEachSyncControlledObject would iterate. */
+	virtual uint32 NumSyncControlledObjects() const = 0;
+	/** @return Whether this client has sync control for a specific object in a stream. */
+	virtual bool HasSyncControl(const FConcertObjectInStreamID& Object) const = 0;
+	/** Util for converting all sync controlled objects into a TSet. */
+	TSet<FConcertObjectInStreamID> GetSyncControlledObjects() const;
 
 	/**
 	 * Requests replication info about other clients, including the streams registered and which objects they have authority over (i.e. are sending).
@@ -129,6 +140,12 @@ public:
 	DECLARE_MULTICAST_DELEGATE(FOnPostAuthorityChanged);
 	/** Called right after GetClientOwnedObjects has changed. */
 	virtual FOnPostAuthorityChanged& OnPostAuthorityChanged() = 0;
+
+	DECLARE_MULTICAST_DELEGATE(FSyncControlChanged);
+	/** Called just before sync control change is applied. */
+	virtual FSyncControlChanged& OnPreSyncControlChanged() = 0;
+	/** Called just after sync control change is applied. */
+	virtual FSyncControlChanged& OnPostSyncControlChanged() = 0;
 	
 	virtual ~IConcertClientReplicationManager() = default;
 };

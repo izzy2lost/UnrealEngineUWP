@@ -3,10 +3,14 @@
 #pragma once
 
 #include "ConcertMessages.h"
-#include "Misc/EBreakBehavior.h"
+#include "Enumeration/IRegistrationEnumerator.h"
 #include "Replication/Data/ObjectIds.h"
+
+#include "Delegates/Delegate.h"
+#include "Misc/EBreakBehavior.h"
 #include "Templates/Function.h"
 
+struct FConcertReplication_ChangeSyncControl;
 class IConcertSession;
 
 struct FConcertReplication_ChangeAuthority_Response;
@@ -20,23 +24,6 @@ struct FConcertReplicationStream;
 
 namespace UE::ConcertSyncServer::Replication
 {
-	/**
-	 * Callbacks FAuthorityManager requires to function correctly.
-	 * Exists to make FAuthorityManager independent from all the other systems and allows mocking in tests.
-	 */
-	class IAuthorityManagerGetters
-	{
-	public:
-
-		/** Provides a way to extract all streams registered to a given client. */
-		virtual void ForEachStream(const FGuid& ClientEndpointId, TFunctionRef<EBreakBehavior(const FConcertReplicationStream& Stream)> Callback) const = 0;
-
-		/** Iterates through all clients have registered to send any data. */
-		virtual void ForEachSendingClient(TFunctionRef<EBreakBehavior(const FGuid& ClientEndpointId)> Callback) const = 0;
-
-		virtual ~IAuthorityManagerGetters() = default;
-	};
-	
 	/** Responds to FConcertChangeAuthority_Request and tracks what objects and properties clients have authority over. */
 	class FAuthorityManager : public FNoncopyable
 	{
@@ -45,8 +32,14 @@ namespace UE::ConcertSyncServer::Replication
 		using FStreamId = FGuid;
 		using FClientId = FGuid;
 		using FProcessAuthorityConflict = TFunctionRef<EBreakBehavior(const FClientId& ClientId, const FStreamId& StreamId, const FConcertPropertyChain& WrittenProperties)>;
+		
 
-		FAuthorityManager(IAuthorityManagerGetters& Getters, TSharedRef<IConcertSession> InSession);
+		/**
+		 * @param InGetters Gets information about clients' registered streams 
+		 * @param InSession The session to handle authority requests on
+		 * @param InGenerateSyncControlDelegate Called to fill the sync control portion of FConcertReplication_ChangeAuthority_Response.
+		 */
+		FAuthorityManager(IRegistrationEnumerator& InGetters UE_LIFETIMEBOUND, TSharedRef<IConcertSession> InSession);
 		~FAuthorityManager();
 
 		/**
@@ -84,11 +77,15 @@ namespace UE::ConcertSyncServer::Replication
 		void OnClientLeft(const FClientId& ClientEndpointId);
 		/** Takes away authority from the given client from the given object. */
 		void RemoveAuthority(const FConcertReplicatedObjectId& Object);
-
+		
+		DECLARE_DELEGATE_RetVal_OneParam(FConcertReplication_ChangeSyncControl, FGenerateSyncControl, const FGuid& ClientId);
+		/** Sets the delegate that is called to fill the sync control portion of FConcertReplication_ChangeAuthority_Response. */
+		FGenerateSyncControl& OnGenerateSyncControl() { return GenerateSyncControlDelegate; }
+		
 	private:
 
 		/** Callbacks required to obtain client info. */
-		IAuthorityManagerGetters& Getters;
+		IRegistrationEnumerator& Getters;
 		/** The session under which this manager operates. */
 		TSharedRef<IConcertSession> Session;
 
@@ -99,8 +96,11 @@ namespace UE::ConcertSyncServer::Replication
 		};
 		TMap<FClientId, FClientAuthorityData> ClientAuthorityData;
 
+		/** Called to fill the sync control portion of FConcertReplication_ChangeAuthority_Response. */
+		FGenerateSyncControl GenerateSyncControlDelegate;
+
 		EConcertSessionResponseCode HandleChangeAuthorityRequest(
-			const FConcertSessionContext& ConcertSessionContext,
+			const FConcertSessionContext& Context,
 			const FConcertReplication_ChangeAuthority_Request& Request,
 			FConcertReplication_ChangeAuthority_Response& Response
 			);

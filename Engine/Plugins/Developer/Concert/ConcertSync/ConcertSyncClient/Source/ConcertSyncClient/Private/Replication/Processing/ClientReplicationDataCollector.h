@@ -26,6 +26,8 @@ namespace UE::ConcertSyncCore
 
 namespace UE::ConcertSyncClient::Replication
 {
+	class FLocalSyncControl;
+	
 	/**
 	 * Exposes UObject instances to an FObjectReplicationProcessor.
 	 * IConcertClientReplicationBridge tracks UObject lifetime, this class exposes them.
@@ -39,6 +41,7 @@ namespace UE::ConcertSyncClient::Replication
 		FClientReplicationDataCollector(
 			IConcertClientReplicationBridge& InReplicationBridge UE_LIFETIMEBOUND,
 			ConcertSyncCore::IObjectReplicationFormat& InReplicationFormat UE_LIFETIMEBOUND,
+			const FLocalSyncControl& SyncControl UE_LIFETIMEBOUND,
 			FGetClientStreams InGetStreamsDelegate,
 			const FGuid& InClientId
 			);
@@ -80,6 +83,9 @@ namespace UE::ConcertSyncClient::Replication
 		IConcertClientReplicationBridge& Bridge;
 		/** Used to create the replication data sent to the server. */
 		ConcertSyncCore::IObjectReplicationFormat& ReplicationFormat;
+
+		/** Tells us whether we're allowed to replicate an object in a stream. */
+		const FLocalSyncControl& SyncControl;
 
 		/** Gets the stream of the managed client. */
 		const FGetClientStreams GetStreamsDelegate;

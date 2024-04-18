@@ -35,10 +35,15 @@ namespace UE::ConcertSyncClient::Replication
 		virtual TFuture<FConcertReplication_ChangeStream_Response> ChangeStream(FConcertReplication_ChangeStream_Request Args) override;
 		virtual EAuthorityEnumerationResult ForEachClientOwnedObject(TFunctionRef<EBreakBehavior(const FSoftObjectPath& Object, TSet<FGuid>&& OwningStreams)>) const override;
 		virtual TSet<FGuid> GetClientOwnedStreamsForObject(const FSoftObjectPath& ObjectPath) const override;
+		virtual ESyncControlEnumerationResult ForEachSyncControlledObject(TFunctionRef<EBreakBehavior(const FConcertObjectInStreamID& Object)> Callback) const override;
+		virtual uint32 NumSyncControlledObjects() const override;
+		virtual bool HasSyncControl(const FConcertObjectInStreamID& Object) const override;
 		virtual FOnPreStreamsChanged& OnPreStreamsChanged() override;
 		virtual FOnPostStreamsChanged& OnPostStreamsChanged() override;
 		virtual FOnPreAuthorityChanged& OnPreAuthorityChanged() override;
 		virtual FOnPostAuthorityChanged& OnPostAuthorityChanged() override;
+		virtual FSyncControlChanged& OnPreSyncControlChanged() override;
+		virtual FSyncControlChanged& OnPostSyncControlChanged() override;
 		//~ End IConcertClientReplicationManager Interface
 
 	private:

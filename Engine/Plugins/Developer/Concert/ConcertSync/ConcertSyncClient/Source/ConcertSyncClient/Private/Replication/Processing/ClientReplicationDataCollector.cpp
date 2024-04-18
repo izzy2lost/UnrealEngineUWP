@@ -10,17 +10,20 @@
 
 #include "Algo/RemoveIf.h"
 #include "Misc/EBreakBehavior.h"
+#include "Replication/Misc/LocalSyncControl.h"
 
 namespace UE::ConcertSyncClient::Replication
 {
 	FClientReplicationDataCollector::FClientReplicationDataCollector(
 		IConcertClientReplicationBridge& InReplicationBridge,
 		ConcertSyncCore::IObjectReplicationFormat& InReplicationFormat,
+		const FLocalSyncControl& SyncControl,
 		FGetClientStreams InGetStreamsDelegate,
 		const FGuid& InClientId
 		)
 		: Bridge(InReplicationBridge)
 		, ReplicationFormat(InReplicationFormat)
+		, SyncControl(SyncControl)
 		, GetStreamsDelegate(MoveTemp(InGetStreamsDelegate))
 		, ClientId(InClientId)
 	{
@@ -161,6 +164,15 @@ namespace UE::ConcertSyncClient::Replication
 		{
 			for (const FObjectInfo& ObjectInfo : Pair.Value)
 			{
+				const FConcertReplicatedObjectId ObjectId{
+					FConcertObjectInStreamID{ ObjectInfo.StreamId, Pair.Key },
+					ClientId
+				};
+				if (!SyncControl.IsObjectAllowed(ObjectId))
+				{
+					continue;;
+				}
+				
 				// The bridge has the object cached. We do not cache the object ourselves!
 				// Funky Unreal flows can cause the object to be renamed out from under us and replaced by a different instance (just by using UObject::Rename()).
 				// The bridge is aware of these flows and FindObjectIfAvailable will catch them.
@@ -170,10 +182,7 @@ namespace UE::ConcertSyncClient::Replication
 				const FSoftObjectPath ObjectPath = Object;
 				if (Object && ensureMsgf(ObjectPath == Object, TEXT("Sanity check: the bridge gave us an object with a different path!")))
 				{
-					ProcessItemFunc(FConcertReplicatedObjectId {
-						FConcertObjectInStreamID{ ObjectInfo.StreamId, Object },
-						ClientId
-					});
+					ProcessItemFunc(ObjectId);
 				}
 			}
 		}
@@ -189,7 +198,7 @@ namespace UE::ConcertSyncClient::Replication
 		// ExtractReplicationDataForObject is supposed to be called in response to ForEachPendingObject... so either the call was invalid or ForEachPendingObject lied
 		if (!ensure(ObjectInfos))
 		{
-			return {};
+			return false;
 		}
 
 		// The properties to be replicated depend on the stream: search for it.
@@ -197,13 +206,13 @@ namespace UE::ConcertSyncClient::Replication
 		// Same logic as above: if the stream is not found, then either the call is invalid or ForEachPendingObject lied
 		if (!ensure(ObjectInfos->IsValidIndex(StreamIndex)))
 		{
-			return {};
+			return false;
 		}
 
 		UObject* Object = Bridge.FindObjectIfAvailable(ObjectToProcess.Object);
 		// Finally... ask the bridge to resolve the object for us. The bridge has the object cached and handles the object getting renamed, etc.
 		// This should resolve. If it does not: same logic as above - either this call is invalid or ForEachPendingObject lied.
-		if (!ensure(Object))
+		if (!ensure(Object) || !ensure(SyncControl.IsObjectAllowed(ObjectToProcess)))
 		{
 			return false;
 		}

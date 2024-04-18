@@ -69,20 +69,23 @@ namespace UE::ConcertSyncClient::Replication
 	}
 	
 	FReplicationManagerState_Connected::FReplicationManagerState_Connected(
-		TSharedRef<IConcertClientSession> LiveSession,
+		TSharedRef<IConcertClientSession> InLiveSession,
 		IConcertClientReplicationBridge& ReplicationBridge,
-		TArray<FConcertReplicationStream> StreamDescriptions,
-		FReplicationManager& Owner
+		FReplicationManager& Owner,
+		TArray<FConcertReplicationStream> InitialStreams,
+		const FConcertReplication_ChangeSyncControl& InitialSyncControl
 		)
 		: FReplicationManagerState(Owner)
-		, LiveSession(LiveSession)
+		, LiveSession(InLiveSession)
 		, ReplicationBridge(ReplicationBridge)
-		, RegisteredStreams(MoveTemp(StreamDescriptions))
+		, RegisteredStreams(MoveTemp(InitialStreams))
 		// TODO DP: Use config to determine which replication format to use
 		, ReplicationFormat(MakeUnique<ConcertSyncCore::FFullObjectFormat>())
+		, SyncControl(*LiveSession)
 		, ReplicationDataSource(
 			ReplicationBridge,
 			*ReplicationFormat,
+			SyncControl,
 			FClientReplicationDataCollector::FGetClientStreams::CreateLambda([this]()
 			{
 				return &RegisteredStreams;
@@ -91,13 +94,17 @@ namespace UE::ConcertSyncClient::Replication
 			)
 		, Sender(
 			ConcertSyncCore::FGetObjectFrequencySettings::CreateRaw(this, &FReplicationManagerState_Connected::GetObjectFrequencySettings),
-			LiveSession->GetSessionServerEndpointId(), *LiveSession, ReplicationDataSource
+			InLiveSession->GetSessionServerEndpointId(), *LiveSession, ReplicationDataSource
 			)
 		, ReceivedDataCache(MakeShared<ConcertSyncCore::FObjectReplicationCache>(*ReplicationFormat))
-		, Receiver(*LiveSession, *ReceivedDataCache)
+		, Receiver(*InLiveSession, *ReceivedDataCache)
 		, ReceivedReplicationQueuer(FClientReplicationDataQueuer::Make(ReplicationBridge, *ReceivedDataCache))
 		, ReplicationApplier(ReplicationBridge, *ReplicationFormat, *ReceivedReplicationQueuer)
-	{}
+	{
+		SyncControl.ProcessSyncControlChange(InitialSyncControl);
+		SyncControl.OnPreSyncControlChanged().AddLambda([this](){ OnPreSyncControlChangedDelegate.Broadcast(); });
+		SyncControl.OnPostSyncControlChanged().AddLambda([this](){ OnPostSyncControlChangedDelegate.Broadcast(); });
+	}
 
 	FReplicationManagerState_Connected::~FReplicationManagerState_Connected()
 	{
@@ -145,6 +152,8 @@ namespace UE::ConcertSyncClient::Replication
 		// Stop replicating removed objects right now: the server will remove authority after processing this request.
 		// At that point, it will log errors for receiving replication data from a client without authority.
 		HandleReleasingReplicatedObjects(Args);
+		// We don't need worry about updating sync control until it is processed below - the local client will not attempt to replicate the object
+		// because we just locally updated the authority cache.
 
 		Private::LogNetworkMessage(CVarLogAuthorityRequestsAndResponsesOnClient, Args);
 		return LiveSession->SendCustomRequest<FConcertReplication_ChangeAuthority_Request, FConcertReplication_ChangeAuthority_Response>(Args, LiveSession->GetSessionServerEndpointId())
@@ -155,6 +164,7 @@ namespace UE::ConcertSyncClient::Replication
 				if (const TSharedPtr<FReplicationManagerState_Connected> ThisPin = WeakThis.Pin()
 					; ThisPin && Response.ErrorCode == EReplicationResponseErrorCode::Handled)
 				{
+					ThisPin->SyncControl.ProcessAuthorityChange(Args, Response);
 					ThisPin->UpdateReplicatedObjectsAfterAuthorityChange(MoveTemp(Args), Response);
 				}
 				else if (ThisPin && Response.ErrorCode == EReplicationResponseErrorCode::Timeout)
@@ -197,6 +207,8 @@ namespace UE::ConcertSyncClient::Replication
 		// Stop replicating removed objects right now: the server will remove authority after processing this request.
 		// At that point, it will log errors for receiving replication data from a client without authority.
 		HandleRemovingReplicatedObjects(Args);
+		// We don't need worry about updating sync control until it is processed below - the local client will not attempt to replicate the object
+		// because we just locally updated the replication cache.
 		
 		Private::LogNetworkMessage(CVarLogStreamRequestsAndResponsesOnClient, Args);
 		return LiveSession->SendCustomRequest<FConcertReplication_ChangeStream_Request, FConcertReplication_ChangeStream_Response>(Args, LiveSession->GetSessionServerEndpointId())
@@ -207,6 +219,7 @@ namespace UE::ConcertSyncClient::Replication
 				const TSharedPtr<FReplicationManagerState_Connected> ThisPin = WeakThis.Pin();
 				if (ThisPin && Response.IsSuccess())
 				{
+					ThisPin->SyncControl.ProcessStreamChange(Args);
 					ThisPin->UpdateReplicatedObjectsAfterStreamChange(Args, Response);
 				}
 				else if (ThisPin && Response.ErrorCode == EReplicationResponseErrorCode::Timeout)
@@ -244,6 +257,13 @@ namespace UE::ConcertSyncClient::Replication
 		TSet<FGuid> Result;
 		ReplicationDataSource.AppendOwningStreamsForObject(ObjectPath, Result);
 		return Result;
+	}
+
+	IConcertClientReplicationManager::ESyncControlEnumerationResult FReplicationManagerState_Connected::ForEachSyncControlledObject(TFunctionRef<EBreakBehavior(const FConcertObjectInStreamID& Object)> Callback) const
+	{
+		return SyncControl.EnumerateAllowedObjects(Callback)
+			? ESyncControlEnumerationResult::Iterated
+			: ESyncControlEnumerationResult::NoneAvailable;
 	}
 
 	void FReplicationManagerState_Connected::OnEnterState()

@@ -4,6 +4,7 @@
 
 #include "ReplicationManagerState.h"
 #include "Replication/Formats/IObjectReplicationFormat.h"
+#include "Replication/Misc/LocalSyncControl.h"
 #include "Replication/Processing/ClientReplicationDataCollector.h"
 #include "Replication/Processing/ClientReplicationDataQueuer.h"
 #include "Replication/Processing/ObjectReplicationApplierProcessor.h"
@@ -29,10 +30,11 @@ namespace UE::ConcertSyncClient::Replication
 	public:
 
 		FReplicationManagerState_Connected(
-			TSharedRef<IConcertClientSession> LiveSession,
+			TSharedRef<IConcertClientSession> InLiveSession,
 			IConcertClientReplicationBridge& ReplicationBridge UE_LIFETIMEBOUND,
-			TArray<FConcertReplicationStream> StreamDescriptions,
-			FReplicationManager& Owner UE_LIFETIMEBOUND
+			FReplicationManager& Owner UE_LIFETIMEBOUND,
+			TArray<FConcertReplicationStream> InitialStreams,
+			const FConcertReplication_ChangeSyncControl& InitialSyncControl
 			);
 		virtual ~FReplicationManagerState_Connected() override;
 
@@ -47,6 +49,9 @@ namespace UE::ConcertSyncClient::Replication
 		virtual TFuture<FConcertReplication_ChangeStream_Response> ChangeStream(FConcertReplication_ChangeStream_Request Args) override;
 		virtual EAuthorityEnumerationResult ForEachClientOwnedObject(TFunctionRef<EBreakBehavior(const FSoftObjectPath& Object, TSet<FGuid>&& OwningStreams)> Callback) const override;
 		virtual TSet<FGuid> GetClientOwnedStreamsForObject(const FSoftObjectPath& ObjectPath) const override;
+		virtual ESyncControlEnumerationResult ForEachSyncControlledObject(TFunctionRef<EBreakBehavior(const FConcertObjectInStreamID& Object)> Callback) const override;
+		virtual uint32 NumSyncControlledObjects() const override { return SyncControl.Num(); }
+		virtual bool HasSyncControl(const FConcertObjectInStreamID& Object) const override { return SyncControl.IsObjectAllowed(Object); }
 		//~ End IConcertClientReplicationManager Interface
 
 	private:
@@ -62,6 +67,8 @@ namespace UE::ConcertSyncClient::Replication
 		const TUniquePtr<ConcertSyncCore::IObjectReplicationFormat> ReplicationFormat;
 
 		// Sending
+		/** Decides whether an object should be replicated. */
+		FLocalSyncControl SyncControl;
 		/** Used as source of replication data. */
 		FClientReplicationDataCollector ReplicationDataSource;
 		

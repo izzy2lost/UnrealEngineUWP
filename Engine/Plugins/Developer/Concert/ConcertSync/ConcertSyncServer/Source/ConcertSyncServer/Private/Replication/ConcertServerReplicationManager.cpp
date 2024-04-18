@@ -27,8 +27,9 @@ namespace UE::ConcertSyncServer::Replication
 		: Session(MoveTemp(InLiveSession))
 		, ReplicationFormat(MakeUnique<ConcertSyncCore::FFullObjectFormat>())
 		, AuthorityManager(*this, Session)
+		, SyncControlManager(*Session, AuthorityManager, *this)
 		, ReplicationCache(MakeShared<ConcertSyncCore::FObjectReplicationCache>(*ReplicationFormat))
-		, ReplicationDataReceiver(AuthorityManager, *Session, *ReplicationCache)
+		, ReplicationDataReceiver(AuthorityManager, SyncControlManager, *Session, *ReplicationCache)
 	{
 		Session->RegisterCustomRequestHandler<FConcertReplication_Join_Request, FConcertReplication_Join_Response>(this, &FConcertServerReplicationManager::HandleJoinReplicationSessionRequest);
 		Session->RegisterCustomRequestHandler<FConcertReplication_QueryReplicationInfo_Request, FConcertReplication_QueryReplicationInfo_Response>(this, &FConcertServerReplicationManager::HandleQueryReplicationInfoRequest);
@@ -65,12 +66,11 @@ namespace UE::ConcertSyncServer::Replication
 		}
 	}
 
-	void FConcertServerReplicationManager::ForEachSendingClient(TFunctionRef<EBreakBehavior(const FGuid& ClientEndpointId)> Callback) const
+	void FConcertServerReplicationManager::ForEachReplicationClient(TFunctionRef<EBreakBehavior(const FGuid& ClientEndpointId)> Callback) const
 	{
 		for (const TPair<FGuid, TUniquePtr<FConcertReplicationClient>>& ClientPair : Clients)
 		{
-			if (!ClientPair.Value->GetStreamDescriptions().IsEmpty()
-				&& Callback(ClientPair.Key) == EBreakBehavior::Break)
+			if (Callback(ClientPair.Key) == EBreakBehavior::Break)
 			{
 				break;
 			}
@@ -83,15 +83,22 @@ namespace UE::ConcertSyncServer::Replication
 		FConcertReplication_Join_Response& Response
 		)
 	{
+		const FGuid ClientId = ConcertSessionContext.SourceEndpointId;
 		// Have a pair of logs before and after processing in case of potential disaster
-		UE_LOG(LogConcert, Log, TEXT("Received replication join request from endpoint %s"), *ConcertSessionContext.SourceEndpointId.ToString());
+		UE_LOG(LogConcert, Log, TEXT("Received replication join request from endpoint %s"), *ClientId.ToString());
 		
-		LogNetworkMessage(CVarLogAuthorityRequestsAndResponsesOnServer, Request, [&](){ return GetClientName(*Session, ConcertSessionContext.SourceEndpointId); });
+		LogNetworkMessage(CVarLogAuthorityRequestsAndResponsesOnServer, Request, [&](){ return GetClientName(*Session, ClientId); });
 		const EConcertSessionResponseCode Result = InternalHandleJoinReplicationSessionRequest(ConcertSessionContext, Request, Response);
-		LogNetworkMessage(CVarLogAuthorityRequestsAndResponsesOnServer, Response, [&](){ return GetClientName(*Session, ConcertSessionContext.SourceEndpointId); });
+		LogNetworkMessage(CVarLogAuthorityRequestsAndResponsesOnServer, Response, [&](){ return GetClientName(*Session, ClientId); });
+
+		const bool bSuccess = Response.JoinErrorCode == EJoinReplicationErrorCode::Success;
+		if (bSuccess)
+		{
+			Response.SyncControl = SyncControlManager.OnGenerateSyncControlForClientJoin(ClientId);
+		}
 		
-		UE_CLOG(Response.JoinErrorCode == EJoinReplicationErrorCode::Success, LogConcert, Log, TEXT("Accepted replication join request"));
-		UE_CLOG(Response.JoinErrorCode != EJoinReplicationErrorCode::Success, LogConcert, Log, TEXT("Rejected replication join request. %s: %s"), *ConcertSyncCore::Replication::LexJoinErrorCode(Response.JoinErrorCode), *Response.DetailedErrorMessage);
+		UE_CLOG(bSuccess, LogConcert, Log, TEXT("Accepted replication join request"));
+		UE_CLOG(!bSuccess, LogConcert, Log, TEXT("Rejected replication join request. %s: %s"), *ConcertSyncCore::Replication::LexJoinErrorCode(Response.JoinErrorCode), *Response.DetailedErrorMessage);
 		return Result;
 	}
 
@@ -227,8 +234,7 @@ namespace UE::ConcertSyncServer::Replication
 		const FGuid ClientEndpointId = ConcertSessionContext.SourceEndpointId;
 		UE_LOG(LogConcert, Log, TEXT("Received replication leave request from endpoint %s"), *ClientEndpointId.ToString());
 		
-		Clients.Remove(ClientEndpointId);
-		AuthorityManager.OnClientLeft(ClientEndpointId);
+		OnClientLeftReplication(ClientEndpointId);
 	}
 
 	void FConcertServerReplicationManager::OnConnectionChanged(IConcertServerSession& ConcertServerSession, EConcertClientStatus ConcertClientStatus, const FConcertSessionClientInfo& ClientInfo)
@@ -236,9 +242,15 @@ namespace UE::ConcertSyncServer::Replication
 		const FGuid ClientEndpointId = ClientInfo.ClientEndpointId;
 		if (ConcertClientStatus == EConcertClientStatus::Disconnected)
 		{
-			Clients.Remove(ClientEndpointId);
-			AuthorityManager.OnClientLeft(ClientEndpointId);
+			OnClientLeftReplication(ClientEndpointId);
 		}
+	}
+
+	void FConcertServerReplicationManager::OnClientLeftReplication(const FGuid& EndpointId)
+	{
+		Clients.Remove(EndpointId);
+		AuthorityManager.OnClientLeft(EndpointId);
+		SyncControlManager.OnClientLeft(EndpointId);
 	}
 
 	void FConcertServerReplicationManager::Tick(IConcertServerSession& InSession, float InDeltaTime)

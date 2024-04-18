@@ -3,6 +3,7 @@
 #pragma once
 
 #include "EReplicationResponseErrorCode.h"
+#include "SyncControl.h"
 #include "ChangeAuthority.generated.h"
 
 USTRUCT()
@@ -63,4 +64,14 @@ struct FConcertReplication_ChangeAuthority_Response
 	 */
 	UPROPERTY()
 	TMap<FSoftObjectPath, FConcertStreamArray> RejectedObjects;
+
+	/**
+	 * Contains the new sync control for objects you requested authority over; objects you released authority over are not contained because they can
+	 * be implicitly determined using FSyncControlState::Aggregate.
+	 * 
+	 * @see FSyncControlState::Aggregate.
+	 * @see FConcertReplication_ChangeSyncControl
+	 */
+	UPROPERTY()
+	FConcertReplication_ChangeSyncControl SyncControl;
 };
