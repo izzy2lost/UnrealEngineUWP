@@ -213,6 +213,17 @@ void UAnimationBlueprintLibrary::GetAnimationCurveNames(const UAnimSequenceBase*
 	}
 }
 
+FTransform UAnimationBlueprintLibrary::ExtractRootTrackTransform(const UAnimSequenceBase* AnimationSequenceBase, float Time)
+{
+	if (AnimationSequenceBase == nullptr)
+	{
+		UE_LOG(LogAnimationBlueprintLibrary, Warning, TEXT("Invalid Animation Sequence supplied for ExtractRootTrackTransform"));
+		return FTransform::Identity;
+	}
+	
+	return AnimationSequenceBase->ExtractRootTrackTransform(Time, nullptr);
+}
+
 const FRawAnimSequenceTrack& UAnimationBlueprintLibrary::GetRawAnimationTrackByName(const UAnimSequenceBase* AnimationSequenceBase, const FName TrackName)
 {
 	static FRawAnimSequenceTrack TempTrack;

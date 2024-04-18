@@ -86,6 +86,10 @@ public:
 	UFUNCTION(BlueprintPure, Category = "AnimationBlueprintLibrary|Animation")
 	static void GetAnimationCurveNames(const UAnimSequenceBase* AnimationSequenceBase, ERawCurveTrackTypes CurveType, TArray<FName>& CurveNames);
 
+	/** Gets the root transform from the raw animation at Time */
+	UFUNCTION(BlueprintCallable, Category="AnimationBlueprintLibrary|Animation")
+	static FTransform ExtractRootTrackTransform(const UAnimSequenceBase* AnimationSequenceBase, float Time);
+
 	/** Retrieves the Raw Translation Animation Data for the given Animation Track Name and Animation Sequence */
 	UE_DEPRECATED(5.2, "GetRawTrackPositionData has been deprecated, use AnimationModel interface instead")
 	UFUNCTION(BlueprintPure, Category = "AnimationBlueprintLibrary|RawTrackData")
