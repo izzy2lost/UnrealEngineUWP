@@ -544,6 +544,8 @@ void ProcessTransactionEvent(const FConcertTransactionEventBase& InEvent, const 
 			continue;
 		}
 
+		TransactionObject->Modify();
+
 		// Apply the new data
 		if (ObjectUpdate.ObjectData.SerializedData.Num() > 0)
 		{
