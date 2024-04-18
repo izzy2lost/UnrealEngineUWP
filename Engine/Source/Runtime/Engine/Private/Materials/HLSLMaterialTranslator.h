@@ -429,6 +429,9 @@ protected:
 	uint32 bUsesPerInstanceFadeAmount : 1;
 
 	uint32 bCullIntermediateUniformExpressions : 1;
+	
+	/** The generated shader source uses explicit ddx()/ddy() calls */
+	uint32 bUsesExplicitDerivatives : 1;
 
 	/** Incremented and decremented by FAddUniformExpressionScope.  See comments on that class below */
 	int32 AddingUniformExpression;

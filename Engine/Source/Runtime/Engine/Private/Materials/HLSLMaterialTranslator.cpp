@@ -269,6 +269,7 @@ struct FHLSLMaterialTranslator::FEnvironmentDefines
 	bool bUsesDisplacement;
 	bool bUsesEmissiveColor;
 	bool bUsesDistortion;
+	bool bUsesExplicitDerivatives;
 	bool bDistortionAccountForCoverage;
 	bool bMaterialEnableTranslucencyFogging;
 	bool bMaterialEnableTranslucencyCloudFogging;
@@ -361,6 +362,7 @@ struct FHLSLMaterialTranslator::FEnvironmentDefines
 		Ar << bUsesDisplacement;
 		Ar << bUsesEmissiveColor;
 		Ar << bUsesDistortion;
+		Ar << bUsesExplicitDerivatives;
 		Ar << bDistortionAccountForCoverage;
 		Ar << bMaterialEnableTranslucencyFogging;
 		Ar << bMaterialEnableTranslucencyCloudFogging;
@@ -676,6 +678,7 @@ FHLSLMaterialTranslator::FHLSLMaterialTranslator(FMaterial* InMaterial,
 ,	bUsesCurvature(false)
 ,	bUsesPerInstanceFadeAmount(false)
 ,	bCullIntermediateUniformExpressions(GCullIntermediateUniformExpressions)
+,	bUsesExplicitDerivatives(false)
 ,	AddingUniformExpression(0)
 ,	AllocatedUserTexCoords()
 ,	AllocatedUserVertexTexCoords()
@@ -2545,6 +2548,8 @@ void FHLSLMaterialTranslator::GetMaterialEnvironment(EShaderPlatform InPlatform,
 	// (bUsesWorldPositionOffset is actually a 1-bit uint32 bitfield member)
 	OutEnvironment.SetDefineAndCompileArgument(TEXT("USES_WORLD_POSITION_OFFSET"), EnvironmentDefines->bUsesWorldPositionOffset);
 	OutEnvironment.SetDefineAndCompileArgument(TEXT("USES_DISPLACEMENT"), EnvironmentDefines->bUsesDisplacement);
+
+	OutEnvironment.SetDefine(TEXT("USES_EXPLICIT_DERIVATIVES"), EnvironmentDefines->bUsesExplicitDerivatives);
 
 	OutEnvironment.SetDefine(TEXT("USES_EMISSIVE_COLOR"), EnvironmentDefines->bUsesEmissiveColor);
 	// Distortion uses tangent space transform 
@@ -11048,6 +11053,8 @@ int32 FHLSLMaterialTranslator::Derivative(int32 A, EDervativeComponent Component
 		return NonPixelShaderExpressionError();
 	}
 
+	bUsesExplicitDerivatives = true;
+
 	const FDerivInfo ADerivInfo = GetDerivInfo(A);
 	const EMaterialValueType ResultType = MakeNonLWCType(ADerivInfo.Type);
 	const bool bIsLWCType = IsLWCType(ADerivInfo.Type);
@@ -14703,6 +14710,7 @@ void FHLSLMaterialTranslator::PrepareEnvironmentDefines()
 	EnvironmentDefines->bUsesEmissiveColor = bUsesEmissiveColor;
 	// Distortion uses tangent space transform 
 	EnvironmentDefines->bUsesDistortion = Material->IsDistorted();
+	EnvironmentDefines->bUsesExplicitDerivatives = bUsesExplicitDerivatives;
 	EnvironmentDefines->bDistortionAccountForCoverage = bSubstrateEnabled && Material->GetRefractionCoverageMode() == RCM_CoverageAccountedFor ? 1 : 0;
 	EnvironmentDefines->bMaterialEnableTranslucencyFogging = Material->ShouldApplyFogging();
 	EnvironmentDefines->bMaterialEnableTranslucencyCloudFogging = Material->ShouldApplyCloudFogging();

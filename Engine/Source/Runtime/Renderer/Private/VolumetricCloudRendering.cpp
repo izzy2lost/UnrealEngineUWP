@@ -236,6 +236,11 @@ static TAutoConsoleVariable<int32> CVarVolumetricCloudEmptySpaceSkippingSampleCo
 	TEXT("0 means center samples only, >0 means corner are also sampled."),
 	ECVF_RenderThreadSafe | ECVF_Scalability);
 
+static TAutoConsoleVariable<int32> CVarVolumetricCloudAllowAnalyticDerivatives(
+	TEXT("r.VolumetricCloud.AllowAnalyticDerivatives"), 1,
+	TEXT("Enables compiling cloud shaders with support for analytical derivatives when needed by the material."),
+	ECVF_ReadOnly | ECVF_RenderThreadSafe);
+
 ////////////////////////////////////////////////////////////////////////// 
 
 
@@ -902,6 +907,11 @@ class FRenderVolumetricCloudRenderViewCS : public FMeshMaterialShader
 		// If this is enabled
 		OutEnvironment.SetDefine(TEXT("CLOUD_DEBUG_SAMPLES"), CLOUD_DEBUG_SAMPLES);
 
+		if (CVarVolumetricCloudAllowAnalyticDerivatives.GetValueOnAnyThread() != 0)
+		{
+			OutEnvironment.SetDefine(TEXT("ALLOW_ANALYTIC_DERIVATIVES"), 1);
+		}
+
 		// This shader must support typed UAV load and we are testing if it is supported at runtime using RHIIsTypedUAVLoadSupported
 		OutEnvironment.CompilerFlags.Add(CFLAG_AllowTypedUAVLoads);
 
@@ -971,6 +981,11 @@ class FRenderVolumetricCloudEmptySpaceSkippingCS : public FMeshMaterialShader
 		OutEnvironment.SetDefine(TEXT("THREADGROUP_SIZEX"), ThreadGroupSizeX);
 		OutEnvironment.SetDefine(TEXT("THREADGROUP_SIZEY"), ThreadGroupSizeY);
 		OutEnvironment.SetDefine(TEXT("THREADGROUP_SIZEZ"), ThreadGroupSizeZ);
+
+		if (CVarVolumetricCloudAllowAnalyticDerivatives.GetValueOnAnyThread() != 0)
+		{
+			OutEnvironment.SetDefine(TEXT("ALLOW_ANALYTIC_DERIVATIVES"), 1);
+		}
 
 		// This shader must support typed UAV load and we are testing if it is supported at runtime using RHIIsTypedUAVLoadSupported
 		OutEnvironment.CompilerFlags.Add(CFLAG_AllowTypedUAVLoads);

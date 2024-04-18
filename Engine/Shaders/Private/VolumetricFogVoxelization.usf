@@ -314,7 +314,8 @@ void VoxelizePS(
 		VoxelizeVolumePass.RenderVolumetricCloudParametersCloudLayerCenterKm, VoxelizeVolumePass.RenderVolumetricCloudParametersPlanetRadiusKm,
 		VoxelizeVolumePass.RenderVolumetricCloudParametersBottomRadiusKm, VoxelizeVolumePass.RenderVolumetricCloudParametersTopRadiusKm);
 	float3 TranslatedWorldPosition = SvPositionToTranslatedWorld(SvPosition);
-	UpdateMaterialCloudParam(MaterialParameters, TranslatedWorldPosition, ResolvedView, CloudLayerParams, TRACING_SHADOW_DISTANCE_OFF, SPACE_SKIPPING_SLICE_DEPTH_OFF);
+	// WorldPositionDDX/Y only need to be set when using analytical derivatives, which is not needed in pixel shaders
+	UpdateMaterialCloudParam(MaterialParameters, TranslatedWorldPosition, 0.0f /*WorldPositionDDX*/, 0.0f /*WorldPositionDDY*/, ResolvedView, CloudLayerParams, TRACING_SHADOW_DISTANCE_OFF, SPACE_SKIPPING_SLICE_DEPTH_OFF);
 #endif
 
 	// Scale rendered position to account for frustum difference between fog voxelization and rendered scene
