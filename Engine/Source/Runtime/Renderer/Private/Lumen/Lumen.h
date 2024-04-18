@@ -71,6 +71,7 @@ namespace Lumen
 
 	// Features
 	bool UseAsyncCompute(const FViewFamilyInfo& ViewFamily);
+	bool UseWaveOps(EShaderPlatform ShaderPlatform);
 	bool UseThreadGroupSize32();
 
 	// Surface cache

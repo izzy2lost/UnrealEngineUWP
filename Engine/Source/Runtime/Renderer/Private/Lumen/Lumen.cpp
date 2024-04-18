@@ -24,6 +24,13 @@ static TAutoConsoleVariable<int32> CVarLumenAsyncCompute(
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
+static TAutoConsoleVariable<int32> CVarLumenWaveOps(
+	TEXT("r.Lumen.WaveOps"),
+	1,
+	TEXT("Whether Lumen should use wave ops if supported."),
+	ECVF_Scalability | ECVF_RenderThreadSafe
+);
+
 static TAutoConsoleVariable<int32> CVarLumenThreadGroupSize32(
 	TEXT("r.Lumen.ThreadGroupSize32"),
 	1,
@@ -48,6 +55,13 @@ bool Lumen::UseAsyncCompute(const FViewFamilyInfo& ViewFamily)
 	}
 
 	return bUseAsync;
+}
+
+bool Lumen::UseWaveOps(EShaderPlatform ShaderPlatform)
+{
+	return CVarLumenWaveOps.GetValueOnRenderThread() != 0
+		&& GRHISupportsWaveOperations
+		&& RHISupportsWaveOperations(ShaderPlatform);
 }
 
 bool Lumen::UseThreadGroupSize32()
