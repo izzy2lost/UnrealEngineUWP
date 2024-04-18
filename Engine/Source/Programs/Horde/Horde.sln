@@ -114,6 +114,8 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "UnrealGameSyncCmd", "..\Unr
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "UnrealGameSyncShared", "..\UnrealGameSync\UnrealGameSyncShared\UnrealGameSyncShared.csproj", "{E29DF5A2-99A1-42A6-9368-426776DEA149}"
 EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ReleaseNotes", "Tools\ReleaseNotes\ReleaseNotes.csproj", "{76B6DB7F-DF83-4765-A9A2-885225A268D7}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Analyze|Any CPU = Analyze|Any CPU
@@ -592,6 +594,18 @@ Global
 		{E29DF5A2-99A1-42A6-9368-426776DEA149}.Release|Any CPU.Build.0 = Release|Any CPU
 		{E29DF5A2-99A1-42A6-9368-426776DEA149}.ReleaseAutoUpdate|Any CPU.ActiveCfg = Release|Any CPU
 		{E29DF5A2-99A1-42A6-9368-426776DEA149}.ReleaseAutoUpdate|Any CPU.Build.0 = Release|Any CPU
+		{76B6DB7F-DF83-4765-A9A2-885225A268D7}.Analyze|Any CPU.ActiveCfg = Debug|Any CPU
+		{76B6DB7F-DF83-4765-A9A2-885225A268D7}.Analyze|Any CPU.Build.0 = Debug|Any CPU
+		{76B6DB7F-DF83-4765-A9A2-885225A268D7}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{76B6DB7F-DF83-4765-A9A2-885225A268D7}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{76B6DB7F-DF83-4765-A9A2-885225A268D7}.DebugAutoUpdate|Any CPU.ActiveCfg = Debug|Any CPU
+		{76B6DB7F-DF83-4765-A9A2-885225A268D7}.DebugAutoUpdate|Any CPU.Build.0 = Debug|Any CPU
+		{76B6DB7F-DF83-4765-A9A2-885225A268D7}.Development|Any CPU.ActiveCfg = Debug|Any CPU
+		{76B6DB7F-DF83-4765-A9A2-885225A268D7}.Development|Any CPU.Build.0 = Debug|Any CPU
+		{76B6DB7F-DF83-4765-A9A2-885225A268D7}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{76B6DB7F-DF83-4765-A9A2-885225A268D7}.Release|Any CPU.Build.0 = Release|Any CPU
+		{76B6DB7F-DF83-4765-A9A2-885225A268D7}.ReleaseAutoUpdate|Any CPU.ActiveCfg = Release|Any CPU
+		{76B6DB7F-DF83-4765-A9A2-885225A268D7}.ReleaseAutoUpdate|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -633,6 +647,7 @@ Global
 		{5AC16D37-4129-40CE-9E92-5643277E8D8F} = {58313EA1-DC2B-49DD-A4F8-3288D292ED61}
 		{2681A1BB-DA6A-4A6C-81B1-10F4CAD78599} = {58313EA1-DC2B-49DD-A4F8-3288D292ED61}
 		{E29DF5A2-99A1-42A6-9368-426776DEA149} = {58313EA1-DC2B-49DD-A4F8-3288D292ED61}
+		{76B6DB7F-DF83-4765-A9A2-885225A268D7} = {58313EA1-DC2B-49DD-A4F8-3288D292ED61}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {F06D2583-1509-4254-BEE6-5921340022BF}
