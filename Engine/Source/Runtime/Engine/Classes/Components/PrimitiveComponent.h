@@ -362,6 +362,12 @@ private:
 	UPROPERTY(EditAnywhere, BlueprintGetter = GetGenerateOverlapEvents, BlueprintSetter = SetGenerateOverlapEvents, Category = Collision)
 	uint8 bGenerateOverlapEvents : 1;
 
+#if WITH_EDITORONLY_DATA
+	/** Whether this component is temporarily hidden within the editor. */
+	UPROPERTY(Transient)
+	uint8 bHiddenEdTemporary:1;
+#endif // WITH_EDITORONLY_DATA
+
 public:
 	/**
 	 * If true, this component will generate individual overlaps for each overlapping physics body if it is a multi-body component. When false, this component will
@@ -2562,6 +2568,18 @@ public:
 #if WITH_EDITOR
 	/** Returns mask that represents in which views this primitive is hidden */
 	ENGINE_API virtual uint64 GetHiddenEditorViews() const;
+
+	/**
+	 * Returns whether or not this component was explicitly hidden in the editor for the duration of the current editor session
+	 * @param bIncludeParent - Whether to recurse up actor hierarchy or not
+	 */
+	ENGINE_API bool IsTemporarilyHiddenInEditor(const bool bIncludeParent) const;
+
+	/**
+ 	 * Explicitly sets whether or not this component is hidden in the editor for the duration of the current editor session
+ 	 * @param bIsHidden	True if the component is hidden
+ 	 */
+	ENGINE_API void SetIsTemporarilyHiddenInEditor(const bool bInIsHidden);
 
 	/** Sets whether this component is being moved by the editor so the renderer can render velocities for it, even when Static. */
 	ENGINE_API void SetIsBeingMovedByEditor(bool bNewIsBeingMoved);

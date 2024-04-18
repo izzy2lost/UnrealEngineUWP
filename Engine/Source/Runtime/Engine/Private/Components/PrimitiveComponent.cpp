@@ -362,6 +362,9 @@ UPrimitiveComponent::UPrimitiveComponent(const FObjectInitializer& ObjectInitial
 	bIsBeingMovedByEditor = false;
 
 	SetGenerateOverlapEvents(true);
+#if WITH_EDITORONLY_DATA
+	bHiddenEdTemporary = false;
+#endif // WITH_EDITORONLY_DATA 
 	bMultiBodyOverlap = false;
 	bReturnMaterialOnMove = false;
 	bCanEverAffectNavigation = false;
@@ -1674,11 +1677,15 @@ bool UPrimitiveComponent::ShouldComponentAddToScene() const
 #if WITH_EDITOR
 	AActor* Owner = GetOwner();
 	const bool bIsHiddenInEditor = GIsEditor && Owner && Owner->IsHiddenEd();
+
+	constexpr bool bIncludeParent = false;
+	const bool bIsTemporarilyHiddenInEditor = IsTemporarilyHiddenInEditor(bIncludeParent);
 #else
 	const bool bIsHiddenInEditor = false;
+	const bool bIsTemporarilyHiddenInEditor = false;
 #endif
 
-	return bSceneAdd && (ShouldRender() || (bCastHiddenShadow && !bIsHiddenInEditor) || bAffectIndirectLightingWhileHidden || bRayTracingFarField);
+	return bSceneAdd && !bIsTemporarilyHiddenInEditor && (ShouldRender() || (bCastHiddenShadow && !bIsHiddenInEditor) || bAffectIndirectLightingWhileHidden || bRayTracingFarField);
 }
 
 bool UPrimitiveComponent::ShouldCreatePhysicsState() const
@@ -1951,6 +1958,30 @@ uint64 UPrimitiveComponent::GetHiddenEditorViews() const
 {
 	const AActor* OwnerActor = GetOwner();
 	return OwnerActor ? OwnerActor->HiddenEditorViews : 0;
+}
+
+bool UPrimitiveComponent::IsTemporarilyHiddenInEditor(const bool bIncludeParent) const
+{
+	if (bHiddenEdTemporary)
+	{
+		return true;
+	}
+
+	if (bIncludeParent)
+	{
+		return GetOwner() && GetOwner()->IsTemporarilyHiddenInEditor(true);
+	}
+
+	return false;
+}
+
+void UPrimitiveComponent::SetIsTemporarilyHiddenInEditor(const bool bInIsHidden)
+{
+	if (bHiddenEdTemporary != bInIsHidden)
+	{
+		bHiddenEdTemporary = bInIsHidden;
+		MarkRenderStateDirty();
+	}
 }
 
 void UPrimitiveComponent::SetIsBeingMovedByEditor(bool bIsBeingMoved)
