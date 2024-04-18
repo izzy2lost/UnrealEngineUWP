@@ -49,6 +49,9 @@ public:
 	 * Additionally, note that this value should be masked against the currently enabled buffers in 'USlateRHIRendererSettings'
 	 */
 	ESlatePostRT BuffersToUpdate_Renderthread = ESlatePostRT::None;
+
+	/** Proxies used to update a post processor within a frame */
+	TMap<ESlatePostRT, TSharedPtr<FSlatePostProcessorUpdaterProxy>> ProcessorUpdaters;
 };
 
 /////////////////////////////////////////////////////
@@ -98,6 +101,19 @@ void FPostBufferUpdater::Draw_RHIRenderThread(FRHICommandListImmediate& RHICmdLi
 
 				if (TSharedPtr<FSlateRHIPostBufferProcessorProxy> PostProcessorProxy = USlateFXSubsystem::GetPostProcessorProxy(SlatePostBufferBit))
 				{
+					if (TSharedPtr<FSlatePostProcessorUpdaterProxy>* ProcessorUpdaterItr = ProcessorUpdaters.Find(SlatePostBufferBit))
+					{
+						if (TSharedPtr<FSlatePostProcessorUpdaterProxy> ProcessorUpdater = *ProcessorUpdaterItr)
+						{
+							ProcessorUpdater->UpdateProcessor_RenderThread(PostProcessorProxy);
+
+							if (ProcessorUpdater->bSkipBufferUpdate)
+							{
+								return;
+							}
+						}
+					}
+
 					PostProcessorProxy->PostProcess_Renderthread(RHICmdList, Src, Dst, SrcRect, DstRect, RenderingPolicyInterface);
 				}
 				else
@@ -218,6 +234,16 @@ void SPostBufferUpdate::SetBuffersToUpdate(const TArrayView<ESlatePostRT> InBuff
 #endif // !UE_SERVER
 }
 
+void SPostBufferUpdate::SetProcessorUpdaters(TMap<ESlatePostRT, TSharedPtr<FSlatePostProcessorUpdaterProxy>> InProcessorUpdaters)
+{
+#if !UE_SERVER
+	if (PostBufferUpdater)
+	{
+		PostBufferUpdater->ProcessorUpdaters = InProcessorUpdaters;
+	}
+#endif // !UE_SERVER
+}
+
 const TArrayView<const ESlatePostRT> SPostBufferUpdate::GetBuffersToUpdate() const
 {
 	return MakeArrayView(BuffersToUpdate);
@@ -227,7 +253,7 @@ UMG_API void SPostBufferUpdate::ReleasePostBufferUpdater()
 {
 #if !UE_SERVER
 	// Copy the pointer onto a lambda to defer the final deletion to after any pending uses on the renderthread
-	TSharedPtr<FPostBufferUpdater, ESPMode::ThreadSafe> ReleaseMe = PostBufferUpdater;
+	TSharedPtr<FPostBufferUpdater> ReleaseMe = PostBufferUpdater;
 	ENQUEUE_RENDER_COMMAND(ReleaseCommand)([ReleaseMe](FRHICommandList& RHICmdList) mutable
 	{
 		ReleaseMe.Reset();

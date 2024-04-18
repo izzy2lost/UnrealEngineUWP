@@ -23,12 +23,19 @@ public:
 	virtual void OnUpdateValuesRenderThread() override;
 	//~ End FSlateRHIPostBufferProcessorProxy Interface
 
-protected:
-
 	/** Blur strength to use when processing, renderthread version actually used to draw. Must be updated via render command except during initialization. */
 	float GaussianBlurStrength_RenderThread = 10;
 
-	/** Fence to allow for us to queue only one update per draw command */
+	/** 
+	 * Blur strength can be updated from both renderthread during draw and gamethread update. 
+	 * Store the last value gamethread provided so we know if we should use the renderthread value or gamethread value. 
+	 * We will use the most recently updated one.
+	 */
+	float GaussianBlurStrengthPreDraw = 10;
+
+protected:
+
+	/** Fence to allow for us to queue only one update per draw command from the gamethread */
 	FRenderCommandFence ParamUpdateFence;
 };
 

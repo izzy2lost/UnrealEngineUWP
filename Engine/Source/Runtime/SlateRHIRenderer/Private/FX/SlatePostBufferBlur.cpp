@@ -4,6 +4,7 @@
 #include "UObject/StrongObjectPtr.h"
 #include "UObject/WeakObjectPtrTemplates.h"
 #include "RHIResources.h"
+#include "RHIUtilities.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(SlatePostBufferBlur)
 
@@ -14,14 +15,25 @@ void FSlatePostBufferBlurProxy::PostProcess_Renderthread(FRHICommandListImmediat
 {
 	if (InRenderingPolicy.IsValid())
 	{
-		// Use rendering policy to perform blur post process with desired Src / Dst & respective extents
-		InRenderingPolicy.BlurRectExternal(RHICmdList, Src, Dst, SrcRect, DstRect, GaussianBlurStrength_RenderThread);
+		if (GaussianBlurStrength_RenderThread < UE_SMALL_NUMBER)
+		{
+			// No real blur, just copy
+			FRHICopyTextureInfo CopyInfo;
+			CopyInfo.SourcePosition = FIntVector(SrcRect.Min.X, SrcRect.Min.Y, 0);
+			CopyInfo.Size = FIntVector(DstRect.Width(), DstRect.Height(), 1);
+			TransitionAndCopyTexture(RHICmdList, Src, Dst, CopyInfo);
+		}
+		else
+		{
+			// Use rendering policy to perform blur post process with desired Src / Dst & respective extents
+			InRenderingPolicy.BlurRectExternal(RHICmdList, Src, Dst, SrcRect, DstRect, GaussianBlurStrength_RenderThread);
+		}
 	}
 }
 
 void FSlatePostBufferBlurProxy::OnUpdateValuesRenderThread()
 {
-	// Don't issue multiple updates in a single draw
+	// Don't issue multiple updates in a single frame from the CPU based on dirty values
 	if (!ParamUpdateFence.IsFenceComplete())
 	{
 		return;
@@ -32,21 +44,35 @@ void FSlatePostBufferBlurProxy::OnUpdateValuesRenderThread()
 	{
 		if (ParentBlurObject->GaussianBlurStrength != GaussianBlurStrength_RenderThread)
 		{
-			// Explicit param copy to avoid renderthread from reading value during gamethread write
-			float GaussianBlurStrengthCopy = ParentBlurObject->GaussianBlurStrength;
+			// Blur strengths can be updated from renderthread during draw or gamethread,
+			// if our parent object value matches the predraw then don't update the renderthread value.
+			// Instead we need to update our parent object's value to match the last value from renderthread
+			bool bUpdatedInRenderThread = ParentBlurObject->GaussianBlurStrength == GaussianBlurStrengthPreDraw;
 
-			// Execute param copy in a render command to safely update value on renderthread without race conditions
-			TWeakPtr<FSlatePostBufferBlurProxy> TempWeakThis = SharedThis(this);
-			ENQUEUE_RENDER_COMMAND(FUpdateValuesRenderThreadFX_Blur)([TempWeakThis, GaussianBlurStrengthCopy](FRHICommandListImmediate& RHICmdList)
+			if (bUpdatedInRenderThread)
 			{
-				if (TSharedPtr<FSlatePostBufferBlurProxy> SharedThisPin = TempWeakThis.Pin())
-				{
-					SharedThisPin->GaussianBlurStrength_RenderThread = GaussianBlurStrengthCopy;
-				}
-			});
+				ParentBlurObject->GaussianBlurStrength = GaussianBlurStrength_RenderThread;
+				GaussianBlurStrengthPreDraw = GaussianBlurStrength_RenderThread;
+			}
+			else
+			{
+				// Explicit param copy to avoid renderthread from reading value during gamethread write
+				float GaussianBlurStrengthCopy = ParentBlurObject->GaussianBlurStrength;
+				GaussianBlurStrengthPreDraw = GaussianBlurStrengthCopy;
 
-			// Issue fence to prevent multiple updates in a single draw
-			ParamUpdateFence.BeginFence();
+				// Execute param copy in a render command to safely update value on renderthread without race conditions
+				TWeakPtr<FSlatePostBufferBlurProxy> TempWeakThis = SharedThis(this);
+				ENQUEUE_RENDER_COMMAND(FUpdateValuesRenderThreadFX_Blur)([TempWeakThis, GaussianBlurStrengthCopy](FRHICommandListImmediate& RHICmdList)
+				{
+					if (TSharedPtr<FSlatePostBufferBlurProxy> SharedThisPin = TempWeakThis.Pin())
+					{
+						SharedThisPin->GaussianBlurStrength_RenderThread = GaussianBlurStrengthCopy;
+					}
+				});
+
+				// Issue fence to prevent multiple updates in a single frame
+				ParamUpdateFence.BeginFence();
+			}
 		}
 	}
 }
@@ -90,8 +116,19 @@ void USlatePostBufferBlur::PostProcess(FRenderResource* InViewInfo, FRenderResou
 			FIntRect SrcRect = FIntRect(0, 0, Src->GetSizeX(), Src->GetSizeY());
 			FIntRect DstRect = FIntRect(0, 0, DstExtent.X, DstExtent.Y);
 
-			// Use rendering policy to perform blur post process with desired Src / Dst & respective extents
-			InRenderingPolicy.BlurRectExternal(RHICmdList, Src, Dst, SrcRect, DstRect, GaussianBlurStrengthCopy);
+			if (GaussianBlurStrengthCopy < UE_SMALL_NUMBER)
+			{
+				// No real blur, just copy
+				FRHICopyTextureInfo CopyInfo;
+				CopyInfo.SourcePosition = FIntVector(SrcRect.Min.X, SrcRect.Min.Y, 0);
+				CopyInfo.Size = FIntVector(DstRect.Width(), DstRect.Height(), 1);
+				TransitionAndCopyTexture(RHICmdList, Src, Dst, CopyInfo);
+			}
+			else
+			{
+				// Use rendering policy to perform blur post process with desired Src / Dst & respective extents
+				InRenderingPolicy.BlurRectExternal(RHICmdList, Src, Dst, SrcRect, DstRect, GaussianBlurStrengthCopy);
+			}
 		}
 	});
 }

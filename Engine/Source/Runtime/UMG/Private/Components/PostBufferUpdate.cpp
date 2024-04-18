@@ -14,7 +14,10 @@
 UPostBufferUpdate::UPostBufferUpdate()
 {
 	bPerformDefaultPostBufferUpdate = true;
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	BuffersToUpdate = {};
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	UpdateBufferInfos = {};
 }
 
 void UPostBufferUpdate::SetPerformDefaultPostBufferUpdate(bool bInPerformDefaultPostBufferUpdate)
@@ -45,7 +48,31 @@ TSharedRef<SWidget> UPostBufferUpdate::RebuildWidget()
 
 	if (bSetBuffersToUpdate)
 	{
-		MyPostBufferUpdate->SetBuffersToUpdate(BuffersToUpdate);
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		if (!UpdateBufferInfos.IsEmpty())
+		{
+			TArray<ESlatePostRT> TempBuffersToUpdate;
+			TMap<ESlatePostRT, TSharedPtr<FSlatePostProcessorUpdaterProxy>> TempProcessorUpdaters;
+
+			for (const FSlatePostBufferUpdateInfo& UpdateBufferInfo : UpdateBufferInfos)
+			{
+				TempBuffersToUpdate.Add(UpdateBufferInfo.BufferToUpdate);
+				if (TObjectPtr<USlatePostBufferProcessorUpdater> PostParamUpdater = UpdateBufferInfo.PostParamUpdater)
+				{
+					TSharedPtr<FSlatePostProcessorUpdaterProxy> PostParamUpdaterProxy = PostParamUpdater->GetRenderThreadProxy();
+					PostParamUpdaterProxy->bSkipBufferUpdate = PostParamUpdater->bSkipBufferUpdate;
+					TempProcessorUpdaters.Add(UpdateBufferInfo.BufferToUpdate, PostParamUpdaterProxy);
+				}
+			}
+
+			MyPostBufferUpdate->SetBuffersToUpdate(TempBuffersToUpdate);
+			MyPostBufferUpdate->SetProcessorUpdaters(TempProcessorUpdaters);
+		}
+		else
+		{
+			MyPostBufferUpdate->SetBuffersToUpdate(BuffersToUpdate);
+		}
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
 	return MyPostBufferUpdate.ToSharedRef();
@@ -73,7 +100,31 @@ void UPostBufferUpdate::SynchronizeProperties()
 
 	if (bSetBuffersToUpdate)
 	{
-		MyPostBufferUpdate->SetBuffersToUpdate(BuffersToUpdate);
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		if (!UpdateBufferInfos.IsEmpty())
+		{
+			TArray<ESlatePostRT> TempBuffersToUpdate;
+			TMap<ESlatePostRT, TSharedPtr<FSlatePostProcessorUpdaterProxy>> TempProcessorUpdaters;
+
+			for (const FSlatePostBufferUpdateInfo& UpdateBufferInfo : UpdateBufferInfos)
+			{
+				TempBuffersToUpdate.Add(UpdateBufferInfo.BufferToUpdate);
+				if (TObjectPtr<USlatePostBufferProcessorUpdater> PostParamUpdater = UpdateBufferInfo.PostParamUpdater)
+				{
+					TSharedPtr<FSlatePostProcessorUpdaterProxy> PostParamUpdaterProxy = PostParamUpdater->GetRenderThreadProxy();
+					PostParamUpdaterProxy->bSkipBufferUpdate = PostParamUpdater->bSkipBufferUpdate;
+					TempProcessorUpdaters.Add(UpdateBufferInfo.BufferToUpdate, PostParamUpdaterProxy);
+				}
+			}
+
+			MyPostBufferUpdate->SetBuffersToUpdate(TempBuffersToUpdate);
+			MyPostBufferUpdate->SetProcessorUpdaters(TempProcessorUpdaters);
+		}
+		else
+		{
+			MyPostBufferUpdate->SetBuffersToUpdate(BuffersToUpdate);
+		}
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 }
 
