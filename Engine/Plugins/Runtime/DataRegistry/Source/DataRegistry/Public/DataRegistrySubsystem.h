@@ -123,7 +123,7 @@ public:
 
 	// Native interface, works using subsystem instance
 
-	/** Returns the global subsystem instance */
+	/** Returns the global subsystem instance, this can return null during early engine startup and shutdown */
 	static UDataRegistrySubsystem* Get();
 
 	/** Finds the right registry for a type name */
@@ -256,6 +256,9 @@ protected:
 
 	/** Callback for when the subsystem has finished scanning for and initializing all known data registries */
 	FDataRegistrySubsystemInitializedCallback OnSubsystemInitializedCallback;
+
+	/** Singleton object for the DataRegistrySubsystem::Get function to use, populated in Initialize and cleared out in Deinitialize */
+	static TObjectPtr<UDataRegistrySubsystem> SingletonSubSystem;
 
 #if WITH_EDITOR
 	virtual void PreBeginPIE(bool bStartSimulate);

@@ -20,16 +20,12 @@
 #include "Engine/Engine.h"
 #endif
 
+TObjectPtr<UDataRegistrySubsystem> UDataRegistrySubsystem::SingletonSubSystem = nullptr;
+
 UDataRegistrySubsystem* UDataRegistrySubsystem::Get()
 {
-	// This function is fairly slow and once this is valid it will stay valid until shutdown
-	static UDataRegistrySubsystem* SubSystem = nullptr;
-	if (!SubSystem)
-	{
-		SubSystem = GEngine->GetEngineSubsystem<UDataRegistrySubsystem>();
-	}
-
-	return SubSystem;
+	// GetEngineSubsystem is fairly slow and once SingletonSubSystem is valid it will stay valid until shutdown
+	return SingletonSubSystem;
 }
 
 //static bool GetCachedItemBP(FDataRegistryId ItemId, UPARAM(ref) FTableRowBase& OutItem);
@@ -879,6 +875,9 @@ void UDataRegistrySubsystem::PostAssetManager()
 
 void UDataRegistrySubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
+	check(SingletonSubSystem == nullptr);
+	SingletonSubSystem = this;
+
 	Super::Initialize(Collection);
 
 	// This should always happen before PostEngineInit
@@ -896,6 +895,8 @@ void UDataRegistrySubsystem::Initialize(FSubsystemCollectionBase& Collection)
 
 void UDataRegistrySubsystem::Deinitialize()
 {
+	check(SingletonSubSystem == this);
+
 	if (!GExitPurge)
 	{
 		DeinitializeAllRegistries();
@@ -905,6 +906,8 @@ void UDataRegistrySubsystem::Deinitialize()
 	bFullyInitialized = false;
 
 	Super::Deinitialize();
+
+	SingletonSubSystem = nullptr;
 }
 
 void UDataRegistrySubsystem::AddReferencedObjects(UObject* InThis, FReferenceCollector& Collector)
