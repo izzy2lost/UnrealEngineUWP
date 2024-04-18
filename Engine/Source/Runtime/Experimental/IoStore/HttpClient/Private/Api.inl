@@ -133,7 +133,7 @@ EMimeType FResponse::GetContentType() const
 ////////////////////////////////////////////////////////////////////////////////
 void FResponse::GetContentType(FAnsiStringView& Out) const
 {
-	Out = GetHeader("Accept");
+	Out = GetHeader("Content-Type");
 
 	int32 SemiColon;
 	if (Out.FindChar(';', SemiColon))
