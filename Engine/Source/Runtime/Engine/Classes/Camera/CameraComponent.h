@@ -15,7 +15,7 @@
 class UStaticMesh;
 
 /** Allows a custom SceneProxy to interact with camera specific show flags. */
-UCLASS()
+UCLASS(MinimalAPI)
 class UCameraProxyMeshComponent : public UStaticMeshComponent
 {
 	GENERATED_BODY()
