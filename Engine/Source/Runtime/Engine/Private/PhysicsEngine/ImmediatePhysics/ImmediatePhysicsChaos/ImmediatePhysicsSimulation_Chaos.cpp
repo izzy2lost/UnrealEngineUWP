@@ -156,7 +156,7 @@ FAutoConsoleVariableRef  CVarChaosImmPhysInertiaConditioningMaxInvInertiaCompone
 int32 ChaosImmediate_Joint_UseLinearSolver = -1;
 FAutoConsoleVariableRef CVarChaosImmPhysJointUseCachedSolver(TEXT("p.Chaos.ImmPhys.Joint.UseLinearSolver"), ChaosImmediate_Joint_UseLinearSolver, TEXT("Force use of linear or non-linear joint solver. (-1 to use PhysicsAsset setting)"));
 
-bool bChaosImmediate_UseSimdForLinearSolver = false;
+bool bChaosImmediate_UseSimdForLinearSolver = true;
 FAutoConsoleVariableRef  CVarChaosImmPhysUseSimdForLinearSolver(TEXT("p.Chaos.ImmPhys.UseSimd"), bChaosImmediate_UseSimdForLinearSolver, TEXT("Enable/Disable SIMD on the linear joint solver"));
 
 //
