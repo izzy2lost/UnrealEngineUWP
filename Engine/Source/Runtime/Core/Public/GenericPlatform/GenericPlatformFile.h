@@ -236,13 +236,13 @@ struct FFileStatData
  * A handle used by the FileJournal API. Platform-specific identifier for which disk journal is being read.
  */
 typedef uint64 FFileJournalId;
-constexpr FFileJournalId FileJournalIdInvalid = static_cast<FFileJournalId>(MAX_uint64);
+inline constexpr FFileJournalId FileJournalIdInvalid = static_cast<FFileJournalId>(MAX_uint64);
 
 /**
  * A handle used by the FileJournal API. Represents an entry for an action on a file in the FileJournal.
  */
 typedef uint64 FFileJournalEntryHandle;
-constexpr FFileJournalEntryHandle FileJournalEntryHandleInvalid = static_cast<FFileJournalEntryHandle>(MAX_uint64);
+inline constexpr FFileJournalEntryHandle FileJournalEntryHandleInvalid = static_cast<FFileJournalEntryHandle>(MAX_uint64);
 
 /**
  * A handle used by the FileJournal API. Uniquely represents a file on disk without needing to use the filename.

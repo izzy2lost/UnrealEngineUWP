@@ -340,9 +340,9 @@ struct redux_impl<Func, Evaluator, LinearVectorizedTraversal, CompleteUnrolling>
   {
     EIGEN_ONLY_USED_FOR_DEBUG(xpr)
     eigen_assert(xpr.rows()>0 && xpr.cols()>0 && "you are using an empty matrix");
-    if (VectorizedSize > 0) {
+    if constexpr (VectorizedSize > 0) {
       Scalar res = func.predux(redux_vec_unroller<Func, Evaluator, 0, Size / PacketSize>::template run<PacketType>(eval,func));
-      if (VectorizedSize != Size)
+      if constexpr (VectorizedSize != Size)
         res = func(res,redux_novec_unroller<Func, Evaluator, VectorizedSize, Size-VectorizedSize>::run(eval,func));
       return res;
     }
@@ -458,9 +458,15 @@ template<typename Derived>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE typename internal::traits<Derived>::Scalar
 DenseBase<Derived>::sum() const
 {
-  if(SizeAtCompileTime==0 || (SizeAtCompileTime==Dynamic && size()==0))
+  if constexpr (SizeAtCompileTime==0)
     return Scalar(0);
-  return derived().redux(Eigen::internal::scalar_sum_op<Scalar,Scalar>());
+  else
+  {
+    if constexpr (SizeAtCompileTime==Dynamic)
+      if (size()==0)
+        return Scalar(0);
+    return derived().redux(Eigen::internal::scalar_sum_op<Scalar,Scalar>());
+  }
 }
 
 /** \returns the mean of all coefficients of *this

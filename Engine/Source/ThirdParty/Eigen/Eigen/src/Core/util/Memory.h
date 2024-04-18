@@ -506,7 +506,7 @@ EIGEN_DEVICE_FUNC inline Index first_aligned(const Scalar* array, Index size)
   const Index AlignmentSize = Alignment / ScalarSize;
   const Index AlignmentMask = AlignmentSize-1;
 
-  if(AlignmentSize<=1)
+  if constexpr (AlignmentSize<=1)
   {
     // Either the requested alignment if smaller than a scalar, or it exactly match a 1 scalar
     // so that all elements of the array have the same alignment.

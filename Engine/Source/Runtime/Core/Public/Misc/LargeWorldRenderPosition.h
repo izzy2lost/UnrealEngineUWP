@@ -11,7 +11,7 @@
 #include "Misc/LargeWorldCoordinates.h"
 #include "Math/DoubleFloat.h"
 
-static constexpr double UE_LWC_RENDER_TILE_SIZE = 2097152.0;
+inline constexpr double UE_LWC_RENDER_TILE_SIZE = 2097152.0;
 
 template <typename TScalar>
 struct TLargeWorldRenderScalar

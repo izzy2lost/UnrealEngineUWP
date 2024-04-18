@@ -51,9 +51,9 @@ namespace AlgoImpl
 	{
 		int32 SubgroupStart = 0;
 
-		if (MinMergeSubgroupSize > 1)
+		if constexpr (MinMergeSubgroupSize > 1)
 		{
-			if (MinMergeSubgroupSize > 2)
+			if constexpr (MinMergeSubgroupSize > 2)
 			{
 				// First pass with simple bubble-sort.
 				do

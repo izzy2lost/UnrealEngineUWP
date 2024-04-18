@@ -2375,8 +2375,6 @@ FORCEINLINE FString TVector<T>::ToCompactString() const
 template<typename T>
 FORCEINLINE bool TVector<T>::InitFromCompactString(const FString& InSourceString)
 {
-	bool bAxisFound = false;
-	
 	X = Y = Z = 0;
 
 	if (FCString::Strifind(*InSourceString, TEXT("V(0)")) != nullptr)
