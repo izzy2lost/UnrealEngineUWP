@@ -58,6 +58,7 @@
 #include "MessageLogModule.h"
 #include "UnrealEdMisc.h"
 #include "Subsystems/AssetEditorSubsystem.h"
+#include "Misc/TransactionObjectEvent.h"
 #endif
 
 #ifndef REQUIRES_SINGLEUSE_FLAG_FOR_RUNTIME_TEXTURES
@@ -390,6 +391,13 @@ bool UCustomizableObjectInstance::CanEditChange(const FProperty* InProperty) con
 	}
 
 	return bIsMutable;
+}
+
+void UCustomizableObjectInstance::PostTransacted(const FTransactionObjectEvent& TransactionEvent)
+{
+	Super::PostTransacted(TransactionEvent);
+
+	GetPrivate()->OnInstanceTransactedDelegate.Broadcast(TransactionEvent);
 }
 
 #endif // WITH_EDITOR

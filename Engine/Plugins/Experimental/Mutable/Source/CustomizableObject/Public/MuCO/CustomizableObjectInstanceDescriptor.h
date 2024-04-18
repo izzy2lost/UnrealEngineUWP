@@ -374,7 +374,8 @@ private:
 	UPROPERTY()
 	TArray<FCustomizableObjectProjectorParameterValue> ProjectorParameters;
 
-	/** Mutable parameters optimization state. */
+	/** Mutable parameters optimization state. Transient UProperty to make it transactable. */
+	UPROPERTY(Transient)
 	int32 State = 0;
 	
 	/** If this is set to true, when updating the instance an additional step will be performed to calculate the list of instance parameters that are relevant for the current parameter values. */

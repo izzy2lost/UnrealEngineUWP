@@ -8,6 +8,8 @@
 
 class FDetailWidgetRow;
 class FReply;
+class FScopedTransaction;
+class FTransactionObjectEvent;
 class ICustomizableObjectInstanceEditor;
 class IDetailCategoryBuilder;
 class IDetailGroup;
@@ -17,9 +19,11 @@ class UCustomizableObjectInstance;
 
 enum class ECheckBoxState : uint8;
 namespace ESelectInfo { enum Type : int; }
+namespace ETextCommit { enum Type : int; }
 
 struct FGeometry;
 struct FPointerEvent;
+struct FUpdateContext;
 
 class FCustomizableInstanceDetails : public IDetailCustomization
 {
@@ -39,6 +43,10 @@ public:
 	void Refresh() const;
 
 private:
+
+	// Updat the Instance if a parameter has been modified. Also creates a Delegate to refresh the UI if the 
+	// Instance has been updated successfully.
+	void UpdateInstance();
 
 	// Callback to regenerate the details when the instance has finished an update
 	void InstanceUpdated(UCustomizableObjectInstance* Instance) const;
@@ -86,6 +94,7 @@ private:
 	void OnFloatParameterSliderBegin();
 	void OnFloatParameterSpinBoxEnd(float Value, const FString ParamName, int32 RangeIndex);
 	void OnFloatParameterSliderEnd();
+	void OnFloatParameterCommited(float Value, ETextCommit::Type Type, const FString ParamName, int32 RangeIndex);	// Needed to have undo/redo
  
 	// Texture Parameters Functions
 	TSharedRef<SWidget> GenerateTextureWidget(const int32 ParamIndexInObject);
@@ -96,7 +105,7 @@ private:
 	TSharedRef<SWidget> GenerateColorWidget(const int32 ParamIndexInObject);
 	FLinearColor GetColorParameterValue(const FString ParamName) const;
 	FReply OnColorBlockMouseButtonDown(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent, const FString ParamName);
-	void OnSetColorFromColorPicker(FLinearColor NewColor, const FString PickerParamName) const;
+	void OnSetColorFromColorPicker(FLinearColor NewColor, const FString PickerParamName);
 
 	// Bool Parameters Functions
 	TSharedRef<SWidget> GenerateBoolWidget(const int32 ParamIndexInObject);
@@ -111,9 +120,9 @@ private:
 	FReply OnProjectorCopyTransform(const FString ParamName, const int32 RangeIndex) const;
 	FReply OnProjectorPasteTransform(const FString ParamName, const int32 RangeIndex);
 	FReply OnProjectorResetTransform(const FString ParamName, const int32 RangeIndex);
-	FReply OnProjectorLayerAdded(const FString ParamName) const;
-	FReply OnProjectorLayerRemoved(const FString ParamName, const int32 RangeIndex) const;
-	void OnProjectorTextureParameterComboBoxChanged(TSharedPtr<FString> Selection, ESelectInfo::Type SelectInfo, const FString ParamName, int32 RangeIndex) const;
+	FReply OnProjectorLayerAdded(const FString ParamName);
+	FReply OnProjectorLayerRemoved(const FString ParamName, const int32 RangeIndex);
+	void OnProjectorTextureParameterComboBoxChanged(TSharedPtr<FString> Selection, ESelectInfo::Type SelectInfo, const FString ParamName, int32 RangeIndex);
 	TSharedRef<SWidget> MakeTextureComboEntryWidget(TSharedPtr<FString> InItem) const;
 	TSharedRef<SWidget> OnGenerateWidgetProjectorParameter(TSharedPtr<FString> InItem) const;
 
@@ -123,6 +132,11 @@ private:
 	FReply OnResetAllParameters();
 	void OnResetParameterButtonClicked(int32 ParameterIndex);
 	void SetParameterValueToDefault(int32 ParameterIndex);
+
+	// Transaction System
+	void BeginTransaction(const FText& TransactionDesc, bool bModifyCustomizableObject = false);
+	void EndTransaction();
+	void OnInstanceTransacted(const FTransactionObjectEvent& TransactionEvent);
 
 private:
 
@@ -172,5 +186,8 @@ private:
 
 	/** Array to store dynamic brushes. Neede because an image widget only stores a pointer to a Brush. */
 	TArray< TSharedPtr<class FDeferredCleanupSlateBrush> > DynamicBrushes;
+
+	// Unique transaction pointer to allow transactions that start and finish in different funtion scopes.
+	TUniquePtr<FScopedTransaction> Transaction;
 };
 

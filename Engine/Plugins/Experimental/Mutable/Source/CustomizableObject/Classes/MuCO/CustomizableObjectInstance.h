@@ -243,7 +243,9 @@ public:
 #if WITH_EDITOR
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 	virtual bool CanEditChange( const FProperty* InProperty ) const override;
+	virtual void PostTransacted(const FTransactionObjectEvent& TransactionEvent) override;
 #endif //WITH_EDITOR
+
 	virtual void Serialize(FArchive& Ar) override;
 	virtual void PostLoad() override;
 	virtual void BeginDestroy() override;

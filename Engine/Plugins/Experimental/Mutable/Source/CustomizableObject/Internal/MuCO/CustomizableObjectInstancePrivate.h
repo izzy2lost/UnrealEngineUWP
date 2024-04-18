@@ -162,6 +162,11 @@ struct FAnimBpGeneratedPhysicsAssets
 };
 
 
+#if WITH_EDITOR
+DECLARE_MULTICAST_DELEGATE_OneParam(FObjectInstanceTransactedDelegate, const FTransactionObjectEvent&);
+#endif //WIT_EDITOR
+
+
 UCLASS()
 class CUSTOMIZABLEOBJECT_API UCustomizableInstancePrivate : public UObject
 {
@@ -390,5 +395,10 @@ public:
 	/** Preview Instance Properties search box filter. Saved here to avoid losing the text during UI refreshes. */
 	FText ParametersSearchFilter;
 #endif
+
+#if WITH_EDITOR
+	/** Delegate called when the Instance has been transacted */
+	FObjectInstanceTransactedDelegate OnInstanceTransactedDelegate;
+#endif // WITH_EDITOR
 };
 
