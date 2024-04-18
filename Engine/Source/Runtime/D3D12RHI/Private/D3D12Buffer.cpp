@@ -534,6 +534,8 @@ void* FD3D12DynamicRHI::LockBuffer(FRHICommandListBase& RHICmdList, FD3D12Buffer
 #endif
 				Resource->RenameLDAChain(Contexts, NewLocation);
 			});
+
+			RHICmdList.RHIThreadFence(true);
 		}
 	}
 	else
