@@ -75,11 +75,15 @@ UInterchangeGenericAssetsPipeline::UInterchangeGenericAssetsPipeline()
 void UInterchangeGenericAssetsPipeline::PreDialogCleanup(const FName PipelineStackName)
 {
 	check(CommonSkeletalMeshesAndAnimationsProperties);
-	//Set the pipeline skeleton using what we found in AdjustSettingsForContext
-	CommonSkeletalMeshesAndAnimationsProperties->Skeleton = nullptr;
-	if (ContentPathExistingSkeleton.IsValid())
+	//Don't touch the skeleton property if we are a override pipeline or a re-import pipeline
+	if (!IsFromReimportOrOverride())
 	{
-		CommonSkeletalMeshesAndAnimationsProperties->Skeleton = Cast<USkeleton>(ContentPathExistingSkeleton.TryLoad());
+		//Set the pipeline skeleton using what we found in AdjustSettingsForContext
+		CommonSkeletalMeshesAndAnimationsProperties->Skeleton = nullptr;
+		if (ContentPathExistingSkeleton.IsValid())
+		{
+			CommonSkeletalMeshesAndAnimationsProperties->Skeleton = Cast<USkeleton>(ContentPathExistingSkeleton.TryLoad());
+		}
 	}
 
 	CommonSkeletalMeshesAndAnimationsProperties->bImportOnlyAnimations = bImportOnlyAnimationAdjusted;

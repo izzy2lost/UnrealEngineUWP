@@ -306,9 +306,8 @@ TSharedRef<SBox> SInterchangePipelineConfigurationDialog::SpawnPipelineConfigura
 				if (UInterchangePipelineBase* GeneratedPipeline = UE::Interchange::GeneratePipelineInstance(DefaultPipeline))
 				{
 					GeneratedPipeline->TransferAdjustSettings(DefaultPipeline);
-					if (Stack.StackName == ReimportStackName)
+					if (GeneratedPipeline->IsFromReimportOrOverride())
 					{
-						
 						//We save the pipeline settings to allow Reset to Default to work
 						GeneratedPipeline->SaveSettings(Stack.StackName);
 					}
@@ -984,7 +983,7 @@ void SInterchangePipelineConfigurationDialog::RefreshStack(bool bStackSelectionC
 			if (UInterchangePipelineBase* GeneratedPipeline = UE::Interchange::GeneratePipelineInstance(DefaultPipeline))
 			{
 				GeneratedPipeline->TransferAdjustSettings(DefaultPipeline);
-				if (Stack.StackName != ReimportStackName || !bStackSelectionChange)
+				if (!GeneratedPipeline->IsFromReimportOrOverride() || !bStackSelectionChange)
 				{
 					//Load the settings for this pipeline
 					GeneratedPipeline->LoadSettings(Stack.StackName);

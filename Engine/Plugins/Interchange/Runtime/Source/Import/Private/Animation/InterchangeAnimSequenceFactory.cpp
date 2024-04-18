@@ -1348,11 +1348,8 @@ UInterchangeFactoryBase::FImportAssetResult UInterchangeAnimSequenceFactory::End
 		{
 			for (const FString& CurveName : CurvesNotFound)
 			{
-				UInterchangeResultError_Generic* Message = AddMessage<UInterchangeResultError_Generic>();
-				Message->SourceAssetName = Arguments.SourceData->GetFilename();
-				Message->DestinationAssetName = Arguments.AssetName;
-				Message->AssetType = UAnimSequence::StaticClass();
-				Message->Text = FText::Format(NSLOCTEXT("UInterchangeAnimSequenceFactory", "NonExistingCurve", "Curve ({0}) was not found in the new Animation."), FText::FromString(CurveName));
+				//This is only a verbose log
+				UE_LOG(LogInterchangeImport, Verbose, TEXT("Curve (%s) was not found in the new Animation"), *CurveName);
 			}
 		}
 		Controller.NotifyPopulated();

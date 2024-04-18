@@ -14,7 +14,7 @@
 void UInterchangeGraphInspectorPipeline::ExecutePipeline(UInterchangeBaseNodeContainer* BaseNodeContainer, const TArray<UInterchangeSourceData*>& SourceDatas, const FString& ContentBasePath)
 {
 	//Do not pop dialog if we are unattended or doing automation
-	if (FApp::IsUnattended() || IsRunningCommandlet())
+	if (FApp::IsUnattended() || IsRunningCommandlet() || GIsRunningUnattendedScript)
 	{
 		return;
 	}

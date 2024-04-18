@@ -310,6 +310,22 @@ public:
 		bIsBasicLayout = bBasicLayoutModeValue;
 	}
 
+	/*
+	 * Set to true if this pipeline is from a re-import or an override pipelines stack
+	 */
+	INTERCHANGECORE_API void SetFromReimportOrOverride(bool bInFromReimportOrOverride)
+	{
+		bFromReimportOrOverride = bInFromReimportOrOverride;
+	}
+
+	/*
+	 * Return true if the pipeline was created for a re-import or an override pipelines stack
+	 */
+	INTERCHANGECORE_API bool IsFromReimportOrOverride()
+	{
+		return bFromReimportOrOverride;
+	}
+	
 	/**
 	 * This function is called before showing the import dialog. It is not called when doing a reimport.
 	 */
@@ -460,12 +476,13 @@ public:
 	 * The Unreal import system has an option to force a name if we import only one main asset (one texture, one mesh or one animation).
 	 * The generic asset pipeline uses this information to behave as expected.
 	 */
+	UPROPERTY()
 	FString DestinationName;
 
 	/*
 	 * The content path where asset should be created.
 	 */
-	UPROPERTY(Transient)
+	UPROPERTY()
 	FString ContentImportPath;
 
 protected:
@@ -539,6 +556,13 @@ protected:
 	 * Note: This layout must be set by the owner instancing this pipeline. This layout will be use to hide or not some properties.
 	 */
 	bool bIsBasicLayout = false;
+
+	/*
+	 * If true, this pipeline was create to re-import an asset or override the project settings pipelines.
+	 * That kind of pipeline will not be treat like project settings pipeline in the UI. PredialogCleanup will not be called.
+	 */
+	UPROPERTY()
+	bool bFromReimportOrOverride = false;
 
 	UPROPERTY()
 	TObjectPtr<UInterchangeResultsContainer> Results;

@@ -1803,30 +1803,22 @@ UInterchangeManager::ImportInternal(const FString& ContentPath, const UInterchan
 			}
 		}
 	}
-	else if ( ImportAssetParameters.OverridePipelines.Num() == 0 )
+	else
 	{
-		
 		const bool bIsUnattended = FApp::IsUnattended() || GIsAutomationTesting || ImportAssetParameters.bIsAutomated || bSkipImportDialog;
 #if WITH_EDITORONLY_DATA
 		bool bShowPipelineStacksConfigurationDialog = !bIsUnattended
-															&& FInterchangeProjectSettingsUtils::ShouldShowPipelineStacksConfigurationDialog(bImportScene, bIsReimport, *SourceData)
-															&& !bImportCanceled
-															&& !IsRunningCommandlet();
+			&& FInterchangeProjectSettingsUtils::ShouldShowPipelineStacksConfigurationDialog(bImportScene, bIsReimport, *SourceData)
+			&& !bImportCanceled
+			&& !IsRunningCommandlet();
 #else
 		bool bShowPipelineStacksConfigurationDialog = false;
 #endif
-
 		if (FEngineAnalytics::IsAvailable())
 		{
 			Attribs.Add(FAnalyticsEventAttribute(TEXT("ShowImportDialog"), bShowPipelineStacksConfigurationDialog));
 		}
 
-		const TMap<FName, FInterchangePipelineStack>& DefaultPipelineStacks = InterchangeImportSettings.PipelineStacks;
-
-		const FName ReimportPipelineName = TEXT("ReimportPipeline");
-		TArray<FInterchangeStackInfo> PipelineStacks;
-		TArray<UInterchangePipelineBase*> OutPipelines;
-		
 		//If we need to display the dialog we want to translate the source file before showing it
 		if (RegisteredPipelineConfiguration && bShowPipelineStacksConfigurationDialog)
 		{
@@ -1871,45 +1863,53 @@ UInterchangeManager::ImportInternal(const FString& ContentPath, const UInterchan
 				bShowPipelineStacksConfigurationDialog = false;
 			}
 		}
-		
 
-		//Fill the Stacks before showing the UI
-		if (bIsReimport)
+		const TMap<FName, FInterchangePipelineStack>& DefaultPipelineStacks = InterchangeImportSettings.PipelineStacks;
+
+		const FName ReimportPipelineName = TEXT("ReimportPipeline");
+		const FName OverridePipelineName = TEXT("OverridePipeline");
+		TArray<FInterchangeStackInfo> PipelineStacks;
+		TArray<UInterchangePipelineBase*> OutPipelines;
+
+		if (ImportAssetParameters.OverridePipelines.IsEmpty())
 		{
-			FInterchangeStackInfo& StackInfo = PipelineStacks.AddDefaulted_GetRef();
-			StackInfo.StackName = ReimportPipelineName;
-
-			TArray<UObject*> Pipelines = OriginalAssetImportData->GetPipelines();
-			for (UObject* CurrentPipeline : Pipelines)
+			//Fill the Stacks before showing the UI
+			if (bIsReimport)
 			{
-				UInterchangePipelineBase* SourcePipeline = Cast<UInterchangePipelineBase>(CurrentPipeline);
-				if (!SourcePipeline)
+				FInterchangeStackInfo& StackInfo = PipelineStacks.AddDefaulted_GetRef();
+				StackInfo.StackName = ReimportPipelineName;
+
+				TArray<UObject*> Pipelines = OriginalAssetImportData->GetPipelines();
+				for (UObject* CurrentPipeline : Pipelines)
 				{
-					if (UInterchangePythonPipelineAsset* PythonPipelineAsset = Cast<UInterchangePythonPipelineAsset>(CurrentPipeline))
+					UInterchangePipelineBase* SourcePipeline = Cast<UInterchangePipelineBase>(CurrentPipeline);
+					if (!SourcePipeline)
 					{
-						SourcePipeline = PythonPipelineAsset->GeneratedPipeline;
+						if (UInterchangePythonPipelineAsset* PythonPipelineAsset = Cast<UInterchangePythonPipelineAsset>(CurrentPipeline))
+						{
+							SourcePipeline = PythonPipelineAsset->GeneratedPipeline;
+						}
+					}
+					if (SourcePipeline && SourcePipeline->SupportReimport()) //Its possible a pipeline doesnt exist anymore so it wont load into memory when we loading the outer asset
+					{
+						//Duplicate the pipeline saved in the asset import data
+						UInterchangePipelineBase* GeneratedPipeline = Cast<UInterchangePipelineBase>(StaticDuplicateObject(SourcePipeline, GetTransientPackage()));
+						// Make sure that the instance does not carry over standalone and public flags as they are not actual assets to be persisted
+						GeneratedPipeline->ClearFlags(EObjectFlags::RF_Standalone | EObjectFlags::RF_Public);
+						constexpr bool bFromReImportOrOverride = true;
+						GeneratedPipeline->SetFromReimportOrOverride(bFromReImportOrOverride);
+						AdjustPipelineSettingForContext(GeneratedPipeline);
+						StackInfo.Pipelines.Add(GeneratedPipeline);
+					}
+					else if (!SourcePipeline)
+					{
+						//A pipeline was not loaded
+						UE_LOG(LogInterchangeEngine, Warning, TEXT("Interchange Reimport: Missing import pipeline from the reimporting asset. The reimport might fail."));
 					}
 				}
-				if (SourcePipeline && SourcePipeline->SupportReimport()) //Its possible a pipeline doesnt exist anymore so it wont load into memory when we loading the outer asset
-				{
-					//Duplicate the pipeline saved in the asset import data
-					UInterchangePipelineBase* GeneratedPipeline = Cast<UInterchangePipelineBase>(StaticDuplicateObject(SourcePipeline, GetTransientPackage()));
-					// Make sure that the instance does not carry over standalone and public flags as they are not actual assets to be persisted
-					GeneratedPipeline->ClearFlags(EObjectFlags::RF_Standalone | EObjectFlags::RF_Public);
-					AdjustPipelineSettingForContext(GeneratedPipeline);
-					StackInfo.Pipelines.Add(GeneratedPipeline);
-				}
-				else if(!SourcePipeline)
-				{
-					//A pipeline was not loaded
-					UE_LOG(LogInterchangeEngine, Warning, TEXT("Interchange Reimport: Missing import pipeline from the reimporting asset. The reimport might fail."));
-				}
 			}
-		}
 
-		{
 			UE::Interchange::FScopedTranslator ScopedTranslator(SourceData);
-
 			for (const TPair<FName, FInterchangePipelineStack>& PipelineStackInfo : DefaultPipelineStacks)
 			{
 				FName StackName = PipelineStackInfo.Key;
@@ -1940,19 +1940,42 @@ UInterchangeManager::ImportInternal(const FString& ContentPath, const UInterchan
 				}
 			}
 		}
-
-		auto SetImportAllWithSamePipelines = [this, &AsyncTranslator](TArray<UInterchangePipelineBase*>& ToDuplicatePipelines)
+		else
 		{
-			TArray<UInterchangePipelineBase*>& PipelineList = ImportAllWithSamePipelines.FindOrAdd(AsyncTranslator->GetClass());
-			for (const UInterchangePipelineBase* Pipeline : ToDuplicatePipelines)
+			//If we receive an override list of pipelines add them to the stack
+			FInterchangeStackInfo& StackInfo = PipelineStacks.AddDefaulted_GetRef();
+			StackInfo.StackName = OverridePipelineName;
+			for (int32 GraphPipelineIndex = 0; GraphPipelineIndex < ImportAssetParameters.OverridePipelines.Num(); ++GraphPipelineIndex)
 			{
-				if (UInterchangePipelineBase* DupPipeline = DuplicateObject<UInterchangePipelineBase>(Pipeline, GetTransientPackage()))
+				UInterchangePipelineBase* GeneratedPipeline = UE::Interchange::GeneratePipelineInstance(ImportAssetParameters.OverridePipelines[GraphPipelineIndex]);
+				if (!GeneratedPipeline)
 				{
-					DupPipeline->SetInternalFlags(EInternalObjectFlags::Async);
-					PipelineList.Add(DupPipeline);
+					UE_LOG(LogInterchangeEngine, Error, TEXT("Interchange Import: Overridden pipeline array contains a NULL pipeline. Fix your script or code to avoid this issue."));
+					continue;
+				}
+				else
+				{
+					GeneratedPipeline->ClearFlags(EObjectFlags::RF_Standalone | EObjectFlags::RF_Public);
+					constexpr bool bFromReImportOrOverride = true;
+					GeneratedPipeline->SetFromReimportOrOverride(bFromReImportOrOverride);
+					AdjustPipelineSettingForContext(GeneratedPipeline);
+					StackInfo.Pipelines.Add(GeneratedPipeline);
 				}
 			}
-		};
+		}
+
+		auto SetImportAllWithSamePipelines = [this, &AsyncTranslator](TArray<UInterchangePipelineBase*>& ToDuplicatePipelines)
+			{
+				TArray<UInterchangePipelineBase*>& PipelineList = ImportAllWithSamePipelines.FindOrAdd(AsyncTranslator->GetClass());
+				for (const UInterchangePipelineBase* Pipeline : ToDuplicatePipelines)
+				{
+					if (UInterchangePipelineBase* DupPipeline = DuplicateObject<UInterchangePipelineBase>(Pipeline, GetTransientPackage()))
+					{
+						DupPipeline->SetInternalFlags(EInternalObjectFlags::Async);
+						PipelineList.Add(DupPipeline);
+					}
+				}
+			};
 
 		if (bIsReimport)
 		{
@@ -1976,7 +1999,7 @@ UInterchangeManager::ImportInternal(const FString& ContentPath, const UInterchan
 					{
 						return StackInfo.StackName == ReimportPipelineName;
 					});
-				
+
 				check(StackInfoPtr);
 				OutPipelines = StackInfoPtr->Pipelines;
 			}
@@ -2048,26 +2071,6 @@ UInterchangeManager::ImportInternal(const FString& ContentPath, const UInterchan
 					AsyncHelper->OriginalPipelines.Add(Pipeline);
 				}
 				UE::Interchange::Private::FillPipelineAnalyticData(Pipeline, UniqueId, FString());
-			}
-		}
-	}
-	else
-	{
-		for (int32 GraphPipelineIndex = 0; GraphPipelineIndex < ImportAssetParameters.OverridePipelines.Num(); ++GraphPipelineIndex)
-		{
-			UInterchangePipelineBase* GeneratedPipeline = UE::Interchange::GeneratePipelineInstance(ImportAssetParameters.OverridePipelines[GraphPipelineIndex]);
-			if (!GeneratedPipeline)
-			{
-				UE_LOG(LogInterchangeEngine, Error, TEXT("Interchange Import: Overridden pipeline array contains a NULL pipeline. Fix your script or code to avoid this issue."));
-				continue;
-			}
-			else
-			{
-				// Duplicate the override pipelines to protect the scripted users form making race conditions
-				AdjustPipelineSettingForContext(GeneratedPipeline);
-				AsyncHelper->Pipelines.Add(GeneratedPipeline);
-				AsyncHelper->OriginalPipelines.Add(GeneratedPipeline);
-				UE::Interchange::Private::FillPipelineAnalyticData(GeneratedPipeline, UniqueId, FString());
 			}
 		}
 	}

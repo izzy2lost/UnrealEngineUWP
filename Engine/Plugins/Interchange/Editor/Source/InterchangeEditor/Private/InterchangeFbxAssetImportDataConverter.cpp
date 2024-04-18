@@ -804,7 +804,7 @@ namespace UE::Interchange::Private
 
 		//Discover if we must import something in particular
 		if (FbxImportUI->MeshTypeToImport == EFBXImportType::FBXIT_SkeletalMesh
-			|| FbxImportUI->bImportAsSkeletal)
+			|| (FbxImportUI->bImportAsSkeletal && FbxImportUI->bImportMesh))
 		{
 			GenericAssetPipeline->MeshPipeline->bImportSkeletalMeshes = true;
 			GenericAssetPipeline->MeshPipeline->CommonMeshesProperties->ForceAllMeshAsType = EInterchangeForceMeshType::IFMT_SkeletalMesh;
@@ -840,7 +840,7 @@ namespace UE::Interchange::Private
 
 			FillInterchangeGenericAssetsPipelineFromFbxMeshImportData(GenericAssetPipeline, Cast<UFbxStaticMeshImportData>(FbxImportUI->StaticMeshImportData));
 		}
-		else if (FbxImportUI->MeshTypeToImport == EFBXImportType::FBXIT_Animation)
+		else if (FbxImportUI->MeshTypeToImport == EFBXImportType::FBXIT_Animation || (FbxImportUI->bImportAsSkeletal && !FbxImportUI->bImportMesh && FbxImportUI->bImportAnimations))
 		{
 			GenericAssetPipeline->AnimationPipeline->bImportAnimations = true;
 			if (FbxImportUI->Skeleton)

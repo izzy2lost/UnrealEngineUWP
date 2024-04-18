@@ -178,7 +178,11 @@ bool UInterchangeGenericMeshPipeline::IsPropertyChangeNeedRefresh(const FPropert
 
 void UInterchangeGenericMeshPipeline::PreDialogCleanup(const FName PipelineStackName)
 {
-	PhysicsAsset = nullptr;
+	//Do not change the physics asset if this pipeline is a re-import or an override pipeline
+	if (!IsFromReimportOrOverride())
+	{
+		PhysicsAsset = nullptr;
+	}
 }
 
 #if WITH_EDITOR
