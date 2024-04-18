@@ -1333,6 +1333,7 @@ public:
 		const FString NewClassName = MakeUniqueObjectName(ClassOuter, UPythonGeneratedClass::StaticClass(), *FString::Printf(TEXT("%s_NEWINST"), *ClassName)).ToString();
 		NewClass = NewObject<UPythonGeneratedClass>(ClassOuter, *NewClassName, RF_Public | RF_Transient);
 		NewClass->SetMetaData(TEXT("DisplayName"), *PyUtil::GetGeneratedTypeDisplayName(PyType));
+		NewClass->SetMetaData(TEXT("BlueprintType"), TEXT("true"));
 		NewClass->SetSuperStruct(InSuperClass);
 	}
 
@@ -1348,6 +1349,7 @@ public:
 		const FString NewClassName = MakeUniqueObjectName(ClassOuter, UPythonGeneratedClass::StaticClass(), *FString::Printf(TEXT("%s_NEWINST"), *ClassName)).ToString();
 		NewClass = NewObject<UPythonGeneratedClass>(ClassOuter, *NewClassName, RF_Public | RF_Transient);
 		NewClass->SetMetaData(TEXT("DisplayName"), *PyUtil::GetGeneratedTypeDisplayName(PyType));
+		NewClass->SetMetaData(TEXT("BlueprintType"), TEXT("true"));
 		NewClass->SetSuperStruct(InSuperClass);
 	}
 
