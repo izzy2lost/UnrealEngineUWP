@@ -724,6 +724,32 @@ bool FDatabaseViewModel::SetAnimationAsset(int32 AnimationAssetIndex, UObject* A
 	return false;
 }
 
+void FDatabaseViewModel::SetMirrorOption(int32 AnimationAssetIndex, EPoseSearchMirrorOption InMirrorOption)
+{
+	if (UPoseSearchDatabase* Database = GetPoseSearchDatabase())
+	{
+		if (FPoseSearchDatabaseAnimationAssetBase* DatabaseAnimationAsset = Database->GetMutableAnimationAssetBase(AnimationAssetIndex))
+		{
+			Database->Modify();
+
+			DatabaseAnimationAsset->MirrorOption = InMirrorOption;
+		}
+	}
+}
+
+EPoseSearchMirrorOption FDatabaseViewModel::GetMirrorOption(int32 AnimationAssetIndex)
+{
+	if (const UPoseSearchDatabase* Database = GetPoseSearchDatabase())
+	{
+		if (const FPoseSearchDatabaseAnimationAssetBase* DatabaseAnimationAsset = Database->GetAnimationAssetBase(AnimationAssetIndex))
+		{
+			return DatabaseAnimationAsset->MirrorOption;
+		}
+	}
+
+	return EPoseSearchMirrorOption::MirroredOnly;
+}
+
 int32 FDatabaseViewModel::SetSelectedNode(int32 PoseIdx, bool bClearSelection, bool bDrawQuery, TConstArrayView<float> InQueryVector)
 {
 	int32 SelectedSourceAssetIdx = INDEX_NONE;

@@ -727,26 +727,18 @@ namespace UE::PoseSearch
 
 			if (InMouseEvent.GetEffectingButton() == EKeys::LeftMouseButton)
 			{
-				if (UPoseSearchDatabase* Database = ViewModel->GetPoseSearchDatabase())
-				{
-					if (FPoseSearchDatabaseAnimationAssetBase* DatabaseAnimationAsset = Database->GetMutableAnimationAssetBase(AssetTreeNode->SourceAssetIdx))
-					{
-						const FScopedTransaction Transaction(LOCTEXT("OnClickEditMirrorOptionPoseSearchDatabase", "Edit Mirror Option"));
+				const FScopedTransaction Transaction(LOCTEXT("OnClickEditMirrorOptionPoseSearchDatabase", "Edit Mirror Option"));
+				
+				// Get next mirror option
+				static const TArray<EPoseSearchMirrorOption> OptionArray = { EPoseSearchMirrorOption::UnmirroredOnly, EPoseSearchMirrorOption::MirroredOnly, EPoseSearchMirrorOption::UnmirroredAndMirrored };
+				const int32 NextOption = (static_cast<int32>(ViewModel->GetMirrorOption(AssetTreeNode->SourceAssetIdx)) + 1) % OptionArray.Num();
+				
+				ViewModel->SetMirrorOption(AssetTreeNode->SourceAssetIdx, OptionArray[NextOption]);
+				
+				SkeletonView.Pin()->RefreshTreeView(false, true);
+				ViewModel->BuildSearchIndex();
 
-						// Get next mirror option
-						static const TArray<EPoseSearchMirrorOption> OptionArray = { EPoseSearchMirrorOption::UnmirroredOnly, EPoseSearchMirrorOption::MirroredOnly, EPoseSearchMirrorOption::UnmirroredAndMirrored };
-						const int32 NextOption = (static_cast<int32>(DatabaseAnimationAsset->MirrorOption) + 1) % OptionArray.Num();
-
-						// Modify asset (@todo: this should be done through the viewmodel).
-						Database->Modify();
-						DatabaseAnimationAsset->MirrorOption = OptionArray[NextOption];
-
-						SkeletonView.Pin()->RefreshTreeView(false, true);
-						ViewModel->BuildSearchIndex();
-
-						return FReply::Handled();
-					}
-				}
+				return FReply::Handled();
 			}
 		}
 		return FReply::Unhandled();

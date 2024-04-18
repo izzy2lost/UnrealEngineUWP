@@ -10,6 +10,7 @@
 #include "PoseSearch/PoseSearchRole.h"
 #include "PoseSearch/PoseSearchTrajectoryTypes.h"
 #include "PoseSearchDatabasePreviewScene.h"
+#include "PoseSearch/PoseSearchDatabase.h"
 #include "UObject/GCObject.h"
 
 class UWorld;
@@ -118,6 +119,9 @@ namespace UE::PoseSearch
 		bool IsEnabled(int32 AnimationAssetIndex) const;
 
 		bool SetAnimationAsset(int32 AnimationAssetIndex, UObject* AnimAsset);
+
+		void SetMirrorOption(int32 AnimationAssetIndex, EPoseSearchMirrorOption InMirrorOption);
+		EPoseSearchMirrorOption GetMirrorOption(int32 AnimationAssetIndex);
 		
 		int32 SetSelectedNode(int32 PoseIdx, bool bClearSelection, bool bDrawQuery, TConstArrayView<float> InQueryVector);
 		void SetSelectedNodes(const TArrayView<TSharedPtr<FDatabaseAssetTreeNode>>& InSelectedNodes);

@@ -497,21 +497,141 @@ namespace UE::PoseSearch
 		{
 			MenuBuilder.BeginSection("SelectedAssetsEdit", LOCTEXT("SelectedAssetEdit", "Asset Actions"));
 			{
-				MenuBuilder.AddMenuEntry(
-					LOCTEXT("Enable", "Enable selected assets"),
-					LOCTEXT("EnableTooltip", "Sets Assets Enabled."),
+				const TSharedPtr<FDatabaseViewModel> ViewModel = EditorViewModel.Pin();
+
+				const EPoseSearchMirrorOption MirrorOption = ViewModel->GetMirrorOption(SelectedNodes[0]->SourceAssetIdx);
+				FName IconToUseForSubMenu = NAME_None;
+
+				if (SelectedNodes.Num() == 1)
+				{
+					switch (MirrorOption)
+					{
+						case EPoseSearchMirrorOption::UnmirroredOnly: IconToUseForSubMenu = "GraphEditor.AlignNodesRight"; break;
+						case EPoseSearchMirrorOption::MirroredOnly: IconToUseForSubMenu = "GraphEditor.AlignNodesLeft"; break;
+						case EPoseSearchMirrorOption::UnmirroredAndMirrored: IconToUseForSubMenu = "GraphEditor.AlignNodesCenter"; break;
+					}
+				}
+				
+				const FText LabelToUseForSubMenu = SelectedNodes.Num() == 1 ? LOCTEXT("SetMirrorOption", "Set Mirror Option") : LOCTEXT("SetMirrorOptionInSelectedAssets", "Set Mirror Option on selected assets");
+				const FText TooltipToUseForSubMenu = LOCTEXT("SetMirrorOptionTooltip", "Set the mirror option in the selected asset(s)");
+					
+				MenuBuilder.AddSubMenu(
+				LabelToUseForSubMenu, 
+				TooltipToUseForSubMenu,
+				FNewMenuDelegate::CreateLambda([this](FMenuBuilder& MenuBuilder)
+				{
+						
+					MenuBuilder.AddMenuEntry(
+						LOCTEXT("OriginalOnly", "Original Only"),
+						LOCTEXT("OriginalOnlyTooltip", "Mirror Option: Original Only"),
+						FSlateIcon(FAppStyle::GetAppStyleSetName(), "GraphEditor.AlignNodesRight"),
+						FUIAction(FExecuteAction::CreateSP(this, &SDatabaseAssetTree::OnSetMirrorOptionForSelectedNodes, EPoseSearchMirrorOption::UnmirroredOnly)),
+						NAME_None,
+						EUserInterfaceActionType::Button
+						);
+
+					MenuBuilder.AddMenuEntry(
+						LOCTEXT("MirrorOnly", "Mirrored Only"),
+						LOCTEXT("MirrorOnlyTooltip", "Mirror Option: Mirrored Only"),
+						FSlateIcon(FAppStyle::GetAppStyleSetName(), "GraphEditor.AlignNodesLeft"),
+						FUIAction(FExecuteAction::CreateSP(this, &SDatabaseAssetTree::OnSetMirrorOptionForSelectedNodes, EPoseSearchMirrorOption::MirroredOnly)),
+						NAME_None,
+						EUserInterfaceActionType::Button
+						);
+					
+					MenuBuilder.AddMenuEntry(
+						LOCTEXT("OriginalAndMirrorOnly", "Original and Mirrored"),
+						LOCTEXT("OriginalAndMirrorOnlyTooltip", "Mirror Option: Original and Mirrored"),
+						FSlateIcon(FAppStyle::GetAppStyleSetName(), "GraphEditor.AlignNodesCenter"),
+						FUIAction(FExecuteAction::CreateSP(this, &SDatabaseAssetTree::OnSetMirrorOptionForSelectedNodes, EPoseSearchMirrorOption::UnmirroredAndMirrored)),
+						NAME_None,
+						EUserInterfaceActionType::Button
+						);
+				}),
+				false,
+				FSlateIcon(FAppStyle::GetAppStyleSetName(), IconToUseForSubMenu));
+
+				if (SelectedNodes.Num() > 1)
+				{
+					MenuBuilder.AddMenuEntry(
+					LOCTEXT("EnableReselection", "Enable pose reselection in selected assets"),
+					LOCTEXT("EnableTooltipReselection", "Enable reselection of poses in the same asset"),
+					FSlateIcon(FAppStyle::GetAppStyleSetName(), "MotionMatchingEditor.EnablePoseReselection"),
+					FUIAction(FExecuteAction::CreateSP(this, &SDatabaseAssetTree::OnSetPoseReselectionForSelectedNodes, true)),
+					NAME_None,
+					EUserInterfaceActionType::Button);
+
+					MenuBuilder.AddMenuEntry(
+						LOCTEXT("DisableReselection", "Disable pose reselection in selected assets"),
+						LOCTEXT("DisableToolTipReselection", "Disable reselection of poses in the same asset"),
+						FSlateIcon(FAppStyle::GetAppStyleSetName(), "MotionMatchingEditor.DisablePoseReselection"),
+						FUIAction(FExecuteAction::CreateSP(this, &SDatabaseAssetTree::OnSetPoseReselectionForSelectedNodes, false)),
+						NAME_None,
+						EUserInterfaceActionType::Button);
+				
+				}
+				else
+				{
+					const bool IsReselectionDisabled = ViewModel->IsDisableReselection(SelectedNodes[0]->SourceAssetIdx);
+					const FName IconToUse = IsReselectionDisabled ? "MotionMatchingEditor.EnablePoseReselection" : "MotionMatchingEditor.DisablePoseReselection";
+					const FText LabelToUse = IsReselectionDisabled ? LOCTEXT("EnablePoseReselection", "Enable pose reselection") : LOCTEXT("DisablePoseReselection", "Disable pose reselection");
+					const FText TooltipToUse = IsReselectionDisabled ? LOCTEXT("EnablePoseReselectionTooltip", "Enable pose reselection in the same asset") : LOCTEXT("DisablePoseReselectionTooltip", "Disable pose reselection in the same asset");
+					
+					MenuBuilder.AddMenuEntry(
+						LabelToUse,
+						TooltipToUse,
+						FSlateIcon(FAppStyle::GetAppStyleSetName(), IconToUse),
+						FUIAction(FExecuteAction::CreateLambda([this, SourceAssetIndex = SelectedNodes[0]->SourceAssetIdx, ViewModel]()
+						{
+							bool IsPoseReselectionDisabled = ViewModel->IsDisableReselection(SourceAssetIndex);
+							ViewModel->SetDisableReselection(SourceAssetIndex, !IsPoseReselectionDisabled);
+							
+							RefreshTreeView(false, true);
+						})),
+						NAME_None,
+						EUserInterfaceActionType::Button);
+				}
+
+				if (SelectedNodes.Num() > 1)
+				{
+					MenuBuilder.AddMenuEntry(
+					LOCTEXT("EnableSelectedAssets", "Enable selected assets"),
+					LOCTEXT("EnableSelectedAssetsToolTip", "Sets Assets Enabled."),
 					FSlateIcon(FAppStyle::GetAppStyleSetName(), "Icons.Visible"),
 					FUIAction(FExecuteAction::CreateSP(this, &SDatabaseAssetTree::OnEnableNodes)),
 					NAME_None,
 					EUserInterfaceActionType::Button);
 
-				MenuBuilder.AddMenuEntry(
-					LOCTEXT("Disable", "Disable selected assets"),
-					LOCTEXT("DisableToolTip", "Sets Assets Disabled."),
-					FSlateIcon(FAppStyle::GetAppStyleSetName(), "Icons.Hidden"),
-					FUIAction(FExecuteAction::CreateSP(this, &SDatabaseAssetTree::OnDisableNodes)),
-					NAME_None,
-					EUserInterfaceActionType::Button);
+					MenuBuilder.AddMenuEntry(
+						LOCTEXT("DisableSelectedAssets", "Disable selected assets"),
+						LOCTEXT("DisableSelectedAssetsToolTip", "Sets Assets Disabled."),
+						FSlateIcon(FAppStyle::GetAppStyleSetName(), "Icons.Hidden"),
+						FUIAction(FExecuteAction::CreateSP(this, &SDatabaseAssetTree::OnDisableNodes)),
+						NAME_None,
+						EUserInterfaceActionType::Button);
+				}
+				else
+				{
+					const bool IsEnabled = ViewModel->IsEnabled(SelectedNodes[0]->SourceAssetIdx);
+					const FName IconToUse = !IsEnabled ? "Icons.Visible" : "Icons.Hidden";
+					const FText LabelToUse = !IsEnabled ? LOCTEXT("EnableAsset", "Enable asset") : LOCTEXT("DisableAsset", "Disable asset");
+					const FText TooltipToUse = !IsEnabled ? LOCTEXT("EnableAssetTooltip", "Inlcude asset in query when pose matching / motion matching.") : LOCTEXT("DisableAssetTooltip", "Exclude asset in query when pose matching / motion matching.");
+					
+					MenuBuilder.AddMenuEntry(
+						LabelToUse,
+						TooltipToUse,
+						FSlateIcon(FAppStyle::GetAppStyleSetName(), IconToUse),
+						FUIAction(FExecuteAction::CreateLambda([this, SourceAssetIndex = SelectedNodes[0]->SourceAssetIdx, ViewModel]()
+						{
+							const bool IsEnabled = ViewModel->IsEnabled(SourceAssetIndex);
+							ViewModel->SetIsEnabled(SourceAssetIndex, !IsEnabled);
+							
+							FinalizeTreeChanges();
+						})),
+						NAME_None,
+						EUserInterfaceActionType::Button);
+				}
+				
 
 				MenuBuilder.AddMenuEntry(
 					LOCTEXT("ConvertToBranchIn", "Convert selected assets to sample via BranchIn notify"),
@@ -882,6 +1002,50 @@ namespace UE::PoseSearch
 				}
 
 				FinalizeTreeChanges();
+			}
+		}
+	}
+
+	void SDatabaseAssetTree::OnSetMirrorOptionForSelectedNodes(EPoseSearchMirrorOption InMirrorOption)
+	{
+		const TSharedPtr<FDatabaseViewModel> ViewModel = EditorViewModel.Pin();
+		if (UPoseSearchDatabase* PoseSearchDatabase = ViewModel->GetPoseSearchDatabase())
+		{
+			TArray<TSharedPtr<FDatabaseAssetTreeNode>> SelectedNodes = TreeView->GetSelectedItems();
+			if (!SelectedNodes.IsEmpty())
+			{
+				const FScopedTransaction Transaction(LOCTEXT("OnClickEditMirrorOptionPoseSearchDatabase", "Edit Mirror Option on selected items"));
+				
+				PoseSearchDatabase->Modify();
+
+				for (const TSharedPtr<FDatabaseAssetTreeNode>& SelectedNode : SelectedNodes)
+				{
+					ViewModel->SetMirrorOption(SelectedNode->SourceAssetIdx, InMirrorOption);
+				}
+
+				FinalizeTreeChanges();
+			}
+		}
+	}
+
+	void SDatabaseAssetTree::OnSetPoseReselectionForSelectedNodes(bool bIsEnabled)
+	{
+		const TSharedPtr<FDatabaseViewModel> ViewModel = EditorViewModel.Pin();
+		if (UPoseSearchDatabase* PoseSearchDatabase = ViewModel->GetPoseSearchDatabase())
+		{
+			TArray<TSharedPtr<FDatabaseAssetTreeNode>> SelectedNodes = TreeView->GetSelectedItems();
+			if (!SelectedNodes.IsEmpty())
+			{
+				const FScopedTransaction Transaction(LOCTEXT("OnClickEditPoseReselection", "Set pose reselection for selected items"));
+				
+				PoseSearchDatabase->Modify();
+
+				for (const TSharedPtr<FDatabaseAssetTreeNode>& SelectedNode : SelectedNodes)
+				{
+					ViewModel->SetDisableReselection(SelectedNode->SourceAssetIdx, !bIsEnabled);
+				}
+
+				RefreshTreeView(false, true);
 			}
 		}
 	}

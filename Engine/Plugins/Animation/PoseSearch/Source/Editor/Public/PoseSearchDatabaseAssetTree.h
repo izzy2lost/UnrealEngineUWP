@@ -112,7 +112,9 @@ namespace UE::PoseSearch
 		void EnableSelectedNodes(bool bIsEnabled);
 		void OnEnableNodes() { EnableSelectedNodes(true); }
 		void OnDisableNodes() { EnableSelectedNodes(false); }
-
+		void OnSetMirrorOptionForSelectedNodes(EPoseSearchMirrorOption InMirrorOption);
+		void OnSetPoseReselectionForSelectedNodes(bool bIsEnabled);
+		
 		void OnConvertToBranchIn();
 
 		friend SDatabaseAssetListItem;
