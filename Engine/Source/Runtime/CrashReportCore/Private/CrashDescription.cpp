@@ -127,6 +127,7 @@ FPrimaryCrashProperties::FPrimaryCrashProperties()
 	// Multiline properties
 	, CallStack( FGenericCrashContext::RuntimePropertiesTag, TEXT( "CallStack" ), this )
 	, PCallStack( FGenericCrashContext::RuntimePropertiesTag, TEXT( "PCallStack" ), this )
+	, PCallStackHashProperty( FGenericCrashContext::RuntimePropertiesTag, TEXT( "PCallStackHash" ), this )
 	, SourceContext( FGenericCrashContext::RuntimePropertiesTag, TEXT( "SourceContext" ), this )
 	, Modules( FGenericCrashContext::RuntimePropertiesTag, TEXT( "Modules" ), this )
 	, UserDescription( FGenericCrashContext::RuntimePropertiesTag, TEXT( "UserDescription" ), this )

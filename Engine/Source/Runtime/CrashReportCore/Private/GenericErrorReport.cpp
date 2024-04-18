@@ -195,7 +195,15 @@ void FGenericErrorReport::SetPrimaryCrashProperties( FPrimaryCrashProperties& ou
 		if (CallStack.Num() > 0)
 		{
 			out_PrimaryCrashProperties.CallStack = CallStack;
+		}
+		if (PCallStack.Num() > 0)
+		{
 			out_PrimaryCrashProperties.PCallStack = PCallStack;
+			
+			FString StringToHash = out_PrimaryCrashProperties.PCallStack.AsString();
+			FSHAHash PCallStackHash;
+			FSHA1::HashBuffer(*StringToHash, StringToHash.Len() * sizeof(FString::ElementType), PCallStackHash.Hash);
+			out_PrimaryCrashProperties.PCallStackHashProperty = PCallStackHash.ToString();
 		}
 		out_PrimaryCrashProperties.Modules = Helper->CrashInfo.ModuleNames;
 		out_PrimaryCrashProperties.SourceContext = Helper->CrashInfo.SourceContext;

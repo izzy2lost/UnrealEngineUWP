@@ -319,10 +319,15 @@ struct FPrimaryCrashProperties
 	
 	/**
 	 * An array of FStrings representing the portable callstack of the crash.
-	 * @RawCallStack	varchar(MAX)
 	 *
 	 */
 	FCrashProperty PCallStack;
+	
+	/**
+	 * The hash of PCallStack
+	 *
+	 */
+	FCrashProperty PCallStackHashProperty;
 
 	/**
 	 * An array of FStrings showing the source code around the crash.

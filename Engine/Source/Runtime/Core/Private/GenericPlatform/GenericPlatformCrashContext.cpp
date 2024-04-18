@@ -295,9 +295,6 @@ void FGenericCrashContext::Initialize()
 #else
 	FString Symbols = FString::Printf(TEXT("%s"), FApp::GetBuildVersion());
 #endif
-#ifdef UE_APP_FLAVOR
-	Symbols = FString::Printf(TEXT("%s-%s"), *Symbols, *FString(UE_APP_FLAVOR));
-#endif
 	Symbols = FString::Printf(TEXT("%s-%s-%s"), *Symbols, FPlatformMisc::GetUBTPlatform(), NCached::Session.BuildConfigurationName).Replace(TEXT("+"), TEXT("*"));
 #ifdef UE_BUILD_FLAVOR
 	Symbols = FString::Printf(TEXT("%s-%s"), *Symbols, *FString(UE_BUILD_FLAVOR));
