@@ -61,6 +61,8 @@ private:
 	EVisibility GetShowCompileErrorOverlay() const;
 
 	FText GetCompileErrorOverlayText() const;
+
+	FText GetWarningText() const;
 	
 	// Viewport client
 	TSharedPtr<FCustomizableObjectEditorViewportClient> LevelViewportClient;

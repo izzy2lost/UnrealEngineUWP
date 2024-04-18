@@ -83,7 +83,18 @@ void SCustomizableObjectEditorViewport::PopulateViewportOverlays(TSharedRef<SOve
 	Overlay->AddSlot()
 	.VAlign(VAlign_Top)
 	[
-		SNew(SCustomizableObjectEditorViewportToolBar, TabBodyPtr.Pin(), SharedThis(this)).Cursor(EMouseCursor::Default)
+		SNew(SVerticalBox)
+		+SVerticalBox::Slot()
+		[
+			SNew(SCustomizableObjectEditorViewportToolBar, TabBodyPtr.Pin(), SharedThis(this)).Cursor(EMouseCursor::Default)
+		]
+		+SVerticalBox::Slot()
+		.Padding(4.0, 16.0, 0.0, 0.0)
+		[
+			SNew(STextBlock)
+			.Text(this, &SCustomizableObjectEditorViewport::GetWarningText)
+			.ColorAndOpacity(FLinearColor::Yellow)
+		]
 	];
 	Overlay->AddSlot()
 	.VAlign(VAlign_Center)
@@ -182,6 +193,23 @@ FText SCustomizableObjectEditorViewport::GetCompileErrorOverlayText() const
 		return LOCTEXT("EmptyPreview", "Empty Preview");
 	}
 	
+	return {};
+}
+
+
+FText SCustomizableObjectEditorViewport::GetWarningText() const
+{
+	if (const UCustomizableObjectInstance* Instance = WeakEditor.Pin()->GetPreviewInstance())
+	{
+		if (const UCustomizableObject* Object = Instance->GetCustomizableObject())
+		{
+			if (Object->GetPrivate()->bIsCompiledWithoutOptimization)
+			{
+				return LOCTEXT("CompiledWithoutOptimization", "Compiled without maximum optimization. Updates will be slower!");
+			}
+		}
+	}
+
 	return {};
 }
 
