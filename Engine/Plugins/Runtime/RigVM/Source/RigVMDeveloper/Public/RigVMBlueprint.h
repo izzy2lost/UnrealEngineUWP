@@ -415,9 +415,6 @@ public:
 	FOnRigVMRequestInspectMemoryStorage& OnRequestInspectMemoryStorage() { return OnRequestInspectMemoryStorageEvent; }
 	void RequestInspectMemoryStorage(const TArray<FRigVMMemoryStorageStruct*>& InMemoryStorageStructs) { OnRequestInspectMemoryStorageEvent.Broadcast(InMemoryStorageStructs); }
 
-	static TArray<FRigVMVariantRef> GatherFunctionVariantRefsForAsset(const FAssetData& InAssetData);
-	static TArray<FRigVMVariantRef> FindFunctionVariantRefs(const FGuid& InGuid);
-
 #endif	// #if WITH_EDITOR
 
 	
@@ -822,6 +819,7 @@ private:
 	friend class FRigVMEditorModule;
 	friend class URigVMEdGraphSchema;
 	friend struct FRigVMEdGraphSchemaAction_PromoteToVariable;
+	friend class URigVMBuildData;
 };
 
 class RIGVMDEVELOPER_API FRigVMBlueprintCompileScope

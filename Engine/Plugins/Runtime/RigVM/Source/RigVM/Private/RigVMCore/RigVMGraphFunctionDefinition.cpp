@@ -47,6 +47,13 @@ bool FRigVMGraphFunctionArgument::IsExecuteContext() const
 	return false;
 }
 
+bool FRigVMGraphFunctionIdentifier::IsVariantOf(const FRigVMGraphFunctionIdentifier& InOther) const
+{
+	const FRigVMGraphFunctionHeader& ThisHeader = FRigVMGraphFunctionHeader::FindGraphFunctionHeader(*this);
+	const FRigVMGraphFunctionHeader& OtherHeader = FRigVMGraphFunctionHeader::FindGraphFunctionHeader(InOther);
+	return ThisHeader.Variant.Guid == OtherHeader.Variant.Guid;
+}
+
 bool FRigVMGraphFunctionHeader::IsMutable() const
 {
 	for(const FRigVMGraphFunctionArgument& Arg : Arguments)
@@ -112,11 +119,11 @@ void FRigVMGraphFunctionHeader::PostDuplicateHost(const FString& InOldPathName, 
 		InOutObjectPath = FSoftObjectPath(PathName);
 	};
 
-	ReplacePathName(LibraryPointer.LibraryNodePath);
+	ReplacePathName(LibraryPointer.GetLibraryNodePath());
 	ReplaceSoftPathName(LibraryPointer.HostObject);
 	for (TPair<FRigVMGraphFunctionIdentifier, uint32>& Pair : Dependencies)
 	{
-		ReplacePathName(Pair.Key.LibraryNodePath);
+		ReplacePathName(Pair.Key.GetLibraryNodePath());
 		ReplaceSoftPathName(Pair.Key.HostObject);
 	}
 }

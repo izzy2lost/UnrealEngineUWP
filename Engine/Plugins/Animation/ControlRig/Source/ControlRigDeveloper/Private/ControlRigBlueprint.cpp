@@ -1969,7 +1969,7 @@ void UControlRigBlueprint::PatchFunctionsOnLoad()
 			const FRigVMVariant* Variant = FunctionLibrary->GetFunctionVariant(LibraryNode->GetFName());
 			if (!Variant)
 			{
-				Header.Variant.Guid = FRigVMVariant::GenerateGUID(Header.LibraryPointer.LibraryNodePath);
+				Header.Variant.Guid = FRigVMVariant::GenerateGUID(Header.LibraryPointer.GetLibraryNodePath());
 			}
 			else
 			{

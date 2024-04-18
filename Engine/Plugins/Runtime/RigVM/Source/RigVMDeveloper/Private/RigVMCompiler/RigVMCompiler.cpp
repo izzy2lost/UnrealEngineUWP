@@ -2438,7 +2438,7 @@ bool URigVMCompiler::TraverseInlineFunction(const FRigVMInlineFunctionExprAST* I
 	const FRigVMByteCode& FunctionByteCode = FunctionCompilationData->ByteCode;
 
 	// Bytecode to be inlined should never be aligned
-	checkf(!FunctionByteCode.bByteCodeIsAligned, TEXT("Trying to inline aligned function bytecode %s in package %s"), *FunctionReferenceNode->GetFunctionIdentifier().LibraryNodePath, *GetPackage()->GetPathName());
+	checkf(!FunctionByteCode.bByteCodeIsAligned, TEXT("Trying to inline aligned function bytecode %s in package %s"), *FunctionReferenceNode->GetFunctionIdentifier().GetLibraryNodePath(), *GetPackage()->GetPathName());
 	
 	if (WorkData.bSetupMemory)
 	{

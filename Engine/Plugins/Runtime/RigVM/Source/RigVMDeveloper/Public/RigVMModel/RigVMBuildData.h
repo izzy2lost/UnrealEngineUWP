@@ -119,6 +119,15 @@ public:
 	// Helper function to disable clearing transient package references
 	void SetIsRunningUnitTest(bool bIsRunning) { bIsRunningUnitTest = bIsRunning; }
 
+	// Will find all public function variant refs, and private function variant refs from loaded assets
+	TArray<FRigVMVariantRef> GatherAllFunctionVariantRefs();
+
+	// Will find the public function variant refs inside this asset, and private function variant refs if the asset is loaded
+	TArray<FRigVMVariantRef> GatherFunctionVariantRefsForAsset(const FAssetData& InAssetData);
+
+	// Will find all the function variants matching the given variant guid
+	TArray<FRigVMVariantRef> FindFunctionVariantRefs(const FGuid& InGuid);
+
 private:
 
 	// disable default constructor

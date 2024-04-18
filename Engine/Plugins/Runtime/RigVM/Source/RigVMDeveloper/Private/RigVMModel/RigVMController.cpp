@@ -592,7 +592,7 @@ FRigVMPinInfoArray::FRigVMPinInfoArray(const FRigVMGraphFunctionHeader& Function
 		const TRigVMTypeIndex TypeIndex = Registry.GetTypeIndexFromCPPType(FunctionArgument.CPPType.ToString());
 		if (TypeIndex == INDEX_NONE)
 		{
-			InController->ReportErrorf( TEXT("Invalid pin type %s for %s in %s"), *FunctionArgument.CPPType.ToString(), *FunctionHeader.LibraryPointer.LibraryNodePath, *InController->GetPackage()->GetPathName());
+			InController->ReportErrorf( TEXT("Invalid pin type %s for %s in %s"), *FunctionArgument.CPPType.ToString(), *FunctionHeader.LibraryPointer.GetLibraryNodePath(), *InController->GetPackage()->GetPathName());
 		}
 		ensureMsgf(TypeIndex != INDEX_NONE, TEXT("Invalid pin type %s in %s"), *FunctionArgument.CPPType.ToString(), *InController->GetPackage()->GetPathName());
 		ERigVMPinDefaultValueType DefaultValueType = ERigVMPinDefaultValueType::Unset;
@@ -4512,7 +4512,7 @@ TMap<FRigVMGraphFunctionIdentifier, URigVMLibraryNode*> URigVMController::Locali
 		FRigVMGraphFunctionData* FunctionData = FRigVMGraphFunctionData::FindFunctionData(NodeToVisit, &bIsPublic);
 		if (!FunctionData)
 		{
-			ReportAndNotifyErrorf(TEXT("Cannot localize function - could not find function %s in host %s."), *NodeToVisit.LibraryNodePath, *NodeToVisit.HostObject.ToString());
+			ReportAndNotifyErrorf(TEXT("Cannot localize function - could not find function %s in host %s."), *NodeToVisit.GetLibraryNodePath(), *NodeToVisit.HostObject.ToString());
 			return LocalizedFunctions;
 		}
 
@@ -4524,7 +4524,7 @@ TMap<FRigVMGraphFunctionIdentifier, URigVMLibraryNode*> URigVMController::Locali
 
 		if (!bLocalizeDependentPrivateFunctions)
 		{
-			ReportAndNotifyErrorf(TEXT("Cannot localize function - dependency %s is private."), *NodeToVisit.LibraryNodePath);
+			ReportAndNotifyErrorf(TEXT("Cannot localize function - dependency %s is private."), *NodeToVisit.GetLibraryNodePath());
 			return LocalizedFunctions;
 		}
 
@@ -4569,7 +4569,7 @@ TMap<FRigVMGraphFunctionIdentifier, URigVMLibraryNode*> URigVMController::Locali
 			{
 				URigVMLibraryNode* LocalizedFunction = ThisLibrary->FindFunction(NodeNames[0]);
 				LocalizedFunctions.Add(FunctionToLocalize->Header.LibraryPointer, LocalizedFunction);
-				ThisLibrary->LocalizedFunctions.FindOrAdd(FunctionToLocalize->Header.LibraryPointer.LibraryNodePath, LocalizedFunction);
+				ThisLibrary->LocalizedFunctions.FindOrAdd(FunctionToLocalize->Header.LibraryPointer.GetLibraryNodePath(), LocalizedFunction);
 			}
 		}
 	}
@@ -12236,7 +12236,7 @@ TArray<FRigVMVariantRef> URigVMController::FindVariantsOfFunction(const FName& I
     	return Result;
     }
 
-	return URigVMBlueprint::FindFunctionVariantRefs(FunctionData->Header.Variant.Guid);
+	return URigVMBuildData::Get()->FindFunctionVariantRefs(FunctionData->Header.Variant.Guid);
 }
 
 FRigVMGraphVariableDescription URigVMController::AddLocalVariable(const FName& InVariableName, const FString& InCPPType, UObject* InCPPTypeObject, const FString& InDefaultValue, bool bSetupUndoRedo, bool bPrintPythonCommand)

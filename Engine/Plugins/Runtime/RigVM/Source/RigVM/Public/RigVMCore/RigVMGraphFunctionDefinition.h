@@ -374,8 +374,11 @@ struct RIGVM_API FRigVMGraphFunctionIdentifier
 	UPROPERTY(meta=(DeprecatedProperty))
 	FSoftObjectPath LibraryNode_DEPRECATED;
 
-	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category=FunctionIdentifier)
-	FString LibraryNodePath;
+private:
+	UPROPERTY(VisibleAnywhere, Category=FunctionIdentifier)
+	mutable FString LibraryNodePath;
+
+public:
 
 	// A path to the IRigVMGraphFunctionHost that stores the function information, and compilation data (e.g. RigVMBlueprintGeneratedClass)
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category=FunctionIdentifier)
@@ -424,9 +427,23 @@ struct RIGVM_API FRigVMGraphFunctionIdentifier
 		return *GetFunctionName();
 	}
 
+	FString& GetLibraryNodePath() const
+	{
+		if (LibraryNodePath.IsEmpty() && LibraryNode_DEPRECATED.IsValid())
+		{
+			LibraryNodePath = LibraryNode_DEPRECATED.ToString();
+		}
+		return LibraryNodePath;
+	}
+
+	void SetLibraryNodePath(const FString& InPath)
+	{
+		LibraryNodePath = InPath;
+	}
+
 	FSoftObjectPath GetNodeSoftPath() const
 	{
-		return LibraryNodePath;
+		return GetLibraryNodePath();
 	}
 
 	friend FArchive& operator<<(FArchive& Ar, FRigVMGraphFunctionIdentifier& Data)
@@ -447,6 +464,8 @@ struct RIGVM_API FRigVMGraphFunctionIdentifier
 		Ar << Data.HostObject;
 		return Ar;
 	}
+
+	bool IsVariantOf(const FRigVMGraphFunctionIdentifier& InOther) const;
 };
 
 USTRUCT(BlueprintType)

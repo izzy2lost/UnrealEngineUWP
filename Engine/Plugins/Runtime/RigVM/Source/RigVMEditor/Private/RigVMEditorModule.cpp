@@ -396,8 +396,12 @@ void FRigVMEditorModule::GetTypeActions(URigVMBlueprint* RigVMBlueprint, FBluepr
 				{
 					TArray<FRigVMGraphFunctionHeader> PublicFunctions;
 					PublicGraphFunctionsProperty->ImportText_Direct(*PublicGraphFunctionsString, &PublicFunctions, nullptr, EPropertyPortFlags::PPF_None);
-					for(const FRigVMGraphFunctionHeader& PublicFunction : PublicFunctions)
+					for(FRigVMGraphFunctionHeader& PublicFunction : PublicFunctions)
 					{
+						if (PublicFunction.LibraryPointer.GetLibraryNodePath().IsEmpty() && PublicFunction.LibraryPointer.LibraryNode_DEPRECATED.IsValid())
+						{
+							PublicFunction.LibraryPointer.SetLibraryNodePath(PublicFunction.LibraryPointer.LibraryNode_DEPRECATED.ToString());
+						}
 						URigVMEdGraphNodeSpawner* NodeSpawner = URigVMEdGraphFunctionRefNodeSpawner::CreateFromAssetData(ControlRigAssetData, PublicFunction);
 						check(NodeSpawner != nullptr);
 						NodeSpawner->SetRelatedBlueprintClass(BlueprintClass);
@@ -413,8 +417,12 @@ void FRigVMEditorModule::GetTypeActions(URigVMBlueprint* RigVMBlueprint, FBluepr
 					TArray<FRigVMGraphFunctionHeader> PublicFunctions;
 					HeadersArrayProperty->ImportText_Direct(*HeadersString, &PublicFunctions, nullptr, EPropertyPortFlags::PPF_None);
 			
-					for(const FRigVMGraphFunctionHeader& PublicFunction : PublicFunctions)
+					for(FRigVMGraphFunctionHeader& PublicFunction : PublicFunctions)
 					{
+						if (PublicFunction.LibraryPointer.GetLibraryNodePath().IsEmpty() && PublicFunction.LibraryPointer.LibraryNode_DEPRECATED.IsValid())
+						{
+							PublicFunction.LibraryPointer.SetLibraryNodePath(PublicFunction.LibraryPointer.LibraryNode_DEPRECATED.ToString());
+						}
 						URigVMEdGraphNodeSpawner* NodeSpawner = URigVMEdGraphFunctionRefNodeSpawner::CreateFromAssetData(ControlRigAssetData, PublicFunction);
 						check(NodeSpawner != nullptr);
 						NodeSpawner->SetRelatedBlueprintClass(BlueprintClass);

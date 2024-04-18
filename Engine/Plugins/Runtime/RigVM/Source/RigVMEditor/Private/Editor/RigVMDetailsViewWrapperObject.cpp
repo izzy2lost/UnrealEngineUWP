@@ -353,13 +353,13 @@ UClass* URigVMDetailsViewWrapperObject::GetClassForNodes(TArray<URigVMNode*> InN
 		// sort the functions to ensure we get the same notation each time
 		Algo::Sort(FunctionIdentifiers, [](const FRigVMGraphFunctionIdentifier& A, const FRigVMGraphFunctionIdentifier& B) -> bool
 		{
-			return A.LibraryNodePath > B.LibraryNodePath;
+			return A.GetLibraryNodePath() > B.GetLibraryNodePath();
 		});
 
 		TArray<FString> IdentifierStrings;
 		for(const FRigVMGraphFunctionIdentifier& Identifier : FunctionIdentifiers)
 		{
-			IdentifierStrings.Add(Identifier.LibraryNodePath);
+			IdentifierStrings.Add(Identifier.GetLibraryNodePath());
 		}
 		Notation = FString::Printf(TEXT("%s(%s)"), *FString::Join(IdentifierStrings, TEXT("|")), *Notation);
 	}

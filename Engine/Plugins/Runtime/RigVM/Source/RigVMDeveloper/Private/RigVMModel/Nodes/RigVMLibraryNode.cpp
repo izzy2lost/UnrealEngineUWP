@@ -219,7 +219,7 @@ FRigVMGraphFunctionIdentifier URigVMLibraryNode::GetFunctionIdentifier() const
 	{
 		Identifier.HostObject = Library->GetFunctionHostObjectPath();
 	}
-	Identifier.LibraryNodePath = this->GetPathName();
+	Identifier.SetLibraryNodePath(this->GetPathName());
 	return Identifier;
 }
 
@@ -233,7 +233,7 @@ FRigVMGraphFunctionHeader URigVMLibraryNode::GetFunctionHeader(IRigVMGraphFuncti
 	}
 	else
 	{
-	    Header.LibraryPointer.LibraryNodePath = this->GetPathName();
+	    Header.LibraryPointer.SetLibraryNodePath(this->GetPathName());
 	    Header.LibraryPointer.HostObject = Cast<UObject>(InHostObject);
 	}
 
