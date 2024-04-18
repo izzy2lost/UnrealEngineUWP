@@ -51,7 +51,7 @@ namespace Audio
 
 	SIGNALPROCESSING_API bool ContainsNan(TArrayView<const float> InBuffer);
 
-	enum class SIGNALPROCESSING_API ECheckBufferFlags : uint32
+	enum class ECheckBufferFlags : uint32
 	{
 		None = 0,
 		Infinity = 1 << 1,
@@ -86,7 +86,7 @@ namespace Audio
 	**/
 	SIGNALPROCESSING_API bool CheckBuffer(TArrayView<const float> InBuffer, const ECheckBufferFlags InFlags, ECheckBufferFlags& OutFailedFlags);
 
-	enum class SIGNALPROCESSING_API EBufferCheckBehavior : uint8
+	enum class EBufferCheckBehavior : uint8
 	{
 		Nothing,
 		Ensure,

@@ -5,7 +5,7 @@
 
 namespace Chaos
 {
-	enum class CHAOS_API EMassOffsetType : uint8
+	enum class EMassOffsetType : uint8
 	{
 		None = 0,
 		Position = 1 << 0,
@@ -13,7 +13,7 @@ namespace Chaos
 	};
 	ENUM_CLASS_FLAGS(EMassOffsetType)
 
-	enum class CHAOS_API EInertiaOperations : uint8
+	enum class EInertiaOperations : uint8
 	{
 		None = 0,
 		LocalInertiaDropOffDiagonalTerms = 1 << 0

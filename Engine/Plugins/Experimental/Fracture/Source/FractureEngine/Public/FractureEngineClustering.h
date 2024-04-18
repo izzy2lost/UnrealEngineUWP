@@ -70,7 +70,7 @@ private:
 	TArray<bool> Visited;
 };
 
-enum class FRACTUREENGINE_API EFractureEngineClusterSizeMethod : uint8
+enum class EFractureEngineClusterSizeMethod : uint8
 {
 	// Cluster by specifying an absolute number of clusters
 	ByNumber,
