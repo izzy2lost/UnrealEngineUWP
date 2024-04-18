@@ -27,11 +27,9 @@ enum class EMimeType
 	Binary,
 	Json,
 	Xml,
-	/* UE_CUSTOM_MIME_TYPES
 	CbObject,
 	CbPackage,
 	CompressedBuffer,
-	*/
 	Count
 };
 

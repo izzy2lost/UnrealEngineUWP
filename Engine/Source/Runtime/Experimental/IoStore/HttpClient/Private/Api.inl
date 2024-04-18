@@ -121,11 +121,9 @@ EMimeType FResponse::GetContentType() const
 	if (Value == "application/octet-stream")	return EMimeType::Binary;
 	if (Value == "application/json")			return EMimeType::Json;
 	if (Value == "application/xml")				return EMimeType::Xml;
-	/* UE_CUSTOM_MIME_TYPES
 	if (Value == "application/x-ue-cb")			return EMimeType::CbObject;
 	if (Value == "application/x-ue-pkg")		return EMimeType::CbPackage;
 	if (Value == "application/x-ue-comp")		return EMimeType::CompressedBuffer;
-	*/
 
 	return EMimeType::Unknown;
 }
