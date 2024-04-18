@@ -115,13 +115,110 @@ struct FAxisConstraintDatas
 	FVec3 ConstraintRestitution;
 	FVec3 ConstraintLambdaVelocity;
 	
-	bool bValidDatas[3];
-	bool bLimitsCheck[3];
-	bool bSoftLimit[3];
-	bool bAccelerationMode;
-	bool bUseSimd;
-	
-	EJointMotionType MotionType[3];
+	uint8 bValidDatas0 : 1;
+	uint8 bValidDatas1 : 1;
+	uint8 bValidDatas2 : 1;
+	uint8 bLimitsCheck0 : 1;
+	uint8 bLimitsCheck1 : 1;
+	uint8 bLimitsCheck2 : 1;
+	uint8 bSoftLimit0 : 1;
+	uint8 bSoftLimit1 : 1;
+	uint8 bSoftLimit2 : 1;
+	uint8 bAccelerationMode : 1;
+	uint8 bUseSimd : 1;
+	uint8 MotionType0 : 2;
+	uint8 MotionType1 : 2;
+	uint8 MotionType2 : 2;
+
+	inline bool GetValidDatas(int32 Index) const 
+	{
+		switch (Index)
+		{
+		case 0: return bValidDatas0;
+		case 1: return bValidDatas1;
+		case 2: return bValidDatas2;
+		default: check(false);  return false;
+		}
+	}
+
+	inline bool GetLimitsCheck(int32 Index) const
+	{
+		switch (Index)
+		{
+		case 0: return bLimitsCheck0;
+		case 1: return bLimitsCheck1;
+		case 2: return bLimitsCheck2;
+		default: check(false);  return false;
+		}
+	}
+
+	inline bool GetSoftLimit(int32 Index) const
+	{
+		switch (Index)
+		{
+		case 0: return bSoftLimit0;
+		case 1: return bSoftLimit1;
+		case 2: return bSoftLimit2;
+		default: check(false);  return false;
+		}
+	}
+
+	inline EJointMotionType GetMotionType(int32 Index) const
+	{
+		switch (Index)
+		{
+		case 0: return EJointMotionType(MotionType0);
+		case 1: return EJointMotionType(MotionType1);
+		case 2: return EJointMotionType(MotionType2);
+		default: check(false);  return EJointMotionType();
+		}
+	}
+
+	inline void SetValidDatas(int32 Index, bool bValue)
+	{
+		switch (Index)
+		{
+		case 0: bValidDatas0 = bValue; break;
+		case 1: bValidDatas1 = bValue; break;
+		case 2: bValidDatas2 = bValue; break;
+		default: check(false);
+		}
+	}
+
+	inline void SetLimitsCheck(int32 Index, bool bValue)
+	{
+		switch (Index)
+		{
+		case 0: bLimitsCheck0 = bValue; break;
+		case 1: bLimitsCheck1 = bValue; break;
+		case 2: bLimitsCheck2 = bValue; break;
+		default: check(false);
+		}
+	}
+
+	inline void SetSoftLimit(int32 Index, bool bValue)
+	{
+		switch (Index)
+		{
+		case 0: bSoftLimit0 = bValue; break;
+		case 1: bSoftLimit1 = bValue; break;
+		case 2: bSoftLimit2 = bValue; break;
+		default: check(false);
+		}
+	}
+
+    inline void SetMotionType(int32 Index, EJointMotionType Value)
+	{
+		check(int32(Value) <= 3); // Stored only on 2 bits
+		switch (Index)
+		{
+		case 0: MotionType0 = uint8(Value); break;
+		case 1: MotionType1 = uint8(Value); break;
+		case 2: MotionType2 = uint8(Value); break;
+		default: check(false);
+		}
+	}
+
 };
 	
 	/**
@@ -260,11 +357,11 @@ struct FAxisConstraintDatas
 
 			for (int32 Axis = 0; Axis < 3; ++Axis)
 			{
-				if (!PositionConstraints.bUseSimd && PositionConstraints.bValidDatas[Axis])
+				if (!PositionConstraints.bUseSimd && PositionConstraints.GetValidDatas(Axis))
 				{
 					Impulse += PositionConstraints.Data.ConstraintLambda[Axis] * PositionConstraints.Data.ConstraintAxis[Axis];
 				}
-				if (!PositionDrives.bUseSimd && PositionDrives.bValidDatas[Axis])
+				if (!PositionDrives.bUseSimd && PositionDrives.GetValidDatas(Axis))
 				{
 					Impulse += PositionDrives.Data.ConstraintLambda[Axis] * PositionDrives.Data.ConstraintAxis[Axis];
 				}
@@ -308,11 +405,11 @@ struct FAxisConstraintDatas
 
 			for (int32 Axis = 0; Axis < 3; ++Axis)
 			{
-				if (!RotationConstraints.bUseSimd && RotationConstraints.bValidDatas[Axis])
+				if (!RotationConstraints.bUseSimd && RotationConstraints.GetValidDatas(Axis))
 				{
 					Impulse += RotationConstraints.Data.ConstraintLambda[Axis] * RotationConstraints.Data.ConstraintAxis[Axis];
 				}
-				if (!RotationDrives.bUseSimd && RotationDrives.bValidDatas[Axis])
+				if (!RotationDrives.bUseSimd && RotationDrives.GetValidDatas(Axis))
 				{
 					Impulse += RotationDrives.Data.ConstraintLambda[Axis] * RotationDrives.Data.ConstraintAxis[Axis];
 				}

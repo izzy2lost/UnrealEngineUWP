@@ -16,7 +16,6 @@ static_assert(sizeof(ispc::FVector4) == sizeof(Chaos::FRotation3), "sizeof(ispc:
 static_assert(sizeof(ispc::FMatrix) == sizeof(Chaos::FMatrix33), "sizeof(ispc::FMatrix) != sizeof(Chaos::FMatrix33)");
 #endif
 
-//PRAGMA_DISABLE_OPTIMIZATION
 
 namespace Chaos
 {
