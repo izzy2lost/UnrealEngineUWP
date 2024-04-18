@@ -108,6 +108,7 @@ namespace uba
 
 	ProcessImpl::~ProcessImpl()
 	{
+		UBA_ASSERT(m_refCount == 0);
 		{
 			#if !PLATFORM_WINDOWS
 			SCOPED_WRITE_LOCK(m_comMemoryLock, lock);
@@ -537,6 +538,8 @@ namespace uba
 			exitedFunc(userData, h);
 			h.m_process = nullptr;
 		}
+
+		UBA_ASSERT(m_refCount);
 
 		// Must be done last to make sure shutdown is not racing
 		m_session.ProcessExited(*this, m_processStats.wallTime);

@@ -1272,7 +1272,7 @@ namespace uba
 			if (hasExited && process.exitCode != 0)
 				logger.Info(L"  ExitCode:  %u", process.exitCode);
 
-			if (process.stop != ~u64(0))
+			if (process.stop != ~u64(0) && !process.stats.empty())
 			{
 				BinaryReader reader(process.stats.data(), 0, process.stats.size());
 				ProcessStats processStats;

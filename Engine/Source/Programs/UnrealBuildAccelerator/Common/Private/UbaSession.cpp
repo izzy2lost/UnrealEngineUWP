@@ -1395,7 +1395,8 @@ namespace uba
 			m_trace.ProcessAdded(sessionId, processId, process.GetStartInfo().description);
 
 		SCOPED_WRITE_LOCK(m_processesLock, lock);
-		m_processes.try_emplace(processId, ProcessHandle(&process));
+		bool success = m_processes.try_emplace(processId, ProcessHandle(&process)).second;
+		UBA_ASSERT(success);(void)success;
 	}
 
 	void Session::ProcessExited(ProcessImpl& process, u64 executionTime)
@@ -1426,7 +1427,8 @@ namespace uba
 		auto& stats = m_applicationStats[applicationName.data];
 		stats.count++;
 		stats.time += executionTime;
-		m_processes.erase(id);
+		auto count = m_processes.erase(id);
+		UBA_ASSERT(count == 1);(void)count;
 	}
 
 	void Session::FlushDeadProcesses()

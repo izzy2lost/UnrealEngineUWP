@@ -558,6 +558,8 @@ namespace uba
 			auto& processes = session.processors[active.processorIndex].processes;
 			TraceView::Process& process = processes[active.processIndex];
 
+			const u8* dataStart = reader.GetPositionData();
+
 			ProcessStats processStats;
 			SessionStats sessionStats;
 			StorageStats storageStats;
@@ -566,6 +568,10 @@ namespace uba
 			sessionStats.Read(reader, out.version);
 			storageStats.Read(reader);
 			systemStats.Read(reader);
+
+			const u8* dataEnd = reader.GetPositionData();
+			process.stats.resize(dataEnd - dataStart);
+			memcpy(process.stats.data(), dataStart, dataEnd - dataStart);
 
 			process.exitCode = 0u;
 			process.stop = time;

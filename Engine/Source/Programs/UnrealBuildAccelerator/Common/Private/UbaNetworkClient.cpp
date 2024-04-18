@@ -318,6 +318,7 @@ namespace uba
 	{
 		StackBinaryWriter<64> writer;
 		NetworkMessage msg(*this, SystemServiceId, SystemMessageType_KeepAlive, writer);
+		writer.WriteByte(0); // Need to have a body
 		return msg.Send();
 	}
 

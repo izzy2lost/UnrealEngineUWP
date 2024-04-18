@@ -31,6 +31,8 @@ namespace uba
 		m_memKillLoadPercent = info.memKillLoadPercent;
 		m_processFinished = info.processFinished;
 
+		m_processIdCounter = ~0u / 2; // We set this value to a very high value.. because it will be used by child processes and we don't want id from server and child process id to collide
+
 		if (m_name.IsEmpty())
 		{
 			tchar buf[256];
