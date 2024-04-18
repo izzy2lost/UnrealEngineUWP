@@ -42,6 +42,9 @@ struct RIGVM_API FRigVMObjectVersion
 		// Removing library node FSoftObjectPath from FRigVMGraphFunctionIdentifier
 		RemoveLibraryNodeReferenceFromFunctionIdentifier,
 
+		// Adding variant struct to function identifier
+		AddVariantToFunctionIdentifier,
+
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,
 		LatestVersion = VersionPlusOne - 1

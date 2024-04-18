@@ -2032,6 +2032,43 @@ bool FRigVMMarkFunctionPublicAction::Redo()
 	return false;
 }
 
+FRigVMCreateFunctionVariantAction::FRigVMCreateFunctionVariantAction()
+: FRigVMBaseAction(nullptr)
+, FunctionName(NAME_None)
+{
+}
+
+FRigVMCreateFunctionVariantAction::FRigVMCreateFunctionVariantAction(URigVMController* InController, const FName& InFunctionName, const FName& InNewFunctionName)
+: FRigVMBaseAction(InController)
+, FunctionName(InFunctionName)
+, NewFunctionName(InNewFunctionName)
+{
+}
+
+bool FRigVMCreateFunctionVariantAction::Undo()
+{
+	if (!FRigVMBaseAction::Undo())
+	{
+		return false;
+	}
+	return GetController()->RemoveFunctionFromLibrary(NewFunctionName);
+}
+
+bool FRigVMCreateFunctionVariantAction::Redo()
+{
+	if(!CanUndoRedo())
+	{
+		return false;
+	}
+#if WITH_EDITOR
+	if (GetController()->CreateFunctionVariant(FunctionName, NewFunctionName, false))
+	{
+		return FRigVMBaseAction::Redo();
+	}
+#endif
+	return false;
+}
+
 FRigVMImportFromTextAction::FRigVMImportFromTextAction()
 : FRigVMBaseAction(nullptr)
 {

@@ -960,6 +960,14 @@ public:
 	UFUNCTION(BlueprintCallable, Category = RigVMController)
 	bool IsFunctionPublic(const FName& InFunctionName);
 
+	// Creates a variant of a function given the name of an existing function variant
+	UFUNCTION(BlueprintCallable, Category = RigVMController)
+	URigVMLibraryNode* CreateFunctionVariant(const FName& InFunctionName, const FName& InVariantName = NAME_None, bool bSetupUndoRedo = true, bool bPrintPythonCommand = false);
+
+	// Returns all variant refs related to the given function
+	UFUNCTION(BlueprintCallable, Category = RigVMController)
+	TArray<FRigVMVariantRef> FindVariantsOfFunction(const FName& InFunctionName);
+
 	// Add a local variable to the graph
 	UFUNCTION(BlueprintCallable, Category = RigVMController)
 	FRigVMGraphVariableDescription AddLocalVariable(const FName& InVariableName, const FString& InCPPType, UObject* InCPPTypeObject, const FString& InDefaultValue, bool bSetupUndoRedo = true, bool bPrintPythonCommand = false);

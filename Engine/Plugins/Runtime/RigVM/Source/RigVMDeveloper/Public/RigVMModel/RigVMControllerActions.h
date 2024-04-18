@@ -1412,6 +1412,30 @@ public:
 };
 
 /**
+ * An action marking a function as public/private.
+ */
+USTRUCT()
+struct FRigVMCreateFunctionVariantAction : public FRigVMBaseAction
+{
+	GENERATED_BODY()
+
+public:
+
+	FRigVMCreateFunctionVariantAction();
+	FRigVMCreateFunctionVariantAction(URigVMController* InController, const FName& InFunctionName, const FName& InNewFunctionName);
+	virtual ~FRigVMCreateFunctionVariantAction() {};
+	virtual UScriptStruct* GetScriptStruct() const override { return FRigVMCreateFunctionVariantAction::StaticStruct(); }
+	virtual bool Undo() override;
+	virtual bool Redo() override;
+
+	UPROPERTY()
+	FName FunctionName;
+
+	UPROPERTY()
+	FName NewFunctionName;
+};
+
+/**
  * An action importing nodes and links from text
  */
 USTRUCT()

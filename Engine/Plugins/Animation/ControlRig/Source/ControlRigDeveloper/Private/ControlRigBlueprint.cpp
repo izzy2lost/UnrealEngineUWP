@@ -1903,7 +1903,6 @@ void UControlRigBlueprint::PatchFunctionsOnLoad()
 {
 	URigVMBlueprintGeneratedClass* CRGeneratedClass = GetRigVMBlueprintGeneratedClass();
 	FRigVMGraphFunctionStore& Store = CRGeneratedClass->GraphFunctionStore;
-	const URigVMFunctionLibrary* Library = GetLocalFunctionLibrary();
 
 	TMap<URigVMLibraryNode*, FRigVMGraphFunctionHeader> OldHeaders;
 
@@ -1966,13 +1965,24 @@ void UControlRigBlueprint::PatchFunctionsOnLoad()
 				Header.ExternalVariables = OldHeader->ExternalVariables;
 				Header.Dependencies = OldHeader->Dependencies;
 			}
+
+			const FRigVMVariant* Variant = FunctionLibrary->GetFunctionVariant(LibraryNode->GetFName());
+			if (!Variant)
+			{
+				Header.Variant.Guid = FRigVMVariant::GenerateGUID(Header.LibraryPointer.LibraryNodePath);
+			}
+			else
+			{
+				Header.Variant = *Variant;
+			}
+			
 			Store.AddFunction(Header, bIsPublic);
 			
 		}
 	}
 
 	// Update dependencies and external variables if needed
-	for (URigVMLibraryNode* LibraryNode : Library->GetFunctions())
+	for (URigVMLibraryNode* LibraryNode : FunctionLibrary->GetFunctions())
 	{
 		GetRigVMClient()->UpdateExternalVariablesForFunction(LibraryNode);
 		GetRigVMClient()->UpdateDependenciesForFunction(LibraryNode);
@@ -2455,7 +2465,7 @@ void UControlRigBlueprint::RefreshModuleVariables()
 
 	if (UModularRigController* Controller = GetModularRigController())
 	{
-		Controller->RefreshModuleVariables();
+		Controller->RefreshModuleVariables(false);
 	}
 }
 

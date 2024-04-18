@@ -856,6 +856,19 @@ void URigVMBlueprint::PreSave(FObjectPreSaveContext ObjectSaveContext)
 		{
 			PublicGraphFunctions[i] = RigClass->GetRigVMGraphFunctionStore()->PublicFunctions[i].Header;
 		}
+
+		URigVMFunctionLibrary* FunctionLibrary = GetLocalFunctionLibrary();
+		FunctionLibrary->FunctionToVariant.Reset();
+		for (int32 Pass=0; Pass<2; ++Pass)
+		{
+			const TArray<FRigVMGraphFunctionData>& Functions = (Pass == 0) ?
+				RigClass->GetRigVMGraphFunctionStore()->PrivateFunctions
+				: RigClass->GetRigVMGraphFunctionStore()->PublicFunctions;
+			for (const FRigVMGraphFunctionData& Function : Functions)
+			{
+				FunctionLibrary->FunctionToVariant.Add(Function.Header.Name, Function.Header.Variant);
+			}
+		}
 	}
 
 #if WITH_EDITORONLY_DATA
@@ -2320,6 +2333,88 @@ TArray<FRigVMExternalDependency> URigVMBlueprint::GetExternalDependenciesForCate
 	return Dependencies;
 }
 
+TArray<FRigVMVariantRef> URigVMBlueprint::GatherFunctionVariantRefsForAsset(const FAssetData& InAssetData)
+{
+	TArray<FRigVMVariantRef> Result;
+
+	if (!InAssetData.IsInstanceOf(URigVMBlueprint::StaticClass()) &&
+		!InAssetData.IsInstanceOf(URigVMBlueprintGeneratedClass::StaticClass()))
+	{
+		return Result;
+	}
+
+	// If the asset is loaded, gather the function variants from the function store
+	// which will include private functions
+	if (InAssetData.IsAssetLoaded())
+	{
+		UObject* AssetObject = InAssetData.GetAsset();
+		URigVMBlueprintGeneratedClass* GeneratedClass = Cast<URigVMBlueprintGeneratedClass>(AssetObject);
+		if (!GeneratedClass)
+		{
+			if (URigVMBlueprint* RigVMBlueprint = Cast<URigVMBlueprint>(AssetObject))
+			{
+				GeneratedClass = RigVMBlueprint->GetRigVMBlueprintGeneratedClass();
+			}
+		}
+
+		if (GeneratedClass)
+		{
+			for (int32 Pass=0; Pass<2; Pass++)
+			{
+				TArray<FRigVMGraphFunctionData>& Functions = (Pass == 0)
+					? GeneratedClass->GraphFunctionStore.PrivateFunctions
+					: GeneratedClass->GraphFunctionStore.PublicFunctions;
+				
+				for (FRigVMGraphFunctionData& Data : Functions)
+				{
+					FRigVMVariantRef& VariantRef = Result.Add_GetRef(FRigVMVariantRef());
+					VariantRef.Variant = Data.Header.Variant;
+					VariantRef.ObjectPath = Data.Header.LibraryPointer.GetNodeSoftPath();
+				}
+			}
+
+			return Result;
+		}
+	}
+
+	// If asset is not loaded, gather function variants from metadata
+	FString PublicGraphFunctionsString = InAssetData.GetTagValueRef<FString>(TEXT("PublicGraphFunctions"));
+	TArray<FRigVMGraphFunctionHeader> PublicFunctions;
+	static const FName FunctionsPropertyName = GET_MEMBER_NAME_CHECKED(URigVMBlueprint, PublicGraphFunctions);
+	FArrayProperty* PublicGraphFunctionsProperty = CastField<FArrayProperty>(URigVMBlueprint::StaticClass()->FindPropertyByName(FunctionsPropertyName));
+	PublicGraphFunctionsProperty->ImportText_Direct(*PublicGraphFunctionsString, &PublicFunctions, nullptr, EPropertyPortFlags::PPF_None);
+
+	for(const FRigVMGraphFunctionHeader& PublicFunction : PublicFunctions)
+	{
+		FRigVMVariantRef& VariantRef = Result.Add_GetRef(FRigVMVariantRef());
+		VariantRef.Variant = PublicFunction.Variant;
+		VariantRef.ObjectPath = PublicFunction.LibraryPointer.GetNodeSoftPath();
+	}
+
+	return Result;
+}
+
+TArray<FRigVMVariantRef> URigVMBlueprint::FindFunctionVariantRefs(const FGuid& InGuid)
+{
+	TArray<FRigVMVariantRef> Result;
+	const FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
+	TArray<FAssetData> Assets;
+	FARFilter AssetFilter;
+	AssetFilter.ClassPaths.Add(URigVMBlueprint::StaticClass()->GetClassPathName());
+	AssetFilter.ClassPaths.Add(URigVMBlueprintGeneratedClass::StaticClass()->GetClassPathName());
+	AssetFilter.bRecursiveClasses = true;
+	AssetRegistryModule.Get().GetAssets(AssetFilter, Assets);
+
+	for (const FAssetData& Asset : Assets)
+	{
+		TArray<FRigVMVariantRef> VariantRefs = URigVMBlueprint::GatherFunctionVariantRefsForAsset(Asset);
+		VariantRefs = VariantRefs.FilterByPredicate([InGuid](const FRigVMVariantRef& VariantRef) { return VariantRef.Variant.Guid == InGuid; });
+		Result.Append(VariantRefs);
+	}
+
+	return Result;
+}
+
 URigVMGraph* URigVMBlueprint::GetTemplateModel(bool bIsFunctionLibrary)
 {
 #if WITH_EDITORONLY_DATA
@@ -3708,6 +3803,17 @@ void URigVMBlueprint::PatchFunctionsOnLoad()
 				Header.ExternalVariables = OldHeader->ExternalVariables;
 				Header.Dependencies = OldHeader->Dependencies;
 			}
+
+			const FRigVMVariant* Variant = FunctionLibrary->GetFunctionVariant(LibraryNode->GetFName());
+			if (!Variant)
+			{
+				Header.Variant.Guid = FRigVMVariant::GenerateGUID(Header.LibraryPointer.LibraryNodePath);
+			}
+			else
+			{
+				Header.Variant = *Variant;
+			}
+			
 			Store.AddFunction(Header, bIsPublic);
 			
 		}

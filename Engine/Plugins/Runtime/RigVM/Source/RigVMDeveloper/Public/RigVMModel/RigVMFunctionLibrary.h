@@ -75,10 +75,15 @@ public:
 
 	bool IsFunctionPublic(const FName& InFunctionName) const { return PublicFunctionNames.Contains(InFunctionName); }
 
+	const FRigVMVariant* GetFunctionVariant(const FName& InFunctionName) const { return FunctionToVariant.Find(InFunctionName); }
+
 private:
 
 	UPROPERTY()
 	TArray<FName> PublicFunctionNames;
+
+	UPROPERTY()
+	TMap<FName, FRigVMVariant> FunctionToVariant;
 
 #if WITH_EDITORONLY_DATA
 	UPROPERTY()

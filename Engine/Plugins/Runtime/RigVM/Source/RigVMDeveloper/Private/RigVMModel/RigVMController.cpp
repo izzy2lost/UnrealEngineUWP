@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "RigVMModel/RigVMController.h"
+#include "RigVMBlueprint.h"
 #include "RigVMModel/RigVMControllerActions.h"
 #include "RigVMModel/Nodes/RigVMFunctionEntryNode.h"
 #include "RigVMModel/Nodes/RigVMFunctionReturnNode.h"
@@ -6854,6 +6855,7 @@ bool URigVMController::RenameNode(URigVMNode* InNode, const FName& InNewName, bo
 		return false;
 	}
 
+	Notify(ERigVMGraphNotifType::FunctionRenamed, InNode);
 	Notify(ERigVMGraphNotifType::NodeRenamed, InNode);
 
 	// update the links once more
@@ -12099,6 +12101,142 @@ bool URigVMController::IsFunctionPublic(const FName& InFunctionName)
 	}
 
 	return false;
+}
+
+URigVMLibraryNode* URigVMController::CreateFunctionVariant(const FName& InFunctionName, const FName& InVariantName, bool bSetupUndoRedo, bool bPrintPythonCommand)
+{
+	URigVMLibraryNode* Result = nullptr;
+	if (!IsValidGraph())
+	{
+		return Result;
+	}
+
+	if (!bIsTransacting && !IsGraphEditable())
+	{
+		return Result;
+	}
+
+	URigVMGraph* Graph = GetGraph();
+	check(Graph);
+
+	if (!Graph->IsA<URigVMFunctionLibrary>())
+	{
+		ReportError(TEXT("Can only add function variant in library graphs."));
+		return Result;
+	}
+
+	IRigVMClientHost* ClientHost = GetImplementingOuter<IRigVMClientHost>();
+	if (!ClientHost)
+	{
+		ReportErrorf(TEXT("Cannot find client host."));
+		return Result;
+	}
+
+	IRigVMGraphFunctionHost* FunctionHost = ClientHost->GetRigVMGraphFunctionHost();
+	if (!FunctionHost)
+	{
+		ReportErrorf(TEXT("Cannot find function host."));
+		return Result;
+	}
+
+	bool bIsPublic;
+	FRigVMGraphFunctionData* OriginalFunction = FunctionHost->GetRigVMGraphFunctionStore()->FindFunctionByName(InFunctionName, &bIsPublic);
+	if (!OriginalFunction)
+	{
+		ReportErrorf(TEXT("Cannot find function %s."), *InFunctionName.ToString());
+		return Result;
+	}
+
+	URigVMLibraryNode* FunctionToClone = Cast<URigVMLibraryNode>(Graph->FindNodeByName(InFunctionName));
+	if (!FunctionToClone)
+	{
+		ReportErrorf(TEXT("Cannot find function node %s."), *InFunctionName.ToString());
+		return Result;
+	}
+
+	const FName VariantName = *GetSchema()->GetValidNodeName(Graph, InVariantName.IsNone() ? InFunctionName.ToString() : InVariantName.ToString());
+
+	FRigVMBaseAction BaseAction(this);
+	if(bSetupUndoRedo)
+	{
+		BaseAction.SetTitle(FString::Printf(TEXT("Create function variant %s with name %s"), *InFunctionName.ToString(), *InVariantName.ToString()));
+		GetActionStack()->BeginAction(BaseAction);
+		GetActionStack()->AddAction(FRigVMCreateFunctionVariantAction(this, InFunctionName, VariantName));
+	}
+
+	ClientHost->GetRigVMClient()->UpdateGraphFunctionSerializedGraph(FunctionToClone);
+	TArray<FName> NodeNames = ImportNodesFromText(OriginalFunction->SerializedCollapsedNode, false);
+
+	if (!NodeNames.IsEmpty())
+	{
+		if (VariantName != NodeNames[0])
+		{
+			RenameFunction(NodeNames[0], VariantName, false);
+		}
+		FRigVMVariant NewVariant(OriginalFunction->Header.Variant);
+		if (FRigVMGraphFunctionData* NewFunction = FunctionHost->GetRigVMGraphFunctionStore()->FindFunctionByName(VariantName))
+		{
+			const FName NewName = NewFunction->Header.Name;
+			const FRigVMGraphFunctionIdentifier Identifier = NewFunction->Header.LibraryPointer;
+			NewFunction->Header = OriginalFunction->Header;
+			NewFunction->Header.Name = NewName;
+			NewFunction->Header.LibraryPointer = Identifier;
+
+			MarkFunctionAsPublic(NewName, bIsPublic, false);
+		}
+
+		Result = Cast<URigVMLibraryNode>(Graph->FindNodeByName(VariantName));
+	}
+	else if(bSetupUndoRedo)
+	{
+		GetActionStack()->CancelAction(BaseAction);
+	}
+
+	if (bSetupUndoRedo)
+	{
+		GetActionStack()->EndAction(BaseAction);
+	}
+
+	if (bPrintPythonCommand)
+	{
+		const FString GraphName = GetSchema()->GetSanitizedGraphName(GetGraph()->GetGraphName());
+
+		RigVMPythonUtils::Print(GetSchema()->GetGraphOuterName(GetGraph()), 
+			FString::Printf(TEXT("blueprint.get_controller_by_name('%s').create_function_variant('%s', '%s')"),
+				*GraphName,
+				*InFunctionName.ToString(),
+				*InVariantName.ToString()));
+	}
+
+	return Result;
+}
+
+TArray<FRigVMVariantRef> URigVMController::FindVariantsOfFunction(const FName& InFunctionName)
+{
+	TArray<FRigVMVariantRef> Result;
+	
+    IRigVMClientHost* ClientHost = GetImplementingOuter<IRigVMClientHost>();
+    if (!ClientHost)
+    {
+    	ReportErrorf(TEXT("Cannot find client host."));
+    	return Result;
+    }
+
+    IRigVMGraphFunctionHost* FunctionHost = ClientHost->GetRigVMGraphFunctionHost();
+    if (!FunctionHost)
+    {
+    	ReportErrorf(TEXT("Cannot find function host."));
+    	return Result;
+    }
+
+    FRigVMGraphFunctionData* FunctionData = FunctionHost->GetRigVMGraphFunctionStore()->FindFunctionByName(InFunctionName);
+    if (!FunctionData)
+    {
+    	ReportErrorf(TEXT("Cannot find function %s."), *InFunctionName.ToString());
+    	return Result;
+    }
+
+	return URigVMBlueprint::FindFunctionVariantRefs(FunctionData->Header.Variant.Guid);
 }
 
 FRigVMGraphVariableDescription URigVMController::AddLocalVariable(const FName& InVariableName, const FString& InCPPType, UObject* InCPPTypeObject, const FString& InDefaultValue, bool bSetupUndoRedo, bool bPrintPythonCommand)

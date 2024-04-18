@@ -1122,7 +1122,7 @@ void FRigVMClient::HandleGraphModifiedEvent(ERigVMGraphNotifType InNotifType, UR
 			}
 			break;
 		}
-		case ERigVMGraphNotifType::NodeRenamed: // A node has been renamed in the graph (Subject == URigVMNode)
+		case ERigVMGraphNotifType::FunctionRenamed: // A node has been renamed in the graph (Subject == URigVMNode)
 		{
 			if(InSubject->GetOuter()->IsA<URigVMFunctionLibrary>())
 			{
@@ -1134,7 +1134,9 @@ void FRigVMClient::HandleGraphModifiedEvent(ERigVMGraphNotifType InNotifType, UR
 						if (FRigVMGraphFunctionData* Data = Host->GetRigVMGraphFunctionStore()->FindFunctionByName(CollapseNode->GetPreviousFName()))
 						{
 							const FRigVMGraphFunctionIdentifier PreviousFunctionId = Data->Header.LibraryPointer;
+							const FRigVMVariant Variant = Data->Header.Variant;
 							Data->Header = CollapseNode->GetFunctionHeader();
+							Data->Header.Variant = Variant;
 
 							if (const FRigVMFunctionReferenceArray* FunctionReferencesPtr = BuildData->GraphFunctionReferences.Find(PreviousFunctionId))
 							{

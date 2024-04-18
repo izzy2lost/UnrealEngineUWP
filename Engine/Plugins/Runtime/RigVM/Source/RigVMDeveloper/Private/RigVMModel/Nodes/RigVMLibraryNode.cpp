@@ -235,8 +235,21 @@ FRigVMGraphFunctionHeader URigVMLibraryNode::GetFunctionHeader(IRigVMGraphFuncti
 	{
 	    Header.LibraryPointer.LibraryNodePath = this->GetPathName();
 	    Header.LibraryPointer.HostObject = Cast<UObject>(InHostObject);
-	}	
-    
+	}
+
+	UObject* HostPtr = Cast<UObject>(Header.LibraryPointer.HostObject.ResolveObject());
+	if (IRigVMGraphFunctionHost* Host = Cast<IRigVMGraphFunctionHost>(HostPtr))
+	{
+		if (FRigVMGraphFunctionData* Data = Host->GetRigVMGraphFunctionStore()->FindFunction(Header.LibraryPointer))
+		{
+			Header.Variant = Data->Header.Variant;
+		}
+	}
+	if (!Header.Variant.Guid.IsValid())
+	{
+		Header.Variant.Guid = FRigVMVariant::GenerateGUID();
+	}
+
     Header.Name = GetFName();
 	Header.Description = GetNodeDescription();
     Header.Category = GetNodeCategory();
@@ -278,7 +291,6 @@ FRigVMGraphFunctionHeader URigVMLibraryNode::GetFunctionHeader(IRigVMGraphFuncti
 	// If the header already exists, try to find it and get its external variables and dependencies
 	TArray<FString> Dependencies;
 	TArray<FRigVMExternalVariable> ExternalVariables;
-	UObject* HostPtr = Cast<UObject>(Header.LibraryPointer.HostObject.ResolveObject());
 	if (IRigVMGraphFunctionHost* Host = Cast<IRigVMGraphFunctionHost>(HostPtr))
 	{
 		if (FRigVMGraphFunctionData* Data = Host->GetRigVMGraphFunctionStore()->FindFunction(Header.LibraryPointer))

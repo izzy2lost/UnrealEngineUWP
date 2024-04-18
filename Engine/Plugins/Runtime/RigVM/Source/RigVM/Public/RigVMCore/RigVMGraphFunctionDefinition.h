@@ -8,6 +8,7 @@
 #include "UObject/UE5MainStreamObjectVersion.h"
 #include "UObject/FortniteMainBranchObjectVersion.h"
 #include "UObject/UE5ReleaseStreamObjectVersion.h"
+#include "RigVMVariant.h"
 #include "RigVMGraphFunctionDefinition.generated.h"
 
 class IRigVMGraphFunctionHost;
@@ -461,6 +462,9 @@ struct RIGVM_API FRigVMGraphFunctionHeader
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category=FunctionHeader)
 	FRigVMGraphFunctionIdentifier LibraryPointer;
 
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category=FunctionIdentifier)
+	FRigVMVariant Variant;
+
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category=FunctionHeader)
 	FName Name;
 
@@ -528,6 +532,12 @@ struct RIGVM_API FRigVMGraphFunctionHeader
 		Ar.UsingCustomVersion(FRigVMObjectVersion::GUID);
 		
 		Ar << Data.LibraryPointer;
+
+		if (!Ar.IsLoading() || Ar.CustomVer(FRigVMObjectVersion::GUID) >= FRigVMObjectVersion::AddVariantToFunctionIdentifier)
+		{
+			Ar << Data.Variant;
+		}
+		
 		Ar << Data.Name;
 		Ar << Data.NodeTitle;
 		Ar << Data.NodeColor;
