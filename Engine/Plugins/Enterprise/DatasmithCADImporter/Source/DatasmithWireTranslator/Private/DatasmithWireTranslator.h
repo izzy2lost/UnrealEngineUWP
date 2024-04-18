@@ -4,39 +4,21 @@
 
 #include "CoreMinimal.h"
 
+#include "IWireInterface.h"
+
 #include "ParametricSurfaceTranslator.h"
-
-#include "DatasmithImportOptions.h"
-
-#include "UObject/ObjectMacros.h"
 
 #include "DatasmithWireTranslator.generated.h"
 
-class IWireInterface;
-
-USTRUCT(BlueprintType)
-struct FDatasmithWireOptions : public FDatasmithTessellationOptions
-{
-	GENERATED_BODY()
-
-	UPROPERTY(config, EditAnywhere, BlueprintReadWrite, Category = "Wire Translation Options")
-	bool bUseLayerAsActor = false;
-
-	uint32 GetHash() const
-	{
-		return HashCombine(FDatasmithTessellationOptions::GetHash(), GetTypeHash(false));
-	}
-};
-
 
 UCLASS(BlueprintType, config = EditorPerProjectUserSettings)
-class UDatasmithWireTranslationOptions : public UDatasmithOptionsBase
+class UDatasmithWireOptions : public UDatasmithOptionsBase
 {
 	GENERATED_BODY()
 
 public:
 	UPROPERTY(config, EditAnywhere, BlueprintReadWrite, Category = "Wire Translation Options", meta = (ShowOnlyInnerProperties))
-	FDatasmithWireOptions Options;
+	FWireSettings Settings;
 };
 
 class FDatasmithWireTranslator : public FParametricSurfaceTranslator
@@ -58,6 +40,7 @@ public:
 	// End IDatasmithTranslator overrides
 
 	// Begin ADatasmithCoreTechTranslator overrides
+	virtual void GetSceneImportOptions(TArray<TObjectPtr<UDatasmithOptionsBase>>& Options) override;
 	virtual void SetSceneImportOptions(const TArray<TObjectPtr<UDatasmithOptionsBase>>& Options) override;
 
 protected:

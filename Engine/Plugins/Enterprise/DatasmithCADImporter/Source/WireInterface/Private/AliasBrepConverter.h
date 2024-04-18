@@ -2,6 +2,8 @@
 
 #pragma once
 
+#include "CoreMinimal.h"
+
 #ifdef USE_OPENMODEL
 class AlDagNode;
 struct FColor;
@@ -23,6 +25,7 @@ class IAliasBRepConverter
 {
 public:
 	virtual bool AddBRep(AlDagNode& DagNode, const FColor& Color, EAliasObjectReference ObjectReference) = 0;
+	virtual bool AddBRep(AlDagNode& DagNode, uint32 SlotID, EAliasObjectReference ObjectReference) = 0;
 };
 
 }

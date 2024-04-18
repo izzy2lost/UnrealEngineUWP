@@ -186,7 +186,6 @@ bool FDatasmithWireTranslator::LoadScene(TSharedRef<IDatasmithScene> OutScene)
 	IFileManager::Get().MakeDirectory(*OutputPath, true);
 
 	WireInterface->SetOutputPath(OutputPath);
-	WireInterface->SetTessellationOptions(CommonTessellationOptions);
 
 	return WireInterface->Load(OutScene);
 }
@@ -201,13 +200,28 @@ bool FDatasmithWireTranslator::LoadStaticMesh(const TSharedRef<IDatasmithMeshEle
 	return ensure(WireInterface.IsValid()) ? WireInterface->LoadStaticMesh(MeshElement, OutMeshPayload, CommonTessellationOptions) : false;
 }
 
+void FDatasmithWireTranslator::GetSceneImportOptions(TArray<TObjectPtr<UDatasmithOptionsBase>>& Options)
+{
+	UDatasmithWireOptions* ImportOptions = Datasmith::MakeOptionsObjectPtr<UDatasmithWireOptions>();
+	ImportOptions->LoadConfig();
+	Options.Add(ImportOptions);
+}
+
 void FDatasmithWireTranslator::SetSceneImportOptions(const TArray<TObjectPtr<UDatasmithOptionsBase>>& Options)
 {
 	FParametricSurfaceTranslator::SetSceneImportOptions(Options);
 
 	if (ensure(WireInterface.IsValid()))
 	{
-		WireInterface->SetTessellationOptions(CommonTessellationOptions);
+		for (const TObjectPtr<UDatasmithOptionsBase>& OptionPtr : Options)
+		{
+			if (UDatasmithWireOptions* ImportOptions = Cast<UDatasmithWireOptions>(OptionPtr))
+			{
+				ImportOptions->SaveConfig(CPF_Config);
+				WireInterface->SetImportSettings(ImportOptions->Settings);
+				CommonTessellationOptions = ImportOptions->Settings;
+			}
+		}
 	}
 }
 

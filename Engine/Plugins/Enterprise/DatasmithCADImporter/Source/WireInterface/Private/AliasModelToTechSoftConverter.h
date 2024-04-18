@@ -39,6 +39,7 @@ public:
 	}
 
 	virtual bool AddBRep(AlDagNode& DagNode, const FColor& Color, EAliasObjectReference ObjectReference) override;
+	virtual bool AddBRep(AlDagNode& DagNode, uint32 SlotID, EAliasObjectReference ObjectReference) override;
 
 protected:
 	TMap<void*, A3DTopoCoEdge*> AlEdgeToTSCoEdge;

@@ -11,19 +11,19 @@
 
 #include "IWireInterface.h"
 
-#include "DatasmithImportOptions.h"
-
 #include "Templates/SharedPointer.h"
 
 class AlDagNode;
+class AlLayer;
 class AlMesh;
+class AlShader;
 class AlShaderNode;
 class IDatasmithActorElement;
+class IDatasmithBaseMaterialElement;
 class IDatasmithMaterialIDElement;
 class IDatasmithUEPbrMaterialElement;
 
 struct FMeshDescription;
-struct FDatasmithTessellationOptions;
 
 namespace CADLibrary
 {
@@ -47,48 +47,29 @@ namespace UE_DATASMITHWIRETRANSLATOR_NAMESPACE
 		/** Begin IWrieInterface */
 		virtual bool Initialize(const TCHAR* InSceneFullName) override;
 		virtual bool Load(TSharedPtr<IDatasmithScene> InScene) override;
-		virtual void SetTessellationOptions(const FDatasmithTessellationOptions& Options) override;
+		virtual void SetImportSettings(const FWireSettings& Options) override;
 		virtual void SetOutputPath(const FString& Path) { OutputPath = Path; }
 
 		bool LoadStaticMesh(const TSharedPtr<IDatasmithMeshElement> MeshElement, FDatasmithMeshElementPayload& OutMeshPayload, const FDatasmithTessellationOptions& InTessellationOptions);
 		/** End IWrieInterface */
 
 	private:
-		TOptional<FMeshDescription> GetMeshDescription(TSharedPtr<IDatasmithMeshElement> MeshElement, CADLibrary::FMeshParameters& OutMeshParameters);
-		TOptional<FMeshDescription> GetMeshDescription(TSharedPtr<IDatasmithMeshElement> MeshElement, CADLibrary::FMeshParameters& MeshParameters, TSharedPtr<FBodyData> BodyTemp);
+		/** Model traversal */
+		bool TraverseModel();
+		TSharedPtr<IDatasmithActorElement> TraverseDag(const TAlDagNodePtr<AlDagNode>& DagNode);
 
+		TSharedPtr<IDatasmithActorElement> ProcessGeometryNode(const TAlDagNodePtr<AlDagNode>& GeomNode, const TAlObjectPtr<AlLayer>& ParentLayer = TAlObjectPtr<AlLayer>());
+		TSharedPtr<IDatasmithActorElement> TraverseGroupNode(const TAlDagNodePtr<AlGroupNode>& GroupNode, const TAlObjectPtr<AlLayer>& ParentLayer = TAlObjectPtr<AlLayer>());
+		TSharedPtr<IDatasmithActorElement> ProcessGroupNode(const TAlDagNodePtr<AlGroupNode>& GroupNode, const TAlObjectPtr<AlLayer>& ParentLayer = TAlObjectPtr<AlLayer>());
+		TSharedPtr<IDatasmithActorElement> ProcessBodyNode(TSharedPtr<FBodyNode>& BodyNode, const TAlDagNodePtr<AlGroupNode>& GroupNode, const TAlObjectPtr<AlLayer>& ParentLayer = TAlObjectPtr<AlLayer>());
+		TSharedPtr<IDatasmithActorElement> ProcessPatchMesh(TSharedPtr<FPatchMesh>& PatchMesh, const TAlDagNodePtr<AlGroupNode>& GroupNode, const TAlObjectPtr<AlLayer>& ParentLayer = TAlObjectPtr<AlLayer>());
 
-	private:
+		TSharedPtr<IDatasmithActorElement> FindOrAddLayerActor(const TAlObjectPtr<AlLayer>& Layer);
+		TSharedPtr<IDatasmithMeshElement> FindOrAddMeshElement(const TAlDagNodePtr<AlDagNode>& GeomNode);
+		TSharedPtr<IDatasmithMeshElement> FindOrAddMeshElement(TSharedPtr<FBodyNode>& BodyNode);
+		TSharedPtr<IDatasmithMeshElement> FindOrAddMeshElement(TSharedPtr<FPatchMesh>& PatchMesh);
 
-		bool GetDagLeaves();
-		bool GetShader();
-		void RecurseDagForLeaves(const TAlObjectPtr<AlDagNode>& DagNode, FDagNodeInfo& ParentInfo);
-		void RecurseDagForLeavesNoMerge(const TAlObjectPtr<AlDagNode>& DagNode, FDagNodeInfo& ParentInfo);
-		void DagForLeavesNoMerge(const TAlObjectPtr<AlDagNode>& DagNode, FDagNodeInfo& ParentInfo);
-		bool ProcessAlGroupNode(AlDagNode& GroupNode, FDagNodeInfo& ParentInfo);
-		void ProcessAlShellNode(const TAlObjectPtr<AlDagNode>& ShellNode, FDagNodeInfo& ParentInfo, const FString& ShaderName);
-		void ProcessBodyNode(const TSharedPtr<FBodyData>& Body, FDagNodeInfo& ParentInfo);
-		TSharedPtr<IDatasmithMeshElement> FindOrAddMeshElement(const TSharedPtr<FBodyData>& Body, const FDagNodeInfo& ParentInfo);
-		TSharedPtr<IDatasmithMeshElement> FindOrAddMeshElement(const TAlObjectPtr<AlDagNode>& ShellNode, const FDagNodeInfo& ParentInfo, const FString& ShaderName);
-		TSharedPtr<IDatasmithActorElement> FindOrAddParentActor(FDagNodeInfo& ParentInfo, const FString& LayerName);
-		TSharedPtr<IDatasmithActorElement> FindOrAddLayerActor(const FString& LayerName);
-
-		void RecurseDeleteEmptyActor(TSharedPtr<IDatasmithActorElement> Actor);
-
-		TOptional<FMeshDescription> GetMeshOfShellNode(AlDagNode& DagNode, TSharedPtr<IDatasmithMeshElement> MeshElement, CADLibrary::FMeshParameters& MeshParameters);
-		TOptional<FMeshDescription> GetMeshOfNodeMesh(AlDagNode& DagNode, TSharedPtr<IDatasmithMeshElement> MeshElement, CADLibrary::FMeshParameters& MeshParameters, AlMatrix4x4* AlMeshInvGlobalMatrix = nullptr);
-		TOptional<FMeshDescription> GetMeshOfShellBody(TSharedPtr<FBodyData> DagNode, TSharedPtr<IDatasmithMeshElement> MeshElement, CADLibrary::FMeshParameters& MeshParameters);
-		TOptional<FMeshDescription> GetMeshOfMeshBody(TSharedPtr<FBodyData> DagNode, TSharedPtr<IDatasmithMeshElement> MeshElement, CADLibrary::FMeshParameters& MeshParameters);
-
-		void AddNodeInBodyGroup(TAlObjectPtr<AlDagNode>& DagNode, const FString& ShaderName, TMap<uint32, TSharedPtr<FBodyData>>& ShellToProcess, bool bIsAPatch, uint32 MaxSize);
-
-		TSharedPtr<CADLibrary::ICADModelConverter> GetModelConverter(IAliasBRepConverter*& BRepConverter) const;
-
-		TOptional<FMeshDescription> MeshDagNodeWithExternalMesher(AlDagNode& DagNode, TSharedPtr<IDatasmithMeshElement> MeshElement, CADLibrary::FMeshParameters& MeshParameters);
-		TOptional<FMeshDescription> MeshDagNodeWithExternalMesher(TSharedPtr<FBodyData> DagNode, TSharedPtr<IDatasmithMeshElement> MeshElement, CADLibrary::FMeshParameters& MeshParameters);
-
-		TOptional<FMeshDescription> ImportMesh(AlMesh& Mesh, TSharedPtr<IDatasmithMeshElement> MeshElement, CADLibrary::FMeshParameters& MeshParameters);
-
+		/** Material creation */
 		bool IsTransparent(FColor& TransparencyColor)
 		{
 			float Opacity = 1.0f - ((float)(TransparencyColor.R + TransparencyColor.G + TransparencyColor.B)) / 765.0f;
@@ -101,41 +82,42 @@ namespace UE_DATASMITHWIRETRANSLATOR_NAMESPACE
 		void AddAlLambertParameters(const TAlObjectPtr<AlShader>& Shader, TSharedPtr<IDatasmithUEPbrMaterialElement> MaterialElement);
 		void AddAlLightSourceParameters(const TAlObjectPtr<AlShader>& Shader, TSharedPtr<IDatasmithUEPbrMaterialElement> MaterialElement);
 		void AddAlPhongParameters(const TAlObjectPtr<AlShader>& Shader, TSharedPtr<IDatasmithUEPbrMaterialElement> MaterialElement);
+		
+		TSharedPtr<IDatasmithMaterialIDElement> FindOrAddMaterial(const TAlObjectPtr<AlShader>& Shader);
+
+		/** Geometry retrieval */
+		TOptional<FMeshDescription> GetMeshDescription(TSharedPtr<IDatasmithMeshElement> MeshElement, CADLibrary::FMeshParameters& OutMeshParameters);
+		TSharedPtr<CADLibrary::ICADModelConverter> GetModelConverter(IAliasBRepConverter*& BRepConverter) const;
+		TOptional<FMeshDescription> TessellateParametricNode(AlDagNode& DagNode, TSharedPtr<IDatasmithMeshElement> MeshElement, CADLibrary::FMeshParameters& MeshParameters);
+		TOptional<FMeshDescription> GetMeshDescriptionFromBodyNode(TSharedPtr<FBodyNode>& BodyNode, TSharedPtr<IDatasmithMeshElement> MeshElement, CADLibrary::FMeshParameters& MeshParameters);
+		TOptional<FMeshDescription> GetMeshDescriptionFromPatchMesh(TSharedPtr<FPatchMesh>& PatchMesh, TSharedPtr<IDatasmithMeshElement> MeshElement, CADLibrary::FMeshParameters& MeshParameters);
+		TOptional<FMeshDescription> GetMeshDescriptionFromParametricNode(AlDagNode& DagNode, TSharedPtr<IDatasmithMeshElement> MeshElement, CADLibrary::FMeshParameters& MeshParameters);
+		TOptional<FMeshDescription> GetMeshDescriptionFromMeshNode(const TAlDagNodePtr<AlMeshNode>& MeshNode, TSharedPtr<IDatasmithMeshElement> MeshElement, CADLibrary::FMeshParameters& MeshParameters, AlMatrix4x4* AlMeshInvGlobalMatrix = nullptr);
 
 	private:
 		TSharedPtr<IDatasmithScene> DatasmithScene;
-		FString SceneName;
-		FString CurrentPath;
 		FString OutputPath;
 		FString SceneFullPath;
 
-		// Hash value of the scene file used to check if the file has been modified for re-import
-		uint32 SceneFileHash = 0;
-
-		TAlObjectPtr<AlDagNode> AlRootNode;
-
-		/** Table of correspondence between mesh identifier and associated Datasmith mesh element */
-		TMap<uint32, TSharedPtr<IDatasmithMeshElement>> ShellUuidToMeshElementMap;
-		TMap<uint32, TSharedPtr<IDatasmithMeshElement>> BodyUuidToMeshElementMap;
-
-		/** Datasmith mesh elements to OpenModel objects */
-		TMap<IDatasmithMeshElement*, TAlObjectPtr<AlDagNode>> MeshElementToAlDagNodeMap;
-
-		TMap<IDatasmithMeshElement*, TSharedPtr<FBodyData>> MeshElementToBodyMap;
-
-		TMap<IDatasmithMeshElement*, FString> MeshElementToShaderName;
-		TMap<FString, FColor> ShaderNameToColor;
-		TMap<FString, TSharedPtr<IDatasmithMaterialIDElement>> ShaderNameToUEMaterialId;
-
-		TMap<FString, TSharedPtr<IDatasmithActorElement>> LayerNameToActor;
-
-		FDatasmithTessellationOptions TessellationOptions;
+		FWireSettings WireSettings;
 
 		TSharedPtr<CADLibrary::ICADModelConverter> CADModelConverter;
 		TSharedPtr<IAliasBRepConverter> AliasBRepConverter;
 
-		bool bAliasUseNative = false;
 		bool bSceneLoaded = false;
+
+		TMap<FString, TSharedPtr<IDatasmithBaseMaterialElement>> ShaderNameToMaterial;
+
+		TMap<uint32, TSharedPtr<IDatasmithMeshElement>> GeomNodeToMeshElement;
+		TMap<TSharedPtr<IDatasmithMeshElement>, AlDagNode*> MeshElementToGeomNode;
+
+		TMap<uint32, TSharedPtr<IDatasmithMeshElement>> BodyNodeToMeshElement;
+		TMap<TSharedPtr<IDatasmithMeshElement>, TSharedPtr<FBodyNode>> MeshElementToBodyNode;
+
+		TMap<uint32, TSharedPtr<IDatasmithMeshElement>> PatchMeshToMeshElement;
+		TMap<TSharedPtr<IDatasmithMeshElement>, TSharedPtr<FPatchMesh>> MeshElementToPatchMesh;
+
+		TMap<uint32, TSharedPtr<IDatasmithActorElement>> LayerToActor;
 	};
 } // namespace
 #endif

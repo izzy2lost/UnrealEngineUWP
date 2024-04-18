@@ -298,11 +298,16 @@ void FAliasModelToCADKernelConverter::AddShell(const AlShell& InShell, EAliasObj
 
 bool FAliasModelToCADKernelConverter::AddBRep(AlDagNode& DagNode, const FColor& Color, EAliasObjectReference InObjectReference)
 {
+	uint32 ColorId = (uint32)CADLibrary::BuildColorUId(Color);
+	return AddBRep(DagNode, ColorId, InObjectReference);
+}
+
+bool FAliasModelToCADKernelConverter::AddBRep(AlDagNode& DagNode, uint32 SlotID, EAliasObjectReference InObjectReference)
+{
 	AlEdge2CADKernelEdge.Empty();
 
 	TSharedRef<UE::CADKernel::FBody> CADKernelBody = UE::CADKernel::FEntity::MakeShared<UE::CADKernel::FBody>();
-	uint32 ColorId = (uint32) CADLibrary::BuildColorUId(Color);
-	CADKernelBody->SetColorId(ColorId);
+	CADKernelBody->SetColorId(SlotID);
 
 	TSharedRef<UE::CADKernel::FShell> CADKernelShell = UE::CADKernel::FEntity::MakeShared<UE::CADKernel::FShell>();
 	CADKernelBody->AddShell(CADKernelShell);

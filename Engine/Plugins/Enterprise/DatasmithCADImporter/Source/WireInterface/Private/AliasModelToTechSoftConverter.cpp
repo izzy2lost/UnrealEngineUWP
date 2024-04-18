@@ -354,6 +354,13 @@ A3DTopoFace* FAliasModelToTechSoftConverter::AddTrimRegion(const AlTrimRegion& I
 }
 #endif
 
+bool FAliasModelToTechSoftConverter::AddBRep(AlDagNode& DagNode, uint32 SlotID, EAliasObjectReference InObjectReference)
+{
+	FColor Color(SlotID);
+
+	return AddBRep(DagNode, Color, InObjectReference);
+}
+
 bool FAliasModelToTechSoftConverter::AddBRep(AlDagNode& DagNode, const FColor& Color, EAliasObjectReference InObjectReference)
 {
 #ifdef USE_TECHSOFT_SDK
