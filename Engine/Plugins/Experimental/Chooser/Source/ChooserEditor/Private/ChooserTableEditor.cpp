@@ -1451,11 +1451,21 @@ void FChooserTableEditor::AutoPopulateSelection()
 {
 	if (UChooserTable* Chooser = GetChooser())
 	{
-		const FScopedTransaction Transaction(LOCTEXT("Auto Populate Chooser", "Auto Populate All"));
+		const FScopedTransaction Transaction(LOCTEXT("Auto Populate Selection", "Auto Populate Selection"));
 		Chooser->Modify();
-		for(UChooserRowDetails* RowDetails : SelectedRows)
+		if (SelectedColumn)
 		{
-			AutoPopulateRow(RowDetails->Row);
+			if (Chooser->ColumnsStructs.IsValidIndex(SelectedColumn->Column))
+			{
+				AutoPopulateColumn(Chooser->ColumnsStructs[SelectedColumn->Column].GetMutable<FChooserColumnBase>());
+			}
+		}
+		else
+		{
+			for(UChooserRowDetails* RowDetails : SelectedRows)
+			{
+				AutoPopulateRow(RowDetails->Row);
+			}
 		}
 	}
 }

@@ -27,15 +27,12 @@ struct FChooserFloatDistanceRowData
 #endif
 };
 
-UCLASS(Blueprintable)
-class UFloatAutoPopulator : public UObject
+UCLASS()
+class CHOOSER_API UFloatAutoPopulator : public UObject
 {
 	GENERATED_BODY()
 public:
-	UFUNCTION(BlueprintImplementableEvent)
-	void AutoPopulate(UObject* Object, bool& Success, float& Value);
-	
-	virtual void NativeAutoPopulate(UObject* InObject, bool& OutSuccess, float& OutValue) { AutoPopulate(InObject, OutSuccess, OutValue); }
+	virtual void NativeAutoPopulate(UObject* InObject, bool& OutSuccess, float& OutValue) { }
 };
 
 USTRUCT()
