@@ -76,7 +76,7 @@ struct FAxisConstraintDatas
 		VectorRegister4Float ConstraintHardStiffness;
 		VectorRegister4Float ConstraintSoftStiffness;
 		VectorRegister4Float ConstraintSoftDamping;
-		VectorRegister4Float ConstraintArms[3][2];
+		VectorRegister4Float ConstraintArms[2];
 		VectorRegister4Float ConstraintAxis[3];
 		VectorRegister4Float ConstraintLimits;
 		VectorRegister4Float ConstraintSoftIM;
