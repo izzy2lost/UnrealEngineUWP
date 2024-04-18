@@ -1892,8 +1892,6 @@ public:
 	 */
 	static CORE_API bool IsPGIActive();
 
-	static CORE_API const TCHAR* VersionCheckPlatformName();
-
 	/**
 	 * On platforms that support run-time PGI on/off, stops the current collection and writes out the file (or completes its write).
 	 * The filename must have been given to the StartNewPGICollection() at the start of collection (it is needed in advance since the

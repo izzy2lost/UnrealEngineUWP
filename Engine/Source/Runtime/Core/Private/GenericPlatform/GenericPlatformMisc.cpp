@@ -1140,17 +1140,6 @@ TArray<FString> FGenericPlatformMisc::GetAdditionalRootDirectories()
 	return TLazySingleton<FStaticData>::Get().AdditionalRootDirectories;
 }
 
-
-const TCHAR* FGenericPlatformMisc::VersionCheckPlatformName()
-{
-	FString OverrideVersionCheckPlatformName;
-	if (!GConfig->GetString(TEXT("PatchConfig"), TEXT("PlatformOverrideName"), OverrideVersionCheckPlatformName, GEngineIni))
-	{
-		return ANSI_TO_TCHAR(FPlatformProperties::IniPlatformName());
-	}
-	return *OverrideVersionCheckPlatformName;
-}
-
 void FGenericPlatformMisc::AddAdditionalRootDirectory(const FString& RootDir)
 {
 	FRWScopeLock Lock(TLazySingleton<FStaticData>::Get().AdditionalRootDirectoriesLock, SLT_Write);
