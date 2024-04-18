@@ -28,7 +28,7 @@ namespace UE::Chaos::ClothAsset::Private
 		{
 			constexpr bool bIncludeWeightMapsTrue = true; // Currently, editing weight maps is destructive
 			FCollectionClothConstFacade Cloth(ClothCollection);
-			if (Cloth.HasValidData())
+			if (Cloth.HasValidRenderData())  // The cloth collection must at least have a render mesh
 			{
 				Checksum = Cloth.CalculateTypeHash(bIncludeWeightMapsTrue, Checksum);
 
@@ -147,7 +147,7 @@ void FChaosClothAssetTerminalNode::SetAssetValue(TObjectPtr<UObject> Asset, Data
 			ClothFacade.DefineSchema();
 
 			const FCollectionClothConstFacade InClothFacade(InClothCollections[LodIndex]);
-			if (!InClothFacade.HasValidData())
+			if (!InClothFacade.HasValidRenderData())  // The cloth collection must at least have a render mesh
 			{
 				FClothDataflowTools::LogAndToastWarning(*this, LOCTEXT("InvalidLODHeadline", "Invalid LOD."),
 					FText::Format(
@@ -359,7 +359,7 @@ TArray<TSharedRef<FManagedArrayCollection>> FChaosClothAssetTerminalNode::GetCle
 		TSharedRef<FManagedArrayCollection>& CollectionLodValue = CollectionLodValues.Emplace_GetRef(MakeShared<FManagedArrayCollection>(GetValue<FManagedArrayCollection>(Context, CollectionLods[LodIndex])));
 
 		FCollectionClothFacade ClothFacade(CollectionLodValue);
-		if (ClothFacade.HasValidData())
+		if (ClothFacade.HasValidRenderData())  // The cloth collection must at least have a render mesh
 		{
 			FClothGeometryTools::CleanupAndCompactMesh(CollectionLodValue);
 			LastValidLodIndex = LodIndex;

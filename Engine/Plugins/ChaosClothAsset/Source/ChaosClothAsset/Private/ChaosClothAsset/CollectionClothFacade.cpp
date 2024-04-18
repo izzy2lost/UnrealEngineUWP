@@ -24,6 +24,23 @@ namespace UE::Chaos::ClothAsset
 		return ClothCollection->IsValid(OptionalSchemas) && ClothCollection->GetNumElements(ClothCollectionGroup::Lods) == 1;
 	}
 
+	bool FCollectionClothConstFacade::HasValidSimulationData() const
+	{
+		return IsValid() &&
+			GetNumSimPatterns() &&
+			GetNumSimVertices2D() &&
+			GetNumSimVertices3D() &&
+			GetNumSimFaces();
+	}
+
+	bool FCollectionClothConstFacade::HasValidRenderData() const
+	{
+		return IsValid() &&
+			GetNumRenderPatterns() &&
+			GetNumRenderVertices() &&
+			GetNumRenderFaces();
+	}
+
 	bool FCollectionClothConstFacade::HasValidData() const
 	{
 		return IsValid() &&

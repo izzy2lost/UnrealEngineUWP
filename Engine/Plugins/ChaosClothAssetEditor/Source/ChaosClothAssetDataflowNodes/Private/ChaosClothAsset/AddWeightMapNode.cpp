@@ -250,7 +250,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 					const FName InInputName = GetInputName(Context);
 					const uint32 NameTypeHash = HashCombineFast(GetTypeHash(InInputName), (uint32)TransferType);
-					const uint32 InTransferCollectionHash = (TransferClothFacade.IsValid() && InInputName != NAME_None) ?
+					const uint32 InTransferCollectionHash = (TransferClothFacade.HasValidSimulationData() && InInputName != NAME_None) ?
 						HashCombineFast(TransferClothFacade.CalculateWeightMapTypeHash(), NameTypeHash) : 0;  // TODO: Remove after adding the function (currently shelved!)  
 				
 					if (TransferCollectionHash != InTransferCollectionHash)

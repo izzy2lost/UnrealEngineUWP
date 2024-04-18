@@ -314,7 +314,7 @@ void FChaosClothAssetProxyDeformerNode::Evaluate(Dataflow::FContext& Context, co
 		FManagedArrayCollection InCollection = GetValue<FManagedArrayCollection>(Context, &Collection);
 		const TSharedRef<FManagedArrayCollection> ClothCollection = MakeShared<FManagedArrayCollection>(MoveTemp(InCollection));
 
-		// Always check for a valid cloth collection/facade to avoid processing non cloth collections
+		// Always check for a valid cloth collection/facade/sim mesh to avoid processing non cloth collections or pure render mesh cloth assets
 		FCollectionClothFacade ClothFacade(ClothCollection);
 		if (ClothFacade.IsValid() && ClothFacade.HasValidData())
 		{

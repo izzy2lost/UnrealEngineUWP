@@ -47,9 +47,13 @@ namespace UE::Chaos::ClothAsset
 		/** Return whether the facade is defined on the collection. */
 		bool IsValid(EClothCollectionOptionalSchemas OptionalSchemas = EClothCollectionOptionalSchemas::None) const;
 
-		/**
-		 * Return whether the facade has a non-empty sim and render mesh data.
-		 */
+		/** Return whether the facade has a non-empty simulation mesh data. */
+		bool HasValidSimulationData() const;
+
+		/** Return whether the facade has a non-empty sim mesh data. */
+		bool HasValidRenderData() const;
+
+		/** Return whether the facade has a non-empty sim and render mesh data. */
 		bool HasValidData() const;
 
 		uint32 CalculateTypeHash(bool bIncludeWeightMaps, uint32 PreviousHash = 0) const;

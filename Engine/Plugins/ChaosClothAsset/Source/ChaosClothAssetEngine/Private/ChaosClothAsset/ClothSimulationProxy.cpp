@@ -13,6 +13,7 @@
 #include "ChaosCloth/ChaosClothingSimulationSolver.h"
 #include "ChaosCloth/ChaosClothVisualization.h"
 #include "PhysicsEngine/PhysicsSettings.h"
+#include "Rendering/SkeletalMeshRenderData.h"
 #include "ClothingSimulation.h"
 
 #if INTEL_ISPC
@@ -181,6 +182,18 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		// Fill a new context, note the context is also needed when the simulation is suspended
 		constexpr bool bIsInitializationFalse = false;
 		FillSimulationContext(DeltaTime, bIsInitializationFalse);
+
+		// Check that the render mesh current LOD isn't just fully skinned
+		const int32 LodIndex = ClothSimulationContext->LodIndex;
+		const UChaosClothAsset* const ClothAsset = ClothComponent.GetClothAsset();
+		if (!ClothAsset ||
+			!ClothAsset->GetResourceForRendering() ||
+			!ClothAsset->GetResourceForRendering()->LODRenderData.IsValidIndex(LodIndex) ||
+			!ClothAsset->GetResourceForRendering()->LODRenderData[LodIndex].HasClothData())
+		{
+			return false; // Not Simulating
+		}
+
 		Solver->SetEnableSolver(ShouldEnableSolver(Solver->GetEnableSolver()));
 
 		const bool bUseCache = ClothSimulationContext->CacheData.HasData();
