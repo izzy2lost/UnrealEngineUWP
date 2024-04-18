@@ -152,6 +152,11 @@ public:
 	/** Virtual destructor */
 	virtual ~IPlatformChunkInstall() {}
 
+	/** 
+	 * Returns whether chunk installation is available (i.e. we are an installed packaged build etc)
+	 */
+	virtual bool IsAvailable() const = 0;
+
 	/**
 	 * Get the current location of a chunk with pakchunk index.
 	 * @param PakchunkIndex	The id of the pak chunk.
@@ -394,6 +399,11 @@ PRAGMA_DISABLE_DEPRECATION_WARNINGS
 class CORE_API FGenericPlatformChunkInstall : public IPlatformChunkInstall
 {
 public:
+	virtual bool IsAvailable() const
+	{
+		return true;
+	}
+
 	virtual EChunkLocation::Type GetPakchunkLocation( int32 PakchunkIndex ) override
 	{
 		return GetChunkLocation(PakchunkIndex);

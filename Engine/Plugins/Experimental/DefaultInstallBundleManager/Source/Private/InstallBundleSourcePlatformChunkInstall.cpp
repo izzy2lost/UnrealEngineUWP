@@ -125,9 +125,9 @@ FInstallBundleSourceInitInfo FInstallBundleSourcePlatformChunkInstall::Init(TSha
 	CSV_SCOPED_TIMING_STAT(InstallBundleManager, FInstallBundleSourcePlatformChunkInstall_Init);
 	FInstallBundleSourceInitInfo InitInfo;
 
-	if (!PlatformChunkInstall->SupportsBundleSource())
+	if (!PlatformChunkInstall->SupportsBundleSource() || !PlatformChunkInstall->IsAvailable())
 	{
-		LOG_SOURCE_CHUNKINSTALL(Display, TEXT("Platform chunk installer doesn't support bundles, attempting to fallback to next bundle source."));
+		LOG_SOURCE_CHUNKINSTALL(Display, TEXT("Platform chunk installer doesn't support bundles or this is not a packaged build, attempting to fallback to next bundle source."));
 
 		InitState = EInstallBundleManagerInitState::Failed;
 
