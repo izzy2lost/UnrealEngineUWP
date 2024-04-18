@@ -28,8 +28,11 @@ extern RENDERCORE_API FVertexBufferWithSRV* GEmptyVertexBufferWithUAV;
 // An empty structured buffer with a UAV
 extern RENDERCORE_API FVertexBufferWithSRV* GEmptyStructuredBufferWithUAV;
 
-// An empty structured buffer with a UAV
-extern RENDERCORE_API FVertexBufferWithSRV* GBlackStructuredBufferWithSRV;
+// An empty float4 structured buffer
+extern RENDERCORE_API FVertexBufferWithSRV* GBlackFloat4StructuredBufferWithSRV;
+
+// An empty float4 vertex buffer
+extern RENDERCORE_API FVertexBufferWithSRV* GBlackFloat4VertexBufferWithSRV;
 
 // An white vertex buffer with a SRV
 extern RENDERCORE_API FVertexBufferWithSRV* GWhiteVertexBufferWithSRV;

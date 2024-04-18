@@ -1513,7 +1513,7 @@ void FViewInfo::SetupUniformBufferParameters(
 	}
 	else
 	{
-		ViewUniformShaderParameters.DistantSkyLightLutBufferSRV = GBlackStructuredBufferWithSRV->ShaderResourceViewRHI.GetReference();
+		ViewUniformShaderParameters.DistantSkyLightLutBufferSRV = GBlackFloat4StructuredBufferWithSRV->ShaderResourceViewRHI.GetReference();
 	}
 	if(MobileDistantSkyLightLutBufferSRVFound != nullptr)
 	{
@@ -1521,7 +1521,7 @@ void FViewInfo::SetupUniformBufferParameters(
 	}
 	else
 	{
-		ViewUniformShaderParameters.MobileDistantSkyLightLutBufferSRV = GBlackVertexBufferWithSRV->ShaderResourceViewRHI.GetReference();
+		ViewUniformShaderParameters.MobileDistantSkyLightLutBufferSRV = GBlackFloat4VertexBufferWithSRV->ShaderResourceViewRHI.GetReference();
 	}
 	ViewUniformShaderParameters.SkyViewLutTexture = OrBlack2DIfNull(SkyViewLutTextureFound);
 	ViewUniformShaderParameters.SkyViewLutTextureSampler = TStaticSamplerState<SF_Bilinear>::GetRHI();

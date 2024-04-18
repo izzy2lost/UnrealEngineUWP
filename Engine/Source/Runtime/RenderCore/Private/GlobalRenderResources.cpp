@@ -106,16 +106,16 @@ public:
 	}
 };
 
-class FBlackStructuredBufferWithSRV : public FVertexBufferWithSRV
+class FBlackFloat4StructuredBufferWithSRV : public FVertexBufferWithSRV
 {
 public:
 	virtual void InitRHI(FRHICommandListBase& RHICmdList) override
 	{
 		// Create the buffer RHI.  		
-		FRHIResourceCreateInfo CreateInfo(TEXT("BlackStructuredBuffer"));
+		FRHIResourceCreateInfo CreateInfo(TEXT("BlackFloat4StructuredBuffer"));
 
-		const uint32 BufferSize = sizeof(float) * 4u;
-		VertexBufferRHI = RHICmdList.CreateStructuredBuffer(sizeof(float), BufferSize, BUF_Static | BUF_ShaderResource | BUF_UnorderedAccess, ERHIAccess::SRVMask, CreateInfo);
+		const uint32 BufferSize = sizeof(FVector4f);
+		VertexBufferRHI = RHICmdList.CreateStructuredBuffer(sizeof(FVector4f), BufferSize, BUF_Static | BUF_ShaderResource | BUF_UnorderedAccess, ERHIAccess::SRVMask, CreateInfo);
 
 		FVector4f* BufferData = (FVector4f*)RHICmdList.LockBuffer(VertexBufferRHI, 0, sizeof(FVector4f), RLM_WriteOnly);
 		*BufferData = FVector4f(0.0f, 0.0f, 0.0f, 0.0f);
@@ -124,6 +124,26 @@ public:
 		// Create a view of the buffer
 		ShaderResourceViewRHI = RHICmdList.CreateShaderResourceView(VertexBufferRHI);
 		UnorderedAccessViewRHI = RHICmdList.CreateUnorderedAccessView(VertexBufferRHI, false, false);
+	}
+};
+
+class FBlackFloat4VertexBuffer : public FVertexBufferWithSRV
+{
+public:
+	virtual void InitRHI(FRHICommandListBase& RHICmdList) override
+	{
+		// Create the texture RHI.  		
+		FRHIResourceCreateInfo CreateInfo(TEXT("BlackFloat4VertexBuffer"));
+
+		VertexBufferRHI = RHICmdList.CreateVertexBuffer(sizeof(FVector4f), BUF_Static | BUF_ShaderResource | BUF_UnorderedAccess, ERHIAccess::SRVMask, CreateInfo);
+
+		FVector4f* BufferData = (FVector4f*)RHICmdList.LockBuffer(VertexBufferRHI, 0, sizeof(FVector4f), RLM_WriteOnly);
+		*BufferData = FVector4f(0.0f, 0.0f, 0.0f, 0.0f);
+		RHICmdList.UnlockBuffer(VertexBufferRHI);
+
+		// Create a view of the buffer
+		ShaderResourceViewRHI = RHICmdList.CreateShaderResourceView(VertexBufferRHI, sizeof(FVector4f), PF_A32B32G32R32F);
+		UnorderedAccessViewRHI = RHICmdList.CreateUnorderedAccessView(VertexBufferRHI, PF_A32B32G32R32F);
 	}
 };
 
@@ -152,7 +172,8 @@ FTexture* GTransparentBlackTexture = GTransparentBlackTextureWithSRV;
 
 FVertexBufferWithSRV* GEmptyVertexBufferWithUAV = new TGlobalResource<FEmptyVertexBuffer, FRenderResource::EInitPhase::Pre>;
 FVertexBufferWithSRV* GEmptyStructuredBufferWithUAV = new TGlobalResource<FEmptyStructuredBuffer, FRenderResource::EInitPhase::Pre>;
-FVertexBufferWithSRV* GBlackStructuredBufferWithSRV = new TGlobalResource<FBlackStructuredBufferWithSRV, FRenderResource::EInitPhase::Pre>;
+FVertexBufferWithSRV* GBlackFloat4StructuredBufferWithSRV = new TGlobalResource<FBlackFloat4StructuredBufferWithSRV, FRenderResource::EInitPhase::Pre>;
+FVertexBufferWithSRV* GBlackFloat4VertexBufferWithSRV = new TGlobalResource<FBlackFloat4VertexBuffer, FRenderResource::EInitPhase::Pre>;
 
 class FWhiteVertexBuffer : public FVertexBufferWithSRV
 {

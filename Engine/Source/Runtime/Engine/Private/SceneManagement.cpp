@@ -1180,8 +1180,8 @@ FViewUniformShaderParameters::FViewUniformShaderParameters()
 	SkyViewLutTexture = GBlackTexture->TextureRHI;
 	SkyViewLutTextureSampler = TStaticSamplerState<SF_Bilinear>::GetRHI();
 
-	DistantSkyLightLutBufferSRV = GBlackVertexBufferWithSRV->ShaderResourceViewRHI;
-	MobileDistantSkyLightLutBufferSRV = GBlackStructuredBufferWithSRV->ShaderResourceViewRHI;
+	DistantSkyLightLutBufferSRV = GBlackFloat4StructuredBufferWithSRV->ShaderResourceViewRHI;
+	MobileDistantSkyLightLutBufferSRV = GBlackFloat4VertexBufferWithSRV->ShaderResourceViewRHI;
 
 	CameraAerialPerspectiveVolume = GBlackAlpha1VolumeTexture->TextureRHI;
 	CameraAerialPerspectiveVolumeSampler = TStaticSamplerState<SF_Bilinear>::GetRHI();

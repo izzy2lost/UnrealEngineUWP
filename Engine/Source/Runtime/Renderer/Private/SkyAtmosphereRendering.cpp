@@ -523,7 +523,7 @@ FRHIShaderResourceView* FSkyAtmosphereRenderSceneInfo::GetDistantSkyLightLutBuff
 	{
 		return DistantSkyLightLutBufferSRV;
 	}
-	return GBlackVertexBufferWithSRV->ShaderResourceViewRHI;
+	return GBlackFloat4StructuredBufferWithSRV->ShaderResourceViewRHI;
 }
 
 FRHIShaderResourceView* FSkyAtmosphereRenderSceneInfo::GetMobileDistantSkyLightLutBufferSRV()
@@ -532,7 +532,7 @@ FRHIShaderResourceView* FSkyAtmosphereRenderSceneInfo::GetMobileDistantSkyLightL
 	{
 		return MobileDistantSkyLightLutBufferSRV;
 	}
-	return GBlackStructuredBufferWithSRV->ShaderResourceViewRHI;
+	return GBlackFloat4VertexBufferWithSRV->ShaderResourceViewRHI;
 }
 
 
