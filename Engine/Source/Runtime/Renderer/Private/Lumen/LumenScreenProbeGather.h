@@ -49,6 +49,7 @@ enum class EScreenProbeIndirectArgs
 {
 	GroupPerProbe,
 	ThreadPerProbe,
+	TraceCompaction,
 	ThreadPerTrace,
 	ThreadPerGather,
 	ThreadPerGatherWithBorder,

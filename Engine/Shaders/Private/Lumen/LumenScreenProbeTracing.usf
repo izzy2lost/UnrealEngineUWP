@@ -372,7 +372,6 @@ void ScreenProbeTraceScreenTexturesCS(
 
 #endif
 
-
 #ifdef ScreenProbeCompactTracesCS
 
 RWStructuredBuffer<uint> RWCompactedTraceTexelAllocator;
@@ -383,28 +382,53 @@ float CompactionTracingEndDistanceFromCamera;
 float CompactionMaxTraceDistance;
 uint CompactForFarField;
 
-groupshared uint SharedTraceTexelAllocator;
 groupshared uint SharedGlobalTraceTexelStartOffset;
-groupshared uint SharedTraceTexels[PROBE_THREADGROUP_SIZE_2D * PROBE_THREADGROUP_SIZE_2D];
 
-[numthreads(PROBE_THREADGROUP_SIZE_2D, PROBE_THREADGROUP_SIZE_2D, 1)]
+#if WAVE_OPS
+	#define MIN_SUPPORTED_WAVE_SIZE 32
+	#define NUM_WAVE_SUMS ((THREADGROUP_SIZE * THREADGROUP_SIZE + MIN_SUPPORTED_WAVE_SIZE - 1) / MIN_SUPPORTED_WAVE_SIZE)
+	groupshared uint SharedWaveSums[NUM_WAVE_SUMS];
+	groupshared uint SharedTexelValid[THREADGROUP_SIZE * THREADGROUP_SIZE];
+#else
+	//@todo - ordered compaction for non-wave ops path
+	groupshared uint SharedTraceTexelAllocator;
+	groupshared uint SharedTraceTexels[THREADGROUP_SIZE * THREADGROUP_SIZE];
+#endif
+
+#if COMPILER_SUPPORTS_WAVE_SIZE && WAVE_OPS
+	WAVESIZE(32)
+#endif
+[numthreads(THREADGROUP_SIZE, THREADGROUP_SIZE, 1)]
 void ScreenProbeCompactTracesCS(
 	uint3 GroupId : SV_GroupID,
-	uint3 DispatchThreadId : SV_DispatchThreadID,
-	uint3 GroupThreadId : SV_GroupThreadID)
+	uint3 GroupThreadId : SV_GroupThreadID,
+	uint3 DispatchThreadId : SV_DispatchThreadID)
 {
-	SharedTraceTexelAllocator = 0;
+	const uint LinearThreadIndex = GroupThreadId.y * THREADGROUP_SIZE + GroupThreadId.x;
+
+	#if WAVE_OPS
+	{
+		SharedTexelValid[LinearThreadIndex] = 0;
+	}
+	#else
+	if (LinearThreadIndex == 0)
+	{
+		SharedTraceTexelAllocator = 0;
+	}
+	#endif
 
 	GroupMemoryBarrierWithGroupSync();
 
-	uint ProbeTracingResolution = TRACE_LIGHT_SAMPLES ? ScreenProbeLightSampleResolutionXY : ScreenProbeTracingOctahedronResolution;
-	uint2 ScreenProbeAtlasCoord = DispatchThreadId.xy / ProbeTracingResolution;
-	uint2 TraceTexelCoord = DispatchThreadId.xy - ScreenProbeAtlasCoord * ProbeTracingResolution;
+	bool bTraceValid = false;
+	uint TraceTexelForThisThread = 0;
+
+	uint2 ScreenProbeAtlasCoord = DispatchThreadId.xy / ScreenProbeTracingOctahedronResolution;
+	uint2 TraceTexelCoord = DispatchThreadId.xy - ScreenProbeAtlasCoord * ScreenProbeTracingOctahedronResolution;
 	uint ScreenProbeIndex = ScreenProbeAtlasCoord.y * ScreenProbeAtlasViewSize.x + ScreenProbeAtlasCoord.x;
 
 	if (ScreenProbeIndex < GetNumScreenProbes() 
 		&& ScreenProbeAtlasCoord.x < ScreenProbeAtlasViewSize.x
-		&& all(TraceTexelCoord <= ProbeTracingResolution))
+		&& all(TraceTexelCoord < ScreenProbeTracingOctahedronResolution))
 	{
 		float SceneDepth = GetScreenProbeDepth(ScreenProbeAtlasCoord);
 
@@ -427,28 +451,80 @@ void ScreenProbeCompactTracesCS(
 			&& (CullByDistanceFromCamera == 0 || SceneDepth < CompactionTracingEndDistanceFromCamera)
 			&& ProbeRayDistance.HitDistance < CompactionMaxTraceDistance)
 		{
-			uint SharedTexelOffset;
-			InterlockedAdd(SharedTraceTexelAllocator, 1, SharedTexelOffset);
-			SharedTraceTexels[SharedTexelOffset] = EncodeScreenProbeTraceTexel(ScreenProbeIndex, TraceTexelCoord);
+			#if WAVE_OPS
+			{
+				bTraceValid = true;
+				SharedTexelValid[LinearThreadIndex] = 1;
+				TraceTexelForThisThread = EncodeScreenProbeTraceTexel(ScreenProbeIndex, TraceTexelCoord);
+			}
+			#else
+			{
+				uint SharedTexelOffset;
+				InterlockedAdd(SharedTraceTexelAllocator, 1, SharedTexelOffset);
+				SharedTraceTexels[SharedTexelOffset] = EncodeScreenProbeTraceTexel(ScreenProbeIndex, TraceTexelCoord);
+			}
+			#endif
 		}
 	}
 
 	GroupMemoryBarrierWithGroupSync();
 
-	uint ThreadIndex = GroupThreadId.y * PROBE_THREADGROUP_SIZE_2D + GroupThreadId.x;
-
-	if (ThreadIndex == 0)
+	#if WAVE_OPS
 	{
-		uint AllocatorIndex = TRACE_LIGHT_SAMPLES ? 1 : 0;
-		InterlockedAdd(RWCompactedTraceTexelAllocator[AllocatorIndex], SharedTraceTexelAllocator, SharedGlobalTraceTexelStartOffset);
+		const uint WaveIndex = LinearThreadIndex / WaveGetLaneCount();
+		const uint LaneIndex = WaveGetLaneIndex();
+
+		uint Value = SharedTexelValid[LinearThreadIndex];
+		uint ThisWaveSum = WaveActiveSum(Value);
+
+		if (LaneIndex == 0)
+		{
+			SharedWaveSums[WaveIndex] = ThisWaveSum;
+		}
+
+		GroupMemoryBarrierWithGroupSync();
+
+		if (WaveIndex == 0 && LaneIndex < NUM_WAVE_SUMS)
+		{
+			SharedWaveSums[LaneIndex] = WavePrefixSum(SharedWaveSums[LaneIndex]);
+		}
+
+		GroupMemoryBarrierWithGroupSync();
+
+		uint PayloadGroupSize = SharedWaveSums[WaveIndex] + WavePrefixSum(Value) + Value;
+
+		uint WaveLaneCount = WaveGetLaneCount();
+		uint LastWaveIndex = (THREADGROUP_SIZE * THREADGROUP_SIZE - 1) / WaveLaneCount;
+
+		// Last lane of last wave has the max index used by the group
+		// Allocate this group's compacted traces from the global allocator
+		if (WaveIndex == LastWaveIndex && LaneIndex == WaveLaneCount - 1 && PayloadGroupSize > 0)
+		{
+			InterlockedAdd(RWCompactedTraceTexelAllocator[0], PayloadGroupSize, SharedGlobalTraceTexelStartOffset);
+		}
+
+		GroupMemoryBarrierWithGroupSync();
+
+		if (bTraceValid)
+		{
+			RWCompactedTraceTexelData[SharedGlobalTraceTexelStartOffset + PayloadGroupSize - 1] = TraceTexelForThisThread;
+		}
 	}
-
-	GroupMemoryBarrierWithGroupSync();
-
-	if (ThreadIndex < SharedTraceTexelAllocator)
+	#else
 	{
-		RWCompactedTraceTexelData[SharedGlobalTraceTexelStartOffset + ThreadIndex] = SharedTraceTexels[ThreadIndex];
+		if (LinearThreadIndex == 0)
+		{
+			InterlockedAdd(RWCompactedTraceTexelAllocator[0], SharedTraceTexelAllocator, SharedGlobalTraceTexelStartOffset);
+		}
+
+		GroupMemoryBarrierWithGroupSync();
+
+		if (LinearThreadIndex < SharedTraceTexelAllocator)
+		{
+			RWCompactedTraceTexelData[SharedGlobalTraceTexelStartOffset + LinearThreadIndex] = SharedTraceTexels[LinearThreadIndex];
+		}
 	}
+	#endif
 }
 
 #endif

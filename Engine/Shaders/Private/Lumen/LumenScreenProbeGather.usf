@@ -361,11 +361,11 @@ void ScreenProbeAdaptivePlacementCS(
 
 RWBuffer<uint> RWScreenProbeIndirectArgs;
 
-void WriteArgs2D(uint Index, uint2 ThreadCount)
+void WriteArgs2D(uint Index, uint GroupSize, uint2 ThreadCount)
 {
 	WriteDispatchIndirectArgs(RWScreenProbeIndirectArgs, Index,
-		(ThreadCount.x + PROBE_THREADGROUP_SIZE_2D - 1) / PROBE_THREADGROUP_SIZE_2D,
-		(ThreadCount.y + PROBE_THREADGROUP_SIZE_2D - 1) / PROBE_THREADGROUP_SIZE_2D,
+		(ThreadCount.x + GroupSize - 1) / GroupSize,
+		(ThreadCount.y + GroupSize - 1) / GroupSize,
 		1);
 }
 
@@ -380,12 +380,13 @@ void SetupAdaptiveProbeIndirectArgsCS(
 	uint2 AtlasSizeInProbes = uint2(ScreenProbeAtlasViewSize.x, (GetNumScreenProbes() + ScreenProbeAtlasViewSize.x - 1) / ScreenProbeAtlasViewSize.x);
 
 	// Must match EScreenProbeIndirectArgs in C++
-	WriteArgs2D(0, AtlasSizeInProbes * PROBE_THREADGROUP_SIZE_2D);
-	WriteArgs2D(1, AtlasSizeInProbes);
-	WriteArgs2D(2, AtlasSizeInProbes * ScreenProbeTracingOctahedronResolution);
-	WriteArgs2D(3, AtlasSizeInProbes * ScreenProbeGatherOctahedronResolution);
-	WriteArgs2D(4, AtlasSizeInProbes * ScreenProbeGatherOctahedronResolutionWithBorder);
-	WriteArgs2D(5, AtlasSizeInProbes * ScreenProbeLightSampleResolutionXY);
+	WriteArgs2D(0, PROBE_THREADGROUP_SIZE_2D, AtlasSizeInProbes * PROBE_THREADGROUP_SIZE_2D);				// GroupPerProbe
+	WriteArgs2D(1, PROBE_THREADGROUP_SIZE_2D, AtlasSizeInProbes);											// ThreadPerProbe
+	WriteArgs2D(2, 16, AtlasSizeInProbes * ScreenProbeTracingOctahedronResolution);							// TraceCompaction
+	WriteArgs2D(3, PROBE_THREADGROUP_SIZE_2D, AtlasSizeInProbes * ScreenProbeTracingOctahedronResolution);	// ThreadPerTrace,
+	WriteArgs2D(4, PROBE_THREADGROUP_SIZE_2D, AtlasSizeInProbes * ScreenProbeGatherOctahedronResolution);
+	WriteArgs2D(5, PROBE_THREADGROUP_SIZE_2D, AtlasSizeInProbes * ScreenProbeGatherOctahedronResolutionWithBorder);
+	WriteArgs2D(6, PROBE_THREADGROUP_SIZE_2D, AtlasSizeInProbes * ScreenProbeLightSampleResolutionXY);
 }
 
 #endif

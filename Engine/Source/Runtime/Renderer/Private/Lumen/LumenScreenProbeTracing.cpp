@@ -280,8 +280,13 @@ class FScreenProbeCompactTracesCS : public FGlobalShader
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer<uint>, RWCompactedTraceTexelData)
 	END_SHADER_PARAMETER_STRUCT()
 
-	class FTraceLightSamples : SHADER_PERMUTATION_BOOL("TRACE_LIGHT_SAMPLES");
-	using FPermutationDomain = TShaderPermutationDomain<FTraceLightSamples>;
+	static int32 GetGroupSize()
+	{
+		return 16;
+	}
+
+	class FWaveOps : SHADER_PERMUTATION_BOOL("WAVE_OPS");
+	using FPermutationDomain = TShaderPermutationDomain<FWaveOps>;
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
 	{
@@ -291,13 +296,17 @@ class FScreenProbeCompactTracesCS : public FGlobalShader
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
 	{
 		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
+		OutEnvironment.SetDefine(TEXT("THREADGROUP_SIZE"), GetGroupSize());
 
-		OutEnvironment.CompilerFlags.Add(CFLAG_Wave32);
+		FPermutationDomain PermutationVector(Parameters.PermutationId);
+		if (PermutationVector.Get<FWaveOps>())
+		{
+			OutEnvironment.CompilerFlags.Add(CFLAG_WaveOperations);
+		}
 	}
 };
 
 IMPLEMENT_GLOBAL_SHADER(FScreenProbeCompactTracesCS, "/Engine/Private/Lumen/LumenScreenProbeTracing.usf", "ScreenProbeCompactTracesCS", SF_Compute);
-
 
 class FSetupCompactedTracesIndirectArgsCS : public FGlobalShader
 {
@@ -615,43 +624,22 @@ FCompactedTraceParameters LumenScreenProbeGather::CompactTraces(
 		PassParameters->CompactionMaxTraceDistance = CompactionMaxTraceDistance;
 		PassParameters->CompactForFarField = bCompactForFarField ? 1 : 0;
 
+		const bool bWaveOps = Lumen::UseWaveOps(View.GetShaderPlatform())
+			&& GRHIMinimumWaveSize <= 32
+			&& GRHIMaximumWaveSize >= 32;
+
 		FScreenProbeCompactTracesCS::FPermutationDomain PermutationVector;
-		PermutationVector.Set< FScreenProbeCompactTracesCS::FTraceLightSamples>(false);
+		PermutationVector.Set<FScreenProbeCompactTracesCS::FWaveOps>(bWaveOps);
 		auto ComputeShader = View.ShaderMap->GetShader<FScreenProbeCompactTracesCS>(PermutationVector);
 
 		FComputeShaderUtils::AddPass(
 			GraphBuilder,
-			RDG_EVENT_NAME("CompactTraces"),
+			RDG_EVENT_NAME("CompactTraces WaveOps:%d", bWaveOps),
 			ComputePassFlags,
 			ComputeShader,
 			PassParameters,
 			ScreenProbeParameters.ProbeIndirectArgs,
-			(uint32)EScreenProbeIndirectArgs::ThreadPerTrace * sizeof(FRHIDispatchIndirectParameters));
-	}
-
-	if (bRenderDirectLighting)
-	{
-		FScreenProbeCompactTracesCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FScreenProbeCompactTracesCS::FParameters>();
-		PassParameters->ScreenProbeParameters = ScreenProbeParameters;
-		PassParameters->RWCompactedTraceTexelAllocator = CompactedTraceTexelAllocatorUAV;
-		PassParameters->RWCompactedTraceTexelData = GraphBuilder.CreateUAV(CompactedLightSampleTraceTexelData, PF_R32_UINT);
-		PassParameters->CullByDistanceFromCamera = bCullByDistanceFromCamera ? 1 : 0;
-		PassParameters->CompactionTracingEndDistanceFromCamera = CompactionTracingEndDistanceFromCamera;
-		PassParameters->CompactionMaxTraceDistance = CompactionMaxTraceDistance;
-		PassParameters->CompactForFarField = bCompactForFarField ? 1 : 0;
-
-		FScreenProbeCompactTracesCS::FPermutationDomain PermutationVector;
-		PermutationVector.Set< FScreenProbeCompactTracesCS::FTraceLightSamples>(true);
-		auto ComputeShader = View.ShaderMap->GetShader<FScreenProbeCompactTracesCS>(PermutationVector);
-
-		FComputeShaderUtils::AddPass(
-			GraphBuilder,
-			RDG_EVENT_NAME("CompactLightSampleTraces"),
-			ComputePassFlags,
-			ComputeShader,
-			PassParameters,
-			ScreenProbeParameters.ProbeIndirectArgs,
-			(uint32)EScreenProbeIndirectArgs::ThreadPerLightSample * sizeof(FRHIDispatchIndirectParameters));
+			(uint32)EScreenProbeIndirectArgs::TraceCompaction * sizeof(FRHIDispatchIndirectParameters));
 	}
 
 	FCompactedTraceParameters CompactedTraceParameters;
