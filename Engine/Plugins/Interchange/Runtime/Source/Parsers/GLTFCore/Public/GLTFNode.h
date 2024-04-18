@@ -155,15 +155,16 @@ namespace GLTF
 		const FAccessor& InverseBindMatrices;
 		FString          Name;
 		TArray<int32>    Joints;    // each is an index into FAsset::Nodes
-		int32            Skeleton;  // root node, index into FAsset::Nodes
+		int32            Skeleton = INDEX_NONE;  // root node, index into FAsset::Nodes
 
 		TMap<FString, FString> Extras;
+
+		bool bUsed = false;
 
 		FString          UniqueId; //will be generated in FAsset::GenerateNames
 
 		FSkinInfo(const FAccessor& InverseBindMatrices)
 		    : InverseBindMatrices(InverseBindMatrices)
-		    , Skeleton(INDEX_NONE)
 		{
 		}
 	};

@@ -60,6 +60,7 @@ namespace GLTF
 
 		template <typename SetupFunc>
 		bool SetupObjects(uint32 ObjectCount, const TCHAR* FieldName, SetupFunc Func) const;
+		void SetupUsedSkins() const;
 		void SetupNodesType() const;
 
 		void GenerateInverseBindPosesPerSkinIndices() const; //Per node
