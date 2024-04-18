@@ -355,6 +355,7 @@ void FSkinningSceneExtension::FUpdater::PostSceneUpdate(FRDGBuilder& GraphBuilde
 					NewData.PrimitiveSceneInfo = PrimitiveSceneInfo;
 					NewData.MaxTransformCount = SkinnedProxy->GetMaxBoneTransformCount();
 					NewData.MaxInfluenceCount = SkinnedProxy->GetMaxBoneInfluenceCount();
+					NewData.UniqueAnimationCount = SkinnedProxy->GetUniqueAnimationCount();
 
 					SceneData->PrimitiveData.EmplaceAt(PersistentIndex, NewData);
 	
@@ -401,10 +402,11 @@ void FSkinningSceneExtension::FUpdater::FinalizeSkinningUploads(FRDGBuilder& Gra
 
 			auto* SkinnedProxy = static_cast<Nanite::FSkinnedSceneProxy*>(NaniteProxy);
 
-			Data.MaxTransformCount = SkinnedProxy->GetMaxBoneTransformCount();
-			Data.MaxInfluenceCount = SkinnedProxy->GetMaxBoneInfluenceCount();
+			Data.MaxTransformCount		= SkinnedProxy->GetMaxBoneTransformCount();
+			Data.MaxInfluenceCount		= SkinnedProxy->GetMaxBoneInfluenceCount();
+			Data.UniqueAnimationCount	= SkinnedProxy->GetUniqueAnimationCount();
 
-			const uint32 NeededSize = Data.MaxTransformCount * 2u; // Current and Previous
+			const uint32 NeededSize = Data.UniqueAnimationCount * Data.MaxTransformCount * 2u; // Current and Previous
 			if (NeededSize != Data.TransformBufferCount)
 			{
 				if (Data.TransformBufferCount > 0)
@@ -528,14 +530,28 @@ void FSkinningSceneExtension::FUpdater::FinalizeSkinningUploads(FRDGBuilder& Gra
 			const TArray<FMatrix3x4>* SrcPreviousBoneTransforms = SkinnedProxy->GetMeshObject()->GetPreviousBoneTransforms();
 			check(SrcPreviousBoneTransforms);
 
-			check(Data.MaxTransformCount * 2u == Data.TransformBufferCount);
+			check(Data.UniqueAnimationCount * Data.MaxTransformCount * 2u == Data.TransformBufferCount);
 			check(uint32(SrcCurrentBoneTransforms->Num() + SrcPreviousBoneTransforms->Num()) <= Data.TransformBufferCount);
 
-			FMatrix3x4*  DstCurrentBoneTransforms = UploadData.GetData();
-			FMatrix3x4* DstPreviousBoneTransforms = DstCurrentBoneTransforms + Data.MaxTransformCount;
+			FMatrix3x4*  DstCurrentBoneTransformsPtr = UploadData.GetData();
+			FMatrix3x4* DstPreviousBoneTransformsPtr = DstCurrentBoneTransformsPtr + Data.MaxTransformCount;
 
-			FMemory::Memcpy( DstCurrentBoneTransforms,  SrcCurrentBoneTransforms->GetData(), sizeof(FMatrix3x4) *  SrcCurrentBoneTransforms->Num());
-			FMemory::Memcpy(DstPreviousBoneTransforms, SrcPreviousBoneTransforms->GetData(), sizeof(FMatrix3x4) * SrcPreviousBoneTransforms->Num());
+			const FMatrix3x4*  SrcCurrentBoneTransformsPtr =  SrcCurrentBoneTransforms->GetData();
+			const FMatrix3x4* SrcPreviousBoneTransformsPtr = SrcPreviousBoneTransforms->GetData();
+
+			const uint32 StridedPtrStep = Data.MaxTransformCount * 2u;
+
+			for (int32 UniqueAnimation = 0; UniqueAnimation < Data.UniqueAnimationCount; ++UniqueAnimation)
+			{
+				FMemory::Memcpy( DstCurrentBoneTransformsPtr,  SrcCurrentBoneTransformsPtr, sizeof(FMatrix3x4) * Data.MaxTransformCount);
+				FMemory::Memcpy(DstPreviousBoneTransformsPtr, SrcPreviousBoneTransformsPtr, sizeof(FMatrix3x4) * Data.MaxTransformCount);
+
+				 DstCurrentBoneTransformsPtr += StridedPtrStep;
+				DstPreviousBoneTransformsPtr += StridedPtrStep;
+
+				 SrcCurrentBoneTransformsPtr += Data.MaxTransformCount;
+				SrcPreviousBoneTransformsPtr += Data.MaxTransformCount;
+			}
 		};
 
 		// Kick off the transform data upload task (synced when accessing the buffer)

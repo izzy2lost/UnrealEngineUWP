@@ -257,9 +257,9 @@ void VisualizeCS(uint3 DTID : SV_DispatchThreadID, uint3 GID : SV_GroupID)
 				DecodeBoneInfluence(Cluster, TriIndices.z, InfluenceIndex, BoneIndex2, BoneWeight2);
 
 				float3x4 CurrentBoneTransform[3];
-				CurrentBoneTransform[0] = LoadNaniteBoneTransform(SkinningHeader.TransformBufferOffset + BoneIndex0);
-				CurrentBoneTransform[1] = LoadNaniteBoneTransform(SkinningHeader.TransformBufferOffset + BoneIndex1);
-				CurrentBoneTransform[2] = LoadNaniteBoneTransform(SkinningHeader.TransformBufferOffset + BoneIndex2);
+				CurrentBoneTransform[0] = LoadNaniteBoneTransform(SkinningHeader.TransformBufferOffset + InstanceData.SkinningData + BoneIndex0);
+				CurrentBoneTransform[1] = LoadNaniteBoneTransform(SkinningHeader.TransformBufferOffset + InstanceData.SkinningData + BoneIndex1);
+				CurrentBoneTransform[2] = LoadNaniteBoneTransform(SkinningHeader.TransformBufferOffset + InstanceData.SkinningData + BoneIndex2);
 
 				SkinnedPosition[0]	+= mul(CurrentBoneTransform[0], float4(PointLocal0, 1.0f)) * BoneWeight0;
 				SkinnedPosition[1]	+= mul(CurrentBoneTransform[1], float4(PointLocal1, 1.0f)) * BoneWeight1;
@@ -797,8 +797,8 @@ void PickingCS(uint3 DTID : SV_DispatchThreadID, uint3 GID : SV_GroupID)
 		{
 			SkinningHeader = LoadNaniteSkinningHeader(InstanceData.PrimitiveId);
 
-			float3 MinBounds = float(9999999.0f).xxx;
-			float3 MaxBounds = float(-9999999.0f).xxx;
+			float3 MinBounds = float( 999999999.0f).xxx;
+			float3 MaxBounds = float(-999999999.0f).xxx;
 
 			for (uint VertexID = 0; VertexID < Cluster.NumVerts; ++VertexID)
 			{
@@ -812,7 +812,7 @@ void PickingCS(uint3 DTID : SV_DispatchThreadID, uint3 GID : SV_GroupID)
 					float BoneWeight = 0.0f;
 					DecodeBoneInfluence(Cluster, VertexID, InfluenceIndex, BoneIndex, BoneWeight);
 
-					float3x4 CurrentBoneTransform = LoadNaniteBoneTransform(SkinningHeader.TransformBufferOffset + BoneIndex);
+					float3x4 CurrentBoneTransform = LoadNaniteBoneTransform(SkinningHeader.TransformBufferOffset + InstanceData.SkinningData + BoneIndex);
 					PointSkinned += mul(CurrentBoneTransform, float4(PointLocal, 1.0f)) * BoneWeight;
 				}
 
@@ -918,8 +918,8 @@ void PickingCS(uint3 DTID : SV_DispatchThreadID, uint3 GID : SV_GroupID)
 				float3(ClusterBoxMax.x, ClusterBoxMax.y, ClusterBoxMax.z)
 			};
 				
-			float3 MinBounds = float(9999999.0f).xxx;
-			float3 MaxBounds = float(-9999999.0f).xxx;
+			float3 MinBounds = float( 999999999.0f).xxx;
+			float3 MaxBounds = float(-999999999.0f).xxx;
 
 			for (uint SeenBoneIndex = 0; SeenBoneIndex < 16; ++SeenBoneIndex)
 			{
@@ -928,7 +928,7 @@ void PickingCS(uint3 DTID : SV_DispatchThreadID, uint3 GID : SV_GroupID)
 				{
 					break;
 				}
-				float3x4 CurrentBoneTransform = LoadNaniteBoneTransform(SkinningHeader.TransformBufferOffset + BoneIndex);
+				float3x4 CurrentBoneTransform = LoadNaniteBoneTransform(SkinningHeader.TransformBufferOffset + InstanceData.SkinningData + BoneIndex);
 
 				for (uint BoxCornerIndex = 0; BoxCornerIndex < 8; ++BoxCornerIndex)
 				{

@@ -2636,6 +2636,11 @@ uint32 FSkinnedSceneProxy::GetMaxBoneInfluenceCount() const
 	return MaxBoneInfluenceCount;
 }
 
+uint32 FSkinnedSceneProxy::GetUniqueAnimationCount() const
+{
+	return UniqueAnimationCount;
+}
+
 FDesiredLODLevel FSkinnedSceneProxy::GetDesiredLODLevel_RenderThread(const FSceneView* View) const
 {
 	return FDesiredLODLevel::CreateFixed(MeshObject->GetLOD());

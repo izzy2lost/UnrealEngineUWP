@@ -285,6 +285,7 @@ struct FInstanceUploadInfo
 
 	// Optional per-instance data views
 	TConstArrayView<FInstanceDynamicData> InstanceDynamicData;
+	TConstArrayView<uint32> InstanceSkinningData;
 	TConstArrayView<FVector4f> InstanceLightShadowUVBias;
 	TConstArrayView<float> InstanceCustomData;
 	TConstArrayView<float> InstanceRandomID;
@@ -311,22 +312,24 @@ struct FInstanceUploadInfo
 #if DO_CHECK
 void ValidateInstanceUploadInfo(const FInstanceUploadInfo& UploadInfo, FRDGBuffer* InstancePayloadDataBuffer)
 {
-	const bool bHasRandomID			= (UploadInfo.InstanceFlags & INSTANCE_SCENE_DATA_FLAG_HAS_RANDOM) != 0u;
-	const bool bHasCustomData		= (UploadInfo.InstanceFlags & INSTANCE_SCENE_DATA_FLAG_HAS_CUSTOM_DATA) != 0u;
-	const bool bHasDynamicData		= (UploadInfo.InstanceFlags & INSTANCE_SCENE_DATA_FLAG_HAS_DYNAMIC_DATA) != 0u;
-	const bool bHasLightShadowUVBias = (UploadInfo.InstanceFlags & INSTANCE_SCENE_DATA_FLAG_HAS_LIGHTSHADOW_UV_BIAS) != 0u;
-	const bool bHasHierarchyOffset	= (UploadInfo.InstanceFlags & INSTANCE_SCENE_DATA_FLAG_HAS_HIERARCHY_OFFSET) != 0u;
-	const bool bHasLocalBounds		= (UploadInfo.InstanceFlags & INSTANCE_SCENE_DATA_FLAG_HAS_LOCAL_BOUNDS) != 0u;
-	const bool bHasPayloadExtension	= (UploadInfo.InstanceFlags & INSTANCE_SCENE_DATA_FLAG_HAS_PAYLOAD_EXTENSION) != 0u;
+	const bool bHasRandomID				= (UploadInfo.InstanceFlags & INSTANCE_SCENE_DATA_FLAG_HAS_RANDOM) != 0u;
+	const bool bHasCustomData			= (UploadInfo.InstanceFlags & INSTANCE_SCENE_DATA_FLAG_HAS_CUSTOM_DATA) != 0u;
+	const bool bHasDynamicData			= (UploadInfo.InstanceFlags & INSTANCE_SCENE_DATA_FLAG_HAS_DYNAMIC_DATA) != 0u;
+	const bool bHasLightShadowUVBias	= (UploadInfo.InstanceFlags & INSTANCE_SCENE_DATA_FLAG_HAS_LIGHTSHADOW_UV_BIAS) != 0u;
+	const bool bHasSkinningData			= (UploadInfo.InstanceFlags & INSTANCE_SCENE_DATA_FLAG_HAS_SKINNING_DATA) != 0u;
+	const bool bHasHierarchyOffset		= (UploadInfo.InstanceFlags & INSTANCE_SCENE_DATA_FLAG_HAS_HIERARCHY_OFFSET) != 0u;
+	const bool bHasLocalBounds			= (UploadInfo.InstanceFlags & INSTANCE_SCENE_DATA_FLAG_HAS_LOCAL_BOUNDS) != 0u;
+	const bool bHasPayloadExtension		= (UploadInfo.InstanceFlags & INSTANCE_SCENE_DATA_FLAG_HAS_PAYLOAD_EXTENSION) != 0u;
 #if WITH_EDITOR
-	const bool bHasEditorData		= (UploadInfo.InstanceFlags & INSTANCE_SCENE_DATA_FLAG_HAS_EDITOR_DATA) != 0u;
+	const bool bHasEditorData			= (UploadInfo.InstanceFlags & INSTANCE_SCENE_DATA_FLAG_HAS_EDITOR_DATA) != 0u;
 #endif
 
 	check(!bHasRandomID || UploadInfo.InstanceRandomID.Num() == UploadInfo.NumInstances);
 	check(UploadInfo.InstanceLightShadowUVBias.Num()	== (bHasLightShadowUVBias ? UploadInfo.NumInstances : 0));
+	check(UploadInfo.InstanceSkinningData.Num()			== (bHasSkinningData ? UploadInfo.NumInstances : 0));
 	check(UploadInfo.InstanceHierarchyOffset.Num()		== (bHasHierarchyOffset	? UploadInfo.NumInstances : 0));
 #if WITH_EDITOR
-	check(UploadInfo.InstanceEditorData.Num() == (bHasEditorData ? UploadInfo.NumInstances : 0));
+	check(UploadInfo.InstanceEditorData.Num()			== (bHasEditorData ? UploadInfo.NumInstances : 0));
 #endif
 
 	if (bHasCustomData)
@@ -351,7 +354,7 @@ void ValidateInstanceUploadInfo(const FInstanceUploadInfo& UploadInfo, FRDGBuffe
 	}
 
 	// RandomID is not stored in the payload but in the instance scene data.
-	const bool bHasAnyPayloadData = bHasHierarchyOffset || bHasLocalBounds || bHasDynamicData || bHasLightShadowUVBias || bHasCustomData|| bHasPayloadExtension;
+	const bool bHasAnyPayloadData = bHasHierarchyOffset || bHasLocalBounds || bHasDynamicData || bHasSkinningData || bHasLightShadowUVBias || bHasCustomData|| bHasPayloadExtension;
 
 	if (bHasAnyPayloadData)
 	{
@@ -452,15 +455,16 @@ struct FUploadDataSourceAdapterScenePrimitives
 	FORCEINLINE uint32 PackFlags(FInstanceDataFlags Flags) const
 	{
 		uint32 PackedFlags = 0x0;
-		PackedFlags |= Flags.bHasPerInstanceRandom          ? INSTANCE_SCENE_DATA_FLAG_HAS_RANDOM              : 0u;
-		PackedFlags |= Flags.bHasPerInstanceCustomData      ? INSTANCE_SCENE_DATA_FLAG_HAS_CUSTOM_DATA         : 0u;
-		PackedFlags |= Flags.bHasPerInstanceDynamicData     ? INSTANCE_SCENE_DATA_FLAG_HAS_DYNAMIC_DATA        : 0u;
-		PackedFlags |= Flags.bHasPerInstanceLMSMUVBias      ? INSTANCE_SCENE_DATA_FLAG_HAS_LIGHTSHADOW_UV_BIAS : 0u;
-		PackedFlags |= Flags.bHasPerInstanceHierarchyOffset ? INSTANCE_SCENE_DATA_FLAG_HAS_HIERARCHY_OFFSET    : 0u;
-		PackedFlags |= Flags.bHasPerInstanceLocalBounds     ? INSTANCE_SCENE_DATA_FLAG_HAS_LOCAL_BOUNDS        : 0u;
-		PackedFlags |= Flags.bHasPerInstancePayloadExtension? INSTANCE_SCENE_DATA_FLAG_HAS_PAYLOAD_EXTENSION   : 0u;
+		PackedFlags |= Flags.bHasPerInstanceRandom				? INSTANCE_SCENE_DATA_FLAG_HAS_RANDOM              : 0u;
+		PackedFlags |= Flags.bHasPerInstanceCustomData			? INSTANCE_SCENE_DATA_FLAG_HAS_CUSTOM_DATA         : 0u;
+		PackedFlags |= Flags.bHasPerInstanceDynamicData			? INSTANCE_SCENE_DATA_FLAG_HAS_DYNAMIC_DATA        : 0u;
+		PackedFlags |= Flags.bHasPerInstanceSkinningData		? INSTANCE_SCENE_DATA_FLAG_HAS_SKINNING_DATA       : 0u;
+		PackedFlags |= Flags.bHasPerInstanceLMSMUVBias			? INSTANCE_SCENE_DATA_FLAG_HAS_LIGHTSHADOW_UV_BIAS : 0u;
+		PackedFlags |= Flags.bHasPerInstanceHierarchyOffset		? INSTANCE_SCENE_DATA_FLAG_HAS_HIERARCHY_OFFSET    : 0u;
+		PackedFlags |= Flags.bHasPerInstanceLocalBounds			? INSTANCE_SCENE_DATA_FLAG_HAS_LOCAL_BOUNDS        : 0u;
+		PackedFlags |= Flags.bHasPerInstancePayloadExtension	? INSTANCE_SCENE_DATA_FLAG_HAS_PAYLOAD_EXTENSION   : 0u;
 	#if WITH_EDITOR
-		PackedFlags |= Flags.bHasPerInstanceEditorData  ? INSTANCE_SCENE_DATA_FLAG_HAS_EDITOR_DATA         : 0u;
+		PackedFlags |= Flags.bHasPerInstanceEditorData			? INSTANCE_SCENE_DATA_FLAG_HAS_EDITOR_DATA         : 0u;
 	#endif
 
 		return PackedFlags;
@@ -513,20 +517,20 @@ struct FUploadDataSourceAdapterScenePrimitives
 			InstanceUploadInfo.InstanceLightShadowUVBias = InstanceSceneDataBuffers.InstanceLightShadowUVBias;
 			InstanceUploadInfo.InstanceCustomData = InstanceSceneDataBuffers.InstanceCustomData;
 			InstanceUploadInfo.InstanceRandomID = InstanceSceneDataBuffers.InstanceRandomIDs;
+			InstanceUploadInfo.InstanceSkinningData = InstanceSceneDataBuffers.InstanceSkinningData;
 			InstanceUploadInfo.InstanceHierarchyOffset = InstanceSceneDataBuffers.InstanceHierarchyOffset;
 			InstanceUploadInfo.InstancePayloadExtension = InstanceSceneDataBuffers.InstancePayloadExtension;
 			InstanceUploadInfo.InstanceLocalBounds = InstanceSceneDataBuffers.InstanceLocalBounds;
-#if WITH_EDITOR
+		#if WITH_EDITOR
 			InstanceUploadInfo.InstanceEditorData = InstanceSceneDataBuffers.InstanceEditorData;
-#endif
-#if DO_CHECK
+		#endif
+		#if DO_CHECK
 			// This is already precomputed in the InstanceSceneDataBuffers and we don't need to do it again here, except for validation purposes
 			// TODO: this validation should (also?) move elsewhere and validate that the transform on RT matches that on GT
 			const FMatrix LocalToWorld = PrimitiveSceneProxy->GetLocalToWorld();
 			const FDFVector3 AbsoluteOrigin(LocalToWorld.GetOrigin());
 			InstanceUploadInfo.PrimitiveToWorld = FDFMatrix::MakeToRelativeWorldMatrix(AbsoluteOrigin.High, LocalToWorld).M;
-#endif
-
+		#endif
 		}
 		else
 		{
@@ -542,7 +546,7 @@ struct FUploadDataSourceAdapterScenePrimitives
 			InstanceUploadInfo.PrimitiveInstances = TConstArrayView<FInstanceSceneData>();
 			InstanceUploadInfo.InstanceDynamicData = TConstArrayView<FInstanceDynamicData>();
 
-#if 0
+		#if 0
 			// NOTE: We only need this if not using the InstanceSceneDataBuffers and if the old path were to support dynamic data
 			{
 				bool bHasPrecomputedVolumetricLightmap{};
@@ -553,17 +557,17 @@ struct FUploadDataSourceAdapterScenePrimitives
 				Scene.GetPrimitiveUniformShaderParameters_RenderThread(PrimitiveSceneInfo, bHasPrecomputedVolumetricLightmap, PreviousLocalToWorld, SingleCaptureIndex, bOutputVelocity);
 				InstanceUploadInfo.PrevPrimitiveToWorld = FDFMatrix::MakeClampedToRelativeWorldMatrix(AbsoluteOrigin.High, PreviousLocalToWorld).M;
 			}
-#endif
+		#endif
 			InstanceUploadInfo.InstanceLightShadowUVBias = TConstArrayView<FVector4f>();
 			InstanceUploadInfo.InstanceCustomData = TConstArrayView<float>();
 			InstanceUploadInfo.InstanceRandomID = TConstArrayView<float>();
+			InstanceUploadInfo.InstanceSkinningData = TConstArrayView<uint32>();
 			InstanceUploadInfo.InstanceHierarchyOffset = TConstArrayView<uint32>();
 			InstanceUploadInfo.InstancePayloadExtension = TConstArrayView<FVector4f>();
 			InstanceUploadInfo.NumInstances = 1;
-
-#if WITH_EDITOR
+		#if WITH_EDITOR
 			InstanceUploadInfo.InstanceEditorData = TConstArrayView<uint32>();
-#endif
+		#endif
 		}
 
 		InstanceUploadInfo.InstancePayloadExtensionCount = 0;
@@ -1268,15 +1272,14 @@ void FGPUScene::UploadGeneral(FRDGBuilder& GraphBuilder, const FRegisteredBuffer
 
 							int32 PayloadPosition = 0;
 
-							if (UploadInfo.InstanceFlags & (INSTANCE_SCENE_DATA_FLAG_HAS_HIERARCHY_OFFSET | INSTANCE_SCENE_DATA_FLAG_HAS_LOCAL_BOUNDS | INSTANCE_SCENE_DATA_FLAG_HAS_EDITOR_DATA))
+							if (UploadInfo.InstanceFlags & (INSTANCE_SCENE_DATA_FLAG_HAS_HIERARCHY_OFFSET | INSTANCE_SCENE_DATA_FLAG_HAS_LOCAL_BOUNDS | INSTANCE_SCENE_DATA_FLAG_HAS_SKINNING_DATA))
 							{
 								const uint32 InstanceHierarchyOffset = (UploadInfo.InstanceFlags & INSTANCE_SCENE_DATA_FLAG_HAS_HIERARCHY_OFFSET) ? UploadInfo.InstanceHierarchyOffset[InstanceIndex] : 0;
 								InstancePayloadData[PayloadPosition].X = *(const float*)&InstanceHierarchyOffset;
 
-#if WITH_EDITOR
-								const uint32 InstanceEditorData = (UploadInfo.InstanceFlags & INSTANCE_SCENE_DATA_FLAG_HAS_EDITOR_DATA) ? UploadInfo.InstanceEditorData[InstanceIndex] : 0;
-								InstancePayloadData[PayloadPosition].Y = *(const float*)&InstanceEditorData;
-#endif
+								const uint32 InstanceSkinningData = (UploadInfo.InstanceFlags & INSTANCE_SCENE_DATA_FLAG_HAS_SKINNING_DATA) ? UploadInfo.InstanceSkinningData[InstanceIndex] : 0;
+								InstancePayloadData[PayloadPosition].Y = *(const float*)&InstanceSkinningData;
+
 								if (UploadInfo.InstanceFlags & INSTANCE_SCENE_DATA_FLAG_HAS_LOCAL_BOUNDS)
 								{
 									check(UploadInfo.InstanceLocalBounds.Num() == UploadInfo.NumInstances);
@@ -1319,6 +1322,19 @@ void FGPUScene::UploadGeneral(FRDGBuilder& GraphBuilder, const FRegisteredBuffer
 								}
 							}
 
+						#if WITH_EDITOR
+							if (UploadInfo.InstanceFlags & INSTANCE_SCENE_DATA_FLAG_HAS_EDITOR_DATA)
+							{
+								check(UploadInfo.InstanceEditorData.Num() == UploadInfo.NumInstances);
+								InstancePayloadData[PayloadPosition].X = *(const float*)&UploadInfo.InstanceEditorData[InstanceIndex];
+								InstancePayloadData[PayloadPosition].Y = 0.0f; // Unused
+								InstancePayloadData[PayloadPosition].Z = 0.0f; // Unused
+								InstancePayloadData[PayloadPosition].W = 0.0f; // Unused
+								PayloadPosition += 1;
+							}
+						#endif
+
+							// TODO: Skip all this if static lighting is disabled
 							if (UploadInfo.InstanceFlags & INSTANCE_SCENE_DATA_FLAG_HAS_LIGHTSHADOW_UV_BIAS)
 							{
 								check(UploadInfo.InstanceLightShadowUVBias.Num() == UploadInfo.NumInstances);

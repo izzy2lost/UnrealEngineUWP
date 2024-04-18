@@ -31,6 +31,7 @@ union FInstanceDataFlags
 		uint16 bHasPerInstanceRandom : 1;
 		uint16 bHasPerInstanceCustomData : 1;
 		uint16 bHasPerInstanceDynamicData : 1;
+		uint16 bHasPerInstanceSkinningData : 1;
 		uint16 bHasPerInstanceLMSMUVBias : 1;
 		uint16 bHasPerInstanceLocalBounds : 1;
 		uint16 bHasPerInstanceHierarchyOffset : 1;

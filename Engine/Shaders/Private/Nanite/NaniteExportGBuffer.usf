@@ -233,14 +233,14 @@ void EmitSceneDepthPS(
 					DecodeBoneInfluence(ClusterData, TriIndices.z, InfluenceIndex, BoneIndex2, BoneWeight2);
 
 					float3x4 CurrentBoneTransform[3];
-					CurrentBoneTransform[0] = LoadNaniteBoneTransform(SkinningHeader.TransformBufferOffset + BoneIndex0);
-					CurrentBoneTransform[1] = LoadNaniteBoneTransform(SkinningHeader.TransformBufferOffset + BoneIndex1);
-					CurrentBoneTransform[2] = LoadNaniteBoneTransform(SkinningHeader.TransformBufferOffset + BoneIndex2);
+					CurrentBoneTransform[0] = LoadNaniteBoneTransform(SkinningHeader.TransformBufferOffset + InstanceData.SkinningData + BoneIndex0);
+					CurrentBoneTransform[1] = LoadNaniteBoneTransform(SkinningHeader.TransformBufferOffset + InstanceData.SkinningData + BoneIndex1);
+					CurrentBoneTransform[2] = LoadNaniteBoneTransform(SkinningHeader.TransformBufferOffset + InstanceData.SkinningData + BoneIndex2);
 
 					float3x4 PreviousBoneTransform[3];
-					PreviousBoneTransform[0] = LoadNaniteBoneTransform(SkinningHeader.TransformBufferOffset + SkinningHeader.MaxTransformCount + BoneIndex0);
-					PreviousBoneTransform[1] = LoadNaniteBoneTransform(SkinningHeader.TransformBufferOffset + SkinningHeader.MaxTransformCount + BoneIndex1);
-					PreviousBoneTransform[2] = LoadNaniteBoneTransform(SkinningHeader.TransformBufferOffset + SkinningHeader.MaxTransformCount + BoneIndex2);
+					PreviousBoneTransform[0] = LoadNaniteBoneTransform(SkinningHeader.TransformBufferOffset + SkinningHeader.MaxTransformCount + InstanceData.SkinningData + BoneIndex0);
+					PreviousBoneTransform[1] = LoadNaniteBoneTransform(SkinningHeader.TransformBufferOffset + SkinningHeader.MaxTransformCount + InstanceData.SkinningData + BoneIndex1);
+					PreviousBoneTransform[2] = LoadNaniteBoneTransform(SkinningHeader.TransformBufferOffset + SkinningHeader.MaxTransformCount + InstanceData.SkinningData + BoneIndex2);
 
 					CurrentPosition[0] += mul(CurrentBoneTransform[0], float4(PointLocal[0], 1.0f)) * BoneWeight0;
 					CurrentPosition[1] += mul(CurrentBoneTransform[1], float4(PointLocal[1], 1.0f)) * BoneWeight1;

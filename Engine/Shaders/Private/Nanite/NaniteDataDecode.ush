@@ -918,6 +918,7 @@ struct FNaniteSkinningHeader
 	uint TransformBufferOffset;
 	uint MaxTransformCount;
 	uint MaxInfluenceCount;
+	uint UniqueAnimationCount;
 };
 
 FNaniteSkinningHeader UnpackNaniteSkinningHeader(uint2 Data)
@@ -925,7 +926,8 @@ FNaniteSkinningHeader UnpackNaniteSkinningHeader(uint2 Data)
 	FNaniteSkinningHeader Output;
 	Output.TransformBufferOffset	= Data.x;
 	Output.MaxTransformCount		= BitFieldExtractU32(Data.y, 16u,  0u);
-	Output.MaxInfluenceCount		= BitFieldExtractU32(Data.y, 16u,  16u);
+	Output.MaxInfluenceCount		= BitFieldExtractU32(Data.y,  8u, 16u);
+	Output.UniqueAnimationCount		= BitFieldExtractU32(Data.y,  8u, 24u);
 	return Output;
 }
 

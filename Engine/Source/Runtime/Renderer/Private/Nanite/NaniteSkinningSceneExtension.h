@@ -81,24 +81,27 @@ private:
 	struct FPackedPrimitiveData
 	{
 		uint32 TransformBufferOffset;
-		uint32 MaxTransformCount : 16;
-		uint32 MaxInfluenceCount : 16;
+		uint32 MaxTransformCount	: 16;
+		uint32 MaxInfluenceCount	: 8;
+		uint32 UniqueAnimationCount	: 8;
 	};
 
 	struct FPrimitiveData
 	{
-		FPrimitiveSceneInfo* PrimitiveSceneInfo = nullptr;
-		uint32 TransformBufferOffset = INDEX_NONE;
-		uint32 TransformBufferCount = 0;
-		uint16 MaxTransformCount = 0;
-		uint16 MaxInfluenceCount = 0;
+		FPrimitiveSceneInfo* PrimitiveSceneInfo	= nullptr;
+		uint32 TransformBufferOffset			= INDEX_NONE;
+		uint32 TransformBufferCount				= 0;
+		uint16 MaxTransformCount				= 0;
+		uint8  MaxInfluenceCount				= 0;
+		uint8  UniqueAnimationCount				= 1;
 
 		FPackedPrimitiveData Pack() const
 		{
 			FPackedPrimitiveData Output;
-			Output.TransformBufferOffset = TransformBufferOffset;
-			Output.MaxTransformCount = MaxTransformCount;
-			Output.MaxInfluenceCount = MaxInfluenceCount;
+			Output.TransformBufferOffset	= TransformBufferOffset;
+			Output.MaxTransformCount		= MaxTransformCount;
+			Output.MaxInfluenceCount		= MaxInfluenceCount;
+			Output.UniqueAnimationCount		= UniqueAnimationCount;
 			return Output;
 		}
 	};

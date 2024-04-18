@@ -676,6 +676,7 @@ public:
 
 	ENGINE_API uint32 GetMaxBoneTransformCount() const;
 	ENGINE_API uint32 GetMaxBoneInfluenceCount() const;
+	ENGINE_API uint32 GetUniqueAnimationCount() const;
 
 	ENGINE_API virtual FDesiredLODLevel GetDesiredLODLevel_RenderThread(const FSceneView* View) const final override;
 
@@ -697,6 +698,7 @@ protected:
 
 	uint16 MaxBoneTransformCount = 0u;
 	uint16 MaxBoneInfluenceCount = 0u;
+	uint16 UniqueAnimationCount  = 1u;
 
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 	TOptional<FLinearColor> DebugDrawColor;

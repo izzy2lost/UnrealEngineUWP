@@ -205,6 +205,7 @@ public:
 		TArray<float> &InstanceCustomData;
 		TArray<float> &InstanceRandomIDs;
 		TArray<FVector4f> &InstanceLightShadowUVBias;
+		TArray<uint32> &InstanceSkinningData;
 		TArray<uint32> &InstanceHierarchyOffset;
 		TArray<FVector4f> &InstancePayloadExtension;
 		TArray<FRenderTransform> &InstanceToPrimitiveRelative;
@@ -233,14 +234,15 @@ public:
 			InstanceCustomData,
 			InstanceRandomIDs,
 			InstanceLightShadowUVBias,
+			InstanceSkinningData,
 			InstanceHierarchyOffset,
 			InstancePayloadExtension,
 			InstanceToPrimitiveRelative,
 			PrevInstanceToPrimitiveRelative,
-#if WITH_EDITOR
+		#if WITH_EDITOR
 			InstanceEditorData,
 			SelectedInstances,
-#endif
+		#endif
 			VisibleInstances,
 			NumCustomDataFloats,
 			Flags
@@ -262,6 +264,7 @@ public:
 		const TArray<float> &InstanceCustomData;
 		const TArray<float> &InstanceRandomIDs;
 		const TArray<FVector4f> &InstanceLightShadowUVBias;
+		const TArray<uint32> &InstanceSkinningData;
 		const TArray<uint32> &InstanceHierarchyOffset;
 		const TArray<FVector4f> &InstancePayloadExtension;
 		const TArray<FRenderTransform> &InstanceToPrimitiveRelative;
@@ -288,6 +291,7 @@ public:
 			InstanceCustomData,
 			InstanceRandomIDs,
 			InstanceLightShadowUVBias,
+			InstanceSkinningData,
 			InstanceHierarchyOffset,
 			InstancePayloadExtension,
 			InstanceToPrimitiveRelative,
@@ -312,6 +316,7 @@ protected:
 	TArray<float> InstanceCustomData;
 	TArray<float> InstanceRandomIDs;
 	TArray<FVector4f> InstanceLightShadowUVBias;
+	TArray<uint32> InstanceSkinningData;
 	TArray<uint32> InstanceHierarchyOffset;
 	TArray<FVector4f> InstancePayloadExtension;
 	TArray<FRenderTransform> InstanceToPrimitiveRelative;

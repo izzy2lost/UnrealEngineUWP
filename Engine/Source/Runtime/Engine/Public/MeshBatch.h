@@ -113,8 +113,9 @@ struct FMeshBatchDynamicPrimitiveData
 		}
 	}
 	
-	FORCEINLINE void EnableInstanceDynamicData(bool bEnable) { SetPayloadDataFlags(INSTANCE_SCENE_DATA_FLAG_HAS_DYNAMIC_DATA, bEnable); }
-	FORCEINLINE void EnableInstanceLocalBounds(bool bEnable) { SetPayloadDataFlags(INSTANCE_SCENE_DATA_FLAG_HAS_LOCAL_BOUNDS, bEnable); }
+	FORCEINLINE void EnableInstanceDynamicData(bool bEnable)  { SetPayloadDataFlags(INSTANCE_SCENE_DATA_FLAG_HAS_DYNAMIC_DATA, bEnable); }
+	FORCEINLINE void EnableInstanceSkinningData(bool bEnable) { SetPayloadDataFlags(INSTANCE_SCENE_DATA_FLAG_HAS_SKINNING_DATA, bEnable); }
+	FORCEINLINE void EnableInstanceLocalBounds(bool bEnable)  { SetPayloadDataFlags(INSTANCE_SCENE_DATA_FLAG_HAS_LOCAL_BOUNDS, bEnable); }
 	FORCEINLINE void SetNumInstanceCustomDataFloats(uint32 NumFloats)
 	{
 		SetPayloadDataFlags(INSTANCE_SCENE_DATA_FLAG_HAS_CUSTOM_DATA, NumFloats > 0);
@@ -133,7 +134,7 @@ struct FMeshBatchDynamicPrimitiveData
 		{
 			Total += 2;
 		}
-		else if (PayloadDataFlags & (INSTANCE_SCENE_DATA_FLAG_HAS_HIERARCHY_OFFSET | INSTANCE_SCENE_DATA_FLAG_HAS_EDITOR_DATA))
+		else if (PayloadDataFlags & (INSTANCE_SCENE_DATA_FLAG_HAS_HIERARCHY_OFFSET | INSTANCE_SCENE_DATA_FLAG_HAS_SKINNING_DATA))
 		{
 			Total += 1;
 		}
@@ -148,6 +149,11 @@ struct FMeshBatchDynamicPrimitiveData
 			{
 				Total += 3;
 			}
+		}
+
+		if (PayloadDataFlags & INSTANCE_SCENE_DATA_FLAG_HAS_EDITOR_DATA)
+		{
+			Total += 1;
 		}
 
 		if (PayloadDataFlags & INSTANCE_SCENE_DATA_FLAG_HAS_LIGHTSHADOW_UV_BIAS)
