@@ -30,6 +30,8 @@ namespace Audio
 		// for your implementation, a new EQuartzCommandType needs to be defined in QuartzQuantizationUtilities.h
 		virtual EQuartzCommandType GetCommandType() const { return EQuartzCommandType::PlaySound; };
 
+		virtual int32 OverrideFramesUntilExec(int32 NumFramesUntilExec);
+
 	protected:
 		TSharedPtr<FQuartzClock> OwningClockPtr{ nullptr };
 

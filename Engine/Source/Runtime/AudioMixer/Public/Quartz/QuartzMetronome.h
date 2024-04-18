@@ -12,9 +12,7 @@ class FQuartzTickableObject;
 
 namespace Audio
 {
-	template <typename T> class TQuartzShareableCommandQueue;
-
-	using MetronomeCommandQueuePtr = TSharedPtr<TQuartzShareableCommandQueue<FQuartzTickableObject>, ESPMode::ThreadSafe>;
+	using MetronomeCommandQueuePtr = Quartz::FQuartzGameThreadCommandQueuePtr; // todo: rename, "GameThread is not accurate"
 
 	// Class to track the passage of musical time, and allow subscribers to be notified when these musical events take place
 	class FQuartzMetronome
@@ -68,7 +66,7 @@ namespace Audio
 		// Helpers:
 		void RecalculateDurations();
 
-		void FireEvents(int32 EventFlags);
+		void FireEvents();
 
 		float CountNumSubdivisionsPerBar(EQuartzCommandQuantization InSubdivision) const;
 
@@ -89,39 +87,38 @@ namespace Audio
 		TArray<MetronomeCommandQueuePtr> MetronomeSubscriptionMatrix[static_cast<int32>(EQuartzCommandQuantization::Count)];
 		
 		// wrapper around our array so it can be indexed into by different Enums that represent musical time
-		struct FramesInTimeValue
+		struct FFramesInTimeValue
 		{
-		public:
-			// index operators for EQuartzCommandQuantization
-			double& operator[](EQuartzCommandQuantization InTimeValue)
-			{
-				return FramesInTimeValueInternal[static_cast<int32>(InTimeValue)];
-			}
-
-			const double& operator[](EQuartzCommandQuantization InTimeValue) const
-			{
-				return FramesInTimeValueInternal[static_cast<int32>(InTimeValue)];
-			}
-
-			// index operators for int32
-			double& operator[](int32 Index)
-			{
-				return FramesInTimeValueInternal[Index];
-			}
-
-			const double& operator[](int32 Index) const
-			{
-				return FramesInTimeValueInternal[Index];
-			}
+			void Reset();
+			
+			double& operator[](EQuartzCommandQuantization InTimeValue);
+			const double& operator[](EQuartzCommandQuantization InTimeValue) const;
+			double& operator[](int32 Index);
+			const double& operator[](int32 Index) const;
 
 			double FramesInTimeValueInternal[static_cast<int32>(EQuartzCommandQuantization::Count)]{ 0.0 };
 		};
 
+		struct FMetronomeEventEntry
+		{
+			TArray<int32> EventFrames;
+			void Reset();
+		};
+
+		struct FPendingMetronomeEvents
+		{
+			void Add(const EQuartzCommandQuantization InDuration, const int32 InFrame);
+			void Reset();
+			bool HasPendingEvent(const EQuartzCommandQuantization InDuration) const;
+			
+			FMetronomeEventEntry CurrentMetronomeEvents[static_cast<int32>(EQuartzCommandQuantization::Count)];
+		} PendingMetronomeEvents;
+
 		// array of lengths of musical durations (in audio frames)
-		FramesInTimeValue MusicalDurationsInFrames;
+		FFramesInTimeValue MusicalDurationsInFrames;
 
 		// array of the number of audio frames left until the respective musical duration
-		FramesInTimeValue FramesLeftInMusicalDuration;
+		FFramesInTimeValue FramesLeftInMusicalDuration;
 
 		// optional array of pulse duration overrides (for odd meters)
 		TArray<double> PulseDurations;

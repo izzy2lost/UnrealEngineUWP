@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Sound/QuartzSubscription.h"
+
 #include "Quartz/QuartzSubsystem.h"
 #include "HAL/IConsoleManager.h"
 
@@ -13,24 +14,13 @@ FAutoConsoleVariableRef CVarDecrementSlotIndexOnStarted(
 	TEXT("1: New Behavior, 0: Old Behavior"),
 	ECVF_Default);
 
-namespace Audio
-{
-	FQuartzQueueCommandData::FQuartzQueueCommandData(const FAudioComponentCommandInfo& InAudioComponentCommandInfo, FName InClockName)
-	: AudioComponentCommandInfo(InAudioComponentCommandInfo)
-	, ClockName(InClockName)
-	{
-	}
-} // namespace Audio
-
 FQuartzTickableObject::FQuartzTickableObject()
 {}
 
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
 FQuartzTickableObject::~FQuartzTickableObject()
 {
 	QuartzUnsubscribe();
 }
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 FQuartzTickableObject* FQuartzTickableObject::Init(UWorld* InWorldPtr)
 {
@@ -40,12 +30,10 @@ FQuartzTickableObject* FQuartzTickableObject::Init(UWorld* InWorldPtr)
 		return this;
 	}
 
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	if(!CommandQueuePtr.IsValid())
 	{
-		CommandQueuePtr = Audio::TQuartzShareableCommandQueue<FQuartzTickableObject>::Create();
+		CommandQueuePtr = MakeShared<FQuartzSubscriberCommandQueue>();
 	}
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	UQuartzSubsystem* QuartzSubsystemPtr = UQuartzSubsystem::Get(InWorldPtr);
 	QuartzSubscriptionToken.Subscribe(this, QuartzSubsystemPtr);
@@ -77,20 +65,13 @@ int32 FQuartzTickableObject::AddCommandDelegate(const FOnQuartzCommandEventBP& I
 	return SlotId;
 }
 
-
-UQuartzSubsystem* FQuartzTickableObject::GetQuartzSubsystem() const
-{
-	return nullptr;
-}
-
-
-void FQuartzTickableObject::ExecCommand(const Audio::FQuartzQuantizedCommandDelegateData& Data)
+void FQuartzTickableObject::OnCommandEvent(const Audio::FQuartzQuantizedCommandDelegateData& Data)
 {
 	checkSlow(Data.DelegateSubType < EQuartzCommandDelegateSubType::Count);
-	
+
 	if(const TSharedPtr<FQuartzTickableObjectsManager> ObjManagerPtr = QuartzSubscriptionToken.GetTickableObjectManager())
 	{
-		ObjManagerPtr->PushLatencyTrackerResult(Data.RequestRecieved());
+		ObjManagerPtr->PushLatencyTrackerResult(Data.RequestReceived());
 	}
 
 	// Broadcast to the BP delegate if we have one bound
@@ -114,7 +95,7 @@ void FQuartzTickableObject::ExecCommand(const Audio::FQuartzQuantizedCommandDele
 		// (end of a command)
 		bool bShouldDecrement = Data.DelegateSubType == EQuartzCommandDelegateSubType::CommandOnCanceled;
 		bShouldDecrement |= (DecrementSlotIndexOnStartedCvar && Data.DelegateSubType == EQuartzCommandDelegateSubType::CommandOnStarted);
-			
+
 		// are all the commands for this delegate done?
 		if (bShouldDecrement && (GameThreadEntry.RefCount.Decrement() <= 0))
 		{
@@ -128,11 +109,11 @@ void FQuartzTickableObject::ExecCommand(const Audio::FQuartzQuantizedCommandDele
 	ProcessCommand(Data);
 }
 
-void FQuartzTickableObject::ExecCommand(const Audio::FQuartzMetronomeDelegateData& Data)
+void FQuartzTickableObject::OnMetronomeEvent(const Audio::FQuartzMetronomeDelegateData& Data)
 {
-	if(const TSharedPtr<FQuartzTickableObjectsManager> ObjManagerPtr = QuartzSubscriptionToken.GetTickableObjectManager())
+	if (const TSharedPtr<FQuartzTickableObjectsManager> ObjManagerPtr = QuartzSubscriptionToken.GetTickableObjectManager())
 	{
-		ObjManagerPtr->PushLatencyTrackerResult(Data.RequestRecieved());
+		ObjManagerPtr->PushLatencyTrackerResult(Data.RequestReceived());
 	}
 
 	MetronomeDelegates[static_cast<int32>(Data.Quantization)].MulticastDelegate
@@ -142,7 +123,7 @@ void FQuartzTickableObject::ExecCommand(const Audio::FQuartzMetronomeDelegateDat
 	ProcessCommand(Data);
 }
 
-void FQuartzTickableObject::ExecCommand(const Audio::FQuartzQueueCommandData& Data)
+void FQuartzTickableObject::OnQueueCommandEvent(const Audio::FQuartzQueueCommandData& Data)
 {
 	// call base-class method
 	ProcessCommand(Data);
@@ -162,28 +143,22 @@ void FQuartzTickableObject::SetNotificationAnticipationAmountMusicalDuration(con
 
 Audio::FQuartzGameThreadSubscriber FQuartzTickableObject::GetQuartzSubscriber()
  {
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
  	if (!CommandQueuePtr.IsValid())
  	{
- 		CommandQueuePtr = MakeShared<Audio::TQuartzShareableCommandQueue<FQuartzTickableObject>, ESPMode::ThreadSafe>();
+ 		CommandQueuePtr = MakeShared<FQuartzSubscriberCommandQueue, ESPMode::ThreadSafe>();
  	}
 
  	return { CommandQueuePtr, NotificationOffset };
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
 
 void FQuartzTickableObject::QuartzTick(float DeltaTime)
 {
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	CommandQueuePtr->PumpCommandQueue(this);
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	CommandQueuePtr->PumpCommandQueue(*this);
 }
 
 bool FQuartzTickableObject::QuartzIsTickable() const
 {
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	return CommandQueuePtr.IsValid();
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
 
 void FQuartzTickableObject::AddMetronomeBpDelegate(EQuartzCommandQuantization InQuantizationBoundary, const FOnQuartzMetronomeEventBP& OnQuantizationEvent)

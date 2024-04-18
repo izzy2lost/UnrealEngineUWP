@@ -24,34 +24,24 @@ namespace Audio
 	void FQuartzMetronome::Tick(int32 InNumSamples, int32 FramesOfLatency)
 	{
 		LastTickCpuCycles64 = FPlatformTime::Cycles64();
-		
-		static bool bHasWarned = false;
-		if (!bHasWarned && (MusicalDurationsInFrames[EQuartzCommandQuantization::ThirtySecondNote] < InNumSamples))
-		{
-			// TODO: fire duplicate events if this occurs to facilitate game play-side counting logic
-			UE_LOG(LogAudioQuartz, Warning
-				, TEXT("Small note durations are shorter than the audio callback size. Some musical events may not fire delegates"));
 
-			bHasWarned = true;
-		}
-
-		int32 ToUpdateBitField = 0;
 
 		for (int i = 0; i < static_cast<int32>(EQuartzCommandQuantization::Count); ++i)
 		{
-			EQuartzCommandQuantization DurationType = static_cast<EQuartzCommandQuantization>(i);
+			const EQuartzCommandQuantization DurationType = static_cast<EQuartzCommandQuantization>(i);
+			int32 EventFrame = FramesLeftInMusicalDuration[DurationType]; 
 			FramesLeftInMusicalDuration[DurationType] -= InNumSamples;
 			
 			if (FramesLeftInMusicalDuration[DurationType] < 0)
 			{
-				// flag this duration for an update
-				ToUpdateBitField |= (1 << i);
-
 				// the beat value is constant
 				if (!(DurationType == EQuartzCommandQuantization::Beat && PulseDurations.Num()))
 				{
 					do
 					{
+						PendingMetronomeEvents.Add(DurationType, EventFrame);
+						
+						EventFrame += MusicalDurationsInFrames[DurationType];
 						FramesLeftInMusicalDuration[DurationType] += MusicalDurationsInFrames[DurationType];
 					}
 					while (FramesLeftInMusicalDuration[DurationType] <= 0);
@@ -61,11 +51,13 @@ namespace Audio
 					// the beat value can change
 					do
 					{
+						PendingMetronomeEvents.Add(DurationType, EventFrame);
 						if (++PulseDurationIndex == PulseDurations.Num())
 						{
 							PulseDurationIndex = 0;
 						}
 
+						EventFrame += MusicalDurationsInFrames[DurationType];
 						FramesLeftInMusicalDuration[DurationType] += PulseDurations[PulseDurationIndex];
 						MusicalDurationsInFrames[DurationType] = PulseDurations[PulseDurationIndex];
 					}
@@ -74,14 +66,13 @@ namespace Audio
 			}
 		}
 
-
 		// update transport
-		if (ToUpdateBitField & (1 << static_cast<int>(EQuartzCommandQuantization::Bar)))
+		if (PendingMetronomeEvents.HasPendingEvent(EQuartzCommandQuantization::Bar))
 		{
 			++CurrentTimeStamp.Bars;
 			CurrentTimeStamp.Beat = 1;
 		}
-		else if (ToUpdateBitField & (1 << static_cast<int>(EQuartzCommandQuantization::Beat)))
+		else if (PendingMetronomeEvents.HasPendingEvent(EQuartzCommandQuantization::Beat))
 		{
 			++CurrentTimeStamp.Beat;
 		}
@@ -97,7 +88,8 @@ namespace Audio
 
 		TimeSinceStart += double(InNumSamples) / CurrentTickRate.GetSampleRate(); 
 		CurrentTimeStamp.Seconds = TimeSinceStart;
-		FireEvents(ToUpdateBitField);
+		FireEvents();
+		PendingMetronomeEvents.Reset();
 	}
 
 	void FQuartzMetronome::SetTickRate(FQuartzClockTickRate InNewTickRate, int32 NumFramesLeft)
@@ -287,7 +279,7 @@ namespace Audio
 		}
 		else
 		{
-			float BarProgress = 1.0f - (FramesLeftInMusicalDuration[EQuartzCommandQuantization::Bar] / static_cast<float>(MusicalDurationsInFrames[EQuartzCommandQuantization::Bar]));
+			const float BarProgress = 1.0f - (FramesLeftInMusicalDuration[EQuartzCommandQuantization::Bar] / static_cast<float>(MusicalDurationsInFrames[EQuartzCommandQuantization::Bar]));
 			Count += (BarProgress * CountNumSubdivisionsPerBar(InSubdivision));
 		}
 
@@ -296,10 +288,62 @@ namespace Audio
 
 	float FQuartzMetronome::CountNumSubdivisionsSinceStart(EQuartzCommandQuantization InSubdivision) const
 	{
-		int32 NumPerBar = CountNumSubdivisionsPerBar(InSubdivision);
-		int32 NumInThisBar = CountNumSubdivisionsSinceBarStart(InSubdivision);
+		const int32 NumPerBar = CountNumSubdivisionsPerBar(InSubdivision);
+		const int32 NumInThisBar = CountNumSubdivisionsSinceBarStart(InSubdivision);
 
 		return (CurrentTimeStamp.Bars - 1) * NumPerBar + NumInThisBar;
+	}
+
+	void FQuartzMetronome::FFramesInTimeValue::Reset()
+	{
+		for (double& FrameCount : FramesInTimeValueInternal)
+		{
+			FrameCount = 0.0;
+		}
+	}
+
+	double& FQuartzMetronome::FFramesInTimeValue::operator[](EQuartzCommandQuantization InTimeValue)
+	{
+		return FramesInTimeValueInternal[static_cast<int32>(InTimeValue)];
+	}
+
+	const double& FQuartzMetronome::FFramesInTimeValue::operator[](EQuartzCommandQuantization InTimeValue) const
+	{
+		return FramesInTimeValueInternal[static_cast<int32>(InTimeValue)];
+	}
+
+	double& FQuartzMetronome::FFramesInTimeValue::operator[](int32 Index)
+	{
+		return FramesInTimeValueInternal[Index];
+	}
+
+	const double& FQuartzMetronome::FFramesInTimeValue::operator[](int32 Index) const
+	{
+		return FramesInTimeValueInternal[Index];
+	}
+
+	void FQuartzMetronome::FMetronomeEventEntry::Reset()
+	{
+		EventFrames.Reset();
+	}
+
+	void FQuartzMetronome::FPendingMetronomeEvents::Reset()
+	{
+		for (FMetronomeEventEntry& Entry : CurrentMetronomeEvents)
+		{
+			Entry.Reset();
+		}
+	}
+
+	bool FQuartzMetronome::FPendingMetronomeEvents::HasPendingEvent(const EQuartzCommandQuantization InDuration) const
+	{
+		return CurrentMetronomeEvents[static_cast<int32>(InDuration)].EventFrames.Num() != 0;
+	}
+
+	void FQuartzMetronome::FPendingMetronomeEvents::Add(const EQuartzCommandQuantization InDuration,
+	                                                    const int32 InFrame)
+	{
+		CurrentMetronomeEvents[static_cast<int32>(InDuration)].EventFrames.Add(InFrame);
 	}
 
 	void FQuartzMetronome::CalculateDurationPhases(float (&OutPhases)[static_cast<int32>(EQuartzCommandQuantization::Count)]) const
@@ -356,10 +400,7 @@ namespace Audio
 	{
 		CurrentTimeStamp.Reset();
 
-		for (double& FrameCount : FramesLeftInMusicalDuration.FramesInTimeValueInternal)
-		{
-			FrameCount = 0.0;
-		}
+		FramesLeftInMusicalDuration.Reset();
 
 		TimeSinceStart = 0.0;
 		PulseDurationIndex = -1;
@@ -437,35 +478,38 @@ namespace Audio
 		}
 	}
 
-	void FQuartzMetronome::FireEvents(int32 EventFlags)
+	void FQuartzMetronome::FireEvents()
 	{
-		if (!(EventFlags &= ListenerFlags))
-		{
-			// no events occurred that we have listeners for
-			return;
-		}
-
 		FQuartzMetronomeDelegateData Data;
 		Data.Bar = (CurrentTimeStamp.Bars);
 		Data.Beat = (CurrentTimeStamp.Beat);
 		Data.BeatFraction = (CurrentTimeStamp.BeatFraction);
 		Data.ClockName = ClockName;
-
-		// loop through quantization boundaries
+		
+		// loop through subscribers of each quantization boundary
 		int32 i = -1;
 		for (TArray<MetronomeCommandQueuePtr>& QuantizationBoundarySubscribers : MetronomeSubscriptionMatrix)
 		{
-			if (EventFlags & (1 << ++i))
-			{
-				Data.Quantization = static_cast<EQuartzCommandQuantization>(i);
+			Data.Quantization = static_cast<EQuartzCommandQuantization>(++i);
 
-				// loop through subscribers to that boundary
-				for (MetronomeCommandQueuePtr& Subscriber : QuantizationBoundarySubscribers)
+			// if this quantization boundary had any events...
+			if (PendingMetronomeEvents.HasPendingEvent(Data.Quantization))
+			{
+				// ...for each subscriber...
+				for (const MetronomeCommandQueuePtr& Subscriber : QuantizationBoundarySubscribers)
 				{
-					Subscriber->PushEvent(Data);
+					// fire an event for each instance of that metronome event in this buffer
+					for (const int32& MetronomeEventFrame : PendingMetronomeEvents.CurrentMetronomeEvents[i].EventFrames)
+					{
+						Data.FrameOffset = MetronomeEventFrame;
+						Subscriber->PushLambda<Quartz::IMetronomeEventListener>(
+							[=](Quartz::IMetronomeEventListener& InListener)
+							{
+								InListener.OnMetronomeEvent(Data);
+							});
+					}
 				}
 			}
 		}
 	}
-
 } // namespace Audio

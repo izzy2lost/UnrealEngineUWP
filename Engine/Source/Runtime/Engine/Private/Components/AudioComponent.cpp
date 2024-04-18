@@ -530,7 +530,7 @@ void UAudioComponent::PlayQuantized(
 	const bool bCommandResetsClock = InQuantizationBoundary.bResetClockOnQueued;
 	if (bStealVoiceSlot || bClockIsNotRunning || bCommandResetsClock)
 	{
-		AudioComponentQuartzCommandData.AnticapatoryBoundary = NewComponentCommandInfo.AnticapatoryBoundary = InQuantizationBoundary; // use the desired target boundary
+		AudioComponentQuartzCommandData.AnticipatoryBoundary = NewComponentCommandInfo.AnticipatoryBoundary = InQuantizationBoundary; // use the desired target boundary
 
 		// Add to the list of pending data
 		// todo: avoid this copy for OUR call to PlayQueuedQuantizedInternal()
@@ -579,7 +579,7 @@ void UAudioComponent::PlayQueuedQuantizedInternal(const UObject* WorldContextObj
 				// confirm a valid handle
 				if (Handle != nullptr)
 				{
-					InternalRequestData.QuantizedRequestData = UQuartzSubsystem::CreateRequestDataForSchedulePlaySound(Handle, PendingData.Delegate, PendingData.AnticapatoryBoundary);
+					InternalRequestData.QuantizedRequestData = UQuartzSubsystem::CreateRequestDataForSchedulePlaySound(Handle, PendingData.Delegate, PendingData.AnticipatoryBoundary);
 					UGameplayStatics::PrimeSound(Sound);
 				}
 

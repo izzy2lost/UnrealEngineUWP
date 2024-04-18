@@ -568,7 +568,7 @@ private:
 	// Data to hold pending quartz commands 
 	struct FAudioComponentPendingQuartzCommandData
 	{
-		FQuartzQuantizationBoundary AnticapatoryBoundary;
+		FQuartzQuantizationBoundary AnticipatoryBoundary;
 		FOnQuartzCommandEventBP Delegate;
 		float StartTime{ 0.0f };
 		float FadeDuration{ 0.0f };

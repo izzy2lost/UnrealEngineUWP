@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "QuartzCommandQueue.h"
 #include "UObject/ObjectMacros.h"
 #include "UObject/Object.h"
 #include "UObject/Class.h"
@@ -29,9 +30,6 @@ namespace Audio
 	class IQuartzQuantizedCommand;
 	class FQuartzClock;
 	class FShareableQuartzCommandQueue;
-
-	template<typename T>
-	class TQuartzShareableCommandQueue;
 
 	class FMixerDevice;
 
@@ -386,7 +384,7 @@ namespace Audio
 
 		ENGINE_API void RequestSent();
 
-		ENGINE_API double RequestRecieved() const;
+		ENGINE_API double RequestReceived() const;
 
 		ENGINE_API double GetResultsMilliseconds() const;
 
@@ -425,10 +423,16 @@ namespace Audio
 		TOptional<TPair<EQuartzCommandQuantization, double>> OffsetAsDuration;
 
 	};
+	
+	namespace Quartz
+	{
+		class IQueueCommandListener;
+		class ICommandListener;
+		class IMetronomeEventListener;
 
-
-	using FQuartzGameThreadCommandQueue = Audio::TQuartzShareableCommandQueue<FQuartzTickableObject>;
-	using FQuartzGameThreadCommandQueuePtr = TSharedPtr<FQuartzGameThreadCommandQueue, ESPMode::ThreadSafe>;
+		using FQuartzSubscriberCommandQueue = Audio::Quartz::PrivateDefs::TQuartzCommandQueue<IMetronomeEventListener, ICommandListener, IQueueCommandListener>;
+		using FQuartzGameThreadCommandQueuePtr = TSharedPtr<FQuartzSubscriberCommandQueue, ESPMode::ThreadSafe>;
+	} // namespace Quartz
 
 	struct FQuartzGameThreadSubscriber
 	{
@@ -436,13 +440,13 @@ namespace Audio
 
 		// this is only for back-compat until metronomes support FQuartzGameThreadSubscribers instead of raw queue ptrs
 		// (for Metronome event offsets)
-		FQuartzGameThreadSubscriber(const FQuartzGameThreadCommandQueuePtr& InQueuePtr)
+		FQuartzGameThreadSubscriber(const Quartz::FQuartzGameThreadCommandQueuePtr& InQueuePtr)
 		: Queue(InQueuePtr)
 		{ }
 
 
 		// copy ctor
-		FQuartzGameThreadSubscriber(const FQuartzGameThreadCommandQueuePtr& InQueuePtr, FQuartzOffset InOffset)
+		FQuartzGameThreadSubscriber(const Quartz::FQuartzGameThreadCommandQueuePtr& InQueuePtr, FQuartzOffset InOffset)
 		: Offset(InOffset)
 		, Queue(InQueuePtr)
 		{ }
@@ -455,14 +459,13 @@ namespace Audio
 		// comparison
 		ENGINE_API bool operator==(const FQuartzGameThreadSubscriber& Other) const;
 
-		// todo: templatize to match teh underlying TQUartzShareableCommandQueue
 		// notify
 		ENGINE_API void PushEvent(const FQuartzQuantizedCommandDelegateData& Data);
 		ENGINE_API void PushEvent(const FQuartzMetronomeDelegateData& Data);
 		ENGINE_API void PushEvent(const FQuartzQueueCommandData& Data);
 
 		// allow implicit casting to the underlying queue
-		operator FQuartzGameThreadCommandQueuePtr() const { return Queue; }
+		operator Quartz::FQuartzGameThreadCommandQueuePtr() const { return Queue; }
 
 		// positive: anticipatory amount, negative:
 		ENGINE_API int32 FinalizeOffset(const FQuartzClockTickRate& TickRate);
@@ -472,7 +475,7 @@ namespace Audio
 
 	private:
 		FQuartzOffset Offset;
-		FQuartzGameThreadCommandQueuePtr Queue;
+		Quartz::FQuartzGameThreadCommandQueuePtr Queue;
 		bool bOffsetConvertedToFrames = false;
 		bool bHasBeenNotifiedOfAboutToStart = false;
 		int32 OffsetInAudioFrames = 0;
@@ -552,7 +555,7 @@ namespace Audio
 	// info that derived classes need can be added here
 	struct FQuartzQuantizedCommandInitInfo
 	{
-		FQuartzQuantizedCommandInitInfo() {}
+		FQuartzQuantizedCommandInitInfo() = default;
 
 		// conversion ctor from FQuartzQuantizedRequestData
 		ENGINE_API FQuartzQuantizedCommandInitInfo(const FQuartzQuantizedRequestData& RHS, float InSampleRate, int32 InSourceID = INDEX_NONE);
@@ -573,7 +576,7 @@ namespace Audio
 
 		// Audio Render thread-specific data:
 		TSharedPtr<Audio::FQuartzClock> OwningClockPointer{ nullptr };
-		float SampleRate;
+		float SampleRate{0};
 		int32 SourceID{ -1 };
 
 		// Number of frames used for any FramesTilExec overrides
@@ -675,13 +678,13 @@ struct FAudioComponentCommandInfo
 
  	FAudioComponentCommandInfo(Audio::FQuartzGameThreadSubscriber InSubscriber, FQuartzQuantizationBoundary InAnticaptoryBoundary)
 		: Subscriber(InSubscriber)
-		, AnticapatoryBoundary(InAnticaptoryBoundary)
+		, AnticipatoryBoundary(InAnticaptoryBoundary)
 	{
 		static uint32 CommandIDs = 0;
 		CommandID = CommandIDs++;
 	}
 
 	Audio::FQuartzGameThreadSubscriber Subscriber;
-	FQuartzQuantizationBoundary AnticapatoryBoundary;
+	FQuartzQuantizationBoundary AnticipatoryBoundary;
 	uint32 CommandID{ (uint32)INDEX_NONE };
 };

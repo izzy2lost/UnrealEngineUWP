@@ -489,7 +489,7 @@ namespace Audio
 
 		if (Audio::FMixerDevice* MixerDevice = InCommandInitInfo.OwningClockPointer->GetMixerDevice())
 		{
-			MixerDevice->QuantizedEventClockManager.PushLatencyTrackerResult(FQuartzCrossThreadMessage::RequestRecieved());
+			MixerDevice->QuantizedEventClockManager.PushLatencyTrackerResult(FQuartzCrossThreadMessage::RequestReceived());
 		}
 
 		GameThreadSubscribers.Append(InCommandInitInfo.GameThreadSubscribers);
@@ -739,7 +739,7 @@ namespace Audio
 		Timer.StartTimer();
 	}
 
-	double FQuartzCrossThreadMessage::RequestRecieved() const
+	double FQuartzCrossThreadMessage::RequestReceived() const
 	{
 		Timer.StopTimer();
 		return GetResultsMilliseconds();
@@ -771,7 +771,10 @@ namespace Audio
 	{
 		if(ensure(Queue.IsValid()))
 		{
-			Queue->PushEvent(Data);
+			Queue->PushLambda<ICommandListener>([=](ICommandListener& InListener)
+			{
+				InListener.OnCommandEvent(Data);
+			});
 
 			// raise the flag if this was a CommandOnAboutToStart notification
 			if(!bHasBeenNotifiedOfAboutToStart)
@@ -785,7 +788,10 @@ namespace Audio
 	{
 		if(ensure(Queue.IsValid()))
 		{
-			Queue->PushEvent(Data);
+			Queue->PushLambda<IMetronomeEventListener>([=](IMetronomeEventListener& InListener)
+			{
+				InListener.OnMetronomeEvent(Data);
+			});
 		}
 	}
 
@@ -793,7 +799,10 @@ namespace Audio
 	{
 		if(ensure(Queue.IsValid()))
 		{
-			Queue->PushEvent(Data);
+			Queue->PushLambda<IQueueCommandListener>([=](IQueueCommandListener& InListener)
+			{
+				InListener.OnQueueCommandEvent(Data);
+			});
 		}
 	}
 
