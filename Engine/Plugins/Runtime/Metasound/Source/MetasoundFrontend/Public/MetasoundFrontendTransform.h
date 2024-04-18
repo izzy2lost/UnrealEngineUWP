@@ -131,24 +131,15 @@ namespace Metasound::Frontend
 
 	};
 
-	/** Updates document's given interface to the most recent version. */
 	class METASOUNDFRONTEND_API FUpdateRootGraphInterface : public IDocumentTransform
 	{
 	public:
 		FUpdateRootGraphInterface(const FMetasoundFrontendVersion& InInterfaceVersion, const FString& InOwningAssetName=FString(TEXT("Unknown")))
-			: InterfaceVersion(InInterfaceVersion)
-			, OwningAssetName(InOwningAssetName)
 		{
 		}
 
-		bool Transform(FDocumentHandle InDocument) const override;
-
-	private:
-		void GetUpdatePathForDocument(const FMetasoundFrontendVersion& InCurrentVersion, const FMetasoundFrontendVersion& InTargetVersion, TArray<const IInterfaceRegistryEntry*>& OutUpgradePath) const;
-		bool UpdateDocumentInterface(const TArray<const IInterfaceRegistryEntry*>& InUpgradePath, FDocumentHandle InDocument) const;
-
-		FMetasoundFrontendVersion InterfaceVersion;
-		FString OwningAssetName;
+		UE_DEPRECATED(5.5, "RootGraph update is now handled privately by internal MetaSound asset management")
+		virtual bool Transform(FDocumentHandle InDocument) const override { return false; }
 	};
 
 	/** Completely rebuilds the graph connecting a preset's inputs to the reference

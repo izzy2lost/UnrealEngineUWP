@@ -93,12 +93,9 @@ namespace Metasound
 			Frontend::FMetaSoundAssetRegistrationOptions RegOptions;
 			RegOptions.bForceReregister = false;
 #if !WITH_EDITOR 
-			if (Frontend::MetaSoundEnableCookDeterministicIDGeneration != 0)
-			{
-				// When without editor, don't AutoUpdate or ResolveDocument at runtime. This only happens at cook or save.
-				// When with editor, those are needed because sounds are not necessarily saved before previewing.
-				RegOptions.bAutoUpdate = false;
-			}
+			// When without editor, don't AutoUpdate or ResolveDocument at runtime. This only happens at cook or save.
+			// When with editor, those are needed because sounds are not necessarily saved before previewing.
+			RegOptions.bAutoUpdate = false;
 #endif // !WITH_EDITOR
 			if (const UMetaSoundSettings* Settings = GetDefault<UMetaSoundSettings>())
 			{
@@ -433,17 +430,12 @@ void UMetaSoundSource::PostEditChangeOutputFormat()
 		UMetaSoundSourceBuilder* SourceBuilder = BuilderSubsystem.AttachSourceBuilderToAsset(this);
 		check(SourceBuilder);
 		SourceBuilder->SetFormat(OutputFormat, Result);
-
-		// TODO: Once builders are notified of controller changes and can be safely persistent, this
-		// can be removed so builders can be shared and not have to be created for each change output
-		// format mutation transaction.
-		BuilderSubsystem.DetachBuilderFromAsset(GetConstDocument().RootGraph.Metadata.GetClassName());
 	}
 
 	if (Result == EMetaSoundBuilderResult::Succeeded)
 	{
 		// Update the data in this UMetaSoundSource to reflect what is in the metasound document.
-		ConformObjectDataToInterfaces();
+		ConformObjectToDocument();
 
 		// Use the editor form of register to ensure other editors'
 		// MetaSounds are auto-updated if they are referencing this graph.
@@ -472,7 +464,7 @@ void UMetaSoundSource::PostEditChangeQualitySettings()
 }
 #endif // WITH_EDITOR
 
-bool UMetaSoundSource::ConformObjectDataToInterfaces()
+bool UMetaSoundSource::ConformObjectToDocument()
 {
 	using namespace Metasound::Engine;
 	using namespace Metasound::Frontend;
@@ -643,27 +635,37 @@ void UMetaSoundSource::OnAsyncReferencedAssetsLoaded(const TArray<FMetasoundAsse
 }
 
 #if WITH_EDITORONLY_DATA
+void UMetaSoundSource::MigrateEditorGraph(FMetaSoundFrontendDocumentBuilder& OutBuilder)
+{
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		if (Graph)
+		{
+			Graph->MigrateEditorDocumentData(OutBuilder);
+			Graph = nullptr;
+		}
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+}
 
 UEdGraph* UMetaSoundSource::GetGraph()
 {
-	return Graph;
+	return EditorGraph;
 }
 
 const UEdGraph* UMetaSoundSource::GetGraph() const
 {
-	return Graph;
+	return EditorGraph;
 }
 
 UEdGraph& UMetaSoundSource::GetGraphChecked()
 {
-	check(Graph);
-	return *Graph;
+	check(EditorGraph);
+	return *EditorGraph;
 }
 
 const UEdGraph& UMetaSoundSource::GetGraphChecked() const
 {
-	check(Graph);
-	return *Graph;
+	check(EditorGraph);
+	return *EditorGraph;
 }
 
 FText UMetaSoundSource::GetDisplayName() const
@@ -920,7 +922,7 @@ Metasound::Frontend::FConstDocumentAccessPtr UMetaSoundSource::GetDocumentConstA
 bool UMetaSoundSource::ImplementsParameterInterface(Audio::FParameterInterfacePtr InInterface) const
 {
 	const FMetasoundFrontendVersion Version { InInterface->GetName(), { InInterface->GetVersion().Major, InInterface->GetVersion().Minor } };
-	return GetDocumentChecked().Interfaces.Contains(Version);
+	return GetConstDocumentChecked().Interfaces.Contains(Version);
 }
 
 ISoundGeneratorPtr UMetaSoundSource::CreateSoundGenerator(const FSoundGeneratorInitParams& InParams, TArray<FAudioParameter>&& InDefaultParameters)
@@ -1217,7 +1219,7 @@ void UMetaSoundSource::InitParametersInternal(const Metasound::TSortedVertexName
 
 bool UMetaSoundSource::IsParameterValid(const FAudioParameter& InParameter) const
 {
-	const TArray<FMetasoundFrontendClassInput>& Inputs = GetDocumentChecked().RootGraph.Interface.Inputs;
+	const TArray<FMetasoundFrontendClassInput>& Inputs = GetConstDocumentChecked().RootGraph.Interface.Inputs;
 	const FMetasoundFrontendVertex* Vertex = Algo::FindByPredicate(Inputs, [&InParameter] (const FMetasoundFrontendClassInput& Input)
 	{
 		return Input.Name == InParameter.ParamName;
@@ -1738,7 +1740,10 @@ void UMetaSoundSource::CacheRuntimeInputData()
 
 	if (bIsBuilderActive)
 	{
+#if !WITH_EDITOR
 		UE_LOG(LogMetaSound, Warning, TEXT("Skipping caching of runtime inputs for UMetaSoundSource %s because there is an active builder"), *GetOwningAssetName());
+#endif // !WITH_EDITOR
+		return;
 	}
 
 	constexpr bool bCreateUObjectProxies = true; 

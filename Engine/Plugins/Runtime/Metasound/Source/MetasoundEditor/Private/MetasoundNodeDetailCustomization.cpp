@@ -66,10 +66,13 @@ namespace Metasound
 			static const FText ConstructorPinTooltip = LOCTEXT("ConstructorPinTooltip",
 				"Whether this input or output is a constructor pin. Constructor values are only read on construction (on play), and are not dynamically updated at runtime.");
 
-			void GetDataTypeFromElementPropertyHandle(TSharedPtr<IPropertyHandle> ElementPropertyHandle, Frontend::FDataTypeRegistryInfo& OutDataTypeInfo)
+
+			// Retrieves the data type info if the literal property's member is found. Returns if the associated member is found, false if not.
+			bool GetDataTypeFromElementPropertyHandle(TSharedPtr<IPropertyHandle> ElementPropertyHandle, Frontend::FDataTypeRegistryInfo& OutDataTypeInfo)
 			{
 				using namespace Frontend;
 
+				OutDataTypeInfo = { };
 				TArray<UObject*>OuterObjects;
 				ElementPropertyHandle->GetOuterObjects(OuterObjects);
 				if (OuterObjects.Num() == 1)
@@ -77,7 +80,7 @@ namespace Metasound
 					UObject* Outer = OuterObjects.Last();
 					if (const UMetasoundEditorGraphMemberDefaultLiteral* DefaultLiteral = Cast<UMetasoundEditorGraphMemberDefaultLiteral>(Outer))
 					{
-						if (const UMetasoundEditorGraphMember* Member = Cast<UMetasoundEditorGraphMember>(DefaultLiteral->GetOuter()))
+						if (const UMetasoundEditorGraphMember* Member = DefaultLiteral->FindMember())
 						{
 							FName DataTypeName = Member->GetDataType();
 							ensure(IDataTypeRegistry::Get().GetDataTypeInfo(DataTypeName, OutDataTypeInfo));
@@ -91,9 +94,13 @@ namespace Metasound
 									ensure(IDataTypeRegistry::Get().GetDataTypeInfo(DataTypeName, OutDataTypeInfo));
 								}
 							}
+
+							return true;
 						}
 					}
 				}
+
+				return false;
 			}
 
 			// If DataType is an array type, creates & returns the array's
@@ -120,9 +127,9 @@ namespace Metasound
 					}
 					
 					Frontend::FDataTypeRegistryInfo DataTypeInfo;
-					MemberCustomizationPrivate::GetDataTypeFromElementPropertyHandle(PropertyHandle, DataTypeInfo);
+					const bool bMemberFound = MemberCustomizationPrivate::GetDataTypeFromElementPropertyHandle(PropertyHandle, DataTypeInfo);
 					UClass* ProxyGenClass = DataTypeInfo.ProxyGeneratorClass;
-					if (!ProxyGenClass)
+					if (!bMemberFound || !ProxyGenClass)
 					{
 						return;
 					}
@@ -219,8 +226,10 @@ namespace Metasound
 				PropertyHandle->GetOuterObjects(OuterObjects);
 				if (!OuterObjects.IsEmpty())
 				{
-					UObject* Outer = OuterObjects[0]->GetOuter();
-					GraphMember = Cast<UMetasoundEditorGraphMember>(Outer);
+					if (UMetasoundEditorGraphMemberDefaultLiteral* Literal = Cast<UMetasoundEditorGraphMemberDefaultLiteral>(OuterObjects[0]))
+					{
+						GraphMember = Literal->FindMember();
+					}
 				}
 
 				FUIAction PasteAction;
@@ -310,12 +319,10 @@ namespace Metasound
 					if (FloatLiteral.IsValid())
 					{
 						FloatLiteral->OnClampChanged.Remove(OnClampChangedDelegateHandle);
-						if (FMetasoundAssetBase* MetasoundAsset = Metasound::IMetasoundUObjectRegistry::Get().GetObjectAsAssetBase(FloatLiteral->GetOutermostObject()))
+						if (const UMetasoundEditorGraphMember* Member = FloatLiteral->FindMember())
 						{
-							if (const UMetasoundEditorGraphMember* Member = Cast<UMetasoundEditorGraphMember>(FloatLiteral->GetOuter()))
-							{
-								MetasoundAsset->GetModifyContext().AddMemberIDsModified({ Member->GetMemberID() });
-							}
+							FMetasoundAssetBase& MetasoundAsset = Editor::FGraphBuilder::GetOutermostMetaSoundChecked(*FloatLiteral);
+							MetasoundAsset.GetModifyContext().AddMemberIDsModified({ Member->GetMemberID() });
 						}
 					}
 				});
@@ -332,7 +339,7 @@ namespace Metasound
 
 			// Enable widget options for editable inputs only 
 			bool bShowWidgetOptions = false;
-			if (const UMetasoundEditorGraphInput* ParentMember = Cast <UMetasoundEditorGraphInput>(InLiteral.GetParentMember()))
+			if (const UMetasoundEditorGraphInput* ParentMember = Cast <UMetasoundEditorGraphInput>(InLiteral.FindMember()))
 			{
 				if (const UMetasoundEditorGraph* OwningGraph = ParentMember->GetOwningGraph())
 				{
@@ -387,8 +394,8 @@ namespace Metasound
 
 			// Enable widget options for editable inputs only 
 			bool bShowWidgetOptions = false;
-			if (const UMetasoundEditorGraphInput* ParentMember = Cast <UMetasoundEditorGraphInput>(InLiteral.GetParentMember()))
-			{								
+			if (const UMetasoundEditorGraphInput* ParentMember = Cast <UMetasoundEditorGraphInput>(InLiteral.FindMember()))
+			{
 				if (const UMetasoundEditorGraph* OwningGraph = ParentMember->GetOwningGraph())
 				{
 					// Disable widget options for constructor inputs for now to prevent changing default value via widget while playing 
@@ -439,12 +446,9 @@ namespace Metasound
 				.OnAreAssetsAcceptableForDropWithReason_Lambda([this, DefaultValueHandle](TArrayView<FAssetData> InAssets, FText& OutReason)
 				{
 					Frontend::FDataTypeRegistryInfo DataTypeInfo;
-					MemberCustomizationPrivate::GetDataTypeFromElementPropertyHandle(DefaultValueHandle, DataTypeInfo);
-
-					const IMetasoundEditorModule& EditorModule = FModuleManager::GetModuleChecked<IMetasoundEditorModule>("MetaSoundEditor");
-					bool bCanDrop = false;
-
-					if (UClass* ProxyGenClass = DataTypeInfo.ProxyGeneratorClass)
+					const bool bMemberFound = MemberCustomizationPrivate::GetDataTypeFromElementPropertyHandle(DefaultValueHandle, DataTypeInfo);
+					bool bCanDrop = bMemberFound;
+					if (UClass* ProxyGenClass = DataTypeInfo.ProxyGeneratorClass; bCanDrop && bMemberFound)
 					{
 						bCanDrop = true;
 						for (const FAssetData& AssetData : InAssets)
@@ -452,6 +456,7 @@ namespace Metasound
 							if (UClass* Class = AssetData.GetClass())
 							{
 PRAGMA_DISABLE_DEPRECATION_WARNINGS
+								const IMetasoundEditorModule& EditorModule = FModuleManager::GetModuleChecked<IMetasoundEditorModule>("MetaSoundEditor");
 								if (EditorModule.IsExplicitProxyClass(*DataTypeInfo.ProxyGeneratorClass))
 								{
 									bCanDrop &= Class == DataTypeInfo.ProxyGeneratorClass;
@@ -534,7 +539,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 				{
 					if (UMetasoundEditorGraphMemberDefaultLiteral* Literal = Cast<UMetasoundEditorGraphMemberDefaultLiteral>(OuterObjects.Last()))
 					{
-						if (UMetasoundEditorGraphInput* Input = Cast<UMetasoundEditorGraphInput>(Literal->GetParentMember()))
+						if (UMetasoundEditorGraphInput* Input = Cast<UMetasoundEditorGraphInput>(Literal->FindMember()))
 						{
 							// Don't display trigger simulation widget if its a trigger
 							// provided by an interface that does not support transmission.
@@ -561,7 +566,10 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 			using namespace Frontend;
 			using namespace MemberCustomizationPrivate;
 
-			if (FMetasoundFrontendRegistryContainer* Registry = FMetasoundFrontendRegistryContainer::Get())
+			// DataType can be reset during deletion of a literal value.  Customization can repaint briefly before the literal is removed,
+			// so just ignores if DataType is invalid.
+			const bool bIsValidDataType = !DataTypeInfo.DataTypeName.IsNone();
+			if (bIsValidDataType)
 			{
 				TSharedPtr<IPropertyHandle> ValueProperty = StructPropertyHandle->GetChildHandle(GET_MEMBER_NAME_CHECKED(FMetasoundEditorGraphMemberDefaultIntRef, Value));
 				if (ValueProperty.IsValid())
@@ -783,7 +791,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 				}
 			}
 
-			MemberCustomizationPrivate::GetDataTypeFromElementPropertyHandle(ElementPropertyHandle, DataTypeInfo);
+			const bool bMemberFound = MemberCustomizationPrivate::GetDataTypeFromElementPropertyHandle(ElementPropertyHandle, DataTypeInfo);
 
 			TSharedRef<SWidget> ValueWidget = CreateValueWidget(ParentPropertyHandleArray, StructPropertyHandle);
 			FDetailWidgetRow& ValueRow = ChildBuilder.AddCustomRow(MemberCustomizationStyle::DefaultPropertyText);
@@ -1640,8 +1648,8 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 			if (bIsPreset && !bIsDefaultConstructed && !bIsTriggerDataType)
 			{
-				const UMetasoundEditorGraphInput* Input = Cast<UMetasoundEditorGraphInput>(MemberDefaultLiteral->GetParentMember());
-				if (ensure(Input))
+				const UMetasoundEditorGraphInput* Input = Cast<UMetasoundEditorGraphInput>(MemberDefaultLiteral->FindMember());
+				if (Input)
 				{
 					auto PropertyEnabled = TAttribute<bool>::CreateLambda([this] { return !GetInputInheritsDefault(); });
 					for (IDetailPropertyRow* DefaultPropertyRow : DefaultPropertyRows)
@@ -1653,12 +1661,12 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 						DefaultPropertyRow->OverrideResetToDefault(ResetOverride);
 					}
 				}
-			} 
+			}
 			else if (!bIsPreset)
 			{
 				// Make default value uneditable while playing for constructor inputs
-				const UMetasoundEditorGraphInput* Input = Cast<UMetasoundEditorGraphInput>(MemberDefaultLiteral->GetParentMember());
-				if (ensure(Input))
+				const UMetasoundEditorGraphInput* Input = Cast<UMetasoundEditorGraphInput>(MemberDefaultLiteral->FindMember());
+				if (Input)
 				{
 					auto PropertyEnabled = TAttribute<bool>::CreateLambda([this, Input]
 					{

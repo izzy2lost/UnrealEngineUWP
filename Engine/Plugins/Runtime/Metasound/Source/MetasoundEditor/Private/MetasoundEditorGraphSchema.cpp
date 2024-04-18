@@ -23,6 +23,7 @@
 #include "MetasoundEditorCommands.h"
 #include "MetasoundEditorGraph.h"
 #include "MetasoundEditorGraphBuilder.h"
+#include "MetasoundEditorGraphCommentNode.h"
 #include "MetasoundEditorGraphInputNode.h"
 #include "MetasoundEditorGraphNode.h"
 #include "MetasoundEditorGraphValidation.h"
@@ -37,11 +38,13 @@
 #include "MetasoundLiteral.h"
 #include "MetasoundNodeInterface.h"
 #include "MetasoundStandardNodesCategories.h"
+#include "MetasoundFrontendNodeTemplateRegistry.h"
 #include "MetasoundUObjectRegistry.h"
 #include "MetasoundVariableNodes.h"
 #include "MetasoundVertex.h"
 #include "NodeTemplates/MetasoundFrontendNodeTemplateReroute.h"
 #include "ScopedTransaction.h"
+#include "Settings/EditorStyleSettings.h"
 #include "Styling/SlateStyleRegistry.h"
 #include "Toolkits/ToolkitManager.h"
 #include "ToolMenus.h"
@@ -162,12 +165,12 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 				if (FromPin->Direction == EGPD_Input)
 				{
-					FInputHandle InputHandle = FGraphBuilder::GetInputHandleFromPin(FromPin);
+					FConstInputHandle InputHandle = FGraphBuilder::GetConstInputHandleFromPin(FromPin);
 					for (UEdGraphPin* Pin : NewGraphNode.Pins)
 					{
 						if (Pin->Direction == EGPD_Output)
 						{
-							FOutputHandle OutputHandle = FGraphBuilder::GetOutputHandleFromPin(Pin);
+							FConstOutputHandle OutputHandle = FGraphBuilder::GetConstOutputHandleFromPin(Pin);
 							if (OutputHandle->IsValid() && 
 								InputHandle->CanConnectTo(*OutputHandle).Connectable == FConnectability::EConnectable::Yes)
 							{
@@ -182,12 +185,12 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 				if (FromPin->Direction == EGPD_Output)
 				{
-					FOutputHandle OutputHandle = FGraphBuilder::GetOutputHandleFromPin(FromPin);
+					FConstOutputHandle OutputHandle = FGraphBuilder::GetConstOutputHandleFromPin(FromPin);
 					for (UEdGraphPin* Pin : NewGraphNode.Pins)
 					{
 						if (Pin->Direction == EGPD_Input)
 						{
-							FInputHandle InputHandle = FGraphBuilder::GetInputHandleFromPin(Pin);
+							FConstInputHandle InputHandle = FGraphBuilder::GetConstInputHandleFromPin(Pin);
 							if (InputHandle->IsValid() && 
 								InputHandle->CanConnectTo(*OutputHandle).Connectable == FConnectability::EConnectable::Yes)
 							{
@@ -285,10 +288,13 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 						constexpr bool bPostSubTransaction = false;
 						Variable->SetMemberName(NodeName, bPostSubTransaction);
 
-						FNodeHandle NodeHandle = FGraphBuilder::AddVariableNodeHandle(ParentMetaSound, Variable->GetVariableID(), ClassName.ToNodeClassName());
+						FConstNodeHandle NodeHandle = FGraphBuilder::AddVariableNodeHandle(ParentMetaSound, Variable->GetVariableID(), ClassName.ToNodeClassName());
 
-						if (UMetasoundEditorGraphVariableNode* NewGraphNode = FGraphBuilder::AddVariableNode(ParentMetaSound, NodeHandle, InLocation))
+						if (UMetasoundEditorGraphVariableNode* NewGraphNode = FGraphBuilder::AddVariableNode(ParentMetaSound, NodeHandle))
 						{
+							NewGraphNode->UpdateFrontendNodeLocation(InLocation);
+							NewGraphNode->SyncLocationFromFrontendNode();
+
 							// Set the literal using the new value if connecting to an input
 							if (FromPin.Direction == EGPD_Input)
 							{
@@ -451,9 +457,11 @@ UEdGraphNode* FMetasoundGraphSchemaAction_NewNode::PerformAction(UEdGraph* Paren
 	ParentMetasound.Modify();
 	ParentGraph->Modify();
 
-	if (UMetasoundEditorGraphExternalNode* NewGraphNode = FGraphBuilder::AddExternalNode(ParentMetasound, ClassMetadata, Location, bSelectNewNode))
+	if (UMetasoundEditorGraphExternalNode* NewGraphNode = FGraphBuilder::AddExternalNode(ParentMetasound, ClassMetadata, bSelectNewNode))
 	{
 		NewGraphNode->Modify();
+		NewGraphNode->UpdateFrontendNodeLocation(Location);
+		NewGraphNode->SyncLocationFromFrontendNode();
 		SchemaPrivate::TryConnectNewNodeToMatchingDataTypePin(*NewGraphNode, FromPin);
 		SchemaPrivate::SelecteNodeInEditor(*MetaSoundGraph, *NewGraphNode);
 		return NewGraphNode;
@@ -498,8 +506,8 @@ UEdGraphNode* FMetasoundGraphSchemaAction_NewInput::PerformAction(UEdGraph* Pare
 		return nullptr;
 	}
 
-	FNodeHandle NodeHandle = Input->GetNodeHandle();
-	if (!ensure(NodeHandle->IsValid()))
+	FNodeHandle InputNodeHandle = Input->GetNodeHandle();
+	if (!ensure(InputNodeHandle->IsValid()))
 	{
 		return nullptr;
 	}
@@ -509,9 +517,12 @@ UEdGraphNode* FMetasoundGraphSchemaAction_NewInput::PerformAction(UEdGraph* Pare
 	MetasoundGraph->Modify();
 	Input->Modify();
 
-	if (UMetasoundEditorGraphInputNode* NewGraphNode = FGraphBuilder::AddInputNode(ParentMetasound, NodeHandle, InLocation))
+	FConstNodeHandle TemplateNodeHandle = FGraphBuilder::AddInputTemplateNodeHandle(ParentMetasound, InputNodeHandle);
+	if (UMetasoundEditorGraphNode* NewGraphNode = FGraphBuilder::AddInputNode(ParentMetasound, TemplateNodeHandle))
 	{
 		NewGraphNode->Modify();
+		NewGraphNode->UpdateFrontendNodeLocation(InLocation);
+		NewGraphNode->SyncLocationFromFrontendNode();
 		SchemaPrivate::TryConnectNewNodeToMatchingDataTypePin(*NewGraphNode, FromPin);
 		FGraphBuilder::RegisterGraphWithFrontend(ParentMetasound);
 		return NewGraphNode;
@@ -553,14 +564,17 @@ UEdGraphNode* FMetasoundGraphSchemaAction_PromoteToInput::PerformAction(UEdGraph
 	// The promoted input must have the same vertex access type in order for it to be connectible
 	const FCreateNodeVertexParams VertexParams = { InputHandle->GetDataType(), InputHandle->GetVertexAccessType() };
 
-	FNodeHandle NodeHandle = FGraphBuilder::AddInputNodeHandle(ParentMetasound, VertexParams, &DefaultValue, &InputName);
-	if (ensure(NodeHandle->IsValid()))
+	FNodeHandle InputNodeHandle = FGraphBuilder::AddInputNodeHandle(ParentMetasound, VertexParams, &DefaultValue, &InputName);
+	if (ensure(InputNodeHandle->IsValid()))
 	{
-		UMetasoundEditorGraphInput* Input = MetasoundGraph->FindOrAddInput(NodeHandle);
+		UMetasoundEditorGraphInput* Input = MetasoundGraph->FindOrAddInput(InputNodeHandle);
 		if (ensure(Input))
 		{
-			if (UMetasoundEditorGraphInputNode* NewGraphNode = FGraphBuilder::AddInputNode(ParentMetasound, NodeHandle, InLocation))
+			FConstNodeHandle TemplateNodeHandle = FGraphBuilder::AddInputTemplateNodeHandle(ParentMetasound, InputNodeHandle);
+			if (UMetasoundEditorGraphNode* NewGraphNode = FGraphBuilder::AddInputNode(ParentMetasound, TemplateNodeHandle))
 			{
+				NewGraphNode->UpdateFrontendNodeLocation(InLocation);
+				NewGraphNode->SyncLocationFromFrontendNode();
 				UEdGraphNode* EdGraphNode = CastChecked<UEdGraphNode>(NewGraphNode);
 
 				if (ensure(SchemaPrivate::TryConnectNewNodeToMatchingDataTypePin(*EdGraphNode, FromPin)))
@@ -591,7 +605,7 @@ UEdGraphNode* FMetasoundGraphSchemaAction_PromoteToVariable_AccessorNode::Perfor
 	using namespace Metasound::Editor;
 	using namespace Metasound::Frontend;
 
-	FInputHandle InputHandle = FGraphBuilder::GetInputHandleFromPin(FromPin);
+	FConstInputHandle InputHandle = FGraphBuilder::GetConstInputHandleFromPin(FromPin);
 	if (!ensure(InputHandle->IsValid()))
 	{
 		return nullptr;
@@ -623,7 +637,7 @@ UEdGraphNode* FMetasoundGraphSchemaAction_PromoteToVariable_DeferredAccessorNode
 	using namespace Metasound::Editor;
 	using namespace Metasound::Frontend;
 
-	FInputHandle InputHandle = FGraphBuilder::GetInputHandleFromPin(FromPin);
+	FConstInputHandle InputHandle = FGraphBuilder::GetConstInputHandleFromPin(FromPin);
 	if (!ensure(InputHandle->IsValid()))
 	{
 		return nullptr;
@@ -655,7 +669,7 @@ UEdGraphNode* FMetasoundGraphSchemaAction_PromoteToVariable_MutatorNode::Perform
 	using namespace Metasound::Editor;
 	using namespace Metasound::Frontend;
 
-	FOutputHandle OutputHandle = FGraphBuilder::GetOutputHandleFromPin(FromPin);
+	FConstOutputHandle OutputHandle = FGraphBuilder::GetConstOutputHandleFromPin(FromPin);
 	if (!ensure(OutputHandle->IsValid()))
 	{
 		return nullptr;
@@ -701,13 +715,13 @@ UEdGraphNode* FMetasoundGraphSchemaAction_NewOutput::PerformAction(UEdGraph* Par
 	UMetasoundEditorGraph* MetasoundGraph = CastChecked<UMetasoundEditorGraph>(ParentGraph);
 	UObject& ParentMetasound = MetasoundGraph->GetMetasoundChecked();
 
-	UMetasoundEditorGraphOutput* Output = MetasoundGraph->FindOutput(NodeID);
+	const UMetasoundEditorGraphOutput* Output = MetasoundGraph->FindOutput(NodeID);
 	if (!ensure(Output))
 	{
 		return nullptr;
 	}
 
-	FNodeHandle NodeHandle = Output->GetNodeHandle();
+	FConstNodeHandle NodeHandle = Output->GetConstNodeHandle();
 	if (!ensure(NodeHandle->IsValid()))
 	{
 		return nullptr;
@@ -717,8 +731,10 @@ UEdGraphNode* FMetasoundGraphSchemaAction_NewOutput::PerformAction(UEdGraph* Par
 	ParentMetasound.Modify();
 	ParentGraph->Modify();
 
-	if (UMetasoundEditorGraphOutputNode* NewGraphNode = FGraphBuilder::AddOutputNode(ParentMetasound, NodeHandle, Location, bSelectNewNode))
+	if (UMetasoundEditorGraphOutputNode* NewGraphNode = FGraphBuilder::AddOutputNode(ParentMetasound, NodeHandle, bSelectNewNode))
 	{
+		NewGraphNode->UpdateFrontendNodeLocation(Location);
+		NewGraphNode->SyncLocationFromFrontendNode();
 		SchemaPrivate::TryConnectNewNodeToMatchingDataTypePin(*NewGraphNode, FromPin);
 		FGraphBuilder::RegisterGraphWithFrontend(ParentMetasound);
 		return NewGraphNode;
@@ -742,7 +758,7 @@ UEdGraphNode* FMetasoundGraphSchemaAction_PromoteToOutput::PerformAction(UEdGrap
 	using namespace Metasound::Editor;
 	using namespace Metasound::Frontend;
 
-	FOutputHandle OutputHandle = FGraphBuilder::GetOutputHandleFromPin(FromPin);
+	FConstOutputHandle OutputHandle = FGraphBuilder::GetConstOutputHandleFromPin(FromPin);
 	if (!ensure(OutputHandle->IsValid()))
 	{
 		return nullptr;
@@ -758,14 +774,17 @@ UEdGraphNode* FMetasoundGraphSchemaAction_PromoteToOutput::PerformAction(UEdGrap
 	const FVertexName NewNodeName = FGraphBuilder::GenerateUniqueNameByClassType(ParentMetasound, EMetasoundFrontendClassType::Output, OutputName);
 	const FCreateNodeVertexParams VertexParams = { OutputHandle->GetDataType(), OutputHandle->GetVertexAccessType() };
 
-	FNodeHandle NodeHandle = FGraphBuilder::AddOutputNodeHandle(ParentMetasound, VertexParams, &NewNodeName);
+	FConstNodeHandle NodeHandle = FGraphBuilder::AddOutputNodeHandle(ParentMetasound, VertexParams, &NewNodeName);
 	if (ensure(NodeHandle->IsValid()))
 	{
 		UMetasoundEditorGraphOutput* Output = MetasoundGraph->FindOrAddOutput(NodeHandle);
 		if (ensure(Output))
 		{
-			if (UMetasoundEditorGraphOutputNode* NewGraphNode = FGraphBuilder::AddOutputNode(ParentMetasound, NodeHandle, InLocation))
+			if (UMetasoundEditorGraphOutputNode* NewGraphNode = FGraphBuilder::AddOutputNode(ParentMetasound, NodeHandle))
 			{ 
+				NewGraphNode->UpdateFrontendNodeLocation(InLocation);
+				NewGraphNode->SyncLocationFromFrontendNode();
+
 				UEdGraphNode* EdGraphNode = CastChecked<UEdGraphNode>(NewGraphNode);
 
 				if (ensure(SchemaPrivate::TryConnectNewNodeToMatchingDataTypePin(*EdGraphNode, FromPin)))
@@ -803,12 +822,14 @@ UEdGraphNode* FMetasoundGraphSchemaAction_NewVariableNode::PerformAction(UEdGrap
 				MetasoundGraph->Modify();
 				Variable->Modify();
 				
-				FNodeHandle FrontendNode = CreateFrontendVariableNode(MetasoundGraph->GetGraphHandle(), VariableID);
+				FConstNodeHandle FrontendNode = CreateFrontendVariableNode(MetasoundGraph->GetGraphHandle(), VariableID);
 				if (ensure(FrontendNode->IsValid()))
 				{
-					if (UMetasoundEditorGraphVariableNode* NewGraphNode = FGraphBuilder::AddVariableNode(*ParentMetasound, FrontendNode, Location, bSelectNewNode))
+					if (UMetasoundEditorGraphVariableNode* NewGraphNode = FGraphBuilder::AddVariableNode(*ParentMetasound, FrontendNode, bSelectNewNode))
 					{
 						NewGraphNode->Modify();
+						NewGraphNode->UpdateFrontendNodeLocation(Location);
+						NewGraphNode->SyncLocationFromFrontendNode();
 						SchemaPrivate::TryConnectNewNodeToMatchingDataTypePin(*NewGraphNode, FromPin);
 						return NewGraphNode;
 					}
@@ -928,13 +949,16 @@ UEdGraphNode* FMetasoundGraphSchemaAction_NewReroute::PerformAction(UEdGraph* Pa
 		Params.InputsToConnect.Add(FromVertexDataType);
 	}
 
-	FNodeHandle NodeHandle = MetaSoundAsset->GetRootGraphHandle()->AddTemplateNode(*RerouteTemplate, MoveTemp(Params));
+	FConstNodeHandle NodeHandle = MetaSoundAsset->GetRootGraphHandle()->AddTemplateNode(*RerouteTemplate, MoveTemp(Params));
 
-	if (UMetasoundEditorGraphExternalNode* NewGraphNode = FGraphBuilder::AddExternalNode(ParentMetasound, NodeHandle, Location, bSelectNewNode))
+	if (UMetasoundEditorGraphExternalNode* NewGraphNode = FGraphBuilder::AddTemplateNode(ParentMetasound, NodeHandle->GetID(), NodeHandle->GetClassMetadata(), bSelectNewNode))
 	{
 		NewGraphNode->Modify();
+		NewGraphNode->UpdateFrontendNodeLocation(Location);
+		NewGraphNode->SyncLocationFromFrontendNode();
+
 		SchemaPrivate::TryConnectNewNodeToMatchingDataTypePin(*NewGraphNode, FromPin);
-		MetaSoundGraph->GetModifyContext().AddNodeIDsModified({ NewGraphNode->GetNodeID()});
+		MetaSoundAsset->GetModifyContext().AddNodeIDsModified({ NewGraphNode->GetNodeID()});
 
 		TSharedPtr<FEditor> ParentEditor = FGraphBuilder::GetEditorForMetasound(ParentMetasound);
 		if (ParentEditor.IsValid() && bSelectNewNode)
@@ -962,23 +986,39 @@ UEdGraphNode* FMetasoundGraphSchemaAction_NewComment::PerformAction(UEdGraph* Pa
 {
 	using namespace Metasound::Editor;
 
+	UMetasoundEditorGraph* MetaSoundGraph = CastChecked<UMetasoundEditorGraph>(ParentGraph);
+	UObject& MetaSound = MetaSoundGraph->GetMetasoundChecked();
+
 	const FScopedTransaction Transaction(LOCTEXT("AddNewOutputNode1", "Add Comment to MetaSound Graph"));
-	ParentGraph->Modify();
+	MetaSoundGraph->Modify();
+	MetaSound.Modify();
 
-	UEdGraphNode_Comment* CommentTemplate = NewObject<UEdGraphNode_Comment>();
-
+	// Must cache bounds prior to comment creation as call selects new node and invalidates original selection
 	FSlateRect Bounds;
-	FVector2D SpawnLocation = Location;
 	TSharedPtr<FEditor> MetasoundEditor = FGraphBuilder::GetEditorForGraph(*ParentGraph);
+	const bool bUseBounds = MetasoundEditor.IsValid() && MetasoundEditor->GetBoundsForSelectedNodes(Bounds, 50.0f);
 
-	if (MetasoundEditor.IsValid() && MetasoundEditor->GetBoundsForSelectedNodes(Bounds, 50.0f))
+	if (UMetasoundEditorGraphCommentNode* NewComment = FGraphBuilder::CreateCommentNode(MetaSound, bSelectNewNode))
 	{
-		CommentTemplate->SetBounds(Bounds);
-		SpawnLocation.X = CommentTemplate->NodePosX;
-		SpawnLocation.Y = CommentTemplate->NodePosY;
+		if (bUseBounds)
+		{
+			NewComment->SetBounds(Bounds);
+		}
+		else
+		{
+			NewComment->NodePosX = Location.X;
+			NewComment->NodePosY = Location.Y;
+			NewComment->SnapToGrid(GetDefault<UEditorStyleSettings>()->GridSnapSize);
+
+			// Applies new snapped node data to frontend doc data
+			FMetaSoundFrontendGraphComment& FrontendComment = MetaSoundGraph->GetBuilderChecked().FindOrAddGraphComment(NewComment->GetCommentID());
+			UMetasoundEditorGraphCommentNode::ConvertToFrontendComment(*NewComment, FrontendComment);
+		}
+
+		return NewComment;
 	}
 
-	return FEdGraphSchemaAction_NewNode::SpawnNodeFromTemplate<UEdGraphNode_Comment>(ParentGraph, CommentTemplate, SpawnLocation);
+	return nullptr;
 }
 
 const FSlateBrush* FMetasoundGraphSchemaAction_NewComment::GetIconBrush() const
@@ -1266,8 +1306,8 @@ const FPinConnectionResponse UMetasoundEditorGraphSchema::CanCreateConnection(co
 		}
 	}
 
-	Frontend::FInputHandle InputHandle = Editor::FGraphBuilder::GetInputHandleFromPin(InputPin);
-	Frontend::FOutputHandle OutputHandle = Editor::FGraphBuilder::GetOutputHandleFromPin(OutputPin);
+	Frontend::FConstInputHandle InputHandle = Editor::FGraphBuilder::GetConstInputHandleFromPin(InputPin);
+	Frontend::FConstOutputHandle OutputHandle = Editor::FGraphBuilder::GetConstOutputHandleFromPin(OutputPin);
 
 	const bool bInputValid = InputHandle->IsValid();
 	const bool bOutputValid = OutputHandle->IsValid();
@@ -1387,6 +1427,7 @@ void UMetasoundEditorGraphSchema::OnPinConnectionDoubleCicked(UEdGraphPin* PinA,
 
 bool UMetasoundEditorGraphSchema::TryCreateConnection(UEdGraphPin* PinA, UEdGraphPin* PinB) const
 {
+	using namespace Metasound::Editor;
 	using namespace Metasound::Frontend;
 
 	if (!ensure(PinA && PinB))
@@ -1421,12 +1462,12 @@ bool UMetasoundEditorGraphSchema::TryCreateConnection(UEdGraphPin* PinA, UEdGrap
 		return false;
 	}
 
-	if (!Metasound::Editor::FGraphBuilder::ConnectNodes(*InputPin, *OutputPin, false /* bConnectEdPins */))
+	if (!FGraphBuilder::ConnectNodes(*InputPin, *OutputPin, false /* bConnectEdPins */))
 	{
 		return false;
 	}
 
-	Graph->GetModifyContext().SetDocumentModified();
+	FGraphBuilder::GetOutermostMetaSoundChecked(*Graph).GetModifyContext().SetDocumentModified();
 
 	return true;
 }
@@ -1475,15 +1516,14 @@ bool UMetasoundEditorGraphSchema::SafeDeleteNodeFromGraph(UEdGraph* Graph, UEdGr
 {
 	using namespace Metasound::Editor;
 
-	if (!InNodeToDelete || !Graph || InNodeToDelete->GetGraph() != Graph)
+	UMetasoundEditorGraph* MetaSoundGraph = Cast<UMetasoundEditorGraph>(Graph);
+	if (!InNodeToDelete || !MetaSoundGraph || InNodeToDelete->GetGraph() != Graph)
 	{
 		return false;
 	}
 
-	if (UObject* MetaSound = Graph->GetOutermostObject())
-	{
-		MetaSound->Modify();
-	}
+	UObject& MetaSound = MetaSoundGraph->GetMetasoundChecked();
+	MetaSound.Modify();
 	Graph->Modify();
 
 	return FGraphBuilder::DeleteNode(*InNodeToDelete);
@@ -1501,13 +1541,13 @@ bool UMetasoundEditorGraphSchema::ShouldHidePinDefaultValue(UEdGraphPin* Pin) co
 
 	if (Pin->Direction == EGPD_Input)
 	{
-		FInputHandle InputHandle = FGraphBuilder::GetInputHandleFromPin(Pin);
+		FConstInputHandle InputHandle = FGraphBuilder::GetConstInputHandleFromPin(Pin);
 		return !InputHandle->GetOwningNode()->GetClassStyle().Display.bShowLiterals;
 	}
 
 	if (Pin->Direction == EGPD_Output)
 	{
-		FOutputHandle OutputHandle = FGraphBuilder::GetOutputHandleFromPin(Pin);
+		FConstOutputHandle OutputHandle = FGraphBuilder::GetConstOutputHandleFromPin(Pin);
 		return !OutputHandle->GetOwningNode()->GetClassStyle().Display.bShowLiterals;
 	}
 
@@ -1524,7 +1564,8 @@ FText UMetasoundEditorGraphSchema::GetPinDisplayName(const UEdGraphPin* Pin) con
 
 	UMetasoundEditorGraphNode* Node = CastChecked<UMetasoundEditorGraphNode>(Pin->GetOwningNode());
 	FConstNodeHandle NodeHandle = Node->GetConstNodeHandle();
-	const EMetasoundFrontendClassType ClassType = NodeHandle->GetClassMetadata().GetType();
+	const FMetasoundFrontendClassMetadata& ClassMetadata = NodeHandle->GetClassMetadata();
+	const EMetasoundFrontendClassType ClassType = ClassMetadata.GetType();
 
 	switch (ClassType)
 	{
@@ -1549,7 +1590,6 @@ FText UMetasoundEditorGraphSchema::GetPinDisplayName(const UEdGraphPin* Pin) con
 
 		case EMetasoundFrontendClassType::Literal:
 		case EMetasoundFrontendClassType::External:
-		case EMetasoundFrontendClassType::Template:
 		{
 			if (Pin->Direction == EGPD_Input)
 			{
@@ -1570,6 +1610,33 @@ FText UMetasoundEditorGraphSchema::GetPinDisplayName(const UEdGraphPin* Pin) con
 
 			return Super::GetPinDisplayName(Pin);
 		}
+
+		case EMetasoundFrontendClassType::Template:
+		{
+			const INodeTemplate* Template = INodeTemplateRegistry::Get().FindTemplate(ClassMetadata.GetClassName());
+			if (ensure(Template))
+			{
+				if (Pin->Direction == EGPD_Input)
+				{
+					FConstInputHandle InputHandle = NodeHandle->GetConstInputWithVertexName(Pin->GetFName());
+					if (InputHandle->IsValid())
+					{
+						return Template->GetInputPinDisplayName(*InputHandle);
+					}
+				}
+				else
+				{
+					FConstOutputHandle OutputHandle = NodeHandle->GetConstOutputWithVertexName(Pin->GetFName());
+					if (OutputHandle->IsValid())
+					{
+						return Template->GetOutputPinDisplayName(*OutputHandle);
+					}
+				}
+			}
+
+			return Super::GetPinDisplayName(Pin);
+		}
+		break;
 
 		case EMetasoundFrontendClassType::Graph:
 		case EMetasoundFrontendClassType::Invalid:
@@ -1807,7 +1874,7 @@ void UMetasoundEditorGraphSchema::DroppedAssetsOnGraph(const TArray<FAssetData>&
 			}
 
 			// This may not be necessary as dropping an asset on the graph may load it, thus triggering the registration from the MetaSoundAssetManager.
-			const FMetasoundFrontendDocument& DroppedDoc = DroppedMetaSoundAsset->GetDocumentChecked();
+			const FMetasoundFrontendDocument& DroppedDoc = DroppedMetaSoundAsset->GetConstDocumentChecked();
 			const FNodeRegistryKey RegistryKey = FNodeRegistryKey(DroppedDoc.RootGraph);
 			if (ensure(RegistryKey.IsValid()))
 			{
@@ -1819,7 +1886,10 @@ void UMetasoundEditorGraphSchema::DroppedAssetsOnGraph(const TArray<FAssetData>&
 			FMetasoundFrontendClass Class;
 			if (ensure(ISearchEngine::Get().FindClassWithHighestVersion(DroppedDoc.RootGraph.Metadata.GetClassName(), Class)))
 			{
-				Metasound::Editor::FGraphBuilder::AddExternalNode(MetaSound, Class.Metadata, GraphPosition);
+				UMetasoundEditorGraphNode* NewGraphNode = Metasound::Editor::FGraphBuilder::AddExternalNode(MetaSound, Class.Metadata);
+				NewGraphNode->UpdateFrontendNodeLocation(GraphPosition);
+				NewGraphNode->SyncLocationFromFrontendNode();
+
 				bTransactionSucceeded = true;
 			}
 		}

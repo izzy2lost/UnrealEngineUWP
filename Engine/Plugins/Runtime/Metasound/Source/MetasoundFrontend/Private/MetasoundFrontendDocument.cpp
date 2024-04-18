@@ -879,7 +879,10 @@ FMetasoundFrontendDocument::FMetasoundFrontendDocument()
 {
 	RootGraph.ID = FGuid::NewGuid();
 	RootGraph.Metadata.SetType(EMetasoundFrontendClassType::Graph);
+
+#if WITH_EDITORONLY_DATA
 	ArchetypeVersion = FMetasoundFrontendVersion::GetInvalid();
+#endif // WITH_EDITORONLY_DATA
 }
 
 const TCHAR* LexToString(EMetasoundFrontendClassType InClassType)

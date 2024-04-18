@@ -66,7 +66,9 @@ public:
 #if WITH_EDITORONLY_DATA
 	virtual void AddAssetReferences(FMetasoundAssetBase& InAssetBase) override;
 #endif
-	virtual Metasound::Frontend::FNodeRegistryKey  AddOrUpdateAsset(const UObject& InObject) override;
+	virtual Metasound::Frontend::FNodeRegistryKey AddOrUpdateAsset(const UObject& InObject) override;
+	virtual FMetaSoundFrontendDocumentBuilder& AttachDocumentBuilderChecked(UObject& InObject) const override;
+
 	virtual bool CanAutoUpdate(const FMetasoundFrontendClassName& InClassName) const override;
 	virtual bool ContainsKey(const Metasound::Frontend::FNodeRegistryKey& InRegistryKey) const override;
 	virtual const FSoftObjectPath* FindObjectPathFromKey(const Metasound::Frontend::FNodeRegistryKey& RegistryKey) const override;

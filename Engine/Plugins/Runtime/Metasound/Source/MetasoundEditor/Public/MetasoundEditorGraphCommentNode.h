@@ -14,6 +14,7 @@
 
 struct FPropertyChangedEvent;
 class FMetasoundAssetBase;
+class UMetaSoundBuilderBase;
 
 
 // Forward Declarations
@@ -40,16 +41,20 @@ public:
 	//~ End UObject Interface
 
 	//~ Begin UEdGraphNode Interface
-	METASOUNDEDITOR_API virtual void ResizeNode(const FVector2D& NewSize) override;
-	METASOUNDEDITOR_API virtual void PostPlacedNewNode() override;
+	METASOUNDEDITOR_API virtual bool CanUserDeleteNode() const override;
 	METASOUNDEDITOR_API virtual void OnRenameNode(const FString& NewName) override;
+	METASOUNDEDITOR_API virtual void ResizeNode(const FVector2D& NewSize) override;
 	//~ End UEdGraphNode Interface
 
 	/** Set the Bounds for the comment node */
 	METASOUNDEDITOR_API void SetBounds(const class FSlateRect& Rect);
 
+	UMetaSoundBuilderBase& GetBuilderChecked() const;
+
 	// Returns frontend comment ID
 	FGuid GetCommentID() const;
+
+	bool RemoveFromDocument() const;
 
 private:
 	FMetasoundAssetBase& GetAssetChecked();

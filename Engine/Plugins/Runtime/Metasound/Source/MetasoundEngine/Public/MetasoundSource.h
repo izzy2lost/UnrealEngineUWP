@@ -26,6 +26,8 @@
 class UMetaSoundSettings;
 struct FMetaSoundQualitySettings;
 
+struct FMetaSoundFrontendDocumentBuilder;
+
 namespace Audio
 {
 	using DeviceID = uint32;
@@ -105,8 +107,11 @@ protected:
 	TSet<FSoftObjectPath> ReferenceAssetClassCache;
 
 #if WITH_EDITORONLY_DATA
-	UPROPERTY()
+	UPROPERTY(meta=(DeprecatedProperty, DeprecationMessage = "Use EditorGraph instead as it is now transient and generated via the FrontendDocument dynamically."))
 	TObjectPtr<UMetasoundEditorGraphBase> Graph;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UMetasoundEditorGraphBase> EditorGraph;
 #endif // WITH_EDITORONLY_DATA
 
 public:
@@ -175,13 +180,14 @@ public:
 	virtual const UEdGraph* GetGraph() const override;
 	virtual UEdGraph& GetGraphChecked() override;
 	virtual const UEdGraph& GetGraphChecked() const override;
+	virtual void MigrateEditorGraph(FMetaSoundFrontendDocumentBuilder& OutBuilder) override;
 
 	// Sets the graph associated with this Metasound. Graph is required to be referenced on
 	// Metasound UObject for editor serialization purposes.
 	// @param Editor graph associated with UMetaSoundSource.
 	virtual void SetGraph(UEdGraph* InGraph) override
 	{
-		Graph = CastChecked<UMetasoundEditorGraphBase>(InGraph);
+		EditorGraph = CastChecked<UMetasoundEditorGraphBase>(InGraph);
 	}
 #endif // #if WITH_EDITORONLY_DATA
 
@@ -212,10 +218,9 @@ public:
 private:
 	void PostEditChangeOutputFormat();
 	void PostEditChangeQualitySettings();
-public:
-
 #endif // WITH_EDITOR
 
+public:
 	virtual const TSet<FString>& GetReferencedAssetClassKeys() const override
 	{
 		return ReferencedAssetClassKeys;
@@ -231,7 +236,7 @@ public:
 
 	void PostLoadQualitySettings();
 
-	virtual bool ConformObjectDataToInterfaces() override;
+	virtual bool ConformObjectToDocument() override;
 
 	virtual FTopLevelAssetPath GetAssetPathChecked() const override;
 
@@ -268,6 +273,7 @@ public:
 	Metasound::FOperatorSettings GetOperatorSettings(Metasound::FSampleRate InDeviceSampleRate) const;
 
 	virtual const FMetasoundFrontendDocument& GetConstDocument() const override;
+	virtual bool IsBuilderActive() const override;
 
 protected:
 	Metasound::Frontend::FDocumentAccessPtr GetDocumentAccessPtr() override;
@@ -288,7 +294,6 @@ private:
 		return RootMetasoundDocument;
 	}
 
-	virtual bool IsBuilderActive() const override;
 	virtual void OnBeginActiveBuilder() override;
 	virtual void OnFinishActiveBuilder() override;
 
@@ -351,7 +356,7 @@ private:
 
 	// Quality settings. 
 	bool GetQualitySettings(const FName InPlatformName, Metasound::SourcePrivate::FCookedQualitySettings& OutQualitySettings) const;
-	void ResolveQualitySettings(const UMetaSoundSettings* Settings);	
+	void ResolveQualitySettings(const UMetaSoundSettings* Settings);
 	void SerializeCookedQualitySettings(const FName PlatformName, FArchive& Ar);
 	TPimplPtr<Metasound::SourcePrivate::FCookedQualitySettings> CookedQualitySettings;
 };

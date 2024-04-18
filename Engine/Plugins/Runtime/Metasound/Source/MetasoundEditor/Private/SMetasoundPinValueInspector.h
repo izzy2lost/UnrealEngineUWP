@@ -61,13 +61,13 @@ namespace Metasound
 
 			UObject* GetOutermostObject();
 
-			Frontend::FConstOutputHandle GetReroutedOutputHandle() const;
+			Frontend::FConstOutputHandle GetConstReroutedOutputHandle() const;
 
 			Frontend::FOutputHandle GetReroutedOutputHandle();
 
 			Frontend::FGraphHandle GetGraphHandle();
 
-			Frontend::FConstGraphHandle GetGraphHandle() const;
+			Frontend::FConstGraphHandle GetConstGraphHandle() const;
 
 			FGraphConnectionManager* GetConnectionManager();
 

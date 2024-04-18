@@ -165,6 +165,10 @@ public:
 	UE_DEPRECATED(5.4, "This version of AddNodeByClassName is deprecated. Use the one with a default MajorVersion of 1.")
 	UPARAM(DisplayName = "Node Handle") FMetaSoundNodeHandle AddNodeByClassName(const FMetasoundFrontendClassName& ClassName, int32 MajorVersion, EMetaSoundBuilderResult& OutResult);
 
+#if WITH_EDITOR
+	bool ClearMemberMetadata(const FGuid& InMemberID);
+#endif // WITH_EDITOR
+
 	// Connects node output to a node input. Does *NOT* provide loop detection for performance reasons.  Loop detection is checked on class registration when built or played.
 	// Returns succeeded if connection made, failed if connection already exists with input, the data types do not match, or the connection is not supported due to access type
 	// incompatibility (ex. constructor input to non-constructor input).
@@ -219,7 +223,7 @@ public:
 	// all connections were found and removed, failed if any connections were not.
 	UFUNCTION(BlueprintCallable, Category = "Audio|MetaSound|Builder", meta = (ExpandEnumAsExecs = "OutResult"))
 	void DisconnectNodesByInterfaceBindings(const FMetaSoundNodeHandle& FromNodeHandle, const FMetaSoundNodeHandle& ToNodeHandle, EMetaSoundBuilderResult& OutResult);
-	
+
 	// Returns graph input node by the given name if it exists, or an invalid handle if not found.
 	UFUNCTION(BlueprintCallable, Category = "Audio|MetaSound|Builder", meta = (ExpandEnumAsExecs = "OutResult"))
 	UPARAM(DisplayName = "Node Handle") FMetaSoundNodeHandle FindGraphInputNode(FName InputName, EMetaSoundBuilderResult& OutResult);
@@ -227,6 +231,10 @@ public:
 	// Returns graph output node by the given name if it exists, or an invalid handle if not found.
 	UFUNCTION(BlueprintCallable, Category = "Audio|MetaSound|Builder", meta = (ExpandEnumAsExecs = "OutResult"))
 	UPARAM(DisplayName = "Node Handle") FMetaSoundNodeHandle FindGraphOutputNode(FName OutputName, EMetaSoundBuilderResult& OutResult);
+
+#if WITH_EDITOR
+	UMetaSoundFrontendMemberMetadata* FindMemberMetadata(const FGuid& InMemberID);
+#endif // WITH_EDITOR
 
 	// Returns node input by the given name if it exists, or an invalid handle if not found.
 	UFUNCTION(BlueprintCallable, Category = "Audio|MetaSound|Builder", meta = (ExpandEnumAsExecs = "OutResult"))
@@ -346,19 +354,27 @@ public:
 
 	// Removes node and any associated connections from the builder's MetaSound.
 	UFUNCTION(BlueprintCallable, Category = "Audio|MetaSound|Builder", meta = (ExpandEnumAsExecs = "OutResult"))
-	void RemoveNode(const FMetaSoundNodeHandle& NodeHandle, EMetaSoundBuilderResult& OutResult);
+	void RemoveNode(const FMetaSoundNodeHandle& NodeHandle, EMetaSoundBuilderResult& OutResult, bool bRemoveUnusedDependencies = true);
 
 	// Removes node input literal default if set, reverting the value to be whatever the node class defaults the value to.
 	// Returns success if value was removed, false if not removed (i.e. wasn't set to begin with).
 	UFUNCTION(BlueprintCallable, Category = "Audio|MetaSound|Builder", meta = (ExpandEnumAsExecs = "OutResult"))
 	void RemoveNodeInputDefault(const FMetaSoundBuilderNodeInputHandle& InputHandle, EMetaSoundBuilderResult& OutResult);
-	
+
+	// Removes dependencies in document that are no longer referenced by nodes
+	UFUNCTION(BlueprintCallable, Category = "Audio|MetaSound|Builder")
+	void RemoveUnusedDependencies();
+
 	// Rename the document's root graph class with a guid and optional namespace and variant
 	void RenameRootGraphClass(const FMetasoundFrontendClassName& InName);
 
-	// Primarily used by editor transaction stack to avoid corruption when object is
-	// changed outside of the builder API. Generally discouraged for direct use otherwise.
+	UE_DEPRECATED(5.5, "Moved to 'Reload' to discourage priming by defaulting to false. "
+		"In addition, internal delegates and respective bindings are now regenerated when reloading, "
+		"effectively resetting the builder's entire state and not just strictly the underlying cache.")
 	void ReloadCache(bool bPrimeCache = true);
+
+	// Reloads the builder, freeing the internal cache and rebuilding delegate bindings
+	void Reload(bool bPrimeCache = false);
 
 #if WITH_EDITOR
 	// Sets the author of the MetaSound.
@@ -369,9 +385,31 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Audio|MetaSound|Builder", meta = (ExpandEnumAsExecs = "OutResult"))
 	void SetNodeInputDefault(const FMetaSoundBuilderNodeInputHandle& NodeInputHandle, const FMetasoundFrontendLiteral& Literal, EMetaSoundBuilderResult& OutResult);
 
+	// Disconnects the given graph input's respective template nodes and sets the graph input's AccessType should it not match the current AccessType.
+	// Result succeeds if the AccessType was successfully changed or if the provided AccessType is already the input's current AccessType.
+	UFUNCTION(BlueprintCallable, Category = "Audio|MetaSound|Builder", meta = (ExpandEnumAsExecs = "OutResult"))
+	void SetGraphInputAccessType(FName InputName, EMetasoundFrontendVertexAccessType AccessType, EMetaSoundBuilderResult& OutResult);
+
+	// Disconnects the given graph input's respective template nodes and sets the graph input's DataType should it not match the current DataType.
+	// Result succeeds if the DataType was successfully changed or if the provided DataType is already the input's current DataType.
+	UFUNCTION(BlueprintCallable, Category = "Audio|MetaSound|Builder", meta = (ExpandEnumAsExecs = "OutResult"))
+	void SetGraphInputDataType(FName InputName, FName DataType, EMetaSoundBuilderResult& OutResult);
+
 	// Sets the input node's default value, overriding the default provided by the referenced graph if the graph is a preset.
 	UFUNCTION(BlueprintCallable, Category = "Audio|MetaSound|Builder", meta = (ExpandEnumAsExecs = "OutResult"))
 	void SetGraphInputDefault(FName InputName, const FMetasoundFrontendLiteral& Literal, EMetaSoundBuilderResult& OutResult);
+
+	// Disconnects the given graph output's respective template nodes and sets the graph output's AccessType should it not match the current AccessType.
+	// Result succeeds if the AccessType was successfully changed or if the provided AccessType is already the output's current AccessType.
+	UFUNCTION(BlueprintCallable, Category = "Audio|MetaSound|Builder", meta = (ExpandEnumAsExecs = "OutResult"))
+	void SetGraphOutputAccessType(FName OutputName, EMetasoundFrontendVertexAccessType AccessType, EMetaSoundBuilderResult& OutResult);
+
+	// Disconnects the given graph output's respective template nodes and sets the graph output's DataType should it not match the current DataType.
+	// Result succeeds if the DataType was successfully changed or if the provided DataType is already the output's current DataType.
+	UFUNCTION(BlueprintCallable, Category = "Audio|MetaSound|Builder", meta = (ExpandEnumAsExecs = "OutResult"))
+	void SetGraphOutputDataType(FName OutputName, FName DataType, EMetaSoundBuilderResult& OutResult);
+
+	void SetMemberMetadata(UMetaSoundFrontendMemberMetadata& NewMetadata);
 
 	// Update dependency class names given a map of old to new referenced class names. 
 	void UpdateDependencyClassNames(const TMap<FMetasoundFrontendClassName, FMetasoundFrontendClassName>& OldToNewReferencedClassNames);
@@ -384,10 +422,19 @@ public:
 	UE_DEPRECATED(5.4, "Moved to protected pure virtual 'CreateTransientBuilder'")
 	virtual void InitFrontendBuilder();
 
+	virtual bool ConformObjectToDocument() PURE_VIRTUAL(UMetaSoundBuilderBase::ConformObjectToDocument, return false; );
+
 	// Initializes and ensures all nodes have a position (required prior to exporting to an asset if expected to be viewed in the editor).
 	virtual void InitNodeLocations();
 
 #if WITH_EDITOR
+	// Injects template nodes between builder's document inputs not connected
+	// to existing template inputs, copying locational data from the represented
+	// input metadata. If bForceNodeCreation is false, only generates a template
+	// input node if a connection between the input and other nodes exists. If true,
+	// will inject template node irrespective of whether or not the input has connections.
+	void InjectInputTemplateNodes(bool bForceNodeCreation, EMetaSoundBuilderResult& OutResult);
+
 	const FMetaSoundFrontendGraphComment* FindGraphComment(const FGuid& InCommentID) const;
 	FMetaSoundFrontendGraphComment* FindGraphComment(const FGuid & InCommentID);
 	FMetaSoundFrontendGraphComment& FindOrAddGraphComment(const FGuid& InCommentID);
@@ -402,11 +449,14 @@ public:
 	const FMetaSoundFrontendDocumentBuilder& GetConstBuilder() const;
 
 protected:
-	// Creates a FrontendBuilder wrapping the transient MetaSound object of the class supported by the given subsystem builder (See GetBuilderUClass).
+	virtual void InitDelegates(Metasound::Frontend::FDocumentModifyDelegates & OutDocumentDelegates) { };
+
+	// Creates a FrontendBuilder wrapping a transient MetaSound object of the class supported by the given subsystem builder (See GetBuilderUClass).
 	// Should only be used when builders is not being attached to an existing, serialized MetaSound asset.
 	virtual void CreateTransientBuilder() PURE_VIRTUAL(UMetaSoundBuilderBase::CreateTransientBuilder, );
 
-	void InvalidateCache();
+	UE_DEPRECATED(5.5, "Moved to 'Reload', to enforce generation of new delegates")
+	void InvalidateCache(bool bPrimeCache = false);
 
 	// Runs build, conforming the document and corresponding object data on a MetaSound UObject to that managed by this builder.
 	template <typename UClassType>
@@ -428,7 +478,7 @@ protected:
 			{
 				// If MetaSound already exists, preserve the class name to avoid
 				// nametable bloat & preserve potentially existing references.
-				const FMetasoundFrontendDocument& ExistingDoc = CastChecked<const UClassType>(MetaSound)->GetDocumentChecked();
+				const FMetasoundFrontendDocument& ExistingDoc = CastChecked<const UClassType>(MetaSound)->GetConstDocumentChecked();
 				if (!BuilderOptions.bForceUniqueClassName)
 				{
 					DocClassName = &ExistingDoc.RootGraph.Metadata.GetClassName();
@@ -454,17 +504,9 @@ protected:
 		}
 
 		checkf(MetaSound, TEXT("Failed to build MetaSound from builder '%s'"), *GetPathName());
-		FMetasoundFrontendDocument NewDocument = GetConstBuilder().GetDocument();
-		{
-			// This is required to ensure the newly build document has a unique class
-			// identifier than that of the given builder's document copy to avoid collisions
-			// if added to the Frontend class registry (either below or at a later point in time).
-			constexpr bool bResetVersion = false;
-			FMetaSoundFrontendDocumentBuilder::InitGraphClassMetadata(NewDocument.RootGraph.Metadata, bResetVersion, DocClassName);
-		}
 
-		MetaSound->SetDocument(MoveTemp(NewDocument));
-		MetaSound->ConformObjectDataToInterfaces();
+		TScriptInterface<IMetaSoundDocumentInterface> MetaSoundInterface = MetaSound;
+		BuildInternal(MetaSoundInterface, DocClassName);
 
 		if (BuilderOptions.bAddToRegistry)
 		{
@@ -486,15 +528,25 @@ protected:
 	UPROPERTY()
 	FMetaSoundFrontendDocumentBuilder Builder;
 
+	// ClassName of associated document object.  Cached in case DocumentObject is deleted but continues to provide an identifier after destruction.
+	UPROPERTY()
+	FMetasoundFrontendClassName ClassName;
+
 #if WITH_EDITORONLY_DATA
 	UPROPERTY(meta = (DeprecatedProperty, DeprecationMessage = "5.4 - All source builders now operate on an underlying document source document that is also used to audition."))
 	bool bIsAttached = false;
 #endif // WITH_EDITORONLY_DATA
 
+
+private:
+	void BuildInternal(TScriptInterface<IMetaSoundDocumentInterface> NewMetaSound, const FMetasoundFrontendClassName* InDocClassName) const;
+
 private:
 	int32 LastTransactionRegistered = 0;
 
 	// Friending allows for swapping the builder in certain circumstances where desired (eg. attaching a builder to an existing asset)
+	// or performing editor-only manipulations to the builder (ex. adding template nodes) and versioning the document data where necessary.
+	friend class UMetaSoundAssetSubsystem;
 	friend class UMetaSoundBuilderSubsystem;
 };
 
@@ -508,6 +560,7 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Audio|MetaSound|Builder", meta = (WorldContext = "Parent"))
 	virtual UPARAM(DisplayName = "MetaSound") TScriptInterface<IMetaSoundDocumentInterface> Build(UObject* Parent, const FMetaSoundBuilderOptions& Options) const override;
 
+	virtual bool ConformObjectToDocument() override;
 	virtual const UClass& GetBuilderUClass() const override;
 
 protected:
@@ -547,6 +600,7 @@ public:
 
 	const Metasound::Engine::FOutputAudioFormatInfoPair* FindOutputAudioFormatInfo() const;
 
+	virtual bool ConformObjectToDocument() override;
 	virtual const UClass& GetBuilderUClass() const override;
 
 #if WITH_EDITORONLY_DATA
@@ -563,6 +617,7 @@ public:
 
 protected:
 	virtual void CreateTransientBuilder() override;
+	virtual void InitDelegates(Metasound::Frontend::FDocumentModifyDelegates& OutDocumentDelegates) override;
 
 private:
 	static TOptional<Metasound::FAnyDataReference> CreateDataReference(const Metasound::FOperatorSettings& InOperatorSettings, FName DataType, const Metasound::FLiteral& InLiteral, Metasound::EDataReferenceAccessType AccessType);
@@ -570,7 +625,6 @@ private:
 	const UMetaSoundSource& GetMetaSoundSource() const;
 	UMetaSoundSource& GetMetaSoundSource();
 
-	void InitDelegates(Metasound::Frontend::FDocumentModifyDelegates& OutDocumentDelegates);
 
 	void OnEdgeAdded(int32 EdgeIndex) const;
 	void OnInputAdded(int32 InputIndex);
@@ -618,7 +672,7 @@ public:
 	static const UMetaSoundBuilderSubsystem* GetConst();
 	static const UMetaSoundBuilderSubsystem& GetConstChecked();
 
-	UMetaSoundBuilderBase& AttachBuilderToAssetChecked(UObject& InMetaSound) const;
+	UMetaSoundBuilderBase& AttachBuilderToAssetChecked(UObject& InObject) const;
 
 	// Moving toward becoming UFUNCTIONS in the future, but right now unguarded case
 	// where a user could improperly reference transient assets. Also, unsafe where
@@ -740,6 +794,7 @@ private:
 
 		const FMetasoundFrontendDocument& Document = NewBuilder->GetConstBuilder().GetDocument();
 		const FMetasoundFrontendClassName& ClassName = Document.RootGraph.Metadata.GetClassName();
+		NewBuilder->ClassName = ClassName;
 		TransientBuilders.Add(ClassName, NewBuilder);
 		return *NewBuilder.Get();
 	}
@@ -752,18 +807,29 @@ private:
 
 		TScriptInterface<IMetaSoundDocumentInterface> DocInterface = InMetaSoundObject;
 		const FMetasoundFrontendDocument& Document = DocInterface->GetConstDocument();
-		const FMetasoundFrontendClassName& ClassName = Document.RootGraph.Metadata.GetClassName();
-		TWeakObjectPtr<UMetaSoundBuilderBase> Builder = AssetBuilders.FindRef(ClassName);
-		if (Builder.IsValid())
+		const FMetasoundFrontendClassName& FullClassName = Document.RootGraph.Metadata.GetClassName();
+
+		if (FullClassName.IsValid())
 		{
-			return *CastChecked<BuilderClass>(Builder.Get());
+			TWeakObjectPtr<UMetaSoundBuilderBase> Builder = AssetBuilders.FindRef(FullClassName);
+			if (Builder.IsValid())
+			{
+				return *CastChecked<BuilderClass>(Builder.Get());
+			}
 		}
 
 		TObjectPtr<BuilderClass> NewBuilder = NewObject<BuilderClass>(InMetaSoundObject);
 		check(NewBuilder);
 		NewBuilder->Builder = FMetaSoundFrontendDocumentBuilder(DocInterface);
+
+		if (!FullClassName.IsValid())
+		{
+			NewBuilder->Builder.InitDocument();
+		}
+
+		checkf(FullClassName.IsValid(), TEXT("Document initialization must result in a valid class name being generated"));
 		TObjectPtr<UMetaSoundBuilderBase> NewBuilderBase = CastChecked<UMetaSoundBuilderBase>(NewBuilder);
-		AssetBuilders.Add(ClassName, NewBuilderBase);
+		AssetBuilders.Add(FullClassName, NewBuilderBase);
 		return *NewBuilder;
 	}
 

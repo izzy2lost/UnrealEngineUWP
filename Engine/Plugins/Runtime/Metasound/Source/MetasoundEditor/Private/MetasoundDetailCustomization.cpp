@@ -556,7 +556,7 @@ namespace Metasound
 					return false;
 				};
 
-				const TSet<FMetasoundFrontendVersion>& ImplementedInterfaces = MetaSoundAsset->GetDocumentChecked().Interfaces;
+				const TSet<FMetasoundFrontendVersion>& ImplementedInterfaces = MetaSoundAsset->GetConstDocumentChecked().Interfaces;
 				Algo::TransformIf(ImplementedInterfaces, ImplementedInterfaceNames, CanAddOrRemoveInterface, GetVersionName);
 
 				TArray<FMetasoundFrontendInterface> Interfaces = Frontend::ISearchEngine::Get().FindAllInterfaces();

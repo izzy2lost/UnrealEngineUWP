@@ -18,6 +18,7 @@
 #include "MetasoundRouter.h"
 #include "MetasoundVertex.h"
 #include "Modules/ModuleManager.h"
+#include "NodeTemplates/MetasoundFrontendNodeTemplateInput.h"
 #include "NodeTemplates/MetasoundFrontendNodeTemplateReroute.h"
 #include "StructDeserializer.h"
 #include "StructSerializer.h"
@@ -94,8 +95,8 @@ class FMetasoundFrontendModule : public IModuleInterface
 	{
 		using namespace Metasound::Frontend;
 
-		TUniquePtr<INodeTemplate> RerouteTemplate = MakeUnique<FRerouteNodeTemplate>();
-		RegisterNodeTemplate(MoveTemp(RerouteTemplate));
+		RegisterNodeTemplate(MakeUnique<FInputNodeTemplate>());
+		RegisterNodeTemplate(MakeUnique<FRerouteNodeTemplate>());
 
 		FMetasoundFrontendRegistryContainer* Registry = FMetasoundFrontendRegistryContainer::Get();
 		if (ensure(nullptr != Registry))
@@ -108,6 +109,7 @@ class FMetasoundFrontendModule : public IModuleInterface
 	{
 		using namespace Metasound::Frontend;
 
+		UnregisterNodeTemplate(FInputNodeTemplate::ClassName, FInputNodeTemplate::VersionNumber);
 		UnregisterNodeTemplate(FRerouteNodeTemplate::ClassName, FRerouteNodeTemplate::VersionNumber);
 	}
 };

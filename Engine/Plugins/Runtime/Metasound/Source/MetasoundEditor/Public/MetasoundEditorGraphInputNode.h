@@ -25,19 +25,31 @@ public:
 	UPROPERTY()
 	TObjectPtr<UMetasoundEditorGraphInput> Input;
 
-public:
-	virtual UMetasoundEditorGraphMember* GetMember() const override;
-	virtual void UpdatePreviewInstance(const Metasound::FVertexName& InParameterName, TScriptInterface<IAudioParameterControllerInterface>& InParameterInterface) const;
+	UPROPERTY()
+	FGuid NodeID;
 
+public:
+	const FMetasoundEditorGraphVertexNodeBreadcrumb& GetBreadcrumb() const;
+
+	virtual void CacheTitle() override;
+
+	virtual void CacheBreadcrumb() override;
+	virtual UMetasoundEditorGraphMember* GetMember() const override;
+	virtual void ReconstructNode() override;
+
+	virtual void UpdatePreviewInstance(const Metasound::FVertexName& InParameterName, TScriptInterface<IAudioParameterControllerInterface>& InParameterInterface) const;
 	virtual FMetasoundFrontendClassName GetClassName() const;
 
 	virtual FGuid GetNodeID() const override;
 	virtual FLinearColor GetNodeTitleColor() const override;
 	virtual FSlateIcon GetNodeTitleIcon() const override;
+	virtual void GetPinHoverText(const UEdGraphPin& Pin, FString& OutHoverText) const override;
 	virtual void Validate(Metasound::Editor::FGraphNodeValidationResult& OutResult) override;
 
 protected:
-	virtual void SetNodeID(FGuid InNodeID) override;
+	// Breadcrumb used if associated FrontendNode cannot be found or has been unlinked
+	UPROPERTY()
+	FMetasoundEditorGraphVertexNodeBreadcrumb Breadcrumb;
 
 	friend class Metasound::Editor::FGraphBuilder;
 };

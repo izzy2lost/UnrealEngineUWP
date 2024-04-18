@@ -88,7 +88,9 @@ namespace Metasound::Frontend
 		virtual ~IDocumentGraphInterfaceCache() = default;
 
 		virtual const FMetasoundFrontendClassInput* FindInput(FName InputName) const = 0;
+		virtual const int32* FindInputIndex(FName InputName) const = 0;
 		virtual const FMetasoundFrontendClassOutput* FindOutput(FName OutputName) const = 0;
+		virtual const int32* FindOutputIndex(FName OutputName) const = 0;
 	};
 
 	/** Interface for querying cached document dependencies. */
