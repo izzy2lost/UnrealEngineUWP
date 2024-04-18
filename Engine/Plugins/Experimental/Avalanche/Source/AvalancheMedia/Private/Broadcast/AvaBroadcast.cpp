@@ -68,6 +68,8 @@ UAvaBroadcast& UAvaBroadcast::Get()
 		Broadcast->AddToRoot();
 #if WITH_EDITOR
 		Broadcast->LoadBroadcast();
+#else
+		Broadcast->InitBroadcast();	// todo: find another way to load config in packaged build.
 #endif
 	}
 	
@@ -378,6 +380,13 @@ FString UAvaBroadcast::GetBroadcastSaveFilepath() const
 {
 	return UE::AvaBroadcast::Private::GetXmlSaveFilepath();
 }
+#else
+void UAvaBroadcast::InitBroadcast()
+{
+	CreateProfile(NAME_None, true);
+	EnsureValidCurrentProfile();
+	UpdateProfileNames();
+}
 #endif
 
 void UAvaBroadcast::QueueNotifyChange(EAvaBroadcastChange InChange)
@@ -397,7 +406,7 @@ void UAvaBroadcast::QueueNotifyChange(EAvaBroadcastChange InChange)
 					ThisWeak->OnBroadcastChanged.Broadcast(ThisWeak->QueuedBroadcastChanges);
 					ThisWeak->QueuedBroadcastChanges = EAvaBroadcastChange::None;
 				}
-			});	
+			});
 		}
 	}
 }

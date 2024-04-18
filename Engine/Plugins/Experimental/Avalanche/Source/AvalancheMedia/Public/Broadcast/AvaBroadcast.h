@@ -85,6 +85,8 @@ public:
 	void LoadBroadcast();
 	void SaveBroadcast();
 	FString GetBroadcastSaveFilepath() const;
+#else
+	void InitBroadcast();
 #endif
 
 	//Rather than Immediately calling the Broadcast Event change, it will queue all the multiple calls and dispatch it once to avoid redundancy
