@@ -99,5 +99,67 @@ namespace EpicGames.Horde.Logs
 		/// </summary>
 		public SearchStats? Stats { get; set; }
 	}
+
+	/// <summary>
+	/// Response when querying for specific lines from a log file
+	/// </summary>
+	public class LogLinesResponse
+	{
+		/// <summary>
+		/// start index of the lines returned
+		/// </summary>
+		public int Index;
+
+		/// <summary>
+		/// Number of lines returned
+		/// </summary>
+		public int Count;
+
+		/// <summary>
+		/// Last index of the returned messages
+		/// </summary>
+		public int MaxLineIndex;
+
+		/// <summary>
+		/// Type of response, Json or Text
+		/// </summary>
+		public LogType Format;
+
+		/// <summary>
+		/// List of lines received
+		/// </summary>
+		public List<LogLineResponse> Lines = new List<LogLineResponse>();
+	}
+
+	/// <summary>
+	/// Response object for individual lines
+	/// </summary>
+	public class LogLineResponse
+	{
+		/// <summary>
+		/// Timestamp for log line
+		/// </summary>
+		public DateTime Time;
+
+		/// <summary>
+		/// Level of Message (Information, Warning, Error)
+		/// </summary>
+		public string? Level;
+
+		/// <summary>
+		/// Message itself
+		/// </summary>
+		public string? Message;
+
+		/// <summary>
+		/// Format string for the message
+		/// </summary>
+		public string? Format;
+
+		/// <summary>
+		/// User-defined properties for this jobstep.
+		/// </summary>
+		public Dictionary<string, string>? Properties { get; set; }
+	}
 }
 
