@@ -351,6 +351,30 @@ public:
 	UPROPERTY(config, EditAnywhere, Category = "Modeling Mode|UI Customization")
 	bool bAlwaysShowToolButtons = false;
 
+	/**
+	 * Custom color for when geometry is not a part of current selection when using Mesh Element Selection
+	 */
+	UPROPERTY(Config, EditAnywhere, Category = "Modeling Mode|Mesh Element Selection Mode")
+	FLinearColor UnselectedColor = FLinearColor(.906f, 0.038f, 0.038f); // default red
+
+	/**
+	 * Custom color hovering over selected geometry in Mesh Element Selection
+	 */
+	UPROPERTY(Config, EditAnywhere, Category = "Modeling Mode|Mesh Element Selection Mode")
+	FLinearColor HoverOverSelectedColor = FLinearColor(0.791f, 0.262f, 1.0f); // default pink
+
+	/**
+	* Custom color hovering over unselected geometry in Mesh Element Selection
+	*/
+	UPROPERTY(Config, EditAnywhere, Category = "Modeling Mode|Mesh Element Selection Mode")
+	FLinearColor HoverOverUnselectedColor = FLinearColor(0.027f, 0.656f, 0.027f); // default green
+
+	/**
+	* Custom color for when geometry is a part of the current selection when using Mesh Element Selection
+	*/
+	UPROPERTY(Config, EditAnywhere, Category = "Modeling Mode|Mesh Element Selection Mode")
+	FLinearColor GeometrySelectedColor = FLinearColor(0.859f, 0.799f, 0.076f); // default yellow
+
 public:
 
 	// saved-state for various mode settings that are configured via UI toggles/etc, and not exposed in settings dialog

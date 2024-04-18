@@ -291,6 +291,44 @@ void FBaseDynamicMeshSelector::UpdateSelectionViaRaycast_MeshTopology(
 	UE::Geometry::UpdateTriangleSelectionViaRaycast(
 		GetColliderMesh(), &SelectionEditor,
 		LocalRay, UpdateConfig, ResultOut);
+	
+	if (SelectionEditor.GetElementType() == EGeometryElementType::Edge)
+	{
+		for (uint64 AddedElement : ResultOut.SelectionDelta.Added)
+		{
+			FMeshTriEdgeID TriEdgeID(FGeoSelectionID(AddedElement).GeometryID);
+			TargetMesh->ProcessMesh([TriEdgeID, &SelectionEditor](const UE::Geometry::FDynamicMesh3& SourceMesh)
+			{
+				// the added EdgeID
+				const int32 EdgeID = SourceMesh.IsTriangle(TriEdgeID.TriangleID) ? SourceMesh.GetTriEdge(TriEdgeID.TriangleID, TriEdgeID.TriEdgeIndex) : IndexConstants::InvalidID;
+				if (SourceMesh.IsEdge(EdgeID))
+				{
+					const FIndex2i EdgeV = SourceMesh.GetEdgeV(EdgeID);
+					// necessary so that edge is recognized from both 'sides' since edge is stored as MeshTriEdgeID.Encoded in SelectionEditor
+					// therefore need to include both of the Tris which the edge belongs to to the SelectionEditor
+					SourceMesh.EnumerateEdgeTriangles(EdgeID, [&SourceMesh, &EdgeV, &SelectionEditor, &TriEdgeID](const int32 TriangleID)
+					{
+						// avoid adding to selection edge already exists in selection
+						if (TriangleID == TriEdgeID.TriangleID)
+						{
+							return;
+						}
+
+						// iterate through all edges of the triangle
+						for (int i = 0; i <= 2; i++)
+						{
+							const int32 OtherEdgeID = SourceMesh.GetTriEdge(TriangleID, i);
+							if (EdgeV == SourceMesh.GetEdgeV(OtherEdgeID))
+							{
+								FMeshTriEdgeID MeshTriEdgeToSelect = FMeshTriEdgeID(TriangleID, i);
+								SelectionEditor.Select((uint64)MeshTriEdgeToSelect.Encoded());
+							}
+						}
+					});
+				}
+			});
+		}
+	}
 }
 
 
@@ -638,6 +676,20 @@ void FBaseDynamicMeshSelector::AccumulateSelectionElements(const FGeometrySelect
 		Selection.TopologyType == EGeometryTopologyType::Polygroup ? GetGroupTopology() : nullptr,
 		ApplyTransform,
 		bMapFacesToEdges);
+}
+
+void FBaseDynamicMeshSelector::AccumulateSelectionElements(const FGeometrySelection& Selection, FGeometrySelectionElements& Elements, bool bTransformToWorld, const EEnumerateMappingFlags Flags)
+{
+	const FTransform UseWorldTransform = GetLocalToWorldTransform();
+	const FTransform* ApplyTransform = (bTransformToWorld) ? &UseWorldTransform : nullptr;
+
+	ToolSelectionUtil::AccumulateSelectionElements(
+		Elements,
+		Selection,
+		TargetMesh->GetMeshRef(),
+		Selection.TopologyType == EGeometryTopologyType::Polygroup ? GetGroupTopology() : nullptr,
+		ApplyTransform,
+		Flags);
 }
 
 void FBaseDynamicMeshSelector::AccumulateElementsFromPredicate(FGeometrySelectionElements& Elements, bool bTransformToWorld, bool bIsForPreview, bool bUseGroupTopology, TFunctionRef<bool(EGeometryElementType, FGeoSelectionID)> Predicate)

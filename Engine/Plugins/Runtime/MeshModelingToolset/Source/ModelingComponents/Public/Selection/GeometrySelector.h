@@ -5,6 +5,7 @@
 #include "Components/PrimitiveComponent.h"
 #include "ConvexVolume.h"
 #include "Selections/GeometrySelection.h"
+#include "Selections/GeometrySelectionUtil.h"
 #include "FrameTypes.h"
 #include "InputState.h"
 #include "ToolContextInterfaces.h"
@@ -408,6 +409,9 @@ public:
 	 */
 	virtual void AccumulateSelectionBounds(const FGeometrySelection& Selection, FGeometrySelectionBounds& BoundsInOut, bool bTransformToWorld) = 0;
 
+	/** Prefer AccumulateSelectionElements with Flags parameter. */
+	virtual void AccumulateSelectionElements(const FGeometrySelection& Selection, FGeometrySelectionElements& ElementsInOut, bool bTransformToWorld, UE::Geometry::EEnumerateMappingFlags Flags = UE::Geometry::EEnumerateMappingFlags::Default) = 0;
+	
 	/**
 	 * Accumulate geometric elements (currently 3D triangles, line segments, and points) for the provided Selection in the provided ElementsInOut. 
 	 * ElementsInOut is not cleared.

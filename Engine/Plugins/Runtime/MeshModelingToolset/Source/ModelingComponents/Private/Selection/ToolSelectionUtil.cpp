@@ -50,6 +50,23 @@ bool ToolSelectionUtil::AccumulateSelectionElements(
 	const FTransform* ApplyTransform,
 	bool bMapFacesToEdges)
 {
+	return AccumulateSelectionElements(
+		Elements,
+		Selection,
+		SourceMesh,
+		GroupTopology,
+		ApplyTransform,
+		EEnumerateMappingFlags::Default | (bMapFacesToEdges ? EEnumerateMappingFlags::FacesToEdges : EEnumerateMappingFlags::None));
+}
+
+bool ToolSelectionUtil::AccumulateSelectionElements(
+	FGeometrySelectionElements& Elements,
+	const FGeometrySelection& Selection,
+	const FDynamicMesh3& SourceMesh,
+	const FGroupTopology* GroupTopology,
+	const FTransform* ApplyTransform,
+	const EEnumerateMappingFlags Flags)
+{
 	auto AddPoint = [&Elements](uint32 Vid, const FVector3d& Point) { Elements.Points.Add(Point); };
 	auto AddSegment = [&Elements](uint32 Eid, const FSegment3d& Segment) { Elements.Segments.Add(Segment); };
 	auto AddTriangle = [&Elements](uint32 Tid, const FTriangle3d& Triangle) { Elements.Triangles.Add(Triangle); };
@@ -59,16 +76,16 @@ bool ToolSelectionUtil::AccumulateSelectionElements(
 		if (GroupTopology)
 		{
 			return EnumeratePolygroupSelectionElements(Selection, SourceMesh, GroupTopology,
-				AddPoint, AddSegment, AddTriangle, ApplyTransform, bMapFacesToEdges);
+				AddPoint, AddSegment, AddTriangle, ApplyTransform, Flags);
 		}
 
 		const FGroupTopology ComputedGroupTopology(&SourceMesh, true);
 		return EnumeratePolygroupSelectionElements(Selection, SourceMesh, &ComputedGroupTopology,
-			AddPoint, AddSegment, AddTriangle, ApplyTransform, bMapFacesToEdges);
+			AddPoint, AddSegment, AddTriangle, ApplyTransform, Flags);
 	}
 
 	return EnumerateTriangleSelectionElements(Selection, SourceMesh, 
-			AddPoint, AddSegment, AddTriangle, ApplyTransform, bMapFacesToEdges);
+			AddPoint, AddSegment, AddTriangle, ApplyTransform, Flags);
 }
 
 void ToolSelectionUtil::DebugRenderGeometrySelectionElements(
@@ -92,7 +109,8 @@ void ToolSelectionUtil::DebugRender(
 	FLinearColor LineColor,
 	float PointSize,
 	FLinearColor PointColor,
-	float DepthBias)
+	float DepthBias,
+	FLinearColor FillColor)
 {
 	if (RenderAPI == nullptr)
 	{
@@ -115,7 +133,16 @@ void ToolSelectionUtil::DebugRender(
 		MeshBuilder.AddTriangle(V0, V1, V2);
 	}
 	//FMaterialRenderProxy* MaterialRenderProxy = TriangleMaterial->GetRenderProxy();		// currently does not work, material does not render
-	FMaterialRenderProxy* MaterialRenderProxy = GEngine->ConstraintLimitMaterialX->GetRenderProxy();
+
+	// desaturated color to use when triangle is selected in Mesh Element Selection
+	// uses ConstraintLimitMaterial bc ConstraintLimitMaterialX was used previously to get desaturated red color
+	TObjectPtr<class UMaterialInstanceDynamic> MeshElementSelectionFillColor;
+	MeshElementSelectionFillColor = UMaterialInstanceDynamic::Create((UMaterialInterface*)GEngine->ConstraintLimitMaterial, NULL);
+	MeshElementSelectionFillColor->SetVectorParameterValue(FName("Color"), FillColor);
+	MeshElementSelectionFillColor->SetScalarParameterValue(FName("Desaturation"), 0.6f);
+	FMaterialRenderProxy* MaterialRenderProxy = MeshElementSelectionFillColor->GetRenderProxy();
+	//FMaterialRenderProxy* MaterialRenderProxy = GEngine->ConstraintLimitMaterialX->GetRenderProxy();
+
 	MeshBuilder.Draw(CurrentPDI, FMatrix::Identity, MaterialRenderProxy, DepthPriority, false, false);
 
 	FToolDataVisualizer Visualizer;

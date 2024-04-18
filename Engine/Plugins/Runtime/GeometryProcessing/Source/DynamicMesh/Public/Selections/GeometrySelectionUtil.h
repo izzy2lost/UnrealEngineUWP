@@ -18,8 +18,27 @@ namespace Geometry
 class FColliderMesh;
 class FGroupTopology;
 struct FGroupTopologySelection;
+	
+enum class EEnumerateMappingFlags : uint16
+{
+	None         = 0,
+	
+	FacesToFaces = 1 << 0,
+	FacesToEdges = 1 << 1,
+	FacesToVerts = 1 << 2, // not used yet
 
+	EdgesToFaces = 1 << 3, // not used yet
+	EdgesToEdges = 1 << 4,
+	EdgesToVerts = 1 << 5, // not used yet
 
+	VertsToFaces = 1 << 6, // not used yet
+	VertsToEdges = 1 << 7, // not used yet
+	VertsToVerts = 1 << 8,
+
+	Default = FacesToFaces | EdgesToEdges | VertsToVerts,
+};
+ENUM_CLASS_FLAGS(EEnumerateMappingFlags);
+	
 /**
  * Test if SelectionA and SelectionB are the same selection.
  * This is currently relatively expensive on Polygroup selections due to how they are encoded
@@ -177,6 +196,17 @@ DYNAMICMESH_API bool EnumeratePolygroupSelectionEdges(
 	const UE::Geometry::FPolygroupSet& GroupSet,
 	TFunctionRef<void(int32)> EdgeFunc
 );
+	
+/** Prefer EnumerateTriangleSelectionElements with Flags parameter. */
+DYNAMICMESH_API bool EnumerateTriangleSelectionElements(
+	const FGeometrySelection& MeshSelection,
+	const UE::Geometry::FDynamicMesh3& Mesh,
+	TFunctionRef<void(int32, const FVector3d&)> VertexFunc,
+	TFunctionRef<void(int32, const FSegment3d&)> EdgeFunc,
+	TFunctionRef<void(int32, const FTriangle3d&)> TriangleFunc,
+	const FTransform* ApplyTransform = nullptr,
+	const bool bMapFacesToEdgeLoops = false
+);
 
 
 /**
@@ -193,7 +223,19 @@ DYNAMICMESH_API bool EnumerateTriangleSelectionElements(
 	TFunctionRef<void(int32, const FSegment3d&)> EdgeFunc,
 	TFunctionRef<void(int32, const FTriangle3d&)> TriangleFunc,
 	const FTransform* ApplyTransform = nullptr,
-	bool bMapFacesToEdgeLoops = false
+	const EEnumerateMappingFlags Flags = EEnumerateMappingFlags::Default
+);
+
+/** Prefer EnumeratePolygroupSelectionElements with Flags parameter. */
+DYNAMICMESH_API bool EnumeratePolygroupSelectionElements(
+	const FGeometrySelection& MeshSelection,
+	const UE::Geometry::FDynamicMesh3& Mesh,
+	const FGroupTopology* GroupTopology,
+	TFunctionRef<void(int32, const FVector3d&)> VertexFunc,
+	TFunctionRef<void(int32, const FSegment3d&)> EdgeFunc,
+	TFunctionRef<void(int32, const FTriangle3d&)> TriangleFunc,
+	const FTransform* ApplyTransform = nullptr,
+	const bool bMapFacesToEdgeLoops = false
 );
 /**
  * Call VertexFunc/EdgeFunc/TriangleFunc for the mesh vertices/edges/triangles identified by MeshSelection,
@@ -211,7 +253,7 @@ DYNAMICMESH_API bool EnumeratePolygroupSelectionElements(
 	TFunctionRef<void(int32, const FSegment3d&)> EdgeFunc,
 	TFunctionRef<void(int32, const FTriangle3d&)> TriangleFunc,
 	const FTransform* ApplyTransform = nullptr,
-	bool bMapFacesToEdgeLoops = false
+	const EEnumerateMappingFlags Flags = EEnumerateMappingFlags::Default
 );
 
 

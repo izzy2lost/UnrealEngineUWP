@@ -17,7 +17,7 @@
 
 static TAutoConsoleVariable<int32> CVarGeometrySelectionManager_FullSelectionHoverHighlights(
 	TEXT("modeling.Selection.FullHoverHighlights"),
-	0,
+	1,
 	TEXT("Use full selection hover highlights instead of simplified highlights")
 );
 
@@ -982,7 +982,55 @@ bool UGeometrySelectionManager::UpdateSelectionPreviewViaRaycast(
 	if ( ! UE::Geometry::AreSelectionsIdentical(NewPreview.PreviewSelection, ActivePreviewSelection) )
 	{
 		ActivePreviewSelection = MoveTemp(NewPreview.PreviewSelection);
-		CachedPreviewRenderElements.Reset();
+		
+		// Initialize [Un]SelectedActivePreviewSelection(s) so that they are of the correct Topology and Geometry type, then clear them
+		SelectedActivePreviewSelection = MoveTemp(NewPreview.PreviewSelection);
+		UnselectedActivePreviewSelection = MoveTemp(NewPreview.PreviewSelection);
+		SelectedActivePreviewSelection.Reset();
+		UnselectedActivePreviewSelection.Reset();
+
+		if (MeshTopologyMode == EMeshTopologyMode::Polygroup)
+		{
+			// Get all polygroup IDs in current preview selection
+			TSet<uint32> SelectedGroupIDs;
+			for (const uint64 ID : Target->Selection.Selection)
+			{
+				SelectedGroupIDs.Add(FGeoSelectionID(ID).TopologyID);
+			}
+
+			// Get GroupID of active preview selection (hovered items)
+			for (const uint64 ID : ActivePreviewSelection.Selection)
+			{
+				const uint32 TopoID = FGeoSelectionID(ID).TopologyID;
+
+				// add to selection according to if an element with the GroupID is already selected
+				if (SelectedGroupIDs.Contains(TopoID))
+				{
+					SelectedActivePreviewSelection.Selection.Add(ID);
+				}
+				else
+				{
+					UnselectedActivePreviewSelection.Selection.Add(ID);
+				}
+			}
+		}
+		// Triangle Topology mode is more straightforward
+		else if (MeshTopologyMode == EMeshTopologyMode::Triangle)
+		{
+			for (const uint64 ID : ActivePreviewSelection.Selection)
+			{
+				if (Target->Selection.Selection.Contains(ID))
+				{
+					SelectedActivePreviewSelection.Selection.Add(ID);
+				}
+				else
+				{
+					UnselectedActivePreviewSelection.Selection.Add(ID);
+				}
+			}
+		}
+		CachedSelectedPreviewRenderElements.Reset();
+		CachedUnselectedPreviewRenderElements.Reset();
 		MarkRenderCachesDirty();
 	}
 
@@ -1353,7 +1401,10 @@ void UGeometrySelectionManager::RebuildSelectionRenderCaches()
 void UGeometrySelectionManager::ClearActivePreview()
 {
 	ActivePreviewSelection.Reset();
-	CachedPreviewRenderElements.Reset();
+	SelectedActivePreviewSelection.Reset();
+	UnselectedActivePreviewSelection.Reset();
+	CachedSelectedPreviewRenderElements.Reset();
+	CachedUnselectedPreviewRenderElements.Reset();
 	bSelectableRenderCachesDirty = true;
 	bPreviewRenderCachesDirty = true;
 }
@@ -1395,22 +1446,8 @@ void UGeometrySelectionManager::RebuildSelectableRenderCache()
 		
 		Target->Selector->AccumulateElementsFromPredicate(AllElements, true, false, MeshTopologyMode == EMeshTopologyMode::Polygroup, [Target, this](EGeometryElementType Type, FGeoSelectionID ID)
 		{
-			uint64 EncodedID = ID.Encoded();
-
 			// Selectable faces are not displayed directly, just implicitly via displayed edges.
 			if (Type == EGeometryElementType::Face)
-			{
-				return false;
-			}
-			
-			// Exclude selected elements from selectable elements
-			if (Target->Selection.ElementType == Type && Target->Selection.Selection.Contains(EncodedID))
-			{
-				return false;
-			}
-
-			// Exclude hovered elements from selectable elements
-			if (ActivePreviewSelection.ElementType == Type && ActivePreviewSelection.Selection.Contains(EncodedID))
 			{
 				return false;
 			}
@@ -1429,12 +1466,20 @@ void UGeometrySelectionManager::RebuildPreviewRenderCache()
 		return;
 	}
 
-	const bool bUseSimplifiedPreviewHighlight = (CVarGeometrySelectionManager_FullSelectionHoverHighlights.GetValueOnGameThread() == 0);
+	// defaults to off/false; when off, will show outlines and fill color when hovering. When on/true, will only show outlines
 	const TSharedPtr<FGeometrySelectionTarget> Target = ActiveTargetReferences[0];
 	
 	if (ActivePreviewSelection.IsEmpty() == false)
 	{
-		Target->Selector->AccumulateSelectionElements(ActivePreviewSelection, CachedPreviewRenderElements, true, bUseSimplifiedPreviewHighlight);
+		EEnumerateMappingFlags MappingFlags = EEnumerateMappingFlags::Default | EEnumerateMappingFlags::FacesToEdges;
+		if (CVarGeometrySelectionManager_FullSelectionHoverHighlights.GetValueOnGameThread() == 0)
+		{
+			// Unset FacesToFaces flag if full hover highlights are disabled
+			MappingFlags &= ~EEnumerateMappingFlags::FacesToFaces;
+		}
+		
+		Target->Selector->AccumulateSelectionElements(SelectedActivePreviewSelection, CachedSelectedPreviewRenderElements, true, MappingFlags);
+		Target->Selector->AccumulateSelectionElements(UnselectedActivePreviewSelection, CachedUnselectedPreviewRenderElements, true, MappingFlags);
 	}
 	
 	bPreviewRenderCachesDirty = false;
@@ -1482,21 +1527,31 @@ void UGeometrySelectionManager::DebugRender(IToolsContextRenderAPI* RenderAPI)
 		
 		for ( const FGeometrySelectionElements& Elements : CachedSelectionRenderElements )
 		{
-			ToolSelectionUtil::DebugRender(RenderAPI, Elements, 4.f, LinearColors::Gold3f(), 10.f, LinearColors::Gold3f(), 6.f);
+			// render geometry selection
+			ToolSelectionUtil::DebugRender(RenderAPI, Elements, 4.f, GeometrySelectedColor, 10.f, GeometrySelectedColor, 6.f, GeometrySelectedColor);
 		}
 
 		if (MeshTopologyMode != EMeshTopologyMode::None)
 		{
 			for ( const FGeometrySelectionElements& Elements : CachedSelectableRenderElements )
 			{
-				ToolSelectionUtil::DebugRender(RenderAPI, Elements, 2.f, LinearColors::Red3f(), 8.f, LinearColors::Red3f(), 5.f);
+				// render unselected geometry (wireframe overlay color in MeshElementSelection mode)
+				ToolSelectionUtil::DebugRender(RenderAPI, Elements, 2.f, UnselectedColor, 8.f, UnselectedColor, 5.f, UnselectedColor);
 			}
 		}
-		
-		ToolSelectionUtil::DebugRender(RenderAPI, CachedPreviewRenderElements, 4.f, LinearColors::Green3f(), 10.f, LinearColors::Green3f(), 7.f);
+		// render both hover cases (if element is part of the selection, or if not)
+		ToolSelectionUtil::DebugRender(RenderAPI, CachedSelectedPreviewRenderElements, 4.f, HoverOverSelectedColor, 10.f, HoverOverSelectedColor, 7.f, HoverOverSelectedColor);
+		ToolSelectionUtil::DebugRender(RenderAPI, CachedUnselectedPreviewRenderElements, 4.f, HoverOverUnselectedColor, 10.f, HoverOverUnselectedColor, 7.f, HoverOverUnselectedColor);
 	}
 }
 
+void UGeometrySelectionManager::SetSelectionColors(const FLinearColor UnselectedCol, const FLinearColor HoverOverSelectedCol, const FLinearColor HoverOverUnselectedCol, const FLinearColor GeometrySelectedCol)
+{
+	UnselectedColor = UnselectedCol;
+	HoverOverSelectedColor = HoverOverSelectedCol;
+	HoverOverUnselectedColor = HoverOverUnselectedCol;
+	GeometrySelectedColor = GeometrySelectedCol;
+}
 
 
 

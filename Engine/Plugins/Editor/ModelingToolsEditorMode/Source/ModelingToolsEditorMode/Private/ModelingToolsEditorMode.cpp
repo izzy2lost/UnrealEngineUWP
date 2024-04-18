@@ -883,6 +883,7 @@ void UModelingToolsEditorMode::Enter()
 						ModelingEditorSettings->LastMeshSelectionTopologyMode = static_cast<int>(TopoMode);
 						ModelingEditorSettings->LastMeshSelectionElementType = static_cast<int>(ElementMode);
 						ModelingEditorSettings->SaveConfig();
+						SelectionManager->SetSelectionColors(ModelingEditorSettings->UnselectedColor, ModelingEditorSettings->HoverOverSelectedColor, ModelingEditorSettings->HoverOverUnselectedColor, ModelingEditorSettings->GeometrySelectedColor);
 					}
 				}
 			}),

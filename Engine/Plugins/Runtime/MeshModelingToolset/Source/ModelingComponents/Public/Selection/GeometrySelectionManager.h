@@ -296,7 +296,7 @@ public:
 	virtual bool HasSelection() const;
 
 	/** 
-	 * Get avaialble information about the active selection/state
+	 * Get available information about the active selection/state
 	 */
 	virtual void GetActiveSelectionInfo(EGeometryTopologyType& TopologyTypeOut, EGeometryElementType& ElementTypeOut, int& NumTargetsOut, bool& bIsEmpty) const;
 
@@ -392,8 +392,12 @@ public:
 	virtual void DebugPrintSelection();
 	/** Visualize the active selection using PDI drawing */
 	virtual void DebugRender(IToolsContextRenderAPI* RenderAPI);
-
-
+	
+	/** Set the colors to be used during mesh element selection for:
+	 * Unselected elements, Hover over selection, Hover over non-selection, and Selected elements
+	 */
+	void SetSelectionColors(FLinearColor UnselectedCol, FLinearColor HoverOverSelectedCol, FLinearColor HoverOverUnselectedCol, FLinearColor GeometrySelectedCol);
+	
 protected:
 
 	// current selection mode settings
@@ -460,16 +464,27 @@ protected:
 	void OnTargetGeometryModified(IGeometrySelector* Selector);
 
 	
-	// todo [nickolas.drake]: cane we move CachedSelectionRenderElements, CachedPreviewRenderElements, and bSelectionRenderCachesDirty to private?
+	// todo [nickolas.drake]: cane we move CachedSelectionRenderElements, Cached[Un]selectedPreviewRenderElements, and bSelectionRenderCachesDirty to private?
 	
 	TArray<FGeometrySelectionElements> CachedSelectionRenderElements;				// Cached 3D geometry for current selection
 	bool bSelectionRenderCachesDirty = false;
 	void UpdateSelectionRenderCacheOnTargetChange();
 	void RebuildSelectionRenderCaches();
 
-    FGeometrySelection ActivePreviewSelection;										// Selection representing the active preview
-	FGeometrySelectionElements CachedPreviewRenderElements;							// Cached 3D geometry for active preview elements
+    FGeometrySelection ActivePreviewSelection;
+	FGeometrySelection SelectedActivePreviewSelection;
+	FGeometrySelection UnselectedActivePreviewSelection;
+	
+	FGeometrySelectionElements CachedSelectedPreviewRenderElements;		// Cached 3D geometry for active preview elements that are in the current selection
+	FGeometrySelectionElements CachedUnselectedPreviewRenderElements;  // Cached 3D geometry for active preview elements that are NOT in the current selection
     void ClearActivePreview();
+
+	
+	// colors used in mesh element selection
+	FLinearColor UnselectedColor;
+	FLinearColor HoverOverSelectedColor;
+	FLinearColor HoverOverUnselectedColor;
+	FLinearColor GeometrySelectedColor;
 
 	
 	// various change types need internal access
