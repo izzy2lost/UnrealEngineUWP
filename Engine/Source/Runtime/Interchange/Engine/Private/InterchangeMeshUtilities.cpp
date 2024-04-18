@@ -253,13 +253,12 @@ TFuture<bool> UInterchangeMeshUtilities::InternalImportCustomLod(TSharedPtr<TPro
 					//Make sure we can modify the skeletalmesh properties
 					FSkinnedAssetAsyncBuildScope AsyncBuildScope(SkeletalMesh);
 					Promise->SetValue(FLODUtilities::SetCustomLOD(SkeletalMesh, SourceSkeletalMesh, LodIndex, SourceDataFilename));
-					DeletePathAssets();
 				}
 				else
 				{
 					Promise->SetValue(false);
 				}
-				
+				DeletePathAssets();
 			});
 	}
 	else if (StaticMesh)
@@ -270,12 +269,12 @@ TFuture<bool> UInterchangeMeshUtilities::InternalImportCustomLod(TSharedPtr<TPro
 				if(SourceStaticMesh)
 				{
 					Promise->SetValue(StaticMesh->SetCustomLOD(SourceStaticMesh, LodIndex, SourceDataFilename));
-					DeletePathAssets();
 				}
 				else
 				{
 					Promise->SetValue(false);
 				}
+				DeletePathAssets();
 			});
 	}
 
