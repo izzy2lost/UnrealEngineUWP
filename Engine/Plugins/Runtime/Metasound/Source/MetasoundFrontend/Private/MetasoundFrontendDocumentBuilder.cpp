@@ -3410,10 +3410,16 @@ bool FMetaSoundFrontendDocumentBuilder::SetNodeLocation(const FGuid& InNodeID, c
 		FMetasoundFrontendNodeStyle& Style = Node->Style;
 		if (InLocationGuid)
 		{
-			ensureMsgf(InLocationGuid->IsValid(), TEXT("Invalid Location Guid no longer supported."));
-			Style.Display.Locations.FindOrAdd(*InLocationGuid) = InLocation;
+			if (InLocationGuid->IsValid())
+			{
+				Style.Display.Locations.FindOrAdd(*InLocationGuid) = InLocation;
+				return true;
+			}
+
+			UE_LOG(LogMetaSound, Display, TEXT("Invalid Location Guid no longer supported, reseting display location for node with ID '%s'"), *InNodeID.ToString());
 		}
-		else if (Style.Display.Locations.IsEmpty())
+
+		if (Style.Display.Locations.IsEmpty())
 		{
 			Style.Display.Locations = { { FGuid::NewGuid(), InLocation } };
 		}
