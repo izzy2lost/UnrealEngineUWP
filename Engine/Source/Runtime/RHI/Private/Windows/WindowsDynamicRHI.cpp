@@ -726,6 +726,13 @@ static TOptional<EWindowsRHI> ChooseForcedRHI(TOptional<ERHIFeatureLevel::Type> 
 		Sum++;
 	}
 
+#if WITH_EDITOR
+	if (!ForcedRHI && GIsEditor && FParse::Param(FCommandLine::Get(), TEXT("Bindless")))
+	{
+		ForcedRHI = EWindowsRHI::D3D12;
+	}
+#endif
+
 	if (Sum > 1)
 	{
 		FMessageDialog::Open(EAppMsgType::Ok, LOCTEXT("RHIOptionsError", "-d3d12/dx12, -d3d11/dx11, -vulkan, and -opengl are mutually exclusive options, but more than one was specified on the command-line."));
@@ -770,6 +777,13 @@ static TOptional<ERHIFeatureLevel::Type> GetForcedFeatureLevel()
 	{
 		ForcedFeatureLevel = ERHIFeatureLevel::SM6;
 	}
+
+#if WITH_EDITOR
+	if (GIsEditor && FParse::Param(FCommandLine::Get(), TEXT("Bindless")))
+	{
+		ForcedFeatureLevel = ERHIFeatureLevel::SM6;
+	}
+#endif
 
 	return ForcedFeatureLevel;
 }
