@@ -12,6 +12,7 @@ class FArchive;
 class FCbFieldView;
 class FCbWriter;
 class FPackageId;
+class FIoContainerId;
 
 /**
  * Addressable chunk types.
@@ -154,3 +155,6 @@ CORE_API FIoChunkId CreatePackageDataChunkId(const FPackageId& PackageId);
 
 /** Returns a file data I/O chunk ID for the specified filename. */
 CORE_API FIoChunkId CreateExternalFileChunkId(const FStringView Filename);
+
+/** Returns a container header I/O chunk ID. */
+CORE_API FIoChunkId CreateContainerHeaderChunkId(const FIoContainerId& ContainerId);

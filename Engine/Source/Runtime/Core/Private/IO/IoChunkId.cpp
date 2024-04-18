@@ -2,6 +2,7 @@
 
 #include "IO/IoChunkId.h"
 #include "IO/PackageId.h"
+#include "IO/IoContainerId.h"
 #include "Hash/Blake3.h"
 #include "Memory/MemoryView.h"
 #include "Serialization/Archive.h"
@@ -119,4 +120,9 @@ FIoChunkId CreateExternalFileChunkId(const FStringView Filename)
 	ChunkId.Set(Id, sizeof(Id));
 
 	return ChunkId;
+}
+
+FIoChunkId CreateContainerHeaderChunkId(const FIoContainerId& ContainerId)
+{
+	return CreateIoChunkId(ContainerId.Value(), 0, EIoChunkType::ContainerHeader);
 }
