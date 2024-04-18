@@ -127,54 +127,61 @@ void FSourceControlViewportToolTips::UpdateToolTip()
 {
 	ToolTipText = FText::GetEmpty();
 
-	if (Actor.IsValid() && !Actor->IsSelected())
+	if (Actor.IsValid())
 	{
-		if (UPackage* Package = Actor->GetPackage())
+		bool bExternal = Actor->IsPackageExternal();
+		bool bIgnored = !bExternal;
+		bool bSelected = Actor->IsSelected();
+		bool bHidden = Actor->IsHidden();
+		if (!bIgnored && !bSelected && !bHidden)
 		{
-			FString SourceFileName = SourceControlHelpers::PackageFilename(Package);
-
-			ISourceControlModule& SourceControlModule = ISourceControlModule::Get();
-			ISourceControlProvider& SourceControlProvider = SourceControlModule.GetProvider();
-			if (SourceControlModule.IsEnabled())
+			if (UPackage* Package = Actor->GetPackage())
 			{
-				FSourceControlStatePtr State = SourceControlProvider.GetState(SourceFileName, EStateCacheUsage::Use);
-				if (State.IsValid() && State->IsSourceControlled())
+				FString SourceFileName = SourceControlHelpers::PackageFilename(Package);
+
+				ISourceControlModule& SourceControlModule = ISourceControlModule::Get();
+				ISourceControlProvider& SourceControlProvider = SourceControlModule.GetProvider();
+				if (SourceControlModule.IsEnabled())
 				{
-					FString Who;
+					FSourceControlStatePtr State = SourceControlProvider.GetState(SourceFileName, EStateCacheUsage::Use);
+					if (State.IsValid() && State->IsSourceControlled())
+					{
+						FString Who;
 
-					bool bNotAtHeadRevision = !State->IsCurrent();
-					bool bCheckedOutByOtherUser = State->IsCheckedOutOther(&Who);
-					bool bCheckedOut = State->IsCheckedOut();
-					bool bOpenForAdd = State->IsAdded();
+						bool bNotAtHeadRevision = !State->IsCurrent();
+						bool bCheckedOutByOtherUser = State->IsCheckedOutOther(&Who);
+						bool bCheckedOut = State->IsCheckedOut();
+						bool bOpenForAdd = State->IsAdded();
 
-					bool bNotAtHeadRevisionEnabled = false;
-					bool bCheckedOutByOtherUserEnabled = false;
-					bool bCheckedOutEnabled = false;
-					bool bOpenForAddEnabled = false;
+						bool bNotAtHeadRevisionEnabled = false;
+						bool bCheckedOutByOtherUserEnabled = false;
+						bool bCheckedOutEnabled = false;
+						bool bOpenForAddEnabled = false;
 
-					if (TSharedPtr<SLevelViewport> ViewportWidgetPtr = ViewportWidget.Pin())
-					{
-						bNotAtHeadRevisionEnabled = SourceControlViewportUtils::GetFeedbackEnabled(ViewportWidgetPtr->GetViewportClient().Get(), ESourceControlStatus::NotAtHeadRevision);
-						bCheckedOutByOtherUserEnabled = SourceControlViewportUtils::GetFeedbackEnabled(ViewportWidgetPtr->GetViewportClient().Get(), ESourceControlStatus::CheckedOutByOtherUser);
-						bCheckedOutEnabled = SourceControlViewportUtils::GetFeedbackEnabled(ViewportWidgetPtr->GetViewportClient().Get(), ESourceControlStatus::CheckedOut);
-						bOpenForAddEnabled = SourceControlViewportUtils::GetFeedbackEnabled(ViewportWidgetPtr->GetViewportClient().Get(), ESourceControlStatus::OpenForAdd);
-					}
+						if (TSharedPtr<SLevelViewport> ViewportWidgetPtr = ViewportWidget.Pin())
+						{
+							bNotAtHeadRevisionEnabled = SourceControlViewportUtils::GetFeedbackEnabled(ViewportWidgetPtr->GetViewportClient().Get(), ESourceControlStatus::NotAtHeadRevision);
+							bCheckedOutByOtherUserEnabled = SourceControlViewportUtils::GetFeedbackEnabled(ViewportWidgetPtr->GetViewportClient().Get(), ESourceControlStatus::CheckedOutByOtherUser);
+							bCheckedOutEnabled = SourceControlViewportUtils::GetFeedbackEnabled(ViewportWidgetPtr->GetViewportClient().Get(), ESourceControlStatus::CheckedOut);
+							bOpenForAddEnabled = SourceControlViewportUtils::GetFeedbackEnabled(ViewportWidgetPtr->GetViewportClient().Get(), ESourceControlStatus::OpenForAdd);
+						}
 
-					if (bNotAtHeadRevision && bNotAtHeadRevisionEnabled)
-					{
-						ToolTipText = LOCTEXT("NotAtHeadRevision", "File(s) out of sync");
-					}
-					else if (bCheckedOutByOtherUser && bCheckedOutByOtherUserEnabled)
-					{
-						ToolTipText = FText::Format(LOCTEXT("CheckedOutOtherUser", "File(s) checked out by {0}"), FText::FromString(Who));
-					}
-					else if (bCheckedOut && bCheckedOutEnabled)
-					{
-						ToolTipText = LOCTEXT("CheckedOut", "File(s) checked out by you");
-					}
-					else if (bOpenForAdd && bOpenForAddEnabled)
-					{
-						ToolTipText = LOCTEXT("OpenForAdd", "File(s) added by you");
+						if (bNotAtHeadRevision && bNotAtHeadRevisionEnabled)
+						{
+							ToolTipText = LOCTEXT("NotAtHeadRevision", "File(s) out of sync");
+						}
+						else if (bCheckedOutByOtherUser && bCheckedOutByOtherUserEnabled)
+						{
+							ToolTipText = FText::Format(LOCTEXT("CheckedOutOtherUser", "File(s) checked out by {0}"), FText::FromString(Who));
+						}
+						else if (bCheckedOut && bCheckedOutEnabled)
+						{
+							ToolTipText = LOCTEXT("CheckedOut", "File(s) checked out by you");
+						}
+						else if (bOpenForAdd && bOpenForAddEnabled)
+						{
+							ToolTipText = LOCTEXT("OpenForAdd", "File(s) added by you");
+						}
 					}
 				}
 			}
