@@ -9,6 +9,8 @@
 class UPolygonSelectionMechanic;
 class UClothEditorContextObject;
 class UPreviewMesh;
+struct FChaosClothAssetSelectionNode;
+enum class EChaosClothAssetSelectionOverrideType : uint8;
 
 namespace UE::Geometry
 {
@@ -100,8 +102,11 @@ class CHAOSCLOTHASSETEDITORTOOLS_API UClothMeshSelectionToolProperties : public 
 
 public:
 
-	UPROPERTY(EditAnywhere, Transient, Category = Name, meta = (DisplayName = "Name", TransientToolProperty))
+	UPROPERTY(EditAnywhere, Transient, Category = Selection, meta = (DisplayName = "Name", TransientToolProperty))
 	FString Name;
+
+	UPROPERTY(EditAnywhere, Transient, Category = Selection, meta = (TransientToolProperty))
+	EChaosClothAssetSelectionOverrideType SelectionOverrideType;
 
 	/**
 	* Whether the user is editing the primary or secondary selection set. Stored as a property here so that the tool will remember what the
@@ -146,7 +151,7 @@ private:
 	virtual FBox GetWorldSpaceFocusBox() override;
 
 	void SetClothEditorContextObject(TObjectPtr<UClothEditorContextObject> InClothEditorContextObject);
-	bool GetSelectedNodeInfo(FString& OutMapName, UE::Geometry::FGroupTopologySelection& OutSelection);
+	bool GetSelectedNodeInfo(FString& OutMapName, UE::Geometry::FGroupTopologySelection& OutSelection, EChaosClothAssetSelectionOverrideType& OutOverrideType);
 	void UpdateSelectedNode();
 
 	UPROPERTY()
@@ -169,6 +174,8 @@ private:
 	TArray<int32> DynamicMeshToSelection;
 	TArray<TArray<int32>> SelectionToDynamicMesh;
 
+	FChaosClothAssetSelectionNode* SelectionNodeToUpdate = nullptr;
+	TSet<int32> InputSelectionSet;
 	//
 	// Action support
 	//

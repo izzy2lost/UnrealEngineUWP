@@ -4,6 +4,7 @@
 #include "ChaosClothAsset/ClothPatternVertexType.h"
 #include "TargetInterfaces/PrimitiveComponentBackedTarget.h"
 #include "ChaosClothAsset/ClothEditorContextObject.h"
+#include "ChaosClothAsset/SelectionNode.h"
 #include "ToolContextInterfaces.h"
 #include "ToolTargetManager.h"
 #include "ContextObjectStore.h"
@@ -53,7 +54,12 @@ const FToolTargetTypeRequirements& UClothMeshSelectionToolBuilder::GetTargetRequ
 
 bool UClothMeshSelectionToolBuilder::CanBuildTool(const FToolBuilderState& SceneState) const
 {
-	return (SceneState.TargetManager->CountSelectedAndTargetable(SceneState, GetTargetRequirements()) == 1);
+	if (UClothEditorContextObject* const ContextObject = SceneState.ToolManager->GetContextObjectStore()->FindContext<UClothEditorContextObject>())
+	{
+		return ContextObject->GetSingleSelectedNodeOfType<FChaosClothAssetSelectionNode>() != nullptr && (SceneState.TargetManager->CountSelectedAndTargetable(SceneState, GetTargetRequirements()) == 1);
+	}
+
+	return false;
 }
 
 UInteractiveTool* UClothMeshSelectionToolBuilder::BuildTool(const FToolBuilderState& SceneState) const

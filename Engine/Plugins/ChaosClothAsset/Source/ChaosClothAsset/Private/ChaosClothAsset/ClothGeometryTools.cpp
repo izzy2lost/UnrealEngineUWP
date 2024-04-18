@@ -1,7 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "ChaosClothAsset/ClothGeometryTools.h"
+#include "ChaosClothAsset/ClothCollectionGroup.h"
 #include "ChaosClothAsset/CollectionClothFacade.h"
+#include "ChaosClothAsset/CollectionClothSelectionFacade.h"
 #include "Containers/Queue.h"
 #include "DynamicMesh/DynamicMesh3.h"
 #include "DynamicMesh/DynamicMeshAttributeSet.h"
@@ -9,6 +11,7 @@
 #include "DynamicMesh/NonManifoldMappingSupport.h"
 #include "Math/Vector.h"
 #include "Util/IndexUtil.h"
+#include "Utils/ClothingMeshUtils.h"
 #include "Algo/RemoveIf.h"
 
 namespace UE::Chaos::ClothAsset
@@ -1260,5 +1263,200 @@ namespace UE::Chaos::ClothAsset
 		}
 	}
 
+	bool FClothGeometryTools::ConvertSelectionToNewGroupType(const TSharedRef<const FManagedArrayCollection>& ClothCollection, const FName& SelectionName, const FName& GroupName, bool bSecondarySelection, TSet<int32>& OutSelectionSet)
+	{
+		FCollectionClothSelectionConstFacade SelectionFacade(ClothCollection);
+		FCollectionClothConstFacade ClothFacade(ClothCollection);
+		if (!SelectionFacade.IsValid() || !ClothFacade.IsValid() || (bSecondarySelection ? !SelectionFacade.HasSelectionSecondarySet(SelectionName) : !SelectionFacade.HasSelection(SelectionName)))
+		{
+			return false;
+		}
+
+		const TSet<int32>& OrigSelectionSet = bSecondarySelection ? SelectionFacade.GetSelectionSecondarySet(SelectionName) : SelectionFacade.GetSelectionSet(SelectionName);
+		const FName OrigSelectionGroup = bSecondarySelection ? SelectionFacade.GetSelectionSecondaryGroup(SelectionName) : SelectionFacade.GetSelectionGroup(SelectionName);
+
+		if (OrigSelectionGroup == GroupName)
+		{
+			OutSelectionSet = OrigSelectionSet;
+			return true;
+		}
+
+		auto ConvertVerticesToFaces = [&OrigSelectionSet, &OutSelectionSet](const TConstArrayView<FIntVector3>& Indices)
+		{
+			OutSelectionSet.Reset();
+			OutSelectionSet.Reserve(OrigSelectionSet.Num());
+			for (int32 FaceIndex = 0; FaceIndex < Indices.Num(); ++FaceIndex)
+			{
+				const FIntVector3& Element = Indices[FaceIndex];
+				if (OrigSelectionSet.Contains(Element[0]) &&
+					OrigSelectionSet.Contains(Element[1]) &&
+					OrigSelectionSet.Contains(Element[2]))
+				{
+					OutSelectionSet.Add(FaceIndex);
+				}
+			}
+		};
+
+
+		auto ConvertFacesToVertices = [&OrigSelectionSet, &OutSelectionSet](const TConstArrayView<FIntVector3>& Indices)
+		{
+			OutSelectionSet.Reset();
+			OutSelectionSet.Reserve(OrigSelectionSet.Num());
+			for (const int32 FaceIndex : OrigSelectionSet)
+			{
+				if (Indices.IsValidIndex(FaceIndex))
+				{
+					OutSelectionSet.Add(Indices[FaceIndex][0]);
+					OutSelectionSet.Add(Indices[FaceIndex][1]);
+					OutSelectionSet.Add(Indices[FaceIndex][2]);
+				}
+			}
+		};	
+
+		if (OrigSelectionGroup == ClothCollectionGroup::SimVertices2D)
+		{
+			if (GroupName == ClothCollectionGroup::SimFaces)
+			{
+				ConvertVerticesToFaces(ClothFacade.GetSimIndices2D());
+				return true;
+			}
+			else if (GroupName == ClothCollectionGroup::SimVertices3D)
+			{
+				const TConstArrayView<int32> SimVertex3DLookup = ClothFacade.GetSimVertex3DLookup();
+				OutSelectionSet.Reset();
+				OutSelectionSet.Reserve(OrigSelectionSet.Num());
+				for (const int32 OrigSelection : OrigSelectionSet)
+				{
+					if (SimVertex3DLookup.IsValidIndex(OrigSelection))
+					{
+						OutSelectionSet.Add(SimVertex3DLookup[OrigSelection]);
+					}
+				}
+				return true;
+			}
+		}
+		else if (OrigSelectionGroup == ClothCollectionGroup::SimVertices3D)
+		{
+			if (GroupName == ClothCollectionGroup::SimFaces)
+			{
+				ConvertVerticesToFaces(ClothFacade.GetSimIndices3D());
+				return true;
+			}
+			else if (GroupName == ClothCollectionGroup::SimVertices2D)
+			{
+				const TConstArrayView<TArray<int32>> SimVertex2DLookup = ClothFacade.GetSimVertex2DLookup();
+				OutSelectionSet.Reset();
+				OutSelectionSet.Reserve(OrigSelectionSet.Num());
+				for (const int32 OrigSelection : OrigSelectionSet)
+				{
+					if (SimVertex2DLookup.IsValidIndex(OrigSelection))
+					{
+						for (const int32 Vertex2D : SimVertex2DLookup[OrigSelection])
+						{
+							OutSelectionSet.Add(Vertex2D);
+						}
+					}
+				}
+				return true;
+			}
+		}
+		else if (OrigSelectionGroup == ClothCollectionGroup::SimFaces)
+		{
+			if (GroupName == ClothCollectionGroup::SimVertices2D)
+			{
+				ConvertFacesToVertices(ClothFacade.GetSimIndices2D());
+				return true;
+			}
+			else if (GroupName == ClothCollectionGroup::SimVertices3D)
+			{
+				ConvertFacesToVertices(ClothFacade.GetSimIndices3D());
+				return true;
+			}
+		}
+		else if (OrigSelectionGroup == ClothCollectionGroup::RenderVertices)
+		{
+			if (GroupName == ClothCollectionGroup::RenderFaces)
+			{
+				ConvertVerticesToFaces(ClothFacade.GetRenderIndices());
+				return true;
+			}
+		}
+		else if (OrigSelectionGroup == ClothCollectionGroup::RenderFaces)
+		{
+			if (GroupName == ClothCollectionGroup::RenderVertices)
+			{
+				ConvertFacesToVertices(ClothFacade.GetRenderIndices());
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	void FClothGeometryTools::TransferWeightMap(
+		const TConstArrayView<FVector3f>& SourcePositions,
+		const TConstArrayView<FIntVector3>& InSourceIndices,
+		const TConstArrayView<float>& SourceWeights,
+		const TConstArrayView<FVector3f>& TargetPositions,
+		const TConstArrayView<FVector3f>& TargetNormals,
+		const TConstArrayView<FIntVector3>& InTargetIndices,
+		const TArrayView<float>& TargetWeights)
+	{
+		check(TargetWeights.Num() == TargetPositions.Num());
+		if (!ensure(SourcePositions.Num() <= 65536))
+		{
+			return;  // MeshToMeshVertData below is limited to 16bit unsigned int indexes
+		}
+
+		TArray<uint32> SourceIndices;
+		SourceIndices.Reserve(InSourceIndices.Num() * 3);
+		for (const FIntVector3& InSourceIndex : InSourceIndices)
+		{
+			SourceIndices.Add(InSourceIndex[0]);
+			SourceIndices.Add(InSourceIndex[1]);
+			SourceIndices.Add(InSourceIndex[2]);
+		}
+		TArray<uint32> TargetIndices;
+		TargetIndices.Reserve(InTargetIndices.Num() * 3);
+		for (const FIntVector3& InTargetIndex : InTargetIndices)
+		{
+			TargetIndices.Add(InTargetIndex[0]);
+			TargetIndices.Add(InTargetIndex[1]);
+			TargetIndices.Add(InTargetIndex[2]);
+		}
+
+		const ClothingMeshUtils::ClothMeshDesc SourceMeshDesc(SourcePositions, SourceIndices);
+		const ClothingMeshUtils::ClothMeshDesc TargetMeshDesc(TargetPositions, TargetNormals, TargetIndices);
+
+		TArray<FMeshToMeshVertData> MeshToMeshVertData;
+		const FPointWeightMap* const MaxDistances = nullptr; // No need to update the vertex contribution on the transition maps
+		constexpr bool bUseSmoothTransitions = false;  // Smooth transitions are only used at rendering for now and not during LOD transitions
+		constexpr bool bUseMultipleInfluences = false;  // Multiple influences must not be used for LOD transitions
+		constexpr float SkinningKernelRadius = 0.f;  // KernelRadius is only required when using multiple influences
+
+		ClothingMeshUtils::GenerateMeshToMeshVertData(
+			MeshToMeshVertData,
+			TargetMeshDesc,
+			SourceMeshDesc,
+			MaxDistances,
+			bUseSmoothTransitions,
+			bUseMultipleInfluences,
+			SkinningKernelRadius);
+
+		check(MeshToMeshVertData.Num() == TargetWeights.Num());
+		for (int32 Index = 0; Index < TargetWeights.Num(); ++Index)
+		{
+			const FMeshToMeshVertData& MeshToMeshVertDatum = MeshToMeshVertData[Index];
+
+			const uint16 VertIndex0 = MeshToMeshVertDatum.SourceMeshVertIndices[0];
+			const uint16 VertIndex1 = MeshToMeshVertDatum.SourceMeshVertIndices[1];
+			const uint16 VertIndex2 = MeshToMeshVertDatum.SourceMeshVertIndices[2];
+
+			TargetWeights[Index] = FMath::Clamp(
+				SourceWeights[VertIndex0] * MeshToMeshVertDatum.PositionBaryCoordsAndDist[0] +
+				SourceWeights[VertIndex1] * MeshToMeshVertDatum.PositionBaryCoordsAndDist[1] +
+				SourceWeights[VertIndex2] * MeshToMeshVertDatum.PositionBaryCoordsAndDist[2], 0.f, 1.f);
+		}
+	}
 
 }  // End namespace UE::Chaos::ClothAsset

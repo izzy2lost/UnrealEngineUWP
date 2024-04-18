@@ -9,7 +9,6 @@
 #include "ChaosClothAsset/WeightedValue.h"
 #include "Dataflow/DataflowInputOutput.h"
 #include "Dataflow/DataflowObject.h"
-#include "Utils/ClothingMeshUtils.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(AddWeightMapNode)
 
@@ -17,72 +16,6 @@
 
 namespace UE::Chaos::ClothAsset::Private
 {
-	void TransferWeightMap(
-		const TConstArrayView<FVector3f>& SourcePositions,
-		const TConstArrayView<FIntVector3>& InSourceIndices,
-		const TConstArrayView<float>& SourceWeights,
-		const TConstArrayView<FVector3f>& TargetPositions,
-		const TConstArrayView<FVector3f>& TargetNormals,
-		const TConstArrayView<FIntVector3>& InTargetIndices,
-		TArray<float>& TargetWeights)
-	{
-		check(TargetWeights.Num() == TargetPositions.Num());
-		if (!ensure(SourcePositions.Num() <= 65536))
-		{
-			return;  // MeshToMeshVertData below is limited to 16bit unsigned int indexes
-		}
-
-		TArray<uint32> SourceIndices;
-		SourceIndices.Reserve(InSourceIndices.Num() * 3);
-		for (const FIntVector3& InSourceIndex : InSourceIndices)
-		{
-			SourceIndices.Add(InSourceIndex[0]);
-			SourceIndices.Add(InSourceIndex[1]);
-			SourceIndices.Add(InSourceIndex[2]);
-		}
-		TArray<uint32> TargetIndices;
-		TargetIndices.Reserve(InTargetIndices.Num() * 3);
-		for (const FIntVector3& InTargetIndex : InTargetIndices)
-		{
-			TargetIndices.Add(InTargetIndex[0]);
-			TargetIndices.Add(InTargetIndex[1]);
-			TargetIndices.Add(InTargetIndex[2]);
-		}
-
-		const ClothingMeshUtils::ClothMeshDesc SourceMeshDesc(SourcePositions, SourceIndices);
-		const ClothingMeshUtils::ClothMeshDesc TargetMeshDesc(TargetPositions, TargetNormals, TargetIndices);
-
-		TArray<FMeshToMeshVertData> MeshToMeshVertData;
-		const FPointWeightMap* const MaxDistances = nullptr; // No need to update the vertex contribution on the transition maps
-		constexpr bool bUseSmoothTransitions = false;  // Smooth transitions are only used at rendering for now and not during LOD transitions
-		constexpr bool bUseMultipleInfluences = false;  // Multiple influences must not be used for LOD transitions
-		constexpr float SkinningKernelRadius = 0.f;  // KernelRadius is only required when using multiple influences
-
-		ClothingMeshUtils::GenerateMeshToMeshVertData(
-			MeshToMeshVertData,
-			TargetMeshDesc,
-			SourceMeshDesc,
-			MaxDistances,
-			bUseSmoothTransitions,
-			bUseMultipleInfluences,
-			SkinningKernelRadius);
-
-		check(MeshToMeshVertData.Num() == TargetWeights.Num());
-		for (int32 Index = 0; Index < TargetWeights.Num(); ++Index)
-		{
-			const FMeshToMeshVertData& MeshToMeshVertDatum = MeshToMeshVertData[Index];
-			
-			const uint16 VertIndex0 = MeshToMeshVertDatum.SourceMeshVertIndices[0];
-			const uint16 VertIndex1 = MeshToMeshVertDatum.SourceMeshVertIndices[1];
-			const uint16 VertIndex2 = MeshToMeshVertDatum.SourceMeshVertIndices[2];
-
-			TargetWeights[Index] = FMath::Clamp(
-				SourceWeights[VertIndex0] * MeshToMeshVertDatum.PositionBaryCoordsAndDist[0] +
-				SourceWeights[VertIndex1] * MeshToMeshVertDatum.PositionBaryCoordsAndDist[1] +
-				SourceWeights[VertIndex2] * MeshToMeshVertDatum.PositionBaryCoordsAndDist[2], 0.f, 1.f);
-		}
-	}
-
 	void TransferWeightMap(
 		const TConstArrayView<FVector2f>& InSourcePositions,
 		const TConstArrayView<FIntVector3>& SourceIndices,
@@ -120,7 +53,7 @@ namespace UE::Chaos::ClothAsset::Private
 		TArray<float> TargetWeights;
 		TargetWeights.SetNumUninitialized(TargetPositions.Num());
 
-		TransferWeightMap(SourcePositions, SourceIndices, SourceWeights, TargetPositions, TargetNormals, TargetIndices, TargetWeights);
+		FClothGeometryTools::TransferWeightMap(SourcePositions, SourceIndices, SourceWeights, TargetPositions, TargetNormals, TargetIndices, TArrayView<float>(TargetWeights));
 
 		for (int32 Index = 0; Index < TargetWeights.Num(); ++Index)
 		{
@@ -279,14 +212,14 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 										RemappedWeights);
 										break;
 								case EChaosClothAssetWeightMapTransferType::Use3DSimMesh:
-									Private::TransferWeightMap(
+									FClothGeometryTools::TransferWeightMap(
 										TransferClothFacade.GetSimPosition3D(),
 										TransferClothFacade.GetSimIndices3D(),
 										TransferClothFacade.GetWeightMap(InInputName),
 										ClothFacade.GetSimPosition3D(),
 										ClothFacade.GetSimNormal(),
 										ClothFacade.GetSimIndices3D(),
-										RemappedWeights);
+										TArrayView<float>(RemappedWeights));
 										break;
 								default: unimplemented();
 								}

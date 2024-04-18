@@ -14,6 +14,7 @@ public class ChaosClothAsset : ModuleRules
 				"Core",
 				"GeometryCore",
 				"MeshConversion",
+				"ClothingSystemRuntimeCommon",
 			}
 		);
 		PublicDependencyModuleNames.AddRange(

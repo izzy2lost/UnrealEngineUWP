@@ -3,6 +3,7 @@
 #include "ChaosClothAsset/ClothMeshSelectionTool.h"
 #include "ChaosClothAsset/ClothCollectionGroup.h"
 #include "ChaosClothAsset/ClothEditorContextObject.h"
+#include "ChaosClothAsset/ClothGeometryTools.h"
 #include "ChaosClothAsset/ClothPatternVertexType.h"
 #include "ChaosClothAsset/SelectionNode.h"
 #include "ChaosClothAsset/CollectionClothFacade.h"
@@ -310,7 +311,8 @@ void UClothMeshSelectionTool::Setup()
 	// Initialize the Selection from the selected Dataflow node
 	FString ExistingSelectionName;
 	FGroupTopologySelection ExistingNodeSelection;
-	GetSelectedNodeInfo(ExistingSelectionName, ExistingNodeSelection);
+	EChaosClothAssetSelectionOverrideType ExistingOverrideType;
+	GetSelectedNodeInfo(ExistingSelectionName, ExistingNodeSelection, ExistingOverrideType);
 
 	constexpr bool bBroadcastChange = false;
 	SelectionMechanic->SetSelection(ExistingNodeSelection, bBroadcastChange);
@@ -337,6 +339,7 @@ void UClothMeshSelectionTool::Setup()
 			bAnyChangeMade = true;
 		}
 	});
+	ToolProperties->SelectionOverrideType = ExistingOverrideType;
 
 
 	// 
@@ -365,9 +368,9 @@ void UClothMeshSelectionTool::OnShutdown(EToolShutdownType ShutdownType)
 
 	// Invalidate the node even if we are hitting cancel. We could have saved new selection information to the node by switching primary/secondary modes and we'd expect 
 	// that information to make its way into the ClothCollection
-	if (FChaosClothAssetSelectionNode* const MeshSelectionNode = ClothEditorContextObject->GetSingleSelectedNodeOfType<FChaosClothAssetSelectionNode>())
+	if (SelectionNodeToUpdate)
 	{
-		MeshSelectionNode->Invalidate();
+		SelectionNodeToUpdate->Invalidate();
 	}
 
 	SelectionMechanic->Properties->SaveProperties(this);
@@ -409,7 +412,7 @@ void UClothMeshSelectionTool::OnTick(float DeltaTime)
 
 bool UClothMeshSelectionTool::CanAccept() const
 {
-	return bAnyChangeMade;
+	return bAnyChangeMade || SelectionNodeToUpdate->SelectionOverrideType != ToolProperties->SelectionOverrideType;
 }
 
 FBox UClothMeshSelectionTool::GetWorldSpaceFocusBox()
@@ -424,12 +427,12 @@ void UClothMeshSelectionTool::SetClothEditorContextObject(TObjectPtr<UClothEdito
 	ClothEditorContextObject = InClothEditorContextObject;
 }
 
-bool UClothMeshSelectionTool::GetSelectedNodeInfo(FString& OutSelectionName, UE::Geometry::FGroupTopologySelection& OutSelection)
+bool UClothMeshSelectionTool::GetSelectedNodeInfo(FString& OutSelectionName, UE::Geometry::FGroupTopologySelection& OutSelection, EChaosClothAssetSelectionOverrideType& OutOverrideType)
 {
 	using namespace UE::Chaos::ClothAsset;
 
-	const FChaosClothAssetSelectionNode* const MeshSelectionNode = ClothEditorContextObject->GetSingleSelectedNodeOfType<FChaosClothAssetSelectionNode>();
-	check(MeshSelectionNode);
+	SelectionNodeToUpdate = ClothEditorContextObject->GetSingleSelectedNodeOfType<FChaosClothAssetSelectionNode>();
+	check(SelectionNodeToUpdate);
 
 	// We need to sanitize the incoming indices, as the user can manually set them to anything on the node
 
@@ -461,7 +464,7 @@ bool UClothMeshSelectionTool::GetSelectedNodeInfo(FString& OutSelectionName, UE:
 		});
 	};
 
-	auto ReadFromNode = [this, &AppendVerticesIfValid, &AppendFacesIfValid, &OutSelection](const FChaosClothAssetNodeSelectionGroup& SourceGroup, const TSet<int32>& SourceIndices)
+	auto AppendSet = [this, &AppendVerticesIfValid, &AppendFacesIfValid, &OutSelection](const FChaosClothAssetNodeSelectionGroup& SourceGroup, const TSet<int32>& SourceIndices)
 	{
 		if (SourceGroup.Name == ClothCollectionGroup::SimVertices2D.ToString() ||
 			SourceGroup.Name == ClothCollectionGroup::SimVertices3D.ToString() ||
@@ -489,16 +492,41 @@ bool UClothMeshSelectionTool::GetSelectedNodeInfo(FString& OutSelectionName, UE:
 		}
 	};
 
-	if (ToolProperties && ToolProperties->bSecondarySelection)
+	const bool bSecondarySelection = ToolProperties && ToolProperties->bSecondarySelection;
+
+	// Get the input set.
+	InputSelectionSet.Reset();
+	if (ClothEditorContextObject)
 	{
-		ReadFromNode(MeshSelectionNode->SecondaryGroup, MeshSelectionNode->SecondaryIndices);
+		ensure(ClothEditorContextObject->IsUsingInputCollection());
+		if (TSharedPtr<const FManagedArrayCollection> ClothCollection = ClothEditorContextObject->GetSelectedClothCollection().Pin())
+		{
+			if (TSharedPtr<Dataflow::FEngineContext> DataflowContext = ClothEditorContextObject->GetDataflowContext().Pin())
+			{
+				using namespace UE::Chaos::ClothAsset;
+				const FName InputName = SelectionNodeToUpdate->GetInputName(*DataflowContext);
+				const FName GroupName = bSecondarySelection ? FName(*SelectionNodeToUpdate->SecondaryGroup.Name) : FName(*SelectionNodeToUpdate->Group.Name);
+
+				FClothGeometryTools::ConvertSelectionToNewGroupType(ClothCollection.ToSharedRef(), InputName, GroupName, bSecondarySelection, InputSelectionSet);
+			}
+		}
+	}
+
+	if (bSecondarySelection)
+	{
+		TSet<int32> FinalSet;
+		SelectionNodeToUpdate->CalculateFinalSecondarySet(InputSelectionSet, FinalSet);
+		AppendSet(SelectionNodeToUpdate->SecondaryGroup, FinalSet);
 	}
 	else
 	{
-		ReadFromNode(MeshSelectionNode->Group, MeshSelectionNode->Indices);
+		TSet<int32> FinalSet;
+		SelectionNodeToUpdate->CalculateFinalSet(InputSelectionSet, FinalSet);
+		AppendSet(SelectionNodeToUpdate->Group, FinalSet);
 	}
 
-	OutSelectionName = MeshSelectionNode->Name;
+	OutSelectionName = SelectionNodeToUpdate->Name;
+	OutOverrideType = SelectionNodeToUpdate->SelectionOverrideType;
 
 	return true;
 }
@@ -550,12 +578,10 @@ void UClothMeshSelectionTool::UpdateSelectedNode()
 		}
 	}
 
-	FChaosClothAssetSelectionNode* const MeshSelectionNode = ClothEditorContextObject->GetSingleSelectedNodeOfType<FChaosClothAssetSelectionNode>();
-	check(MeshSelectionNode);
+	check(SelectionNodeToUpdate);
 
-	auto WriteToNode = [this, &Indices, &GroupName, MeshSelectionNode](FChaosClothAssetNodeSelectionGroup& TargetGroup, TSet<int32>& TargetIndices)
+	auto GetFinalSet = [this, &Indices, &GroupName](FChaosClothAssetNodeSelectionGroup& TargetGroup, TSet<int32>& TargetIndices)
 	{
-		MeshSelectionNode->Name = ToolProperties->Name;
 		TargetGroup.Name = GroupName.ToString();
 
 		if (SelectionMechanic->Properties->bSelectVertices && bHasNonManifoldMapping)
@@ -573,13 +599,19 @@ void UClothMeshSelectionTool::UpdateSelectedNode()
 		}
 	};
 
+	SelectionNodeToUpdate->Name = ToolProperties->Name;
+	SelectionNodeToUpdate->SelectionOverrideType = ToolProperties->SelectionOverrideType;
 	if (!ToolProperties->bSecondarySelection)
 	{
-		WriteToNode(MeshSelectionNode->Group, MeshSelectionNode->Indices);
+		TSet<int32> FinalSet;
+		GetFinalSet(SelectionNodeToUpdate->Group, FinalSet);
+		SelectionNodeToUpdate->SetIndices(InputSelectionSet, FinalSet);
 	}
 	else
 	{
-		WriteToNode(MeshSelectionNode->SecondaryGroup, MeshSelectionNode->SecondaryIndices);
+		TSet<int32> FinalSet;
+		GetFinalSet(SelectionNodeToUpdate->SecondaryGroup, FinalSet);
+		SelectionNodeToUpdate->SetSecondaryIndices(InputSelectionSet, FinalSet);
 	}
 	
 }
@@ -746,7 +778,8 @@ void UClothMeshSelectionTool::TogglePrimarySecondaryAction()
 	// Re-initialize the Selection from the selected Dataflow node
 	FString ExistingSelectionName;
 	FGroupTopologySelection ExistingNodeSelection;
-	GetSelectedNodeInfo(ExistingSelectionName, ExistingNodeSelection);
+	EChaosClothAssetSelectionOverrideType ExistingOverrideType;
+	GetSelectedNodeInfo(ExistingSelectionName, ExistingNodeSelection, ExistingOverrideType);
 
 	constexpr bool bBroadcastChange = false;
 	SelectionMechanic->SetSelection(ExistingNodeSelection, bBroadcastChange);
@@ -765,6 +798,7 @@ void UClothMeshSelectionTool::TogglePrimarySecondaryAction()
 	}
 
 	ToolProperties->Name = ExistingSelectionName;
+	ToolProperties->SelectionOverrideType = ExistingOverrideType;
 
 	PreviewMesh->FastNotifySecondaryTrianglesChanged();
 

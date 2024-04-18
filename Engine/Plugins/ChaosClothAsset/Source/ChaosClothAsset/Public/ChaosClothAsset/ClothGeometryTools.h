@@ -117,6 +117,28 @@ namespace UE::Chaos::ClothAsset
 		 */
 		static void SampleVertices(const TConstArrayView<FVector3f> VertexPositions, float CullDiameterSq, TSet<int32>& OutVertexSet);
 
+		/**
+		 * Get a copy of the selection, converting to the desired group if possible.
+		 * Currently only conversions between vertex and face components on the same mesh type are supported.
+		 * @param ClothCollection to query
+		 * @param SelectionName the selection name
+		 * @param GroupName the group name
+		 * @param bSecondarySelection get the secondary selection
+		 * @param OutSelectionSet copy of the selection. Unchanged when function returns false.
+		 * @return success (will return false if the selection is not found or conversion is not possible)
+		 */
+		static bool ConvertSelectionToNewGroupType(const TSharedRef<const FManagedArrayCollection>& ClothCollection, const FName& SelectionName, const FName& GroupName, bool bSecondarySelection, TSet<int32>& OutSelectionSet);
 
+		/**
+		 * Transfer a vertex weight map from a source to target mesh
+		 */
+		static void TransferWeightMap(
+			const TConstArrayView<FVector3f>& SourcePositions,
+			const TConstArrayView<FIntVector3>& InSourceIndices,
+			const TConstArrayView<float>& SourceWeights,
+			const TConstArrayView<FVector3f>& TargetPositions,
+			const TConstArrayView<FVector3f>& TargetNormals,
+			const TConstArrayView<FIntVector3>& InTargetIndices,
+			const TArrayView<float>& TargetWeights);
 	};
 }  // End namespace UE::Chaos::ClothAsset
