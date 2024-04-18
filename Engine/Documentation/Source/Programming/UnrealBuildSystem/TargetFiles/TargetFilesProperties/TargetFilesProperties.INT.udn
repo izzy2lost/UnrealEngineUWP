@@ -416,6 +416,8 @@ $ bPreprocessDepends (Boolean): Generate dependency files by preprocessing. This
 
 $ bWithAssembly (Boolean): Whether to generate assembly data while compiling this target. Works exclusively on MSVC for now.
 
+$ bAllowUbaCompression (Boolean): Experimental: Store object (.obj) compressed on disk. Requires UBA to link, currently MSVC only. Toggling this flag will invalidate MSVC actions. Warning, this option is not currently compatitable with PGO or the the cl-clang linker as those are not detoured and linking will fail.
+
 $ StaticAnalyzer (StaticAnalyzer): Whether static code analysis should be enabled.
 
 $ StaticAnalyzerOutputType (StaticAnalyzerOutputType): The output type to use for the static analyzer. This is only supported for Clang.
