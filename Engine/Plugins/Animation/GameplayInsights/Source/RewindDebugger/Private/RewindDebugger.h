@@ -43,6 +43,7 @@ public:
 	virtual UWorld* GetWorldToVisualize() const override;
 	virtual bool IsRecording() const override { return bRecording; }
 	virtual bool IsPIESimulating() const override { return bPIESimulating; }
+	virtual bool IsTraceFileLoaded() const override { return bTraceFileLoaded; }
 	virtual double GetRecordingDuration() const override { return RecordingDuration.Get(); }
 	virtual TSharedPtr<FDebugObjectInfo> GetSelectedComponent() const override;
 	virtual TSharedPtr<RewindDebugger::FRewindDebuggerTrack> GetSelectedTrack() const override;
@@ -65,9 +66,19 @@ public:
 
 	// Start a new Recording:  Start tracing Object + Animation data, increment the current recording index, and reset the recording elapsed time to 0
 	void StartRecording();
-
 	bool CanStartRecording() const { return !IsRecording() && bPIESimulating; }
+	
+	bool CanOpenTrace() const;
+   	void OpenTrace(const FString& FilePath);
+   	void OpenTrace();
 
+	bool CanClearTrace() const;
+	void ClearTrace();
+	
+	bool CanSaveTrace() const;
+	void SaveTrace(FString FileName);
+	void SaveTrace();
+        	
 	bool ShouldAutoRecordOnPIE() const;
 	void SetShouldAutoRecordOnPIE(bool value);
 	
@@ -122,7 +133,7 @@ public:
 	void OnTrackCursor(const FOnTrackCursor& TrackCursorCallback);
 
 	TBindableProperty<double>* GetTraceTimeProperty() { return &TraceTime; }
-	TBindableProperty<float>* GetRecordingDurationProperty() { return &RecordingDuration; }
+	TBindableProperty<double>* GetRecordingDurationProperty() { return &RecordingDuration; }
 	TBindableProperty<FString, BindingType_Out>* GetDebugTargetActorProperty() { return &DebugTargetActor; }
 
 	virtual void OpenDetailsPanel() override;
@@ -143,7 +154,7 @@ private:
 	void SetCurrentScrubTime(double Time);
 
 	TBindableProperty<double> TraceTime;
-	TBindableProperty<float> RecordingDuration;
+	TBindableProperty<double> RecordingDuration;
 	TBindableProperty<FString, BindingType_Out> DebugTargetActor;
 
 	enum class EControlState : int8
@@ -153,22 +164,23 @@ private:
 		Pause
 	};
 
-	EControlState ControlState;
+	EControlState ControlState = EControlState::Pause;
 
 	FOnComponentListChanged ComponentListChangedDelegate;
 	FOnTrackCursor TrackCursorDelegate;
 
 	bool bTraceJustConnected = false;
-	bool bPIEStarted;
-	bool bPIESimulating;
+	bool bPIEStarted = false;
+	bool bPIESimulating = false;
+	bool bTraceFileLoaded = false;
 	
-	bool bRecording;
+	bool bRecording = false;
 
-	double PreviousTraceTime;
-	double CurrentScrubTime;
-	TRange<double> CurrentViewRange;
-	TRange<double> CurrentTraceRange;
-	uint16 RecordingIndex;
+	double PreviousTraceTime = -1;
+	double CurrentScrubTime = 0;
+	TRange<double> CurrentViewRange {0, 0};
+	TRange<double> CurrentTraceRange {0, 0};
+	uint16 RecordingIndex = 0;
 
 	struct FScrubTimeInformation
 	{
@@ -193,10 +205,10 @@ private:
 	mutable class IUnrealInsightsModule *UnrealInsightsModule;
 	FTSTicker::FDelegateHandle TickerHandle;
 
-	bool bTargetActorPositionValid;
+	bool bTargetActorPositionValid = false;
 	FVector TargetActorPosition;
 
 	TArray<RewindDebugger::FRewindDebuggerTrackType> TrackTypes;
 
-	bool bIsDetailsPanelOpen;
+	bool bIsDetailsPanelOpen = true;
 };

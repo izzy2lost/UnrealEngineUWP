@@ -16,6 +16,7 @@
 #include "ToolMenus.h"
 #include "ObjectTrace.h"
 #include "TraceServices/Model/Frames.h"
+#include "Engine/SkeletalMesh.h"
 
 #define LOCTEXT_NAMESPACE "RewindDebuggerAnimation"
 
@@ -25,12 +26,38 @@ FRewindDebuggerAnimation::FRewindDebuggerAnimation()
 
 void FRewindDebuggerAnimation::RecordingStarted(IRewindDebugger*)
 {
+	ClearSpawnedComponents();
 	UE::Trace::ToggleChannel(TEXT("Animation"), true);
 }
 
 void FRewindDebuggerAnimation::RecordingStopped(IRewindDebugger*)
 {
 	UE::Trace::ToggleChannel(TEXT("Animation"), false);
+}
+
+void FRewindDebuggerAnimation::ClearSpawnedComponents()
+{
+	for(auto& MeshComponentInfo : SpawnedMeshComponents)
+	{
+		if(MeshComponentInfo.Value.Component)
+		{
+			MeshComponentInfo.Value.Component->UnregisterComponent();
+			MeshComponentInfo.Value.Component->MarkAsGarbage();
+			MeshComponentInfo.Value.Component = nullptr;
+		}
+
+		if(MeshComponentInfo.Value.Actor)
+		{
+			MeshComponentInfo.Value.Actor->Destroy();
+			MeshComponentInfo.Value.Actor = nullptr;
+		}
+	}
+	SpawnedMeshComponents.Empty();
+}
+
+void FRewindDebuggerAnimation::Clear(IRewindDebugger* RewindDebugger)
+{
+	ClearSpawnedComponents();
 }
 
 void FRewindDebuggerAnimation::Initialize()
@@ -82,6 +109,58 @@ void FRewindDebuggerAnimation::OnPIEStopped(bool bSimulating)
 }
 
 
+void FRewindDebuggerAnimation::ApplyPoseToMesh(const IAnimationProvider* AnimationProvider, const IGameplayProvider* GameplayProvider, const TraceServices::FFrame& Frame,
+	const IAnimationProvider::SkeletalMeshPoseTimeline& TimelineData, USkeletalMeshComponent* MeshComponent, uint64 ObjectId, bool bQueueForReset, bool bApplyMesh)
+{
+	const FSkeletalMeshPoseMessage * PoseMessage = nullptr;
+	
+	// Get last pose in frame
+	TimelineData.EnumerateEvents(Frame.StartTime, Frame.EndTime,
+		[&PoseMessage](double InStartTime, double InEndTime, uint32 InDepth, const FSkeletalMeshPoseMessage& InPoseMessage)
+		{
+			PoseMessage = &InPoseMessage;
+			return TraceServices::EEventEnumerate::Continue;
+		});
+
+	// Update mesh based on pose
+	if (PoseMessage)
+	{
+		FTransform ComponentWorldTransform;
+		if (const FSkeletalMeshInfo* SkeletalMeshInfo = AnimationProvider->FindSkeletalMeshInfo(PoseMessage->MeshId))
+		{
+			AnimationProvider->GetSkeletalMeshComponentSpacePose(*PoseMessage, *SkeletalMeshInfo, ComponentWorldTransform, MeshComponent->GetEditableComponentSpaceTransforms());
+			MeshComponent->ApplyEditedComponentSpaceTransforms();
+
+			if (bApplyMesh)
+			{
+				const FObjectInfo* SkeletalMeshObjectInfo = GameplayProvider->FindObjectInfo(PoseMessage->MeshId);
+				USkeletalMesh* SkeletalMesh = TSoftObjectPtr<USkeletalMesh>(FSoftObjectPath(SkeletalMeshObjectInfo->PathName)).LoadSynchronous();
+										
+				if(SkeletalMesh)
+				{
+					MeshComponent->SetSkeletalMesh(SkeletalMesh);
+				}
+			}
+			
+			if (bQueueForReset)
+			{
+				if (MeshComponentsToReset.Find(ObjectId) == nullptr)
+				{
+					FMeshComponentResetData ResetData;
+					ResetData.Component = MeshComponent;
+					ResetData.RelativeTransform = MeshComponent->GetRelativeTransform();
+					MeshComponentsToReset.Add(ObjectId, ResetData);
+				}
+			}
+
+			MeshComponent->SetWorldTransform(ComponentWorldTransform, false, nullptr, ETeleportType::TeleportPhysics);
+			MeshComponent->SetForcedLOD(PoseMessage->LodIndex + 1);
+			MeshComponent->UpdateChildTransforms(EUpdateTransformFlags::None, ETeleportType::TeleportPhysics);
+		}
+	}
+}
+
+
 void FRewindDebuggerAnimation::Update(float DeltaTime, IRewindDebugger* RewindDebugger)
 {
 	check(RewindDebugger);
@@ -115,52 +194,65 @@ void FRewindDebuggerAnimation::Update(float DeltaTime, IRewindDebugger* RewindDe
 					// - apply the recorded pose for the current Frame
 					{
 						TRACE_CPUPROFILER_EVENT_SCOPE(FRewindDebugger::Tick_UpdatePoses);
-						AnimationProvider->EnumerateSkeletalMeshPoseTimelines([this, &Frame, AnimationProvider, GameplayProvider](uint64 ObjectId, const IAnimationProvider::SkeletalMeshPoseTimeline& TimelineData)
+						AnimationProvider->EnumerateSkeletalMeshPoseTimelines([this, RewindDebugger, &Frame, AnimationProvider, GameplayProvider](uint64 ObjectId, const IAnimationProvider::SkeletalMeshPoseTimeline& TimelineData)
 						{
+							USkeletalMeshComponent* MeshComponent = nullptr;
+							bool bQueueForReset = false;
+							bool bLoadMesh = false;
+
 #if OBJECT_TRACE_ENABLED
-							if(UObject* ObjectInstance = FObjectTrace::GetObjectFromId(ObjectId))
+							if (!RewindDebugger->IsTraceFileLoaded())
 							{
-								if(USkeletalMeshComponent* MeshComponent = Cast<USkeletalMeshComponent>(ObjectInstance))
+								if(UObject* ObjectInstance = FObjectTrace::GetObjectFromId(ObjectId))
 								{
-									AnimationProvider->ReadSkeletalMeshPoseTimeline(ObjectId, [this, &Frame, ObjectId, MeshComponent, AnimationProvider](const IAnimationProvider::SkeletalMeshPoseTimeline& TimelineData, bool bHasCurves)
+									MeshComponent = Cast<USkeletalMeshComponent>(ObjectInstance);
+									if (MeshComponent)
 									{
-										const FSkeletalMeshPoseMessage * PoseMessage = nullptr;
-
-										// Get last pose in frame
-										TimelineData.EnumerateEvents(Frame.StartTime, Frame.EndTime,
-											[&PoseMessage](double InStartTime, double InEndTime, uint32 InDepth, const FSkeletalMeshPoseMessage& InPoseMessage)
-											{
-												PoseMessage = &InPoseMessage;
-												return TraceServices::EEventEnumerate::Continue;
-											});
-
-										// Update mesh based on pose
-										if (PoseMessage)
-										{
-											FTransform ComponentWorldTransform;
-											if (const FSkeletalMeshInfo* SkeletalMeshInfo = AnimationProvider->FindSkeletalMeshInfo(PoseMessage->MeshId))
-											{
-												AnimationProvider->GetSkeletalMeshComponentSpacePose(*PoseMessage, *SkeletalMeshInfo, ComponentWorldTransform, MeshComponent->GetEditableComponentSpaceTransforms());
-												MeshComponent->ApplyEditedComponentSpaceTransforms();
-
-												if (MeshComponentsToReset.Find(ObjectId) == nullptr)
-												{
-													FMeshComponentResetData ResetData;
-													ResetData.Component = MeshComponent;
-													ResetData.RelativeTransform = MeshComponent->GetRelativeTransform();
-													MeshComponentsToReset.Add(ObjectId, ResetData);
-												}
-
-												MeshComponent->SetWorldTransform(ComponentWorldTransform, false, nullptr, ETeleportType::TeleportPhysics);
-												MeshComponent->SetForcedLOD(PoseMessage->LodIndex + 1);
-												MeshComponent->UpdateChildTransforms(EUpdateTransformFlags::None, ETeleportType::TeleportPhysics);
-											}
-										}
-									});
+										bQueueForReset = true;
+									}
 								}
 							}
 #endif // OBJECT_TRACE_ENABLED
-							});
+							if (MeshComponent == nullptr)
+							{
+								// display pose on a spawned mesh component
+								FSpawnedMeshComponentInfo* MeshComponentInfo = SpawnedMeshComponents.Find(ObjectId);
+								if (MeshComponentInfo == nullptr)
+								{
+									MeshComponentInfo = &SpawnedMeshComponents.Add(ObjectId);
+									// spawn one
+
+									UEditorEngine* EditorEngine = Cast<UEditorEngine>(GEngine);
+									UWorld* World = EditorEngine->GetEditorWorldContext().World();
+
+									FActorSpawnParameters ActorSpawnParameters;
+									ActorSpawnParameters.bHideFromSceneOutliner = true;
+									ActorSpawnParameters.ObjectFlags |= RF_Transient;
+
+									MeshComponentInfo->Actor = World->SpawnActor<AActor>(ActorSpawnParameters);
+									MeshComponentInfo->Actor->SetActorLabel(TEXT("RewindDebugger"));
+
+									MeshComponentInfo->Component = NewObject<USkeletalMeshComponent>(MeshComponentInfo->Actor);
+									MeshComponentInfo->Component->PrimaryComponentTick.bStartWithTickEnabled = false;
+									MeshComponentInfo->Component->PrimaryComponentTick.bCanEverTick = false;
+
+									MeshComponentInfo->Actor->AddInstanceComponent(MeshComponentInfo->Component);
+
+									MeshComponentInfo->Component->SetAnimationMode(EAnimationMode::AnimationCustomMode);
+									MeshComponentInfo->Component->RegisterComponentWithWorld(World);
+
+									bLoadMesh = true;
+								}
+
+								MeshComponent = MeshComponentInfo->Component;
+							}
+
+							if (MeshComponent)
+							{
+								ApplyPoseToMesh(AnimationProvider, GameplayProvider, Frame, TimelineData, MeshComponent, ObjectId, bQueueForReset, bLoadMesh);
+							}
+						}
+						);
 						}
         
 						{

@@ -2,6 +2,7 @@
 
 #include "RewindDebugger.h"
 
+#include "DesktopPlatformModule.h"
 #include "Animation/AnimBlueprintGeneratedClass.h"
 #include "Animation/AnimTrace.h"
 #include "Components/SkeletalMeshComponent.h"
@@ -10,7 +11,9 @@
 #include "EngineUtils.h"
 #include "GameFramework/Controller.h"
 #include "GameFramework/Pawn.h"
+#include "HAL/PlatformFileManager.h"
 #include "IAnimationProvider.h"
+#include "IDesktopPlatform.h"
 #include "IGameplayProvider.h"
 #include "IRewindDebuggerDoubleClickHandler.h"
 #include "IRewindDebuggerExtension.h"
@@ -26,6 +29,7 @@
 #include "RewindDebuggerSettings.h"
 #include "SLevelViewport.h"
 #include "ToolMenus.h"
+#include "Trace/StoreClient.h"
 #include "TraceServices/Model/Frames.h"
 #include "UObject/UObjectIterator.h"
 #include "Widgets/Docking/SDockTab.h"
@@ -35,6 +39,8 @@
 #include "UnrealEdGlobals.h"
 #include "Editor/UnrealEdEngine.h"
 #include "Kismet2/DebuggerCommands.h"
+#include "TraceServices/AnalysisService.h"
+#include "TraceServices/ITraceServicesModule.h"
 #include "Widgets/Input/SNumericEntryBox.h"
 
 #define LOCTEXT_NAMESPACE "RewindDebugger"
@@ -62,18 +68,7 @@ static void TraceSubobjects(UObject* OuterObject)
 	}
 }
 
-FRewindDebugger::FRewindDebugger()  :
-	ControlState(FRewindDebugger::EControlState::Pause),
-	bPIEStarted(false),
-	bPIESimulating(false),
-	bRecording(false),
-	PreviousTraceTime(-1),
-	CurrentScrubTime(0),
-	CurrentViewRange(0,0),
-	CurrentTraceRange(0,0),
-	RecordingIndex(0),
-	bTargetActorPositionValid(false),
-	bIsDetailsPanelOpen(true)
+FRewindDebugger::FRewindDebugger()
 {
 	RewindDebugger::FRewindDebuggerTrackCreators::EnumerateCreators([this](const RewindDebugger::IRewindDebuggerTrackCreator* Creator)
     {
@@ -292,11 +287,14 @@ void FRewindDebugger::GetTargetObjectIds(TArray<uint64>& OutTargetObjectIds) con
 
 	// make sure all the SubObjects of the target actor have been traced
 #if OBJECT_TRACE_ENABLED
-	for (uint64 OutTargetObjectId : TargetObjectIds)
+	if (IsRecording())
 	{
-		if (UObject* TargetObject = FObjectTrace::GetObjectFromId(OutTargetObjectId))
+		for (uint64 OutTargetObjectId : TargetObjectIds)
 		{
-			TraceSubobjects(TargetObject);
+			if (UObject* TargetObject = FObjectTrace::GetObjectFromId(OutTargetObjectId))
+			{
+				TraceSubobjects(TargetObject);
+			}
 		}
 	}
 #endif
@@ -440,6 +438,142 @@ void FRewindDebugger::StartRecording()
 	UnrealInsightsModule->StartAnalysisForLastLiveSession(5.0);
 
 	TargetObjectIds.Empty(2);
+
+	bTraceFileLoaded = false;
+}
+
+bool FRewindDebugger::CanOpenTrace() const
+{
+	return !bPIEStarted;
+}
+
+
+void FRewindDebugger::OpenTrace(const FString& FilePath)
+{ 
+	ClearTrace();
+
+	IUnrealInsightsModule& TraceInsightsModule = FModuleManager::LoadModuleChecked<IUnrealInsightsModule>("TraceInsights");
+	TraceInsightsModule.StartAnalysisForTraceFile(*FilePath);
+	bTraceFileLoaded = GetAnalysisSession() != nullptr;
+
+	// todo: optionally open the map the trace file was recorded in
+}
+
+void FRewindDebugger::OpenTrace()
+{
+	FString FolderPath = "";
+	
+	TArray<FString> OutOpenFilenames;
+	if (IDesktopPlatform* DesktopPlatform = FDesktopPlatformModule::Get())
+	{
+		FString ExtensionStr;
+		ExtensionStr += TEXT("Unreal Trace|*.utrace|");
+	
+		DesktopPlatform->OpenFileDialog(
+			FSlateApplication::Get().FindBestParentWindowHandleForDialogs(nullptr),
+			LOCTEXT("OpenDialogTitle", "Open Rewind Debugger Recording").ToString(),
+			FolderPath,
+			TEXT(""),
+			*ExtensionStr,
+			EFileDialogFlags::None,
+			OutOpenFilenames
+		);
+	}
+
+	if (OutOpenFilenames.Num() > 0)
+	{
+		if (OutOpenFilenames[0].EndsWith(TEXT("utrace")))
+		{
+			OpenTrace(OutOpenFilenames[0]);
+		}
+	}
+}
+
+bool FRewindDebugger::CanClearTrace() const
+{
+	return GetAnalysisSession() != nullptr;
+}
+
+void FRewindDebugger::ClearTrace()
+{
+	StopRecording();
+	RecordingDuration.Set(0);
+	
+	bTraceFileLoaded = false;
+	TargetObjectIds.Empty();
+	CurrentViewRange.SetLowerBoundValue(0);
+	CurrentViewRange.SetUpperBoundValue(0);
+	CurrentTraceRange.SetLowerBoundValue(0);
+	CurrentTraceRange.SetUpperBoundValue(0);
+	RecordingDuration.Set(0.0);
+	SetCurrentScrubTime(0.0);
+	
+	// update extensions
+	IterateExtensions([this](IRewindDebuggerExtension* Extension)
+		{
+			Extension->Clear(this);
+		}
+	);
+	
+	IUnrealInsightsModule& TraceInsightsModule = FModuleManager::LoadModuleChecked<IUnrealInsightsModule>("TraceInsights");
+	// only way I can find to clear the session is trying to load a name that doesn't exist.
+	TraceInsightsModule.StartAnalysisForTraceFile(TEXT("0"));
+
+	RefreshDebugTracks();
+}
+
+bool FRewindDebugger::CanSaveTrace() const
+{
+	const TraceServices::IAnalysisSession* Session = GetAnalysisSession();
+	return Session != nullptr && Session->IsAnalysisComplete();
+}
+
+void FRewindDebugger::SaveTrace(FString FileName)
+{
+
+	if (const TraceServices::IAnalysisSession* Session = GetAnalysisSession())
+	{
+		if (Session->IsAnalysisComplete())
+		{
+			FString SourceFileName = Session->GetName();
+
+			FPlatformFileManager& FileManager = FPlatformFileManager::Get();
+			IPlatformFile& PlatformFile = FileManager.GetPlatformFile();
+
+			PlatformFile.CopyFile(*FileName, *SourceFileName);
+		}
+		
+	}
+}
+
+void FRewindDebugger::SaveTrace()
+{
+	FString FolderPath = "";
+	
+	TArray<FString> OutFilenames;
+	if (IDesktopPlatform* DesktopPlatform = FDesktopPlatformModule::Get())
+	{
+		FString ExtensionStr;
+		ExtensionStr += TEXT("Rewind Debugger Recording |*.utrace|");
+	
+		DesktopPlatform->SaveFileDialog(
+			FSlateApplication::Get().FindBestParentWindowHandleForDialogs(nullptr),
+			LOCTEXT("SaveDialogTitle", "Save Rewind Debugger Recording").ToString(),
+			FolderPath,
+			TEXT(""),
+			*ExtensionStr,
+			EFileDialogFlags::None,
+			OutFilenames
+		);
+	}
+
+	if (OutFilenames.Num() > 0)
+	{
+		if (OutFilenames[0].EndsWith(TEXT(".utrace")))
+		{
+			SaveTrace(OutFilenames[0]);
+		}
+	}
 }
 
 bool FRewindDebugger::ShouldAutoRecordOnPIE() const
@@ -855,8 +989,6 @@ void FRewindDebugger::Tick(float DeltaTime)
 	
 	if (const TraceServices::IAnalysisSession* Session = GetAnalysisSession())
 	{
-		RefreshDebugTracks();
-		
 		const IAnimationProvider* AnimationProvider = Session->ReadProvider<IAnimationProvider>("AnimationProvider");
 		const IGameplayProvider* GameplayProvider = Session->ReadProvider<IGameplayProvider>("GameplayProvider");
 
@@ -864,7 +996,16 @@ void FRewindDebugger::Tick(float DeltaTime)
 		{
 			TraceServices::FAnalysisSessionReadScope SessionReadScope(*Session);
 
-			RecordingDuration.Set(GameplayProvider->GetRecordingDuration());
+			double RecordingDurationValue = GameplayProvider->GetRecordingDuration();
+			if (IsTraceFileLoaded() && RecordingDurationValue > RecordingDuration.Get())
+			{
+				// while trace file is loading up, recording duration changes - autoscroll
+				SetCurrentScrubTime(RecordingDurationValue);
+				TrackCursorDelegate.ExecuteIfBound(false);	
+			}
+			RecordingDuration.Set(RecordingDurationValue);
+			
+			RefreshDebugTracks();
 			
 			UWorld* World = GetWorldToVisualize();
 
@@ -873,7 +1014,7 @@ void FRewindDebugger::Tick(float DeltaTime)
 				if (bRecording)
 				{
 					TRACE_CPUPROFILER_EVENT_SCOPE(FRewindDebugger::Tick_UpdateSimulating);
-					SetCurrentScrubTime(RecordingDuration.Get());
+					SetCurrentScrubTime(RecordingDurationValue);
 					TrackCursorDelegate.ExecuteIfBound(false);
 				}
 			}
@@ -1218,6 +1359,25 @@ void FRewindDebugger::RegisterToolBar()
 				FSlateIcon("RewindDebuggerStyle", "RewindDebugger.StopRecording.small")));
 
 	Section.AddSeparator(NAME_None);
+
+	Section.AddEntry(FToolMenuEntry::InitToolBarButton(
+				Commands.OpenTrace,
+				LOCTEXT("Blank",""),
+				TAttribute<FText>(),
+				 FSlateIcon(FAppStyle::GetAppStyleSetName(), "Icons.FolderOpen")));
+	
+	Section.AddEntry(FToolMenuEntry::InitToolBarButton(
+    			Commands.SaveTrace,
+    			LOCTEXT("Blank",""),
+    			TAttribute<FText>(),
+    			 FSlateIcon(FAppStyle::GetAppStyleSetName(), "Icons.Save")));
+				 
+	Section.AddEntry(FToolMenuEntry::InitToolBarButton(
+				Commands.ClearTrace,
+				LOCTEXT("Blank",""),
+				TAttribute<FText>(),
+				 FSlateIcon(FAppStyle::GetAppStyleSetName(), "Icons.Delete")));
+
 	
 	Section.AddEntry(FToolMenuEntry::InitToolBarButton(
 				Commands.AutoEject,
@@ -1231,6 +1391,7 @@ void FRewindDebugger::RegisterToolBar()
 				LOCTEXT("Blank",""),
 				TAttribute<FText>(),
 				FSlateIcon("RewindDebuggerStyle", "RewindDebugger.AutoRecord")));
+	
 
 	
 	Menu->SetStyleSet(&FAppStyle::Get());

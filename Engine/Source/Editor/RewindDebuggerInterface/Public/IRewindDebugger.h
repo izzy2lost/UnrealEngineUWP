@@ -90,6 +90,9 @@ public:
 	// returns true if recording is active
 	virtual bool IsRecording() const = 0;
 
+	// returns true if we have loaded a trace file from disk
+	virtual bool IsTraceFileLoaded() const = 0;
+
 	// returns true if PIE is running and not paused
 	virtual bool IsPIESimulating() const = 0;
 
