@@ -311,12 +311,6 @@ static FOutcome DoRecvContent(FActivity* Activity, FPeerType& Peer, int32& MaxRe
 		MaxRecvSize -= Result;
 	}
 
-	if (!FLatencyInjector::Begin(FLatencyInjector::EType::Network, Activity->StateParam))
-	{
-		Activity_SetError(Activity, "Forced random failure");
-		return FOutcome::Error(Activity->ErrorReason);
-	}
-
 #if IAS_HTTP_WITH_PERF
 	Activity->Stopwatch.RecvEnd();
 #endif
@@ -351,11 +345,6 @@ static FOutcome DoRecv(FActivity* Activity, FPeerType& Peer, int32& MaxRecvSize)
 ////////////////////////////////////////////////////////////////////////////////
 static void DoRecvDone(FActivity* Activity)
 {
-	if (!FLatencyInjector::HasExpired(Activity->StateParam))
-	{
-		return;
-	}
-
 	// Notify the user we've received everything
 	FTicketStatus& SinkArg = *(FTicketStatus*)Activity;
 	Activity->Sink(SinkArg);

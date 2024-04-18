@@ -25,8 +25,6 @@
 
 #include <atomic>
 
-#include "LatencyInjector.h"
-
 #include "Misc.inl"
 #include "Socket.inl"
 #include "Peer.inl"
