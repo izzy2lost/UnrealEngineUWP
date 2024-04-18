@@ -395,7 +395,7 @@ namespace PCGSplineSamplerHelpers
 
 		const UPCGPolyLineData* LineData = nullptr;
 		int CurrentSegmentIndex = 0;
-		FVector::FReal DistanceToCurrentSegment = 0.0f;
+		FVector::FReal DistanceToCurrentSegment = 0.0;
 		bool bComputeCurvature = false;
 		bool bComputeAlpha = false;
 		bool bComputeDistance = false;
@@ -514,21 +514,61 @@ namespace PCGSplineSamplerHelpers
 
 	struct FDistanceStepSampler : public FStepSampler
 	{
-		FDistanceStepSampler(const UPCGPolyLineData* InLineData, const FPCGSplineSamplerParams& Params)
+		FDistanceStepSampler(const UPCGPolyLineData* InLineData, const FPCGSplineSamplerParams& Params, int Seed)
 			: FStepSampler(InLineData, Params)
 		{
-			DistanceIncrement = Params.DistanceIncrement;
-			CurrentDistance = 0;
+			StartOffset = FMath::Max(0, Params.StartOffset);
+			const FVector::FReal EndOffset = FMath::Max(0, Params.EndOffset);
+
+			CurrentDistance = StartOffset;
+			TotalDistance = InLineData->GetLength();
+			EndDistance = TotalDistance - EndOffset;
+
+			if (Params.Mode == EPCGSplineSamplingMode::NumberOfSamples)
+			{
+				TotalNumSamples = Params.NumSamples;
+
+				if (TotalNumSamples > 0)
+				{
+					// Compute an increment which evenly distributes sample points along the length of the curve.
+					DistanceIncrement = (LineData->GetLength() - StartOffset - EndOffset) / (LineData->IsClosed() ? TotalNumSamples : FMath::Max(1, TotalNumSamples - 1));
+				}
+			}
+			else
+			{
+				DistanceIncrement = Params.DistanceIncrement;
+			}
+
+			MaxRandomOffset = FMath::Max(0.0f, Params.MaxRandomOffsetNormalized) * DistanceIncrement / 2.0f;
+			bUseRandomOffset = !FMath::IsNearlyZero(MaxRandomOffset);
+
+			if (bUseRandomOffset)
+			{
+				RandomSource.Initialize(Seed);
+			}
 		}
 
 		virtual void Step(FSamplerResult& OutResult) override
 		{
+			FVector::FReal OffsetDistance = CurrentDistance + (bUseRandomOffset ? RandomSource.FRandRange(-MaxRandomOffset, MaxRandomOffset) : 0.0);
+
+			// Prevent samples from wrapping around on open splines.
+			if (!LineData->IsClosed() && DistanceToCurrentSegment + OffsetDistance < StartOffset)
+			{
+				OffsetDistance = StartOffset - DistanceToCurrentSegment;
+			}
+
+			if (!LineData->IsClosed() && DistanceToCurrentSegment + OffsetDistance >= EndDistance)
+			{
+				OffsetDistance = EndDistance - DistanceToCurrentSegment;
+			}
+
 			FVector::FReal CurrentSegmentLength = LineData->GetSegmentLength(CurrentSegmentIndex);
 			FTransform& OutTransform = OutResult.LocalTransform;
 			FBox& OutBox = OutResult.Box;
-			OutTransform = LineData->GetTransformAtDistance(CurrentSegmentIndex, CurrentDistance, /*bWorldSpace=*/false, &OutBox);
+			OutTransform = LineData->GetTransformAtDistance(CurrentSegmentIndex, OffsetDistance, /*bWorldSpace=*/false, &OutBox);
 			OutResult.SegmentIndex = CurrentSegmentIndex;
-			OutResult.InputKey = LineData->GetInputKeyAtDistance(CurrentSegmentIndex, CurrentDistance);
+			OutResult.InputKey = LineData->GetInputKeyAtDistance(CurrentSegmentIndex, OffsetDistance);
 
 			// Set min/max to half of extent
 			OutBox.Min.X *= 0.5 * DistanceIncrement / OutTransform.GetScale3D().X;
@@ -536,48 +576,58 @@ namespace PCGSplineSamplerHelpers
 
 			if (bComputeCurvature)
 			{
-				OutResult.Curvature = LineData->GetCurvatureAtDistance(CurrentSegmentIndex, CurrentDistance);
+				OutResult.Curvature = LineData->GetCurvatureAtDistance(CurrentSegmentIndex, OffsetDistance);
 			}
 
 			if (bComputeAlpha)
 			{
-				OutResult.Alpha = LineData->GetAlphaAtDistance(CurrentSegmentIndex, CurrentDistance);
+				OutResult.Alpha = LineData->GetAlphaAtDistance(CurrentSegmentIndex, OffsetDistance);
 			}
 
 			if (bComputeDistance)
 			{
-				OutResult.Distance = DistanceToCurrentSegment + CurrentDistance;
+				OutResult.Distance = DistanceToCurrentSegment + OffsetDistance;
 			}
 
+			// Increment the current distance to get our next sample location. Note that we don't use the offset distance, since the new sample doesn't care
+			// about the previous sample location.
 			CurrentDistance += DistanceIncrement;
+			++CurrentNumSamples;
+
 			while(CurrentDistance > CurrentSegmentLength)
 			{
 				CurrentDistance -= CurrentSegmentLength;
 				++CurrentSegmentIndex;
 
-				if (bComputeDistance)
-				{
-					DistanceToCurrentSegment += CurrentSegmentLength;
-				}
+				DistanceToCurrentSegment += CurrentSegmentLength;
 
-				if (!IsDone())
+				if (IsDone() || CurrentSegmentLength <= 0)
 				{
-					CurrentSegmentLength = LineData->GetSegmentLength(CurrentSegmentIndex);
+					break;
 				}
 				else
 				{
-					break;
+					CurrentSegmentLength = LineData->GetSegmentLength(CurrentSegmentIndex);
 				}
 			}
 		}
 
 		virtual bool IsDone() const override
 		{
-			return CurrentSegmentIndex >= LineData->GetNumSegments();
+			return (DistanceToCurrentSegment + CurrentDistance > EndDistance + UE_DOUBLE_SMALL_NUMBER) || (CurrentNumSamples == TotalNumSamples);
 		}
 
-		FVector::FReal CurrentDistance = 0.0f;
-		FVector::FReal DistanceIncrement = 0.0f;
+		FVector::FReal CurrentDistance = 0.0;
+		FVector::FReal DistanceIncrement = 0.0;
+		FVector::FReal StartOffset = 0.0;
+		FVector::FReal EndDistance = 0.0;
+		FVector::FReal TotalDistance = 0.0;
+		FVector::FReal MaxRandomOffset = 0.0;
+		FRandomStream RandomSource;
+		bool bUseRandomOffset = false;
+
+		int CurrentNumSamples = 0;
+		int TotalNumSamples = -1;
 	};
 
 	struct FDimensionSampler
@@ -867,7 +917,7 @@ namespace PCGSplineSamplerHelpers
 		int NumHeightSteps;
 	};
 
-	void SampleLineData(const UPCGPolyLineData* LineData, const UPCGSpatialData* InBoundingShapeData, const UPCGSpatialData* InProjectionTarget, const FPCGProjectionParams& InProjectionParams, const FPCGSplineSamplerParams& Params, UPCGPointData* OutPointData)
+	void SampleLineData(FPCGContext* Context, const UPCGPolyLineData* LineData, const UPCGSpatialData* InBoundingShapeData, const UPCGSpatialData* InProjectionTarget, const FPCGProjectionParams& InProjectionParams, const FPCGSplineSamplerParams& Params, UPCGPointData* OutPointData)
 	{
 		check(LineData && OutPointData);
 
@@ -884,31 +934,9 @@ namespace PCGSplineSamplerHelpers
 		}
 
 		FSubdivisionStepSampler SubdivisionSampler(LineData, Params);
-		FDistanceStepSampler DistanceSampler(LineData, Params);
+		FDistanceStepSampler DistanceSampler(LineData, Params, Context ? Context->GetSeed() : 42);
 
 		FStepSampler* Sampler = ((Params.Mode == EPCGSplineSamplingMode::Subdivision) ? static_cast<FStepSampler*>(&SubdivisionSampler) : static_cast<FStepSampler*>(&DistanceSampler));
-
-		if (Params.Mode == EPCGSplineSamplingMode::NumberOfSamples)
-		{
-			if (Params.NumSamples <= 0)
-			{
-				return;
-			}
-
-			// Compute an increment which evenly distributes sample points along the length of the curve.
-			DistanceSampler.DistanceIncrement = LineData->GetLength() / (LineData->IsClosed() ? Params.NumSamples : FMath::Max(1, Params.NumSamples - 1));
-
-			if (LineData->IsClosed() || Params.NumSamples == 1)
-			{
-				// If the curve is closed or only has one sample, we nudge the DistanceIncrement slightly to avoid floating point error giving us an extra sample point.
-				DistanceSampler.DistanceIncrement += UE_DOUBLE_SMALL_NUMBER;
-			}
-			else
-			{
-				// If the curve is not closed and has more than one sample, we should nudge DistanceIncrement slightly lower so that we guarantee capturing the last sample point.
-				DistanceSampler.DistanceIncrement -= UE_DOUBLE_SMALL_NUMBER;
-			}
-		}
 
 		FDimensionSampler TrivialDimensionSampler(LineData, InBoundingShapeData, InProjectionTarget, InProjectionParams, Params, OutPointData);
 		FVolumeSampler VolumeSampler(LineData, InBoundingShapeData, InProjectionTarget, InProjectionParams, Params, OutPointData);
@@ -1373,6 +1401,11 @@ namespace PCGSplineSamplerHelpers
 	}
 }
 
+UPCGSplineSamplerSettings::UPCGSplineSamplerSettings()
+{
+	bUseSeed = true;
+}
+
 #if WITH_EDITOR
 FText UPCGSplineSamplerSettings::GetNodeTooltipText() const
 {
@@ -1470,7 +1503,7 @@ bool FPCGSplineSamplerElement::ExecuteInternal(FPCGContext* Context) const
 		}
 		else
 		{
-			PCGSplineSamplerHelpers::SampleLineData(LineData, BoundingShape, ProjectionTarget, ProjectionParams, SamplerParams, SampledPointData);
+			PCGSplineSamplerHelpers::SampleLineData(Context, LineData, BoundingShape, ProjectionTarget, ProjectionParams, SamplerParams, SampledPointData);
 		}
 	}
 

@@ -158,7 +158,7 @@ void UPCGSplineInteriorSurfaceData::CacheData()
 
 	// TODO: Ideally SampleLineData could just consume a UPCGSplineInteriorSurfaceData or FPCGSplineStruct, to avoid the extra copy on the spline struct.
 	// TODO: It might be preferable to directly sample the spline than use the spline sampler, since it does a lot of work we don't care about.
-	PCGSplineSamplerHelpers::SampleLineData(SplineData, /*InBoundingShape=*/nullptr, /*InProjectionTarget=*/nullptr, /*InProjectionParams=*/{}, SamplerParams, PointData);
+	PCGSplineSamplerHelpers::SampleLineData(/*Context=*/nullptr, SplineData, /*InBoundingShape=*/nullptr, /*InProjectionTarget=*/nullptr, /*InProjectionParams=*/{}, SamplerParams, PointData);
 
 	// Cache the points which describe the polygon of our spline.
 	for (const FPCGPoint& Point : PointData->GetPoints())
