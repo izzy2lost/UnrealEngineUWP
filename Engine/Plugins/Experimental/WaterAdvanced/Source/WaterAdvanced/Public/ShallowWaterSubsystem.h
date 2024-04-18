@@ -267,6 +267,9 @@ private:
 
 	bool bIsShallowWaterInitialized = false;
 
+	bool bAsyncLoadMPCAttempted = false;
+	bool bAsyncLoadNSAttempted = false;
+
 	struct PendingImpact
 	{
 		FVector ImpactPosition;
