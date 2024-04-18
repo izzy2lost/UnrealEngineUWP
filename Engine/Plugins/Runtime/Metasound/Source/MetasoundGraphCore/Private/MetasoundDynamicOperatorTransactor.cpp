@@ -285,7 +285,7 @@ namespace Metasound
 		{
 		}
 
-		FDynamicGraphIncrementalSorter::FDynamicGraphIncrementalSorter(const IGraph& InGraph)
+		FDynamicGraphIncrementalSorter::FDynamicGraphIncrementalSorter(const FGraph& InGraph)
 		{
 			Init(InGraph);
 		}
@@ -435,7 +435,7 @@ namespace Metasound
 		}
 
 
-		void FDynamicGraphIncrementalSorter::Init(const IGraph& InGraph)
+		void FDynamicGraphIncrementalSorter::Init(const FGraph& InGraph)
 		{
 			/* determine new operator order. */
 			TArray<const INode*> NodeOrder;
@@ -465,6 +465,19 @@ namespace Metasound
 
 				OperatorMap[FromOperatorID].Outputs.Add(ToOperatorID);
 				OperatorMap[ToOperatorID].Inputs.Add(FromOperatorID);
+			}
+
+			// Unconnected nodes are intentionally skipped by the operator builder
+			// in order to reduce perf. In a dynamic operator, these nodes may be
+			// connected in the future. We add them here so that they exist on in
+			// incremental sorter in the case they are connected at a later time.
+			TArray<TPair<FGuid, const INode*>> UnconnectedNodes;
+			if (InGraph.FindUnconnectedNodes(UnconnectedNodes) > 0)
+			{
+				for (const TPair<FGuid, const INode*>& GuidAndNode : UnconnectedNodes)
+				{
+					InsertOperator(DirectedGraphAlgo::GetOperatorID(GuidAndNode.Value), FDynamicGraphIncrementalSorter::EInsertLocation::Last);
+				}
 			}
 		}
 

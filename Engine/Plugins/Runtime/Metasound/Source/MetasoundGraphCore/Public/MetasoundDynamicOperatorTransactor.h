@@ -112,7 +112,7 @@ namespace Metasound
 
 			FDynamicGraphIncrementalSorter();
 
-			FDynamicGraphIncrementalSorter(const IGraph& InGraph);
+			FDynamicGraphIncrementalSorter(const FGraph& InGraph);
 
 			/** Insert a node into the graph.
 			 * @return Ordinal of added operator.
@@ -161,7 +161,7 @@ namespace Metasound
 
 			void IncrementalTopologicalSortForNewEdge(FOperatorID InFromOperatorID, int32 InFromOrdinal, FOperatorID InToOperatorID, int32 InToOdinal, TArray<FOrdinalSwap>& OutUpdates);
 
-			void Init(const IGraph& InGraph);
+			void Init(const FGraph& InGraph);
 
 			int32 MaxOrdinal = 0;
 			int32 MinOrdinal = 0;
