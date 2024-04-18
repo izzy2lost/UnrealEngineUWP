@@ -36,7 +36,7 @@ float2 ComputeStaticVelocity(float2 ScreenPos, float DeviceZ)
 	float4 ThisClip = float4(PosN, 1);
 	float4 PrevClip = mul( ThisClip, View.ClipToPrevClip );
 	float2 PrevScreen = PrevClip.xy / PrevClip.w;
-	return PosN.xy - PrevScreen;
+	return AdjustClipToPrevClipForProjectionType(PosN.xy - PrevScreen, DeviceZ);
 }
 
 

@@ -470,7 +470,6 @@ void MainCommon(in FMaterialPixelParameters MaterialParameters, in float4 SvPosi
 	//
 	// Initialise all the parameters
 	//
-	
 	OutColor0					= float4(0.0f, 0.0f, 0.0f, 1.0f);
 	OutDepth					= MaxHalfFloat;
 
@@ -479,17 +478,18 @@ void MainCommon(in FMaterialPixelParameters MaterialParameters, in float4 SvPosi
 	FPixelMaterialInputs PixelMaterialInputs	= (FPixelMaterialInputs)0;
 	CalcMaterialParameters(MaterialParameters, PixelMaterialInputs, SvPosition, true);
 
-	float3 RayWorldOriginKm				= DFHackToFloat(ResolvedView.WorldCameraOrigin) * CENTIMETER_TO_KILOMETER;
-	float3 RayTranslatedWorldOrigin		= View.TranslatedWorldCameraOrigin;
+	float3 RayTranslatedWorldOrigin		= GetTranslatedWorldCameraPosFromView(SvPosition.xy);
 	float3 RayTranslatedWorldOriginKm	= RayTranslatedWorldOrigin * CENTIMETER_TO_KILOMETER;
+	float3 RayWorldOriginKm				= select(IsOrthoProjection(), DFHackToFloat(DFSubtract(RayTranslatedWorldOrigin, PrimaryView.PreViewTranslation)) * CENTIMETER_TO_KILOMETER, DFHackToFloat(ResolvedView.WorldCameraOrigin) * CENTIMETER_TO_KILOMETER);
 	float3 Raydir						= -MaterialParameters.CameraVector;
+
 	float TMin							= -999999999.0f;
 	float TMax							= -999999999.0f;
 
-	float3 Luminance			= 0.0f;
-	MATVEC TransmittanceToView	= 1.0f;
-	float tAPWeightedSum		= 0.0f;
-	float tAPWeightsSum			= 0.0f;
+	float3 Luminance					= 0.0f;
+	MATVEC TransmittanceToView			= 1.0f;
+	float tAPWeightedSum				= 0.0f;
+	float tAPWeightsSum					= 0.0f;
 
 #if CLOUD_MIN_AND_MAX_DEPTH
 	OutColor1 = float4(0.0f, 0.0f, 0.0f, 1.0f);
@@ -505,10 +505,8 @@ void MainCommon(in FMaterialPixelParameters MaterialParameters, in float4 SvPosi
 	const float3 RayDirOffsetX = GetCameraVector(ResolvedView, TranslatedWorldPositionOffsetX, ResolvedView.TranslatedWorldCameraOrigin);
 	const float3 RayDirOffsetY = GetCameraVector(ResolvedView, TranslatedWorldPositionOffsetY, ResolvedView.TranslatedWorldCameraOrigin);
 
-	// TODO: The current cloud tracing code assumes the ray origin to be at the camera origin, which breaks on ortho projections.
-	// We still define these variables to reduce the risk of bugs in the future when the code is fixed to properly support ortho projections as well.
-	const float3 RayTranslatedWorldOriginOffsetX = RayTranslatedWorldOrigin;
-	const float3 RayTranslatedWorldOriginOffsetY = RayTranslatedWorldOrigin;
+	const float3 RayTranslatedWorldOriginOffsetX = GetTranslatedWorldCameraPosFromView(ResolvedView, SvPosition.xy + float2(1.0f, 0.0f));
+	const float3 RayTranslatedWorldOriginOffsetY = GetTranslatedWorldCameraPosFromView(ResolvedView, SvPosition.xy + float2(0.0f, 1.0f));
 #endif // USE_ANALYTIC_DERIVATIVES
 
 	uint4 TracingCoordToZbufferCoordScaleBias = RenderVolumetricCloudParameters.TracingCoordToZbufferCoordScaleBias;
@@ -563,6 +561,15 @@ void MainCommon(in FMaterialPixelParameters MaterialParameters, in float4 SvPosi
 		TMin = max(0.0f, TMin) * KILOMETER_TO_CENTIMETER;
 		TMax = max(0.0f, TMax) * KILOMETER_TO_CENTIMETER;
 
+		const bool bDoDepthIntersectionAndTest = RenderVolumetricCloudParameters.OpaqueIntersectionMode >= 2;
+		if (IsOrthoProjection())
+		{
+			//Ortho is always drawing to the far plane for now, so clip anything that is in front of it when we are inside the sky sphere. Earlies out compared to the further checks below.
+			if (bDoDepthIntersectionAndTest && length(RayWorldOriginKm - RenderVolumetricCloudParameters.CloudLayerCenterKm) < RenderVolumetricCloudParameters.TopRadiusKm && OutDepth.z > 0.0f)
+			{
+				return;
+			}
+		}
 
 		//
 		// Skip tracing if the range is 0, e.g. cloud layer is behind an object and we do not want to pay for SampleCountMin, or the distance at which tracing should start it too far away
@@ -613,20 +620,20 @@ void MainCommon(in FMaterialPixelParameters MaterialParameters, in float4 SvPosi
 		// Skip tracing if the depth buffer is in front of the cloud layer front interface. If inside the layer, clamp the tracing to the depth buffer
 		//
 
-		const bool bDoDepthInteresectionAndTest = RenderVolumetricCloudParameters.OpaqueIntersectionMode >= 2;
-
-		if (bDoDepthInteresectionAndTest && (TDepthBufferKm * KILOMETER_TO_CENTIMETER) < TMin)
+		if(!IsOrthoProjection() || TMax < View.OrthoFarPlane)
 		{
-			//OutColor0 = float4(0.0f, 0.0f, 1.0f, 1.0f);
-			return;
-		}
+			if (bDoDepthIntersectionAndTest && (TDepthBufferKm * KILOMETER_TO_CENTIMETER) < TMin)
+			{
+				//OutColor0 = float4(0.0f, 0.0f, 1.0f, 1.0f);
+				return;
+			}
 
-		if (bDoDepthInteresectionAndTest)
-		{
-			// Only trace up to the closest between the cloud layer far distance and the depth buffer 
-			TMax = min(TMax, TDepthBufferKm * KILOMETER_TO_CENTIMETER);
+			if (bDoDepthIntersectionAndTest)
+			{
+				// Only trace up to the closest between the cloud layer far distance and the depth buffer 
+				TMax = min(TMax, TDepthBufferKm * KILOMETER_TO_CENTIMETER);
+			}
 		}
-
 
 		//
 		// Prepare a bunch of variable for the tracing
@@ -1867,15 +1874,15 @@ float GetSvPositionEmptySpaceSkippingValue(in ViewState ResolvedView, in uint3 D
 
 	const float SampleDistanceFromCamera = (float(GroupThreadId.z) + SampleFroxelOffset.z) * GetSliceDepth();
 	const float3 Raydir = -MaterialParameters.CameraVector;
-	const float3 SampleTranslatedWorldPosition = ResolvedView.TranslatedWorldCameraOrigin + Raydir * SampleDistanceFromCamera;
+	const float3 SampleTranslatedWorldPosition = GetTranslatedWorldCameraPosFromView(ResolvedView, SvPosition.xy) + Raydir * SampleDistanceFromCamera;
 
 #if USE_ANALYTIC_DERIVATIVES
 	const float3 TranslatedWorldPositionOffsetX = SvPositionToResolvedTranslatedWorld(SvPosition + float4(1.0f, 0.0f, 0.0f, 0.0f));
 	const float3 TranslatedWorldPositionOffsetY = SvPositionToResolvedTranslatedWorld(SvPosition + float4(0.0f, 1.0f, 0.0f, 0.0f));
 	const float3 RayDirOffsetX = GetCameraVector(ResolvedView, TranslatedWorldPositionOffsetX, ResolvedView.TranslatedWorldCameraOrigin);
 	const float3 RayDirOffsetY = GetCameraVector(ResolvedView, TranslatedWorldPositionOffsetY, ResolvedView.TranslatedWorldCameraOrigin);
-	float3 SampleWorldPositionDDX = (ResolvedView.TranslatedWorldCameraOrigin + t * RayDirOffsetX) - SampleTranslatedWorldPosition;
-	float3 SampleWorldPositionDDY = (ResolvedView.TranslatedWorldCameraOrigin + t * RayDirOffsetY) - SampleTranslatedWorldPosition;
+	float3 SampleWorldPositionDDX = (GetTranslatedWorldCameraPosFromView(ResolvedView, SvPosition.xy + float2(1.0f, 0.0f)) + RayDirOffsetX * SampleDistanceFromCamera) - SampleTranslatedWorldPosition;
+	float3 SampleWorldPositionDDY = (GetTranslatedWorldCameraPosFromView(ResolvedView, SvPosition.xy + float2(0.0f, 1.0f)) + RayDirOffsetY * SampleDistanceFromCamera) - SampleTranslatedWorldPosition;
 #else
 	float3 SampleWorldPositionDDX = 0.0f;
 	float3 SampleWorldPositionDDY = 0.0f;

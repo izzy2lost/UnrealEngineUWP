@@ -600,16 +600,16 @@ void FScene::UpdatePlanarReflectionContents(UPlanarReflectionComponent* CaptureC
 			const FMatrix ViewMatrix(MirrorMatrix * View.ViewMatrices.GetViewMatrix());
 			const FVector ViewOrigin = ViewMatrix.InverseTransformPosition(FVector::ZeroVector);
 			const FMatrix ViewRotationMatrix = ViewMatrix.RemoveTranslation();
-			const float HalfFOV = FMath::Atan(1.0f / View.ViewMatrices.GetProjectionMatrix().M[0][0]);
 
 			FMatrix ProjectionMatrix;
-			if (CaptureComponent->ExtraFOV == 0.f && MainSceneRenderer.Views.Num() > 1)
+			if (!View.IsPerspectiveProjection() || (CaptureComponent->ExtraFOV == 0.f && MainSceneRenderer.Views.Num() > 1))
 			{
 				// Prefer exact (potentially uneven) stereo projection matrices when no extra FOV is requested
 				ProjectionMatrix = View.ViewMatrices.GetProjectionMatrix();
 			}
 			else
 			{
+				const float HalfFOV = FMath::Atan(1.0f / View.ViewMatrices.GetProjectionMatrix().M[0][0]);
 				BuildProjectionMatrix(View.UnscaledViewRect.Size(), HalfFOV + FMath::DegreesToRadians(CaptureComponent->ExtraFOV), GNearClippingPlane, ProjectionMatrix);
 			}
 

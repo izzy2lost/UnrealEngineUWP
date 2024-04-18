@@ -53,7 +53,7 @@ void UpdateMaterialCloudParam(inout FMaterialPixelParameters MaterialParameters,
 	//MaterialParameters.WorldPosition_NoOffsets;				// TODO
 	//MaterialParameters.LWCData.WorldPosition_NoOffsets;	// TODO
 	//MaterialParameters.WorldPosition_NoOffsets_CamRelative;	// TODO
-	MaterialParameters.CameraVector = normalize(InputView.TranslatedWorldCameraOrigin - TranslatedWorldPosition);
+	MaterialParameters.CameraVector = select(IsOrthoProjection(InputView), InputView.ViewForward, normalize(InputView.TranslatedWorldCameraOrigin - TranslatedWorldPosition));
 	MaterialParameters.WorldPosition_DDX = WorldPositionDDX;
 	MaterialParameters.WorldPosition_DDY = WorldPositionDDY;
 

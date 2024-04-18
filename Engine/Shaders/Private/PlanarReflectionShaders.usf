@@ -168,7 +168,7 @@ void PlanarReflectionPS(
 
 	FGBufferData GBuffer = GetGBufferDataFromSceneTextures(BufferUV);
 
-	float3 TranslatedWorldPosition = ResolvedView.TranslatedWorldCameraOrigin + ScreenVector * GBuffer.Depth;
+	float3 TranslatedWorldPosition = GetTranslatedWorldCameraPosFromView(SVPos.xy) + ScreenVector * GBuffer.Depth;
 
 	// Skip unlit pixels (skybox)
 	BRANCH

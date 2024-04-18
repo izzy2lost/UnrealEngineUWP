@@ -375,7 +375,7 @@ bool FMinimalViewInfo::AutoCalculateOrthoPlanes(FSceneViewProjectionData& InOutP
 		 * Forcing the absolute value for this means that Up/Down is 1.0f and Forward (90 degrees) is 0.
 		 * We use this to scale the Near Plane, and the far plane if 16 bit scaling is disabled.
 		 */
-		float CosAngle = FMath::Abs((ViewForward.Dot(FVector(0, 0, -1.0f))));
+		float CosAngle = FMath::Abs(ViewForward.Z);
 		
 		/** 
 		 * We still max out at UE_OLD_WORLD_MAX or Max32FP, but we scale the FarPlane depending on ratio of the pixel size to the world unit size.

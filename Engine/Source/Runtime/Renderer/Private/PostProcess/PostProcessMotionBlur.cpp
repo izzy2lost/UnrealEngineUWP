@@ -76,6 +76,13 @@ namespace
 		ECVF_RenderThreadSafe
 	);
 
+	TAutoConsoleVariable<int32> CVarOrthoUsePreviousMotionVelocityFlattenPass(
+		TEXT("r.Ortho.UsePreviousMotionVelocityFlattenPass"),
+		0,
+		TEXT("Enable/Disable the option for Ortho motion blur pass to use the previous flatten textures (e.g. from TSR). ")
+		TEXT("Currently causes shimmering on distance planes if disabled"),
+		ECVF_RenderThreadSafe);
+
 	FMatrix GetPreviousWorldToClipMatrix(const FViewInfo& View)
 	{
 		if (View.Family->EngineShowFlags.CameraInterpolation)
@@ -619,7 +626,9 @@ void AddMotionBlurVelocityPass(
 	// Velocity flatten pass: combines depth / velocity into a single target for sampling efficiency.
 	FRDGTextureRef VelocityFlatTexture = nullptr;
 	FRDGTextureRef VelocityTileTextureSetup = nullptr;
-	if (Inputs.VelocityFlattenTextures.IsValid())
+
+	bool bViewUsesPreviousFlattenTexture = View.IsPerspectiveProjection() || CVarOrthoUsePreviousMotionVelocityFlattenPass.GetValueOnRenderThread() != 0;
+	if (bViewUsesPreviousFlattenTexture && Inputs.VelocityFlattenTextures.IsValid())
 	{
 		ensure(Inputs.VelocityFlattenTextures.VelocityFlatten.ViewRect == View.ViewRect);
 		ensure(Inputs.VelocityFlattenTextures.VelocityTileArray.ViewRect == FIntRect(FIntPoint::ZeroValue, VelocityTileCount));

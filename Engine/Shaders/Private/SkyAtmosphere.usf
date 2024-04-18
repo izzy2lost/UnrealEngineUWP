@@ -164,8 +164,8 @@ float3 GetScreenWorldDir(in float4 SVPos)
 {
 	float2 ScreenPosition = SvPositionToScreenPosition(SVPos).xy;
 	const float Depth = 1000000.0f;
-	float4 WorldPos = mul(float4(GetScreenPositionForProjectionType(ScreenPosition, Depth), Depth, 1), View.ScreenToTranslatedWorld);
-	return GetCameraVectorFromTranslatedWorldPosition(WorldPos.xyz);
+	float4 TranslatedWorldPos = mul(float4(GetScreenPositionForProjectionType(ScreenPosition, Depth), Depth, 1), View.ScreenToTranslatedWorld);
+	return GetCameraVectorFromTranslatedWorldPosition(TranslatedWorldPos.xyz);
 }
 
 // This is the world position of the camera. It is also force to be at the top of the virutal planet surface. 
@@ -869,8 +869,12 @@ void RenderSkyAtmosphereRayMarchingPS(
 	//}
 
 	// World position are relative to the planet center (itself expressed within translated world space)
-	float3 WorldPos = GetTranslatedCameraPlanetPos();
 	float3 WorldDir = GetScreenWorldDir(SVPos);
+	float3 WorldPos = GetTranslatedCameraPlanetPos();
+	if(IsOrthoProjection())
+	{
+		WorldPos += GetTranslatedWorldCameraPosFromView(SVPos.xy, true);
+	}
 
 	float3 PreExposedL = 0;
 	float3 LuminanceScale = 1.0f;
@@ -1470,6 +1474,11 @@ void RenderCameraAerialPerspectiveVolumeCS(uint3 ThreadId : SV_DispatchThreadID)
 	float4 SVPos = float4(View.ViewRectMin.xy + UV * View.ViewSizeAndInvSize.xy, 0.0f, 1.0f);// SV_POS as if resolution was the one from the scene view.
 	float3 WorldDir = GetScreenWorldDir(SVPos);
 	float3 CamPos = GetTranslatedCameraPlanetPos();
+	if (IsOrthoProjection())
+	{
+		CamPos += GetTranslatedWorldCameraPosFromView(SVPos.xy, true);
+	}
+
 
 	if (RealTimeReflection360Mode)
 	{

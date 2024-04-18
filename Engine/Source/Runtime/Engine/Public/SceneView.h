@@ -646,9 +646,13 @@ public:
 		return ( ProjectionMatrix.M[3][3] - ProjectionMatrix.M[3][2] ) / ( ProjectionMatrix.M[2][2] - ProjectionMatrix.M[2][3] );
 	}
 
-	FMatrix::FReal ComputeFarPlane() const
+	FMatrix::FReal ComputeOrthoFarPlane() const
 	{
-		return ComputeNearPlane() - InvProjectionMatrix.M[2][2];
+		if(!IsPerspectiveProjection())
+		{
+			return ComputeNearPlane() - InvProjectionMatrix.M[2][2];
+		}
+		return 0.0;
 	}
 
 	void ApplyWorldOffset(const FVector& InOffset)
@@ -848,6 +852,7 @@ enum ETranslucencyVolumeCascade
 	VIEW_UNIFORM_BUFFER_MEMBER_PER_VIEW(FVector3f, WorldCameraMovementSinceLastFrame) \
 	VIEW_UNIFORM_BUFFER_MEMBER(float, CullingSign) \
 	VIEW_UNIFORM_BUFFER_MEMBER_PER_VIEW_EX(float, NearPlane, EShaderPrecisionModifier::Half) \
+	VIEW_UNIFORM_BUFFER_MEMBER_PER_VIEW(float, OrthoFarPlane) \
 	VIEW_UNIFORM_BUFFER_MEMBER(float, GameTime) \
 	VIEW_UNIFORM_BUFFER_MEMBER(float, RealTime) \
 	VIEW_UNIFORM_BUFFER_MEMBER(float, DeltaTime) \

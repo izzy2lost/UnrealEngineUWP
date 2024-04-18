@@ -69,7 +69,7 @@ static bool ShouldPipelineCompileVolumetricRenderTargetShaders(EShaderPlatform S
 bool ShouldViewRenderVolumetricCloudRenderTarget(const FViewInfo& ViewInfo)
 {
 	return CVarVolumetricRenderTarget.GetValueOnRenderThread() && ShouldPipelineCompileVolumetricRenderTargetShaders(ViewInfo.GetShaderPlatform())
-		&& (ViewInfo.ViewState != nullptr) && !ViewInfo.bIsReflectionCapture;
+		&& (ViewInfo.ViewState != nullptr) && !ViewInfo.bIsReflectionCapture && ViewInfo.IsPerspectiveProjection(); //Do not use for ortho as the resolution resolves do not blend well when depth is uniform anyway.
 }
 
 bool IsVolumetricRenderTargetEnabled()

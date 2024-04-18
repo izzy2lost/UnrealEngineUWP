@@ -1275,6 +1275,28 @@ float ConvertFromDeviceZ(float DeviceZ)
 	return DeviceZ * View.InvDeviceZToWorldZTransform[0] + View.InvDeviceZToWorldZTransform[1] + 1.0f / (DeviceZ * View.InvDeviceZToWorldZTransform[2] - View.InvDeviceZToWorldZTransform[3]);
 }
 
+float2 AdjustClipToPrevClipForProjectionType(float2 Velocity, float DeviceZ)
+{
+	if(IsOrthoProjection())
+	{
+		/*
+		* Motion vectors on far distance planes are greatly influenced by slight rotations in camera angle
+		* And with Orthographic cameras, this magnifies the velocities over large distances.
+		* As a result, we need to counter this by reducing the speed with the DeviceZ
+		*/
+#if HAS_INVERTED_Z_BUFFER
+		/**
+		* Because this is ClipToPrevClip rather than velocity, we use the non - linear device z which works better than linear depth,
+		* however if adjusting velocity directly, linear depth should be used instead. 
+		*/
+		Velocity *= DeviceZ;
+#else
+		Velocity *= 1.0f - DeviceZ;
+#endif
+	}
+	return Velocity;
+}
+
 float GetScreenPositionDepth(float4 ScreenPosition)
 {
 #if RAYTRACINGSHADER
@@ -1441,12 +1463,16 @@ void SvPositionToResolvedScreenPositionDeriv(float4 SvPosition, float2 PPZ_DDX_D
 	ScreenPositionDDY = NDCPos * W_DDX_DDY.y + NDCPosDDY * SvPosition.w;
 }
 
-float3 GetTranslatedWorldCameraPosFromView(ViewState InView, float2 SvPosition)
+float3 GetTranslatedWorldCameraPosFromView(ViewState InView, float2 SvPosition, bool bForceAddOrthoHeight = false)
 {
 	// Get the camera position per pixel in ortho, or just the camera location in perspective.
 	if (IsOrthoProjection(InView))
 	{
-		return SvPositionToTranslatedWorld(float4(SvPosition, 1.0f, 1.0f));
+		//When using sky height, for example, the horizon calculation requires bForceAddOrthoHeight to be true to 
+		//avoid negative calculations when comparing the relative sky heights + view camera height
+		float3 CameraPosition = SvPositionToTranslatedWorld(float4(SvPosition, 1.0f, 1.0f));
+		CameraPosition.z += select(bForceAddOrthoHeight, View.ClipToView[1][1], 0.0f);
+		return CameraPosition;
 	}
 	else
 	{
@@ -1454,9 +1480,25 @@ float3 GetTranslatedWorldCameraPosFromView(ViewState InView, float2 SvPosition)
 	}
 }
 
-float3 GetTranslatedWorldCameraPosFromView(float2 SvPosition)
+FDFVector3 GetWorldCameraPosFromView(ViewState InView, float2 SvPosition, bool bForceAddOrthoHeight = false)
 {
-	return GetTranslatedWorldCameraPosFromView(PrimaryView, SvPosition);
+	if(IsOrthoProjection(InView))
+	{
+		//When using sky height, for example, the horizon calculation requires bForceAddOrthoHeight to be true to 
+		//avoid negative calculations when comparing the relative sky heights + view camera height
+		FDFVector3 CameraPosition = SvPositionToWorld(float4(SvPosition, 1.0f, 1.0f));
+		CameraPosition = DFFastAdd(select(bForceAddOrthoHeight, float3(0.0f, 0.0f, View.ClipToView[1][1]), float3(0.0f,0.0f,0.0f)), CameraPosition);
+		return CameraPosition;
+	}
+	else
+	{
+		return InView.WorldCameraOrigin;
+	}
+}
+
+float3 GetTranslatedWorldCameraPosFromView(float2 SvPosition, bool bForceAddOrthoHeight = false)
+{
+	return GetTranslatedWorldCameraPosFromView(PrimaryView, SvPosition, bForceAddOrthoHeight);
 }
 
 float2 SvPositionToViewportUV(float4 SvPosition)

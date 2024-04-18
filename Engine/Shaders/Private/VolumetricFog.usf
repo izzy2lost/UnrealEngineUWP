@@ -164,12 +164,8 @@ void MaterialSetupCS(
 	float CellOffset = .5f;
 	float SceneDepth;
 	float3 TranslatedWorldPosition = ComputeCellTranslatedWorldPosition(GridCoordinate, CellOffset, SceneDepth);
-	if(length(TranslatedWorldPosition - PrimaryView.TranslatedWorldCameraOrigin) > LFVGlobalStartDistance)
+	if(GetDistanceToCameraFromViewVector(TranslatedWorldPosition - PrimaryView.TranslatedWorldCameraOrigin) > LFVGlobalStartDistance)
 	{
-		float3 CamRayTranslatedWorldOrigin = PrimaryView.TranslatedWorldCameraOrigin;
-		float3 PreViewTranslation = DFHackToFloat(PrimaryView.PreViewTranslation);
-		//float3 TranslatedWorldPosition = WorldPosition + PreViewTranslation;
-
 
 		float4 VertexClipSpacePosition = mul(float4(TranslatedWorldPosition.xyz, 1), PrimaryView.TranslatedWorldToClip);
 		float2 SvPosition = (VertexClipSpacePosition.xy / VertexClipSpacePosition.w * float2(.5f, -.5f) + .5f) * PrimaryView.ViewSizeAndInvSize.xy;
@@ -180,10 +176,6 @@ void MaterialSetupCS(
 		for (int LFVIndex = 0; LFVIndex < LFVCount; ++LFVIndex)
 		{
 			uint InstanceIndex = LFVTileDataTex[uint3(TilePos, 1 + LFVIndex)];
-
-			float3 CamRayWorldOrigin = CamRayTranslatedWorldOrigin - PreViewTranslation;
-			float3 CamRayTranslatedWorldDir = normalize(TranslatedWorldPosition - CamRayTranslatedWorldOrigin);
-			float3 CamRayWorldDir = CamRayTranslatedWorldDir;
 
 			// LFV_TODO skip if out of sphere of influence
 			FLocalFogVolumeGPUInstanceData FogInstance = GetLocalFogVolumeGPUInstanceData(InstanceIndex);
@@ -407,7 +399,7 @@ float4 InjectShadowedLocalLightCommon(uint3 GridCoordinate)
 			float SceneDepth;
 			float3 TranslatedWorldPosition = ComputeCellTranslatedWorldPosition(GridCoordinate, CellOffset, SceneDepth);
 			float3 WorldPosition = TranslatedWorldPosition - DFHackToFloat(PrimaryView.PreViewTranslation);
-			float3 CameraVector = normalize(TranslatedWorldPosition - PrimaryView.TranslatedWorldCameraOrigin);
+			float3 CameraVector = GetCameraVectorFromTranslatedWorldPosition(TranslatedWorldPosition);
 
 			float CellRadius = length(TranslatedWorldPosition - ComputeCellTranslatedWorldPosition(GridCoordinate + uint3(1, 1, 1), CellOffset));
 			// Bias the inverse squared light falloff based on voxel size to prevent aliasing near the light source
@@ -748,8 +740,8 @@ void LightScatteringCS(
 		float SceneDepth;
 		float3 TranslatedWorldPosition = ComputeCellTranslatedWorldPosition(GridCoordinate, CellOffset, SceneDepth);
 		float3 WorldPosition = TranslatedWorldPosition - DFHackToFloat(PrimaryView.PreViewTranslation); // LWC_TODO
-		float CameraVectorLength = length(TranslatedWorldPosition - PrimaryView.TranslatedWorldCameraOrigin);
-		float3 CameraVector = (TranslatedWorldPosition - PrimaryView.TranslatedWorldCameraOrigin) / CameraVectorLength;
+		float CameraVectorLength = GetDistanceToCameraFromViewVector(TranslatedWorldPosition - PrimaryView.TranslatedWorldCameraOrigin);
+		float3 CameraVector = GetCameraVectorFromTranslatedWorldPosition(TranslatedWorldPosition);
 		
 	#if SHADING_PATH_MOBILE
 		const bool	 bHasDirectionalLight		= MobileHasDirectionalLight > 0;

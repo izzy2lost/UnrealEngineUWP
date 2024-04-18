@@ -4940,7 +4940,7 @@ void FSceneRenderer::PrepareViewStateForVisibility(const FSceneTexturesConfig& S
 			}
 
 			// Choose sub pixel sample coordinate in the temporal sequence.
-			float SampleX, SampleY;
+			float SampleX = 0.0f, SampleY = 0.0f;
 			if (View.PrimaryScreenPercentageMethod == EPrimaryScreenPercentageMethod::TemporalUpscale)
 			{
 				// Uniformly distribute temporal jittering in [-.5; .5], because there is no longer any alignement of input and output pixels.
@@ -5004,7 +5004,7 @@ void FSceneRenderer::PrepareViewStateForVisibility(const FSceneTexturesConfig& S
 				SampleX = SamplesX[ TemporalSampleIndex ];
 				SampleY = SamplesY[ TemporalSampleIndex ];
 			}
-			else
+			else if(View.IsPerspectiveProjection())
 			{
 				float u1 = Halton( TemporalSampleIndex + 1, 2 );
 				float u2 = Halton( TemporalSampleIndex + 1, 3 );

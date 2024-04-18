@@ -66,6 +66,16 @@ void Main(
 	{
 		float4 RasterizedWorldPosition = VertexFactoryGetRasterizedWorldPosition(Input, VFIntermediates, WorldPosition);
 		ClipSpacePosition = mul(RasterizedWorldPosition, ResolvedView.TranslatedWorldToClip);
+#if MATERIAL_IS_SKY
+		if (IsOrthoProjection())
+		{
+			//Ortho rendering doesn't stretch to LWC typically, so clamp the sky to as close to the reverse-z far plane as possible unless the dome is already closer to the camera.
+			if(ConvertFromDeviceZ(ClipSpacePosition.z) > ResolvedView.OrthoFarPlane)
+			{
+				ClipSpacePosition.z = FarDepthValue;
+			}
+		}
+#endif
 		Output.Position = INVARIANT(ClipSpacePosition);
 	}
 

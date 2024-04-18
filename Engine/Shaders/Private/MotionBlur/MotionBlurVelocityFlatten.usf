@@ -44,7 +44,7 @@ float2 GetCameraMotionVelocity(uint2 DispatchThreadId, float Depth, float4x4 Cli
 	float4 ThisClip = float4(ScreenPos, Depth, 1);
 	float4 PrevClip = mul(ThisClip, ClipToPrevClip);
 	float2 PrevScreen = PrevClip.xy / PrevClip.w;
-	return ScreenPos - PrevScreen;
+	return AdjustClipToPrevClipForProjectionType(ScreenPos - PrevScreen, Depth);
 }
 
 float2 PreprocessVelocityForMotionBlur(uint2 DispatchThreadId, float DeviceZ, float2 Velocity, float2 CameraMotionVelocity)

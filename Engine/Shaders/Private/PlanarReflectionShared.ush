@@ -26,7 +26,7 @@ half4 ComputePlanarReflections(float3 TranslatedWorldPosition, half3 WorldNormal
 	if (FinalFade > 0)
 	{
 		// CameraToPixel in the main view is what we used as ReflectionVector when rendering the reflection pass to PlanarReflectionTexture
-		float3 CameraToPixel = normalize(TranslatedWorldPosition - ResolvedView.TranslatedWorldCameraOrigin);
+		float3 CameraToPixel = GetCameraVectorFromTranslatedWorldPosition(ResolvedView, TranslatedWorldPosition);
 		// Reflect the effective ReflectionVector in mirrored space to get the original camera vector
 		float3 MirroredCameraVector = reflect(CameraToPixel, -PlanarReflectionStruct.ReflectionPlane.xyz);
 		// Transform the GBuffer normal into mirrored space

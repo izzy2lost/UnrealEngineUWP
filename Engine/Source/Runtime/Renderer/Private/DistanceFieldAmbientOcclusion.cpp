@@ -813,8 +813,7 @@ bool FDeferredShadingSceneRenderer::ShouldRenderDistanceFieldLighting() const
 	{
 		const FViewInfo& View = Views[ViewIndex];
 
-		if (!SupportsDistanceFieldAO(View.GetFeatureLevel(), View.GetShaderPlatform())
-			|| !View.IsPerspectiveProjection())
+		if (!SupportsDistanceFieldAO(View.GetFeatureLevel(), View.GetShaderPlatform()))
 		{
 			bSupportsDistanceFieldAO = false;
 			break;

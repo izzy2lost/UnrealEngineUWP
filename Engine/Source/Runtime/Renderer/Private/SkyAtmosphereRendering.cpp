@@ -1888,9 +1888,17 @@ void FSceneRenderer::RenderSkyAtmosphereInternal(
 		if (SkyRC.bFastAerialPerspectiveDepthTest)
 		{
 			const FMatrix ProjectionMatrix = ViewMatrices.GetProjectionMatrix();
-			float HalfHorizontalFOV = FMath::Atan(1.0f / ProjectionMatrix.M[0][0]);
-			float HalfVerticalFOV = FMath::Atan(1.0f / ProjectionMatrix.M[1][1]);
-			float StartDepthViewCm = FMath::Cos(FMath::Max(HalfHorizontalFOV, HalfVerticalFOV)) * AerialPerspectiveStartDepthInCm;
+			float StartDepthViewCm;
+			if (ViewMatrices.IsPerspectiveProjection())
+			{
+				float HalfHorizontalFOV = FMath::Atan(1.0f / ProjectionMatrix.M[0][0]);
+				float HalfVerticalFOV = FMath::Atan(1.0f / ProjectionMatrix.M[1][1]);
+				StartDepthViewCm = FMath::Cos(FMath::Max(HalfHorizontalFOV, HalfVerticalFOV)) * AerialPerspectiveStartDepthInCm;
+			}
+			else
+			{
+				StartDepthViewCm = AerialPerspectiveStartDepthInCm;
+			}
 			StartDepthViewCm = FMath::Max(StartDepthViewCm, SkyRC.NearClippingDistance); // In any case, we need to limit the distance to frustum near plane to not be clipped away.
 			const FVector4 Projected = ProjectionMatrix.TransformFVector4(FVector4(0.0f, 0.0f, StartDepthViewCm, 1.0f));
 			StartDepthZ = float(Projected.Z / Projected.W); // LWC_TODO: precision loss
