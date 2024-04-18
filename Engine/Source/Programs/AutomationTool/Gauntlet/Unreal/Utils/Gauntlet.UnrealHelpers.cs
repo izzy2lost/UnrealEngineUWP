@@ -241,13 +241,13 @@ namespace Gauntlet
 					LocalAddress = PreferredInterface.Address;
 				}
 			}
-	
+
 			string HostIP = Globals.Params.ParseValue("hostip", "");
 			HostIP = string.IsNullOrEmpty(HostIP) ? LocalAddress.ToString() : HostIP;
 			return HostIP;
 		}
 
-		static public string GetExecutableName(string ProjectName, UnrealTargetPlatform Platform, UnrealTargetConfiguration Config, UnrealTargetRole Role, string Extension)
+		static public string GetExecutableName(string ProjectName, UnrealTargetPlatform Platform, UnrealTargetConfiguration Config, UnrealTargetRole Role, string Flavor, string Extension)
 		{
 			string ExeName = ProjectName;
 
@@ -263,6 +263,11 @@ namespace Gauntlet
 			if (Config != UnrealTargetConfiguration.Development)
 			{
 				ExeName += string.Format("-{0}-{1}", Platform, Config);
+			}
+
+			if(!string.IsNullOrEmpty(Flavor))
+			{
+				ExeName += string.Format("-{0}", Flavor);
 			}
 
 			// todo , how to find this?
@@ -283,6 +288,11 @@ namespace Gauntlet
 			}
 
 			return ExeName;
+		}
+
+		static public string GetExecutableName(string ProjectName, UnrealTargetPlatform Platform, UnrealTargetConfiguration Config, UnrealTargetRole Role, string Extension)
+		{
+			return GetExecutableName(ProjectName, Platform, Config, Role, string.Empty, Extension);
 		}
 
 		public class ConfigInfo
