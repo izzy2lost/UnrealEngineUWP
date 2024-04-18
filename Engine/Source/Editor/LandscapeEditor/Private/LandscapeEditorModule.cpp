@@ -20,6 +20,7 @@
 #include "LandscapeFileFormatRaw.h"
 #include "LandscapeEditorServices.h"
 #include "LandscapeImageFileCache.h"
+#include "LandscapeSettings.h"
 #include "SLandscapeLayerListDialog.h"
 
 #include "Framework/MultiBox/MultiBoxBuilder.h"
@@ -528,11 +529,19 @@ int32 FLandscapeEditorModule::GetOrCreateEditLayer(FName InEditLayerName, ALands
 	int32 ExistingLayerIndex = InTargetLandscape->GetLayerIndex(InEditLayerName);
 	if (ExistingLayerIndex == INDEX_NONE)
 	{
-		InTargetLandscape->CreateLayer(InEditLayerName, InEditLayerClass);
-		TSharedPtr<SLandscapeLayerListDialog> Dialog = SNew(SLandscapeLayerListDialog, InTargetLandscape);
-		Dialog->ShowModal();
-		ExistingLayerIndex = Dialog->GetInsertedLayerIndex();
+		ExistingLayerIndex = InTargetLandscape->CreateLayer(InEditLayerName, InEditLayerClass);
+
+		const ULandscapeSettings* Settings = GetDefault<ULandscapeSettings>();
+		if (Settings && Settings->bShowDialogForAutomaticLayerCreation)
+		{
+			TSharedPtr<SLandscapeLayerListDialog> Dialog = SNew(SLandscapeLayerListDialog, InTargetLandscape);
+			Dialog->ShowModal();
+			ExistingLayerIndex = Dialog->GetInsertedLayerIndex();
+		}
 	}
+
+	RefreshDetailPanel();
+
 	return ExistingLayerIndex;
 }
 

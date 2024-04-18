@@ -58,6 +58,10 @@ public:
 	UPROPERTY(config, EditAnywhere, Category = "Layers", meta=(UIMin = "1", UIMax = "32", ClampMin = "1", ClampMax = "32", ToolTip = "This option controls the maximum editing layers that can be added to a Landscape"))
 	int32 MaxNumberOfLayers = 8;
 
+	UPROPERTY(EditAnywhere, config, Category = "Layers", meta = (ToolTip = 
+		"When true, automatic edit layer creation pops up a dialog where the new layer can be reordered relative to other layers."))
+	bool bShowDialogForAutomaticLayerCreation = true;
+
 	UPROPERTY(config, EditAnywhere, Category = "Configuration", meta=(ToolTip = "Maximum Dimension of Landscape in Components"))
 	int32 MaxComponents = 256;
 

@@ -39,8 +39,8 @@ private:
 	/* Called when a new row is being generated. Converts FWidgetLayerListItem to ITableRow. */
 	TSharedRef<ITableRow> OnGenerateRow( TSharedPtr<FWidgetLayerListItem> InListItem, const TSharedRef< STableViewBase >& InOwnerTableView ) const;
 
-	/* Called when Accept button is pressed */
-	void OnAccept();
+	/* Called when Complete button is pressed */
+	void OnComplete();
 
 	/* The list view of WidgetLayerList. */
 	TSharedPtr<SWidgetLayerListView> LayerListView;

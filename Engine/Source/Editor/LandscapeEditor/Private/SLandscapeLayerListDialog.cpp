@@ -197,14 +197,15 @@ void SLandscapeLayerListDialog::Construct(const FArguments& InArgs, const TWeakO
 	.OnGenerateRow(this, &SLandscapeLayerListDialog::OnGenerateRow)
 	.ListItemsSource(&WidgetLayerList);
 	
-	FButton CancelButton(LOCTEXT("Cancel", "Cancel"));
-	FButton AcceptButton(LOCTEXT("Accept", "Accept"));
-	AcceptButton.OnClicked.BindSP(this, &SLandscapeLayerListDialog::OnAccept);
+	FButton CompleteButton(LOCTEXT("CompleteButtonText", "Complete"));
+	CompleteButton.OnClicked.BindSP(this, &SLandscapeLayerListDialog::OnComplete);
 	
 	// Construct custom dialog with list view supporting drag + drop
 	SCustomDialog::Construct(SCustomDialog::FArguments()
 		.Title(FText(LOCTEXT("LandscapeLayerListDialogTitleText", "Insert New Landscape Edit Layer")))
 		.UseScrollBox(false)
+		.WindowArguments(SWindow::FArguments()
+			.HasCloseButton(false))
 		.Content()
 		[
 			SNew(SBox)
@@ -220,8 +221,7 @@ void SLandscapeLayerListDialog::Construct(const FArguments& InArgs, const TWeakO
 					.WrapTextAt(350)
 					.Text(FText::Format(LOCTEXT(
 						"LandscapeLayerListDialogInstructionText",
-						"Drag/drop the \"{0}\" layer in the list to choose where in the edit layers stack it should be inserted.\n"
-						"\n(Note: Closing the window or pressing cancel will result in the \"{0}\" layer going onto the top of the layer stack.)\n"),
+						"Drag/drop the \"{0}\" layer in the list to choose where in the edit layer stack it should be inserted.\n"),
 						FText::FromName(WidgetLayerList[0]->LayerName)))
 				]
 				+ SVerticalBox::Slot()
@@ -236,8 +236,7 @@ void SLandscapeLayerListDialog::Construct(const FArguments& InArgs, const TWeakO
 			]
 		]
 		.Buttons({
-			AcceptButton,
-			CancelButton
+			CompleteButton
 		})
 	);
 }
@@ -255,7 +254,7 @@ TSharedRef<ITableRow> SLandscapeLayerListDialog::OnGenerateRow(TSharedPtr<FWidge
 	return SNew( SWidgetLayerListItem, InOwnerTableView, InListItem );
 }
 
-void SLandscapeLayerListDialog::OnAccept()
+void SLandscapeLayerListDialog::OnComplete()
 {
 	check(Landscape.IsValid());
 	TArrayView<const FLandscapeLayer> LandscapeLayers = Landscape->GetLayers();
