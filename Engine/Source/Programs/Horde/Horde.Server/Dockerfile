@@ -78,5 +78,6 @@ COPY --from=build-env /tmp/empty /tmp/dotcover-report/*.zip /
 FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS runtime
 WORKDIR /app
 ENV ASPNETCORE_URLS=""
+ENV ASPNETCORE_HTTP_PORTS=""
 COPY --from=build-env /app/out .
 ENTRYPOINT [ "dotnet", "HordeServer.dll" ]
