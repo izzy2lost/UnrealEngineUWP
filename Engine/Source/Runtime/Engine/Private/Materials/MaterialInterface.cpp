@@ -630,7 +630,7 @@ void UMaterialInterface::SubmitRemainingJobsForWorld(UWorld* World, EMaterialSha
 
 	for (IPrimitiveComponent* PrimitiveComponentInterface : ObjectCacheScope.GetContext().GetPrimitiveComponents())
 	{
-		if (World && PrimitiveComponentInterface->GetWorld() == World)
+		if (World && PrimitiveComponentInterface->GetWorld() != World)
 		{
 			continue;
 		}
