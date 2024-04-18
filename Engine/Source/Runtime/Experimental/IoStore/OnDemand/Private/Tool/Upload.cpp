@@ -133,8 +133,8 @@ extern FArgumentSet S3Arguments;
 
 static FCommand UploadCommand(
 	UploadCommandEntry,
-	TEXT("upload"),
-	TEXT(""),
+	TEXT("Upload"),
+	TEXT("Used to upload IoStore containers to the cloud and convert to on-demand"),
 	{
 		TArgument<FStringView>(TEXT("ContainerGlob"),	TEXT("Path globbed to discover input containers")),
 		TArgument<FStringView>(TEXT("-CryptoKeys"),		TEXT("JSON-format keyring for input containers")),

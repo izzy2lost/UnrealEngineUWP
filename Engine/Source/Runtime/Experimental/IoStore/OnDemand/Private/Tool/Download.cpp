@@ -57,7 +57,7 @@ extern FArgumentSet S3Arguments;
 static FCommand DownloadCommand(
 	DownloadCommandEntry,
 	TEXT("Download"),
-	TEXT(""),
+	TEXT("Fetches the cloud-stored contents of a given on-demand TOC"),
 	{
 		TArgument<FStringView>(TEXT("TocPath"),				TEXT("Bucket-relative path of the TOC to download")),
 		TArgument<FStringView>(TEXT("-Directory"),			TEXT("Output directory")),
