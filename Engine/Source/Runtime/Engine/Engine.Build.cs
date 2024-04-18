@@ -109,7 +109,6 @@ public class Engine : ModuleRules
 				"DeveloperSettings",
 				"AudioLinkCore",
 				"CookOnTheFly",
-				"IoStoreOnDemand"
 			}
 		);
 
