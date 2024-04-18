@@ -173,7 +173,7 @@ struct FNetObjectFilterUpdateParams
 	FNetObjectFilteringInfo* FilteringInfos = nullptr;
 };
 
-UCLASS(Abstract)
+UCLASS(Abstract, MinimalAPI)
 class UNetObjectFilter : public UObject
 {
 	GENERATED_BODY()
