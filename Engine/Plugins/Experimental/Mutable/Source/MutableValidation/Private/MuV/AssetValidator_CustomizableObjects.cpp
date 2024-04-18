@@ -89,8 +89,7 @@ EDataValidationResult UAssetValidator_CustomizableObjects::IsCustomizableObjectV
 	}
 	
 	// Request a compiler to be able to locate the root and to compile it
-	const TUniquePtr<FCustomizableObjectCompilerBase> Compiler =
-		TUniquePtr<FCustomizableObjectCompilerBase>(UCustomizableObjectSystem::GetInstance()->GetNewCompiler());
+	const TSharedPtr<FCustomizableObjectCompilerBase> Compiler = UCustomizableObjectSystem::GetNewCompiler();
 	
 	// Find out which is the root for this CO (it may be itself but that is OK)
 	UCustomizableObject* RootObject = GetRootObject(InCustomizableObject);

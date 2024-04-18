@@ -25,9 +25,6 @@ public:
 	CUSTOMIZABLEOBJECTEDITOR_API FCustomizableObjectCompiler();
 	CUSTOMIZABLEOBJECTEDITOR_API virtual ~FCustomizableObjectCompiler() {}
 
-	// FCustomizableObjectCompilerBase interface
-	CUSTOMIZABLEOBJECTEDITOR_API bool IsRootObject(const class UCustomizableObject* Object) const override;
-	
 	/** Check for pending compilation process. Returns true if an object has been updated. */
 	CUSTOMIZABLEOBJECTEDITOR_API virtual bool Tick(bool bBlocking) override;
 

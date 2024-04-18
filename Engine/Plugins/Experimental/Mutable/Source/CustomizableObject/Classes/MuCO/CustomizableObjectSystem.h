@@ -199,8 +199,7 @@ public:
 	// End UObject interface.
 
 	// Creates a new Customizable Object Compiler (Only does real work in editor builds). The caller is responsible for freeing the new compiler
-	FCustomizableObjectCompilerBase* GetNewCompiler();
-	void SetNewCompilerFunc(FCustomizableObjectCompilerBase* (*NewCompilerFunc)());
+	static TSharedPtr<FCustomizableObjectCompilerBase> GetNewCompiler();
 
 	bool IsReplaceDiscardedWithReferenceMeshEnabled() const;
 	void SetReplaceDiscardedWithReferenceMeshEnabled(bool bIsEnabled);

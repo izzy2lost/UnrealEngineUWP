@@ -7,6 +7,7 @@
 #include "MuCOE/CustomizableObjectEditorLogger.h"
 #include "Toolkits/AssetEditorToolkit.h"
 
+class FCustomizableObjectCompilerBase;
 struct FBakingConfiguration;
 class USkeletalMeshComponent;
 class FPropertyEditorModule;
@@ -37,6 +38,8 @@ public:
 	// ICustomizableObjectEditorModule interface
 	virtual FCustomizableObjectEditorLogger& GetLogger() override;
 	virtual bool IsCompilationOutOfDate(const UCustomizableObject& Object, TArray<FName>* OutOfDatePackages) const override;
+	virtual TSharedRef<FCustomizableObjectCompilerBase> CreateCompiler() const override;
+	virtual bool IsRootObject(const UCustomizableObject& Object) const override;
 	virtual void BakeCustomizableObjectInstance(UCustomizableObjectInstance* InTargetInstance, const FBakingConfiguration& InBakingConfig) override;
 
 	virtual TSharedPtr<FExtensibilityManager> GetCustomizableObjectEditorToolBarExtensibilityManager() override { return CustomizableObjectEditor_ToolBarExtensibilityManager; }

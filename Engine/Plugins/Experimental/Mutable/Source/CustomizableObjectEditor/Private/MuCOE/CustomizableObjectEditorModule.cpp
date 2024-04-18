@@ -63,6 +63,7 @@
 #include "UObject/UObjectIterator.h"
 #include "Subsystems/PlacementSubsystem.h"
 #include "Components/SkeletalMeshComponent.h"
+#include "MuCOE/GraphTraversal.h"
 #include "MuCOE/CustomizableObjectInstanceBaker.h"
 
 class AActor;
@@ -185,16 +186,8 @@ static void CustomFree(void* mem)
 }
 
 
-FCustomizableObjectCompilerBase* NewCompiler()
-{
-	return new FCustomizableObjectCompiler();
-}
-
-
 void FCustomizableObjectEditorModule::StartupModule()
 {
-	UCustomizableObjectSystem::GetInstance()->SetNewCompilerFunc(NewCompiler);
-
 	// Register the thumbnail renderers
 	//UThumbnailManager::Get().RegisterCustomRenderer(UCustomizableObject::StaticClass(), UCustomizableObjectThumbnailRenderer::StaticClass());
 	//UThumbnailManager::Get().RegisterCustomRenderer(UCustomizableObjectInstance::StaticClass(), UCustomizableObjectInstanceThumbnailRenderer::StaticClass());
@@ -584,6 +577,18 @@ bool FCustomizableObjectEditorModule::IsCompilationOutOfDate(const UCustomizable
 	}
 
 	return !OutOfDatePackages->IsEmpty();	
+}
+
+
+TSharedRef<FCustomizableObjectCompilerBase> FCustomizableObjectEditorModule::CreateCompiler() const
+{
+	return MakeShared<FCustomizableObjectCompiler>();
+}
+
+
+bool FCustomizableObjectEditorModule::IsRootObject(const UCustomizableObject& Object) const
+{
+	return GraphTraversal::IsRootObject(Object);
 }
 
 

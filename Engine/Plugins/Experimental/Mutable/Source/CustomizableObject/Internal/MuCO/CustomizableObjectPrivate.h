@@ -51,9 +51,6 @@ public:
 	virtual bool Tick(bool bBlocking) { return true; }
 	virtual void ForceFinishCompilation() {}
 
-	// Return true if this object doesn't reference a parent object.
-	virtual bool IsRootObject(const UCustomizableObject* Object) const { return true; }
-
 	/** Provides the caller with the warning and error messages produced during compilation */
 	virtual void GetCompilationMessages(TArray<FText>& OutWarningMessages, TArray<FText>& OutErrorMessages) const = 0;
 };

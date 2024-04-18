@@ -15,6 +15,7 @@ class UCustomizableObject;
 class UCustomizableObjectPrivate;
 class UCustomizableObjectInstance;
 class FExtensibilityManager;
+class FCustomizableObjectCompilerBase;
 class FBakeOperationCompletedDelegate;
 
 extern const FName CustomizableObjectEditorAppIdentifier;
@@ -50,6 +51,12 @@ public:
 	  * @param OutOfDatePackages list of out of date packages.
    	  * @return true if the compilation is out of date. */
 	virtual bool IsCompilationOutOfDate(const UCustomizableObject& Object, TArray<FName>* OutOfDatePackages = nullptr) const = 0;
+
+	/** Create a new compiler. */
+	virtual TSharedRef<FCustomizableObjectCompilerBase> CreateCompiler() const = 0;
+
+	/** See GraphTraversal::IsRootObject(...) */
+	virtual bool IsRootObject(const UCustomizableObject& Object) const = 0;
 	
 	/**
 	 * Execute this method in order to bake the provided instance. It will schedule a special type of instance update before proceeding with the bake itself.

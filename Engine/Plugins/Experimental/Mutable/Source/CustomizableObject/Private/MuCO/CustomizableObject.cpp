@@ -113,17 +113,16 @@ void UCustomizableObject::GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTag
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS;
 }
 
+
 void UCustomizableObject::GetAssetRegistryTags(FAssetRegistryTagsContext Context) const
 {
 	int32 isRoot = 0;
 
-	FCustomizableObjectCompilerBase* Compiler = UCustomizableObjectSystem::GetInstance()->GetNewCompiler();
-	if (Compiler)
+	if (const ICustomizableObjectEditorModule* Module = ICustomizableObjectEditorModule::Get())
 	{
-		isRoot = Compiler->IsRootObject(this) ? 1 : 0;
-		delete Compiler;
+		isRoot = Module->IsRootObject(*this) ? 1 : 0;
 	}
-
+	
 	Context.AddTag(FAssetRegistryTag("IsRoot", FString::FromInt(isRoot), FAssetRegistryTag::TT_Numerical));
 	Super::GetAssetRegistryTags(Context);
 }
@@ -191,11 +190,9 @@ void UCustomizableObject::PostSaveRoot(FObjectPostSaveRootContext ObjectSaveCont
 
 bool UCustomizableObjectPrivate::TryUpdateIsChildObject()
 {
-	FCustomizableObjectCompilerBase* Compiler = UCustomizableObjectSystem::GetInstance()->GetNewCompiler();
-	if (Compiler)
+	if (const ICustomizableObjectEditorModule* Module = ICustomizableObjectEditorModule::Get())
 	{
-		GetPublic()->bIsChildObject = !Compiler->IsRootObject(GetPublic());
-		delete Compiler;
+		GetPublic()->bIsChildObject = !Module->IsRootObject(*GetPublic());
 		return true;
 	}
 	else
@@ -831,22 +828,32 @@ void UCustomizableObjectPrivate::CompileForTargetPlatform(const ITargetPlatform*
 		return;
 	}
 
-	FCustomizableObjectCompilerBase* Compiler = UCustomizableObjectSystem::GetInstance()->GetNewCompiler();
-
-	const bool bIsRootObject = Compiler->IsRootObject(GetPublic());
-	if (bIsRootObject)
+	const ICustomizableObjectEditorModule* EditorModule = ICustomizableObjectEditorModule::Get();
+	if (!EditorModule)
 	{
-		FCompilationOptions Options;
-		Options.OptimizationLevel = UE_MUTABLE_MAX_OPTIMIZATION;	// max optimization when packaging.
-		Options.TextureCompression = ECustomizableObjectTextureCompression::HighQuality;
-		Options.bIsCooking = true;
-		Options.TargetPlatform = TargetPlatform;
-		Options.CustomizableObjectNumBoneInfluences = ICustomizableObjectModule::Get().GetNumBoneInfluences();
-
-		Compiler->Compile(*GetPublic(), Options, false);
+		return;
 	}
 
-	delete Compiler;
+	const bool bIsRootObject = EditorModule->IsRootObject(*GetPublic());
+	if (!bIsRootObject)
+	{
+		return;
+	}
+
+	const TSharedPtr<FCustomizableObjectCompilerBase> Compiler = UCustomizableObjectSystem::GetInstance()->GetNewCompiler();
+	if (!Compiler)
+	{
+		return;
+	}
+
+	FCompilationOptions Options;
+	Options.OptimizationLevel = UE_MUTABLE_MAX_OPTIMIZATION;	// max optimization when packaging.
+	Options.TextureCompression = ECustomizableObjectTextureCompression::HighQuality;
+	Options.bIsCooking = true;
+	Options.TargetPlatform = TargetPlatform;
+	Options.CustomizableObjectNumBoneInfluences = ICustomizableObjectModule::Get().GetNumBoneInfluences();
+
+	Compiler->Compile(*GetPublic(), Options, false);
 }
 
 
@@ -901,9 +908,10 @@ bool UCustomizableObject::ConditionalAutoCompile()
 	// Sync/Async compilation
 	if (System->IsAutoCompilationSync())
 	{
-		FCustomizableObjectCompilerBase* Compiler = UCustomizableObjectSystem::GetInstance()->GetNewCompiler();
-		Compiler->Compile(*this, this->CompileOptions, false);
-		delete Compiler;
+		if (const TSharedPtr<FCustomizableObjectCompilerBase> Compiler = UCustomizableObjectSystem::GetNewCompiler())
+		{		
+			Compiler->Compile(*this, this->CompileOptions, false);
+		}
 	}
 	else
 	{

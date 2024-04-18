@@ -574,3 +574,32 @@ TMultiMap<FGuid, UCustomizableObjectNodeObject*> GetNodeGroupObjectNodeMapping(U
 	
 	return Mapping;
 }
+
+
+namespace GraphTraversal
+{
+	bool IsRootObject(const UCustomizableObject& Object)
+	{
+		const TObjectPtr<UEdGraph> Source = Object.GetPrivate()->GetSource();
+		if (!Source || !Source->Nodes.Num())
+		{
+			// Conservative approach.
+			return true;
+		}
+
+		TArray<UCustomizableObjectNodeObject*> ObjectNodes;
+		Source->GetNodesOfClass<UCustomizableObjectNodeObject>(ObjectNodes);
+
+		// Look for the base object node
+		const UCustomizableObjectNodeObject* Root = nullptr;
+		for (TArray<UCustomizableObjectNodeObject*>::TIterator It(ObjectNodes); It; ++It)
+		{
+			if ((*It)->bIsBase)
+			{
+				Root = *It;
+			}
+		}
+
+		return Root && !Root->ParentObject;
+	}
+}

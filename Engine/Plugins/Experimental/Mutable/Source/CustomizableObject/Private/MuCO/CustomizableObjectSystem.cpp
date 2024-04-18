@@ -33,6 +33,7 @@
 #include "Components/SkeletalMeshComponent.h"
 #include "MuCO/CustomizableObjectSystemPrivate.h"
 #include "CustomizableObjectSettings.h"
+#include "MuCO/ICustomizableObjectEditorModule.h"
 
 #if WITH_EDITOR
 #include "Editor.h"
@@ -542,7 +543,6 @@ void UCustomizableObjectSystem::InitSystem()
 	// Everything initialized in Init() instead of constructor to prevent the default UCustomizableObjectSystem from registering a tick function
 	Private = NewObject<UCustomizableObjectSystemPrivate>(this, FName("Private"));
 	check(Private != nullptr);
-	Private->NewCompilerFunc = nullptr;
 
 	Private->bReplaceDiscardedWithReferenceMesh = false;
 
@@ -608,7 +608,6 @@ void UCustomizableObjectSystem::BeginDestroy()
 		if (Private->RecompileCustomizableObjectsCompiler)
 		{
 			Private->RecompileCustomizableObjectsCompiler->ForceFinishCompilation();
-			delete Private->RecompileCustomizableObjectsCompiler;
 		}
 #endif
 
@@ -654,26 +653,16 @@ FString UCustomizableObjectSystem::GetDesc()
 }
 
 
-FCustomizableObjectCompilerBase* (*UCustomizableObjectSystemPrivate::NewCompilerFunc)() = nullptr;
-
-
-FCustomizableObjectCompilerBase* UCustomizableObjectSystem::GetNewCompiler()
+TSharedPtr<FCustomizableObjectCompilerBase> UCustomizableObjectSystem::GetNewCompiler()
 {
-	check(Private != nullptr);
-	if (Private->NewCompilerFunc != nullptr)
+	if (const ICustomizableObjectEditorModule* Module = ICustomizableObjectEditorModule::Get())
 	{
-		return Private->NewCompilerFunc();
+		return Module->CreateCompiler();
 	}
 	else
 	{
 		return nullptr;
 	}
-}
-
-
-void UCustomizableObjectSystem::SetNewCompilerFunc(FCustomizableObjectCompilerBase* (*InNewCompilerFunc)())
-{
-	GetPrivate()->NewCompilerFunc = InNewCompilerFunc;
 }
 
 
@@ -4192,9 +4181,7 @@ void UCustomizableObjectSystem::TickRecompileCustomizableObjects()
 		}
 		else // All objects compiled, clean up
 		{
-			// Delete compiler
-			delete GetPrivate()->RecompileCustomizableObjectsCompiler;
-			GetPrivate()->RecompileCustomizableObjectsCompiler = nullptr;
+			GetPrivate()->RecompileCustomizableObjectsCompiler.Reset();
 
 			// Remove progress bar
 			FSlateNotificationManager::Get().UpdateProgressNotification(GetPrivate()->RecompileNotificationHandle, GetPrivate()->NumObjectsCompiled, GetPrivate()->TotalNumObjectsToRecompile);

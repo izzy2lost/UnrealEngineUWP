@@ -138,31 +138,6 @@ bool FCustomizableObjectCompiler::Tick(bool bBlocking)
 }
 
 
-bool FCustomizableObjectCompiler::IsRootObject(const UCustomizableObject* Object) const
-{
-	// Look for the base object node
-	UCustomizableObjectNodeObject* Root = nullptr;
-	TArray<UCustomizableObjectNodeObject*> ObjectNodes;
-	if (!Object->GetPrivate()->GetSource() || !Object->GetPrivate()->GetSource()->Nodes.Num())
-	{
-		// Conservative approach.
-		return true;
-	}
-
-	Object->GetPrivate()->GetSource()->GetNodesOfClass<UCustomizableObjectNodeObject>(ObjectNodes);
-
-	for (TArray<UCustomizableObjectNodeObject*>::TIterator It(ObjectNodes); It; ++It)
-	{
-		if ((*It)->bIsBase)
-		{
-			Root = *It;
-		}
-	}
-
-	return Root && !Root->ParentObject;
-}
-
-
 void FCustomizableObjectCompiler::PreloadingReferencerAssetsCallback(bool bAsync)
 {
 	UE_LOG(LogMutable, Verbose, TEXT("PROFILE: [ %16.8f ] Preload asynchronously assets end."), FPlatformTime::Seconds());

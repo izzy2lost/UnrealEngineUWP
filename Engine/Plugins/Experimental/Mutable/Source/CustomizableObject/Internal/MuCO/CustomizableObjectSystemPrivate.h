@@ -714,8 +714,6 @@ public:
 
 	bool bSupport16BitBoneIndex = false;
 
-	static FCustomizableObjectCompilerBase* (*NewCompilerFunc)();
-
 	TMap<FMutableImageCacheKey, uint32> TextureReferenceCount; // Keeps a count of texture usage to decide if they have to be blocked from GC during an update
 
 	UPROPERTY(Transient)
@@ -791,7 +789,7 @@ public:
 	FStreamableManager StreamableManager;
 	
 #if WITH_EDITOR
-	FCustomizableObjectCompilerBase* RecompileCustomizableObjectsCompiler = nullptr;
+	TSharedPtr<FCustomizableObjectCompilerBase> RecompileCustomizableObjectsCompiler;
 	
 	TArray<FAssetData> ObjectsToRecompile;
 	uint32 TotalNumObjectsToRecompile = 0;
