@@ -262,6 +262,11 @@ namespace Horde.Server.Server
 		public AclConfig Acl { get; set; } = new AclConfig();
 
 		/// <summary>
+		/// Commit tag to use for marking issues as fixed
+		/// </summary>
+		public string IssueFixedTag { get; set; } = "#horde";
+
+		/// <summary>
 		/// Accessor for the ACL scope lookup
 		/// </summary>
 		[JsonIgnore]
