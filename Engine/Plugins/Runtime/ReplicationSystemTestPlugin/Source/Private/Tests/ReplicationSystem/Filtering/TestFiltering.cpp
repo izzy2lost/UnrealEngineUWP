@@ -41,16 +41,6 @@ protected:
 		MockNetObjectFilter->ResetFunctionCallStatus();
 	}
 
-	void SetDynamicFragmentFilterStatus(ENetFilterStatus FilterStatus)
-	{
-		UMockNetObjectFilterUsingFragmentData::FFunctionCallSetup CallSetup;
-		CallSetup.AddObject.bReturnValue = true;
-		CallSetup.Filter.bFilterOutByDefault = FilterStatus == ENetFilterStatus::Disallow;
-
-		MockNetObjectFilterWithFragments->SetFunctionCallSetup(CallSetup);
-		MockNetObjectFilterWithFragments->ResetFunctionCallStatus();
-	}
-
 private:
 	void InitNetObjectFilterDefinitions()
 	{
@@ -71,13 +61,6 @@ private:
 			MockDefinition.ConfigClassName = "/Script/ReplicationSystemTestPlugin.MockNetObjectFilterConfig";
 		}
 
-		{
-			FNetObjectFilterDefinition& MockDefinition = NewFilterDefinitions.Emplace_GetRef();
-			MockDefinition.FilterName = "MockFilterWithFragments";
-			MockDefinition.ClassName = "/Script/ReplicationSystemTestPlugin.MockNetObjectFilterUsingFragmentData";
-			MockDefinition.ConfigClassName = "/Script/ReplicationSystemTestPlugin.MockNetObjectFilterConfig";
-		}
-
 		DefinitionsProperty->CopyCompleteValue((void*)(UPTRINT(FilterDefinitions) + DefinitionsProperty->GetOffset_ForInternal()), &NewFilterDefinitions);
 	}
 
@@ -92,26 +75,17 @@ private:
 
 		MockFilterHandle = InvalidNetObjectFilterHandle;
 		MockNetObjectFilter = nullptr;
-
-		MockFilterWithFragmentsHandle = InvalidNetObjectFilterHandle;
-		MockNetObjectFilterWithFragments = nullptr;
 	}
 
 	void InitMockNetObjectFilter()
 	{
 		MockNetObjectFilter = CastChecked<UMockNetObjectFilter>(Server->GetReplicationSystem()->GetFilter(GetMockFilterName()));
 		MockFilterHandle = Server->GetReplicationSystem()->GetFilterHandle(GetMockFilterName());
-
-		MockNetObjectFilterWithFragments = ExactCast<UMockNetObjectFilterUsingFragmentData>(Server->GetReplicationSystem()->GetFilter("MockFilterWithFragments"));
-		MockFilterWithFragmentsHandle = Server->GetReplicationSystem()->GetFilterHandle("MockFilterWithFragments");
 	}
 
 protected:
 	UMockNetObjectFilter* MockNetObjectFilter;
 	FNetObjectFilterHandle MockFilterHandle;
-
-	UMockNetObjectFilterUsingFragmentData* MockNetObjectFilterWithFragments;
-	FNetObjectFilterHandle MockFilterWithFragmentsHandle;
 
 private:
 	TArray<FNetObjectFilterDefinition> OriginalFilterDefinitions;
@@ -1108,101 +1082,6 @@ UE_NET_TEST_FIXTURE(FTestFilteringFixture, NestedDependentObjectIsFilteredAsPare
 	// Verify that dependent object no longer is filtered out even though its parent is
 	UE_NET_ASSERT_EQ(Client->GetReplicationBridge()->GetReplicatedObject(ServerFormerDependentObject->NetRefHandle), nullptr);
 	UE_NET_ASSERT_NE(Client->GetReplicationBridge()->GetReplicatedObject(ServerNestedDependentObject->NetRefHandle), nullptr);
-}
-
-UE_NET_TEST_FIXTURE(FTestFilteringFixture, ObjectGetsFilterOutSettingFromStart)
-{
-	// Setup dynamic filter for the test. For this test we want the value of the object's filter property to rule.
-	SetDynamicFragmentFilterStatus(ENetFilterStatus::Allow);
-
-	// Add client
-	FReplicationSystemTestClient* Client = CreateClient();
-
-	// Create object and set filter
-	UTestFilteringObject* ServerObject = Server->CreateObject<UTestFilteringObject>();
-	Server->ReplicationSystem->SetFilter(ServerObject->NetRefHandle, MockFilterWithFragmentsHandle);
-
-	// We want the object to be filtered out
-	constexpr bool bFilterOut = true;
-	ServerObject->SetFilterOut(bFilterOut);
-
-	// Send and deliver packets
-	Server->PreSendUpdate();
-	Server->SendAndDeliverTo(Client, DeliverPacket);
-	Server->PostSendUpdate();
-
-	// Check that the object does not exist on the client.
-	UE_NET_ASSERT_EQ(Client->GetReplicationBridge()->GetReplicatedObject(ServerObject->NetRefHandle), nullptr);
-}
-
-UE_NET_TEST_FIXTURE(FTestFilteringFixture, ObjectGetsUpdatedFilterOutSetting)
-{
-	// Setup dynamic filter for the test. For this test we want the value of the object's filter property to rule.
-	SetDynamicFragmentFilterStatus(ENetFilterStatus::Allow);
-
-	// Add client
-	FReplicationSystemTestClient* Client = CreateClient();
-
-	// Create object and set filter
-	UTestFilteringObject* ServerObject = Server->CreateObject<UTestFilteringObject>();
-	Server->ReplicationSystem->SetFilter(ServerObject->NetRefHandle, MockFilterWithFragmentsHandle);
-
-	// We don't want the object to be filtered out
-	ServerObject->SetFilterOut(false);
-
-	// Send and deliver packets
-	Server->PreSendUpdate();
-	Server->SendAndDeliverTo(Client, DeliverPacket);
-	Server->PostSendUpdate();
-
-	// Check that the object exists on the client.
-	UE_NET_ASSERT_NE(Client->GetReplicationBridge()->GetReplicatedObject(ServerObject->NetRefHandle), nullptr);
-
-	// Mark the object to be filtered out.
-	ServerObject->SetFilterOut(true);
-
-	// Send and deliver packets
-	Server->PreSendUpdate();
-	Server->SendAndDeliverTo(Client, DeliverPacket);
-	Server->PostSendUpdate();
-
-	// Check that the object does not exist on the client.
-	UE_NET_ASSERT_EQ(Client->GetReplicationBridge()->GetReplicatedObject(ServerObject->NetRefHandle), nullptr);
-}
-
-UE_NET_TEST_FIXTURE(FTestFilteringFixture, MixPreAndPostFilters)
-{
-	// Setup dynamic filters for the test.
-	SetDynamicFilterStatus(ENetFilterStatus::Disallow);
-	SetDynamicFragmentFilterStatus(ENetFilterStatus::Disallow);
-
-	// Add client
-	FReplicationSystemTestClient* Client = CreateClient();
-
-	// Create the objects and set filter
-	UTestFilteringObject* ServerObjectPreFilter = Server->CreateObject<UTestFilteringObject>();
-	Server->ReplicationSystem->SetFilter(ServerObjectPreFilter->NetRefHandle, MockFilterHandle);
-
-	UTestFilteringObject* ServerObjectPostFilter = Server->CreateObject<UTestFilteringObject>();
-	Server->ReplicationSystem->SetFilter(ServerObjectPostFilter->NetRefHandle, MockFilterWithFragmentsHandle);
-
-	// Create a non-filtered object
-	UTestFilteringObject* ServerObjectNoFilter = Server->CreateObject<UTestFilteringObject>();
-
-	// We want the objects to be filtered out
-	constexpr bool bFilterOut = true;
-	ServerObjectPreFilter->SetFilterOut(bFilterOut);
-	ServerObjectPostFilter->SetFilterOut(bFilterOut);
-
-	// Send and deliver packets
-	Server->PreSendUpdate();
-	Server->SendAndDeliverTo(Client, DeliverPacket);
-	Server->PostSendUpdate();
-
-	// Check that the object does not exist on the client.
-	UE_NET_ASSERT_EQ(Client->GetReplicationBridge()->GetReplicatedObject(ServerObjectPreFilter->NetRefHandle), nullptr);
-	UE_NET_ASSERT_EQ(Client->GetReplicationBridge()->GetReplicatedObject(ServerObjectPostFilter->NetRefHandle), nullptr);
-	UE_NET_ASSERT_NE(Client->GetReplicationBridge()->GetReplicatedObject(ServerObjectNoFilter->NetRefHandle), nullptr);
 }
 
 UE_NET_TEST_FIXTURE(FTestFilteringFixture, DynamicFilteredOutSubObjectsAreResetWhenIndexIsReused)

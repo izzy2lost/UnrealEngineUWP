@@ -21,11 +21,6 @@ UNetObjectFilter::UNetObjectFilter()
 
 void UNetObjectFilter::Init(FNetObjectFilterInitParams& Params)
 {
-	if (Params.Config)
-	{
-		FilterType = Params.Config->FilterType;
-	}
-
 	{
 		UE::Net::Private::FNetObjectFilteringInfoAccessor FilteringInfoAccessor;
 		TArrayView<FNetObjectFilteringInfo> NetObjectFilteringInfos = FilteringInfoAccessor.GetNetObjectFilteringInfos(Params.ReplicationSystem);

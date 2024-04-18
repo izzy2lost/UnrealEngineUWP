@@ -100,25 +100,6 @@ struct alignas(8) FNetObjectFilteringInfo
 	uint16 Data[4];
 };
 
-/** This configures when a filter gets executed inside PreSendUpdate and what data it has access to. */
-UENUM()
-enum class ENetFilterType : uint8
-{
-	/**
-	 * The default setting of filters.
-	 * This type of filter is applied before we poll objects and copy their data into network fragments.
-	 * Thus a filter cannot operate on fragment data during it's operation, only whatever it stored or is accessing directly from the object.
-	 * The benefit is that objects not relevant to any connection will get culled from being polled and forced to copy their dirty state for nothing.
-	 */
-	PrePoll_Raw,
-
-	/**
-	 * When set to FragmentBased, the filter gets access to the up to date fragment data of an object when it executes.
-	 * Those objects will always be polled and have their dirty state copied even if not relevant.
-	 */
-	PostPoll_FragmentBased,
-};
-
 enum class ENetFilterTraits : uint8
 {
 	None = 0,
@@ -136,10 +117,6 @@ class UNetObjectFilterConfig : public UObject
 	GENERATED_BODY()
 
 public:
-
-	/** Can be used to modify when the filter is executed */
-	UPROPERTY(Config)
-	ENetFilterType FilterType = ENetFilterType::PrePoll_Raw;
 };
 
 /** Parameters passed to the filter's Init() call. */
@@ -194,18 +171,6 @@ struct FNetObjectFilterUpdateParams
 
 	/** Infos for all objects. Index using ObjectIndices[0..ObjectCount-1]. */
 	FNetObjectFilteringInfo* FilteringInfos = nullptr;
-
-	/** 
-	* InstanceProtocols for updated objects. Index using 0..ObjectCount-1.
-	* NOTE: Only for filters of type FragmentBased; null for Raw types
-	*/
-	UE::Net::FReplicationInstanceProtocol const* const* InstanceProtocols = nullptr;
-
-	/**
-	* State buffers for all objects. Index using ObjectIndices[0..ObjectCount-1].
-	* NOTE: Only for filters of type FragmentBased; null for Raw types
-	*/
-	const UE::Net::TNetChunkedArray<uint8*>* StateBuffers = nullptr;
 };
 
 UCLASS(Abstract)
@@ -245,9 +210,6 @@ public:
 	 */
 	IRISCORE_API virtual void PostFilter(FNetObjectPostFilteringParams&);
 
-	/** Returns what type of filter it is. Default is to cull and be executed before dirty state copying. */
-	ENetFilterType GetFilterType() const { return FilterType; }
-
 	/** Returns the filter's traits. */
 	ENetFilterTraits GetFilterTraits() const { return FilterTraits; }
 
@@ -278,9 +240,6 @@ protected:
 	/* Returns the filtering info for this object if it's handled by this filter, nullptr otherwise. */
 	FNetObjectFilteringInfo* GetFilteringInfo(uint32 ObjectIndex);
 
-	/** Directly set when you want your dynamic filter to be executed. */
-	void SetupFilterType(ENetFilterType NewFilterType) { FilterType = NewFilterType; }
-
 	/** Adds traits. */
 	void AddFilterTraits(ENetFilterTraits Traits);
 
@@ -305,7 +264,6 @@ private:
 		TArrayView<FNetObjectFilteringInfo> FilteringInfos;
 	};
 
-	ENetFilterType FilterType = ENetFilterType::PrePoll_Raw;
 	ENetFilterTraits FilterTraits = ENetFilterTraits::None;
 	FFilterInfo FilterInfo;
 };

@@ -562,8 +562,6 @@ void UNetObjectGridWorldLocFilter::OnInit(FNetObjectFilterInitParams& Params)
 {
 	Super::OnInit(Params);
 
-	SetupFilterType(ENetFilterType::PrePoll_Raw);
-
 	WorldLocations = &Params.ReplicationSystem->GetWorldLocations();
 }
 
@@ -607,92 +605,5 @@ bool UNetObjectGridWorldLocFilter::BuildObjectInfo(uint32 ObjectIndex, FNetObjec
 	ObjectLocationInfo.SetLocationStateIndex(InvalidStateIndex);
 
 	return true;
-}
-
-//*************************************************************************************************
-// UNetObjectGridFragmentLocFilter
-//*************************************************************************************************
-
-void UNetObjectGridFragmentLocFilter::OnInit(FNetObjectFilterInitParams& InitParams)
-{
-	Super::OnInit(InitParams);
-
-	SetupFilterType(ENetFilterType::PostPoll_FragmentBased);
-}
-
-void UNetObjectGridFragmentLocFilter::UpdateObjects(FNetObjectFilterUpdateParams& Params)
-{
-	for (SIZE_T ObjectIt = 0, ObjectEndIt = Params.ObjectCount; ObjectIt != ObjectEndIt; ++ObjectIt)
-	{
-		const uint32 ObjectIndex = Params.ObjectIndices[ObjectIt];
-		const FObjectLocationInfo& ObjectLocationInfo = static_cast<const FObjectLocationInfo&>(Params.FilteringInfos[ObjectIndex]);
-		const UE::Net::FReplicationInstanceProtocol* InstanceProtocol = Params.InstanceProtocols ? Params.InstanceProtocols[ObjectIt] : nullptr;
-		UpdateCellInfoForObject(ObjectLocationInfo, InstanceProtocol);
-	}
-}
-
-bool UNetObjectGridFragmentLocFilter::BuildObjectInfo(uint32 ObjectIndex, FNetObjectFilterAddObjectParams& Params)
-{
-	UE::Net::FRepTagFindInfo WorldLocationTagInfo;
-	if (UE::Net::FindRepTag(Params.Protocol, UE::Net::RepTag_WorldLocation, WorldLocationTagInfo))
-	{
-		// Want to keep the memory footprint minimal so don't allow adding objects whose values would not fit.
-		if (WorldLocationTagInfo.ExternalStateOffset >= MAX_uint16 || WorldLocationTagInfo.StateIndex >= MAX_uint16)
-		{
-			return false;
-		}
-
-		FObjectLocationInfo& ObjectLocationInfo = static_cast<FObjectLocationInfo&>(Params.OutInfo);
-		ObjectLocationInfo.SetLocationStateOffset(static_cast<uint16>(WorldLocationTagInfo.ExternalStateOffset));
-		ObjectLocationInfo.SetLocationStateIndex(static_cast<uint16>(WorldLocationTagInfo.StateIndex));
-
-		// NetCullDistanceSqr is optional. 
-		UE::Net::FRepTagFindInfo NetCullDistanceSqrTagInfo;
-		if (UE::Net::FindRepTag(Params.Protocol, UE::Net::RepTag_CullDistanceSqr, NetCullDistanceSqrTagInfo))
-		{
-			if ((NetCullDistanceSqrTagInfo.ExternalStateOffset < MAX_uint16) && (NetCullDistanceSqrTagInfo.StateIndex < MAX_uint16))
-			{
-				FCullDistanceFragmentInfo FragmentInfo;
-				FragmentInfo.CullDistanceSqrStateIndex = static_cast<uint16>(NetCullDistanceSqrTagInfo.StateIndex);
-				FragmentInfo.CullDistanceSqrStateOffset = static_cast<uint16>(NetCullDistanceSqrTagInfo.ExternalStateOffset);
-
-				CullDistanceFragments.Add(ObjectIndex, MoveTemp(FragmentInfo));
-			}
-		}
-
-		return true;
-	}
-
-	return false;
-}
-
-void UNetObjectGridFragmentLocFilter::OnObjectRemoved(uint32 ObjectIndex)
-{
-	CullDistanceFragments.Remove(ObjectIndex);
-}
-
-void UNetObjectGridFragmentLocFilter::UpdateObjectInfo(UNetObjectGridFilter::FPerObjectInfo& PerObjectInfo, const UNetObjectGridFilter::FObjectLocationInfo& ObjectLocationInfo, const UE::Net::FReplicationInstanceProtocol* InstanceProtocol)
-{
-	check(ObjectLocationInfo.IsUsingWorldLocations() == false);
-	check(InstanceProtocol);
-
-	TArrayView<const UE::Net::FReplicationInstanceProtocol::FFragmentData> FragmentDatas = MakeArrayView(InstanceProtocol->FragmentData, InstanceProtocol->FragmentCount);
-
-	// Update the location
-	{
-		const UE::Net::FReplicationInstanceProtocol::FFragmentData& FragmentData = FragmentDatas[ObjectLocationInfo.GetLocationStateIndex()];
-		const uint8* LocationAddress = FragmentData.ExternalSrcBuffer + ObjectLocationInfo.GetLocationStateOffset();
-		const FVector* Location = reinterpret_cast<const FVector*>(LocationAddress);
-		PerObjectInfo.Position = *Location;
-	}
-
-	// Update the culldistance
-	if( FCullDistanceFragmentInfo* CullDistanceFragmentInfo = CullDistanceFragments.Find(PerObjectInfo.ObjectIndex) )
-	{
-		const UE::Net::FReplicationInstanceProtocol::FFragmentData& FragmentData = FragmentDatas[CullDistanceFragmentInfo->CullDistanceSqrStateIndex];
-		const uint8* CullDistanceSqrAddress = FragmentData.ExternalSrcBuffer + CullDistanceFragmentInfo->CullDistanceSqrStateOffset;
-		const float CullDistanceSqr = *reinterpret_cast<const float*>(CullDistanceSqrAddress);
-		PerObjectInfo.SetCullDistanceSq(CullDistanceSqr);
-	}
 }
 

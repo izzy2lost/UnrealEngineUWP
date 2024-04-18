@@ -57,18 +57,11 @@ public:
 	void Init(FReplicationFilteringInitParams& Params);
 
 	/**
-	 * First pass to determine which objects are relevant to each connection.
-	 * Executes group, owner and connection filtering then any raw dynamic filters.
+	 * Executes group, owner and connection filtering then any dynamic filters.
 	 * At the end any object that is not relevant to at least one connection will be removed from the scoped object list.
-	 * Exception to this rule are always relevant (e.g. non-filtered) objects or objects set to be filtered by a fragment-based dynamic filter.
+	 * Exception to this rule are always relevant (e.g. non-filtered) objects.
 	 */
-	void FilterPrePoll();
-
-	/**
-	 * Second pass to determine which objects are relevant to each connection.
-	 * Executes only fragment-based dynamic filters.
-	 */
-	void FilterPostPoll();
+	void Filter();
 
 	/**  Returns the list of objects relevant to a given connection. This represents the global scope list minus the objects that were filtered out for the given connection. */
 	const FNetBitArrayView GetRelevantObjectsInScope(uint32 ConnectionId) const
@@ -187,7 +180,6 @@ private:
 
 	struct FFilterInfo
 	{
-		ENetFilterType Type = ENetFilterType::PrePoll_Raw;
 		TStrongObjectPtr<UNetObjectFilter> Filter;
 		FName Name;
 		uint32 ObjectCount = 0;
@@ -211,17 +203,15 @@ private:
 	void UpdateGroupInclusionFiltering();
 	void UpdateSubObjectFilters();
 
-	void UpdateDynamicFilters(ENetFilterType FilterPass);
-	void PreUpdateDynamicFiltering(ENetFilterType FilterType);
-	void UpdateDynamicFiltering(ENetFilterType FilterType);
-	void PostUpdateDynamicFiltering(ENetFilterType FilterType);
+	void UpdateDynamicFilters();
+	void PreUpdateDynamicFiltering();
+	void UpdateDynamicFiltering();
+	void PostUpdateDynamicFiltering();
 
 	/** Build the list of always relevant objects + objects that are currently relevant to at least one connection. */
 	void FilterNonRelevantObjects();
 
 	bool HasDynamicFilters() const;
-	bool HasRawFilters() const;
-	bool HasFragmentFilters() const;
 
 	// Helper to update and reset group exclusion filter effects if objects are removed from a filter or after a filter status change, returns true if the group filter was changed
 	bool ClearGroupExclusionFilterEffectsForObject(uint32 ObjectIndex, uint32 ConnectionId);
@@ -257,7 +247,7 @@ private:
 
 	void RemoveFromDynamicFilter(uint32 ObjectIndex, uint32 FilterIndex);
 
-	void NotifyFiltersOfDirtyObjects(ENetFilterType FilterType);
+	void NotifyFiltersOfDirtyObjects();
 	void BatchNotifyFiltersOfDirtyObjects(FUpdateDirtyObjectsBatchHelper& BatchHelper, const uint32* ObjectIndices, uint32 ObjectCount);
 
 	void InvalidateBaselinesForObject(uint32 ObjectIndex, uint32 NewOwningConnectionId, uint32 PrevOwningConnectionId);
@@ -343,8 +333,6 @@ private:
 	uint32 bHasDirtyConnectionFilter: 1;
 	uint32 bHasDirtyOwner : 1;
 	uint32 bHasDynamicFilters : 1;
-	uint32 bHasDynamicRawFilters : 1;
-	uint32 bHasDynamicFragmentFilters : 1;
 	uint32 bHasDirtyExclusionFilterGroup : 1;
 	uint32 bHasDirtyInclusionFilterGroup : 1;
 };
@@ -352,15 +340,6 @@ private:
 inline bool FReplicationFiltering::HasDynamicFilters() const
 {
 	return bHasDynamicFilters;
-}
-
-inline bool FReplicationFiltering::HasRawFilters() const
-{
-	return bHasDynamicRawFilters;
-}
-inline bool FReplicationFiltering::HasFragmentFilters() const
-{
-	return bHasDynamicFragmentFilters;
 }
 
 }

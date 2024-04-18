@@ -323,25 +323,20 @@ public:
 		ReplicationSystemInternal.GetReplicationBridge()->CallUpdateInstancesWorldLocation();
 	}
 
-	void UpdateFilterPrePoll()
+	void UpdateFiltering()
 	{
-		IRIS_CSV_PROFILER_SCOPE(Iris, ReplicationSystem_UpdateFilterPrePoll);
+		IRIS_CSV_PROFILER_SCOPE(Iris, ReplicationSystem_UpdateFiltering);
 		LLM_SCOPE_BYTAG(Iris);
 
 		FReplicationFiltering& Filtering = ReplicationSystemInternal.GetFiltering();
-		Filtering.FilterPrePoll();
+		Filtering.Filter();
 	}
 
-	void UpdateFilterPostPoll()
+	void UpdateObjectScopes()
 	{
 		LLM_SCOPE_BYTAG(Iris);
 
 		FReplicationFiltering& Filtering = ReplicationSystemInternal.GetFiltering();
-
-		{
-			IRIS_CSV_PROFILER_SCOPE(Iris, ReplicationSystem_UpdateFilterPostPoll);
-			Filtering.FilterPostPoll();
-		}
 
 		{
 			IRIS_CSV_PROFILER_SCOPE(Iris, ReplicationSystem_UpdateConnectionsScope);
@@ -691,7 +686,7 @@ void UReplicationSystem::PreSendUpdate(const FSendUpdateParams& Params)
 			Impl->UpdateWorldLocations();
 
 			// Update filters, reduce the top-level scoped object list and set each connection's scope.
-			Impl->UpdateFilterPrePoll();
+			Impl->UpdateFiltering();
 
 			// Invoke any operations we need to do before copying state data
 			Impl->CallPreSendUpdate(Params.DeltaSeconds);
@@ -708,8 +703,8 @@ void UReplicationSystem::PreSendUpdate(const FSendUpdateParams& Params)
 			// We must process all attachments to objects going out of scope before we update the scope
 			Impl->ProcessNetObjectAttachmentSendQueue(FNetBlobManager::EProcessMode::ProcessObjectsGoingOutOfScope);
 
-			// Update filtering and scope for all connections
-			Impl->UpdateFilterPostPoll();
+			// Update scope for all connections
+			Impl->UpdateObjectScopes();
 
 			// Propagate dirty changes to all connections
 			Impl->PropagateDirtyChanges();

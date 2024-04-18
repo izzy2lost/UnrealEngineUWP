@@ -326,33 +326,6 @@ private:
 	const UE::Net::FWorldLocations* WorldLocations = nullptr;
 };
 
-/**
- * Filter for replicated objects that have their location stored in their fragment
- * 
- * This filter may be less efficient since it's run after Polling and DirtyData copying and cannot cull out objects from those operations.
- */
-UCLASS()
-class UNetObjectGridFragmentLocFilter : public UNetObjectGridFilter
-{
-	GENERATED_BODY()
-
-protected:
-
-	virtual void OnInit(FNetObjectFilterInitParams&) override;
-	virtual void UpdateObjects(FNetObjectFilterUpdateParams&) override;
-	virtual void UpdateObjectInfo(FPerObjectInfo& PerObjectInfo, const UNetObjectGridFilter::FObjectLocationInfo& ObjectLocationInfo, const UE::Net::FReplicationInstanceProtocol* InstanceProtocol) override;
-	virtual bool BuildObjectInfo(uint32 ObjectIndex, FNetObjectFilterAddObjectParams& Params) override;
-	virtual void OnObjectRemoved(uint32 ObjectIndex) override;
-
-private:
-	struct FCullDistanceFragmentInfo
-	{
-		uint16 CullDistanceSqrStateIndex = InvalidStateIndex;
-		uint16 CullDistanceSqrStateOffset = InvalidStateOffset;
-	};
-
-	TMap<uint32, FCullDistanceFragmentInfo> CullDistanceFragments;
-};
 
 //
 inline bool UNetObjectGridFilter::FCellBox::operator==(const UNetObjectGridFilter::FCellBox& Other) const
