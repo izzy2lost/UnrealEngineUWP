@@ -1146,7 +1146,7 @@ const TCHAR* FGenericPlatformMisc::VersionCheckPlatformName()
 	FString OverrideVersionCheckPlatformName;
 	if (!GConfig->GetString(TEXT("PatchConfig"), TEXT("PlatformOverrideName"), OverrideVersionCheckPlatformName, GEngineIni))
 	{
-		return ANSI_TO_TCHAR(FPlatformProperties::IniPlatformName());
+		OverrideVersionCheckPlatformName = ANSI_TO_TCHAR(FPlatformProperties::IniPlatformName());
 	}
 	return *OverrideVersionCheckPlatformName;
 }
