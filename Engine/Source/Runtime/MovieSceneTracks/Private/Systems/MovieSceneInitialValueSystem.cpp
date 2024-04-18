@@ -141,7 +141,7 @@ void UMovieSceneInitialValueSystem::OnRun(FSystemTaskPrerequisites& InPrerequisi
 			Filter.Any(Mutation.AnyInitialValue);
 			Filter.All({ BuiltInComponents->Tags.NeedsLink });
 			Filter.None({ BuiltInComponents->InitialValueIndex });
-			Filter.None({ BuiltInComponents->Tags.HasAssignedInitialValue });
+			Filter.None({ BuiltInComponents->Tags.HasAssignedInitialValue, BuiltInComponents->Tags.Ignored });
 
 			Linker->EntityManager.MutateAll(Filter, Mutation);
 		}
@@ -171,7 +171,7 @@ void UMovieSceneInitialValueSystem::OnRun(FSystemTaskPrerequisites& InPrerequisi
 		Filter.Any(Mutation.AnyInitialValue);
 		Filter.Any({ BuiltInComponents->BoundObject, BuiltInComponents->Interrogation.OutputKey });
 		Filter.All({ BuiltInComponents->Tags.NeedsLink });
-		Filter.None({ BuiltInComponents->Tags.HasAssignedInitialValue });
+		Filter.None({ BuiltInComponents->Tags.HasAssignedInitialValue, BuiltInComponents->Tags.Ignored });
 
 		Linker->EntityManager.MutateAll(Filter, Mutation);
 	}
