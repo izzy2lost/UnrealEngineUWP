@@ -6,12 +6,23 @@
 #include "UObject/ObjectMacros.h"
 #include "UObject/ScriptInterface.h"
 #include "Components/SceneComponent.h"
+#include "Components/StaticMeshComponent.h"
 #include "Engine/BlendableInterface.h"
 #include "Engine/Scene.h"
 #include "Camera/CameraTypes.h"
 #include "CameraComponent.generated.h"
 
 class UStaticMesh;
+
+/** Allows a custom SceneProxy to interact with camera specific show flags. */
+UCLASS()
+class UCameraProxyMeshComponent : public UStaticMeshComponent
+{
+	GENERATED_BODY()
+
+public:
+	virtual FPrimitiveSceneProxy* CreateSceneProxy() override;
+};
 
 /**
   * Represents a camera viewpoint and settings, such as projection type, field of view, and post-process overrides.

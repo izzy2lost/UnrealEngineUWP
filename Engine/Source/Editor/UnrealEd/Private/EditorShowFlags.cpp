@@ -61,6 +61,7 @@ TArray<FShowFlagData>& GetShowFlagMenuItems()
 			EngineFlagsChords.Add("StaticMeshes", FInputChord() );
 			EngineFlagsChords.Add("Landscape", FInputChord(EKeys::L, EModifierKey::Alt) );
 			EngineFlagsChords.Add("Volumes", FInputChord(EKeys::O, EModifierKey::Alt) );
+			EngineFlagsChords.Add("Cameras", FInputChord() );
 
 			struct FIterSink
 			{

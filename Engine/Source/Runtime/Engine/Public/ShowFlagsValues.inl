@@ -452,5 +452,8 @@ SHOWFLAG_ALWAYS_ACCESSIBLE(ShaderPrint, SFG_Developer, NSLOCTEXT("UnrealEd", "Sh
 /** If true, scene depth is copied to the scene capture output depth texture. If false, other depth sources like editor primitives depth are still copied. */
 SHOWFLAG_ALWAYS_ACCESSIBLE(SceneCaptureCopySceneDepth, SFG_Hidden, NSLOCTEXT("UnrealEd", "SceneCaptureCopySceneDepth", "Copy Scene Depth To Scene Capture"))
 
+/** If false, camera's are not shown in the viewport (but are enabled and available for use). */
+SHOWFLAG_ALWAYS_ACCESSIBLE(Cameras, SFG_Normal, NSLOCTEXT("UnrealEd", "CamerasSF", "Cameras"))
+
 #undef SHOWFLAG_ALWAYS_ACCESSIBLE
 #undef SHOWFLAG_FIXED_IN_SHIPPING

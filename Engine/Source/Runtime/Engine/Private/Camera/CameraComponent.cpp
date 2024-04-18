@@ -19,6 +19,7 @@
 #include "IXRTrackingSystem.h"
 #include "IXRCamera.h"
 #include "Math/UnitConversion.h"
+#include "StaticMeshSceneProxy.h"
 #include "UObject/FortniteMainBranchObjectVersion.h"
 #include "UObject/UE5ReleaseStreamObjectVersion.h"
 #include "UObject/UnrealType.h"
@@ -26,6 +27,33 @@
 #include UE_INLINE_GENERATED_CPP_BY_NAME(CameraComponent)
 
 #define LOCTEXT_NAMESPACE "CameraComponent"
+
+FPrimitiveSceneProxy* UCameraProxyMeshComponent::CreateSceneProxy()
+{
+	class FCameraProxyMeshProxy : public FStaticMeshSceneProxy
+	{
+	public:
+		FCameraProxyMeshProxy(UCameraProxyMeshComponent* Component)
+			: FStaticMeshSceneProxy(Component, false)
+		{
+		}
+
+		virtual FPrimitiveViewRelevance GetViewRelevance(const FSceneView* View) const override
+		{
+			if (View->Family->EngineShowFlags.Cameras)
+			{
+				return FStaticMeshSceneProxy::GetViewRelevance(View);
+			}
+
+			FPrimitiveViewRelevance Result;
+			Result.bDrawRelevance = false;
+
+			return Result;
+		}
+	};
+
+	return new FCameraProxyMeshProxy(this);
+}
 
 //////////////////////////////////////////////////////////////////////////
 // UCameraComponent
@@ -129,7 +157,7 @@ void UCameraComponent::OnRegister()
 	{
 		if (ProxyMeshComponent == nullptr)
 		{
-			ProxyMeshComponent = NewObject<UStaticMeshComponent>(MyOwner, NAME_None, RF_Transactional | RF_TextExportTransient);
+			ProxyMeshComponent = NewObject<UCameraProxyMeshComponent>(MyOwner, NAME_None, RF_Transactional | RF_TextExportTransient);
 			ProxyMeshComponent->SetupAttachment(this);
 			ProxyMeshComponent->SetIsVisualizationComponent(true);
 			ProxyMeshComponent->SetStaticMesh(CameraMesh);
