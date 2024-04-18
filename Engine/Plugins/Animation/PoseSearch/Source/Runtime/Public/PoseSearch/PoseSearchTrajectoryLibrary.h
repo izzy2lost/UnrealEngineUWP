@@ -26,6 +26,7 @@ public:
 
 		float MaxSpeed = 0.f;
 		float BrakingDeceleration = 0.f;
+		float BrakingSubStepTime = 0.f;
 		float Friction = 0.f;
 
 		FVector Velocity = FVector::ZeroVector;

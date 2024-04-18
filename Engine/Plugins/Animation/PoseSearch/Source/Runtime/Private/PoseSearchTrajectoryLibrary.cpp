@@ -37,6 +37,7 @@ void FPoseSearchTrajectoryData::UpdateData(
 	{
 		TrajectoryDataDerived.MaxSpeed = FMath::Max(MoveComp->GetMaxSpeed() * MoveComp->GetAnalogInputModifier(), MoveComp->GetMinAnalogSpeed());
 		TrajectoryDataDerived.BrakingDeceleration = FMath::Max(0.f, MoveComp->GetMaxBrakingDeceleration());
+		TrajectoryDataDerived.BrakingSubStepTime = MoveComp->BrakingSubStepTime;
 		TrajectoryDataDerived.bOrientRotationToMovement = MoveComp->bOrientRotationToMovement;
 
 		TrajectoryDataDerived.Velocity = MoveComp->Velocity;
@@ -104,8 +105,8 @@ FVector FPoseSearchTrajectoryData::StepCharacterMovementGroundPrediction(
 			return InVelocity;
 		}
 
-		static const float MaxTimeStep = 1.f / 60.f;
 		float RemainingTime = DeltaTime;
+		const float MaxTimeStep = FMath::Clamp(TrajectoryDataDerived.BrakingSubStepTime, 1.0f / 75.0f, 1.0f / 20.0f);
 
 		const FVector PrevLinearVelocity = OutVelocity;
 		const FVector RevAccel = (bZeroBraking ? FVector::ZeroVector : (-TrajectoryDataDerived.BrakingDeceleration * OutVelocity.GetSafeNormal()));
