@@ -18,7 +18,6 @@ class ULocalPlayer;
 class USocialUser;
 class USocialParty;
 class USocialToolkit;
-class UGameViewportClient;
 class UGameInstance;
 class FOnlineSessionSearchResult;
 class FPartyPlatformSessionManager;
