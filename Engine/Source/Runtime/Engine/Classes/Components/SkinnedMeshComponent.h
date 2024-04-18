@@ -705,6 +705,11 @@ public:
 	uint8 bUseBoundsFromMasterPoseComponent : 1;
 #endif // WITH_EDITORONLY_DATA
 
+	/** If true, the Location of this Component will be included into its bounds calculation
+	* (this can be useful when using SMU_OnlyTickPoseWhenRendered on a character that moves away from the root and no bones are left near the origin of the component) */
+	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadOnly, Category = SkeletalMesh)
+	uint8 bIncludeComponentLocationIntoBounds : 1;
+
 	/** Forces the mesh to draw in wireframe mode. */
 	UPROPERTY()
 	uint8 bForceWireframe:1;

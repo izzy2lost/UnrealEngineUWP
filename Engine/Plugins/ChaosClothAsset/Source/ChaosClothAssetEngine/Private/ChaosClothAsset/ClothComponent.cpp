@@ -284,6 +284,8 @@ void UChaosClothComponent::OnPreEndOfFrameSync()
 
 FBoxSphereBounds UChaosClothComponent::CalcBounds(const FTransform& LocalToWorld) const
 {
+	QUICK_SCOPE_CYCLE_COUNTER(STAT_CalcClothComponentBounds);
+
 	FBoxSphereBounds NewBounds(ForceInitToZero);
 
 	// Use cached local bounds if possible
@@ -292,17 +294,58 @@ FBoxSphereBounds UChaosClothComponent::CalcBounds(const FTransform& LocalToWorld
 		NewBounds = bCachedLocalBoundsUpToDate ?
 			CachedWorldOrLocalSpaceBounds.TransformBy(LocalToWorld) :
 			CachedWorldOrLocalSpaceBounds.TransformBy(CachedWorldToLocalTransform * LocalToWorld.ToMatrixWithScale());
+	
+		if (bIncludeComponentLocationIntoBounds)
+		{
+			NewBounds = NewBounds + FBoxSphereBounds(GetComponentLocation(), FVector(1.0f), 1.0f);
+		}
 	}
 	else  // Calculate new bounds
 	{
-		const IConsoleVariable* const CVarCacheLocalSpaceBounds = IConsoleManager::Get().FindConsoleVariable(TEXT("a.CacheLocalSpaceBounds"));
+		FVector RootBoneOffset(ForceInitToZero);
+
+		// If attached to a skeletal mesh component that uses fixed bounds, add the root bone translation
+		if (const USkeletalMeshComponent* const SkeletalMeshComponent = Cast<USkeletalMeshComponent>(LeaderPoseComponent.Get()))
+		{
+			if (SkeletalMeshComponent->GetSkinnedAsset() && SkeletalMeshComponent->bComponentUseFixedSkelBounds)
+			{
+				RootBoneOffset = SkeletalMeshComponent->RootBoneTranslation; // Adjust bounds by root bone translation
+			}
+		}
+
+		static IConsoleVariable* const CVarCacheLocalSpaceBounds = IConsoleManager::Get().FindConsoleVariable(TEXT("a.CacheLocalSpaceBounds"));
 		const bool bCacheLocalSpaceBounds = CVarCacheLocalSpaceBounds ? (CVarCacheLocalSpaceBounds->GetInt() != 0) : true;
 
 		const FTransform CachedBoundsTransform = bCacheLocalSpaceBounds ? FTransform::Identity : LocalToWorld;
 
-		if (ClothSimulationProxy)
+		// Add render mesh bounds
+		constexpr bool bHasValidBodies = false;
+		NewBounds = CalcMeshBound((FVector3f)RootBoneOffset, bHasValidBodies, CachedBoundsTransform);
+
+		if (bIncludeComponentLocationIntoBounds)
 		{
-			NewBounds = ClothSimulationProxy->CalculateBounds_AnyThread().TransformBy(CachedBoundsTransform);
+			const FVector ComponentLocation = GetComponentLocation();
+			const FBoxSphereBounds ComponentLocationBounds(ComponentLocation, FVector(1.), 1.);
+			if (bCacheLocalSpaceBounds)
+			{
+				NewBounds = NewBounds.TransformBy(LocalToWorld);
+				NewBounds = NewBounds + ComponentLocationBounds;
+				NewBounds = NewBounds.TransformBy(LocalToWorld.ToInverseMatrixWithScale());
+			}
+			else
+			{
+				NewBounds = NewBounds + ComponentLocationBounds;
+			}
+		}
+
+		// Add sim mesh bounds
+		if (ClothSimulationProxy.IsValid())
+		{
+			const FBoxSphereBounds SimulationBounds = ClothSimulationProxy->CalculateBounds_AnyThread();
+			if (SimulationBounds.SphereRadius > UE_SMALL_NUMBER)  // Don't add the simulation bounds if there are empty, otherwise it could unwillingly add the component's location
+			{
+				NewBounds = NewBounds + SimulationBounds.TransformBy(CachedBoundsTransform);
+			}
 		}
 
 		CachedWorldOrLocalSpaceBounds = NewBounds;

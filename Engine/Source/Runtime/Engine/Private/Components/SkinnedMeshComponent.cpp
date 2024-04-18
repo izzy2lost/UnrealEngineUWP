@@ -1755,7 +1755,9 @@ FBoxSphereBounds USkinnedMeshComponent::CalcBounds(const FTransform& LocalToWorl
 {
 	SCOPE_CYCLE_COUNTER(STAT_CalcSkelMeshBounds);
 
-	return CalcMeshBound( FVector3f::ZeroVector, false, LocalToWorld );
+	return bIncludeComponentLocationIntoBounds ?
+		CalcMeshBound(FVector3f::ZeroVector, false, LocalToWorld) + FBoxSphereBounds(GetComponentLocation(), FVector(1.0f), 1.0f) :
+		CalcMeshBound(FVector3f::ZeroVector, false, LocalToWorld);
 }
 
 void USkinnedMeshComponent::UpdateBounds()
