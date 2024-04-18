@@ -2,6 +2,7 @@
 
 #include "../../Public/MuV/COIBakingTestCommandlet.h"
 
+#include "CustomizableObjectCompilationUtility.h"
 #include "ValidationUtils.h"
 #include "AssetRegistry/AssetData.h"
 #include "HAL/FileManager.h"
@@ -10,8 +11,6 @@
 #include "MuCO/CustomizableObjectSystem.h"
 #include "MuCOE/CustomizableObjectInstanceBakingUtils.h"
 #include "HAL/FileManager.h"
-#include "MuCO/CustomizableObjectPrivate.h"
-#include "MuT/UnrealPixelFormatOverride.h"
 #include "Interfaces/ITargetPlatformManagerModule.h"
 
 
@@ -88,11 +87,14 @@ int32 UCOIBakingTestCommandlet::Main(const FString& Params)
 	ITargetPlatformManagerModule& TPM = GetTargetPlatformManagerRef();
 	CompilationOptions.TargetPlatform = TPM.GetRunningTargetPlatform();
 	CompilationOptions.bUseDiskCompilation = false;
-	if (!CompileCustomizableObject(InstanceCustomizableObject,true, &CompilationOptions))
+
+	TSharedRef<FCustomizableObjectCompilationUtility> CompilationUtility = MakeShared<FCustomizableObjectCompilationUtility>();
+	if( !CompilationUtility->CompileCustomizableObject(InstanceCustomizableObject, true, &CompilationOptions ))
 	{
 		UE_LOG(LogMutable,Error,TEXT("Failed to compile the target CO. Exitting commandlet."));
 		return 1;
 	}
+	
 	
 	// Update the instance
 	{

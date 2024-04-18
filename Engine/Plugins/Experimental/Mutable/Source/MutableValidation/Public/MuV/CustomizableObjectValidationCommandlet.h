@@ -4,13 +4,14 @@
 
 #include "Commandlets/Commandlet.h"
 #include "Containers/Array.h"
-#include "MuCO/CustomizableObjectInstance.h"
+#include "MuV/CustomizableObjectCompilationUtility.h"
+#include "MuV/CustomizableObjectInstanceUpdateUtility.h"
 
 #include "CustomizableObjectValidationCommandlet.generated.h"
 
 // Forward declarations
 class UCustomizableObject;
-class UCOIUpdater;
+class UCustomizableObjectInstance;
 class ITargetPlatform;
 
 UCLASS()
@@ -38,8 +39,4 @@ private:
 	/** Array of COI to be generated with randomized parameter values */
 	UPROPERTY()
 	TArray<TObjectPtr<UCustomizableObjectInstance>> InstancesToProcess;
-
-	/** Helper object designed to aid in the update of the CO Instances.*/
-	UPROPERTY()
-	TObjectPtr<UCOIUpdater> InstanceUpdater;
 };

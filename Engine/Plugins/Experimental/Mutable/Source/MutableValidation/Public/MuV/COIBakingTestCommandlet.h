@@ -3,6 +3,7 @@
 
 #include "CoreMinimal.h"
 #include "Commandlets/Commandlet.h"
+#include "MuV/CustomizableObjectCompilationUtility.h"
 
 #include "COIBakingTestCommandlet.generated.h"
 

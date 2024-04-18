@@ -2,6 +2,8 @@
 
 #include "MuV/CustomizableObjectValidationCommandlet.h"
 
+#include "CustomizableObjectCompilationUtility.h"
+#include "CustomizableObjectInstanceUpdateUtility.h"
 #include "ValidationUtils.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Containers/Array.h"
@@ -84,8 +86,9 @@ int32 UCustomizableObjectValidationCommandlet::Main(const FString& Params)
 		// Disk cache usage for compilation operation : Override if the user provided an argument with a different value than the default one of the CO
 		CompilationOptions.bUseDiskCompilation = false;
 		FParse::Bool(*Params,TEXT("UseDiskCompilation="),CompilationOptions.bUseDiskCompilation);
-
-		bWasCoCompilationSuccessful = CompileCustomizableObject(ToTestCustomizableObject, true, &CompilationOptions);
+		
+		TSharedRef<FCustomizableObjectCompilationUtility> CompilationUtility = MakeShared<FCustomizableObjectCompilationUtility>();
+		bWasCoCompilationSuccessful = CompilationUtility->CompileCustomizableObject(ToTestCustomizableObject, true, &CompilationOptions);
 	}
 	// -------------------------------------------------------------------------------------------------------------- //
 
@@ -197,10 +200,10 @@ int32 UCustomizableObjectValidationCommandlet::Main(const FString& Params)
 	bool bInstanceFailedUpdate = false;
 	const double InstancesUpdateStartSeconds = FPlatformTime::Seconds();
 	{
-		InstanceUpdater = NewObject<UCOIUpdater>();
+		TSharedRef<FCustomizableObjectInstanceUpdateUtility> InstanceUpdatingUtility = MakeShared<FCustomizableObjectInstanceUpdateUtility>();
 		for (UCustomizableObjectInstance* InstanceToUpdate : InstancesToProcess)
 		{
-			if (InstanceUpdater && !InstanceUpdater->UpdateInstance(InstanceToUpdate))
+			if (!InstanceUpdatingUtility->UpdateInstance(InstanceToUpdate))
 			{
 				bInstanceFailedUpdate = true;
 			}

@@ -2,7 +2,8 @@
 #pragma once
 
 #include "Commandlets/Commandlet.h"
-#include "MuV/ValidationUtils.h"
+#include "MuV/CustomizableObjectCompilationUtility.h"
+#include "MuV/CustomizableObjectInstanceUpdateUtility.h"
 
 #include "COIBulkUpdateTestCommandlet.generated.h"
 
@@ -20,11 +21,4 @@ class UCOIBulkUpdateTestCommandlet : public UCommandlet
 
 public:
 	virtual int32 Main(const FString& Params) override;
-
-private:
-
-	/** Helper object that handles the update of the instance for us.
-	 * It allows us to work with the instance update as if it was a sync operation */
-	UPROPERTY()
-	TObjectPtr<UCOIUpdater> InstanceUpdater = nullptr;
 };

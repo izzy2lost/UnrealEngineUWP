@@ -2,6 +2,8 @@
 
 #include "MuV/COIBulkUpdateTestCommandlet.h"
 
+#include "CustomizableObjectCompilationUtility.h"
+#include "CustomizableObjectInstanceUpdateUtility.h"
 #include "ValidationUtils.h"
 #include "AssetRegistry/AssetData.h"
 #include "AssetRegistry/AssetRegistryModule.h"
@@ -119,13 +121,13 @@ int32 UCOIBulkUpdateTestCommandlet::Main(const FString& Params)
 	
 	// Make sure there is nothing else that the engine needs to do before starting our test
 	Wait(60);
-	
-	// Create the updater object so we can later call for the update a target instance
-	InstanceUpdater = NewObject<UCOIUpdater>();
-	
+
 	// Cache the target compilation platform so we can override the compilation configs of the target COs
 	ITargetPlatformManagerModule& TPM = GetTargetPlatformManagerRef();
 	const ITargetPlatform* TargetCompilationPlatform = TPM.GetRunningTargetPlatform();
+	
+	TSharedRef<FCustomizableObjectCompilationUtility> CompilationUtility = MakeShared<FCustomizableObjectCompilationUtility>();
+	TSharedRef<FCustomizableObjectInstanceUpdateUtility> InstanceUpdatingUtility = MakeShared<FCustomizableObjectInstanceUpdateUtility>();
 	
 	// Compile all found COs one by one
 	uint32 CurrentInstanceIndex = 1;
@@ -134,15 +136,16 @@ int32 UCOIBulkUpdateTestCommandlet::Main(const FString& Params)
 		UCustomizableObject* CustomizableObjectToCompile = MutableResourceTuple.Key;
 		check (CustomizableObjectToCompile);
 
+		const FString CustomizableObjectName = CustomizableObjectToCompile->GetName();
+		
 		// Set the compilation platform based on what the system is currently running on
 		FCompilationOptions CompilationOptions = CustomizableObjectToCompile->CompileOptions;
 		CompilationOptions.TargetPlatform = TargetCompilationPlatform;
-
 		CompilationOptions.bUseDiskCompilation = false;
 		
 		// Compile the current CO object
-		const FString CustomizableObjectName = CustomizableObjectToCompile->GetName();
-		if (!CompileCustomizableObject(CustomizableObjectToCompile, false, &CompilationOptions))	// Do not log mutable data since mongoDB will not be able to handle it correctly 
+
+		if (!CompilationUtility->CompileCustomizableObject(CustomizableObjectToCompile, false, &CompilationOptions))	// Do not log mutable data since mongoDB will not be able to handle it correctly 
 		{
 			UE_LOG(LogMutable,Error,TEXT("The CO %s could not be compiled succesfully. Skipping the update of all COIs that use it."), *CustomizableObjectName )
 			continue;
@@ -158,10 +161,7 @@ int32 UCOIBulkUpdateTestCommandlet::Main(const FString& Params)
 			UE_LOG(LogMutable,Display,TEXT("\t( %u / %u ) Processing instance : \"%s\" ."),CurrentInstanceIndex++, TotalAmountOfInstances ,*Instance->GetName());
 			
 			// Update each one of the instances and notify if the update failed in any manner
-			if (InstanceUpdater != nullptr)
-			{
-				InstanceUpdater->UpdateInstance(Instance);
-			}
+			InstanceUpdatingUtility->UpdateInstance(Instance);
 		}
 	}
 
