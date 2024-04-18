@@ -80,7 +80,7 @@ private:
 	virtual TSharedPtr<FEditorViewportClient> CreateEditorViewportClient() const override;
 
 	// FAssetEditorToolkit
-	virtual void AddViewportOverlayWidget(TSharedRef<SWidget> InViewportOverlayWidget) override;
+	virtual void AddViewportOverlayWidget(TSharedRef<SWidget> InViewportOverlayWidget, int32 ZOrder = INDEX_NONE) override;
 	virtual void RemoveViewportOverlayWidget(TSharedRef<SWidget> InViewportOverlayWidget) override;
 	virtual bool OnRequestClose(EAssetEditorCloseReason InCloseReason) override;
 	virtual void OnClose() override;

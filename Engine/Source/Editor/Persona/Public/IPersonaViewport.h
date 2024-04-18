@@ -74,7 +74,7 @@ public:
 	virtual FPersonaViewportKeyDownDelegate& GetKeyDownDelegate() = 0;
 
 	/** Overlay a widget over the whole viewport */
-	virtual void AddOverlayWidget( TSharedRef<SWidget> InOverlaidWidget ) = 0;
+	virtual void AddOverlayWidget( TSharedRef<SWidget> InOverlaidWidget, int32 ZOrder=INDEX_NONE ) = 0;
 
 	/** Remove an overlay widget from the viewport */
 	virtual void RemoveOverlayWidget( TSharedRef<SWidget> InOverlaidWidget ) = 0;

@@ -227,7 +227,7 @@ public:
 	virtual TStatId GetStatId() const final;
 
 	/** Add a widget to the StaticMeshViewport's ViewportOverlay */
-	void AddViewportOverlayWidget(TSharedRef<SWidget> InOverlaidWidget) override;
+	void AddViewportOverlayWidget(TSharedRef<SWidget> InOverlaidWidget, int32 ZOrder = INDEX_NONE) override;
 
 	/** Remove a widget from the StaticMeshViewport's ViewportOverlay */
 	void RemoveViewportOverlayWidget(TSharedRef<SWidget> InViewportOverlayWidget) override;

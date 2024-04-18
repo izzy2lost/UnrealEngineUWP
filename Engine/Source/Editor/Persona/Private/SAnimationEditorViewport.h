@@ -226,7 +226,7 @@ public:
 	virtual void RemoveNotification(const TWeakPtr<SWidget>& InContainingWidget) override;
 	virtual void AddToolbarExtender(FName MenuToExtend, FMenuExtensionDelegate MenuBuilderDelegate) override;
 	virtual FPersonaViewportKeyDownDelegate& GetKeyDownDelegate() override { return OnKeyDownDelegate; }
-	virtual void AddOverlayWidget( TSharedRef<SWidget> InOverlaidWidget ) override;
+	virtual void AddOverlayWidget( TSharedRef<SWidget> InOverlaidWidget, int32 ZOrder = INDEX_NONE ) override;
 	virtual void RemoveOverlayWidget( TSharedRef<SWidget> InOverlaidWidget ) override;
 
 	

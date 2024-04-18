@@ -5,9 +5,9 @@
 
 #define LOCTEXT_NAMESPACE "SBaseCharacterFXEditorViewport"
 
-void SBaseCharacterFXEditorViewport::AddOverlayWidget(TSharedRef<SWidget> OverlaidWidget)
+void SBaseCharacterFXEditorViewport::AddOverlayWidget(TSharedRef<SWidget> OverlaidWidget, int32 ZOrder)
 {
-	ViewportOverlay->AddSlot()
+	ViewportOverlay->AddSlot(ZOrder)
 	[
 		OverlaidWidget
 	];

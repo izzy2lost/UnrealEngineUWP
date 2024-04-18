@@ -2754,13 +2754,13 @@ TStatId FStaticMeshEditor::GetStatId() const
 	RETURN_QUICK_DECLARE_CYCLE_STAT(FStaticMeshEditor, STATGROUP_TaskGraphTasks);
 }
 
-void FStaticMeshEditor::AddViewportOverlayWidget(TSharedRef<SWidget> InOverlaidWidget)
+void FStaticMeshEditor::AddViewportOverlayWidget(TSharedRef<SWidget> InOverlaidWidget, int32 ZOrder)
 {
 	TSharedPtr<SStaticMeshEditorViewport> Viewport = GetStaticMeshViewport();
 
 	if (Viewport.IsValid() && Viewport->GetViewportOverlay().IsValid())
 	{
-		Viewport->GetViewportOverlay()->AddSlot()
+		Viewport->GetViewportOverlay()->AddSlot(ZOrder)
 		[
 			InOverlaidWidget
 		];

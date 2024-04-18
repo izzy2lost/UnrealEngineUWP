@@ -30,7 +30,7 @@ public:
 	virtual void RegisterTabSpawners(const TSharedRef<FTabManager>& InTabManager) override;
 
 	virtual AssetEditorViewportFactoryFunction GetViewportDelegate() override;
-	virtual void AddViewportOverlayWidget(TSharedRef<SWidget> InViewportOverlayWidget) override;
+	virtual void AddViewportOverlayWidget(TSharedRef<SWidget> InViewportOverlayWidget, int32 ZOrder = INDEX_NONE) override;
 	virtual void RemoveViewportOverlayWidget(TSharedRef<SWidget> InViewportOverlayWidget) override;
 
 protected:

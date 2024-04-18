@@ -118,7 +118,7 @@ public:
 	virtual TSharedRef< const SWidget> AsWidget() const override { return AsShared(); }
 	virtual TSharedRef< SWidget> AsWidget() override { return AsShared(); }
 	virtual TWeakPtr< SViewport > GetViewportWidget() override { return ViewportWidget; }
-	virtual void AddOverlayWidget( TSharedRef<SWidget> OverlaidWidget ) override;
+	virtual void AddOverlayWidget( TSharedRef<SWidget> OverlaidWidget, int32 ZOrder=INDEX_NONE ) override;
 	virtual void RemoveOverlayWidget( TSharedRef<SWidget> OverlaidWidget ) override;
 
 

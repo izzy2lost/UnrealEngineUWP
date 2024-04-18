@@ -246,10 +246,10 @@ public:
 	// Called when another toolkit (such as a ed mode toolkit) is no longer being hosted in this asset editor toolkit
 	virtual void OnToolkitHostingFinished(const TSharedRef<IToolkit>& Toolkit) {}
 
-	/* Called when a toolkit requests an overlay widget to be added to the viewport. Not relevant in the absence
+	/* Called when a toolkit requests an overlay widget to be added to the viewport, optionally with a specific Z-Order. Not relevant in the absence
 	 * of a viewport.
 	 */
-	virtual void AddViewportOverlayWidget(TSharedRef<SWidget> InViewportOverlayWidget) {}
+	virtual void AddViewportOverlayWidget(TSharedRef<SWidget> InViewportOverlayWidget, int32 ZOrder = INDEX_NONE) {}
 
 	/** Called when a toolkit requests the overlay widget to be removed. */
 	virtual void RemoveViewportOverlayWidget(TSharedRef<SWidget> InViewportOverlayWidget) {}

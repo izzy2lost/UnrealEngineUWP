@@ -366,10 +366,10 @@ TSharedPtr<FEditorViewportClient> FChaosClothAssetEditorToolkit::CreateEditorVie
 
 //~ Begin FAssetEditorToolkit overrides
 
-void FChaosClothAssetEditorToolkit::AddViewportOverlayWidget(TSharedRef<SWidget> InViewportOverlayWidget)
+void FChaosClothAssetEditorToolkit::AddViewportOverlayWidget(TSharedRef<SWidget> InViewportOverlayWidget, int32 ZOrder)
 {
 	TSharedPtr<SChaosClothAssetEditorRestSpaceViewport> ViewportWidget = StaticCastSharedPtr<SChaosClothAssetEditorRestSpaceViewport>(ViewportTabContent->GetFirstViewport());
-	ViewportWidget->AddOverlayWidget(InViewportOverlayWidget);
+	ViewportWidget->AddOverlayWidget(InViewportOverlayWidget, ZOrder);
 }
 
 void FChaosClothAssetEditorToolkit::RemoveViewportOverlayWidget(TSharedRef<SWidget> InViewportOverlayWidget)

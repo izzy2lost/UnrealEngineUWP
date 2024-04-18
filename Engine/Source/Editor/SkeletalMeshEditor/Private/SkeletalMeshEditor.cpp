@@ -622,11 +622,11 @@ void FSkeletalMeshEditor::InitToolMenuContext(FToolMenuContext& MenuContext)
 	MenuContext.AddObject(PersonaContext);
 }
 
-void FSkeletalMeshEditor::AddViewportOverlayWidget(TSharedRef<SWidget> InOverlaidWidget)
+void FSkeletalMeshEditor::AddViewportOverlayWidget(TSharedRef<SWidget> InOverlaidWidget, int32 ZOrder)
 {
 	if (Viewport.IsValid())
 	{
-		Viewport->AddOverlayWidget(InOverlaidWidget);
+		Viewport->AddOverlayWidget(InOverlaidWidget, ZOrder);
 	}	
 }
 

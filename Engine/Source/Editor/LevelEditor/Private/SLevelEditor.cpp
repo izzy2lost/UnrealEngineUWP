@@ -2227,15 +2227,15 @@ FName SLevelEditor::GetStatusBarName() const
 	return LevelEditorStatusBarName;
 }
 
-void SLevelEditor::AddViewportOverlayWidget(TSharedRef<SWidget> InWidget, TSharedPtr<IAssetViewport> InViewport)
+void SLevelEditor::AddViewportOverlayWidget(TSharedRef<SWidget> InWidget, int32 ZOrder, TSharedPtr<IAssetViewport> InViewport)
 {
 	if (InViewport != nullptr)
 	{
-		InViewport->AddOverlayWidget(InWidget);
+		InViewport->AddOverlayWidget(InWidget, ZOrder);
 	}
 	else if (TSharedPtr<SLevelViewport> ActiveViewport = GetActiveViewport())
 	{
-		ActiveViewport->AddOverlayWidget(InWidget);
+		ActiveViewport->AddOverlayWidget(InWidget, ZOrder);
 	}
 }
 

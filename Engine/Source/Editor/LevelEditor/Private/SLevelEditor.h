@@ -136,7 +136,7 @@ public:
 	virtual UTypedElementCommonActions* GetCommonActions() const override;
 	virtual FName GetStatusBarName() const override;
 	virtual FOnActiveViewportChanged& OnActiveViewportChanged() { return OnActiveViewportChangedDelegate; }
-	virtual void AddViewportOverlayWidget(TSharedRef<SWidget>, TSharedPtr<IAssetViewport> InViewport = nullptr) override;
+	virtual void AddViewportOverlayWidget(TSharedRef<SWidget>, int32 ZOrder = INDEX_NONE, TSharedPtr<IAssetViewport> InViewport = nullptr) override;
 	virtual void RemoveViewportOverlayWidget(TSharedRef<SWidget>, TSharedPtr<IAssetViewport> InViewport = nullptr) override; 
 
 

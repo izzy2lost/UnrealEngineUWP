@@ -304,10 +304,10 @@ void FUVEditorToolkit::OnClose()
 
 // These get called indirectly (via toolkit host) from the mode toolkit when the mode starts or ends a tool,
 // in order to add or remove an accept/cancel overlay.
-void FUVEditorToolkit::AddViewportOverlayWidget(TSharedRef<SWidget> InViewportOverlayWidget) 
+void FUVEditorToolkit::AddViewportOverlayWidget(TSharedRef<SWidget> InViewportOverlayWidget, int32 ZOrder) 
 {
 	TSharedPtr<SUVEditor2DViewport> ViewportWidget = StaticCastSharedPtr<SUVEditor2DViewport>(ViewportTabContent->GetFirstViewport());
-	ViewportWidget->AddOverlayWidget(InViewportOverlayWidget);
+	ViewportWidget->AddOverlayWidget(InViewportOverlayWidget, ZOrder);
 }
 void FUVEditorToolkit::RemoveViewportOverlayWidget(TSharedRef<SWidget> InViewportOverlayWidget)
 {

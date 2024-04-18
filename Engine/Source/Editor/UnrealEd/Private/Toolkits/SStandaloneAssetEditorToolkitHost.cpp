@@ -393,11 +393,11 @@ UTypedElementCommonActions* SStandaloneAssetEditorToolkitHost::GetCommonActions(
 	return CommonActions.Get();
 }
 
-void SStandaloneAssetEditorToolkitHost::AddViewportOverlayWidget(TSharedRef<SWidget> InOverlaidWidget, TSharedPtr<IAssetViewport> InViewport)
+void SStandaloneAssetEditorToolkitHost::AddViewportOverlayWidget(TSharedRef<SWidget> InOverlaidWidget, int32 ZOrder, TSharedPtr<IAssetViewport> InViewport)
 {
 	if (HostedAssetEditorToolkit.IsValid())
 	{
-		HostedAssetEditorToolkit->AddViewportOverlayWidget(InOverlaidWidget);
+		HostedAssetEditorToolkit->AddViewportOverlayWidget(InOverlaidWidget, ZOrder);
 	}
 }
 

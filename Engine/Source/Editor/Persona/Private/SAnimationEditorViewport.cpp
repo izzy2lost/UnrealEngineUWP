@@ -483,9 +483,9 @@ void SAnimationEditorViewportTabBody::AddToolbarExtender(FName MenuToExtend, FMe
 	return ViewportWidget->ViewportToolbar->AddMenuExtender(MenuToExtend, MenuBuilderDelegate);
 }
 
-void SAnimationEditorViewportTabBody::AddOverlayWidget(TSharedRef<SWidget> InOverlaidWidget)
+void SAnimationEditorViewportTabBody::AddOverlayWidget(TSharedRef<SWidget> InOverlaidWidget, int32 ZOrder)
 {
-	ViewportWidget->ViewportOverlay->AddSlot()
+	ViewportWidget->ViewportOverlay->AddSlot(ZOrder)
 	[
 		InOverlaidWidget
 	];

@@ -72,7 +72,7 @@ public:
 	virtual FLinearColor GetWorldCentricTabColorScale() const override;
 	virtual void InitToolMenuContext(FToolMenuContext& MenuContext) override;
 
-	virtual void AddViewportOverlayWidget(TSharedRef<SWidget> InOverlaidWidget) override;
+	virtual void AddViewportOverlayWidget(TSharedRef<SWidget> InOverlaidWidget, int32 ZOrder = INDEX_NONE) override;
 	virtual void RemoveViewportOverlayWidget(TSharedRef<SWidget> InOverlaidWidget) override;
 	
 	/** FBaseToolkit overrides */

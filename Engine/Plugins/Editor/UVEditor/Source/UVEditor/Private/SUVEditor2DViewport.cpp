@@ -75,9 +75,9 @@ void SUVEditor2DViewport::BindCommands()
 		}));
 }
 
-void SUVEditor2DViewport::AddOverlayWidget(TSharedRef<SWidget> OverlaidWidget)
+void SUVEditor2DViewport::AddOverlayWidget(TSharedRef<SWidget> OverlaidWidget, int32 ZOrder)
 {
-	ViewportOverlay->AddSlot()
+	ViewportOverlay->AddSlot(ZOrder)
 	[
 		OverlaidWidget
 	];

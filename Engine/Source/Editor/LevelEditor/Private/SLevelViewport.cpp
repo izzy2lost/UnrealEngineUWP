@@ -4679,9 +4679,9 @@ void SLevelViewport::RemoveActorPreview( int32 PreviewIndex, AActor* Actor, cons
 	}
 }
 
-void SLevelViewport::AddOverlayWidget(TSharedRef<SWidget> OverlaidWidget)
+void SLevelViewport::AddOverlayWidget(TSharedRef<SWidget> OverlaidWidget, int32 ZOrder)
 {
-	ViewportOverlay->AddSlot()
+	ViewportOverlay->AddSlot(ZOrder)
 	[
 		OverlaidWidget
 	];

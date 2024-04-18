@@ -118,10 +118,10 @@ AssetEditorViewportFactoryFunction FBaseCharacterFXEditorToolkit::GetViewportDel
 	return TempViewportDelegate;
 }
 
-void FBaseCharacterFXEditorToolkit::AddViewportOverlayWidget(TSharedRef<SWidget> InViewportOverlayWidget)
+void FBaseCharacterFXEditorToolkit::AddViewportOverlayWidget(TSharedRef<SWidget> InViewportOverlayWidget, int32 ZOrder)
 {
 	TSharedPtr<SBaseCharacterFXEditorViewport> ViewportWidget = StaticCastSharedPtr<SBaseCharacterFXEditorViewport>(ViewportTabContent->GetFirstViewport());
-	ViewportWidget->AddOverlayWidget(InViewportOverlayWidget);
+	ViewportWidget->AddOverlayWidget(InViewportOverlayWidget, ZOrder);
 }
 
 void FBaseCharacterFXEditorToolkit::RemoveViewportOverlayWidget(TSharedRef<SWidget> InViewportOverlayWidget)
