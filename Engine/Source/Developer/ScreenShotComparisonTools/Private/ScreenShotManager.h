@@ -28,8 +28,7 @@ public:
 	enum class EApprovedFolderOptions : int8
 	{
 		None = 0,
-		UsePlatformFolders	= 1 >> 0,
-		UseLegacyPaths		= 1 >> 1
+		UsePlatformFolders	= 1 << 0
 	};
 
 	/**
