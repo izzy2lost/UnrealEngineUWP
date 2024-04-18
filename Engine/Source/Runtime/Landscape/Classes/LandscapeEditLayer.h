@@ -119,6 +119,13 @@ public:
 	*/
 	virtual TArray<FEditLayerAction> GetActions() const { return {}; }
 
+	/**
+	* @return a list of UObjects that this layers needs in order to render properly. This is necessary to avoid trying to render a layer while some of its
+	*  resources are not fully ready. 
+	*  These can be UTexture (requires all mips to be fully loaded) or UMaterialInterface (requires shader maps to be fully compiled)
+	*/
+	virtual void GetRenderDependencies(TSet<UObject*>& OutDependencies) const { }
+
 	// TODO [jonathan.bard] : Remove : temporary method to give the edit layer an opportunity to change some settings on the old struct (FLandscapeLayer) upon creation. 
 	//  The better way would be to move most of the settings to ULandscapeEditLayer(Base?) and expose a "property changed" event that both the UI and runtime code 
 	//  could listen to in order to generically react to any change on the layer settings, including on the derived class (e.g. if there were some splines layer-specific 

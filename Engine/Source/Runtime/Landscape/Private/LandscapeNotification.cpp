@@ -14,7 +14,7 @@
 
 // ----------------------------------------------------------------------------------
 
-FLandscapeNotification::FLandscapeNotification(const TWeakObjectPtr<ALandscape>& InLandscape, EType InNotificationType, FConditionCallback InConditionCallback, FUpdateTextCallback InUpdateTextCallback)
+FLandscapeNotification::FLandscapeNotification(const TWeakObjectPtr<ALandscape>& InLandscape, ELandscapeNotificationType InNotificationType, FConditionCallback InConditionCallback, FUpdateTextCallback InUpdateTextCallback)
 	: Landscape(InLandscape)
 	, NotificationType(InNotificationType)
 	, ConditionCallback(InConditionCallback)

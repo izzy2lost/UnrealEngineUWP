@@ -3628,7 +3628,7 @@ bool ALandscape::PrepareLayersTextureResources(bool bInWaitForStreaming)
 
 bool ALandscape::PrepareLayersTextureResources(const TArray<FLandscapeLayer>& InLayers, bool bInWaitForStreaming)
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE(LandscapeLayers_PrepareLayersTextureResources);
+	TRACE_CPUPROFILER_EVENT_SCOPE(ALandscape::PrepareLayersTextureResources);
 
 	ULandscapeInfo* Info = GetLandscapeInfo();
 	if (Info == nullptr)
@@ -3662,12 +3662,20 @@ bool ALandscape::PrepareLayersTextureResources(const TArray<FLandscapeLayer>& In
 	return bIsReady;
 }
 
-bool ALandscape::PrepareLayersBrushResources(ERHIFeatureLevel::Type InFeatureLevel, bool bInWaitForStreaming)
+bool ALandscape::PrepareLayersResources(ERHIFeatureLevel::Type InFeatureLevel, bool bInWaitForStreaming)
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE(LandscapeLayers_PrepareLayersBrushTextureResources);
+	TRACE_CPUPROFILER_EVENT_SCOPE(ALandscape::PrepareLayersResources);
 	TSet<UObject*> Dependencies;
 	for (const FLandscapeLayer& Layer : LandscapeEditLayers)
 	{
+		ULandscapeEditLayerBase* EditLayer = Layer.EditLayer;
+		check(EditLayer != nullptr);
+
+		if (EditLayer->SupportsTargetType(ELandscapeToolTargetType::Heightmap) || EditLayer->SupportsTargetType(ELandscapeToolTargetType::Weightmap) || EditLayer->SupportsTargetType(ELandscapeToolTargetType::Visibility))
+		{
+			EditLayer->GetRenderDependencies(Dependencies);
+		}
+
 		for (const FLandscapeLayerBrush& Brush : Layer.Brushes)
 		{
 			if (ALandscapeBlueprintBrushBase* LandscapeBrush = Brush.GetBrush())
@@ -3686,7 +3694,7 @@ bool ALandscape::PrepareLayersBrushResources(ERHIFeatureLevel::Type InFeatureLev
 	for (UObject* Dependency : Dependencies)
 	{
 		// Streamable textures need to be fully streamed in : 
-		if (UTexture2D* Texture = Cast<UTexture2D>(Dependency))
+		if (UTexture* Texture = Cast<UTexture>(Dependency))
 		{
 			bIsReady &= TextureStreamingManager->RequestTextureFullyStreamedInForever(Texture, bInWaitForStreaming);
 		}
@@ -8232,6 +8240,27 @@ void ULandscapeComponent::GetLandscapeComponentWeightmapsToRender(TSet<ULandscap
 	}
 }
 
+void ALandscape::FWaitingForResourcesNotificationHelper::Notify(ALandscape* InLandscape, FLandscapeNotificationManager* InNotificationManager, ELandscapeNotificationType InNotificationType, const FText& InNotificationText)
+{
+	// We need to wait until layers texture resources are ready to initialize the landscape to avoid taking the sizes and format of the default texture:
+	static constexpr double TimeBeforeDisplayingWaitingForResourcesNotification = 3.0;
+
+	WaitingForResourcesStartTime = FSlateApplicationBase::IsInitialized() ? FSlateApplicationBase::Get().GetCurrentTime() : 0.0f;
+	if (!Notification.IsValid())
+	{
+		Notification = MakeShared<FLandscapeNotification>(InLandscape, InNotificationType);
+		Notification->NotificationText = InNotificationText;
+		Notification->NotificationStartTime = WaitingForResourcesStartTime + TimeBeforeDisplayingWaitingForResourcesNotification;
+	}
+	InNotificationManager->RegisterNotification(Notification);
+}
+
+void ALandscape::FWaitingForResourcesNotificationHelper::Reset()
+{
+	Notification.Reset();
+	WaitingForResourcesStartTime = -1.0;
+}
+
 void ALandscape::UpdateLayersContent(bool bInWaitForStreaming, bool bInSkipMonitorLandscapeEdModeChanges, bool bIntermediateRender, bool bFlushRender)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(LandscapeLayers_UpdateLayersContent);
@@ -8242,11 +8271,9 @@ void ALandscape::UpdateLayersContent(bool bInWaitForStreaming, bool bInSkipMonit
 		// Make sure that we don't leave any notification behind when we leave this function without explicitly displaying one :
 		if (bHideNotifications)
 		{
-			WaitingForTexturesNotification.Reset();
-			WaitingForBrushesNotification.Reset();
+			WaitingForTexturesNotificationHelper.Reset();
+			WaitingForEditLayerResourcesNotificationHelper.Reset();
 			InvalidShadingModelNotification.Reset();
-			WaitingForLandscapeTextureResourcesStartTime = -1.0;
-			WaitingForLandscapeBrushResourcesStartTime = -1.0;
 		}
 
 		// If nothing to do, let's do some garbage collecting on async readback tasks so that we slowly get rid of staging textures 
@@ -8357,11 +8384,6 @@ void ALandscape::UpdateLayersContent(bool bInWaitForStreaming, bool bInSkipMonit
 		return;
 	}
 
-	auto GetCurrentTime = []()
-	{
-		return FSlateApplicationBase::IsInitialized() ? FSlateApplicationBase::Get().GetCurrentTime() : 0.0f;
-	};
-	
 	// The Edit layers shaders only work on SM5 : cancel any update that might happen when SM5+ shading model is not active :
 	if (World->GetFeatureLevel() < ERHIFeatureLevel::SM5)
 	{
@@ -8369,7 +8391,7 @@ void ALandscape::UpdateLayersContent(bool bInWaitForStreaming, bool bInSkipMonit
 		{
 			if (!InvalidShadingModelNotification.IsValid())
 			{
-				InvalidShadingModelNotification = MakeShared<FLandscapeNotification>(this, FLandscapeNotification::EType::ShadingModelInvalid);
+				InvalidShadingModelNotification = MakeShared<FLandscapeNotification>(this, ELandscapeNotificationType::ShadingModelInvalid);
 				static const FText NotificationText(LOCTEXT("InvalidShadingModel", "Cannot update landscape with a feature level less than SM5"));
 				InvalidShadingModelNotification->NotificationText = NotificationText;
 			}
@@ -8383,47 +8405,26 @@ void ALandscape::UpdateLayersContent(bool bInWaitForStreaming, bool bInSkipMonit
 		InvalidShadingModelNotification.Reset();
 	}
 
-	// We need to wait until layers texture resources are ready to initialize the landscape to avoid taking the sizes and format of the default texture:
-	static constexpr double TimeBeforeDisplayingWaitingForResourcesNotification = 3.0;
-
 	bResourcesReady &= PrepareLayersTextureResources(bInWaitForStreaming);
 	if (!bResourcesReady && LandscapeNotificationManager)
 	{
-		WaitingForLandscapeTextureResourcesStartTime = GetCurrentTime(); 
-		if (!WaitingForTexturesNotification.IsValid())
-		{
-			WaitingForTexturesNotification = MakeShared<FLandscapeNotification>(this, FLandscapeNotification::EType::LandscapeTextureResourcesNotReady);
-			static const FText NotificationText(LOCTEXT("WaitForLandscapeTextureResources", "Waiting for texture resources to be ready"));
-			WaitingForTexturesNotification->NotificationText = NotificationText;
-			WaitingForTexturesNotification->NotificationStartTime = WaitingForLandscapeTextureResourcesStartTime + TimeBeforeDisplayingWaitingForResourcesNotification;
-		}
-		LandscapeNotificationManager->RegisterNotification(WaitingForTexturesNotification);
+		WaitingForTexturesNotificationHelper.Notify(this, LandscapeNotificationManager, ELandscapeNotificationType::LandscapeTextureResourcesNotReady, LOCTEXT("WaitForLandscapeTextureResources", "Waiting for texture resources to be ready"));
 		bHideNotifications = false;
 	}
 	else
 	{
-		WaitingForTexturesNotification.Reset();
-		WaitingForLandscapeTextureResourcesStartTime = -1.0;
+		WaitingForTexturesNotificationHelper.Reset();
 	}
 
-	bResourcesReady &= PrepareLayersBrushResources(World->GetFeatureLevel(), bInWaitForStreaming);
+	bResourcesReady &= PrepareLayersResources(World->GetFeatureLevel(), bInWaitForStreaming);
 	if (!bResourcesReady && LandscapeNotificationManager)
 	{
-		WaitingForLandscapeBrushResourcesStartTime = GetCurrentTime();
-		if (!WaitingForBrushesNotification.IsValid())
-		{
-			WaitingForBrushesNotification = MakeShared<FLandscapeNotification>(this, FLandscapeNotification::EType::LandscapeBrushResourcesNotReady);
-			static const FText NotificationText(LOCTEXT("WaitForLandscapeBrushResources", "Waiting for brush resources to be ready"));
-			WaitingForBrushesNotification->NotificationText = NotificationText;
-			WaitingForBrushesNotification->NotificationStartTime = WaitingForLandscapeBrushResourcesStartTime + TimeBeforeDisplayingWaitingForResourcesNotification;
-		}
-		LandscapeNotificationManager->RegisterNotification(WaitingForBrushesNotification);
+		WaitingForEditLayerResourcesNotificationHelper.Notify(this, LandscapeNotificationManager, ELandscapeNotificationType::LandscapeEditLayerResourcesNotReady, LOCTEXT("WaitForLandscapeEditLayerResources", "Waiting for edit layer resources to be ready"));
 		bHideNotifications = false;
 	}
 	else
 	{
-		WaitingForBrushesNotification.Reset();
-		WaitingForLandscapeBrushResourcesStartTime = -1.0;
+		WaitingForEditLayerResourcesNotificationHelper.Reset();
 	}
 
 	if (!bResourcesReady)

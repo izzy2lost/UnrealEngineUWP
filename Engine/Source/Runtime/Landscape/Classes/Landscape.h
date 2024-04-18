@@ -28,6 +28,7 @@ struct FTextureToComponentHelper;
 struct FUpdateLayersContentContext;
 struct FEditLayersHeightmapMergeParams;
 struct FEditLayersWeightmapMergeParams;
+enum class ELandscapeNotificationType;
 
 namespace EditLayersHeightmapLocalMerge_RenderThread
 {
@@ -495,7 +496,7 @@ private:
 
 	bool PrepareLayersTextureResources(bool bInWaitForStreaming);
 	bool PrepareLayersTextureResources(const TArray<FLandscapeLayer>& InLayers, bool bInWaitForStreaming);
-	bool PrepareLayersBrushResources(ERHIFeatureLevel::Type InFeatureLevel, bool bInWaitForStreaming);
+	bool PrepareLayersResources(ERHIFeatureLevel::Type InFeatureLevel, bool bInWaitForStreaming);
 	void InvalidateRVTForTextures(const TSet<UTexture2D*>& InTextures);
 	void PrepareLayersHeightmapsLocalMergeRenderThreadData(const FUpdateLayersContentContext& InUpdateLayersContentContext, const FEditLayersHeightmapMergeParams& InMergeParams, EditLayersHeightmapLocalMerge_RenderThread::FMergeInfo& OutRenderThreadData);
 	void PrepareLayersWeightmapsLocalMergeRenderThreadData(const FUpdateLayersContentContext& InUpdateLayersContentContext, const FEditLayersWeightmapMergeParams& InMergeParams, EditLayersWeightmapLocalMerge_RenderThread::FMergeInfo& OutRenderThreadData);
@@ -654,15 +655,22 @@ private:
 	UPROPERTY(Transient)
 	bool bSplineLayerUpdateRequested;
 
-	/** Time since waiting for landscape resources to be ready (for displaying a notification to the user) */
-	double WaitingForLandscapeTextureResourcesStartTime = -1.0;
+	struct FWaitingForResourcesNotificationHelper
+	{
+		void Notify(ALandscape* InLandscape, class FLandscapeNotificationManager* InNotificationManager, ELandscapeNotificationType InNotificationType, const FText& InNotificationText);
+		void Reset();
 
-	/** Time since waiting for brush resources to be ready (for displaying a notification to the user) */
-	double WaitingForLandscapeBrushResourcesStartTime = -1.0;
+		/** Time since waiting for resources to be ready */
+		double WaitingForResourcesStartTime = -1.0;
+
+		/** Non-stackable user notification for landscape editor */
+		TSharedPtr<FLandscapeNotification> Notification;
+	};
 
 	/** Non-stackable user notifications for landscape editor */
-	TSharedPtr<FLandscapeNotification> WaitingForTexturesNotification;
-	TSharedPtr<FLandscapeNotification> WaitingForBrushesNotification;
+	FWaitingForResourcesNotificationHelper WaitingForTexturesNotificationHelper;
+	FWaitingForResourcesNotificationHelper WaitingForEditLayerResourcesNotificationHelper;
+
 	TSharedPtr<FLandscapeNotification> InvalidShadingModelNotification;
 
 	// Represent all the resolved paint layer, from all layers blended together (size of the landscape x material layer count)

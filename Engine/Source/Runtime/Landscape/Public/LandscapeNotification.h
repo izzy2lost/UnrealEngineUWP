@@ -7,10 +7,17 @@
 #include "CoreMinimal.h"
 #include "Landscape.h"
 
+/** The various types of landscape notifications, ordered by priority (a single notification is displayed at a time). */
+enum class ELandscapeNotificationType
+{
+	ShadingModelInvalid = 0,
+	LandscapeTextureResourcesNotReady,
+	LandscapeEditLayerResourcesNotReady,
+};
+
 struct FLandscapeNotification
 {
-	/** The various types of landscape notifications, ordered by priority (a single notification is displayed at a time). */
-	enum class EType : uint8
+	enum class UE_DEPRECATED(5.5, "Use ELandscapeNotificationType") EType : uint8
 	{
 		ShadingModelInvalid = 0,
 		LandscapeTextureResourcesNotReady,
@@ -29,14 +36,14 @@ struct FLandscapeNotification
 	* @param InConditionCallback - Lambda used to conditionally determine whether this notification should be displayed per tick.
 	* @param InUpdateTextCallback - Lambda used to construct notification text when the text can change (e.g. displaying the value of a variable).
 	*/ 
-	FLandscapeNotification(const TWeakObjectPtr<ALandscape>& InLandscape, EType InNotificationType, FConditionCallback InConditionCallback = FConditionCallback([]() { return true; }), FUpdateTextCallback InUpdateTextCallback = [](FText& InText) {});
+	FLandscapeNotification(const TWeakObjectPtr<ALandscape>& InLandscape, ELandscapeNotificationType InNotificationType, FConditionCallback InConditionCallback = FConditionCallback([]() { return true; }), FUpdateTextCallback InUpdateTextCallback = [](FText& InText) {});
 	~FLandscapeNotification() = default;
 
 	bool operator == (const FLandscapeNotification& Other) const;
 	bool operator < (const FLandscapeNotification& Other) const;
 
 	TWeakObjectPtr<ALandscape> GetLandscape() const { return Landscape; }
-	EType GetNotificationType() const { return NotificationType; }
+	ELandscapeNotificationType GetNotificationType() const { return NotificationType; }
 
 	// Public wrappers for the callback functions.
 	bool ShouldShowNotification() const;
@@ -54,7 +61,7 @@ public:
 
 private:
 	TWeakObjectPtr<ALandscape> Landscape;
-	EType NotificationType;
+	ELandscapeNotificationType NotificationType;
 
 	/** Determines whether or not a notification should be shown. Defaults to return true. */
 	FConditionCallback ConditionCallback;
