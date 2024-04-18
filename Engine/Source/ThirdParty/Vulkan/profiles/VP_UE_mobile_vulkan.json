@@ -1,5 +1,5 @@
 {
-    "$schema": "https://schema.khronos.org/vulkan/profiles-0.8.0-139.json#",
+    "$schema": "https://schema.khronos.org/vulkan/profiles-0.8.2-280.json#",
     "capabilities": {
         "baseline": {
             "extensions": {
@@ -61,7 +61,9 @@
             "history": [
                 {
                     "revision": 1,
-                    "date": "2023-03-10"
+                    "date": "2023-03-10",
+                    "author": "Jean Noe Morissette",
+                    "comment": "Initial Release"
                 }
             ],
             "capabilities": [
@@ -77,7 +79,9 @@
             "history": [
                 {
                     "revision": 1,
-                    "date": "2023-03-10"
+                    "date": "2023-03-10",
+                    "author": "Jean Noe Morissette",
+                    "comment": "Initial Release"
                 }
             ],
             "capabilities": [
@@ -94,7 +98,9 @@
             "history": [
                 {
                     "revision": 1,
-                    "date": "2023-03-10"
+                    "date": "2023-03-10",
+                    "author": "Jean Noe Morissette",
+                    "comment": "Initial Release"
                 }
             ],
             "capabilities": [

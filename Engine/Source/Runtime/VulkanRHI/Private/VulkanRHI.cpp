@@ -263,10 +263,14 @@ static VkPhysicalDevice SelectPhysicalDevice(VkInstance InInstance)
 static uint32 GetVulkanApiVersionForFeatureLevel(ERHIFeatureLevel::Type FeatureLevel, bool bRaytracing)
 {
 	const FString ProfileName = FVulkanPlatform::GetVulkanProfileNameForFeatureLevel(FeatureLevel, bRaytracing);
-	const detail::VpProfileDesc* ProfileDesc = detail::vpGetProfileDesc(TCHAR_TO_ANSI(*ProfileName));
-	if (ProfileDesc)
+	VpProfileProperties ProfileProperties;
+	FMemory::Memzero(ProfileProperties);
+	FCStringAnsi::Strcpy(ProfileProperties.profileName, VP_MAX_PROFILE_NAME_SIZE, TCHAR_TO_ANSI(*ProfileName));
+
+	const uint32 minApiVersion = vpGetProfileAPIVersion(&ProfileProperties);
+	if (minApiVersion)
 	{
-		return ProfileDesc->minApiVersion;
+		return minApiVersion;
 	}
 
 	UE_LOG(LogVulkanRHI, Log, TEXT("Using default apiVersion for platform..."));
@@ -303,7 +307,8 @@ static bool CheckVulkanProfile(ERHIFeatureLevel::Type FeatureLevel, bool bRaytra
 
 		VpInstanceCreateInfo ProfileInstanceCreateInfo;
 		FMemory::Memzero(ProfileInstanceCreateInfo);
-		ProfileInstanceCreateInfo.pProfile = &ProfileProperties;
+		ProfileInstanceCreateInfo.enabledFullProfileCount = 1;
+		ProfileInstanceCreateInfo.pEnabledFullProfiles = &ProfileProperties;
 		ProfileInstanceCreateInfo.pCreateInfo = &InstanceCreateInfo;
 
 		VkInstance TempInstance = VK_NULL_HANDLE;
