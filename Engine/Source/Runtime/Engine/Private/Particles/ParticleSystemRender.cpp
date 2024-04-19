@@ -1737,7 +1737,7 @@ void FDynamicMeshEmitterData::CalculateParticleTransform(
 		}
 	}
 
-	FQuat PointToLockedAxis;
+	FQuat PointToLockedAxis = FQuat::Identity;
 	if (bUseMeshLockedAxis == true)
 	{
 		// facing axis is taken to be the local x axis.	

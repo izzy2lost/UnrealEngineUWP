@@ -315,7 +315,9 @@ namespace Metasound::Engine
 				InDocument->AddInterfaceVersion(MetasoundOutputFormatMonoV1_1::GetInterface().Version);
 
 				FNodeHandle MonoFormatOutput = Graph->GetOutputNodeWithName(MetasoundOutputFormatMonoV1_0::GetAudioOutputName());
+#if WITH_EDITOR
 				FVector2D MonoFormatLocation;
+#endif // WITH_EDITOR
 
 				FOutputHandle OutputToReconnect = IOutputController::GetInvalidHandle();
 				if (MonoFormatOutput->IsValid())
@@ -487,7 +489,9 @@ namespace Metasound::Engine
 				FOutputHandle LeftOutputToReconnect = IOutputController::GetInvalidHandle();
 				FOutputHandle RightOutputToReconnect = IOutputController::GetInvalidHandle();
 
+#if WITH_EDITOR
 				FVector2D StereoFormatLocation;
+#endif // WITH_EDITOR
 
 				if (StereoFormatOutput->IsValid())
 				{

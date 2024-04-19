@@ -2200,7 +2200,7 @@ bool RunDoubleVectorTest()
 
 	// Quat / Rotator conversion to vectors, matrices
 	{
-		FQuat4d Q0, Q1, Q2, Q3;
+		FQuat4d Q0, Q1;
 
 		FRotator3d Rotator0;
 		Rotator0 = FRotator3d(30.0f, -45.0f, 90.0f);
