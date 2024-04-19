@@ -428,7 +428,7 @@ void FReplicationWriter::StartReplication(uint32 InternalIndex)
 		if (const uint32 OriginalInternalIndex = NetRefHandleManager->GetOriginalDestroyedStartupObjectIndex(InternalIndex))
 		{
 			const FReplicationInfo& OriginalInfo = GetReplicationInfo(OriginalInternalIndex);
-			if (OriginalInfo.GetState() != EReplicatedObjectState::Invalid && OriginalInfo.IsCreationConfirmed)
+			if ((OriginalInfo.GetState() != EReplicatedObjectState::Invalid && OriginalInfo.IsCreationConfirmed) && (OriginalInfo.GetState() != EReplicatedObjectState::WaitOnDestroyConfirmation))
 			{
 				// We do not need to send the destruction info so we mark it as PermanentlyDestroyed
 				SetState(InternalIndex, EReplicatedObjectState::PermanentlyDestroyed);
