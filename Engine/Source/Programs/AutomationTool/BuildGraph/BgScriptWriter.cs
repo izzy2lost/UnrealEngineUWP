@@ -14,6 +14,8 @@ using EpicGames.BuildGraph;
 using EpicGames.Core;
 using Microsoft.Extensions.Logging;
 
+#nullable enable
+
 namespace AutomationTool
 {
 	/// <summary>
@@ -27,7 +29,7 @@ namespace AutomationTool
 		/// <param name="graph">Graph to output</param>
 		/// <param name="file">The file to load</param>
 		/// <param name="schemaFile">Schema file for validation</param>
-		public static void Write(this BgGraphDef graph, FileReference file, FileReference schemaFile)
+		public static void Write(this BgGraphDef graph, FileReference file, FileReference? schemaFile)
 		{
 			XmlWriterSettings settings = new XmlWriterSettings();
 			settings.Indent = true;

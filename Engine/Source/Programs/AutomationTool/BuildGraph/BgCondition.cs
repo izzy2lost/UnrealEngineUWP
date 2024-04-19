@@ -8,6 +8,8 @@ using System.Linq;
 using System.Threading.Tasks;
 using UnrealBuildBase;
 
+#nullable enable
+
 namespace AutomationTool
 {
 	/// <summary>

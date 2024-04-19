@@ -370,7 +370,7 @@ namespace AutomationTool
 			{
 				using (IScope Scope = GlobalTracer.Instance.BuildSpan("Task").WithTag("resource", _boundTasks[Idx].GetTraceName()).StartActive())
 				{
-					ITaskExecutor Executor = _boundTasks[Idx].GetExecutor();
+					ITaskExecutor? Executor = _boundTasks[Idx].GetExecutor();
 					if (Executor == null)
 					{
 						// Execute this task directly
@@ -382,10 +382,13 @@ namespace AutomationTool
 						catch (Exception Ex)
 						{
 							ExceptionUtils.AddContext(Ex, "while executing task {0}", _boundTasks[Idx].GetTraceString());
-							if (_boundTasks[Idx].SourceLocation != null)
+
+							BgScriptLocation? sourceLocation = _boundTasks[Idx].SourceLocation;
+							if (sourceLocation != null)
 							{
-								ExceptionUtils.AddContext(Ex, "at {0}({1})", _boundTasks[Idx].SourceLocation.File, _boundTasks[Idx].SourceLocation.LineNumber);
+								ExceptionUtils.AddContext(Ex, "at {0}({1})", sourceLocation.File, sourceLocation.LineNumber);
 							}
+
 							throw;
 						}
 					}
@@ -410,10 +413,13 @@ namespace AutomationTool
 							{
 								ExceptionUtils.AddContext(Ex, "while executing {0}", _boundTasks[TaskIdx].GetTraceString());
 							}
-							if (_boundTasks[FirstIdx].SourceLocation != null)
+
+							BgScriptLocation? sourceLocation = _boundTasks[FirstIdx].SourceLocation;
+							if (sourceLocation != null)
 							{
-								ExceptionUtils.AddContext(Ex, "at {0}({1})", _boundTasks[FirstIdx].SourceLocation.File, _boundTasks[FirstIdx].SourceLocation.LineNumber);
+								ExceptionUtils.AddContext(Ex, "at {0}({1})", sourceLocation.File, sourceLocation.LineNumber);
 							}
+
 							throw;
 						}
 					}

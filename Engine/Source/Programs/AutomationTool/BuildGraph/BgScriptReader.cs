@@ -98,7 +98,7 @@ namespace AutomationTool
 		/// <param name="logger">Logger for output messages</param>
 		/// <param name="outDocument">If successful, the document that was read</param>
 		/// <returns>True if the document could be read, false otherwise</returns>
-		public static bool TryRead(FileReference file, byte[] data, BgScriptSchema schema, ILogger logger, [NotNullWhen(true)] out BgScriptDocument? outDocument)
+		public static bool TryRead(FileReference file, byte[] data, BgScriptSchema? schema, ILogger logger, [NotNullWhen(true)] out BgScriptDocument? outDocument)
 		{
 			BgScriptDocument document = new BgScriptDocument(file, logger);
 
@@ -302,7 +302,7 @@ namespace AutomationTool
 		/// List of property name to value lookups. Modifications to properties are scoped to nodes and agents. EnterScope() pushes an empty dictionary onto the end of this list, and LeaveScope() removes one. 
 		/// ExpandProperties() searches from last to first lookup when trying to resolve a property name, and takes the first it finds.
 		/// </summary>
-		protected List<Dictionary<string, string>> ScopedProperties { get; } = new List<Dictionary<string, string>>();
+		protected List<Dictionary<string, string?>> ScopedProperties { get; } = new List<Dictionary<string, string?>>();
 
 		/// <summary>
 		/// When declaring a property in a nested scope, we enter its name into a set for each parent scope which prevents redeclaration in an OUTER scope later. Subsequent NESTED scopes can redeclare it.
@@ -333,7 +333,7 @@ namespace AutomationTool
 		/// <summary>
 		/// Schema for the script
 		/// </summary>
-		BgScriptSchema Schema { get; }
+		BgScriptSchema? Schema { get; }
 
 		/// <summary>
 		/// Logger for diagnostic messages
@@ -356,7 +356,7 @@ namespace AutomationTool
 		/// <param name="singleNodeName">If a single node will be processed, the name of that node.</param>
 		/// <param name="schema">Schema for the script</param>
 		/// <param name="logger">Logger for diagnostic messages</param>
-		protected BgScriptReader(IDictionary<string, string> defaultProperties, IReadOnlyDictionary<string, string> arguments, string? singleNodeName, BgScriptSchema schema, ILogger logger)
+		protected BgScriptReader(IDictionary<string, string?> defaultProperties, IReadOnlyDictionary<string, string> arguments, string? singleNodeName, BgScriptSchema? schema, ILogger logger)
 		{
 			Schema = schema;
 			Logger = logger;
@@ -366,7 +366,7 @@ namespace AutomationTool
 			_arguments = new Dictionary<string, string>(arguments, StringComparer.OrdinalIgnoreCase);
 			_singleNodeName = singleNodeName;
 
-			foreach (KeyValuePair<string, string> pair in defaultProperties)
+			foreach (KeyValuePair<string, string?> pair in defaultProperties)
 			{
 				SetPropertyValue(null!, pair.Key, pair.Value);
 			}
@@ -382,7 +382,7 @@ namespace AutomationTool
 		/// <param name="logger">Logger for output messages</param>
 		/// <param name="singleNodeName">If a single node will be processed, the name of that node.</param>
 		/// <returns>True if the graph was read, false if there were errors</returns>
-		public static async Task<BgGraphDef?> ReadAsync(FileReference file, Dictionary<string, string> arguments, Dictionary<string, string> defaultProperties, BgScriptSchema schema, ILogger logger, string? singleNodeName = null)
+		public static async Task<BgGraphDef?> ReadAsync(FileReference file, Dictionary<string, string> arguments, Dictionary<string, string?> defaultProperties, BgScriptSchema? schema, ILogger logger, string? singleNodeName = null)
 		{
 			// Read the file and build the graph
 			BgScriptReader reader = new BgScriptReader(defaultProperties, arguments, singleNodeName, schema, logger);
@@ -539,7 +539,7 @@ namespace AutomationTool
 		/// </summary>
 		protected void EnterScope()
 		{
-			ScopedProperties.Add(new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase));
+			ScopedProperties.Add(new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase));
 			_shadowProperties.Add(new HashSet<string>(StringComparer.OrdinalIgnoreCase));
 		}
 
@@ -559,7 +559,7 @@ namespace AutomationTool
 		/// <param name="name">Name of the property</param>
 		/// <param name="value">Value for the property</param>
 		/// <param name="createInParentScope">If true, this property should be added to the parent scope and not the current scope. Cannot be used if the parent scope already contains a parameter with this name or if there is no parent scope</param>
-		protected void SetPropertyValue(BgScriptElement element, string name, string value, bool createInParentScope = false)
+		protected void SetPropertyValue(BgScriptElement element, string name, string? value, bool createInParentScope = false)
 		{
 			// Find the scope containing this property, defaulting to the current scope
 			int scopeIdx = 0;

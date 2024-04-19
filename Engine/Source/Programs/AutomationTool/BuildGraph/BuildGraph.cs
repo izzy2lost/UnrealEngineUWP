@@ -19,6 +19,8 @@ using System.Xml;
 using UnrealBuildBase;
 using UnrealBuildTool;
 
+#nullable enable
+
 namespace AutomationTool
 {
 	/// <summary>
@@ -90,7 +92,7 @@ namespace AutomationTool
 			{
 				if (Field.MemberType == MemberTypes.Field)
 				{
-					TaskParameterAttribute ParameterAttribute = Field.GetCustomAttribute<TaskParameterAttribute>();
+					TaskParameterAttribute? ParameterAttribute = Field.GetCustomAttribute<TaskParameterAttribute>();
 					if (ParameterAttribute != null)
 					{
 						ScriptTaskParameters.Add(new ScriptTaskParameterBinding(Field.Name, Field, ParameterAttribute.ValidationType, ParameterAttribute.Optional));
@@ -137,7 +139,7 @@ namespace AutomationTool
 		/// <param name="Branch">The current branch</param>
 		/// <param name="Change">Changelist being built</param>
 		/// <param name="CodeChange">Code changelist being built</param>
-		internal BgEnvironment(string Branch, int? Change, int? CodeChange)
+		internal BgEnvironment(string? Branch, int? Change, int? CodeChange)
 		{
 			this.Stream = Branch ?? "Unknown";
 			this.Change = Change ?? 0;
@@ -263,12 +265,12 @@ namespace AutomationTool
 			}
 
 			// Get the standard P4 properties, defaulting to the environment variables if not set. This allows setting p4-like properties without having a P4 connection.
-			string Branch = P4Enabled ? P4Env.Branch : GetEnvVarOrNull(EnvVarNames.BuildRootP4);
+			string? Branch = P4Enabled ? P4Env.Branch : GetEnvVarOrNull(EnvVarNames.BuildRootP4);
 			int? Change = P4Enabled ? P4Env.Changelist : GetEnvVarIntOrNull(EnvVarNames.Changelist);
 			int? CodeChange = P4Enabled ? P4Env.CodeChangelist : GetEnvVarIntOrNull(EnvVarNames.CodeChangelist);
 
 			// Set up the standard properties which build scripts might need
-			Dictionary<string, string> DefaultProperties = new Dictionary<string, string>(StringComparer.InvariantCultureIgnoreCase);
+			Dictionary<string, string?> DefaultProperties = new Dictionary<string, string?>(StringComparer.InvariantCultureIgnoreCase);
 			DefaultProperties["Branch"] = Branch ?? "Unknown";
 			DefaultProperties["Depot"] = (Branch != null && Branch.StartsWith("//", StringComparison.Ordinal)) ? Branch.Substring(2).Split('/').First() : "Unknown";
 			DefaultProperties["EscapedBranch"] = String.IsNullOrEmpty(Branch) ? "Unknown" : CommandUtils.EscapePath(Branch);
@@ -299,7 +301,7 @@ namespace AutomationTool
 			}
 
 			// Attempt to read existing Build Version information
-			BuildVersion Version;
+			BuildVersion? Version;
 			if (BuildVersion.TryRead(BuildVersion.GetDefaultFileName(), out Version))
 			{
 				DefaultProperties["EngineMajorVersion"] = Version.MajorVersion.ToString();
@@ -374,14 +376,14 @@ namespace AutomationTool
 			}
 
 			// Create the graph
-			BgGraphDef Graph;
+			BgGraphDef? Graph;
 			if (ClassName != null)
 			{
 				// Find all the graph builders
 				Dictionary<string, Type> NameToType = new Dictionary<string, Type>();
 				FindAvailableGraphs(NameToType);
 
-				Type BuilderType;
+				Type? BuilderType;
 				if (!NameToType.TryGetValue(ClassName, out BuilderType))
 				{
 					Logger.LogError("Unable to find graph '{GraphName}'", ClassName);
@@ -394,7 +396,7 @@ namespace AutomationTool
 					return ExitCode.Error_Unknown;
 				}
 
-				BgGraphBuilder Builder = (BgGraphBuilder)Activator.CreateInstance(BuilderType);
+				BgGraphBuilder Builder = (BgGraphBuilder)Activator.CreateInstance(BuilderType)!;
 				BgGraph GraphSpec = Builder.CreateGraph(new BgEnvironment(Branch, Change, CodeChange));
 
 				(byte[] Data, BgThunkDef[] Methods) = BgCompiler.Compile(GraphSpec);
@@ -406,7 +408,7 @@ namespace AutomationTool
 			else
 			{
 				// Import schema if one is passed in
-				BgScriptSchema Schema;
+				BgScriptSchema? Schema;
 				if (ImportSchemaFileName != null)
 				{
 					Schema = BgScriptSchema.Import(FileReference.FromString(ImportSchemaFileName));
@@ -477,7 +479,7 @@ namespace AutomationTool
 			}
 			else
 			{
-				IEnumerable<string> NodesToResolve = null;
+				IEnumerable<string>? NodesToResolve = null;
 
 				// If we're only building a single node and using a preprocessed reference we only need to try to resolve the references
 				// for that node.
@@ -492,7 +494,7 @@ namespace AutomationTool
 
 				foreach (string TargetName in NodesToResolve)
 				{
-					BgNodeDef[] Nodes;
+					BgNodeDef[]? Nodes;
 					if (!Graph.TryResolveReference(TargetName, out Nodes))
 					{
 						Logger.LogError("Target '{TargetName}' is not in graph", TargetName);
@@ -532,7 +534,7 @@ namespace AutomationTool
 				Dictionary<FileReference, string> MissingTokens = new Dictionary<FileReference, string>();
 				foreach (FileReference RequiredToken in RequiredTokens)
 				{
-					string CurrentOwner = ReadTokenFile(RequiredToken);
+					string? CurrentOwner = ReadTokenFile(RequiredToken);
 					if (CurrentOwner != null && CurrentOwner != TokenSignature)
 					{
 						MissingTokens.Add(RequiredToken, CurrentOwner);
@@ -616,7 +618,7 @@ namespace AutomationTool
 			}
 
 			// If we're just building a single node, find it 
-			BgNodeDef SingleNode = null;
+			BgNodeDef? SingleNode = null;
 			if (SingleNodeName != null && !Graph.NameToNode.TryGetValue(SingleNodeName, out SingleNode))
 			{
 				Logger.LogError("Node '{SingleNodeName}' is not in the trimmed graph", SingleNodeName);
@@ -746,7 +748,7 @@ namespace AutomationTool
 				}
 				catch (ReflectionTypeLoadException ex)
 				{
-					Logger.LogWarning("Exception {ex} while trying to get types from assembly {LoadedAssembly}. LoaderExceptions: {Arg2}", ex, LoadedAssembly, string.Join("\n", ex.LoaderExceptions.Select(x => x.Message)));
+					Logger.LogWarning("Exception {ex} while trying to get types from assembly {LoadedAssembly}. LoaderExceptions: {Arg2}", ex, LoadedAssembly, string.Join("\n", ex.LoaderExceptions.Select(x => x?.Message)));
 					continue;
 				}
 
@@ -782,7 +784,7 @@ namespace AutomationTool
 				}
 				catch (ReflectionTypeLoadException ex)
 				{
-					Logger.LogWarning("Exception {ex} while trying to get types from assembly {LoadedAssembly}. LoaderExceptions: {Arg2}", ex, LoadedAssembly, string.Join("\n", ex.LoaderExceptions.Select(x => x.Message)));
+					Logger.LogWarning("Exception {ex} while trying to get types from assembly {LoadedAssembly}. LoaderExceptions: {Arg2}", ex, LoadedAssembly, string.Join("\n", ex.LoaderExceptions.Select(x => x?.Message)));
 					continue;
 				}
 
@@ -811,7 +813,7 @@ namespace AutomationTool
 		/// Reads the contents of the given token
 		/// </summary>
 		/// <returns>Contents of the token, or null if it does not exist</returns>
-		public string ReadTokenFile(FileReference Location)
+		public string? ReadTokenFile(FileReference Location)
 		{
 			return FileReference.Exists(Location) ? File.ReadAllText(Location.FullName) : null;
 		}
@@ -962,13 +964,13 @@ namespace AutomationTool
 		class CleanupScriptRunner : IDisposable
 		{
 			readonly ILogger _logger;
-			readonly FileReference _scriptFile;
+			readonly FileReference? _scriptFile;
 
 			public CleanupScriptRunner(ILogger logger)
 			{
 				_logger = logger;
 
-				string CleanupScriptEnvVar = Environment.GetEnvironmentVariable(CustomTask.CleanupScriptEnvVarName);
+				string? CleanupScriptEnvVar = Environment.GetEnvironmentVariable(CustomTask.CleanupScriptEnvVarName);
 				if (String.IsNullOrEmpty(CleanupScriptEnvVar))
 				{
 					string extension = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "bat" : "sh";
@@ -1025,7 +1027,7 @@ namespace AutomationTool
 			HashSet<TempStorageBlock> InputStorageBlocks = new HashSet<TempStorageBlock>();
 			foreach (BgNodeOutput Input in Node.Inputs)
 			{
-				TempStorageTagManifest FileList = Storage.ReadFileList(Input.ProducingNode.Name, Input.TagName);
+				TempStorageTagManifest FileList = Storage.ReadFileList(Input.ProducingNode.Name, Input.TagName) ?? throw new InvalidOperationException();
 				TagNameToFileSet[Input.TagName] = FileList.ToFileSet(RootDir);
 				InputStorageBlocks.UnionWith(FileList.Blocks);
 			}
@@ -1050,7 +1052,7 @@ namespace AutomationTool
 				TempStorageBlock InputStorageBlock = Pair.Key;
 				foreach (FileReference File in Pair.Value.Files.Select(x => x.ToFileReference(RootDir)))
 				{
-					TempStorageBlock CurrentStorageBlock;
+					TempStorageBlock? CurrentStorageBlock;
 					if (FileToStorageBlock.TryGetValue(File, out CurrentStorageBlock) && !TempStorage.IsDuplicateBuildProduct(File))
 					{
 						Logger.LogError("File '{File}' was produced by {InputStorageBlock} and {CurrentStorageBlock}", File, InputStorageBlock, CurrentStorageBlock);
@@ -1085,7 +1087,7 @@ namespace AutomationTool
 			Dictionary<string, string> ModifiedFiles = new Dictionary<string, string>(StringComparer.InvariantCultureIgnoreCase);
 			foreach (TempStorageFile File in InputManifests.Values.SelectMany(x => x.Files))
 			{
-				string Message;
+				string? Message;
 				if (!ModifiedFiles.ContainsKey(File.RelativePath) && !File.Compare(Unreal.RootDirectory, out Message) && !IgnoreModifiedFilter.Matches(File.RelativePath))
 				{
 					// look up the previous nodes to help with error diagnosis
@@ -1150,7 +1152,7 @@ namespace AutomationTool
 						}
 						else
 						{
-							string OutputName;
+							string? OutputName;
 							if (FileToOutputName.TryGetValue(File, out OutputName) && OutputName.Length > 0)
 							{
 								FileToOutputName[File] = String.Format("{0}+{1}", OutputName, Output.TagName.Substring(1));
@@ -1168,7 +1170,7 @@ namespace AutomationTool
 			Dictionary<string, HashSet<FileReference>> OutputStorageBlockToFiles = new Dictionary<string, HashSet<FileReference>>();
 			foreach (KeyValuePair<FileReference, string> Pair in FileToOutputName)
 			{
-				HashSet<FileReference> Files;
+				HashSet<FileReference>? Files;
 				if (!OutputStorageBlockToFiles.TryGetValue(Pair.Value, out Files))
 				{
 					Files = new HashSet<FileReference>();
@@ -1201,7 +1203,7 @@ namespace AutomationTool
 					HashSet<TempStorageBlock> StorageBlocks = new HashSet<TempStorageBlock>();
 					foreach (FileReference File in Files)
 					{
-						TempStorageBlock StorageBlock;
+						TempStorageBlock? StorageBlock;
 						if (FileToStorageBlock.TryGetValue(File, out StorageBlock))
 						{
 							StorageBlocks.Add(StorageBlock);
@@ -1209,7 +1211,7 @@ namespace AutomationTool
 					}
 
 					IEnumerable<string> Keys = Enumerable.Empty<string>();
-					if (outputNameToArtifact.TryGetValue(Output.TagName, out BgArtifactDef artifact))
+					if (outputNameToArtifact.TryGetValue(Output.TagName, out BgArtifactDef? artifact))
 					{
 						Keys = artifact.Keys;
 					}
@@ -1226,9 +1228,9 @@ namespace AutomationTool
 		/// <summary>
 		/// Gets an environment variable, returning null if it's not set or empty.
 		/// </summary>
-		static string GetEnvVarOrNull(string Name)
+		static string? GetEnvVarOrNull(string Name)
 		{
-			string EnvVar = Environment.GetEnvironmentVariable(Name);
+			string? EnvVar = Environment.GetEnvironmentVariable(Name);
 			return String.IsNullOrEmpty(EnvVar) ? null : EnvVar;
 		}
 
@@ -1237,7 +1239,7 @@ namespace AutomationTool
 		/// </summary>
 		static int? GetEnvVarIntOrNull(string Name)
 		{
-			string EnvVar = GetEnvVarOrNull(Name);
+			string? EnvVar = GetEnvVarOrNull(Name);
 			if (EnvVar != null && Int32.TryParse(EnvVar, out int Value))
 			{
 				return Value;
@@ -1267,7 +1269,7 @@ namespace AutomationTool
 					Document.Load(XmlFileName);
 
 					// Parse all the members, and add them to the map
-					foreach (XmlElement Element in Document.SelectNodes("/doc/members/member"))
+					foreach (XmlElement Element in Document.SelectNodes("/doc/members/member")!)
 					{
 						string Name = Element.GetAttribute("name");
 						MemberNameToElement.Add(Name, Element);
@@ -1323,13 +1325,13 @@ namespace AutomationTool
 					ScriptTaskBinding Task = NameToTask[TaskName];
 
 					// Get the documentation for this task
-					XmlElement TaskElement;
+					XmlElement? TaskElement;
 					if (MemberNameToElement.TryGetValue("T:" + Task.TaskClass.FullName, out TaskElement))
 					{
 						// Write the task heading
 						Writer.WriteLine("### {0}", TaskName);
 						Writer.WriteLine();
-						Writer.WriteLine(ConvertToMarkdown(TaskElement.SelectSingleNode("summary")));
+						Writer.WriteLine(ConvertToMarkdown(TaskElement.SelectSingleNode("summary")!));
 						Writer.WriteLine();
 
 						// Document the parameters
@@ -1340,8 +1342,8 @@ namespace AutomationTool
 							ScriptTaskParameterBinding Parameter = Task.NameToParameter[ParameterName];
 
 							// Get the documentation for this parameter
-							XmlElement ParameterElement;
-							if (MemberNameToElement.TryGetValue("F:" + Parameter.FieldInfo.DeclaringType.FullName + "." + Parameter.Name, out ParameterElement))
+							XmlElement? ParameterElement;
+							if (MemberNameToElement.TryGetValue("F:" + Parameter.FieldInfo.DeclaringType!.FullName + "." + Parameter.Name, out ParameterElement))
 							{
 								Type FieldType = Parameter.FieldInfo.FieldType;
 								if (FieldType.IsGenericType && FieldType.GetGenericTypeDefinition() == typeof(Nullable<>))
@@ -1371,7 +1373,7 @@ namespace AutomationTool
 								Columns[0] = ParameterName;
 								Columns[1] = TypeName;
 								Columns[2] = Parameter.Optional ? "Optional" : "Required";
-								Columns[3] = ConvertToMarkdown(ParameterElement.SelectSingleNode("summary"));
+								Columns[3] = ConvertToMarkdown(ParameterElement.SelectSingleNode("summary")!);
 								Rows.Add(Columns);
 							}
 						}
@@ -1433,12 +1435,12 @@ namespace AutomationTool
 					ScriptTaskBinding Task = NameToTask[TaskName];
 
 					// Get the documentation for this task
-					XmlElement TaskElement;
+					XmlElement? TaskElement;
 					if (MemberNameToElement.TryGetValue("T:" + Task.TaskClass.FullName, out TaskElement))
 					{
 						// Write the task heading
 						Writer.WriteLine("    <h2>{0}</h2>", TaskName);
-						Writer.WriteLine("    <p>{0}</p>", TaskElement.SelectSingleNode("summary").InnerXml.Trim());
+						Writer.WriteLine("    <p>{0}</p>", TaskElement.SelectSingleNode("summary")!.InnerXml.Trim());
 
 						// Start the parameter table
 						Writer.WriteLine("    <table>");
@@ -1456,8 +1458,8 @@ namespace AutomationTool
 							ScriptTaskParameterBinding Parameter = Task.NameToParameter[ParameterName];
 
 							// Get the documentation for this parameter
-							XmlElement ParameterElement;
-							if (MemberNameToElement.TryGetValue("F:" + Parameter.FieldInfo.DeclaringType.FullName + "." + Parameter.Name, out ParameterElement))
+							XmlElement? ParameterElement;
+							if (MemberNameToElement.TryGetValue("F:" + Parameter.FieldInfo.DeclaringType!.FullName + "." + Parameter.Name, out ParameterElement))
 							{
 								string TypeName = Parameter.FieldInfo.FieldType.Name;
 								if (Parameter.ValidationType != TaskParameterValidationType.Default)
@@ -1477,7 +1479,7 @@ namespace AutomationTool
 								Writer.WriteLine("         <td>{0}</td>", ParameterName);
 								Writer.WriteLine("         <td>{0}</td>", TypeName);
 								Writer.WriteLine("         <td>{0}</td>", Parameter.Optional ? "Optional" : "Required");
-								Writer.WriteLine("         <td>{0}</td>", ParameterElement.SelectSingleNode("summary").InnerXml.Trim());
+								Writer.WriteLine("         <td>{0}</td>", ParameterElement.SelectSingleNode("summary")!.InnerXml.Trim());
 								Writer.WriteLine("      </tr>");
 							}
 						}

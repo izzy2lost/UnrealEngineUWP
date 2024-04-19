@@ -18,6 +18,8 @@ using System.Runtime.InteropServices;
 
 using static AutomationTool.CommandUtils;
 
+#nullable enable
+
 namespace AutomationTool
 {
 	/// <summary>
@@ -109,7 +111,7 @@ namespace AutomationTool
 		/// <summary>
 		/// Line number in a source file that this task was declared. Optional; used for log messages.
 		/// </summary>
-		public BgScriptLocation SourceLocation { get; set; }
+		public BgScriptLocation? SourceLocation { get; set; }
 
 		/// <summary>
 		/// Execute this node.
@@ -124,7 +126,7 @@ namespace AutomationTool
 		/// Creates a proxy to execute this node.
 		/// </summary>
 		/// <returns>New proxy instance if one is available to execute this task, otherwise null.</returns>
-		public virtual ITaskExecutor GetExecutor()
+		public virtual ITaskExecutor? GetExecutor()
 		{
 			return null;
 		}
@@ -141,17 +143,17 @@ namespace AutomationTool
 		/// <param name="Parameters">Parameters object that this task is constructed with</param>
 		protected void Write(XmlWriter Writer, object Parameters)
 		{
-			TaskElementAttribute Element = GetType().GetCustomAttribute<TaskElementAttribute>();
+			TaskElementAttribute Element = GetType().GetCustomAttribute<TaskElementAttribute>() ?? throw new InvalidOperationException();
 			Writer.WriteStartElement(Element.Name);
 
 			foreach (FieldInfo Field in Parameters.GetType().GetFields())
 			{
 				if (Field.MemberType == MemberTypes.Field)
 				{
-					TaskParameterAttribute ParameterAttribute = Field.GetCustomAttribute<TaskParameterAttribute>();
+					TaskParameterAttribute? ParameterAttribute = Field.GetCustomAttribute<TaskParameterAttribute>();
 					if (ParameterAttribute != null)
 					{
-						object Value = Field.GetValue(Parameters);
+						object? Value = Field.GetValue(Parameters);
 						if (Value != null)
 						{
 							Writer.WriteAttributeString(Field.Name, Value.ToString());
@@ -182,7 +184,7 @@ namespace AutomationTool
 		/// <returns>The trace name</returns>
 		public virtual string GetTraceName()
 		{
-			TaskElementAttribute TaskElement = GetType().GetCustomAttribute<TaskElementAttribute>();
+			TaskElementAttribute? TaskElement = GetType().GetCustomAttribute<TaskElementAttribute>();
 			return (TaskElement != null)? TaskElement.Name : "unknown";
 		}
 
@@ -193,8 +195,11 @@ namespace AutomationTool
 		/// <param name="Prefix">Prefix for metadata entries</param>
 		public virtual void GetTraceMetadata(ITraceSpan Span, string Prefix)
 		{
-			Span.AddMetadata(Prefix + "source.file", SourceLocation.File.FullName);
-			Span.AddMetadata(Prefix + "source.line", SourceLocation.LineNumber.ToString());
+			if (SourceLocation != null)
+			{
+				Span.AddMetadata(Prefix + "source.file", SourceLocation.File.FullName);
+				Span.AddMetadata(Prefix + "source.line", SourceLocation.LineNumber.ToString());
+			}
 		}
 		
 		/// <summary>
@@ -204,8 +209,11 @@ namespace AutomationTool
 		/// <param name="Prefix">Prefix for metadata entries</param>
 		public virtual void GetTraceMetadata(ISpan Span, string Prefix)
 		{
-			Span.SetTag(Prefix + "source.file", SourceLocation.File.FullName);
-			Span.SetTag(Prefix + "source.line", SourceLocation.LineNumber);
+			if (SourceLocation != null)
+			{
+				Span.SetTag(Prefix + "source.file", SourceLocation.File.FullName);
+				Span.SetTag(Prefix + "source.line", SourceLocation.LineNumber);
+			}
 		}
 
 		/// <summary>
@@ -244,7 +252,7 @@ namespace AutomationTool
 		/// </summary>
 		/// <param name="TagList">List of tags separated by semicolons</param>
 		/// <returns>Tag names from this filespec</returns>
-		protected static IEnumerable<string> FindTagNamesFromList(string TagList)
+		protected static IEnumerable<string> FindTagNamesFromList(string? TagList)
 		{
 			if(!String.IsNullOrEmpty(TagList))
 			{
@@ -277,7 +285,7 @@ namespace AutomationTool
 		/// </summary>
 		/// <param name="Name">Name of the directory. May be null or empty.</param>
 		/// <returns>The resolved directory</returns>
-		public static DirectoryReference ResolveDirectory(string Name)
+		public static DirectoryReference ResolveDirectory(string? Name)
 		{
 			if(String.IsNullOrEmpty(Name))
 			{
@@ -314,7 +322,7 @@ namespace AutomationTool
 			}
 
 			// Find the files which match this tag
-			HashSet<FileReference> Files;
+			HashSet<FileReference>? Files;
 			if(!TagNameToFileSet.TryGetValue(TagName, out Files))
 			{
 				Files = new HashSet<FileReference>();
@@ -451,7 +459,7 @@ namespace AutomationTool
 		/// <param name="Lease">Whether to add the commands to run on lease termination</param>
 		public static async Task AddCleanupCommandsAsync(IEnumerable<string> NewLines, bool Lease = false)
 		{
-			string CleanupScriptEnvVar = Environment.GetEnvironmentVariable(Lease? LeaseCleanupScriptEnvVarName : CleanupScriptEnvVarName);
+			string? CleanupScriptEnvVar = Environment.GetEnvironmentVariable(Lease? LeaseCleanupScriptEnvVarName : CleanupScriptEnvVarName);
 			if (!String.IsNullOrEmpty(CleanupScriptEnvVar))
 			{
 				FileReference CleanupScript = new FileReference(CleanupScriptEnvVar);
@@ -470,7 +478,7 @@ namespace AutomationTool
 		/// <param name="Job">Context for the current job that is being executed</param>
 		public static void UpdateGraphForHorde(JobContext Job)
 		{
-			string exportGraphFile = Environment.GetEnvironmentVariable(GraphUpdateEnvVarName);
+			string? exportGraphFile = Environment.GetEnvironmentVariable(GraphUpdateEnvVarName);
 			if (String.IsNullOrEmpty(exportGraphFile))
 			{
 				throw new Exception($"Missing environment variable {GraphUpdateEnvVarName}. This is required to update graphs on Horde.");

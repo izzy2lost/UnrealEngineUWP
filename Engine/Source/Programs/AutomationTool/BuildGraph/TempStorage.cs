@@ -20,6 +20,9 @@ using Microsoft.Extensions.Logging;
 using System.Text;
 
 using static AutomationTool.CommandUtils;
+using System.Diagnostics.CodeAnalysis;
+
+#nullable enable
 
 namespace AutomationTool
 {
@@ -45,6 +48,8 @@ namespace AutomationTool
 		/// </summary>
 		private TempStorageBlock()
 		{
+			NodeName = String.Empty;
+			OutputName = String.Empty;
 		}
 
 		/// <summary>
@@ -63,9 +68,9 @@ namespace AutomationTool
 		/// </summary>
 		/// <param name="Other">The object to compare against</param>
 		/// <returns>True if the blocks are equivalent</returns>
-		public override bool Equals(object Other)
+		public override bool Equals(object? Other)
 		{
-			TempStorageBlock OtherBlock = Other as TempStorageBlock;
+			TempStorageBlock? OtherBlock = Other as TempStorageBlock;
 			return OtherBlock != null && NodeName == OtherBlock.NodeName && OutputName == OtherBlock.OutputName;
 		}
 
@@ -116,13 +121,14 @@ namespace AutomationTool
 		/// Digest for the file. Not all files are hashed.
 		/// </summary>
 		[XmlAttribute]
-		public string Digest;
+		public string? Digest;
 
 		/// <summary>
 		/// Default constructor, for XML serialization.
 		/// </summary>
 		private TempStorageFile()
 		{
+			RelativePath = String.Empty;
 		}
 
 		/// <summary>
@@ -160,7 +166,7 @@ namespace AutomationTool
 		/// <returns>True if the files are identical, false otherwise</returns>
 		public bool Compare(DirectoryReference RootDir)
 		{
-			string Message;
+			string? Message;
 			if(Compare(RootDir, out Message))
 			{
 				if(Message != null)
@@ -185,7 +191,7 @@ namespace AutomationTool
 		/// <param name="RootDir">Root directory for this branch</param>
 		/// <param name="Message">Message describing the difference</param>
 		/// <returns>True if the files are identical, false otherwise</returns>
-		public bool Compare(DirectoryReference RootDir, out string Message)
+		public bool Compare(DirectoryReference RootDir, [NotNullWhen(false)] out string? Message)
 		{
 			FileReference LocalFile = ToFileReference(RootDir);
 
@@ -312,6 +318,7 @@ namespace AutomationTool
 		/// </summary>
 		private TempStorageZipFile()
 		{
+			Name = String.Empty;
 		}
 
 		/// <summary>
@@ -347,13 +354,15 @@ namespace AutomationTool
 		/// <summary>
 		/// Construct a static Xml serializer to avoid throwing an exception searching for the reflection info at runtime
 		/// </summary>
-		static XmlSerializer Serializer = XmlSerializer.FromTypes(new Type[]{ typeof(TempStorageManifest) })[0];
+		static XmlSerializer Serializer = XmlSerializer.FromTypes(new Type[]{ typeof(TempStorageManifest) })[0]!;
 
 		/// <summary>
 		/// Construct an empty temp storage manifest
 		/// </summary>
 		private TempStorageManifest()
 		{
+			Files = Array.Empty<TempStorageFile>();
+			ZipFiles = Array.Empty<TempStorageZipFile>();
 		}
 
 		/// <summary>
@@ -364,6 +373,7 @@ namespace AutomationTool
 		public TempStorageManifest(FileInfo[] InFiles, DirectoryReference RootDir)
 		{
 			Files = InFiles.Select(x => new TempStorageFile(x, RootDir)).ToArray();
+			ZipFiles = Array.Empty<TempStorageZipFile>();
 		}
 
 		/// <summary>
@@ -388,7 +398,7 @@ namespace AutomationTool
 		{
 			using (StreamReader Reader = new(file.FullName))
 			{
-				return (TempStorageManifest)Serializer.Deserialize(Reader);
+				return (TempStorageManifest)(Serializer.Deserialize(Reader) ?? throw new InvalidOperationException());
 			}
 		}
 
@@ -446,13 +456,17 @@ namespace AutomationTool
 		/// <summary>
 		/// Construct a static Xml serializer to avoid throwing an exception searching for the reflection info at runtime
 		/// </summary>
-		static XmlSerializer Serializer = XmlSerializer.FromTypes(new Type[]{ typeof(TempStorageTagManifest) })[0];
+		static XmlSerializer Serializer = XmlSerializer.FromTypes(new Type[]{ typeof(TempStorageTagManifest) })[0]!;
 
 		/// <summary>
 		/// Construct an empty file list for deserialization
 		/// </summary>
 		private TempStorageTagManifest()
 		{
+			LocalFiles = Array.Empty<string>();
+			ExternalFiles = Array.Empty<string>();
+			Blocks = Array.Empty<TempStorageBlock>();
+			ArtifactKeys = Array.Empty<string>();
 		}
 
 		/// <summary>
@@ -492,7 +506,7 @@ namespace AutomationTool
 		{
 			using(StreamReader Reader = new StreamReader(File.FullName))
 			{
-				return (TempStorageTagManifest)Serializer.Deserialize(Reader);
+				return (TempStorageTagManifest)Serializer.Deserialize(Reader)!;
 			}
 		}
 
@@ -551,7 +565,7 @@ namespace AutomationTool
 		/// <summary>
 		/// The shared temp storage directory; typically a network location. May be null.
 		/// </summary>
-		DirectoryReference SharedDir;
+		DirectoryReference? SharedDir;
 
 		/// <summary>
 		/// Whether to allow writes to shared storage
@@ -565,7 +579,7 @@ namespace AutomationTool
 		/// <param name="InLocalDir">The local temp storage directory.</param>
 		/// <param name="InSharedDir">The shared temp storage directory. May be null.</param>
 		/// <param name="bInWriteToSharedStorage">Whether to write to shared storage, or only permit reads from it</param>
-		public TempStorage(DirectoryReference InRootDir, DirectoryReference InLocalDir, DirectoryReference InSharedDir, bool bInWriteToSharedStorage)
+		public TempStorage(DirectoryReference InRootDir, DirectoryReference InLocalDir, DirectoryReference? InSharedDir, bool bInWriteToSharedStorage)
 		{
 			RootDir = InRootDir;
 			LocalDir = InLocalDir;
@@ -681,7 +695,7 @@ namespace AutomationTool
 
 					// Check the manifests are identical, byte by byte
 					byte[] LocalManifestBytes = File.ReadAllBytes(LocalFileListLocation.FullName);
-					byte[] SharedManifestBytes = null;
+					byte[] SharedManifestBytes = Array.Empty<byte>();
 					PerformActionWithRetries(() => SharedManifestBytes = File.ReadAllBytes(SharedFileListLocation.FullName), 3, TimeSpan.FromSeconds(1));
 					if (!LocalManifestBytes.SequenceEqual(SharedManifestBytes))
 					{
@@ -716,7 +730,7 @@ namespace AutomationTool
 
 					// Check the manifests are identical, byte by byte
 					byte[] LocalManifestBytes = File.ReadAllBytes(LocalManifestFile.FullName);
-					byte[] SharedManifestBytes = null;
+					byte[] SharedManifestBytes = Array.Empty<byte>();
 					PerformActionWithRetries(() => SharedManifestBytes = File.ReadAllBytes(SharedManifestFile.FullName), 3, TimeSpan.FromSeconds(1));
 					if(!LocalManifestBytes.SequenceEqual(SharedManifestBytes))
 					{
@@ -740,9 +754,9 @@ namespace AutomationTool
 		/// <param name="NodeName">Name of the node which produced the tag set</param>
 		/// <param name="TagName">Name of the tag, with a '#' prefix</param>
 		/// <returns>The set of files</returns>
-		public TempStorageTagManifest ReadFileList(string NodeName, string TagName)
+		public TempStorageTagManifest? ReadFileList(string NodeName, string TagName)
 		{
-			TempStorageTagManifest FileList = null;
+			TempStorageTagManifest? FileList = null;
 
 			// Try to read the tag set from the local directory
 			FileReference LocalFileListLocation = GetTaggedFileListLocation(LocalDir, NodeName, TagName);
@@ -844,7 +858,7 @@ namespace AutomationTool
 		/// <param name="BuildProducts">Array of build products to be archived</param>
 		/// <param name="bPushToRemote">Allow skipping the copying of this manifest to shared storage, because it's not required by any other agent</param>
 		/// <returns>The created manifest instance (which has already been saved to disk).</returns>
-		public TempStorageManifest Archive(string NodeName, string BlockName, FileReference[] BuildProducts, bool bPushToRemote = true)
+		public TempStorageManifest Archive(string NodeName, string? BlockName, FileReference[] BuildProducts, bool bPushToRemote = true)
 		{
 			using (IScope Scope = GlobalTracer.Instance.BuildSpan("StoreToTempStorage").StartActive())
 			{
@@ -861,7 +875,7 @@ namespace AutomationTool
 				if(bRemote)
 				{
 					// Create the shared directory for this node
-					FileReference SharedManifestFile = GetManifestLocation(SharedDir, NodeName, BlockName);
+					FileReference SharedManifestFile = GetManifestLocation(SharedDir!, NodeName, BlockName);
 					DirectoryReference.CreateDirectory(SharedManifestFile.Directory);
 
 					// Zip all the build products
@@ -896,7 +910,7 @@ namespace AutomationTool
 		/// <param name="OutputName">Name of the block to retrieve. May be null or empty.</param>
 		/// <param name="IgnoreModified">Filter for files to ignore</param>
 		/// <returns>Manifest of the files retrieved</returns>
-		public TempStorageManifest Retrieve(string NodeName, string OutputName, FileFilter IgnoreModified)
+		public TempStorageManifest Retrieve(string NodeName, string? OutputName, FileFilter IgnoreModified)
 		{
 			using (IScope Scope = GlobalTracer.Instance.BuildSpan("RetrieveFromTempStorage").StartActive())
 			{
@@ -905,7 +919,7 @@ namespace AutomationTool
 				bool bLocal = FileReference.Exists(LocalManifestFile);
 
 				// Read the manifest, either from local storage or shared storage
-				TempStorageManifest Manifest = null;
+				TempStorageManifest? Manifest = null;
 				if(bLocal)
 				{
 					Logger.LogInformation("Reading shared manifest from {Arg0}", LocalManifestFile.FullName);
@@ -934,7 +948,7 @@ namespace AutomationTool
 
 					// Unzip all the build products
 					DirectoryReference SharedNodeDir = GetDirectoryForNode(SharedDir, NodeName);
-					FileInfo[] ZipFiles = Manifest.ZipFiles.Select(x => new FileInfo(FileReference.Combine(SharedNodeDir, x.Name).FullName)).ToArray();
+					FileInfo[] ZipFiles = Manifest!.ZipFiles.Select(x => new FileInfo(FileReference.Combine(SharedNodeDir, x.Name).FullName)).ToArray();
 					string Result = ParallelUnzipFiles(ZipFiles, RootDir);
 					if (!string.IsNullOrWhiteSpace(Result))
 					{
@@ -959,7 +973,7 @@ namespace AutomationTool
 				List<string> ModifiedFileMessages = new List<string>();
 				foreach(TempStorageFile File in Manifest.Files)
 				{
-					string Message;
+					string? Message;
 					if (!IgnoreModified.Matches(File.RelativePath) && !File.Compare(RootDir, out Message))
 					{
 						ModifiedFileMessages.Add(Message);
@@ -1050,12 +1064,12 @@ namespace AutomationTool
 			// which has shown to be optimal via profiling, and limits the number of resulting zip files to the number of logical cores.
 			List<Thread> ZipThreads = (
 				from CoreNum in Enumerable.Range(0, bZipInParallel ? Environment.ProcessorCount : 1)
-				select new Thread((object indexObject) =>
+				select new Thread((object? indexObject) =>
 				{
-					int index = (int)indexObject;
+					int index = (int)indexObject!;
 					FileReference ZipFileName = FileReference.Combine(ZipDir, string.Format("{0}{1}.zip", ZipBaseName, bZipInParallel ? "-" + index.ToString("00") : ""));
 					// don't create the zip unless we have at least one file to add
-					FileReference File;
+					FileReference? File;
 					if (FilesToZip.TryDequeue(out File))
 					{
 						try
@@ -1091,14 +1105,14 @@ namespace AutomationTool
 
 			ZipThreads.ForEach(thread => thread.Join());
 
-			if (ZipFiles.Any() && !string.IsNullOrWhiteSpace(StagingDir.FullName))
+			if (ZipFiles.Any() && !string.IsNullOrWhiteSpace(StagingDir?.FullName))
 			{
 				try
 				{
 					string CopyResult = CopyDirectory(ZipDir, OutputDir);
 					string LogPath = CommandUtils.CombinePaths(RootDir.FullName, "Engine/Programs/AutomationTool/Saved/Logs", $"Copy Files to Temp Storage.log");
 					Logger.LogInformation("Saving copy log to {LogPath}", LogPath);
-					Directory.CreateDirectory(Path.GetDirectoryName(LogPath));
+					Directory.CreateDirectory(Path.GetDirectoryName(LogPath)!);
 					File.WriteAllText(LogPath, string.Join(Environment.NewLine, CopyResult));
 					Parallel.ForEach(ZipFiles, (z) => z.Delete());
 					ZipFiles = new ConcurrentBag<FileInfo>(ZipFiles.Select(z => new FileInfo(CommandUtils.MakeRerootedFilePath(z.FullName, StagingDir.FullName, OutputDir.FullName))));
@@ -1167,7 +1181,7 @@ namespace AutomationTool
 										}
 										else
 										{
-											Directory.CreateDirectory(Path.GetDirectoryName(ExtractedFilename));
+											Directory.CreateDirectory(Path.GetDirectoryName(ExtractedFilename)!);
 										}
 
 
@@ -1243,7 +1257,7 @@ namespace AutomationTool
 		/// <param name="BaseDir">A local or shared temp storage root directory.</param>
 		/// <param name="NodeName">Name of the node to get the file for</param>
 		/// <param name="BlockName">Name of the output block to get the manifest for</param>
-		static FileReference GetManifestLocation(DirectoryReference BaseDir, string NodeName, string BlockName)
+		static FileReference GetManifestLocation(DirectoryReference BaseDir, string NodeName, string? BlockName)
 		{
 			return FileReference.Combine(BaseDir, NodeName, String.IsNullOrEmpty(BlockName)? "Manifest.xml" : String.Format("Manifest-{0}.xml", BlockName));
 		}
@@ -1664,7 +1678,7 @@ namespace AutomationTool
 					}
 
 					// Check if there is a marker file, if so skip this folder unless it has been twenty minutes.
-					FileInfo DeleteInProgressFile = BuildsToDelete[Idx].GetFiles("DeleteInProgress.tmp").FirstOrDefault();
+					FileInfo? DeleteInProgressFile = BuildsToDelete[Idx].GetFiles("DeleteInProgress.tmp").FirstOrDefault();
 					if (DeleteInProgressFile != null && DeleteInProgressFile.LastWriteTimeUtc < (DateTimeOffset.UtcNow - TimeSpan.FromMinutes(20)))
 					{
 						Logger.LogInformation("[{Index}/{Total}] {Path} flagged as delete in progress, skipping...", BuildsToDelete.Count - Idx, BuildsToDelete.Count, BuildsToDelete[Idx].FullName);
