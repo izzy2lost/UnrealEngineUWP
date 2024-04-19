@@ -19,8 +19,15 @@ static TMap<FGuid, FGuid> PIEGuidMap[MAX_PIE_INSTANCES];
 
 static FGuid RemapGuid(const FUniqueObjectGuid& Guid, int32 PIEInstanceID)
 {
+	// An invalid Guid should remain an invalid Guid :
+	if (Guid.IsDefault())
+	{
+		return FGuid();
+	}
+
 	check(PIEInstanceID != INDEX_NONE);
 	check(PIEInstanceID < MAX_PIE_INSTANCES);
+
 	FGuid& FoundGuid = PIEGuidMap[PIEInstanceID].FindOrAdd(Guid.GetGuid());
 
 	if (!FoundGuid.IsValid())
