@@ -8,7 +8,10 @@
 #include "Components/DMMaterialValue.h"
 #include "Components/MaterialStageExpressions/DMMSETextureSample.h"
 #include "Components/MaterialValues/DMMaterialValueFloat1.h"
+#include "Components/MaterialValues/DMMaterialValueFloat2.h"
 #include "Components/PrimitiveComponent.h"
+#include "CustomDetailsViewArgs.h"
+#include "CustomDetailsViewModule.h"
 #include "DetailLayoutBuilder.h"
 #include "DMBlueprintFunctionLibrary.h"
 #include "DMPrivate.h"
@@ -22,13 +25,16 @@
 #include "Framework/Commands/GenericCommands.h"
 #include "Framework/Commands/InputChord.h"
 #include "HAL/PlatformApplicationMisc.h"
+#include "ICustomDetailsView.h"
 #include "IDetailTreeNode.h"
 #include "IPropertyRowGenerator.h"
+#include "Items/ICustomDetailsViewItem.h"
 #include "MaterialDomain.h"
 #include "Menus/DMToolBarMenus.h"
 #include "Misc/CoreDelegates.h"
 #include "Model/DynamicMaterialModel.h"
 #include "Model/DynamicMaterialModelEditorOnlyData.h"
+#include "Properties/Editors/SDMPropertyEditFloat2Value.h"
 #include "PropertyHandle.h"
 #include "Slate/Properties/Editors/SDMPropertyEditOpacity.h"
 #include "Slate/Properties/SDMMaterialParameters.h"
@@ -204,9 +210,9 @@ void SDMEditor::SetActiveSlotIndex(int InSlotIndex)
 	}
 }
 
-FDMPropertyHandle SDMEditor::GetPropertyHandle(const SWidget* InOwner, UDMMaterialComponent* InComponent, const FName& InPropertyName)
+FDMPropertyHandle SDMEditor::GetPropertyHandle(const SWidget* InOwningWidget, UObject* InObject, const FName& InPropertyName)
 {
-	TArray<FDMPropertyHandle>& PropertyHandles = PropertyHandleMap.FindOrAdd(InOwner);
+	TArray<FDMPropertyHandle>& PropertyHandles = PropertyHandleMap.FindOrAdd(InOwningWidget);
 
 	for (const FDMPropertyHandle& ExistingHandle : PropertyHandles)
 	{
@@ -215,14 +221,14 @@ FDMPropertyHandle SDMEditor::GetPropertyHandle(const SWidget* InOwner, UDMMateri
 			TArray<UObject*> Outers;
 			ExistingHandle.PropertyHandle->GetOuterObjects(Outers);
 
-			if (Outers.IsEmpty() == false && Outers[0] == InComponent)
+			if (Outers.IsEmpty() == false && Outers[0] == InObject)
 			{
 				return ExistingHandle;
 			}
 		}
 	}
 
-	if (TSharedPtr<IPropertyRowGenerator> PropertyRowGenerator = UE::DynamicMaterialEditor::Private::SearchForGenerator(PropertyHandles, InComponent))
+	if (TSharedPtr<IPropertyRowGenerator> PropertyRowGenerator = UE::DynamicMaterialEditor::Private::SearchForGenerator(PropertyHandles, InObject))
 	{
 		FDMPropertyHandle PropertyHandle;
 		PropertyHandle.PropertyRowGenerator = PropertyRowGenerator;
@@ -237,29 +243,32 @@ FDMPropertyHandle SDMEditor::GetPropertyHandle(const SWidget* InOwner, UDMMateri
 		return PropertyHandle;
 	}
 
-	FDMPropertyHandle NewHandle = CreatePropertyHandle(InOwner, InComponent, InPropertyName);
+	FDMPropertyHandle NewHandle = CreatePropertyHandle(InOwningWidget, InObject, InPropertyName);
 	PropertyHandles.Add(NewHandle);
 
 	return NewHandle;
 }
 
-void SDMEditor::ClearPropertyHandles(const SWidget* InOwner)
+void SDMEditor::ClearPropertyHandles(const SWidget* InOwningWidget)
 {
-	PropertyHandleMap.Remove(InOwner);
+	PropertyHandleMap.Remove(InOwningWidget);
 }
 
-FDMPropertyHandle SDMEditor::CreatePropertyHandle(const void* InOwner, UDMMaterialComponent* InComponent,
-	const FName& InPropertyName)
+FDMPropertyHandle SDMEditor::CreatePropertyHandle(const void* InOwningWidget, UObject* InObject, const FName& InPropertyName)
 {
 	FDMPropertyHandle PropertyHandle;
 
 	FPropertyEditorModule& PropertyEditor = FModuleManager::Get().LoadModuleChecked<FPropertyEditorModule>(TEXT("PropertyEditor"));
 
 	FPropertyRowGeneratorArgs RowGeneratorArgs;
-	RowGeneratorArgs.NotifyHook = InComponent;
+
+	if (UDMMaterialComponent* Component = Cast<UDMMaterialComponent>(InObject))
+	{
+		RowGeneratorArgs.NotifyHook = Component;
+	}
 
 	PropertyHandle.PropertyRowGenerator = PropertyEditor.CreatePropertyRowGenerator(RowGeneratorArgs);
-	PropertyHandle.PropertyRowGenerator->SetObjects({InComponent});
+	PropertyHandle.PropertyRowGenerator->SetObjects({InObject});
 
 	if (const TSharedPtr<IDetailTreeNode> FoundTreeNode = UE::DynamicMaterialEditor::Private::SearchGeneratorForNode(
 		PropertyHandle.PropertyRowGenerator.ToSharedRef(), InPropertyName))
@@ -562,9 +571,8 @@ TSharedRef<SWidget> SDMEditor::CreateMainLayout()
 			SAssignNew(GlobalOpacityContainer, SBox)
 			.HAlign(HAlign_Fill)
 			.VAlign(VAlign_Fill)
-			.Visibility(this, &SDMEditor::GetGlobalOpacityVisibility)
 			[
-				CreateGlobalOpacityWidget()
+				CreateGlobalDetailsView()
 			]
 		]
 		+ SVerticalBox::Slot()
@@ -599,59 +607,109 @@ TSharedRef<SWidget> SDMEditor::CreateMainLayout()
 		];
 }
 
-TSharedRef<SWidget> SDMEditor::CreateGlobalOpacityWidget()
+TSharedRef<SWidget> SDMEditor::CreateGlobalDetailsView()
 {
-	UDMMaterialValueFloat1* OpacityValue = nullptr;
+	UDynamicMaterialModel* MaterialModel = MaterialModelWeak.Get();
 
-	if (UDynamicMaterialModel* MaterialModel = MaterialModelWeak.Get())
-	{
-		OpacityValue = MaterialModel->GetGlobalOpacityValue();
-	}
-
-	if (!OpacityValue)
+	if (!MaterialModel)
 	{
 		return SNullWidget::NullWidget;
 	}
 
-	TSharedRef<SDMPropertyEdit> GlobalOpacityWidget = SNew(SDMPropertyEditOpacity, SharedThis(this), OpacityValue);
+	UDMMaterialValueFloat1* OpacityValue = MaterialModel->GetGlobalOpacityValue();
+	UDMMaterialValueFloat2* ScaleValue = MaterialModel->GetGlobalScaleValue();
 
-	TSharedRef<SWidget> GlobalOpacityButtons = SDMComponentEdit::CreateExtensionButtons(SharedThis(this), OpacityValue, UDMMaterialValue::ValueName, true, FSimpleDelegate());
+	if (!OpacityValue || !ScaleValue)
+	{
+		return SNullWidget::NullWidget;
+	}
 
-	TSharedRef<SWidget> RowLabel = SNew(SBox)
-		.Padding(0.f, 0.f, 5.f, 0.f)
-		[
-			SNew(STextBlock)
-				.Text(LOCTEXT("GlobalOpacity", "Global Opacity"))
-		];
+	FCustomDetailsViewArgs Args;
+	Args.KeyframeHandler = nullptr;
+	Args.bAllowGlobalExtensions = true;
+	Args.bAllowResetToDefault = true;
+	Args.bShowCategories = false;
 
-	RowLabel->SetOnMouseButtonDown(FPointerEventHandler::CreateStatic(&SDMPropertyEdit::CreateRightClickDetailsMenu, GlobalOpacityWidget.ToWeakPtr()));
+	if (const UWorld* const World = MaterialModel->GetWorld())
+	{
+		if (const UDMWorldSubsystem* const WorldSubsystem = World->GetSubsystem<UDMWorldSubsystem>())
+		{
+			Args.KeyframeHandler = WorldSubsystem->GetKeyframeHandler();
+		}
+	}
 
-	TSharedRef<SWidget> Row =
-		SNew(SHorizontalBox)
-		+ SHorizontalBox::Slot()
-		.AutoWidth()
-		.HAlign(HAlign_Left)
-		.VAlign(VAlign_Top)
-		.Padding(10.0f, 5.0f)
-		[
-			RowLabel
-		]
-		+ SHorizontalBox::Slot()
-		.FillWidth(1.0f)
-		.HAlign(HAlign_Right)
-		.VAlign(VAlign_Top)
-		[
-			GlobalOpacityWidget
-		]
-		+ SHorizontalBox::Slot()
-		.AutoWidth()
-		.HAlign(HAlign_Left)
-		.VAlign(VAlign_Top)
-		[
-			GlobalOpacityButtons
-		];
+	TSharedRef<ICustomDetailsView> DetailsView = ICustomDetailsViewModule::Get().CreateCustomDetailsView(Args);
+	FCustomDetailsViewItemId RootId = DetailsView->GetRootItem()->GetItemId();
 
-	return Row;
+	static const FName UIMin = FName("UIMin");
+	static const FName UIMax = FName("UIMax");
+	static const FName ClampMin = FName("ClampMin");
+	static const FName ClampMax = FName("ClampMax");
+
+	TArray<FDMPropertyHandle> EditRows;
+
+	if (GetGlobalOpacityVisibility() == EVisibility::Visible)
+	{
+		FDMPropertyHandle& GlobalOpacityHandle = EditRows.Add_GetRef(SDMEditor::GetPropertyHandle(this, OpacityValue, UDMMaterialValue::ValueName));
+
+		GlobalOpacityHandle.PropertyHandle->SetInstanceMetaData(UIMin, FString::SanitizeFloat(OpacityValue->GetValueRange().Min));
+		GlobalOpacityHandle.PropertyHandle->SetInstanceMetaData(ClampMin, FString::SanitizeFloat(OpacityValue->GetValueRange().Min));
+		GlobalOpacityHandle.PropertyHandle->SetInstanceMetaData(UIMax, FString::SanitizeFloat(OpacityValue->GetValueRange().Max));
+		GlobalOpacityHandle.PropertyHandle->SetInstanceMetaData(ClampMax, FString::SanitizeFloat(OpacityValue->GetValueRange().Max));
+
+		GlobalOpacityHandle.NameOverride = LOCTEXT("GlobalOpacity", "Global Opacity");
+	}
+
+	FDMPropertyHandle& GlobalScaleHandle = EditRows.Add_GetRef(SDMEditor::GetPropertyHandle(this, ScaleValue, UDMMaterialValue::ValueName));
+	GlobalScaleHandle.NameOverride = LOCTEXT("GlobalScale", "Global Scale");
+
+	for (const FDMPropertyHandle& EditRow : EditRows)
+	{
+		if (!EditRow.DetailTreeNode)
+		{
+			continue;
+		}
+
+		ECustomDetailsTreeInsertPosition Position = ECustomDetailsTreeInsertPosition::Child;
+
+		if (EditRow.DetailTreeNode->CreatePropertyHandle()->HasMetaData("HighPriority"))
+		{
+			Position = ECustomDetailsTreeInsertPosition::FirstChild;
+		}
+		else if (EditRow.DetailTreeNode->CreatePropertyHandle()->HasMetaData("LowPriority"))
+		{
+			Position = ECustomDetailsTreeInsertPosition::LastChild;
+		}
+
+		TSharedRef<ICustomDetailsViewItem> Item = DetailsView->CreateDetailTreeItem(EditRow.DetailTreeNode.ToSharedRef());
+
+		if (EditRow.NameOverride.IsSet())
+		{
+			Item->SetOverrideWidget(
+				ECustomDetailsViewWidgetType::Name,
+				SNew(STextBlock)
+				.Font(IDetailLayoutBuilder::GetDetailFont())
+				.Text(EditRow.NameOverride.GetValue())
+				.ToolTipText(EditRow.NameToolTipOverride.Get(FText::GetEmpty()))
+			);
+		}
+
+		if (EditRow.DetailTreeNode->CreatePropertyHandle()->HasMetaData("NotKeyframeable"))
+		{
+			Item->SetKeyframeEnabled(false);
+		}
+
+		if (EditRow.ResetToDefaultOverride.IsSet())
+		{
+			Item->SetResetToDefaultOverride(EditRow.ResetToDefaultOverride.GetValue());
+		}
+
+		DetailsView->ExtendTree(RootId, Position, Item);
+	}
+
+	DetailsView->RebuildTree(ECustomDetailsViewBuildType::InstantBuild);
+
+	return DetailsView;
 }
 
 TSharedRef<SWidget> SDMEditor::CreateParametersArea()
@@ -763,12 +821,12 @@ TSharedPtr<SDMSlot> SDMEditor::GetSlotWidget(UDMMaterialSlot* Slot) const
 	return nullptr;
 }
 
-void SDMEditor::RefreshGlobalOpacitySlider()
+void SDMEditor::RefreshGlobalDetailsView()
 {
 	if (GlobalOpacityContainer.IsValid())
 	{
 		GlobalOpacityContainer->SetContent(SNullWidget::NullWidget);
-		GlobalOpacityContainer->SetContent(CreateGlobalOpacityWidget());
+		GlobalOpacityContainer->SetContent(CreateGlobalDetailsView());
 	}
 }
 

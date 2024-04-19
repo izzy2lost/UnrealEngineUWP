@@ -17,6 +17,7 @@ class UDMMaterialComponent;
 class UDMMaterialParameter;
 class UDMMaterialValue;
 class UDMMaterialValueFloat1;
+class UDMMaterialValueFloat2;
 class UDMTextureUV;
 class UDynamicMaterialInstance;
 enum class EDMMaterialPropertyType : uint8;
@@ -42,7 +43,10 @@ class DYNAMICMATERIAL_API UDynamicMaterialModel : public UObject
 public:
 	static const FString ValuesPathToken;
 	static const FString ParametersPathToken;
+	static const FName GlobalOpacityPropertyName;
 	static const FName GlobalOpacityParameterName;
+	static const FName GlobalScalePropertyName;
+	static const FName GlobalScaleParameterName;
 
 	UDynamicMaterialModel();
 
@@ -56,6 +60,9 @@ public:
 
 	UFUNCTION(BlueprintPure, Category = "Material Designer")
 	UDMMaterialValueFloat1* GetGlobalOpacityValue() const { return GlobalOpacityValue; }
+
+	UFUNCTION(BlueprintPure, Category = "Material Designer")
+	UDMMaterialValueFloat2* GetGlobalScaleValue() const { return GlobalScaleValue; }
 
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
 	UDMMaterialComponent* GetComponentByPath(const FString& InPath) const;
@@ -153,6 +160,12 @@ protected:
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Material Designer")
 	TObjectPtr<UDMMaterialParameter> GlobalOpacityParameter;
 
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Material Designer")
+	TObjectPtr<UDMMaterialValueFloat2> GlobalScaleValue;
+
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Material Designer")
+	TObjectPtr<UDMMaterialParameter> GlobalScaleParameter;
+
 	UPROPERTY(VisibleInstanceOnly, DuplicateTransient, TextExportTransient, Category = "Material Designer")
 	TMap<FName, TWeakObjectPtr<UDMMaterialParameter>> ParameterMap;
 
@@ -172,7 +185,7 @@ protected:
 
 	void ReinitComponents();
 
-	void FixGlobalOpacityVars();
+	void FixGlobalVars();
 #endif
 
 	/**

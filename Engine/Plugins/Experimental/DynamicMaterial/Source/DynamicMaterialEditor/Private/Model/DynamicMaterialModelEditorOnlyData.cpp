@@ -1166,6 +1166,8 @@ UDMMaterialSlot* UDynamicMaterialModelEditorOnlyData::AddSlotForMaterialProperty
 		return ExistingSlot;
 	}
 
+	// BaseColor and Emissive are mutually exclusive so if something tries to add one of them, the other must
+	// be checked. If it is found, it is converted and returned. The same goes for Opacity and OpacityMask.
 	switch (InType)
 	{
 		case EDMMaterialPropertyType::BaseColor:

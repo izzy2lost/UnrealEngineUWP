@@ -56,6 +56,7 @@ namespace UE::DynamicMaterialEditor::Private
 
 					if (EditorWidget.IsValid())
 					{
+						EditorWidget->RefreshGlobalDetailsView();
 						EditorWidget->RefreshSlotPickerList();
 					}
 				}
@@ -122,6 +123,7 @@ namespace UE::DynamicMaterialEditor::Private
 
 					if (EditorWidget.IsValid())
 					{
+						EditorWidget->RefreshGlobalDetailsView();
 						EditorWidget->RefreshSlotPickerList();
 					}
 				}
@@ -204,6 +206,7 @@ namespace UE::DynamicMaterialEditor::Private
 
 					if (EditorWidget.IsValid())
 					{
+						EditorWidget->RefreshGlobalDetailsView();
 						EditorWidget->RefreshSlotPickerList();
 					}
 				}

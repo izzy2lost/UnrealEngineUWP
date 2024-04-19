@@ -4,6 +4,7 @@
 #include "Components/DMMaterialParameter.h"
 #include "Components/DMMaterialValue.h"
 #include "Components/MaterialValues/DMMaterialValueFloat1.h"
+#include "Components/MaterialValues/DMMaterialValueFloat2.h"
 #include "DMComponentPath.h"
 #include "DMDefs.h"
 #include "DMValueDefinition.h"
@@ -18,7 +19,10 @@
 
 const FString UDynamicMaterialModel::ValuesPathToken          = FString(TEXT("Values"));
 const FString UDynamicMaterialModel::ParametersPathToken      = FString(TEXT("Parameters"));
+const FName UDynamicMaterialModel::GlobalOpacityPropertyName  = FName("GlobalOpacityValue");
 const FName UDynamicMaterialModel::GlobalOpacityParameterName = FName("GlobalOpacity");
+const FName UDynamicMaterialModel::GlobalScalePropertyName    = FName("GlobalScaleValue");
+const FName UDynamicMaterialModel::GlobalScaleParameterName   = FName("GlobalScale");
 
 UDynamicMaterialModel::UDynamicMaterialModel()
 {
@@ -32,6 +36,7 @@ UDynamicMaterialModel::UDynamicMaterialModel()
 	GlobalOpacityValue = CreateDefaultSubobject<UDMMaterialValueFloat1>(GlobalOpacityParameterName);
 
 #if WITH_EDITOR
+	GlobalOpacityValue->SetValueRange({0.f, 1.f});
 	GlobalOpacityValue->SetDefaultValue(1.f);
 	GlobalOpacityValue->ApplyDefaultValue();
 #endif
@@ -41,6 +46,19 @@ UDynamicMaterialModel::UDynamicMaterialModel()
 	GlobalOpacityValue->Parameter = GlobalOpacityParameter;
 
 	ParameterMap.Add(GlobalOpacityParameterName, GlobalOpacityParameter);
+
+	GlobalScaleValue = CreateDefaultSubobject<UDMMaterialValueFloat2>(GlobalScaleParameterName);
+
+#if WITH_EDITOR
+	GlobalScaleValue->SetDefaultValue(FVector2D(1.0, 1.0));
+	GlobalScaleValue->ApplyDefaultValue();
+#endif
+
+	GlobalScaleParameter = CreateDefaultSubobject<UDMMaterialParameter>("GlobalScaleParameter");
+	GlobalScaleParameter->ParameterName = GlobalScaleParameterName;
+	GlobalScaleValue->Parameter = GlobalScaleParameter;
+
+	ParameterMap.Add(GlobalScaleParameterName, GlobalScaleParameter);
 }
 
 void UDynamicMaterialModel::SetDynamicMaterialInstance(UDynamicMaterialInstance* InDynamicMaterialInstance)
@@ -350,7 +368,7 @@ void UDynamicMaterialModel::PostLoad()
 
 	SetFlags(RF_Transactional);
 
-	FixGlobalOpacityVars();
+	FixGlobalVars();
 
 	IDynamicMaterialModelEditorOnlyDataInterface* ModelEditorOnlyData = GetEditorOnlyData();
 
@@ -377,7 +395,7 @@ void UDynamicMaterialModel::PostEditImport()
 {
 	Super::PostEditImport();
 
-	FixGlobalOpacityVars();
+	FixGlobalVars();
 	PostEditorDuplicate();
 	ReinitComponents();
 
@@ -391,7 +409,7 @@ void UDynamicMaterialModel::PostDuplicate(bool bDuplicateForPIE)
 {
 	Super::PostDuplicate(bDuplicateForPIE);
 
-	FixGlobalOpacityVars();
+	FixGlobalVars();
 	PostEditorDuplicate();
 	ReinitComponents();
 
@@ -493,7 +511,7 @@ void UDynamicMaterialModel::ReinitComponents()
 	}
 }
 
-void UDynamicMaterialModel::FixGlobalOpacityVars()
+void UDynamicMaterialModel::FixGlobalVars()
 {
 	if (const TWeakObjectPtr<UDMMaterialParameter>* ParameterPtr = ParameterMap.Find(GlobalOpacityParameterName))
 	{
@@ -513,19 +531,47 @@ void UDynamicMaterialModel::FixGlobalOpacityVars()
 		}
 	}
 
-	if (!GlobalOpacityValue || GlobalOpacityParameter == GlobalOpacityValue->Parameter)
+	if (GlobalOpacityValue && GlobalOpacityParameter != GlobalOpacityValue->Parameter)
 	{
-		return;
+		if (GUndo)
+		{
+			GlobalOpacityParameter->Modify();
+			GlobalOpacityValue->Modify();
+		}
+
+		GlobalOpacityParameter->ParameterName = GlobalOpacityParameterName;
+		GlobalOpacityValue->Parameter = GlobalOpacityParameter;
 	}
 
-	if (GUndo)
+	if (const TWeakObjectPtr<UDMMaterialParameter>* ParameterPtr = ParameterMap.Find(GlobalScaleParameterName))
 	{
-		GlobalOpacityParameter->Modify();
-		GlobalOpacityValue->Modify();
+		UDMMaterialParameter* Parameter = ParameterPtr->Get();
+
+		if (!Parameter || Parameter->HasAnyFlags(RF_ArchetypeObject)
+			|| (GlobalScaleParameter && Parameter != GlobalScaleParameter))
+		{
+			if (GlobalScaleParameter)
+			{
+				ParameterMap[GlobalScaleParameterName] = GlobalScaleParameter;
+			}
+			else
+			{
+				ParameterMap.Remove(GlobalScaleParameterName);
+			}
+		}
 	}
 
-	GlobalOpacityParameter->ParameterName = GlobalOpacityParameterName;
-	GlobalOpacityValue->Parameter = GlobalOpacityParameter;
+	if (GlobalScaleValue && GlobalScaleParameter != GlobalScaleValue->Parameter)
+	{
+		if (GUndo)
+		{
+			GlobalScaleParameter->Modify();
+			GlobalScaleValue->Modify();
+		}
+
+		GlobalScaleParameter->ParameterName = GlobalScaleParameterName;
+		GlobalScaleValue->Parameter = GlobalScaleParameter;
+	}
 }
 
 FName UDynamicMaterialModel::CreateUniqueParameterName(FName InBaseName)

@@ -44,8 +44,8 @@ public:
 
 	static TSharedRef<SWidget> GetEmptyContent();
 
-	static FDMPropertyHandle GetPropertyHandle(const SWidget* InOwner, UDMMaterialComponent* InComponent, const FName& InPropertyName);
-	static void ClearPropertyHandles(const SWidget* InOwner);
+	static FDMPropertyHandle GetPropertyHandle(const SWidget* InOwningWidget, UObject* InObject, const FName& InPropertyName);
+	static void ClearPropertyHandles(const SWidget* InOwningWidget);
 
 	void Construct(const FArguments& InArgs, TWeakObjectPtr<UDynamicMaterialModel> InModelWeak);
 	virtual ~SDMEditor() override;
@@ -61,7 +61,7 @@ public:
 	const TArray<TSharedRef<SDMSlot>>& GetSlotWidgets() const { return SlotWidgets; }
 	TSharedPtr<SDMSlot> GetSlotWidget(UDMMaterialSlot* Slot) const;
 
-	void RefreshGlobalOpacitySlider();
+	void RefreshGlobalDetailsView();
 	void RefreshParametersList();
 	void RefreshSlotPickerList();
 	void RefreshSlotsList();
@@ -113,7 +113,7 @@ protected:
 
 	static TMap<const SWidget*, TArray<FDMPropertyHandle>> PropertyHandleMap;
 
-	static FDMPropertyHandle CreatePropertyHandle(const void* InOwner, UDMMaterialComponent* InComponent, const FName& InPropertyName);
+	static FDMPropertyHandle CreatePropertyHandle(const void* InOwningWidget, UObject* InObject, const FName& InPropertyName);
 
 	TSharedPtr<FUICommandList> CommandList;
 
@@ -134,7 +134,7 @@ protected:
 	void BindCommands();
 
 	TSharedRef<SWidget> CreateMainLayout();
-	TSharedRef<SWidget> CreateGlobalOpacityWidget();
+	TSharedRef<SWidget> CreateGlobalDetailsView();
 	TSharedRef<SWidget> CreateParametersArea();
 
 	TSharedRef<SWidget> CreateSlotPickerWidget();
