@@ -299,6 +299,9 @@ namespace Metasound
 			/** Copy the currently selected nodes */
 			void CopySelectedNodes() const;
 
+			/** Whether copying the currently selected node(s) is permissible */
+			bool CanCopyNodes() const;
+
 			/** Whether or not the currently selected node(s) can be duplicated */
 			bool CanDuplicateNodes() const;
 
@@ -341,8 +344,6 @@ namespace Metasound
 			void RemoveInvalidSelection();
 
 			void SetPreviewID(uint32 InPreviewID);
-
-			void ExportNodesToText(FString& OutText) const;
 
 			/** FNotifyHook interface */
 			virtual void NotifyPostChange(const FPropertyChangedEvent& PropertyChangedEvent, FProperty* PropertyThatChanged) override;
@@ -458,12 +459,8 @@ namespace Metasound
 			/** Command list for this editor */
 			TSharedPtr<FUICommandList> GraphEditorCommands;
 
-			/** TODO: Deprecate in favor of just accessing the MetaSound document via
-			  * the builder below */
-			TObjectPtr<UObject> Metasound;
-
-			/** Pointer to builder being actively used to mutate MetaSound asset */
-			TStrongObjectPtr<UMetaSoundBuilderBase> Builder;
+			/** The Metasound asset being edited */
+			TObjectPtr<UObject> Metasound = nullptr;
 
 			/** Whether or not metasound being edited is valid */
 			bool bPassedValidation = true;

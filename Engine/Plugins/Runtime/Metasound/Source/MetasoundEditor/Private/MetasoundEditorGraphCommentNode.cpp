@@ -6,7 +6,6 @@
 #include "Kismet2/Kismet2NameValidators.h"
 #include "Layout/SlateRect.h"
 #include "MetasoundBuilderSubsystem.h"
-#include "MetasoundEditorGraph.h"
 #include "MetasoundUObjectRegistry.h"
 #include "Styling/AppStyle.h"
 #include "Templates/Casts.h"
@@ -28,11 +27,6 @@ FMetasoundAssetBase& UMetasoundEditorGraphCommentNode::GetAssetChecked()
 	FMetasoundAssetBase* MetaSound = IMetasoundUObjectRegistry::Get().GetObjectAsAssetBase(Outermost);
 	check(MetaSound);
 	return *MetaSound;
-}
-
-bool UMetasoundEditorGraphCommentNode::CanUserDeleteNode() const
-{
-	return true;
 }
 
 void UMetasoundEditorGraphCommentNode::ConvertToFrontendComment(const UEdGraphNode_Comment& InEdNode, FMetaSoundFrontendGraphComment& OutComment)
@@ -65,9 +59,31 @@ void UMetasoundEditorGraphCommentNode::PostEditChangeProperty(FPropertyChangedEv
 {
 	Super::PostEditChangeProperty(PropertyChangedEvent);
 
+	// TODO: Check property name and only change that which changed
 	FMetaSoundFrontendGraphComment Comment;
 	ConvertToFrontendComment(*this, Comment);
-	GetBuilderChecked().FindOrAddGraphComment(CommentID) = MoveTemp(Comment);
+
+	UMetaSoundBuilderBase& Builder = UMetaSoundBuilderSubsystem::GetChecked().AttachBuilderToAssetChecked(*GetOutermostObject());
+	Builder.FindOrAddGraphComment(CommentID) = MoveTemp(Comment);
+}
+
+void UMetasoundEditorGraphCommentNode::PostPlacedNewNode()
+{
+	Super::PostPlacedNewNode();
+
+	UMetaSoundBuilderBase& Builder = UMetaSoundBuilderSubsystem::GetChecked().AttachBuilderToAssetChecked(*GetOutermostObject());
+
+	// If the frontend version predates this new node, sync this node's comment to it...
+	if (const FMetaSoundFrontendGraphComment* Comment = Builder.FindGraphComment(CommentID))
+	{
+		NodeComment = Comment->Comment;
+	}
+
+	// otherwise, initialize the frontend version with the ed graph's default comment.
+	else
+	{
+		Builder.FindOrAddGraphComment(CommentID).Comment = NodeComment;
+	}
 }
 
 void UMetasoundEditorGraphCommentNode::ResizeNode(const FVector2D& NewSize)
@@ -75,16 +91,9 @@ void UMetasoundEditorGraphCommentNode::ResizeNode(const FVector2D& NewSize)
 	Super::ResizeNode(NewSize);
 	if (bCanResizeNode) 
 	{
-		UMetasoundEditorGraph& Graph = *CastChecked<UMetasoundEditorGraph>(GetGraph());
-		UMetaSoundBuilderBase& Builder = UMetaSoundBuilderSubsystem::GetChecked().AttachBuilderToAssetChecked(Graph.GetMetasoundChecked());
+		UMetaSoundBuilderBase& Builder = UMetaSoundBuilderSubsystem::GetChecked().AttachBuilderToAssetChecked(*GetOutermostObject());
 		Builder.FindOrAddGraphComment(CommentID).Size = FVector2D(NodeWidth, NodeHeight);
 	}
-}
-
-UMetaSoundBuilderBase& UMetasoundEditorGraphCommentNode::GetBuilderChecked() const
-{
-	UMetasoundEditorGraph* EdGraph = CastChecked<UMetasoundEditorGraph>(GetGraph());
-	return EdGraph->GetBuilderChecked();
 }
 
 FGuid UMetasoundEditorGraphCommentNode::GetCommentID() const
@@ -92,16 +101,12 @@ FGuid UMetasoundEditorGraphCommentNode::GetCommentID() const
 	return CommentID;
 }
 
-bool UMetasoundEditorGraphCommentNode::RemoveFromDocument() const
-{
-	return GetBuilderChecked().RemoveGraphComment(CommentID);
-}
-
 void UMetasoundEditorGraphCommentNode::SetBounds(const class FSlateRect& Rect)
 {
 	Super::SetBounds(Rect);
 
-	FMetaSoundFrontendGraphComment& FrontendComment = GetBuilderChecked().FindOrAddGraphComment(CommentID);
+	UMetaSoundBuilderBase& Builder = UMetaSoundBuilderSubsystem::GetChecked().AttachBuilderToAssetChecked(*GetOutermostObject());
+	FMetaSoundFrontendGraphComment& FrontendComment = Builder.FindOrAddGraphComment(CommentID);
 	FrontendComment.Position = FVector2D(NodePosX, NodePosY);
 	FrontendComment.Size = FVector2D(NodeWidth, NodeHeight);
 }
@@ -110,7 +115,7 @@ void UMetasoundEditorGraphCommentNode::OnRenameNode(const FString& NewName)
 {
 	Super::OnRenameNode(NewName);
 
-	UMetaSoundBuilderBase& Builder = GetBuilderChecked();
+	UMetaSoundBuilderBase& Builder = UMetaSoundBuilderSubsystem::GetChecked().AttachBuilderToAssetChecked(*GetOutermostObject());
 	Builder.FindOrAddGraphComment(CommentID).Comment = NewName;
 }
 #undef LOCTEXT_NAMESPACE

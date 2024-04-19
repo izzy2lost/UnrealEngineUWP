@@ -29,20 +29,10 @@ namespace Metasound::Frontend
 
 	struct METASOUNDFRONTEND_API FNodeTemplateGenerateInterfaceParams
 	{
-		// TODO: Currently just DataType FName. Subsequent change will replace this with a VertexHandle
-		// and will add builder reference to once builder supports template nodes and controllers
-		// are no longer used to add template nodes from editor code.
+		// Currently just DataType FName. Subsequent change will replace this with a VertexHandle
+		// and will add builder reference to once builder supports template nodes.
 		TArray<FName> InputsToConnect;
 		TArray<FName> OutputsToConnect;
-	};
-
-	class METASOUNDFRONTEND_API INodeTemplateTransform
-	{
-	public:
-		virtual ~INodeTemplateTransform() = default;
-
-		/** Return true if the builder was modified, false otherwise. */
-		virtual bool Transform(const FGuid& InNodeID, FMetaSoundFrontendDocumentBuilder& OutBuilder) const = 0;
 	};
 
 	/**
@@ -70,7 +60,7 @@ namespace Metasound::Frontend
 #endif // WITH_EDITOR
 
 		// Generates node transform that is used to preprocess nodes.
-		virtual TUniquePtr<INodeTemplateTransform> GenerateNodeTransform() const = 0;
+		virtual TUniquePtr<INodeTransform> GenerateNodeTransform() const = 0;
 
 		// Returns the class definition for the given node class template.
 		virtual const FMetasoundFrontendClass& GetFrontendClass() const = 0;

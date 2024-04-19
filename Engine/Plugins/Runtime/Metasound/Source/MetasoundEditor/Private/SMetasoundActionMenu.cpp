@@ -92,12 +92,12 @@ namespace Metasound
 					const IMetasoundEditorModule& EditorModule = FModuleManager::GetModuleChecked<IMetasoundEditorModule>("MetaSoundEditor");
 					if (Pin->Direction == EGPD_Input)
 					{
-						FConstInputHandle InputHandle = FGraphBuilder::GetConstInputHandleFromPin(Pin);
+						FInputHandle InputHandle = FGraphBuilder::GetInputHandleFromPin(Pin);
 						IDataTypeRegistry::Get().GetDataTypeInfo(InputHandle->GetDataType(), RegistryInfo);
 					}
 					else
 					{
-						FConstOutputHandle OutputHandle = FGraphBuilder::GetConstOutputHandleFromPin(Pin);
+						FOutputHandle OutputHandle = FGraphBuilder::GetOutputHandleFromPin(Pin);
 						IDataTypeRegistry::Get().GetDataTypeInfo(OutputHandle->GetDataType(), RegistryInfo);
 					}
 
@@ -165,12 +165,12 @@ namespace Metasound
 
 									if (DraggedFromPins[0]->Direction == EGPD_Input)
 									{
-										FConstInputHandle InputHandle = FGraphBuilder::GetConstInputHandleFromPin(Pin);
+										FInputHandle InputHandle = FGraphBuilder::GetInputHandleFromPin(Pin);
 										return FText::Format(LOCTEXT("ContextTypeFilteredText_Output", "Classes with output of type '{0}'"), FText::FromName(InputHandle->GetDataType()));
 									}
 									else
 									{
-										FConstOutputHandle OutputHandle = FGraphBuilder::GetConstOutputHandleFromPin(Pin);
+										FOutputHandle OutputHandle = FGraphBuilder::GetOutputHandleFromPin(Pin);
 										return FText::Format(LOCTEXT("ContextTypeFilteredText_Input", "Classes with input of type '{0}'"), FText::FromName(OutputHandle->GetDataType()));
 									}
 								})

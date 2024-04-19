@@ -17,62 +17,24 @@
 
 // Forward Declarations
 class UEdGraphPin;
-class UMetaSoundBuilderBase;
 class UMetaSoundPatch;
 class UMetasoundEditorGraphOutput;
 class UMetasoundEditorGraphMember;
 class UMetasoundEditorGraphVariable;
 class UMetasoundEditorGraphMemberDefaultFloat;
-
 namespace EMessageSeverity { enum Type : int; }
 
-namespace Metasound::Editor
+namespace Metasound
 {
-	struct FDocumentClipboardUtils;
-	struct FGraphNodeValidationResult;
+	namespace Editor
+	{
+		struct FGraphNodeValidationResult;
+		class FGraphBuilder;
 
-	class FGraphBuilder;
-
-	// Map of class names to sorted array of registered version numbers
-	using FSortedClassVersionMap = TMap<FName, TArray<FMetasoundFrontendVersionNumber>>;
-} // namespace Metasound::Editor
-
-
-USTRUCT()
-struct FMetasoundEditorGraphNodeBreadcrumb
-{
-	GENERATED_BODY()
-
-	UPROPERTY()
-	FMetasoundFrontendClassName ClassName;
-
-	UPROPERTY()
-	bool bIsClassNative = true;
-};
-
-USTRUCT()
-struct FMetasoundEditorGraphMemberNodeBreadcrumb : public FMetasoundEditorGraphNodeBreadcrumb
-{
-	GENERATED_BODY()
-
-	UPROPERTY()
-	FName MemberName;
-
-	UPROPERTY()
-	FName DataType;
-
-	UPROPERTY()
-	FMetasoundFrontendLiteral DefaultLiteral;
-};
-
-USTRUCT()
-struct FMetasoundEditorGraphVertexNodeBreadcrumb : public FMetasoundEditorGraphMemberNodeBreadcrumb
-{
-	GENERATED_BODY()
-
-	UPROPERTY()
-	EMetasoundFrontendVertexAccessType AccessType = EMetasoundFrontendVertexAccessType::Unset;
-};
+		// Map of class names to sorted array of registered version numbers
+		using FSortedClassVersionMap = TMap<FName, TArray<FMetasoundFrontendVersionNumber>>;
+	} // namespace Editor
+} // namespace Metasound
 
 UCLASS(MinimalAPI)
 class UMetasoundEditorGraphNode : public UEdGraphNode
@@ -102,7 +64,6 @@ public:
 	virtual void PinDefaultValueChanged(UEdGraphPin* Pin) override;
 	virtual void ReconstructNode() override;
 	virtual FString GetPinMetaData(FName InPinName, FName InKey) override;
-	virtual void OnUpdateCommentText(const FString& NewComment) override;
 	// End of UEdGraphNode interface
 
 	// UObject interface
@@ -117,36 +78,21 @@ public:
 
 	virtual FSlateIcon GetNodeTitleIcon() const { return FSlateIcon(); }
 	virtual FName GetCornerIcon() const { return FName(); }
-	virtual bool CanAddInputPin() const { return false; }
+	virtual bool CanAddInputPin() const
+	{
+		return false;
+	}
 
-	UMetaSoundBuilderBase& GetBuilderChecked() const;
+	const FMetaSoundFrontendDocumentBuilder& GetFrontendBuilderChecked() const;
 	const FMetasoundFrontendNode* GetFrontendNode() const;
 	const FMetasoundFrontendNode& GetFrontendNodeChecked() const;
-
-	virtual const FMetasoundEditorGraphNodeBreadcrumb& GetBreadcrumb() const;
-
-	// Caches any "breadcrumb" data associated with a particular MetaSound Editor node. Called
-	// when copying edgraph data to the clipboard or validating for fast access. Also generally
-	// provides a mechanism for MetaSound nodes to cache Frontend data for use to look-up Frontend
-	// data if re-associated should the associated document data/node becomes unlinked.
-	virtual void CacheBreadcrumb() { }
 
 	UObject& GetMetasoundChecked();
 	const UObject& GetMetasoundChecked() const;
 
-	virtual bool RemoveFromDocument() const;
-
-	UE_DEPRECATED(5.4, "Use UpdateFrontendNodeLocation and/or SyncLocationFromFrontendNode")
+	// Sets the node's location, both on this graph member node and on the frontend handle
 	void SetNodeLocation(const FVector2D& InLocation);
-
-	// Finds the associated node with the given ID and sets this EdGraphNode's comment and comment visibility boolean.
-	void SyncCommentFromFrontendNode();
-
-	// Finds the associated node with the given ID and sets this EdGraphNode's location.
-	// Returns whether or not node ID entry exists and if location was set.
-	bool SyncLocationFromFrontendNode(bool bUpdateEditorNodeID = false);
-
-	// Helper function that sets the associated frontend node's location. Does NOT set this EdGraphNode's location.
+	// Helper function to update node location on frontend handle
 	void UpdateFrontendNodeLocation(const FVector2D& InLocation);
 
 	Metasound::Frontend::FGraphHandle GetRootGraphHandle() const;
@@ -157,9 +103,7 @@ public:
 
 	TSet<FString> GetDisallowedPinClassNames(const UEdGraphPin& InPin) const;
 
-	UE_DEPRECATED(5.4, "Use the Frontend node or Breadcrumb directly to get the class name.")
 	virtual FMetasoundFrontendClassName GetClassName() const { return FMetasoundFrontendClassName(); }
-
 	virtual FGuid GetNodeID() const { return FGuid(); }
 	virtual FText GetDisplayName() const;
 	virtual void CacheTitle();
@@ -167,6 +111,7 @@ public:
 
 	// Mark node for refresh
 	void SyncChangeIDs();
+
 
 	FText GetCachedTitle() const { return CachedTitle; }
 
@@ -182,10 +127,9 @@ protected:
 	// a new name if the external definition changes between application sessions.
 	FText CachedTitle;
 
-	static bool ShowNodeDebugData();
-
-	UE_DEPRECATED(5.4, "Now set directly on implementing nodes")
 	virtual void SetNodeID(FGuid InNodeID) { }
+
+	friend class Metasound::Editor::FGraphBuilder;
 };
 
 /** Node that represents a graph member */
@@ -203,7 +147,7 @@ public:
 	{
 		return true;
 	}
-
+protected:
 	// Clamp float literal value based on the given default float literal. 
 	// Returns whether the literal was clamped. 
 	static bool ClampFloatLiteral(const UMetasoundEditorGraphMemberDefaultFloat* DefaultFloatLiteral, FMetasoundFrontendLiteral& LiteralValue);
@@ -219,12 +163,7 @@ public:
 	UPROPERTY()
 	TObjectPtr<UMetasoundEditorGraphOutput> Output;
 
-	virtual const FMetasoundEditorGraphNodeBreadcrumb& GetBreadcrumb() const override;
-	virtual void CacheBreadcrumb() override;
-
-	UE_DEPRECATED(5.4, "Use the Frontend node or Breadcrumb directly to get the class name.")
 	virtual FMetasoundFrontendClassName GetClassName() const override;
-
 	virtual FGuid GetNodeID() const override;
 	virtual UMetasoundEditorGraphMember* GetMember() const override;
 
@@ -238,8 +177,6 @@ public:
 	virtual bool CanUserDeleteNode() const override;
 
 	virtual void PinDefaultValueChanged(UEdGraphPin* InPin) override;
-	virtual void ReconstructNode() override;
-	virtual bool RemoveFromDocument() const override;
 
 	// Disables interact widgets (ex. sliders, knobs) when input is connected
 	virtual bool EnableInteractWidgets() const override;
@@ -247,16 +184,10 @@ public:
 	virtual void Validate(Metasound::Editor::FGraphNodeValidationResult& OutResult) override;
 
 protected:
-	// Breadcrumb used if associated FrontendNode cannot be found or has been unlinked
-	UPROPERTY()
-	FMetasoundEditorGraphVertexNodeBreadcrumb Breadcrumb;
-
 	virtual FLinearColor GetNodeTitleColor() const override;
 	virtual FSlateIcon GetNodeTitleIcon() const override;
 	virtual void SetNodeID(FGuid InNodeID) override;
 
-	// Friended to enable mutation of Frontend NodeID & direct breadcrumb access
-	friend struct Metasound::Editor::FDocumentClipboardUtils;
 	friend class Metasound::Editor::FGraphBuilder;
 };
 
@@ -267,29 +198,25 @@ class UMetasoundEditorGraphExternalNode : public UMetasoundEditorGraphNode
 
 protected:
 	UPROPERTY()
-	FMetasoundEditorGraphNodeBreadcrumb Breadcrumb;
-
-	UPROPERTY(meta = (Deprecated = "5.4", DeprecationMessage = "Use Breadcrumb value when manipulating clipboard data or validating. Otherwise, look-up frontend node's associated class directly"))
 	FMetasoundFrontendClassName ClassName;
 
 	UPROPERTY()
 	FGuid NodeID;
 
-	UPROPERTY(meta = (Deprecated = "5.4", DeprecationMessage = "Use Breadcrumb value when manipulating clipboard data or validating, Otherwise, look-up frontend node's associated class directly"))
+	// Whether or not the referenced class is natively defined
+	// (false if defined in another asset). Cached from node
+	// implementation for fast access when validated.
+	UPROPERTY()
 	bool bIsClassNative = true;
 
 public:
-	UE_DEPRECATED(5.4, "Use the Frontend node or Breadcrumb directly to get the class name.")
-	virtual FMetasoundFrontendClassName GetClassName() const override { return Breadcrumb.ClassName; }
-
-	virtual const FMetasoundEditorGraphNodeBreadcrumb& GetBreadcrumb() const;
+	virtual FMetasoundFrontendClassName GetClassName() const override { return ClassName; }
 	virtual FGuid GetNodeID() const override { return NodeID; }
 	virtual FLinearColor GetNodeTitleColor() const override;
 	virtual FSlateIcon GetNodeTitleIcon() const override;
 	virtual bool ShouldDrawNodeAsControlPointOnly(int32& OutInputPinIndex, int32& OutOutputPinIndex) const override;
 
 	virtual void ReconstructNode() override;
-	virtual void CacheBreadcrumb() override;
 	virtual void CacheTitle() override;
 	virtual void GetPinHoverText(const UEdGraphPin& Pin, FString& OutHoverText) const override;
 
@@ -301,8 +228,11 @@ public:
 
 
 protected:
-	// Friended to enable mutation of Frontend NodeID & direct breadcrumb access
-	friend struct Metasound::Editor::FDocumentClipboardUtils;
+	virtual void SetNodeID(FGuid InNodeID) override
+	{
+		NodeID = InNodeID;
+	}
+
 	friend class Metasound::Editor::FGraphBuilder;
 };
 
@@ -333,13 +263,8 @@ public:
 	// Variables do not have titles to distinguish more visually from vertex types
 	virtual void CacheTitle() override { }
 
-	virtual const FMetasoundEditorGraphNodeBreadcrumb& GetBreadcrumb() const override;
-
-	virtual void CacheBreadcrumb() override;
 	virtual UMetasoundEditorGraphMember* GetMember() const override;
 	virtual bool EnableInteractWidgets() const override;
-
-	
 	virtual FMetasoundFrontendClassName GetClassName() const override;
 	virtual FGuid GetNodeID() const override;
 	virtual FName GetCornerIcon() const override;
@@ -348,15 +273,9 @@ public:
 	virtual EMetasoundFrontendClassType GetClassType() const;
 
 protected:
-	// Breadcrumb used if associated FrontendNode cannot be found or has been unlinked
-	UPROPERTY()
-	FMetasoundEditorGraphMemberNodeBreadcrumb Breadcrumb;
-
 	virtual FLinearColor GetNodeTitleColor() const override;
 	virtual FSlateIcon GetNodeTitleIcon() const override;
 	virtual void SetNodeID(FGuid InNodeID) override;
 
-	// Friended to enable mutation of Frontend NodeID & direct breadcrumb access
-	friend struct Metasound::Editor::FDocumentClipboardUtils;
 	friend class Metasound::Editor::FGraphBuilder;
 };

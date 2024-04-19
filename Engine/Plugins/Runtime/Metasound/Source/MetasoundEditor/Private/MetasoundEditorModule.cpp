@@ -257,7 +257,9 @@ namespace Metasound
 				{
 					if (UObject* AssetObject = InAssetData.GetAsset())
 					{
-						FGraphBuilder::RegisterGraphWithFrontend(*AssetObject);
+						FMetasoundAssetBase* MetaSoundAsset = IMetasoundUObjectRegistry::Get().GetObjectAsAssetBase(AssetObject);
+						check(MetaSoundAsset);
+						MetaSoundAsset->RegisterGraphWithFrontend(RegOptions);
 					}
 				}
 				else
@@ -279,12 +281,11 @@ namespace Metasound
 					{
 						if (Result == EAsyncLoadingResult::Succeeded)
 						{
-							UObject* MetaSoundObj = ObjectPath.ResolveObject();
-							FMetasoundAssetBase* MetaSoundAsset = IMetasoundUObjectRegistry::Get().GetObjectAsAssetBase(MetaSoundObj);
+							FMetasoundAssetBase* MetaSoundAsset = IMetasoundUObjectRegistry::Get().GetObjectAsAssetBase(ObjectPath.ResolveObject());
 							check(MetaSoundAsset);
 							if (!MetaSoundAsset->IsRegistered())
 							{
-								FGraphBuilder::RegisterGraphWithFrontend(*MetaSoundObj);
+								MetaSoundAsset->RegisterGraphWithFrontend(RegOptions);
 							}
 						}
 

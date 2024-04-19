@@ -63,7 +63,6 @@ namespace Metasound
 			EMetasoundFrontendVertexAccessType AccessType = EMetasoundFrontendVertexAccessType::Unset;
 			bool bIsRerouted = false;
 
-			PRAGMA_DISABLE_DEPRECATION_WARNINGS
 			Frontend::IterateReroutedInputs(AsShared(), [this, &bIsRerouted, &AccessType](const FConstInputHandle& ReroutedInput)
 			{
 				bIsRerouted = true;
@@ -94,7 +93,6 @@ namespace Metasound
 					}
 				}
 			});
-			PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 			return bIsRerouted ? AccessType : EMetasoundFrontendVertexAccessType::Reference;
 		}

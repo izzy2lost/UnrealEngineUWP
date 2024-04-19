@@ -509,7 +509,7 @@ UEdGraphPin* UEdGraphPin::CreatePin(UEdGraphNode* InOwningNode)
 	return NewPin;
 }
 
-void UEdGraphPin::MakeLinkTo(UEdGraphPin* ToPin, bool bAlwaysMarkDirty)
+void UEdGraphPin::MakeLinkTo(UEdGraphPin* ToPin)
 {
 	if (ToPin)
 	{
@@ -525,32 +525,32 @@ void UEdGraphPin::MakeLinkTo(UEdGraphPin* ToPin, bool bAlwaysMarkDirty)
 			ensureMsgf(MyNode->GetOuter() == ToPin->GetOwningNode()->GetOuter(), TEXT("%s"), *GetLinkInfoString( LOCTEXT("MakeLinkTo", "MakeLinkTo").ToString(), LOCTEXT("OuterMismatch", "has a different outer than pin").ToString(), ToPin)); // Ensure both pins belong to the same graph
 
 			// Notify owning nodes about upcoming change
-			Modify(bAlwaysMarkDirty);
-			ToPin->Modify(bAlwaysMarkDirty);
+			Modify();
+			ToPin->Modify();
 
 			// Add to both lists
 			LinkedTo.Add(ToPin);
 			ToPin->LinkedTo.Add(this);
 
 			// If either node was a pre-placed ghost, turn it into a real thing
-			UEdGraphPin::ConvertConnectedGhostNodesToRealNodes(MyNode, bAlwaysMarkDirty);
-			UEdGraphPin::ConvertConnectedGhostNodesToRealNodes(ToPin->GetOwningNode(), bAlwaysMarkDirty);
+			UEdGraphPin::ConvertConnectedGhostNodesToRealNodes(MyNode);
+			UEdGraphPin::ConvertConnectedGhostNodesToRealNodes(ToPin->GetOwningNode());
 		}
 	}
 }
 
-void UEdGraphPin::BreakLinkTo(UEdGraphPin* ToPin, bool bAlwaysMarkDirty)
+void UEdGraphPin::BreakLinkTo(UEdGraphPin* ToPin)
 {
 	if (ToPin)
 	{
 		// If we do indeed link to the passed in pin...
 		if (LinkedTo.Contains(ToPin))
 		{
-			Modify(bAlwaysMarkDirty);
+			Modify();
 
 			if (ToPin->LinkedTo.Contains(this))
 			{
-				ToPin->Modify(bAlwaysMarkDirty);
+				ToPin->Modify();
 				ToPin->LinkedTo.Remove(this);
 			}
 			else if (OwningNode && !OwningNode->HasAnyFlags(RF_BeginDestroyed))
@@ -569,13 +569,13 @@ void UEdGraphPin::BreakLinkTo(UEdGraphPin* ToPin, bool bAlwaysMarkDirty)
 	}
 }
 
-void UEdGraphPin::BreakAllPinLinks(bool bNotifyNodes, bool bAlwaysMarkDirty)
+void UEdGraphPin::BreakAllPinLinks(const bool bNotifyNodes)
 {
 	TArray<UEdGraphPin*> LinkedToCopy = LinkedTo;
 
 	for (UEdGraphPin* LinkedToPin : LinkedToCopy)
 	{
-		BreakLinkTo(LinkedToPin, bAlwaysMarkDirty);
+		BreakLinkTo(LinkedToPin);
 #if WITH_EDITOR
 		if (bNotifyNodes)
 		{
@@ -1799,12 +1799,12 @@ void UEdGraphPin::DeclarePinCustomVersions(FArchive& Ar)
 }
 #endif
 
-void UEdGraphPin::ConvertConnectedGhostNodesToRealNodes(UEdGraphNode* InNode, bool bAlwaysMarkDirty)
+void UEdGraphPin::ConvertConnectedGhostNodesToRealNodes(UEdGraphNode* InNode)
 {
 	if (InNode && InNode->IsAutomaticallyPlacedGhostNode())
 	{
 		// Enable the node and clear the comment
-		InNode->Modify(bAlwaysMarkDirty);
+		InNode->Modify();
 		InNode->SetEnabledState(ENodeEnabledState::Enabled, /*bUserAction=*/ false);
 		InNode->NodeComment.Empty();
 #if WITH_EDITORONLY_DATA
@@ -1816,7 +1816,7 @@ void UEdGraphPin::ConvertConnectedGhostNodesToRealNodes(UEdGraphNode* InNode, bo
 		{
 			for (UEdGraphPin* OtherPin : Pin->LinkedTo)
 			{
-				ConvertConnectedGhostNodesToRealNodes(OtherPin->GetOwningNode(), bAlwaysMarkDirty);
+				ConvertConnectedGhostNodesToRealNodes(OtherPin->GetOwningNode());
 			}
 		}
 	}

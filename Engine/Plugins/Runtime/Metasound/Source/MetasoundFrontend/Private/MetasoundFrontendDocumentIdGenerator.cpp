@@ -11,6 +11,14 @@ namespace Metasound
 			std::atomic<uint64> GlobalAtomicMetasoundIdCounter = 1; // First ID will be 1. This is because we will make this into an FGuid which cannot be zero.
 		}
 
+		int32 MetaSoundEnableCookDeterministicIDGeneration = 1;
+		FAutoConsoleVariableRef CVarMetaSoundEnableCookDeterministicIDGeneration(
+			TEXT("au.MetaSound.EnableCookDeterministicIDGeneration"),
+			MetaSoundEnableCookDeterministicIDGeneration,
+			TEXT("Enable moving MetaSound registration operations like AutoUpdate and some template node transformations from runtime to cook using deterministic ID generation \n")
+			TEXT("0: Disabled, !0: Enabled (default)"),
+			ECVF_Default);
+
 		FDocumentIDGenerator::FScopeDeterminism::FScopeDeterminism(bool bInIsDeterministic)
 		{
 			FDocumentIDGenerator& IDGen = Get();

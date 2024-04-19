@@ -4,11 +4,9 @@
 #include "Algo/Transform.h"
 #include "Interfaces/MetasoundFrontendInterface.h"
 #include "Interfaces/MetasoundFrontendInterfaceRegistry.h"
-#include "NodeTemplates/MetasoundFrontendNodeTemplateInput.h"
 #include "MetasoundAccessPtr.h"
 #include "MetasoundAssetBase.h"
 #include "MetasoundFrontendDocument.h"
-#include "MetasoundFrontendDocumentBuilder.h"
 #include "MetasoundFrontendDocumentController.h"
 #include "MetasoundFrontendDocumentIdGenerator.h"
 #include "MetasoundFrontendRegistries.h"
@@ -56,12 +54,6 @@ namespace Metasound
 
 		bool IDocumentTransform::Transform(FMetasoundFrontendDocument& InOutDocument) const
 		{
-			if (IDocumentBuilderRegistry* DocRegistry = IDocumentBuilderRegistry::Get())
-			{
-				const FMetasoundFrontendClassName& Name = InOutDocument.RootGraph.Metadata.GetClassName();
-				DocRegistry->InvalidateDocumentCache(Name);
-			}
-
 			FDocumentAccessPtr DocAccessPtr = MakeAccessPtr<FDocumentAccessPtr>(InOutDocument.AccessPoint, InOutDocument);
 			return Transform(FDocumentController::CreateDocumentHandle(DocAccessPtr));
 		}
@@ -413,12 +405,7 @@ namespace Metasound
 
 		bool FModifyRootGraphInterfaces::Transform(FMetasoundFrontendDocument& InOutDocument) const
 		{
-			if (IDocumentBuilderRegistry* DocRegistry = IDocumentBuilderRegistry::Get())
-			{
-				const FMetasoundFrontendClassName& Name = InOutDocument.RootGraph.Metadata.GetClassName();
-				DocRegistry->InvalidateDocumentCache(Name);
-			}
-
+			// TODO: Swap implementation to not use access pointers/controllers
 			FDocumentAccessPtr DocAccessPtr = MakeAccessPtr<FDocumentAccessPtr>(InOutDocument.AccessPoint, InOutDocument);
 			return Transform(FDocumentController::CreateDocumentHandle(DocAccessPtr));
 		}
@@ -520,6 +507,97 @@ namespace Metasound
 		}
 #endif // WITH_EDITOR
 
+		bool FUpdateRootGraphInterface::Transform(FDocumentHandle InDocument) const
+		{
+			bool bDidEdit = false;
+
+			if (!ensure(InDocument->IsValid()))
+			{
+				return bDidEdit;
+			}
+
+			// Find registered target interface.
+			FMetasoundFrontendInterface TargetInterface;
+			bool bFoundTargetInterface = ISearchEngine::Get().FindInterfaceWithHighestVersion(InterfaceVersion.Name, TargetInterface);
+			if (!bFoundTargetInterface)
+			{
+				UE_LOG(LogMetaSound, Warning, TEXT("Could not check for interface updates. Target interface is not registered [InterfaceVersion:%s] when attempting to update root graph of asset (%s). Ensure that the module which registers the interface has been loaded before the asset is loaded."), *InterfaceVersion.ToString(), *OwningAssetName);
+				return false;
+			}
+
+			if (TargetInterface.Version == InterfaceVersion)
+			{
+				return false;
+			}
+
+			// Attempt to upgrade
+			TArray<const IInterfaceRegistryEntry*> UpgradePath;
+			GetUpdatePathForDocument(InterfaceVersion, TargetInterface.Version, UpgradePath);
+			return UpdateDocumentInterface(UpgradePath, InDocument);
+		}
+
+		void FUpdateRootGraphInterface::GetUpdatePathForDocument(const FMetasoundFrontendVersion& InCurrentVersion, const FMetasoundFrontendVersion& InTargetVersion, TArray<const IInterfaceRegistryEntry*>& OutUpgradePath) const
+		{
+			if (InCurrentVersion.Name == InTargetVersion.Name)
+			{
+				// Get all associated registered interfaces
+				TArray<FMetasoundFrontendVersion> RegisteredVersions = ISearchEngine::Get().FindAllRegisteredInterfacesWithName(InTargetVersion.Name);
+
+				// Filter registry entries that exist between current version and target version
+				auto FilterRegistryEntries = [&InCurrentVersion, &InTargetVersion](const FMetasoundFrontendVersion& InVersion)
+				{
+					const bool bIsGreaterThanCurrent = InVersion.Number > InCurrentVersion.Number;
+					const bool bIsLessThanOrEqualToTarget = InVersion.Number <= InTargetVersion.Number;
+
+					return bIsGreaterThanCurrent && bIsLessThanOrEqualToTarget;
+				};
+				RegisteredVersions = RegisteredVersions.FilterByPredicate(FilterRegistryEntries);
+
+				// sort registry entries to create an ordered upgrade path.
+				RegisteredVersions.Sort();
+
+				// Get registry entries from registry keys.
+				auto GetRegistryEntry = [](const FMetasoundFrontendVersion& InVersion)
+				{
+					FInterfaceRegistryKey Key = GetInterfaceRegistryKey(InVersion);
+					return IInterfaceRegistry::Get().FindInterfaceRegistryEntry(Key);
+				};
+				Algo::Transform(RegisteredVersions, OutUpgradePath, GetRegistryEntry);
+			}
+		}
+
+		bool FUpdateRootGraphInterface::UpdateDocumentInterface(const TArray<const IInterfaceRegistryEntry*>& InUpgradePath, FDocumentHandle InDocument) const
+		{
+			const FMetasoundFrontendVersionNumber* LastVersionUpdated = nullptr;
+			for (const IInterfaceRegistryEntry* Entry : InUpgradePath)
+			{
+				if (ensure(nullptr != Entry))
+				{
+					if (Entry->UpdateRootGraphInterface(InDocument))
+					{
+						LastVersionUpdated = &Entry->GetInterface().Version.Number;
+					}
+				}
+			}
+
+			if (LastVersionUpdated)
+			{
+#if WITH_EDITOR
+				const FString AssetName = *InDocument->GetRootGraphClass().Metadata.GetDisplayName().ToString();
+#else
+				const FString AssetName = *InDocument->GetRootGraphClass().Metadata.GetClassName().ToString();
+#endif // !WITH_EDITOR
+				UE_LOG(LogMetaSound, Display, TEXT("Asset '%s' interface '%s' updated: '%s' --> '%s'"),
+					*AssetName,
+					*InterfaceVersion.Name.ToString(),
+					*InterfaceVersion.Number.ToString(),
+					*LastVersionUpdated->ToString());
+				return true;
+			}
+
+			return false;
+		}
+
 		bool FAutoUpdateRootGraph::Transform(FDocumentHandle InDocument) const
 		{
 			METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(FAutoUpdateRootGraph::Transform);
@@ -602,9 +680,7 @@ namespace Metasound
 						FMetasoundAssetBase* PresetMetaSoundAsset = IMetaSoundAssetManager::GetChecked().TryLoadAssetFromKey(RegistryKey);
 						if (ensure(PresetMetaSoundAsset))
 						{
-							TScriptInterface<IMetaSoundDocumentInterface> PresetInterface = PresetMetaSoundAsset->GetOwningAsset();
-							check(PresetInterface);
-							PresetInterface->ConformObjectToDocument();
+							PresetMetaSoundAsset->ConformObjectDataToInterfaces();
 						}
 
 						InDocument->RemoveUnreferencedDependencies();
@@ -723,8 +799,7 @@ namespace Metasound
 			FMetasoundFrontendNodeStyle RefNodeStyle;
 
 			// Offset to be to the right of input nodes
-			const FGuid EdNodeGuid = FGuid::NewGuid(); // EdNodes are now never serialized and are transient, so just assign here
-			RefNodeStyle.Display.Locations.Add(EdNodeGuid, DisplayStyle::NodeLayout::DefaultOffsetX);
+			RefNodeStyle.Display.Locations.Add(FGuid(), DisplayStyle::NodeLayout::DefaultOffsetX);
 			ReferencedNodeHandle->SetNodeStyle(RefNodeStyle);
 #endif // WITH_EDITOR
 
@@ -756,8 +831,6 @@ namespace Metasound
 
 			FConstGraphHandle ReferencedGraphHandle = ReferencedDocument->GetRootGraph();
 
-			const INodeTemplate* InputTemplate = INodeTemplateRegistry::Get().FindTemplate(FInputNodeTemplate::ClassName);
-			check(InputTemplate);
 			TArray<FNodeHandle> NodeHandles;
 			for (const FMetasoundFrontendClassInput& ClassInput : InClassInputs)
 			{
@@ -769,14 +842,6 @@ namespace Metasound
 					FInputHandle InputToConnect = InReferencedNode->GetInputWithVertexName(ClassInput.Name);
 					ensure(OutputToConnect->Connect(*InputToConnect));
 					NodeHandles.Add(MoveTemp(InputNode));
-
-					// template node takes on data type of concrete input node's output type
-					const FName DataType = InputNode->GetOutputs().Last()->GetDataType();
-
-					FNodeTemplateGenerateInterfaceParams Params { { }, { DataType }};
-					FNodeHandle TemplateNodeHandle = InPresetGraphHandle->AddTemplateNode(*InputTemplate, MoveTemp(Params));
-					TemplateNodeHandle->GetInputs().Last()->Connect(*OutputToConnect);
-					TemplateNodeHandle->GetOutputs().Last()->Connect(*InputToConnect);
 				}
 			}
 
@@ -788,17 +853,12 @@ namespace Metasound
 
 			Style.SortDefaults(NodeHandles, DocumentTransform::GetNodeDisplayNameProjection());
 
-			InputNodeLocation = FVector2D::ZeroVector;
-			for (const FNodeHandle& NodeHandle : NodeHandles)
+			for (const FNodeHandle& InputNode : NodeHandles)
 			{
-				// Create input template node and set location
+				// Set input node location
 				FMetasoundFrontendNodeStyle NodeStyle;
-				const FGuid EdNodeGuid = FGuid::NewGuid(); // EdNodes are now never serialized and are transient, so just assign here
-				NodeStyle.Display.Locations.Add(EdNodeGuid, InputNodeLocation);
-				FOutputHandle InputNodeOutputHandle = NodeHandle->GetOutputs().Last();
-				FInputHandle InputTemplateNodeInputHandle = InputNodeOutputHandle->GetConnectedInputs().Last();
-				FNodeHandle TemplateNodeHandle = InputTemplateNodeInputHandle->GetOwningNode();
-				TemplateNodeHandle->SetNodeStyle(NodeStyle);
+				NodeStyle.Display.Locations.Add(FGuid(), InputNodeLocation);
+				InputNode->SetNodeStyle(NodeStyle);
 				InputNodeLocation += DisplayStyle::NodeLayout::DefaultOffsetY;
 			}
 #endif // WITH_EDITOR
@@ -837,8 +897,7 @@ namespace Metasound
 			for (const FNodeHandle& OutputNode : NodeHandles)
 			{
 				FMetasoundFrontendNodeStyle NodeStyle;
-				const FGuid EdNodeGuid = FGuid::NewGuid(); // EdNodes are now never serialized and are transient, so just assign here
-				NodeStyle.Display.Locations.Add(EdNodeGuid, OutputNodeLocation);
+				NodeStyle.Display.Locations.Add(FGuid(), OutputNodeLocation);
 				OutputNode->SetNodeStyle(NodeStyle);
 				OutputNodeLocation += DisplayStyle::NodeLayout::DefaultOffsetY;
 			}

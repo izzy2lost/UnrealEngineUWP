@@ -17,7 +17,6 @@
 #include "UObject/NameTypes.h"
 #include "UObject/ScriptInterface.h"
 
-#include "MetasoundAssetBase.h"
 #include "MetasoundAssetManager.h"
 #include "MetasoundDocumentInterface.h"
 #include "MetasoundFrontendDataTypeRegistry.h"
@@ -43,31 +42,41 @@ namespace Metasound::Frontend
 {
 	namespace RegistryPrivate
 	{
-		TScriptInterface<IMetaSoundDocumentInterface> BuildRegistryDocument(TScriptInterface<IMetaSoundDocumentInterface> DocumentInterface, bool bAsync)
+		TScriptInterface<IMetaSoundDocumentInterface> BuildRegistryDocument(TScriptInterface<IMetaSoundDocumentInterface> DocumentInterface, bool bForceCopy)
 		{
 			using namespace Metasound::Frontend;
 
 			METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(Metasound::Frontend::BuildRegistryDocument);
 
-			UObject* DocObject = DocumentInterface.GetObject();
-			check(DocObject);
-
 #if WITH_EDITOR
-			// Only assets require template node processing
-			if (DocObject->IsAsset())
-			{
-				DocumentInterface = &UMetaSoundBuilderDocument::Create(*DocumentInterface.GetInterface());
-				FMetaSoundFrontendDocumentBuilder Builder(DocumentInterface);
-				Builder.TransformTemplateNodes();
-			}
+			// Node template transform is performed on copy of local document to avoid overwriting editable data
+			constexpr bool bTransformDocumentBeforeRegistering = true;
+#else // !WITH_EDITOR
+			// Node template transform is performed on local document only if cook determinism ID generation
+			// is enabled to avoid transforms potentially creating new edges with non-deterministic IDs.
+			const bool bTransformDocumentBeforeRegistering = MetaSoundEnableCookDeterministicIDGeneration == 0;
+#endif // !WITH_EDITOR
 
-			return DocumentInterface;
-#else
-	#if !NO_LOGGING
-			// Only assets require template node processing and support document attachment
-			if (DocObject->IsAsset()) 
+			if (bTransformDocumentBeforeRegistering)
 			{
-				const FMetaSoundFrontendDocumentBuilder& OriginalDocBuilder = IMetaSoundAssetManager::GetChecked().AttachDocumentBuilderChecked(*DocObject);
+				// 1. Find template dependencies to build prior to making new document/builder as an optimization
+				// (no sense in creating new document/builder if no templates need processing)
+				FMetaSoundFrontendDocumentBuilder OriginalDocBuilder(DocumentInterface);
+				const bool bContainsTemplateDependency = OriginalDocBuilder.ContainsDependencyOfType(EMetasoundFrontendClassType::Template);
+				if (bContainsTemplateDependency)
+				{
+					UMetaSoundBuilderDocument& RegistryDocObject = UMetaSoundBuilderDocument::Create(*DocumentInterface.GetInterface());
+					FMetaSoundFrontendDocumentBuilder RegistryDocBuilder(&RegistryDocObject);
+
+					RegistryDocBuilder.TransformTemplateNodes();
+
+					return &RegistryDocObject;
+				}
+			}
+#if !NO_LOGGING
+			else
+			{
+				FMetaSoundFrontendDocumentBuilder OriginalDocBuilder(DocumentInterface);
 				const bool bContainsTemplateDependency = OriginalDocBuilder.ContainsDependencyOfType(EMetasoundFrontendClassType::Template);
 				if (bContainsTemplateDependency)
 				{
@@ -76,12 +85,8 @@ namespace Metasound::Frontend
 						*OriginalDocBuilder.GetDebugName());
 				}
 			}
-	#endif // !NO_LOGGING
+#endif // !NO_LOGGING
 
-			// Force a copy if async registration is enabled and we need to protect against race conditions from external modifications.
-			const FMetasoundAssetBase* AssetBase = IMetaSoundAssetManager::GetChecked().GetAsAsset(*DocObject);
-			check(AssetBase);
-			const bool bForceCopy = AssetBase->IsBuilderActive() && bAsync;
 			if (bForceCopy)
 			{
 				return &UMetaSoundBuilderDocument::Create(*DocumentInterface.GetInterface());
@@ -90,7 +95,6 @@ namespace Metasound::Frontend
 			{
 				return DocumentInterface;
 			}
-#endif // WITH_EDITOR
 		}
 
 		// FGraphNode is used to create unique INodes based off of a IGraph.
@@ -433,7 +437,7 @@ namespace Metasound::Frontend
 		return MakeUnique<FNodeRegistryTransactionStream>(TransactionBuffer);
 	}
 
-	FGraphRegistryKey FRegistryContainerImpl::RegisterGraph(const TScriptInterface<IMetaSoundDocumentInterface>& InDocumentInterface, bool bAsync)
+	FGraphRegistryKey FRegistryContainerImpl::RegisterGraph(const TScriptInterface<IMetaSoundDocumentInterface>& InDocumentInterface, bool bAsync, bool bForceCopy)
 	{
 		using namespace UE;
 
@@ -442,8 +446,15 @@ namespace Metasound::Frontend
 		check(InDocumentInterface);
 		check(IsInGameThread());
 
-		const FMetasoundFrontendDocument& Document = InDocumentInterface->GetConstDocument();
+		// Use the asset path of the provided document interface object for identification, *NOT* the
+		// built version as the build process may in fact create a new object with a transient path.
 		const FTopLevelAssetPath AssetPath = InDocumentInterface->GetAssetPathChecked();
+		const TScriptInterface<IMetaSoundDocumentInterface> RegistryDocInterface = RegistryPrivate::BuildRegistryDocument(InDocumentInterface, bForceCopy);
+
+		UObject* OwningObject = RegistryDocInterface.GetObject();
+		check(OwningObject);
+
+		const FMetasoundFrontendDocument& Document = RegistryDocInterface->GetConstDocument();
 		const FGraphRegistryKey RegistryKey { FNodeRegistryKey(Document.RootGraph), AssetPath };
 
 		if (!RegistryKey.IsValid())
@@ -454,19 +465,6 @@ namespace Metasound::Frontend
 		}
 
 		METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE_TEXT(*FString::Printf(TEXT("FRegistryContainerImpl::RegisterGraph key:%s, asset %s"), *RegistryKey.ToString(), *AssetPath.ToString()));
-
-		// Wait for any async tasks that are in flight which correspond to the same graph prior to building as building, if force copy is false, may mutate the serialized document
-		if (bAsync)
-		{
-			WaitForAsyncGraphRegistration(RegistryKey);
-		}
-
-		// Use the asset path of the provided document interface object for identification, *NOT* the
-		// built version as the build process may in fact create a new object with a transient path.
-		const TScriptInterface<IMetaSoundDocumentInterface> RegistryDocInterface = RegistryPrivate::BuildRegistryDocument(InDocumentInterface, bAsync);
-
-		UObject* OwningObject = RegistryDocInterface.GetObject();
-		check(OwningObject);
 
 		FNodeClassInfo NodeClassInfo(Document.RootGraph, AssetPath);
 
@@ -484,13 +482,20 @@ namespace Metasound::Frontend
 
 		if (bAsync)
 		{
+			// Wait for any async tasks that are in flight which correspond to the same graph
+			WaitForAsyncGraphRegistration(RegistryKey);
+
 			Tasks::FTask BuildAndRegisterTask = AsyncRegistrationPipe.Launch(
 				UE_SOURCE_LOCATION,
 				[RegistryKey, ClassInfo = MoveTemp(NodeClassInfo), RegistryDocInterface, ProxyDataCache = MoveTemp(ProxyDataCache)]() mutable
 				{
 					FRegistryContainerImpl& Registry = FRegistryContainerImpl::Get();
 					// Unregister the graph before re-registering
-					Registry.UnregisterGraphInternal(RegistryKey);
+					if (Registry.IsGraphRegistered(RegistryKey))
+					{
+						Registry.UnregisterGraphInternal(RegistryKey);
+					}
+
 					Registry.BuildAndRegisterGraphFromDocument(RegistryDocInterface, ProxyDataCache, MoveTemp(ClassInfo));
 					Registry.RemoveRegistrationTask(RegistryKey, FNodeRegistryTransaction::ETransactionType::NodeRegistration);
 					Registry.RemoveDocumentReference(RegistryDocInterface);
@@ -507,7 +512,10 @@ namespace Metasound::Frontend
 		}
 		else
 		{
-			UnregisterGraphInternal(RegistryKey);
+			if (IsGraphRegistered(RegistryKey))
+			{
+				UnregisterGraphInternal(RegistryKey);
+			}
 
 			// Build and register graph synchronously
 			BuildAndRegisterGraphFromDocument(RegistryDocInterface, ProxyDataCache, MoveTemp(NodeClassInfo));
@@ -612,11 +620,6 @@ namespace Metasound::Frontend
 
 		FScopeLock Lock(&RegistryMapsCriticalSection);
 		{
-			if (!RegisteredGraphs.Contains(InKey))
-			{
-				return false;
-			}
-
 			const int32 GraphUnregistered = RegisteredGraphs.Remove(InKey) > 0;
 			const bool bNodeUnregistered = UnregisterNodeInternal(InKey.NodeKey);
 

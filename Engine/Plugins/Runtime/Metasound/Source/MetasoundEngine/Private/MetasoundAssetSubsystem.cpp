@@ -144,7 +144,7 @@ void UMetaSoundAssetSubsystem::AddAssetReferences(FMetasoundAssetBase& InAssetBa
 	using namespace Metasound;
 	using namespace Metasound::Frontend;
 
-	const FMetasoundFrontendDocument& Document = InAssetBase.GetConstDocumentChecked();
+	const FMetasoundFrontendDocument& Document = InAssetBase.GetDocumentChecked();
 	const FNodeRegistryKey AssetClassKey = FNodeRegistryKey(Document.RootGraph);
 
 	if (!ContainsKey(AssetClassKey))
@@ -179,7 +179,7 @@ void UMetaSoundAssetSubsystem::AddAssetReferences(FMetasoundAssetBase& InAssetBa
 	{
 		if (Asset)
 		{
-			const FMetasoundFrontendDocument& RefDocument = Asset->GetConstDocumentChecked();
+			const FMetasoundFrontendDocument& RefDocument = Asset->GetDocumentChecked();
 			const FNodeRegistryKey ClassKey = FNodeRegistryKey(RefDocument.RootGraph);
 			if (!ContainsKey(ClassKey))
 			{
@@ -214,7 +214,7 @@ Metasound::Frontend::FNodeRegistryKey UMetaSoundAssetSubsystem::AddOrUpdateAsset
 	const FMetasoundAssetBase* MetaSoundAsset = Metasound::IMetasoundUObjectRegistry::Get().GetObjectAsAssetBase(&InObject);
 	check(MetaSoundAsset);
 
-	const FMetasoundFrontendDocument& Document = MetaSoundAsset->GetConstDocumentChecked();
+	const FMetasoundFrontendDocument& Document = MetaSoundAsset->GetDocumentChecked();
 	const FNodeRegistryKey RegistryKey = FNodeRegistryKey(Document.RootGraph);
 
 	if (RegistryKey.IsValid())
@@ -273,11 +273,6 @@ Metasound::Frontend::FNodeRegistryKey UMetaSoundAssetSubsystem::AddOrUpdateAsset
 	// Invalid ClassID means the node could not be registered.
 	// Let caller report or ensure as necessary.
 	return FNodeRegistryKey::GetInvalid();
-}
-
-FMetaSoundFrontendDocumentBuilder& UMetaSoundAssetSubsystem::AttachDocumentBuilderChecked(UObject& InObject) const
-{
-	return UMetaSoundBuilderSubsystem::GetChecked().AttachBuilderToAssetChecked(InObject).Builder;
 }
 
 bool UMetaSoundAssetSubsystem::CanAutoUpdate(const FMetasoundFrontendClassName& InClassName) const
@@ -349,7 +344,7 @@ TSet<UMetaSoundAssetSubsystem::FAssetInfo> UMetaSoundAssetSubsystem::GetReferenc
 	using namespace Metasound::Frontend;
 
 	TSet<FAssetInfo> OutAssetInfos;
-	const FMetasoundFrontendDocument& Document = InAssetBase.GetConstDocumentChecked();
+	const FMetasoundFrontendDocument& Document = InAssetBase.GetDocumentChecked();
 	for (const FMetasoundFrontendClass& Class : Document.Dependencies)
 	{
 		const FNodeRegistryKey Key = FNodeRegistryKey(Class.Metadata);
@@ -627,10 +622,12 @@ void UMetaSoundAssetSubsystem::RemoveAsset(const UObject& InObject)
 	if (const FMetasoundAssetBase* MetaSoundAsset = Metasound::IMetasoundUObjectRegistry::Get().GetObjectAsAssetBase(&InObject))
 	{
 		const FSoftObjectPath ObjectPath(&InObject);
-		const FMetasoundFrontendDocument& Document = MetaSoundAsset->GetConstDocumentChecked();
+		const FMetasoundFrontendDocument& Document = MetaSoundAsset->GetDocumentChecked();
 		FNodeRegistryKey RegistryKey = FNodeRegistryKey(Document.RootGraph);
-		AssetSubsystemPrivate::RemoveIfExactMatch(PathMap, RegistryKey, ObjectPath);
-		UMetaSoundBuilderSubsystem::GetChecked().DetachBuilderFromAsset(Document.RootGraph.Metadata.GetClassName());
+		if (AssetSubsystemPrivate::RemoveIfExactMatch(PathMap, RegistryKey, ObjectPath))
+		{
+			UMetaSoundBuilderSubsystem::GetChecked().DetachBuilderFromAsset(Document.RootGraph.Metadata.GetClassName());
+		}
 	}
 }
 
@@ -644,8 +641,10 @@ void UMetaSoundAssetSubsystem::RemoveAsset(const FAssetData& InAssetData)
 	{
 		const FNodeRegistryKey RegistryKey(ClassInfo);
 		const FSoftObjectPath ObjectPath = InAssetData.GetSoftObjectPath();
-		AssetSubsystemPrivate::RemoveIfExactMatch(PathMap, RegistryKey, ObjectPath);
-		UMetaSoundBuilderSubsystem::GetChecked().DetachBuilderFromAsset(ClassInfo.ClassName);
+		if (AssetSubsystemPrivate::RemoveIfExactMatch(PathMap, RegistryKey, ObjectPath))
+		{
+			UMetaSoundBuilderSubsystem::GetChecked().DetachBuilderFromAsset(ClassInfo.ClassName);
+		}
 	}
 }
 

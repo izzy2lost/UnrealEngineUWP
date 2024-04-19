@@ -20,7 +20,6 @@ class UEdGraph;
 class UEdGraphNode;
 class UEdGraphPin;
 class UMetaSoundPatch;
-class UMetasoundEditorGraphCommentNode;
 class UMetasoundEditorGraphExternalNode;
 class UMetasoundEditorGraphNode;
 class UMetasoundEditorGraphInputNode;
@@ -61,6 +60,12 @@ namespace Metasound
 
 			static const FText FunctionMenuName;
 			static const FText GraphMenuName;
+
+			static void InitGraphNode(Frontend::FNodeHandle& InNodeHandle, UMetasoundEditorGraphNode* NewGraphNode, UObject& InMetaSound);
+			static void InitGraphNodeIDFromNodeHandle(const Frontend::FConstNodeHandle& InNodeHandle, UMetasoundEditorGraphNode* NewGraphNode);
+
+			// Adds an EdGraph node to mirror the provided FNodeHandle.
+			static UMetasoundEditorGraphNode* AddNode(UObject& InMetaSound, Frontend::FNodeHandle InNodeHandle, FVector2D InLocation, bool bInSelectNewNode = true);
 
 			// Convenience functions for retrieving the editor for the given UObject
 			static TSharedPtr<FEditor> GetEditorForMetasound(const UObject& InMetaSound);
@@ -118,11 +123,12 @@ namespace Metasound
 			// Returns the PinName for an IInputController.
 			static FName GetPinName(const Frontend::IInputController& InFrontendInput);
 
-			// Adds a new EdGraph comment node associated with the given MetaSoundFrontendGraph comment ID
-			static UMetasoundEditorGraphCommentNode* CreateCommentNode(UObject& InMetaSound, bool bInSelectNewNode = true, FGuid InCommentID = FGuid::NewGuid());
+			// Adds a node handle to mirror the provided graph node and binds to it.  Does *NOT* mirror existing EdGraph connections
+			// nor does it remove existing bound Frontend Node (if set) from associated Frontend Graph.
+			static Frontend::FNodeHandle AddNodeHandle(UObject& InMetaSound, UMetasoundEditorGraphNode& InGraphNode);
 
-			// Adds an input template node to the given MetaSound object's document model and returns an associated node handle
-			static Frontend::FNodeHandle AddInputTemplateNodeHandle(UObject& InMetaSound, Frontend::FNodeHandle& InputNodeHandle);
+			// Adds a corresponding UMetasoundEditorGraphInputNode for the provided node handle.
+			static UMetasoundEditorGraphInputNode* AddInputNode(UObject& InMetaSound, Frontend::FNodeHandle InNodeHandle, FVector2D InLocation, bool bInSelectNewNode = true);
 
 			// Generates FNodeHandle for the given external node data. Does not bind or create EdGraph representation of given node.
 			static Frontend::FNodeHandle AddInputNodeHandle(
@@ -132,35 +138,23 @@ namespace Metasound
 				const FName* InNameBase = nullptr);
 
 			// Adds a corresponding UMetasoundEditorGraphExternalNode for the provided node handle.
-			static UMetasoundEditorGraphExternalNode* AddExternalNode(UObject& InMetaSound, const FGuid& InNodeID, const FMetasoundFrontendClassMetadata& InMetadata, bool bInSelectNewNode = true);
-
-			// Adds an editor graph node that corresponds with an instance of a node that is defined by an external MetaSound node class.
-			static UMetasoundEditorGraphExternalNode* AddTemplateNode(UObject& InMetaSound, const FGuid& InNodeID, const FMetasoundFrontendClassMetadata& InMetadata, bool bInSelectNewNode = true);
+			static UMetasoundEditorGraphExternalNode* AddExternalNode(UObject& InMetaSound, Frontend::FNodeHandle& InNodeHandle, FVector2D InLocation, bool bInSelectNewNode = true);
 
 			// Adds an externally-defined node with the given class info to both the editor and document graphs.
 			// Generates analogous FNodeHandle.
-			static UMetasoundEditorGraphExternalNode* AddExternalNode(UObject& InMetaSound, const FMetasoundFrontendClassMetadata& InMetadata, bool bInSelectNewNode = true);
-
-			static Frontend::FNodeHandle AddExternalNodeHandle(UObject& InMetaSound, const FMetasoundFrontendClassName& InClassName);
+			static UMetasoundEditorGraphExternalNode* AddExternalNode(UObject& InMetaSound, const FMetasoundFrontendClassMetadata& InMetadata, FVector2D InLocation, bool bInSelectNewNode = true);
 
 			// Adds an variable node with the given node handle to the editor graph.
-			static UMetasoundEditorGraphVariableNode* AddVariableNode(UObject& InMetaSound, const Frontend::FConstNodeHandle& InNodeHandle, bool bInSelectNewNode = true);
-
-			// Adds an input node to the editor graph that corresponds to the provided input template node handle.
-			static UMetasoundEditorGraphInputNode* AddInputNode(UObject& InMetaSound, const Frontend::FConstNodeHandle& InInputTemplateNode, bool bInSelectNewNode = true);
+			static UMetasoundEditorGraphVariableNode* AddVariableNode(UObject& InMetaSound, Frontend::FNodeHandle& InNodeHandle, FVector2D InLocation, bool bInSelectNewNode = true);
 
 			// Adds an output node to the editor graph that corresponds to the provided node handle.
-			static UMetasoundEditorGraphOutputNode* AddOutputNode(UObject& InMetaSound, const Frontend::FConstNodeHandle& InNodeHandle, bool bInSelectNewNode = true);
+			static UMetasoundEditorGraphOutputNode* AddOutputNode(UObject& InMetaSound, Frontend::FNodeHandle& InNodeHandle, FVector2D InLocation, bool bInSelectNewNode = true);
 
 			// Generates analogous FNodeHandle for the given internal node data. Does not bind nor create EdGraph representation of given node.
 			static Frontend::FNodeHandle AddOutputNodeHandle(UObject& InMetaSound, const FCreateNodeVertexParams& InParams, const FName* InNameBase = nullptr);
 
 			// Create a unique name for the variable.
 			static FName GenerateUniqueVariableName(const Frontend::FConstGraphHandle& InFrontendGraph, const FString& InBaseName);
-
-			// Convenience method for walking to the outermost object and transforming to a base MetaSound
-			static FMetasoundAssetBase& GetOutermostMetaSoundChecked(UObject& InSubObject);
-			static const FMetasoundAssetBase& GetOutermostConstMetaSoundChecked(const UObject& InSubObject);
 
 			// Adds a frontend variable to the root graph of the MetaSound
 			//
@@ -233,14 +227,20 @@ namespace Metasound
 			// Retrieves the proper pin color for the given PinType
 			static FLinearColor GetPinCategoryColor(const FEdGraphPinType& PinType);
 
+			// Initializes MetaSound with default inputs & outputs.
+			UE_DEPRECATED(5.3, "Use FMetaSoundFrontendDocumentBuilder::InitDocument instead.")
+			static void InitMetaSound(UObject& InMetaSound, const FString& InAuthor);
+
+			// Initializes a MetaSound Preset using the provided ReferencedMetaSound asset's
+			// root graph as the sole, encapsulated topology.
+			UE_DEPRECATED(5.3, "Use FMetaSoundFrontendDocumentBuilder::ConvertToPreset instead.")
+			static void InitMetaSoundPreset(UObject& InMetaSoundReferenced, UObject& InMetaSoundPreset);
+
 			// Rebuilds all editor node pins based on the provided node handle's class definition.
 			static void RebuildNodePins(UMetasoundEditorGraphNode& InGraphNode);
 
-			// Deletes all nodes from a parent graph that are linked to a given member.
-			static bool DeleteMemberNodes(const UMetasoundEditorGraphMember& InGraphMember);
-
 			// Deletes both the editor graph & frontend nodes from respective graphs
-			static bool DeleteNode(UEdGraphNode& InNode, bool bRemoveUnusedDependencies = true);
+			static bool DeleteNode(UEdGraphNode& InNode);
 
 			// Adds an Input UEdGraphPin to a UMetasoundEditorGraphNode
 			static UEdGraphPin* AddPinToNode(UMetasoundEditorGraphNode& InEditorNode, Frontend::FConstInputHandle InInputHandle);
@@ -259,19 +259,24 @@ namespace Metasound
 			static bool SynchronizeGraph(UObject& InMetaSound);
 
 			// Synchronizes editor nodes with frontend nodes, removing editor nodes that are not represented in the frontend, and adding editor nodes to represent missing frontend nodes.
-			static void SynchronizeNodes(UObject& InMetaSound);
-
-			// Synchronizes and reports to log whether or not an output node's associated FrontendNode ID has changed and therefore been updated through node versioning.
 			//
 			// @return True if the UMetasoundEditorGraphNode was altered. False otherwise.
-			static bool SynchronizeOutputNodes(UObject& InMetaSound);
+			static bool SynchronizeNodes(UObject& InMetaSound);
+
+			// Synchronizes and reports to log whether or not an editor member node's associated FrontendNode ID has changed and therefore been updated through node versioning.
+			//
+			// @return True if the UMetasoundEditorGraphNode was altered. False otherwise.
+			static bool SynchronizeNodeMembers(UObject& InMetaSound);
+
+			// Synchronizes node location data using handle's data
+			//
+			// @return True if the UMetasoundEditorGraphNode was altered. False otherwise.
+			static bool SynchronizeNodeLocation(const Frontend::FConstNodeHandle& InNode, UMetasoundEditorGraphNode& OutGraphNode);
 
 			// Adds and removes pins so that the UMetasoundEditorGraphNode matches the InNode.
 			//
 			// @return True if the UMetasoundEditorGraphNode was altered. False otherwise.
 			static bool SynchronizeNodePins(UMetasoundEditorGraphNode& InEditorNode, Frontend::FConstNodeHandle InNode, bool bRemoveUnusedPins = true, bool bLogChanges = true);
-
-			static bool SynchronizeComments(UObject& InMetaSound);
 
 			// Adds and removes connections so that the UEdGraph of the MetaSound has the same
 			// connections as the FMetasoundFrontendDocument graph.

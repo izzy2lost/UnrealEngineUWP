@@ -133,10 +133,7 @@ namespace Metasound
 					return;
 				}
 
-				PRAGMA_DISABLE_DEPRECATION_WARNINGS
 				Frontend::FConstOutputHandle OutputHandle = Frontend::FindReroutedOutput(InData.OutputHandle);
-				PRAGMA_ENABLE_DEPRECATION_WARNINGS
-
 				const FGuid NodeID = OutputHandle->GetOwningNodeID();
 				TNumericType Value = InDefaultValue;
 				FName OutputName = OutputHandle->GetName();

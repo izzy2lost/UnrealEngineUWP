@@ -12,7 +12,6 @@ class FMetasoundAssetBase;
 class UEdGraph;
 
 struct FMetasoundFrontendClassName;
-struct FMetaSoundFrontendDocumentBuilder;
 
 namespace Metasound
 {
@@ -131,8 +130,6 @@ namespace Metasound
 
 			// Add or Update a MetaSound Asset's entry data
 			virtual Metasound::Frontend::FNodeRegistryKey AddOrUpdateAsset(const UObject& InObject) = 0;
-
-			virtual FMetaSoundFrontendDocumentBuilder& AttachDocumentBuilderChecked(UObject& InObject) const = 0;
 
 			// Whether or not the class is eligible for auto-update
 			virtual bool CanAutoUpdate(const FMetasoundFrontendClassName& InClassName) const = 0;

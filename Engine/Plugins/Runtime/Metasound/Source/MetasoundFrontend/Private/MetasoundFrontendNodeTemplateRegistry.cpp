@@ -12,6 +12,11 @@
 
 namespace Metasound::Frontend
 {
+	TUniquePtr<INodeTransform> INodeTemplate::GenerateNodeTransform(FMetasoundFrontendDocument& InDocument) const
+	{
+		return nullptr;
+	}
+
 	class FNodeTemplateRegistry : public INodeTemplateRegistry
 	{
 	public:
@@ -53,9 +58,9 @@ namespace Metasound::Frontend
 
 	const INodeTemplate* FNodeTemplateRegistry::FindTemplate(const FNodeRegistryKey& InKey) const
 	{
-		if (const TUniquePtr<const INodeTemplate>* Template = Templates.Find(InKey))
+		if (const TUniquePtr<const INodeTemplate>* TemplatePtr = Templates.Find(InKey))
 		{
-			return Template->Get();
+			return TemplatePtr->Get();
 		}
 
 		return nullptr;
@@ -80,11 +85,6 @@ namespace Metasound::Frontend
 	{
 		static FNodeTemplateRegistry Registry;
 		return Registry;
-	}
-
-	TUniquePtr<INodeTransform> INodeTemplate::GenerateNodeTransform(FMetasoundFrontendDocument& InDocument) const
-	{
-		return nullptr;
 	}
 
 #if WITH_EDITOR

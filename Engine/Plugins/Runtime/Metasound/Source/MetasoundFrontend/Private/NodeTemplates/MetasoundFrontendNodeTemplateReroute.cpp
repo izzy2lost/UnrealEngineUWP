@@ -16,7 +16,7 @@ namespace Metasound::Frontend
 {
 	namespace ReroutePrivate
 	{
-		class FRerouteNodeTemplateTransform : public INodeTemplateTransform
+		class FRerouteNodeTemplateTransform : public INodeTransform
 		{
 		public:
 			FRerouteNodeTemplateTransform() = default;
@@ -109,8 +109,6 @@ namespace Metasound::Frontend
 							}
 						}
 					}
-
-					return nullptr;
 				}
 			}
 
@@ -204,13 +202,12 @@ namespace Metasound::Frontend
 		NewInterface.Outputs.Add(FMetasoundFrontendVertex { VertexName, DataType, FGuid::NewGuid() });
 
 		return NewInterface;
-
 	}
 
-	TUniquePtr<INodeTemplateTransform> FRerouteNodeTemplate::GenerateNodeTransform() const
+	TUniquePtr<INodeTransform> FRerouteNodeTemplate::GenerateNodeTransform() const
 	{
 		using namespace ReroutePrivate;
-		return TUniquePtr<INodeTemplateTransform>(new FRerouteNodeTemplateTransform());
+		return TUniquePtr<INodeTransform>(new FRerouteNodeTemplateTransform());
 	}
 
 	const FMetasoundFrontendClass& FRerouteNodeTemplate::GetFrontendClass() const
@@ -253,14 +250,14 @@ namespace Metasound::Frontend
 			const FMetasoundFrontendVertex& RerouteOutput = Node->Interface.Outputs.Last();
 
 			TArray<const FMetasoundFrontendNode*> ConnectedNodes;
-			TArray<const FMetasoundFrontendVertex*> ConnectedInputs = InBuilder.FindNodeInputsConnectedToNodeOutput(InNodeID, RerouteOutput.VertexID, &ConnectedNodes);
+			TArray<const FMetasoundFrontendVertex*> ConnectedInputs = InBuilder.FindNodeInputsConnectedToNodeOutput(InNodeID, InVertexID, &ConnectedNodes);
 			for (int32 Index = 0; Index < ConnectedNodes.Num(); ++Index)
 			{
 				const FMetasoundFrontendNode* ConnectedNode = ConnectedNodes[Index];
 				if (const FMetasoundFrontendClass* ConnectedNodeClass = InBuilder.FindDependency(ConnectedNode->ClassID))
 				{
 					const FMetasoundFrontendVertex* ConnectedInput = ConnectedInputs[Index];
-					if (ConnectedNodeClass->Metadata.GetClassName() == GetClassName())
+					if (ConnectedNodeClass->Metadata.GetClassName() == ClassName)
 					{
 						return this->GetNodeInputAccessType(InBuilder, ConnectedNode->GetID(), ConnectedInput->VertexID);
 					}

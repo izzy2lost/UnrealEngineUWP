@@ -2,7 +2,6 @@
 #pragma once
 
 #include "AudioParameterControllerInterface.h"
-#include "MetasoundBuilderSubsystem.h"
 #include "MetasoundEditor.h"
 #include "MetasoundEditorGraphNode.h"
 #include "MetasoundFrontendController.h"
@@ -47,12 +46,30 @@ DECLARE_MULTICAST_DELEGATE_OneParam(FOnMetasoundMemberNameChanged, FGuid /* Node
 DECLARE_MULTICAST_DELEGATE(FOnMetasoundMemberRenameRequested);
 
 UCLASS()
-class METASOUNDEDITOR_API UMetasoundEditorGraphMemberDefaultLiteral : public UMetaSoundFrontendMemberMetadata
+class METASOUNDEDITOR_API UMetasoundEditorGraphMemberDefaultLiteral : public UObject
 {
 	GENERATED_BODY()
 
 public:
 	virtual void UpdatePreviewInstance(const Metasound::FVertexName& InParameterName, TScriptInterface<IAudioParameterControllerInterface>& InParameterInterface) const
+	{
+	}
+
+	virtual FMetasoundFrontendLiteral GetDefault() const
+	{
+		return FMetasoundFrontendLiteral();
+	}
+
+	virtual EMetasoundFrontendLiteralType GetLiteralType() const
+	{
+		return EMetasoundFrontendLiteralType::None;
+	}
+
+	virtual void SetFromLiteral(const FMetasoundFrontendLiteral& InLiteral)
+	{
+	}
+
+	virtual void ForceRefresh()
 	{
 	}
 
@@ -62,16 +79,11 @@ public:
 	virtual void PostEditUndo() override;
 #endif // WITH_EDITOR
 
-	const UMetasoundEditorGraphMember* FindMember() const;
-	UMetasoundEditorGraphMember* FindMember();
-
-	UE_DEPRECATED(5.5, "Due to serialization optimization, literals now inherit from LiteralMetadata and are no longer parented under members. Use FindMember instead")
 	const UMetasoundEditorGraphMember* GetParentMember() const
 	{
 		return Cast<UMetasoundEditorGraphMember>(GetOuter());
 	}
 
-	UE_DEPRECATED(5.5, "Due to serialization optimization, literals now inherit from LiteralMetadata and are no longer parented under members. Use FindMember instead")
 	UMetasoundEditorGraphMember* GetParentMember()
 	{
 		return Cast<UMetasoundEditorGraphMember>(GetOuter());
@@ -164,8 +176,6 @@ public:
 	void InitializeLiteral();
 
 protected:
-	virtual UMetasoundEditorGraphNode* AddNode(Metasound::Frontend::FNodeHandle InNodeHandle, bool bInSelectNewNode) PURE_VIRTUAL(UMetasoundEditorGraphMember::AddNode, return nullptr;);
-
 	/** Default literal value of member */
 	UPROPERTY()
 	TObjectPtr<UMetasoundEditorGraphMemberDefaultLiteral> Literal;
@@ -174,8 +184,7 @@ protected:
 	UPROPERTY()
 	FName TypeName;
 
-	friend class UMetasoundEditorGraph;
-	friend class UMetaSoundEditorSubsystem;
+friend class UMetasoundEditorGraph;
 };
 
 /** Base class for an input or output of the graph. */
@@ -185,6 +194,9 @@ class METASOUNDEDITOR_API UMetasoundEditorGraphVertex : public UMetasoundEditorG
 	GENERATED_BODY()
 
 protected:
+	UE_DEPRECATED(5.1, "Use AddNodeHandle with FCreateNodeVertexParams instead.")
+	virtual Metasound::Frontend::FNodeHandle AddNodeHandle(const FName& InNodeName, FName InDataType) PURE_VIRTUAL(UMetasoundEditorGraphVertex::AddNodeHandle, return Metasound::Frontend::INodeController::GetInvalidHandle(); )
+
 	/** Adds the node handle for a newly created vertex. */
 	virtual Metasound::Frontend::FNodeHandle AddNodeHandle(const FName& InNodeName, const Metasound::Editor::FCreateNodeVertexParams& InParams) PURE_VIRTUAL(UMetasoundEditorGraphVertex::AddNodeHandle, return Metasound::Frontend::INodeController::GetInvalidHandle(); )
 
@@ -211,6 +223,7 @@ public:
 	virtual void SetDescription(const FText& InDescription, bool bPostTransaction) override;
 	virtual void SetMemberName(const FName& InNewName, bool bPostTransaction) override;
 	virtual void SetDisplayName(const FText& InNewName, bool bPostTransaction) override;
+	virtual void SetDataType(FName InNewType, bool bPostTransaction = true) override;
 	/* ~End UMetasoundEditorGraphMember interface */
 
 	/** Version of interface membership, or invalid version if not an interface member. */
@@ -220,19 +233,15 @@ public:
 	virtual bool IsInterfaceMember() const;
 
 	/** Returns the Metasound class type of the associated node */
-	virtual EMetasoundFrontendClassType GetClassType() const PURE_VIRTUAL(UMetasoundEditorGraphVertex::GetClassType, return EMetasoundFrontendClassType::Invalid; )
+	virtual EMetasoundFrontendClassType GetClassType() const PURE_VIRTUAL(UMetasoundEditorGraphMember::GetClassType, return EMetasoundFrontendClassType::Invalid; )
 
 	/** Returns the SortOrderIndex assigned to this member. */
-	virtual int32 GetSortOrderIndex() const PURE_VIRTUAL(UMetasoundEditorGraphVertex::GetSortOrderIndex, return 0; )
-
-	/** Sets the DataType assigned to this member. */
-	virtual void SetDataType(FName DataType, bool bPostTransaction = true) PURE_VIRTUAL(UMetasoundEditorGraphVertex::SetDataType, )
+	virtual int32 GetSortOrderIndex() const PURE_VIRTUAL(UMetasoundEditorGraphMember::GetSortOrderIndex, return 0; )
 
 	/** Sets the SortOrderIndex assigned to this member. */
-	virtual void SetSortOrderIndex(int32 InSortOrderIndex) PURE_VIRTUAL(UMetasoundEditorGraphVertex::SetSortOrderIndex, )
+	virtual void SetSortOrderIndex(int32 InSortOrderIndex) PURE_VIRTUAL(UMetasoundEditorGraphMember::SetSortOrderIndex, )
 	
-	/** Sets the VertexAccessType assigned to this member. */
-	virtual void SetVertexAccessType(EMetasoundFrontendVertexAccessType InNewAccessType, bool bPostTransaction = true) PURE_VIRTUAL(UMetasoundEditorGraphVertex::SetVertexAccessType, )
+	void SetVertexAccessType(EMetasoundFrontendVertexAccessType InNewAccessType, bool bPostTransaction = true);
 
 	/** Returns the node handle associated with the vertex. */
 	Metasound::Frontend::FNodeHandle GetNodeHandle();
@@ -243,8 +252,6 @@ public:
 	virtual EMetasoundFrontendVertexAccessType GetVertexAccessType() const PURE_VIRTUAL(UMetasoundEditorGraphVertex::GetVertexAccessType, return EMetasoundFrontendVertexAccessType::Reference; );
 
 	virtual bool CanRename() const override;
-
-	friend class Metasound::Editor::FEditor;
 };
 
 UCLASS()
@@ -255,20 +262,16 @@ class METASOUNDEDITOR_API UMetasoundEditorGraphInput : public UMetasoundEditorGr
 public:
 	virtual int32 GetSortOrderIndex() const override;
 	virtual void SetSortOrderIndex(int32 InSortOrderIndex) override;
-	virtual TArray<UMetasoundEditorGraphMemberNode*> GetNodes() const override;
 
 	virtual const FText& GetGraphMemberLabel() const override;
 	virtual void ResetToClassDefault() override;
-	virtual void SetDataType(FName InNewType, bool bPostTransaction) override;
-	virtual void SetVertexAccessType(EMetasoundFrontendVertexAccessType InNewAccessType, bool bPostTransaction) override;
 	virtual void SetMemberName(const FName& InNewName, bool bPostTransaction) override;
 	virtual void UpdateFrontendDefaultLiteral(bool bPostTransaction) override;
 	virtual EMetasoundFrontendVertexAccessType GetVertexAccessType() const override;
 
 protected:
-	virtual UMetasoundEditorGraphNode* AddNode(Metasound::Frontend::FNodeHandle InNodeHandle, bool bInSelectNewNode) override;
+	virtual Metasound::Frontend::FNodeHandle AddNodeHandle(const FName& InNodeName, FName InDataType) override;
 	virtual Metasound::Frontend::FNodeHandle AddNodeHandle(const FName& InNodeName, const Metasound::Editor::FCreateNodeVertexParams& InParams) override;
-
 	virtual EMetasoundFrontendClassType GetClassType() const override { return EMetasoundFrontendClassType::Input; }
 	virtual Metasound::Editor::ENodeSection GetSectionID() const override;
 };
@@ -284,13 +287,11 @@ public:
 	virtual void SetSortOrderIndex(int32 InSortOrderIndex) override;
 	virtual const FText& GetGraphMemberLabel() const override;
 	virtual void ResetToClassDefault() override;
-	virtual void SetDataType(FName InNewType, bool bPostTransaction) override;
-	virtual void SetVertexAccessType(EMetasoundFrontendVertexAccessType InNewAccessType, bool bPostTransaction) override;
 	virtual void UpdateFrontendDefaultLiteral(bool bPostTransaction) override;
 	virtual EMetasoundFrontendVertexAccessType GetVertexAccessType() const override;
 
 protected:
-	virtual UMetasoundEditorGraphNode* AddNode(Metasound::Frontend::FNodeHandle InNodeHandle, bool bInSelectNewNode) override;
+	virtual Metasound::Frontend::FNodeHandle AddNodeHandle(const FName& InNodeName, FName InDataType) override;
 	virtual Metasound::Frontend::FNodeHandle AddNodeHandle(const FName& InNodeName, const Metasound::Editor::FCreateNodeVertexParams& InParams) override;
 	virtual EMetasoundFrontendClassType GetClassType() const override { return EMetasoundFrontendClassType::Output; }
 	virtual Metasound::Editor::ENodeSection GetSectionID() const override;
@@ -337,9 +338,6 @@ public:
 
 	virtual bool CanRename() const override;
 
-protected:
-	virtual UMetasoundEditorGraphNode* AddNode(Metasound::Frontend::FNodeHandle InNodeHandle, bool bInSelectNewNode) override;
-
 private:
 	struct FVariableEditorNodes
 	{
@@ -367,7 +365,6 @@ class METASOUNDEDITOR_API UMetasoundEditorGraph : public UMetasoundEditorGraphBa
 	GENERATED_BODY()
 
 public:
-	UE_DEPRECATED(5.5, "Input node creation is no longer supported publically via the MetasoundEditorGraph.")
 	UMetasoundEditorGraphInputNode* CreateInputNode(Metasound::Frontend::FNodeHandle InNodeHandle, bool bInSelectNewNode);
 
 	Metasound::Frontend::FDocumentHandle GetDocumentHandle();
@@ -377,7 +374,6 @@ public:
 
 	virtual void PreSave(FObjectPreSaveContext InSaveContext) override;
 
-	UMetaSoundBuilderBase& GetBuilderChecked();
 	UObject* GetMetasound();
 	const UObject* GetMetasound() const;
 	UObject& GetMetasoundChecked();
@@ -398,14 +394,24 @@ public:
 
 	// UMetasoundEditorGraphBase Implementation
 	virtual void RegisterGraphWithFrontend() override;
-	virtual void MigrateEditorDocumentData(FMetaSoundFrontendDocumentBuilder& OutBuilder) override;
+	virtual FMetasoundFrontendDocumentModifyContext& GetModifyContext() override;
+	virtual const FMetasoundFrontendDocumentModifyContext& GetModifyContext() const override;
+
+	virtual void ClearVersionedOnLoad() override;
+	virtual bool GetVersionedOnLoad() const override;
+	virtual void SetVersionedOnLoad() override;
 
 private:
+	bool RemoveFrontendInput(UMetasoundEditorGraphInput& Input);
+	bool RemoveFrontendOutput(UMetasoundEditorGraphOutput& Output);
+	bool RemoveFrontendVariable(UMetasoundEditorGraphVariable& Variable);
 	void ValidateInternal(Metasound::Editor::FGraphValidationResults& OutResults);
 
 	// Preview ID is the Unique ID provided by the UObject that implements
 	// a sound's ParameterInterface when a sound begins playing.
 	uint32 PreviewID = INDEX_NONE;
+
+	bool bVersionedOnLoad = false;
 
 	// Used as a means of forcing the graph to rebuild nodes on next tick.
 	// TODO: Will no longer require this once all editor metadata is migrated
@@ -425,26 +431,21 @@ private:
 public:
 	UMetasoundEditorGraphInput* FindInput(FGuid InNodeID) const;
 	UMetasoundEditorGraphInput* FindInput(FName InName) const;
-	UMetasoundEditorGraphInput* FindOrAddInput(Metasound::Frontend::FConstNodeHandle InNodeHandle);
+	UMetasoundEditorGraphInput* FindOrAddInput(Metasound::Frontend::FNodeHandle InNodeHandle);
 
 	UMetasoundEditorGraphOutput* FindOutput(FGuid InNodeID) const;
 	UMetasoundEditorGraphOutput* FindOutput(FName InName) const;
-	UMetasoundEditorGraphOutput* FindOrAddOutput(Metasound::Frontend::FConstNodeHandle InNodeHandle);
+	UMetasoundEditorGraphOutput* FindOrAddOutput(Metasound::Frontend::FNodeHandle InNodeHandle);
 
 	UMetasoundEditorGraphVariable* FindVariable(const FGuid& InVariableID) const;
 	UMetasoundEditorGraphVariable* FindOrAddVariable(const Metasound::Frontend::FConstVariableHandle& InVariableHandle);
 
-	UMetasoundEditorGraphMember* FindMember(FGuid InMemberID) const;
+	UMetasoundEditorGraphMember* FindMember(FGuid InNodeID) const;
 	UMetasoundEditorGraphMember* FindAdjacentMember(const UMetasoundEditorGraphMember& InMember);
 
-	UE_DEPRECATED(5.5, "Use the associated Frontend builder and synchronize the graph remove a given member.")
-	bool RemoveMember(UMetasoundEditorGraphMember& InGraphMember) { return false; }
-
-	UE_DEPRECATED(5.5, "Use the associated Frontend builder and synchronize the graph remove all member nodes.")
-	bool RemoveMemberNodes(UMetasoundEditorGraphMember& InGraphMember) { return false; }
-
-	UE_DEPRECATED(5.5, "Use RemoveMember instead")
-	bool RemoveFrontendMember(UMetasoundEditorGraphMember& InGraphMember) { return false; }
+	bool RemoveMember(UMetasoundEditorGraphMember& InGraphMember);
+	bool RemoveMemberNodes(UMetasoundEditorGraphMember& InGraphMember);
+	bool RemoveFrontendMember(UMetasoundEditorGraphMember& InMember);
 
 	friend class UMetaSoundFactory;
 	friend class UMetaSoundSourceFactory;

@@ -17,7 +17,6 @@
 #include "KismetPins/SGraphPinNum.h"
 #include "KismetPins/SGraphPinObject.h"
 #include "KismetPins/SGraphPinString.h"
-#include "MetasoundBuilderSubsystem.h"
 #include "MetasoundEditorGraph.h"
 #include "MetasoundEditorGraphBuilder.h"
 #include "MetasoundEditorGraphInputNode.h"
@@ -35,6 +34,7 @@
 #include "PropertyCustomizationHelpers.h"
 #include "SAudioRadialSlider.h"
 #include "SAudioSlider.h"
+#include "SCommentBubble.h"
 #include "ScopedTransaction.h"
 #include "SGraphNode.h"
 #include "SGraphPinComboBox.h"
@@ -94,7 +94,7 @@ namespace Metasound
 							{
 								constexpr bool bPostTransaction = false;
 								GraphMember->UpdateFrontendDefaultLiteral(bPostTransaction);
-								FGraphBuilder::GetOutermostMetaSoundChecked(*Graph).GetModifyContext().AddMemberIDsModified({ GraphMember->GetMemberID() });
+								Graph->GetModifyContext().AddMemberIDsModified({ GraphMember->GetMemberID() });
 							}
 						}
 						DefaultFloat->OnDefaultValueChanged.Remove(InputSliderOnValueChangedDelegateHandle);
@@ -137,7 +137,7 @@ namespace Metasound
 
 		void SMetaSoundGraphNode::ExecuteTrigger(UMetasoundEditorGraphMemberDefaultLiteral& Literal)
 		{
-			UMetasoundEditorGraphMember* Member = Literal.FindMember();
+			UMetasoundEditorGraphMember* Member = Cast<UMetasoundEditorGraphMember>(Literal.GetOuter());
 			if (!ensure(Member))
 			{
 				return;
@@ -462,43 +462,6 @@ namespace Metasound
 			}
 		}
 
-		void SMetaSoundGraphNode::OnCommentBubbleToggled(bool bInCommentBubbleVisible)
-		{
-			UMetasoundEditorGraphNode& EdNode = GetMetaSoundNode();
-			UObject& MetaSound = EdNode.GetMetasoundChecked();
-			UMetaSoundBuilderBase& Builder = UMetaSoundBuilderSubsystem::GetChecked().AttachBuilderToAssetChecked(MetaSound);
-			if (const FMetasoundFrontendNode* Node = Builder.GetConstBuilder().FindNode(EdNode.GetNodeID()))
-			{
-				if (bInCommentBubbleVisible != Node->Style.Display.bCommentVisible)
-				{
-					const FScopedTransaction Transaction(LOCTEXT("GraphNodeCommentCommitted", "Graph Node Comment Bubble Toggled"));
-					MetaSound.Modify();
-					EMetaSoundBuilderResult Result;
-					EdNode.bCommentBubbleVisible = bInCommentBubbleVisible;
-					Builder.SetNodeCommentVisible(Node->GetID(), bInCommentBubbleVisible, Result);
-				}
-			}
-		}
-
-		void SMetaSoundGraphNode::OnCommentTextCommitted(const FText& NewComment, ETextCommit::Type CommitInfo)
-		{
-			FString NewCommentString = NewComment.ToString();
-			UMetasoundEditorGraphNode& EdNode = GetMetaSoundNode();
-			UObject& MetaSound = EdNode.GetMetasoundChecked();
-			UMetaSoundBuilderBase& Builder = UMetaSoundBuilderSubsystem::GetChecked().AttachBuilderToAssetChecked(MetaSound);
-			if (const FMetasoundFrontendNode* Node = Builder.GetConstBuilder().FindNode(EdNode.GetNodeID()))
-			{
-				if (!Node->Style.Display.Comment.Equals(NewCommentString))
-				{
-					const FScopedTransaction Transaction(LOCTEXT("GraphNodeCommentCommitted", "Graph Node Comment Changed"));
-					MetaSound.Modify();
-					EMetaSoundBuilderResult Result;
-					EdNode.NodeComment = MoveTemp(NewCommentString);
-					Builder.SetNodeComment(Node->GetID(), EdNode.NodeComment, Result);
-				}
-			}
-		}
-
 		FLinearColor SMetaSoundGraphNode::GetNodeTitleColorOverride() const
 		{
 			FLinearColor ReturnTitleColor = GraphNode->IsDeprecated() ? FLinearColor::Red : GetNodeObj()->GetNodeTitleColor();
@@ -590,8 +553,7 @@ namespace Metasound
 
 			UMetasoundEditorGraphNode& Node = GetMetaSoundNode();
 			Node.GetMetasoundChecked().Modify();
-			Node.UpdateFrontendNodeLocation(NewPosition);
-			Node.SyncLocationFromFrontendNode();
+			Node.SetNodeLocation(NewPosition);
 		}
 
 		const FSlateBrush* SMetaSoundGraphNode::GetNodeBodyBrush() const
@@ -765,7 +727,7 @@ namespace Metasound
 
 								if (UMetasoundEditorGraph* Graph = GraphMember->GetOwningGraph())
 								{
-									FGraphBuilder::GetOutermostMetaSoundChecked(*Graph).GetModifyContext().AddMemberIDsModified({ GraphMember->GetMemberID() });
+									Graph->GetModifyContext().AddMemberIDsModified({ GraphMember->GetMemberID() });
 								}
 							}
 						};
@@ -1042,7 +1004,7 @@ namespace Metasound
 								.AutoHeight()
 								[
 									SAssignNew(MaterialButtonWidget, SAudioMaterialButton)
-										.OnBooleanValueChanged_Lambda(OnboolValueChangedLambda)
+										.OnBooleanValueChanged_Lambda(OnboolValueChangedLambda)									
 								];
 
 							MaterialButtonWidget->SetPressedState(DefaultBool->GetDefault());
@@ -1118,8 +1080,7 @@ namespace Metasound
 
 			UMetasoundEditorGraphNode& Node = GetMetaSoundNode();
 			Node.GetMetasoundChecked().Modify();
-			Node.UpdateFrontendNodeLocation(NewPosition);
-			Node.SyncLocationFromFrontendNode();
+			Node.SetNodeLocation(NewPosition);
 		}
 
 		UMetasoundEditorGraphNode& SMetaSoundGraphNodeKnot::GetMetaSoundNode()

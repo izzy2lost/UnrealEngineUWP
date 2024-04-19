@@ -171,7 +171,7 @@ namespace Metasound
 			return nullptr;
 		}
 
-		Frontend::FConstOutputHandle FMetasoundNumericDebugLineItem::GetConstReroutedOutputHandle() const
+		Frontend::FConstOutputHandle FMetasoundNumericDebugLineItem::GetReroutedOutputHandle() const
 		{
 			return FGraphBuilder::FindReroutedConstOutputHandleFromPin(GraphPinObj);
 		}
@@ -336,9 +336,9 @@ namespace Metasound
 			return OutputHandle->GetOwningNode()->GetOwningGraph();
 		}
 
-		Frontend::FConstGraphHandle FMetasoundNumericDebugLineItem::GetConstGraphHandle() const
+		Frontend::FConstGraphHandle FMetasoundNumericDebugLineItem::GetGraphHandle() const
 		{
-			Frontend::FConstOutputHandle OutputHandle = FGraphBuilder::GetConstOutputHandleFromPin(GraphPinObj);
+			Frontend::FConstOutputHandle OutputHandle = FGraphBuilder::GetOutputHandleFromPin(GraphPinObj);
 			return OutputHandle->GetOwningNode()->GetOwningGraph();
 		}
 
@@ -360,21 +360,21 @@ namespace Metasound
 		{
 			using namespace Frontend;
 
-			FConstGraphHandle OwningGraph = GetConstGraphHandle();
+			FConstGraphHandle OwningGraph = GetGraphHandle();
 			if (!OwningGraph->IsValid())
 			{
 				return nullptr;
 			}
 
-			const FConstOutputHandle OutputHandle = GetConstReroutedOutputHandle();
+			const FConstOutputHandle OutputHandle = GetReroutedOutputHandle();
 			const FGuid NodeID = OutputHandle->GetOwningNodeID();
 			const FName OutputName = OutputHandle->GetName();
 			const FMetasoundFrontendGraphStyle& Style = OwningGraph->GetGraphStyle();
 
 			return Style.EdgeStyles.FindByPredicate([&NodeID, &OutputName](FMetasoundFrontendEdgeStyle& EdgeStyle)
-			{
-				return EdgeStyle.NodeID == NodeID && EdgeStyle.OutputName == OutputName;
-			});
+				{
+					return EdgeStyle.NodeID == NodeID && EdgeStyle.OutputName == OutputName;
+				});
 		}
 
 		void FMetasoundNumericDebugLineItem::Update()
@@ -383,7 +383,7 @@ namespace Metasound
 
 			bIsValueColorizationEnabled = false;
 
-			const FConstOutputHandle OutputHandle = GetConstReroutedOutputHandle();
+			const FConstOutputHandle OutputHandle = GetReroutedOutputHandle();
 			const FGuid NodeID = OutputHandle->GetOwningNodeID();
 			const FName OutputName = OutputHandle->GetName();
 			if (const FMetasoundFrontendEdgeStyle* EdgeStyle = GetEdgeStyle())
@@ -409,6 +409,12 @@ namespace Metasound
 			using namespace Frontend;
 
 			if (MouseEvent.GetEffectingButton() != EKeys::LeftMouseButton)
+			{
+				return FReply::Unhandled();
+			}
+
+			FGraphHandle OwningGraph = GetGraphHandle();
+			if (!OwningGraph->IsValid())
 			{
 				return FReply::Unhandled();
 			}

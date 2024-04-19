@@ -25,53 +25,6 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(MetasoundEditorGraphInputNode)
 
-void UMetasoundEditorGraphInputNode::CacheTitle()
-{
-	using namespace Metasound::Frontend;
-
-	if (Input)
-	{
-		FConstNodeHandle NodeHandle = Input->GetNodeHandle();
-		CachedTitle = NodeHandle->GetDisplayTitle();
-	}
-	else
-	{
-		CachedTitle = FText::FromName(Breadcrumb.MemberName);
-	}
-}
-
-const FMetasoundEditorGraphVertexNodeBreadcrumb& UMetasoundEditorGraphInputNode::GetBreadcrumb() const
-{
-	return Breadcrumb;
-}
-
-void UMetasoundEditorGraphInputNode::CacheBreadcrumb()
-{
-	using namespace Metasound::Frontend;
-
-	Breadcrumb = { };
-
-	// Take data from associated input as pasted graph may not be same as local graph
-	// and associated input will not be copied with given node.  Need the following data
-	// to associate or create new associated input.
-	if (Input)
-	{
-		FConstNodeHandle NodeHandle = Input->GetConstNodeHandle();
-
-		Breadcrumb.MemberName = NodeHandle->GetNodeName();
-		Breadcrumb.ClassName = NodeHandle->GetClassMetadata().GetClassName();
-
-		FConstOutputHandle OutputHandle = NodeHandle->GetConstOutputs().Last();
-		Breadcrumb.AccessType = OutputHandle->GetVertexAccessType();
-		Breadcrumb.DataType = OutputHandle->GetDataType();
-
-		if (const UMetasoundEditorGraphMemberDefaultLiteral* Literal = Input->GetLiteral())
-		{
-			Breadcrumb.DefaultLiteral = Literal->GetDefault();
-		}
-	}
-}
-
 UMetasoundEditorGraphMember* UMetasoundEditorGraphInputNode::GetMember() const
 {
 	return Input;
@@ -79,15 +32,12 @@ UMetasoundEditorGraphMember* UMetasoundEditorGraphInputNode::GetMember() const
 
 FMetasoundFrontendClassName UMetasoundEditorGraphInputNode::GetClassName() const
 {
-	using namespace Metasound::Frontend;
-
-	if (Input)
+	if (ensure(Input))
 	{
-		FConstNodeHandle NodeHandle = Input->GetConstNodeHandle();
-		return NodeHandle->GetClassMetadata().GetClassName();
+		return Input->ClassName;
 	}
 
-	return Breadcrumb.ClassName;
+	return Super::GetClassName();
 }
 
 void UMetasoundEditorGraphInputNode::UpdatePreviewInstance(const Metasound::FVertexName& InParameterName, TScriptInterface<IAudioParameterControllerInterface>& InParameterInterface) const
@@ -103,7 +53,12 @@ void UMetasoundEditorGraphInputNode::UpdatePreviewInstance(const Metasound::FVer
 
 FGuid UMetasoundEditorGraphInputNode::GetNodeID() const
 {
-	return NodeID;
+	if (Input)
+	{
+		return Input->NodeID;
+	}
+
+	return Super::GetNodeID();
 }
 
 FLinearColor UMetasoundEditorGraphInputNode::GetNodeTitleColor() const
@@ -120,40 +75,6 @@ FSlateIcon UMetasoundEditorGraphInputNode::GetNodeTitleIcon() const
 {
 	static const FName NativeIconName = "MetasoundEditor.Graph.Node.Class.Input";
 	return FSlateIcon("MetaSoundStyle", NativeIconName);
-}
-
-void UMetasoundEditorGraphInputNode::GetPinHoverText(const UEdGraphPin& Pin, FString& OutHoverText) const
-{
-	using namespace Metasound::Editor;
-	using namespace Metasound::Frontend;
-
-	if (ensure(Pin.Direction == EGPD_Output)) // Should never display input pin for input node hover
-	{
-		if (ensure(Input))
-		{
-			FConstNodeHandle InputNode = Input->GetConstNodeHandle();
-			OutHoverText = InputNode->GetDescription().ToString();
-			if (ShowNodeDebugData())
-			{
-				FConstOutputHandle OutputHandle = FGraphBuilder::FindReroutedConstOutputHandleFromPin(&Pin);
-				OutHoverText = FString::Format(TEXT("{0}\nVertex Name: {1}\nDataType: {2}\nID: {3}"),
-				{
-					OutHoverText,
-					OutputHandle->GetName().ToString(),
-					OutputHandle->GetDataType().ToString(),
-					OutputHandle->GetID().ToString(),
-				});
-			}
-		}
-	}
-}
-
-void UMetasoundEditorGraphInputNode::ReconstructNode()
-{
-	using namespace Metasound::Editor;
-	using namespace Metasound::Frontend;
-
-	Super::ReconstructNode();
 }
 
 void UMetasoundEditorGraphInputNode::Validate(Metasound::Editor::FGraphNodeValidationResult& OutResult)
@@ -190,3 +111,12 @@ void UMetasoundEditorGraphInputNode::Validate(Metasound::Editor::FGraphNodeValid
 	}
 #endif // #if WITH_EDITOR
 }
+
+void UMetasoundEditorGraphInputNode::SetNodeID(FGuid InNodeID)
+{
+	if (Input)
+	{
+		Input->NodeID = InNodeID;
+	}
+}
+

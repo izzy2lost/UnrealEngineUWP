@@ -3,7 +3,6 @@
 
 #include "EdGraphNode_Comment.h"
 #include "Framework/Application/SlateApplication.h"
-#include "MetasoundEditorGraphCommentNode.h"
 #include "MetasoundEditorGraphNode.h"
 
 namespace Metasound
@@ -20,7 +19,7 @@ namespace Metasound
 			FModifierKeysState KeysState = FSlateApplication::Get().GetModifierKeys();
 			if (!KeysState.IsShiftDown())
 			{
-				UMetasoundEditorGraphCommentNode* CommentNode = Cast<UMetasoundEditorGraphCommentNode>(GraphNode);
+				UEdGraphNode_Comment* CommentNode = Cast<UEdGraphNode_Comment>(GraphNode);
 				if (CommentNode && CommentNode->MoveMode == ECommentBoxMode::GroupMovement)
 				{
 					FVector2D PositionDelta = NewPosition - GetPosition();

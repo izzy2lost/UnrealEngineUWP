@@ -3,7 +3,6 @@
 
 #include "EdGraphUtilities.h"
 #include "EdGraph/EdGraphNode.h"
-#include "MetasoundEditorGraphCommentNode.h"
 #include "MetasoundEditorGraphNode.h"
 #include "MetasoundEditorGraphSchema.h"
 #include "NodeTemplates/MetasoundFrontendNodeTemplateReroute.h"
@@ -34,10 +33,9 @@ class FMetasoundGraphNodeFactory : public FGraphPanelNodeFactory
 			}
 			return SNew(SMetaSoundGraphNode, InNode);
 		}
-		else if (UMetasoundEditorGraphCommentNode* CommentNode = Cast<UMetasoundEditorGraphCommentNode>(InNode))
+		else if (UEdGraphNode_Comment* CommentNode = Cast<UEdGraphNode_Comment>(InNode))
 		{
-			const UEdGraphSchema* EdGraphSchema = CommentNode->GetSchema();
-			if (EdGraphSchema && EdGraphSchema->IsA(UMetasoundEditorGraphSchema::StaticClass()))
+			if (CommentNode->GetSchema()->IsA(UMetasoundEditorGraphSchema::StaticClass()))
 			{
 				return SNew(SMetasoundGraphNodeComment, CommentNode);
 			}

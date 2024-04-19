@@ -398,13 +398,13 @@ public:
 	ENGINE_API static UEdGraphPin* CreatePin(UEdGraphNode* InOwningNode);
 
 	/** Create a link. Note, this does not check that schema allows it, and will not break any existing connections */
-	ENGINE_API void MakeLinkTo(UEdGraphPin* ToPin, bool bAlwaysMarkDirty = true);
+	ENGINE_API void MakeLinkTo(UEdGraphPin* ToPin);
 
 	/** Break a link to the specified pin (if present) */
-	ENGINE_API void BreakLinkTo(UEdGraphPin* ToPin, bool bAlwaysMarkDirty = true);
+	ENGINE_API void BreakLinkTo(UEdGraphPin* ToPin);
 
 	/** Break all links from this pin */
-	ENGINE_API void BreakAllPinLinks(bool bNotifyNodes = false, bool bAlwaysMarkDirty = true);
+	ENGINE_API void BreakAllPinLinks(bool bNotifyNodes = false);
 
 	/**
 	* Moves the persistent data (across a node refresh) from the SourcePin.
@@ -577,7 +577,7 @@ private:
 	bool Serialize(FArchive& Ar);
 
 	// Helper functions
-	static void ConvertConnectedGhostNodesToRealNodes(UEdGraphNode* InNode, bool bAlwaysMarkDirty = true);
+	static void ConvertConnectedGhostNodesToRealNodes(UEdGraphNode* InNode);
 	static void ResolveReferencesToPin(UEdGraphPin* Pin, bool bStrictValidation = true);
 	static void SerializePinArray(FArchive& Ar, TArray<UEdGraphPin*>& ArrayRef, UEdGraphPin* RequestingPin, EPinResolveType ResolveType);
 	static bool SerializePin(FArchive& Ar, UEdGraphPin*& PinRef, int32 ArrayIdx, UEdGraphPin* RequestingPin, EPinResolveType ResolveType, TArray<UEdGraphPin*>& OldPins);

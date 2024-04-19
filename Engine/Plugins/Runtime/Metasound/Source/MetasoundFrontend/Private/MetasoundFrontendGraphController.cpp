@@ -750,13 +750,6 @@ namespace Metasound
 				GraphClass->PresetOptions.InputsInheritingDefault.Reset();
 				OwningDocument->ClearInterfaceVersions();
 				OwningDocument->RemoveUnreferencedDependencies();
-
-#if WITH_EDITORONLY_DATA
-				FDocumentAccessPtr DocumentPtr = OwningDocument->GetDocumentPtr();
-				FMetasoundFrontendDocument* Document = DocumentPtr.Get();
-				check(Document);
-				Document->Metadata.MemberMetadata.Reset();
-#endif // WITH_EDITORONLY_DATA
 			}
 		}
 
