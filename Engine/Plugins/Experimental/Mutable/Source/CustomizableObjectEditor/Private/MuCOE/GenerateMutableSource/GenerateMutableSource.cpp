@@ -1311,9 +1311,21 @@ mu::NodeObjectPtr GenerateMutableSource(const UEdGraphPin * Pin, FMutableGraphGe
 			{
 				UCustomizableObjectNodeObject* NodeObject = Cast<UCustomizableObjectNodeObject>(ConnectedPin->GetOwningNode());
 
-				if (NodeObject && NodeObject->bIsBase)
+				if (NodeObject)
 				{
 					const FGuid* ParentId = GenerationContext.GroupIdToExternalNodeMap.FindKey(NodeObject);
+
+					// Group objects in the same graph aren't in the GroupIdToExternalNodeMap, so follow the pins instead
+					if (!ParentId && NodeObject->OutputPin())
+					{
+						if (const UEdGraphPin* ConnectedPinToObject = FollowOutputPin(*NodeObject->OutputPin()))
+						{
+							if (UCustomizableObjectNodeObjectGroup* ParentGroupNode = Cast<UCustomizableObjectNodeObjectGroup>(ConnectedPinToObject->GetOwningNode()))
+							{
+								ParentId = &ParentGroupNode->NodeGuid;
+							}
+						}
+					}
 
 					if (ParentId)
 					{
