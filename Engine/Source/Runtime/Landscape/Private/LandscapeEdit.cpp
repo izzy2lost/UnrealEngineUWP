@@ -2080,7 +2080,10 @@ void ULandscapeComponent::UpdatePhysicalMaterialTasks()
 
 	if (Hash == PhysicalMaterialHash)
 	{
-		check(!PhysicalMaterialTask.IsValid());
+		if (PhysicalMaterialTask.IsValid())
+		{
+			PhysicalMaterialTask.Release();
+		}
 		return;
 	}
 
