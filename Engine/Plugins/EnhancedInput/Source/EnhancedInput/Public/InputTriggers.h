@@ -54,6 +54,12 @@ enum class ETriggerEvent : uint8
 };
 ENUM_CLASS_FLAGS(ETriggerEvent)
 
+namespace UE::Input
+{
+	// Returns an FString that represents the given ETriggerEvent
+	ENHANCEDINPUT_API FString LexToString(const ETriggerEvent TriggerEvent);
+};
+
 /**
 * Trigger type determine how the trigger contributes to an action's overall trigger event the behavior of the trigger
 */

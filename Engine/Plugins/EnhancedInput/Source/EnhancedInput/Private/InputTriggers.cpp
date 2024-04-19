@@ -12,6 +12,31 @@
 
 #define LOCTEXT_NAMESPACE "EnhancedInputTriggers"
 
+
+namespace UE::Input
+{
+	FString LexToString(const ETriggerEvent TriggerEvent)
+	{
+		if (TriggerEvent == ETriggerEvent::None)
+		{
+			return TEXT("None");
+		}
+
+		FString Result = TEXT("");
+#define TRIGGER_STATE(StatusFlag, DisplayName) if( EnumHasAllFlags(TriggerEvent, StatusFlag) ) Result += (FString(DisplayName) + TEXT("|"));
+		TRIGGER_STATE(ETriggerEvent::Triggered, TEXT("Triggered"));
+		TRIGGER_STATE(ETriggerEvent::Started, TEXT("Started"));
+		TRIGGER_STATE(ETriggerEvent::Ongoing, TEXT("Ongoing"));
+		TRIGGER_STATE(ETriggerEvent::Canceled, TEXT("Canceled"));
+		TRIGGER_STATE(ETriggerEvent::Completed, TEXT("Completed"));
+#undef TRIGGER_STATE
+
+		Result.RemoveFromEnd(TEXT("|"));
+		return Result;
+	}
+}
+
+
 // Abstract trigger bases
 ETriggerState UInputTrigger::UpdateState_Implementation(const UEnhancedPlayerInput* PlayerInput, FInputActionValue ModifiedValue, float DeltaTime)
 {

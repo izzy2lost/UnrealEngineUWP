@@ -10,6 +10,7 @@
 #include "GameFramework/Actor.h"
 #include "EnhancedInputModule.h"	// For LogEnhancedInput
 #include "EnhancedInputDeveloperSettings.h"
+#include "InputTriggers.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(EnhancedInputLibrary)
 
@@ -133,3 +134,7 @@ FString UEnhancedInputLibrary::Conv_InputActionValueToString(FInputActionValue A
 	return ActionValue.ToString();
 }
 
+FString UEnhancedInputLibrary::Conv_TriggerEventValueToString(const ETriggerEvent TriggerEvent)
+{
+	return UE::Input::LexToString(TriggerEvent);
+}

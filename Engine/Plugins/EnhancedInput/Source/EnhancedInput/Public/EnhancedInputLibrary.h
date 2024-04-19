@@ -99,6 +99,10 @@ public:
 	UFUNCTION(BlueprintPure, meta = (DisplayName = "To String (InputActionValue)", CompactNodeTitle = "->", BlueprintAutocast), Category = "Utilities|String")
 	static FString Conv_InputActionValueToString(FInputActionValue ActionValue);
 
+	/** Converts an ETriggerEvent to a string */
+	UFUNCTION(BlueprintPure, meta = (DisplayName = "To String (ETriggerEvent)", CompactNodeTitle = "->", BlueprintAutocast), Category = "Utilities|String")
+	static FString Conv_TriggerEventValueToString(const ETriggerEvent TriggerEvent);
+
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 
 	UE_DEPRECATED(5.3, "FPlayerMappableKeySlot has been deprecated. Please use EPlayerMappableKeySlot instead.")
