@@ -7,6 +7,8 @@
 #include "Templates/SharedPointer.h"
 
 class IPropertyHandle;
+class UNavigationSystemV1;
+enum class ECheckBoxState : uint8;
 
 class FNavAgentSelectorCustomization : public IPropertyTypeCustomization
 {
@@ -17,8 +19,6 @@ public:
 	virtual void CustomizeHeader( TSharedRef<IPropertyHandle> StructPropertyHandle, class FDetailWidgetRow& HeaderRow, IPropertyTypeCustomizationUtils& StructCustomizationUtils ) override;
 	virtual void CustomizeChildren( TSharedRef<class IPropertyHandle> StructPropertyHandle, class IDetailChildrenBuilder& StructBuilder, IPropertyTypeCustomizationUtils& StructCustomizationUtils ) override;
 
-public:
-
 	/**
 	 * Creates a new instance.
 	 *
@@ -26,8 +26,12 @@ public:
 	 */
 	static TSharedRef<IPropertyTypeCustomization> MakeInstance();
 
+protected:
 	void OnAgentStateChanged();
 	FText GetSupportedDesc() const;
+	void OnHeaderCheckStateChanged(ECheckBoxState InNewState);
+	ECheckBoxState IsHeaderChecked() const;
+	bool ComputeSupportedAgentCount(const UNavigationSystemV1* NavSysCDO, int32& OutNumAgents, int32& OutNumSupported, int32& OutFirstSupportedIdx) const;
 
 	TSharedPtr<IPropertyHandle> StructHandle;
 	FText SupportedDesc;
