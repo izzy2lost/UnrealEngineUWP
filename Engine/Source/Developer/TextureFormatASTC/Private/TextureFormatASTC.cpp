@@ -320,6 +320,64 @@ static EPixelFormat GetQualityFormat(const FTextureBuildSettings& BuildSettings)
 	return Format;
 }
 
+static bool IsASTCPixelFormatHDR(EPixelFormat PF)
+{
+	switch (PF)
+	{
+	case PF_ASTC_4x4_HDR:
+	case PF_ASTC_6x6_HDR:
+	case PF_ASTC_8x8_HDR:
+	case PF_ASTC_10x10_HDR:
+	case PF_ASTC_12x12_HDR:
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
+
+
+static astcenc_swizzle GetDecodeSwizzleForFormat(EPixelFormat InPixelFormat, FName InTextureFormatName)
+{
+	astcenc_swizzle EncSwizzle{ ASTCENC_SWZ_R, ASTCENC_SWZ_G, ASTCENC_SWZ_B, ASTCENC_SWZ_A };
+
+	if (IsASTCPixelFormatHDR(InPixelFormat))
+	{
+		// BC6H, our compressed HDR format on non-ASTC targets, does not support A
+		EncSwizzle.a = ASTCENC_SWZ_1;
+	}
+	else
+	{
+		// Check for the other variants individually here
+		// set everything up with normal (RGBA) swizzles
+		if (InTextureFormatName == GTextureFormatNameASTC_NormalAG)
+		{
+			EncSwizzle.r = ASTCENC_SWZ_A;
+			EncSwizzle.g = ASTCENC_SWZ_G;
+			EncSwizzle.b = ASTCENC_SWZ_0;
+			EncSwizzle.a = ASTCENC_SWZ_1;
+}
+		else if (InTextureFormatName == GTextureFormatNameASTC_NormalRG)
+		{
+			EncSwizzle.r = ASTCENC_SWZ_R;
+			EncSwizzle.g = ASTCENC_SWZ_G;
+			EncSwizzle.b = ASTCENC_SWZ_0;
+			EncSwizzle.a = ASTCENC_SWZ_1;
+}
+		else if (InTextureFormatName == GTextureFormatNameASTC_NormalLA || InTextureFormatName == GTextureFormatNameASTC_NormalRG_Precise)
+		{
+			EncSwizzle.r = ASTCENC_SWZ_R;
+			EncSwizzle.g = ASTCENC_SWZ_A;
+			EncSwizzle.b = ASTCENC_SWZ_0;
+			EncSwizzle.a = ASTCENC_SWZ_1;
+}
+
+		// Finally, last step, because ASTCEnc produces RGBA channel order and we want BGRA for 8-bit formats:
+		Swap(EncSwizzle.r, EncSwizzle.b);
+	}
+	return EncSwizzle;
+}
 
 static bool ASTCEnc_Compress(
 	const FImage& InImage,
@@ -548,6 +606,20 @@ public:
 		// can't be done on-demand in the Compress call
 	}
 
+	static FGuid GetDecodeBuildFunctionVersionGuid()
+	{
+		static FGuid Version(TEXT("0520C2CC-FD1D-48FE-BDCB-4E6E07E01E5B"));
+		return Version;
+	}
+	static FUtf8StringView GetDecodeBuildFunctionNameStatic()
+	{
+		return UTF8TEXTVIEW("FDecodeTextureFormatASTC");
+	}
+	virtual const FUtf8StringView GetDecodeBuildFunctionName() const override final
+	{
+		return GetDecodeBuildFunctionNameStatic();
+	}
+
 	virtual bool AllowParallelBuild() const override
 	{
 #if SUPPORTS_ISPC_ASTC
@@ -631,6 +703,100 @@ public:
 		return GetQualityFormat(InBuildSettings);
 	}
 
+
+	virtual bool CanDecodeFormat(EPixelFormat InPixelFormat) const
+	{
+		return IsASTCBlockCompressedTextureFormat(InPixelFormat);
+	}
+
+	virtual bool DecodeImage(int32 InSizeX, int32 InSizeY, int32 InNumSlices, EPixelFormat InPixelFormat, bool bInSRGB, const FName& InTextureFormatName, FSharedBuffer InEncodedData, FImage& OutImage, FStringView InTextureName) const
+	{
+		astcenc_swizzle EncSwizzle = GetDecodeSwizzleForFormat(InPixelFormat, InTextureFormatName);
+		bool bHDRImage = IsASTCPixelFormatHDR(InPixelFormat);
+
+		astcenc_profile EncProfile = (bHDRImage ? ASTCENC_PRF_HDR_RGB_LDR_A : (bInSRGB ? ASTCENC_PRF_LDR_SRGB : ASTCENC_PRF_LDR));
+
+		uint32 BlockSizeX = GPixelFormats[InPixelFormat].BlockSizeX;
+		uint32 BlockSizeY = GPixelFormats[InPixelFormat].BlockSizeX;
+		uint32 BlockSizeZ = 1;
+
+		astcenc_config EncConfig;
+		astcenc_error EncStatus = astcenc_config_init(
+			EncProfile,
+			BlockSizeX,
+			BlockSizeX,
+			BlockSizeZ,
+			ASTCENC_PRE_THOROUGH, // shouldn't be used?
+			ASTCENC_FLG_DECOMPRESS_ONLY,
+			&EncConfig);
+
+		if (EncStatus != ASTCENC_SUCCESS)
+		{
+			UE_LOG(LogTextureFormatASTC, Error, TEXT("astcenc_config_init has failed in DecodeImage: %s - texture %.*s"), ANSI_TO_TCHAR(astcenc_get_error_string(EncStatus)), InTextureName.Len(), InTextureName.GetData());
+			return false;
+		}
+
+		astcenc_context* EncContext = nullptr;
+		uint32 EncThreadCount = 1;
+		EncStatus = astcenc_context_alloc(&EncConfig, EncThreadCount, &EncContext);
+		if (EncStatus != ASTCENC_SUCCESS)
+		{
+			UE_LOG(LogTextureFormatASTC, Error, TEXT("astcenc_context_alloc has failed in DecodeImage: %s - texture %.*s"), ANSI_TO_TCHAR(astcenc_get_error_string(EncStatus)), InTextureName.Len(), InTextureName.GetData());
+			return false;
+		}
+
+
+		OutImage.Format = bHDRImage ? ERawImageFormat::RGBA16F : ERawImageFormat::BGRA8;
+		OutImage.GammaSpace = bInSRGB ? EGammaSpace::sRGB : EGammaSpace::Linear;
+		OutImage.SizeX = InSizeX;
+		OutImage.SizeY = InSizeY;
+		OutImage.NumSlices = InNumSlices;
+
+		const FPixelFormatInfo& OutputPF = GPixelFormats[bHDRImage ? PF_FloatRGBA : PF_B8G8R8A8];
+
+		uint64 SliceSizeBytes = OutputPF.Get2DImageSizeInBytes(InSizeX, InSizeY);
+
+		OutImage.RawData.AddUninitialized(SliceSizeBytes * InNumSlices);
+
+		// astc image basically wants views into the image but also wants them as an array of pointers
+		// to each slice.
+		TArray<uint8*, TInlineAllocator<6>> ImageSrcData;
+		ImageSrcData.Reserve(OutImage.NumSlices);
+		for (int32 SliceIdx = 0; SliceIdx < OutImage.NumSlices; SliceIdx++)
+		{
+			FImageView Slice = OutImage.GetSlice(SliceIdx);
+			uint8* SliceData;
+			if (bHDRImage)
+			{
+				SliceData = (uint8*)Slice.AsRGBA16F().GetData();
+			}
+			else
+			{
+				SliceData = (uint8*)Slice.AsBGRA8().GetData();
+			}
+			ImageSrcData.Add(SliceData);
+		}
+
+		astcenc_image DecodedImage;
+		DecodedImage.dim_x = OutImage.SizeX;
+		DecodedImage.dim_y = OutImage.SizeY;
+		DecodedImage.dim_z = OutImage.NumSlices;
+		DecodedImage.data = (void**)ImageSrcData.GetData();
+		DecodedImage.data_type = (bHDRImage ? ASTCENC_TYPE_F16 : ASTCENC_TYPE_U8);
+
+		EncStatus = astcenc_decompress_image(EncContext, (uint8*)InEncodedData.GetData(), InEncodedData.GetSize(), &DecodedImage, &EncSwizzle, 0);
+		astcenc_context_free(EncContext);
+
+		if (EncStatus != ASTCENC_SUCCESS)
+		{
+			UE_LOG(LogTextureFormatASTC, Error, TEXT("astcenc_decompress_image has failed in DecodeImage: %s - texture %.*s"), ANSI_TO_TCHAR(astcenc_get_error_string(EncStatus)), InTextureName.Len(), InTextureName.GetData());
+			return false;
+		}
+
+		return true;
+	}
+
+
 	virtual bool CompressImage(
 			const FImage& InImage,
 			const FTextureBuildSettings& BuildSettings,
@@ -704,6 +870,7 @@ public:
 	}
 
 	static inline UE::DerivedData::TBuildFunctionFactory<FASTCTextureBuildFunction> BuildFunctionFactory;
+	static inline UE::DerivedData::TBuildFunctionFactory<FGenericTextureDecodeBuildFunction<FTextureFormatASTC>> DecodeBuildFunctionFactory;
 };
 
 IMPLEMENT_MODULE(FTextureFormatASTCModule, TextureFormatASTC);

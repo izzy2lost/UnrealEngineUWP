@@ -8,7 +8,6 @@ public class TextureFormatASTC : ModuleRules
 	{
 		PrivateIncludePathModuleNames.AddRange(new string[]
 		{
-			"DerivedDataCache",
 			"TextureCompressor",
 			"TextureFormat",
 		});
@@ -16,6 +15,7 @@ public class TextureFormatASTC : ModuleRules
 		PrivateDependencyModuleNames.AddRange(new string[]
 		{
 			"Core",
+			"DerivedDataCache", // for FCacheBucket
 			"ImageCore",
 			"ImageWrapper",
 			"TextureBuild",

@@ -881,6 +881,11 @@ struct FTexturePlatformData
 		// Returned from ITextureFormat
 		FName Encoder;
 
+		// This is the format the texture will be using on the device so that when
+		// we decode for viewing we know what it originally was. In some cases this can only be known
+		// if we have source alpha information so it might remain PF_Unknown even when bIsValid is true.
+		EPixelFormat EncodedFormat = PF_Unknown;
+
 		// This struct is not always filled out, allow us to check for invalid data.
 		bool bIsValid = false;
 
@@ -919,19 +924,31 @@ struct FTexturePlatformData
 
 	struct FStructuredDerivedDataKey
 	{
-		FIoHash TilingBuildDefinitionKey; // All zeroes if the derived data didn't have a child build.
+		FIoHash TilingBuildDefinitionKey; // All zeroes if not shared linear tiling
+		FIoHash DeTilingBuildDefinitionKey; // All zeroes if not tiled.
+		FIoHash DecodeBuildDefinitionKey; // All zeroes if not decoding for pc.
 		FIoHash BuildDefinitionKey;
 		FGuid SourceGuid;
 		FGuid CompositeSourceGuid;
 
 		bool operator==(const FStructuredDerivedDataKey& Other) const
 		{
-			return TilingBuildDefinitionKey == Other.TilingBuildDefinitionKey && BuildDefinitionKey == Other.BuildDefinitionKey && SourceGuid == Other.SourceGuid && CompositeSourceGuid == Other.CompositeSourceGuid;
+			return	DecodeBuildDefinitionKey == Other.DecodeBuildDefinitionKey && 
+					TilingBuildDefinitionKey == Other.TilingBuildDefinitionKey && 
+					DeTilingBuildDefinitionKey == Other.DeTilingBuildDefinitionKey &&
+					BuildDefinitionKey == Other.BuildDefinitionKey && 
+					SourceGuid == Other.SourceGuid && 
+					CompositeSourceGuid == Other.CompositeSourceGuid;
 		}
 
 		bool operator!=(const FStructuredDerivedDataKey& Other) const
 		{
-			return TilingBuildDefinitionKey != Other.TilingBuildDefinitionKey || BuildDefinitionKey != Other.BuildDefinitionKey || SourceGuid != Other.SourceGuid || CompositeSourceGuid != Other.CompositeSourceGuid;
+			return	DecodeBuildDefinitionKey != Other.DecodeBuildDefinitionKey ||
+					DeTilingBuildDefinitionKey != Other.DeTilingBuildDefinitionKey ||
+					TilingBuildDefinitionKey != Other.TilingBuildDefinitionKey || 
+					BuildDefinitionKey != Other.BuildDefinitionKey || 
+					SourceGuid != Other.SourceGuid || 
+					CompositeSourceGuid != Other.CompositeSourceGuid;
 		}
 	};
 
@@ -1532,6 +1549,9 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	// When we are open in an asset editor, we have a pointer to a custom encoding
 	// object which can optionally cause us to do something other than Fast/Final encode settings.
 	TWeakPtr<class FTextureEditorCustomEncode> TextureEditorCustomEncoding;
+
+	// Override the platform to cache for, instead of using "running plaform". NAME_None to use default editor platform.
+	FName OverrideRunningPlatformName;
 #endif // WITH_EDITORONLY_DATA
 
 	/** If true, the RHI texture will be created using TexCreate_NoTiling */

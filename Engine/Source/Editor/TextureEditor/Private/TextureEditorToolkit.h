@@ -387,6 +387,7 @@ private:
 	TSharedRef<SWidget> MakeOpacityControlWidget();
 	TSharedRef<SWidget> MakeZoomControlWidget();
 	TSharedRef<SWidget> MakeView3DControlWidget();
+	TSharedRef<SWidget> MakePlatformSelectorWidget();
 private:
 
 	/** The Texture asset being inspected */
@@ -480,6 +481,8 @@ private:
 	/** The texture's zoom factor. */
 	double Zoom;
 
+	FName ViewingPlatform; // NAME_None if viewing editor.
+
 	// Which exposure level should be used, in FStop e.g. 0:original, -1:half as bright, 1:2x as bright, 2:4x as bright.
 	int32 ExposureBias;
 
@@ -502,6 +505,9 @@ private:
 	FRotator Orientation;
 
 	bool bIsVolumeTexture;
+
+	TArray<TSharedPtr<FString>> AvailablePlatforms;
+	TArray<FName> AvailablePlatformNames;
 
 	// Objects and callbacks for the custom encoding settings checkbox
 	TSharedPtr<class SCheckBox> OodleOverrideCheck;

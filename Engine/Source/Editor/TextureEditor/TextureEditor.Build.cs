@@ -23,19 +23,21 @@ public class TextureEditor : ModuleRules
 			new string[] {
 				"Core",
 				"CoreUObject",
-                "ImageCore",
-                "InputCore",
+				"ImageCore",
+				"InputCore",
 				"Engine",
+				"Projects",
 				"RenderCore",
 				"RHI",
 				"Slate",
 				"SlateCore",
 				"EditorFramework",
 				"UnrealEd",
-                "PropertyEditor",
+				"PropertyEditor",
 				"EditorWidgets",
 				"MediaAssets",
 				"DerivedDataCache",
+				"DesktopPlatform",
 				"DeveloperToolSettings"
 			}
 		);

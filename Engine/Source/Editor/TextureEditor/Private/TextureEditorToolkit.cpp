@@ -30,6 +30,7 @@
 #include "Engine/TextureRenderTarget2DArray.h"
 #include "Engine/TextureRenderTargetCube.h"
 #include "Engine/TextureRenderTargetVolume.h"
+#include "Interfaces/IProjectManager.h"
 #include "Interfaces/ITextureEditorModule.h"
 #include "TextureEditor.h"
 #include "Slate/SceneViewport.h"
@@ -899,7 +900,25 @@ void FTextureEditorToolkit::PopulateQuickInfo( )
 	EPixelFormat TextureFormat = GetPixelFormat();
 	if (TextureFormat != PF_MAX)
 	{
-		FormatText->SetText(FText::Format(NSLOCTEXT("TextureEditor", "QuickInfo_Format", "Format: {0}"), FText::FromString(GPixelFormats[(uint8)TextureFormat].Name)));
+		if (ViewingPlatform != NAME_None)
+		{
+			// This can end up unknown for several reasons (can't determine alpha primarily) but should usually have it.
+			EPixelFormat EncodedPixelFormat = PF_Unknown;
+			if (PlatformDataPtr && 
+				PlatformDataPtr[0] && // Can be null if we haven't had a chance to call CachePlatformData on the texture (brand new)
+				PlatformDataPtr[0]->ResultMetadata.bIsValid)
+			{
+				EncodedPixelFormat = PlatformDataPtr[0]->ResultMetadata.EncodedFormat;
+			}
+
+			FormatText->SetText(FText::Format(NSLOCTEXT("TextureEditor", "QuickInfo_PlatformFormat", "Format: Viewing {0} Actual {1}"), 
+				FText::FromString(GPixelFormats[(uint8)TextureFormat].Name),
+				FText::FromString(GPixelFormats[(uint8)EncodedPixelFormat].Name)));
+		}
+		else
+		{
+			FormatText->SetText(FText::Format(NSLOCTEXT("TextureEditor", "QuickInfo_Format", "Format: {0}"), FText::FromString(GPixelFormats[(uint8)TextureFormat].Name)));
+		}
 	}
 
 	// This "Has Alpha Channel" is whether the GPU format can represent alpha in the format (eg. is it DXT1 vs DXT5)
@@ -1982,6 +2001,17 @@ void FTextureEditorToolkit::FillToolbar(FToolBarBuilder& ToolbarBuilder)
 			ToolbarBuilder.AddWidget(ZoomControl);
 		}
 		ToolbarBuilder.EndSection();
+
+		if (!Texture->VirtualTextureStreaming &&
+			Texture->Availability == ETextureAvailability::GPU)
+		{
+			ToolbarBuilder.BeginSection("PlatformPreview");
+			{
+				ToolbarBuilder.AddWidget(MakePlatformSelectorWidget());
+			}
+			ToolbarBuilder.EndSection();
+		}
+
 
 		ToolbarBuilder.BeginSection("Settings");
 		ToolbarBuilder.BeginStyleOverride("CalloutToolbar");
@@ -3166,6 +3196,119 @@ TSharedRef<SWidget> FTextureEditorToolkit::MakeOpacityControlWidget()
 		];
 
 	return OpacityControl;
+}
+
+
+TSharedRef<SWidget> FTextureEditorToolkit::MakePlatformSelectorWidget()
+{
+	
+	if (AvailablePlatforms.Num() == 0) // we can get called multiple times by slate for some reason.
+	{
+		FProjectStatus ProjectStatus;
+		bool bProjectStatusIsValid = IProjectManager::Get().QueryStatusForCurrentProject(ProjectStatus);
+
+		AvailablePlatforms.Add(MakeShared<FString>(LOCTEXT("TextureViewEditorPlatform", "Editor Platform").ToString()));
+		AvailablePlatformNames.Add(NAME_None);
+		
+		for (const auto& Pair : FDataDrivenPlatformInfoRegistry::GetAllPlatformInfos())
+		{
+			if (Pair.Value.bIsFakePlatform || Pair.Value.bEnabledForUse == false)
+			{
+				continue;
+			}
+
+			FName PlatformName = Pair.Key;
+			const FDataDrivenPlatformInfo& Info = Pair.Value;
+			if (FDataDrivenPlatformInfoRegistry::IsPlatformHiddenFromUI(PlatformName))
+			{
+				continue;
+			}
+
+			if (!FDataDrivenPlatformInfoRegistry::HasCompiledSupportForPlatform(PlatformName, FDataDrivenPlatformInfoRegistry::EPlatformNameType::Ini))
+			{
+				continue;
+			}
+
+			if (bProjectStatusIsValid && !ProjectStatus.IsTargetPlatformSupported(PlatformName))
+			{
+				continue;
+			}
+
+			const PlatformInfo::FTargetPlatformInfo* VanillaInfo = PlatformInfo::FindVanillaPlatformInfo(Pair.Key);
+			const TArray<const PlatformInfo::FTargetPlatformInfo*> ValidFlavors = VanillaInfo->Flavors.FilterByPredicate([](const PlatformInfo::FTargetPlatformInfo* Target)
+			{
+				// Editor isn't a valid platform type that users can target
+				// The Build Target will choose client or server, so no need to show them as well
+				return Target->PlatformType != EBuildTargetType::Editor && Target->PlatformType != EBuildTargetType::Client && Target->PlatformType != EBuildTargetType::Server;
+			});
+
+			if (ValidFlavors.Num())
+			{
+				for (const PlatformInfo::FTargetPlatformInfo* TPI : ValidFlavors)
+				{
+					AvailablePlatforms.Add(MakeShared<FString>(TPI->DisplayName.ToString()));
+					AvailablePlatformNames.Add(TPI->Name);
+				}
+			}
+			else
+			{
+				AvailablePlatforms.Add(MakeShared<FString>(PlatformName.ToString()));
+				AvailablePlatformNames.Add(PlatformName);
+			}
+		}
+	}
+
+	TSharedPtr InitialSelection = AvailablePlatforms[0];
+	if (Texture->OverrideRunningPlatformName != NAME_None)
+	{
+		for (int32 PlatIndex = 1; PlatIndex < AvailablePlatforms.Num(); PlatIndex++)
+		{
+			if (AvailablePlatformNames[PlatIndex] == Texture->OverrideRunningPlatformName)
+			{
+				InitialSelection = AvailablePlatforms[PlatIndex];
+				ViewingPlatform = AvailablePlatformNames[PlatIndex];
+				break;
+			}
+		}
+	}
+
+	TSharedRef<SWidget> PreviewPlatformControl =
+		SNew(SBox)
+		.WidthOverride(250.f)
+		[
+			SNew(SHorizontalBox)
+				+ SHorizontalBox::Slot()
+				.AutoWidth()
+				.VAlign(VAlign_Center)
+				[
+					SNew(STextBlock)
+						.Text(LOCTEXT("PlatformPreviewLabel", "Preview Platform:"))
+						.ToolTipText(LOCTEXT("PlatformPreviewTT", "If a platform is chosen, the texture will be encoded as though cooked for that platform, then if necessary decoded so that it can be viewed on this platform."))
+				]
+				+ SHorizontalBox::Slot()
+				.VAlign(VAlign_Center)
+				.AutoWidth()
+				.Padding(4.0f, 0.0f, 0.0f, 0.0f)
+				[
+					SNew(STextComboBox)
+						.OptionsSource(&AvailablePlatforms)
+						.InitiallySelectedItem(InitialSelection)
+						.OnSelectionChanged_Lambda(
+							[this]
+							(TSharedPtr<FString> NewPlatformName, ESelectInfo::Type SelectInfo)
+						{
+							int32 Index = AvailablePlatforms.Find(NewPlatformName);
+							if (Index != INDEX_NONE)
+							{
+								Texture->OverrideRunningPlatformName = AvailablePlatformNames[Index];
+								ViewingPlatform = AvailablePlatformNames[Index];
+								Texture->UpdateResource();
+							}
+						})
+				]
+		];
+
+	return PreviewPlatformControl;
 }
 
 TSharedRef<SWidget> FTextureEditorToolkit::MakeZoomControlWidget()

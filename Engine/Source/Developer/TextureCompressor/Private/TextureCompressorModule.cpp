@@ -3478,6 +3478,24 @@ void FTextureBuildSettings::GetEncodedTextureDescription(FEncodedTextureDescript
 	GetEncodedTextureDescriptionWithPixelFormat(OutTextureDescription, EncodedPixelFormat, InEncodedMip0SizeX, InEncodedMip0SizeY, InEncodedMip0NumSlices, InMipCount);
 }
 
+bool FTextureBuildSettings::GetEncodedTextureDescriptionFromSourceMips(
+	FEncodedTextureDescription* OutTextureDescription, const ITextureFormat* InTextureFormat, 
+	int32 InSourceMip0SizeX, int32 InSourceMip0SizeY, int32 InSourceMip0NumSlices, int32 InSourceMipCount, 
+	bool bInImageHasAlphaChannel) const
+{
+	int32 EncodedSizeX, EncodedSizeY, EncodedNumSlices, EncodedMipCount;
+	if (!GetOutputMipInfo(
+		InSourceMip0SizeX, InSourceMip0SizeY, InSourceMip0NumSlices, InSourceMipCount, 
+		EncodedSizeX, EncodedSizeY, EncodedNumSlices, EncodedMipCount))
+	{
+		return false;
+	}
+
+	EPixelFormat EncodedPixelFormat = InTextureFormat->GetEncodedPixelFormat(*this, bInImageHasAlphaChannel);
+	GetEncodedTextureDescriptionWithPixelFormat(OutTextureDescription, EncodedPixelFormat, EncodedSizeX, EncodedSizeY, EncodedNumSlices, EncodedMipCount);
+	return true;
+}
+
 // compress mip-maps in InMipChain and add mips to Texture, might alter the source content
 static bool CompressMipChain(
 	const ITextureFormat* TextureFormat,
@@ -3670,14 +3688,14 @@ static void NormalizeMip(FImage& InOutMip)
 	}, EParallelForFlags::Unbalanced);
 }
 
-
-int32 ITextureCompressorModule::GetMipCountForBuildSettings(
-	int32 InMip0SizeX, int32 InMip0SizeY, int32 InMip0NumSlices,
-	int32 InExistingMipCount,
-	const FTextureBuildSettings& BuildSettings,
-	int32& OutMip0SizeX, int32& OutMip0SizeY, int32& OutMip0NumSlices)
+bool FTextureBuildSettings::GetOutputMipInfo(
+	int32 InMip0SizeX, int32 InMip0SizeY, int32 InMip0NumSlices, int32 InExistingMipCount,
+	int32& OutMip0SizeX, int32& OutMip0SizeY, int32& OutMip0NumSlices, int32& OutMipCount) const
 {
-	if (BuildSettings.bCPUAccessible)
+	// NOTE: This gets called for the seperate blocks in a VT build and bVirtualStreaming is true for those
+	// even though it's not a massive VT texture we're referring to.
+
+	if (this->bCPUAccessible)
 	{
 		// CPU accessible texture generates a placeholder gpu texture with 1 mip in all cases.
 		FImageInfo PlaceholderInfo;
@@ -3685,24 +3703,25 @@ int32 ITextureCompressorModule::GetMipCountForBuildSettings(
 		OutMip0SizeX = PlaceholderInfo.SizeX;
 		OutMip0SizeY = PlaceholderInfo.SizeY;
 		OutMip0NumSlices = PlaceholderInfo.NumSlices;
-		return 1;
+		OutMipCount = 1;
+		return true;
 	}
 
 	// AFAICT LatLongCubeMaps don't do any of this - pow2 is broken with them but it runs, and max texture stuff
 	// is handled internally in the extents function.
 	int32 BaseSizeX = InMip0SizeX;
 	int32 BaseSizeY = InMip0SizeY;
-	int32 BaseSizeZ = BuildSettings.bVolume ? InMip0NumSlices : 1; // Volume textures are the only type that mip their Z, arrays and cubes are fixed.
+	int32 BaseSizeZ = this->bVolume ? InMip0NumSlices : 1; // Volume textures are the only type that mip their Z, arrays and cubes are fixed.
 
 	// LatLong sources are clamped in ComputeLongLatCubemapExtents
-	if (BuildSettings.bLongLatSource == false)
+	if (this->bLongLatSource == false)
 	{
-		ETexturePowerOfTwoSetting::Type PowerOfTwoMode = (ETexturePowerOfTwoSetting::Type)BuildSettings.PowerOfTwoMode;
-		if (BuildSettings.MipGenSettings != TMGS_LeaveExistingMips &&
-			PowerOfTwoMode != ETexturePowerOfTwoSetting::None)
+		ETexturePowerOfTwoSetting::Type PowerOfTwoModeLocal = (ETexturePowerOfTwoSetting::Type)this->PowerOfTwoMode;
+		if (this->MipGenSettings != TMGS_LeaveExistingMips &&
+			PowerOfTwoModeLocal != ETexturePowerOfTwoSetting::None)
 		{
 			int32 TargetSizeX, TargetSizeY, TargetSizeZ;
-			bool NeedsAdjustment = UE::TextureBuildUtilities::GetPowerOfTwoTargetTextureSize(BaseSizeX, BaseSizeY, BaseSizeZ, BuildSettings.bVolume, PowerOfTwoMode, BuildSettings.ResizeDuringBuildX, BuildSettings.ResizeDuringBuildY, TargetSizeX, TargetSizeY, TargetSizeZ);
+			bool NeedsAdjustment = UE::TextureBuildUtilities::GetPowerOfTwoTargetTextureSize(BaseSizeX, BaseSizeY, BaseSizeZ, this->bVolume, PowerOfTwoModeLocal, this->ResizeDuringBuildX, this->ResizeDuringBuildY, TargetSizeX, TargetSizeY, TargetSizeZ);
 			if (NeedsAdjustment)
 			{
 				// In this case we are regenerating the entire mip chain.
@@ -3716,8 +3735,8 @@ int32 ITextureCompressorModule::GetMipCountForBuildSettings(
 		}
 
 		// Max texture resolution strips off mips that are above the limit.
-		int64 MaxTextureResolution = BuildSettings.MaxTextureResolution;
-		int32 GeneratedMipCount = FImageCoreUtils::GetMipCountFromDimensions(BaseSizeX, BaseSizeY, BaseSizeZ, BuildSettings.bVolume);
+		//int64 MaxTextureResolution = this->MaxTextureResolution; ... ? why was this getting promoted to 64 bit.. probably because of the signed comparison below?
+		int32 GeneratedMipCount = FImageCoreUtils::GetMipCountFromDimensions(BaseSizeX, BaseSizeY, BaseSizeZ, this->bVolume);
 		int32 i = 0;
 		for (; i < GeneratedMipCount; i++)
 		{
@@ -3726,10 +3745,10 @@ int32 ITextureCompressorModule::GetMipCountForBuildSettings(
 			// there's ever a case where volume textures have a Z that's bigger than X/Y.
 			int32 MipSizeX = FMath::Max<uint32>(1, BaseSizeX >> i);
 			int32 MipSizeY = FMath::Max<uint32>(1, BaseSizeY >> i);
-			int32 MipSizeZ = BuildSettings.bVolume ? FMath::Max<uint32>(1, BaseSizeZ >> i) : BaseSizeZ;
+			int32 MipSizeZ = this->bVolume ? FMath::Max<uint32>(1, BaseSizeZ >> i) : BaseSizeZ;
 
-			if (MipSizeX <= MaxTextureResolution &&
-				MipSizeY <= MaxTextureResolution)
+			if ((uint32)MipSizeX <= this->MaxTextureResolution &&
+				(uint32)MipSizeY <= this->MaxTextureResolution)
 			{
 				BaseSizeX = MipSizeX;
 				BaseSizeY = MipSizeY;
@@ -3738,23 +3757,23 @@ int32 ITextureCompressorModule::GetMipCountForBuildSettings(
 			}
 		}
 
-		if (BuildSettings.Downscale > 1.0f)
+		if (this->Downscale > 1.0f)
 		{
 			int32 DownscaledSizeX = 0, DownscaledSizeY = 0;
-			GetDownscaleFinalSizeAndClampedDownscale(BaseSizeX, BaseSizeY, FTextureDownscaleSettings(BuildSettings), DownscaledSizeX, DownscaledSizeY);
+			GetDownscaleFinalSizeAndClampedDownscale(BaseSizeX, BaseSizeY, FTextureDownscaleSettings(*this), DownscaledSizeX, DownscaledSizeY);
 
-			if (BuildSettings.bVolume)
+			if (this->bVolume)
 			{
 				UE_LOG(LogTextureCompressor, Error, TEXT("Downscaling volumes not yet supported - should have been handled in GetTextureBuildSettings!"));
+				return false;
 			}
-			check(BuildSettings.bVolume == false);
 
 			BaseSizeX = DownscaledSizeX;
 			BaseSizeY = DownscaledSizeY;
 		}
 
 		// Volumes are the only thing where num slices changes.
-		if (BuildSettings.bVolume == false)
+		if (this->bVolume == false)
 		{
 			OutMip0NumSlices = InMip0NumSlices;
 		}
@@ -3765,7 +3784,7 @@ int32 ITextureCompressorModule::GetMipCountForBuildSettings(
 	}
 	else
 	{
-		uint32 LongLatCubemapExtents = ComputeLongLatCubemapExtents(BaseSizeX, BuildSettings.MaxTextureResolution);
+		uint32 LongLatCubemapExtents = ComputeLongLatCubemapExtents(BaseSizeX, this->MaxTextureResolution);
 		BaseSizeX = LongLatCubemapExtents;
 		BaseSizeY = LongLatCubemapExtents;
 		OutMip0NumSlices = 6 * InMip0NumSlices;
@@ -3775,21 +3794,24 @@ int32 ITextureCompressorModule::GetMipCountForBuildSettings(
 	OutMip0SizeX = BaseSizeX;
 	OutMip0SizeY = BaseSizeY;
 
-	if (BuildSettings.MipGenSettings == TMGS_NoMipmaps)
+	if (this->MipGenSettings == TMGS_NoMipmaps)
 	{
-		return 1;
+		OutMipCount = 1;
+		return true;
 	}
 
 	// LeaveExisting is often unintentionally used as "NoMipmaps", so if they bring in 1 mip, leave it as 1 mip.
-	if (BuildSettings.MipGenSettings == TMGS_LeaveExistingMips &&
+	if (this->MipGenSettings == TMGS_LeaveExistingMips &&
 		InExistingMipCount == 1)
 	{
-		return 1;
+		OutMipCount = 1;
+		return true;
 	}
 
 	// NumOutputMips is the number of mips that would be made if you made a full mip chain
 	//  eg. 256 makes 9 mips , 300 also makes 9 mips
-	return FImageCoreUtils::GetMipCountFromDimensions(BaseSizeX, BaseSizeY, BaseSizeZ, BuildSettings.bVolume);
+	OutMipCount = FImageCoreUtils::GetMipCountFromDimensions(BaseSizeX, BaseSizeY, BaseSizeZ, this->bVolume);
+	return true;
 }
 
 

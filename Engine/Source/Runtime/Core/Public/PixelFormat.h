@@ -262,6 +262,19 @@ ENUM_CLASS_FLAGS(EPixelFormatCapabilities);
 // type conversion warnings
 #define UE_PIXELFORMAT_TO_UINT8(argument) static_cast<uint8>(argument)
 
+static inline bool IsETCBlockCompressedPixelFormat(EPixelFormat PixelFormat)
+{
+	switch (PixelFormat)
+	{
+	case PF_ETC2_RGB:
+	case PF_ETC2_RGBA:
+	case PF_ETC2_R11_EAC:
+	case PF_ETC2_RG11_EAC:
+		return true;
+	}
+	return false;
+}
+
 FORCEINLINE bool IsASTCBlockCompressedTextureFormat(EPixelFormat PixelFormat)
 {
 	switch (PixelFormat)

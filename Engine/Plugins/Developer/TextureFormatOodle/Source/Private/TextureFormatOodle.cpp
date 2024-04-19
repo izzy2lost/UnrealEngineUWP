@@ -170,7 +170,13 @@ OODEFFUNC typedef OodleTex_Err (OOEXPLINK t_fp_OodleTex_EncodeBCN_RDO_Ex)(
     int rdo_lagrange_lambda,
     const OodleTex_RDO_Options * options,
     int num_job_threads,void * jobify_user_ptr);
-	
+
+OODEFFUNC typedef OodleTex_Err(OOEXPLINK t_fp_OodleTex_DecodeBCN_LinearSurfaces)(
+	OodleTex_Surface* to_surfaces, OO_SINTa num_to_surfaces, OodleTex_PixelFormat to_format,
+	OodleTex_BC from_bcn, const void* from_bcn_blocks, OO_SINTa num_blocks,
+	const OodleTex_Layout* layout);
+
+
 OODEFFUNC typedef void (OOEXPLINK t_fp_OodleTex_Plugins_SetAllocators)(
     t_fp_OodleTex_Plugin_MallocAligned * fp_OodleMallocAligned,
     t_fp_OodleTex_Plugin_Free * fp_OodleFree);
@@ -235,6 +241,7 @@ struct FOodleTextureVTable
 	FCriticalSection DynamicLibLoadLock;
 
 	t_fp_OodleTex_EncodeBCN_RDO_Ex * fp_OodleTex_EncodeBCN_RDO_Ex = nullptr;
+	t_fp_OodleTex_DecodeBCN_LinearSurfaces* fp_OodleTex_DecodeBCN_LinearSurfaces = nullptr;
 
 	t_fp_OodleTex_Plugins_SetAllocators * fp_OodleTex_Plugins_SetAllocators = nullptr;
 	t_fp_OodleTex_Plugins_SetJobSystemAndCount * fp_OodleTex_Plugins_SetJobSystemAndCount = nullptr;
@@ -340,6 +347,9 @@ struct FOodleTextureVTable
 		fp_OodleTex_EncodeBCN_RDO_Ex = (t_fp_OodleTex_EncodeBCN_RDO_Ex *) FPlatformProcess::GetDllExport( DynamicLib, TEXT("OodleTex_EncodeBCN_RDO_Ex") );
 		check( fp_OodleTex_EncodeBCN_RDO_Ex != nullptr );
 		
+		fp_OodleTex_DecodeBCN_LinearSurfaces = (t_fp_OodleTex_DecodeBCN_LinearSurfaces*)FPlatformProcess::GetDllExport(DynamicLib, TEXT("OodleTex_DecodeBCN_LinearSurfaces"));
+		check(fp_OodleTex_DecodeBCN_LinearSurfaces != nullptr);
+
 		fp_OodleTex_Plugins_SetAllocators = (t_fp_OodleTex_Plugins_SetAllocators *) FPlatformProcess::GetDllExport( DynamicLib, TEXT("OodleTex_Plugins_SetAllocators") );
 		check( fp_OodleTex_Plugins_SetAllocators != nullptr );
 		
@@ -650,7 +660,7 @@ public:
 	{
 		//TRACE_CPUPROFILER_EVENT_SCOPE(Texture.GetOodleCompressParameters);
 
-		FName TextureFormatName = InBuildSettings.TextureFormatName;
+		FName TextureFormatName = InBuildSettings.BaseTextureFormatName;
 
 		EPixelFormat CompressedPixelFormat = PF_Unknown;
 		if (TextureFormatName == GTextureFormatNameDXT1)
@@ -817,6 +827,19 @@ public:
 		// if you want to map none to a newer version use config ini option AlternateTextureCompression/OodleTextureSdkVersionToUseIfNone
 	}
 
+	static FGuid GetDecodeBuildFunctionVersionGuid()
+	{
+		static FGuid Version(TEXT("52C604A9-F0D5-4108-8F76-AFF78C2BC039"));
+		return Version;
+	}
+	static FUtf8StringView GetDecodeBuildFunctionNameStatic()
+	{
+		return UTF8TEXTVIEW("FDecodeTextureFormatOodle");
+	}
+	virtual const FUtf8StringView GetDecodeBuildFunctionName() const override final
+	{
+		return GetDecodeBuildFunctionNameStatic();
+	}
 
 	virtual ~FTextureFormatOodle()
 	{
@@ -1100,6 +1123,72 @@ public:
 		return true;
 	}
 
+	// Returns OodleTex_BC_Invalid if unsupported.
+	static OodleTex_BC OodleBCNFromPixelFormat(EPixelFormat InPixelFormat)
+	{
+		switch (InPixelFormat)
+		{
+		case PF_DXT1: return OodleTex_BC1_WithTransparency;
+		case PF_DXT3: return OodleTex_BC2;
+		case PF_DXT5: return OodleTex_BC3;
+		case PF_BC4: return OodleTex_BC4U;
+		case PF_BC5: return OodleTex_BC5U;
+		case PF_BC6H: return OodleTex_BC6U;
+		case PF_BC7: return OodleTex_BC7RGBA;
+		default: return OodleTex_BC_Invalid;
+		}
+	}
+
+	virtual bool CanDecodeFormat(EPixelFormat InPixelFormat) const
+	{
+		return OodleBCNFromPixelFormat(InPixelFormat) != OodleTex_BC_Invalid;
+	}
+
+	virtual bool DecodeImage(int32 InSizeX, int32 InSizeY, int32 InNumSlices, EPixelFormat InPixelFormat, bool bInSRGB, const FName& InTextureFormatName, FSharedBuffer InEncodedData, FImage& OutImage, FStringView InTextureName) const
+	{
+		// Should we go to linear or not?
+		OodleTex_PixelFormat DestOoFormat = OodleTex_PixelFormat_4_U8_BGRA;
+		ERawImageFormat::Type DestFormat = ERawImageFormat::BGRA8;
+		
+		if (InPixelFormat == PF_BC6H)
+		{
+			DestFormat = ERawImageFormat::RGBA16F;
+			DestOoFormat = OodleTex_PixelFormat_4_F16_RGBA;
+		}
+
+		OodleTex_BC OodleBCN = OodleBCNFromPixelFormat(InPixelFormat);
+		if (OodleBCN == OodleTex_BC_Invalid)
+		{
+			return false;
+		}
+
+		OutImage.Init(InSizeX, InSizeY, InNumSlices, DestFormat, EGammaSpace::Linear);
+
+		uint64 BlocksPerSlice = Align(InSizeX, 4) * Align(InSizeY, 4) / 16;
+		uint64 BytesPerSlice = BlocksPerSlice * GPixelFormats[InPixelFormat].BlockBytes;
+
+		const FOodleTextureVTable* VTable = GetOodleTextureVTable(OodleTextureVersionLatest);
+
+		for (int32 Slice = 0; Slice < InNumSlices; Slice++)
+		{
+			OodleTex_Surface LinearSurface = {};
+			LinearSurface.height = InSizeY;
+			LinearSurface.width = InSizeX;
+			LinearSurface.pixels = OutImage.GetPixelPointer(0, 0, Slice);
+			LinearSurface.rowStrideBytes = OutImage.GetBytesPerPixel() * OutImage.GetWidth();
+
+			const uint8* SliceBytes = (uint8*)InEncodedData.GetData() + Slice * BytesPerSlice;
+
+			OodleTex_Err Result = VTable->fp_OodleTex_DecodeBCN_LinearSurfaces(&LinearSurface, 1, DestOoFormat, OodleBCN, SliceBytes, BlocksPerSlice, nullptr);
+			if (Result != OodleTex_Err_OK)
+			{
+				UE_LOG(LogTextureFormatOodle, Error, TEXT("Failed to decode %hs"), (VTable->fp_OodleTex_Err_GetName)(Result));
+				return false;
+			}
+		}
+		return true;
+	}
+
 	virtual bool CompressImage(const FImage& InImage, const FTextureBuildSettings& InBuildSettings, const FIntVector3& InMip0Dimensions,
 		int32 InMip0NumSlicesNoDepth, int32 InMipIndex, int32 InMipCount, FStringView DebugTexturePathName, const bool bInHasAlpha, FCompressedImage2D& OutImage) const override
 	{
@@ -1161,20 +1250,17 @@ public:
 		bool bDebugColor;
 		GlobalFormatConfig.GetOodleCompressParameters(&CompressedPixelFormat, &RDOLambda, &EffortLevel, &bDebugColor, &RDOUniversalTiling, &BCNFlags, InBuildSettings, bHasAlpha);
 
-		OodleTex_BC OodleBCN = OodleTex_BC_Invalid;
-		if ( CompressedPixelFormat == PF_DXT1 ) { OodleBCN = OodleTex_BC1_WithTransparency; bHasAlpha = false; }
-		else if ( CompressedPixelFormat == PF_DXT3 ) { OodleBCN = OodleTex_BC2; }
-		else if ( CompressedPixelFormat == PF_DXT5 ) { OodleBCN = OodleTex_BC3; }
-		else if ( CompressedPixelFormat == PF_BC4 ) { OodleBCN = OodleTex_BC4U; }
-		else if ( CompressedPixelFormat == PF_BC5 ) { OodleBCN = OodleTex_BC5U; }
-		else if ( CompressedPixelFormat == PF_BC6H ) { OodleBCN = OodleTex_BC6U; }
-		else if ( CompressedPixelFormat == PF_BC7 ) { OodleBCN = OodleTex_BC7RGBA; }
-		else
+		OodleTex_BC OodleBCN = OodleBCNFromPixelFormat(CompressedPixelFormat);
+		if (OodleBCN == OodleTex_BC_Invalid)
 		{
 			UE_LOG(LogTextureFormatOodle,Fatal,
 				TEXT("Unsupported CompressedPixelFormat for compression: %d"),
 				(int)CompressedPixelFormat
 				);
+		}
+		if (CompressedPixelFormat == PF_DXT1)
+		{
+			bHasAlpha = false;
 		}
 		
 		FName TextureFormatName = InBuildSettings.TextureFormatName;
@@ -1859,6 +1945,7 @@ public:
 	}
 
 	static inline UE::DerivedData::TBuildFunctionFactory<FOodleTextureBuildFunction> BuildFunctionFactory;
+	static inline UE::DerivedData::TBuildFunctionFactory<FGenericTextureDecodeBuildFunction<FTextureFormatOodle>> DecodeBuildFunctionFactory;
 };
 
 IMPLEMENT_MODULE(FTextureFormatOodleModule, TextureFormatOodle);

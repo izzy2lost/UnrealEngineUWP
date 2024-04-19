@@ -320,6 +320,13 @@ static void SerializeForKey(FArchive& Ar, const FTextureBuildSettings& Settings)
 		}
 	}
 
+	if (Settings.bDecodeForPCUsage)
+	{
+		// @todo SerializeForKey these can go away whenever we bump the overall ddc key
+		TempGuid = FGuid(0x401AD2F7, 0x723E40A8, 0x8E07DCE8, 0x0D17B5DA);
+		Ar << TempGuid;
+	}
+
 	if ( Settings.bVolume )
 	{
 		// @todo SerializeForKey these can go away whenever we bump the overall ddc key
@@ -871,13 +878,37 @@ static void FinalizeBuildSettingsForLayer(
 			OutSettings.BaseTextureFormatName = OutSettings.TextureFormatName;
 		}
 
+		OutSettings.BaseTextureFormat = GetTextureFormatManager()->FindTextureFormat(OutSettings.BaseTextureFormatName);
+
+
 		if (OutBuildResultMetadata)
 		{
 			OutBuildResultMetadata->Encoder = TextureFormat->GetEncoderName(OutSettings.TextureFormatName);
 			OutBuildResultMetadata->bIsValid = true;
 			OutBuildResultMetadata->bSupportsEncodeSpeed = bSupportsEncodeSpeed;
-		}
+
+			// Storing the actual format we used at build time requires a ddc entry. Since this is rare and usually we
+			// can figure it out, just try to figure it out. If we don't know, then we don't know.
+			OutBuildResultMetadata->EncodedFormat = PF_Unknown;
 			
+			EPixelFormat WithAlphaFormat = TextureFormat->GetEncodedPixelFormat(OutSettings, true);
+			EPixelFormat WithoutAlphaFormat = TextureFormat->GetEncodedPixelFormat(OutSettings, false);
+			bool bHasAlpha = false;
+			if (WithAlphaFormat == WithoutAlphaFormat)
+			{
+				OutBuildResultMetadata->EncodedFormat = WithAlphaFormat;
+			}
+			else if (OutSettings.GetOutputAlphaFromKnownAlphaOrFail(&bHasAlpha))
+			{
+				OutBuildResultMetadata->EncodedFormat = bHasAlpha ? WithAlphaFormat : WithoutAlphaFormat;
+			}
+		}
+
+		if (ChildTextureFormat)
+		{
+			OutSettings.TilerEvenIfNotSharedLinear = ChildTextureFormat->GetTiler();
+		}
+
 		if (FResolvedTextureEncodingSettings::Get().Project.bSharedLinearTextureEncoding)
 		{
 			//
@@ -892,7 +923,7 @@ static void FinalizeBuildSettingsForLayer(
 
 			// Shared linear encoding can only work if the base texture format does not expect to
 			// do the tiling itself (SupportsTiling == false).
-			if (ChildTextureFormat && ChildTextureFormat->GetBaseFormatObject(OutSettings.TextureFormatName)->SupportsTiling() == false)
+			if (ChildTextureFormat && OutSettings.BaseTextureFormat->SupportsTiling() == false)
 			{
 				OutSettings.Tiler = ChildTextureFormat->GetTiler();
 			}
@@ -1330,7 +1361,9 @@ static void GetBuildSettingsForTargetPlatform(
 
 	// this code only uses PlatformFormats[0] , so it would be wrong for Android_Multi
 	//	but it's only used for the platform running the Editor
-	check(PlatformFormats.Num() == 1);
+	// ^^ Wrong now, when previewing platform data we run this. Since multi is also
+	// exposed as other target platforms, we are fine with it only using [0].
+	//check(PlatformFormats.Num() == 1);
 
 	const int32 NumLayers = Texture.Source.GetNumLayers();
 	check(PlatformFormats[0].Num() == NumLayers);
@@ -1375,7 +1408,30 @@ static void GetBuildSettingsForRunningPlatform(
 
 		check(TargetPlatform != NULL);
 
+		bool bNeedsDecode = false;
+		if (Texture.OverrideRunningPlatformName != NAME_None)
+		{
+			if (Texture.VirtualTextureStreaming)
+			{
+				UE_LOG(LogTexture, Display, TEXT("Platform viewing not supported with virtual textures (%s)"), *Texture.GetPathName());
+			}
+			else if (Texture.Availability == ETextureAvailability::GPU) // only makes sense if encoded!
+			{
+				ITargetPlatform* OverridePlatform = TPM->FindTargetPlatform(Texture.OverrideRunningPlatformName);
+				if (OverridePlatform)
+				{
+					UE_LOG(LogTexture, Display, TEXT("Overriding running platform for texture %s from %s to %s"), *Texture.GetPathName(), *TargetPlatform->PlatformName(), *OverridePlatform->PlatformName());
+					TargetPlatform = OverridePlatform;
+					bNeedsDecode = true;
+				}
+			}
+		}
+
 		GetBuildSettingsForTargetPlatform(Texture, TargetPlatform, InEncodeSpeed, OutSettingPerLayer, OutResultMetadataPerLayer);
+		for (FTextureBuildSettings& LayerSettings : OutSettingPerLayer)
+		{
+			LayerSettings.bDecodeForPCUsage = bNeedsDecode;
+		}
 	}
 }
 

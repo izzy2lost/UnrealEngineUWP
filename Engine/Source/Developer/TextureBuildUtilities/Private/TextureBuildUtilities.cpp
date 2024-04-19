@@ -1,6 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "TextureBuildUtilities.h"
+
+#include "ImageCoreUtils.h"
 #include "TextureCompressorModule.h" // for FTextureBuildSettings
 #include "Misc/DataDrivenPlatformInfoRegistry.h"
 #include "Serialization/CompactBinary.h"
@@ -348,6 +350,23 @@ TEXTUREBUILDUTILITIES_API bool GetPowerOfTwoTargetTextureSize(int32 InMip0SizeX,
 	return (TargetTextureSizeX != InMip0SizeX) ||
 		(TargetTextureSizeY != InMip0SizeY) ||
 		(bInIsVolume && TargetTextureSizeZ != InMip0NumSlices);
+}
+
+TEXTUREBUILDUTILITIES_API bool TextureNeedsDecodeForPC(EPixelFormat InPixelFormat, int32 InCreateMip0SizeX, int32 InCreateMip0SizeY)
+{
+	if (RequiresBlock4Alignment(InPixelFormat))
+	{
+		// DX requires this on the top mip that we create, not that we build necessarily
+		if (InCreateMip0SizeX % 4 ||
+			InCreateMip0SizeY % 4)
+		{
+			return true;
+		}
+	}
+
+	// Check if we can render the pixel format on a texture.
+	// We assume if we have texture2d we have all we need.
+	return !EnumHasAnyFlags(GPixelFormats[InPixelFormat].Capabilities, EPixelFormatCapabilities::Texture2D);
 }
 
 } // namespace

@@ -29,6 +29,7 @@ namespace TextureBuildUtilities
 		PLACEHOLDER_TEXTURE_SIZE = 4
 	};
 
+
 namespace EncodedTextureExtendedData
 {
 	TEXTUREBUILDUTILITIES_API FCbObject ToCompactBinary(const FEncodedTextureExtendedData& InExtendedData);
@@ -60,6 +61,10 @@ struct TEXTUREBUILDUTILITIES_API FTextureBuildMetadata
 };
 
 TEXTUREBUILDUTILITIES_API bool TextureFormatIsHdr(FName const& InName);
+
+// Pass in the dimensions of the texture that will be created on the PC (i.e. take in to consideration whether
+// LODBias mips will be stripped or not)
+TEXTUREBUILDUTILITIES_API bool TextureNeedsDecodeForPC(EPixelFormat InPixelFormat, int32 InCreateMip0SizeX, int32 InCreateMip0SizeY);
 
 // Removes platform and other custom prefixes from the name.
 // Returns plain format name and the non-platform prefix (with trailing underscore).

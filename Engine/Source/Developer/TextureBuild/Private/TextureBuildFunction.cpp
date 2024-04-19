@@ -2,6 +2,7 @@
 
 #include "TextureBuildFunction.h"
 
+#include "ChildTextureFormat.h"
 #include "DerivedDataCache.h"
 #include "DerivedDataValueId.h"
 #include "Engine/TextureDefines.h"
@@ -275,6 +276,158 @@ void FTextureBuildFunction::Configure(UE::DerivedData::FBuildConfigContext& Cont
 	Context.SetRequiredMemory(RequiredMemoryEstimate);
 }
 
+// All texture builds output (at least) these values.
+struct FChildBuildData
+{
+	FEncodedTextureDescription TextureDescription;
+	FEncodedTextureExtendedData TextureExtendedData;
+	FTextureEngineParameters EngineParameters;
+	FEncodedTextureDescription::FSharedBufferMipChain MipBuffers;
+
+	// Cache these values since we always need them
+	int32 NumStreamingMips, NumEncodedMips;
+
+	// Pass-thru values.
+	FCompositeBuffer CPUCopyImageInfo;
+	FSharedBuffer CPUCopyRawData;
+};
+
+static bool ReadChildBuildInputs(FChildBuildData& OutChildBuildInputs, UE::DerivedData::FBuildContext& Context)
+{
+	{
+		FSharedBuffer RawTextureDescription = Context.FindInput(UTF8TEXTVIEW("EncodedTextureDescription"));
+		if (!RawTextureDescription)
+		{
+			Context.AddError(TEXTVIEW("Missing EncodedTextureDescription"));
+			return false;
+		}
+		UE::TextureBuildUtilities::EncodedTextureDescription::FromCompactBinary(OutChildBuildInputs.TextureDescription, FCbObject(RawTextureDescription));
+	}
+
+	{
+		FSharedBuffer RawTextureExtendedData = Context.FindInput(UTF8TEXTVIEW("EncodedTextureExtendedData"));
+		if (!RawTextureExtendedData)
+		{
+			Context.AddError(TEXTVIEW("Missing EncodedTextureExtendedData"));
+			return false;
+		}
+		UE::TextureBuildUtilities::EncodedTextureExtendedData::FromCompactBinary(OutChildBuildInputs.TextureExtendedData, FCbObject(RawTextureExtendedData));
+	}
+
+	{
+		FCbObject EngineParametersCb = Context.FindConstant(UTF8TEXTVIEW("EngineParameters"));
+		UE::TextureBuildUtilities::TextureEngineParameters::FromCompactBinary(OutChildBuildInputs.EngineParameters, EngineParametersCb);
+	}
+
+	OutChildBuildInputs.NumStreamingMips = OutChildBuildInputs.TextureDescription.GetNumStreamingMips(&OutChildBuildInputs.TextureExtendedData, OutChildBuildInputs.EngineParameters);
+	OutChildBuildInputs.NumEncodedMips = OutChildBuildInputs.TextureDescription.GetNumEncodedMips(&OutChildBuildInputs.TextureExtendedData);
+
+	if (OutChildBuildInputs.TextureExtendedData.MipSizesInBytes.Num() == 0)
+	{
+		// Init with linear sizes.
+		OutChildBuildInputs.TextureExtendedData.MipSizesInBytes.SetNumUninitialized(OutChildBuildInputs.NumEncodedMips);
+		for (int32 MipIndex = 0; MipIndex < OutChildBuildInputs.NumEncodedMips; MipIndex++)
+		{
+			OutChildBuildInputs.TextureExtendedData.MipSizesInBytes[MipIndex] = OutChildBuildInputs.TextureDescription.GetMipSizeInBytes(MipIndex);
+		}
+	}
+
+	{
+		FSharedBuffer InputTextureMipTailData;
+		if (OutChildBuildInputs.TextureDescription.NumMips > OutChildBuildInputs.NumStreamingMips)
+		{
+			InputTextureMipTailData = Context.FindInput(UTF8TEXTVIEW("MipTail"));
+			if (!InputTextureMipTailData)
+			{
+				Context.AddError(TEXTVIEW("Couldn't find expected packed non-streaming mips in build"));
+				return false;
+			}
+		}
+
+		uint64 CurrentMipTailOffset = 0;
+		for (int32 MipIndex = 0; MipIndex < OutChildBuildInputs.NumEncodedMips; MipIndex++)
+		{
+			FSharedBuffer MipData;
+			if (MipIndex >= OutChildBuildInputs.NumStreamingMips)
+			{
+				// Mip tail.
+				uint64 SourceMipSize = OutChildBuildInputs.TextureExtendedData.MipSizesInBytes[MipIndex];
+				MipData = FSharedBuffer::MakeView(InputTextureMipTailData.GetView().Mid(CurrentMipTailOffset, SourceMipSize), InputTextureMipTailData);
+				CurrentMipTailOffset += SourceMipSize;
+			}
+			else
+			{
+				TUtf8StringBuilder<10> StreamingMipName;
+				StreamingMipName << "Mip" << MipIndex;
+				MipData = Context.FindInput(StreamingMipName);
+			}
+
+			if (MipData.GetSize() != OutChildBuildInputs.TextureExtendedData.MipSizesInBytes[MipIndex])
+			{
+				TStringBuilder<256> Error;
+				Error.Appendf(TEXT("Unexpected mip size when unpacking parent build: got %d, expected %d"), MipData.GetSize(), OutChildBuildInputs.TextureExtendedData.MipSizesInBytes[MipIndex]);
+				Context.AddError(Error);
+				return false;
+			}
+			OutChildBuildInputs.MipBuffers.Add(MipData);
+		}
+	}
+
+	OutChildBuildInputs.CPUCopyImageInfo = FCompositeBuffer(Context.FindInput(UTF8TEXTVIEW("CPUCopyImageInfo")));
+	OutChildBuildInputs.CPUCopyRawData = Context.FindInput(UTF8TEXTVIEW("CPUCopyRawData"));
+
+	return true;
+}
+
+static void WriteChildBuildOutputs(UE::DerivedData::FBuildContext& Context, FChildBuildData&& BuildOutputs)
+{
+	for (int32 MipIndex = 0; MipIndex < BuildOutputs.NumStreamingMips; MipIndex++)
+	{
+		TUtf8StringBuilder<10> StreamingMipName;
+		StreamingMipName << "Mip" << MipIndex;
+		Context.AddValue(UE::DerivedData::FValueId::FromName(StreamingMipName), MoveTemp(BuildOutputs.MipBuffers[MipIndex]));
+	}
+
+	//
+	// The actual streaming mips for the build might be different based on packed mip tails... however in order
+	// to facilitate input/output connection between build jobs we want to always emit the full set of streaming mips
+	// as outputs even if they are empty.
+	//
+	if (BuildOutputs.TextureExtendedData.NumMipsInTail)
+	{
+		int32 UnadjustedNumStreamingMips = BuildOutputs.TextureDescription.GetNumStreamingMips(nullptr, BuildOutputs.EngineParameters);
+		if (UnadjustedNumStreamingMips != BuildOutputs.NumStreamingMips)
+		{
+			FSharedBuffer EmptyBuffer = FUniqueBuffer::Alloc(0).MoveToShared();
+			for (int32 EmptyStreamingMipIndex = BuildOutputs.NumStreamingMips; EmptyStreamingMipIndex < UnadjustedNumStreamingMips; EmptyStreamingMipIndex++)
+			{
+				TUtf8StringBuilder<10> StreamingMipName;
+				StreamingMipName << "Mip" << EmptyStreamingMipIndex;
+				Context.AddValue(UE::DerivedData::FValueId::FromName(StreamingMipName), EmptyBuffer);
+			}
+		}
+	}
+
+	if (BuildOutputs.NumStreamingMips != BuildOutputs.NumEncodedMips)
+	{
+		// we need to pass the non streaming mips all packed together, and we can't append composite buffers (?)
+		TArray<FSharedBuffer> NonStreamingMips;
+		NonStreamingMips.Reserve(BuildOutputs.NumEncodedMips - BuildOutputs.NumStreamingMips);
+		for (int32 MipIndex = BuildOutputs.NumStreamingMips; MipIndex < BuildOutputs.NumEncodedMips; MipIndex++)
+		{
+			NonStreamingMips.Add(BuildOutputs.MipBuffers[MipIndex]);
+		}
+		Context.AddValue(UE::DerivedData::FValueId::FromName(UTF8TEXTVIEW("MipTail")), FCompositeBuffer(MoveTemp(NonStreamingMips)));
+	}
+
+	Context.AddValue(UE::DerivedData::FValueId::FromName(UTF8TEXTVIEW("EncodedTextureDescription")), UE::TextureBuildUtilities::EncodedTextureDescription::ToCompactBinary(BuildOutputs.TextureDescription));
+	Context.AddValue(UE::DerivedData::FValueId::FromName(UTF8TEXTVIEW("EncodedTextureExtendedData")), UE::TextureBuildUtilities::EncodedTextureExtendedData::ToCompactBinary(BuildOutputs.TextureExtendedData));
+
+	Context.AddValue(UE::DerivedData::FValueId::FromName(UTF8TEXTVIEW("CPUCopyImageInfo")), BuildOutputs.CPUCopyImageInfo);
+	Context.AddValue(UE::DerivedData::FValueId::FromName(UTF8TEXTVIEW("CPUCopyRawData")), BuildOutputs.CPUCopyRawData);
+}
+
+
 void FTextureBuildFunction::Build(UE::DerivedData::FBuildContext& Context) const
 {
 	const FCbObject Settings = Context.FindConstant(UTF8TEXTVIEW("Settings"));
@@ -287,7 +440,7 @@ void FTextureBuildFunction::Build(UE::DerivedData::FBuildContext& Context) const
 	const FTextureBuildSettings BuildSettings = ReadBuildSettingsFromCompactBinary(Settings["Build"].AsObjectView());
 	
 	const uint16 RequiredTextureFormatVersion = Settings["FormatVersion"].AsUInt16();
-	const ITextureFormat* TextureFormat;
+	const ITextureFormat* TextureFormat = nullptr;
 	if (ITextureFormatManagerModule* TFM = GetTextureFormatManager())
 	{
 		TextureFormat = TFM->FindTextureFormat(BuildSettings.TextureFormatName);
@@ -298,21 +451,31 @@ void FTextureBuildFunction::Build(UE::DerivedData::FBuildContext& Context) const
 		return;
 	}
 
-	const uint16 CurrentTextureFormatVersion = TextureFormat ? TextureFormat->GetVersion(BuildSettings.TextureFormatName, &BuildSettings) : 0;
+	if (!TextureFormat)
+	{
+		UE_LOG(LogTextureBuildFunction, Error, TEXT("Texture format %s not found"), *WriteToString<128>(BuildSettings.TextureFormatName));
+		return;
+	}
+
+	const uint16 CurrentTextureFormatVersion = TextureFormat->GetVersion(BuildSettings.TextureFormatName, &BuildSettings);
 	if (CurrentTextureFormatVersion != RequiredTextureFormatVersion)
 	{
 		UE_LOG(LogTextureBuildFunction, Error, TEXT("%s has version %hu when version %hu is required."),
 			*BuildSettings.TextureFormatName.ToString(), CurrentTextureFormatVersion, RequiredTextureFormatVersion);;
 		return;
 	}
-	
-	FTextureEngineParameters EngineParameters;
-	if (UE::TextureBuildUtilities::TextureEngineParameters::FromCompactBinary(EngineParameters, Context.FindConstant(UTF8TEXTVIEW("EngineParameters"))) == false)
+
+	const FChildTextureFormat* ChildTextureFormat = TextureFormat->GetChildFormat();
+	if (ChildTextureFormat)
 	{
-		UE_LOG(LogTextureBuildFunction, Error, TEXT("Engine parameters are not available."));
-		return;
+		const_cast<FTextureBuildSettings&>(BuildSettings).BaseTextureFormatName = ChildTextureFormat->GetBaseFormatName(BuildSettings.TextureFormatName);
+	}
+	else
+	{
+		const_cast<FTextureBuildSettings&>(BuildSettings).BaseTextureFormatName = BuildSettings.TextureFormatName;
 	}
 
+	const_cast<FTextureBuildSettings&>(BuildSettings).BaseTextureFormat = GetTextureFormatManager()->FindTextureFormat(BuildSettings.BaseTextureFormatName);
 
 	TArray<FImage> SourceMips;
 	if (!TryReadTextureSourceFromCompactBinary(Settings["Source"], Context,BuildSettings, SourceMips))
@@ -370,15 +533,26 @@ void FTextureBuildFunction::Build(UE::DerivedData::FBuildContext& Context) const
 	check(CompressedMips.Num() > 0);
 
 
-	FEncodedTextureDescription TextureDescription;
+	FChildBuildData OutputData;
+	{
+		FTextureEngineParameters EngineParameters;
+		if (UE::TextureBuildUtilities::TextureEngineParameters::FromCompactBinary(EngineParameters, Context.FindConstant(UTF8TEXTVIEW("EngineParameters"))) == false)
+		{
+			UE_LOG(LogTextureBuildFunction, Error, TEXT("Engine parameters are not available."));
+			return;
+		}
+		OutputData.EngineParameters = EngineParameters;
+	}
 
 	{
+		FEncodedTextureDescription TextureDescription;
 		int32 CalculatedMip0SizeX = 0, CalculatedMip0SizeY = 0, CalculatedMip0NumSlices = 0;
 		int32 CalculatedMipCount = TextureCompressorModule.GetMipCountForBuildSettings(SourceMip0SizeX, SourceMip0SizeY, SourceMipsNumSlices, SourceMipsNum, BuildSettings, CalculatedMip0SizeX, CalculatedMip0SizeY, CalculatedMip0NumSlices);
 		BuildSettings.GetEncodedTextureDescriptionWithPixelFormat(&TextureDescription, (EPixelFormat)CompressedMips[0].PixelFormat, CalculatedMip0SizeX, CalculatedMip0SizeY, CalculatedMip0NumSlices, CalculatedMipCount);
+		OutputData.TextureDescription = MoveTemp(TextureDescription);
 	}
 
-	FEncodedTextureExtendedData ExtendedData;
+	
 
 	// ExtendedData is only really useful for textures that have a post build step for tiling,
 	// however it's possible that we ran the old build process where the tiling occurs as part
@@ -386,197 +560,217 @@ void FTextureBuildFunction::Build(UE::DerivedData::FBuildContext& Context) const
 	// tiled and we need to pass the data back out. Otherwise, this gets ignored and the tiling step
 	// regenerates it.
 	{
+		FEncodedTextureExtendedData ExtendedData;
 		ExtendedData.NumMipsInTail = NumMipsInTail;
 		ExtendedData.ExtData = ExtData;
 
-		int32 EncodedMipCount = TextureDescription.GetNumEncodedMips(&ExtendedData);
-		ExtendedData.MipSizesInBytes.AddUninitialized(EncodedMipCount);
-		for (int32 MipIndex = 0; MipIndex < EncodedMipCount; MipIndex++)
+		OutputData.NumEncodedMips = OutputData.TextureDescription.GetNumEncodedMips(&ExtendedData);
+		ExtendedData.MipSizesInBytes.AddUninitialized(OutputData.NumEncodedMips);
+		for (int32 MipIndex = 0; MipIndex < OutputData.NumEncodedMips; MipIndex++)
 		{
 			ExtendedData.MipSizesInBytes[MipIndex] = CompressedMips[MipIndex].RawData.Num();
+
+			OutputData.MipBuffers.Add(MakeSharedBufferFromArray(MoveTemp(CompressedMips[MipIndex].RawData)));
 		}
+
+		OutputData.TextureExtendedData = MoveTemp(ExtendedData);
 	}
 
-	// Long term, this will be supplied to the build and this would only be called to verify.
-	int32 NumStreamingMips = TextureDescription.GetNumStreamingMips(&ExtendedData, EngineParameters);
 	
+	OutputData.NumStreamingMips = OutputData.TextureDescription.GetNumStreamingMips(&OutputData.TextureExtendedData, OutputData.EngineParameters);
+
 	{
 		if (CPUCopy.IsValid())
 		{
 			FCbObject ImageInfoMetadata;
 			CPUCopy->ImageInfoToCompactBinary(ImageInfoMetadata);
-			Context.AddValue(UE::DerivedData::FValueId::FromName(ANSITEXTVIEW("CPUCopyImageInfo")), ImageInfoMetadata);
+			OutputData.CPUCopyImageInfo = ImageInfoMetadata.GetBuffer();
 
-			FSharedBuffer CPUCopyData = MakeSharedBufferFromArray(MoveTemp(CPUCopy->RawData));
-			Context.AddValue(UE::DerivedData::FValueId::FromName(ANSITEXTVIEW("CPUCopyRawData")), CPUCopyData);
+			OutputData.CPUCopyRawData = MakeSharedBufferFromArray(MoveTemp(CPUCopy->RawData));
 		}
 
 		// This will get added to the build metadata in a later cl.
 		// Context.AddValue(UE::DerivedData::FValueId::FromName(ANSITEXTVIEW("TextureBuildMetadata")), BuildMetadata.ToCompactBinaryWithDefaults());
-		Context.AddValue(UE::DerivedData::FValueId::FromName(ANSITEXTVIEW("EncodedTextureDescription")), UE::TextureBuildUtilities::EncodedTextureDescription::ToCompactBinary(TextureDescription));
-		Context.AddValue(UE::DerivedData::FValueId::FromName(ANSITEXTVIEW("EncodedTextureExtendedData")), UE::TextureBuildUtilities::EncodedTextureExtendedData::ToCompactBinary(ExtendedData));
-
-		// Streaming mips
-		for (int32 MipIndex = 0; MipIndex < NumStreamingMips; ++MipIndex)
-		{
-			TAnsiStringBuilder<16> MipName;
-			MipName << ANSITEXTVIEW("Mip") << MipIndex;
-
-			FSharedBuffer MipData = MakeSharedBufferFromArray(MoveTemp(CompressedMips[MipIndex].RawData));
-			Context.AddValue(UE::DerivedData::FValueId::FromName(MipName), MipData);
-		}
-
-		// Mip tail
-		TArray<FSharedBuffer> MipTailComponents;
-		for (int32 MipIndex = NumStreamingMips; MipIndex < TextureDescription.NumMips; ++MipIndex)
-		{
-			FSharedBuffer MipData = MakeSharedBufferFromArray(MoveTemp(CompressedMips[MipIndex].RawData));
-			MipTailComponents.Add(MipData);
-		}
-		FCompositeBuffer MipTail(MipTailComponents);
-		if (MipTail.GetSize() > 0)
-		{
-			Context.AddValue(UE::DerivedData::FValueId::FromName(ANSITEXTVIEW("MipTail")), MipTail);
-		}
+		WriteChildBuildOutputs(Context, MoveTemp(OutputData));
 	}
 }
 
 void GenericTextureTilingBuildFunction(UE::DerivedData::FBuildContext& Context, const ITextureTiler* Tiler, const UE::DerivedData::FUtf8SharedString& BuildFunctionName)
 {
-	// The texture description is either passed as a constant or as an output from the other build ("build input").
-	FEncodedTextureDescription TextureDescription;
+	FChildBuildData ChildBuildData;
+	if (!ReadChildBuildInputs(ChildBuildData, Context))
 	{
-		FCbObject TextureDescriptionCb = Context.FindConstant(UTF8TEXTVIEW("EncodedTextureDescriptionConstant"));
-		if (!TextureDescriptionCb)
-		{
-			FSharedBuffer RawTextureDescription = Context.FindInput(UTF8TEXTVIEW("EncodedTextureDescriptionInput"));
-			if (!RawTextureDescription)
-			{
-				return;
-			}
-			TextureDescriptionCb = FCbObject(RawTextureDescription);
-		}
-		UE::TextureBuildUtilities::EncodedTextureDescription::FromCompactBinary(TextureDescription, TextureDescriptionCb);
+		TStringBuilder<256> Error;
+		Error.Appendf(TEXT("Failed to read child build inputs for tiling texture %s, build function %s."), *Context.GetName(), StringCast<TCHAR>(*BuildFunctionName).Get());
+		Context.AddError(Error.ToView());
+		return;
 	}
 
-	// The extended data is either passed as a constant, but is not output from the linear build - it's
-	// our job to make it.
-	FEncodedTextureExtendedData TextureExtendedData;
-	{
-		FCbObject TextureExtendedDataCb = Context.FindConstant(UTF8TEXTVIEW("EncodedTextureExtendedDataConstant"));
-		if (TextureExtendedDataCb)
-		{
-			UE::TextureBuildUtilities::EncodedTextureExtendedData::FromCompactBinary(TextureExtendedData, TextureExtendedDataCb);
-		}
-		else
-		{
-			// If we're in this path we need to have the LODBias delivered to us.
-			FCbObject LODBiasCb = Context.FindConstant(UTF8TEXTVIEW("LODBias"));
-			TextureExtendedData = Tiler->GetExtendedDataForTexture(TextureDescription, LODBiasCb["LODBias"].AsInt8());
-		}
-	}
+	// The linear build wrote out an extended data but it must be a linear extended data - convert to what we need.
+	FCbObject LODBiasCb = Context.FindConstant(UTF8TEXTVIEW("LODBias"));
+	ChildBuildData.TextureExtendedData = Tiler->GetExtendedDataForTexture(ChildBuildData.TextureDescription, LODBiasCb["LODBias"].AsInt8());
+	ChildBuildData.NumEncodedMips = ChildBuildData.TextureDescription.GetNumEncodedMips(&ChildBuildData.TextureExtendedData);
+	ChildBuildData.NumStreamingMips = ChildBuildData.TextureDescription.GetNumStreamingMips(&ChildBuildData.TextureExtendedData, ChildBuildData.EngineParameters);
 
-	FTextureEngineParameters EngineParameters;
-	{
-		FCbObject EngineParametersCb = Context.FindConstant(UTF8TEXTVIEW("EngineParameters"));
-		UE::TextureBuildUtilities::TextureEngineParameters::FromCompactBinary(EngineParameters, EngineParametersCb);
-	}
-
-	// This will get added to the build metadata in a later cl.
-	//UE::TextureBuildUtilities::FTextureBuildMetadata BuildMetadata(FCbObject(Context.FindInput(ANSITEXTVIEW("TextureBuildMetadata"))));
-
-	UE_LOG(LogTextureBuildFunction, Display, TEXT("Tiling %s with %s -> %d source mip(s) with a tail of %d..."), *Context.GetName(), StringCast<TCHAR>(*BuildFunctionName).Get(), TextureDescription.NumMips, TextureExtendedData.NumMipsInTail);
+	UE_LOG(LogTextureBuildFunction, Display, TEXT("Tiling %s with %s -> %d source mip(s) with a tail of %d..."), 
+		*Context.GetName(), StringCast<TCHAR>(*BuildFunctionName).Get(), ChildBuildData.TextureDescription.NumMips, ChildBuildData.TextureExtendedData.NumMipsInTail);
 
 	//
 	// Careful - the linear build might have a different streaming mip count than we output due to mip tail
 	// packing.
 	//
-	int32 InputTextureNumStreamingMips = TextureDescription.GetNumStreamingMips(nullptr, EngineParameters);
-	int32 OutputTextureNumStreamingMips = TextureDescription.GetNumStreamingMips(&TextureExtendedData, EngineParameters);
-
-	FSharedBuffer InputTextureMipTailData;
-	if (TextureDescription.NumMips > InputTextureNumStreamingMips)
-	{
-		InputTextureMipTailData = Context.FindInput(UTF8TEXTVIEW("MipTail"));
-	}
-
-	// We might be packing several mips in to a single tiled mip at the end, so we need to have all the buffers available
-	// to potentially pass to ProcessMipLevel. Can do this on demand so that the highest mip level isn't in memory for the entire
-	// mip chain... however all the time is also spent on it and it's only +33% size for the entire chain, so not really worth.
-	TArray<FSharedBuffer> InputTextureMipBuffers;
-	TArray<FMemoryView> InputTextureMipViews;
-
-	uint64 CurrentMipTailOffset = 0;
-	for (int32 MipIndex = 0; MipIndex < TextureDescription.NumMips; MipIndex++)
-	{
-		FMemoryView SourceMipView;
-		if (MipIndex >= InputTextureNumStreamingMips)
-		{
-			// Mip tail.
-			uint64 SourceMipSize = TextureDescription.GetMipSizeInBytes(MipIndex);
-			SourceMipView = InputTextureMipTailData.GetView().Mid(CurrentMipTailOffset, SourceMipSize);
-			CurrentMipTailOffset += SourceMipSize;
-		}
-		else
-		{
-			TUtf8StringBuilder<10> StreamingMipName;
-			StreamingMipName << "Mip" << MipIndex;
-
-			FSharedBuffer SourceData = Context.FindInput(StreamingMipName);
-			check(SourceData.GetSize() == TextureDescription.GetMipSizeInBytes(MipIndex));
-			SourceMipView = SourceData.GetView();
-			InputTextureMipBuffers.Add(SourceData);
-		}
-		InputTextureMipViews.Add(SourceMipView);
-	}
 
 	// If the platform packs mip tails, we need to pass all the relevant mip buffers at once.
-	int32 FirstMipTailIndex = TextureDescription.NumMips - 1;
-	int32 MipTailCount = 1;
-	if (TextureExtendedData.NumMipsInTail > 1)
+	int32 FirstMipTailIndex;
+	int32 MipTailCount;
+	ChildBuildData.TextureDescription.GetEncodedMipIterators(&ChildBuildData.TextureExtendedData, FirstMipTailIndex, MipTailCount);
+
+	// We pass views to the tiler, maybe should change,
+	TArray<FMemoryView, TInlineAllocator<FEncodedTextureExtendedData::MAX_TEXTURE_MIP_COUNT>> MipViews;
+	for (FSharedBuffer& MipBuffer : ChildBuildData.MipBuffers)
 	{
-		MipTailCount = TextureExtendedData.NumMipsInTail;
-		FirstMipTailIndex = TextureDescription.NumMips - MipTailCount;
+		MipViews.Add(MipBuffer.GetView());
 	}
 
 	// Process the mips
-	TArray<FSharedBuffer> MipTailBuffers;
 	for (int32 MipIndex = 0; MipIndex < FirstMipTailIndex + 1; MipIndex++)
 	{
-		TUtf8StringBuilder<10> StreamingMipName;
-		StreamingMipName << "Mip" << MipIndex;
+		int32 MipsRepresentedThisIndex = MipIndex == FirstMipTailIndex ? MipTailCount : 1;
 
-		TArrayView<FMemoryView> MipsForLevel = MakeArrayView(InputTextureMipViews.GetData() + MipIndex, 1);
-		if (MipIndex == FirstMipTailIndex)
-		{
-			MipsForLevel = MakeArrayView(InputTextureMipViews.GetData() + MipIndex, MipTailCount);
-		}
-		FSharedBuffer MipData = Tiler->ProcessMipLevel(TextureDescription, TextureExtendedData, MipsForLevel, MipIndex);
+		TArrayView<FMemoryView> MipsThisIndex = MakeArrayView(MipViews.GetData() + MipIndex, MipsRepresentedThisIndex);
+
+		FSharedBuffer MipData = Tiler->ProcessMipLevel(ChildBuildData.TextureDescription, ChildBuildData.TextureExtendedData, MipsThisIndex, MipIndex);
 
 		// Make sure we got the size we advertised prior to the build. If this ever fires then we
 		// have a critical mismatch!
-		check(TextureExtendedData.MipSizesInBytes[MipIndex] == MipData.GetSize());
+		check(ChildBuildData.TextureExtendedData.MipSizesInBytes[MipIndex] == MipData.GetSize());
 
-		// Save the data to the output.
-		if (MipIndex < OutputTextureNumStreamingMips)
+		ChildBuildData.MipBuffers[MipIndex] = MoveTemp(MipData);
+	} // end for each mip
+
+	WriteChildBuildOutputs(Context, MoveTemp(ChildBuildData));
+}
+
+void GenericTextureDecodeBuildFunction(UE::DerivedData::FBuildContext& Context, const UE::DerivedData::FUtf8SharedString& BuildFunctionName)
+{
+	FChildBuildData ChildBuildInputs;
+	if (!ReadChildBuildInputs(ChildBuildInputs, Context))
+	{
+		TStringBuilder<256> Error;
+		Error.Appendf(TEXT("Failed to read child build inputs for decoding texture %s, build function %s."), *Context.GetName(), StringCast<TCHAR>(*BuildFunctionName).Get());
+		Context.AddError(Error.ToView());
+		return;
+	}
+
+	// Read inputs unique to us.
+	FName BaseTextureFormatName = NAME_None;
+	bool bSRGB = false;
+	const ITextureFormat* BaseTextureFormat = nullptr;
+	{
+		FCbObject TextureInfoCb = Context.FindConstant(UTF8TEXTVIEW("TextureInfo"));
+		ReadCbField(TextureInfoCb["BaseFormatName"], BaseTextureFormatName);
+		uint16 RequiredVersion = TextureInfoCb["BaseFormatVersion"].AsUInt16();
+		bSRGB = TextureInfoCb["bSRGB"].AsBool();
+
+		if (ITextureFormatManagerModule* TFM = GetTextureFormatManager())
 		{
-			Context.AddValue(UE::DerivedData::FValueId::FromName(StreamingMipName), MipData);
+			BaseTextureFormat = TFM->FindTextureFormat(BaseTextureFormatName);
+		}
+
+		if (!BaseTextureFormat)
+		{
+			TStringBuilder<256> Error;
+			Error << TEXT("Missing texture format: ") << BaseTextureFormatName;
+			Context.AddError(Error.ToView());
+			return;
+		}
+
+		uint16 OurVersion = BaseTextureFormat->GetVersion(BaseTextureFormatName);
+		if (OurVersion != RequiredVersion)
+		{
+			TStringBuilder<256> Error;
+			Error.Appendf(TEXT("%s has version %hu when version %hu is required."), *BaseTextureFormatName.ToString(), OurVersion, RequiredVersion);
+			Context.AddError(Error.ToView());
+			return;
+		}
+	}
+
+	UE_LOG(LogTextureBuildFunction, Display, TEXT("Decoding %s with %s..."), *Context.GetName(), StringCast<TCHAR>(*BuildFunctionName).Get());
+
+
+	if (!BaseTextureFormat->CanDecodeFormat(ChildBuildInputs.TextureDescription.PixelFormat))
+	{
+		TStringBuilder<256> Error;
+		Error.Appendf(TEXT("Texture format %s can't decode image format %s"), *BaseTextureFormatName.ToString(), GetPixelFormatString(ChildBuildInputs.TextureDescription.PixelFormat));
+		Context.AddError(Error);
+		return;
+	}
+
+	EPixelFormat DecodedPixelFormat = PF_Unknown;
+	for (int32 MipIndex = 0; MipIndex < ChildBuildInputs.NumEncodedMips; MipIndex++)
+	{
+		int32 NumSlicesWithDepth = ChildBuildInputs.TextureDescription.GetNumSlices_WithDepth(MipIndex);
+		int32 SizeX = ChildBuildInputs.TextureDescription.GetMipWidth(MipIndex);
+		int32 SizeY = ChildBuildInputs.TextureDescription.GetMipHeight(MipIndex);
+
+		FImage DecodedImage;
+		if (!BaseTextureFormat->DecodeImage(SizeX, SizeY, NumSlicesWithDepth, ChildBuildInputs.TextureDescription.PixelFormat, 
+			bSRGB, BaseTextureFormatName, ChildBuildInputs.MipBuffers[MipIndex], DecodedImage, Context.GetName()))
+		{
+			TStringBuilder<256> Error;
+			Error.Appendf(TEXT("Texture format %s failed to decode image format %s, mip %d"), *BaseTextureFormatName.ToString(), GetPixelFormatString(ChildBuildInputs.TextureDescription.PixelFormat), MipIndex);
+			Context.AddError(Error);
+			return;
+		}
+
+		ERawImageFormat::Type NeededConversion;
+		DecodedPixelFormat = FImageCoreUtils::GetPixelFormatForRawImageFormat(DecodedImage.Format, &NeededConversion);
+		if (NeededConversion != DecodedImage.Format)
+		{
+			FImage ConvertedImage;
+			DecodedImage.CopyTo(ConvertedImage, NeededConversion, DecodedImage.GammaSpace);
+			ChildBuildInputs.MipBuffers[MipIndex] = MakeSharedBufferFromArray(MoveTemp(ConvertedImage.RawData));
 		}
 		else
 		{
-			MipTailBuffers.Add(MipData);
+			ChildBuildInputs.MipBuffers[MipIndex] = MakeSharedBufferFromArray(MoveTemp(DecodedImage.RawData));
 		}
-	} // end for each mip
 
-	// The mip tail is a bunch of mips all together in one "Value", so assemble them here.
-	FCompositeBuffer MipTail(MipTailBuffers);
-	if (MipTail.GetSize() > 0)
-	{
-		Context.AddValue(UE::DerivedData::FValueId::FromName(UTF8TEXTVIEW("MipTail")), MipTail);
+		ChildBuildInputs.TextureExtendedData.MipSizesInBytes[MipIndex] = ChildBuildInputs.MipBuffers[MipIndex].GetSize();
 	}
 
-	Context.AddValue(UE::DerivedData::FValueId::FromName(UTF8TEXTVIEW("EncodedTextureDescription")), UE::TextureBuildUtilities::EncodedTextureDescription::ToCompactBinary(TextureDescription));
-	Context.AddValue(UE::DerivedData::FValueId::FromName(UTF8TEXTVIEW("EncodedTextureExtendedData")), UE::TextureBuildUtilities::EncodedTextureExtendedData::ToCompactBinary(TextureExtendedData));
-	// This will get added to the build metadata in a later cl.
-	//Context.AddValue(UE::DerivedData::FValueId::FromName(UTF8TEXTVIEW("TextureBuildMetadata")), BuildMetadata.ToCompactBinaryWithDefaults());
+	ChildBuildInputs.TextureDescription.PixelFormat = DecodedPixelFormat;
+
+	WriteChildBuildOutputs(Context, MoveTemp(ChildBuildInputs));
+}
+
+void GenericTextureDetileBuildFunction(UE::DerivedData::FBuildContext& Context, const ITextureTiler* Tiler, const UE::DerivedData::FUtf8SharedString& BuildFunctionName)
+{
+	FChildBuildData ChildBuildInputs;
+	if (!ReadChildBuildInputs(ChildBuildInputs, Context))
+	{
+		TStringBuilder<256> Error;
+		Error.Appendf(TEXT("Failed to read child build inputs for detiling texture %s, build function %s."), *Context.GetName(), StringCast<TCHAR>(*BuildFunctionName).Get());
+		Context.AddError(Error.ToView());
+		return;
+	}
+
+	UE_LOG(LogTextureBuildFunction, Display, TEXT("De-Tiling %s with %s -> %d source mip(s) with a tail of %d..."), 
+		*Context.GetName(), StringCast<TCHAR>(*BuildFunctionName).Get(), ChildBuildInputs.TextureDescription.NumMips, ChildBuildInputs.TextureExtendedData.NumMipsInTail);
+
+	FEncodedTextureDescription::FUniqueBufferMipChain LinearMips;
+	Tiler->DetileMipChain(LinearMips, ChildBuildInputs.MipBuffers, ChildBuildInputs.TextureDescription, ChildBuildInputs.TextureExtendedData, *Context.GetName());
+
+	ChildBuildInputs.MipBuffers.Reset(LinearMips.Num());
+	for (FUniqueBuffer& Buffer : LinearMips)
+	{
+		ChildBuildInputs.MipBuffers.Add(Buffer.MoveToShared());
+	}
+
+	// After we detile, we are a linear texture:
+	ChildBuildInputs.TextureExtendedData = FEncodedTextureExtendedData();
+	ChildBuildInputs.NumEncodedMips = ChildBuildInputs.TextureDescription.GetNumEncodedMips(nullptr);
+	ChildBuildInputs.NumStreamingMips = ChildBuildInputs.TextureDescription.GetNumStreamingMips(nullptr, ChildBuildInputs.EngineParameters);
+
+	WriteChildBuildOutputs(Context, MoveTemp(ChildBuildInputs));
 }
