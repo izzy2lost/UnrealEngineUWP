@@ -512,7 +512,7 @@ void FDeferredShadingSceneRenderer::RenderRayTracingShadows(
 				RDG_EVENT_NAME("RayTracedShadow (spp=%d) %dx%d", RayTracingConfig.RayCountPerPixel, Resolution.X, Resolution.Y),
 				CommonPassParameters,
 				ERDGPassFlags::Compute,
-				[this, &View, RayGenerationShader, CommonPassParameters, Resolution](FRHIRayTracingCommandList& RHICmdList)
+				[this, &View, RayGenerationShader, CommonPassParameters, Resolution](FRHICommandList& RHICmdList)
 				{
 					FRayTracingShaderBindingsWriter GlobalResources;
 					SetShaderParameters(GlobalResources, RayGenerationShader, *CommonPassParameters);

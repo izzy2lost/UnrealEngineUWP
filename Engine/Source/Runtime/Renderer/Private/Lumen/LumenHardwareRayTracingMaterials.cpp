@@ -312,8 +312,6 @@ void FDeferredShadingSceneRenderer::CreateLumenHardwareRayTracingMaterialPipelin
 			const uint32 NumTasks = FMath::Max(1u, FMath::DivideAndRoundUp(NumTotalMeshCommands, TargetCommandsPerTask));
 			const uint32 CommandsPerTask = FMath::DivideAndRoundUp(NumTotalMeshCommands, NumTasks); // Evenly divide commands between tasks (avoiding potential short last task)
 
-			FGraphEventArray TaskList;
-			TaskList.Reserve(NumTasks);
 			View.LumenRayTracingMaterialBindings.SetNum(NumTasks);
 
 			for (uint32 TaskIndex = 0; TaskIndex < NumTasks; ++TaskIndex)
@@ -325,7 +323,7 @@ void FDeferredShadingSceneRenderer::CreateLumenHardwareRayTracingMaterialPipelin
 				FRayTracingLocalShaderBindingWriter* BindingWriter = new FRayTracingLocalShaderBindingWriter();
 				View.LumenRayTracingMaterialBindings[TaskIndex] = BindingWriter;
 
-				TaskList.Add(FFunctionGraphTask::CreateAndDispatchWhenReady(
+				GraphBuilder.AddSetupTask(
 					[ShaderBindings, ShaderBindingsNaniteRT, BindingWriter, MeshCommands, NumCommands, TaskIndex]()
 					{
 						TRACE_CPUPROFILER_EVENT_SCOPE(BuildLumenHardwareRayTracingMaterialBindingsTask);
@@ -349,25 +347,20 @@ void FDeferredShadingSceneRenderer::CreateLumenHardwareRayTracingMaterialPipelin
 								Binding.NumUniformBuffers = LumenBinding.NumUniformBuffers;
 							}
 						}
-					},
-					TStatId(), nullptr, ENamedThreads::AnyThread));
+					});
 			}
-
-			View.LumenRayTracingMaterialBindingsTask = FFunctionGraphTask::CreateAndDispatchWhenReady([]() {}, TStatId(), &TaskList, ENamedThreads::AnyHiPriThreadHiPriTask);
 		}
 	}
 }
 
-void FDeferredShadingSceneRenderer::BindLumenHardwareRayTracingMaterialPipeline(FRHICommandListImmediate& RHICmdList, FViewInfo& View)
+void FDeferredShadingSceneRenderer::BindLumenHardwareRayTracingMaterialPipeline(FRHICommandList& RHICmdList, FViewInfo& View)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(BindLumenHardwareRayTracingMaterialPipeline);
-
-	FTaskGraphInterface::Get().WaitUntilTaskCompletes(View.LumenRayTracingMaterialBindingsTask, ENamedThreads::GetRenderThread_Local()); // TODO: move this sync point to the end of RDG setup, before execution
 	MergeAndSetRayTracingBindings(RHICmdList, Allocator, View.GetRayTracingSceneChecked(), View.LumenHardwareRayTracingMaterialPipeline, View.LumenRayTracingMaterialBindings, ERayTracingBindingType::HitGroup);
 
 	// Move the ray tracing binding container ownership to the command list, so that memory will be
 	// released on the RHI thread timeline, after the commands that reference it are processed.
-	RHICmdList.EnqueueLambda([Ptrs = MoveTemp(View.LumenRayTracingMaterialBindings), Mem = MoveTemp(View.LumenRayTracingMaterialBindingsMemory)](FRHICommandListImmediate&)
+	RHICmdList.EnqueueLambda([Ptrs = MoveTemp(View.LumenRayTracingMaterialBindings), Mem = MoveTemp(View.LumenRayTracingMaterialBindingsMemory)](FRHICommandList&)
 	{
 		for (auto Ptr : Ptrs)
 		{

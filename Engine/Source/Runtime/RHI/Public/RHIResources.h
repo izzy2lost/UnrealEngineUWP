@@ -3268,7 +3268,11 @@ protected:
 };
 
 /** Top level ray tracing acceleration structure (contains instances of meshes). */
-class FRHIRayTracingScene : public FRHIRayTracingAccelerationStructure
+class FRHIRayTracingScene
+	: public FRHIRayTracingAccelerationStructure
+#if ENABLE_RHI_VALIDATION
+	, public RHIValidation::FRayTracingScene
+#endif
 {
 public:
 	virtual const FRayTracingSceneInitializer2& GetInitializer() const = 0;

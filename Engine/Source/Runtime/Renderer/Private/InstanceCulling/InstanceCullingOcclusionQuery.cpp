@@ -620,7 +620,7 @@ uint32 FInstanceCullingOcclusionQueryRenderer::Render(
 			RDG_EVENT_NAME("InstanceCullingOcclusionQueryRenderer_Setup"),
 			PassParameters,
 			ERDGPassFlags::Compute,
-			[PassParameters, DeferredContext, ComputeShader](FRHIRayTracingCommandList& RHICmdList)
+			[PassParameters, DeferredContext, ComputeShader](FRHIComputeCommandList& RHICmdList)
 		{
 			if (!DeferredContext->bValid)
 			{

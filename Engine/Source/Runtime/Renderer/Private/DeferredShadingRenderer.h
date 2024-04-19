@@ -1080,11 +1080,11 @@ private:
 		float ResolutionFraction);
 
 	/** Setup the default miss shader (required for any raytracing pipeline) */
-	void SetupRayTracingDefaultMissShader(FRHICommandListImmediate& RHICmdList, const FViewInfo& View);
-	void SetupPathTracingDefaultMissShader(FRHICommandListImmediate& RHICmdList, const FViewInfo& View);
+	void SetupRayTracingDefaultMissShader(FRHICommandList& RHICmdList, const FViewInfo& View);
+	void SetupPathTracingDefaultMissShader(FRHICommandList& RHICmdList, const FViewInfo& View);
 
 	/** Lighting Evaluation shader setup (used by ray traced reflections and translucency) */
-	void SetupRayTracingLightingMissShader(FRHICommandListImmediate& RHICmdList, const FViewInfo& View);
+	void SetupRayTracingLightingMissShader(FRHICommandList& RHICmdList, const FViewInfo& View);
 
 	/** Path tracing functions. */
 	void RenderPathTracing(
@@ -1098,7 +1098,7 @@ private:
 	void ComputePathCompaction(FRHICommandListImmediate& RHICmdList, const FViewInfo& View, FRHITexture* RadianceTexture, FRHITexture* SampleCountTexture, FRHITexture* PixelPositionTexture,
 		FRHIUnorderedAccessView* RadianceSortedRedUAV, FRHIUnorderedAccessView* RadianceSortedGreenUAV, FRHIUnorderedAccessView* RadianceSortedBlueUAV, FRHIUnorderedAccessView* RadianceSortedAlphaUAV, FRHIUnorderedAccessView* SampleCountSortedUAV);
 
-	void WaitForRayTracingScene(FRDGBuilder& GraphBuilder, FRDGBufferRef DynamicGeometryScratchBuffer);
+	void WaitForRayTracingScene(FRDGBuilder& GraphBuilder);
 
 	/** Debug ray tracing functions. */
 	void RenderRayTracingDebug(FRDGBuilder& GraphBuilder, const FViewInfo& View, FRDGTextureRef SceneColorOutputTexture, FRayTracingPickingFeedback& PickingFeedback);
@@ -1114,8 +1114,8 @@ private:
 	void CreateLumenHardwareRayTracingMaterialPipeline(FRDGBuilder& GraphBuilder, FViewInfo& View, const TArrayView<FRHIRayTracingShader*>& RayGenShaderTable);
 
 	/** Functions to bind parameters to the ray tracing scene (fill the shader binding tables, etc.) */
-	void BindRayTracingMaterialPipeline(FRHICommandListImmediate& RHICmdList, FViewInfo& View);
-	void BindLumenHardwareRayTracingMaterialPipeline(FRHICommandListImmediate& RHICmdList, FViewInfo& View);
+	void BindRayTracingMaterialPipeline(FRHICommandList& RHICmdList, FViewInfo& View);
+	void BindLumenHardwareRayTracingMaterialPipeline(FRHICommandList& RHICmdList, FViewInfo& View);
 
 	void SetupLumenHardwareRayTracingHitGroupBuffer(FRDGBuilder& GraphBuilder, FViewInfo& View);
 	void SetupLumenHardwareRayTracingUniformBuffer(FRDGBuilder& GraphBuilder, FViewInfo& View);

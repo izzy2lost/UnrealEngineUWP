@@ -1407,11 +1407,10 @@ void RenderWithPreshadingHardwareRayTracing(
 	}
 
 	// Tear-down ray tracing scene
-	AddPass(GraphBuilder,
-		RDG_EVENT_NAME("ReleaseRayTracingResources"),
-		[&RayTracingScene = Scene->HeterogeneousVolumesRayTracingScene](FRHICommandListImmediate& RHICmdList)
+	GraphBuilder.AddPostExecuteCallback(
+		[&RayTracingScene = Scene->HeterogeneousVolumesRayTracingScene, &RHICmdList = GraphBuilder.RHICmdList]
 		{
-		if (RayTracingScene.IsCreated())
+			if (RayTracingScene.IsCreated())
 			{
 				RHICmdList.ClearRayTracingBindings(RayTracingScene.GetRHIRayTracingScene());
 			}

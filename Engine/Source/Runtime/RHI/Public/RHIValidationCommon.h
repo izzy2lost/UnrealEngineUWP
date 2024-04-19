@@ -422,6 +422,20 @@ namespace RHIValidation
 	public:
 	};
 
+	class FRayTracingScene
+	{
+	public:
+		void SetCommitted(bool bInCommitted)
+		{
+			bCommitted = bInCommitted;
+		}
+
+		bool IsCommitted() const { return bCommitted; }
+
+	private:
+		bool bCommitted = false;
+	};
+
 	class FTextureResource
 	{
 	private:

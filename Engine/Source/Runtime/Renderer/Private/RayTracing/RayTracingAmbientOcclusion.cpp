@@ -182,7 +182,7 @@ void FDeferredShadingSceneRenderer::RenderRayTracingAmbientOcclusion(
 		RDG_EVENT_NAME("AmbientOcclusionRayTracing(SamplePerPixels=%d) %dx%d", RayTracingConfig.RayCountPerPixel, RayTracingResolution.X, RayTracingResolution.Y),
 		PassParameters,
 		ERDGPassFlags::Compute,
-		[PassParameters, this, &View, RayGenerationShader, RayTracingResolution](FRHIRayTracingCommandList& RHICmdList)
+		[PassParameters, this, &View, RayGenerationShader, RayTracingResolution](FRHICommandList& RHICmdList)
 	{
 		FRayTracingShaderBindingsWriter GlobalResources;
 		SetShaderParameters(GlobalResources, RayGenerationShader, *PassParameters);

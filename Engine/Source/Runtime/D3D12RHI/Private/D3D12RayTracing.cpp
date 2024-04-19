@@ -1299,6 +1299,7 @@ public:
 	};
 
 	FD3D12RayTracingShaderTable()
+		: UniqueId(NextUniqueId++)
 	{
 	}
 
@@ -1508,15 +1509,27 @@ public:
 		}
 	}
 
-	void CopyToGPU(FD3D12CommandContext& Context)
+	void Commit(FD3D12CommandContext& Context)
 	{
-		TRACE_CPUPROFILER_EVENT_SCOPE(ShaderTableCopyToGPU);
+		TRACE_CPUPROFILER_EVENT_SCOPE(ShaderTableCommit);
 
 		check(IsInRHIThread() || !IsRunningRHIInSeparateThread());
 
 		checkf(Data.Num(), TEXT("Shader table is expected to be initialized before copying to GPU."));
 
 		checkf(bWasDefaultMissShaderSet, TEXT("At least the first miss shader must have been set before copying to GPU."));
+		
+		// Merge all data from worker threads into the main set
+
+		for (uint32 WorkerIndex = 1; WorkerIndex < MaxBindingWorkers; ++WorkerIndex)
+		{
+			for (FD3D12Resource* Resource : WorkerData[WorkerIndex].ReferencedD3D12Resources)
+			{
+				AddResourceReference(Resource, 0);
+			}
+
+			WorkerData[WorkerIndex].ReferencedD3D12Resources.Empty();
+		}
 
 		FD3D12Device* Device = Context.GetParentDevice();
 		FD3D12Adapter* Adapter = Device->GetParentAdapter();
@@ -1544,7 +1557,7 @@ public:
 
 	D3D12_GPU_VIRTUAL_ADDRESS GetShaderTableAddress() const
 	{
-		checkf(!bIsDirty, TEXT("Shader table update is pending, therefore GPU address is not available. Use CopyToGPU() to upload data and acquire a valid GPU buffer address."));
+		checkf(!bIsDirty, TEXT("Shader table update is pending, therefore GPU address is not available. Use Commit() to upload data and acquire a valid GPU buffer address."));
 		return Buffer->ResourceLocation.GetGPUVirtualAddress();
 	}
 
@@ -1597,8 +1610,6 @@ public:
 	uint32 DefaultHitGroupShaderTableOffset = 0;
 	uint32 HitGroupShaderTableOffset = 0;
 	uint32 CallableShaderTableOffset = 0;
-
-	uint64 LastCommandListID = 0;
 
 	// Note: TABLE_BYTE_ALIGNMENT is used instead of RECORD_BYTE_ALIGNMENT to allow arbitrary switching 
 	// between multiple RayGen and Miss shaders within the same underlying table.
@@ -1671,21 +1682,11 @@ public:
 	void UpdateResidency(FD3D12CommandContext& CommandContext)
 	{
 		// Skip redundant resource residency updates when a shader table is repeatedly used on the same command list
-		if (LastCommandListID == CommandContext.GetCommandListID())
+		bool bWasAlreadyInSet = false;
+		CommandContext.RayTracingShaderTables.FindOrAdd(UniqueId, bWasAlreadyInSet);
+		if (bWasAlreadyInSet)
 		{
 			return;
-		}
-
-		// Merge all data from worker threads into the main set
-
-		for (uint32 WorkerIndex = 1; WorkerIndex < MaxBindingWorkers; ++WorkerIndex)
-		{
-			for (FD3D12Resource* Resource : WorkerData[WorkerIndex].ReferencedD3D12Resources)
-			{
-				AddResourceReference(Resource, 0);
-			}
-			
-			WorkerData[WorkerIndex].ReferencedD3D12Resources.Empty();
 		}
 
 		// Use the main (merged) set data to actually update resource residency
@@ -1696,8 +1697,6 @@ public:
 		}
 
 		CommandContext.UpdateResidency(Buffer->GetResource());
-
-		LastCommandListID = CommandContext.GetCommandListID();
 	}
 
 	void AddResourceTransition(FD3D12ShaderResourceView* SRV, uint32 WorkerIndex)
@@ -1775,7 +1774,15 @@ public:
 	};
 
 	FWorkerThreadData WorkerData[MaxBindingWorkers];
+
+	const uint64 UniqueId;
+	UE::FMutex DispatchMutex;
+
+private:
+	static std::atomic_uint64_t NextUniqueId;
 };
+
+std::atomic_uint64_t FD3D12RayTracingShaderTable::NextUniqueId = 0;
 
 struct FD3D12RayTracingShaderLibrary
 {
@@ -3700,22 +3707,12 @@ void FD3D12RayTracingScene::BuildAccelerationStructure(FD3D12CommandContext& Com
 #endif // D3D12_RHI_SUPPORT_RAYTRACING_SCENE_DEBUGGING
 }
 
-void FD3D12RayTracingScene::UpdateResidency(FD3D12CommandContext& CommandContext)
+void FD3D12RayTracingScene::UpdateResidency(FD3D12CommandContext& CommandContext) const
 {
 #if ENABLE_RESIDENCY_MANAGEMENT
-
-	// Skip redundant resource residency updates when a scene is repeatedly used on the same command list
-	if (LastCommandListID == CommandContext.GetCommandListID())
-	{
-		return;
-	}
-
 	const uint32 GPUIndex = CommandContext.GetGPUIndex();
 	CommandContext.UpdateResidency(AccelerationStructureBuffers[GPUIndex]->GetResource());
 	CommandContext.UpdateResidency(GeometryResidencyHandles[GPUIndex]);
-
-	LastCommandListID = CommandContext.GetCommandListID();
-
 #endif // ENABLE_RESIDENCY_MANAGEMENT
 }
 
@@ -3735,6 +3732,8 @@ FD3D12RayTracingShaderTable* FD3D12RayTracingScene::FindExistingShaderTable(cons
 
 FD3D12RayTracingShaderTable* FD3D12RayTracingScene::FindOrCreateShaderTable(const FD3D12RayTracingPipelineState* Pipeline, FD3D12Device* Device)
 {
+	UE::TScopeLock Lock(Mutex);
+
 	FD3D12RayTracingShaderTable* FoundShaderTable = FindExistingShaderTable(Pipeline, Device);
 	if (FoundShaderTable)
 	{
@@ -3978,6 +3977,21 @@ void FD3D12CommandContext::RHIBindAccelerationStructureMemory(FRHIRayTracingScen
 	Scene->BindBuffer(InBuffer, InBufferOffset);
 }
 
+void FD3D12CommandContext::RHICommitRayTracingBindings(FRHIRayTracingScene* InScene)
+{
+	FD3D12RayTracingScene* Scene = FD3D12DynamicRHI::ResourceCast(InScene);
+	check(Scene);
+
+	for (auto Item : Scene->ShaderTables[GetGPUIndex()])
+	{
+		FD3D12RayTracingShaderTable* ShaderTable = Item.Value;
+		if (ShaderTable->bIsDirty)
+		{
+			ShaderTable->Commit(*this);
+		}
+	}
+}
+
 void FD3D12CommandContext::RHIClearRayTracingBindings(FRHIRayTracingScene* InScene)
 {
 	FD3D12RayTracingScene* Scene = FD3D12DynamicRHI::ResourceCast(InScene);
@@ -3997,7 +4011,6 @@ struct FD3D12RayTracingGlobalResourceBinder
 		: CommandContext(InCommandContext)
 		, DescriptorCache(InDescriptorCache)
 	{
-		check(IsInRHIThread() || !IsRunningRHIInSeparateThread());
 	}
 
 	void SetRootCBV(uint32 BaseSlotIndex, uint32 DescriptorIndex, D3D12_GPU_VIRTUAL_ADDRESS Address)
@@ -4613,6 +4626,9 @@ static void DispatchRays(FD3D12CommandContext& CommandContext,
 		FD3D12ExplicitDescriptorCache* DescriptorCache = OptShaderTable->DescriptorCache;
 		check(DescriptorCache != nullptr);
 
+		UE::TScopeLock Lock(OptShaderTable->DispatchMutex);
+		TRACE_CPUPROFILER_EVENT_SCOPE(SetRayTracingShaderResources);
+
 		DescriptorCache->SetDescriptorHeaps(CommandContext);
 		FD3D12RayTracingGlobalResourceBinder ResourceBinder(CommandContext, *DescriptorCache);
 		bResourcesBound = SetRayTracingShaderResources(RayGenShader, GlobalBindings, ResourceBinder);
@@ -4691,18 +4707,15 @@ void FD3D12CommandContext::RHIRayTraceDispatch(FRHIRayTracingPipelineState* InRa
 	const FRayTracingShaderBindings& GlobalResourceBindings,
 	uint32 Width, uint32 Height)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(RHIRayTraceDispatch);
+
 	const FD3D12RayTracingPipelineState* Pipeline = FD3D12DynamicRHI::ResourceCast(InRayTracingPipelineState);
 
 	FD3D12RayTracingScene* Scene = FD3D12DynamicRHI::ResourceCast(InScene);
-
-	FD3D12RayTracingShaderTable* ShaderTable = Scene->FindOrCreateShaderTable(Pipeline, GetParentDevice());
-
-	if (ShaderTable->bIsDirty)
-	{
-		ShaderTable->CopyToGPU(*this);
-	}
-
 	Scene->UpdateResidency(*this);
+	
+	FD3D12RayTracingShaderTable* ShaderTable = Scene->FindOrCreateShaderTable(Pipeline, GetParentDevice());
+	checkf(!ShaderTable->bIsDirty, TEXT("The shader table contains pending modifications. CommitRayTracingBindings must be called after SetRayTracingBindings"));
 
 	FD3D12RayTracingShader* RayGenShader = FD3D12DynamicRHI::ResourceCast(RayGenShaderRHI);
 	const int32 RayGenShaderIndex = Pipeline->RayGenShaders.Find(RayGenShader->GetHash());
@@ -4725,20 +4738,16 @@ void FD3D12CommandContext::RHIRayTraceDispatchIndirect(FRHIRayTracingPipelineSta
 	const FRayTracingShaderBindings& GlobalResourceBindings,
 	FRHIBuffer* ArgumentBuffer, uint32 ArgumentOffset)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(RHIRayTraceDispatchIndirect);
 	checkf(GRHISupportsRayTracingDispatchIndirect, TEXT("RHIRayTraceDispatchIndirect may not be used because DXR 1.1 is not supported on this machine."));
 
 	const FD3D12RayTracingPipelineState* Pipeline = FD3D12DynamicRHI::ResourceCast(InRayTracingPipelineState);
 
 	FD3D12RayTracingScene* Scene = FD3D12DynamicRHI::ResourceCast(InScene);
+	Scene->UpdateResidency(*this);
 
 	FD3D12RayTracingShaderTable* ShaderTable = Scene->FindOrCreateShaderTable(Pipeline, GetParentDevice());
-
-	if (ShaderTable->bIsDirty)
-	{
-		ShaderTable->CopyToGPU(*this);
-	}
-
-	Scene->UpdateResidency(*this);
+	checkf(!ShaderTable->bIsDirty, TEXT("The shader table contains pending modifications. CommitRayTracingBindings must be called after SetRayTracingBindings"));
 
 	FD3D12RayTracingShader* RayGenShader = FD3D12DynamicRHI::ResourceCast(RayGenShaderRHI);
 	const int32 RayGenShaderIndex = Pipeline->RayGenShaders.Find(RayGenShader->GetHash());

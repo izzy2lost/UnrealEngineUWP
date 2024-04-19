@@ -677,7 +677,7 @@ void RenderLightingCacheWithPreshadingHardwareRayTracing(
 			&RayTracingScene,
 			RayGenerationShader,
 			DispatchResolution
-		](FRHIRayTracingCommandList& RHICmdList)
+		](FRHICommandList& RHICmdList)
 		{
 			// Set ray-gen bindings
 			FRayTracingShaderBindingsWriter GlobalResources;
@@ -837,7 +837,7 @@ void RenderSingleScatteringWithPreshadingHardwareRayTracing(
 			&RayTracingScene,
 			RayGenerationShader,
 			DispatchResolution
-		](FRHIRayTracingCommandList& RHICmdList)
+		](FRHICommandList& RHICmdList)
 		{
 			// Set ray-gen bindings
 			FRayTracingShaderBindingsWriter GlobalResources;
