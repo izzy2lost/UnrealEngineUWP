@@ -2408,6 +2408,7 @@ void UControlRigBlueprint::UpdateModularDependencyDelegates()
 				if(!VisitList.Contains(Blueprint))
 				{
 					Blueprint->OnVMCompiled().RemoveAll(this);
+					Blueprint->OnModularRigCompiled().RemoveAll(this);
 					Blueprint->OnVMCompiled().AddUObject(this, &UControlRigBlueprint::OnModularDependencyVMCompiled);
 					Blueprint->OnModularRigCompiled().AddUObject(this, &UControlRigBlueprint::OnModularDependencyChanged);
 					VisitList.Add(Blueprint);
