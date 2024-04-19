@@ -229,6 +229,10 @@ void SStateTreeDebuggerView::StartRecording()
 		check(Debugger);
 		Debugger->ClearSelection();
 
+		// Stop the current analysis so we have a chance to reconnect to an existing instance
+		// if there is existing data and it is still active.
+		Debugger->StopSessionAnalysis();
+
 		// We give priority to the Editor actions even if an analysis was active (remote process)
 		// This will stop current analysis and connect to the new live trace.
 		bRecording = Debugger->RequestAnalysisOfEditorSession();
@@ -1309,6 +1313,15 @@ void SStateTreeDebuggerView::OnNewSession()
 	{
 		ResetTracks();
 	}
+	else if (Debugger->GetSelectedInstanceDescriptor() == nullptr)
+	{
+		// In PIE it is possible to stop/start the recording multiple times during the same game session,
+		// in this case we try to reselect the currently selected instance in case it can be reactivated.
+		if (FStateTreeDebuggerBaseTrack* DebuggerBaseTrack = static_cast<FStateTreeDebuggerBaseTrack*>(InstancesTreeView->GetSelection().Get()))
+		{
+			DebuggerBaseTrack->OnSelected();
+		}
+	}
 
 	// Restore automatic scroll to most recent data.
 	bAutoScroll = true;
@@ -1384,7 +1397,11 @@ TSharedRef<SWidget> SStateTreeDebuggerView::OnGetDebuggerTracesMenu() const
 
 		FUIAction ItemAction(FExecuteAction::CreateSPLambda(Debugger.ToSharedRef(), [Debugger = Debugger, TraceDescriptor]()
 			{
-				Debugger->RequestSessionAnalysis(TraceDescriptor);
+				// Request new analysis only if user picked a different trace (we don't want to clear the tracks)
+				if (Debugger->GetSelectedTraceDescriptor() != TraceDescriptor)
+				{
+					Debugger->RequestSessionAnalysis(TraceDescriptor);
+				}
 			}));
 		MenuBuilder.AddMenuEntry(Desc, TAttribute<FText>(), FSlateIcon(), ItemAction);
 	}

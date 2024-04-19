@@ -309,7 +309,6 @@ bool FStateTreeDebugger::StartSessionAnalysis(const FTraceDescriptor& TraceDescr
 		return false;
 	}
 
-	RecordingDuration = 0;
 	AnalysisDuration = 0;
 	LastTraceReadTime = 0;
 
@@ -854,19 +853,47 @@ bool FStateTreeDebugger::ProcessEvent(const FStateTreeInstanceDebugId InstanceId
 	check(ExistingCollection);
 	TArray<FStateTreeTraceEventVariantType>& Events = ExistingCollection->Events;
 
-	// Add new frame span if none added yet or new frame
-	if (ExistingCollection->FrameSpans.IsEmpty() || ExistingCollection->FrameSpans.Last().Frame.Index < Frame.Index)
-	{
-		double RecordingWorldTime = 0;
-		Visit([&RecordingWorldTime](auto& TypedEvent)
-			{
-				RecordingWorldTime = TypedEvent.RecordingWorldTime;
-			}, Event);
+	TraceServices::FFrame FrameToAddInSpans = Frame;
+	bool bShouldAddFrameToSpans = false;
 
+	double RecordingWorldTime = 0;
+	Visit([&RecordingWorldTime](auto& TypedEvent)
+		{
+			RecordingWorldTime = TypedEvent.RecordingWorldTime;
+		}, Event);
+
+	// Add new frame span if none added yet
+	if (ExistingCollection->FrameSpans.IsEmpty())
+	{
+		bShouldAddFrameToSpans = true;
+	}
+	else
+	{
+		const TraceServices::FFrame& LastFrame = ExistingCollection->FrameSpans.Last().Frame;
+		// Add new frame span for new larger frame index
+		if (Frame.Index > LastFrame.Index)
+		{
+			bShouldAddFrameToSpans = true;
+		}
+		else if (Frame.Index < LastFrame.Index && Frame.StartTime > LastFrame.StartTime)
+		{
+			// Some events are buffered and can be sent from an older world recording
+			// time in case of late recording (e.g., ActiveStatesEvent) so if we want to aggregate the events
+			// with existing data we'll snap it to the most recent time to not break the timelines
+			RecordingWorldTime = FMath::Max(RecordingWorldTime, RecordingDuration);
+
+			// Frame index will restart at 0 if a new session is started,
+			// in that case we offset the frame we store to append to existing data
+			FrameToAddInSpans.Index += LastFrame.Index + 1;
+			bShouldAddFrameToSpans = true;
+		}
+	}
+
+	if (bShouldAddFrameToSpans)
+	{
 		// Update global recording duration
 		RecordingDuration = RecordingWorldTime;
-
-		ExistingCollection->FrameSpans.Add(UE::StateTreeDebugger::FFrameSpan(Frame, RecordingWorldTime, Events.Num()));
+		ExistingCollection->FrameSpans.Add(UE::StateTreeDebugger::FFrameSpan(FrameToAddInSpans, RecordingWorldTime, Events.Num()));
 	}
 
 	// Add activate states change info
@@ -912,6 +939,7 @@ void FStateTreeDebugger::ResetEventCollections()
 {
 	EventCollections.Reset();
 	SetScrubStateCollectionIndex(INDEX_NONE);
+	RecordingDuration = 0;
 }
 
 void FStateTreeDebugger::AddEvents(const double StartTime, const double EndTime, const TraceServices::IFrameProvider& FrameProvider, const IStateTreeTraceProvider& StateTreeTraceProvider)

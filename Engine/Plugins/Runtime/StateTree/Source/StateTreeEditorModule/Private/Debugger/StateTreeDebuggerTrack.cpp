@@ -72,11 +72,14 @@ bool FStateTreeDebuggerInstanceTrack::UpdateInternal()
 			Window.Description = FText::FromString(StatePath);
 			Window.TimeStart = Span.GetWorldTimeStart();
 
-			// When there is another state change after the current one in the list we use its start time to close the window.
+			// When there is another state change after the current one in the list we use
+			// the end time of the previous frame span to close the window. Not using the start time
+			// since we might have a gap in case of multiple recordings during the same game session.
 			if (StateChangeIndex < NumStateChanges-1)
 			{
-				const uint32 NextSpanIndex = EventCollection.ActiveStatesChanges[StateChangeIndex+1].SpanIndex;
-				Window.TimeEnd = EventCollection.FrameSpans[NextSpanIndex].GetWorldTimeStart();
+				const uint32 EndSpanIndex = EventCollection.ActiveStatesChanges[StateChangeIndex+1].SpanIndex-1;
+				check(EventCollection.FrameSpans.IsValidIndex(EndSpanIndex));
+				Window.TimeEnd = EventCollection.FrameSpans[EndSpanIndex].GetWorldTimeEnd();
 			}
 			else
 			{
@@ -104,6 +107,13 @@ bool FStateTreeDebuggerInstanceTrack::UpdateInternal()
 	}
 
 	const bool bChanged = (PrevNumPoints != EventData->Points.Num() || PrevNumWindows != EventData->Windows.Num());
+
+	// Tracks can be reactivated when multiple recordings are made in a single PIE session.
+	if (bChanged && IsStale())
+	{
+		bIsStale = false;
+	}
+
 	return bChanged;
 }
 
