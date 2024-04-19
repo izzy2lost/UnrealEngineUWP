@@ -1348,6 +1348,9 @@ public:
 	virtual FStructurePropertyNode* AsStructureNode() { return nullptr; }
 	virtual const FStructurePropertyNode* AsStructureNode() const { return nullptr; }
 
+	virtual void SetDisplayNameOverride(const FText& InDisplayNameOverride) override;
+	virtual FText GetDisplayName() const override;
+
 	virtual UStruct* GetBaseStructure() = 0;
 	virtual const UStruct* GetBaseStructure() const = 0;
 
@@ -1369,4 +1372,8 @@ public:
 
 	/** Generates a single child from the provided property name.  Any existing children are destroyed */
 	virtual TSharedPtr<FPropertyNode> GenerateSingleChild(FName ChildPropertyName) = 0;
+
+private:
+	/** Display name to use instead of the fully qualified name */
+	FText DisplayNameOverride;
 };

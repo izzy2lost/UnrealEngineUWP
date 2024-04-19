@@ -11,6 +11,7 @@
 #include "ObjectPropertyNode.h"
 #include "PropertyCustomizationHelpers.h"
 #include "PropertyEditorHelpers.h"
+#include "PropertyHandleImpl.h"
 #include "StructurePropertyNode.h"
 #include "Modules/ModuleManager.h"
 #include "Widgets/Layout/SSpacer.h"
@@ -636,12 +637,15 @@ TSharedPtr<IPropertyTypeCustomization> FDetailPropertyRow::GetPropertyCustomizat
 	return CustomInterface;
 }
 
-void FDetailPropertyRow::MakeExternalPropertyRowCustomization(TSharedPtr<FStructOnScope> StructData, FName PropertyName, TSharedRef<FDetailCategoryImpl> ParentCategory, FDetailLayoutCustomization& OutCustomization, const FAddPropertyParams& Parameters)
+template<typename T>
+void MakeExternalStructPropertyRowCustomization(const T& Struct, const UStruct* StructClass,
+	FName PropertyName, TSharedRef<FDetailCategoryImpl> ParentCategory, FDetailLayoutCustomization& OutCustomization,
+	const FAddPropertyParams& Parameters, bool bAllowChildren)
 {
 	TSharedRef<FStructurePropertyNode> RootPropertyNode = MakeShared<FStructurePropertyNode>();
 
 	//SET
-	RootPropertyNode->SetStructure(StructData);
+	RootPropertyNode->SetStructure(Struct);
 
 	FPropertyNodeInitParams InitParams;
 	InitParams.ParentNode = nullptr;
@@ -650,7 +654,7 @@ void FDetailPropertyRow::MakeExternalPropertyRowCustomization(TSharedPtr<FStruct
 	InitParams.ArrayIndex = INDEX_NONE;
 	InitParams.bForceHiddenPropertyVisibility = Parameters.ShouldForcePropertyVisible() || FPropertySettings::Get().ShowHiddenProperties();
 	InitParams.bCreateCategoryNodes = PropertyName == NAME_None;
-	InitParams.bAllowChildren = false;
+	InitParams.bAllowChildren = bAllowChildren;
 
 	Parameters.OverrideAllowChildren(InitParams.bAllowChildren);
 	Parameters.OverrideCreateCategoryNodes(InitParams.bCreateCategoryNodes);
@@ -676,7 +680,7 @@ void FDetailPropertyRow::MakeExternalPropertyRowCustomization(TSharedPtr<FStruct
 		FPropertyEditorModule& PropertyEditorModule = FModuleManager::GetModuleChecked<FPropertyEditorModule>(PropertyEditorModuleName);
 
 		// Make a "fake" struct property to represent the entire struct
-		FStructProperty* StructProperty = PropertyEditorModule.RegisterStructOnScopeProperty(StructData.ToSharedRef());
+		FStructProperty* StructProperty = PropertyEditorModule.RegisterStructProperty(StructClass);
 
 		// Generate a node for the struct
 		TSharedPtr<FItemPropertyNode> ItemNode = MakeShared<FItemPropertyNode>();
@@ -699,45 +703,30 @@ void FDetailPropertyRow::MakeExternalPropertyRowCustomization(TSharedPtr<FStruct
 	}
 }
 
+void FDetailPropertyRow::MakeExternalPropertyRowCustomization(TSharedPtr<FStructOnScope> StructData, FName PropertyName, TSharedRef<FDetailCategoryImpl> ParentCategory, FDetailLayoutCustomization& OutCustomization, const FAddPropertyParams& Parameters)
+{
+	MakeExternalStructPropertyRowCustomization<>(
+		StructData,
+		StructData->GetStruct(),
+		PropertyName,
+		ParentCategory,
+		OutCustomization,
+		Parameters,
+		/* bAllowChildren= */ false
+	);
+}
+
 void FDetailPropertyRow::MakeExternalPropertyRowCustomization(TSharedPtr<IStructureDataProvider> StructDataProvider, FName PropertyName, TSharedRef<FDetailCategoryImpl> ParentCategory, struct FDetailLayoutCustomization& OutCustomization, const FAddPropertyParams& Parameters)
 {
-	TSharedRef<FStructurePropertyNode> RootPropertyNode = MakeShared<FStructurePropertyNode>();
-
-	//SET
-	RootPropertyNode->SetStructure(StructDataProvider);
-
-	FPropertyNodeInitParams InitParams;
-	InitParams.ParentNode = nullptr;
-	InitParams.Property = nullptr;
-	InitParams.ArrayOffset = 0;
-	InitParams.ArrayIndex = INDEX_NONE;
-	InitParams.bAllowChildren = true;
-	InitParams.bForceHiddenPropertyVisibility = Parameters.ShouldForcePropertyVisible() || FPropertySettings::Get().ShowHiddenProperties();
-	InitParams.bCreateCategoryNodes = PropertyName == NAME_None;
-
-	Parameters.OverrideAllowChildren(InitParams.bAllowChildren);
-	Parameters.OverrideCreateCategoryNodes(InitParams.bCreateCategoryNodes);
-
-	RootPropertyNode->InitNode(InitParams);
-
-	ParentCategory->GetParentLayoutImpl()->AddExternalRootPropertyNode(RootPropertyNode);
-
-	if (PropertyName != NAME_None)
-	{
-		TSharedPtr<FPropertyNode> PropertyNode = RootPropertyNode->GenerateSingleChild(PropertyName);
-		if (PropertyNode.IsValid())
-		{
-			PropertyNode->RebuildChildren();
-
-			OutCustomization.PropertyRow = MakeShared<FDetailPropertyRow>(PropertyNode, ParentCategory, RootPropertyNode);
-			OutCustomization.PropertyRow->SetCustomExpansionId(Parameters.GetUniqueId());
-		}
-	}
-	else
-	{
-		OutCustomization.PropertyRow = MakeShared<FDetailPropertyRow>(RootPropertyNode, ParentCategory, RootPropertyNode);
-		OutCustomization.PropertyRow->SetCustomExpansionId(Parameters.GetUniqueId());
-	}
+	MakeExternalStructPropertyRowCustomization<>(
+		StructDataProvider,
+		StructDataProvider->GetBaseStructure(),
+		PropertyName,
+		ParentCategory,
+		OutCustomization,
+		Parameters,
+		/* bAllowChildren= */ true
+	);
 }
 
 void FDetailPropertyRow::MakeExternalPropertyRowCustomization(const TArray<UObject*>& InObjects, FName PropertyName, TSharedRef<FDetailCategoryImpl> ParentCategory, struct FDetailLayoutCustomization& OutCustomization, const FAddPropertyParams& Parameters)
@@ -794,6 +783,53 @@ void FDetailPropertyRow::MakeExternalPropertyRowCustomization(const TArray<UObje
 	}
 	
 	ParentCategory->GetParentLayoutImpl()->AddExternalRootPropertyNode(RootPropertyNode);
+}
+
+void FDetailPropertyRow::MakeChildPropertyRowCustomization(TSharedRef<IPropertyHandle> PropertyHandle,
+	TSharedPtr<IStructureDataProvider> StructDataProvider, FName PropertyName, TSharedRef<FDetailCategoryImpl> ParentCategory,
+	FDetailLayoutCustomization& OutCustomization, const FAddPropertyParams& Parameters, const FText& DisplayNameOverride)
+{
+	TSharedRef<FPropertyHandleBase> PropertyHandleImpl = StaticCastSharedRef<FPropertyHandleBase>(PropertyHandle);
+	TSharedPtr<FStructurePropertyNode> RootPropertyNode = StaticCastSharedPtr<FStructurePropertyNode>(PropertyHandleImpl->GetPropertyNode());
+
+	if (PropertyName != NAME_None)
+	{
+		TSharedPtr<FPropertyNode> PropertyNode = RootPropertyNode->GenerateSingleChild(PropertyName);
+		if (PropertyNode.IsValid())
+		{
+			PropertyNode->RebuildChildren();
+
+			OutCustomization.PropertyRow = MakeShared<FDetailPropertyRow>(PropertyNode, ParentCategory);
+			OutCustomization.PropertyRow->SetCustomExpansionId(Parameters.GetUniqueId());
+		}
+	}
+	else
+	{
+		// Generate a node for the struct
+		TSharedRef<FStructurePropertyNode> StructPropertyNode = MakeShared<FStructurePropertyNode>();
+		StructPropertyNode->SetStructure(StructDataProvider);
+		StructPropertyNode->SetDisplayNameOverride(DisplayNameOverride);
+
+		// Make a "fake" struct property to represent the entire struct
+		static const FName PropertyEditorModuleName("PropertyEditor");
+		FPropertyEditorModule& PropertyEditorModule = FModuleManager::GetModuleChecked<FPropertyEditorModule>(PropertyEditorModuleName);
+		FStructProperty* StructProperty = PropertyEditorModule.RegisterStructProperty(StructDataProvider->GetBaseStructure());
+
+		FPropertyNodeInitParams ItemNodeInitParams;
+		ItemNodeInitParams.ParentNode = RootPropertyNode;
+		ItemNodeInitParams.Property = StructProperty;
+		ItemNodeInitParams.ArrayOffset = 0;
+		ItemNodeInitParams.ArrayIndex = INDEX_NONE;
+		ItemNodeInitParams.bAllowChildren = true;
+		ItemNodeInitParams.bForceHiddenPropertyVisibility = Parameters.ShouldForcePropertyVisible() || FPropertySettings::Get().ShowHiddenProperties();
+		ItemNodeInitParams.bCreateCategoryNodes = false;
+
+		StructPropertyNode->InitNode(ItemNodeInitParams);
+		RootPropertyNode->AddChildNode(StructPropertyNode);
+
+		OutCustomization.PropertyRow = MakeShared<FDetailPropertyRow>(StructPropertyNode, ParentCategory);
+		OutCustomization.PropertyRow->SetCustomExpansionId(Parameters.GetUniqueId());
+	}
 }
 
 EVisibility FDetailPropertyRow::GetPropertyVisibility() const
