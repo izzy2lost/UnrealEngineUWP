@@ -469,13 +469,13 @@ namespace Horde.Server.Perforce
 
 			// Update Horde's health monitor for subsystems
 			list = await _serverListSingleton.GetAsync(cancellationToken);
-			(HealthStatus health, string message) = GetPerforceHealth(list.Servers);
+			(HealthStatus health, string? message) = GetPerforceHealth(list.Servers);
 			span.SetAttribute("health.status", health.ToString());
-			span.SetAttribute("health.message", message);
+			span.SetAttribute("health.message", message ?? String.Empty);
 			await _health.UpdateAsync(health, message);
 		}
 
-		static (HealthStatus health, string message) GetPerforceHealth(List<PerforceServerEntry> servers)
+		static (HealthStatus health, string? message) GetPerforceHealth(List<PerforceServerEntry> servers)
 		{
 			HealthStatus result = HealthStatus.Healthy;
 			foreach (PerforceServerEntry server in servers)
@@ -491,11 +491,11 @@ namespace Horde.Server.Perforce
 				result = serverHealth < result ? serverHealth : result;
 			}
 
-			string message = result switch
+			string? message = result switch
 			{
 				HealthStatus.Unhealthy => "One or more Perforce servers are unhealthy. Check Perforce servers page for details.",
 				HealthStatus.Degraded => "One or more Perforce servers are degraded. Check Perforce servers page for details.",
-				HealthStatus.Healthy => "All Perforce servers are healthy",
+				HealthStatus.Healthy => null, 
 				_ => throw new ArgumentOutOfRangeException($"Unknown health status: {result}")
 			};
 

@@ -100,7 +100,7 @@ public class ServerStatusController : Controller
 						u => new ServerStatusUpdate()
 						{
 							Result = ConvertSubsystemResult(u.Result),
-							Message = u.Message,
+							Message = u.Message ?? "Operating normally.",
 							UpdatedAt = u.UpdatedAt
 						}).ToArray()
 				};
