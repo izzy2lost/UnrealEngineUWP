@@ -321,10 +321,15 @@ private:
 	enum class EDDCRebuildState : uint8
 	{
 		Initial,
+		InitialAfterFailed,
 		Pending,
 		Succeeded,
 		Failed,
 	};
+	static bool IsInitialState(EDDCRebuildState State)
+	{
+		return State == EDDCRebuildState::Initial || State == EDDCRebuildState::InitialAfterFailed;
+	}
 
 	struct FDDCRebuildState
 	{
@@ -332,7 +337,7 @@ private:
 
 		FDDCRebuildState() = default;
 		FDDCRebuildState(const FDDCRebuildState&) {}
-		FDDCRebuildState& operator=(const FDDCRebuildState&) { check(State == EDDCRebuildState::Initial); return *this; }
+		FDDCRebuildState& operator=(const FDDCRebuildState&) { check(IsInitialState(EDDCRebuildState::Initial)); return *this; }
 	};
 
 	FDDCRebuildState		DDCRebuildState;
@@ -346,6 +351,9 @@ public:
 
 	UE_DEPRECATED(5.1, "Use RebuildBulkDataFromCacheAsync instead.")
 	ENGINE_API void RebuildBulkDataFromDDC(const UObject* Owner);
+
+	ENGINE_API bool HasBuildFromDDCError() const;
+	ENGINE_API void SetHasBuildFromDDCError(bool bHasError);
 
 	/** Requests (or polls) an async operation that rebuilds the streaming bulk data from the cache.
 		If a rebuild is already in progress, the call will just poll the pending operation.

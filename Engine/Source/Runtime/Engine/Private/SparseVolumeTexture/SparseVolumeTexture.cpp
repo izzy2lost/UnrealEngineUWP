@@ -329,6 +329,25 @@ void FResources::DropBulkData()
 	}
 }
 
+bool FResources::HasBuildFromDDCError() const
+{
+	return DDCRebuildState.load() == EDDCRebuildState::InitialAfterFailed;
+}
+
+void FResources::SetHasBuildFromDDCError(bool bHasError)
+{
+	if (bHasError)
+	{
+		EDDCRebuildState ExpectedState = EDDCRebuildState::Initial;
+		DDCRebuildState.compare_exchange_strong(ExpectedState, EDDCRebuildState::InitialAfterFailed);
+	}
+	else
+	{
+		EDDCRebuildState ExpectedState = EDDCRebuildState::InitialAfterFailed;
+		DDCRebuildState.compare_exchange_strong(ExpectedState, EDDCRebuildState::Initial);
+	}
+}
+
 bool FResources::RebuildBulkDataFromCacheAsync(const UObject* Owner, bool& bFailed)
 {
 	bFailed = false;
@@ -336,7 +355,7 @@ bool FResources::RebuildBulkDataFromCacheAsync(const UObject* Owner, bool& bFail
 	{
 		return true;
 	}
-	if (DDCRebuildState.load() == EDDCRebuildState::Initial)
+	if (IsInitialState(DDCRebuildState.load()))
 	{
 		if (StreamableMipLevels.IsBulkDataLoaded())
 		{
@@ -468,6 +487,9 @@ void FResources::Cache(USparseVolumeTextureFrame* Owner, UE::Serialization::FEdi
 
 	// Check if the data already exists in DDC
 	FSharedBuffer ResourcesDataBuffer;
+
+	bool bTryLoadingFromDDC = !HasBuildFromDDCError();
+	if (bTryLoadingFromDDC)
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(SVT::FResources::Cache::CheckDDC);
 
@@ -583,10 +605,14 @@ void FResources::Cache(USparseVolumeTextureFrame* Owner, UE::Serialization::FEdi
 
 			RequestOwner.Wait();
 
-			if (bSavedToDDC && HasStreamingData())
+			if (bSavedToDDC)
 			{
-				// Drop streaming data from memory when it has been successfully committed to DDC
-				DropBulkData();
+				SetHasBuildFromDDCError(false);
+				if (HasStreamingData())
+				{
+					// Drop streaming data from memory when it has been successfully committed to DDC
+					DropBulkData();
+				}
 			}
 		}
 
@@ -622,7 +648,7 @@ void FResources::BeginRebuildBulkDataFromCache(const UObject* Owner)
 {
 	using namespace UE::DerivedData;
 
-	check(DDCRebuildState.load() == EDDCRebuildState::Initial);
+	check(IsInitialState(DDCRebuildState.load()));
 	if (!HasStreamingData() || (ResourceFlags & EResourceFlag_StreamingDataInDDC) == 0u)
 	{
 		return;
@@ -686,7 +712,9 @@ void FResources::EndRebuildBulkDataFromCache()
 		(*DDCRequestOwner)->Wait();
 		(*DDCRequestOwner).Reset();
 	}
-	DDCRebuildState.store(EDDCRebuildState::Initial);
+	EDDCRebuildState NewState = DDCRebuildState.load() != EDDCRebuildState::Failed ?
+		EDDCRebuildState::Initial : EDDCRebuildState::InitialAfterFailed;
+	DDCRebuildState.store(NewState);
 }
 
 #endif // WITH_EDITORONLY_DATA

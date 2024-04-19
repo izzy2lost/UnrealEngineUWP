@@ -3033,6 +3033,9 @@ void FStaticMeshRenderData::Cache(const ITargetPlatform* TargetPlatform, UStatic
 		uint64 EstimatedMeshDataCompressedSize = 0;
 		FSharedBuffer MeshDataBuffer;
 		FIoHash NaniteStreamingDataHash;
+
+		bool bTryLoadingFromDDC = !NaniteResources.HasBuildFromDDCError();
+		if (bTryLoadingFromDDC)
 		{
 			TRACE_CPUPROFILER_EVENT_SCOPE(GetDDC);
 
@@ -3219,10 +3222,14 @@ void FStaticMeshRenderData::Cache(const ITargetPlatform* TargetPlatform, UStatic
 
 				RequestOwner.Wait();
 
-				if (bSavedToDDC && NaniteResources.HasStreamingData())
+				if (bSavedToDDC)
 				{
-					// Drop streaming data from memory when it has been successfully committed to DDC
-					NaniteResources.DropBulkData();
+					NaniteResources.SetHasBuildFromDDCError(false);
+					if (NaniteResources.HasStreamingData())
+					{
+						// Drop streaming data from memory when it has been successfully committed to DDC
+						NaniteResources.DropBulkData();
+					}
 				}
 			}
 
@@ -5123,6 +5130,10 @@ bool UStaticMesh::IsCachedCookedPlatformDataLoaded(const ITargetPlatform* Target
 		// For simplicity, just rebuild the entire RenderData
 		PlatformRenderData.~FStaticMeshRenderData();
 		new (&PlatformRenderData) FStaticMeshRenderData();
+		if (PlatformRenderData.NaniteResourcesPtr.IsValid())
+		{
+			PlatformRenderData.NaniteResourcesPtr->SetHasBuildFromDDCError(true);
+		}
 		PlatformRenderData.Cache(TargetPlatform, this, TargetPlatform->GetStaticMeshLODSettings());
 		return false;
 	}

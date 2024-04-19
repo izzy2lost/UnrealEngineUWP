@@ -312,6 +312,25 @@ void FResources::DropBulkData()
 	}
 }
 
+bool FResources::HasBuildFromDDCError() const
+{
+	return DDCRebuildState.State.load() == EDDCRebuildState::InitialAfterFailed;
+}
+
+void FResources::SetHasBuildFromDDCError(bool bHasError)
+{
+	if (bHasError)
+	{
+		EDDCRebuildState ExpectedState = EDDCRebuildState::Initial;
+		DDCRebuildState.State.compare_exchange_strong(ExpectedState, EDDCRebuildState::InitialAfterFailed);
+	}
+	else
+	{
+		EDDCRebuildState ExpectedState = EDDCRebuildState::InitialAfterFailed;
+		DDCRebuildState.State.compare_exchange_strong(ExpectedState, EDDCRebuildState::Initial);
+	}
+}
+
 void FResources::RebuildBulkDataFromDDC(const UObject* Owner)
 {
 	BeginRebuildBulkDataFromCache(Owner);
@@ -320,7 +339,7 @@ void FResources::RebuildBulkDataFromDDC(const UObject* Owner)
 
 void FResources::BeginRebuildBulkDataFromCache(const UObject* Owner)
 {
-	check(DDCRebuildState.State.load() == EDDCRebuildState::Initial);
+	check(IsInitialState(DDCRebuildState.State.load()));
 	if (!HasStreamingData() || (ResourceFlags & NANITE_RESOURCE_FLAG_STREAMING_DATA_IN_DDC) == 0u)
 	{
 		return;
@@ -370,7 +389,9 @@ void FResources::EndRebuildBulkDataFromCache()
 		(*DDCRequestOwner)->Wait();
 		(*DDCRequestOwner).Reset();
 	}
-	DDCRebuildState.State.store(EDDCRebuildState::Initial);
+	EDDCRebuildState NewState = DDCRebuildState.State.load() != EDDCRebuildState::Failed ?
+		EDDCRebuildState::Initial : EDDCRebuildState::InitialAfterFailed;
+	DDCRebuildState.State.store(NewState);
 }
 
 bool FResources::RebuildBulkDataFromCacheAsync(const UObject* Owner, bool& bFailed)
@@ -382,7 +403,7 @@ bool FResources::RebuildBulkDataFromCacheAsync(const UObject* Owner, bool& bFail
 		return true;
 	}
 
-	if (DDCRebuildState.State.load() == EDDCRebuildState::Initial)
+	if (IsInitialState(DDCRebuildState.State.load()))
 	{
 		if (StreamablePages.IsBulkDataLoaded())
 		{
