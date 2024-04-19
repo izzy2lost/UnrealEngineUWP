@@ -7316,6 +7316,13 @@ void UEdGraphSchema_K2::SplitPin(UEdGraphPin* Pin, const bool bNotify) const
 			PinParams.ContainerType = ProtoPinType.ContainerType;
 			PinParams.ValueTerminalType = ProtoPinType.PinValueType;
 			UEdGraphPin* SubPin = GraphNode->CreatePin(Pin->Direction, ProtoPinType.PinCategory, ProtoPinType.PinSubCategory, ProtoPinType.PinSubCategoryObject.Get(), PinName, PinParams);
+			check(SubPin);
+
+			// Delegate pins will also need a signature copied over. CreatePin doesn't handle this.
+			if (const UFunction* PinSignature = FMemberReference::ResolveSimpleMemberReference<UFunction>(ProtoPinType.PinSubCategoryMemberReference))
+			{
+				FMemberReference::FillSimpleMemberReference(PinSignature, SubPin->PinType.PinSubCategoryMemberReference);
+			}
 
 			if (K2Node != nullptr && K2Node->ShouldDrawCompact() && !Pin->ParentPin)
 			{
