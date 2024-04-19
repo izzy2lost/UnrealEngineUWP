@@ -99,13 +99,6 @@ private:
 	bool CanStepForwardToNextStateChange() const;
 	void StepForwardToNextStateChange();
 
-	bool CanAddStateBreakpoint(EStateTreeBreakpointType Type) const;
-	bool CanRemoveStateBreakpoint(EStateTreeBreakpointType Type) const;
-	ECheckBoxState GetStateBreakpointCheckState(EStateTreeBreakpointType Type) const;
-	void HandleEnableStateBreakpoint(EStateTreeBreakpointType Type);
-
-	UStateTreeState* FindStateAssociatedToBreakpoint(FStateTreeDebuggerBreakpoint Breakpoint) const;
-
 	/** Callback from timeline widgets to update the debugger scrub state. */
 	void OnTimeLineScrubPositionChanged(double Time, bool bIsScrubbing);
 

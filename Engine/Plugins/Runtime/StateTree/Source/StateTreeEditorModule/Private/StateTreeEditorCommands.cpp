@@ -32,6 +32,11 @@ void FStateTreeEditorCommands::RegisterCommands()
 	UI_COMMAND(DeleteStates, "Delete", "Delete Selected States", EUserInterfaceActionType::Button, FInputChord(EKeys::Delete));
 	UI_COMMAND(RenameState, "Rename", "Rename Selected State", EUserInterfaceActionType::Button, FInputChord(EKeys::F2));
 	UI_COMMAND(EnableStates, "State Enabled", "Enables Selected States", EUserInterfaceActionType::Check, FInputChord());
+
+#if WITH_STATETREE_DEBUGGER
+	UI_COMMAND(EnableOnEnterStateBreakpoint, "Break on Enter", "Adds or removes a breakpoint when entering the selected state(s)", EUserInterfaceActionType::Check, FInputChord(EKeys::F9));
+	UI_COMMAND(EnableOnExitStateBreakpoint, "Break on Exit", "Adds or removes a breakpoint when exiting the selected state(s)", EUserInterfaceActionType::Check, FInputChord(EModifierKey::Shift, EKeys::F9));
+#endif //WITH_STATETREE_DEBUGGER
 }
 
 #undef LOCTEXT_NAMESPACE

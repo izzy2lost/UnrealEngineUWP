@@ -6,14 +6,18 @@
 #include "EditorUndoClient.h"
 #include "StateTreeViewModel.generated.h"
 
-struct FStateTreeEditorBreakpoint;
-struct FStateTreeDebugger;
-struct FPropertyChangedEvent;
-
+class FMenuBuilder;
+class UStateTree;
 class UStateTreeEditorData;
 class UStateTreeState;
-class UStateTree;
-class FMenuBuilder;
+
+enum class ECheckBoxState : uint8;
+enum class EStateTreeBreakpointType : uint8;
+
+struct FPropertyChangedEvent;
+struct FStateTreeDebugger;
+struct FStateTreeDebuggerBreakpoint;
+struct FStateTreeEditorBreakpoint;
 struct FStateTreePropertyPathBinding;
 
 enum class FStateTreeViewModelInsert : uint8
@@ -91,6 +95,13 @@ public:
 
 	// Debugging
 #if WITH_STATETREE_DEBUGGER
+	bool CanAddStateBreakpoint(EStateTreeBreakpointType Type) const;
+	bool CanRemoveStateBreakpoint(EStateTreeBreakpointType Type) const;
+	ECheckBoxState GetStateBreakpointCheckState(EStateTreeBreakpointType Type) const;
+	void HandleEnableStateBreakpoint(EStateTreeBreakpointType Type);
+
+	UStateTreeState* FindStateAssociatedToBreakpoint(FStateTreeDebuggerBreakpoint Breakpoint) const;
+
 	TSharedRef<FStateTreeDebugger> GetDebugger() const { return Debugger; }
 	void RefreshDebuggerBreakpoints();
 #endif // WITH_STATETREE_DEBUGGER

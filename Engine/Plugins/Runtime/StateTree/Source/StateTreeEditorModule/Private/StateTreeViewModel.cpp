@@ -283,6 +283,185 @@ void FStateTreeViewModel::HandleIdentifierChanged(const UStateTree& StateTree) c
 }
 
 #if WITH_STATETREE_DEBUGGER
+bool FStateTreeViewModel::CanAddStateBreakpoint(const EStateTreeBreakpointType Type) const
+{
+	const UStateTreeEditorData* EditorData = TreeDataWeak.Get();
+	if (!ensure(EditorData != nullptr))
+	{
+		return false;
+	}
+
+	for (const TWeakObjectPtr<UStateTreeState>& WeakState : SelectedStates)
+	{
+		if (const UStateTreeState* State = WeakState.Get())
+		{
+			if (EditorData->HasBreakpoint(State->ID, Type) == false)
+			{
+				return true;
+			}
+		}
+	}
+
+	return false;
+}
+
+bool FStateTreeViewModel::CanRemoveStateBreakpoint(const EStateTreeBreakpointType Type) const
+{
+	const UStateTreeEditorData* EditorData = TreeDataWeak.Get();
+	if (!ensure(EditorData != nullptr))
+	{
+		return false;
+	}
+
+	for (const TWeakObjectPtr<UStateTreeState>& WeakState : SelectedStates)
+	{
+		if (const UStateTreeState* State = WeakState.Get())
+		{
+			if (EditorData->HasBreakpoint(State->ID, Type))
+			{
+				return true;
+			}
+		}
+	}
+
+	return false;
+}
+
+
+ECheckBoxState FStateTreeViewModel::GetStateBreakpointCheckState(const EStateTreeBreakpointType Type) const
+{
+	const bool bCanAdd = CanAddStateBreakpoint(Type);
+	const bool bCanRemove = CanRemoveStateBreakpoint(Type);
+	if (bCanAdd && bCanRemove)
+	{
+		return ECheckBoxState::Undetermined;
+	}
+
+	if (bCanRemove)
+	{
+		return ECheckBoxState::Checked;
+	}
+
+	if (bCanAdd)
+	{
+		return ECheckBoxState::Unchecked;
+	}
+
+	// Should not happen since action is not visible in this case
+	return ECheckBoxState::Undetermined;
+}
+
+void FStateTreeViewModel::HandleEnableStateBreakpoint(EStateTreeBreakpointType Type)
+{
+	TArray<UStateTreeState*> ValidatedSelectedStates;
+	GetSelectedStates(ValidatedSelectedStates);
+	if (ValidatedSelectedStates.IsEmpty())
+	{
+		return;
+	}
+
+	UStateTreeEditorData* EditorData = TreeDataWeak.Get();
+	if (!ensure(EditorData != nullptr))
+	{
+		return;
+	}
+
+	TBitArray<> HasBreakpoint;
+	HasBreakpoint.Reserve(ValidatedSelectedStates.Num());
+	for (const UStateTreeState* SelectedState : ValidatedSelectedStates)
+	{
+		HasBreakpoint.Add(SelectedState != nullptr && EditorData->HasBreakpoint(SelectedState->ID, Type));
+	}
+
+	check(HasBreakpoint.Num() == ValidatedSelectedStates.Num());
+
+	// Process CanAdd first so in case of undetermined state (mixed selection) we add by default. 
+	if (CanAddStateBreakpoint(Type))
+	{
+		const FScopedTransaction Transaction(LOCTEXT("AddStateBreakpoint", "Add State Breakpoint(s)"));
+		EditorData->Modify();
+		for (int Index = 0; Index < ValidatedSelectedStates.Num(); ++Index)
+		{
+			const UStateTreeState* SelectedState = ValidatedSelectedStates[Index];
+			if (HasBreakpoint[Index] == false && SelectedState != nullptr)
+			{
+				EditorData->AddBreakpoint(SelectedState->ID, Type);	
+			}
+		}
+	}
+	else if (CanRemoveStateBreakpoint(Type))
+	{
+		const FScopedTransaction Transaction(LOCTEXT("RemoveStateBreakpoint", "Remove State Breakpoint(s)"));
+		EditorData->Modify();
+		for (int Index = 0; Index < ValidatedSelectedStates.Num(); ++Index)
+		{
+			const UStateTreeState* SelectedState = ValidatedSelectedStates[Index];
+			if (HasBreakpoint[Index] && SelectedState != nullptr)
+			{
+				EditorData->RemoveBreakpoint(SelectedState->ID, Type);	
+			}
+		}
+	}
+}
+
+UStateTreeState* FStateTreeViewModel::FindStateAssociatedToBreakpoint(FStateTreeDebuggerBreakpoint Breakpoint) const
+{
+	UStateTreeEditorData* EditorData = TreeDataWeak.Get();
+	if (EditorData == nullptr)
+	{
+		return nullptr;
+	}
+	const UStateTree* StateTree = GetStateTree();
+	if (StateTree == nullptr)
+	{
+		return nullptr;
+	}
+
+	UStateTreeState* StateTreeState = nullptr;
+
+	if (const FStateTreeStateHandle* StateHandle = Breakpoint.ElementIdentifier.TryGet<FStateTreeStateHandle>())
+	{
+		const FGuid StateId = StateTree->GetStateIdFromHandle(*StateHandle);
+		StateTreeState = EditorData->GetMutableStateByID(StateId);
+	}
+	else if (const FStateTreeDebuggerBreakpoint::FStateTreeTaskIndex* TaskIndex = Breakpoint.ElementIdentifier.TryGet<FStateTreeDebuggerBreakpoint::FStateTreeTaskIndex>())
+	{
+		const FGuid TaskId = StateTree->GetNodeIdFromIndex(TaskIndex->Index);
+
+		EditorData->VisitHierarchy([&TaskId, &StateTreeState](UStateTreeState& State, UStateTreeState* /*ParentState*/)
+			{
+				for (const FStateTreeEditorNode& EditorNode : State.Tasks)
+				{
+					if (EditorNode.ID == TaskId)
+					{
+						StateTreeState = &State;
+						return EStateTreeVisitor::Break;
+					}
+				}
+				return EStateTreeVisitor::Continue;
+			});
+	}
+	else if (const FStateTreeDebuggerBreakpoint::FStateTreeTransitionIndex* TransitionIndex = Breakpoint.ElementIdentifier.TryGet<FStateTreeDebuggerBreakpoint::FStateTreeTransitionIndex>())
+	{
+		const FGuid TransitionId = StateTree->GetTransitionIdFromIndex(TransitionIndex->Index);
+
+		EditorData->VisitHierarchy([&TransitionId, &StateTreeState](UStateTreeState& State, UStateTreeState* /*ParentState*/)
+			{
+				for (const FStateTreeTransition& StateTransition : State.Transitions)
+				{
+					if (StateTransition.ID == TransitionId)
+					{
+						StateTreeState = &State;
+						return EStateTreeVisitor::Break;
+					}
+				}
+				return EStateTreeVisitor::Continue;
+			});
+	}
+
+	return StateTreeState;
+}
+
 void FStateTreeViewModel::HandleBreakpointsChanged(const UStateTree& StateTree)
 {
 	if (GetStateTree() == &StateTree)

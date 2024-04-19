@@ -377,21 +377,6 @@ void SStateTreeDebuggerView::Construct(const FArguments& InArgs, const UStateTre
 	// Register the play world commands
 	InCommandList->Append(FPlayWorldCommands::GlobalPlayWorldActions.ToSharedRef());
 
-	// Debug commands
-	InCommandList->MapAction(
-		FStateTreeDebuggerCommands::Get().EnableOnEnterStateBreakpoint,
-		FExecuteAction::CreateLambda([this] { HandleEnableStateBreakpoint(EStateTreeBreakpointType::OnEnter); }),
-		FCanExecuteAction(),
-		FGetActionCheckState::CreateLambda([this]{ return GetStateBreakpointCheckState(EStateTreeBreakpointType::OnEnter); }),
-		FIsActionButtonVisible::CreateLambda([this] { return CanAddStateBreakpoint(EStateTreeBreakpointType::OnEnter) || CanRemoveStateBreakpoint(EStateTreeBreakpointType::OnEnter); }));
-
-	InCommandList->MapAction(
-		FStateTreeDebuggerCommands::Get().EnableOnExitStateBreakpoint,
-		FExecuteAction::CreateLambda([this] { HandleEnableStateBreakpoint(EStateTreeBreakpointType::OnExit); }),
-		FCanExecuteAction(),
-		FGetActionCheckState::CreateLambda([this] { return GetStateBreakpointCheckState(EStateTreeBreakpointType::OnExit); }),
-		FIsActionButtonVisible::CreateLambda([this] { return CanAddStateBreakpoint(EStateTreeBreakpointType::OnExit) || CanRemoveStateBreakpoint(EStateTreeBreakpointType::OnExit); }));
-
 	// Toolbars
 	FSlimHorizontalToolBarBuilder LeftToolbar(InCommandList, FMultiBoxCustomization::None, /*InExtender*/ nullptr, /*InForceSmallIcons*/ true);
 	LeftToolbar.BeginSection(TEXT("Debugging"));
@@ -837,201 +822,6 @@ void SStateTreeDebuggerView::StepForwardToNextStateChange()
 	bAutoScroll = false;
 }
 
-bool SStateTreeDebuggerView::CanAddStateBreakpoint(const EStateTreeBreakpointType Type) const
-{
-	check(StateTreeViewModel);
-
-	TArray<UStateTreeState*> SelectedStates;
-	StateTreeViewModel->GetSelectedStates(SelectedStates);
-	if (SelectedStates.IsEmpty())
-	{
-		return false;
-	}
-
-	const UStateTreeEditorData* EditorData = StateTreeEditorData.Get();
-	if (!ensure(EditorData != nullptr))
-	{
-		return false;
-	}
-
-	for (const UStateTreeState* SelectedState : SelectedStates)
-	{
-		if (SelectedState != nullptr)
-		{
-			if (EditorData->HasBreakpoint(SelectedState->ID, Type) == false)
-			{
-				return true;
-			}
-		}
-	}
-
-	return false;
-}
-
-bool SStateTreeDebuggerView::CanRemoveStateBreakpoint(const EStateTreeBreakpointType Type) const
-{
-	check(StateTreeViewModel);
-
-	TArray<UStateTreeState*> SelectedStates;
-	StateTreeViewModel->GetSelectedStates(SelectedStates);
-	if (SelectedStates.IsEmpty())
-	{
-		return false;
-	}
-
-	const UStateTreeEditorData* EditorData = StateTreeEditorData.Get();
-	if (!ensure(EditorData != nullptr))
-	{
-		return false;
-	}
-
-	for (const UStateTreeState* SelectedState : SelectedStates)
-	{
-		if (SelectedState != nullptr)
-		{
-			if (EditorData->HasBreakpoint(SelectedState->ID, Type))
-			{
-				return true;
-			}
-		}
-	}
-
-	return false;
-}
-
-
-ECheckBoxState SStateTreeDebuggerView::GetStateBreakpointCheckState(const EStateTreeBreakpointType Type) const
-{
-	const bool bCanAdd = CanAddStateBreakpoint(Type);
-	const bool bCanRemove = CanRemoveStateBreakpoint(Type);
-	if (bCanAdd && bCanRemove)
-	{
-		return ECheckBoxState::Undetermined;
-	}
-
-	if (bCanRemove)
-	{
-		return ECheckBoxState::Checked;
-	}
-
-	if (bCanAdd)
-	{
-		return ECheckBoxState::Unchecked;
-	}
-
-	// Should not happen since action is not visible in this case
-	return ECheckBoxState::Undetermined;
-}
-
-void SStateTreeDebuggerView::HandleEnableStateBreakpoint(EStateTreeBreakpointType Type)
-{
-	check(StateTreeViewModel);
-
-	TArray<UStateTreeState*> SelectedStates;
-	StateTreeViewModel->GetSelectedStates(SelectedStates);
-	if (SelectedStates.IsEmpty())
-	{
-		return;
-	}
-
-	UStateTreeEditorData* EditorData = StateTreeEditorData.Get();
-	if (!ensure(EditorData != nullptr))
-	{
-		return;
-	}
-
-	TBitArray<> HasBreakpoint;
-	HasBreakpoint.Reserve(SelectedStates.Num());
-	for (const UStateTreeState* SelectedState : SelectedStates)
-	{
-		HasBreakpoint.Add(SelectedState != nullptr && EditorData->HasBreakpoint(SelectedState->ID, Type));
-	}
-
-	check(HasBreakpoint.Num() == SelectedStates.Num());
-
-	// Process CanAdd first so in case of undetermined state (mixed selection) we add by default. 
-	if (CanAddStateBreakpoint(Type))
-	{
-		const FScopedTransaction Transaction(LOCTEXT("AddStateBreakpoint", "Add State Breakpoint(s)"));
-		EditorData->Modify();
-		for (int Index = 0; Index < SelectedStates.Num(); ++Index)
-		{
-			const UStateTreeState* SelectedState = SelectedStates[Index];
-			if (HasBreakpoint[Index] == false && SelectedState != nullptr)
-			{
-				EditorData->AddBreakpoint(SelectedState->ID, Type);	
-			}
-		}
-	}
-	else if (CanRemoveStateBreakpoint(Type))
-	{
-		const FScopedTransaction Transaction(LOCTEXT("RemoveStateBreakpoint", "Remove State Breakpoint(s)"));
-		EditorData->Modify();
-		for (int Index = 0; Index < SelectedStates.Num(); ++Index)
-		{
-			const UStateTreeState* SelectedState = SelectedStates[Index];
-			if (HasBreakpoint[Index] && SelectedState != nullptr)
-			{
-				EditorData->RemoveBreakpoint(SelectedState->ID, Type);	
-			}
-		}
-	}
-}
-
-UStateTreeState* SStateTreeDebuggerView::FindStateAssociatedToBreakpoint(FStateTreeDebuggerBreakpoint Breakpoint) const
-{
-	const UStateTree* Tree = StateTree.Get();
-	UStateTreeEditorData* TreeEditorData = StateTreeEditorData.Get();
-	if (Tree == nullptr || TreeEditorData == nullptr)
-	{
-		return nullptr;
-	}
-
-	UStateTreeState* StateTreeState = nullptr;
-
-	if (const FStateTreeStateHandle* StateHandle = Breakpoint.ElementIdentifier.TryGet<FStateTreeStateHandle>())
-	{
-		const FGuid StateId = StateTree->GetStateIdFromHandle(*StateHandle);
-		StateTreeState = TreeEditorData->GetMutableStateByID(StateId);
-	}
-	else if (const FStateTreeDebuggerBreakpoint::FStateTreeTaskIndex* TaskIndex = Breakpoint.ElementIdentifier.TryGet<FStateTreeDebuggerBreakpoint::FStateTreeTaskIndex>())
-	{
-		const FGuid TaskId = StateTree->GetNodeIdFromIndex(TaskIndex->Index);
-
-		TreeEditorData->VisitHierarchy([&TaskId, &StateTreeState](UStateTreeState& State, UStateTreeState* /*ParentState*/)
-			{
-				for (const FStateTreeEditorNode& EditorNode : State.Tasks)
-				{
-					if (EditorNode.ID == TaskId)
-					{
-						StateTreeState = &State;
-						return EStateTreeVisitor::Break;
-					}
-				}
-				return EStateTreeVisitor::Continue;
-			});
-	}
-	else if (const FStateTreeDebuggerBreakpoint::FStateTreeTransitionIndex* TransitionIndex = Breakpoint.ElementIdentifier.TryGet<FStateTreeDebuggerBreakpoint::FStateTreeTransitionIndex>())
-	{
-		const FGuid TransitionId = StateTree->GetTransitionIdFromIndex(TransitionIndex->Index);
-
-		TreeEditorData->VisitHierarchy([&TransitionId, &StateTreeState](UStateTreeState& State, UStateTreeState* /*ParentState*/)
-			{
-				for (const FStateTreeTransition& StateTransition : State.Transitions)
-				{
-					if (StateTransition.ID == TransitionId)
-					{
-						StateTreeState = &State;
-						return EStateTreeVisitor::Break;
-					}
-				}
-				return EStateTreeVisitor::Continue;
-			});
-	}
-
-	return StateTreeState;
-}
-
 void SStateTreeDebuggerView::OnTimeLineScrubPositionChanged(double Time, bool bIsScrubbing)
 {
 	check(Debugger);
@@ -1272,9 +1062,9 @@ void SStateTreeDebuggerView::OnBreakpointHit(const FStateTreeInstanceDebugId Ins
 	}
 
 	// Extract associated UStateTreeState to focus on it.
-	if (UStateTreeState* AssociatedState = FindStateAssociatedToBreakpoint(Breakpoint))
+	check(StateTreeViewModel);
+	if (UStateTreeState* AssociatedState = StateTreeViewModel->FindStateAssociatedToBreakpoint(Breakpoint))
 	{
-		check(StateTreeViewModel);
 		StateTreeViewModel->SetSelection(AssociatedState);
 	}
 
