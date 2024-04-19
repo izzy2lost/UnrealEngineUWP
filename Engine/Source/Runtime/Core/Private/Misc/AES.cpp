@@ -22,11 +22,15 @@
 #		define DETECT_HW_AES_SUPPORT_IN_RUNTIME 1
 #	endif
 #else
-#	error Unknown CPU
+// unknown architecture forces SW
+#	define FORCE_SW_AES_SUPPORT 1
 #endif
 
 #ifndef DETECT_HW_AES_SUPPORT_IN_RUNTIME
 #	define DETECT_HW_AES_SUPPORT_IN_RUNTIME 0
+#endif
+#ifndef FORCE_SW_AES_SUPPORT
+#	define FORCE_SW_AES_SUPPORT 0
 #endif
 
 #if DETECT_HW_AES_SUPPORT_IN_RUNTIME
@@ -72,7 +76,7 @@ static inline uint32 RotateRight(uint32 X, int N)
 	return (X >> N) | (X << (32 - N));
 }
 
-#if !DETECT_HW_AES_SUPPORT_IN_RUNTIME
+#if !DETECT_HW_AES_SUPPORT_IN_RUNTIME && !FORCE_SW_AES_SUPPORT
 
 #if PLATFORM_CPU_X86_FAMILY
 constexpr static AesFunc* AesEncrypt = AesEncryptX86HW;
@@ -81,8 +85,18 @@ constexpr static AesFunc* AesDecrypt = AesDecryptX86HW;
 constexpr static AesFunc* AesEncrypt = AesEncryptArmHW;
 constexpr static AesFunc* AesDecrypt = AesDecryptArmHW;
 #else
-#error Unknown CPU
+#error Unknown CPU shouldn't get here
 #endif
+
+#else
+
+#if FORCE_SW_AES_SUPPORT
+
+// force software for unknown architecture
+static AesFunc AesEncryptSW;
+static AesFunc AesDecryptSW;
+static AesFunc* AesEncrypt = AesEncryptSW;
+static AesFunc* AesDecrypt = AesDecryptSW;
 
 #else
 
@@ -190,6 +204,8 @@ static struct FAesRuntimeHWSupportDetection
 		PickImplementation();
 	}
 } AesRuntimeHWSupportDetection;
+
+#endif // !FORCE_SW_AES_SUPPORT
 
 struct FAesExpandedKey
 {

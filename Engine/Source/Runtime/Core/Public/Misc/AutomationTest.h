@@ -3817,8 +3817,11 @@ class EXPORT_API CommandName : public IAutomationLatentCommandWithRetriesAndDela
 }
 
 //macro to simply the syntax for enqueueing a latent command
+#if WITH_AUTOMATION_TESTS
 #define ADD_LATENT_AUTOMATION_COMMAND(ClassDeclaration) FAutomationTestFramework::Get().EnqueueLatentCommand(MakeShareable(new ClassDeclaration));
-
+#else
+#define ADD_LATENT_AUTOMATION_COMMAND(ClassDeclaration) 
+#endif
 
 //declare the class
 #define START_NETWORK_AUTOMATION_COMMAND(ClassDeclaration)	\

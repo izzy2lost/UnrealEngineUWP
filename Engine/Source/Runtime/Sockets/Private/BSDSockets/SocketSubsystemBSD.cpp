@@ -331,20 +331,21 @@ ESocketErrors FSocketSubsystemBSD::TranslateErrorCode(int32 Code)
 #if !PLATFORM_HAS_NO_EPROCLIM
 	case EPROCLIM: return SE_EPROCLIM;
 #endif
-// 	case EDISCON: return SE_EDISCON;
-// 	case SYSNOTREADY: return SE_SYSNOTREADY;
-// 	case VERNOTSUPPORTED: return SE_VERNOTSUPPORTED;
-// 	case NOTINITIALISED: return SE_NOTINITIALISED;
 	case EPIPE: return SE_ECONNRESET; // for when backgrounding with an open pipe to a server
+	}
+
 #if PLATFORM_HAS_BSD_SOCKET_FEATURE_GETHOSTNAME
-	case HOST_NOT_FOUND: return SE_HOST_NOT_FOUND;
-	case TRY_AGAIN: return SE_TRY_AGAIN;
-	case NO_RECOVERY: return SE_NO_RECOVERY;
+	switch (Code)
+	{
+		// some platforms may duplicate error codes, so by moving these, these error will be
+		// returned, but if there are duplicate defines, it's already going to be unclear what
+		// should be returned
+	    case HOST_NOT_FOUND: return SE_HOST_NOT_FOUND;
+	    case TRY_AGAIN: return SE_TRY_AGAIN;
+	    case NO_RECOVERY: return SE_NO_RECOVERY;
+    }
 #endif
 
-//	case NO_DATA: return SE_NO_DATA;
-		// case : return SE_UDP_ERR_PORT_UNREACH; //@TODO Find it's replacement
-	}
 #endif
 
 	UE_LOG(LogSockets, Warning, TEXT("Unhandled socket error! Error Code: %d. Returning SE_EINVAL!"), Code);

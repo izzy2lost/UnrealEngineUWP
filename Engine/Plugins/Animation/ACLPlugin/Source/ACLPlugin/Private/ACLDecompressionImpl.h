@@ -31,9 +31,9 @@ struct FACLTransform final : public FTransform
 #if ENABLE_VECTORIZED_TRANSFORM
 		Rotation = Rotation_;
 #else
-		//rtm::quat_store(Rotation_, &Rotation.X);
-		VectorRegister4Float Vec = Rotation_;
-		VectorStore(Vec, &Rotation);
+		FQuat4f T;
+		rtm::quat_store(Rotation_, &T.X);
+		Rotation = (FQuat)T;
 #endif
 	}
 

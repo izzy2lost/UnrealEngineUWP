@@ -397,8 +397,10 @@ void FApp::PrintStartupLogMessages()
 	UE_LOG(LogInit, Log, TEXT("Architecture: arm64"));
 #elif PLATFORM_CPU_X86_FAMILY
 	UE_LOG(LogInit, Log, TEXT("Architecture: x64"));
+#elif defined(UE_ARCH_NAME)
+	UE_LOG(LogInit, Log, TEXT("Architecture: %hs"), PREPROCESSOR_TO_STRING(UE_ARCH_NAME));
 #else
-#error No architecture defined!
+#error No architecture name defined!
 #endif // x64/arm
 
 	// Print compiler version info

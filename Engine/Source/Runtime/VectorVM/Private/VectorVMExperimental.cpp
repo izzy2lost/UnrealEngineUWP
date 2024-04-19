@@ -294,8 +294,7 @@ void VVMMemSet16(void *dst, uint16 val, size_t num_vals)
 	}
 }
 
-
-#if PLATFORM_CPU_X86_FAMILY
+#if PLATFORM_CPU_X86_FAMILY || defined(__SSE3__)
 #define VVM_pshufb(Src, Mask) _mm_shuffle_epi8(Src, Mask)
   // Fabian's round-to-nearest-even float to half
   static void VVM_floatToHalf(void *output, float const *input)

@@ -252,7 +252,7 @@ void FImageWriteQueue::RecreateThreadPool()
 	// Prevent any other tasks being dispatched
 	FScopeLock ScopeLock(&ThreadPoolMutex);
 
-#if (PLATFORM_IOS || PLATFORM_TVOS || PLATFORM_ANDROID)
+#if UE_IWQ_USE_GIOTHREADPOOL
 	// To avoid spawning extra threads use global IO thread on mobile 
 	const int32 MaxConcurrency = GIOThreadPool->GetNumThreads();
 #else

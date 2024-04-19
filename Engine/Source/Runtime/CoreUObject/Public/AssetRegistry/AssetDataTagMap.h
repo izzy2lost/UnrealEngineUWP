@@ -181,6 +181,8 @@ namespace FixedTagPrivate
 	static constexpr uint32 KernelAddressBit = 63;
 #elif defined(__aarch64__) || defined(_M_ARM64)
 	static constexpr uint32 KernelAddressBit = 55;
+#elif defined(PLATFORM_KERNEL_ADDRESS_BIT)
+	static constexpr uint32 KernelAddressBit = PLATFORM_KERNEL_ADDRESS_BIT;
 #else
 	#error Unsupported architecture, please declare which address bit distinguish user space from kernel space
 #endif

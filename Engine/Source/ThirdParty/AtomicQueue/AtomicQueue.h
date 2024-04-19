@@ -12,7 +12,7 @@
 #include <utility>
 #include <atomic>
 
-#if !PLATFORM_CPU_ARM_FAMILY
+#if PLATFORM_USE_SSE2_FOR_THREAD_YIELD
 #include <emmintrin.h>
 #endif
 
@@ -26,10 +26,12 @@ namespace atomic_queue {
 
 	static inline void spin_loop_pause() noexcept {
 		// TODO(andriy): x86/x64 only
-#if !PLATFORM_CPU_ARM_FAMILY
+#if PLATFORM_USE_SSE2_FOR_THREAD_YIELD
 		_mm_pause();
-#else
+#elif PLATFORM_CPU_ARM_FAMILY
 		__asm__ __volatile__("yield");
+#else
+#error Implement this for your platform/architecture
 #endif
 	}
 
