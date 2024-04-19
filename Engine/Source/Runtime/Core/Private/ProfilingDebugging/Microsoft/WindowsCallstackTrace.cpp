@@ -866,6 +866,11 @@ void CallstackTrace_InitializeInternal()
 ////////////////////////////////////////////////////////////////////////////////
 uint32 CallstackTrace_GetCurrentId()
 {
+	if (!UE_TRACE_CHANNELEXPR_IS_ENABLED(CallstackChannel))
+	{
+		return 0;
+	}
+
 	void* AddressOfReturnAddress = PLATFORM_RETURN_ADDRESS_FOR_CALLSTACKTRACING();
 	if (FBacktracer* Instance = FBacktracer::Get())
 	{
