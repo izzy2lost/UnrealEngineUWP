@@ -157,7 +157,7 @@ FAutoConsoleVariableRef CVarSlateInvalidationWidgetListNumElementLeftBeforeSplit
 	GSlateInvalidationWidgetListNumberElementLeftBeforeSplitting,
 	TEXT("With the invalidation system, when splitting, only split the array when the number of element left is under X."));
 
-bool GSlateInvalidationEnableReindexLayerId = false;
+bool GSlateInvalidationEnableReindexLayerId = true;
 FAutoConsoleVariableRef CVarSlateInvalidationEnableReindexLayerId(
 	TEXT("Slate.InvalidationList.EnableReindexLayerId"),
 	GSlateInvalidationEnableReindexLayerId,
