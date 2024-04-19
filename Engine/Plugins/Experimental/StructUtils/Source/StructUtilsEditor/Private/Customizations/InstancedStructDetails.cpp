@@ -431,6 +431,7 @@ void FInstancedStructDetails::CustomizeHeader(TSharedRef<class IPropertyHandle> 
 	}
 
 	HeaderRow
+		.ShouldAutoExpand(true)
 		.NameContent()
 		[
 			StructPropertyHandle->CreatePropertyNameWidget()
