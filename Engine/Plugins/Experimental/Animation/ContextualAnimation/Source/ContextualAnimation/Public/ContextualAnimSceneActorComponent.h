@@ -307,6 +307,9 @@ protected:
 
 	virtual bool CanLeaveScene(const FContextualAnimSceneBinding& Binding);
 
+	// Called just before the scene leaving happens (which calls OnLeaveScene)
+	virtual void OnPreLeaveScene(const FContextualAnimSceneBinding& Binding);
+
 	virtual void OnLeaveScene(const FContextualAnimSceneBinding& Binding);
 
 	void LateJoinScene(const FContextualAnimSceneBindings& InBindings, int32 SectionIdx, int32 AnimSetIdx, const TArray<FContextualAnimWarpPoint>& WarpPoints, const TArray<FContextualAnimWarpTarget>& ExternalWarpTargets);
