@@ -1,11 +1,11 @@
 ﻿// Copyright Epic Games, Inc. All Rights Reserved.
 #pragma once
 
+#include "MuCO/CustomizableObject.h"
 #include "UObject/StrongObjectPtr.h"
 #include "Templates/SharedPointer.h"
 
 // Forward declarations
-class UCustomizableObject;
 struct FCompilationOptions;
 
 /**

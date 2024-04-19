@@ -1,13 +1,12 @@
 ﻿// Copyright Epic Games, Inc. All Rights Reserved.
 #pragma once
 
+#include "MuCO/CustomizableObjectInstance.h"
 #include "UObject/StrongObjectPtr.h"
 #include "Templates/SharedPointer.h"
 
 // Forward declarations
-class UCustomizableObjectInstance;
 class USkeletalMeshComponent;
-struct FUpdateContext;
 
 /**
  * Helping class that handles the async update of the provided instance. It will also wait for the mips of it so they get streamed.
