@@ -326,19 +326,20 @@ struct FNetworkPhysicsSettingsRenderInterpolation
 };
 */
 
-UCLASS(BlueprintType, meta = (BlueprintSpawnableComponent))
+/** Settings Component for network replicated physics actors
+* Overrides default settings, CVar settings and project settings. */
+UCLASS(BlueprintType, MinimalAPI, meta = (BlueprintSpawnableComponent))
 class UNetworkPhysicsSettingsComponent : public UActorComponent
 {
 	GENERATED_BODY()
 
 public:
-	UNetworkPhysicsSettingsComponent();
+	ENGINE_API UNetworkPhysicsSettingsComponent();
 
 	virtual void InitializeComponent() override;
 	virtual void UninitializeComponent() override;
 
 	virtual void BeginPlay() override;
-
 
 public:
 	UPROPERTY(EditDefaultsOnly, Category = "Networked Physics Settings")
