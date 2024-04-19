@@ -627,22 +627,10 @@ void FCustomPrimitiveDataCustomization::PopulateParameterData(UPrimitiveComponen
 
 void FCustomPrimitiveDataCustomization::RequestRefresh()
 {
-	if (!bDeferringRefresh && PropertyUtils.IsValid())
-	{
-		bDeferringRefresh = true;
-
-		PropertyUtils->EnqueueDeferredAction(FSimpleDelegate::CreateSP(this, &FCustomPrimitiveDataCustomization::OnDeferredRefresh));
-	}
-}
-	
-void FCustomPrimitiveDataCustomization::OnDeferredRefresh()
-{
 	if (PropertyUtils.IsValid())
 	{
-		PropertyUtils->ForceRefresh();
+		PropertyUtils->RequestForceRefresh();
 	}
-
-	bDeferringRefresh = false;
 }
 
 void FCustomPrimitiveDataCustomization::OnElementsModified(const FPropertyAccess::Result OldAccessResult, const uint32 OldNumElements)
