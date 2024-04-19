@@ -1253,7 +1253,7 @@ namespace UE
 						);
 					}
 
-					FLinearColor ComponentMask;
+					FLinearColor ComponentMask = FLinearColor::Black;
 					switch (TextureValue.OutputIndex)
 					{
 						case 0:	   // RGB

@@ -288,7 +288,7 @@ double FAvaEaseCurveTangents::CalculateCurveLength(const int32 SampleCount) cons
 
 	// Sample points along the curve and use those points to calculate the length of the curve
 	FVector2d SamplePoint;
-	FVector2d PreviousSamplePoint;
+	FVector2d PreviousSamplePoint = FVector2d::ZeroVector;
 	double Length = 0.0;
 
 	for (int32 Index = 0; Index <= SampleCount; Index++)

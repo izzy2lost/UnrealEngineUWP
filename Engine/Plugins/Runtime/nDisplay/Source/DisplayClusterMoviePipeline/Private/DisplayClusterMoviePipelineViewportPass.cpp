@@ -311,7 +311,7 @@ FSceneView* UDisplayClusterMoviePipelineViewportPassBase::GetSceneViewForSampleS
 		const FIntPoint FullDestSize(InOutSampleState.TileSize.X, InOutSampleState.TileSize.Y);
 		const FIntPoint DestSize = FullDestSize - OffsetMin - OffsetMax;
 
-		FDisplayClusterViewInfo NewView, PrevView;
+		FDisplayClusterViewInfo NewView;
 		DCViewport = GetAndCalculateDisplayClusterViewport(InOutSampleState, *ViewportId, DestSize, 0, NewView);
 		if(DCViewport)
 		{
