@@ -437,14 +437,17 @@ TArray<FRigVMVariantRef> URigVMBuildData::GatherFunctionVariantRefsForAsset(cons
 	FArrayProperty* PublicGraphFunctionsProperty = CastField<FArrayProperty>(URigVMBlueprint::StaticClass()->FindPropertyByName(FunctionsPropertyName));
 	PublicGraphFunctionsProperty->ImportText_Direct(*PublicGraphFunctionsString, &PublicFunctions, nullptr, EPropertyPortFlags::PPF_None);
 
-	for(const FRigVMGraphFunctionHeader& PublicFunction : PublicFunctions)
+	for(FRigVMGraphFunctionHeader& PublicFunction : PublicFunctions)
 	{
-		FRigVMVariantRef& VariantRef = Result.Add_GetRef(FRigVMVariantRef());
-		VariantRef.Variant = PublicFunction.Variant;
-		VariantRef.ObjectPath = PublicFunction.LibraryPointer.GetNodeSoftPath();
-		if (!VariantRef.Variant.Guid.IsValid())
+		if (PublicFunction.LibraryPointer.IsValid())
 		{
-			VariantRef.Variant.Guid = FRigVMVariant::GenerateGUID(VariantRef.ObjectPath.ToString());
+			FRigVMVariantRef& VariantRef = Result.Add_GetRef(FRigVMVariantRef());
+			VariantRef.Variant = PublicFunction.Variant;
+			VariantRef.ObjectPath = PublicFunction.LibraryPointer.GetNodeSoftPath();
+			if (!VariantRef.Variant.Guid.IsValid())
+			{
+				VariantRef.Variant.Guid = FRigVMVariant::GenerateGUID(VariantRef.ObjectPath.ToString());
+			}
 		}
 	}
 
