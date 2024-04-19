@@ -170,6 +170,58 @@ void UPCGComponent::AddToManagedResources(UPCGManagedResource* InResource)
 	}
 }
 
+void UPCGComponent::AddComponentsToManagedResources(const TArray<UActorComponent*>& InComponents)
+{
+	for (UActorComponent* Component : InComponents)
+	{
+		if (!Component)
+		{
+			continue;
+		}
+
+		if (!Component->ComponentHasTag(PCGHelpers::DefaultPCGTag))
+		{
+			Component->Modify();
+			Component->ComponentTags.Add(PCGHelpers::DefaultPCGTag);
+		}
+
+		UPCGManagedComponent* ManagedResource = NewObject<UPCGManagedComponent>(this);
+		// Implementation note: we call the setter to make sure that if this is done from BP, the construction method is properly updated
+		ManagedResource->SetGeneratedComponentFromBP(Component);
+
+		AddToManagedResources(ManagedResource);
+	}
+}
+
+void UPCGComponent::AddActorsToManagedResources(const TArray<AActor*>& InActors)
+{
+	TSet<TSoftObjectPtr<AActor>> ValidActors;
+
+	for (AActor* Actor : InActors)
+	{
+		if (Actor)
+		{
+			if (!Actor->Tags.Contains(PCGHelpers::DefaultPCGActorTag))
+			{
+				Actor->Modify();
+				Actor->Tags.Add(PCGHelpers::DefaultPCGActorTag);
+			}
+
+			ValidActors.Add(Actor);
+		}
+	}
+
+	if (ValidActors.IsEmpty())
+	{
+		return;
+	}
+
+	UPCGManagedActors* ManagedResource = NewObject<UPCGManagedActors>(this);
+	ManagedResource->GeneratedActors = ValidActors;
+
+	AddToManagedResources(ManagedResource);
+}
+
 void UPCGComponent::ForEachManagedResource(TFunctionRef<void(UPCGManagedResource*)> Func)
 {
 	FScopeLock ResourcesLock(&GeneratedResourcesLock);

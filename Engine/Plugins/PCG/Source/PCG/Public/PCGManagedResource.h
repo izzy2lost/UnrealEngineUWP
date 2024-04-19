@@ -107,6 +107,8 @@ class PCG_API UPCGManagedComponent : public UPCGManagedResource
 {
 	GENERATED_BODY()
 
+	friend class UPCGComponent;
+
 public:
 	//~Begin UObject interface
 	virtual void PostEditImport() override;
@@ -131,8 +133,13 @@ public:
 	virtual void ForgetComponent() { GeneratedComponent.Reset(); }
 
 public:
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = GeneratedData)
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = GeneratedData, BlueprintSetter = SetGeneratedComponentFromBP)
 	TSoftObjectPtr<UActorComponent> GeneratedComponent;
+
+private:
+	// When creating components from BP they will be tagged automatically as created from construction script, which makes them transient and isn't compatible with the PCG workflow.
+	UFUNCTION(BlueprintSetter, meta = (BlueprintInternalUseOnly = "true"))
+	void SetGeneratedComponentFromBP(TSoftObjectPtr<UActorComponent> InGeneratedComponent);
 };
 
 UCLASS(BlueprintType)

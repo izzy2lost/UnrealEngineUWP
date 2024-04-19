@@ -461,6 +461,27 @@ void UPCGManagedComponent::MarkAsReused()
 	}
 }
 
+void UPCGManagedComponent::SetGeneratedComponentFromBP(TSoftObjectPtr<UActorComponent> InGeneratedComponent)
+{
+	GeneratedComponent = InGeneratedComponent;
+
+	// Components that are created from blueprint are automatically tagged as "created by construction script",
+	// regardless of whether that is true. This makes sure that the flags on the component are correct and considered an instance component
+	// and will then be properly serialized and managed by PCG.
+	if (UActorComponent* Component = GeneratedComponent.Get())
+	{
+		if (AActor* ComponentOwner = Component->GetOwner())
+		{
+			if (Component->CreationMethod == EComponentCreationMethod::UserConstructionScript)
+			{
+				ComponentOwner->RemoveOwnedComponent(Component);
+				Component->CreationMethod = EComponentCreationMethod::Instance;
+				ComponentOwner->AddOwnedComponent(Component);
+			}
+		}
+	}
+}
+
 #if WITH_EDITOR
 void UPCGManagedComponent::ChangeTransientState(EPCGEditorDirtyMode NewEditingMode)
 {

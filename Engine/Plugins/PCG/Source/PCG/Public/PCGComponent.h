@@ -140,6 +140,15 @@ public:
 	UFUNCTION(BlueprintCallable, Category = PCG)
 	void AddToManagedResources(UPCGManagedResource* InResource);
 
+	/** Creates a managed component resource and adds it to the current component. Note: in native code, consider using the explicit creation especially if there are special resource objects involved. */
+	UFUNCTION(BlueprintCallable, Category = PCG)
+	void AddComponentsToManagedResources(const TArray<UActorComponent*>& InComponents);
+
+	/** Creates a managed actors resource and adds it to the current component. Note: in native code, consider using the explicit creation especially if there are special resource objects involved. */
+	UFUNCTION(BlueprintCallable, Category = PCG)
+	void AddActorsToManagedResources(const TArray<AActor*>& InActors);
+
+public:
 	void ForEachManagedResource(TFunctionRef<void(UPCGManagedResource*)> InFunction);
 
 	/** Transactionable methods to be called from details UI */
