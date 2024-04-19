@@ -73,15 +73,6 @@ namespace Horde.Server.Logs
 		Task<ILog?> GetLogAsync(LogId logId, CancellationToken cancellationToken);
 
 		/// <summary>
-		/// Returns a list of log files
-		/// </summary>
-		/// <param name="index">Index of the first result to return</param>
-		/// <param name="count">Number of results to return</param>
-		/// <param name="cancellationToken">Cancellation token for the call</param>
-		/// <returns>List of log documents</returns>
-		Task<List<ILog>> GetLogsAsync(int? index = null, int? count = null, CancellationToken cancellationToken = default);
-
-		/// <summary>
 		/// Read a set of lines from the given log file
 		/// </summary>
 		/// <param name="log">Log file to read</param>
@@ -559,12 +550,6 @@ namespace Horde.Server.Logs
 		public async Task<ILog?> GetLogAsync(LogId logId, CancellationToken cancellationToken)
 		{
 			return await _logCollection.GetLogAsync(logId, cancellationToken);
-		}
-
-		/// <inheritdoc/>
-		public Task<List<ILog>> GetLogsAsync(int? index = null, int? count = null, CancellationToken cancellationToken = default)
-		{
-			return _logCollection.GetLogsAsync(index, count, cancellationToken);
 		}
 
 		/// <inheritdoc/>

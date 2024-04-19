@@ -44,7 +44,7 @@ namespace Horde.Server.Tests.Logs
 			JobId jobId = JobIdUtils.GenerateNewId();
 			ILog logFile = await LogService.CreateLogAsync(jobId, null, null, LogType.Text, logId: null, cancellationToken: CancellationToken.None);
 
-			await using (TestLogWriter writer = new TestLogWriter(logFile, LogCollection, StorageService))
+			await using (TestLogWriter writer = new TestLogWriter(logFile, StorageService))
 			{
 				await writer.WriteDataAsync(Encoding.ASCII.GetBytes("hello\n"));
 				await writer.FlushAsync(false);
@@ -104,7 +104,7 @@ namespace Horde.Server.Tests.Logs
 			int lineIndex = 0;
 			int offset = 0;
 
-			await using TestLogWriter logWriter = new TestLogWriter(log, LogCollection, StorageService);
+			await using TestLogWriter logWriter = new TestLogWriter(log, StorageService);
 
 			// First write with flush. Will become chunk #1
 			log = await logWriter.WriteDataAsync(Encoding.ASCII.GetBytes(str1));
@@ -175,9 +175,6 @@ namespace Horde.Server.Tests.Logs
 		[TestMethod]
 		public async Task GetLogFileTestAsync()
 		{
-			await GetMongoServiceSingleton().Database.DropCollectionAsync("LogFiles");
-			Assert.AreEqual(0, (await LogService.GetLogsAsync()).Count);
-
 			// Will implicitly test GetLogFileAsync(), AddCachedLogFile()
 			JobId jobId = JobIdUtils.GenerateNewId();
 			SessionId sessionId = SessionIdUtils.GenerateNewId();
@@ -189,9 +186,6 @@ namespace Horde.Server.Tests.Logs
 
 			ILog? notFound = await LogService.GetLogAsync(LogIdUtils.GenerateNewId(), CancellationToken.None);
 			Assert.IsNull(notFound);
-
-			await LogService.CreateLogAsync(JobIdUtils.GenerateNewId(), null, SessionIdUtils.GenerateNewId(), LogType.Text, logId: null, cancellationToken: CancellationToken.None);
-			Assert.AreEqual(2, (await LogService.GetLogsAsync()).Count);
 		}
 
 		[TestMethod]
@@ -221,7 +215,7 @@ namespace Horde.Server.Tests.Logs
 		{
 			JobId jobId = JobIdUtils.GenerateNewId();
 			ILog logFile = await LogService.CreateLogAsync(jobId, null, null, LogType.Text, logId: null, cancellationToken: CancellationToken.None);
-			await using TestLogWriter logWriter = new TestLogWriter(logFile, LogCollection, StorageService);
+			await using TestLogWriter logWriter = new TestLogWriter(logFile, StorageService);
 
 			byte[] line1 = Encoding.UTF8.GetBytes("hello world\n");
 			await logWriter.WriteDataAsync(line1);

@@ -21,16 +21,14 @@ namespace Horde.Server.Tests.Logs
 	class TestLogWriter : IAsyncDisposable
 	{
 		ILog _logFile;
-		readonly ILogCollection _logCollection;
 		readonly IStorageClient _storageClient;
 		readonly IBlobWriter _blobWriter;
 		readonly LogBuilder _builder;
 		int _lineCount;
 
-		public TestLogWriter(ILog logFile, ILogCollection logCollection, StorageService storageService)
+		public TestLogWriter(ILog logFile, StorageService storageService)
 		{
 			_logFile = logFile;
-			_logCollection = logCollection;
 			_storageClient = storageService.CreateClient(Namespace.Logs);
 			_blobWriter = _storageClient.CreateBlobWriter(logFile.RefName);
 			_builder = new LogBuilder((logFile.Type == LogType.Text) ? LogFormat.Text : LogFormat.Json, NullLogger.Instance);
@@ -46,7 +44,7 @@ namespace Horde.Server.Tests.Logs
 		{
 			_builder.WriteData(data);
 			_lineCount += data.Span.Count((byte)'\n');
-			_logFile = await _logCollection.UpdateLineCountAsync(_logFile, _lineCount, false, CancellationToken.None);
+			_logFile = await _logFile.UpdateLineCountAsync(_lineCount, false, CancellationToken.None);
 			return await FlushAsync(false);
 		}
 
@@ -54,7 +52,7 @@ namespace Horde.Server.Tests.Logs
 		{
 			IBlobRef<LogNode> handle = await _builder.FlushAsync(_blobWriter, complete, CancellationToken.None);
 			await _storageClient.WriteRefAsync(_logFile.RefName, handle);
-			_logFile = await _logCollection.UpdateLineCountAsync(_logFile, _lineCount, complete, CancellationToken.None);
+			_logFile = await _logFile.UpdateLineCountAsync(_lineCount, complete, CancellationToken.None);
 			return _logFile;
 		}
 	}
@@ -71,7 +69,7 @@ namespace Horde.Server.Tests.Logs
 			ILog logFile = await LogService.CreateLogAsync(jobId, null, null, LogType.Text);
 
 			// Write the test data to the log file in blocks
-			await using (TestLogWriter logWriter = new TestLogWriter(logFile, LogCollection, StorageService))
+			await using (TestLogWriter logWriter = new TestLogWriter(logFile, StorageService))
 			{
 				int offset = 0;
 				int lineIndex = 0;
@@ -150,7 +148,7 @@ namespace Horde.Server.Tests.Logs
 			};
 
 			int length = 0;
-			await using (TestLogWriter logWriter = new TestLogWriter(logFile, LogCollection, StorageService))
+			await using (TestLogWriter logWriter = new TestLogWriter(logFile, StorageService))
 			{
 				for (int lineIdx = 0; lineIdx < lines.Length; lineIdx++)
 				{
@@ -187,7 +185,7 @@ namespace Horde.Server.Tests.Logs
 			JobId jobId = JobIdUtils.GenerateNewId();
 			ILog logFile = await LogService.CreateLogAsync(jobId, null, null, LogType.Text);
 
-			await using (TestLogWriter writer = new TestLogWriter(logFile, LogCollection, StorageService))
+			await using (TestLogWriter writer = new TestLogWriter(logFile, StorageService))
 			{
 				logFile = await writer.WriteDataAsync(Encoding.UTF8.GetBytes("abc\n"));
 				logFile = await writer.WriteDataAsync(Encoding.UTF8.GetBytes("def\n"));
