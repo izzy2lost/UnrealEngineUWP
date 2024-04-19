@@ -423,67 +423,6 @@ namespace Horde.Server.Agents
 	}
 
 	/// <summary>
-	/// Well-known property names for agents
-	/// </summary>
-	static class KnownPropertyNames
-	{
-		/// <summary>
-		/// The agent id
-		/// </summary>
-		public const string Id = "Id";
-
-		/// <summary>
-		/// The operating system (Linux, MacOS, Windows)
-		/// </summary>
-		public const string OsFamily = "OSFamily";
-
-		/// <summary>
-		/// Whether the agent is a .NET self-contained app
-		/// </summary>
-		public const string SelfContained = "SelfContained";
-
-		/// <summary>
-		/// Pools that this agent belongs to
-		/// </summary>
-		public const string Pool = "Pool";
-
-		/// <summary>
-		/// Pools requested by the agent to join when registering with server
-		/// </summary>
-		public const string RequestedPools = "RequestedPools";
-
-		/// <summary>
-		/// Number of logical cores
-		/// </summary>
-		public const string LogicalCores = "LogicalCores";
-
-		/// <summary>
-		/// Amount of RAM, in GB
-		/// </summary>
-		public const string Ram = "RAM";
-
-		/// <summary>
-		/// IP address used for sending compute task payloads
-		/// </summary>
-		public const string ComputeIp = "ComputeIp";
-		
-		/// <summary>
-		/// Port used for sending compute task payloads
-		/// </summary>
-		public const string ComputePort = "ComputePort";
-
-		/// <summary>
-		/// AWS: Instance ID
-		/// </summary>
-		public const string AwsInstanceId = "aws-instance-id";
-
-		/// <summary>
-		/// AWS: Instance type
-		/// </summary>
-		public const string AwsInstanceType = "aws-instance-type";
-	}
-
-	/// <summary>
 	/// Mirrors an Agent document in the database
 	/// </summary>
 	public interface IAgent

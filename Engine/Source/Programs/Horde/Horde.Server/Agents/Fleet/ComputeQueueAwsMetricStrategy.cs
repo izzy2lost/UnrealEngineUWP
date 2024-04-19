@@ -9,6 +9,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Amazon.CloudWatch;
 using Amazon.CloudWatch.Model;
+using EpicGames.Horde.Agents;
 using EpicGames.Horde.Compute;
 using Horde.Server.Agents.Pools;
 using Horde.Server.Compute;
