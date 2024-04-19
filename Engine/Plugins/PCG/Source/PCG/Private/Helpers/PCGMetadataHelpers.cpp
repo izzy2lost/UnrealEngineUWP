@@ -164,7 +164,7 @@ namespace PCGMetadataHelpers
 
 				if (FPCGMetadataAttributeBase* NewAttr = TargetMetadata->CopyAttribute(SourceAttribute, LocalDestinationAttribute, /*bKeepParent=*/false, /*bCopyEntries=*/true,/*bCopyValues=*/true))
 				{
-					// To keep the previous behavior, we force the copied attribute to have its default value set to the first entry.
+					// To keep the previous behavior for single value attributes, we force the copied attribute to have its default value set to the first entry (only done if there is just a single value).
 					NewAttr->SetDefaultValueToFirstEntry();
 				}
 				else

@@ -236,7 +236,7 @@ bool FPCGCopyAttributeTests_Points_AttributeToAttribute::RunTest(const FString& 
 
 	check(InputAttribute && OutputAttribute);
 
-	UTEST_EQUAL("Output Attribute default value is the same as first entry of Input Attribute", OutputAttribute->GetValueFromItemKey(PCGInvalidEntryKey), InputAttribute->GetValueFromItemKey(PCGMetadataEntryKey(0)));
+	UTEST_EQUAL("Output Attribute default value is the same as default value of Input Attribute", OutputAttribute->GetValueFromItemKey(PCGInvalidEntryKey), InputAttribute->GetValueFromItemKey(PCGInvalidEntryKey));
 
 	// Input attribute was copied in the output attribute correctly
 	for (int i = 0; i < NumOfPoints; ++i)
@@ -373,7 +373,7 @@ bool FPCGCopyAttributeTests_Params_MultiValue::RunTest(const FString& Parameters
 
 	check(InputAttribute && OutputAttribute);
 
-	UTEST_EQUAL("Output Attribute default value is the same as first entry of Input Attribute", OutputAttribute->GetValueFromItemKey(PCGInvalidEntryKey), InputAttribute->GetValueFromItemKey(PCGMetadataEntryKey(0)));
+	UTEST_EQUAL("Output Attribute default value is the same as default value of Input Attribute", OutputAttribute->GetValueFromItemKey(PCGInvalidEntryKey), InputAttribute->GetValueFromItemKey(PCGInvalidEntryKey));
 
 	// Input attribute was copied in the output attribute correctly
 	for (int i = 0; i < NumEntries; ++i)
