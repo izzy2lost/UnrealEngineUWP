@@ -1099,7 +1099,7 @@ void FCustomizableInstanceDetails::OnFloatParameterChanged(float Value, FString 
 
 void FCustomizableInstanceDetails::OnFloatParameterSliderBegin()
 {
-	BeginTransaction(LOCTEXT("OnFloatParameterCommited", "Set Float Slider"));
+	BeginTransaction(LOCTEXT("OnFloatParameterSliderBegin", "Set Float Slider"));
 	bUpdatingSlider = true;
 }
 
