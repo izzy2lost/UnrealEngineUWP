@@ -52,7 +52,7 @@ static bool GetIsPreset(const FSoftObjectPath& InSourcePath)
 		const FMetasoundAssetBase* MetaSoundAsset = IMetasoundUObjectRegistry::Get().GetObjectAsAssetBase(Object);
 		if (MetaSoundAsset)
 		{
-			bIsPreset = MetaSoundAsset->GetDocumentChecked().RootGraph.PresetOptions.bIsPreset;
+			bIsPreset = MetaSoundAsset->GetConstDocumentChecked().RootGraph.PresetOptions.bIsPreset;
 		}
 	}
 	// Otherwise, try to pull from asset registry, but avoid load as this call

@@ -338,6 +338,11 @@ namespace Metasound::Frontend
 		return nullptr;
 	}
 
+	const int32* FDocumentGraphInterfaceCache::FindInputIndex(FName InputName) const
+	{
+		return InputNameToIndex.Find(InputName);
+	}
+
 	const FMetasoundFrontendClassOutput* FDocumentGraphInterfaceCache::FindOutput(FName OutputName) const
 	{
 		if (const int32* Index = OutputNameToIndex.Find(OutputName))
@@ -347,6 +352,11 @@ namespace Metasound::Frontend
 		}
 
 		return nullptr;
+	}
+
+	const int32* FDocumentGraphInterfaceCache::FindOutputIndex(FName OutputName) const
+	{
+		return OutputNameToIndex.Find(OutputName);
 	}
 
 	int32 FDocumentGraphInterfaceCache::GetTransactionCount() const

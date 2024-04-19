@@ -126,7 +126,9 @@ namespace Metasound::Frontend
 
 		// IDocumentGraphInterfaceCache implementation
 		virtual const FMetasoundFrontendClassInput* FindInput(FName InputName) const override;
+		virtual const int32* FindInputIndex(FName InputName) const override;
 		virtual const FMetasoundFrontendClassOutput* FindOutput(FName OutputName) const override;
+		virtual const int32* FindOutputIndex(FName OutputName) const override;
 
 		int32 GetTransactionCount() const;
 

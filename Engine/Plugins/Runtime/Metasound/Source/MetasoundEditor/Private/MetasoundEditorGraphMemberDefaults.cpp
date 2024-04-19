@@ -9,6 +9,7 @@
 #include "GraphEditorSettings.h"
 #include "MetasoundDataReference.h"
 #include "MetasoundEditorGraph.h"
+#include "MetasoundEditorGraphBuilder.h"
 #include "MetasoundEditorGraphNode.h"
 #include "MetasoundFrontend.h"
 #include "MetasoundFrontendController.h"
@@ -189,6 +190,8 @@ void UMetasoundEditorGraphMemberDefaultFloat::UpdatePreviewInstance(const Metaso
 
 void UMetasoundEditorGraphMemberDefaultFloat::PostEditChangeChainProperty(FPropertyChangedChainEvent& PropertyChangedEvent)
 {
+	using namespace Metasound::Editor;
+
 	if (PropertyChangedEvent.GetPropertyName().IsEqual(GET_MEMBER_NAME_CHECKED(UMetasoundEditorGraphMemberDefaultFloat, Default)))
 	{
 		SetDefault(Default);
@@ -279,13 +282,13 @@ void UMetasoundEditorGraphMemberDefaultFloat::PostEditChangeChainProperty(FPrope
 		}
 	}
 
-	UMetasoundEditorGraphMember* Member = GetParentMember();
-	if (ensure(Member))
+	// Only update member on non-interactive changes to avoid refreshing the details panel mid-update
+	if (PropertyChangedEvent.ChangeType != EPropertyChangeType::Interactive)
 	{
-		// Only update member on non-interactive changes to avoid refreshing the details panel mid-update
-		if (PropertyChangedEvent.ChangeType != EPropertyChangeType::Interactive)
+		UMetasoundEditorGraphMember* Member = FindMember();
+		if (ensure(Member))
 		{
-			FMetasoundFrontendDocumentModifyContext& ModifyContext = Member->GetOwningGraph()->GetModifyContext();
+			FMetasoundFrontendDocumentModifyContext& ModifyContext = FGraphBuilder::GetOutermostMetaSoundChecked(*Member).GetModifyContext();
 			ModifyContext.AddMemberIDsModified({ Member->GetMemberID() });
 
 			// Mark all nodes as modified to refresh them on synchronization.  This ensures all corresponding widgets get updated.

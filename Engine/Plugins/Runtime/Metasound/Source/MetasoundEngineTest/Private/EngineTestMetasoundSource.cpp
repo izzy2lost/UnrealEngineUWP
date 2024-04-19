@@ -310,7 +310,7 @@ bool FMetaSoundSourceBuilderAuditionLatentCommand::Update()
 			if (const USoundBase* InitSound = AudioComponent->GetSound())
 			{
 				const UMetaSoundSource* InitMetaSound = CastChecked<UMetaSoundSource>(InitSound);
-				return InitMetaSound->GetDocumentChecked().RootGraph.Metadata.GetClassName().GetFullName();
+				return InitMetaSound->GetConstDocumentChecked().RootGraph.Metadata.GetClassName().GetFullName();
 			}
 
 			return { };
@@ -384,7 +384,10 @@ bool FAudioMetasoundSourceTest::RunTest(const FString& Parameters)
 	UMetaSoundSource* MetaSoundSource = NewObject<UMetaSoundSource>(GetTransientPackage(), FName(*LexToString(FGuid::NewGuid())));;
 	if (ensure(nullptr != MetaSoundSource))
 	{
+		// TODO: Move to using builder to swap in doc
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		MetaSoundSource->SetDocument(CreateMonoSourceDocument());
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 		if (UAudioComponent* AudioComponent = CreateTestComponent(*this, MetaSoundSource))
 		{

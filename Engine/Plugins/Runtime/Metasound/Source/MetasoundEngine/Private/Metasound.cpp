@@ -11,6 +11,7 @@
 #include "MetasoundEngineEnvironment.h"
 #include "MetasoundEnvironment.h"
 #include "MetasoundFrontendController.h"
+#include "MetasoundFrontendDocument.h"
 #include "MetasoundFrontendQuery.h"
 #include "MetasoundFrontendQuerySteps.h"
 #include "MetasoundFrontendRegistries.h"
@@ -51,7 +52,6 @@ int32 UMetasoundEditorGraphBase::GetHighestMessageSeverity() const
 
 	return HighestMessageSeverity;
 }
-
 
 UMetaSoundPatch::UMetaSoundPatch(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
@@ -135,26 +135,37 @@ void UMetaSoundPatch::Serialize(FArchive& InArchive)
 }
 
 #if WITH_EDITORONLY_DATA
+void UMetaSoundPatch::MigrateEditorGraph(FMetaSoundFrontendDocumentBuilder& OutBuilder)
+{
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	if (Graph)
+	{
+		Graph->MigrateEditorDocumentData(OutBuilder);
+		Graph = nullptr;
+	}
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+}
+
 UEdGraph* UMetaSoundPatch::GetGraph()
 {
-	return Graph;
+	return EditorGraph;
 }
 
 const UEdGraph* UMetaSoundPatch::GetGraph() const
 {
-	return Graph;
+	return EditorGraph;
 }
 
 UEdGraph& UMetaSoundPatch::GetGraphChecked()
 {
-	check(Graph);
-	return *Graph;
+	check(EditorGraph);
+	return *EditorGraph;
 }
 
 const UEdGraph& UMetaSoundPatch::GetGraphChecked() const
 {
-	check(Graph);
-	return *Graph;
+	check(EditorGraph);
+	return *EditorGraph;
 }
 FText UMetaSoundPatch::GetDisplayName() const
 {

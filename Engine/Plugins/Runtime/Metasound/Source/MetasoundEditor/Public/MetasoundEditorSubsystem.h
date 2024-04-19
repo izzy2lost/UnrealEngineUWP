@@ -12,6 +12,8 @@
 
 // Forward Declarations
 class UMetaSoundBuilderBase;
+class UMetasoundEditorGraphMember;
+class UMetasoundEditorGraphMemberDefaultLiteral;
 
 /** The subsystem in charge of editor MetaSound functionality */
 UCLASS()
@@ -20,6 +22,16 @@ class METASOUNDEDITOR_API UMetaSoundEditorSubsystem : public UEditorSubsystem
 	GENERATED_BODY()
 
 public:
+	// Binds literal editor Metadata to the given member.  If the literal already exists, adds literal
+	// reference to given member (asserts that existing literal is of similar subclass provided).  If 
+	// it does not exist, or an optional template object is provided, metadata is generated then bound.
+	// Returns true if new literal metadata was generated, false if not. Asserts if bind failed.
+	bool BindMemberMetadata(
+		FMetaSoundFrontendDocumentBuilder& Builder,
+		UMetasoundEditorGraphMember& InMember,
+		TSubclassOf<UMetasoundEditorGraphMemberDefaultLiteral> LiteralClass,
+		UMetasoundEditorGraphMemberDefaultLiteral* TemplateObject = nullptr);
+
 	// Build the given builder to a MetaSound asset
 	// @param Author - Sets the author on the given builder's document.
 	// @param AssetName - Name of the asset to build.
@@ -42,7 +54,7 @@ public:
 		UPARAM(DisplayName = "Node Handle") const FMetaSoundNodeHandle& InNode,
 		UPARAM(DisplayName = "Location") const FVector2D& InLocation,
 		EMetaSoundBuilderResult& OutResult);
-	
+
 	// Initialize the UObject asset, with an optional MetaSound to be referenced if the asset is a preset
 	void InitAsset(UObject& InNewMetaSound, UObject* InReferencedMetaSound = nullptr);
 

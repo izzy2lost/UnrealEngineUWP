@@ -2,31 +2,24 @@
 #pragma once
 
 #include "Containers/UnrealString.h"
+#include "MetasoundDocumentInterface.h"
 #include "MetasoundFrontendController.h"
 #include "MetasoundFrontendTransform.h"
 #include "MetasoundFrontendDocument.h"
 #include "UObject/NameTypes.h"
+#include "UObject/ScriptInterface.h"
+
+class IMetaSoundDocumentInterface;
 
 
-namespace Metasound
+namespace Metasound::Frontend
 {
-	namespace Frontend
+	static FMetasoundFrontendVersionNumber GetMaxDocumentVersion()
 	{
-		/** Base class for versioning a document. */
-		class METASOUNDFRONTEND_API FVersionDocument : public IDocumentTransform
-		{
-			const FName Name;
-			const FString& Path;
+		return FMetasoundFrontendVersionNumber { 1, 12 };
+	}
 
-		public:
-			static FMetasoundFrontendVersionNumber GetMaxVersion()
-			{
-				return FMetasoundFrontendVersionNumber { 1, 11 };
-			}
-
-			FVersionDocument(FName InName, const FString& InPath);
-
-			bool Transform(FDocumentHandle InDocument) const override;
-		};
-	} // namespace Frontend
-} // namespace Metasound
+	// Versions Frontend Document. Passed as AssetBase for backward compat to
+	// version asset documents predating the IMetaSoundDocumentInterface
+	bool VersionDocument(FMetasoundAssetBase& InAssetBase);
+} // namespace Metasound::Frontend

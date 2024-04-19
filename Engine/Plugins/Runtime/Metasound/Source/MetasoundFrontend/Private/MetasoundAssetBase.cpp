@@ -125,6 +125,68 @@ namespace Metasound
 				FMetasoundFrontendClass FrontendClass;
 				FNodeClassInfo ClassInfo;
 			};
+
+			void GetUpdatePathForDocument(const FMetasoundFrontendVersion& InCurrentVersion, const FMetasoundFrontendVersion& InTargetVersion, TArray<const IInterfaceRegistryEntry*>& OutUpgradePath)
+			{
+				if (InCurrentVersion.Name == InTargetVersion.Name)
+				{
+					// Get all associated registered interfaces
+					TArray<FMetasoundFrontendVersion> RegisteredVersions = ISearchEngine::Get().FindAllRegisteredInterfacesWithName(InTargetVersion.Name);
+
+					// Filter registry entries that exist between current version and target version
+					auto FilterRegistryEntries = [&InCurrentVersion, &InTargetVersion](const FMetasoundFrontendVersion& InVersion)
+					{
+						const bool bIsGreaterThanCurrent = InVersion.Number > InCurrentVersion.Number;
+						const bool bIsLessThanOrEqualToTarget = InVersion.Number <= InTargetVersion.Number;
+
+						return bIsGreaterThanCurrent && bIsLessThanOrEqualToTarget;
+					};
+					RegisteredVersions = RegisteredVersions.FilterByPredicate(FilterRegistryEntries);
+
+					// sort registry entries to create an ordered upgrade path.
+					RegisteredVersions.Sort();
+
+					// Get registry entries from registry keys.
+					auto GetRegistryEntry = [](const FMetasoundFrontendVersion& InVersion)
+					{
+						FInterfaceRegistryKey Key = GetInterfaceRegistryKey(InVersion);
+						return IInterfaceRegistry::Get().FindInterfaceRegistryEntry(Key);
+					};
+					Algo::Transform(RegisteredVersions, OutUpgradePath, GetRegistryEntry);
+				}
+			}
+
+			bool UpdateDocumentInterface(const TArray<const IInterfaceRegistryEntry*>& InUpgradePath, const FMetasoundFrontendVersion& InterfaceVersion, FDocumentHandle InDocument)
+			{
+				const FMetasoundFrontendVersionNumber* LastVersionUpdated = nullptr;
+				for (const IInterfaceRegistryEntry* Entry : InUpgradePath)
+				{
+					if (ensure(nullptr != Entry))
+					{
+						if (Entry->UpdateRootGraphInterface(InDocument))
+						{
+							LastVersionUpdated = &Entry->GetInterface().Version.Number;
+						}
+					}
+				}
+
+				if (LastVersionUpdated)
+				{
+#if WITH_EDITOR
+					const FString AssetName = *InDocument->GetRootGraphClass().Metadata.GetDisplayName().ToString();
+#else
+					const FString AssetName = *InDocument->GetRootGraphClass().Metadata.GetClassName().ToString();
+#endif // !WITH_EDITOR
+					UE_LOG(LogMetaSound, Display, TEXT("Asset '%s' interface '%s' updated: '%s' --> '%s'"),
+						*AssetName,
+						*InterfaceVersion.Name.ToString(),
+						*InterfaceVersion.Number.ToString(),
+						*LastVersionUpdated->ToString());
+					return true;
+				}
+
+				return false;
+			}
 		} // namespace AssetBasePrivate
 
 		namespace ConsoleVariables
@@ -205,6 +267,11 @@ namespace Metasound
 
 const FString FMetasoundAssetBase::FileExtension(TEXT(".metasound"));
 
+bool FMetasoundAssetBase::ConformObjectDataToInterfaces()
+{
+	return false;
+}
+
 void FMetasoundAssetBase::RegisterGraphWithFrontend(Metasound::Frontend::FMetaSoundAssetRegistrationOptions InRegistrationOptions)
 {
 	using namespace Metasound;
@@ -271,15 +338,8 @@ void FMetasoundAssetBase::RegisterGraphWithFrontend(Metasound::Frontend::FMetaSo
 
 	// Register graphs async by default;
 	const bool bAsync = !ConsoleVariables::bDisableAsyncGraphRegistration;
-	// Force a copy if async registration is enabled and we need to protect against
-	// race conditions from external modifications.
-	bool bForceCopy = (IsBuilderActive() && bAsync);
-#if WITH_EDITOR
-	bForceCopy |= InRegistrationOptions.bRegisterCopyIfAsync;
-#endif // WITH_EDITOR
 
-	GraphRegistryKey = FRegistryContainerImpl::Get().RegisterGraph(Owner, bAsync, bForceCopy);
-
+	GraphRegistryKey = FRegistryContainerImpl::Get().RegisterGraph(Owner, bAsync);
 	if (GraphRegistryKey.IsValid())
 	{
 #if WITH_EDITORONLY_DATA
@@ -329,7 +389,7 @@ void FMetasoundAssetBase::CookMetaSound()
 
 	{
 		// Performs document transforms on local copy, which reduces document footprint & renders transforming unnecessary unless altered at runtime when registering
-		FMetaSoundFrontendDocumentBuilder DocBuilder(Owner);
+		FMetaSoundFrontendDocumentBuilder& DocBuilder = IMetaSoundAssetManager::GetChecked().AttachDocumentBuilderChecked(*Owner);
 		const bool bContainsTemplateDependency = DocBuilder.ContainsDependencyOfType(EMetasoundFrontendClassType::Template);
 		if (bContainsTemplateDependency)
 		{
@@ -419,26 +479,9 @@ void FMetasoundAssetBase::UnregisterGraphWithFrontend()
 	}
 }
 
-void FMetasoundAssetBase::SetMetadata(FMetasoundFrontendClassMetadata& InMetadata)
-{
-	FMetasoundFrontendDocument& Doc = GetDocumentChecked();
-	Doc.RootGraph.Metadata = InMetadata;
-
-	if (Doc.RootGraph.Metadata.GetType() != EMetasoundFrontendClassType::Graph)
-	{
-		UE_LOG(LogMetaSound, Display, TEXT("Forcing class type to EMetasoundFrontendClassType::Graph on root graph metadata"));
-		Doc.RootGraph.Metadata.SetType(EMetasoundFrontendClassType::Graph);
-	}
-}
-
-bool FMetasoundAssetBase::GetDeclaredInterfaces(TArray<const Metasound::Frontend::IInterfaceRegistryEntry*>& OutInterfaces) const
-{
-	return FMetaSoundFrontendDocumentBuilder::FindDeclaredInterfaces(GetDocumentChecked(), OutInterfaces);
-}
-
 bool FMetasoundAssetBase::IsInterfaceDeclared(const FMetasoundFrontendVersion& InVersion) const
 {
-	return GetDocumentChecked().Interfaces.Contains(InVersion);
+	return GetConstDocumentChecked().Interfaces.Contains(InVersion);
 }
 
 Metasound::Frontend::FNodeClassInfo FMetasoundAssetBase::GetAssetClassInfo() const
@@ -448,38 +491,13 @@ Metasound::Frontend::FNodeClassInfo FMetasoundAssetBase::GetAssetClassInfo() con
 	const UObject* Owner = GetOwningAsset();
 	check(Owner);
 	TScriptInterface<const IMetaSoundDocumentInterface> DocInterface((UObject*)Owner);
-	return FNodeClassInfo { GetDocumentChecked().RootGraph, DocInterface->GetAssetPathChecked() };
+	return FNodeClassInfo { GetConstDocumentChecked().RootGraph, DocInterface->GetAssetPathChecked() };
 }
 
-void FMetasoundAssetBase::SetDocument(const FMetasoundFrontendDocument& InDocument, bool bMarkDirty)
+void FMetasoundAssetBase::SetDocument(FMetasoundFrontendDocument InDocument, bool bMarkDirty)
 {
-	FMetasoundFrontendDocument& Document = GetDocumentChecked();
-	Document = InDocument;
-	if (bMarkDirty)
-	{
-		MarkMetasoundDocumentDirty();
-	}
-}
-
-void FMetasoundAssetBase::AddDefaultInterfaces()
-{
-	using namespace Metasound::Frontend;
-
-	UObject* OwningAsset = GetOwningAsset();
-	check(OwningAsset);
-
-	UClass* AssetClass = OwningAsset->GetClass();
-	check(AssetClass);
-	const FTopLevelAssetPath& ClassPath = AssetClass->GetClassPathName();
-
-	TArray<FMetasoundFrontendVersion> InitVersions = ISearchEngine::Get().FindUClassDefaultInterfaceVersions(ClassPath);
-	FModifyRootGraphInterfaces({ }, InitVersions).Transform(GetDocumentChecked());
-}
-
-void FMetasoundAssetBase::SetDocument(FMetasoundFrontendDocument&& InDocument, bool bMarkDirty)
-{
-	FMetasoundFrontendDocument& Document = GetDocumentChecked();
-	Document = MoveTemp(InDocument);
+	FMetasoundFrontendDocument* Document = GetDocumentAccessPtr().Get();
+	*Document = MoveTemp(InDocument);
 	if (bMarkDirty)
 	{
 		MarkMetasoundDocumentDirty();
@@ -495,41 +513,44 @@ bool FMetasoundAssetBase::VersionAsset()
 	constexpr bool bIsDeterministic = true;
 	FDocumentIDGenerator::FScopeDeterminism DeterminismScope(bIsDeterministic);
 
-	FName AssetName;
-	FString AssetPath;
-	if (const UObject* OwningAsset = GetOwningAsset())
-	{
-		AssetName = FName(OwningAsset->GetName());
-		AssetPath = OwningAsset->GetPathName();
-	}
+	UObject* OwningAsset = GetOwningAsset();
+	check(OwningAsset);
 
-	FMetasoundFrontendDocument* Doc = GetDocumentAccessPtr().Get();
-	if (!ensure(Doc))
-	{
-		return false;
-	}
+	bool bDidEdit = false;
 
-	bool bDidEdit = Doc->VersionInterfaces();
-
+#if WITH_EDITORONLY_DATA
 	// Version Document Model
-	FDocumentHandle DocHandle = GetDocumentHandle();
+	if (GetConstDocumentChecked().RequiresInterfaceVersioning())
 	{
-		bDidEdit |= FVersionDocument(AssetName, AssetPath).Transform(DocHandle);
+		GetDocumentChecked().VersionInterfaces();
+		bDidEdit = true;
 	}
+#endif // WITH_EDITORONLY_DATA
+
+	bDidEdit |= Metasound::Frontend::VersionDocument(*this);
 
 	// Version Interfaces. Has to be re-run until no pass reports an update in case
 	// versions fork (ex. an interface splits into two newly named interfaces).
+	// TODO: Need to add function to determine if interfaces require updating before
+	// running update to avoid invalidating builder cache when not necessary. This
+	// will require either re-writing old transforms with the builder API or just
+	// leaving handle/controller logic and moving to deprecated implementation that
+	// is bypassed on versioned documents in most cases.
 	{
 		bool bInterfaceUpdated = false;
 		bool bPassUpdated = true;
+		TScriptInterface<IMetaSoundDocumentInterface> Interface(OwningAsset);
+		const IMetaSoundDocumentInterface* ConstInterface = Interface.GetInterface();
 		while (bPassUpdated)
 		{
 			bPassUpdated = false;
 
-			const TArray<FMetasoundFrontendVersion> Versions = Doc->Interfaces.Array();
+			const TArray<FMetasoundFrontendVersion> Versions = ConstInterface->GetConstDocument().Interfaces.Array();
 			for (const FMetasoundFrontendVersion& Version : Versions)
 			{
-				bPassUpdated |= FUpdateRootGraphInterface(Version, GetOwningAssetName()).Transform(DocHandle);
+				FUpdateRootGraphInterface UpdateTransform(Version, GetOwningAssetName());
+				FConstDocumentHandle ConstDoc = GetDocumentHandle();
+				bPassUpdated = TryUpdateInterfaceFromVersion(Version);
 			}
 
 			bInterfaceUpdated |= bPassUpdated;
@@ -537,7 +558,7 @@ bool FMetasoundAssetBase::VersionAsset()
 
 		if (bInterfaceUpdated)
 		{
-			ConformObjectDataToInterfaces();
+			Interface->ConformObjectToDocument();
 		}
 		bDidEdit |= bInterfaceUpdated;
 	}
@@ -666,13 +687,16 @@ FMetasoundFrontendDocumentModifyContext& FMetasoundAssetBase::GetModifyContext()
 	return GetDocumentChecked().Metadata.ModifyContext;
 }
 
+const FMetasoundFrontendDocumentModifyContext& FMetasoundAssetBase::GetConstModifyContext() const
+{
+	return GetConstDocumentChecked().Metadata.ModifyContext;
+}
+
 const FMetasoundFrontendDocumentModifyContext& FMetasoundAssetBase::GetModifyContext() const
 {
-	return GetDocumentChecked().Metadata.ModifyContext;
+	return GetConstDocumentChecked().Metadata.ModifyContext;
 }
 #endif // WITH_EDITOR
-
-
 
 bool FMetasoundAssetBase::IsRegistered() const
 {
@@ -735,22 +759,6 @@ bool FMetasoundAssetBase::AddingReferenceCausesLoop(const FSoftObjectPath& InRef
 	return bCausesLoop;
 }
 
-void FMetasoundAssetBase::ConvertFromPreset()
-{
-	using namespace Metasound::Frontend;
-	FGraphHandle GraphHandle = GetRootGraphHandle();
-
-#if WITH_EDITOR
-	FMetasoundFrontendGraphStyle Style = GraphHandle->GetGraphStyle();
-	Style.bIsGraphEditable = true;
-	GraphHandle->SetGraphStyle(Style);
-#endif // WITH_EDITOR
-
-	FMetasoundFrontendGraphClassPresetOptions PresetOptions = GraphHandle->GetGraphPresetOptions();
-	PresetOptions.bIsPreset = false;
-	GraphHandle->SetGraphPresetOptions(PresetOptions);
-}
-
 TArray<FMetasoundAssetBase::FSendInfoAndVertexName> FMetasoundAssetBase::GetSendInfos(uint64 InInstanceID) const
 {
 	return TArray<FSendInfoAndVertexName>();
@@ -777,7 +785,7 @@ bool FMetasoundAssetBase::MarkMetasoundDocumentDirty() const
 {
 	if (const UObject* OwningAsset = GetOwningAsset())
 	{
-		return ensure(OwningAsset->MarkPackageDirty());
+		return OwningAsset->MarkPackageDirty();
 	}
 	return false;
 }
@@ -840,6 +848,17 @@ bool FMetasoundAssetBase::ImportFromJSONAsset(const FString& InAbsolutePath)
 	return false;
 }
 
+const FMetasoundFrontendDocument& FMetasoundAssetBase::GetConstDocumentChecked() const
+{
+	const UObject* Owner = GetOwningAsset();
+	check(Owner);
+
+	// Annoying const cast requirement because ScriptInterface isn't ctor isn't const correct :(
+	TScriptInterface<IMetaSoundDocumentInterface> DocInterface = const_cast<UObject*>(Owner);
+
+	return DocInterface->GetConstDocument();
+}
+
 FMetasoundFrontendDocument& FMetasoundAssetBase::GetDocumentChecked()
 {
 	FMetasoundFrontendDocument* Document = GetDocumentAccessPtr().Get();
@@ -849,10 +868,7 @@ FMetasoundFrontendDocument& FMetasoundAssetBase::GetDocumentChecked()
 
 const FMetasoundFrontendDocument& FMetasoundAssetBase::GetDocumentChecked() const
 {
-	const FMetasoundFrontendDocument* Document = GetDocumentConstAccessPtr().Get();
-
-	check(nullptr != Document);
-	return *Document;
+	return GetConstDocumentChecked();
 }
 
 const Metasound::Frontend::FGraphRegistryKey& FMetasoundAssetBase::GetGraphRegistryKey() const
@@ -960,10 +976,72 @@ void FMetasoundAssetBase::UpdateAssetRegistry()
 }
 #endif
 
+bool FMetasoundAssetBase::TryUpdateInterfaceFromVersion(const FMetasoundFrontendVersion& Version)
+{
+	using namespace Metasound::Frontend;
+	using namespace AssetBasePrivate;
+
+	FConstDocumentHandle ConstDoc = IDocumentController::CreateDocumentHandle(GetDocumentConstAccessPtr());
+	FMetasoundFrontendInterface TargetInterface = GetInterfaceToVersion(Version, ConstDoc);
+
+	if (TargetInterface.Version.IsValid())
+	{
+		TArray<const IInterfaceRegistryEntry*> UpgradePath;
+		GetUpdatePathForDocument(Version, TargetInterface.Version, UpgradePath);
+		const bool bUpdated = UpdateDocumentInterface(UpgradePath, Version, GetDocumentHandle());
+		ensureMsgf(bUpdated, TEXT("Target interface '%s' was out-of-date but interface failed to be updated"), *TargetInterface.Version.ToString());
+		return bUpdated;
+	}
+
+	return false;
+}
+
+FMetasoundFrontendInterface FMetasoundAssetBase::GetInterfaceToVersion(const FMetasoundFrontendVersion& InterfaceVersion, Metasound::Frontend::FConstDocumentHandle InDocument) const
+{
+	using namespace Metasound::Frontend;
+
+	// Find registered target interface.
+	FMetasoundFrontendInterface TargetInterface;
+	bool bFoundTargetInterface = ISearchEngine::Get().FindInterfaceWithHighestVersion(InterfaceVersion.Name, TargetInterface);
+	if (!bFoundTargetInterface)
+	{
+		UE_LOG(LogMetaSound, Warning,
+			TEXT("Could not check for interface updates. Target interface is not registered [InterfaceVersion:%s] when attempting to update root graph of asset (%s). "
+				"Ensure that the module which registers the interface has been loaded before the asset is loaded."),
+			*InterfaceVersion.ToString(),
+			*GetOwningAssetName());
+		return { };
+	}
+
+	if (TargetInterface.Version == InterfaceVersion)
+	{
+		return { };
+	}
+
+	return TargetInterface;
+}
+
 TSharedPtr<FMetasoundFrontendDocument> FMetasoundAssetBase::PreprocessDocument()
 {
 	return nullptr;
 }
+
+#if WITH_EDITORONLY_DATA
+bool FMetasoundAssetBase::GetVersionedOnLoad() const
+{
+	return bVersionedOnLoad;
+}
+
+void FMetasoundAssetBase::ClearVersionedOnLoad()
+{
+	bVersionedOnLoad = false;
+}
+
+void FMetasoundAssetBase::SetVersionedOnLoad()
+{
+	bVersionedOnLoad = true;
+}
+#endif // WITH_EDITORONLY_DATA
 
 PRAGMA_DISABLE_DEPRECATION_WARNINGS
 const FMetasoundAssetBase::FRuntimeData& FMetasoundAssetBase::GetRuntimeData() const

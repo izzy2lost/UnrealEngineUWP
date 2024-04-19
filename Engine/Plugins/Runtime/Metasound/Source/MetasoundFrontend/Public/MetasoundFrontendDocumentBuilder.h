@@ -101,6 +101,8 @@ public:
 	// Create and return a valid builder document which copies the provided interface's document & class
 	static UMetaSoundBuilderDocument& Create(const IMetaSoundDocumentInterface& InDocToCopy);
 
+	virtual bool ConformObjectToDocument() override;
+
 	// Returns the document
 	virtual const FMetasoundFrontendDocument& GetConstDocument() const override;
 
@@ -133,11 +135,8 @@ struct METASOUNDFRONTEND_API FMetaSoundFrontendDocumentBuilder
 	GENERATED_BODY()
 
 public:
-	// Exists only to make UObject reflection happy.  Should never be
-	// used directly as builder interface (and optionally delegates) should be specified on construction.
-	FMetaSoundFrontendDocumentBuilder();
-	FMetaSoundFrontendDocumentBuilder(TScriptInterface<IMetaSoundDocumentInterface> InDocumentInterface);
-	FMetaSoundFrontendDocumentBuilder(TScriptInterface<IMetaSoundDocumentInterface> InDocumentInterface, TSharedRef<Metasound::Frontend::FDocumentModifyDelegates> InDocumentDelegates);
+	// Default ctor should typically never be used directly as builder interface (and optionally delegates) should be specified on construction (Default exists only to make UObject reflection happy).
+	FMetaSoundFrontendDocumentBuilder(TScriptInterface<IMetaSoundDocumentInterface> InDocumentInterface = { }, TSharedPtr<Metasound::Frontend::FDocumentModifyDelegates> InDocumentDelegates = { }, bool bPrimeCache = false);
 	virtual ~FMetaSoundFrontendDocumentBuilder();
 
 	// Call when the builder will no longer modify the IMetaSoundDocumentInterface
@@ -150,30 +149,39 @@ public:
 	bool AddEdgesFromMatchingInterfaceNodeOutputsToGraphOutputs(const FGuid& InNodeID, TArray<const FMetasoundFrontendEdge*>& OutEdgesCreated, bool bReplaceExistingConnections = true);
 	bool AddEdgesFromMatchingInterfaceNodeInputsToGraphInputs(const FGuid& InNodeID, TArray<const FMetasoundFrontendEdge*>& OutEdgesCreated, bool bReplaceExistingConnections = true);
 	const FMetasoundFrontendNode* AddGraphInput(const FMetasoundFrontendClassInput& InClassInput);
+	const FMetasoundFrontendNode* AddGraphNode(const FMetasoundFrontendGraphClass& InClass, FGuid InNodeID = FGuid::NewGuid());
 	const FMetasoundFrontendNode* AddGraphOutput(const FMetasoundFrontendClassOutput& InClassOutput);
+
 	bool AddInterface(FName InterfaceName);
 
-	const FMetasoundFrontendNode* AddGraphNode(const FMetasoundFrontendGraphClass& InClass, FGuid InNodeID = FGuid::NewGuid());
 	const FMetasoundFrontendNode* AddNodeByClassName(const FMetasoundFrontendClassName& InClassName, int32 InMajorVersion = 1, FGuid InNodeID = FGuid::NewGuid());
+	const FMetasoundFrontendNode* AddNodeByTemplate(const Metasound::Frontend::INodeTemplate& InTemplate, Metasound::Frontend::FNodeTemplateGenerateInterfaceParams Params, FGuid InNodeID = FGuid::NewGuid());
 
 	// Returns whether or not the given edge can be added, which requires that its input
 	// is not already connected and the edge is valid (see function 'IsValidEdge').
 	bool CanAddEdge(const FMetasoundFrontendEdge& InEdge) const;
 
-	void ClearGraph();
+	// Clears graph completely of all nodes, edges, dependencies, & member metadata.
+	// Reloads the builder state, so external delegates must be relinked if desired.
+	void ClearGraph(TSharedRef<Metasound::Frontend::FDocumentModifyDelegates> ModifyDelegates = { });
+
+#if WITH_EDITORONLY_DATA
+	bool ClearMemberMetadata(const FGuid& InMemberID);
+#endif // WITH_EDITORONLY_DATA
 
 	bool ContainsDependencyOfType(EMetasoundFrontendClassType ClassType) const;
 	bool ContainsEdge(const FMetasoundFrontendEdge& InEdge) const;
 	bool ContainsNode(const FGuid& InNodeID) const;
 
 	bool ConvertFromPreset();
-	bool ConvertToPreset(const FMetasoundFrontendDocument& InReferencedDocument);
+	bool ConvertToPreset(const FMetasoundFrontendDocument& InReferencedDocument, TSharedRef<Metasound::Frontend::FDocumentModifyDelegates> ModifyDelegates = { });
 
-#if WITH_EDITOR
+#if WITH_EDITORONLY_DATA
 	const FMetaSoundFrontendGraphComment* FindGraphComment(const FGuid& InCommentID) const;
 	FMetaSoundFrontendGraphComment* FindGraphComment(const FGuid& InCommentID);
 	FMetaSoundFrontendGraphComment& FindOrAddGraphComment(const FGuid& InCommentID);
-#endif // WITH_EDITOR
+	UMetaSoundFrontendMemberMetadata* FindMemberMetadata(const FGuid& InMemberID);
+#endif // WITH_EDITORONLY_DATA
 
 	static bool FindDeclaredInterfaces(const FMetasoundFrontendDocument& InDocument, TArray<const Metasound::Frontend::IInterfaceRegistryEntry*>& OutInterfaces);
 	bool FindDeclaredInterfaces(TArray<const Metasound::Frontend::IInterfaceRegistryEntry*>& OutInterfaces) const;
@@ -182,13 +190,13 @@ public:
 	const FMetasoundFrontendClass* FindDependency(const FMetasoundFrontendClassMetadata& InMetadata) const;
 	TArray<const FMetasoundFrontendEdge*> FindEdges(const FGuid& InNodeID, const FGuid& InVertexID) const;
 
-	bool FindInterfaceInputNodes(FName InterfaceName, TArray<const FMetasoundFrontendNode*>& OutInputs) const;
-	bool FindInterfaceOutputNodes(FName InterfaceName, TArray<const FMetasoundFrontendNode*>& OutOutputs) const;
-
 	const FMetasoundFrontendClassInput* FindGraphInput(FName InputName) const;
 	const FMetasoundFrontendNode* FindGraphInputNode(FName InputName) const;
 	const FMetasoundFrontendClassOutput* FindGraphOutput(FName OutputName) const;
 	const FMetasoundFrontendNode* FindGraphOutputNode(FName OutputName) const;
+
+	bool FindInterfaceInputNodes(FName InterfaceName, TArray<const FMetasoundFrontendNode*>& OutInputs) const;
+	bool FindInterfaceOutputNodes(FName InterfaceName, TArray<const FMetasoundFrontendNode*>& OutOutputs) const;
 
 	const FMetasoundFrontendNode* FindNode(const FGuid& InNodeID) const;
 
@@ -221,21 +229,28 @@ public:
 
 	const Metasound::Frontend::FDocumentModifyDelegates& GetDocumentDelegates() const;
 	const IMetaSoundDocumentInterface& GetDocumentInterface() const;
+	FMetasoundAssetBase& GetMetasoundAsset();
+	const FMetasoundAssetBase& GetMetasoundAsset() const;
 
 	int32 GetTransactionCount() const;
 
+	TArray<const FMetasoundFrontendNode*> GetGraphInputTemplateNodes(FName InInputName);
 	EMetasoundFrontendVertexAccessType GetNodeInputAccessType(const FGuid& InNodeID, const FGuid& InVertexID) const;
 	const FMetasoundFrontendLiteral* GetNodeInputClassDefault(const FGuid& InNodeID, const FGuid& InVertexID) const;
 	const FMetasoundFrontendLiteral* GetNodeInputDefault(const FGuid& InNodeID, const FGuid& InVertexID) const;
 	EMetasoundFrontendVertexAccessType GetNodeOutputAccessType(const FGuid& InNodeID, const FGuid& InVertexID) const;
 
+	// Initializes the builder's document, using the (optional) provided document template, (optional) class name, and (optionally) whether or not to reset the existing class version.
+	void InitDocument(const FMetasoundFrontendDocument* InDocumentTemplate = nullptr, const FMetasoundFrontendClassName* InNewClassName = nullptr, bool bResetVersion = true);
+
 	// Initializes GraphClass Metadata, optionally resetting the version back to 1.0 and/or creating a unique class name if a name is not provided.
 	static void InitGraphClassMetadata(FMetasoundFrontendClassMetadata& InOutMetadata, bool bResetVersion = false, const FMetasoundFrontendClassName* NewClassName = nullptr);
-	void InitDocument();
+	void InitGraphClassMetadata(bool bResetVersion, const FMetasoundFrontendClassName* NewClassName);
+
 	void InitNodeLocations();
 
-	// Clears the cached data enabling fast document queries. Generally discouraged unless document has been unavoidably mutated outside of the builder.
-	void InvalidateCache();
+	UE_DEPRECATED(5.5, "Use invalidate overload that is provided new version of modify delegates")
+	void InvalidateCache() { }
 
 	bool IsDependencyReferenced(const FGuid& InClassID) const;
 	bool IsNodeInputConnected(const FGuid& InNodeID, const FGuid& InVertexID) const;
@@ -245,14 +260,19 @@ public:
 	bool IsInterfaceDeclared(const FMetasoundFrontendVersion& InInterfaceVersion) const;
 	bool IsPreset() const;
 
+	// Returns whether or not builder is attached to a DocumentInterface and is valid to build or act on a document.
+	bool IsValid() const;
+	bool IsVariableClass(EMetasoundFrontendClassType ClassType) const;
+
 	// Returns whether or not the given edge is valid (i.e. represents an input and output that equate in data and access types) or malformed.
 	// Note that this does not return whether or not the given edge exists, but rather if it could be legally applied to the given edge vertices.
 	Metasound::Frontend::EInvalidEdgeReason IsValidEdge(const FMetasoundFrontendEdge& InEdge) const;
 
 	bool ModifyInterfaces(Metasound::Frontend::FModifyInterfaceOptions&& InOptions);
 
-	// Reloads the cached data enabling fast document queries. Can be expensive and is generally discouraged in favor of using InvalidateCache
-	// only when document has been known to be mutated outside of the builder (also, invalidate doesn't prime the cache and only reloads piecemeal upon request).
+	UE_DEPRECATED(5.5,
+		"Cache invalidation may require new copy of delegates. In addition, re-priming is discouraged. "
+		"To enforce this, new recommended pattern is to construct a new builder instead")
 	void ReloadCache();
 
 	bool RemoveDependency(const FGuid& InClassID);
@@ -276,12 +296,26 @@ public:
 	int32 RemoveNodeLocation(const FGuid& InNodeID, const FGuid* InLocationGuid = nullptr);
 #endif // WITH_EDITOR
 
+	void Reload(TSharedPtr<Metasound::Frontend::FDocumentModifyDelegates> Delegates = {}, bool bPrimeCache = false);
+
 	bool RemoveNodeInputDefault(const FGuid& InNodeID, const FGuid& InVertexID);
 	bool RemoveUnusedDependencies();
 	bool RenameRootGraphClass(const FMetasoundFrontendClassName& InName);
 
 #if WITH_EDITOR
 	void SetAuthor(const FString& InAuthor);
+
+#endif // WITH_EDITOR
+
+	bool SetGraphInputAccessType(FName InputName, EMetasoundFrontendVertexAccessType AccessType);
+	bool SetGraphInputDataType(FName InputName, FName DataType);
+	bool SetGraphInputDefault(FName InputName, const FMetasoundFrontendLiteral& InDefaultLiteral);
+
+	bool SetGraphOutputAccessType(FName OutputName, EMetasoundFrontendVertexAccessType AccessType);
+	bool SetGraphOutputDataType(FName OutputName, FName DataType);
+
+#if WITH_EDITOR
+	void SetMemberMetadata(UMetaSoundFrontendMemberMetadata& NewMetadata);
 
 	// Sets the editor-only comment to the provided value.
 	// Returns true if the node was found and the comment was updated, false if not.
@@ -296,7 +330,6 @@ public:
 	bool SetNodeLocation(const FGuid& InNodeID, const FVector2D& InLocation, const FGuid* InLocationGuid = nullptr);
 #endif // WITH_EDITOR
 
-	bool SetGraphInputDefault(FName InputName, const FMetasoundFrontendLiteral& InDefaultLiteral);
 	bool SetNodeInputDefault(const FGuid& InNodeID, const FGuid& InVertexID, const FMetasoundFrontendLiteral& InLiteral);
 
 	// Sets the document's version number.  Should only be called by document versioning.
@@ -313,24 +346,36 @@ public:
 private:
 	using FFinalizeNodeFunctionRef = TFunctionRef<void(FMetasoundFrontendNode&, const Metasound::Frontend::FNodeRegistryKey&)>;
 
-	FMetasoundFrontendNode* AddNodeInternal(const FMetasoundFrontendClassMetadata& InClassMetadata, Metasound::Frontend::FFinalizeNodeFunctionRef FinalizeNode, FGuid InNodeID = FGuid::NewGuid());
+	FMetasoundFrontendNode* AddNodeInternal(const FMetasoundFrontendClassMetadata& InClassMetadata, Metasound::Frontend::FFinalizeNodeFunctionRef FinalizeNode, FGuid InNodeID = FGuid::NewGuid(), int32* NewNodeIndex = nullptr);
+
+	// Conforms GraphOutput node's ClassID, Access & Data Type with the GraphOutput.
+	// creating and removing dependencies as necessary within the document dependency array. Does *NOT*
+	// modify edge data (i.e. if the DataType is changed on the given node and it has corresponding
+	// edges, edges may then be invalid due to access type/DataType incompatibility).
+	bool ConformGraphInputNodeToClass(const FMetasoundFrontendClassInput& GraphInput);
+
+	// Conforms GraphOutput node's ClassID, Access & Data Type with the GraphOutput.
+	// Creates and removes dependencies as necessary within the document dependency array. Does *NOT*
+	// modify edge data (i.e. if the DataType is changed on the given node and it has corresponding
+	// edges, edges may then be invalid due to access type/DataType incompatibility).
+	bool ConformGraphOutputNodeToClass(const FMetasoundFrontendClassOutput& GraphOutput);
+
+	bool FindNodeClassInterfaces(const FGuid& InNodeID, TSet<FMetasoundFrontendVersion>& OutInterfaces) const;
 	FMetasoundFrontendNode* FindNodeInternal(const FGuid& InNodeID);
+
+	void IterateNodesConnectedWithVertex(const FMetasoundFrontendVertexHandle& Vertex, TFunctionRef<void(const FMetasoundFrontendEdge&, FMetasoundFrontendNode&)> NodeIndexIterFunc);
 
 	const FTopLevelAssetPath GetBuilderClassPath() const;
 	FMetasoundFrontendDocument& GetDocument();
 
-	bool FindNodeClassInterfaces(const FGuid& InNodeID, TSet<FMetasoundFrontendVersion>& OutInterfaces) const;
-
-	void InitCacheInternal(bool bPrimeCache = false);
-
 	bool SetGraphInputInheritsDefault(FName InName, bool bInputInheritsDefault);
+	bool UnlinkVariableNode(const FGuid& InNodeID);
 
-	// Called to mark that the builder is beginning modifications to the IMetaSoundDocumentInterface
-	void BeginBuilding();
+	void BeginBuilding(TSharedPtr<Metasound::Frontend::FDocumentModifyDelegates> Delegates = {}, bool bPrimeCache = false);
 
 	UPROPERTY(Transient)
 	TScriptInterface<IMetaSoundDocumentInterface> DocumentInterface;
 
 	TSharedPtr<Metasound::Frontend::IDocumentCache> DocumentCache;
-	TSharedRef<Metasound::Frontend::FDocumentModifyDelegates> DocumentDelegates;
+	TSharedPtr<Metasound::Frontend::FDocumentModifyDelegates> DocumentDelegates;
 };

@@ -134,10 +134,10 @@ enum class EMetasoundFrontendClassType : uint8
 	// The MetaSound class is an output from a graph in the containing document.
 	Output,
 
-	// The MetaSound class is an literal requiring an literal value to construct.
+	// The MetaSound class is an literal requiring a literal value to construct.
 	Literal,
 
-	// The MetaSound class is an variable requiring an literal value to construct.
+	// The MetaSound class is an variable requiring a literal value to construct.
 	Variable,
 
 	// The MetaSound class accesses variables.
@@ -1652,6 +1652,24 @@ struct METASOUNDFRONTEND_API FMetasoundFrontendGraphClass : public FMetasoundFro
 	FMetasoundFrontendGraphClassPresetOptions PresetOptions;
 };
 
+UCLASS()
+class METASOUNDFRONTEND_API UMetaSoundFrontendMemberMetadata : public UObject
+{
+	GENERATED_BODY()
+
+#if WITH_EDITOR
+public:
+	virtual void ForceRefresh() { }
+	virtual FMetasoundFrontendLiteral GetDefault() const { return FMetasoundFrontendLiteral(); }
+	virtual EMetasoundFrontendLiteralType GetLiteralType() const { return EMetasoundFrontendLiteralType::None; }
+	virtual void SetFromLiteral(const FMetasoundFrontendLiteral& InLiteral) { }
+#endif // WITH_EDITOR
+
+#if WITH_EDITORONLY_DATA
+	UPROPERTY()
+	FGuid MemberID;
+#endif // WITH_EDITORONLY_DATA
+};
 
 USTRUCT()
 struct METASOUNDFRONTEND_API FMetasoundFrontendDocumentMetadata
@@ -1663,6 +1681,12 @@ struct METASOUNDFRONTEND_API FMetasoundFrontendDocumentMetadata
 
 #if WITH_EDITORONLY_DATA
 	FMetasoundFrontendDocumentModifyContext ModifyContext;
+
+	// Map of MemberID to metadata used to constrain how literals can be manipulated
+	// with the editor context. This can be used to implement things like numeric ranges,
+	// hardware control parameters, etc.
+	UPROPERTY()
+	TMap<FGuid, TObjectPtr<UMetaSoundFrontendMemberMetadata>> MemberMetadata;
 #endif // WITH_EDITORONLY_DATA
 };
 
@@ -1699,36 +1723,41 @@ public:
 	}
 
 private:
+#if WITH_EDITORONLY_DATA
 	UPROPERTY(meta = (DeprecatedProperty, DeprecationMessage = "5.0 - ArchetypeVersion has been migrated to InterfaceVersions array."))
 	FMetasoundFrontendVersion ArchetypeVersion;
 
 	UPROPERTY(meta = (DeprecatedProperty, DeprecationMessage = "5.0 - InterfaceVersions has been migrated to Interfaces set."))
 	TArray<FMetasoundFrontendVersion> InterfaceVersions;
+#endif // WITH_EDITORONLY_DATA
 
 	// Used for generating deterministic IDs per document
 	mutable uint32 IdCounter = 1;
 
 public:
+#if WITH_EDITORONLY_DATA
+	bool RequiresInterfaceVersioning() const
+	{
+		return ArchetypeVersion.IsValid() || !InterfaceVersions.IsEmpty();
+	}
+
 	// Data migration for 5.0 Early Access data. ArchetypeVersion/InterfaceVersions properties can be removed post 5.0 release
 	// and this fix-up can be removed post 5.0 release.
-	bool VersionInterfaces()
+	void VersionInterfaces()
 	{
-		bool bDidEdit = false;
 		if (ArchetypeVersion.IsValid())
 		{
 			Interfaces.Add(ArchetypeVersion);
 			ArchetypeVersion = FMetasoundFrontendVersion::GetInvalid();
-			bDidEdit = true;
 		}
+
 		if (!InterfaceVersions.IsEmpty())
 		{
 			Interfaces.Append(InterfaceVersions);
 			InterfaceVersions.Reset();
-			bDidEdit = true;
 		}
-
-		return bDidEdit;
 	}
+#endif // WITH_EDITORONLY_DATA
 };
 
 METASOUNDFRONTEND_API const TCHAR* LexToString(EMetasoundFrontendClassType InClassType);

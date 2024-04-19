@@ -45,6 +45,10 @@ public:
 	// Returns the parent class registered with the MetaSound UObject registry.
 	virtual const UClass& GetBaseMetaSoundUClass() const = 0;
 
+	// Conforms UProperty data outside the Frontend Document Model to the document's data.
+	// Returns whether or not object data was modified.
+	virtual bool ConformObjectToDocument() = 0;
+
 private:
 	virtual FMetasoundFrontendDocument& GetDocument() = 0;
 

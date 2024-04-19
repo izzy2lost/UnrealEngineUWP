@@ -31,7 +31,7 @@ namespace Metasound
 		{
 			InMetaSound.GetModifyContext().SetForceRefreshViews();
 
-			const FMetasoundFrontendDocument& Document = InMetaSound.GetDocumentChecked();
+			const FMetasoundFrontendDocument& Document = InMetaSound.GetConstDocumentChecked();
 			const FMetasoundFrontendClassName& ClassName = Document.RootGraph.Metadata.GetClassName();
 			UMetaSoundBuilderSubsystem::GetChecked().PostBuilderAssetTransaction(ClassName);
 
@@ -95,43 +95,37 @@ namespace Metasound
 			return ReferencedAssets;
 		}
 
-		template <typename TMetaSoundObject>
-		static void PreSaveAsset(TMetaSoundObject& InMetaSound, FObjectPreSaveContext InSaveContext)
+		static void PreSaveAsset(FMetasoundAssetBase& InMetaSound, FObjectPreSaveContext InSaveContext)
 		{
 #if WITH_EDITORONLY_DATA
 			using namespace Frontend;
 
-			// Do not call asset manager on CDO objects which may be loaded before asset 
+			// Do not call asset manager on CDO objects which may be loaded before asset
 			// manager is set.
 			if (IMetaSoundAssetManager* AssetManager = IMetaSoundAssetManager::Get())
 			{
 				AssetManager->WaitUntilAsyncLoadReferencedAssetsComplete(InMetaSound);
 			}
 
-			if (UMetasoundEditorGraphBase* MetaSoundGraph = Cast<UMetasoundEditorGraphBase>(InMetaSound.GetGraph()))
+			if (InSaveContext.IsCooking() || IsRunningCommandlet())
 			{
-				if (InSaveContext.IsCooking() || IsRunningCommandlet())
+				constexpr bool bIsDeterministic = true;
+				FDocumentIDGenerator::FScopeDeterminism DeterminismScope = FDocumentIDGenerator::FScopeDeterminism(bIsDeterministic);
+				InMetaSound.CookMetaSound();
+			}
+ 			else if (FApp::CanEverRenderAudio())
+			{
+				if (UMetasoundEditorGraphBase* MetaSoundGraph = Cast<UMetasoundEditorGraphBase>(InMetaSound.GetGraph()))
 				{
-					// Use deterministic ID generation so more can be done at cook rather than runtime
-					if (MetaSoundEnableCookDeterministicIDGeneration != 0)
-					{
-						{
-							constexpr bool bIsDeterministic = true;
-							FDocumentIDGenerator::FScopeDeterminism DeterminismScope = FDocumentIDGenerator::FScopeDeterminism(bIsDeterministic);
-							InMetaSound.CookMetaSound();
-						}
-					}
-				}
- 				else if (FApp::CanEverRenderAudio())
-				{
+					// Uses graph flavor of register with frontend to update editor systems/asset editors in case editor is enabled.
 					MetaSoundGraph->RegisterGraphWithFrontend();
-					MetaSoundGraph->GetModifyContext().SetForceRefreshViews();
+					InMetaSound.GetModifyContext().SetForceRefreshViews();
 				}
-				else
-				{
-					UE_LOG(LogMetaSound, Warning, TEXT("PreSaveAsset for MetaSound: (%s) is doing nothing because InSaveContext.IsCooking, IsRunningCommandlet, and FApp::CanEverRenderAudio were all false")
-						, *InMetaSound.GetPathName());
-				}
+			}
+			else
+			{
+				UE_LOG(LogMetaSound, Warning, TEXT("PreSaveAsset for MetaSound: (%s) is doing nothing because InSaveContext.IsCooking, IsRunningCommandlet, and FApp::CanEverRenderAudio were all false")
+					, *InMetaSound.GetOwningAssetName());
 			}
 #endif // WITH_EDITORONLY_DATA
 		}
@@ -144,10 +138,7 @@ namespace Metasound
 				if (InMetaSound.VersionAsset())
 				{
 #if WITH_EDITORONLY_DATA
-					if (UMetasoundEditorGraphBase* MetaSoundGraph = Cast<UMetasoundEditorGraphBase>(InMetaSound.GetGraph()))
-					{
-						MetaSoundGraph->SetVersionedOnLoad();
-					}
+					InMetaSound.SetVersionedOnLoad();
 #endif // WITH_EDITORONLY_DATA
 				}
 			}

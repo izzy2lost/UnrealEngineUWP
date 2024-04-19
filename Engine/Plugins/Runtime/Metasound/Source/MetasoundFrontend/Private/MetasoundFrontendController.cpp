@@ -4,6 +4,7 @@
 
 #include "MetasoundFrontendInvalidController.h"
 #include "MetasoundFrontendDocumentController.h"
+#include "NodeTemplates/MetasoundFrontendNodeTemplateInput.h"
 #include "NodeTemplates/MetasoundFrontendNodeTemplateReroute.h"
 
 
@@ -11,6 +12,17 @@ namespace Metasound
 {
 	namespace Frontend
 	{
+		namespace ControllerPrivate
+		{
+			// This check for class name is a hack due to the fact that handles do not provide a builder
+			// in order to do a proper look-up of a rerouted output's access/data type. Once calling systems of the
+			// recurse functions utilizing this function are refactored to use the builder API, this can be removed.
+			bool IsRerouteClass(const FMetasoundFrontendClassName& ClassName)
+			{
+				return ClassName == FRerouteNodeTemplate::ClassName || ClassName == FInputNodeTemplate::ClassName;
+			}
+		}
+
 		FOutputHandle IOutputController::GetInvalidHandle()
 		{
 			static FOutputHandle Invalid = MakeShared<FInvalidOutputController>();
@@ -55,6 +67,15 @@ namespace Metasound
 
 		FDocumentHandle IDocumentController::CreateDocumentHandle(FMetasoundFrontendDocument& InDocument)
 		{
+			// Mutation of a document via the soft deprecated access ptr/controller system is not tracked by
+			// the builder registry, so the document cache is invalidated here. It is discouraged to mutate
+			// documents using both systems at the same time as it can corrupt a builder document's cache.
+			if (IDocumentBuilderRegistry* DocRegistry = IDocumentBuilderRegistry::Get())
+			{
+				const FMetasoundFrontendClassName& Name = InDocument.RootGraph.Metadata.GetClassName();
+				DocRegistry->InvalidateDocumentCache(Name);
+			}
+
 			return CreateDocumentHandle(MakeAccessPtr<FDocumentAccessPtr>(InDocument.AccessPoint, InDocument));
 		}
 
@@ -81,14 +102,13 @@ namespace Metasound
 
 		FConstOutputHandle FindReroutedOutput(FConstOutputHandle InOutputHandle)
 		{
-			using namespace Frontend;
-
 			if (InOutputHandle->IsValid())
 			{
 				FConstNodeHandle NodeHandle = InOutputHandle->GetOwningNode();
 				if (NodeHandle->IsValid())
 				{
-					if (NodeHandle->GetClassMetadata().GetClassName() == FRerouteNodeTemplate::ClassName)
+					const FMetasoundFrontendClassName& ClassName = NodeHandle->GetClassMetadata().GetClassName();
+					if (ControllerPrivate::IsRerouteClass(ClassName))
 					{
 						TArray<FConstInputHandle> Inputs = NodeHandle->GetConstInputs();
 						if (!Inputs.IsEmpty())
@@ -109,14 +129,14 @@ namespace Metasound
 
 		void FindReroutedInputs(FConstInputHandle InHandleToCheck, TArray<FConstInputHandle>& InOutInputHandles)
 		{
-			using namespace Frontend;
+			using namespace ControllerPrivate;
 
 			if (InHandleToCheck->IsValid())
 			{
 				FConstNodeHandle NodeHandle = InHandleToCheck->GetOwningNode();
 				if (NodeHandle->IsValid())
 				{
-					if (NodeHandle->GetClassMetadata().GetClassName() == FRerouteNodeTemplate::ClassName)
+					if (ControllerPrivate::IsRerouteClass(NodeHandle->GetClassMetadata().GetClassName()))
 					{
 						TArray<FConstOutputHandle> Outputs = NodeHandle->GetConstOutputs();
 						for (FConstOutputHandle& OutputHandle : Outputs)
@@ -139,14 +159,12 @@ namespace Metasound
 
 		void IterateReroutedInputs(FConstInputHandle InHandleToCheck, TFunctionRef<void(FConstInputHandle)> Func)
 		{
-			using namespace Frontend;
-
 			if (InHandleToCheck->IsValid())
 			{
 				FConstNodeHandle NodeHandle = InHandleToCheck->GetOwningNode();
 				if (NodeHandle->IsValid())
 				{
-					if (NodeHandle->GetClassMetadata().GetClassName() == FRerouteNodeTemplate::ClassName)
+					if (ControllerPrivate::IsRerouteClass(NodeHandle->GetClassMetadata().GetClassName()))
 					{
 						TArray<FConstOutputHandle> Outputs = NodeHandle->GetConstOutputs();
 						for (FConstOutputHandle& OutputHandle : Outputs)

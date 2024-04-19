@@ -163,7 +163,7 @@ public:
 	* 
 	* @return True if the node has been removed from the graph
 	*/
-	ENGINE_API bool RemoveNode( UEdGraphNode* NodeToRemove, bool bBreakAllLinks = true );
+	ENGINE_API bool RemoveNode( UEdGraphNode* NodeToRemove, bool bBreakAllLinks = true, bool bMarkDirty = true );
 
 	/** Signal to listeners that the graph has changed - prefer to use NotifyNodeChanged when updating a single node */
 	ENGINE_API virtual void NotifyGraphChanged();

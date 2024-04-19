@@ -2,6 +2,7 @@
 
 #include "MetasoundFrontendOutputController.h"
 #include "MetasoundFrontendInvalidController.h"
+#include "MetasoundFrontendNodeTemplateRegistry.h"
 
 #define LOCTEXT_NAMESPACE "MetasoundFrontendOutputController"
 
@@ -51,7 +52,10 @@ namespace Metasound
 
 		EMetasoundFrontendVertexAccessType FBaseOutputController::GetVertexAccessType() const
 		{
+			PRAGMA_DISABLE_DEPRECATION_WARNINGS
 			FConstOutputHandle ReroutedOutput = Frontend::FindReroutedOutput(AsShared());
+			PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
 			if (ReroutedOutput->IsValid())
 			{
 				if (ReroutedOutput->GetOwningNodeID() != GetOwningNodeID() || ReroutedOutput->GetID() != GetID())
@@ -145,6 +149,17 @@ namespace Metasound
 
 		bool FBaseOutputController::IsConnectionUserModifiable() const 
 		{
+			FConstNodeHandle Owner = GetOwningNode();
+			if (Owner->GetClassMetadata().GetType() == EMetasoundFrontendClassType::Template)
+			{
+				const FNodeRegistryKey Key(GetOwningNode()->GetClassMetadata());
+				const INodeTemplate* Template = INodeTemplateRegistry::Get().FindTemplate(Key);
+				if (ensure(Template))
+				{
+					return Template->IsOutputConnectionUserModifiable();
+				}
+			}
+
 			return true;
 		}
 

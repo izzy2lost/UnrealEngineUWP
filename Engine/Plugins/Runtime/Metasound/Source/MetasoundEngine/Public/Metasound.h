@@ -31,11 +31,22 @@ public:
 	virtual void RegisterGraphWithFrontend() PURE_VIRTUAL(UMetasoundEditorGraphBase::RegisterGraphWithFrontend(), )
 
 #if WITH_EDITORONLY_DATA
-	virtual FMetasoundFrontendDocumentModifyContext& GetModifyContext() PURE_VIRTUAL(UMetasoundEditorGraphBase::GetModifyContext, static FMetasoundFrontendDocumentModifyContext InvalidModifyData; return InvalidModifyData; )
-	virtual const FMetasoundFrontendDocumentModifyContext& GetModifyContext() const PURE_VIRTUAL(UMetasoundEditorGraphBase::GetModifyContext, static const FMetasoundFrontendDocumentModifyContext InvalidModifyData; return InvalidModifyData; )
-	virtual void ClearVersionedOnLoad() PURE_VIRTUAL(UMetasoundEditorGraphBase::ClearVersionedOnLoad, )
-	virtual bool GetVersionedOnLoad() const PURE_VIRTUAL(UMetasoundEditorGraphBase::GetVersionedOnLoad, return false; )
-	virtual void SetVersionedOnLoad() PURE_VIRTUAL(UMetasoundEditorGraphBase::SetVersionedOnLoad, )
+	UE_DEPRECATED(5.5, "ModifyContext is to be replaced by builder API delegates providing context when items changed and it will be up to the caller to track modification deltas.")
+	virtual FMetasoundFrontendDocumentModifyContext& GetModifyContext() { static FMetasoundFrontendDocumentModifyContext InvalidModifyData; return InvalidModifyData; }
+
+	UE_DEPRECATED(5.5, "ModifyContext is to be replaced by builder API delegates providing context when items changed and it will be up to the caller to track modification deltas.")
+	virtual const FMetasoundFrontendDocumentModifyContext& GetModifyContext() const { static const FMetasoundFrontendDocumentModifyContext InvalidModifyData; return InvalidModifyData; }
+
+	UE_DEPRECATED(5.5, "Editor Graph is now transient, so versioning flag moved to AssetBase.")
+	virtual void ClearVersionedOnLoad() { }
+
+	UE_DEPRECATED(5.5, "Editor Graph is now transient, so versioning flag moved to AssetBase.")
+	virtual bool GetVersionedOnLoad() const { return false; }
+
+	UE_DEPRECATED(5.5, "Editor Graph is now transient, so versioning flag moved to AssetBase.")
+	virtual void SetVersionedOnLoad() {  }
+
+	virtual void MigrateEditorDocumentData(FMetaSoundFrontendDocumentBuilder & OutBuilder) PURE_VIRTUAL(UMetasoundEditorGraphBase::MigrateEditorDocumentData(), )
 #endif // WITH_EDITORONLY_DATA
 
 	int32 GetHighestMessageSeverity() const;
@@ -73,8 +84,11 @@ protected:
 	TSet<FSoftObjectPath> ReferenceAssetClassCache;
 
 #if WITH_EDITORONLY_DATA
-	UPROPERTY()
+	UPROPERTY(meta=(DeprecatedProperty, DeprecationMessage = "Use EditorGraph instead as it is now transient and generated via the FrontendDocument dynamically."))
 	TObjectPtr<UMetasoundEditorGraphBase> Graph;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UMetasoundEditorGraphBase> EditorGraph;
 #endif // WITH_EDITORONLY_DATA
 
 public:
@@ -119,13 +133,14 @@ public:
 	virtual const UEdGraph* GetGraph() const override;
 	virtual UEdGraph& GetGraphChecked() override;
 	virtual const UEdGraph& GetGraphChecked() const override;
+	virtual void MigrateEditorGraph(FMetaSoundFrontendDocumentBuilder& OutBuilder) override;
 
 	// Sets the graph associated with this Metasound. Graph is required to be referenced on
 	// Metasound UObject for editor serialization purposes.
 	// @param Editor graph associated with UMetaSoundSource.
 	virtual void SetGraph(UEdGraph* InGraph) override
 	{
-		Graph = CastChecked<UMetasoundEditorGraphBase>(InGraph);
+		EditorGraph = CastChecked<UMetasoundEditorGraphBase>(InGraph);
 	}
 #endif // #if WITH_EDITORONLY_DATA
 
@@ -143,7 +158,7 @@ public:
 	virtual void Serialize(FArchive& InArchive) override;
 	virtual void PostLoad() override;
 
-	virtual bool ConformObjectDataToInterfaces() override { return false; }
+	virtual bool ConformObjectToDocument() override { return false; }
 
 	virtual const TSet<FString>& GetReferencedAssetClassKeys() const override
 	{
@@ -163,6 +178,8 @@ public:
 		return this;
 	}
 
+	virtual bool IsBuilderActive() const override;
+
 protected:
 #if WITH_EDITOR
 	virtual void SetReferencedAssetClasses(TSet<Metasound::Frontend::IMetaSoundAssetManager::FAssetInfo>&& InAssetClasses) override;
@@ -177,7 +194,6 @@ private:
 		return RootMetaSoundDocument;
 	}
 
-	virtual bool IsBuilderActive() const override;
 	virtual void OnBeginActiveBuilder() override;
 	virtual void OnFinishActiveBuilder() override;
 

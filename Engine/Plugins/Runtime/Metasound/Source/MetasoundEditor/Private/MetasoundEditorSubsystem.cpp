@@ -10,6 +10,7 @@
 #include "MetasoundEditorSettings.h"
 #include "MetasoundFactory.h"
 #include "MetasoundUObjectRegistry.h"
+#include "NodeTemplates/MetasoundFrontendNodeTemplateInput.h"
 #include "Sound/SoundSourceBusSend.h"
 #include "Sound/SoundSubmixSend.h"
 
@@ -64,10 +65,6 @@ TScriptInterface<IMetaSoundDocumentInterface> UMetaSoundEditorSubsystem::BuildTo
 				const bool bIsSource = &BuilderUClass == UMetaSoundSource::StaticClass();
 				if (InBuilder->IsPreset())
 				{
-					FMetasoundAssetBase* PresetAsset = IMetasoundUObjectRegistry::Get().GetObjectAsAssetBase(NewMetaSound);
-					check(PresetAsset);
-					PresetAsset->ConformObjectDataToInterfaces();
-
 					// Only use referenced UObject's SoundWave settings for sources if not overridden 
 					if (TemplateSoundWave == nullptr && bIsSource)
 					{
@@ -85,7 +82,11 @@ TScriptInterface<IMetaSoundDocumentInterface> UMetaSoundEditorSubsystem::BuildTo
 				}
 			}
 
-			InitEdGraph(*NewMetaSound);
+			UMetaSoundBuilderBase& NewDocBuilder = UMetaSoundBuilderSubsystem::GetChecked().AttachBuilderToAssetChecked(*NewMetaSound);
+
+			EMetaSoundBuilderResult InjectResult = EMetaSoundBuilderResult::Failed;
+			constexpr bool bForceNodeCreation = true;
+			NewDocBuilder.InjectInputTemplateNodes(bForceNodeCreation, InjectResult);
 
 			if (!bWasRooted)
 			{
@@ -103,6 +104,40 @@ TScriptInterface<IMetaSoundDocumentInterface> UMetaSoundEditorSubsystem::BuildTo
 	}
 
 	return nullptr;
+}
+
+bool UMetaSoundEditorSubsystem::BindMemberMetadata(
+	FMetaSoundFrontendDocumentBuilder& Builder,
+	UMetasoundEditorGraphMember& InMember,
+	TSubclassOf<UMetasoundEditorGraphMemberDefaultLiteral> LiteralClass,
+	UMetasoundEditorGraphMemberDefaultLiteral* TemplateObject)
+{
+	const FGuid& MemberID = InMember.GetMemberID();
+
+	if (TemplateObject)
+	{
+		Builder.ClearMemberMetadata(MemberID);
+	}
+	else
+	{
+		if (UMetaSoundFrontendMemberMetadata* Literal = Builder.FindMemberMetadata(MemberID))
+		{
+			InMember.Literal = CastChecked<UMetasoundEditorGraphMemberDefaultLiteral>(Literal);
+			return false;
+		}
+	}
+
+	if (UMetasoundEditorGraphMemberDefaultLiteral* NewLiteral = NewObject<UMetasoundEditorGraphMemberDefaultLiteral>(&Builder.CastDocumentObjectChecked<UObject>(), LiteralClass, FName(), RF_Transactional, TemplateObject))
+	{
+		NewLiteral->MemberID = MemberID;
+
+		Builder.SetMemberMetadata(*NewLiteral);
+		InMember.Literal = NewLiteral;
+		return true;
+	}
+
+	checkNoEntry();
+	return false;
 }
 
 UMetaSoundEditorSubsystem& UMetaSoundEditorSubsystem::GetChecked()
@@ -147,10 +182,12 @@ void UMetaSoundEditorSubsystem::InitAsset(UObject& InNewMetaSound, UObject* InRe
 
 	TScriptInterface<IMetaSoundDocumentInterface> DocInterface = &InNewMetaSound;
 	FMetaSoundFrontendDocumentBuilder Builder(DocInterface);
+
 	Builder.InitDocument();
-#if WITH_EDITORONLY_DATA
 	Builder.InitNodeLocations();
-#endif // WITH_EDITORONLY_DATA
+
+	constexpr bool bForceNodeCreation = true;
+	FInputNodeTemplate::GetChecked().Inject(Builder, bForceNodeCreation);
 
 	const FString& Author = GetDefaultAuthor();
 	Builder.SetAuthor(Author);
@@ -165,27 +202,22 @@ void UMetaSoundEditorSubsystem::InitAsset(UObject& InNewMetaSound, UObject* InRe
 		TScriptInterface<IMetaSoundDocumentInterface> ReferencedDocInterface = InReferencedMetaSound;
 		Builder.ConvertToPreset(ReferencedDocInterface->GetConstDocument());
 
-		// Update asset object data from interfaces 
-		FMetasoundAssetBase* PresetAsset = IMetasoundUObjectRegistry::Get().GetObjectAsAssetBase(&InNewMetaSound);
-		check(PresetAsset);
-		PresetAsset->ConformObjectDataToInterfaces();
-
 		// Copy sound wave settings to preset for sources
 		if (&ReferencedDocInterface->GetBaseMetaSoundUClass() == UMetaSoundSource::StaticClass())
 		{
 			SetSoundWaveSettingsFromTemplate(*CastChecked<USoundWave>(&InNewMetaSound), *CastChecked<USoundWave>(InReferencedMetaSound));
 		}
 	}
-
-	// Initial graph generation is not something to be managed by the transaction
-	// stack, so don't track dirty state until after initial setup if necessary.
-	InitEdGraph(InNewMetaSound);
 }
 
 void UMetaSoundEditorSubsystem::InitEdGraph(UObject& InMetaSound)
 {
 	using namespace Metasound;
 	using namespace Metasound::Editor;
+	using namespace Metasound::Frontend;
+
+	TScriptInterface<IMetaSoundDocumentInterface> DocInterface = &InMetaSound;
+	const FMetasoundFrontendClassName& ClassName = DocInterface->GetConstDocument().RootGraph.Metadata.GetClassName();
 
 	FMetasoundAssetBase* MetaSoundAsset = IMetasoundUObjectRegistry::Get().GetObjectAsAssetBase(&InMetaSound);
 	checkf(MetaSoundAsset, TEXT("EdGraph can only be initialized on registered MetaSoundAsset type"));
