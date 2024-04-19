@@ -87,27 +87,6 @@ namespace UnsyncUI
 
 			var oldWorkingDir = Environment.CurrentDirectory;
 
-			if (File.Exists(configFile))
-			{
-				// Move the working dir into the same as the config file.
-				// This allows relative paths to automatically be relative to the config.
-				var workingDir = Path.GetDirectoryName(Path.GetFullPath(configFile));
-				Environment.CurrentDirectory = workingDir;
-
-				try
-				{
-					Config = new Config(configFile);
-				}
-				catch (Exception ex)
-				{
-					MessageBox.Show($"Failed to load configuration from \"{configFile}\". {ex}");
-				}
-			}
-			else if (e.Args.Length > 0)
-			{
-				MessageBox.Show($"The configuration file \"{configFile}\" does not exist. Projects will not be available.");
-			}
-
 			string toolName = "unsync.exe";
 
 			// If config specifies the explicit tool path, then use that.
@@ -130,11 +109,26 @@ namespace UnsyncUI
 				UnsyncPath = oldWorkingDirTool;
 			}
 
-			if (UnsyncPath == null || !File.Exists(UnsyncPath))
+			if (File.Exists(configFile))
 			{
-				string name = UnsyncPath ?? toolName;
-				MessageBox.Show($"Failed to find \"{name}\".");
-				Shutdown();
+				// Move the working dir into the same as the config file.
+				// This allows relative paths to automatically be relative to the config.
+				var workingDir = Path.GetDirectoryName(Path.GetFullPath(configFile));
+				Environment.CurrentDirectory = workingDir;
+
+				try
+				{
+					Config = new Config(configFile, UnsyncPath);
+				}
+				catch (Exception ex)
+				{
+					MessageBox.Show($"Failed to load configuration from \"{configFile}\".\n\n{ex}", "Fatal error");
+					Shutdown(1);
+				}
+			}
+			else if (e.Args.Length > 0)
+			{
+				MessageBox.Show($"The configuration file \"{configFile}\" does not exist. Projects will not be available.");
 			}
 
 			UserConfig = UserPreferences.Load();
@@ -151,7 +145,10 @@ namespace UnsyncUI
 
 		protected override void OnExit(ExitEventArgs e)
 		{
-			UserConfig.Save();
+			if (UserConfig != null)
+			{
+				UserConfig.Save();
+			}
 			base.OnExit(e);
 		}
 	}

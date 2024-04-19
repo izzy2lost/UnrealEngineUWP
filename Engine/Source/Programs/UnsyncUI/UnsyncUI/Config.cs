@@ -12,23 +12,10 @@ using System.Xml.Linq;
 using System.Net;
 using System.Text.Json;
 
-// warning SYSLIB0014: 'WebRequest.Create(string)' is obsolete: 'WebRequest, HttpWebRequest, ServicePoint, and WebClient are obsolete. Use HttpClient instead.' (https://aka.ms/dotnet-warnings/SYSLIB0014)
-#pragma warning disable SYSLIB0014
-
 namespace UnsyncUI
 {
 	public sealed class Config
 	{
-		// Structure that represents mirror server entry in the list from /api/v1/mirrors endpoint
-		private class JsonMirrorDesc
-		{
-			public String name { get; set; }
-			public String address { get; set; }
-			public int port { get; set; } = 0;
-			public String description { get; set; }
-			public String parent { get; set; }
-		}
-
 		public sealed class Proxy
 		{
 			public string Name { get; set; }
@@ -228,13 +215,22 @@ namespace UnsyncUI
 
 		internal string loggedInUser;
 
-		public Config(string filename)
+		public Config(string filename, string DefaultUnsyncPath = null)
 		{
 			var rootNode = XDocument.Load(filename).Root;
 
 			UnsyncPath = rootNode.Attribute("path")?.Value;
+			if (UnsyncPath == null)
+			{
+				UnsyncPath = DefaultUnsyncPath;
+			}
 
-			if (UnsyncPath != null && !File.Exists(UnsyncPath))
+			if (UnsyncPath == null)
+			{
+				throw new Exception("Path to unsync.exe was not provided.");
+			}
+
+			if (!File.Exists(UnsyncPath))
 			{
 				throw new Exception("Unable to find unsync.exe binary specified in config file.");
 			}
@@ -281,8 +277,6 @@ namespace UnsyncUI
 		// Returns list of mirrors and the seed proxy server that was used to get it or null
 		private (List<Proxy>, Proxy) DiscoverProxies(List<Proxy> SeedServers)
 		{
-			int DefaultPort = 53841;
-
 			foreach (Proxy SeedServer in SeedServers)
 			{
 				if (SeedServer.Path == null)
@@ -292,60 +286,30 @@ namespace UnsyncUI
 
 				try
 				{
-					String Url = SeedServer.Path;
-					if (!Url.Contains(":"))
+					UnsyncQueryUtil QueryUtil = new UnsyncQueryUtil(UnsyncPath, SeedServer.Path);
+
+					var ParsedProxies = new List<Proxy>();
+
+					foreach (var Mirror in QueryUtil.Mirrors())
 					{
-						Url += ":" + DefaultPort.ToString();
-					}
-
-					if (!Url.StartsWith("http://"))
-					{
-						Url = "http://" + Url;
-					}
-
-					Url += "/api/v1/mirrors";
-
-					var Request = WebRequest.Create(Url);
-					Request.Timeout = 2500;
-					var Response = (HttpWebResponse)Request.GetResponse();
-					if (Response.StatusCode == HttpStatusCode.OK)
-					{
-						var Reader = new StreamReader(Response.GetResponseStream());
-						var Body = Reader.ReadToEnd();
-						var ParsedList = JsonSerializer.Deserialize<List<JsonMirrorDesc>>(Body);
-
-						var ParsedProxies = new List<Proxy>();
-						foreach (var ParsedProxy in ParsedList)
+						if (!Mirror.ok || Mirror.ping == 0)
 						{
-							if (ParsedProxy.address == null)
-							{
-								continue;
-							}
-
-							var ConvertedProxy = new Proxy();
-							ConvertedProxy.Path = ParsedProxy.address;
-
-							if (ParsedProxy.description != null)
-							{
-								ConvertedProxy.Name = ParsedProxy.description;
-							}
-							else if (ParsedProxy.name != null)
-							{
-								ConvertedProxy.Name = ParsedProxy.name;
-							}
-
-							if (ParsedProxy.port != 0)
-							{
-								ConvertedProxy.Path += ":" + ParsedProxy.port.ToString();
-							}
-
-							ParsedProxies.Add(ConvertedProxy);
+							continue;
 						}
 
-						if (ParsedProxies.Count != 0)
+						var ConvertedProxy = new Proxy();
+						ConvertedProxy.Name = (Mirror.description != null && Mirror.description.Length > 0) ? Mirror.description : Mirror.name;
+						ConvertedProxy.Path = Mirror.address;
+						if (Mirror.port != 0)
 						{
-							return (ParsedProxies, SeedServer);
+							ConvertedProxy.Path += ":" + Mirror.port.ToString();
 						}
+						ParsedProxies.Add(ConvertedProxy);
+					}
+
+					if (ParsedProxies.Count != 0)
+					{
+						return (ParsedProxies, SeedServer);
 					}
 				}
 				catch (Exception)

@@ -45,6 +45,16 @@ namespace UnsyncUI
 		public List<String> groups { get; set; }
 	}
 
+	public class UnsyncMirrorDesc
+	{
+		public String name { get; set; }
+		public String description { get; set; }
+		public String address { get; set; }
+		public uint port { get; set; }
+		public uint ping { get; set; }
+		public bool ok { get; set; }
+	}
+
 	public class UnsyncQueryUtil
 	{
 		UnsyncQueryConfig Config;
@@ -58,6 +68,26 @@ namespace UnsyncUI
 			Config = new UnsyncQueryConfig();
 			Config.unsyncPath = unsyncPath;
 			Config.proxyAddress = proxyAddress;
+		}
+
+		public List<UnsyncMirrorDesc> Mirrors()
+		{
+			String argsStr = $"query mirrors --proxy {Config.proxyAddress}";
+			AsyncProcess proc = new AsyncProcess(Config.unsyncPath, argsStr);
+			CancellationToken cancellationToken = new CancellationToken();
+
+			var responseJson = "";
+
+			var QueryTask = Task.Run(async () => {
+				// TODO: read stderr stream and somehow report status/errors
+				await foreach (var str in proc.RunAsync(cancellationToken, false /*ReadStdErr*/))
+				{
+					responseJson += str;
+				}
+			});
+			QueryTask.Wait();
+
+			return JsonSerializer.Deserialize<List<UnsyncMirrorDesc>>(responseJson);
 		}
 
 		public LoginQueryResult Login()
