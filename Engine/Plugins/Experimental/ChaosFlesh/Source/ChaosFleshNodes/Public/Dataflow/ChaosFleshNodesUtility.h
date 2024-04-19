@@ -15,6 +15,15 @@ enum TetMeshingMethod : int
 	TetWild			UMETA(DisplayName = "TetWild"),
 };
 
+UENUM(BlueprintType)
+enum class ESkeletalSeletionMode : uint8
+{
+	Dataflow_SkeletalSelection_Single UMETA(DisplayName = "Single"),
+	Dataflow_SkeletalSelection_Branch UMETA(DisplayName = "Sub-Branch"),
+	//
+	Chaos_Max UMETA(Hidden)
+};
+
 namespace Dataflow
 {
 	TArray<FIntVector3> GetSurfaceTriangles(const TArray<FIntVector4>& Tets, const bool bKeepInterior);

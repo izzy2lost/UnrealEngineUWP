@@ -3,20 +3,20 @@
 #pragma once 
 
 #include "CoreMinimal.h"
+#include "Dataflow/ChaosFleshNodesUtility.h"
 #include "Dataflow/DataflowCore.h"
 #include "Dataflow/DataflowEngine.h"
-#include "Dataflow/ChaosFleshKinematicInitializationNodes.h"
+
 #include "ChaosFleshPositionTargetInitializationNodes.generated.h"
 
 class USkeletalMesh;
-
 
 USTRUCT(meta = (DataflowFlesh))
 struct FAddKinematicParticlesDataflowNode : public FDataflowNode
 {
 	GENERATED_USTRUCT_BODY()
-		DATAFLOW_NODE_DEFINE_INTERNAL(FAddKinematicParticlesDataflowNode, "AddKinematicParticles", "Flesh", "")
-		DATAFLOW_NODE_RENDER_TYPE(FGeometryCollection::StaticType(), "Collection")
+	DATAFLOW_NODE_DEFINE_INTERNAL(FAddKinematicParticlesDataflowNode, "AddKinematicParticles", "Flesh", "")
+	DATAFLOW_NODE_RENDER_TYPE(FGeometryCollection::StaticType(), "Collection")
 
 public:
 	typedef FManagedArrayCollection DataType;
