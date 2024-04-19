@@ -603,6 +603,108 @@ public:
 		}
 	}
 
+protected:
+	void GetValues_Internal(const TArrayView<const PCGMetadataValueKey> ValueKeys, TArrayView<T> OutValues, TBitArray<>& UnretrievedValues) const
+	{
+		check(ValueKeys.Num() == OutValues.Num() && OutValues.Num() == UnretrievedValues.Num());
+
+		bool bFoundAllKeys = true;
+		TConstSetBitIterator<> It(UnretrievedValues);
+		if (!It)
+		{
+			return;
+		}
+
+		const FPCGMetadataAttribute* ThisParent = GetParent();
+
+		ValueLock.ReadLock();
+
+		for (; It; ++It)
+		{
+			const int32 Index = It.GetIndex();
+			const PCGMetadataValueKey ValueKey = ValueKeys[Index];
+
+			auto RetrieveValue = [Index, &OutValues, &UnretrievedValues](T Value)
+			{
+				OutValues[Index] = std::move(Value);
+				UnretrievedValues[Index] = false;
+			};
+
+			if (ValueKey == PCGDefaultValueKey)
+			{
+				RetrieveValue(DefaultValue);
+			}
+			else if (ValueKey >= ValueKeyOffset)
+			{
+				int32 ValueIndex = ValueKey - ValueKeyOffset;
+				RetrieveValue(ValueIndex < Values.Num() ? Values[ValueIndex] : DefaultValue);
+			}
+			else if (!ThisParent)
+			{
+				RetrieveValue(DefaultValue);
+			}
+			else
+			{
+				bFoundAllKeys = false;
+			}
+		}
+
+		ValueLock.ReadUnlock();
+
+		ensure(ThisParent || bFoundAllKeys);
+
+		if (ThisParent && !bFoundAllKeys)
+		{
+			ThisParent->GetValues_Internal(ValueKeys, OutValues, UnretrievedValues);
+		}
+	}
+
+public:
+	/**
+	* Write into pre-allocated OutValues the values associated with the given value keys.
+	*/
+	void GetValues(const TArrayView<const PCGMetadataValueKey> ValueKeys, TArrayView<T> OutValues) const
+	{
+		// Bitset with all unretrieved values. If we have any unretrieved value, we will ask the parent for those.
+		TBitArray<> UnretrievedValues(true, ValueKeys.Num());
+		GetValues_Internal(ValueKeys, OutValues, UnretrievedValues);
+	}
+
+	/** 
+	* Write into pre-allocated OutValues the values associated with the given entry keys. 
+	* Const version on the Entry Keys, where they won't be modified. It will induce a copy of the entry keys
+	* if we ever have to go check the parent attribute, as we need to modify the entry keys for that.
+	* If you don't care if the Entry Keys are modified, use the non-const version of the EntryKeys.
+	*/
+	void GetValuesFromItemKeys(const TArrayView<const PCGMetadataEntryKey> EntryKeys, TArrayView<T> OutValues) const
+	{
+		if (!ensure(EntryKeys.Num() == OutValues.Num()))
+		{
+			return;
+		}
+
+		TArray<PCGMetadataValueKey> ValueKeys;
+		GetValueKeys(EntryKeys, ValueKeys);
+		GetValues(ValueKeys, OutValues);
+	}
+
+	/** 
+	* Write into pre-allocated OutValues the values associated with the given entry keys.
+	* Non-Const version on the Entry Keys, where they can be modified. If you need the Entry Keys to not be modifed,
+	* use the const version of the EntryKeys.
+	*/
+	void GetValuesFromItemKeys(TArrayView<PCGMetadataEntryKey> EntryKeys, TArrayView<T> OutValues) const
+	{
+		if (!ensure(EntryKeys.Num() == OutValues.Num()))
+		{
+			return;
+		}
+
+		TArray<PCGMetadataValueKey> ValueKeys;
+		GetValueKeys(EntryKeys, ValueKeys);
+		GetValues(ValueKeys, OutValues);
+	}
+
 	/** Code related to finding values / compressing data */
 	virtual bool UsesValueKeys() const override
 	{
@@ -887,8 +989,6 @@ namespace PCGMetadataAttribute
 		default:
 			return nullptr;
 		}
-
-#undef AllocatePCGMetadataAttributeOnType
 	}
 
 	template <typename Func, typename... Args>

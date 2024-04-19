@@ -229,6 +229,12 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "PCG|Metadata")
 	int64 AddEntry(int64 ParentEntryKey = -1);
 
+	/** Adds a unique entry key to the metadata for all the parent entry keys. */
+	TArray<int64> AddEntries(TArrayView<const int64> ParentEntryKeys);
+
+	/** Adds a unique entry key to the metadata for all the parent entry keys, in place. */
+	void AddEntriesInPlace(TArrayView<int64*> ParentEntryKeys);
+
 	/** Advanced method.
 	*   In a MT context, we might not want to add the entry directly (because of write lock). Call this to generate an unique index in the MT context
 	*   And call AddDelayedEntries at the end when you want to add all the entries.
@@ -248,6 +254,9 @@ public:
 
 	/** Metadata chaining mechanism */
 	PCGMetadataEntryKey GetParentKey(PCGMetadataEntryKey LocalItemKey) const;
+
+	/** Metadata chaining mechanism for bulk version. Can provide a mask to only update only a subset of the passed keys. */
+	void GetParentKeys(TArrayView<PCGMetadataEntryKey> LocalItemKeys, const TBitArray<>* Mask = nullptr) const;
 
 	/** Attributes operations */
 	void MergeAttributes(PCGMetadataEntryKey InKeyA, const UPCGMetadata* InMetadataA, PCGMetadataEntryKey InKeyB, const UPCGMetadata* InMetadataB, PCGMetadataEntryKey& OutKey, EPCGMetadataOp Op);

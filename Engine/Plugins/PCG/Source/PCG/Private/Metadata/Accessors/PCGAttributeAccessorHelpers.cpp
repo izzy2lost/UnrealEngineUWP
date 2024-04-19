@@ -8,6 +8,8 @@
 #include "Data/PCGPointData.h"
 #include "Data/PCGSpatialData.h"
 #include "Metadata/PCGAttributePropertySelector.h"
+#include "Metadata/PCGMetadata.h"
+#include "Metadata/PCGMetadataAttributeTpl.h"
 #include "Metadata/Accessors/IPCGAttributeAccessorTpl.h"
 #include "Metadata/Accessors/PCGAttributeAccessor.h"
 #include "Metadata/Accessors/PCGCustomAccessor.h"
@@ -628,6 +630,65 @@ TUniquePtr<IPCGAttributeAccessor> PCGAttributeAccessorHelpers::CreateAccessor(UP
 TUniquePtr<IPCGAttributeAccessor> PCGAttributeAccessorHelpers::CreateAccessor(FPCGMetadataAttributeBase* InAttribute, UPCGMetadata* InMetadata, bool bQuiet)
 {
 	return CreateAttributeAccessorImpl<IPCGAttributeAccessor>(InAttribute, InMetadata, bQuiet);
+}
+
+TUniquePtr<IPCGAttributeAccessor> PCGAttributeAccessorHelpers::CreateAccessorWithAttributeCreation(UPCGData* InData, const FPCGAttributePropertySelector& InSelector, const IPCGAttributeAccessor* InMatchingAccessor, EPCGAttributeAccessorFlags InTypeMatching, bool bQuiet)
+{
+	TUniquePtr<IPCGAttributeAccessor> Result = CreateAccessor(InData,InSelector, bQuiet);
+
+	if (!InSelector.IsBasicAttribute() || !InMatchingAccessor)
+	{
+		return Result;
+	}
+
+	bool bValid = !!Result;
+
+	if (bValid && !!(InTypeMatching & EPCGAttributeAccessorFlags::StrictType))
+	{
+		bValid &= (InMatchingAccessor->GetUnderlyingType() == Result->GetUnderlyingType());
+	}
+
+	if (bValid && !!(InTypeMatching & EPCGAttributeAccessorFlags::AllowBroadcast))
+	{
+		bValid &= PCG::Private::IsBroadcastable(InMatchingAccessor->GetUnderlyingType(), Result->GetUnderlyingType());
+	}
+
+	if (bValid && !!(InTypeMatching & EPCGAttributeAccessorFlags::AllowConstructible))
+	{
+		bValid &= PCG::Private::IsConstructible(InMatchingAccessor->GetUnderlyingType(), Result->GetUnderlyingType());
+	}
+
+	if (!bValid)
+	{
+		Result.Reset();
+
+		// We didn't find the attribute in the data, or we can't Broadcast/Construct, so create a new one
+		UPCGMetadata* Metadata = InData->MutableMetadata();
+		if (!Metadata)
+		{
+			return Result;
+		}
+
+		const FName AttributeName = InSelector.GetName();
+		if (Metadata->HasAttribute(AttributeName))
+		{
+			Metadata->DeleteAttribute(AttributeName);
+		}
+
+		auto CreateAttributeAndAccessor = [InMatchingAccessor, AttributeName, Metadata](auto&& Dummy) -> TUniquePtr<IPCGAttributeAccessor>
+		{
+			using AttributeType = std::decay_t<decltype(Dummy)>;
+			AttributeType DefaultValue = PCG::Private::MetadataTraits<AttributeType>::ZeroValue();
+			InMatchingAccessor->Get<AttributeType>(DefaultValue, FPCGAttributeAccessorKeysEntries(PCGInvalidEntryKey));
+			FPCGMetadataAttribute<AttributeType>* Attribute = Metadata->CreateAttribute<AttributeType>(AttributeName, DefaultValue, /*bAllowInterpolation=*/true, /*bOverrideParent=*/false);
+
+			return Attribute ? MakeUnique<FPCGAttributeAccessor<AttributeType>>(Attribute, Metadata) : nullptr;
+		};
+
+		Result = PCGMetadataAttribute::CallbackWithRightType(InMatchingAccessor->GetUnderlyingType(), std::move(CreateAttributeAndAccessor));
+	}
+
+	return Result;
 }
 
 TUniquePtr<const IPCGAttributeAccessorKeys> PCGAttributeAccessorHelpers::CreateConstKeys(const UPCGData* InData, const FPCGAttributePropertySelector& InSelector)

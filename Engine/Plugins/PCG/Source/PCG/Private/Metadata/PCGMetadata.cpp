@@ -909,6 +909,31 @@ int64 UPCGMetadata::AddEntry(int64 ParentEntry)
 	return ParentKeys.Add(ParentEntry) + ItemKeyOffset;
 }
 
+TArray<int64> UPCGMetadata::AddEntries(TArrayView<const int64> ParentEntryKeys)
+{
+	TArray<int64> Result;
+	Result.Reserve(ParentEntryKeys.Num());
+
+	FWriteScopeLock ScopeLock(ItemLock);
+	ParentKeys.Reserve(ParentKeys.Num() + ParentEntryKeys.Num());
+	for (const int64 ParentEntry : ParentEntryKeys)
+	{
+		Result.Add(ParentKeys.Add(ParentEntry) + ItemKeyOffset);
+	}
+
+	return Result;
+}
+
+void UPCGMetadata::AddEntriesInPlace(TArrayView<int64*> ParentEntryKeys)
+{
+	FWriteScopeLock ScopeLock(ItemLock);
+	ParentKeys.Reserve(ParentKeys.Num() + ParentEntryKeys.Num());
+	for (int64* ParentEntry : ParentEntryKeys)
+	{
+		*ParentEntry = ParentKeys.Add(*ParentEntry) + ItemKeyOffset;
+	}
+}
+
 int64 UPCGMetadata::AddEntryPlaceholder()
 {
 	FReadScopeLock ScopeLock(ItemLock);
@@ -978,6 +1003,43 @@ PCGMetadataEntryKey UPCGMetadata::GetParentKey(PCGMetadataEntryKey LocalItemKey)
 		{
 			UE_LOG(LogPCG, Warning, TEXT("Invalid metadata key - check for entry key not properly initialized"));
 			return PCGInvalidEntryKey;
+		}
+	}
+}
+
+void UPCGMetadata::GetParentKeys(TArrayView<PCGMetadataEntryKey> LocalItemKeys, const TBitArray<>* Mask) const
+{
+	auto GetParentKey_Unsafe = [this](PCGMetadataEntryKey& LocalItemKey) -> void
+	{
+		if (LocalItemKey < ItemKeyOffset)
+		{
+			// Key is already in parent referential
+			return;
+		}
+		else if (LocalItemKey - ItemKeyOffset < ParentKeys.Num())
+		{
+			LocalItemKey = ParentKeys[LocalItemKey - ItemKeyOffset];
+		}
+		else
+		{
+			UE_LOG(LogPCG, Warning, TEXT("Invalid metadata key - check for entry key not properly initialized"));
+			LocalItemKey = PCGInvalidEntryKey;
+		}
+	};
+
+	FReadScopeLock ScopeLock(ItemLock);
+	if (Mask && ensure(LocalItemKeys.Num() == Mask->Num()))
+	{
+		for (TConstSetBitIterator<> It(*Mask); It; ++It)
+		{
+			GetParentKey_Unsafe(LocalItemKeys[It.GetIndex()]);
+		}
+	}
+	else
+	{
+		for (PCGMetadataEntryKey& LocalItemKey : LocalItemKeys)
+		{
+			GetParentKey_Unsafe(LocalItemKey);
 		}
 	}
 }
@@ -1291,7 +1353,7 @@ void UPCGMetadata::SetAttributes(const TArrayView<const PCGMetadataEntryKey>& In
 				if (Attribute == OtherAttribute)
 				{
 					TArray<PCGMetadataValueKey> ValueKeys;
-					Attribute->GetValueKeys(InKeys, ValueKeys);
+					Attribute->GetValueKeys(TArrayView<const PCGMetadataEntryKey>(InKeys), ValueKeys);
 					Attribute->SetValuesFromValueKeys(OutKeys, ValueKeys);
 				}
 				else

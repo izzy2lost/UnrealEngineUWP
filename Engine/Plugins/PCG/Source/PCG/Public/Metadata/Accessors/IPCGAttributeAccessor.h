@@ -13,7 +13,7 @@ class IPCGAttributeAccessorKeys;
 
 UENUM(Meta = (Bitflags))
 enum class EPCGAttributeAccessorFlags
-{	
+{
 	// Always require that the underlying type of the accessor match the expected type, 1 for 1.
 	StrictType = 1 << 0,
 
@@ -25,7 +25,9 @@ enum class EPCGAttributeAccessorFlags
 
 	// By default, if the key is a PCGInvalidEntryKey, it will add a new entry. With this set, it will override the default value.
 	// USE WITH CAUTION
-	AllowSetDefaultValue = 1 << 3
+	AllowSetDefaultValue = 1 << 3,
+
+	AllowBroadcastAndConstructible = AllowBroadcast | AllowConstructible
 };
 ENUM_CLASS_FLAGS(EPCGAttributeAccessorFlags);
 

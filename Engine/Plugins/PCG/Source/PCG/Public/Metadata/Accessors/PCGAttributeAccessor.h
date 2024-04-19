@@ -39,20 +39,20 @@ public:
 
 	bool GetRangeImpl(TArrayView<T> OutValues, int32 Index, const IPCGAttributeAccessorKeys& Keys) const
 	{
-		TArray<const PCGMetadataEntryKey*, TInlineAllocator<256>> EntryKeys;
-		EntryKeys.SetNumUninitialized(OutValues.Num());
+		TArray<const PCGMetadataEntryKey*, TInlineAllocator<256>> EntryKeyPtrs;
+		EntryKeyPtrs.SetNumUninitialized(OutValues.Num());
 
-		TArrayView<const PCGMetadataEntryKey*> EntryKeysView(EntryKeys);
+		TArrayView<const PCGMetadataEntryKey*> EntryKeysView(EntryKeyPtrs);
 		if (!Keys.GetKeys<PCGMetadataEntryKey>(Index, EntryKeysView))
 		{
 			return false;
 		}
 
-		// TODO: Might be good to hase a "GetValuesFromItemKeys" to try locking less often.
-		for (int32 i = 0; i < OutValues.Num(); ++i)
-		{
-			OutValues[i] = Attribute->GetValueFromItemKey(*EntryKeys[i]);
-		}
+		TArray<PCGMetadataEntryKey, TInlineAllocator<256>> EntryKeys;
+		EntryKeys.Reserve(EntryKeyPtrs.Num());
+		Algo::Transform(EntryKeyPtrs, EntryKeys, [](const PCGMetadataEntryKey* KeyPtr) { return *KeyPtr; });
+
+		Attribute->GetValuesFromItemKeys(TArrayView<PCGMetadataEntryKey>(EntryKeys), OutValues);
 
 		return true;
 	}
@@ -69,6 +69,9 @@ public:
 
 		int LastDefaultKeyIndex = INDEX_NONE;
 
+		TArray<PCGMetadataEntryKey*, TInlineAllocator<256>> EntriesToSet;
+		EntriesToSet.Reserve(EntryKeys.Num());
+
 		// Implementation note: this is a stripped down version of UPCGMetadata::InitializeOnSet
 		for(int EntryIndex = 0; EntryIndex < EntryKeys.Num(); ++EntryIndex)
 		{
@@ -77,7 +80,7 @@ public:
 			{
 				if (!(Flags & EPCGAttributeAccessorFlags::AllowSetDefaultValue))
 				{
-					EntryKey = Metadata->AddEntry(); // TODO - replace by AddEntryPlaceholder ?
+					EntriesToSet.Add(&EntryKey);
 				}
 				else
 				{
@@ -86,11 +89,19 @@ public:
 			}
 			else if (EntryKey < Metadata->GetItemKeyCountForParent())
 			{
-				EntryKey = Metadata->AddEntry(EntryKey);
+				EntriesToSet.Add(&EntryKey);
 			}
 		}
 
-		Attribute->SetValues(EntryKeys, InValues);
+		{
+			//TRACE_CPUPROFILER_EVENT_SCOPE(FPCGAttributeAccessor::SetRangeImpl::AddEntriesInPlace);
+			Metadata->AddEntriesInPlace(EntriesToSet);
+		}
+
+		{
+			//TRACE_CPUPROFILER_EVENT_SCOPE(FPCGAttributeAccessor::SetRangeImpl::SetValues);
+			Attribute->SetValues(EntryKeys, InValues);
+		}
 
 		if (LastDefaultKeyIndex != INDEX_NONE)
 		{
