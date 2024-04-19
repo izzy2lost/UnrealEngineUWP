@@ -3,6 +3,7 @@
 #include "Components/MaterialStageExpressions/DMMSETextureSampleBase.h"
 
 #include "Components/DMMaterialLayer.h"
+#include "Components/DMMaterialProperty.h"
 #include "Components/DMMaterialSlot.h"
 #include "Components/DMMaterialStageBlend.h"
 #include "Components/DMMaterialStageThroughputLayerBlend.h"
@@ -15,6 +16,7 @@
 #include "CoreGlobals.h"
 #include "Engine/TextureCube.h"
 #include "Materials/MaterialExpressionTextureSample.h"
+#include "Model/DMMaterialBuildState.h"
 #include "Model/DynamicMaterialModelEditorOnlyData.h"
 
 #define LOCTEXT_NAMESPACE "DMMaterialStageExpressionTextureSample"
@@ -42,6 +44,42 @@ UDMMaterialStageExpressionTextureSampleBase::UDMMaterialStageExpressionTextureSa
 	OutputConnectors.Add({4, LOCTEXT("Alpha", "Alpha"), EDMValueType::VT_Float1});
 
 	EditableProperties.Add(GET_MEMBER_NAME_CHECKED(UDMMaterialStageExpressionTextureSampleBase, bClampTexture));
+}
+
+void UDMMaterialStageExpressionTextureSampleBase::GenerateExpressions(const TSharedRef<FDMMaterialBuildState>& InBuildState) const
+{
+	if (!IsComponentValid() || !IsComponentAdded())
+	{
+		return;
+	}
+
+	check(MaterialExpressionClass.Get());
+
+	if (InBuildState->HasStageSource(this))
+	{
+		return;
+	}
+
+	UMaterialExpression* NewExpression = InBuildState->GetBuildUtils().CreateExpression(MaterialExpressionClass.Get(), UE_DM_NodeComment_Default);
+	AddExpressionProperties({NewExpression});
+
+	InBuildState->AddStageSourceExpressions(this, {NewExpression});
+
+	UMaterialExpressionTextureSample* TextureSample = Cast<UMaterialExpressionTextureSample>(NewExpression);
+
+	if (!TextureSample)
+	{
+		return;
+	}
+
+	UDMMaterialProperty* CurrentProperty = InBuildState->GetCurrentMaterialProperty();
+
+	if (!CurrentProperty)
+	{
+		return;
+	}
+
+	TextureSample->SamplerType = CurrentProperty->GetTextureSamplerType();
 }
 
 void UDMMaterialStageExpressionTextureSampleBase::OnComponentAdded()

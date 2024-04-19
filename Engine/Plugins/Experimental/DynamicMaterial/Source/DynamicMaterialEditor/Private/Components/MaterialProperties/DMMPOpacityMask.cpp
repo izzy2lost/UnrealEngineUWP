@@ -22,3 +22,8 @@ UMaterialExpression* UDMMaterialPropertyOpacityMask::GetDefaultInput(
 {
 	return CreateConstant(InBuildState, 1.f);
 }
+
+TEnumAsByte<EMaterialSamplerType> UDMMaterialPropertyOpacityMask::GetTextureSamplerType() const
+{
+	return EMaterialSamplerType::SAMPLERTYPE_Masks;
+}

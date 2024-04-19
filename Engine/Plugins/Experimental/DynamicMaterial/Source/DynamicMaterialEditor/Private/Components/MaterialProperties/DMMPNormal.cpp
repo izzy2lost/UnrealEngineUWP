@@ -32,3 +32,8 @@ UMaterialExpression* UDMMaterialPropertyNormal::GetDefaultInput(const TSharedRef
 {
 	return CreateConstant(InBuildState, FVector::OneVector);
 }
+
+TEnumAsByte<EMaterialSamplerType> UDMMaterialPropertyNormal::GetTextureSamplerType() const
+{
+	return EMaterialSamplerType::SAMPLERTYPE_Normal;
+}

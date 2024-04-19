@@ -9,6 +9,7 @@
 #include "Model/DMMaterialBuildUtils.h"
 
 class UDMMaterialLayerObject;
+class UDMMaterialProperty;
 class UDMMaterialSlot;
 class UDMMaterialStage;
 class UDMMaterialStageInput;
@@ -38,6 +39,10 @@ struct DYNAMICMATERIALEDITOR_API FDMMaterialBuildState : public IDMMaterialBuild
 	virtual UMaterial* GetDynamicMaterial() const override;
 
 	virtual UDynamicMaterialModel* GetMaterialModel() const override;
+
+	UDMMaterialProperty* GetCurrentMaterialProperty() const;
+
+	void SetCurrentMaterialProperty(UDMMaterialProperty* InProperty);
 
 	bool ShouldDirtyAssets() const { return bDirtyAssets; }
 
@@ -147,6 +152,7 @@ struct DYNAMICMATERIALEDITOR_API FDMMaterialBuildState : public IDMMaterialBuild
 private:
 	UMaterial* DynamicMaterial = nullptr;
 	UDynamicMaterialModel* MaterialModel = nullptr;
+	UDMMaterialProperty* CurrentProperty = nullptr;
 	bool bDirtyAssets;
 	bool bIgnoreUVs;
 	bool bIsPreviewMaterial;

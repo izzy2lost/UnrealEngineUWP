@@ -59,6 +59,8 @@ public:
 
 	virtual UMaterialExpression* GetDefaultInput(const TSharedRef<FDMMaterialBuildState>& InBuildState) const;
 
+	virtual TEnumAsByte<EMaterialSamplerType> GetTextureSamplerType() const;
+
 	virtual void OnSlotAdded(UDMMaterialSlot* InSlot);
 
 	//~ Begin UDMMaterialComponent

@@ -13,6 +13,10 @@ class DYNAMICMATERIALEDITOR_API UDMMaterialStageExpressionTextureSampleBase : pu
 public:
 	UDMMaterialStageExpressionTextureSampleBase(const FText& InName, TSubclassOf<UMaterialExpression> InClass);
 
+	//~ Begin UDMMaterialStageExpression
+	virtual void GenerateExpressions(const TSharedRef<FDMMaterialBuildState>& InBuildState) const override;
+	//~ End UDMMaterialStageExpression
+
 	//~ Begin UDMMaterialStageSource
 	virtual void OnComponentAdded() override;
 	virtual bool IsPropertyVisible(FName Property) const override;

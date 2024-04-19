@@ -11,7 +11,6 @@
 #include "MaterialDomain.h"
 #include "Materials/Material.h"
 #include "Materials/MaterialExpression.h"
-#include "Materials/MaterialExpressionAppendVector.h"
 #include "Model/DMMaterialNodeArranger.h"
 #include "Model/DMMaterialBuildUtils.h"
 
@@ -59,6 +58,16 @@ UMaterial* FDMMaterialBuildState::GetDynamicMaterial() const
 UDynamicMaterialModel* FDMMaterialBuildState::GetMaterialModel() const
 {
 	return MaterialModel;
+}
+
+UDMMaterialProperty* FDMMaterialBuildState::GetCurrentMaterialProperty() const
+{
+	return CurrentProperty;
+}
+
+void FDMMaterialBuildState::SetCurrentMaterialProperty(UDMMaterialProperty* InProperty)
+{
+	CurrentProperty = InProperty;
 }
 
 void FDMMaterialBuildState::SetIgnoreUVs()

@@ -330,6 +330,8 @@ void UDynamicMaterialModelEditorOnlyData::BuildMaterial(bool bInDirtyAssets)
 			continue;
 		}
 
+		BuildState->SetCurrentMaterialProperty(Pair.Value);
+
 		Slot->GenerateExpressions(BuildState);
 
 		if (BuildState->GetSlotExpressions(Slot).IsEmpty())
