@@ -237,27 +237,30 @@ void UShallowWaterSubsystem::InitializeShallowWater()
 		return;
 	}
 
-	// async load the ShallowWater MPC
-	if (!bAsyncLoadMPCAttempted)
+	// async load the ShallowWater MPC and NS
+	if (!bInitializationAsyncLoadsAttempted)
 	{
-		bAsyncLoadMPCAttempted = true;
+		bInitializationAsyncLoadsAttempted = true;
 
 		Settings = GetMutableDefault<UShallowWaterSettings>();
-		UAssetManager::GetStreamableManager().RequestAsyncLoad(Settings->WaterMPC.ToSoftObjectPath(),
+
+		TArray< FSoftObjectPath> ObjectsToLoad;
+		ObjectsToLoad.Add(Settings->WaterMPC.ToSoftObjectPath());
+		ObjectsToLoad.Add(Settings->DefaultShallowWaterNiagaraSimulation.ToSoftObjectPath());
+
+		UAssetManager::GetStreamableManager().RequestAsyncLoad(ObjectsToLoad,
 			FStreamableDelegate::CreateWeakLambda(this, [this]()
 				{
-					// continue with initialization after MPC is loaded
-					InitializeShallowWater();					
+					// continue with initialization after MPC and NS are loaded
+					InitializeShallowWater();
 				})
 		);
 
 		return;
 	}
-	else if (Settings->WaterMPC.IsValid())
-	{
-		MPC = Settings->WaterMPC.Get();
-	}
-	else
+	
+	MPC = Settings->WaterMPC.Get();
+	if (MPC == nullptr)
 	{
 		UE_LOG(LogShallowWater, Warning, TEXT("UShallowWaterSubsystem::InitializeShallowWater() - MPC cannot be loaded. Make sure it's set in ShallowWater Settings."));
 		return;
@@ -275,29 +278,9 @@ void UShallowWaterSubsystem::InitializeShallowWater()
 	}
 
 	// async load the NS, then create the actor
-	UNiagaraSystem* ShallowWaterTemplate = nullptr;
-	if (!bAsyncLoadNSAttempted)
-	{
-		bAsyncLoadNSAttempted = true;
-
-		Settings = GetMutableDefault<UShallowWaterSettings>();
-		UAssetManager::GetStreamableManager().RequestAsyncLoad(Settings->DefaultShallowWaterNiagaraSimulation.ToSoftObjectPath(),
-			FStreamableDelegate::CreateWeakLambda(this, [this]()
-				{					
-					// continue with initialization after NS is loaded
-					InitializeShallowWater();
-				})
-		);
-
-		return;
-	}
-	else if (Settings->DefaultShallowWaterNiagaraSimulation.IsValid())
-	{
-		ShallowWaterTemplate = Settings->DefaultShallowWaterNiagaraSimulation.Get();
-	}
-	else
-	{
-		ensure(false);
+	UNiagaraSystem* ShallowWaterTemplate = Settings->DefaultShallowWaterNiagaraSimulation.Get();
+	if (ShallowWaterTemplate == nullptr)
+	{		
 		UE_LOG(LogShallowWater, Warning, TEXT("UShallowWaterSubsystem::InitializeShallowWater() - Couldn't find ShallowWater template in settings"));
 		return;
 	}
@@ -1159,7 +1142,7 @@ void UShallowWaterSubsystem::OnWaterInfoTextureCreated(const UTextureRenderTarge
 	WaterInfoTexture = InWaterInfoTexture;
 	if (ShallowWaterNiagaraSimulation)
 	{
-		ShallowWaterNiagaraSimulation->SetVariableTexture(FName("WaterInfoTexture"), Cast<UTexture>(const_cast<UTextureRenderTarget2D*>(WaterInfoTexture)));
+		ShallowWaterNiagaraSimulation->SetVariableTexture(FName("WaterInfoTexture"), Cast<UTexture>(const_cast<UTextureRenderTarget2D*>(WaterInfoTexture.Get())));
 	}
 }
 

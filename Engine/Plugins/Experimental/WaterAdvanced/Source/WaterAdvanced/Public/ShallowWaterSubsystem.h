@@ -243,14 +243,14 @@ protected:
 	void OnWaterInfoTextureCreated(const UTextureRenderTarget2D* WaterInfoTexture);
 
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category="Shallow Water")
-	const UTextureRenderTarget2D* WaterInfoTexture;
+	TObjectPtr<const UTextureRenderTarget2D> WaterInfoTexture;
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category="Shallow Water")
-	UTextureRenderTarget2D* NormalRT;
+	TObjectPtr<UTextureRenderTarget2D> NormalRT;
 
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category="Shallow Water")
-	UShallowWaterSettings* Settings;
+	TObjectPtr<UShallowWaterSettings> Settings;
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category="Shallow Water")
-	UMaterialParameterCollection* MPC;
+	TObjectPtr<UMaterialParameterCollection> MPC;
 
 	// Consistent record through multiple frames since we want active pawns that affects the fluidsim to remain active
 	// Even when it's less significant than newly available pawns. Fluidsim enabled for different pawns each frame is bad.
@@ -267,8 +267,7 @@ private:
 
 	bool bIsShallowWaterInitialized = false;
 
-	bool bAsyncLoadMPCAttempted = false;
-	bool bAsyncLoadNSAttempted = false;
+	bool bInitializationAsyncLoadsAttempted = false;
 
 	struct PendingImpact
 	{
