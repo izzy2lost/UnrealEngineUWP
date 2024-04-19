@@ -129,6 +129,10 @@ public:
 	 * @param InY Y Coordinate.
 	 * @param InZ Z Coordinate.
 	 * @param InW W Coordinate.
+	 *
+	 * NOTE: This default constructor is unlike TVector, TMatrix etc. in that it
+	 *       actually initializes the instance.  Ideally it should be = default;
+	 *       in the same way, but this would break backwards compatibility.
 	 */
 	explicit TVector4(T InX = 0.0f, T InY = 0.0f, T InZ = 0.0f, T InW = 1.0f);
 

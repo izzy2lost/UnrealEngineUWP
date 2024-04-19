@@ -49,6 +49,11 @@ public:
 	/**
 	 * Default constructor.
 	 * Creates a new box with uninitialized extents and marks it as invalid.
+	 *
+	 * NOTE: This default constructor is unlike TVector, TMatrix etc. in that it
+	 *       actually initializes the instance.  Ideally it should be = default;
+	 *       in the same way, but this would break backwards compatibility.  It
+	 *       might be possible if the questionable IsValid field ever gets removed.
 	 */
 	constexpr TBox()
 #if ENABLE_UNINITIALIZED_BOX_DIAGNOSTIC

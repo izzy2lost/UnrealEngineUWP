@@ -1353,7 +1353,6 @@ ETrackingStatus FOpenXRInputPlugin::FOpenXRInput::GetControllerTrackingStatus(co
 		XrResult Result = xrGetActionStatePose(Session, &GetInfo, &State);
 		if (XR_SUCCEEDED(Result) && State.isActive)
 		{
-			FQuat Orientation;
 			bool bIsTracked = OpenXRHMD->GetIsTracked(GetDeviceIDForMotionSource(MotionSource));
 			return bIsTracked ? ETrackingStatus::Tracked : ETrackingStatus::NotTracked;
 		}

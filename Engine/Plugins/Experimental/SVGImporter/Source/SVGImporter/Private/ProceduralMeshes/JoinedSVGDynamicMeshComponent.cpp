@@ -229,7 +229,7 @@ void UJoinedSVGDynamicMeshComponent::LoadMaterialSetParameters()
 
 		if (const TObjectPtr<UMaterialInstanceDynamic>& Material = ShapesMaterials[MaterialID])
 		{
-			FLinearColor ColorToApply;
+			FLinearColor ColorToApply = FLinearColor::Black;
 
 			switch (Coloring)
 			{
