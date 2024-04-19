@@ -201,6 +201,30 @@ TOptional<FRHIDrawStatsCategory const*> FRHICommandListBase::SetDrawStatsCategor
 }
 #endif
 
+#if WITH_RHI_BREADCRUMBS
+void FRHICommandListBase::AttachBreadcrumbSubTree(FRHIBreadcrumbAllocator& Allocator, FRHIBreadcrumbList& Nodes)
+{
+	for (FRHIBreadcrumbNode* Node : Nodes.IterateAndUnlink())
+	{
+		checkf(Node->Allocator == &Allocator, TEXT("All the nodes in a subtree must come from the same breadcrumb allocator."));
+		if (Node->GetParent() == FRHIBreadcrumbNode::Sentinel)
+		{
+			Node->SetParent(GetCurrentBreadcrumbRef());
+		}
+	}
+
+	// Switch the current breadcrumb allocator out for the subtree one.
+	if (BreadcrumbAllocator.Get() != &Allocator)
+	{
+		if (BreadcrumbAllocator)
+		{
+			BreadcrumbAllocatorRefs.AddUnique(BreadcrumbAllocator.Get());
+		}
+		BreadcrumbAllocator = Allocator.AsShared();
+	}
+}
+#endif
+
 void FRHICommandListBase::ActivatePipelines(ERHIPipeline Pipelines)
 {
 	checkf(IsTopOfPipe() || Bypass(), TEXT("Cannot be called from the bottom of pipe."));

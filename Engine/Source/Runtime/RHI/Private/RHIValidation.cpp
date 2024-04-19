@@ -1891,13 +1891,14 @@ namespace RHIValidation
 		case EOpType::BeginBreadcrumbGPU:
 			{
 				FRHIBreadcrumbNode* Node = Data_Breadcrumb.Breadcrumb;
-				LogNode(Node, true, Queue.Pipeline);
 
 				check(Node && Node != FRHIBreadcrumbNode::Sentinel);
 				check(Node->GetParent() != FRHIBreadcrumbNode::Sentinel);
 				check(Node->GetParent() == Queue.Breadcrumbs.Current);
 				check(GRHICommandList.Bypass() || IsInRange(Queue.Breadcrumbs.Range, Node, Queue.Pipeline));
 				check(EnumHasAllFlags(static_cast<ERHIPipeline>(Node->BeginPipes.load()), Queue.Pipeline));
+
+				LogNode(Node, true, Queue.Pipeline);
 
 				Queue.Breadcrumbs.Current = Node;
 			}
@@ -1906,7 +1907,6 @@ namespace RHIValidation
 		case EOpType::EndBreadcrumbGPU:
 			{
 				FRHIBreadcrumbNode* Node = Data_Breadcrumb.Breadcrumb;
-				LogNode(Node, false, Queue.Pipeline);
 
 				check(Node && Node != FRHIBreadcrumbNode::Sentinel);
 				check(Node->GetParent() != FRHIBreadcrumbNode::Sentinel);
@@ -1914,21 +1914,46 @@ namespace RHIValidation
 				check(GRHICommandList.Bypass() || IsInRange(Queue.Breadcrumbs.Range, Node, Queue.Pipeline));
 				check(EnumHasAllFlags(static_cast<ERHIPipeline>(Node->EndPipes.load()), Queue.Pipeline));
 
+				LogNode(Node, false, Queue.Pipeline);
+
 				Queue.Breadcrumbs.Current = Node->GetParent();
 			}
 			break;
 
 		case EOpType::SetBreadcrumbRange:
-			Queue.Breadcrumbs.Range = Data_BreadcrumbRange.Range;
-			check(!Queue.Breadcrumbs.Range.First == !Queue.Breadcrumbs.Range.Last);
-
-			for (FRHIBreadcrumbNode* Node : Queue.Breadcrumbs.Range.Enumerate(Queue.Pipeline))
 			{
-				// Check current node and all parents are valid
-				for (FRHIBreadcrumbNode* Other = Node; Other; Other = Other->GetParent())
+				Queue.Breadcrumbs.Range = Data_BreadcrumbRange.Range;
+				check(!Queue.Breadcrumbs.Range.First == !Queue.Breadcrumbs.Range.Last);
+
+				TSet<FRHIBreadcrumbAllocator*> AllAllocators;
+				for (FRHIBreadcrumbNode* Node : Queue.Breadcrumbs.Range.Enumerate(Queue.Pipeline))
 				{
-					check(Other != FRHIBreadcrumbNode::Sentinel);
-					check(Other->GetParent() != FRHIBreadcrumbNode::Sentinel);
+					AllAllocators.Add(Node->Allocator);
+
+					// Check current node and all parents are valid
+					for (FRHIBreadcrumbNode* Other = Node; Other; Other = Other->GetParent())
+					{
+						check(Other != FRHIBreadcrumbNode::Sentinel);
+						check(Other->GetParent() != FRHIBreadcrumbNode::Sentinel);
+					}
+				}
+
+				// Check for circular references in the allocator parent pointers
+				for (FRHIBreadcrumbAllocator* Allocator : AllAllocators)
+				{
+					auto Recurse = [](FRHIBreadcrumbAllocator* Current, auto& Recurse) -> void
+					{
+						checkf(!Current->bVisited, TEXT("Circular reference detected in breadcrumb allocators."));
+						Current->bVisited = true;
+						
+						for (auto const& Parent : Current->GetParents())
+						{
+							Recurse(&Parent.Get(), Recurse);
+						}
+
+						Current->bVisited = false;
+					};
+					Recurse(Allocator, Recurse);
 				}
 			}
 			break;

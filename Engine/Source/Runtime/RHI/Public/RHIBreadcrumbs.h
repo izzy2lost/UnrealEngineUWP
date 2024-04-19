@@ -154,6 +154,8 @@
 		}
 
 	public:
+		FRHIBreadcrumbAllocatorArray const& GetParents() const { return Parents; }
+
 		template<size_t N, typename... TArgs>
 		inline FRHIBreadcrumbNode* AllocBreadcrumb(TCHAR const(&FormatString)[N], TArgs&&... Args);
 
@@ -161,6 +163,11 @@
 		{
 			return Inner.Alloc(Size, Align);
 		}
+
+#if ENABLE_RHI_VALIDATION
+		// Used by RHI validation for circular reference detection.
+		bool bVisited = false;
+#endif
 	};
 
 	inline void FRHIBreadcrumbAllocatorArray::AddUnique(FRHIBreadcrumbAllocator* Allocator)

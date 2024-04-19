@@ -1542,11 +1542,7 @@ void FRDGBuilder::Compile()
 #if WITH_RHI_BREADCRUMBS
 	// Attach the RDG breadcrumb nodes to the current top-of-stack RHI immediate breadcrumb,
 	// Also unlink them from each other.
-	for (FRHIBreadcrumbNode* Node : LocalBreadcrumbList.IterateAndUnlink())
-	{
-		if (Node->GetParent() == FRHIBreadcrumbNode::Sentinel)
-			Node->SetParent(RHICmdList.GetCurrentBreadcrumbRef());
-	}
+	RHICmdList.AttachBreadcrumbSubTree(GetBreadcrumbAllocator(), LocalBreadcrumbList);
 #endif
 }
 

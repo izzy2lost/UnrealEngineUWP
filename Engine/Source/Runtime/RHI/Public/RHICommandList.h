@@ -1226,6 +1226,8 @@ public:
 	{
 		return PersistentState.LocalBreadcrumb;
 	}
+
+	RHI_API void AttachBreadcrumbSubTree(FRHIBreadcrumbAllocator& Allocator, FRHIBreadcrumbList& Nodes);
 #endif
 
 #if HAS_GPU_STATS
