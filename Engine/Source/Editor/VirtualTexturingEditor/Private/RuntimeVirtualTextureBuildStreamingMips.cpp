@@ -161,6 +161,8 @@ namespace RuntimeVirtualTexture
 
 	bool BuildStreamedMips(EShadingPath ShadingPath, URuntimeVirtualTextureComponent* InComponent, FLinearColor const& FixedColor)
 	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(BuildStreamedMips);
+
 		if (!HasStreamedMips(ShadingPath, InComponent))
 		{
 			return true;
