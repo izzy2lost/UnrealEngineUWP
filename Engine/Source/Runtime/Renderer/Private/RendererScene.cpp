@@ -5124,7 +5124,7 @@ void FScene::UpdateRayTracingGroupBounds_AddPrimitives(const Experimental::TRobi
 		if (GroupId != -1)
 		{
 			bool bInMap = false;
-			static const FRayTracingCullingGroup DefaultGroup;
+			static const FRayTracingCullingGroup DefaultGroup = {};
 			FRayTracingCullingGroup* const Group = PrimitiveRayTracingGroups.FindOrAdd(GroupId, DefaultGroup, bInMap);
 			if (bInMap)
 			{

@@ -137,7 +137,7 @@ FTG_Texture FTG_Variant::GetTexture(FTG_EvaluationContext* InContext, FTG_Textur
 		return Texture;
 	}
 
-	FLinearColor Color;
+	FLinearColor Color = FLinearColor::Black;
 	FString Name;
 	BufferFormat TexelFormat = BufferFormat::Byte;
 

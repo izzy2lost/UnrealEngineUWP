@@ -742,7 +742,7 @@ struct FParameterTransformChannelEditorData
 		EvalTrack.Interrogate(Context, InterrogationData, Object);
 
 		FVector CurrentPos = FVector::ZeroVector;
-		FRotator CurrentRot;
+		FRotator CurrentRot = FRotator::ZeroRotator;
 		FVector CurrentScale = FVector::ZeroVector;
 
 		for (const FEulerTransformInterrogationData& Transform : InterrogationData.Iterate<FEulerTransformInterrogationData>(UMovieSceneControlRigParameterSection::GetTransformInterrogationKey()))

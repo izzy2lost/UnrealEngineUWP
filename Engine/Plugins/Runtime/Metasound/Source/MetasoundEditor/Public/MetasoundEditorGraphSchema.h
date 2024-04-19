@@ -82,7 +82,7 @@ struct METASOUNDEDITOR_API FMetasoundGraphSchemaAction : public FEdGraphSchemaAc
 
 	virtual const FLinearColor& GetIconColor() const
 	{
-		static const FLinearColor DefaultColor;
+		static const FLinearColor DefaultColor = FLinearColor::Black;
 		return DefaultColor;
 	}
 };

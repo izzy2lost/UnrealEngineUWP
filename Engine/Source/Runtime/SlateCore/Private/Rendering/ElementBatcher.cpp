@@ -792,7 +792,7 @@ void FSlateElementBatcher::AddBoxElements(const FSlateDrawElementArray<ElementTy
 		// Add Shader Parameters for extra RoundedBox parameters
 		ESlateShader ShaderType = ESlateShader::Default;
 		FShaderParams ShaderParams;
-		FColor SecondaryColor;
+		FColor SecondaryColor = FColor::Black;
 		if constexpr (std::is_same<ElementType, FSlateRoundedBoxElement>::value)
 		{
 			ShaderType = ESlateShader::RoundedBox;

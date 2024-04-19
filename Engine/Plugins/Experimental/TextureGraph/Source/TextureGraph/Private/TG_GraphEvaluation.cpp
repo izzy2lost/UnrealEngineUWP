@@ -357,7 +357,7 @@ void FTG_VariantToFTG_Texture_Converter(FTG_Evaluation::VarConverterInfo& Info)
 
 	FTG_Variant::EType SourceType = Input.GetType();
 
-	FLinearColor Color;
+	FLinearColor Color = FLinearColor::Black;
 
 	switch (SourceType)
 	{

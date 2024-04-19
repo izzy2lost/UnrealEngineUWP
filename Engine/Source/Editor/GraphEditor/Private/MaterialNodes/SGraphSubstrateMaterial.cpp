@@ -230,7 +230,7 @@ void FSubstrateWidget::GetPinColor(TSharedPtr<SGraphPin>& Out, const UMaterialGr
 	const FLinearColor Color0 = USlateThemeManager::Get().GetColor(GetSubstrateWidgetColor0());
 	const FLinearColor Color1 = USlateThemeManager::Get().GetColor(GetSubstrateWidgetColor1());
 
-	FLinearColor ColorModifier;
+	FLinearColor ColorModifier = FLinearColor::Black;
 	bool bHasColorModifier = false;
 	// Substrate operator override pin color to ease material topology visualization
 	const UEdGraphPin* Pin = Out->SGraphPin::GetPinObj();

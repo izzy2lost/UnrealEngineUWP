@@ -255,7 +255,6 @@ FNDCIsland* UNiagaraDataChannelHandler_Islands::FindOrCreateIsland(const FNiagar
 		for (int32 i : ActiveIslands)
 		{
 			FNDCIsland& Island = IslandPool[i];
-			FBoxSphereBounds GrowthBounds;
 			if (Island.TryGrow(Location, PerElementExtents, MaxExtents))
 			{
 				IslandToUse = &Island;

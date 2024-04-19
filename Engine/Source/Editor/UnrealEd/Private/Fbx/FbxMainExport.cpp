@@ -1281,7 +1281,7 @@ void FFbxExporter::ExportLandscape(ALandscapeProxy* Actor, bool bSelectedOnly, I
 FbxDouble3 SetMaterialComponent(FColorMaterialInput& MatInput, bool ToLinear)
 {
 	FColor RGBColor;
-	FLinearColor LinearColor;
+	FLinearColor LinearColor = FLinearColor::Black;
 	bool LinearSet = false;
 	
 	if (MatInput.Expression)

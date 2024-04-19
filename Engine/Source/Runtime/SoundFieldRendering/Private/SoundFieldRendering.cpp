@@ -491,7 +491,6 @@ void FSoundFieldDecoder::RotateFirstOrderAmbisonicsBed(const FAmbisonicsSoundfie
 	else
 	{
 		FMatrix CurrentRotationMatrix;
-		FMatrix RotationMatrixDelta;
 
 		// we already have our target matrix above.
 		// now we calculate our "current" matrix (where we left off)

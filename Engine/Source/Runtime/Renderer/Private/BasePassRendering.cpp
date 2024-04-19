@@ -1064,7 +1064,7 @@ void FDeferredShadingSceneRenderer::RenderBasePass(
 	Substrate::AppendSubstrateMRTs(*this, BasePassTextureCount, BasePassTextures);
 	TArrayView<FTextureRenderTargetBinding> BasePassTexturesView = MakeArrayView(BasePassTextures.GetData(), BasePassTextureCount);
 	FRDGTextureRef BasePassDepthTexture = SceneTextures.Depth.Target;
-	FLinearColor SceneColorClearValue;
+	FLinearColor SceneColorClearValue = FLinearColor::Black;
 
 	if (bRequiresRHIClear)
 	{

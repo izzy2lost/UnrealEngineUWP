@@ -136,15 +136,6 @@ public:
 		InitColor(InParticles);
 	}
 
-	UE_DEPRECATED(5.2, "Use one of the other constructors instead.")
-	CHAOS_API FPBDBendingConstraints(
-		const FSolverParticles& InParticles,
-		TArray<TVec4<int32>>&& InConstraints,
-		const FSolverReal InStiffness = (FSolverReal)1.)
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-		: Base(InParticles, MoveTemp(InConstraints), InStiffness) {}
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
-
 	virtual ~FPBDBendingConstraints() override {}
 
 	using Base::SetProperties;

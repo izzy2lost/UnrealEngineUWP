@@ -273,7 +273,7 @@ struct FVectorMixin
 
 		if (!bHasInitialValue)
 		{
-			FLinearColor ColorValue;
+			FLinearColor ColorValue = FLinearColor::Black;
 			if (UMaterialInstanceDynamic* MID = Cast<UMaterialInstanceDynamic>(BoundMaterial.GetObject()))
 			{
 				bHasInitialValue = MID->GetVectorParameterValue(ParameterInfo, ColorValue);

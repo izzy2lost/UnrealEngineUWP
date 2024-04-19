@@ -518,7 +518,7 @@ public:
 			SculptStrength = FMath::Max(SculptStrength, 1.0f);
 		}
 
-		FPlane BrushPlane;
+		FPlane BrushPlane(ForceInit);
 		TArray<FVector> Normals;
 
 		if (bUseClayBrush)

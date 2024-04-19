@@ -4447,7 +4447,6 @@ bool UEdGraphSchema_K2::DefaultValueSimpleValidation(const FEdGraphPinType& PinT
 			}
 			else if (StructType == RotatorStruct)
 			{
-				FRotator Rot;
 				if (!FDefaultValueHelper::IsStringValidRotator(NewDefaultValue))
 				{
 					DVSV_RETURN_MSG(TEXT("Invalid value for an FRotator"));
