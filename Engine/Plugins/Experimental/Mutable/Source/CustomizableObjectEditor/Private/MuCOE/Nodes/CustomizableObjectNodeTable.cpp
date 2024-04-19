@@ -723,7 +723,6 @@ bool UCustomizableObjectNodeTable::IsNodeOutDatedAndNeedsRefresh()
 
 					NumPins++;
 				}
-				
 			}
 			else if (const FStructProperty* StructProperty = CastField<FStructProperty>(ColumnProperty))
 			{
@@ -1400,6 +1399,51 @@ TArray<FAssetData> UCustomizableObjectNodeTable::GetParentTables() const
 	AssetRegistry.Get()->GetAssets(Filter, DataTableAssets);
 
 	return DataTableAssets;
+}
+
+
+FSkeletalMaterial* UCustomizableObjectNodeTable::GetDefaultSkeletalMaterialFor(const UEdGraphPin& MeshPin) const
+{
+	USkeletalMesh* SkeletalMesh = GetColumnDefaultAssetByType<USkeletalMesh>(&MeshPin);
+
+	if (!SkeletalMesh)
+	{
+		return nullptr;
+	}
+
+	int32 LODIndex;
+	int32 SectionIndex;
+	GetPinLODAndSection(&MeshPin, LODIndex, SectionIndex);
+
+	// We assume that LODIndex and MaterialIndex are valid for the imported model
+	int32 SkeletalMeshMaterialIndex = INDEX_NONE;
+
+	// Check if we have LOD info map to get the correct material index
+	if (const FSkeletalMeshLODInfo* LodInfo = SkeletalMesh->GetLODInfo(LODIndex))
+	{
+		if (LodInfo->LODMaterialMap.IsValidIndex(SectionIndex))
+		{
+			SkeletalMeshMaterialIndex = LodInfo->LODMaterialMap[SectionIndex];
+		}
+	}
+
+	// Only deduce index when the explicit mapping is not found or there is no remap
+	if (SkeletalMeshMaterialIndex == INDEX_NONE)
+	{
+		const FSkeletalMeshModel* ImportedModel = SkeletalMesh->GetImportedModel();
+
+		if (ImportedModel && ImportedModel->LODModels.IsValidIndex(LODIndex) && ImportedModel->LODModels[LODIndex].Sections.IsValidIndex(SectionIndex))
+		{
+			SkeletalMeshMaterialIndex = ImportedModel->LODModels[LODIndex].Sections[SectionIndex].MaterialIndex;
+		}
+	}
+
+	if (SkeletalMesh->GetMaterials().IsValidIndex(SkeletalMeshMaterialIndex))
+	{
+		return &SkeletalMesh->GetMaterials()[SkeletalMeshMaterialIndex];
+	}
+
+	return nullptr;
 }
 
 

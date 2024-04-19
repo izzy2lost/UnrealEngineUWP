@@ -21,6 +21,7 @@ class UTexture2D;
 class UTexture2DArray;
 class UAnimInstance;
 struct FGuid;
+struct FSkeletalMaterial;
 
 
 /** Enum class for the different types of image pins */
@@ -400,6 +401,9 @@ public:
 
 	/** Return the list of UDataTable that will be used to compose the final UDataTable. */
 	TArray<FAssetData> GetParentTables() const;
+
+	/** Returns the skeletal material associated to the given skeletal mesh output pin. */
+	FSkeletalMaterial* GetDefaultSkeletalMaterialFor(const UEdGraphPin& MeshPin) const;
 	
 private:
 
