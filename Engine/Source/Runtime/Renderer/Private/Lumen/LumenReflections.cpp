@@ -1,9 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-/*=============================================================================
-	LumenReflections.cpp
-=============================================================================*/
-
 #include "LumenReflections.h"
 #include "RendererPrivate.h"
 #include "ScenePrivate.h"
@@ -863,21 +859,25 @@ void UpdateHistoryReflections(
 	FRDGTextureRef FinalSpecularIndirect,
 	FRDGTextureRef AccumulatedResolveVariance,
 	ERDGPassFlags ComputePassFlags,
-	bool bTranslucentReflection,
+	ELumenReflectionPass ReflectionPass,
 	const FLumenFrontLayerTranslucencyGBufferParameters* FrontLayerReflectionGBuffer)
 {
 	LLM_SCOPE_BYTAG(Lumen);
 
 	const FRDGSystemTextures& SystemTextures = FRDGSystemTextures::Get(GraphBuilder);
 	FRDGTextureRef VelocityTexture = GetIfProduced(SceneTextures.Velocity, SystemTextures.Black);
-
+	
+	const bool bTranslucentReflection = ReflectionPass == ELumenReflectionPass::FrontLayerTranslucency;
 	const FIntPoint EffectiveResolution = bTranslucentReflection ? SceneTextures.Config.Extent : Substrate::GetSubstrateTextureResolution(View, SceneTextures.Config.Extent);
 	const FIntPoint EffectiveViewExtent = FrameTemporaries.ViewExtent;
 	const uint32 ClosureCount = bTranslucentReflection ? 1 : Substrate::GetSubstrateMaxClosureCount(View);
 
 	FRDGTextureDesc NumHistoryFramesAccumulatedDesc = FRDGTextureDesc::Create2DArray(EffectiveResolution, PF_G8, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV, ClosureCount);
-	FRDGTextureRef NewNumHistoryFramesAccumulated = FrameTemporaries.ReflectNumHistoryFrames.CreateSharedRT(GraphBuilder,
-		NumHistoryFramesAccumulatedDesc, EffectiveViewExtent, TEXT("Lumen.Reflections.NumHistoryFramesAccumulated"));
+	FRDGTextureRef NewNumHistoryFramesAccumulated = FrameTemporaries.ReflectNumHistoryFrames[(uint32)ReflectionPass].CreateSharedRT(
+		GraphBuilder,
+		NumHistoryFramesAccumulatedDesc,
+		EffectiveViewExtent,
+		bTranslucentReflection ? TEXT("Lumen.Reflections.FrontLayer.NumHistoryFramesAccumulated") : TEXT("Lumen.Reflections.NumHistoryFramesAccumulated"));
 
 	FReflectionTemporalState* ReflectionState = nullptr;
 	if (View.ViewState)
@@ -1287,13 +1287,19 @@ FRDGTextureRef FDeferredShadingSceneRenderer::RenderLumenReflections(
 	if (bDenoise)
 	{
 		// Slowly accumulated specular history, must be in at least Float16 precision
-		SpecularIndirect = FrameTemporaries.ReflectSpecularIndirect.CreateSharedRT(GraphBuilder,
+		SpecularIndirect = FrameTemporaries.ReflectSpecularIndirect[(uint32)ReflectionPass].CreateSharedRT(
+			GraphBuilder,
 			FRDGTextureDesc::Create2DArray(EffectiveTextureResolution, PF_FloatRGBA, FClearValueBinding::Transparent, TexCreate_ShaderResource | TexCreate_UAV | TexCreate_RenderTargetable, ClosureCount),
 			EffectiveViewExtent,
-			TEXT("Lumen.Reflections.SpecularIndirect"));
+			bFrontLayer ? TEXT("Lumen.Reflections.FrontLayer.SpecularIndirect") : TEXT("Lumen.Reflections.SpecularIndirect"));
+
 		EnumAddFlags(ResolveVarianceDesc.Flags, TexCreate_RenderTargetable);
-		FRDGTextureRef AccumulatedResolveVariance = FrameTemporaries.ReflectResolveVariance.CreateSharedRT(GraphBuilder,
-			ResolveVarianceDesc, EffectiveViewExtent, TEXT("Lumen.Reflections.AccumulatedResolveVariance"));
+
+		FRDGTextureRef AccumulatedResolveVariance = FrameTemporaries.ReflectResolveVariance[(uint32)ReflectionPass].CreateSharedRT(
+			GraphBuilder,
+			ResolveVarianceDesc,
+			EffectiveViewExtent,
+			bFrontLayer ? TEXT("Lumen.Reflections.FrontLayer.AccumulatedResolveVariance") : TEXT("Lumen.Reflections.AccumulatedResolveVariance"));
 
 		AddClearRenderTargetPass(GraphBuilder, SpecularIndirect, FLinearColor::Transparent);
 		AddClearRenderTargetPass(GraphBuilder, AccumulatedResolveVariance, FLinearColor::Transparent);
@@ -1312,7 +1318,7 @@ FRDGTextureRef FDeferredShadingSceneRenderer::RenderLumenReflections(
 			SpecularIndirect,
 			AccumulatedResolveVariance,
 			ComputePassFlags,
-			bFrontLayer,
+			ReflectionPass,
 			FrontLayerReflectionGBuffer);
 
 		if (bUseBilaterialFilter)

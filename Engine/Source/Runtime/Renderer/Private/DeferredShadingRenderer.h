@@ -273,13 +273,6 @@ public:
 #endif //!(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 };
 
-enum class ELumenReflectionPass
-{
-	Opaque,
-	SingleLayerWater,
-	FrontLayerTranslucency
-};
-
 enum class EDiffuseIndirectMethod
 {
 	Disabled,

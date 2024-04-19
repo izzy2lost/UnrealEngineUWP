@@ -18,6 +18,15 @@
 #include "UnifiedBuffer.h"
 #include "Tasks/Task.h"
 
+enum class ELumenReflectionPass
+{
+	Opaque,
+	SingleLayerWater,
+	FrontLayerTranslucency,
+
+	MAX
+};
+
 class FDistanceFieldSceneData;
 class FLumenCardBuildData;
 class FLumenCardPassUniformParameters;
@@ -668,10 +677,12 @@ struct FLumenSceneFrameTemporaries
 	TArray<FLumenViewOrigin, TFixedAllocator<LUMEN_MAX_VIEWS>> ViewOrigins;
 
 	FIntPoint ViewExtent;
+	
+	// Targets shared per view, but can't be shared per pass
+	FLumenSharedRT ReflectSpecularIndirect[(uint32)ELumenReflectionPass::MAX];
+	FLumenSharedRT ReflectNumHistoryFrames[(uint32)ELumenReflectionPass::MAX];
+	FLumenSharedRT ReflectResolveVariance[(uint32)ELumenReflectionPass::MAX];
 
-	FLumenSharedRT ReflectSpecularIndirect;
-	FLumenSharedRT ReflectNumHistoryFrames;
-	FLumenSharedRT ReflectResolveVariance;
 	FLumenSharedRT DiffuseIndirect;
 	FLumenSharedRT BackfaceDiffuseIndirect;
 	FLumenSharedRT RoughSpecularIndirect;
