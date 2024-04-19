@@ -116,31 +116,40 @@ void UMVVMViewPanelWidgetExtension::BP_SetItems(const TArray<UObject*>& InItems)
 		TArray<TTuple<UPanelSlot*, UWidget*>> NewSlots;
 		for (int32 ItemIndex = 0; ItemIndex < InItems.Num(); ++ItemIndex)
 		{
-			UObject* Item = InItems[ItemIndex];
-			const TTuple<UPanelSlot*, TScriptInterface<INotifyFieldValueChanged>>* FoundObject = PreviousSlots.FindByPredicate([Item](const auto& Other) 
-			{ 
-				return Other.Value.GetObject() == Item; 
-			});
-
-			if (Item && OwningUserWidget && Item->GetClass() != SelectedVMClass)
+			if (UObject* Item = InItems[ItemIndex])
 			{
-				UE::MVVM::FMessageLog Log(OwningUserWidget);
-				Log.Warning(FText::Format(LOCTEXT("SetPanelWidgetItemsViewmodelTypeMismatch", "The item {0} passed as an entry of widget {1} is not a viewmodel of the selected type {2}.")
-					, FText::FromString(Item->GetName()), FText::FromString(PanelWidgetPtr->GetName()), FText::FromString(SelectedVMClass->GetName())
-				));
-			}
+				const TTuple<UPanelSlot*, TScriptInterface<INotifyFieldValueChanged>>* FoundObject = PreviousSlots.FindByPredicate([Item](const auto& Other)
+					{
+						return Other.Value.GetObject() == Item;
+					});
 
-			if (!FoundObject)
-			{
-				UUserWidget* EntryWidget = UUserWidget::CreateWidgetInstance(*PanelWidgetPtr, EntryWidgetClass, NAME_None);
-				ensure(EntryWidget);
+				if (Item && OwningUserWidget && Item->GetClass() != SelectedVMClass)
+				{
+					UE::MVVM::FMessageLog Log(OwningUserWidget);
+					Log.Warning(FText::Format(LOCTEXT("SetPanelWidgetItemsViewmodelTypeMismatch", "The item {0} passed as an entry of widget {1} is not a viewmodel of the selected type {2}.")
+						, FText::FromString(Item->GetName()), FText::FromString(PanelWidgetPtr->GetName()), FText::FromString(SelectedVMClass->GetName())
+					));
+				}
 
-				SetViewModelOnEntryWidget(EntryWidget, Item, OwningUserWidget);
-				NewSlots.Add(TTuple<UPanelSlot*, UWidget*>(SlotTemplate, EntryWidget));
+				if (!FoundObject)
+				{
+					UUserWidget* EntryWidget = UUserWidget::CreateWidgetInstance(*PanelWidgetPtr, EntryWidgetClass, NAME_None);
+					ensure(EntryWidget);
+
+					SetViewModelOnEntryWidget(EntryWidget, Item, OwningUserWidget);
+					NewSlots.Add(TTuple<UPanelSlot*, UWidget*>(SlotTemplate, EntryWidget));
+				}
+				else
+				{
+					NewSlots.Add(TTuple<UPanelSlot*, UWidget*>(FoundObject->Key, FoundObject->Key->Content));
+				}
 			}
 			else
 			{
-				NewSlots.Add(TTuple<UPanelSlot*, UWidget*>(FoundObject->Key, FoundObject->Key->Content));
+				UE::MVVM::FMessageLog Log(OwningUserWidget);
+				Log.Warning(FText::Format(LOCTEXT("SetPanelWidgetItemsViewmodelNullObject", "The item at index {0} passed as an entry of widget {1} is null. An entry widget won't be generated for this item.")
+					, ItemIndex, FText::FromString(PanelWidgetPtr->GetName())
+				));
 			}
 		}
 

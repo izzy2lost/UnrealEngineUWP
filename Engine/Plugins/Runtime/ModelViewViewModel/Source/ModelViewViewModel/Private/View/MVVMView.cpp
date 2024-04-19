@@ -75,7 +75,19 @@ void UMVVMView::Construct()
 	check(GeneratedViewClass);
 	check(bConstructed == false);
 
+	// Create an independent copy of extensions per view.
+	ensure(Extensions.IsEmpty());
+	Extensions.Reset(GeneratedViewClass->GetViewClassExtensions().Num());
 	for (UMVVMViewClassExtension* Extension : GeneratedViewClass->GetViewClassExtensions())
+	{
+		UMVVMViewClassExtension* ViewExtension = DuplicateObject<UMVVMViewClassExtension>(Extension, this);
+		if (ensure(ViewExtension))
+		{
+			Extensions.Add(ViewExtension);
+		}
+	}
+
+	for (UMVVMViewClassExtension* Extension : Extensions)
 	{
 		Extension->OnViewConstructed(GetUserWidget(), this);
 	}
@@ -110,7 +122,7 @@ void UMVVMView::Destruct()
 	UninitializeEvents();
 	UninitializeSources(); // and bindings
 
-	for (UMVVMViewClassExtension* Extension : GeneratedViewClass->GetViewClassExtensions())
+	for (UMVVMViewClassExtension* Extension : Extensions)
 	{
 		Extension->OnViewDestructed(GetUserWidget(), this);
 	}
@@ -158,14 +170,14 @@ void UMVVMView::InitializeSources()
 		InitializeSourceBindingsCommon();
 	}
 
-	for (UMVVMViewClassExtension* Extension : GeneratedViewClass->GetViewClassExtensions())
+	for (UMVVMViewClassExtension* Extension : Extensions)
 	{
 		Extension->OnSourcesInitialized(GetUserWidget(), this);
 	}
 
 	if (GeneratedViewClass->DoesInitializeBindingsOnConstruct())
 	{
-		for (UMVVMViewClassExtension* Extension : GeneratedViewClass->GetViewClassExtensions())
+		for (UMVVMViewClassExtension* Extension : Extensions)
 		{
 			Extension->OnBindingsInitialized(GetUserWidget(), this);
 		}
@@ -189,7 +201,7 @@ void UMVVMView::UninitializeSources()
 		UninitializeBindings();
 	}
 
-	for (UMVVMViewClassExtension* Extension : GeneratedViewClass->GetViewClassExtensions())
+	for (UMVVMViewClassExtension* Extension : Extensions)
 	{
 		Extension->OnSourcesUninitialized(GetUserWidget(), this);
 	}
@@ -322,7 +334,7 @@ void UMVVMView::InitializeBindings()
 
 	InitializeSourceBindingsCommon();
 
-	for (UMVVMViewClassExtension* Extension : GeneratedViewClass->GetViewClassExtensions())
+	for (UMVVMViewClassExtension* Extension : Extensions)
 	{
 		Extension->OnBindingsInitialized(GetUserWidget(), this);
 	}
@@ -359,7 +371,7 @@ void UMVVMView::UninitializeBindings()
 
 	bBindingsInitialized = false;
 
-	for (UMVVMViewClassExtension* Extension : GeneratedViewClass->GetViewClassExtensions())
+	for (UMVVMViewClassExtension* Extension : Extensions)
 	{
 		Extension->OnBindingsUninitialized(GetUserWidget(), this);
 	}
@@ -1015,7 +1027,7 @@ void UMVVMView::InitializeEvents()
 		BindEvent(ClassEvent, FMVVMViewClass_EventKey(Index));
 	}
 
-	for (UMVVMViewClassExtension* Extension : GeneratedViewClass->GetViewClassExtensions())
+	for (UMVVMViewClassExtension* Extension : Extensions)
 	{
 		Extension->OnEventsInitialized(GetUserWidget(), this);
 	}
@@ -1035,7 +1047,7 @@ void UMVVMView::UninitializeEvents()
 	
 	bEventsInitialized = false;
 
-	for (UMVVMViewClassExtension* Extension : GeneratedViewClass->GetViewClassExtensions())
+	for (UMVVMViewClassExtension* Extension : Extensions)
 	{
 		Extension->OnEventsUninitialized(GetUserWidget(), this);
 	}
