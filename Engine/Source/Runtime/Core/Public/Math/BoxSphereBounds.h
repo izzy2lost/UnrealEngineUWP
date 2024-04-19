@@ -36,7 +36,7 @@ struct TBoxSphereBounds
 public:
 
 	/** Default constructor. */
-	TBoxSphereBounds() { }
+	TBoxSphereBounds() = default;
 
 	/**
 	 * Creates and initializes a new instance.

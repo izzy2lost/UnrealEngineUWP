@@ -42,7 +42,7 @@ public:
 public:
 
 	/** Default constructor (no initialization). */
-	TBox2<T>() { }
+	TBox2() = default;
 
 	/**
 	 * Creates and initializes a new box.

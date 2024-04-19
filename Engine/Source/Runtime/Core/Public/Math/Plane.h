@@ -59,7 +59,7 @@ public:
 public:
 
 	/** Default constructor (no initialization). */
-	FORCEINLINE TPlane();
+	TPlane() = default;
 
 	/**
 	 * Constructor.
@@ -386,11 +386,6 @@ inline FArchive& operator<<(FArchive& Ar, TPlane<double>& P)
 
 /* TPlane inline functions
  *****************************************************************************/
-
-template<typename T>
-FORCEINLINE TPlane<T>::TPlane()
-{}
-
 
 template<typename T>
 FORCEINLINE TPlane<T>::TPlane(const TVector4<T>& V)

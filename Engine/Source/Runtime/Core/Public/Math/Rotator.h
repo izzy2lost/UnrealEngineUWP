@@ -83,7 +83,7 @@ public:
 	/**
 	 * Default constructor (no initialization).
 	 */
-	FORCEINLINE TRotator() { }
+	TRotator() = default;
 
 	/**
 	 * Constructor

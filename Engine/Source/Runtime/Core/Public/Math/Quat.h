@@ -64,7 +64,7 @@ public:
 public:
 
 	/** Default constructor (no initialization). */
-	FORCEINLINE TQuat() { }
+	TQuat() = default;
 
 	/**
 	 * Creates and initializes a new quaternion, with the W component either 0 or 1.

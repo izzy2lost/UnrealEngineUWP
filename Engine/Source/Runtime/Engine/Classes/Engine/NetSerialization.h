@@ -412,8 +412,7 @@ struct FVector_NetQuantize : public FVector
 {
 	GENERATED_USTRUCT_BODY()
 
-	FORCEINLINE FVector_NetQuantize()
-	{}
+	FVector_NetQuantize() = default;
 
 	explicit FORCEINLINE FVector_NetQuantize(EForceInit E)
 	: FVector(E)
@@ -458,8 +457,7 @@ struct FVector_NetQuantize10 : public FVector
 {
 	GENERATED_USTRUCT_BODY()
 
-	FORCEINLINE FVector_NetQuantize10()
-	{}
+	FVector_NetQuantize10() = default;
 
 	explicit FORCEINLINE FVector_NetQuantize10(EForceInit E)
 	: FVector(E)
@@ -504,8 +502,7 @@ struct FVector_NetQuantize100 : public FVector
 {
 	GENERATED_USTRUCT_BODY()
 
-	FORCEINLINE FVector_NetQuantize100()
-	{}
+	FVector_NetQuantize100() = default;
 
 	explicit FORCEINLINE FVector_NetQuantize100(EForceInit E)
 	: FVector(E)
@@ -546,8 +543,7 @@ struct FVector_NetQuantizeNormal : public FVector
 {
 	GENERATED_USTRUCT_BODY()
 
-	FORCEINLINE FVector_NetQuantizeNormal()
-	{}
+	FVector_NetQuantizeNormal() = default;
 
 	explicit FORCEINLINE FVector_NetQuantizeNormal(EForceInit E)
 	: FVector(E)

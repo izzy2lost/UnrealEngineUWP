@@ -66,7 +66,7 @@ struct FLinearColor
 	/** Static lookup table used for FColor -> FLinearColor conversion. sRGB */
 	static CORE_API float sRGBToLinearTable[256];
 
-	FORCEINLINE FLinearColor() {}
+	FLinearColor() = default;
 	FORCEINLINE explicit FLinearColor(EForceInit)
 	: R(0), G(0), B(0), A(0)
 	{}
@@ -505,7 +505,7 @@ public:
 	const uint32& DWColor(void) const {return Bits;}
 
 	// Constructors.
-	FORCEINLINE FColor() {}
+	FColor() = default;
 	FORCEINLINE explicit FColor(EForceInit)
 	{
 		// put these into the body for proper ordering with INTEL vs non-INTEL_BYTE_ORDER

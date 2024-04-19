@@ -671,8 +671,6 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS \
 	struct F##PropertyName##Index \
 	{ \
 		int32 Index = INDEX_NONE; \
-		UE_DEPRECATED(5.3, PREPROCESSOR_TO_STRING(PropertyName##Index) " must be explicitly initialized. Add " PREPROCESSOR_TO_STRING(PropertyName##Index) "(PropertyCollection) or (ForceInit) to this constructor initialization list.") \
-		F##PropertyName##Index() {} \
 		explicit F##PropertyName##Index(EForceInit) : Index(INDEX_NONE) {} \
 		explicit F##PropertyName##Index(const FCollectionPropertyConstFacade& PropertyCollection) : Index(PropertyCollection.GetKeyIndex(PropertyName##Name.ToString())) {} \
 		operator int32() const { return Index; } \

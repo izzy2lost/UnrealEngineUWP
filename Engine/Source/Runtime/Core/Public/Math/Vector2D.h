@@ -78,7 +78,7 @@ public:
 public:
 
 	/** Default constructor (no initialization). */
-	FORCEINLINE TVector2<T>() { }
+	TVector2() = default;
 
 	/**
 	* Constructor using initial values for each component.

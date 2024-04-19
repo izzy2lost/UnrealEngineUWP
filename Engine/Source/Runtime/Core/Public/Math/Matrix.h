@@ -64,7 +64,7 @@ public:
 
 
 	// Constructors.
-	FORCEINLINE TMatrix();
+	TMatrix() = default;
 
 	/**
 	 * Constructor.

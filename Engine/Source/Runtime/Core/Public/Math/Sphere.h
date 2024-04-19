@@ -38,7 +38,7 @@ public:
 
 
 	/** Default constructor (no initialization). */
-	TSphere() { }
+	TSphere() = default;
 
 	/**
 	 * Creates and initializes a new sphere.

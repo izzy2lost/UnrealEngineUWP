@@ -71,7 +71,7 @@ public:
 	/**
 	 * Default constructor (no initialization).
 	 */
-	FInterpCurvePoint() { };
+	FInterpCurvePoint() = default;
 
 	/** 
 	 * Constructor 

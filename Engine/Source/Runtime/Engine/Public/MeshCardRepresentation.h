@@ -49,7 +49,7 @@ public:
 	UE::Math::TVector<T> Extent;
 
 	/** Default constructor (no initialization). */
-	TLumenCardOBB() { }
+	TLumenCardOBB() = default;
 
 	/**
 	 * Creates and initializes a new OBB with zeros

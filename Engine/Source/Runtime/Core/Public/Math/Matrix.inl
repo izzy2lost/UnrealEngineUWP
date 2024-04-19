@@ -24,11 +24,6 @@ namespace Math
 
  // Constructors.
 template<typename T>
-FORCEINLINE TMatrix<T>::TMatrix()
-{
-}
-
-template<typename T>
 FORCEINLINE  TMatrix<T>::TMatrix(const TPlane<T>& InX, const TPlane<T>& InY, const TPlane<T>& InZ, const TPlane<T>& InW)
 {
 	M[0][0] = InX.X; M[0][1] = InX.Y;  M[0][2] = InX.Z;  M[0][3] = InX.W;
