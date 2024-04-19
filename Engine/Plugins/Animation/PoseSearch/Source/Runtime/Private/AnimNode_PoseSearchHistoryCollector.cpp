@@ -49,7 +49,8 @@ void FAnimNode_PoseSearchHistoryCollector_Base::Initialize_AnyThread(const FAnim
 		FMemMark Mark(FMemStack::Get());
 		FCSPose<FCompactPose> ComponentSpacePose;
 		ComponentSpacePose.InitPose(&Context.AnimInstanceProxy->GetRequiredBones());
-		PoseHistory.EvaluateComponentSpace_AnyThread(0.f, ComponentSpacePose, bStoreScales, RootBoneRecoveryTime, true, true, GetRequiredBones(Context.AnimInstanceProxy));
+		PoseHistory.EvaluateComponentSpace_AnyThread(0.f, ComponentSpacePose, bStoreScales, 
+			RootBoneRecoveryTime, RootBoneTranslationRecoveryRatio, RootBoneRotationRecoveryRatio, true, true, GetRequiredBones(Context.AnimInstanceProxy));
 	}
 }
 
@@ -158,8 +159,8 @@ void FAnimNode_PoseSearchHistoryCollector::Evaluate_AnyThread(FPoseContext& Outp
 		RequiredBones = GetRequiredBones(Output.AnimInstanceProxy);
 	}
 
-	PoseHistory.EvaluateComponentSpace_AnyThread(Output.AnimInstanceProxy->GetDeltaSeconds(), ComponentSpacePose,
-		bStoreScales, RootBoneRecoveryTime, bNeedsReset, bCacheBones, RequiredBones);
+	PoseHistory.EvaluateComponentSpace_AnyThread(Output.AnimInstanceProxy->GetDeltaSeconds(), ComponentSpacePose, bStoreScales,
+		RootBoneRecoveryTime, RootBoneTranslationRecoveryRatio, RootBoneRotationRecoveryRatio, bNeedsReset, bCacheBones, RequiredBones);
 
 	bCacheBones = false;
 
@@ -223,8 +224,8 @@ void FAnimNode_PoseSearchComponentSpaceHistoryCollector::EvaluateComponentSpace_
 		RequiredBones = GetRequiredBones(Output.AnimInstanceProxy);
 	}
 
-	PoseHistory.EvaluateComponentSpace_AnyThread(Output.AnimInstanceProxy->GetDeltaSeconds(), Output.Pose,
-		bStoreScales, RootBoneRecoveryTime, bNeedsReset, bCacheBones, RequiredBones);
+	PoseHistory.EvaluateComponentSpace_AnyThread(Output.AnimInstanceProxy->GetDeltaSeconds(), Output.Pose, bStoreScales, 
+		RootBoneRecoveryTime, RootBoneTranslationRecoveryRatio, RootBoneRotationRecoveryRatio, bNeedsReset, bCacheBones, RequiredBones);
 	
 	bCacheBones = false;
 

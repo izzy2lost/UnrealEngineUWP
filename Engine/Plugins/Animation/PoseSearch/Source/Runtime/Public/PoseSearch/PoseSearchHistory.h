@@ -110,7 +110,9 @@ struct FPoseHistory : public IPoseHistory
 	void PreUpdate();
 
 	void Initialize_AnyThread(int32 InNumPoses, float InSamplingInterval);
-	void EvaluateComponentSpace_AnyThread(float DeltaTime, FCSPose<FCompactPose>& ComponentSpacePose, bool bStoreScales, float RootBoneRecoveryTime, bool bNeedsReset, bool bCacheBones, const TArray<FBoneIndexType>& RequiredBones);
+	void EvaluateComponentSpace_AnyThread(float DeltaTime, FCSPose<FCompactPose>& ComponentSpacePose, bool bStoreScales,
+		float RootBoneRecoveryTime, float RootBoneTranslationRecoveryRatio, float RootBoneRotationRecoveryRatio,
+		bool bNeedsReset, bool bCacheBones, const TArray<FBoneIndexType>& RequiredBones);
 
 	// IPoseHistory interface
 	virtual bool GetTransformAtTime(float Time, FTransform& OutBoneTransform, const USkeleton* BoneIndexSkeleton = nullptr, FBoneIndexType BoneIndexType = RootBoneIndexType, FBoneIndexType ReferenceBoneIndexType = ComponentSpaceIndexType, bool bExtrapolate = false) const override;

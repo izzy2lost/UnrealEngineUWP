@@ -37,9 +37,18 @@ public:
 	UPROPERTY(EditAnywhere, Category = Settings)
 	bool bStoreScales = false;
 
-	// time in seconds to recover to the reference skeleton root bone from any eventual root bone modification. if zero the behaviour will be disabled (Experimental)
+	// time in seconds to recover to the reference skeleton root bone transform by RootBoneTranslationRecoveryRatio and RootBoneRotationRecoveryRatio
+	// from any eventual root bone modification. if zero the behaviour will be disabled (Experimental)
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Experimental, meta = (ClampMin="0"))
 	float RootBoneRecoveryTime = 0.f;
+
+	// ratio to recover to the reference skeleton root bone translation from any eventual root bone modification. zero for no recovery, 1 for full recovery
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Experimental, meta = (ClampMin="0", ClampMax="1", EditCondition = "RootBoneRecoveryTime > 0", EditConditionHides))
+	float RootBoneTranslationRecoveryRatio = 1.f;
+
+	// ratio to recover to the reference skeleton root bone rotation from any eventual root bone modification. zero for no recovery, 1 for full recovery
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Experimental, meta = (ClampMin="0", ClampMax="1", EditCondition = "RootBoneRecoveryTime > 0", EditConditionHides))
+	float RootBoneRotationRecoveryRatio = 1.f;
 
 	// Update Counter for detecting being relevant
 	FGraphTraversalCounter UpdateCounter;

@@ -470,6 +470,11 @@ void FArchivedPoseHistory::DebugDraw(const UWorld* World, FColor Color) const
 					}
 				}
 
+				if (i == 0)
+				{
+					DrawDebugLine(World, GlobalTransforms.GetTranslation(), RootTransform.GetTranslation(), FColor::Purple, false, -1.f, SDPG_Foreground);
+				}
+
 				PrevGlobalTransforms[i] = GlobalTransforms;
 			}
 		}
@@ -694,7 +699,8 @@ void FPoseHistory::SetTrajectory(const FPoseSearchQueryTrajectory& InTrajectory,
 }
 
 void FPoseHistory::EvaluateComponentSpace_AnyThread(float DeltaTime, FCSPose<FCompactPose>& ComponentSpacePose, bool bStoreScales,
-	float RootBoneRecoveryTime, bool bNeedsReset, bool bCacheBones, const TArray<FBoneIndexType>& RequiredBones)
+	float RootBoneRecoveryTime, float RootBoneTranslationRecoveryRatio, float RootBoneRotationRecoveryRatio,
+	bool bNeedsReset, bool bCacheBones, const TArray<FBoneIndexType>& RequiredBones)
 {
 	CheckThreadSafetyWrite(WritePoseDataThreadSafeCounter);
 	CheckThreadSafetyRead(ReadPoseDataThreadSafeCounter);
@@ -782,17 +788,28 @@ void FPoseHistory::EvaluateComponentSpace_AnyThread(float DeltaTime, FCSPose<FCo
 	}
 
 	// Regardless of the retention policy, we always update the most recent Entry
-	WritePoseData.Entries.Last().Update(0.f, ComponentSpacePose, WritePoseData.BoneToTransformMap, bStoreScales);
+	FPoseHistoryEntry& MostRecentEntry = WritePoseData.Entries.Last();
+	MostRecentEntry.Update(0.f, ComponentSpacePose, WritePoseData.BoneToTransformMap, bStoreScales);
 
-	if (RootBoneRecoveryTime > 0.f)
+	if (RootBoneRecoveryTime > 0.f && !Trajectory.Samples.IsEmpty())
 	{
 		// adding the updated "future" root bone Entry
-		const FReferenceSkeleton& RefSkeleton = Skeleton->GetReferenceSkeleton();
-		const TArray<FTransform>& RefBonePose = RefSkeleton.GetRefBonePose();
-		const FTransform& RefRootBone = RefBonePose[RootBoneIndexType];
+		const FTransform& RefRootBone = Skeleton->GetReferenceSkeleton().GetRefBonePose()[RootBoneIndexType];
+		const FQuat RootBoneRotationAtRecoveryTime = FMath::Lerp(FQuat(MostRecentEntry.ComponentSpaceRotations[RootBoneIndexType]), RefRootBone.GetRotation(), RootBoneRotationRecoveryRatio);
 
+		FVector RootBoneDeltaTranslationAtRecoveryTime = FVector::ZeroVector;
+		if (RootBoneTranslationRecoveryRatio > 0.f)
+		{
+			const FTransform WorldRootAtCurrentTime = Trajectory.GetSampleAtTime(0.f).GetTransform();
+			const FTransform WorldRootBoneAtCurrentTime = MostRecentEntry.GetComponentSpaceTransform(RootBoneIndexType) * WorldRootAtCurrentTime;
+			const FVector WorldRootBoneDeltaTranslationAtCurrentTime = (WorldRootBoneAtCurrentTime.GetTranslation() - WorldRootAtCurrentTime.GetTranslation()) * RootBoneTranslationRecoveryRatio;
+			const FTransform WorldRootAtRecoveryTime = Trajectory.GetSampleAtTime(RootBoneRecoveryTime).GetTransform();
+			RootBoneDeltaTranslationAtRecoveryTime = WorldRootAtRecoveryTime.InverseTransformVector(WorldRootBoneDeltaTranslationAtCurrentTime);
+		}
+
+		const FTransform RootBoneTransformAtRecoveryTime(RootBoneRotationAtRecoveryTime, RootBoneDeltaTranslationAtRecoveryTime, RefRootBone.GetScale3D());
 		FutureEntryTemp.SetNum(1, bStoreScales);
-		FutureEntryTemp.SetComponentSpaceTransform(RootBoneIndexType, RefRootBone);
+		FutureEntryTemp.SetComponentSpaceTransform(RootBoneIndexType, RootBoneTransformAtRecoveryTime);
 		FutureEntryTemp.AccumulatedSeconds = RootBoneRecoveryTime;
 		WritePoseData.Entries.Emplace(MoveTemp(FutureEntryTemp));
 	}
