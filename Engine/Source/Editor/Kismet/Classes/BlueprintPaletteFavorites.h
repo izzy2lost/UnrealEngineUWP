@@ -29,6 +29,8 @@ struct KISMET_API FFavoritedBlueprintPaletteItem
 	GENERATED_USTRUCT_BODY()
 
 public:
+	FFavoritedBlueprintPaletteItem();
+
 	/**
 	 * Sometime favorites can be coming from user edited .ini files, so this 
 	 * converts that readable text into a favorite (since the strings are user 
@@ -44,7 +46,10 @@ public:
 	 * 
 	 * @param  PaletteAction	The action you wish to favorite.
 	 */
-	FFavoritedBlueprintPaletteItem(TSharedPtr<FEdGraphSchemaAction> PaletteAction = nullptr);
+	FFavoritedBlueprintPaletteItem(const FEdGraphSchemaAction& InPaletteAction);
+
+	UE_DEPRECATED(5.5, "Provide a dereferenced FEdGraphSchemaAction, after validating it in the caller")
+	FFavoritedBlueprintPaletteItem(TSharedPtr<FEdGraphSchemaAction> PaletteAction);
 
 	/**
 	 * 
@@ -123,7 +128,8 @@ public:
 	 * @return True if this action is already favorited, false if it not.
 	 */
 	bool IsFavorited(TSharedPtr<FEdGraphSchemaAction> PaletteAction) const;
-
+	bool IsFavorited(const FEdGraphSchemaAction& InCurrentAction) const;
+	
 	/**
 	 * 
 	 * 

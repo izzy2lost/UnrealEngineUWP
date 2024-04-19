@@ -7877,12 +7877,12 @@ struct FBPContextMenuWeightDebugInfo : public FGraphSchemaSearchTextDebugInfo
 	/**
 	* Print out the debug info about this weight info to the console
 	*/
-	virtual void Print(const TArray<FString>& SearchForKeywords, const FGraphActionListBuilderBase::ActionGroup& Action) const override
+	virtual void Print(const TArray<FString>& SearchForKeywords, const FEdGraphSchemaAction& Action) const override
 	{
 		// Combine the actions string, separate with \n so terms don't run into each other, and remove the spaces (incase the user is searching for a variable)
 		// In the case of groups containing multiple actions, they will have been created and added at the same place in the code, using the same description
 		// and keywords, so we only need to use the first one for filtering.
-		const FString& SearchText = Action.GetSearchTextForFirstAction();
+		const FString& SearchText = Action.GetFullSearchText();
 
 		UE_LOG(LogTemp, Warning, TEXT("[Weight for %s] \
 TotalWeight: %-8.2f | PercentageMatchWeight: %-8.2f | PercMatch: %-8.2f | ShorterWeight: %-8.2f | CategoryBonusWeight: %-8.2f | KeywordArrayWeight: %-8.2f | DescriptionWeight: %-8.2f | NodeTitleWeight: %-8.2f | CategoryWeight: %-8.2f | Fav. Bonus:%-8.2f\n"),
@@ -7890,7 +7890,7 @@ TotalWeight: %-8.2f | PercentageMatchWeight: %-8.2f | PercMatch: %-8.2f | Shorte
 	}
 };
 
-float UEdGraphSchema_K2::GetActionFilteredWeight(const FGraphActionListBuilderBase::ActionGroup& InCurrentAction, const TArray<FString>& InFilterTerms, const TArray<FString>& InSanitizedFilterTerms, const TArray<UEdGraphPin*>& DraggedFromPins) const
+float UEdGraphSchema_K2::GetActionFilteredWeight(const FEdGraphSchemaAction& InCurrentAction, const TArray<FString>& InFilterTerms, const TArray<FString>& InSanitizedFilterTerms, const TArray<UEdGraphPin*>& DraggedFromPins) const
 {
 	// The overall 'weight' of this action 
 	float TotalWeight = 0.0f;
@@ -7901,192 +7901,199 @@ float UEdGraphSchema_K2::GetActionFilteredWeight(const FGraphActionListBuilderBa
 
 	const bool bIsFromDrag = (DraggedFromPins.Num() > 0);
 
-	int32 Action = 0;
-	if (InCurrentAction.Actions[Action].IsValid() == true)
+	FGraphSchemaSearchWeightModifiers WeightModifiers = GetSearchWeightModifiers();
+	// If there are no keywords, bump the weight on description to compensate
+	const TArray<FString>& LocKeywords = InCurrentAction.GetLocalizedSearchKeywordsArray();
+	WeightModifiers.DescriptionWeight = LocKeywords.Num() > 0 ? WeightModifiers.DescriptionWeight : WeightModifiers.DescriptionWeight * 2.0f;
+
+	CollectSearchTextWeightInfo(InCurrentAction, WeightModifiers, WeightedArrayList, &OutDebugInfo);
+
+	// Give a weight bonus to actions whose category matches what was dragged off of
+	if (bIsFromDrag)
 	{
-		TSharedPtr<FEdGraphSchemaAction> CurrentAction = InCurrentAction.Actions[Action];
+		const TArray<FString>& InActionCategories = InCurrentAction.GetCategoryChain();
+		bool bAddMatchBonus = false;
 
-		FGraphSchemaSearchWeightModifiers WeightModifiers = GetSearchWeightModifiers();
-		// If there are no keywords, bump the weight on description to compensate
-		const TArray<FString>& LocKeywords = InCurrentAction.GetLocalizedSearchKeywordsArrayForFirstAction();
-		WeightModifiers.DescriptionWeight = LocKeywords.Num() > 0 ? WeightModifiers.DescriptionWeight : WeightModifiers.DescriptionWeight * 2.0f;
-
-		CollectSearchTextWeightInfo(InCurrentAction, WeightModifiers, WeightedArrayList, &OutDebugInfo);
-
-		// Give a weight bonus to actions whose category matches what was dragged off of
-		if (bIsFromDrag)
+		/** Get a string reference for an EPinContainerType */
+		auto GetContainerTypeString = [](const EPinContainerType Type) -> const FString&
 		{
-			const TArray<FString>& InActionCategories = InCurrentAction.GetCategoryChain();
-			bool bAddMatchBonus = false;
+			static const FString ArrayName = TEXT("Array");
+			static const FString MapName = TEXT("Map");
+			static const FString SetName = TEXT("Set");
+			static const FString InvalidName = TEXT("INVALID");
 
-			/** Get a string reference for an EPinContainerType */
-			auto GetContainerTypeString = [](const EPinContainerType Type) -> const FString&
+			switch (Type)
 			{
-				static const FString ArrayName = TEXT("Array");
-				static const FString MapName = TEXT("Map");
-				static const FString SetName = TEXT("Set");
-				static const FString InvalidName = TEXT("INVALID");
-
-				switch (Type)
-				{
-					case EPinContainerType::Array:
-						return ArrayName;
-					case EPinContainerType::Map:
-						return MapName;
-					case EPinContainerType::Set:
-						return SetName;
-					default:
-						return InvalidName;
-				}
-			};
-
-			bool bAddedContainerPreferenceBonus = false;
-
-			for (const FString& InActionCategory : InActionCategories)
-			{
-				for (UEdGraphPin* const FromPin : DraggedFromPins)
-				{
-					check(FromPin != nullptr);
-
-					// For containers, add a preference for functions that are marked in their category
-					if (!bAddedContainerPreferenceBonus && FromPin->PinType.IsContainer() && InActionCategory == GetContainerTypeString(FromPin->PinType.ContainerType))
-					{
-						TotalWeight += BPContextMenuConsoleVariables::ContainerBonus;
-						bAddedContainerPreferenceBonus = true;
-					}
-
-					// Check the subcategory of the object to cover more more complex struct types (LinearColor, date time, etc)
-					if (UObject* const SubCatObj = FromPin->PinType.PinSubCategoryObject.Get())
-					{
-						const FString& SubCatObjName = SubCatObj->GetPathName();
-						// The pin SubObjectCategory names don't have any spaces, so split up the category
-						TArray<FString> DelimitedArray;
-						InActionCategory.ParseIntoArray(DelimitedArray, TEXT(" "), true);
-						for (const FString& DelimetedCat : DelimitedArray)
-						{
-							if (SubCatObjName.Contains(DelimetedCat))
-							{
-								bAddMatchBonus = true;
-								break;
-							}
-						}
-					}
-					// Check the category of the pin, this works for basic math types (int, float, byte, etc)
-					else if (InActionCategory.Contains(FromPin->PinType.PinCategory.ToString()))
-					{
-						bAddMatchBonus = true;
-					}
-
-					// If we found match in any cases above then add the weight bonus and stop looking
-					if (bAddMatchBonus)
-					{
-						TotalWeight += BPContextMenuConsoleVariables::MatchingFromPinCategory;
-						OutDebugInfo.CategoryBonusWeight += BPContextMenuConsoleVariables::MatchingFromPinCategory;
-
-						// Break out of the loop so that we don't give any extra bonuses
-						break;
-					}
-				}
+				case EPinContainerType::Array:
+					return ArrayName;
+				case EPinContainerType::Map:
+					return MapName;
+				case EPinContainerType::Set:
+					return SetName;
+				default:
+					return InvalidName;
 			}
-		}
+		};
 
-		// If the user has favorite this action, then give it a hefty bonus
-		const UEditorPerProjectUserSettings& EditorSettings = *GetDefault<UEditorPerProjectUserSettings>();
-		if (UBlueprintPaletteFavorites* BlueprintFavorites = EditorSettings.BlueprintFavorites)
+		bool bAddedContainerPreferenceBonus = false;
+
+		for (const FString& InActionCategory : InActionCategories)
 		{
-			if (BlueprintFavorites->IsFavorited(CurrentAction))
+			for (UEdGraphPin* const FromPin : DraggedFromPins)
 			{
-				TotalWeight += BPContextMenuConsoleVariables::FavoriteBonus;
-				OutDebugInfo.FavoriteBonusWeight += BPContextMenuConsoleVariables::FavoriteBonus;
-			}
-		}
+				check(FromPin != nullptr);
 
-		// Now iterate through all the filter terms and calculate a 'weight' using the values and multipliers
-		const FString* EachTerm = nullptr;
-		const FString* EachTermSanitized = nullptr;
-
-		// For every filter item the user has typed in (the text in the search bar, seperated by spaces)
-		for (int32 FilterIndex = 0; FilterIndex < InFilterTerms.Num(); ++FilterIndex)
-		{
-			EachTerm = &InFilterTerms[FilterIndex];
-			EachTermSanitized = &InSanitizedFilterTerms[FilterIndex];
-			int32 TermLen = EachTerm->Len();
-
-			// Now check the weighted lists	(We could further improve the hit weight by checking consecutive word matches)
-			for (int32 iFindCount = 0; iFindCount < WeightedArrayList.Num(); ++iFindCount)
-			{
-				const TArray<FString>& KeywordArray = *WeightedArrayList[iFindCount].Array;
-				float WeightPerList = 0.0f;
-				float KeywordArrayWeight = WeightedArrayList[iFindCount].WeightModifier;
-
-				// Count of how many words in this keyword array contain a filter(letter) that the user has typed in
-				int32 WordMatchCount = 0;
-
-				// The number of characters in the best matching word
-				int32 BestMatchCharLength = 0;
-
-				// Loop through every word that the user could be looking for
-				for (int32 iEachWord = 0; iEachWord < KeywordArray.Num(); ++iEachWord)
+				// For containers, add a preference for functions that are marked in their category
+				if (!bAddedContainerPreferenceBonus && FromPin->PinType.IsContainer() && InActionCategory == GetContainerTypeString(FromPin->PinType.ContainerType))
 				{
-					float WeightPerWord = 0.0f;
+					TotalWeight += BPContextMenuConsoleVariables::ContainerBonus;
+					bAddedContainerPreferenceBonus = true;
+				}
 
-					// If a word contains the letter that the user has typed in, than increment the whole match count					
-					if (KeywordArray[iEachWord].Contains(*EachTermSanitized, ESearchCase::CaseSensitive) || KeywordArray[iEachWord].Contains(*EachTerm, ESearchCase::CaseSensitive))
+				// Check the subcategory of the object to cover more more complex struct types (LinearColor, date time, etc)
+				if (UObject* const SubCatObj = FromPin->PinType.PinSubCategoryObject.Get())
+				{
+					const FString& SubCatObjName = SubCatObj->GetPathName();
+					// The pin SubObjectCategory names don't have any spaces, so split up the category
+					TArray<FString> DelimitedArray;
+					InActionCategory.ParseIntoArray(DelimitedArray, TEXT(" "), true);
+					for (const FString& DelimetedCat : DelimitedArray)
 					{
-						++WordMatchCount;
-						WeightPerWord += KeywordArrayWeight * BPContextMenuConsoleVariables::WordContainsLetterWeightMultiplier;
-
-						// If the word starts with the letter, give it a little extra boost of weight
-						if (KeywordArray[iEachWord].StartsWith(*EachTermSanitized, ESearchCase::CaseSensitive) || KeywordArray[iEachWord].StartsWith(*EachTerm, ESearchCase::CaseSensitive))
+						if (SubCatObjName.Contains(DelimetedCat))
 						{
-							WeightPerWord += KeywordArrayWeight * BPContextMenuConsoleVariables::StartsWithBonusWeightMultiplier;
-						}
-
-						if (WeightPerWord > WeightPerList)
-						{
-							// Use the best word match weight, we don't want to double-count redundant keywords like add and addmap here
-							WeightPerList = WeightPerWord;
-							BestMatchCharLength = KeywordArray[iEachWord].Len();
+							bAddMatchBonus = true;
+							break;
 						}
 					}
 				}
-
-				// If the user has dragged off of a pin then do not prefer shorter things, because that will result
-				// in the matching of "Add" for a container instead of "+" for numeric types
-				// We only care about length penalty if something actually matched
-				if (BestMatchCharLength > 0 && WeightPerList > 0)
+				// Check the category of the pin, this works for basic math types (int, float, byte, etc)
+				else if (InActionCategory.Contains(FromPin->PinType.PinCategory.ToString()))
 				{
-					// How many words that we are checking had partial matches compared to what the user typed in?
-					float PercMatch = static_cast<float>(WordMatchCount) / static_cast<float>(KeywordArray.Num());
-
-					float PercentageBonus = (WeightPerList * PercMatch * BPContextMenuConsoleVariables::PercentageMatchWeightMultiplier);
-					WeightPerList += PercentageBonus;
-
-					// The shorter the matching word, the larger bonus it gets
-					float ShortFactor = static_cast<float>(BPContextMenuConsoleVariables::MaxWordLength - FMath::Min(BestMatchCharLength, BPContextMenuConsoleVariables::MaxWordLength));
-					float ShortWeight = ShortFactor * BPContextMenuConsoleVariables::ShorterWeight * (bIsFromDrag ? 0.25f : 1.0f);
-					WeightPerList += ShortWeight;
-
-					OutDebugInfo.PercentMatch += PercMatch;
-					OutDebugInfo.ShorterMatchWeight += ShortWeight;
-					OutDebugInfo.PercentMatchWeight += PercentageBonus;
+					bAddMatchBonus = true;
 				}
 
-				TotalWeight += WeightPerList;
-				if (WeightedArrayList[iFindCount].DebugWeight)
+				// If we found match in any cases above then add the weight bonus and stop looking
+				if (bAddMatchBonus)
 				{
-					// Each weight is used twice so add them
-					*WeightedArrayList[iFindCount].DebugWeight += WeightPerList;
+					TotalWeight += BPContextMenuConsoleVariables::MatchingFromPinCategory;
+					OutDebugInfo.CategoryBonusWeight += BPContextMenuConsoleVariables::MatchingFromPinCategory;
+
+					// Break out of the loop so that we don't give any extra bonuses
+					break;
 				}
 			}
 		}
-		OutDebugInfo.TotalWeight = TotalWeight;
-
-		PrintSearchTextDebugInfo(InFilterTerms, CurrentAction, &OutDebugInfo);
 	}
+
+	// If the user has favorite this action, then give it a hefty bonus
+	const UEditorPerProjectUserSettings& EditorSettings = *GetDefault<UEditorPerProjectUserSettings>();
+	if (UBlueprintPaletteFavorites* BlueprintFavorites = EditorSettings.BlueprintFavorites)
+	{
+		if (BlueprintFavorites->IsFavorited(InCurrentAction))
+		{
+			TotalWeight += BPContextMenuConsoleVariables::FavoriteBonus;
+			OutDebugInfo.FavoriteBonusWeight += BPContextMenuConsoleVariables::FavoriteBonus;
+		}
+	}
+
+	// Now iterate through all the filter terms and calculate a 'weight' using the values and multipliers
+	const FString* EachTerm = nullptr;
+	const FString* EachTermSanitized = nullptr;
+
+	// For every filter item the user has typed in (the text in the search bar, seperated by spaces)
+	for (int32 FilterIndex = 0; FilterIndex < InFilterTerms.Num(); ++FilterIndex)
+	{
+		EachTerm = &InFilterTerms[FilterIndex];
+		EachTermSanitized = &InSanitizedFilterTerms[FilterIndex];
+		int32 TermLen = EachTerm->Len();
+
+		// Now check the weighted lists	(We could further improve the hit weight by checking consecutive word matches)
+		for (int32 iFindCount = 0; iFindCount < WeightedArrayList.Num(); ++iFindCount)
+		{
+			const TArray<FString>& KeywordArray = *WeightedArrayList[iFindCount].Array;
+			float WeightPerList = 0.0f;
+			float KeywordArrayWeight = WeightedArrayList[iFindCount].WeightModifier;
+
+			// Count of how many words in this keyword array contain a filter(letter) that the user has typed in
+			int32 WordMatchCount = 0;
+
+			// The number of characters in the best matching word
+			int32 BestMatchCharLength = 0;
+
+			// Loop through every word that the user could be looking for
+			for (int32 iEachWord = 0; iEachWord < KeywordArray.Num(); ++iEachWord)
+			{
+				float WeightPerWord = 0.0f;
+
+				// If a word contains the letter that the user has typed in, than increment the whole match count					
+				if (KeywordArray[iEachWord].Contains(*EachTermSanitized, ESearchCase::CaseSensitive) || KeywordArray[iEachWord].Contains(*EachTerm, ESearchCase::CaseSensitive))
+				{
+					++WordMatchCount;
+					WeightPerWord += KeywordArrayWeight * BPContextMenuConsoleVariables::WordContainsLetterWeightMultiplier;
+
+					// If the word starts with the letter, give it a little extra boost of weight
+					if (KeywordArray[iEachWord].StartsWith(*EachTermSanitized, ESearchCase::CaseSensitive) || KeywordArray[iEachWord].StartsWith(*EachTerm, ESearchCase::CaseSensitive))
+					{
+						WeightPerWord += KeywordArrayWeight * BPContextMenuConsoleVariables::StartsWithBonusWeightMultiplier;
+					}
+
+					if (WeightPerWord > WeightPerList)
+					{
+						// Use the best word match weight, we don't want to double-count redundant keywords like add and addmap here
+						WeightPerList = WeightPerWord;
+						BestMatchCharLength = KeywordArray[iEachWord].Len();
+					}
+				}
+			}
+
+			// If the user has dragged off of a pin then do not prefer shorter things, because that will result
+			// in the matching of "Add" for a container instead of "+" for numeric types
+			// We only care about length penalty if something actually matched
+			if (BestMatchCharLength > 0 && WeightPerList > 0)
+			{
+				// How many words that we are checking had partial matches compared to what the user typed in?
+				float PercMatch = static_cast<float>(WordMatchCount) / static_cast<float>(KeywordArray.Num());
+
+				float PercentageBonus = (WeightPerList * PercMatch * BPContextMenuConsoleVariables::PercentageMatchWeightMultiplier);
+				WeightPerList += PercentageBonus;
+
+				// The shorter the matching word, the larger bonus it gets
+				float ShortFactor = static_cast<float>(BPContextMenuConsoleVariables::MaxWordLength - FMath::Min(BestMatchCharLength, BPContextMenuConsoleVariables::MaxWordLength));
+				float ShortWeight = ShortFactor * BPContextMenuConsoleVariables::ShorterWeight * (bIsFromDrag ? 0.25f : 1.0f);
+				WeightPerList += ShortWeight;
+
+				OutDebugInfo.PercentMatch += PercMatch;
+				OutDebugInfo.ShorterMatchWeight += ShortWeight;
+				OutDebugInfo.PercentMatchWeight += PercentageBonus;
+			}
+
+			TotalWeight += WeightPerList;
+			if (WeightedArrayList[iFindCount].DebugWeight)
+			{
+				// Each weight is used twice so add them
+				*WeightedArrayList[iFindCount].DebugWeight += WeightPerList;
+			}
+		}
+	}
+	OutDebugInfo.TotalWeight = TotalWeight;
+
+	PrintSearchTextDebugInfo(InFilterTerms, InCurrentAction, &OutDebugInfo);
 
 	return TotalWeight;
 }
+
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+float UEdGraphSchema_K2::GetActionFilteredWeight(const FGraphActionListBuilderBase::ActionGroup& InCurrentAction, const TArray<FString>& InFilterTerms, const TArray<FString>& InSanitizedFilterTerms, const TArray<UEdGraphPin*>& DraggedFromPins) const
+{
+	int32 Action = 0;
+	if (InCurrentAction.Actions[Action].IsValid() == true)
+	{
+		return GetActionFilteredWeight(*InCurrentAction.Actions[Action], InFilterTerms, InSanitizedFilterTerms, DraggedFromPins);
+	}
+
+	return 0.f;
+}
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 #endif // WITH_EDITORONLY_DATA
 

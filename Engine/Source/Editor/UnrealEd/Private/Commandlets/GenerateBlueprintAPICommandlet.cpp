@@ -182,7 +182,7 @@ GenerateBlueprintAPI commandlet params: \n\
 	 * distinguish similarly named actions). Can then be used to sort and 
 	 * uniquely identify actions.
 	 */
-	static FString GetActionKey(FGraphActionListBuilderBase::ActionGroup const& Action);
+	static FString GetActionKey(TSharedPtr<FEdGraphSchemaAction> const& Action);
 
 	/**
 	* Goes through all of the blueprint skeleton's object properties and pulls
@@ -234,13 +234,13 @@ GenerateBlueprintAPI commandlet params: \n\
 	/**
 	* Get the category information from a given action.
 	*/
-	static FString GetActionCategory(FGraphActionListBuilderBase::ActionGroup const& Action);
+	static FString GetActionCategory(TSharedPtr<FEdGraphSchemaAction> const& Action);
 
 	/**
 	 * Generic function that dumps information on a single action (like it's 
 	 * name, category, an associated node if it has one, etc.).
 	 */
-	static void DumpActionMenuItem(uint32 Indent, FGraphActionListBuilderBase::ActionGroup const& Action, FGraphActionListBuilderBase& ActionList, FArchive* FileOutWriter);
+	static void DumpActionMenuItem(uint32 Indent, TSharedPtr<FEdGraphSchemaAction> const& Action, FGraphActionListBuilderBase& ActionList, FArchive* FileOutWriter);
 }
 
 //------------------------------------------------------------------------------
@@ -578,9 +578,9 @@ static FString GenerateBlueprintAPIUtils::BuildIndentString(uint32 IndentCount, 
 }
 
 //------------------------------------------------------------------------------
-static FString GenerateBlueprintAPIUtils::GetActionKey(FGraphActionListBuilderBase::ActionGroup const& Action)
+static FString GenerateBlueprintAPIUtils::GetActionKey(TSharedPtr<FEdGraphSchemaAction> const& Action)
 {
-	TArray<FString> MenuHierarchy = Action.GetCategoryChain();
+	TArray<FString> MenuHierarchy = Action->GetCategoryChain();
 
 	FString ActionKey;
 	for (FString const& SubCategory : MenuHierarchy)
@@ -592,8 +592,7 @@ static FString GenerateBlueprintAPIUtils::GetActionKey(FGraphActionListBuilderBa
 		ActionKey.RemoveAt(ActionKey.Len() - 1); // remove the trailing '|'
 	}
 
-	TSharedPtr<FEdGraphSchemaAction> MainAction = Action.Actions[0];
-	ActionKey += MainAction->GetMenuDescription().ToString();
+	ActionKey += Action->GetMenuDescription().ToString();
 
 	return ActionKey;
 }
@@ -767,14 +766,14 @@ static void GenerateBlueprintAPIUtils::DumpPalette(uint32 Indent, UBlueprint* Bl
 //------------------------------------------------------------------------------
 static void GenerateBlueprintAPIUtils::DumpActionList(uint32 Indent, FGraphActionListBuilderBase& ActionList, FArchive* FileOutWriter)
 {
-	TArray< FGraphActionListBuilderBase::ActionGroup const* > SortedActions;
+	TArray< TSharedPtr<FEdGraphSchemaAction> const* > SortedActions;
 	const TArray<FString>& CategoryFilter = GenerateBlueprintAPIUtils::CommandOptions.CategoryFilter;
 	bool HasCategoryFilter = CategoryFilter.Num() > 0;
 
 	for (int32 ActionIndex = 0; ActionIndex < ActionList.GetNumActions(); ++ActionIndex)
 	{
-		FGraphActionListBuilderBase::ActionGroup& Action = ActionList.GetAction(ActionIndex);
-		if (Action.Actions.Num() <= 0)
+		TSharedPtr<FEdGraphSchemaAction> Action = ActionList.GetSchemaAction(ActionIndex);
+		if (!Action.IsValid())
 		{
 			continue;
 		}
@@ -807,18 +806,15 @@ static void GenerateBlueprintAPIUtils::DumpActionList(uint32 Indent, FGraphActio
 
 	struct ActionSortFunctor
 	{
-		bool operator()(FGraphActionListBuilderBase::ActionGroup const& LHS, FGraphActionListBuilderBase::ActionGroup const& RHS) const
+		bool operator()(TSharedPtr<FEdGraphSchemaAction> const& LHSAction, TSharedPtr<FEdGraphSchemaAction> const& RHSAction) const
 		{
-			TSharedPtr<FEdGraphSchemaAction> LHSAction = LHS.Actions[0];
-			TSharedPtr<FEdGraphSchemaAction> RHSAction = RHS.Actions[0];
-			
 			if (LHSAction->GetGrouping() != RHSAction->GetGrouping())
 			{
 				return LHSAction->GetGrouping() > RHSAction->GetGrouping();
 			}
 			
-			FString LhKey = GetActionKey(LHS);
-			FString RhKey = GetActionKey(RHS);
+			FString LhKey = GetActionKey(LHSAction);
+			FString RhKey = GetActionKey(RHSAction);
 			return (LhKey.Compare(RhKey) < 0);
 		}
 	};
@@ -826,7 +822,7 @@ static void GenerateBlueprintAPIUtils::DumpActionList(uint32 Indent, FGraphActio
 	SortedActions.Sort(ActionSortFunctor());
 
 	FString LineEnding("\n");
-	for (FGraphActionListBuilderBase::ActionGroup const* Action : SortedActions)
+	for (TSharedPtr<FEdGraphSchemaAction> const* Action : SortedActions)
 	{
 		FileOutWriter->Serialize(TCHAR_TO_ANSI(*LineEnding), LineEnding.Len());
 		DumpActionMenuItem(Indent + 2, *Action, ActionList, FileOutWriter);
@@ -839,12 +835,10 @@ static void GenerateBlueprintAPIUtils::DumpActionList(uint32 Indent, FGraphActio
 	FileOutWriter->Serialize(TCHAR_TO_ANSI(*EndActionListEntry), EndActionListEntry.Len());
 }
 //------------------------------------------------------------------------------
-static FString GenerateBlueprintAPIUtils::GetActionCategory(FGraphActionListBuilderBase::ActionGroup const& Action)
+static FString GenerateBlueprintAPIUtils::GetActionCategory(TSharedPtr<FEdGraphSchemaAction> const& Action)
 {
-	check(Action.Actions.Num() > 0);
-
 	// Get action category info
-	const TArray<FString>& MenuHierarchy = Action.GetCategoryChain();
+	const TArray<FString>& MenuHierarchy = Action->GetCategoryChain();
 
 	FString ActionCategory;
 
@@ -859,7 +853,7 @@ static FString GenerateBlueprintAPIUtils::GetActionCategory(FGraphActionListBuil
 	return ActionCategory;
 }
 //------------------------------------------------------------------------------
-static void GenerateBlueprintAPIUtils::DumpActionMenuItem(uint32 Indent, FGraphActionListBuilderBase::ActionGroup const& Action, FGraphActionListBuilderBase& ActionList, FArchive* FileOutWriter)
+static void GenerateBlueprintAPIUtils::DumpActionMenuItem(uint32 Indent, TSharedPtr<FEdGraphSchemaAction> const& Action, FGraphActionListBuilderBase& ActionList, FArchive* FileOutWriter)
 {
 	const FString& ActionCategory = GenerateBlueprintAPIUtils::GetActionCategory(Action);
 	TArray<FString> Categories;
@@ -878,8 +872,7 @@ static void GenerateBlueprintAPIUtils::DumpActionMenuItem(uint32 Indent, FGraphA
 		}
 	}
 
-	TSharedPtr<FEdGraphSchemaAction> PrimeAction = Action.Actions[0];
-	const FString ActionName = PrimeAction->GetMenuDescription().ToString();
+	const FString ActionName = Action->GetMenuDescription().ToString();
 
 	const FString ActionEntryIndent = BuildIndentString(Indent);
 	FString ActionEntry = ActionEntryIndent + "\"" + MakeJsonString(ActionCategory + ActionName) + "\"";
@@ -890,12 +883,12 @@ static void GenerateBlueprintAPIUtils::DumpActionMenuItem(uint32 Indent, FGraphA
 	ActionEntry += " : {";
 
 	const FString TooltipFieldLabel("\"Tooltip\"      : \"");
-	const FString TooltipStr = PrimeAction->GetTooltipDescription().ToString().Replace(TEXT("\n"), *(IndentedNewline + BuildIndentString(TooltipFieldLabel.Len(), /*bUseSpaces =*/true)));
+	const FString TooltipStr = Action->GetTooltipDescription().ToString().Replace(TEXT("\n"), *(IndentedNewline + BuildIndentString(TooltipFieldLabel.Len(), /*bUseSpaces =*/true)));
 
 	ActionEntry += IndentedNewline + TooltipFieldLabel + MakeJsonString(TooltipStr) + "\"";
 		
 	// Get action node type info
-	UK2Node const* NodeTemplate = FBlueprintActionMenuUtils::ExtractNodeTemplateFromAction(PrimeAction);
+	UK2Node const* NodeTemplate = FBlueprintActionMenuUtils::ExtractNodeTemplateFromAction(Action);
 	if (NodeTemplate != nullptr)
 	{
 		UK2Node* Node = DuplicateObject<UK2Node>(NodeTemplate,ActionList.OwnerOfTemporaries);

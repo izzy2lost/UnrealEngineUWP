@@ -455,7 +455,7 @@ void STG_ActionMenuTileView::GetSelectedActions(TArray< TSharedPtr<FEdGraphSchem
 	{
 		for (int32 NodeIndex = 0; NodeIndex < SelectedNodes.Num(); NodeIndex++)
 		{
-			OutSelectedActions.Append(SelectedNodes[NodeIndex]->Actions);
+			OutSelectedActions.Add(SelectedNodes[NodeIndex]->Action);
 		}
 	}
 }
@@ -509,10 +509,7 @@ void STG_ActionMenuTileView::GetCategorySubActions(TWeakPtr<FGraphActionNode> In
 
 			if (CurrentChild.IsValid() && CurrentChild->IsActionNode())
 			{
-				for (int32 ActionIndex = 0; ActionIndex != CurrentChild->Actions.Num(); ActionIndex++)
-				{
-					OutActions.Add(CurrentChild->Actions[ActionIndex]);
-				}
+				OutActions.Add(CurrentChild->Action);
 			}
 		}
 	}
@@ -560,10 +557,8 @@ bool STG_ActionMenuTileView::SelectItemByName(const FName& ItemName, ESelectInfo
 			{
 				TSharedPtr<FGraphActionNode> CurrentChildNode = CurrentGraphNode->Children[ChildIdx];
 
-				for (int32 ActionIndex = 0; ActionIndex < CurrentChildNode->Actions.Num(); ActionIndex++)
+				if(FEdGraphSchemaAction* ChildGraphAction = CurrentChildNode->Action.Get())
 				{
-					FEdGraphSchemaAction* ChildGraphAction = CurrentChildNode->Actions[ActionIndex].Get();
-
 					// If the user is attempting to select a category, make sure it's a category
 					if (CurrentChildNode->IsCategoryNode() == bIsCategory)
 					{
@@ -1102,7 +1097,7 @@ void STG_ActionMenuTileView::OnItemDoubleClicked(TSharedPtr< FGraphActionNode > 
 	{
 		if (InClickedItem->IsActionNode())
 		{
-			OnActionDoubleClicked.ExecuteIfBound(InClickedItem->Actions);
+			OnActionDoubleClicked.ExecuteIfBound({InClickedItem->Action});
 		}
 		else if (InClickedItem->Children.Num())
 		{
@@ -1256,12 +1251,8 @@ void STG_ActionMenuTileView::AddReferencedObjects(FReferenceCollector& Collector
 {
 	for (int32 CurTypeIndex = 0; CurTypeIndex < AllActions->GetNumActions(); ++CurTypeIndex)
 	{
-		FGraphActionListBuilderBase::ActionGroup& Action = AllActions->GetAction(CurTypeIndex);
-
-		for (int32 ActionIndex = 0; ActionIndex < Action.Actions.Num(); ActionIndex++)
-		{
-			Action.Actions[ActionIndex]->AddReferencedObjects(Collector);
-		}
+		TSharedPtr<FEdGraphSchemaAction>& Action = AllActions->GetSchemaAction(CurTypeIndex);
+		Action->AddReferencedObjects(Collector);
 	}
 }
 
@@ -1277,7 +1268,7 @@ bool STG_ActionMenuTileView::HandleSelection(TSharedPtr< FGraphActionNode >& InS
 	{
 		if (InSelectedItem.IsValid() && InSelectedItem->IsActionNode())
 		{
-			OnActionSelected.Execute(InSelectedItem->Actions, InSelectionType);
+			OnActionSelected.Execute({InSelectedItem->Action}, InSelectionType);
 			bResult = true;
 		}
 		else
@@ -1340,13 +1331,13 @@ STG_ActionMenuTileView::FScoreResults STG_ActionMenuTileView::ScoreAndAddActions
 	const int32 NumActions = AllActions->GetNumActions();
 	for (int32 CurTypeIndex = bIsPartialBuild ? StartingIndex : 0; CurTypeIndex < NumActions; ++CurTypeIndex)
 	{
-		FGraphActionListBuilderBase::ActionGroup& CurrentAction = AllActions->GetAction(CurTypeIndex);
+		TSharedPtr<FEdGraphSchemaAction> CurrentAction = AllActions->GetSchemaAction(CurTypeIndex);
 
 		// If we're filtering, search check to see if we need to show this action
 		bool bShowAction = true;
 		float EachWeight = TNumericLimits<float>::Lowest();
 
-		const FString& SearchText = CurrentAction.GetSearchTextForFirstAction();
+		const FString& SearchText = CurrentAction->GetFullSearchText();
 		for (int32 FilterIndex = 0; (FilterIndex < FilterTerms.Num()) && bShowAction; ++FilterIndex)
 		{
 			const bool bMatchesTerm = (SearchText.Contains(FilterTerms[FilterIndex], ESearchCase::CaseSensitive) || (SearchText.Contains(SanitizedFilterTerms[FilterIndex], ESearchCase::CaseSensitive) == true));
@@ -1361,7 +1352,7 @@ STG_ActionMenuTileView::FScoreResults STG_ActionMenuTileView::ScoreAndAddActions
 		if (bRequiresFiltering)
 		{
 			// Get the 'weight' of this in relation to the filter
-			EachWeight = ActionSchema->GetActionFilteredWeight(CurrentAction, FilterTerms, SanitizedFilterTerms, DraggedFromPins);
+			EachWeight = ActionSchema->GetActionFilteredWeight(*CurrentAction, FilterTerms, SanitizedFilterTerms, DraggedFromPins);
 			// If this action has a greater relevance than others, cache its index.
 			if (EachWeight > BestMatchCount)
 			{
@@ -1394,12 +1385,12 @@ void STG_ActionMenuTileView::UpdateActiveSelection(STG_ActionMenuTileView::FScor
 	// If theres a BestMatchIndex find it in the actions nodes and select it (maybe this should check the current selected suggestion first ?)
 	if (BestMatchIndex != INDEX_NONE)
 	{
-		FGraphActionListBuilderBase::ActionGroup& FilterSelectAction = AllActions->GetAction(BestMatchIndex);
-		if (FilterSelectAction.Actions[0].IsValid() == true)
+		TSharedPtr<FEdGraphSchemaAction>& Action = AllActions->GetSchemaAction(BestMatchIndex);
+		if (Action.IsValid() == true)
 		{
 			for (int32 iNode = 0; iNode < FilteredActionNodes.Num(); iNode++)
 			{
-				if (FilteredActionNodes[iNode].Get()->GetPrimaryAction() == FilterSelectAction.Actions[0])
+				if (FilteredActionNodes[iNode].Get()->GetPrimaryAction() == Action)
 				{
 					SelectedSuggestion = iNode;
 					SelectedSuggestionScore = BestMatchCount;

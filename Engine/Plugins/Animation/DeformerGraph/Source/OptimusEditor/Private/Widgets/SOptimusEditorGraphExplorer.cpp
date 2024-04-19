@@ -565,10 +565,7 @@ bool SOptimusEditorGraphExplorer::CanRequestRenameOnActionNode(TWeakPtr<FGraphAc
 	{
 		if (SelectedNode->IsActionNode())
 		{
-			if (ensure(!SelectedNode->Actions.IsEmpty()))
-			{
-				return CanRenameAction(SelectedNode->Actions[0]);
-			}
+			return CanRenameAction(SelectedNode->Action);
 		}
 	}
 

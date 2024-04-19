@@ -78,6 +78,7 @@ struct FBlueprintActionMenuUtils
 	 * @param  PaletteAction	The action you want a node-template for.
 	 * @return A pointer to the extracted node (NULL if the action doesn't have one, or we don't support the specific action type yet)
 	 */
-	KISMET_API static const UK2Node* ExtractNodeTemplateFromAction(TSharedPtr<FEdGraphSchemaAction> PaletteAction);
+	KISMET_API static const UK2Node* ExtractNodeTemplateFromAction(const FEdGraphSchemaAction& PaletteAction);
+	KISMET_API static const UK2Node* ExtractNodeTemplateFromAction(const TSharedPtr<FEdGraphSchemaAction>& PaletteAction);
 };
 

@@ -65,24 +65,24 @@ namespace BlueprintPaletteFavoritesImpl
 	 * @param  PaletteAction	The action you want a signature for.
 	 * @return A signature object, distinguishing the palette action from others (could also be invalid).
 	 */
-	static FBlueprintNodeSignature ConstructLegacySignature(TSharedPtr<FEdGraphSchemaAction> PaletteAction);
+	static FBlueprintNodeSignature ConstructLegacySignature(const FEdGraphSchemaAction& PaletteAction);
 }
 
 //------------------------------------------------------------------------------
-static FBlueprintNodeSignature BlueprintPaletteFavoritesImpl::ConstructLegacySignature(TSharedPtr<FEdGraphSchemaAction> InPaletteAction)
+static FBlueprintNodeSignature BlueprintPaletteFavoritesImpl::ConstructLegacySignature(const FEdGraphSchemaAction& InPaletteAction)
 {
 	TSubclassOf<UEdGraphNode> SignatureNodeClass;
 	FFieldVariant SignatureSubObject;
 	FName SignatureSubObjName;
 
-	FName const ActionId = InPaletteAction->GetTypeId();
+	FName const ActionId = InPaletteAction.GetTypeId();
 	if (ActionId == FEdGraphSchemaAction_K2AddComponent::StaticGetTypeId())
 	{
-		FEdGraphSchemaAction_K2AddComponent* AddComponentAction = (FEdGraphSchemaAction_K2AddComponent*)InPaletteAction.Get();
-		checkSlow(AddComponentAction->NodeTemplate != nullptr);
+		const FEdGraphSchemaAction_K2AddComponent& AddComponentAction = (const FEdGraphSchemaAction_K2AddComponent&)InPaletteAction;
+		checkSlow(AddComponentAction.NodeTemplate != nullptr);
 
-		SignatureNodeClass = AddComponentAction->NodeTemplate->GetClass();
-		SignatureSubObject = AddComponentAction->ComponentClass.Get();
+		SignatureNodeClass = AddComponentAction.NodeTemplate->GetClass();
+		SignatureSubObject = AddComponentAction.ComponentClass.Get();
 	}
 	else if (ActionId == FEdGraphSchemaAction_K2AddComment::StaticGetTypeId())
 	{
@@ -90,10 +90,10 @@ static FBlueprintNodeSignature BlueprintPaletteFavoritesImpl::ConstructLegacySig
 	}
 	else if (ActionId == FEdGraphSchemaAction_K2Delegate::StaticGetTypeId())
 	{
-		FEdGraphSchemaAction_K2Delegate* DelegateAction = (FEdGraphSchemaAction_K2Delegate*)InPaletteAction.Get();
+		const FEdGraphSchemaAction_K2Delegate& DelegateAction = (const FEdGraphSchemaAction_K2Delegate&)InPaletteAction;
 
 		SignatureNodeClass = UK2Node_BaseMCDelegate::StaticClass();
-		SignatureSubObject = DelegateAction->GetDelegateProperty();
+		SignatureSubObject = DelegateAction.GetDelegateProperty();
 	}
 	// if we can pull out a node associated with this action
 	else if (UK2Node const* NodeTemplate = FBlueprintActionMenuUtils::ExtractNodeTemplateFromAction(InPaletteAction))
@@ -171,6 +171,10 @@ static FBlueprintNodeSignature BlueprintPaletteFavoritesImpl::ConstructLegacySig
  * FFavoritedBlueprintPaletteItem
  ******************************************************************************/
 
+FFavoritedBlueprintPaletteItem::FFavoritedBlueprintPaletteItem()
+{
+}
+
 //------------------------------------------------------------------------------
 FFavoritedBlueprintPaletteItem::FFavoritedBlueprintPaletteItem(FString const& SerializedAction)
 	: ActionSignature(SerializedAction)
@@ -204,8 +208,34 @@ FFavoritedBlueprintPaletteItem::FFavoritedBlueprintPaletteItem(TSharedPtr<FEdGra
 		}
 		else
 		{
-			ActionSignature = BlueprintPaletteFavoritesImpl::ConstructLegacySignature(InPaletteAction);
+			ActionSignature = BlueprintPaletteFavoritesImpl::ConstructLegacySignature(*InPaletteAction);
 		}
+	}
+}
+
+FFavoritedBlueprintPaletteItem::FFavoritedBlueprintPaletteItem(const FEdGraphSchemaAction& InPaletteAction)
+{
+	if (InPaletteAction.GetTypeId() == FBlueprintActionMenuItem::StaticGetTypeId())
+	{
+		const FBlueprintActionMenuItem& ActionMenuItem = (const FBlueprintActionMenuItem&)InPaletteAction;
+		ActionSignature = ActionMenuItem.GetRawAction()->GetSpawnerSignature();
+	}
+	else if (InPaletteAction.GetTypeId() == FBlueprintDragDropMenuItem::StaticGetTypeId())
+	{
+		const FBlueprintDragDropMenuItem& CollectionMenuItem = (const FBlueprintDragDropMenuItem&)InPaletteAction;
+		ActionSignature = CollectionMenuItem.GetSampleAction()->GetSpawnerSignature();
+
+		// drag-n-drop menu items represent a collection of actions on the 
+		// same field (they spawn a sub-menu for the user to pick from), so
+		// they don't have a single node class
+		ActionSignature.SetNodeClass(nullptr);
+
+		static const FName CollectionSignatureKey(TEXT("ActionCollection"));
+		ActionSignature.AddNamedValue(CollectionSignatureKey, TEXT("true"));
+	}
+	else
+	{
+		ActionSignature = BlueprintPaletteFavoritesImpl::ConstructLegacySignature(InPaletteAction);
 	}
 }
 
@@ -230,7 +260,7 @@ bool FFavoritedBlueprintPaletteItem::operator==(FFavoritedBlueprintPaletteItem c
 //------------------------------------------------------------------------------
 bool FFavoritedBlueprintPaletteItem::operator==(TSharedPtr<FEdGraphSchemaAction> PaletteAction) const
 {
-	return (*this == FFavoritedBlueprintPaletteItem(PaletteAction));
+	return PaletteAction.IsValid() && (*this == FFavoritedBlueprintPaletteItem(*PaletteAction));
 }
 
 //------------------------------------------------------------------------------
@@ -285,23 +315,25 @@ void UBlueprintPaletteFavorites::PostEditChangeProperty(struct FPropertyChangedE
 //------------------------------------------------------------------------------
 bool UBlueprintPaletteFavorites::CanBeFavorited(TSharedPtr<FEdGraphSchemaAction> PaletteAction) const
 {
-	return FFavoritedBlueprintPaletteItem(PaletteAction).IsValid();
+	return PaletteAction.IsValid() ? FFavoritedBlueprintPaletteItem(*PaletteAction).IsValid() : false;
 }
 
 //------------------------------------------------------------------------------
 bool UBlueprintPaletteFavorites::IsFavorited(TSharedPtr<FEdGraphSchemaAction> PaletteAction) const
 {
+	return PaletteAction.IsValid() ? IsFavorited(*PaletteAction) : false;
+}
+
+//------------------------------------------------------------------------------
+bool UBlueprintPaletteFavorites::IsFavorited(const FEdGraphSchemaAction& PaletteAction) const
+{
 	bool bIsFavorited = false;
-	if (!PaletteAction.IsValid())
+	if (PaletteAction.GetTypeId() == FBlueprintDragDropMenuItem::StaticGetTypeId())
 	{
-		bIsFavorited = false;
-	}
-	else if (PaletteAction->GetTypeId() == FBlueprintDragDropMenuItem::StaticGetTypeId())
-	{
-		FBlueprintDragDropMenuItem* CollectionMenuItem = (FBlueprintDragDropMenuItem*)PaletteAction.Get();
+		const FBlueprintDragDropMenuItem& CollectionMenuItem = (FBlueprintDragDropMenuItem&)PaletteAction;
 
 		bIsFavorited = true;
-		for (UBlueprintNodeSpawner const* Action : CollectionMenuItem->GetActionSet())
+		for (UBlueprintNodeSpawner const* Action : CollectionMenuItem.GetActionSet())
 		{
 			if (!IsFavorited(Action))
 			{
@@ -366,7 +398,7 @@ void UBlueprintPaletteFavorites::AddFavorite(TSharedPtr<FEdGraphSchemaAction> Pa
 		}
 		else
 		{
-			CurrentFavorites.Add(FFavoritedBlueprintPaletteItem(PaletteAction));
+			CurrentFavorites.Add(FFavoritedBlueprintPaletteItem(*PaletteAction));
 		}
 		SetProfile(BlueprintPaletteFavoritesImpl::CustomProfileId);
 	}
@@ -403,9 +435,9 @@ void UBlueprintPaletteFavorites::RemoveFavorite(TSharedPtr<FEdGraphSchemaAction>
 			SetProfile(BlueprintPaletteFavoritesImpl::CustomProfileId);
 		}
 	}
-	else if (IsFavorited(PaletteAction))
+	else if (IsFavorited(*PaletteAction))
 	{
-		CurrentFavorites.Remove(PaletteAction);
+		CurrentFavorites.Remove(*PaletteAction);
 		SetProfile(BlueprintPaletteFavoritesImpl::CustomProfileId);
 	}
 }

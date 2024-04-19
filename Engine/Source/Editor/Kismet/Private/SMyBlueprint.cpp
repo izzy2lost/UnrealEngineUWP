@@ -1124,11 +1124,10 @@ bool SMyBlueprint::CanRequestRenameOnActionNode(TWeakPtr<FGraphActionNode> InSel
 	}
 	else if (InSelectedNode.Pin()->IsActionNode())
 	{
-		check( InSelectedNode.Pin()->Actions.Num() > 0 && InSelectedNode.Pin()->Actions[0].IsValid() );
-		bIsReadOnly = FBlueprintEditorUtils::IsPaletteActionReadOnly(InSelectedNode.Pin()->Actions[0], BlueprintEditorPtr.Pin());
+		bIsReadOnly = FBlueprintEditorUtils::IsPaletteActionReadOnly(InSelectedNode.Pin()->Action, BlueprintEditorPtr.Pin());
 		if(!bIsReadOnly)
 		{
-			bIsReadOnly = !InSelectedNode.Pin()->Actions[0]->CanBeRenamed();
+			bIsReadOnly = !InSelectedNode.Pin()->Action->CanBeRenamed();
 		}
 	}
 

@@ -26,7 +26,9 @@ public:
 	int32 const SectionID;
 	/** Identifies the menu group that this node belongs to (defaults to zero) */
 	int32 const Grouping;
-	/** A set of actions to execute when this node is picked from a menu */
+	/** An action to execute when this node is picked from a menu */
+	TSharedPtr<FEdGraphSchemaAction> const Action;
+	UE_DEPRECATED(5.5, "!! WARNING: This array is no longer populated!! FGraphActionNode::Actions array only functioned with a single Action (GetPrimaryAction), access via Action")
 	TArray< TSharedPtr<FEdGraphSchemaAction> > const Actions;
 
 	/** */
@@ -46,24 +48,32 @@ public:
 
 	/**
 	 * Inserts a new action node (and any accompanying category nodes) based off
-	 * the provided ActionSet. 
+	 * the provided Action. 
 	 *
 	 * NOTE: This does NOT insert the node in a sorted manner. Call SortChildren() 
 	 *       separately or use AddChildAlphabetical
 	 * 
-	 * @param  ActionSet	A list of actions that you want the node to execute when picked.
+	 * @param  Action	An action that you want the node to execute when picked.
 	 * @return The new action node.
 	 */
+	TSharedPtr<FGraphActionNode> AddChild(const TSharedPtr<FEdGraphSchemaAction>& Action);
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	UE_DEPRECATED(5.5, "FGraphActionListBuilderBase::ActionGroup has been deprecated, use TSharedPtr<FEdGraphSchemaAction> directly")
 	TSharedPtr<FGraphActionNode> AddChild(FGraphActionListBuilderBase::ActionGroup const& ActionSet);
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	/**
 	 * Inserts a new action node (and any required category nodes) based off
-	 * the provided ActionSet. Inserts in alphabetical order.
+	 * the provided Action. Inserts in alphabetical order.
 	 *
-	 * @param  ActionSet	A list of actions that you want the node to execute when picked.
+	 * @param  Action	An action that you want the node to execute when picked.
 	 * @return The new action node.
 	 */
+	TSharedPtr<FGraphActionNode> AddChildAlphabetical(const TSharedPtr<FEdGraphSchemaAction>& Action);
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	UE_DEPRECATED(5.5, "FGraphActionListBuilderBase::ActionGroup has been deprecated, use TSharedPtr<FEdGraphSchemaAction> directly")
 	TSharedPtr<FGraphActionNode> AddChildAlphabetical(FGraphActionListBuilderBase::ActionGroup const& ActionSet);
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	TSharedPtr<FGraphActionNode> AddSection(int32 Grouping, int32 InSectionID);
 
@@ -212,11 +222,11 @@ private:
 	/**
 	 * Constructor for action nodes. Private so that users go through AddChild().
 	 *
-	 * @param  ActionList
+	 * @param  InAction
 	 * @param  Grouping
 	 * @param  SectionID
 	 */
-	FGraphActionNode(TArray< TSharedPtr<FEdGraphSchemaAction> > const& ActionList, int32 Grouping, int32 SectionID);
+	FGraphActionNode(const TSharedPtr<FEdGraphSchemaAction>& InAction, int32 InGrouping, int32 InSectionID);
 
 	/**
 	 *
@@ -241,10 +251,10 @@ private:
 	/**
 	 *
 	 *
-	 * @param  ActionList
+	 * @param  ActionNode
 	 * @return
 	 */
-	static TSharedPtr<FGraphActionNode> NewActionNode(TArray< TSharedPtr<FEdGraphSchemaAction> > const& ActionList);
+	static TSharedPtr<FGraphActionNode> NewActionNode(TSharedPtr<FEdGraphSchemaAction> const& ActionNode);
 
 	/**
 	 *

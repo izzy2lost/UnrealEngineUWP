@@ -498,8 +498,12 @@ static void GetPaletteItemIcon(TSharedPtr<FEdGraphSchemaAction> ActionIn, UBluep
 static TSharedRef<IToolTip> ConstructToolTipWithActionPath(TSharedPtr<FEdGraphSchemaAction> ActionIn, TSharedPtr<IToolTip> OldToolTip)
 {
 	TSharedRef<IToolTip> NewToolTip = OldToolTip.ToSharedRef();
+	if (!ActionIn)
+	{
+		return NewToolTip;
+	}
 
-	FFavoritedBlueprintPaletteItem ActionItem(ActionIn);
+	FFavoritedBlueprintPaletteItem ActionItem(*ActionIn);
 	if (ActionItem.IsValid())
 	{
 		static FTextBlockStyle PathStyle = FTextBlockStyle()
@@ -1944,7 +1948,7 @@ FText SBlueprintPaletteItem::GetToolTipText() const
 				ToolTipText = ComponentClass->GetToolTipText();
 			}
 		}
-		else if (UK2Node const* const NodeTemplate = FBlueprintActionMenuUtils::ExtractNodeTemplateFromAction(PaletteAction))
+		else if (UK2Node const* const NodeTemplate = FBlueprintActionMenuUtils::ExtractNodeTemplateFromAction(*PaletteAction))
 		{
 			// If the node wants to create tooltip text, use that instead, because its probably more detailed
 			FText NodeToolTipText = NodeTemplate->GetTooltipText();

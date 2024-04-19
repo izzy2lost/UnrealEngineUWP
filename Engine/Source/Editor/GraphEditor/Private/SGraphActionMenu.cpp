@@ -510,7 +510,7 @@ void SGraphActionMenu::GetSelectedActions(TArray< TSharedPtr<FEdGraphSchemaActio
 	{
 		for ( int32 NodeIndex = 0; NodeIndex < SelectedNodes.Num(); NodeIndex++ )
 		{
-			OutSelectedActions.Append( SelectedNodes[NodeIndex]->Actions );
+			OutSelectedActions.Add( SelectedNodes[NodeIndex]->Action );
 		}
 	}
 }
@@ -570,10 +570,7 @@ void SGraphActionMenu::GetCategorySubActions(TWeakPtr<FGraphActionNode> InAction
 
 			if (CurrentChild.IsValid() && CurrentChild->IsActionNode())
 			{
-				for ( int32 ActionIndex = 0; ActionIndex != CurrentChild->Actions.Num(); ActionIndex++ )
-				{
-					OutActions.Add(CurrentChild->Actions[ActionIndex]);
-				}
+				OutActions.Add(CurrentChild->Action);
 			}
 		}
 	}
@@ -621,10 +618,8 @@ bool SGraphActionMenu::SelectItemByName(const FName& ItemName, ESelectInfo::Type
 			{
 				TSharedPtr<FGraphActionNode> CurrentChildNode = CurrentGraphNode->Children[ChildIdx];
 
-				for ( int32 ActionIndex = 0; ActionIndex < CurrentChildNode->Actions.Num(); ActionIndex++ )
+				if(FEdGraphSchemaAction* ChildGraphAction = CurrentChildNode->Action.Get())
 				{
-					FEdGraphSchemaAction* ChildGraphAction = CurrentChildNode->Actions[ActionIndex].Get();
-
 					// If the user is attempting to select a category, make sure it's a category
 					if( CurrentChildNode->IsCategoryNode() == bIsCategory )
 					{
@@ -1091,7 +1086,7 @@ void SGraphActionMenu::OnItemDoubleClicked( TSharedPtr< FGraphActionNode > InCli
 	{
 		if ( InClickedItem->IsActionNode() )
 		{
-			OnActionDoubleClicked.ExecuteIfBound(InClickedItem->Actions);
+			OnActionDoubleClicked.ExecuteIfBound({InClickedItem->Action});
 		}
 		else if (InClickedItem->Children.Num())
 		{
@@ -1245,12 +1240,8 @@ void SGraphActionMenu::AddReferencedObjects( FReferenceCollector& Collector )
 {
 	for (int32 CurTypeIndex = 0; CurTypeIndex < AllActions->GetNumActions(); ++CurTypeIndex)
 	{
-		FGraphActionListBuilderBase::ActionGroup& Action = AllActions->GetAction(CurTypeIndex);
-
-		for ( int32 ActionIndex = 0; ActionIndex < Action.Actions.Num(); ActionIndex++ )
-		{
-			Action.Actions[ActionIndex]->AddReferencedObjects(Collector);
-		}
+		TSharedPtr<FEdGraphSchemaAction> Action = AllActions->GetSchemaAction(CurTypeIndex);
+		Action->AddReferencedObjects(Collector);
 	}
 }
 
@@ -1266,7 +1257,7 @@ bool SGraphActionMenu::HandleSelection( TSharedPtr< FGraphActionNode > &InSelect
 	{
 		if ( InSelectedItem.IsValid() && InSelectedItem->IsActionNode() )
 		{
-			OnActionSelected.Execute(InSelectedItem->Actions, InSelectionType);
+			OnActionSelected.Execute({InSelectedItem->Action}, InSelectionType);
 			bResult = true;
 		}
 		else
@@ -1329,13 +1320,13 @@ void SGraphActionMenu::ScoreAndAddActions(int32 StartingIndex)
 	const int32 NumActions = AllActions->GetNumActions();
 	for (int32 CurTypeIndex = bIsPartialBuild ? StartingIndex : 0; CurTypeIndex < NumActions; ++CurTypeIndex)
 	{
-		FGraphActionListBuilderBase::ActionGroup& CurrentAction = AllActions->GetAction(CurTypeIndex);
+		TSharedPtr<FEdGraphSchemaAction> CurrentAction = AllActions->GetSchemaAction(CurTypeIndex);
 
 		// If we're filtering, search check to see if we need to show this action
 		bool bShowAction = true;
 		float EachWeight = TNumericLimits<float>::Lowest();
 
-		const FString& SearchText = CurrentAction.GetSearchTextForFirstAction();
+		const FString& SearchText = CurrentAction->GetFullSearchText();
 		for (int32 FilterIndex = 0; (FilterIndex < FilterTerms.Num()) && bShowAction; ++FilterIndex)
 		{
 			const bool bMatchesTerm = (SearchText.Contains(FilterTerms[FilterIndex], ESearchCase::CaseSensitive) || (SearchText.Contains(SanitizedFilterTerms[FilterIndex], ESearchCase::CaseSensitive) == true));
@@ -1351,7 +1342,7 @@ void SGraphActionMenu::ScoreAndAddActions(int32 StartingIndex)
 		if (bRequiresFiltering)
 		{
 			// Get the 'weight' of this in relation to the filter
-			EachWeight = ActionSchema->GetActionFilteredWeight(CurrentAction, FilterTerms, SanitizedFilterTerms, DraggedFromPins);
+			EachWeight = ActionSchema->GetActionFilteredWeight(*CurrentAction, FilterTerms, SanitizedFilterTerms, DraggedFromPins);
 			// If this action has a greater relevance than others, cache its index.
 			if (EachWeight > BestMatchCount)
 			{
