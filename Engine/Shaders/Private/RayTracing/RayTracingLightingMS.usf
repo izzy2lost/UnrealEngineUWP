@@ -53,6 +53,8 @@ RAY_TRACING_ENTRY_MISS(RayTracingLightingMS, FPackedMaterialClosestHitPayload, P
 {
 	FRayDesc DummyRay = (FRayDesc)0;
 
+	ResolvedView = ResolveView();
+
 	FMaterialClosestHitPayload Payload = UnpackRayTracingPayload(PackedPayload, DummyRay);
 
 	// Light index is packed into HitT as this component is only accessed by closest hit or miss shaders.
@@ -67,9 +69,9 @@ RAY_TRACING_ENTRY_MISS(RayTracingLightingMS, FPackedMaterialClosestHitPayload, P
 
 	float4 LightAttenuation = 1.0f;
 
-	float3 WorldPosition = TranslatedWorldRayOrigin(); // Shadow ray is traced from the shaded point
+	float3 TranslatedWorldPosition = TranslatedWorldRayOrigin(); // Shadow ray is traced from the shaded point
 
-	float LightProfileMultiplier = ComputeLightProfileMultiplier(WorldPosition, LightData.TranslatedWorldPosition, -LightData.Direction, LightData.Tangent, LightData.IESAtlasIndex);
+	float LightProfileMultiplier = ComputeLightProfileMultiplier(TranslatedWorldPosition, LightData.TranslatedWorldPosition, -LightData.Direction, LightData.Tangent, LightData.IESAtlasIndex);
 
 	const float Dither = 0.5f;
 	const uint2 SVPos = uint2(0, 0);
@@ -116,11 +118,11 @@ RAY_TRACING_ENTRY_MISS(RayTracingLightingMS, FPackedMaterialClosestHitPayload, P
 	// LWC_TODO - lighting wants translated world space
 	float SurfaceShadow = 1.0f;
 	FGBufferData GBufferData = GetGBufferDataFromPayload(Payload);
-	float3 LightContribution = GetDynamicLighting(WorldPosition, CameraVector, GBufferData, 1.0f, GBufferData.ShadingModelID, LightData, LightAttenuation, Dither, SVPos, SurfaceShadow).xyz;
+	float3 LightContribution = GetDynamicLighting(TranslatedWorldPosition, CameraVector, GBufferData, 1.0f, GBufferData.ShadingModelID, LightData, LightAttenuation, Dither, SVPos, SurfaceShadow).xyz;
 #endif // SUBSTRATE_ENABLED
 
 #if SUPPORT_LIGHT_FUNCTION
-	float3 LightFunctionMult = GetRayTracingLightFunction(WorldPosition);
+	float3 LightFunctionMult = GetRayTracingLightFunction(TranslatedWorldPosition);
 	LightProfileMultiplier *= dot(LightFunctionMult, .3333f); // convert to greyscale (for compatibility with the appearance in the primary view)
 #endif
 
