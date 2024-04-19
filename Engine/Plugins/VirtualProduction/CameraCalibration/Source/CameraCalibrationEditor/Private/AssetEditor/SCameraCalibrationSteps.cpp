@@ -425,10 +425,7 @@ TSharedRef<SWidget> SCameraCalibrationSteps::BuildSimulcamWiperWidget()
 		})
 		.MinValue(0.0f)
 		.MaxValue(1.0f)
-		.MinSliderValue(0.0f)
-		.MaxSliderValue(1.0f)
-		.ClearKeyboardFocusOnCommit(true)
-		.Delta(0.1f);
+		.Delta(0.01f);
 }
 
 void SCameraCalibrationSteps::UpdateMediaSourcesOptions()
