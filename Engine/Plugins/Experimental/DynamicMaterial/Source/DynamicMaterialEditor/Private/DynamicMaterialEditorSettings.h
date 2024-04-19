@@ -172,8 +172,8 @@ public:
 	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Preview")
 	TSoftObjectPtr<UTexture> DefaultMask;
 
-	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Channels", meta = (EditFixedSize))
-	TMap<EDMMaterialPropertyType, TSoftObjectPtr<UTexture>> DefaultSlotTextures;
+	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Channels")
+	TMap<EDMMaterialPropertyType, TSoftObjectPtr<UTexture>> OverriddenDefaultSlotTextures;
 
 	/*
 	 * Add paths to search for custom effects.
@@ -208,4 +208,6 @@ public:
 	float GetSpinboxValueChangeMultiplier(const FModifierKeysState& InModifierKeys) const;
 
 	TArray<FDMMaterialEffectList> GetEffectList() const;
+
+	UTexture* GetDefaultTextureForSlot(EDMMaterialPropertyType InProperty) const;
 };

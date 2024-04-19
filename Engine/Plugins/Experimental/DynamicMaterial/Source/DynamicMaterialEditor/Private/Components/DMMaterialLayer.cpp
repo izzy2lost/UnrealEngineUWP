@@ -58,6 +58,7 @@ UDMMaterialLayerObject* UDMMaterialLayerObject::CreateLayer(UDMMaterialSlot* InS
 	const TArray<UDMMaterialStage*>& InStages)
 {
 	check(InSlot);
+	check(InMaterialProperty != EDMMaterialPropertyType::None);
 
 	UDMMaterialLayerObject* NewLayer = NewObject<UDMMaterialLayerObject>(InSlot, NAME_None, RF_Transactional);
 	NewLayer->MaterialProperty = InMaterialProperty;

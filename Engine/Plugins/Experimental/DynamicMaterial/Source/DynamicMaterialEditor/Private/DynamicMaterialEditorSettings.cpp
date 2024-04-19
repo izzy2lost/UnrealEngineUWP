@@ -14,6 +14,20 @@
 
 #define LOCTEXT_NAMESPACE "MaterialDesignerSettings"
 
+namespace UE::DynamicMaterialEditor::Private
+{
+	const TMap<EDMMaterialPropertyType, TSoftObjectPtr<UTexture>> BaseDefaultSlotProperties = {
+		{EDMMaterialPropertyType::BaseColor,           TSoftObjectPtr<UTexture>(FSoftObjectPath(TEXT("Texture2D'/DynamicMaterial/T_Default_Texture.T_Default_Texture'")))},
+		{EDMMaterialPropertyType::EmissiveColor,       TSoftObjectPtr<UTexture>(FSoftObjectPath(TEXT("Texture2D'/DynamicMaterial/T_Default_Texture.T_Default_Texture'")))},
+		{EDMMaterialPropertyType::Opacity,             TSoftObjectPtr<UTexture>(FSoftObjectPath(TEXT("/Script/Engine.Texture2D'/DynamicMaterial/Textures/T_DM_HorizontalGradient.T_DM_HorizontalGradient'")))},
+		{EDMMaterialPropertyType::OpacityMask,         TSoftObjectPtr<UTexture>(FSoftObjectPath(TEXT("/Script/Engine.Texture2D'/DynamicMaterial/Textures/T_DM_HorizontalGradient.T_DM_HorizontalGradient'")))},
+		{EDMMaterialPropertyType::Metallic,            TSoftObjectPtr<UTexture>(FSoftObjectPath(TEXT("/Script/Engine.Texture2D'/DynamicMaterial/Textures/SlotDefaults/T_MD_Metallic.T_MD_Metallic'")))},
+		{EDMMaterialPropertyType::Roughness,           TSoftObjectPtr<UTexture>(FSoftObjectPath(TEXT("/Script/Engine.Texture2D'/DynamicMaterial/Textures/SlotDefaults/T_MD_Roughness.T_MD_Roughness'")))},
+		{EDMMaterialPropertyType::Normal,              TSoftObjectPtr<UTexture>(FSoftObjectPath(TEXT("/Script/Engine.Texture2D'/DynamicMaterial/Textures/SlotDefaults/T_MD_Normal.T_MD_Normal'")))},
+		{EDMMaterialPropertyType::AmbientOcclusion,    TSoftObjectPtr<UTexture>(FSoftObjectPath(TEXT("/Script/Engine.Texture2D'/DynamicMaterial/Textures/SlotDefaults/T_MD_AmbientOcclusion.T_MD_AmbientOcclusion'")))},
+	};
+}
+
 bool FDMMaterialChannelListPreset::IsPropertyEnabled(EDMMaterialPropertyType InProperty) const
 {
 	switch (InProperty)
@@ -72,18 +86,7 @@ UDynamicMaterialEditorSettings::UDynamicMaterialEditorSettings()
 
 	DefaultMask = TSoftObjectPtr<UTexture>(FSoftObjectPath(TEXT("Texture2D'/Engine/EngineResources/WhiteSquareTexture.WhiteSquareTexture'")));
 
-	DefaultSlotTextures.Emplace(EDMMaterialPropertyType::BaseColor,           FSoftObjectPath(TEXT("Texture2D'/DynamicMaterial/T_Default_Texture.T_Default_Texture'")));
-	DefaultSlotTextures.Emplace(EDMMaterialPropertyType::Opacity,             FSoftObjectPath(TEXT("/Script/Engine.Texture2D'/DynamicMaterial/Textures/T_DM_HorizontalGradient.T_DM_HorizontalGradient'")));
-	DefaultSlotTextures.Emplace(EDMMaterialPropertyType::Metallic,            FSoftObjectPath(TEXT("/Script/Engine.Texture2D'/DynamicMaterial/Textures/SlotDefaults/T_MD_Metallic.T_MD_Metallic'")));
-	DefaultSlotTextures.Emplace(EDMMaterialPropertyType::Specular,            FSoftObjectPath(TEXT("")));
-	DefaultSlotTextures.Emplace(EDMMaterialPropertyType::Roughness,           FSoftObjectPath(TEXT("/Script/Engine.Texture2D'/DynamicMaterial/Textures/SlotDefaults/T_MD_Roughness.T_MD_Roughness'")));
-	DefaultSlotTextures.Emplace(EDMMaterialPropertyType::Anisotropy,          FSoftObjectPath(TEXT("")));
-	DefaultSlotTextures.Emplace(EDMMaterialPropertyType::Normal,              FSoftObjectPath(TEXT("/Script/Engine.Texture2D'/DynamicMaterial/Textures/SlotDefaults/T_MD_Normal.T_MD_Normal'")));
-	DefaultSlotTextures.Emplace(EDMMaterialPropertyType::Tangent,             FSoftObjectPath(TEXT("")));
-	DefaultSlotTextures.Emplace(EDMMaterialPropertyType::WorldPositionOffset, FSoftObjectPath(TEXT("")));
-	DefaultSlotTextures.Emplace(EDMMaterialPropertyType::AmbientOcclusion,    FSoftObjectPath(TEXT("/Script/Engine.Texture2D'/DynamicMaterial/Textures/SlotDefaults/T_MD_AmbientOcclusion.T_MD_AmbientOcclusion'")));
-	DefaultSlotTextures.Emplace(EDMMaterialPropertyType::Refraction,          FSoftObjectPath(TEXT("")));
-	DefaultSlotTextures.Emplace(EDMMaterialPropertyType::PixelDepthOffset,    FSoftObjectPath(TEXT("")));
+	OverriddenDefaultSlotTextures = {};
 
 	FDMMaterialChannelListPreset Opaque;
 	Opaque.bRGB = true;
@@ -332,6 +335,27 @@ TArray<FDMMaterialEffectList> UDynamicMaterialEditorSettings::GetEffectList() co
 	}
 
 	return Effects;
+}
+
+UTexture* UDynamicMaterialEditorSettings::GetDefaultTextureForSlot(EDMMaterialPropertyType InProperty) const
+{
+	if (const TSoftObjectPtr<UTexture>* OverridePtr = OverriddenDefaultSlotTextures.Find(InProperty))
+	{
+		if (UTexture* OverrideTexture = OverridePtr->LoadSynchronous())
+		{
+			return OverrideTexture;
+		}
+	}
+	
+	if (const TSoftObjectPtr<UTexture>* OverridePtr = UE::DynamicMaterialEditor::Private::BaseDefaultSlotProperties.Find(InProperty))
+	{
+		if (UTexture* OverrideTexture = OverridePtr->LoadSynchronous())
+		{
+			return OverrideTexture;
+		}
+	}
+
+	return nullptr;
 }
 
 #undef LOCTEXT_NAMESPACE

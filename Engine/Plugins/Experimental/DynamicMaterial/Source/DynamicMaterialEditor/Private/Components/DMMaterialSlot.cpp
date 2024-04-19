@@ -518,23 +518,19 @@ bool UDMMaterialSlot::CanRemoveLayer(const UDMMaterialLayerObject* InLayer) cons
 	check(InLayer->GetSlot() == this);
 
 	const EDMMaterialPropertyType LayerProperty = InLayer->GetMaterialProperty();
+	int32 LayerPropertyCount = 0;
 
-	if (LayerProperty == EDMMaterialPropertyType::BaseColor || LayerProperty == EDMMaterialPropertyType::EmissiveColor)
+	for (UDMMaterialLayerObject* Layer : LayerObjects)
 	{
-		int32 LayerPropertyCount = 0;
-
-		for (UDMMaterialLayerObject* Layer : LayerObjects)
+		if (Layer->GetMaterialProperty() == LayerProperty)
 		{
-			if (Layer->GetMaterialProperty() == LayerProperty)
-			{
-				++LayerPropertyCount;
-			}
+			++LayerPropertyCount;
 		}
+	}
 
-		if (LayerPropertyCount == 1)
-		{
-			return false;
-		}
+	if (LayerPropertyCount == 1)
+	{
+		return false;
 	}
 
 	return InLayer->FindIndex() != INDEX_NONE;

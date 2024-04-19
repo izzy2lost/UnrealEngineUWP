@@ -1271,18 +1271,23 @@ UDMMaterialLayerObject* SDMSlot::AddNewLayer(UDMMaterialStage* InNewBaseStage, U
 		{
 			TArray<EDMMaterialPropertyType> SlotProperties = ModelEditorOnlyData->GetMaterialPropertiesForSlot(Slot);
 
-			if (!SlotProperties.IsEmpty())
+			if (ensureMsgf(!SlotProperties.IsEmpty(), TEXT("Cannot find material property.")))
 			{
 				MaterialProperty = SlotProperties[0];
 			}
 			else
 			{
-				check("Cannot find material property.");
+				return nullptr;
 			}
 		}
 		else
 		{
 			MaterialProperty = Slot->GetLayers().Last()->GetMaterialProperty();
+		}
+
+		if (!ensureMsgf(MaterialProperty != EDMMaterialPropertyType::None, TEXT("Could not find material property.")))
+		{
+			return nullptr;
 		}
 
 		if (!InNewMaskStage)

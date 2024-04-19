@@ -1166,6 +1166,41 @@ UDMMaterialSlot* UDynamicMaterialModelEditorOnlyData::AddSlotForMaterialProperty
 		return ExistingSlot;
 	}
 
+	switch (InType)
+	{
+		case EDMMaterialPropertyType::BaseColor:
+			if (UDMMaterialSlot* ExistingSlot = GetSlotForMaterialProperty(EDMMaterialPropertyType::EmissiveColor))
+			{
+				SwapSlotMaterialProperty(EDMMaterialPropertyType::EmissiveColor, EDMMaterialPropertyType::BaseColor);
+				return ExistingSlot;
+			}
+			break;
+
+		case EDMMaterialPropertyType::EmissiveColor:
+			if (UDMMaterialSlot* ExistingSlot = GetSlotForMaterialProperty(EDMMaterialPropertyType::BaseColor))
+			{
+				SwapSlotMaterialProperty(EDMMaterialPropertyType::BaseColor, EDMMaterialPropertyType::EmissiveColor);
+				return ExistingSlot;
+			}
+			break;
+
+		case EDMMaterialPropertyType::Opacity:
+			if (UDMMaterialSlot* ExistingSlot = GetSlotForMaterialProperty(EDMMaterialPropertyType::OpacityMask))
+			{
+				SwapSlotMaterialProperty(EDMMaterialPropertyType::OpacityMask, EDMMaterialPropertyType::Opacity);
+				return ExistingSlot;
+			}
+			break;
+
+		case EDMMaterialPropertyType::OpacityMask:
+			if (UDMMaterialSlot* ExistingSlot = GetSlotForMaterialProperty(EDMMaterialPropertyType::Opacity))
+			{
+				SwapSlotMaterialProperty(EDMMaterialPropertyType::Opacity, EDMMaterialPropertyType::OpacityMask);
+				return ExistingSlot;
+			}
+			break;
+	}
+
 	UDMMaterialSlot* NewSlot = NewObject<UDMMaterialSlot>(this, NAME_None, RF_Transactional);
 	check(NewSlot);
 
