@@ -48,6 +48,37 @@ void FPCGWorldRayHitQueryParams::Initialize()
 	FPCGWorldCommonQueryParams::Initialize();
 }
 
+#if WITH_EDITOR
+void FPCGWorldCommonQueryParams::CommonPostLoad()
+{
+	if (bIgnoreLandscapeHits_DEPRECATED != false)
+	{
+		SelectLandscapeHits = EPCGWorldQuerySelectLandscapeHits::Exclude;
+		bIgnoreLandscapeHits_DEPRECATED = false;
+	}
+}
+#endif // WITH_EDITOR
+
+void FPCGWorldVolumetricQueryParams::PostSerialize(const FArchive& Ar)
+{
+#if WITH_EDITOR
+	if (Ar.IsLoading() && Ar.IsPersistent() && !Ar.HasAnyPortFlags(PPF_Duplicate | PPF_DuplicateForPIE))
+	{
+		CommonPostLoad();
+	}
+#endif
+}
+
+void FPCGWorldRayHitQueryParams::PostSerialize(const FArchive& Ar)
+{
+#if WITH_EDITOR
+	if (Ar.IsLoading() && Ar.IsPersistent() && !Ar.HasAnyPortFlags(PPF_Duplicate | PPF_DuplicateForPIE))
+	{
+		CommonPostLoad();
+	}
+#endif
+}
+
 void UPCGWorldVolumetricData::Initialize(UWorld* InWorld, const FBox& InBounds)
 {
 	Super::Initialize(InBounds);
@@ -130,9 +161,12 @@ bool UPCGWorldVolumetricData::SamplePoint(const FTransform& InTransform, const F
 			}
 		}
 
-		if (QueryParams.bIgnoreLandscapeHits && OverlappedComponent->GetOwner() && OverlappedComponent->GetOwner()->IsA<ALandscapeProxy>())
+		if (QueryParams.SelectLandscapeHits != EPCGWorldQuerySelectLandscapeHits::Include)
 		{
-			continue;
+			if (OverlappedComponent->GetOwner() && OverlappedComponent->GetOwner()->IsA<ALandscapeProxy>() != (QueryParams.SelectLandscapeHits == EPCGWorldQuerySelectLandscapeHits::Require))
+			{
+				continue;
+			}
 		}
 
 		if (QueryParams.bSearchForOverlap)
@@ -324,12 +358,13 @@ bool UPCGWorldRayHitData::SamplePoint(const FTransform& InTransform, const FBox&
 		}
 
 		bool bHitOnLandscape = false;
-		if (QueryParams.bIgnoreLandscapeHits || QueryParams.bApplyMetadataFromLandscape || QueryParams.bIgnoreBackfaceHits)
+		if(QueryParams.SelectLandscapeHits != EPCGWorldQuerySelectLandscapeHits::Include || QueryParams.bApplyMetadataFromLandscape || QueryParams.bIgnoreBackfaceHits)
 		{
 			bHitOnLandscape = HitComponent->GetOwner() && HitComponent->GetOwner()->IsA<ALandscapeProxy>();
 		}
 
-		if (QueryParams.bIgnoreLandscapeHits && bHitOnLandscape)
+		if((bHitOnLandscape && QueryParams.SelectLandscapeHits == EPCGWorldQuerySelectLandscapeHits::Exclude) ||
+			(!bHitOnLandscape && QueryParams.SelectLandscapeHits == EPCGWorldQuerySelectLandscapeHits::Require))
 		{
 			continue;
 		}
