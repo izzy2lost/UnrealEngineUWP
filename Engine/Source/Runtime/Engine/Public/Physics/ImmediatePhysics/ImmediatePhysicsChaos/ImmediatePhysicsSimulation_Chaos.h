@@ -107,7 +107,7 @@ namespace ImmediatePhysics_Chaos
 			const int32 PositionIts,
 			const int32 VelocityIts,
 			const int32 ProjectionIts,
-			const bool bUseManifolds);
+			const int32 bUseManifolds);
 
 		/** Explicit debug draw path if the use case needs it to happen at a point outside of the simulation **/
 		ENGINE_API void DebugDraw();
