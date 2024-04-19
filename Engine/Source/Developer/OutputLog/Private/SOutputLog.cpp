@@ -1261,6 +1261,8 @@ void SOutputLog::Construct( const FArguments& InArgs, bool bCreateDrawerDockButt
 
 	bIsUserScrolled = false;
 	RequestForceScroll();
+
+	OnClearLogDelegate = InArgs._OnClearLog;
 }
 END_SLATE_FUNCTION_BUILD_OPTIMIZATION
 
@@ -1453,6 +1455,8 @@ void SOutputLog::OnClearLog()
 	MessagesTextMarshaller->ClearMessages();
 	MessagesTextBox->Refresh();
 	bIsUserScrolled = false;
+
+	[[maybe_unused]] bool bOnClearLogDelegateExecuted = OnClearLogDelegate.ExecuteIfBound();
 }
 
 void SOutputLog::OnHighlightCategory(FName NewCategoryToHighlight)

@@ -317,6 +317,8 @@ public:
 
 		SLATE_EVENT(FSimpleDelegate, OnCloseConsole)
 
+		SLATE_EVENT(FSimpleDelegate, OnClearLog)
+
 		/** All messages captured before this log window has been created */
 		SLATE_ARGUMENT( TArray< TSharedPtr<FOutputLogMessage> >, Messages )
 
@@ -417,6 +419,8 @@ protected:
 
 	/** True if the user has scrolled the window upwards */
 	bool bIsUserScrolled;
+
+	FSimpleDelegate OnClearLogDelegate; 
 
 private:
 
