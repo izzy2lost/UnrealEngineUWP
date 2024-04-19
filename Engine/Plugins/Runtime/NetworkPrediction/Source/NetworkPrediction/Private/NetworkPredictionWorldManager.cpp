@@ -81,7 +81,10 @@ void UNetworkPredictionWorldManager::OnWorldPreTick(UWorld* InWorld, ELevelTick 
 
 	UE_NP_TRACE_WORLD_FRAME_START(InWorld->GetGameInstance(), InDeltaSeconds);
 
-	OnWorldPreTick_Internal(InDeltaSeconds, GEngine->FixedFrameRate);
+	// Defer to the engine ticking rate, if fixed. Otherwise use NPP's setting.
+	const float FixedTickFrameRate = (GEngine && GEngine->bUseFixedFrameRate) ? GEngine->FixedFrameRate : Settings.FixedTickFrameRate;
+
+	OnWorldPreTick_Internal(InDeltaSeconds, FixedTickFrameRate);
 
 	// Instantiate replicated manager on server
 	if (!ReplicatedManager && InWorld->GetNetMode() != NM_Client)

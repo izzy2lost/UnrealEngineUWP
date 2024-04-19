@@ -25,7 +25,7 @@ struct FNetworkPredictionSettings
 
 	// ------------------------------------------------------------------------------------------
 
-	// Frame rate to use when running Fixed Tick simulations. Note: Engine::FixedFrameRate will take precedence if manually set.
+	// Frame rate to use when running Fixed Tick simulations. Note: Engine::FixedFrameRate will take precedence if Engine::bUseFixedFrameRate is enabled.
 	UPROPERTY(config, EditAnywhere, Category = FixedTick)
 	int32 FixedTickFrameRate = 60;
 
