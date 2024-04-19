@@ -100,6 +100,9 @@ public:
 	virtual EMeshTopologyMode GetMeshTopologyMode() const { return MeshTopologyMode; }
 	virtual EGeometryTopologyType GetSelectionTopologyType() const;
 
+	// Switch the selection mode and type, optionally converting any existing selection to the new type and mode
+	virtual void SetMeshSelectionTypeAndMode(EGeometryElementType NewElementType, EMeshTopologyMode NewSelectionMode, bool bConvertSelection);
+
 	
 
 

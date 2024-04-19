@@ -875,8 +875,7 @@ void UModelingToolsEditorMode::Enter()
 				if ( GetToolManager() && GetToolManager()->GetContextTransactionsAPI() && GetSelectionManager() )
 				{
 					GetToolManager()->GetContextTransactionsAPI()->BeginUndoTransaction(LOCTEXT("ChangeSelectionMode", "Selection Mode"));
-					GetSelectionManager()->SetMeshTopologyMode(TopoMode); 
-					GetSelectionManager()->SetSelectionElementType(ElementMode);
+					GetSelectionManager()->SetMeshSelectionTypeAndMode(ElementMode, TopoMode, true);
 					GetToolManager()->GetContextTransactionsAPI()->EndUndoTransaction();
 					if (UModelingToolsModeCustomizationSettings* ModelingEditorSettings = GetMutableDefault<UModelingToolsModeCustomizationSettings>())
 					{
