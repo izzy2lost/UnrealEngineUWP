@@ -2,16 +2,20 @@
 
 #include "Slate/SDMToolBar.h"
 #include "AssetToolsModule.h"
+#include "ContentBrowserModule.h"
 #include "DMBlueprintFunctionLibrary.h"
 #include "DMEDefs.h"
 #include "DynamicMaterialEditorModule.h"
 #include "DynamicMaterialEditorSettings.h"
 #include "DynamicMaterialEditorStyle.h"
 #include "DynamicMaterialModule.h"
+#include "EngineAnalytics.h"
 #include "GameFramework/Actor.h"
 #include "IAssetTools.h"
+#include "IContentBrowserSingleton.h"
 #include "Model/DynamicMaterialModel.h"
 #include "SlateOptMacros.h"
+#include "Material/DynamicMaterialInstance.h"
 #include "Styling/AppStyle.h"
 #include "Styling/StyleColors.h"
 #include "Widgets/Colors/SColorBlock.h"
@@ -124,7 +128,7 @@ TSharedRef<SWidget> SDMToolBar::CreateToolBarEntries()
 					CreateSlotsComboBoxWidget()
 				]
 			]
-		]		
+		]
 		
 		+ SHorizontalBox::Slot()
 		.AutoWidth()
@@ -135,13 +139,32 @@ TSharedRef<SWidget> SDMToolBar::CreateToolBarEntries()
 			SNew(SButton)
 			.ContentPadding(GetDefaultToolBarButtonContentPadding())
 			.ButtonStyle(FDynamicMaterialEditorStyle::Get(), "HoverHintOnly")
-			.ToolTipText(LOCTEXT("MaterialDesignerFollowSelectionTooltip", "Toggles whether the Material Designer display will change selecting new objects and actors."))
+			.ToolTipText(LOCTEXT("MaterialDesignerFollowSelectionTooltip", "Toggles whether the Material Designer display will change when selecting new objects and actors."))
 			.OnClicked(this, &SDMToolBar::OnFollowSelectionButtonClicked)
 			[
 				SNew(SImage)
 				.Image(this, &SDMToolBar::GetFollowSelectionBrush)
 				.DesiredSizeOverride(GetDefaultToolBarButtonSize())
 				.ColorAndOpacity(this, &SDMToolBar::GetFollowSelectionColor)
+			]
+		]
+		
+		+ SHorizontalBox::Slot()
+		.AutoWidth()
+		.HAlign(HAlign_Right)
+		.VAlign(VAlign_Top)
+		.Padding(5.0f, 0.0f, 0.0f, 0.0f)
+		[
+			SNew(SButton)
+			.ContentPadding(GetDefaultToolBarButtonContentPadding())
+			.ButtonStyle(FDynamicMaterialEditorStyle::Get(), "HoverHintOnly")
+			.ToolTipText(LOCTEXT("ExportMaterialInstance", "Export Material Designer Instance"))
+			.Visibility(this, &SDMToolBar::GetExportMaterialInstanceButtonVisibility)
+			.OnClicked(this, &SDMToolBar::OnExportMaterialInstanceButtonClicked)
+			[
+				SNew(SImage)
+				.Image(FAppStyle::Get().GetBrush(TEXT("Icons.Toolbar.Export")))
+				.DesiredSizeOverride(GetDefaultToolBarButtonSize())
 			]
 		]
 		
@@ -370,6 +393,63 @@ FReply SDMToolBar::OnFollowSelectionButtonClicked()
 	{
 		Settings->bFollowSelection = !Settings->bFollowSelection;
 		Settings->SaveConfig();
+	}
+
+	return FReply::Handled();
+}
+
+EVisibility SDMToolBar::GetExportMaterialInstanceButtonVisibility() const
+{
+	UDynamicMaterialModel* MaterialModel = MaterialModelWeak.Get();
+
+	if (!MaterialModel)
+	{
+		return EVisibility::Collapsed;
+	}
+
+	UDynamicMaterialInstance* MaterialInstance = MaterialModel->GetDynamicMaterialInstance();
+
+	if (!MaterialInstance)
+	{
+		return EVisibility::Collapsed;
+	}
+
+	return EVisibility::Visible;
+}
+
+FReply SDMToolBar::OnExportMaterialInstanceButtonClicked()
+{
+	UDynamicMaterialModel* MaterialModel = MaterialModelWeak.Get();
+
+	if (!MaterialModel)
+	{
+		return FReply::Handled();
+	}
+
+	UDynamicMaterialInstance* MaterialInstance = MaterialModel->GetDynamicMaterialInstance();
+
+	if (!MaterialInstance)
+	{
+		return FReply::Handled();
+	}
+
+	FSaveAssetDialogConfig SaveAssetDialogConfig;
+	SaveAssetDialogConfig.DialogTitleOverride = LOCTEXT("SaveAssetDialogTitle", "Save Asset As");
+	SaveAssetDialogConfig.DefaultPath = "/Game";
+	SaveAssetDialogConfig.DefaultAssetName = MaterialInstance->GetName();
+	SaveAssetDialogConfig.ExistingAssetPolicy = ESaveAssetDialogExistingAssetPolicy::AllowButWarn;
+
+	FContentBrowserModule& ContentBrowserModule = FModuleManager::LoadModuleChecked<FContentBrowserModule>("ContentBrowser");
+	FString SaveObjectPath = ContentBrowserModule.Get().CreateModalSaveAssetDialog(SaveAssetDialogConfig);
+
+	if (!SaveObjectPath.IsEmpty())
+	{
+		UDMBlueprintFunctionLibrary::ExportMaterialInstance(MaterialInstance->GetMaterialModel(), SaveObjectPath);
+
+		if (FEngineAnalytics::IsAvailable())
+		{
+			FEngineAnalytics::GetProvider().RecordEvent(TEXT("Editor.Usage.MaterialDesigner.ExportedMaterialInstance"));
+		}
 	}
 
 	return FReply::Handled();

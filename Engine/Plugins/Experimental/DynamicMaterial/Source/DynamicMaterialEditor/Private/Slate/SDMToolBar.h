@@ -71,4 +71,7 @@ protected:
 	const FSlateBrush* GetFollowSelectionBrush() const;
 	FSlateColor GetFollowSelectionColor() const;
 	FReply OnFollowSelectionButtonClicked();
+
+	EVisibility GetExportMaterialInstanceButtonVisibility() const;
+	FReply OnExportMaterialInstanceButtonClicked();
 };
