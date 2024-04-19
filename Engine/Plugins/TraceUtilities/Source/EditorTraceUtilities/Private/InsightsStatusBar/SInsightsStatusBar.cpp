@@ -1059,8 +1059,8 @@ bool SInsightsStatusBarWidget::TraceBookmark_CanExecute()
 
 void SInsightsStatusBarWidget::TraceBookmark_Execute()
 {
-	FString Bookmark = FDateTime::Now().ToString(TEXT("Bookmark_%Y%m%d_%H%M%S"));
-	TRACE_BOOKMARK(*Bookmark);
+	const FString Bookmark = FDateTime::Now().ToString(TEXT("Bookmark_%Y%m%d_%H%M%S"));
+	TRACE_BOOKMARK(TEXT("%s"), *Bookmark);
 }
 
 void SInsightsStatusBarWidget::PopulateRecentTracesList()
