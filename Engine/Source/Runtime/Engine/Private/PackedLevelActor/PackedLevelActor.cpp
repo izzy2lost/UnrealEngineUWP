@@ -265,6 +265,10 @@ void APackedLevelActor::OnCommit(bool bChanged)
 
 bool APackedLevelActor::IsHiddenEd() const
 {
+	if (UWorld* World = GetWorld(); World && World->IsGameWorld())
+	{
+		return Super::IsHiddenEd();
+	}
 	return Super::IsHiddenEd() || IsEditing() || HasChildEdit() || ShouldLoadForPacking();
 }
 
