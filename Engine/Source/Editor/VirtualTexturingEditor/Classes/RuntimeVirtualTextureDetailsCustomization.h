@@ -31,7 +31,7 @@ protected:
 	//~ End IDetailCustomization Interface.
 
 private:
-	URuntimeVirtualTexture* VirtualTexture = nullptr;
+	TWeakObjectPtr<URuntimeVirtualTexture> VirtualTexture;
 
 	IDetailLayoutBuilder* CachedDetailBuilder = nullptr;
 
@@ -70,5 +70,5 @@ protected:
 	//~ End IDetailCustomization Interface.
 
 private:
-	URuntimeVirtualTextureComponent* RuntimeVirtualTextureComponent;
+	TWeakObjectPtr<URuntimeVirtualTextureComponent> RuntimeVirtualTextureComponent;
 };
