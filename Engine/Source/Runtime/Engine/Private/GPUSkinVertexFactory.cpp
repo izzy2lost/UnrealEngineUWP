@@ -710,7 +710,7 @@ void FGPUBaseSkinVertexFactory::GetOverrideVertexStreams(FVertexInputStreamArray
 {
 	if (MorphDeltaStreamIndex >= 0)
 	{
-		VertexStreams.Emplace(FVertexInputStream::CreateFromStreamSourceSlot(MorphDeltaStreamIndex, 0, MorphDeltaBufferSlot));
+		VertexStreams.Emplace(MorphDeltaStreamIndex, 0, MorphDeltaBufferSlot);
 	}
 }
 
@@ -1435,7 +1435,7 @@ void FGPUSkinPassthroughVertexFactory::GetOverrideVertexStreams(FVertexInputStre
 	{
 		if (EnumHasAnyFlags(VertexAttributesToBind, static_cast<EVertexAttributeFlags>(1 << Index)))
 		{
-			VertexStreams.Add(FVertexInputStream::CreateFromStreamSourceSlot(Index, 0, StreamSourceSlots[Index]));
+			VertexStreams.Emplace(Index, 0, StreamSourceSlots[Index]);
 		}
 	}
 }
