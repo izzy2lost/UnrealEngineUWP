@@ -64,6 +64,12 @@ void FOptionalProperty::SetValueProperty(FProperty* InValueProperty)
 	ValueProperty = InValueProperty;
 }
 
+bool FOptionalProperty::HasIntrusiveUnsetOptionalState() const
+{
+	// TOptional<TOptional<T>> doesn't have an intrusive unset state even if the innermost type does.
+	return false;
+}
+
 void FOptionalProperty::AddReferencedObjects(FReferenceCollector& Collector)
 {
 	Super::AddReferencedObjects(Collector);
@@ -429,9 +435,9 @@ void FOptionalProperty::ClearValueInternal(void* Data) const
 
 void FOptionalProperty::InitializeValueInternal(void* Data) const
 {
-	if (IsValueNonNullablePointer())
+	if (ValueProperty->HasIntrusiveUnsetOptionalState())
 	{
-		ValueProperty->InitializeValue(Data);
+		ValueProperty->InitializeIntrusiveUnsetOptionalValue(Data);
 	}
 	else
 	{
@@ -536,17 +542,13 @@ EConvertFromTypeResult FOptionalProperty::ConvertFromType(const FPropertyTag& Ta
 	void* Data = ContainerPtrToValuePtr<void>(ContainerData, Tag.ArrayIndex);
 	const void* Defaults = DefaultsStruct ? ContainerPtrToValuePtrForDefaults<void>(DefaultsStruct, DefaultsContainer, Tag.ArrayIndex) : nullptr;
 	
-	bool bIsValueNonNullablePointer;
+	bool bIsValueNonNullablePointer = ValueProperty->HasAllPropertyFlags(CPF_NonNullable);
 	if (FPropertyOptionVersion < FLegacyFOptionPropertyCustomVersion::RemoveIsValueNonNullablePointerHack)
 	{
 		bIsValueNonNullablePointer =
 			  ValueProperty->IsA<FClassProperty>() ? false
 			: ValueProperty->IsA<FObjectProperty>() ? true
 			: (ValueProperty->GetPropertyFlags() & CPF_NonNullable) != 0;
-	}
-	else
-	{
-		bIsValueNonNullablePointer = IsValueNonNullablePointer();
 	}
 
 	if (bIsValueNonNullablePointer && FPropertyOptionVersion < FLegacyFOptionPropertyCustomVersion::AlwaysSavingIsSetForFObjectProperty)

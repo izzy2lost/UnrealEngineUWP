@@ -901,6 +901,7 @@ struct TStructOpsTypeTraitsBase2
 		WithCanEditChange			   = false,							// struct has an editor-only CanEditChange function that can conditionally make child properties read-only in the details panel (same idea as UObject::CanEditChange)
 		WithClearOnFinishDestroy	   = false,							// struct should be cleared during owner UObject's FinishDestroy. Clearing calls destructor and initializes again to default value. This is intended for structs which may need to access UObject pointer members during destruction. Referenced objects may already have their FinishDestroy() called. Clearing should ensure that no UObject pointer members are used during the final destruction.
 		WithVisitor					   = false,							// struct has Visit function that allows to visit additional properties
+		WithIntrusiveOptionalSafeForGC = false,							// struct with an intrusive unset state for TOptional certifies that object fields it contains are nulled in the unset state
 	};
 
 	static constexpr EPropertyObjectReferenceType WithSerializerObjectReferences = EPropertyObjectReferenceType::Conservative; // struct's Serialize method(s) may serialize object references of these types - default Conservative means unknown and object reference collector archives should serialize this struct 
@@ -965,6 +966,7 @@ public:
 			bool HasSerializeFromMismatchedTag : 1;
 			bool HasStructuredSerializeFromMismatchedTag : 1;
 			bool HasGetTypeHash : 1;
+			bool HasIntrusiveUnsetOptionalState : 1;
 			bool IsAbstract : 1;
 			bool HasFindInnerPropertyInstance : 1;
 			bool ClearOnFinishDestroy : 1;
@@ -1213,6 +1215,23 @@ public:
 			return GetCapabilities().ClearOnFinishDestroy;
 		}
 
+		/** Return true if this type can be constructed with FIntrusiveUnsetOptionalState for TOptional */
+		bool HasIntrusiveUnsetOptionalState() const 
+		{
+			return GetCapabilities().HasIntrusiveUnsetOptionalState;
+		}
+		/** Construct an unset optional value */
+		virtual void InitializeIntrusiveUnsetOptionalValue(void* Data) const = 0;
+		/** Return true if the optional value at Data is in an unset state */
+		virtual bool IsIntrusiveOptionalValueSet(const void* Data) const = 0;
+		/** Reset an optional value to its unset state */
+		virtual void ClearIntrusiveOptionalValue(void* Data) const = 0;
+		/** 
+		 * Used for assertions only: confirms that this type has certified that its object reference fields are safe 
+		 * for the GC to visit while the struct is in its intrusive unset optional state.
+		*/
+		virtual bool IsIntrusiveOptionalSafeForGC() const = 0;
+
 #if WITH_EDITOR
 		/** Returns true if this struct wants to indicate whether a property can be edited in the details panel */
 		bool HasCanEditChange() const
@@ -1278,6 +1297,7 @@ public:
 				TTraits::WithSerializeFromMismatchedTag,
 				TTraits::WithStructuredSerializeFromMismatchedTag,
 				TModels_V<CGetTypeHashable, CPPSTRUCT>,
+				::HasIntrusiveUnsetOptionalState<CPPSTRUCT>(),
 				TIsAbstract<CPPSTRUCT>::Value,
 				TTraits::WithFindInnerPropertyInstance,
 				TTraits::WithClearOnFinishDestroy,
@@ -1572,6 +1592,33 @@ public:
 			{
 				return 0;
 			}
+		}
+
+		/** Construct an unset optional value */
+		virtual void InitializeIntrusiveUnsetOptionalValue(void* Data) const override
+		{
+			new (Data) TOptional<CPPSTRUCT>();
+		}
+
+		/** Return true if the optional value at Data is in an unset state */
+		virtual bool IsIntrusiveOptionalValueSet(const void* Data) const override
+		{
+			return reinterpret_cast<const TOptional<CPPSTRUCT>*>(Data)->IsSet();
+		}
+
+		/** Reset an optional value to its unset state */
+		virtual void ClearIntrusiveOptionalValue(void* Data) const override
+		{
+			reinterpret_cast<TOptional<CPPSTRUCT>*>(Data)->Reset();
+		}
+
+		/** 
+		 * Used for assertions only: confirms that this type has certified that its object reference fields are safe 
+		 * for the GC to visit while the struct is in its intrusive unset optional state.
+		*/
+		virtual bool IsIntrusiveOptionalSafeForGC() const
+		{
+			return TTraits::WithIntrusiveOptionalSafeForGC;
 		}
 
 #if WITH_EDITOR

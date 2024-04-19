@@ -427,6 +427,45 @@ void FStructProperty::FinishDestroyInternal( void* Data ) const
 	}
 }
 
+bool FStructProperty::HasIntrusiveUnsetOptionalState() const  
+{ 
+	if (UScriptStruct::ICppStructOps* CppStructOps = Struct->GetCppStructOps())
+	{
+		return CppStructOps->HasIntrusiveUnsetOptionalState();
+	}
+	return false;
+}
+
+void FStructProperty::InitializeIntrusiveUnsetOptionalValue(void* Data) const 
+{
+	if (UScriptStruct::ICppStructOps* CppStructOps = Struct->GetCppStructOps())
+	{
+		CppStructOps->InitializeIntrusiveUnsetOptionalValue(Data);
+		return;
+	}
+	checkf(false, TEXT("This should only be called when there is an intrusive unset state, which requires CppStructOps"));
+}
+
+bool FStructProperty::IsIntrusiveOptionalValueSet(const void* Data) const 
+{
+	if (UScriptStruct::ICppStructOps* CppStructOps = Struct->GetCppStructOps())
+	{
+		return CppStructOps->IsIntrusiveOptionalValueSet(Data);
+	}
+	checkf(false, TEXT("This should only be called when there is an intrusive unset state, which requires CppStructOps"));
+	return false;
+}
+
+void FStructProperty::ClearIntrusiveOptionalValue(void* Data) const 
+{
+	if (UScriptStruct::ICppStructOps* CppStructOps = Struct->GetCppStructOps())
+	{
+		CppStructOps->ClearIntrusiveOptionalValue(Data);
+		return;
+	}
+	checkf(false, TEXT("This should only be called when there is an intrusive unset state, which requires CppStructOps"));
+}
+
 /**
  * Creates new copies of components
  * 

@@ -6354,18 +6354,28 @@ bool FMulticastDelegateProperty::ContainsObjectReference(TArray<const FStructPro
 void FOptionalProperty::EmitReferenceInfo(UE::GC::FSchemaBuilder& Schema, int32 BaseOffset, TArray<const FStructProperty*>& EncounteredStructProps, UE::GC::FPropertyStack& DebugPath)
 {
 	using namespace UE::GC;
-	if (IsValueNonNullablePointer())
+	if (ValueProperty->ContainsObjectReference(EncounteredStructProps))
 	{
-		ValueProperty->EmitReferenceInfo(Schema, BaseOffset + GetOffset_ForGC(), EncounteredStructProps, DebugPath);
-	}
-	else if (ValueProperty->ContainsObjectReference(EncounteredStructProps))
-	{
-		FSchemaBuilder InnerSchema(ValueProperty->GetSize());
+		// If the value has an intrusive unset optional state, it cannot use the bool implied by EMemberType::Optional to
+		// selectively pass its references to GC.
+		// This means that types with intrusive unset optional states must initialize any fields that need to be traversed 
+		// for GC to values that are safe for GC to read (e.g. null).
+		// See FStructProperty::EmitIntrusiveOptionalReferenceInfo for examples of asserting that such types are safe. 
+		if (ValueProperty->HasIntrusiveUnsetOptionalState())
 		{
-			FPropertyStackScope PropertyScope(DebugPath, ValueProperty);
-			ValueProperty->EmitReferenceInfo(InnerSchema, 0, EncounteredStructProps, DebugPath);
+			ValueProperty->EmitIntrusiveOptionalReferenceInfo(Schema, BaseOffset + GetOffset_ForGC(), EncounteredStructProps, DebugPath);
 		}
-		Schema.Add(DeclareMember(DebugPath, BaseOffset + GetOffset_ForGC(), EMemberType::Optional, InnerSchema.Build()));
+		else
+		{
+			// Otherwise we embed an inner schema which will only be traversed if the "set" flag on the optional is true
+			// See EMemberType::Optional
+			FSchemaBuilder InnerSchema(ValueProperty->GetSize());
+			{
+				FPropertyStackScope PropertyScope(DebugPath, ValueProperty);
+				ValueProperty->EmitReferenceInfo(InnerSchema, 0, EncounteredStructProps, DebugPath);
+			}
+			Schema.Add(DeclareMember(DebugPath, BaseOffset + GetOffset_ForGC(), EMemberType::Optional, InnerSchema.Build()));
+		}
 	}
 }
 
@@ -6379,6 +6389,12 @@ void FObjectProperty::EmitReferenceInfo(UE::GC::FSchemaBuilder& Schema, int32 Ba
 	{
 		Schema.Add(UE::GC::DeclareMember(DebugPath, BaseOffset + GetOffset_ForGC() + Idx * sizeof(FObjectPtr), UE::GC::EMemberType::Reference));
 	}
+}
+
+void FObjectProperty::EmitIntrusiveOptionalReferenceInfo(UE::GC::FSchemaBuilder& Schema, int32 BaseOffset, TArray<const FStructProperty*>& EncounteredStructProps, UE::GC::FPropertyStack& DebugPath) 
+{
+	// Intrusive state is nullptr so normal schema is sufficient
+	EmitReferenceInfo(Schema, BaseOffset, EncounteredStructProps, DebugPath);
 }
 
 void FArrayProperty::EmitReferenceInfo(UE::GC::FSchemaBuilder& Schema, int32 BaseOffset, TArray<const FStructProperty*>& EncounteredStructProps, UE::GC::FPropertyStack& DebugPath)
@@ -6485,6 +6501,15 @@ void FStructProperty::EmitReferenceInfo(UE::GC::FSchemaBuilder& Schema, int32 Ba
 			}
 		}
 	}
+}
+
+void FStructProperty::EmitIntrusiveOptionalReferenceInfo(UE::GC::FSchemaBuilder& Schema, int32 BaseOffset, TArray<const FStructProperty*>& EncounteredStructProps, UE::GC::FPropertyStack& DebugPath) 
+{
+	checkf(Struct->GetCppStructOps() && Struct->GetCppStructOps()->IsIntrusiveOptionalSafeForGC(), 
+		TEXT("Struct %s contains object references and has an intrusive unset optional state and has not verified that its unset state is safe for GC. ")
+		TEXT("The struct must set WithIntrusiveOptionalSafeForGC in its TStructOpsTypeTraits after ensuring that its object reference fields are nulled in its unset optional state."), 
+		*Struct->GetPathName());
+	EmitReferenceInfo(Schema, BaseOffset, EncounteredStructProps, DebugPath);
 }
 
 void FInterfaceProperty::EmitReferenceInfo(UE::GC::FSchemaBuilder& Schema, int32 BaseOffset, TArray<const FStructProperty*>& EncounteredStructProps, UE::GC::FPropertyStack& DebugPath)

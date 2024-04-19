@@ -2070,6 +2070,27 @@ uint32 FProperty::GetValueTypeHashInternal(const void* Src) const
 	return 0;
 }
 
+void FProperty::InitializeIntrusiveUnsetOptionalValue(void* Data) const 
+{
+	checkf(false, TEXT("Missing implementation for InitializeIntrusiveUnsetOptionalValue for property type returning true from HasIntrusiveUnsetOptionalState"));
+}
+
+bool FProperty::IsIntrusiveOptionalValueSet(const void* Data) const 
+{
+	checkf(false, TEXT("Missing implementation for IsIntrusiveOptionalValueSet for property type returning true from HasIntrusiveUnsetOptionalState"));
+	return false;
+}
+
+void FProperty::ClearIntrusiveOptionalValue(void* Data) const 
+{
+	checkf(false, TEXT("Missing implementation for ClearIntrusiveOptionalValue for property type returning true from HasIntrusiveUnsetOptionalState"));
+}
+
+void FProperty::EmitIntrusiveOptionalReferenceInfo(UE::GC::FSchemaBuilder& Schema, int32 BaseOffset, TArray<const FStructProperty*>& EncounteredStructProps, UE::GC::FPropertyStack& DebugPath)
+{
+	checkf(false, TEXT("Missing implementation for EmitIntrusiveOptionalReferenceInfo for property type returning true from HasIntrusiveUnsetOptionalState"));
+}
+
 #if WITH_EDITORONLY_DATA
 UPropertyWrapper* FProperty::GetUPropertyWrapper()
 {

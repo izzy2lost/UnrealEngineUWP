@@ -110,6 +110,11 @@ public:
 	// Returns the number of bits required by NetSerializeItem to encode this enum, based on the maximum value
 	COREUOBJECT_API uint64 GetMaxNetSerializeBits() const;
 
+	virtual bool HasIntrusiveUnsetOptionalState() const override
+	{
+		return false;
+	}
+
 private:
 	COREUOBJECT_API virtual uint32 GetValueTypeHashInternal(const void* Src) const override;
 

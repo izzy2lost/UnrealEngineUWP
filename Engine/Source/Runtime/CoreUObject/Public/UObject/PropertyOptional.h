@@ -26,16 +26,21 @@ struct COREUOBJECT_API FOptionalPropertyLayout
 	FORCEINLINE bool IsSet(const void* Data) const
 	{
 		checkSlow(Data);
-		return IsValueNonNullablePointer()
-			? *reinterpret_cast<void*const*>(Data) != nullptr
+		return ValueProperty->HasIntrusiveUnsetOptionalState()
+			? ValueProperty->IsIntrusiveOptionalValueSet(Data)
 			: *GetIsSetPointer(Data);
 	}
 	FORCEINLINE void* MarkSetAndGetInitializedValuePointerToReplace(void* Data) const
 	{
 		checkSlow(Data);
-		if (IsValueNonNullablePointer())
+		if (ValueProperty->HasIntrusiveUnsetOptionalState())
 		{
-			ValueProperty->InitializeValue(Data);
+			if (!IsSet(Data))
+			{
+				// Need to destroy the value in its optional unset state first 
+				ValueProperty->ClearIntrusiveOptionalValue(Data);
+				ValueProperty->InitializeValue(Data);
+			}
 		}
 		else
 		{
@@ -51,9 +56,9 @@ struct COREUOBJECT_API FOptionalPropertyLayout
 	FORCEINLINE void MarkUnset(void* Data) const
 	{
 		checkSlow(Data);
-		if (IsValueNonNullablePointer())
+		if (ValueProperty->HasIntrusiveUnsetOptionalState())
 		{
-			ValueProperty->ClearValue(Data);
+			ValueProperty->ClearIntrusiveOptionalValue(Data);
 		}
 		else
 		{
@@ -134,11 +139,11 @@ protected:
 	FOptionalPropertyLayout() : ValueProperty(nullptr) {}
 
 	// Variables
-	FProperty* ValueProperty; // The type of the value
+	FProperty* ValueProperty; // The type of the inner value
 
 	FORCEINLINE int32 CalcIsSetOffset() const
 	{
-		check(!IsValueNonNullablePointer());
+		check(!ValueProperty->HasIntrusiveUnsetOptionalState());
 		checkfSlow(
 			ValueProperty->GetSize() == Align(ValueProperty->GetSize(), ValueProperty->GetMinAlignment()),
 			TEXT("Expected optional value property to have aligned size, but got misaligned size %i for %s that has minimum alignment %i"),
@@ -149,7 +154,7 @@ protected:
 	}
 	FORCEINLINE int32 CalcSize() const
 	{
-		if (IsValueNonNullablePointer())
+		if (ValueProperty->HasIntrusiveUnsetOptionalState())
 		{
 			return ValueProperty->GetSize();
 		}
@@ -159,10 +164,6 @@ protected:
 		}
 	}
 
-	FORCEINLINE bool IsValueNonNullablePointer() const
-	{
-		return (ValueProperty->GetPropertyFlags() & CPF_NonNullable) != 0;
-	}
 
 	FORCEINLINE bool* GetIsSetPointer(void* Data) const
 	{
@@ -235,6 +236,7 @@ public:
 	virtual bool LoadTypeName(UE::FPropertyTypeName Type, const FPropertyTag* Tag = nullptr) override;
 	virtual void SaveTypeName(UE::FPropertyTypeNameBuilder& Type) const override;
 	virtual bool CanSerializeFromTypeName(UE::FPropertyTypeName Type) const override;
+	virtual bool HasIntrusiveUnsetOptionalState() const override;
 
 	virtual EPropertyVisitorControlFlow Visit(FPropertyVisitorPath& Path, void* Data, const TFunctionRef<EPropertyVisitorControlFlow(const FPropertyVisitorPath& /*Path*/, void* /*Data*/)> InFunc) const override;
 	// End of FProperty interface

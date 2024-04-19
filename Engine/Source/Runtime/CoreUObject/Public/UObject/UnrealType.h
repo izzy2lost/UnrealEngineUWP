@@ -27,6 +27,7 @@
 #include "Math/UnrealMathUtility.h"
 #include "Misc/AssertionMacros.h"
 #include "Misc/EnumClassFlags.h"
+#include "Misc/Optional.h"
 #include "Serialization/Archive.h"
 #include "Serialization/MemoryImage.h"
 #include "Serialization/SerializedPropertyScope.h"
@@ -1241,6 +1242,46 @@ public:
 
 	ELifetimeCondition GetBlueprintReplicationCondition() const { return BlueprintReplicationCondition; }
 	void SetBlueprintReplicationCondition(ELifetimeCondition InBlueprintReplicationCondition) { BlueprintReplicationCondition = InBlueprintReplicationCondition; }
+
+	/**
+	 * Returns whether this type has a special state for an unset TOptional meaning the size TOptional<T> and T are the same.  
+	 * Properties must implement this function explicitly even if they do not have such a state.
+	 * @see Optional.h - HasIntrusiveUnsetOptionalState
+	 * @see FOptionalProperty
+	 */
+	COREUOBJECT_API virtual bool HasIntrusiveUnsetOptionalState() const PURE_VIRTUAL(FProperty::HasIntrusiveUnsetOptionalState, return false;)
+
+	/**
+	 * Initialize the value at the given address to an unset TOptional using an intrusive state rather than a trailing boolean.
+	 * @see TOptional::TOptional
+	 * @see Constructor taking FIntrusiveUnsetOptionalState
+	 */
+	COREUOBJECT_API virtual void InitializeIntrusiveUnsetOptionalValue(void* Data) const;
+
+	/**
+	 * Returns whether an optional value of this inner type is unset. Only valid to call if HasIntrusiveOptionalState returns true.
+	 * Equivalent to TOptional<T>::IsSet()
+	 * @see operator==(FIntrusiveUnsetOptionalState)
+	 * 
+	 * @param Data Address of value to inspect, already offset.
+	 * @return true if the value is unset 
+	 */
+	COREUOBJECT_API virtual bool IsIntrusiveOptionalValueSet(const void* Data) const;
+
+	/**
+	 * Set the value to it's special unset state. Equivalent to TOptional<T>::Reset. Only valid to call if HasIntrusiveOptionalState returns true.
+	 * @see operator=(FIntrusiveUnsetOptionalState)
+	 * 
+	 * @param Data Address of the alue, already offset.
+	 */
+	COREUOBJECT_API virtual void ClearIntrusiveOptionalValue(void* Data) const;
+
+	/**
+	 * For properties returning true from HasIntrusiveUnsetOptionalState which also contain object references, 
+	 * emit information for the garbage collector to safely gather the references from the value whether the 
+	 * optional value is set or unset.
+	 */
+	COREUOBJECT_API virtual void EmitIntrusiveOptionalReferenceInfo(UE::GC::FSchemaBuilder& Schema, int32 BaseOffset, TArray<const FStructProperty*>& EncounteredStructProps, UE::GC::FPropertyStack& DebugPath);
 };
 
 
@@ -1373,6 +1414,26 @@ public:
 	static FORCEINLINE void DestroyPropertyValue(void* A)
 	{
 		GetPropertyValuePtr(A)->~TCppType();
+	}
+
+	static FORCEINLINE bool HasIntrusiveUnsetOptionalState()
+	{
+		return ::HasIntrusiveUnsetOptionalState<TCppType>();
+	}
+
+	static FORCEINLINE void InitializeIntrusiveUnsetOptionalValue(void* Data) 
+	{
+		new(Data) TOptional<TCppType>();
+	}
+
+	static FORCEINLINE bool IsIntrusiveOptionalValueSet(const void* A)
+	{
+		return reinterpret_cast<const TOptional<TCppType>*>(A)->IsSet();
+	}
+
+	static FORCEINLINE void ClearIntrusiveOptionalValue(void* A)
+	{
+		reinterpret_cast<TOptional<TCppType>*>(A)->Reset();
 	}
 
 protected:
@@ -1515,6 +1576,26 @@ public:
 	FORCEINLINE void GetValue_InContainer(void const* InContainer, TCppType* OutValue) const
 	{
 		TInPropertyBaseClass::GetValue_InContainer(InContainer, OutValue);
+	}
+
+	virtual bool HasIntrusiveUnsetOptionalState() const override
+	{
+		return TTypeFundamentals::HasIntrusiveUnsetOptionalState();
+	}
+
+	virtual void InitializeIntrusiveUnsetOptionalValue(void* Data) const override
+	{
+		TTypeFundamentals::InitializeIntrusiveUnsetOptionalValue(Data);
+	}
+	
+	virtual bool IsIntrusiveOptionalValueSet(const void* Data) const override
+	{
+		return TTypeFundamentals::IsIntrusiveOptionalValueSet(Data);
+	}
+
+	virtual void ClearIntrusiveOptionalValue(void* Data) const override
+	{
+		TTypeFundamentals::ClearIntrusiveOptionalValue(Data);
 	}
 
 protected:
@@ -2478,6 +2559,11 @@ public:
 	}
 
 	uint32 GetValueTypeHashInternal(const void* Src) const override;
+
+	virtual bool HasIntrusiveUnsetOptionalState() const override 
+	{ 
+		return false;
+	}
 };
 
 /*-----------------------------------------------------------------------------
@@ -2893,6 +2979,33 @@ public:
 	{
 		return *reinterpret_cast<TObjectPtr<UObject>*>(const_cast<void*>(PropertyValueAddress));
 	}
+
+	virtual bool HasIntrusiveUnsetOptionalState() const 
+	{
+		// If an object pointer is marked as non-nullable, then nullptr can be used as an intrusive unset state 
+		// At present, no C++ properties can be marked with this flag because TOptional<UObject*> and TOptional<TObjectPtr<UObject>> 
+		// do not have an intrusive unset state from TOptional's perspective.
+		return (PropertyFlags & CPF_NonNullable) != 0;
+	}
+	
+	virtual void InitializeIntrusiveUnsetOptionalValue(void* Data) const override
+	{
+		ClearValue(Data);
+	}
+
+	virtual bool IsIntrusiveOptionalValueSet(const void* Data) const 
+	{
+		checkSlow(!IsNative());
+		return GetPropertyValue(Data) != nullptr;
+	}
+
+	virtual void ClearIntrusiveOptionalValue(void* Data) const 
+	{
+		checkSlow(!IsNative());
+		ClearValue(Data);
+	}
+
+	virtual void EmitIntrusiveOptionalReferenceInfo(UE::GC::FSchemaBuilder& Schema, int32 BaseOffset, TArray<const FStructProperty*>& EncounteredStructProps, UE::GC::FPropertyStack& DebugPath) override;
 };
 
 using FObjectPtrProperty UE_DEPRECATED(5.4, "FObjectPtrProperty is deprecated using FObjectProperty instead.")  = FObjectProperty;
@@ -5887,6 +6000,12 @@ public:
 	// End of FProperty interface
 
 	bool FindInnerPropertyInstance(FName PropertyName, const void* Data, const FProperty*& OutProp, const void*& OutData) const;
+
+	virtual bool HasIntrusiveUnsetOptionalState() const override;
+	virtual void InitializeIntrusiveUnsetOptionalValue(void* Data) const override;
+	virtual bool IsIntrusiveOptionalValueSet(const void* Data) const override;
+	virtual void ClearIntrusiveOptionalValue(void* Data) const override;
+	virtual void EmitIntrusiveOptionalReferenceInfo(UE::GC::FSchemaBuilder& Schema, int32 BaseOffset, TArray<const FStructProperty*>& EncounteredStructProps, UE::GC::FPropertyStack& DebugPath) override;
 
 private:
 	virtual uint32 GetValueTypeHashInternal(const void* Src) const;
