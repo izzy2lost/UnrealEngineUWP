@@ -2092,8 +2092,8 @@ void UEditorEngine::Tick( float DeltaSeconds, bool bIdleMode )
 		bFirstTick = false;
 	}
 
-	ensure(GPlayInEditorID == INDEX_NONE);
-	GPlayInEditorID = INDEX_NONE;
+	ensure(UE::GetPlayInEditorID() == INDEX_NONE);
+	UE::SetPlayInEditorID(INDEX_NONE);
 
 	// Clean up any game viewports that may have been closed during the level tick (eg by Kismet).
 	CleanupGameViewport();

@@ -1037,7 +1037,7 @@ UWorld* SetPlayInEditorWorld( UWorld* PlayInEditorWorld )
 
 	if (FWorldContext* WorldContext = GEngine->GetWorldContextFromWorld(PlayInEditorWorld))
 	{
-		GPlayInEditorID = WorldContext->PIEInstance;
+		UE::SetPlayInEditorID(WorldContext->PIEInstance);
 		UpdatePlayInEditorWorldDebugString(WorldContext);
 	}
 
@@ -1055,7 +1055,7 @@ void RestoreEditorWorld( UWorld* EditorWorld )
 	check(GIsPlayInEditorWorld);
 	GIsPlayInEditorWorld = false;
 	GWorld = EditorWorld;
-	GPlayInEditorID = INDEX_NONE;
+	UE::SetPlayInEditorID(INDEX_NONE);
 	UpdatePlayInEditorWorldDebugString(nullptr);
 }
 

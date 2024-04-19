@@ -138,7 +138,7 @@ bool UUserDefinedCaptureProtocol::SetupImpl()
 		World = nullptr;
 	}
 
-	int32 PreviousPlayInEditorID = GPlayInEditorID;
+	int32 PreviousPlayInEditorID = UE::GetPlayInEditorID();
 
 	if (World)
 	{
@@ -146,7 +146,7 @@ bool UUserDefinedCaptureProtocol::SetupImpl()
 		{
 			if (World == Context.World())
 			{
-				GPlayInEditorID = Context.PIEInstance;
+				UE::SetPlayInEditorID(Context.PIEInstance);
 			}
 		}
 	}
@@ -155,7 +155,7 @@ bool UUserDefinedCaptureProtocol::SetupImpl()
 	FinalPixelsFrameGrabber.Reset(new FFrameGrabber(InitSettings->SceneViewport.ToSharedRef(), InitSettings->DesiredSize, PF_B8G8R8A8, 3));
 	const bool bSuccess = OnSetup();
 
-	GPlayInEditorID = PreviousPlayInEditorID;
+	UE::SetPlayInEditorID(PreviousPlayInEditorID);
 
 	return bSuccess;
 }

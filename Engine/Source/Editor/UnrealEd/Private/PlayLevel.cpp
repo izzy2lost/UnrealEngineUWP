@@ -2252,7 +2252,7 @@ void UEditorEngine::OnScriptExecutionStart(const FBlueprintContextTracker& Conte
 	if (IsInGameThread() && GWorld)
 	{
 		// See if we should create a world switcher, which is true if we don't have one and our PIE info is missing
-		if (!FunctionStackWorldSwitcher && (!GIsPlayInEditorWorld || GPlayInEditorID == -1))
+		if (!FunctionStackWorldSwitcher && (!GIsPlayInEditorWorld || UE::GetPlayInEditorID() == -1))
 		{
 			check(FunctionStackWorldSwitcherTag == -1);
 			UWorld* ContextWorld = GetWorldFromContextObject(ContextObject, EGetWorldErrorMode::ReturnNull);
@@ -2318,7 +2318,7 @@ UWorld* UEditorEngine::CreatePIEWorldByDuplication(FWorldContext &WorldContext, 
 	PlayWorldPackage->SetSavedHash( InPackage->GetSavedHash() );
 	PlayWorldPackage->MarkAsFullyLoaded();
 
-	// check(GPlayInEditorID == -1 || GPlayInEditorID == WorldContext.PIEInstance);
+	// check(UE::GetPlayInEditorID() == -1 || UE::GetPlayInEditorID() == WorldContext.PIEInstance);
 	// Currently GPlayInEditorID is not correctly reset after map loading, so it's not safe to assert here
 	FTemporaryPlayInEditorIDOverride IDHelper(WorldContext.PIEInstance);
 

@@ -109,7 +109,7 @@ void FLazyObjectPtr::PossiblySerializeObjectGuid(UObject *Object, FStructuredArc
 		{
 			if (UnderlyingArchive.GetPortFlags() & PPF_DuplicateForPIE)
 			{
-				Guid = RemapGuid(Guid, GPlayInEditorID);
+				Guid = RemapGuid(Guid, UE::GetPlayInEditorID());
 			}
 
 			GuidSlot.GetValue() << Guid;
@@ -186,7 +186,8 @@ void FLazyObjectPtr::PossiblySerializeObjectGuid(UObject *Object, FStructuredArc
 
 void FLazyObjectPtr::ResetPIEFixups()
 {
-	check(GPlayInEditorID != -1);
-	check(GPlayInEditorID < MAX_PIE_INSTANCES);
-	PIEGuidMap[GPlayInEditorID].Reset();
+	const int32 PlayInEditorID = UE::GetPlayInEditorID();
+	check(PlayInEditorID != -1);
+	check(PlayInEditorID < MAX_PIE_INSTANCES);
+	PIEGuidMap[PlayInEditorID].Reset();
 }

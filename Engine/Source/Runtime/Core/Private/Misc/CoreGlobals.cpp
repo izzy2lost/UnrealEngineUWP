@@ -390,8 +390,10 @@ bool					GIsEditorLoadingPackage			= false;
 bool					GIsCookerLoadingPackage			= false;
 /** Whether GWorld points to the play in editor world														*/
 bool					GIsPlayInEditorWorld			= false;
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 /** Unique ID for multiple PIE instances running in one process												*/
 FPlayInEditorID			GPlayInEditorID;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 /** Whether or not PIE was attempting to play from PlayerStart												*/
 bool					GIsPIEUsingPlayerStart			= false;
 /** true if the runtime needs textures to be powers of two													*/
@@ -861,18 +863,32 @@ namespace UE::Core::Private
 	}
 }
 
+namespace UE
+{
+	int32 GetPlayInEditorID()
+	{
+		int32 Value = PRIVATE_GetGPlayInEditorID();
+		checkf(Value != -2, TEXT("GPlayInEditorID has not been properly forwarded by the loading-thread."));
+		return Value;
+	}
+	void SetPlayInEditorID(int32 InPlayInEditorID)
+	{
+		PRIVATE_SetGPlayInEditorID(InPlayInEditorID);
+	}
+}
+
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 FPlayInEditorID& FPlayInEditorID::operator= (int32 InOther)
 {
-	PRIVATE_SetGPlayInEditorID(InOther);
+	UE::SetPlayInEditorID(InOther);
 	return *this;
 }
 
 FPlayInEditorID::operator int32() const
 {
-	int32 Value = PRIVATE_GetGPlayInEditorID();
-	checkf(Value != -2, TEXT("GPlayInEditorID has not been properly forwarded by the loading-thread."));
-	return Value;
+	return UE::GetPlayInEditorID();
 }
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 #undef LOCTEXT_NAMESPACE
 

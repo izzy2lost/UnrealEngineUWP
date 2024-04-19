@@ -524,7 +524,7 @@ UObject* FSoftObjectPath::TryLoad(FUObjectSerializeContext* InLoadContext) const
 		{
 			FString PathString = ToString();
 #if WITH_EDITOR
-			if (GPlayInEditorID != INDEX_NONE)
+			if (UE::GetPlayInEditorID() != INDEX_NONE)
 			{
 				// If we are in PIE and this hasn't already been fixed up, we need to fixup at resolution time. We cannot modify the path as it may be somewhere like a blueprint CDO
 				FSoftObjectPath FixupObjectPath = *this;
@@ -564,7 +564,7 @@ int32 FSoftObjectPath::LoadAsync(FLoadSoftObjectPathAsyncDelegate InCompletionDe
 	FSoftObjectPath RequestedPath = *this;
 	FSoftObjectPath PathToLoad = RequestedPath;
 #if WITH_EDITOR
-	if (GPlayInEditorID != INDEX_NONE)
+	if (UE::GetPlayInEditorID() != INDEX_NONE)
 	{
 		// @todo: This logic may need updating to handle level instances properly and we may want to handle other fixups like CoreRedirects before requesting
 		PathToLoad.FixupForPIE();
@@ -598,7 +598,7 @@ UObject* FSoftObjectPath::ResolveObject() const
 	}
 
 #if WITH_EDITOR
-	if (GPlayInEditorID != INDEX_NONE)
+	if (UE::GetPlayInEditorID() != INDEX_NONE)
 	{
 		// If we are in PIE and this hasn't already been fixed up, we need to fixup at resolution time. We cannot modify the path as it may be somewhere like a blueprint CDO
 		FSoftObjectPath FixupObjectPath = *this;
@@ -708,7 +708,7 @@ bool FSoftObjectPath::FixupForPIE(int32 InPIEInstance, TFunctionRef<void(int32, 
 
 bool FSoftObjectPath::FixupForPIE(TFunctionRef<void(int32, FSoftObjectPath&)> InPreFixupForPIECustomFunction)
 {
-	return FixupForPIE(GPlayInEditorID, InPreFixupForPIECustomFunction);
+	return FixupForPIE(UE::GetPlayInEditorID(), InPreFixupForPIECustomFunction);
 }
 
 bool FSoftObjectPath::FixupCoreRedirects()

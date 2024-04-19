@@ -642,7 +642,7 @@ ENGINE_API void UpdatePlayInEditorWorldDebugString(const FWorldContext* WorldCon
 
 	if (WorldContext == nullptr)
 	{
-		ensure(GPlayInEditorID == INDEX_NONE);
+		ensure(UE::GetPlayInEditorID() == INDEX_NONE);
 		GPlayInEditorContextString = NSLOCTEXT("Engine", "PlayWorldIsNotActive", "Not in a play world").ToString();
 	}
 	else
@@ -653,7 +653,7 @@ ENGINE_API void UpdatePlayInEditorWorldDebugString(const FWorldContext* WorldCon
 }
 
 FTemporaryPlayInEditorIDOverride::FTemporaryPlayInEditorIDOverride(int32 NewOverrideID)
-	: PreviousID(GPlayInEditorID)
+	: PreviousID(UE::GetPlayInEditorID())
 {
 	SetID(NewOverrideID);
 }
@@ -665,10 +665,10 @@ FTemporaryPlayInEditorIDOverride::~FTemporaryPlayInEditorIDOverride()
 
 void FTemporaryPlayInEditorIDOverride::SetID(int32 NewID)
 {
-	if (GPlayInEditorID != NewID)
+	if (UE::GetPlayInEditorID() != NewID)
 	{
-		GPlayInEditorID = NewID;
-		UpdatePlayInEditorWorldDebugString(GEngine->GetWorldContextFromPIEInstance(GPlayInEditorID));
+		UE::SetPlayInEditorID(NewID);
+		UpdatePlayInEditorWorldDebugString(GEngine->GetWorldContextFromPIEInstance(NewID));
 	}
 }
 
@@ -15346,7 +15346,7 @@ bool UEngine::LoadMap( FWorldContext& WorldContext, FURL URL, class UPendingNetG
 
 					// We are loading a new world for this context, so clear out PIE fixups that might be lingering.
 					// (note we dont want to do this in DuplicateWorldForPIE, since that is also called on streaming worlds.
-					GPlayInEditorID = WorldContext.PIEInstance;
+					UE::SetPlayInEditorID(WorldContext.PIEInstance);
 					UpdatePlayInEditorWorldDebugString(&WorldContext);
 					FLazyObjectPtr::ResetPIEFixups();
 
@@ -16245,14 +16245,14 @@ UWorld* UEngine::GetCurrentPlayWorld(UWorld* PossiblePlayWorld) const
 			if (WorldContext.WorldType == EWorldType::PIE)
 			{
 				// This is a PIE world, and PIE instance is either not set or matches this world
-				if (GPlayInEditorID == -1 || GPlayInEditorID == WorldContext.PIEInstance)
+				if (UE::GetPlayInEditorID() == -1 || UE::GetPlayInEditorID() == WorldContext.PIEInstance)
 				{
 					return WorldContext.World();
 				}
 				else
 				{
 					// If you see this warning, game code is traversing PIE world boundaries in an unsafe way. That should be fixed or GPlayInEditorID needs to be set properly
-					UE_LOG(LogEngine, Warning, TEXT("GetCurrentPlayWorld failed with ambiguous PIE world! GPlayInEditorID %d does not match %s"), (int32)GPlayInEditorID, *PossiblePlayWorld->GetPathName());
+					UE_LOG(LogEngine, Warning, TEXT("GetCurrentPlayWorld failed with ambiguous PIE world! GPlayInEditorID %d does not match %s"), UE::GetPlayInEditorID(), *PossiblePlayWorld->GetPathName());
 				}
 			}
 #endif
@@ -16274,7 +16274,7 @@ UWorld* UEngine::GetCurrentPlayWorld(UWorld* PossiblePlayWorld) const
 		}
 #if WITH_EDITOR
 		// This is a PIE world, PIE instance is set, and it matches this world
-		else if (WorldContext.WorldType == EWorldType::PIE && GPlayInEditorID != -1 && GPlayInEditorID == WorldContext.PIEInstance)
+		else if (WorldContext.WorldType == EWorldType::PIE && UE::GetPlayInEditorID() != -1 && UE::GetPlayInEditorID() == WorldContext.PIEInstance)
 		{
 			BestWorld = WorldContext.World();
 		}
