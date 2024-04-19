@@ -12,6 +12,7 @@ D3D12Resources.cpp: D3D RHI utility implementation.
 #include "HAL/LowLevelMemTracker.h"
 #include "ProfilingDebugging/MemoryTrace.h"
 #include "ProfilingDebugging/AssetMetadataTrace.h"
+#include "RHICoreStats.h"
 
 static TAutoConsoleVariable<int32> CVarD3D12ReservedResourceHeapSizeMB(
 	TEXT("d3d12.ReservedResourceHeapSizeMB"),
@@ -160,6 +161,20 @@ FD3D12Resource::~FD3D12Resource()
 		// Don't make the windows association call and release back buffer at the same time (see notes on critical section)
 		FScopeLock Lock(&FD3D12Viewport::DXGIBackBufferLock);
 		Resource.SafeRelease();
+	}
+
+	// Update reserved resources' physical memory stats.
+	if (ReservedResourceData.IsValid() && ReservedResourceData->NumCommittedTiles > 0)
+	{
+		bool bBuffer = Desc.Dimension == D3D12_RESOURCE_DIMENSION_BUFFER;
+		const uint64 DecommitBytes = GRHIGlobals.ReservedResources.TileSizeInBytes * ReservedResourceData->NumCommittedTiles;
+		UE::RHICore::UpdateReservedResourceStatsOnCommit(DecommitBytes, bBuffer, false /* Decommit */);
+		
+		// The backing heaps are going to be released once this resource is destroyed.
+		for (const TRefCountPtr<FD3D12Heap>& BackingHeap : ReservedResourceData->BackingHeaps)
+		{
+			DEC_MEMORY_STAT_BY(STAT_D3D12ReservedResourcePhysical, BackingHeap->GetHeapDesc().SizeInBytes);
+		}
 	}
 }
 
@@ -341,6 +356,7 @@ void FD3D12Resource::CommitReservedResource(ID3D12CommandQueue* D3DCommandQueue,
 	TArray<FD3D12UpdateTileMappingsParams> MappingParams;
 	TArray<FD3D12ResidencyHandle*> UsedResidencyHandles;
 
+	const uint32 NumPreviousCommittedTiles = ReservedResourceData->NumCommittedTiles;
 	if (ReservedResourceData->NumCommittedTiles > NumRequiredCommitTiles) // Decommit / shrink case
 	{
 		check(!ReservedResourceData->BackingHeaps.IsEmpty());
@@ -548,6 +564,12 @@ void FD3D12Resource::CommitReservedResource(ID3D12CommandQueue* D3DCommandQueue,
 	checkf(ReservedResourceData->NumCommittedTiles == NumRequiredCommitTiles,
 		TEXT("Reserved resource was not fully processed while committing physical memory. Expected to process tiles: %d, actually processed: %d"),
 		D3DResourceNumTiles, ReservedResourceData->NumCommittedTiles);
+
+	if (ReservedResourceData->NumCommittedTiles != NumPreviousCommittedTiles)
+	{
+		int64 CommitDeltaInBytes = TileSizeInBytes * FMath::Abs((int32)ReservedResourceData->NumCommittedTiles - (int32)NumPreviousCommittedTiles);
+		UE::RHICore::UpdateReservedResourceStatsOnCommit(CommitDeltaInBytes, bBuffer, ReservedResourceData->NumCommittedTiles > NumPreviousCommittedTiles);
+	}
 }
 
 ID3D12Pageable* FD3D12Resource::GetPageable()

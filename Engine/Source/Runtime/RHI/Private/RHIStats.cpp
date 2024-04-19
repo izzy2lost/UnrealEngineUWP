@@ -33,6 +33,11 @@ DEFINE_STAT(STAT_ByteAddressBufferMemory);
 DEFINE_STAT(STAT_DrawIndirectBufferMemory);
 DEFINE_STAT(STAT_MiscBufferMemory);
 
+DEFINE_STAT(STAT_ReservedUncommittedBufferMemory);
+DEFINE_STAT(STAT_ReservedCommittedBufferMemory);
+DEFINE_STAT(STAT_ReservedUncommittedTextureMemory);
+DEFINE_STAT(STAT_ReservedCommittedTextureMemory);
+
 DEFINE_STAT(STAT_SamplerDescriptorsAllocated);
 DEFINE_STAT(STAT_ResourceDescriptorsAllocated);
 
