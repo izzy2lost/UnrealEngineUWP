@@ -63,11 +63,20 @@ struct FLevelInstanceMenuUtils
 {
 	static FToolMenuSection& CreateLevelSection(UToolMenu* Menu)
 	{
-		const FName LevelSectionName = TEXT("Level");
-		FToolMenuSection* SectionPtr = Menu->FindSection(LevelSectionName);
+		return CreateSection(Menu, FName("Level"), LOCTEXT("LevelSectionLabel", "Level"));
+	}
+	
+	static FToolMenuSection& CreateCurrentEditSection(UToolMenu* Menu)
+	{
+		return CreateSection(Menu, FName("CurrentEdit"), LOCTEXT("CurrentEditSectionLabel", "Current Edit"));
+	}
+
+	static FToolMenuSection& CreateSection(UToolMenu* Menu, FName SectionName, const FText& SectionText)
+	{
+		FToolMenuSection* SectionPtr = Menu->FindSection(SectionName);
 		if (!SectionPtr)
 		{
-			SectionPtr = &(Menu->AddSection(LevelSectionName, LOCTEXT("LevelSectionLabel", "Level")));
+			SectionPtr = &(Menu->AddSection(SectionName, SectionText));
 		}
 		FToolMenuSection& Section = *SectionPtr;
 		return Section;
@@ -92,7 +101,8 @@ struct FLevelInstanceMenuUtils
 		FText EntryLabel = bSingleEntry ? LOCTEXT("EditLevelInstances", "Edit") : FText::FromString(LevelInstance->GetWorldAsset().GetAssetName());
 		if (bCanEdit)
 		{
-			EntryDesc = FText::Format(LOCTEXT("LevelInstanceName", "{0}:{1}"), FText::FromString(LevelInstanceActor->GetActorLabel()), FText::FromString(LevelInstance->GetWorldAssetPackage()));
+			FText EntryActionDesc = LOCTEXT("EditLevelInstancesPropertyTooltip", "Edit this level. Your changes will be applied to the level asset and to all other level instances based on it.");
+			EntryDesc = FText::Format(LOCTEXT("LevelInstanceName", "{0}\n\nActor name: {1}\nAsset path: {2}"), EntryActionDesc, FText::FromString(LevelInstanceActor->GetActorLabel()), FText::FromString(LevelInstance->GetWorldAssetPackage()));
 		}
 		Section.AddMenuEntry(NAME_None, EntryLabel, EntryDesc, FSlateIcon(), LevelInstanceEditAction);
 	}
@@ -125,7 +135,8 @@ struct FLevelInstanceMenuUtils
 		FText EntryLabel = bSingleEntry ? LOCTEXT("OverrideLevelInstances", "Override") : FText::FromString(LevelInstance->GetWorldAsset().GetAssetName());
 		if (bCanEdit)
 		{
-			EntryDesc = FText::Format(LOCTEXT("OverrideLevelInstanceName", "{0}:{1}"), FText::FromString(LevelInstanceActor->GetActorLabel()), FText::FromString(LevelInstance->GetWorldAssetPackage()));
+			FText EntryActionDesc = LOCTEXT("EditLevelInstancesPropertyOverridesTooltip", "Edit only this level instance, without changing the level asset or any other level instances.");
+			EntryDesc = FText::Format(LOCTEXT("OverrideLevelInstanceName", "{0}\n\nActor name: {1}\nAsset path: {2}"), EntryActionDesc, FText::FromString(LevelInstanceActor->GetActorLabel()), FText::FromString(LevelInstance->GetWorldAssetPackage()));
 		}
 		Section.AddMenuEntry(NAME_None, EntryLabel, EntryDesc, FSlateIcon(), LevelInstanceEditAction);
 	}
@@ -167,7 +178,7 @@ struct FLevelInstanceMenuUtils
 				Section.AddSubMenu(
 					"EditLevelInstances",
 					LOCTEXT("EditLevelInstances", "Edit"),
-					TAttribute<FText>(),
+					LOCTEXT("EditLevelInstancesPropertyTooltip", "Edit this level. Your changes will be applied to the level asset and to all other level instances based on it."),
 					FNewToolMenuDelegate::CreateStatic(&CreateEditSubMenu, MoveTemp(LevelInstanceHierarchy), ContextActor)
 				);
 			}
@@ -202,14 +213,14 @@ struct FLevelInstanceMenuUtils
 				Section.AddSubMenu(
 					"PropertyOverrideLevelInstances",
 					LOCTEXT("EditLevelInstancesPropertyOverrides", "Override"),
-					TAttribute<FText>(),
+					LOCTEXT("EditLevelInstancesPropertyOverridesTooltip", "Edit only this level instance, without changing the level asset or any other level instances."),
 					FNewToolMenuDelegate::CreateStatic(&CreateEditPropertyOverridesSubMenu, MoveTemp(LevelInstanceHierarchy), ContextActor)
 				);
 			}
 		}
 	}
 
-	static void CreateCommitDiscardMenu(UToolMenu* Menu, AActor* ContextActor)
+	static void CreateSaveCancelMenu(UToolMenu* Menu, AActor* ContextActor)
 	{
 		ILevelInstanceInterface* LevelInstanceEdit = nullptr;
 		if (ContextActor)
@@ -245,103 +256,42 @@ struct FLevelInstanceMenuUtils
 						
 		if (LevelInstanceEdit)
 		{
-			FToolMenuSection& Section = CreateLevelSection(Menu);
+			FToolMenuSection& Section = CreateCurrentEditSection(Menu);
 			if (LevelInstanceEdit->IsEditingPropertyOverrides())
 			{
-				FText CommitTooltip;
+				FText CommitTooltip = LOCTEXT("LevelInstanceCommitPropertyOverridesTooltip", "Stop overriding this level instance and save any changes you've made.");
 				const bool bCanCommit = LevelInstanceEdit->CanExitEditPropertyOverrides(/*bDiscardEdits=*/false, &CommitTooltip);
 
 				FToolUIAction CommitAction;
 				CommitAction.ExecuteAction.BindLambda([LevelInstanceEdit](const FToolMenuContext&) { LevelInstanceEdit->ExitEditPropertyOverrides(/*bDiscardEdits=*/false); });
 				CommitAction.CanExecuteAction.BindLambda([bCanCommit](const FToolMenuContext&) { return bCanCommit; });
-				Section.AddMenuEntry(NAME_None, LOCTEXT("LevelInstanceCommitPropertyOverridesLabel", "Commit Override(s)"), CommitTooltip, FSlateIcon(), CommitAction);
+				Section.AddMenuEntry(NAME_None, LOCTEXT("LevelInstanceSavePropertyOverridesLabel", "Save Override(s)"), CommitTooltip, FSlateIcon(), CommitAction);
 
-				FText DiscardTooltip;
+				FText DiscardTooltip = LOCTEXT("LevelInstanceDiscardPropertyOverridesTooltip", "Stop overriding this level instance and discard any changes you've made.");
 				const bool bCanDiscard = LevelInstanceEdit->CanExitEditPropertyOverrides(/*bDiscardEdits=*/true, &DiscardTooltip);
 
 				FToolUIAction DiscardAction;
 				DiscardAction.ExecuteAction.BindLambda([LevelInstanceEdit](const FToolMenuContext&) { LevelInstanceEdit->ExitEditPropertyOverrides(/*bDiscardEdits=*/true); });
 				DiscardAction.CanExecuteAction.BindLambda([bCanDiscard](const FToolMenuContext&) { return bCanDiscard; });
-				Section.AddMenuEntry(NAME_None, LOCTEXT("LevelInstanceDiscardPropertyOverridesLabel", "Discard Override(s)"), DiscardTooltip, FSlateIcon(), DiscardAction);
+				Section.AddMenuEntry(NAME_None, LOCTEXT("LevelInstanceCancelPropertyOverridesLabel", "Cancel Override(s)"), DiscardTooltip, FSlateIcon(), DiscardAction);
 			}
 			else
 			{
-				FText CommitTooltip;
+				FText CommitTooltip = LOCTEXT("LevelInstanceCommitTooltip", "Stop editing this level and save any changes you've made.");
 				const bool bCanCommit = LevelInstanceEdit->CanExitEdit(/*bDiscardEdits=*/false, &CommitTooltip);
 
 				FToolUIAction CommitAction;
 				CommitAction.ExecuteAction.BindLambda([LevelInstanceEdit](const FToolMenuContext&) { LevelInstanceEdit->ExitEdit(/*bDiscardEdits=*/false); });
 				CommitAction.CanExecuteAction.BindLambda([bCanCommit](const FToolMenuContext&) { return bCanCommit; });
-				Section.AddMenuEntry(NAME_None, LOCTEXT("LevelInstanceCommitLabel", "Commit"), CommitTooltip, FSlateIcon(), CommitAction);
+				Section.AddMenuEntry(NAME_None, LOCTEXT("LevelInstanceSaveLabel", "Save"), CommitTooltip, FSlateIcon(), CommitAction);
 
-				FText DiscardTooltip;
+				FText DiscardTooltip = LOCTEXT("LevelInstanceDiscardTooltip", "Stop editing this level and discard any changes you've made.");
 				const bool bCanDiscard = LevelInstanceEdit->CanExitEdit(/*bDiscardEdits=*/true, &DiscardTooltip);
 
 				FToolUIAction DiscardAction;
 				DiscardAction.ExecuteAction.BindLambda([LevelInstanceEdit](const FToolMenuContext&) { LevelInstanceEdit->ExitEdit(/*bDiscardEdits=*/true); });
 				DiscardAction.CanExecuteAction.BindLambda([bCanDiscard](const FToolMenuContext&) { return bCanDiscard; });
-				Section.AddMenuEntry(NAME_None, LOCTEXT("LevelInstanceDiscardLabel", "Discard"), DiscardTooltip, FSlateIcon(), DiscardAction);
-			}
-		}
-	}
-
-	static void CreateSetCurrentMenu(UToolMenu* Menu, AActor* ContextActor)
-	{
-		ILevelInstanceInterface* LevelInstanceEdit = nullptr;
-		if (ULevelInstanceSubsystem* LevelInstanceSubsystem = ContextActor->GetWorld()->GetSubsystem<ULevelInstanceSubsystem>())
-		{
-			LevelInstanceEdit = LevelInstanceSubsystem->GetEditingLevelInstance();
-
-			if (LevelInstanceEdit && !LevelInstanceSubsystem->GetEditingPropertyOverridesLevelInstance())
-			{
-				FToolUIAction LevelInstanceSetCurrentAction;
-				LevelInstanceSetCurrentAction.ExecuteAction.BindLambda([LevelInstanceEdit](const FToolMenuContext&)
-				{
-					LevelInstanceEdit->SetCurrent();
-				});
-
-				FToolMenuSection& Section = CreateLevelSection(Menu);
-				Section.AddMenuEntry(TEXT("LevelInstanceSetCurrent"), LOCTEXT("LevelInstanceSetCurrent", "Set Current Level"), TAttribute<FText>(), FSlateIcon(), LevelInstanceSetCurrentAction);
-			}
-		}
-	}
-
-	static void CreateMoveSelectionToMenu(UToolMenu* Menu, const TArray<AActor*>& ActorsToMove)
-	{
-		if (ActorsToMove.Num() > 0)
-		{
-			ILevelInstanceInterface* LevelInstanceEdit = nullptr;
-			ULevelInstanceSubsystem* LevelInstanceSubsystem = GEditor->GetEditorWorldContext().World()->GetSubsystem<ULevelInstanceSubsystem>();
-			if (LevelInstanceSubsystem)
-			{
-				LevelInstanceEdit = LevelInstanceSubsystem->GetEditingLevelInstance();
-			}
-			
-			if (LevelInstanceEdit && !LevelInstanceSubsystem->GetEditingPropertyOverridesLevelInstance())
-			{
-				FToolUIAction LevelInstanceMoveSelectionAction;
-
-				LevelInstanceMoveSelectionAction.CanExecuteAction.BindLambda([CopyActorsToMove = ActorsToMove, LevelInstanceEdit, LevelInstanceSubsystem](const FToolMenuContext& MenuContext)
-				{
-					for (AActor* ActorToMove : CopyActorsToMove)
-					{
-						if (ActorToMove->GetLevel() == LevelInstanceSubsystem->GetLevelInstanceLevel(LevelInstanceEdit))
-						{
-							return false;
-						}
-					}
-
-					return !CopyActorsToMove.IsEmpty();
-				});
-
-				LevelInstanceMoveSelectionAction.ExecuteAction.BindLambda([CopyActorsToMove = ActorsToMove, LevelInstanceEdit](const FToolMenuContext&)
-				{
-					MoveSelectionToLevelInstance(LevelInstanceEdit, CopyActorsToMove);
-				});
-
-				FToolMenuSection& Section = CreateLevelSection(Menu);
-				Section.AddMenuEntry(TEXT("LevelInstanceMoveSelectionTo"), LOCTEXT("LevelInstanceMoveSelectionTo", "Move Selection to"), TAttribute<FText>(), FSlateIcon(), LevelInstanceMoveSelectionAction);
-
+				Section.AddMenuEntry(NAME_None, LOCTEXT("LevelInstanceCancelLabel", "Cancel"), DiscardTooltip, FSlateIcon(), DiscardAction);
 			}
 		}
 	}
@@ -482,8 +432,9 @@ struct FLevelInstanceMenuUtils
 				LOCTEXT("OrganizeActorsInFolders", "Keep Folders"),
 				LOCTEXT(
 					"OrganizeActorsInFoldersTooltip",
-					"Should the actors be placed in the folder the Level Instance is in, "
-					"and keep the folder structure they had inside the Level Instance?"
+					"When checked, actors remain in the same folder as the level instance "
+					"and use the same folder structure."
+					"\nWhen unchecked, actors are placed at the root of the current level's hierarchy."
 				),
 				FSlateIcon(),
 				FUIAction(
@@ -510,9 +461,10 @@ struct FLevelInstanceMenuUtils
 					.MinValue(1)
 					.Value_Lambda([]() { return BreakLevels; })
 					.OnValueChanged_Lambda([](int32 InValue) { BreakLevels = InValue; })
+					.ToolTipText(LOCTEXT("BreakLevelsTooltip", "Determines the depth of nested instances to break apart. Use 1 to break only the top level instance."))
 					.Label()
 					[
-						SNumericEntryBox<int32>::BuildLabel(LOCTEXT("BreakLevelsLabel", "Levels"), FLinearColor::White, FLinearColor::Transparent)
+						SNumericEntryBox<int32>::BuildLabel(LOCTEXT("BreakDepthLabel", "Depth"), FLinearColor::White, FLinearColor::Transparent)
 					]
 				];
 
@@ -523,7 +475,7 @@ struct FLevelInstanceMenuUtils
 			FToolMenuEntry ExecuteEntry = FToolMenuEntry::InitMenuEntry(
 				"ExecuteBreak",
 				LOCTEXT("BreakLevelInstances_BreakLevelInstanceButton", "Break Level Instance(s)"),
-				FText(),
+				LOCTEXT("BreakLevelInstances_BreakLevelInstanceButtonTooltip", "Break apart the selected level instances using the settings above."),
 				FSlateIcon(),
 				FUIAction(
 					FExecuteAction::CreateLambda([CopyBreakableLevelInstances = BreakableLevelInstances, LevelInstanceSubsystem, Settings]()
@@ -536,7 +488,7 @@ struct FLevelInstanceMenuUtils
 							FText::AsNumber(CopyBreakableLevelInstances.Num())
 						);
 
-						if (FMessageDialog::Open(EAppMsgType::YesNo, LevelInstanceBreakWarning) == EAppReturnType::Yes)
+						if (FMessageDialog::Open(EAppMsgType::YesNo, LevelInstanceBreakWarning, LOCTEXT("BreakingLevelInstanceTitle", "Break Level Instances")) == EAppReturnType::Yes)
 						{
 							ELevelInstanceBreakFlags Flags = ELevelInstanceBreakFlags::None;
 							if (Settings->bKeepFoldersDuringBreak)
@@ -576,8 +528,8 @@ struct FLevelInstanceMenuUtils
 				FToolMenuSection& Section = CreateLevelSection(Menu);
 				Section.AddSubMenu(
 					"BreakLevelInstances",
-					LOCTEXT("BreakLevelInstances", "Break..."),
-					TAttribute<FText>(),
+					LOCTEXT("BreakLevelInstances", "Break"),
+					LOCTEXT("BreakLevelInstancesTooltip", "Break apart the selected level instances into their individual actors."),
 					FNewToolMenuDelegate::CreateLambda([CopyOfBreakableLevelInstances = BreakableLevelInstances](UToolMenu* Menu)
 					{
 						CreateBreakSubMenu(Menu, CopyOfBreakableLevelInstances);
@@ -669,7 +621,7 @@ struct FLevelInstanceMenuUtils
 
 					Section.AddMenuEntry(
 						"ResetLevelInstancePropertyOverrides",
-						LOCTEXT("ResetLevelInstancePropertyOverrides", "Reset Override(s)"),
+						LOCTEXT("ResetLevelInstancePropertyOverrides", "Reset Overrides"),
 						TAttribute<FText>(),
 						TAttribute<FSlateIcon>(),
 						UIAction);
@@ -705,8 +657,8 @@ struct FLevelInstanceMenuUtils
 
 					Section.AddMenuEntry(
 						"ResetLevelInstancePropertyOverrides",
-						LOCTEXT("ResetLevelInstancePropertyOverrides", "Reset Override(s)"),
-						TAttribute<FText>(),
+						LOCTEXT("ResetLevelInstancePropertyOverrides", "Reset Overrides"),
+						LOCTEXT("ResetLevelInstancePropertyOverridesTooltip", "Discard all overrides on the selected level instances, restoring them to match the level assets."),
 						TAttribute<FSlateIcon>(),
 						UIAction);
 				}
@@ -1093,7 +1045,7 @@ void FLevelInstanceEditorModule::RegisterLevelInstanceColumn()
 
 		FSceneOutlinerColumnInfo ColumnInfo(ESceneOutlinerColumnVisibility::Invisible, 8,
 			FCreateSceneOutlinerColumn::CreateRaw(this, &FLevelInstanceEditorModule::CreateLevelInstanceColumn),
-			true, TOptional<float>(), LOCTEXT("LevelInstanceColumnName", "Level Instance"));
+			true, TOptional<float>(), LOCTEXT("LevelInstanceColumnName", "Level Instance Overrides"));
 
 		SceneOutlinerModule.RegisterDefaultColumnType<FLevelInstanceSceneOutlinerColumn>(ColumnInfo);
 	}
@@ -1227,18 +1179,12 @@ void FLevelInstanceEditorModule::ExtendContextMenu()
 				// Allow Edit/Commmit on non root selected Level Instance
 				FLevelInstanceMenuUtils::CreateEditMenu(ToolMenu, ContextActor);
 				FLevelInstanceMenuUtils::CreateEditPropertyOverridesMenu(ToolMenu, ContextActor);
-				FLevelInstanceMenuUtils::CreateCommitDiscardMenu(ToolMenu, ContextActor);
+				FLevelInstanceMenuUtils::CreateSaveCancelMenu(ToolMenu, ContextActor);
 				
 				if (bAreAllSelectedLevelInstancesRootSelections)
 				{
 					FLevelInstanceMenuUtils::CreatePackedBlueprintMenu(ToolMenu, ContextActor);
-					FLevelInstanceMenuUtils::CreateSetCurrentMenu(ToolMenu, ContextActor);
 				}
-			}
-
-			if (bAreAllSelectedLevelInstancesRootSelections)
-			{
-				FLevelInstanceMenuUtils::CreateMoveSelectionToMenu(ToolMenu, SelectedActors);
 			}
 		}
 

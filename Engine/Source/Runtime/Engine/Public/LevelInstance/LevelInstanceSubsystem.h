@@ -175,9 +175,14 @@ public:
 	ENGINE_API bool IsSubSelectionEnabled() const;
 private:
 	friend class FLevelInstanceEditorModule;
+	friend struct FLevelInstanceActorDetailsHelper;
+	friend struct FLevelInstanceEditorModeToolkitHelper;
 	friend struct FLevelInstanceMenuUtils;
 	friend class ILevelInstanceInterface;
 	friend class ULevelInstanceEditorMode;
+	friend class ULevelStreamingLevelInstanceEditor;
+	friend class ULevelStreamingLevelInstanceEditorPropertyOverride;
+	friend class ULevelInstancePropertyOverrideAsset;
 
 	// EditPropertyOverrides
 	ENGINE_API TArray<ILevelInstanceInterface*> GetLevelInstances(const TSoftObjectPtr<ULevelInstancePropertyOverrideAsset>& PropertyOverrideAsset) const;
@@ -195,6 +200,7 @@ private:
 	ENGINE_API static void RegisterPrimitiveColorHandler();
 	ENGINE_API static void UnregisterPrimitiveColorHandler();
 #endif
+	friend class ULevelStreamingLevelInstance;
 
 private:
 	ENGINE_API void UpdateStreamingStateInternal();
@@ -272,10 +278,6 @@ private:
 	ENGINE_API bool CommitLevelInstancePropertyOverridesInternal(TUniquePtr<FPropertyOverrideEdit>& InPropertyOverrideEdit, bool bDiscardEdits);
 	bool CanEditLevelInstanceCommon(const ILevelInstanceInterface* LevelInstance, FText* OutReason = nullptr) const;
 
-	ENGINE_API FText GetToolKitExitToolTip() const;
-	ENGINE_API FText GetToolKitDisplayText() const;
-	ENGINE_API void ToolKitExit();
-
 	void OnExitEditorModeInternal(bool bForceExit);
 	bool TryCommitLevelInstanceEdit(bool bForceExit);
 	bool TryCommitLevelInstancePropertyOverrideEdit(bool bForceExit);
@@ -310,11 +312,6 @@ private:
 
 private:
 #endif
-	friend class ULevelStreamingLevelInstance;
-	friend class ULevelStreamingLevelInstanceEditor;
-	friend class ULevelStreamingLevelInstanceEditorPropertyOverride;
-	friend class ULevelInstancePropertyOverrideAsset;
-	friend class FLevelInstanceEditorModeToolkit;
 
 #if WITH_EDITOR
 	bool bIsCreatingLevelInstance;

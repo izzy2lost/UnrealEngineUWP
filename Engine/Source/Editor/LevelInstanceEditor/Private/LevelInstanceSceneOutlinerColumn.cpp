@@ -17,9 +17,9 @@ namespace LevelInstanceColumnPrivate
 {
 	FName Name("Level Instance");
 
-	const FText ToolTipIsOverriden = LOCTEXT("IsOverridenTooltip", "Overriden");
-	const FText ToolTipIsOverridenAndContainsOverrides = LOCTEXT("IsOverridenAndContainsOverridesTooltip", "Overriden and overrides actor(s)");
-	const FText ToolTipContainsOverrides = LOCTEXT("ContainsOverridesTooltip", "Overrides actor(s)");
+	const FText ToolTipIsOverriden = LOCTEXT("IsOverridenTooltip", "This actor is overridden.");
+	const FText ToolTipIsOverridenAndContainsOverrides = LOCTEXT("IsOverridenAndContainsOverridesTooltip", "This level instance is overridden, and so is at least one of its children.");
+	const FText ToolTipContainsOverrides = LOCTEXT("ContainsOverridesTooltip", "At least one child of this level instance is overridden.");
 
 	void GetBrushesAndToolTipForItem(FSceneOutlinerTreeItemRef TreeItem, const FSlateBrush*& OutHasOVerrideBrush, const FSlateBrush*& OutContainsOverrideBrush, const FText*& OutToolTipText)
 	{

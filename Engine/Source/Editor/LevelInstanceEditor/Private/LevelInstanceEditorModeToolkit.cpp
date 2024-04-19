@@ -17,6 +17,66 @@ class FAssetEditorModeUILayer;
 
 #define LOCTEXT_NAMESPACE "LevelInstanceEditorModeToolkit"
 
+struct FLevelInstanceEditorModeToolkitHelper
+{
+	static FText GetToolkitDisplayText(ULevelInstanceSubsystem* LevelInstanceSubsystem)
+	{
+		if (LevelInstanceSubsystem->GetEditingLevelInstance())
+		{
+			return LOCTEXT("LevelInstanceEditToolkitDisplayText", "Level Instance Edit");
+		}
+		else if(LevelInstanceSubsystem->GetEditingPropertyOverridesLevelInstance())
+		{
+			return LOCTEXT("LevelInstanceOverrideToolkitDisplayText", "Level Instance Override");
+		} 
+
+		return FText();
+	}
+
+	static FText GetToolkitSaveCancelButtonTooltipText(ULevelInstanceSubsystem* LevelInstanceSubsystem, bool bDiscard)
+	{
+		if (LevelInstanceSubsystem->GetEditingLevelInstance())
+		{
+			return bDiscard ? LOCTEXT("LevelInstanceCancelEditToolkitTooltip", "Cancel edits and exit") : LOCTEXT("LevelInstanceSaveEditToolkitTooltip", "Save edits and exit");
+		}
+		else if (LevelInstanceSubsystem->GetEditingPropertyOverridesLevelInstance())
+		{
+			return bDiscard ? LOCTEXT("LevelInstanceCancelOverrideToolkitTooltip", "Cancel overrides and exit") : LOCTEXT("LevelInstanceSaveOverrideToolkitTooltip", "Save overrides and exit");
+		}
+
+		return FText();
+	}
+
+	static FReply OnSaveCancelButtonClicked(ULevelInstanceSubsystem* LevelInstanceSubsystem, bool bDiscard)
+	{
+		if (ILevelInstanceInterface* LevelInstance = LevelInstanceSubsystem->GetEditingLevelInstance())
+		{
+			LevelInstance->ExitEdit(bDiscard);
+		}
+		else if (ILevelInstanceInterface* LevelInstanceOverride = LevelInstanceSubsystem->GetEditingPropertyOverridesLevelInstance())
+		{
+			LevelInstanceOverride->ExitEditPropertyOverrides(bDiscard);
+		}
+
+		return FReply::Handled();
+	}
+
+	static bool IsCancelButtonEnabled(ULevelInstanceSubsystem* LevelInstanceSubsystem)
+	{
+		if (ILevelInstanceInterface* LevelInstance = LevelInstanceSubsystem->GetEditingLevelInstance())
+		{
+			return LevelInstance->CanExitEdit(true);
+		}
+		else if (ILevelInstanceInterface* LevelInstanceOverride = LevelInstanceSubsystem->GetEditingPropertyOverridesLevelInstance())
+		{
+			return LevelInstanceOverride->CanExitEditPropertyOverrides(true);
+		}
+
+		return false;
+	}
+};
+
+
 FLevelInstanceEditorModeToolkit::FLevelInstanceEditorModeToolkit()
 {
 }
@@ -51,7 +111,7 @@ void FLevelInstanceEditorModeToolkit::Init(const TSharedPtr<IToolkitHost>& InitT
 			+SHorizontalBox::Slot()
 			.AutoWidth()
 			.VAlign(VAlign_Center)
-			.Padding(FMargin(0.f, 0.f, 8.f, 0.f))
+			.Padding(FMargin(4.f, 0.f, 0.f, 0.f))
 			[
 				SNew(SImage)
 				.Image(FSlateIconFinder::FindIconBrushForClass(ALevelInstance::StaticClass()))
@@ -59,32 +119,34 @@ void FLevelInstanceEditorModeToolkit::Init(const TSharedPtr<IToolkitHost>& InitT
 			+SHorizontalBox::Slot()
 			.AutoWidth()
 			.VAlign(VAlign_Center)
-			.Padding(FMargin(0.f, 0.f, 8.f, 0.f))
+			.Padding(FMargin(8.f, 0.f, 0.f, 0.f))
 			[
 				SNew(STextBlock)
-				.Text_Lambda([LevelInstanceSubsystem]()
-				{
-					return LevelInstanceSubsystem->GetToolKitDisplayText();
-				})
+				.Text_Static(&FLevelInstanceEditorModeToolkitHelper::GetToolkitDisplayText, LevelInstanceSubsystem)
 			]
 			+SHorizontalBox::Slot()
 			.AutoWidth()
-			.Padding(FMargin(2.0, 0.f, 0.f, 0.f))
+			.Padding(FMargin(8.0, 0.f, 0.f, 0.f))
 			[
 				SNew(SButton)
 				.ButtonStyle(FAppStyle::Get(), "PrimaryButton")
 				.TextStyle(FAppStyle::Get(), "DialogButtonText")
-				.Text(LOCTEXT("ExitEdit", "Exit"))
-				.ToolTipText_Lambda([LevelInstanceSubsystem]()
-				{
-					return LevelInstanceSubsystem->GetToolKitExitToolTip();
-				})
+				.Text(LOCTEXT("SaveButtonText", "Save"))
+				.ToolTipText_Static(&FLevelInstanceEditorModeToolkitHelper::GetToolkitSaveCancelButtonTooltipText, LevelInstanceSubsystem, false)
 				.HAlign(HAlign_Center)
-				.OnClicked_Lambda([LevelInstanceSubsystem]() 
-				{ 
-					LevelInstanceSubsystem->ToolKitExit();
-					return FReply::Handled(); 
-				})
+				.OnClicked_Static(&FLevelInstanceEditorModeToolkitHelper::OnSaveCancelButtonClicked, LevelInstanceSubsystem, false)
+			]
+			+SHorizontalBox::Slot()
+			.AutoWidth()
+			.Padding(FMargin(4.0, 0.f, 4.f, 0.f))
+			[
+				SNew(SButton)
+				.TextStyle(FAppStyle::Get(), "DialogButtonText")
+				.Text(LOCTEXT("CancelButtonText", "Cancel"))
+				.ToolTipText_Static(&FLevelInstanceEditorModeToolkitHelper::GetToolkitSaveCancelButtonTooltipText, LevelInstanceSubsystem, true)
+				.HAlign(HAlign_Center)
+				.OnClicked_Static(&FLevelInstanceEditorModeToolkitHelper::OnSaveCancelButtonClicked, LevelInstanceSubsystem, true)
+				.IsEnabled_Static(&FLevelInstanceEditorModeToolkitHelper::IsCancelButtonEnabled, LevelInstanceSubsystem)
 			]
 		]
 	];

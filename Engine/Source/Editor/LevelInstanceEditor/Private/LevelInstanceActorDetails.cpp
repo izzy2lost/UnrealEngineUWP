@@ -1,12 +1,14 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "LevelInstanceActorDetails.h"
+#include "LevelInstance/LevelInstanceSettings.h"
+#include "LevelInstance/LevelInstanceSubsystem.h"
 #include "DetailLayoutBuilder.h"
 #include "DetailCategoryBuilder.h"
 #include "DetailWidgetRow.h"
 #include "UObject/WeakInterfacePtr.h"
 #include "Widgets/Input/SButton.h"
-#include "Widgets/Input/SMultiLineEditableTextBox.h"
+#include "Widgets/Text/STextBlock.h"
 #include "ScopedTransaction.h"
 
 #include "Engine/World.h"
@@ -14,68 +16,218 @@
 
 #define LOCTEXT_NAMESPACE "FLevelInstanceActorDetails"
 
+struct FLevelInstanceActorDetailsHelper
+{
+	static void ResetPropertyOverrides(ILevelInstanceInterface* LevelInstance)
+	{
+		check(LevelInstance);
+		LevelInstance->GetLevelInstanceSubsystem()->ResetPropertyOverrides(LevelInstance);
+	}
+};
+
 namespace LevelInstanceActorDetailsCallbacks
 {
-	static bool IsEditCommitButtonEnabled(TWeakInterfacePtr<ILevelInstanceInterface> LevelInstancePtr)
+	static bool IsEditButtonEnabled(TWeakInterfacePtr<ILevelInstanceInterface> LevelInstancePtr)
 	{
 		if (ILevelInstanceInterface* LevelInstance = LevelInstancePtr.Get())
 		{
-			return LevelInstance->CanEnterEdit() || LevelInstance->CanExitEdit();
+			return LevelInstance->CanEnterEdit();
 		}
 
 		return false;
 	}
 
-	static FText GetEditCommitButtonText(TWeakInterfacePtr<ILevelInstanceInterface> LevelInstancePtr)
-	{
-		if (ILevelInstanceInterface* LevelInstance = LevelInstancePtr.Get())
-		{
-			if (LevelInstance->CanExitEdit())
-			{
-				return LOCTEXT("CommitChanges", "Commit Changes");
-			}
-		}
-		
-		return LOCTEXT("Edit", "Edit");
-	}
-
-	static FText GetEditCommitReasonText(TWeakInterfacePtr<ILevelInstanceInterface> LevelInstancePtr)
+	static FText GetEditButtonTooltip(TWeakInterfacePtr<ILevelInstanceInterface> LevelInstancePtr)
 	{
 		FText Reason;
 		if (ILevelInstanceInterface* LevelInstance = LevelInstancePtr.Get())
 		{
 			if (!LevelInstance->IsEditing())
 			{
-				LevelInstance->CanEnterEdit(&Reason);
-				return Reason;
-			}
+				if (!LevelInstance->CanEnterEdit(&Reason))
+				{
+					return Reason;
+				}
 
-			LevelInstance->CanExitEdit(/*bDiscardEdits=*/false, &Reason);
+				return LOCTEXT("EditButtonToolTip", "Edit level instance source level");
+			}
 		}
-		return Reason;
+		return FText::GetEmpty();
 	}
 
-	static EVisibility GetEditCommitReasonVisibility(TWeakInterfacePtr<ILevelInstanceInterface> LevelInstancePtr)
+	static EVisibility GetEditButtonVisibility(TWeakInterfacePtr<ILevelInstanceInterface> LevelInstancePtr)
 	{
 		if (ILevelInstanceInterface* LevelInstance = LevelInstancePtr.Get())
 		{
-			return IsEditCommitButtonEnabled(LevelInstance) ? EVisibility::Collapsed : EVisibility::Visible;
+			return (!LevelInstance->IsEditing() && !LevelInstance->IsEditingPropertyOverrides()) ? EVisibility::Visible : EVisibility::Collapsed;
+		}
+
+		return EVisibility::Collapsed;
+	}
+		
+	static FReply OnEditButtonClicked(TWeakInterfacePtr<ILevelInstanceInterface> LevelInstancePtr)
+	{
+		if (ILevelInstanceInterface* LevelInstance = LevelInstancePtr.Get())
+		{
+			if (LevelInstance->CanEnterEdit())
+			{
+				LevelInstance->EnterEdit();
+			}
+		}
+		return FReply::Handled();
+	}
+
+	static bool IsOverrideButtonEnabled(TWeakInterfacePtr<ILevelInstanceInterface> LevelInstancePtr)
+	{
+		if (ILevelInstanceInterface* LevelInstance = LevelInstancePtr.Get())
+		{
+			return LevelInstance->CanEnterEditPropertyOverrides();
+		}
+
+		return false;
+	}
+
+	static EVisibility GetOverrideButtonVisibility(TWeakInterfacePtr<ILevelInstanceInterface> LevelInstancePtr)
+	{
+		if (ULevelInstanceSettings::Get()->IsPropertyOverrideEnabled())
+		{
+			return GetEditButtonVisibility(LevelInstancePtr);
 		}
 
 		return EVisibility::Collapsed;
 	}
 
-	static FReply OnEditCommitButtonClicked(TWeakInterfacePtr<ILevelInstanceInterface> LevelInstancePtr)
+	static FText GetOverrideButtonTooltip(TWeakInterfacePtr<ILevelInstanceInterface> LevelInstancePtr)
+	{
+		FText Reason;
+		if (ILevelInstanceInterface* LevelInstance = LevelInstancePtr.Get())
+		{
+			if (!LevelInstance->IsEditingPropertyOverrides())
+			{
+				if (!LevelInstance->CanEnterEditPropertyOverrides(&Reason))
+				{
+					return Reason;
+				}
+
+				return LOCTEXT("OverrideButtonToolTip", "Override properties on level instance actors");
+			}
+		}
+		return FText::GetEmpty();
+	}
+
+	static FReply OnOverrideButtonClicked(TWeakInterfacePtr<ILevelInstanceInterface> LevelInstancePtr)
 	{
 		if (ILevelInstanceInterface* LevelInstance = LevelInstancePtr.Get())
 		{
-			if (LevelInstance->CanExitEdit())
+			if (LevelInstance->CanEnterEditPropertyOverrides())
 			{
-				LevelInstance->ExitEdit();
+				LevelInstance->EnterEditPropertyOverrides();
 			}
-			else if (LevelInstance->CanEnterEdit())
+		}
+		return FReply::Handled();
+	}
+
+	static bool IsResetOverridesButtonEnabled(TWeakInterfacePtr<ILevelInstanceInterface> LevelInstancePtr)
+	{
+		if (ILevelInstanceInterface* LevelInstance = LevelInstancePtr.Get())
+		{
+			return LevelInstance->GetPropertyOverrideAsset() != nullptr;
+		}
+
+		return false;
+	}
+
+	static FText GetResetOverridesButtonTooltip(TWeakInterfacePtr<ILevelInstanceInterface> LevelInstancePtr)
+	{
+		return LOCTEXT("ResetOverrideButtonToolTip", "Reset property overrides on level instance actor"); 
+	}
+
+	static FReply OnResetOverridesButtonClicked(TWeakInterfacePtr<ILevelInstanceInterface> LevelInstancePtr)
+	{
+		if (ILevelInstanceInterface* LevelInstance = LevelInstancePtr.Get())
+		{
+			FLevelInstanceActorDetailsHelper::ResetPropertyOverrides(LevelInstance);
+		}
+
+		return FReply::Handled();
+	}
+
+	static EVisibility GetResetOverridesButtonVisibility(TWeakInterfacePtr<ILevelInstanceInterface> LevelInstancePtr)
+	{
+		if (ILevelInstanceInterface* LevelInstance = LevelInstancePtr.Get())
+		{
+			AActor* Actor = CastChecked<AActor>(LevelInstance);
+			return ULevelInstanceSettings::Get()->IsPropertyOverrideEnabled() && !LevelInstance->IsEditing() && !LevelInstance->IsEditingPropertyOverrides() && (!Actor->IsInLevelInstance() || Actor->IsInEditLevelInstance()) ? EVisibility::Visible : EVisibility::Collapsed;
+		}
+
+		return EVisibility::Collapsed;
+	}
+
+	static EVisibility GetSaveCancelButtonVisibility(TWeakInterfacePtr<ILevelInstanceInterface> LevelInstancePtr)
+	{
+		if (ILevelInstanceInterface* LevelInstance = LevelInstancePtr.Get())
+		{
+			return (LevelInstance->IsEditing() || LevelInstance->IsEditingPropertyOverrides()) ? EVisibility::Visible : EVisibility::Collapsed;
+		}
+
+		return EVisibility::Collapsed;
+	}
+		
+	static bool IsSaveCancelButtonEnabled(TWeakInterfacePtr<ILevelInstanceInterface> LevelInstancePtr, bool bDiscard)
+	{
+		if (ILevelInstanceInterface* LevelInstance = LevelInstancePtr.Get())
+		{
+			if (LevelInstance->IsEditing())
 			{
-				LevelInstance->EnterEdit();
+				return LevelInstance->CanExitEdit(bDiscard);
+			}
+			else if (LevelInstance->IsEditingPropertyOverrides())
+			{
+				return LevelInstance->CanExitEditPropertyOverrides(bDiscard);
+			}
+		}
+
+		return false;
+	}
+
+	static FText GetSaveCancelButtonTooltip(TWeakInterfacePtr<ILevelInstanceInterface> LevelInstancePtr, bool bDiscard)
+	{
+		FText Reason;
+		if (ILevelInstanceInterface* LevelInstance = LevelInstancePtr.Get())
+		{
+			if (LevelInstance->IsEditing())
+			{
+				if (!LevelInstance->CanExitEdit(bDiscard, &Reason))
+				{
+					return Reason;
+				}
+
+				return bDiscard ? LOCTEXT("CancelButtonToolTip", "Cancel edits and exit") : LOCTEXT("SaveButtonToolTip", "Save edits and exit");
+			}
+			else if (LevelInstance->IsEditingPropertyOverrides())
+			{
+				if (!LevelInstance->CanExitEditPropertyOverrides(bDiscard, &Reason))
+				{
+					return Reason;
+				}
+
+				return bDiscard ? LOCTEXT("CancelOverrideButtonToolTip", "Cancel overrides and exit") : LOCTEXT("SaveOverrideButtonToolTip", "Save overrides and exit");
+			}
+		}
+		return FText::GetEmpty();
+	}
+
+	static FReply OnSaveCancelButtonClicked(TWeakInterfacePtr<ILevelInstanceInterface> LevelInstancePtr, bool bDiscard)
+	{
+		if (ILevelInstanceInterface* LevelInstance = LevelInstancePtr.Get())
+		{
+			if (LevelInstance->IsEditing())
+			{
+				LevelInstance->ExitEdit(bDiscard);
+			}
+			else if (LevelInstance->IsEditingPropertyOverrides())
+			{
+				LevelInstance->ExitEditPropertyOverrides(bDiscard);
 			}
 		}
 		return FReply::Handled();
@@ -114,42 +266,104 @@ void FLevelInstanceActorDetails::CustomizeDetails(IDetailLayoutBuilder& DetailBu
 		DetailBuilder.HideProperty("WorldAsset");
 	}
 
-	IDetailCategoryBuilder& LevelInstanceEditingCategory = DetailBuilder.EditCategory("Level Edit", FText::GetEmpty(), ECategoryPriority::Transform);
+	IDetailCategoryBuilder& LevelInstanceEditingCategory = DetailBuilder.EditCategory("LevelInstanceEdit", LOCTEXT("LevelInstanceEditCategory", "Level Instance"), ECategoryPriority::Transform);
 
-	LevelInstanceEditingCategory.AddCustomRow(FText::GetEmpty())
-	[
-		SNew(SVerticalBox)
-		+ SVerticalBox::Slot()
-		.AutoHeight()
+	LevelInstanceEditingCategory.AddCustomRow(FText::GetEmpty()).ValueContent()
 		[
 			SNew(SHorizontalBox)
 			+ SHorizontalBox::Slot()
-			.FillWidth(1)
-			[
-				SNew(SMultiLineEditableTextBox)
-				.Visibility_Static(&LevelInstanceActorDetailsCallbacks::GetEditCommitReasonVisibility, LevelInstance)
-				.Font(DetailBuilder.GetDetailFontBold())
-				.BackgroundColor(TAttribute<FSlateColor>::Create(TAttribute<FSlateColor>::FGetter::CreateLambda([]() { return FAppStyle::GetColor("ErrorReporting.WarningBackgroundColor"); })))
-				.Text_Static(&LevelInstanceActorDetailsCallbacks::GetEditCommitReasonText, LevelInstance)
-				.AutoWrapText(true)
-				.IsReadOnly(true)
-			]
-		]
-		+ SVerticalBox::Slot()
-		.AutoHeight()
-		[
-			SNew(SHorizontalBox)
-			+ SHorizontalBox::Slot()
-			.FillWidth(1)
+			.AutoWidth()
+			.Padding(4.0f, 8.0f, 4.0f, 8.0f)
+			.VAlign(VAlign_Center)
 			[
 				SNew(SButton)
-				.IsEnabled_Static(&LevelInstanceActorDetailsCallbacks::IsEditCommitButtonEnabled, LevelInstance)
-				.Text_Static(&LevelInstanceActorDetailsCallbacks::GetEditCommitButtonText, LevelInstance)
+				.IsEnabled_Static(&LevelInstanceActorDetailsCallbacks::IsEditButtonEnabled, LevelInstance)
+				.ToolTipText_Static(&LevelInstanceActorDetailsCallbacks::GetEditButtonTooltip, LevelInstance)
+				.Visibility_Static(&LevelInstanceActorDetailsCallbacks::GetEditButtonVisibility, LevelInstance)
 				.HAlign(HAlign_Center)
-				.OnClicked_Static(&LevelInstanceActorDetailsCallbacks::OnEditCommitButtonClicked, LevelInstance)
+				.VAlign(VAlign_Center)
+				.OnClicked_Static(&LevelInstanceActorDetailsCallbacks::OnEditButtonClicked, LevelInstance)
+				[
+					SNew(STextBlock)
+					.Font(IDetailLayoutBuilder::GetDetailFont())
+					.Text(LOCTEXT("EditText", "Edit"))
+				]
 			]
-		]
-	];
+			+ SHorizontalBox::Slot()
+			.AutoWidth()
+			.Padding(4.0f, 8.0f, 4.0f, 8.0f)
+			.VAlign(VAlign_Center)
+			[
+				SNew(SButton)
+				.IsEnabled_Static(&LevelInstanceActorDetailsCallbacks::IsOverrideButtonEnabled, LevelInstance)
+				.ToolTipText_Static(&LevelInstanceActorDetailsCallbacks::GetOverrideButtonTooltip, LevelInstance)
+				.Visibility_Static(&LevelInstanceActorDetailsCallbacks::GetOverrideButtonVisibility, LevelInstance)
+				.HAlign(HAlign_Center)
+				.VAlign(VAlign_Center)
+				.OnClicked_Static(&LevelInstanceActorDetailsCallbacks::OnOverrideButtonClicked, LevelInstance)
+				[
+					SNew(STextBlock)
+					.Font(IDetailLayoutBuilder::GetDetailFont())
+					.Text(LOCTEXT("OverrideText", "Override"))
+				]
+			]
+			+ SHorizontalBox::Slot()
+			.AutoWidth()
+			.Padding(4.0f, 8.0f, 8.0f, 8.0f)
+			.VAlign(VAlign_Center)
+			[
+				SNew(SButton)
+				.IsEnabled_Static(&LevelInstanceActorDetailsCallbacks::IsResetOverridesButtonEnabled, LevelInstance)
+				.ToolTipText_Static(&LevelInstanceActorDetailsCallbacks::GetResetOverridesButtonTooltip, LevelInstance)
+				.Visibility_Static(&LevelInstanceActorDetailsCallbacks::GetResetOverridesButtonVisibility, LevelInstance)
+				.HAlign(HAlign_Center)
+				.VAlign(VAlign_Center)
+				.OnClicked_Static(&LevelInstanceActorDetailsCallbacks::OnResetOverridesButtonClicked, LevelInstance)
+				[
+					SNew(STextBlock)
+					.Font(IDetailLayoutBuilder::GetDetailFont())
+					.Text(LOCTEXT("ResetOverrideText", "Reset Overrides"))
+				]
+			]
+			+ SHorizontalBox::Slot()
+			.AutoWidth()
+			.Padding(4.0f, 8.0f, 4.0f, 8.0f)
+			.VAlign(VAlign_Center)
+			[
+				SNew(SButton)
+				.ButtonStyle(FAppStyle::Get(), "PrimaryButton")
+				.IsEnabled_Static(&LevelInstanceActorDetailsCallbacks::IsSaveCancelButtonEnabled, LevelInstance, false)
+				.ToolTipText_Static(&LevelInstanceActorDetailsCallbacks::GetSaveCancelButtonTooltip, LevelInstance, false)
+				.Visibility_Static(&LevelInstanceActorDetailsCallbacks::GetSaveCancelButtonVisibility, LevelInstance)
+				.HAlign(HAlign_Center)
+				.VAlign(VAlign_Center)
+				.OnClicked_Static(&LevelInstanceActorDetailsCallbacks::OnSaveCancelButtonClicked, LevelInstance, false)
+				[
+					SNew(STextBlock)
+					.Font(IDetailLayoutBuilder::GetDetailFont())
+					.Text(LOCTEXT("SaveText", "Save"))
+				]
+			]
+			+ SHorizontalBox::Slot()
+			.AutoWidth()
+			.Padding(4.0f, 8.0f, 4.0f, 8.0f)
+			.VAlign(VAlign_Center)
+			[
+				SNew(SButton)
+				.IsEnabled_Static(&LevelInstanceActorDetailsCallbacks::IsSaveCancelButtonEnabled, LevelInstance, true)
+				.ToolTipText_Static(&LevelInstanceActorDetailsCallbacks::GetSaveCancelButtonTooltip, LevelInstance, true)
+				.Visibility_Static(&LevelInstanceActorDetailsCallbacks::GetSaveCancelButtonVisibility, LevelInstance)
+				.Text(LOCTEXT("DiscardText", "Discard"))
+				.HAlign(HAlign_Center)
+				.VAlign(VAlign_Center)
+				.OnClicked_Static(&LevelInstanceActorDetailsCallbacks::OnSaveCancelButtonClicked, LevelInstance, true)
+				[
+					SNew(STextBlock)
+					.Font(IDetailLayoutBuilder::GetDetailFont())
+					.Text(LOCTEXT("CancelText", "Cancel"))
+				]
+			]
+		];
 }
 
 

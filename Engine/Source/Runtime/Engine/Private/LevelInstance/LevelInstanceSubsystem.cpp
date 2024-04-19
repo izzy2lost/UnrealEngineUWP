@@ -901,49 +901,6 @@ void ULevelInstanceSubsystem::OnTryExitEditorMode()
 	}
 }
 
-FText ULevelInstanceSubsystem::GetToolKitExitToolTip() const
-{
-	if (ILevelInstanceInterface* PropertyOverrideInstance = GetEditingPropertyOverridesLevelInstance())
-	{
-		AActor* Actor = CastChecked<AActor>(PropertyOverrideInstance);
-		return FText::FromString(Actor->GetActorLabel());
-	}
-	else if (ILevelInstanceInterface* EditingLevelInstance = GetEditingLevelInstance())
-	{
-		const TSoftObjectPtr<UWorld> WorldAsset = EditingLevelInstance->GetWorldAsset();
-		return FText::FromString(WorldAsset.GetAssetName());
-	}
-
-	return FText::GetEmpty();
-}
-
-FText ULevelInstanceSubsystem::GetToolKitDisplayText() const
-{
-	if (ILevelInstanceInterface* PropertyOverrideInstance = GetEditingPropertyOverridesLevelInstance())
-	{
-		return LOCTEXT("ExitEditTooltip", "Exit Property Override Edit");
-	}
-	else if (ILevelInstanceInterface* EditingLevelInstance = GetEditingLevelInstance())
-	{
-		return LOCTEXT("ExitOverrideTooltip", "Exit Level Instance Edit");
-	}
-
-	return FText::GetEmpty();
-}
-
-void ULevelInstanceSubsystem::ToolKitExit()
-{
-	const bool bForceExit = false;
-	if (PropertyOverrideEdit)
-	{
-		TryCommitLevelInstancePropertyOverrideEdit(bForceExit);
-	}
-	else if (LevelInstanceEdit)
-	{
-		TryCommitLevelInstanceEdit(bForceExit);
-	}
-}
-
 bool ULevelInstanceSubsystem::TryCommitLevelInstanceEdit(bool bForceExit)
 {
 	if (LevelInstanceEdit)
@@ -2222,7 +2179,7 @@ bool ULevelInstanceSubsystem::CanEditLevelInstanceCommon(const ILevelInstanceInt
 	{
 		if (OutReason)
 		{
-			*OutReason = FText::Format(LOCTEXT("CanEditLevelInstanceAlreadyBeingEdited", "Level Instance already being edited ({0})."), FText::FromString(LevelInstance->GetWorldAssetPackage()));
+			*OutReason = FText::Format(LOCTEXT("CanEditLevelInstanceAlreadyBeingEdited", "This level instance is already being edited.\n\nAsset path: {0}"), FText::FromString(LevelInstance->GetWorldAssetPackage()));
 		}
 		return false;
 	}
@@ -2231,7 +2188,7 @@ bool ULevelInstanceSubsystem::CanEditLevelInstanceCommon(const ILevelInstanceInt
 	{
 		if (OutReason)
 		{
-			*OutReason = FText::Format(LOCTEXT("CanEditLevelInstanceAlreadyBeingOverriden", "Level Instance already in property override edit ({0})."), FText::FromString(LevelInstance->GetWorldAssetPackage()));
+			*OutReason = FText::Format(LOCTEXT("CanEditLevelInstanceAlreadyBeingOverriden", "This level instance is already being overridden.\n\nAsset path: {0}"), FText::FromString(LevelInstance->GetWorldAssetPackage()));
 		}
 		return false;
 	}
@@ -2342,7 +2299,7 @@ bool ULevelInstanceSubsystem::CanEditLevelInstancePropertyOverrides(const ILevel
 	{
 		if (OutReason)
 		{
-			*OutReason = LOCTEXT("LevelInstancePropertyOverridesWorldPartitionOnly", "Property overrides are only supported on world partition level hierarchies");
+			*OutReason = LOCTEXT("LevelInstancePropertyOverridesWorldPartitionOnly", "Overrides are only supported for levels that use World Partition.");
 		}
 		return false;
 	}
@@ -2351,7 +2308,7 @@ bool ULevelInstanceSubsystem::CanEditLevelInstancePropertyOverrides(const ILevel
 	{
 		if (OutReason)
 		{
-			*OutReason = LOCTEXT("LevelInstancePropertyOverridesNewlyCreated", "Property overrides are only supported on saved worlds. Please save world first.");
+			*OutReason = LOCTEXT("LevelInstancePropertyOverridesNewlyCreated", "Overrides are only supported for saved levels. Save the level first.");
 		}
 		return false;
 	}
@@ -3063,6 +3020,7 @@ bool ULevelInstanceSubsystem::CommitLevelInstancePropertyOverridesInternal(TUniq
 	ILevelInstanceInterface* LevelInstance = InPropertyOverrideEdit->GetLevelInstance();
 	ILevelInstanceInterface* LevelInstanceWithOverrides = GetLevelInstancePropertyOverridesEditOwner(LevelInstance);
 	TSoftObjectPtr<ULevelInstancePropertyOverrideAsset> PreviousOverrideAsset = LevelInstanceWithOverrides->GetPropertyOverrideAsset() ? LevelInstanceWithOverrides->GetPropertyOverrideAsset()->GetSourceAssetPtr() : nullptr;
+	const FLevelInstanceID LevelInstanceWithOverridesID = LevelInstanceWithOverrides->GetLevelInstanceID();
 
 	bool bSaved = false;
 	if (InPropertyOverrideEdit->IsDirty() && !bDiscardEdits)
@@ -3088,7 +3046,11 @@ bool ULevelInstanceSubsystem::CommitLevelInstancePropertyOverridesInternal(TUniq
 	}
 
 	BlockOnLoading();
-			
+
+	if (AActor* LevelInstanceToSelect = Cast<AActor>(GetLevelInstance(LevelInstanceWithOverridesID)))
+	{
+		GEditor->SelectActor(LevelInstanceToSelect, true, true);
+	}
 	return true;
 }
 
@@ -3117,6 +3079,7 @@ void ULevelInstanceSubsystem::ResetPropertyOverrides(ILevelInstanceInterface* Le
 		return;
 	}
 
+	const FLevelInstanceID LevelInstanceWithOverridesID = LevelInstance->GetLevelInstanceID();
 	const TSoftObjectPtr<ULevelInstancePropertyOverrideAsset> AssetPath = LevelInstance->GetPropertyOverrideAsset()->GetSourceAssetPtr();
 	ULevelInstancePropertyOverrideAsset* PropertyOverrideAsset = LevelInstance->GetPropertyOverrideAsset();
 	
@@ -3132,12 +3095,17 @@ void ULevelInstanceSubsystem::ResetPropertyOverrides(ILevelInstanceInterface* Le
 		return;
 	}
 
+	GEditor->SelectNone(true, true);
+
 	LevelInstance->UpdateLevelInstanceFromWorldAsset();
 	UpdateLevelInstancesFromPropertyOverrideAsset(AssetPath, nullptr);
 	BlockOnLoading();
 	
 	// Make sure selection is refreshed (Reset can have impact on details view)
-	GEditor->SelectNone(true, true);
+	if (AActor* LevelInstanceToSelect = Cast<AActor>(GetLevelInstance(LevelInstanceWithOverridesID)))
+	{
+		GEditor->SelectActor(LevelInstanceToSelect, true, true);
+	}
 }
 
 void ULevelInstanceSubsystem::RegisterPrimitiveColorHandler()
