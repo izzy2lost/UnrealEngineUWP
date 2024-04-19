@@ -157,8 +157,8 @@ void FDataflowConstructionScene::UpdateDynamicMeshComponents()
 							{
 								DataflowContent->SetPrimaryRenderCollection(RenderCollection);
 							}
-
-							AddDynamicMeshComponent({Target, MeshIndex }, MoveTemp(DynamicMesh), {});
+							const FString MeshName = Facade.GetGeometryName()[MeshIndex];
+							AddDynamicMeshComponent({Target, MeshIndex}, MeshName, MoveTemp(DynamicMesh), {});
 						}
 					}
 				}
@@ -185,9 +185,9 @@ void FDataflowConstructionScene::ResetDynamicMeshComponents()
 	DynamicMeshComponents.Reset();
 }
 
-TObjectPtr<UDynamicMeshComponent>& FDataflowConstructionScene::AddDynamicMeshComponent(FDataflowRenderKey InKey, UE::Geometry::FDynamicMesh3&& DynamicMesh, const TArray<UMaterialInterface*>& MaterialSet)
+TObjectPtr<UDynamicMeshComponent>& FDataflowConstructionScene::AddDynamicMeshComponent(FDataflowRenderKey InKey, const FString& MeshName, UE::Geometry::FDynamicMesh3&& DynamicMesh, const TArray<UMaterialInterface*>& MaterialSet)
 {
-	TObjectPtr<UDataflowEditorCollectionComponent> DynamicMeshComponent = NewObject<UDataflowEditorCollectionComponent>(RootSceneActor);
+	TObjectPtr<UDataflowEditorCollectionComponent> DynamicMeshComponent = NewObject<UDataflowEditorCollectionComponent>(RootSceneActor, FName(MeshName));
 	DynamicMeshComponent->MeshIndex = InKey.Value;
 	DynamicMeshComponent->Node = InKey.Key;;
 	DynamicMeshComponent->SetMesh(MoveTemp(DynamicMesh));
