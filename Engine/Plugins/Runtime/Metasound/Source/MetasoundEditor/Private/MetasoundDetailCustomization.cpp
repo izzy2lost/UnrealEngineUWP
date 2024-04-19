@@ -382,7 +382,7 @@ namespace Metasound
 							MetaSoundAsset->GetGraphChecked().Modify();
 
 							TScriptInterface<IMetaSoundDocumentInterface> MetaSoundPatchDocInterface = MetaSound.Get();
-							FMetaSoundFrontendDocumentBuilder Builder(MetaSoundPatchDocInterface);
+							FMetaSoundFrontendDocumentBuilder& Builder = IMetaSoundAssetManager::GetChecked().AttachDocumentBuilderChecked(*MetaSound.Get());
 							FModifyInterfaceOptions Options({ }, { InterfaceToAdd });
 							Options.bSetDefaultNodeLocations = false; // Don't automatically add nodes to ed graph
 							Builder.ModifyInterfaces(MoveTemp(Options));
