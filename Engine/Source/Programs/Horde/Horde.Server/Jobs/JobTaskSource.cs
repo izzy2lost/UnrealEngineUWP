@@ -404,13 +404,13 @@ namespace Horde.Server.Jobs
 				if (newJob.GraphHash == null)
 				{
 					_logger.LogError("Job {JobId} has a null graph hash and can't be started.", newJob.Id);
-					await _jobs.TryRemoveFromDispatchQueueAsync(newJob, cancellationToken);
+					await newJob.TryRemoveFromDispatchQueueAsync(cancellationToken);
 					continue;
 				}
 				if (newJob.AbortedByUserId != null)
 				{
 					_logger.LogError("Job {JobId} was aborted but not removed from dispatch queue", newJob.Id);
-					await _jobs.TryRemoveFromDispatchQueueAsync(newJob, cancellationToken);
+					await newJob.TryRemoveFromDispatchQueueAsync(cancellationToken);
 					continue;
 				}
 
@@ -421,7 +421,7 @@ namespace Horde.Server.Jobs
 				IStream? stream;
 				if (!streams.TryGetValue(newJob.StreamId, out stream))
 				{
-					newJob = await _jobs.SkipAllBatchesAsync(newJob, graph, JobStepBatchError.UnknownStream, cancellationToken);
+					newJob = await newJob.SkipAllBatchesAsync(JobStepBatchError.UnknownStream, cancellationToken);
 					continue;
 				}
 
@@ -469,7 +469,7 @@ namespace Horde.Server.Jobs
 									if (step != null)
 									{
 										JobId jobId = newJob.Id;
-										newJob = await _jobs.TryUpdateStepAsync(newJob, graph, batch.Id, step.Id, JobStepState.Skipped, newError: JobStepError.Paused, cancellationToken: cancellationToken);
+										newJob = await newJob.TryUpdateStepAsync(batch.Id, step.Id, JobStepState.Skipped, newError: JobStepError.Paused, cancellationToken: cancellationToken);
 										if (newJob == null)
 										{
 											_logger.LogError("Job {JobId} failed to update step {StepName} pause state", jobId, state.Name);
@@ -504,7 +504,7 @@ namespace Horde.Server.Jobs
 					if (!newJob.Batches.Any(batch => batch.State == JobStepBatchState.Ready || batch.State == JobStepBatchState.Starting || batch.State == JobStepBatchState.Running || batch.State == JobStepBatchState.Stopping))
 					{
 						_logger.LogError("Job {JobId} is in dispatch queue but not currently executing", newJob.Id);
-						await _jobs.TryRemoveFromDispatchQueueAsync(newJob, cancellationToken);
+						await newJob.TryRemoveFromDispatchQueueAsync(cancellationToken);
 					}
 				}
 			}
@@ -544,7 +544,7 @@ namespace Horde.Server.Jobs
 			_logger.LogInformation("Skipping batch {BatchId} for job {JobId} (reason: {Reason})", batchId, job.Id, reason);
 
 			IReadOnlyList<(LabelState, LabelOutcome)> oldLabelStates = job.GetLabelStates(graph);
-			IJob? newJob = await _jobs.SkipBatchAsync(job, batchId, graph, reason, cancellationToken);
+			IJob? newJob = await job.SkipBatchAsync(batchId, reason, cancellationToken);
 			if (newJob != null)
 			{
 				IReadOnlyList<(LabelState, LabelOutcome)> newLabelStates = newJob.GetLabelStates(graph);
@@ -785,7 +785,7 @@ namespace Horde.Server.Jobs
 			LogId logId = LogIdUtils.GenerateNewId();
 
 			// Try to update the job with this agent id
-			IJob? newJob = await _jobs.TryAssignLeaseAsync(item._job, item._batchIdx, item._poolId, agent.Id, agent.SessionId!.Value, leaseId, logId, cancellationToken);
+			IJob? newJob = await item._job.TryAssignLeaseAsync(item._batchIdx, item._poolId, agent.Id, agent.SessionId!.Value, leaseId, logId, cancellationToken);
 			if (newJob != null)
 			{
 				job = newJob;
@@ -1127,7 +1127,7 @@ namespace Horde.Server.Jobs
 					}
 
 					IGraph graph = await _graphs.GetAsync(job.GraphHash, cancellationToken);
-					job = await _jobs.TryFailBatchAsync(job, batchIdx, graph, error, cancellationToken);
+					job = await job.TryFailBatchAsync(batchIdx, error, cancellationToken);
 
 					if (job != null)
 					{
@@ -1189,7 +1189,7 @@ namespace Horde.Server.Jobs
 					break;
 				}
 
-				IJob? newJob = await _jobs.TryCancelLeaseAsync(job, batchIdx, cancellationToken);
+				IJob? newJob = await job.TryCancelLeaseAsync(batchIdx, cancellationToken);
 				if (newJob != null)
 				{
 					break;

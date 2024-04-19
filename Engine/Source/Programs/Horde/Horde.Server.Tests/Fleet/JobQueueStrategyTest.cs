@@ -152,13 +152,13 @@ namespace Horde.Server.Tests.Fleet
 			for (int i = 0; i < numBatchesRunning; i++)
 			{
 				IJob job = await AddPlaceholderJobAsync(graph, streamConfig.Id, nodeForAgentType1);
-				await JobCollection.TryUpdateBatchAsync(job, graph, job.Batches[0].Id, null, JobStepBatchState.Running, null);
+				await job.TryUpdateBatchAsync(job.Batches[0].Id, null, JobStepBatchState.Running, null);
 			}
 
 			for (int i = 0; i < numBatchesReady; i++)
 			{
 				IJob job = await AddPlaceholderJobAsync(graph, streamConfig.Id, nodeForAgentType1);
-				await JobCollection.TryUpdateBatchAsync(job, graph, job.Batches[0].Id, null, JobStepBatchState.Ready, null);
+				await job.TryUpdateBatchAsync(job.Batches[0].Id, null, JobStepBatchState.Ready, null);
 			}
 
 			return (new(JobCollection, GraphCollection, StreamCollection, Clock, Cache, isDowntimeActive, GlobalConfig), poolSize, pool, agents);

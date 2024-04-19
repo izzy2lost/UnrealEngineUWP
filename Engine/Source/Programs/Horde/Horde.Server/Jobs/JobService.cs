@@ -374,7 +374,7 @@ namespace Horde.Server.Jobs
 				IReadOnlyList<(LabelState, LabelOutcome)> oldLabelStates = newJob.GetLabelStates(graph);
 
 				// Update the new list of job steps
-				newJob = await _jobs.TryUpdateJobAsync(newJob, graph, name, priority, autoSubmit, null, null, abortedByUserId, onCompleteTriggerId, reports, arguments, labelIdxToTriggerId, cancellationToken: cancellationToken);
+				newJob = await newJob.TryUpdateJobAsync(name, priority, autoSubmit, null, null, abortedByUserId, onCompleteTriggerId, reports, arguments, labelIdxToTriggerId, cancellationToken: cancellationToken);
 				if (newJob != null)
 				{
 					// Update any badges that have been modified
@@ -675,11 +675,10 @@ namespace Horde.Server.Jobs
 		/// Attempts to update the node groups to be executed for a job. Fails if another write happens in the meantime.
 		/// </summary>
 		/// <param name="job">The job to update</param>
-		/// <param name="oldGraph">Old graph for this job</param>
 		/// <param name="newGraph">New graph for this job</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>True if the groups were updated to the given list. False if another write happened first.</returns>
-		public async Task<IJob?> TryUpdateGraphAsync(IJob job, IGraph oldGraph, IGraph newGraph, CancellationToken cancellationToken)
+		public async Task<IJob?> TryUpdateGraphAsync(IJob job, IGraph newGraph, CancellationToken cancellationToken)
 		{
 			using TelemetrySpan span = _tracer.StartActiveSpan($"{nameof(JobService)}.{nameof(TryUpdateGraphAsync)}");
 			span.SetAttribute("Job", job.Id.ToString());
@@ -689,7 +688,7 @@ namespace Horde.Server.Jobs
 
 			IReadOnlyList<(LabelState, LabelOutcome)> oldLabelStates = job.GetLabelStates(newGraph);
 
-			IJob? newJob = await _jobs.TryUpdateGraphAsync(job, oldGraph, newGraph, cancellationToken);
+			IJob? newJob = await job.TryUpdateGraphAsync(newGraph, cancellationToken);
 			if (newJob != null)
 			{
 				await _jobTaskSource.UpdateUgsBadgesAsync(newJob, newGraph, oldLabelStates, cancellationToken);
@@ -953,8 +952,7 @@ namespace Horde.Server.Jobs
 		/// <returns>The updated job, otherwise null</returns>
 		public async Task<IJob?> TryUpdateBatchAsync(IJob job, JobStepBatchId batchId, LogId? newLogId = null, JobStepBatchState? newState = null, JobStepBatchError? newError = null, CancellationToken cancellationToken = default)
 		{
-			IGraph graph = await GetGraphAsync(job, cancellationToken);
-			return await _jobs.TryUpdateBatchAsync(job, graph, batchId, newLogId, newState, newError, cancellationToken);
+			return await job.TryUpdateBatchAsync(batchId, newLogId, newState, newError, cancellationToken);
 		}
 
 		/// <summary>
@@ -1055,7 +1053,7 @@ namespace Horde.Server.Jobs
 			}
 
 			// Update the step
-			IJob? newJob = await _jobs.TryUpdateStepAsync(job, graph, batchId, stepId, newState, newOutcome, newError, newAbortRequested, newAbortByUserId, newLogId, newTriggerId, newRetryByUserId, newPriority, newReports, newProperties, cancellationToken);
+			IJob? newJob = await job.TryUpdateStepAsync(batchId, stepId, newState, newOutcome, newError, newAbortRequested, newAbortByUserId, newLogId, newTriggerId, newRetryByUserId, newPriority, newReports, newProperties, cancellationToken);
 			if (newJob != null)
 			{
 				job = newJob;
@@ -1243,7 +1241,7 @@ namespace Horde.Server.Jobs
 
 			for (; ; )
 			{
-				IJob? newJob = await _jobs.TryUpdateJobAsync(job, graph, autoSubmitChange: change, autoSubmitMessage: message, cancellationToken: cancellationToken);
+				IJob? newJob = await job.TryUpdateJobAsync(autoSubmitChange: change, autoSubmitMessage: message, cancellationToken: cancellationToken);
 				if (newJob != null)
 				{
 					return newJob;
@@ -1331,7 +1329,7 @@ namespace Horde.Server.Jobs
 				// Update the job
 				JobId chainedJobId = JobIdUtils.GenerateNewId();
 
-				IJob? newJob = await _jobs.TryUpdateJobAsync(job, graph, jobTrigger: new KeyValuePair<TemplateId, JobId>(jobTrigger.TemplateRefId, chainedJobId));
+				IJob? newJob = await job.TryUpdateJobAsync(jobTrigger: new KeyValuePair<TemplateId, JobId>(jobTrigger.TemplateRefId, chainedJobId));
 				if (newJob != null)
 				{
 					TemplateRefConfig? templateRefConfig;

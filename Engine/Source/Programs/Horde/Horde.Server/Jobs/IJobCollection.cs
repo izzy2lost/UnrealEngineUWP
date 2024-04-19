@@ -5,20 +5,14 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
-using EpicGames.Horde.Agents;
-using EpicGames.Horde.Agents.Leases;
-using EpicGames.Horde.Agents.Pools;
-using EpicGames.Horde.Agents.Sessions;
 using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Jobs.Bisect;
 using EpicGames.Horde.Jobs.Templates;
-using EpicGames.Horde.Logs;
 using EpicGames.Horde.Streams;
 using EpicGames.Horde.Users;
 using Horde.Server.Acls;
 using Horde.Server.Jobs.Graphs;
 using Horde.Server.Streams;
-using MongoDB.Bson;
 
 namespace Horde.Server.Jobs
 {
@@ -206,78 +200,6 @@ namespace Horde.Server.Jobs
 		Task<IReadOnlyList<IJob>> FindLatestByStreamWithTemplatesAsync(StreamId streamId, TemplateId[] templates, UserId? preflightStartedByUser = null, DateTimeOffset? maxCreateTime = null, DateTimeOffset? modifiedAfter = null, int? index = null, int? count = null, bool consistentRead = false, CancellationToken cancellationToken = default);
 
 		/// <summary>
-		/// Updates a new job
-		/// </summary>
-		/// <param name="job">The job document to update</param>
-		/// <param name="graph">Graph for the job</param>
-		/// <param name="name">Name of the job</param>
-		/// <param name="priority">Priority of the job</param>
-		/// <param name="autoSubmit">Automatically submit the job on completion</param>
-		/// <param name="autoSubmitChange">Changelist that was automatically submitted</param>
-		/// <param name="autoSubmitMessage"></param>
-		/// <param name="abortedByUserId">Name of the user that aborted the job</param>
-		/// <param name="notificationTriggerId">Id for a notification trigger</param>
-		/// <param name="reports">New reports</param>
-		/// <param name="arguments">New arguments for the job</param>
-		/// <param name="labelIdxToTriggerId">New trigger ID for a label in the job</param>
-		/// <param name="jobTrigger">New downstream job id</param>
-		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		Task<IJob?> TryUpdateJobAsync(IJob job, IGraph graph, string? name = null, Priority? priority = null, bool? autoSubmit = null, int? autoSubmitChange = null, string? autoSubmitMessage = null, UserId? abortedByUserId = null, ObjectId? notificationTriggerId = null, List<Report>? reports = null, List<string>? arguments = null, KeyValuePair<int, ObjectId>? labelIdxToTriggerId = null, KeyValuePair<TemplateId, JobId>? jobTrigger = null, CancellationToken cancellationToken = default);
-
-		/// <summary>
-		/// Updates the state of a batch
-		/// </summary>
-		/// <param name="job">Job to update</param>
-		/// <param name="graph">The graph for this job</param>
-		/// <param name="batchId">Unique id of the batch to update</param>
-		/// <param name="newLogId">The new log file id</param>
-		/// <param name="newState">New state of the jobstep</param>
-		/// <param name="newError">Error code for the batch</param>
-		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		/// <returns>True if the job was updated, false if it was deleted</returns>
-		Task<IJob?> TryUpdateBatchAsync(IJob job, IGraph graph, JobStepBatchId batchId, LogId? newLogId, JobStepBatchState? newState, JobStepBatchError? newError, CancellationToken cancellationToken = default);
-
-		/// <summary>
-		/// Update a jobstep state
-		/// </summary>
-		/// <param name="job">Job to update</param>
-		/// <param name="graph">The graph for this job</param>
-		/// <param name="batchId">Unique id of the batch containing the step</param>
-		/// <param name="stepId">Unique id of the step to update</param>
-		/// <param name="newState">New state of the jobstep</param>
-		/// <param name="newOutcome">New outcome of the jobstep</param>
-		/// <param name="newError">New error annotation for this jobstep</param>
-		/// <param name="newAbortRequested">New state of request abort</param>
-		/// <param name="newAbortByUserId">New name of user that requested the abort</param>
-		/// <param name="newLogId">New log id for the jobstep</param>
-		/// <param name="newNotificationTriggerId">New id for a notification trigger</param>
-		/// <param name="newRetryByUserId">Whether the step should be retried</param>
-		/// <param name="newPriority">New priority for this step</param>
-		/// <param name="newReports">New report documents</param>
-		/// <param name="newProperties">Property changes. Any properties with a null value will be removed.</param>
-		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		/// <returns>True if the job was updated, false if it was deleted in the meantime</returns>
-		Task<IJob?> TryUpdateStepAsync(IJob job, IGraph graph, JobStepBatchId batchId, JobStepId stepId, JobStepState newState = default, JobStepOutcome newOutcome = default, JobStepError? newError = null, bool? newAbortRequested = null, UserId? newAbortByUserId = null, LogId? newLogId = null, ObjectId? newNotificationTriggerId = null, UserId? newRetryByUserId = null, Priority? newPriority = null, List<Report>? newReports = null, Dictionary<string, string?>? newProperties = null, CancellationToken cancellationToken = default);
-
-		/// <summary>
-		/// Attempts to update the node groups to be executed for a job. Fails if another write happens in the meantime.
-		/// </summary>
-		/// <param name="job">The job to update</param>
-		/// <param name="oldGraph">Old graph for this job</param>
-		/// <param name="newGraph">New graph for this job</param>
-		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		/// <returns>True if the groups were updated to the given list. False if another write happened first.</returns>
-		Task<IJob?> TryUpdateGraphAsync(IJob job, IGraph oldGraph, IGraph newGraph, CancellationToken cancellationToken = default);
-
-		/// <summary>
-		/// Removes a job from the dispatch queue. Ignores the state of any batches still remaining to execute. Should only be used to correct for inconsistent state.
-		/// </summary>
-		/// <param name="job">Job</param>
-		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		/// <returns></returns>
-		Task<IJob?> TryRemoveFromDispatchQueueAsync(IJob job, CancellationToken cancellationToken = default);
-
-		/// <summary>
 		/// Adds an issue to a job
 		/// </summary>
 		/// <param name="jobId">The job id</param>
@@ -292,61 +214,6 @@ namespace Horde.Server.Jobs
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Sorted list of jobs to execute</returns>
 		Task<IReadOnlyList<IJob>> GetDispatchQueueAsync(CancellationToken cancellationToken = default);
-
-		/// <summary>
-		/// Marks a job as skipped
-		/// </summary>
-		/// <param name="job">The job to update</param>
-		/// <param name="graph">Graph for the job</param>
-		/// <param name="reason">Reason for this batch being failed</param>
-		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		/// <returns>Updated version of the job</returns>
-		Task<IJob?> SkipAllBatchesAsync(IJob? job, IGraph graph, JobStepBatchError reason, CancellationToken cancellationToken = default);
-
-		/// <summary>
-		/// Marks a batch as skipped
-		/// </summary>
-		/// <param name="job">The job to update</param>
-		/// <param name="batchId">The batch to mark as skipped</param>
-		/// <param name="graph">Graph for the job</param>
-		/// <param name="reason">Reason for this batch being failed</param>
-		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		/// <returns>Updated version of the job</returns>
-		Task<IJob?> SkipBatchAsync(IJob? job, JobStepBatchId batchId, IGraph graph, JobStepBatchError reason, CancellationToken cancellationToken = default);
-
-		/// <summary>
-		/// Abort an agent's lease, and update the payload accordingly
-		/// </summary>
-		/// <param name="job">The job to update</param>
-		/// <param name="batchIdx">Index of the batch to cancel</param>
-		/// <param name="graph">Graph for the job</param>
-		/// <param name="reason">Reason for this batch being failed</param>
-		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		/// <returns>True if the job is updated</returns>
-		Task<IJob?> TryFailBatchAsync(IJob job, int batchIdx, IGraph graph, JobStepBatchError reason, CancellationToken cancellationToken = default);
-
-		/// <summary>
-		/// Attempt to assign a lease to execute a batch
-		/// </summary>
-		/// <param name="job">The job containing the batch</param>
-		/// <param name="batchIdx">Index of the batch</param>
-		/// <param name="poolId">The pool id</param>
-		/// <param name="agentId">New agent to execute the batch</param>
-		/// <param name="sessionId">Session of the agent that is to execute the batch</param>
-		/// <param name="leaseId">The lease unique id</param>
-		/// <param name="logId">Unique id of the log for the batch</param>
-		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		/// <returns>True if the batch is updated</returns>
-		Task<IJob?> TryAssignLeaseAsync(IJob job, int batchIdx, PoolId poolId, AgentId agentId, SessionId sessionId, LeaseId leaseId, LogId logId, CancellationToken cancellationToken = default);
-
-		/// <summary>
-		/// Cancel a lease reservation on a batch (before it has started)
-		/// </summary>
-		/// <param name="job">The job containing the lease</param>
-		/// <param name="batchIdx">Index of the batch to cancel</param>
-		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		/// <returns>True if the job is updated</returns>
-		Task<IJob?> TryCancelLeaseAsync(IJob job, int batchIdx, CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Upgrade all documents in the collection

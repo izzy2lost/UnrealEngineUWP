@@ -177,17 +177,16 @@ namespace Horde.Server.Tests.Jobs.Bisect
 
 		async Task<IJob> SetJobOutcomeAsync(IJob job, IGraph graph, JobStepOutcome outcome)
 		{
-			IGraph oldGraph = await GraphCollection.GetAsync(job.GraphHash);
-			job = Deref(await JobCollection.TryUpdateGraphAsync(job, oldGraph, graph));
+			job = Deref(await job.TryUpdateGraphAsync(graph));
 
-			job = Deref(await JobCollection.TryUpdateStepAsync(job, graph, job.Batches[0].Id, job.Batches[0].Steps[0].Id, JobStepState.Completed, JobStepOutcome.Success));
-			job = Deref(await JobCollection.TryUpdateBatchAsync(job, graph, job.Batches[0].Id, null, JobStepBatchState.Complete, null));
+			job = Deref(await job.TryUpdateStepAsync(job.Batches[0].Id, job.Batches[0].Steps[0].Id, JobStepState.Completed, JobStepOutcome.Success));
+			job = Deref(await job.TryUpdateBatchAsync(job.Batches[0].Id, null, JobStepBatchState.Complete, null));
 
 			IJobStepBatch batch = job.Batches[^1];
 			IJobStep step = batch.Steps[^1];
 
-			job = Deref(await JobCollection.TryUpdateStepAsync(job, graph, batch.Id, step.Id, JobStepState.Completed, outcome));
-			job = Deref(await JobCollection.TryUpdateBatchAsync(job, graph, batch.Id, null, JobStepBatchState.Complete, null));
+			job = Deref(await job.TryUpdateStepAsync(batch.Id, step.Id, JobStepState.Completed, outcome));
+			job = Deref(await job.TryUpdateBatchAsync(batch.Id, null, JobStepBatchState.Complete, null));
 
 			INodeGroup group = graph.Groups[batch.GroupIdx];
 			INode node = group.Nodes[step.NodeIdx];

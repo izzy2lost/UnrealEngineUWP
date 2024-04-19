@@ -480,7 +480,7 @@ namespace Horde.Server.Tests.Server
 			};
 
 			// Set the session ID on the job batch to pass auth later
-			Deref(await JobCollection.TryAssignLeaseAsync(fixture.Job1, 0, new PoolId("foo"),
+			Deref(await fixture.Job1.TryAssignLeaseAsync(0, new PoolId("foo"),
 				new AgentId("test"), sessionId,
 				new LeaseId(BinaryIdUtils.CreateNew()), LogIdUtils.GenerateNewId()));
 			/*

@@ -81,33 +81,33 @@ namespace Horde.Server.Tests.Devices
 			return node;
 		}
 
-		async Task<IJob> StartBatchAsync(IJob job, IGraph graph, int batchIdx)
+		static async Task<IJob> StartBatchAsync(IJob job, int batchIdx)
 		{
 			Assert.AreEqual(JobStepBatchState.Ready, job.Batches[batchIdx].State);
-			job = Deref(await JobCollection.TryUpdateBatchAsync(job, graph, job.Batches[batchIdx].Id, null, JobStepBatchState.Running, null));
+			job = Deref(await job.TryUpdateBatchAsync(job.Batches[batchIdx].Id, null, JobStepBatchState.Running, null));
 			Assert.AreEqual(JobStepBatchState.Running, job.Batches[batchIdx].State);
 			return job;
 		}
 
-		async Task<IJob> StartStepAsync(IJob job, IGraph graph, int batchIdx, int stepIdx)
+		static async Task<IJob> StartStepAsync(IJob job, int batchIdx, int stepIdx)
 		{
 			Assert.AreEqual(JobStepState.Ready, job.Batches[batchIdx].Steps[stepIdx].State);
-			job = Deref(await JobCollection.TryUpdateStepAsync(job, graph, job.Batches[batchIdx].Id, job.Batches[batchIdx].Steps[stepIdx].Id, JobStepState.Running, JobStepOutcome.Success));
+			job = Deref(await job.TryUpdateStepAsync(job.Batches[batchIdx].Id, job.Batches[batchIdx].Steps[stepIdx].Id, JobStepState.Running, JobStepOutcome.Success));
 			return job;
 		}
 
-		async Task<IJob> FinishStepAsync(IJob job, IGraph graph, int batchIdx, int stepIdx, JobStepOutcome outcome)
+		static async Task<IJob> FinishStepAsync(IJob job, int batchIdx, int stepIdx, JobStepOutcome outcome)
 		{
-			job = Deref(await JobCollection.TryUpdateStepAsync(job, graph, job.Batches[batchIdx].Id, job.Batches[batchIdx].Steps[stepIdx].Id, JobStepState.Completed, outcome));
+			job = Deref(await job.TryUpdateStepAsync(job.Batches[batchIdx].Id, job.Batches[batchIdx].Steps[stepIdx].Id, JobStepState.Completed, outcome));
 			Assert.AreEqual(JobStepState.Completed, job.Batches[batchIdx].Steps[stepIdx].State);
 			Assert.AreEqual(outcome, job.Batches[batchIdx].Steps[stepIdx].Outcome);
 			return job;
 		}
 
-		async Task<IJob> RunStepAsync(IJob job, IGraph graph, int batchIdx, int stepIdx, JobStepOutcome outcome)
+		static async Task<IJob> RunStepAsync(IJob job, int batchIdx, int stepIdx, JobStepOutcome outcome)
 		{
-			job = Deref(await StartStepAsync(job, graph, batchIdx, stepIdx));
-			return Deref(await FinishStepAsync(job, graph, batchIdx, stepIdx, outcome));
+			job = Deref(await StartStepAsync(job, batchIdx, stepIdx));
+			return Deref(await FinishStepAsync(job, batchIdx, stepIdx, outcome));
 		}
 
 		JobStepId GetStepId(IJob job, string nodeName)
@@ -198,8 +198,8 @@ namespace Horde.Server.Tests.Devices
 
 			IJob job = await JobCollection.AddAsync(JobIdUtils.GenerateNewId(), new StreamId("ue5-main"), new TemplateId("test-build"), ContentHash.SHA1("hello"), baseGraph, "Test job", 123, 123, options);
 
-			job = await StartBatchAsync(job, baseGraph, 0);
-			job = await RunStepAsync(job, baseGraph, 0, 0, JobStepOutcome.Success); // Setup Build
+			job = await StartBatchAsync(job, 0);
+			job = await RunStepAsync(job, 0, 0, JobStepOutcome.Success); // Setup Build
 
 			List<NewGroup> newGroups = new List<NewGroup>();
 
@@ -240,7 +240,7 @@ namespace Horde.Server.Tests.Devices
 			AddNode(testGroup, "Run Tests", new[] { "Run Test 1", "Run Test 2", "Run Test 3", "Run Test 4" });
 
 			_graph = await GraphCollection.AppendAsync(baseGraph, newGroups, null, null);
-			job = Deref(await JobCollection.TryUpdateGraphAsync(job, baseGraph, _graph));
+			job = Deref(await job.TryUpdateGraphAsync(_graph));
 
 			return job;
 		}
@@ -312,32 +312,30 @@ namespace Horde.Server.Tests.Devices
 			await SetupDevicesAsync();
 			IJob job = await SetupJobAsync("DeviceReserveNodes");
 
-			IGraph? graph = _graph!;
+			job = await StartBatchAsync(job, 1);
+			job = await RunStepAsync(job, 1, 0, JobStepOutcome.Success); // Update Version Files
+			job = await RunStepAsync(job, 1, 1, JobStepOutcome.Success); // Compile Editor
 
-			job = await StartBatchAsync(job, graph, 1);
-			job = await RunStepAsync(job, graph, 1, 0, JobStepOutcome.Success); // Update Version Files
-			job = await RunStepAsync(job, graph, 1, 1, JobStepOutcome.Success); // Compile Editor
+			job = await StartBatchAsync(job, 2);
+			job = await RunStepAsync(job, 2, 0, JobStepOutcome.Success); // Compile Client
 
-			job = await StartBatchAsync(job, graph, 2);
-			job = await RunStepAsync(job, graph, 2, 0, JobStepOutcome.Success); // Compile Client
+			job = await StartBatchAsync(job, 3);
+			job = await RunStepAsync(job, 3, 0, JobStepOutcome.Success); // Cook Client
 
-			job = await StartBatchAsync(job, graph, 3);
-			job = await RunStepAsync(job, graph, 3, 0, JobStepOutcome.Success); // Cook Client
-
-			job = await StartBatchAsync(job, graph, 4);
+			job = await StartBatchAsync(job, 4);
 
 			// Install  the build
 			JobStepId stepId = GetStepId(job, "Install Build");
-			job = await StartStepAsync(job, graph, 4, 0); // Install Build														  
+			job = await StartStepAsync(job, 4, 0); // Install Build														  
 			LegacyCreateReservationRequest request = SetupReservationTestAsync(job, stepId: stepId);
 			GetLegacyReservationResponse installReservation = ResultToValue(await DeviceController!.CreateDeviceReservationV1Async(request));
-			job = await FinishStepAsync(job, graph, 4, 0, JobStepOutcome.Success); // Install Build
+			job = await FinishStepAsync(job, 4, 0, JobStepOutcome.Success); // Install Build
 
 			for (int i = 1; i < 5; i++)
 			{
 				// Run Test 1
 				stepId = GetStepId(job, $"Run Test {i}");
-				job = await StartStepAsync(job, graph, 4, i);
+				job = await StartStepAsync(job, 4, i);
 
 				request = SetupReservationTestAsync(job, stepId: stepId);
 
@@ -352,7 +350,7 @@ namespace Horde.Server.Tests.Devices
 					Assert.AreEqual((result.Result as ConflictObjectResult)!.Value, "Reserved nodes must not run in parallel: Run Test 3,Run Test 4");
 
 					// finish the step
-					job = await FinishStepAsync(job, graph, 4, 3, JobStepOutcome.Success);
+					job = await FinishStepAsync(job, 4, 3, JobStepOutcome.Success);
 
 					result = await DeviceController!.CreateDeviceReservationV1Async(request);
 					reservation = ResultToValue(result);
@@ -369,7 +367,7 @@ namespace Horde.Server.Tests.Devices
 				if (i != 3)
 				{
 					await DeviceController!.DeleteReservationV1Async(reservation.Guid);
-					job = await FinishStepAsync(job, graph, 4, i, JobStepOutcome.Success);
+					job = await FinishStepAsync(job, 4, i, JobStepOutcome.Success);
 				}
 
 				await DeviceService.TickForTestingAsync();
@@ -394,23 +392,21 @@ namespace Horde.Server.Tests.Devices
 			await SetupDevicesAsync();
 			IJob job = await SetupJobAsync("DeviceReserve");
 
-			IGraph? graph = _graph!;
+			job = await StartBatchAsync(job, 1);
+			job = await RunStepAsync(job, 1, 0, JobStepOutcome.Success); // Update Version Files
+			job = await RunStepAsync(job, 1, 1, JobStepOutcome.Success); // Compile Editor
 
-			job = await StartBatchAsync(job, graph, 1);
-			job = await RunStepAsync(job, graph, 1, 0, JobStepOutcome.Success); // Update Version Files
-			job = await RunStepAsync(job, graph, 1, 1, JobStepOutcome.Success); // Compile Editor
+			job = await StartBatchAsync(job, 2);
+			job = await RunStepAsync(job, 2, 0, JobStepOutcome.Success); // Compile Client
 
-			job = await StartBatchAsync(job, graph, 2);
-			job = await RunStepAsync(job, graph, 2, 0, JobStepOutcome.Success); // Compile Client
+			job = await StartBatchAsync(job, 3);
+			job = await RunStepAsync(job, 3, 0, JobStepOutcome.Success); // Cook Client
 
-			job = await StartBatchAsync(job, graph, 3);
-			job = await RunStepAsync(job, graph, 3, 0, JobStepOutcome.Success); // Cook Client
-
-			job = await StartBatchAsync(job, graph, 4);
+			job = await StartBatchAsync(job, 4);
 
 			// Install  the build
 			JobStepId stepId = GetStepId(job, "Install Build");
-			job = await StartStepAsync(job, graph, 4, 0); // Install Build														  
+			job = await StartStepAsync(job, 4, 0); // Install Build														  
 			LegacyCreateReservationRequest request = SetupReservationTestAsync(job, stepId: stepId, modelId: "Base");
 			GetLegacyReservationResponse installReservation = ResultToValue(await DeviceController!.CreateDeviceReservationV1Async(request));
 			Assert.IsTrue(installReservation.InstallRequired);
@@ -422,13 +418,13 @@ namespace Horde.Server.Tests.Devices
 			Assert.IsTrue(installReservation.InstallRequired);
 			Assert.AreNotEqual(installProblemDeviceName, installReservation.DeviceNames[0]);
 
-			job = await FinishStepAsync(job, graph, 4, 0, JobStepOutcome.Success); // Install Build
+			job = await FinishStepAsync(job, 4, 0, JobStepOutcome.Success); // Install Build
 
 			for (int i = 1; i < 5; i++)
 			{
 				// Run Test 1
 				stepId = GetStepId(job, $"Run Test {i}");
-				job = await StartStepAsync(job, graph, 4, i);
+				job = await StartStepAsync(job, 4, i);
 
 				if (i == 2)
 				{
@@ -480,7 +476,7 @@ namespace Horde.Server.Tests.Devices
 				}
 
 				await DeviceController!.DeleteReservationV1Async(reservation.Guid);
-				job = await FinishStepAsync(job, graph, 4, i, JobStepOutcome.Success);
+				job = await FinishStepAsync(job, 4, i, JobStepOutcome.Success);
 
 				await DeviceService.TickForTestingAsync();
 			}

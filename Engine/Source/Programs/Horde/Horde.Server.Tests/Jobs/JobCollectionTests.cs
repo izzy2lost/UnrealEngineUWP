@@ -44,29 +44,29 @@ namespace Horde.Server.Tests.Jobs
 			return node;
 		}
 
-		Task<IJob> RunBatchAsync(IJob job, IGraph graph, int batchIdx)
+		static Task<IJob> RunBatchAsync(IJob job, int batchIdx)
 		{
-			return UpdateBatchAsync(job, graph, batchIdx, JobStepBatchState.Running);
+			return UpdateBatchAsync(job, batchIdx, JobStepBatchState.Running);
 		}
 
-		async Task<IJob> UpdateBatchAsync(IJob job, IGraph graph, int batchIdx, JobStepBatchState state)
+		static async Task<IJob> UpdateBatchAsync(IJob job, int batchIdx, JobStepBatchState state)
 		{
 			Assert.AreEqual(JobStepBatchState.Ready, job.Batches[batchIdx].State);
-			job = Deref(await JobCollection.TryAssignLeaseAsync(job, batchIdx, new PoolId("foo"), new AgentId("agent"), new SessionId(BinaryIdUtils.CreateNew()), new LeaseId(BinaryIdUtils.CreateNew()), new LogId(BinaryIdUtils.CreateNew())));
+			job = Deref(await job.TryAssignLeaseAsync(batchIdx, new PoolId("foo"), new AgentId("agent"), new SessionId(BinaryIdUtils.CreateNew()), new LeaseId(BinaryIdUtils.CreateNew()), new LogId(BinaryIdUtils.CreateNew())));
 			if (job.Batches[batchIdx].State != state)
 			{
-				job = Deref(await JobCollection.TryUpdateBatchAsync(job, graph, job.Batches[batchIdx].Id, null, state, null));
+				job = Deref(await job.TryUpdateBatchAsync(job.Batches[batchIdx].Id, null, state, null));
 				Assert.AreEqual(state, job.Batches[batchIdx].State);
 			}
 			return job;
 		}
 
-		async Task<IJob> RunStepAsync(IJob job, IGraph graph, int batchIdx, int stepIdx, JobStepOutcome outcome)
+		static async Task<IJob> RunStepAsync(IJob job, int batchIdx, int stepIdx, JobStepOutcome outcome)
 		{
 			Assert.AreEqual(JobStepState.Ready, job.Batches[batchIdx].Steps[stepIdx].State);
-			job = Deref(await JobCollection.TryUpdateStepAsync(job, graph, job.Batches[batchIdx].Id, job.Batches[batchIdx].Steps[stepIdx].Id, JobStepState.Running, JobStepOutcome.Success));
+			job = Deref(await job.TryUpdateStepAsync(job.Batches[batchIdx].Id, job.Batches[batchIdx].Steps[stepIdx].Id, JobStepState.Running, JobStepOutcome.Success));
 			Assert.AreEqual(JobStepState.Running, job.Batches[batchIdx].Steps[stepIdx].State);
-			job = Deref(await JobCollection.TryUpdateStepAsync(job, graph, job.Batches[batchIdx].Id, job.Batches[batchIdx].Steps[stepIdx].Id, JobStepState.Completed, outcome));
+			job = Deref(await job.TryUpdateStepAsync(job.Batches[batchIdx].Id, job.Batches[batchIdx].Steps[stepIdx].Id, JobStepState.Completed, outcome));
 			Assert.AreEqual(JobStepState.Completed, job.Batches[batchIdx].Steps[stepIdx].State);
 			Assert.AreEqual(outcome, job.Batches[batchIdx].Steps[stepIdx].Outcome);
 			return job;
@@ -86,8 +86,8 @@ namespace Horde.Server.Tests.Jobs
 
 			IJob job = await JobCollection.AddAsync(JobIdUtils.GenerateNewId(), new StreamId("ue4-main"), new TemplateId("test-build"), ContentHash.SHA1("hello"), baseGraph, "Test job", 123, 123, options);
 
-			job = await RunBatchAsync(job, baseGraph, 0);
-			job = await RunStepAsync(job, baseGraph, 0, 0, JobStepOutcome.Success); // Setup Build
+			job = await RunBatchAsync(job, 0);
+			job = await RunStepAsync(job, 0, 0, JobStepOutcome.Success); // Setup Build
 
 			List<NewGroup> newGroups = new List<NewGroup>();
 
@@ -104,17 +104,17 @@ namespace Horde.Server.Tests.Jobs
 			AddNode(publishGroup, "Post-Publish Client", null, x => x.OrderDependencies = new List<string> { "Publish Client" });
 
 			IGraph graph = await GraphCollection.AppendAsync(baseGraph, newGroups, null, null);
-			job = Deref(await JobCollection.TryUpdateGraphAsync(job, baseGraph, graph));
+			job = Deref(await job.TryUpdateGraphAsync(graph));
 
-			job = await RunBatchAsync(job, graph, 1);
-			job = await RunStepAsync(job, graph, 1, 0, JobStepOutcome.Success); // Update Version Files
-			job = await RunStepAsync(job, graph, 1, 1, JobStepOutcome.Success); // Compile Editor
+			job = await RunBatchAsync(job, 1);
+			job = await RunStepAsync(job, 1, 0, JobStepOutcome.Success); // Update Version Files
+			job = await RunStepAsync(job, 1, 1, JobStepOutcome.Success); // Compile Editor
 
-			job = await RunBatchAsync(job, graph, 2);
-			job = await RunStepAsync(job, graph, 2, 0, JobStepOutcome.Success); // Compile Client
+			job = await RunBatchAsync(job, 2);
+			job = await RunStepAsync(job, 2, 0, JobStepOutcome.Success); // Compile Client
 
-			job = await RunBatchAsync(job, graph, 3);
-			job = await RunStepAsync(job, graph, 3, 0, JobStepOutcome.Failure); // Cook Client
+			job = await RunBatchAsync(job, 3);
+			job = await RunStepAsync(job, 3, 0, JobStepOutcome.Failure); // Cook Client
 			Assert.AreEqual(JobStepState.Skipped, job.Batches[3].Steps[1].State); // Publish Client
 			Assert.AreEqual(JobStepState.Skipped, job.Batches[3].Steps[2].State); // Post-Publish Client
 		}
@@ -147,21 +147,21 @@ namespace Horde.Server.Tests.Jobs
 
 			IJob job = await JobCollection.AddAsync(JobIdUtils.GenerateNewId(), new StreamId("ue4-main"), new TemplateId("test-build"), ContentHash.SHA1("hello"), baseGraph, "Test job", 123, 123, options);
 
-			job = await RunBatchAsync(job, baseGraph, 0);
-			job = await RunStepAsync(job, baseGraph, 0, 0, JobStepOutcome.Success); // Setup Build
+			job = await RunBatchAsync(job, 0);
+			job = await RunStepAsync(job, 0, 0, JobStepOutcome.Success); // Setup Build
 
-			job = Deref(await JobCollection.TryUpdateGraphAsync(job, baseGraph, graph1));
+			job = Deref(await job.TryUpdateGraphAsync(graph1));
 			Assert.AreEqual(4, job.Batches.Count);
 			Assert.AreEqual(JobStepState.Completed, job.Batches[0].Steps[0].State); // Setup Build
 			Assert.AreEqual(JobStepState.Ready, job.Batches[1].Steps[0].State); // Initial Node
 			Assert.AreEqual(JobStepState.Waiting, job.Batches[2].Steps[0].State); // Split Multi-Agent Cook
 			Assert.AreEqual(JobStepState.Waiting, job.Batches[3].Steps[0].State); // Gather
 
-			job = await RunBatchAsync(job, graph1, 1);
-			job = await RunStepAsync(job, graph1, 1, 0, JobStepOutcome.Success); // Initial Node
+			job = await RunBatchAsync(job, 1);
+			job = await RunStepAsync(job, 1, 0, JobStepOutcome.Success); // Initial Node
 
-			job = await RunBatchAsync(job, graph1, 2);
-			job = await RunStepAsync(job, graph1, 2, 0, JobStepOutcome.Success); // Split Multi-Agent Cook
+			job = await RunBatchAsync(job, 2);
+			job = await RunStepAsync(job, 2, 0, JobStepOutcome.Success); // Split Multi-Agent Cook
 
 			Assert.AreEqual(4, job.Batches.Count);
 			Assert.AreEqual(JobStepState.Completed, job.Batches[0].Steps[0].State); // Setup Build
@@ -169,7 +169,7 @@ namespace Horde.Server.Tests.Jobs
 			Assert.AreEqual(JobStepState.Completed, job.Batches[2].Steps[0].State); // Split Multi-Agent Cook
 			Assert.AreEqual(JobStepState.Ready, job.Batches[3].Steps[0].State); // Gather
 
-			await JobCollection.TryUpdateGraphAsync(job, graph1, graph2);
+			job = Deref(await job.TryUpdateGraphAsync(graph2));
 
 			Assert.AreEqual(6, job.Batches.Count);
 			Assert.AreEqual(JobStepState.Completed, job.Batches[0].Steps[0].State); // Setup Build
@@ -179,16 +179,16 @@ namespace Horde.Server.Tests.Jobs
 			Assert.AreEqual(JobStepState.Ready, job.Batches[4].Steps[0].State); // Cook Item 2
 			Assert.AreEqual(JobStepState.Waiting, job.Batches[5].Steps[0].State); // Gather
 
-			job = await RunBatchAsync(job, graph2, 3);
-			job = await RunStepAsync(job, graph2, 3, 0, JobStepOutcome.Success); // Split Multi-Agent Cook
+			job = await RunBatchAsync(job, 3);
+			job = await RunStepAsync(job, 3, 0, JobStepOutcome.Success); // Split Multi-Agent Cook
 
 			Assert.AreEqual(6, job.Batches.Count);
 			Assert.AreEqual(JobStepState.Completed, job.Batches[3].Steps[0].State); // Cook Item 1
 			Assert.AreEqual(JobStepState.Ready, job.Batches[4].Steps[0].State); // Cook Item 2
 			Assert.AreEqual(JobStepState.Waiting, job.Batches[5].Steps[0].State); // Gather
 
-			job = await RunBatchAsync(job, graph2, 4);
-			job = await RunStepAsync(job, graph2, 4, 0, JobStepOutcome.Success); // Split Multi-Agent Cook
+			job = await RunBatchAsync(job, 4);
+			job = await RunStepAsync(job, 4, 0, JobStepOutcome.Success); // Split Multi-Agent Cook
 
 			Assert.AreEqual(6, job.Batches.Count);
 			Assert.AreEqual(JobStepState.Completed, job.Batches[3].Steps[0].State); // Cook Item 1
@@ -217,12 +217,12 @@ namespace Horde.Server.Tests.Jobs
 			IJob job = await JobCollection.AddAsync(JobIdUtils.GenerateNewId(), new StreamId("ue4-main"), new TemplateId("test-build"), ContentHash.SHA1("hello"), baseGraph, "Test job", 123, 123, options);
 
 			// Try a batch and fail it
-			job = await RunBatchAsync(job, baseGraph, 0);
-			job = Deref(await JobCollection.TryUpdateBatchAsync(job, baseGraph, job.Batches[0].Id, null, JobStepBatchState.Complete, JobStepBatchError.Incomplete));
+			job = await RunBatchAsync(job, 0);
+			job = Deref(await job.TryUpdateBatchAsync(job.Batches[0].Id, null, JobStepBatchState.Complete, JobStepBatchError.Incomplete));
 
 			// Start the replacement batch and update the graph
-			job = await RunBatchAsync(job, baseGraph, 1);
-			job = Deref(await JobCollection.TryUpdateGraphAsync(job, baseGraph, graph1));
+			job = await RunBatchAsync(job, 1);
+			job = Deref(await job.TryUpdateGraphAsync(graph1));
 
 			// Validate the new job state
 			Assert.AreEqual(3, job.Batches.Count);
@@ -243,12 +243,12 @@ namespace Horde.Server.Tests.Jobs
 			Fixture fixture = await CreateFixtureAsync();
 
 			SessionId sessionId1 = SessionIdUtils.GenerateNewId();
-			await JobCollection.TryAssignLeaseAsync(fixture.Job1, 0, new PoolId("foo"), fixture.Agent1.Id,
+			await fixture.Job1.TryAssignLeaseAsync(0, new PoolId("foo"), fixture.Agent1.Id,
 				sessionId1, new LeaseId(BinaryIdUtils.CreateNew()), LogIdUtils.GenerateNewId());
 
 			SessionId sessionId2 = SessionIdUtils.GenerateNewId();
 			IJob job = (await JobCollection.GetAsync(fixture.Job1.Id))!;
-			await JobCollection.TryAssignLeaseAsync(job, 0, new PoolId("foo"), fixture.Agent1.Id,
+			await job.TryAssignLeaseAsync(0, new PoolId("foo"), fixture.Agent1.Id,
 				sessionId2, new LeaseId(BinaryIdUtils.CreateNew()), LogIdUtils.GenerateNewId());
 
 			// Manually verify the log output
@@ -279,8 +279,8 @@ namespace Horde.Server.Tests.Jobs
 
 			IJob job = await JobCollection.AddAsync(JobIdUtils.GenerateNewId(), new StreamId("ue4-main"), new TemplateId("test-build"), ContentHash.SHA1("hello"), baseGraph, "Test job", 123, 123, options);
 
-			job = await RunBatchAsync(job, baseGraph, 0);
-			job = await RunStepAsync(job, baseGraph, 0, 0, JobStepOutcome.Success); // Setup Build
+			job = await RunBatchAsync(job, 0);
+			job = await RunStepAsync(job, 0, 0, JobStepOutcome.Success); // Setup Build
 
 			List<NewGroup> newGroups = new List<NewGroup>();
 
@@ -290,14 +290,14 @@ namespace Horde.Server.Tests.Jobs
 			AddNode(initialGroup, "Step 3", new[] { "Step 2" });
 
 			IGraph graph = await GraphCollection.AppendAsync(baseGraph, newGroups, null, null);
-			job = Deref(await JobCollection.TryUpdateGraphAsync(job, baseGraph, graph));
+			job = Deref(await job.TryUpdateGraphAsync(graph));
 
-			job = await RunBatchAsync(job, graph, 1);
-			job = await RunStepAsync(job, graph, 1, 0, JobStepOutcome.Success); // Step 1
-			job = await RunStepAsync(job, graph, 1, 1, JobStepOutcome.Success); // Step 2
+			job = await RunBatchAsync(job, 1);
+			job = await RunStepAsync(job, 1, 0, JobStepOutcome.Success); // Step 1
+			job = await RunStepAsync(job, 1, 1, JobStepOutcome.Success); // Step 2
 
 			// Force an error executing the batch
-			job = Deref(await JobCollection.TryUpdateBatchAsync(job, graph, job.Batches[1].Id, null, JobStepBatchState.Complete, JobStepBatchError.Incomplete));
+			job = Deref(await job.TryUpdateBatchAsync(job.Batches[1].Id, null, JobStepBatchState.Complete, JobStepBatchError.Incomplete));
 
 			// Check that it restarted all three nodes
 			IJob newJob = (await JobCollection.GetAsync(job.Id))!;
@@ -336,8 +336,8 @@ namespace Horde.Server.Tests.Jobs
 			IJob job = await JobCollection.AddAsync(JobIdUtils.GenerateNewId(), new StreamId("ue4-main"), new TemplateId("test-build"), ContentHash.SHA1("hello"), baseGraph, "Test job", 123, 123, options);
 			Assert.AreEqual(1, job.Batches.Count);
 
-			job = await RunBatchAsync(job, baseGraph, 0);
-			job = Deref(await JobCollection.TryUpdateBatchAsync(job, baseGraph, job.Batches[0].Id, null, JobStepBatchState.Complete, JobStepBatchError.Incomplete));
+			job = await RunBatchAsync(job, 0);
+			job = Deref(await job.TryUpdateBatchAsync(job.Batches[0].Id, null, JobStepBatchState.Complete, JobStepBatchError.Incomplete));
 
 			job = (await JobCollection.GetAsync(job.Id))!;
 			Assert.AreEqual(2, job.Batches.Count);
@@ -346,7 +346,7 @@ namespace Horde.Server.Tests.Jobs
 			Assert.AreEqual(JobStepBatchState.Ready, job.Batches[1].State);
 			Assert.AreEqual(1, job.Batches[1].Steps.Count);
 
-			job = Deref(await JobCollection.TryUpdateBatchAsync(job, baseGraph, job.Batches[1].Id, null, JobStepBatchState.Complete, JobStepBatchError.Incomplete));
+			job = Deref(await job.TryUpdateBatchAsync(job.Batches[1].Id, null, JobStepBatchState.Complete, JobStepBatchError.Incomplete));
 
 			job = (await JobCollection.GetAsync(job.Id))!;
 			Assert.AreEqual(3, job.Batches.Count);
@@ -357,7 +357,7 @@ namespace Horde.Server.Tests.Jobs
 			Assert.AreEqual(JobStepBatchState.Ready, job.Batches[2].State);
 			Assert.AreEqual(1, job.Batches[2].Steps.Count);
 
-			job = Deref(await JobCollection.TryUpdateBatchAsync(job, baseGraph, job.Batches[2].Id, null, JobStepBatchState.Complete, JobStepBatchError.Incomplete));
+			job = Deref(await job.TryUpdateBatchAsync(job.Batches[2].Id, null, JobStepBatchState.Complete, JobStepBatchError.Incomplete));
 
 			job = (await JobCollection.GetAsync(job.Id))!;
 			Assert.AreEqual(3, job.Batches.Count);
@@ -389,9 +389,9 @@ namespace Horde.Server.Tests.Jobs
 
 			// First retry
 
-			job = await RunBatchAsync(job, baseGraph, 0);
-			job = Deref(await JobCollection.TryUpdateStepAsync(job, baseGraph, job.Batches[0].Id, job.Batches[0].Steps[0].Id, newState: JobStepState.Running));
-			job = Deref(await JobCollection.TryUpdateBatchAsync(job, baseGraph, job.Batches[0].Id, null, JobStepBatchState.Complete, JobStepBatchError.Incomplete));
+			job = await RunBatchAsync(job, 0);
+			job = Deref(await job.TryUpdateStepAsync(job.Batches[0].Id, job.Batches[0].Steps[0].Id, newState: JobStepState.Running));
+			job = Deref(await job.TryUpdateBatchAsync(job.Batches[0].Id, null, JobStepBatchState.Complete, JobStepBatchError.Incomplete));
 
 			job = (await JobCollection.GetAsync(job.Id))!;
 			Assert.AreEqual(2, job.Batches.Count);
@@ -406,8 +406,8 @@ namespace Horde.Server.Tests.Jobs
 
 			// Second retry
 
-			job = Deref(await JobCollection.TryUpdateStepAsync(job, baseGraph, job.Batches[1].Id, job.Batches[1].Steps[0].Id, newState: JobStepState.Running));
-			job = Deref(await JobCollection.TryUpdateBatchAsync(job, baseGraph, job.Batches[1].Id, null, JobStepBatchState.Complete, JobStepBatchError.Incomplete));
+			job = Deref(await job.TryUpdateStepAsync(job.Batches[1].Id, job.Batches[1].Steps[0].Id, newState: JobStepState.Running));
+			job = Deref(await job.TryUpdateBatchAsync(job.Batches[1].Id, null, JobStepBatchState.Complete, JobStepBatchError.Incomplete));
 
 			job = (await JobCollection.GetAsync(job.Id))!;
 			Assert.AreEqual(3, job.Batches.Count);
@@ -427,8 +427,8 @@ namespace Horde.Server.Tests.Jobs
 
 			// Check it doesn't retry a third time
 
-			job = Deref(await JobCollection.TryUpdateStepAsync(job, baseGraph, job.Batches[2].Id, job.Batches[2].Steps[0].Id, newState: JobStepState.Running));
-			job = Deref(await JobCollection.TryUpdateBatchAsync(job, baseGraph, job.Batches[2].Id, null, JobStepBatchState.Complete, JobStepBatchError.Incomplete));
+			job = Deref(await job.TryUpdateStepAsync(job.Batches[2].Id, job.Batches[2].Steps[0].Id, newState: JobStepState.Running));
+			job = Deref(await job.TryUpdateBatchAsync(job.Batches[2].Id, null, JobStepBatchState.Complete, JobStepBatchError.Incomplete));
 
 			job = (await JobCollection.GetAsync(job.Id))!;
 			Assert.AreEqual(3, job.Batches.Count);
@@ -469,8 +469,8 @@ namespace Horde.Server.Tests.Jobs
 			IJob job = await JobCollection.AddAsync(JobIdUtils.GenerateNewId(), new StreamId("ue4-main"), new TemplateId("test-build"), ContentHash.SHA1("hello"), graph, "Test job", 123, 123, options);
 
 			// Fail the first step
-			job = await RunBatchAsync(job, graph, 0);
-			job = await RunStepAsync(job, graph, 0, 0, JobStepOutcome.Failure);
+			job = await RunBatchAsync(job, 0);
+			job = await RunStepAsync(job, 0, 0, JobStepOutcome.Failure);
 
 			Assert.AreEqual(1, job.Batches.Count);
 			Assert.AreEqual(2, job.Batches[0].Steps.Count);
@@ -480,7 +480,7 @@ namespace Horde.Server.Tests.Jobs
 			Assert.AreEqual(JobStepOutcome.Failure, job.Batches[0].Steps[1].Outcome);
 
 			// Retry the failed step (expect: new batch containing the retried step is created, skipped steps from original batch are removed)
-			job = Deref(await JobCollection.TryUpdateStepAsync(job, graph, job.Batches[0].Id, job.Batches[0].Steps[0].Id, newRetryByUserId: UserId.Anonymous));
+			job = Deref(await job.TryUpdateStepAsync(job.Batches[0].Id, job.Batches[0].Steps[0].Id, newRetryByUserId: UserId.Anonymous));
 			Assert.AreEqual(2, job.Batches.Count);
 			Assert.AreEqual(1, job.Batches[0].Steps.Count);
 			Assert.AreEqual(2, job.Batches[1].Steps.Count);
@@ -501,7 +501,7 @@ namespace Horde.Server.Tests.Jobs
 			Assert.AreEqual(JobStepOutcome.Success, step.Outcome);
 
 			// Fail the retried step
-			job = await RunStepAsync(job, graph, 1, 0, JobStepOutcome.Failure);
+			job = await RunStepAsync(job, 1, 0, JobStepOutcome.Failure);
 			Assert.AreEqual(2, job.Batches.Count);
 			Assert.AreEqual(1, job.Batches[0].Steps.Count);
 			Assert.AreEqual(2, job.Batches[1].Steps.Count);
@@ -522,7 +522,7 @@ namespace Horde.Server.Tests.Jobs
 			Assert.AreEqual(JobStepOutcome.Failure, step.Outcome);
 
 			// Retry the failed step for a second time
-			job = Deref(await JobCollection.TryUpdateStepAsync(job, graph, job.Batches[1].Id, job.Batches[1].Steps[0].Id, newRetryByUserId: UserId.Anonymous));
+			job = Deref(await job.TryUpdateStepAsync(job.Batches[1].Id, job.Batches[1].Steps[0].Id, newRetryByUserId: UserId.Anonymous));
 			Assert.AreEqual(3, job.Batches.Count);
 			Assert.AreEqual(1, job.Batches[0].Steps.Count);
 			Assert.AreEqual(1, job.Batches[1].Steps.Count);
@@ -571,9 +571,9 @@ namespace Horde.Server.Tests.Jobs
 			IJob job = await JobCollection.AddAsync(JobIdUtils.GenerateNewId(), new StreamId("ue4-main"), new TemplateId("test-build"), ContentHash.SHA1("hello"), graph, "Test job", 123, 123, options);
 
 			// Fail the first step
-			job = await RunBatchAsync(job, graph, 0);
-			job = await RunStepAsync(job, graph, 0, 0, JobStepOutcome.Failure);
-			job = Deref(await JobCollection.TryUpdateBatchAsync(job, graph, job.Batches[0].Id, null, JobStepBatchState.Complete, null));
+			job = await RunBatchAsync(job, 0);
+			job = await RunStepAsync(job, 0, 0, JobStepOutcome.Failure);
+			job = Deref(await job.TryUpdateBatchAsync(job.Batches[0].Id, null, JobStepBatchState.Complete, null));
 
 			Assert.AreEqual(2, job.Batches.Count);
 			Assert.AreEqual(1, job.Batches[0].Steps.Count);
@@ -588,7 +588,7 @@ namespace Horde.Server.Tests.Jobs
 			Assert.AreEqual(JobStepOutcome.Failure, step.Outcome);
 
 			// Retry the failed step
-			job = Deref(await JobCollection.TryUpdateStepAsync(job, graph, job.Batches[0].Id, job.Batches[0].Steps[0].Id, newRetryByUserId: UserId.Anonymous));
+			job = Deref(await job.TryUpdateStepAsync(job.Batches[0].Id, job.Batches[0].Steps[0].Id, newRetryByUserId: UserId.Anonymous));
 			Assert.AreEqual(3, job.Batches.Count);
 			Assert.AreEqual(1, job.Batches[0].Steps.Count);
 			Assert.AreEqual(1, job.Batches[1].Steps.Count);
@@ -634,8 +634,8 @@ namespace Horde.Server.Tests.Jobs
 			IJob job = await JobCollection.AddAsync(JobIdUtils.GenerateNewId(), new StreamId("ue4-main"), new TemplateId("test-build"), ContentHash.SHA1("hello"), graph, "Test job", 123, 123, options);
 
 			// Fail the first step
-			job = await RunBatchAsync(job, graph, 0);
-			job = await RunStepAsync(job, graph, 0, 0, JobStepOutcome.Failure);
+			job = await RunBatchAsync(job, 0);
+			job = await RunStepAsync(job, 0, 0, JobStepOutcome.Failure);
 
 			Assert.AreEqual(1, job.Batches.Count);
 			Assert.AreEqual(3, job.Batches[0].Steps.Count);
@@ -656,7 +656,7 @@ namespace Horde.Server.Tests.Jobs
 			Assert.AreEqual(JobStepOutcome.Failure, step.Outcome);
 
 			// Retry the last failed step. All the failed upstream steps should run again.
-			job = Deref(await JobCollection.TryUpdateStepAsync(job, graph, job.Batches[0].Id, job.Batches[0].Steps[2].Id, newRetryByUserId: UserId.Anonymous));
+			job = Deref(await job.TryUpdateStepAsync(job.Batches[0].Id, job.Batches[0].Steps[2].Id, newRetryByUserId: UserId.Anonymous));
 			Assert.AreEqual(2, job.Batches.Count);
 			Assert.AreEqual(1, job.Batches[0].Steps.Count);
 			Assert.AreEqual(3, job.Batches[1].Steps.Count);
@@ -703,8 +703,8 @@ namespace Horde.Server.Tests.Jobs
 			IJob job = await JobCollection.AddAsync(JobIdUtils.GenerateNewId(), new StreamId("ue4-main"), new TemplateId("test-build"), ContentHash.SHA1("hello"), graph, "Test job", 123, 123, options);
 
 			// Pass the first step
-			job = await RunBatchAsync(job, graph, 0);
-			job = await RunStepAsync(job, graph, 0, 0, JobStepOutcome.Success);
+			job = await RunBatchAsync(job, 0);
+			job = await RunStepAsync(job, 0, 0, JobStepOutcome.Success);
 
 			Assert.AreEqual(1, job.Batches.Count);
 			Assert.AreEqual(3, job.Batches[0].Steps.Count);
@@ -723,7 +723,7 @@ namespace Horde.Server.Tests.Jobs
 			Assert.AreEqual(JobStepState.Waiting, step.State);
 
 			// Update the priority of the second step. This should trigger a refresh of the graph structure, but NOT cause any new steps to be created.
-			job = Deref(await JobCollection.TryUpdateStepAsync(job, graph, job.Batches[0].Id, job.Batches[0].Steps[1].Id, newPriority: Priority.High));
+			job = Deref(await job.TryUpdateStepAsync(job.Batches[0].Id, job.Batches[0].Steps[1].Id, newPriority: Priority.High));
 			Assert.AreEqual(1, job.Batches.Count);
 			Assert.AreEqual(3, job.Batches[0].Steps.Count);
 
@@ -755,8 +755,8 @@ namespace Horde.Server.Tests.Jobs
 			IJob job = await JobCollection.AddAsync(JobIdUtils.GenerateNewId(), new StreamId("ue4-main"), new TemplateId("test-build"), ContentHash.SHA1("hello"), baseGraph, "Test job", 123, 123, options);
 			Assert.AreEqual(1, job.Batches.Count);
 
-			job = await RunBatchAsync(job, baseGraph, 0);
-			job = Deref(await JobCollection.TryUpdateBatchAsync(job, baseGraph, job.Batches[0].Id, null, JobStepBatchState.Complete, JobStepBatchError.UnknownShelf));
+			job = await RunBatchAsync(job, 0);
+			job = Deref(await job.TryUpdateBatchAsync(job.Batches[0].Id, null, JobStepBatchState.Complete, JobStepBatchError.UnknownShelf));
 
 			Assert.AreEqual(1, job.Batches.Count);
 		}
@@ -774,8 +774,8 @@ namespace Horde.Server.Tests.Jobs
 
 			IJob job = await JobCollection.AddAsync(JobIdUtils.GenerateNewId(), new StreamId("ue4-main"), new TemplateId("test-build"), ContentHash.SHA1("hello"), baseGraph, "Test job", 123, 123, options);
 
-			job = await RunBatchAsync(job, baseGraph, 0);
-			job = await RunStepAsync(job, baseGraph, 0, 0, JobStepOutcome.Success); // Setup Build
+			job = await RunBatchAsync(job, 0);
+			job = await RunStepAsync(job, 0, 0, JobStepOutcome.Success); // Setup Build
 
 			List<NewGroup> newGroups = new List<NewGroup>();
 
@@ -788,10 +788,10 @@ namespace Horde.Server.Tests.Jobs
 
 			// Check that we're only building the editor
 			IGraph graph = await GraphCollection.AppendAsync(baseGraph, newGroups, null, null);
-			job = Deref(await JobCollection.TryUpdateGraphAsync(job, baseGraph, graph));
+			job = Deref(await job.TryUpdateGraphAsync(graph));
 
 			// Move the initial batch to the starting state
-			job = await UpdateBatchAsync(job, graph, 1, JobStepBatchState.Starting);
+			job = await UpdateBatchAsync(job, 1, JobStepBatchState.Starting);
 			Assert.AreEqual(2, job.Batches.Count);
 			Assert.AreEqual(1, job.Batches[1].GroupIdx);
 			Assert.AreEqual(2, job.Batches[1].Steps.Count);
@@ -802,7 +802,7 @@ namespace Horde.Server.Tests.Jobs
 
 			// Force an update on the batches for the job
 			options.Arguments.Add("-Target=Compile Client");
-			job = Deref(await JobCollection.TryUpdateJobAsync(job, graph, arguments: options.Arguments));
+			job = Deref(await job.TryUpdateJobAsync(arguments: options.Arguments));
 
 			// Check that we're still using the original batch, and have added one more
 			Assert.AreEqual(3, job.Batches.Count);
