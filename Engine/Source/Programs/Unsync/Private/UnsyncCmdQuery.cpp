@@ -76,6 +76,10 @@ RunQueryMirrors(const FRemoteDesc& RemoteDesc)
 			{
 				Info.Name = Field.second.string_value();
 			}
+			else if (Field.first == "description")
+			{
+				Info.Description = Field.second.string_value();
+			}
 			else if (Field.first == "address")
 			{
 				Info.Address = Field.second.string_value();
@@ -126,13 +130,16 @@ CmdQueryMirrors(const FCmdQueryOptions& Options)
 	{
 		const FMirrorInfo& Mirror = Mirrors[I];
 
+		int32 PingMs = (Mirror.Ping == 0) ? 0 : std::max(1, int32(Mirror.Ping * 1000.0));
+
 		LogPrintf(ELogLevel::MachineReadable,
-				  L"  {\"address\":\"%hs\", \"port\":%d, \"ok\":%hs, \"ping\":%d, \"name\":\"%hs\"}%hs\n",
+				  L"  {\"address\":\"%hs\", \"port\":%d, \"ok\":%hs, \"ping\":%d, \"name\":\"%hs\", \"description\":\"%hs\"}%hs\n",
 				  StringEscape(Mirror.Address).c_str(),
 				  Mirror.Port,
 				  Mirror.Ping > 0 ? "true" : "false",
-				  int32(Mirror.Ping * 1000.0),
+				  PingMs,
 				  StringEscape(Mirror.Name).c_str(),
+				  StringEscape(Mirror.Description).c_str(),
 				  I + 1 == Mirrors.size() ? "" : ",");
 	}
 

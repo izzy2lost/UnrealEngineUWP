@@ -112,6 +112,8 @@ FRemoteDesc::FromUrl(std::string_view Url)
 		}
 	}
 
+	const size_t NamespacePos = HostAddress.find_last_of('#');
+
 	switch (Transport)
 	{
 		default:
@@ -119,11 +121,17 @@ FRemoteDesc::FromUrl(std::string_view Url)
 			Result.Protocol = EProtocolFlavor::Unsync;
 			break;
 		case ETransportProtocol::Http:
-			Result.Protocol = EProtocolFlavor::Jupiter;	 // TODO: UNSYNC-over-HTTP could also be supported
+			if (NamespacePos != std::string::npos || Scheme.starts_with("jupiter"))
+			{
+				Result.Protocol = EProtocolFlavor::Jupiter;
+			}
+			else
+			{
+				Result.Protocol = EProtocolFlavor::Unsync;
+			}
 			break;
 	}
 
-	size_t NamespacePos = HostAddress.find_last_of('#');
 	if (NamespacePos != std::string::npos)
 	{
 		Result.StorageNamespace = HostAddress.substr(NamespacePos + 1);
@@ -131,9 +139,9 @@ FRemoteDesc::FromUrl(std::string_view Url)
 	}
 
 	uint16 HostPort = 0;
-	size_t PortPos	= HostAddress.find_first_of(':');
+	const size_t PortPos	= HostAddress.find_first_of(':');
 
-	size_t RequestPos = HostAddress.find_first_of('/');
+	const size_t RequestPos = HostAddress.find_first_of('/');
 	if (RequestPos != std::string::npos)
 	{
 		Result.RequestPath = HostAddress.substr(RequestPos + 1);
@@ -161,6 +169,11 @@ FRemoteDesc::FromUrl(std::string_view Url)
 			HostPort = uint16(ParsedHostPort);
 		}
 		HostAddress = HostAddress.substr(0, PortPos);
+	}
+
+	if (HostPort == 443)
+	{
+		bUseTls = true;
 	}
 
 	if (HostPort == 0)
@@ -217,7 +230,7 @@ TestParseRemote()
 	}
 
 	{
-		TResult<FRemoteDesc> ParseResult = FRemoteDesc::FromUrl("http://example.com");
+		TResult<FRemoteDesc> ParseResult = FRemoteDesc::FromUrl("http://example.com#foo");
 		UNSYNC_ASSERT(ParseResult.IsOk());
 		UNSYNC_ASSERT(ParseResult->bTlsEnable == false);
 		UNSYNC_ASSERT(ParseResult->Host.Address == "example.com");
@@ -226,7 +239,7 @@ TestParseRemote()
 	}
 
 	{
-		TResult<FRemoteDesc> ParseResult = FRemoteDesc::FromUrl("https://example.com");
+		TResult<FRemoteDesc> ParseResult = FRemoteDesc::FromUrl("https://example.com#foo");
 		UNSYNC_ASSERT(ParseResult.IsOk());
 		UNSYNC_ASSERT(ParseResult->bTlsEnable == true);
 		UNSYNC_ASSERT(ParseResult->Host.Address == "example.com");
@@ -235,7 +248,7 @@ TestParseRemote()
 	}
 
 	{
-		TResult<FRemoteDesc> ParseResult = FRemoteDesc::FromUrl("http://example.com:1234");
+		TResult<FRemoteDesc> ParseResult = FRemoteDesc::FromUrl("http://example.com:1234#foo");
 		UNSYNC_ASSERT(ParseResult.IsOk());
 		UNSYNC_ASSERT(ParseResult->bTlsEnable == false);
 		UNSYNC_ASSERT(ParseResult->Host.Address == "example.com");
@@ -244,7 +257,7 @@ TestParseRemote()
 	}
 
 	{
-		TResult<FRemoteDesc> ParseResult = FRemoteDesc::FromUrl("https://example.com:1234");
+		TResult<FRemoteDesc> ParseResult = FRemoteDesc::FromUrl("https://example.com:1234#foo");
 		UNSYNC_ASSERT(ParseResult.IsOk());
 		UNSYNC_ASSERT(ParseResult->bTlsEnable == true);
 		UNSYNC_ASSERT(ParseResult->Host.Address == "example.com");
@@ -343,6 +356,15 @@ TestParseRemote()
 		UNSYNC_ASSERT(ParseResult->Protocol == EProtocolFlavor::Jupiter);
 		UNSYNC_ASSERT(ParseResult->StorageNamespace == "namespace");
 		UNSYNC_ASSERT(ParseResult->RequestPath == "request/path");
+	}
+
+	{
+		TResult<FRemoteDesc> ParseResult = FRemoteDesc::FromUrl("example.com:443");
+		UNSYNC_ASSERT(ParseResult.IsOk());
+		UNSYNC_ASSERT(ParseResult->bTlsEnable == true);
+		UNSYNC_ASSERT(ParseResult->Host.Address == "example.com");
+		UNSYNC_ASSERT(ParseResult->Host.Port == 443);
+		UNSYNC_ASSERT(ParseResult->Protocol == EProtocolFlavor::Unsync);
 	}
 }
 

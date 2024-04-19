@@ -21,6 +21,7 @@ struct FMirrorInfo
 {
 	std::string Name;
 	std::string Address;
+	std::string Description;
 	uint16		Port = UNSYNC_DEFAULT_PORT;
 	double		Ping = 0;
 };

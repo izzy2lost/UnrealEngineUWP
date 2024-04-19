@@ -968,10 +968,12 @@ FProxyPool::FProxyPool(const FRemoteDesc& InRemoteDesc, const FAuthDesc* InAuthD
 		else
 		{
 			const ProxyQuery::FHelloResponse& Data = Response.GetData();
-			UNSYNC_VERBOSE(L"Connection established. Server name: %hs, version: %hs, git: %hs.",
+			UNSYNC_VERBOSE(L"Connection established. Server name: %hs, version: %hs, git: %hs, tls: %hs.",
 						   Data.Name.empty() ? "unknown" : Data.Name.c_str(),
 						   Data.VersionNumber.empty() ? "unknown" : Data.VersionNumber.c_str(),
-						   Data.VersionGit.empty() ? "unknown" : Data.VersionGit.c_str());
+						   Data.VersionGit.empty() ? "unknown" : Data.VersionGit.c_str(),
+						   RemoteDesc.bTlsEnable ? "yes" : "no"
+				);
 
 			Features  = Data.Features;
 			SessionId = Data.SessionId;
