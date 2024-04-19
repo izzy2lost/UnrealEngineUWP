@@ -12,6 +12,11 @@ class UMVVMBlueprintViewExtension;
 class FWidgetBlueprintCompilerContext;
 class UWidgetBlueprintGeneratedClass;
 
+namespace UE::MVVM
+{
+	class FClipboardExtension;
+}
+
 namespace UE::MVVM::Private
 {
 	struct FMVVMViewBlueprintCompiler;
@@ -114,6 +119,7 @@ private:
 	TArray<FMVVMExtensionItem> BlueprintExtensions;
 
 	friend UE::MVVM::Private::FMVVMViewBlueprintCompiler;
+	friend UE::MVVM::FClipboardExtension;
 };
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2

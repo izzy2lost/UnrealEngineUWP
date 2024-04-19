@@ -11,8 +11,10 @@
 #include "MVVMWidgetBlueprintExtension_View.h"
 #include "MVVMBlueprintView.h"
 #include "MVVMBlueprintViewModel.h"
+#include "MVVMDeveloperProjectSettings.h"
 #include "PropertyCustomizationHelpers.h"
 #include "PropertyHandle.h"
+#include "ScopedTransaction.h"
 #include "WidgetBlueprint.h"
 #include "WidgetBlueprintEditor.h"
 #include "Widgets/Input/SButton.h"
@@ -36,99 +38,102 @@ void FMVVMListViewBaseExtensionCustomizationExtender::CustomizeDetails(IDetailLa
 	{
 		if (UListViewBase* ListView = Cast<UListViewBase>(InWidgets[0]))
 		{
-			Widget = ListView;
-			WidgetBlueprintEditor = InWidgetBlueprintEditor;
-
-			// Only do a customization if we have a MVVM blueprint view class on this blueprint.
-			if (GetExtensionViewForSelectedWidgetBlueprint())
+			if (GetDefault<UMVVMDeveloperProjectSettings>()->IsExtensionSupportedForListViewBaseClass(ListView->GetClass()))
 			{
-				IDetailCategoryBuilder& MVVMCategory = InDetailLayout.EditCategory("ListEntries");
+				Widget = ListView;
+				WidgetBlueprintEditor = InWidgetBlueprintEditor;
 
-				// Fetch the entry widget class handle.
-				TArray<TSharedRef<IPropertyHandle>> ListEntryProperties;
-				MVVMCategory.GetDefaultProperties(ListEntryProperties);
-				TSharedRef<IPropertyHandle>* EntryClassPtr = ListEntryProperties.FindByPredicate( [](const TSharedRef<IPropertyHandle> Property) 
-				{ 
-					return Property->GetPropertyDisplayName().EqualToCaseIgnored(FText::FromString(TEXT("Entry Widget Class"))); 
-				});
+				// Only do a customization if we have a MVVM blueprint view class on this blueprint.
+				if (GetExtensionViewForSelectedWidgetBlueprint())
+				{
+					IDetailCategoryBuilder& MVVMCategory = InDetailLayout.EditCategory("ListEntries");
 
-				check(EntryClassPtr);
-				EntryClassHandle = *EntryClassPtr;
-				EntryClassHandle->SetOnPropertyValueChanged(FSimpleDelegate::CreateSP(this, &FMVVMListViewBaseExtensionCustomizationExtender::HandleEntryClassChanged, false));
-				bIsExtensionAdded = GetListBaseViewExtension() != nullptr;
-				HandleEntryClassChanged(true);
+					// Fetch the entry widget class handle.
+					TArray<TSharedRef<IPropertyHandle>> ListEntryProperties;
+					MVVMCategory.GetDefaultProperties(ListEntryProperties);
+					TSharedRef<IPropertyHandle>* EntryClassPtr = ListEntryProperties.FindByPredicate( [](const TSharedRef<IPropertyHandle> Property) 
+					{ 
+						return Property->GetPropertyDisplayName().EqualToCaseIgnored(FText::FromString(TEXT("Entry Widget Class"))); 
+					});
 
-				// Add a button that controls adding/removing the extension on the ListViewBase widget
-				MVVMCategory.AddCustomRow(FText::FromString(TEXT("Viewmodel")))
-				.NameContent()
-				[
-					SNew(STextBlock)
-					.Text(LOCTEXT("VMSupport", "Viewmodel Support"))
-					.Font(IDetailLayoutBuilder::GetDetailFont())
-				]
-				.ValueContent()
-				.HAlign(HAlign_Fill)
-				[
-					SNew(SHorizontalBox)
-					+ SHorizontalBox::Slot()
-					.AutoWidth()
+					check(EntryClassPtr);
+					EntryClassHandle = *EntryClassPtr;
+					EntryClassHandle->SetOnPropertyValueChanged(FSimpleDelegate::CreateSP(this, &FMVVMListViewBaseExtensionCustomizationExtender::HandleEntryClassChanged, false));
+					bIsExtensionAdded = GetListBaseViewExtension() != nullptr;
+					HandleEntryClassChanged(true);
+
+					// Add a button that controls adding/removing the extension on the ListViewBase widget
+					MVVMCategory.AddCustomRow(FText::FromString(TEXT("Viewmodel")))
+					.NameContent()
 					[
-						SNew(SButton)
-						.OnClicked(this, &FMVVMListViewBaseExtensionCustomizationExtender::ModifyExtension)
+						SNew(STextBlock)
+						.Text(LOCTEXT("VMSupport", "Viewmodel Support"))
+						.Font(IDetailLayoutBuilder::GetDetailFont())
+					]
+					.ValueContent()
+					.HAlign(HAlign_Fill)
+					[
+						SNew(SHorizontalBox)
+						+ SHorizontalBox::Slot()
+						.AutoWidth()
 						[
-							SNew(SHorizontalBox)
-							+ SHorizontalBox::Slot()
-							.HAlign(HAlign_Center)
-							.VAlign(VAlign_Center)
-							.AutoWidth()
+							SNew(SButton)
+							.OnClicked(this, &FMVVMListViewBaseExtensionCustomizationExtender::ModifyExtension)
 							[
-								SNew(SImage)
-								.Image(this, &FMVVMListViewBaseExtensionCustomizationExtender::GetExtensionButtonIcon)
+								SNew(SHorizontalBox)
+								+ SHorizontalBox::Slot()
+								.HAlign(HAlign_Center)
+								.VAlign(VAlign_Center)
+								.AutoWidth()
+								[
+									SNew(SImage)
+									.Image(this, &FMVVMListViewBaseExtensionCustomizationExtender::GetExtensionButtonIcon)
+								]
+								+ SHorizontalBox::Slot()
+								.Padding(FMargin(3.0f, 0.0f, 0.0f, 0.0f))
+								.VAlign(VAlign_Center)
+								.AutoWidth()
+								[
+									SNew(STextBlock)
+									.TextStyle(FAppStyle::Get(), "SmallButtonText")
+									.Text(this, &FMVVMListViewBaseExtensionCustomizationExtender::GetExtensionButtonText)
+								]
 							]
-							+ SHorizontalBox::Slot()
-							.Padding(FMargin(3, 0, 0, 0))
-							.VAlign(VAlign_Center)
-							.AutoWidth()
+						]
+					];
+
+					// Add a combobox that allows selecting from the viewmodels in the entry widgets
+					MVVMCategory.AddCustomRow(FText::FromString(TEXT("Viewmodel")))
+					.Visibility(TAttribute<EVisibility>::Create(TAttribute<EVisibility>::FGetter::CreateSP(this, &FMVVMListViewBaseExtensionCustomizationExtender::GetEntryViewModelVisibility)))
+					.NameContent()
+					[
+						SNew(STextBlock)
+						.Text(LOCTEXT("EntryVM", "Entry Viewmodel"))
+						.Font(IDetailLayoutBuilder::GetDetailFont())
+					]
+					.ValueContent()
+					.HAlign(HAlign_Fill)
+					[
+						SNew(SHorizontalBox)
+						+ SHorizontalBox::Slot()
+						.AutoWidth()
+						[
+							SNew(SComboButton)
+							.OnGetMenuContent(this, &FMVVMListViewBaseExtensionCustomizationExtender::OnGetViewModelsMenuContent)
+							.ButtonContent()
 							[
 								SNew(STextBlock)
-								.TextStyle(FAppStyle::Get(), "SmallButtonText")
-								.Text(this, &FMVVMListViewBaseExtensionCustomizationExtender::GetExtensionButtonText)
+								.Text(this, &FMVVMListViewBaseExtensionCustomizationExtender::OnGetSelectedViewModel)
 							]
 						]
-					]
-				];
-
-				// Add a combobox that allows selecting from the viewmodels in the entry widgets
-				MVVMCategory.AddCustomRow(FText::FromString(TEXT("Viewmodel")))
-				.Visibility(TAttribute<EVisibility>::Create(TAttribute<EVisibility>::FGetter::CreateSP(this, &FMVVMListViewBaseExtensionCustomizationExtender::GetEntryViewModelVisibility)))
-				.NameContent()
-				[
-					SNew(STextBlock)
-					.Text(LOCTEXT("EntryVM", "Entry Viewmodel"))
-					.Font(IDetailLayoutBuilder::GetDetailFont())
-				]
-				.ValueContent()
-				.HAlign(HAlign_Fill)
-				[
-					SNew(SHorizontalBox)
-					+ SHorizontalBox::Slot()
-					.AutoWidth()
-					[
-						SNew(SComboButton)
-						.OnGetMenuContent(this, &FMVVMListViewBaseExtensionCustomizationExtender::OnGetViewModelsMenuContent)
-						.ButtonContent()
+						+ SHorizontalBox::Slot()
+						.AutoWidth()
 						[
-							SNew(STextBlock)
-							.Text(this, &FMVVMListViewBaseExtensionCustomizationExtender::OnGetSelectedViewModel)
+							PropertyCustomizationHelpers::MakeClearButton(
+							FSimpleDelegate::CreateSP(this, &FMVVMListViewBaseExtensionCustomizationExtender::ClearEntryViewModel))
 						]
-					]
-					+ SHorizontalBox::Slot()
-					.AutoWidth()
-					[
-						PropertyCustomizationHelpers::MakeClearButton(
-						FSimpleDelegate::CreateSP(this, &FMVVMListViewBaseExtensionCustomizationExtender::ClearEntryViewModel))
-					]
-				];
+					];
+				}
 			}
 		}
 	}
@@ -316,15 +321,19 @@ void FMVVMListViewBaseExtensionCustomizationExtender::SetEntryViewModel(FGuid In
 		{
 			if (UMVVMViewBlueprintListViewBaseExtension* ListBaseViewExtension = GetListBaseViewExtension())
 			{
-				ListBaseViewExtension->Modify();
-				ListBaseViewExtension->EntryViewModelId = InEntryViewModelId;
-				if (bMarkModified)
+				if (ListBaseViewExtension->EntryViewModelId != InEntryViewModelId)
 				{
-					if (const TSharedPtr<FWidgetBlueprintEditor> BPEditor = WidgetBlueprintEditor.Pin())
+					const FScopedTransaction Transaction(LOCTEXT("SetEntryViewModel", "Set Entry ViewModel"));
+					ListBaseViewExtension->Modify();
+					ListBaseViewExtension->EntryViewModelId = InEntryViewModelId;
+					if (bMarkModified)
 					{
-						if (UWidgetBlueprint* Blueprint = BPEditor->GetWidgetBlueprintObj())
+						if (const TSharedPtr<FWidgetBlueprintEditor> BPEditor = WidgetBlueprintEditor.Pin())
 						{
-							FBlueprintEditorUtils::MarkBlueprintAsStructurallyModified(Blueprint);
+							if (UWidgetBlueprint* Blueprint = BPEditor->GetWidgetBlueprintObj())
+							{
+								FBlueprintEditorUtils::MarkBlueprintAsStructurallyModified(Blueprint);
+							}
 						}
 					}
 				}

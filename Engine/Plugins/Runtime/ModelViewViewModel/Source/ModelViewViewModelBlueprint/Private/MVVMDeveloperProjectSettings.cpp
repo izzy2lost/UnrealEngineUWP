@@ -13,6 +13,13 @@
 #include "K2Node_FormatText.h"
 #include "Kismet/BlueprintFunctionLibrary.h"
 
+#include "Components/HorizontalBox.h"
+#include "Components/ListView.h"
+#include "Components/ScrollBox.h"
+#include "Components/StackBox.h"
+#include "Components/VerticalBox.h"
+#include "Components/WrapBox.h"
+
 #define LOCTEXT_NAMESPACE "MVVMDeveloperProjectSettings"
 
 UMVVMDeveloperProjectSettings::UMVVMDeveloperProjectSettings()
@@ -33,6 +40,13 @@ UMVVMDeveloperProjectSettings::UMVVMDeveloperProjectSettings()
 	FTopLevelAssetPath FormatText = FTopLevelAssetPath("/Script/BlueprintGraph", "K2Node_FormatText");
 	AllowedClassForConversionFunctions.Add(FSoftClassPath(BlueprintFunctionLibrary.ToString()));
 	AllowedClassForConversionFunctions.Add(FSoftClassPath(FormatText.ToString()));
+
+	SupportedListViewBaseClassesForExtension.Add(UListView::StaticClass());
+	SupportedPanelClassesForExtension.Add(UHorizontalBox::StaticClass());
+	SupportedPanelClassesForExtension.Add(UVerticalBox::StaticClass());
+	SupportedPanelClassesForExtension.Add(UScrollBox::StaticClass());
+	SupportedPanelClassesForExtension.Add(UStackBox::StaticClass());
+	SupportedPanelClassesForExtension.Add(UWrapBox::StaticClass());
 }
 
 FName UMVVMDeveloperProjectSettings::GetCategoryName() const
@@ -310,6 +324,44 @@ TArray<const UClass*> UMVVMDeveloperProjectSettings::GetDeniedConversionFunction
 	}
 
 	return Result;
+}
+
+bool UMVVMDeveloperProjectSettings::IsExtensionSupportedForPanelClass(TSubclassOf<UPanelWidget> ClassToSupport) const
+{
+	if (ClassToSupport.Get())
+	{
+		for (const TSoftClassPtr<UPanelWidget>& SoftClass : SupportedPanelClassesForExtension)
+		{
+			if (UClass* Class = SoftClass.Get())
+			{
+				if (ClassToSupport->IsChildOf(Class))
+				{
+					return true;
+				}
+			}
+		}
+	}
+
+	return false;
+}
+
+bool UMVVMDeveloperProjectSettings::IsExtensionSupportedForListViewBaseClass(TSubclassOf<UListViewBase> ClassToSupport) const
+{
+	if (ClassToSupport.Get())
+	{
+		for (const TSoftClassPtr<UListViewBase>& SoftClass : SupportedListViewBaseClassesForExtension)
+		{
+			if (UClass* Class = SoftClass.Get())
+			{
+				if (ClassToSupport->IsChildOf(Class))
+				{
+					return true;
+				}
+			}
+		}
+	}
+
+	return false;
 }
 
 #undef LOCTEXT_NAMESPACE

@@ -4,6 +4,7 @@
 
 #include "Modules/ModuleInterface.h"
 #include "Toolkits/AssetEditorToolkit.h"
+#include "IHasClipboardExtensibility.h"
 #include "IHasDesignerExtensibility.h"
 #include "IHasPropertyBindingExtensibility.h"
 #include "UObject/TopLevelAssetPath.h"
@@ -22,7 +23,8 @@ class IUMGEditorModule :
 	public IHasMenuExtensibility, 
 	public IHasToolBarExtensibility, 
 	public IHasDesignerExtensibility,
-	public IHasPropertyBindingExtensibility
+	public IHasPropertyBindingExtensibility,
+	public IHasClipboardExtensibility
 {
 public:
 	virtual class FWidgetBlueprintCompiler* GetRegisteredCompiler() = 0;

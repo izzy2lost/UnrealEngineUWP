@@ -31,7 +31,7 @@ public:
 	//~ Begin UMVVMBlueprintViewExtension overrides
 	virtual void Precompile(UE::MVVM::Compiler::IMVVMBlueprintViewPrecompile* Compiler, UWidgetBlueprintGeneratedClass* Class) override;
 	virtual void Compile(UE::MVVM::Compiler::IMVVMBlueprintViewCompile* Compiler, UWidgetBlueprintGeneratedClass* Class, UMVVMViewClass* ViewExtension) override;
-	virtual void WidgetRenamed(FName OldName, FName NewName) override;
+	virtual bool WidgetRenamed(FName OldName, FName NewName) override;
 	//~ End UMVVMBlueprintViewExtension overrides
 
 	FGuid GetEntryViewModelId() const

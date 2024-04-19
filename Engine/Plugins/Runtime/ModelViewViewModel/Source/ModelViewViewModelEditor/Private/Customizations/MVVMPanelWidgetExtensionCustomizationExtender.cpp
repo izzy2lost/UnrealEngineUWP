@@ -11,8 +11,10 @@
 #include "MVVMWidgetBlueprintExtension_View.h"
 #include "MVVMBlueprintView.h"
 #include "MVVMBlueprintViewModel.h"
+#include "MVVMDeveloperProjectSettings.h"
 #include "PropertyCustomizationHelpers.h"
 #include "PropertyHandle.h"
+#include "ScopedTransaction.h"
 #include "WidgetBlueprint.h"
 #include "WidgetBlueprintEditor.h"
 #include "Widgets/Input/SButton.h"
@@ -38,134 +40,137 @@ void FMVVMPanelWidgetExtensionCustomizationExtender::CustomizeDetails(IDetailLay
 		{
 			if (Panel->CanHaveMultipleChildren())
 			{
-				Widget = Panel;
-				WidgetBlueprintEditor = InWidgetBlueprintEditor;
-
-				// Only do a customization if we have a MVVM blueprint view class on this blueprint.
-				if (GetExtensionViewForSelectedWidgetBlueprint())
+				if (GetDefault<UMVVMDeveloperProjectSettings>()->IsExtensionSupportedForPanelClass(Panel->GetClass()))
 				{
-					IDetailCategoryBuilder& MVVMCategory = InDetailLayout.EditCategory("Viewmodel");
+					Widget = Panel;
+					WidgetBlueprintEditor = InWidgetBlueprintEditor;
 
-					bIsExtensionAdded = GetPanelWidgetExtension() != nullptr;
-
-					// Add a button that controls adding/removing the extension on the panel widget
-					MVVMCategory.AddCustomRow(FText::FromString(TEXT("Viewmodel")))
-					.NameContent()
-					[
-						SNew(STextBlock)
-						.Text(LOCTEXT("VMSupport", "Viewmodel Support"))
-						.Font(IDetailLayoutBuilder::GetDetailFont())
-					]
-					.ValueContent()
-					.HAlign(HAlign_Fill)
-					[
-						SNew(SHorizontalBox)
-						+ SHorizontalBox::Slot()
-						.AutoWidth()
-						[
-							SNew(SButton)
-							.OnClicked(this, &FMVVMPanelWidgetExtensionCustomizationExtender::ModifyExtension)
-							[
-								SNew(SHorizontalBox)
-								+ SHorizontalBox::Slot()
-								.HAlign(HAlign_Center)
-								.VAlign(VAlign_Center)
-								.AutoWidth()
-								[
-									SNew(SImage)
-									.Image(this, &FMVVMPanelWidgetExtensionCustomizationExtender::GetExtensionButtonIcon)
-								]
-								+ SHorizontalBox::Slot()
-								.Padding(FMargin(3, 0, 0, 0))
-								.VAlign(VAlign_Center)
-								.AutoWidth()
-								[
-									SNew(STextBlock)
-									.TextStyle(FAppStyle::Get(), "SmallButtonText")
-									.Text(this, &FMVVMPanelWidgetExtensionCustomizationExtender::GetExtensionButtonText)
-								]
-							]
-						]
-					];
-
-					if (UMVVMViewBlueprintPanelWidgetExtension* PanelExtension = GetPanelWidgetExtension())
+					// Only do a customization if we have a MVVM blueprint view class on this blueprint.
+					if (GetExtensionViewForSelectedWidgetBlueprint())
 					{
-						IDetailPropertyRow* PanelExtensionPropertyRow = MVVMCategory.AddExternalObjects({ PanelExtension});
-						TSharedPtr<IPropertyHandle> PanelExtensionObjectHandle = PanelExtensionPropertyRow->GetPropertyHandle();
-						PanelExtensionPropertyRow->Visibility(EVisibility::Collapsed);
+						IDetailCategoryBuilder& MVVMCategory = InDetailLayout.EditCategory("Viewmodel");
 
-						// "Entry Widget Class" property row
-						EntryClassHandle = PanelExtensionObjectHandle->GetChildHandle("EntryWidgetClass");
-						EntryClassHandle->SetOnPropertyValueChanged(FSimpleDelegate::CreateSP(this, &FMVVMPanelWidgetExtensionCustomizationExtender::HandleEntryClassChanged, false));
-						HandleEntryClassChanged(true);
-						IDetailPropertyRow& EntryClassRow = MVVMCategory.AddProperty(EntryClassHandle);
+						bIsExtensionAdded = GetPanelWidgetExtension() != nullptr;
 
-						// "Entry Viewmodel" property row
+						// Add a button that controls adding/removing the extension on the panel widget
 						MVVMCategory.AddCustomRow(FText::FromString(TEXT("Viewmodel")))
-							.NameContent()
+						.NameContent()
+						[
+							SNew(STextBlock)
+							.Text(LOCTEXT("VMSupport", "Viewmodel Support"))
+							.Font(IDetailLayoutBuilder::GetDetailFont())
+						]
+						.ValueContent()
+						.HAlign(HAlign_Fill)
+						[
+							SNew(SHorizontalBox)
+							+ SHorizontalBox::Slot()
+							.AutoWidth()
 							[
-								SNew(STextBlock)
-								.Text(LOCTEXT("EntryVM", "Entry Viewmodel"))
-								.Font(IDetailLayoutBuilder::GetDetailFont())
-							]
-							.ValueContent()
-							.HAlign(HAlign_Fill)
-							[
-								SNew(SHorizontalBox)
-								+ SHorizontalBox::Slot()
-								.AutoWidth()
+								SNew(SButton)
+								.OnClicked(this, &FMVVMPanelWidgetExtensionCustomizationExtender::ModifyExtension)
 								[
-									SNew(SComboButton)
-									.OnGetMenuContent(this, &FMVVMPanelWidgetExtensionCustomizationExtender::OnGetViewModelsMenuContent)
-									.ButtonContent()
+									SNew(SHorizontalBox)
+									+ SHorizontalBox::Slot()
+									.HAlign(HAlign_Center)
+									.VAlign(VAlign_Center)
+									.AutoWidth()
+									[
+										SNew(SImage)
+										.Image(this, &FMVVMPanelWidgetExtensionCustomizationExtender::GetExtensionButtonIcon)
+									]
+									+ SHorizontalBox::Slot()
+									.Padding(FMargin(3.0f, 0.0f, 0.0f, 0.0f))
+									.VAlign(VAlign_Center)
+									.AutoWidth()
 									[
 										SNew(STextBlock)
-										.Text(this, &FMVVMPanelWidgetExtensionCustomizationExtender::OnGetSelectedViewModel)
+										.TextStyle(FAppStyle::Get(), "SmallButtonText")
+										.Text(this, &FMVVMPanelWidgetExtensionCustomizationExtender::GetExtensionButtonText)
 									]
 								]
-								+ SHorizontalBox::Slot()
-								.AutoWidth()
-								[
-									PropertyCustomizationHelpers::MakeClearButton(
-										FSimpleDelegate::CreateSP(this, &FMVVMPanelWidgetExtensionCustomizationExtender::ClearEntryViewModel))
-								]
-							];
-
-						// "Slot template" property row
-						IDetailPropertyRow* SlotDetailRow = MVVMCategory.AddExternalObjects({ PanelExtension->SlotObj }, EPropertyLocation::Default,
-							FAddPropertyParams()
-							.CreateCategoryNodes(false)
-							.AllowChildren(true)
-							.HideRootObjectNode(false)
-						);
-
-						TSharedPtr<IPropertyHandle> SlotPropertyHandle = SlotDetailRow->GetPropertyHandle();
-
-						SlotDetailRow->CustomWidget(true)
-							.NameContent()
-							[
-								SNew(STextBlock)
-								.Text(LOCTEXT("SlotTemplate", "Slot Template"))
-								.Font(IDetailLayoutBuilder::GetDetailFont())
 							]
-						.ValueContent()
-							[
-								SlotPropertyHandle->CreatePropertyValueWidget()
-							];
+						];
 
-						// Because AddExternalObjects was used the property system will not add a reset to default widget by default 
-						SlotDetailRow->OverrideResetToDefault(
-							FResetToDefaultOverride::Create(
-								FIsResetToDefaultVisible::CreateLambda([SlotPropertyHandle](TSharedPtr<IPropertyHandle> Handle)
-									{
-										return SlotPropertyHandle->CanResetToDefault();
-									}),
-								FResetToDefaultHandler::CreateLambda([SlotPropertyHandle](TSharedPtr<IPropertyHandle> Handle)
-									{
-										return SlotPropertyHandle->ResetToDefault();
-									})
-								)
-						);
+						if (UMVVMViewBlueprintPanelWidgetExtension* PanelExtension = GetPanelWidgetExtension())
+						{
+							IDetailPropertyRow* PanelExtensionPropertyRow = MVVMCategory.AddExternalObjects({ PanelExtension});
+							TSharedPtr<IPropertyHandle> PanelExtensionObjectHandle = PanelExtensionPropertyRow->GetPropertyHandle();
+							PanelExtensionPropertyRow->Visibility(EVisibility::Collapsed);
+
+							// "Entry Widget Class" property row
+							EntryClassHandle = PanelExtensionObjectHandle->GetChildHandle("EntryWidgetClass");
+							EntryClassHandle->SetOnPropertyValueChanged(FSimpleDelegate::CreateSP(this, &FMVVMPanelWidgetExtensionCustomizationExtender::HandleEntryClassChanged, false));
+							HandleEntryClassChanged(true);
+							IDetailPropertyRow& EntryClassRow = MVVMCategory.AddProperty(EntryClassHandle);
+
+							// "Entry Viewmodel" property row
+							MVVMCategory.AddCustomRow(FText::FromString(TEXT("Viewmodel")))
+								.NameContent()
+								[
+									SNew(STextBlock)
+									.Text(LOCTEXT("EntryVM", "Entry Viewmodel"))
+									.Font(IDetailLayoutBuilder::GetDetailFont())
+								]
+								.ValueContent()
+								.HAlign(HAlign_Fill)
+								[
+									SNew(SHorizontalBox)
+									+ SHorizontalBox::Slot()
+									.AutoWidth()
+									[
+										SNew(SComboButton)
+										.OnGetMenuContent(this, &FMVVMPanelWidgetExtensionCustomizationExtender::OnGetViewModelsMenuContent)
+										.ButtonContent()
+										[
+											SNew(STextBlock)
+											.Text(this, &FMVVMPanelWidgetExtensionCustomizationExtender::OnGetSelectedViewModel)
+										]
+									]
+									+ SHorizontalBox::Slot()
+									.AutoWidth()
+									[
+										PropertyCustomizationHelpers::MakeClearButton(
+											FSimpleDelegate::CreateSP(this, &FMVVMPanelWidgetExtensionCustomizationExtender::ClearEntryViewModel))
+									]
+								];
+
+							// "Slot template" property row
+							IDetailPropertyRow* SlotDetailRow = MVVMCategory.AddExternalObjects({ PanelExtension->SlotObj }, EPropertyLocation::Default,
+								FAddPropertyParams()
+								.CreateCategoryNodes(false)
+								.AllowChildren(true)
+								.HideRootObjectNode(false)
+							);
+
+							TSharedPtr<IPropertyHandle> SlotPropertyHandle = SlotDetailRow->GetPropertyHandle();
+
+							SlotDetailRow->CustomWidget(true)
+								.NameContent()
+								[
+									SNew(STextBlock)
+									.Text(LOCTEXT("SlotTemplate", "Slot Template"))
+									.Font(IDetailLayoutBuilder::GetDetailFont())
+								]
+							.ValueContent()
+								[
+									SlotPropertyHandle->CreatePropertyValueWidget()
+								];
+
+							// Because AddExternalObjects was used the property system will not add a reset to default widget by default 
+							SlotDetailRow->OverrideResetToDefault(
+								FResetToDefaultOverride::Create(
+									FIsResetToDefaultVisible::CreateLambda([SlotPropertyHandle](TSharedPtr<IPropertyHandle> Handle)
+										{
+											return SlotPropertyHandle->CanResetToDefault();
+										}),
+									FResetToDefaultHandler::CreateLambda([SlotPropertyHandle](TSharedPtr<IPropertyHandle> Handle)
+										{
+											return SlotPropertyHandle->ResetToDefault();
+										})
+									)
+							);
+						}
 					}
 				}
 			}
@@ -203,7 +208,7 @@ void FMVVMPanelWidgetExtensionCustomizationExtender::CreatePanelWidgetViewExtens
 				UMVVMViewBlueprintPanelWidgetExtension* NewPanelWidgetExtension = CastChecked<UMVVMViewBlueprintPanelWidgetExtension>(NewExtension);
 				NewPanelWidgetExtension->WidgetName = WidgetPtr->GetFName();
 
-				UPanelSlot* SlotObj = NewObject<UPanelSlot>(NewPanelWidgetExtension, WidgetPtr->GetSlotClass(), NAME_None);
+				UPanelSlot* SlotObj = NewObject<UPanelSlot>(NewPanelWidgetExtension, WidgetPtr->GetSlotClass(), NAME_None, RF_Transactional);
 				NewPanelWidgetExtension->SlotObj = SlotObj;
 			}
 		}
@@ -357,15 +362,19 @@ void FMVVMPanelWidgetExtensionCustomizationExtender::SetEntryViewModel(FGuid InE
 		{
 			if (UMVVMViewBlueprintPanelWidgetExtension* PanelWidgetExtension = GetPanelWidgetExtension())
 			{
-				PanelWidgetExtension->Modify();
-				PanelWidgetExtension->EntryViewModelId = InEntryViewModelId;
-				if (bMarkModified)
+				if (PanelWidgetExtension->EntryViewModelId != InEntryViewModelId)
 				{
-					if (const TSharedPtr<FWidgetBlueprintEditor> BPEditor = WidgetBlueprintEditor.Pin())
+					const FScopedTransaction Transaction(LOCTEXT("SetEntryViewModel", "Set Entry ViewModel"));
+					PanelWidgetExtension->Modify();
+					PanelWidgetExtension->EntryViewModelId = InEntryViewModelId;
+					if (bMarkModified)
 					{
-						if (UWidgetBlueprint* Blueprint = BPEditor->GetWidgetBlueprintObj())
+						if (const TSharedPtr<FWidgetBlueprintEditor> BPEditor = WidgetBlueprintEditor.Pin())
 						{
-							FBlueprintEditorUtils::MarkBlueprintAsStructurallyModified(Blueprint);
+							if (UWidgetBlueprint* Blueprint = BPEditor->GetWidgetBlueprintObj())
+							{
+								FBlueprintEditorUtils::MarkBlueprintAsStructurallyModified(Blueprint);
+							}
 						}
 					}
 				}

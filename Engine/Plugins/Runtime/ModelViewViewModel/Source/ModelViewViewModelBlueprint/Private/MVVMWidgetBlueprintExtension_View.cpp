@@ -5,14 +5,15 @@
 #include "Blueprint/WidgetTree.h"
 #include "Extensions/MVVMBlueprintViewExtension.h"
 #include "FindInBlueprintManager.h"
+#include "Kismet2/BlueprintEditorUtils.h"
+#include "Kismet2/KismetEditorUtilities.h"
 #include "MVVMBlueprintInstancedViewModel.h"
 #include "MVVMBlueprintView.h"
 #include "MVVMBlueprintViewModel.h"
 #include "MVVMBlueprintViewConversionFunction.h"
 #include "MVVMViewBlueprintCompiler.h"
+#include "ScopedTransaction.h"
 #include "View/MVVMViewClass.h"
-#include "Kismet2/BlueprintEditorUtils.h"
-#include "Kismet2/KismetEditorUtilities.h"
 
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(MVVMWidgetBlueprintExtension_View)
@@ -56,6 +57,11 @@ void UMVVMWidgetBlueprintExtension_View::DestroyBlueprintViewInstance()
 void UMVVMWidgetBlueprintExtension_View::PostLoad()
 {
 	Super::PostLoad();
+
+	if (!HasAnyFlags(RF_Transactional))
+	{
+		SetFlags(RF_Transactional);
+	}
 }
 
 UMVVMBlueprintViewExtension* UMVVMWidgetBlueprintExtension_View::CreateBlueprintWidgetExtension(TSubclassOf<UMVVMBlueprintViewExtension> ExtensionClass, FName WidgetName)
@@ -64,8 +70,10 @@ UMVVMBlueprintViewExtension* UMVVMWidgetBlueprintExtension_View::CreateBlueprint
 	{
 		UObject* ExtensionObj = NewObject<UObject>(this, ExtensionClass.Get(), NAME_None, RF_Transactional);
 		UMVVMBlueprintViewExtension* NewExtension = CastChecked<UMVVMBlueprintViewExtension>(ExtensionObj);
-		NewExtension->Modify();
 
+		const FScopedTransaction Transaction(LOCTEXT("AddViewModelExtension", "Add viewmodel extension"));
+		NewExtension->Modify();
+		Modify();
 		FMVVMExtensionItem ExtensionToAdd;
 		ExtensionToAdd.WidgetName = WidgetName;
 		ExtensionToAdd.ExtensionObj = NewExtension;
@@ -82,6 +90,9 @@ void UMVVMWidgetBlueprintExtension_View::RemoveBlueprintWidgetExtension(UMVVMBlu
 	FMVVMExtensionItem Extension;
 	Extension.WidgetName = WidgetName;
 	Extension.ExtensionObj = ExtensionToRemove;
+
+	const FScopedTransaction Transaction(LOCTEXT("RemoveViewModelExtension", "Remove viewmodel extension"));
+	Modify();
 	BlueprintExtensions.Remove(Extension);
 	FBlueprintEditorUtils::MarkBlueprintAsStructurallyModified(GetWidgetBlueprint());
 }
@@ -128,6 +139,10 @@ void UMVVMWidgetBlueprintExtension_View::VerifyWidgetExtensions()
 				}
 			});
 
+			if (WidgetNamesToRemove.Num() > 0)
+			{
+				Modify();
+			}
 			for (int32 Index = BlueprintExtensions.Num() - 1; Index >= 0; Index--)
 			{
 				if (WidgetNamesToRemove.Contains(BlueprintExtensions[Index].WidgetName))
@@ -145,6 +160,7 @@ void UMVVMWidgetBlueprintExtension_View::RenameWidgetExtensions(FName OldName, F
 	{
 		if (Extension.WidgetName == OldName)
 		{
+			Modify();
 			Extension.WidgetName = NewName;
 			if (Extension.ExtensionObj)
 			{

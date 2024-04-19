@@ -28,6 +28,8 @@ public:
 	};
 	virtual void Precompile(UE::MVVM::Compiler::IMVVMBlueprintViewPrecompile* Compiler, UWidgetBlueprintGeneratedClass* Class) {}
 	virtual void Compile(UE::MVVM::Compiler::IMVVMBlueprintViewCompile* Compiler, UWidgetBlueprintGeneratedClass* Class, UMVVMViewClass* ViewExtension) {}
-	virtual void WidgetRenamed(FName OldName, FName NewName) {}
-
+	virtual bool WidgetRenamed(FName OldName, FName NewName) 
+	{ 
+		return false; 
+	}
 };

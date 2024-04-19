@@ -64,6 +64,7 @@
 #include "Interfaces/ISlate3DRenderer.h"
 #include "Rendering/SlateDrawBuffer.h"
 #include "Slate/WidgetRenderer.h"
+#include "UMGEditorModule.h"
 #include "Widgets/SVirtualWindow.h"
 #include "GraphEditorActions.h"
 #include "WidgetEditingProjectSettings.h"
@@ -1613,6 +1614,17 @@ void FWidgetBlueprintEditorUtils::ExportWidgetsToText(TArray<UWidget*> WidgetsTo
 	}
 
 	const FExportObjectInnerContext Context(WidgetsToIgnore);
+
+	IUMGEditorModule& EditorModule = FModuleManager::LoadModuleChecked<IUMGEditorModule>("UMGEditor");
+	const TArrayView<const TSharedPtr<IClipboardExtension>> ClipboardExtensions = EditorModule.GetClipboardExtensibilityManager()->GetExtensions();
+
+	// Get the widget blueprint containing the exported widgets
+	UWidgetBlueprint* WidgetBlueprint = nullptr;
+	if (WidgetsToExport.Num() > 0)
+	{
+		WidgetBlueprint = FWidgetBlueprintEditorUtils::GetWidgetBlueprintFromWidget(WidgetsToExport[0]);
+	}
+
 	// Export each of the selected nodes
 	for ( UWidget* Widget : WidgetsToExport )
 	{
@@ -1640,6 +1652,26 @@ void FWidgetBlueprintEditorUtils::ExportWidgetsToText(TArray<UWidget*> WidgetsTo
 			SlotMetaData->SetWidget(Widget);
 
 			UExporter::ExportToOutputDevice(&Context, SlotMetaData, nullptr, Archive, TEXT("copy"), 0, PPF_ExportsNotFullyQualified | PPF_Copy | PPF_Delimited, false, nullptr);
+		}
+
+		if (WidgetBlueprint)
+		{
+			for (const TSharedPtr<IClipboardExtension>& ClipboardExtension : ClipboardExtensions)
+			{
+				if (ClipboardExtension->CanAppendToClipboard(Widget))
+				{
+					IClipboardExtension::FExportArgs ExportArgs;
+					ExportArgs.Context = &Context;
+					ExportArgs.Exporter = nullptr;
+					ExportArgs.FileType = TEXT("copy");
+					ExportArgs.Indent = 0;
+					ExportArgs.PortFlags = PPF_ExportsNotFullyQualified | PPF_Copy | PPF_Delimited;
+					ExportArgs.bSelectedOnly = false;
+					ExportArgs.ExportRootScope = nullptr;
+					ExportArgs.Out = &Archive;
+					ClipboardExtension->AppendToClipboard(Widget, ExportArgs);
+				}
+			}
 		}
 	}
 
@@ -1989,6 +2021,13 @@ void FWidgetBlueprintEditorUtils::ImportWidgetsFromText(UWidgetBlueprint* BP, co
 	FWidgetObjectTextFactory Factory = ProcessImportedText(BP, TextToImport, TempPackage);
 	TGCObjectScopeGuard<UPackage> TempPackageGCGuard(TempPackage);
 
+	IUMGEditorModule& EditorModule = FModuleManager::LoadModuleChecked<IUMGEditorModule>("UMGEditor");
+	const TArrayView<const TSharedPtr<IClipboardExtension>> ClipboardExtensions = EditorModule.GetClipboardExtensibilityManager()->GetExtensions();
+	for (const TSharedPtr<IClipboardExtension>& ClipboardExtension : ClipboardExtensions)
+	{
+		ClipboardExtension->ProcessImportedText(BP, TextToImport, TempPackage);
+	}
+
 	PastedExtraSlotData = Factory.MissingSlotData;
 
 	for ( auto& Entry : Factory.NewWidgetMap )
@@ -2040,6 +2079,14 @@ void FWidgetBlueprintEditorUtils::ImportWidgetsFromText(UWidgetBlueprint* BP, co
 		else
 		{
 			Widget->Rename(*WidgetOldName, BP->WidgetTree);
+		}
+
+		for (const TSharedPtr<IClipboardExtension>& Extension : ClipboardExtensions)
+		{
+			if (Extension->CanImportFromClipboard(Widget))
+			{
+				Extension->ImportDataToWidget(Widget, FName(WidgetOldName));
+			}
 		}
 	}
 }
@@ -2894,6 +2941,30 @@ FText FWidgetBlueprintEditorUtils::GetPaletteCategory(const FAssetData& WidgetAs
 	{
 		return GetMutableDefault<UWidget>()->GetPaletteCategory();
 	}
+}
+
+UWidgetBlueprint* FWidgetBlueprintEditorUtils::GetWidgetBlueprintFromWidget(const UWidget* Widget)
+{
+	if (Widget)
+	{
+		if (UObject* WidgetTree = Widget->GetOuter())
+		{
+			UWidgetBlueprint* WidgetBlueprint = Cast<UWidgetBlueprint>(WidgetTree->GetOuter());
+			if (WidgetBlueprint)
+			{
+				return WidgetBlueprint;
+			}
+			else
+			{
+				WidgetBlueprint = Cast<UWidgetBlueprint>(WidgetTree->GetOuter()->GetClass()->ClassGeneratedBy);
+				if (WidgetBlueprint)
+				{
+					return WidgetBlueprint;
+				}
+			}
+		}
+	}
+	return nullptr;
 }
 
 #undef LOCTEXT_NAMESPACE

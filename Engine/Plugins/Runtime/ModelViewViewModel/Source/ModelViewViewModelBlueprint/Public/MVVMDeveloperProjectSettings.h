@@ -7,6 +7,8 @@
 #include "MVVMDeveloperProjectSettings.generated.h"
 
 class UK2Node;
+class UListViewBase;
+class UPanelWidget;
 enum class EMVVMBlueprintViewModelContextCreationType : uint8;
 enum class EMVVMExecutionMode : uint8;
 
@@ -94,6 +96,9 @@ public:
 	TArray<const UClass*> GetAllowedConversionFunctionClasses() const;
 	TArray<const UClass*> GetDeniedConversionFunctionClasses() const;
 
+	bool IsExtensionSupportedForPanelClass(TSubclassOf<UPanelWidget> ClassToSupport) const;
+	bool IsExtensionSupportedForListViewBaseClass(TSubclassOf<UListViewBase> ClassToSupport) const;
+
 private:
 	/** Permission list for filtering which properties are visible in UI. */
 	UPROPERTY(EditAnywhere, config, Category = "UX", meta=(AllowAbstract = true))
@@ -177,6 +182,14 @@ public:
 	/** Settings for filtering the list of available properties and functions on binding creation. */
 	UPROPERTY(EditAnywhere, config, Category = "UX")
 	FMVVMViewBindingFilterSettings FilterSettings;
+
+	/** Sub-classes of panel widget that are supported to have an extension for binding their entries to viewmodels. */
+	UPROPERTY(EditAnywhere, config, Category = "Widget Extension")
+	TSet<TSoftClassPtr<UPanelWidget>> SupportedPanelClassesForExtension;
+
+	/** Sub-classes of ListViewBase that are supported to have an extension for binding their entries to viewmodels. */
+	UPROPERTY(EditAnywhere, config, Category = "Widget Extension")
+	TSet<TSoftClassPtr<UListViewBase>> SupportedListViewBaseClassesForExtension;
 };
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2

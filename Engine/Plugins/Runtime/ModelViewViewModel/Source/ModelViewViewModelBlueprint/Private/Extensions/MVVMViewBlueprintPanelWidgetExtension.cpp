@@ -224,13 +224,15 @@ const UMVVMBlueprintView* UMVVMViewBlueprintPanelWidgetExtension::GetEntryWidget
 	return nullptr;
 }
 
-void UMVVMViewBlueprintPanelWidgetExtension::WidgetRenamed(FName OldName, FName NewName)
+bool UMVVMViewBlueprintPanelWidgetExtension::WidgetRenamed(FName OldName, FName NewName)
 {
 	if (WidgetName == OldName)
 	{
-		WidgetName = NewName;
 		Modify();
+		WidgetName = NewName;
+		return true;
 	}
+	return false;
 }
 
 #undef LOCTEXT_NAMESPACE

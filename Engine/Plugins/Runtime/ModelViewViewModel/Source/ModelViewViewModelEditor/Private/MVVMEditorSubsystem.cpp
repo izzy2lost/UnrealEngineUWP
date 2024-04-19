@@ -135,6 +135,8 @@ namespace UE::MVVM::Private
 UMVVMBlueprintView* UMVVMEditorSubsystem::RequestView(UWidgetBlueprint* WidgetBlueprint) const
 {
 	UMVVMWidgetBlueprintExtension_View* Extension = UMVVMWidgetBlueprintExtension_View::RequestExtension<UMVVMWidgetBlueprintExtension_View>(WidgetBlueprint);
+	Extension->SetFlags(RF_Transactional);
+
 	if (Extension->GetBlueprintView() == nullptr)
 	{
 		Extension->CreateBlueprintViewInstance();
