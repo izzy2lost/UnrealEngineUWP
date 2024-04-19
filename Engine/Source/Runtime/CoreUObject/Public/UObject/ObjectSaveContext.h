@@ -10,6 +10,7 @@
 class FPackagePath;
 class ITargetPlatform;
 class UPackage;
+struct FSoftObjectPath;
 #if WITH_EDITOR
 namespace UE::Cook { class FCookDependency; }
 #endif
@@ -74,7 +75,8 @@ struct FObjectSaveContextData
 
 	// Collection variables that are written but not read during the PreSave/PostSave functions
 #if WITH_EDITOR
-	TArray<UE::Cook::FCookDependency> CookDependencies;
+	TArray<UE::Cook::FCookDependency> CookBuildDependencies;
+	TArray<FSoftObjectPath> CookRuntimeDependencies;
 #endif
 
 	// Per-object Output variables; writable from PreSave functions, readable from PostSave functions
@@ -131,10 +133,18 @@ public:
 
 #if WITH_EDITOR
 	/**
-	 * Add the given FCookDependency to the record for the package being cook-saved. Iterative cooks will
+	 * Add the given FCookDependency to the build dependencies for the package being cook-saved. Iterative cooks will
 	 * invalidate the package and recook it if the CookDependency changes.
 	 */
-	COREUOBJECT_API void AddCookDependency(UE::Cook::FCookDependency CookDependency);
+	COREUOBJECT_API void AddCookBuildDependency(UE::Cook::FCookDependency BuildDependency);
+	/**
+	 * Add the given UObject's package as a runtime dependency for the package being cook-saved. It will
+	 * be cooked for the current platform even if it is not otherwise referenced, and even if the object
+	 * being PreSaved does not end up saving into the package's exports for the current platform.
+	 */
+	COREUOBJECT_API void AddCookRuntimeDependency(FSoftObjectPath Dependency);
+	/** Serialize an object to find all packages that it references, and AddCookRuntimeDependency for each one. */
+	COREUOBJECT_API void HarvestCookRuntimeDependencies(UObject* HarvestReferencesFrom);
 #endif
 
 	/**

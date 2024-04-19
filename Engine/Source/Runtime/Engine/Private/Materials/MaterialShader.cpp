@@ -518,7 +518,7 @@ void RecordMaterialDependenciesForCook(FObjectPreSaveContext ObjectSaveContext,
 	Writer << HashMaterialDependenciesForCookArgsVersion;
 	Writer << RecordedResources;
 
-	ObjectSaveContext.AddCookDependency(
+	ObjectSaveContext.AddCookBuildDependency(
 		UE::Cook::FCookDependency::Function(
 			UE_COOK_DEPENDENCY_FUNCTION_CALL(HashMaterialDependenciesForCook), Writer.Save()));
 }

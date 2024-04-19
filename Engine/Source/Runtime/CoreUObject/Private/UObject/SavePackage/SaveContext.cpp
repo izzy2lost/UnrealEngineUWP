@@ -152,7 +152,15 @@ FSavePackageResultStruct FSaveContext::GetFinalResult()
 	TSet<FName>& SoftPackageReferenceList = GetSoftPackageReferenceList();
 	ResultData.SoftPackageReferences = SoftPackageReferenceList.Array();
 #if WITH_EDITOR
-	ResultData.CookDependencies = MoveTemp(ObjectSaveContext.CookDependencies);
+	for (const FSoftObjectPath& RuntimeDependency : ObjectSaveContext.CookRuntimeDependencies)
+	{
+		FName PackageDependency = RuntimeDependency.GetLongPackageFName();
+		if (!PackageDependency.IsNone())
+		{
+			ResultData.SoftPackageReferences.Add(PackageDependency);
+		}
+	}
+	ResultData.CookDependencies = MoveTemp(ObjectSaveContext.CookBuildDependencies);
 #endif
 
 	return ResultData;

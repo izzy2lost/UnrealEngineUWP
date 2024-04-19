@@ -31,6 +31,7 @@
 #include "UObject/AssetRegistryTagsContext.h"
 #include "UObject/Class.h"
 #include "UObject/GCScopeLock.h"
+#include "UObject/ImportExportCollector.h"
 #include "UObject/Linker.h"
 #include "UObject/LinkerLoad.h"
 #include "UObject/LinkerSave.h"
@@ -764,9 +765,47 @@ FObjectSaveContextData::FObjectSaveContextData(UPackage* Package, const ITargetP
 }
 
 #if WITH_EDITOR
-void FObjectPreSaveContext::AddCookDependency(UE::Cook::FCookDependency CookDependency)
+void FObjectPreSaveContext::AddCookBuildDependency(UE::Cook::FCookDependency BuildDependency)
 {
-	Data.CookDependencies.Add(MoveTemp(CookDependency));
+	Data.CookBuildDependencies.Add(MoveTemp(BuildDependency));
+}
+void FObjectPreSaveContext::AddCookRuntimeDependency(FSoftObjectPath RuntimeDependency)
+{
+	Data.CookRuntimeDependencies.Add(MoveTemp(RuntimeDependency));
+}
+void FObjectPreSaveContext::HarvestCookRuntimeDependencies(UObject* HarvestReferencesFrom)
+{
+	if (!HarvestReferencesFrom)
+	{
+		return;
+	}
+	if (!GetTargetPlatform())
+	{
+		return;
+	}
+
+	UPackage* PackageBeingSaved = nullptr; // We don't have a pointer for this, so set it to null
+	FArchiveCookContext CookContext(PackageBeingSaved, Data.CookType, Data.CookingDLC, GetTargetPlatform());
+	FArchiveCookData CookData(*GetTargetPlatform(), CookContext);
+	FImportExportCollector Collector(HarvestReferencesFrom->GetPackage());
+	Collector.SetCookData(&CookData);
+	Collector.SerializeObjectAndReferencedExports(HarvestReferencesFrom);
+	for (const TPair<FName, ESoftObjectPathCollectType>& Pair : Collector.GetImportedPackages())
+	{
+		if (Pair.Value != ESoftObjectPathCollectType::AlwaysCollect)
+		{
+			continue;
+		}
+		FName PackageName = Pair.Key;
+		if (FPackageName::IsScriptPackage(WriteToString<256>(PackageName)))
+		{
+			// Ignore native imports; we don't need to mark them for cooking
+			continue;
+		}
+		FSoftObjectPath PackageSoftPath(PackageName, NAME_None, FString());
+		AddCookRuntimeDependency(PackageSoftPath);
+	}
+
 }
 #endif
 

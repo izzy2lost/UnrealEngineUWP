@@ -25,6 +25,7 @@
 #include "Misc/ConfigCacheIni.h"
 #include "Net/Core/PushModel/PushModel.h"
 #include "UObject/FortniteMainBranchObjectVersion.h"
+#include "UObject/ImportExportCollector.h"
 #include "UObject/Package.h" // IWYU pragma: keep
 #include "UObject/PrimaryAssetId.h"
 #include "UObject/SparseClassDataUtils.h"
@@ -2507,47 +2508,6 @@ ENGINE_API int32 IncrementUberGraphSerialNumber()
 }
 #endif//VALIDATE_UBER_GRAPH_PERSISTENT_FRAME
 
-
-#if WITH_EDITORONLY_DATA
-/** An Archive that records all of the imported packages from a tree of exports. */
-class FImportExportCollector : public FArchiveUObject
-{
-public:
-	explicit FImportExportCollector(UPackage* InRootPackage);
-
-	/**
-	 * Mark that a given export (e.g. the export that is doing the collecting) should not be explored
-	 * if encountered again. Prevents infinite recursion when the collector is constructed and called during
-	 * Serialize.
-	 */
-	void AddExportToIgnore(UObject* Export);
-	/**
-	 * Serialize the given object, following its object references to find other imports and exports,
-	 * and recursively serialize any new exports that it references.
-	 */
-	void SerializeObjectAndReferencedExports(UObject* RootObject);
-	/** Restore the collector to empty. */
-	void Reset();
-	const TSet<UObject*>& GetExports() const { return Exports; }
-	const TMap<FSoftObjectPath, ESoftObjectPathCollectType>& GetImports() const { return Imports; }
-	const TMap<FName, ESoftObjectPathCollectType>& GetImportedPackages() const { return ImportedPackages; }
-
-	virtual FArchive& operator<<(UObject*& Obj) override;
-	virtual FArchive& operator<<(FSoftObjectPath& Value) override;
-
-private:
-	void AddImport(const FSoftObjectPath& Path, ESoftObjectPathCollectType CollectType);
-	ESoftObjectPathCollectType Union(ESoftObjectPathCollectType A, ESoftObjectPathCollectType B);
-
-	TSet<UObject*> Exports;
-	TRingBuffer<UObject*> ExportsExploreQueue;
-	TMap<FSoftObjectPath, ESoftObjectPathCollectType> Imports;
-	TMap<FName, ESoftObjectPathCollectType> ImportedPackages;
-	UPackage* RootPackage;
-	FName RootPackageName;
-};
-#endif
-
 void UBlueprintGeneratedClass::Serialize(FArchive& Ar)
 {
 #if VALIDATE_UBER_GRAPH_PERSISTENT_FRAME
@@ -2980,100 +2940,6 @@ void UBlueprintGeneratedClass::PurgeCookedMetaData()
 	{
 		CookedMetaDataUtil::PurgeCookedMetaData<UClassCookedMetaData>(CachedCookedMetaDataPtr);
 	}
-}
-
-FImportExportCollector::FImportExportCollector(UPackage* InRootPackage)
-	: RootPackage(InRootPackage)
-	, RootPackageName(InRootPackage->GetFName())
-{
-	ArIsObjectReferenceCollector = true;
-	ArIsModifyingWeakAndStrongReferences = true;
-	SetIsSaving(true);
-	SetIsPersistent(true);
-}
-
-void FImportExportCollector::Reset()
-{
-	Exports.Reset();
-	Imports.Reset();
-}
-
-void FImportExportCollector::AddExportToIgnore(UObject* Export)
-{
-	Exports.Add(Export);
-}
-
-void FImportExportCollector::SerializeObjectAndReferencedExports(UObject* RootObject)
-{
-	*this << RootObject;
-	while (!ExportsExploreQueue.IsEmpty())
-	{
-		UObject* Export = ExportsExploreQueue.PopFrontValue();
-		Export->Serialize(*this);
-	}
-}
-
-FArchive& FImportExportCollector::operator<<(UObject*& Obj)
-{
-	if (!Obj)
-	{
-		return *this;
-	}
-	UPackage* Package = Obj->GetPackage();
-	if (!Package)
-	{
-		return *this;
-	}
-	if (Package != RootPackage)
-	{
-		AddImport(FSoftObjectPath(Obj), ESoftObjectPathCollectType::AlwaysCollect);
-		return *this;
-	}
-
-	bool bAlreadyExists;
-	Exports.Add(Obj, &bAlreadyExists);
-	if (bAlreadyExists)
-	{
-		return *this;
-	}
-	ExportsExploreQueue.Add(Obj);
-	return *this;
-}
-
-FArchive& FImportExportCollector::operator<<(FSoftObjectPath& Value)
-{
-	FName CurrentPackage;
-	FName PropertyName;
-	ESoftObjectPathCollectType CollectType;
-	ESoftObjectPathSerializeType SerializeType;
-	FSoftObjectPathThreadContext& ThreadContext = FSoftObjectPathThreadContext::Get();
-	ThreadContext.GetSerializationOptions(CurrentPackage, PropertyName, CollectType, SerializeType, this);
-
-	if (CollectType != ESoftObjectPathCollectType::NeverCollect && CollectType != ESoftObjectPathCollectType::NonPackage)
-	{
-		FName PackageName = Value.GetLongPackageFName();
-		if (PackageName != RootPackageName && !PackageName.IsNone())
-		{
-			AddImport(Value, CollectType);
-		}
-	}
-	return *this;
-}
-
-void FImportExportCollector::AddImport(const FSoftObjectPath& Path, ESoftObjectPathCollectType CollectType)
-{
-	ESoftObjectPathCollectType& ExistingImport = Imports.FindOrAdd(
-		Path, ESoftObjectPathCollectType::EditorOnlyCollect);
-	ExistingImport = Union(ExistingImport, CollectType);
-
-	ESoftObjectPathCollectType& ExistingPackage = ImportedPackages.FindOrAdd(
-		Path.GetLongPackageFName(), ESoftObjectPathCollectType::EditorOnlyCollect);
-	ExistingPackage = Union(ExistingPackage, CollectType);
-}
-
-ESoftObjectPathCollectType FImportExportCollector::Union(ESoftObjectPathCollectType A, ESoftObjectPathCollectType B)
-{
-	return static_cast<ESoftObjectPathCollectType>(FMath::Max(static_cast<int>(A), static_cast<int>(B)));
 }
 
 #endif //if WITH_EDITORONLY_DATA

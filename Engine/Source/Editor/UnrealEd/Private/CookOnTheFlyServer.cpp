@@ -6698,10 +6698,10 @@ void FSaveCookedPackageContext::CalculatePlatformRuntimeDependencies()
 	{
 		FName PackageFName = Package->GetFName();
 		TConstArrayView<const ITargetPlatform*> ReachablePlatforms(&TargetPlatform, 1);
-		for (const TArray<FName>& DependencyNames : { SavePackageResult.ImportPackages, SavePackageResult.SoftPackageReferences })
+		for (const TArray<FName>* DependencyNames : { &SavePackageResult.ImportPackages, &SavePackageResult.SoftPackageReferences })
 		{
-			bool bHard = &DependencyNames == &SavePackageResult.ImportPackages;
-			for (FName DependencyName : DependencyNames)
+			bool bHard = DependencyNames == &SavePackageResult.ImportPackages;
+			for (FName DependencyName : *DependencyNames)
 			{
 				UE::Cook::FPackageData* DependencyData = COTFS.PackageDatas->TryAddPackageDataByPackageName(DependencyName);
 				if (DependencyData)
