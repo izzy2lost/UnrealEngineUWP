@@ -2691,23 +2691,11 @@ int32 FEngineLoop::PreInitPreStartupScreen(const TCHAR* CmdLine)
 
 #if WITH_EDITOR
 		{
-			int32 NumThreadsInLargeThreadPool = FMath::Max(FPlatformMisc::NumberOfCoresIncludingHyperthreads() - 2, 2);
 			int32 NumThreadsInThreadPool = FPlatformMisc::NumberOfWorkerThreadsToSpawn();
 			// when we are in the editor we like to do things like build lighting and such
 			// this thread pool can be used for those purposes
-			extern CORE_API int32 GUseNewTaskBackend;
-			if (!GUseNewTaskBackend)
-			{
-				GLargeThreadPool = FQueuedThreadPool::Allocate();
-			}
-			else
-			{
-				GLargeThreadPool = new FQueuedLowLevelThreadPool();
-			}
+			GLargeThreadPool = new FQueuedLowLevelThreadPool();
 		
-			// TaskGraph has it's HP threads slightly below normal, we want to be below the taskgraph HP threads to avoid interfering with the game-thread.
-			verify(GLargeThreadPool->Create(NumThreadsInLargeThreadPool, StackSize, TPri_BelowNormal, TEXT("LargeThreadPool")));
-
 			// we are only going to give dedicated servers one pool thread
 			if (FPlatformProperties::IsServerOnly())
 			{
@@ -2719,23 +2707,7 @@ int32 FEngineLoop::PreInitPreStartupScreen(const TCHAR* CmdLine)
 		}
 #else
 		{
-			extern CORE_API int32 GUseNewTaskBackend;
-			if (!GUseNewTaskBackend)
-			{
-				GThreadPool = FQueuedThreadPool::Allocate();
-				int32 NumThreadsInThreadPool = FPlatformMisc::NumberOfWorkerThreadsToSpawn();
-
-				// we are only going to give dedicated servers one pool thread
-				if (FPlatformProperties::IsServerOnly())
-				{
-					NumThreadsInThreadPool = 1;
-				}
-				verify(GThreadPool->Create(NumThreadsInThreadPool, StackSize, TPri_SlightlyBelowNormal, TEXT("ThreadPool")));
-			}
-			else
-			{
-				GThreadPool = new FQueuedLowLevelThreadPool();
-			}
+			GThreadPool = new FQueuedLowLevelThreadPool();
 		}
 #endif
 		{

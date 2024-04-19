@@ -18683,8 +18683,6 @@ static FThreadConfig RHIThreadConfig;
 static FThreadConfig TaskThreadConfig;
 static FThreadConfig TaskBPThreadConfig;
 
-extern CORE_API int32 GUseNewTaskBackend;
-
 void GetDefaultThreadConfigs()
 {
 	TaskThreadConfig.Affinity = FPlatformAffinity::GetTaskGraphThreadMask();
@@ -18797,12 +18795,6 @@ void SetPriorityAndAffinityOnRHIThread()
 
 static void SetupThreadConfig(const TArray<FString>& Args)
 {
-	if (!GUseNewTaskBackend)
-	{
-		UE_LOG(LogConsoleResponse, Warning, TEXT("SetupThreadConfig called, but this requires the new task backend. Ignoring"));
-		return;
-	}
-
 	UE_LOG(LogConsoleResponse, Display, TEXT("Setting thread configurations"));
 
 	// Lazily load the default thread configs

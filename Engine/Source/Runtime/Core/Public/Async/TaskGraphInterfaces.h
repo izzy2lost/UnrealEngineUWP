@@ -208,15 +208,6 @@ namespace ENamedThreads
 
 DECLARE_INTRINSIC_TYPE_LAYOUT(ENamedThreads::Type);
 
-UE_DEPRECATED(4.26, "No longer supported") extern CORE_API int32 GEnablePowerSavingThreadPriorityReductionCVar;
-
-enum class UE_DEPRECATED(4.26, "No longer supported") EPowerSavingEligibility : uint8
-{
-	Unknown,
-	Eligible,			// When set high priority tasks are eligible for downgrade to normal priority when power saving is required.
-	NotEligible			// When set high priority tasks will not be downgraded when power saving is required.
-};
-
 class FAutoConsoleTaskPriority
 {
 	FString RawSetting;
@@ -926,18 +917,6 @@ public:
 		checkThreadGraph(!IsComplete()); // it is not legal to add a DontCompleteUntil after the event has been completed. Basically, this is only legal within a task function.
 		EventsToWaitFor.Emplace(EventToWaitFor);
 		TaskTrace::SubsequentAdded(EventToWaitFor->GetTraceId(), GetTraceId());
-	}
-
-	/**
-	*	Sets the thread that you want to execute the null gather task on. This is useful if the thing waiting for this chain to complete is a single, named thread. 
-	*	CAUTION: This is only legal while executing the task associated with this event.
-	*	@param ThreadToDoGatherOn thread and priority to execute null gather task on
-	**/
-	UE_DEPRECATED(4.26, "The feature is not supported anymore. Please remove the call, there's no replacement.")
-	void SetGatherThreadForDontCompleteUntil(ENamedThreads::Type InThreadToDoGatherOn)
-	{
-		checkThreadGraph(!IsComplete()); // it is not legal to add a DontCompleteUntil after the event has been completed. Basically, this is only legal within a task function.
-		ThreadToDoGatherOn = InThreadToDoGatherOn;
 	}
 
 	/**
@@ -1787,76 +1766,6 @@ public:
 		check(InPrerequisite.GetReference());
 		Prerequisites.Add(InPrerequisite);
 		return CreateAndDispatchWhenReady(MoveTemp(InFunction), InStatId, &Prerequisites, InDesiredThread);
-	}
-};
-
-/**
- * List of tasks that can be "joined" into one task which can be waited on or used as a prerequisite.
- * Note, these are FGraphEventRef's, but we manually manage the reference count instead of using a smart pointer
-**/
-class UE_DEPRECATED(4.26, "The feature is deprecated") FCompletionList
-{
-	TLockFreePointerListUnordered<FGraphEvent, 0>	Prerequisites;
-public:
-	/**
-	 * Adds a task to the completion list, can be called from any thread
-	 * @param TaskToAdd, task to add
-	 */
-	void Add(const FGraphEventRef& TaskToAdd)
-	{
-		FGraphEvent* Task = TaskToAdd.GetReference();
-		checkSlow(Task);
-		Task->AddRef(); // manually increasing the ref count
-		Prerequisites.Push(Task);
-	}
-	/**
-	  * Task function that waits until any newly added pending commands complete before it completes, forming a chain
-	**/
-	void ChainWaitForPrerequisites(ENamedThreads::Type CurrentThread, const FGraphEventRef& MyCompletionGraphEvent)
-	{
-		// this is tricky...
-		// we have waited for a set of pending tasks to execute. However, they may have added more pending tasks that also need to be waited for.
-		FGraphEventRef PendingComplete = CreatePrerequisiteCompletionHandle(CurrentThread);
-		if (PendingComplete.GetReference())
-		{
-			MyCompletionGraphEvent->DontCompleteUntil(PendingComplete);
-		}
-	}
-	/**
-	 * Create a completion handle that represents the completion of all pending tasks
-	 * This is complicated by the fact that some of the tasks we are waiting for might also add tasks
-	 * So it is recursive and the task we call here uses DontCompleteUntil to build the chain
-	 * this should always be called from the same thread.
-	 * @return The task that when completed, indicates all tasks in the list are completed, including any tasks they added recursively. Will be a NULL reference if there are no tasks
-	 */
-	FGraphEventRef CreatePrerequisiteCompletionHandle(ENamedThreads::Type CurrentThread)
-	{
-		FGraphEventRef CompleteHandle;
-		TArray<FGraphEvent*> Pending;
-		// grab all pending command completion handles
-		Prerequisites.PopAll(Pending);
-		if (Pending.Num())
-		{
-			FGraphEventArray PendingHandles;
-			// convert the pointer list to a list of handles
-			for (int32 Index = 0; Index < Pending.Num(); Index++)
-			{
-				PendingHandles.Emplace(Pending[Index]);
-				Pending[Index]->Release(); // remove the ref count we added when we added it to the lock free list
-			}
-			// start a new task that won't complete until all of these tasks have executed, plus any tasks that they create when they run
-			DECLARE_CYCLE_STAT(TEXT("FDelegateGraphTask.WaitOnCompletionList"),
-				STAT_FDelegateGraphTask_WaitOnCompletionList,
-				STATGROUP_TaskGraphTasks);
-
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-			CompleteHandle = FDelegateGraphTask::CreateAndDispatchWhenReady(
-				FDelegateGraphTask::FDelegate::CreateRaw(this, &FCompletionList::ChainWaitForPrerequisites),
-				GET_STATID(STAT_FDelegateGraphTask_WaitOnCompletionList), &PendingHandles, CurrentThread, ENamedThreads::AnyHiPriThreadHiPriTask
-			);
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
-		}
-		return CompleteHandle;
 	}
 };
 

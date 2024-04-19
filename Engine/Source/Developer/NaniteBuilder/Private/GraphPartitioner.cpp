@@ -310,88 +310,28 @@ void FGraphPartitioner::PartitionStrict( FGraphData* Graph, int32 InMinPartition
 
 	if( bThreaded && NumPartitionsExpected > 4 )
 	{	
-		extern CORE_API int32 GUseNewTaskBackend;
-		if (GUseNewTaskBackend)
+		TLocalWorkQueue<FGraphData> LocalWork(Graph);
+		LocalWork.Run(MakeYCombinator([this, &LocalWork](auto Self, FGraphData* Graph) -> void
 		{
-			TLocalWorkQueue<FGraphData> LocalWork(Graph);
-			LocalWork.Run(MakeYCombinator([this, &LocalWork](auto Self, FGraphData* Graph) -> void
+			FGraphData* ChildGraphs[2];
+			BisectGraph( Graph, ChildGraphs );
+			delete Graph;
+
+			if( ChildGraphs[0] && ChildGraphs[1] )
 			{
-				FGraphData* ChildGraphs[2];
-				BisectGraph( Graph, ChildGraphs );
-				delete Graph;
-
-				if( ChildGraphs[0] && ChildGraphs[1] )
+				// Only spawn add a worker thread if remaining work is expected to be large enough
+				if (ChildGraphs[0]->Num > 256)
 				{
-					// Only spawn add a worker thread if remaining work is expected to be large enough
-					if (ChildGraphs[0]->Num > 256)
-					{
-						LocalWork.AddTask(ChildGraphs[0]);
-						LocalWork.AddWorkers(1);
-					}
-					else
-					{
-						Self(ChildGraphs[0]);
-					}
-					Self(ChildGraphs[1]);
+					LocalWork.AddTask(ChildGraphs[0]);
+					LocalWork.AddWorkers(1);
 				}
-			}));
-		}
-		else
-		{
-			const ENamedThreads::Type DesiredThread = IsInGameThread() ? ENamedThreads::AnyThread : ENamedThreads::AnyBackgroundThreadNormalTask;
-
-			class FBuildTask
-			{
-			public:
-				FBuildTask( FGraphPartitioner* InPartitioner, FGraphData* InGraph, ENamedThreads::Type InDesiredThread)
-					: Partitioner( InPartitioner )
-					, Graph( InGraph )
-					, DesiredThread( InDesiredThread )
-				{}
-
-				void DoTask( ENamedThreads::Type CurrentThread, const FGraphEventRef& MyCompletionEvent )
+				else
 				{
-					FGraphData* ChildGraphs[2];
-					Partitioner->BisectGraph( Graph, ChildGraphs );
-					delete Graph;
-
-					if( ChildGraphs[0] && ChildGraphs[1] )
-					{
-						if( ChildGraphs[0]->Num > 256 )
-						{
-							FGraphEventRef Task = TGraphTask< FBuildTask >::CreateTask().ConstructAndDispatchWhenReady( Partitioner, ChildGraphs[0], DesiredThread);
-							MyCompletionEvent->DontCompleteUntil( Task );
-						}
-						else
-						{
-							FBuildTask( Partitioner, ChildGraphs[0], DesiredThread).DoTask( CurrentThread, MyCompletionEvent );
-						}
-
-						FBuildTask( Partitioner, ChildGraphs[1], DesiredThread).DoTask( CurrentThread, MyCompletionEvent );
-					}
+					Self(ChildGraphs[0]);
 				}
-
-				static FORCEINLINE TStatId GetStatId()
-				{
-					RETURN_QUICK_DECLARE_CYCLE_STAT(FBuildTask, STATGROUP_ThreadPoolAsyncTasks);
-				}
-
-				static FORCEINLINE ESubsequentsMode::Type	GetSubsequentsMode()	{ return ESubsequentsMode::TrackSubsequents; }
-
-				FORCEINLINE ENamedThreads::Type GetDesiredThread() const
-				{
-					return DesiredThread;
-				}
-
-			private:
-				FGraphPartitioner*  Partitioner;
-				FGraphData*         Graph;
-				ENamedThreads::Type DesiredThread;
-			};
-
-			FGraphEventRef BuildTask = TGraphTask< FBuildTask >::CreateTask( nullptr ).ConstructAndDispatchWhenReady( this, Graph, DesiredThread);
-			FTaskGraphInterface::Get().WaitUntilTaskCompletes( BuildTask );
-		}
+				Self(ChildGraphs[1]);
+			}
+		}));
 	}
 	else
 	{

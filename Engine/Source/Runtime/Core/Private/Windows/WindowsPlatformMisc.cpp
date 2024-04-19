@@ -2574,8 +2574,7 @@ int32 FWindowsPlatformMisc::NumberOfWorkerThreadsToSpawn()
 {	
 	static int32 MaxServerWorkerThreads = 4;
 
-	extern CORE_API int32 GUseNewTaskBackend;
-	int32 MaxWorkerThreads = GUseNewTaskBackend ? INT32_MAX : 26;
+	int32 MaxWorkerThreads = INT32_MAX;
 
 	int32 NumberOfCores = FWindowsPlatformMisc::NumberOfCores();
 	int32 NumberOfCoresIncludingHyperthreads = FWindowsPlatformMisc::NumberOfCoresIncludingHyperthreads();

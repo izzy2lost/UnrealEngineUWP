@@ -15,27 +15,10 @@
 
 void InitEditorThreadPools()
 {
-	int32 NumThreadsInLargeThreadPool = FMath::Max(FPlatformMisc::NumberOfCoresIncludingHyperthreads() - 2, 2);
-	int32 NumThreadsInThreadPool = FPlatformMisc::NumberOfWorkerThreadsToSpawn();
-	// when we are in the editor we like to do things like build lighting and such
-	// this thread pool can be used for those purposes
-	extern CORE_API int32 GUseNewTaskBackend;
-	if (!GUseNewTaskBackend)
-	{
-		GLargeThreadPool = FQueuedThreadPool::Allocate();
-	}
-	else
-	{
-		GLargeThreadPool = new FQueuedLowLevelThreadPool();
-	}
-
-	constexpr int32 StackSize = 128 * 1024;
-
-	// TaskGraph has it's HP threads slightly below normal, we want to be below the taskgraph HP threads to avoid interfering with the game-thread.
-	verify(GLargeThreadPool->Create(NumThreadsInLargeThreadPool, StackSize, TPri_BelowNormal, TEXT("LargeThreadPool")));
+	GLargeThreadPool = new FQueuedLowLevelThreadPool();
 
 	// GThreadPool will schedule on the LargeThreadPool but limit max concurrency to the given number.
-	GThreadPool = new FQueuedThreadPoolWrapper(GLargeThreadPool, NumThreadsInThreadPool);
+	GThreadPool = new FQueuedThreadPoolWrapper(GLargeThreadPool, FPlatformMisc::NumberOfWorkerThreadsToSpawn());
 }
 
 void InitDerivedDataCache()
