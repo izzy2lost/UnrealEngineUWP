@@ -1012,6 +1012,7 @@ void SLogView::SelectLogMessage(TSharedPtr<FLogMessage> LogMessage)
 				}
 				else
 				{
+					TimingView->SetAutoScroll(false);
 					TimingView->SetAndCenterOnTimeMarker(Time);
 				}
 			}

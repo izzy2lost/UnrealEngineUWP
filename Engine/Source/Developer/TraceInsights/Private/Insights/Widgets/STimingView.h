@@ -346,6 +346,9 @@ public:
 	bool IsTimeSelected(double Time) const { return Time >= SelectionStartTime && Time < SelectionEndTime; }
 	bool IsTimeSelectedInclusive(double Time) const { return Time >= SelectionStartTime && Time <= SelectionEndTime; }
 
+	bool IsAutoScrollEnabled() const { return bAutoScroll; }
+	void SetAutoScroll(bool bOnOff);
+
 	void ScrollAtPosY(float ScrollPosY);
 	void BringIntoViewY(float InTopY, float InBottomY);
 	void BringScrollableTrackIntoView(const FBaseTimingTrack& Track);
@@ -441,8 +444,6 @@ protected:
 
 	////////////////////////////////////////////////////////////////////////////////////////////////////
 	// Auto-Scroll
-
-	void SetAutoScroll(bool bOnOff);
 
 	void AutoScroll_OnCheckStateChanged(ECheckBoxState NewRadioState);
 	ECheckBoxState AutoScroll_IsChecked() const;

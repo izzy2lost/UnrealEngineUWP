@@ -556,6 +556,8 @@ void SFrameTrack::SelectFrameAtMousePosition(double X, double Y, bool JoinCurren
 					Duration = EndTime - StartTime;
 				}
 
+				TimingView->SetAutoScroll(false);
+
 				if (bZoomTimingViewOnFrameSelection)
 				{
 					const double EndTime = FMath::Min(StartTime + Duration, TimingView->GetViewport().GetMaxValidTime());
