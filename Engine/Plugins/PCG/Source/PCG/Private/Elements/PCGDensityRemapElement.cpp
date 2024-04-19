@@ -8,6 +8,13 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(PCGDensityRemapElement)
 
+UPCGDensityRemapSettings::UPCGDensityRemapSettings()
+{
+#if WITH_EDITOR
+	bExposeToLibrary = false;
+#endif // WITH_EDITOR
+}
+
 FPCGElementPtr UPCGDensityRemapSettings::CreateElement() const
 {
 	return MakeShared<FPCGDensityRemapElement>();
@@ -19,6 +26,7 @@ bool FPCGDensityRemapElement::ExecuteInternal(FPCGContext* InContext) const
 
 	ContextType* Context = static_cast<ContextType*>(InContext);
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	const UPCGDensityRemapSettings* Settings = Context->GetInputSettings<UPCGDensityRemapSettings>();
 	check(Settings);
 
@@ -27,6 +35,7 @@ bool FPCGDensityRemapElement::ExecuteInternal(FPCGContext* InContext) const
 	const float OutRangeMin = Settings->OutRangeMin;
 	const float OutRangeMax = Settings->OutRangeMax;
 	const bool bExcludeValuesOutsideInputRange = Settings->bExcludeValuesOutsideInputRange;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	// used to determine if a density value lies between TrueMin and TrueMax
 	const float InRangeTrueMin = FMath::Min(InRangeMin, InRangeMax);

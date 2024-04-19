@@ -8,11 +8,13 @@
 #include "PCGDensityRemapElement.generated.h"
 
 UCLASS(MinimalAPI, BlueprintType, ClassGroup = (Procedural))
-class UPCGDensityRemapSettings : public UPCGSettings
+class UE_DEPRECATED(5.5, "Superseded by UPCGAttributeRemapSettings") UPCGDensityRemapSettings : public UPCGSettings
 {
 	GENERATED_BODY()
 
 public:
+	UPCGDensityRemapSettings();
+
 	// ~Begin UPCGSettings interface
 #if WITH_EDITOR
 	virtual FName GetDefaultNodeName() const override { return FName(TEXT("DensityRemap")); }
