@@ -2,6 +2,8 @@
 
 #include "DataWrappers/ChaosVDCollisionDataWrappers.h"
 #include "DataWrappers/ChaosVDDataSerializationMacros.h"
+#include "UObject/FortniteMainBranchObjectVersion.h"
+
 
 bool FChaosVDContactPoint::Serialize(FArchive& Ar)
 {
@@ -196,6 +198,8 @@ bool FChaosVDCollisionFilterData::Serialize(FArchive& Ar)
 
 bool FChaosVDShapeCollisionData::Serialize(FArchive& Ar)
 {
+	Ar.UsingCustomVersion(FFortniteMainBranchObjectVersion::GUID);
+
 	Ar << CollisionTraceType;
 
 	EChaosVDCollisionShapeDataFlags PackedFlags = EChaosVDCollisionShapeDataFlags::None;
@@ -216,6 +220,12 @@ bool FChaosVDShapeCollisionData::Serialize(FArchive& Ar)
 		CVD_PACK_BITFIELD_DATA(bQueryCollision, PackedFlags, EChaosVDCollisionShapeDataFlags::QueryCollision);
 		CVD_PACK_BITFIELD_DATA(bIsProbe, PackedFlags, EChaosVDCollisionShapeDataFlags::IsProbe);
 		Ar << PackedFlags;
+	}
+
+	if (Ar.CustomVer(FFortniteMainBranchObjectVersion::GUID) >= FFortniteMainBranchObjectVersion::SimAndQueryDataSupportInChaosVisualDebugger)
+	{
+		Ar << SimData;
+		Ar << QueryData;
 	}
 
 	return true;

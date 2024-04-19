@@ -2,10 +2,13 @@
 
 #pragma once
 
+#include "IStructureDetailsView.h"
 #include "Templates/SharedPointer.h"
+#include "UObject/StructOnScope.h"
 #include "UObject/WeakObjectPtrTemplates.h"
 #include "Widgets/SCompoundWidget.h"
 
+class IStructureDetailsView;
 class FSubobjectEditorTreeNode;
 class AActor;
 class SBox;
@@ -15,7 +18,7 @@ class SSubobjectEditor;
 class UObject;
 
 /**
- * Simple details view with SubObject Editor
+ * Simple details for CVD objects and structures
  */
 class CHAOSVD_API SChaosVDDetailsView : public SCompoundWidget
 {
@@ -31,15 +34,40 @@ public:
 	/** Updates the current object this view details is viewing */
 	void SetSelectedObject(UObject* NewObject);
 
+	/** Updates the current object this view details is viewing */
+	template<typename TStruct>
+	void SetSelectedStruct(TStruct* NewStruct);
+
 protected:
-	UObject* GetRootContextObject() const { return CurrentObjectInView.IsValid() ? CurrentObjectInView.Get() : nullptr; };
-	
-	void OnSelectedSubobjectsChanged(const TArray<TSharedPtr<FSubobjectEditorTreeNode>>& SelectedNodes);
+
+	TSharedPtr<IDetailsView> CreateObjectDetailsView();
+	TSharedPtr<IStructureDetailsView> CreateStructureDataDetailsView();
+
+	EVisibility GetStructDetailsVisibility() const;
+	EVisibility GetObjectDetailsVisibility() const;
 
 	TWeakObjectPtr<UObject> CurrentObjectInView;
+
+	TWeakPtr<FStructOnScope> CurrentStructInView;
 	
 	TSharedPtr<IDetailsView> DetailsView;
 
-	// The subobject editor provides a tree widget that allows for editing of subobjects
-	TSharedPtr<SSubobjectEditor> SubobjectEditor;
+	TSharedPtr<IStructureDetailsView> StructDetailsView;
 };
+
+template <typename TStruct>
+void SChaosVDDetailsView::SetSelectedStruct(TStruct* NewStruct)
+{
+	SetSelectedObject(nullptr);
+
+	TSharedPtr<FStructOnScope> StructDataView = nullptr;
+
+	if (NewStruct)
+	{
+		StructDataView = MakeShared<FStructOnScope>(TStruct::StaticStruct(), reinterpret_cast<uint8*>(NewStruct));
+	}
+
+	CurrentStructInView = StructDataView;
+
+	StructDetailsView->SetStructureData(StructDataView);
+}

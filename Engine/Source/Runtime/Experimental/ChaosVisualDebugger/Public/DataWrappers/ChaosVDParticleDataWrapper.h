@@ -556,34 +556,34 @@ struct FChaosVDParticleDataWrapper : public FChaosVDWrapperDataBase
 	{
 	}
 
-	UPROPERTY(VisibleAnywhere, Category= "Particle Non Frequent Data")
+	UPROPERTY(VisibleAnywhere, Category= "General")
 	uint32 GeometryHash = 0;
 
-	UPROPERTY(VisibleAnywhere, Category= "Particle Non Frequent Data")
+	UPROPERTY(VisibleAnywhere, Category= "General")
 	FString DebugName;
 
-	UPROPERTY(VisibleAnywhere, Category= "Particle Non Frequent Data")
+	UPROPERTY(VisibleAnywhere, Category= "General")
 	int32 ParticleIndex = INDEX_NONE;
 
-	UPROPERTY(VisibleAnywhere, Category= "Particle Non Frequent Data")
+	UPROPERTY(VisibleAnywhere, Category= "General")
 	int32 SolverID = INDEX_NONE;
 
-	UPROPERTY(VisibleAnywhere, Category= "Particle Non Frequent Data")
+	UPROPERTY(VisibleAnywhere, Category= "General")
 	EChaosVDParticleType Type = EChaosVDParticleType::Unknown;
 
 	UPROPERTY(VisibleAnywhere, Category= "Particle Position Rotation")
 	FChaosVDParticlePositionRotation ParticlePositionRotation;
 
-	UPROPERTY(VisibleAnywhere, Category= "Particle Particle Velocities")
+	UPROPERTY(VisibleAnywhere, Category= "Particle Velocities")
 	FChaosVDParticleVelocities ParticleVelocities;
 
-	UPROPERTY(VisibleAnywhere, Category= "Particle Particle Dynamics")
+	UPROPERTY(VisibleAnywhere, Category= "Particle Dynamics")
 	FChaosVDParticleDynamics ParticleDynamics;
 
-	UPROPERTY(VisibleAnywhere, Category= "Particle Particle Dynamics Misc")
+	UPROPERTY(VisibleAnywhere, Category= "Particle Dynamics Misc")
 	FChaosVDParticleDynamicMisc ParticleDynamicsMisc;
 
-	UPROPERTY(VisibleAnywhere, Category= "Particle Particle Mass Props")
+	UPROPERTY(VisibleAnywhere, Category= "Particle Mass Props")
 	FChaosVDParticleMassProps ParticleMassProps;
 
 	UPROPERTY(VisibleAnywhere, Category= "Particle Cluster Data")

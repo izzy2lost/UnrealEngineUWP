@@ -16,6 +16,8 @@
 #include "Templates/SharedPointer.h"
 #include "Components/MeshComponent.h"
 
+class FChaosVDScene;
+
 #include "ChaosVDGeometryDataComponent.generated.h"
 
 class UChaosVDStaticMeshComponent;
@@ -51,18 +53,87 @@ enum class EChaosVDMeshComponent
 	Dynamic
 };
 
+/** Struct holding the a minimum amount of data about a Implicit object to be shown in the details panel */
+USTRUCT()
+struct FChaosVDImplicitObjectBasicView
+{
+	GENERATED_BODY()
+
+	/** Geometry type name*/
+	UPROPERTY(VisibleAnywhere, Category="Recorded GeometryData")
+	FName ImplicitObjectType;
+
+	/** Index of the Shape Instance data for this geometry in the Shape Instance data array */
+	UPROPERTY(VisibleAnywhere, Category="Recorded GeometryData")
+	int32 ShapeInstanceIndex = INDEX_NONE;
+
+	/** True if this is the root implicit object */
+	UPROPERTY(VisibleAnywhere, Category="Recorded GeometryData")
+	bool bIsRootObject = false;
+
+	/** If this is a transformed implicit, this will contain the recorded relative transform */
+	UPROPERTY(VisibleAnywhere, Category="Recorded GeometryData")
+	FTransform RelativeTransform;
+};
+
+/** Struct holding the state of a mesh instance - Is separated from the Mesh instance class so we can show the data in the Details panel */
+USTRUCT()
+struct FChaosVDMeshDataInstanceState
+{
+	GENERATED_BODY()
+
+	/** Recorded Shape instance Data */
+	UPROPERTY(VisibleAnywhere, Category="Recorded GeometryData", meta=(ShowOnlyInnerProperties))
+	FChaosVDShapeCollisionData CollisionData;
+
+	/** Minimum set of data about the recorded implicit object */
+	UPROPERTY(VisibleAnywhere, Category="Recorded GeometryData", meta=(ShowOnlyInnerProperties))
+	FChaosVDImplicitObjectBasicView ImplicitObjectInfo;
+
+	/* CVD Debug - Current world transform used to render this Mesh */
+	UPROPERTY(VisibleAnywhere, Category="CVD GeometryData")
+	FTransform CurrentWorldTransform;
+
+	/* CVD Debug - Current mesh component type to render this Mesh */
+	UPROPERTY(VisibleAnywhere, Category="CVD GeometryData")
+	EChaosVDMeshComponent MeshComponentType = EChaosVDMeshComponent::Invalid;
+
+	/* CVD Debug - Pointer to the mesh component used to render this Mesh */
+	UPROPERTY(VisibleAnywhere, Category="CVD GeometryData")
+	TObjectPtr<UMeshComponent> MeshComponent;
+
+	/* CVD Debug - Instance index of mesh component used to render this Mesh */
+	UPROPERTY(VisibleAnywhere, Category="CVD GeometryData")
+	int32 MeshInstanceIndex = INDEX_NONE;
+
+	/* CVD Debug - Color used to render this mesh */
+	UPROPERTY(VisibleAnywhere, Category="CVD GeometryData")
+	FLinearColor CurrentGeometryColor = FLinearColor(ForceInitToZero);
+
+	/* CVD Debug - Id of the particle this geometry belongs */
+	UPROPERTY(VisibleAnywhere, Category="CVD GeometryData")
+	int32 OwningParticleID = INDEX_NONE;
+
+	/* CVD Debug - Id of the solver this geometry belongs */
+	UPROPERTY(VisibleAnywhere, Category="CVD GeometryData")
+	int32 OwningSolverID = INDEX_NONE;
+
+	bool bIsVisible = true;
+
+	bool bIsSelected = false;
+};
+
 /** Handle that provides access to a specific mesh instance on a CVD Mesh component (instanced or static)*/
 class FChaosVDMeshDataInstanceHandle : public TSharedFromThis<FChaosVDMeshDataInstanceHandle>
 {
 public:
-
 	explicit FChaosVDMeshDataInstanceHandle(int32 InInstanceIndex, UMeshComponent* InMeshComponent, int32 InParticleID, int32 InSolverID);
 
 	/** Returns the Particle ID of the particle owning this mesh instance */
-	int32 GetOwningParticleID() const { return OwningParticleID; }
+	int32 GetOwningParticleID() const { return InstanceState.OwningParticleID; }
 
 	/** Returns the Solver ID of the particle owning this mesh instance */
-	int32 GetOwningSolverID() const { return OwningSolverID; }
+	int32 GetOwningSolverID() const { return InstanceState.OwningSolverID; }
 
 	/** Applies the provided world transform to the mesh instance this handle represents
 	 * @param InTransform Transform to apply
@@ -70,11 +141,11 @@ public:
 	void SetWorldTransform(const FTransform& InTransform);
 
 	/** Returns the world transform of the mesh instance this handle represents */
-	const FTransform& GetWorldTransform() const { return CurrentWorldTransform; }
+	const FTransform& GetWorldTransform() const { return InstanceState.CurrentWorldTransform; }
 
 	/** Sets the Geometry Handle used to create the mesh instance this handle represents */
-	void SetGeometryHandle(const TSharedPtr<FChaosVDExtractedGeometryDataHandle>& InHandle) { ExtractedGeometryHandle = InHandle; };
-	
+	void SetGeometryHandle(const TSharedPtr<FChaosVDExtractedGeometryDataHandle>& InHandle);
+
 	/** Returns the geometry handle used to create the mesh instance this handle represents */
 	TSharedPtr<FChaosVDExtractedGeometryDataHandle> GetGeometryHandle() const { return ExtractedGeometryHandle; }
 
@@ -82,19 +153,19 @@ public:
 	void SetInstanceColor(const FLinearColor& NewColor);
 
 	/** Returns the current color of the mesh instance this handle represents */
-	FLinearColor GetInstanceColor() const { return CurrentGeometryColor; }
+	FLinearColor GetInstanceColor() const { return InstanceState.CurrentGeometryColor; }
 	
 	/** Applies to the provided shape collision data to the mesh instance this handle represents */
 	void UpdateMeshComponentForCollisionData(const FChaosVDShapeCollisionData& InCollisionData);
 
 	/** Returns the mesh component used to render the mesh instance this handle represents */
-	UMeshComponent* GetMeshComponent() const { return MeshComponent; }
+	UMeshComponent* GetMeshComponent() const { return InstanceState.MeshComponent; }
 
 	/** Returns the instance index of the mesh instance this handle represents */
-	int32 GetMeshInstanceIndex() const { return MeshInstanceIndex; }
+	int32 GetMeshInstanceIndex() const { return InstanceState.MeshInstanceIndex; }
 
 	/** Returns the type of the component used to render the mesh instance this handle represents */
-	EChaosVDMeshComponent GetMeshComponentType() const { return MeshComponentType; }
+	EChaosVDMeshComponent GetMeshComponentType() const { return InstanceState.MeshComponentType; }
 
 	/** Sets a Ptr to the geometry builder used to generate and manage the geometry/mesh components this handle represents */
 	void SetGeometryBuilder(const TWeakPtr<FChaosVDGeometryBuilder>& InGeometryBuilder) { GeometryBuilderInstance = InGeometryBuilder; }
@@ -106,52 +177,40 @@ public:
 	void SetVisibility(bool bInIsVisible);
 
 	/** Returns the current visibility state this mesh instance */
-	bool GetVisibility() const { return bIsVisible; }
+	bool GetVisibility() const { return InstanceState.bIsVisible; }
 
 	/** Applies a new shape collision data to this mesh instance */
 	void SetGeometryCollisionData(const FChaosVDShapeCollisionData& InCollisionData);
 
-	/** Returns a copy of the current shape collision data to this mesh instance */
-	FChaosVDShapeCollisionData GetGeometryCollisionData() const { return CollisionData; }
+	/** Returns the current shape collision data to this mesh instance */
+	FChaosVDShapeCollisionData& GetGeometryCollisionData() { return InstanceState.CollisionData; }
 
 	/** Handles a mesh instance index update reported by the mesh component used to render this mesh instance */
 	void HandleInstanceIndexUpdated(TArrayView<const FInstancedStaticMeshDelegates::FInstanceIndexUpdateData> InIndexUpdates);
 
+	FChaosVDMeshDataInstanceState& GetState() { return InstanceState; }
+
 	friend uint32 GetTypeHash(const FChaosVDMeshDataInstanceHandle& Handle)
 	{
 		const uint32 GeometryHandleHash = Handle.ExtractedGeometryHandle ? GetTypeHash(Handle.ExtractedGeometryHandle->GetGeometryKey()) : 0;
-		const uint32 MeshComponentHandleHash = HashCombine(HashCombine(Handle.OwningParticleID, Handle.MeshInstanceIndex), static_cast<uint32>(Handle.MeshComponentType));
+		const uint32 MeshComponentHandleHash = HashCombine(HashCombine(Handle.GetOwningParticleID(), Handle.GetMeshInstanceIndex()), static_cast<uint32>(Handle.GetMeshComponentType()));
 		return HashCombine(GeometryHandleHash, MeshComponentHandleHash);
 	}
+
+	/** Used only for debugging purposes - It will be set to true if we received new Shape Instance data but the Shape Index for the implicit object we represent is not valid */
+	bool bFailedToUpdateShapeInstanceData = false; 
 
 private:
 
 	/** Sets the mesh component used to render the mesh instance this handle represents */
-	void SetMeshComponent(UMeshComponent* NewComponent) { MeshComponent = NewComponent; }
+	void SetMeshComponent(UMeshComponent* NewComponent) { InstanceState.MeshComponent = NewComponent; }
 
 	/** Sets the mesh instance index of the mesh instance this handle represents */
-	void SetMeshInstanceIndex(int32 NewIndex) { MeshInstanceIndex = NewIndex; }
+	void SetMeshInstanceIndex(int32 NewIndex) { InstanceState.MeshInstanceIndex = NewIndex; }
 
-	int32 OwningParticleID = INDEX_NONE;
-	int32 OwningSolverID = INDEX_NONE;
-
-	int32 MeshInstanceIndex = INDEX_NONE;
-
-	EChaosVDMeshComponent MeshComponentType = EChaosVDMeshComponent::Invalid;
+	FChaosVDMeshDataInstanceState InstanceState;
 
 	TSharedPtr<FChaosVDExtractedGeometryDataHandle> ExtractedGeometryHandle;
-
-	UMeshComponent* MeshComponent;
-
-	FChaosVDShapeCollisionData CollisionData;
-
-	FLinearColor CurrentGeometryColor = FLinearColor(ForceInitToZero);
-
-	FTransform CurrentWorldTransform;
-
-	bool bIsVisible = true;
-
-	bool bIsSelected = false;
 
 	TWeakPtr<FChaosVDGeometryBuilder> GeometryBuilderInstance = nullptr;
 
@@ -259,7 +318,7 @@ class FChaosVDGeometryComponentUtils
 {
 public:
 	/** Finds and updates the Shape data using the provided array as source*/
-	static void UpdateCollisionDataFromShapeArray(const TArray<FChaosVDShapeCollisionData>& InShapeArray, const TSharedPtr<FChaosVDMeshDataInstanceHandle>& InInstanceHandle);
+	static void UpdateCollisionDataFromShapeArray(const TArray<FChaosVDShapeCollisionData>& InShapeArray, const TSharedRef<FChaosVDMeshDataInstanceHandle>& InInstanceHandle);
 
 	/** Calculates and updates the color used to render the mesh represented by the provided handle, based on the particle state */
 	static void UpdateMeshColor(const TSharedPtr<FChaosVDMeshDataInstanceHandle>& InInstanceHandle, const FChaosVDParticleDataWrapper& InParticleData, bool bIsServer);
@@ -298,4 +357,27 @@ EChaosVDMaterialType FChaosVDGeometryComponentUtils::GetMaterialTypeForComponent
 	{
 		return bIsInstancedMeshComponent ? EChaosVDMaterialType::Instanced : EChaosVDMaterialType::SimOnlyMaterial;
 	}
+}
+
+UINTERFACE()
+class UChaosVDGeometryOwnerInterface : public UInterface
+{
+	GENERATED_BODY()
+};
+
+/**
+ * Interface with for any CVD object that owns and handles Geometry generated from recorded data.
+ */
+class IChaosVDGeometryOwnerInterface
+{
+	GENERATED_BODY()
+public:
+	virtual void SetSelectedMeshInstance(const TWeakPtr<FChaosVDMeshDataInstanceHandle>& InMeshInstanceToSelect) PURE_VIRTUAL(IChaosVDGeometryOwnerInterface::SetSelectedMeshInstance);
+	virtual TWeakPtr<FChaosVDMeshDataInstanceHandle> GetSelectedMeshInstance() const PURE_VIRTUAL(IChaosVDGeometryOwnerInterface::GetSelectedMeshInstance, return nullptr;);
+	virtual TConstArrayView<TSharedPtr<FChaosVDMeshDataInstanceHandle>> GetMeshInstances() const PURE_VIRTUAL(IChaosVDGeometryOwnerInterface::GetMeshInstances, return TConstArrayView<TSharedPtr<FChaosVDMeshDataInstanceHandle>>(););
+};
+
+namespace Chaos::VisualDebugger
+{
+	void SelectParticleWithGeometryInstance(const TSharedRef<FChaosVDScene>& InScene, IChaosVDGeometryOwnerInterface* GeometryOwner, const TSharedPtr<FChaosVDMeshDataInstanceHandle>& InMeshDataHandle);
 }

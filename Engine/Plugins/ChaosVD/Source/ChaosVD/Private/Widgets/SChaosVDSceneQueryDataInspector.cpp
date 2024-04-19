@@ -411,25 +411,18 @@ FReply SChaosVDSceneQueryDataInspector::SelectParticleForCurrentQueryData() cons
 
 	if (AChaosVDParticleActor* ParticleActor = ScenePtr->GetParticleActor(QueryDataBeingInspected->WorldSolverID, QueryDataBeingInspected->SQVisitData[QueryDataBeingInspected->CurrentVisitIndex].ParticleIndex))
 	{
-		ScenePtr->SetSelectedObject(ParticleActor);
+		const int32 ShapeInstanceIndexToSelect = QueryDataBeingInspected->SQVisitData[QueryDataBeingInspected->CurrentVisitIndex].ShapeIndex;
 
-		// When a particle actor is selected, all their mesh instances are selected, so we need to override that selection here.
-		// TODO: The API for selection is intentionally generic as we use it for more things that particle actors, but maybe we can have a new API method to provide a "context", so in this case
-		// we can tell the system how we want the selection to be visualized
-
-		const TConstArrayView<TSharedPtr<FChaosVDMeshDataInstanceHandle>> MeshHandles = ParticleActor->GetMeshInstances();
-		for (const TSharedPtr<FChaosVDMeshDataInstanceHandle>& Handle : MeshHandles)
+		// TODO : This will not work properly when the visited shape was a Union within a union
+		// CVD currently doesn't support multi selection, so we can't easily select all mesh instances that represent a union within a union
+		// We need to revisit this when multi selection support is added. Jira for tracking UE-212733
+		const TConstArrayView<TSharedPtr<FChaosVDMeshDataInstanceHandle>> AvailableMeshInstances = ParticleActor->GetMeshInstances();
+		for (const TSharedPtr<FChaosVDMeshDataInstanceHandle>& MeshInstance : AvailableMeshInstances)
 		{
-			if (const TSharedPtr<FChaosVDExtractedGeometryDataHandle> GeometryHandle = Handle->GetGeometryHandle())
+			if (MeshInstance->GetState().ImplicitObjectInfo.ShapeInstanceIndex == ShapeInstanceIndexToSelect)
 			{
-				if (GeometryHandle->GetImplicitObjectIndex() == QueryDataBeingInspected->SQVisitData[QueryDataBeingInspected->CurrentVisitIndex].ShapeIndex)
-				{
-					Handle->SetIsSelected(true);
-				}
-				else
-				{
-					Handle->SetIsSelected(false);
-				}
+				Chaos::VisualDebugger::SelectParticleWithGeometryInstance(ScenePtr.ToSharedRef(), ParticleActor, MeshInstance);
+				break;
 			}
 		}
 		

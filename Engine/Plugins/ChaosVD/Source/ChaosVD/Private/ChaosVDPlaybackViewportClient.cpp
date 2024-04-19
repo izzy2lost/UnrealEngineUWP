@@ -5,10 +5,12 @@
 #include "ChaosVDEditorSettings.h"
 #include "ChaosVDEngine.h"
 #include "ChaosVDModule.h"
+#include "ChaosVDObjectDetailsTab.h"
 #include "ChaosVDParticleActor.h"
 #include "ChaosVDPlaybackController.h"
 #include "ChaosVDScene.h"
 #include "ChaosVDSkySphereInterface.h"
+#include "ChaosVDTabsIDs.h"
 #include "Components/ChaosVDSceneQueryDataComponent.h"
 #include "ComponentVisualizer.h"
 #include "EditorModeManager.h"
@@ -25,6 +27,7 @@
 #include "Components/ChaosVDSolverJointConstraintDataComponent.h"
 #include "Components/InstancedStaticMeshComponent.h"
 #include "Visualizers/ChaosVDDebugDrawUtils.h"
+#include "Widgets/SChaosVDDetailsView.h"
 #include "Widgets/SChaosVDMainTab.h"
 
 FChaosVDPlaybackViewportClient::FChaosVDPlaybackViewportClient(const TSharedPtr<FEditorModeTools>& InModeTools, const TSharedPtr<SEditorViewport>& InEditorViewportWidget) : FEditorViewportClient(InModeTools.Get(), nullptr, InEditorViewportWidget), CVDWorld(nullptr)
@@ -83,6 +86,8 @@ void FChaosVDPlaybackViewportClient::ProcessClick(FSceneView& View, HHitProxy* H
 	{
 		return;
 	}
+	
+	const bool bIsShiftKeyDown = Viewport->KeyState(EKeys::LeftShift) || Viewport->KeyState(EKeys::RightShift);
 
 	const FViewportClick Click(&View, this, Key, Event, HitX, HitY);
 
@@ -129,7 +134,7 @@ void FChaosVDPlaybackViewportClient::ProcessClick(FSceneView& View, HHitProxy* H
 			{
 				if (AChaosVDParticleActor* ClickedActor = ScenePtr->GetParticleActor(MeshDataHandle->GetOwningSolverID(), MeshDataHandle->GetOwningParticleID()))
 				{
-					ScenePtr->SetSelectedObject(ClickedActor);
+					Chaos::VisualDebugger::SelectParticleWithGeometryInstance(ScenePtr.ToSharedRef(), ClickedActor, bIsShiftKeyDown ? MeshDataHandle : nullptr);
 					bClickHandled = true;
 				}
 			}

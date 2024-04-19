@@ -112,6 +112,36 @@ void AChaosVDParticleActor::UpdateFromRecordedParticleData(const TSharedPtr<FCha
 	OnParticleDataUpdated().ExecuteIfBound();
 }
 
+void AChaosVDParticleActor::SetSelectedMeshInstance(const TWeakPtr<FChaosVDMeshDataInstanceHandle>& GeometryInstanceToSelect)
+{
+	if (!ParticleDataPtr)
+	{
+		return;
+	}
+
+	const TSharedPtr<FChaosVDMeshDataInstanceHandle> GeometryInstanceToSelectPtr = GeometryInstanceToSelect.Pin();
+	if (!GeometryInstanceToSelectPtr)
+	{
+		return;
+	}
+
+	if (ensure(ParticleDataPtr->ParticleIndex == GeometryInstanceToSelectPtr->GetOwningParticleID()))
+	{
+		CurrentSelectedGeometryInstance = GeometryInstanceToSelect;
+	}
+}
+
+void AChaosVDParticleActor::HandleSelected()
+{
+	PushSelectionToProxies();
+}
+
+void AChaosVDParticleActor::HandleDeSelected()
+{
+	CurrentSelectedGeometryInstance = nullptr;
+	PushSelectionToProxies();
+}
+
 void AChaosVDParticleActor::ProcessUpdatedAndRemovedHandles(TArray<TSharedPtr<FChaosVDExtractedGeometryDataHandle>>& OutExtractedGeometryDataHandles)
 {
 	for (TArray<TSharedPtr<FChaosVDMeshDataInstanceHandle>>::TIterator MeshDataHandleRemoveIterator = MeshDataHandles.CreateIterator(); MeshDataHandleRemoveIterator; ++MeshDataHandleRemoveIterator)
@@ -405,15 +435,22 @@ FName AChaosVDParticleActor::GetProviderName()
 	return GetFName();
 }
 
+void AChaosVDParticleActor::UpdateMeshInstancesSelectionState()
+{
+	TSharedPtr<FChaosVDMeshDataInstanceHandle> CurrentSelectedGeometry = CurrentSelectedGeometryInstance.Pin();
+	const bool bIsOwningParticleSelectedInEditor = IsSelectedInEditor();
+	VisitGeometryInstances([this, bIsOwningParticleSelectedInEditor, CurrentSelectedGeometry](const TSharedRef<FChaosVDMeshDataInstanceHandle>& MeshDataHandle)
+	{
+		const bool bShouldSelectInstance = bIsOwningParticleSelectedInEditor ? (CurrentSelectedGeometry ? CurrentSelectedGeometryInstance == MeshDataHandle : true) : false;
+
+		MeshDataHandle->SetIsSelected(bShouldSelectInstance);
+	});
+}
+
 void AChaosVDParticleActor::PushSelectionToProxies()
 {
+	UpdateMeshInstancesSelectionState();
 	Super::PushSelectionToProxies();
-
-	VisitGeometryInstances([this](const TSharedRef<FChaosVDMeshDataInstanceHandle>& MeshDataHandle)
-	{
-		const bool bIsSelectedInEditor = IsSelectedInEditor();
-		MeshDataHandle->SetIsSelected(bIsSelectedInEditor);
-	});
 }
 
 const TArray<TSharedPtr<FChaosVDParticlePairMidPhase>>* AChaosVDParticleActor::GetCollisionMidPhasesArray() const

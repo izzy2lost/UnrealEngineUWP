@@ -121,7 +121,7 @@ public:
 private:
 	
 	template<typename MeshType>
-	void CreateMeshesFromImplicit_Internal(const Chaos::FImplicitObject* InRootImplicitObject,const Chaos::FImplicitObject* InLeafImplicitObject, AActor* Owner, TArray<TSharedPtr<FChaosVDExtractedGeometryDataHandle>>& OutMeshDataHandles, const int32 DesiredLODCount = 0, const Chaos::FRigidTransform3& InTransform = Chaos::FRigidTransform3(), const int32 MeshIndex = 0);
+	void CreateMeshesFromImplicit_Internal(const Chaos::FImplicitObject* InRootImplicitObject,const Chaos::FImplicitObject* InLeafImplicitObject, AActor* Owner, TArray<TSharedPtr<FChaosVDExtractedGeometryDataHandle>>& OutMeshDataHandles, const int32 DesiredLODCount = 0, const Chaos::FRigidTransform3& InTransform = Chaos::FRigidTransform3(), const int32 ShapeInstanceIndex = 0);
 	
 public:
 	/**
@@ -246,7 +246,7 @@ private:
 	 * @return Returns a handle to the generated data that can be used to access the generated mesh when ready
 	 */
 	template <typename MeshType>
-	TSharedPtr<FChaosVDExtractedGeometryDataHandle> ExtractGeometryDataForImplicit(const Chaos::FImplicitObject* InImplicitObject, const Chaos::FRigidTransform3& InTransform, const int32 Index);
+	TSharedPtr<FChaosVDExtractedGeometryDataHandle> ExtractGeometryDataForImplicit(const Chaos::FImplicitObject* InImplicitObject, const Chaos::FRigidTransform3& InTransform);
 
 	/** Returns true if the implicit object if of one of the types we need to unpack before generating a mesh for it */
 	bool ImplicitObjectNeedsUnpacking(const Chaos::FImplicitObject* InImplicitObject) const;
@@ -362,7 +362,7 @@ private:
 };
 
 template <typename MeshType>
-TSharedPtr<FChaosVDExtractedGeometryDataHandle> FChaosVDGeometryBuilder::ExtractGeometryDataForImplicit(const Chaos::FImplicitObject* InImplicitObject, const Chaos::FRigidTransform3& InTransform, const int32 Index)
+TSharedPtr<FChaosVDExtractedGeometryDataHandle> FChaosVDGeometryBuilder::ExtractGeometryDataForImplicit(const Chaos::FImplicitObject* InImplicitObject, const Chaos::FRigidTransform3& InTransform)
 {
 	const uint32 ImplicitObjectHash = InImplicitObject->GetTypeHash();
 
@@ -401,23 +401,28 @@ TSharedPtr<FChaosVDExtractedGeometryDataHandle> FChaosVDGeometryBuilder::Extract
 }
 
 template <typename MeshType>
-void FChaosVDGeometryBuilder::CreateMeshesFromImplicit_Internal(const Chaos::FImplicitObject* InRootImplicitObject, const Chaos::FImplicitObject* InLeafImplicitObject, AActor* Owner, TArray<TSharedPtr<FChaosVDExtractedGeometryDataHandle>>& OutMeshDataHandles, const int32 DesiredLODCount, const Chaos::FRigidTransform3& InTransform, const int32 MeshIndex)
+void FChaosVDGeometryBuilder::CreateMeshesFromImplicit_Internal(const Chaos::FImplicitObject* InRootImplicitObject, const Chaos::FImplicitObject* InLeafImplicitObject, AActor* Owner, TArray<TSharedPtr<FChaosVDExtractedGeometryDataHandle>>& OutMeshDataHandles, const int32 DesiredLODCount, const Chaos::FRigidTransform3& InTransform, const int32 ShapeInstanceIndex)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FChaosVDGeometryBuilder::CreateMeshesFromImplicit_Internal);
 
 	using namespace Chaos;
 
-	const EImplicitObjectType InnerType = GetInnerType(InRootImplicitObject->GetType());
+	const EImplicitObjectType InnerType = GetInnerType(InLeafImplicitObject->GetType());
 	
 	if (InnerType == ImplicitObjectType::Union || InnerType == ImplicitObjectType::UnionClustered)
 	{
 		if (const FImplicitObjectUnion* Union = InLeafImplicitObject->template AsA<FImplicitObjectUnion>())
 		{
+			const bool bIsRootUnion = InRootImplicitObject == InLeafImplicitObject;
+
 			for (int32 ObjectIndex = 0; ObjectIndex < Union->GetObjects().Num(); ++ObjectIndex)
 			{
 				const FImplicitObjectPtr& UnionImplicit = Union->GetObjects()[ObjectIndex];
 
-				CreateMeshesFromImplicitObject<MeshType>(UnionImplicit.GetReference(), Owner, OutMeshDataHandles, DesiredLODCount, InTransform, ObjectIndex);	
+				// If this union it is not the root implicit object, then all its objects will share the same Instance index
+				int32 CurrentShapeInstanceIndex = bIsRootUnion ? ObjectIndex : ShapeInstanceIndex;
+
+				CreateMeshesFromImplicit_Internal<MeshType>(InRootImplicitObject, UnionImplicit.GetReference(), Owner, OutMeshDataHandles, DesiredLODCount, InTransform, CurrentShapeInstanceIndex);	
 			}
 		}
 
@@ -428,16 +433,17 @@ void FChaosVDGeometryBuilder::CreateMeshesFromImplicit_Internal(const Chaos::FIm
 	{
 		if (const TImplicitObjectTransformed<FReal, 3>* Transformed = InLeafImplicitObject->template GetObject<TImplicitObjectTransformed<FReal, 3>>())
 		{
-			CreateMeshesFromImplicitObject<MeshType>(Transformed->GetTransformedObject(), Owner, OutMeshDataHandles, DesiredLODCount, Transformed->GetTransform(), MeshIndex);
+			// For transformed objects, the Instance index is the same so we pass it in without changing it
+			CreateMeshesFromImplicit_Internal<MeshType>(InRootImplicitObject, Transformed->GetTransformedObject(), Owner, OutMeshDataHandles, DesiredLODCount, Transformed->GetTransform(), ShapeInstanceIndex);
 		}
 		
 		return;
 	}
 
-	if (const TSharedPtr<FChaosVDExtractedGeometryDataHandle> MeshDataHandle = ExtractGeometryDataForImplicit<MeshType>(InLeafImplicitObject, InTransform, MeshIndex))
-	{	
+	if (const TSharedPtr<FChaosVDExtractedGeometryDataHandle> MeshDataHandle = ExtractGeometryDataForImplicit<MeshType>(InLeafImplicitObject, InTransform))
+	{
 		MeshDataHandle->SetImplicitObject(InLeafImplicitObject);
-		MeshDataHandle->SetImplicitObjectIndex(MeshIndex);
+		MeshDataHandle->SetShapeInstanceIndex(ShapeInstanceIndex);
 		MeshDataHandle->SetRootImplicitObject(InRootImplicitObject);
 
 		OutMeshDataHandles.Add(MeshDataHandle);
@@ -519,7 +525,7 @@ ComponentType* FChaosVDGeometryBuilder::GetAvailableInstancedStaticMeshComponent
 	else
 	{
 		// If no exiting component meets our requirements, get a new one form the pool
-		ComponentType* Component = ComponentMeshPool.AcquireMeshComponent<ComponentType>(MeshComponentsContainerActor, InExtractedGeometryDataHandle->GetName());
+		ComponentType* Component = ComponentMeshPool.AcquireMeshComponent<ComponentType>(MeshComponentsContainerActor, InExtractedGeometryDataHandle->GetTypeName());
 		if (!InitializeMeshComponent<ComponentType>(MeshComponentsContainerActor, Component))
 		{
 			return nullptr;
@@ -551,7 +557,7 @@ ComponentType* FChaosVDGeometryBuilder::GetAvailableMeshComponent(const TSharedP
 	}
 	else
 	{
-		MeshComponent = ComponentMeshPool.AcquireMeshComponent<ComponentType>(MeshComponentsContainerActor, InExtractedGeometryDataHandle->GetName());
+		MeshComponent = ComponentMeshPool.AcquireMeshComponent<ComponentType>(MeshComponentsContainerActor, InExtractedGeometryDataHandle->GetTypeName());
 		if (!InitializeMeshComponent<ComponentType>(MeshComponentsContainerActor, MeshComponent))
 		{
 			return nullptr;

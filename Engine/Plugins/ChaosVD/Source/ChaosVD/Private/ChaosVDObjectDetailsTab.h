@@ -24,6 +24,8 @@ public:
 	FChaosVDObjectDetailsTab(const FName& InTabID, TSharedPtr<FTabManager> InTabManager, TWeakPtr<SChaosVDMainTab> InOwningTabWidget) : FChaosVDTabSpawnerBase(InTabID, InTabManager, InOwningTabWidget)
 	{
 	}
+	
+	TSharedPtr<SChaosVDDetailsView> GetDetailsPanel() { return DetailsPanelView; }
 
 protected:
 

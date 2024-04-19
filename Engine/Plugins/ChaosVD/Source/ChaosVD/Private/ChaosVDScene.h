@@ -5,10 +5,15 @@
 #include "ChaosVDRecording.h"
 #include "Containers/UnrealString.h"
 #include "Containers/Map.h"
+#include "Elements/Framework/TypedElementListFwd.h"
+#include "Elements/Interfaces/TypedElementAssetDataInterface.h"
 #include "UObject/GCObject.h"
 #include "UObject/ObjectMacros.h"
 #include "UObject/ObjectPtr.h"
 
+class FChaosVDSelectionCustomization;
+class ITypedElementSelectionInterface;
+struct FTypedElementSelectionOptions;
 class AChaosVDSceneQueryDataContainer;
 class AChaosVDSolverInfoActor;
 class AChaosVDSceneCollisionContainer;
@@ -119,6 +124,9 @@ public:
 
 	FChaosVDSolverVisibilityChangedDelegate& OnSolverVisibilityUpdated() { return SolverVisibilityChangedDelegate; }
 
+	/** Updates the render state of the hit proxies of an array of actors. This used to update the selection outline state */
+	void UpdateSelectionProxiesForActors(TArrayView<AActor*> SelectedActors);
+
 	TSharedPtr<FChaosVDRecording> LoadedRecording;
 
 private:
@@ -147,11 +155,8 @@ private:
 	/** Returns the correct TypedElementHandle based on an object type so it can be used with the selection set object */
 	FTypedElementHandle GetSelectionHandleForObject(const UObject* Object) const;
 
-	/** Updates the render state of the hit proxies of an array of actors. This used to update the selection outline state */
-	void UpdateSelectionProxiesForActors(const TArray<AActor*>& SelectedActors);
-
-	void HandlePreSelectionChange(const UTypedElementSelectionSet* PreChangeSelectionSet);
-	void HandlePostSelectionChange(const UTypedElementSelectionSet* PreChangeSelectionSet);
+	void HandleDeSelectElement(const TTypedElement<ITypedElementSelectionInterface>& InElementSelectionHandle, FTypedElementListRef InSelectionSet, const FTypedElementSelectionOptions& InSelectionOptions);
+	void HandleSelectElement(const TTypedElement<ITypedElementSelectionInterface>& InElementSelectionHandle, FTypedElementListRef InSelectionSet, const FTypedElementSelectionOptions& InSelectionOptions);
 
 	void ClearSelectionAndNotify();
 
@@ -201,4 +206,6 @@ private:
 	FChaosVDSolverInfoActorCreatedDelegate SolverInfoActorCreatedDelegate;
 
 	FChaosVDSolverVisibilityChangedDelegate SolverVisibilityChangedDelegate;
+
+	friend FChaosVDSelectionCustomization;
 };

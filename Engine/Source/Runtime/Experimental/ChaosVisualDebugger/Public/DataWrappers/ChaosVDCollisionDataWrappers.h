@@ -498,8 +498,10 @@ struct CHAOSVDRUNTIME_API FChaosVDShapeCollisionData
 	UPROPERTY(VisibleAnywhere, Category=SimData)
 	FChaosVDCollisionFilterData SimData;
 
+	UPROPERTY(VisibleAnywhere, Category="CVD Data")
 	bool bIsComplex = false;
 
+	UPROPERTY(VisibleAnywhere, Category="CVD Data")
 	bool bIsValid = false;
 
 	bool Serialize(FArchive& Ar);

@@ -51,6 +51,15 @@ void FChaosVDDetailsCustomizationUtils::HideInvalidCVDDataWrapperProperties(TCon
 				DetailBuilder.HideProperty(PropertyHandle);
 			}
 		}
+
+		uint32 NumChildren = 0;
+		PropertyHandle->GetNumChildren(NumChildren);
+
+		for (uint32 ChildIndex = 0; ChildIndex < NumChildren; ++ChildIndex)
+		{
+			TSharedRef<IPropertyHandle> ChildHandle = PropertyHandle->GetChildHandle(ChildIndex).ToSharedRef();
+			HideInvalidCVDDataWrapperProperties({ &ChildHandle,1 }, DetailBuilder);
+		}	
 	}
 }
 

@@ -133,6 +133,11 @@ FChaosVDWorldOutlinerMode::~FChaosVDWorldOutlinerMode()
 
 void FChaosVDWorldOutlinerMode::OnItemSelectionChanged(FSceneOutlinerTreeItemPtr Item, ESelectInfo::Type SelectionType, const FSceneOutlinerItemSelection& Selection)
 {
+	if (SelectionType == ESelectInfo::Direct)
+	{
+		return;
+	}
+
 	TSharedPtr<FChaosVDScene> ScenePtr = CVDScene.Pin();
 	if (!ScenePtr.IsValid())
 	{
@@ -285,7 +290,7 @@ void FChaosVDWorldOutlinerMode::HandlePostSelectionChange(const UTypedElementSel
 		if (FSceneOutlinerTreeItemPtr TreeItem = SceneOutliner->GetTreeItem(SelectedActor, false))
 		{
 			SceneOutliner->ScrollItemIntoView(TreeItem);
-			SceneOutliner->SetItemSelection(TreeItem, true, ESelectInfo::OnMouseClick);
+			SceneOutliner->SetItemSelection(TreeItem, true, ESelectInfo::Direct);
 		}
 		else
 		{

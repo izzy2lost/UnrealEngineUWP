@@ -15,8 +15,8 @@
 
 FChaosVDParticleActorCustomization::FChaosVDParticleActorCustomization()
 {
-	AllowedCategories.Add(FChaosVDParticleActorCustomization::ChaosVDCategoryName);
-	AllowedCategories.Add(FChaosVDParticleActorCustomization::ChaosVDVisualizationCategoryName);
+	AllowedCategories.Add(FChaosVDParticleActorCustomization::ParticleDataCategoryName);
+	AllowedCategories.Add(FChaosVDParticleActorCustomization::GeometryCategoryName);
 }
 
 FChaosVDParticleActorCustomization::~FChaosVDParticleActorCustomization()
@@ -34,8 +34,6 @@ TSharedRef<IDetailCustomization> FChaosVDParticleActorCustomization::MakeInstanc
 
 void FChaosVDParticleActorCustomization::CustomizeDetails(IDetailLayoutBuilder& DetailBuilder)
 {
-	DetailBuilder.EditCategory(ChaosVDVisualizationCategoryName, FText::GetEmpty(), ECategoryPriority::Important);
-
 	FChaosVDDetailsCustomizationUtils::HideAllCategories(DetailBuilder, AllowedCategories);
 
 	// We keep the particle data we need to visualize as a shared ptr because copying it each frame we advance/rewind to to an struct that lives in the particle actor it is not cheap.
@@ -43,8 +41,6 @@ void FChaosVDParticleActorCustomization::CustomizeDetails(IDetailLayoutBuilder& 
 	// seems to be more expensive because it has to rebuild the entire layout from scratch.
 	// So a middle ground I found is to have a Particle Data struct in this customization instance, which we add as external property. Then each time the particle data is updated we copy the data over.
 	// This allow us to only perform the copy just for the particle that is being inspected and not every particle updated in that frame.
-
-	IDetailCategoryBuilder& CVDMainCategoryBuilder = DetailBuilder.EditCategory(ChaosVDCategoryName).InitiallyCollapsed(false);
 
 	TArray<TWeakObjectPtr<UObject>> SelectedObjects;
 	DetailBuilder.GetObjectsBeingCustomized(SelectedObjects);
@@ -58,7 +54,8 @@ void FChaosVDParticleActorCustomization::CustomizeDetails(IDetailLayoutBuilder& 
 
 		if (AChaosVDParticleActor* CurrentActor = CurrentObservedActor.Get())
 		{
-			CurrentParticleDataCopy = FChaosVDParticleDataWrapper();
+			CachedParticleData = FChaosVDParticleDataWrapper();
+			CachedGeometryDataInstanceCopy = FChaosVDMeshDataInstanceState();
 			CurrentActor->OnParticleDataUpdated().Unbind();
 			CurrentActor = nullptr;
 		}
@@ -70,23 +67,50 @@ void FChaosVDParticleActorCustomization::CustomizeDetails(IDetailLayoutBuilder& 
 
 			HandleParticleDataUpdated();
 
-			const TSharedPtr<FStructOnScope> ParticleDataView = MakeShared<FStructOnScope>(FChaosVDParticleDataWrapper::StaticStruct(), reinterpret_cast<uint8*>(&CurrentParticleDataCopy));
-			TArray<TSharedPtr<IPropertyHandle>> Handles = CVDMainCategoryBuilder.AddAllExternalStructureProperties(ParticleDataView.ToSharedRef(), EPropertyLocation::Default, nullptr);
+			TSharedPtr<IPropertyHandle> InspectedDataPropertyHandlePtr;
 
-			FChaosVDDetailsCustomizationUtils::HideInvalidCVDDataWrapperProperties(Handles);
+			if (TSharedPtr<FChaosVDMeshDataInstanceHandle> SelectedGeometryInstance = ParticleActor->GetSelectedMeshInstance().Pin())
+			{
+				InspectedDataPropertyHandlePtr = AddExternalStructure(CachedGeometryDataInstanceCopy, DetailBuilder, GeometryCategoryName, LOCTEXT("ParticleDataStructName", "Geometry Shape Data"));
+			}
+			else
+			{
+				InspectedDataPropertyHandlePtr = AddExternalStructure(CachedParticleData, DetailBuilder, ParticleDataCategoryName, LOCTEXT("ParticleDataStructName", "Particle Data"));
+			}
+
+			if (InspectedDataPropertyHandlePtr)
+			{
+				TSharedRef<IPropertyHandle> InspectedDataPropertyHandleRef = InspectedDataPropertyHandlePtr.ToSharedRef();
+				FChaosVDDetailsCustomizationUtils::HideInvalidCVDDataWrapperProperties({&InspectedDataPropertyHandleRef, 1}, DetailBuilder);
+			}
 		}
 	}
 }
 
 void FChaosVDParticleActorCustomization::HandleParticleDataUpdated()
-{	
-	if (const FChaosVDParticleDataWrapper* ParticleDataPtr = CurrentObservedActor.Get() ? CurrentObservedActor->GetParticleData() : nullptr)
+{
+	AChaosVDParticleActor* ParticleActor = CurrentObservedActor.Get();
+	if (!ParticleActor)
 	{
-		CurrentParticleDataCopy = *ParticleDataPtr;	
+		CachedParticleData = FChaosVDParticleDataWrapper();
+		CachedGeometryDataInstanceCopy = FChaosVDMeshDataInstanceState();
+	}
+
+	// If we have selected a mesh instance, the only data being added to the details panel is the Shape Instance data, so can just update that data here
+	if (TSharedPtr<FChaosVDMeshDataInstanceHandle> SelectedGeometryInstance = ParticleActor->GetSelectedMeshInstance().Pin())
+	{
+		ParticleActor->VisitGeometryInstances([this, SelectedGeometryInstance](const TSharedRef<FChaosVDMeshDataInstanceHandle>& MeshDataHandle)
+		{
+			if (MeshDataHandle == SelectedGeometryInstance)
+			{
+				CachedGeometryDataInstanceCopy = MeshDataHandle->GetState();
+			}
+		});
 	}
 	else
 	{
-		CurrentParticleDataCopy = FChaosVDParticleDataWrapper();
+		const FChaosVDParticleDataWrapper* ParticleDataPtr = CurrentObservedActor.Get() ? CurrentObservedActor->GetParticleData() : nullptr;
+		CachedParticleData = ParticleDataPtr ? *ParticleDataPtr : FChaosVDParticleDataWrapper();
 	}
 }
 

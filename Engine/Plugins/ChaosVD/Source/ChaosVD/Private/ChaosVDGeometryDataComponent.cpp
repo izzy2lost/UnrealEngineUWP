@@ -13,22 +13,22 @@
 
 FChaosVDMeshDataInstanceHandle::FChaosVDMeshDataInstanceHandle(int32 InInstanceIndex, UMeshComponent* InMeshComponent, int32 InParticleID, int32 InSolverID)
 {
-	MeshComponent = InMeshComponent;
-	MeshInstanceIndex = InInstanceIndex;
-	OwningParticleID = InParticleID;
-	OwningSolverID = InSolverID;
+	InstanceState.MeshComponent = InMeshComponent;
+	InstanceState.MeshInstanceIndex = InInstanceIndex;
+	InstanceState.OwningParticleID = InParticleID;
+	InstanceState.OwningSolverID = InSolverID;
 
-	if (Cast<UInstancedStaticMeshComponent>(MeshComponent))
+	if (Cast<UInstancedStaticMeshComponent>(InstanceState.MeshComponent))
 	{
-		MeshComponentType = EChaosVDMeshComponent::InstancedStatic;
+		InstanceState.MeshComponentType = EChaosVDMeshComponent::InstancedStatic;
 	}
-	else if (Cast<UStaticMeshComponent>(MeshComponent))
+	else if (Cast<UStaticMeshComponent>(InstanceState.MeshComponent))
 	{
-		MeshComponentType = EChaosVDMeshComponent::Static;
+		InstanceState.MeshComponentType = EChaosVDMeshComponent::Static;
 	}
 	else
 	{
-		MeshComponentType = EChaosVDMeshComponent::Dynamic;
+		InstanceState.MeshComponentType = EChaosVDMeshComponent::Dynamic;
 	}
 }
 
@@ -42,31 +42,49 @@ void FChaosVDMeshDataInstanceHandle::SetWorldTransform(const FTransform& InTrans
 
 	const FTransform ExtractedRelativeTransform = ExtractedGeometryHandle->GetRelativeTransform();
 
-	CurrentWorldTransform.SetLocation(InTransform.TransformPosition(ExtractedRelativeTransform.GetLocation()));
-	CurrentWorldTransform.SetRotation(InTransform.TransformRotation(ExtractedRelativeTransform.GetRotation()));
-	CurrentWorldTransform.SetScale3D(ExtractedGeometryHandle->GetRelativeTransform().GetScale3D());
+	InstanceState.CurrentWorldTransform.SetLocation(InTransform.TransformPosition(ExtractedRelativeTransform.GetLocation()));
+	InstanceState.CurrentWorldTransform.SetRotation(InTransform.TransformRotation(ExtractedRelativeTransform.GetRotation()));
+	InstanceState.CurrentWorldTransform.SetScale3D(ExtractedRelativeTransform.GetScale3D());
 	
 	if (IChaosVDGeometryComponent* CVDGeometryComponent = Cast<IChaosVDGeometryComponent>(GetMeshComponent()))
 	{
-		CVDGeometryComponent->UpdateInstanceWorldTransform(AsShared(), CurrentWorldTransform);
+		CVDGeometryComponent->UpdateInstanceWorldTransform(AsShared(), InstanceState.CurrentWorldTransform);
+	}
+}
+
+void FChaosVDMeshDataInstanceHandle::SetGeometryHandle(const TSharedPtr<FChaosVDExtractedGeometryDataHandle>& InHandle)
+{
+	ExtractedGeometryHandle = InHandle;
+
+	using namespace Chaos;
+	if (ExtractedGeometryHandle)
+	{
+		InstanceState.ImplicitObjectInfo.bIsRootObject = ExtractedGeometryHandle->GetRootImplicitObject() == ExtractedGeometryHandle->GetImplicitObject();
+		InstanceState.ImplicitObjectInfo.ShapeInstanceIndex = ExtractedGeometryHandle->GetShapeInstanceIndex();
+		InstanceState.ImplicitObjectInfo.ImplicitObjectType = ExtractedGeometryHandle->GetTypeName();
+		InstanceState.ImplicitObjectInfo.RelativeTransform = ExtractedGeometryHandle->GetRelativeTransform();
+	}
+	else
+	{
+		InstanceState.ImplicitObjectInfo = FChaosVDImplicitObjectBasicView();
 	}
 }
 
 void FChaosVDMeshDataInstanceHandle::SetInstanceColor(const FLinearColor& NewColor)
 {
-	if (CurrentGeometryColor != NewColor)
+	if (InstanceState.CurrentGeometryColor != NewColor)
 	{
 		if (IChaosVDGeometryComponent* CVDGeometryComponent = Cast<IChaosVDGeometryComponent>(GetMeshComponent()))
 		{
 			CVDGeometryComponent->UpdateInstanceColor(AsShared(), NewColor);
-			CurrentGeometryColor = NewColor;
+			InstanceState.CurrentGeometryColor = NewColor;
 		}
 	}
 }
 
 void FChaosVDMeshDataInstanceHandle::UpdateMeshComponentForCollisionData(const FChaosVDShapeCollisionData& InCollisionData)
 {
-	if (InCollisionData.bIsValid && CollisionData != InCollisionData)
+	if (InCollisionData.bIsValid && InstanceState.CollisionData != InCollisionData)
 	{
 		if (const TSharedPtr<FChaosVDGeometryBuilder> GeometryBuilderPtr = GeometryBuilderInstance.Pin())
 		{
@@ -90,7 +108,7 @@ void FChaosVDMeshDataInstanceHandle::UpdateMeshComponentForCollisionData(const F
 			{
 				if (RequiredMeshAttributes != CVDOldGeometryComponent->GetMeshComponentAttributeFlags())
 				{
-					if (bIsSelected)
+					if (InstanceState.bIsSelected)
 					{
 						CVDOldGeometryComponent->SetIsSelected(AsShared(), false);
 					}
@@ -108,10 +126,10 @@ void FChaosVDMeshDataInstanceHandle::UpdateMeshComponentForCollisionData(const F
 				if (IChaosVDGeometryComponent* CVDNewGeometryComponent = Cast<IChaosVDGeometryComponent>(GetMeshComponent()))
 				{
 					// Reset the color so it is updated in the next Update color calls (which always happens after updating the shape instance data)
-					CurrentGeometryColor = FLinearColor(ForceInitToZero);
+					InstanceState.CurrentGeometryColor = FLinearColor(ForceInitToZero);
 		
-					CVDNewGeometryComponent->UpdateInstanceVisibility(AsShared(), bIsVisible);
-					CVDNewGeometryComponent->SetIsSelected(AsShared(), bIsSelected);
+					CVDNewGeometryComponent->UpdateInstanceVisibility(AsShared(), InstanceState.bIsVisible);
+					CVDNewGeometryComponent->SetIsSelected(AsShared(), InstanceState.bIsSelected);
 				}
 			}
 		}
@@ -127,7 +145,7 @@ void FChaosVDMeshDataInstanceHandle::SetGeometryCollisionData(const FChaosVDShap
 		UpdateMeshComponentForCollisionData(InCollisionData);
 	}
 
-	CollisionData = InCollisionData;
+	InstanceState.CollisionData = InCollisionData;
 }
 
 void FChaosVDMeshDataInstanceHandle::SetIsSelected(bool bInIsSelected)
@@ -137,7 +155,7 @@ void FChaosVDMeshDataInstanceHandle::SetIsSelected(bool bInIsSelected)
 		CVDGeometryComponent->SetIsSelected(AsShared(), bInIsSelected);
 	}
 
-	bIsSelected = bInIsSelected;
+	InstanceState.bIsSelected = bInIsSelected;
 }
 
 void FChaosVDMeshDataInstanceHandle::SetVisibility(bool bInIsVisible)
@@ -147,7 +165,7 @@ void FChaosVDMeshDataInstanceHandle::SetVisibility(bool bInIsVisible)
 		CVDGeometryComponent->UpdateInstanceVisibility(AsShared(), bInIsVisible);
 	}
 
-	bIsVisible = bInIsVisible;
+	InstanceState.bIsVisible = bInIsVisible;
 }
 
 void FChaosVDMeshDataInstanceHandle::HandleInstanceIndexUpdated(TArrayView<const FInstancedStaticMeshDelegates::FInstanceIndexUpdateData> InIndexUpdates)
@@ -161,9 +179,9 @@ void FChaosVDMeshDataInstanceHandle::HandleInstanceIndexUpdated(TArrayView<const
 				break; // We don't need to process 'Added' updates as they can't affect existing IDs
 			case FInstancedStaticMeshDelegates::EInstanceIndexUpdateType::Relocated:
 				{
-					if (MeshInstanceIndex == IndexUpdateData.OldIndex)
+					if (InstanceState.MeshInstanceIndex == IndexUpdateData.OldIndex)
 					{
-						MeshInstanceIndex = IndexUpdateData.Index;
+						InstanceState.MeshInstanceIndex = IndexUpdateData.Index;
 					}
 					break;
 				}
@@ -172,9 +190,9 @@ void FChaosVDMeshDataInstanceHandle::HandleInstanceIndexUpdated(TArrayView<const
 			case FInstancedStaticMeshDelegates::EInstanceIndexUpdateType::Cleared:
 			case FInstancedStaticMeshDelegates::EInstanceIndexUpdateType::Destroyed:
 				{
-					if (MeshInstanceIndex == IndexUpdateData.Index)
+					if (InstanceState.MeshInstanceIndex == IndexUpdateData.Index)
 					{
-						MeshInstanceIndex = INDEX_NONE;
+						InstanceState.MeshInstanceIndex = INDEX_NONE;
 					}
 					break;
 				}
@@ -184,39 +202,47 @@ void FChaosVDMeshDataInstanceHandle::HandleInstanceIndexUpdated(TArrayView<const
 	}
 }
 
-void FChaosVDGeometryComponentUtils::UpdateCollisionDataFromShapeArray(const TArray<FChaosVDShapeCollisionData>& InShapeArray, const TSharedPtr<FChaosVDMeshDataInstanceHandle>& InInstanceHandle)
+void FChaosVDGeometryComponentUtils::UpdateCollisionDataFromShapeArray(const TArray<FChaosVDShapeCollisionData>& InShapeArray, const TSharedRef<FChaosVDMeshDataInstanceHandle>& InInstanceHandle)
 {
-	if (!ensureMsgf(InInstanceHandle && InInstanceHandle->GetGeometryHandle() && InInstanceHandle->GetGeometryHandle()->GetRootImplicitObject(), TEXT("Tried to Update Collision Data without a valid Implicit Object")))
+	if (InShapeArray.IsEmpty())
 	{
 		return;
 	}
 
-	FChaosVDShapeCollisionData CollisionDataToUpdate = InInstanceHandle->GetGeometryCollisionData();
+	const TSharedPtr<FChaosVDExtractedGeometryDataHandle>& ExtractedGeometryHandle = InInstanceHandle->GetGeometryHandle();
 
-	InInstanceHandle->GetGeometryHandle()->GetRootImplicitObject()->VisitObjects([InInstanceHandle, &CollisionDataToUpdate, &InShapeArray] (const Chaos::FImplicitObject* ImplicitA, const Chaos::FRigidTransform3& RelativeTransformA, const int32 RootObjectIndexA, const int32 ObjectIndex, const int32 LeafObjectIndexA)
+	if (!ExtractedGeometryHandle)
 	{
-		if (!InShapeArray.IsValidIndex(LeafObjectIndexA))
-		{
-			return true;
-		}
+		return;
+	}
 
-		if (ImplicitA == InInstanceHandle->GetGeometryHandle()->GetImplicitObject())
-		{
-			
-			CollisionDataToUpdate = InShapeArray[LeafObjectIndexA];
-			CollisionDataToUpdate.bIsComplex = FChaosVDGeometryBuilder::DoesImplicitContainType(ImplicitA, Chaos::ImplicitObjectType::HeightField) || FChaosVDGeometryBuilder::DoesImplicitContainType(ImplicitA, Chaos::ImplicitObjectType::TriangleMesh);
-			CollisionDataToUpdate.bIsValid = true;
-		}
+	const int32 ShapeInstanceIndex = ExtractedGeometryHandle->GetShapeInstanceIndex();
+	if (!InShapeArray.IsValidIndex(ShapeInstanceIndex))
+	{
+		const FName ImplicitObjectTypeName = InInstanceHandle->GetState().ImplicitObjectInfo.ImplicitObjectType;
+		const Chaos::FImplicitObject* RootImplicitObject = ExtractedGeometryHandle->GetRootImplicitObject();
+		const FName RootImplicitObjectTypeName = !InInstanceHandle->GetState().ImplicitObjectInfo.bIsRootObject && RootImplicitObject ? Chaos::GetImplicitObjectTypeName(Chaos::GetInnerType(RootImplicitObject->GetType())) : TEXT("None");
+		UE_LOG(LogChaosVDEditor, Warning, TEXT("[%s] Failed to find shape instance data at Index [%d] | Particle ID[%d] | Available Shape instance Data Num [%d] | Implicit Type [%s] - Root Implicit Type [%s] | This geometry will be hidden..."), ANSI_TO_TCHAR(__FUNCTION__), ShapeInstanceIndex, InInstanceHandle->GetOwningParticleID(), InShapeArray.Num(), *ImplicitObjectTypeName.ToString(), *RootImplicitObjectTypeName.ToString());
 
-		return true;
-	});
+		InInstanceHandle->bFailedToUpdateShapeInstanceData = true;
+		return;
+	}
+	else if (InInstanceHandle->bFailedToUpdateShapeInstanceData)
+	{
+		InInstanceHandle->bFailedToUpdateShapeInstanceData = false;
+		UE_LOG(LogChaosVDEditor, Warning, TEXT("[%s] Recovered from failing to find shape instance data at Index [%d] | Particle ID[%d] | Available Shape instance Data Num [%d] | This geometry will be shown again..."), ANSI_TO_TCHAR(__FUNCTION__), ShapeInstanceIndex, InInstanceHandle->GetOwningParticleID(), InShapeArray.Num());
+	}
+
+	FChaosVDShapeCollisionData CollisionDataToUpdate = InShapeArray[ShapeInstanceIndex];
+	CollisionDataToUpdate.bIsComplex = FChaosVDGeometryBuilder::DoesImplicitContainType(ExtractedGeometryHandle->GetImplicitObject(), Chaos::ImplicitObjectType::HeightField) || FChaosVDGeometryBuilder::DoesImplicitContainType(ExtractedGeometryHandle->GetImplicitObject(), Chaos::ImplicitObjectType::TriangleMesh);
+	CollisionDataToUpdate.bIsValid = true;
 
 	InInstanceHandle->SetGeometryCollisionData(CollisionDataToUpdate);
 }
 
 void FChaosVDGeometryComponentUtils::UpdateMeshColor(const TSharedPtr<FChaosVDMeshDataInstanceHandle>& InInstanceHandle, const FChaosVDParticleDataWrapper& InParticleData, bool bIsServer)
 {
-	const FChaosVDShapeCollisionData ShapeData = InInstanceHandle->GetGeometryCollisionData();
+	const FChaosVDShapeCollisionData& ShapeData = InInstanceHandle->GetGeometryCollisionData();
 	const bool bIsQueryOnly = ShapeData.bQueryCollision && !ShapeData.bSimCollision;
 
 	if (ShapeData.bIsValid)
@@ -269,7 +295,7 @@ void FChaosVDGeometryComponentUtils::UpdateMeshVisibility(const TSharedPtr<FChao
 		}
 		else
 		{
-			const FChaosVDShapeCollisionData InstanceShapeData = InInstanceHandle->GetGeometryCollisionData();
+			const FChaosVDShapeCollisionData& InstanceShapeData = InInstanceHandle->GetGeometryCollisionData();
 
 			if (InstanceShapeData.bIsValid)
 			{
@@ -385,4 +411,15 @@ UMaterialInstanceDynamic* FChaosVDGeometryComponentUtils::CreateMaterialInstance
 UMaterialInstanceDynamic* FChaosVDGeometryComponentUtils::CreateMaterialInstance(EChaosVDMaterialType Type)
 {
 	return CreateMaterialInstance(GetBaseMaterialForType(Type));
+}
+
+void Chaos::VisualDebugger::SelectParticleWithGeometryInstance(const TSharedRef<FChaosVDScene>& InScene, IChaosVDGeometryOwnerInterface* GeometryOwner, const TSharedPtr<FChaosVDMeshDataInstanceHandle>& InMeshDataHandle)
+{
+	InScene->SetSelectedObject(nullptr);
+
+	if(GeometryOwner)
+	{
+		GeometryOwner->SetSelectedMeshInstance(InMeshDataHandle);
+		InScene->SetSelectedObject(Cast<UObject>(GeometryOwner));	
+	}
 }

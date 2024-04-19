@@ -444,6 +444,9 @@ struct FFortniteMainBranchObjectVersion
 		// Adding a new flag in RBAN Solver Setting to be able to use manifolds
 		PhysicsAssetUseManifoldFlags,
 
+		// Added support for to record sim and query data of Shape Instance data in CVD
+		SimAndQueryDataSupportInChaosVisualDebugger,
+
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,
 		LatestVersion = VersionPlusOne - 1

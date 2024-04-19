@@ -10,6 +10,7 @@
 #include "ChaosVDParticleActor.h"
 #include "Chaos/ImplicitObject.h"
 #include "ChaosVDRecording.h"
+#include "ChaosVDSelectionCustomization.h"
 #include "ChaosVDSkySphereInterface.h"
 #include "Components/ChaosVDSceneQueryDataComponent.h"
 #include "Components/ChaosVDSolverCollisionDataComponent.h"
@@ -28,6 +29,9 @@
 #include "UObject/Package.h"
 #include "WorldPersistentFolders.h"
 #include "Components/ChaosVDSolverJointConstraintDataComponent.h"
+#include "Elements/Actor/ActorElementData.h"
+#include "Elements/Component/ComponentElementData.h"
+#include "Elements/Object/ObjectElementData.h"
 #include "Engine/Level.h"
 
 #define LOCTEXT_NAMESPACE "ChaosVisualDebugger"
@@ -552,7 +556,7 @@ FTypedElementHandle FChaosVDScene::GetSelectionHandleForObject(const UObject* Ob
 	return Handle;
 }
 
-void FChaosVDScene::UpdateSelectionProxiesForActors(const TArray<AActor*>& SelectedActors)
+void FChaosVDScene::UpdateSelectionProxiesForActors(TArrayView<AActor*> SelectedActors)
 {
 	for (AActor* SelectedActor : SelectedActors)
 	{
@@ -563,19 +567,30 @@ void FChaosVDScene::UpdateSelectionProxiesForActors(const TArray<AActor*>& Selec
 	}
 }
 
-void FChaosVDScene::HandlePreSelectionChange(const UTypedElementSelectionSet* PreChangeSelectionSet)
+void FChaosVDScene::HandleDeSelectElement(const TTypedElement<ITypedElementSelectionInterface>& InElementSelectionHandle, FTypedElementListRef InSelectionSet, const FTypedElementSelectionOptions& InSelectionOptions)
 {
-	PendingActorsToUpdateSelectionProxy.Append(PreChangeSelectionSet->GetSelectedObjects<AActor>());
+	if (AActor* DeselectedActor = ActorElementDataUtil::GetActorFromHandle(InElementSelectionHandle))
+	{
+		if (IChaosVDSelectableObject* SelectionAwareActor = Cast<IChaosVDSelectableObject>(DeselectedActor))
+		{
+			SelectionAwareActor->HandleDeSelected();
+		}
+	}
+
+	// TODO: Add support for Component and Object Selection Events - This will be needed when we move away from using actors to represent particles
 }
 
-void FChaosVDScene::HandlePostSelectionChange(const UTypedElementSelectionSet* PreChangeSelectionSet)
+void FChaosVDScene::HandleSelectElement(const TTypedElement<ITypedElementSelectionInterface>& InElementSelectionHandle, FTypedElementListRef InSelectionSet, const FTypedElementSelectionOptions& InSelectionOptions)
 {
-	TArray<AActor*> SelectedActors = PreChangeSelectionSet->GetSelectedObjects<AActor>();
+	if (AActor* SelectedActor = ActorElementDataUtil::GetActorFromHandle(InElementSelectionHandle))
+	{
+		if (IChaosVDSelectableObject* SelectionAwareActor = Cast<IChaosVDSelectableObject>(SelectedActor))
+		{
+			SelectionAwareActor->HandleSelected();
+		}
+	}
 
-	SelectedActors.Append(PendingActorsToUpdateSelectionProxy);
-	UpdateSelectionProxiesForActors(SelectedActors);
-
-	PendingActorsToUpdateSelectionProxy.Reset();
+	// TODO: Add support for Component and Object Selection Events - This will be needed when we move away from using actors to represent particles
 }
 
 void FChaosVDScene::ClearSelectionAndNotify()
@@ -616,6 +631,10 @@ void FChaosVDScene::InitializeSelectionSets()
 	SelectionSet = NewObject<UTypedElementSelectionSet>(GetTransientPackage(), NAME_None, RF_Transactional);
 	SelectionSet->AddToRoot();
 
+	SelectionSet->RegisterInterfaceCustomizationByTypeName(NAME_Actor, MakeUnique<FChaosVDSelectionCustomization>(AsShared()));
+	SelectionSet->RegisterInterfaceCustomizationByTypeName(NAME_Components, MakeUnique<FChaosVDSelectionCustomization>(AsShared()));
+	SelectionSet->RegisterInterfaceCustomizationByTypeName(NAME_Object, MakeUnique<FChaosVDSelectionCustomization>(AsShared()));
+
 	FString ActorSelectionObjectName = FString::Printf(TEXT("CVDSelectedActors-%s"), *FGuid::NewGuid().ToString());
 	ActorSelection = USelection::CreateActorSelection(GetTransientPackage(), *ActorSelectionObjectName, RF_Transactional);
 	ActorSelection->SetElementSelectionSet(SelectionSet);
@@ -627,9 +646,6 @@ void FChaosVDScene::InitializeSelectionSets()
 	FString ObjectSelectionObjectName = FString::Printf(TEXT("CVDSelectedObjects-%s"), *FGuid::NewGuid().ToString());
 	ObjectSelection = USelection::CreateObjectSelection(GetTransientPackage(), *ObjectSelectionObjectName, RF_Transactional);
 	ObjectSelection->SetElementSelectionSet(SelectionSet);
-
-	SelectionSet->OnPreChange().AddRaw(this, &FChaosVDScene::HandlePreSelectionChange);
-	SelectionSet->OnChanged().AddRaw(this, &FChaosVDScene::HandlePostSelectionChange);
 }
 
 void FChaosVDScene::DeInitializeSelectionSets()

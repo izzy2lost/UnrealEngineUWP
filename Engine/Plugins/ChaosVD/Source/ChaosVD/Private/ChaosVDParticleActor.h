@@ -8,6 +8,7 @@
 #include "DataWrappers/ChaosVDParticleDataWrapper.h"
 #include "DataWrappers/ChaosVDCollisionDataWrappers.h"
 #include "GameFramework/Actor.h"
+#include "Interfaces/ChaosVDSelectableObject.h"
 #include "Visualizers/IChaosVDParticleVisualizationDataProvider.h"
 
 #include "ChaosVDParticleActor.generated.h"
@@ -52,7 +53,7 @@ ENUM_CLASS_FLAGS(EChaosVDHideParticleFlags)
 /** Actor used to represent a Chaos Particle in the Visual Debugger's world */
 UCLASS(HideCategories=(Transform))
 class AChaosVDParticleActor : public AActor, public IChaosVDParticleVisualizationDataProvider,
-								public FChaosVDSceneObjectBase, public IChaosVDCollisionDataProviderInterface
+								public FChaosVDSceneObjectBase, public IChaosVDCollisionDataProviderInterface, public IChaosVDGeometryOwnerInterface, public IChaosVDSelectableObject
 {
 	GENERATED_BODY()
 
@@ -100,20 +101,30 @@ public:
 
 	virtual FBox GetComponentsBoundingBox(bool bNonColliding, bool bIncludeFromChildActors) const override;
 
-	//BEGIN IChaosVDCollisionDataProvider Interface
+	// BEGIN IChaosVDCollisionDataProvider Interface
 	virtual void GetCollisionData(TArray<TSharedPtr<FChaosVDCollisionDataFinder>>& OutCollisionDataFound) override;
 	virtual bool HasCollisionData() override;
 	virtual FName GetProviderName() override;
-	//END IChaosVDCollisionDataProvider Interface
+	// END IChaosVDCollisionDataProvider Interface
 
 	void SetIsServerParticle(bool bNewIsServer) { bIsServer = bNewIsServer; }
 	bool GetIsServerParticle() const { return bIsServer; }
 
+	void UpdateMeshInstancesSelectionState();
 	virtual void PushSelectionToProxies() override;
 
 	FChaosVDParticleDataUpdatedDelegate& OnParticleDataUpdated() { return ParticleDataUpdatedDelegate; };
 
-	TConstArrayView<TSharedPtr<FChaosVDMeshDataInstanceHandle>> GetMeshInstances() const { return MeshDataHandles; }
+	// BEGIN IChaosVDGeometryOwner Interface
+	virtual TConstArrayView<TSharedPtr<FChaosVDMeshDataInstanceHandle>> GetMeshInstances() const override { return MeshDataHandles; }
+	virtual void SetSelectedMeshInstance(const TWeakPtr<FChaosVDMeshDataInstanceHandle>& GeometryInstanceToSelect) override;
+	virtual TWeakPtr<FChaosVDMeshDataInstanceHandle> GetSelectedMeshInstance() const override { return CurrentSelectedGeometryInstance; }
+	// END IChaosVDGeometryOwner Interface
+	
+	// BEGIN IChaosVDSelectableObject Interface
+	virtual void HandleSelected() override;
+	virtual void HandleDeSelected() override;
+	// END IChaosVDSelectableObject Interface
 
 protected:
 
@@ -143,6 +154,8 @@ protected:
 	bool bIsServer = false;
 
 	EChaosVDHideParticleFlags HideParticleFlags;
+
+	TWeakPtr<FChaosVDMeshDataInstanceHandle> CurrentSelectedGeometryInstance;
 
 	friend FChaosVDParticleActorCustomization;
 };
