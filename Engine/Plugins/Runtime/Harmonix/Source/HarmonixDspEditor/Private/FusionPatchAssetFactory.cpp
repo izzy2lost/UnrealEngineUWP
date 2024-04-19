@@ -12,6 +12,7 @@
 
 #include "JsonImporterHelper.h"
 #include "FusionPatchJsonImporter.h"
+#include "AssetRegistry/AssetRegistryModule.h"
 
 #include "Misc/FeedbackContext.h"
 #include "Misc/MessageDialog.h"
@@ -126,7 +127,7 @@ bool UFusionPatchAssetFactory::GetReplaceExistingSamplesResponse(const FString& 
 
 	const FText ReplaceExistingTitle = NSLOCTEXT("FusionPatchImporter", "ReplaceExistingSamplesTitle", "Replace Existing Samples");
 	const FText ReplaceExistingMessage = FText::Format(NSLOCTEXT("FusionPatchImporter", "ReplaceExistingSamplesMsg", 
-		"Would you like to reimport and replace existing Sound Wave Assets in the directory with Samples referenced by this Fusion Fatch?" 
+		"Would you like to reimport and replace existing Sound Wave Assets in the directory with Samples referenced by this Fusion Patch?" 
 		"\n\nPatch Name: {0}"
 		"\n\nYes. Reimport and replace existing Samples with the new samples."
 		"\n\nNo. New Samples will be imported, but existing Samples will be unchanged. The Fusion Patch will reference any existing Samples in the directory with matching names."), 
@@ -165,31 +166,34 @@ void UFusionPatchAssetFactory::UpdateFusionPatchImportNotificationItem(TSharedPt
 
 UObject* UFusionPatchAssetFactory::FactoryCreateText(UClass* InClass, UObject* InParent, FName InName, EObjectFlags Flags, UObject* Context, const TCHAR* Type, const TCHAR*& Buffer, const TCHAR* BufferEnd, FFeedbackContext* Warn)
 {
-	const FString LongPackagePath = FPackageName::GetLongPackagePath(InParent->GetOutermost()->GetPathName());
-
-	const UFusionPatchImportOptions* ImportOptions = nullptr;
+	// get the existing fusion patch if we're reimporting
+	UFusionPatch* FusionPatch = FindObject<UFusionPatch>(InParent, *InName.ToString());
 	
-	if (!ApplyOptionsToAllImport)
+	const FString LongPackagePath = FPackageName::GetLongPackagePath(InParent->GetOutermost()->GetPathName());
+	
+	UFusionPatchImportOptions::FArgs Args;
+	Args.PatchName = InName;
+	// If we're reimporting and the fusion patch has saved off the samples directory
+	if (FusionPatch && !FusionPatch->SamplesImportDir.IsEmpty())
 	{
-		bool WasOkayPressed = false;
-		UFusionPatchImportOptions::FArgs Args;
-		Args.Directory = LongPackagePath;
-		ImportOptions = UFusionPatchImportOptions::GetWithDialog(MoveTemp(Args), WasOkayPressed);
-		if (!WasOkayPressed)
-		{
-			// import cancelled by user
-			return nullptr;
-		}
-		ApplyOptionsToAllImport = true;
+		Args.Directory = FusionPatch->SamplesImportDir;
 	}
 	else
 	{
-		UFusionPatchImportOptions* MutableOptions = GetMutableDefault<UFusionPatchImportOptions>();
-		if (MutableOptions->SamplesImportDir.Path.IsEmpty())
-		{
-			MutableOptions->SamplesImportDir.Path = LongPackagePath;	
-		}
-		ImportOptions = MutableOptions;
+		Args.Directory = LongPackagePath;
+	}
+
+	bool WasOkayPressed = false;
+	const UFusionPatchImportOptions* ImportOptions = UFusionPatchImportOptions::GetWithDialog(MoveTemp(Args), WasOkayPressed);
+	if (!WasOkayPressed)
+	{
+		// import cancelled by user
+		return nullptr;
+	}
+
+	if (!ensure(ImportOptions))
+	{
+		return nullptr;
 	}
 
 	if (Warn->ReceivedUserCancel())
@@ -210,7 +214,6 @@ UObject* UFusionPatchAssetFactory::FactoryCreateText(UClass* InClass, UObject* I
 	bool bImportSuccessful = false;
 	if (JsonObj.IsValid())
 	{
-		UFusionPatch* FusionPatch = FindObject<UFusionPatch>(InParent, *InName.ToString());
 		if (!FusionPatch)
 		{
 			FusionPatch = NewObject<UFusionPatch>(InParent, InName, Flags);
@@ -240,6 +243,9 @@ UObject* UFusionPatchAssetFactory::FactoryCreateText(UClass* InClass, UObject* I
 			{
 				FusionPatch->AssetImportData->Update(SourceFile);
 			}
+
+			// save off the samples dest path for simplifying reimporting
+			FusionPatch->SamplesImportDir = ImportArgs.SamplesDestPath;
 
 			bImportSuccessful = true;
 			UpdateFusionPatchImportNotificationItem(ImportNotificationItem, bImportSuccessful, InName);

@@ -10,7 +10,7 @@
 #include "HarmonixMidi/MidiConstants.h"
 #include "FusionPatchImportOptions.generated.h"
 
-UCLASS(config = Editor)
+UCLASS(config = EditorPerProjectUserSettings)
 class UFusionPatchImportOptions : public UObject
 {
 	GENERATED_BODY()
@@ -18,15 +18,16 @@ class UFusionPatchImportOptions : public UObject
 public:
 	struct FArgs
 	{
+		FName PatchName;
 		FString Directory;
 	};
 
 	static const UFusionPatchImportOptions* GetWithDialog(FArgs&& Args, bool& OutWasOkayPressed);
 
 	/** The directory to save samples to */
-	UPROPERTY(config, EditAnywhere, Category = "Import Options", Meta = (DisplayName = "Sound Waves Import Folder", ContentDir))
+	UPROPERTY(EditAnywhere, Category = "Import Options", Meta = (DisplayName = "Sound Waves Import Folder", ContentDir))
 	FDirectoryPath SamplesImportDir;
-
+	
 	/** The loading behavior to apply to the imported samples */
 	UPROPERTY(EditAnywhere, Category = "Import Options", Meta = (DisplayName = "Sound Wave Loading Behavior"))
 	ESoundWaveLoadingBehavior SampleLoadingBehavior = ESoundWaveLoadingBehavior::RetainOnLoad;
@@ -34,7 +35,6 @@ public:
 	/** The compression type to apply to the imported samples */
 	UPROPERTY(EditAnywhere, Category = "Import Options", Meta = (DisplayName = "Sound Wave Compression Type"))
 	ESoundAssetCompressionType SampleCompressionType = ESoundAssetCompressionType::BinkAudio;
-
 	
 #if WITH_EDITOR
 	/** UObject interface */
