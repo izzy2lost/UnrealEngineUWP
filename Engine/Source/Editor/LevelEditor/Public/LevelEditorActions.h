@@ -30,7 +30,13 @@ class LEVELEDITOR_API FLevelEditorCommands : public TCommands<FLevelEditorComman
 
 public:
 	FLevelEditorCommands();
-	
+
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	FLevelEditorCommands(FLevelEditorCommands&&) = default;
+	FLevelEditorCommands(const FLevelEditorCommands&) = default;
+	FLevelEditorCommands& operator=(FLevelEditorCommands&&) = default;
+	FLevelEditorCommands& operator=(const FLevelEditorCommands&) = default;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	/**
 	 * Initialize commands
@@ -43,12 +49,13 @@ public:
 	TSharedPtr< FUICommandInfo > BrowseViewportControls;
 
 	/** Level file commands */
-	TSharedPtr< FUICommandInfo > NewLevel;
-	TSharedPtr< FUICommandInfo > OpenLevel;
-	TSharedPtr< FUICommandInfo > Save;
-	TSharedPtr< FUICommandInfo > SaveAs;
-	TSharedPtr< FUICommandInfo > SaveAllLevels;
-	TSharedPtr< FUICommandInfo > BrowseLevel;
+	TSharedPtr<FUICommandInfo> NewLevel;
+	UE_DEPRECATED(5.5, "This command has been moved to FGlobalEditorCommonCommands and is no longer registered.")
+	TSharedPtr<FUICommandInfo> OpenLevel;
+	TSharedPtr<FUICommandInfo> Save;
+	TSharedPtr<FUICommandInfo> SaveAs;
+	TSharedPtr<FUICommandInfo> SaveAllLevels;
+	TSharedPtr<FUICommandInfo> BrowseLevel;
 
 	static const int32 MaxRecentFiles = 10;
 	TArray< TSharedPtr< FUICommandInfo > > OpenRecentFileCommands;
