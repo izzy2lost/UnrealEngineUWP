@@ -276,7 +276,7 @@ void UJoinedSVGDynamicMeshComponent::UpdateMaterials(bool bInRefreshInstances)
 		{
 			UMaterialInstanceDynamic* NewMaterial = CreateAndSetMaterialInstanceDynamicFromMaterial(MaterialID, CurrentMaterial);
 
-			FLinearColor ColorToApply;
+			FLinearColor ColorToApply = FLinearColor::Black;
 
 			switch (Coloring)
 			{
