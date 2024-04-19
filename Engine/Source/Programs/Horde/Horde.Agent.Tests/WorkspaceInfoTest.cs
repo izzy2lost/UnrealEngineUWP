@@ -32,6 +32,7 @@ public class WorkspaceInfoTest
 		Assert.AreEqual(defaultOptions, GetMwOptions(null));
 		Assert.AreEqual(defaultOptions, GetMwOptions(""));
 		Assert.AreEqual(defaultOptions, GetMwOptions("name=somethingElse&numParallelSyncThreads=111"));
+		Assert.AreEqual(new MWO { MinScratchSpace = 444 }, GetMwOptions("name=managedWorkspace&minScratchSpace=444", 10));
 		Assert.AreEqual(new MWO { NumParallelSyncThreads = 111 }, GetMwOptions("name=managedWorkspace&numParallelSyncThreads=111"));
 		Assert.AreEqual(new MWO { MaxFileConcurrency = 222 }, GetMwOptions("name=managedWorkspace&maxFileConcurrency=222"));
 		Assert.AreEqual(new MWO { MinScratchSpace = 333 }, GetMwOptions("name=managedWorkspace&minScratchSpace=333"));
@@ -41,10 +42,9 @@ public class WorkspaceInfoTest
 		Assert.AreEqual(new MWO { UseHaveTable = true }, GetMwOptions("name=managedWorkspace&useHaveTable=TrUE"));
 	}
 
-	static ManagedWorkspaceOptions GetMwOptions(string? method)
+	static ManagedWorkspaceOptions GetMwOptions(string? method, long? minScratchSpace = null)
 	{
-		HordeCommon.Rpc.Messages.RpcAgentWorkspace workspace = new HordeCommon.Rpc.Messages.RpcAgentWorkspace();
-		workspace.Method = method ?? "";
+		HordeCommon.Rpc.Messages.RpcAgentWorkspace workspace = new () { Method = method ?? "", MinScratchSpace = minScratchSpace ?? 0 };
 		return WorkspaceInfo.GetMwOptions(workspace);
 	}
 }

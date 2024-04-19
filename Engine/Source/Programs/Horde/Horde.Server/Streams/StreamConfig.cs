@@ -709,6 +709,12 @@ namespace Horde.Server.Streams
 		/// Method to use when syncing/materializing data from Perforce
 		/// </summary>
 		public string? Method { get; set; } = null;
+
+		/// <summary>
+		/// Minimum disk space that must be available *after* syncing this workspace (in megabytes)
+		/// If not available, the job will be aborted.
+		/// </summary>
+		public long? MinScratchSpace { get; set; } = null;
 	}
 
 	/// <summary>

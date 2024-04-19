@@ -84,7 +84,7 @@ namespace EpicGames.Perforce.Managed
 	/// </summary>
 	/// <param name="NumParallelSyncThreads">Maximum number of threads to sync in parallel</param>
 	/// <param name="MaxFileConcurrency">Maximum number of concurrent file system operations (copying, moving, deleting etc)</param>
-	/// <param name="MinScratchSpace">Minimum amount of space that must be on a drive after a branch is synced</param>
+	/// <param name="MinScratchSpace">Minimum amount of disk space that must be available after a sync (in megabytes)</param>
 	/// <param name="UseHaveTable">
 	///		Use the client's have table when syncing.
 	///		
@@ -93,11 +93,11 @@ namespace EpicGames.Perforce.Managed
 	///	</param>
 	/// <param name="Partitioned">Whether to allow using partitioned workspaces</param>
 	/// <param name="PreferNativeClient">Whether to prefer the native p4 client</param>
-	public record class ManagedWorkspaceOptions
+	public record ManagedWorkspaceOptions
 	(
 		int NumParallelSyncThreads = 4,
 		int MaxFileConcurrency = 4,
-		long MinScratchSpace = 50L * 1024 * 1024 * 1024,
+		long MinScratchSpace = 50L * 1024, // 50 GB
 		bool UseHaveTable = true,
 		bool Partitioned = false,
 		bool PreferNativeClient = false
@@ -1964,9 +1964,10 @@ namespace EpicGames.Perforce.Managed
 				if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
 				{
 					long freeSpace = new DriveInfo(Path.GetPathRoot(_baseDir.FullName)!).AvailableFreeSpace;
-					if (freeSpace - syncSize < _options.MinScratchSpace)
+					long minScratchSpaceBytes = _options.MinScratchSpace * 1024 * 1024;
+					if (freeSpace - syncSize < minScratchSpaceBytes)
 					{
-						throw new InsufficientSpaceException($"Not enough space to sync new files (free space: {freeSpace / (1024.0 * 1024.0):n1}mb, sync size: {syncSize / (1024.0 * 1024.0):n1}mb, min scratch space: {_options.MinScratchSpace / (1024.0 * 1024.0):n1}mb)");
+						throw new InsufficientSpaceException($"Not enough space to sync new files (free space: {freeSpace / (1024.0 * 1024.0):n1}mb, sync size: {syncSize / (1024.0 * 1024.0):n1}mb, min scratch space: {minScratchSpaceBytes / (1024.0 * 1024.0):n1}mb)");
 					}
 				}
 

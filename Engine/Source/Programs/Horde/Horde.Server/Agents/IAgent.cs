@@ -71,6 +71,11 @@ namespace Horde.Server.Agents
 		public string? Method { get; set; }
 
 		/// <summary>
+		/// Minimum disk space that must be available *after* syncing this workspace (in megabytes)
+		/// </summary>
+		public long? MinScratchSpace { get; set; }
+
+		/// <summary>
 		/// Constructor
 		/// </summary>
 		/// <param name="cluster">Name of the Perforce cluster</param>
@@ -80,7 +85,8 @@ namespace Horde.Server.Agents
 		/// <param name="view">Custom view for the workspace</param>
 		/// <param name="incremental">Whether to use an incremental workspace</param>
 		/// <param name="method">Method to use when syncing/materializing data from Perforce</param>
-		public AgentWorkspaceInfo(string? cluster, string? userName, string identifier, string stream, List<string>? view, bool incremental, string? method)
+		/// <param name="minScratchSpace">Minimum disk space that must be available *after* syncing this workspace (in megabytes)</param>
+		public AgentWorkspaceInfo(string? cluster, string? userName, string identifier, string stream, List<string>? view, bool incremental, string? method, long? minScratchSpace)
 		{
 			if (!String.IsNullOrEmpty(cluster))
 			{
@@ -95,6 +101,7 @@ namespace Horde.Server.Agents
 			View = view;
 			Incremental = incremental;
 			Method = method;
+			MinScratchSpace = minScratchSpace;
 		}
 
 		/// <summary>
@@ -102,8 +109,10 @@ namespace Horde.Server.Agents
 		/// </summary>
 		/// <param name="workspace">RPC message to construct from</param>
 		public AgentWorkspaceInfo(RpcAgentWorkspace workspace)
-			: this(workspace.ConfiguredCluster, workspace.ConfiguredUserName, workspace.Identifier, workspace.Stream, (workspace.View.Count > 0) ? workspace.View.ToList() : null, workspace.Incremental, workspace.Method)
+			: this(workspace.ConfiguredCluster, workspace.ConfiguredUserName, workspace.Identifier, workspace.Stream, (workspace.View.Count > 0) ? workspace.View.ToList() : null, workspace.Incremental, workspace.Method, workspace.MinScratchSpace)
 		{
+			// Treat zero value as null as Protobuf cannot store null 
+			MinScratchSpace = workspace.MinScratchSpace == 0 ? null : workspace.MinScratchSpace;
 		}
 
 		/// <summary>
@@ -179,7 +188,8 @@ namespace Horde.Server.Agents
 				Stream = Stream,
 				Incremental = Incremental,
 				Partitioned = server.SupportsPartitionedWorkspaces,
-				Method = Method ?? String.Empty
+				Method = Method ?? String.Empty,
+				MinScratchSpace = MinScratchSpace ?? 0
 			};
 
 			if (View != null)
@@ -949,7 +959,7 @@ namespace Horde.Server.Agents
 			{
 				if (autoSdk.Stream != null && autoSdk.Properties.All(x => agent.Properties.Contains(x)))
 				{
-					return new AgentWorkspaceInfo(cluster.Name, autoSdk.UserName, autoSdk.Name ?? "AutoSDK", autoSdk.Stream!, autoSdkConfig.View.ToList(), true, null);
+					return new AgentWorkspaceInfo(cluster.Name, autoSdk.UserName, autoSdk.Name ?? "AutoSDK", autoSdk.Stream!, autoSdkConfig.View.ToList(), true, null, null);
 				}
 			}
 			return null;
@@ -1052,7 +1062,7 @@ namespace Horde.Server.Agents
 			if (agentType.Workspace == null)
 			{
 				// Use the default settings (fast switching workspace, clean)
-				workspace = new AgentWorkspaceInfo(streamConfig.ClusterName, null, streamConfig.GetDefaultWorkspaceIdentifier(), streamConfig.Name, null, false, null);
+				workspace = new AgentWorkspaceInfo(streamConfig.ClusterName, null, streamConfig.GetDefaultWorkspaceIdentifier(), streamConfig.Name, null, false, null, null);
 				autoSdkConfig = AutoSdkConfig.Full;
 				return true;
 			}
@@ -1084,7 +1094,7 @@ namespace Horde.Server.Agents
 
 				// Create the new workspace
 				string cluster = workspaceConfig.Cluster ?? streamConfig.ClusterName;
-				workspace = new AgentWorkspaceInfo(cluster, workspaceConfig.UserName, identifier, workspaceConfig.Stream ?? streamConfig.Name, workspaceConfig.View, workspaceConfig.Incremental ?? false, workspaceConfig.Method);
+				workspace = new AgentWorkspaceInfo(cluster, workspaceConfig.UserName, identifier, workspaceConfig.Stream ?? streamConfig.Name, workspaceConfig.View, workspaceConfig.Incremental ?? false, workspaceConfig.Method, workspaceConfig.MinScratchSpace);
 				autoSdkConfig = GetAutoSdkConfig(workspaceConfig, streamConfig);
 
 				return true;

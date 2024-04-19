@@ -291,10 +291,10 @@ namespace Horde.Agent.Utility
 		}
 
 		/// <summary>
-		/// Create ManagedWorkspace options from a URL-encoded query string.
+		/// Create manage workspace options
 		/// </summary>
-		/// <param name="workspace">Workspace settings</param>
-		/// <returns></returns>
+		/// <param name="workspace">Agent workspace RPC message</param>
+		/// <returns>Options for a managed workspace</returns>
 		public static ManagedWorkspaceOptions GetMwOptions(RpcAgentWorkspace workspace)
 		{
 			const string NameKey = "name";
@@ -307,6 +307,11 @@ namespace Horde.Agent.Utility
 
 			ManagedWorkspaceOptions options = new ManagedWorkspaceOptions();
 			options = options with { Partitioned = workspace.Partitioned };
+
+			if (workspace.MinScratchSpace > 0)
+			{
+				options = options with { MinScratchSpace = workspace.MinScratchSpace };
+			}
 
 			string? method = workspace.Method;
 			if (!String.IsNullOrEmpty(method))
