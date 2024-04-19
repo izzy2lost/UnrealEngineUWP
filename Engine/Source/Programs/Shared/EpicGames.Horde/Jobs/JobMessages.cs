@@ -71,16 +71,25 @@ namespace EpicGames.Horde.Jobs
 		/// <summary>
 		/// Options for executing a job inside a container
 		/// </summary>
-		public JobContainerOptions? Container { get; set; }
+		public JobContainerOptions Container { get; set; } = new JobContainerOptions();
+
+		/// <summary>
+		/// Number of days after which to expire jobs
+		/// </summary>
+		public int? ExpireAfterDays { get; set; }
 
 		/// <summary>
 		/// Merge defaults from another options object
 		/// </summary>
-		/// <param name="other"></param>
 		public void MergeDefaults(JobOptions other)
 		{
 			Executor ??= other.Executor;
 			UseNewTempStorage ??= other.UseNewTempStorage;
+			UseWine ??= other.UseWine;
+			RunInSeparateProcess ??= other.RunInSeparateProcess;
+			WorkspaceMaterializer ??= other.WorkspaceMaterializer;
+			Container.MergeDefaults(other.Container);
+			ExpireAfterDays ??= other.ExpireAfterDays;
 		}
 	}
 
@@ -108,6 +117,17 @@ namespace EpicGames.Horde.Jobs
 		/// Additional arguments to pass to container engine
 		/// </summary>
 		public string? ExtraArguments { get; set; }
+
+		/// <summary>
+		/// Merge defaults from another options object
+		/// </summary>
+		public void MergeDefaults(JobContainerOptions other)
+		{
+			Enabled ??= other.Enabled;
+			ImageUrl ??= other.ImageUrl;
+			ContainerEngineExecutable ??= other.ContainerEngineExecutable;
+			ExtraArguments ??= other.ExtraArguments;
+		}
 	}
 
 	/// <summary>

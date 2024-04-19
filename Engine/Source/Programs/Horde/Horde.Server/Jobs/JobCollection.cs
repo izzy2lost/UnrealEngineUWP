@@ -444,6 +444,9 @@ namespace Horde.Server.Jobs
 				return _collection.CreateJobObject(newDocument, _graph);
 			}
 
+			public Task<bool> TryDeleteAsync(CancellationToken cancellationToken = default)
+				=> _collection.TryDeleteAsync(Document, cancellationToken);
+
 			public async Task<IJob?> TryFailBatchAsync(int batchIdx, JobStepBatchError reason, CancellationToken cancellationToken = default)
 			{
 				JobDocument? newDocument = await _collection.TryFailBatchAsync(Document, batchIdx, Graph, reason, cancellationToken);
@@ -605,7 +608,7 @@ namespace Horde.Server.Jobs
 		}
 
 		/// <inheritdoc/>
-		public async Task<bool> RemoveAsync(IJob job, CancellationToken cancellationToken)
+		async Task<bool> TryDeleteAsync(JobDocument job, CancellationToken cancellationToken)
 		{
 			DeleteResult result = await _jobs.DeleteOneAsync(x => x.Id == job.Id && x.UpdateIndex == job.UpdateIndex, null, cancellationToken);
 			return result.DeletedCount > 0;

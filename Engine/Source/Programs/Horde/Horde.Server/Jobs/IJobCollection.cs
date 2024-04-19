@@ -135,13 +135,6 @@ namespace Horde.Server.Jobs
 		Task<IJob?> GetAsync(JobId jobId, CancellationToken cancellationToken = default);
 
 		/// <summary>
-		/// Deletes a job
-		/// </summary>
-		/// <param name="job">The job to remove</param>
-		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		Task<bool> RemoveAsync(IJob job, CancellationToken cancellationToken = default);
-
-		/// <summary>
 		/// Delete all the jobs for a stream
 		/// </summary>
 		/// <param name="streamId">Unique id of the stream</param>

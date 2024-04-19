@@ -307,9 +307,9 @@ namespace Horde.Server.Jobs
 			using IDisposable? scope = _logger.BeginScope("DeleteJobAsync({JobId})", job.Id);
 
 			// Delete the job
-			while (!await _jobs.RemoveAsync(job, cancellationToken))
+			while (!await job.TryDeleteAsync(cancellationToken))
 			{
-				IJob? newJob = await _jobs.GetAsync(job.Id, cancellationToken);
+				IJob? newJob = await job.RefreshAsync(cancellationToken);
 				if (newJob == null)
 				{
 					return false;

@@ -762,6 +762,13 @@ namespace Horde.Server.Jobs
 		Task<IJob?> RefreshAsync(CancellationToken cancellationToken = default);
 
 		/// <summary>
+		/// Attempt to delete the job
+		/// </summary>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		/// <returns>True if the job was deleted. False if the job is not the latest revision.</returns>
+		Task<bool> TryDeleteAsync(CancellationToken cancellationToken = default);
+
+		/// <summary>
 		/// Removes a job from the dispatch queue. Ignores the state of any batches still remaining to execute. Should only be used to correct for inconsistent state.
 		/// </summary>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>

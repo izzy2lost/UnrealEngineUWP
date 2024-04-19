@@ -122,7 +122,7 @@ namespace Horde.Server.Tests.Jobs
 			IReadOnlyList<IJob> jobs = await JobCollection.FindAsync();
 			for (int i = 0; i < jobs.Count; i++)
 			{
-				await JobCollection.RemoveAsync(jobs[i]);
+				await jobs[i].TryDeleteAsync();
 			}
 
 			// create a new job

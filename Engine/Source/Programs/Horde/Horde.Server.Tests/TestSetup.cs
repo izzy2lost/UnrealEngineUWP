@@ -264,6 +264,7 @@ namespace Horde.Server.Tests
 			services.AddSingleton<IDowntimeService, DowntimeServiceStub>();
 			services.AddSingleton<IssueService>();
 			services.AddSingleton<JobService>();
+			services.AddSingleton<JobExpirationService>();
 			services.AddSingleton<LifetimeService>();
 			services.AddSingleton<ILogStorage, NullLogStorage>();
 			services.AddSingleton<ILogFileService, LogFileService>();
