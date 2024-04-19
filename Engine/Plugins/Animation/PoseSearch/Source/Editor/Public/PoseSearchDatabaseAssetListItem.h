@@ -55,10 +55,6 @@ namespace UE::PoseSearch
 		FSlateColor GetRootMotionColorAndOpacity() const;
 		FText GetRootMotionOptionToolTip() const;
 		
-		const FSlateBrush* GetMirrorOptionSlateBrush() const;
-		FText GetMirrorOptionToolTip() const;
-		FReply MirrorOptionOnMouseButtonDown(const FGeometry& InMyGeometry, const FPointerEvent& InMouseEvent);
-		
 		FText GetDisableReselectionToolTip() const;
 		ECheckBoxState GetDisableReselectionChecked() const;
 		void OnDisableReselectionChanged(ECheckBoxState NewCheckboxState);
