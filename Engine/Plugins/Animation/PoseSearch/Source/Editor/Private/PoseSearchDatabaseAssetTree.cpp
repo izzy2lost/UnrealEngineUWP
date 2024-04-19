@@ -22,6 +22,7 @@
 #include "SPositiveActionButton.h"
 #include "Styling/AppStyle.h"
 #include "ScopedTransaction.h"
+#include "PoseSearch/PoseSearchMultiSequence.h"
 #include "Styling/StyleColors.h"
 #include "Widgets/Text/SRichTextBlock.h"
 #include "Widgets/Input/SCheckBox.h"
@@ -139,7 +140,8 @@ namespace UE::PoseSearch
 							if (AssetClass->IsChildOf(UAnimSequence::StaticClass()) ||
 								AssetClass->IsChildOf(UAnimComposite::StaticClass()) ||
 								AssetClass->IsChildOf(UBlendSpace::StaticClass()) ||
-								AssetClass->IsChildOf(UAnimMontage::StaticClass()))
+								AssetClass->IsChildOf(UAnimMontage::StaticClass()) ||
+								AssetClass->IsChildOf(UPoseSearchMultiSequence::StaticClass()))
 							{
 								Reply = FReply::Handled();
 								break;
@@ -342,7 +344,8 @@ namespace UE::PoseSearch
 					if (AssetClass->IsChildOf(UAnimSequence::StaticClass()) ||
 						AssetClass->IsChildOf(UAnimComposite::StaticClass()) ||
 						AssetClass->IsChildOf(UBlendSpace::StaticClass()) ||
-						AssetClass->IsChildOf(UAnimMontage::StaticClass()))
+						AssetClass->IsChildOf(UAnimMontage::StaticClass()) ||
+						AssetClass->IsChildOf(UPoseSearchMultiSequence::StaticClass()))
 					{
 						ReturnedDropZone = EItemDropZone::OntoItem;
 						break;
@@ -420,6 +423,11 @@ namespace UE::PoseSearch
 				else if (AssetClass->IsChildOf(UAnimMontage::StaticClass()))
 				{
 					ViewModel->AddAnimMontageToDatabase(Cast<UAnimMontage>(Asset));
+					++AddedAssets;
+				}
+				else if (AssetClass->IsChildOf(UPoseSearchMultiSequence::StaticClass()))
+				{
+					ViewModel->AddMultiSequenceToDatabase(Cast<UPoseSearchMultiSequence>(Asset));
 					++AddedAssets;
 				}
 			}
@@ -754,7 +762,7 @@ namespace UE::PoseSearch
 	{
 		FScopedTransaction Transaction(LOCTEXT("AddMultiSequenceTransaction", "Add Multi Sequence"));
 
-		EditorViewModel.Pin()->AddMultiSequenceToDatabase();
+		EditorViewModel.Pin()->AddMultiSequenceToDatabase(nullptr);
 
 		if (bFinalizeChanges)
 		{

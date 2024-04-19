@@ -571,13 +571,14 @@ void FDatabaseViewModel::AddAnimMontageToDatabase(UAnimMontage* AnimMontage)
 	}
 }
 
-void FDatabaseViewModel::AddMultiSequenceToDatabase()
+void FDatabaseViewModel::AddMultiSequenceToDatabase(UPoseSearchMultiSequence* MultiSequence)
 {
 	if (UPoseSearchDatabase* Database = GetPoseSearchDatabase())
 	{
 		Database->Modify();
 		
 		FPoseSearchDatabaseMultiSequence NewAsset;
+		NewAsset.MultiSequence = MultiSequence;
 		Database->AddAnimationAsset(FInstancedStruct::Make(NewAsset));
 	}
 }
