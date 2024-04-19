@@ -249,6 +249,7 @@ struct FDynamicMeshCollection
 		const TArrayView<const FPlane>& Planes,
 		double Grout,
 		double CollisionSampleSpacing,
+		bool bSplitIslands,
 		int32 RandomSeed,
 		FGeometryCollection* Collection,
 		FInternalSurfaceMaterials& InternalSurfaceMaterials,
@@ -267,7 +268,7 @@ struct FDynamicMeshCollection
 	 * @param CollisionSampleSpacing If > 0, new geometry will have collision samples added (vertices not on any triangles) to fill any gaps greater than the this size
 	 * @return Index of the first created geometry
 	 */
-	int32 CutWithCellMeshes(const FInternalSurfaceMaterials& InternalSurfaceMaterials, const TArray<TPair<int32, int32>>& CellConnectivity, FCellMeshes& CellMeshes, FGeometryCollection* Collection, bool bSetDefaultInternalMaterialsFromCollection, double CollisionSampleSpacing);
+	int32 CutWithCellMeshes(const FInternalSurfaceMaterials& InternalSurfaceMaterials, const TArray<TPair<int32, int32>>& CellConnectivity, FCellMeshes& CellMeshes, bool bSplitIslands, FGeometryCollection* Collection, bool bSetDefaultInternalMaterialsFromCollection, double CollisionSampleSpacing);
 
 
 	/**
@@ -289,7 +290,7 @@ struct FDynamicMeshCollection
 	}
 
 	// Split mesh into connected components, including implicit connections by co-located vertices
-	bool SplitIslands(UE::Geometry::FDynamicMesh3& Source, TArray<UE::Geometry::FDynamicMesh3>& SeparatedMeshes);
+	bool SplitIslands(UE::Geometry::FDynamicMesh3& Source, TArray<UE::Geometry::FDynamicMesh3>& SeparatedMeshes, double ToleranceDistance = 1e-3);
 
 	FString GetBoneName(FGeometryCollection& Output, int TransformParent, int SubPartIndex)
 	{

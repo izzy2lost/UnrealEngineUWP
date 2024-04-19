@@ -202,6 +202,7 @@ struct PLANARCUT_API FPlanarCells
  * @param bIncludeOutsideCellInOutput	If true, geometry that was not inside any of the cells (e.g. was outside of the bounds of all cutting geometry) will still be included in the output; if false, it will be discarded.
  * @param Progress						Optionally tracks progress and supports early-cancel
  * @param CellsOrigin					Optionally provide a local origin of the cutting Cells
+ * @param bSplitIslands					Whether to detect connected components and split them apart after the cut
  * @return	index of first new geometry in the Output GeometryCollection, or -1 if no geometry was added
  */
 int32 PLANARCUT_API CutWithPlanarCells(
@@ -215,7 +216,8 @@ int32 PLANARCUT_API CutWithPlanarCells(
 	bool bIncludeOutsideCellInOutput = true,
 	bool bSetDefaultInternalMaterialsFromCollection = true,
 	FProgressCancel* Progress = nullptr,
-	FVector CellsOrigin = FVector::ZeroVector
+	FVector CellsOrigin = FVector::ZeroVector,
+	bool bSplitIslands = true
 );
 
 /**
@@ -256,6 +258,7 @@ void PLANARCUT_API CreateCuttingSurfacePreview(
  * @param bIncludeOutsideCellInOutput	If true, geometry that was not inside any of the cells (e.g. was outside of the bounds of all cutting geometry) will still be included in the output; if false, it will be discarded.
  * @param Progress						Optionally tracks progress and supports early-cancel
  * @param CellsOrigin					Optionally provide a local origin of the cutting Cells
+ * @param bSplitIslands					Whether to detect connected components and split them apart after the cut
  * @return	index of first new geometry in the Output GeometryCollection, or -1 if no geometry was added
  */
 int32 PLANARCUT_API CutMultipleWithPlanarCells(
@@ -269,7 +272,8 @@ int32 PLANARCUT_API CutMultipleWithPlanarCells(
 	bool bIncludeOutsideCellInOutput = true,
 	bool bSetDefaultInternalMaterialsFromCollection = true,
 	FProgressCancel* Progress = nullptr,
-	FVector CellsOrigin = FVector::ZeroVector
+	FVector CellsOrigin = FVector::ZeroVector,
+	bool bSplitIslands = true
 );
 
 /**
@@ -300,6 +304,7 @@ int32 PLANARCUT_API SplitIslands(
  * @param RandomSeed				Seed to be used for random noise displacement
  * @param TransformCollection		Optional transform of the whole geometry collection; if unset, defaults to Identity
  * @param Progress					Optionally tracks progress and supports early-cancel
+ * @param bSplitIslands					Whether to detect connected components and split them apart after the cut
  * @return	index of first new geometry in the Output GeometryCollection, or -1 if no geometry was added
  */
 int32 PLANARCUT_API CutMultipleWithMultiplePlanes(
@@ -312,7 +317,8 @@ int32 PLANARCUT_API CutMultipleWithMultiplePlanes(
 	int32 RandomSeed,
 	const TOptional<FTransform>& TransformCollection = TOptional<FTransform>(),
 	bool bSetDefaultInternalMaterialsFromCollection = true,
-	FProgressCancel* Progress = nullptr
+	FProgressCancel* Progress = nullptr,
+	bool bSplitIslands = true
 );
 
 
@@ -473,6 +479,7 @@ int32 PLANARCUT_API AddCollisionSampleVertices(double TargetSpacing, FGeometryCo
  * @param CollisionSampleSpacing	Target spacing between collision sample vertices
  * @param TransformCollection		Optional transform of the collection; if unset, defaults to Identity
  * @param Progress					Optionally tracks progress and supports early-cancel
+ * @param bSplitIslands				Whether to detect connected components and split them apart after the cut
  * @return index of first new geometry in the Output GeometryCollection, or -1 if no geometry was added
  */
 int32 PLANARCUT_API CutWithMesh(
@@ -484,7 +491,8 @@ int32 PLANARCUT_API CutWithMesh(
 	double CollisionSampleSpacing,
 	const TOptional<FTransform>& TransformCollection = TOptional<FTransform>(),
 	bool bSetDefaultInternalMaterialsFromCollection = true,
-	FProgressCancel* Progress = nullptr
+	FProgressCancel* Progress = nullptr,
+	bool bSplitIslands = true
 );
 
 /// Convert a mesh description to a dynamic mesh *specifically* augmented / designed for cutting geometry collections, to be passed to CutWithMesh
@@ -499,7 +507,8 @@ inline int32 CutWithMesh(
 	double CollisionSampleSpacing,
 	const TOptional<FTransform>& TransformCollection = TOptional<FTransform>(),
 	bool bSetDefaultInternalMaterialsFromCollection = true,
-	FProgressCancel* Progress = nullptr
+	FProgressCancel* Progress = nullptr,
+	bool bSplitIslands = true
 )
 {
 	int32 NumUVLayers = Collection.NumUVLayers();
@@ -511,7 +520,8 @@ inline int32 CutWithMesh(
 		CollisionSampleSpacing,
 		TransformCollection,
 		bSetDefaultInternalMaterialsFromCollection,
-		Progress
+		Progress,
+		bSplitIslands
 		);
 }
 

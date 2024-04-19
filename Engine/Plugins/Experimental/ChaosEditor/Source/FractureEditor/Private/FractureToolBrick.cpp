@@ -394,6 +394,7 @@ public:
 	float Grout = 0;
 	int Seed;
 	FTransform Transform;
+	bool bSplitIslands = true;
 
 	// TGenericDataOperator interface:
 	virtual void CalculateResult(FProgressCancel* Progress) override
@@ -403,7 +404,7 @@ public:
 			return;
 		}
 
-		ResultGeometryIndex = CutMultipleWithPlanarCells(Cells, *CollectionCopy, Selection, Grout, PointSpacing, Seed, Transform, true, true, Progress, CellsOrigin);
+		ResultGeometryIndex = CutMultipleWithPlanarCells(Cells, *CollectionCopy, Selection, Grout, PointSpacing, Seed, Transform, true, true, Progress, CellsOrigin, bSplitIslands);
 
 		SetResult(MoveTemp(CollectionCopy));
 	}
@@ -448,6 +449,7 @@ int32 UFractureToolBrick::ExecuteFracture(const FFractureToolContext& FractureCo
 		BrickOp->Selection = FractureContext.GetSelection();
 		BrickOp->Grout = 0; // CutterSettings->Grout; // Note: Grout is currently baked directly into the brick cells above
 		BrickOp->PointSpacing = CollisionSettings->GetPointSpacing();
+		BrickOp->bSplitIslands = CutterSettings->bSplitIslands;
 		const bool bBricksAreTouching = CutterSettings->Grout <= UE_KINDA_SMALL_NUMBER;
 		BrickOp->Cells = FPlanarCells(BricksToCut, bBricksAreTouching);
 		if (CutterSettings->Amplitude > 0.0f)

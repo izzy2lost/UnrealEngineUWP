@@ -82,6 +82,10 @@ public:
 	UPROPERTY()
 	bool bGroupFractureToggleEnabled = true;
 
+	// Whether to split the fractured mesh pieces based on geometric connectivity after fracturing
+	UPROPERTY(EditAnywhere, Category = CommonFracture)
+	bool bSplitIslands = true;
+
 	/** Amount of space to leave between cut pieces */
 	UPROPERTY(EditAnywhere, Category = CommonFracture, meta = (UIMin = "0.0", ClampMin = "0.0", EditCondition = "bGroutSettingEnabled", HideEditConditionToggle, EditConditionHides))
 	float Grout = 0.0f;

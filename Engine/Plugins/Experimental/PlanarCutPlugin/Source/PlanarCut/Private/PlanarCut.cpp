@@ -828,7 +828,8 @@ int32 CutMultipleWithMultiplePlanes(
 	int32 RandomSeed,
 	const TOptional<FTransform>& TransformCollection,
 	bool bSetDefaultInternalMaterialsFromCollection,
-	FProgressCancel* Progress
+	FProgressCancel* Progress,
+	bool bSplitIslands
 )
 {
 	FProgressCancel::FProgressScope PrepareScope = FProgressCancel::CreateScopeTo(Progress, .1, LOCTEXT("CutWithMultiplePlanesInit", "Preparing to cut with planes"));
@@ -869,7 +870,7 @@ int32 CutMultipleWithMultiplePlanes(
 	FProgressCancel::FProgressScope CutScope = FProgressCancel::CreateScopeTo(Progress, .99, LOCTEXT("CutWithMultiplePlanesBody", "Cutting with planes"));
 
 	int32 NewGeomStartIdx = -1;
-	NewGeomStartIdx = MeshCollection.CutWithMultiplePlanes(CenteredPlanes, Grout, CollisionSampleSpacing, RandomSeed, &Collection, InternalSurfaceMaterials, bSetDefaultInternalMaterialsFromCollection, Progress);
+	NewGeomStartIdx = MeshCollection.CutWithMultiplePlanes(CenteredPlanes, Grout, CollisionSampleSpacing, bSplitIslands, RandomSeed, &Collection, InternalSurfaceMaterials, bSetDefaultInternalMaterialsFromCollection, Progress);
 
 	CutScope.Done();
 	if (Progress && Progress->Cancelled())
@@ -942,7 +943,8 @@ int32 CutMultipleWithPlanarCells(
 	bool bIncludeOutsideCellInOutput,
 	bool bSetDefaultInternalMaterialsFromCollection,
 	FProgressCancel* Progress,
-	FVector CellsOrigin
+	FVector CellsOrigin,
+	bool bSplitIslands
 )
 {
 	FProgressCancel::FProgressScope CreateMeshCollectionScope = FProgressCancel::CreateScopeTo(Progress, .1);
@@ -976,7 +978,7 @@ int32 CutMultipleWithPlanarCells(
 
 	FProgressCancel::FProgressScope CutScope = FProgressCancel::CreateScopeTo(Progress, .99);
 	int32 NewGeomStartIdx = -1;
-	NewGeomStartIdx = MeshCollection.CutWithCellMeshes(Cells.InternalSurfaceMaterials, Cells.PlaneCells, CellMeshes, &Source, bSetDefaultInternalMaterialsFromCollection, CollisionSampleSpacing);
+	NewGeomStartIdx = MeshCollection.CutWithCellMeshes(Cells.InternalSurfaceMaterials, Cells.PlaneCells, CellMeshes, bSplitIslands, &Source, bSetDefaultInternalMaterialsFromCollection, CollisionSampleSpacing);
 	CutScope.Done();
 
 	if (Progress && Progress->Cancelled())
@@ -1139,7 +1141,8 @@ int32 CutWithMesh(
 	double CollisionSampleSpacing,
 	const TOptional<FTransform>& TransformCollection,
 	bool bSetDefaultInternalMaterialsFromCollection,
-	FProgressCancel* Progress
+	FProgressCancel* Progress,
+	bool bSplitIslands
 )
 {
 	FProgressCancel::FProgressScope PrepareScope = FProgressCancel::CreateScopeTo(Progress, .1);
@@ -1179,7 +1182,7 @@ int32 CutWithMesh(
 	}
 	FProgressCancel::FProgressScope CutScope = FProgressCancel::CreateScopeTo(Progress, .99);
 
-	NewGeomStartIdx = MeshCollection.CutWithCellMeshes(InternalSurfaceMaterials, CellConnectivity, CellMeshes, &Collection, bSetDefaultInternalMaterialsFromCollection, CollisionSampleSpacing);
+	NewGeomStartIdx = MeshCollection.CutWithCellMeshes(InternalSurfaceMaterials, CellConnectivity, CellMeshes, bSplitIslands, &Collection, bSetDefaultInternalMaterialsFromCollection, CollisionSampleSpacing);
 
 	CutScope.Done();
 	if (Progress && Progress->Cancelled())

@@ -626,6 +626,7 @@ public:
 	float Grout;
 	int Seed;
 	FTransform Transform;
+	bool bSplitIslands = true;
 
 	// TGenericDataOperator interface:
 	virtual void CalculateResult(FProgressCancel* Progress) override
@@ -657,7 +658,7 @@ public:
 		FProgressCancel::FProgressScope FractureMeshProgress =
 			FProgressCancel::CreateScopeTo(Progress, 1, LOCTEXT("FractureMeshMessage", "Fracturing Mesh"));
 
-		ResultGeometryIndex = CutMultipleWithPlanarCells(VoronoiPlanarCells, *CollectionCopy, Selection, Grout, PointSpacing, Seed, Transform, true, true, Progress, Origin);
+		ResultGeometryIndex = CutMultipleWithPlanarCells(VoronoiPlanarCells, *CollectionCopy, Selection, Grout, PointSpacing, Seed, Transform, true, true, Progress, Origin, bSplitIslands);
 		
 		SetResult(MoveTemp(CollectionCopy));
 	}
@@ -678,6 +679,7 @@ int32 UFractureToolVoronoiCutterBase::ExecuteFracture(const FFractureToolContext
 		VoronoiOp->Grout = CutterSettings->Grout;
 		VoronoiOp->PointSpacing = CollisionSettings->GetPointSpacing();
 		VoronoiOp->Sites = Sites;
+		VoronoiOp->bSplitIslands = CutterSettings->bSplitIslands;
 		if (CutterSettings->Amplitude > 0.0f)
 		{
 			FNoiseSettings Settings;
