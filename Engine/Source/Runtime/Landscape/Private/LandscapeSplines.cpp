@@ -3123,7 +3123,16 @@ void ULandscapeSplineSegment::UpdateSplinePoints(bool bUpdateCollision, bool bUp
 			FVector Scale = MeshEntry->Scale;
 			if (MeshEntry->bScaleToWidth)
 			{
-				Scale *= Width / USplineMeshComponent::GetAxisValueRef(MeshBounds.BoxExtent, CrossAxis(MeshEntry->ForwardAxis, MeshEntry->UpAxis));
+				float ScaleFactor = Width / USplineMeshComponent::GetAxisValueRef(MeshBounds.BoxExtent, CrossAxis(MeshEntry->ForwardAxis, MeshEntry->UpAxis));
+				if (MeshEntry->bNoZScaling)
+				{
+					Scale.X *= ScaleFactor;
+					Scale.Y *= ScaleFactor;
+				}
+				else
+				{
+					Scale *= ScaleFactor;
+				}
 			}
 
 			const float MeshLength = static_cast<float>(FMath::Abs(USplineMeshComponent::GetAxisValueRef(MeshBounds.BoxExtent, MeshEntry->ForwardAxis) * 2.0 *
@@ -3259,7 +3268,16 @@ void ULandscapeSplineSegment::UpdateSplinePoints(bool bUpdateCollision, bool bUp
 			FVector Scale = MeshEntry->Scale;
 			if (MeshEntry->bScaleToWidth)
 			{
-				Scale *= Width / USplineMeshComponent::GetAxisValueRef(MeshBounds.BoxExtent, SideAxis);
+				float ScaleFactor = Width / USplineMeshComponent::GetAxisValueRef(MeshBounds.BoxExtent, SideAxis);
+				if (MeshEntry->bNoZScaling)
+				{
+					Scale.X *= ScaleFactor;
+					Scale.Y *= ScaleFactor;
+				}
+				else
+				{
+					Scale *= ScaleFactor;
+				}
 			}
 
 			FVector2D Offset = MeshEntry->CenterAdjust;
@@ -3309,7 +3327,16 @@ void ULandscapeSplineSegment::UpdateSplinePoints(bool bUpdateCollision, bool bUp
 			FVector ScaleEnd = MeshEntry->Scale;
 			if (MeshEntry->bScaleToWidth)
 			{
-				ScaleEnd *= WidthEnd / USplineMeshComponent::GetAxisValueRef(MeshBounds.BoxExtent, SideAxis);
+				float ScaleFactor = WidthEnd / USplineMeshComponent::GetAxisValueRef(MeshBounds.BoxExtent, SideAxis);
+				if (MeshEntry->bNoZScaling)
+				{
+					ScaleEnd.X *= ScaleFactor;
+					ScaleEnd.Y *= ScaleFactor;
+				}
+				else
+				{
+					ScaleEnd *= ScaleFactor;
+				}
 			}
 
 			FVector2D OffsetEnd = MeshEntry->CenterAdjust;

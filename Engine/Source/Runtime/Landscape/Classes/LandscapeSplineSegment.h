@@ -151,6 +151,10 @@ struct FLandscapeSplineMeshEntry
 	UPROPERTY(EditAnywhere, Category=LandscapeSplineMeshEntry)
 	uint32 bScaleToWidth:1;
 
+	/** Disables scale to width on the mesh Z coordinate */
+	UPROPERTY(EditAnywhere, Category = LandscapeSplineMeshEntry, meta = (EditCondition = "bScaleToWidth"))
+	uint32 bNoZScaling:1;
+
 	/** Scale of the spline mesh, (Z=Forwards) */
 	UPROPERTY(EditAnywhere, Category=LandscapeSplineMeshEntry)
 	FVector Scale;
@@ -173,6 +177,7 @@ struct FLandscapeSplineMeshEntry
 		bCenterH(true),
 		CenterAdjust(0, 0),
 		bScaleToWidth(true),
+		bNoZScaling(false),
 		Scale(1,1,1),
 		Orientation_DEPRECATED(LSMO_YUp),
 		ForwardAxis(ESplineMeshAxis::X),
