@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "Misc/Guid.h"
 #include "CollectionManagerTypes.h"
+#include "Templates/DontCopy.h"
 
 class FTextFilterExpressionEvaluator;
 class ITextFilterExpressionContext;
@@ -38,7 +39,10 @@ enum class ECollectionCloneMode : uint8
 	Unique,
 };
 
-/** A class to represent a collection of assets */
+/**
+ * A class to represent a collection of assets.
+ * Collections are held privately by the collection manager and most thread safety is dealt with by locking at the collection manager level.
+ */
 class FCollection
 {
 public:
@@ -79,7 +83,13 @@ public:
 	bool SetDynamicQueryText(const FString& InQueryText);
 	/** Get the dynamic query text for this collection. Dynamic collections only. */
 	FString GetDynamicQueryText() const;
-	/** Tests the dynamic query for against the context provided. Dynamic collections only. */
+	/** 
+	 * Prepares an expression evaluator for TestDynamicQuery if it has not yet been created or is out of date.
+	 * The collection manager must prevent SetDynamicQueryText from being called between PrepareDynamicQuery and TestDynamicQuery.
+	 * Internally locks against concurrent calls to PrepareDynamicQuery from under a shared read lock.
+	 */
+	void PrepareDynamicQuery();
+	/** Tests the dynamic query for against the context provided. Dynamic collections only. Must call PrepareDynamicQuery first. */
 	bool TestDynamicQuery(const ITextFilterExpressionContext& InContext) const;
 
 	/** Get the status info for this collection */
@@ -206,8 +216,11 @@ private:
 	/** The dynamic query string for this collection. Dynamic collections only. */
 	FString DynamicQueryText;
 
+	/** Lock preventing concurrent instantiation of DynamicQueryExpressionEvaluatorPtr */
+	TDontCopy<UE::FMutex> DynamicQueryExpressionEvaluatorLock;
+
 	/** Expression evaluator that can be used test against the compiled DynamicQueryText */
-	mutable TSharedPtr<FTextFilterExpressionEvaluator> DynamicQueryExpressionEvaluatorPtr;
+	TSharedPtr<FTextFilterExpressionEvaluator> DynamicQueryExpressionEvaluatorPtr;
 
 	/** The file version for this collection */
 	ECollectionVersion::Type FileVersion;

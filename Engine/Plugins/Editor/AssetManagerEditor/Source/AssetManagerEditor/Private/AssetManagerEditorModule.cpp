@@ -344,7 +344,7 @@ private:
 	void GetPackageDependenciesPerClass(FName SourcePackage, const TArray<FTopLevelAssetPath>& TargetClasses, TArray<FName>& VisitedPackages, TArray<FName>& OutDependentPackages, UE::AssetRegistry::EDependencyQuery RequiredDependencyFlags);
 
 	void LogAssetsWithMultipleLabels();
-	bool CreateOrEmptyCollection(FName CollectionName, ECollectionShareType::Type ShareType);
+	bool CreateOrEmptyCollection(FName CollectionName, ECollectionShareType::Type ShareType, FText& OutError);
 	void WriteProfileFile(const FString& Extension, const FString& FileContents);
 	
 	FString GetSavedAssetRegistryPath(ITargetPlatform* TargetPlatform);
@@ -2439,15 +2439,15 @@ void FAssetManagerEditorModule::DumpAssetDependencies(const TArray<FString>& Arg
 	Manager.WriteCustomReport(FString::Printf(TEXT("PrimaryAssetReferences%s.gv"), *FDateTime::Now().ToString()), ReportLines);
 }
 
-bool FAssetManagerEditorModule::CreateOrEmptyCollection(FName CollectionName, ECollectionShareType::Type ShareType)
+bool FAssetManagerEditorModule::CreateOrEmptyCollection(FName CollectionName, ECollectionShareType::Type ShareType, FText& OutError)
 {
 	ICollectionManager& CollectionManager = FCollectionManagerModule::GetModule().Get();
 
 	if (CollectionManager.CollectionExists(CollectionName, ShareType))
 	{
-		return CollectionManager.EmptyCollection(CollectionName, ShareType);
+		return CollectionManager.EmptyCollection(CollectionName, ShareType, &OutError);
 	}
-	else if (CollectionManager.CreateCollection(CollectionName, ShareType, ECollectionStorageMode::Static))
+	else if (CollectionManager.CreateCollection(CollectionName, ShareType, ECollectionStorageMode::Static, &OutError))
 	{
 		return true;
 	}
@@ -2473,15 +2473,16 @@ bool FAssetManagerEditorModule::WriteCollection(FName CollectionName, ECollectio
 		ObjectPathsToAddToCollection.Add(AssetData.GetSoftObjectPath());
 	}
 
+	FText Error;
 	if (ObjectPathsToAddToCollection.Num() == 0)
 	{
 		UE_LOG(LogAssetManagerEditor, Log, TEXT("Nothing to add to collection %s"), *CollectionName.ToString());
 		ResultsMessage = FText::Format(LOCTEXT("NothingToAddToCollection", "Nothing to add to collection {0}"), FText::FromName(CollectionName));
 	}
-	else if (CreateOrEmptyCollection(CollectionName, ShareType))
+	else if (CreateOrEmptyCollection(CollectionName, ShareType, Error))
 	{
 		if (CollectionManager.AddToCollection(
-				CollectionName, ECollectionShareType::CST_Local, ObjectPathsToAddToCollection.Array()))
+				CollectionName, ECollectionShareType::CST_Local, ObjectPathsToAddToCollection.Array(), nullptr, &Error))
 		{
 			UE_LOG(LogAssetManagerEditor, Log, TEXT("Updated collection %s"), *CollectionName.ToString());
 			ResultsMessage = FText::Format(LOCTEXT("CreateCollectionSucceeded", "Updated collection {0}"), FText::FromName(CollectionName));
@@ -2489,14 +2490,14 @@ bool FAssetManagerEditorModule::WriteCollection(FName CollectionName, ECollectio
 		}
 		else
 		{
-			UE_LOG(LogAssetManagerEditor, Warning, TEXT("Failed to update collection %s. %s"), *CollectionName.ToString(), *CollectionManager.GetLastError().ToString());
-			ResultsMessage = FText::Format(LOCTEXT("AddToCollectionFailed", "Failed to add to collection {0}. {1}"), FText::FromName(CollectionName), CollectionManager.GetLastError());
+			UE_LOG(LogAssetManagerEditor, Warning, TEXT("Failed to update collection %s. %s"), *CollectionName.ToString(), *Error.ToString());
+			ResultsMessage = FText::Format(LOCTEXT("AddToCollectionFailed", "Failed to add to collection {0}. {1}"), FText::FromName(CollectionName), Error);
 		}
 	}
 	else
 	{
-		UE_LOG(LogAssetManagerEditor, Warning, TEXT("Failed to create collection %s. %s"), *CollectionName.ToString(), *CollectionManager.GetLastError().ToString());
-		ResultsMessage = FText::Format(LOCTEXT("CreateCollectionFailed", "Failed to create collection {0}. {1}"), FText::FromName(CollectionName), CollectionManager.GetLastError());
+		UE_LOG(LogAssetManagerEditor, Warning, TEXT("Failed to create collection %s. %s"), *CollectionName.ToString(), *Error.ToString());
+		ResultsMessage = FText::Format(LOCTEXT("CreateCollectionFailed", "Failed to create collection {0}. {1}"), FText::FromName(CollectionName), Error);
 	}
 
 	if (bShowFeedback)

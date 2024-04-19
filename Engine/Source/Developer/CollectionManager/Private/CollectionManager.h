@@ -4,14 +4,26 @@
 
 #include "CoreMinimal.h"
 #include "Containers/Ticker.h"
-#include "Misc/Guid.h"
+#include "Collection.h"
 #include "CollectionManagerTypes.h"
 #include "ICollectionManager.h"
-#include "Collection.h"
+#include "Misc/Guid.h"
+#include "Templates/PimplPtr.h"
 
 class ITextFilterExpressionContext;
+namespace DirectoryWatcher{ class FFileCache; }
+class FCollectionManagerCache;
 
-namespace DirectoryWatcher { class FFileCache; }
+// Objects wrapping locks to read, write, or begin-reading-then-write (for cache updates) internal state. 
+// Used as internal function parameters to show what lock type must be held to perform the operation and prevent 
+// recursive lock acquisition
+// Functions taking Lock/Lock_Read need to be able to read data but not update caches
+class FCollectionLock;
+class FCollectionLock_Read;
+// Functions taking Lock_RW may need to promote the lock to a write state to update caches
+class FCollectionLock_RW;
+// Functions taking Lock_Write have exclusive access and can update collections as well as update caches
+class FCollectionLock_Write;
 
 /** Collection info for a given object - gives the collection name, as well as the reason this object is considered to be part of this collection */
 struct FObjectCollectionInfo
@@ -34,79 +46,31 @@ struct FObjectCollectionInfo
 	ECollectionRecursionFlags::Flags Reason;
 };
 
-typedef TMap<FCollectionNameType, TSharedRef<FCollection>> FAvailableCollectionsMap;
-typedef TMap<FGuid, FCollectionNameType> FGuidToCollectionNamesMap;
-typedef TMap<FSoftObjectPath, TArray<FObjectCollectionInfo>> FCollectionObjectsMap;
-typedef TMap<FGuid, TArray<FGuid>> FCollectionHierarchyMap;
-typedef TArray<FLinearColor> FCollectionColorArray;
-
-/** Wraps up the lazy caching of the collection manager */
-class FCollectionManagerCache
+enum class ECollectionCacheFlags
 {
-public:
-	FCollectionManagerCache(FAvailableCollectionsMap& InAvailableCollections);
+	None = 0,
+	Names = 1<<0,
+	Objects = 1<<1,
+	Hierarchy = 1<<2,
+	Colors = 1 <<3,
 
-	/** Dirty the parts of the cache that need to change when a collection is added to our collection manager */
-	void HandleCollectionAdded();
-	
-	/** Dirty the parts of the cache that need to change when a collection is removed from our collection manager */
-	void HandleCollectionRemoved();
-
-	/** Dirty the parts of the cache that need to change when a collection is modified */
-	void HandleCollectionChanged();
-
-	/** Access the CachedCollectionNamesFromGuids map, ensuring that it is up-to-date */
-	const FGuidToCollectionNamesMap& GetCachedCollectionNamesFromGuids() const;
-
-	/** Access the CachedObjects map, ensuring that it is up-to-date */
-	const FCollectionObjectsMap& GetCachedObjects() const;
-
-	/** Access the CachedHierarchy map, ensuring that it is up-to-date */
-	const FCollectionHierarchyMap& GetCachedHierarchy() const;
-
-	/** Access the CachedColors array, ensuring that it is up-to-date */
-	const FCollectionColorArray& GetCachedColors() const;
-
-	enum class ERecursiveWorkerFlowControl : uint8
-	{
-		Stop,
-		Continue,
-	};
-
-	typedef TFunctionRef<ERecursiveWorkerFlowControl(const FCollectionNameType&, ECollectionRecursionFlags::Flag)> FRecursiveWorkerFunc;
-
-	void RecursionHelper_DoWork(const FCollectionNameType& InCollectionKey, const ECollectionRecursionFlags::Flags InRecursionMode, FRecursiveWorkerFunc InWorkerFunc) const;
-	ERecursiveWorkerFlowControl RecursionHelper_DoWorkOnParents(const FCollectionNameType& InCollectionKey, FRecursiveWorkerFunc InWorkerFunc) const;
-	ERecursiveWorkerFlowControl RecursionHelper_DoWorkOnChildren(const FCollectionNameType& InCollectionKey, FRecursiveWorkerFunc InWorkerFunc) const;
-
-private:
-	/** Reference to the collections that are currently available in our owner collection manager */
-	FAvailableCollectionsMap& AvailableCollections;
-
-	/** A map of collection GUIDs to their associated collection names */
-	mutable FGuidToCollectionNamesMap CachedCollectionNamesFromGuids_Internal;
-
-	/** A map of object paths to their associated collection info - only objects that are in collections will appear in here */
-	mutable FCollectionObjectsMap CachedObjects_Internal;
-
-	/** A map of parent collection GUIDs to their child collection GUIDs - only collections that have children will appear in here */
-	mutable FCollectionHierarchyMap CachedHierarchy_Internal;
-
-	/** An array of all unique colors currently used by collections */
-	mutable FCollectionColorArray CachedColors_Internal;
-
-	/** Flag to say whether the CachedCollectionNamesFromGuids map is dirty */
-	mutable bool bIsCachedCollectionNamesFromGuidsDirty : 1;
-
-	/** Flag to say whether the CachedObjects map is dirty */
-	mutable bool bIsCachedObjectsDirty : 1;
-
-	/** Flag to say whether the CachedHierarchy map is dirty */
-	mutable bool bIsCachedHierarchyDirty : 1;
-
-	/** Flag to say whether the CachedColors array is dirty */
-	mutable bool bIsCachedColorsDirty : 1;
+	// Necessary cache updates for calling collection recursion worker
+	RecursionWorker = Names | Hierarchy,
+	All = Names | Objects | Hierarchy | Colors,
 };
+ENUM_CLASS_FLAGS(ECollectionCacheFlags);
+
+
+UE_DEPRECATED(5.5, "These typedefs have been deprecated. Replace them with their concrete types.")
+typedef TMap<FCollectionNameType, TSharedRef<FCollection>> FAvailableCollectionsMap;
+UE_DEPRECATED(5.5, "These typedefs have been deprecated. Replace them with their concrete types.")
+typedef TMap<FGuid, FCollectionNameType> FGuidToCollectionNamesMap;
+UE_DEPRECATED(5.5, "These typedefs have been deprecated. Replace them with their concrete types.")
+typedef TMap<FSoftObjectPath, TArray<FObjectCollectionInfo>> FCollectionObjectsMap;
+UE_DEPRECATED(5.5, "These typedefs have been deprecated. Replace them with their concrete types.")
+typedef TMap<FGuid, TArray<FGuid>> FCollectionHierarchyMap;
+UE_DEPRECATED(5.5, "These typedefs have been deprecated. Replace them with their concrete types.")
+typedef TArray<FLinearColor> FCollectionColorArray;
 
 class FCollectionManager : public ICollectionManager
 {
@@ -205,12 +169,7 @@ PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	{
 		return HandleObjectDeleted(FSoftObjectPath(ObjectPath));
 	}
-	DECLARE_DERIVED_EVENT( FCollectionManager, ICollectionManager::FAssetsAddedEvent, FAssetsAddedEvent ); 
-	virtual FAssetsAddedEvent& OnAssetsAdded() override { return AssetsAddedEvent; }
-
-	DECLARE_DERIVED_EVENT( FCollectionManager, ICollectionManager::FAssetsRemovedEvent, FAssetsRemovedEvent );
-	virtual FAssetsRemovedEvent& OnAssetsRemoved() override { return AssetsRemovedEvent; }
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	virtual bool HasCollections() const override;
 	virtual void GetCollections(TArray<FCollectionNameType>& OutCollections) const override;
@@ -230,32 +189,33 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	virtual void GetCollectionsContainingObjects(const TArray<FSoftObjectPath>& ObjectPaths, TMap<FCollectionNameType, TArray<FSoftObjectPath>>& OutCollectionsAndMatchedObjects, ECollectionRecursionFlags::Flags RecursionMode = ECollectionRecursionFlags::Self) const override;
 	virtual FString GetCollectionsStringForObject(const FSoftObjectPath& ObjectPath, ECollectionShareType::Type ShareType, ECollectionRecursionFlags::Flags RecursionMode = ECollectionRecursionFlags::Self, bool bFullPaths = true) const override;
 	virtual void CreateUniqueCollectionName(const FName& BaseName, ECollectionShareType::Type ShareType, FName& OutCollectionName) const override;
-	virtual bool IsValidCollectionName(const FString& CollectionName, ECollectionShareType::Type ShareType) const override;
-	virtual bool CreateCollection(FName CollectionName, ECollectionShareType::Type ShareType, ECollectionStorageMode::Type StorageMode) override;
-	virtual bool RenameCollection(FName CurrentCollectionName, ECollectionShareType::Type CurrentShareType, FName NewCollectionName, ECollectionShareType::Type NewShareType) override;
-	virtual bool ReparentCollection(FName CollectionName, ECollectionShareType::Type ShareType, FName ParentCollectionName, ECollectionShareType::Type ParentShareType) override;
-	virtual bool DestroyCollection(FName CollectionName, ECollectionShareType::Type ShareType) override;
-	virtual bool AddToCollection(FName CollectionName, ECollectionShareType::Type ShareType, const FSoftObjectPath& ObjectPath) override;
-	virtual bool AddToCollection(FName CollectionName, ECollectionShareType::Type ShareType, TConstArrayView<FSoftObjectPath> ObjectPaths, int32* OutNumAdded = nullptr) override;
-	virtual bool RemoveFromCollection(FName CollectionName, ECollectionShareType::Type ShareType, const FSoftObjectPath& ObjectPath) override;
-	virtual bool RemoveFromCollection(FName CollectionName, ECollectionShareType::Type ShareType, TConstArrayView<FSoftObjectPath> ObjectPaths, int32* OutNumRemoved = nullptr) override;
-	virtual bool SetDynamicQueryText(FName CollectionName, ECollectionShareType::Type ShareType, const FString& InQueryText) override;
-	virtual bool GetDynamicQueryText(FName CollectionName, ECollectionShareType::Type ShareType, FString& OutQueryText) const override;
-	virtual bool TestDynamicQuery(FName CollectionName, ECollectionShareType::Type ShareType, const ITextFilterExpressionContext& InContext, bool& OutResult) const override;
-	virtual bool EmptyCollection(FName CollectionName, ECollectionShareType::Type ShareType) override;
-	virtual bool SaveCollection(FName CollectionName, ECollectionShareType::Type ShareType) override;
-	virtual bool UpdateCollection(FName CollectionName, ECollectionShareType::Type ShareType) override;
-	virtual bool GetCollectionStatusInfo(FName CollectionName, ECollectionShareType::Type ShareType, FCollectionStatusInfo& OutStatusInfo) const override;
+	virtual bool IsValidCollectionName(const FString& CollectionName, ECollectionShareType::Type ShareType, FText* OutError = nullptr) const override;
+	virtual bool CreateCollection(FName CollectionName, ECollectionShareType::Type ShareType, ECollectionStorageMode::Type StorageMode, FText* OutError = nullptr) override;
+	virtual bool RenameCollection(FName CurrentCollectionName, ECollectionShareType::Type CurrentShareType, FName NewCollectionName, ECollectionShareType::Type NewShareType, FText* OutError = nullptr) override;
+	virtual bool ReparentCollection(FName CollectionName, ECollectionShareType::Type ShareType, FName ParentCollectionName, ECollectionShareType::Type ParentShareType, FText* OutError = nullptr) override;
+	virtual bool DestroyCollection(FName CollectionName, ECollectionShareType::Type ShareType, FText* OutError = nullptr) override;
+	virtual bool AddToCollection(FName CollectionName, ECollectionShareType::Type ShareType, const FSoftObjectPath& ObjectPath, FText* OutError = nullptr) override;
+	virtual bool AddToCollection(FName CollectionName, ECollectionShareType::Type ShareType, TConstArrayView<FSoftObjectPath> ObjectPaths, int32* OutNumAdded = nullptr, FText* OutError = nullptr) override;
+	virtual bool RemoveFromCollection(FName CollectionName, ECollectionShareType::Type ShareType, const FSoftObjectPath& ObjectPath, FText* OutError = nullptr) override;
+	virtual bool RemoveFromCollection(FName CollectionName, ECollectionShareType::Type ShareType, TConstArrayView<FSoftObjectPath> ObjectPaths, int32* OutNumRemoved = nullptr, FText* OutError = nullptr) override;
+	virtual bool SetDynamicQueryText(FName CollectionName, ECollectionShareType::Type ShareType, const FString& InQueryText, FText* OutError = nullptr) override;
+	virtual bool GetDynamicQueryText(FName CollectionName, ECollectionShareType::Type ShareType, FString& OutQueryText, FText* OutError = nullptr) const override;
+	virtual bool TestDynamicQuery(FName CollectionName, ECollectionShareType::Type ShareType, const ITextFilterExpressionContext& InContext, bool& OutResult, FText* OutError = nullptr) const override;
+	virtual bool EmptyCollection(FName CollectionName, ECollectionShareType::Type ShareType, FText* OutError = nullptr) override;
+	virtual bool SaveCollection(FName CollectionName, ECollectionShareType::Type ShareType, FText* OutError = nullptr) override;
+	virtual bool UpdateCollection(FName CollectionName, ECollectionShareType::Type ShareType, FText* OutError = nullptr) override;
+	virtual bool GetCollectionStatusInfo(FName CollectionName, ECollectionShareType::Type ShareType, FCollectionStatusInfo& OutStatusInfo, FText* OutError = nullptr) const override;
 	virtual bool HasCollectionColors(TArray<FLinearColor>* OutColors = nullptr) const override;
-	virtual bool GetCollectionColor(FName CollectionName, ECollectionShareType::Type ShareType, TOptional<FLinearColor>& OutColor) const override;
-	virtual bool SetCollectionColor(FName CollectionName, ECollectionShareType::Type ShareType, const TOptional<FLinearColor>& NewColor) override;
-	virtual bool GetCollectionStorageMode(FName CollectionName, ECollectionShareType::Type ShareType, ECollectionStorageMode::Type& OutStorageMode) const override;
-	virtual bool IsObjectInCollection(const FSoftObjectPath& ObjectPath, FName CollectionName, ECollectionShareType::Type ShareType, ECollectionRecursionFlags::Flags RecursionMode = ECollectionRecursionFlags::Self) const override;
-	virtual bool IsValidParentCollection(FName CollectionName, ECollectionShareType::Type ShareType, FName ParentCollectionName, ECollectionShareType::Type ParentShareType) const override;
-	virtual FText GetLastError() const override { return LastError; }
+	virtual bool GetCollectionColor(FName CollectionName, ECollectionShareType::Type ShareType, TOptional<FLinearColor>& OutColor, FText* OutError = nullptr) const override;
+	virtual bool SetCollectionColor(FName CollectionName, ECollectionShareType::Type ShareType, const TOptional<FLinearColor>& NewColor, FText* OutError = nullptr) override;
+	virtual bool GetCollectionStorageMode(FName CollectionName, ECollectionShareType::Type ShareType, ECollectionStorageMode::Type& OutStorageMode, FText* OutError = nullptr) const override;
+	virtual bool IsObjectInCollection(const FSoftObjectPath& ObjectPath, FName CollectionName, ECollectionShareType::Type ShareType, ECollectionRecursionFlags::Flags RecursionMode = ECollectionRecursionFlags::Self, FText* OutError = nullptr) const override;
+	virtual bool IsValidParentCollection(FName CollectionName, ECollectionShareType::Type ShareType, FName ParentCollectionName, ECollectionShareType::Type ParentShareType, FText* OutError) const override;
+	UE_DEPRECATED(5.5, "Deprecated for thread safety reasons.")
+	virtual FText GetLastError() const override { return FText::GetEmpty(); }
 	virtual void HandleFixupRedirectors(ICollectionRedirectorFollower& InRedirectorFollower) override;
-	virtual bool HandleRedirectorDeleted(const FSoftObjectPath& ObjectPath) override;
-	virtual bool HandleRedirectorsDeleted(TConstArrayView<FSoftObjectPath> ObjectPaths) override;
+	virtual bool HandleRedirectorDeleted(const FSoftObjectPath& ObjectPath, FText* OutError = nullptr) override;
+	virtual bool HandleRedirectorsDeleted(TConstArrayView<FSoftObjectPath> ObjectPaths, FText* OutError = nullptr) override;
 	virtual void HandleObjectRenamed(const FSoftObjectPath& OldObjectPath, const FSoftObjectPath& NewObjectPath) override;
 	virtual void HandleObjectDeleted(const FSoftObjectPath& ObjectPath) override;
 	virtual void HandleObjectsDeleted(TConstArrayView<FSoftObjectPath> ObjectPaths) override;
@@ -294,7 +254,7 @@ private:
 	/** Tick this collection manager so it can process any file cache events */
 	bool TickFileCache(float InDeltaTime);
 
-	/** Loads all collection files from disk */
+	/** Loads all collection files from disk. Must only be called from constructor as it does not lock for the full duration. */
 	void LoadCollections();
 
 	/** Returns true if the specified share type requires source control */
@@ -304,29 +264,50 @@ private:
 	FString GetCollectionFilename(const FName& InCollectionName, const ECollectionShareType::Type InCollectionShareType) const;
 
 	/** Adds a collection to the lookup maps */
-	bool AddCollection(const TSharedRef<FCollection>& CollectionRef, ECollectionShareType::Type ShareType);
+	bool AddCollection(FCollectionLock_Write& InGuard, const TSharedRef<FCollection>& CollectionRef, ECollectionShareType::Type ShareType);
 
 	/** Removes a collection from the lookup maps */
-	bool RemoveCollection(const TSharedRef<FCollection>& CollectionRef, ECollectionShareType::Type ShareType);
+	bool RemoveCollection(FCollectionLock_Write& InGuard, const TSharedRef<FCollection>& CollectionRef, ECollectionShareType::Type ShareType);
 
 	/** Removes an object from any collections that contain it */
-	void RemoveObjectFromCollections(const FSoftObjectPath& ObjectPath, TArray<FCollectionNameType>& OutUpdatedCollections);
+	void RemoveObjectFromCollections(FCollectionLock_Write& InGuard, const FSoftObjectPath& ObjectPath, TArray<FCollectionNameType>& OutUpdatedCollections);
 
 	/** Replaces an object with another in any collections that contain it */
-	void ReplaceObjectInCollections(const FSoftObjectPath& OldObjectPath, const FSoftObjectPath& NewObjectPath, TArray<FCollectionNameType>& OutUpdatedCollections);
+	void ReplaceObjectInCollections(
+		FCollectionLock_Write& InGuard, const FSoftObjectPath& OldObjectPath, const FSoftObjectPath& NewObjectPath,
+		TArray<FCollectionNameType>& OutUpdatedCollections);
 
 	/** Internal common functionality for saving a collection
-	 * bForceCommitToRevisionControl - If the collection's storage mode will save it to source control, then bForceCommitToRevisionControl will ensure that it is committed
-	 * after save.  If this is false, then the collection will be left as a modified file which can be advantageous for slow source control servers.
+	 * bForceCommitToRevisionControl - If the collection's storage mode will save it to source control, then
+	 * bForceCommitToRevisionControl will ensure that it is committed after save.  If this is false, then the collection
+	 * will be left as a modified file which can be advantageous for slow source control servers.
 	 */
-	bool InternalSaveCollection(const TSharedRef<FCollection>& CollectionRef, FText& OutError, bool bForceCommitToRevisionControl);
+	bool InternalSaveCollection(FCollectionLock_Write&, const TSharedRef<FCollection>& CollectionRef, FText* OutError, bool bForceCommitToRevisionControl);
+
+	/* 
+	 * Internal version of IsValidParentCollection to avoid taking lock recursively.
+	 * Cache must be updated for recursion before calling.
+	 */
+	bool IsValidParentCollection_Locked(FCollectionLock& InGuard, FName CollectionName, ECollectionShareType::Type ShareType, FName ParentCollectionName, ECollectionShareType::Type ParentShareType, FText* OutError) const;
+
+	/** 
+	 * Check if the given collection exists.
+	 * Using the public API function risks acquiring the lock recursively.
+	 */
+	bool CollectionExists_Locked(FCollectionLock& InGuard, FName CollectionName, ECollectionShareType::Type ShareType) const;
 
 private:
+	/** Required for updating caches as well as write operations to collections */
+	mutable FRWLock Lock;
+
+	/** Cache of collection hierarchy, identity, etc */
+	TPimplPtr<FCollectionManagerCache> CollectionCache;
+
 	/** The folders that contain collections */
 	FString CollectionFolders[ECollectionShareType::CST_All];
 
 	/** The extension used for collection files */
-	FString CollectionExtension;
+	static FStringView CollectionExtension;
 
 	/** Array of file cache instances that are watching for the collection files changing on disk */
 	TSharedPtr<DirectoryWatcher::FFileCache> CollectionFileCaches[ECollectionShareType::CST_All];
@@ -337,23 +318,11 @@ private:
 	/** A map of collection names to FCollection objects */
 	TMap<FCollectionNameType, TSharedRef<FCollection>> AvailableCollections;
 
-	/** The lazily updated cache for this collection manager */
-	FCollectionManagerCache CollectionCache;
-
-	/** The most recent error that occurred */
-	mutable FText LastError;
-
 	/** Event for when assets are added to a collection */
 	FOnAssetsAddedToCollection AssetsAddedToCollectionDelegate;
 
-	UE_DEPRECATED(5.1, "This event has been replaced by AssetsAddedToCollectionEvent")
-	FAssetsAddedEvent AssetsAddedEvent;
-
 	/** Event for when assets are removed from a collection */
 	FOnAssetsRemovedFromCollection AssetsRemovedFromCollectionDelegate;
-
-	UE_DEPRECATED(5.1, "This event has been replaced by AssetsRemovedFromCollectionEvent")
-	FAssetsRemovedEvent AssetsRemovedEvent;
 
 	/** Event for when collections are renamed */
 	FCollectionRenamedEvent CollectionRenamedEvent;

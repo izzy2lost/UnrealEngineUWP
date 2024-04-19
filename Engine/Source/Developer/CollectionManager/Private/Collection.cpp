@@ -532,10 +532,11 @@ FString FCollection::GetDynamicQueryText() const
 	return (StorageMode == ECollectionStorageMode::Dynamic) ? DynamicQueryText : FString();
 }
 
-bool FCollection::TestDynamicQuery(const ITextFilterExpressionContext& InContext) const
+void FCollection::PrepareDynamicQuery()
 {
 	if (StorageMode == ECollectionStorageMode::Dynamic)
 	{
+		UE::TUniqueLock Lock(*DynamicQueryExpressionEvaluatorLock);
 		if (!DynamicQueryExpressionEvaluatorPtr.IsValid())
 		{
 			DynamicQueryExpressionEvaluatorPtr = MakeShareable(new FTextFilterExpressionEvaluator(ETextFilterExpressionEvaluatorMode::Complex));
@@ -545,7 +546,13 @@ bool FCollection::TestDynamicQuery(const ITextFilterExpressionContext& InContext
 		{
 			DynamicQueryExpressionEvaluatorPtr->SetFilterText(FText::FromString(DynamicQueryText));
 		}
+	}
+}
 
+bool FCollection::TestDynamicQuery(const ITextFilterExpressionContext& InContext) const
+{
+	if (StorageMode == ECollectionStorageMode::Dynamic)
+	{
 		return DynamicQueryExpressionEvaluatorPtr->TestTextFilter(InContext);
 	}
 
