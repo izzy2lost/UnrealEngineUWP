@@ -32,9 +32,9 @@
 #define LOCTEXT_NAMESPACE "SCommonEditorViewportToolbarBase"
 
 //////////////////////////////////////////////////////////////////////////
-// SCommonEditorViewportToolbarBase
+// SPreviewSceneProfileSelector
 
-SCommonEditorViewportToolbarBase::~SCommonEditorViewportToolbarBase()
+SPreviewSceneProfileSelector::~SPreviewSceneProfileSelector()
 {
 	if (PreviewProfileController)
 	{
@@ -43,21 +43,99 @@ SCommonEditorViewportToolbarBase::~SCommonEditorViewportToolbarBase()
 	}
 }
 
+void SPreviewSceneProfileSelector::Construct(const FArguments& InArgs)
+{
+	PreviewProfileController = InArgs._PreviewProfileController;
+	if (PreviewProfileController)
+	{
+		PreviewProfileController->OnPreviewProfileListChanged().AddRaw(this, &SPreviewSceneProfileSelector::UpdateAssetViewerProfileList);
+		PreviewProfileController->OnPreviewProfileChanged().AddRaw(this, &SPreviewSceneProfileSelector::UpdateAssetViewerProfileSelection);
+		UpdateAssetViewerProfileList();
+	}
+	
+	ChildSlot
+	[
+		SNew(SVerticalBox)
+		+SVerticalBox::Slot()
+		.AutoHeight()
+		[
+			SAssignNew(AssetViewerProfileComboBox, STextComboBox)//SComboBox<TSharedPtr<FString>>)
+			.OptionsSource(&AssetViewerProfileNames)
+			.ButtonStyle(&FAppStyle::Get().GetWidgetStyle<FButtonStyle>("EditorViewportToolBar.Button"))
+			.ContentPadding(FMargin(2, 0))
+			.ToolTipText(LOCTEXT("AssetViewerProfile_ToolTip", "Select the Preview Scene Profile for this viewport."))
+			.OnSelectionChanged(this, &SPreviewSceneProfileSelector::OnSelectionChanged)
+			.Visibility_Lambda([this]() { return AssetViewerProfileNames.Num() > 1 ? EVisibility::Visible : EVisibility::Collapsed; })
+		]
+	];
+
+	UpdateAssetViewerProfileSelection();
+}
+
+void SPreviewSceneProfileSelector::OnSelectionChanged(TSharedPtr<FString> NewSelection, ESelectInfo::Type SelectInfo)
+{
+	int32 NewSelectionIndex;
+	if (AssetViewerProfileNames.Find(NewSelection, NewSelectionIndex))
+	{
+		// If that's the user changing the combo box, not an update coming from code to reflect a change that already occurred.
+		if (SelectInfo != ESelectInfo::Direct)
+		{
+			PreviewProfileController->SetActiveProfile(*NewSelection);
+		}
+	}
+}
+
+void SPreviewSceneProfileSelector::UpdateAssetViewerProfileList()
+{
+	if (PreviewProfileController)
+	{
+		// Pull the latest profile list.
+		int32 CurrProfileIndex = 0;
+		TArray<FString> ProfileNames = PreviewProfileController->GetPreviewProfiles(CurrProfileIndex);
+
+		// Rebuild the combo box list.
+		AssetViewerProfileNames.Empty();
+		for (const FString& Profile : ProfileNames)
+		{
+			AssetViewerProfileNames.Add(MakeShared<FString>(Profile));
+		}
+
+		// Select the current profile item.
+		if (AssetViewerProfileComboBox)
+		{
+			AssetViewerProfileComboBox->RefreshOptions();
+			AssetViewerProfileComboBox->SetSelectedItem(AssetViewerProfileNames[CurrProfileIndex]);
+		}
+	}
+}
+
+void SPreviewSceneProfileSelector::UpdateAssetViewerProfileSelection()
+{
+	if (PreviewProfileController)
+	{
+		FString ActiveProfileName = PreviewProfileController->GetActiveProfile();
+		if (TSharedPtr<FString>* Match = AssetViewerProfileNames.FindByPredicate(
+			[&ActiveProfileName](const TSharedPtr<FString>& Candidate) { return *Candidate == ActiveProfileName; }))
+		{
+			AssetViewerProfileComboBox->SetSelectedItem(*Match);
+		}
+		else // The profile was likely renamed.
+		{
+			UpdateAssetViewerProfileList();
+		}
+	}
+}
+
+//////////////////////////////////////////////////////////////////////////
+// SCommonEditorViewportToolbarBase
+
 
 void SCommonEditorViewportToolbarBase::Construct(const FArguments& InArgs, TSharedPtr<class ICommonEditorViewportToolbarInfoProvider> InInfoProvider)
 {
 	InfoProviderPtr = InInfoProvider;
-	PreviewProfileController = InArgs._PreviewProfileController;
 
 	TSharedRef<SEditorViewport> ViewportRef = GetInfoProvider().GetViewportWidget();
 	TSharedPtr<SHorizontalBox> MainBoxPtr;
-
-	if (PreviewProfileController)
-	{
-		PreviewProfileController->OnPreviewProfileListChanged().AddRaw(this, &SCommonEditorViewportToolbarBase::UpdateAssetViewerProfileList);
-		PreviewProfileController->OnPreviewProfileChanged().AddRaw(this, &SCommonEditorViewportToolbarBase::UpdateAssetViewerProfileSelection);
-		UpdateAssetViewerProfileList();
-	}
 
 	const FMargin ToolbarSlotPadding(4.0f, 1.0f);
 	const FMargin ToolbarButtonPadding(4.0f, 0.0f);
@@ -123,7 +201,7 @@ void SCommonEditorViewportToolbarBase::Construct(const FArguments& InArgs, TShar
 			.AutoWidth()
 			.Padding(ToolbarSlotPadding)
 			[
-				MakeAssetViewerProfileComboBox()
+				SNew(SPreviewSceneProfileSelector).PreviewProfileController(InArgs._PreviewProfileController)
 			];
 	}
 
@@ -460,79 +538,6 @@ void SCommonEditorViewportToolbarBase::ConstructScreenPercentageMenu(FMenuBuilde
 			FSlateIcon(FAppStyle::GetAppStyleSetName(), "EditorPreferences.TabIcon"));
 	}
 	MenuBuilder.EndSection();
-}
-
-void SCommonEditorViewportToolbarBase::UpdateAssetViewerProfileList()
-{
-	if (PreviewProfileController)
-	{
-		// Pull the latest profile list.
-		int32 CurrProfileIndex = 0;
-		TArray<FString> ProfileNames = PreviewProfileController->GetPreviewProfiles(CurrProfileIndex);
-
-		// Rebuild the combo box list.
-		AssetViewerProfileNames.Empty();
-		for (const FString& Profile : ProfileNames)
-		{
-			AssetViewerProfileNames.Add(MakeShared<FString>(Profile));
-		}
-
-		// Select the current profile item.
-		if (AssetViewerProfileComboBox)
-		{
-			AssetViewerProfileComboBox->RefreshOptions();
-			AssetViewerProfileComboBox->SetSelectedItem(AssetViewerProfileNames[CurrProfileIndex]);
-		}
-	}
-}
-
-void SCommonEditorViewportToolbarBase::UpdateAssetViewerProfileSelection()
-{
-	if (PreviewProfileController)
-	{
-		FString ActiveProfileName = PreviewProfileController->GetActiveProfile();
-		if (TSharedPtr<FString>* Match = AssetViewerProfileNames.FindByPredicate(
-			[&ActiveProfileName](const TSharedPtr<FString>& Candidate) { return *Candidate == ActiveProfileName; }))
-		{
-			AssetViewerProfileComboBox->SetSelectedItem(*Match);
-		}
-		else // The profile was likely renamed.
-		{
-			UpdateAssetViewerProfileList();
-		}
-	}
-}
-
-void SCommonEditorViewportToolbarBase::OnAssetViewerProfileComboBoxSelectionChanged(TSharedPtr<FString> NewSelection, ESelectInfo::Type SelectInfo)
-{
-	int32 NewSelectionIndex;
-	if (AssetViewerProfileNames.Find(NewSelection, NewSelectionIndex))
-	{
-		// If that's the user changing the combo box, not an update coming from code to reflect a change that already occurred.
-		if (SelectInfo != ESelectInfo::Direct)
-		{
-			PreviewProfileController->SetActiveProfile(*NewSelection);
-		}
-	}
-}
-
-TSharedRef<SWidget> SCommonEditorViewportToolbarBase::MakeAssetViewerProfileComboBox()
-{
-	AssetViewerProfileComboBox = SNew(STextComboBox)
-		.OptionsSource(&AssetViewerProfileNames)
-		.ButtonStyle(&FAppStyle::Get().GetWidgetStyle<FButtonStyle>("EditorViewportToolBar.Button"))
-		.ContentPadding(FMargin(2, 0))
-		.ToolTipText(LOCTEXT("AssetViewerProfile_ToolTip", "Changes the asset viewer profile"))
-		.OnSelectionChanged(this, &SCommonEditorViewportToolbarBase::OnAssetViewerProfileComboBoxSelectionChanged)
-		.Visibility_Lambda([this]() { return AssetViewerProfileNames.Num() > 1 ? EVisibility::Visible : EVisibility::Collapsed; });
-
-	AssetViewerProfileComboBox->RefreshOptions();
-	if (!AssetViewerProfileNames.IsEmpty())
-	{
-		AssetViewerProfileComboBox->SetSelectedItem(AssetViewerProfileNames[0]);
-	}
-
-	return AssetViewerProfileComboBox.ToSharedRef();
 }
 
 FText SCommonEditorViewportToolbarBase::GetCameraMenuLabel() const

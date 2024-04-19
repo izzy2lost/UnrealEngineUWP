@@ -51,6 +51,7 @@
 #include "Widgets/Text/SRichTextBlock.h"
 #include "ContentBrowserModule.h"
 #include "IContentBrowserSingleton.h"
+#include "SCommonEditorViewportToolbarBase.h"
 #include "Animation/MirrorDataTable.h"
 #include "ScopedTransaction.h"
 #include "SNameComboBox.h"
@@ -255,6 +256,7 @@ protected:
 
 void SAnimViewportToolBar::Construct(const FArguments& InArgs, TSharedPtr<class SAnimationEditorViewportTabBody> InViewport, TSharedPtr<class SEditorViewport> InRealViewport)
 {
+	PreviewProfileController = InArgs._PreviewProfileController;
 	bShowShowMenu = InArgs._ShowShowMenu;
 	bShowCharacterMenu= InArgs._ShowCharacterMenu;
 	bShowLODMenu = InArgs._ShowLODMenu;
@@ -322,6 +324,12 @@ void SAnimViewportToolBar::Construct(const FArguments& InArgs, TSharedPtr<class 
 			.Label(LOCTEXT("ShowMenu", "Show"))
 			.AddMetaData<FTagMetaData>(FTagMetaData(TEXT("ViewMenuButton")))
 			.OnGetMenuContent(this, &SAnimViewportToolBar::GenerateShowMenu)
+		]
+		+ SHorizontalBox::Slot()
+		.AutoWidth()
+		.Padding(ToolbarSlotPadding)
+		[
+			SNew(SPreviewSceneProfileSelector).PreviewProfileController(InArgs._PreviewProfileController)
 		]
 		+ SHorizontalBox::Slot()
 		.AutoWidth()

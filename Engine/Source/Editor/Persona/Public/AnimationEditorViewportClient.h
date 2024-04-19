@@ -474,9 +474,6 @@ private:
 
 	/** Delegate for preview profile is changed (used for updating show flags) */
 	void OnAssetViewerSettingsChanged(const FName& InPropertyName);
-
-	/** Sets up the ShowFlag according to the current preview scene profile */
-	void SetAdvancedShowFlagsForScene(const bool bAdvancedShowFlags);
 	
 	/** Computes a bounding box for the selected section of the preview mesh component.
 	    If there is no selected section, returns an empty box. */

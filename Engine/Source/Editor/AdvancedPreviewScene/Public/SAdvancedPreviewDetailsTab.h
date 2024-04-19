@@ -51,7 +51,7 @@ protected:
 	void UpdateSettingsView();
 	void UpdateProfileNames();
 	FReply AddProfileButtonClick();
-	FReply RemoveProfileButtonClick();
+	FReply RemoveOrResetProfileButtonClick();
 protected:
 	void OnAssetViewerSettingsRefresh(const FName& InPropertyName);
 	void OnAssetViewerSettingsPostUndo();

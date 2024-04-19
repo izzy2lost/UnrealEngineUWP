@@ -29,15 +29,13 @@
 #include "BufferVisualizationMenuCommands.h"
 #include "UICommandList_Pinnable.h"
 #include "IPersonaEditorModeManager.h"
-#include "AssetViewerSettings.h"
-#include "Editor/EditorPerProjectUserSettings.h"
+#include "PreviewProfileController.h"
 #include "Materials/Material.h"
 #include "EditorFontGlyphs.h"
 #include "EdModeInteractiveToolsContext.h"
 #include "ContextObjectStore.h"
 #include "IPersonaEditMode.h"
 
-#include "SkeletalMeshTypes.h"
 #include "IPersonaToolkit.h"
 #include "Subsystems/AssetEditorSubsystem.h"
 #include "SNameComboBox.h"
@@ -141,6 +139,7 @@ TSharedPtr<SWidget> SAnimationEditorViewport::MakeViewportToolbar()
 		.Cursor(EMouseCursor::Default)
 		.Extenders(Extenders)
 		.ContextName(ContextName)
+		.PreviewProfileController(MakeShared<FPreviewProfileController>())
 		.ShowShowMenu(bShowShowMenu)
 		.ShowLODMenu(bShowLODMenu)
 		.ShowPlaySpeedMenu(bShowPlaySpeedMenu)

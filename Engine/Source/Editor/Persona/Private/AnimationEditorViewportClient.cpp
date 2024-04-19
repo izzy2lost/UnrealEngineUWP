@@ -226,8 +226,7 @@ void FAnimationViewportClient::Initialize()
 	// Register delegate to update the show flags when the post processing is turned on or off
 	UAssetViewerSettings::Get()->OnAssetViewerSettingsChanged().AddSP(this, &FAnimationViewportClient::OnAssetViewerSettingsChanged);
 	// Set correct flags according to current profile settings
-	SetAdvancedShowFlagsForScene(UAssetViewerSettings::Get()->Profiles[GetMutableDefault<UEditorPerProjectUserSettings>()->AssetViewerProfileIndex].bPostProcessingEnabled);
-
+	UAssetViewerSettings::GetCurrentUserProjectProfile().SetShowFlags(EngineShowFlags);
 }
 
 void FAnimationViewportClient::OnToggleAutoAlignFloor()
@@ -2451,20 +2450,8 @@ void FAnimationViewportClient::OnAssetViewerSettingsChanged(const FName& InPrope
 		const int32 ProfileIndex = GetPreviewScene()->GetCurrentProfileIndex();
 		if (Settings->Profiles.IsValidIndex(ProfileIndex))
 		{			
-			SetAdvancedShowFlagsForScene(Settings->Profiles[ProfileIndex].bPostProcessingEnabled);
+			Settings->Profiles[ProfileIndex].SetShowFlags(EngineShowFlags);
 		}
-	}
-}
-
-void FAnimationViewportClient::SetAdvancedShowFlagsForScene(const bool bAdvancedShowFlags)
-{	
-	if (bAdvancedShowFlags)
-	{
-		EngineShowFlags.EnableAdvancedFeatures();
-	}
-	else
-	{
-		EngineShowFlags.DisableAdvancedFeatures();
 	}
 }
 

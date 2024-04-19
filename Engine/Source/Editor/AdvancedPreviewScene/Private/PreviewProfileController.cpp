@@ -52,7 +52,7 @@ void FPreviewProfileController::UpdateAssetViewerProfiles()
 		// Rebuild the profile list.
 		for (const FPreviewSceneProfile& Profile : AssetViewerSettings->Profiles)
 		{
-			AssetViewerProfileNames.Add(Profile.ProfileName + (Profile.bSharedProfile ? TEXT(" (Shared)") : TEXT("")));
+			AssetViewerProfileNames.Add(Profile.ProfileName);
 		}
 
 		CurrentProfileIndex = PerProjectSettings->AssetViewerProfileIndex;

@@ -10,6 +10,7 @@
 #include "Engine/Scene.h"
 #include "Engine/TextureCube.h"
 #include "EditorUndoClient.h"
+#include "ShowFlags.h"
 #include "AssetViewerSettings.generated.h"
 
 /**
@@ -23,6 +24,7 @@ struct FPreviewSceneProfile
 	FPreviewSceneProfile()
 	{		
 		bSharedProfile = false;
+		bIsEngineDefaultProfile = false;
 		bUseSkyLighting = true;
 		bShowFloor = true;
 		bShowEnvironment = true;
@@ -39,6 +41,8 @@ struct FPreviewSceneProfile
 		EnvironmentCubeMapPath = TEXT("/Engine/EditorMaterials/AssetViewer/EpicQuadPanorama_CC+EV1.EpicQuadPanorama_CC+EV1");
 		bPostProcessingEnabled = true;
 		DirectionalLightRotation = FRotator(-40.f, -67.5f, 0.f);
+		bEnableToneMapping = true;
+		bShowMeshEdges = false;
 	}
 
 	/** Name to identify the profile */
@@ -48,7 +52,11 @@ struct FPreviewSceneProfile
 	/** Whether or not this profile should be stored in the Project ini file */
 	UPROPERTY(EditAnywhere, config, Category = Profile)
 	bool bSharedProfile;
-
+	
+	/** Whether or not this profile is one of the default profiles included with the engine */
+	UPROPERTY(config)
+	bool bIsEngineDefaultProfile;
+	
 	/** Whether or not image based lighting is enabled for the environment cube map */
 	UPROPERTY(EditAnywhere, AdvancedDisplay, config, Category = Lighting)
 	bool bUseSkyLighting;
@@ -76,6 +84,10 @@ struct FPreviewSceneProfile
 	/** Toggle visibility of the floor mesh */
 	UPROPERTY(EditAnywhere, config, Category = Environment)
 	bool bShowFloor;
+
+	/** Toggle visibility of floor grid on/off */
+	UPROPERTY(EditAnywhere, config, Category = Environment)
+	bool bShowGrid;
 
 	/** The environment color, used if Show Environment is false. */
 	UPROPERTY(EditAnywhere, config, Category = Environment, meta=(EditCondition="!bShowEnvironment"))
@@ -113,6 +125,14 @@ struct FPreviewSceneProfile
 	UPROPERTY(config)
 	FRotator DirectionalLightRotation;
 
+	/** Useful when editing in an unlit view, prevents colors from being adjusted by the tonemapping */
+	UPROPERTY(EditAnywhere, config, Category = Editing)
+	bool bEnableToneMapping;
+
+	/** Show wireframes composited on top of the shaded view */
+	UPROPERTY(EditAnywhere, config, Category = Editing)
+	bool bShowMeshEdges;
+
 	/** Retrieve the environment map texture using the saved path */
 	void LoadEnvironmentMap()
 	{
@@ -131,8 +151,64 @@ struct FPreviewSceneProfile
 			}
 		}		
 	}
+
+	void SetShowFlags(FEngineShowFlags& ShowFlags) const
+	{
+		if (bPostProcessingEnabled)
+		{
+			ShowFlags.EnableAdvancedFeatures();
+			ShowFlags.SetBloom(true); // bloom not included in EnableAdvancedFeatures() for thumbnails (see func comments)
+		}
+		else
+		{
+			ShowFlags.DisableAdvancedFeatures();
+			ShowFlags.SetBloom(false);
+		}
+
+		ShowFlags.SetTonemapper(bEnableToneMapping);
+		ShowFlags.SetGrid(bShowGrid);
+		ShowFlags.SetMeshEdges(bShowMeshEdges);
+	}
 };
 
+UCLASS()
+class ADVANCEDPREVIEWSCENE_API UDefaultEditorProfiles : public UObject
+{
+	GENERATED_BODY()
+public:
+
+	UDefaultEditorProfiles()
+	{
+		FPreviewSceneProfile DefaultProfile;
+		DefaultProfile.bIsEngineDefaultProfile = true;
+		DefaultProfile.bSharedProfile = true;
+		DefaultProfile.ProfileName = DefaultProfileName.ToString();
+		Profiles.Add(DefaultProfile);
+		
+		FPreviewSceneProfile EditingProfile;
+		EditingProfile.ProfileName = EditingProfileName.ToString();
+		EditingProfile.bIsEngineDefaultProfile = true;
+		EditingProfile.bSharedProfile = true;
+		EditingProfile.bShowEnvironment = false;
+		EditingProfile.bShowFloor = false;
+		EditingProfile.bShowGrid = true;
+		EditingProfile.EnvironmentColor = FLinearColor::MakeFromHSV8(0,0,10);
+		EditingProfile.bUseSkyLighting = true;
+		EditingProfile.bPostProcessingEnabled = false;
+		EditingProfile.bShowMeshEdges = true;
+		EditingProfile.bEnableToneMapping = false;
+		Profiles.Add(EditingProfile);
+	}
+
+	const FPreviewSceneProfile* GetProfile(const FString& ProfileName);
+
+	static FName DefaultProfileName;
+	static FName EditingProfileName;
+	
+	/** Collection of default engine-provided profiles used in various editing environments*/
+	UPROPERTY()
+	TArray<FPreviewSceneProfile> Profiles;
+};
 
 UCLASS(config = Editor)
 class ULocalProfiles : public UObject
@@ -166,6 +242,8 @@ public:
 	virtual ~UAssetViewerSettings();
 
 	static UAssetViewerSettings* Get();
+
+	static FPreviewSceneProfile& GetCurrentUserProjectProfile();
 	
 	/**
 	 * Saves the config data out to the ini files

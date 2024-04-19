@@ -2,12 +2,14 @@
 
 #pragma once
 
+#include "AssetViewerSettings.h"
 #include "DynamicMeshBrushTool.h"
 #include "BaseTools/MeshSurfacePointMeshEditingTool.h"
 #include "MeshDescription.h"
 #include "DynamicMesh/DynamicVerticesOctree3.h"
 #include "BoneWeights.h"
 #include "GroupTopology.h"
+#include "PreviewProfileController.h"
 #include "Misc/Optional.h"
 #include "Containers/Map.h"
 #include "DynamicMesh/DynamicMeshOctree3.h"
@@ -506,6 +508,10 @@ protected:
 	TWeakObjectPtr<USkeletalMeshEditorContextObjectBase> EditorContext = nullptr;
 	UPROPERTY()
 	TWeakObjectPtr<UPersonaEditorModeManagerContext> PersonaModeManagerContext = nullptr;
+
+	// editor state to restore when exiting the paint tool
+	FPreviewProfileController PreviewProfileController;
+	FString PreviewProfileToRestore;
 
 	friend SkinPaintTool::FSkinToolDeformer;
 };

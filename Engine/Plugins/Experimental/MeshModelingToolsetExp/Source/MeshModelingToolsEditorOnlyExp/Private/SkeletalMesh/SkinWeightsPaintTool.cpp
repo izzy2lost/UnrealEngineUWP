@@ -1,6 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "SkeletalMesh/SkinWeightsPaintTool.h"
+
+#include "AssetViewerSettings.h"
 #include "Engine/SkeletalMesh.h"
 #include "InteractiveToolManager.h"
 #include "SkeletalMeshAttributes.h"
@@ -22,7 +24,6 @@
 #include "DynamicMesh/MeshAdapterUtil.h"
 #include "Selection/PolygonSelectionMechanic.h"
 #include "Spatial/PointSetHashTable.h"
-#include "Util/ColorConstants.h"
 #include "Operations/SmoothBoneWeights.h"
 #include "ContextObjectStore.h"
 #include "Editor/Persona/Public/IPersonaEditorModeManager.h"
@@ -747,7 +748,6 @@ void USkinWeightsPaintTool::Setup()
 
 	// configure preview mesh
 	PreviewMesh->SetTangentsMode(EDynamicMeshComponentTangentsMode::AutoCalculated);
-	PreviewMesh->EnableWireframe(true);
 	PreviewMesh->SetShadowsEnabled(false);
 	// enable vtx colors on preview mesh
 	PreviewMesh->EditMesh([](FDynamicMesh3& Mesh)
@@ -763,6 +763,10 @@ void USkinWeightsPaintTool::Setup()
 	{
 		PreviewMesh->SetOverrideRenderMaterial(VtxColorMaterial);
 	}
+
+	// modify viewport render settings to optimize for painting weights
+	PreviewProfileToRestore = PreviewProfileController.GetActiveProfile();
+	PreviewProfileController.SetActiveProfile(UDefaultEditorProfiles::EditingProfileName.ToString());
 
 	// build octree for vertices
 	VerticesOctree.Initialize(PreviewMesh->GetMesh(), true);
@@ -855,7 +859,6 @@ void USkinWeightsPaintTool::Render(IToolsContextRenderAPI* RenderAPI)
 	{
 		PolygonSelectionMechanic->Render(RenderAPI);
 	}
-	
 }
 
 FBox USkinWeightsPaintTool::GetWorldSpaceFocusBox()
@@ -1546,6 +1549,9 @@ void USkinWeightsPaintTool::OnShutdown(EToolShutdownType ShutdownType)
 		UE::ToolTarget::CommitMeshDescriptionUpdate(Target, EditedMesh.Get());
 		GetToolManager()->EndUndoTransaction();
 	}
+
+	// restore viewport show flags and preview settings
+	PreviewProfileController.SetActiveProfile(PreviewProfileToRestore);
 
 	if (EditorContext.IsValid())
 	{

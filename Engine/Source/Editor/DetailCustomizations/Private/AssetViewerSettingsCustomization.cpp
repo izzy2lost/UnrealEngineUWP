@@ -85,8 +85,11 @@ void FAssetViewerSettingsCustomization::CustomizeDetails(IDetailLayoutBuilder& D
 					[
 						// PropertyHandle->CreatePropertyValueWidget()
 						SAssignNew(NameEditTextBox, SEditableTextBox)
+						.IsEnabled_Lambda([this]()
+						{
+							return !ViewerSettings->Profiles[ProfileIndex].bIsEngineDefaultProfile;
+						})
 						.Text(this, &FAssetViewerSettingsCustomization::OnGetProfileName)
-						//.ToolTip(VarNameTooltip)
 						.OnTextChanged(this, &FAssetViewerSettingsCustomization::OnProfileNameChanged)
 						.OnTextCommitted(this, &FAssetViewerSettingsCustomization::OnProfileNameCommitted)
 						.Font(IDetailLayoutBuilder::GetDetailFont())
@@ -169,7 +172,9 @@ const bool FAssetViewerSettingsCustomization::IsProfileNameValid(const FString& 
 
 bool FAssetViewerSettingsCustomization::CanSetSharedProfile() const
 {
-	return !FPlatformFileManager::Get().GetPlatformFile().IsReadOnly(*SharedProfileConfigFilePath());
+	const bool bIsEngineDefaultProfile = ViewerSettings->Profiles[ProfileIndex].bIsEngineDefaultProfile;
+	const bool bIsConfigWriteable = !FPlatformFileManager::Get().GetPlatformFile().IsReadOnly(*SharedProfileConfigFilePath());
+	return bIsConfigWriteable && !bIsEngineDefaultProfile;
 }
 
 EVisibility FAssetViewerSettingsCustomization::ShowFileWatcherWidget() const

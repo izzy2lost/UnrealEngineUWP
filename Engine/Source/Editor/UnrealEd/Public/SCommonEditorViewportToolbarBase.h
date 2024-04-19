@@ -76,6 +76,42 @@ public:
 	TWeakPtr<const class SCommonEditorViewportToolbarBase> ToolbarWidget;
 };
 
+class UNREALED_API SPreviewSceneProfileSelector : public SCompoundWidget
+{
+public:
+
+	virtual ~SPreviewSceneProfileSelector() override;
+	
+	SLATE_BEGIN_ARGS(SPreviewSceneProfileSelector)
+	{}
+	SLATE_ARGUMENT(TSharedPtr<IPreviewProfileController>, PreviewProfileController)
+	SLATE_END_ARGS()
+	
+	void Construct(const FArguments& InArgs);
+
+protected:
+	
+	/** Update the list of asset viewer profiles displayed by the combo box. */
+	void UpdateAssetViewerProfileList();
+	void UpdateAssetViewerProfileSelection();
+
+	/** Invoked when the asset viewer profile combo box selection changes. */
+	void OnSelectionChanged(TSharedPtr<FString> NewSelection, ESelectInfo::Type /*SelectInfo*/);
+
+	/** Creates and returns the asset viewer profile combo box.*/
+	TSharedRef<SWidget> MakeAssetViewerProfileComboBox();
+
+private:
+	/** Interface to set/get/list the preview profiles. */
+	TSharedPtr<IPreviewProfileController> PreviewProfileController;
+
+	/** List of advanced preview profiles to fill up the Profiles combo box. */
+	TArray<TSharedPtr<FString>> AssetViewerProfileNames;
+
+	/** Displays/Selects the active advanced viewer profile. */
+	TSharedPtr<STextComboBox> AssetViewerProfileComboBox;
+};
+
 /**
  * A viewport toolbar widget for an asset or level editor that is placed in a viewport
  */
@@ -91,7 +127,7 @@ public:
 		SLATE_ARGUMENT(TSharedPtr<IPreviewProfileController>, PreviewProfileController) // Should be null if the Preview doesn't require profile.
 	SLATE_END_ARGS()
 
-	UNREALED_API virtual ~SCommonEditorViewportToolbarBase();
+	UNREALED_API virtual ~SCommonEditorViewportToolbarBase(){};
 
 	UNREALED_API void Construct(const FArguments& InArgs, TSharedPtr<class ICommonEditorViewportToolbarInfoProvider> InInfoProvider);
 
@@ -219,27 +255,8 @@ protected:
 	/** Called when the ScreenPercentage slider is adjusted in the viewport */
 	UNREALED_API void OnScreenPercentageValueChanged(int32 NewValue);
 
-	/** Update the list of asset viewer profiles displayed by the combo box. */
-	UNREALED_API void UpdateAssetViewerProfileList();
-	UNREALED_API void UpdateAssetViewerProfileSelection();
-
-	/** Invoked when the asset viewer profile combo box selection changes. */
-	UNREALED_API void OnAssetViewerProfileComboBoxSelectionChanged(TSharedPtr<FString> NewSelection, ESelectInfo::Type /*SelectInfo*/);
-
-	/** Creates and returns the asset viewer profile combo box.*/
-	UNREALED_API TSharedRef<SWidget> MakeAssetViewerProfileComboBox();
-
 private:
 	/** The viewport that we are in */
 	TWeakPtr<class ICommonEditorViewportToolbarInfoProvider> InfoProviderPtr;
-
-	/** Interface to set/get/list the preview profiles. */
-	TSharedPtr<IPreviewProfileController> PreviewProfileController;
-
-	/** List of advanced preview profiles to fill up the Profiles combo box. */
-	TArray<TSharedPtr<FString>> AssetViewerProfileNames;
-
-	/** Displays/Selects the active advanced viewer profile. */
-	TSharedPtr<STextComboBox> AssetViewerProfileComboBox;
 };
 

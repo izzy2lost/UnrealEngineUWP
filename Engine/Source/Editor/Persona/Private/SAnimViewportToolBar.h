@@ -15,7 +15,7 @@
 
 class FMenuBuilder;
 class SComboButton;
-
+class IPreviewProfileController;
 
 /**
  * A level viewport toolbar widget that is placed in a viewport
@@ -24,7 +24,8 @@ class SAnimViewportToolBar : public SViewportToolBar
 {
 public:
 	SLATE_BEGIN_ARGS( SAnimViewportToolBar )
-		: _ShowShowMenu(true)
+		: _PreviewProfileController(nullptr)
+		, _ShowShowMenu(true)
 		, _ShowCharacterMenu(true)
 		, _ShowLODMenu(true)
 		, _ShowPlaySpeedMenu(true)
@@ -34,6 +35,8 @@ public:
 	SLATE_ARGUMENT(TArray<TSharedPtr<FExtender>>, Extenders)
 
 	SLATE_ARGUMENT(FName, ContextName)
+
+	SLATE_ARGUMENT(TSharedPtr<IPreviewProfileController>, PreviewProfileController)
 
 	SLATE_ARGUMENT(bool, ShowShowMenu)
 
@@ -212,6 +215,9 @@ private:
 
 	/** Transaction to handle scoping updates for sliders we own that transact objects (i.e. floor mesh) */
 	TUniquePtr<FScopedTransaction> PendingTransaction;
+
+	/** The controller used to toggle Preview Scene Profiles */
+	TSharedPtr<IPreviewProfileController> PreviewProfileController;
 
 	/** Whether to show the 'Show' menu */
 	bool bShowShowMenu;

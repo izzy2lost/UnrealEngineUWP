@@ -115,9 +115,23 @@ void SAdvancedPreviewDetailsTab::Construct(const FArguments& InArgs, const TShar
 			.AutoWidth()
 			[
 				SNew(SButton)
-				.OnClicked(this, &SAdvancedPreviewDetailsTab::RemoveProfileButtonClick)
-				.Text(LOCTEXT("RemoveProfileButton", "Remove Profile"))
-				.ToolTipText(LOCTEXT("SceneProfileRemoveProfile", "Removes the currently selected profile."))
+				.OnClicked(this, &SAdvancedPreviewDetailsTab::RemoveOrResetProfileButtonClick)
+				.Text_Lambda([this]()
+				{
+					if (DefaultSettings->Profiles[ProfileIndex].bIsEngineDefaultProfile)
+					{
+						return LOCTEXT("ResetProfileButton", "Reset Profile");
+					}
+					return LOCTEXT("RemoveProfileButton", "Remove Profile");
+				})
+				.ToolTipText_Lambda([this]()
+				{
+					if (DefaultSettings->Profiles[ProfileIndex].bIsEngineDefaultProfile)
+					{
+						return LOCTEXT("SceneProfileResetProfile", "Resets this engine profile to default settings. Cannot delete engine profiles.");
+					}
+					return LOCTEXT("SceneProfileRemoveProfile", "Removes the currently selected profile.");
+				})
 				.IsEnabled_Lambda([this]()->bool
 				{
 					return ProfileNames.Num() > 1; 
@@ -130,7 +144,7 @@ void SAdvancedPreviewDetailsTab::Construct(const FArguments& InArgs, const TShar
 	UpdateSettingsView();
 }
 
-void SAdvancedPreviewDetailsTab::ComboBoxSelectionChanged(TSharedPtr<FString> NewSelection, ESelectInfo::Type /*SelectInfo*/)
+void SAdvancedPreviewDetailsTab::ComboBoxSelectionChanged(TSharedPtr<FString> NewSelection, ESelectInfo::Type SelectInfo)
 {
 	int32 NewSelectionIndex;
 
@@ -140,7 +154,10 @@ void SAdvancedPreviewDetailsTab::ComboBoxSelectionChanged(TSharedPtr<FString> Ne
 		PerProjectSettings->AssetViewerProfileIndex = ProfileIndex;
 		UpdateSettingsView();	
 		check(PreviewScenePtr.IsValid());
-		PreviewScenePtr.Pin()->SetProfileIndex(ProfileIndex);
+		if (SelectInfo == ESelectInfo::Type::OnMouseClick)
+		{
+			PreviewScenePtr.Pin()->SetProfileIndex(ProfileIndex);	
+		}
 	}
 }
 
@@ -162,7 +179,16 @@ void SAdvancedPreviewDetailsTab::UpdateProfileNames()
 	ProfileNames.Empty();
 	for (FPreviewSceneProfile& Profile : DefaultSettings->Profiles)
 	{
-		ProfileNames.Add(TSharedPtr<FString>(new FString(Profile.ProfileName + (Profile.bSharedProfile ? TEXT(" (Shared)") : TEXT("") ))));
+		FString Suffix = TEXT("");
+		if (Profile.bSharedProfile)
+		{
+			Suffix = TEXT(" (Shared)");
+		}
+		if (Profile.bIsEngineDefaultProfile)
+		{
+			Suffix = TEXT(" (Engine Default)");
+		}
+		ProfileNames.Add(TSharedPtr<FString>(new FString(Profile.ProfileName + Suffix)));
 	}
 
 	ProfileComboBox->RefreshOptions();
@@ -214,8 +240,28 @@ FReply SAdvancedPreviewDetailsTab::AddProfileButtonClick()
 	return FReply::Handled();
 }
 
-FReply SAdvancedPreviewDetailsTab::RemoveProfileButtonClick()
+FReply SAdvancedPreviewDetailsTab::RemoveOrResetProfileButtonClick()
 {
+	const FPreviewSceneProfile& CurrentProfile = DefaultSettings->Profiles[ProfileIndex];
+	
+	if (CurrentProfile.bIsEngineDefaultProfile)
+	{
+		const FScopedTransaction Transaction(LOCTEXT("ResetSceneProfile", "Reset Preview Scene Profile"));
+		DefaultSettings->Modify();
+
+		const FPreviewSceneProfile* DefaultEditorProfile = GetMutableDefault<UDefaultEditorProfiles>()->GetProfile(CurrentProfile.ProfileName);
+		if (DefaultEditorProfile)
+		{
+			// Reset currently selected profile 
+			DefaultSettings->Profiles[ProfileIndex] = *DefaultEditorProfile;
+			DefaultSettings->PostEditChange();
+			return FReply::Handled();
+		}
+
+		// if we get here, it means an engine-provided default profile was removed from the engine,
+		// in which case we should remove it...
+	}
+
 	const FScopedTransaction Transaction(LOCTEXT("RemoveSceneProfile", "Remove Preview Scene Profile"));
 	DefaultSettings->Modify();
 
