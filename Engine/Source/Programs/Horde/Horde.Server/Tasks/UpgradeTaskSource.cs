@@ -28,12 +28,12 @@ namespace Horde.Server.Tasks
 		public override TaskSourceFlags Flags => TaskSourceFlags.AllowWhenDisabled | TaskSourceFlags.AllowDuringDowntime;
 
 		readonly IToolCollection _toolCollection;
-		readonly ILogFileService _logService;
+		readonly ILogService _logService;
 		readonly IOptionsMonitor<GlobalConfig> _globalConfig;
 		readonly IOptions<ServerSettings> _serverSettings;
 		readonly IClock _clock;
 
-		public UpgradeTaskSource(IToolCollection toolCollection, ILogFileService logService, IOptionsMonitor<GlobalConfig> globalConfig, IOptions<ServerSettings> serverSettings, IClock clock)
+		public UpgradeTaskSource(IToolCollection toolCollection, ILogService logService, IOptionsMonitor<GlobalConfig> globalConfig, IOptions<ServerSettings> serverSettings, IClock clock)
 		{
 			_toolCollection = toolCollection;
 			_logService = logService;
@@ -69,14 +69,14 @@ namespace Horde.Server.Tasks
 			}
 
 			LeaseId leaseId = new LeaseId(BinaryIdUtils.CreateNew());
-			ILogFile logFile = await _logService.CreateLogFileAsync(JobId.Empty, leaseId, agent.SessionId, LogType.Json, cancellationToken: cancellationToken);
+			ILog log = await _logService.CreateLogAsync(JobId.Empty, leaseId, agent.SessionId, LogType.Json, cancellationToken: cancellationToken);
 
 			UpgradeTask task = new UpgradeTask();
 			task.SoftwareId = $"{tool.Id}:{deployment.Version}";
-			task.LogId = logFile.Id.ToString();
+			task.LogId = log.Id.ToString();
 
 			byte[] payload = Any.Pack(task).ToByteArray();
-			return LeaseAsync(new AgentLease(leaseId, null, $"Upgrade to {tool.Id} {deployment.Version}", null, null, logFile.Id, LeaseState.Pending, null, true, payload));
+			return LeaseAsync(new AgentLease(leaseId, null, $"Upgrade to {tool.Id} {deployment.Version}", null, null, log.Id, LeaseState.Pending, null, true, payload));
 		}
 
 		/// <summary>

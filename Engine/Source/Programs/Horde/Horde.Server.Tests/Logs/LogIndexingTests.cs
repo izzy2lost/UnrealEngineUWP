@@ -20,14 +20,14 @@ namespace Horde.Server.Tests.Logs
 {
 	class TestLogWriter : IAsyncDisposable
 	{
-		ILogFile _logFile;
-		readonly ILogFileCollection _logCollection;
+		ILog _logFile;
+		readonly ILogCollection _logCollection;
 		readonly IStorageClient _storageClient;
 		readonly IBlobWriter _blobWriter;
 		readonly LogBuilder _builder;
 		int _lineCount;
 
-		public TestLogWriter(ILogFile logFile, ILogFileCollection logCollection, StorageService storageService)
+		public TestLogWriter(ILog logFile, ILogCollection logCollection, StorageService storageService)
 		{
 			_logFile = logFile;
 			_logCollection = logCollection;
@@ -42,7 +42,7 @@ namespace Horde.Server.Tests.Logs
 			_storageClient.Dispose();
 		}
 
-		public async Task<ILogFile> WriteDataAsync(ReadOnlyMemory<byte> data)
+		public async Task<ILog> WriteDataAsync(ReadOnlyMemory<byte> data)
 		{
 			_builder.WriteData(data);
 			_lineCount += data.Span.Count((byte)'\n');
@@ -50,7 +50,7 @@ namespace Horde.Server.Tests.Logs
 			return await FlushAsync(false);
 		}
 
-		public async Task<ILogFile> FlushAsync(bool complete = true)
+		public async Task<ILog> FlushAsync(bool complete = true)
 		{
 			IBlobRef<LogNode> handle = await _builder.FlushAsync(_blobWriter, complete, CancellationToken.None);
 			await _storageClient.WriteRefAsync(_logFile.RefName, handle);
@@ -68,10 +68,10 @@ namespace Horde.Server.Tests.Logs
 		public async Task IndexTestsAsync()
 		{
 			JobId jobId = JobIdUtils.GenerateNewId();
-			ILogFile logFile = await LogFileService.CreateLogFileAsync(jobId, null, null, LogType.Text);
+			ILog logFile = await LogService.CreateLogAsync(jobId, null, null, LogType.Text);
 
 			// Write the test data to the log file in blocks
-			await using (TestLogWriter logWriter = new TestLogWriter(logFile, LogFileCollection, StorageService))
+			await using (TestLogWriter logWriter = new TestLogWriter(logFile, LogCollection, StorageService))
 			{
 				int offset = 0;
 				int lineIndex = 0;
@@ -100,7 +100,7 @@ namespace Horde.Server.Tests.Logs
 
 			// Read the data back out and check it's the same
 			byte[] readData = new byte[_data.Length];
-			using (Stream stream = await LogFileService.OpenRawStreamAsync(logFile))
+			using (Stream stream = await LogService.OpenRawStreamAsync(logFile))
 			{
 				int readSize = await stream.ReadAsync(readData, 0, readData.Length);
 				Assert.AreEqual(readData.Length, readSize);
@@ -139,7 +139,7 @@ namespace Horde.Server.Tests.Logs
 		public async Task PartialTokenTestsAsync()
 		{
 			JobId jobId = JobIdUtils.GenerateNewId();
-			ILogFile logFile = await LogFileService.CreateLogFileAsync(jobId, null, null, LogType.Text);
+			ILog logFile = await LogService.CreateLogAsync(jobId, null, null, LogType.Text);
 
 			string[] lines =
 			{
@@ -150,7 +150,7 @@ namespace Horde.Server.Tests.Logs
 			};
 
 			int length = 0;
-			await using (TestLogWriter logWriter = new TestLogWriter(logFile, LogFileCollection, StorageService))
+			await using (TestLogWriter logWriter = new TestLogWriter(logFile, LogCollection, StorageService))
 			{
 				for (int lineIdx = 0; lineIdx < lines.Length; lineIdx++)
 				{
@@ -169,7 +169,7 @@ namespace Horde.Server.Tests.Logs
 						string str = lines[lineIdx].Substring(strOfs, strLen);
 
 						SearchStats stats = new SearchStats();
-						List<int> results = await LogFileService.SearchLogDataAsync(logFile, str, 0, 5, stats, CancellationToken.None);
+						List<int> results = await LogService.SearchLogDataAsync(logFile, str, 0, 5, stats, CancellationToken.None);
 						Assert.AreEqual(1, results.Count);
 						Assert.AreEqual(lineIdx, results[0]);
 
@@ -185,9 +185,9 @@ namespace Horde.Server.Tests.Logs
 		public async Task AppendIndexTestsAsync()
 		{
 			JobId jobId = JobIdUtils.GenerateNewId();
-			ILogFile logFile = await LogFileService.CreateLogFileAsync(jobId, null, null, LogType.Text);
+			ILog logFile = await LogService.CreateLogAsync(jobId, null, null, LogType.Text);
 
-			await using (TestLogWriter writer = new TestLogWriter(logFile, LogFileCollection, StorageService))
+			await using (TestLogWriter writer = new TestLogWriter(logFile, LogCollection, StorageService))
 			{
 				logFile = await writer.WriteDataAsync(Encoding.UTF8.GetBytes("abc\n"));
 				logFile = await writer.WriteDataAsync(Encoding.UTF8.GetBytes("def\n"));
@@ -197,7 +197,7 @@ namespace Horde.Server.Tests.Logs
 
 			{
 				SearchStats stats = new SearchStats();
-				List<int> results = await LogFileService.SearchLogDataAsync(logFile, "abc", 0, 5, stats, CancellationToken.None);
+				List<int> results = await LogService.SearchLogDataAsync(logFile, "abc", 0, 5, stats, CancellationToken.None);
 				Assert.AreEqual(1, results.Count);
 				Assert.AreEqual(0, results[0]);
 
@@ -207,7 +207,7 @@ namespace Horde.Server.Tests.Logs
 			}
 			{
 				SearchStats stats = new SearchStats();
-				List<int> results = await LogFileService.SearchLogDataAsync(logFile, "def", 0, 5, stats, CancellationToken.None);
+				List<int> results = await LogService.SearchLogDataAsync(logFile, "def", 0, 5, stats, CancellationToken.None);
 				Assert.AreEqual(1, results.Count);
 				Assert.AreEqual(1, results[0]);
 
@@ -217,7 +217,7 @@ namespace Horde.Server.Tests.Logs
 			}
 			{
 				SearchStats stats = new SearchStats();
-				List<int> results = await LogFileService.SearchLogDataAsync(logFile, "ghi", 0, 5, stats, CancellationToken.None);
+				List<int> results = await LogService.SearchLogDataAsync(logFile, "ghi", 0, 5, stats, CancellationToken.None);
 				Assert.AreEqual(1, results.Count);
 				Assert.AreEqual(2, results[0]);
 
@@ -229,7 +229,7 @@ namespace Horde.Server.Tests.Logs
 
 		async Task SearchLogDataTestAsync(LogId logId)
 		{
-			ILogFile? logFile = await LogFileService.GetLogFileAsync(logId, CancellationToken.None);
+			ILog? logFile = await LogService.GetLogAsync(logId, CancellationToken.None);
 			Assert.IsNotNull(logFile);
 
 			await SearchLogDataTestAsync(logFile, "HISPANIOLA", 0, 4, new[] { 1503, 1520, 1525, 1595 });
@@ -239,10 +239,10 @@ namespace Horde.Server.Tests.Logs
 			await SearchLogDataTestAsync(logFile, "NEWSLETTER", 0, 100, new[] { 7886 });
 		}
 
-		async Task SearchLogDataTestAsync(ILogFile logFile, string text, int firstLine, int count, int[] expectedLines)
+		async Task SearchLogDataTestAsync(ILog logFile, string text, int firstLine, int count, int[] expectedLines)
 		{
 			SearchStats stats = new SearchStats();
-			List<int> lines = await LogFileService.SearchLogDataAsync(logFile, text, firstLine, count, stats, CancellationToken.None);
+			List<int> lines = await LogService.SearchLogDataAsync(logFile, text, firstLine, count, stats, CancellationToken.None);
 			Assert.IsTrue(lines.SequenceEqual(expectedLines));
 		}
 	}

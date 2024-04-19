@@ -40,10 +40,10 @@ namespace Horde.Server.Logs
 	/// <summary>
 	/// Information about a log file
 	/// </summary>
-	public interface ILogFile
+	public interface ILog
 	{
 		/// <summary>
-		/// Identifier for the LogFile. Randomly generated.
+		/// Identifier for the log. Randomly generated.
 		/// </summary>
 		public LogId Id { get; }
 
@@ -111,7 +111,7 @@ namespace Horde.Server.Logs
 	/// <summary>
 	/// Extension methods for log files
 	/// </summary>
-	public static class LogFileExtensions
+	public static class LogExtensions
 	{
 		/// <summary>
 		/// Gets the chunk index containing the given offset.

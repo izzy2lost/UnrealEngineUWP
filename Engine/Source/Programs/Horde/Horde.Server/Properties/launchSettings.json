@@ -4,7 +4,8 @@
       "commandName": "Project",
       "commandLineArgs": "",
       "environmentVariables": {
-        "ASPNETCORE_ENVIRONMENT": "Local"
+        "ASPNETCORE_ENVIRONMENT": "Local",
+        "Horde__Perforce__1__Id": "psyonix"
       },
       "hotReloadEnabled": false
     }

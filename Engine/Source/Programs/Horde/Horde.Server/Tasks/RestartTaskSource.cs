@@ -20,9 +20,9 @@ namespace Horde.Server.Tasks
 
 		public override TaskSourceFlags Flags => TaskSourceFlags.AllowWhenDisabled | TaskSourceFlags.AllowDuringDowntime;
 
-		readonly ILogFileService _logService;
+		readonly ILogService _logService;
 
-		public RestartTaskSource(ILogFileService logService)
+		public RestartTaskSource(ILogService logService)
 		{
 			_logService = logService;
 
@@ -44,7 +44,7 @@ namespace Horde.Server.Tasks
 			}
 
 			LeaseId leaseId = new LeaseId(BinaryIdUtils.CreateNew());
-			ILogFile log = await _logService.CreateLogFileAsync(JobId.Empty, leaseId, agent.SessionId, LogType.Json, cancellationToken: cancellationToken);
+			ILog log = await _logService.CreateLogAsync(JobId.Empty, leaseId, agent.SessionId, LogType.Json, cancellationToken: cancellationToken);
 
 			RestartTask task = new RestartTask();
 			task.LogId = log.Id.ToString();

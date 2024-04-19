@@ -42,20 +42,20 @@ namespace Horde.Server.Issues
 		private readonly IExternalIssueService _externalIssueService;
 		private readonly JobService _jobService;
 		private readonly IUserCollection _userCollection;
-		private readonly ILogFileService _logFileService;
+		private readonly ILogService _logService;
 		private readonly IOptionsSnapshot<GlobalConfig> _globalConfig;
 		private readonly ILogger<IssuesController> _logger;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public IssuesController(IIssueCollection issueCollection, IssueService issueService, JobService jobService, IUserCollection userCollection, ILogFileService logFileService, IExternalIssueService externalIssueService, IOptionsSnapshot<GlobalConfig> globalConfig, ILogger<IssuesController> logger)
+		public IssuesController(IIssueCollection issueCollection, IssueService issueService, JobService jobService, IUserCollection userCollection, ILogService logService, IExternalIssueService externalIssueService, IOptionsSnapshot<GlobalConfig> globalConfig, ILogger<IssuesController> logger)
 		{
 			_issueCollection = issueCollection;
 			_issueService = issueService;
 			_jobService = jobService;
 			_userCollection = userCollection;
-			_logFileService = logFileService;
+			_logService = logService;
 			_externalIssueService = externalIssueService;
 			_globalConfig = globalConfig;
 			_logger = logger;
@@ -728,23 +728,23 @@ namespace Horde.Server.Issues
 			}
 
 			IReadOnlyList<IIssueSpan> spans = await _issueCollection.FindSpansAsync(issueId, cancellationToken);
-			List<ILogEvent> events = await _logFileService.FindEventsForSpansAsync(spans.Select(x => x.Id), logIdValues.ToArray(), index, count, cancellationToken);
+			List<ILogEvent> events = await _logService.FindEventsForSpansAsync(spans.Select(x => x.Id), logIdValues.ToArray(), index, count, cancellationToken);
 
 			JobPermissionsCache permissionsCache = new JobPermissionsCache();
-			Dictionary<LogId, ILogFile?> logFiles = new Dictionary<LogId, ILogFile?>();
+			Dictionary<LogId, ILog?> logs = new Dictionary<LogId, ILog?>();
 
 			List<object> responses = new List<object>();
 			foreach (ILogEvent logEvent in events)
 			{
-				ILogFile? logFile;
-				if (!logFiles.TryGetValue(logEvent.LogId, out logFile))
+				ILog? log;
+				if (!logs.TryGetValue(logEvent.LogId, out log))
 				{
-					logFile = await _logFileService.GetLogFileAsync(logEvent.LogId, cancellationToken);
-					logFiles[logEvent.LogId] = logFile;
+					log = await _logService.GetLogAsync(logEvent.LogId, cancellationToken);
+					logs[logEvent.LogId] = log;
 				}
-				if (logFile != null && await _jobService.AuthorizeAsync(logFile.JobId, LogAclAction.ViewLog, User, _globalConfig.Value, cancellationToken))
+				if (log != null && await _jobService.AuthorizeAsync(log.JobId, LogAclAction.ViewLog, User, _globalConfig.Value, cancellationToken))
 				{
-					ILogEventData data = await _logFileService.GetEventDataAsync(logFile, logEvent.LineIndex, logEvent.LineCount, cancellationToken);
+					ILogEventData data = await _logService.GetEventDataAsync(log, logEvent.LineIndex, logEvent.LineCount, cancellationToken);
 					GetLogEventResponse response = LogsController.CreateGetLogEventResponse(logEvent, data, issueId);
 					responses.Add(PropertyFilter.Apply(response, filter));
 				}

@@ -47,7 +47,7 @@ namespace Horde.Server.Logs
 	/// <summary>
 	/// Wrapper around the jobs collection in a mongo DB
 	/// </summary>
-	public interface ILogFileCollection
+	public interface ILogCollection
 	{
 		/// <summary>
 		/// Creates a new log
@@ -59,53 +59,53 @@ namespace Horde.Server.Logs
 		/// <param name="logId">ID of the log file (optional)</param>
 		/// <param name="cancellationToken">Cancellation token for the call</param>
 		/// <returns>The new log file document</returns>
-		Task<ILogFile> CreateLogFileAsync(JobId jobId, LeaseId? leaseId, SessionId? sessionId, LogType type, LogId? logId = null, CancellationToken cancellationToken = default);
+		Task<ILog> CreateLogAsync(JobId jobId, LeaseId? leaseId, SessionId? sessionId, LogType type, LogId? logId = null, CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Updates the line count for a log file (v2 backend only)
 		/// </summary>
-		/// <param name="logFileInterface">The current log file</param>
+		/// <param name="log">The current log file</param>
 		/// <param name="lineCount">New line count for the log file</param>
 		/// <param name="complete">Flag indicating whether the log is complete, or can still be tailed for additional data</param>
 		/// <param name="cancellationToken">Cancellation token for the call</param>
 		/// <returns>The updated log file document</returns>
-		Task<ILogFile> UpdateLineCountAsync(ILogFile logFileInterface, int lineCount, bool complete, CancellationToken cancellationToken);
+		Task<ILog> UpdateLineCountAsync(ILog log, int lineCount, bool complete, CancellationToken cancellationToken);
 
 		/// <summary>
 		/// Adds a new chunk
 		/// </summary>
-		/// <param name="logFileInterface">The current log file</param>
+		/// <param name="log">The current log file</param>
 		/// <param name="offset">Offset of the new chunk</param>
 		/// <param name="lineIndex">Line index for the start of the chunk</param>
 		/// <param name="cancellationToken">Cancellation token for the call</param>
 		/// <returns>The updated log file document</returns>
-		Task<ILogFile?> TryAddChunkAsync(ILogFile logFileInterface, long offset, int lineIndex, CancellationToken cancellationToken);
+		Task<ILog?> TryAddChunkAsync(ILog log, long offset, int lineIndex, CancellationToken cancellationToken);
 
 		/// <summary>
 		/// Update the log file with final information about certain chunks
 		/// </summary>
-		/// <param name="logFileInterface">The current log file</param>
+		/// <param name="log">The current log file</param>
 		/// <param name="chunks">Chunks to update. New chunks will be inserted</param>
 		/// <param name="cancellationToken">Cancellation token for the call</param>
 		/// <returns>The updated log file document</returns>
-		Task<ILogFile?> TryCompleteChunksAsync(ILogFile logFileInterface, IEnumerable<CompleteLogChunkUpdate> chunks, CancellationToken cancellationToken);
+		Task<ILog?> TryCompleteChunksAsync(ILog log, IEnumerable<CompleteLogChunkUpdate> chunks, CancellationToken cancellationToken);
 
 		/// <summary>
 		/// Update the log file with final information about the index
 		/// </summary>
-		/// <param name="logFileInterface">The current log file</param>
+		/// <param name="log">The current log file</param>
 		/// <param name="newIndexLength">New length of the index</param>
 		/// <param name="cancellationToken">Cancellation token for the call</param>
 		/// <returns>The updated log file document</returns>
-		Task<ILogFile?> TryUpdateIndexAsync(ILogFile logFileInterface, long newIndexLength, CancellationToken cancellationToken);
+		Task<ILog?> TryUpdateIndexAsync(ILog log, long newIndexLength, CancellationToken cancellationToken);
 
 		/// <summary>
-		/// Gets a logfile by ID
+		/// Gets a log by ID
 		/// </summary>
-		/// <param name="logFileId">Unique id of the log file</param>
+		/// <param name="logId">Unique id of the log file</param>
 		/// <param name="cancellationToken">Cancellation token for the call</param>
-		/// <returns>The logfile document</returns>
-		Task<ILogFile?> GetLogFileAsync(LogId logFileId, CancellationToken cancellationToken);
+		/// <returns>The log instance</returns>
+		Task<ILog?> GetLogAsync(LogId logId, CancellationToken cancellationToken);
 
 		/// <summary>
 		/// Gets all the log files
@@ -114,6 +114,6 @@ namespace Horde.Server.Logs
 		/// <param name="count">Number of results to return</param>
 		/// <param name="cancellationToken">Cancellation token for the call</param>
 		/// <returns>List of log files</returns>
-		Task<List<ILogFile>> GetLogFilesAsync(int? index = null, int? count = null, CancellationToken cancellationToken = default);
+		Task<List<ILog>> GetLogsAsync(int? index = null, int? count = null, CancellationToken cancellationToken = default);
 	}
 }

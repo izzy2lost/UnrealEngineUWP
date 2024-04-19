@@ -44,7 +44,7 @@ namespace Horde.Server.Ugs
 		/// <summary>
 		/// The log file service
 		/// </summary>
-		private readonly ILogFileService _logFileService;
+		private readonly ILogService _logService;
 
 		/// <summary>
 		/// Server settings
@@ -59,12 +59,12 @@ namespace Horde.Server.Ugs
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public UgsController(IssueService issueService, IUgsMetadataCollection ugsMetadataCollection, IUserCollection userCollection, ILogFileService logFileService, IOptionsMonitor<ServerSettings> optionsMonitor, ILogger<UgsController> logger)
+		public UgsController(IssueService issueService, IUgsMetadataCollection ugsMetadataCollection, IUserCollection userCollection, ILogService logService, IOptionsMonitor<ServerSettings> optionsMonitor, ILogger<UgsController> logger)
 		{
 			_issueService = issueService;
 			_ugsMetadataCollection = ugsMetadataCollection;
 			_userCollection = userCollection;
-			_logFileService = logFileService;
+			_logService = logService;
 			_settings = optionsMonitor.CurrentValue;
 			_logger = logger;
 		}
@@ -270,22 +270,22 @@ namespace Horde.Server.Ugs
 		{
 			List<GetUgsIssueDiagnosticResponse> diagnostics = new List<GetUgsIssueDiagnosticResponse>();
 
-			Dictionary<LogId, ILogFile?> logFiles = new Dictionary<LogId, ILogFile?>();
+			Dictionary<LogId, ILog?> logs = new Dictionary<LogId, ILog?>();
 
 			IReadOnlyList<IIssueSpan> spans = await _issueService.Collection.FindSpansAsync(issueId, cancellationToken);
-			List<ILogEvent> events = await _logFileService.FindEventsForSpansAsync(spans.Select(x => x.Id), null, 0, count: 10, cancellationToken);
+			List<ILogEvent> events = await _logService.FindEventsForSpansAsync(spans.Select(x => x.Id), null, 0, count: 10, cancellationToken);
 
 			foreach (ILogEvent logEvent in events)
 			{
-				ILogFile? logFile;
-				if (!logFiles.TryGetValue(logEvent.LogId, out logFile))
+				ILog? log;
+				if (!logs.TryGetValue(logEvent.LogId, out log))
 				{
-					logFile = await _logFileService.GetLogFileAsync(logEvent.LogId, cancellationToken);
-					logFiles.Add(logEvent.LogId, logFile);
+					log = await _logService.GetLogAsync(logEvent.LogId, cancellationToken);
+					logs.Add(logEvent.LogId, log);
 				}
-				if (logFile != null)
+				if (log != null)
 				{
-					ILogEventData eventData = await _logFileService.GetEventDataAsync(logFile, logEvent.LineIndex, logEvent.LineCount, cancellationToken);
+					ILogEventData eventData = await _logService.GetEventDataAsync(log, logEvent.LineIndex, logEvent.LineCount, cancellationToken);
 					long buildId = logEvent.LogId.GetHashCode();
 					Uri url = new Uri(_settings.DashboardUrl, $"log/{logEvent.LogId}?lineindex={logEvent.LineIndex}");
 

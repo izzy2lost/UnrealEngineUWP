@@ -76,9 +76,9 @@ namespace Horde.Server.Notifications
 		private readonly IssueService _issueService;
 
 		/// <summary>
-		/// Instance of the <see cref="_logFileService"/>.
+		/// Instance of the <see cref="_logService"/>.
 		/// </summary>
-		private readonly ILogFileService _logFileService;
+		private readonly ILogService _logService;
 
 		/// <summary>
 		/// Cache for de-duplicating queued notifications
@@ -145,7 +145,7 @@ namespace Horde.Server.Notifications
 			IUserCollection userCollection,
 			JobService jobService,
 			IssueService issueService,
-			ILogFileService logFileService,
+			ILogService logService,
 			Meter meter,
 			IMemoryCache cache,
 			RedisService redisService,
@@ -161,7 +161,7 @@ namespace Horde.Server.Notifications
 			_userCollection = userCollection;
 			_jobService = jobService;
 			_issueService = issueService;
-			_logFileService = logFileService;
+			_logService = logService;
 			_cache = cache;
 			_redisConnectionPool = redisService.ConnectionPool;
 			_backgroundTask = new BackgroundTask(ExecuteAsync);
@@ -676,18 +676,18 @@ namespace Horde.Server.Notifications
 				return;
 			}
 
-			ILogFile? logFile = await _logFileService.GetLogFileAsync(step.LogId.Value, cancellationToken);
-			if (logFile == null)
+			ILog? log = await _logService.GetLogAsync(step.LogId.Value, cancellationToken);
+			if (log == null)
 			{
 				_logger.LogError("Step does not have a log file");
 				return;
 			}
 
-			List<ILogEvent> jobStepEvents = await _logFileService.FindEventsAsync(logFile, cancellationToken: cancellationToken);
+			List<ILogEvent> jobStepEvents = await _logService.FindEventsAsync(log, cancellationToken: cancellationToken);
 			List<ILogEventData> jobStepEventData = new List<ILogEventData>();
 			foreach (ILogEvent logEvent in jobStepEvents)
 			{
-				ILogEventData eventData = await _logFileService.GetEventDataAsync(logFile, logEvent.LineIndex, logEvent.LineCount, cancellationToken);
+				ILogEventData eventData = await _logService.GetEventDataAsync(log, logEvent.LineIndex, logEvent.LineCount, cancellationToken);
 				jobStepEventData.Add(eventData);
 			}
 

@@ -287,7 +287,7 @@ namespace Horde.Server.Tests.Compute
 		private async Task<ComputeService> CreateComputeServiceAsync(string? tunnelAddress)
 		{
 			ServerSettings ss = new() { ComputeTunnelAddress = tunnelAddress };
-			ComputeService cs = new(AgentCollection, LogFileService, AgentService, AgentRelayService, GetRedisServiceSingleton(),
+			ComputeService cs = new(AgentCollection, LogService, AgentService, AgentRelayService, GetRedisServiceSingleton(),
 				new TestOptionsMonitor<ServerSettings>(ss), GlobalConfig, Clock, Tracer, Meter,
 				NullLogger<ComputeService>.Instance);
 			List<string> props = new() { "ComputeIp=11.0.0.1", "ComputePort=5000" };

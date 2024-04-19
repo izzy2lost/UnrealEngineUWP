@@ -260,7 +260,7 @@ namespace Horde.Server.Server
 		private readonly AgentRelayService _agentRelayService;
 		private readonly JobService _jobService;
 		private readonly JobTaskSource _jobTaskSource;
-		private readonly ILogFileCollection _logFileCollection;
+		private readonly ILogCollection _logCollection;
 		private readonly IOptionsSnapshot<GlobalConfig> _globalConfig;
 		private readonly ILogger<SecureDebugController> _logger;
 
@@ -273,14 +273,14 @@ namespace Horde.Server.Server
 			AgentRelayService agentRelayService,
 			JobService jobService,
 			JobTaskSource jobTaskSource,
-			ILogFileCollection logFileCollection, IOptionsSnapshot<GlobalConfig> globalConfig, ILogger<SecureDebugController> logger)
+			ILogCollection logCollection, IOptionsSnapshot<GlobalConfig> globalConfig, ILogger<SecureDebugController> logger)
 		{
 			_mongoService = mongoService;
 			_configService = configService;
 			_jobService = jobService;
 			_agentRelayService = agentRelayService;
 			_jobTaskSource = jobTaskSource;
-			_logFileCollection = logFileCollection;
+			_logCollection = logCollection;
 			_globalConfig = globalConfig;
 			_logger = logger;
 		}
@@ -499,25 +499,25 @@ namespace Horde.Server.Server
 		/// <summary>
 		/// Retrieve metadata about a specific log file
 		/// </summary>
-		/// <param name="logFileId">Id of the log file to get information about</param>
+		/// <param name="logId">Id of the log file to get information about</param>
 		/// <param name="filter">Filter for the properties to return</param>
 		/// <returns>Information about the requested project</returns>
 		[HttpGet]
-		[Route("/api/v1/debug/logs/{LogFileId}")]
-		public async Task<ActionResult<object>> GetLogAsync(LogId logFileId, [FromQuery] PropertyFilter? filter = null)
+		[Route("/api/v1/debug/logs/{logId}")]
+		public async Task<ActionResult<object>> GetLogAsync(LogId logId, [FromQuery] PropertyFilter? filter = null)
 		{
 			if (!_globalConfig.Value.Authorize(ServerAclAction.Debug, User))
 			{
 				return Forbid(ServerAclAction.Debug);
 			}
 
-			ILogFile? logFile = await _logFileCollection.GetLogFileAsync(logFileId, CancellationToken.None);
-			if (logFile == null)
+			ILog? log = await _logCollection.GetLogAsync(logId, CancellationToken.None);
+			if (log == null)
 			{
 				return NotFound();
 			}
 
-			return logFile.ApplyFilter(filter);
+			return log.ApplyFilter(filter);
 		}
 
 		/// <summary>

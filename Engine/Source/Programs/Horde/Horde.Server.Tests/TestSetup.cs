@@ -95,7 +95,7 @@ namespace Horde.Server.Tests
 		public IIssueCollection IssueCollection => ServiceProvider.GetRequiredService<IIssueCollection>();
 		public IPoolCollection PoolCollection => ServiceProvider.GetRequiredService<IPoolCollection>();
 		public ILeaseCollection LeaseCollection => ServiceProvider.GetRequiredService<ILeaseCollection>();
-		public ILogFileCollection LogFileCollection => ServiceProvider.GetRequiredService<ILogFileCollection>();
+		public ILogCollection LogCollection => ServiceProvider.GetRequiredService<ILogCollection>();
 		public ISessionCollection SessionCollection => ServiceProvider.GetRequiredService<ISessionCollection>();
 		public ITestDataCollection TestDataCollection => ServiceProvider.GetRequiredService<ITestDataCollection>();
 		public IUserCollection UserCollection => ServiceProvider.GetRequiredService<IUserCollection>();
@@ -112,7 +112,7 @@ namespace Horde.Server.Tests
 		public MongoService MongoService => ServiceProvider.GetRequiredService<MongoService>();
 		public ITemplateCollection TemplateCollection => ServiceProvider.GetRequiredService<ITemplateCollection>();
 		internal PerforceServiceStub PerforceService => (PerforceServiceStub)ServiceProvider.GetRequiredService<IPerforceService>();
-		public ILogFileService LogFileService => ServiceProvider.GetRequiredService<ILogFileService>();
+		public ILogService LogService => ServiceProvider.GetRequiredService<ILogService>();
 		public ISubscriptionCollection SubscriptionCollection => ServiceProvider.GetRequiredService<ISubscriptionCollection>();
 		public INotificationService NotificationService => ServiceProvider.GetRequiredService<INotificationService>();
 		public IssueService IssueService => ServiceProvider.GetRequiredService<IssueService>();
@@ -223,7 +223,7 @@ namespace Horde.Server.Tests
 			services.AddSingleton<IJobTimingCollection, JobTimingCollection>();
 			services.AddSingleton<ILeaseCollection, LeaseCollection>();
 			services.AddSingleton<ILogEventCollection, LogEventCollection>();
-			services.AddSingleton<ILogFileCollection, LogFileCollection>();
+			services.AddSingleton<ILogCollection, LogCollection>();
 			services.AddSingleton<INotificationTriggerCollection, NotificationTriggerCollection>();
 			services.AddSingleton<IPoolCollection, PoolCollection>();
 			services.AddSingleton<IBisectTaskCollection, BisectTaskCollection>();
@@ -267,7 +267,7 @@ namespace Horde.Server.Tests
 			services.AddSingleton<JobExpirationService>();
 			services.AddSingleton<LifetimeService>();
 			services.AddSingleton<ILogStorage, NullLogStorage>();
-			services.AddSingleton<ILogFileService, LogFileService>();
+			services.AddSingleton<ILogService, LogService>();
 			services.AddSingleton<LogTailService>();
 			services.AddSingleton<INotificationService, NotificationService>();
 			services.AddSingleton<IPerforceService, PerforceServiceStub>();

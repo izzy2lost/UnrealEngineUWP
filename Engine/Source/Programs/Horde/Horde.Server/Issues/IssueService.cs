@@ -203,7 +203,7 @@ namespace Horde.Server.Issues
 		readonly ICommitService _commitService;
 		readonly IStreamCollection _streams;
 		readonly IUserCollection _userCollection;
-		readonly ILogFileService _logFileService;
+		readonly ILogService _logService;
 		readonly IClock _clock;
 		readonly ITicker _ticker;
 
@@ -255,7 +255,7 @@ namespace Horde.Server.Issues
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public IssueService(IIssueCollection issueCollection, ICommitService commitService, IJobStepRefCollection jobStepRefs, IStreamCollection streams, IUserCollection userCollection, ILogFileService logFileService, IClock clock, IOptionsMonitor<GlobalConfig> globalConfig, Tracer tracer, ILogger<IssueService> logger)
+		public IssueService(IIssueCollection issueCollection, ICommitService commitService, IJobStepRefCollection jobStepRefs, IStreamCollection streams, IUserCollection userCollection, ILogService logService, IClock clock, IOptionsMonitor<GlobalConfig> globalConfig, Tracer tracer, ILogger<IssueService> logger)
 		{
 			Type[] issueTypes = Assembly.GetExecutingAssembly().GetTypes().Where(x => !x.IsAbstract && typeof(IIssue).IsAssignableFrom(x)).ToArray();
 			foreach (Type issueType in issueTypes)
@@ -269,7 +269,7 @@ namespace Horde.Server.Issues
 			_jobStepRefs = jobStepRefs;
 			_streams = streams;
 			_userCollection = userCollection;
-			_logFileService = logFileService;
+			_logService = logService;
 			_clock = clock;
 			_ticker = clock.AddTicker<IssueService>(TimeSpan.FromMinutes(1.0), TickAsync, logger);
 			_globalConfig = globalConfig;
@@ -679,8 +679,8 @@ namespace Horde.Server.Issues
 			}
 
 			// Find the log file for this step
-			ILogFile? logFile = await _logFileService.GetLogFileAsync(step.LogId.Value, CancellationToken.None);
-			if (logFile == null)
+			ILog? log = await _logService.GetLogAsync(step.LogId.Value, CancellationToken.None);
+			if (log == null)
 			{
 				throw new ArgumentException($"Unable to retrieve log {step.LogId}");
 			}
@@ -702,10 +702,10 @@ namespace Horde.Server.Issues
 			}
 
 			// Create all the issue definitions by passing each log event to the handlers in order until one attaches it to an issue
-			List<ILogEvent> stepEvents = await _logFileService.FindEventsAsync(logFile, cancellationToken: cancellationToken);
+			List<ILogEvent> stepEvents = await _logService.FindEventsAsync(log, cancellationToken: cancellationToken);
 			foreach (ILogEvent stepEvent in stepEvents)
 			{
-				ILogEventData stepEventData = await _logFileService.GetEventDataAsync(logFile, stepEvent.LineIndex, stepEvent.LineCount, cancellationToken);
+				ILogEventData stepEventData = await _logService.GetEventDataAsync(log, stepEvent.LineIndex, stepEvent.LineCount, cancellationToken);
 
 				IssueEventInternal issueEvent = new IssueEventInternal(stepEvent, stepEventData);
 				foreach (IssueHandler handler in handlers)
@@ -809,7 +809,7 @@ namespace Horde.Server.Issues
 						}
 
 						// Assign all the events to the span
-						await _logFileService.AddSpanToEventsAsync(matchEventGroups.SelectMany(x => x.Events.Select(x => x.Event)), newSpan.Id, cancellationToken);
+						await _logService.AddSpanToEventsAsync(matchEventGroups.SelectMany(x => x.Events.Select(x => x.Event)), newSpan.Id, cancellationToken);
 
 						// Remove the matches from the set of events
 						newEventGroups.ExceptWith(matchEventGroups);
@@ -907,7 +907,7 @@ namespace Horde.Server.Issues
 
 				// Update the log events
 				_logger.LogDebug("Created new span {SpanId} from event group {Group}", newSpan.Id, eventGroup.Id.ToString());
-				await _logFileService.AddSpanToEventsAsync(eventGroup.Events.Select(x => x.Event), newSpan.Id, cancellationToken);
+				await _logService.AddSpanToEventsAsync(eventGroup.Events.Select(x => x.Event), newSpan.Id, cancellationToken);
 
 				// Remove the events from the remaining list of events to match
 				newEventGroups.ExceptWith(sourceEventGroups);

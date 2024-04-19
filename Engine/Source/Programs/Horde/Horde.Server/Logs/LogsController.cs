@@ -52,7 +52,7 @@ namespace Horde.Server.Logs
 	[Route("[controller]")]
 	public class LogsController : ControllerBase
 	{
-		private readonly ILogFileService _logFileService;
+		private readonly ILogService _logService;
 		private readonly IIssueCollection _issueCollection;
 		private readonly JobService _jobService;
 		private readonly StorageService _storageService;
@@ -61,9 +61,9 @@ namespace Horde.Server.Logs
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public LogsController(ILogFileService logFileService, IIssueCollection issueCollection, JobService jobService, StorageService storageService, IOptionsSnapshot<GlobalConfig> globalConfig)
+		public LogsController(ILogService logService, IIssueCollection issueCollection, JobService jobService, StorageService storageService, IOptionsSnapshot<GlobalConfig> globalConfig)
 		{
-			_logFileService = logFileService;
+			_logService = logService;
 			_issueCollection = issueCollection;
 			_jobService = jobService;
 			_storageService = storageService;
@@ -73,37 +73,37 @@ namespace Horde.Server.Logs
 		/// <summary>
 		/// Retrieve metadata about a specific log file
 		/// </summary>
-		/// <param name="logFileId">Id of the log file to get information about</param>
+		/// <param name="logId">Id of the log file to get information about</param>
 		/// <param name="filter">Filter for the properties to return</param>
 		/// <param name="cancellationToken">Cancellation token for the request</param>
 		/// <returns>Information about the requested project</returns>
 		[HttpGet]
-		[Route("/api/v1/logs/{logFileId}")]
+		[Route("/api/v1/logs/{logId}")]
 		[ProducesResponseType(typeof(GetLogResponse), 200)]
-		public async Task<ActionResult<object>> GetLogAsync(LogId logFileId, [FromQuery] PropertyFilter? filter = null, CancellationToken cancellationToken = default)
+		public async Task<ActionResult<object>> GetLogAsync(LogId logId, [FromQuery] PropertyFilter? filter = null, CancellationToken cancellationToken = default)
 		{
-			ILogFile? logFile = await _logFileService.GetLogFileAsync(logFileId, cancellationToken);
-			if (logFile == null)
+			ILog? log = await _logService.GetLogAsync(logId, cancellationToken);
+			if (log == null)
 			{
 				return NotFound();
 			}
-			if (!await AuthorizeAsync(logFile, LogAclAction.ViewLog, User, cancellationToken))
+			if (!await AuthorizeAsync(log, LogAclAction.ViewLog, User, cancellationToken))
 			{
 				return Forbid();
 			}
 
-			LogMetadata metadata = await _logFileService.GetMetadataAsync(logFile, cancellationToken);
-			return CreateGetLogFileResponse(logFile, metadata).ApplyFilter(filter);
+			LogMetadata metadata = await _logService.GetMetadataAsync(log, cancellationToken);
+			return CreateGetLogResponse(log, metadata).ApplyFilter(filter);
 		}
 
-		static GetLogResponse CreateGetLogFileResponse(ILogFile logFile, LogMetadata metadata)
+		static GetLogResponse CreateGetLogResponse(ILog log, LogMetadata metadata)
 		{
 			GetLogResponse response = new GetLogResponse();
-			response.Id = logFile.Id;
-			response.JobId = logFile.JobId;
-			response.LeaseId = logFile.LeaseId;
-			response.SessionId = logFile.SessionId;
-			response.Type = logFile.Type;
+			response.Id = log.Id;
+			response.JobId = log.JobId;
+			response.LeaseId = log.LeaseId;
+			response.SessionId = log.SessionId;
+			response.Type = log.Type;
 			response.LineCount = metadata.MaxLineIndex;
 			return response;
 		}
@@ -111,21 +111,21 @@ namespace Horde.Server.Logs
 		/// <summary>
 		/// Uploads a blob for a log file. See /api/v1/storage/XXX/blobs.
 		/// </summary>
-		/// <param name="logFileId">Id of the log file to get information about</param>
+		/// <param name="logId">Id of the log file to get information about</param>
 		/// <param name="request">Request for the upload</param>
 		/// <param name="cancellationToken">Cancellation token for the request</param>
 		/// <returns>Information about the requested project</returns>
 		[HttpPost]
-		[Route("/api/v1/logs/{logFileId}/blobs")]
+		[Route("/api/v1/logs/{logId}/blobs")]
 		[ProducesResponseType(typeof(WriteBlobResponse), 200)]
-		public async Task<ActionResult<WriteBlobResponse>> WriteLogBlobAsync(LogId logFileId, WriteBlobRequest request, CancellationToken cancellationToken = default)
+		public async Task<ActionResult<WriteBlobResponse>> WriteLogBlobAsync(LogId logId, WriteBlobRequest request, CancellationToken cancellationToken = default)
 		{
-			ILogFile? logFile = await _logFileService.GetLogFileAsync(logFileId, cancellationToken);
-			if (logFile == null)
+			ILog? log = await _logService.GetLogAsync(logId, cancellationToken);
+			if (log == null)
 			{
 				return NotFound();
 			}
-			if (!await AuthorizeAsync(logFile, LogAclAction.WriteLogData, User, cancellationToken))
+			if (!await AuthorizeAsync(log, LogAclAction.WriteLogData, User, cancellationToken))
 			{
 				return Forbid();
 			}
@@ -134,7 +134,7 @@ namespace Horde.Server.Logs
 				return BadRequest("Cannot specify prefix for logs");
 			}
 
-			request.Prefix = $"{logFile.RefName}";
+			request.Prefix = $"{log.RefName}";
 
 			IStorageBackend storageBackend = _storageService.CreateBackend(Namespace.Logs);
 			return await StorageController.WriteBlobAsync(storageBackend, request, cancellationToken);
@@ -143,69 +143,69 @@ namespace Horde.Server.Logs
 		/// <summary>
 		/// Retrieve raw data for a log file
 		/// </summary>
-		/// <param name="logFileId">Id of the log file to get information about</param>
+		/// <param name="logId">Id of the log file to get information about</param>
 		/// <param name="format">Format for the returned data</param>
 		/// <param name="fileName">Name of the default filename to download</param>
 		/// <param name="download">Whether to download the file rather than display in the browser</param>
 		/// <param name="cancellationToken">Cancellation token for the request</param>
 		/// <returns>Raw log data for the requested range</returns>
 		[HttpGet]
-		[Route("/api/v1/logs/{logFileId}/data")]
+		[Route("/api/v1/logs/{logId}/data")]
 		public async Task<ActionResult> GetLogDataAsync(
-			LogId logFileId,
+			LogId logId,
 			[FromQuery] LogOutputFormat format = LogOutputFormat.Raw,
 			[FromQuery] string? fileName = null,
 			[FromQuery] bool download = false,
 			CancellationToken cancellationToken = default)
 		{
-			ILogFile? logFile = await _logFileService.GetLogFileAsync(logFileId, cancellationToken);
-			if (logFile == null)
+			ILog? log = await _logService.GetLogAsync(logId, cancellationToken);
+			if (log == null)
 			{
 				return NotFound();
 			}
-			if (!await AuthorizeAsync(logFile, LogAclAction.ViewLog, User, cancellationToken))
+			if (!await AuthorizeAsync(log, LogAclAction.ViewLog, User, cancellationToken))
 			{
 				return Forbid();
 			}
 
 			Func<Stream, ActionContext, Task> copyTask;
-			if (format == LogOutputFormat.Text && logFile.Type == LogType.Json)
+			if (format == LogOutputFormat.Text && log.Type == LogType.Json)
 			{
-				copyTask = (outputStream, context) => _logFileService.CopyPlainTextStreamAsync(logFile, outputStream, cancellationToken);
+				copyTask = (outputStream, context) => _logService.CopyPlainTextStreamAsync(log, outputStream, cancellationToken);
 			}
 			else
 			{
-				copyTask = (outputStream, context) => _logFileService.CopyRawStreamAsync(logFile, outputStream, cancellationToken);
+				copyTask = (outputStream, context) => _logService.CopyRawStreamAsync(log, outputStream, cancellationToken);
 			}
 
-			return new CustomFileCallbackResult(fileName ?? $"log-{logFileId}.txt", "text/plain", !download, copyTask);
+			return new CustomFileCallbackResult(fileName ?? $"log-{logId}.txt", "text/plain", !download, copyTask);
 		}
 
 		/// <summary>
-		/// Retrieve line data for a logfile
+		/// Retrieve line data for a log
 		/// </summary>
-		/// <param name="logFileId">Id of the log file to get information about</param>
+		/// <param name="logId">Id of the log file to get information about</param>
 		/// <param name="index">Index of the first line to retrieve</param>
 		/// <param name="count">Number of lines to retrieve</param>
 		/// <param name="cancellationToken">Cancellation token for the request</param>
 		/// <returns>Information about the requested project</returns>
 		[HttpGet]
-		[Route("/api/v1/logs/{logFileId}/lines")]
-		public async Task<ActionResult> GetLogLinesAsync(LogId logFileId, [FromQuery] int index = 0, [FromQuery] int count = 100, CancellationToken cancellationToken = default)
+		[Route("/api/v1/logs/{logId}/lines")]
+		public async Task<ActionResult> GetLogLinesAsync(LogId logId, [FromQuery] int index = 0, [FromQuery] int count = 100, CancellationToken cancellationToken = default)
 		{
-			ILogFile? logFile = await _logFileService.GetLogFileAsync(logFileId, cancellationToken);
-			if (logFile == null)
+			ILog? log = await _logService.GetLogAsync(logId, cancellationToken);
+			if (log == null)
 			{
 				return NotFound();
 			}
-			if (!await AuthorizeAsync(logFile, LogAclAction.ViewLog, User, cancellationToken))
+			if (!await AuthorizeAsync(log, LogAclAction.ViewLog, User, cancellationToken))
 			{
 				return Forbid();
 			}
 
-			LogMetadata metadata = await _logFileService.GetMetadataAsync(logFile, cancellationToken);
+			LogMetadata metadata = await _logService.GetMetadataAsync(log, cancellationToken);
 
-			List<Utf8String> lines = await _logFileService.ReadLinesAsync(logFile, index, count, cancellationToken);
+			List<Utf8String> lines = await _logService.ReadLinesAsync(log, index, count, cancellationToken);
 			using (MemoryStream stream = new MemoryStream(lines.Sum(x => x.Length) + (lines.Count * 20)))
 			{
 				stream.WriteByte((byte)'{');
@@ -213,7 +213,7 @@ namespace Horde.Server.Logs
 				stream.Write(Encoding.UTF8.GetBytes($"\"index\":{index},"));
 				stream.Write(Encoding.UTF8.GetBytes($"\"count\":{lines.Count},"));
 				stream.Write(Encoding.UTF8.GetBytes($"\"maxLineIndex\":{Math.Max(metadata.MaxLineIndex, index + lines.Count)},"));
-				stream.Write(Encoding.UTF8.GetBytes($"\"format\":{(logFile.Type == LogType.Json ? "\"JSON\"" : "\"TEXT\"")},"));
+				stream.Write(Encoding.UTF8.GetBytes($"\"format\":{(log.Type == LogType.Json ? "\"JSON\"" : "\"TEXT\"")},"));
 
 				stream.Write(Encoding.UTF8.GetBytes($"\"lines\":["));
 				stream.WriteByte((byte)'\n');
@@ -225,7 +225,7 @@ namespace Horde.Server.Logs
 					stream.WriteByte((byte)' ');
 					stream.WriteByte((byte)' ');
 
-					if (logFile.Type == LogType.Json)
+					if (log.Type == LogType.Json)
 					{
 						await stream.WriteAsync(line.Memory, cancellationToken);
 					}
@@ -255,7 +255,7 @@ namespace Horde.Server.Logs
 					stream.WriteByte((byte)'\n');
 				}
 
-				if (logFile.Type == LogType.Json)
+				if (log.Type == LogType.Json)
 				{
 					stream.Write(Encoding.UTF8.GetBytes($"]"));
 				}
@@ -273,68 +273,68 @@ namespace Horde.Server.Logs
 		/// <summary>
 		/// Search log data
 		/// </summary>
-		/// <param name="logFileId">Id of the log file to get information about</param>
+		/// <param name="logId">Id of the log file to get information about</param>
 		/// <param name="text">Text to search for</param>
 		/// <param name="firstLine">First line to search from</param>
 		/// <param name="count">Number of results to return</param>
 		/// <param name="cancellationToken">Cancellation token for the request</param>
 		/// <returns>Raw log data for the requested range</returns>
 		[HttpGet]
-		[Route("/api/v1/logs/{logFileId}/search")]
-		public async Task<ActionResult<SearchLogResponse>> SearchLogFileAsync(
-			LogId logFileId,
+		[Route("/api/v1/logs/{logId}/search")]
+		public async Task<ActionResult<SearchLogResponse>> SearchLogAsync(
+			LogId logId,
 			[FromQuery] string text,
 			[FromQuery] int firstLine = 0,
 			[FromQuery] int count = 5,
 			CancellationToken cancellationToken = default)
 		{
-			ILogFile? logFile = await _logFileService.GetLogFileAsync(logFileId, cancellationToken);
-			if (logFile == null)
+			ILog? log = await _logService.GetLogAsync(logId, cancellationToken);
+			if (log == null)
 			{
 				return NotFound();
 			}
-			if (!await AuthorizeAsync(logFile, LogAclAction.ViewLog, User, cancellationToken))
+			if (!await AuthorizeAsync(log, LogAclAction.ViewLog, User, cancellationToken))
 			{
 				return Forbid();
 			}
 
 			SearchLogResponse response = new SearchLogResponse();
 			response.Stats = new SearchStats();
-			response.Lines = await _logFileService.SearchLogDataAsync(logFile, text, firstLine, count, response.Stats, cancellationToken);
+			response.Lines = await _logService.SearchLogDataAsync(log, text, firstLine, count, response.Stats, cancellationToken);
 			return response;
 		}
 
 		/// <summary>
-		/// Retrieve events for a logfile
+		/// Retrieve events for a log
 		/// </summary>
-		/// <param name="logFileId">Id of the log file to get information about</param>
+		/// <param name="logId">Id of the log file to get information about</param>
 		/// <param name="index">Index of the first line to retrieve</param>
 		/// <param name="count">Number of lines to retrieve</param>
 		/// <param name="cancellationToken">Cancellation token for the request</param>
 		/// <returns>Information about the requested project</returns>
 		[HttpGet]
-		[Route("/api/v1/logs/{logFileId}/events")]
+		[Route("/api/v1/logs/{logId}/events")]
 		[ProducesResponseType(typeof(List<GetLogEventResponse>), 200)]
-		public async Task<ActionResult<List<GetLogEventResponse>>> GetEventsAsync(LogId logFileId, [FromQuery] int? index = null, [FromQuery] int? count = null, CancellationToken cancellationToken = default)
+		public async Task<ActionResult<List<GetLogEventResponse>>> GetEventsAsync(LogId logId, [FromQuery] int? index = null, [FromQuery] int? count = null, CancellationToken cancellationToken = default)
 		{
-			ILogFile? logFile = await _logFileService.GetLogFileAsync(logFileId, cancellationToken);
-			if (logFile == null)
+			ILog? log = await _logService.GetLogAsync(logId, cancellationToken);
+			if (log == null)
 			{
 				return NotFound();
 			}
-			if (!await AuthorizeAsync(logFile, LogAclAction.ViewLog, User, cancellationToken))
+			if (!await AuthorizeAsync(log, LogAclAction.ViewLog, User, cancellationToken))
 			{
 				return Forbid();
 			}
 
-			List<ILogEvent> logEvents = await _logFileService.FindEventsAsync(logFile, null, index, count, cancellationToken);
+			List<ILogEvent> logEvents = await _logService.FindEventsAsync(log, null, index, count, cancellationToken);
 
 			Dictionary<ObjectId, int?> spanIdToIssueId = new Dictionary<ObjectId, int?>();
 
 			List<GetLogEventResponse> responses = new List<GetLogEventResponse>();
 			foreach (ILogEvent logEvent in logEvents)
 			{
-				ILogEventData logEventData = await _logFileService.GetEventDataAsync(logFile, logEvent.LineIndex, logEvent.LineCount, cancellationToken);
+				ILogEventData logEventData = await _logService.GetEventDataAsync(log, logEvent.LineIndex, logEvent.LineCount, cancellationToken);
 
 				int? issueId = null;
 				if (logEvent.SpanId != null && !spanIdToIssueId.TryGetValue(logEvent.SpanId.Value, out issueId))
@@ -370,31 +370,31 @@ namespace Horde.Server.Logs
 		/// <summary>
 		/// Determines if the user is authorized to perform an action on a particular template
 		/// </summary>
-		/// <param name="logFile">The template to check</param>
+		/// <param name="log">The template to check</param>
 		/// <param name="action">The action being performed</param>
 		/// <param name="user">The principal to authorize</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>True if the action is authorized</returns>
-		async Task<bool> AuthorizeAsync(ILogFile logFile, AclAction action, ClaimsPrincipal user, CancellationToken cancellationToken)
+		async Task<bool> AuthorizeAsync(ILog log, AclAction action, ClaimsPrincipal user, CancellationToken cancellationToken)
 		{
 			GlobalConfig globalConfig = _globalConfig.Value;
 			if (user.HasAdminClaim())
 			{
 				return true;
 			}
-			if (logFile.LeaseId != null && user.HasLeaseClaim(logFile.LeaseId.Value))
+			if (log.LeaseId != null && user.HasLeaseClaim(log.LeaseId.Value))
 			{
 				return true;
 			}
-			if (logFile.SessionId != null && LogFileService.AuthorizeForSession(logFile, user))
+			if (log.SessionId != null && LogService.AuthorizeForSession(log, user))
 			{
 				return true;
 			}
-			if (logFile.JobId != JobId.Empty && await _jobService.AuthorizeAsync(logFile.JobId, action, user, globalConfig, cancellationToken))
+			if (log.JobId != JobId.Empty && await _jobService.AuthorizeAsync(log.JobId, action, user, globalConfig, cancellationToken))
 			{
 				return true;
 			}
-			if (action == LogAclAction.ViewLog && logFile.SessionId != null && globalConfig.Authorize(SessionAclAction.ViewSession, user))
+			if (action == LogAclAction.ViewLog && log.SessionId != null && globalConfig.Authorize(SessionAclAction.ViewSession, user))
 			{
 				return true;
 			}

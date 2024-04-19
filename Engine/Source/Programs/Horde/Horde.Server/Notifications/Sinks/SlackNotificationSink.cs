@@ -214,7 +214,7 @@ namespace Horde.Server.Notifications.Sinks
 		readonly RedisService _redisService;
 		readonly IssueService _issueService;
 		readonly IUserCollection _userCollection;
-		readonly ILogFileService _logFileService;
+		readonly ILogService _logService;
 		readonly IWebHostEnvironment _environment;
 		readonly ServerSettings _settings;
 		readonly IMongoCollection<MessageStateDocument> _messageStates;
@@ -246,12 +246,12 @@ namespace Horde.Server.Notifications.Sinks
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public SlackNotificationSink(MongoService mongoService, RedisService redisService, IssueService issueService, IUserCollection userCollection, ILogFileService logFileService, IExternalIssueService externalIssueService, IWebHostEnvironment environment, IOptions<ServerSettings> settings, IClock clock, IOptionsMonitor<GlobalConfig> globalConfig, ILogger<SlackNotificationSink> logger)
+		public SlackNotificationSink(MongoService mongoService, RedisService redisService, IssueService issueService, IUserCollection userCollection, ILogService logService, IExternalIssueService externalIssueService, IWebHostEnvironment environment, IOptions<ServerSettings> settings, IClock clock, IOptionsMonitor<GlobalConfig> globalConfig, ILogger<SlackNotificationSink> logger)
 		{
 			_redisService = redisService;
 			_issueService = issueService;
 			_userCollection = userCollection;
-			_logFileService = logFileService;
+			_logService = logService;
 			_externalIssueService = externalIssueService;
 			_environment = environment;
 			_settings = settings.Value;
@@ -1014,10 +1014,10 @@ namespace Horde.Server.Notifications.Sinks
 				if (span.FirstFailure.LogId != null)
 				{
 					LogId logId = span.FirstFailure.LogId.Value;
-					ILogFile? logFile = await _logFileService.GetLogFileAsync(logId, cancellationToken);
-					if (logFile != null)
+					ILog? log = await _logService.GetLogAsync(logId, cancellationToken);
+					if (log != null)
 					{
-						events = await _logFileService.FindEventsAsync(logFile, span.Id, 0, 50, cancellationToken);
+						events = await _logService.FindEventsAsync(log, span.Id, 0, 50, cancellationToken);
 						if (events.Any(x => x.Severity == LogEventSeverity.Error))
 						{
 							events.RemoveAll(x => x.Severity == LogEventSeverity.Warning);
@@ -1026,7 +1026,7 @@ namespace Horde.Server.Notifications.Sinks
 						List<string> eventStrings = new List<string>();
 						for (int idx = 0; idx < Math.Min(events.Count, 3); idx++)
 						{
-							ILogEventData data = await _logFileService.GetEventDataAsync(logFile, events[idx].LineIndex, events[idx].LineCount, cancellationToken);
+							ILogEventData data = await _logService.GetEventDataAsync(log, events[idx].LineIndex, events[idx].LineCount, cancellationToken);
 							eventDataItems.Add(data);
 						}
 					}
@@ -1450,10 +1450,10 @@ namespace Horde.Server.Notifications.Sinks
 			if (lastSpan != null && lastSpan.LastFailure.LogId != null)
 			{
 				LogId logId = lastSpan.LastFailure.LogId.Value;
-				ILogFile? logFile = await _logFileService.GetLogFileAsync(logId, cancellationToken);
-				if (logFile != null)
+				ILog? log = await _logService.GetLogAsync(logId, cancellationToken);
+				if (log != null)
 				{
-					List<ILogEvent> events = await _logFileService.FindEventsAsync(logFile, lastSpan.Id, 0, 20, cancellationToken);
+					List<ILogEvent> events = await _logService.FindEventsAsync(log, lastSpan.Id, 0, 20, cancellationToken);
 					if (events.Any(x => x.Severity == LogEventSeverity.Error))
 					{
 						events.RemoveAll(x => x.Severity == LogEventSeverity.Warning);
@@ -1461,7 +1461,7 @@ namespace Horde.Server.Notifications.Sinks
 
 					for (int idx = 0; idx < Math.Min(events.Count, 3); idx++)
 					{
-						ILogEventData data = await _logFileService.GetEventDataAsync(logFile, events[idx].LineIndex, events[idx].LineCount, cancellationToken);
+						ILogEventData data = await _logService.GetEventDataAsync(log, events[idx].LineIndex, events[idx].LineCount, cancellationToken);
 						attachment.AddSection(QuoteText(data.Message));
 					}
 					if (events.Count > 3)

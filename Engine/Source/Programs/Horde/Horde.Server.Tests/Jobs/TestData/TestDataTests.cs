@@ -123,7 +123,7 @@ namespace Horde.Server.Tests.Jobs.TestData
 				{
 					JobStepId stepId = new JobStepId((ushort)((groupIdx * 100) + nodeIdx));
 
-					ILogFile logFile = LogFileService.CreateLogFileAsync(jobId, null, null, LogType.Json).Result;
+					ILog logFile = LogService.CreateLogAsync(jobId, null, null, LogType.Json).Result;
 
 					Mock<IJobStep> step = new Mock<IJobStep>(MockBehavior.Strict);
 					step.SetupGet(x => x.Id).Returns(stepId);

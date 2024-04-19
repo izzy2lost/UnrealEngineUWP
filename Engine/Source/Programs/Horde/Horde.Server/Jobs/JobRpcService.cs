@@ -245,7 +245,7 @@ namespace Horde.Server.Jobs
 	{
 		readonly JobService _jobService;
 		readonly IArtifactCollectionV1 _artifactCollection;
-		readonly ILogFileService _logFileService;
+		readonly ILogService _logService;
 		readonly IGraphCollection _graphs;
 		readonly ITestDataCollection _testData;
 		readonly IJobStepRefCollection _jobStepRefCollection;
@@ -258,11 +258,11 @@ namespace Horde.Server.Jobs
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public JobRpcCommon(JobService jobService, IArtifactCollectionV1 artifactCollection, ILogFileService logFileService, IGraphCollection graphs, ITestDataCollection testData, IJobStepRefCollection jobStepRefCollection, ITemplateCollection templateCollection, HttpClient httpClient, IClock clock, IOptionsSnapshot<GlobalConfig> globalConfig, ILogger<JobRpcCommon> logger)
+		public JobRpcCommon(JobService jobService, IArtifactCollectionV1 artifactCollection, ILogService logService, IGraphCollection graphs, ITestDataCollection testData, IJobStepRefCollection jobStepRefCollection, ITemplateCollection templateCollection, HttpClient httpClient, IClock clock, IOptionsSnapshot<GlobalConfig> globalConfig, ILogger<JobRpcCommon> logger)
 		{
 			_jobService = jobService;
 			_artifactCollection = artifactCollection;
-			_logFileService = logFileService;
+			_logService = logService;
 			_graphs = graphs;
 			_testData = testData;
 			_jobStepRefCollection = jobStepRefCollection;
@@ -427,7 +427,7 @@ namespace Horde.Server.Jobs
 		/// <returns>Information about the new agent</returns>
 		public async Task<RpcBeginStepResponse> BeginStepAsync(RpcBeginStepRequest request, ServerCallContext context)
 		{
-			Boxed<ILogFile?> log = new Boxed<ILogFile?>(null);
+			Boxed<ILog?> log = new Boxed<ILog?>(null);
 			for (; ; )
 			{
 				RpcBeginStepResponse? response = await TryBeginStepAsync(request, log, context);
@@ -438,7 +438,7 @@ namespace Horde.Server.Jobs
 			}
 		}
 
-		async Task<RpcBeginStepResponse?> TryBeginStepAsync(RpcBeginStepRequest request, Boxed<ILogFile?> log, ServerCallContext context)
+		async Task<RpcBeginStepResponse?> TryBeginStepAsync(RpcBeginStepRequest request, Boxed<ILog?> log, ServerCallContext context)
 		{
 			// Check the job exists and we can access it
 			IJob? job = await _jobService.GetJobAsync(JobId.Parse(request.JobId));
@@ -487,7 +487,7 @@ namespace Horde.Server.Jobs
 			}
 
 			// Create a log file if necessary
-			log.Value ??= await _logFileService.CreateLogFileAsync(job.Id, batch.LeaseId, batch.SessionId, LogType.Json);
+			log.Value ??= await _logService.CreateLogAsync(job.Id, batch.LeaseId, batch.SessionId, LogType.Json);
 
 			// Get the node for this step
 			IGraph graph = await _jobService.GetGraphAsync(job);
@@ -898,7 +898,7 @@ namespace Horde.Server.Jobs
 				newEvent.LineCount = createEvent.LineCount;
 				newEvents.Add(newEvent);
 			}
-			await _logFileService.CreateEventsAsync(newEvents, context.CancellationToken);
+			await _logService.CreateEventsAsync(newEvents, context.CancellationToken);
 			return new Empty();
 		}
 

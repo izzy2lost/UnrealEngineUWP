@@ -500,7 +500,7 @@ namespace Horde.Server
 			services.AddSingleton<IJobTimingCollection, JobTimingCollection>();
 			services.AddSingleton<ILeaseCollection, LeaseCollection>();
 			services.AddSingleton<ILogEventCollection, LogEventCollection>();
-			services.AddSingleton<ILogFileCollection, LogFileCollection>();
+			services.AddSingleton<ILogCollection, LogCollection>();
 			services.AddSingleton<INotificationTriggerCollection, NotificationTriggerCollection>();
 			services.AddSingleton<IPoolCollection, PoolCollection>();
 			services.AddSingleton<IBisectTaskCollection, BisectTaskCollection>();
@@ -573,7 +573,7 @@ namespace Horde.Server
 			services.AddSingleton<EnrollmentService>();
 			services.AddSingleton<ServerStatusService>();
 			services.AddHostedService(provider => provider.GetRequiredService<ServerStatusService>());
-			services.AddSingleton<ILogFileService, LogFileService>();
+			services.AddSingleton<ILogService, LogService>();
 			services.AddSingleton<LogTailService>();
 			services.AddHostedService(provider => provider.GetRequiredService<LogTailService>()); // NB: Runs even on workers, to receive tail notifications.
 			services.AddSingleton<INotificationService, NotificationService>();

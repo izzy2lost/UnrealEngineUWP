@@ -21,8 +21,8 @@ namespace Horde.Server.Logs
 	[Authorize]
 	public class LogRpcService : LogRpc.LogRpcBase
 	{
-		readonly ILogFileService _logFileService;
-		readonly ILogFileCollection _logFileCollection;
+		readonly ILogService _logService;
+		readonly ILogCollection _logCollection;
 		readonly LogTailService _logTailService;
 		readonly StorageService _storageService;
 		readonly ILogger<LogRpcService> _logger;
@@ -30,10 +30,10 @@ namespace Horde.Server.Logs
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public LogRpcService(ILogFileService logFileService, ILogFileCollection logFileCollection, LogTailService logTailService, StorageService storageService, ILogger<LogRpcService> logger)
+		public LogRpcService(ILogService logService, ILogCollection logCollection, LogTailService logTailService, StorageService storageService, ILogger<LogRpcService> logger)
 		{
-			_logFileService = logFileService;
-			_logFileCollection = logFileCollection;
+			_logService = logService;
+			_logCollection = logCollection;
 			_logTailService = logTailService;
 			_storageService = storageService;
 			_logger = logger;
@@ -42,12 +42,12 @@ namespace Horde.Server.Logs
 		/// <inheritdoc/>
 		public override async Task<UpdateLogResponse> UpdateLog(UpdateLogRequest request, ServerCallContext context)
 		{
-			ILogFile? logFile = await _logFileService.GetLogFileAsync(LogId.Parse(request.LogId), context.CancellationToken);
-			if (logFile == null)
+			ILog? log = await _logService.GetLogAsync(LogId.Parse(request.LogId), context.CancellationToken);
+			if (log == null)
 			{
 				throw new StructuredRpcException(StatusCode.NotFound, "Resource not found");
 			}
-			if (!LogFileService.AuthorizeForSession(logFile, context.GetHttpContext().User))
+			if (!LogService.AuthorizeForSession(log, context.GetHttpContext().User))
 			{
 				throw new StructuredRpcException(StatusCode.PermissionDenied, "Access denied");
 			}
@@ -65,9 +65,9 @@ namespace Horde.Server.Logs
 			IBlobRef target = store.CreateBlobRef(hash, new BlobLocator(request.TargetLocator));
 			await store.WriteRefAsync(new RefName(request.LogId), target);
 
-			await _logFileCollection.UpdateLineCountAsync(logFile, request.LineCount, request.Complete, CancellationToken.None);
+			await _logCollection.UpdateLineCountAsync(log, request.LineCount, request.Complete, CancellationToken.None);
 
-			await _logTailService.FlushAsync(logFile.Id, request.LineCount);
+			await _logTailService.FlushAsync(log.Id, request.LineCount);
 
 			return new UpdateLogResponse();
 		}
