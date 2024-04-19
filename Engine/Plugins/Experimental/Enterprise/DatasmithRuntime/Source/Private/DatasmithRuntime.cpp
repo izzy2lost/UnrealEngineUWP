@@ -248,7 +248,7 @@ void ADatasmithRuntimeActor::OnCloseDelta()
 
 void ADatasmithRuntimeActor::ApplyNewScene()
 {
-	TRACE_BOOKMARK(TEXT("Load started - %s"), *SceneElement->GetName());
+	TRACE_BOOKMARK(TEXT("Load started - %s"), SceneElement->GetName());
 
 	UE_LOG(LogDatasmithRuntime, Log, TEXT("ADatasmithRuntimeActor::ApplyNewScene"));
 

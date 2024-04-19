@@ -581,7 +581,7 @@ namespace DatasmithRuntime
 				}
 			}
 
-			TRACE_BOOKMARK(TEXT("Load complete - %s"), *SceneElement->GetName());
+			TRACE_BOOKMARK(TEXT("Load complete - %s"), SceneElement->GetName());
 
 			OnGoingTasks.Empty();
 
