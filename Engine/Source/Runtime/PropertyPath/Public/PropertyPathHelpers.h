@@ -109,10 +109,6 @@ struct FCachedPropertyPath
 	/** */
 	PROPERTYPATH_API FCachedPropertyPath(const TArray<FString>& PathSegments);
 
-	/** Allows constructing a cached property path from the standard events of a PostEditChange Notify or Callback */
-	PROPERTYPATH_API FCachedPropertyPath(const FPropertyChangedChainEvent& PropertyChangedChainEvent);
-	PROPERTYPATH_API FCachedPropertyPath(const FPropertyChangedEvent& PropertyChangedEvent, const FEditPropertyChain& PropertyChain);
-
 	/** */
 	PROPERTYPATH_API ~FCachedPropertyPath();
 
@@ -122,15 +118,8 @@ struct FCachedPropertyPath
 	/** Make a new property path from a string */
 	PROPERTYPATH_API void MakeFromString(const FString& InPropertyPath);
 
-	/** Make a new property path from the chain of properties that come standard in PostEditPropertyChain events */
-	PROPERTYPATH_API void MakeFromChangeEvent(const FPropertyChangedChainEvent& PropertyChangedChainEvent);
-	PROPERTYPATH_API void MakeFromChangeEvent(const FPropertyChangedEvent& PropertyChangedEvent, const FEditPropertyChain& PropertyChain);
-
 	/** Make a copy which is unresolved */
 	static PROPERTYPATH_API FCachedPropertyPath MakeUnresolvedCopy(const FCachedPropertyPath& ToCopy);
-
-	/** Make a copy without the last segment, if the path is resolved, the new path is also resolved. */
-	PROPERTYPATH_API FCachedPropertyPath MakeParentPath() const;
 
 	/** @return Get the number of segments in this path */
 	PROPERTYPATH_API int32 GetNumSegments() const;
@@ -272,7 +261,7 @@ namespace PropertyPathHelpers
 	 * @param	OutValue		The string to write the properties value to
 	 * @return true if the property value was successfully copied
 	 */
-	PROPERTYPATH_API bool GetPropertyValueAsString(UObject* InContainer, const FString& InPropertyPath, FString& OutValue, uint32 PPF_Flags = PPF_None);
+	PROPERTYPATH_API bool GetPropertyValueAsString(UObject* InContainer, const FString& InPropertyPath, FString& OutValue);
 
 	/** 
 	 * Get the value represented by this property path as a string 
@@ -282,7 +271,7 @@ namespace PropertyPathHelpers
 	 * @param	OutProperty		The leaf property that the path resolved to
 	 * @return true if the property value was successfully copied
 	 */
-	PROPERTYPATH_API bool GetPropertyValueAsString(UObject* InContainer, const FString& InPropertyPath, FString& OutValue, FProperty*& OutProperty, uint32 PPF_Flags = PPF_None);
+	PROPERTYPATH_API bool GetPropertyValueAsString(UObject* InContainer, const FString& InPropertyPath, FString& OutValue, FProperty*& OutProperty);
 
 	/** 
 	 * Get the value represented by this property path as a string 
@@ -292,7 +281,7 @@ namespace PropertyPathHelpers
 	 * @param	OutValue		The string to write the properties value to
 	 * @return true if the property value was successfully copied
 	 */
-	PROPERTYPATH_API bool GetPropertyValueAsString(void* InContainer, UStruct* InStruct, const FString& InPropertyPath, FString& OutValue, uint32 PPF_Flags = PPF_None);
+	PROPERTYPATH_API bool GetPropertyValueAsString(void* InContainer, UStruct* InStruct, const FString& InPropertyPath, FString& OutValue);
 
 	/** 
 	 * Get the value represented by this property path as a string 
@@ -303,7 +292,7 @@ namespace PropertyPathHelpers
 	 * @param	OutProperty		The leaf property that the path resolved to
 	 * @return true if the property value was successfully copied
 	 */
-	PROPERTYPATH_API bool GetPropertyValueAsString(void* InContainer, UStruct* InStruct, const FString& InPropertyPath, FString& OutValue, FProperty*& OutProperty, uint32 PPF_Flags = PPF_None);
+	PROPERTYPATH_API bool GetPropertyValueAsString(void* InContainer, UStruct* InStruct, const FString& InPropertyPath, FString& OutValue, FProperty*& OutProperty);
 
 	/** 
 	 * Get the value represented by this property path as a string 
@@ -312,7 +301,7 @@ namespace PropertyPathHelpers
 	 * @param	OutValue		The string to write the properties value to
 	 * @return true if the property value was successfully copied
 	 */
-	PROPERTYPATH_API bool GetPropertyValueAsString(UObject* InContainer, const FCachedPropertyPath& InPropertyPath, FString& OutValue, uint32 PPF_Flags = PPF_None);
+	PROPERTYPATH_API bool GetPropertyValueAsString(UObject* InContainer, const FCachedPropertyPath& InPropertyPath, FString& OutValue);
 
 	/** 
 	 * Get the value represented by this property path as a string 
@@ -322,7 +311,7 @@ namespace PropertyPathHelpers
 	 * @param	OutValue		The string to write the properties value to
 	 * @return true if the property value was successfully copied
 	 */
-	PROPERTYPATH_API bool GetPropertyValueAsString(void* InContainer, UStruct* InStruct, const FCachedPropertyPath& InPropertyPath, FString& OutValue, uint32 PPF_Flags = PPF_None);
+	PROPERTYPATH_API bool GetPropertyValueAsString(void* InContainer, UStruct* InStruct, const FCachedPropertyPath& InPropertyPath, FString& OutValue);
 
 	/** 
 	 * Set the value represented by this property path from a string 
@@ -331,7 +320,7 @@ namespace PropertyPathHelpers
 	 * @param	InValue			The string to read the properties value from
 	 * @return true if the property value was successfully copied
 	 */
-	PROPERTYPATH_API bool SetPropertyValueFromString(UObject* InContainer, const FString& InPropertyPath, const FString& InValue, uint32 PPF_Flags = PPF_None);
+	PROPERTYPATH_API bool SetPropertyValueFromString(UObject* InContainer, const FString& InPropertyPath, const FString& InValue);
 
 	/** 
 	 * Set the value represented by this property path from a string 
@@ -340,7 +329,7 @@ namespace PropertyPathHelpers
 	 * @param	InValue			The string to read the properties value from
 	 * @return true if the property value was successfully copied
 	 */
-	PROPERTYPATH_API bool SetPropertyValueFromString(UObject* InContainer, const FCachedPropertyPath& InPropertyPath, const FString& InValue, uint32 PPF_Flags = PPF_None);
+	PROPERTYPATH_API bool SetPropertyValueFromString(UObject* InContainer, const FCachedPropertyPath& InPropertyPath, const FString& InValue);
 
 	/** 
 	 * Set the value represented by this property path from a string 
@@ -350,7 +339,7 @@ namespace PropertyPathHelpers
 	 * @param	InValue			The string to read the properties value from
 	 * @return true if the property value was successfully copied
 	 */
-	PROPERTYPATH_API bool SetPropertyValueFromString(void* InContainer, UStruct* InStruct, const FString& InPropertyPath, const FString& InValue, uint32 PPF_Flags = PPF_None);
+	PROPERTYPATH_API bool SetPropertyValueFromString(void* InContainer, UStruct* InStruct, const FString& InPropertyPath, const FString& InValue);
 
 	/** 
 	 * Set the value represented by this property path from a string 
@@ -360,7 +349,7 @@ namespace PropertyPathHelpers
 	 * @param	InValue			The string to read the properties value from
 	 * @return true if the property value was successfully copied
 	 */
-	PROPERTYPATH_API bool SetPropertyValueFromString(void* InContainer, UStruct* InStruct, const FCachedPropertyPath& InPropertyPath, const FString& InValue, uint32 PPF_Flags = PPF_None);
+	PROPERTYPATH_API bool SetPropertyValueFromString(void* InContainer, UStruct* InStruct, const FCachedPropertyPath& InPropertyPath, const FString& InValue);
 
 	/** 
 	 * Get the value represented by this property path. forcing the use of cached addresses whether or

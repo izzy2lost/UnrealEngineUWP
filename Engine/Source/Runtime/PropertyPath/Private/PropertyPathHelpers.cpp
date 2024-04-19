@@ -157,7 +157,7 @@ namespace PropertyPathHelpersInternal
 	template<typename ContainerType>
 	struct FCallGetterFunctionAsStringHelper
 	{
-		static bool CallGetterFunction(ContainerType* InContainer, UFunction* InFunction, FString& OutValue, uint32 PPF_Flags)
+		static bool CallGetterFunction(ContainerType* InContainer, UFunction* InFunction, FString& OutValue) 
 		{
 			// Cant call UFunctions on non-UObject containers
 			return false;
@@ -168,7 +168,7 @@ namespace PropertyPathHelpersInternal
 	template<>
 	struct FCallGetterFunctionAsStringHelper<UObject>
 	{
-		static bool CallGetterFunction(UObject* InContainer, UFunction* InFunction, FString& OutValue, uint32 PPF_Flags)
+		static bool CallGetterFunction(UObject* InContainer, UFunction* InFunction, FString& OutValue) 
 		{
 			// We only support calling functions that return a single value and take no parameters.
 			if ( InFunction->NumParms == 1 )
@@ -184,7 +184,7 @@ namespace PropertyPathHelpersInternal
 						ReturnProperty->InitializeValue(TempBuffer.GetData());
 
 						InContainer->ProcessEvent(InFunction, TempBuffer.GetData());
-						ReturnProperty->ExportTextItem_Direct(OutValue, TempBuffer.GetData(), nullptr, nullptr, PPF_Flags);
+						ReturnProperty->ExportTextItem_Direct(OutValue, TempBuffer.GetData(), nullptr, nullptr, 0);
 						return true;
 					}
 				}
@@ -195,7 +195,7 @@ namespace PropertyPathHelpersInternal
 	};
 
 	template<typename ContainerType>
-	static bool GetPropertyValueAsString(ContainerType* InContainer, const FCachedPropertyPath& InPropertyPath, FProperty*& OutProperty, FString& OutValue, uint32 PPF_Flags)
+	static bool GetPropertyValueAsString(ContainerType* InContainer, const FCachedPropertyPath& InPropertyPath, FProperty*& OutProperty, FString& OutValue)
 	{
 		const FPropertyPathSegment& LastSegment = InPropertyPath.GetLastSegment();
 		int32 ArrayIndex = LastSegment.GetArrayIndex();
@@ -213,7 +213,7 @@ namespace PropertyPathHelpersInternal
 				if ( ArrayHelper.IsValidIndex(ArrayIndex) )
 				{
 					OutProperty = ArrayProp->Inner;
-					OutProperty->ExportTextItem_Direct(OutValue, static_cast<void*>(ArrayHelper.GetRawPtr(ArrayIndex)), nullptr, nullptr, PPF_Flags);
+					OutProperty->ExportTextItem_Direct(OutValue, static_cast<void*>(ArrayHelper.GetRawPtr(ArrayIndex)), nullptr, nullptr, 0);
 					return true;
 				}
 			}
@@ -223,14 +223,14 @@ namespace PropertyPathHelpersInternal
 				if ( !!ArrayProp->ContainerPtrToValuePtr<void>(InContainer) )
 				{
 					OutProperty = ArrayProp;
-					OutProperty->ExportTextItem_InContainer(OutValue, InContainer, nullptr, nullptr, PPF_Flags);
+					OutProperty->ExportTextItem_InContainer(OutValue, InContainer, nullptr, nullptr, 0);
 					return true;
 				}
 			}
 		}
 		else if(UFunction* Function = Field.Get<UFunction>())
 		{
-			return FCallGetterFunctionAsStringHelper<ContainerType>::CallGetterFunction(InContainer, Function, OutValue, PPF_Flags);
+			return FCallGetterFunctionAsStringHelper<ContainerType>::CallGetterFunction(InContainer, Function, OutValue);
 		}
 		else if(FProperty* Property = Field.Get<FProperty>())
 		{
@@ -240,7 +240,7 @@ namespace PropertyPathHelpersInternal
 				if ( void* ValuePtr = Property->ContainerPtrToValuePtr<void>(InContainer, ArrayIndex) )
 				{
 					OutProperty = Property;
-					OutProperty->ExportTextItem_Direct(OutValue, ValuePtr, nullptr, nullptr, PPF_Flags);
+					OutProperty->ExportTextItem_Direct(OutValue, ValuePtr, nullptr, nullptr, 0);
 					return true;
 				}
 			}
@@ -253,7 +253,7 @@ namespace PropertyPathHelpersInternal
 	template<typename ContainerType>
 	struct FCallSetterFunctionFromStringHelper
 	{
-		static bool CallSetterFunction(ContainerType* InContainer, UFunction* InFunction, const FString& InValue, uint32 PPF_Flags)
+		static bool CallSetterFunction(ContainerType* InContainer, UFunction* InFunction, const FString& InValue)
 		{
 			// Cant call UFunctions on non-UObject containers
 			return false;
@@ -264,7 +264,7 @@ namespace PropertyPathHelpersInternal
 	template<>
 	struct FCallSetterFunctionFromStringHelper<UObject>
 	{
-		static bool CallSetterFunction(UObject* InContainer, UFunction* InFunction, const FString& InValue, uint32 PPF_Flags)
+		static bool CallSetterFunction(UObject* InContainer, UFunction* InFunction, const FString& InValue)
 		{
 			// We only support calling functions that take a single value and return no parameters
 			if ( InFunction->NumParms == 1 && InFunction->GetReturnProperty() == nullptr )
@@ -279,7 +279,7 @@ namespace PropertyPathHelpersInternal
 						TempBuffer.AddUninitialized(ParamProperty->ElementSize);
 						ParamProperty->InitializeValue(TempBuffer.GetData());
 
-						ParamProperty->ImportText_Direct(*InValue, TempBuffer.GetData(), nullptr, PPF_Flags);
+						ParamProperty->ImportText_Direct(*InValue, TempBuffer.GetData(), nullptr, 0);
 						InContainer->ProcessEvent(InFunction, TempBuffer.GetData());
 						return true;
 					}
@@ -291,7 +291,7 @@ namespace PropertyPathHelpersInternal
 	};
 
 	template<typename ContainerType>
-	static bool SetPropertyValueFromString(ContainerType* InContainer, const FCachedPropertyPath& InPropertyPath, const FString& InValue, uint32 PPF_Flags)
+	static bool SetPropertyValueFromString(ContainerType* InContainer, const FCachedPropertyPath& InPropertyPath, const FString& InValue)
 	{
 		const FPropertyPathSegment& LastSegment = InPropertyPath.GetLastSegment();
 		int32 ArrayIndex = LastSegment.GetArrayIndex();
@@ -308,7 +308,7 @@ namespace PropertyPathHelpersInternal
 				FScriptArrayHelper_InContainer ArrayHelper(ArrayProp, InContainer);
 				if ( ArrayHelper.IsValidIndex(ArrayIndex) )
 				{
-					ArrayProp->Inner->ImportText_Direct(*InValue, static_cast<void*>(ArrayHelper.GetRawPtr(ArrayIndex)), nullptr, PPF_Flags);
+					ArrayProp->Inner->ImportText_Direct(*InValue, static_cast<void*>(ArrayHelper.GetRawPtr(ArrayIndex)), nullptr, 0);
 					return true;
 				}
 			}
@@ -317,14 +317,14 @@ namespace PropertyPathHelpersInternal
 				// No index, so assume we want the array property itself
 				if ( !!ArrayProp->ContainerPtrToValuePtr<void>(InContainer) )
 				{
-					ArrayProp->ImportText_InContainer(*InValue, InContainer, nullptr, PPF_Flags);
+					ArrayProp->ImportText_InContainer(*InValue, InContainer, nullptr, 0);
 					return true;
 				}
 			}
 		}
 		else if(UFunction* Function = Field.Get<UFunction>())
 		{
-			return FCallSetterFunctionFromStringHelper<ContainerType>::CallSetterFunction(InContainer, Function, InValue, PPF_Flags);
+			return FCallSetterFunctionFromStringHelper<ContainerType>::CallSetterFunction(InContainer, Function, InValue);
 		}
 		else if(FProperty* Property = Field.Get<FProperty>())
 		{
@@ -333,7 +333,7 @@ namespace PropertyPathHelpersInternal
 			{
 				if ( void* ValuePtr = Property->ContainerPtrToValuePtr<void>(InContainer, ArrayIndex) )
 				{
-					Property->ImportText_Direct(*InValue, ValuePtr, nullptr, PPF_Flags);
+					Property->ImportText_Direct(*InValue, ValuePtr, nullptr, 0);
 					return true;
 				}
 			}
@@ -783,28 +783,6 @@ FCachedPropertyPath::FCachedPropertyPath(const FPropertyPathSegment& Segment)
 	Segments.Add(Segment);
 }
 
-FCachedPropertyPath::FCachedPropertyPath(const FPropertyChangedChainEvent& PropertyChangedChainEvent)
-	: CachedAddress(nullptr)
-	, CachedFunction(nullptr)
-	, CachedContainer(nullptr)
-	, CachedLastContainerInPath(nullptr)
-	, CachedLastContainerInPathIndex(INDEX_NONE)
-	, bCanSafelyUsedCachedAddress(false)
-{
-	MakeFromChangeEvent(PropertyChangedChainEvent);
-}
-
-FCachedPropertyPath::FCachedPropertyPath(const FPropertyChangedEvent& PropertyChangedEvent, const FEditPropertyChain& PropertyChain)
-	: CachedAddress(nullptr)
-	, CachedFunction(nullptr)
-	, CachedContainer(nullptr)
-	, CachedLastContainerInPath(nullptr)
-	, CachedLastContainerInPathIndex(INDEX_NONE)
-	, bCanSafelyUsedCachedAddress(false)
-{
-	MakeFromChangeEvent(PropertyChangedEvent, PropertyChain);
-}
-
 FCachedPropertyPath::~FCachedPropertyPath() = default;
 
 void FCachedPropertyPath::MakeFromString(const FString& InPropertyPath)
@@ -826,26 +804,6 @@ void FCachedPropertyPath::MakeFromString(const FString& InPropertyPath)
 	Segments.Add(FPropertyPathSegment(Length - Start, &Path[Start]));
 }
 
-void FCachedPropertyPath::MakeFromChangeEvent(const FPropertyChangedChainEvent& PropertyChangedChainEvent)
-{
-	MakeFromChangeEvent(PropertyChangedChainEvent, PropertyChangedChainEvent.PropertyChain);
-}
-
-void FCachedPropertyPath::MakeFromChangeEvent(const FPropertyChangedEvent& PropertyChangedEvent, const FEditPropertyChain& PropertyChain)
-{
-	for (TDoubleLinkedList<FProperty*>::TIterator It(PropertyChain.GetHead()); It; ++It)
-	{
-		FProperty* Property = *It;
-		FString PropertySegment = Property->GetName();
-		const int32 ArrayIndex = PropertyChangedEvent.GetArrayIndex(PropertySegment);
-		if (ArrayIndex != INDEX_NONE)
-		{
-			PropertySegment += FString::Printf(TEXT("[%d]"), ArrayIndex);
-		}
-		Segments.Add(FPropertyPathSegment(PropertySegment.Len(), *PropertySegment));
-	}
-}
-
 FCachedPropertyPath FCachedPropertyPath::MakeUnresolvedCopy(const FCachedPropertyPath& ToCopy)
 {
 	FCachedPropertyPath Path;
@@ -854,20 +812,6 @@ FCachedPropertyPath FCachedPropertyPath::MakeUnresolvedCopy(const FCachedPropert
 		Path.Segments.Add(FPropertyPathSegment::MakeUnresolvedCopy(Segment));
 	}
 	return Path;
-}
-
-FCachedPropertyPath FCachedPropertyPath::MakeParentPath() const
-{
-	// If there are no more segements, then it's just an empty path.
-	if (Segments.Num() == 0)
-	{
-		return *this;
-	}
-
-	FCachedPropertyPath ParentPath = *this;
-	ParentPath.Segments.RemoveAt(ParentPath.Segments.Num() - 1);
-
-	return ParentPath;
 }
 
 int32 FCachedPropertyPath::GetNumSegments() const
@@ -1111,125 +1055,121 @@ namespace PropertyPathHelpers
 		}
 	}
 
-	bool GetPropertyValueAsString(UObject* InContainer, const FString& InPropertyPath, FString& OutValue, uint32 PPF_Flags)
+	bool GetPropertyValueAsString(UObject* InContainer, const FString& InPropertyPath, FString& OutValue)
 	{
 		FProperty* Property;
-		return GetPropertyValueAsString(InContainer, InPropertyPath, OutValue, Property, PPF_Flags);
+		return GetPropertyValueAsString(InContainer, InPropertyPath, OutValue, Property);
 	}
 
 	/** Helper for string-based getters */
 	struct FInternalStringGetterResolver : public PropertyPathHelpersInternal::TPropertyPathResolver<FInternalStringGetterResolver>
 	{
-		FInternalStringGetterResolver(FString& InOutValue, FProperty*& InOutProperty, uint32 PPF_Flags)
+		FInternalStringGetterResolver(FString& InOutValue, FProperty*& InOutProperty)
 			: Value(InOutValue)
 			, Property(InOutProperty)
-			, PPF_Flags(PPF_Flags)
 		{
 		}
 
 		template<typename ContainerType>
 		bool Resolve_Impl(ContainerType* InContainer, const FCachedPropertyPath& InPropertyPath)
 		{
-			return PropertyPathHelpersInternal::GetPropertyValueAsString<ContainerType>(InContainer, InPropertyPath, Property, Value, PPF_Flags);
+			return PropertyPathHelpersInternal::GetPropertyValueAsString<ContainerType>(InContainer, InPropertyPath, Property, Value);
 		}
 
 		FString& Value;
 		FProperty*& Property;
-		uint32 PPF_Flags;
 	};
 
-	bool GetPropertyValueAsString(UObject* InContainer, const FString& InPropertyPath, FString& OutValue, FProperty*& OutProperty, uint32 PPF_Flags)
+	bool GetPropertyValueAsString(UObject* InContainer, const FString& InPropertyPath, FString& OutValue, FProperty*& OutProperty)
 	{
 		check(InContainer);
 
-		FInternalStringGetterResolver Resolver(OutValue, OutProperty, PPF_Flags);
+		FInternalStringGetterResolver Resolver(OutValue, OutProperty);
 		return ResolvePropertyPath(InContainer, InPropertyPath, Resolver);
 	}
 
-	bool GetPropertyValueAsString(void* InContainer, UStruct* InStruct, const FString& InPropertyPath, FString& OutValue, uint32 PPF_Flags)
+	bool GetPropertyValueAsString(void* InContainer, UStruct* InStruct, const FString& InPropertyPath, FString& OutValue)
 	{
 		FProperty* Property;
-		return GetPropertyValueAsString(InContainer, InStruct, InPropertyPath, OutValue, Property, PPF_Flags);
+		return GetPropertyValueAsString(InContainer, InStruct, InPropertyPath, OutValue, Property);
 	}
 
-	bool GetPropertyValueAsString(void* InContainer, UStruct* InStruct, const FString& InPropertyPath, FString& OutValue, FProperty*& OutProperty, uint32 PPF_Flags)
+	bool GetPropertyValueAsString(void* InContainer, UStruct* InStruct, const FString& InPropertyPath, FString& OutValue, FProperty*& OutProperty)
 	{
 		check(InContainer);
 		check(InStruct);
 
-		FInternalStringGetterResolver Resolver(OutValue, OutProperty, PPF_Flags);
+		FInternalStringGetterResolver Resolver(OutValue, OutProperty);
 		return ResolvePropertyPath(InContainer, InStruct, InPropertyPath, Resolver);
 	}
 
-	bool GetPropertyValueAsString(UObject* InContainer, const FCachedPropertyPath& InPropertyPath, FString& OutValue, uint32 PPF_Flags)
+	bool GetPropertyValueAsString(UObject* InContainer, const FCachedPropertyPath& InPropertyPath, FString& OutValue)
 	{
 		check(InContainer);
 
 		FProperty* Property;
-		FInternalStringGetterResolver Resolver(OutValue, Property, PPF_Flags);
+		FInternalStringGetterResolver Resolver(OutValue, Property);
 		return ResolvePropertyPath(InContainer, InPropertyPath, Resolver);
 	}
 
-	bool GetPropertyValueAsString(void* InContainer, UStruct* InStruct, const FCachedPropertyPath& InPropertyPath, FString& OutValue, uint32 PPF_Flags)
+	bool GetPropertyValueAsString(void* InContainer, UStruct* InStruct, const FCachedPropertyPath& InPropertyPath, FString& OutValue)
 	{
 		check(InContainer);
 		check(InStruct);
 
 		FProperty* Property;
-		FInternalStringGetterResolver Resolver(OutValue, Property, PPF_Flags);
+		FInternalStringGetterResolver Resolver(OutValue, Property);
 		return ResolvePropertyPath(InContainer, InStruct, InPropertyPath, Resolver);
 	}
 
 	/** Helper for string-based setters */
 	struct FInternalStringSetterResolver : public PropertyPathHelpersInternal::TPropertyPathResolver<FInternalStringSetterResolver>
 	{
-		FInternalStringSetterResolver(const FString& InValueAsString, uint32 PPF_Flags)
+		FInternalStringSetterResolver(const FString& InValueAsString)
 			: Value(InValueAsString)
-			, PPF_Flags(PPF_Flags)
 		{
 		}
 
 		template<typename ContainerType>
 		bool Resolve_Impl(ContainerType* InContainer, const FCachedPropertyPath& InPropertyPath)
 		{
-			return PropertyPathHelpersInternal::SetPropertyValueFromString<ContainerType>(InContainer, InPropertyPath, Value, PPF_Flags);
+			return PropertyPathHelpersInternal::SetPropertyValueFromString<ContainerType>(InContainer, InPropertyPath, Value);
 		}
 	
 		const FString& Value;
-		uint32 PPF_Flags;
 	};
 
-	bool SetPropertyValueFromString(UObject* InContainer, const FString& InPropertyPath, const FString& InValue, uint32 PPF_Flags)
+	bool SetPropertyValueFromString(UObject* InContainer, const FString& InPropertyPath, const FString& InValue)
 	{
 		check(InContainer);
 
-		FInternalStringSetterResolver Resolver(InValue, PPF_Flags);
+		FInternalStringSetterResolver Resolver(InValue);
 		return ResolvePropertyPath(InContainer, InPropertyPath, Resolver);
 	}
 
-	bool SetPropertyValueFromString(UObject* InContainer, const FCachedPropertyPath& InPropertyPath, const FString& InValue, uint32 PPF_Flags)
+	bool SetPropertyValueFromString(UObject* InContainer, const FCachedPropertyPath& InPropertyPath, const FString& InValue)
 	{
 		check(InContainer);
 
-		FInternalStringSetterResolver Resolver(InValue, PPF_Flags);
+		FInternalStringSetterResolver Resolver(InValue);
 		return ResolvePropertyPath(InContainer, InPropertyPath, Resolver);
 	}
 
-	bool SetPropertyValueFromString(void* InContainer, UStruct* InStruct, const FString& InPropertyPath, const FString& InValue, uint32 PPF_Flags)
+	bool SetPropertyValueFromString(void* InContainer, UStruct* InStruct, const FString& InPropertyPath, const FString& InValue)
 	{
 		check(InContainer);
 		check(InStruct);
 
-		FInternalStringSetterResolver Resolver(InValue, PPF_Flags);
+		FInternalStringSetterResolver Resolver(InValue);
 		return ResolvePropertyPath(InContainer, InStruct, InPropertyPath, Resolver);
 	}
 
-	bool SetPropertyValueFromString(void* InContainer, UStruct* InStruct, const FCachedPropertyPath& InPropertyPath, const FString& InValue, uint32 PPF_Flags)
+	bool SetPropertyValueFromString(void* InContainer, UStruct* InStruct, const FCachedPropertyPath& InPropertyPath, const FString& InValue)
 	{
 		check(InContainer);
 		check(InStruct);
 
-		FInternalStringSetterResolver Resolver(InValue, PPF_Flags);
+		FInternalStringSetterResolver Resolver(InValue);
 		return ResolvePropertyPath(InContainer, InStruct, InPropertyPath, Resolver);
 	}
 
