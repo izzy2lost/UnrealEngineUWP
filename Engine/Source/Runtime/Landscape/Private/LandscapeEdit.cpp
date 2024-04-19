@@ -262,17 +262,27 @@ namespace UE::Landscape::Private
 	}
 }
 
-void ULandscapeComponent::UpdateCachedBounds(bool bInApproximateBounds)
+bool ULandscapeComponent::UpdateCachedBounds(bool bInApproximateBounds)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(ULandscapeComponent::UpdateCachedBounds);
 
+	if ((SubsectionSizeQuads == 0) || (NumSubsections == 0) || (ComponentSizeQuads == 0))
+	{
+		// the landscape component is in an uninitialized/default state, we cannot calculate meaningful bounds
+		return false;
+	}
+
+	bool bChanged = false;
+	FBox NewLocalBox;
+
 	// Update local-space bounding box
-	CachedLocalBox.Init();
+	NewLocalBox.Init();
 	if (bInApproximateBounds && GetLandscapeProxy()->HasLayersContent())
 	{
 		FVector MinBox(0, 0, LandscapeDataAccess::GetLocalHeight(0));
 		FVector MaxBox(ComponentSizeQuads + 1, ComponentSizeQuads + 1, LandscapeDataAccess::GetLocalHeight(UINT16_MAX));
-		CachedLocalBox = FBox(MinBox, MaxBox);
+		NewLocalBox = FBox(MinBox, MaxBox);
+		check(NewLocalBox.GetExtent().Z > 0.0);
 	}
 	else
 	{
@@ -332,7 +342,7 @@ void ULandscapeComponent::UpdateCachedBounds(bool bInApproximateBounds)
 				}
 			}
 
-			CachedLocalBox = FBox(FVector(0.0, 0.0, LocalMin), FVector(ComponentSizeQuads, ComponentSizeQuads, LocalMax));
+			NewLocalBox = FBox(FVector(0.0, 0.0, LocalMin), FVector(ComponentSizeQuads, ComponentSizeQuads, LocalMax));
 		}
 
 		MipToMipMaxDeltas = ComputeMipToMipMaxDeltas(MakeArrayView<const FQuadHeightInfo>(AllMipsQuadInfos.GetData(), AllMipsQuadInfos.Num()), NumTextureMips, NumRelevantMips);
@@ -343,10 +353,16 @@ void ULandscapeComponent::UpdateCachedBounds(bool bInApproximateBounds)
 			MarkRenderStateDirty();
 		}
 	}
-	if (CachedLocalBox.GetExtent().Z == 0)
+	if (NewLocalBox.GetExtent().Z == 0)
 	{
 		// expand bounds to avoid flickering issues with zero-size bounds
-		CachedLocalBox = CachedLocalBox.ExpandBy(FVector(0, 0, 1));
+		NewLocalBox = NewLocalBox.ExpandBy(FVector(0, 0, 1));
+	}
+
+	if (NewLocalBox != CachedLocalBox)
+	{
+		CachedLocalBox = NewLocalBox;
+		bChanged = true;
 	}
 
 	// Update collision component bounds
@@ -361,6 +377,8 @@ void ULandscapeComponent::UpdateCachedBounds(bool bInApproximateBounds)
 		HFCollisionComponent->CachedLocalBox = CachedLocalBox;
 		HFCollisionComponent->UpdateComponentToWorld();
 	}
+
+	return bChanged;
 }
 #endif //WITH_EDITOR
 

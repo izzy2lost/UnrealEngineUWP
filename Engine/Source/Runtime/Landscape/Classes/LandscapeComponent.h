@@ -1014,9 +1014,9 @@ public:
 
 #if WITH_EDITOR
 	/**
-	 * Recalculate cached bounds using height values.
+	 * Recalculate cached bounds using height values.  Returns true when the bounds were changed.
 	 */
-	LANDSCAPE_API void UpdateCachedBounds(bool bInApproximateBounds = false);
+	LANDSCAPE_API bool UpdateCachedBounds(bool bInApproximateBounds = false);
 
 	/**
 	 * Update the MaterialInstance parameters to match the layer and weightmaps for this component
