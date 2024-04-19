@@ -76,6 +76,11 @@ namespace Horde.Server.Agents
 		public long? MinScratchSpace { get; set; }
 
 		/// <summary>
+		/// Threshold for when to trigger an automatic conform of agent. Measured in megabytes free on disk.
+		/// </summary>
+		public long? ConformDiskFreeSpace { get; set; }
+
+		/// <summary>
 		/// Constructor
 		/// </summary>
 		/// <param name="cluster">Name of the Perforce cluster</param>
@@ -86,7 +91,8 @@ namespace Horde.Server.Agents
 		/// <param name="incremental">Whether to use an incremental workspace</param>
 		/// <param name="method">Method to use when syncing/materializing data from Perforce</param>
 		/// <param name="minScratchSpace">Minimum disk space that must be available *after* syncing this workspace (in megabytes)</param>
-		public AgentWorkspaceInfo(string? cluster, string? userName, string identifier, string stream, List<string>? view, bool incremental, string? method, long? minScratchSpace)
+		/// <param name="conformDiskFreeSpace">Threshold for when to trigger an automatic conform of agent. Measured in megabytes free on disk</param>
+		public AgentWorkspaceInfo(string? cluster, string? userName, string identifier, string stream, List<string>? view, bool incremental, string? method, long? minScratchSpace = null, long? conformDiskFreeSpace = null)
 		{
 			if (!String.IsNullOrEmpty(cluster))
 			{
@@ -102,6 +108,7 @@ namespace Horde.Server.Agents
 			Incremental = incremental;
 			Method = method;
 			MinScratchSpace = minScratchSpace;
+			ConformDiskFreeSpace = conformDiskFreeSpace;
 		}
 
 		/// <summary>
@@ -109,10 +116,11 @@ namespace Horde.Server.Agents
 		/// </summary>
 		/// <param name="workspace">RPC message to construct from</param>
 		public AgentWorkspaceInfo(RpcAgentWorkspace workspace)
-			: this(workspace.ConfiguredCluster, workspace.ConfiguredUserName, workspace.Identifier, workspace.Stream, (workspace.View.Count > 0) ? workspace.View.ToList() : null, workspace.Incremental, workspace.Method, workspace.MinScratchSpace)
+			: this(workspace.ConfiguredCluster, workspace.ConfiguredUserName, workspace.Identifier, workspace.Stream, (workspace.View.Count > 0) ? workspace.View.ToList() : null, workspace.Incremental, workspace.Method, workspace.MinScratchSpace, workspace.ConformDiskFreeSpace)
 		{
 			// Treat zero value as null as Protobuf cannot store null 
 			MinScratchSpace = workspace.MinScratchSpace == 0 ? null : workspace.MinScratchSpace;
+			ConformDiskFreeSpace = workspace.ConformDiskFreeSpace == 0 ? null : workspace.ConformDiskFreeSpace;
 		}
 
 		/// <summary>
@@ -684,6 +692,17 @@ namespace Horde.Server.Agents
 		{
 			List<string> values = agent.GetPropertyValues(KnownPropertyNames.SelfContained).ToList();
 			return values.Count > 0 && values[0].Equals("true", StringComparison.OrdinalIgnoreCase);
+		}
+		
+		/// <summary>
+		/// Get free disk space on agent (as reported through primary device capabilities)
+		/// </summary>
+		/// <param name="agent">Agent to query</param>
+		/// <returns>Amount of free disk space in bytes</returns>
+		public static long? GetDiskFreeSpace(this IAgent agent)
+		{
+			List<string> values = agent.GetPropertyValues(KnownPropertyNames.DiskFreeSpace).ToList();
+			return values.Count > 0 && Int64.TryParse(values[0], out long amount) ? amount : null;
 		}
 
 		/// <summary>

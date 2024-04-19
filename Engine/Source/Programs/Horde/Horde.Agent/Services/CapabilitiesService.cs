@@ -10,6 +10,7 @@ using Amazon.EC2;
 using Amazon.EC2.Model;
 using Amazon.Util;
 using EpicGames.Core;
+using EpicGames.Horde.Agents;
 using EpicGames.Horde.Compute;
 using Horde.Agent.Execution;
 using HordeCommon.Rpc.Messages;
@@ -70,7 +71,7 @@ namespace Horde.Agent.Services
 
 			// Create the primary device
 			RpcDeviceCapabilities primaryDevice = new RpcDeviceCapabilities();
-			primaryDevice.Handle = "Primary";
+			primaryDevice.Handle = KnownPropertyNames.PrimaryDeviceHandle;
 
 			List<RpcDeviceCapabilities> otherDevices = new List<RpcDeviceCapabilities>();
 			if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
@@ -407,8 +408,8 @@ namespace Horde.Agent.Services
 					try
 					{
 						DriveInfo info = new DriveInfo(driveName);
-						primaryDevice.Properties.Add($"DiskFreeSpace={info.AvailableFreeSpace}");
-						primaryDevice.Properties.Add($"DiskTotalSize={info.TotalSize}");
+						primaryDevice.Properties.Add($"{KnownPropertyNames.DiskFreeSpace}={info.AvailableFreeSpace}");
+						primaryDevice.Properties.Add($"{KnownPropertyNames.DiskTotalSize}={info.TotalSize}");
 					}
 					catch (Exception ex)
 					{

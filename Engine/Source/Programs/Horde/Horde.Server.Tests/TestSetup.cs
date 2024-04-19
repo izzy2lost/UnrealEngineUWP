@@ -369,9 +369,9 @@ namespace Horde.Server.Tests
 		}
 
 		private static int s_agentIdCounter = 1;
-		public Task<IAgent> CreateAgentAsync(IPool pool, bool enabled = true, bool requestShutdown = false, List<string>? properties = null, TimeSpan? adjustClockBy = null)
+		public Task<IAgent> CreateAgentAsync(IPool pool, bool enabled = true, bool requestShutdown = false, List<string>? properties = null, List<AgentWorkspaceInfo>? workspaces = null, TimeSpan? adjustClockBy = null)
 		{
-			return CreateAgentAsync(pool.Id, enabled, requestShutdown, properties, adjustClockBy);
+			return CreateAgentAsync(pool.Id, enabled, requestShutdown, properties, workspaces, adjustClockBy);
 		}
 
 		/// <summary>
@@ -381,14 +381,22 @@ namespace Horde.Server.Tests
 		/// <param name="enabled">Whether set the agent as enabled</param>
 		/// <param name="requestShutdown">Mark it with a request for shutdown</param>
 		/// <param name="properties">Any properties to assign</param>
+		/// <param name="workspaces">Any workspaces to assign</param>
 		/// <param name="adjustClockBy">Time span to temporarily skew the clock when creating the agent</param>
 		/// <param name="awsInstanceId">AWS instance ID for the agent (will be set in properties)</param>
 		/// <param name="lease">A lease to assign the agent</param>
 		/// <param name="ephemeral">Whether the agent is ephemeral</param>
 		/// <returns>A new agent</returns>
 		public async Task<IAgent> CreateAgentAsync(
-			PoolId poolId, bool enabled = true, bool requestShutdown = false, List<string>? properties = null,
-			TimeSpan? adjustClockBy = null, string? awsInstanceId = null, AgentLease? lease = null, bool ephemeral = false)
+			PoolId poolId,
+			bool enabled = true,
+			bool requestShutdown = false,
+			List<string>? properties = null,
+			List<AgentWorkspaceInfo>? workspaces = null,
+			TimeSpan? adjustClockBy = null,
+			string? awsInstanceId = null,
+			AgentLease? lease = null,
+			bool ephemeral = false)
 		{
 			DateTime now = Clock.UtcNow;
 			if (adjustClockBy != null)
@@ -412,6 +420,11 @@ namespace Horde.Server.Tests
 			agent = await AgentService.CreateSessionAsync(agent, AgentStatus.Ok, tempProps, resources, null);
 			Assert.IsNotNull(agent);
 
+			if (workspaces is { Count: > 0 })
+			{
+				await AgentCollection.TryUpdateWorkspacesAsync(agent, workspaces, false);
+			}
+			
 			if (requestShutdown)
 			{
 				await AgentCollection.TryUpdateSettingsAsync(agent, requestShutdown: true);

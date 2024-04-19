@@ -6,6 +6,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
+using EpicGames.Horde.Agents;
 using EpicGames.Horde.Agents.Pools;
 using Horde.Server.Server;
 using Horde.Server.Streams;
@@ -30,6 +31,7 @@ namespace Horde.Server.Agents.Pools
 		readonly Tracer _tracer;
 		readonly ITicker _updatePoolsTicker;
 		readonly ITicker _shutdownDisabledAgentsTicker;
+		readonly ITicker _autoConformAgentsTicker;
 
 		/// <summary>
 		/// Constructor
@@ -44,6 +46,7 @@ namespace Horde.Server.Agents.Pools
 			_logger = logger;
 			_updatePoolsTicker = clock.AddTicker($"{nameof(PoolUpdateService)}.{nameof(UpdatePoolsAsync)}", TimeSpan.FromSeconds(30.0), UpdatePoolsAsync, logger);
 			_shutdownDisabledAgentsTicker = clock.AddSharedTicker($"{nameof(PoolUpdateService)}.{nameof(ShutdownDisabledAgentsAsync)}", TimeSpan.FromHours(1), ShutdownDisabledAgentsAsync, logger);
+			_autoConformAgentsTicker = clock.AddSharedTicker($"{nameof(PoolUpdateService)}.{nameof(AutoConformAgentsAsync)}", TimeSpan.FromHours(1), AutoConformAgentsAsync, logger);
 		}
 
 		/// <inheritdoc/>
@@ -51,6 +54,7 @@ namespace Horde.Server.Agents.Pools
 		{
 			await _updatePoolsTicker.StartAsync();
 			await _shutdownDisabledAgentsTicker.StartAsync();
+			await _autoConformAgentsTicker.StartAsync();
 		}
 
 		/// <inheritdoc/>
@@ -58,6 +62,7 @@ namespace Horde.Server.Agents.Pools
 		{
 			await _updatePoolsTicker.StopAsync();
 			await _shutdownDisabledAgentsTicker.StopAsync();
+			await _autoConformAgentsTicker.StopAsync();
 		}
 
 		/// <inheritdoc/>
@@ -65,6 +70,7 @@ namespace Horde.Server.Agents.Pools
 		{
 			await _updatePoolsTicker.DisposeAsync();
 			await _shutdownDisabledAgentsTicker.DisposeAsync();
+			await _autoConformAgentsTicker.DisposeAsync();
 		}
 
 		/// <summary>
@@ -117,6 +123,40 @@ namespace Horde.Server.Agents.Pools
 		{
 			IEnumerable<PoolId> poolIds = agent.ExplicitPools.Concat(agent.DynamicPools);
 			return pools.Any(x => poolIds.Contains(x.Id) && x.EnableAutoscaling);
+		}
+		
+		/// <summary>
+		/// Find and conform any agents below the disk free conform threshold for a workspace
+		/// </summary>
+		/// <param name="cancellationToken">Cancellation token for the async task</param>
+		/// <returns>Async task</returns>
+		internal async ValueTask AutoConformAgentsAsync(CancellationToken cancellationToken)
+		{
+			using TelemetrySpan span = _tracer.StartActiveSpan($"{nameof(PoolUpdateService)}.{nameof(AutoConformAgentsAsync)}");
+			List<IAgent> agents = (await _agents.FindAsync(status: AgentStatus.Ok, enabled: true, cancellationToken: cancellationToken)).Where(x => !x.RequestShutdown).ToList();
+
+			long MegabytesToBytes (long v) => v * 1024 * 1024;
+			foreach (IAgent agent in agents)
+			{
+				long? freeDiskSpace = agent.GetDiskFreeSpace();
+				long maxConformDiskSpace = 0;
+
+				// Find the largest conform disk space amount needed, if any
+				foreach (AgentWorkspaceInfo workspace in agent.Workspaces)
+				{
+					if (workspace.ConformDiskFreeSpace is > 0)
+					{
+						maxConformDiskSpace = Math.Max(maxConformDiskSpace, MegabytesToBytes(workspace.ConformDiskFreeSpace.Value));
+					}
+				}
+
+				if (freeDiskSpace != null && maxConformDiskSpace > 0 && freeDiskSpace < maxConformDiskSpace && agent.ConformAttemptCount is null or 0)
+				{
+					await _agents.TryUpdateSettingsAsync(agent, requestConform: true, cancellationToken: cancellationToken);
+					_logger.LogInformation("Auto-conforming {AgentId} as workspace conform disk space needed ({ConformDiskSpace:F1} MB) is less than free disk space ({FreeDiskSpace:F1} MB)",
+						agent.Id.ToString(), maxConformDiskSpace / 1024.0 / 1024.0, freeDiskSpace.Value / 1024.0 / 1024.0);
+				}
+			}
 		}
 
 		/// <summary>

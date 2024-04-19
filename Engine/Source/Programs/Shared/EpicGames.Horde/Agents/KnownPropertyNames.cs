@@ -11,6 +11,11 @@ public static class KnownPropertyNames
 	/// The agent id
 	/// </summary>
 	public const string Id = "Id";
+	
+	/// <summary>
+	/// Handle of the primary device (usually the agent VM itself)
+	/// </summary>
+	public const string PrimaryDeviceHandle = "Primary";
 
 	/// <summary>
 	/// The operating system (Linux, MacOS, Windows)
@@ -41,6 +46,16 @@ public static class KnownPropertyNames
 	/// Amount of RAM, in GB
 	/// </summary>
 	public const string Ram = "RAM";
+	
+	/// <summary>
+	/// The total size of storage space on drive, in bytes
+	/// </summary>
+	public const string DiskTotalSize = "DiskTotalSize";
+
+	/// <summary>
+	/// Amount of available free space on drive, in bytes
+	/// </summary>
+	public const string DiskFreeSpace = "DiskFreeSpace";
 
 	/// <summary>
 	/// IP address used for sending compute task payloads

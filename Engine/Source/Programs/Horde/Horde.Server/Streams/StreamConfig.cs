@@ -715,6 +715,12 @@ namespace Horde.Server.Streams
 		/// If not available, the job will be aborted.
 		/// </summary>
 		public long? MinScratchSpace { get; set; } = null;
+
+		/// <summary>
+		/// Threshold for when to trigger an automatic conform of agent. Measured in megabytes free on disk.
+		/// Set to null or 0 to disable.
+		/// </summary>
+		public long? ConformDiskFreeSpace { get; set; } = null;
 	}
 
 	/// <summary>
