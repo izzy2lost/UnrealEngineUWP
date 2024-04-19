@@ -2315,6 +2315,7 @@ void UControlRigBlueprint::UpdateModularDependencyDelegates()
 				if(!VisitList.Contains(Blueprint))
 				{
 					Blueprint->OnVMCompiled().RemoveAll(this);
+					Blueprint->OnModularRigCompiled().RemoveAll(this);
 					Blueprint->OnVMCompiled().AddUObject(this, &UControlRigBlueprint::OnModularDependencyVMCompiled);
 					Blueprint->OnModularRigCompiled().AddUObject(this, &UControlRigBlueprint::OnModularDependencyChanged);
 					VisitList.Add(Blueprint);
@@ -2371,11 +2372,15 @@ void UControlRigBlueprint::RefreshModuleVariables()
 		return;
 	}
 
-	ModularRigModel.ForEachModule([this](const FRigModuleReference* Element) -> bool
+	if (UModularRigController* Controller = GetModularRigController())
 	{
-		RefreshModuleVariables(Element);
-		return true;
-	});
+		ModularRigModel.ForEachModule([this, Controller](const FRigModuleReference* Element) -> bool
+	   {
+		   TGuardValue<bool> NotificationsGuard(Controller->bSuspendNotifications, true);
+		   RefreshModuleVariables(Element);
+		   return true;
+	   });
+	}
 }
 
 void UControlRigBlueprint::RefreshModuleVariables(const FRigModuleReference* InModule)
@@ -2442,11 +2447,15 @@ void UControlRigBlueprint::RefreshModuleConnectors()
 		return;
 	}
 
-	ModularRigModel.ForEachModule([this](const FRigModuleReference* Element) -> bool
+	if (UModularRigController* Controller = GetModularRigController())
 	{
-		RefreshModuleConnectors(Element);
-		return true;
-	});
+		TGuardValue<bool> NotificationsGuard(Controller->bSuspendNotifications, true);
+		ModularRigModel.ForEachModule([this](const FRigModuleReference* Element) -> bool
+		{
+			RefreshModuleConnectors(Element);
+			return true;
+		});
+	}
 }
 
 void UControlRigBlueprint::RefreshModuleConnectors(const FRigModuleReference* InModule)
@@ -2469,6 +2478,7 @@ void UControlRigBlueprint::RefreshModuleConnectors(const FRigModuleReference* In
 		if (UControlRig* CDO = GetControlRigClass()->GetDefaultObject<UControlRig>())
 		{
 			Hierarchy->Modify();
+			bool bAnyModification = false;
 
 			const FString Namespace = InModule->GetNamespace();
 			const TArray<FRigElementKey> AllConnectors = Hierarchy->GetKeysOfType<FRigConnectorElement>();
@@ -2503,6 +2513,7 @@ void UControlRigBlueprint::RefreshModuleConnectors(const FRigModuleReference* In
 				
 				if(bRemoveAllConnectors || !bConnectorExpected)
 				{
+					bAnyModification = true;
 					(void)Controller->RemoveElement(Connector);
 					ConnectionMap.Remove(Connector);
 				}
@@ -2518,6 +2529,7 @@ void UControlRigBlueprint::RefreshModuleConnectors(const FRigModuleReference* In
 					const FRigElementKey ConnectorKeyWithNameSpace(ConnectorNameWithNameSpace, ERigElementType::Connector);
 					if(!Hierarchy->Contains(ConnectorKeyWithNameSpace))
 					{
+						bAnyModification = true;
 						FRigHierarchyExecuteContextBracket HierarchyContextGuard(Hierarchy, &Context);
 						FControlRigExecuteContextRigModuleGuard RigModuleGuard(PublicContext, InModule->GetNamespace());
 						(void)Controller->AddConnector(ConnectorName, Connector.Settings);
@@ -2530,8 +2542,11 @@ void UControlRigBlueprint::RefreshModuleConnectors(const FRigModuleReference* In
 					}
 				}
 			}
-			
-			PropagateHierarchyFromBPToInstances();
+
+			if (bAnyModification)
+			{
+				PropagateHierarchyFromBPToInstances();
+			}
 		}
 	}
 }
