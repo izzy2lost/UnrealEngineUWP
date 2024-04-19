@@ -289,7 +289,7 @@ void FRayTracingScene::CreateWithInitializationData(FRDGBuilder& GraphBuilder, c
 					CullingParameters.bUseInstanceCulling ? &CullingParameters : nullptr,
 					PassParams->DebugInstanceGPUSceneIndexBuffer ? PassParams->DebugInstanceGPUSceneIndexBuffer->GetRHI() : nullptr);
 
-				// Force this pass to run on the RHI thread.
+				// Disables parallel translate and forces the work to happen on the RHI thread.
 				RHICmdList.RHIThreadFence(true);
 			});
 	}
@@ -326,7 +326,7 @@ void FRayTracingScene::Build(FRDGBuilder& GraphBuilder, ERDGPassFlags ComputePas
 			RHICmdList.BindAccelerationStructureMemory(RayTracingSceneRHI, PassParams->TLASBuffer->GetRHI(), 0);
 			RHICmdList.BuildAccelerationStructure(BuildParams);
 
-			// Force this pass to run on the RHI thread.
+			// Disables parallel translate and forces the work to happen on the RHI thread.
 			RHICmdList.RHIThreadFence(true);
 		});
 }

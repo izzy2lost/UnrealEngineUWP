@@ -862,12 +862,12 @@ bool FDeferredShadingSceneRenderer::DispatchRayTracingWorldUpdates(FRDGBuilder& 
 				Scene->GetRayTracingDynamicGeometryCollection()->DispatchUpdates(RHICmdList, DynamicGeometryScratchBuffer);
 				Scene->GetRayTracingDynamicGeometryCollection()->EndUpdate();
 
-				// Force this pass to run on the RHI thread.
+				// Disables parallel translate and forces the work to happen on the RHI thread.
 				RHICmdList.RHIThreadFence(true);
 			});
-
-			RayTracingScene.Build(GraphBuilder, ComputePassFlags | ERDGPassFlags::NeverCull, OutDynamicGeometryScratchBuffer);
 		}
+
+		RayTracingScene.Build(GraphBuilder, ComputePassFlags | ERDGPassFlags::NeverCull, OutDynamicGeometryScratchBuffer);
 	}
 
 	GraphBuilder.AddDispatchHint();
