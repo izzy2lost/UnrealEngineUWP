@@ -384,6 +384,7 @@ namespace PCGSplineSamplerHelpers
 		FStepSampler(const UPCGPolyLineData* InLineData, const FPCGSplineSamplerParams& Params)
 			: LineData(InLineData)
 			, bComputeCurvature(Params.bComputeCurvature)
+			, bComputeTangents(Params.bComputeTangents)
 			, bComputeAlpha(Params.bComputeAlpha)
 			, bComputeDistance(Params.bComputeDistance)
 		{
@@ -398,6 +399,7 @@ namespace PCGSplineSamplerHelpers
 		int CurrentSegmentIndex = 0;
 		FVector::FReal DistanceToCurrentSegment = 0.0;
 		bool bComputeCurvature = false;
+		bool bComputeTangents = false;
 		bool bComputeAlpha = false;
 		bool bComputeDistance = false;
 	};
@@ -406,7 +408,6 @@ namespace PCGSplineSamplerHelpers
 	{
 		FSubdivisionStepSampler(const UPCGPolyLineData* InLineData, const FPCGSplineSamplerParams& Params)
 			: FStepSampler(InLineData, Params)
-			, bComputeTangents(Params.bComputeTangents)
 		{
 			NumSegments = LineData->GetNumSegments();
 			SubdivisionsPerSegment = Params.SubdivisionsPerSegment;
@@ -510,7 +511,6 @@ namespace PCGSplineSamplerHelpers
 		int NumSegments = 0;
 		int SubdivisionsPerSegment = 0;
 		int SubpointIndex = 0;
-		bool bComputeTangents = false;
 	};
 
 	struct FDistanceStepSampler : public FStepSampler
@@ -525,22 +525,29 @@ namespace PCGSplineSamplerHelpers
 			TotalDistance = InLineData->GetLength();
 			EndDistance = TotalDistance - EndOffset;
 
+			const FVector::FReal TotalLength = EndDistance - StartOffset;
+
 			if (Params.Mode == EPCGSplineSamplingMode::NumberOfSamples)
 			{
 				TotalNumSamples = Params.NumSamples;
+			}
+			else if (Params.Mode == EPCGSplineSamplingMode::Distance && Params.bFitToCurve)
+			{
+				// In Distance mode we can cover the full spline by finding the nearest whole number of samples that would fit, and treating the mode as NumberOfSamples instead.
+				TotalNumSamples = (Params.DistanceIncrement > 0) ? (TotalLength / Params.DistanceIncrement) : 0;
+			}
 
-				if (TotalNumSamples > 0)
-				{
-					// Compute an increment which evenly distributes sample points along the length of the curve.
-					DistanceIncrement = (LineData->GetLength() - StartOffset - EndOffset) / (LineData->IsClosed() ? TotalNumSamples : FMath::Max(1, TotalNumSamples - 1));
-				}
+			if (TotalNumSamples > 0)
+			{
+				// Compute an increment which evenly distributes sample points along the length of the curve.
+				DistanceIncrement = TotalLength / (LineData->IsClosed() ? TotalNumSamples : FMath::Max(1, TotalNumSamples - 1));
 			}
 			else
 			{
 				DistanceIncrement = Params.DistanceIncrement;
 			}
 
-			MaxRandomOffset = FMath::Max(0.0f, Params.MaxRandomOffsetNormalized) * DistanceIncrement / 2.0f;
+			MaxRandomOffset = FMath::Max(0.0, Params.MaxRandomOffsetNormalized) * DistanceIncrement / 2.0;
 			bUseRandomOffset = !FMath::IsNearlyZero(MaxRandomOffset);
 
 			if (bUseRandomOffset)
@@ -578,6 +585,13 @@ namespace PCGSplineSamplerHelpers
 			if (bComputeCurvature)
 			{
 				OutResult.Curvature = LineData->GetCurvatureAtDistance(CurrentSegmentIndex, OffsetDistance);
+			}
+
+			if (bComputeTangents)
+			{
+				const FVector Forward = OutTransform.GetRotation().GetForwardVector();
+				OutResult.ArriveTangent = Forward;
+				OutResult.LeaveTangent = Forward;
 			}
 
 			if (bComputeAlpha)
@@ -670,7 +684,7 @@ namespace PCGSplineSamplerHelpers
 					bSetMetadata |= (SegmentIndexAttribute != nullptr);
 				}
 
-				if (Params.bComputeSubsegmentIndex)
+				if (Params.bComputeSubsegmentIndex && Params.Mode == EPCGSplineSamplingMode::Subdivision)
 				{
 					SubsegmentIndexAttribute = Metadata->FindOrCreateAttribute<int>(Params.SubsegmentIndexAttribute, static_cast<int>(DefaultValue));
 					bSetMetadata |= (SubsegmentIndexAttribute != nullptr);
