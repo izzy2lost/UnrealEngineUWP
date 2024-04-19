@@ -9,6 +9,13 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(StateTreeNodeBlueprintBase)
 
+#define LOCTEXT_NAMESPACE "StateTree"
+
+#if WITH_EDITOR
+FGuid UStateTreeNodeBlueprintBase::CachedNodeID;
+const IStateTreeBindingLookup* UStateTreeNodeBlueprintBase::CachedBindingLookup = nullptr;
+#endif
+
 UWorld* UStateTreeNodeBlueprintBase::GetWorld() const
 {
 	// The items are duplicated as the State Tree execution context as outer, so this should be essentially the same as GetWorld() on StateTree context.
@@ -149,3 +156,58 @@ DEFINE_FUNCTION(UStateTreeNodeBlueprintBase::execGetPropertyReference)
 		Stack.MostRecentProperty = nullptr;
 	}
 }
+
+#if WITH_EDITOR
+FText UStateTreeNodeBlueprintBase::GetDescription(const FGuid& ID, FStateTreeDataView InstanceDataView, const IStateTreeBindingLookup& BindingLookup, EStateTreeNodeFormatting Formatting) const
+{
+	FText Result;
+	
+	const FGuid OldCachedNodeID = CachedNodeID;
+	const IStateTreeBindingLookup* OldCachedBindingLookup = CachedBindingLookup;
+
+	CachedNodeID = ID;
+	CachedBindingLookup = &BindingLookup;
+
+	Result = Description;
+	if (Result.IsEmpty())
+	{
+		Result = ReceiveGetDescription(Formatting);
+	}
+	if (Result.IsEmpty())
+	{
+		Result = GetClass()->GetDisplayNameText();
+	}
+
+	CachedNodeID = OldCachedNodeID;
+	CachedBindingLookup = OldCachedBindingLookup;
+	
+	return Result;
+}
+#endif
+
+FText UStateTreeNodeBlueprintBase::GetPropertyDescriptionByPropertyName(FName PropertyName) const
+{
+	FText Result;
+#if WITH_EDITOR
+	// Try property binding first
+	if (CachedBindingLookup)
+	{
+		const FStateTreePropertyPath Path(CachedNodeID, PropertyName);
+		Result = CachedBindingLookup->GetBindingSourceDisplayName(Path);
+	}
+
+	// No binding, get the value.
+	if (Result.IsEmpty())
+	{
+		if (const FProperty* Property = GetClass()->FindPropertyByName(PropertyName))
+		{
+			FString	Value;
+			Property->ExportText_InContainer(0, Value, this, this, nullptr, PPF_PropertyWindow | PPF_BlueprintDebugView);
+			Result = FText::FromString(Value);
+		}
+	}
+#endif
+	return Result;
+}
+
+#undef LOCTEXT_NAMESPACE

@@ -3,6 +3,7 @@
 #pragma once
 
 #include "StateTreeExecutionTypes.h"
+#include "StateTreeNodeBase.h"
 #include "UObject/ObjectMacros.h"
 #include "StateTreeNodeBlueprintBase.generated.h"
 
@@ -55,7 +56,30 @@ public:
 	UFUNCTION()
 	bool IsPropertyRefValid(const FStateTreeBlueprintPropertyRef& PropertyRef) const;
 
+	/** @return text describing the property, either direct value or binding description. Used internally. */
+	UFUNCTION(BlueprintCallable, Category = "StateTree", meta=( BlueprintInternalUseOnly="true" ))
+	FText GetPropertyDescriptionByPropertyName(FName PropertyName) const;
+
+#if WITH_EDITOR
+	FText GetDescription(const FGuid& ID, FStateTreeDataView InstanceDataView, const IStateTreeBindingLookup& BindingLookup, EStateTreeNodeFormatting Formatting) const;
+
+	FName GetIconName() const
+	{
+		return IconName;
+	}
+	
+	FColor GetIconColor() const
+	{
+		return IconColor;
+	}
+#endif
+	
 protected:
+
+	/** Event to implement to get node description. */
+	UFUNCTION(BlueprintImplementableEvent, meta = (DisplayName = "Get Description"))
+	FText ReceiveGetDescription(EStateTreeNodeFormatting Formatting) const;
+
 	virtual UWorld* GetWorld() const override;
 	AActor* GetOwnerActor(const FStateTreeExecutionContext& Context) const;
 
@@ -89,6 +113,31 @@ private:
 
 	/** Cached State where the node is processed on. */
 	mutable FStateTreeStateHandle CachedState;
+
+#if WITH_EDITORONLY_DATA
+	/** Description of the node. */
+	UPROPERTY(EditDefaultsOnly, Category="Description")
+	FText Description;
+
+	/**
+	 * Name of the icon in format:
+	 *		StyleSetName | StyleName [ | SmallStyleName | StatusOverlayStyleName]
+	 *		SmallStyleName and StatusOverlayStyleName are optional.
+	 *		Example: "StateTreeEditorStyle|Node.Animation"
+	 */
+	UPROPERTY(EditDefaultsOnly, Category="Description")
+	FName IconName;
+
+	/** Color of the icon. */
+	UPROPERTY(EditDefaultsOnly, Category="Description")
+	FColor IconColor = UE::StateTree::Colors::Grey;
+#endif // 	WITH_EDITORONLY_DATA
+
+#if WITH_EDITOR
+	/** Cached values used during editor to make some BP nodes simpler to use. */
+	static FGuid CachedNodeID;
+	static const IStateTreeBindingLookup* CachedBindingLookup;
+#endif	
 };
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2

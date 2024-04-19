@@ -17,7 +17,7 @@ struct IStateTreeBindingLookup;
  * - Bold text should generally be used for actions, like name a of a task "<b>Play Animation</> {AnimName}".
  * - Subdued should be generally used for secondary/structural information, like "{Left} <s>equals</> {Right}".
  */
-UENUM()
+UENUM(BlueprintType)
 enum EStateTreeNodeFormatting : uint8
 {
 	/**

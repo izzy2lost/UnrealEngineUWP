@@ -47,10 +47,33 @@ bool FStateTreeBlueprintConditionWrapper::TestCondition(FStateTreeExecutionConte
 #if WITH_EDITOR
 FText FStateTreeBlueprintConditionWrapper::GetDescription(const FGuid& ID, FStateTreeDataView InstanceDataView, const IStateTreeBindingLookup& BindingLookup, EStateTreeNodeFormatting Formatting) const
 {
-	if (ConditionClass)
+	FText Description;
+	if (const UStateTreeConditionBlueprintBase* Instance = InstanceDataView.GetPtr<UStateTreeConditionBlueprintBase>())
 	{
-		return ConditionClass->GetDisplayNameText();
+		Description = Instance->GetDescription(ID, InstanceDataView, BindingLookup, Formatting);
 	}
-	return FText::GetEmpty();
+	if (Description.IsEmpty() && ConditionClass)
+	{
+		Description = ConditionClass->GetDisplayNameText();
+	}
+	return Description;
+}
+
+FName FStateTreeBlueprintConditionWrapper::GetIconName() const
+{
+	if (const UStateTreeNodeBlueprintBase* NodeCDO = GetDefault<const UStateTreeNodeBlueprintBase>(ConditionClass))
+	{
+		return NodeCDO->GetIconName();
+	}
+	return FStateTreeConditionBase::GetIconName();
+}
+
+FColor FStateTreeBlueprintConditionWrapper::GetIconColor() const
+{
+	if (const UStateTreeNodeBlueprintBase* NodeCDO = GetDefault<const UStateTreeNodeBlueprintBase>(ConditionClass))
+	{
+		return NodeCDO->GetIconColor();
+	}
+	return FStateTreeConditionBase::GetIconColor();
 }
 #endif

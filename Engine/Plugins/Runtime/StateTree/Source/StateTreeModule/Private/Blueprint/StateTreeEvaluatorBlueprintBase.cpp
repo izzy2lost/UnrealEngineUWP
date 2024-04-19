@@ -77,10 +77,33 @@ void FStateTreeBlueprintEvaluatorWrapper::Tick(FStateTreeExecutionContext& Conte
 #if WITH_EDITOR
 FText FStateTreeBlueprintEvaluatorWrapper::GetDescription(const FGuid& ID, FStateTreeDataView InstanceDataView, const IStateTreeBindingLookup& BindingLookup, EStateTreeNodeFormatting Formatting) const
 {
-	if (EvaluatorClass)
+	FText Description;
+	if (const UStateTreeEvaluatorBlueprintBase* Instance = InstanceDataView.GetPtr<UStateTreeEvaluatorBlueprintBase>())
 	{
-		return EvaluatorClass->GetDisplayNameText();
+		Description = Instance->GetDescription(ID, InstanceDataView, BindingLookup, Formatting);
 	}
-	return FText::GetEmpty();
+	if (Description.IsEmpty() && EvaluatorClass)
+	{
+		Description = EvaluatorClass->GetDisplayNameText();
+	}
+	return Description;
+}
+
+FName FStateTreeBlueprintEvaluatorWrapper::GetIconName() const
+{
+	if (const UStateTreeNodeBlueprintBase* NodeCDO = GetDefault<const UStateTreeNodeBlueprintBase>(EvaluatorClass))
+	{
+		return NodeCDO->GetIconName();
+	}
+	return FStateTreeEvaluatorBase::GetIconName();
+}
+
+FColor FStateTreeBlueprintEvaluatorWrapper::GetIconColor() const
+{
+	if (const UStateTreeNodeBlueprintBase* NodeCDO = GetDefault<const UStateTreeNodeBlueprintBase>(EvaluatorClass))
+	{
+		return NodeCDO->GetIconColor();
+	}
+	return FStateTreeEvaluatorBase::GetIconColor();
 }
 #endif
