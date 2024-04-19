@@ -41,11 +41,15 @@ namespace UE::Tasks
 				return;
 			}
 #endif
-
-			bWakeUpWorker |= LowLevelTasks::FScheduler::Get().TryLaunch(LowLevelTask, bWakeUpWorker ? LowLevelTasks::EQueuePreference::GlobalQueuePreference : LowLevelTasks::EQueuePreference::LocalQueuePreference, bWakeUpWorker);
 			
 			// In case a thread is waiting on us to perform retraction, now is the time to try retraction again.
+			// This needs to be before the launch as performing the execution can destroy the task.
 			StateChangeEvent.Notify();
+
+			// This needs to be the last line touching any of the task's properties.
+			bWakeUpWorker |= LowLevelTasks::FScheduler::Get().TryLaunch(LowLevelTask, bWakeUpWorker ? LowLevelTasks::EQueuePreference::GlobalQueuePreference : LowLevelTasks::EQueuePreference::LocalQueuePreference, bWakeUpWorker);
+
+			// Use-after-free territory, do not touch any of the task's properties here.
 		}
 
 		thread_local uint32 TaskRetractionRecursion = 0;

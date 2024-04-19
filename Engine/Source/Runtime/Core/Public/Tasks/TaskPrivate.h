@@ -611,6 +611,8 @@ public:
 						TryExecuteTask(); // result doesn't matter, this can fail if task retraction jumped in and got execution
 						// permission between this thread unlocked the task and tried to execute it
 						ReleaseInternalReference();
+
+						// Use-after-free territory, do not touch any of the task's properties here.
 					}
 					else if (ExtendedPriority == EExtendedTaskPriority::TaskEvent)
 					{
@@ -622,11 +624,15 @@ public:
 							ReleasePrerequisites();
 							Close();
 							ReleaseInternalReference();
+
+							// Use-after-free territory, do not touch any of the task's properties here.
 						}
 					}
 					else
 					{
 						Schedule(bWakeUpWorker);
+
+						// Use-after-free territory, do not touch any of the task's properties here.
 					}
 
 					return true;
@@ -642,6 +648,9 @@ public:
 				// this thread unlocked the task, no other thread can reach this point concurrently, we can touch the task again
 				Close();
 				Release(); // the internal reference that kept the task alive for nested tasks
+
+				// Use-after-free territory, do not touch any of the task's properties here.
+
 				return true;
 			}
 
