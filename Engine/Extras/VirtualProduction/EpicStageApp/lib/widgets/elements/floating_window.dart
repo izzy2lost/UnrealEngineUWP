@@ -3,6 +3,7 @@
 import 'dart:math' as math;
 
 import 'package:epic_common/preferences.dart';
+import 'package:epic_common/theme.dart';
 import 'package:epic_common/widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/physics.dart';
@@ -644,7 +645,7 @@ class _WindowBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final borderRadius = BorderRadius.circular(6);
+    final borderRadius = BorderRadius.circular(16);
 
     return SizedBox(
       width: size.width,
@@ -660,8 +661,8 @@ class _WindowBody extends StatelessWidget {
                 boxShadow: [
                   BoxShadow(
                     color: Color(0xff000000).withOpacity(bShadowVisible ? 0.4 : 0),
-                    spreadRadius: 2,
                     blurRadius: 5,
+                    blurStyle: BlurStyle.outer,
                   ),
                 ],
               ),
@@ -673,8 +674,8 @@ class _WindowBody extends StatelessWidget {
               decoration: BoxDecoration(
                 borderRadius: borderRadius,
                 border: Border.all(
-                  color: Color(0x50ffffff),
-                  width: 0.5,
+                  color: UnrealColors.gray56,
+                  width: 2,
                 ),
               ),
             ),

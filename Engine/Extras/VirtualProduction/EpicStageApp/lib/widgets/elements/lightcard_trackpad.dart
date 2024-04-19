@@ -2,6 +2,8 @@
 
 import 'dart:async';
 
+import 'package:epic_common/theme.dart';
+import 'package:epic_common/widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -53,6 +55,9 @@ class _LightCardTrackpadState extends State<LightCardTrackpad> {
   /// stream subscriptions for watching changes to selected actors.
   StreamSubscription? _selectedActorsSubscription;
 
+  /// True if the user is currently interacting with the trackpad.
+  bool _bIsPointerDown = false;
+
   @override
   void initState() {
     _actorManager = Provider.of<UnrealActorManager>(context, listen: false);
@@ -70,25 +75,43 @@ class _LightCardTrackpadState extends State<LightCardTrackpad> {
       }
     });
 
+    _actorManager.watchExistingSubscriptions(_onManagedActorsChanged);
+
     super.initState();
   }
 
   @override
   void dispose() {
     super.dispose();
+    _actorManager.stopWatchingExistingSubscriptions(_onManagedActorsChanged);
+    _selectedActorsSubscription?.cancel();
     _latitudeController.dispose();
     _longitudeController.dispose();
-    _selectedActorsSubscription?.cancel();
   }
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onPanUpdate: _onPanUpdate,
-      onPanEnd: _onPanEnd,
-      onPanCancel: _onPanCancel,
-      onTap: () => print('trackpad'),
+    return Container(
+      color: UnrealColors.gray14.withOpacity(0.5),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onPanDown: _onPanDown,
+        onPanUpdate: _onPanUpdate,
+        onPanEnd: _onPanEnd,
+        onPanCancel: _onPanCancel,
+        child: Center(
+          child: AnimatedScale(
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeOut,
+            scale: _bIsPointerDown ? 1.15 : 1,
+            child: AssetIcon(
+              path: 'assets/images/icons/trackpad.svg',
+              size: 96,
+              color: UnrealColors.white.withOpacity(0.2),
+            ),
+          ),
+        ),
+      ),
     );
   }
 
@@ -126,6 +149,13 @@ class _LightCardTrackpadState extends State<LightCardTrackpad> {
 
     _longitudeController.trackAllProperties(_getPositionalProperties('Longitude'));
     _latitudeController.trackAllProperties(_getPositionalProperties('Latitude'));
+  }
+
+  /// Called when the user's input suggests a pan gesture may be about to start.
+  void _onPanDown(DragDownDetails details) {
+    setState(() {
+      _bIsPointerDown = true;
+    });
   }
 
   /// Called whenever a pan gesture's position updates based on new user input.
@@ -215,6 +245,10 @@ class _LightCardTrackpadState extends State<LightCardTrackpad> {
 
   /// Called when a pan gesture ends for any reason.
   void _onPanFinished() {
+    setState(() {
+      _bIsPointerDown = false;
+    });
+
     _longitudeController.endTransaction();
     _reversedControls.clear();
   }
@@ -236,5 +270,28 @@ class _LightCardTrackpadState extends State<LightCardTrackpad> {
 
       return UnrealProperty(objectPath: actorPath, propertyName: pathToProperty);
     }).toList(growable: false);
+  }
+
+  /// Called when any of the actors in the [UnrealActorManager] changes.
+  void _onManagedActorsChanged(ActorUpdateDetails details) {
+    if (!mounted) {
+      return;
+    }
+
+    final Set<String> newActorPaths = details.addedActors.map((actor) => actor.path).toSet();
+
+    // If any selected actors were added, update our tracked properties.
+    // This is necessary to catch new actors, which may be selected before they're registered with the actor manager.
+    bool bShouldUpdate = false;
+    for (final String actorPath in _selectedActorSettings.selectedActors.getValue()) {
+      if (newActorPaths.contains(actorPath)) {
+        bShouldUpdate = true;
+        break;
+      }
+    }
+
+    if (bShouldUpdate) {
+      _updateTrackedProperties();
+    }
   }
 }
