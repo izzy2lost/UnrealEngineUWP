@@ -300,9 +300,6 @@ private:
 	/** Required for updating caches as well as write operations to collections */
 	mutable FRWLock Lock;
 
-	/** Cache of collection hierarchy, identity, etc */
-	TPimplPtr<FCollectionManagerCache> CollectionCache;
-
 	/** The folders that contain collections */
 	FString CollectionFolders[ECollectionShareType::CST_All];
 
@@ -317,6 +314,9 @@ private:
 
 	/** A map of collection names to FCollection objects */
 	TMap<FCollectionNameType, TSharedRef<FCollection>> AvailableCollections;
+
+	/** Cache of collection hierarchy, identity, etc */
+	TPimplPtr<FCollectionManagerCache> CollectionCache;
 
 	/** Event for when assets are added to a collection */
 	FOnAssetsAddedToCollection AssetsAddedToCollectionDelegate;
