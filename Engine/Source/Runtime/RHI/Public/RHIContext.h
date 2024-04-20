@@ -794,11 +794,6 @@ public:
 		checkNoEntry();
 	}
 
-	virtual void RHICommitRayTracingBindings(FRHIRayTracingScene* Scene)
-	{
-		checkNoEntry();
-	}
-
 protected:
 	FRHIRenderPassInfo RenderPassInfo;
 };

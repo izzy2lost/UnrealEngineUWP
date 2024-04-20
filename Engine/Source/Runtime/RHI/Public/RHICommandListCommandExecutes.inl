@@ -488,12 +488,6 @@ void FRHICommandBuildAccelerationStructure::Execute(FRHICommandListBase& CmdList
 	INTERNAL_DECORATOR_COMPUTE(RHIBuildAccelerationStructure)(SceneBuildParams);
 }
 
-void FRHICommandCommitRayTracingBindings::Execute(FRHICommandListBase& CmdList)
-{
-	RHISTAT(CommitRayTracingBindings);
-	INTERNAL_DECORATOR(RHICommitRayTracingBindings)(Scene);
-}
-
 void FRHICommandClearRayTracingBindings::Execute(FRHICommandListBase& CmdList)
 {
 	RHISTAT(ClearRayTracingBindings);

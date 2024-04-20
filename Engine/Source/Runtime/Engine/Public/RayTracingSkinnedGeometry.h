@@ -12,7 +12,7 @@ struct FRayTracingAccelerationStructureSize;
 class FRayTracingGeometry;
 class FRDGBuilder;
 class FRHIBuffer;
-class FRHICommandList;
+class FRHICommandListImmediate;
 
 /** 
  * Queue for ray tracing geometry updates used by the skinned geometry systems. 
@@ -31,7 +31,7 @@ public:
 	ENGINE_API uint32 ComputeScratchBufferSize() const;
 	
 	/** Commit all pending work. Requires a scratch buffer that is at least as big as the size provided by ComputeScratchBufferSize(). */
-	ENGINE_API void Commit(FRHICommandList& RHICmdList, FRHIBuffer* ScratchBuffer);
+	ENGINE_API void Commit(FRHICommandListImmediate& RHICmdList, FRHIBuffer* ScratchBuffer);
 
 	/** Commit all pending work using render graph. This allocates a transient scratch buffer internally. */
 	ENGINE_API void Commit(FRDGBuilder& GraphBuilder);

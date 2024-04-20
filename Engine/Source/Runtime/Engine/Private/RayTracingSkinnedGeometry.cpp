@@ -84,7 +84,7 @@ uint32 FRayTracingSkinnedGeometryUpdateQueue::ComputeScratchBufferSize() const
 	return ScratchBLASSize;
 }
 
-void FRayTracingSkinnedGeometryUpdateQueue::Commit(FRHICommandList& RHICmdList, FRHIBuffer* ScratchBuffer)
+void FRayTracingSkinnedGeometryUpdateQueue::Commit(FRHICommandListImmediate & RHICmdList, FRHIBuffer * ScratchBuffer)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FRayTracingSkinnedGeometryUpdateQueue::Commit);
 
@@ -92,6 +92,14 @@ void FRayTracingSkinnedGeometryUpdateQueue::Commit(FRHICommandList& RHICmdList, 
 	{
 		FScopeLock Lock(&CS);
 
+		// If we have more deferred deleted data than set limit then force flush to make sure all pending releases have actually been freed
+		// before reallocating a lot of new BLAS data
+		if (EstimatedMemoryPendingRelease >= GMemoryLimitForBatchedRayTracingGeometryUpdates * 1024ull * 1024ull)
+		{
+			RHICmdList.ImmediateFlush(EImmediateFlushType::FlushRHIThreadFlushResources);
+			//UE_LOG(LogRenderer, Display, TEXT("Flushing RHI resource pending deletes due to %d MB limit"), GMemoryLimitForBatchedRayTracingGeometryUpdates);
+		}
+				
 		// Track the amount of primitives which need to be build/updated in a single batch
 		uint64 PrimitivesToUpdates = 0;
 		TArray<FRayTracingGeometryBuildParams> BatchedBuildParams;
@@ -225,7 +233,7 @@ void FRayTracingSkinnedGeometryUpdateQueue::Commit(FRDGBuilder& GraphBuilder)
 	RDG_GPU_MASK_SCOPE(GraphBuilder, FRHIGPUMask::All());
 
 	GraphBuilder.AddPass(RDG_EVENT_NAME("CommitRayTracingSkinnedGeometryUpdates"), BLASUpdateParams, ERDGPassFlags::Compute | ERDGPassFlags::NeverCull,
-		[this, SharedScratchBuffer](FRHICommandList& RHICmdList)
+		[this, SharedScratchBuffer](FRHICommandListImmediate& RHICmdList)
 		{
 			Commit(RHICmdList, SharedScratchBuffer ? SharedScratchBuffer->GetRHI() : nullptr);
 		});

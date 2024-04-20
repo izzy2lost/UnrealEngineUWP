@@ -136,7 +136,7 @@ public:
 	// they are resident when any ray tracing work is dispatched.
 	TArray<FD3D12ResidencyHandle*> GeometryResidencyHandles[MAX_NUM_GPUS];
 
-	void UpdateResidency(FD3D12CommandContext& CommandContext) const;
+	void UpdateResidency(FD3D12CommandContext& CommandContext);
 
 	uint32 GetHitRecordBaseIndex(uint32 InstanceIndex, uint32 SegmentIndex) const { return (Initializer.SegmentPrefixSum[InstanceIndex] + SegmentIndex) * Initializer.ShaderSlotsPerGeometrySegment; }
 
@@ -151,10 +151,9 @@ public:
 
 	TMap<const FD3D12RayTracingPipelineState*, FD3D12RayTracingShaderTable*> ShaderTables[MAX_NUM_GPUS];
 
-	bool bBuilt = false;
+	uint64 LastCommandListID = 0;
 
-private:
-	UE::FMutex Mutex;
+	bool bBuilt = false;
 };
 
 // Manages all the pending BLAS compaction requests

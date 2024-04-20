@@ -153,7 +153,7 @@ void RenderHardwareRayTracingShortRangeAO(
 			RDG_EVENT_NAME("ShortRangeAO_HWRT(Rays=%u)", NumPixelRays),
 			PassParameters,
 			ERDGPassFlags::Compute,
-			[&View, RayGenerationShader, PassParameters, Resolution](FRHICommandList& RHICmdList)
+			[&View, RayGenerationShader, PassParameters, Resolution](FRHIRayTracingCommandList& RHICmdList)
 			{
 				FRayTracingShaderBindingsWriter GlobalResources;
 				SetShaderParameters(GlobalResources, RayGenerationShader, *PassParameters);

@@ -540,7 +540,7 @@ void FVolumetricLightmapRenderer::VoxelizeScene()
 				[
 					PassParameters,
 					NumTotalBricks = NumTotalBricks
-				](FRHICommandList& RHICmdList)
+				](FRHIRayTracingCommandList& RHICmdList)
 				{
 					FGPUSortBuffers SortBuffers;
 					SortBuffers.RemoteKeySRVs[0] = PassParameters->BrickRequestKeysSRV->GetRHI();
@@ -849,7 +849,7 @@ void FVolumetricLightmapRenderer::BackgroundTick()
 					RayTracingSceneRHI = Scene->RayTracingScene,
 					RayTracingPipelineState = Scene->RayTracingPipelineState,
 					BricksToCalcThisFrame
-				](FRHICommandList& RHICmdList)
+				](FRHIRayTracingCommandList& RHICmdList)
 				{
 					FRayTracingShaderBindingsWriter GlobalResources;
 					SetShaderParameters(GlobalResources, RayGenShader, *PassParameters);

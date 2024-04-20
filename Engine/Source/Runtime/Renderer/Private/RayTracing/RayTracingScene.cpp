@@ -39,6 +39,8 @@ FRayTracingScene::FRayTracingScene()
 
 FRayTracingScene::~FRayTracingScene()
 {
+	// Make sure that all async tasks complete before we tear down any memory they might reference.
+	WaitForTasks();
 }
 
 FRayTracingSceneWithGeometryInstances FRayTracingScene::BuildInitializationData() const
@@ -73,6 +75,9 @@ void FRayTracingScene::CreateWithInitializationData(FRDGBuilder& GraphBuilder, c
 	// Round up buffer sizes to some multiple to avoid pathological growth reallocations.
 	static constexpr uint32 AllocationGranularity = 8 * 1024;
 	static constexpr uint64 BufferAllocationGranularity = 16 * 1024 * 1024;
+
+	// Make sure that all async tasks complete before we run initialization code again and create new tasks.
+	WaitForTasks();
 
 	bUsedThisFrame = true;
 
@@ -197,7 +202,7 @@ void FRayTracingScene::CreateWithInitializationData(FRDGBuilder& GraphBuilder, c
 		FVector4f* TransformUploadData = (TransformUploadBytes > 0) ? (FVector4f*)RHICmdList.LockBuffer(TransformUploadBuffer, 0, TransformUploadBytes, RLM_WriteOnly) : nullptr;
 
 		// Fill instance upload buffer on separate thread since results are only needed in RHI thread
-		GraphBuilder.AddSetupTask(
+		FillInstanceUploadBufferTask = FFunctionGraphTask::CreateAndDispatchWhenReady(
 			[InstanceUploadData = MakeArrayView(InstanceUploadData, NumNativeInstances),
 			TransformUploadData = MakeArrayView(TransformUploadData, SceneWithGeometryInstances.NumNativeCPUInstances * 3),
 			NumNativeGPUSceneInstances = SceneWithGeometryInstances.NumNativeGPUSceneInstances,
@@ -221,7 +226,7 @@ void FRayTracingScene::CreateWithInitializationData(FRDGBuilder& GraphBuilder, c
 				NumNativeCPUInstances,
 				InstanceUploadData,
 				TransformUploadData);
-		});
+		}, TStatId(), nullptr, ENamedThreads::AnyThread);
 		
 		if (InstancesDebugData.Num() > 0)
 		{
@@ -246,8 +251,9 @@ void FRayTracingScene::CreateWithInitializationData(FRDGBuilder& GraphBuilder, c
 			NumNativeGPUSceneInstances = SceneWithGeometryInstances.NumNativeGPUSceneInstances,
 			NumNativeCPUInstances = SceneWithGeometryInstances.NumNativeCPUInstances,
 			CullingParameters = View.RayTracingCullingParameters
-			](FRHICommandList& RHICmdList)
+			](FRHICommandListImmediate& RHICmdList)
 			{
+				WaitForTasks();
 				RHICmdList.UnlockBuffer(InstanceUploadBuffer);
 
 				if (NumNativeCPUInstances > 0)
@@ -288,9 +294,6 @@ void FRayTracingScene::CreateWithInitializationData(FRDGBuilder& GraphBuilder, c
 					NumNativeCPUInstances,
 					CullingParameters.bUseInstanceCulling ? &CullingParameters : nullptr,
 					PassParams->DebugInstanceGPUSceneIndexBuffer ? PassParams->DebugInstanceGPUSceneIndexBuffer->GetRHI() : nullptr);
-
-				// Disables parallel translate and forces the work to happen on the RHI thread.
-				RHICmdList.RHIThreadFence(true);
 			});
 	}
 }
@@ -312,7 +315,7 @@ void FRayTracingScene::Build(FRDGBuilder& GraphBuilder, ERDGPassFlags ComputePas
 	PassParams->DynamicGeometryScratchBuffer = DynamicGeometryScratchBuffer; // TODO: Is this necessary?
 
 	GraphBuilder.AddPass(RDG_EVENT_NAME("RayTracingBuildScene"), PassParams, ComputePassFlags,
-		[this, PassParams](FRHICommandList& RHICmdList)
+		[this, PassParams](FRHICommandListImmediate& RHICmdList)
 		{
 			SCOPED_GPU_STAT(RHICmdList, RayTracingScene);
 
@@ -325,10 +328,19 @@ void FRayTracingScene::Build(FRDGBuilder& GraphBuilder, ERDGPassFlags ComputePas
 
 			RHICmdList.BindAccelerationStructureMemory(RayTracingSceneRHI, PassParams->TLASBuffer->GetRHI(), 0);
 			RHICmdList.BuildAccelerationStructure(BuildParams);
-
-			// Disables parallel translate and forces the work to happen on the RHI thread.
-			RHICmdList.RHIThreadFence(true);
 		});
+}
+
+void FRayTracingScene::WaitForTasks() const
+{
+	if (FillInstanceUploadBufferTask.IsValid())
+	{
+		QUICK_SCOPE_CYCLE_COUNTER(WaitForRayTracingSceneFillInstanceUploadBuffer);
+		TRACE_CPUPROFILER_EVENT_SCOPE(WaitForRayTracingSceneFillInstanceUploadBuffer);
+		FTaskGraphInterface::Get().WaitUntilTaskCompletes(FillInstanceUploadBufferTask, ENamedThreads::GetRenderThread_Local());
+
+		FillInstanceUploadBufferTask = {};
+	}
 }
 
 bool FRayTracingScene::IsCreated() const
@@ -428,6 +440,8 @@ void FRayTracingScene::SetInstance(uint32 InstanceIndex, FRayTracingGeometryInst
 
 void FRayTracingScene::Reset(bool bInInstanceDebugDataEnabled)
 {
+	WaitForTasks();
+
 	Instances.Reset();
 	InstancesDebugData.Reset();
 	CallableCommands.Reset();

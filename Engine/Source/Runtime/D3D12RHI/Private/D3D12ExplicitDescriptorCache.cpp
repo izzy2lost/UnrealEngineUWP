@@ -317,6 +317,8 @@ void FD3D12ExplicitDescriptorCache::Init(uint32 NumViewDescriptors, uint32 NumSa
 
 void FD3D12ExplicitDescriptorCache::UpdateSyncPoint()
 {
+	check(IsInRHIThread() || !IsRunningRHIInSeparateThread());
+
 #if !PLATFORM_SUPPORTS_BINDLESS_RENDERING
 	const bool bBindlessViews = false;
 	const bool bBindlessSamplers = false;

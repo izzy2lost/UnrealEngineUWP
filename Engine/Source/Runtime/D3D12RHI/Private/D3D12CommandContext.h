@@ -15,7 +15,6 @@ D3D12CommandContext.h: D3D12 Command Context Interfaces
 #include "D3D12StateCachePrivate.h"
 #include "D3D12Submission.h"
 #include "D3D12Texture.h"
-#include "Experimental/Containers/RobinHoodHashTable.h"
 
 #include "RHICoreShader.h"
 #include "RHICore.h"
@@ -578,11 +577,6 @@ public:
 	virtual void FlushTextureCache() {};
 #endif
 
-#if RHI_RAYTRACING
-	// Used to deduplicate work done by the shader table on this context.
-	Experimental::TRobinHoodHashSet<uint64> RayTracingShaderTables;
-#endif
-
 	/** needs to be called before each draw call */
 	void CommitNonComputeShaderConstants();
 
@@ -711,8 +705,6 @@ public:
 	virtual void RHIBuildAccelerationStructures(TConstArrayView<FRayTracingGeometryBuildParams> Params, const FRHIBufferRange& ScratchBufferRange) final override;
 	virtual void RHIBuildAccelerationStructure(const FRayTracingSceneBuildParams& SceneBuildParams) final override;
 	virtual void RHIClearRayTracingBindings(FRHIRayTracingScene* Scene) final override;
-	virtual void RHICommitRayTracingBindings(FRHIRayTracingScene* Scene) final override;
-
 	virtual void RHIRayTraceDispatch(FRHIRayTracingPipelineState* RayTracingPipelineState, FRHIRayTracingShader* RayGenShader,
 		FRHIRayTracingScene* Scene,
 		const FRayTracingShaderBindings& GlobalResourceBindings,

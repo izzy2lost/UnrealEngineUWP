@@ -1007,13 +1007,6 @@ void FVulkanRayTracingShaderTable::SetSlot(EShaderFrequency Frequency, uint32 Ds
 	Alloc.bIsDirty = true;
 }
 
-void FVulkanRayTracingShaderTable::CommitRayGenShader(FVulkanCommandListContext& Context, EShaderFrequency ShaderFrequency, uint32 SrcHandleIndex, TConstArrayView<uint8> SrcHandleData)
-{
-	UE::TScopeLock Lock(RaygenMutex);
-	SetSlot(ShaderFrequency, 0, SrcHandleIndex, SrcHandleData);
-	Commit(Context);
-}
-
 void FVulkanRayTracingShaderTable::SetLocalShaderParameters(EShaderFrequency Frequency, uint32 RecordIndex, uint32 OffsetWithinRecord, const void* InData, uint32 InDataSize)
 {
 	FVulkanShaderTableAllocation& Alloc = GetAlloc(Frequency);
@@ -1096,8 +1089,6 @@ void FVulkanRayTracingShaderTable::Commit(FVulkanCommandListContext& Context)
 
 FVulkanRayTracingShaderTable* FVulkanRayTracingScene::FindOrCreateShaderTable(const FVulkanRayTracingPipelineState* Pipeline)
 {
-	UE::TScopeLock Lock(Mutex);
-
 	// Find existing table
 	{
 		FVulkanRayTracingShaderTable* const* FoundShaderTable = ShaderTables.Find(Pipeline);
@@ -1168,12 +1159,6 @@ FRayTracingPipelineStateRHIRef FVulkanDynamicRHI::RHICreateRayTracingPipelineSta
 void FVulkanCommandListContext::RHIClearRayTracingBindings(FRHIRayTracingScene* Scene)
 {
 	 // TODO
-}
-
-void FVulkanCommandListContext::RHICommitRayTracingBindings(FRHIRayTracingScene* InScene)
-{
-	FVulkanRayTracingScene* Scene = ResourceCast(InScene);
-	Scene->CommitShaderTables(*this);
 }
 
 void FVulkanCommandListContext::RHIBindAccelerationStructureMemory(FRHIRayTracingScene* Scene, FRHIBuffer* Buffer, uint32 BufferOffset)
@@ -2048,7 +2033,8 @@ void FVulkanCommandListContext::RHIRayTraceDispatch(
 	FVulkanCmdBuffer* const CmdBuffer = GetCommandBufferManager()->GetActiveCmdBuffer();
 	VulkanRHI::vkCmdBindPipeline(CmdBuffer->GetHandle(), VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, Pipeline->GetPipeline());
 
-	ShaderTable->CommitRayGenShader(*this, InRayGenShader->GetFrequency(), Pipeline->GetShaderIndex(RayGenShader), Pipeline->GetShaderHandles(SF_RayGen));
+	ShaderTable->SetSlot(InRayGenShader->GetFrequency(), 0, Pipeline->GetShaderIndex(RayGenShader), Pipeline->GetShaderHandles(SF_RayGen));
+	ShaderTable->Commit(*this);
 
 	FVulkanPipelineBarrier PostDispatch = SetRayGenResources(Device, CmdBuffer, InGlobalResourceBindings, ShaderTable);
 
@@ -2085,7 +2071,8 @@ void FVulkanCommandListContext::RHIRayTraceDispatchIndirect(
 	FVulkanCmdBuffer* const CmdBuffer = GetCommandBufferManager()->GetActiveCmdBuffer();
 	VulkanRHI::vkCmdBindPipeline(CmdBuffer->GetHandle(), VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, Pipeline->GetPipeline());
 
-	ShaderTable->CommitRayGenShader(*this, InRayGenShader->GetFrequency(), Pipeline->GetShaderIndex(RayGenShader), Pipeline->GetShaderHandles(SF_RayGen));
+	ShaderTable->SetSlot(InRayGenShader->GetFrequency(), 0, Pipeline->GetShaderIndex(RayGenShader), Pipeline->GetShaderHandles(SF_RayGen));
+	ShaderTable->Commit(*this);
 
 	FVulkanPipelineBarrier PostDispatch = SetRayGenResources(Device, CmdBuffer, InGlobalResourceBindings, ShaderTable);
 

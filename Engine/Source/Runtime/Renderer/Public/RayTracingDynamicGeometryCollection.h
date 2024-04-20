@@ -39,8 +39,8 @@ public:
 
 	// Starts an update batch and returns the current shared buffer generation ID which is used for validation.
 	RENDERER_API int64 BeginUpdate();
-	RENDERER_API void DispatchUpdates(FRHICommandList& RHICmdList, FRHIBuffer* ScratchBuffer);
-	RENDERER_API void EndUpdate();
+	RENDERER_API void DispatchUpdates(FRHICommandListImmediate& ParentCmdList, FRHIBuffer* ScratchBuffer);
+	RENDERER_API void EndUpdate(FRHICommandListImmediate& RHICmdList);
 
 	// Clears the working arrays to not hold any references.
 	RENDERER_API void Clear();

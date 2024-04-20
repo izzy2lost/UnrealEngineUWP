@@ -28,7 +28,7 @@ struct FRayGenShaderUtils
 			Forward<FRDGEventName>(PassName),
 			Parameters,
 			ERDGPassFlags::Compute,
-			[RayGenerationShader, Parameters, Resolution](FRHICommandList& RHICmdList)
+			[RayGenerationShader, Parameters, Resolution](FRHIRayTracingCommandList& RHICmdList)
 		{
 			FRayTracingShaderBindingsWriter GlobalResources;
 			SetShaderParameters(GlobalResources, RayGenerationShader, *Parameters);
