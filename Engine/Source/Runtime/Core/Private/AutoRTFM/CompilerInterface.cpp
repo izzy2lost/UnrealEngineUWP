@@ -132,14 +132,6 @@ extern "C" UE_AUTORTFM_API void autortfm_llvm_fail(const char* Message)
     Context->AbortByLanguageAndThrow();
 }
 
-extern "C" UE_AUTORTFM_API void autortfm_llvm_missing_function()
-{
-	UE_LOG(LogAutoRTFM, Fatal, TEXT("Transaction failing because of missing function."));
-
-	FContext* Context = FContext::Get();
-    Context->AbortByLanguageAndThrow();
-}
-
 extern "C" UE_AUTORTFM_API void autortfm_llvm_alignment_error(FContext* Context, void* Ptr, size_t Alignment, const char* Message)
 {
     AbortDueToBadAlignment(Context, Ptr, Alignment, Message);
