@@ -167,7 +167,7 @@ namespace Horde.Server.Compute
 		public event ResourceNeedEvent? OnResourceNeedsUpdated;
 
 		readonly IAgentCollection _agentCollection;
-		readonly ILogService _logService;
+		readonly ILogCollection _logCollection;
 		readonly AgentService _agentService;
 		readonly AgentRelayService _agentRelayService;
 		readonly RedisService _redisService;
@@ -189,7 +189,7 @@ namespace Horde.Server.Compute
 		/// </summary>
 		public ComputeService(
 			IAgentCollection agentCollection,
-			ILogService logService,
+			ILogCollection logCollection,
 			AgentService agentService,
 			AgentRelayService agentRelayService,
 			RedisService redisService,
@@ -201,7 +201,7 @@ namespace Horde.Server.Compute
 			ILogger<ComputeService> logger)
 		{
 			_agentCollection = agentCollection;
-			_logService = logService;
+			_logCollection = logCollection;
 			_agentService = agentService;
 			_agentRelayService = agentRelayService;
 			_redisService = redisService;
@@ -404,7 +404,7 @@ namespace Horde.Server.Compute
 						}
 
 						LeaseId leaseId = new LeaseId(BinaryIdUtils.CreateNew());
-						ILog? log = await _logService.CreateLogAsync(JobId.Empty, leaseId, agent.SessionId, LogType.Json, cancellationToken: cancellationToken);
+						ILog? log = await _logCollection.AddAsync(JobId.Empty, leaseId, agent.SessionId, LogType.Json, cancellationToken: cancellationToken);
 
 						using TelemetrySpan createTaskSpan = _tracer.StartActiveSpan("CreateComputeTask");
 

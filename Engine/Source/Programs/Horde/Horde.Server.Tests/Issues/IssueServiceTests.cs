@@ -44,18 +44,16 @@ namespace Horde.Server.Tests.Issues
 	{
 		class TestJsonLogger : ILogger, IAsyncDisposable
 		{
-			readonly ILogService _logFileService;
-			readonly LogId _logId;
+			readonly ILog _log;
 			readonly LogBuilder _builder;
 			readonly List<(LogLevel, ReadOnlyMemory<byte>)> _events = new List<(LogLevel, ReadOnlyMemory<byte>)>();
 			readonly IStorageClient _storageClient;
 
 			int _lineIndex;
 
-			public TestJsonLogger(ILogService logFileService, LogId logId, IStorageClient storageClient)
+			public TestJsonLogger(ILog log, IStorageClient storageClient)
 			{
-				_logFileService = logFileService;
-				_logId = logId;
+				_log = log;
 				_builder = new LogBuilder(LogFormat.Json, NullLogger.Instance);
 				_storageClient = storageClient;
 			}
@@ -73,8 +71,7 @@ namespace Horde.Server.Tests.Issues
 				await using (IBlobWriter writer = _storageClient.CreateBlobWriter())
 				{
 					IBlobRef<LogNode> handle = await _builder.FlushAsync(writer, true, CancellationToken.None);
-					ILog? logFile = await _logFileService.GetLogAsync(_logId, CancellationToken.None);
-					await _storageClient.WriteRefAsync(logFile!.RefName, handle);
+					await _storageClient.WriteRefAsync(_log.RefName, handle);
 				}
 
 				_storageClient.Dispose();
@@ -100,7 +97,7 @@ namespace Horde.Server.Tests.Issues
 					if (ev.LineIndex == 0)
 					{
 						LogEventSeverity severity = (level == LogLevel.Warning) ? LogEventSeverity.Warning : LogEventSeverity.Error;
-						await _logFileService.CreateEventsAsync(new List<NewLogEventData> { new NewLogEventData { LogId = _logId, LineIndex = _lineIndex, LineCount = ev.LineCount, Severity = severity } }, CancellationToken.None);
+						await _log.AddEventsAsync(new List<NewLogEventData> { new NewLogEventData { LineIndex = _lineIndex, LineCount = ev.LineCount, Severity = severity } }, CancellationToken.None);
 					}
 				}
 
@@ -246,7 +243,7 @@ namespace Horde.Server.Tests.Issues
 				{
 					JobStepId stepId = new JobStepId((ushort)((groupIdx * 100) + nodeIdx));
 
-					ILog logFile = LogService.CreateLogAsync(jobId, null, null, LogType.Json).Result;
+					ILog logFile = LogCollection.AddAsync(jobId, null, null, LogType.Json).Result;
 
 					Mock<IJobStep> step = new Mock<IJobStep>(MockBehavior.Strict);
 					step.SetupGet(x => x.Id).Returns(stepId);
@@ -323,7 +320,7 @@ namespace Horde.Server.Tests.Issues
 		{
 			LogId logId = job.Batches[batchIdx].Steps[stepIdx].LogId!.Value;
 
-			ILog logFile = (await LogService.GetLogAsync(logId, CancellationToken.None))!;
+			ILog log = (await LogCollection.GetAsync(logId, CancellationToken.None))!;
 
 			using (IStorageClient storageClient = StorageService.CreateClient(Namespace.Logs))
 			{
@@ -333,26 +330,29 @@ namespace Horde.Server.Tests.Issues
 					builder.WriteData(data);
 
 					IBlobRef<LogNode> handle = await builder.FlushAsync(writer, true, CancellationToken.None);
-					await storageClient.WriteRefAsync(logFile!.RefName, handle);
+					await storageClient.WriteRefAsync(log!.RefName, handle);
 				}
 			}
 
-			await LogService.CreateEventsAsync(new List<NewLogEventData> { new NewLogEventData { LogId = logId, LineIndex = 0, LineCount = 1, Severity = severity } }, CancellationToken.None);
+			await log.AddEventsAsync(new List<NewLogEventData> { new NewLogEventData { LineIndex = 0, LineCount = 1, Severity = severity } }, CancellationToken.None);
 		}
 
-		private TestJsonLogger CreateLogger(IJob job, int batchIdx, int stepIdx)
+		private async Task<TestJsonLogger> CreateLoggerAsync(IJob job, int batchIdx, int stepIdx)
 		{
 			LogId logId = job.Batches[batchIdx].Steps[stepIdx].LogId!.Value;
 			IStorageClient storageClient = StorageService.CreateClient(Namespace.Logs);
-			return new TestJsonLogger(LogService, logId, storageClient);
+			ILog? log = await LogCollection.GetAsync(logId)!;
+			Assert.IsNotNull(log);
+			return new TestJsonLogger(log, storageClient);
 		}
 
 		private async Task ParseEventsAsync(IJob job, int batchIdx, int stepIdx, string[] lines)
 		{
 			LogId logId = job.Batches[batchIdx].Steps[stepIdx].LogId!.Value;
+			ILog log = (await LogCollection.GetAsync(logId))!;
 
 			IStorageClient storageClient = StorageService.CreateClient(Namespace.Logs);
-			await using (TestJsonLogger logger = new TestJsonLogger(LogService, logId, storageClient))
+			await using (TestJsonLogger logger = new TestJsonLogger(log, storageClient))
 			{
 				PerforceMetadataLogger perforceLogger = new PerforceMetadataLogger(logger);
 				perforceLogger.AddClientView(_autoSdkDir, "//depot/CarefullyRedist/...", 12345);
@@ -571,7 +571,7 @@ namespace Horde.Server.Tests.Issues
 				_perforce.AddChange(_mainStreamId, 160, john, "Description", new string[] { "Engine/Foo/Baz.txt" });
 
 				IJob job = CreateJob(_mainStreamId, 170, "Test Build", _graph);
-				await using (TestJsonLogger logger = CreateLogger(job, 0, 0))
+				await using (TestJsonLogger logger = await CreateLoggerAsync(job, 0, 0))
 				{
 					logger.LogWarning(KnownLogEvents.AutomationTool_PerforceCase, "    {DepotFile}", new LogValue(LogValueType.DepotPath, "//UE5/Main/Engine/Foo/Bar.txt"));
 				}
@@ -669,8 +669,9 @@ namespace Horde.Server.Tests.Issues
 				await ParseEventsAsync(job, 0, 0, lines);
 				await UpdateCompleteStepAsync(job, 0, 0, JobStepOutcome.Warnings);
 
-				ILog? log = await LogService.GetLogAsync(job.Batches[0].Steps[0].LogId!.Value, CancellationToken.None);
-				List<ILogEvent> events = await LogService.FindEventsAsync(log!);
+				ILog? log = await LogCollection.GetAsync(job.Batches[0].Steps[0].LogId!.Value, CancellationToken.None);
+				Assert.IsNotNull(log);
+				List<ILogEvent> events = await log.GetEventsAsync();
 				Assert.AreEqual(1, events.Count);
 				Assert.AreEqual(2, events[0].LineCount);
 
@@ -711,8 +712,10 @@ namespace Horde.Server.Tests.Issues
 				await AddEventAsync(job, 0, 0, LogLevel.Warning, id: KnownLogEvents.Gauntlet_TestEvent.Id);
 				await UpdateCompleteStepAsync(job, 0, 0, JobStepOutcome.Warnings);
 
-				ILog? log = await LogService.GetLogAsync(job.Batches[0].Steps[0].LogId!.Value, CancellationToken.None);
-				List<ILogEvent> events = await LogService.FindEventsAsync(log!);
+				ILog? log = await LogCollection.GetAsync(job.Batches[0].Steps[0].LogId!.Value, CancellationToken.None);
+				Assert.IsNotNull(log);
+
+				List<ILogEvent> events = await log.GetEventsAsync();
 				Assert.AreEqual(1, events.Count);
 				Assert.AreEqual(1, events[0].LineCount);
 
@@ -1726,7 +1729,7 @@ namespace Horde.Server.Tests.Issues
 			// Expected: Gauntlet fingerprint using Name prefix
 			{
 				IJob job = CreateJob(_mainStreamId, 110, "Test Build", _graph);
-				await using (TestJsonLogger logger = CreateLogger(job, 0, 0))
+				await using (TestJsonLogger logger = await CreateLoggerAsync(job, 0, 0))
 				{
 					logger.LogError(KnownLogEvents.Gauntlet_TestEvent, "    Test {Name} failed", "Bar.Foo.Test");
 				}
@@ -1743,7 +1746,7 @@ namespace Horde.Server.Tests.Issues
 			// Expected: Gauntlet fingerprint using Device prefix
 			{
 				IJob job = CreateJob(_mainStreamId, 120, "Test Build", _graph);
-				await using (TestJsonLogger logger = CreateLogger(job, 0, 0))
+				await using (TestJsonLogger logger = await CreateLoggerAsync(job, 0, 0))
 				{
 					logger.LogWarning(KnownLogEvents.Gauntlet_DeviceEvent, "    Device {Name} reported an issue", "Foo");
 				}
@@ -1760,7 +1763,7 @@ namespace Horde.Server.Tests.Issues
 			// Expected: Gauntlet fingerprint using Access prefix
 			{
 				IJob job = CreateJob(_mainStreamId, 130, "Test Build", _graph);
-				await using (TestJsonLogger logger = CreateLogger(job, 0, 0))
+				await using (TestJsonLogger logger = await CreateLoggerAsync(job, 0, 0))
 				{
 					logger.LogError(KnownLogEvents.Gauntlet_BuildDropEvent, "    File {File} reported an issue", "/Bar/Foo.txt");
 					logger.LogError(KnownLogEvents.Gauntlet_BuildDropEvent, "    Folder {Directory} reported an issue", "/Bar/Foo");
@@ -1805,7 +1808,7 @@ namespace Horde.Server.Tests.Issues
 				+ @"    Test did not run until completion. The test exited prematurely.";
 
 				IJob job = CreateJob(_mainStreamId, 140, "Test Build", _graph);
-				await using (TestJsonLogger logger = CreateLogger(job, 0, 0))
+				await using (TestJsonLogger logger = await CreateLoggerAsync(job, 0, 0))
 				{
 					logger.LogError(KnownLogEvents.Gauntlet_FatalEvent, "{Message}", logMessage);
 				}
@@ -1836,7 +1839,7 @@ namespace Horde.Server.Tests.Issues
 				};
 
 				IJob job = CreateJob(_mainStreamId, 150, "Test Build", _graph);
-				await using (TestJsonLogger logger = CreateLogger(job, 0, 0))
+				await using (TestJsonLogger logger = await CreateLoggerAsync(job, 0, 0))
 				{
 					foreach (string error in logErrors)
 					{

@@ -2,6 +2,9 @@
 
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
+using System.Security.Claims;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
@@ -10,6 +13,9 @@ using EpicGames.Horde.Agents.Sessions;
 using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Logs;
 using EpicGames.Horde.Storage;
+using Horde.Server.Acls;
+using Microsoft.Extensions.Logging;
+using MongoDB.Bson;
 
 namespace Horde.Server.Logs
 {
@@ -62,6 +68,12 @@ namespace Horde.Server.Logs
 		//		/// Whether the log is complete (V2 storage backend)
 		//		/// </summary>
 		//		public bool Complete { get; }
+
+		/// <summary>
+		/// Delete this log
+		/// </summary>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		Task DeleteAsync(CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Read a set of lines from the given log file
@@ -122,6 +134,133 @@ namespace Horde.Server.Logs
 		/// <param name="cancellationToken">Cancellation token for the call</param>
 		/// <returns>List of line numbers containing the given term</returns>
 		Task<List<int>> SearchLogDataAsync(string text, int firstLine, int count, SearchStats stats, CancellationToken cancellationToken);
+
+		#region Events
+
+		/// <summary>
+		/// Creates a new event
+		/// </summary>
+		/// <param name="newEvents">List of events to create</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		Task AddEventsAsync(List<NewLogEventData> newEvents, CancellationToken cancellationToken = default);
+
+		/// <summary>
+		/// Finds events within a log file
+		/// </summary>
+		/// <param name="spanId">Optional span to filter events by</param>
+		/// <param name="index">Start index within the matching results</param>
+		/// <param name="count">Maximum number of results to return</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		/// <returns>List of events matching the query</returns>
+		Task<List<ILogEvent>> GetEventsAsync(ObjectId? spanId = null, int? index = null, int? count = null, CancellationToken cancellationToken = default);
+
+		#endregion
+	}
+
+	/// <summary>
+	/// Represents a node in the graph
+	/// </summary>
+	public interface ILogEvent
+	{
+		/// <summary>
+		/// Unique id of the log containing this event
+		/// </summary>
+		public LogId LogId { get; }
+
+		/// <summary>
+		/// Severity of the event
+		/// </summary>
+		public LogEventSeverity Severity { get; }
+
+		/// <summary>
+		/// Index of the first line for this event
+		/// </summary>
+		public int LineIndex { get; }
+
+		/// <summary>
+		/// Number of lines in the event
+		/// </summary>
+		public int LineCount { get; }
+
+		/// <summary>
+		/// Span id for this log event
+		/// </summary>
+		public ObjectId? SpanId { get; }
+
+		/// <summary>
+		/// Gets the data for this log event
+		/// </summary>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		public Task<ILogEventData> GetDataAsync(CancellationToken cancellationToken = default);
+	}
+
+	/// <summary>
+	/// Interface for event data
+	/// </summary>
+	public interface ILogEventData
+	{
+		/// <summary>
+		/// The log level
+		/// </summary>
+		LogEventSeverity Severity { get; }
+
+		/// <summary>
+		/// The type of event
+		/// </summary>
+		EventId? EventId { get; }
+
+		/// <summary>
+		/// The complete rendered message, in plaintext
+		/// </summary>
+		string Message { get; }
+
+		/// <summary>
+		/// Gets this event data as a JSON objects
+		/// </summary>
+		IReadOnlyList<JsonLogEvent> Lines { get; }
+	}
+
+	/// <summary>
+	/// Represents a node in the graph
+	/// </summary>
+	public class NewLogEventData
+	{
+		/// <summary>
+		/// Severity of the event
+		/// </summary>
+		public LogEventSeverity Severity { get; set; }
+
+		/// <summary>
+		/// Index of the first line for this event
+		/// </summary>
+		public int LineIndex { get; set; }
+
+		/// <summary>
+		/// Number of lines in the event
+		/// </summary>
+		public int LineCount { get; set; }
+
+		/// <summary>
+		/// The span this this event belongs to
+		/// </summary>
+		public ObjectId? SpanId { get; set; }
+	}
+
+	/// <summary>
+	/// Extensions for parsing log event properties
+	/// </summary>
+	public static class LogEventExtensions
+	{
+		/// <summary>
+		/// Find all properties of the given type in a particular log line
+		/// </summary>
+		/// <param name="data">Line data</param>
+		/// <param name="type">Type of property to return</param>
+		/// <returns></returns>
+		public static IEnumerable<JsonProperty> FindPropertiesOfType(this ILogEventData data, Utf8String type)
+		{
+			return data.Lines.SelectMany(x => x.FindPropertiesOfType(type));
+		}
 	}
 
 	/// <summary>
@@ -145,6 +284,36 @@ namespace Horde.Server.Logs
 	/// </summary>
 	public static class LogExtensions
 	{
+		/// <summary>
+		/// Creates a new event
+		/// </summary>
+		/// <param name="log">Log to add an event to</param>
+		/// <param name="newEvent">The new event to vreate</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		public static Task AddEventAsync(this ILog log, NewLogEventData newEvent, CancellationToken cancellationToken = default)
+		{
+			return log.AddEventsAsync(new List<NewLogEventData> { newEvent }, cancellationToken);
+		}
+
+		/// <summary>
+		/// Determines if the user is authorized to perform an action on a particular template
+		/// </summary>
+		/// <param name="log">The template to check</param>
+		/// <param name="user">The principal to authorize</param>
+		/// <returns>True if the action is authorized</returns>
+		public static bool AuthorizeForSession(this ILog log, ClaimsPrincipal user)
+		{
+			if (log.SessionId != null && user.HasSessionClaim(log.SessionId.Value))
+			{
+				return true;
+			}
+			if (log.LeaseId != null && user.HasLeaseClaim(log.LeaseId.Value))
+			{
+				return true;
+			}
+			return false;
+		}
+
 		/// <summary>
 		/// Parses a stream of json text and outputs plain text
 		/// </summary>

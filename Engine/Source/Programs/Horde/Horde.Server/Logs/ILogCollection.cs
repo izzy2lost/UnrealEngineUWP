@@ -1,11 +1,13 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Horde.Agents.Leases;
 using EpicGames.Horde.Agents.Sessions;
 using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Logs;
+using MongoDB.Bson;
 
 namespace Horde.Server.Logs
 {
@@ -32,6 +34,30 @@ namespace Horde.Server.Logs
 		/// <param name="logId">Unique id of the log file</param>
 		/// <param name="cancellationToken">Cancellation token for the call</param>
 		/// <returns>The log instance</returns>
-		Task<ILog?> GetAsync(LogId logId, CancellationToken cancellationToken);
+		Task<ILog?> GetAsync(LogId logId, CancellationToken cancellationToken = default);
+
+		#region Events
+
+		/// <summary>
+		/// Finds a list of events for a set of spans
+		/// </summary>
+		/// <param name="spanIds">The span ids</param>
+		/// <param name="logIds">List of log ids to query</param>
+		/// <param name="index">Index of the first result to return</param>
+		/// <param name="count">Number of results to return</param>
+		/// <param name="cancellationToken">Cancellation token for the call</param>
+		/// <returns>List of events for this issue</returns>
+		Task<IReadOnlyList<ILogEvent>> FindEventsForSpansAsync(IEnumerable<ObjectId> spanIds, LogId[]? logIds = null, int index = 0, int count = 10, CancellationToken cancellationToken = default);
+
+		/// <summary>
+		/// Update the span for an event
+		/// </summary>
+		/// <param name="events">The events to update</param>
+		/// <param name="spanId">New span id</param>
+		/// <param name="cancellationToken">Cancellation token for the call</param>
+		/// <returns>Async task</returns>
+		Task AddSpanToEventsAsync(IEnumerable<ILogEvent> events, ObjectId spanId, CancellationToken cancellationToken = default);
+
+		#endregion
 	}
 }

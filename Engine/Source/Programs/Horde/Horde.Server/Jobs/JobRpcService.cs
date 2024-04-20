@@ -245,7 +245,7 @@ namespace Horde.Server.Jobs
 	{
 		readonly JobService _jobService;
 		readonly IArtifactCollectionV1 _artifactCollection;
-		readonly ILogService _logService;
+		readonly ILogCollection _logCollection;
 		readonly IGraphCollection _graphs;
 		readonly ITestDataCollection _testData;
 		readonly IJobStepRefCollection _jobStepRefCollection;
@@ -258,11 +258,11 @@ namespace Horde.Server.Jobs
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public JobRpcCommon(JobService jobService, IArtifactCollectionV1 artifactCollection, ILogService logService, IGraphCollection graphs, ITestDataCollection testData, IJobStepRefCollection jobStepRefCollection, ITemplateCollection templateCollection, HttpClient httpClient, IClock clock, IOptionsSnapshot<GlobalConfig> globalConfig, ILogger<JobRpcCommon> logger)
+		public JobRpcCommon(JobService jobService, IArtifactCollectionV1 artifactCollection, ILogCollection logCollection, IGraphCollection graphs, ITestDataCollection testData, IJobStepRefCollection jobStepRefCollection, ITemplateCollection templateCollection, HttpClient httpClient, IClock clock, IOptionsSnapshot<GlobalConfig> globalConfig, ILogger<JobRpcCommon> logger)
 		{
 			_jobService = jobService;
 			_artifactCollection = artifactCollection;
-			_logService = logService;
+			_logCollection = logCollection;
 			_graphs = graphs;
 			_testData = testData;
 			_jobStepRefCollection = jobStepRefCollection;
@@ -487,7 +487,7 @@ namespace Horde.Server.Jobs
 			}
 
 			// Create a log file if necessary
-			log.Value ??= await _logService.CreateLogAsync(job.Id, batch.LeaseId, batch.SessionId, LogType.Json);
+			log.Value ??= await _logCollection.AddAsync(job.Id, batch.LeaseId, batch.SessionId, LogType.Json);
 
 			// Get the node for this step
 			IGraph graph = await _jobService.GetGraphAsync(job);
@@ -885,20 +885,30 @@ namespace Horde.Server.Jobs
 		{
 			if (!_globalConfig.Value.Authorize(LogAclAction.CreateEvent, context.GetHttpContext().User))
 			{
-				throw new StructuredRpcException(StatusCode.NotFound, "Access denied");
+				throw new StructuredRpcException(StatusCode.PermissionDenied, "Access denied");
 			}
 
-			List<NewLogEventData> newEvents = new List<NewLogEventData>();
-			foreach (RpcCreateEventRequest createEvent in request.Events)
+			foreach (IGrouping<string, RpcCreateEventRequest> createEventGroup in request.Events.GroupBy(x => x.LogId))
 			{
-				NewLogEventData newEvent = new NewLogEventData();
-				newEvent.LogId = LogId.Parse(createEvent.LogId);
-				newEvent.Severity = (LogEventSeverity)createEvent.Severity;
-				newEvent.LineIndex = createEvent.LineIndex;
-				newEvent.LineCount = createEvent.LineCount;
-				newEvents.Add(newEvent);
+				ILog? log = await _logCollection.GetAsync(LogId.Parse(createEventGroup.Key), context.CancellationToken);
+				if (log == null)
+				{
+					throw new StructuredRpcException(StatusCode.NotFound, "Log not found");
+				}
+
+				List<NewLogEventData> newEvents = new List<NewLogEventData>();
+				foreach (RpcCreateEventRequest createEvent in createEventGroup)
+				{
+					NewLogEventData newEvent = new NewLogEventData();
+					newEvent.Severity = (LogEventSeverity)createEvent.Severity;
+					newEvent.LineIndex = createEvent.LineIndex;
+					newEvent.LineCount = createEvent.LineCount;
+					newEvents.Add(newEvent);
+				}
+
+				await log.AddEventsAsync(newEvents, context.CancellationToken);
 			}
-			await _logService.CreateEventsAsync(newEvents, context.CancellationToken);
+
 			return new Empty();
 		}
 

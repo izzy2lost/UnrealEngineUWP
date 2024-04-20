@@ -52,7 +52,7 @@ namespace Horde.Server.Logs
 	[Route("[controller]")]
 	public class LogsController : ControllerBase
 	{
-		private readonly ILogService _logService;
+		private readonly ILogCollection _logCollection;
 		private readonly IIssueCollection _issueCollection;
 		private readonly JobService _jobService;
 		private readonly StorageService _storageService;
@@ -61,9 +61,9 @@ namespace Horde.Server.Logs
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public LogsController(ILogService logService, IIssueCollection issueCollection, JobService jobService, StorageService storageService, IOptionsSnapshot<GlobalConfig> globalConfig)
+		public LogsController(ILogCollection logCollection, IIssueCollection issueCollection, JobService jobService, StorageService storageService, IOptionsSnapshot<GlobalConfig> globalConfig)
 		{
-			_logService = logService;
+			_logCollection = logCollection;
 			_issueCollection = issueCollection;
 			_jobService = jobService;
 			_storageService = storageService;
@@ -82,7 +82,7 @@ namespace Horde.Server.Logs
 		[ProducesResponseType(typeof(GetLogResponse), 200)]
 		public async Task<ActionResult<object>> GetLogAsync(LogId logId, [FromQuery] PropertyFilter? filter = null, CancellationToken cancellationToken = default)
 		{
-			ILog? log = await _logService.GetLogAsync(logId, cancellationToken);
+			ILog? log = await _logCollection.GetAsync(logId, cancellationToken);
 			if (log == null)
 			{
 				return NotFound();
@@ -120,7 +120,7 @@ namespace Horde.Server.Logs
 		[ProducesResponseType(typeof(WriteBlobResponse), 200)]
 		public async Task<ActionResult<WriteBlobResponse>> WriteLogBlobAsync(LogId logId, WriteBlobRequest request, CancellationToken cancellationToken = default)
 		{
-			ILog? log = await _logService.GetLogAsync(logId, cancellationToken);
+			ILog? log = await _logCollection.GetAsync(logId, cancellationToken);
 			if (log == null)
 			{
 				return NotFound();
@@ -158,7 +158,7 @@ namespace Horde.Server.Logs
 			[FromQuery] bool download = false,
 			CancellationToken cancellationToken = default)
 		{
-			ILog? log = await _logService.GetLogAsync(logId, cancellationToken);
+			ILog? log = await _logCollection.GetAsync(logId, cancellationToken);
 			if (log == null)
 			{
 				return NotFound();
@@ -193,7 +193,7 @@ namespace Horde.Server.Logs
 		[Route("/api/v1/logs/{logId}/lines")]
 		public async Task<ActionResult> GetLogLinesAsync(LogId logId, [FromQuery] int index = 0, [FromQuery] int count = 100, CancellationToken cancellationToken = default)
 		{
-			ILog? log = await _logService.GetLogAsync(logId, cancellationToken);
+			ILog? log = await _logCollection.GetAsync(logId, cancellationToken);
 			if (log == null)
 			{
 				return NotFound();
@@ -288,7 +288,7 @@ namespace Horde.Server.Logs
 			[FromQuery] int count = 5,
 			CancellationToken cancellationToken = default)
 		{
-			ILog? log = await _logService.GetLogAsync(logId, cancellationToken);
+			ILog? log = await _logCollection.GetAsync(logId, cancellationToken);
 			if (log == null)
 			{
 				return NotFound();
@@ -317,7 +317,7 @@ namespace Horde.Server.Logs
 		[ProducesResponseType(typeof(List<GetLogEventResponse>), 200)]
 		public async Task<ActionResult<List<GetLogEventResponse>>> GetEventsAsync(LogId logId, [FromQuery] int? index = null, [FromQuery] int? count = null, CancellationToken cancellationToken = default)
 		{
-			ILog? log = await _logService.GetLogAsync(logId, cancellationToken);
+			ILog? log = await _logCollection.GetAsync(logId, cancellationToken);
 			if (log == null)
 			{
 				return NotFound();
@@ -327,14 +327,14 @@ namespace Horde.Server.Logs
 				return Forbid();
 			}
 
-			List<ILogEvent> logEvents = await _logService.FindEventsAsync(log, null, index, count, cancellationToken);
+			List<ILogEvent> logEvents = await log.GetEventsAsync(null, index, count, cancellationToken);
 
 			Dictionary<ObjectId, int?> spanIdToIssueId = new Dictionary<ObjectId, int?>();
 
 			List<GetLogEventResponse> responses = new List<GetLogEventResponse>();
 			foreach (ILogEvent logEvent in logEvents)
 			{
-				ILogEventData logEventData = await _logService.GetEventDataAsync(log, logEvent.LineIndex, logEvent.LineCount, cancellationToken);
+				ILogEventData logEventData = await logEvent.GetDataAsync(cancellationToken);
 
 				int? issueId = null;
 				if (logEvent.SpanId != null && !spanIdToIssueId.TryGetValue(logEvent.SpanId.Value, out issueId))
@@ -386,7 +386,7 @@ namespace Horde.Server.Logs
 			{
 				return true;
 			}
-			if (log.SessionId != null && LogService.AuthorizeForSession(log, user))
+			if (log.SessionId != null && log.AuthorizeForSession(user))
 			{
 				return true;
 			}

@@ -7,6 +7,7 @@ using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Text;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
@@ -21,6 +22,7 @@ using Horde.Server.Storage;
 using Horde.Server.Utilities;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
+using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Attributes;
 using MongoDB.Driver;
 using OpenTelemetry.Trace;
@@ -51,6 +53,9 @@ namespace Horde.Server.Logs
 				_document = document;
 			}
 
+			public Task DeleteAsync(CancellationToken cancellationToken = default)
+				=> _collection.DeleteAsync(_document, cancellationToken);
+
 			public async Task<ILog> UpdateLineCountAsync(int lineCount, bool complete, CancellationToken cancellationToken = default)
 			{
 				LogDocument newDocument = await _collection.UpdateLineCountAsync(_document, lineCount, complete, cancellationToken);
@@ -74,6 +79,12 @@ namespace Horde.Server.Logs
 
 			public Task<List<int>> SearchLogDataAsync(string text, int firstLine, int count, SearchStats stats, CancellationToken cancellationToken)
 				=> _collection.SearchLogDataAsync(_document, text, firstLine, count, stats, cancellationToken);
+
+			public Task AddEventsAsync(List<NewLogEventData> newEvents, CancellationToken cancellationToken = default)
+				=> _collection.AddEventsAsync(_document.Id, newEvents, cancellationToken);
+
+			public Task<List<ILogEvent>> GetEventsAsync(ObjectId? spanId = null, int? index = null, int? count = null, CancellationToken cancellationToken = default)
+				=> _collection.GetEventsAsync(this, spanId, index, count, cancellationToken);
 		}
 
 		class LogDocument
@@ -159,7 +170,94 @@ namespace Horde.Server.Logs
 			}
 		}
 
+		class LogEvent : ILogEvent
+		{
+			readonly ILog _log;
+			readonly LogCollection _collection;
+			readonly LogEventDocument _document;
+
+			LogId ILogEvent.LogId => _document.Id.LogId;
+			LogEventSeverity ILogEvent.Severity => _document.IsWarning ? LogEventSeverity.Warning : LogEventSeverity.Error;
+			int ILogEvent.LineIndex => _document.Id.LineIndex;
+			int ILogEvent.LineCount => _document.LineCount ?? 1;
+			ObjectId? ILogEvent.SpanId => _document.SpanId;
+
+			public LogEvent(ILog log, LogCollection collection, LogEventDocument document)
+			{
+				_log = log;
+				_collection = collection;
+				_document = document;
+			}
+
+			public async Task<ILogEventData> GetDataAsync(CancellationToken cancellationToken = default)
+				=> await _collection.GetEventDataAsync(_log, _document.Id.LineIndex, _document.LineCount ?? 1, cancellationToken);
+		}
+
+		class LogEventId
+		{
+			[BsonElement("l")]
+			public LogId LogId { get; set; }
+
+			[BsonElement("n")]
+			public int LineIndex { get; set; }
+		}
+
+		class LogEventDocument
+		{
+			[BsonId]
+			public LogEventId Id { get; set; }
+
+			[BsonElement("w"), BsonIgnoreIfDefault, BsonDefaultValue(false)]
+			public bool IsWarning { get; set; }
+
+			[BsonElement("c"), BsonIgnoreIfNull]
+			public int? LineCount { get; set; }
+
+			[BsonElement("s")]
+			public ObjectId? SpanId { get; set; }
+
+			[BsonConstructor]
+			public LogEventDocument()
+			{
+				Id = new LogEventId();
+			}
+
+			public LogEventDocument(LogId logId, LogEventSeverity severity, int lineIndex, int lineCount, ObjectId? spanId)
+			{
+				Id = new LogEventId { LogId = logId, LineIndex = lineIndex };
+				IsWarning = severity == LogEventSeverity.Warning;
+				LineCount = (lineCount > 1) ? (int?)lineCount : null;
+				SpanId = spanId;
+			}
+
+			public LogEventDocument(LogId logId, NewLogEventData data)
+				: this(logId, data.Severity, data.LineIndex, data.LineCount, data.SpanId)
+			{
+			}
+		}
+
+		class LegacyLogEventDocument
+		{
+			public ObjectId Id { get; set; }
+			public DateTime Time { get; set; }
+			public LogEventSeverity Severity { get; set; }
+			public LogId LogId { get; set; }
+			public int LineIndex { get; set; }
+			public int LineCount { get; set; }
+
+			public string? Message { get; set; }
+
+			[BsonIgnoreIfNull, BsonElement("IssueId2")]
+			public int? IssueId { get; set; }
+
+			public BsonDocument? Data { get; set; }
+
+			public int UpgradeVersion { get; set; }
+		}
+
 		readonly IMongoCollection<LogDocument> _logCollection;
+		readonly IMongoCollection<LogEventDocument> _logEvents;
+		readonly IMongoCollection<LegacyLogEventDocument> _legacyEvents;
 		readonly ILogStorage _storage;
 		readonly LogTailService _logTailService;
 		readonly StorageService _storageService;
@@ -179,6 +277,13 @@ namespace Horde.Server.Logs
 			_tracer = tracer;
 			_logger = logger;
 			_logCache = new MemoryCache(new MemoryCacheOptions());
+
+			List<MongoIndex<LogEventDocument>> logEventIndexes = new List<MongoIndex<LogEventDocument>>();
+			logEventIndexes.Add(keys => keys.Ascending(x => x.Id.LogId));
+			logEventIndexes.Add(keys => keys.Ascending(x => x.SpanId).Ascending(x => x.Id));
+			_logEvents = mongoService.GetCollection<LogEventDocument>("LogEvents", logEventIndexes);
+
+			_legacyEvents = mongoService.GetCollection<LegacyLogEventDocument>("Events", keys => keys.Ascending(x => x.LogId));
 		}
 
 		/// <inheritdoc/>
@@ -193,6 +298,20 @@ namespace Horde.Server.Logs
 			LogDocument newLog = new LogDocument(jobId, leaseId, sessionId, type, logId, Namespace.Logs);
 			await _logCollection.InsertOneAsync(newLog, null, cancellationToken);
 			return new Log(this, newLog);
+		}
+
+		/// <inheritdoc/>
+		async Task DeleteAsync(LogDocument logDocument, CancellationToken cancellationToken)
+		{
+			await _logEvents.DeleteManyAsync(x => x.Id.LogId == logDocument.Id, cancellationToken);
+			await _legacyEvents.DeleteManyAsync(x => x.LogId == logDocument.Id, cancellationToken);
+			await _logCollection.DeleteOneAsync(x => x.Id == logDocument.Id, cancellationToken);
+
+			if (logDocument.UseNewStorageBackend)
+			{
+				using IStorageClient storageClient = _storageService.CreateClient(logDocument.NamespaceId);
+				await storageClient.DeleteRefAsync(logDocument.RefName, cancellationToken);
+			}
 		}
 
 		/// <inheritdoc/>
@@ -348,7 +467,7 @@ namespace Horde.Server.Logs
 		{
 			Stopwatch timer = Stopwatch.StartNew();
 
-			using TelemetrySpan span = _tracer.StartActiveSpan($"{nameof(LogService)}.{nameof(SearchLogDataAsync)}");
+			using TelemetrySpan span = _tracer.StartActiveSpan($"{nameof(LogCollection)}.{nameof(SearchLogDataAsync)}");
 			span.SetAttribute("logId", log.Id.ToString());
 			span.SetAttribute("text", text);
 			span.SetAttribute("count", count);
@@ -541,6 +660,123 @@ namespace Horde.Server.Logs
 			}
 		}
 
+		#region Log events
+
+		/// <inheritdoc/>
+		Task AddEventsAsync(LogId logId, List<NewLogEventData> newEvents, CancellationToken cancellationToken)
+		{
+			return _logEvents.InsertManyAsync(newEvents.ConvertAll(x => new LogEventDocument(logId, x)), cancellationToken: cancellationToken);
+		}
+
+		/// <inheritdoc/>
+		async Task<List<ILogEvent>> GetEventsAsync(ILog log, ObjectId? spanId = null, int? index = null, int? count = null, CancellationToken cancellationToken = default)
+		{
+			_logger.LogInformation("Querying for log events for log {LogId}", log.Id);
+
+			FilterDefinitionBuilder<LogEventDocument> builder = Builders<LogEventDocument>.Filter;
+
+			FilterDefinition<LogEventDocument> filter = builder.Eq(x => x.Id.LogId, log.Id);
+			if (spanId != null)
+			{
+				filter &= builder.Eq(x => x.SpanId, spanId.Value);
+			}
+
+			IFindFluent<LogEventDocument, LogEventDocument> results = _logEvents.Find(filter).SortBy(x => x.Id);
+			if (index != null)
+			{
+				results = results.Skip(index.Value);
+			}
+			if (count != null)
+			{
+				results = results.Limit(count.Value);
+			}
+
+			List<LogEventDocument> logEventDocuments = await results.ToListAsync(cancellationToken);
+			return logEventDocuments.ConvertAll<ILogEvent>(x => new LogEvent(log, this, x));
+		}
+
+		/// <inheritdoc/>
+		public async Task<IReadOnlyList<ILogEvent>> FindEventsForSpansAsync(IEnumerable<ObjectId> spanIds, LogId[]? logIds, int index, int count, CancellationToken cancellationToken)
+		{
+			FilterDefinition<LogEventDocument> filter = Builders<LogEventDocument>.Filter.In(x => x.SpanId, spanIds.Select<ObjectId, ObjectId?>(x => x));
+			if (logIds != null && logIds.Length > 0)
+			{
+				filter &= Builders<LogEventDocument>.Filter.In(x => x.Id.LogId, logIds);
+			}
+
+			List<LogEvent> logEvents = new List<LogEvent>();
+
+			List<LogEventDocument> logEventDocuments = await _logEvents.Find(filter).Skip(index).Limit(count).ToListAsync(cancellationToken);
+			foreach (IGrouping<LogId, LogEventDocument> logEventGroup in logEventDocuments.GroupBy(x => x.Id.LogId))
+			{
+				ILog? log = await GetAsync(logEventGroup.Key, cancellationToken);
+				if (log != null)
+				{
+					logEvents.AddRange(logEventGroup.Select(x => new LogEvent(log, this, x)));
+				}
+			}
+
+			return logEvents;
+		}
+
+		/// <inheritdoc/>
+		public async Task AddSpanToEventsAsync(IEnumerable<ILogEvent> events, ObjectId spanId, CancellationToken cancellationToken)
+		{
+			FilterDefinition<LogEventDocument> eventFilter = Builders<LogEventDocument>.Filter.In(x => x.Id, events.OfType<LogEventDocument>().Select(x => x.Id));
+			UpdateDefinition<LogEventDocument> eventUpdate = Builders<LogEventDocument>.Update.Set(x => x.SpanId, spanId);
+			await _logEvents.UpdateManyAsync(eventFilter, eventUpdate, cancellationToken: cancellationToken);
+		}
+
+		class LogEventData : ILogEventData
+		{
+			public string? _message;
+			public IReadOnlyList<JsonLogEvent> Lines { get; }
+
+			EventId? ILogEventData.EventId => (Lines.Count > 0) ? Lines[0].EventId : null;
+			LogEventSeverity ILogEventData.Severity => (Lines.Count == 0) ? LogEventSeverity.Information : (Lines[0].Level == LogLevel.Warning) ? LogEventSeverity.Warning : LogEventSeverity.Error;
+
+			public LogEventData(IReadOnlyList<JsonLogEvent> lines)
+			{
+				Lines = lines;
+			}
+
+			string ILogEventData.Message
+			{
+				get
+				{
+					_message ??= String.Join("\n", Lines.Select(x => x.GetRenderedMessage().ToString()));
+					return _message;
+				}
+			}
+		}
+
+		async Task<LogEventData> GetEventDataAsync(ILog log, int lineIndex, int lineCount, CancellationToken cancellationToken)
+		{
+			using TelemetrySpan span = _tracer.StartActiveSpan($"{nameof(LogCollection)}.{nameof(GetEventDataAsync)}");
+			span.SetAttribute("logId", log.Id.ToString());
+			span.SetAttribute("lineIndex", lineIndex);
+			span.SetAttribute("lineCount", lineCount);
+
+			List<Utf8String> lines = await log.ReadLinesAsync(lineIndex, lineCount, cancellationToken);
+			List<JsonLogEvent> jsonLines = new List<JsonLogEvent>(lines.Count);
+
+			foreach (Utf8String line in lines)
+			{
+				try
+				{
+					jsonLines.Add(JsonLogEvent.Parse(line.Memory));
+				}
+				catch (JsonException ex)
+				{
+					_logger.LogWarning(ex, "Unable to parse line from log file: {Line}", line);
+				}
+			}
+
+			return new LogEventData(jsonLines);
+		}
+
+		#endregion
+
 		/// <summary>
 		/// Streams log data to a caller
 		/// </summary>
@@ -715,6 +951,9 @@ namespace Horde.Server.Logs
 				return new Log(_collection, newDocument);
 			}
 
+			public Task DeleteAsync(CancellationToken cancellationToken = default)
+				=> _collection.DeleteAsync(_document, cancellationToken);
+
 			public Task<List<Utf8String>> ReadLinesAsync(int index, int count, CancellationToken cancellationToken = default)
 				=> _collection.ReadLinesV1Async(_document, index, count, cancellationToken);
 
@@ -732,6 +971,12 @@ namespace Horde.Server.Logs
 
 			public Task<List<int>> SearchLogDataAsync(string text, int firstLine, int count, SearchStats stats, CancellationToken cancellationToken)
 				=> _collection.SearchLogDataV1Async(_document, text, firstLine, count, stats, cancellationToken);
+
+			public Task AddEventsAsync(List<NewLogEventData> newEvents, CancellationToken cancellationToken = default)
+				=> _collection.AddEventsAsync(_document.Id, newEvents, cancellationToken);
+
+			public Task<List<ILogEvent>> GetEventsAsync(ObjectId? spanId = null, int? index = null, int? count = null, CancellationToken cancellationToken = default)
+				=> _collection.GetEventsAsync(this, spanId, index, count, cancellationToken);
 		}
 
 		async Task<List<Utf8String>> ReadLinesV1Async(LogDocument log, int index, int count, CancellationToken cancellationToken)
@@ -817,7 +1062,7 @@ namespace Horde.Server.Logs
 		{
 			Stopwatch timer = Stopwatch.StartNew();
 
-			using TelemetrySpan span = _tracer.StartActiveSpan($"{nameof(LogService)}.{nameof(SearchLogDataAsync)}");
+			using TelemetrySpan span = _tracer.StartActiveSpan($"{nameof(LogCollection)}.{nameof(SearchLogDataAsync)}");
 			span.SetAttribute("logId", log.Id.ToString());
 			span.SetAttribute("text", text);
 			span.SetAttribute("count", count);
@@ -930,7 +1175,7 @@ namespace Horde.Server.Logs
 				LogIndexData? indexData = await ReadIndexV1Async(log, log.IndexLength.Value);
 				if (indexData != null && firstLine < indexData.LineCount)
 				{
-					using TelemetrySpan span = _tracer.StartActiveSpan($"{nameof(LogService)}.{nameof(SearchLogDataInternalV1Async)}.Indexed");
+					using TelemetrySpan span = _tracer.StartActiveSpan($"{nameof(LogCollection)}.{nameof(SearchLogDataInternalV1Async)}.Indexed");
 					span.SetAttribute("lineCount", indexData.LineCount);
 
 					foreach (int lineIndex in indexData.Search(firstLine, searchText, searchStats))

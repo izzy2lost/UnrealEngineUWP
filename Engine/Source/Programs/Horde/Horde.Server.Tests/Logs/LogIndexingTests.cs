@@ -66,7 +66,7 @@ namespace Horde.Server.Tests.Logs
 		public async Task IndexTestsAsync()
 		{
 			JobId jobId = JobIdUtils.GenerateNewId();
-			ILog logFile = await LogService.CreateLogAsync(jobId, null, null, LogType.Text);
+			ILog logFile = await LogCollection.AddAsync(jobId, null, null, LogType.Text);
 
 			// Write the test data to the log file in blocks
 			await using (TestLogWriter logWriter = new TestLogWriter(logFile, StorageService))
@@ -137,7 +137,7 @@ namespace Horde.Server.Tests.Logs
 		public async Task PartialTokenTestsAsync()
 		{
 			JobId jobId = JobIdUtils.GenerateNewId();
-			ILog logFile = await LogService.CreateLogAsync(jobId, null, null, LogType.Text);
+			ILog logFile = await LogCollection.AddAsync(jobId, null, null, LogType.Text);
 
 			string[] lines =
 			{
@@ -183,7 +183,7 @@ namespace Horde.Server.Tests.Logs
 		public async Task AppendIndexTestsAsync()
 		{
 			JobId jobId = JobIdUtils.GenerateNewId();
-			ILog logFile = await LogService.CreateLogAsync(jobId, null, null, LogType.Text);
+			ILog logFile = await LogCollection.AddAsync(jobId, null, null, LogType.Text);
 
 			await using (TestLogWriter writer = new TestLogWriter(logFile, StorageService))
 			{
@@ -227,7 +227,7 @@ namespace Horde.Server.Tests.Logs
 
 		async Task SearchLogDataTestAsync(LogId logId)
 		{
-			ILog? logFile = await LogService.GetLogAsync(logId, CancellationToken.None);
+			ILog? logFile = await LogCollection.GetAsync(logId, CancellationToken.None);
 			Assert.IsNotNull(logFile);
 
 			await SearchLogDataTestAsync(logFile, "HISPANIOLA", 0, 4, new[] { 1503, 1520, 1525, 1595 });

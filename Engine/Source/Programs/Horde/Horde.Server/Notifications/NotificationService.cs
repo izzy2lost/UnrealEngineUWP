@@ -76,9 +76,9 @@ namespace Horde.Server.Notifications
 		private readonly IssueService _issueService;
 
 		/// <summary>
-		/// Instance of the <see cref="_logService"/>.
+		/// Instance of the <see cref="ILogCollection"/>.
 		/// </summary>
-		private readonly ILogService _logService;
+		private readonly ILogCollection _logCollection;
 
 		/// <summary>
 		/// Cache for de-duplicating queued notifications
@@ -145,7 +145,7 @@ namespace Horde.Server.Notifications
 			IUserCollection userCollection,
 			JobService jobService,
 			IssueService issueService,
-			ILogService logService,
+			ILogCollection logCollection,
 			Meter meter,
 			IMemoryCache cache,
 			RedisService redisService,
@@ -161,7 +161,7 @@ namespace Horde.Server.Notifications
 			_userCollection = userCollection;
 			_jobService = jobService;
 			_issueService = issueService;
-			_logService = logService;
+			_logCollection = logCollection;
 			_cache = cache;
 			_redisConnectionPool = redisService.ConnectionPool;
 			_backgroundTask = new BackgroundTask(ExecuteAsync);
@@ -676,18 +676,18 @@ namespace Horde.Server.Notifications
 				return;
 			}
 
-			ILog? log = await _logService.GetLogAsync(step.LogId.Value, cancellationToken);
+			ILog? log = await _logCollection.GetAsync(step.LogId.Value, cancellationToken);
 			if (log == null)
 			{
 				_logger.LogError("Step does not have a log file");
 				return;
 			}
 
-			List<ILogEvent> jobStepEvents = await _logService.FindEventsAsync(log, cancellationToken: cancellationToken);
+			List<ILogEvent> jobStepEvents = await log.GetEventsAsync(cancellationToken: cancellationToken);
 			List<ILogEventData> jobStepEventData = new List<ILogEventData>();
 			foreach (ILogEvent logEvent in jobStepEvents)
 			{
-				ILogEventData eventData = await _logService.GetEventDataAsync(log, logEvent.LineIndex, logEvent.LineCount, cancellationToken);
+				ILogEventData eventData = await logEvent.GetDataAsync(cancellationToken);
 				jobStepEventData.Add(eventData);
 			}
 

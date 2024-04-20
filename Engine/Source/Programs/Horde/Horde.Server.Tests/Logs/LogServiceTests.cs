@@ -42,7 +42,7 @@ namespace Horde.Server.Tests.Logs
 		public async Task WriteLogLifecycleOldTestAsync()
 		{
 			JobId jobId = JobIdUtils.GenerateNewId();
-			ILog logFile = await LogService.CreateLogAsync(jobId, null, null, LogType.Text, logId: null, cancellationToken: CancellationToken.None);
+			ILog logFile = await LogCollection.AddAsync(jobId, null, null, LogType.Text, logId: null, cancellationToken: CancellationToken.None);
 
 			await using (TestLogWriter writer = new TestLogWriter(logFile, StorageService))
 			{
@@ -56,7 +56,7 @@ namespace Horde.Server.Tests.Logs
 				await writer.FlushAsync(true);
 			}
 
-			logFile = (await LogService.GetLogAsync(logFile.Id, CancellationToken.None))!;
+			logFile = (await LogCollection.GetAsync(logFile.Id, CancellationToken.None))!;
 
 			Assert.AreEqual("hello", await ReadLogAsync(logFile, 0, 5));
 			Assert.AreEqual("foo\nbar\nbaz\n", await ReadLogAsync(logFile, 6, 12));
@@ -68,9 +68,9 @@ namespace Horde.Server.Tests.Logs
 			Assert.AreEqual("baz", lines[3].ToString());
 		}
 
-		private static async Task AssertLineOffsetAsync(ILogService logService, LogId logId, int lineIndex, int clampedLineIndex, long offset)
+		private static async Task AssertLineOffsetAsync(ILogCollection logCollection, LogId logId, int lineIndex, int clampedLineIndex, long offset)
 		{
-			ILog? logFile = await logService.GetLogAsync(logId, CancellationToken.None);
+			ILog? logFile = await logCollection.GetAsync(logId, CancellationToken.None);
 			Assert.IsNotNull(logFile);
 
 			List<Utf8String> lines = await logFile.ReadLinesAsync(0, lineIndex + 1, CancellationToken.None);
@@ -95,7 +95,7 @@ namespace Horde.Server.Tests.Logs
 		public async Task WriteLogLifecycleAsync()
 		{
 			JobId jobId = JobIdUtils.GenerateNewId();
-			ILog log = await LogService.CreateLogAsync(jobId, null, null, LogType.Text);
+			ILog log = await LogCollection.AddAsync(jobId, null, null, LogType.Text);
 
 			string str1 = "hello\n";
 			string str2 = "foo\nbar\n";
@@ -111,10 +111,10 @@ namespace Horde.Server.Tests.Logs
 			log = await logWriter.WriteDataAsync(Encoding.ASCII.GetBytes(str1));
 			Assert.AreEqual(str1, await ReadLogAsync(log, 0, str1.Length));
 			Assert.AreEqual(str1, await ReadLogAsync(log, 0, str1.Length + 100)); // Reading too far is valid?
-			await AssertLineOffsetAsync(LogService, log.Id, 0, 0, 0);
-			await AssertLineOffsetAsync(LogService, log.Id, 1, 1, 6);
-			await AssertLineOffsetAsync(LogService, log.Id, 1, 1, 6);
-			await AssertLineOffsetAsync(LogService, log.Id, 1, 1, 6);
+			await AssertLineOffsetAsync(LogCollection, log.Id, 0, 0, 0);
+			await AssertLineOffsetAsync(LogCollection, log.Id, 1, 1, 6);
+			await AssertLineOffsetAsync(LogCollection, log.Id, 1, 1, 6);
+			await AssertLineOffsetAsync(LogCollection, log.Id, 1, 1, 6);
 
 			// Second write without flushing. Will become chunk #2
 			offset += str1.Length;
@@ -122,21 +122,21 @@ namespace Horde.Server.Tests.Logs
 			log = await logWriter.WriteDataAsync(Encoding.ASCII.GetBytes(str2));
 
 			Assert.AreEqual(str1 + str2, await ReadLogAsync(log, 0, str1.Length + str2.Length));
-			await AssertLineOffsetAsync(LogService, log.Id, 0, 0, 0);
-			await AssertLineOffsetAsync(LogService, log.Id, 1, 1, 6);
-			await AssertLineOffsetAsync(LogService, log.Id, 2, 2, 10);
-			await AssertLineOffsetAsync(LogService, log.Id, 3, 3, 14);
+			await AssertLineOffsetAsync(LogCollection, log.Id, 0, 0, 0);
+			await AssertLineOffsetAsync(LogCollection, log.Id, 1, 1, 6);
+			await AssertLineOffsetAsync(LogCollection, log.Id, 2, 2, 10);
+			await AssertLineOffsetAsync(LogCollection, log.Id, 3, 3, 14);
 
 			// Third write without flushing. Will become chunk #2
 			offset += str2.Length;
 			lineIndex += str3.Count(f => f == '\n');
 			log = await logWriter.WriteDataAsync(Encoding.ASCII.GetBytes(str3));
 			Assert.AreEqual(str1 + str2 + str3, await ReadLogAsync(log, 0, str1.Length + str2.Length + str3.Length));
-			await AssertLineOffsetAsync(LogService, log.Id, 0, 0, 0);
-			await AssertLineOffsetAsync(LogService, log.Id, 1, 1, 6);
-			await AssertLineOffsetAsync(LogService, log.Id, 2, 2, 10);
-			await AssertLineOffsetAsync(LogService, log.Id, 3, 3, 14);
-			await AssertLineOffsetAsync(LogService, log.Id, 4, 4, 18);
+			await AssertLineOffsetAsync(LogCollection, log.Id, 0, 0, 0);
+			await AssertLineOffsetAsync(LogCollection, log.Id, 1, 1, 6);
+			await AssertLineOffsetAsync(LogCollection, log.Id, 2, 2, 10);
+			await AssertLineOffsetAsync(LogCollection, log.Id, 3, 3, 14);
+			await AssertLineOffsetAsync(LogCollection, log.Id, 4, 4, 18);
 
 			// Fourth write with flush. Will become chunk #2
 			offset += str3.Length;
@@ -146,14 +146,14 @@ namespace Horde.Server.Tests.Logs
 			await ReadLogAsync(log, 0, str1.Length + str2.Length + str3.Length + str4.Length));
 			Assert.AreEqual(str3 + str4,
 			await ReadLogAsync(log, str1.Length + str2.Length, str3.Length + str4.Length));
-			await AssertLineOffsetAsync(LogService, log.Id, 0, 0, 0);
-			await AssertLineOffsetAsync(LogService, log.Id, 1, 1, 6);
-			await AssertLineOffsetAsync(LogService, log.Id, 2, 2, 10);
-			await AssertLineOffsetAsync(LogService, log.Id, 3, 3, 14);
-			await AssertLineOffsetAsync(LogService, log.Id, 4, 4, 18);
-			await AssertLineOffsetAsync(LogService, log.Id, 5, 5, 22);
-			await AssertLineOffsetAsync(LogService, log.Id, 6, 6, 27);
-			await AssertLineOffsetAsync(LogService, log.Id, 7, 7, 32);
+			await AssertLineOffsetAsync(LogCollection, log.Id, 0, 0, 0);
+			await AssertLineOffsetAsync(LogCollection, log.Id, 1, 1, 6);
+			await AssertLineOffsetAsync(LogCollection, log.Id, 2, 2, 10);
+			await AssertLineOffsetAsync(LogCollection, log.Id, 3, 3, 14);
+			await AssertLineOffsetAsync(LogCollection, log.Id, 4, 4, 18);
+			await AssertLineOffsetAsync(LogCollection, log.Id, 5, 5, 22);
+			await AssertLineOffsetAsync(LogCollection, log.Id, 6, 6, 27);
+			await AssertLineOffsetAsync(LogCollection, log.Id, 7, 7, 32);
 
 			// Fifth write with flush and data that will span more than chunk. Will become chunk #3
 			string a = "Lorem ipsum dolor sit amet\n";
@@ -179,13 +179,13 @@ namespace Horde.Server.Tests.Logs
 			// Will implicitly test GetLogFileAsync(), AddCachedLogFile()
 			JobId jobId = JobIdUtils.GenerateNewId();
 			SessionId sessionId = SessionIdUtils.GenerateNewId();
-			ILog a = await LogService.CreateLogAsync(jobId, null, sessionId, LogType.Text, logId: null, CancellationToken.None);
-			ILog b = (await LogService.GetLogAsync(a.Id, CancellationToken.None))!;
+			ILog a = await LogCollection.AddAsync(jobId, null, sessionId, LogType.Text, logId: null, CancellationToken.None);
+			ILog b = (await LogCollection.GetAsync(a.Id, CancellationToken.None))!;
 			Assert.AreEqual(a.JobId, b.JobId);
 			Assert.AreEqual(a.SessionId, b.SessionId);
 			Assert.AreEqual(a.Type, b.Type);
 
-			ILog? notFound = await LogService.GetLogAsync(LogIdUtils.GenerateNewId(), CancellationToken.None);
+			ILog? notFound = await LogCollection.GetAsync(LogIdUtils.GenerateNewId(), CancellationToken.None);
 			Assert.IsNull(notFound);
 		}
 
@@ -194,8 +194,8 @@ namespace Horde.Server.Tests.Logs
 		{
 			JobId jobId = JobIdUtils.GenerateNewId();
 			SessionId sessionId = SessionIdUtils.GenerateNewId();
-			ILog log = await LogService.CreateLogAsync(jobId, null, sessionId, LogType.Text, logId: null, cancellationToken: CancellationToken.None);
-			ILog logNoSession = await LogService.CreateLogAsync(jobId, null, null, LogType.Text, logId: null, cancellationToken: CancellationToken.None);
+			ILog log = await LogCollection.AddAsync(jobId, null, sessionId, LogType.Text, logId: null, cancellationToken: CancellationToken.None);
+			ILog logNoSession = await LogCollection.AddAsync(jobId, null, null, LogType.Text, logId: null, cancellationToken: CancellationToken.None);
 
 			ClaimsPrincipal hasClaim = new ClaimsPrincipal(new ClaimsIdentity(new List<Claim>
 			{
@@ -206,16 +206,16 @@ namespace Horde.Server.Tests.Logs
 				new Claim(HordeClaimTypes.AgentSessionId, "invalid-session-id"),
 			}, "TestAuthType"));
 
-			Assert.IsTrue(Horde.Server.Logs.LogService.AuthorizeForSession(log, hasClaim));
-			Assert.IsFalse(Horde.Server.Logs.LogService.AuthorizeForSession(log, hasNoClaim));
-			Assert.IsFalse(Horde.Server.Logs.LogService.AuthorizeForSession(logNoSession, hasClaim));
+			Assert.IsTrue(log.AuthorizeForSession(hasClaim));
+			Assert.IsFalse(log.AuthorizeForSession(hasNoClaim));
+			Assert.IsFalse(logNoSession.AuthorizeForSession(hasClaim));
 		}
 
 		[TestMethod]
 		public async Task ChunkSplittingAsync()
 		{
 			JobId jobId = JobIdUtils.GenerateNewId();
-			ILog logFile = await LogService.CreateLogAsync(jobId, null, null, LogType.Text, logId: null, cancellationToken: CancellationToken.None);
+			ILog logFile = await LogCollection.AddAsync(jobId, null, null, LogType.Text, logId: null, cancellationToken: CancellationToken.None);
 			await using TestLogWriter logWriter = new TestLogWriter(logFile, StorageService);
 
 			byte[] line1 = Encoding.UTF8.GetBytes("hello world\n");

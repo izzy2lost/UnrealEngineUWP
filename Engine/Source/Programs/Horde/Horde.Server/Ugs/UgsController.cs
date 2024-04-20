@@ -6,7 +6,6 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Horde.Issues;
-using EpicGames.Horde.Logs;
 using EpicGames.Horde.Users;
 using Horde.Server.Issues;
 using Horde.Server.Logs;
@@ -26,45 +25,22 @@ namespace Horde.Server.Ugs
 	[Route("[controller]")]
 	public sealed class UgsController : ControllerBase
 	{
-		/// <summary>
-		/// Singleton instance of the issue service
-		/// </summary>
-		private readonly IssueService _issueService;
-
-		/// <summary>
-		/// Collection of metadata documents
-		/// </summary>
-		private readonly IUgsMetadataCollection _ugsMetadataCollection;
-
-		/// <summary>
-		/// Collection of users
-		/// </summary>
-		private readonly IUserCollection _userCollection;
-
-		/// <summary>
-		/// The log file service
-		/// </summary>
-		private readonly ILogService _logService;
-
-		/// <summary>
-		/// Server settings
-		/// </summary>
-		private readonly ServerSettings _settings;
-
-		/// <summary>
-		/// Logger 
-		/// </summary>
+		readonly IssueService _issueService;
+		readonly IUgsMetadataCollection _ugsMetadataCollection;
+		readonly IUserCollection _userCollection;
+		readonly ILogCollection _logCollection;
+		readonly ServerSettings _settings;
 		readonly ILogger _logger;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public UgsController(IssueService issueService, IUgsMetadataCollection ugsMetadataCollection, IUserCollection userCollection, ILogService logService, IOptionsMonitor<ServerSettings> optionsMonitor, ILogger<UgsController> logger)
+		public UgsController(IssueService issueService, IUgsMetadataCollection ugsMetadataCollection, IUserCollection userCollection, ILogCollection logCollection, IOptionsMonitor<ServerSettings> optionsMonitor, ILogger<UgsController> logger)
 		{
 			_issueService = issueService;
 			_ugsMetadataCollection = ugsMetadataCollection;
 			_userCollection = userCollection;
-			_logService = logService;
+			_logCollection = logCollection;
 			_settings = optionsMonitor.CurrentValue;
 			_logger = logger;
 		}
@@ -270,28 +246,17 @@ namespace Horde.Server.Ugs
 		{
 			List<GetUgsIssueDiagnosticResponse> diagnostics = new List<GetUgsIssueDiagnosticResponse>();
 
-			Dictionary<LogId, ILog?> logs = new Dictionary<LogId, ILog?>();
-
 			IReadOnlyList<IIssueSpan> spans = await _issueService.Collection.FindSpansAsync(issueId, cancellationToken);
-			List<ILogEvent> events = await _logService.FindEventsForSpansAsync(spans.Select(x => x.Id), null, 0, count: 10, cancellationToken);
+			IReadOnlyList<ILogEvent> events = await _logCollection.FindEventsForSpansAsync(spans.Select(x => x.Id), null, 0, count: 10, cancellationToken);
 
 			foreach (ILogEvent logEvent in events)
 			{
-				ILog? log;
-				if (!logs.TryGetValue(logEvent.LogId, out log))
-				{
-					log = await _logService.GetLogAsync(logEvent.LogId, cancellationToken);
-					logs.Add(logEvent.LogId, log);
-				}
-				if (log != null)
-				{
-					ILogEventData eventData = await _logService.GetEventDataAsync(log, logEvent.LineIndex, logEvent.LineCount, cancellationToken);
-					long buildId = logEvent.LogId.GetHashCode();
-					Uri url = new Uri(_settings.DashboardUrl, $"log/{logEvent.LogId}?lineindex={logEvent.LineIndex}");
+				ILogEventData eventData = await logEvent.GetDataAsync(cancellationToken);
+				long buildId = logEvent.LogId.GetHashCode();
+				Uri url = new Uri(_settings.DashboardUrl, $"log/{logEvent.LogId}?lineindex={logEvent.LineIndex}");
 
-					GetUgsIssueDiagnosticResponse diagnostic = new GetUgsIssueDiagnosticResponse(buildId, eventData.Message, url);
-					diagnostics.Add(diagnostic);
-				}
+				GetUgsIssueDiagnosticResponse diagnostic = new GetUgsIssueDiagnosticResponse(buildId, eventData.Message, url);
+				diagnostics.Add(diagnostic);
 			}
 
 			return diagnostics;
