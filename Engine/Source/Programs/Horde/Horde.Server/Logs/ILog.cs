@@ -1,7 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
@@ -13,32 +13,6 @@ using EpicGames.Horde.Storage;
 
 namespace Horde.Server.Logs
 {
-	/// <summary>
-	/// Information about a log file chunk
-	/// </summary>
-	public interface ILogChunk
-	{
-		/// <summary>
-		/// Offset of the chunk within the log
-		/// </summary>
-		long Offset { get; }
-
-		/// <summary>
-		/// Length of this chunk. If zero, the chunk is still being written to.
-		/// </summary>
-		int Length { get; }
-
-		/// <summary>
-		/// Index of the first line within this chunk. If a line straddles two chunks, this is the index of the split line.
-		/// </summary>
-		int LineIndex { get; }
-
-		/// <summary>
-		/// If the chunk has yet to be pushed to persistent storage, includes the name of the server that is currently storing it.
-		/// </summary>
-		string? Server { get; }
-	}
-
 	/// <summary>
 	/// Information about a log file
 	/// </summary>
@@ -65,29 +39,9 @@ namespace Horde.Server.Logs
 		public SessionId? SessionId { get; }
 
 		/// <summary>
-		/// Whether to use the new storage backend for log data
-		/// </summary>
-		public bool UseNewStorageBackend { get; }
-
-		/// <summary>
-		/// Maximum line index in the file
-		/// </summary>
-		public int? MaxLineIndex { get; }
-
-		/// <summary>
-		/// Length of the file which is indexed
-		/// </summary>
-		public long? IndexLength { get; }
-
-		/// <summary>
 		/// Type of data stored in this log 
 		/// </summary>
 		public LogType Type { get; }
-
-		/// <summary>
-		/// Chunks within this file
-		/// </summary>
-		public IReadOnlyList<ILogChunk> Chunks { get; }
 
 		/// <summary>
 		/// Namespace containing the log data
@@ -99,15 +53,31 @@ namespace Horde.Server.Logs
 		/// </summary>
 		public RefName RefName { get; }
 
-		/// <summary>
-		/// Number of lines (V2 storage backend)
-		/// </summary>
-		public int LineCount { get; }
+		//		/// <summary>
+		//		/// Number of lines (V2 storage backend)
+		//		/// </summary>
+		//		public int LineCount { get; }
+
+		//		/// <summary>
+		//		/// Whether the log is complete (V2 storage backend)
+		//		/// </summary>
+		//		public bool Complete { get; }
 
 		/// <summary>
-		/// Whether the log is complete (V2 storage backend)
+		/// Read a set of lines from the given log file
 		/// </summary>
-		public bool Complete { get; }
+		/// <param name="index">Index of the first line to read</param>
+		/// <param name="count">Maximum number of lines to return</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		/// <returns>List of lines</returns>
+		Task<List<Utf8String>> ReadLinesAsync(int index, int count, CancellationToken cancellationToken = default);
+
+		/// <summary>
+		/// Gets metadata about the log file
+		/// </summary>
+		/// <param name="cancellationToken">Cancellation token for the call</param>
+		/// <returns>Metadata about the log file</returns>
+		Task<LogMetadata> GetMetadataAsync(CancellationToken cancellationToken);
 
 		/// <summary>
 		/// Updates the line count for a log file (v2 backend only)
@@ -117,6 +87,57 @@ namespace Horde.Server.Logs
 		/// <param name="cancellationToken">Cancellation token for the call</param>
 		/// <returns>The updated log file document</returns>
 		Task<ILog> UpdateLineCountAsync(int lineCount, bool complete, CancellationToken cancellationToken = default);
+
+		/// <summary>
+		/// Gets lines from the given log 
+		/// </summary>
+		/// <param name="cancellationToken">Cancellation token for the call</param>
+		/// <returns>Data for the requested range</returns>
+		Task<Stream> OpenRawStreamAsync(CancellationToken cancellationToken = default);
+
+		/// <summary>
+		/// Gets lines from the given log 
+		/// </summary>
+		/// <param name="offset"></param>
+		/// <param name="length"></param>
+		/// <param name="cancellationToken">Cancellation token for the call</param>
+		/// <returns>Data for the requested range</returns>
+		Task<Stream> OpenRawStreamAsync(long offset, long length, CancellationToken cancellationToken);
+
+		/// <summary>
+		/// Parses a stream of json text and outputs plain text
+		/// </summary>
+		/// <param name="outputStream">Output stream to receive the text data</param>
+		/// <param name="cancellationToken">Cancellation token for the call</param>
+		/// <returns>Async text</returns>
+		Task CopyPlainTextStreamAsync(Stream outputStream, CancellationToken cancellationToken = default);
+
+		/// <summary>
+		/// Search for the specified text in a log file
+		/// </summary>
+		/// <param name="text">Text to search for</param>
+		/// <param name="firstLine">Line to start search from</param>
+		/// <param name="count">Number of results to return</param>
+		/// <param name="stats">Receives stats for the search</param>
+		/// <param name="cancellationToken">Cancellation token for the call</param>
+		/// <returns>List of line numbers containing the given term</returns>
+		Task<List<int>> SearchLogDataAsync(string text, int firstLine, int count, SearchStats stats, CancellationToken cancellationToken);
+	}
+
+	/// <summary>
+	/// Metadata about a log file
+	/// </summary>
+	public class LogMetadata
+	{
+		/// <summary>
+		/// Length of the log file
+		/// </summary>
+		public long Length { get; set; }
+
+		/// <summary>
+		/// Number of lines in the log file
+		/// </summary>
+		public int MaxLineIndex { get; set; }
 	}
 
 	/// <summary>
@@ -125,35 +146,16 @@ namespace Horde.Server.Logs
 	public static class LogExtensions
 	{
 		/// <summary>
-		/// Gets the chunk index containing the given offset.
+		/// Parses a stream of json text and outputs plain text
 		/// </summary>
-		/// <param name="chunks">The chunks to search</param>
-		/// <param name="offset">The offset to search for</param>
-		/// <returns>The chunk index containing the given offset</returns>
-		public static int GetChunkForOffset(this IReadOnlyList<ILogChunk> chunks, long offset)
+		/// <param name="log">The log file to query</param>
+		/// <param name="outputStream">Output stream to receive the text data</param>
+		/// <param name="cancellationToken">Cancellation token for the call</param>
+		/// <returns>Async text</returns>
+		public static async Task CopyRawStreamAsync(this ILog log, Stream outputStream, CancellationToken cancellationToken)
 		{
-			int chunkIndex = chunks.BinarySearch(x => x.Offset, offset);
-			if (chunkIndex < 0)
-			{
-				chunkIndex = ~chunkIndex - 1;
-			}
-			return chunkIndex;
-		}
-
-		/// <summary>
-		/// Gets the starting chunk index for the given line
-		/// </summary>
-		/// <param name="chunks">The chunks to search</param>
-		/// <param name="lineIndex">Index of the line to query</param>
-		/// <returns>Index of the chunk to fetch</returns>
-		public static int GetChunkForLine(this IReadOnlyList<ILogChunk> chunks, int lineIndex)
-		{
-			int chunkIndex = chunks.BinarySearch(x => x.LineIndex, lineIndex);
-			if (chunkIndex < 0)
-			{
-				chunkIndex = ~chunkIndex - 1;
-			}
-			return chunkIndex;
+			await using Stream stream = await log.OpenRawStreamAsync(cancellationToken);
+			await stream.CopyToAsync(outputStream, cancellationToken);
 		}
 	}
 }

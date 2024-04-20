@@ -511,7 +511,7 @@ namespace Horde.Server.Server
 				return Forbid(ServerAclAction.Debug);
 			}
 
-			ILog? log = await _logCollection.GetLogAsync(logId, CancellationToken.None);
+			ILog? log = await _logCollection.GetAsync(logId, CancellationToken.None);
 			if (log == null)
 			{
 				return NotFound();

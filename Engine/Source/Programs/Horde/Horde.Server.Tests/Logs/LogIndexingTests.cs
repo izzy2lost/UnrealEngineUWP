@@ -98,7 +98,7 @@ namespace Horde.Server.Tests.Logs
 
 			// Read the data back out and check it's the same
 			byte[] readData = new byte[_data.Length];
-			using (Stream stream = await LogService.OpenRawStreamAsync(logFile))
+			using (Stream stream = await logFile.OpenRawStreamAsync())
 			{
 				int readSize = await stream.ReadAsync(readData, 0, readData.Length);
 				Assert.AreEqual(readData.Length, readSize);
@@ -167,7 +167,7 @@ namespace Horde.Server.Tests.Logs
 						string str = lines[lineIdx].Substring(strOfs, strLen);
 
 						SearchStats stats = new SearchStats();
-						List<int> results = await LogService.SearchLogDataAsync(logFile, str, 0, 5, stats, CancellationToken.None);
+						List<int> results = await logFile.SearchLogDataAsync(str, 0, 5, stats, CancellationToken.None);
 						Assert.AreEqual(1, results.Count);
 						Assert.AreEqual(lineIdx, results[0]);
 
@@ -195,7 +195,7 @@ namespace Horde.Server.Tests.Logs
 
 			{
 				SearchStats stats = new SearchStats();
-				List<int> results = await LogService.SearchLogDataAsync(logFile, "abc", 0, 5, stats, CancellationToken.None);
+				List<int> results = await logFile.SearchLogDataAsync("abc", 0, 5, stats, CancellationToken.None);
 				Assert.AreEqual(1, results.Count);
 				Assert.AreEqual(0, results[0]);
 
@@ -205,7 +205,7 @@ namespace Horde.Server.Tests.Logs
 			}
 			{
 				SearchStats stats = new SearchStats();
-				List<int> results = await LogService.SearchLogDataAsync(logFile, "def", 0, 5, stats, CancellationToken.None);
+				List<int> results = await logFile.SearchLogDataAsync("def", 0, 5, stats, CancellationToken.None);
 				Assert.AreEqual(1, results.Count);
 				Assert.AreEqual(1, results[0]);
 
@@ -215,7 +215,7 @@ namespace Horde.Server.Tests.Logs
 			}
 			{
 				SearchStats stats = new SearchStats();
-				List<int> results = await LogService.SearchLogDataAsync(logFile, "ghi", 0, 5, stats, CancellationToken.None);
+				List<int> results = await logFile.SearchLogDataAsync("ghi", 0, 5, stats, CancellationToken.None);
 				Assert.AreEqual(1, results.Count);
 				Assert.AreEqual(2, results[0]);
 
@@ -237,10 +237,10 @@ namespace Horde.Server.Tests.Logs
 			await SearchLogDataTestAsync(logFile, "NEWSLETTER", 0, 100, new[] { 7886 });
 		}
 
-		async Task SearchLogDataTestAsync(ILog logFile, string text, int firstLine, int count, int[] expectedLines)
+		static async Task SearchLogDataTestAsync(ILog logFile, string text, int firstLine, int count, int[] expectedLines)
 		{
 			SearchStats stats = new SearchStats();
-			List<int> lines = await LogService.SearchLogDataAsync(logFile, text, firstLine, count, stats, CancellationToken.None);
+			List<int> lines = await logFile.SearchLogDataAsync(text, firstLine, count, stats, CancellationToken.None);
 			Assert.IsTrue(lines.SequenceEqual(expectedLines));
 		}
 	}

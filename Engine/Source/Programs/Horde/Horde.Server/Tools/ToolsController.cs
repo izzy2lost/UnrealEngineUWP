@@ -10,7 +10,6 @@ using EpicGames.Core;
 using EpicGames.Horde.Storage;
 using EpicGames.Horde.Storage.Nodes;
 using EpicGames.Horde.Tools;
-using Horde.Server.Server;
 using Horde.Server.Storage;
 using Horde.Server.Utilities;
 using Microsoft.AspNetCore.Authorization;
@@ -18,7 +17,6 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.StaticFiles;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 
 namespace Horde.Server.Tools
 {
@@ -31,15 +29,13 @@ namespace Horde.Server.Tools
 	public class ToolsController : HordeControllerBase
 	{
 		readonly IToolCollection _toolCollection;
-		readonly IOptionsSnapshot<GlobalConfig> _globalConfig;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public ToolsController(IToolCollection toolCollection, IOptionsSnapshot<GlobalConfig> globalConfig)
+		public ToolsController(IToolCollection toolCollection)
 		{
 			_toolCollection = toolCollection;
-			_globalConfig = globalConfig;
 		}
 
 		/// <summary>
@@ -178,17 +174,15 @@ namespace Horde.Server.Tools
 	public class PublicToolsController : HordeControllerBase
 	{
 		readonly IToolCollection _toolCollection;
-		readonly IOptionsSnapshot<GlobalConfig> _globalConfig;
 		readonly IClock _clock;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public PublicToolsController(IToolCollection toolCollection, IClock clock, IOptionsSnapshot<GlobalConfig> globalConfig)
+		public PublicToolsController(IToolCollection toolCollection, IClock clock)
 		{
 			_toolCollection = toolCollection;
 			_clock = clock;
-			_globalConfig = globalConfig;
 		}
 
 		/// <summary>
@@ -365,7 +359,7 @@ namespace Horde.Server.Tools
 			}
 		}
 
-		private async Task<GetToolDeploymentResponse> GetDeploymentInfoResponseAsync(ITool tool, IToolDeployment deployment, CancellationToken cancellationToken)
+		static async Task<GetToolDeploymentResponse> GetDeploymentInfoResponseAsync(ITool tool, IToolDeployment deployment, CancellationToken cancellationToken)
 		{
 			using IStorageClient client = tool.CreateStorageClient();
 			IBlobHandle rootHandle = await client.ReadRefAsync(deployment.RefName, cancellationToken: cancellationToken);

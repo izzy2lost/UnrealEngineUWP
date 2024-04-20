@@ -92,7 +92,7 @@ namespace Horde.Server.Logs
 				return Forbid();
 			}
 
-			LogMetadata metadata = await _logService.GetMetadataAsync(log, cancellationToken);
+			LogMetadata metadata = await log.GetMetadataAsync(cancellationToken);
 			return CreateGetLogResponse(log, metadata).ApplyFilter(filter);
 		}
 
@@ -136,7 +136,7 @@ namespace Horde.Server.Logs
 
 			request.Prefix = $"{log.RefName}";
 
-			IStorageBackend storageBackend = _storageService.CreateBackend(Namespace.Logs);
+			IStorageBackend storageBackend = _storageService.CreateBackend(log.NamespaceId);
 			return await StorageController.WriteBlobAsync(storageBackend, request, cancellationToken);
 		}
 
@@ -171,11 +171,11 @@ namespace Horde.Server.Logs
 			Func<Stream, ActionContext, Task> copyTask;
 			if (format == LogOutputFormat.Text && log.Type == LogType.Json)
 			{
-				copyTask = (outputStream, context) => _logService.CopyPlainTextStreamAsync(log, outputStream, cancellationToken);
+				copyTask = (outputStream, context) => log.CopyPlainTextStreamAsync(outputStream, cancellationToken);
 			}
 			else
 			{
-				copyTask = (outputStream, context) => _logService.CopyRawStreamAsync(log, outputStream, cancellationToken);
+				copyTask = (outputStream, context) => log.CopyRawStreamAsync(outputStream, cancellationToken);
 			}
 
 			return new CustomFileCallbackResult(fileName ?? $"log-{logId}.txt", "text/plain", !download, copyTask);
@@ -203,9 +203,9 @@ namespace Horde.Server.Logs
 				return Forbid();
 			}
 
-			LogMetadata metadata = await _logService.GetMetadataAsync(log, cancellationToken);
+			LogMetadata metadata = await log.GetMetadataAsync(cancellationToken);
 
-			List<Utf8String> lines = await _logService.ReadLinesAsync(log, index, count, cancellationToken);
+			List<Utf8String> lines = await log.ReadLinesAsync(index, count, cancellationToken);
 			using (MemoryStream stream = new MemoryStream(lines.Sum(x => x.Length) + (lines.Count * 20)))
 			{
 				stream.WriteByte((byte)'{');
@@ -300,7 +300,7 @@ namespace Horde.Server.Logs
 
 			SearchLogResponse response = new SearchLogResponse();
 			response.Stats = new SearchStats();
-			response.Lines = await _logService.SearchLogDataAsync(log, text, firstLine, count, response.Stats, cancellationToken);
+			response.Lines = await log.SearchLogDataAsync(text, firstLine, count, response.Stats, cancellationToken);
 			return response;
 		}
 

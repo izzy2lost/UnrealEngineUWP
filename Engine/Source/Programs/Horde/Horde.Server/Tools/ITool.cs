@@ -9,7 +9,6 @@ using System.Threading.Tasks;
 using EpicGames.Horde.Acls;
 using EpicGames.Horde.Storage;
 using EpicGames.Horde.Tools;
-using Horde.Server.Server;
 
 namespace Horde.Server.Tools
 {

@@ -15,7 +15,7 @@ namespace Horde.Server.Logs
 	public interface ILogCollection
 	{
 		/// <summary>
-		/// Creates a new log
+		/// Adds a new log
 		/// </summary>
 		/// <param name="jobId">Unique id of the job that owns this log file</param>
 		/// <param name="leaseId">Agent lease allowed to update the log</param>
@@ -24,7 +24,7 @@ namespace Horde.Server.Logs
 		/// <param name="logId">ID of the log file (optional)</param>
 		/// <param name="cancellationToken">Cancellation token for the call</param>
 		/// <returns>The new log file document</returns>
-		Task<ILog> CreateLogAsync(JobId jobId, LeaseId? leaseId, SessionId? sessionId, LogType type, LogId? logId = null, CancellationToken cancellationToken = default);
+		Task<ILog> AddAsync(JobId jobId, LeaseId? leaseId, SessionId? sessionId, LogType type, LogId? logId = null, CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Gets a log by ID
@@ -32,6 +32,6 @@ namespace Horde.Server.Logs
 		/// <param name="logId">Unique id of the log file</param>
 		/// <param name="cancellationToken">Cancellation token for the call</param>
 		/// <returns>The log instance</returns>
-		Task<ILog?> GetLogAsync(LogId logId, CancellationToken cancellationToken);
+		Task<ILog?> GetAsync(LogId logId, CancellationToken cancellationToken);
 	}
 }

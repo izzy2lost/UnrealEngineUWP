@@ -18,7 +18,6 @@ using EpicGames.Horde.Storage.Bundles;
 using EpicGames.Horde.Storage.Nodes;
 using EpicGames.Horde.Storage.ObjectStores;
 using EpicGames.Horde.Tools;
-using EpicGames.Serialization;
 using Horde.Server.Server;
 using Horde.Server.Storage;
 using Horde.Server.Utilities;
@@ -240,7 +239,7 @@ namespace Horde.Server.Tools
 			ToolConfig? toolConfig;
 			if (globalConfig.TryGetTool(id, out toolConfig))
 			{
-				ToolDocument document = await FindOrAddDocument(toolConfig, cancellationToken);
+				ToolDocument document = await FindOrAddDocumentAsync(toolConfig, cancellationToken);
 				return new Tool(this, document, toolConfig, _clock.UtcNow);
 			}
 
@@ -263,10 +262,10 @@ namespace Horde.Server.Tools
 			List<Tool> tools = new List<Tool>();
 			foreach (ToolConfig toolConfig in globalConfig.Tools)
 			{
-				ToolDocument document = await FindOrAddDocument(toolConfig, cancellationToken);
+				ToolDocument document = await FindOrAddDocumentAsync(toolConfig, cancellationToken);
 				tools.Add(new Tool(this, document, toolConfig, utcNow));
 			}
-			foreach(BundledToolConfig bundledToolConfig in globalConfig.ServerSettings.BundledTools)
+			foreach (BundledToolConfig bundledToolConfig in globalConfig.ServerSettings.BundledTools)
 			{
 				ToolDocument document = CreateBundledToolDocument(bundledToolConfig);
 				tools.Add(new Tool(this, document, bundledToolConfig, utcNow));
@@ -275,7 +274,7 @@ namespace Horde.Server.Tools
 			return tools;
 		}
 
-		async Task<ToolDocument> FindOrAddDocument(ToolConfig toolConfig, CancellationToken cancellationToken)
+		async Task<ToolDocument> FindOrAddDocumentAsync(ToolConfig toolConfig, CancellationToken cancellationToken)
 		{
 			ToolDocument? tool;
 			for (; ; )
@@ -295,7 +294,7 @@ namespace Horde.Server.Tools
 			return tool;
 		}
 
-		ToolDocument CreateBundledToolDocument(BundledToolConfig bundledToolConfig)
+		static ToolDocument CreateBundledToolDocument(BundledToolConfig bundledToolConfig)
 		{
 			ToolDocument tool = new ToolDocument(bundledToolConfig.Id);
 
@@ -379,7 +378,7 @@ namespace Horde.Server.Tools
 					return newTool;
 				}
 
-				newTool = await FindOrAddDocument(toolConfig, cancellationToken);
+				newTool = await FindOrAddDocumentAsync(toolConfig, cancellationToken);
 				if (newTool == null)
 				{
 					return null;

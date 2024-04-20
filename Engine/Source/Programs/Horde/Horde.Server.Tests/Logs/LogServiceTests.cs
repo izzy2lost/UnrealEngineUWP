@@ -58,10 +58,10 @@ namespace Horde.Server.Tests.Logs
 
 			logFile = (await LogService.GetLogAsync(logFile.Id, CancellationToken.None))!;
 
-			Assert.AreEqual("hello", await ReadLogAsync(LogService, logFile, 0, 5));
-			Assert.AreEqual("foo\nbar\nbaz\n", await ReadLogAsync(LogService, logFile, 6, 12));
+			Assert.AreEqual("hello", await ReadLogAsync(logFile, 0, 5));
+			Assert.AreEqual("foo\nbar\nbaz\n", await ReadLogAsync(logFile, 6, 12));
 
-			List<Utf8String> lines = await LogService.ReadLinesAsync(logFile, 0, 100, CancellationToken.None);
+			List<Utf8String> lines = await logFile.ReadLinesAsync(0, 100, CancellationToken.None);
 			Assert.AreEqual("hello", lines[0].ToString());
 			Assert.AreEqual("foo", lines[1].ToString());
 			Assert.AreEqual("bar", lines[2].ToString());
@@ -71,15 +71,16 @@ namespace Horde.Server.Tests.Logs
 		private static async Task AssertLineOffsetAsync(ILogService logService, LogId logId, int lineIndex, int clampedLineIndex, long offset)
 		{
 			ILog? logFile = await logService.GetLogAsync(logId, CancellationToken.None);
+			Assert.IsNotNull(logFile);
 
-			List<Utf8String> lines = await logService.ReadLinesAsync(logFile!, 0, lineIndex + 1, CancellationToken.None);
+			List<Utf8String> lines = await logFile.ReadLinesAsync(0, lineIndex + 1, CancellationToken.None);
 			Assert.AreEqual(clampedLineIndex, Math.Min(lineIndex, lines.Count));
 			Assert.AreEqual(offset, lines.Take(lineIndex).Sum(x => x.Length + 1));
 		}
 
-		static async Task<string> ReadLogAsync(ILogService logService, ILog log, long offset, long length)
+		static async Task<string> ReadLogAsync(ILog log, long offset, long length)
 		{
-			using Stream stream = await logService.OpenRawStreamAsync(log);
+			using Stream stream = await log.OpenRawStreamAsync();
 
 			byte[] prefix = new byte[(int)offset];
 			await stream.ReadGreedyAsync(prefix);
@@ -108,8 +109,8 @@ namespace Horde.Server.Tests.Logs
 
 			// First write with flush. Will become chunk #1
 			log = await logWriter.WriteDataAsync(Encoding.ASCII.GetBytes(str1));
-			Assert.AreEqual(str1, await ReadLogAsync(LogService, log, 0, str1.Length));
-			Assert.AreEqual(str1, await ReadLogAsync(LogService, log, 0, str1.Length + 100)); // Reading too far is valid?
+			Assert.AreEqual(str1, await ReadLogAsync(log, 0, str1.Length));
+			Assert.AreEqual(str1, await ReadLogAsync(log, 0, str1.Length + 100)); // Reading too far is valid?
 			await AssertLineOffsetAsync(LogService, log.Id, 0, 0, 0);
 			await AssertLineOffsetAsync(LogService, log.Id, 1, 1, 6);
 			await AssertLineOffsetAsync(LogService, log.Id, 1, 1, 6);
@@ -120,7 +121,7 @@ namespace Horde.Server.Tests.Logs
 			lineIndex += str1.Count(f => f == '\n');
 			log = await logWriter.WriteDataAsync(Encoding.ASCII.GetBytes(str2));
 
-			Assert.AreEqual(str1 + str2, await ReadLogAsync(LogService, log, 0, str1.Length + str2.Length));
+			Assert.AreEqual(str1 + str2, await ReadLogAsync(log, 0, str1.Length + str2.Length));
 			await AssertLineOffsetAsync(LogService, log.Id, 0, 0, 0);
 			await AssertLineOffsetAsync(LogService, log.Id, 1, 1, 6);
 			await AssertLineOffsetAsync(LogService, log.Id, 2, 2, 10);
@@ -130,7 +131,7 @@ namespace Horde.Server.Tests.Logs
 			offset += str2.Length;
 			lineIndex += str3.Count(f => f == '\n');
 			log = await logWriter.WriteDataAsync(Encoding.ASCII.GetBytes(str3));
-			Assert.AreEqual(str1 + str2 + str3, await ReadLogAsync(LogService, log, 0, str1.Length + str2.Length + str3.Length));
+			Assert.AreEqual(str1 + str2 + str3, await ReadLogAsync(log, 0, str1.Length + str2.Length + str3.Length));
 			await AssertLineOffsetAsync(LogService, log.Id, 0, 0, 0);
 			await AssertLineOffsetAsync(LogService, log.Id, 1, 1, 6);
 			await AssertLineOffsetAsync(LogService, log.Id, 2, 2, 10);
@@ -142,9 +143,9 @@ namespace Horde.Server.Tests.Logs
 			lineIndex += str4.Count(f => f == '\n');
 			log = await logWriter.WriteDataAsync(Encoding.ASCII.GetBytes(str4));
 			Assert.AreEqual(str1 + str2 + str3 + str4,
-			await ReadLogAsync(LogService, log, 0, str1.Length + str2.Length + str3.Length + str4.Length));
+			await ReadLogAsync(log, 0, str1.Length + str2.Length + str3.Length + str4.Length));
 			Assert.AreEqual(str3 + str4,
-			await ReadLogAsync(LogService, log, str1.Length + str2.Length, str3.Length + str4.Length));
+			await ReadLogAsync(log, str1.Length + str2.Length, str3.Length + str4.Length));
 			await AssertLineOffsetAsync(LogService, log.Id, 0, 0, 0);
 			await AssertLineOffsetAsync(LogService, log.Id, 1, 1, 6);
 			await AssertLineOffsetAsync(LogService, log.Id, 2, 2, 10);
@@ -169,7 +170,7 @@ namespace Horde.Server.Tests.Logs
 			log = await logWriter.WriteDataAsync(Encoding.ASCII.GetBytes(a));
 			log = await logWriter.WriteDataAsync(Encoding.ASCII.GetBytes(b));
 
-			Assert.AreEqual(str5, await ReadLogAsync(LogService, log, offset, str5.Length));
+			Assert.AreEqual(str5, await ReadLogAsync(log, offset, str5.Length));
 		}
 
 		[TestMethod]
@@ -233,7 +234,8 @@ namespace Horde.Server.Tests.Logs
 			await logWriter.WriteDataAsync(line5);
 
 			logFile = await logWriter.FlushAsync();
-			Assert.AreEqual(6, logFile.LineCount);
+			LogMetadata metadata = await logFile.GetMetadataAsync(CancellationToken.None);
+			Assert.AreEqual(6, metadata.MaxLineIndex);
 		}
 	}
 }
