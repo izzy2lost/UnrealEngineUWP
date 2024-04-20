@@ -149,62 +149,6 @@ class FNaniteMultiViewMaterialVS : public FNaniteGlobalShader
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
 	{
 		FNaniteGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
-		OutEnvironment.SetDefine(TEXT("NANITE_MATERIAL_MULTIVIEW"), 1);
-	}
-
-	void GetShaderBindings(
-		const FScene* Scene,
-		ERHIFeatureLevel::Type FeatureLevel,
-		const FPrimitiveSceneProxy* PrimitiveSceneProxy,
-		const FMaterialRenderProxy& MaterialRenderProxy,
-		const FMaterial& Material,
-		const FMeshMaterialShaderElementData& ShaderElementData,
-		FMeshDrawSingleShaderBindings& ShaderBindings) const
-	{
-	}
-
-	void GetElementShaderBindings(
-		const FShaderMapPointerTable& PointerTable,
-		const FScene* Scene,
-		const FSceneView* ViewIfDynamicMeshCommand,
-		const FVertexFactory* VertexFactory,
-		const EVertexInputStreamType InputStreamType,
-		const FStaticFeatureLevel FeatureLevel,
-		const FPrimitiveSceneProxy* PrimitiveSceneProxy,
-		const FMeshBatch& MeshBatch,
-		const FMeshBatchElement& BatchElement,
-		const FMeshMaterialShaderElementData& ShaderElementData,
-		FMeshDrawSingleShaderBindings& ShaderBindings,
-		FVertexInputStreamArray& VertexStreams) const
-	{
-	}
-
-private:
-	LAYOUT_FIELD(FShaderParameter, MaterialDepth);
-};
-
-class FNaniteIndirectMaterialVS : public FNaniteGlobalShader
-{
-	DECLARE_GLOBAL_SHADER(FNaniteIndirectMaterialVS);
-
-	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
-		SHADER_PARAMETER(float,   MaterialDepth)
-		SHADER_PARAMETER(uint32,  MaterialSlot)
-		SHADER_PARAMETER(uint32,  TileRemapCount)
-	END_SHADER_PARAMETER_STRUCT()
-
-	FNaniteIndirectMaterialVS() = default;
-
-	FNaniteIndirectMaterialVS(const ShaderMetaType::CompiledShaderInitializerType& Initializer)
-	: FNaniteGlobalShader(Initializer)
-	{
-		BindForLegacyShaderParameters<FParameters>(this, Initializer.PermutationId, Initializer.ParameterMap, false);
-	}
-
-	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
-	{
-		FNaniteGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
-		OutEnvironment.SetDefine(TEXT("NANITE_MATERIAL_MULTIVIEW"), 0);
 	}
 
 	void GetShaderBindings(

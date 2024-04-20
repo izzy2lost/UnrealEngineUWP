@@ -309,9 +309,6 @@ DECLARE_DWORD_COUNTER_STAT(TEXT("BasePass Visible Raster Bins"), STAT_NaniteBase
 DECLARE_DWORD_COUNTER_STAT(TEXT("BasePass Total Shading Bins"), STAT_NaniteBasePassTotalShadingBins, STATGROUP_Nanite);
 DECLARE_DWORD_COUNTER_STAT(TEXT("BasePass Visible Shading Bins"), STAT_NaniteBasePassVisibleShadingBins, STATGROUP_Nanite);
 
-DECLARE_DWORD_COUNTER_STAT(TEXT("BasePass Total Shading Draws"), STAT_NaniteBasePassTotalShadingDraws, STATGROUP_Nanite);
-DECLARE_DWORD_COUNTER_STAT(TEXT("BasePass Visible Shading Draws"), STAT_NaniteBasePassVisibleShadingDraws, STATGROUP_Nanite);
-
 CSV_DEFINE_CATEGORY(LightCount, true);
 
 /*-----------------------------------------------------------------------------
@@ -1137,18 +1134,11 @@ void FDeferredShadingSceneRenderer::RenderNanite(FRDGBuilder& GraphBuilder, cons
 			uint32 VisibleShadingBins = 0;
 			VisibilityResults->GetShadingBinStats(VisibleShadingBins, TotalShadingBins);
 
-			uint32 TotalShadingDraws = 0;
-			uint32 VisibleShadingDraws = 0;
-			VisibilityResults->GetShadingDrawStats(VisibleShadingDraws, TotalShadingDraws);
-
 			SET_DWORD_STAT(STAT_NaniteBasePassTotalRasterBins, TotalRasterBins);
 			SET_DWORD_STAT(STAT_NaniteBasePassVisibleRasterBins, VisibleRasterBins);
 
 			SET_DWORD_STAT(STAT_NaniteBasePassTotalShadingBins, TotalShadingBins);
 			SET_DWORD_STAT(STAT_NaniteBasePassVisibleShadingBins, VisibleShadingBins);
-
-			SET_DWORD_STAT(STAT_NaniteBasePassTotalShadingDraws, TotalShadingDraws);
-			SET_DWORD_STAT(STAT_NaniteBasePassVisibleShadingDraws, VisibleShadingDraws);
 
 		}, Nanite::GetVisibilityTask(InNaniteBasePassVisibility.Query));
 #endif
@@ -1476,7 +1466,6 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 			}
 
 			FNaniteVisibility& NaniteVisibility = Scene->NaniteVisibility[ENaniteMeshPass::BasePass];
-			const FNaniteMaterialCommands& NaniteMaterials = Scene->NaniteMaterials[ENaniteMeshPass::BasePass];
 			const FNaniteRasterPipelines&  NaniteRasterPipelines  = Scene->NaniteRasterPipelines[ENaniteMeshPass::BasePass];
 			const FNaniteShadingPipelines& NaniteShadingPipelines = Scene->NaniteShadingPipelines[ENaniteMeshPass::BasePass];
 
@@ -1489,7 +1478,7 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 				NaniteCullingViews,
 				&NaniteRasterPipelines,
 				&NaniteShadingPipelines,
-				&NaniteMaterials,
+				&Scene->NaniteLumenMaterials,
 				InitViewTaskDatas.VisibilityTaskData->GetComputeRelevanceTask()
 			);
 		}
@@ -2044,7 +2033,7 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 					// Setup dummy uniform buffer parameters for fog volume.
 					SetDummyLocalFogVolumeForViews(GraphBuilder, CustomRenderPassViews);
 
-					if (bNaniteEnabled && UseNaniteComputeMaterials())
+					if (bNaniteEnabled)
 					{
 						Nanite::BuildShadingCommands(GraphBuilder, *Scene, ENaniteMeshPass::BasePass, NaniteBasePassShadingCommands, true);
 					}
@@ -2069,7 +2058,7 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 	RenderPrepassAndVelocity(Views, NaniteBasePassVisibility, NaniteRasterResults, PrimaryNaniteViews);
 
 	// Run Nanite compute commands early in the frame to allow some task overlap on the CPU until the base pass runs.
-	if (bNaniteEnabled && RendererOutput == ERendererOutput::FinalSceneColor && !bHasRayTracedOverlay && UseNaniteComputeMaterials())
+	if (bNaniteEnabled && RendererOutput == ERendererOutput::FinalSceneColor && !bHasRayTracedOverlay)
 	{
 		Nanite::BuildShadingCommands(GraphBuilder, *Scene, ENaniteMeshPass::BasePass, Scene->NaniteShadingCommands[ENaniteMeshPass::BasePass], false);
 	}

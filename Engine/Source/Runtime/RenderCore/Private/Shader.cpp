@@ -2724,16 +2724,11 @@ void ShaderMapAppendKey(EShaderPlatform Platform, FShaderKeyGenerator& KeyGen)
 
 	if (UseNanite(Platform))
 	{
-		static const auto CVarAllowCSMat = IConsoleManager::Get().FindConsoleVariable(TEXT("r.Nanite.AllowComputeMaterials"));
-		static const auto CVarAllowPSMat = IConsoleManager::Get().FindConsoleVariable(TEXT("r.Nanite.AllowLegacyMaterials"));
 		static const auto CVarAllowSpline = IConsoleManager::Get().FindConsoleVariable(TEXT("r.Nanite.AllowSplineMeshes"));
 		static const auto CVarAllowSkinned = IConsoleManager::Get().FindConsoleVariable(TEXT("r.Nanite.AllowSkinnedMeshes"));
 
 		KeyGen.AppendSeparator();
-		KeyGen.Append(TEXT("Nanite-Tess"));
-		KeyGen.Append(1);
-		KeyGen.AppendDebugText(TEXT("CSMat"));
-		KeyGen.Append(CVarAllowCSMat ? CVarAllowCSMat->GetInt() : 0);
+		KeyGen.Append(TEXT("Nanite-"));
 		KeyGen.AppendDebugText(TEXT("Spline"));
 		KeyGen.Append(CVarAllowSpline ? CVarAllowSpline->GetInt() : 0);
 		KeyGen.AppendDebugText(TEXT("Skinned"));

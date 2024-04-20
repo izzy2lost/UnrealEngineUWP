@@ -6398,8 +6398,7 @@ void FScene::Update(FRDGBuilder& GraphBuilder, const FUpdateParameters& Paramete
 
 // TODO: Support skip always visible in the editor (need to handle dynamic relevance)
 #if !WITH_EDITOR
-	// This optimization requires compute materials due to relevancy calculation
-	if (GVisibilitySkipAlwaysVisible != 0 && UseNaniteComputeMaterials())
+	if (GVisibilitySkipAlwaysVisible != 0)
 	{
 		uint32 NextTypeOffset = 0;
 		for (int32 TypeOffsetIndex = 0; TypeOffsetIndex < TypeOffsetTable.Num(); ++TypeOffsetIndex)
@@ -6581,9 +6580,9 @@ void FScene::Update(FRDGBuilder& GraphBuilder, const FUpdateParameters& Paramete
 
 			Primitive->RemoveCachedMeshDrawCommands();
 			Primitive->RemoveCachedNaniteMaterialBins();
-#if RHI_RAYTRACING
+		#if RHI_RAYTRACING
 			Primitive->RemoveCachedRayTracingPrimitives();
-#endif
+		#endif
 			SceneInfosWithStaticDrawListUpdate.Emplace(Primitive);
 			PrimitivesNeedingStaticMeshUpdate[Index] = false;
 		}
@@ -6624,6 +6623,7 @@ void FScene::Update(FRDGBuilder& GraphBuilder, const FUpdateParameters& Paramete
 
 		CacheNaniteMaterialBinsTask = GraphBuilder.AddSetupTask([this, &SceneInfosWithStaticDrawListUpdate]
 		{
+			FPrimitiveSceneInfo::CacheNaniteLumenBins(this, SceneInfosWithStaticDrawListUpdate);
 			FPrimitiveSceneInfo::CacheNaniteMaterialBins(this, SceneInfosWithStaticDrawListUpdate);
 
 		}, AddStaticMeshesTask, UE::Tasks::ETaskPriority::Normal, bAsyncCacheMeshDrawCommands);

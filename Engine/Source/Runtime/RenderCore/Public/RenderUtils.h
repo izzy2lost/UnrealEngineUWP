@@ -389,13 +389,11 @@ UE_DEPRECATED(5.4, "Use version that takes FStaticShaderPlatform instead")
 RENDERCORE_API bool UseVirtualTexturing(const FStaticFeatureLevel InFeatureLevel, const ITargetPlatform* TargetPlatform = nullptr);
 
 RENDERCORE_API bool NaniteAtomicsSupported();
-RENDERCORE_API bool NaniteComputeMaterialsSupported();
 RENDERCORE_API bool NaniteWorkGraphMaterialsSupported();
-RENDERCORE_API bool NaniteLegacyMaterialsSupported();
+RENDERCORE_API bool NaniteLegacyMaterialsSupported(); // TODO: Remove PS Materials
 RENDERCORE_API bool NaniteSplineMeshesSupported();
 RENDERCORE_API bool NaniteSkinnedMeshesSupported();
 
-RENDERCORE_API bool UseNaniteComputeMaterials();
 RENDERCORE_API bool UseNaniteFastTileClear();
 RENDERCORE_API bool UseNaniteTessellation();
 

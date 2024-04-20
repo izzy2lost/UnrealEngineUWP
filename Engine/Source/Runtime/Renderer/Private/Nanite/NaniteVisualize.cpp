@@ -394,7 +394,6 @@ static FRDGBufferRef PerformPicking(
 	const FNaniteVisualizationData& VisualizationData = GetNaniteVisualizationData();
 	const FRDGSystemTextures& SystemTextures = FRDGSystemTextures::Get(GraphBuilder);
 
-	const FNaniteMaterialCommands& MaterialCommands = Scene->NaniteMaterials[ENaniteMeshPass::BasePass];
 	const FNaniteRasterPipelines& RasterPipelines = Scene->NaniteRasterPipelines[ENaniteMeshPass::BasePass];
 
 	FRDGBufferDesc PickingFeedbackBufferDesc(FRDGBufferDesc::CreateStructuredDesc(sizeof(FNanitePickingFeedback), 1));
@@ -421,7 +420,7 @@ static FRDGBufferRef PerformPicking(
 		PassParameters->DbgBuffer32 = Data.DbgBuffer32;
 		PassParameters->ShadingMask = Data.ShadingMask;
 		PassParameters->SceneDepth = SceneTextures.Depth.Target;
-		PassParameters->MaterialDepthTable = MaterialCommands.GetMaterialDepthSRV();
+		PassParameters->MaterialDepthTable = nullptr;
 		PassParameters->MaterialHitProxyTable = GraphBuilder.CreateSRV(HitProxyIDBuffer);
 		PassParameters->FeedbackBuffer = GraphBuilder.CreateUAV(PickingFeedback);
 
@@ -637,7 +636,6 @@ void AddVisualizationPasses(
 					const int32 ViewHeight = View.ViewRectWithSecondaryViews.Max.Y - View.ViewRectWithSecondaryViews.Min.Y;
 					const FIntPoint ViewSize = FIntPoint(ViewWidth, ViewHeight);
 
-					const FNaniteMaterialCommands& MaterialCommands = Scene->NaniteMaterials[ENaniteMeshPass::BasePass];
 					const FNaniteRasterPipelines& RasterPipelines = Scene->NaniteRasterPipelines[ENaniteMeshPass::BasePass];
 
 					LLM_SCOPE_BYTAG(Nanite);
@@ -745,7 +743,7 @@ void AddVisualizationPasses(
 						PassParameters->HTileConfig = FUint32Vector4(PlatformConfig, PixelsWide, 0, 0);
 						PassParameters->SceneDepth = GraphBuilder.CreateSRV(FRDGTextureSRVDesc::CreateForMetaData(SceneTextures.Depth.Target, ERDGTextureMetaDataAccess::CompressedSurface));
 						PassParameters->ShadingMask = ShadingMask;
-						PassParameters->MaterialDepthTable = MaterialCommands.GetMaterialDepthSRV();
+						PassParameters->MaterialDepthTable = nullptr;
 						PassParameters->SceneHTileBuffer = GraphBuilder.CreateSRV(FRDGTextureSRVDesc::CreateForMetaData(SceneTextures.Depth.Target, ERDGTextureMetaDataAccess::HTile));
 						PassParameters->MaterialHTileBuffer = GraphBuilder.CreateSRV(FRDGTextureSRVDesc::CreateForMetaData(Data.MaterialDepth, ERDGTextureMetaDataAccess::HTile));
 						PassParameters->SceneZDecoded = GraphBuilder.CreateUAV(SceneZDecoded);
@@ -818,7 +816,7 @@ void AddVisualizationPasses(
 						PassParameters->MaterialZDecoded = MaterialZDecoded;
 						PassParameters->MaterialZLayout = MaterialZLayout;
 						PassParameters->FastClearTileVis = GetFastClearTileVis(GraphBuilder);
-						PassParameters->MaterialDepthTable = MaterialCommands.GetMaterialDepthSRV();
+						PassParameters->MaterialDepthTable = nullptr;
 						PassParameters->MaterialHitProxyTable = GraphBuilder.CreateSRV(HitProxyIDBuffer);
 						PassParameters->ShadingBinData = GetShadingBinDataSRV(GraphBuilder);
 						PassParameters->RasterBinMeta = GraphBuilder.CreateSRV(RasterBinMeta);
@@ -932,8 +930,6 @@ void RenderDebugViewMode(
 	// TODO: Need to apply hover intensity to per-primitive wireframe color, not white
 	//const FLinearColor HoveredColor = GetSelectionColor(FLinearColor::White, false /* selected */, true /* hovered */);
 
-	const FNaniteMaterialCommands& MaterialCommands = Scene.NaniteMaterials[ENaniteMeshPass::BasePass];
-
 	FExportDebugViewPS::FParameters* PassParameters = GraphBuilder.AllocParameters<FExportDebugViewPS::FParameters>();
 	PassParameters->View = View.GetShaderParameters();
 	PassParameters->Scene = View.GetSceneUniforms().GetBuffer(GraphBuilder);
@@ -954,8 +950,8 @@ void RenderDebugViewMode(
 	PassParameters->VisBuffer64 = RasterResults.VisBuffer64;
 	PassParameters->SceneDepth = InputDepthTexture;
 	PassParameters->ShadingMask = RasterResults.ShadingMask;
-	PassParameters->MaterialDepthTable = MaterialCommands.GetMaterialDepthSRV();
-	PassParameters->MaterialEditorTable = MaterialCommands.GetMaterialEditorSRV();
+	PassParameters->MaterialDepthTable = nullptr;
+	PassParameters->MaterialEditorTable = nullptr;
 	PassParameters->EditorSelectedHitProxyIds = GetEditorSelectedHitProxyIdsSRV(GraphBuilder, View);
 	PassParameters->ShadingBinData = GetShadingBinDataSRV(GraphBuilder);
 

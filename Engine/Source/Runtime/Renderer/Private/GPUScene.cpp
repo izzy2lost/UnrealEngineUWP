@@ -905,10 +905,7 @@ FGPUScene::FRegisteredBuffers FGPUScene::UpdateBufferAllocations(FRDGBuilder& Gr
 		// Nanite draw commands build raster material tables.
 		Scene.WaitForCacheNaniteMaterialBinsTask();
 
-		for (int32 NaniteMeshPassIndex = 0; NaniteMeshPassIndex < ENaniteMeshPass::Num; ++NaniteMeshPassIndex)
-		{
-			Scene.NaniteMaterials[NaniteMeshPassIndex].UpdateBufferState(GraphBuilder, Scene.GetMaxPersistentPrimitiveIndex());
-		}
+		Scene.NaniteLumenMaterials.UpdateBufferState(GraphBuilder, Scene.GetMaxPersistentPrimitiveIndex());
 	}
 	
 	const uint32 LightMapDataBufferSize = FMath::RoundUpToPowerOfTwo(FMath::Max(LightmapDataAllocator.GetMaxSize(), InitialBufferSize));
@@ -1121,11 +1118,7 @@ void FGPUScene::UploadGeneral(FRDGBuilder& GraphBuilder, const FRegisteredBuffer
 
 	if (UploadDataSourceAdapter.bUpdateNaniteMaterialTables && bNaniteEnabled)
 	{
-		for (int32 NaniteMeshPassIndex = 0; NaniteMeshPassIndex < ENaniteMeshPass::Num; ++NaniteMeshPassIndex)
-		{
-			TaskContext.NaniteMaterialUploaders[NaniteMeshPassIndex] = Scene.NaniteMaterials[NaniteMeshPassIndex].Begin(GraphBuilder, Scene.GetMaxPersistentPrimitiveIndex(), NumPrimitiveDataUploads);
-		}
-
+		TaskContext.NaniteMaterialUploaders[ENaniteMeshPass::LumenCardCapture] = Scene.NaniteLumenMaterials.Begin(GraphBuilder, Scene.GetMaxPersistentPrimitiveIndex(), NumPrimitiveDataUploads);
 		TaskContext.bUseNaniteMaterialUploaders = true;
 	}
 
@@ -1137,11 +1130,7 @@ void FGPUScene::UploadGeneral(FRDGBuilder& GraphBuilder, const FRegisteredBuffer
 		LockIfValid(RHICmdList, TaskContext.InstancePayloadUploader);
 		LockIfValid(RHICmdList, TaskContext.InstanceSceneUploader);
 		LockIfValid(RHICmdList, TaskContext.LightmapUploader);
-
-		for (FNaniteMaterialCommands::FUploader* Uploader : TaskContext.NaniteMaterialUploaders)
-		{
-			LockIfValid(RHICmdList, Uploader);
-		}
+		LockIfValid(RHICmdList, TaskContext.NaniteMaterialUploaders[ENaniteMeshPass::LumenCardCapture]);
 
 		FInstanceBatcher InstanceUpdates(bExecuteInParallel, TaskContext.NumPrimitiveDataUploads);
 
@@ -1418,10 +1407,7 @@ void FGPUScene::UploadGeneral(FRDGBuilder& GraphBuilder, const FRegisteredBuffer
 	{
 		check(ExternalAccessQueue);
 
-		for (int32 NaniteMeshPassIndex = 0; NaniteMeshPassIndex < ENaniteMeshPass::Num; ++NaniteMeshPassIndex)
-		{
-			Scene.NaniteMaterials[NaniteMeshPassIndex].Finish(GraphBuilder, *ExternalAccessQueue, TaskContext.NaniteMaterialUploaders[NaniteMeshPassIndex]);
-		}
+		Scene.NaniteLumenMaterials.Finish(GraphBuilder, *ExternalAccessQueue, TaskContext.NaniteMaterialUploaders[ENaniteMeshPass::LumenCardCapture]);
 	}
 	const uint32 MaxPooledSize = uint32(CVarGPUSceneMaxPooledUploadBufferSize.GetValueOnRenderThread());
 	if (PrimitiveUploadBuffer.GetNumBytes() > MaxPooledSize)

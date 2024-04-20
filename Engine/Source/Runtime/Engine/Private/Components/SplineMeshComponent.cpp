@@ -859,15 +859,7 @@ void USplineMeshComponent::CollectPSOPrecacheData(const FPSOPrecacheParams& Base
 
 	if (ShouldCreateNaniteProxy())
 	{
-		if (NaniteLegacyMaterialsSupported())
-		{
-			CollectPSOPrecacheDataImpl(&Nanite::FVertexFactory::StaticType, SplineMeshPSOParams, SMC_GetElements, OutParams);
-		}
-
-		if (NaniteComputeMaterialsSupported())
-		{
-			CollectPSOPrecacheDataImpl(&FNaniteVertexFactory::StaticType, SplineMeshPSOParams, SMC_GetElements, OutParams);
-		}
+		CollectPSOPrecacheDataImpl(&FNaniteVertexFactory::StaticType, SplineMeshPSOParams, SMC_GetElements, OutParams);
 	}
 	else
 	{

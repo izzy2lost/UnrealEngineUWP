@@ -5057,15 +5057,7 @@ void UInstancedStaticMeshComponent::CollectPSOPrecacheData(const FPSOPrecachePar
 
 	if (ShouldCreateNaniteProxy())
 	{
-		if (NaniteLegacyMaterialsSupported())
-		{
-			CollectPSOPrecacheDataImpl(&Nanite::FVertexFactory::StaticType, BasePrecachePSOParams, ISMC_GetElements, OutParams);
-		}
-
-		if (NaniteComputeMaterialsSupported())
-		{
-			CollectPSOPrecacheDataImpl(&FNaniteVertexFactory::StaticType, BasePrecachePSOParams, ISMC_GetElements, OutParams);
-		}
+		CollectPSOPrecacheDataImpl(&FNaniteVertexFactory::StaticType, BasePrecachePSOParams, ISMC_GetElements, OutParams);
 	}
 	else
 	{

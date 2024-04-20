@@ -83,9 +83,6 @@ DECLARE_DWORD_COUNTER_STAT(TEXT("VSM Visible Raster Bins"), STAT_VSMNaniteBasePa
 DECLARE_DWORD_COUNTER_STAT(TEXT("VSM Total Shading Bins"), STAT_VSMNaniteBasePassTotalShadingBins, STATGROUP_ShadowRendering);
 DECLARE_DWORD_COUNTER_STAT(TEXT("VSM Visible Shading Bins"), STAT_VSMNaniteBasePassVisibleShadingBins, STATGROUP_ShadowRendering);
 
-DECLARE_DWORD_COUNTER_STAT(TEXT("VSM Total Shading Draws"), STAT_VSMNaniteBasePassTotalShadingDraws, STATGROUP_ShadowRendering);
-DECLARE_DWORD_COUNTER_STAT(TEXT("VSM Visible Shading Draws"), STAT_VSMNaniteBassPassVisibleShadingDraws, STATGROUP_ShadowRendering);
-
 DECLARE_DWORD_COUNTER_STAT(TEXT("Distant Light Count"), STAT_DistantLightCount, STATGROUP_ShadowRendering);
 DECLARE_DWORD_COUNTER_STAT(TEXT("Distant Cached Count"), STAT_DistantCachedCount, STATGROUP_ShadowRendering);
 
@@ -335,7 +332,7 @@ void FShadowSceneRenderer::PostInitDynamicShadowsSetup()
 					NaniteCullingViewsVolumes,
 					&Scene.NaniteRasterPipelines[ENaniteMeshPass::BasePass],
 					&Scene.NaniteShadingPipelines[ENaniteMeshPass::BasePass],
-					&Scene.NaniteMaterials[ENaniteMeshPass::BasePass]
+					&Scene.NaniteLumenMaterials
 				);
 			}
 		}
@@ -362,23 +359,15 @@ void FShadowSceneRenderer::RenderVirtualShadowMaps(FRDGBuilder& GraphBuilder, bo
 			uint32 VisibleShadingBins = 0;
 			VisibilityResults.GetShadingBinStats(VisibleShadingBins, TotalShadingBins);
 
-			uint32 TotalShadingDraws = 0;
-			uint32 VisibleShadingDraws = 0;
-			VisibilityResults.GetShadingDrawStats(VisibleShadingDraws, TotalShadingDraws);
-
 			SET_DWORD_STAT(STAT_VSMNaniteBasePassTotalRasterBins, TotalRasterBins);
 			SET_DWORD_STAT(STAT_VSMNaniteBasePassVisibleRasterBins, VisibleRasterBins);
 
 			SET_DWORD_STAT(STAT_VSMNaniteBasePassTotalShadingBins, TotalShadingBins);
 			SET_DWORD_STAT(STAT_VSMNaniteBasePassVisibleShadingBins, VisibleShadingBins);
 
-			SET_DWORD_STAT(STAT_VSMNaniteBasePassTotalShadingDraws, TotalShadingDraws);
-			SET_DWORD_STAT(STAT_VSMNaniteBassPassVisibleShadingDraws, VisibleShadingDraws);
-
 		}, Nanite::GetVisibilityTask(NaniteVisibilityQuery));
 #endif
 	}
-
 
 	const TArray<FProjectedShadowInfo*, SceneRenderingAllocator>& VirtualShadowMapShadows = SceneRenderer.SortedShadowsForShadowDepthPass.VirtualShadowMapShadows;
 	TArray<TSharedPtr<FVirtualShadowMapClipmap>, SceneRenderingAllocator>& VirtualShadowMapClipmaps = SceneRenderer.SortedShadowsForShadowDepthPass.VirtualShadowMapClipmaps;

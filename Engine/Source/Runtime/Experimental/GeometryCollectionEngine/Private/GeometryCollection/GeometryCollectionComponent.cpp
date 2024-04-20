@@ -7119,15 +7119,7 @@ void UGeometryCollectionComponent::CollectPSOPrecacheData(const FPSOPrecachePara
 		RestCollection->HasNaniteData() &&
 		GGeometryCollectionNanite != 0)
 	{
-		if (NaniteLegacyMaterialsSupported())
-		{
-			VFDataList.Add(FPSOPrecacheVertexFactoryData(&Nanite::FVertexFactory::StaticType));
-		}
-
-		if (NaniteComputeMaterialsSupported())
-		{
-			VFDataList.Add(FPSOPrecacheVertexFactoryData(&FNaniteVertexFactory::StaticType));
-		}
+		VFDataList.Add(FPSOPrecacheVertexFactoryData(&FNaniteVertexFactory::StaticType));
 	}	
 	else if (RestCollection->HasMeshData())
 	{

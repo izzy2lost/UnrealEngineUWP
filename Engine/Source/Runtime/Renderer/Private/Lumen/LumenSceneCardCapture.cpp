@@ -580,7 +580,7 @@ void FLumenCardNaniteMeshProcessor::AddMeshBatch(
 	LLM_SCOPE_BYTAG(Lumen);
 
 	checkf(LumenScene::HasPrimitiveNaniteMeshBatches(PrimitiveSceneProxy) && DoesPlatformSupportLumenGI(GetFeatureLevelShaderPlatform(FeatureLevel)),
-		TEXT("Logic in BuildNaniteMaterialBins() should not have allowed an unqualifying mesh batch to be added"));
+		TEXT("Logic in BuildNaniteLumenBins() should not have allowed an unqualifying mesh batch to be added"));
 
 	const FMaterialRenderProxy* MaterialRenderProxy = MeshBatch.MaterialRenderProxy;
 	while (MaterialRenderProxy)
@@ -874,7 +874,7 @@ void LumenScene::AddCardCaptureDraws(
 					}
 				}
 
-				for (const FNaniteCommandInfo& CommandInfo : PrimitiveSceneInfo->NaniteCommandInfos[NaniteMeshPass])
+				for (const FNaniteCommandInfo& CommandInfo : PrimitiveSceneInfo->NaniteLumenCommands)
 				{
 					CardPageRenderData.NaniteCommandInfos.Add(CommandInfo);
 				}

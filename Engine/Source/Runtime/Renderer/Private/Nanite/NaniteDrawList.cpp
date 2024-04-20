@@ -45,15 +45,6 @@ void FNaniteDrawListContext::BeginPrimitiveSceneInfo(FPrimitiveSceneInfo& Primit
 	checkf(CurrentPrimitiveSceneInfo == nullptr, TEXT("BeginPrimitiveSceneInfo() was called without a matching EndPrimitiveSceneInfo()"));
 	check(PrimitiveSceneInfo.Proxy->IsNaniteMesh());
 
-	Nanite::FSceneProxyBase* NaniteSceneProxy = static_cast<Nanite::FSceneProxyBase*>(PrimitiveSceneInfo.Proxy);
-	const int32 NumMaterialSections = NaniteSceneProxy->GetMaterialSections().Num();
-
-	// Pre-allocate the max possible material slots for the slot arrays here, before contexts are applied serially.
-	for (auto& MaterialSlots : PrimitiveSceneInfo.NaniteMaterialSlots)
-	{
-		MaterialSlots.Empty(NumMaterialSections);
-	}
-
 	CurrentPrimitiveSceneInfo = &PrimitiveSceneInfo;
 }
 
@@ -85,7 +76,7 @@ FNaniteMaterialSlot& FNaniteDrawListContext::GetMaterialSlotForWrite(FPrimitiveS
 	if (MaterialSlots.Num() == 0)
 	{
 		check(PrimitiveSceneInfo.Proxy->IsNaniteMesh());
-		check(PrimitiveSceneInfo.NaniteCommandInfos[MeshPass].Num() == 0);
+		check(PrimitiveSceneInfo.NaniteLumenCommands.Num() == 0);
 		check(PrimitiveSceneInfo.NaniteRasterBins[MeshPass].Num() == 0);
 		check(PrimitiveSceneInfo.NaniteShadingBins[MeshPass].Num() == 0);
 
@@ -106,16 +97,7 @@ void FNaniteDrawListContext::AddShadingCommand(FPrimitiveSceneInfo& PrimitiveSce
 	check(MaterialSlot.LegacyShadingId == 0xFFFFu);
 	MaterialSlot.LegacyShadingId = uint16(ShadingCommand.GetMaterialSlot());
 
-	PrimitiveSceneInfo.NaniteCommandInfos[MeshPass].Add(ShadingCommand);
-}
-
-void FNaniteDrawListContext::AddShadingBin(FPrimitiveSceneInfo& PrimitiveSceneInfo, const FNaniteShadingBin& ShadingBin, ENaniteMeshPass::Type MeshPass, uint8 SectionIndex)
-{
-	FNaniteMaterialSlot& MaterialSlot = GetMaterialSlotForWrite(PrimitiveSceneInfo, MeshPass, SectionIndex);
-	check(MaterialSlot.ShadingBin == 0xFFFFu);
-	MaterialSlot.ShadingBin = ShadingBin.BinIndex;
-
-	PrimitiveSceneInfo.NaniteShadingBins[MeshPass].Add(ShadingBin);
+	PrimitiveSceneInfo.NaniteLumenCommands.Add(ShadingCommand);
 }
 
 void FNaniteDrawListContext::AddRasterBin(
@@ -217,35 +199,25 @@ void FNaniteDrawListContext::Apply(FScene& Scene)
 {
 	check(IsInParallelRenderingThread());
 
-	const bool bUseComputeMaterials = UseNaniteComputeMaterials();
-
-	for (int32 MeshPass = 0; MeshPass < ENaniteMeshPass::Num; ++MeshPass)
 	{
-		FNaniteMaterialCommands& ShadingCommands = Scene.NaniteMaterials[MeshPass];
-		FNaniteRasterPipelines& RasterPipelines  = Scene.NaniteRasterPipelines[MeshPass];
-		FNaniteShadingPipelines& ShadingPipelines = Scene.NaniteShadingPipelines[MeshPass];
-		FNaniteVisibility& Visibility = Scene.NaniteVisibility[MeshPass];
+		FNaniteMaterialCommands& ShadingCommands = Scene.NaniteLumenMaterials;
+		FNaniteRasterPipelines& RasterPipelines  = Scene.NaniteRasterPipelines[ENaniteMeshPass::LumenCardCapture];
+		FNaniteShadingPipelines& ShadingPipelines = Scene.NaniteShadingPipelines[ENaniteMeshPass::LumenCardCapture];
+		FNaniteVisibility& Visibility = Scene.NaniteVisibility[ENaniteMeshPass::LumenCardCapture];
 
-		for (auto& Command : DeferredCommands[MeshPass])
+		for (auto& Command : DeferredCommands[ENaniteMeshPass::LumenCardCapture])
 		{
 			FPrimitiveSceneInfo* PrimitiveSceneInfo = Command.PrimitiveSceneInfo;
 			FNaniteCommandInfo CommandInfo = ShadingCommands.Register(Command.MeshDrawCommand, Command.CommandHash, Command.MaterialDebugViewInfo, Command.bWPOEnabled);
-			AddShadingCommand(*PrimitiveSceneInfo, CommandInfo, ENaniteMeshPass::Type(MeshPass), Command.SectionIndex);
-
-			FNaniteVisibility::PrimitiveShadingDrawType* ShadingDraws = !bUseComputeMaterials ? Visibility.GetShadingDrawReferences(PrimitiveSceneInfo) : nullptr;
-			if (ShadingDraws)
-			{
-				ShadingDraws->Add(Command.CommandHash.AsUInt());
-			}
+			AddShadingCommand(*PrimitiveSceneInfo, CommandInfo, ENaniteMeshPass::Type(ENaniteMeshPass::LumenCardCapture), Command.SectionIndex);
 		}
 
-		for (const FDeferredPipelines& PipelinesCommand : DeferredPipelines[MeshPass])
+		for (const FDeferredPipelines& PipelinesCommand : DeferredPipelines[ENaniteMeshPass::LumenCardCapture])
 		{
 			FPrimitiveSceneInfo* PrimitiveSceneInfo = PipelinesCommand.PrimitiveSceneInfo;
 			FNaniteVisibility::PrimitiveRasterBinType*  RasterBins  = Visibility.GetRasterBinReferences(PrimitiveSceneInfo);
-			FNaniteVisibility::PrimitiveShadingBinType* ShadingBins = bUseComputeMaterials ? Visibility.GetShadingBinReferences(PrimitiveSceneInfo) : nullptr;
+			FNaniteVisibility::PrimitiveShadingBinType* ShadingBins = Visibility.GetShadingBinReferences(PrimitiveSceneInfo);
 
-			check(!bUseComputeMaterials || (PipelinesCommand.RasterPipelines.Num() == PipelinesCommand.ShadingPipelines.Num()));
 			const int32 MaterialSectionCount = PipelinesCommand.RasterPipelines.Num();
 			for (int32 MaterialSectionIndex = 0; MaterialSectionIndex < MaterialSectionCount; ++MaterialSectionIndex)
 			{
@@ -262,74 +234,16 @@ void FNaniteDrawListContext::Apply(FScene& Scene)
 						FallbackRasterBin = RasterPipelines.Register(FallbackRasterPipeline);
 					}
 
-					AddRasterBin(*PrimitiveSceneInfo, PrimaryRasterBin, FallbackRasterBin, ENaniteMeshPass::Type(MeshPass), uint8(MaterialSectionIndex));
+					AddRasterBin(*PrimitiveSceneInfo, PrimaryRasterBin, FallbackRasterBin, ENaniteMeshPass::LumenCardCapture, uint8(MaterialSectionIndex));
 
 					if (RasterBins)
 					{
 						RasterBins->Add(FNaniteVisibility::FRasterBin{ PrimaryRasterBin.BinIndex, FallbackRasterBin.BinIndex });
 					}
 				}
-
-				// Register shading bin
-				if (bUseComputeMaterials)
-				{
-					const FNaniteShadingPipeline& ShadingPipeline = PipelinesCommand.ShadingPipelines[MaterialSectionIndex];
-					const FNaniteShadingBin ShadingBin = ShadingPipelines.Register(ShadingPipeline);
-					AddShadingBin(*PrimitiveSceneInfo, ShadingBin, ENaniteMeshPass::Type(MeshPass), uint8(MaterialSectionIndex));
-
-					if (ShadingBins)
-					{
-						ShadingBins->Add(FNaniteVisibility::FShadingBin{ ShadingBin.BinIndex });
-					}
-				}
 			}
-
-			// This will register the primitive's raster bins for custom depth, if necessary
-			PrimitiveSceneInfo->RefreshNaniteRasterBins();
 		}
 	}
-}
-
-void SubmitNaniteIndirectMaterial(
-	const FNaniteMaterialPassCommand& MaterialPassCommand,
-	const TShaderMapRef<FNaniteIndirectMaterialVS>& VertexShader,
-	const FGraphicsMinimalPipelineStateSet& GraphicsMinimalPipelineStateSet,
-	const uint32 InstanceFactor,
-	FRHICommandList& RHICmdList,
-	FRHIBuffer* MaterialIndirectArgs,
-	FMeshDrawCommandStateCache& StateCache)
-{
-	const FMeshDrawCommand& MeshDrawCommand	= MaterialPassCommand.MeshDrawCommand;
-	const float MaterialDepth				= MaterialPassCommand.MaterialDepth;
-	const int32 MaterialSlot				= MaterialPassCommand.MaterialSlot;
-
-#if WANTS_DRAW_MESH_EVENTS
-	FMeshDrawCommand::FMeshDrawEvent MeshEvent(MeshDrawCommand, InstanceFactor, RHICmdList);
-#endif
-
-	FMeshDrawCommandSceneArgs SceneArgs;
-	bool bAllowSkipDrawCommand = true;
-	if (!FMeshDrawCommand::SubmitDrawIndirectBegin(MeshDrawCommand, GraphicsMinimalPipelineStateSet, SceneArgs, InstanceFactor, RHICmdList, StateCache, bAllowSkipDrawCommand))
-	{
-		return;
-	}
-
-	// All Nanite mesh draw commands are using the same vertex shader, which has a material depth parameter we assign at render time.
-	{
-		FNaniteIndirectMaterialVS::FParameters Parameters;
-		Parameters.MaterialDepth = MaterialDepth;
-		Parameters.MaterialSlot = uint32(MaterialSlot);
-		Parameters.TileRemapCount = FMath::DivideAndRoundUp(InstanceFactor, 32u);
-		SetShaderParameters(RHICmdList, VertexShader, VertexShader.GetVertexShader(), Parameters);
-	}
-
-	check(MaterialIndirectArgs == nullptr || MaterialSlot != INDEX_NONE);
-	const uint32 IndirectArgSize = sizeof(FRHIDrawIndexedIndirectParameters) + sizeof(FRHIDispatchIndirectParametersNoPadding);
-	const uint32 MaterialSlotIndirectOffset = MaterialIndirectArgs != nullptr ? IndirectArgSize * uint32(MaterialSlot) : 0;
-	
-	SceneArgs.IndirectArgsBuffer = MaterialIndirectArgs;
-	SceneArgs.IndirectArgsByteOffset = MaterialSlotIndirectOffset;
-	FMeshDrawCommand::SubmitDrawIndirectEnd(MeshDrawCommand, SceneArgs, InstanceFactor, RHICmdList);
 }
 
 void SubmitNaniteMultiViewMaterial(
@@ -364,512 +278,117 @@ void SubmitNaniteMultiViewMaterial(
 	FMeshDrawCommand::SubmitDrawEnd(MeshDrawCommand, SceneArgs, InstanceFactor, RHICmdList);
 }
 
-static const TCHAR* NaniteMeshPassName = TEXT("NaniteMesh");
+/////
 
-FNaniteMeshProcessor::FNaniteMeshProcessor(
-	const FScene* InScene,
-	ERHIFeatureLevel::Type InFeatureLevel,
-	const FSceneView* InViewIfDynamicMeshCommand,
-	const FMeshPassProcessorRenderState& InDrawRenderState,
-	FMeshPassDrawListContext* InDrawListContext
-)
-	: FMeshPassProcessor(NaniteMeshPassName, InScene, InFeatureLevel, InViewIfDynamicMeshCommand, InDrawListContext)
-	, PassDrawRenderState(InDrawRenderState)
-{
-	check(DoesPlatformSupportNanite(GMaxRHIShaderPlatform));
+FNaniteMaterialSlot& FNaniteMaterialListContext::GetMaterialSlotForWrite(FPrimitiveSceneInfo& PrimitiveSceneInfo, ENaniteMeshPass::Type MeshPass, uint8 SectionIndex)
+{	
+	TArray<FNaniteMaterialSlot>& MaterialSlots = PrimitiveSceneInfo.NaniteMaterialSlots[MeshPass];
+
+	// Initialize material slots if they haven't been already
+	// NOTE: Lazily initializing them like this prevents adding material slots for primitives that have no bins in the pass
+	if (MaterialSlots.Num() == 0)
+	{
+		check(PrimitiveSceneInfo.Proxy->IsNaniteMesh());
+		check(PrimitiveSceneInfo.NaniteRasterBins[MeshPass].Num() == 0);
+		check(PrimitiveSceneInfo.NaniteShadingBins[MeshPass].Num() == 0);
+
+		auto* NaniteSceneProxy = static_cast<const Nanite::FSceneProxyBase*>(PrimitiveSceneInfo.Proxy);
+		const int32 NumMaterialSections = NaniteSceneProxy->GetMaterialSections().Num();
+
+		MaterialSlots.SetNumUninitialized(NumMaterialSections);
+		FMemory::Memset(MaterialSlots.GetData(), 0xFF, NumMaterialSections * MaterialSlots.GetTypeSize());
+	}
+
+	check(MaterialSlots.IsValidIndex(SectionIndex));
+	return MaterialSlots[SectionIndex];
 }
 
-void FNaniteMeshProcessor::AddMeshBatch(
-	const FMeshBatch& RESTRICT MeshBatch,
-	uint64 BatchElementMask,
-	const FPrimitiveSceneProxy* RESTRICT PrimitiveSceneProxy,
-	int32 StaticMeshId /*= -1 */
-)
+void FNaniteMaterialListContext::AddShadingBin(FPrimitiveSceneInfo& PrimitiveSceneInfo, const FNaniteShadingBin& ShadingBin, ENaniteMeshPass::Type MeshPass, uint8 SectionIndex)
 {
-	LLM_SCOPE_BYTAG(Nanite);
+	FNaniteMaterialSlot& MaterialSlot = GetMaterialSlotForWrite(PrimitiveSceneInfo, MeshPass, SectionIndex);
+	check(MaterialSlot.ShadingBin == 0xFFFFu);
+	MaterialSlot.ShadingBin = ShadingBin.BinIndex;
 
-	// this is now checking before we even attempt to add mesh batch
-	checkf(MeshBatch.bUseForMaterial, TEXT("Logic in BuildNaniteMaterialBins() should not have allowed a mesh batch without bUseForMaterial to be added"));
-
-	const FMaterialRenderProxy* FallbackMaterialRenderProxyPtr = MeshBatch.MaterialRenderProxy;
-	if (!NaniteLegacyMaterialsSupported())
-	{
-		FallbackMaterialRenderProxyPtr = UMaterial::GetDefaultMaterial(MD_Surface)->GetRenderProxy();
-	}
-
-	while (FallbackMaterialRenderProxyPtr)
-	{
-		const FMaterial* Material = FallbackMaterialRenderProxyPtr->GetMaterialNoFallback(FeatureLevel);
-		if (Material && TryAddMeshBatch(MeshBatch, BatchElementMask, PrimitiveSceneProxy, StaticMeshId, *FallbackMaterialRenderProxyPtr, *Material))
-		{
-			break;
-		}
-		FallbackMaterialRenderProxyPtr = FallbackMaterialRenderProxyPtr->GetFallback(FeatureLevel);
-	}
+	PrimitiveSceneInfo.NaniteShadingBins[MeshPass].Add(ShadingBin);
 }
 
-bool FNaniteMeshProcessor::TryAddMeshBatch(
-	const FMeshBatch& RESTRICT MeshBatch,
-	uint64 BatchElementMask,
-	const FPrimitiveSceneProxy* RESTRICT PrimitiveSceneProxy,
-	int32 StaticMeshId,
-	const FMaterialRenderProxy& MaterialRenderProxy,
-	const FMaterial& Material
-)
+void FNaniteMaterialListContext::AddRasterBin(
+	FPrimitiveSceneInfo& PrimitiveSceneInfo,
+	const FNaniteRasterBin& PrimaryRasterBin,
+	const FNaniteRasterBin& FallbackRasterBin,
+	ENaniteMeshPass::Type MeshPass,
+	uint8 SectionIndex)
 {
-	const bool bIsTranslucent = IsTranslucentBlendMode(Material);
-	const FMaterialShadingModelField ShadingModels = Material.GetShadingModels();
-
-	check(Nanite::IsSupportedBlendMode(Material));
-	check(Nanite::IsSupportedMaterialDomain(Material.GetMaterialDomain()));
-
-	const bool bRenderSkylight = Scene && Scene->ShouldRenderSkylightInBasePass(bIsTranslucent) && ShadingModels != MSM_Unlit;
-	ELightMapPolicyType LightMapPolicyType = FBasePassMeshProcessor::GetUniformLightMapPolicyType(FeatureLevel, Scene, MeshBatch.LCI, PrimitiveSceneProxy, Material);
-
-	const EGBufferLayout GBufferLayout = Nanite::GetGBufferLayoutForMaterial(Material.MaterialUsesWorldPositionOffset_RenderThread());
-
-	TShaderMapRef<FNaniteIndirectMaterialVS> NaniteVertexShader(GetGlobalShaderMap(FeatureLevel));
-	TShaderRef<TBasePassPixelShaderPolicyParamType<FUniformLightMapPolicy>> BasePassPixelShader;
-
-	bool b128BitRequirement = false;
-	bool bShadersValid = GetBasePassShaders<FUniformLightMapPolicy>(
-		Material,
-		MeshBatch.VertexFactory->GetType(),
-		FUniformLightMapPolicy(LightMapPolicyType),
-		FeatureLevel,
-		bRenderSkylight,
-		b128BitRequirement,
-		GBufferLayout,
-		nullptr, // vertex shader
-		&BasePassPixelShader
-		);
-	if (!bShadersValid)
-	{
-		return false;
-	}
-
-	TMeshProcessorShaders
-		<
-		FNaniteIndirectMaterialVS,
-		TBasePassPixelShaderPolicyParamType<FUniformLightMapPolicy>
-		>
-		PassShaders;
-
-	PassShaders.VertexShader = NaniteVertexShader;
-	PassShaders.PixelShader = BasePassPixelShader;
-
-	TBasePassShaderElementData<FUniformLightMapPolicy> ShaderElementData(MeshBatch.LCI);
-	ShaderElementData.InitializeMeshMaterialData(ViewIfDynamicMeshCommand, nullptr, MeshBatch, INDEX_NONE, false);
-
-	BuildMeshDrawCommands(
-		MeshBatch,
-		BatchElementMask,
-		nullptr,
-		MaterialRenderProxy,
-		Material,
-		PassDrawRenderState,
-		PassShaders,
-		FM_Solid,
-		CM_None,
-		FMeshDrawCommandSortKey::Default,
-		EMeshPassFeatures::Default,
-		ShaderElementData
-	);
-
-	return true;
-}
-
-void FNaniteMeshProcessor::CollectPSOInitializers(
-	const FSceneTexturesConfig& SceneTexturesConfig,
-	const FMaterial& Material,
-	const FPSOPrecacheVertexFactoryData& VertexFactoryData,
-	const FPSOPrecacheParams& PreCacheParams,
-	TArray<FPSOPrecacheData>& PSOInitializers
-)
-{
-	EShaderPlatform ShaderPlatform = GetFeatureLevelShaderPlatform(FeatureLevel);
-
-	// Make sure Nanite rendering is supported.
-	if (!UseNanite(ShaderPlatform))
-	{
-		return;
-	}
-
-	// Only support the Nanite vertex factory type.
-	if (VertexFactoryData.VertexFactoryType != &Nanite::FVertexFactory::StaticType &&
-		VertexFactoryData.VertexFactoryType != &FNaniteVertexFactory::StaticType)
-	{
-		return;
-	}
-
-	// Check if Nanite can be used by this material
-	const FMaterialShadingModelField ShadingModels = Material.GetShadingModels();
-	bool bShouldDraw = Nanite::IsSupportedBlendMode(Material) && Nanite::IsSupportedMaterialDomain(Material.GetMaterialDomain());
-	if (!bShouldDraw)
-	{
-		return;
-	}
-
-	// Nanite passes always use the forced fixed vertex element and not custom default vertex declaration even if it's provided
-	FPSOPrecacheVertexFactoryData NaniteVertexFactoryData = VertexFactoryData;
-	NaniteVertexFactoryData.CustomDefaultVertexDeclaration = nullptr;
-		
-	if (VertexFactoryData.VertexFactoryType == &FNaniteVertexFactory::StaticType)
-	{
-		Nanite::CollectShadingPSOInitializers(SceneTexturesConfig, NaniteVertexFactoryData, Material, PreCacheParams, FeatureLevel, ShaderPlatform, PSOCollectorIndex, PSOInitializers);
-	}
-	else
-	{
-		{
-			// generate for both skylight enabled/disabled? Or can this be known already at this point?
-			bool bRenderSkyLight = true;
-			CollectPSOInitializersForSkyLight(SceneTexturesConfig, NaniteVertexFactoryData, Material, bRenderSkyLight, PSOInitializers);
-
-			bRenderSkyLight = false;
-			CollectPSOInitializersForSkyLight(SceneTexturesConfig, NaniteVertexFactoryData, Material, bRenderSkyLight, PSOInitializers);
-		}
-
-		Nanite::CollectRasterPSOInitializers(SceneTexturesConfig, Material, PreCacheParams, ShaderPlatform, PSOCollectorIndex, PSOInitializers);
-	}
-}
-
-void FNaniteMeshProcessor::CollectPSOInitializersForSkyLight(
-	const FSceneTexturesConfig& SceneTexturesConfig,
-	const FPSOPrecacheVertexFactoryData& VertexFactoryData,
-	const FMaterial& RESTRICT Material,
-	const bool bRenderSkylight,
-	TArray<FPSOPrecacheData>& PSOInitializers
-)
-{
-	TArray<ELightMapPolicyType, TInlineAllocator<2>> UniformLightMapPolicyTypes = FBasePassMeshProcessor::GetUniformLightMapPolicyTypeForPSOCollection(FeatureLevel, Material);
-	for (ELightMapPolicyType UniformLightMapPolicyType : UniformLightMapPolicyTypes)
-	{	
-		TShaderMapRef<FNaniteIndirectMaterialVS> NaniteVertexShader(GetGlobalShaderMap(FeatureLevel));
-		TShaderRef<TBasePassPixelShaderPolicyParamType<FUniformLightMapPolicy>> BasePassPixelShader;
-
-		const EGBufferLayout GBufferLayout = Nanite::GetGBufferLayoutForMaterial(Material.MaterialUsesWorldPositionOffset_GameThread());
-
-		bool b128BitRequirement = false;
-		bool bShadersValid = GetBasePassShaders<FUniformLightMapPolicy>(
-			Material,
-			VertexFactoryData.VertexFactoryType,
-			FUniformLightMapPolicy(UniformLightMapPolicyType),
-			FeatureLevel,
-			bRenderSkylight,
-			b128BitRequirement,
-			GBufferLayout,
-			nullptr, // vertex shader
-			&BasePassPixelShader
-		);
-
-		if (!bShadersValid)
-		{
-			continue;
-		}
-
-		TMeshProcessorShaders
-			<
-			FNaniteIndirectMaterialVS,
-			TBasePassPixelShaderPolicyParamType<FUniformLightMapPolicy>
-			>
-			PassShaders;
-		PassShaders.VertexShader = NaniteVertexShader;
-		PassShaders.PixelShader = BasePassPixelShader;
-
-		// Setup the render target info for basepass
-		FGraphicsPipelineRenderTargetsInfo RenderTargetsInfo;
-		RenderTargetsInfo.NumSamples = 1;
-		SetupGBufferRenderTargetInfo(SceneTexturesConfig, RenderTargetsInfo, true /*bSetupDepthStencil*/);
-
-		AddGraphicsPipelineStateInitializer(
-			VertexFactoryData,
-			Material,
-			PassDrawRenderState,
-			RenderTargetsInfo,
-			PassShaders,
-			FM_Solid,
-			CM_None,
-			PT_TriangleList,
-			EMeshPassFeatures::Default,
-			true /*bRequired*/,
-			PSOInitializers);
-	}
-}
-
-FMeshPassProcessor* CreateNaniteMeshProcessor(
-	ERHIFeatureLevel::Type FeatureLevel,
-	const FScene* Scene,
-	const FSceneView* InViewIfDynamicMeshCommand,
-	FMeshPassDrawListContext* InDrawListContext
-)
-{
-	FMeshPassProcessorRenderState PassDrawRenderState;
-	SetupBasePassState(FExclusiveDepthStencil::DepthWrite_StencilNop, false, PassDrawRenderState);
-	PassDrawRenderState.SetDepthStencilState(TStaticDepthStencilState<false, CF_Equal>::GetRHI());
-	PassDrawRenderState.SetDepthStencilAccess(FExclusiveDepthStencil::DepthWrite_StencilNop);
-
-	return new FNaniteMeshProcessor(Scene, FeatureLevel, InViewIfDynamicMeshCommand, PassDrawRenderState, InDrawListContext);
-}
-
-IPSOCollector* CreateNaniteMeshProcessorForPSOCollection(ERHIFeatureLevel::Type FeatureLevel)
-{
-	if (DoesPlatformSupportNanite(GetFeatureLevelShaderPlatform(FeatureLevel)))
-	{
-		return CreateNaniteMeshProcessor(FeatureLevel, nullptr, nullptr, nullptr);
-	}
-	else
-	{
-		return nullptr;
-	}
-}
-
-// Only register for PSO Collection
-FRegisterPSOCollectorCreateFunction RegisterPSOCollectorNaniteMeshPass(&CreateNaniteMeshProcessorForPSOCollection, EShadingPath::Deferred, NaniteMeshPassName);
-
-class FSubmitNaniteMaterialPassCommandsAnyThreadTask : public FRenderTask
-{
-	FRHICommandList& RHICmdList;
-	FRHIBuffer* MaterialIndirectArgs = nullptr;
-	TArrayView<FNaniteMaterialPassCommand const> NaniteMaterialPassCommands;
-	TShaderMapRef<FNaniteIndirectMaterialVS> NaniteVertexShader;
-	FIntRect ViewRect;
-	uint32 TileCount;
-	int32 TaskIndex;
-	int32 TaskNum;
-
-public:
-
-	FSubmitNaniteMaterialPassCommandsAnyThreadTask(
-		FRHICommandList& InRHICmdList,
-		FRHIBuffer* InMaterialIndirectArgs,
-		TArrayView<FNaniteMaterialPassCommand const> InNaniteMaterialPassCommands,
-		TShaderMapRef<FNaniteIndirectMaterialVS> InNaniteVertexShader,
-		FIntRect InViewRect,
-		uint32 InTileCount,
-		int32 InTaskIndex,
-		int32 InTaskNum
-	)
-		: RHICmdList(InRHICmdList)
-		, MaterialIndirectArgs(InMaterialIndirectArgs)
-		, NaniteMaterialPassCommands(InNaniteMaterialPassCommands)
-		, NaniteVertexShader(InNaniteVertexShader)
-		, ViewRect(InViewRect)
-		, TileCount(InTileCount)
-		, TaskIndex(InTaskIndex)
-		, TaskNum(InTaskNum)
-	{}
-
-	FORCEINLINE TStatId GetStatId() const
-	{
-		RETURN_QUICK_DECLARE_CYCLE_STAT(FSubmitNaniteMaterialPassCommandsAnyThreadTask, STATGROUP_TaskGraphTasks);
-	}
-
-	static ESubsequentsMode::Type GetSubsequentsMode() { return ESubsequentsMode::TrackSubsequents; }
-
-	void DoTask(ENamedThreads::Type CurrentThread, const FGraphEventRef& MyCompletionGraphEvent)
-	{
-		FOptionalTaskTagScope Scope(ETaskTag::EParallelRenderingThread);
-		TRACE_CPUPROFILER_EVENT_SCOPE(SubmitNaniteMaterialPassCommandsAnyThreadTask);
-		checkSlow(RHICmdList.IsInsideRenderPass());
-
-		// check for the multithreaded shader creation has been moved to FShaderCodeArchive::CreateShader() 
-
-		// Recompute draw range.
-		const int32 DrawNum = NaniteMaterialPassCommands.Num();
-		const int32 NumDrawsPerTask = TaskIndex < DrawNum ? FMath::DivideAndRoundUp(DrawNum, TaskNum) : 0;
-		const int32 StartIndex = TaskIndex * NumDrawsPerTask;
-		const int32 NumDraws = FMath::Min(NumDrawsPerTask, DrawNum - StartIndex);
-
-		RHICmdList.SetViewport(ViewRect.Min.X, ViewRect.Min.Y, 0.0f, ViewRect.Max.X, ViewRect.Max.Y, 1.0f);
-
-		FMeshDrawCommandStateCache StateCache;
-		FGraphicsMinimalPipelineStateSet GraphicsMinimalPipelineStateSet;
-		for (int32 IterIndex = 0; IterIndex < NumDraws; ++IterIndex)
-		{
-			const FNaniteMaterialPassCommand& MaterialPassCommand = NaniteMaterialPassCommands[StartIndex + IterIndex];
-			SubmitNaniteIndirectMaterial(MaterialPassCommand, NaniteVertexShader, GraphicsMinimalPipelineStateSet, TileCount, RHICmdList, MaterialIndirectArgs, StateCache);
-		}
-
-		RHICmdList.EndRenderPass();
-		RHICmdList.FinishRecording();
-	}
-};
-
-void BuildNaniteMaterialPassCommands(
-	const TConstArrayView<FGraphicsPipelineRenderTargetsInfo> RenderTargetsInfo,
-	const FNaniteMaterialCommands& MaterialCommands,
-	const FNaniteVisibilityResults* VisibilityResults,
-	TArray<FNaniteMaterialPassCommand, SceneRenderingAllocator>& OutNaniteMaterialPassCommands,
-	TArrayView<FNaniteMaterialPassInfo> OutMaterialPassInfo)
-{
-	TRACE_CPUPROFILER_EVENT_SCOPE(BuildNaniteMaterialPassCommands);
-
-	const uint32 NumPasses = RenderTargetsInfo.Num();
-	check(NumPasses > 0);
-	check(NumPasses <= (uint32)ENaniteMaterialPass::Max);
-	check(NumPasses == OutMaterialPassInfo.Num());
-
-	// Initialize the pass info
-	for (FNaniteMaterialPassInfo& PassInfo : OutMaterialPassInfo)
-	{
-		PassInfo.CommandOffset = 0;
-		PassInfo.NumCommands = 0;
-	}
+	check(PrimaryRasterBin.IsValid());
 	
-	const bool bVelocityPassEnabled = NumPasses > (uint32)ENaniteMaterialPass::EmitGBufferWithVelocity;
-	auto GetMaterialPass = [bVelocityPassEnabled](const FNaniteMaterialEntry& MaterialEntry)
+	FNaniteMaterialSlot& MaterialSlot = GetMaterialSlotForWrite(PrimitiveSceneInfo, MeshPass, SectionIndex);
+	check(MaterialSlot.RasterBin == 0xFFFFu);
+	MaterialSlot.RasterBin = PrimaryRasterBin.BinIndex;
+	MaterialSlot.FallbackRasterBin = FallbackRasterBin.BinIndex;
+	
+	PrimitiveSceneInfo.NaniteRasterBins[MeshPass].Add(PrimaryRasterBin);
+	if (FallbackRasterBin.IsValid())
 	{
-		// If the material has WPO enabled, we have to render this material in the velocity pass so velocity will
-		// be properly written
-		return (bVelocityPassEnabled && MaterialEntry.bWPOEnabled) ?
-			ENaniteMaterialPass::EmitGBufferWithVelocity : ENaniteMaterialPass::EmitGBuffer;
-	};
-	auto InsertPassCommand = [&OutNaniteMaterialPassCommands, OutMaterialPassInfo, NumPasses] (FNaniteMaterialPassCommand& PassCommand, uint32 PassIndex)
-	{
-		// The sort key will force it to the right position for the pass, so just add it anywhere in the list
-		OutNaniteMaterialPassCommands.Emplace(PassCommand);
-		FNaniteMaterialPassInfo& PassInfo = OutMaterialPassInfo[PassIndex];
-		++PassInfo.NumCommands;
-
-		// push out the offset of subsequent passes
-		for (uint32 OtherPassIndex = PassIndex + 1; OtherPassIndex < NumPasses; ++OtherPassIndex)
-		{
-			++OutMaterialPassInfo[OtherPassIndex].CommandOffset;
-		}
-	};
-
-	const FNaniteMaterialEntryMap& BucketMap = MaterialCommands.GetCommands();
-	checkf(OutNaniteMaterialPassCommands.Max() >= BucketMap.Num(), TEXT("Nanite mesh commands must be resized on the render thread prior to calling this method."));
-
-	// Pull into local here so another thread can't change the sort values mid-iteration.
-	const int32 MaterialSortMode = GNaniteMaterialSortMode;
-	for (auto Iter = BucketMap.begin(); Iter != BucketMap.end(); ++Iter)
-	{
-		auto& Command = *Iter;
-		const FMeshDrawCommand& MeshDrawCommand = Command.Key;
-
-		if (VisibilityResults && !VisibilityResults->IsShadingDrawVisible(FNaniteMaterialEntryMap::ComputeHash(MeshDrawCommand).AsUInt()))
-		{
-			continue;
-		}
-
-		const uint32 PassIndex = (uint32)GetMaterialPass(Command.Value);
-		FNaniteMaterialPassCommand PassCommand(MeshDrawCommand);
-		const int32 MaterialId = Iter.GetElementId().GetIndex();
-
-		PassCommand.MaterialId = FNaniteCommandInfo::GetMaterialId(MaterialId);
-		PassCommand.MaterialDepth = FNaniteCommandInfo::GetDepthId(MaterialId);
-		PassCommand.MaterialSlot  = Command.Value.MaterialSlot;
-
-		if (MaterialSortMode == 2)
-		{
-			PassCommand.SortKey = MeshDrawCommand.GetPipelineStateSortingKey(RenderTargetsInfo[PassIndex]);
-		}
-		else if (MaterialSortMode == 3)
-		{
-			// Use reference count as the sort key
-			PassCommand.SortKey = uint64(Command.Value.ReferenceCount);
-		}
-		else if(MaterialSortMode == 4)
-		{
-			// TODO: Remove other sort modes and just use 4 (needs more optimization/profiling)?
-			// Sort by pipeline state, but use hash of MaterialId for randomized tie-breaking.
-			// This spreads out the empty draws inside the pipeline buckets and improves overall utilization.
-			const uint64 PipelineSortKey = MeshDrawCommand.GetPipelineStateSortingKey(RenderTargetsInfo[PassIndex]);
-			const uint32 PipelineSortKeyHash = GetTypeHash(PipelineSortKey);
-			const uint32 MaterialHash = MurmurFinalize32(MaterialId);
-			PassCommand.SortKey = ((uint64)PipelineSortKeyHash << 32) | MaterialHash;
-		}
-
-		if (bVelocityPassEnabled)
-		{
-			// Use the pass index as the highest order bits to keep them in pass order
-			static const uint32 PassIndexBits = 1u;
-			static_assert((1u << PassIndexBits) <= (uint32)ENaniteMaterialPass::Max);
-
-			static const uint64 PassIndexShift = 64ull - uint64(PassIndexBits);
-			static const uint64 SortKeyMask = ((1ull << PassIndexShift) - 1ull);
-			PassCommand.SortKey = (PassCommand.SortKey & SortKeyMask) | (uint64(PassIndex) << PassIndexShift);
-		}
-
-		InsertPassCommand(PassCommand, PassIndex);
-	}
-
-	if (MaterialSortMode != 0)
-	{
-		TRACE_CPUPROFILER_EVENT_SCOPE(Sort);
-		OutNaniteMaterialPassCommands.Sort();
+		PrimitiveSceneInfo.NaniteRasterBins[MeshPass].Add(FallbackRasterBin);
 	}
 }
 
-void DrawNaniteMaterialPass(
-	FRDGParallelCommandListSet* ParallelCommandListSet,
-	FRHICommandList& RHICmdList,
-	const FIntRect ViewRect,
-	const uint32 TileCount,
-	TShaderMapRef<FNaniteIndirectMaterialVS> VertexShader,
-	FRDGBuffer* MaterialIndirectArgs,
-	TArrayView<FNaniteMaterialPassCommand const> MaterialPassCommands)
+void FNaniteMaterialListContext::Apply(FScene& Scene)
 {
-	if (MaterialPassCommands.IsEmpty())
+	check(IsInParallelRenderingThread());
+
 	{
-		return;
-	}
-	check(!MaterialPassCommands.IsEmpty());
+		FNaniteRasterPipelines& RasterPipelines = Scene.NaniteRasterPipelines[ENaniteMeshPass::BasePass];
+		FNaniteShadingPipelines& ShadingPipelines = Scene.NaniteShadingPipelines[ENaniteMeshPass::BasePass];
+		FNaniteVisibility& Visibility = Scene.NaniteVisibility[ENaniteMeshPass::BasePass];
 
-	MaterialIndirectArgs->MarkResourceAsUsed();
-
-	if (ParallelCommandListSet)
-	{
-		TRACE_CPUPROFILER_EVENT_SCOPE(ParallelSubmitNaniteMaterialPassCommands);
-
-		// Distribute work evenly to the available task graph workers based on NumPassCommands.
-		const int32 NumPassCommands = MaterialPassCommands.Num();
-		const int32 NumThreads = FMath::Min<int32>(FTaskGraphInterface::Get().GetNumWorkerThreads(), ParallelCommandListSet->Width);
-		const int32 NumTasks = FMath::Min<int32>(NumThreads, FMath::DivideAndRoundUp(NumPassCommands, ParallelCommandListSet->MinDrawsPerCommandList));
-		const int32 NumDrawsPerTask = FMath::DivideAndRoundUp(NumPassCommands, NumTasks);
-
-		const ENamedThreads::Type RenderThread = ENamedThreads::GetRenderThread();
-
-		// Assume on demand shader creation is enabled for platforms supporting Nanite
-		// otherwise there might be issues with PSO creation on a task which is not running on the RenderThread
-		// So task prerequisites can be empty (MeshDrawCommands task has prereq on FMeshDrawCommandInitResourcesTask which calls LazilyInitShaders on all shader)
-		ensure(FParallelMeshDrawCommandPass::IsOnDemandShaderCreationEnabled());
-		FGraphEventArray EmptyPrereqs;
-
-		for (int32 TaskIndex = 0; TaskIndex < NumTasks; TaskIndex++)
+		for (const FDeferredPipelines& PipelinesCommand : DeferredPipelines[ENaniteMeshPass::BasePass])
 		{
-			const int32 StartIndex = TaskIndex * NumDrawsPerTask;
-			const int32 NumDraws = FMath::Min(NumDrawsPerTask, NumPassCommands - StartIndex);
-			checkSlow(NumDraws > 0);
+			FPrimitiveSceneInfo* PrimitiveSceneInfo = PipelinesCommand.PrimitiveSceneInfo;
+			FNaniteVisibility::PrimitiveRasterBinType* RasterBins = Visibility.GetRasterBinReferences(PrimitiveSceneInfo);
+			FNaniteVisibility::PrimitiveShadingBinType* ShadingBins = Visibility.GetShadingBinReferences(PrimitiveSceneInfo);
 
-			FRHICommandList* CmdList = ParallelCommandListSet->NewParallelCommandList();
+			check((PipelinesCommand.RasterPipelines.Num() == PipelinesCommand.ShadingPipelines.Num()));
+			const int32 MaterialSectionCount = PipelinesCommand.RasterPipelines.Num();
+			for (int32 MaterialSectionIndex = 0; MaterialSectionIndex < MaterialSectionCount; ++MaterialSectionIndex)
+			{
+				// Register raster bin
+				{
+					const FNaniteRasterPipeline& RasterPipeline = PipelinesCommand.RasterPipelines[MaterialSectionIndex];
+					FNaniteRasterBin PrimaryRasterBin = RasterPipelines.Register(RasterPipeline);
 
-			FGraphEventRef AnyThreadCompletionEvent = TGraphTask<FSubmitNaniteMaterialPassCommandsAnyThreadTask>::CreateTask(&EmptyPrereqs, RenderThread).
-				ConstructAndDispatchWhenReady(*CmdList, MaterialIndirectArgs->GetRHI(), MaterialPassCommands, VertexShader, ViewRect, TileCount, TaskIndex, NumTasks);
+					// Check to register a fallback bin (used to disable programmable functionality at a distance)
+					FNaniteRasterBin FallbackRasterBin;
+					FNaniteRasterPipeline FallbackRasterPipeline;
+					if (GNaniteAllowProgrammableDistances && RasterPipeline.GetFallbackPipeline(FallbackRasterPipeline))
+					{
+						FallbackRasterBin = RasterPipelines.Register(FallbackRasterPipeline);
+					}
 
-			ParallelCommandListSet->AddParallelCommandList(CmdList, AnyThreadCompletionEvent, NumDraws);
+					AddRasterBin(*PrimitiveSceneInfo, PrimaryRasterBin, FallbackRasterBin, ENaniteMeshPass::BasePass, uint8(MaterialSectionIndex));
+
+					if (RasterBins)
+					{
+						RasterBins->Add(FNaniteVisibility::FRasterBin{ PrimaryRasterBin.BinIndex, FallbackRasterBin.BinIndex });
+					}
+				}
+
+				// Register shading bin
+				{
+					const FNaniteShadingPipeline& ShadingPipeline = PipelinesCommand.ShadingPipelines[MaterialSectionIndex];
+					const FNaniteShadingBin ShadingBin = ShadingPipelines.Register(ShadingPipeline);
+					AddShadingBin(*PrimitiveSceneInfo, ShadingBin, ENaniteMeshPass::BasePass, uint8(MaterialSectionIndex));
+
+					if (ShadingBins)
+					{
+						ShadingBins->Add(FNaniteVisibility::FShadingBin{ ShadingBin.BinIndex });
+					}
+				}
+			}
+
+			// This will register the primitive's raster bins for custom depth, if necessary
+			PrimitiveSceneInfo->RefreshNaniteRasterBins();
 		}
 	}
-	else
-	{
-		TRACE_CPUPROFILER_EVENT_SCOPE(SubmitNaniteMaterialPassCommands);
 
-		RHICmdList.SetViewport(ViewRect.Min.X, ViewRect.Min.Y, 0.0f, ViewRect.Max.X, ViewRect.Max.Y, 1.0f);
-
-		FGraphicsMinimalPipelineStateSet GraphicsMinimalPipelineStateSet;
-		FMeshDrawCommandStateCache StateCache;
-		for (const FNaniteMaterialPassCommand& Command : MaterialPassCommands)
-		{
-			SubmitNaniteIndirectMaterial(
-				Command,
-				VertexShader,
-				GraphicsMinimalPipelineStateSet,
-				TileCount,
-				RHICmdList,
-				MaterialIndirectArgs->GetRHI(),
-				StateCache
-			);
-		}
-	}
 }

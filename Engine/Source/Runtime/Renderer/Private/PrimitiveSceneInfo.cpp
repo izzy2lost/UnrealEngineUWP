@@ -718,9 +718,10 @@ void FPrimitiveSceneInfo::RemoveCachedMeshDrawCommands()
 	StaticMeshCommandInfos.Empty();
 }
 
-static void BuildNaniteMaterialBins(FScene* Scene, FPrimitiveSceneInfo* PrimitiveSceneInfo, FNaniteDrawListContext& DrawListContext);
+static void BuildNaniteLumenBins(FScene* Scene, FPrimitiveSceneInfo* PrimitiveSceneInfo, FNaniteDrawListContext& DrawListContext);
+static void BuildNaniteMaterialBins(FScene* Scene, FPrimitiveSceneInfo* PrimitiveSceneInfo, FNaniteMaterialListContext& MaterialListContext);
 
-void FPrimitiveSceneInfo::CacheNaniteMaterialBins(FScene* Scene, const TArrayView<FPrimitiveSceneInfo*>& SceneInfos)
+void FPrimitiveSceneInfo::CacheNaniteLumenBins(FScene* Scene, const TArrayView<FPrimitiveSceneInfo*>& SceneInfos)
 {
 	SCOPED_NAMED_EVENT(FPrimitiveSceneInfo_CacheNaniteMaterialBins, FColor::Emerald);
 	CSV_SCOPED_TIMING_STAT_EXCLUSIVE(FPrimitiveSceneInfo_CacheNaniteMaterialBins);
@@ -739,7 +740,7 @@ void FPrimitiveSceneInfo::CacheNaniteMaterialBins(FScene* Scene, const TArrayVie
 				[Scene, &SceneInfos](FNaniteDrawListContext& Context, int32 Index)
 				{
 					FOptionalTaskTagScope Scope(ETaskTag::EParallelRenderingThread);
-					BuildNaniteMaterialBins(Scene, SceneInfos[Index], Context);
+					BuildNaniteLumenBins(Scene, SceneInfos[Index], Context);
 				}
 			);
 		}
@@ -748,16 +749,58 @@ void FPrimitiveSceneInfo::CacheNaniteMaterialBins(FScene* Scene, const TArrayVie
 			FNaniteDrawListContext& DrawListContext = DrawListContexts.AddDefaulted_GetRef();
 			for (FPrimitiveSceneInfo* PrimitiveSceneInfo : SceneInfos)
 			{
-				BuildNaniteMaterialBins(Scene, PrimitiveSceneInfo, DrawListContext);
+				BuildNaniteLumenBins(Scene, PrimitiveSceneInfo, DrawListContext);
+			}
+		}
+
+		if (DrawListContexts.Num() > 0)
+		{
+			for (FNaniteDrawListContext& Context : DrawListContexts)
+			{
+				Context.Apply(*Scene);
+			}
+		}
+	}
+}
+
+void FPrimitiveSceneInfo::CacheNaniteMaterialBins(FScene* Scene, const TArrayView<FPrimitiveSceneInfo*>& SceneInfos)
+{
+	SCOPED_NAMED_EVENT(FPrimitiveSceneInfo_CacheNaniteMaterialBins, FColor::Emerald);
+	CSV_SCOPED_TIMING_STAT_EXCLUSIVE(FPrimitiveSceneInfo_CacheNaniteMaterialBins);
+	QUICK_SCOPE_CYCLE_COUNTER(STAT_CacheNaniteMaterialBins);
+
+	const bool bNaniteEnabled = DoesPlatformSupportNanite(GMaxRHIShaderPlatform);
+	if (bNaniteEnabled)
+	{
+		TArray<FNaniteMaterialListContext, TInlineAllocator<8>> MaterialListContexts;
+
+		if (GNaniteDrawCommandCacheMultithreaded && FApp::ShouldUseThreadingForPerformance())
+		{
+			ParallelForWithTaskContext(
+				MaterialListContexts,
+				SceneInfos.Num(),
+				[Scene, &SceneInfos](FNaniteMaterialListContext& Context, int32 Index)
+				{
+					FOptionalTaskTagScope Scope(ETaskTag::EParallelRenderingThread);
+					BuildNaniteMaterialBins(Scene, SceneInfos[Index], Context);
+				}
+			);
+		}
+		else
+		{
+			FNaniteMaterialListContext& MaterialListContext = MaterialListContexts.AddDefaulted_GetRef();
+			for (FPrimitiveSceneInfo* PrimitiveSceneInfo : SceneInfos)
+			{
+				BuildNaniteMaterialBins(Scene, PrimitiveSceneInfo, MaterialListContext);
 			}
 		}
 
 		FPrimitiveViewRelevance& CombinedPrimitiveRelevance = Scene->NaniteShadingPipelines[ENaniteMeshPass::BasePass].CombinedRelevance;
 		CombinedPrimitiveRelevance = FPrimitiveViewRelevance();
 
-		if (DrawListContexts.Num() > 0)
+		if (MaterialListContexts.Num() > 0)
 		{
-			SCOPED_NAMED_EVENT(NaniteDrawListApply, FColor::Emerald);
+			SCOPED_NAMED_EVENT(NaniteMaterialListApply, FColor::Emerald);
 
 			FMaterialRelevance CombinedMaterialRelevance;
 
@@ -772,7 +815,7 @@ void FPrimitiveSceneInfo::CacheNaniteMaterialBins(FScene* Scene, const TArrayVie
 			// GetLightingChannelMask() != GetDefaultLightingChannelMask();
 			CombinedPrimitiveRelevance.bUsesLightingChannels = false; // TODO: Unsupported in fast path
 
-			for (FNaniteDrawListContext& Context : DrawListContexts)
+			for (FNaniteMaterialListContext& Context : MaterialListContexts)
 			{
 				Context.Apply(*Scene);
 
@@ -784,127 +827,161 @@ void FPrimitiveSceneInfo::CacheNaniteMaterialBins(FScene* Scene, const TArrayVie
 			CombinedMaterialRelevance.SetPrimitiveViewRelevance(CombinedPrimitiveRelevance);
 		}
 
-		if (UseNaniteComputeMaterials())
-		{
-			Scene->NaniteShadingPipelines[ENaniteMeshPass::BasePass].bBuildCommands = true;
-			Scene->NaniteShadingPipelines[ENaniteMeshPass::LumenCardCapture].bBuildCommands = true;
-		}
+		Scene->NaniteShadingPipelines[ENaniteMeshPass::BasePass].bBuildCommands = true;
+		Scene->NaniteShadingPipelines[ENaniteMeshPass::LumenCardCapture].bBuildCommands = true;
 	}
 }
 
-void BuildNaniteMaterialBins(FScene* Scene, FPrimitiveSceneInfo* PrimitiveSceneInfo, FNaniteDrawListContext& DrawListContext)
+void BuildNaniteLumenBins(FScene* Scene, FPrimitiveSceneInfo* PrimitiveSceneInfo, FNaniteDrawListContext& DrawListContext)
 {
-	const bool bUseComputeMaterials = UseNaniteComputeMaterials();
-
 	FPrimitiveSceneProxy* Proxy = PrimitiveSceneInfo->Proxy;
 	if (Proxy->IsNaniteMesh())
 	{
 		Nanite::FSceneProxyBase* NaniteProxy = static_cast<Nanite::FSceneProxyBase*>(Proxy);
+		if (LumenScene::HasPrimitiveNaniteMeshBatches(Proxy) && DoesPlatformSupportLumenGI(GetFeatureLevelShaderPlatform(Scene->GetFeatureLevel())))
 		{
 			FNaniteDrawListContext::FPrimitiveSceneInfoScope PrimInfoScope(DrawListContext, *PrimitiveSceneInfo);
-	
-			auto PassBody = [Scene, PrimitiveSceneInfo, NaniteProxy, &DrawListContext, bUseComputeMaterials](ENaniteMeshPass::Type MeshPass, FMeshPassProcessor* const NaniteMeshProcessor)
+
+			// Pre-allocate the max possible material slots for the slot array here, before contexts are applied serially.
+			const int32 NumMaterialSections = NaniteProxy->GetMaterialSections().Num();
+			PrimitiveSceneInfo->NaniteMaterialSlots[ENaniteMeshPass::LumenCardCapture].Empty(NumMaterialSections);
+
+			FMeshPassProcessor* NaniteMeshProcessor = CreateLumenCardNaniteMeshProcessor(Scene->GetFeatureLevel(), Scene, nullptr, &DrawListContext);
+
+			FNaniteDrawListContext::FMeshPassScope MeshPassScope(DrawListContext, ENaniteMeshPass::LumenCardCapture);
+
+			int32 StaticMeshesCount = PrimitiveSceneInfo->StaticMeshes.Num();
+			for (int32 MeshIndex = 0; MeshIndex < StaticMeshesCount; ++MeshIndex)
 			{
-				FNaniteDrawListContext::FMeshPassScope MeshPassScope(DrawListContext, MeshPass);
+				FStaticMeshBatchRelevance& MeshRelevance = PrimitiveSceneInfo->StaticMeshRelevances[MeshIndex];
+				FStaticMeshBatch& Mesh = PrimitiveSceneInfo->StaticMeshes[MeshIndex];
 
-				int32 StaticMeshesCount = PrimitiveSceneInfo->StaticMeshes.Num();
-				for (int32 MeshIndex = 0; MeshIndex < StaticMeshesCount; ++MeshIndex)
+				if (MeshRelevance.bSupportsNaniteRendering && Mesh.bUseForMaterial)
 				{
-					FStaticMeshBatchRelevance& MeshRelevance = PrimitiveSceneInfo->StaticMeshRelevances[MeshIndex];
-					FStaticMeshBatch& Mesh = PrimitiveSceneInfo->StaticMeshes[MeshIndex];
-
-					if (MeshRelevance.bSupportsNaniteRendering && Mesh.bUseForMaterial)
-					{
-						uint64 BatchElementMask = ~0ull;
-						NaniteMeshProcessor->AddMeshBatch(Mesh, BatchElementMask, NaniteProxy);
-					}
+					uint64 BatchElementMask = ~0ull;
+					NaniteMeshProcessor->AddMeshBatch(Mesh, BatchElementMask, NaniteProxy);
 				}
+			}
 
-				TArray<Nanite::FSceneProxyBase::FMaterialSection>& NaniteMaterialSections = NaniteProxy->GetMaterialSections();
-				if (NaniteMaterialSections.Num() > 0)
+			TArray<Nanite::FSceneProxyBase::FMaterialSection>& NaniteMaterialSections = NaniteProxy->GetMaterialSections();
+			if (NaniteMaterialSections.Num() > 0)
+			{
+				FNaniteDrawListContext::FDeferredPipelines& PipelinesCommand = DrawListContext.DeferredPipelines[ENaniteMeshPass::LumenCardCapture].Emplace_GetRef();
+				PipelinesCommand.PrimitiveSceneInfo = PrimitiveSceneInfo;
+
+				DrawListContext.CombinedRelevance |= NaniteProxy->GetCombinedMaterialRelevance();
+
+				for (int32 MaterialSectionIndex = 0; MaterialSectionIndex < NaniteMaterialSections.Num(); ++MaterialSectionIndex)
 				{
-					FNaniteDrawListContext::FDeferredPipelines& PipelinesCommand = DrawListContext.DeferredPipelines[MeshPass].Emplace_GetRef();
-					PipelinesCommand.PrimitiveSceneInfo = PrimitiveSceneInfo;
+					Nanite::FSceneProxyBase::FMaterialSection& MaterialSection = NaniteMaterialSections[MaterialSectionIndex];
+					check(MaterialSection.RasterMaterialProxy != nullptr);
+					check(MaterialSection.ShadingMaterialProxy != nullptr);
 
-					DrawListContext.CombinedRelevance |= NaniteProxy->GetCombinedMaterialRelevance();
-
-					for (int32 MaterialSectionIndex = 0; MaterialSectionIndex < NaniteMaterialSections.Num(); ++MaterialSectionIndex)
+					FNaniteRasterPipeline& RasterPipeline = PipelinesCommand.RasterPipelines.Emplace_GetRef();
+					RasterPipeline.RasterMaterial = MaterialSection.RasterMaterialProxy;
+					RasterPipeline.bIsTwoSided = !!MaterialSection.MaterialRelevance.bTwoSided;
+					// Spline and Skinned mesh are mutually exclusive
+					RasterPipeline.bSkinnedMesh = NaniteProxy->IsSkinnedMesh();
+					if (RasterPipeline.bSkinnedMesh)
 					{
-						Nanite::FSceneProxyBase::FMaterialSection& MaterialSection = NaniteMaterialSections[MaterialSectionIndex];
-						check(MaterialSection.RasterMaterialProxy != nullptr);
-						check(MaterialSection.ShadingMaterialProxy != nullptr);
-
-						FNaniteRasterPipeline& RasterPipeline = PipelinesCommand.RasterPipelines.Emplace_GetRef();
-						RasterPipeline.RasterMaterial = MaterialSection.RasterMaterialProxy;
-						RasterPipeline.bIsTwoSided = !!MaterialSection.MaterialRelevance.bTwoSided;
-						// Spline and Skinned mesh are mutually exclusive
-						RasterPipeline.bSkinnedMesh = NaniteProxy->IsSkinnedMesh();
-						if (RasterPipeline.bSkinnedMesh)
-						{
-							RasterPipeline.bSplineMesh = false;
-						}
-						else
-						{
-							RasterPipeline.bSplineMesh = NaniteProxy->IsSplineMesh();
-						}
+						RasterPipeline.bSplineMesh = false;
+					}
+					else
+					{
+						RasterPipeline.bSplineMesh = NaniteProxy->IsSplineMesh();
+					}
 						
-						RasterPipeline.bWPOEnabled = MaterialSection.MaterialRelevance.bUsesWorldPositionOffset;
-						RasterPipeline.bDisplacementEnabled = MaterialSection.MaterialRelevance.bUsesDisplacement;
-						RasterPipeline.bPerPixelEval = MaterialSection.MaterialRelevance.bMasked ||
-							MaterialSection.MaterialRelevance.bUsesPixelDepthOffset;
+					RasterPipeline.bWPOEnabled = MaterialSection.MaterialRelevance.bUsesWorldPositionOffset;
+					RasterPipeline.bDisplacementEnabled = MaterialSection.MaterialRelevance.bUsesDisplacement;
+					RasterPipeline.bPerPixelEval = MaterialSection.MaterialRelevance.bMasked ||
+						MaterialSection.MaterialRelevance.bUsesPixelDepthOffset;
 
-						RasterPipeline.DisplacementScaling = MaterialSection.DisplacementScaling;
-						RasterPipeline.DisplacementFadeRange = MaterialSection.DisplacementFadeRange;
+					RasterPipeline.DisplacementScaling = MaterialSection.DisplacementScaling;
+					RasterPipeline.DisplacementFadeRange = MaterialSection.DisplacementFadeRange;
 
-						float WPODistance;
-						RasterPipeline.bHasWPODistance =
-							RasterPipeline.bWPOEnabled &&
-							!MaterialSection.bAlwaysEvaluateWPO &&
-							NaniteProxy->GetInstanceWorldPositionOffsetDisableDistance(WPODistance);
-						RasterPipeline.bHasPixelDistance =
-							RasterPipeline.bPerPixelEval &&
-							NaniteProxy->GetPixelProgrammableDistance() > 0.0f;
-						RasterPipeline.bHasDisplacementFadeOut =
-							RasterPipeline.bDisplacementEnabled &&
-							NaniteProxy->GetMaterialDisplacementFadeOutSize() > 0.0f;
-
-						if (bUseComputeMaterials)
-						{
-							FNaniteShadingPipeline& ShadingPipeline = PipelinesCommand.ShadingPipelines.Emplace_GetRef();
-
-							// TODO: Refactor this out
-							bool bLoaded = false;
-							if (MeshPass == ENaniteMeshPass::BasePass)
-							{
-								bLoaded = LoadBasePassPipeline(*Scene, NaniteProxy, MaterialSection, ShadingPipeline);
-							}
-							else if (MeshPass == ENaniteMeshPass::LumenCardCapture)
-							{
-								bLoaded = LoadLumenCardPipeline(*Scene, NaniteProxy, MaterialSection, ShadingPipeline);
-							}
-
-							check(bLoaded);
-						}
-					}
+					float WPODistance;
+					RasterPipeline.bHasWPODistance =
+						RasterPipeline.bWPOEnabled &&
+						!MaterialSection.bAlwaysEvaluateWPO &&
+						NaniteProxy->GetInstanceWorldPositionOffsetDisableDistance(WPODistance);
+					RasterPipeline.bHasPixelDistance =
+						RasterPipeline.bPerPixelEval &&
+						NaniteProxy->GetPixelProgrammableDistance() > 0.0f;
+					RasterPipeline.bHasDisplacementFadeOut =
+						RasterPipeline.bDisplacementEnabled &&
+						NaniteProxy->GetMaterialDisplacementFadeOutSize() > 0.0f;
 				}
-			};
-
-			// ENaniteMeshPass::BasePass
-			{
-				FMeshPassProcessor* NaniteMeshProcessor = CreateNaniteMeshProcessor(Scene->GetFeatureLevel(), Scene, nullptr, &DrawListContext);
-				PassBody(ENaniteMeshPass::BasePass, NaniteMeshProcessor);
-				delete NaniteMeshProcessor;
 			}
+		}
+	}
+}
 
-			// ENaniteMeshPass::LumenCardCapture
-			if (LumenScene::HasPrimitiveNaniteMeshBatches(Proxy) && DoesPlatformSupportLumenGI(GetFeatureLevelShaderPlatform(Scene->GetFeatureLevel())))
+void BuildNaniteMaterialBins(FScene* Scene, FPrimitiveSceneInfo* PrimitiveSceneInfo, FNaniteMaterialListContext& MaterialListContext)
+{
+	FPrimitiveSceneProxy* Proxy = PrimitiveSceneInfo->Proxy;
+	if (Proxy->IsNaniteMesh())
+	{
+		Nanite::FSceneProxyBase* NaniteProxy = static_cast<Nanite::FSceneProxyBase*>(Proxy);
+		
+		// Pre-allocate the max possible material slots for the slot array here, before contexts are applied serially.
+		const int32 NumMaterialSections = NaniteProxy->GetMaterialSections().Num();
+		PrimitiveSceneInfo->NaniteMaterialSlots[ENaniteMeshPass::BasePass].Empty(NumMaterialSections);
+
+		TArray<Nanite::FSceneProxyBase::FMaterialSection>& NaniteMaterialSections = NaniteProxy->GetMaterialSections();
+		if (NaniteMaterialSections.Num() > 0)
+		{
+			FNaniteMaterialListContext::FDeferredPipelines& PipelinesCommand = MaterialListContext.DeferredPipelines[ENaniteMeshPass::BasePass].Emplace_GetRef();
+			PipelinesCommand.PrimitiveSceneInfo = PrimitiveSceneInfo;
+
+			MaterialListContext.CombinedRelevance |= NaniteProxy->GetCombinedMaterialRelevance();
+
+			for (int32 MaterialSectionIndex = 0; MaterialSectionIndex < NaniteMaterialSections.Num(); ++MaterialSectionIndex)
 			{
-				FMeshPassProcessor* NaniteMeshProcessor = CreateLumenCardNaniteMeshProcessor(Scene->GetFeatureLevel(), Scene, nullptr, &DrawListContext);
-				PassBody(ENaniteMeshPass::LumenCardCapture, NaniteMeshProcessor);
-				delete NaniteMeshProcessor;
-			}
+				Nanite::FSceneProxyBase::FMaterialSection& MaterialSection = NaniteMaterialSections[MaterialSectionIndex];
+				check(MaterialSection.RasterMaterialProxy != nullptr);
+				check(MaterialSection.ShadingMaterialProxy != nullptr);
 
-			static_assert(ENaniteMeshPass::Num == 2, "Change BuildNaniteMaterialBins() to account for more Nanite mesh passes");
+				FNaniteRasterPipeline& RasterPipeline = PipelinesCommand.RasterPipelines.Emplace_GetRef();
+				RasterPipeline.RasterMaterial = MaterialSection.RasterMaterialProxy;
+				RasterPipeline.bIsTwoSided = !!MaterialSection.MaterialRelevance.bTwoSided;
+				// Spline and Skinned mesh are mutually exclusive
+				RasterPipeline.bSkinnedMesh = NaniteProxy->IsSkinnedMesh();
+				if (RasterPipeline.bSkinnedMesh)
+				{
+					RasterPipeline.bSplineMesh = false;
+				}
+				else
+				{
+					RasterPipeline.bSplineMesh = NaniteProxy->IsSplineMesh();
+				}
+						
+				RasterPipeline.bWPOEnabled = MaterialSection.MaterialRelevance.bUsesWorldPositionOffset;
+				RasterPipeline.bDisplacementEnabled = MaterialSection.MaterialRelevance.bUsesDisplacement;
+				RasterPipeline.bPerPixelEval = MaterialSection.MaterialRelevance.bMasked ||
+					MaterialSection.MaterialRelevance.bUsesPixelDepthOffset;
+
+				RasterPipeline.DisplacementScaling = MaterialSection.DisplacementScaling;
+				RasterPipeline.DisplacementFadeRange = MaterialSection.DisplacementFadeRange;
+
+				float WPODistance;
+				RasterPipeline.bHasWPODistance =
+					RasterPipeline.bWPOEnabled &&
+					!MaterialSection.bAlwaysEvaluateWPO &&
+					NaniteProxy->GetInstanceWorldPositionOffsetDisableDistance(WPODistance);
+				RasterPipeline.bHasPixelDistance =
+					RasterPipeline.bPerPixelEval &&
+					NaniteProxy->GetPixelProgrammableDistance() > 0.0f;
+				RasterPipeline.bHasDisplacementFadeOut =
+					RasterPipeline.bDisplacementEnabled &&
+					NaniteProxy->GetMaterialDisplacementFadeOutSize() > 0.0f;
+
+				{
+					FNaniteShadingPipeline& ShadingPipeline = PipelinesCommand.ShadingPipelines.Emplace_GetRef();
+
+					bool bLoaded = LoadBasePassPipeline(*Scene, NaniteProxy, MaterialSection, ShadingPipeline);
+					check(bLoaded);
+				}
+			}
 		}
 	}
 }
@@ -920,19 +997,18 @@ void FPrimitiveSceneInfo::RemoveCachedNaniteMaterialBins()
 
 	QUICK_SCOPE_CYCLE_COUNTER(STAT_RemoveCachedNaniteMaterialBins);
 
+	for (int32 CommandIndex = 0; CommandIndex < NaniteLumenCommands.Num(); ++CommandIndex)
+	{
+		const FNaniteCommandInfo& CommandInfo = NaniteLumenCommands[CommandIndex];
+		Scene->NaniteLumenMaterials.Unregister(CommandInfo);
+	}
+	NaniteLumenCommands.Reset();
+
 	for (int32 NaniteMeshPassIndex = 0; NaniteMeshPassIndex < ENaniteMeshPass::Num; ++NaniteMeshPassIndex)
 	{
-		FNaniteMaterialCommands& ShadingCommands = Scene->NaniteMaterials[NaniteMeshPassIndex];
 		FNaniteRasterPipelines& RasterPipelines = Scene->NaniteRasterPipelines[NaniteMeshPassIndex];
 		FNaniteShadingPipelines& ShadingPipelines = Scene->NaniteShadingPipelines[NaniteMeshPassIndex];
 		FNaniteVisibility& Visibility = Scene->NaniteVisibility[NaniteMeshPassIndex];
-
-		TArray<FNaniteCommandInfo>& NanitePassCommandInfo = NaniteCommandInfos[NaniteMeshPassIndex];
-		for (int32 CommandIndex = 0; CommandIndex < NanitePassCommandInfo.Num(); ++CommandIndex)
-		{
-			const FNaniteCommandInfo& CommandInfo = NanitePassCommandInfo[CommandIndex];
-			ShadingCommands.Unregister(CommandInfo);
-		}
 
 		TArray<FNaniteRasterBin>& NanitePassRasterBins = NaniteRasterBins[NaniteMeshPassIndex];
 		for (int32 RasterBinIndex = 0; RasterBinIndex < NanitePassRasterBins.Num(); ++RasterBinIndex)
@@ -960,7 +1036,6 @@ void FPrimitiveSceneInfo::RemoveCachedNaniteMaterialBins()
 
 		NanitePassRasterBins.Reset();
 		NanitePassShadingBins.Reset();
-		NanitePassCommandInfo.Reset();
 		NaniteMaterialSlots[NaniteMeshPassIndex].Reset();
 	}
 
@@ -1417,6 +1492,7 @@ void FPrimitiveSceneInfo::AddStaticMeshes(FRHICommandListBase& RHICmdList, FScen
 	if (bCacheMeshDrawCommands)
 	{
 		CacheMeshDrawCommands(Scene, SceneInfos);
+		CacheNaniteLumenBins(Scene, SceneInfos);
 		CacheNaniteMaterialBins(Scene, SceneInfos);
 	#if RHI_RAYTRACING
 		CacheRayTracingPrimitives(Scene, SceneInfos);
@@ -1980,6 +2056,7 @@ void FPrimitiveSceneInfo::UpdateStaticMeshes(FScene* Scene, TArrayView<FPrimitiv
 		if (EnumHasAnyFlags(UpdateFlags, EUpdateStaticMeshFlags::RasterCommands))
 		{
 			CacheMeshDrawCommands(Scene, SceneInfos);
+			CacheNaniteLumenBins(Scene, SceneInfos);
 			CacheNaniteMaterialBins(Scene, SceneInfos);
 		}
 

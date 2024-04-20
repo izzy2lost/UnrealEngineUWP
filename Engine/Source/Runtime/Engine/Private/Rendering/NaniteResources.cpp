@@ -65,35 +65,11 @@ DECLARE_LLM_MEMORY_STAT(TEXT("Nanite"), STAT_NaniteLLM, STATGROUP_LLMFULL);
 DECLARE_LLM_MEMORY_STAT(TEXT("Nanite"), STAT_NaniteSummaryLLM, STATGROUP_LLM);
 LLM_DEFINE_TAG(Nanite, NAME_None, NAME_None, GET_STATFNAME(STAT_NaniteLLM), GET_STATFNAME(STAT_NaniteSummaryLLM));
 
-static TAutoConsoleVariable<int32> CVarNaniteAllowComputeMaterials(
-	TEXT("r.Nanite.AllowComputeMaterials"),
-	1,
-	TEXT("Whether to enable support for Nanite compute materials"),
-	ECVF_RenderThreadSafe | ECVF_ReadOnly);
-
 static TAutoConsoleVariable<int32> CVarNaniteAllowWorkGraphMaterials(
 	TEXT("r.Nanite.AllowWorkGraphMaterials"),
 	0,
 	TEXT("Whether to enable support for Nanite work graph materials"),
 	ECVF_RenderThreadSafe | ECVF_ReadOnly);
-
-static TAutoConsoleVariable<int32> CVarNaniteAllowLegacyMaterials(
-	TEXT("r.Nanite.AllowLegacyMaterials"),
-	1,
-	TEXT("Whether to enable support for Nanite legacy materials"),
-	ECVF_RenderThreadSafe | ECVF_ReadOnly);
-
-static TAutoConsoleVariable<int32> CVarNaniteUseComputeMaterials(
-	TEXT("r.Nanite.ComputeMaterials"),
-	1,
-	TEXT("Whether to enable Nanite compute materials"),
-	FConsoleVariableDelegate::CreateLambda([](IConsoleVariable* InVariable)
-	{
-		// Force recaching of Nanite draw commands when toggled.
-		FGlobalComponentRecreateRenderStateContext Context;
-	}),
-	ECVF_RenderThreadSafe
-);
 
 static TAutoConsoleVariable<int32> CVarNaniteAllowSplineMeshes(
 	TEXT("r.Nanite.AllowSplineMeshes"),
@@ -465,7 +441,7 @@ void FVertexFactory::InitRHI(FRHICommandListBase& RHICmdList)
 bool FVertexFactory::ShouldCompilePermutation(const FVertexFactoryShaderPermutationParameters& Parameters)
 {
 	bool bShouldCompile =
-		NaniteLegacyMaterialsSupported() &&
+		NaniteLegacyMaterialsSupported() && // TODO: Remove PS Materials
 		(Parameters.MaterialParameters.bIsUsedWithNanite || Parameters.MaterialParameters.bIsSpecialEngineMaterial) &&
 		IsSupportedMaterialDomain(Parameters.MaterialParameters.MaterialDomain) &&
 		IsSupportedBlendMode(Parameters.MaterialParameters) &&
@@ -575,7 +551,7 @@ void FSceneProxyBase::DrawStaticElementsInternal(FStaticPrimitiveDrawInterface* 
 	LLM_SCOPE_BYTAG(Nanite);
 
 	FMeshBatch MeshBatch;
-	if (NaniteLegacyMaterialsSupported())
+	if (NaniteLegacyMaterialsSupported()) // TODO: Remove PS Materials
 	{
 		MeshBatch.VertexFactory = GVertexFactoryResource.GetVertexFactory();
 	}
@@ -2945,17 +2921,14 @@ void FVertexFactoryResource::InitRHI(FRHICommandListBase& RHICmdList)
 	{
 		LLM_SCOPE_BYTAG(Nanite);
 
-		if (NaniteLegacyMaterialsSupported())
+		if (NaniteLegacyMaterialsSupported()) // TODO: Remove PS Materials
 		{
 			VertexFactory = new FVertexFactory(ERHIFeatureLevel::SM5);
 			VertexFactory->InitResource(RHICmdList);
 		}
 
-		if (NaniteComputeMaterialsSupported())
-		{
-			VertexFactory2 = new FNaniteVertexFactory(ERHIFeatureLevel::SM5);
-			VertexFactory2->InitResource(RHICmdList);
-		}
+		VertexFactory2 = new FNaniteVertexFactory(ERHIFeatureLevel::SM5);
+		VertexFactory2->InitResource(RHICmdList);
 	}
 }
 
@@ -2965,17 +2938,14 @@ void FVertexFactoryResource::ReleaseRHI()
 	{
 		LLM_SCOPE_BYTAG(Nanite);
 
-		if (NaniteLegacyMaterialsSupported())
+		if (NaniteLegacyMaterialsSupported()) // TODO: Remove PS Materials
 		{
 			delete VertexFactory;
 			VertexFactory = nullptr;
 		}
 
-		if (NaniteComputeMaterialsSupported())
-		{
-			delete VertexFactory2;
-			VertexFactory2 = nullptr;
-		}
+		delete VertexFactory2;
+		VertexFactory2 = nullptr;
 	}
 }
 
@@ -3002,13 +2972,10 @@ void FNaniteVertexFactory::InitRHI(FRHICommandListBase& RHICmdList)
 bool FNaniteVertexFactory::ShouldCompilePermutation(const FVertexFactoryShaderPermutationParameters& Parameters)
 {
 	bool bShouldCompile =
-		NaniteComputeMaterialsSupported() &&
 		(Parameters.ShaderType->GetFrequency() == SF_Compute || (Parameters.ShaderType->GetFrequency() == SF_WorkGraph && NaniteWorkGraphMaterialsSupported() && RHISupportsWorkGraphs(Parameters.Platform))) &&
 		(Parameters.MaterialParameters.bIsUsedWithNanite || Parameters.MaterialParameters.bIsSpecialEngineMaterial) &&
 		Nanite::IsSupportedMaterialDomain(Parameters.MaterialParameters.MaterialDomain) &&
 		Nanite::IsSupportedBlendMode(Parameters.MaterialParameters) &&
-		!IsVulkanPlatform(Parameters.Platform) &&
-		!IsMetalPlatform(Parameters.Platform) && // TODO: Support CS derivatives
 		DoesPlatformSupportNanite(Parameters.Platform);
 
 	return bShouldCompile;

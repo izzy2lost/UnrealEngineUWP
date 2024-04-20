@@ -1414,36 +1414,18 @@ void FDeferredShadingSceneRenderer::RenderBasePassInternal(
 		{
 			RDG_GPU_STAT_SCOPE(GraphBuilder, NaniteBasePass);
 
-			if (UseNaniteComputeMaterials())
-			{
-				Nanite::DispatchBasePass(
-					GraphBuilder,
-					NaniteBasePassShadingCommands,
-					*this,
-					SceneTextures,
-					BasePassRenderTargets,
-					DBufferTextures,
-					*Scene,
-					View,
-					uint32(ViewIndex),
-					RasterResults
-				);
-			}
-			else
-			{
-				checkf(NaniteLegacyMaterialsSupported(), TEXT("Must have either compute or legacy materials enabled in Nanite!"));
-				Nanite::DrawBasePass(
-					GraphBuilder,
-					View.NaniteMaterialPassCommands,
-					*this,
-					SceneTextures,
-					BasePassRenderTargets,
-					DBufferTextures,
-					*Scene,
-					View,
-					RasterResults
-				);
-			}
+			Nanite::DispatchBasePass(
+				GraphBuilder,
+				NaniteBasePassShadingCommands,
+				*this,
+				SceneTextures,
+				BasePassRenderTargets,
+				DBufferTextures,
+				*Scene,
+				View,
+				uint32(ViewIndex),
+				RasterResults
+			);
 		}
 	};
 

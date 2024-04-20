@@ -358,7 +358,7 @@ void InitialiseSubstrateFrameSceneData(FRDGBuilder& GraphBuilder, FSceneRenderer
 		for (const FViewInfo& View : SceneRenderer.Views)
 		{
 			bNeedClosureOffsets = bNeedClosureOffsets || NeedClosureOffsets(SceneRenderer.Scene, View);
-			bNeedUAV = bNeedUAV || IsDBufferPassEnabled(View.GetShaderPlatform()) || NaniteComputeMaterialsSupported();
+			bNeedUAV = bNeedUAV || IsDBufferPassEnabled(View.GetShaderPlatform()) || DoesPlatformSupportNanite(SceneRenderer.ShaderPlatform, true);
 			Out.ViewsMaxBytesPerPixel = FMath::Max(Out.ViewsMaxBytesPerPixel, View.SubstrateViewData.MaxBytesPerPixel);
 			Out.ViewsMaxClosurePerPixel = FMath::Max(Out.ViewsMaxClosurePerPixel, View.SubstrateViewData.MaxClosurePerPixel);
 			bUseDBufferPass = bUseDBufferPass || IsDBufferPassEnabled(View.GetShaderPlatform());

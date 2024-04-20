@@ -6125,15 +6125,7 @@ void UStaticMesh::PostLoad()
 		TArray<const FVertexFactoryType*, TInlineAllocator<2>> CachingFactories;
 		if (bUseNanite)
 		{
-			if (NaniteLegacyMaterialsSupported())
-			{
-				CachingFactories.Add(&Nanite::FVertexFactory::StaticType);
-			}
-
-			if (NaniteComputeMaterialsSupported())
-			{
-				CachingFactories.Add(&FNaniteVertexFactory::StaticType);
-			}
+			CachingFactories.Add(&FNaniteVertexFactory::StaticType);
 		}
 		else
 		{

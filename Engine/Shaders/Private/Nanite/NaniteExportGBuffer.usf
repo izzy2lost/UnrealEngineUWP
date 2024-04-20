@@ -498,12 +498,8 @@ void EmitEditorSelectionDepthPS(
 }
 
 float MaterialDepth;
-#if NANITE_MATERIAL_MULTIVIEW
+
 uint InstanceBaseOffset;
-#else
-uint MaterialSlot;
-uint TileRemapCount;
-#endif
 
 void FullScreenVS(
 	float2 InPosition : ATTRIBUTE0,
@@ -513,74 +509,16 @@ void FullScreenVS(
 
 )
 {
-#if NANITE_MATERIAL_MULTIVIEW
 	// Compile time constant to remove int mod ALU
 	const uint2 GridSize = uint2(1, 1);
-#else
-	// TODO: Avoid int mod ALU when calculating GridPos
-	const uint2 GridSize = Nanite.MaterialConfig.yz;
-#endif
+
 
 	Output = (FNaniteFullscreenVSToPS)0;
 
 	uint TileIndex = InstanceIndex;
 
-#if !NANITE_MATERIAL_MULTIVIEW
-	{
-		const uint TargetTileCount = TileIndex + 1;
-
-		uint ValidTiles = 0;
-
-		// Remap compacted tile index to sparse tile index
-		// If compacted index is 7, the first 4 indices are valid, but the next 2 are not, the sparse index is 9
-		// Basically figure out how many preceeding empty slots exist, so we can shift the index by that. (reverse prefix sum w/ linear scan)
-		const uint RemapBaseOffset = (TileRemapCount * MaterialSlot);
-
-		// TODO: Could optimize by having material classify store out the prefix sum per remap uint, and then binary search the result quicker
-
-		uint RemapBin  = 0;
-		uint RemapData = 0;
-
-		LOOP
-		for (; RemapBin < TileRemapCount; ++RemapBin)
-		{
-			RemapData = Nanite.MaterialTileRemap[RemapBaseOffset + RemapBin];
-
-			const uint SumValidTiles = ValidTiles + countbits(RemapData); // Count number of valid tiles in bin
-			if (SumValidTiles < TargetTileCount)
-			{
-				// Keeping going
-				ValidTiles = SumValidTiles;
-			}
-			else
-			{
-				// Found the target bin
-				break;
-			}
-		}
-
-		uint RemapBinBit = 0;
-
-		LOOP
-		while (RemapData != 0)
-		{
-			RemapBinBit = firstbitlow(RemapData);
-			RemapData &= ~(1u << RemapBinBit);
-			++ValidTiles;
-			if (ValidTiles == TargetTileCount)
-			{
-				// Arrived at sparse tile index
-				break;
-			}
-		}
-
-		TileIndex = (RemapBin * 32u) + RemapBinBit;
-	}
-#endif
-
 	float4 RectScaleOffset = Nanite.RectScaleOffset;
 
-#if NANITE_MATERIAL_MULTIVIEW
 	{
 		// Treat InstanceIndex for view indexing if multi view rendering is enabled
 		TileIndex = 0;
@@ -589,7 +527,6 @@ void FullScreenVS(
 		RectScaleOffset = Nanite.MultiViewRectScaleOffsets[ViewIndex];
 		Output.ViewIndex = ViewIndex;	
 	}
-#endif
 
 	Output.TileIndex = TileIndex;
 

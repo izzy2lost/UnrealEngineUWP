@@ -918,7 +918,7 @@ FNaniteShadingPassParameters CreateNaniteShadingPassParams(
 
 		UniformParameters->ShadingMask = ShadingMask;
 
-		UniformParameters->MaterialDepthTable = SceneRenderer.Scene->NaniteMaterials[ENaniteMeshPass::BasePass].GetMaterialDepthSRV(); // TODO: Remove
+		UniformParameters->MaterialDepthTable = GraphBuilder.GetPooledBuffer(GSystemTextures.GetDefaultBuffer(GraphBuilder, 4, 0u))->GetSRV(GraphBuilder.RHICmdList, FRHIBufferSRVCreateInfo(PF_R32_UINT)); // TODO: Remove
 
 		UniformParameters->MultiViewEnabled = 0;
 		UniformParameters->MultiViewIndices = GraphBuilder.CreateSRV(MultiViewIndices);
@@ -1072,7 +1072,7 @@ void DispatchBasePass(
 	TArray<FRDGTextureRef, TInlineAllocator<MaxSimultaneousRenderTargets>> ClearTargetList;
 
 	// Fast tile clear prior to fast clear eliminate
-	const bool bFastTileClear = UseNaniteComputeMaterials() && GNaniteFastTileClear != 0 && RHISupportsRenderTargetWriteMask(GMaxRHIShaderPlatform);
+	const bool bFastTileClear = GNaniteFastTileClear != 0 && RHISupportsRenderTargetWriteMask(GMaxRHIShaderPlatform);
 	if (bFastTileClear)
 	{
 		for (uint32 TargetIndex = 0; TargetIndex < MaxSimultaneousRenderTargets; ++TargetIndex)

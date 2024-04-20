@@ -1230,13 +1230,6 @@ bool NaniteAtomicsSupported()
 	return bAtomicsSupported;
 }
 
-bool NaniteComputeMaterialsSupported()
-{
-	static const auto AllowComputeMaterials = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.Nanite.AllowComputeMaterials"));
-	static const bool bAllowComputeMaterials = (AllowComputeMaterials && AllowComputeMaterials->GetValueOnAnyThread() != 0);
-	return bAllowComputeMaterials;
-}
-
 bool NaniteWorkGraphMaterialsSupported()
 {
 	static const auto AllowWorkGraphMaterials = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.Nanite.AllowWorkGraphMaterials"));
@@ -1246,21 +1239,13 @@ bool NaniteWorkGraphMaterialsSupported()
 
 bool NaniteLegacyMaterialsSupported()
 {
-	static const auto AllowLegacyMaterials = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.Nanite.AllowLegacyMaterials"));
-	static const bool bAllowLegacyMaterials = (AllowLegacyMaterials && AllowLegacyMaterials->GetValueOnAnyThread() != 0);
-	return bAllowLegacyMaterials;
-}
-
-bool UseNaniteComputeMaterials()
-{
-	static const auto UseComputeMaterials = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.Nanite.ComputeMaterials"));
-	return NaniteComputeMaterialsSupported() && !IsVulkanPlatform(GMaxRHIShaderPlatform) && !IsMetalPlatform(GMaxRHIShaderPlatform) /* TODO: Support CS derivatives */ && (UseComputeMaterials && UseComputeMaterials->GetValueOnRenderThread() != 0);
+	return true; // TODO: Remove PS Materials
 }
 
 bool UseNaniteFastTileClear()
 {
 	static const IConsoleVariable* CVarNaniteFastTileClear = IConsoleManager::Get().FindConsoleVariable(TEXT("r.Nanite.FastTileClear"));
-	return NaniteComputeMaterialsSupported() && (CVarNaniteFastTileClear && CVarNaniteFastTileClear->GetInt() != 0);
+	return (CVarNaniteFastTileClear && CVarNaniteFastTileClear->GetInt() != 0);
 }
 
 bool NaniteSplineMeshesSupported()
