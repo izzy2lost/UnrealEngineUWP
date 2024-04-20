@@ -1,19 +1,10 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Dataflow/ChaosFleshRenderInitializationNodes.h"
+#include "Dataflow/ChaosFleshBindForRenderToSkeletalMeshNode.h"
 
 #include "Dataflow/DataflowInputOutput.h"
 #include "Dataflow/DataflowNodeFactory.h"
 
-
-
-namespace Dataflow
-{
-	void ChaosFleshRenderInitializationNodes()
-	{
-		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FBindForRenderToSkeletalMeshDataflowNode);
-	}
-}
 
 void FBindForRenderToSkeletalMeshDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {

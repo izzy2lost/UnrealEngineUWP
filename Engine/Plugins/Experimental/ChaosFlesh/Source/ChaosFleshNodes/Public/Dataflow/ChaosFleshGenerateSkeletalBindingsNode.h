@@ -6,7 +6,7 @@
 #include "Dataflow/DataflowEngine.h"
 #include "GeometryCollection/ManagedArrayCollection.h"
 
-#include "ChaosFleshSkeletalBindingsNode.generated.h"
+#include "ChaosFleshGenerateSkeletalBindingsNode.generated.h"
 
 class UStaticMesh;
 class USkeletalMesh;
@@ -46,8 +46,3 @@ public:
 
 	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 };
-
-namespace Dataflow
-{
-	void ChaosFleshSkeletalBindingsNode();
-}

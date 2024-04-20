@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Dataflow/ChaosFleshSkeletalBindingsNode.h"
+#include "Dataflow/ChaosFleshGenerateSkeletalBindingsNode.h"
 
 #include "Chaos/AABBTree.h"
 #include "Chaos/BoundingVolumeHierarchy.h"
@@ -21,12 +21,6 @@ DEFINE_LOG_CATEGORY(LogSkeletalBindings);
 
 namespace Dataflow
 {
-	void ChaosFleshSkeletalBindingsNode()
-	{
-		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FGenerateSkeletalBindings);
-	}
-
-
 
 	TArray<int32> ChildIndices(TObjectPtr<const USkeletalMesh> SkeletalMesh, int32 StartIndex)
 	{

@@ -9,7 +9,7 @@
 #include "Engine/StaticMesh.h"
 #include "Engine/SkeletalMesh.h"
 
-#include "ChaosFleshBindingsNodes.generated.h"
+#include "ChaosFleshGenerateSurfaceBindingsNode.generated.h"
 
 class UStaticMesh;
 class USkeletalMesh;
@@ -76,8 +76,3 @@ public:
 
 	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 };
-
-namespace Dataflow
-{
-	void ChaosFleshBindingsNodes();
-}

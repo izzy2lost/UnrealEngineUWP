@@ -6,16 +6,17 @@
 #include "Dataflow/DataflowCore.h"
 #include "Dataflow/DataflowEngine.h"
 
-#include "ChaosFleshRenderInitializationNodes.generated.h"
+#include "ChaosFleshBindForRenderToSkeletalMeshNode.generated.h"
 
 class USkeletalMesh;
 
 
+// @todo(delete), not actually implemented, so just delete. 
 USTRUCT(meta = (DataflowFlesh))
 struct FBindForRenderToSkeletalMeshDataflowNode : public FDataflowNode
 {
 	GENERATED_USTRUCT_BODY()
-		DATAFLOW_NODE_DEFINE_INTERNAL(FBindForRenderToSkeletalMeshDataflowNode, "BindForRenderToSkeletalMesh", "Flesh", "")
+	DATAFLOW_NODE_DEFINE_INTERNAL(FBindForRenderToSkeletalMeshDataflowNode, "BindForRenderToSkeletalMesh", "Flesh", "")
 
 public:
 	typedef FManagedArrayCollection DataType;
@@ -36,9 +37,3 @@ public:
 
 	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 };
-
-namespace Dataflow
-{
-	void ChaosFleshRenderInitializationNodes();
-}
-

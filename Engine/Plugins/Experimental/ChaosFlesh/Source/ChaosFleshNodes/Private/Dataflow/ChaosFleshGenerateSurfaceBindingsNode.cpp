@@ -1,9 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Dataflow/ChaosFleshBindingsNodes.h"
+#include "Dataflow/ChaosFleshGenerateSurfaceBindingsNode.h"
+
 #include "Dataflow/DataflowInputOutput.h"
 #include "Dataflow/DataflowNodeFactory.h"
-
 #include "Chaos/AABBTree.h"
 #include "Chaos/BoundingVolumeHierarchy.h"
 #include "Chaos/Tetrahedron.h"
@@ -22,15 +22,6 @@
 #include "UObject/PrimaryAssetId.h"
 
 DEFINE_LOG_CATEGORY(LogMeshBindings);
-
-
-namespace Dataflow
-{
-	void ChaosFleshBindingsNodes()
-	{
-		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FGenerateSurfaceBindings);
-	}
-}
 
 namespace UE::TetrahedralBindingsEngineUtil
 {

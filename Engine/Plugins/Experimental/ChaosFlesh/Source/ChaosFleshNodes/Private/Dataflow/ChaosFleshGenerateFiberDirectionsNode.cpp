@@ -1,17 +1,10 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Dataflow/ChaosFleshFiberDirectionInitializationNodes.h"
+#include "Dataflow/ChaosFleshGenerateFiberDirectionsNode.h"
 
 #include "Dataflow/DataflowInputOutput.h"
 #include "Dataflow/DataflowNodeFactory.h"
 
-namespace Dataflow
-{
-	void ChaosFleshFiberDirectionInitializationNodes()
-	{
-		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FGenerateFiberDirectionsDataflowNode);
-	}
-}
 
 void FGenerateFiberDirectionsDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {

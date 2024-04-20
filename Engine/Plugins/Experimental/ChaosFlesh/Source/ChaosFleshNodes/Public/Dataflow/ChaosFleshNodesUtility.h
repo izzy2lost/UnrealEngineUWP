@@ -26,7 +26,7 @@ enum class ESkeletalSeletionMode : uint8
 
 namespace Dataflow
 {
-	TArray<FIntVector3> GetSurfaceTriangles(const TArray<FIntVector4>& Tets, const bool bKeepInterior);
+	TArray<FIntVector3> CHAOSFLESHNODES_API GetSurfaceTriangles(const TArray<FIntVector4>& Tets, const bool bKeepInterior);
 
 	/**
 	*  GetMatchingMeshIndices
@@ -34,6 +34,6 @@ namespace Dataflow
 	*	@param MeshNames	: List of name to match, or empty for all indices
 	*	@param Collection	: Collection to search
 	*/
-	TArray<int32> GetMatchingMeshIndices(const TArray<FString>& MeshNames, const FManagedArrayCollection* InCollection);
+	TArray<int32> CHAOSFLESHNODES_API GetMatchingMeshIndices(const TArray<FString>& MeshNames, const FManagedArrayCollection* InCollection);
 
 }

@@ -13,8 +13,7 @@
 #include "Chaos/Matrix.h"
 #include "Chaos/Tetrahedron.h"
 #include "ChaosCache/FleshComponentCacheAdapter.h"
-
-#include "Dataflow/ChaosFleshBindingsNodes.h"
+#include "Dataflow/ChaosFleshGenerateSurfaceBindingsNode.h"
 
 #if USE_USD_SDK && DO_USD_CACHING
 #include "HAL/PlatformFile.h"

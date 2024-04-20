@@ -1,26 +1,17 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Dataflow/ChaosFleshTetrahedralNodes.h"
-#include "Dataflow/ChaosFleshEngineAssetNodes.h"
+#include "Dataflow/ChaosFleshCreateTetrahedralCollectionNode.h"
 
-#include "Async/ParallelFor.h"
-#include "Chaos/Deformable/Utilities.h"
 #include "ChaosFlesh/ChaosFlesh.h"
-#include "Chaos/Tetrahedron.h"
-#include "Chaos/Utilities.h"
-#include "Chaos/UniformGrid.h"
 #include "ChaosFlesh/FleshCollection.h"
 #include "ChaosFlesh/FleshCollectionUtility.h"
 #include "ChaosLog.h"
-#include "Dataflow/DataflowInputOutput.h"
 #include "DynamicMesh/DynamicMesh3.h"
 #include "DynamicMesh/DynamicMeshAABBTree3.h"
 #include "Engine/SkeletalMesh.h"
 #include "Engine/StaticMesh.h"
 #include "FTetWildWrapper.h"
 #include "Generate/IsosurfaceStuffing.h"
-#include "GeometryCollection/ManagedArrayCollection.h"
-#include "GeometryCollection/Facades/CollectionTetrahedralMetricsFacade.h"
 #include "GeometryCollection/GeometryCollectionAlgo.h"
 #include "MeshDescription.h"
 #include "MeshDescriptionToDynamicMesh.h"
@@ -30,139 +21,8 @@
 #include "Spatial/FastWinding.h"
 #include "Spatial/MeshAABBTree3.h"
 
-namespace Dataflow
-{
-	void ChaosFleshTetrahedralNodes()
-	{
-		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FCalculateTetMetrics);
-		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FGenerateTetrahedralCollectionDataflowNodes);
-		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FConstructTetGridNode);
-	}
+#include UE_INLINE_GENERATED_CPP_BY_NAME(ChaosFleshCreateTetrahedralCollectionNode)
 
-}
-
-
-//=============================================================================
-// FCalculateTetMetrics
-//=============================================================================
-
-void
-FCalculateTetMetrics::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
-{
-	if (Out->IsA<DataType>(&Collection))
-	{
-		TUniquePtr<FFleshCollection> InCollection(GetValue<DataType>(Context, &Collection).NewCopy<FFleshCollection>());
-
-		TManagedArray<FIntVector4>* TetMesh =
-			InCollection->FindAttribute<FIntVector4>(
-				FTetrahedralCollection::TetrahedronAttribute, FTetrahedralCollection::TetrahedralGroup);
-		TManagedArray<int32>* TetrahedronStart =
-			InCollection->FindAttribute<int32>(
-				FTetrahedralCollection::TetrahedronStartAttribute, FGeometryCollection::GeometryGroup);
-		TManagedArray<int32>* TetrahedronCount =
-			InCollection->FindAttribute<int32>(
-				FTetrahedralCollection::TetrahedronCountAttribute, FGeometryCollection::GeometryGroup);
-
-		TManagedArray<FVector3f>* Vertex =
-			InCollection->FindAttribute<FVector3f>(
-				"Vertex", "Vertices");
-
-		GeometryCollection::Facades::FTetrahedralMetrics TetMetrics(*InCollection);
-		TManagedArrayAccessor<float>& SignedVolume = TetMetrics.GetSignedVolume();
-		TManagedArrayAccessor<float>& AspectRatio = TetMetrics.GetAspectRatio();
-
-		for (int32 TetMeshIdx = 0; TetMeshIdx < TetrahedronStart->Num(); TetMeshIdx++)
-		{
-			const int32 TetMeshStart = (*TetrahedronStart)[TetMeshIdx];
-			const int32 TetMeshCount = (*TetrahedronCount)[TetMeshIdx];
-			
-			float MinVol = TNumericLimits<float>::Max();
-			float MaxVol = -TNumericLimits<float>::Max();
-			double AvgVol = 0.0;
-
-			float MinAR = TNumericLimits<float>::Max();
-			float MaxAR = -TNumericLimits<float>::Max();
-			double AvgAR = 0.0;
-			
-			for (int32 i = 0; i < TetMeshCount; i++)
-			{
-				const int32 Idx = TetMeshStart + i;
-				const FIntVector4& Tet = (*TetMesh)[Idx];
-				Chaos::TTetrahedron<Chaos::FReal> Tetrahedron(
-					(*Vertex)[Tet[0]],
-					(*Vertex)[Tet[1]],
-					(*Vertex)[Tet[2]],
-					(*Vertex)[Tet[3]]);
-
-				float Vol = Tetrahedron.GetSignedVolume();
-				SignedVolume.ModifyAt(Idx, Vol);
-				MinVol = MinVol < Vol ? MinVol : Vol;
-				MaxVol = MaxVol < Vol ? Vol : MaxVol;
-				AvgVol += Vol;
-
-				float AR = Tetrahedron.GetAspectRatio();
-				AspectRatio.ModifyAt(Idx, AR);
-				MinAR = MinAR < AR ? MinAR : AR;
-				MaxAR = MaxAR < AR ? AR : MaxAR;
-				AvgAR += AR;
-			}
-			if (TetMeshCount)
-			{
-				AvgVol /= TetMeshCount;
-				AvgAR /= TetMeshCount;
-			}
-			else
-			{
-				MinVol = MaxVol = 0.0f;
-				MinAR = MaxAR = 0.0f;
-			}
-
-			UE_LOG(LogChaosFlesh, Display,
-				TEXT("'%s' - Tet mesh %d of %d stats:\n"
-				"    Num Tetrahedra: %d\n"
-				"    Volume (min, avg, max): %g, %g, %g\n"
-				"    Aspect ratio (min, avg, max): %g, %g, %g"),
-				*GetName().ToString(),
-				(TetMeshIdx+1), TetrahedronStart->Num(),
-				TetMeshCount,
-				MinVol, AvgVol, MaxVol,
-				MinAR, AvgAR, MaxAR);
-		}
-
-		SetValue<const DataType&>(Context, *InCollection, &Collection);
-	}
-}
-
-//=============================================================================
-// FConstructTetGridNode
-//=============================================================================
-
-void FConstructTetGridNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
-{
-	if (Out->IsA<FManagedArrayCollection>(&Collection))
-	{
-		TUniquePtr<FFleshCollection> InCollection(GetValue<DataType>(Context, &Collection).NewCopy<FFleshCollection>());
-
-		Chaos::TVector<int32, 3> Counts(GridCellCount[0], GridCellCount[1], GridCellCount[2]);
-
-		Chaos::TVector<double, 3> MinCorner = -.5 * GridDomain;
-		Chaos::TVector<double, 3> MaxCorner = .5 * GridDomain;
-		Chaos::TUniformGrid<double, 3> Grid(MinCorner, MaxCorner, Counts, 0);
-
-		TArray<FIntVector4> Tets;
-		TArray<FVector> X;
-		Chaos::Utilities::TetMeshFromGrid<double>(Grid, Tets, X);
-
-		UE_LOG(LogChaosFlesh, Display, TEXT("TetGrid generated %d points and %d tetrahedra."), X.Num(), Tets.Num());
-
-		TArray<FIntVector3> Tris = Dataflow::GetSurfaceTriangles(Tets, !bDiscardInteriorTriangles);
-		TUniquePtr<FTetrahedralCollection> TetCollection(
-			FTetrahedralCollection::NewTetrahedralCollection(X, Tris, Tets));
-		InCollection->AppendGeometry(*TetCollection.Get());
-
-		SetValue<const DataType&>(Context, *InCollection, &Collection);
-	}
-}
 
 //=============================================================================
 // FGenerateTetrahedralCollectionDataflowNodes

@@ -35,6 +35,11 @@
 			"Name": "ChaosFleshNodes",
 			"Type": "Runtime",
 			"LoadingPhase": "PreDefault"
+		},
+		{
+			"Name": "ChaosFleshDeprecatedNodes",
+			"Type": "Runtime",
+			"LoadingPhase": "PreDefault"
 		}
 	],
 	"Plugins": [

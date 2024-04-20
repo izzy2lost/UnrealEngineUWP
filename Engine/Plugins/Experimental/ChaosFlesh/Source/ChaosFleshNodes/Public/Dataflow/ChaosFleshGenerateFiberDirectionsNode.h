@@ -6,8 +6,9 @@
 #include "Dataflow/DataflowCore.h"
 #include "Dataflow/DataflowEngine.h"
 
-#include "ChaosFleshFiberDirectionInitializationNodes.generated.h"
+#include "ChaosFleshGenerateFiberDirectionsNode.generated.h"
 
+// @todo(delete this node)
 USTRUCT(meta = (DataflowFlesh))
 struct FGenerateFiberDirectionsDataflowNode : public FDataflowNode
 {
@@ -30,10 +31,3 @@ public:
 
 	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 };
-
-
-namespace Dataflow
-{
-	void ChaosFleshFiberDirectionInitializationNodes();
-}
-

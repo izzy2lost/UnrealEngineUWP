@@ -1,7 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Dataflow/ChaosFleshEngineAssetNodes.h"
-#include "Dataflow/ChaosFleshTetrahedralNodes.h"
 
 #include "Chaos/Math/Poisson.h"
 #include "Chaos/Matrix.h"

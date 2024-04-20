@@ -3,7 +3,7 @@
 #include "ChaosFleshGeneratorPrivate.h"
 
 #include "Chaos/Vector.h"
-#include "Dataflow/ChaosFleshBindingsNodes.h"
+#include "Dataflow/ChaosFleshGenerateSurfaceBindingsNode.h"
 #include "FleshGeneratorComponent.h"
 #include "FileHelpers.h"
 #include "GeometryCollection/Facades/CollectionTetrahedralBindingsFacade.h"
@@ -16,6 +16,7 @@
 #include "Logging/LogMacros.h"
 #include "Rendering/SkeletalMeshRenderData.h"
 #include "Rendering/SkeletalMeshModel.h"
+
 
 DEFINE_LOG_CATEGORY(LogChaosFleshGeneratorPrivate);
 

@@ -1,8 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Dataflow/ChaosFleshRadialTetrahedronNodes.h"
+#include "Dataflow/ChaosFleshRadialTetrahedronNode.h"
 #include "Meshing/ChaosFleshRadialMeshing.h"
-#include "Dataflow/ChaosFleshTetrahedralNodes.h"
 
 #include "Chaos/Deformable/Utilities.h"
 #include "ChaosFlesh/ChaosFlesh.h"
@@ -12,6 +11,7 @@
 #include "ChaosFlesh/FleshCollectionUtility.h"
 #include "ChaosLog.h"
 #include "Dataflow/DataflowInputOutput.h"
+#include "Dataflow/ChaosFleshNodesUtility.h"
 #include "DynamicMesh/DynamicMesh3.h"
 #include "DynamicMesh/DynamicMeshAABBTree3.h"
 #include "Engine/StaticMesh.h"
@@ -21,15 +21,6 @@
 #include "MeshDescriptionToDynamicMesh.h"
 #include "Spatial/FastWinding.h"
 #include "Spatial/MeshAABBTree3.h"
-
-namespace Dataflow
-{
-	void ChaosFleshRadialTetrahedronNodes()
-	{
-		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FRadialTetrahedronDataflowNodes);
-	}
-}
-
 
 //=============================================================================
 // FRadialTetrahedronDataflowNodes

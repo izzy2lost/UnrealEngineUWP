@@ -1,22 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Dataflow/ChaosFleshCoreNodes.h"
+#include "Dataflow/ChaosFleshAppendTetrahedralCollectionNode.h"
 
 #include "ChaosFlesh/FleshCollection.h"
 #include "Dataflow/DataflowNodeFactory.h"
-
-
-namespace Dataflow
-{
-	
-void RegisterChaosFleshCoreNodes()
-{
-	//DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FNewManagedArrayCollectionNode);
-	//DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FAddAttributeNode);
-	DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FAppendTetrahedralCollectionDataflowNode);
-}
-
-}
 
 void FAppendTetrahedralCollectionDataflowNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {

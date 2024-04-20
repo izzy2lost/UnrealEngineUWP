@@ -3,11 +3,13 @@
 #pragma once 
 
 #include "CoreMinimal.h"
+#include "Dataflow/DataflowCore.h"
 #include "Dataflow/DataflowEngine.h"
-#include "GeometryCollection/ManagedArrayCollection.h"
+//#include "Dataflow/DataflowEngine.h"
+//#include "GeometryCollection/ManagedArrayCollection.h"
 #include "Dataflow/ChaosFleshNodesUtility.h"
 
-#include "ChaosFleshTetrahedralNodes.generated.h"
+#include "ChaosFleshCreateTetrahedralCollectionNode.generated.h"
 
 class USkeletalMesh;
 class UStaticMesh;
@@ -17,63 +19,6 @@ namespace UE {
 		class FDynamicMesh3;
 	}
 }
-
-// Generate quality metrics
-USTRUCT(meta = (DataflowFlesh))
-struct FCalculateTetMetrics : public FDataflowNode
-{
-	GENERATED_USTRUCT_BODY()
-	DATAFLOW_NODE_DEFINE_INTERNAL(FCalculateTetMetrics, "AuthorTetMetrics", "Flesh", "")
-public:
-	typedef FManagedArrayCollection DataType;
-
-	// Passthrough geometry collection. Bindings are stored as standalone groups in the \p Collection, keyed by the name of the input render mesh and all available LOD's.
-	UPROPERTY(meta = (DataflowInput, DataflowOutput, DataflowPassthrough = "Collection", DisplayName = "Collection"))
-	FManagedArrayCollection Collection;
-
-	FCalculateTetMetrics(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
-		: FDataflowNode(InParam, InGuid)
-	{
-		RegisterInputConnection(&Collection);
-		RegisterOutputConnection(&Collection, &Collection);
-	}
-
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
-};
-
-
-USTRUCT(meta = (DataflowFlesh))
-struct FConstructTetGridNode : public FDataflowNode
-{
-	GENERATED_USTRUCT_BODY()
-	DATAFLOW_NODE_DEFINE_INTERNAL(FConstructTetGridNode, "TetGrid", "Flesh", "")
-	DATAFLOW_NODE_RENDER_TYPE(FGeometryCollection::StaticType(), "Collection")
-
-public:
-	typedef FManagedArrayCollection DataType;
-
-	UPROPERTY(meta = (DataflowInput, DataflowOutput, DisplayName = "Collection"))
-	FManagedArrayCollection Collection;
-
-	UPROPERTY(EditAnywhere, Category = "Dataflow", meta = (ClampMin = "1"))
-	FIntVector GridCellCount = FIntVector(10, 10, 10);
-
-	UPROPERTY(EditAnywhere, Category = "Dataflow", meta = (ClampMin = "0.0"))
-	FVector GridDomain = FVector(10.0, 10.0, 10.0);
-
-	UPROPERTY(EditAnywhere, Category = "Dataflow")
-	bool bDiscardInteriorTriangles = true;
-
-	FConstructTetGridNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
-		: FDataflowNode(InParam, InGuid)
-	{
-		RegisterInputConnection(&Collection);
-		RegisterOutputConnection(&Collection);
-	}
-
-	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
-};
-
 
 
 USTRUCT(meta = (DataflowFlesh))
@@ -169,17 +114,6 @@ protected:
 	void EvaluateIsoStuffing(Dataflow::FContext& Context, TUniquePtr<FFleshCollection>& InCollection, const UE::Geometry::FDynamicMesh3& DynamicMesh) const;
 	void EvaluateTetWild(Dataflow::FContext& Context, TUniquePtr<FFleshCollection>& InCollection, const UE::Geometry::FDynamicMesh3& DynamicMesh) const;
 };
-
-
-
-
-namespace Dataflow
-{
-	void ChaosFleshTetrahedralNodes();
-
-
-}
-
 
 
 

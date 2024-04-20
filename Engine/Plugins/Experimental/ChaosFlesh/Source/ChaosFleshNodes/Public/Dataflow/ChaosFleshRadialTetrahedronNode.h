@@ -6,11 +6,12 @@
 #include "Dataflow/DataflowEngine.h"
 #include "GeometryCollection/ManagedArrayCollection.h"
 
-#include "ChaosFleshRadialTetrahedronNodes.generated.h"
+#include "ChaosFleshRadialTetrahedronNode.generated.h"
 
 class UStaticMesh;
 class FFleshCollection;
 
+// @todo(deprecate), rename to FRadialTetrahedronDataflowNode
 USTRUCT(meta = (DataflowFlesh))
 struct FRadialTetrahedronDataflowNodes : public FDataflowNode
 {
@@ -57,13 +58,6 @@ public:
 
 	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 };
-
-namespace Dataflow
-{
-	void ChaosFleshRadialTetrahedronNodes();
-
-
-}
 
 
 
