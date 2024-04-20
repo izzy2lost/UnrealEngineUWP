@@ -446,6 +446,7 @@ namespace AutomationTool
 			this.SessionLabel = InParams.SessionLabel;
 			this.ProjectDescriptor = InParams.ProjectDescriptor;
 			this.Upload = InParams.Upload;
+			this.XcodeBuildOptions = InParams.XcodeBuildOptions;
 		}
 
 		/// <summary>
@@ -619,7 +620,8 @@ namespace AutomationTool
 			ParamList<string> InMapsToRebuildLightMaps = null,
 			ParamList<string> InMapsToRebuildHLOD = null,
 			ParamList<string> TitleID = null,
-			string Upload = null
+			string Upload = null,
+			string XcodeBuildOptions = null
 			)
 		{
 			//
@@ -1051,6 +1053,8 @@ namespace AutomationTool
 			}
 
 			this.Upload = Command.ParseParamValue("upload");
+			
+			this.XcodeBuildOptions = ParseParamValueIfNotSpecified(Command, XcodeBuildOptions, "xcodebuildoptions", null);
 
 			if (ClientConfigsToBuild == null)
 			{
@@ -2388,6 +2392,9 @@ namespace AutomationTool
 
 		[Help("upload", "Arguments for uploading on demand content")]
 		public string Upload { get; set; }
+
+		[Help("XcodeBuildOptions", "Extra options to pass to xcodebuild")]
+		public string XcodeBuildOptions { get; set; }
 
 		private List<SingleTargetProperties> DetectedTargets;
 		private Dictionary<UnrealTargetPlatform, ConfigHierarchy> LoadedEngineConfigs;

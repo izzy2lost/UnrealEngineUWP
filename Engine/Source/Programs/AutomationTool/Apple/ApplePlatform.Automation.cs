@@ -130,6 +130,11 @@ public abstract class ApplePlatform : Platform
 					// set where the stage directory is
 					$"UE_OVERRIDE_STAGE_DIR=\"{SC.StageDirectory}\"";
 
+				if (Params.XcodeBuildOptions != null)
+				{
+					ExtraOptions += $" {Params.XcodeBuildOptions}";
+				}
+
 				string TargetName = Target.TargetName;
 				if (!Params.IsCodeBasedProject)
 				{
@@ -237,6 +242,11 @@ public abstract class ApplePlatform : Platform
 				{
 					XcArchivePath = Params.ArchiveDirectoryParam;
 					ExtraOptions += $" -archivePath \"{XcArchivePath}\"";
+				}
+
+				if (Params.XcodeBuildOptions != null)
+				{
+					ExtraOptions += $" {Params.XcodeBuildOptions}";
 				}
 
 				// if we we packaging for distrbution, we will create a .xcarchive which can be used to submit to app stores, or exported for other distribution methods
