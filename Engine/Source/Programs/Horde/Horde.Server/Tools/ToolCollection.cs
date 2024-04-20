@@ -5,11 +5,13 @@ using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Security.Claims;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Horde;
+using EpicGames.Horde.Acls;
 using EpicGames.Horde.Storage;
 using EpicGames.Horde.Storage.Backends;
 using EpicGames.Horde.Storage.Bundles;
@@ -21,6 +23,7 @@ using Horde.Server.Server;
 using Horde.Server.Storage;
 using Horde.Server.Utilities;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using MongoDB.Bson.Serialization.Attributes;
 using MongoDB.Driver;
 
@@ -31,57 +34,30 @@ namespace Horde.Server.Tools
 	/// </summary>
 	public class ToolCollection : IToolCollection
 	{
-		class Tool : ITool
+		class ToolDocument
 		{
 			public ToolId Id { get; set; }
 
-			[BsonIgnore]
-			public ToolConfig Config { get; set; } = null!;
-
 			[BsonElement("dep")]
-			public List<ToolDeployment> Deployments { get; set; } = new List<ToolDeployment>();
+			public List<ToolDeploymentDocument> Deployments { get; set; } = new List<ToolDeploymentDocument>();
 
 			// Last time that the document was updated. This field is checked and updated as part of updates to ensure atomicity.
 			[BsonElement("_u")]
 			public DateTime LastUpdateTime { get; set; }
 
-			// ITool interface
-			IReadOnlyList<IToolDeployment> ITool.Deployments => Deployments;
-
 			[BsonConstructor]
-			public Tool(ToolId id)
+			public ToolDocument(ToolId id)
 			{
 				Id = id;
-				Config = null!;
-			}
-
-			public Tool(ToolConfig config)
-			{
-				Id = config.Id;
-				Config = config;
-			}
-
-			public void UpdateTemporalState(DateTime utcNow)
-			{
-				foreach (ToolDeployment deployment in Deployments)
-				{
-					deployment.UpdateTemporalState(utcNow);
-				}
 			}
 		}
 
-		class ToolDeployment : IToolDeployment
+		class ToolDeploymentDocument
 		{
 			public ToolDeploymentId Id { get; set; }
 
 			[BsonElement("ver")]
 			public string Version { get; set; }
-
-			[BsonIgnore]
-			public ToolDeploymentState State { get; set; }
-
-			[BsonIgnore]
-			public double Progress { get; set; }
 
 			[BsonElement("bpr")]
 			public double BaseProgress { get; set; }
@@ -99,13 +75,13 @@ namespace Horde.Server.Tools
 			public RefName RefName { get; set; }
 
 			[BsonConstructor]
-			public ToolDeployment(ToolDeploymentId id)
+			public ToolDeploymentDocument(ToolDeploymentId id)
 			{
 				Id = id;
 				Version = String.Empty;
 			}
 
-			public ToolDeployment(ToolDeploymentId id, ToolDeploymentConfig options, NamespaceId namespaceId, RefName refName)
+			public ToolDeploymentDocument(ToolDeploymentId id, ToolDeploymentConfig options, NamespaceId namespaceId, RefName refName)
 			{
 				Id = id;
 				Version = options.Version;
@@ -113,10 +89,79 @@ namespace Horde.Server.Tools
 				NamespaceId = namespaceId;
 				RefName = refName;
 			}
+		}
 
-			public void UpdateTemporalState(DateTime utcNow)
+		class Tool : ITool
+		{
+			readonly ToolCollection _collection;
+			readonly ToolDocument _document;
+			readonly ToolConfig _config;
+			readonly List<ToolDeployment> _deployments;
+
+			public ToolConfig Config => _config;
+			public ToolDocument Document => _document;
+
+			public ToolId Id => _config.Id;
+			public string Name => _config.Name;
+			public string Description => _config.Description;
+			public string? Category => _config.Category;
+			public bool Public => _config.Public;
+			public bool ShowInUgs => _config.ShowInUgs;
+			public bool ShowInDashboard => _config.ShowInDashboard;
+			public IReadOnlyList<IToolDeployment> Deployments => _deployments;
+
+			public Tool(ToolCollection collection, ToolDocument document, ToolConfig config, DateTime utcNow)
 			{
-				if (BaseProgress >= 1.0)
+				_collection = collection;
+				_document = document;
+				_config = config;
+				_deployments = document.Deployments.ConvertAll(x => new ToolDeployment(this, _collection, x, utcNow));
+			}
+
+			public bool Authorize(AclAction action, ClaimsPrincipal principal)
+				=> _config.Authorize(action, principal);
+
+			public async Task<ITool?> CreateDeploymentAsync(ToolDeploymentConfig options, Stream stream, CancellationToken cancellationToken = default)
+			{
+				ToolDocument? document = await _collection.CreateDeploymentAsync(_document, _config, options, stream, cancellationToken);
+				return _collection.CreateToolObject(document);
+			}
+
+			public async Task<ITool?> CreateDeploymentAsync(ToolDeploymentConfig options, BlobRefValue target, CancellationToken cancellationToken = default)
+			{
+				ToolDocument? document = await _collection.CreateDeploymentAsync(_document, _config, options, target, cancellationToken);
+				return _collection.CreateToolObject(document);
+			}
+
+			public IStorageBackend CreateStorageBackend()
+				=> _collection.CreateStorageBackend(_config);
+
+			public IStorageClient CreateStorageClient()
+				=> _collection.CreateStorageClient(_config);
+		}
+
+		class ToolDeployment : IToolDeployment
+		{
+			readonly Tool _tool;
+			readonly ToolCollection _collection;
+			readonly ToolDeploymentDocument _document;
+
+			public ToolDeploymentId Id => _document.Id;
+			public string Version => _document.Version;
+			public ToolDeploymentState State { get; }
+			public double Progress { get; }
+			public DateTime? StartedAt => _document.StartedAt;
+			public TimeSpan Duration => _document.Duration;
+			public NamespaceId NamespaceId => _document.NamespaceId;
+			public RefName RefName => _document.RefName;
+
+			public ToolDeployment(Tool tool, ToolCollection collection, ToolDeploymentDocument document, DateTime utcNow)
+			{
+				_tool = tool;
+				_collection = collection;
+				_document = document;
+
+				if (document.BaseProgress >= 1.0)
 				{
 					State = ToolDeploymentState.Complete;
 					Progress = 1.0;
@@ -124,7 +169,7 @@ namespace Horde.Server.Tools
 				else if (StartedAt == null)
 				{
 					State = ToolDeploymentState.Paused;
-					Progress = BaseProgress;
+					Progress = document.BaseProgress;
 				}
 				else if (Duration > TimeSpan.Zero)
 				{
@@ -137,106 +182,132 @@ namespace Horde.Server.Tools
 					Progress = 1.0;
 				}
 			}
+
+			public Task<Stream> OpenZipStreamAsync(CancellationToken cancellationToken = default)
+				=> _collection.GetDeploymentZipAsync(_tool.Config, _document, cancellationToken);
+
+			public async Task<IToolDeployment?> UpdateAsync(ToolDeploymentState action, CancellationToken cancellationToken = default)
+			{
+				ToolDocument? newDocument = await _collection.UpdateDeploymentAsync(_tool.Document, Id, action, Progress, cancellationToken);
+				Tool? newTool = _collection.CreateToolObject(newDocument);
+				return newTool?.Deployments.FirstOrDefault(x => x.Id == Id);
+			}
 		}
 
-		private class ToolDeploymentData
-		{
-			[CbField]
-			public ToolDeploymentId Id { get; set; }
-
-			[CbField("version")]
-			public string Version { get; set; } = String.Empty;
-
-			[CbField("data")]
-			public CbBinaryAttachment Data { get; set; }
-		}
-
-		private class CachedIndex
-		{
-			[CbField("rev")]
-			public string Rev { get; set; } = String.Empty;
-
-			[CbField("empty")]
-			public bool Empty { get; set; }
-
-			[CbField("ids")]
-			public List<ToolId> Ids { get; set; } = new List<ToolId>();
-		}
-
-		private readonly IMongoCollection<Tool> _tools;
+		private readonly IMongoCollection<ToolDocument> _tools;
 		private readonly StorageService _storageService;
 		private readonly FileObjectStoreFactory _fileObjectStoreFactory;
 		private readonly IClock _clock;
 		private readonly BundleCache _cache;
+		private readonly IOptionsMonitor<GlobalConfig> _globalConfig;
 		private readonly ILogger _logger;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public ToolCollection(MongoService mongoService, StorageService storageService, BundleCache cache, FileObjectStoreFactory fileObjectStoreFactory, IClock clock, ILogger<ToolCollection> logger)
+		public ToolCollection(MongoService mongoService, StorageService storageService, BundleCache cache, FileObjectStoreFactory fileObjectStoreFactory, IClock clock, IOptionsMonitor<GlobalConfig> globalConfig, ILogger<ToolCollection> logger)
 		{
-			_tools = mongoService.GetCollection<Tool>("Tools");
+			_tools = mongoService.GetCollection<ToolDocument>("Tools");
 			_storageService = storageService;
 			_fileObjectStoreFactory = fileObjectStoreFactory;
 			_clock = clock;
+			_globalConfig = globalConfig;
 			_cache = cache;
 			_logger = logger;
 		}
 
-		/// <inheritdoc/>
-		public async Task<ITool?> GetAsync(ToolId id, GlobalConfig globalConfig, CancellationToken cancellationToken)
-			=> await GetInternalAsync(id, globalConfig, cancellationToken);
-
-		/// <summary>
-		/// Gets a tool with the given identifier
-		/// </summary>
-		/// <param name="toolId">The tool identifier</param>
-		/// <param name="globalConfig">The current global configuration</param>
-		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		/// <returns></returns>
-		async Task<Tool?> GetInternalAsync(ToolId toolId, GlobalConfig globalConfig, CancellationToken cancellationToken)
+		Tool? CreateToolObject(ToolDocument? document)
 		{
-			ToolConfig? toolConfig;
-			if (globalConfig.TryGetTool(toolId, out toolConfig))
+			if (document == null)
 			{
-				Tool? tool;
-				for (; ; )
-				{
-					tool = await _tools.Find(x => x.Id == toolId).FirstOrDefaultAsync(cancellationToken);
-					if (tool != null)
-					{
-						break;
-					}
+				return null;
+			}
 
-					tool = new Tool(toolId);
-					if (await _tools.InsertOneIgnoreDuplicatesAsync(tool, cancellationToken))
-					{
-						break;
-					}
-				}
+			ToolConfig? toolConfig;
+			if (!_globalConfig.CurrentValue.TryGetTool(document.Id, out toolConfig))
+			{
+				return null;
+			}
 
-				tool.Config = toolConfig;
-				tool.UpdateTemporalState(_clock.UtcNow);
-				return tool;
+			return new Tool(this, document, toolConfig, _clock.UtcNow);
+		}
+
+		/// <inheritdoc/>
+		public async Task<ITool?> GetAsync(ToolId id, CancellationToken cancellationToken)
+		{
+			GlobalConfig globalConfig = _globalConfig.CurrentValue;
+
+			ToolConfig? toolConfig;
+			if (globalConfig.TryGetTool(id, out toolConfig))
+			{
+				ToolDocument document = await FindOrAddDocument(toolConfig, cancellationToken);
+				return new Tool(this, document, toolConfig, _clock.UtcNow);
 			}
 
 			BundledToolConfig? bundledToolConfig;
-			if (globalConfig.ServerSettings.TryGetBundledTool(toolId, out bundledToolConfig))
+			if (globalConfig.ServerSettings.TryGetBundledTool(id, out bundledToolConfig))
 			{
-				Tool tool = new Tool(bundledToolConfig);
-
-				ToolDeploymentId deploymentId = GetDeploymentId(bundledToolConfig);
-
-				ToolDeployment deployment = new ToolDeployment(deploymentId);
-				deployment.Version = bundledToolConfig.Version;
-				deployment.State = ToolDeploymentState.Complete;
-				deployment.RefName = bundledToolConfig.RefName;
-				tool.Deployments.Add(deployment);
-
-				return tool;
+				ToolDocument document = CreateBundledToolDocument(bundledToolConfig);
+				return new Tool(this, document, bundledToolConfig, _clock.UtcNow);
 			}
 
 			return null;
+		}
+
+		/// <inheritdoc/>
+		public async Task<IReadOnlyList<ITool>> GetAllAsync(CancellationToken cancellationToken)
+		{
+			DateTime utcNow = _clock.UtcNow;
+			GlobalConfig globalConfig = _globalConfig.CurrentValue;
+
+			List<Tool> tools = new List<Tool>();
+			foreach (ToolConfig toolConfig in globalConfig.Tools)
+			{
+				ToolDocument document = await FindOrAddDocument(toolConfig, cancellationToken);
+				tools.Add(new Tool(this, document, toolConfig, utcNow));
+			}
+			foreach(BundledToolConfig bundledToolConfig in globalConfig.ServerSettings.BundledTools)
+			{
+				ToolDocument document = CreateBundledToolDocument(bundledToolConfig);
+				tools.Add(new Tool(this, document, bundledToolConfig, utcNow));
+			}
+
+			return tools;
+		}
+
+		async Task<ToolDocument> FindOrAddDocument(ToolConfig toolConfig, CancellationToken cancellationToken)
+		{
+			ToolDocument? tool;
+			for (; ; )
+			{
+				tool = await _tools.Find(x => x.Id == toolConfig.Id).FirstOrDefaultAsync(cancellationToken);
+				if (tool != null)
+				{
+					break;
+				}
+
+				tool = new ToolDocument(toolConfig.Id);
+				if (await _tools.InsertOneIgnoreDuplicatesAsync(tool, cancellationToken))
+				{
+					break;
+				}
+			}
+			return tool;
+		}
+
+		ToolDocument CreateBundledToolDocument(BundledToolConfig bundledToolConfig)
+		{
+			ToolDocument tool = new ToolDocument(bundledToolConfig.Id);
+
+			ToolDeploymentId deploymentId = GetDeploymentId(bundledToolConfig);
+
+			ToolDeploymentDocument deployment = new ToolDeploymentDocument(deploymentId);
+			deployment.StartedAt = DateTime.MinValue;
+			deployment.Version = bundledToolConfig.Version;
+			deployment.RefName = bundledToolConfig.RefName;
+			tool.Deployments.Add(deployment);
+
+			return tool;
 		}
 
 		static ToolDeploymentId GetDeploymentId(BundledToolConfig bundledToolConfig)
@@ -252,20 +323,11 @@ namespace Horde.Server.Tools
 			return new ToolDeploymentId(new BinaryId(bytes));
 		}
 
-		/// <summary>
-		/// Adds a new deployment to the given tool. The new deployment will replace the current active deployment.
-		/// </summary>
-		/// <param name="tool">The tool to update</param>
-		/// <param name="options">Options for the new deployment</param>
-		/// <param name="stream">Stream containing the tool data</param>
-		/// <param name="globalConfig">The current configuration</param>
-		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		/// <returns>Updated tool document, or null if it does not exist</returns>
-		public async Task<ITool?> CreateDeploymentAsync(ITool tool, ToolDeploymentConfig options, Stream stream, GlobalConfig globalConfig, CancellationToken cancellationToken)
+		async Task<ToolDocument?> CreateDeploymentAsync(ToolDocument tool, ToolConfig toolConfig, ToolDeploymentConfig options, Stream stream, CancellationToken cancellationToken)
 		{
 			ToolDeploymentId deploymentId = new ToolDeploymentId(BinaryIdUtils.CreateNew());
 
-			using IStorageClient client = _storageService.CreateClient(tool.Config.NamespaceId);
+			using IStorageClient client = _storageService.CreateClient(toolConfig.NamespaceId);
 
 			IBlobRef<DirectoryNode> nodeRef;
 			await using (IBlobWriter writer = client.CreateBlobWriter($"{tool.Id}/{deploymentId}"))
@@ -275,29 +337,20 @@ namespace Horde.Server.Tools
 				nodeRef = await writer.WriteBlobAsync(directoryNode, cancellationToken: cancellationToken);
 			}
 
-			return await CreateDeploymentInternalAsync(tool, deploymentId, options, client, nodeRef, globalConfig, cancellationToken);
+			return await CreateDeploymentInternalAsync(tool, toolConfig, deploymentId, options, client, nodeRef, cancellationToken);
 		}
 
-		/// <summary>
-		/// Adds a new deployment to the given tool. The new deployment will replace the current active deployment.
-		/// </summary>
-		/// <param name="tool">The tool to update</param>
-		/// <param name="options">Options for the new deployment</param>
-		/// <param name="target">Path to the tool data</param>
-		/// <param name="globalConfig">The current configuration</param>
-		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		/// <returns>Updated tool document, or null if it does not exist</returns>
-		public async Task<ITool?> CreateDeploymentAsync(ITool tool, ToolDeploymentConfig options, BlobRefValue target, GlobalConfig globalConfig, CancellationToken cancellationToken)
+		async Task<ToolDocument?> CreateDeploymentAsync(ToolDocument tool, ToolConfig toolConfig, ToolDeploymentConfig options, BlobRefValue target, CancellationToken cancellationToken)
 		{
 			ToolDeploymentId deploymentId = new ToolDeploymentId(BinaryIdUtils.CreateNew());
 
-			using IStorageClient client = _storageService.CreateClient(tool.Config.NamespaceId);
-			return await CreateDeploymentInternalAsync(tool, deploymentId, options, client, client.CreateBlobRef(target), globalConfig, cancellationToken);
+			using IStorageClient client = _storageService.CreateClient(toolConfig.NamespaceId);
+			return await CreateDeploymentInternalAsync(tool, toolConfig, deploymentId, options, client, client.CreateBlobRef(target), cancellationToken);
 		}
 
-		async Task<ITool?> CreateDeploymentInternalAsync(ITool tool, ToolDeploymentId deploymentId, ToolDeploymentConfig options, IStorageClient storageClient, IBlobRef content, GlobalConfig globalConfig, CancellationToken cancellationToken)
+		async Task<ToolDocument?> CreateDeploymentInternalAsync(ToolDocument tool, ToolConfig toolConfig, ToolDeploymentId deploymentId, ToolDeploymentConfig options, IStorageClient storageClient, IBlobRef content, CancellationToken cancellationToken)
 		{
-			if (tool.Config is BundledToolConfig)
+			if (toolConfig is BundledToolConfig)
 			{
 				throw new InvalidOperationException("Cannot update the state of bundled tools.");
 			}
@@ -307,7 +360,7 @@ namespace Horde.Server.Tools
 			await storageClient.WriteRefAsync(refName, content, cancellationToken: cancellationToken);
 
 			// Create the new deployment object
-			ToolDeployment deployment = new ToolDeployment(deploymentId, options, tool.Config.NamespaceId, refName);
+			ToolDeploymentDocument deployment = new ToolDeploymentDocument(deploymentId, options, toolConfig.NamespaceId, refName);
 
 			// Start the deployment
 			DateTime utcNow = _clock.UtcNow;
@@ -317,62 +370,47 @@ namespace Horde.Server.Tools
 			}
 
 			// Create the deployment
-			Tool? newTool = (Tool)tool;
+			ToolDocument? newTool = (ToolDocument)tool;
 			for (; ; )
 			{
 				newTool = await TryAddDeploymentAsync(newTool, deployment, cancellationToken);
 				if (newTool != null)
 				{
-					break;
+					return newTool;
 				}
 
-				newTool = await GetInternalAsync(tool.Id, globalConfig, cancellationToken);
+				newTool = await FindOrAddDocument(toolConfig, cancellationToken);
 				if (newTool == null)
 				{
 					return null;
 				}
 			}
-
-			// Return the new tool with updated deployment states
-			newTool.UpdateTemporalState(utcNow);
-			return newTool;
 		}
 
-		async ValueTask<Tool?> TryAddDeploymentAsync(Tool tool, ToolDeployment deployment, CancellationToken cancellationToken)
+		async ValueTask<ToolDocument?> TryAddDeploymentAsync(ToolDocument tool, ToolDeploymentDocument deployment, CancellationToken cancellationToken)
 		{
-			Tool? newTool = tool;
+			ToolDocument? newTool = tool;
 
 			// If there are already a maximum number of deployments, remove the oldest one
 			const int MaxDeploymentCount = 5;
 			while (newTool.Deployments.Count >= MaxDeploymentCount)
 			{
-				newTool = await UpdateAsync(newTool, Builders<Tool>.Update.PopFirst(x => x.Deployments), cancellationToken);
+				newTool = await UpdateAsync(newTool, Builders<ToolDocument>.Update.PopFirst(x => x.Deployments), cancellationToken);
 				if (newTool == null)
 				{
 					return null;
 				}
 
-				ToolDeployment removeDeployment = tool.Deployments[0];
+				ToolDeploymentDocument removeDeployment = tool.Deployments[0];
 				using IStorageClient client = _storageService.CreateClient(removeDeployment.NamespaceId);
 				await client.DeleteRefAsync(removeDeployment.RefName, cancellationToken);
 			}
 
 			// Add the new deployment
-			return await UpdateAsync(newTool, Builders<Tool>.Update.Push(x => x.Deployments, deployment), cancellationToken);
+			return await UpdateAsync(newTool, Builders<ToolDocument>.Update.Push(x => x.Deployments, deployment), cancellationToken);
 		}
 
-		/// <inheritdoc/>
-		public async Task<ITool?> UpdateDeploymentAsync(ITool tool, ToolDeploymentId deploymentId, ToolDeploymentState action, CancellationToken cancellationToken)
-		{
-			if (tool.Config is BundledToolConfig)
-			{
-				throw new InvalidOperationException("Cannot update the state of bundled tools.");
-			}
-
-			return await UpdateDeploymentInternalAsync((Tool)tool, deploymentId, action, cancellationToken);
-		}
-
-		async Task<Tool?> UpdateDeploymentInternalAsync(Tool tool, ToolDeploymentId deploymentId, ToolDeploymentState action, CancellationToken cancellationToken)
+		async Task<ToolDocument?> UpdateDeploymentAsync(ToolDocument tool, ToolDeploymentId deploymentId, ToolDeploymentState action, double currentProgress, CancellationToken cancellationToken)
 		{
 			int idx = tool.Deployments.FindIndex(x => x.Id == deploymentId);
 			if (idx == -1)
@@ -380,15 +418,15 @@ namespace Horde.Server.Tools
 				return null;
 			}
 
-			ToolDeployment deployment = tool.Deployments[idx];
+			ToolDeploymentDocument deployment = tool.Deployments[idx];
 			switch (action)
 			{
 				case ToolDeploymentState.Complete:
-					return await UpdateAsync(tool, Builders<Tool>.Update.Set(x => x.Deployments[idx].BaseProgress, 1.0).Unset(x => x.Deployments[idx].StartedAt), cancellationToken);
+					return await UpdateAsync(tool, Builders<ToolDocument>.Update.Set(x => x.Deployments[idx].BaseProgress, 1.0).Unset(x => x.Deployments[idx].StartedAt), cancellationToken);
 
 				case ToolDeploymentState.Cancelled:
-					List<ToolDeployment> newDeployments = tool.Deployments.Where(x => x != deployment).ToList();
-					return await UpdateAsync(tool, Builders<Tool>.Update.Set(x => x.Deployments, newDeployments), cancellationToken);
+					List<ToolDeploymentDocument> newDeployments = tool.Deployments.Where(x => x != deployment).ToList();
+					return await UpdateAsync(tool, Builders<ToolDocument>.Update.Set(x => x.Deployments, newDeployments), cancellationToken);
 
 				case ToolDeploymentState.Paused:
 					if (deployment.StartedAt == null)
@@ -397,7 +435,7 @@ namespace Horde.Server.Tools
 					}
 					else
 					{
-						return await UpdateAsync(tool, Builders<Tool>.Update.Set(x => x.Deployments[idx].BaseProgress, deployment.GetProgressValue(_clock.UtcNow)).Set(x => x.Deployments[idx].StartedAt, null), cancellationToken);
+						return await UpdateAsync(tool, Builders<ToolDocument>.Update.Set(x => x.Deployments[idx].BaseProgress, currentProgress).Set(x => x.Deployments[idx].StartedAt, null), cancellationToken);
 					}
 
 				case ToolDeploymentState.Active:
@@ -407,7 +445,7 @@ namespace Horde.Server.Tools
 					}
 					else
 					{
-						return await UpdateAsync(tool, Builders<Tool>.Update.Set(x => x.Deployments[idx].StartedAt, _clock.UtcNow), cancellationToken);
+						return await UpdateAsync(tool, Builders<ToolDocument>.Update.Set(x => x.Deployments[idx].StartedAt, _clock.UtcNow), cancellationToken);
 					}
 
 				default:
@@ -418,11 +456,11 @@ namespace Horde.Server.Tools
 		/// <summary>
 		/// Gets the storage client containing data for a particular tool
 		/// </summary>
-		/// <param name="tool">Identifier for the tool</param>
+		/// <param name="toolConfig">Identifier for the tool</param>
 		/// <returns>Storage client for the data</returns>
-		public IStorageClient CreateStorageClient(ITool tool)
+		IStorageClient CreateStorageClient(ToolConfig toolConfig)
 		{
-			if (tool.Config is BundledToolConfig bundledConfig)
+			if (toolConfig is BundledToolConfig bundledConfig)
 			{
 				return BundleStorageClient.CreateFromDirectory(DirectoryReference.Combine(ServerApp.AppDir, bundledConfig.DataDir ?? $"Tools"), _cache, _logger);
 			}
@@ -435,13 +473,13 @@ namespace Horde.Server.Tools
 		/// <summary>
 		/// Gets the storage client containing data for a particular tool
 		/// </summary>
-		/// <param name="tool">Identifier for the tool</param>
+		/// <param name="toolConfig">Identifier for the tool</param>
 		/// <returns>Storage client for the data</returns>
-		public IStorageBackend CreateStorageBackend(ITool tool)
+		IStorageBackend CreateStorageBackend(ToolConfig toolConfig)
 		{
-			if (tool.Config is BundledToolConfig bundledConfig)
+			if (toolConfig is BundledToolConfig bundledConfig)
 			{
-				return new FileStorageBackend(_fileObjectStoreFactory.CreateStore(DirectoryReference.Combine(ServerApp.AppDir, bundledConfig.DataDir ?? $"tools/{tool.Id}")), _logger);
+				return new FileStorageBackend(_fileObjectStoreFactory.CreateStore(DirectoryReference.Combine(ServerApp.AppDir, bundledConfig.DataDir ?? $"tools/{toolConfig.Id}")), _logger);
 			}
 			else
 			{
@@ -456,7 +494,7 @@ namespace Horde.Server.Tools
 		/// <param name="deployment">The deployment</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Stream for the data</returns>
-		public async Task<Stream> GetDeploymentZipAsync(ITool tool, IToolDeployment deployment, CancellationToken cancellationToken)
+		async Task<Stream> GetDeploymentZipAsync(ToolConfig tool, ToolDeploymentDocument deployment, CancellationToken cancellationToken)
 		{
 #pragma warning disable CA2000
 			IStorageClient client = CreateStorageClient(tool);
@@ -473,12 +511,12 @@ namespace Horde.Server.Tools
 #pragma warning restore CA2000
 		}
 
-		async Task<Tool> UpdateAsync(Tool tool, UpdateDefinition<Tool> update, CancellationToken cancellationToken)
+		async Task<ToolDocument> UpdateAsync(ToolDocument tool, UpdateDefinition<ToolDocument> update, CancellationToken cancellationToken)
 		{
 			update = update.Set(x => x.LastUpdateTime, new DateTime(Math.Max(tool.LastUpdateTime.Ticks + 1, DateTime.UtcNow.Ticks)));
 
-			FilterDefinition<Tool> filter = Builders<Tool>.Filter.Eq(x => x.Id, tool.Id) & Builders<Tool>.Filter.Eq(x => x.LastUpdateTime, tool.LastUpdateTime);
-			return await _tools.FindOneAndUpdateAsync(filter, update, new FindOneAndUpdateOptions<Tool> { ReturnDocument = ReturnDocument.After }, cancellationToken);
+			FilterDefinition<ToolDocument> filter = Builders<ToolDocument>.Filter.Eq(x => x.Id, tool.Id) & Builders<ToolDocument>.Filter.Eq(x => x.LastUpdateTime, tool.LastUpdateTime);
+			return await _tools.FindOneAndUpdateAsync(filter, update, new FindOneAndUpdateOptions<ToolDocument> { ReturnDocument = ReturnDocument.After }, cancellationToken);
 		}
 	}
 }

@@ -38,15 +38,15 @@ namespace Horde.Server.Tests.Tools
 		{
 			IToolCollection collection = ServiceProvider.GetRequiredService<IToolCollection>();
 
-			ITool tool = Deref(await collection.GetAsync(_toolId, GlobalConfig.CurrentValue));
+			ITool tool = Deref(await collection.GetAsync(_toolId));
 			Assert.AreEqual(tool.Id, new ToolId("ugs"));
-			Assert.AreEqual(tool.Config.Name, "UnrealGameSync");
-			Assert.AreEqual(tool.Config.Description, "Tool for syncing content from source control");
+			Assert.AreEqual(tool.Name, "UnrealGameSync");
+			Assert.AreEqual(tool.Description, "Tool for syncing content from source control");
 
-			ITool tool2 = Deref(await collection.GetAsync(tool.Id, GlobalConfig.CurrentValue));
+			ITool tool2 = Deref(await collection.GetAsync(tool.Id));
 			Assert.AreEqual(tool.Id, tool2.Id);
-			Assert.AreEqual(tool.Config.Name, tool2.Config.Name);
-			Assert.AreEqual(tool.Config.Description, tool2.Config.Description);
+			Assert.AreEqual(tool.Name, tool2.Name);
+			Assert.AreEqual(tool.Description, tool2.Description);
 		}
 
 		[TestMethod]
@@ -54,10 +54,10 @@ namespace Horde.Server.Tests.Tools
 		{
 			IToolCollection collection = ServiceProvider.GetRequiredService<IToolCollection>();
 
-			ITool tool = Deref(await collection.GetAsync(_toolId, GlobalConfig.CurrentValue));
+			ITool tool = Deref(await collection.GetAsync(_toolId));
 			Assert.AreEqual(new ToolId("ugs"), tool.Id);
-			Assert.AreEqual("UnrealGameSync", tool.Config.Name);
-			Assert.AreEqual("Tool for syncing content from source control", tool.Config.Description);
+			Assert.AreEqual("UnrealGameSync", tool.Name);
+			Assert.AreEqual("Tool for syncing content from source control", tool.Description);
 			Assert.AreEqual(0, tool.Deployments.Count);
 
 			const string FileName = "test.txt";
@@ -80,7 +80,7 @@ namespace Horde.Server.Tests.Tools
 			ToolDeploymentId deploymentId;
 			using (MemoryStream stream = new MemoryStream(zipData))
 			{
-				tool = Deref(await collection.CreateDeploymentAsync(tool, new ToolDeploymentConfig { Version = "1.0", Duration = TimeSpan.FromMinutes(5.0), CreatePaused = true }, stream, GlobalConfig.CurrentValue, CancellationToken.None));
+				tool = Deref(await tool.CreateDeploymentAsync(new ToolDeploymentConfig { Version = "1.0", Duration = TimeSpan.FromMinutes(5.0), CreatePaused = true }, stream, CancellationToken.None));
 				Assert.AreEqual(1, tool.Deployments.Count);
 				Assert.IsNull(tool.Deployments[0].StartedAt);
 				deploymentId = tool.Deployments[^1].Id;
@@ -90,32 +90,35 @@ namespace Horde.Server.Tests.Tools
 			FakeClock clock = ServiceProvider.GetRequiredService<FakeClock>();
 			await clock.AdvanceAsync(TimeSpan.FromHours(1.0));
 
-			tool = Deref(await collection.GetAsync(tool.Id, GlobalConfig.CurrentValue));
+			tool = Deref(await collection.GetAsync(tool.Id));
 			Assert.AreEqual(1, tool.Deployments.Count);
 			Assert.IsNull(tool.Deployments[0].StartedAt);
 
 			// Start the deployment
-			tool = Deref(await collection.UpdateDeploymentAsync(tool, deploymentId, ToolDeploymentState.Active));
+			IToolDeployment deployment = tool.Deployments[0];
+			deployment = Deref(await deployment.UpdateAsync(ToolDeploymentState.Active));
+			tool = Deref(await collection.GetAsync(tool.Id));
 			Assert.AreEqual(1, tool.Deployments.Count);
 			Assert.IsNotNull(tool.Deployments[0].StartedAt);
 			Assert.IsTrue(Math.Abs((tool.Deployments[0].StartedAt!.Value - clock.UtcNow).TotalSeconds) < 1.0);
 
 			// Check it updates
 			await clock.AdvanceAsync(TimeSpan.FromMinutes(2.5));
-			tool = Deref(await collection.UpdateDeploymentAsync(tool, deploymentId, ToolDeploymentState.Paused));
+			deployment = Deref(await deployment.UpdateAsync(ToolDeploymentState.Paused));
+			tool = Deref(await collection.GetAsync(tool.Id));
 			Assert.AreEqual(1, tool.Deployments.Count);
-			Assert.IsNull(tool.Deployments[0].StartedAt);
-			Assert.IsTrue((tool.Deployments[0].Progress - 0.5) < 0.1);
+			Assert.IsNull(deployment.StartedAt);
+			Assert.IsTrue((deployment.Progress - 0.5) < 0.1);
 
 			// Check it stays paused
 			await clock.AdvanceAsync(TimeSpan.FromHours(1.0));
-			tool = Deref(await collection.GetAsync(tool.Id, GlobalConfig.CurrentValue));
+			tool = Deref(await collection.GetAsync(tool.Id));
 			Assert.AreEqual(1, tool.Deployments.Count);
 			Assert.IsNull(tool.Deployments[0].StartedAt);
 			Assert.IsTrue((tool.Deployments[0].Progress - 0.5) < 0.1);
 
 			// Get the deployment data
-			using Stream dataStream = await collection.GetDeploymentZipAsync(tool, tool.Deployments[0], CancellationToken.None);
+			using Stream dataStream = await tool.Deployments[0].OpenZipStreamAsync(CancellationToken.None);
 			using (ZipArchive archive = new ZipArchive(dataStream, ZipArchiveMode.Read))
 			{
 				ZipArchiveEntry entry = archive.Entries.First();

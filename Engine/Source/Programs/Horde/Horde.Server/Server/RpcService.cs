@@ -479,14 +479,13 @@ namespace Horde.Server.Server
 			ToolId toolId = new ToolId(request.Version.Substring(0, colonIdx));
 			string version = request.Version.Substring(colonIdx + 1);
 
-			ITool? tool = await _toolCollection.GetAsync(toolId, _globalConfig.Value);
+			ITool? tool = await _toolCollection.GetAsync(toolId, context.CancellationToken);
 			if (tool == null)
 			{
 				throw new StructuredRpcException(StatusCode.NotFound, $"Missing tool {toolId}");
 			}
 
-			ToolConfig toolConfig = tool.Config;
-			if (!toolConfig.Public && !toolConfig.Authorize(ToolAclAction.DownloadTool, context.GetHttpContext().User))
+			if (!tool.Public && !tool.Authorize(ToolAclAction.DownloadTool, context.GetHttpContext().User))
 			{
 				throw new StructuredRpcException(StatusCode.PermissionDenied, $"User does not have DownloadTool entitlement for {toolId}");
 			}
@@ -497,7 +496,7 @@ namespace Horde.Server.Server
 				throw new StructuredRpcException(StatusCode.NotFound, $"Missing tool version {version}");
 			}
 
-			await using Stream stream = await _toolCollection.GetDeploymentZipAsync(tool, deployment, context.CancellationToken);
+			await using Stream stream = await deployment.OpenZipStreamAsync(context.CancellationToken);
 			using (IMemoryOwner<byte> buffer = MemoryPool<byte>.Shared.Rent(128 * 1024))
 			{
 				long totalWritten = 0;

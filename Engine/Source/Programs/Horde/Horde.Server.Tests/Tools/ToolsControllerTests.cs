@@ -53,9 +53,9 @@ public class ToolsControllerTests
 		
 		// Create tool and deployment
 		using MemoryStream ms = new(await ToolTests.CreateZipFileDataAsync("foo.txt", "foo content"));
-		ITool? tool = await tools.GetAsync(toolId, globalConfig);
+		ITool? tool = await tools.GetAsync(toolId);
 		Assert.IsNotNull(tool);
-		tool = await tools.CreateDeploymentAsync(tool, new ToolDeploymentConfig() { Version = "1" }, ms, globalConfig);
+		tool = await tool.CreateDeploymentAsync(new ToolDeploymentConfig() { Version = "1" }, ms);
 
 		HttpClient client = app.CreateHttpClient();
 		using HttpRequestMessage req = new (HttpMethod.Get, $"/api/v1/tools/{toolId.Id}?action=download");

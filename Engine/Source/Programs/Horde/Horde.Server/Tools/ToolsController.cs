@@ -52,12 +52,12 @@ namespace Horde.Server.Tools
 		[Route("/api/v1/tools/{id}/blobs")]
 		public async Task<ActionResult<WriteBlobResponse>> WriteBlobAsync(ToolId id, WriteBlobRequest request, CancellationToken cancellationToken = default)
 		{
-			ITool? tool = await _toolCollection.GetAsync(id, _globalConfig.Value, cancellationToken);
+			ITool? tool = await _toolCollection.GetAsync(id, cancellationToken);
 			if (tool == null)
 			{
 				return NotFound(id);
 			}
-			if (!tool.Config.Authorize(ToolAclAction.UploadTool, User))
+			if (!tool.Authorize(ToolAclAction.UploadTool, User))
 			{
 				return Forbid(ToolAclAction.UploadTool, id);
 			}
@@ -71,7 +71,7 @@ namespace Horde.Server.Tools
 				request.Prefix = $"{id}/{request.Prefix}";
 			}
 
-			IStorageBackend storageBackend = _toolCollection.CreateStorageBackend(tool);
+			IStorageBackend storageBackend = tool.CreateStorageBackend();
 			return await StorageController.WriteBlobAsync(storageBackend, request, cancellationToken);
 		}
 
@@ -83,20 +83,19 @@ namespace Horde.Server.Tools
 		[Route("/api/v1/tools/{id}/deployments")]
 		public async Task<ActionResult<CreateToolDeploymentResponse>> CreateDeploymentAsync(ToolId id, [FromForm] ToolDeploymentConfig options, [FromForm] IFormFile file, CancellationToken cancellationToken)
 		{
-			ITool? tool = await _toolCollection.GetAsync(id, _globalConfig.Value, cancellationToken);
-
+			ITool? tool = await _toolCollection.GetAsync(id, cancellationToken);
 			if (tool == null)
 			{
 				return NotFound(id);
 			}
-			if (!tool.Config.Authorize(ToolAclAction.UploadTool, User))
+			if (!tool.Authorize(ToolAclAction.UploadTool, User))
 			{
 				return Forbid(ToolAclAction.UploadTool, id);
 			}
 
 			using (Stream stream = file.OpenReadStream())
 			{
-				tool = await _toolCollection.CreateDeploymentAsync(tool, options, stream, _globalConfig.Value, cancellationToken);
+				tool = await tool.CreateDeploymentAsync(options, stream, cancellationToken);
 				if (tool == null)
 				{
 					return NotFound(id);
@@ -113,20 +112,20 @@ namespace Horde.Server.Tools
 		[Route("/api/v2/tools/{id}/deployments")]
 		public async Task<ActionResult<CreateToolDeploymentResponse>> CreateDeploymentAsync(ToolId id, CreateToolDeploymentRequest request, CancellationToken cancellationToken)
 		{
-			ITool? tool = await _toolCollection.GetAsync(id, _globalConfig.Value, cancellationToken);
+			ITool? tool = await _toolCollection.GetAsync(id, cancellationToken);
 
 			if (tool == null)
 			{
 				return NotFound(id);
 			}
-			if (!tool.Config.Authorize(ToolAclAction.UploadTool, User))
+			if (!tool.Authorize(ToolAclAction.UploadTool, User))
 			{
 				return Forbid(ToolAclAction.UploadTool, id);
 			}
 
 			ToolDeploymentConfig options = new ToolDeploymentConfig { Version = request.Version, Duration = TimeSpan.FromMinutes(request.Duration ?? 0.0), CreatePaused = request.CreatePaused ?? false };
 
-			tool = await _toolCollection.CreateDeploymentAsync(tool, options, request.Content, _globalConfig.Value, cancellationToken);
+			tool = await tool.CreateDeploymentAsync(options, request.Content, cancellationToken);
 			if (tool == null)
 			{
 				return NotFound(id);
@@ -142,20 +141,26 @@ namespace Horde.Server.Tools
 		[Route("/api/v1/tools/{id}/deployments/{deploymentId}")]
 		public async Task<ActionResult> UpdateDeploymentAsync(ToolId id, ToolDeploymentId deploymentId, [FromBody] UpdateDeploymentRequest request)
 		{
-			ITool? tool = await _toolCollection.GetAsync(id, _globalConfig.Value);
+			ITool? tool = await _toolCollection.GetAsync(id, HttpContext.RequestAborted);
 			if (tool == null)
 			{
 				return NotFound(id);
 			}
-			if (!tool.Config.Authorize(ToolAclAction.UploadTool, User))
+			if (!tool.Authorize(ToolAclAction.UploadTool, User))
 			{
 				return Forbid(ToolAclAction.UploadTool, id);
 			}
 
+			IToolDeployment? deployment = tool.Deployments.FirstOrDefault(x => x.Id == deploymentId);
+			if (deployment == null)
+			{
+				return NotFound(deploymentId);
+			}
+
 			if (request.State != null)
 			{
-				tool = await _toolCollection.UpdateDeploymentAsync(tool, deploymentId, request.State.Value);
-				if (tool == null)
+				deployment = await deployment.UpdateAsync(request.State.Value, HttpContext.RequestAborted);
+				if (deployment == null)
 				{
 					return NotFound(id, deploymentId);
 				}
@@ -194,28 +199,14 @@ namespace Horde.Server.Tools
 		[Route("/api/v1/tools")]
 		public async Task<ActionResult<GetToolsSummaryResponse>> GetToolsAsync()
 		{
-			GlobalConfig globalConfig = _globalConfig.Value;
-
-			Dictionary<ToolId, ToolConfig> tools = new Dictionary<ToolId, ToolConfig>();
-			foreach (BundledToolConfig bundledToolConfig in globalConfig.ServerSettings.BundledTools)
-			{
-				tools[bundledToolConfig.Id] = bundledToolConfig;
-			}
-			foreach (ToolConfig toolConfig in globalConfig.Tools)
-			{
-				tools[toolConfig.Id] = toolConfig;
-			}
+			IReadOnlyList<ITool> tools = await _toolCollection.GetAllAsync(HttpContext.RequestAborted);
 
 			List<GetToolSummaryResponse> toolSummaryList = new List<GetToolSummaryResponse>();
-			foreach (ToolConfig toolConfig in tools.Values.OrderBy(x => x.Name, StringComparer.Ordinal))
+			foreach (ITool tool in tools.OrderBy(x => x.Name, StringComparer.Ordinal))
 			{
-				if (AuthorizeDownload(toolConfig))
+				if (AuthorizeDownload(tool))
 				{
-					ITool? tool = await _toolCollection.GetAsync(toolConfig.Id, _globalConfig.Value);
-					if (tool != null)
-					{
-						toolSummaryList.Add(CreateGetToolSummaryResponse(tool));
-					}
+					toolSummaryList.Add(CreateGetToolSummaryResponse(tool));
 				}
 			}
 
@@ -225,7 +216,7 @@ namespace Horde.Server.Tools
 		static GetToolSummaryResponse CreateGetToolSummaryResponse(ITool tool)
 		{
 			IToolDeployment? deployment = (tool.Deployments.Count == 0) ? null : tool.Deployments[^1];
-			return new GetToolSummaryResponse(tool.Id, tool.Config.Name, tool.Config.Description, tool.Config.Category, deployment?.Version, deployment?.Id, tool.Config.ShowInUgs, tool.Config.ShowInDashboard);
+			return new GetToolSummaryResponse(tool.Id, tool.Name, tool.Description, tool.Category, deployment?.Version, deployment?.Id, tool.ShowInUgs, tool.ShowInDashboard);
 		}
 
 		/// <summary>
@@ -236,12 +227,12 @@ namespace Horde.Server.Tools
 		[Route("/api/v1/tools/{id}")]
 		public async Task<ActionResult> GetToolAsync(ToolId id, GetToolAction action = GetToolAction.Info, CancellationToken cancellationToken = default)
 		{
-			ITool? tool = await _toolCollection.GetAsync(id, _globalConfig.Value, cancellationToken);
+			ITool? tool = await _toolCollection.GetAsync(id, cancellationToken);
 			if (tool == null)
 			{
 				return NotFound(id);
 			}
-			if (!AuthorizeDownload(tool.Config))
+			if (!AuthorizeDownload(tool))
 			{
 				return Forbid(ToolAclAction.DownloadTool, id);
 			}
@@ -269,7 +260,7 @@ namespace Horde.Server.Tools
 
 		static GetToolResponse CreateGetToolResponse(ITool tool, List<GetToolDeploymentResponse> deployments)
 		{
-			return new GetToolResponse(tool.Id, tool.Config.Name, tool.Config.Description, tool.Config.Category, deployments, tool.Config.Public, tool.Config.ShowInUgs, tool.Config.ShowInDashboard);
+			return new GetToolResponse(tool.Id, tool.Name, tool.Description, tool.Category, deployments, tool.Public, tool.ShowInUgs, tool.ShowInDashboard);
 		}
 
 		/// <summary>
@@ -284,12 +275,12 @@ namespace Horde.Server.Tools
 		[Route("/api/v1/tools/{id}/deployments")]
 		public async Task<ActionResult> FindDeploymentAsync(ToolId id, [FromQuery] double phase = 0.0, [FromQuery] GetToolAction action = GetToolAction.Info, CancellationToken cancellationToken = default)
 		{
-			ITool? tool = await _toolCollection.GetAsync(id, _globalConfig.Value, cancellationToken);
+			ITool? tool = await _toolCollection.GetAsync(id, cancellationToken);
 			if (tool == null)
 			{
 				return NotFound(id);
 			}
-			if (!AuthorizeDownload(tool.Config))
+			if (!AuthorizeDownload(tool))
 			{
 				return Forbid(ToolAclAction.DownloadTool, id);
 			}
@@ -311,12 +302,12 @@ namespace Horde.Server.Tools
 		[Route("/api/v1/tools/{id}/deployments/{deploymentId}")]
 		public async Task<ActionResult> GetDeploymentAsync(ToolId id, ToolDeploymentId deploymentId, [FromQuery] GetToolAction action = GetToolAction.Info, CancellationToken cancellationToken = default)
 		{
-			ITool? tool = await _toolCollection.GetAsync(id, _globalConfig.Value, cancellationToken);
+			ITool? tool = await _toolCollection.GetAsync(id, cancellationToken);
 			if (tool == null)
 			{
 				return NotFound(id);
 			}
-			if (!AuthorizeDownload(tool.Config))
+			if (!AuthorizeDownload(tool))
 			{
 				return Forbid(ToolAclAction.DownloadTool, id);
 			}
@@ -338,7 +329,7 @@ namespace Horde.Server.Tools
 				return Ok(response);
 			}
 
-			IStorageClient client = _toolCollection.CreateStorageClient(tool);
+			IStorageClient client = tool.CreateStorageClient();
 			try
 			{
 				IBlobRef<DirectoryNode> nodeRef = await client.ReadRefAsync<DirectoryNode>(deployment.RefName, DateTime.UtcNow - TimeSpan.FromDays(2.0), cancellationToken: cancellationToken);
@@ -376,7 +367,7 @@ namespace Horde.Server.Tools
 
 		private async Task<GetToolDeploymentResponse> GetDeploymentInfoResponseAsync(ITool tool, IToolDeployment deployment, CancellationToken cancellationToken)
 		{
-			using IStorageClient client = _toolCollection.CreateStorageClient(tool);
+			using IStorageClient client = tool.CreateStorageClient();
 			IBlobHandle rootHandle = await client.ReadRefAsync(deployment.RefName, cancellationToken: cancellationToken);
 
 			return new GetToolDeploymentResponse(deployment.Id, deployment.Version, deployment.State, deployment.Progress, deployment.StartedAt, deployment.Duration, deployment.RefName, rootHandle.GetLocator());
@@ -393,12 +384,12 @@ namespace Horde.Server.Tools
 		[Route("/api/v1/tools/{id}/blobs/{*locator}")]
 		public async Task<ActionResult> ReadToolBlobAsync(ToolId id, BlobLocator locator, CancellationToken cancellationToken = default)
 		{
-			ITool? tool = await _toolCollection.GetAsync(id, _globalConfig.Value, cancellationToken);
+			ITool? tool = await _toolCollection.GetAsync(id, cancellationToken);
 			if (tool == null)
 			{
 				return NotFound(id);
 			}
-			if (!AuthorizeDownload(tool.Config))
+			if (!AuthorizeDownload(tool))
 			{
 				return Forbid(ToolAclAction.DownloadTool, id);
 			}
@@ -408,19 +399,19 @@ namespace Horde.Server.Tools
 				return BadRequest("Invalid blob id for tool");
 			}
 
-			IStorageBackend storageBackend = _toolCollection.CreateStorageBackend(tool);
+			IStorageBackend storageBackend = tool.CreateStorageBackend();
 			return await StorageController.ReadBlobInternalAsync(storageBackend, locator, Request.Headers, cancellationToken);
 		}
 
-		bool AuthorizeDownload(ToolConfig toolConfig)
+		bool AuthorizeDownload(ITool tool)
 		{
-			if (!toolConfig.Public)
+			if (!tool.Public)
 			{
 				if (User.Identity == null || !User.Identity.IsAuthenticated)
 				{
 					return false;
 				}
-				if (!toolConfig.Authorize(ToolAclAction.DownloadTool, User))
+				if (!tool.Authorize(ToolAclAction.DownloadTool, User))
 				{
 					return false;
 				}

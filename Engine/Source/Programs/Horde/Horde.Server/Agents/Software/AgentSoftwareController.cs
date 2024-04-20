@@ -62,7 +62,7 @@ namespace Horde.Server.Agents.Software
 				return Forbid();
 			}
 
-			ITool? tool = await _toolCollection.GetAsync(AgentExtensions.AgentToolId, _globalConfig.Value);
+			ITool? tool = await _toolCollection.GetAsync(AgentExtensions.AgentToolId);
 			if (tool == null)
 			{
 				return NotFound("No agent software tool is currently registered");
@@ -92,7 +92,7 @@ namespace Horde.Server.Agents.Software
 				return Forbid();
 			}
 
-			ITool? tool = await _toolCollection.GetAsync(AgentExtensions.AgentToolId, _globalConfig.Value, cancellationToken);
+			ITool? tool = await _toolCollection.GetAsync(AgentExtensions.AgentToolId, cancellationToken);
 			if (tool == null)
 			{
 				return NotFound("No agent software tool is currently registered");
@@ -104,7 +104,7 @@ namespace Horde.Server.Agents.Software
 				return NotFound("No deployment currently set for agent software");
 			}
 
-			Stream stream = await _toolCollection.GetDeploymentZipAsync(tool, deployment, cancellationToken);
+			Stream stream = await deployment.OpenZipStreamAsync(cancellationToken);
 			return new FileStreamResult(stream, new MediaTypeHeaderValue("application/octet-stream")) { FileDownloadName = $"HordeAgent.zip" };
 		}
 	}

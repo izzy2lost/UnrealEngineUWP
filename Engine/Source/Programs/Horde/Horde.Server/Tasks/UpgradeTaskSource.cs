@@ -91,7 +91,7 @@ namespace Horde.Server.Tasks
 
 			ToolId toolId = agent.GetSoftwareToolId(globalConfig);
 
-			ITool? tool = await _toolCollection.GetAsync(toolId, globalConfig, cancellationToken);
+			ITool? tool = await _toolCollection.GetAsync(toolId, cancellationToken);
 			if (tool == null)
 			{
 				return null;

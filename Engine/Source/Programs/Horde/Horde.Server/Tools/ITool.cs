@@ -2,8 +2,14 @@
 
 using System;
 using System.Collections.Generic;
+using System.IO;
+using System.Security.Claims;
+using System.Threading;
+using System.Threading.Tasks;
+using EpicGames.Horde.Acls;
 using EpicGames.Horde.Storage;
 using EpicGames.Horde.Tools;
+using Horde.Server.Server;
 
 namespace Horde.Server.Tools
 {
@@ -19,14 +25,76 @@ namespace Horde.Server.Tools
 		ToolId Id { get; }
 
 		/// <summary>
+		/// Name of the tool
+		/// </summary>
+		string Name { get; }
+
+		/// <summary>
+		/// Long-form description of the tool
+		/// </summary>
+		string Description { get; }
+
+		/// <summary>
+		/// Category for the tool on the dashboard
+		/// </summary>
+		string? Category { get; }
+
+		/// <summary>
+		/// Whether the tool is available to authenticated users
+		/// </summary>
+		bool Public { get; }
+
+		/// <summary>
+		/// Whether to show the tool for download in UGS
+		/// </summary>
+		bool ShowInUgs { get; }
+
+		/// <summary>
+		/// Whether to show the tool for download in the dashboard
+		/// </summary>
+		bool ShowInDashboard { get; }
+
+		/// <summary>
 		/// Current deployments of this tool, sorted by time.
 		/// </summary>
 		IReadOnlyList<IToolDeployment> Deployments { get; }
 
 		/// <summary>
-		/// Config object for this tool
+		/// Authorize a user to perform a particular action
 		/// </summary>
-		ToolConfig Config { get; }
+		/// <param name="action">Action the user is trying to perform</param>
+		/// <param name="principal">Identity of the user trying to perform the action</param>
+		bool Authorize(AclAction action, ClaimsPrincipal principal);
+
+		/// <summary>
+		/// Adds a new deployment to the given tool. The new deployment will replace the current active deployment.
+		/// </summary>
+		/// <param name="options">Options for the new deployment</param>
+		/// <param name="stream">Stream containing the tool data</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		/// <returns>Updated tool document, or null if it does not exist</returns>
+		Task<ITool?> CreateDeploymentAsync(ToolDeploymentConfig options, Stream stream, CancellationToken cancellationToken = default);
+
+		/// <summary>
+		/// Adds a new deployment to the given tool. The new deployment will replace the current active deployment.
+		/// </summary>
+		/// <param name="options">Options for the new deployment</param>
+		/// <param name="target">Path to the root node containing the tool data</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		/// <returns>Updated tool document, or null if it does not exist</returns>
+		Task<ITool?> CreateDeploymentAsync(ToolDeploymentConfig options, BlobRefValue target, CancellationToken cancellationToken = default);
+
+		/// <summary>
+		/// Gets the storage backend for a particular tool
+		/// </summary>
+		/// <returns>Instance of the backend client</returns>
+		IStorageBackend CreateStorageBackend();
+
+		/// <summary>
+		/// Gets the storage backend for a particular tool
+		/// </summary>
+		/// <returns>Instance of the storage client</returns>
+		IStorageClient CreateStorageClient();
 	}
 
 	/// <summary>
@@ -73,6 +141,21 @@ namespace Horde.Server.Tools
 		/// Reference to this tool in Horde Storage.
 		/// </summary>
 		RefName RefName { get; }
+
+		/// <summary>
+		/// Updates the state of the current deployment
+		/// </summary>
+		/// <param name="state">New state of the deployment</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		/// <returns></returns>
+		Task<IToolDeployment?> UpdateAsync(ToolDeploymentState state, CancellationToken cancellationToken = default);
+
+		/// <summary>
+		/// Opens a stream to the data for a particular deployment
+		/// </summary>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		/// <returns>Stream for the data</returns>
+		Task<Stream> OpenZipStreamAsync(CancellationToken cancellationToken = default);
 	}
 
 	/// <summary>
