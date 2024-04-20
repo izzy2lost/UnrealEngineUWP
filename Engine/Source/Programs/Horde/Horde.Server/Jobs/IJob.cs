@@ -32,510 +32,6 @@ using MongoDB.Driver;
 namespace Horde.Server.Jobs
 {
 	/// <summary>
-	/// Report for a job or jobstep
-	/// </summary>
-	public interface IReport
-	{
-		/// <summary>
-		/// Name of the report
-		/// </summary>
-		string Name { get; }
-
-		/// <summary>
-		/// Where to render the report
-		/// </summary>
-		ReportPlacement Placement { get; }
-
-		/// <summary>
-		/// The artifact id
-		/// </summary>
-		ObjectId? ArtifactId { get; }
-
-		/// <summary>
-		/// Inline data for the report
-		/// </summary>
-		string? Content { get; }
-	}
-
-	/// <summary>
-	/// Implementation of IReport
-	/// </summary>
-	public class Report : IReport
-	{
-		/// <inheritdoc/>
-		public string Name { get; set; } = String.Empty;
-
-		/// <inheritdoc/>
-		public ReportPlacement Placement { get; set; }
-
-		/// <inheritdoc/>
-		public ObjectId? ArtifactId { get; set; }
-
-		/// <inheritdoc/>
-		public string? Content { get; set; }
-	}
-
-	/// <summary>
-	/// Embedded jobstep document
-	/// </summary>
-	public interface IJobStep
-	{
-		/// <summary>
-		/// Unique ID assigned to this jobstep. A new id is generated whenever a jobstep's order is changed.
-		/// </summary>
-		public JobStepId Id { get; }
-
-		/// <summary>
-		/// Index of the node which this jobstep is to execute
-		/// </summary>
-		public int NodeIdx { get; }
-
-		/// <summary>
-		/// Current state of the job step. This is updated automatically when runs complete.
-		/// </summary>
-		public JobStepState State { get; }
-
-		/// <summary>
-		/// Current outcome of the jobstep
-		/// </summary>
-		public JobStepOutcome Outcome { get; }
-
-		/// <summary>
-		/// Error from executing this step
-		/// </summary>
-		public JobStepError Error { get; }
-
-		/// <summary>
-		/// The log id for this step
-		/// </summary>
-		public LogId? LogId { get; }
-
-		/// <summary>
-		/// Unique id for notifications
-		/// </summary>
-		public ObjectId? NotificationTriggerId { get; }
-
-		/// <summary>
-		/// Time at which the batch transitioned to the ready state (UTC).
-		/// </summary>
-		public DateTime? ReadyTimeUtc { get; }
-
-		/// <summary>
-		/// Time at which the batch transitioned to the executing state (UTC).
-		/// </summary>
-		public DateTime? StartTimeUtc { get; }
-
-		/// <summary>
-		/// Time at which the run finished (UTC)
-		/// </summary>
-		public DateTime? FinishTimeUtc { get; }
-
-		/// <summary>
-		/// Override for the priority of this step
-		/// </summary>
-		public Priority? Priority { get; }
-
-		/// <summary>
-		/// If a retry is requested, stores the name of the user that requested it
-		/// </summary>
-		public UserId? RetriedByUserId { get; }
-
-		/// <summary>
-		/// Signal if a step should be aborted
-		/// </summary>
-		public bool AbortRequested { get; }
-
-		/// <summary>
-		/// If an abort is requested, stores the id of the user that requested it
-		/// </summary>
-		public UserId? AbortedByUserId { get; }
-
-		/// <summary>
-		/// List of reports for this step
-		/// </summary>
-		public IReadOnlyList<IReport>? Reports { get; }
-
-		/// <summary>
-		/// Reports for this jobstep.
-		/// </summary>
-		public Dictionary<string, string>? Properties { get; }
-	}
-
-	/// <summary>
-	/// Extension methods for job steps
-	/// </summary>
-	public static class JobStepExtensions
-	{
-		/// <summary>
-		/// Determines if a jobstep has failed or is skipped. Can be used to determine whether dependent steps will be able to run.
-		/// </summary>
-		/// <returns>True if the step is failed or skipped</returns>
-		public static bool IsFailedOrSkipped(this IJobStep step)
-		{
-			return step.State == JobStepState.Skipped || step.Outcome == JobStepOutcome.Failure;
-		}
-
-		/// <summary>
-		/// Determines if a jobstep is done by checking to see if it is completed, skipped, or aborted.
-		/// </summary>
-		/// <returns>True if the step is completed, skipped, or aborted</returns>
-		public static bool IsPending(this IJobStep step)
-		{
-			return step.State != JobStepState.Aborted && step.State != JobStepState.Completed && step.State != JobStepState.Skipped;
-		}
-
-		/// <summary>
-		/// Determine if a step should be timed out
-		/// </summary>
-		/// <param name="step"></param>
-		/// <param name="utcNow"></param>
-		/// <returns></returns>
-		public static bool HasTimedOut(this IJobStep step, DateTime utcNow)
-		{
-			if (step.State == JobStepState.Running && step.StartTimeUtc != null)
-			{
-				TimeSpan elapsed = utcNow - step.StartTimeUtc.Value;
-				if (elapsed > TimeSpan.FromHours(24.0))
-				{
-					return true;
-				}
-			}
-			return false;
-		}
-	}
-
-	/// <summary>
-	/// Stores information about a batch of job steps
-	/// </summary>
-	public interface IJobStepBatch
-	{
-		/// <summary>
-		/// Unique id for this group
-		/// </summary>
-		public JobStepBatchId Id { get; }
-
-		/// <summary>
-		/// The log file id for this batch
-		/// </summary>
-		public LogId? LogId { get; }
-
-		/// <summary>
-		/// Index of the group being executed
-		/// </summary>
-		public int GroupIdx { get; }
-
-		/// <summary>
-		/// The state of this group
-		/// </summary>
-		public JobStepBatchState State { get; }
-
-		/// <summary>
-		/// Error associated with this group
-		/// </summary>
-		public JobStepBatchError Error { get; }
-
-		/// <summary>
-		/// Steps within this run
-		/// </summary>
-		public IReadOnlyList<IJobStep> Steps { get; }
-
-		/// <summary>
-		/// The pool that this agent was taken from
-		/// </summary>
-		public PoolId? PoolId { get; }
-
-		/// <summary>
-		/// The agent assigned to execute this group
-		/// </summary>
-		public AgentId? AgentId { get; }
-
-		/// <summary>
-		/// The agent session that is executing this group
-		/// </summary>
-		public SessionId? SessionId { get; }
-
-		/// <summary>
-		/// The lease that's executing this group
-		/// </summary>
-		public LeaseId? LeaseId { get; }
-
-		/// <summary>
-		/// The weighted priority of this batch for the scheduler
-		/// </summary>
-		public int SchedulePriority { get; }
-
-		/// <summary>
-		/// Time at which the group became ready (UTC).
-		/// </summary>
-		public DateTime? ReadyTimeUtc { get; }
-
-		/// <summary>
-		/// Time at which the group started (UTC).
-		/// </summary>
-		public DateTime? StartTimeUtc { get; }
-
-		/// <summary>
-		/// Time at which the group finished (UTC)
-		/// </summary>
-		public DateTime? FinishTimeUtc { get; }
-	}
-
-	/// <summary>
-	/// Extension methods for IJobStepBatch
-	/// </summary>
-	public static class JobStepBatchExtensions
-	{
-		/// <summary>
-		/// Attempts to get a step with the given id
-		/// </summary>
-		/// <param name="batch">The batch to search</param>
-		/// <param name="stepId">The step id</param>
-		/// <param name="step">On success, receives the step object</param>
-		/// <returns>True if the step was found</returns>
-		public static bool TryGetStep(this IJobStepBatch batch, JobStepId stepId, [NotNullWhen(true)] out IJobStep? step)
-		{
-			step = batch.Steps.FirstOrDefault(x => x.Id == stepId);
-			return step != null;
-		}
-
-		/// <summary>
-		/// Determines if new steps can be appended to this batch. We do not allow this after the last step has been completed, because the agent is shutting down.
-		/// </summary>
-		/// <param name="batch">The batch to search</param>
-		/// <returns>True if new steps can be appended to this batch</returns>
-		public static bool CanBeAppendedTo(this IJobStepBatch batch)
-		{
-			return batch.State <= JobStepBatchState.Running;
-		}
-
-		/// <summary>
-		/// Gets the wait time for this batch
-		/// </summary>
-		/// <param name="batch">The batch to search</param>
-		/// <returns>Wait time for the batch</returns>
-		public static TimeSpan? GetWaitTime(this IJobStepBatch batch)
-		{
-			if (batch.StartTimeUtc == null || batch.ReadyTimeUtc == null)
-			{
-				return null;
-			}
-			else
-			{
-				return batch.StartTimeUtc.Value - batch.ReadyTimeUtc.Value;
-			}
-		}
-
-		/// <summary>
-		/// Gets the initialization time for this batch
-		/// </summary>
-		/// <param name="batch">The batch to search</param>
-		/// <returns>Initialization time for this batch</returns>
-		public static TimeSpan? GetInitTime(this IJobStepBatch batch)
-		{
-			if (batch.StartTimeUtc != null)
-			{
-				foreach (IJobStep step in batch.Steps)
-				{
-					if (step.StartTimeUtc != null)
-					{
-						return step.StartTimeUtc - batch.StartTimeUtc.Value;
-					}
-				}
-			}
-			return null;
-		}
-
-		/// <summary>
-		/// Get the dependencies required for this batch to start, taking run-early nodes into account
-		/// </summary>
-		/// <param name="batch">The batch to search</param>
-		/// <param name="groups">List of node groups</param>
-		/// <returns>Set of nodes that must have completed for this batch to start</returns>
-		public static HashSet<INode> GetStartDependencies(this IJobStepBatch batch, IReadOnlyList<INodeGroup> groups)
-		{
-			// Find all the nodes that this group will start with.
-			List<INode> nodes = batch.Steps.ConvertAll(x => groups[batch.GroupIdx].Nodes[x.NodeIdx]);
-			if (nodes.Any(x => x.RunEarly))
-			{
-				nodes.RemoveAll(x => !x.RunEarly);
-			}
-
-			// Find all their dependencies
-			HashSet<INode> dependencies = new HashSet<INode>();
-			foreach (INode node in nodes)
-			{
-				dependencies.UnionWith(node.InputDependencies.Select(x => groups[x.GroupIdx].Nodes[x.NodeIdx]));
-				dependencies.UnionWith(node.OrderDependencies.Select(x => groups[x.GroupIdx].Nodes[x.NodeIdx]));
-			}
-
-			// Exclude all the dependencies within the same group
-			dependencies.ExceptWith(groups[batch.GroupIdx].Nodes);
-			return dependencies;
-		}
-	}
-
-	/// <summary>
-	/// Cumulative timing information to reach a certain point in a job
-	/// </summary>
-	public class TimingInfo
-	{
-		/// <summary>
-		/// Wait time on the critical path
-		/// </summary>
-		public TimeSpan? TotalWaitTime { get; set; }
-
-		/// <summary>
-		/// Sync time on the critical path
-		/// </summary>
-		public TimeSpan? TotalInitTime { get; set; }
-
-		/// <summary>
-		/// Duration to this point
-		/// </summary>
-		public TimeSpan? TotalTimeToComplete { get; set; }
-
-		/// <summary>
-		/// Average wait time to this point
-		/// </summary>
-		public TimeSpan? AverageTotalWaitTime { get; set; }
-
-		/// <summary>
-		/// Average sync time to this point
-		/// </summary>
-		public TimeSpan? AverageTotalInitTime { get; set; }
-
-		/// <summary>
-		/// Average duration to this point
-		/// </summary>
-		public TimeSpan? AverageTotalTimeToComplete { get; set; }
-
-		/// <summary>
-		/// Individual step timing information
-		/// </summary>
-		public IJobStepTiming? StepTiming { get; set; }
-
-		/// <summary>
-		/// Constructor
-		/// </summary>
-		public TimingInfo()
-		{
-			TotalWaitTime = TimeSpan.Zero;
-			TotalInitTime = TimeSpan.Zero;
-			TotalTimeToComplete = TimeSpan.Zero;
-
-			AverageTotalWaitTime = TimeSpan.Zero;
-			AverageTotalInitTime = TimeSpan.Zero;
-			AverageTotalTimeToComplete = TimeSpan.Zero;
-		}
-
-		/// <summary>
-		/// Copy constructor
-		/// </summary>
-		/// <param name="other">The timing info object to copy from</param>
-		public TimingInfo(TimingInfo other)
-		{
-			TotalWaitTime = other.TotalWaitTime;
-			TotalInitTime = other.TotalInitTime;
-			TotalTimeToComplete = other.TotalTimeToComplete;
-
-			AverageTotalWaitTime = other.AverageTotalWaitTime;
-			AverageTotalInitTime = other.AverageTotalInitTime;
-			AverageTotalTimeToComplete = other.AverageTotalTimeToComplete;
-		}
-
-		/// <summary>
-		/// Modifies this timing to wait for another timing
-		/// </summary>
-		/// <param name="other">The other node to wait for</param>
-		public void WaitFor(TimingInfo other)
-		{
-			if (TotalTimeToComplete != null)
-			{
-				if (other.TotalTimeToComplete == null || other.TotalTimeToComplete.Value > TotalTimeToComplete.Value)
-				{
-					TotalInitTime = other.TotalInitTime;
-					TotalWaitTime = other.TotalWaitTime;
-					TotalTimeToComplete = other.TotalTimeToComplete;
-				}
-			}
-
-			if (AverageTotalTimeToComplete != null)
-			{
-				if (other.AverageTotalTimeToComplete == null || other.AverageTotalTimeToComplete.Value > AverageTotalTimeToComplete.Value)
-				{
-					AverageTotalInitTime = other.AverageTotalInitTime;
-					AverageTotalWaitTime = other.AverageTotalWaitTime;
-					AverageTotalTimeToComplete = other.AverageTotalTimeToComplete;
-				}
-			}
-		}
-
-		/// <summary>
-		/// Waits for all the given timing info objects to complete
-		/// </summary>
-		/// <param name="others">Other timing info objects to wait for</param>
-		public void WaitForAll(IEnumerable<TimingInfo> others)
-		{
-			foreach (TimingInfo other in others)
-			{
-				WaitFor(other);
-			}
-		}
-
-		/// <summary>
-		/// Constructs a new TimingInfo object which represents the last TimingInfo to finish
-		/// </summary>
-		/// <param name="others">TimingInfo objects to wait for</param>
-		/// <returns>New TimingInfo instance</returns>
-		public static TimingInfo Max(IEnumerable<TimingInfo> others)
-		{
-			TimingInfo timingInfo = new TimingInfo();
-			timingInfo.WaitForAll(others);
-			return timingInfo;
-		}
-
-		/// <summary>
-		/// Copies this info to a repsonse object
-		/// </summary>
-		public void CopyToResponse(GetTimingInfoResponse response)
-		{
-			response.TotalWaitTime = (float?)TotalWaitTime?.TotalSeconds;
-			response.TotalInitTime = (float?)TotalInitTime?.TotalSeconds;
-			response.TotalTimeToComplete = (float?)TotalTimeToComplete?.TotalSeconds;
-
-			response.AverageTotalWaitTime = (float?)AverageTotalWaitTime?.TotalSeconds;
-			response.AverageTotalInitTime = (float?)AverageTotalInitTime?.TotalSeconds;
-			response.AverageTotalTimeToComplete = (float?)AverageTotalTimeToComplete?.TotalSeconds;
-		}
-	}
-
-	/// <summary>
-	/// Information about a chained job trigger
-	/// </summary>
-	public interface IChainedJob
-	{
-		/// <summary>
-		/// The target to monitor
-		/// </summary>
-		public string Target { get; }
-
-		/// <summary>
-		/// The template to trigger on success
-		/// </summary>
-		public TemplateId TemplateRefId { get; }
-
-		/// <summary>
-		/// The triggered job id
-		/// </summary>
-		public JobId? JobId { get; }
-
-		/// <summary>
-		/// Whether to run the latest change, or default change for the template, when starting the new job. Uses same change as the triggering job by default.
-		/// </summary>
-		public bool UseDefaultChangeForTemplate { get; }
-	}
-
-	/// <summary>
 	/// Document describing a job
 	/// </summary>
 	public interface IJob
@@ -671,11 +167,6 @@ namespace Horde.Server.Jobs
 		public IReadOnlyList<AclClaimConfig> Claims { get; }
 
 		/// <summary>
-		/// Largest value of the CombinedPriority value for batches in the ready state.
-		/// </summary>
-		public int SchedulePriority { get; }
-
-		/// <summary>
 		/// Array of jobstep runs
 		/// </summary>
 		public IReadOnlyList<IJobStepBatch> Batches { get; }
@@ -739,11 +230,6 @@ namespace Horde.Server.Jobs
 		/// List of downstream job triggers
 		/// </summary>
 		public IReadOnlyList<IChainedJob> ChainedJobs { get; }
-
-		/// <summary>
-		/// Next id for batches or groups
-		/// </summary>
-		public SubResourceId NextSubResourceId { get; }
 
 		/// <summary>
 		/// The last update time
@@ -1744,7 +1230,7 @@ namespace Horde.Server.Jobs
 		/// <inheritdoc cref="IJob.TrySkipAllBatchesAsync(JobStepBatchError, CancellationToken)"/>
 		public static async Task<IJob?> SkipAllBatchesAsync(this IJob job, JobStepBatchError reason, CancellationToken cancellationToken)
 		{
-			for(; ;)
+			for (; ; )
 			{
 				IJob? newJob = await job.TrySkipAllBatchesAsync(reason, cancellationToken);
 				if (newJob != null)
@@ -1761,5 +1247,509 @@ namespace Horde.Server.Jobs
 				job = newJob;
 			}
 		}
+	}
+
+	/// <summary>
+	/// Stores information about a batch of job steps
+	/// </summary>
+	public interface IJobStepBatch
+	{
+		/// <summary>
+		/// Unique id for this group
+		/// </summary>
+		public JobStepBatchId Id { get; }
+
+		/// <summary>
+		/// The log file id for this batch
+		/// </summary>
+		public LogId? LogId { get; }
+
+		/// <summary>
+		/// Index of the group being executed
+		/// </summary>
+		public int GroupIdx { get; }
+
+		/// <summary>
+		/// The state of this group
+		/// </summary>
+		public JobStepBatchState State { get; }
+
+		/// <summary>
+		/// Error associated with this group
+		/// </summary>
+		public JobStepBatchError Error { get; }
+
+		/// <summary>
+		/// Steps within this run
+		/// </summary>
+		public IReadOnlyList<IJobStep> Steps { get; }
+
+		/// <summary>
+		/// The pool that this agent was taken from
+		/// </summary>
+		public PoolId? PoolId { get; }
+
+		/// <summary>
+		/// The agent assigned to execute this group
+		/// </summary>
+		public AgentId? AgentId { get; }
+
+		/// <summary>
+		/// The agent session that is executing this group
+		/// </summary>
+		public SessionId? SessionId { get; }
+
+		/// <summary>
+		/// The lease that's executing this group
+		/// </summary>
+		public LeaseId? LeaseId { get; }
+
+		/// <summary>
+		/// The weighted priority of this batch for the scheduler
+		/// </summary>
+		public int SchedulePriority { get; }
+
+		/// <summary>
+		/// Time at which the group became ready (UTC).
+		/// </summary>
+		public DateTime? ReadyTimeUtc { get; }
+
+		/// <summary>
+		/// Time at which the group started (UTC).
+		/// </summary>
+		public DateTime? StartTimeUtc { get; }
+
+		/// <summary>
+		/// Time at which the group finished (UTC)
+		/// </summary>
+		public DateTime? FinishTimeUtc { get; }
+	}
+
+	/// <summary>
+	/// Extension methods for IJobStepBatch
+	/// </summary>
+	public static class JobStepBatchExtensions
+	{
+		/// <summary>
+		/// Attempts to get a step with the given id
+		/// </summary>
+		/// <param name="batch">The batch to search</param>
+		/// <param name="stepId">The step id</param>
+		/// <param name="step">On success, receives the step object</param>
+		/// <returns>True if the step was found</returns>
+		public static bool TryGetStep(this IJobStepBatch batch, JobStepId stepId, [NotNullWhen(true)] out IJobStep? step)
+		{
+			step = batch.Steps.FirstOrDefault(x => x.Id == stepId);
+			return step != null;
+		}
+
+		/// <summary>
+		/// Determines if new steps can be appended to this batch. We do not allow this after the last step has been completed, because the agent is shutting down.
+		/// </summary>
+		/// <param name="batch">The batch to search</param>
+		/// <returns>True if new steps can be appended to this batch</returns>
+		public static bool CanBeAppendedTo(this IJobStepBatch batch)
+		{
+			return batch.State <= JobStepBatchState.Running;
+		}
+
+		/// <summary>
+		/// Gets the wait time for this batch
+		/// </summary>
+		/// <param name="batch">The batch to search</param>
+		/// <returns>Wait time for the batch</returns>
+		public static TimeSpan? GetWaitTime(this IJobStepBatch batch)
+		{
+			if (batch.StartTimeUtc == null || batch.ReadyTimeUtc == null)
+			{
+				return null;
+			}
+			else
+			{
+				return batch.StartTimeUtc.Value - batch.ReadyTimeUtc.Value;
+			}
+		}
+
+		/// <summary>
+		/// Gets the initialization time for this batch
+		/// </summary>
+		/// <param name="batch">The batch to search</param>
+		/// <returns>Initialization time for this batch</returns>
+		public static TimeSpan? GetInitTime(this IJobStepBatch batch)
+		{
+			if (batch.StartTimeUtc != null)
+			{
+				foreach (IJobStep step in batch.Steps)
+				{
+					if (step.StartTimeUtc != null)
+					{
+						return step.StartTimeUtc - batch.StartTimeUtc.Value;
+					}
+				}
+			}
+			return null;
+		}
+
+		/// <summary>
+		/// Get the dependencies required for this batch to start, taking run-early nodes into account
+		/// </summary>
+		/// <param name="batch">The batch to search</param>
+		/// <param name="groups">List of node groups</param>
+		/// <returns>Set of nodes that must have completed for this batch to start</returns>
+		public static HashSet<INode> GetStartDependencies(this IJobStepBatch batch, IReadOnlyList<INodeGroup> groups)
+		{
+			// Find all the nodes that this group will start with.
+			List<INode> nodes = batch.Steps.ConvertAll(x => groups[batch.GroupIdx].Nodes[x.NodeIdx]);
+			if (nodes.Any(x => x.RunEarly))
+			{
+				nodes.RemoveAll(x => !x.RunEarly);
+			}
+
+			// Find all their dependencies
+			HashSet<INode> dependencies = new HashSet<INode>();
+			foreach (INode node in nodes)
+			{
+				dependencies.UnionWith(node.InputDependencies.Select(x => groups[x.GroupIdx].Nodes[x.NodeIdx]));
+				dependencies.UnionWith(node.OrderDependencies.Select(x => groups[x.GroupIdx].Nodes[x.NodeIdx]));
+			}
+
+			// Exclude all the dependencies within the same group
+			dependencies.ExceptWith(groups[batch.GroupIdx].Nodes);
+			return dependencies;
+		}
+	}
+
+	/// <summary>
+	/// Embedded jobstep document
+	/// </summary>
+	public interface IJobStep
+	{
+		/// <summary>
+		/// Unique ID assigned to this jobstep. A new id is generated whenever a jobstep's order is changed.
+		/// </summary>
+		public JobStepId Id { get; }
+
+		/// <summary>
+		/// Index of the node which this jobstep is to execute
+		/// </summary>
+		public int NodeIdx { get; }
+
+		/// <summary>
+		/// Current state of the job step. This is updated automatically when runs complete.
+		/// </summary>
+		public JobStepState State { get; }
+
+		/// <summary>
+		/// Current outcome of the jobstep
+		/// </summary>
+		public JobStepOutcome Outcome { get; }
+
+		/// <summary>
+		/// Error from executing this step
+		/// </summary>
+		public JobStepError Error { get; }
+
+		/// <summary>
+		/// The log id for this step
+		/// </summary>
+		public LogId? LogId { get; }
+
+		/// <summary>
+		/// Unique id for notifications
+		/// </summary>
+		public ObjectId? NotificationTriggerId { get; }
+
+		/// <summary>
+		/// Time at which the batch transitioned to the ready state (UTC).
+		/// </summary>
+		public DateTime? ReadyTimeUtc { get; }
+
+		/// <summary>
+		/// Time at which the batch transitioned to the executing state (UTC).
+		/// </summary>
+		public DateTime? StartTimeUtc { get; }
+
+		/// <summary>
+		/// Time at which the run finished (UTC)
+		/// </summary>
+		public DateTime? FinishTimeUtc { get; }
+
+		/// <summary>
+		/// Override for the priority of this step
+		/// </summary>
+		public Priority? Priority { get; }
+
+		/// <summary>
+		/// If a retry is requested, stores the name of the user that requested it
+		/// </summary>
+		public UserId? RetriedByUserId { get; }
+
+		/// <summary>
+		/// Signal if a step should be aborted
+		/// </summary>
+		public bool AbortRequested { get; }
+
+		/// <summary>
+		/// If an abort is requested, stores the id of the user that requested it
+		/// </summary>
+		public UserId? AbortedByUserId { get; }
+
+		/// <summary>
+		/// List of reports for this step
+		/// </summary>
+		public IReadOnlyList<IReport>? Reports { get; }
+
+		/// <summary>
+		/// Reports for this jobstep.
+		/// </summary>
+		public Dictionary<string, string>? Properties { get; }
+	}
+
+	/// <summary>
+	/// Extension methods for job steps
+	/// </summary>
+	public static class JobStepExtensions
+	{
+		/// <summary>
+		/// Determines if a jobstep has failed or is skipped. Can be used to determine whether dependent steps will be able to run.
+		/// </summary>
+		/// <returns>True if the step is failed or skipped</returns>
+		public static bool IsFailedOrSkipped(this IJobStep step)
+		{
+			return step.State == JobStepState.Skipped || step.Outcome == JobStepOutcome.Failure;
+		}
+
+		/// <summary>
+		/// Determines if a jobstep is done by checking to see if it is completed, skipped, or aborted.
+		/// </summary>
+		/// <returns>True if the step is completed, skipped, or aborted</returns>
+		public static bool IsPending(this IJobStep step)
+		{
+			return step.State != JobStepState.Aborted && step.State != JobStepState.Completed && step.State != JobStepState.Skipped;
+		}
+
+		/// <summary>
+		/// Determine if a step should be timed out
+		/// </summary>
+		/// <param name="step"></param>
+		/// <param name="utcNow"></param>
+		/// <returns></returns>
+		public static bool HasTimedOut(this IJobStep step, DateTime utcNow)
+		{
+			if (step.State == JobStepState.Running && step.StartTimeUtc != null)
+			{
+				TimeSpan elapsed = utcNow - step.StartTimeUtc.Value;
+				if (elapsed > TimeSpan.FromHours(24.0))
+				{
+					return true;
+				}
+			}
+			return false;
+		}
+	}
+
+	/// <summary>
+	/// Cumulative timing information to reach a certain point in a job
+	/// </summary>
+	public class TimingInfo
+	{
+		/// <summary>
+		/// Wait time on the critical path
+		/// </summary>
+		public TimeSpan? TotalWaitTime { get; set; }
+
+		/// <summary>
+		/// Sync time on the critical path
+		/// </summary>
+		public TimeSpan? TotalInitTime { get; set; }
+
+		/// <summary>
+		/// Duration to this point
+		/// </summary>
+		public TimeSpan? TotalTimeToComplete { get; set; }
+
+		/// <summary>
+		/// Average wait time to this point
+		/// </summary>
+		public TimeSpan? AverageTotalWaitTime { get; set; }
+
+		/// <summary>
+		/// Average sync time to this point
+		/// </summary>
+		public TimeSpan? AverageTotalInitTime { get; set; }
+
+		/// <summary>
+		/// Average duration to this point
+		/// </summary>
+		public TimeSpan? AverageTotalTimeToComplete { get; set; }
+
+		/// <summary>
+		/// Individual step timing information
+		/// </summary>
+		public IJobStepTiming? StepTiming { get; set; }
+
+		/// <summary>
+		/// Constructor
+		/// </summary>
+		public TimingInfo()
+		{
+			TotalWaitTime = TimeSpan.Zero;
+			TotalInitTime = TimeSpan.Zero;
+			TotalTimeToComplete = TimeSpan.Zero;
+
+			AverageTotalWaitTime = TimeSpan.Zero;
+			AverageTotalInitTime = TimeSpan.Zero;
+			AverageTotalTimeToComplete = TimeSpan.Zero;
+		}
+
+		/// <summary>
+		/// Copy constructor
+		/// </summary>
+		/// <param name="other">The timing info object to copy from</param>
+		public TimingInfo(TimingInfo other)
+		{
+			TotalWaitTime = other.TotalWaitTime;
+			TotalInitTime = other.TotalInitTime;
+			TotalTimeToComplete = other.TotalTimeToComplete;
+
+			AverageTotalWaitTime = other.AverageTotalWaitTime;
+			AverageTotalInitTime = other.AverageTotalInitTime;
+			AverageTotalTimeToComplete = other.AverageTotalTimeToComplete;
+		}
+
+		/// <summary>
+		/// Modifies this timing to wait for another timing
+		/// </summary>
+		/// <param name="other">The other node to wait for</param>
+		public void WaitFor(TimingInfo other)
+		{
+			if (TotalTimeToComplete != null)
+			{
+				if (other.TotalTimeToComplete == null || other.TotalTimeToComplete.Value > TotalTimeToComplete.Value)
+				{
+					TotalInitTime = other.TotalInitTime;
+					TotalWaitTime = other.TotalWaitTime;
+					TotalTimeToComplete = other.TotalTimeToComplete;
+				}
+			}
+
+			if (AverageTotalTimeToComplete != null)
+			{
+				if (other.AverageTotalTimeToComplete == null || other.AverageTotalTimeToComplete.Value > AverageTotalTimeToComplete.Value)
+				{
+					AverageTotalInitTime = other.AverageTotalInitTime;
+					AverageTotalWaitTime = other.AverageTotalWaitTime;
+					AverageTotalTimeToComplete = other.AverageTotalTimeToComplete;
+				}
+			}
+		}
+
+		/// <summary>
+		/// Waits for all the given timing info objects to complete
+		/// </summary>
+		/// <param name="others">Other timing info objects to wait for</param>
+		public void WaitForAll(IEnumerable<TimingInfo> others)
+		{
+			foreach (TimingInfo other in others)
+			{
+				WaitFor(other);
+			}
+		}
+
+		/// <summary>
+		/// Constructs a new TimingInfo object which represents the last TimingInfo to finish
+		/// </summary>
+		/// <param name="others">TimingInfo objects to wait for</param>
+		/// <returns>New TimingInfo instance</returns>
+		public static TimingInfo Max(IEnumerable<TimingInfo> others)
+		{
+			TimingInfo timingInfo = new TimingInfo();
+			timingInfo.WaitForAll(others);
+			return timingInfo;
+		}
+
+		/// <summary>
+		/// Copies this info to a repsonse object
+		/// </summary>
+		public void CopyToResponse(GetTimingInfoResponse response)
+		{
+			response.TotalWaitTime = (float?)TotalWaitTime?.TotalSeconds;
+			response.TotalInitTime = (float?)TotalInitTime?.TotalSeconds;
+			response.TotalTimeToComplete = (float?)TotalTimeToComplete?.TotalSeconds;
+
+			response.AverageTotalWaitTime = (float?)AverageTotalWaitTime?.TotalSeconds;
+			response.AverageTotalInitTime = (float?)AverageTotalInitTime?.TotalSeconds;
+			response.AverageTotalTimeToComplete = (float?)AverageTotalTimeToComplete?.TotalSeconds;
+		}
+	}
+
+	/// <summary>
+	/// Information about a chained job trigger
+	/// </summary>
+	public interface IChainedJob
+	{
+		/// <summary>
+		/// The target to monitor
+		/// </summary>
+		public string Target { get; }
+
+		/// <summary>
+		/// The template to trigger on success
+		/// </summary>
+		public TemplateId TemplateRefId { get; }
+
+		/// <summary>
+		/// The triggered job id
+		/// </summary>
+		public JobId? JobId { get; }
+
+		/// <summary>
+		/// Whether to run the latest change, or default change for the template, when starting the new job. Uses same change as the triggering job by default.
+		/// </summary>
+		public bool UseDefaultChangeForTemplate { get; }
+	}
+
+	/// <summary>
+	/// Report for a job or jobstep
+	/// </summary>
+	public interface IReport
+	{
+		/// <summary>
+		/// Name of the report
+		/// </summary>
+		string Name { get; }
+
+		/// <summary>
+		/// Where to render the report
+		/// </summary>
+		ReportPlacement Placement { get; }
+
+		/// <summary>
+		/// The artifact id
+		/// </summary>
+		ObjectId? ArtifactId { get; }
+
+		/// <summary>
+		/// Inline data for the report
+		/// </summary>
+		string? Content { get; }
+	}
+
+	/// <summary>
+	/// Implementation of IReport
+	/// </summary>
+	public class Report : IReport
+	{
+		/// <inheritdoc/>
+		public string Name { get; set; } = String.Empty;
+
+		/// <inheritdoc/>
+		public ReportPlacement Placement { get; set; }
+
+		/// <inheritdoc/>
+		public ObjectId? ArtifactId { get; set; }
+
+		/// <inheritdoc/>
+		public string? Content { get; set; }
 	}
 }
