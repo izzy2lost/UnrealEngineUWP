@@ -2687,6 +2687,7 @@ FORCEINLINE int VectorAnyGreaterThan(const VectorRegister4Double& Vec1, const Ve
  */
 #define VectorGetControlRegister()		_mm_getcsr()
 
+#if PLATFORM_SUPPORTS_VECTOR_CONTROL_REGISTERS
 /**
  * Sets the control register.
  *
@@ -2703,6 +2704,12 @@ FORCEINLINE int VectorAnyGreaterThan(const VectorRegister4Double& Vec1, const Ve
   * Denormal operands and results will be flushed to zero
   */
 #define VECTOR_DENORMALS_FLUSH_TO_ZERO	_MM_FLUSH_ZERO_ON
+
+#else
+#define VectorSetControlRegister(...)
+#define VECTOR_ROUND_TOWARD_ZERO
+#define VECTOR_DENORMALS_FLUSH_TO_ZERO
+#endif
 
 /**
 * Multiplies two quaternions; the order matters.

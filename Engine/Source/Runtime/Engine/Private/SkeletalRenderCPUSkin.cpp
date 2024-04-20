@@ -1029,9 +1029,7 @@ static void SkinVertices(
 	const FVector& WorldScale)
 {
 	uint32 StatusRegister = VectorGetControlRegister();
-#if PLATFORM_SUPPORTS_VECTOR_ROUNDING_MODE
 	VectorSetControlRegister( StatusRegister | VECTOR_ROUND_TOWARD_ZERO );
-#endif
 
 	// Create array to track state during morph blending
 	TArray<FMorphTargetInfo> MorphEvalInfos;
@@ -1061,9 +1059,7 @@ static void SkinVertices(
 		SkinVertexSection<VertexType, NumberOfUVs>(DestVertex, MorphEvalInfos, MorphTargetWeights, Section, LOD, WeightBuffer, VertexBufferBaseIndex, NumValidMorphs, CurBaseVertIdx, LODIndex, ReferenceToLocal, ClothSimData, ClothBlendWeight, WorldToLocal, WorldScaleAbs);
 	}
 
-#if PLATFORM_SUPPORTS_VECTOR_ROUNDING_MODE
 	VectorSetControlRegister( StatusRegister );
-#endif
 }
 
 /**
