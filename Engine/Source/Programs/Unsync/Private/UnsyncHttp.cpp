@@ -259,7 +259,7 @@ HttpRequest(const FRemoteDesc& RemoteDesc,
 			std::string_view   BearerToken)
 {
 	FTlsClientSettings TlsSettings = RemoteDesc.GetTlsClientSettings();
-	FHttpConnection	   Connection(RemoteDesc.Host.Address, RemoteDesc.Host.Port, RemoteDesc.bTlsEnable ? &TlsSettings : nullptr);
+	FHttpConnection	   Connection(RemoteDesc.Host.Address, RemoteDesc.Host.Port, RemoteDesc.TlsRequirement, TlsSettings);
 
 	FHttpRequest Request;
 
@@ -479,42 +479,44 @@ HttpRequestEnd(FHttpConnection& Connection)
 
 	Connection.NumActiveRequests -= 1;
 
+	Result.bConnectionEncrypted = Connection.IsEncrypted();
+
 	// TODO: report errors
 
 	return Result;
 }
 
-FHttpConnection::FHttpConnection(const std::string_view InHostAddress, uint16 InPort, const FTlsClientSettings* InTlsSettings)
+FHttpConnection::FHttpConnection(const std::string_view	   InHostAddress,
+								 uint16					   InPort,
+								 ETlsRequirement		   InTlsRequirement,
+								 const FTlsClientSettings& InTlsSettings)
 : HostAddress(InHostAddress)
 , HostPort(InPort)
-, bUseTls(InTlsSettings != nullptr)
+, TlsRequirement(InTlsRequirement)
 {
-	if (InTlsSettings)
+	if (InTlsSettings.Subject.empty())
 	{
-		if (InTlsSettings->Subject.empty())
-		{
-			TlsSubject = std::string(InHostAddress);
-		}
-		else
-		{
-			TlsSubject = std::string(InTlsSettings->Subject);
-		}
+		TlsSubject = std::string(InHostAddress);
+	}
+	else
+	{
+		TlsSubject = std::string(InTlsSettings.Subject);
+	}
 
-		bTlsVerifyCertificate = InTlsSettings->bVerifyCertificate;
-		bTlsVerifySubject	  = InTlsSettings->bVerifySubject;
-		if (InTlsSettings->CACert.Data)
-		{
-			TlsCacert = std::make_shared<FBuffer>();
-			TlsCacert->Append(InTlsSettings->CACert.Data, InTlsSettings->CACert.Size);
-		}
+	bTlsVerifyCertificate = InTlsSettings.bVerifyCertificate;
+	bTlsVerifySubject	  = InTlsSettings.bVerifySubject;
+	if (InTlsSettings.CACert.Data)
+	{
+		TlsCacert = std::make_shared<FBuffer>();
+		TlsCacert->Append(InTlsSettings.CACert.Data, InTlsSettings.CACert.Size);
 	}
 }
 
 FHttpConnection::FHttpConnection(const FHttpConnection& Other)
 : HostAddress(Other.HostAddress)
 , HostPort(Other.HostPort)
-, bUseTls(Other.bUseTls)
 , bKeepAlive(Other.bKeepAlive)
+, TlsRequirement(Other.TlsRequirement)
 , bTlsVerifySubject(Other.bTlsVerifySubject)
 , TlsSubject(Other.TlsSubject)
 , bTlsVerifyCertificate(Other.bTlsVerifyCertificate)
@@ -525,7 +527,7 @@ FHttpConnection::FHttpConnection(const FHttpConnection& Other)
 FHttpConnection
 FHttpConnection::CreateDefaultHttp(const std::string_view InHostAddress, uint16 Port)
 {
-	return FHttpConnection(InHostAddress, Port, nullptr);
+	return FHttpConnection(InHostAddress, Port);
 }
 
 FHttpConnection
@@ -533,14 +535,14 @@ FHttpConnection::CreateDefaultHttps(const std::string_view InHostAddress, uint16
 {
 	FTlsClientSettings TlsSettings;
 	TlsSettings.Subject = InHostAddress.data();
-	return FHttpConnection(InHostAddress, Port, &TlsSettings);
+	return FHttpConnection(InHostAddress, Port, ETlsRequirement::Required, TlsSettings);
 }
 
 FHttpConnection
 FHttpConnection::CreateDefaultHttps(const FRemoteDesc& RemoteDesc)
 {
 	FTlsClientSettings TlsSettings = RemoteDesc.GetTlsClientSettings();
-	return FHttpConnection(RemoteDesc.Host.Address, RemoteDesc.Host.Port, &TlsSettings);
+	return FHttpConnection(RemoteDesc.Host.Address, RemoteDesc.Host.Port, ETlsRequirement::Required, TlsSettings);
 }
 
 bool
@@ -554,15 +556,10 @@ FHttpConnection::Open()
 		}
 	}
 
-	FSocketHandle RawSocketHandle = SocketConnectTcp(HostAddress.c_str(), HostPort);
-
-	if (RawSocketHandle == InvalidSocketHandle)
+	if (TlsRequirement != ETlsRequirement::None)
 	{
-		return false;
-	}
+		FSocketHandle RawSocketHandle = SocketConnectTcp(HostAddress.c_str(), HostPort);
 
-	if (bUseTls)
-	{
 		FTlsClientSettings ClientSettings;
 		ClientSettings.bVerifyCertificate = bTlsVerifyCertificate;
 		ClientSettings.bVerifySubject	  = bTlsVerifySubject;
@@ -574,6 +571,7 @@ FHttpConnection::Open()
 		}
 
 		FSocketTls* TlsSocket = new FSocketTls(RawSocketHandle, ClientSettings);
+
 		if (TlsSocket->IsTlsValid())
 		{
 			Socket = std::unique_ptr<FSocketTls>(TlsSocket);
@@ -581,10 +579,14 @@ FHttpConnection::Open()
 		else
 		{
 			delete TlsSocket;
+			TlsSocket = nullptr;
 		}
 	}
-	else
+
+	if (!Socket && TlsRequirement != ETlsRequirement::Required)
 	{
+		FSocketHandle RawSocketHandle = SocketConnectTcp(HostAddress.c_str(), HostPort);
+
 		Socket = std::unique_ptr<FSocketRaw>(new FSocketRaw(RawSocketHandle));
 	}
 

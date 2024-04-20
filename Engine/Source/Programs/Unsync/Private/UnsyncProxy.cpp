@@ -19,8 +19,7 @@ struct FUnsyncProtocolImpl : FRemoteProtocolBase
 	FUnsyncProtocolImpl(const FRemoteDesc&			   InRemoteDesc,
 						const FRemoteProtocolFeatures& InFeatures,
 						const FAuthDesc*			   InAuthDesc,
-						const FBlockRequestMap*		   InRequestMap,
-						const FTlsClientSettings*	   TlsSettings);
+						const FBlockRequestMap*		   InRequestMap);
 	virtual ~FUnsyncProtocolImpl() override;
 	virtual bool			 IsValid() const override;
 	virtual FDownloadResult	 Download(const TArrayView<FNeedBlock> NeedBlocks, const FBlockDownloadCallback& CompletionCallback) override;
@@ -45,16 +44,14 @@ FProxy::FProxy(const FRemoteDesc& RemoteDesc, const FRemoteProtocolFeatures& InF
 {
 	UNSYNC_ASSERT(InRequestMap);
 
-	FTlsClientSettings TlsSettings = RemoteDesc.GetTlsClientSettings();
-
 	if (RemoteDesc.Protocol == EProtocolFlavor::Jupiter)
 	{
-		auto Inner	 = new FJupiterProtocolImpl(RemoteDesc, InRequestMap, &TlsSettings, RemoteDesc.HttpHeaders);
+		auto Inner	 = new FJupiterProtocolImpl(RemoteDesc, InRequestMap, RemoteDesc.HttpHeaders);
 		ProtocolImpl = std::unique_ptr<FRemoteProtocolBase>(Inner);
 	}
 	else if (RemoteDesc.Protocol == EProtocolFlavor::Unsync)
 	{
-		auto* Inner	 = new FUnsyncProtocolImpl(RemoteDesc, InFeatures, InAuthDesc, InRequestMap, &TlsSettings);
+		auto* Inner	 = new FUnsyncProtocolImpl(RemoteDesc, InFeatures, InAuthDesc, InRequestMap);
 		ProtocolImpl = std::unique_ptr<FRemoteProtocolBase>(Inner);
 	}
 	else
@@ -66,19 +63,19 @@ FProxy::FProxy(const FRemoteDesc& RemoteDesc, const FRemoteProtocolFeatures& InF
 FUnsyncProtocolImpl::FUnsyncProtocolImpl(const FRemoteDesc&				RemoteDesc,
 										 const FRemoteProtocolFeatures& InFeatures,
 										 const FAuthDesc*				InAuthDesc,
-										 const FBlockRequestMap*		InRequestMap,
-										 const FTlsClientSettings*		TlsSettings)
+										 const FBlockRequestMap*		InRequestMap)
 : FRemoteProtocolBase(RemoteDesc, InRequestMap)
 , Features(InFeatures)
 {
-	if (RemoteDesc.bTlsEnable && TlsSettings)
+	if (RemoteDesc.TlsRequirement != ETlsRequirement::None)
 	{
+		FTlsClientSettings TlsSettings = RemoteDesc.GetTlsClientSettings();
 		FSocketHandle RawSocketHandle = SocketConnectTcp(RemoteDesc.Host.Address.c_str(), RemoteDesc.Host.Port);
 		SocketSetRecvTimeout(RawSocketHandle, RemoteDesc.RecvTimeoutSeconds);
 
 		if (RawSocketHandle)
 		{
-			FSocketTls* TlsSocket = new FSocketTls(RawSocketHandle, *TlsSettings);
+			FSocketTls* TlsSocket = new FSocketTls(RawSocketHandle, TlsSettings);
 			if (TlsSocket->IsTlsValid())
 			{
 				SocketHandle = std::unique_ptr<FSocketTls>(TlsSocket);
@@ -90,7 +87,7 @@ FUnsyncProtocolImpl::FUnsyncProtocolImpl(const FRemoteDesc&				RemoteDesc,
 		}
 	}
 
-	if (!SocketHandle)
+	if (!SocketHandle && RemoteDesc.TlsRequirement != ETlsRequirement::Required)
 	{
 		FSocketHandle RawSocketHandle = SocketConnectTcp(RemoteDesc.Host.Address.c_str(), RemoteDesc.Host.Port);
 		SocketSetRecvTimeout(RawSocketHandle, RemoteDesc.RecvTimeoutSeconds);
@@ -408,7 +405,7 @@ TResult<ProxyQuery::FHelloResponse>
 ProxyQuery::Hello(const FRemoteDesc& RemoteDesc, const FAuthDesc* OptAuthDesc)
 {
 	FTlsClientSettings TlsSettings = RemoteDesc.GetTlsClientSettings();
-	FHttpConnection	   Connection(RemoteDesc.Host.Address, RemoteDesc.Host.Port, RemoteDesc.bTlsEnable ? &TlsSettings : nullptr);
+	FHttpConnection	   Connection(RemoteDesc.Host.Address, RemoteDesc.Host.Port, RemoteDesc.TlsRequirement, TlsSettings);
 	return Hello(Connection, OptAuthDesc);
 }
 
@@ -528,6 +525,8 @@ ProxyQuery::Hello(FHttpConnection& HttpConnection, const FAuthDesc* OptAuthDesc)
 		}
 	}
 
+	Result.bConnectionEncrypted = HttpConnection.IsEncrypted();
+
 	return ResultOk(std::move(Result));
 }
 
@@ -622,7 +621,7 @@ ProxyQuery::DownloadFile(const FRemoteDesc&					 Remote,
 	auto CreateConnection = [Remote]
 	{
 		FTlsClientSettings TlsSettings = Remote.GetTlsClientSettings();
-		return new FHttpConnection(Remote.Host.Address, Remote.Host.Port, &TlsSettings);
+		return new FHttpConnection(Remote.Host.Address, Remote.Host.Port, Remote.TlsRequirement, TlsSettings);
 	};
 
 	TObjectPool<FHttpConnection> ConnectionPool(CreateConnection);
@@ -968,11 +967,11 @@ FProxyPool::FProxyPool(const FRemoteDesc& InRemoteDesc, const FAuthDesc* InAuthD
 		else
 		{
 			const ProxyQuery::FHelloResponse& Data = Response.GetData();
-			UNSYNC_VERBOSE(L"Connection established. Server name: %hs, version: %hs, git: %hs, tls: %hs.",
+			UNSYNC_VERBOSE(L"Connection established. Server name: %hs, version: %hs, git: %hs, tls: %hs",
 						   Data.Name.empty() ? "unknown" : Data.Name.c_str(),
 						   Data.VersionNumber.empty() ? "unknown" : Data.VersionNumber.c_str(),
 						   Data.VersionGit.empty() ? "unknown" : Data.VersionGit.c_str(),
-						   RemoteDesc.bTlsEnable ? "yes" : "no"
+						   (Data.bConnectionEncrypted) ? "yes" : "no"
 				);
 
 			Features  = Data.Features;

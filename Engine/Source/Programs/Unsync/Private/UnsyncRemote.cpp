@@ -83,25 +83,23 @@ FRemoteDesc::FromUrl(std::string_view Url)
 
 	std::string_view Scheme = bHaveScheme ? Url.substr(0, SchemePos) : std::string_view();
 
-	bool bUseTls = false;
-
-	std::string_view HostAddress = bHaveScheme ? Url.substr(SchemePos + 3) : Url;
-
-	ETransportProtocol Transport = ETransportProtocol::Unsync;
+	ETlsRequirement	   TlsRequirement = ETlsRequirement::None;
+	std::string_view   HostAddress	  = bHaveScheme ? Url.substr(SchemePos + 3) : Url;
+	ETransportProtocol Transport	  = ETransportProtocol::Unsync;
 
 	if (Scheme.ends_with("https"))
 	{
-		bUseTls	  = true;
-		Transport = ETransportProtocol::Http;
+		TlsRequirement = ETlsRequirement::Required;
+		Transport	   = ETransportProtocol::Http;
 	}
 	else if (Scheme.ends_with("http"))
 	{
-		bUseTls	  = false;
-		Transport = ETransportProtocol::Http;
+		TlsRequirement = ETlsRequirement::None;
+		Transport	   = ETransportProtocol::Http;
 	}
 	else if (Scheme.ends_with("tls"))
 	{
-		bUseTls = true;
+		TlsRequirement = ETlsRequirement::Required;
 		if (Scheme.starts_with("unsync"))
 		{
 			Transport = ETransportProtocol::Unsync;
@@ -138,8 +136,8 @@ FRemoteDesc::FromUrl(std::string_view Url)
 		HostAddress				= HostAddress.substr(0, NamespacePos);
 	}
 
-	uint16 HostPort = 0;
-	const size_t PortPos	= HostAddress.find_first_of(':');
+	uint16		 HostPort = 0;
+	const size_t PortPos  = HostAddress.find_first_of(':');
 
 	const size_t RequestPos = HostAddress.find_first_of('/');
 	if (RequestPos != std::string::npos)
@@ -157,7 +155,7 @@ FRemoteDesc::FromUrl(std::string_view Url)
 				HostPort = UNSYNC_DEFAULT_PORT;
 				break;
 			case ETransportProtocol::Http:
-				HostPort = bUseTls ? 443 : 80;
+				HostPort = (TlsRequirement == ETlsRequirement::Required) ? 443 : 80;
 				break;
 		}
 	}
@@ -171,22 +169,23 @@ FRemoteDesc::FromUrl(std::string_view Url)
 		HostAddress = HostAddress.substr(0, PortPos);
 	}
 
-	if (HostPort == 443)
-	{
-		bUseTls = true;
-	}
-
 	if (HostPort == 0)
 	{
 		return AppError("Invalid host port");  // TODO: extract the port substring
 	}
 
-	Result.Host.Address = HostAddress;
-	Result.Host.Port	= HostPort;
+	if (HostPort == 443)
+	{
+		TlsRequirement = ETlsRequirement::Required;
+	}
+	else if (Result.Protocol == EProtocolFlavor::Unsync && TlsRequirement < ETlsRequirement::Required)
+	{
+		TlsRequirement = ETlsRequirement::Preferred;
+	}
 
-	Result.bTlsEnable			 = bUseTls;
-	Result.bTlsVerifyCertificate = bUseTls;
-	Result.bTlsVerifySubject	 = bUseTls;
+	Result.Host.Address	  = HostAddress;
+	Result.Host.Port	  = HostPort;
+	Result.TlsRequirement = TlsRequirement;
 
 	return ResultOk(Result);
 }
@@ -195,7 +194,7 @@ FTlsClientSettings
 FRemoteDesc::GetTlsClientSettings() const
 {
 	FTlsClientSettings Result = {};
-	if (bTlsEnable)
+	if (TlsRequirement != ETlsRequirement::None)
 	{
 		Result.Subject			  = GetTlsSubject();
 		Result.bVerifyCertificate = bTlsVerifyCertificate;
@@ -223,7 +222,7 @@ TestParseRemote()
 	{
 		TResult<FRemoteDesc> ParseResult = FRemoteDesc::FromUrl("example.com");
 		UNSYNC_ASSERT(ParseResult.IsOk());
-		UNSYNC_ASSERT(ParseResult->bTlsEnable == false);
+		UNSYNC_ASSERT(ParseResult->TlsRequirement == ETlsRequirement::Preferred);
 		UNSYNC_ASSERT(ParseResult->Host.Address == "example.com");
 		UNSYNC_ASSERT(ParseResult->Host.Port == UNSYNC_DEFAULT_PORT);
 		UNSYNC_ASSERT(ParseResult->Protocol == EProtocolFlavor::Unsync);
@@ -232,7 +231,7 @@ TestParseRemote()
 	{
 		TResult<FRemoteDesc> ParseResult = FRemoteDesc::FromUrl("http://example.com#foo");
 		UNSYNC_ASSERT(ParseResult.IsOk());
-		UNSYNC_ASSERT(ParseResult->bTlsEnable == false);
+		UNSYNC_ASSERT(ParseResult->TlsRequirement == ETlsRequirement::None);
 		UNSYNC_ASSERT(ParseResult->Host.Address == "example.com");
 		UNSYNC_ASSERT(ParseResult->Host.Port == 80);
 		UNSYNC_ASSERT(ParseResult->Protocol == EProtocolFlavor::Jupiter);
@@ -241,7 +240,7 @@ TestParseRemote()
 	{
 		TResult<FRemoteDesc> ParseResult = FRemoteDesc::FromUrl("https://example.com#foo");
 		UNSYNC_ASSERT(ParseResult.IsOk());
-		UNSYNC_ASSERT(ParseResult->bTlsEnable == true);
+		UNSYNC_ASSERT(ParseResult->TlsRequirement == ETlsRequirement::Required);
 		UNSYNC_ASSERT(ParseResult->Host.Address == "example.com");
 		UNSYNC_ASSERT(ParseResult->Host.Port == 443);
 		UNSYNC_ASSERT(ParseResult->Protocol == EProtocolFlavor::Jupiter);
@@ -250,7 +249,7 @@ TestParseRemote()
 	{
 		TResult<FRemoteDesc> ParseResult = FRemoteDesc::FromUrl("http://example.com:1234#foo");
 		UNSYNC_ASSERT(ParseResult.IsOk());
-		UNSYNC_ASSERT(ParseResult->bTlsEnable == false);
+		UNSYNC_ASSERT(ParseResult->TlsRequirement == ETlsRequirement::None);
 		UNSYNC_ASSERT(ParseResult->Host.Address == "example.com");
 		UNSYNC_ASSERT(ParseResult->Host.Port == 1234);
 		UNSYNC_ASSERT(ParseResult->Protocol == EProtocolFlavor::Jupiter);
@@ -259,7 +258,7 @@ TestParseRemote()
 	{
 		TResult<FRemoteDesc> ParseResult = FRemoteDesc::FromUrl("https://example.com:1234#foo");
 		UNSYNC_ASSERT(ParseResult.IsOk());
-		UNSYNC_ASSERT(ParseResult->bTlsEnable == true);
+		UNSYNC_ASSERT(ParseResult->TlsRequirement == ETlsRequirement::Required);
 		UNSYNC_ASSERT(ParseResult->Host.Address == "example.com");
 		UNSYNC_ASSERT(ParseResult->Host.Port == 1234);
 		UNSYNC_ASSERT(ParseResult->Protocol == EProtocolFlavor::Jupiter);
@@ -268,7 +267,7 @@ TestParseRemote()
 	{
 		TResult<FRemoteDesc> ParseResult = FRemoteDesc::FromUrl("jupiter+http://example.com:1234");
 		UNSYNC_ASSERT(ParseResult.IsOk());
-		UNSYNC_ASSERT(ParseResult->bTlsEnable == false);
+		UNSYNC_ASSERT(ParseResult->TlsRequirement == ETlsRequirement::None);
 		UNSYNC_ASSERT(ParseResult->Host.Address == "example.com");
 		UNSYNC_ASSERT(ParseResult->Host.Port == 1234);
 		UNSYNC_ASSERT(ParseResult->Protocol == EProtocolFlavor::Jupiter);
@@ -277,7 +276,7 @@ TestParseRemote()
 	{
 		TResult<FRemoteDesc> ParseResult = FRemoteDesc::FromUrl("jupiter+https://example.com");
 		UNSYNC_ASSERT(ParseResult.IsOk());
-		UNSYNC_ASSERT(ParseResult->bTlsEnable == true);
+		UNSYNC_ASSERT(ParseResult->TlsRequirement == ETlsRequirement::Required);
 		UNSYNC_ASSERT(ParseResult->Host.Address == "example.com");
 		UNSYNC_ASSERT(ParseResult->Host.Port == 443);
 		UNSYNC_ASSERT(ParseResult->Protocol == EProtocolFlavor::Jupiter);
@@ -286,7 +285,7 @@ TestParseRemote()
 	{
 		TResult<FRemoteDesc> ParseResult = FRemoteDesc::FromUrl("jupiter+https://example.com#test.namespace");
 		UNSYNC_ASSERT(ParseResult.IsOk());
-		UNSYNC_ASSERT(ParseResult->bTlsEnable == true);
+		UNSYNC_ASSERT(ParseResult->TlsRequirement == ETlsRequirement::Required);
 		UNSYNC_ASSERT(ParseResult->Host.Address == "example.com");
 		UNSYNC_ASSERT(ParseResult->Host.Port == 443);
 		UNSYNC_ASSERT(ParseResult->Protocol == EProtocolFlavor::Jupiter);
@@ -296,7 +295,7 @@ TestParseRemote()
 	{
 		TResult<FRemoteDesc> ParseResult = FRemoteDesc::FromUrl("jupiter+https://example.com:1234#test.namespace");
 		UNSYNC_ASSERT(ParseResult.IsOk());
-		UNSYNC_ASSERT(ParseResult->bTlsEnable == true);
+		UNSYNC_ASSERT(ParseResult->TlsRequirement == ETlsRequirement::Required);
 		UNSYNC_ASSERT(ParseResult->Host.Address == "example.com");
 		UNSYNC_ASSERT(ParseResult->Host.Port == 1234);
 		UNSYNC_ASSERT(ParseResult->Protocol == EProtocolFlavor::Jupiter);
@@ -306,7 +305,7 @@ TestParseRemote()
 	{
 		TResult<FRemoteDesc> ParseResult = FRemoteDesc::FromUrl("example.com:1234#test.namespace");
 		UNSYNC_ASSERT(ParseResult.IsOk());
-		UNSYNC_ASSERT(ParseResult->bTlsEnable == false);
+		UNSYNC_ASSERT(ParseResult->TlsRequirement == ETlsRequirement::Preferred);
 		UNSYNC_ASSERT(ParseResult->Host.Address == "example.com");
 		UNSYNC_ASSERT(ParseResult->Host.Port == 1234);
 		UNSYNC_ASSERT(ParseResult->Protocol == EProtocolFlavor::Unsync);
@@ -316,7 +315,7 @@ TestParseRemote()
 	{
 		TResult<FRemoteDesc> ParseResult = FRemoteDesc::FromUrl("unsync://example.com:1234");
 		UNSYNC_ASSERT(ParseResult.IsOk());
-		UNSYNC_ASSERT(ParseResult->bTlsEnable == false);
+		UNSYNC_ASSERT(ParseResult->TlsRequirement == ETlsRequirement::Preferred);
 		UNSYNC_ASSERT(ParseResult->Host.Address == "example.com");
 		UNSYNC_ASSERT(ParseResult->Host.Port == 1234);
 		UNSYNC_ASSERT(ParseResult->Protocol == EProtocolFlavor::Unsync);
@@ -325,7 +324,7 @@ TestParseRemote()
 	{
 		TResult<FRemoteDesc> ParseResult = FRemoteDesc::FromUrl("unsync+tls://example.com:1234");
 		UNSYNC_ASSERT(ParseResult.IsOk());
-		UNSYNC_ASSERT(ParseResult->bTlsEnable == true);
+		UNSYNC_ASSERT(ParseResult->TlsRequirement == ETlsRequirement::Required);
 		UNSYNC_ASSERT(ParseResult->Host.Address == "example.com");
 		UNSYNC_ASSERT(ParseResult->Host.Port == 1234);
 		UNSYNC_ASSERT(ParseResult->Protocol == EProtocolFlavor::Unsync);
@@ -339,7 +338,7 @@ TestParseRemote()
 	{
 		TResult<FRemoteDesc> ParseResult = FRemoteDesc::FromUrl("unsync+tls://example.com:1234/request/path#namespace");
 		UNSYNC_ASSERT(ParseResult.IsOk());
-		UNSYNC_ASSERT(ParseResult->bTlsEnable == true);
+		UNSYNC_ASSERT(ParseResult->TlsRequirement == ETlsRequirement::Required);
 		UNSYNC_ASSERT(ParseResult->Host.Address == "example.com");
 		UNSYNC_ASSERT(ParseResult->Host.Port == 1234);
 		UNSYNC_ASSERT(ParseResult->Protocol == EProtocolFlavor::Unsync);
@@ -350,7 +349,7 @@ TestParseRemote()
 	{
 		TResult<FRemoteDesc> ParseResult = FRemoteDesc::FromUrl("http://example.com/request/path#namespace");
 		UNSYNC_ASSERT(ParseResult.IsOk());
-		UNSYNC_ASSERT(ParseResult->bTlsEnable == false);
+		UNSYNC_ASSERT(ParseResult->TlsRequirement == ETlsRequirement::None);
 		UNSYNC_ASSERT(ParseResult->Host.Address == "example.com");
 		UNSYNC_ASSERT(ParseResult->Host.Port == 80);
 		UNSYNC_ASSERT(ParseResult->Protocol == EProtocolFlavor::Jupiter);
@@ -361,7 +360,7 @@ TestParseRemote()
 	{
 		TResult<FRemoteDesc> ParseResult = FRemoteDesc::FromUrl("example.com:443");
 		UNSYNC_ASSERT(ParseResult.IsOk());
-		UNSYNC_ASSERT(ParseResult->bTlsEnable == true);
+		UNSYNC_ASSERT(ParseResult->TlsRequirement == ETlsRequirement::Required);
 		UNSYNC_ASSERT(ParseResult->Host.Address == "example.com");
 		UNSYNC_ASSERT(ParseResult->Host.Port == 443);
 		UNSYNC_ASSERT(ParseResult->Protocol == EProtocolFlavor::Unsync);

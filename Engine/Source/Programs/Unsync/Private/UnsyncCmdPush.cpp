@@ -73,8 +73,6 @@ CmdPush(const FCmdPushOptions& Options)
 			}
 		}
 
-		const bool bUseTls = Options.Remote.bTlsEnable;
-
 		FTlsClientSettings TlsSettings = Options.Remote.GetTlsClientSettings();
 
 		if (Options.Remote.StorageNamespace.empty())
@@ -89,7 +87,7 @@ CmdPush(const FCmdPushOptions& Options)
 		bool		 bPushComplete = false;
 		for (uint32 AttemptIndex = 0; AttemptIndex < MaxAttempts; ++AttemptIndex)
 		{
-			TResult<uint64> PushResult = JupiterPush(Manifest, Options.Remote, bUseTls ? &TlsSettings : nullptr);
+			TResult<uint64> PushResult = JupiterPush(Manifest, Options.Remote, TlsSettings);
 
 			if (const uint64* PushedBlocks = PushResult.TryData())
 			{

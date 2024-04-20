@@ -25,11 +25,27 @@ using FMirrorInfoResult = TResult<std::vector<FMirrorInfo>>;
 static double
 RunHttpPing(std::string_view Address, uint16 Port)
 {
-	FTimePoint		TimeBegin = TimePointNow();
-	FHttpConnection Connection(Address, Port);
+	
+	FTlsClientSettings TlsSettings;
+	TlsSettings.Subject = Address;
+
+	ETlsRequirement TlsRequirement = ETlsRequirement::None;
+
+	if (Port == 443)
+	{
+		TlsRequirement = ETlsRequirement::Preferred;
+	}
+
+	FHttpConnection Connection(Address, Port, TlsRequirement, TlsSettings);
+
 	FHttpRequest	Request;
 	Request.Url				   = "/api/v1/ping";
 	Request.Method			   = EHttpMethod::GET;
+
+	// Don't time the connection handshake, only query time itself
+	Connection.Open();
+
+	FTimePoint	  TimeBegin	   = TimePointNow();
 	FHttpResponse PingResponse = HttpRequest(Connection, Request);
 	FTimePoint	  TimeEnd	   = TimePointNow();
 
@@ -215,7 +231,7 @@ CmdQuerySearch(const FCmdQueryOptions& Options)
 	auto CreateConnection = [Remote = Options.Remote]
 	{
 		FTlsClientSettings TlsSettings = Remote.GetTlsClientSettings();
-		return new FHttpConnection(Remote.Host.Address, Remote.Host.Port, &TlsSettings);
+		return new FHttpConnection(Remote.Host.Address, Remote.Host.Port, Remote.TlsRequirement, TlsSettings);
 	};
 
 	TObjectPool<FHttpConnection> ConnectionPool(CreateConnection);

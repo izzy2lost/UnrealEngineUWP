@@ -464,10 +464,10 @@ JupiterPutManifest(const FDirectoryManifest&	 Manifest,
 }
 
 TResult<uint64>
-JupiterPush(const FDirectoryManifest& Manifest, const FRemoteDesc& RemoteDesc, FTlsClientSettings* TlsSettings)
+JupiterPush(const FDirectoryManifest& Manifest, const FRemoteDesc& RemoteDesc, const FTlsClientSettings& TlsSettings)
 {
 	auto CreateConnection = [RemoteDesc, TlsSettings] {
-		return new FHttpConnection(RemoteDesc.Host.Address, RemoteDesc.Host.Port, TlsSettings);
+		return new FHttpConnection(RemoteDesc.Host.Address, RemoteDesc.Host.Port, RemoteDesc.TlsRequirement, TlsSettings);
 	};
 
 	FSemaphore					 ChunkUploadSemaphore(8);  // up to 8 concurrent connections
@@ -697,10 +697,9 @@ JupiterGetRawBlob(FHttpConnection& Connection, std::string_view JupiterNamespace
 
 FJupiterProtocolImpl::FJupiterProtocolImpl(const FRemoteDesc&		 InSettings,
 										   const FBlockRequestMap*	 InRequestMap,
-										   const FTlsClientSettings* TlsSettings,
 										   std::string_view			 InHttpHeaders)
 : FRemoteProtocolBase(InSettings, InRequestMap)
-, Connection(InSettings.Host.Address, InSettings.Host.Port, InSettings.bTlsEnable ? TlsSettings : nullptr)
+, Connection(InSettings.Host.Address, InSettings.Host.Port, InSettings.TlsRequirement, InSettings.GetTlsClientSettings())
 , HttpHeaders(InHttpHeaders)
 , RemoteDesc(InSettings)
 {

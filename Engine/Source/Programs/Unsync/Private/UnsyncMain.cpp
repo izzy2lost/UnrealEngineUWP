@@ -84,7 +84,7 @@ InnerMain(int Argc, char** Argv)
 	bool					 bRunP4Have			 = false;
 	bool					 bForceOperation	 = false;
 	bool					 bAllowInsecureTls	 = false;
-	bool					 bUseTls			 = false;
+	bool					 bRequireTls		 = false;
 	bool					 bUseDebugMode		 = false;
 	bool					 bIncrementalMode	 = false;
 	bool					 bNoOutputValidation = false;
@@ -118,9 +118,9 @@ InnerMain(int Argc, char** Argv)
 
 	const std::string HiddenGroupId;  // CLI11 uses an empty string group name to mark arguments that should be hidden
 
-	auto AddTlsOptions = [&CacertFilenameUtf8, &bUseTls, &bAllowInsecureTls](CLI::App* App) {
+	auto AddTlsOptions = [&CacertFilenameUtf8, &bRequireTls, &bAllowInsecureTls](CLI::App* App) {
 		App->add_option("--cacert", CacertFilenameUtf8, "Certificate authority file to use for TLS validation (.pem)");
-		App->add_flag("--tls", bUseTls, "Use TLS when connecting to remote server");
+		App->add_flag("--tls", bRequireTls, "Force TLS when connecting to remote server");
 		App->add_flag("--insecure", bAllowInsecureTls, "Skip remote server TLS certificate validation");
 	};
 
@@ -719,9 +719,9 @@ InnerMain(int Argc, char** Argv)
 		}
 	}
 
-	if (bUseTls)
+	if (bRequireTls)
 	{
-		RemoteDesc.bTlsEnable = true;
+		RemoteDesc.TlsRequirement = ETlsRequirement::Required;
 	}
 
 	if (bAllowInsecureTls)
@@ -787,6 +787,15 @@ InnerMain(int Argc, char** Argv)
 
 			RemoteDesc.Host.Address = Mirror->Address;
 			RemoteDesc.Host.Port	= Mirror->Port;
+			
+			if (Mirror->Port == 443)
+			{
+				RemoteDesc.TlsRequirement = ETlsRequirement::Required;
+			}
+			else if (RemoteDesc.TlsRequirement < ETlsRequirement::Required)
+			{
+				RemoteDesc.TlsRequirement = ETlsRequirement::Preferred;
+			}
 		}
 		else
 		{
@@ -883,7 +892,7 @@ InnerMain(int Argc, char** Argv)
 				}
 
 				// Authentication requires encrypted connection
-				RemoteDesc.bTlsEnable			   = true;
+				RemoteDesc.TlsRequirement		   = ETlsRequirement::Required;
 				RemoteDesc.bAuthenticationRequired = true;
 
 				UNSYNC_LOG(L"Authentication enabled")

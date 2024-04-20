@@ -211,6 +211,10 @@ struct FHelloResponse
 
 	std::optional<FHostAddressAndPort> PrimaryHost;
 
+	// Derived data
+
+	bool bConnectionEncrypted = false;
+
 	bool SupportsAuthentication() const { return Features.bAuthentication && !AuthServerUri.empty() && !AuthClientId.empty(); }
 };
 TResult<FHelloResponse> Hello(const FRemoteDesc& RemoteDesc, const FAuthDesc* OptAuthDesc = nullptr);

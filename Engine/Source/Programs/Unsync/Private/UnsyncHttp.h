@@ -55,6 +55,8 @@ struct FHttpResponse
 
 	EHttpContentType ContentType = EHttpContentType::Unknown;
 
+	bool bConnectionEncrypted = false;
+
 	bool Success() const { return Code >= 200 && Code < 300; }
 
 	std::string_view AsStringView() const { return std::string_view((const char*)Buffer.Data(), Buffer.Size()); }
@@ -62,7 +64,8 @@ struct FHttpResponse
 
 struct FHttpConnection
 {
-	FHttpConnection(const std::string_view InHostAddress, uint16 InPort, const FTlsClientSettings* TlsSettings = nullptr);
+	FHttpConnection(const std::string_view InHostAddress, uint16 InPort) : FHttpConnection(InHostAddress, InPort, ETlsRequirement::None, FTlsClientSettings{}) {}
+	FHttpConnection(const std::string_view InHostAddress, uint16 InPort, ETlsRequirement InTlsRequirement, const FTlsClientSettings& InTlsSettings);
 	FHttpConnection(const FHttpConnection& Other);
 
 	[[nodiscard]] static FHttpConnection CreateDefaultHttp(const std::string_view InHostAddress, uint16 Port = 80);
@@ -72,12 +75,12 @@ struct FHttpConnection
 	bool Open();
 	void Close();
 
-	const std::string HostAddress;		 // NOLINT
-	const uint16	  HostPort = 80;	 // NOLINT
-	const bool		  bUseTls  = false;	 // NOLINT
+	std::string		HostAddress;
+	uint16			HostPort	   = 80;
 
 	bool bKeepAlive = true;
 
+	ETlsRequirement			 TlsRequirement	   = ETlsRequirement::None;
 	bool					 bTlsVerifySubject = true;
 	std::string				 TlsSubject;
 	bool					 bTlsVerifyCertificate = true;
@@ -97,6 +100,8 @@ struct FHttpConnection
 		LastUsed = TimePointNow();
 		return *Socket;
 	}
+
+	bool IsEncrypted() const { return Socket && Socket->IsEncrypted(); }
 
 protected:
 	std::unique_ptr<FSocketBase> Socket;
