@@ -52,10 +52,9 @@ void ULiveInstance::AddInstanceInformation()
 			TIndirectArray<FSkeletalMeshLODRenderData>* ArrayLODRenderData = &RenderData->LODRenderData;
 
 			ArrayLODRenderData = &RenderData->LODRenderData;
-			const TArray<struct FSkeletalMeshLODInfo>& LODInfoArray = SkeletalMesh->GetLODInfoArray();
-			if (LODInfoArray.IsValidIndex(i))
+			if (i < SkeletalMesh->GetLODNum())
 			{
-				const FSkeletalMeshLODInfo& LODInfo = LODInfoArray[i];
+				const FSkeletalMeshLODInfo& LODInfo = *SkeletalMesh->GetLODInfo(i);
 
 				CurrentLODNumFaces += RenderData->LODRenderData[i].GetTotalFaces();
 

@@ -1066,16 +1066,13 @@ bool UMeshPaintingSubsystem::DoesMeshComponentContainPerLODColors(const UMeshCom
 	}
 	else if (const USkeletalMeshComponent* SkeletalMeshComponent = Cast<USkeletalMeshComponent>(MeshComponent))
 	{
-		USkeletalMesh* SkeletalMesh = SkeletalMeshComponent->GetSkeletalMeshAsset();
-		if (SkeletalMesh)
+		if (const USkeletalMesh* SkeletalMesh = SkeletalMeshComponent->GetSkeletalMeshAsset())
 		{
-			const TArray<FSkeletalMeshLODInfo>& LODInfo = SkeletalMesh->GetLODInfoArray();
 			// Only check LOD level 1 and above
-			const int32 NumLODs = SkeletalMesh->GetLODNum();
-			for (int32 LODIndex = 1; LODIndex < NumLODs; ++LODIndex)
+			for (int32 LODIndex = 1, NumLODs = SkeletalMesh->GetLODNum(); LODIndex < NumLODs; ++LODIndex)
 			{
-				const FSkeletalMeshLODInfo& Info = LODInfo[LODIndex];
-				if (Info.bHasPerLODVertexColors)
+				const FSkeletalMeshLODInfo* Info = SkeletalMesh->GetLODInfo(LODIndex);
+				if (Info->bHasPerLODVertexColors)
 				{
 					bPerLODColors = true;
 					break;

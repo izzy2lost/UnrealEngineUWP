@@ -291,6 +291,15 @@ public:
 	{
 		/** Hidden Material Section Flags for rendering - That is Material Index, not Section Index  */
 		TArray<bool>	HiddenMaterials;
+
+		/** The bounding sphere's screen size ratio threshold for this LOD, duplicated from the corresponding FSkeletalMeshLODInfo entry */
+		FPerPlatformFloat ScreenSize;
+
+		/** The hysteresis value for determining the LOD switch boundary. A non-zero value indicates that
+		 *  a change from LOD0 -> LOD1 will occur at ScreenSize level, but a change from LOD1 -> LOD0 will
+		 *  occur at when the object size is ScreenSize + LODHysteresis. This avoids flickering at the boundary.
+		 */
+		float LODHysteresis;
 	};	
 
 	TArray<FSkelMeshObjectLODInfo> LODInfo;
@@ -372,9 +381,6 @@ public:
 protected:
 	/** The skeletal mesh resource with which to render. */
 	FSkeletalMeshRenderData* SkeletalMeshRenderData;
-
-	/** Per-LOD info. */
-	TArray<FSkeletalMeshLODInfo> SkeletalMeshLODInfo;
 
 	FGPUSkinCacheEntry* SkinCacheEntry;
 	FGPUSkinCacheEntry* SkinCacheEntryForRayTracing;

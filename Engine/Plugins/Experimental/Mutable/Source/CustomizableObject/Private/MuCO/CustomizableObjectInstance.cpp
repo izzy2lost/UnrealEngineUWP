@@ -2061,7 +2061,7 @@ bool UCustomizableInstancePrivate::UpdateSkeletalMesh_PostBeginUpdate0(UCustomiz
 
 				FSkeletalMeshRenderData* RenderData = SkeletalMesh->GetResourceForRendering();
 				ensure(RenderData && RenderData->LODRenderData.Num() > 0);
-				ensure(SkeletalMesh->GetLODInfoArray().Num() > 0);
+				ensure(SkeletalMesh->GetLODNum() > 0);
 
 				for (FSkeletalMeshLODRenderData& LODResource : RenderData->LODRenderData)
 				{
@@ -5505,10 +5505,8 @@ void UCustomizableInstancePrivate::BuildMaterials(const TSharedRef<FUpdateContex
 				continue;
 			}
 
-			if (SkeletalMesh->GetLODInfoArray().IsValidIndex(LODIndex))
-			{
-				SkeletalMesh->GetLODInfoArray()[LODIndex].LODMaterialMap.Reset();
-			}
+			TArray<int32>& LODMaterialMap = SkeletalMesh->GetLODInfo(LODIndex)->LODMaterialMap;
+			LODMaterialMap.Reset();
 
 			const FMutableRefSkeletalMeshData& RefSkeletalMeshData = ModelResources.ReferenceSkeletalMeshesData[Component.Id];
 
@@ -5519,7 +5517,7 @@ void UCustomizableInstancePrivate::BuildMaterials(const TSharedRef<FUpdateContex
 				// Reuse MaterialSlot from the previous LOD.
 				if (const int32 MaterialIndex = SurfaceIdToMaterialIndex.Find(Surface.SurfaceId); MaterialIndex != INDEX_NONE)
 				{
-					const int32 LODMaterialIndex = SkeletalMesh->GetLODInfoArray()[LODIndex].LODMaterialMap.Add(MaterialIndex);
+					const int32 LODMaterialIndex = LODMaterialMap.Add(MaterialIndex);
 					SkeletalMesh->GetResourceForRendering()->LODRenderData[LODIndex].RenderSections[SurfaceIndex].MaterialIndex = LODMaterialIndex;
 					continue;
 				}
@@ -5549,7 +5547,7 @@ void UCustomizableInstancePrivate::BuildMaterials(const TSharedRef<FUpdateContex
 
 				SetMeshUVChannelDensity(MaterialSlot.UVChannelData, RefSkeletalMeshData.Settings.DefaultUVChannelDensity);
 
-				const int32 LODMaterialIndex = SkeletalMesh->GetLODInfoArray()[LODIndex].LODMaterialMap.Add(MaterialSlotIndex);
+				const int32 LODMaterialIndex = LODMaterialMap.Add(MaterialSlotIndex);
 				SkeletalMesh->GetResourceForRendering()->LODRenderData[LODIndex].RenderSections[SurfaceIndex].MaterialIndex = LODMaterialIndex;
 
 				FMutableMaterialPlaceholder MutableMaterialPlaceholder;
@@ -6007,7 +6005,7 @@ void UCustomizableInstancePrivate::BuildMaterials(const TSharedRef<FUpdateContex
 			// Copy data from the FirstGeneratedLOD into the LODs below.
 			for (int32 LODIndex = OperationData->FirstLODAvailable; LODIndex < FirstGeneratedLOD; ++LODIndex)
 			{
-				SkeletalMesh->GetLODInfoArray()[LODIndex].LODMaterialMap = SkeletalMesh->GetLODInfoArray()[FirstGeneratedLOD].LODMaterialMap;
+				SkeletalMesh->GetLODInfo(LODIndex)->LODMaterialMap = SkeletalMesh->GetLODInfo(LODIndex)->LODMaterialMap;
 
 				TIndirectArray<FSkeletalMeshLODRenderData>& LODRenderData = SkeletalMesh->GetResourceForRendering()->LODRenderData;
 
@@ -6872,7 +6870,7 @@ void UCustomizableInstancePrivate::RegenerateImportedModels()
 				// Add bones to remove
 				CalculateBonesToRemove(LODRenderData, SkeletalMesh->GetRefSkeleton(), SkeletalMesh->GetLODInfo(LODIndex)->BonesToRemove);
 
-				const TArray<int32>& LODMaterialMap = SkeletalMesh->GetLODInfoArray()[LODIndex].LODMaterialMap;
+				const TArray<int32>& LODMaterialMap = SkeletalMesh->GetLODInfo(LODIndex)->LODMaterialMap;
 
 				if (LODMaterialMap.IsValidIndex(RenderSection.MaterialIndex))
 				{

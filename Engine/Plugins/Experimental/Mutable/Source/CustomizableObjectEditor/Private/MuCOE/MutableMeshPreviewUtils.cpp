@@ -339,14 +339,14 @@ namespace MutableMeshPreviewUtils
 		 * @param InMutableMesh - The reference mutable mesh to be reading data from
 		 * @param OutSkeletalMesh - The skeletal mesh to be getting it's materials set up.
 		 */
-		void BuildSkeletalMeshElementData(const mu::MeshPtrConst InMutableMesh,USkeletalMesh* OutSkeletalMesh)
+		void BuildSkeletalMeshElementData(const mu::MeshPtrConst InMutableMesh, USkeletalMesh* OutSkeletalMesh)
 		{
 			// Set up Unreal's default material
 			UMaterialInterface* UnrealMaterial = UMaterial::GetDefaultMaterial(MD_Surface);
 			OutSkeletalMesh->GetMaterials().SetNum(1);
 			OutSkeletalMesh->GetMaterials()[0] = UnrealMaterial;
 
-			OutSkeletalMesh->GetLODInfoArray()[0].LODMaterialMap.SetNumZeroed(1);
+			OutSkeletalMesh->GetLODInfo(0)->LODMaterialMap.SetNumZeroed(1);
 
 			// Add RenderSections for each surface in the mesh
 			if (InMutableMesh)
@@ -480,9 +480,10 @@ namespace MutableMeshPreviewUtils
 			GeneratedSkeletalMesh->AllocateResourceForRendering();
 			GeneratedSkeletalMesh->GetResourceForRendering()->LODRenderData.Add(new FSkeletalMeshLODRenderData());
 
-			FSkeletalMeshLODInfo& LastLODInfo = GeneratedSkeletalMesh->GetLODInfoArray().AddDefaulted_GetRef();
+			FSkeletalMeshLODInfo LastLODInfo{};
 			LastLODInfo.BuildSettings.bUseFullPrecisionUVs = true;
 			LastLODInfo.bAllowCPUAccess = false;
+			GeneratedSkeletalMesh->AddLODInfo(LastLODInfo);
 		}
 
 		// Set the material data and initialize the sections that will be used later

@@ -65,7 +65,7 @@ void UCustomizableObjectNodeSkeletalMesh::AllocateDefaultPins(UCustomizableObjec
 	
 	if (const FSkeletalMeshModel* ImportedModel = SkeletalMesh->GetImportedModel())
 	{
-		const int32 NumLODs = SkeletalMesh->GetLODInfoArray().Num();
+		const int32 NumLODs = SkeletalMesh->GetLODNum();
 		for (int32 LODIndex = 0; LODIndex < NumLODs; ++LODIndex)
 		{
 			const int32 NumSections = ImportedModel->LODModels[LODIndex].Sections.Num();

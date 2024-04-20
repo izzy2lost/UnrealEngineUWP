@@ -510,7 +510,7 @@ void UCustomizableObjectNodeTable::GenerateMeshPins(UObject* Mesh, const FString
 {
 	if (USkeletalMesh* SkeletalMesh = Cast<USkeletalMesh>(Mesh))
 	{
-		int NumLODs = SkeletalMesh->GetLODInfoArray().Num();
+		const int NumLODs = SkeletalMesh->GetLODNum();
 		const UEdGraphSchema_CustomizableObject* Schema = GetDefault<UEdGraphSchema_CustomizableObject>();
 
 		for (int32 LODIndex = 0; LODIndex < NumLODs; ++LODIndex)
@@ -649,7 +649,7 @@ bool UCustomizableObjectNodeTable::IsNodeOutDatedAndNeedsRefresh()
 				{
 					if (USkeletalMesh* SkeletalMesh = Cast<USkeletalMesh>(Object))
 					{
-						int NumLODs = SkeletalMesh->GetLODInfoArray().Num();
+						const int NumLODs = SkeletalMesh->GetLODNum();
 
 						for (int32 LODIndex = 0; LODIndex < NumLODs; ++LODIndex)
 						{

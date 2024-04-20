@@ -3273,8 +3273,17 @@ TSharedRef<SWidget> FPersonaMeshDetails::CreateSkinWeightProfileMenuContent()
 				if (ProfilesInfo[Index].PerLODSourceFiles.Num() < NumLODs)
 				{
 					// Only add menu if there is any imported LOD beside LOD0
-					const TArray<FSkeletalMeshLODInfo>& LODInfoArray = Mesh->GetLODInfoArray();
-					if (LODInfoArray.FindLastByPredicate([](FSkeletalMeshLODInfo Info) { return !Info.bHasBeenSimplified; }) > 0)
+					bool bHaveImportedNonBaseLODs = false;
+					for (int32 LODIndex = 1; LODIndex < NumLODs; ++LODIndex)
+					{
+						if (!Mesh->GetLODInfo(LODIndex)->bHasBeenSimplified)
+						{
+							bHaveImportedNonBaseLODs = true;
+							break;
+						}
+					}
+					
+					if (bHaveImportedNonBaseLODs)
 					{						
 						if (!bSeparatorAdded)
 						{

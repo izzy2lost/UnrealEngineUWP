@@ -109,10 +109,10 @@ void FStreamingRenderAsset::UpdateStaticData(const FRenderAssetStreamingSettings
 			else if (RenderAssetType == EStreamableRenderAssetType::SkeletalMesh)
 			{
 				USkeletalMesh* SkeletalMesh = CastChecked<USkeletalMesh>(RenderAsset);
-				const TArray<FSkeletalMeshLODInfo>& AssetLODInfos =  SkeletalMesh->GetLODInfoArray();
 				for (int32 LODIndex = 0; LODIndex < ResourceState.MaxNumLODs; ++LODIndex)
 				{
-					LODScreenSizes[ResourceState.MaxNumLODs - LODIndex - 1] = AssetLODInfos[LODIndex + ResourceState.AssetLODBias].ScreenSize.GetValue() * 0.5f;
+					const FSkeletalMeshLODInfo* AssetLODInfo = SkeletalMesh->GetLODInfo(LODIndex + ResourceState.AssetLODBias);
+					LODScreenSizes[ResourceState.MaxNumLODs - LODIndex - 1] = AssetLODInfo->ScreenSize.GetValue() * 0.5f;
 				}
 			}
 		}

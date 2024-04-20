@@ -85,7 +85,7 @@ void GetLODAndSectionForAutomaticLODs(const FMutableGraphGenerationContext& Cont
 	}
 	
 	const FSkelMeshSection& FromSection = ImportedModel->LODModels[LODIndexConnected].Sections[SectionIndexConnected];
-	const TArray<int32>& FromMaterialMap = SkeletalMesh.GetLODInfoArray()[LODIndexConnected].LODMaterialMap;
+	const TArray<int32>& FromMaterialMap = SkeletalMesh.GetLODInfo(LODIndexConnected)->LODMaterialMap;
 	
 	// Material Index of the connected pin
 	const int32 SearchLODMaterialIndex = FromMaterialMap.IsValidIndex(SectionIndexConnected) && SkeletalMesh.GetMaterials().IsValidIndex(FromMaterialMap[SectionIndexConnected]) ?
@@ -101,7 +101,7 @@ void GetLODAndSectionForAutomaticLODs(const FMutableGraphGenerationContext& Cont
 	}
 
 	const FSkeletalMeshLODModel& LODModel = ImportedModel->LODModels[CompilingLODIndex];
-	const TArray<int32>& MaterialMap = SkeletalMesh.GetLODInfoArray()[CompilingLODIndex].LODMaterialMap;
+	const TArray<int32>& MaterialMap = SkeletalMesh.GetLODInfo(CompilingLODIndex)->LODMaterialMap;
 
 	bool bFound = false;
 	for (int32 SectionIndex = 0; SectionIndex < LODModel.Sections.Num(); ++SectionIndex)
@@ -150,8 +150,7 @@ void BuildRemappedBonesArray(const FMutableComponentInfo& InComponentInfo, TObje
 	const bool bComponentInfoHasBonesToRemove = InComponentInfo.BonesToRemovePerLOD.IsValidIndex(InLODIndex) && !InComponentInfo.BonesToRemovePerLOD[InLODIndex].IsEmpty();
 
 	const TArray<FMeshBoneInfo>& RefBoneInfos = ReferenceSkeleton.GetRefBoneInfo();
-	const TArray<FSkeletalMeshLODInfo>& LODInfos = InSkeletalMesh->GetLODInfoArray();
-	const int32 NumLODInfos = LODInfos.Num();
+	const int32 NumLODInfos = InSkeletalMesh->GetLODNum();
 
 	// Helper to know which bones have been removed
 	TArray<bool> RemovedBones;
@@ -190,7 +189,7 @@ void BuildRemappedBonesArray(const FMutableComponentInfo& InComponentInfo, TObje
 			// If the bone has not been remove yet, check if it's in the BonesToRemove of the SkeletalMesh.
 			for (int32 LODIndex = 0; !bBoneRemoved && LODIndex <= InLODIndex && LODIndex < NumLODInfos; ++LODIndex)
 			{
-				const FBoneReference* BoneToRemove = LODInfos[LODIndex].BonesToRemove.FindByPredicate(
+				const FBoneReference* BoneToRemove = InSkeletalMesh->GetLODInfo(LODIndex)->BonesToRemove.FindByPredicate(
 					[&BoneInfo](const FBoneReference& BoneReference) { return BoneReference.BoneName == BoneInfo.Name; });
 				
 				bBoneRemoved = BoneToRemove != nullptr;

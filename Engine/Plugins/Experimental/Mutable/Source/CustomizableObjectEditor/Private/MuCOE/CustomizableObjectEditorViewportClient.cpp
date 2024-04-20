@@ -443,7 +443,7 @@ void FCustomizableObjectEditorViewportClient::Draw(FViewport* InViewport, FCanva
 	// Defensive check to avoid unreal crashing inside render if the mesh is degenereated
 	for (TWeakObjectPtr<USkeletalMeshComponent> SkeletalMeshComponent : SkeletalMeshComponents)
 	{
-		if (SkeletalMeshComponent.IsValid() && UE_MUTABLE_GETSKINNEDASSET(SkeletalMeshComponent) && UE_MUTABLE_GETSKINNEDASSET(SkeletalMeshComponent)->GetLODInfoArray().Num() == 0)
+		if (SkeletalMeshComponent.IsValid() && UE_MUTABLE_GETSKINNEDASSET(SkeletalMeshComponent) && UE_MUTABLE_GETSKINNEDASSET(SkeletalMeshComponent)->GetLODNum() == 0)
 		{
 			SkeletalMeshComponent->SetSkeletalMesh(nullptr);
 		}

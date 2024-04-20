@@ -2624,6 +2624,7 @@ public:
 	/**
 	* Verify SkeletalMeshLOD is set up correctly	
 	*/
+	UE_DEPRECATED(5.5, "Use GetLODInfo()->ScreenSize to manually verify a LOD's screen size settings.")
 	ENGINE_API void DebugVerifySkeletalMeshLOD();
 
 	/**
@@ -2849,7 +2850,7 @@ public:
 	 *
 	 * @param NewLODInfo : new LOD info to be added
 	 */
-	ENGINE_API void AddLODInfo(const FSkeletalMeshLODInfo& NewLODInfo);
+	ENGINE_API int32 AddLODInfo(const FSkeletalMeshLODInfo& NewLODInfo);
 	
 	/* 
 	 * Remove LOD info of given index
@@ -2871,6 +2872,7 @@ public:
 	/*
 	 * Returns whole array of LODInfo non-const. USkinnedAsset interface.
 	 */
+	UE_DEPRECATED(5.5, "Use GetLODInfo and GetLODNum instead.")
 	virtual TArray<FSkeletalMeshLODInfo>& GetLODInfoArray() override
 	{ 
 		WaitUntilAsyncPropertyReleased(ESkeletalMeshAsyncProperties::LODInfo);
@@ -2882,6 +2884,7 @@ public:
 	/*
 	 * Returns whole array of LODInfo const. USkinnedAsset interface.
 	 */
+	UE_DEPRECATED(5.5, "Use GetLODInfo and GetLODNum instead.")
 	virtual const TArray<FSkeletalMeshLODInfo>& GetLODInfoArray() const override
 	{
 		WaitUntilAsyncPropertyReleased(ESkeletalMeshAsyncProperties::LODInfo, ESkinnedAssetAsyncPropertyLockType::ReadOnly);

@@ -314,7 +314,7 @@ void FSkeletalMeshSkinningData::RegisterUser(FSkeletalMeshSkinningDataUsage Usag
 
 	if (SkelMesh != nullptr)
 	{
-		NumLODInfo = SkelMesh->GetLODInfoArray().Num();
+		NumLODInfo = SkelMesh->GetLODNum();
 		LODIndex = Usage.GetLODIndex();
 		check(LODIndex != INDEX_NONE);
 		check(LODIndex < NumLODInfo);
@@ -2556,9 +2556,9 @@ void UNiagaraDataInterfaceSkeletalMesh::GetFeedback(UNiagaraSystem* Asset, UNiag
 	if (SkelMesh != nullptr)
 	{
 		bool bHasCPUAccess = true;
-		for (const FSkeletalMeshLODInfo& LODInfo : SkelMesh->GetLODInfoArray())
+		for (int32 LODIndex = 0, LODNum = SkelMesh->GetLODNum(); LODIndex < LODNum; ++LODIndex)
 		{
-			if (!LODInfo.bAllowCPUAccess)
+			if (!SkelMesh->GetLODInfo(LODIndex)->bAllowCPUAccess)
 			{
 				bHasCPUAccess = false;
 				break;
@@ -2628,9 +2628,10 @@ void UNiagaraDataInterfaceSkeletalMesh::GetFeedback(UNiagaraSystem* Asset, UNiag
 			FNiagaraDataInterfaceFix::CreateLambda([=]()
 				{
 					SkelMesh->Modify();
-					for (FSkeletalMeshLODInfo& LODInfo : SkelMesh->GetLODInfoArray())
+				
+					for (int32 LODIndex = 0, LODNum = SkelMesh->GetLODNum(); LODIndex < LODNum; ++LODIndex)
 					{
-						LODInfo.bAllowCPUAccess = true;
+						SkelMesh->GetLODInfo(LODIndex)->bAllowCPUAccess = true;
 					}
 					return true;
 				}));

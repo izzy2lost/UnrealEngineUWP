@@ -70,9 +70,9 @@ struct FStreamableRenderAssetData
 struct FExistingSkelMeshData
 {
 	TArray<USkeletalMeshSocket*>			ExistingSockets;
-	TArray<FInlineReductionCacheData>		ExistingInlineReductionCacheDatas;
+	TArray<FInlineReductionCacheData>		ExistingInlineReductionCacheData;
 	TIndirectArray<FSkeletalMeshLODModel>	ExistingLODModels;
-	TArray<FSkeletalMeshImportData>			ExistingLODImportDatas;
+	TArray<FMeshDescription>				ExistingLODMeshDescriptions;
 	TArray<FSkeletalMeshLODInfo>			ExistingLODInfo;
 	FReferenceSkeleton						ExistingRefSkeleton;
 	TArray<FSkeletalMaterial>				ExistingMaterials;
@@ -135,11 +135,9 @@ struct FExistingSkelMeshData
 class FSkelMeshOptionalImportData
 {
 public:
-	FSkelMeshOptionalImportData() {}
-
 	/** extra data used for importing extra weight/bone influences */
 	FSkeletalMeshImportData RawMeshInfluencesData;
-	int32 MaxBoneCountPerChunk;
+	int32 MaxBoneCountPerChunk = 0;
 };
 
 /**

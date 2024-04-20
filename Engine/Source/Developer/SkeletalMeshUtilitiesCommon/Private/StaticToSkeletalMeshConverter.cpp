@@ -217,7 +217,7 @@ static bool AddLODFromMeshDescription(
 
 	IMeshUtilities::MeshBuildOptions BuildOptions;
 	BuildOptions.TargetPlatform = GetTargetPlatformManagerRef().GetRunningTargetPlatform();
-	BuildOptions.FillOptions(InSkeletalMesh->GetLODInfoArray().Last().BuildSettings);
+	BuildOptions.FillOptions(InSkeletalMesh->GetLODInfo(InSkeletalMesh->GetLODNum() - 1)->BuildSettings);
 
 	TArray<FText> WarningMessages;
 	if (!InMeshUtilities.BuildSkeletalMesh(SkeletalMeshModel, InSkeletalMesh->GetPathName(), InSkeletalMesh->GetRefSkeleton(), LODInfluences, LODWedges, LODFaces, LODPoints, LODPointToRawMap, BuildOptions, &WarningMessages, nullptr))

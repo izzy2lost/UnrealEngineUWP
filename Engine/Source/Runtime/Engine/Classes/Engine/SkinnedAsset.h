@@ -106,8 +106,10 @@ public:
 	PURE_VIRTUAL(USkinnedAsset::GetRefBasesInvMatrix, static const TArray<FMatrix44f> Dummy; return Dummy;);
 
 	/** Return the whole array of LOD info. */
+	UE_DEPRECATED(5.5, "Use GetLODInfo and GetLODNum instead.")
 	ENGINE_API virtual TArray<FSkeletalMeshLODInfo>& GetLODInfoArray()
 	PURE_VIRTUAL(USkinnedAsset::GetLODInfoArray, return GetMeshLodInfoDummyArray(););
+	UE_DEPRECATED(5.5, "Use GetLODInfo and GetLODNum instead.")
 	ENGINE_API virtual const TArray<FSkeletalMeshLODInfo>& GetLODInfoArray() const
 	PURE_VIRTUAL(USkinnedAsset::GetLODInfoArray, return GetMeshLodInfoDummyArray(););
 

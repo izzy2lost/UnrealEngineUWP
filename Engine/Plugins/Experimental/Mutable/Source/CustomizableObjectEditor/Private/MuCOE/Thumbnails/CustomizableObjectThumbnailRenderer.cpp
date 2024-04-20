@@ -71,7 +71,7 @@ void UCustomizableObjectThumbnailRenderer::Draw(UObject* Object, int32 X, int32 
 				PreviewCustomizableSkeletalComponent->UpdateSkeletalMeshAsync();
 				USkeletalMesh* SkeletalMesh = PreviewCustomizableSkeletalComponent->GetSkeletalMesh();
 
-				if (SkeletalMesh && SkeletalMesh->GetLODInfoArray().Num())
+				if (SkeletalMesh && SkeletalMesh->GetLODNum())
 				{
 					ThumbnailScene->SetSkeletalMesh(SkeletalMesh);
 

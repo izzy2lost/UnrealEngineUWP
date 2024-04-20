@@ -351,29 +351,29 @@ TSharedPtr<FExistingSkelMeshData> SkeletalMeshImportUtils::SaveExistingSkelMeshD
 		ExistingMeshDataPtr->ExistingMaterials = SourceMaterials;
 	}
 
-	ExistingMeshDataPtr->ExistingInlineReductionCacheDatas = SourceMeshModel->InlineReductionCacheDatas;
+	ExistingMeshDataPtr->ExistingInlineReductionCacheData = SourceMeshModel->InlineReductionCacheDatas;
 
-	if (SourceMeshModel->LODModels.Num() > 0 &&
-		SourceSkeletalMesh->GetLODNum() == SourceMeshModel->LODModels.Num())
+	const int32 NumLODModels = SourceMeshModel->LODModels.Num();
+	if (NumLODModels > 0 && SourceSkeletalMesh->GetLODNum() == NumLODModels)
 	{
 		// Copy LOD models and LOD Infos.
-		check(SourceMeshModel->LODModels.Num() == SourceSkeletalMesh->GetLODInfoArray().Num());
-		ExistingMeshDataPtr->ExistingLODModels.Empty(SourceMeshModel->LODModels.Num());
-		ExistingMeshDataPtr->ExistingLODImportDatas.Reserve(SourceMeshModel->LODModels.Num());
-		for ( int32 LODIndex = 0; LODIndex < SourceMeshModel->LODModels.Num() ; ++LODIndex)
+		ExistingMeshDataPtr->ExistingLODModels.Empty(NumLODModels);
+		ExistingMeshDataPtr->ExistingLODMeshDescriptions.Reserve(NumLODModels);
+		ExistingMeshDataPtr->ExistingLODInfo.Empty(NumLODModels);
+		
+		for ( int32 LODIndex = 0; LODIndex < NumLODModels; ++LODIndex)
 		{
 			//Add a new LOD Model to the existing LODModels data
 			const FSkeletalMeshLODModel& LODModel = SourceMeshModel->LODModels[LODIndex];
 			ExistingMeshDataPtr->ExistingLODModels.Add(FSkeletalMeshLODModel::CreateCopy(&LODModel));
-			//Store the import data for every LODs
-			FSkeletalMeshImportData& LodMeshImportData = ExistingMeshDataPtr->ExistingLODImportDatas.AddDefaulted_GetRef();
-			PRAGMA_DISABLE_DEPRECATION_WARNINGS
-			SourceSkeletalMesh->LoadLODImportedData(LODIndex, LodMeshImportData);
-			PRAGMA_ENABLE_DEPRECATION_WARNINGS
+			
+			//Store the import data for every LOD
+			FMeshDescription& MeshDescription = ExistingMeshDataPtr->ExistingLODMeshDescriptions.AddDefaulted_GetRef();
+			SourceSkeletalMesh->CloneMeshDescription(LODIndex, MeshDescription);
+			
+			ExistingMeshDataPtr->ExistingLODInfo.Add(*SourceSkeletalMesh->GetLODInfo(LODIndex));	
 		}
-		check(ExistingMeshDataPtr->ExistingLODModels.Num() == SourceMeshModel->LODModels.Num());
-
-		ExistingMeshDataPtr->ExistingLODInfo = SourceSkeletalMesh->GetLODInfoArray();
+		
 		ExistingMeshDataPtr->ExistingRefSkeleton = SourceSkeletalMesh->GetRefSkeleton();
 	}
 
@@ -434,14 +434,14 @@ void SkeletalMesUtilsImpl::RestoreDependentLODs(const TSharedPtr<const FExisting
 
 	for (int32 LODIndex = 1; LODIndex < TotalLOD; ++LODIndex)
 	{
-		if (LODIndex >= SkeletalMesh->GetLODInfoArray().Num())
+		if (LODIndex >= SkeletalMesh->GetLODNum())
 		{
 			// Create a copy of LODInfo and reset material maps, it won't work anyway. 
 			FSkeletalMeshLODInfo ExistLODInfo = MeshData->ExistingLODInfo[LODIndex];
 			ExistLODInfo.LODMaterialMap.Empty();
 			// add LOD info back
 			SkeletalMesh->AddLODInfo(MoveTemp(ExistLODInfo));
-			check(LODIndex < SkeletalMesh->GetLODInfoArray().Num());
+			check(LODIndex < SkeletalMesh->GetLODNum());
 
 			const FSkeletalMeshLODModel& ExistLODModel = MeshData->ExistingLODModels[LODIndex];
 			SkeletalMeshImportedModel->LODModels.Add(FSkeletalMeshLODModel::CreateCopy(&ExistLODModel));
@@ -451,7 +451,7 @@ void SkeletalMesUtilsImpl::RestoreDependentLODs(const TSharedPtr<const FExisting
 
 void SkeletalMesUtilsImpl::RestoreLODInfo(const TSharedPtr<const FExistingSkelMeshData>& MeshData, USkeletalMesh* SkeletalMesh, int32 LodIndex)
 {
-	FSkeletalMeshLODInfo& ImportedLODInfo = SkeletalMesh->GetLODInfoArray()[LodIndex];
+	FSkeletalMeshLODInfo& ImportedLODInfo = *SkeletalMesh->GetLODInfo(LodIndex);
 	if (!MeshData->ExistingLODInfo.IsValidIndex(LodIndex))
 	{
 		return;
@@ -703,7 +703,7 @@ void SkeletalMeshImportUtils::RestoreExistingSkelMeshData(const TSharedPtr<const
 	}
 	SkeletalMesh->SetLODSettings(MeshData->ExistingLODSettings);
 	// ensure LOD 0 contains correct setting 
-	if (SkeletalMesh->GetLODSettings() && SkeletalMesh->GetLODInfoArray().Num() > 0)
+	if (SkeletalMesh->GetLODSettings() && SkeletalMesh->GetLODNum() > 0)
 	{
 		SkeletalMesh->GetLODSettings()->SetLODSettingsToMesh(SkeletalMesh, 0);
 	}
@@ -837,18 +837,16 @@ void SkeletalMeshImportUtils::RestoreExistingSkelMeshData(const TSharedPtr<const
 						//We need to add LODInfo
 						SkeletalMeshImportedModel->LODModels.Add(LODModelCopy);
 						SkeletalMesh->AddLODInfo(LODInfo);
+						
 						//Restore custom LOD import data
-						const FSkeletalMeshImportData& LodMeshImportData = MeshData->ExistingLODImportDatas[LODIndex];
-						//SaveLODImportdData cannot take a const structure because it use serialization(which cannot be const because same function read and write)
-						PRAGMA_DISABLE_DEPRECATION_WARNINGS
-						SkeletalMesh->SaveLODImportedData(LODIndex, LodMeshImportData);
-						PRAGMA_ENABLE_DEPRECATION_WARNINGS
+						FMeshDescription MeshDescription(MeshData->ExistingLODMeshDescriptions[LODIndex]);
+						SkeletalMesh->CreateMeshDescription(LODIndex, MoveTemp(MeshDescription));
 
 						auto FillInlineReductionData = [&MeshData, &SkeletalMeshImportedModel, LODIndex]()
 						{
-							if (MeshData->ExistingInlineReductionCacheDatas.IsValidIndex(LODIndex))
+							if (MeshData->ExistingInlineReductionCacheData.IsValidIndex(LODIndex))
 							{
-								SkeletalMeshImportedModel->InlineReductionCacheDatas[LODIndex] = MeshData->ExistingInlineReductionCacheDatas[LODIndex];
+								SkeletalMeshImportedModel->InlineReductionCacheDatas[LODIndex] = MeshData->ExistingInlineReductionCacheData[LODIndex];
 							}
 							else
 							{
@@ -932,7 +930,7 @@ void SkeletalMeshImportUtils::RestoreExistingSkelMeshData(const TSharedPtr<const
 	}
 
 	//Copy back the reimported LOD's specific data
-	if (SkeletalMesh->GetLODInfoArray().IsValidIndex(SafeReimportLODIndex))
+	if (SafeReimportLODIndex >= 0 && SafeReimportLODIndex < SkeletalMesh->GetLODNum())
 	{
 		RestoreLODInfo(MeshData, SkeletalMesh, SafeReimportLODIndex);
 	}
@@ -968,13 +966,13 @@ void SkeletalMesUtilsImpl::RestoreMaterialNameWorkflowSection(const TSharedPtr<c
 	FSkeletalMeshLODModel &SkeletalMeshLodModel = SkeletalMeshImportedModel->LODModels[LodIndex];
 
 	//Restore the base LOD materialMap the LODs LODMaterialMap are restore differently
-	if (LodIndex == 0 && SkeletalMesh->GetLODInfoArray().IsValidIndex(LodIndex))
+	if (LodIndex == 0 && SkeletalMesh->GetLODNum() > 0)
 	{
-		FSkeletalMeshLODInfo& BaseLODInfo = SkeletalMesh->GetLODInfoArray()[LodIndex];
+		FSkeletalMeshLODInfo* BaseLODInfo = SkeletalMesh->GetLODInfo(LodIndex);
 		if (bMaterialReset)
 		{
 			//If we reset the material array there is no point keeping the user changes
-			BaseLODInfo.LODMaterialMap.Empty();
+			BaseLODInfo->LODMaterialMap.Empty();
 		}
 		else if (SkeletalMeshImportedModel->LODModels.IsValidIndex(LodIndex))
 		{
@@ -985,11 +983,11 @@ void SkeletalMesUtilsImpl::RestoreMaterialNameWorkflowSection(const TSharedPtr<c
 				if (MeshData->ExistingLODInfo[LodIndex].LODMaterialMap.IsValidIndex(SectionIndex))
 				{
 					int32 ExistingLODMaterialIndex = MeshData->ExistingLODInfo[LodIndex].LODMaterialMap[SectionIndex];
-					while (BaseLODInfo.LODMaterialMap.Num() <= SectionIndex)
+					while (BaseLODInfo->LODMaterialMap.Num() <= SectionIndex)
 					{
-						BaseLODInfo.LODMaterialMap.Add(INDEX_NONE);
+						BaseLODInfo->LODMaterialMap.Add(INDEX_NONE);
 					}
-					BaseLODInfo.LODMaterialMap[SectionIndex] = ExistingLODMaterialIndex;
+					BaseLODInfo->LODMaterialMap[SectionIndex] = ExistingLODMaterialIndex;
 				}
 			}
 		}

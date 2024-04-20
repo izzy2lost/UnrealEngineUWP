@@ -673,7 +673,7 @@ UDynamicMesh* UGeometryScriptLibrary_StaticMeshFunctions::CopyMeshToSkeletalMesh
 	verify(ToSkeletalMeshAsset->Modify());
 
 	// Ensure we have enough LODInfos to cover up to the requested LOD.
-	for (int32 LODIndex = ToSkeletalMeshAsset->GetLODInfoArray().Num(); LODIndex <= TargetLOD.LODIndex; LODIndex++)
+	for (int32 LODIndex = ToSkeletalMeshAsset->GetLODNum(); LODIndex <= TargetLOD.LODIndex; LODIndex++)
 	{
 		FSkeletalMeshLODInfo& LODInfo = ToSkeletalMeshAsset->AddLODInfo();
 		

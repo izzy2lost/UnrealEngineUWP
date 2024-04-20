@@ -1640,7 +1640,6 @@ void PopulateReferenceSkeletalMeshesData(FMutableGraphGenerationContext& Generat
 		Data.LODData.AddDefaulted(GenerationContext.NumLODsInRoot);
 		
 		const uint32 RefSkeletalMeshLODCount = RefSkeletalMesh->GetLODNum();
-		const TArray<FSkeletalMeshLODInfo>& LODInfos = RefSkeletalMesh->GetLODInfoArray();
 
 		for(uint32 LODIndex = 0; LODIndex < LODCount; ++LODIndex)
 		{
@@ -1648,7 +1647,7 @@ void PopulateReferenceSkeletalMeshesData(FMutableGraphGenerationContext& Generat
 			if(LODIndex < RefSkeletalMeshLODCount)
 			{
 				// Copy LOD info data from the reference skeletal mesh
-				const FSkeletalMeshLODInfo& LODInfo = LODInfos[LODIndex];
+				const FSkeletalMeshLODInfo& LODInfo = *RefSkeletalMesh->GetLODInfo(LODIndex);
 				LODData.LODInfo.ScreenSize = LODInfo.ScreenSize.GetValueForPlatform(*PlatformName);
 				LODData.LODInfo.LODHysteresis = LODInfo.LODHysteresis;
 				LODData.LODInfo.bSupportUniformlyDistributedSampling = LODInfo.bSupportUniformlyDistributedSampling;

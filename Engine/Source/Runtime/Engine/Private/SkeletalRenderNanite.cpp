@@ -102,8 +102,8 @@ void FDynamicSkelMeshObjectDataNanite::UpdateBonesRemovedByLOD(
 	// So we do an FK update here of the frozen branch of transforms...
 
 	const USkinnedAsset* SkinnedAsset = InComponent->GetSkinnedAsset();
-	const TArray<FSkeletalMeshLODInfo>& LODInfoArray = SkinnedAsset->GetLODInfoArray();
-	if (LODInfoArray[LODIndex].BonesToRemove.IsEmpty())
+	const TArray<FBoneReference>& BonesToRemove = SkinnedAsset->GetLODInfo(LODIndex)->BonesToRemove;
+	if (BonesToRemove.IsEmpty())
 	{
 		return; // no bones removed in this LOD
 	}
@@ -130,7 +130,7 @@ void FDynamicSkelMeshObjectDataNanite::UpdateBonesRemovedByLOD(
 	const TArray<FMatrix44f>* RefBasesInvMatrix = &SkinnedAsset->GetRefBasesInvMatrix();
 	TArray<int32> AllChildrenBones;
 	const FReferenceSkeleton& RefSkeleton = SkinnedAsset->GetRefSkeleton();
-	for (const FBoneReference& RemovedBone : LODInfoArray[LODIndex].BonesToRemove)
+	for (const FBoneReference& RemovedBone : BonesToRemove)
 	{
 		AllChildrenBones.Reset();
 		// can't use FBoneReference::GetMeshPoseIndex() because rendering operates at lower-level (on USkinnedMeshComponent)

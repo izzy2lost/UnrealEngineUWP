@@ -1879,11 +1879,9 @@ void USkeletalMesh::Serialize( FArchive& Ar )
 
 	if (Ar.CustomVer(FFortniteMainBranchObjectVersion::GUID) < FFortniteMainBranchObjectVersion::ConvertReductionSettingOptions)
 	{
-		TArray<FSkeletalMeshLODInfo>& LODInfoArray = GetLODInfoArray();
-		const int32 TotalLODNum = LODInfoArray.Num();
-		for (int32 LodIndex = 1; LodIndex < TotalLODNum; LodIndex++)
+		for (int32 LodIndex = 1, LODCount = GetLODNum(); LodIndex < LODCount; LodIndex++)
 		{
-			FSkeletalMeshLODInfo& ThisLODInfo = LODInfoArray[LodIndex];
+			FSkeletalMeshLODInfo& ThisLODInfo = *GetLODInfo(LodIndex);
 			// prior to this version, both of them were used
 			ThisLODInfo.ReductionSettings.ReductionMethod = SMOT_TriangleOrDeviation;
 			if (ThisLODInfo.ReductionSettings.MaxDeviationPercentage == 0.f)
@@ -1897,11 +1895,9 @@ void USkeletalMesh::Serialize( FArchive& Ar )
 
 	if (Ar.IsLoading() && Ar.CustomVer(FEditorObjectVersion::GUID) < FEditorObjectVersion::SkeletalMeshBuildRefactor)
 	{
-		TArray<FSkeletalMeshLODInfo>& LODInfoArray = GetLODInfoArray();
-		const int32 TotalLODNum = LODInfoArray.Num();
-		for (int32 LodIndex = 0; LodIndex < TotalLODNum; LodIndex++)
+		for (int32 LodIndex = 0, LODCount = GetLODNum(); LodIndex < LODCount; LodIndex++)
 		{
-			FSkeletalMeshLODInfo& ThisLODInfo = LODInfoArray[LodIndex];
+			FSkeletalMeshLODInfo& ThisLODInfo = *GetLODInfo(LodIndex);
 			// Restore the deprecated settings
 			ThisLODInfo.BuildSettings.bUseFullPrecisionUVs = bUseFullPrecisionUVs_DEPRECATED;
 			ThisLODInfo.BuildSettings.bUseHighPrecisionTangentBasis = bUseHighPrecisionTangentBasis_DEPRECATED;
@@ -1918,11 +1914,9 @@ void USkeletalMesh::Serialize( FArchive& Ar )
 	//	set them to bUseBackwardsCompatibleF16TruncUVs
 	if (Ar.IsLoading() && Ar.CustomVer(FUE5MainStreamObjectVersion::GUID) < FUE5MainStreamObjectVersion::DirLightsAreAtmosphereLightsByDefault)
 	{
-		TArray<FSkeletalMeshLODInfo>& LODInfoArray = GetLODInfoArray();
-		const int32 TotalLODNum = LODInfoArray.Num();
-		for (int32 LodIndex = 0; LodIndex < TotalLODNum; LodIndex++)
+		for (int32 LodIndex = 0, LODCount = GetLODNum(); LodIndex < LODCount; LodIndex++)
 		{
-			FSkeletalMeshLODInfo& ThisLODInfo = LODInfoArray[LodIndex];
+			FSkeletalMeshLODInfo& ThisLODInfo = *GetLODInfo(LodIndex);
 
 			ThisLODInfo.BuildSettings.bUseBackwardsCompatibleF16TruncUVs = true;
 		}
@@ -2641,47 +2635,46 @@ void USkeletalMesh::CreateUserSectionsDataForLegacyAssets()
 {
 	//Fill up the Section ChunkedParentSectionIndex and OriginalDataSectionIndex
 	//We also want to create the UserSectionsData structure so the user can change the section data
-	for (int32 LodIndex = 0; LodIndex < GetLODInfoArray().Num(); LodIndex++)
+	for (int32 LodIndex = 0, LODCount = GetLODNum(); LodIndex < LODCount; LodIndex++)
 	{
+		FSkeletalMeshLODInfo& ThisLODInfo = *GetLODInfo(LodIndex);
 		FSkeletalMeshLODModel& ThisLODModel = GetImportedModel()->LODModels[LodIndex];
-		FSkeletalMeshLODInfo* ThisLODInfo = GetLODInfo(LodIndex);
-		check(ThisLODInfo);
 
 		//Reset the reduction setting to a non active state if the asset has active reduction but have no RawSkeletalMeshBulkData (we cannot reduce it)
 		const bool bIsLODReductionActive = IsReductionActive(LodIndex);
 
 
 		bool bMustUseReductionSourceData = bIsLODReductionActive
-			&& ThisLODInfo->bHasBeenSimplified
+			&& ThisLODInfo.bHasBeenSimplified
 			&& GetImportedModel()->OriginalReductionSourceMeshData_DEPRECATED.IsValidIndex(LodIndex)
 			&& !(GetImportedModel()->OriginalReductionSourceMeshData_DEPRECATED[LodIndex]->IsEmpty());
 
-		if (bIsLODReductionActive && !ThisLODInfo->bHasBeenSimplified && !HasMeshDescription(LodIndex))
+		if (bIsLODReductionActive && !ThisLODInfo.bHasBeenSimplified && !HasMeshDescription(LodIndex))
 		{
-			if (LodIndex > ThisLODInfo->ReductionSettings.BaseLOD)
+			if (LodIndex > ThisLODInfo.ReductionSettings.BaseLOD)
 			{
-				ThisLODInfo->bHasBeenSimplified = true;
+				ThisLODInfo.bHasBeenSimplified = true;
 			}
-			else if (LodIndex == ThisLODInfo->ReductionSettings.BaseLOD)
+			else if (LodIndex == ThisLODInfo.ReductionSettings.BaseLOD)
 			{
-				if (ThisLODInfo->ReductionSettings.TerminationCriterion == SkeletalMeshTerminationCriterion::SMTC_AbsNumOfTriangles
-					|| ThisLODInfo->ReductionSettings.TerminationCriterion == SkeletalMeshTerminationCriterion::SMTC_AbsNumOfVerts
-					|| ThisLODInfo->ReductionSettings.TerminationCriterion == SkeletalMeshTerminationCriterion::SMTC_AbsTriangleOrVert)
+				if (ThisLODInfo.ReductionSettings.TerminationCriterion == SMTC_AbsNumOfTriangles
+					|| ThisLODInfo.ReductionSettings.TerminationCriterion == SMTC_AbsNumOfVerts
+					|| ThisLODInfo.ReductionSettings.TerminationCriterion == SMTC_AbsTriangleOrVert)
 				{
 					//MaxNum.... cannot be inactive, switch to NumOfTriangle
-					ThisLODInfo->ReductionSettings.TerminationCriterion = SMTC_NumOfTriangles;
+					ThisLODInfo.ReductionSettings.TerminationCriterion = SMTC_NumOfTriangles;
 				}
 
 				//Now that we use triangle or vert num, set an inactive value
-				if (ThisLODInfo->ReductionSettings.TerminationCriterion == SkeletalMeshTerminationCriterion::SMTC_NumOfTriangles
-					|| ThisLODInfo->ReductionSettings.TerminationCriterion == SkeletalMeshTerminationCriterion::SMTC_TriangleOrVert)
+				if (ThisLODInfo.ReductionSettings.TerminationCriterion == SMTC_NumOfTriangles
+					|| ThisLODInfo.ReductionSettings.TerminationCriterion == SMTC_TriangleOrVert)
 				{
-					ThisLODInfo->ReductionSettings.NumOfTrianglesPercentage = 1.0f;
+					ThisLODInfo.ReductionSettings.NumOfTrianglesPercentage = 1.0f;
 				}
-				if (ThisLODInfo->ReductionSettings.TerminationCriterion == SkeletalMeshTerminationCriterion::SMTC_NumOfVerts
-					|| ThisLODInfo->ReductionSettings.TerminationCriterion == SkeletalMeshTerminationCriterion::SMTC_TriangleOrVert)
+				if (ThisLODInfo.ReductionSettings.TerminationCriterion == SMTC_NumOfVerts
+					|| ThisLODInfo.ReductionSettings.TerminationCriterion == SMTC_TriangleOrVert)
 				{
-					ThisLODInfo->ReductionSettings.NumOfVertPercentage = 1.0f;
+					ThisLODInfo.ReductionSettings.NumOfVertPercentage = 1.0f;
 				}
 			}
 			bMustUseReductionSourceData = false;
@@ -3123,24 +3116,18 @@ void USkeletalMesh::BeginPostLoadInternal(FSkinnedAssetPostLoadContext& Context)
 
 	if (!GetOutermost()->bIsCookedForEditor)
 	{
-		TArray<FSkeletalMeshLODInfo>& LODInfoArray = GetLODInfoArray();
-
 		// If LODInfo is missing - create array of correct size.
-		if (LODInfoArray.Num() != GetImportedModel()->LODModels.Num())
+		while (GetLODNum() < GetImportedModel()->LODModels.Num())
 		{
-			LODInfoArray.Empty(GetImportedModel()->LODModels.Num());
-			LODInfoArray.AddZeroed(GetImportedModel()->LODModels.Num());
-
-			for (int32 i = 0; i < LODInfoArray.Num(); i++)
-			{
-				LODInfoArray[i].LODHysteresis = 0.02f;
-			}
+			FSkeletalMeshLODInfo NewLODInfo;
+			NewLODInfo.LODHysteresis = 0.02f;
+			AddLODInfo(NewLODInfo);
 		}
-
-		int32 TotalLODNum = LODInfoArray.Num();
+			
+		const int32 TotalLODNum = GetLODNum();
 		for (int32 LodIndex = 0; LodIndex < TotalLODNum; LodIndex++)
 		{
-			FSkeletalMeshLODInfo& ThisLODInfo = LODInfoArray[LodIndex];
+			FSkeletalMeshLODInfo& ThisLODInfo = *GetLODInfo(LodIndex);
 
 			if (ThisLODInfo.ReductionSettings.BonesToRemove_DEPRECATED.Num() > 0)
 			{
@@ -3180,11 +3167,12 @@ void USkeletalMesh::BeginPostLoadInternal(FSkinnedAssetPostLoadContext& Context)
 					const FSkeletalMeshLODGroupSettings& GroupSetting = GetLODSettings()->GetSettingsForLODLevel(Index);
 					// if lod setting doesn't have bake pose, but this lod does, that means this bakepose has to move to BakePoseOverride
 					// since we want to match what GroupSetting has
-					if (GroupSetting.BakePose == nullptr && LODInfoArray[Index].BakePose)
+					FSkeletalMeshLODInfo& ThisLODInfo = *GetLODInfo(Index);
+					if (GroupSetting.BakePose == nullptr && ThisLODInfo.BakePose)
 					{
 						// in this case,
-						LODInfoArray[Index].BakePoseOverride = LODInfoArray[Index].BakePose;
-						LODInfoArray[Index].BakePose = nullptr;
+						ThisLODInfo.BakePoseOverride = ThisLODInfo.BakePose;
+						ThisLODInfo.BakePose = nullptr;
 					}
 				}
 			}
@@ -3200,10 +3188,9 @@ void USkeletalMesh::BeginPostLoadInternal(FSkinnedAssetPostLoadContext& Context)
 
 		if (GetLinkerUEVersion() < VER_UE4_SORT_ACTIVE_BONE_INDICES)
 		{
-			for (int32 LodIndex = 0; LodIndex < LODInfoArray.Num(); LodIndex++)
+			for (FSkeletalMeshLODModel& LODModel: GetImportedModel()->LODModels)
 			{
-				FSkeletalMeshLODModel& ThisLODModel = GetImportedModel()->LODModels[LodIndex];
-				ThisLODModel.ActiveBoneIndices.Sort();
+				LODModel.ActiveBoneIndices.Sort();
 			}
 		}
 
@@ -3211,10 +3198,9 @@ void USkeletalMesh::BeginPostLoadInternal(FSkinnedAssetPostLoadContext& Context)
 		// even if they're not skinned, missing matrix calculation will mess up skinned children
 		if (GetLinkerCustomVersion(FFortniteMainBranchObjectVersion::GUID) < FFortniteMainBranchObjectVersion::EnsureActiveBoneIndicesToContainParents)
 		{
-			for (int32 LodIndex = 0; LodIndex < LODInfoArray.Num(); LodIndex++)
+			for (FSkeletalMeshLODModel& LODModel: GetImportedModel()->LODModels)
 			{
-				FSkeletalMeshLODModel& ThisLODModel = GetImportedModel()->LODModels[LodIndex];
-				GetRefSkeleton().EnsureParentsExistAndSort(ThisLODModel.ActiveBoneIndices);
+				GetRefSkeleton().EnsureParentsExistAndSort(LODModel.ActiveBoneIndices);
 			}
 		}
 
@@ -3651,37 +3637,31 @@ void USkeletalMesh::RebuildRefSkeletonNameToIndexMap()
 	GetRefSkeleton().RemoveDuplicateBones(this, DuplicateBones);
 
 	// If we have removed any duplicate bones, we need to fix up any broken LODs as well.
-	// Duplicate bones are given from highest index to lowest.
+	// Duplicate bones are given from the highest index to lowest.
 	// so it's safe to decrease indices for children, we're not going to lose the index of the remaining duplicate bones.
 	for (int32 Index = 0; Index < DuplicateBones.Num(); Index++)
 	{
 		const FBoneIndexType& DuplicateBoneIndex = DuplicateBones[Index];
-		for (int32 LodIndex = 0; LodIndex < GetLODInfoArray().Num(); LodIndex++)
+		for (FSkeletalMeshLODModel& LODModel: GetImportedModel()->LODModels)
 		{
-			FSkeletalMeshLODModel& ThisLODModel = GetImportedModel()->LODModels[LodIndex];
+			int32 FoundIndex;
+			if (LODModel.RequiredBones.Find(DuplicateBoneIndex, FoundIndex))
 			{
-				int32 FoundIndex;
-				if (ThisLODModel.RequiredBones.Find(DuplicateBoneIndex, FoundIndex))
+				LODModel.RequiredBones.RemoveAt(FoundIndex, 1);
+				// we need to shift indices of the remaining bones.
+				for (int32 BoneIndex = FoundIndex; BoneIndex < LODModel.RequiredBones.Num(); BoneIndex++)
 				{
-					ThisLODModel.RequiredBones.RemoveAt(FoundIndex, 1);
-					// we need to shift indices of the remaining bones.
-					for (int32 j = FoundIndex; j < ThisLODModel.RequiredBones.Num(); j++)
-					{
-						ThisLODModel.RequiredBones[j] = ThisLODModel.RequiredBones[j] - 1;
-					}
+					LODModel.RequiredBones[BoneIndex] = LODModel.RequiredBones[BoneIndex] - 1;
 				}
 			}
-
+			
+			if (LODModel.ActiveBoneIndices.Find(DuplicateBoneIndex, FoundIndex))
 			{
-				int32 FoundIndex;
-				if (ThisLODModel.ActiveBoneIndices.Find(DuplicateBoneIndex, FoundIndex))
+				LODModel.ActiveBoneIndices.RemoveAt(FoundIndex, 1);
+				// we need to shift indices of the remaining bones.
+				for (int32 BoneIndex = FoundIndex; BoneIndex < LODModel.ActiveBoneIndices.Num(); BoneIndex++)
 				{
-					ThisLODModel.ActiveBoneIndices.RemoveAt(FoundIndex, 1);
-					// we need to shift indices of the remaining bones.
-					for (int32 j = FoundIndex; j < ThisLODModel.ActiveBoneIndices.Num(); j++)
-					{
-						ThisLODModel.ActiveBoneIndices[j] = ThisLODModel.ActiveBoneIndices[j] - 1;
-					}
+					LODModel.ActiveBoneIndices[BoneIndex] = LODModel.ActiveBoneIndices[BoneIndex] - 1;
 				}
 			}
 		}
@@ -3749,7 +3729,7 @@ void USkeletalMesh::GetAssetRegistryTags(FAssetRegistryTagsContext Context) cons
 	Context.AddTag(FAssetRegistryTag("PhysicsSize", FString::Printf(TEXT("%llu"), PhysicsSize), FAssetRegistryTag::TT_Numerical, FAssetRegistryTag::TD_Memory));
 #endif
 	
-	int32 NumLODs = GetLODInfoArray().Num();
+	const int32 NumLODs = GetLODNum();
 
 	int32 NumNaniteTriangles = GetNumNaniteTriangles();
 	int32 NumNaniteVertices = GetNumNaniteVertices();
@@ -3882,16 +3862,17 @@ void USkeletalMesh::GetAssetRegistryTagMetadata(TMap<FName, FAssetRegistryTagMet
 
 void USkeletalMesh::DebugVerifySkeletalMeshLOD()
 {
-	TArray<FSkeletalMeshLODInfo>& LODInfoArray = GetLODInfoArray();
 	// if LOD do not have displayfactor set up correctly
-	if (LODInfoArray.Num() > 1)
+	const int32 NumLODs = GetLODNum();
+	if (NumLODs > 1)
 	{
-		for(int32 i=1; i< LODInfoArray.Num(); i++)
+		for(int32 LODIndex = 1; LODIndex < NumLODs; LODIndex++)
 		{
-			if (LODInfoArray[i].ScreenSize.Default <= 0.1f)
+			const float DefaultScreenSize = GetLODInfo(LODIndex)->ScreenSize.Default;
+			if (DefaultScreenSize <= 0.1f)
 			{
 				// too small
-				UE_LOG(LogSkeletalMesh, Warning, TEXT("SkelMeshLOD (%s) : ScreenSize for LOD %d may be too small (%0.5f)"), *GetPathName(), i, LODInfoArray[i].ScreenSize.Default);
+				UE_LOG(LogSkeletalMesh, Warning, TEXT("SkelMeshLOD (%s) : ScreenSize for LOD %d may be too small (%0.5f)"), *GetPathName(), LODIndex, DefaultScreenSize);
 			}
 		}
 	}
@@ -4497,13 +4478,13 @@ const TArray<USkeletalMeshSocket*>& USkeletalMesh::GetMeshOnlySocketList() const
 void USkeletalMesh::MoveDeprecatedShadowFlagToMaterials()
 {
 	// First, the easy case where there's no LOD info (in which case, default to true!)
-	if ( GetLODInfoArray().Num() == 0 )
+	const int32 NumLODs = GetLODNum();
+	if (NumLODs == 0)
 	{
-		for ( auto Material = GetMaterials().CreateIterator(); Material; ++Material )
+		for (FSkeletalMaterial& Material: GetMaterials())
 		{
-			Material->bEnableShadowCasting_DEPRECATED = true;
+			Material.bEnableShadowCasting_DEPRECATED = true;
 		}
-
 		return;
 	}
 	
@@ -4511,14 +4492,15 @@ void USkeletalMesh::MoveDeprecatedShadowFlagToMaterials()
 	bool bDifferenceFound = false;
 
 	// Second, detect whether the shadow casting flag is the same for all sections of all lods
-	for ( auto LOD = GetLODInfoArray().CreateConstIterator(); LOD; ++LOD )
+	for (int32 LODIndex = 0; LODIndex < NumLODs; ++LODIndex)
 	{
-		if ( LOD->bEnableShadowCasting_DEPRECATED.Num() )
+		const FSkeletalMeshLODInfo& MeshLODInfo = *GetLODInfo(LODIndex);
+		if ( MeshLODInfo.bEnableShadowCasting_DEPRECATED.Num() )
 		{
-			PerLodShadowFlags.Add( LOD->bEnableShadowCasting_DEPRECATED[0] );
+			PerLodShadowFlags.Add( MeshLODInfo.bEnableShadowCasting_DEPRECATED[0] );
 		}
 
-		if ( !AreAllFlagsIdentical( LOD->bEnableShadowCasting_DEPRECATED ) )
+		if ( !AreAllFlagsIdentical( MeshLODInfo.bEnableShadowCasting_DEPRECATED ) )
 		{
 			// We found a difference in the sections of this LOD!
 			bDifferenceFound = true;
@@ -4535,28 +4517,28 @@ void USkeletalMesh::MoveDeprecatedShadowFlagToMaterials()
 	if ( !bDifferenceFound )
 	{
 		// All the same, so just copy the shadow casting flag to all materials
-		for ( auto Material = GetMaterials().CreateIterator(); Material; ++Material )
+		for (FSkeletalMaterial& Material: GetMaterials())
 		{
-			Material->bEnableShadowCasting_DEPRECATED = PerLodShadowFlags.Num() ? PerLodShadowFlags[0] : true;
+			Material.bEnableShadowCasting_DEPRECATED = PerLodShadowFlags.Num() ? PerLodShadowFlags[0] : true;
 		}
 	}
 	else
 	{
 		FSkeletalMeshModel* Resource = GetImportedModel();
-		check( Resource->LODModels.Num() == GetLODInfoArray().Num() );
+		check( Resource->LODModels.Num() == NumLODs );
 
 		TArray<FSkeletalMaterial> NewMaterialArray;
 		TArray<FSkeletalMaterial>& CurrentMaterials = GetMaterials();
 
-		TArray<FSkeletalMeshLODInfo>& LODInfoArray = GetLODInfoArray();
 		// There was a difference, so we need to build a new material list which has all the combinations of UMaterialInterface and shadow casting flag required
 		for ( int32 LODIndex = 0; LODIndex < Resource->LODModels.Num(); ++LODIndex )
 		{
-			check( Resource->LODModels[LODIndex].Sections.Num() == LODInfoArray[LODIndex].bEnableShadowCasting_DEPRECATED.Num() );
+			const TArray<bool>& EnableShadowCasting = GetLODInfo(LODIndex)->bEnableShadowCasting_DEPRECATED;
+			check(Resource->LODModels[LODIndex].Sections.Num() == EnableShadowCasting.Num());
 
-			for ( int32 i = 0; i < Resource->LODModels[LODIndex].Sections.Num(); ++i )
+			for ( int32 SectionIndex = 0; SectionIndex < Resource->LODModels[LODIndex].Sections.Num(); ++SectionIndex )
 			{
-				NewMaterialArray.Add( FSkeletalMaterial(CurrentMaterials[ Resource->LODModels[LODIndex].Sections[i].MaterialIndex ].MaterialInterface, LODInfoArray[LODIndex].bEnableShadowCasting_DEPRECATED[i], false, NAME_None, NAME_None ) );
+				NewMaterialArray.Add( FSkeletalMaterial(CurrentMaterials[ Resource->LODModels[LODIndex].Sections[SectionIndex].MaterialIndex ].MaterialInterface, EnableShadowCasting[SectionIndex], false, NAME_None, NAME_None ) );
 			}
 		}
 
@@ -4567,11 +4549,11 @@ void USkeletalMesh::MoveDeprecatedShadowFlagToMaterials()
 		// Remap the existing LODModels to point at the correct new material index
 		for ( int32 LODIndex = 0; LODIndex < Resource->LODModels.Num(); ++LODIndex )
 		{
-			check( Resource->LODModels[LODIndex].Sections.Num() == LODInfoArray[LODIndex].bEnableShadowCasting_DEPRECATED.Num() );
+			check( Resource->LODModels[LODIndex].Sections.Num() == GetLODInfo(LODIndex)->bEnableShadowCasting_DEPRECATED.Num() );
 
-			for ( int32 i = 0; i < Resource->LODModels[LODIndex].Sections.Num(); ++i )
+			for ( int32 SectionIndex = 0; SectionIndex < Resource->LODModels[LODIndex].Sections.Num(); ++SectionIndex )
 			{
-				Resource->LODModels[LODIndex].Sections[i].MaterialIndex = NewIndex;
+				Resource->LODModels[LODIndex].Sections[SectionIndex].MaterialIndex = NewIndex;
 				++NewIndex;
 			}
 		}
@@ -4581,7 +4563,7 @@ void USkeletalMesh::MoveDeprecatedShadowFlagToMaterials()
 void USkeletalMesh::MoveMaterialFlagsToSections()
 {
 	//No LOD we cant set the value
-	if (GetLODInfoArray().Num() == 0)
+	if (GetLODNum() == 0)
 	{
 		return;
 	}
@@ -4814,12 +4796,6 @@ void USkeletalMesh::ValidateBoneWeights(const ITargetPlatform* TargetPlatform)
 		{
 			return;
 		}
-		FSkeletalMeshRenderData* SkelMeshRenderData = GetResourceForRendering();
-
-		int32 NumLODs = GetLODInfoArray().Num();
-		int32 MinFirstLOD = GetMinLodIdx();
-		int32 MaxNumLODs = FMath::Clamp<int32>(NumLODs - MinFirstLOD, SkelMeshRenderData->NumInlinedLODs, NumLODs);
-
 		for (int32 LODIndex = 0; LODIndex < GetLODNum(); ++LODIndex)
 		{
 			if (!GetImportedModel()->LODModels.IsValidIndex(LODIndex))
@@ -4869,11 +4845,9 @@ void USkeletalMesh::ClearAllCachedCookedPlatformData()
 //Note: this serializer is only used to build the mesh DDC key, no versioning is required
 static void SerializeLODInfoForDDC(USkeletalMesh* SkeletalMesh, FString& KeySuffix)
 {
-	TArray<FSkeletalMeshLODInfo>& LODInfos = SkeletalMesh->GetLODInfoArray();
 	for (int32 LODIndex = 0; LODIndex < SkeletalMesh->GetLODNum(); ++LODIndex)
 	{
-		check(LODInfos.IsValidIndex(LODIndex));
-		FSkeletalMeshLODInfo& LODInfo = LODInfos[LODIndex];
+		FSkeletalMeshLODInfo& LODInfo = *SkeletalMesh->GetLODInfo(LODIndex);
 		bool bValidLODSettings = false;
 		if (SkeletalMesh->GetLODSettings() != nullptr)
 		{
@@ -5290,21 +5264,19 @@ bool USkeletalMesh::IsSectionUsingCloth(int32 InSectionIndex, bool bCheckCorresp
 #if WITH_EDITOR
 void USkeletalMesh::AddBoneToReductionSetting(int32 LODIndex, const TArray<FName>& BoneNames)
 {
-	TArray<FSkeletalMeshLODInfo>& LODInfoArray = GetLODInfoArray();
-	if (LODInfoArray.IsValidIndex(LODIndex))
+	if (FSkeletalMeshLODInfo* MeshLODInfo = GetLODInfo(LODIndex))
 	{
-		for (auto& BoneName : BoneNames)
+		for (const FName& BoneName : BoneNames)
 		{
-			LODInfoArray[LODIndex].BonesToRemove.AddUnique(BoneName);
+			MeshLODInfo->BonesToRemove.AddUnique(BoneName);
 		}
 	}
 }
 void USkeletalMesh::AddBoneToReductionSetting(int32 LODIndex, FName BoneName)
 {
-	TArray<FSkeletalMeshLODInfo>& LODInfoArray = GetLODInfoArray();
-	if (LODInfoArray.IsValidIndex(LODIndex))
+	if (FSkeletalMeshLODInfo* MeshLODInfo = GetLODInfo(LODIndex))
 	{
-		LODInfoArray[LODIndex].BonesToRemove.AddUnique(BoneName);
+		MeshLODInfo->BonesToRemove.AddUnique(BoneName);
 	}
 }
 #endif // WITH_EDITOR
@@ -5312,11 +5284,10 @@ void USkeletalMesh::AddBoneToReductionSetting(int32 LODIndex, FName BoneName)
 #if WITH_EDITORONLY_DATA
 void USkeletalMesh::ConvertLegacyLODScreenSize()
 {
-	TArray<FSkeletalMeshLODInfo>& LODInfoArray = GetLODInfoArray();
-	if (LODInfoArray.Num() == 1)
+	if (GetLODNum() == 1)
 	{
 		// Only one LOD
-		LODInfoArray[0].ScreenSize = 1.0f;
+		GetLODInfo(0)->ScreenSize = 1.0f;
 	}
 	else
 	{
@@ -5329,9 +5300,9 @@ void USkeletalMesh::ConvertLegacyLODScreenSize()
 		FBoxSphereBounds Bounds = GetBounds();
 
 		// Multiple models, we should have LOD screen area data.
-		for (int32 LODIndex = 0; LODIndex < LODInfoArray.Num(); ++LODIndex)
+		for (int32 LODIndex = 0; LODIndex < GetLODNum(); ++LODIndex)
 		{
-			FSkeletalMeshLODInfo& LODInfoEntry = LODInfoArray[LODIndex];
+			FSkeletalMeshLODInfo& LODInfoEntry = *GetLODInfo(LODIndex);
 
 			if (GetRequiresLODScreenSizeConversion())
 			{
@@ -5496,7 +5467,7 @@ bool USkeletalMesh::IsMaterialUsed(int32 MaterialIndex) const
 
 			if (LODData.BuffersSize > 0)
 			{
-				const TArray<int32>& RemappedMaterialIndices = GetLODInfoArray()[LODIndex].LODMaterialMap;
+				const TArray<int32>& RemappedMaterialIndices = GetLODInfo(LODIndex)->LODMaterialMap;
 
 				for (int32 SectionIndex = 0; SectionIndex < LODData.RenderSections.Num(); ++SectionIndex)
 				{
@@ -5542,36 +5513,35 @@ void USkeletalMesh::ReleaseSkinWeightProfileResources()
 
 FSkeletalMeshLODInfo& USkeletalMesh::AddLODInfo()
 {
-	TArray<FSkeletalMeshLODInfo>& LODInfoArray = GetLODInfoArray();
-	int32 NewIndex = LODInfoArray.AddDefaulted(1);
-
-	check(NewIndex != INDEX_NONE);
+	const int32 NewIndex = AddLODInfo({});
 
 	const USkeletalMeshLODSettings* DefaultSetting = GetDefaultLODSetting();
 	// if failed to get setting, that means, we don't have proper setting 
 	// in that case, use last index setting
+	FSkeletalMeshLODInfo& NewLODInfo = *GetLODInfo(NewIndex);
 	if (!DefaultSetting->SetLODSettingsToMesh(this, NewIndex))
 	{
-		FSkeletalMeshLODInfo& NewLODInfo = LODInfoArray[NewIndex];
 		if (NewIndex > 0)
 		{
 			// copy previous copy
 			const int32 LastIndex = NewIndex - 1;
-			NewLODInfo.ScreenSize.Default = LODInfoArray[LastIndex].ScreenSize.Default * 0.5f;
-			NewLODInfo.LODHysteresis = LODInfoArray[LastIndex].LODHysteresis;
-			NewLODInfo.BakePose = LODInfoArray[LastIndex].BakePose;
-			NewLODInfo.BakePoseOverride = LODInfoArray[LastIndex].BakePoseOverride;
-			NewLODInfo.BonesToRemove = LODInfoArray[LastIndex].BonesToRemove;
-			NewLODInfo.BonesToPrioritize = LODInfoArray[LastIndex].BonesToPrioritize;
-			NewLODInfo.SectionsToPrioritize = LODInfoArray[LastIndex].SectionsToPrioritize;
+			const FSkeletalMeshLODInfo& LastLODInfo = *GetLODInfo(LastIndex);
+			NewLODInfo.ScreenSize.Default = LastLODInfo.ScreenSize.Default * 0.5f;
+			NewLODInfo.LODHysteresis = LastLODInfo.LODHysteresis;
+			NewLODInfo.BakePose = LastLODInfo.BakePose;
+			NewLODInfo.BakePoseOverride = LastLODInfo.BakePoseOverride;
+			NewLODInfo.BonesToRemove = LastLODInfo.BonesToRemove;
+			NewLODInfo.BonesToPrioritize = LastLODInfo.BonesToPrioritize;
+			NewLODInfo.SectionsToPrioritize = LastLODInfo.SectionsToPrioritize;
 			// now find reduction setting
 			for (int32 SubLOD = LastIndex; SubLOD >= 0; --SubLOD)
 			{
-				if (LODInfoArray[SubLOD].bHasBeenSimplified)
+				const FSkeletalMeshLODInfo& SubLODInfo = *GetLODInfo(SubLOD);
+				if (SubLODInfo.bHasBeenSimplified)
 				{
 					// copy from previous index of LOD info reduction setting
 					// this may not match with previous copy - as we're only looking for simplified version
-					NewLODInfo.ReductionSettings = LODInfoArray[SubLOD].ReductionSettings;
+					NewLODInfo.ReductionSettings = SubLODInfo.ReductionSettings;
 					// and make it 50 % of that
 					NewLODInfo.ReductionSettings.NumOfTrianglesPercentage = FMath::Clamp(NewLODInfo.ReductionSettings.NumOfTrianglesPercentage * 0.5f, 0.f, 1.f);
 					// increase maxdeviation, 1.5 is random number
@@ -5584,48 +5554,52 @@ FSkeletalMeshLODInfo& USkeletalMesh::AddLODInfo()
 		// if this is the first LOD, then just use default setting of the struct
 	}
 
-#if WITH_EDITOR
-	// Add source models to match
-	SetNumSourceModels(LODInfoArray.Num());
-#endif
-
-	return LODInfoArray[NewIndex];
+	return NewLODInfo;
 }
 
-void USkeletalMesh::AddLODInfo(const FSkeletalMeshLODInfo& NewLODInfo) 
+int32 USkeletalMesh::AddLODInfo(const FSkeletalMeshLODInfo& NewLODInfo) 
 {
 	WaitUntilAsyncPropertyReleased(ESkeletalMeshAsyncProperties::LODInfo|ESkeletalMeshAsyncProperties::SourceModels);
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	LODInfo.Add(NewLODInfo);
+	int32 NewIndex = LODInfo.Add(NewLODInfo);
 #if WITH_EDITOR
 	SetNumSourceModelsInternal(LODInfo.Num());
 #endif
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	
+	return NewIndex;
 }
 
 void USkeletalMesh::RemoveLODInfo(int32 Index)
 {
-	TArray<FSkeletalMeshLODInfo>& LODInfoArray = GetLODInfoArray();
-	if (LODInfoArray.IsValidIndex(Index))
+	WaitUntilAsyncPropertyReleased(ESkeletalMeshAsyncProperties::LODInfo|ESkeletalMeshAsyncProperties::SourceModels|ESkeletalMeshAsyncProperties::ImportedModel);
+	
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	if (LODInfo.IsValidIndex(Index))
 	{
 #if WITH_EDITOR
-		RemoveSourceModel(Index);
+		RemoveSourceModelInternal(Index);
 		
-		if (GetImportedModel()->InlineReductionCacheDatas.IsValidIndex(Index))
+		if (ImportedModel->InlineReductionCacheDatas.IsValidIndex(Index))
 		{
-			GetImportedModel()->InlineReductionCacheDatas.RemoveAt(Index);
+			ImportedModel->InlineReductionCacheDatas.RemoveAt(Index);
 		}
 #endif // WITH_EDITOR
-		LODInfoArray.RemoveAt(Index);
+		LODInfo.RemoveAt(Index);
 	}
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
 
 void USkeletalMesh::ResetLODInfo()
 {
-	GetLODInfoArray().Reset();
+	WaitUntilAsyncPropertyReleased(ESkeletalMeshAsyncProperties::LODInfo|ESkeletalMeshAsyncProperties::SourceModels);
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	
+	LODInfo.Reset();
 #if WITH_EDITOR
-	SetNumSourceModels(0);
+	SetNumSourceModelsInternal(0);
 #endif
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
 
 #if WITH_EDITOR

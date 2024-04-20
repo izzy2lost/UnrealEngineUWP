@@ -4450,12 +4450,11 @@ void FLODUtilities::RemoveUnusedMaterialSlot(USkeletalMesh* SkeletalMesh)
 		return;
 	}
 	FSkeletalMeshModel* ImportedResource = SkeletalMesh->GetImportedModel();
-	const TArray<FSkeletalMeshLODInfo>& LODInfoArray = SkeletalMesh->GetLODInfoArray();
 
 	TArray<int32> UsedIndexes;
-	for (int32 LodIndex = 0; LodIndex < LODInfoArray.Num(); ++LodIndex)
+	for (int32 LodIndex = 0, LODNum = SkeletalMesh->GetLODNum(); LodIndex < LODNum; ++LodIndex)
 	{
-		const TArray<int32>& LODMaterialMap = LODInfoArray[LodIndex].LODMaterialMap;
+		const TArray<int32>& LODMaterialMap = SkeletalMesh->GetLODInfo(LodIndex)->LODMaterialMap;
 		if (!LODMaterialMap.IsEmpty())
 		{
 			for (int32 MaterialIndex : LODMaterialMap)

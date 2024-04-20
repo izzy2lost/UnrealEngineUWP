@@ -2414,7 +2414,7 @@ FMeshDeformerSet USkinnedMeshComponent::GetActiveMeshDeformers() const
 	Result.Deformers.Empty(1);
 	Result.Deformers.Add(ActiveDeformer);
 
-	const TArray<FSkeletalMeshLODInfo>& MeshLODInfoArray = GetSkinnedAsset()->GetLODInfoArray();
+	const int32 NumLODs = GetSkinnedAsset()->GetLODNum();
 	const int32 MaxLOD = GetMeshDeformerMaxLOD();
 
 	// Every entry of this array will be written by the loop below
@@ -2428,7 +2428,7 @@ FMeshDeformerSet USkinnedMeshComponent::GetActiveMeshDeformers() const
 
 		const bool bAllowedByMaxLOD = Index <= MaxLOD;
 		// There should be a LODInfo entry for this LOD, but if not, default to allowing the deformer
-		const bool bAllowedByLODInfo = !MeshLODInfoArray.IsValidIndex(Index) || MeshLODInfoArray[Index].bAllowMeshDeformer;
+		const bool bAllowedByLODInfo = Index >= NumLODs || GetSkinnedAsset()->GetLODInfo(Index)->bAllowMeshDeformer;
 
 		const bool bDeformerEnabledForThisLOD = bRequiredForUBI || (bIsDeformerRequestedByUser && bAllowedByMaxLOD && bAllowedByLODInfo);
 		Result.DeformerIndexForLOD[Index] = bDeformerEnabledForThisLOD ? 0 : INDEX_NONE;

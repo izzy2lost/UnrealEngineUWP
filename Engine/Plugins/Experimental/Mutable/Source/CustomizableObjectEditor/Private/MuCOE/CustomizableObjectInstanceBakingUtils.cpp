@@ -816,7 +816,10 @@ bool BakeCustomizableObjectInstance(
 		USkeletalMesh* SkeletalMesh = Cast<USkeletalMesh>(DupObject);
 		if (SkeletalMesh)
 		{
-			SkeletalMesh->GetLODInfoArray() = Mesh->GetLODInfoArray();
+			for (int32 LODIndex = 0; LODIndex < Mesh->GetLODNum(); ++LODIndex)
+			{
+				SkeletalMesh->AddLODInfo(*Mesh->GetLODInfo(LODIndex));
+			}
 
 			SkeletalMesh->GetImportedModel()->SkeletalMeshModelGUID = FGuid::NewGuid();
 

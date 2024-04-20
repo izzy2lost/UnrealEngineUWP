@@ -79,7 +79,6 @@ FSkeletalMeshObject::FSkeletalMeshObject(USkinnedMeshComponent* InMeshComponent,
 ,	SelectedEditorMaterial(InMeshComponent->GetSelectedEditorMaterial())
 #endif	
 ,	SkeletalMeshRenderData(InSkelMeshRenderData)
-,	SkeletalMeshLODInfo(InMeshComponent->GetSkinnedAsset()->GetLODInfoArray())
 ,	SkinCacheEntry(nullptr)
 ,	SkinCacheEntryForRayTracing(nullptr)
 ,	LastFrameNumber(0)
@@ -133,11 +132,10 @@ void FSkeletalMeshObject::UpdateMinDesiredLODLevel(const FSceneView* View, const
 	const float ScreenRadiusSquared = ComputeBoundsScreenRadiusSquared(Bounds.Origin, Bounds.SphereRadius, *View) * LODScale * LODScale;
 	const uint32 FrameNumber = View->Family->FrameNumber;
 
-	checkf(SkeletalMeshLODInfo.Num() == SkeletalMeshRenderData->LODRenderData.Num(), TEXT("Mismatched LOD arrays. SkeletalMeshLODInfo.Num() = %d, SkeletalMeshRenderData->LODRenderData.Num() = %d"), SkeletalMeshLODInfo.Num(), SkeletalMeshRenderData->LODRenderData.Num());
+	checkf(LODInfo.Num() == SkeletalMeshRenderData->LODRenderData.Num(), TEXT("Mismatched LOD arrays. LODInfo.Num() = %d, SkeletalMeshRenderData->LODRenderData.Num() = %d"), LODInfo.Num(), SkeletalMeshRenderData->LODRenderData.Num());
 
 	// Need the current LOD
 	const int32 CurrentLODLevel = GetLOD();
-	const float HysteresisOffset = 0.f;
 
 	int32 NewLODLevel = 0;
 
@@ -148,12 +146,12 @@ void FSkeletalMeshObject::UpdateMinDesiredLODLevel(const FSceneView* View, const
 		for (int32 LODLevel = SkeletalMeshRenderData->LODRenderData.Num() - 1; LODLevel > 0; LODLevel--)
 		{
 			// Get ScreenSize for this LOD
-			float ScreenSize = SkeletalMeshLODInfo[LODLevel].ScreenSize.GetValue();
+			float ScreenSize = LODInfo[LODLevel].ScreenSize.GetValue();
 
 			// If we are considering shifting to a better (lower) LOD, bias with hysteresis.
 			if (LODLevel  <= CurrentLODLevel)
 			{
-				ScreenSize += SkeletalMeshLODInfo[LODLevel].LODHysteresis;
+				ScreenSize += LODInfo[LODLevel].LODHysteresis;
 			}
 
 			// If have passed this boundary, use this LOD
@@ -253,24 +251,32 @@ bool FSkeletalMeshObject::IsMaterialHidden(int32 InLODIndex,int32 MaterialIdx) c
  */
 void FSkeletalMeshObject::InitLODInfos(const USkinnedMeshComponent* SkelComponent)
 {
-	LODInfo.Empty(SkeletalMeshLODInfo.Num());
-	for (int32 Idx=0; Idx < SkeletalMeshLODInfo.Num(); Idx++)
+	const USkinnedAsset* SkinnedAsset = SkelComponent->GetSkinnedAsset();
+	const int32 LODCount = SkinnedAsset->GetLODNum();
+	
+	LODInfo.Reset(LODCount);
+	for (int32 Idx=0; Idx < LODCount; Idx++)
 	{
-		FSkelMeshObjectLODInfo& MeshLODInfo = *new(LODInfo) FSkelMeshObjectLODInfo();
+		const FSkeletalMeshLODInfo& MeshLODInfo = *SkinnedAsset->GetLODInfo(Idx);
+		FSkelMeshObjectLODInfo& MeshObjectLODInfo = LODInfo.AddDefaulted_GetRef();
+
+		MeshObjectLODInfo.ScreenSize = MeshLODInfo.ScreenSize;
+		MeshObjectLODInfo.LODHysteresis = MeshLODInfo.LODHysteresis;
+		
 		if (SkelComponent->LODInfo.IsValidIndex(Idx))
 		{
 			const FSkelMeshComponentLODInfo &Info = SkelComponent->LODInfo[Idx];
 
-			MeshLODInfo.HiddenMaterials = Info.HiddenMaterials;
-		}		
+			MeshObjectLODInfo.HiddenMaterials = Info.HiddenMaterials;
+		}
 	}
 }
 
 float FSkeletalMeshObject::GetScreenSize(int32 LODIndex) const
 {
-	if (SkeletalMeshLODInfo.IsValidIndex(LODIndex))
+	if (LODInfo.IsValidIndex(LODIndex))
 	{
-		return SkeletalMeshLODInfo[LODIndex].ScreenSize.GetValue();
+		return LODInfo[LODIndex].ScreenSize.GetValue();
 	}
 	return 0.f;
 }
