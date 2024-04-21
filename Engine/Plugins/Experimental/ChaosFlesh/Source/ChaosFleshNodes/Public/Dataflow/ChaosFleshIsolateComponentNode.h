@@ -6,23 +6,29 @@
 #include "Dataflow/DataflowCore.h"
 #include "Dataflow/DataflowEngine.h"
 
-#include "ChaosFleshGenerateFiberDirectionsNode.generated.h"
+#include "ChaosFleshIsolateComponentNode.generated.h"
 
-// @todo(delete this node)
+
 USTRUCT(meta = (DataflowFlesh))
-struct FGenerateFiberDirectionsDataflowNode : public FDataflowNode
+struct FIsolateComponentNode : public FDataflowNode
 {
 	GENERATED_USTRUCT_BODY()
-	DATAFLOW_NODE_DEFINE_INTERNAL(FGenerateFiberDirectionsDataflowNode, "GenerateFiberDirections", "Flesh", "")
+	DATAFLOW_NODE_DEFINE_INTERNAL(FIsolateComponentNode, "IsolateComponent", "Flesh", "")
 	DATAFLOW_NODE_RENDER_TYPE(FGeometryCollection::StaticType(), "Collection")
 
 public:
-	typedef FManagedArrayCollection DataType;
+	//typedef FManagedArrayCollection DataType;
 
 	UPROPERTY(meta = (DataflowInput, DataflowOutput, DisplayName = "Collection", DataflowPassthrough = "Collection"))
 	FManagedArrayCollection Collection;
 
-	FGenerateFiberDirectionsDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+	UPROPERTY(EditAnywhere, Category = "Dataflow")
+	bool bDeleteHiddenFaces = false;
+
+	UPROPERTY(EditAnywhere, Category = "Dataflow")
+	FString TargetGeometryIndex = "";
+
+	FIsolateComponentNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&Collection);

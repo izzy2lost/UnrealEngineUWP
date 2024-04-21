@@ -1,7 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Dataflow/ChaosFleshCreateTetrahedronNode.h"
-#include "Dataflow/ChaosFleshEngineAssetNodes.h"
 
 #include "Async/ParallelFor.h"
 #include "Chaos/Deformable/Utilities.h"
