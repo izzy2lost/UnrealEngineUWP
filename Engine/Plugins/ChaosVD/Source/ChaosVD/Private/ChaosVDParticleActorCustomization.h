@@ -37,9 +37,9 @@ private:
 
 	void HandleParticleDataUpdated();
 
-	/* Copied of the last known particle data structure of a selected particle -  Used to avoid rebuild the layout every time we change frame in CVD */
+	/* Copy of the last known geometry shape data structure of a selected particle and mesh instance -  Used to avoid rebuild the layout every time we change frame in CVD */
 	FChaosVDParticleDataWrapper CachedParticleData;
-	/* Copied of the last known particle data structure of a selected particle -  Used to avoid rebuild the layout every time we change frame in CVD */
+	/* Copy of the last known particle data structure of a selected particle -  Used to avoid rebuild the layout every time we change frame in CVD */
 	FChaosVDMeshDataInstanceState CachedGeometryDataInstanceCopy;
 };
 

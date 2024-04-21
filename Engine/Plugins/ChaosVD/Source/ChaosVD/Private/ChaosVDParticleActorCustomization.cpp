@@ -71,7 +71,7 @@ void FChaosVDParticleActorCustomization::CustomizeDetails(IDetailLayoutBuilder& 
 
 			if (TSharedPtr<FChaosVDMeshDataInstanceHandle> SelectedGeometryInstance = ParticleActor->GetSelectedMeshInstance().Pin())
 			{
-				InspectedDataPropertyHandlePtr = AddExternalStructure(CachedGeometryDataInstanceCopy, DetailBuilder, GeometryCategoryName, LOCTEXT("ParticleDataStructName", "Geometry Shape Data"));
+				InspectedDataPropertyHandlePtr = AddExternalStructure(CachedGeometryDataInstanceCopy, DetailBuilder, GeometryCategoryName, LOCTEXT("GeometryShapeDataStructName", "Geometry Shape Data"));
 			}
 			else
 			{
