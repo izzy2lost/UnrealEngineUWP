@@ -2,12 +2,14 @@
 
 #pragma once
 
+#include "Widgets/SCompoundWidget.h"
 #include "Components/DMMaterialStage.h"
 #include "DMEDefs.h"
 #include "DMObjectMaterialProperty.h"
 #include "EditorUndoClient.h"
-#include "Widgets/SCompoundWidget.h"
+#include "Widgets/Layout/SSplitter.h"
 
+class FAssetThumbnailPool;
 class FUICommandList;
 class IDetailTreeNode;
 class IPropertyHandle;
@@ -58,13 +60,18 @@ public:
 
 	void SetMaterialActor(AActor* InActor);
 
-	const TArray<TSharedRef<SDMSlot>>& GetSlotWidgets() const { return SlotWidgets; }
-	TSharedPtr<SDMSlot> GetSlotWidget(UDMMaterialSlot* Slot) const;
+	TSharedPtr<SDMSlot> GetActiveSlotWidget() const;
 
-	void RefreshGlobalDetailsView();
 	void RefreshParametersList();
 	void RefreshSlotPickerList();
-	void RefreshSlotsList();
+	void RefreshSlotWidget();
+	void RefreshComponentEditWidget();
+
+	void InvalidateComponentEditWidget();
+
+	UDMMaterialComponent* GetEditedComponent() const;
+
+	void SetEditedComponent(UDMMaterialComponent* InComponent);
 
 	//~ Begin SWidget
 	virtual bool SupportsKeyboardFocus() const override { return true; }
@@ -115,38 +122,41 @@ protected:
 
 	static FDMPropertyHandle CreatePropertyHandle(const void* InOwningWidget, UObject* InObject, const FName& InPropertyName);
 
-	TSharedPtr<FUICommandList> CommandList;
-
 	TSharedPtr<SBox> Container;
 	TSharedPtr<SDMToolBar> Toolbar;
-	TSharedPtr<SBox> GlobalOpacityContainer;
 	TSharedPtr<SDMMaterialParameters> ParametersWidget;
-	TSharedPtr<SBox> SlotsContainer;
 	TSharedPtr<SBox> SlotPickerContainer;
-	TSharedPtr<SWidgetSwitcher> SlotSwitcher;
-	int32 ActiveSlotIndex;
+	TSharedPtr<SSplitter> SplitterContainer;
+	TSharedPtr<SScrollBox> SlotContainer;
+	TSharedPtr<SScrollBox> ComponentEditContainer;
+	SSplitter::FSlot* LayerViewSplitterSlot = nullptr;
+	SSplitter::FSlot* ExtraSpaceSplitterSlot = nullptr;
+	TSharedPtr<SDMSlot> ActiveSlotWidget;
 
+	TSharedPtr<FUICommandList> CommandList;
+	int32 ActiveSlotIndex;
 	TWeakObjectPtr<UDynamicMaterialModel> MaterialModelWeak;
 	FDMObjectMaterialProperty ObjectProperty;
-
-	TArray<TSharedRef<SDMSlot>> SlotWidgets;
+	TWeakObjectPtr<UDMMaterialComponent> EditedComponent;
+	bool bInvalidateComponentEditWidget;
 
 	void BindCommands();
 
 	TSharedRef<SWidget> CreateMainLayout();
-	TSharedRef<SWidget> CreateGlobalDetailsView();
 	TSharedRef<SWidget> CreateParametersArea();
-
 	TSharedRef<SWidget> CreateSlotPickerWidget();
-	TSharedRef<SWidget> CreateSlotsWidget();
+	TSharedRef<SWidget> CreateSlotWidget();
+	TSharedRef<SWidget> CreateComponentEditWidget();
+
+	void OnSplitterResized() const;
+
+	void OnComponentUpdated(UDMMaterialComponent* InComponent, EDMUpdateType InUpdateType);
 
 	TSharedRef<SWidget> CreateActorMaterialSlotSelector(const AActor* InActor);
 
 	void OnMaterialBuilt(UDynamicMaterialModel* InMaterialModel);
 	void OnValuesUpdated(UDynamicMaterialModel* InMaterialModel);
 	void OnSlotsUpdated(UDynamicMaterialModel* InMaterialModel);
-
-	EVisibility GetGlobalOpacityVisibility() const;
 
 	bool IsPropertyValidForModel(EDMMaterialPropertyType InProperty) const;
 	ECheckBoxState GetSlotCheckState(EDMMaterialPropertyType InProperty) const;
@@ -161,4 +171,6 @@ protected:
 	void OnSettingsChanged(const FPropertyChangedEvent& InPropertyChangedEvent);
 
 	void OnUndo();
+
+	UDMMaterialSlot* GetSlotForMaterialProperty(EDMMaterialPropertyType InProperty) const;
 };

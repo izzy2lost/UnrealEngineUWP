@@ -87,10 +87,6 @@ public:
 
 	void SetSelectedLayer(UDMMaterialLayerObject* InLayer) const;
 
-	UDMMaterialComponent* GetEditedComponent() const;
-
-	void SetEditedComponent(UDMMaterialComponent* InComponent);
-
 	UDMMaterialLayerObject* AddNewLayer(UDMMaterialStage* InNewBaseStage, UDMMaterialStage* InNewMaskStage = nullptr);
 
 protected:
@@ -102,11 +98,6 @@ protected:
 	TWeakObjectPtr<UDMMaterialSlot> SlotWeak;
 	TSharedPtr<SBox> HeaderPropertyListWidget;
 	TSharedPtr<SBox> SlotSettingsRowContainer;
-	TSharedPtr<SScrollBox> ComponentEditContainer;
-
-	TSharedPtr<SSplitter> SplitterContainer;
-	SSplitter::FSlot* LayerViewSplitterSlot = nullptr;
-	SSplitter::FSlot* ExtraSpaceSplitterSlot = nullptr;
 
 	TSharedPtr<SDMSlotLayerView> LayerView;
 
@@ -119,24 +110,17 @@ protected:
 	bool bInvalidateMainWidget;
 	bool bInvalidateHeaderWidget;
 	bool bInvalidateSettingsWidget;
-	bool bInvalidateComponentEditWidget;
 	FDelegateHandle OnEndFrameDelegateHandle;
-
-	TWeakObjectPtr<UDMMaterialComponent> EditedComponent;
 
 	TSharedRef<SWidget> CreateHeaderPropertyListWidget();
 	TSharedRef<SWidget> CreateLayerButtonsRowWidget();
-	TSharedRef<SWidget> CreateComponentEditWidget();
 
 	TSharedRef<SWidget> CreateSlotSettingsRow();
-
-	void OnSplitterResized() const;
 
 	void AddPropertyToSlot(EDMMaterialPropertyType Property);
 
 	void OnSlotLayersUpdated(UDMMaterialSlot* InSlot);
 	void OnSlotPropertiesUpdated(UDMMaterialSlot* InSlot);
-	void OnComponentUpdated(UDMMaterialComponent* InComponent, EDMUpdateType InUpdateType);
 
 	void StartStageOpacityTransaction();
 	void EndStageOpacityTransaction(const float InValue) { EndTransaction(); }
@@ -153,7 +137,6 @@ protected:
 	void RefreshMainWidget();
 	void RefreshHeaderPropertyListWidget();
 	void RefreshSlotSettingsRowWidget();
-	void RefreshComponentEditWidget();
 
 	void HandleEndFrameRefresh();
 

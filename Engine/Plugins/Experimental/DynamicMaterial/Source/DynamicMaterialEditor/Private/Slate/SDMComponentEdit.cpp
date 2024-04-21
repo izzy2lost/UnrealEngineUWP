@@ -12,12 +12,14 @@
 #include "Components/DMMaterialStageThroughput.h"
 #include "Components/DMMaterialValue.h"
 #include "Components/DMTextureUV.h"
+#include "Components/MaterialValues/DMMaterialValueFloat1.h"
+#include "Components/MaterialValues/DMMaterialValueFloat2.h"
 #include "CustomDetailsViewArgs.h"
 #include "CustomDetailsViewModule.h"
 #include "CustomDetailsViewSequencer.h"
-#include "DMPrivate.h"
 #include "DetailLayoutBuilder.h"
 #include "DMEDefs.h"
+#include "DMPrivate.h"
 #include "DMWorldSubsystem.h"
 #include "DynamicMaterialEditorModule.h"
 #include "DynamicMaterialEditorStyle.h"
@@ -33,6 +35,7 @@
 #include "Items/ICustomDetailsViewItem.h"
 #include "Menus/DMMaterialStageSourceMenus.h"
 #include "Misc/CoreDelegates.h"
+#include "Model/DynamicMaterialModel.h"
 #include "Model/DynamicMaterialModelEditorOnlyData.h"
 #include "PropertyCustomizationHelpers.h"
 #include "PropertyEditorModule.h"
@@ -247,14 +250,14 @@ SDMComponentEdit::~SDMComponentEdit()
 	}
 }
 
-void SDMComponentEdit::Construct(const FArguments& InArgs, UDMMaterialComponent* InComponent, const TWeakPtr<SDMSlot>& InSlotWidget)
+void SDMComponentEdit::Construct(const FArguments& InArgs, UDMMaterialComponent* InComponent, const TWeakPtr<SDMEditor>& InEditorWidget)
 {
 	ComponentWeak = InComponent;
-	SlotWidgetWeak = InSlotWidget;
+	EditorWidgetWeak = InEditorWidget;
 
 	KeyframeHandler = nullptr;
 
-	if (ensure(IsValid(InComponent)))
+	if (InComponent)
 	{
 		if (const UWorld* const World = InComponent->GetWorld())
 		{
@@ -263,22 +266,22 @@ void SDMComponentEdit::Construct(const FArguments& InArgs, UDMMaterialComponent*
 				KeyframeHandler = WorldSubsystem->GetKeyframeHandler();
 			}
 		}
-
-		if (UDMMaterialStage* Stage = Cast<UDMMaterialStage>(InComponent))
-		{
-			Stage->SetBeingEdited(true);
-		}
-
-		ChildSlot
-			.HAlign(HAlign_Fill)
-			.VAlign(VAlign_Top)
-			[
-				SAssignNew(Container, SBox)
-				[
-					CreateEditWidget()
-				]
-			];
 	}
+
+	if (UDMMaterialStage* Stage = Cast<UDMMaterialStage>(InComponent))
+	{
+		Stage->SetBeingEdited(true);
+	}
+
+	ChildSlot
+		.HAlign(HAlign_Fill)
+		.VAlign(VAlign_Top)
+		[
+			SAssignNew(Container, SBox)
+			[
+				CreateEditWidget()
+			]
+		];
 }
 
 TSharedRef<SWidget> SDMComponentEdit::CreateEditWidget()
@@ -398,7 +401,20 @@ TArray<FDMPropertyHandle> SDMComponentEdit::GetEditRows()
 	TArray<FDMPropertyHandle> PropertyRows;
 	TSet<UDMMaterialComponent*> ProcessedObjects;
 
-	FDynamicMaterialEditorModule::GeneratorComponentPropertyRows(SharedThis(this), ComponentWeak.Get(), PropertyRows, ProcessedObjects);
+	if (UDMMaterialComponent* Component = ComponentWeak.Get())
+	{
+		FDynamicMaterialEditorModule::GeneratorComponentPropertyRows(SharedThis(this), Component, PropertyRows, ProcessedObjects);
+	}
+	else
+	{
+		if (TSharedPtr<SDMEditor> EditorWidget = EditorWidgetWeak.Pin())
+		{
+			if (UDynamicMaterialModel* MaterialModel = EditorWidget->GetMaterialModel())
+			{
+				GenerateMaterialModelPropertyRows(EditorWidget.ToSharedRef(), MaterialModel, PropertyRows, ProcessedObjects);
+			}
+		}
+	}
 
 	return PropertyRows;
 }
@@ -415,9 +431,9 @@ TSharedRef<SWidget> SDMComponentEdit::CreateExtensionButtons(const TSharedPtr<SD
 			{
 				if (TSharedPtr<SDMComponentEdit> ComponentEditWidget = ComponentEditWidgetWeak.Pin())
 				{
-					if (TSharedPtr<SDMSlot> SlotWidget = ComponentEditWidget->GetSlotWidget())
+					if (TSharedPtr<SDMEditor> EditorWidget = ComponentEditWidget->GetEditorWidget())
 					{
-						SlotWidget->InvalidateComponentEditWidget();
+						EditorWidget->InvalidateComponentEditWidget();
 					}
 				}
 			})
@@ -707,11 +723,23 @@ TSharedRef<SWidget> SDMComponentEdit::MakeSourceTypeEditWidgetMenuContent()
 {
 	if (UDMMaterialStage* Stage = Cast<UDMMaterialStage>(ComponentWeak.Get()))
 	{
-		if (TSharedPtr<SDMSlot> SlotWidget = GetSlotWidget())
+		if (UDMMaterialLayerObject* Layer = Stage->GetLayer())
 		{
-			if (TSharedPtr<SDMStage> StageWidget = SlotWidget->FindStageWidget(Stage))
+			if (UDMMaterialSlot* Slot = Layer->GetSlot())
 			{
-				return FDMMaterialStageSourceMenus::MakeChangeSourceMenu(SlotWidget, StageWidget);
+				if (TSharedPtr<SDMEditor> EditorWidget = GetEditorWidget())
+				{
+					if (TSharedPtr<SDMSlot> SlotWidget = EditorWidget->GetActiveSlotWidget())
+					{
+						if (SlotWidget->GetSlot() == Slot)
+						{
+							if (TSharedPtr<SDMStage> StageWidget = SlotWidget->FindStageWidget(Stage))
+							{
+								return FDMMaterialStageSourceMenus::MakeChangeSourceMenu(SlotWidget, StageWidget);
+							}
+						}
+					}
+				}
 			}
 		}
 	}
@@ -736,18 +764,54 @@ void SDMComponentEdit::OnUndo()
 {
 	if (UDMMaterialStage* Stage = Cast<UDMMaterialStage>(ComponentWeak.Get()))
 	{
-		if (const UDMMaterialLayerObject* Layer = Stage->GetLayer())
+		if (UDMMaterialLayerObject* Layer = Stage->GetLayer())
 		{
 			if (Layer->GetStageType(Stage) == EDMMaterialLayerStage::Mask)
 			{
 				if (bCreatedWithLinkedUVs != Layer->IsTextureUVLinkEnabled())
 				{
-					if (TSharedPtr<SDMSlot> SlotWidget = SlotWidgetWeak.Pin())
+					if (TSharedPtr<SDMEditor> EditorWidget = GetEditorWidget())
 					{
-						SlotWidget->InvalidateComponentEditWidget();
+						EditorWidget->InvalidateComponentEditWidget();
 					}
 				}
 			}
+		}
+	}
+}
+
+void SDMComponentEdit::GenerateMaterialModelPropertyRows(const TSharedRef<SDMEditor> InEditorWidget, UDynamicMaterialModel* InMaterialModel,
+	TArray<FDMPropertyHandle>& InOutPropertyRows, TSet<UDMMaterialComponent*>& InOutProcessedObjects)
+{
+	if (UDynamicMaterialModelEditorOnlyData* EditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(InMaterialModel))
+	{
+		if (EditorOnlyData->GetBlendMode() != BLEND_Opaque)
+		{
+			if (UDMMaterialValueFloat1* GlobalOpacityValue = InMaterialModel->GetGlobalOpacityValue())
+			{
+				if (!InOutProcessedObjects.Contains(GlobalOpacityValue))
+				{
+					FDMPropertyHandle& GlobalOpacityHandle = InOutPropertyRows.Add_GetRef(InEditorWidget->GetPropertyHandle(&*InEditorWidget,
+						GlobalOpacityValue, UDMMaterialValue::ValueName));
+
+					GlobalOpacityHandle.NameOverride = LOCTEXT("GlobalOpacity", "Global Opacity");
+
+					InOutProcessedObjects.Add(GlobalOpacityValue);
+				}
+			}
+		}
+	}
+
+	if (UDMMaterialValueFloat2* GlobalTilingValue = InMaterialModel->GetGlobalScaleValue())
+	{
+		if (!InOutProcessedObjects.Contains(GlobalTilingValue))
+		{
+			FDMPropertyHandle& GlobalTilingHandle = InOutPropertyRows.Add_GetRef(InEditorWidget->GetPropertyHandle(&*InEditorWidget, 
+				GlobalTilingValue, UDMMaterialValue::ValueName));
+
+			GlobalTilingHandle.NameOverride = LOCTEXT("GlobalTiling", "Global Tiling");
+
+			InOutProcessedObjects.Add(GlobalTilingValue);
 		}
 	}
 }

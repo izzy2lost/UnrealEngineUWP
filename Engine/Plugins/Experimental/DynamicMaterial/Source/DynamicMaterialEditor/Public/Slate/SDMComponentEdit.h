@@ -15,7 +15,8 @@ class IDetailTreeNode;
 class IPropertyHandle;
 class IPropertyRowGenerator;
 class SBox;
-class SDMSlot;
+class SDMEditor;
+class SDMEditor;
 class SDMStage;
 class SWidget;
 class UDMMaterialComponent;
@@ -30,6 +31,7 @@ class UDMMaterialStageSource;
 class UDMMaterialStageThroughput;
 class UDMMaterialValueFloat1;
 class UDMTextureUV;
+class UDynamicMaterialModelEditorOnlyData;
 class UMaterial;
 enum class ECheckBoxState : uint8;
 struct FDMPropertyHandle;
@@ -53,10 +55,10 @@ public:
 	SDMComponentEdit() = default;
 	virtual ~SDMComponentEdit() override;
 
-	void Construct(const FArguments& InArgs, UDMMaterialComponent* InComponent, const TWeakPtr<SDMSlot>& InSlotWidget);
+	void Construct(const FArguments& InArgs, UDMMaterialComponent* InComponent, const TWeakPtr<SDMEditor>& InEditorWidget);
 
 	FORCEINLINE UDMMaterialComponent* GetComponent() const { return ComponentWeak.Get(); }
-	FORCEINLINE TSharedPtr<SDMSlot> GetSlotWidget() const { return SlotWidgetWeak.Pin(); }
+	FORCEINLINE TSharedPtr<SDMEditor> GetEditorWidget() const { return EditorWidgetWeak.Pin(); }
 
 	TSharedPtr<SWidget> CreateSinglePropertyEditWidget(UDMMaterialComponent* InComponent, const FName& InPropertyName);
 
@@ -66,8 +68,11 @@ public:
 	//~ End FUndoClient
 
 protected:
+	static void GenerateMaterialModelPropertyRows(const TSharedRef<SDMEditor> InEditorWidget, UDynamicMaterialModel* InMaterialModel, 
+		TArray<FDMPropertyHandle>& InOutPropertyRows, TSet<UDMMaterialComponent*>& InOutProcessedObjects);
+
 	TWeakObjectPtr<UDMMaterialComponent> ComponentWeak;
-	TWeakPtr<SDMSlot> SlotWidgetWeak;
+	TWeakPtr<SDMEditor> EditorWidgetWeak;
 
 	TSharedPtr<IDetailKeyframeHandler> KeyframeHandler;
 

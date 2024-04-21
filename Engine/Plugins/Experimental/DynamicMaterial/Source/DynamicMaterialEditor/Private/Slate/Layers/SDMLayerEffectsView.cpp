@@ -49,30 +49,43 @@ TSharedRef<ITableRow> SDMLayerEffectsView::OnGenerateLayerItemWidget(TSharedPtr<
 
 void SDMLayerEffectsView::OnLayerEffectSelected(const bool bInSelected, const TSharedRef<SDMLayerEffectsItem>& InEffectsItemWidget)
 {
+	TSharedPtr<SDMSlot> SlotWidget = SlotWidgetWeak.Pin();
+
+	if (!SlotWidget.IsValid())
+	{
+		return;
+	}
+
+	TSharedPtr<SDMEditor> EditorWidget = SlotWidget->GetEditorWidget();
+
 	if (!bInSelected)
 	{
 		SelectedEffectWidgets.Remove(InEffectsItemWidget);
 		InEffectsItemWidget->SetEffectSelected(false);
 
-		if (TSharedPtr<SDMSlot> SlotWidget = SlotWidgetWeak.Pin())
+		if (EditorWidget.IsValid())
 		{
-			SlotWidget->SetEditedComponent(nullptr);
-			SlotWidget->SetSelectedLayer(nullptr);
+			EditorWidget->SetEditedComponent(nullptr);
+		}
 
-			if (TSharedPtr<FDMEffectsLayerItem> SelectedEffectLayerItem = SelectedEffectWidgets.Last()->GetLayerItem())
+		SlotWidget->SetSelectedLayer(nullptr);
+
+		if (TSharedPtr<FDMEffectsLayerItem> SelectedEffectLayerItem = SelectedEffectWidgets.Last()->GetLayerItem())
+		{
+			if (UDMMaterialEffect* Effect = SelectedEffectLayerItem->MaterialEffectWeak.Get())
 			{
-				if (UDMMaterialEffect* Effect = SelectedEffectLayerItem->MaterialEffectWeak.Get())
+				if (EditorWidget.IsValid())
 				{
-					SlotWidget->SetEditedComponent(Effect);
-
-					if (UDMMaterialEffectStack* EffectStack = Effect->GetEffectStack())
-					{
-						if (UDMMaterialLayerObject* SelectedLayer = EffectStack->GetLayer())
-						{
-							SlotWidget->SetSelectedLayer(nullptr);
-						}
-					}					
+					EditorWidget->SetEditedComponent(Effect);
 				}
+
+				if (UDMMaterialEffectStack* EffectStack = Effect->GetEffectStack())
+				{
+					if (UDMMaterialLayerObject* SelectedLayer = EffectStack->GetLayer())
+					{
+						SlotWidget->SetSelectedLayer(nullptr);
+					}
+				}					
 			}
 		}
 	}
@@ -81,27 +94,28 @@ void SDMLayerEffectsView::OnLayerEffectSelected(const bool bInSelected, const TS
 		SelectedEffectWidgets.AddUnique(InEffectsItemWidget);
 		InEffectsItemWidget->SetEffectSelected(true);
 
-		if (TSharedPtr<SDMSlot> SlotWidget = SlotWidgetWeak.Pin())
+		UDMMaterialLayerObject* Layer = nullptr;
+		UDMMaterialEffect* Effect = nullptr;
+
+		if (TSharedPtr<FDMEffectsLayerItem> EffectViewItem = InEffectsItemWidget->GetLayerItem())
 		{
-			UDMMaterialLayerObject* Layer = nullptr;
-			UDMMaterialEffect* Effect = nullptr;
+			Effect = EffectViewItem->MaterialEffectWeak.Get();
 
-			if (TSharedPtr<FDMEffectsLayerItem> EffectViewItem = InEffectsItemWidget->GetLayerItem())
+			if (Effect)
 			{
-				Effect = EffectViewItem->MaterialEffectWeak.Get();
-
-				if (Effect)
+				if (UDMMaterialEffectStack* EffectStack = Effect->GetEffectStack())
 				{
-					if (UDMMaterialEffectStack* EffectStack = Effect->GetEffectStack())
-					{
-						Layer = EffectStack->GetLayer();
-					}
+					Layer = EffectStack->GetLayer();
 				}
 			}
-
-			SlotWidget->SetEditedComponent(Effect);
-			SlotWidget->SetSelectedLayer(Layer);
 		}
+
+		if (EditorWidget.IsValid())
+		{
+			EditorWidget->SetEditedComponent(Effect);
+		}
+
+		SlotWidget->SetSelectedLayer(Layer);
 	}
 }
 

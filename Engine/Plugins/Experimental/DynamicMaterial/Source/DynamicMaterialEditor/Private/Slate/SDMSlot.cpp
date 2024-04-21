@@ -9,7 +9,6 @@
 #include "Components/DMMaterialStageFunction.h"
 #include "Components/DMMaterialStageGradient.h"
 #include "Components/DMMaterialStageThroughputLayerBlend.h"
-#include "Components/DMMaterialSubStage.h"
 #include "Components/DMMaterialValue.h"
 #include "Components/DMRenderTargetRenderer.h"
 #include "Components/MaterialStageBlends/DMMSBNormal.h"
@@ -22,7 +21,6 @@
 #include "Components/MaterialStageInputs/DMMSITextureUV.h"
 #include "Components/MaterialStageInputs/DMMSIValue.h"
 #include "Components/MaterialValues/DMMaterialValueFloat1.h"
-#include "Components/MaterialValues/DMMaterialValueRenderTarget.h"
 #include "DetailLayoutBuilder.h"
 #include "DMBlueprintFunctionLibrary.h"
 #include "DMPrivate.h"
@@ -110,21 +108,8 @@ void SDMSlot::Construct(const FArguments& InArgs, const TSharedRef<SDMEditor>& I
 		bInvalidateMainWidget = false;
 		bInvalidateHeaderWidget = false;
 		bInvalidateSettingsWidget = false;
-		bInvalidateComponentEditWidget = false;
 		OnEndFrameDelegateHandle = FCoreDelegates::OnEndFrame.AddSP(this, &SDMSlot::HandleEndFrameRefresh);
 	}
-}
-
-void SDMSlot::OnLayerSelected(TSharedPtr<FDMMaterialLayerReference> InLayerItem, const int32 InLayerIndex)
-{
-	InvalidateSlotSettingsRowWidget();
-	InvalidateComponentEditWidget();
-}
-
-void SDMSlot::OnLayerStageSelected(const bool bInSelected, const TSharedRef<SDMStage>& InStageWidget)
-{
-	InvalidateSlotSettingsRowWidget();
-	SetEditedComponent(InStageWidget->GetStage());
 }
 
 void SDMSlot::HandleEndFrameRefresh()
@@ -143,11 +128,6 @@ void SDMSlot::HandleEndFrameRefresh()
 		if (bInvalidateSettingsWidget)
 		{
 			RefreshSlotSettingsRowWidget();
-		}
-
-		if (bInvalidateComponentEditWidget)
-		{
-			RefreshComponentEditWidget();
 		}
 	}
 }
@@ -264,28 +244,6 @@ void SDMSlot::SetSelectedLayer(UDMMaterialLayerObject* InLayer) const
 	LayerView->SelectLayerItem(InLayer, /* Mask */ false, /* Selected */ true, ESelectInfo::Direct);
 }
 
-UDMMaterialComponent* SDMSlot::GetEditedComponent() const
-{
-	return EditedComponent.Get();
-}
-
-void SDMSlot::SetEditedComponent(UDMMaterialComponent* InComponent)
-{
-	if (EditedComponent.IsValid())
-	{
-		EditedComponent->GetOnUpdate().RemoveAll(this);
-	}
-
-	EditedComponent = InComponent;
-
-	if (EditedComponent.IsValid())
-	{
-		EditedComponent->GetOnUpdate().AddSP(this, &SDMSlot::OnComponentUpdated);
-	}
-
-	InvalidateComponentEditWidget();
-}
-
 int32 SDMSlot::GetSourceBlendTypeSwitcherIndex() const
 {
 	if (LayerView->GetLayerItems().IsValidIndex(LayerView->GetSelectedLayerIndex()))
@@ -391,7 +349,6 @@ void SDMSlot::RefreshMainWidget()
 	bInvalidateMainWidget = false;
 	bInvalidateHeaderWidget = false;
 	bInvalidateSettingsWidget = false;
-	bInvalidateComponentEditWidget = false;
 
 	const float SplitterLocation = FMath::Clamp(UDynamicMaterialEditorSettings::Get()->SplitterLocation, 0.3f, 0.7f);
 	const float LayerViewSplitterLocation = SplitterLocation;
@@ -403,20 +360,11 @@ void SDMSlot::RefreshMainWidget()
 		.PreviewSize(LayerPreviewSize);
 
 	ChildSlot.AttachWidget(SNullWidget::NullWidget);
-	SplitterContainer.Reset();
 
-	SplitterContainer =
-		SNew(SSplitter)
-		.Style(FAppStyle::Get(), "DetailsView.Splitter")
-		.Orientation(Orient_Vertical)
-		.ResizeMode(ESplitterResizeMode::Fill)
-		.PhysicalSplitterHandleSize(3.0f)
-		.HitDetectionSplitterHandleSize(4.0f)
-		.OnSplitterFinishedResizing(this, &SDMSlot::OnSplitterResized)
+	TSharedRef<SVerticalBox> VerticalBox = SNew(SVerticalBox)
 
-		+ SSplitter::Slot()
-		.Resizable(false)
-		.SizeRule(SSplitter::ESizeRule::SizeToContent)
+		+ SVerticalBox::Slot()
+		.AutoHeight()
 		[
 			SAssignNew(SlotSettingsRowContainer, SBox)
 			.Padding(3.0f, 4.0f, 3.0f, 4.0f)
@@ -425,44 +373,24 @@ void SDMSlot::RefreshMainWidget()
 			]
 		]
 
-		+ SSplitter::Slot()
-			.Expose(LayerViewSplitterSlot)
-			.Resizable(true)
-			.SizeRule(SSplitter::ESizeRule::FractionOfParent)
-			.MinSize(50)
-			.Value(LayerViewSplitterLocation)
+		+ SVerticalBox::Slot()
+		.FillHeight(1.f)
+		[
+			SNew(SBorder)
+			.Padding(2.0f)
+			.BorderImage(FDynamicMaterialEditorStyle::GetBrush("LayerView.Background"))
+			.HAlign(HAlign_Fill)
+			.VAlign(VAlign_Fill)
 			[
-				SNew(SBorder)
-				.Padding(2.0f)
-				.BorderImage(FDynamicMaterialEditorStyle::GetBrush("LayerView.Background"))
-				.HAlign(HAlign_Fill)
-				.VAlign(VAlign_Fill)
-				[
-					LayerView.ToSharedRef()
-				]
+				LayerView.ToSharedRef()
 			]
+		]
 
-		+ SSplitter::Slot()
-			.Resizable(false)
-			.SizeRule(SSplitter::ESizeRule::SizeToContent)
-			[
-				CreateLayerButtonsRowWidget()
-			]
-
-		+ SSplitter::Slot()
-			.Expose(ExtraSpaceSplitterSlot)
-			.Resizable(true)
-			.SizeRule(SSplitter::ESizeRule::FractionOfParent)
-			.MinSize(50)
-			.Value(ExtraSpaceSplitterLocation)
-			[
-				SAssignNew(ComponentEditContainer, SScrollBox)
-				+ SScrollBox::Slot()
-				.AutoSize()
-				[
-					CreateComponentEditWidget()
-				]
-			];
+		+ SVerticalBox::Slot()
+		.AutoHeight()
+		[
+			CreateLayerButtonsRowWidget()
+		];
 
 	TSharedRef<SVerticalBox> Child = SNew(SVerticalBox);
 
@@ -487,7 +415,7 @@ void SDMSlot::RefreshMainWidget()
 		.VAlign(VAlign_Fill)
 		.Padding(0.0f, 2.0f, 0.0f, 0.0f)
 		[
-			SplitterContainer.ToSharedRef()
+			VerticalBox
 		];
 
 	ChildSlot
@@ -711,24 +639,6 @@ TSharedRef<SWidget> SDMSlot::CreateLayerButtonsRowWidget()
 		];
 }
 
-TSharedRef<SWidget> SDMSlot::CreateComponentEditWidget()
-{
-	if (UDMMaterialComponent* Component = EditedComponent.Get())
-	{
-		return
-			SNew(SBorder)
-			.HAlign(HAlign_Fill)
-			.VAlign(VAlign_Fill)
-			.Padding(3.0f)
-			.BorderImage(FDynamicMaterialEditorStyle::GetBrush("LayerView.Details.Background"))
-			[
-				SNew(SDMComponentEdit, Component, SharedThis(this))
-			];
-	}
-
-	return SNullWidget::NullWidget;
-}
-
 TSharedRef<SWidget> SDMSlot::CreateSlotSettingsRow()
 {
 	TSharedPtr<SDMPropertyEdit> OpacityPropertyEditWidget = nullptr;
@@ -892,7 +802,10 @@ void SDMSlot::InvalidateSlotSettingsRowWidget()
 
 void SDMSlot::InvalidateComponentEditWidget()
 {
-	bInvalidateComponentEditWidget = true;
+	if (TSharedPtr<SDMEditor> EditorWidget = GetEditorWidget())
+	{
+		EditorWidget->InvalidateComponentEditWidget();
+	}
 }
 
 void SDMSlot::AddNewLayer_NewLocalValue(EDMValueType InValueType)
@@ -921,32 +834,6 @@ void SDMSlot::RefreshSlotSettingsRowWidget()
 	{
 		SlotSettingsRowContainer->SetContent(SNullWidget::NullWidget);
 		SlotSettingsRowContainer->SetContent(CreateSlotSettingsRow());
-	}
-}
-
-void SDMSlot::RefreshComponentEditWidget()
-{
-	bInvalidateComponentEditWidget = false;
-
-	if (ComponentEditContainer.IsValid())
-	{
-		ComponentEditContainer->ClearChildren();
-		ComponentEditContainer->AddSlot()
-			.AutoSize()
-			[
-				CreateComponentEditWidget()
-			];
-	}
-}
-
-void SDMSlot::OnSplitterResized() const
-{
-	UDynamicMaterialEditorSettings* Settings = UDynamicMaterialEditorSettings::Get();
-
-	if (LayerViewSplitterSlot)
-	{
-		Settings->SplitterLocation = LayerViewSplitterSlot->GetSizeValue();
-		Settings->SaveConfig();
 	}
 }
 
@@ -1063,14 +950,6 @@ void SDMSlot::OnSlotPropertiesUpdated(UDMMaterialSlot* InSlot)
 	}
 
 	InvalidateHeaderPropertyListWidget();
-}
-
-void SDMSlot::OnComponentUpdated(UDMMaterialComponent* InComponent, EDMUpdateType InUpdateType)
-{
-	if (InUpdateType == EDMUpdateType::Structure)
-	{
-		InvalidateComponentEditWidget();
-	}
 }
 
 TSharedPtr<SDMStage> SDMSlot::FindStageWidget(UDMMaterialStage* const InStage) const
@@ -1624,6 +1503,22 @@ void SDMSlot::AddNewLayer_Renderer(TSubclassOf<UDMRenderTargetRenderer> InRender
 	AddNewLayer(NewBase);
 
 	UDMBlueprintFunctionLibrary::SetStageInputToRenderer(NewBase, InRendererClass, UDMMaterialStageBlend::InputB);
+}
+
+void SDMSlot::OnLayerSelected(TSharedPtr<FDMMaterialLayerReference> InLayerItem, const int32 InLayerIndex)
+{
+	InvalidateSlotSettingsRowWidget();
+	InvalidateComponentEditWidget();
+}
+
+void SDMSlot::OnLayerStageSelected(const bool bInSelected, const TSharedRef<SDMStage>& InStageWidget)
+{
+	InvalidateSlotSettingsRowWidget();
+
+	if (TSharedPtr<SDMEditor> EditorWidget = EditorWidgetWeak.Pin())
+	{
+		EditorWidget->SetEditedComponent(InStageWidget->GetStage());
+	}
 }
 
 #undef LOCTEXT_NAMESPACE

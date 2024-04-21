@@ -56,8 +56,8 @@ namespace UE::DynamicMaterialEditor::Private
 
 					if (EditorWidget.IsValid())
 					{
-						EditorWidget->RefreshGlobalDetailsView();
 						EditorWidget->RefreshSlotPickerList();
+						EditorWidget->RefreshSlotWidget();
 					}
 				}
 			}
@@ -123,8 +123,8 @@ namespace UE::DynamicMaterialEditor::Private
 
 					if (EditorWidget.IsValid())
 					{
-						EditorWidget->RefreshGlobalDetailsView();
 						EditorWidget->RefreshSlotPickerList();
+						EditorWidget->RefreshSlotWidget();
 					}
 				}
 			}
@@ -206,8 +206,8 @@ namespace UE::DynamicMaterialEditor::Private
 
 					if (EditorWidget.IsValid())
 					{
-						EditorWidget->RefreshGlobalDetailsView();
 						EditorWidget->RefreshSlotPickerList();
+						EditorWidget->RefreshSlotWidget();
 					}
 				}
 			}
@@ -1004,18 +1004,11 @@ TSharedRef<SWidget> FDMToolBarMenus::MakeEditorLayoutMenu(const TSharedPtr<SDMEd
 		);
 	}
 
-	TSharedPtr<SDMSlot> SlotWidget;
-	if (InEditorWidget.IsValid())
-	{
-		const TArray<TSharedRef<SDMSlot>>& SlotWidgets = InEditorWidget->GetSlotWidgets();
-
-		if (SlotWidgets.IsEmpty() == false)
-		{
-			SlotWidget = SlotWidgets[0];
-		}
-	}
-
-	FToolMenuContext MenuContext(FDynamicMaterialEditorModule::Get().GetCommandList(), TSharedPtr<FExtender>(), UDMMenuContext::CreateSlot(SlotWidget));
+	FToolMenuContext MenuContext(
+		FDynamicMaterialEditorModule::Get().GetCommandList(),
+		TSharedPtr<FExtender>(),
+		UDMMenuContext::CreateSlot(InEditorWidget->GetActiveSlotWidget())
+	);
 
 	return UToolMenus::Get()->GenerateWidget(ToolBarEditorLayoutMenuName, MenuContext);
 }
