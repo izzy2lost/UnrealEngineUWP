@@ -420,7 +420,7 @@ namespace Horde.Server.Compute
 						{
 							using TelemetrySpan addLeaseSpan = _tracer.StartActiveSpan("Adding lease");
 
-							IAgent? newAgent = await _agentCollection.TryAddLeaseAsync(agent, lease, cancellationToken);
+							IAgent? newAgent = await agent.TryAddLeaseAsync(lease, cancellationToken);
 							if (newAgent != null)
 							{
 								await _agentCollection.PublishUpdateEventAsync(agent.Id);

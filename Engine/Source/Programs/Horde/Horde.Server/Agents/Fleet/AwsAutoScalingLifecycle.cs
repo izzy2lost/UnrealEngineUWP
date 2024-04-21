@@ -258,7 +258,7 @@ public sealed class AwsAutoScalingLifecycleService : IHostedService, IAsyncDispo
 			}
 
 			IAgent? agent = agentList[0];
-			await _agents.TryUpdateSettingsAsync(agent, requestShutdown: true, cancellationToken: cancellationToken);
+			await agent.TryUpdateAsync(new UpdateAgentOptions { RequestShutdown = true }, cancellationToken: cancellationToken);
 			await TrackAgentLifecycleAsync(agent.Id, e, cancellationToken);
 			return true;
 		}

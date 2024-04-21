@@ -499,7 +499,7 @@ namespace Horde.Server.Jobs
 					break;
 				}
 
-				IAgent? newAgent = await _agents.TryCancelLeaseAsync(agent, index, cancellationToken);
+				IAgent? newAgent = await agent.TryCancelLeaseAsync(index, cancellationToken);
 				if (newAgent != null)
 				{
 					_jobTaskSource.CancelLongPollForAgent(agent.Id);
@@ -875,7 +875,7 @@ namespace Horde.Server.Jobs
 								{
 									break;
 								}
-								if (await _agents.TryUpdateSettingsAsync(agent, requestConform: true, cancellationToken: cancellationToken) != null)
+								if (await agent.TryUpdateAsync(new UpdateAgentOptions { RequestConform = true }, cancellationToken: cancellationToken) != null)
 								{
 									_logger.LogError("Agent {AgentId} did not complete lease; marking for conform", agent.Id);
 									break;

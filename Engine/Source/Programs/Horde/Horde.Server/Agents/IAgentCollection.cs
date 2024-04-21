@@ -7,7 +7,6 @@ using System.Threading.Tasks;
 using EpicGames.Horde.Agents;
 using EpicGames.Horde.Agents.Leases;
 using EpicGames.Horde.Agents.Pools;
-using EpicGames.Horde.Agents.Sessions;
 using Horde.Server.Auditing;
 
 namespace Horde.Server.Agents
@@ -25,23 +24,6 @@ namespace Horde.Server.Agents
 		/// <param name="enrollmentKey">Key used to identify a unique enrollment for the agent with this id</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		Task<IAgent> AddAsync(AgentId id, bool ephemeral, string enrollmentKey, CancellationToken cancellationToken = default);
-
-		/// <summary>
-		/// Resets an agent to use new settings
-		/// </summary>
-		/// <param name="agent">The agent to reset</param>
-		/// <param name="ephemeral">Whether the agent is ephemeral or not</param>
-		/// <param name="enrollmentKey">Key used to identify a unique enrollment for the agent with this id</param>
-		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		Task<IAgent?> TryResetAsync(IAgent agent, bool ephemeral, string enrollmentKey, CancellationToken cancellationToken = default);
-
-		/// <summary>
-		/// Deletes an agent
-		/// </summary>
-		/// <param name="agent">Deletes the agent</param>
-		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		/// <returns>Async task</returns>
-		Task<IAgent?> TryDeleteAsync(IAgent agent, CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Deletes an agent
@@ -112,90 +94,6 @@ namespace Horde.Server.Agents
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>List of agent lease IDs</returns>
 		Task<List<LeaseId>> GetChildLeaseIdsAsync(LeaseId id, CancellationToken cancellationToken = default);
-
-		/// <summary>
-		/// Update an agent's settings
-		/// </summary>
-		/// <param name="agent">Agent instance</param>
-		/// <param name="enabled">Whether the agent is enabled or not</param>
-		/// <param name="requestConform">Whether to request a conform job be run</param>
-		/// <param name="requestFullConform">Whether to request a full conform job be run</param>
-		/// <param name="requestRestart">Whether to request the machine be restarted</param>
-		/// <param name="requestShutdown">Whether to request the machine be shut down</param>
-		/// <param name="requestForceRestart">Request an immediate restart without waiting for leases to complete</param>
-		/// <param name="shutdownReason">The reason for shutting down agent, ex. Autoscaler/Manual/Unexpected</param>
-		/// <param name="pools">List of pools for the agent</param>
-		/// <param name="comment">New comment</param>
-		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		/// <returns>New agent state if update was successful</returns>
-		Task<IAgent?> TryUpdateSettingsAsync(IAgent agent, bool? enabled = null, bool? requestConform = null, bool? requestFullConform = null, bool? requestRestart = null, bool? requestShutdown = null, bool? requestForceRestart = null, string? shutdownReason = null, List<PoolId>? pools = null, string? comment = null, CancellationToken cancellationToken = default);
-
-		/// <summary>
-		/// Update the current workspaces for an agent.
-		/// </summary>
-		/// <param name="agent">The agent to update</param>
-		/// <param name="workspaces">Current list of workspaces</param>
-		/// <param name="requestConform">Whether the agent still needs to run another conform</param>
-		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		/// <returns>New agent state</returns>
-		Task<IAgent?> TryUpdateWorkspacesAsync(IAgent agent, List<AgentWorkspaceInfo> workspaces, bool requestConform, CancellationToken cancellationToken = default);
-
-		/// <summary>
-		/// Sets the current session
-		/// </summary>
-		/// <param name="agent">The agent to update</param>
-		/// <param name="sessionId">New session id</param>
-		/// <param name="sessionExpiresAt">Expiry time for the new session</param>
-		/// <param name="status">Status of the agent</param>
-		/// <param name="properties">Properties for the current session</param>
-		/// <param name="resources">Resources for the agent</param>
-		/// <param name="pools">New list of pools for the agent</param>
-		/// <param name="dynamicPools">New list of dynamic pools for the agent</param>
-		/// <param name="lastStatusChange">Time to force status change timestamp to</param>
-		/// <param name="version">Current version of the agent software</param>
-		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		/// <returns>New agent state</returns>
-		Task<IAgent?> TryStartSessionAsync(IAgent agent, SessionId sessionId, DateTime sessionExpiresAt, AgentStatus status, IReadOnlyList<string> properties, IReadOnlyDictionary<string, int> resources, IReadOnlyList<PoolId> pools, IReadOnlyList<PoolId> dynamicPools, DateTime lastStatusChange, string? version, CancellationToken cancellationToken = default);
-
-		/// <summary>
-		/// Attempt to update the agent state
-		/// </summary>
-		/// <param name="agent">Agent instance</param>
-		/// <param name="status">New status of the agent</param>
-		/// <param name="sessionExpiresAt">New expiry time for the current session</param>
-		/// <param name="properties">Properties for the current session</param>
-		/// <param name="resources">Resources for the agent</param>
-		/// <param name="dynamicPools">New list of dynamic pools for the agent</param>
-		/// <param name="leases">New set of leases</param>
-		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		/// <returns>True if the document was updated, false if another writer updated the document first</returns>
-		Task<IAgent?> TryUpdateSessionAsync(IAgent agent, AgentStatus? status, DateTime? sessionExpiresAt, IReadOnlyList<string>? properties, IReadOnlyDictionary<string, int>? resources, IReadOnlyList<PoolId>? dynamicPools, List<AgentLease>? leases, CancellationToken cancellationToken = default);
-
-		/// <summary>
-		/// Terminates the current session
-		/// </summary>
-		/// <param name="agent">The agent to terminate the session for</param>
-		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		/// <returns>New agent state if it succeeded, otherwise null</returns>
-		Task<IAgent?> TryTerminateSessionAsync(IAgent agent, CancellationToken cancellationToken = default);
-
-		/// <summary>
-		/// Attempts to add a lease to an agent
-		/// </summary>
-		/// <param name="agent">The agent to update</param>
-		/// <param name="newLease">The new lease document</param>
-		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		/// <returns>New agent state if it succeeded, otherwise null</returns>
-		Task<IAgent?> TryAddLeaseAsync(IAgent agent, AgentLease newLease, CancellationToken cancellationToken = default);
-
-		/// <summary>
-		/// Attempts to cancel a lease
-		/// </summary>
-		/// <param name="agent">The agent to update</param>
-		/// <param name="leaseIdx">Index of the lease</param>
-		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		/// <returns>New agent state if it succeeded, otherwise null</returns>
-		Task<IAgent?> TryCancelLeaseAsync(IAgent agent, int leaseIdx, CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Gets the log channel for an agent

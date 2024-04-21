@@ -220,7 +220,7 @@ namespace Horde.Server.Agents
 					return await Agents.AddAsync(agentId, ephemeral, enrollmentKey, cancellationToken);
 				}
 
-				agent = await Agents.TryResetAsync(agent, ephemeral, enrollmentKey, cancellationToken);
+				agent = await agent.TryResetAsync(ephemeral, enrollmentKey, cancellationToken);
 				if (agent != null)
 				{
 					return agent;
@@ -265,7 +265,7 @@ namespace Horde.Server.Agents
 		/// <returns>New agent state</returns>
 		public async Task<bool> TryUpdateWorkspacesAsync(IAgent agent, List<AgentWorkspaceInfo> workspaces, bool pendingConform, CancellationToken cancellationToken)
 		{
-			IAgent? newAgent = await Agents.TryUpdateWorkspacesAsync(agent, workspaces, pendingConform, cancellationToken);
+			IAgent? newAgent = await agent.TryUpdateWorkspacesAsync(workspaces, pendingConform, cancellationToken);
 			return newAgent != null;
 		}
 
@@ -291,7 +291,7 @@ namespace Horde.Server.Agents
 
 			while (agent is { Deleted: false })
 			{
-				IAgent? newAgent = await Agents.TryDeleteAsync(agent, cancellationToken);
+				IAgent? newAgent = await agent.TryDeleteAsync(cancellationToken);
 				if (newAgent != null)
 				{
 					break;
@@ -400,7 +400,7 @@ namespace Horde.Server.Agents
 					List<PoolId> pools = CombineCurrentAndRequestedPools(agent.ExplicitPools, properties);
 
 					// Reset the agent to use the new session
-					newAgent = await Agents.TryStartSessionAsync(agent, newSession.Id, sessionExpiresAt, status, properties, resources, pools, dynamicPools, lastStatusChange ?? utcNow, version, cancellationToken);
+					newAgent = await agent.TryCreateSessionAsync(new CreateSessionOptions(newSession.Id, sessionExpiresAt, status, properties, resources, pools, dynamicPools, lastStatusChange ?? utcNow, version), cancellationToken);
 					if (newAgent != null)
 					{
 						LogPropertyChanges(agentLogger, agent.Properties, newAgent.Properties);
@@ -564,7 +564,7 @@ namespace Horde.Server.Agents
 				(ITaskSource source, AgentLease lease) = result.Value;
 
 				// Add the new lease to the agent
-				IAgent? newAgent = await Agents.TryAddLeaseAsync(agent, lease, cancellationToken);
+				IAgent? newAgent = await agent.TryAddLeaseAsync(lease, cancellationToken);
 				if (newAgent != null)
 				{
 					await source.OnLeaseStartedAsync(newAgent, lease.Id, Any.Parser.ParseFrom(lease.Payload), Agents.GetLogger(agent.Id), CancellationToken.None);
@@ -657,7 +657,7 @@ namespace Horde.Server.Agents
 				return false;
 			}
 
-			await Agents.TryCancelLeaseAsync(agent, index, cancellationToken);
+			await agent.TryCancelLeaseAsync(index, cancellationToken);
 			return true;
 		}
 
@@ -783,7 +783,7 @@ namespace Horde.Server.Agents
 				List<PoolId> dynamicPools = await GetDynamicPoolsAsync(agent, cancellationToken);
 
 				// Update the agent, and try to create new lease documents if we succeed
-				IAgent? newAgent = await Agents.TryUpdateSessionAsync(agent, status, sessionExpiresAt, properties, resources, dynamicPools, updateLeases ? leases : null, cancellationToken);
+				IAgent? newAgent = await agent.TryUpdateSessionAsync(new UpdateSessionOptions(status, sessionExpiresAt, properties, resources, dynamicPools, updateLeases ? leases : null), cancellationToken);
 				if (newAgent != null)
 				{
 					agent = newAgent;
@@ -836,7 +836,7 @@ namespace Horde.Server.Agents
 			List<AgentLease> leases = new List<AgentLease>(agent.Leases);
 
 			// Clear the current session
-			IAgent? newAgent = await Agents.TryTerminateSessionAsync(agent, cancellationToken);
+			IAgent? newAgent = await agent.TryTerminateSessionAsync(cancellationToken);
 			if (newAgent != null)
 			{
 				agent = newAgent;

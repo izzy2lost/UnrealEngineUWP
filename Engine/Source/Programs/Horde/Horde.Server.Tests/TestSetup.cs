@@ -412,7 +412,7 @@ namespace Horde.Server.Tests
 			IAgent? agent = await AgentService.CreateAgentAsync("TestAgent" + s_agentIdCounter++, ephemeral, "");
 			Assert.IsNotNull(agent);
 
-			agent = await AgentService.Agents.TryUpdateSettingsAsync(agent, enabled: enabled, pools: new List<PoolId> { poolId });
+			agent = await agent.TryUpdateAsync(new UpdateAgentOptions { Enabled = enabled, Pools = new List<PoolId> { poolId } });
 			Assert.IsNotNull(agent);
 
 			agent = await AgentService.CreateSessionAsync(agent, AgentStatus.Ok, tempProps, resources, null);
@@ -420,17 +420,17 @@ namespace Horde.Server.Tests
 
 			if (workspaces is { Count: > 0 })
 			{
-				await AgentCollection.TryUpdateWorkspacesAsync(agent, workspaces, false);
+				await agent.TryUpdateWorkspacesAsync(workspaces, false);
 			}
 			
 			if (requestShutdown)
 			{
-				await AgentCollection.TryUpdateSettingsAsync(agent, requestShutdown: true);
+				await agent.TryUpdateAsync(new UpdateAgentOptions { RequestShutdown = true });
 			}
 
 			if (lease != null)
 			{
-				await AgentCollection.TryAddLeaseAsync(agent, lease);
+				await agent.TryAddLeaseAsync(lease);
 			}
 
 			Clock.UtcNow = now;

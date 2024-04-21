@@ -462,7 +462,7 @@ namespace Horde.Server.Agents.Fleet
 			{
 				if (agent.RequestShutdown && numShutdownsCancelled < count)
 				{
-					await _agentCollection.TryUpdateSettingsAsync(agent, requestShutdown: false, cancellationToken: cancellationToken);
+					await agent.TryUpdateAsync(new UpdateAgentOptions { RequestShutdown = false }, cancellationToken: cancellationToken);
 					numShutdownsCancelled++;
 				}
 			}

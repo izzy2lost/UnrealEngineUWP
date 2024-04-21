@@ -271,7 +271,7 @@ namespace Horde.Server.Agents.Fleet.Providers
 			const int MaxRetries = 5;
 			for (int retryCount = 0; retryCount < MaxRetries; retryCount++)
 			{
-				if (await agentCollection.TryUpdateSettingsAsync(agent, requestShutdown: true, shutdownReason: "Autoscaler", cancellationToken: cancellationToken) != null)
+				if (await agent.TryUpdateAsync(new UpdateAgentOptions { RequestShutdown = true, ShutdownReason = "Autoscaler" }, cancellationToken: cancellationToken) != null)
 				{
 					agentLogger.LogInformation("Marked {AgentId} in pool {PoolName} for shutdown due to autoscaling (currently {NumLeases} leases outstanding, {NumRetries} retries)", agent.Id, pool.Name, agent.Leases.Count, retryCount);
 					return true;

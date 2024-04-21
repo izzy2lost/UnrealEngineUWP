@@ -31,6 +31,769 @@ using MongoDB.Bson.Serialization.Attributes;
 namespace Horde.Server.Agents
 {
 	/// <summary>
+	/// Mirrors an Agent document in the database
+	/// </summary>
+	public interface IAgent
+	{
+		/// <summary>
+		/// Identifier for this agent.
+		/// </summary>
+		public AgentId Id { get; }
+
+		/// <summary>
+		/// The current session id, if it's online
+		/// </summary>
+		public SessionId? SessionId { get; }
+
+		/// <summary>
+		/// Time at which the current session expires. 
+		/// </summary>
+		public DateTime? SessionExpiresAt { get; }
+
+		/// <summary>
+		/// Current status of this agent
+		/// </summary>
+		public AgentStatus Status { get; }
+
+		/// <summary>
+		/// Time at which last status change took place.
+		/// </summary>
+		public DateTime? LastStatusChange { get; }
+
+		/// <summary>
+		/// Whether the agent is enabled
+		/// </summary>
+		public bool Enabled { get; }
+
+		/// <summary>
+		/// Whether the agent is ephemeral
+		/// </summary>
+		public bool Ephemeral { get; }
+
+		/// <summary>
+		/// Whether the agent should be included on the dashboard. This is set to true for ephemeral agents once they are no longer online, or agents that are explicitly deleted.
+		/// </summary>
+		public bool Deleted { get; }
+
+		/// <summary>
+		/// Version of the software running on this agent
+		/// </summary>
+		public string? Version { get; }
+
+		/// <summary>
+		/// Arbitrary comment for the agent (useful for disable reasons etc)
+		/// </summary>
+		public string? Comment { get; }
+
+		/// <summary>
+		/// List of properties for this agent
+		/// </summary>
+		public IReadOnlyList<string> Properties { get; }
+
+		/// <summary>
+		/// List of resources available to the agent
+		/// </summary>
+		public IReadOnlyDictionary<string, int> Resources { get; }
+
+		/// <summary>
+		/// Last upgrade that was attempted
+		/// </summary>
+		public string? LastUpgradeVersion { get; }
+
+		/// <summary>
+		/// Time that which the last upgrade was attempted
+		/// </summary>
+		public DateTime? LastUpgradeTime { get; }
+
+		/// <summary>
+		/// Number of times an upgrade job has failed
+		/// </summary>
+		public int? UpgradeAttemptCount { get; }
+
+		/// <summary>
+		/// Dynamically applied pools
+		/// </summary>
+		public IReadOnlyList<PoolId> DynamicPools { get; }
+
+		/// <summary>
+		/// List of manually assigned pools for agent
+		/// </summary>
+		public IReadOnlyList<PoolId> ExplicitPools { get; }
+
+		/// <summary>
+		/// Whether a conform is requested
+		/// </summary>
+		public bool RequestConform { get; }
+
+		/// <summary>
+		/// Whether a full conform is requested
+		/// </summary>
+		public bool RequestFullConform { get; }
+
+		/// <summary>
+		/// Whether a machine restart is requested
+		/// </summary>
+		public bool RequestRestart { get; }
+
+		/// <summary>
+		/// Whether the machine should be shutdown
+		/// </summary>
+		public bool RequestShutdown { get; }
+
+		/// <summary>
+		/// Whether a forced machine restart is requested
+		/// </summary>
+		public bool RequestForceRestart { get; }
+
+		/// <summary>
+		/// The reason for the last agent shutdown
+		/// </summary>
+		public string? LastShutdownReason { get; }
+
+		/// <summary>
+		/// List of workspaces currently synced to this machine
+		/// </summary>
+		public IReadOnlyList<AgentWorkspaceInfo> Workspaces { get; }
+
+		/// <summary>
+		/// Time at which the last conform job ran
+		/// </summary>
+		public DateTime LastConformTime { get; }
+
+		/// <summary>
+		/// Number of times a conform job has failed
+		/// </summary>
+		public int? ConformAttemptCount { get; }
+
+		/// <summary>
+		/// Array of active leases.
+		/// </summary>
+		public IReadOnlyList<AgentLease> Leases { get; }
+
+		/// <summary>
+		/// Key used to validate that a particular enrollment is still valid for this agent
+		/// </summary>
+		public string EnrollmentKey { get; }
+
+		/// <summary>
+		/// Last time that the agent was modified
+		/// </summary>
+		public DateTime UpdateTime { get; }
+
+		/// <summary>
+		/// Update counter for this document. Any updates should compare-and-swap based on the value of this counter, or increment it in the case of server-side updates.
+		/// </summary>
+		public uint UpdateIndex { get; }
+
+		/// <summary>
+		/// Resets an agent to use new settings
+		/// </summary>
+		/// <param name="ephemeral">Whether the agent is ephemeral or not</param>
+		/// <param name="enrollmentKey">Key used to identify a unique enrollment for the agent with this id</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		Task<IAgent?> TryResetAsync(bool ephemeral, string enrollmentKey, CancellationToken cancellationToken = default);
+
+		/// <summary>
+		/// Deletes an agent
+		/// </summary>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		/// <returns>Async task</returns>
+		Task<IAgent?> TryDeleteAsync(CancellationToken cancellationToken = default);
+
+		/// <summary>
+		/// Update an agent's settings
+		/// </summary>
+		/// <param name="options">Options for updating the agent</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		/// <returns>New agent state if update was successful</returns>
+		Task<IAgent?> TryUpdateAsync(UpdateAgentOptions options, CancellationToken cancellationToken = default);
+
+		/// <summary>
+		/// Update the current workspaces for an agent.
+		/// </summary>
+		/// <param name="workspaces">Current list of workspaces</param>
+		/// <param name="requestConform">Whether the agent still needs to run another conform</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		/// <returns>New agent state</returns>
+		Task<IAgent?> TryUpdateWorkspacesAsync(List<AgentWorkspaceInfo> workspaces, bool requestConform, CancellationToken cancellationToken = default);
+
+		/// <summary>
+		/// Sets the current session
+		/// </summary>
+		/// <param name="options">Options for the new session</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		/// <returns>New agent state</returns>
+		Task<IAgent?> TryCreateSessionAsync(CreateSessionOptions options, CancellationToken cancellationToken = default);
+
+		/// <summary>
+		/// Attempt to update the current session
+		/// </summary>
+		/// <param name="options">Options for updating the session</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		/// <returns>True if the document was updated, false if another writer updated the document first</returns>
+		Task<IAgent?> TryUpdateSessionAsync(UpdateSessionOptions options, CancellationToken cancellationToken = default);
+
+		/// <summary>
+		/// Terminates the current session
+		/// </summary>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		/// <returns>New agent state if it succeeded, otherwise null</returns>
+		Task<IAgent?> TryTerminateSessionAsync(CancellationToken cancellationToken = default);
+
+		/// <summary>
+		/// Attempts to add a lease to an agent
+		/// </summary>
+		/// <param name="newLease">The new lease document</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		/// <returns>New agent state if it succeeded, otherwise null</returns>
+		Task<IAgent?> TryAddLeaseAsync(AgentLease newLease, CancellationToken cancellationToken = default);
+
+		/// <summary>
+		/// Attempts to cancel a lease
+		/// </summary>
+		/// <param name="leaseIdx">Index of the lease</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		/// <returns>New agent state if it succeeded, otherwise null</returns>
+		Task<IAgent?> TryCancelLeaseAsync(int leaseIdx, CancellationToken cancellationToken = default);
+	}
+
+	/// <summary>
+	/// Options for updating an agent
+	/// </summary>
+	/// <param name="Enabled">Whether the agent is enabled or not</param>
+	/// <param name="RequestConform">Whether to request a conform job be run</param>
+	/// <param name="RequestFullConform">Whether to request a full conform job be run</param>
+	/// <param name="RequestRestart">Whether to request the machine be restarted</param>
+	/// <param name="RequestShutdown">Whether to request the machine be shut down</param>
+	/// <param name="RequestForceRestart">Request an immediate restart without waiting for leases to complete</param>
+	/// <param name="ShutdownReason">The reason for shutting down agent, ex. Autoscaler/Manual/Unexpected</param>
+	/// <param name="Pools">List of pools for the agent</param>
+	/// <param name="Comment">New comment</param>
+	public record class UpdateAgentOptions(bool? Enabled = null, bool? RequestConform = null, bool? RequestFullConform = null, bool? RequestRestart = null, bool? RequestShutdown = null, bool? RequestForceRestart = null, string? ShutdownReason = null, List<PoolId>? Pools = null, string? Comment = null);
+
+	/// <summary>
+	/// Options for starting a new agent session
+	/// </summary>
+	/// <param name="SessionId">New session id</param>
+	/// <param name="SessionExpiresAt">Expiry time for the new session</param>
+	/// <param name="Status">Status of the agent</param>
+	/// <param name="Properties">Properties for the current session</param>
+	/// <param name="Resources">Resources for the agent</param>
+	/// <param name="Pools">New list of pools for the agent</param>
+	/// <param name="DynamicPools">New list of dynamic pools for the agent</param>
+	/// <param name="LastStatusChange">Time to force status change timestamp to</param>
+	/// <param name="Version">Current version of the agent software</param>
+	public record class CreateSessionOptions(SessionId SessionId, DateTime SessionExpiresAt, AgentStatus Status, IReadOnlyList<string> Properties, IReadOnlyDictionary<string, int> Resources, IReadOnlyList<PoolId> Pools, IReadOnlyList<PoolId> DynamicPools, DateTime LastStatusChange, string? Version);
+
+	/// <summary>
+	/// Options for updating a new agent session
+	/// </summary>
+	/// <param name="Status">New status of the agent</param>
+	/// <param name="SessionExpiresAt">New expiry time for the current session</param>
+	/// <param name="Properties">Properties for the current session</param>
+	/// <param name="Resources">Resources for the agent</param>
+	/// <param name="DynamicPools">New list of dynamic pools for the agent</param>
+	/// <param name="Leases">New set of leases</param>
+	public record class UpdateSessionOptions(AgentStatus? Status = null, DateTime? SessionExpiresAt = null, IReadOnlyList<string>? Properties = null, IReadOnlyDictionary<string, int>? Resources = null, IReadOnlyList<PoolId>? DynamicPools = null, List<AgentLease>? Leases = null);
+
+	/// <summary>
+	/// Extension methods for IAgent
+	/// </summary>
+	public static class AgentExtensions
+	{
+		/// <summary>
+		/// Default tool ID for agent software (multi-platform, shipped without a .NET runtime)
+		/// This is being deprecated in favor of the platform-specific and self-contained versions of the agent below
+		/// </summary>
+		public static ToolId AgentToolId { get; } = new("horde-agent");
+
+		/// <summary>
+		/// Tool ID for Windows-specific and self-contained agent software
+		/// </summary>
+		public static ToolId AgentWinX64ToolId { get; } = new("horde-agent-win-x64");
+
+		/// <summary>
+		/// Tool ID for Linux-specific and self-contained agent software
+		/// </summary>
+		public static ToolId AgentLinuxX64ToolId { get; } = new("horde-agent-linux-x64");
+
+		/// <summary>
+		/// Tool ID for Mac-specific and self-contained agent software
+		/// </summary>
+		public static ToolId AgentMacX64ToolId { get; } = new("horde-agent-osx-x64");
+
+		/// <summary>
+		/// Gets the tool ID for the software the given agent should be running
+		/// </summary>
+		/// <param name="agent">Agent to check</param>
+		/// <param name="globalConfig">Current global config</param>
+		/// <returns>Identifier for the tool that the agent should be using</returns>
+		public static ToolId GetSoftwareToolId(this IAgent agent, GlobalConfig globalConfig)
+		{
+			ToolId toolId = AgentToolId;
+
+			if (agent.IsSelfContained())
+			{
+				// Skip support for condition-based software configs below by returning early when self-contained
+				// Getting this wrong can lead to a self-contained agent getting non-self-contained updates and vice versa.
+				return agent.GetOsFamily() switch
+				{
+					RuntimePlatform.Type.Windows => AgentWinX64ToolId,
+					RuntimePlatform.Type.Linux => AgentLinuxX64ToolId,
+					RuntimePlatform.Type.Mac => AgentMacX64ToolId,
+					_ => throw new ArgumentOutOfRangeException("Unknown platform " + agent.GetOsFamily())
+				};
+			}
+
+			foreach (AgentSoftwareConfig softwareConfig in globalConfig.Software)
+			{
+				if (softwareConfig.Condition != null && agent.SatisfiesCondition(softwareConfig.Condition))
+				{
+					toolId = softwareConfig.ToolId;
+					break;
+				}
+			}
+			return toolId;
+		}
+
+		/// <summary>
+		/// Determines whether this agent is online
+		/// </summary>
+		/// <returns></returns>
+		public static bool IsSessionValid(this IAgent agent, DateTime utcNow)
+		{
+			return agent.SessionId.HasValue && agent.SessionExpiresAt.HasValue && utcNow < agent.SessionExpiresAt.Value;
+		}
+
+		/// <summary>
+		/// Tests whether an agent is in the given pool
+		/// </summary>
+		/// <param name="agent"></param>
+		/// <param name="poolId"></param>
+		/// <returns></returns>
+		public static bool IsInPool(this IAgent agent, PoolId poolId)
+		{
+			return agent.DynamicPools.Contains(poolId) || agent.ExplicitPools.Contains(poolId);
+		}
+
+		/// <summary>
+		/// Get all the pools for each agent
+		/// </summary>
+		/// <param name="agent">The agent to query</param>
+		/// <returns></returns>
+		public static IEnumerable<PoolId> GetPools(this IAgent agent)
+		{
+			foreach (PoolId poolId in agent.DynamicPools)
+			{
+				yield return poolId;
+			}
+			foreach (PoolId poolId in agent.ExplicitPools)
+			{
+				yield return poolId;
+			}
+		}
+
+		/// <summary>
+		/// Tests whether an agent has reported as being a self-contained .NET package
+		/// </summary>
+		/// <param name="agent">Agent to query</param>
+		/// <returns>True if self-contained</returns>
+		public static bool IsSelfContained(this IAgent agent)
+		{
+			List<string> values = agent.GetPropertyValues(KnownPropertyNames.SelfContained).ToList();
+			return values.Count > 0 && values[0].Equals("true", StringComparison.OrdinalIgnoreCase);
+		}
+
+		/// <summary>
+		/// Get free disk space on agent (as reported through primary device capabilities)
+		/// </summary>
+		/// <param name="agent">Agent to query</param>
+		/// <returns>Amount of free disk space in bytes</returns>
+		public static long? GetDiskFreeSpace(this IAgent agent)
+		{
+			List<string> values = agent.GetPropertyValues(KnownPropertyNames.DiskFreeSpace).ToList();
+			return values.Count > 0 && Int64.TryParse(values[0], out long amount) ? amount : null;
+		}
+
+		/// <summary>
+		/// Get operating system family of agent
+		/// </summary>
+		/// <param name="agent">Agent to query</param>
+		/// <returns>Type of OS</returns>
+		public static RuntimePlatform.Type? GetOsFamily(this IAgent agent)
+		{
+			List<string> values = agent.GetPropertyValues(KnownPropertyNames.OsFamily).ToList();
+			if (values.Count == 0)
+			{
+				return null;
+			}
+
+			return values[0].ToUpperInvariant() switch
+			{
+				"WINDOWS" => RuntimePlatform.Type.Windows,
+				"LINUX" => RuntimePlatform.Type.Linux,
+				"MACOS" => RuntimePlatform.Type.Mac,
+				_ => null
+			};
+		}
+
+		/// <summary>
+		/// Tests whether an agent has a particular property
+		/// </summary>
+		/// <param name="agent"></param>
+		/// <param name="property"></param>
+		/// <returns></returns>
+		public static bool HasProperty(this IAgent agent, string property)
+		{
+			return agent.Properties.BinarySearch(property, StringComparer.OrdinalIgnoreCase) >= 0;
+		}
+
+		/// <summary>
+		/// Finds property values from a sorted list of Name=Value pairs
+		/// </summary>
+		/// <param name="agent">The agent to query</param>
+		/// <param name="name">Name of the property to find</param>
+		/// <returns>Property values</returns>
+		public static IEnumerable<string> GetPropertyValues(this IAgent agent, string name)
+		{
+			if (name.Equals(KnownPropertyNames.Id, StringComparison.OrdinalIgnoreCase))
+			{
+				yield return agent.Id.ToString();
+			}
+			else if (name.Equals(KnownPropertyNames.Pool, StringComparison.OrdinalIgnoreCase))
+			{
+				foreach (PoolId poolId in agent.GetPools())
+				{
+					yield return poolId.ToString();
+				}
+			}
+			else
+			{
+				int index = agent.Properties.BinarySearch(name, StringComparer.OrdinalIgnoreCase);
+				if (index < 0)
+				{
+					index = ~index;
+					for (; index < agent.Properties.Count; index++)
+					{
+						string property = agent.Properties[index];
+						if (property.Length <= name.Length || !property.StartsWith(name, StringComparison.OrdinalIgnoreCase) || property[name.Length] != '=')
+						{
+							break;
+						}
+						yield return property.Substring(name.Length + 1);
+					}
+				}
+			}
+		}
+
+		/// <summary>
+		/// Evaluates a condition against an agent
+		/// </summary>
+		/// <param name="agent">The agent to evaluate</param>
+		/// <param name="condition">The condition to evaluate</param>
+		/// <returns>True if the agent satisfies the condition</returns>
+		public static bool SatisfiesCondition(this IAgent agent, Condition condition)
+		{
+			return condition.Evaluate(x => agent.GetPropertyValues(x));
+		}
+
+		/// <summary>
+		/// Determine whether it's possible to add a lease for the given resources
+		/// </summary>
+		/// <param name="agent">The agent to create a lease for</param>
+		/// <param name="requirements">Requirements for the lease</param>
+		/// <param name="assignedResources">Receives the allocated resources</param>
+		/// <param name="conditions">Condition to check in addition to those in requirements</param>
+		/// <returns>True if the new lease can be granted</returns>
+		public static bool MeetsRequirements(this IAgent agent, Requirements requirements, Dictionary<string, int> assignedResources, List<Condition> conditions)
+		{
+			PoolId? poolId = null;
+			if (!String.IsNullOrEmpty(requirements.Pool))
+			{
+				poolId = new PoolId(requirements.Pool);
+			}
+
+			List<Condition> combinedConditions = [];
+			if (requirements.Condition != null)
+			{
+				combinedConditions.Add(requirements.Condition);
+			}
+			combinedConditions.AddRange(conditions);
+			return MeetsRequirements(agent, poolId, combinedConditions, requirements.Resources, requirements.Exclusive, assignedResources);
+		}
+
+		/// <summary>
+		/// Determine whether it's possible to add a lease for the given resources
+		/// </summary>
+		/// <param name="agent">The agent to create a lease for</param>
+		/// <param name="poolId">Pool to take the machine from</param>
+		/// <param name="conditions">Conditions to satisfy</param>
+		/// <param name="resources">Resources required to execute</param>
+		/// <param name="exclusive">Whether the lease needs to be executed exclusively on the machine</param>
+		/// <param name="assignedResources">Resources allocated to the task</param>
+		/// <returns>True if the new lease can be granted</returns>
+		public static bool MeetsRequirements(this IAgent agent, PoolId? poolId, List<Condition> conditions, Dictionary<string, ResourceRequirements>? resources, bool exclusive, Dictionary<string, int> assignedResources)
+		{
+			if (!agent.Enabled || agent.Status != AgentStatus.Ok)
+			{
+				return false;
+			}
+			if (agent.Leases.Any(x => x.Exclusive))
+			{
+				return false;
+			}
+			if (exclusive && agent.Leases.Any())
+			{
+				return false;
+			}
+			if (poolId.HasValue && !agent.IsInPool(poolId.Value))
+			{
+				return false;
+			}
+			if (conditions.Any(condition => !agent.SatisfiesCondition(condition)))
+			{
+				return false;
+			}
+			if (resources != null)
+			{
+				foreach ((string name, ResourceRequirements resourceRequirements) in resources)
+				{
+					int remainingCount;
+					if (!agent.Resources.TryGetValue(name, out remainingCount))
+					{
+						return false;
+					}
+					foreach (AgentLease lease in agent.Leases)
+					{
+						if (lease.Resources != null)
+						{
+							int leaseCount;
+							lease.Resources.TryGetValue(name, out leaseCount);
+							remainingCount -= leaseCount;
+						}
+					}
+					if (remainingCount < resourceRequirements.Min)
+					{
+						return false;
+					}
+
+					int allocatedCount;
+					if (resourceRequirements.Max != null)
+					{
+						allocatedCount = Math.Min(resourceRequirements.Max.Value, remainingCount);
+					}
+					else
+					{
+						allocatedCount = resourceRequirements.Min;
+					}
+					assignedResources.Add(name, allocatedCount);
+				}
+			}
+			return true;
+		}
+
+		/// <summary>
+		/// Get the AutoSDK workspace required for an agent
+		/// </summary>
+		/// <param name="agent"></param>
+		/// <param name="cluster">The perforce cluster to get a workspace for</param>
+		/// <param name="pools">Pools that the agent belongs to</param>
+		/// <returns></returns>
+		public static AgentWorkspaceInfo? GetAutoSdkWorkspace(this IAgent agent, PerforceCluster cluster, IEnumerable<IPool> pools)
+		{
+			AutoSdkConfig? autoSdkConfig = null;
+			foreach (IPool pool in pools)
+			{
+				autoSdkConfig = AutoSdkConfig.Merge(autoSdkConfig, pool.AutoSdkConfig);
+			}
+			if (autoSdkConfig == null)
+			{
+				return null;
+			}
+
+			return GetAutoSdkWorkspace(agent, cluster, autoSdkConfig);
+		}
+
+		/// <summary>
+		/// Get the AutoSDK workspace required for an agent
+		/// </summary>
+		/// <param name="agent"></param>
+		/// <param name="cluster">The perforce cluster to get a workspace for</param>
+		/// <param name="autoSdkConfig">Configuration for autosdk</param>
+		/// <returns></returns>
+		public static AgentWorkspaceInfo? GetAutoSdkWorkspace(this IAgent agent, PerforceCluster cluster, AutoSdkConfig autoSdkConfig)
+		{
+			foreach (AutoSdkWorkspace autoSdk in cluster.AutoSdk)
+			{
+				if (autoSdk.Stream != null && autoSdk.Properties.All(x => agent.Properties.Contains(x)))
+				{
+					return new AgentWorkspaceInfo(cluster.Name, autoSdk.UserName, autoSdk.Name ?? "AutoSDK", autoSdk.Stream!, autoSdkConfig.View.ToList(), true, null, null);
+				}
+			}
+			return null;
+		}
+
+		/// <summary>
+		/// Converts this workspace to an RPC message
+		/// </summary>
+		/// <param name="agent">The agent to get a workspace for</param>
+		/// <param name="workspace">The workspace definition</param>
+		/// <param name="cluster">The global state</param>
+		/// <param name="loadBalancer">The Perforce load balancer</param>
+		/// <param name="workspaceMessages">List of messages</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		/// <returns>The RPC message</returns>
+		public static async Task<bool> TryAddWorkspaceMessageAsync(this IAgent agent, AgentWorkspaceInfo workspace, PerforceCluster cluster, PerforceLoadBalancer loadBalancer, IList<RpcAgentWorkspace> workspaceMessages, CancellationToken cancellationToken)
+		{
+			// Find a matching server, trying to use a previously selected one if possible
+			string? baseServerAndPort;
+			string? serverAndPort;
+			bool partitioned;
+
+			RpcAgentWorkspace? existingWorkspace = workspaceMessages.FirstOrDefault(x => x.ConfiguredCluster == workspace.Cluster);
+			if (existingWorkspace != null)
+			{
+				baseServerAndPort = existingWorkspace.BaseServerAndPort;
+				serverAndPort = existingWorkspace.ServerAndPort;
+				partitioned = existingWorkspace.Partitioned;
+			}
+			else
+			{
+				if (cluster == null)
+				{
+					return false;
+				}
+
+				IPerforceServer? server = await loadBalancer.SelectServerAsync(cluster, agent, cancellationToken);
+				if (server == null)
+				{
+					return false;
+				}
+
+				baseServerAndPort = server.BaseServerAndPort;
+				serverAndPort = server.ServerAndPort;
+				partitioned = server.SupportsPartitionedWorkspaces;
+			}
+
+			// Find the matching credentials for the desired user
+			PerforceCredentials? credentials = null;
+			if (cluster != null)
+			{
+				if (workspace.UserName == null)
+				{
+					credentials = cluster.Credentials.FirstOrDefault();
+				}
+				else
+				{
+					credentials = cluster.Credentials.FirstOrDefault(x => String.Equals(x.UserName, workspace.UserName, StringComparison.OrdinalIgnoreCase));
+				}
+			}
+
+			// Construct the message
+			RpcAgentWorkspace result = new RpcAgentWorkspace
+			{
+				ConfiguredCluster = workspace.Cluster,
+				ConfiguredUserName = workspace.UserName,
+				Cluster = cluster?.Name,
+				BaseServerAndPort = baseServerAndPort,
+				ServerAndPort = serverAndPort,
+				UserName = credentials?.UserName ?? workspace.UserName,
+				Password = credentials?.Password,
+				Ticket = credentials?.Ticket,
+				Identifier = workspace.Identifier,
+				Stream = workspace.Stream,
+				Incremental = workspace.Incremental,
+				Partitioned = partitioned,
+				Method = workspace.Method ?? String.Empty
+			};
+
+			if (workspace.View != null)
+			{
+				result.View.AddRange(workspace.View);
+			}
+
+			workspaceMessages.Add(result);
+			return true;
+		}
+
+		/// <summary>
+		/// Tries to get an agent workspace definition from the given type name
+		/// </summary>
+		/// <param name="streamConfig">The stream object</param>
+		/// <param name="agentType">The agent type</param>
+		/// <param name="workspace">Receives the agent workspace definition</param>
+		/// <param name="autoSdkConfig">Receives the autosdk workspace config</param>
+		/// <returns>True if the agent type was valid, and an agent workspace could be created</returns>
+		public static bool TryGetAgentWorkspace(this StreamConfig streamConfig, AgentConfig agentType, [NotNullWhen(true)] out AgentWorkspaceInfo? workspace, out AutoSdkConfig? autoSdkConfig)
+		{
+			// Get the workspace settings
+			if (agentType.Workspace == null)
+			{
+				// Use the default settings (fast switching workspace, clean)
+				workspace = new AgentWorkspaceInfo(streamConfig.ClusterName, null, streamConfig.GetDefaultWorkspaceIdentifier(), streamConfig.Name, null, false, null, null);
+				autoSdkConfig = AutoSdkConfig.Full;
+				return true;
+			}
+			else
+			{
+				// Try to get the matching workspace type
+				WorkspaceConfig? workspaceConfig;
+				if (!streamConfig.WorkspaceTypes.TryGetValue(agentType.Workspace, out workspaceConfig))
+				{
+					workspace = null;
+					autoSdkConfig = null;
+					return false;
+				}
+
+				// Get the workspace identifier
+				string identifier;
+				if (workspaceConfig.Identifier != null)
+				{
+					identifier = workspaceConfig.Identifier;
+				}
+				else if (workspaceConfig.Incremental ?? false)
+				{
+					identifier = $"{streamConfig.GetEscapedName()}+{agentType.Workspace}";
+				}
+				else
+				{
+					identifier = streamConfig.GetDefaultWorkspaceIdentifier();
+				}
+
+				// Create the new workspace
+				string cluster = workspaceConfig.Cluster ?? streamConfig.ClusterName;
+				workspace = new AgentWorkspaceInfo(cluster, workspaceConfig.UserName, identifier, workspaceConfig.Stream ?? streamConfig.Name, workspaceConfig.View, workspaceConfig.Incremental ?? false, workspaceConfig.Method, workspaceConfig.MinScratchSpace);
+				autoSdkConfig = GetAutoSdkConfig(workspaceConfig, streamConfig);
+
+				return true;
+			}
+
+			static AutoSdkConfig? GetAutoSdkConfig(WorkspaceConfig workspaceConfig, StreamConfig streamConfig)
+			{
+				AutoSdkConfig? autoSdkConfig = null;
+				if (workspaceConfig.UseAutoSdk ?? true)
+				{
+					List<string> view = new List<string>();
+					if (streamConfig.AutoSdkView != null)
+					{
+						view.AddRange(streamConfig.AutoSdkView);
+					}
+					if (workspaceConfig.AutoSdkView != null)
+					{
+						view.AddRange(workspaceConfig.AutoSdkView);
+					}
+					if (view.Count == 0)
+					{
+						view.Add("...");
+					}
+					autoSdkConfig = new AutoSdkConfig(view);
+				}
+				return autoSdkConfig;
+			}
+		}
+	}
+
+	/// <summary>
 	/// Information about a workspace synced to an agent
 	/// </summary>
 	public class AgentWorkspaceInfo
@@ -427,659 +1190,6 @@ namespace Horde.Server.Agents
 			lease.Payload = Google.Protobuf.WellKnownTypes.Any.Parser.ParseFrom(Payload);
 			lease.State = (RpcLeaseState)State;
 			return lease;
-		}
-	}
-
-	/// <summary>
-	/// Mirrors an Agent document in the database
-	/// </summary>
-	public interface IAgent
-	{
-		/// <summary>
-		/// Identifier for this agent.
-		/// </summary>
-		public AgentId Id { get; }
-
-		/// <summary>
-		/// The current session id, if it's online
-		/// </summary>
-		public SessionId? SessionId { get; }
-
-		/// <summary>
-		/// Time at which the current session expires. 
-		/// </summary>
-		public DateTime? SessionExpiresAt { get; }
-
-		/// <summary>
-		/// Current status of this agent
-		/// </summary>
-		public AgentStatus Status { get; }
-
-		/// <summary>
-		/// Time at which last status change took place.
-		/// </summary>
-		public DateTime? LastStatusChange { get; }
-
-		/// <summary>
-		/// Whether the agent is enabled
-		/// </summary>
-		public bool Enabled { get; }
-
-		/// <summary>
-		/// Whether the agent is ephemeral
-		/// </summary>
-		public bool Ephemeral { get; }
-
-		/// <summary>
-		/// Whether the agent should be included on the dashboard. This is set to true for ephemeral agents once they are no longer online, or agents that are explicitly deleted.
-		/// </summary>
-		public bool Deleted { get; }
-
-		/// <summary>
-		/// Version of the software running on this agent
-		/// </summary>
-		public string? Version { get; }
-
-		/// <summary>
-		/// Arbitrary comment for the agent (useful for disable reasons etc)
-		/// </summary>
-		public string? Comment { get; }
-
-		/// <summary>
-		/// List of properties for this agent
-		/// </summary>
-		public IReadOnlyList<string> Properties { get; }
-
-		/// <summary>
-		/// List of resources available to the agent
-		/// </summary>
-		public IReadOnlyDictionary<string, int> Resources { get; }
-
-		/// <summary>
-		/// Last upgrade that was attempted
-		/// </summary>
-		public string? LastUpgradeVersion { get; }
-
-		/// <summary>
-		/// Time that which the last upgrade was attempted
-		/// </summary>
-		public DateTime? LastUpgradeTime { get; }
-
-		/// <summary>
-		/// Number of times an upgrade job has failed
-		/// </summary>
-		public int? UpgradeAttemptCount { get; }
-
-		/// <summary>
-		/// Dynamically applied pools
-		/// </summary>
-		public IReadOnlyList<PoolId> DynamicPools { get; }
-
-		/// <summary>
-		/// List of manually assigned pools for agent
-		/// </summary>
-		public IReadOnlyList<PoolId> ExplicitPools { get; }
-
-		/// <summary>
-		/// Whether a conform is requested
-		/// </summary>
-		public bool RequestConform { get; }
-
-		/// <summary>
-		/// Whether a full conform is requested
-		/// </summary>
-		public bool RequestFullConform { get; }
-
-		/// <summary>
-		/// Whether a machine restart is requested
-		/// </summary>
-		public bool RequestRestart { get; }
-
-		/// <summary>
-		/// Whether the machine should be shutdown
-		/// </summary>
-		public bool RequestShutdown { get; }
-
-		/// <summary>
-		/// Whether a forced machine restart is requested
-		/// </summary>
-		public bool RequestForceRestart { get; }
-
-		/// <summary>
-		/// The reason for the last agent shutdown
-		/// </summary>
-		public string? LastShutdownReason { get; }
-
-		/// <summary>
-		/// List of workspaces currently synced to this machine
-		/// </summary>
-		public IReadOnlyList<AgentWorkspaceInfo> Workspaces { get; }
-
-		/// <summary>
-		/// Time at which the last conform job ran
-		/// </summary>
-		public DateTime LastConformTime { get; }
-
-		/// <summary>
-		/// Number of times a conform job has failed
-		/// </summary>
-		public int? ConformAttemptCount { get; }
-
-		/// <summary>
-		/// Array of active leases.
-		/// </summary>
-		public IReadOnlyList<AgentLease> Leases { get; }
-
-		/// <summary>
-		/// Key used to validate that a particular enrollment is still valid for this agent
-		/// </summary>
-		public string EnrollmentKey { get; }
-
-		/// <summary>
-		/// Last time that the agent was modified
-		/// </summary>
-		public DateTime UpdateTime { get; }
-
-		/// <summary>
-		/// Update counter for this document. Any updates should compare-and-swap based on the value of this counter, or increment it in the case of server-side updates.
-		/// </summary>
-		public uint UpdateIndex { get; }
-	}
-
-	/// <summary>
-	/// Extension methods for IAgent
-	/// </summary>
-	public static class AgentExtensions
-	{
-		/// <summary>
-		/// Default tool ID for agent software (multi-platform, shipped without a .NET runtime)
-		/// This is being deprecated in favor of the platform-specific and self-contained versions of the agent below
-		/// </summary>
-		public static ToolId AgentToolId { get; } = new("horde-agent");
-
-		/// <summary>
-		/// Tool ID for Windows-specific and self-contained agent software
-		/// </summary>
-		public static ToolId AgentWinX64ToolId { get; } = new("horde-agent-win-x64");
-
-		/// <summary>
-		/// Tool ID for Linux-specific and self-contained agent software
-		/// </summary>
-		public static ToolId AgentLinuxX64ToolId { get; } = new("horde-agent-linux-x64");
-
-		/// <summary>
-		/// Tool ID for Mac-specific and self-contained agent software
-		/// </summary>
-		public static ToolId AgentMacX64ToolId { get; } = new("horde-agent-osx-x64");
-
-		/// <summary>
-		/// Gets the tool ID for the software the given agent should be running
-		/// </summary>
-		/// <param name="agent">Agent to check</param>
-		/// <param name="globalConfig">Current global config</param>
-		/// <returns>Identifier for the tool that the agent should be using</returns>
-		public static ToolId GetSoftwareToolId(this IAgent agent, GlobalConfig globalConfig)
-		{
-			ToolId toolId = AgentToolId;
-
-			if (agent.IsSelfContained())
-			{
-				// Skip support for condition-based software configs below by returning early when self-contained
-				// Getting this wrong can lead to a self-contained agent getting non-self-contained updates and vice versa.
-				return agent.GetOsFamily() switch
-				{
-					RuntimePlatform.Type.Windows => AgentWinX64ToolId,
-					RuntimePlatform.Type.Linux => AgentLinuxX64ToolId,
-					RuntimePlatform.Type.Mac => AgentMacX64ToolId,
-					_ => throw new ArgumentOutOfRangeException("Unknown platform " + agent.GetOsFamily())
-				};
-			}
-
-			foreach (AgentSoftwareConfig softwareConfig in globalConfig.Software)
-			{
-				if (softwareConfig.Condition != null && agent.SatisfiesCondition(softwareConfig.Condition))
-				{
-					toolId = softwareConfig.ToolId;
-					break;
-				}
-			}
-			return toolId;
-		}
-
-		/// <summary>
-		/// Determines whether this agent is online
-		/// </summary>
-		/// <returns></returns>
-		public static bool IsSessionValid(this IAgent agent, DateTime utcNow)
-		{
-			return agent.SessionId.HasValue && agent.SessionExpiresAt.HasValue && utcNow < agent.SessionExpiresAt.Value;
-		}
-
-		/// <summary>
-		/// Tests whether an agent is in the given pool
-		/// </summary>
-		/// <param name="agent"></param>
-		/// <param name="poolId"></param>
-		/// <returns></returns>
-		public static bool IsInPool(this IAgent agent, PoolId poolId)
-		{
-			return agent.DynamicPools.Contains(poolId) || agent.ExplicitPools.Contains(poolId);
-		}
-
-		/// <summary>
-		/// Get all the pools for each agent
-		/// </summary>
-		/// <param name="agent">The agent to query</param>
-		/// <returns></returns>
-		public static IEnumerable<PoolId> GetPools(this IAgent agent)
-		{
-			foreach (PoolId poolId in agent.DynamicPools)
-			{
-				yield return poolId;
-			}
-			foreach (PoolId poolId in agent.ExplicitPools)
-			{
-				yield return poolId;
-			}
-		}
-
-		/// <summary>
-		/// Tests whether an agent has reported as being a self-contained .NET package
-		/// </summary>
-		/// <param name="agent">Agent to query</param>
-		/// <returns>True if self-contained</returns>
-		public static bool IsSelfContained(this IAgent agent)
-		{
-			List<string> values = agent.GetPropertyValues(KnownPropertyNames.SelfContained).ToList();
-			return values.Count > 0 && values[0].Equals("true", StringComparison.OrdinalIgnoreCase);
-		}
-		
-		/// <summary>
-		/// Get free disk space on agent (as reported through primary device capabilities)
-		/// </summary>
-		/// <param name="agent">Agent to query</param>
-		/// <returns>Amount of free disk space in bytes</returns>
-		public static long? GetDiskFreeSpace(this IAgent agent)
-		{
-			List<string> values = agent.GetPropertyValues(KnownPropertyNames.DiskFreeSpace).ToList();
-			return values.Count > 0 && Int64.TryParse(values[0], out long amount) ? amount : null;
-		}
-
-		/// <summary>
-		/// Get operating system family of agent
-		/// </summary>
-		/// <param name="agent">Agent to query</param>
-		/// <returns>Type of OS</returns>
-		public static RuntimePlatform.Type? GetOsFamily(this IAgent agent)
-		{
-			List<string> values = agent.GetPropertyValues(KnownPropertyNames.OsFamily).ToList();
-			if (values.Count == 0)
-			{
-				return null;
-			}
-
-			return values[0].ToUpperInvariant() switch
-			{
-				"WINDOWS" => RuntimePlatform.Type.Windows,
-				"LINUX" => RuntimePlatform.Type.Linux,
-				"MACOS" => RuntimePlatform.Type.Mac,
-				_ => null
-			};
-		}
-
-		/// <summary>
-		/// Tests whether an agent has a particular property
-		/// </summary>
-		/// <param name="agent"></param>
-		/// <param name="property"></param>
-		/// <returns></returns>
-		public static bool HasProperty(this IAgent agent, string property)
-		{
-			return agent.Properties.BinarySearch(property, StringComparer.OrdinalIgnoreCase) >= 0;
-		}
-
-		/// <summary>
-		/// Finds property values from a sorted list of Name=Value pairs
-		/// </summary>
-		/// <param name="agent">The agent to query</param>
-		/// <param name="name">Name of the property to find</param>
-		/// <returns>Property values</returns>
-		public static IEnumerable<string> GetPropertyValues(this IAgent agent, string name)
-		{
-			if (name.Equals(KnownPropertyNames.Id, StringComparison.OrdinalIgnoreCase))
-			{
-				yield return agent.Id.ToString();
-			}
-			else if (name.Equals(KnownPropertyNames.Pool, StringComparison.OrdinalIgnoreCase))
-			{
-				foreach (PoolId poolId in agent.GetPools())
-				{
-					yield return poolId.ToString();
-				}
-			}
-			else
-			{
-				int index = agent.Properties.BinarySearch(name, StringComparer.OrdinalIgnoreCase);
-				if (index < 0)
-				{
-					index = ~index;
-					for (; index < agent.Properties.Count; index++)
-					{
-						string property = agent.Properties[index];
-						if (property.Length <= name.Length || !property.StartsWith(name, StringComparison.OrdinalIgnoreCase) || property[name.Length] != '=')
-						{
-							break;
-						}
-						yield return property.Substring(name.Length + 1);
-					}
-				}
-			}
-		}
-
-		/// <summary>
-		/// Evaluates a condition against an agent
-		/// </summary>
-		/// <param name="agent">The agent to evaluate</param>
-		/// <param name="condition">The condition to evaluate</param>
-		/// <returns>True if the agent satisfies the condition</returns>
-		public static bool SatisfiesCondition(this IAgent agent, Condition condition)
-		{
-			return condition.Evaluate(x => agent.GetPropertyValues(x));
-		}
-
-		/// <summary>
-		/// Determine whether it's possible to add a lease for the given resources
-		/// </summary>
-		/// <param name="agent">The agent to create a lease for</param>
-		/// <param name="requirements">Requirements for the lease</param>
-		/// <param name="assignedResources">Receives the allocated resources</param>
-		/// <param name="conditions">Condition to check in addition to those in requirements</param>
-		/// <returns>True if the new lease can be granted</returns>
-		public static bool MeetsRequirements(this IAgent agent, Requirements requirements, Dictionary<string, int> assignedResources, List<Condition> conditions)
-		{
-			PoolId? poolId = null;
-			if (!String.IsNullOrEmpty(requirements.Pool))
-			{
-				poolId = new PoolId(requirements.Pool);
-			}
-
-			List<Condition> combinedConditions = [];
-			if (requirements.Condition != null)
-			{
-				combinedConditions.Add(requirements.Condition);
-			}
-			combinedConditions.AddRange(conditions);
-			return MeetsRequirements(agent, poolId, combinedConditions, requirements.Resources, requirements.Exclusive, assignedResources);
-		}
-
-		/// <summary>
-		/// Determine whether it's possible to add a lease for the given resources
-		/// </summary>
-		/// <param name="agent">The agent to create a lease for</param>
-		/// <param name="poolId">Pool to take the machine from</param>
-		/// <param name="conditions">Conditions to satisfy</param>
-		/// <param name="resources">Resources required to execute</param>
-		/// <param name="exclusive">Whether the lease needs to be executed exclusively on the machine</param>
-		/// <param name="assignedResources">Resources allocated to the task</param>
-		/// <returns>True if the new lease can be granted</returns>
-		public static bool MeetsRequirements(this IAgent agent, PoolId? poolId, List<Condition> conditions, Dictionary<string, ResourceRequirements>? resources, bool exclusive, Dictionary<string, int> assignedResources)
-		{
-			if (!agent.Enabled || agent.Status != AgentStatus.Ok)
-			{
-				return false;
-			}
-			if (agent.Leases.Any(x => x.Exclusive))
-			{
-				return false;
-			}
-			if (exclusive && agent.Leases.Any())
-			{
-				return false;
-			}
-			if (poolId.HasValue && !agent.IsInPool(poolId.Value))
-			{
-				return false;
-			}
-			if (conditions.Any(condition => !agent.SatisfiesCondition(condition)))
-			{
-				return false;
-			}
-			if (resources != null)
-			{
-				foreach ((string name, ResourceRequirements resourceRequirements) in resources)
-				{
-					int remainingCount;
-					if (!agent.Resources.TryGetValue(name, out remainingCount))
-					{
-						return false;
-					}
-					foreach (AgentLease lease in agent.Leases)
-					{
-						if (lease.Resources != null)
-						{
-							int leaseCount;
-							lease.Resources.TryGetValue(name, out leaseCount);
-							remainingCount -= leaseCount;
-						}
-					}
-					if (remainingCount < resourceRequirements.Min)
-					{
-						return false;
-					}
-
-					int allocatedCount;
-					if (resourceRequirements.Max != null)
-					{
-						allocatedCount = Math.Min(resourceRequirements.Max.Value, remainingCount);
-					}
-					else
-					{
-						allocatedCount = resourceRequirements.Min;
-					}
-					assignedResources.Add(name, allocatedCount);
-				}
-			}
-			return true;
-		}
-
-		/// <summary>
-		/// Get the AutoSDK workspace required for an agent
-		/// </summary>
-		/// <param name="agent"></param>
-		/// <param name="cluster">The perforce cluster to get a workspace for</param>
-		/// <param name="pools">Pools that the agent belongs to</param>
-		/// <returns></returns>
-		public static AgentWorkspaceInfo? GetAutoSdkWorkspace(this IAgent agent, PerforceCluster cluster, IEnumerable<IPool> pools)
-		{
-			AutoSdkConfig? autoSdkConfig = null;
-			foreach (IPool pool in pools)
-			{
-				autoSdkConfig = AutoSdkConfig.Merge(autoSdkConfig, pool.AutoSdkConfig);
-			}
-			if (autoSdkConfig == null)
-			{
-				return null;
-			}
-
-			return GetAutoSdkWorkspace(agent, cluster, autoSdkConfig);
-		}
-
-		/// <summary>
-		/// Get the AutoSDK workspace required for an agent
-		/// </summary>
-		/// <param name="agent"></param>
-		/// <param name="cluster">The perforce cluster to get a workspace for</param>
-		/// <param name="autoSdkConfig">Configuration for autosdk</param>
-		/// <returns></returns>
-		public static AgentWorkspaceInfo? GetAutoSdkWorkspace(this IAgent agent, PerforceCluster cluster, AutoSdkConfig autoSdkConfig)
-		{
-			foreach (AutoSdkWorkspace autoSdk in cluster.AutoSdk)
-			{
-				if (autoSdk.Stream != null && autoSdk.Properties.All(x => agent.Properties.Contains(x)))
-				{
-					return new AgentWorkspaceInfo(cluster.Name, autoSdk.UserName, autoSdk.Name ?? "AutoSDK", autoSdk.Stream!, autoSdkConfig.View.ToList(), true, null, null);
-				}
-			}
-			return null;
-		}
-
-		/// <summary>
-		/// Converts this workspace to an RPC message
-		/// </summary>
-		/// <param name="agent">The agent to get a workspace for</param>
-		/// <param name="workspace">The workspace definition</param>
-		/// <param name="cluster">The global state</param>
-		/// <param name="loadBalancer">The Perforce load balancer</param>
-		/// <param name="workspaceMessages">List of messages</param>
-		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		/// <returns>The RPC message</returns>
-		public static async Task<bool> TryAddWorkspaceMessageAsync(this IAgent agent, AgentWorkspaceInfo workspace, PerforceCluster cluster, PerforceLoadBalancer loadBalancer, IList<RpcAgentWorkspace> workspaceMessages, CancellationToken cancellationToken)
-		{
-			// Find a matching server, trying to use a previously selected one if possible
-			string? baseServerAndPort;
-			string? serverAndPort;
-			bool partitioned;
-
-			RpcAgentWorkspace? existingWorkspace = workspaceMessages.FirstOrDefault(x => x.ConfiguredCluster == workspace.Cluster);
-			if (existingWorkspace != null)
-			{
-				baseServerAndPort = existingWorkspace.BaseServerAndPort;
-				serverAndPort = existingWorkspace.ServerAndPort;
-				partitioned = existingWorkspace.Partitioned;
-			}
-			else
-			{
-				if (cluster == null)
-				{
-					return false;
-				}
-
-				IPerforceServer? server = await loadBalancer.SelectServerAsync(cluster, agent, cancellationToken);
-				if (server == null)
-				{
-					return false;
-				}
-
-				baseServerAndPort = server.BaseServerAndPort;
-				serverAndPort = server.ServerAndPort;
-				partitioned = server.SupportsPartitionedWorkspaces;
-			}
-
-			// Find the matching credentials for the desired user
-			PerforceCredentials? credentials = null;
-			if (cluster != null)
-			{
-				if (workspace.UserName == null)
-				{
-					credentials = cluster.Credentials.FirstOrDefault();
-				}
-				else
-				{
-					credentials = cluster.Credentials.FirstOrDefault(x => String.Equals(x.UserName, workspace.UserName, StringComparison.OrdinalIgnoreCase));
-				}
-			}
-
-			// Construct the message
-			RpcAgentWorkspace result = new RpcAgentWorkspace
-			{
-				ConfiguredCluster = workspace.Cluster,
-				ConfiguredUserName = workspace.UserName,
-				Cluster = cluster?.Name,
-				BaseServerAndPort = baseServerAndPort,
-				ServerAndPort = serverAndPort,
-				UserName = credentials?.UserName ?? workspace.UserName,
-				Password = credentials?.Password,
-				Ticket = credentials?.Ticket,
-				Identifier = workspace.Identifier,
-				Stream = workspace.Stream,
-				Incremental = workspace.Incremental,
-				Partitioned = partitioned,
-				Method = workspace.Method ?? String.Empty
-			};
-
-			if (workspace.View != null)
-			{
-				result.View.AddRange(workspace.View);
-			}
-
-			workspaceMessages.Add(result);
-			return true;
-		}
-
-		/// <summary>
-		/// Tries to get an agent workspace definition from the given type name
-		/// </summary>
-		/// <param name="streamConfig">The stream object</param>
-		/// <param name="agentType">The agent type</param>
-		/// <param name="workspace">Receives the agent workspace definition</param>
-		/// <param name="autoSdkConfig">Receives the autosdk workspace config</param>
-		/// <returns>True if the agent type was valid, and an agent workspace could be created</returns>
-		public static bool TryGetAgentWorkspace(this StreamConfig streamConfig, AgentConfig agentType, [NotNullWhen(true)] out AgentWorkspaceInfo? workspace, out AutoSdkConfig? autoSdkConfig)
-		{
-			// Get the workspace settings
-			if (agentType.Workspace == null)
-			{
-				// Use the default settings (fast switching workspace, clean)
-				workspace = new AgentWorkspaceInfo(streamConfig.ClusterName, null, streamConfig.GetDefaultWorkspaceIdentifier(), streamConfig.Name, null, false, null, null);
-				autoSdkConfig = AutoSdkConfig.Full;
-				return true;
-			}
-			else
-			{
-				// Try to get the matching workspace type
-				WorkspaceConfig? workspaceConfig;
-				if (!streamConfig.WorkspaceTypes.TryGetValue(agentType.Workspace, out workspaceConfig))
-				{
-					workspace = null;
-					autoSdkConfig = null;
-					return false;
-				}
-
-				// Get the workspace identifier
-				string identifier;
-				if (workspaceConfig.Identifier != null)
-				{
-					identifier = workspaceConfig.Identifier;
-				}
-				else if (workspaceConfig.Incremental ?? false)
-				{
-					identifier = $"{streamConfig.GetEscapedName()}+{agentType.Workspace}";
-				}
-				else
-				{
-					identifier = streamConfig.GetDefaultWorkspaceIdentifier();
-				}
-
-				// Create the new workspace
-				string cluster = workspaceConfig.Cluster ?? streamConfig.ClusterName;
-				workspace = new AgentWorkspaceInfo(cluster, workspaceConfig.UserName, identifier, workspaceConfig.Stream ?? streamConfig.Name, workspaceConfig.View, workspaceConfig.Incremental ?? false, workspaceConfig.Method, workspaceConfig.MinScratchSpace);
-				autoSdkConfig = GetAutoSdkConfig(workspaceConfig, streamConfig);
-
-				return true;
-			}
-
-			static AutoSdkConfig? GetAutoSdkConfig(WorkspaceConfig workspaceConfig, StreamConfig streamConfig)
-			{
-				AutoSdkConfig? autoSdkConfig = null;
-				if (workspaceConfig.UseAutoSdk ?? true)
-				{
-					List<string> view = new List<string>();
-					if (streamConfig.AutoSdkView != null)
-					{
-						view.AddRange(streamConfig.AutoSdkView);
-					}
-					if (workspaceConfig.AutoSdkView != null)
-					{
-						view.AddRange(workspaceConfig.AutoSdkView);
-					}
-					if (view.Count == 0)
-					{
-						view.Add("...");
-					}
-					autoSdkConfig = new AutoSdkConfig(view);
-				}
-				return autoSdkConfig;
-			}
 		}
 	}
 }
