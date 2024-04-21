@@ -109,7 +109,7 @@ UMaterialExpression* UDMMaterialProperty::GetDefaultInput(const TSharedRef<FDMMa
 
 TEnumAsByte<EMaterialSamplerType> UDMMaterialProperty::GetTextureSamplerType() const
 {
-	return EMaterialSamplerType::SAMPLERTYPE_Color;
+	return EMaterialSamplerType::SAMPLERTYPE_LinearColor;
 }
 
 void UDMMaterialProperty::OnSlotAdded(UDMMaterialSlot* InSlot)

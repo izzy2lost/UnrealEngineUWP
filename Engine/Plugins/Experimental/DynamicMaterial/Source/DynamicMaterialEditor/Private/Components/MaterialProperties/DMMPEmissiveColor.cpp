@@ -29,3 +29,8 @@ UMaterialExpression* UDMMaterialPropertyEmissiveColor::GetDefaultInput(
 {
 	return CreateConstant(InBuildState, FVector::OneVector);
 }
+
+TEnumAsByte<EMaterialSamplerType> UDMMaterialPropertyEmissiveColor::GetTextureSamplerType() const
+{
+	return EMaterialSamplerType::SAMPLERTYPE_Color;
+}

@@ -30,8 +30,3 @@ UMaterialExpression* UDMMaterialPropertyOpacity::GetDefaultInput(const TSharedRe
 {
 	return CreateConstant(InBuildState, 1.f);
 }
-
-TEnumAsByte<EMaterialSamplerType> UDMMaterialPropertyOpacity::GetTextureSamplerType() const
-{
-	return EMaterialSamplerType::SAMPLERTYPE_Alpha;
-}

@@ -20,3 +20,8 @@ UMaterialExpression* UDMMaterialPropertyBaseColor::GetDefaultInput(const TShared
 {
 	return CreateConstant(InBuildState, FVector::OneVector);
 }
+
+TEnumAsByte<EMaterialSamplerType> UDMMaterialPropertyBaseColor::GetTextureSamplerType() const
+{
+	return EMaterialSamplerType::SAMPLERTYPE_Color;
+}
