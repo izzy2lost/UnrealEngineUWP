@@ -120,6 +120,8 @@ TCEPropertyChangeDispatcher<ACEEffectorActor> ACEEffectorActor::PropertyChangeDi
 	{ GET_MEMBER_NAME_CHECKED(ACEEffectorActor, ScaleStrength), &ACEEffectorActor::OnNoiseFieldOptionsChanged },
 	{ GET_MEMBER_NAME_CHECKED(ACEEffectorActor, Pan), &ACEEffectorActor::OnNoiseFieldOptionsChanged },
 	{ GET_MEMBER_NAME_CHECKED(ACEEffectorActor, Frequency), &ACEEffectorActor::OnNoiseFieldOptionsChanged },
+	{ GET_MEMBER_NAME_CHECKED(ACEEffectorActor, PushStrength), &ACEEffectorActor::OnPushOptionsChanged },
+	{ GET_MEMBER_NAME_CHECKED(ACEEffectorActor, PushDirection), &ACEEffectorActor::OnPushOptionsChanged },
 	/** Force */
 	{ GET_MEMBER_NAME_CHECKED(ACEEffectorActor, bOrientationForceEnabled), &ACEEffectorActor::OnForceEnabledChanged },
 	{ GET_MEMBER_NAME_CHECKED(ACEEffectorActor, OrientationForceRate), &ACEEffectorActor::OnForceOptionsChanged },
@@ -806,6 +808,28 @@ void ACEEffectorActor::SetColor(const FLinearColor& InColor)
 	OnColorChanged();
 }
 
+void ACEEffectorActor::SetPushDirection(ECEClonerEffectorPushDirection InDirection)
+{
+	if (PushDirection == InDirection)
+	{
+		return;
+	}
+
+	PushDirection = InDirection;
+	OnPushOptionsChanged();
+}
+
+void ACEEffectorActor::SetPushStrength(const FVector& InStrength)
+{
+	if (PushStrength.Equals(InStrength))
+	{
+		return;
+	}
+
+	PushStrength = InStrength;
+	OnPushOptionsChanged();
+}
+
 void ACEEffectorActor::OnEffectorTransformed(USceneComponent* InUpdatedComponent, EUpdateTransformFlags InUpdateTransformFlags, ETeleportType InTeleport)
 {
 	OnTransformChanged();
@@ -852,6 +876,7 @@ void ACEEffectorActor::OnModeChanged()
 	OnTransformOptionsChanged();
 	OnTargetActorChanged();
 	OnNoiseFieldOptionsChanged();
+	OnPushOptionsChanged();
 }
 
 void ACEEffectorActor::OnTypeChanged()
@@ -1244,6 +1269,19 @@ void ACEEffectorActor::OnNoiseFieldOptionsChanged()
 	ChannelData.ScaleDelta = ScaleStrength;
 	ChannelData.Frequency = Frequency;
 	ChannelData.Pan = Pan;
+}
+
+void ACEEffectorActor::OnPushOptionsChanged()
+{
+	if (Mode != ECEClonerEffectorMode::Push)
+	{
+		return;
+	}
+
+	ChannelData.LocationDelta = PushStrength;
+	ChannelData.RotationDelta = FQuat::Identity;
+	ChannelData.ScaleDelta = FVector::OneVector;
+	ChannelData.Pan = FVector(0, static_cast<float>(PushDirection), 0);
 }
 
 void ACEEffectorActor::OnTargetActorTransformChanged(USceneComponent*, EUpdateTransformFlags, ETeleportType)

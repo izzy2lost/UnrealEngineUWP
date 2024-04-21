@@ -7,6 +7,7 @@
 #include "Effector/CEEffectorActor.h"
 #include "Engine/StaticMeshActor.h"
 #include "Materials/MaterialInterface.h"
+#include "NiagaraDataInterfaceArrayFloat.h"
 #include "NiagaraDataInterfaceCurve.h"
 #include "NiagaraDataInterfaceSkeletalMesh.h"
 #include "NiagaraMeshRendererProperties.h"
@@ -92,6 +93,17 @@ const TCEPropertyChangeDispatcher<ACEClonerActor> ACEClonerActor::PropertyChange
 	{ GET_MEMBER_NAME_CHECKED(ACEClonerActor, Color), &ACEClonerActor::OnColorChanged },
 	{ GET_MEMBER_NAME_CHECKED(ACEClonerActor, bVisualizeEffectors), &ACEClonerActor::OnOverrideMaterialChanged },
 	{ GET_MEMBER_NAME_CHECKED(ACEClonerActor, EffectorsWeak), &ACEClonerActor::OnEffectorsChanged },
+	/** Collision */
+	{ GET_MEMBER_NAME_CHECKED(ACEClonerActor, bSurfaceCollisionEnabled), &ACEClonerActor::OnCollisionOptionsChanged },
+	{ GET_MEMBER_NAME_CHECKED(ACEClonerActor, bParticleCollisionEnabled), &ACEClonerActor::OnCollisionOptionsChanged },
+	{ GET_MEMBER_NAME_CHECKED(ACEClonerActor, bCollisionVelocityEnabled), &ACEClonerActor::OnCollisionOptionsChanged },
+	{ GET_MEMBER_NAME_CHECKED(ACEClonerActor, CollisionRadiusMode), &ACEClonerActor::OnCollisionOptionsChanged },
+	{ GET_MEMBER_NAME_CHECKED(ACEClonerActor, CollisionRadii), &ACEClonerActor::OnCollisionOptionsChanged },
+	{ GET_MEMBER_NAME_CHECKED(ACEClonerActor, CollisionIterations), &ACEClonerActor::OnCollisionOptionsChanged },
+	{ GET_MEMBER_NAME_CHECKED(ACEClonerActor, CollisionGridResolution), &ACEClonerActor::OnCollisionOptionsChanged },
+	{ GET_MEMBER_NAME_CHECKED(ACEClonerActor, CollisionGridSize), &ACEClonerActor::OnCollisionOptionsChanged },
+	{ GET_MEMBER_NAME_CHECKED(ACEClonerActor, MassMin), &ACEClonerActor::OnCollisionOptionsChanged },
+	{ GET_MEMBER_NAME_CHECKED(ACEClonerActor, MassMax), &ACEClonerActor::OnCollisionOptionsChanged },
 	/** Layout */
 	{ GET_MEMBER_NAME_CHECKED(ACEClonerActor, LayoutName), &ACEClonerActor::OnLayoutNameChanged },
 	/** Advanced */
@@ -168,6 +180,7 @@ void ACEClonerActor::PostInitProperties()
 		FNiagaraTypeRegistry::Register(FNiagaraTypeDefinition(StaticEnum<ECEClonerEffectorMode>()), MeshFlags);
 		FNiagaraTypeRegistry::Register(FNiagaraTypeDefinition(StaticEnum<ECEClonerSpawnLoopMode>()), MeshFlags);
 		FNiagaraTypeRegistry::Register(FNiagaraTypeDefinition(StaticEnum<ECEClonerSpawnBehaviorMode>()), MeshFlags);
+		FNiagaraTypeRegistry::Register(FNiagaraTypeDefinition(StaticEnum<ECEClonerEffectorPushDirection>()), MeshFlags);
 	}
 }
 
@@ -258,6 +271,7 @@ void ACEClonerActor::UpdateLayoutOptions()
 	OnRangeOptionsChanged();
 	OnSpawnOptionsChanged();
 	OnLifetimeOptionsChanged();
+	OnCollisionOptionsChanged();
 }
 
 void ACEClonerActor::SetTreeUpdateInterval(float InInterval)
@@ -383,6 +397,110 @@ void ACEClonerActor::SetVisualizeEffectors(bool bInVisualize)
 
 	bVisualizeEffectors = bInVisualize;
 	OnOverrideMaterialChanged();
+}
+
+void ACEClonerActor::SetSurfaceCollisionEnabled(bool bInSurfaceCollisionEnabled)
+{
+	if (bSurfaceCollisionEnabled == bInSurfaceCollisionEnabled)
+	{
+		return;
+	}
+
+	bSurfaceCollisionEnabled = bInSurfaceCollisionEnabled;
+	OnCollisionOptionsChanged();
+}
+
+void ACEClonerActor::SetParticleCollisionEnabled(bool bInParticleCollisionEnabled)
+{
+	if (bParticleCollisionEnabled == bInParticleCollisionEnabled)
+	{
+		return;
+	}
+
+	bParticleCollisionEnabled = bInParticleCollisionEnabled;
+	OnCollisionOptionsChanged();
+}
+
+void ACEClonerActor::SetCollisionVelocityEnabled(bool bInCollisionVelocityEnabled)
+{
+	if (bCollisionVelocityEnabled == bInCollisionVelocityEnabled)
+	{
+		return;
+	}
+
+	bCollisionVelocityEnabled = bInCollisionVelocityEnabled;
+	OnCollisionOptionsChanged();
+}
+
+void ACEClonerActor::SetCollisionIterations(int32 InCollisionIterations)
+{
+	InCollisionIterations = FMath::Max(InCollisionIterations, 1);
+	if (CollisionIterations == InCollisionIterations)
+	{
+		return;
+	}
+
+	CollisionIterations = InCollisionIterations;
+	OnCollisionOptionsChanged();
+}
+
+void ACEClonerActor::SetCollisionGridResolution(int32 InCollisionGridResolution)
+{
+	InCollisionGridResolution = FMath::Max(InCollisionGridResolution, 1);
+	if (CollisionGridResolution == InCollisionGridResolution)
+	{
+		return;
+	}
+
+	CollisionGridResolution = InCollisionGridResolution;
+	OnCollisionOptionsChanged();
+}
+
+void ACEClonerActor::SetCollisionGridSize(const FVector& InCollisionGridSize)
+{
+	const FVector NewCollisionGridSize = InCollisionGridSize.ComponentMax(FVector::ZeroVector);
+	if (CollisionGridSize.Equals(NewCollisionGridSize))
+	{
+		return;
+	}
+
+	CollisionGridSize = NewCollisionGridSize;
+	OnCollisionOptionsChanged();
+}
+
+void ACEClonerActor::SetCollisionRadiusMode(ECEClonerCollisionRadiusMode InMode)
+{
+	if (CollisionRadiusMode == InMode)
+	{
+		return;
+	}
+
+	CollisionRadiusMode = InMode;
+	OnCollisionOptionsChanged();
+}
+
+void ACEClonerActor::SetMassMin(float InMassMin)
+{
+	InMassMin = FMath::Max(InMassMin, 1);
+	if (FMath::IsNearlyEqual(MassMin, InMassMin))
+	{
+		return;
+	}
+
+	MassMin = InMassMin;
+	OnCollisionOptionsChanged();
+}
+
+void ACEClonerActor::SetMassMax(float InMassMax)
+{
+	InMassMax = FMath::Max(InMassMax, 1);
+	if (FMath::IsNearlyEqual(MassMax, InMassMax))
+	{
+		return;
+	}
+
+	MassMax = InMassMax;
+	OnCollisionOptionsChanged();
 }
 
 void ACEClonerActor::SetDeltaStepEnabled(bool bInEnabled)
@@ -990,10 +1108,79 @@ void ACEClonerActor::OnLifetimeOptionsChanged()
 	RequestClonerUpdate();
 }
 
+void ACEClonerActor::OnCollisionOptionsChanged()
+{
+	if (!ClonerComponent || !bEnabled)
+	{
+		return;
+	}
+
+	MassMin = FMath::Clamp(MassMin, 1, MassMax);
+	MassMax = FMath::Max(MassMax, MassMin);
+
+	ClonerComponent->SetBoolParameter(TEXT("SurfaceCollisionEnabled"), bSurfaceCollisionEnabled);
+	ClonerComponent->SetIntParameter(TEXT("CollisionIterations"), bParticleCollisionEnabled ? CollisionIterations : 0);
+	ClonerComponent->SetBoolParameter(TEXT("CollisionVelocityEnabled"), bParticleCollisionEnabled ? bCollisionVelocityEnabled : false);
+	ClonerComponent->SetIntParameter(TEXT("CollisionGridResolution"), CollisionGridResolution);
+	ClonerComponent->SetVectorParameter(TEXT("CollisionGridSize"), CollisionGridSize);
+	ClonerComponent->SetFloatParameter(TEXT("MassMin"), MassMin);
+	ClonerComponent->SetFloatParameter(TEXT("MassMax"), MassMax);
+
+	// Adjust size based on attached mesh count
+	CollisionRadii.SetNum(GetMeshCount());
+
+	if (const UCEClonerLayoutBase* LayoutSystem = GetActiveLayout())
+	{
+		if (CollisionRadiusMode != ECEClonerCollisionRadiusMode::Manual)
+		{
+			UNiagaraMeshRendererProperties* MeshRenderer = LayoutSystem->GetMeshRenderer();
+
+			for (int32 Idx = 0; Idx < CollisionRadii.Num(); Idx++)
+			{
+				const FNiagaraMeshRendererMeshProperties& MeshProperties = MeshRenderer->Meshes[Idx];
+				FBoxSphereBounds MeshBounds(ForceInitToZero);
+				const FTransform BoundTransform(MeshProperties.Rotation, MeshProperties.PivotOffset, MeshProperties.Scale);
+
+				if (MeshProperties.Mesh)
+				{
+					MeshBounds = MeshProperties.Mesh->GetBounds().TransformBy(BoundTransform);
+				}
+
+				switch (CollisionRadiusMode)
+				{
+					case ECEClonerCollisionRadiusMode::MinExtent:
+						CollisionRadii[Idx] = MeshBounds.BoxExtent.GetMin();
+					break;
+					case ECEClonerCollisionRadiusMode::MaxExtent:
+						CollisionRadii[Idx] = MeshBounds.BoxExtent.GetMax();
+					break;
+					default:
+					case ECEClonerCollisionRadiusMode::ExtentLength:
+						CollisionRadii[Idx] = MeshBounds.SphereRadius;
+					break;
+				}
+			}
+		}
+
+		const FNiagaraUserRedirectionParameterStore& ExposedParameters = LayoutSystem->GetSystem()->GetExposedParameters();
+
+		static const FNiagaraVariable CollisionRadiiVar(FNiagaraTypeDefinition(UNiagaraDataInterfaceArrayFloat::StaticClass()), TEXT("CollisionRadii"));
+
+		if (UNiagaraDataInterfaceArrayFloat* CollisionRadiiDI = Cast<UNiagaraDataInterfaceArrayFloat>(ExposedParameters.GetDataInterface(CollisionRadiiVar)))
+		{
+			CollisionRadiiDI->GetArrayReference() = CollisionRadii;
+		}
+	}
+
+	RequestClonerUpdate();
+}
+
 void ACEClonerActor::OnClonerMeshUpdated(UCEClonerComponent* InClonerComponent)
 {
 	if (InClonerComponent == ClonerComponent)
 	{
+		OnCollisionOptionsChanged();
+
 		RequestClonerUpdate();
 	}
 }

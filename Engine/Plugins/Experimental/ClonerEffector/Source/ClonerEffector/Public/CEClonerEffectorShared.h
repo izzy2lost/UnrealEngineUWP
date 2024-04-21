@@ -154,7 +154,25 @@ enum class ECEClonerEffectorMode : uint8
 	/** Rotates clones towards a target actor */
 	Target,
 	/** Randomly applies curl noise across the field zone */
-	NoiseField
+	NoiseField,
+	/** Pushes clones apart based on a strength */
+	Push
+};
+
+/** Enumerates the effector push direction available */
+UENUM(BlueprintType)
+enum class ECEClonerEffectorPushDirection : uint8
+{
+	/** Push based on the clone forward vector */
+	Forward,
+	/** Push based on the clone right vector */
+	Right,
+	/** Push based on the cloner up vector */
+	Up,
+	/** Push based on the clone position relative to the effector */
+	Effector,
+	/** Push based on a random unit vector based on the cloner seed */
+	Random
 };
 
 UENUM()
@@ -215,6 +233,20 @@ enum class ECEClonerSpawnBehaviorMode : uint8
 	Instant,
 	/** Spawns at a specific rate per second during the spawn loop duration */
 	Rate,
+};
+
+/** Enumerates all modes for how clones radius are calculed */
+UENUM()
+enum class ECEClonerCollisionRadiusMode : uint8
+{
+	/** Input collision radius manually */
+	Manual,
+	/** Collision radius will be calculated automatically based on the min extent value, mesh scale included */
+	MinExtent,
+	/** Collision radius will be calculated automatically based on the max extent value, mesh scale included */
+	MaxExtent,
+	/** Collision radius will be calculated automatically based on the extent length, mesh scale included */
+	ExtentLength
 };
 
 USTRUCT()

@@ -79,8 +79,8 @@ void FCEEditorEffectorDetailCustomization::RegisterCustomSections() const
 	const TSharedRef<FPropertySection> EffectorSection = PropertyModule.FindOrCreateSection(ClassName, "General", LOCTEXT("Effector.General", "General"));
 	EffectorSection->AddCategory(TEXT("Effector"));
 
-	const TSharedRef<FPropertySection> TypeSection = PropertyModule.FindOrCreateSection(ClassName, "Type", LOCTEXT("Effector.Type", "Type"));
-	TypeSection->AddCategory(TEXT("Type"));
+	const TSharedRef<FPropertySection> ShapeSection = PropertyModule.FindOrCreateSection(ClassName, "Shape", LOCTEXT("Effector.Shape", "Shape"));
+	ShapeSection->AddCategory(TEXT("Shape"));
 
 	const TSharedRef<FPropertySection> ModeSection = PropertyModule.FindOrCreateSection(ClassName, "Mode", LOCTEXT("Effector.Mode", "Mode"));
 	ModeSection->AddCategory(TEXT("Mode"));

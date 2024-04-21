@@ -1245,10 +1245,6 @@ void UCEClonerComponent::UpdateRootActorBakedStaticMesh(AActor* InRootActor)
 		EGeometryScriptOutcomePins OutResult;
 		UGeometryScriptLibrary_StaticMeshFunctions::CopyMeshToStaticMesh(MergedAttachmentMesh, BakedAttachmentMesh, AssetOptions, TargetLOD, OutResult);
 
-		// Fix camera culling and avoid killing particles when bounds partially in view
-		const float NewRadiusBounds = BakedAttachmentMesh->GetBounds().SphereRadius * 2;
-		BakedAttachmentMesh->SetExtendedBounds(FBox(-FVector(NewRadiusBounds), FVector(NewRadiusBounds)));
-
 #if WITH_EDITORONLY_DATA
 		// Compute normals and tangents
 		FMeshDescription* MeshDescription = BakedAttachmentMesh->GetMeshDescription(0);
@@ -1494,6 +1490,9 @@ void UCEClonerComponent::UpdateClonerMeshes()
 
 #if WITH_EDITORONLY_DATA
 	MeshRenderer->OnMeshChanged();
+
+	// Used by other data interfaces to update their cached data
+	MeshRenderer->OnChanged().Broadcast();
 #endif
 
 	OnClonerMeshUpdated.Broadcast(this);

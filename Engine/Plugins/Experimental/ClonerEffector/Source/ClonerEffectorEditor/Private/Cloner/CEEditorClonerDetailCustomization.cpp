@@ -23,6 +23,7 @@ void FCEEditorClonerDetailCustomization::CustomizeDetails(IDetailLayoutBuilder& 
 		TEXT("Progress"),
 		TEXT("Step"),
 		TEXT("Range"),
+		TEXT("Collisions")
 		TEXT("Spawn"),
 		TEXT("Lifetime"),
 	};
@@ -195,6 +196,9 @@ void FCEEditorClonerDetailCustomization::RegisterCustomSections() const
 
 	const TSharedRef<FPropertySection> LifetimeSection = PropertyModule.FindOrCreateSection(ClassName, "Lifetime", LOCTEXT("Cloner.Lifetime", "Lifetime"));
 	LifetimeSection->AddCategory("Lifetime");
+
+	const TSharedRef<FPropertySection> CollisionSection = PropertyModule.FindOrCreateSection(ClassName, "Collisions", LOCTEXT("Cloner.Collisions", "Collisions"));
+	CollisionSection->AddCategory("Collisions");
 }
 
 #undef LOCTEXT_NAMESPACE

@@ -411,6 +411,24 @@ public:
 		return Color;
 	}
 
+	UFUNCTION(BlueprintCallable, Category="Effector")
+	CLONEREFFECTOR_API void SetPushDirection(ECEClonerEffectorPushDirection InDirection);
+
+	UFUNCTION(BlueprintPure, Category="Effector")
+	ECEClonerEffectorPushDirection GetPushDirection() const
+	{
+		return PushDirection;
+	}
+
+	UFUNCTION(BlueprintCallable, Category="Effector")
+	CLONEREFFECTOR_API void SetPushStrength(const FVector& InStrength);
+
+	UFUNCTION(BlueprintPure, Category="Effector")
+	const FVector& GetPushStrength() const
+	{
+		return PushStrength;
+	}
+
 #if WITH_EDITOR
 	UFUNCTION(BlueprintCallable, Category="Effector")
 	CLONEREFFECTOR_API void SetVisualizerComponentVisible(bool bInVisible);
@@ -519,6 +537,8 @@ protected:
 	/** Called when noise field mode options are changed */
 	void OnNoiseFieldOptionsChanged();
 
+	void OnPushOptionsChanged();
+
 	/** Called when force options are changed */
 	void OnForceOptionsChanged();
 
@@ -555,59 +575,59 @@ protected:
 	FLinearColor Color = FLinearColor::Red;
 
 	/** Type of effector to apply on cloners instances */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter, Getter, Category="Type")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter, Getter, Category="Shape")
 	ECEClonerEffectorType Type = ECEClonerEffectorType::Sphere;
 
 	/** Invert the type effect, instead of affecting the inside of a zone, will affect the outside */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter="SetInvertType", Getter="GetInvertType", Category="Type")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter="SetInvertType", Getter="GetInvertType", Category="Shape")
 	bool bInvertType = false;
 
 	/** Weight easing function applied to lerp transforms */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter, Getter, Category="Type", meta=(EditCondition="Type != ECEClonerEffectorType::Unbound", EditConditionHides))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter, Getter, Category="Shape", meta=(EditCondition="Type != ECEClonerEffectorType::Unbound", EditConditionHides))
 	ECEClonerEasing Easing = ECEClonerEasing::Linear;
 
 	/** Inner radius of sphere, all clones inside will be affected with a maximum weight */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter, Getter, Category="Type", meta=(ClampMin="0", EditCondition="Type == ECEClonerEffectorType::Sphere", EditConditionHides))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter, Getter, Category="Shape", meta=(ClampMin="0", EditCondition="Type == ECEClonerEffectorType::Sphere", EditConditionHides))
 	float InnerRadius = 50.f;
 
 	/** Outer radius of sphere, all clones outside will not be affected */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter, Getter, Category="Type", meta=(ClampMin="0", EditCondition="Type == ECEClonerEffectorType::Sphere", EditConditionHides))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter, Getter, Category="Shape", meta=(ClampMin="0", EditCondition="Type == ECEClonerEffectorType::Sphere", EditConditionHides))
 	float OuterRadius = 200.f;
 
 	/** Inner extent of box, all clones inside will be affected with a maximum weight */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter, Getter, Category="Type", meta=(ClampMin="0", AllowPreserveRatio, EditCondition="Type == ECEClonerEffectorType::Box", EditConditionHides))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter, Getter, Category="Shape", meta=(ClampMin="0", AllowPreserveRatio, EditCondition="Type == ECEClonerEffectorType::Box", EditConditionHides))
 	FVector InnerExtent = FVector(50.f);
 
 	/** Outer extent of box, all clones outside will not be affected */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter, Getter, Category="Type", meta=(ClampMin="0", AllowPreserveRatio, EditCondition="Type == ECEClonerEffectorType::Box", EditConditionHides))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter, Getter, Category="Shape", meta=(ClampMin="0", AllowPreserveRatio, EditCondition="Type == ECEClonerEffectorType::Box", EditConditionHides))
 	FVector OuterExtent = FVector(200.f);
 
 	/** Plane spacing, everything inside this zone will be affected */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter, Getter, Category="Type", meta=(ClampMin="0", EditCondition="Type == ECEClonerEffectorType::Plane", EditConditionHides))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter, Getter, Category="Shape", meta=(ClampMin="0", EditCondition="Type == ECEClonerEffectorType::Plane", EditConditionHides))
 	float PlaneSpacing = 200.f;
 
 	/** Radial angle in degree, everything within the angle will be affected */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter, Getter, Category="Type", meta=(ClampMin="0", ClampMax="360", EditCondition="Type == ECEClonerEffectorType::Radial", EditConditionHides))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter, Getter, Category="Shape", meta=(ClampMin="0", ClampMax="360", EditCondition="Type == ECEClonerEffectorType::Radial", EditConditionHides))
 	float RadialAngle = 180.f;
 
 	/** Minimum radius for the radial effect to be applied on clones, below clones will not be affected */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter, Getter, Category="Type", meta=(ClampMin="0", EditCondition="Type == ECEClonerEffectorType::Radial", EditConditionHides))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter, Getter, Category="Shape", meta=(ClampMin="0", EditCondition="Type == ECEClonerEffectorType::Radial", EditConditionHides))
 	float RadialMinRadius = 0.f;
 
 	/** Maximum radius for the radial effect to be applied on clones, above clones will not be affected */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter, Getter, Category="Type", meta=(ClampMin="0", EditCondition="Type == ECEClonerEffectorType::Radial", EditConditionHides))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter, Getter, Category="Shape", meta=(ClampMin="0", EditCondition="Type == ECEClonerEffectorType::Radial", EditConditionHides))
 	float RadialMaxRadius = 1000.f;
 
 	/** Main torus radius from center to the edge where inner and outer tube will be revolved */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter, Getter, Category="Type", meta=(ClampMin="0", EditCondition="Type == ECEClonerEffectorType::Torus", EditConditionHides))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter, Getter, Category="Shape", meta=(ClampMin="0", EditCondition="Type == ECEClonerEffectorType::Torus", EditConditionHides))
 	float TorusRadius = 250.f;
 
 	/** Minimum revolved radius for the torus effect, clones contained inside will be affected with a maximum weight */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter, Getter, Category="Type", meta=(ClampMin="0", EditCondition="Type == ECEClonerEffectorType::Torus", EditConditionHides))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter, Getter, Category="Shape", meta=(ClampMin="0", EditCondition="Type == ECEClonerEffectorType::Torus", EditConditionHides))
 	float TorusInnerRadius = 50.f;
 
 	/** Maximum revolved radius for the torus effect, clones outside of it will not be affected */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter, Getter, Category="Type", meta=(ClampMin="0", EditCondition="Type == ECEClonerEffectorType::Torus", EditConditionHides))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter, Getter, Category="Shape", meta=(ClampMin="0", EditCondition="Type == ECEClonerEffectorType::Torus", EditConditionHides))
 	float TorusOuterRadius = 200.f;
 
 	/** Mode of effector for each clones instances */
@@ -652,6 +672,14 @@ protected:
 	/** Intensity of the noise field */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter, Getter, Category="Mode", meta=(ClampMin="0", EditCondition="Mode == ECEClonerEffectorMode::NoiseField", EditConditionHides))
 	float Frequency = 0.5f;
+
+	/** Strength of the push effect */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter, Getter, Category="Mode", meta=(AllowPreserveRatio, EditCondition="Mode == ECEClonerEffectorMode::Push", EditConditionHides))
+	FVector PushStrength = FVector(100.f);
+
+	/** Relative direction computed for the push effect on each clone */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter, Getter, Category="Mode", meta=(EditCondition="Mode == ECEClonerEffectorMode::Push", EditConditionHides))
+	ECEClonerEffectorPushDirection PushDirection = ECEClonerEffectorPushDirection::Forward;
 
 	/** Enable orientation force to allow each clone instance to rotate around its pivot */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter="SetOrientationForceEnabled", Getter="GetOrientationForceEnabled", Category="Force")
