@@ -100,6 +100,7 @@ URigVMController::URigVMController()
 #endif
 	, bEnableSchemaRemoveNodeCheck(true)
 {
+	SetActionStack(URigVMActionStack::GetDisabledActionStack());
 }
 
 URigVMController::URigVMController(const FObjectInitializer& ObjectInitializer)
@@ -120,6 +121,7 @@ URigVMController::URigVMController(const FObjectInitializer& ObjectInitializer)
 #endif
 	, bEnableSchemaRemoveNodeCheck(true)
 {
+	SetActionStack(URigVMActionStack::GetDisabledActionStack());
 }
 
 URigVMController::~URigVMController()
@@ -11349,7 +11351,7 @@ URigVMFunctionReferenceNode* URigVMController::AddFunctionReferenceNode(URigVMLi
 	return nullptr;
 }
 
-bool URigVMController::SwapFunctionReferenceByName(const FName& InFunctionReferenceNodeName, const FRigVMGraphFunctionIdentifier& InNewFunctionIdentifier, bool bSetupUndoRedo, bool bPrintPythonCommand)
+bool URigVMController::SwapFunctionReferenceByName(const FName& InFunctionReferenceNodeName, const FRigVMGraphFunctionIdentifier& InNewFunctionIdentifier, bool bSetupOrphanPins, bool bSetupUndoRedo, bool bPrintPythonCommand)
 {
 	if (!IsValidGraph())
 	{
@@ -11368,10 +11370,10 @@ bool URigVMController::SwapFunctionReferenceByName(const FName& InFunctionRefere
 		return false;
 	}
 
-	return SwapFunctionReference(Node, InNewFunctionIdentifier, bSetupUndoRedo, bPrintPythonCommand);
+	return SwapFunctionReference(Node, InNewFunctionIdentifier, bSetupOrphanPins, bSetupUndoRedo, bPrintPythonCommand);
 }
 
-bool URigVMController::SwapFunctionReference(URigVMFunctionReferenceNode* InFunctionReferenceNode, const FRigVMGraphFunctionIdentifier& InNewFunctionIdentifier, bool bSetupUndoRedo, bool bPrintPythonCommand)
+bool URigVMController::SwapFunctionReference(URigVMFunctionReferenceNode* InFunctionReferenceNode, const FRigVMGraphFunctionIdentifier& InNewFunctionIdentifier, bool bSetupOrphanPins, bool bSetupUndoRedo, bool bPrintPythonCommand)
 {
 	if (!IsValidNodeForGraph(InFunctionReferenceNode))
 	{
@@ -11402,17 +11404,12 @@ bool URigVMController::SwapFunctionReference(URigVMFunctionReferenceNode* InFunc
 		Action.SetTitle(TEXT("Swap Function Reference"));
 	}
 
-	const TMap<FString, FPinState> PinStates = GetPinStates(InFunctionReferenceNode);
-	const TArray<FLinkedPath> LinkedPaths = GetLinkedPaths(InFunctionReferenceNode);
-	FastBreakLinkedPaths(LinkedPaths, false);
-
 	InFunctionReferenceNode->Modify();
+	URigVMBuildData::Get()->UnregisterFunctionReference(InFunctionReferenceNode->ReferencedFunctionHeader.LibraryPointer, InFunctionReferenceNode);
 	InFunctionReferenceNode->ReferencedFunctionHeader.LibraryPointer = InNewFunctionIdentifier;
 	InFunctionReferenceNode->UpdateFunctionHeaderFromHost();
-	RepopulatePinsOnNode(InFunctionReferenceNode, false, false, false);
-
-	ApplyPinStates(InFunctionReferenceNode, PinStates, {}, false);
-	RestoreLinkedPaths(LinkedPaths, FRestoreLinkedPathSettings(), false);
+	URigVMBuildData::Get()->RegisterFunctionReference(InFunctionReferenceNode->ReferencedFunctionHeader.LibraryPointer, InFunctionReferenceNode);
+	RepopulatePinsOnNode(InFunctionReferenceNode, false, bSetupOrphanPins, true);
 
 	TArray<FRigVMExternalVariable> ExternalVariables;
 	if (GetExternalVariablesDelegate.IsBound())
@@ -11469,15 +11466,16 @@ bool URigVMController::SwapFunctionReference(URigVMFunctionReferenceNode* InFunc
 					*NewFunctionDefinitionName));
 
 		RigVMPythonUtils::Print(GetSchema()->GetGraphOuterName(GetGraph()), 
-			FString::Printf(TEXT("blueprint.get_controller_by_name('%s').swap_function_reference_by_name('%s', new_definition)"),
+			FString::Printf(TEXT("blueprint.get_controller_by_name('%s').swap_function_reference_by_name('%s', new_definition, %s)"),
 					*GraphName,
-					*FunctionRefNodeName));
+					*FunctionRefNodeName,
+					(bSetupOrphanPins) ? TEXT("True") : TEXT("False")));
 	}
 
 	return true;
 }
 
-bool URigVMController::SwapAllFunctionReferences(const FRigVMGraphFunctionIdentifier& InOldFunctionIdentifier, const FRigVMGraphFunctionIdentifier& InNewFunctionIdentifier, bool bSetupUndoRedo, bool bPrintPythonCommand)
+bool URigVMController::SwapAllFunctionReferences(const FRigVMGraphFunctionIdentifier& InOldFunctionIdentifier, const FRigVMGraphFunctionIdentifier& InNewFunctionIdentifier, bool bSetupOrphanPins, bool bSetupUndoRedo, bool bPrintPythonCommand)
 {
 	if (!IsValidGraph())
 	{
@@ -11540,7 +11538,7 @@ bool URigVMController::SwapAllFunctionReferences(const FRigVMGraphFunctionIdenti
 
 	for(URigVMFunctionReferenceNode* Node : FunctionReferenceNodes)
 	{
-		if(!SwapFunctionReference(Node, InNewFunctionIdentifier, bSetupUndoRedo, false))
+		if(!SwapFunctionReference(Node, InNewFunctionIdentifier, bSetupOrphanPins, bSetupUndoRedo, false))
 		{
 			if (bSetupUndoRedo && FunctionReferenceNodes.Num() > 1)
 			{
@@ -11574,8 +11572,9 @@ bool URigVMController::SwapAllFunctionReferences(const FRigVMGraphFunctionIdenti
 					*NewFunctionDefinitionName));
 
 		RigVMPythonUtils::Print(GetSchema()->GetGraphOuterName(GetGraph()), 
-			FString::Printf(TEXT("blueprint.get_controller_by_name('%s').swap_all_function_references(old_definition, new_definition)"),
-					*GraphName));
+			FString::Printf(TEXT("blueprint.get_controller_by_name('%s').swap_all_function_references(old_definition, new_definition, %s)"),
+					*GraphName,
+					(bSetupOrphanPins) ? TEXT("True") : TEXT("False")));
 	}
 	
 	return true;
@@ -15813,10 +15812,10 @@ void URigVMController::GenerateRepopulatePinLists(const FRigVMRegistry& Registry
 	{
 		const FString PinPath = NodeData.PreviousPinInfos.GetPinPath(Index);
 		const int32 NewIndex = NodeData.NewPinInfos.GetIndexFromPinPath(PinPath);
+		const int32 RootIndex = NodeData.PreviousPinInfos.GetRootIndex(Index);
 
 		if (NewIndex == INDEX_NONE)
 		{
-			const int32 RootIndex = NodeData.PreviousPinInfos.GetRootIndex(Index);
 			if (NodeData.PreviousPinInfos[Index].Direction != ERigVMPinDirection::Hidden)
 			{
 				if (URigVMPin* Pin = InNode->FindPin(PinPath))
@@ -15877,6 +15876,34 @@ void URigVMController::GenerateRepopulatePinLists(const FRigVMRegistry& Registry
 			{
 				NodeData.PreviousPinsToRemove.Add(Index);
 				NodeData.NewPinsToAdd.Add(NewIndex);
+
+				// we also need to setup orphan pins if a pin CPP type has changed
+				if (URigVMPin* Pin = InNode->FindPin(PinPath))
+				{
+					if (!Pin->GetLinks().IsEmpty())
+					{
+						if (NodeData.bSetupOrphanPinsForThisNode)
+						{
+							if (!NodeData.PreviousPinsToOrphan.Contains(RootIndex))
+							{
+								URigVMPin* RootPin = Pin->GetRootPin();
+
+								if (RootPin->GetSourceLinks(true).Num() > 0 ||
+									RootPin->GetTargetLinks(true).Num() > 0)
+								{
+									NodeData.PreviousPinsToOrphan.Add(RootIndex);
+
+									NodeData.bRequireRecreateLinks = true;
+									NodeData.bRequirePinStates = true;
+#if UE_RIGVMCONTROLLER_VERBOSE_REPOPULATE
+									UE_LOG(LogRigVMDeveloper, Display, TEXT("Previously existing pin '%s' needs to be orphaned."), *RootPin->GetPinPath());
+#endif
+								}
+							}
+						}
+
+					}
+				}
 			}
 
 #if UE_RIGVMCONTROLLER_VERBOSE_REPOPULATE
@@ -15916,7 +15943,7 @@ void URigVMController::GenerateRepopulatePinLists(const FRigVMRegistry& Registry
 			const int32 PreviousRootIndex = NodeData.PreviousPinInfos.GetRootIndex(PreviousIndex);
 			if (NodeData.PreviousPinsToOrphan.Contains(PreviousRootIndex))
 			{
-				NodeData.NewPinsToAdd.Add(Index);
+				NodeData.NewPinsToAdd.AddUnique(Index);
 
 #if UE_RIGVMCONTROLLER_VERBOSE_REPOPULATE
 				UE_LOG(LogRigVMDeveloper, Display, TEXT("Orphaned pin '%s' needs to be re-added."), *PinPath);

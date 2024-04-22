@@ -240,10 +240,16 @@ class RIGVMDEVELOPER_API URigVMActionStack : public UObject
 
 public:
 
+	static URigVMActionStack* GetDisabledActionStack();
+
 	// Begins an action and opens a bracket / scope.
 	template<class ActionType>
 	void BeginAction(ActionType& InAction)
 	{
+		if(IsDisabled())
+		{
+			return;
+		}
 #if RIGVM_ACTIONSTACK_VERBOSE_LOG		
 		TGuardValue<int32> TabDepthGuard(LogActionDepth, CurrentActions.Num());
 		LogAction<ActionType>(InAction, FRigVMBaseAction::BeginActionPrefix);
@@ -263,6 +269,10 @@ public:
 	template<class ActionType>
 	void EndAction(ActionType& InAction, bool bPerformMerge = false)
 	{
+		if(IsDisabled())
+		{
+			return;
+		}
 		ensure(CurrentActions.Num() > 0);
 		ensure((FRigVMBaseAction*)&InAction == CurrentActions.Last());
 		CurrentActions.Pop();
@@ -286,6 +296,10 @@ public:
 	template<class ActionType>
 	void CancelAction(ActionType& InAction)
 	{
+		if(IsDisabled())
+		{
+			return;
+		}
 		ensure(CurrentActions.Num() > 0);
 		ensure((FRigVMBaseAction*)&InAction == CurrentActions.Last());
 		CurrentActions.Pop();
@@ -305,6 +319,10 @@ public:
 	template<class ActionType>
 	void AddAction(const ActionType& InAction, bool bPerformMerge = false)
 	{
+		if(IsDisabled())
+		{
+			return;
+		}
 #if RIGVM_ACTIONSTACK_VERBOSE_LOG		
 		TGuardValue<int32> TabDepthGuard(LogActionDepth, CurrentActions.Num());
 		LogAction<ActionType>(InAction, FRigVMBaseAction::AddActionPrefix);
@@ -416,6 +434,8 @@ private:
 	
 	void LogAction(const UScriptStruct* InActionStruct, const FRigVMBaseAction& InAction, const FString& InPrefix);
 #endif
+
+	bool IsDisabled() const;
 	
 	UPROPERTY()
 	int32 ActionIndex;

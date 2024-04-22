@@ -67,8 +67,17 @@ FString FRigVMActionWrapper::ExportText() const
 	return ExportedText;
 }
 
+URigVMActionStack* URigVMActionStack::GetDisabledActionStack()
+{
+	return StaticClass()->GetDefaultObject<URigVMActionStack>();
+}
+
 bool URigVMActionStack::OpenUndoBracket(URigVMController* InController, const FString& InTitle)
 {
+	if(IsDisabled())
+	{
+		return true;
+	}
 	FRigVMBaseAction* Action = new FRigVMBaseAction(InController);
 	Action->Title = InTitle;
 	BracketActions.Add(Action);
@@ -78,6 +87,10 @@ bool URigVMActionStack::OpenUndoBracket(URigVMController* InController, const FS
 
 bool URigVMActionStack::CloseUndoBracket(URigVMController* InController)
 {
+	if(IsDisabled())
+	{
+		return true;
+	}
 	ensure(BracketActions.Num() > 0);
 	if(BracketActions.Last()->IsEmpty())
 	{
@@ -91,6 +104,10 @@ bool URigVMActionStack::CloseUndoBracket(URigVMController* InController)
 
 bool URigVMActionStack::CancelUndoBracket(URigVMController* InController)
 {
+	if(IsDisabled())
+	{
+		return true;
+	}
 	ensure(BracketActions.Num() > 0);
 	FRigVMBaseAction* Action = BracketActions.Pop();
 	CancelAction(*Action);
@@ -203,6 +220,11 @@ void URigVMActionStack::PostTransacted(const FTransactionObjectEvent& Transactio
 
 		ModifiedEvent.Broadcast(ERigVMGraphNotifType::InteractionBracketClosed, nullptr, nullptr);
 	}
+}
+
+bool URigVMActionStack::IsDisabled() const
+{
+	return !HasAnyFlags(RF_ClassDefaultObject);
 }
 
 #if RIGVM_ACTIONSTACK_VERBOSE_LOG		
