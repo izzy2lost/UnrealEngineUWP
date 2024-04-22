@@ -19,7 +19,7 @@
 #include "Dataflow/ChaosFleshGetSurfaceIndicesNode.h"
 #include "Dataflow/ChaosFleshIsolateComponentNode.h"
 #include "Dataflow/ChaosFleshKinematicConstraintNode.h"
-#include "Dataflow/ChaosFleshKinematicOriginInsertionInitializationNode.h"
+#include "Dataflow/ChaosFleshKinematicMuscleAttachmentsNode.h"
 #include "Dataflow/ChaosFleshKinematicTetrahedralConstraintNode.h"
 #include "Dataflow/ChaosFleshRadialTetrahedronNode.h"
 #include "Dataflow/ChaosFleshTriangleMeshSimulationPropertiesNode.h"
@@ -58,7 +58,7 @@ void IChaosFleshNodesPlugin::StartupModule()
 	DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FIsolateComponentNode);
 	DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FKinematicBodySetupInitializationDataflowNode);
 	DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FKinematicInitializationDataflowNode);
-	DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FKinematicOriginInsertionInitializationDataflowNode);
+	DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FKinematicMuscleAttachmentsDataflowNode);
 	DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FKinematicSkeletalMeshInitializationDataflowNode);
 	DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FKinematicTetrahedralBindingsDataflowNode);
 	DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FRadialTetrahedronDataflowNodes);
