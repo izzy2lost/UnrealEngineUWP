@@ -122,7 +122,10 @@ private:
 
 	bool IsComponentSelected(const UPrimitiveComponent* InComponent);
 
+	void SaveAnimationState();
+	void RestoreSavedAnimationState();
 	void HandlePackageReloaded(const EPackageReloadPhase InPackageReloadPhase, FPackageReloadedEvent* InPackageReloadedEvent);
+	void HandleReimportManagerPostReimport(UObject* ReimportedObject, bool bWasSuccessful);
 
 	TObjectPtr<UChaosClothPreviewSceneDescription> PreviewSceneDescription;
 
@@ -146,7 +149,7 @@ private:
 	TOptional<FAnimState> SavedAnimState;
 
 	FDelegateHandle OnPackageReloadedDelegateHandle;
-
+	FDelegateHandle OnPostReimportDelegateHandle;
 };
 } // namespace UE::Chaos::ClothAsset
 
