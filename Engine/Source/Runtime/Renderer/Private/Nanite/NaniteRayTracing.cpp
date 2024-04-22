@@ -122,7 +122,8 @@ DECLARE_DWORD_ACCUMULATOR_STAT(TEXT("Pending Builds"), STAT_NaniteRayTracingPend
 DECLARE_MEMORY_STAT(TEXT("Auxiliary Data Buffer"), STAT_NaniteRayTracingAuxiliaryDataBuffer, STATGROUP_NaniteRayTracing);
 DECLARE_MEMORY_STAT(TEXT("Staging Auxiliary Data Buffer"), STAT_NaniteRayTracingStagingAuxiliaryDataBuffer, STATGROUP_NaniteRayTracing);
 
-static const uint32 MinAuxiliaryBufferEntries = 4 * 1024 * 1024; // buffer size will be 16MB
+static const uint32 GMinAuxiliaryBufferEntries = 4 * 1024 * 1024; // buffer size will be 16MB
+static const uint32 GDisabledMinAuxiliaryBufferEntries = 8; // used when Nanite Ray Tracing is not enabled
 
 namespace Nanite
 {
@@ -181,10 +182,10 @@ namespace Nanite
 			return;
 		}
 
-		AuxiliaryDataBuffer = AllocatePooledBuffer(FRDGBufferDesc::CreateStructuredDesc(sizeof(uint32), 8), TEXT("NaniteRayTracing.AuxiliaryDataBuffer"));
+		AuxiliaryDataBuffer = AllocatePooledBuffer(FRDGBufferDesc::CreateStructuredDesc(sizeof(uint32), GDisabledMinAuxiliaryBufferEntries), TEXT("NaniteRayTracing.AuxiliaryDataBuffer"));
 		SET_MEMORY_STAT(STAT_NaniteRayTracingAuxiliaryDataBuffer, AuxiliaryDataBuffer->GetSize());
 
-		StagingAuxiliaryDataBuffer = AllocatePooledBuffer(FRDGBufferDesc::CreateStructuredDesc(sizeof(uint32), 8), TEXT("NaniteRayTracing.StagingAuxiliaryDataBuffer"));
+		StagingAuxiliaryDataBuffer = AllocatePooledBuffer(FRDGBufferDesc::CreateStructuredDesc(sizeof(uint32), GDisabledMinAuxiliaryBufferEntries), TEXT("NaniteRayTracing.StagingAuxiliaryDataBuffer"));
 		SET_MEMORY_STAT(STAT_NaniteRayTracingStagingAuxiliaryDataBuffer, StagingAuxiliaryDataBuffer->GetSize());
 
 		ReadbackBuffers.SetNum(MaxReadbackBuffers);
@@ -508,7 +509,7 @@ namespace Nanite
 		FRDGBufferRef StagingAuxiliaryDataBufferRDG;
 
 		{
-			const uint32 BufferNumAuxiliaryDataEntries = FMath::Max(NumAuxiliaryDataEntries, MinAuxiliaryBufferEntries);
+			const uint32 BufferNumAuxiliaryDataEntries = FMath::Max(NumAuxiliaryDataEntries, GMinAuxiliaryBufferEntries);
 			const bool bCopy = false;
 			StagingAuxiliaryDataBufferRDG = ResizeBufferIfNeeded(GraphBuilder, StagingAuxiliaryDataBuffer, sizeof(uint32), BufferNumAuxiliaryDataEntries, TEXT("NaniteRayTracing.StagingAuxiliaryDataBuffer"), bCopy, EAllowShrinking::Yes);
 			StagingAuxiliaryDataBuffer = GraphBuilder.ConvertToExternalBuffer(StagingAuxiliaryDataBufferRDG);
@@ -798,9 +799,24 @@ namespace Nanite
 		// resize AuxiliaryDataBuffer if necessary
 		FRDGBufferRef AuxiliaryDataBufferRDG;
 		{
+			uint32 MinAuxiliaryBufferEntries;
+			EAllowShrinking AllowShrinking;
+
+			if (GetRayTracingMode() == ERayTracingMode::Fallback)
+			{
+				// when not using Nanite Ray Tracing allow AuxiliaryDataBuffer to shrink to initial size 
+				MinAuxiliaryBufferEntries = GDisabledMinAuxiliaryBufferEntries;
+				AllowShrinking = EAllowShrinking::Yes;
+			}
+			else
+			{
+				MinAuxiliaryBufferEntries = GMinAuxiliaryBufferEntries;
+				AllowShrinking = EAllowShrinking::No;
+			}
+
 			const uint32 NumAuxiliaryDataEntries = FMath::Max((uint32)AuxiliaryDataAllocator.GetMaxSize(), MinAuxiliaryBufferEntries);
 			const bool bCopy = true;
-			AuxiliaryDataBufferRDG = ResizeBufferIfNeeded(GraphBuilder, AuxiliaryDataBuffer, sizeof(uint32), NumAuxiliaryDataEntries, TEXT("NaniteRayTracing.AuxiliaryDataBuffer"), bCopy, EAllowShrinking::No);
+			AuxiliaryDataBufferRDG = ResizeBufferIfNeeded(GraphBuilder, AuxiliaryDataBuffer, sizeof(uint32), NumAuxiliaryDataEntries, TEXT("NaniteRayTracing.AuxiliaryDataBuffer"), bCopy, AllowShrinking);
 			AuxiliaryDataBuffer = GraphBuilder.ConvertToExternalBuffer(AuxiliaryDataBufferRDG);
 
 			SET_MEMORY_STAT(STAT_NaniteRayTracingAuxiliaryDataBuffer, AuxiliaryDataBufferRDG->GetSize());
