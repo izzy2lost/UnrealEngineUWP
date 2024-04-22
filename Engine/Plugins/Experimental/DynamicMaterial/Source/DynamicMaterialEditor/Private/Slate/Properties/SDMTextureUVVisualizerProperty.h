@@ -8,6 +8,7 @@ class SDMTextureUVVisualizer;
 class SDMTextureUVVisualizerPopout;
 class UDMMaterialStage;
 class UDMTextureUV;
+enum class ECheckBoxState : uint8;
 
 /**
  * Material Designer Texture UV Visualizer Property
@@ -31,9 +32,11 @@ protected:
 
 	FReply OnToggleModeClicked();
 
-	FText GetModeButtonText() const;
-
 	FReply OnOpenPopoutClicked();
 
 	EVisibility GetVisualizerVisibility() const;
+
+	ECheckBoxState GetModeCheckBoxState(bool bInIsPivot) const;
+
+	void OnModeCheckBoxStateChanged(ECheckBoxState InState, bool bInIsPivot);
 };

@@ -9,6 +9,7 @@
 #include "Slate/Properties/SDMTextureUVVisualizerPopout.h"
 #include "Widgets/Docking/SDockTab.h"
 #include "Widgets/Input/SButton.h"
+#include "Widgets/Input/SCheckBox.h"
 #include "Widgets/Layout/SBox.h"
 #include "Widgets/Text/STextBlock.h"
 
@@ -24,10 +25,21 @@ void SDMTextureUVVisualizerProperty::Construct(const FArguments& InArgs, UDMMate
 		SNew(SVerticalBox)
 		+ SVerticalBox::Slot()
 		.AutoHeight()
-		.HAlign(EHorizontalAlignment::HAlign_Fill)
+		.HAlign(EHorizontalAlignment::HAlign_Left)
+		.Padding(0.f, 3.f, 0.f, 0.f)
 		[
 			SNew(SHorizontalBox)
-			.Visibility(this, &SDMTextureUVVisualizerProperty::GetVisualizerVisibility)
+			+ SHorizontalBox::Slot()
+			[
+				SNew(SButton)
+				.OnClicked(this, &SDMTextureUVVisualizerProperty::OnToggleVisualizerClicked)
+				.Content()
+				[
+					SNew(STextBlock)
+					.Text(LOCTEXT("ToggleVisualizer", "Toggle"))
+					.Font(IDetailLayoutBuilder::GetDetailFontBold())
+				]
+			]
 			+ SHorizontalBox::Slot()
 			.FillContentWidth(1.f)
 			[
@@ -37,18 +49,6 @@ void SDMTextureUVVisualizerProperty::Construct(const FArguments& InArgs, UDMMate
 				[
 					SNew(STextBlock)
 					.Text(LOCTEXT("PopoutVisualizer", "Popout"))
-					.Font(IDetailLayoutBuilder::GetDetailFontBold())
-				]
-			]
-			+ SHorizontalBox::Slot()
-			.FillContentWidth(1.f)
-			[
-				SNew(SButton)
-				.OnClicked(this, &SDMTextureUVVisualizerProperty::OnToggleModeClicked)
-				.Content()
-				[
-					SNew(STextBlock)
-					.Text(this, &SDMTextureUVVisualizerProperty::GetModeButtonText)
 					.Font(IDetailLayoutBuilder::GetDetailFontBold())
 				]
 			]
@@ -70,18 +70,41 @@ void SDMTextureUVVisualizerProperty::Construct(const FArguments& InArgs, UDMMate
 		]
 		+ SVerticalBox::Slot()
 		.AutoHeight()
-		.HAlign(EHorizontalAlignment::HAlign_Left)
-		.Padding(0.f, 3.f, 0.f, 0.f)
+		.HAlign(EHorizontalAlignment::HAlign_Fill)
 		[
 			SNew(SHorizontalBox)
+			.Visibility(this, &SDMTextureUVVisualizerProperty::GetVisualizerVisibility)
 			+ SHorizontalBox::Slot()
+			.FillContentWidth(1.f)
 			[
-				SNew(SButton)
-				.OnClicked(this, &SDMTextureUVVisualizerProperty::OnToggleVisualizerClicked)
+				SNew(SCheckBox)
+				.Style(FAppStyle::Get(), "DetailsView.SectionButton")
+				.HAlign(EHorizontalAlignment::HAlign_Center)
+				.Padding(FVector2D(5.f, 3.f))
+				.IsChecked(this, &SDMTextureUVVisualizerProperty::GetModeCheckBoxState, /* Is Pivot */ false)
+				.OnCheckStateChanged(this, &SDMTextureUVVisualizerProperty::OnModeCheckBoxStateChanged, /* Is Pivot */ false)
+				.ToolTipText(LOCTEXT("VisualizerOffsetToolTip", "Allows changing of the UV offset."))
 				.Content()
 				[
 					SNew(STextBlock)
-					.Text(LOCTEXT("ToggleVisualizer", "Toggle"))
+					.Text(LOCTEXT("VisualizerOffset", "Offset"))
+					.Font(IDetailLayoutBuilder::GetDetailFontBold())
+				]
+			]
+			+ SHorizontalBox::Slot()
+			.FillContentWidth(1.f)
+			[
+				SNew(SCheckBox)
+				.Style(FAppStyle::Get(), "DetailsView.SectionButton")
+				.HAlign(EHorizontalAlignment::HAlign_Center)
+				.Padding(FVector2D(5.f, 3.f))
+				.IsChecked(this, &SDMTextureUVVisualizerProperty::GetModeCheckBoxState, /* Is Pivot */ true)
+				.OnCheckStateChanged(this, &SDMTextureUVVisualizerProperty::OnModeCheckBoxStateChanged, /* Is Pivot */ true)
+				.ToolTipText(LOCTEXT("VisualizerPivotToolTip", "Allows changing of the UV pivot, rotation and scale."))
+				.Content()
+				[
+					SNew(STextBlock)
+					.Text(LOCTEXT("VisualizerPivot", "Pivot"))
 					.Font(IDetailLayoutBuilder::GetDetailFontBold())
 				]
 			]
@@ -109,16 +132,6 @@ FReply SDMTextureUVVisualizerProperty::OnToggleModeClicked()
 	}
 
 	return FReply::Handled();
-}
-
-FText SDMTextureUVVisualizerProperty::GetModeButtonText() const
-{
-	if (Visualizer.IsValid() && Visualizer->IsInPivotEditMode())
-	{
-		return LOCTEXT("VisualizerPivot", "Pivot");
-	}
-
-	return LOCTEXT("VisualizerOffset", "Offset");
 }
 
 FReply SDMTextureUVVisualizerProperty::OnOpenPopoutClicked()
@@ -151,6 +164,28 @@ EVisibility SDMTextureUVVisualizerProperty::GetVisualizerVisibility() const
 	}
 
 	return EVisibility::Collapsed;
+}
+
+ECheckBoxState SDMTextureUVVisualizerProperty::GetModeCheckBoxState(bool bInIsPivot) const
+{
+	if (!Visualizer.IsValid())
+	{
+		return ECheckBoxState::Undetermined;
+	}
+
+	return Visualizer->IsInPivotEditMode() == bInIsPivot
+		? ECheckBoxState::Checked
+		: ECheckBoxState::Unchecked;
+}
+
+void SDMTextureUVVisualizerProperty::OnModeCheckBoxStateChanged(ECheckBoxState InState, bool bInIsPivot)
+{
+	if (InState != ECheckBoxState::Checked || !Visualizer.IsValid())
+	{
+		return;
+	}
+
+	Visualizer->SetInPivotEditMode(bInIsPivot);
 }
 
 #undef LOCTEXT_NAMESPACE

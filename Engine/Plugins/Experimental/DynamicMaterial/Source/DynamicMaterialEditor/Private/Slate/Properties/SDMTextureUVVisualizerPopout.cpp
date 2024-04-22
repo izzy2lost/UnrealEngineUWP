@@ -21,6 +21,7 @@
 #include "Widgets/Colors/SColorBlock.h"
 #include "Widgets/Docking/SDockTab.h"
 #include "Widgets/Input/SButton.h"
+#include "Widgets/Input/SCheckBox.h"
 #include "Widgets/Layout/SBox.h"
 #include "Widgets/Text/STextBlock.h"
 
@@ -150,16 +151,6 @@ void SDMTextureUVVisualizerPopout::Construct(const FArguments& InArgs, UDMMateri
 	];
 }
 
-FReply SDMTextureUVVisualizerPopout::OnToggleModeClicked()
-{
-	if (Visualizer.IsValid())
-	{
-		Visualizer->TogglePivotEditMode();
-	}
-
-	return FReply::Handled();
-}
-
 FText SDMTextureUVVisualizerPopout::GetModeButtonText() const
 {
 	if (Visualizer.IsValid() && Visualizer->IsInPivotEditMode())
@@ -237,13 +228,40 @@ TSharedRef<SWidget> SDMTextureUVVisualizerPopout::CreatePropertyWidget(UDMTextur
 	FDMPropertyHandle EditModeButtonRow;
 	EditModeButtonRow.ValueName = TEXT("EditMode");
 	EditModeButtonRow.NameOverride = LOCTEXT("EditMode", "Edit Mode");
-	EditModeButtonRow.ValueWidget = SNew(SButton)
-		.OnClicked(this, &SDMTextureUVVisualizerPopout::OnToggleModeClicked)
-		.Content()
+	EditModeButtonRow.ValueWidget = SNew(SHorizontalBox)
+		+ SHorizontalBox::Slot()
+		.FillContentWidth(1.f)
 		[
-			SNew(STextBlock)
-			.Text(this, &SDMTextureUVVisualizerPopout::GetModeButtonText)
-			.Font(IDetailLayoutBuilder::GetDetailFontBold())
+			SNew(SCheckBox)
+			.Style(FAppStyle::Get(), "DetailsView.SectionButton")
+			.HAlign(EHorizontalAlignment::HAlign_Center)
+			.Padding(FVector2D(10.f, 3.f))
+			.IsChecked(this, &SDMTextureUVVisualizerPopout::GetModeCheckBoxState, /* Is Pivot */ false)
+			.OnCheckStateChanged(this, &SDMTextureUVVisualizerPopout::OnModeCheckBoxStateChanged, /* Is Pivot */ false)
+			.ToolTipText(LOCTEXT("VisualizerOffsetToolTip", "Allows changing of the UV offset."))
+			.Content()
+			[
+				SNew(STextBlock)
+				.Text(LOCTEXT("VisualizerOffset", "Offset"))
+				.Font(IDetailLayoutBuilder::GetDetailFontBold())
+			]
+		]
+		+ SHorizontalBox::Slot()
+		.FillContentWidth(1.f)
+		[
+			SNew(SCheckBox)
+			.Style(FAppStyle::Get(), "DetailsView.SectionButton")
+			.HAlign(EHorizontalAlignment::HAlign_Center)
+			.Padding(FVector2D(10.f, 3.f))
+			.IsChecked(this, &SDMTextureUVVisualizerPopout::GetModeCheckBoxState, /* Is Pivot */ true)
+			.OnCheckStateChanged(this, &SDMTextureUVVisualizerPopout::OnModeCheckBoxStateChanged, /* Is Pivot */ true)
+			.ToolTipText(LOCTEXT("VisualizerPivotToolTip", "Allows changing of the UV pivot, rotation and scale."))
+			.Content()
+			[
+				SNew(STextBlock)
+				.Text(LOCTEXT("VisualizerPivot", "Pivot"))
+				.Font(IDetailLayoutBuilder::GetDetailFontBold())
+			]
 		];
 
 	TextureUVPropertyRows.Add(EditModeButtonRow);
@@ -323,6 +341,28 @@ TSharedRef<SWidget> SDMTextureUVVisualizerPopout::CreatePropertyWidget(UDMTextur
 	DetailsView->RebuildTree(ECustomDetailsViewBuildType::InstantBuild);
 
 	return DetailsView;
+}
+
+ECheckBoxState SDMTextureUVVisualizerPopout::GetModeCheckBoxState(bool bInIsPivot) const
+{
+	if (!Visualizer.IsValid())
+	{
+		return ECheckBoxState::Undetermined;
+	}
+
+	return Visualizer->IsInPivotEditMode() == bInIsPivot
+		? ECheckBoxState::Checked
+		: ECheckBoxState::Unchecked;
+}
+
+void SDMTextureUVVisualizerPopout::OnModeCheckBoxStateChanged(ECheckBoxState InState, bool bInIsPivot)
+{
+	if (InState != ECheckBoxState::Checked || !Visualizer.IsValid())
+	{
+		return;
+	}
+
+	Visualizer->SetInPivotEditMode(bInIsPivot);
 }
 
 #undef LOCTEXT_NAMESPACE

@@ -10,6 +10,7 @@ class SDMTextureUVVisualizer;
 class SDockTab;
 class UDMMaterialStage;
 class UDMTextureUV;
+enum class ECheckBoxState : uint8;
 
 /**
  * Material Designer Texture UV Visualizer Popout
@@ -35,8 +36,6 @@ public:
 protected:
 	TSharedPtr<SDMTextureUVVisualizer> Visualizer;
 
-	FReply OnToggleModeClicked();
-
 	FText GetModeButtonText() const;
 
 	FVector2D GetHorizontalBarSize() const;
@@ -44,4 +43,8 @@ protected:
 	FVector2D GetSideBlockSize() const;
 
 	TSharedRef<SWidget> CreatePropertyWidget(UDMTextureUV* InTextureUV);
+
+	ECheckBoxState GetModeCheckBoxState(bool bInIsPivot) const;
+
+	void OnModeCheckBoxStateChanged(ECheckBoxState InState, bool bInIsPivot);
 };
