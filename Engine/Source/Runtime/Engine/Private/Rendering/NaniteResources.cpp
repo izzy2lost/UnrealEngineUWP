@@ -2976,7 +2976,7 @@ void FNaniteVertexFactory::InitRHI(FRHICommandListBase& RHICmdList)
 bool FNaniteVertexFactory::ShouldCompilePermutation(const FVertexFactoryShaderPermutationParameters& Parameters)
 {
 	bool bShouldCompile =
-		(Parameters.ShaderType->GetFrequency() == SF_Compute || (Parameters.ShaderType->GetFrequency() == SF_WorkGraph && NaniteWorkGraphMaterialsSupported() && RHISupportsWorkGraphs(Parameters.Platform))) &&
+		(Parameters.ShaderType->GetFrequency() == SF_Compute || (Parameters.ShaderType->GetFrequency() == SF_WorkGraphComputeNode && NaniteWorkGraphMaterialsSupported() && RHISupportsWorkGraphs(Parameters.Platform))) &&
 		(Parameters.MaterialParameters.bIsUsedWithNanite || Parameters.MaterialParameters.bIsSpecialEngineMaterial) &&
 		Nanite::IsSupportedMaterialDomain(Parameters.MaterialParameters.MaterialDomain) &&
 		Nanite::IsSupportedBlendMode(Parameters.MaterialParameters) &&

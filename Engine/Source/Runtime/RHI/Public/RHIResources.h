@@ -1029,24 +1029,22 @@ private:
 class FRHIWorkGraphShader : public FRHIShader
 {
 public:
-	FRHIWorkGraphShader()
-		: FRHIShader(RRT_WorkGraphShader, SF_WorkGraph)
-		, bWorkGraphLocal(0)
+	explicit FRHIWorkGraphShader(EShaderFrequency InFrequency)
+		: FRHIShader(RRT_WorkGraphShader, InFrequency)
 	{
 	}
+};
 
-	inline void SetWorkGraphLocal(bool bValue)
-	{
-		bWorkGraphLocal = bValue;
-	}
+class FRHIWorkGraphRootShader : public FRHIWorkGraphShader
+{
+public:
+	FRHIWorkGraphRootShader() : FRHIWorkGraphShader(SF_WorkGraphRoot) {}
+};
 
-	inline bool IsWorkGraphLocal() const
-	{
-		return bWorkGraphLocal;
-	}
-
-private:
-	uint8 bWorkGraphLocal : 1;
+class FRHIWorkGraphComputeNodeShader : public FRHIWorkGraphShader
+{
+public:
+	FRHIWorkGraphComputeNodeShader() : FRHIWorkGraphShader(SF_WorkGraphComputeNode) {}
 };
 
 //

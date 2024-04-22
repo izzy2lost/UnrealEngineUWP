@@ -158,7 +158,7 @@ public:
 class FD3D12WorkGraphShader : public FRHIWorkGraphShader, public FD3D12ShaderData
 {
 public:
-	enum { StaticFrequency = SF_WorkGraph };
+	explicit FD3D12WorkGraphShader(EShaderFrequency InFrequency) : FRHIWorkGraphShader(InFrequency) {}
 
 	const FD3D12RootSignature* RootSignature = nullptr;
 

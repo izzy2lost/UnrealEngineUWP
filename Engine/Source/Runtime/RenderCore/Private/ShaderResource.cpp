@@ -640,7 +640,8 @@ FRHIShader* FShaderMapResource_InlineCode::CreateRHIShaderOrCrash(int32 ShaderIn
 	case SF_Pixel: RHIShader = RHICreatePixelShader(ShaderCodeView, ShaderHash); break;
 	case SF_Geometry: RHIShader = RHICreateGeometryShader(ShaderCodeView, ShaderHash); break;
 	case SF_Compute: RHIShader = RHICreateComputeShader(ShaderCodeView, ShaderHash); break;
-	case SF_WorkGraph: RHIShader = RHICreateWorkGraphShader(ShaderCodeView, ShaderHash); break;
+	case SF_WorkGraphRoot: RHIShader = RHICreateWorkGraphShader(ShaderCodeView, ShaderHash, SF_WorkGraphRoot); break;
+	case SF_WorkGraphComputeNode: RHIShader = RHICreateWorkGraphShader(ShaderCodeView, ShaderHash, SF_WorkGraphComputeNode); break;
 	case SF_RayGen: case SF_RayMiss: case SF_RayHitGroup: case SF_RayCallable:
 #if RHI_RAYTRACING
 		if (GRHISupportsRayTracing && GRHISupportsRayTracingShaders)

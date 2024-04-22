@@ -612,7 +612,7 @@ bool LoadBasePassPipeline(
 				FUniformLightMapPolicy(LightMapPolicyType),
 				FeatureLevel,
 				bRenderSkylight,
-				SF_WorkGraph,
+				SF_WorkGraphComputeNode,
 				&BasePassWorkGraphShader
 				);
 		}

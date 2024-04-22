@@ -18,7 +18,7 @@ static FName NAME_PCD3D_SM5(TEXT("PCD3D_SM5"));
 static FName NAME_PCD3D_ES3_1(TEXT("PCD3D_ES31"));
 
 static const FGuid UE_SHADER_PCD3D_SHARED_VER = FGuid("232A2A59-A6D0-4CDB-A374-F3DB028E413E");
-static const FGuid UE_SHADER_PCD3D_SM6_VER    = FGuid("51A4C815-0CF4-42ED-A23E-DED306076D61");
+static const FGuid UE_SHADER_PCD3D_SM6_VER    = FGuid("FC317769-CFF7-4007-A045-C1D4CD315BD4");
 static const FGuid UE_SHADER_PCD3D_SM5_VER    = FGuid("5B377D13-C70F-40C5-80C5-C9B228783469");
 static const FGuid UE_SHADER_PCD3D_ES3_1_VER  = FGuid("952939D9-1156-4347-97E9-9FFEA1A9FE14");
 
@@ -115,7 +115,7 @@ public:
 
 	static bool IsSM68(const FShaderCompilerInput& Input, ELanguage Language)
 	{
-		return Input.Target.GetFrequency() == SF_WorkGraph;
+		return IsWorkGraphShaderFrequency(Input.Target.GetFrequency());
 	}
 
 	static bool IsSM66(const FShaderCompilerInput& Input, ELanguage Language)

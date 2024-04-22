@@ -65,7 +65,7 @@ static bool IsGlobalConstantBufferSupported(const FShaderTarget& Target)
 	}
 }
 
-static uint32 GetAutoBindingSpace(const FShaderTarget& Target, bool bIsWorkGraphLocal)
+static uint32 GetAutoBindingSpace(const FShaderTarget& Target)
 {
 	switch (Target.Frequency)
 	{
@@ -75,8 +75,10 @@ static uint32 GetAutoBindingSpace(const FShaderTarget& Target, bool bIsWorkGraph
 	case SF_RayHitGroup:
 	case SF_RayCallable:
 		return UE_HLSL_SPACE_RAY_TRACING_LOCAL;
-	case SF_WorkGraph:
-		return bIsWorkGraphLocal ? UE_HLSL_SPACE_WORK_GRAPH_LOCAL : UE_HLSL_SPACE_WORK_GRAPH_GLOBAL;
+	case SF_WorkGraphRoot:
+		return UE_HLSL_SPACE_WORK_GRAPH_GLOBAL;
+	case SF_WorkGraphComputeNode:
+		return UE_HLSL_SPACE_WORK_GRAPH_LOCAL;
 	default:
 		return 0;
 	}
@@ -246,9 +248,7 @@ public:
 			ExtraArguments.Add(TEXT("-WX"));
 		}
 
-		const bool bIsWorkGraphLocal = Input.Target.Frequency == SF_WorkGraph && Input.Environment.CompilerFlags.Contains(CFLAG_WorkgraphLocalNodes);
-
-		const uint32 AutoBindingSpace = GetAutoBindingSpace(Input.Target, bIsWorkGraphLocal);
+		const uint32 AutoBindingSpace = GetAutoBindingSpace(Input.Target);
 		{
 			ExtraArguments.Add(TEXT("-auto-binding-space"));
 			ExtraArguments.Add(FString::Printf(TEXT("%d"), AutoBindingSpace));
@@ -865,10 +865,9 @@ bool CompileAndProcessD3DShaderDXC(
 	auto AnsiSourceFile = StringCast<ANSICHAR>(*PreprocessedShaderSource);
 
 	const bool bIsRayTracingShader = Input.IsRayTracingShader();
+	const bool bIsWorkGraphShader = Input.IsWorkGraphShader();
 
-	const bool bIsWorkGraphLocal = Input.Target.Frequency == SF_WorkGraph && Input.Environment.CompilerFlags.Contains(CFLAG_WorkgraphLocalNodes);
-
-	const uint32 AutoBindingSpace = GetAutoBindingSpace(Input.Target, bIsWorkGraphLocal);
+	const uint32 AutoBindingSpace = GetAutoBindingSpace(Input.Target);
 
 	FString RayEntryPoint; // Primary entry point for all ray tracing shaders
 	FString RayAnyHitEntryPoint; // Optional for hit group shaders
@@ -893,8 +892,6 @@ bool CompileAndProcessD3DShaderDXC(
 			RayTracingExports += RayIntersectionEntryPoint;
 		}
 	}
-
-	const bool bIsWorkGraphShader = Input.Target.GetFrequency() == SF_WorkGraph;
 
 	FDxcArguments Args
 	(
@@ -1204,11 +1201,6 @@ bool CompileAndProcessD3DShaderDXC(
 			if (bHasNoDerivativeOps)
 			{
 				PackedResourceCounts.UsageFlags |= EShaderResourceUsageFlags::NoDerivativeOps;
-			}
-
-			if (bIsWorkGraphLocal)
-			{
-				PackedResourceCounts.UsageFlags |= EShaderResourceUsageFlags::WorkGraphLocal;
 			}
 
 			if (Input.Environment.CompilerFlags.Contains(CFLAG_ShaderBundle))

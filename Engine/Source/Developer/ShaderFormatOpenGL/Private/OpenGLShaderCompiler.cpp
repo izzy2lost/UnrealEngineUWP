@@ -465,7 +465,8 @@ GLenum GLFrequencyTable[] =
 	GLenum(0), // SF_RayHitGroup (closest hit, any hit, intersection)
 	GLenum(0), // SF_RayCallable
 	// Work graph shaders are not supported in OpenGL
-	GLenum(0), // SF_WorkGraph
+	GLenum(0), // SF_WorkGraphRoot
+	GLenum(0), // SF_WorkGraphComputeNode
 };
 
 static_assert(UE_ARRAY_COUNT(GLFrequencyTable) == SF_NumFrequencies, "Frequency table size mismatch.");

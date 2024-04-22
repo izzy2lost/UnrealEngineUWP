@@ -1317,7 +1317,8 @@ TRefCountPtr<FRHIShader> FShaderCodeArchive::CreateShader(int32 Index)
 	case SF_Pixel: Shader = RHICreatePixelShader(ShaderCodeView, ShaderHash); CheckShaderCreation(Shader, Index); break;
 	case SF_Geometry: Shader = RHICreateGeometryShader(ShaderCodeView, ShaderHash); CheckShaderCreation(Shader, Index); break;
 	case SF_Compute: Shader = RHICreateComputeShader(ShaderCodeView, ShaderHash); CheckShaderCreation(Shader, Index); break;
-	case SF_WorkGraph: Shader = RHICreateWorkGraphShader(ShaderCodeView, ShaderHash); CheckShaderCreation(Shader, Index); break;
+	case SF_WorkGraphRoot: Shader = RHICreateWorkGraphShader(ShaderCodeView, ShaderHash, SF_WorkGraphRoot); CheckShaderCreation(Shader, Index); break;
+	case SF_WorkGraphComputeNode: Shader = RHICreateWorkGraphShader(ShaderCodeView, ShaderHash, SF_WorkGraphComputeNode); CheckShaderCreation(Shader, Index); break;
 	case SF_RayGen: case SF_RayMiss: case SF_RayHitGroup: case SF_RayCallable:
 #if RHI_RAYTRACING
 		if (GRHISupportsRayTracing && GRHISupportsRayTracingShaders)
@@ -2253,7 +2254,8 @@ TRefCountPtr<FRHIShader> FIoStoreShaderCodeArchive::CreateShader(int32 ShaderInd
 	case SF_Pixel: Shader = RHICreatePixelShader(ShaderCodeView, ShaderHash); break;
 	case SF_Geometry: Shader = RHICreateGeometryShader(ShaderCodeView, ShaderHash); break;
 	case SF_Compute: Shader = RHICreateComputeShader(ShaderCodeView, ShaderHash); break;
-	case SF_WorkGraph: Shader = RHICreateWorkGraphShader(ShaderCodeView, ShaderHash); break;
+	case SF_WorkGraphRoot: Shader = RHICreateWorkGraphShader(ShaderCodeView, ShaderHash, SF_WorkGraphRoot); break;
+	case SF_WorkGraphComputeNode: Shader = RHICreateWorkGraphShader(ShaderCodeView, ShaderHash, SF_WorkGraphComputeNode); break;
 	case SF_RayGen: case SF_RayMiss: case SF_RayHitGroup: case SF_RayCallable:
 #if RHI_RAYTRACING
 		if (GRHISupportsRayTracing && GRHISupportsRayTracingShaders)

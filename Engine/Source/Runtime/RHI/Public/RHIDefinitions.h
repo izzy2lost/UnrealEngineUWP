@@ -118,19 +118,20 @@ enum class ERHIBindlessSupport : uint8
 
 enum EShaderFrequency : uint8
 {
-	SF_Vertex			= 0,
-	SF_Mesh				= 1,
-	SF_Amplification	= 2,
-	SF_Pixel			= 3,
-	SF_Geometry			= 4,
-	SF_Compute			= 5,
-	SF_RayGen			= 6,
-	SF_RayMiss			= 7,
-	SF_RayHitGroup		= 8,
-	SF_RayCallable		= 9,
-	SF_WorkGraph		= 10,
+	SF_Vertex				= 0,
+	SF_Mesh					= 1,
+	SF_Amplification		= 2,
+	SF_Pixel				= 3,
+	SF_Geometry				= 4,
+	SF_Compute				= 5,
+	SF_RayGen				= 6,
+	SF_RayMiss				= 7,
+	SF_RayHitGroup			= 8,
+	SF_RayCallable			= 9,
+	SF_WorkGraphRoot		= 10,
+	SF_WorkGraphComputeNode	= 11,
 
-	SF_NumFrequencies	= 11,
+	SF_NumFrequencies	= 12,
 
 	// Number of standard shader frequencies for graphics pipeline (excluding compute)
 	SF_NumGraphicsFrequencies = 5,
@@ -1435,6 +1436,18 @@ inline bool IsRayTracingShaderFrequency(EShaderFrequency Frequency)
 	case SF_RayMiss:
 	case SF_RayHitGroup:
 	case SF_RayCallable:
+		return true;
+	default:
+		return false;
+	}
+}
+
+inline bool IsWorkGraphShaderFrequency(EShaderFrequency Frequency)
+{
+	switch (Frequency)
+	{
+	case SF_WorkGraphRoot:
+	case SF_WorkGraphComputeNode:
 		return true;
 	default:
 		return false;

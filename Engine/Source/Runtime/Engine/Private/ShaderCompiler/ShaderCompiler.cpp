@@ -7728,16 +7728,18 @@ void GlobalBeginCompileShader(
 
 	// Add the appropriate definitions for the shader frequency.
 	{
-		SET_SHADER_DEFINE(Input.Environment, PIXELSHADER,			Target.Frequency == SF_Pixel);
-		SET_SHADER_DEFINE(Input.Environment, VERTEXSHADER,			Target.Frequency == SF_Vertex);
-		SET_SHADER_DEFINE(Input.Environment, MESHSHADER,			Target.Frequency == SF_Mesh);
-		SET_SHADER_DEFINE(Input.Environment, AMPLIFICATIONSHADER,	Target.Frequency == SF_Amplification);
-		SET_SHADER_DEFINE(Input.Environment, GEOMETRYSHADER,		Target.Frequency == SF_Geometry);
-		SET_SHADER_DEFINE(Input.Environment, COMPUTESHADER,			Target.Frequency == SF_Compute);
-		SET_SHADER_DEFINE(Input.Environment, RAYCALLABLESHADER,		Target.Frequency == SF_RayCallable);
-		SET_SHADER_DEFINE(Input.Environment, RAYHITGROUPSHADER,		Target.Frequency == SF_RayHitGroup);
-		SET_SHADER_DEFINE(Input.Environment, RAYGENSHADER,			Target.Frequency == SF_RayGen);
-		SET_SHADER_DEFINE(Input.Environment, RAYMISSSHADER,			Target.Frequency == SF_RayMiss);
+		SET_SHADER_DEFINE(Input.Environment, PIXELSHADER,				Target.Frequency == SF_Pixel);
+		SET_SHADER_DEFINE(Input.Environment, VERTEXSHADER,				Target.Frequency == SF_Vertex);
+		SET_SHADER_DEFINE(Input.Environment, MESHSHADER,				Target.Frequency == SF_Mesh);
+		SET_SHADER_DEFINE(Input.Environment, AMPLIFICATIONSHADER,		Target.Frequency == SF_Amplification);
+		SET_SHADER_DEFINE(Input.Environment, GEOMETRYSHADER,			Target.Frequency == SF_Geometry);
+		SET_SHADER_DEFINE(Input.Environment, COMPUTESHADER,				Target.Frequency == SF_Compute);
+		SET_SHADER_DEFINE(Input.Environment, RAYCALLABLESHADER,			Target.Frequency == SF_RayCallable);
+		SET_SHADER_DEFINE(Input.Environment, RAYHITGROUPSHADER,			Target.Frequency == SF_RayHitGroup);
+		SET_SHADER_DEFINE(Input.Environment, RAYGENSHADER,				Target.Frequency == SF_RayGen);
+		SET_SHADER_DEFINE(Input.Environment, RAYMISSSHADER,				Target.Frequency == SF_RayMiss);
+		SET_SHADER_DEFINE(Input.Environment, WORKGRAPHROOTSHADER,		Target.Frequency == SF_WorkGraphRoot);
+		SET_SHADER_DEFINE(Input.Environment, WORKGRAPHCOMPUTESHADER,	Target.Frequency == SF_WorkGraphComputeNode);
 	}
 
 	SET_SHADER_DEFINE(Input.Environment, FORWARD_SHADING_FORCES_SKYLIGHT_CUBEMAPS_BLENDING, ForwardShadingForcesSkyLightCubemapBlending(ShaderPlatform) ? 1 : 0);

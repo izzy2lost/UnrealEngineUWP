@@ -960,6 +960,14 @@ static void DirectCompile(const TArray<const class IShaderFormat*>& ShaderFormat
 				Frequency = SF_RayCallable;
 			}
 #endif // RHI_RAYTRACING
+			else if (!FCString::Strcmp(*Token, TEXT("wrs")))
+			{
+				Frequency = SF_WorkGraphRoot;
+			}
+			else if (!FCString::Strcmp(*Token, TEXT("wcs")))
+			{
+				Frequency = SF_WorkGraphComputeNode;
+			}
 			else if (!FCString::Strcmp(*Token, TEXT("pipeline")))
 			{
 				bPipeline = true;

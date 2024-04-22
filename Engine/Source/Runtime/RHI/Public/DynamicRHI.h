@@ -181,7 +181,7 @@ public:
 	virtual FComputeShaderRHIRef RHICreateComputeShader(TArrayView<const uint8> Code, const FSHAHash& Hash) = 0;
 
 	// FlushType: Wait RHI Thread
-	virtual FWorkGraphShaderRHIRef RHICreateWorkGraphShader(TArrayView<const uint8> Code, const FSHAHash& Hash)
+	virtual FWorkGraphShaderRHIRef RHICreateWorkGraphShader(TArrayView<const uint8> Code, const FSHAHash& Hash, EShaderFrequency ShaderFrequency)
 	{
 		return FWorkGraphShaderRHIRef();
 	}
@@ -1062,10 +1062,10 @@ FORCEINLINE FComputeShaderRHIRef RHICreateComputeShader(TArrayView<const uint8> 
 	return GDynamicRHI->RHICreateComputeShader(Code, Hash);
 }
 
-FORCEINLINE FWorkGraphShaderRHIRef RHICreateWorkGraphShader(TArrayView<const uint8> Code, const FSHAHash& Hash)
+FORCEINLINE FWorkGraphShaderRHIRef RHICreateWorkGraphShader(TArrayView<const uint8> Code, const FSHAHash& Hash, EShaderFrequency ShaderFrequency)
 {
 	LLM_SCOPE(ELLMTag::Shaders);
-	return GDynamicRHI->RHICreateWorkGraphShader(Code, Hash);
+	return GDynamicRHI->RHICreateWorkGraphShader(Code, Hash, ShaderFrequency);
 }
 
 FORCEINLINE FGPUFenceRHIRef RHICreateGPUFence(const FName& Name)

@@ -34,7 +34,7 @@ void FDispatchShaderBundleCS::ModifyCompilationEnvironment(const FGlobalShaderPe
 }
 
 
-IMPLEMENT_GLOBAL_SHADER(FDispatchShaderBundleWorkGraph, "/Engine/Private/ShaderBundleWorkGraphDispatch.usf", "WorkGraphMainCS", SF_WorkGraph);
+IMPLEMENT_GLOBAL_SHADER(FDispatchShaderBundleWorkGraph, "/Engine/Private/ShaderBundleWorkGraphDispatch.usf", "WorkGraphMainCS", SF_WorkGraphRoot);
 
 bool FDispatchShaderBundleWorkGraph::ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
 {

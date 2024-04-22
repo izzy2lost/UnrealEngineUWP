@@ -1405,7 +1405,7 @@ const FD3D12RootSignature* FD3D12Adapter::GetRootSignature(const FD3D12WorkGraph
 	FD3D12QuantizedBoundShaderState QBSS{};
 	QuantizeBoundShaderStateCommon(QBSS, WorkGraphShader, GetResourceBindingTier(), SV_All, true /*bAllowUAVs*/);
 
-	QBSS.RootSignatureType = WorkGraphShader->IsWorkGraphLocal() ? RS_WorkGraphLocal : RS_WorkGraphGlobal;
+	QBSS.RootSignatureType = WorkGraphShader->GetFrequency() == SF_WorkGraphRoot ? RS_WorkGraphGlobal : RS_WorkGraphLocal;
 	check(QBSS.bAllowIAInputLayout == false); // No access to vertex buffers needed
 
 	return RootSignatureManager.GetRootSignature(QBSS);

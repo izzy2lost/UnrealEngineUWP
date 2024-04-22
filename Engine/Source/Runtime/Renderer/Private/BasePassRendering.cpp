@@ -135,8 +135,8 @@ IMPLEMENT_STATIC_UNIFORM_BUFFER_STRUCT(FTranslucentBasePassUniformParameters, "T
 	IMPLEMENT_MATERIAL_SHADER_TYPE(template<>,TBasePassCS##LightMapPolicyName##SkyLightName,TEXT("/Engine/Private/BasePassPixelShader.usf"),TEXT("MainCS"),SF_Compute);
 
 #define IMPLEMENT_BASEPASS_WORKGRAPHSHADER_TYPE(LightMapPolicyType,LightMapPolicyName,bEnableSkyLight,SkyLightName) \
-	typedef TBasePassCS<LightMapPolicyType, bEnableSkyLight, SF_WorkGraph> TBasePassWorkGraphCS##LightMapPolicyName##SkyLightName; \
-	IMPLEMENT_MATERIAL_SHADER_TYPE(template<>,TBasePassWorkGraphCS##LightMapPolicyName##SkyLightName,TEXT("/Engine/Private/BasePassPixelShader.usf"),TEXT("MainCS"),SF_WorkGraph);
+	typedef TBasePassCS<LightMapPolicyType, bEnableSkyLight, SF_WorkGraphComputeNode> TBasePassWorkGraphCS##LightMapPolicyName##SkyLightName; \
+	IMPLEMENT_MATERIAL_SHADER_TYPE(template<>,TBasePassWorkGraphCS##LightMapPolicyName##SkyLightName,TEXT("/Engine/Private/BasePassPixelShader.usf"),TEXT("MainCS"),SF_WorkGraphComputeNode);
 
 // Implement a pixel and compute shader type for skylights and one without, and one vertex shader that will be shared between them
 #define IMPLEMENT_BASEPASS_LIGHTMAPPED_SHADER_TYPE(LightMapPolicyType,LightMapPolicyName) \
@@ -636,15 +636,15 @@ void AddUniformBasePassComputeShader(bool bEnableSkyLight, EShaderFrequency Shad
 			OutShaderTypes.AddShaderType<TBasePassCS<TUniformLightMapPolicy<Policy>, false, SF_Compute>>();
 		}
 	}
-	else if (ShaderFrequency == SF_WorkGraph)
+	else if (ShaderFrequency == SF_WorkGraphComputeNode)
 	{
 		if (bEnableSkyLight)
 		{
-			OutShaderTypes.AddShaderType<TBasePassCS<TUniformLightMapPolicy<Policy>, true, SF_WorkGraph>>();
+			OutShaderTypes.AddShaderType<TBasePassCS<TUniformLightMapPolicy<Policy>, true, SF_WorkGraphComputeNode>>();
 		}
 		else
 		{
-			OutShaderTypes.AddShaderType<TBasePassCS<TUniformLightMapPolicy<Policy>, false, SF_WorkGraph>>();
+			OutShaderTypes.AddShaderType<TBasePassCS<TUniformLightMapPolicy<Policy>, false, SF_WorkGraphComputeNode>>();
 		}
 	}
 }

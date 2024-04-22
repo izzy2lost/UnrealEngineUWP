@@ -471,10 +471,9 @@ public:
 
 		OutEnvironment.SetDefine(TEXT("COMPUTE_SHADED"), 1);
 
-		if (ShaderFrequency == SF_WorkGraph)
+		if (ShaderFrequency == SF_WorkGraphComputeNode)
 		{
 			OutEnvironment.SetDefine(TEXT("WORKGRAPH_NODE"), 1);
-			OutEnvironment.CompilerFlags.Add(CFLAG_WorkgraphLocalNodes);
 		}
 
 		const bool bTranslucent = IsTranslucentBlendMode(Parameters.MaterialParameters);
@@ -687,15 +686,15 @@ void AddBasePassComputeShader(bool bEnableSkyLight, EShaderFrequency ShaderFrequ
 			OutShaderTypes.AddShaderType<TBasePassCS<LightMapPolicyType, false, SF_Compute>>();
 		}
 	}
-	else if (ShaderFrequency == SF_WorkGraph)
+	else if (ShaderFrequency == SF_WorkGraphComputeNode)
 	{
 		if (bEnableSkyLight)
 		{
-			OutShaderTypes.AddShaderType<TBasePassCS<LightMapPolicyType, true, SF_WorkGraph>>();
+			OutShaderTypes.AddShaderType<TBasePassCS<LightMapPolicyType, true, SF_WorkGraphComputeNode>>();
 		}
 		else
 		{
-			OutShaderTypes.AddShaderType<TBasePassCS<LightMapPolicyType, false, SF_WorkGraph>>();
+			OutShaderTypes.AddShaderType<TBasePassCS<LightMapPolicyType, false, SF_WorkGraphComputeNode>>();
 		}
 	}
 }

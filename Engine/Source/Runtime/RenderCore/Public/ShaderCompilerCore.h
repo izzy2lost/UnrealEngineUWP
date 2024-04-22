@@ -162,8 +162,6 @@ enum ECompilerFlags
 	CFLAG_IndirectDraw,
 	// Shader is used with shader bundles.
 	CFLAG_ShaderBundle,
-	// Shader contains workgraph nodes that are only intended for linking against other workgraph shaders containing the program entry node.
-	CFLAG_WorkgraphLocalNodes,
 	// Shader code should not be stripped of comments/whitespace/line directives at the end of preprocessing
 	CFLAG_DisableSourceStripping,
 	CFLAG_Max,
@@ -440,6 +438,11 @@ struct FShaderCompilerInput
 	bool IsRayTracingShader() const
 	{
 		return IsRayTracingShaderFrequency(Target.GetFrequency());
+	}
+
+	bool IsWorkGraphShader() const
+	{
+		return IsWorkGraphShaderFrequency(Target.GetFrequency());
 	}
 
 	bool ShouldUseStableConstantBuffer() const

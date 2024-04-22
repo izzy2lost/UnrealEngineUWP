@@ -184,7 +184,7 @@ FComputeShaderRHIRef FD3D12DynamicRHI::RHICreateComputeShader(TArrayView<const u
 	return Shader;
 }
 
-FWorkGraphShaderRHIRef FD3D12DynamicRHI::RHICreateWorkGraphShader(TArrayView<const uint8> Code, const FSHAHash& Hash)
+FWorkGraphShaderRHIRef FD3D12DynamicRHI::RHICreateWorkGraphShader(TArrayView<const uint8> Code, const FSHAHash& Hash, EShaderFrequency ShaderFrequency)
 {
 	auto CustomSerialization = [](FMemoryReaderView& Ar, FD3D12WorkGraphShader* Shader, int32& Offset)
 	{
@@ -192,10 +192,9 @@ FWorkGraphShaderRHIRef FD3D12DynamicRHI::RHICreateWorkGraphShader(TArrayView<con
 		Offset = Ar.Tell();
 	};
 
-	FD3D12WorkGraphShader* Shader = InitStandardShaderWithCustomSerialization(new FD3D12WorkGraphShader(), Code, CustomSerialization);
+	FD3D12WorkGraphShader* Shader = InitStandardShaderWithCustomSerialization(new FD3D12WorkGraphShader(ShaderFrequency), Code, CustomSerialization);
 	if (Shader)
 	{
-		Shader->SetWorkGraphLocal(EnumHasAnyFlags(Shader->ResourceCounts.UsageFlags, EShaderResourceUsageFlags::WorkGraphLocal));
 		Shader->RootSignature = GetAdapter().GetRootSignature(Shader);
 	}
 

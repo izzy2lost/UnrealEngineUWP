@@ -109,17 +109,18 @@ DECLARE_DWORD_ACCUMULATOR_STAT_EXTERN(TEXT("Num Shaders Duplicated"), STAT_Shade
 
 inline TStatId GetMemoryStatType(EShaderFrequency ShaderFrequency)
 {
-	static_assert(11 == SF_NumFrequencies, "EShaderFrequency has a bad size.");
+	static_assert(12 == SF_NumFrequencies, "EShaderFrequency has a bad size.");
 
 	switch(ShaderFrequency)
 	{
-		case SF_Pixel:				return GET_STATID(STAT_PixelShaderMemory);
-		case SF_Compute:			return GET_STATID(STAT_PixelShaderMemory);
-		case SF_RayGen:				return GET_STATID(STAT_PixelShaderMemory);
-		case SF_RayMiss:			return GET_STATID(STAT_PixelShaderMemory);
-		case SF_RayHitGroup:		return GET_STATID(STAT_PixelShaderMemory);
-		case SF_RayCallable:		return GET_STATID(STAT_PixelShaderMemory);
-		case SF_WorkGraph:			return GET_STATID(STAT_PixelShaderMemory);
+		case SF_Pixel:					return GET_STATID(STAT_PixelShaderMemory);
+		case SF_Compute:				return GET_STATID(STAT_PixelShaderMemory);
+		case SF_RayGen:					return GET_STATID(STAT_PixelShaderMemory);
+		case SF_RayMiss:				return GET_STATID(STAT_PixelShaderMemory);
+		case SF_RayHitGroup:			return GET_STATID(STAT_PixelShaderMemory);
+		case SF_RayCallable:			return GET_STATID(STAT_PixelShaderMemory);
+		case SF_WorkGraphRoot:			return GET_STATID(STAT_PixelShaderMemory);
+		case SF_WorkGraphComputeNode:	return GET_STATID(STAT_PixelShaderMemory);
 	}
 	return GET_STATID(STAT_VertexShaderMemory);
 }
@@ -677,7 +678,6 @@ enum class EShaderResourceUsageFlags : uint8
 	RootConstants         = 1 << 3,
 	NoDerivativeOps       = 1 << 4,
 	ShaderBundle          = 1 << 5,
-	WorkGraphLocal        = 1 << 6,
 };
 ENUM_CLASS_FLAGS(EShaderResourceUsageFlags)
 

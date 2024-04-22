@@ -1126,7 +1126,14 @@ public:
 	/** @return the shader's work graph shader */
 	inline FRHIWorkGraphShader* GetWorkGraphShader() const
 	{
-		return static_cast<FRHIWorkGraphShader*>(GetRHIShaderBase(SF_WorkGraph));
+		FRHIWorkGraphShader* RHIShader = nullptr;
+		if (ShaderContent)
+		{
+			const EShaderFrequency Frequency = ShaderContent->GetFrequency();
+			checkSlow(Frequency == SF_WorkGraphRoot || Frequency == SF_WorkGraphComputeNode);
+			RHIShader = static_cast<FRHIWorkGraphShader*>(GetRHIShaderBase(Frequency));
+		}
+		return RHIShader;
 	}
 
 #if RHI_RAYTRACING

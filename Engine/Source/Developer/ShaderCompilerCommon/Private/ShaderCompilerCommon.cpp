@@ -1440,6 +1440,8 @@ FString CreateShaderCompilerWorkerDirectCommandLine(const FShaderCompilerInput& 
 	case SF_RayHitGroup:	Text += TEXT(" -rhs"); break;
 	case SF_RayCallable:	Text += TEXT(" -rcs"); break;
 #endif // RHI_RAYTRACING
+	case SF_WorkGraphRoot:			Text += TEXT(" -wrs"); break;
+	case SF_WorkGraphComputeNode:	Text += TEXT(" -wcs"); break;
 	default: break;
 	}
 	if (Input.bCompilingForShaderPipeline)
@@ -2262,11 +2264,12 @@ namespace CrossCompiler
 		TEXT("Pixel"),
 		TEXT("Geometry"),
 		TEXT("Compute"),
-		TEXT("WorkGraph"),
 		TEXT("RayGen"),
 		TEXT("RayMiss"),
 		TEXT("RayHitGroup"),
 		TEXT("RayCallable"),
+		TEXT("WorkGraphRoot"),
+		TEXT("WorkGraphComputeNode"),
 	};
 
 	/** Compile time check to verify that the GL mapping tables are up-to-date. */

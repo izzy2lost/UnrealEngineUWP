@@ -31,15 +31,14 @@ inline FD3D12ShaderData* GetShaderData(FRHIShader* InShaderRHI)
 {
 	switch (InShaderRHI->GetFrequency())
 	{
-	case SF_Vertex:        return FD3D12DynamicRHI::ResourceCast(static_cast<FRHIVertexShader*>(InShaderRHI));
+	case SF_Vertex:               return FD3D12DynamicRHI::ResourceCast(static_cast<FRHIVertexShader*>(InShaderRHI));
 #if PLATFORM_SUPPORTS_MESH_SHADERS
-	case SF_Mesh:          return FD3D12DynamicRHI::ResourceCast(static_cast<FRHIMeshShader*>(InShaderRHI));
-	case SF_Amplification: return FD3D12DynamicRHI::ResourceCast(static_cast<FRHIAmplificationShader*>(InShaderRHI));
-#endif
-	case SF_Pixel:         return FD3D12DynamicRHI::ResourceCast(static_cast<FRHIPixelShader*>(InShaderRHI));
-	case SF_Geometry:      return FD3D12DynamicRHI::ResourceCast(static_cast<FRHIGeometryShader*>(InShaderRHI));
-	case SF_Compute:       return FD3D12DynamicRHI::ResourceCast(static_cast<FRHIComputeShader*>(InShaderRHI));
-	case SF_WorkGraph:     return FD3D12DynamicRHI::ResourceCast(static_cast<FRHIWorkGraphShader*>(InShaderRHI));
+	case SF_Mesh:                 return FD3D12DynamicRHI::ResourceCast(static_cast<FRHIMeshShader*>(InShaderRHI));
+	case SF_Amplification:        return FD3D12DynamicRHI::ResourceCast(static_cast<FRHIAmplificationShader*>(InShaderRHI));
+#endif					          
+	case SF_Pixel:                return FD3D12DynamicRHI::ResourceCast(static_cast<FRHIPixelShader*>(InShaderRHI));
+	case SF_Geometry:             return FD3D12DynamicRHI::ResourceCast(static_cast<FRHIGeometryShader*>(InShaderRHI));
+	case SF_Compute:              return FD3D12DynamicRHI::ResourceCast(static_cast<FRHIComputeShader*>(InShaderRHI));
 	}
 	return nullptr;
 }
