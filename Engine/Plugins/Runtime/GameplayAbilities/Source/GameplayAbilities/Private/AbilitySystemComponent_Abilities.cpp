@@ -522,7 +522,8 @@ void UAbilitySystemComponent::OnGiveAbility(FGameplayAbilitySpec& Spec)
 	}
 
 	const UGameplayAbility* SpecAbility = Spec.Ability;
-	if (SpecAbility->GetInstancingPolicy() == EGameplayAbilityInstancingPolicy::InstancedPerActor && SpecAbility->GetReplicationPolicy() == EGameplayAbilityReplicationPolicy::ReplicateNo)
+	const bool bInstancedPerActor = SpecAbility->GetInstancingPolicy() == EGameplayAbilityInstancingPolicy::InstancedPerActor;
+	if (bInstancedPerActor && SpecAbility->GetReplicationPolicy() == EGameplayAbilityReplicationPolicy::ReplicateNo)
 	{
 		// If we don't replicate and are missing an instance, add one
 		if (Spec.NonReplicatedInstances.Num() == 0)
@@ -578,7 +579,7 @@ void UAbilitySystemComponent::OnGiveAbility(FGameplayAbilitySpec& Spec)
 	}
 
 	// If there's already a primary instance, it should be the one to receive the OnGiveAbility call
-	UGameplayAbility* PrimaryInstance = Spec.GetPrimaryInstance();
+	UGameplayAbility* PrimaryInstance = bInstancedPerActor ? Spec.GetPrimaryInstance() : nullptr;
 	if (PrimaryInstance)
 	{
 		PrimaryInstance->OnGiveAbility(AbilityActorInfo.Get(), Spec);
@@ -1064,7 +1065,12 @@ void UAbilitySystemComponent::FindAllAbilitiesWithTags(OUT TArray<FGameplayAbili
 	// iterate through all Ability Specs
 	for (const FGameplayAbilitySpec& CurrentSpec : ActivatableAbilities.Items)
 	{
-		// try to get the ability instance
+		if (!CurrentSpec.Ability)
+		{
+			continue;
+		}
+
+		// try to get the ability instance (if instanced per actor)
 		UGameplayAbility* AbilityInstance = CurrentSpec.GetPrimaryInstance();
 
 		// default to the CDO if we can't
@@ -1369,7 +1375,7 @@ void UAbilitySystemComponent::DestroyActiveState()
 		else
 		{
 			// If we're a client, ClearAllAbilities won't execute and we should clean up these instances manually.
-			// CancelAbilities() will only MarkPending kill InstancePerExecution abilities.
+			// CancelAbilities() will only MarkPending kill InstancedPerExecution abilities.
 			// TODO: Is it correct to simply mark these as Garbage rather than EndAbility?  I suspect not, but this
 			// is ingrained behavior (circa 2015). Perhaps better to allow ClearAllAbilities on client if bDestroyActiveStateInitiated (Nov 2023).
 			for (FGameplayAbilitySpec& Spec : ActivatableAbilities.Items)
@@ -1768,7 +1774,7 @@ bool UAbilitySystemComponent::InternalTryActivateAbility(FGameplayAbilitySpecHan
 		}
 	}
 
-	// If we're instance per actor and we're already active, don't let us activate again as this breaks the graph
+	// If we're InstancedPerActor and we're already active, don't let us activate again as this breaks the graph
 	if (Ability->GetInstancingPolicy() == EGameplayAbilityInstancingPolicy::InstancedPerActor)
 	{
 		if (Spec->IsActive())
@@ -1903,7 +1909,7 @@ bool UAbilitySystemComponent::InternalTryActivateAbility(FGameplayAbilitySpecHan
 			}
 			else
 			{
-				ABILITY_LOG(Error, TEXT("InternalTryActivateAbility called on ability %s that is InstancePerExecution and Replicated. This is an invalid configuration."), *Ability->GetName() );
+				ABILITY_LOG(Error, TEXT("InternalTryActivateAbility called on ability %s that is InstancedPerExecution and Replicated. This is an invalid configuration."), *Ability->GetName() );
 			}
 		}
 		else

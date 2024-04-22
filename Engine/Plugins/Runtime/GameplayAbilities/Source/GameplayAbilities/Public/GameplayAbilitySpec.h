@@ -263,13 +263,13 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	/** Passed on SetByCaller magnitudes if this ability was granted by a GE */
 	TMap<FGameplayTag, float> SetByCallerTagMagnitudes;
 
-	/** Returns the primary instance, used for instance once abilities */
+	/** Returns the primary instance, only valid on InstancedPerActor abilities (returns nullptr otherwise) */
 	UGameplayAbility* GetPrimaryInstance() const;
 
 	/** interface function to see if the ability should replicated the ability spec or not */
 	bool ShouldReplicateAbilitySpec() const;
 
-	/** Returns all instances, which can include instance per execution abilities */
+	/** Returns all instances, which can include InstancedPerExecution abilities */
 	TArray<UGameplayAbility*> GetAbilityInstances() const
 	{
 		TArray<UGameplayAbility*> Abilities;

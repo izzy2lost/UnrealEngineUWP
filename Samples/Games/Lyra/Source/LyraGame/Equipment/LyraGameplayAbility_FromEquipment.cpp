@@ -40,7 +40,9 @@ EDataValidationResult ULyraGameplayAbility_FromEquipment::IsDataValid(FDataValid
 {
 	EDataValidationResult Result = Super::IsDataValid(Context);
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	if (InstancingPolicy == EGameplayAbilityInstancingPolicy::NonInstanced)
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	{
 		Context.AddError(NSLOCTEXT("Lyra", "EquipmentAbilityMustBeInstanced", "Equipment ability must be instanced"));
 		Result = EDataValidationResult::Invalid;

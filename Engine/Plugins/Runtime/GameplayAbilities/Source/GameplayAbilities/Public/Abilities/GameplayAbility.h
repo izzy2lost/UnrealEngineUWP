@@ -142,10 +142,7 @@ public:
 	// --------------------------------------
 
 	/** Returns how the ability is instanced when executed. This limits what an ability can do in its implementation. */
-	EGameplayAbilityInstancingPolicy::Type GetInstancingPolicy() const
-	{
-		return InstancingPolicy;
-	}
+	EGameplayAbilityInstancingPolicy::Type GetInstancingPolicy() const;
 
 	/** How an ability replicates state/events to everyone on the network */
 	EGameplayAbilityReplicationPolicy::Type GetReplicationPolicy() const
@@ -184,6 +181,8 @@ public:
 	/** Returns the AbilitySystemComponent that is activating this ability */
 	UFUNCTION(BlueprintCallable, Category = Ability)
 	UAbilitySystemComponent* GetAbilitySystemComponentFromActorInfo() const;
+
+	UE_DEPRECATED(5.5, "Use GetAbilitySystemComponentFromActorInfo_Ensured")
 	UAbilitySystemComponent* GetAbilitySystemComponentFromActorInfo_Checked() const;
 	UAbilitySystemComponent* GetAbilitySystemComponentFromActorInfo_Ensured() const;
 
