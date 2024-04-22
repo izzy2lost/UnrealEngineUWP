@@ -2032,11 +2032,15 @@ void USkeleton::RenameVirtualBone(const FName OriginalBoneName, const FName NewB
 
 void USkeleton::HandleVirtualBoneChanges()
 {
-	const bool bRebuildNameMap = false;
+	constexpr bool bRebuildNameMap = false;
 	ReferenceSkeleton.RebuildRefSkeleton(this, bRebuildNameMap);
 
 	UE::Anim::FSkeletonRemappingRegistry::Get().RefreshMappings(this);
 
+	// store skeletal meshes that are also transacting to avoid re-registering the component here
+	// as it will be done later in USkeletalMesh::PostEditUndo()
+	TArray<USkeletalMesh*> SkeletalMeshTransacting;
+	
 	for (TObjectIterator<USkeletalMesh> ItMesh; ItMesh; ++ItMesh)
 	{
 		USkeletalMesh* SkelMesh = *ItMesh;
@@ -2045,19 +2049,43 @@ void USkeleton::HandleVirtualBoneChanges()
 			// also have to update retarget base pose
 			SkelMesh->GetRefSkeleton().RebuildRefSkeleton(this, bRebuildNameMap);
 			RebuildLinkup(SkelMesh);
+
+#if WITH_EDITOR
+			if (SkelMesh->IsTransacting())
+			{
+				SkeletalMeshTransacting.Add(SkelMesh);
+			}
+#endif
 		}
 	}
 
 	// refresh curve meta data that contains joint info
 	RefreshSkeletonMetaData();
 
+	auto NeedsReRegistration = [this, &SkeletalMeshTransacting](const USkinnedMeshComponent* InMeshComponent)
+	{
+		if (!InMeshComponent || InMeshComponent->IsTemplate())
+		{
+			return false;
+		}
+
+		USkinnedAsset* SkinnedAsset = InMeshComponent->GetSkinnedAsset();
+		if (!SkinnedAsset || SkinnedAsset->GetSkeleton() != this)
+		{
+			return false;
+		}
+
+#if WITH_EDITOR
+		return !SkeletalMeshTransacting.Contains(SkinnedAsset);
+#else
+		return true;
+#endif
+	};
+	
 	for (TObjectIterator<USkinnedMeshComponent> It; It; ++It)
 	{
 		USkinnedMeshComponent* MeshComponent = *It;
-		if (MeshComponent &&
-			MeshComponent->GetSkinnedAsset() &&
-			MeshComponent->GetSkinnedAsset()->GetSkeleton() == this &&
-			!MeshComponent->IsTemplate())
+		if (NeedsReRegistration(MeshComponent))
 		{
 			FComponentReregisterContext Context(MeshComponent);
 		}

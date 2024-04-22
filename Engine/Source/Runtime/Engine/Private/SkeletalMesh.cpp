@@ -1392,6 +1392,17 @@ void USkeletalMesh::PostEditChangeProperty(FPropertyChangedEvent& PropertyChange
 	check(PostEditChangeStackCounter == 1);
 }
 
+bool USkeletalMesh::IsTransacting() const
+{
+	return bTransacting;
+}
+
+void USkeletalMesh::PreEditUndo()
+{
+	bTransacting = true;
+	Super::PreEditUndo();
+}
+
 void USkeletalMesh::PostEditUndo()
 {
 	check(IsInGameThread());
@@ -1413,6 +1424,8 @@ void USkeletalMesh::PostEditUndo()
 		// A morph target remove has been undone, reinitialise
 		InitMorphTargets();
 	}
+	
+	bTransacting = false;
 }
 
 void USkeletalMesh::UpdateGenerateUpToData()
