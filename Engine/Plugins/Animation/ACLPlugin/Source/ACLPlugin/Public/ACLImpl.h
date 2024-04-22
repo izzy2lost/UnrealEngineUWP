@@ -13,12 +13,15 @@
 	// developers use a Development configuration for the editor. The ACL library runs extensive
 	// unit and regression tests on a very large number of clips which minimizes the risk of
 	// having a legitimate assert fire.
-	// 
-	// ACL assert strings are currently incompatible with checkf since it uses %s but passes a char-type string. In UE %s requires to pass a TCHAR string.
-	//#define ACL_ON_ASSERT_CUSTOM
 
-	
-	//#define ACL_ASSERT(expression, format, ...) checkf(expression, TEXT(format), ##__VA_ARGS__)
+	#define ACL_ON_ASSERT_CUSTOM
+
+	// Override the string format specifier for UE
+	#define RTM_ASSERT_STRING_FORMAT_SPECIFIER "%hs"
+	#define SJSON_ASSERT_STRING_FORMAT_SPECIFIER "%hs"
+	#define ACL_ASSERT_STRING_FORMAT_SPECIFIER "%hs"
+
+	#define ACL_ASSERT(expression, format, ...) checkf(expression, TEXT(format), ##__VA_ARGS__)
 #endif
 
 //////////////////////////////////////////////////////////////////////////
@@ -82,8 +85,10 @@ THIRD_PARTY_INCLUDES_START
 THIRD_PARTY_INCLUDES_END
 
 #if WITH_EDITOR
+THIRD_PARTY_INCLUDES_START
 #include <acl/compression/track_array.h>
 #include <acl/compression/compression_level.h>
+THIRD_PARTY_INCLUDES_END
 #endif
 
 #include "ACLImpl.generated.h"
@@ -124,7 +129,7 @@ using FRawAnimTrackQuat = FQuat4f;
 using FRawAnimTrackVector3 = FVector3f;
 
 /** The decompression settings used by ACL */
-struct UE4DefaultDecompressionSettings : public acl::default_transform_decompression_settings
+struct UEDefaultDecompressionSettings : public acl::default_transform_decompression_settings
 {
 	// Only support our latest version
 	static constexpr acl::compressed_tracks_version16 version_supported() { return acl::compressed_tracks_version16::latest; }
@@ -139,40 +144,40 @@ struct UE4DefaultDecompressionSettings : public acl::default_transform_decompres
 #endif
 };
 
-struct UE4DebugDecompressionSettings : public acl::debug_transform_decompression_settings
+struct UEDebugDecompressionSettings : public acl::debug_transform_decompression_settings
 {
 	// Only support our latest version
 	static constexpr acl::compressed_tracks_version16 version_supported() { return acl::compressed_tracks_version16::latest; }
 };
 
 // Same as debug settings for now since everything is allowed
-using UE4CustomDecompressionSettings = UE4DebugDecompressionSettings;
+using UECustomDecompressionSettings = UEDebugDecompressionSettings;
 
-struct UE4SafeDecompressionSettings final : public UE4DefaultDecompressionSettings
+struct UESafeDecompressionSettings final : public UEDefaultDecompressionSettings
 {
 	static constexpr bool is_rotation_format_supported(acl::rotation_format8 format) { return format == acl::rotation_format8::quatf_full; }
 	static constexpr acl::rotation_format8 get_rotation_format(acl::rotation_format8 /*format*/) { return acl::rotation_format8::quatf_full; }
 };
 
-struct UE4DefaultDatabaseSettings final : public acl::default_database_settings
+struct UEDefaultDatabaseSettings final : public acl::default_database_settings
 {
 	// Only support our latest version
 	static constexpr acl::compressed_tracks_version16 version_supported() { return acl::compressed_tracks_version16::latest; }
 };
 
-struct UE4DefaultDBDecompressionSettings final : public UE4DefaultDecompressionSettings
+struct UEDefaultDBDecompressionSettings final : public UEDefaultDecompressionSettings
 {
-	using database_settings_type = UE4DefaultDatabaseSettings;
+	using database_settings_type = UEDefaultDatabaseSettings;
 };
 
-using UE4DebugDatabaseSettings = acl::debug_database_settings;
+using UEDebugDatabaseSettings = acl::debug_database_settings;
 
-struct UE4DebugDBDecompressionSettings final : public UE4DebugDecompressionSettings
+struct UEDebugDBDecompressionSettings final : public UEDebugDecompressionSettings
 {
-	using database_settings_type = UE4DebugDatabaseSettings;
+	using database_settings_type = UEDebugDatabaseSettings;
 };
 
-/** UE4 equivalents for some ACL enums */
+/** UE equivalents for some ACL enums */
 /** An enum for ACL rotation formats. */
 UENUM()
 enum ACLRotationFormat : int
@@ -199,6 +204,7 @@ enum ACLCompressionLevel : int
 	ACLCL_Medium UMETA(DisplayName = "Medium"),
 	ACLCL_High UMETA(DisplayName = "High"),
 	ACLCL_Highest UMETA(DisplayName = "Highest"),
+	ACLCL_Automatic UMETA(DisplayName = "Automatic"),
 };
 
 /** Editor only utilities */
@@ -244,8 +250,11 @@ ACLPLUGIN_API acl::track_array_qvvf BuildACLTransformTrackArray(ACLAllocator& Al
 ACLPLUGIN_API uint32 GetNumSamples(const FCompressibleAnimData& CompressibleAnimData);
 ACLPLUGIN_API float GetSequenceLength(const UAnimSequence& AnimSeq);
 
-namespace ACL::Private
+namespace ACL
 {
-	ACLPLUGIN_API float GetPerPlatformFloat(const FPerPlatformFloat& PerPlatformFloat, const ITargetPlatform* TargetPlatform);
+	namespace Private
+	{
+		ACLPLUGIN_API float GetPerPlatformFloat(const FPerPlatformFloat& PerPlatformFloat, const ITargetPlatform* TargetPlatform);
+	}
 }
 #endif // WITH_EDITOR

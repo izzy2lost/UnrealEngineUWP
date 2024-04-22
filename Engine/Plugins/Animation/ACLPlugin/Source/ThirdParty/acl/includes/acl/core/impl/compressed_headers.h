@@ -108,7 +108,7 @@ namespace acl
 			// Transform only
 			bool get_has_scale() const { ACL_ASSERT(track_type == track_type8::qvvf, "Transform tracks only"); return (misc_packed & 1) != 0; }
 			void set_has_scale(bool has_scale) { ACL_ASSERT(track_type == track_type8::qvvf, "Transform tracks only"); misc_packed = (misc_packed & ~1) | static_cast<uint32_t>(has_scale); }
-			int32_t get_default_scale() const { ACL_ASSERT(track_type == track_type8::qvvf, "Transform tracks only"); return (misc_packed >> 1) & 1; }
+			int32_t get_default_scale() const { ACL_ASSERT(track_type == track_type8::qvvf, "Transform tracks only"); return static_cast<int32_t>((misc_packed >> 1) & 1); }
 			void set_default_scale(uint32_t scale) { ACL_ASSERT(track_type == track_type8::qvvf, "Transform tracks only"); ACL_ASSERT(scale == 0 || scale == 1, "Invalid default scale"); misc_packed = (misc_packed & ~(1 << 1)) | (scale << 1); }
 			vector_format8 get_scale_format() const { ACL_ASSERT(track_type == track_type8::qvvf, "Transform tracks only"); return static_cast<vector_format8>((misc_packed >> 2) & 1); }
 			void set_scale_format(vector_format8 format) { ACL_ASSERT(track_type == track_type8::qvvf, "Transform tracks only"); misc_packed = (misc_packed & ~(1 << 2)) | (static_cast<uint32_t>(format) << 2); }
@@ -226,6 +226,8 @@ namespace acl
 		// Header for transform 'compressed_tracks'
 		struct transform_tracks_header
 		{
+			transform_tracks_header() = delete;	// Not needed
+
 			// The number of segments contained.
 			uint32_t						num_segments;
 
@@ -401,6 +403,10 @@ namespace acl
 		// Header for runtime database segments
 		struct database_runtime_segment_header
 		{
+			// Can't copy or move due to atomic
+			database_runtime_segment_header(const database_runtime_segment_header&) = delete;
+			database_runtime_segment_header& operator=(const database_runtime_segment_header&) = delete;
+
 			// Each segment can be split into at most 3 tiers with tier 0 being in the compressed clip itself.
 			// As such, each segment can be split into at most 2 tiers within the database, each with it's own
 			// chunk. Each segment contains at most 32 samples. Tiers are sorted in order from most important
@@ -576,7 +582,7 @@ namespace acl
 			// Bits [1, 16): unused (15 bits)
 
 			bool get_is_bulk_data_inline() const { return (misc_packed & (1 << 0)) != 0; }
-			void set_is_bulk_data_inline(bool is_inline) { misc_packed = (misc_packed & ~(1 << 0)) | (static_cast<uint16_t>(is_inline) << 0); }
+			void set_is_bulk_data_inline(bool is_inline) { misc_packed = static_cast<uint16_t>((misc_packed & ~(static_cast<uint16_t>(1) << 0)) | (static_cast<uint16_t>(is_inline) << 0)); }
 
 			//////////////////////////////////////////////////////////////////////////
 			// Utility functions that return pointers from their respective offsets.

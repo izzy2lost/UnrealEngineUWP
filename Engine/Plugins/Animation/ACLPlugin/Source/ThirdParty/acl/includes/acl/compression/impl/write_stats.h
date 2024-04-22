@@ -306,7 +306,7 @@ namespace acl
 				// Range data
 				if (are_any_enum_flags_set(range_reduction, range_reduction_flags8::rotations) && !bone_stream.is_rotation_constant)
 				{
-					const uint32_t num_components = bone_stream.rotations.get_rotation_format() == rotation_format8::quatf_full ? 8 : 6;
+					const uint32_t num_components = bone_stream.rotations.get_rotation_format() == rotation_format8::quatf_full ? 8U : 6U;
 					result += num_components * k_segment_range_reduction_num_bytes_per_component;
 				}
 			}
@@ -439,6 +439,15 @@ namespace acl
 				}
 			}
 
+			uint32_t longest_chain_length = 0;
+			const bitset_description transform_bitset_desc = bitset_description::make_from_num_bits(clip.num_bones);
+			for (uint32_t leaf_index = 0; leaf_index < clip.num_leaf_transforms; ++leaf_index)
+			{
+				const uint32_t* transform_chain = clip.leaf_transform_chains + (leaf_index * transform_bitset_desc.get_size());
+				const uint32_t num_chain_transforms = bitset_count_set_bits(transform_chain, transform_bitset_desc);
+				longest_chain_length = std::max<uint32_t>(longest_chain_length, num_chain_transforms);
+			}
+
 			sjson::ObjectWriter& writer = *stats.writer;
 			writer["algorithm_name"] = get_algorithm_name(algorithm_type8::uniformly_sampled);
 			writer["algorithm_uid"] = settings.get_hash();
@@ -457,6 +466,7 @@ namespace acl
 			writer["looping"] = compressed_clip.get_looping_policy() == sample_looping_policy::wrap;
 			writer["num_stripped_keyframes"] = total_num_stripped_keyframes;
 			writer["num_trivial_keyframes"] = num_trivial_keyframes;
+			writer["longest_chain_length"] = longest_chain_length;
 			writer["error_metric"] = settings.error_metric->get_name();
 
 			if (are_all_enum_flags_set(stats.logging, stat_logging::detailed) || are_all_enum_flags_set(stats.logging, stat_logging::exhaustive))
@@ -570,7 +580,7 @@ namespace acl
 				const uint32_t segment_animated_data_size = calculate_segment_animated_data_size(clip);
 				known_data_size += segment_animated_data_size;
 
-				const int32_t unknown_overhead_size = compressed_size - known_data_size;
+				const int32_t unknown_overhead_size = static_cast<int32_t>(compressed_size) - static_cast<int32_t>(known_data_size);
 				ACL_ASSERT(unknown_overhead_size >= 0, "Overhead size should be positive");
 				writer["unknown_overhead_size"] = unknown_overhead_size;
 			}

@@ -13,7 +13,7 @@
 #include "Runtime/Engine/Public/AnimationCompression.h"
 #include "Runtime/Launch/Resources/Version.h"
 #include "Editor/UnrealEd/Public/PackageHelperFunctions.h"
-
+#include "Misc/CoreMisc.h"
 #include "Interfaces/ITargetPlatform.h"
 #include "Interfaces/ITargetPlatformManagerModule.h"
 
@@ -52,11 +52,11 @@ THIRD_PARTY_INCLUDES_END
 //		-compress: Commandlet will compress the input clips and output stats
 //		-extract: Commandlet will extract the input clips into output *acl.sjson clips
 //		-error: Enables the exhaustive error dumping
-//		-ErrorTolerance=<tolerance>: The error threshold used by automatic compression
 //		-resume: If present, clip extraction or compression will continue where it left off
 // 
 // Codec specific:
 //		-auto: Uses automatic compression
+//		-ErrorTolerance=<tolerance>: The error threshold used by automatic compression
 // 
 //		-acl: Uses ACL compression
 // 
@@ -64,10 +64,10 @@ THIRD_PARTY_INCLUDES_END
 //		-keyreductionrt: Use linear key reduction with retargetting (error compensation)
 //////////////////////////////////////////////////////////////////////////
 
-class UE4SJSONStreamWriter final : public sjson::StreamWriter
+class UESJSONStreamWriter final : public sjson::StreamWriter
 {
 public:
-	UE4SJSONStreamWriter(FArchive* File_)
+	UESJSONStreamWriter(FArchive* File_)
 		: File(File_)
 	{}
 
@@ -132,44 +132,62 @@ static const TCHAR* ReadACLClip(FFileManagerGeneric& FileManager, const FString&
 	return nullptr;
 }
 
-static void ConvertSkeleton(const acl::track_array_qvvf& Tracks, USkeleton* UE4Skeleton)
+static FString GetBoneName(const acl::track_qvvf& Track)
+{
+	// We add a prefix to ensure the name is safe for ControlRig in 5.x
+	return FString::Printf(TEXT("ACL_%s"), ANSI_TO_TCHAR(Track.get_name().c_str()));
+}
+
+static void ConvertSkeleton(const acl::track_array_qvvf& Tracks, USkeleton* UESkeleton)
 {
 	// Not terribly clean, we cast away the 'const' to modify the skeleton
-	FReferenceSkeleton& RefSkeleton = const_cast<FReferenceSkeleton&>(UE4Skeleton->GetReferenceSkeleton());
-	FReferenceSkeletonModifier SkeletonModifier(RefSkeleton, UE4Skeleton);
+	FReferenceSkeleton& RefSkeleton = const_cast<FReferenceSkeleton&>(UESkeleton->GetReferenceSkeleton());
+	FReferenceSkeletonModifier SkeletonModifier(RefSkeleton, UESkeleton);
 
 	for (const acl::track_qvvf& Track : Tracks)
 	{
 		const acl::track_desc_transformf& Desc = Track.get_description();
 
-		const FString BoneName = ANSI_TO_TCHAR(Track.get_name().c_str());
+		const FString BoneName = GetBoneName(Track);
 
-		FMeshBoneInfo UE4Bone;
-		UE4Bone.Name = FName(*BoneName);
-		UE4Bone.ParentIndex = Desc.parent_index == acl::k_invalid_track_index ? INDEX_NONE : Desc.parent_index;
-		UE4Bone.ExportName = BoneName;
+		FMeshBoneInfo UEBone;
+		UEBone.Name = FName(*BoneName);
+		UEBone.ParentIndex = Desc.parent_index == acl::k_invalid_track_index ? INDEX_NONE : Desc.parent_index;
+		UEBone.ExportName = BoneName;
 
 		const FTransform BindPose = ACLTransformToUE(Desc.default_value);
 
-		SkeletonModifier.Add(UE4Bone, BindPose);
+		SkeletonModifier.Add(UEBone, BindPose);
 	}
 
 	// When our modifier is destroyed here, it will rebuild the skeleton
 }
 
-static void ConvertClip(const acl::track_array_qvvf& Tracks, UAnimSequence* UE4Clip, USkeleton* UE4Skeleton)
+static void ConvertClip(const acl::track_array_qvvf& Tracks, UAnimSequence* UEClip, USkeleton* UESkeleton)
 {
-	const uint32 NumSamples = Tracks.get_num_samples_per_track();
+	UEClip->SetSkeleton(UESkeleton);
 
-	IAnimationDataController& Controller = UE4Clip->GetController();
+	const int32 NumSamples = Tracks.get_num_samples_per_track();	// int32 for 5.2 FFrameNumber constructor
+	const float SequenceLength = FGenericPlatformMath::Max<float>(Tracks.get_finite_duration(), MINIMUM_ANIMATION_LENGTH);
 
-	Controller.OpenBracket(FText::FromString(TEXT("Convert Clip")));
+	const float SampleRate = Tracks.get_sample_rate();
 
-	const int32 FramesPerSecond = ((float)NumSamples / Tracks.get_duration());
-	Controller.SetFrameRate(FFrameRate(1, FramesPerSecond));
+	// This is incorrect because the true sample rate can be fractional but UE doesn't support it
+	const uint32 FrameRate = FGenericPlatformMath::RoundToInt(SampleRate);
 
-	Controller.SetNumberOfFrames((int32)NumSamples);
-	UE4Clip->SetSkeleton(UE4Skeleton);
+	IAnimationDataController& UEClipController = UEClip->GetController();
+	UEClipController.InitializeModel();
+	UEClipController.ResetModel(false);
+
+	UEClipController.OpenBracket(FText::FromString("Generating Animation Data"));
+
+	UEClipController.SetFrameRate(FFrameRate(FrameRate, 1));
+
+	const int32 NumFrames = NumSamples - 1;
+	UEClipController.SetNumberOfFrames(FFrameNumber(NumFrames));
+
+	// Ensure our frame rate update propagates first to avoid re-sampling below
+	UEClipController.NotifyPopulated();
 
 	if (NumSamples != 0)
 	{
@@ -183,31 +201,33 @@ static void ConvertClip(const acl::track_array_qvvf& Tracks, UAnimSequence* UE4C
 			RawTrack.RotKeys.Empty();
 			RawTrack.ScaleKeys.Empty();
 
-			for (uint32 SampleIndex = 0; SampleIndex < NumSamples; ++SampleIndex)
+			for (int32 SampleIndex = 0; SampleIndex < NumSamples; ++SampleIndex)
 			{
 				const FQuat4f Rotation = ACLQuatToUE(rtm::quat_normalize(Track[SampleIndex].rotation));
 				RawTrack.RotKeys.Add(Rotation);
 			}
 
-			for (uint32 SampleIndex = 0; SampleIndex < NumSamples; ++SampleIndex)
+			for (int32 SampleIndex = 0; SampleIndex < NumSamples; ++SampleIndex)
 			{
 				const FVector3f Translation = ACLVector3ToUE(Track[SampleIndex].translation);
 				RawTrack.PosKeys.Add(Translation);
 			}
 
-			for (uint32 SampleIndex = 0; SampleIndex < NumSamples; ++SampleIndex)
+			for (int32 SampleIndex = 0; SampleIndex < NumSamples; ++SampleIndex)
 			{
 				const FVector3f Scale = ACLVector3ToUE(Track[SampleIndex].scale);
 				RawTrack.ScaleKeys.Add(Scale);
 			}
 
-			const FName BoneName(Track.get_name().c_str());
-			Controller.AddBoneCurve(BoneName);
-			Controller.SetBoneTrackKeys(BoneName, RawTrack.PosKeys, RawTrack.RotKeys, RawTrack.ScaleKeys);
+			const FName BoneName(*GetBoneName(Track));
+
+			UEClipController.AddBoneCurve(BoneName);
+			UEClipController.SetBoneTrackKeys(BoneName, RawTrack.PosKeys, RawTrack.RotKeys, RawTrack.ScaleKeys);
 		}
 	}
 
-	Controller.CloseBracket();
+	UEClipController.NotifyPopulated();
+	UEClipController.CloseBracket();
 }
 
 static int32 GetAnimationTrackIndex(const int32 BoneIndex, const UAnimSequence* AnimSeq)
@@ -230,27 +250,27 @@ static int32 GetAnimationTrackIndex(const int32 BoneIndex, const UAnimSequence* 
 	return INDEX_NONE;
 }
 
-static void SampleUE4Clip(const acl::track_array_qvvf& Tracks, USkeleton* UE4Skeleton, const UAnimSequence* UE4Clip, double SampleTime, rtm::qvvf* LossyPoseTransforms)
+static void SampleUEClip(const acl::track_array_qvvf& Tracks, USkeleton* UESkeleton, const UAnimSequence* UEClip, float SampleTime, rtm::qvvf* LossyPoseTransforms)
 {
-	const FReferenceSkeleton& RefSkeleton = UE4Skeleton->GetReferenceSkeleton();
-	const TArray<FTransform>& RefSkeletonPose = UE4Skeleton->GetRefLocalPoses();
+	const FReferenceSkeleton& RefSkeleton = UESkeleton->GetReferenceSkeleton();
+	const TArray<FTransform>& RefSkeletonPose = UESkeleton->GetRefLocalPoses();
 
-	const IAnimationDataModel* Model = UE4Clip->GetDataModel();
 	const uint32 NumBones = Tracks.get_num_tracks();
 	for (uint32 BoneIndex = 0; BoneIndex < NumBones; ++BoneIndex)
 	{
 		const acl::track_qvvf& Track = Tracks[BoneIndex];
-		const FName BoneName(Track.get_name().c_str());
+		const FName BoneName(*GetBoneName(Track));
 		const int32 BoneTreeIndex = RefSkeleton.FindBoneIndex(BoneName);
 
 		FTransform BoneTransform;
-		if (BoneTreeIndex != INDEX_NONE && Model->IsValidBoneTrackName(BoneName))
-		{
-			UE4Clip->GetBoneTransform(BoneTransform, FSkeletonPoseBoneIndex(BoneTreeIndex), double(SampleTime), false, TOptional<EAnimInterpolationType>());
-		}
-		else
+		if (BoneTreeIndex != INDEX_NONE)
 		{
 			BoneTransform = RefSkeletonPose[BoneTreeIndex];
+
+			if (UEClip->GetDataModel()->IsValidBoneTrackName(BoneName))
+			{
+				UEClip->GetBoneTransform(BoneTransform, FSkeletonPoseBoneIndex(BoneTreeIndex), double(SampleTime), false, TOptional<EAnimInterpolationType>());
+			}
 		}
 
 		const rtm::quatf Rotation = UEQuatToACL(BoneTransform.GetRotation());
@@ -260,16 +280,17 @@ static void SampleUE4Clip(const acl::track_array_qvvf& Tracks, USkeleton* UE4Ske
 	}
 }
 
-static bool UE4ClipHasScale(const UAnimSequence* UE4Clip)
+static bool UEClipHasScale(const UAnimSequence* UEClip)
 {
 	TArray<FName> TrackNames;
-	UE4Clip->GetDataModel()->GetBoneTrackNames(TrackNames);
+	UEClip->GetDataModel()->GetBoneTrackNames(TrackNames);
 
 	bool bHasScaleKeys = false;
 	for (const FName& TrackName : TrackNames)
 	{
-
-		UE4Clip->GetDataModel()->IterateBoneKeys(TrackName, [&bHasScaleKeys](const FVector3f& Position, const FQuat4f& Rotation, const FVector3f& Scale, const FFrameNumber& FrameNumber)
+		UEClip->GetDataModel()->IterateBoneKeys(
+			TrackName,
+			[&bHasScaleKeys](const FVector3f& Position, const FQuat4f& Rotation, const FVector3f& Scale, const FFrameNumber& FrameNumber)
 			{
 				if (!Scale.IsUnit())
 				{
@@ -324,18 +345,18 @@ struct SimpleTransformWriter final : public acl::track_writer
 	}
 };
 
-static void CalculateClipError(const acl::track_array_qvvf& Tracks, const UAnimSequence* UE4Clip, USkeleton* UE4Skeleton, uint32& OutWorstBone, float& OutMaxError, float& OutWorstSampleTime)
+static void CalculateClipError(const acl::track_array_qvvf& Tracks, const UAnimSequence* UEClip, USkeleton* UESkeleton, uint32& OutWorstBone, float& OutMaxError, float& OutWorstSampleTime)
 {
-	// Use the ACL code if we can to calculate the error instead of approximating it with UE4.
-	UAnimBoneCompressionCodec_ACLBase* ACLCodec = Cast<UAnimBoneCompressionCodec_ACLBase>(UE4Clip->CompressedData.BoneCompressionCodec);
+	// Use the ACL code if we can to calculate the error instead of approximating it with UE.
+	UAnimBoneCompressionCodec_ACLBase* ACLCodec = Cast<UAnimBoneCompressionCodec_ACLBase>(UEClip->CompressedData.BoneCompressionCodec);
 	if (ACLCodec != nullptr)
 	{
-		const acl::compressed_tracks* CompressedClipData = acl::make_compressed_tracks(UE4Clip->CompressedData.CompressedByteStream.GetData());
+		const acl::compressed_tracks* CompressedClipData = acl::make_compressed_tracks(UEClip->CompressedData.CompressedByteStream.GetData());
 
 		const acl::qvvf_transform_error_metric ErrorMetric;
 
 		// Use debug settings since we don't know the specific codec used
-		acl::decompression_context<UE4DebugDecompressionSettings> Context;
+		acl::decompression_context<UEDebugDecompressionSettings> Context;
 		Context.initialize(*CompressedClipData);
 		const acl::track_error TrackError = acl::calculate_compression_error(ACLAllocatorImpl, Tracks, Context, ErrorMetric);
 
@@ -349,7 +370,7 @@ static void CalculateClipError(const acl::track_array_qvvf& Tracks, const UAnimS
 	const float ClipDuration = Tracks.get_duration();
 	const float SampleRate = Tracks.get_sample_rate();
 	const uint32 NumSamples = Tracks.get_num_samples_per_track();
-	const bool HasScale = UE4ClipHasScale(UE4Clip);
+	const bool HasScale = UEClipHasScale(UEClip);
 
 	TArray<rtm::qvvf> RawLocalPoseTransforms;
 	TArray<rtm::qvvf> RawObjectPoseTransforms;
@@ -394,10 +415,10 @@ static void CalculateClipError(const acl::track_array_qvvf& Tracks, const UAnimS
 	for (uint32 SampleIndex = 0; SampleIndex < NumSamples; ++SampleIndex)
 	{
 		// Sample our streams and calculate the error
-		const double SampleTime = rtm::scalar_min(float(SampleIndex) / SampleRate, ClipDuration);
+		const float SampleTime = rtm::scalar_min(float(SampleIndex) / SampleRate, ClipDuration);
 
 		Tracks.sample_tracks(SampleTime, acl::sample_rounding_policy::none, RawWriter);
-		SampleUE4Clip(Tracks, UE4Skeleton, UE4Clip, SampleTime, LossyLocalPoseTransforms.GetData());
+		SampleUEClip(Tracks, UESkeleton, UEClip, SampleTime, LossyLocalPoseTransforms.GetData());
 
 		if (HasScale)
 		{
@@ -444,13 +465,13 @@ static void CalculateClipError(const acl::track_array_qvvf& Tracks, const UAnimS
 	OutWorstSampleTime = WorstSampleTime;
 }
 
-static void DumpClipDetailedError(const acl::track_array_qvvf& Tracks, UAnimSequence* UE4Clip, USkeleton* UE4Skeleton, sjson::ObjectWriter& Writer)
+static void DumpClipDetailedError(const acl::track_array_qvvf& Tracks, UAnimSequence* UEClip, USkeleton* UESkeleton, sjson::ObjectWriter& Writer)
 {
 	const uint32 NumBones = Tracks.get_num_tracks();
 	const float ClipDuration = Tracks.get_duration();
 	const float SampleRate = Tracks.get_sample_rate();
 	const uint32 NumSamples = Tracks.get_num_samples_per_track();
-	const bool HasScale = UE4ClipHasScale(UE4Clip);
+	const bool HasScale = UEClipHasScale(UEClip);
 
 	TArray<rtm::qvvf> RawLocalPoseTransforms;
 	TArray<rtm::qvvf> RawObjectPoseTransforms;
@@ -489,8 +510,8 @@ static void DumpClipDetailedError(const acl::track_array_qvvf& Tracks, UAnimSequ
 	acl::itransform_error_metric::local_to_object_space_args local_to_object_space_args_lossy = local_to_object_space_args_raw;
 	local_to_object_space_args_lossy.local_transforms = LossyLocalPoseTransforms.GetData();
 
-	// Use the ACL code if we can to calculate the error instead of approximating it with UE4.
-	UAnimBoneCompressionCodec_ACLBase* ACLCodec = Cast<UAnimBoneCompressionCodec_ACLBase>(UE4Clip->CompressedData.BoneCompressionCodec);
+	// Use the ACL code if we can to calculate the error instead of approximating it with UE.
+	UAnimBoneCompressionCodec_ACLBase* ACLCodec = Cast<UAnimBoneCompressionCodec_ACLBase>(UEClip->CompressedData.BoneCompressionCodec);
 	if (ACLCodec != nullptr)
 	{
 		uint32 NumOutputBones = 0;
@@ -501,7 +522,7 @@ static void DumpClipDetailedError(const acl::track_array_qvvf& Tracks, UAnimSequ
 
 		local_to_object_space_args_lossy.local_transforms = LossyRemappedLocalPoseTransforms.GetData();
 
-		const acl::compressed_tracks* CompressedClipData = acl::make_compressed_tracks(UE4Clip->CompressedData.CompressedByteStream.GetData());
+		const acl::compressed_tracks* CompressedClipData = acl::make_compressed_tracks(UEClip->CompressedData.CompressedByteStream.GetData());
 
 		acl::decompression_context<acl::debug_transform_decompression_settings> Context;
 		Context.initialize(*CompressedClipData);
@@ -588,7 +609,7 @@ static void DumpClipDetailedError(const acl::track_array_qvvf& Tracks, UAnimSequ
 			const float SampleTime = rtm::scalar_min(float(SampleIndex) / SampleRate, ClipDuration);
 
 			Tracks.sample_tracks(SampleTime, acl::sample_rounding_policy::none, RawWriter);
-			SampleUE4Clip(Tracks, UE4Skeleton, UE4Clip, SampleTime, LossyLocalPoseTransforms.GetData());
+			SampleUEClip(Tracks, UESkeleton, UEClip, SampleTime, LossyLocalPoseTransforms.GetData());
 
 			if (HasScale)
 			{
@@ -633,13 +654,13 @@ struct FCompressionContext
 	UAnimBoneCompressionSettings* ACLCompressor;
 	UAnimBoneCompressionSettings* KeyReductionCompressor;
 
-	UAnimSequence* UE4Clip;
-	USkeleton* UE4Skeleton;
+	UAnimSequence* UEClip;
+	USkeleton* UESkeleton;
 
 	acl::track_array_qvvf ACLTracks;
 
 	uint32 ACLRawSize;
-	int32 UE4RawSize;
+	int32 UERawSize;
 };
 
 static FString GetCodecName(UAnimBoneCompressionCodec* Codec)
@@ -657,62 +678,63 @@ static FString GetCodecName(UAnimBoneCompressionCodec* Codec)
 	return Codec->GetClass()->GetName();
 }
 
-static void CompressWithUE4Auto(FCompressionContext& Context, bool PerformExhaustiveDump, sjson::Writer& Writer)
+static void CompressWithUEAuto(FCompressionContext& Context, bool PerformExhaustiveDump, sjson::Writer& Writer)
 {
 	// Force recompression and avoid the DDC
-	TGuardValue<int32> CompressGuard(Context.UE4Clip->CompressCommandletVersion, INDEX_NONE);
+	TGuardValue<int32> CompressGuard(Context.UEClip->CompressCommandletVersion, INDEX_NONE);
 
-	const uint64 UE4StartTimeCycles = FPlatformTime::Cycles64();
+	const uint64 UEStartTimeCycles = FPlatformTime::Cycles64();
 
-	Context.UE4Clip->BoneCompressionSettings = Context.AutoCompressor;
-	Context.UE4Clip->CacheDerivedDataForCurrentPlatform();
+	Context.UEClip->BoneCompressionSettings = Context.AutoCompressor;
 
-	const uint64 UE4EndTimeCycles = FPlatformTime::Cycles64();
+	Context.UEClip->CacheDerivedDataForCurrentPlatform();
 
-	const uint64 UE4ElapsedCycles = UE4EndTimeCycles - UE4StartTimeCycles;
-	const double UE4ElapsedTimeSec = FPlatformTime::ToSeconds64(UE4ElapsedCycles);
+	const uint64 UEEndTimeCycles = FPlatformTime::Cycles64();
 
-	if (Context.UE4Clip->IsCompressedDataValid())
+	const uint64 UEElapsedCycles = UEEndTimeCycles - UEStartTimeCycles;
+	const double UEElapsedTimeSec = FPlatformTime::ToSeconds64(UEElapsedCycles);
+
+	if (Context.UEClip->IsCompressedDataValid())
 	{
-		const bool bHasClipData = Context.UE4Clip->CompressedData.CompressedDataStructure != nullptr;
+		const bool bHasClipData = Context.UEClip->CompressedData.CompressedDataStructure != nullptr;
 
-		AnimationErrorStats UE4ErrorStats;
+		AnimationErrorStats UEErrorStats;
 		uint32 WorstBone = INDEX_NONE;
 		float MaxError = 0.0f;
 		float WorstSampleTime = 0.0f;
 
 		if (bHasClipData)
 		{
-			UE4ErrorStats = Context.UE4Clip->CompressedData.CompressedDataStructure->BoneCompressionErrorStats;
+			UEErrorStats = Context.UEClip->CompressedData.CompressedDataStructure->BoneCompressionErrorStats;
 
-			CalculateClipError(Context.ACLTracks, Context.UE4Clip, Context.UE4Skeleton, WorstBone, MaxError, WorstSampleTime);
+			CalculateClipError(Context.ACLTracks, Context.UEClip, Context.UESkeleton, WorstBone, MaxError, WorstSampleTime);
 		}
 
-		const int32 CompressedSize = Context.UE4Clip->GetApproxCompressedSize();
-		const double UE4CompressionRatio = double(Context.UE4RawSize) / double(CompressedSize);
+		const int32 CompressedSize = Context.UEClip->GetApproxCompressedSize();
+		const double UECompressionRatio = double(Context.UERawSize) / double(CompressedSize);
 		const double ACLCompressionRatio = double(Context.ACLRawSize) / double(CompressedSize);
 
 		Writer["ue4_auto"] = [&](sjson::ObjectWriter& Writer)	//-V1047
 		{
-			Writer["algorithm_name"] = TCHAR_TO_ANSI(*Context.UE4Clip->BoneCompressionSettings->GetClass()->GetName());
-			Writer["codec_name"] = TCHAR_TO_ANSI(*GetCodecName(Context.UE4Clip->CompressedData.BoneCompressionCodec));
+			Writer["algorithm_name"] = TCHAR_TO_ANSI(*Context.UEClip->BoneCompressionSettings->GetClass()->GetName());
+			Writer["codec_name"] = TCHAR_TO_ANSI(*GetCodecName(Context.UEClip->CompressedData.BoneCompressionCodec));
 			Writer["compressed_size"] = CompressedSize;
-			Writer["ue4_compression_ratio"] = UE4CompressionRatio;
+			Writer["ue4_compression_ratio"] = UECompressionRatio;
 			Writer["acl_compression_ratio"] = ACLCompressionRatio;
-			Writer["compression_time"] = UE4ElapsedTimeSec;
-			Writer["ue4_max_error"] = UE4ErrorStats.MaxError;
-			Writer["ue4_avg_error"] = UE4ErrorStats.AverageError;
-			Writer["ue4_worst_bone"] = UE4ErrorStats.MaxErrorBone;
-			Writer["ue4_worst_time"] = UE4ErrorStats.MaxErrorTime;
+			Writer["compression_time"] = UEElapsedTimeSec;
+			Writer["ue4_max_error"] = UEErrorStats.MaxError;
+			Writer["ue4_avg_error"] = UEErrorStats.AverageError;
+			Writer["ue4_worst_bone"] = UEErrorStats.MaxErrorBone;
+			Writer["ue4_worst_time"] = UEErrorStats.MaxErrorTime;
 			Writer["acl_max_error"] = MaxError;
 			Writer["acl_worst_bone"] = WorstBone;
 			Writer["acl_worst_time"] = WorstSampleTime;
 
-			if (Context.UE4Clip->CompressedData.BoneCompressionCodec != nullptr
-				&& Context.UE4Clip->CompressedData.BoneCompressionCodec->IsA<UAnimCompress>()
+			if (Context.UEClip->CompressedData.BoneCompressionCodec != nullptr
+				&& Context.UEClip->CompressedData.BoneCompressionCodec->IsA<UAnimCompress>()
 				&& bHasClipData)
 			{
-				const FUECompressedAnimData& AnimData = static_cast<FUECompressedAnimData&>(*Context.UE4Clip->CompressedData.CompressedDataStructure);
+				const FUECompressedAnimData& AnimData = static_cast<FUECompressedAnimData&>(*Context.UEClip->CompressedData.CompressedDataStructure);
 				Writer["rotation_format"] = TCHAR_TO_ANSI(*FAnimationUtils::GetAnimationCompressionFormatString(AnimData.RotationCompressionFormat));
 				Writer["translation_format"] = TCHAR_TO_ANSI(*FAnimationUtils::GetAnimationCompressionFormatString(AnimData.TranslationCompressionFormat));
 				Writer["scale_format"] = TCHAR_TO_ANSI(*FAnimationUtils::GetAnimationCompressionFormatString(AnimData.ScaleCompressionFormat));
@@ -720,76 +742,77 @@ static void CompressWithUE4Auto(FCompressionContext& Context, bool PerformExhaus
 
 			if (PerformExhaustiveDump && bHasClipData)
 			{
-				DumpClipDetailedError(Context.ACLTracks, Context.UE4Clip, Context.UE4Skeleton, Writer);
+				DumpClipDetailedError(Context.ACLTracks, Context.UEClip, Context.UESkeleton, Writer);
 			}
 		};
 	}
 	else
 	{
-		Writer["error"] = "failed to compress UE4 clip";
+		Writer["error"] = "failed to compress UE clip";
 	}
 }
 
 static void CompressWithACL(FCompressionContext& Context, bool PerformExhaustiveDump, sjson::Writer& Writer)
 {
 	// Force recompression and avoid the DDC
-	TGuardValue<int32> CompressGuard(Context.UE4Clip->CompressCommandletVersion, INDEX_NONE);
+	TGuardValue<int32> CompressGuard(Context.UEClip->CompressCommandletVersion, INDEX_NONE);
 
 	const uint64 ACLStartTimeCycles = FPlatformTime::Cycles64();
 
-	Context.UE4Clip->BoneCompressionSettings = Context.ACLCompressor;
-	Context.UE4Clip->CacheDerivedDataForCurrentPlatform();
+	Context.UEClip->BoneCompressionSettings = Context.ACLCompressor;
+
+	Context.UEClip->CacheDerivedDataForCurrentPlatform();
 
 	const uint64 ACLEndTimeCycles = FPlatformTime::Cycles64();
 
 	const uint64 ACLElapsedCycles = ACLEndTimeCycles - ACLStartTimeCycles;
 	const double ACLElapsedTimeSec = FPlatformTime::ToSeconds64(ACLElapsedCycles);
 
-	if (Context.UE4Clip->IsCompressedDataValid())
+	if (Context.UEClip->IsCompressedDataValid())
 	{
-		const bool bHasClipData = Context.UE4Clip->CompressedData.CompressedDataStructure != nullptr;
+		const bool bHasClipData = Context.UEClip->CompressedData.CompressedDataStructure != nullptr;
 
-		AnimationErrorStats UE4ErrorStats;
+		AnimationErrorStats UEErrorStats;
 		uint32 WorstBone = INDEX_NONE;
 		float MaxError = 0.0f;
 		float WorstSampleTime = 0.0f;
 
 		if (bHasClipData)
 		{
-			UE4ErrorStats = Context.UE4Clip->CompressedData.CompressedDataStructure->BoneCompressionErrorStats;
+			UEErrorStats = Context.UEClip->CompressedData.CompressedDataStructure->BoneCompressionErrorStats;
 
-			CalculateClipError(Context.ACLTracks, Context.UE4Clip, Context.UE4Skeleton, WorstBone, MaxError, WorstSampleTime);
+			CalculateClipError(Context.ACLTracks, Context.UEClip, Context.UESkeleton, WorstBone, MaxError, WorstSampleTime);
 		}
 
-		const int32 CompressedSize = Context.UE4Clip->GetApproxCompressedSize();
-		const double UE4CompressionRatio = double(Context.UE4RawSize) / double(CompressedSize);
+		const int32 CompressedSize = Context.UEClip->GetApproxCompressedSize();
+		const double UECompressionRatio = double(Context.UERawSize) / double(CompressedSize);
 		const double ACLCompressionRatio = double(Context.ACLRawSize) / double(CompressedSize);
 
 		Writer["ue4_acl"] = [&](sjson::ObjectWriter& Writer)	//-V1047
 		{
-			Writer["algorithm_name"] = TCHAR_TO_ANSI(*Context.UE4Clip->BoneCompressionSettings->GetClass()->GetName());
-			Writer["codec_name"] = TCHAR_TO_ANSI(*GetCodecName(Context.UE4Clip->CompressedData.BoneCompressionCodec));
+			Writer["algorithm_name"] = TCHAR_TO_ANSI(*Context.UEClip->BoneCompressionSettings->GetClass()->GetName());
+			Writer["codec_name"] = TCHAR_TO_ANSI(*GetCodecName(Context.UEClip->CompressedData.BoneCompressionCodec));
 			Writer["compressed_size"] = CompressedSize;
-			Writer["ue4_compression_ratio"] = UE4CompressionRatio;
+			Writer["ue4_compression_ratio"] = UECompressionRatio;
 			Writer["acl_compression_ratio"] = ACLCompressionRatio;
 			Writer["compression_time"] = ACLElapsedTimeSec;
-			Writer["ue4_max_error"] = UE4ErrorStats.MaxError;
-			Writer["ue4_avg_error"] = UE4ErrorStats.AverageError;
-			Writer["ue4_worst_bone"] = UE4ErrorStats.MaxErrorBone;
-			Writer["ue4_worst_time"] = UE4ErrorStats.MaxErrorTime;
+			Writer["ue4_max_error"] = UEErrorStats.MaxError;
+			Writer["ue4_avg_error"] = UEErrorStats.AverageError;
+			Writer["ue4_worst_bone"] = UEErrorStats.MaxErrorBone;
+			Writer["ue4_worst_time"] = UEErrorStats.MaxErrorTime;
 			Writer["acl_max_error"] = MaxError;
 			Writer["acl_worst_bone"] = WorstBone;
 			Writer["acl_worst_time"] = WorstSampleTime;
 
 			if (PerformExhaustiveDump && bHasClipData)
 			{
-				DumpClipDetailedError(Context.ACLTracks, Context.UE4Clip, Context.UE4Skeleton, Writer);
+				DumpClipDetailedError(Context.ACLTracks, Context.UEClip, Context.UESkeleton, Writer);
 			}
 		};
 	}
 	else
 	{
-		Writer["error"] = "failed to compress UE4 clip";
+		Writer["error"] = "failed to compress UE clip";
 	}
 }
 
@@ -823,62 +846,68 @@ static bool IsKeyDropped(int32 NumFrames, const uint8* FrameTable, int32 NumKeys
 	}
 }
 
-static void CompressWithUE4KeyReduction(FCompressionContext& Context, bool PerformExhaustiveDump, sjson::Writer& Writer)
+static int32 GetCompressedNumberOfKeys(const FUECompressedAnimData& AnimData)
 {
-	if (Context.UE4Clip->GetNumberOfSampledKeys() <= 1)
+	return AnimData.CompressedNumberOfKeys;
+}
+
+static void CompressWithUEKeyReduction(FCompressionContext& Context, bool PerformExhaustiveDump, sjson::Writer& Writer)
+{
+	using AnimDataModelType = IAnimationDataModel;
+
+	// Force recompression and avoid the DDC
+	TGuardValue<int32> CompressGuard(Context.UEClip->CompressCommandletVersion, INDEX_NONE);
+
+	const uint64 UEStartTimeCycles = FPlatformTime::Cycles64();
+
+	Context.UEClip->BoneCompressionSettings = Context.KeyReductionCompressor;
+
+	Context.UEClip->CacheDerivedDataForCurrentPlatform();
+
+	const uint64 UEEndTimeCycles = FPlatformTime::Cycles64();
+
+	const uint64 UEElapsedCycles = UEEndTimeCycles - UEStartTimeCycles;
+	const double UEElapsedTimeSec = FPlatformTime::ToSeconds64(UEElapsedCycles);
+
+	if (Context.UEClip->IsCompressedDataValid())
 	{
-		return;
-	}
+		const bool bHasClipData = Context.UEClip->CompressedData.CompressedDataStructure != nullptr;
 
-	const uint64 UE4StartTimeCycles = FPlatformTime::Cycles64();
-
-	Context.UE4Clip->BoneCompressionSettings = Context.KeyReductionCompressor;
-	Context.UE4Clip->CacheDerivedDataForCurrentPlatform();
-
-	const uint64 UE4EndTimeCycles = FPlatformTime::Cycles64();
-
-	const uint64 UE4ElapsedCycles = UE4EndTimeCycles - UE4StartTimeCycles;
-	const double UE4ElapsedTimeSec = FPlatformTime::ToSeconds64(UE4ElapsedCycles);
-
-	if (Context.UE4Clip->IsCompressedDataValid())
-	{
-		const bool bHasClipData = Context.UE4Clip->CompressedData.CompressedDataStructure != nullptr;
-
-		AnimationErrorStats UE4ErrorStats;
+		AnimationErrorStats UEErrorStats;
 		uint32 WorstBone = INDEX_NONE;
 		float MaxError = 0.0f;
 		float WorstSampleTime = 0.0f;
 
 		if (bHasClipData)
 		{
-			UE4ErrorStats = Context.UE4Clip->CompressedData.CompressedDataStructure->BoneCompressionErrorStats;
+			UEErrorStats = Context.UEClip->CompressedData.CompressedDataStructure->BoneCompressionErrorStats;
 
-			CalculateClipError(Context.ACLTracks, Context.UE4Clip, Context.UE4Skeleton, WorstBone, MaxError, WorstSampleTime);
+			CalculateClipError(Context.ACLTracks, Context.UEClip, Context.UESkeleton, WorstBone, MaxError, WorstSampleTime);
 		}
 
-		const int32 CompressedSize = Context.UE4Clip->GetApproxCompressedSize();
-		const double UE4CompressionRatio = double(Context.UE4RawSize) / double(CompressedSize);
+		const int32 CompressedSize = Context.UEClip->GetApproxCompressedSize();
+		const double UECompressionRatio = double(Context.UERawSize) / double(CompressedSize);
 		const double ACLCompressionRatio = double(Context.ACLRawSize) / double(CompressedSize);
 
 		Writer["ue4_keyreduction"] = [&](sjson::ObjectWriter& Writer)	//-V1047
 		{
-			Writer["algorithm_name"] = TCHAR_TO_ANSI(*Context.UE4Clip->BoneCompressionSettings->GetClass()->GetName());
-			Writer["codec_name"] = TCHAR_TO_ANSI(*GetCodecName(Context.UE4Clip->CompressedData.BoneCompressionCodec));
+			Writer["algorithm_name"] = TCHAR_TO_ANSI(*Context.UEClip->BoneCompressionSettings->GetClass()->GetName());
+			Writer["codec_name"] = TCHAR_TO_ANSI(*GetCodecName(Context.UEClip->CompressedData.BoneCompressionCodec));
 			Writer["compressed_size"] = CompressedSize;
-			Writer["ue4_compression_ratio"] = UE4CompressionRatio;
+			Writer["ue4_compression_ratio"] = UECompressionRatio;
 			Writer["acl_compression_ratio"] = ACLCompressionRatio;
-			Writer["compression_time"] = UE4ElapsedTimeSec;
-			Writer["ue4_max_error"] = UE4ErrorStats.MaxError;
-			Writer["ue4_avg_error"] = UE4ErrorStats.AverageError;
-			Writer["ue4_worst_bone"] = UE4ErrorStats.MaxErrorBone;
-			Writer["ue4_worst_time"] = UE4ErrorStats.MaxErrorTime;
+			Writer["compression_time"] = UEElapsedTimeSec;
+			Writer["ue4_max_error"] = UEErrorStats.MaxError;
+			Writer["ue4_avg_error"] = UEErrorStats.AverageError;
+			Writer["ue4_worst_bone"] = UEErrorStats.MaxErrorBone;
+			Writer["ue4_worst_time"] = UEErrorStats.MaxErrorTime;
 			Writer["acl_max_error"] = MaxError;
 			Writer["acl_worst_bone"] = WorstBone;
 			Writer["acl_worst_time"] = WorstSampleTime;
 
 			if (PerformExhaustiveDump && bHasClipData)
 			{
-				DumpClipDetailedError(Context.ACLTracks, Context.UE4Clip, Context.UE4Skeleton, Writer);
+				DumpClipDetailedError(Context.ACLTracks, Context.UEClip, Context.UESkeleton, Writer);
 			}
 
 			// Number of animated keys before any key reduction for animated tracks (without constant/default tracks)
@@ -897,10 +926,11 @@ static void CompressWithUE4KeyReduction(FCompressionContext& Context, bool Perfo
 					return;	// No data, nothing to append
 				}
 
-				const FUECompressedAnimData& AnimData = static_cast<FUECompressedAnimData&>(*Context.UE4Clip->CompressedData.CompressedDataStructure);
+				const FUECompressedAnimData& AnimData = static_cast<FUECompressedAnimData&>(*Context.UEClip->CompressedData.CompressedDataStructure);
 
-				const int32 NumTracks = Context.UE4Clip->GetDataModel()->GetNumBoneTracks();
-				const int32 NumSamples = Context.UE4Clip->GetNumberOfSampledKeys();
+				const AnimDataModelType* ClipData = Context.UEClip->GetDataModel();
+				const int32 NumTracks = ClipData->GetNumBoneTracks();
+				const int32 NumSamples = ClipData->GetNumberOfFrames();
 
 				const int32* TrackOffsets = AnimData.CompressedTrackOffsets.GetData();
 				const auto& ScaleOffsets = AnimData.CompressedScaleOffsets;
@@ -974,12 +1004,16 @@ static void CompressWithUE4KeyReduction(FCompressionContext& Context, bool Perfo
 					return;	// No data, nothing to append
 				}
 
-				const FUECompressedAnimData& AnimData = static_cast<FUECompressedAnimData&>(*Context.UE4Clip->CompressedData.CompressedDataStructure);
+				const FUECompressedAnimData& AnimData = static_cast<FUECompressedAnimData&>(*Context.UEClip->CompressedData.CompressedDataStructure);
 
-				const int32 NumTracks = Context.UE4Clip->GetDataModel()->GetNumBoneTracks();
-				const int32 NumSamples = Context.UE4Clip->GetNumberOfSampledKeys();
+				const AnimDataModelType* ClipData = Context.UEClip->GetDataModel();
+				const int32 NumTracks = ClipData->GetNumBoneTracks();
+				const int32 NumSamples = ClipData->GetNumberOfFrames();
 
-				const float FrameRate = (NumSamples - 1) / Context.UE4Clip->GetPlayLength();
+				const float SequenceLength = GetSequenceLength(*Context.UEClip);
+				const int32 NumCompressedKeys = GetCompressedNumberOfKeys(AnimData);
+
+				const float FrameRate = (NumSamples - 1) / SequenceLength;
 
 				const uint8* ByteStream = AnimData.CompressedByteStream.GetData();
 				const int32* TrackOffsets = AnimData.CompressedTrackOffsets.GetData();
@@ -1013,7 +1047,7 @@ static void CompressWithUE4KeyReduction(FCompressionContext& Context, bool Perfo
 						TransFrameTable = Align(TransFrameTable, 4);
 
 						// Skip constant/default tracks
-						if (NumTransKeys > 1 && IsKeyDropped(AnimData.CompressedNumberOfKeys, TransFrameTable, NumTransKeys, FrameRate, SampleTime))
+						if (NumTransKeys > 1 && IsKeyDropped(NumCompressedKeys, TransFrameTable, NumTransKeys, FrameRate, SampleTime))
 						{
 							DroppedTransCount++;
 						}
@@ -1026,7 +1060,7 @@ static void CompressWithUE4KeyReduction(FCompressionContext& Context, bool Perfo
 						RotFrameTable = Align(RotFrameTable, 4);
 
 						// Skip constant/default tracks
-						if (NumRotKeys > 1 && IsKeyDropped(AnimData.CompressedNumberOfKeys, RotFrameTable, NumRotKeys, FrameRate, SampleTime))
+						if (NumRotKeys > 1 && IsKeyDropped(NumCompressedKeys, RotFrameTable, NumRotKeys, FrameRate, SampleTime))
 						{
 							DroppedRotCount++;
 						}
@@ -1041,7 +1075,7 @@ static void CompressWithUE4KeyReduction(FCompressionContext& Context, bool Perfo
 							ScaleFrameTable = Align(ScaleFrameTable, 4);
 
 							// Skip constant/default tracks
-							if (NumScaleKeys > 1 && IsKeyDropped(AnimData.CompressedNumberOfKeys, ScaleFrameTable, NumScaleKeys, FrameRate, SampleTime))
+							if (NumScaleKeys > 1 && IsKeyDropped(NumCompressedKeys, ScaleFrameTable, NumScaleKeys, FrameRate, SampleTime))
 							{
 								DroppedScaleCount++;
 							}
@@ -1057,11 +1091,11 @@ static void CompressWithUE4KeyReduction(FCompressionContext& Context, bool Perfo
 #if DO_CHECK && 0
 			{
 				// Double check our count
-				const int32 NumSamples = Context.UE4Clip->GetRawNumberOfFrames();
-				const TArray<FRawAnimSequenceTrack>& RawTracks = Context.UE4Clip->GetRawAnimationData();
+				const int32 NumSamples = Context.UEClip->GetRawNumberOfFrames();
+				const TArray<FRawAnimSequenceTrack>& RawTracks = Context.UEClip->GetRawAnimationData();
 				const int32 NumTracks = RawTracks.Num();
-				const int32* TrackOffsets = Context.UE4Clip->CompressedTrackOffsets.GetData();
-				const FCompressedOffsetData& ScaleOffsets = Context.UE4Clip->CompressedScaleOffsets;
+				const int32* TrackOffsets = Context.UEClip->CompressedTrackOffsets.GetData();
+				const FCompressedOffsetData& ScaleOffsets = Context.UEClip->CompressedScaleOffsets;
 
 				int32 DroppedRotCount = 0;
 				int32 DroppedTransCount = 0;
@@ -1104,8 +1138,13 @@ static void CompressWithUE4KeyReduction(FCompressionContext& Context, bool Perfo
 	}
 	else
 	{
-		Writer["error"] = "failed to compress UE4 clip";
+		Writer["error"] = "failed to compress UE clip";
 	}
+}
+
+static void ClearClip(UAnimSequence* UEClip)
+{
+	UEClip->ResetAnimation();
 }
 
 struct CompressAnimationsFunctor
@@ -1135,18 +1174,18 @@ struct CompressAnimationsFunctor
 
 		for (int32 SequenceIndex = 0; SequenceIndex < NumAnimSequences; ++SequenceIndex)
 		{
-			UAnimSequence* UE4Clip = AnimSequences[SequenceIndex];
+			UAnimSequence* UEClip = AnimSequences[SequenceIndex];
 
 			// Make sure all our required dependencies are loaded
-			FAnimationUtils::EnsureAnimSequenceLoaded(*UE4Clip);
+			FAnimationUtils::EnsureAnimSequenceLoaded(*UEClip);
 
-			USkeleton* UE4Skeleton = UE4Clip->GetSkeleton();
-			if (UE4Skeleton == nullptr)
+			USkeleton* UESkeleton = UEClip->GetSkeleton();
+			if (UESkeleton == nullptr)
 			{
 				continue;
 			}
 
-			FString Filename = UE4Clip->GetPathName();
+			FString Filename = UEClip->GetPathName();
 			if (StatsCommandlet->PerformCompression)
 			{
 				Filename = FString::Printf(TEXT("%X_stats.sjson"), GetTypeHash(Filename));
@@ -1156,14 +1195,14 @@ struct CompressAnimationsFunctor
 				Filename = FString::Printf(TEXT("%X.acl.sjson"), GetTypeHash(Filename));
 			}
 
-			FString UE4OutputPath = FPaths::Combine(*StatsCommandlet->OutputDir, *Filename).Replace(TEXT("/"), TEXT("\\"));
+			FString UEOutputPath = FPaths::Combine(*StatsCommandlet->OutputDir, *Filename).Replace(TEXT("/"), TEXT("\\"));
 
-			if (StatsCommandlet->ResumeTask && FileManager.FileExists(*UE4OutputPath))
+			if (StatsCommandlet->ResumeTask && FileManager.FileExists(*UEOutputPath))
 			{
 				continue;
 			}
 
-			const bool bIsAdditive = UE4Clip->IsValidAdditive();
+			const bool bIsAdditive = UEClip->IsValidAdditive();
 			if (bIsAdditive && StatsCommandlet->SkipAdditiveClips)
 			{
 				continue;
@@ -1172,9 +1211,10 @@ struct CompressAnimationsFunctor
 			FCompressionContext Context;
 			Context.AutoCompressor = StatsCommandlet->AutoCompressionSettings;
 			Context.ACLCompressor = StatsCommandlet->ACLCompressionSettings;
-			Context.UE4Clip = UE4Clip;
-			Context.UE4Skeleton = UE4Skeleton;
-			FCompressibleAnimData CompressibleData(UE4Clip, false, GetTargetPlatformManagerRef().GetRunningTargetPlatform());
+			Context.UEClip = UEClip;
+			Context.UESkeleton = UESkeleton;
+
+			FCompressibleAnimData CompressibleData(UEClip, false, GetTargetPlatformManagerRef().GetRunningTargetPlatform());
 
 			acl::track_array_qvvf ACLTracks = BuildACLTransformTrackArray(ACLAllocatorImpl, CompressibleData,
 				StatsCommandlet->ACLCodec->DefaultVirtualVertexDistance, StatsCommandlet->ACLCodec->SafeVirtualVertexDistance,
@@ -1187,35 +1227,35 @@ struct CompressAnimationsFunctor
 
 			Context.ACLTracks = MoveTemp(ACLTracks);
 			Context.ACLRawSize = Context.ACLTracks.get_raw_size();
-			Context.UE4RawSize = UE4Clip->GetApproxRawSize();
+			Context.UERawSize = UEClip->GetApproxRawSize();
 
 			if (StatsCommandlet->PerformCompression)
 			{
-				UE_LOG(LogAnimationCompression, Verbose, TEXT("Compressing: %s (%d / %d)"), *UE4Clip->GetPathName(), SequenceIndex, NumAnimSequences);
+				UE_LOG(LogAnimationCompression, Verbose, TEXT("Compressing: %s (%d / %d)"), *UEClip->GetPathName(), SequenceIndex, NumAnimSequences);
 
-				FArchive* OutputWriter = FileManager.CreateFileWriter(*UE4OutputPath);
+				FArchive* OutputWriter = FileManager.CreateFileWriter(*UEOutputPath);
 				if (OutputWriter == nullptr)
 				{
-					// Opening the file handle can fail if the file path is too long on Windows. UE4 does not properly handle long paths
-					// and adding the \\?\ prefix manually doesn't work, UE4 mangles it when it normalizes the path.
-					UE4Clip->ResetAnimation();
+					// Opening the file handle can fail if the file path is too long on Windows. UE does not properly handle long paths
+					// and adding the \\?\ prefix manually doesn't work, UE mangles it when it normalizes the path.
+					ClearClip(UEClip);
 					continue;
 				}
 
 				// Make sure any pending async compression that might have started during load or construction is done
-				UE4Clip->WaitOnExistingCompression();
+				UEClip->WaitOnExistingCompression();
 
-				UE4SJSONStreamWriter StreamWriter(OutputWriter);
+				UESJSONStreamWriter StreamWriter(OutputWriter);
 				sjson::Writer Writer(StreamWriter);
 
-				Writer["duration"] = UE4Clip->GetPlayLength();
-				Writer["num_samples"] = CompressibleData.NumberOfKeys;
-				Writer["ue4_raw_size"] = Context.UE4RawSize;
+				Writer["duration"] = GetSequenceLength(*UEClip);
+				Writer["num_samples"] = GetNumSamples(CompressibleData);
+				Writer["ue4_raw_size"] = Context.UERawSize;
 				Writer["acl_raw_size"] = Context.ACLRawSize;
 
 				if (StatsCommandlet->TryAutomaticCompression)
 				{
-					CompressWithUE4Auto(Context, StatsCommandlet->PerformExhaustiveDump, Writer);
+					CompressWithUEAuto(Context, StatsCommandlet->PerformExhaustiveDump, Writer);
 				}
 
 				if (StatsCommandlet->TryACLCompression)
@@ -1225,28 +1265,28 @@ struct CompressAnimationsFunctor
 
 				if (StatsCommandlet->TryKeyReduction)
 				{
-					CompressWithUE4KeyReduction(Context, StatsCommandlet->PerformExhaustiveDump, Writer);
+					CompressWithUEKeyReduction(Context, StatsCommandlet->PerformExhaustiveDump, Writer);
 				}
 
 				OutputWriter->Close();
 			}
 			else if (StatsCommandlet->PerformClipExtraction)
 			{
-				UE_LOG(LogAnimationCompression, Verbose, TEXT("Extracting: %s (%d / %d)"), *UE4Clip->GetPathName(), SequenceIndex, NumAnimSequences);
+				UE_LOG(LogAnimationCompression, Verbose, TEXT("Extracting: %s (%d / %d)"), *UEClip->GetPathName(), SequenceIndex, NumAnimSequences);
 
 				const ITargetPlatform* TargetPlatform = GetTargetPlatformManager()->GetRunningTargetPlatform();
 
 				acl::compression_settings Settings;
 				StatsCommandlet->ACLCodec->GetCompressionSettings(TargetPlatform, Settings);
 
-				const acl::error_result Error = acl::write_track_list(Context.ACLTracks, Settings, TCHAR_TO_ANSI(*UE4OutputPath));
+				const acl::error_result Error = acl::write_track_list(Context.ACLTracks, Settings, TCHAR_TO_ANSI(*UEOutputPath));
 				if (Error.any())
 				{
 					UE_LOG(LogAnimationCompression, Warning, TEXT("Failed to write ACL clip file: %s"), ANSI_TO_TCHAR(Error.c_str()));
 				}
 			}
 
-			UE4Clip->ResetAnimation();
+			ClearClip(UEClip);
 		}
 	}
 };
@@ -1261,10 +1301,10 @@ UACLStatsDumpCommandlet::UACLStatsDumpCommandlet(const FObjectInitializer& Objec
 	ShowErrorCount = true;
 }
 
-static void ClearCompressedData(UAnimSequence* UE4Clip)
+static void ClearCompressedData(UAnimSequence* UEClip)
 {
-	UE4Clip->CompressedData.ClearCompressedBoneData();
-	UE4Clip->CompressedData.ClearCompressedCurveData();
+	UEClip->CompressedData.ClearCompressedBoneData();
+	UEClip->CompressedData.ClearCompressedCurveData();
 }
 
 int32 UACLStatsDumpCommandlet::Main(const FString& Params)
@@ -1335,6 +1375,7 @@ int32 UACLStatsDumpCommandlet::Main(const FString& Params)
 	{
 		ACLCompressionSettings = NewObject<UAnimBoneCompressionSettings>(this, UAnimBoneCompressionSettings::StaticClass());
 		ACLCodec = NewObject<UAnimBoneCompressionCodec_ACL>(this, UAnimBoneCompressionCodec_ACL::StaticClass());
+
 		ACLCompressionSettings->Codecs.Add(ACLCodec);
 		ACLCompressionSettings->AddToRoot();
 	}
@@ -1391,27 +1432,27 @@ int32 UACLStatsDumpCommandlet::Main(const FString& Params)
 		{
 			const FString ACLClipPath = FPaths::Combine(*ACLRawDir, *Filename);
 
-			FString UE4StatFilename = Filename.Replace(TEXT(".acl.sjson"), TEXT("_stats.sjson"), ESearchCase::CaseSensitive);
-			UE4StatFilename = UE4StatFilename.Replace(TEXT(".acl"), TEXT("_stats.sjson"), ESearchCase::CaseSensitive);
+			FString UEStatFilename = Filename.Replace(TEXT(".acl.sjson"), TEXT("_stats.sjson"), ESearchCase::CaseSensitive);
+			UEStatFilename = UEStatFilename.Replace(TEXT(".acl"), TEXT("_stats.sjson"), ESearchCase::CaseSensitive);
 
-			const FString UE4StatPath = FPaths::Combine(*OutputDir, *UE4StatFilename);
+			const FString UEStatPath = FPaths::Combine(*OutputDir, *UEStatFilename);
 
-			if (ResumeTask && FileManager.FileExists(*UE4StatPath))
+			if (ResumeTask && FileManager.FileExists(*UEStatPath))
 			{
 				continue;
 			}
 
 			UE_LOG(LogAnimationCompression, Verbose, TEXT("Compressing: %s"), *Filename);
 
-			FArchive* StatWriter = FileManager.CreateFileWriter(*UE4StatPath);
+			FArchive* StatWriter = FileManager.CreateFileWriter(*UEStatPath);
 			if (StatWriter == nullptr)
 			{
-				// Opening the file handle can fail if the file path is too long on Windows. UE4 does not properly handle long paths
-				// and adding the \\?\ prefix manually doesn't work, UE4 mangles it when it normalizes the path.
+				// Opening the file handle can fail if the file path is too long on Windows. UE does not properly handle long paths
+				// and adding the \\?\ prefix manually doesn't work, UE mangles it when it normalizes the path.
 				continue;
 			}
 
-			UE4SJSONStreamWriter StreamWriter(StatWriter);
+			UESJSONStreamWriter StreamWriter(StatWriter);
 			sjson::Writer Writer(StreamWriter);
 
 			acl::track_array_qvvf ACLTracks;
@@ -1419,53 +1460,53 @@ int32 UACLStatsDumpCommandlet::Main(const FString& Params)
 			const TCHAR* ErrorMsg = ReadACLClip(FileManager, ACLClipPath, ACLAllocatorImpl, ACLTracks);
 			if (ErrorMsg == nullptr)
 			{
-				USkeleton* UE4Skeleton = NewObject<USkeleton>(TempPackage, USkeleton::StaticClass());
-				ConvertSkeleton(ACLTracks, UE4Skeleton);
+				USkeleton* UESkeleton = NewObject<USkeleton>(TempPackage, USkeleton::StaticClass());
+				ConvertSkeleton(ACLTracks, UESkeleton);
 
-				UAnimSequence* UE4Clip = NewObject<UAnimSequence>(TempPackage, UAnimSequence::StaticClass());
-				ConvertClip(ACLTracks, UE4Clip, UE4Skeleton);
+				UAnimSequence* UEClip = NewObject<UAnimSequence>(TempPackage, UAnimSequence::StaticClass());
+				ConvertClip(ACLTracks, UEClip, UESkeleton);
 
 				// Make sure any pending async compression that might have started during load or construction is done
-				UE4Clip->WaitOnExistingCompression();
+				UEClip->WaitOnExistingCompression();
 
 				FCompressionContext Context;
 				Context.AutoCompressor = AutoCompressionSettings;
 				Context.ACLCompressor = ACLCompressionSettings;
 				Context.KeyReductionCompressor = KeyReductionCompressionSettings;
-				Context.UE4Clip = UE4Clip;
-				Context.UE4Skeleton = UE4Skeleton;
+				Context.UEClip = UEClip;
+				Context.UESkeleton = UESkeleton;
 				Context.ACLTracks = MoveTemp(ACLTracks);
 
 				Context.ACLRawSize = Context.ACLTracks.get_raw_size();
-				Context.UE4RawSize = UE4Clip->GetApproxRawSize();
+				Context.UERawSize = UEClip->GetApproxRawSize();
 
-				Writer["duration"] = UE4Clip->GetPlayLength();
+				Writer["duration"] = GetSequenceLength(*UEClip);
 				Writer["num_samples"] = Context.ACLTracks.get_num_samples_per_track();
-				Writer["ue4_raw_size"] = Context.UE4RawSize;
+				Writer["ue4_raw_size"] = Context.UERawSize;
 				Writer["acl_raw_size"] = Context.ACLRawSize;
 
 				if (TryAutomaticCompression)
 				{
-					CompressWithUE4Auto(Context, PerformExhaustiveDump, Writer);
+					CompressWithUEAuto(Context, PerformExhaustiveDump, Writer);
 
-					ClearCompressedData(UE4Clip);
+					ClearCompressedData(UEClip);
 				}
 
 				if (TryACLCompression)
 				{
 					CompressWithACL(Context, PerformExhaustiveDump, Writer);
 
-					ClearCompressedData(UE4Clip);
+					ClearCompressedData(UEClip);
 				}
 
 				if (TryKeyReduction)
 				{
-					CompressWithUE4KeyReduction(Context, PerformExhaustiveDump, Writer);
+					CompressWithUEKeyReduction(Context, PerformExhaustiveDump, Writer);
 
-					ClearCompressedData(UE4Clip);
+					ClearCompressedData(UEClip);
 				}
 
-				UE4Clip->ResetAnimation();
+				ClearClip(UEClip);
 			}
 			else
 			{

@@ -18,7 +18,6 @@ namespace UnrealBuildTool.Rules
 
 			PublicSystemIncludePaths.Add(Path.Combine(ACLSDKDir, "acl/includes"));
 			PublicSystemIncludePaths.Add(Path.Combine(ACLSDKDir, "acl/external/rtm/includes"));
-			PublicSystemIncludePaths.Add(Path.Combine(ACLSDKDir, "acl/external/sjson-cpp/includes"));
 
 			PublicDependencyModuleNames.Add("Core");
 			PublicDependencyModuleNames.Add("CoreUObject");
