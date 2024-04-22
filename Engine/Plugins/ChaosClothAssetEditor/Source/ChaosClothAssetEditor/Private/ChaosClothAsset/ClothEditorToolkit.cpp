@@ -527,7 +527,7 @@ void FChaosClothAssetEditorToolkit::GetSaveableObjects(TArray<UObject*>& OutObje
 			FReferenceFinder ReferenceFinder(References);
 			DataflowAsset->Dataflow->AddReferencedObjects(ReferenceFinder);
 
-			for (UObject* const Reference : References)
+			for (UObject* const Reference : References) //-V1078
 			{
 				if (Reference->IsAsset())
 				{
