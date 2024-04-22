@@ -29,17 +29,13 @@ struct FHordeRemoteMachineInfo
 
 // This encapsulates the mechanism of talking to the Horde "meta server". The server which
 // can grant us access to remote machines.
-class FUbaHordeMetaClient
+class FUbaHordeMetaClient final
 {
 public:
 	// We return the HttpResponse in case more information could be used out of it later.
 	using HordeMachinePromise = TPromise<TTuple<FHttpResponsePtr, FHordeRemoteMachineInfo>>;
 	
-	// Construct the client with a single URL that includes the protocol, IP address, and port in the common format "PROTOCOL://IP:PORT".
-	FUbaHordeMetaClient(const FStringView& HordeServerUrl, const FStringView& InOAuthProviderIdentifier);
-
-	// Local Horde server uses port 5000 by default.
-	FUbaHordeMetaClient(const FStringView& HordeServerIp, uint16 HordeServerPort, bool bInConnectWithAuthentication, const FStringView& OAuthProviderIdentifier);
+	FUbaHordeMetaClient() = default;
 
 	bool RefreshHttpClient();
 
@@ -56,8 +52,6 @@ public:
 private:
 	void ParseConfig(const FString& IniFilename, const FString& IniSection);
 
-	const FString ServerUrl;
-	const bool bConnectWithAuthentication;
+	FString ServerUrl;
 	TUniquePtr<FHordeHttpClient> HttpClient;
-	FString OAuthProviderIdentifier;
 };

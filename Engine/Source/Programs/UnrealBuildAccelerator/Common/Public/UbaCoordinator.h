@@ -10,9 +10,7 @@ namespace uba
 		const tchar* binariesDir = nullptr;
 
 		// TODO: This is very horde specific.. maybe all these parameters should be a string or something
-		const tchar* uri = nullptr;
 		const tchar* pool = nullptr;
-		const tchar* oidc = nullptr;
 		u32 maxCoreCount = 0;
 
 		bool logging = false;

@@ -72,9 +72,7 @@ namespace uba
 			cinfo.workDir = coordinatorWorkDir.data;
 			cinfo.binariesDir = binariesDir.data;
 
-			cinfo.uri = TC("https://horde-uri");
 			cinfo.pool = TC("PoolToUse");
-			cinfo.oidc = TC("Oidc");
 
 
 			cinfo.maxCoreCount = 400;

@@ -15,9 +15,7 @@ public:
 	UBACOORDINATORHORDE_API FUbaHordeAgentManager(const FString& InWorkingDir, const FString& BinariesPath);
 	UBACOORDINATORHORDE_API ~FUbaHordeAgentManager();
 
-	inline void SetUrl(const FString& InUrl) { Url = InUrl; }
 	inline void SetPool(const FString& InPool) { Pool = InPool; }
-	inline void SetOidc(const FString& InOidc) { Oidc = InOidc; }
 	inline void SetMaxCoreCount(uint32 Count) { MaxCores = Count; }
 
 	UBACOORDINATORHORDE_API void SetTargetCoreCount(uint32 Count);
@@ -44,9 +42,7 @@ private:
 	FString WorkingDir;
 	FString BinariesPath;
 
-	FString Url;
 	FString Pool;
-	FString Oidc;
 	uint32 MaxCores = 0;
 
 	TUniquePtr<FUbaHordeMetaClient> HordeMetaClient;
@@ -61,7 +57,7 @@ private:
 	TAtomic<uint32> TargetCoreCount;
 	TAtomic<uint32> EstimatedCoreCount;
 	TAtomic<uint32> ActiveCoreCount;
-	TAtomic<bool> AskForAgents;
+	TAtomic<bool> bAskForAgents;
 
 	AddClientCallback* m_callback = nullptr;
 	void* m_userData;

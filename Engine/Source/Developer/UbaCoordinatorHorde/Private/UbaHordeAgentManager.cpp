@@ -36,7 +36,7 @@ FUbaHordeAgentManager::FUbaHordeAgentManager(const FString& InWorkingDir, const 
 	,	TargetCoreCount(0)
 	,	EstimatedCoreCount(0)
 	,   ActiveCoreCount(0)
-	,	AskForAgents(true)
+	,	bAskForAgents(true)
 {
 }
 
@@ -55,14 +55,9 @@ void FUbaHordeAgentManager::SetTargetCoreCount(uint32 Count)
 {
 	TargetCoreCount = FMath::Min(MaxCores, Count);
 
-	if (Url.IsEmpty())
-	{
-		AskForAgents = false;
-	}
-
 	while (EstimatedCoreCount < TargetCoreCount)
 	{
-		if (!AskForAgents)
+		if (!bAskForAgents)
 		{
 			return;
 		}
@@ -223,7 +218,7 @@ void FUbaHordeAgentManager::ThreadAgent(FHordeAgentWrapper& Wrapper)
 				if (!CreateHordeBundleFromFile(*FilePath, *BundlePath))
 				{
 					UE_LOG(LogUbaHorde, Error, TEXT("Failed to create Horde bundle for: %s"), *FilePath);
-					AskForAgents = false;
+					bAskForAgents = false;
 					return;
 				}
 				UE_LOG(LogUbaHorde, Display, TEXT("Created Horde bundle for: %s"), *FilePath);
@@ -234,16 +229,16 @@ void FUbaHordeAgentManager::ThreadAgent(FHordeAgentWrapper& Wrapper)
 		if (!HordeMetaClient)
 		{
 			// Create Horde meta client right before we need it to make sure the CVar for the server URL has been read by now
-			HordeMetaClient = MakeUnique<FUbaHordeMetaClient>(Url, Oidc);
+			HordeMetaClient = MakeUnique<FUbaHordeMetaClient>();
 			if (!HordeMetaClient->RefreshHttpClient())
 			{
 				UE_LOG(LogUbaHorde, Error, TEXT("Failed to create HttpClient for UbaAgent"));
-				AskForAgents = false;
+				bAskForAgents = false;
 				return;
 			}
 		}
 
-		if (!AskForAgents)
+		if (!bAskForAgents)
 		{
 			return;
 		}

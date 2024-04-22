@@ -150,9 +150,7 @@ namespace uba
 		StringBuffer<128> listenIp;
 		StringBuffer<128> cacheHost;
 		TString coordinatorName;
-		TString coordinatorUri;
 		TString coordinatorPool;
-		TString coordinatorOidc;
 		u32 coordinatorMaxCoreCount = 400;
 		u16 port = DefaultPort;
 		u32 maxProcessCount = DefaultProcessorCount;
@@ -244,23 +242,11 @@ namespace uba
 					return PrintHelp(TC("-coordinator needs a value"));
 				coordinatorName = value.data;
 			}
-			else if (name.Equals(TC("-uri")))
-			{
-				if (value.IsEmpty())
-					return PrintHelp(TC("-uri needs a value"));
-				coordinatorUri = value.data;
-			}
 			else if (name.Equals(TC("-pool")))
 			{
 				if (value.IsEmpty())
 					return PrintHelp(TC("-pool needs a value"));
 				coordinatorPool = value.data;
-			}
-			else if (name.Equals(TC("-oidc")))
-			{
-				if (value.IsEmpty())
-					return PrintHelp(TC("-oidc needs a value"));
-				coordinatorOidc = value.data;
 			}
 			else if (name.Equals(TC("-maxcores")))
 			{
@@ -771,9 +757,7 @@ namespace uba
 			cinfo.binariesDir = binariesDir.data;
 
 			// TODO: This is very horde specific.. maybe all these parameters should be a string or something
-			cinfo.uri = coordinatorUri.c_str();
 			cinfo.pool = coordinatorPool.c_str();
-			cinfo.oidc = coordinatorOidc.c_str();
 			cinfo.maxCoreCount = 400;
 			cinfo.logging = true;
 			if (!coordinator.Create(logger, coordinatorName.c_str(), cinfo, networkBackend, networkServer))

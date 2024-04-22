@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "UbaHordeMetaClient.h"
+#include "Horde.h"
 #include "Serialization/JsonReader.h"
 #include "Serialization/JsonSerializer.h"
 #include "Misc/App.h"
@@ -8,52 +9,23 @@
 
 DEFINE_LOG_CATEGORY(LogUbaHorde);
 
-FUbaHordeMetaClient::FUbaHordeMetaClient(const FStringView& HordeServerUrl, const FStringView& InOAuthProviderIdentifier)
-	: ServerUrl(HordeServerUrl)
-	, bConnectWithAuthentication(HordeServerUrl.StartsWith(TEXT("https:")))
-	, OAuthProviderIdentifier(InOAuthProviderIdentifier)
-{
-}
-
-FUbaHordeMetaClient::FUbaHordeMetaClient(const FStringView& HordeServerIp, uint16 HordeServerPort, bool bInConnectWithAuthentication, const FStringView& InOAuthProviderIdentifier)
-	: ServerUrl(FString::Format(TEXT("{0}://{1}:{2}"), {(bInConnectWithAuthentication ? TEXT("https") : TEXT("http")), HordeServerIp, HordeServerPort}))
-	, bConnectWithAuthentication(bInConnectWithAuthentication)
-	, OAuthProviderIdentifier(InOAuthProviderIdentifier)
-{
-}
-
 bool FUbaHordeMetaClient::RefreshHttpClient()
 {
+	if (!FHorde::GetServerUrl(ServerUrl))
+	{
+		UE_LOG(LogUbaHorde, Warning, TEXT("Getting Horde server URL failed"));
+		return false;
+	}
+
 	// Try to connect to Horde with HTTP and v2 API
 	HttpClient = MakeUnique<FHordeHttpClient>(ServerUrl);
 
-	if (bConnectWithAuthentication)
+	if (!HttpClient->Login(FApp::IsUnattended()))
 	{
-		check(!OAuthProviderIdentifier.IsEmpty());
-		if (FApp::IsUnattended())
-		{
-			UE_LOG(LogUbaHorde, Display, TEXT("Logging in to Horde server with environment variable UE_HORDE_TOKEN: %s"), *ServerUrl);
-			if (HttpClient->LoginWithEnvironmentVariable())
-			{
-				return true;
-			}
-
-			// Fallback to OIDC login as some commandlets might add -Unattended implicitly, but not everyone has UE_HORDE_TOKEN environment variable available
-			UE_LOG(LogUbaHorde, Display, TEXT("Login attempt with environment variable failed; trying to login with OIDC: %s"), *ServerUrl);
-		}
-		else
-		{
-			UE_LOG(LogUbaHorde, Display, TEXT("Logging in to Horde server with OIDC: %s"), *ServerUrl);
-		}
-
-		if (HttpClient->LoginWithOidc(*OAuthProviderIdentifier, FApp::IsUnattended()))
-		{
-			return true;
-		}
-
 		UE_LOG(LogUbaHorde, Warning, TEXT("Login to Horde server [%s] failed"), *ServerUrl);
 		return false;
 	}
+
 	return true;
 }
 

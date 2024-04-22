@@ -354,25 +354,11 @@ void FUbaJobProcessor::StartUba()
 		HordeConfig.RemoveFromStart(TEXT("("));
 		HordeConfig.RemoveFromEnd(TEXT(")"));
 
-		FString Url;
-		if (FParse::Value(*HordeConfig, TEXT("Url="), Url))
-		{
-			UE_LOG(LogUbaController, Log, TEXT("Found UBA controller Url: \"%s\""), *Url);
-			HordeAgentManager->SetUrl(Url);
-		}
-
 		FString Pool;
 		if (FParse::Value(*HordeConfig, TEXT("Pool="), Pool))
 		{
 			UE_LOG(LogUbaController, Log, TEXT("Found UBA controller Pool: \"%s\""), *Pool);
 			HordeAgentManager->SetPool(Pool);
-		}
-
-		FString Oidc;
-		if (FParse::Value(*HordeConfig, TEXT("Oidc="), Oidc))
-		{
-			UE_LOG(LogUbaController, Log, TEXT("Found UBA controller Oidc: \"%s\""), *Oidc);
-			HordeAgentManager->SetOidc(Oidc);
 		}
 
 		uint32 MaxCores = 0;

@@ -69,9 +69,7 @@ extern "C"
 
 		auto coordinator = new CoordinatorHorde(info.workDir, info.binariesDir);
 		auto& m = coordinator->m_manager;
-		m.SetUrl(info.uri);
 		m.SetPool(info.pool);
-		m.SetOidc(info.oidc);
 		m.SetMaxCoreCount(info.maxCoreCount);
 
 		return coordinator;
