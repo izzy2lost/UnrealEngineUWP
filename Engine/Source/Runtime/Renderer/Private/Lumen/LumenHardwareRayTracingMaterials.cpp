@@ -131,18 +131,16 @@ void FDeferredShadingSceneRenderer::SetupLumenHardwareRayTracingHitGroupBuffer(F
 
 	FRDGUploadData<Lumen::FHitGroupRootConstants> HitGroupData(GraphBuilder, NumTotalSegments);
 
-	TArray<UE::Tasks::FTask, SceneRenderingAllocator> TaskList;
+	const uint32 NumTotalMeshCommands = View.VisibleRayTracingMeshCommands.Num();
 
+	if(NumTotalMeshCommands > 0)
 	{
 		const uint32 TargetCommandsPerTask = 512;
 
 		// Distribute work evenly to the available task graph workers based on NumTotalMeshCommands.
-		const uint32 NumTotalMeshCommands = View.VisibleRayTracingMeshCommands.Num();
 		const uint32 NumThreads = FMath::Min(FTaskGraphInterface::Get().GetNumWorkerThreads(), CVarRHICmdWidth.GetValueOnRenderThread());
 		const uint32 NumTasks = FMath::Min(NumThreads, FMath::DivideAndRoundUp(NumTotalMeshCommands, TargetCommandsPerTask));
 		const uint32 NumCommandsPerTask = FMath::DivideAndRoundUp(NumTotalMeshCommands, NumTasks);
-
-		TaskList.Reserve(NumTasks);
 
 		for (uint32 TaskIndex = 0; TaskIndex < NumTasks; ++TaskIndex)
 		{
@@ -150,7 +148,7 @@ void FDeferredShadingSceneRenderer::SetupLumenHardwareRayTracingHitGroupBuffer(F
 			const FVisibleRayTracingMeshCommand* MeshCommands = View.VisibleRayTracingMeshCommands.GetData() + FirstTaskCommandIndex;
 			const uint32 NumCommands = FMath::Min(NumCommandsPerTask, NumTotalMeshCommands - FirstTaskCommandIndex);
 
-			TaskList.Add(GraphBuilder.AddSetupTask([MeshCommands, NumCommands, HitGroupData, &SceneInitializer]()
+			GraphBuilder.AddSetupTask([MeshCommands, NumCommands, HitGroupData, &SceneInitializer]()
 				{
 					TRACE_CPUPROFILER_EVENT_SCOPE(BuildLumenHardwareRayTracingHitGroupDataTask);
 
@@ -166,7 +164,7 @@ void FDeferredShadingSceneRenderer::SetupLumenHardwareRayTracingHitGroupBuffer(F
 
 						HitGroupData[HitGroupIndex].UserData = CalculateLumenHardwareRayTracingUserData(MeshCommand);
 					}
-				}));
+				});
 		}
 	}
 	
