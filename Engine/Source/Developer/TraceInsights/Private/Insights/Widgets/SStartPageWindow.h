@@ -43,6 +43,8 @@ namespace TraceStoreColumns
 	static const FName AppName(TEXT("AppName"));
 	static const FName BuildConfig(TEXT("BuildConfig"));
 	static const FName BuildTarget(TEXT("BuildTarget"));
+	static const FName BuildBranch(TEXT("BuildBranch"));
+	static const FName BuildVersion(TEXT("BuildVersion"));
 	static const FName Size(TEXT("Size"));
 	static const FName Status(TEXT("Status"));
 }
@@ -306,6 +308,18 @@ protected:
 	virtual FText ValueToText(const bool InValue) const override;
 };
 
+class FTraceFilterByVersion : public FTraceFilterByStringSet
+{
+public:
+	FTraceFilterByVersion();
+
+protected:
+	virtual FString GetFilterValueForTrace(const FTraceViewModel& InTrace) const override
+	{
+		return InTrace.BuildVersion.ToString();
+	}
+};
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /** Implements the Trace Store window. */
@@ -424,6 +438,10 @@ private:
 	TSharedRef<SWidget> MakeBranchColumnHeaderMenu();
 	TSharedRef<SWidget> MakeBranchFilterMenu();
 	void BuildBranchFilterSubMenu(FMenuBuilder& InMenuBuilder);
+
+	TSharedRef<SWidget> MakeVersionColumnHeaderMenu();
+	TSharedRef<SWidget> MakeVersionFilterMenu();
+	void BuildVersionFilterSubMenu(FMenuBuilder& InMenuBuilder);
 
 	TSharedRef<SWidget> MakeSizeColumnHeaderMenu();
 	TSharedRef<SWidget> MakeSizeFilterMenu();
@@ -649,6 +667,7 @@ private:
 	TSharedPtr<FTraceFilterByBuildConfig> FilterByBuildConfig;
 	TSharedPtr<FTraceFilterByBuildTarget> FilterByBuildTarget;
 	TSharedPtr<FTraceFilterByBranch> FilterByBranch;
+	TSharedPtr<FTraceFilterByVersion> FilterByVersion;
 	TSharedPtr<FTraceFilterBySize> FilterBySize;
 	TSharedPtr<FTraceFilterByStatus> FilterByStatus;
 

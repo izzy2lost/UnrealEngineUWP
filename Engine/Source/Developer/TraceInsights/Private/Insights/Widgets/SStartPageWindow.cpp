@@ -210,6 +210,26 @@ public:
 					.ToolTip(STraceListRow::GetTraceTooltip())
 				];
 		}
+		else if (ColumnName == TraceStoreColumns::BuildBranch)
+		{
+			return SNew(SBox)
+				.Padding(FMargin(4.0f, 0.0f))
+				[
+					SNew(STextBlock)
+					.Text(this, &STraceListRow::GetTraceBranch)
+					.ToolTip(STraceListRow::GetTraceTooltip())
+				];
+		}
+		else if (ColumnName == TraceStoreColumns::BuildVersion)
+		{
+			return SNew(SBox)
+				.Padding(FMargin(4.0f, 0.0f))
+				[
+					SNew(STextBlock)
+					.Text(this, &STraceListRow::GetTraceBuildVersion)
+					.ToolTip(STraceListRow::GetTraceTooltip())
+				];
+		}
 		else if (ColumnName == TraceStoreColumns::Size)
 		{
 			return SNew(SBox)
@@ -804,11 +824,11 @@ public:
 			AddGridPanelRow(GridPanel, Row++, LOCTEXT("TraceTooltip_Platform", "Platform:"), &STraceListRow::GetTracePlatform);
 			AddGridPanelRow(GridPanel, Row++, LOCTEXT("TraceTooltip_AppName", "App Name:"), &STraceListRow::GetTraceAppName);
 			AddGridPanelRow(GridPanel, Row++, LOCTEXT("TraceTooltip_CommandLine", "Command Line:"), &STraceListRow::GetTraceCommandLine, &STraceListRow::GetTraceCommandLineHighlightText);
-			AddGridPanelRow(GridPanel, Row++, LOCTEXT("TraceTooltip_Branch", "Branch:"), &STraceListRow::GetTraceBranch);
-			AddGridPanelRow(GridPanel, Row++, LOCTEXT("TraceTooltip_BuildVersion", "Build Version:"), &STraceListRow::GetTraceBuildVersion);
-			AddGridPanelRow(GridPanel, Row++, LOCTEXT("TraceTooltip_Changelist", "Changelist:"), &STraceListRow::GetTraceChangelist, nullptr, &STraceListRow::TraceChangelistVisibility);
 			AddGridPanelRow(GridPanel, Row++, LOCTEXT("TraceTooltip_BuildConfig", "Build Config:"), &STraceListRow::GetTraceBuildConfiguration);
 			AddGridPanelRow(GridPanel, Row++, LOCTEXT("TraceTooltip_BuildTarget", "Build Target:"), &STraceListRow::GetTraceBuildTarget);
+			AddGridPanelRow(GridPanel, Row++, LOCTEXT("TraceTooltip_Branch", "Build Branch:"), &STraceListRow::GetTraceBranch);
+			AddGridPanelRow(GridPanel, Row++, LOCTEXT("TraceTooltip_BuildVersion", "Build Version:"), &STraceListRow::GetTraceBuildVersion);
+			AddGridPanelRow(GridPanel, Row++, LOCTEXT("TraceTooltip_Changelist", "Changelist:"), &STraceListRow::GetTraceChangelist, nullptr, &STraceListRow::TraceChangelistVisibility);
 			AddGridPanelRow(GridPanel, Row++, LOCTEXT("TraceTooltip_Timestamp", "Timestamp:"), &STraceListRow::GetTraceTimestampForTooltip);
 			AddGridPanelRow(GridPanel, Row++, LOCTEXT("TraceTooltip_Size", "File Size:"), &STraceListRow::GetTraceSizeForTooltip);
 			AddGridPanelRow(GridPanel, Row++, LOCTEXT("TraceTooltip_Status", "Status:"), &STraceListRow::GetTraceStatusForTooltip);
@@ -1171,6 +1191,15 @@ TSharedRef<SWidget> STraceStoreWindow::ConstructFiltersToolbar()
 			FSlateIcon(FInsightsStyle::GetStyleSetName(), "Icons.Filter.ToolBar"),
 			false);
 
+		// Filter by Version
+		ToolbarBuilder.AddComboButton(
+			FUIAction(),
+			FOnGetContent::CreateSP(this, &STraceStoreWindow::MakeVersionFilterMenu),
+			LOCTEXT("FilterByVersionText", "Version"),
+			LOCTEXT("FilterByVersionToolTip", "Filters the list of trace sessions by Version."),
+			FSlateIcon(FInsightsStyle::GetStyleSetName(), "Icons.Filter.ToolBar"),
+			false);
+
 		// Filter by Size
 		ToolbarBuilder.AddComboButton(
 			FUIAction(),
@@ -1325,6 +1354,38 @@ TSharedRef<SWidget> STraceStoreWindow::ConstructSessionsPanel()
 					SNew(STextBlock)
 					.Text(LOCTEXT("BuildTargetColumn", "Build Target"))
 					.ColorAndOpacity_Lambda([this] { return FilterByBuildTarget->IsEmpty() ? FLinearColor(0.5f, 0.5f, 0.5f, 1.0f) : FLinearColor(0.3f, 0.75f, 1.0f, 1.0f); })
+				]
+			]
+
+			+ SHeaderRow::Column(TraceStoreColumns::BuildBranch)
+			.FillWidth(0.2f)
+			.InitialSortMode(EColumnSortMode::Ascending)
+			.SortMode(this, &STraceStoreWindow::GetSortModeForColumn, TraceStoreColumns::BuildBranch)
+			.OnSort(this, &STraceStoreWindow::OnSortModeChanged)
+			.OnGetMenuContent(this, &STraceStoreWindow::MakeBranchColumnHeaderMenu)
+			[
+				SNew(SBox)
+				.VAlign(VAlign_Center)
+				[
+					SNew(STextBlock)
+					.Text(LOCTEXT("BranchColumn", "Build Branch"))
+					.ColorAndOpacity_Lambda([this] { return FilterByBranch->IsEmpty() ? FLinearColor(0.5f, 0.5f, 0.5f, 1.0f) : FLinearColor(0.3f, 0.75f, 1.0f, 1.0f); })
+				]
+			]
+
+			+ SHeaderRow::Column(TraceStoreColumns::BuildVersion)
+			.FillWidth(0.25f)
+			.InitialSortMode(EColumnSortMode::Ascending)
+			.SortMode(this, &STraceStoreWindow::GetSortModeForColumn, TraceStoreColumns::BuildVersion)
+			.OnSort(this, &STraceStoreWindow::OnSortModeChanged)
+			.OnGetMenuContent(this, &STraceStoreWindow::MakeVersionColumnHeaderMenu)
+			[
+				SNew(SBox)
+				.VAlign(VAlign_Center)
+				[
+					SNew(STextBlock)
+					.Text(LOCTEXT("BuildVersionColumn", "Build Version"))
+					.ColorAndOpacity_Lambda([this] { return FilterByVersion->IsEmpty() ? FLinearColor(0.5f, 0.5f, 0.5f, 1.0f) : FLinearColor(0.3f, 0.75f, 1.0f, 1.0f); })
 				]
 			]
 
@@ -3506,6 +3567,43 @@ void STraceStoreWindow::BuildBranchFilterSubMenu(FMenuBuilder& InMenuBuilder)
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
+TSharedRef<SWidget> STraceStoreWindow::MakeVersionColumnHeaderMenu()
+{
+	FSlateApplication::Get().CloseToolTip();
+
+	FMenuBuilder MenuBuilder(/*bInShouldCloseWindowAfterMenuSelection=*/true, nullptr);
+
+	MenuBuilder.BeginSection("Filter", LOCTEXT("ColumnHeaderMenuSection_VersionFilter", "Version Filter"));
+	BuildVersionFilterSubMenu(MenuBuilder);
+	MenuBuilder.EndSection();
+
+	return MenuBuilder.MakeWidget();
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+TSharedRef<SWidget> STraceStoreWindow::MakeVersionFilterMenu()
+{
+	FSlateApplication::Get().CloseToolTip();
+
+	FMenuBuilder MenuBuilder(/*bInShouldCloseWindowAfterMenuSelection=*/true, nullptr);
+
+	MenuBuilder.BeginSection("Filter", LOCTEXT("MenuSection_VersionFilter", "Version Filter"));
+	BuildVersionFilterSubMenu(MenuBuilder);
+	MenuBuilder.EndSection();
+
+	return MenuBuilder.MakeWidget();
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void STraceStoreWindow::BuildVersionFilterSubMenu(FMenuBuilder& InMenuBuilder)
+{
+	FilterByVersion->BuildMenu(InMenuBuilder, *this);
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
 TSharedRef<SWidget> STraceStoreWindow::MakeSizeColumnHeaderMenu()
 {
 	FSlateApplication::Get().CloseToolTip();
@@ -3928,6 +4026,13 @@ FText FTraceFilterByStatus::ValueToText(const bool InValue) const
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
+FTraceFilterByVersion::FTraceFilterByVersion()
+{
+	ToggleAllActionTooltip = LOCTEXT("FilterByVersion_ToggleAll_Tooltip", "Shows or hides all versions.");
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
 void STraceStoreWindow::FilterByNameSearchBox_OnTextChanged(const FText& InFilterText)
 {
 	FilterByName->SetRawFilterText(InFilterText);
@@ -3975,6 +4080,9 @@ void STraceStoreWindow::CreateFilters()
 	FilterByBranch = MakeShared<FTraceFilterByBranch>();
 	Filters->Add(FilterByBranch);
 
+	FilterByVersion = MakeShared<FTraceFilterByVersion>();
+	Filters->Add(FilterByVersion);
+
 	FilterBySize = MakeShared<FTraceFilterBySize>();
 	Filters->Add(FilterBySize);
 
@@ -4008,6 +4116,7 @@ void STraceStoreWindow::UpdateFiltering()
 		FilterByBuildConfig->IsEmpty() &&
 		FilterByBuildTarget->IsEmpty() &&
 		FilterByBranch->IsEmpty() &&
+		FilterByVersion->IsEmpty() &&
 		FilterBySize->IsEmpty() &&
 		FilterByStatus->IsEmpty())
 	{
@@ -4207,6 +4316,32 @@ void STraceStoreWindow::UpdateSorting()
 						A->Timestamp < B->Timestamp :
 						A->TargetType > B->TargetType;
 				});
+		}
+	}
+	else if (SortColumn == TraceStoreColumns::BuildBranch)
+	{
+		if (SortMode == EColumnSortMode::Ascending)
+		{
+			FilteredTraceViewModels.Sort([](const TSharedPtr<FTraceViewModel>& A, const TSharedPtr<FTraceViewModel>& B)
+				{ return A->Branch.CompareTo(B->Branch) < 0; });
+		}
+		else
+		{
+			FilteredTraceViewModels.Sort([](const TSharedPtr<FTraceViewModel>& A, const TSharedPtr<FTraceViewModel>& B)
+				{ return B->Branch.CompareTo(A->Branch) < 0; });
+		}
+	}
+	else if (SortColumn == TraceStoreColumns::BuildVersion)
+	{
+		if (SortMode == EColumnSortMode::Ascending)
+		{
+			FilteredTraceViewModels.Sort([](const TSharedPtr<FTraceViewModel>& A, const TSharedPtr<FTraceViewModel>& B)
+				{ return A->BuildVersion.CompareTo(B->BuildVersion) < 0; });
+		}
+		else
+		{
+			FilteredTraceViewModels.Sort([](const TSharedPtr<FTraceViewModel>& A, const TSharedPtr<FTraceViewModel>& B)
+				{ return B->BuildVersion.CompareTo(A->BuildVersion) < 0; });
 		}
 	}
 	else if (SortColumn == TraceStoreColumns::Size)
