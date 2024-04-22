@@ -11,6 +11,7 @@
 #include "Net/UnrealNetwork.h"
 #include "PhysicsProxy/SingleParticlePhysicsProxy.h"
 #include "Chaos/PhysicsObjectInternalInterface.h"
+#include "Net/Core/PushModel/PushModel.h"
 
 #if UE_WITH_IRIS
 #include "Iris/ReplicationState/PropertyNetSerializerInfoRegistry.h"
@@ -22,11 +23,11 @@ namespace PhysicsReplicationCVars
 {
 	namespace ResimulationCVars
 	{
-		static bool bAllowRewindToClosestState = true;
+		bool bAllowRewindToClosestState = true;
 		static FAutoConsoleVariableRef CVarResimAllowRewindToClosestState(TEXT("np2.Resim.AllowRewindToClosestState"), bAllowRewindToClosestState, TEXT("When rewinding to a specific frame, if the client doens't have state data for that frame, use closest data available. Only affects the first rewind frame, when FPBDRigidsEvolution is set to Reset."));
-		static bool bCompareStateToTriggerRewind = false;
+		bool bCompareStateToTriggerRewind = false;
 		static FAutoConsoleVariableRef CVarResimCompareStateToTriggerRewind(TEXT("np2.Resim.CompareStateToTriggerRewind"), bCompareStateToTriggerRewind, TEXT("When true, cache local players custom state struct in rewind history and compare the predicted state with incoming server state to trigger resimulations if they differ, comparison done through FNetworkPhysicsData::CompareData"));
-		static bool bCompareInputToTriggerRewind = false;
+		bool bCompareInputToTriggerRewind = false;
 		static FAutoConsoleVariableRef CVarResimCompareInputToTriggerRewind(TEXT("np2.Resim.CompareInputToTriggerRewind"), bCompareInputToTriggerRewind, TEXT("When true, compare local players predicted inputs with incoming server inputs to trigger resimulations if they differ, comparison done through FNetworkPhysicsData::CompareData."));
 	}
 }
@@ -391,8 +392,14 @@ UNetworkPhysicsComponent::UNetworkPhysicsComponent() : Super()
 
 void UNetworkPhysicsComponent::InitPhysics()
 {
-	bCompareStateToTriggerRewind = PhysicsReplicationCVars::ResimulationCVars::bCompareStateToTriggerRewind;
-	bCompareInputToTriggerRewind = PhysicsReplicationCVars::ResimulationCVars::bCompareInputToTriggerRewind;
+	if (const IConsoleVariable* CVarCompareInputToTriggerRewind = IConsoleManager::Get().FindConsoleVariable(TEXT("np2.Resim.CompareInputToTriggerRewind")))
+	{
+		bCompareInputToTriggerRewind = CVarCompareInputToTriggerRewind->GetBool();
+	}
+	if (const IConsoleVariable* CVarCompareStateToTriggerRewind = IConsoleManager::Get().FindConsoleVariable(TEXT("np2.Resim.CompareStateToTriggerRewind")))
+	{
+		bCompareStateToTriggerRewind = CVarCompareStateToTriggerRewind->GetBool();
+	}
 
 	AActor* Owner = GetOwner();
 	if (Owner)
@@ -401,8 +408,8 @@ void UNetworkPhysicsComponent::InitPhysics()
 		{
 			InputRedundancy = PhysicsSettings->ResimulationSettings.bOverrideRedundantInputs ? PhysicsSettings->ResimulationSettings.RedundantInputs : InputRedundancy;
 			StateRedundancy = PhysicsSettings->ResimulationSettings.bOverrideRedundantStates ? PhysicsSettings->ResimulationSettings.RedundantStates : StateRedundancy;
-			bCompareStateToTriggerRewind = PhysicsSettings->ResimulationSettings.GetCompareStateToTriggerRewind(PhysicsReplicationCVars::ResimulationCVars::bCompareStateToTriggerRewind);
-			bCompareInputToTriggerRewind = PhysicsSettings->ResimulationSettings.GetCompareInputToTriggerRewind(PhysicsReplicationCVars::ResimulationCVars::bCompareInputToTriggerRewind);
+			bCompareInputToTriggerRewind = PhysicsSettings->ResimulationSettings.GetCompareInputToTriggerRewind(bCompareInputToTriggerRewind);
+			bCompareStateToTriggerRewind = PhysicsSettings->ResimulationSettings.GetCompareStateToTriggerRewind(bCompareStateToTriggerRewind);
 		}
 
 		FRepMovement& RepMovement = Owner->GetReplicatedMovement_Mutable();
@@ -420,9 +427,6 @@ void UNetworkPhysicsComponent::InitPhysics()
 	bWantsInitializeComponent = true;
 	SetIsReplicatedByDefault(true);
 	SetAsyncPhysicsTickEnabled(true);
-
-	StateOffsets.SetNumZeroed(StateRedundancy + 1);
-	InputOffsets.SetNumZeroed(InputRedundancy + 1);
 }
 
 void UNetworkPhysicsComponent::BeginPlay()
@@ -483,8 +487,13 @@ void UNetworkPhysicsComponent::GetLifetimeReplicatedProps(TArray< FLifetimePrope
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 
-	DOREPLIFETIME_CONDITION_NOTIFY(UNetworkPhysicsComponent, ReplicatedInputs, COND_None, REPNOTIFY_Always);
-	DOREPLIFETIME_CONDITION_NOTIFY(UNetworkPhysicsComponent, ReplicatedStates, COND_None, REPNOTIFY_Always);
+	FDoRepLifetimeParams ReplicatedParams;
+	ReplicatedParams.Condition = COND_None;
+	ReplicatedParams.RepNotifyCondition = REPNOTIFY_OnChanged;
+	ReplicatedParams.bIsPushBased = true;
+
+	DOREPLIFETIME_WITH_PARAMS_FAST(UNetworkPhysicsComponent, ReplicatedInputs, ReplicatedParams);
+	DOREPLIFETIME_WITH_PARAMS_FAST(UNetworkPhysicsComponent, ReplicatedStates, ReplicatedParams);
 }
 
 void UNetworkPhysicsComponent::AsyncPhysicsTickComponent(float DeltaTime, float SimTime)
@@ -521,10 +530,6 @@ void UNetworkPhysicsComponent::AsyncPhysicsTickComponent(float DeltaTime, float 
 
 				// Replicate states across the network
 				SendStateData();
-
-				// Advance the NetworkIndex
-				InputIndex = (InputIndex + 1) % (InputRedundancy + 1);
-				StateIndex = (StateIndex + 1) % (StateRedundancy + 1);
 			}
 		}
 	}
@@ -532,7 +537,8 @@ void UNetworkPhysicsComponent::AsyncPhysicsTickComponent(float DeltaTime, float 
 
 void UNetworkPhysicsComponent::SendInputData()
 {
-	if (IsLocallyControlled() && InputHistory)
+	// Inputs are sent from the server or locally controlled actors/pawns
+	if (InputHistory && (IsLocallyControlled() || HasServerWorld()))
 	{
 		const APlayerController* PlayerController = GetPlayerController();
 		if (!PlayerController)
@@ -540,19 +546,22 @@ void UNetworkPhysicsComponent::SendInputData()
 			PlayerController = GetWorld()->GetFirstPlayerController();
 		}
 
-		// We just check that the local client to server offset is valid before doing something
-		if (PlayerController && (HasServerWorld() || PlayerController->GetNetworkPhysicsTickOffsetAssigned()))
+		// Check that client and server have synced the physics tick offset
+		if (PlayerController && PlayerController->GetNetworkPhysicsTickOffsetAssigned())
 		{
 			const int32 LocalOffset = HasServerWorld() ? 0 : PlayerController->GetNetworkPhysicsTickOffset();
-			const int32 NextIndex = (InputIndex + 1) % (InputRedundancy + 1);
 
-			// if on server (Listen server) we should send the inputs onto all the clients through repnotify
-			ReplicatedInputs.History = InputHistory->CopyFramesWithOffset(InputOffsets[NextIndex], InputOffsets[InputIndex], LocalOffset);
-			
+			// Send latest N frames from history
+			const int32 ToFrame = InputHistory->GetLatestFrame() + 1; // ToFrame is excluded so add 1.
+			const int32 FromFrame = ToFrame - InputRedundancy;
+
+			ReplicatedInputs.History = InputHistory->CopyFramesWithOffset(FromFrame, ToFrame, LocalOffset);
+			MARK_PROPERTY_DIRTY_FROM_NAME(UNetworkPhysicsComponent, ReplicatedInputs, this);
+
 			if (!HasServerWorld())
 			{
 #if DEBUG_NETWORK_PHYSICS
-				FAsyncPhysicsTimestamp Timestamp = PlayerController->GetPhysicsTimestamp();
+				FAsyncPhysicsTimestamp Timestamp = const_cast<APlayerController*>(PlayerController)->GetPhysicsTimestamp();
 
 				TArray<int32> LocalFrames, ServerFrames, InputFrames;
 				PRAGMA_DISABLE_DEPRECATION_WARNINGS // TODO: Change to DebugData() in UE 5.6 and remove deprecation pragma
@@ -579,10 +588,13 @@ void UNetworkPhysicsComponent::SendStateData()
 {
 	if (HasServerWorld() && StateHistory)
 	{
-		const int32 NextIndex = (StateIndex + 1) % (StateRedundancy + 1);
+		// Send latest N frames from history
+		const int32 ToFrame = StateHistory->GetLatestFrame() + 1; // ToFrame is excluded so add 1.
+		const int32 FromFrame = ToFrame - StateRedundancy;
 
 		// if on server we should send the states onto all the clients through repnotify
-		ReplicatedStates.History = StateHistory->CopyFramesWithOffset(StateOffsets[NextIndex], StateOffsets[StateIndex], 0);
+		ReplicatedStates.History = StateHistory->CopyFramesWithOffset(FromFrame, ToFrame, 0);
+		MARK_PROPERTY_DIRTY_FROM_NAME(UNetworkPhysicsComponent, ReplicatedStates, this);
 	}
 }
 
@@ -720,7 +732,7 @@ void UNetworkPhysicsComponent::OnRep_SetReplicatedInputs()
 				TSharedPtr<Chaos::FBaseRewindHistory> ReceivedInputs = MakeShareable(ReplicatedInputs.History->Clone().Release());
 				PhysScene->EnqueueAsyncPhysicsCommand(0, this, [this, PhysScene, ReceivedInputs, LocalOffset]()
 				{
-						if (bCompareInputToTriggerRewind)
+						if (bCompareInputToTriggerRewind && IsLocallyControlled())
 						{
 							int32 ResimFrame = InputHistory->ReceiveNewData(*ReceivedInputs, LocalOffset, /*CompareDataForRewind*/ bCompareInputToTriggerRewind);
 							if (ResimFrame != INDEX_NONE)
@@ -782,21 +794,18 @@ void UNetworkPhysicsComponent::ServerReceiveInputData_Implementation(const FNetw
 	{ 
 		// We could probably skip that test since the server RPC is on server
 		ensure(HasServerWorld());
-
-		// Record the received inputs from the client into the history for future use
-		ReplicatedInputs.History = ClientInputs.History->Clone();
-
-		// Validate data in the received inputs
-		ReplicatedInputs.History->ValidateDataInHistory(ActorComponent);
-
+		
 		if (UWorld* World = GetWorld())
 		{
 			if (FPhysScene* PhysScene = World->GetPhysicsScene())
 			{
 				// Make another copy of the client inputs for the physics thread to consume
-				TSharedPtr<Chaos::FBaseRewindHistory> ReceivedInputs = MakeShareable(ReplicatedInputs.History->Clone().Release());
+				TSharedPtr<Chaos::FBaseRewindHistory> ReceivedInputs = MakeShareable(ClientInputs.History->Clone().Release());
 				PhysScene->EnqueueAsyncPhysicsCommand(0, this, [this, ReceivedInputs, PhysScene]()
 				{
+					// Validate data in the received inputs
+					ReceivedInputs->ValidateDataInHistory(ActorComponent);
+
 					PRAGMA_DISABLE_DEPRECATION_WARNINGS // TODO: Change to ReceiveNewData() in UE 5.6 and remove deprecation pragma
 					InputHistory->ReceiveNewDatas(*ReceivedInputs, 0);
 					PRAGMA_ENABLE_DEPRECATION_WARNINGS
@@ -837,7 +846,7 @@ void UNetworkPhysicsComponent::OnPreProcessInputsInternal(const int32 PhysicsSte
 	}
 #endif
 
-	if (InputHistory && StateHistory && ActorComponent)
+	if (ActorComponent)
 	{ 
 		bool bIsSolverReset = false;
 		bool bIsSolverResim = false;
@@ -851,11 +860,28 @@ void UNetworkPhysicsComponent::OnPreProcessInputsInternal(const int32 PhysicsSte
 			}
 		}
 
+		// Apply replicated state on clients if we are resimulating
+		if (StateHistory && !HasServerWorld() && bIsSolverResim)
+		{
+			FNetworkPhysicsData* PhysicsData = StateData.Get();
+			PhysicsData->LocalFrame = PhysicsStep;
+#if DEBUG_NETWORK_PHYSICS
+			UE_LOG(LogChaos, Log, TEXT("		Extracting history states at frame %d | Component = %s"), PhysicsStep, *GetFullName());
+#endif
+			const bool bExactFrame = PhysicsReplicationCVars::ResimulationCVars::bAllowRewindToClosestState ? !bIsSolverReset : true;
+			PRAGMA_DISABLE_DEPRECATION_WARNINGS // TODO: Change to ExtractData() in UE 5.6 and remove deprecation pragma
+			if (StateHistory->ExtractDatas(PhysicsStep, bIsSolverReset, PhysicsData, bExactFrame) && PhysicsData->bReceivedData)
+			PRAGMA_ENABLE_DEPRECATION_WARNINGS
+			{
+				PhysicsData->ApplyData(ActorComponent);
+			}
+		}
+
 		// Apply replicated inputs on server and simulated proxies (and on local player if we are resimulating)
-		if (!IsLocallyControlled() || bIsSolverResim)
+		if (InputHistory && (!IsLocallyControlled() || bIsSolverResim))
 		{
 			FNetworkPhysicsData* PhysicsData = InputData.Get();
-			const int32 ExpectedInputFrame = PhysicsData->LocalFrame + 1;
+			const int32 NextExpectedLocalFrame = PhysicsData->LocalFrame + 1;
 			PhysicsData->LocalFrame = PhysicsStep;
 
 	#if DEBUG_NETWORK_PHYSICS
@@ -876,28 +902,11 @@ void UNetworkPhysicsComponent::OnPreProcessInputsInternal(const int32 PhysicsSte
 					}
 				}
 				// Merge all inputs since last used input, if not resimulating
-				else if (PhysicsData->LocalFrame > ExpectedInputFrame)
+				else if (PhysicsData->LocalFrame > NextExpectedLocalFrame)
 				{
-					InputHistory->MergeData(ExpectedInputFrame, PhysicsData);
+					InputHistory->MergeData(NextExpectedLocalFrame, PhysicsData);
 				}
 
-				PhysicsData->ApplyData(ActorComponent);
-			}
-		}
-
-		// Apply replicated state on clients if we are resimulating
-		if (!HasServerWorld() && bIsSolverResim)
-		{
-			FNetworkPhysicsData* PhysicsData = StateData.Get();
-			PhysicsData->LocalFrame = PhysicsStep;
-	#if DEBUG_NETWORK_PHYSICS
-			UE_LOG(LogChaos, Log, TEXT("		Extracting history states at frame %d | Component = %s"), PhysicsStep, *GetFullName());
-	#endif
-			const bool bExactFrame = PhysicsReplicationCVars::ResimulationCVars::bAllowRewindToClosestState ? !bIsSolverReset : true;
-			PRAGMA_DISABLE_DEPRECATION_WARNINGS // TODO: Change to ExtractData() in UE 5.6 and remove deprecation pragma
-			if (StateHistory->ExtractDatas(PhysicsStep, bIsSolverReset, PhysicsData, bExactFrame) && PhysicsData->bReceivedData)
-			PRAGMA_ENABLE_DEPRECATION_WARNINGS
-			{
 				PhysicsData->ApplyData(ActorComponent);
 			}
 		}
@@ -919,7 +928,7 @@ void UNetworkPhysicsComponent::OnPostProcessInputsInternal(const int32 PhysicsSt
 	}
 #endif
 
-	if (InputHistory && StateHistory && ActorComponent)
+	if (InputHistory && ActorComponent)
 	{
 		if (FPhysScene* PhysScene = GetWorld()->GetPhysicsScene())
 		{
@@ -948,7 +957,6 @@ void UNetworkPhysicsComponent::OnPostProcessInputsInternal(const int32 PhysicsSt
 
 			PhysicsData->BuildData(ActorComponent);
 
-			InputOffsets[InputIndex] = FMath::Max(InputOffsets[InputIndex], PhysicsStep + 1);
 			PRAGMA_DISABLE_DEPRECATION_WARNINGS // TODO: Change to RecordData() in UE 5.6 and remove deprecation pragma
 			InputHistory->RecordDatas(PhysicsStep, PhysicsData);
 			PRAGMA_ENABLE_DEPRECATION_WARNINGS
@@ -960,7 +968,7 @@ void UNetworkPhysicsComponent::OnPostProcessInputsInternal(const int32 PhysicsSt
 
 		const bool bIsServer = HasServerWorld();
 		const bool bShouldCacheStateHistory = bIsServer || (bCompareStateToTriggerRewind && bShouldCacheInputHistory);
-		if (bShouldCacheStateHistory)
+		if (StateHistory && bShouldCacheStateHistory)
 		{
 			// Compute of the local frame coming from the client that was used to generate this state
 			int32 InputFrame = INDEX_NONE;
@@ -982,7 +990,6 @@ void UNetworkPhysicsComponent::OnPostProcessInputsInternal(const int32 PhysicsSt
 
 			PhysicsData->BuildData(ActorComponent);
 
-			StateOffsets[StateIndex] = FMath::Max(StateOffsets[StateIndex], PhysicsStep + 1);
 			PRAGMA_DISABLE_DEPRECATION_WARNINGS // TODO: Change to RecordData() in UE 5.6 and remove deprecation pragma
 			StateHistory->RecordDatas(PhysicsStep, PhysicsData);
 			PRAGMA_ENABLE_DEPRECATION_WARNINGS
@@ -1044,7 +1051,7 @@ bool UNetworkPhysicsComponent::HasLocalController() const
 
 bool UNetworkPhysicsComponent::IsLocallyControlled() const
 {
-	if (bIsRelayingLocalInputs && !GetWorld()->IsNetMode(NM_DedicatedServer))
+	if (bIsRelayingLocalInputs)
 	{
 		return true;
 	}
@@ -1107,7 +1114,10 @@ void UNetworkPhysicsComponent::AddDataHistory()
 			if (Chaos::FRewindData* RewindData = Solver->GetRewindData())
 			{
 				RewindData->AddInputHistory(InputHistory);
-				RewindData->AddStateHistory(StateHistory);
+				if (StateHistory)
+				{
+					RewindData->AddStateHistory(StateHistory);
+				}
 			}
 		}
 	}

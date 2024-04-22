@@ -525,7 +525,7 @@ public:
 	// Unregister the component from the network manager
 	ENGINE_API virtual void UninitializeComponent() override;
 
-	// Register and create the states/inputs history
+	/** Register and create both state and input to be both networked and cached in history */
 	template<typename PhysicsTraits>
 	void CreateDataHistory(UActorComponent* HistoryComponent);
 	
@@ -533,7 +533,12 @@ public:
 	UE_DEPRECATED(5.4, "Deprecated, use CreateDataHistory() instead")
 	void CreateDatasHistory(UActorComponent* HistoryComponent);
 	
-	
+	/**  Register and create input history
+	* Please use CreateDataHistory() if both input and custom state are supposed to be networked and cached in history.
+	* NOTE: Registering Input without State requires networking push-model to be enabled to take advantage of all the CPU and Network Bandwidth savings, CVar: Net.IsPushModelEnabled 1 */
+	template<class InputsType>
+	void CreateInputHistory(UActorComponent* HistoryComponent);
+
 
 	// Remove state/input history from rewind data
 	ENGINE_API void RemoveDataHistory();
@@ -623,20 +628,8 @@ private:
 	// Send last N number of inputs each replication call to patch up holes due to packet loss
 	int8 InputRedundancy = 3;
 
-	// Current index used in the inputs offsets
-	int8 InputIndex = 0;
-
-	// Input offsets defined on PT based on the newly recorded input data
-	TArray<int32> InputOffsets;
-
 	// Send last N number of states each replication call to patch up holes due to packet loss
 	int8 StateRedundancy = 1;
-
-	// Current index used in the states offsets
-	int8 StateIndex = 0;
-
-	// State offsets defined on PT based on the newly recorded state data
-	TArray<int32> StateOffsets;
 
 	// Actor component that will be used to fill the histories
 	TObjectPtr<UActorComponent> ActorComponent;
@@ -685,3 +678,24 @@ FORCEINLINE void UNetworkPhysicsComponent::CreateDataHistory(UActorComponent* Hi
 	
 	AddDataHistory();
 }
+
+template<class InputsType>
+FORCEINLINE void UNetworkPhysicsComponent::CreateInputHistory(UActorComponent* HistoryComponent)
+{
+	const int32 NumFrames = SetupRewindData();
+
+	APlayerController* Controller = GetPlayerController();
+	const bool bIsLocalHistory = (Controller && Controller->IsLocalController()); // FIXME: The controller is null at this point, but bIsLocalHistory isn't currently used so doesn't create an issue.
+
+	InputHistory = MakeShared<TNetRewindHistory<InputsType>>(NumFrames, bIsLocalHistory);
+
+	InputData = MakeUnique<InputsType>();
+
+	ReplicatedInputs.History = MakeUnique<TNetRewindHistory<InputsType>>(NumFrames, bIsLocalHistory);
+	ReplicatedInputs.Owner = this;
+
+	ActorComponent = HistoryComponent;
+
+	AddDataHistory();
+}
+
