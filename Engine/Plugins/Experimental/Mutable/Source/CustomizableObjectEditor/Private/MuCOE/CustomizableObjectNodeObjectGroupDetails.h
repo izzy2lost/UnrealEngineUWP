@@ -28,6 +28,8 @@ public:
 	/** Determines the visibility of the default value selector */
 	EVisibility DefaultValueSelectorVisibility() const;
 
+	FText DefaultValueComboBoxTooltip() const;
+
 private:
 
 	/** Pointer to the original group node */

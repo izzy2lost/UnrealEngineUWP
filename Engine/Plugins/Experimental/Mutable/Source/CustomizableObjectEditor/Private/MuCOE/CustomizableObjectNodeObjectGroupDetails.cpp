@@ -96,6 +96,7 @@ void FCustomizableObjectNodeObjectGroupDetails::CustomizeDetails(IDetailLayoutBu
 			.OnComboBoxOpening(this, &FCustomizableObjectNodeObjectGroupDetails::GenerateChildrenObjectNames)
 			.OnSelectionChanged(this, &FCustomizableObjectNodeObjectGroupDetails::OnSetDefaultValue)
 			.Font(DetailBuilder.GetDetailFont())
+			.ToolTipText(this, &FCustomizableObjectNodeObjectGroupDetails::DefaultValueComboBoxTooltip)
 		];
 	}
 }
@@ -106,9 +107,15 @@ void FCustomizableObjectNodeObjectGroupDetails::GenerateChildrenObjectNames()
 	ChildrenNameOptions.Reset();
 	InitialNameOption = nullptr;
 
+	// if needed add a None option and set it as the default value
 	if (NodeGroup->GroupType == ECustomizableObjectGroupType::COGT_ONE_OR_NONE)
 	{
 		ChildrenNameOptions.Add(MakeShareable(new FString("None")));
+		InitialNameOption = ChildrenNameOptions.Last();
+	}
+	else
+	{
+		ChildrenNameOptions.Add(MakeShareable(new FString("- Not Selected -")));
 		InitialNameOption = ChildrenNameOptions.Last();
 	}
 
@@ -164,11 +171,6 @@ void FCustomizableObjectNodeObjectGroupDetails::GenerateChildrenObjectNames()
 		}
 	}
 
-	if (ChildrenNameOptions.Num() && InitialNameOption == nullptr)
-	{
-		InitialNameOption = ChildrenNameOptions[0];
-	}
-
 	if (DefaultValueSelector.IsValid())
 	{
 		DefaultValueSelector->RefreshOptions();
@@ -194,6 +196,24 @@ EVisibility FCustomizableObjectNodeObjectGroupDetails::DefaultValueSelectorVisib
 	}
 
 	return EVisibility::Hidden;
+}
+
+
+FText FCustomizableObjectNodeObjectGroupDetails::DefaultValueComboBoxTooltip() const
+{
+	if (DefaultValueSelector.IsValid())
+	{
+		if (ChildrenNameOptions.Num() && DefaultValueSelector->GetSelectedItem() == ChildrenNameOptions[0] && NodeGroup->GroupType == ECustomizableObjectGroupType::COGT_ONE)
+		{
+			return FText::FromString("When nothing selected, the first compiled option will be used as the default value.");
+		}
+		else if (DefaultValueSelector->GetSelectedItem().IsValid())
+		{
+			return FText::FromString(*DefaultValueSelector->GetSelectedItem());
+		}
+	}
+
+	return FText();
 }
 
 #undef LOCTEXT_NAMESPACE
