@@ -33,11 +33,13 @@ void SDMMaterialWizard::Construct(const FArguments& InArgs, const TSharedRef<SDM
 {
 	EditorWeak = InEditor;
 
-	for (const TPair<FName, FDMMaterialChannelListPreset>& Preset : GetDefault<UDynamicMaterialEditorSettings>()->ChannelPresets)
+	if (const UDynamicMaterialEditorSettings* Settings = GetDefault<UDynamicMaterialEditorSettings>())
 	{
-		CurrentPreset = Preset.Key;
-		break;
-	}
+		if (!Settings->MaterialChannelPresets.IsEmpty())
+		{
+			CurrentPreset = Settings->MaterialChannelPresets[0].Name;
+		}
+	}	
 
 	ChildSlot
 		[
@@ -134,7 +136,7 @@ TSharedRef<SWidget> SDMMaterialWizard::CreateChannelPresets()
 		.InnerSlotPadding(WrapBoxSlotPadding)
 		.Orientation(EOrientation::Orient_Horizontal);
 
-	for (const TPair<FName, FDMMaterialChannelListPreset>& Preset : GetDefault<UDynamicMaterialEditorSettings>()->ChannelPresets)
+	for (const FDMMaterialChannelListPreset& Preset : GetDefault<UDynamicMaterialEditorSettings>()->MaterialChannelPresets)
 	{
 		ChannelPresets->AddSlot()
 			[
@@ -142,11 +144,11 @@ TSharedRef<SWidget> SDMMaterialWizard::CreateChannelPresets()
 					.Style(FAppStyle::Get(), "DetailsView.SectionButton")
 					.HAlign(EHorizontalAlignment::HAlign_Center)
 					.Padding(ButtonPadding)
-					.IsChecked(this, &SDMMaterialWizard::Preset_GetState, Preset.Key)
-					.OnCheckStateChanged(this, &SDMMaterialWizard::Preset_OnChange, Preset.Key)
+					.IsChecked(this, &SDMMaterialWizard::Preset_GetState, Preset.Name)
+					.OnCheckStateChanged(this, &SDMMaterialWizard::Preset_OnChange, Preset.Name)
 					[
 						SNew(STextBlock)
-						.Text(FText::FromName(Preset.Key))
+						.Text(FText::FromName(Preset.Name))
 					]
 			];
 	}
@@ -172,8 +174,7 @@ TSharedRef<SWidget> SDMMaterialWizard::CreateChannelList()
 		.InnerSlotPadding(WrapBoxSlotPadding)
 		.Orientation(EOrientation::Orient_Horizontal);
 
-
-	if (const FDMMaterialChannelListPreset* Preset = GetDefault<UDynamicMaterialEditorSettings>()->ChannelPresets.Find(CurrentPreset))
+	if (const FDMMaterialChannelListPreset* Preset = GetDefault<UDynamicMaterialEditorSettings>()->GetPresetByName(CurrentPreset))
 	{
 		for (const TPair<EDMMaterialPropertyType, UDMMaterialProperty*>& Property : ModelEditorOnlyData->GetMaterialProperties())
 		{

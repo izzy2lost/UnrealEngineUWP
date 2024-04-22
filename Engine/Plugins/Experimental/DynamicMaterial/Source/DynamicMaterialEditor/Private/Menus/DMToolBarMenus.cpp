@@ -78,15 +78,15 @@ namespace UE::DynamicMaterialEditor::Private
 	{
 		FToolMenuSection& NewSection = InMenu->AddSection("MaterialType", LOCTEXT("MaterialType", "Material Type"));
 
-		for (const TPair<FName, FDMMaterialChannelListPreset>& Preset : GetDefault<UDynamicMaterialEditorSettings>()->ChannelPresets)
+		for (const FDMMaterialChannelListPreset& Preset : GetDefault<UDynamicMaterialEditorSettings>()->MaterialChannelPresets)
 		{
 			FToolUIAction MaterialChannelListType;
-			MaterialChannelListType.ExecuteAction = FToolMenuExecuteAction::CreateStatic(&AddToolBarMaterialInstanceChannelListMenu_Execute, Preset.Key);
-			MaterialChannelListType.GetActionCheckState = FToolMenuGetActionCheckState::CreateStatic(&AddToolBarMaterialInstanceChannelListMenu_GetCheckState, Preset.Key);
+			MaterialChannelListType.ExecuteAction = FToolMenuExecuteAction::CreateStatic(&AddToolBarMaterialInstanceChannelListMenu_Execute, Preset.Name);
+			MaterialChannelListType.GetActionCheckState = FToolMenuGetActionCheckState::CreateStatic(&AddToolBarMaterialInstanceChannelListMenu_GetCheckState, Preset.Name);
 
 			NewSection.AddMenuEntry(
-				Preset.Key,
-				FText::FromName(Preset.Key),
+				Preset.Name,
+				FText::FromName(Preset.Name),
 				FText::GetEmpty(),
 				TAttribute<FSlateIcon>(),
 				FToolUIActionChoice(MaterialChannelListType),

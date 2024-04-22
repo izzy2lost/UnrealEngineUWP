@@ -34,6 +34,9 @@ struct FDMMaterialChannelListPreset
 {
 	GENERATED_BODY()
 
+	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Channel")
+	FName Name;
+
 	/** This cannot be disabled. It is here for illustrative purposes only. */
 	UPROPERTY(Config, VisibleAnywhere, BlueprintReadOnly, Category = "Channel")
 	bool bRGB = true;
@@ -192,12 +195,13 @@ public:
 	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Effects")
 	TArray<FName> CustomEffectsFolders;
 
-	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Channels")
-	TMap<FName, FDMMaterialChannelListPreset> ChannelPresets;
+	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Channels", meta = (TitleProperty = Name))
+	TArray<FDMMaterialChannelListPreset> MaterialChannelPresets;
 
 	FOnFinishedChangingProperties OnSettingsChanged;
 
 	//~ Begin UObject
+	virtual void PreEditChange(FEditPropertyChain& InPropertyAboutToChange) override;
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& InPropertyChangedEvent) override;
 	//~ End UObject
 
@@ -210,4 +214,11 @@ public:
 	TArray<FDMMaterialEffectList> GetEffectList() const;
 
 	UTexture* GetDefaultTextureForSlot(EDMMaterialPropertyType InProperty) const;
+
+	const FDMMaterialChannelListPreset* GetPresetByName(FName InName) const;
+
+private:
+	TArray<FName> PreEditPresetNames;
+
+	void EnsureUniqueChannelPresetNames();
 };

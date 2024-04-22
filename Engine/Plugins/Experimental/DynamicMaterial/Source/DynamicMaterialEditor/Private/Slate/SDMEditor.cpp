@@ -716,18 +716,22 @@ TSharedRef<SWidget> SDMEditor::CreateSlotPickerWidget()
 			]
 		];
 
-	const FDMMaterialChannelListPreset* Preset = GetDefault<UDynamicMaterialEditorSettings>()->ChannelPresets.Find(ModelEditorOnlyData->GetChannelListPreset());
+	const FDMMaterialChannelListPreset* Preset = GetDefault<UDynamicMaterialEditorSettings>()->GetPresetByName(ModelEditorOnlyData->GetChannelListPreset());
 	const bool bHasBaseColorSlot = !!ModelEditorOnlyData->GetSlotForMaterialProperty(EDMMaterialPropertyType::BaseColor);
 
 	UEnum* MaterialPropertyEnum = StaticEnum<EDMMaterialPropertyType>();
 
 	for (const TPair<EDMMaterialPropertyType, UDMMaterialProperty*>& Property : ModelEditorOnlyData->GetMaterialProperties())
 	{
-		// Always create base colour, not emissive - Will be sorted out by the button itself.
-		if (Property.Key == EDMMaterialPropertyType::EmissiveColor)
+		if (Property.Key == EDMMaterialPropertyType::BaseColor && ModelEditorOnlyData->GetShadingModel() == EDMMaterialShadingModel::Unlit)
 		{
 			continue;
 		}
+
+		if (Property.Key == EDMMaterialPropertyType::EmissiveColor && ModelEditorOnlyData->GetShadingModel() == EDMMaterialShadingModel::DefaultLit)
+		{
+			continue;
+		}		
 
 		// Always create opacity, not opacity mask - Will be sorted out by the button itself.
 		if (Property.Key == EDMMaterialPropertyType::OpacityMask)

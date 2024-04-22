@@ -1,8 +1,10 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "DynamicMaterialEditorSettings.h"
+
 #include "AssetRegistry/AssetData.h"
 #include "Components/DMMaterialComponent.h"
+#include "DynamicMaterialEditorModule.h"
 #include "Engine/AssetManager.h"
 #include "GenericPlatform/GenericApplication.h"
 #include "Interfaces/IPluginManager.h"
@@ -89,6 +91,7 @@ UDynamicMaterialEditorSettings::UDynamicMaterialEditorSettings()
 	OverriddenDefaultSlotTextures = {};
 
 	FDMMaterialChannelListPreset Opaque;
+	Opaque.Name = TEXT("Opaque");
 	Opaque.bRGB = true;
 	Opaque.bOpacity = false;
 	Opaque.DefaultBlendMode = BLEND_Opaque;
@@ -96,7 +99,17 @@ UDynamicMaterialEditorSettings::UDynamicMaterialEditorSettings()
 	Opaque.bDefaultAnimated = false;
 	Opaque.bDefaultTwoSided = true;
 
+	FDMMaterialChannelListPreset Emissive;
+	Emissive.Name = TEXT("Emissive");
+	Emissive.bRGB = true;
+	Emissive.bOpacity = false;
+	Emissive.DefaultBlendMode = BLEND_Opaque;
+	Emissive.DefaultShadingModel = EDMMaterialShadingModel::Unlit;
+	Emissive.bDefaultAnimated = false;
+	Emissive.bDefaultTwoSided = true;
+
 	FDMMaterialChannelListPreset Translucent;
+	Translucent.Name = TEXT("Translucent");
 	Translucent.bRGB = true;
 	Translucent.bOpacity = true;
 	Translucent.DefaultBlendMode = BLEND_Translucent;
@@ -105,6 +118,7 @@ UDynamicMaterialEditorSettings::UDynamicMaterialEditorSettings()
 	Translucent.bDefaultTwoSided = true;
 
 	FDMMaterialChannelListPreset PBR;
+	PBR.Name = TEXT("PBR");
 	PBR.bRGB = true;
 	PBR.bOpacity = true;
 	PBR.bMetallic = true;
@@ -118,6 +132,7 @@ UDynamicMaterialEditorSettings::UDynamicMaterialEditorSettings()
 	PBR.bDefaultTwoSided = true;
 
 	FDMMaterialChannelListPreset All;
+	All.Name = TEXT("All");
 	All.bRGB = true;
 	All.bOpacity = true;
 	All.bMetallic = true;
@@ -135,10 +150,11 @@ UDynamicMaterialEditorSettings::UDynamicMaterialEditorSettings()
 	All.bDefaultAnimated = false;
 	All.bDefaultTwoSided = true;
 
-	ChannelPresets.Add(TEXT("PBR"), PBR);
-	ChannelPresets.Add(TEXT("Opaque"), Opaque);
-	ChannelPresets.Add(TEXT("Translucent"), Translucent);
-	ChannelPresets.Add(TEXT("All"), All);		
+	MaterialChannelPresets.Add(PBR);
+	MaterialChannelPresets.Add(Opaque);
+	MaterialChannelPresets.Add(Emissive);
+	MaterialChannelPresets.Add(Translucent);
+	MaterialChannelPresets.Add(All);		
 }
 
 UDynamicMaterialEditorSettings* UDynamicMaterialEditorSettings::Get()
@@ -151,6 +167,19 @@ UDynamicMaterialEditorSettings* UDynamicMaterialEditorSettings::Get()
 		DefaultSettings->SetFlags(RF_Transactional);
 	}
 	return DefaultSettings;
+}
+
+void UDynamicMaterialEditorSettings::PreEditChange(FEditPropertyChain& InPropertyAboutToChange)
+{
+	Super::PreEditChange(InPropertyAboutToChange);
+
+	PreEditPresetNames.Empty();
+	PreEditPresetNames.Reserve(MaterialChannelPresets.Num());
+
+	for (const FDMMaterialChannelListPreset& Preset : MaterialChannelPresets)
+	{
+		PreEditPresetNames.Add(Preset.Name);
+	}
 }
 
 void UDynamicMaterialEditorSettings::PostEditChangeProperty(FPropertyChangedEvent& InPropertyChangedEvent)
@@ -181,6 +210,11 @@ void UDynamicMaterialEditorSettings::PostEditChangeProperty(FPropertyChangedEven
 		{
 			Component->MarkComponentDirty();
 		}
+	}
+
+	if (PropertyName == GET_MEMBER_NAME_CHECKED(UDynamicMaterialEditorSettings, MaterialChannelPresets))
+	{
+		EnsureUniqueChannelPresetNames();
 	}
 }
 
@@ -356,6 +390,124 @@ UTexture* UDynamicMaterialEditorSettings::GetDefaultTextureForSlot(EDMMaterialPr
 	}
 
 	return nullptr;
+}
+
+const FDMMaterialChannelListPreset* UDynamicMaterialEditorSettings::GetPresetByName(FName InName) const
+{
+	for (const FDMMaterialChannelListPreset& Preset : MaterialChannelPresets)
+	{
+		if (InName == Preset.Name)
+		{
+			return &Preset;
+		}
+	}
+
+	return nullptr;
+}
+
+void UDynamicMaterialEditorSettings::EnsureUniqueChannelPresetNames()
+{
+	// This is splitting the *text* portion of the FName, not the number part.
+	// So an FName might me Foo5_1 and this would return "Foo" and 5.
+	auto SplitName = [](FString InName, FString& OutName, int32& OutNumber)
+		{
+			const int32 NameLen = InName.Len();
+
+			for (int32 CharIndex = NameLen - 1; CharIndex >= 0; --CharIndex)
+			{
+				if (InName[CharIndex] >= '0' && InName[CharIndex] <= '9')
+				{
+					continue;
+				}
+
+				OutName = InName.Left(CharIndex + 1);
+
+				if (CharIndex < (NameLen - 1))
+				{
+					OutNumber = FCString::Atoi(*InName.Mid(CharIndex + 1));
+				}
+				else
+				{
+					OutNumber = 0;
+				}
+
+				return;
+			}
+
+			OutName = "";
+
+			// Every char was a digit.
+			if (NameLen > 0)
+			{
+				OutNumber = FCString::Atoi(*InName);
+			}
+			else
+			{
+				OutNumber = 0;
+			}
+		};
+
+	const int32 Count = MaterialChannelPresets.Num();
+
+	for (int32 IndexBase = 0; IndexBase < Count; ++IndexBase)
+	{
+		// Name hasn't changed, don't try to fix it
+		if (PreEditPresetNames.IsValidIndex(IndexBase) && PreEditPresetNames[IndexBase] == MaterialChannelPresets[IndexBase].Name)
+		{
+			continue;
+		}
+
+		for (int32 IndexCheck = 0; IndexCheck < Count; ++IndexCheck)
+		{
+			if (IndexCheck == IndexBase)
+			{
+				continue;
+			}
+
+			const bool bEqual = MaterialChannelPresets[IndexBase].Name.IsEqual(
+				MaterialChannelPresets[IndexCheck].Name,
+				ENameCase::IgnoreCase,
+				/* Check number */ false
+			);
+
+			if (!bEqual)
+			{
+				continue;
+			}
+
+			UE_LOG(LogDynamicMaterialEditor, Warning, TEXT("Duplicate channel list preset name detected."));
+
+			FString BaseName;
+			int32 NumberSuffix;
+			SplitName(MaterialChannelPresets[IndexBase].Name.GetPlainNameString(), BaseName, NumberSuffix);
+
+			if (NumberSuffix < 2)
+			{
+				NumberSuffix = 2;
+			}
+
+			for (int32 IndexSameNameCheck = 0; IndexSameNameCheck < Count; ++IndexSameNameCheck)
+			{
+				if (IndexSameNameCheck == IndexBase)
+				{
+					continue;
+				}
+
+				FString BaseNameCheck;
+				int32 NumberSuffixCheck;
+				SplitName(MaterialChannelPresets[IndexSameNameCheck].Name.GetPlainNameString(), BaseNameCheck, NumberSuffixCheck);
+
+				if (BaseNameCheck.Equals(BaseName, ESearchCase::IgnoreCase))
+				{
+					NumberSuffix = FMath::Max(NumberSuffix, NumberSuffixCheck + 1);
+				}
+			}
+
+			MaterialChannelPresets[IndexBase].Name = *(BaseName + FString::FromInt(NumberSuffix));
+		}
+	}
+
+	PreEditPresetNames.Empty();
 }
 
 #undef LOCTEXT_NAMESPACE

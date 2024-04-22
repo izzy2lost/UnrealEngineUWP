@@ -695,7 +695,7 @@ void UDynamicMaterialModelEditorOnlyData::SetChannelListPreset(FName InPresetNam
 {
 	ChannelListPreset = InPresetName;
 
-	const FDMMaterialChannelListPreset* Preset = GetDefault<UDynamicMaterialEditorSettings>()->ChannelPresets.Find(InPresetName);
+	const FDMMaterialChannelListPreset* Preset = GetDefault<UDynamicMaterialEditorSettings>()->GetPresetByName(InPresetName);
 
 	if (!Preset)
 	{
