@@ -1,7 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #include "MetasoundPinAudioInspector.h"
 
-#include "Analysis/MetasoundFrontendVertexAnalyzerAudioBuffer.h"
 #include "AudioBusSubsystem.h"
 #include "AudioDefines.h"
 #include "AudioDeviceManager.h"
@@ -57,20 +56,7 @@ namespace Metasound
 
 			Oscilloscope->StartProcessing();
 
-			// Set PatchInput from Oscilloscope AudioBus
-			const FAudioDeviceManager* AudioDeviceManager = FAudioDeviceManager::Get();
-			check(AudioDeviceManager);
-
-			const FMixerDevice* MixerDevice = static_cast<const FMixerDevice*>(AudioDeviceManager->GetAudioDeviceRaw(AudioDeviceId));
-			check(MixerDevice);
-
-			UAudioBusSubsystem* AudioBusSubsystem = MixerDevice->GetSubsystem<UAudioBusSubsystem>();
-			check(AudioBusSubsystem);
-
-			const uint32 AudioBusId = Oscilloscope->GetAudioBus()->GetUniqueID();
-			PatchInput = AudioBusSubsystem->AddPatchInputForAudioBus(FAudioBusKey(AudioBusId), MixerDevice->GetNumOutputFrames(), NumChannels);
-
-			// Track Audio Pin
+			// Analyze Audio Pin
 			if (GraphPinObj && !GraphPinObj->LinkedTo.IsEmpty() && GraphPinObj->PinType.PinCategory == FGraphBuilder::PinCategoryAudio)
 			{
 				if (FGraphConnectionManager* ConnectionManager = GetConnectionManager())
@@ -78,24 +64,21 @@ namespace Metasound
 					const Frontend::FConstOutputHandle OutputHandle = FGraphBuilder::FindReroutedOutputHandleFromPin(GraphPinObj);
 					const FGuid NodeID = OutputHandle->GetOwningNodeID();
 					const FName OutputName = OutputHandle->GetName();
-					const FName AnalyzerName = Frontend::FVertexAnalyzerAudioBuffer::GetAnalyzerName();
-
-					ConnectionManager->TrackAudioPin(NodeID, OutputName, AnalyzerName, PatchInput);
+					AnalyzerInstanceID = ConnectionManager->AddAudioBusWriter(NodeID, OutputName, AudioDeviceId, Oscilloscope->GetAudioBus());
 				}
 			}
 		}
 
 		FMetasoundPinAudioInspector::~FMetasoundPinAudioInspector()
 		{
-			// Untrack audio pin
-			if (FGraphConnectionManager* ConnectionManager = GetConnectionManager())
+			// Remove audio pin analyzer
+			if (AnalyzerInstanceID.IsValid())
 			{
-				const Frontend::FConstOutputHandle OutputHandle = FGraphBuilder::FindReroutedOutputHandleFromPin(GraphPinObj);
-				const FGuid NodeID = OutputHandle->GetOwningNodeID();
-				const FName OutputName = OutputHandle->GetName();
-				const FName AnalyzerName = Frontend::FVertexAnalyzerAudioBuffer::GetAnalyzerName();
-
-				ConnectionManager->UntrackAudioPin(NodeID, OutputName, AnalyzerName);
+				if (FGraphConnectionManager* ConnectionManager = GetConnectionManager())
+				{
+					ConnectionManager->RemoveAudioBusWriter(AnalyzerInstanceID);
+					AnalyzerInstanceID.Invalidate();
+				}
 			}
 
 			// Stop AudioBus

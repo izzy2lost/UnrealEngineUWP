@@ -14,6 +14,7 @@
 #include "MetasoundWaveTable.h"
 #include "Analysis/MetasoundFrontendAnalyzerRegistry.h"
 #include "Analysis/MetasoundFrontendVertexAnalyzerAudioBuffer.h"
+#include "Analysis/MetasoundFrontendVertexAnalyzerAudioBusWriter.h"
 #include "Analysis/MetasoundFrontendVertexAnalyzerEnvelopeFollower.h"
 #include "Analysis/MetasoundFrontendVertexAnalyzerForwardValue.h"
 #include "Analysis/MetasoundFrontendVertexAnalyzerTriggerDensity.h"
@@ -118,6 +119,7 @@ public:
 
 		// Register Analyzers
 		METASOUND_REGISTER_VERTEX_ANALYZER_FACTORY(Frontend::FVertexAnalyzerAudioBuffer)
+		METASOUND_REGISTER_VERTEX_ANALYZER_FACTORY(Frontend::FVertexAnalyzerAudioBusWriter)
 		METASOUND_REGISTER_VERTEX_ANALYZER_FACTORY(Frontend::FVertexAnalyzerEnvelopeFollower)
 		METASOUND_REGISTER_VERTEX_ANALYZER_FACTORY(Frontend::FVertexAnalyzerForwardBool)
 		METASOUND_REGISTER_VERTEX_ANALYZER_FACTORY(Frontend::FVertexAnalyzerForwardFloat)

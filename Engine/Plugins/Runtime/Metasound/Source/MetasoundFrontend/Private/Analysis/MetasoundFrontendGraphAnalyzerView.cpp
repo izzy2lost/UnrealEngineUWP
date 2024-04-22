@@ -110,9 +110,43 @@ namespace Metasound
 				}
 			});
 
-			TArray<FString> ActiveAnalyzerStrings;
-			Algo::Transform(ActiveAnalyzers, ActiveAnalyzerStrings, [](const FAnalyzerAddress& Address) { return Address.ToString(); });
-			ActiveAnalyzerSender->PushLiteral(MoveTemp(ActiveAnalyzerStrings));
+			SendActiveAnalyzers();
+		}
+
+		FGuid FMetasoundGraphAnalyzerView::AddAnalyzerForSpecifiedOutput(const FGuid& InNodeID, FVertexName InOutputName, FName InAnalyzerName, FName InAnalyzerMemberName)
+		{
+			const IVertexAnalyzerFactory* Factory = IVertexAnalyzerRegistry::Get().FindAnalyzerFactory(InAnalyzerName);
+			if (!Factory)
+			{
+				return {};
+			}
+
+			FAnalyzerAddress AnalyzerAddress;
+			AnalyzerAddress.DataType = Factory->GetDataType();
+			AnalyzerAddress.InstanceID = InstanceID;
+			AnalyzerAddress.NodeID = InNodeID;
+			AnalyzerAddress.OutputName = InOutputName;
+			AnalyzerAddress.AnalyzerName = InAnalyzerName;
+			AnalyzerAddress.AnalyzerInstanceID = FGuid::NewGuid();
+			AnalyzerAddress.AnalyzerMemberName = InAnalyzerMemberName;
+			ActiveAnalyzers.Add(AnalyzerAddress);
+
+			const TArray<FAnalyzerOutput>& AnalyzerOutputs = Factory->GetAnalyzerOutputs();
+			for (const FAnalyzerOutput& AnalyzerOutput : AnalyzerOutputs)
+			{
+				FAnalyzerAddress OutputReceiverAddress = AnalyzerAddress;
+				OutputReceiverAddress.AnalyzerMemberName = AnalyzerOutput.Name;
+				OutputReceiverAddress.DataType = AnalyzerOutput.DataType;
+
+				FMetasoundGraphAnalyzerOutputKey OutputKey{ AnalyzerAddress.NodeID, AnalyzerAddress.OutputName };
+				FMetasoundAnalyzerView NewView(MoveTemp(OutputReceiverAddress));
+				NewView.BindToAllOutputs(OperatorSettings);
+				AnalyzerViews.FindOrAdd(OutputKey).Add(MoveTemp(NewView));
+			}
+
+			SendActiveAnalyzers();
+
+			return AnalyzerAddress.AnalyzerInstanceID;
 		}
 
 		TArray<FMetasoundAnalyzerView*> FMetasoundGraphAnalyzerView::GetAnalyzerViews(FName InAnalyzerName)
@@ -221,15 +255,55 @@ namespace Metasound
 				}
 			}
 
-			TArray<FString> ActiveAnalyzerStrings;
-			Algo::Transform(ActiveAnalyzers, ActiveAnalyzerStrings, [] (const FAnalyzerAddress& Address) { return Address.ToString(); });
-			ActiveAnalyzerSender->PushLiteral(MoveTemp(ActiveAnalyzerStrings));
+			SendActiveAnalyzers();
+		}
+
+		void FMetasoundGraphAnalyzerView::RemoveAnalyzerInstance(FName InAnalyzerName, const FGuid& InAnalyzerInstanceID)
+		{
+			TArray<FMetasoundGraphAnalyzerOutputKey> OutputsToRemove;
+			for (TPair<FMetasoundGraphAnalyzerOutputKey, TArray<FMetasoundAnalyzerView>>& AnalyzerPair : AnalyzerViews)
+			{
+				TArray<FMetasoundAnalyzerView>& Views = AnalyzerPair.Value;
+				Views.RemoveAll([InAnalyzerName, InAnalyzerInstanceID](const FMetasoundAnalyzerView& View)
+					{
+						return View.AnalyzerAddress.AnalyzerName == InAnalyzerName && View.AnalyzerAddress.AnalyzerInstanceID == InAnalyzerInstanceID;
+					});
+
+				if (Views.IsEmpty())
+				{
+					OutputsToRemove.Add(AnalyzerPair.Key);
+				}
+			}
+
+			for (const FMetasoundGraphAnalyzerOutputKey& Key : OutputsToRemove)
+			{
+				AnalyzerViews.Remove(Key);
+			}
+
+			TArray<FAnalyzerAddress> AnalyzerAddresses = ActiveAnalyzers.Array();
+			for (const FAnalyzerAddress& AnalyzerAddress : AnalyzerAddresses)
+			{
+				if (AnalyzerAddress.AnalyzerName == InAnalyzerName && AnalyzerAddress.AnalyzerInstanceID == InAnalyzerInstanceID)
+				{
+					ActiveAnalyzers.Remove(AnalyzerAddress);
+					break;
+				}
+			}
+
+			SendActiveAnalyzers();
 		}
 
 		const FMetasoundAssetBase& FMetasoundGraphAnalyzerView::GetMetaSoundAssetChecked() const
 		{
 			check(MetaSoundAsset);
 			return *MetaSoundAsset;
+		}
+
+		void FMetasoundGraphAnalyzerView::SendActiveAnalyzers()
+		{
+			TArray<FString> ActiveAnalyzerStrings;
+			Algo::Transform(ActiveAnalyzers, ActiveAnalyzerStrings, [](const FAnalyzerAddress& Address) { return Address.ToString(); });
+			ActiveAnalyzerSender->PushLiteral(MoveTemp(ActiveAnalyzerStrings));
 		}
 	} // namespace Frontend
 } // namespace Metasound

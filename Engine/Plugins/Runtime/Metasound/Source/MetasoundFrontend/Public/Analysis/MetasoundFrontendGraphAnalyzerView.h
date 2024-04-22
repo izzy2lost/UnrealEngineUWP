@@ -27,6 +27,7 @@ namespace Metasound
 			TSet<FAnalyzerAddress> ActiveAnalyzers;
 
 			const FMetasoundAssetBase& GetMetaSoundAssetChecked() const;
+			void SendActiveAnalyzers();
 
 			uint64 InstanceID = INDEX_NONE;
 			const FMetasoundAssetBase* MetaSoundAsset = nullptr;
@@ -48,7 +49,9 @@ namespace Metasound
 			~FMetasoundGraphAnalyzerView();
 
 			void AddAnalyzerForAllSupportedOutputs(FName InAnalyzerName, bool bInRequiresConnection = true);
+			FGuid AddAnalyzerForSpecifiedOutput(const FGuid& InNodeID, FVertexName InOutputName, FName InAnalyzerName, FName InAnalyzerMemberName);
 			void RemoveAnalyzerForAllSupportedOutputs(FName InAnalyzerName);
+			void RemoveAnalyzerInstance(FName InAnalyzerName, const FGuid& InAnalyzerInstanceID);
 			TArray<FMetasoundAnalyzerView*> GetAnalyzerViews(FName InAnalyzerName);
 			TArray<const FMetasoundAnalyzerView*> GetAnalyzerViews(FName InAnalyzerName) const;
 			TArray<FMetasoundAnalyzerView*> GetAnalyzerViewsForOutput(const FGuid& InNodeID, FName InOutputName, FName InAnalyzerName);
