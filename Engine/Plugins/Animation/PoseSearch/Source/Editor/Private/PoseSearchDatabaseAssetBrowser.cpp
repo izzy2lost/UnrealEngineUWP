@@ -33,6 +33,10 @@ void SPoseSearchDatabaseAssetBrowser::Construct(const FArguments& InArgs, TShare
 			]
 		];
 
+	// Register to be notified when properties are edited. We leverage this to refresh the browser in case the target schema changes.
+	const FCoreUObjectDelegates::FOnObjectPropertyChanged::FDelegate OnPropertyChangedDelegate = FCoreUObjectDelegates::FOnObjectPropertyChanged::FDelegate::CreateRaw(this, &SPoseSearchDatabaseAssetBrowser::OnObjectPropertyChanged);
+	OnPropertyChangedHandle = FCoreUObjectDelegates::OnObjectPropertyChanged.Add(OnPropertyChangedDelegate);
+
 	RefreshView();
 }
 
@@ -51,7 +55,7 @@ void SPoseSearchDatabaseAssetBrowser::RefreshView()
 	AssetPickerConfig.bShowPathInColumnView = true;
 	AssetPickerConfig.bShowTypeInColumnView = false;
 	AssetPickerConfig.InitialThumbnailSize = EThumbnailSize::Small;
-	
+	AssetPickerConfig.RefreshAssetViewDelegates.Add(&RefreshAssetViewDelegate);
 	AssetPickerConfig.OnShouldFilterAsset = FOnShouldFilterAsset::CreateSP(this, &SPoseSearchDatabaseAssetBrowser::OnShouldFilterAsset);
 	AssetPickerConfig.OnAssetDoubleClicked = FOnAssetSelected::CreateSP(this, &SPoseSearchDatabaseAssetBrowser::OnAssetDoubleClicked);
 
@@ -71,6 +75,12 @@ void SPoseSearchDatabaseAssetBrowser::RefreshView()
 
 	FContentBrowserModule& ContentBrowserModule = FModuleManager::Get().LoadModuleChecked<FContentBrowserModule>(TEXT("ContentBrowser"));
 	AssetBrowserBox->SetContent(ContentBrowserModule.Get().CreateAssetPicker(AssetPickerConfig));
+}
+
+SPoseSearchDatabaseAssetBrowser::~SPoseSearchDatabaseAssetBrowser()
+{
+	// Unregister the property modification handler
+	FCoreUObjectDelegates::OnObjectPropertyChanged.Remove(OnPropertyChangedHandle);
 }
 
 void SPoseSearchDatabaseAssetBrowser::OnAssetDoubleClicked(const FAssetData& AssetData)
@@ -136,5 +146,19 @@ bool SPoseSearchDatabaseAssetBrowser::OnShouldFilterAsset(const FAssetData& Asse
 	
 	return true;
 }
-	
+
+void SPoseSearchDatabaseAssetBrowser::OnObjectPropertyChanged(UObject* InObject, FPropertyChangedEvent& InPropertyChangedEvent) const
+{
+	if (DatabaseViewModel)
+	{
+		if (const UPoseSearchDatabase* Database = DatabaseViewModel->GetPoseSearchDatabase())
+		{
+			// Only refresh asset browser if our target schema has changed.
+			if (Database->Schema && Database->Schema == InObject)
+			{
+				RefreshAssetViewDelegate.ExecuteIfBound(true);	
+			}
+		}
+	}
+}
 }
