@@ -3002,6 +3002,9 @@ public:
 	/** Default base pass depth stencil access used to cache mesh draw commands. */
 	FExclusiveDepthStencil::Type CachedDefaultBasePassDepthStencilAccess;
 
+	/** Previous frame SkyLight state. */
+	bool bCachedShouldRenderSkylightInBasePass;
+
 	/** True if a change to SkyLight / Lighting has occurred that requires static draw lists to be updated. */
 	bool bScenesPrimitivesNeedStaticMeshElementUpdate;
 
