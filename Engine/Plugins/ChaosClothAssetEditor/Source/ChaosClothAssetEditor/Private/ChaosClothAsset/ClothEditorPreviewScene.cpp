@@ -169,7 +169,7 @@ FChaosClothPreviewScene::~FChaosClothPreviewScene()
 	}
 
 	FCoreUObjectDelegates::OnPackageReloaded.Remove(OnPackageReloadedDelegateHandle);
-	FReimportManager::Instance()->OnPreReimport().Remove(OnPostReimportDelegateHandle);
+	FReimportManager::Instance()->OnPostReimport().Remove(OnPostReimportDelegateHandle);
 }
 
 void FChaosClothPreviewScene::AddReferencedObjects(FReferenceCollector& Collector)
