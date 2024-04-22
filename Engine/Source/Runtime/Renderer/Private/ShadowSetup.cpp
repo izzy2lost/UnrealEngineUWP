@@ -738,6 +738,7 @@ FProjectedShadowInfo::FProjectedShadowInfo()
 	, bDepthsCached(false)
 	, bDirectionalLight(false)
 	, bOnePassPointLightShadow(false)
+	, bVSM(false)
 	, bWholeSceneShadow(false)
 	, bTranslucentShadow(false)
 	, bRayTracedDistanceField(false)
@@ -1107,7 +1108,7 @@ void FProjectedShadowInfo::SetupClipmapProjection(FLightSceneInfo* InLightSceneI
 	bWholeSceneShadow = true;
 	BorderSize = 0;
 	MaxNonFarCascadeDistance = InMaxNonFarCascadeDistance;
-	MeshPassTargetType = EMeshPass::VSMShadowDepth;
+	bVSM = true;
 	MeshSelectionMask = EShadowMeshSelection::VSM;
 
 	const int32 ClipmapIndex = VirtualShadowMapClipmap->GetLevelCount() - 1;
@@ -1663,7 +1664,7 @@ void FProjectedShadowInfo::AddCachedMeshDrawCommands_AnyThread(
 	FAddSubjectPrimitiveStats& OutStats,
 	FAddSubjectPrimitiveOverflowedIndices& OverflowBuffer) const
 {
-	const EMeshPass::Type PassType = MeshPassTargetType;
+	const EMeshPass::Type PassType = GetTargetMeshPassType();
 	const EShadingPath ShadingPath = GetFeatureLevelShadingPath(Scene->GetFeatureLevel());
 	const bool bUseCachedMeshCommand = UseCachedMeshDrawCommands_AnyThread()
 		&& !!(FPassProcessorManager::GetPassFlags(ShadingPath, PassType) & EMeshPassFlags::CachedMeshCommands)
@@ -1774,66 +1775,57 @@ FORCEINLINE bool FProjectedShadowInfo::ShouldDrawStaticMesh(const FStaticMeshBat
 
 bool FProjectedShadowInfo::ShouldDrawStaticMeshes(FViewInfo& InCurrentView, FPrimitiveSceneInfo* InPrimitiveSceneInfo)
 {
-	bool WholeSceneDirectionalShadow = IsWholeSceneDirectionalShadow();
 	bool bDrawingStaticMeshes = false;
-	int32 PrimitiveId = InPrimitiveSceneInfo->GetIndex();
+	const int32 PrimitiveId = InPrimitiveSceneInfo->GetIndex();
 	const FMeshDrawCommandPrimitiveIdInfo PrimitiveIdInfo = InPrimitiveSceneInfo->GetMDCIdInfo();
+	const int32 ForcedLOD = (InCurrentView.Family->EngineShowFlags.LOD) ? (GetCVarForceLODShadow() != -1 ? GetCVarForceLODShadow() : GetCVarForceLOD()) : -1;
+	FLODMask ShadowLODToRender = CalcAndUpdateLODToRender(InCurrentView, InPrimitiveSceneInfo->Proxy->GetBounds(), InPrimitiveSceneInfo, ForcedLOD);
+	const EShadowDepthType ShadowDepthType = GetShadowDepthType();
+
+	// Don't cache if it requires per view per mesh state for distance cull fade.
+	const bool bIsPrimitiveDistanceCullFading = InCurrentView.PotentiallyFadingPrimitiveMap[PrimitiveId];
+	const bool bCanCache = !bIsPrimitiveDistanceCullFading;
+
+	if (bCanCache && UseCachedMeshDrawCommands(ShadowDepthType))
 	{
-		const int32 ForcedLOD = (InCurrentView.Family->EngineShowFlags.LOD) ? (GetCVarForceLODShadow() != -1 ? GetCVarForceLODShadow() : GetCVarForceLOD()) : -1;
-		FLODMask ShadowLODToRender = CalcAndUpdateLODToRender(InCurrentView, InPrimitiveSceneInfo->Proxy->GetBounds(), InPrimitiveSceneInfo, ForcedLOD);
+		const EMeshPass::Type MeshPassType = GetShadowMeshPassType(ShadowDepthType);
 
-		if (WholeSceneDirectionalShadow)
+		for (int32 MeshIndex = 0; MeshIndex < InPrimitiveSceneInfo->StaticMeshRelevances.Num(); MeshIndex++)
 		{
-			// Don't cache if it requires per view per mesh state for distance cull fade.
-			const bool bIsPrimitiveDistanceCullFading = InCurrentView.PotentiallyFadingPrimitiveMap[InPrimitiveSceneInfo->GetIndex()];
-			const bool bCanCache = !bIsPrimitiveDistanceCullFading;
+			const FStaticMeshBatchRelevance& StaticMeshRelevance = InPrimitiveSceneInfo->StaticMeshRelevances[MeshIndex];
+			const FStaticMeshBatch& StaticMesh = InPrimitiveSceneInfo->StaticMeshes[MeshIndex];
 
-			for (int32 MeshIndex = 0; MeshIndex < InPrimitiveSceneInfo->StaticMeshRelevances.Num(); MeshIndex++)
+			if (ShouldDrawStaticMesh(StaticMeshRelevance, ShadowLODToRender, bDrawingStaticMeshes))
 			{
-				const FStaticMeshBatchRelevance& StaticMeshRelevance = InPrimitiveSceneInfo->StaticMeshRelevances[MeshIndex];
-				const FStaticMeshBatch& StaticMesh = InPrimitiveSceneInfo->StaticMeshes[MeshIndex];
+				const EMeshDrawCommandCullingPayloadFlags CullingPayloadFlags = GetCullingPayloadFlags(ShadowLODToRender, StaticMeshRelevance.GetLODIndex());
 
-				if (ShouldDrawStaticMesh(StaticMeshRelevance, ShadowLODToRender, bDrawingStaticMeshes))
-				{
-					const EMeshDrawCommandCullingPayloadFlags CullingPayloadFlags = GetCullingPayloadFlags(ShadowLODToRender, StaticMeshRelevance.GetLODIndex());
-
-					if (GetShadowDepthType() == CSMShadowDepthType && bCanCache)
-					{
-						AddCachedMeshDrawCommandsForPass(
-							PrimitiveIdInfo,
-							InPrimitiveSceneInfo,
-							StaticMeshRelevance,
-							StaticMesh,
-							CullingPayloadFlags,
-							InPrimitiveSceneInfo->Scene,
-							MeshPassTargetType,
-							ShadowDepthPassVisibleCommands,
-							SubjectMeshCommandBuildRequests,
-							SubjectMeshCommandBuildFlags,
-							NumSubjectMeshCommandBuildRequestElements);
-					}
-					else
-					{
-						NumSubjectMeshCommandBuildRequestElements += StaticMeshRelevance.NumElements;
-						SubjectMeshCommandBuildRequests.Add(&StaticMesh);
-						SubjectMeshCommandBuildFlags.Add(CullingPayloadFlags);
-					}
-				}
+				AddCachedMeshDrawCommandsForPass(
+					PrimitiveIdInfo,
+					InPrimitiveSceneInfo,
+					StaticMeshRelevance,
+					StaticMesh,
+					CullingPayloadFlags,
+					InPrimitiveSceneInfo->Scene,
+					MeshPassType,
+					ShadowDepthPassVisibleCommands,
+					SubjectMeshCommandBuildRequests,
+					SubjectMeshCommandBuildFlags,
+					NumSubjectMeshCommandBuildRequestElements);
 			}
 		}
-		else
+	}
+	else
+	{
+		for (int32 MeshIndex = 0; MeshIndex < InPrimitiveSceneInfo->StaticMeshRelevances.Num(); MeshIndex++)
 		{
-			for (int32 MeshIndex = 0; MeshIndex < InPrimitiveSceneInfo->StaticMeshRelevances.Num(); MeshIndex++)
-			{
-				const FStaticMeshBatchRelevance& StaticMeshRelevance = InPrimitiveSceneInfo->StaticMeshRelevances[MeshIndex];
-				const FStaticMeshBatch& StaticMesh = InPrimitiveSceneInfo->StaticMeshes[MeshIndex];
+			const FStaticMeshBatchRelevance& StaticMeshRelevance = InPrimitiveSceneInfo->StaticMeshRelevances[MeshIndex];
+			const FStaticMeshBatch& StaticMesh = InPrimitiveSceneInfo->StaticMeshes[MeshIndex];
 
-				if (ShouldDrawStaticMesh(StaticMeshRelevance, ShadowLODToRender, bDrawingStaticMeshes))
-				{
-					NumSubjectMeshCommandBuildRequestElements += StaticMeshRelevance.NumElements;
-					SubjectMeshCommandBuildRequests.Add(&StaticMesh);
-					SubjectMeshCommandBuildFlags.Add(GetCullingPayloadFlags(ShadowLODToRender, StaticMeshRelevance.GetLODIndex()));
-				}
+			if (ShouldDrawStaticMesh(StaticMeshRelevance, ShadowLODToRender, bDrawingStaticMeshes))
+			{
+				NumSubjectMeshCommandBuildRequestElements += StaticMeshRelevance.NumElements;
+				SubjectMeshCommandBuildRequests.Add(&StaticMesh);
+				SubjectMeshCommandBuildFlags.Add(GetCullingPayloadFlags(ShadowLODToRender, StaticMeshRelevance.GetLODIndex()));
 			}
 		}
 	}
@@ -1853,6 +1845,7 @@ bool FProjectedShadowInfo::ShouldDrawStaticMeshes_AnyThread(
 	const bool WholeSceneDirectionalShadow = IsWholeSceneDirectionalShadow();
 	const FPrimitiveSceneInfo* PrimitiveSceneInfo = PrimitiveSceneInfoCompact.PrimitiveSceneInfo;
 	const FPrimitiveSceneProxy* Proxy = PrimitiveSceneInfoCompact.Proxy;
+	const EShadowDepthType ShadowDepthType = GetShadowDepthType();
 
 	{
 		const int32 ForcedLOD = CurrentView.Family->EngineShowFlags.LOD ? (GetCVarForceLODShadow_AnyThread() != -1 ? GetCVarForceLODShadow_AnyThread() : GetCVarForceLOD_AnyThread()) : -1;
@@ -1860,10 +1853,11 @@ bool FProjectedShadowInfo::ShouldDrawStaticMeshes_AnyThread(
 		FLODMask ShadowLODToRender = CalcAndUpdateLODToRender(CurrentView, FBoxSphereBounds(PrimitiveSceneInfoCompact.Bounds), PrimitiveSceneInfo, ForcedLOD);
 		OutResult.SetLodRange(ShadowLODToRender);
 
-		if (WholeSceneDirectionalShadow)
+		// Don't cache if it requires per view per mesh state for distance cull fade.
+		const bool bCanCache = !bMayBeFading;
+
+		if (bCanCache && UseCachedMeshDrawCommands(ShadowDepthType))
 		{
-			// Don't cache if it requires per view per mesh state for distance cull fade.
-			const bool bCanCache = !bMayBeFading;
 			int32 NumAcceptedStaticMeshes = 0;
 
 			for (int32 MeshIndex = 0; MeshIndex < PrimitiveSceneInfo->StaticMeshRelevances.Num(); MeshIndex++)
@@ -1873,15 +1867,7 @@ bool FProjectedShadowInfo::ShouldDrawStaticMeshes_AnyThread(
 
 				if (ShouldDrawStaticMesh(StaticMeshRelevance, ShadowLODToRender, bDrawingStaticMeshes))
 				{
-					if (bCanCache && GetShadowDepthType() == CSMShadowDepthType)
-					{
-						AddCachedMeshDrawCommands_AnyThread(PrimitiveSceneInfo->Scene, StaticMeshRelevance, MeshIndex, NumAcceptedStaticMeshes, OutResult, OutStats, OverflowBuffer);
-					}
-					else
-					{
-						++OutStats.NumMDCBuildRequests;
-						OutResult.AcceptMesh(NumAcceptedStaticMeshes++, MeshIndex, OverflowBuffer);
-					}
+					AddCachedMeshDrawCommands_AnyThread(PrimitiveSceneInfo->Scene, StaticMeshRelevance, MeshIndex, NumAcceptedStaticMeshes, OutResult, OutStats, OverflowBuffer);
 				}
 			}
 		}
@@ -2011,7 +1997,7 @@ bool FProjectedShadowInfo::AddSubjectPrimitive(FDynamicShadowsTaskData& TaskData
 				for (FViewInfo& CurrentView : Views)
 				{
 					// Note: skip small-mesh culling for VSM since it needs it drawn for GPU-side caching.
-					if (bWholeSceneShadow && CacheMode != SDCM_StaticPrimitivesOnly && MeshPassTargetType != EMeshPass::VSMShadowDepth)
+					if (bWholeSceneShadow && CacheMode != SDCM_StaticPrimitivesOnly && !bVSM)
 					{
 						const float DistanceSquared = ( Bounds.Origin - CurrentView.ShadowViewMatrices.GetViewOrigin() ).SizeSquared();
 						const float LODScaleSquared = FMath::Square(CurrentView.LODDistanceFactor);
@@ -2076,7 +2062,7 @@ bool FProjectedShadowInfo::TestPrimitiveFarCascadeConditions(bool bPrimitiveCast
 		return bPrimitiveCastsFarShadow;
 	}
 
-	if (GEnableNonNaniteVSM != 0 && MeshPassTargetType == EMeshPass::VSMShadowDepth)
+	if (GEnableNonNaniteVSM != 0 && bVSM)
 	{
 		const bool bWholeSceneDirectionalShadow = IsWholeSceneDirectionalShadow();
 
@@ -2355,14 +2341,16 @@ void FProjectedShadowInfo::FinalizeAddSubjectPrimitive(
 		int32 IdxBias;
 		int32 NumMDCs = Result.GetMDCIndices(Context, MDCIndices, IdxBias);
 
+		const EMeshPass::Type MeshPassType = GetShadowMeshPassType(GetShadowDepthType());
+
 		for (int32 Idx = 0; Idx < NumMDCs; ++Idx)
 		{
 			const int32 CmdIdx = (int32)MDCIndices[Idx] + IdxBias;
 			const FCachedMeshDrawCommandInfo& CmdInfo = PrimitiveSceneInfo->StaticMeshCommandInfos[CmdIdx];
 			const FScene* Scene = PrimitiveSceneInfo->Scene;
 			const FMeshDrawCommand* CachedCmd = CmdInfo.StateBucketId >= 0 ?
-				&Scene->CachedMeshDrawCommandStateBuckets[MeshPassTargetType].GetByElementId(CmdInfo.StateBucketId).Key :
-				&Scene->CachedDrawLists[MeshPassTargetType].MeshDrawCommands[CmdInfo.CommandIndex];
+				&Scene->CachedMeshDrawCommandStateBuckets[MeshPassType].GetByElementId(CmdInfo.StateBucketId).Key :
+				&Scene->CachedDrawLists[MeshPassType].MeshDrawCommands[CmdInfo.CommandIndex];
 			const EMeshDrawCommandCullingPayloadFlags CullingPayloadFlags = GetCullingPayloadFlags(Result.bIsLodRange, CmdInfo.CullingPayload.LodIndex == Result.LodRangeMin, CmdInfo.CullingPayload.LodIndex == Result.LodRangeMax);
 
 			const FMeshDrawCommandPrimitiveIdInfo PrimitiveIdInfo = PrimitiveSceneInfo->GetMDCIdInfo();
@@ -2441,8 +2429,7 @@ void FProjectedShadowInfo::SetupMeshDrawCommandsForShadowDepth(FSceneRenderer& R
 		Renderer.Scene->GetFeatureLevel(),
 		ShadowDepthView,
 		GetShadowDepthType(),
-		nullptr,
-		MeshPassTargetType);
+		nullptr);
 
 	if (Renderer.ShouldDumpMeshDrawCommandInstancingStats())
 	{
@@ -4262,7 +4249,7 @@ void FSceneRenderer::CreateWholeSceneProjectedShadow(
 
 					TSharedPtr<FVirtualShadowMapPerLightCacheEntry> VirtualSmPerLightCacheEntry = ShadowSceneRenderer->AddLocalLightShadow(ProjectedShadowInitializer, ProjectedShadowInfo, LightSceneInfo, MaxScreenRadius);
 
-					ProjectedShadowInfo->MeshPassTargetType = EMeshPass::VSMShadowDepth;
+					ProjectedShadowInfo->bVSM = true;
 					ProjectedShadowInfo->MeshSelectionMask = EShadowMeshSelection::VSM;
 
 					bool bContainsNaniteSubjects = false;

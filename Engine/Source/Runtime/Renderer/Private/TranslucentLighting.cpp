@@ -383,7 +383,6 @@ private:
 
 	FMeshPassProcessorRenderState PassDrawRenderState;
 	const FProjectedShadowInfo* ShadowInfo;
-	FShadowDepthType ShadowDepthType;
 	const bool bDirectionalLight;
 };
 
@@ -395,7 +394,6 @@ FTranslucencyDepthPassMeshProcessor::FTranslucencyDepthPassMeshProcessor(const F
 	: FMeshPassProcessor(EMeshPass::Num, Scene, Scene->GetFeatureLevel(), InViewIfDynamicMeshCommand, InDrawListContext)
 	, PassDrawRenderState(InPassDrawRenderState)
 	, ShadowInfo(InShadowInfo)
-	, ShadowDepthType(InShadowInfo->GetShadowDepthType())
 	, bDirectionalLight(InShadowInfo->bDirectionalLight)
 {
 }

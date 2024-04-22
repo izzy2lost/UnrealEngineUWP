@@ -2071,6 +2071,8 @@ void FCachedPassMeshDrawListContext::FinalizeCommandCommon(
 		MeshDrawCommand.ClearDebugPrimitiveSceneProxy(); //When using State Buckets multiple PrimitiveSceneProxies use the same MeshDrawCommand, so The PrimitiveSceneProxy pointer can't be stored.
 	}
 #endif
+	ensureMsgf(MeshDrawCommand.VertexStreams.GetAllocatedSize() == 0, TEXT("Cached Mesh Draw command overflows VertexStreams. VertexStream inline size should be tweaked."));
+
 #if DO_GUARD_SLOW
 	if (bUseGPUScene)
 	{
@@ -2082,7 +2084,12 @@ void FCachedPassMeshDrawListContext::FinalizeCommandCommon(
 	{
 		ensureMsgf(MeshDrawCommand.VertexStreams.GetAllocatedSize() == 0, TEXT("Cached Mesh Draw command overflows VertexStreams. VertexStream inline size should be tweaked."));
 
-		if (CurrMeshPass == EMeshPass::BasePass || CurrMeshPass == EMeshPass::DepthPass || CurrMeshPass == EMeshPass::SecondStageDepthPass || CurrMeshPass == EMeshPass::CSMShadowDepth || CurrMeshPass == EMeshPass::VSMShadowDepth)
+		if (   CurrMeshPass == EMeshPass::BasePass
+			|| CurrMeshPass == EMeshPass::DepthPass
+			|| CurrMeshPass == EMeshPass::SecondStageDepthPass
+			|| CurrMeshPass == EMeshPass::OnePassPointLightShadowDepth
+			|| CurrMeshPass == EMeshPass::CSMShadowDepth
+			|| CurrMeshPass == EMeshPass::VSMShadowDepth)
 		{
 			TArray<EShaderFrequency, TInlineAllocator<SF_NumFrequencies>> ShaderFrequencies;
 			MeshDrawCommand.ShaderBindings.GetShaderFrequencies(ShaderFrequencies);

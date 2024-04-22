@@ -79,32 +79,20 @@ enum EShadowDepthRenderMode
 	ShadowDepthRenderMode_GIBlockingVolumes,
 };
 
-class FShadowDepthType
+enum class EShadowDepthType
 {
-public:
-	bool bDirectionalLight;
-	bool bOnePassPointLightShadow;
-
-	FShadowDepthType(bool bInDirectionalLight, bool bInOnePassPointLightShadow) 
-	: bDirectionalLight(bInDirectionalLight)
-	, bOnePassPointLightShadow(bInOnePassPointLightShadow)
-	{}
-
-	inline bool operator==(const FShadowDepthType& rhs) const
-	{
-		if (bDirectionalLight != rhs.bDirectionalLight || 
-			bOnePassPointLightShadow != rhs.bOnePassPointLightShadow)
-		{
-			return false;
-		}
-
-		return true;
-	}
+	None = 0,
+	VSM = 1 << 0,
+	Directional = 1 << 1,
+	Point = 1 << 2,
+	OnePassPoint = 1 << 3
 };
 
-extern FShadowDepthType CSMShadowDepthType;
+ENUM_CLASS_FLAGS(EShadowDepthType);
 
+extern EMeshPass::Type GetShadowMeshPassType(EShadowDepthType ShadowDepthType);
 
+extern bool UseCachedMeshDrawCommands(EShadowDepthType ShadowDepthType);
 
 /**
  * Used to select what meshes to draw into what shadow infos. Each mesh selects the support it has, and
@@ -128,10 +116,9 @@ public:
 	FShadowDepthPassMeshProcessor(
 		const FScene* Scene, 
 		const ERHIFeatureLevel::Type InFeatureLevel,
-		const FSceneView* InViewIfDynamicMeshCommand, 
-		FShadowDepthType InShadowDepthType,
-		FMeshPassDrawListContext* InDrawListContext,
-		EMeshPass::Type InMeshPassTargetType);
+		const FSceneView* InViewIfDynamicMeshCommand,
+		EShadowDepthType ShadowDepthType,
+		FMeshPassDrawListContext* InDrawListContext);
 
 	virtual void AddMeshBatch(const FMeshBatch& RESTRICT MeshBatch, uint64 BatchElementMask, const FPrimitiveSceneProxy* RESTRICT PrimitiveSceneProxy, int32 StaticMeshId = -1) override final;
 	virtual void CollectPSOInitializers(const FSceneTexturesConfig& SceneTexturesConfig, const FMaterial& Material, const FPSOPrecacheVertexFactoryData& VertexFactoryData, const FPSOPrecacheParams& PreCacheParams, TArray<FPSOPrecacheData>& PSOInitializers) override final;
@@ -167,7 +154,7 @@ private:
 	void CollectPSOInitializersForEachStreamSetup(
 		const FPSOPrecacheVertexFactoryData& VertexFactoryData,
 		const FMaterial& RESTRICT MaterialResource,
-		const FShadowDepthType& InShadowDepthType,
+		EShadowDepthType InShadowDepthType,
 		ERasterizerFillMode MeshFillMode,
 		ERasterizerCullMode MeshCullMode,
 		bool bRequired,
@@ -176,15 +163,14 @@ private:
 	void CollectPSOInitializersInternal(
 		const FPSOPrecacheVertexFactoryData& VertexFactoryData,
 		const FMaterial& RESTRICT MaterialResource,
-		const FShadowDepthType& InShadowDepthType,
+		EShadowDepthType InShadowDepthType,
 		ERasterizerFillMode MeshFillMode,
 		ERasterizerCullMode MeshCullMode,
 		bool bSupportsPositionAndNormalOnlyStream,
 		bool bRequired,
 		TArray<FPSOPrecacheData>& PSOInitializers);
 
-	FShadowDepthType ShadowDepthType;
-	EMeshPass::Type MeshPassTargetType = EMeshPass::CSMShadowDepth;
+	EShadowDepthType ShadowDepthType;
 	EShadowMeshSelection MeshSelectionMask = EShadowMeshSelection::All;
 };
 
@@ -403,6 +389,9 @@ public:
 	/** Whether the shadow is a point light shadow that renders all faces of a cubemap in one pass. */
 	uint32 bOnePassPointLightShadow : 1;
 
+	/** Whether the shadow is a virtual shadow map. */
+	uint32 bVSM : 1;
+
 	/** Whether this shadow affects the whole scene or only a group of objects. */
 	uint32 bWholeSceneShadow : 1;
 
@@ -439,9 +428,6 @@ public:
 
 	/** Whether this shadow should support casting shadows from volumetric surfaces. */
 	uint32 bVolumetricShadow : 1;
-	
-	/** Used to fetch the correct cached static mesh draw commands */
-	EMeshPass::Type MeshPassTargetType = EMeshPass::CSMShadowDepth;
 
 	EShadowMeshSelection MeshSelectionMask = EShadowMeshSelection::All;
 
@@ -784,9 +770,29 @@ public:
 	/** Creates a new view from the pool and caches it in ShadowDepthView for depth rendering. */
 	void SetupShadowDepthView(FSceneRenderer* SceneRenderer);
 
-	FShadowDepthType GetShadowDepthType() const 
+	EShadowDepthType GetShadowDepthType() const 
 	{
-		return FShadowDepthType(bDirectionalLight, bOnePassPointLightShadow);
+		EShadowDepthType ShadowDepthType = bVSM ? EShadowDepthType::VSM : EShadowDepthType::None;
+
+		if (bDirectionalLight)
+		{
+			ShadowDepthType |= EShadowDepthType::Directional;
+		}
+		else if (bOnePassPointLightShadow)
+		{
+			ShadowDepthType |= EShadowDepthType::OnePassPoint;
+		}
+		else
+		{
+			ShadowDepthType |= EShadowDepthType::Point;
+		}
+
+		return ShadowDepthType;
+	}
+
+	EMeshPass::Type GetTargetMeshPassType() const
+	{
+		return ::GetShadowMeshPassType(GetShadowDepthType());
 	}
 
 	bool HasVirtualShadowMap() const { return VirtualShadowMapId != INDEX_NONE || VirtualShadowMapClipmap.IsValid(); }
