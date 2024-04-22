@@ -177,6 +177,7 @@ Name | Description
 `runInSeparateProcess` | `boolean`<br>Executes the job lease in a separate process
 `workspaceMaterializer` | `string`<br>What workspace materializer to use in WorkspaceExecutor. Will override any value from workspace config.
 `container` | [`JobContainerOptions`](#jobcontaineroptions)<br>Options for executing a job inside a container
+`expireAfterDays` | `integer`<br>Number of days after which to expire jobs
 
 ## JobContainerOptions
 
