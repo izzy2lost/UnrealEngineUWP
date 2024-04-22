@@ -297,8 +297,21 @@ void FMovieGraphModifiersCustomization::CustomizeDetails(IDetailLayoutBuilder& I
 				CollectionsList->Refresh();
 			}
 		})
-		.OnGetRowIcon_Static(&GetCollectionRowIcon)
 		.OnGetRowText_Static(&GetCollectionRowText)
+		.ShowEnableDisable(true)
+		.OnGetRowEnableState_Lambda([ModifierNode](FName InCollectionName)
+		{
+			return ModifierNode.IsValid() ? ModifierNode.Get()->IsCollectionEnabled(InCollectionName) : true;
+		})
+		.OnSetRowEnableState_Lambda([ModifierNode](FName InCollectionName, bool bNewEnableState)
+		{
+			if (ModifierNode.IsValid())
+			{
+				const FScopedTransaction Transaction(LOCTEXT("ChangeCollectionEnableState", "Change Collection Enable State"));
+				
+				ModifierNode.Get()->SetCollectionEnabled(InCollectionName, bNewEnableState);
+			}
+		})
 	];
 
 	// For all modifiers added to the node, add a category for each, and add each modifier's EditAnywhere properties to the category

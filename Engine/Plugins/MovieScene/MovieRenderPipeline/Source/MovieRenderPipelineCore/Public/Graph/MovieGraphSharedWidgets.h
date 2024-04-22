@@ -4,11 +4,14 @@
 
 #include "CoreMinimal.h"
 #include "Framework/Application/SlateApplication.h"
-#include "Widgets/SCompoundWidget.h"
+#include "Widgets/Input/SCheckBox.h"
 #include "Widgets/Input/SComboButton.h"
+#include "Widgets/SCompoundWidget.h"
 #include "Widgets/Text/STextBlock.h"
 #include "Widgets/Views/ITableRow.h"
 #include "Widgets/Views/SListView.h"
+
+#define LOCTEXT_NAMESPACE "MovieGraphSharedWidgets"
 
 // NOTE: There should not be widgetry defined in core. To fix this, the condition group queries in the render layer subsystem need to be refactored to
 // expose their custom widgetry in MovieRenderPipelineEditor.
@@ -24,8 +27,11 @@ public:
 	DECLARE_DELEGATE_RetVal_OneParam(const FSlateBrush*, FGetRowIcon, ListType);
 	DECLARE_DELEGATE_RetVal_OneParam(FText, FGetRowText, ListType);
 	DECLARE_DELEGATE_OneParam(FOnDelete, ListType);
+	DECLARE_DELEGATE_RetVal_OneParam(bool, FGetRowEnableState, ListType);
+	DECLARE_DELEGATE_TwoParams(FSetRowEnableState, ListType, bool);
 	
 	SLATE_BEGIN_ARGS(SMovieGraphSimpleList<ListType>)
+		: _ShowEnableDisable(false)
 		{}
 		/** The source of data that the list will display. */
 		SLATE_ATTRIBUTE(TArray<ListType>*, DataSource)
@@ -44,6 +50,15 @@ public:
 
 		/** Invoked when a delete operation is performed. */
 		SLATE_EVENT(FOnDelete, OnDelete)
+
+		/** Whether the enable/disable checkbox should be displayed. */
+		SLATE_ATTRIBUTE(bool, ShowEnableDisable)
+
+		/** Gets the enable state of the row. Called if ShowEnableDisable is turned on. */
+		SLATE_EVENT(FGetRowEnableState, OnGetRowEnableState)
+
+		/** Sets the enable state of the row. */
+		SLATE_EVENT(FSetRowEnableState, OnSetRowEnableState)
 	SLATE_END_ARGS()
 	
 	void Construct(const FArguments& InArgs)
@@ -54,6 +69,9 @@ public:
 		OnGetRowIcon = InArgs._OnGetRowIcon;
 		OnGetRowText = InArgs._OnGetRowText;
 		OnDelete = InArgs._OnDelete;
+		bShowEnableDisable = InArgs._ShowEnableDisable.Get();
+		OnGetRowEnableState = InArgs._OnGetRowEnableState;
+		OnSetRowEnableState = InArgs._OnSetRowEnableState;
 
 		ChildSlot
 		.HAlign(HAlign_Fill)
@@ -122,6 +140,17 @@ private:
 		return FText();
 	}
 
+	/** Determines if the row that displays the given data should be enabled. */
+	bool IsRowEnabled(const ListType& InListData) const
+	{
+		if (OnGetRowEnableState.IsBound())
+		{
+			return OnGetRowEnableState.Execute(InListData);
+		}
+
+		return true;
+	}
+
 	/** Handles the delete operation. */
 	FReply HandleDelete(const FGeometry& InGeometry, const FKeyEvent& InKeyEvent) const
 	{
@@ -143,6 +172,8 @@ private:
 	/** Generates a row in the list for the specified data. */
 	TSharedRef<ITableRow> GenerateRow(ListType InListData, const TSharedRef<STableViewBase>& InOwnerTable) const
 	{
+		const FSlateBrush* RowIcon = GetRowIcon(InListData);
+		
 		return
 			SNew(STableRow<ListType>, InOwnerTable)
 			.Style(FAppStyle::Get(), "TableView.AlternatingRow")
@@ -151,11 +182,42 @@ private:
 				SNew(SHorizontalBox)
 				+ SHorizontalBox::Slot()
 				.VAlign(VAlign_Center)
+				.AutoWidth()
 				.Padding(7.f, 5.f, 7.f, 5.f)
+				[
+					SNew(SCheckBox)
+					.ToolTipText_Lambda([this, InListData]()
+					{
+						return IsRowEnabled(InListData)
+							? LOCTEXT("CollectionEnabled", "This collection is enabled and will be modified by this Modifier node.")
+							: LOCTEXT("CollectionDisabled", "This collection is disabled and will not be modified by this Modifier node.");
+					})
+					.Visibility_Lambda([this]()
+					{
+						return bShowEnableDisable ? EVisibility::Visible : EVisibility::Collapsed;
+					})
+					.IsChecked_Lambda([this, InListData]()
+					{
+						return IsRowEnabled(InListData) ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
+					})
+					.OnCheckStateChanged_Lambda([this, InListData](ECheckBoxState NewState)
+					{
+						if (OnSetRowEnableState.IsBound())
+						{
+							OnSetRowEnableState.Execute(InListData, NewState == ECheckBoxState::Checked);
+						}
+					})
+				]
+				
+				+ SHorizontalBox::Slot()
+				.VAlign(VAlign_Center)
+				.Padding(0.f, 5.f, 7.f, 5.f)
 				.AutoWidth()
 				[
 					SNew(SImage)
-					.Image(GetRowIcon(InListData))
+					.IsEnabled_Lambda([this, InListData]() { return IsRowEnabled(InListData); })
+					.Visibility_Lambda([RowIcon]() { return RowIcon ? EVisibility::Visible : EVisibility::Collapsed; })
+					.Image(RowIcon)
 				]
 				
 				+ SHorizontalBox::Slot()
@@ -163,6 +225,7 @@ private:
 				.HAlign(HAlign_Fill)
 				[
 					SNew(STextBlock)
+					.IsEnabled_Lambda([this, InListData]() { return IsRowEnabled(InListData); })
 					.Font(FAppStyle::GetFontStyle(TEXT("PropertyWindow.NormalFont")))
 					.Text(GetRowText(InListData))
 				]
@@ -174,7 +237,12 @@ private:
 	FGetRowIcon OnGetRowIcon;
 	FGetRowText OnGetRowText;
 	FOnDelete OnDelete;
+	bool bShowEnableDisable = false;
+	FGetRowEnableState OnGetRowEnableState;
+	FSetRowEnableState OnSetRowEnableState;
 	FText DataType;
 	FText DataTypePlural;
 	TArray<ListType>* DataSource = nullptr;
 };
+
+#undef LOCTEXT_NAMESPACE

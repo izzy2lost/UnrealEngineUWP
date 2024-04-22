@@ -452,7 +452,13 @@ void UMovieGraphPipeline::UpdateLayerContentsInRenderLayerSubsystem(const UMovie
 						if (CollectionNode->Collection->GetCollectionName() == ModifiedCollectionName)
 						{
 							bFoundModifiedCollection = true;
-							ModifierCollections.Add(CollectionNode->Collection);
+
+							// Collections can be disabled within a modifier; only include it if the collection is enabled
+							if (ModifierNode->IsCollectionEnabled(ModifiedCollectionName))
+							{
+								ModifierCollections.Add(CollectionNode->Collection);
+							}
+							
 							break;
 						}
 					}
