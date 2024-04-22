@@ -215,6 +215,9 @@ protected:
 	/** <transformvector> */
 	void ConnectTransformVectorInputToOutput(const FConnectNode& Connect);
 
+	/** <rotate2d> */
+	void ConnectRotate2DInputToOutput(const FConnectNode& Connect);
+
 	/** <rotate3d> */
 	void ConnectRotate3DInputToOutput(const FConnectNode& Connect);
 

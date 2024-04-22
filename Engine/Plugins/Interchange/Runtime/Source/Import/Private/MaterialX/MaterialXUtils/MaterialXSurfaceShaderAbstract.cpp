@@ -457,6 +457,39 @@ void FMaterialXSurfaceShaderAbstract::ConnectTransformVectorInputToOutput(const 
 	UInterchangeShaderPortsAPI::ConnectDefaultOuputToInput(Connect.ParentShaderNode, Connect.InputChannelName, TransformNode->GetUniqueID());
 }
 
+void FMaterialXSurfaceShaderAbstract::ConnectRotate2DInputToOutput(const FConnectNode& Connect)
+{
+	using namespace UE::Interchange::Materials::Standard::Nodes;
+
+	UInterchangeShaderNode* Rotate2DNode = CreateShaderNode(Connect.UpstreamNode->getName().c_str(), Rotator::Name.ToString());
+
+
+	if(mx::InputPtr Input = Connect.UpstreamNode->getInput("in"))
+	{
+		AddAttributeFromValueOrInterface(Input, GetInputName(Input), Rotate2DNode);
+	}
+
+	// Amount is in degrees whereas Time (which in our case is the angle) input is in radians
+	if(mx::InputPtr Input = Connect.UpstreamNode->getInput("amount"))
+	{
+		FString InputName = GetInputName(Input);
+		UInterchangeShaderNode* DegreesToRadiansNode = CreateShaderNode((Connect.UpstreamNode->getName() + "multiply").c_str(), TEXT("Multiply"));
+		constexpr float DegreesToRadians = UE_PI / 180.f;
+		DegreesToRadiansNode->AddFloatAttribute(UInterchangeShaderPortsAPI::MakeInputValueKey(TEXT("B")), DegreesToRadians);
+
+		//If it's a value we should always attach it on the A input of Divide node
+		AddAttributeFromValueOrInterface(Input, TEXT("A"), DegreesToRadiansNode);
+		UInterchangeShaderPortsAPI::ConnectDefaultOuputToInput(Rotate2DNode, InputName, DegreesToRadiansNode->GetUniqueID());
+		SetAttributeNewName(Input, "A");
+	}
+
+	Rotate2DNode->AddFloatAttribute(Rotator::Attributes::CenterX.ToString(), 0.f);
+	Rotate2DNode->AddFloatAttribute(Rotator::Attributes::CenterY.ToString(), 0.f);
+	Rotate2DNode->AddFloatAttribute(Rotator::Attributes::Speed.ToString(), 1.f);
+
+	UInterchangeShaderPortsAPI::ConnectDefaultOuputToInput(Connect.ParentShaderNode, Connect.InputChannelName, Rotate2DNode->GetUniqueID());
+}
+
 void FMaterialXSurfaceShaderAbstract::ConnectRotate3DInputToOutput(const FConnectNode& Connect)
 {
 	UInterchangeShaderNode* Rotate3DNode = CreateShaderNode(Connect.UpstreamNode->getName().c_str(), TEXT("RotateAboutAxis"));
@@ -1105,7 +1138,22 @@ void FMaterialXSurfaceShaderAbstract::ConnectTexCoordInputToOutput(const FConnec
 	{
 		TexCoord->AddInt32Attribute(UInterchangeShaderPortsAPI::MakeInputValueKey(TextureCoordinate::Inputs::Index.ToString()), mx::fromValueString<int>(Input->getValueString()));
 	}
-	UInterchangeShaderPortsAPI::ConnectDefaultOuputToInput(Connect.ParentShaderNode, Connect.InputChannelName, TexCoord->GetUniqueID());
+
+	// Flip UV coordinates to be bottom left instead of top left
+	UInterchangeShaderNode* TexCoordR = CreateMaskShaderNode(0b1000, (Connect.UpstreamNode->getName() + "ComponentMaskR").c_str());
+	UInterchangeShaderPortsAPI::ConnectDefaultOuputToInput(TexCoordR, Mask::Inputs::Input.ToString(), TexCoord->GetUniqueID());
+
+	UInterchangeShaderNode* TexCoordG = CreateMaskShaderNode(0b0100, (Connect.UpstreamNode->getName() + "ComponentMaskG").c_str());
+	UInterchangeShaderPortsAPI::ConnectDefaultOuputToInput(TexCoordG, Mask::Inputs::Input.ToString(), TexCoord->GetUniqueID());
+
+	UInterchangeShaderNode* OneMinusG = CreateShaderNode((Connect.UpstreamNode->getName() + "OneMinusG").c_str(), OneMinus::Name.ToString());
+	UInterchangeShaderPortsAPI::ConnectDefaultOuputToInput(OneMinusG, OneMinus::Inputs::Input.ToString(), TexCoordG->GetUniqueID());
+
+	UInterchangeShaderNode* TexCoordAppend = CreateShaderNode((Connect.UpstreamNode->getName() + "Append").c_str(), TEXT("AppendVector"));
+	UInterchangeShaderPortsAPI::ConnectDefaultOuputToInput(TexCoordAppend, TEXT("A"), TexCoordR->GetUniqueID());
+	UInterchangeShaderPortsAPI::ConnectDefaultOuputToInput(TexCoordAppend, TEXT("B"), OneMinusG->GetUniqueID());
+
+	UInterchangeShaderPortsAPI::ConnectDefaultOuputToInput(Connect.ParentShaderNode, Connect.InputChannelName, TexCoordAppend->GetUniqueID());
 }
 
 void FMaterialXSurfaceShaderAbstract::ConnectSeparateInputToOutput(const FConnectNode& Connect)
@@ -1360,6 +1408,7 @@ void FMaterialXSurfaceShaderAbstract::RegisterConnectNodeOutputToInputDelegates(
 	MatchingConnectNodeDelegates.Add(mx::Category::TransformPoint,	FOnConnectNodeOutputToInput::CreateSP(this, &FMaterialXSurfaceShaderAbstract::ConnectTransformPositionInputToOutput));
 	MatchingConnectNodeDelegates.Add(mx::Category::TransformVector, FOnConnectNodeOutputToInput::CreateSP(this, &FMaterialXSurfaceShaderAbstract::ConnectTransformVectorInputToOutput));
 	MatchingConnectNodeDelegates.Add(mx::Category::TransformNormal, FOnConnectNodeOutputToInput::CreateSP(this, &FMaterialXSurfaceShaderAbstract::ConnectTransformVectorInputToOutput));
+	MatchingConnectNodeDelegates.Add(mx::Category::Rotate2D,		FOnConnectNodeOutputToInput::CreateSP(this, &FMaterialXSurfaceShaderAbstract::ConnectRotate2DInputToOutput));
 	MatchingConnectNodeDelegates.Add(mx::Category::Rotate3D,		FOnConnectNodeOutputToInput::CreateSP(this, &FMaterialXSurfaceShaderAbstract::ConnectRotate3DInputToOutput));
 	MatchingConnectNodeDelegates.Add(mx::Category::Image,			FOnConnectNodeOutputToInput::CreateSP(this, &FMaterialXSurfaceShaderAbstract::ConnectImageInputToOutput));
 	MatchingConnectNodeDelegates.Add(mx::Category::Convert,			FOnConnectNodeOutputToInput::CreateSP(this, &FMaterialXSurfaceShaderAbstract::ConnectConvertInputToOutput));

@@ -85,11 +85,10 @@ FMaterialXManager::FMaterialXManager()
 		{{MaterialX::Category::Normalize,      TEXT("in")},          TEXT("VectorInput")},
 		{{MaterialX::Category::Outside,        TEXT("in")},          TEXT("A")},				// Outside is treated as Multiply node
 		{{MaterialX::Category::Outside,        TEXT("mask")},        TEXT("B")},				// Outside is treated as Multiply node
-		{{MaterialX::Category::Place2D,        TEXT("pivot")},       TEXT("Pivot")},
-		{{MaterialX::Category::Place2D,        TEXT("rotate")},      TEXT("RotationAngle")},
 		{{MaterialX::Category::Power,          TEXT("in1")},         TEXT("Base")},
 		{{MaterialX::Category::Power,	       TEXT("in2")},         TEXT("Exponent")},
-		{{MaterialX::Category::Rotate2D,       TEXT("amount")},      TEXT("RotationAngle")},
+		{{MaterialX::Category::Rotate2D,       TEXT("in")},          TEXT("Coordinate")},
+		{{MaterialX::Category::Rotate2D,       TEXT("amount")},      TEXT("Time")},
 		{{MaterialX::Category::Rotate3D,       TEXT("amount")},      TEXT("RotationAngle")},
 		{{MaterialX::Category::Rotate3D,       TEXT("axis")},		 TEXT("NormalizedRotationAxis")},
 		{{MaterialX::Category::Rotate3D,       TEXT("in")},          TEXT("Position")},
@@ -119,9 +118,7 @@ FMaterialXManager::FMaterialXManager()
 		{MaterialX::Category::Modulo,       TEXT("Fmod")},
 		{MaterialX::Category::Multiply,     TEXT("Multiply")},
 		{MaterialX::Category::Normalize,    TEXT("Normalize")},
-		{MaterialX::Category::Place2D,		TEXT("MaterialXPlace2D")},
 		{MaterialX::Category::Power,        TEXT("Power")},
-		{MaterialX::Category::Rotate2D,		TEXT("MaterialXRotate2D")},
 		{MaterialX::Category::RampLR,       TEXT("MaterialXRampLeftRight")},
 		{MaterialX::Category::RampTB,       TEXT("MaterialXRampTopBottom")},
 		{MaterialX::Category::Sign,         TEXT("Sign")},
@@ -181,6 +178,7 @@ FMaterialXManager::FMaterialXManager()
 		TEXT("Base"),
 		TEXT("C"),
 		TEXT("Center"),
+		TEXT("Coordinate"),
 		TEXT("Coordinates"),
 		TEXT("D"),
 		TEXT("Exponent"),
@@ -202,6 +200,7 @@ FMaterialXManager::FMaterialXManager()
 		TEXT("TargetLow"),
 		TEXT("TargetHigh"),
 		TEXT("Temp"),
+		TEXT("Time"),
 		TEXT("Value"),
 		TEXT("VectorInput"),
 		TEXT("X"),
@@ -241,7 +240,9 @@ FMaterialXManager::FMaterialXManager()
 			// Utility nodes
 			{mx::Category::ArtisticIOR,				FMaterialXMaterialFunction{TInPlaceType<FString>{}, TEXT("/Interchange/Functions/MX_Artistic_IOR.MX_Artistic_IOR")}},
 			{mx::Category::RoughnessAnisotropy,		FMaterialXMaterialFunction{TInPlaceType<FString>{}, TEXT("/Interchange/Functions/MX_Roughness_Anisotropy.MX_Roughness_Anisotropy")}},
-			{mx::Category::RoughnessDual,			FMaterialXMaterialFunction{TInPlaceType<FString>{}, TEXT("/Interchange/Functions/MX_Roughness_Dual.MX_Roughness_Dual")}}
+			{mx::Category::RoughnessDual,			FMaterialXMaterialFunction{TInPlaceType<FString>{}, TEXT("/Interchange/Functions/MX_Roughness_Dual.MX_Roughness_Dual")}},
+			// Math
+			{mx::Category::Place2D,					FMaterialXMaterialFunction{TInPlaceType<FString>{}, TEXT("/Interchange/Functions/MX_Place2D.MX_Place2D")}},
 		};
 
 		if(bIsSubstrateEnabled)
@@ -380,10 +381,12 @@ namespace UE::Interchange::MaterialX
 			return bAllLoaded;
 		};
 
-		static const bool bPackagesLoaded =	ArePackagesLoaded({ TEXT("MaterialFunction'/Engine/Functions/Engine_MaterialFunctions03/Procedurals/NormalFromHeightmap.NormalFromHeightmap'"),
-															    TEXT("MaterialFunction'/Interchange/Functions/MX_Artistic_IOR.MX_Artistic_IOR'"),
-															    TEXT("MaterialFunction'/Interchange/Functions/MX_Roughness_Anisotropy.MX_Roughness_Anisotropy'"), 
-															    TEXT("MaterialFunction'/Interchange/Functions/MX_Roughness_Dual.MX_Roughness_Dual'")});
+		static const bool bPackagesLoaded = ArePackagesLoaded({ TEXT("MaterialFunction'/Engine/Functions/Engine_MaterialFunctions03/Procedurals/NormalFromHeightmap.NormalFromHeightmap'"),
+																TEXT("MaterialFunction'/Interchange/Functions/MX_Artistic_IOR.MX_Artistic_IOR'"),
+																TEXT("MaterialFunction'/Interchange/Functions/MX_Roughness_Anisotropy.MX_Roughness_Anisotropy'"),
+																TEXT("MaterialFunction'/Interchange/Functions/MX_Roughness_Dual.MX_Roughness_Dual'"),
+																TEXT("MaterialFunction'/Interchange/Functions/MX_Place2D.MX_Place2D'"),
+															  });
 
 		return bPackagesLoaded;
 #else

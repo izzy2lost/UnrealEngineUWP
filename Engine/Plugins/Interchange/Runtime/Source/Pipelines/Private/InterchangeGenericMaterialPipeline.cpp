@@ -31,6 +31,7 @@
 #include "Materials/MaterialExpressionMultiply.h"
 #include "Materials/MaterialExpressionNoise.h"
 #include "Materials/MaterialExpressionOneMinus.h"
+#include "Materials/MaterialExpressionRotator.h"
 #include "Materials/MaterialExpressionScalarParameter.h"
 #include "Materials/MaterialExpressionStaticBoolParameter.h"
 #include "Materials/MaterialExpressionConstant.h"
@@ -2309,6 +2310,58 @@ void UInterchangeGenericMaterialPipeline::HandleMaskNode(const UInterchangeShade
 	}
 }
 
+void UInterchangeGenericMaterialPipeline::HandleRotatorNode(const UInterchangeShaderNode* ShaderNode, UInterchangeBaseMaterialFactoryNode* MaterialFactoryNode, UInterchangeMaterialExpressionFactoryNode* RotatorFactoryNode)
+{
+	using namespace UE::Interchange::Materials::Standard::Nodes;
+	RotatorFactoryNode->SetCustomExpressionClassName(UMaterialExpressionRotator::StaticClass()->GetName());
+
+	// Coordinate
+	{
+		TTuple<UInterchangeMaterialExpressionFactoryNode*, FString> CoordinateExpression =
+			CreateMaterialExpressionForInput(MaterialFactoryNode, ShaderNode, Rotator::Inputs::Coordinate.ToString(), RotatorFactoryNode->GetUniqueID());
+		if(CoordinateExpression.Get<0>())
+		{
+			UInterchangeShaderPortsAPI::ConnectOuputToInputByName(RotatorFactoryNode, GET_MEMBER_NAME_CHECKED(UMaterialExpressionRotator, Coordinate).ToString(),
+																  CoordinateExpression.Get<0>()->GetUniqueID(), CoordinateExpression.Get<1>());
+		}
+	}
+
+	// Time
+	{
+		TTuple<UInterchangeMaterialExpressionFactoryNode*, FString> TimeExpression =
+			CreateMaterialExpressionForInput(MaterialFactoryNode, ShaderNode, Rotator::Inputs::Time.ToString(), RotatorFactoryNode->GetUniqueID());
+		if(TimeExpression.Get<0>())
+		{
+			UInterchangeShaderPortsAPI::ConnectOuputToInputByName(RotatorFactoryNode, GET_MEMBER_NAME_CHECKED(UMaterialExpressionRotator, Time).ToString(),
+																  TimeExpression.Get<0>()->GetUniqueID(), TimeExpression.Get<1>());
+		}
+	}
+
+	// CenterX
+	if(float CenterX; ShaderNode->GetFloatAttribute(Rotator::Attributes::CenterX.ToString(), CenterX))
+	{
+		const FName CenterXMemberName = GET_MEMBER_NAME_CHECKED(UMaterialExpressionRotator, CenterX);
+		RotatorFactoryNode->AddFloatAttribute(CenterXMemberName.ToString(), CenterX);
+		RotatorFactoryNode->AddApplyAndFillDelegates<float>(CenterXMemberName.ToString(), UMaterialExpressionRotator::StaticClass(), CenterXMemberName);
+	}
+
+	// CenterY
+	if(float CenterY; ShaderNode->GetFloatAttribute(Rotator::Attributes::CenterY.ToString(), CenterY))
+	{
+		const FName CenterYMemberName = GET_MEMBER_NAME_CHECKED(UMaterialExpressionRotator, CenterY);
+		RotatorFactoryNode->AddFloatAttribute(CenterYMemberName.ToString(), CenterY);
+		RotatorFactoryNode->AddApplyAndFillDelegates<float>(CenterYMemberName.ToString(), UMaterialExpressionRotator::StaticClass(), CenterYMemberName);
+	}
+
+	// Speed
+	if(float Speed; ShaderNode->GetFloatAttribute(Rotator::Attributes::Speed.ToString(), Speed))
+	{
+		const FName SpeedMemberName = GET_MEMBER_NAME_CHECKED(UMaterialExpressionRotator, Speed);
+		RotatorFactoryNode->AddFloatAttribute(SpeedMemberName.ToString(), Speed);
+		RotatorFactoryNode->AddApplyAndFillDelegates<float>(SpeedMemberName.ToString(), UMaterialExpressionRotator::StaticClass(), SpeedMemberName);
+	}
+}
+
 void UInterchangeGenericMaterialPipeline::HandleTimeNode(const UInterchangeShaderNode* ShaderNode, UInterchangeBaseMaterialFactoryNode* MaterialFactoryNode, UInterchangeMaterialExpressionFactoryNode* TimeFactoryNode)
 {
 	using namespace UE::Interchange::Materials::Standard::Nodes;
@@ -2641,7 +2694,6 @@ void UInterchangeGenericMaterialPipeline::HandleStaticBooleanParameterNode(const
 	StaticBoolParameterFactoryNode->SetDisplayLabel(ShaderNode->GetDisplayLabel());
 }
 
-
 UInterchangeMaterialExpressionFactoryNode* UInterchangeGenericMaterialPipeline::CreateMaterialExpressionForShaderNode(UInterchangeBaseMaterialFactoryNode* MaterialFactoryNode,
 	const UInterchangeShaderNode* ShaderNode, const FString& ParentUid)
 {
@@ -2703,6 +2755,10 @@ UInterchangeMaterialExpressionFactoryNode* UInterchangeGenericMaterialPipeline::
 	else if(*ShaderType == Nodes::NormalFromHeightMap::Name)
 	{
 		HandleNormalFromHeightMapNode(ShaderNode, MaterialFactoryNode, MaterialExpression);
+	}
+	else if(*ShaderType == Nodes::Rotator::Name)
+	{
+		HandleRotatorNode(ShaderNode, MaterialFactoryNode, MaterialExpression);
 	}
 	else if(*ShaderType == Nodes::Swizzle::Name)
 	{

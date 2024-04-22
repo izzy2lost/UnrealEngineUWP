@@ -137,6 +137,24 @@ namespace Interchange
 					}
 				}
 
+				namespace Rotator
+				{
+					const FName Name = TEXT("Rotator");
+
+					namespace Attributes
+					{
+						const FName CenterX = TEXT("CenterX");
+						const FName CenterY = TEXT("CenterY");
+						const FName Speed = TEXT("Speed");
+					}
+
+					namespace Inputs
+					{
+						const FName Coordinate = TEXT("Coordinate");
+						const FName Time = TEXT("Time");
+					}
+				}
+
 				namespace Swizzle
 				{
 					const FName Name = TEXT("MaterialXSwizzle");

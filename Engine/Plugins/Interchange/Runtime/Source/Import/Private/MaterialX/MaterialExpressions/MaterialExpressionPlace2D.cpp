@@ -14,6 +14,8 @@
 #include "Materials/MaterialExpressionSubtract.h"
 #include "Materials/MaterialExpressionTextureCoordinate.h"
 
+#include "Materials/MaterialExpressionRotator.h"
+
 #include UE_INLINE_GENERATED_CPP_BY_NAME(MaterialExpressionPlace2D)
 
 #define LOCTEXT_NAMESPACE "MaterialExpressionMaterialXPlace2D"
@@ -116,12 +118,6 @@ int32 UMaterialExpressionMaterialXPlace2D::Compile(FMaterialCompiler* Compiler, 
 	FExpressionInput ApplyScale = NewExpression<UMaterialExpressionDivide>(SubPivot, AppendVectorScale);
 
 	FExpressionInput ApplyRot;
-	{
-		UMaterialExpressionMaterialXRotate2D* Rotate2D = NewObject<UMaterialExpressionMaterialXRotate2D>();
-		Rotate2D->Input = ApplyScale;
-		Rotate2D->RotationAngle = RotationAngle;
-		ApplyRot.Connect(0, Rotate2D);
-	}
 
 	FExpressionInput Applyoffset = NewExpression<UMaterialExpressionSubtract>(ApplyRot, Offset);
 	FExpressionInput AddPivot = NewExpression<UMaterialExpressionAdd>(Applyoffset, Pivot);
