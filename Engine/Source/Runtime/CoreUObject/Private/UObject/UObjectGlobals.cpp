@@ -4077,6 +4077,11 @@ void FObjectInitializer::PostConstructInit()
 		Obj->CheckDefaultSubobjects();
 	}
 
+	// If we want to be able to use RF_NeedInitialization from another thread
+	// to know that Obj is fully constructed, then on weakly order platforms we 
+	// need a fence to guarantee that the cleared flag is only visible to other threads
+	// after the other initialization-related writes
+	std::atomic_thread_fence(std::memory_order_release);
 	UE_AUTORTFM_OPEN({ Obj->ClearFlags(RF_NeedInitialization); });
 
 	// clear the object pointer so we can guard against running this function again

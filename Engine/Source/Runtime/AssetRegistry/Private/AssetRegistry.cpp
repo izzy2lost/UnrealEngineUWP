@@ -6000,11 +6000,17 @@ bool FAssetRegistryImpl::TryPostLoadAssetRegistryTags(FAssetData* AssetData)
 
 		if (AssetClass)
 		{
-			if (UObject* ClassCDO = AssetClass->GetDefaultObject(false))
+			UObject* ClassDefaultObject = AssetClass->GetDefaultObject(false);
+			if (ClassDefaultObject && !ClassDefaultObject->HasAnyFlags(RF_NeedInitialization))
 			{
+				// We are using RF_NeedInitialization to guarantee that ClassDefaultObject is fully initialized
+				// potentially on another thread. For weakly ordered memory platforms, we need to 
+				// ensure that our read of the vtable ptr isn't performed prior to the read of the class flags
+				// otherwise we might see a stale vtable despite seeing RF_NeedInit clear.
+				std::atomic_thread_fence(std::memory_order_acquire);
 				TArray<UObject::FAssetRegistryTag> TagsToModify;
 				UObject::FPostLoadAssetRegistryTagsContext Context(*AssetData, TagsToModify);
-				ClassCDO->ThreadedPostLoadAssetRegistryTags(Context);
+				ClassDefaultObject->ThreadedPostLoadAssetRegistryTags(Context);
 				if (TagsToModify.Num())
 				{
 					FAssetDataTagMap TagsAndValues = AssetData->TagsAndValues.CopyMap();
@@ -6029,7 +6035,7 @@ bool FAssetRegistryImpl::TryPostLoadAssetRegistryTags(FAssetData* AssetData)
 			}
 			else 
 			{
-				ensureMsgf(!MakeFinalChecks, TEXT("Unable to PostLoadAssetRegistryTags for '%s' because the CDO for ancestor class '%s' could not be found."),
+				ensureMsgf(!MakeFinalChecks, TEXT("Unable to PostLoadAssetRegistryTags for '%s' because the CDO for ancestor class '%s' could not be found or was not ready."),
 					*AssetData->GetObjectPathString(), *AssetClassPath.ToString());
 			}
 		}
