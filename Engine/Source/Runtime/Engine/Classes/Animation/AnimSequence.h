@@ -879,12 +879,12 @@ public:
 
 protected:
 	UPROPERTY(VisibleAnywhere, AssetRegistrySearchable, Category = "Animation")
-	FFrameRate TargetFrameRate;
-
-	UPROPERTY(VisibleAnywhere, AssetRegistrySearchable, Category = "Animation")
 	FPerPlatformFrameRate PlatformTargetFrameRate;
 
 #if WITH_EDITORONLY_DATA
+	UPROPERTY()
+	FFrameRate TargetFrameRate;	
+
 	UPROPERTY(VisibleAnywhere, AssetRegistrySearchable, Category = "Animation", Transient, DuplicateTransient)
 	int32 NumberOfSampledKeys;
 

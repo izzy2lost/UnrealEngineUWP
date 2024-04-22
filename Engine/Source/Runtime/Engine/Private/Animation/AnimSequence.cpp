@@ -666,11 +666,14 @@ void UAnimSequence::Serialize(FArchive& Ar)
 			UE::Anim::FAnimSequenceCompilingManager::Get().FinishCompilation({this});
 		}
 	}
-#endif // WITH_EDITOR	
+#endif // WITH_EDITOR
+
+#if WITH_EDITORONLY_DATA
 	if ( Ar.IsLoading() && Ar.CustomVer(FUE5MainStreamObjectVersion::GUID) < FUE5MainStreamObjectVersion::PerPlatformAnimSequenceTargetFrameRate)
 	{
 		PlatformTargetFrameRate = TargetFrameRate;
-	}
+	}	
+#endif // WITH_EDITORONLY_DATA
 
 	if (Ar.CustomVer(FFrameworkObjectVersion::GUID) < FFrameworkObjectVersion::MoveCompressedAnimDataToTheDDC)
 	{
