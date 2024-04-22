@@ -1857,7 +1857,7 @@ void FSceneProxy::SetupFallbackRayTracingMaterials(int32 LODIndex, TArray<FMeshB
 		MeshBatch.SegmentIndex = SectionIndex;
 		MeshBatch.LODIndex = 0; // CacheRayTracingPrimitive(...) currently assumes that primitives with CacheInstances flag only cache mesh commands for one LOD
 		MeshBatch.CastRayTracedShadow = CastsDynamicShadow(); // Relying on BuildInstanceMaskAndFlags(...) to check Material.CastsRayTracedShadows()
-		MeshBatch.ReverseCulling = IsReversedCullingNeeded(bUseReversedIndices);
+		MeshBatch.ReverseCulling = IsCullingReversedByComponent(); // NOTE: DXR spec says that the instance matrix does not impact culling direction
 
 		MeshBatchElement.PrimitiveUniformBufferResource = &GIdentityPrimitiveUniformBuffer;
 	}
