@@ -883,6 +883,9 @@ public:
 	/** Serialize the tag query */
 	GAMEPLAYTAGS_API void Serialize(FArchive& Ar);
 	
+	/** Sets the user-specified description of this query. */
+	void SetUserDescription(const FString& InUserDescription) { UserDescription = InUserDescription; }
+
 	/** Returns description string. */
 	const FString& GetDescription() const { return UserDescription.IsEmpty() ? AutoDescription : UserDescription; };
 
