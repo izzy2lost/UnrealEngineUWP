@@ -7476,14 +7476,6 @@ EEventLoadNodeExecutionResult FAsyncPackage2::Event_PostLoadExportBundle(FAsyncL
 	if (++Package->ProcessedExportBundlesCount == Package->Data.TotalExportBundleCount)
 	{
 		Package->ProcessedExportBundlesCount = 0;
-		if (Package->LinkerRoot && !Package->bLoadHasFailed)
-		{
-			UE_ASYNC_PACKAGE_LOG(Verbose, Package->Desc, TEXT("AsyncThread: FullyLoaded"),
-				TEXT("Async loading of package is done, and UPackage is marked as fully loaded."));
-			// mimic old loader behavior for now, but this is more correctly also done in FinishUPackage
-			// called from ProcessLoadedPackagesFromGameThread just before completion callbacks
-			Package->LinkerRoot->MarkAsFullyLoaded();
-		}
 
 		FAsyncLoadingPostLoadGroup* DeferredPostLoadGroup = Package->DeferredPostLoadGroup;
 		check(DeferredPostLoadGroup);
@@ -9030,7 +9022,7 @@ void FAsyncPackage2::CreateUPackage()
 	}
 #endif
 
-	LinkerRoot->SetFlags(RF_Public | RF_WasLoaded);
+	LinkerRoot->SetFlags(RF_Public | RF_WillBeLoaded);
 	LinkerRoot->SetLoadedPath(Desc.PackagePathToLoad);
 	LinkerRoot->SetCanBeImportedFlag(Desc.bCanBeImported);
 	LinkerRoot->SetPackageId(Desc.UPackageId);
@@ -9150,6 +9142,8 @@ void FAsyncPackage2::FinishUPackage()
 	{
 		// Mark package as having been fully loaded and update load time.
 		LinkerRoot->MarkAsFullyLoaded();
+		LinkerRoot->SetFlags(RF_WasLoaded);
+		LinkerRoot->ClearFlags(RF_WillBeLoaded);
 		LinkerRoot->SetLoadTime((float)(FPlatformTime::Seconds() - LoadStartTime));
 	}
 }

@@ -1575,7 +1575,7 @@ void FLinkerLoad::ResolveDeferredDependencies(UStruct* LoadStruct)
 			// this package may not have introduced any (possible) cyclic 
 			// dependencies, but it still could have been deferred (kept from
 			// fully loading... we need to make sure metadata gets loaded, etc.)
-			if ((SourcePackage != nullptr) && !SourcePackage->HasAnyFlags(RF_WasLoaded))
+			if ((SourcePackage != nullptr) && !SourcePackage->HasAnyFlags(RF_WasLoaded | RF_WillBeLoaded))
 			{
 				uint32 InternalLoadFlags = LoadFlags & (LOAD_NoVerify | LOAD_NoWarn | LOAD_Quiet | LOAD_RegenerateBulkDataGuids);
 				// make sure LoadAllObjects() is called for this package

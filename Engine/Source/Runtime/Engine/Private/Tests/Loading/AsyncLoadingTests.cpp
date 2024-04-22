@@ -56,5 +56,24 @@ bool FThreadSafeAsyncLoadingTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+/**
+ * This test demonstrates that LoadPackage can load blueprints with circular dependencies who rely on dependencies with circular dependencies
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FCircularDependencyLoadingTest, TEXT(TEST_NAME_ROOT ".LoadBlueprintWithCircularDependencyTest"), EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FCircularDependencyLoadingTest::RunTest(const FString& Parameters)
+{
+	static constexpr const TCHAR* ActorWithCircularReferences = TEXT("/Game/Tests/Core/AssetLoading/BlueprintActorWithCircularReferences");
+
+	UPackage* Package = LoadPackage(nullptr, ActorWithCircularReferences, LOAD_None);
+	TestTrue(TEXT("The object should have been properly loaded recursively"), Package != nullptr);
+
+	Package = FindPackage(nullptr, ActorWithCircularReferences);
+	TestTrue(TEXT("The object should have been properly loaded recursively"), Package != nullptr);
+
+	CollectGarbage(GARBAGE_COLLECTION_KEEPFLAGS);
+
+	return true;
+}
+
 #undef TEST_NAME_ROOT
 #endif // WITH_DEV_AUTOMATION_TESTS
