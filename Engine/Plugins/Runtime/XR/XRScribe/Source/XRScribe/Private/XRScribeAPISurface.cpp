@@ -25,8 +25,10 @@ namespace UE::XRScribe
 // know the value super early, in order to re-direct the initial OpenXR API calls
 // Example addition to DefaultEngine.ini
 //
-//	[SystemSettings]
+//	[/Script/XRScribe.XRScribeDeveloperSettings]
 //	XRScribe.RunMode = 1
+//
+// Can be set manually, or via the plugin's project settings page. Defaults to 1 (emulate).
 
 enum class EXRScribeRunMode : int32
 {
@@ -690,7 +692,7 @@ EXRScribeRunMode DetermineRunMode(EXRScribeRunMode FallbackRunMode, FString& Emu
 	// TODO: load file from plugin settings
 
 	EXRScribeRunMode RunModeFromConfig = EXRScribeRunMode::Emulate;
-	const bool bModeReadFromConfig = GConfig->GetInt(TEXT("SystemSettings"), TEXT("XRScribe.RunMode"), (int32&)RunModeFromConfig, GEngineIni);
+	const bool bModeReadFromConfig = GConfig->GetInt(TEXT("/Script/XRScribe.XRScribeDeveloperSettings"), TEXT("XRScribe.RunMode"), (int32&)RunModeFromConfig, GEngineIni);
 	if (!bModeReadFromConfig)
 	{
 		RunModeFromConfig = FallbackRunMode;

@@ -2,9 +2,14 @@
 
 #include "XRScribeDeveloperSettings.h"
 
-//#include UE_INLINE_GENERATED_CPP_BY_NAME(XRScribeDeveloperSettings)
-//
-//UXRScribeDeveloperSettings::UXRScribeDeveloperSettings(const FObjectInitializer& Initializer)
-//	: Super(Initializer)
-//{
-//}
+#include UE_INLINE_GENERATED_CPP_BY_NAME(XRScribeDeveloperSettings)
+
+UXRScribeDeveloperSettings::UXRScribeDeveloperSettings(const FObjectInitializer& Initializer)
+	: Super(Initializer)
+{
+}
+
+FName UXRScribeDeveloperSettings::GetCategoryName() const
+{
+	return FName(TEXT("Plugins"));
+}
