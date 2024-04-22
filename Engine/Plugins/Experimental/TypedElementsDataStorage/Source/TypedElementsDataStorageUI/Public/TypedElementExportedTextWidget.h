@@ -16,9 +16,9 @@ class TYPEDELEMENTSDATASTORAGEUI_API UTypedElementExportedTextWidgetFactory : pu
 	GENERATED_BODY()
 
 public:
-	~UTypedElementExportedTextWidgetFactory() override = default;
+	virtual ~UTypedElementExportedTextWidgetFactory() override = default;
 
-	void RegisterWidgetConstructors(ITypedElementDataStorageInterface& DataStorage,
+	virtual void RegisterWidgetConstructors(ITypedElementDataStorageInterface& DataStorage,
 		ITypedElementDataStorageUiInterface& DataStorageUi) const override;
 
 	TSet<TWeakObjectPtr<const UScriptStruct>> RegisteredTypes;
@@ -31,17 +31,22 @@ struct TYPEDELEMENTSDATASTORAGEUI_API FTypedElementExportedTextWidgetConstructor
 
 public:
 	FTypedElementExportedTextWidgetConstructor();
-	~FTypedElementExportedTextWidgetConstructor() override = default;
+	virtual ~FTypedElementExportedTextWidgetConstructor() override = default;
 
-	TConstArrayView<const UScriptStruct*> GetAdditionalColumnsList() const override;
+	virtual TConstArrayView<const UScriptStruct*> GetAdditionalColumnsList() const override;
+	virtual const TypedElementDataStorage::FQueryConditions* GetQueryConditions() const override;
 
 protected:
-	TSharedPtr<SWidget> CreateWidget(const TypedElementDataStorage::FMetaDataView& Arguments) override;
-	bool FinalizeWidget(
+	virtual TSharedPtr<SWidget> CreateWidget(const TypedElementDataStorage::FMetaDataView& Arguments) override;
+	virtual bool FinalizeWidget(
 		ITypedElementDataStorageInterface* DataStorage,
 		ITypedElementDataStorageUiInterface* DataStorageUi,
 		TypedElementRowHandle Row,
 		const TSharedPtr<SWidget>& Widget) override;
+
+protected:
+	// The column this exported text widget is operating on
+	TypedElementDataStorage::FQueryConditions MatchedColumn;
 };
 
 USTRUCT(meta = (DisplayName = "Exported text widget"))

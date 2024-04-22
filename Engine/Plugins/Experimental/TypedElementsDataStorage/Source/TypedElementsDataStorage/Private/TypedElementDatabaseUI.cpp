@@ -437,15 +437,6 @@ void UTypedElementDatabaseUi::CreateWidgetInstance(
 TSharedPtr<SWidget> UTypedElementDatabaseUi::ConstructWidget(TypedElementRowHandle Row, FTypedElementWidgetConstructor& Constructor,
 	const TypedElementDataStorage::FMetaDataView& Arguments)
 {
-	const TArray<TWeakObjectPtr<const UScriptStruct>>& ColumnTypes = Constructor.GetMatchedColumns();
-
-	if (ColumnTypes.Num() == 1)
-	{
-		if (FTypedElementScriptStructTypeInfoColumn* TypeInfo = Storage->GetColumn<FTypedElementScriptStructTypeInfoColumn>(Row))
-		{
-			TypeInfo->TypeInfo = *ColumnTypes.begin();
-		}
-	}
 	return Constructor.ConstructFinalWidget(Row, Storage, this, Arguments);
 }
 

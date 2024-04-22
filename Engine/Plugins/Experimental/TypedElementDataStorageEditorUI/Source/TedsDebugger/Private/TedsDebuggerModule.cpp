@@ -10,6 +10,7 @@
 #include "WorkspaceMenuStructure.h"
 #include "Elements/Columns/TypedElementLabelColumns.h"
 #include "Elements/Columns/TypedElementMiscColumns.h"
+#include "Elements/Columns/TypedElementSelectionColumns.h"
 #include "Elements/Columns/TypedElementSlateWidgetColumns.h"
 #include "Elements/Columns/TypedElementTypeInfoColumns.h"
 #include "Elements/Framework/TypedElementRegistry.h"
@@ -101,7 +102,7 @@ TSharedRef<SWidget> FTedsDebuggerModule::CreateTedsDebugger()
 	// TEDS-Debugger TODO: Currently uses a pre-determined initial set of columns, how can we drive this by the rows shown or let the user pick?
 	TypedElementDataStorage::FQueryDescription ColumnQueryDescription =
 						Select()
-							.ReadOnly<FTypedElementClassTypeInfoColumn, FTypedElementSlateWidgetReferenceColumn, FTypedElementRowReferenceColumn>()
+							.ReadOnly<FTypedElementClassTypeInfoColumn, FTypedElementSlateWidgetReferenceColumn, FTypedElementRowReferenceColumn, FTypedElementSelectionColumn>()
 						.Compile();
 
 	InitialColumnQuery = Registry->GetMutableDataStorage()->RegisterQuery(MoveTemp(ColumnQueryDescription));

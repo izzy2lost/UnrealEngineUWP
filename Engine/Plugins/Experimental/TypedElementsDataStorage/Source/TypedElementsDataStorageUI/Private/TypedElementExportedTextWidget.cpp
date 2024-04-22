@@ -28,7 +28,7 @@ static void UpdateExportedTextWidget(const void* Data, FTypedElementSlateWidgetR
 		*(WidgetPointer->GetTypeAsString()));
 
 	FString Label;
-	TypeInfo.TypeInfo->ExportText(Label, Data, nullptr, nullptr, PPF_None, nullptr);
+	TypeInfo.TypeInfo->ExportText(Label, Data, Data, nullptr, PPF_None, nullptr);
 	STextBlock* TextWidget = static_cast<STextBlock*>(WidgetPointer.Get());
 	FText Text = FText::FromString(MoveTemp(Label));
 	TextWidget->SetToolTipText(Text);
@@ -110,6 +110,12 @@ TConstArrayView<const UScriptStruct*> FTypedElementExportedTextWidgetConstructor
 	return Columns;
 }
 
+const TypedElementDataStorage::FQueryConditions* FTypedElementExportedTextWidgetConstructor::GetQueryConditions() const
+{
+	// For the exported text widget, the query condition we are matched against is the column we are exporting text for
+	return &MatchedColumn;
+}
+
 TSharedPtr<SWidget> FTypedElementExportedTextWidgetConstructor::CreateWidget(const TypedElementDataStorage::FMetaDataView& Arguments)
 {
 	return SNew(STextBlock);
@@ -122,6 +128,11 @@ bool FTypedElementExportedTextWidgetConstructor::FinalizeWidget(
 	const TSharedPtr<SWidget>& Widget)
 {
 	FTypedElementScriptStructTypeInfoColumn& TypeInfoColumn = *DataStorage->GetColumn<FTypedElementScriptStructTypeInfoColumn>(Row);
+
+	// NOTE: We are currently assuming that an instance of FTypedElementExportedTextWidgetConstructor will only be used to show the same type info
+	// which isn't ideal but it's better than nothing since we need some sort of matched conditions for column based virtualization to work.
+	// TEDS UI TODO: We should work around it by refactoring this into an STedsWidget in the future so it can store the column conditions per instance
+	MatchedColumn = TypedElementDataStorage::FQueryConditions(TypedElementDataStorage::FColumn(TypeInfoColumn.TypeInfo));
 
 	UpdateExportedTextWidget(
 		*DataStorage,

@@ -255,9 +255,10 @@ namespace TypedElementDataStorage
 		{
 			return Contains(0, Columns[0]);
 		}
+		// If there are no columns in the condition, everything passes it
 		else
 		{
-			return false;
+			return true;
 		}
 	}
 
