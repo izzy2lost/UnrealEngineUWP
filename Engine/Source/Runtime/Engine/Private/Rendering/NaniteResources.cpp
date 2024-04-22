@@ -106,6 +106,10 @@ static FAutoConsoleVariableRef CVarNaniteRayTracingMode(
 	GNaniteRayTracingMode,
 	TEXT("0 - fallback mesh (default);\n")
 	TEXT("1 - streamed out mesh;"),
+	FConsoleVariableDelegate::CreateLambda([](IConsoleVariable* InVariable)
+		{
+			FGlobalComponentRecreateRenderStateContext Context;
+		}),
 	ECVF_RenderThreadSafe
 );
 
