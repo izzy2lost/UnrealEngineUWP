@@ -26,6 +26,7 @@
 #include "Components/MaterialProperties/DMMPWorldPositionOffset.h"
 #include "Components/MaterialStageBlends/DMMSBNormal.h"
 #include "Components/MaterialValues/DMMaterialValueFloat1.h"
+#include "Components/MaterialValues/DMMaterialValueFloat2.h"
 #include "CoreGlobals.h"
 #include "DMComponentPath.h"
 #include "DMDefs.h"
@@ -295,6 +296,15 @@ void UDynamicMaterialModelEditorOnlyData::BuildMaterial(bool bInDirtyAssets)
 	TSharedRef<FDMMaterialBuildState> BuildState = CreateBuildState(MaterialModel->DynamicMaterial, bInDirtyAssets);
 
 	const bool bIsPostProcessMaterial = Domain == EMaterialDomain::MD_PostProcess;
+
+	/**
+	 * Add global tiling parameter
+	 */
+	if (MaterialModel->GlobalTilingValue)
+	{
+		MaterialModel->GlobalTilingValue->GenerateExpression(BuildState);
+		BuildState->SetGlobalTilingExpression(BuildState->GetLastValueExpression(MaterialModel->GlobalTilingValue));
+	}
 
 	/**
 	 * Process slots to build base material inputs.

@@ -802,7 +802,7 @@ void SDMComponentEdit::GenerateMaterialModelPropertyRows(const TSharedRef<SDMEdi
 		}
 	}
 
-	if (UDMMaterialValueFloat2* GlobalTilingValue = InMaterialModel->GetGlobalScaleValue())
+	if (UDMMaterialValueFloat2* GlobalTilingValue = InMaterialModel->GetGlobalTilingValue())
 	{
 		if (!InOutProcessedObjects.Contains(GlobalTilingValue))
 		{

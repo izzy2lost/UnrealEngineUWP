@@ -448,6 +448,12 @@ TArray<UMaterialExpression*> UDMMaterialStageInputTextureUV::CreateTextureUVExpr
 	CreateParameterExpression(ParamID::Scale,    ParamID::ScaleX,   TEXT("ScaleX"),   InTextureUV->GetScale().X);
 	CreateParameterExpression(ParamID::Scale,    ParamID::ScaleY,   TEXT("ScaleY"),   InTextureUV->GetScale().Y);
 
+	if (UMaterialExpression* GlobalTiling = InBuildState->GetGlobalTilingExpression())
+	{
+		check(NameToInputIndex.Contains(UDynamicMaterialModel::GlobalTilingParameterName));
+		GlobalTiling->ConnectExpression(TextureUVFunc->GetInput(NameToInputIndex[UDynamicMaterialModel::GlobalTilingParameterName]), 0);
+	}
+
 	// Output
 	Nodes.Add(TextureUVFunc);
 

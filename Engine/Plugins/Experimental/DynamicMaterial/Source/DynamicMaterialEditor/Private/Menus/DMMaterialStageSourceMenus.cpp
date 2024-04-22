@@ -132,9 +132,9 @@ namespace UE::DynamicMaterialEditor::Private
 								ensure(false);
 							}
 
-							if (TSharedPtr<SDMSlot> SlotWidget = MenuContext->GetSlotWidget().Pin())
+							if (TSharedPtr<SDMEditor> EditorWidget = MenuContext->GetEditorWidget())
 							{
-								SlotWidget->InvalidateComponentEditWidget();
+								EditorWidget->InvalidateComponentEditWidget();
 							}
 						})
 				)
@@ -234,9 +234,9 @@ namespace UE::DynamicMaterialEditor::Private
 							ensure(false);
 						}
 
-						if (TSharedPtr<SDMSlot> SlotWidget = MenuContext->GetSlotWidget().Pin())
+						if (TSharedPtr<SDMEditor> EditorWidget = MenuContext->GetEditorWidget())
 						{
-							SlotWidget->InvalidateComponentEditWidget();
+							EditorWidget->InvalidateComponentEditWidget();
 						}
 					})
 				)
@@ -330,9 +330,9 @@ namespace UE::DynamicMaterialEditor::Private
 								ensure(false);
 							}
 
-							if (TSharedPtr<SDMSlot> SlotWidget = MenuContext->GetSlotWidget().Pin())
+							if (TSharedPtr<SDMEditor> EditorWidget = MenuContext->GetEditorWidget())
 							{
-								SlotWidget->InvalidateComponentEditWidget();
+								EditorWidget->InvalidateComponentEditWidget();
 							}
 						})
 				)
@@ -455,9 +455,9 @@ namespace UE::DynamicMaterialEditor::Private
 								ensure(false);
 							}
 
-							if (TSharedPtr<SDMSlot> SlotWidget = MenuContext->GetSlotWidget().Pin())
+							if (TSharedPtr<SDMEditor> EditorWidget = MenuContext->GetEditorWidget())
 							{
-								SlotWidget->InvalidateComponentEditWidget();
+								EditorWidget->InvalidateComponentEditWidget();
 							}
 						})
 					)
@@ -601,9 +601,9 @@ namespace UE::DynamicMaterialEditor::Private
 									ensure(false);
 								}
 
-								if (TSharedPtr<SDMSlot> SlotWidget = MenuContext->GetSlotWidget().Pin())
+								if (TSharedPtr<SDMEditor> EditorWidget = MenuContext->GetEditorWidget())
 								{
-									SlotWidget->InvalidateComponentEditWidget();
+									EditorWidget->InvalidateComponentEditWidget();
 								}
 							})
 						)
@@ -704,9 +704,9 @@ namespace UE::DynamicMaterialEditor::Private
 								ensure(false);
 							}
 
-							if (TSharedPtr<SDMSlot> SlotWidget = MenuContext->GetSlotWidget().Pin())
+							if (TSharedPtr<SDMEditor> EditorWidget = MenuContext->GetEditorWidget())
 							{
-								SlotWidget->InvalidateComponentEditWidget();
+								EditorWidget->InvalidateComponentEditWidget();
 							}
 						})
 					)
@@ -769,9 +769,9 @@ namespace UE::DynamicMaterialEditor::Private
 			ensure(false);
 		}
 
-		if (TSharedPtr<SDMSlot> SlotWidget = InMenuContext->GetSlotWidget().Pin())
+		if (TSharedPtr<SDMEditor> EditorWidget = InMenuContext->GetEditorWidget())
 		{
-			SlotWidget->InvalidateComponentEditWidget();
+			EditorWidget->InvalidateComponentEditWidget();
 		}
 	}
 
@@ -827,9 +827,9 @@ namespace UE::DynamicMaterialEditor::Private
 			ensure(false);
 		}
 
-		if (TSharedPtr<SDMSlot> SlotWidget = InMenuContext->GetSlotWidget().Pin())
+		if (TSharedPtr<SDMEditor> EditorWidget = InMenuContext->GetEditorWidget())
 		{
-			SlotWidget->InvalidateComponentEditWidget();
+			EditorWidget->InvalidateComponentEditWidget();
 		}
 	}
 
@@ -885,9 +885,9 @@ namespace UE::DynamicMaterialEditor::Private
 			ensure(false);
 		}
 
-		if (TSharedPtr<SDMSlot> SlotWidget = InMenuContext->GetSlotWidget().Pin())
+		if (TSharedPtr<SDMEditor> EditorWidget = InMenuContext->GetEditorWidget())
 		{
-			SlotWidget->InvalidateComponentEditWidget();
+			EditorWidget->InvalidateComponentEditWidget();
 		}
 	}
 
@@ -957,9 +957,9 @@ namespace UE::DynamicMaterialEditor::Private
 			MaskStage->SetEnabled(false);
 		}
 
-		if (TSharedPtr<SDMSlot> SlotWidget = InMenuContext->GetSlotWidget().Pin())
+		if (TSharedPtr<SDMEditor> EditorWidget = InMenuContext->GetEditorWidget())
 		{
-			SlotWidget->InvalidateComponentEditWidget();
+			EditorWidget->InvalidateComponentEditWidget();
 		}
 	}
 
@@ -1041,9 +1041,9 @@ namespace UE::DynamicMaterialEditor::Private
 			ensure(false);
 		}
 
-		if (TSharedPtr<SDMSlot> SlotWidget = InMenuContext->GetSlotWidget().Pin())
+		if (TSharedPtr<SDMEditor> EditorWidget = InMenuContext->GetEditorWidget())
 		{
-			SlotWidget->InvalidateComponentEditWidget();
+			EditorWidget->InvalidateComponentEditWidget();
 		}
 	}
 
@@ -1126,9 +1126,9 @@ namespace UE::DynamicMaterialEditor::Private
 			ensure(false);
 		}
 
-		if (TSharedPtr<SDMSlot> SlotWidget = InMenuContext->GetSlotWidget().Pin())
+		if (TSharedPtr<SDMEditor> EditorWidget = InMenuContext->GetEditorWidget())
 		{
-			SlotWidget->InvalidateComponentEditWidget();
+			EditorWidget->InvalidateComponentEditWidget();
 		}
 	}
 
@@ -1179,9 +1179,9 @@ namespace UE::DynamicMaterialEditor::Private
 			ensure(false);
 		}
 
-		if (TSharedPtr<SDMSlot> SlotWidget = InMenuContext->GetSlotWidget().Pin())
+		if (TSharedPtr<SDMEditor> EditorWidget = InMenuContext->GetEditorWidget())
 		{
-			SlotWidget->InvalidateComponentEditWidget();
+			EditorWidget->InvalidateComponentEditWidget();
 		}
 	}
 
@@ -1394,7 +1394,7 @@ TSharedRef<SWidget> FDMMaterialStageSourceMenus::MakeChangeSourceMenu(const TSha
 		NewSection.AddDynamicEntry(NAME_None, FNewToolMenuSectionDelegate::CreateStatic(&CreateChangeMaterialStageSource));
 	}
 
-	FToolMenuContext MenuContext(UDMMenuContext::CreateStage(InSlotWidget, InStageWidget));
+	FToolMenuContext MenuContext(UDMMenuContext::CreateStage(InSlotWidget->GetEditorWidget(), InStageWidget));
 
 	return UToolMenus::Get()->GenerateWidget(ChangeStageSourceMenuName, MenuContext);
 }

@@ -44,17 +44,9 @@ namespace UE::DynamicMaterialEditor::Private
 			{
 				if (UDynamicMaterialModelEditorOnlyData* EditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(MaterialModel))
 				{
-					TSharedPtr<SDMEditor> EditorWidget;
-
-					if (TSharedPtr<SDMSlot> SlotWidget = Context->GetSlotWidget().Pin())
-					{
-						EditorWidget = SlotWidget->GetEditorWidget();
-
-					}
-
 					EditorOnlyData->SetChannelListPreset(InPresetName);
 
-					if (EditorWidget.IsValid())
+					if (TSharedPtr<SDMEditor> EditorWidget = Context->GetEditorWidget())
 					{
 						EditorWidget->RefreshSlotPickerList();
 						EditorWidget->RefreshSlotWidget();
@@ -111,17 +103,9 @@ namespace UE::DynamicMaterialEditor::Private
 			{
 				if (UDynamicMaterialModelEditorOnlyData* EditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(MaterialModel))
 				{
-					TSharedPtr<SDMEditor> EditorWidget;
-
-					if (TSharedPtr<SDMSlot> SlotWidget = Context->GetSlotWidget().Pin())
-					{
-						EditorWidget = SlotWidget->GetEditorWidget();
-
-					}
-
 					EditorOnlyData->SetDomain(InDomain);
 
-					if (EditorWidget.IsValid())
+					if (TSharedPtr<SDMEditor> EditorWidget = Context->GetEditorWidget())
 					{
 						EditorWidget->RefreshSlotPickerList();
 						EditorWidget->RefreshSlotWidget();
@@ -194,17 +178,9 @@ namespace UE::DynamicMaterialEditor::Private
 			{
 				if (UDynamicMaterialModelEditorOnlyData* EditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(MaterialModel))
 				{
-					TSharedPtr<SDMEditor> EditorWidget;
-
-					if (TSharedPtr<SDMSlot> SlotWidget = Context->GetSlotWidget().Pin())
-					{
-						EditorWidget = SlotWidget->GetEditorWidget();
-
-					}
-
 					EditorOnlyData->SetBlendMode(InBlendMode);
 
-					if (EditorWidget.IsValid())
+					if (TSharedPtr<SDMEditor> EditorWidget = Context->GetEditorWidget())
 					{
 						EditorWidget->RefreshSlotPickerList();
 						EditorWidget->RefreshSlotWidget();
@@ -277,14 +253,6 @@ namespace UE::DynamicMaterialEditor::Private
 			{
 				if (UDynamicMaterialModelEditorOnlyData* EditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(MaterialModel))
 				{
-					TSharedPtr<SDMEditor> EditorWidget;
-
-					if (TSharedPtr<SDMSlot> SlotWidget = Context->GetSlotWidget().Pin())
-					{
-						EditorWidget = SlotWidget->GetEditorWidget();
-
-					}
-
 					switch (EditorOnlyData->GetShadingModel())
 					{
 						case EDMMaterialShadingModel::DefaultLit:
@@ -296,7 +264,7 @@ namespace UE::DynamicMaterialEditor::Private
 							break;
 					}
 
-					if (EditorWidget.IsValid())
+					if (TSharedPtr<SDMEditor> EditorWidget = Context->GetEditorWidget())
 					{
 						EditorWidget->RefreshSlotPickerList();
 					}
@@ -349,17 +317,7 @@ namespace UE::DynamicMaterialEditor::Private
 			{
 				if (UDynamicMaterialModelEditorOnlyData* EditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(MaterialModel))
 				{
-					TSharedPtr<SDMEditor> EditorWidget;
-
-					if (TSharedPtr<SDMSlot> SlotWidget = Context->GetSlotWidget().Pin())
-					{
-						EditorWidget = SlotWidget->GetEditorWidget();
-
-					}
-
-					EditorOnlyData->SetPixelAnimationFlag(!EditorOnlyData->IsPixelAnimationFlagSet());
-
-					if (EditorWidget.IsValid())
+					if (TSharedPtr<SDMEditor> EditorWidget = Context->GetEditorWidget())
 					{
 						EditorWidget->RefreshSlotPickerList();
 					}					
@@ -407,17 +365,7 @@ namespace UE::DynamicMaterialEditor::Private
 			{
 				if (UDynamicMaterialModelEditorOnlyData* EditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(MaterialModel))
 				{
-					TSharedPtr<SDMEditor> EditorWidget;
-
-					if (TSharedPtr<SDMSlot> SlotWidget = Context->GetSlotWidget().Pin())
-					{
-						EditorWidget = SlotWidget->GetEditorWidget();
-
-					}
-
-					EditorOnlyData->SetTwoSidedFlag(!EditorOnlyData->IsTwoSidedFlagSet());
-
-					if (EditorWidget.IsValid())
+					if (TSharedPtr<SDMEditor> EditorWidget = Context->GetEditorWidget())
 					{
 						EditorWidget->RefreshSlotPickerList();
 					}					
@@ -1007,7 +955,7 @@ TSharedRef<SWidget> FDMToolBarMenus::MakeEditorLayoutMenu(const TSharedPtr<SDMEd
 	FToolMenuContext MenuContext(
 		FDynamicMaterialEditorModule::Get().GetCommandList(),
 		TSharedPtr<FExtender>(),
-		UDMMenuContext::CreateSlot(InEditorWidget->GetActiveSlotWidget())
+		UDMMenuContext::CreateEditor(InEditorWidget)
 	);
 
 	return UToolMenus::Get()->GenerateWidget(ToolBarEditorLayoutMenuName, MenuContext);

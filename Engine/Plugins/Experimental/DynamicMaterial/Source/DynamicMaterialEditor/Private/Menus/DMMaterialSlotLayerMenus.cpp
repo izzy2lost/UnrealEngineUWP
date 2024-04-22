@@ -110,6 +110,13 @@ namespace UE::DynamicMaterialEditor::Private
 						return;
 					}
 
+					TSharedPtr<SDMEditor> EditorWidget = MenuContext->GetEditorWidget();
+
+					if (!EditorWidget.IsValid() || !EditorWidget->GetActiveSlotWidget().IsValid())
+					{
+						return;
+					}
+
 					const TArray<UDMMaterialValue*>& Values = MaterialModel->GetValues();
 
 					for (UDMMaterialValue* Value : Values)
@@ -119,7 +126,7 @@ namespace UE::DynamicMaterialEditor::Private
 								Value->GetDescription(),
 								LOCTEXT("AddValueStageSpecificTooltip", "Add a Material Stage based on this Material Value."),
 								FSlateIcon(),
-								FUIAction(FExecuteAction::CreateSP(MenuContext->GetSlotWidget().Pin().Get(), &SDMSlot::AddNewLayer_GlobalValue, Value)))
+								FUIAction(FExecuteAction::CreateSP(EditorWidget->GetActiveSlotWidget().Get(), &SDMSlot::AddNewLayer_GlobalValue, Value)))
 						);
 					}
 				})
@@ -138,6 +145,13 @@ namespace UE::DynamicMaterialEditor::Private
 						return;
 					}
 
+					TSharedPtr<SDMEditor> EditorWidget = MenuContext->GetEditorWidget();
+
+					if (!EditorWidget.IsValid() || !EditorWidget->GetActiveSlotWidget().IsValid())
+					{
+						return;
+					}
+
 					for (EDMValueType ValueType : UDMValueDefinitionLibrary::GetValueTypes())
 					{
 						FText Name = UDMValueDefinitionLibrary::GetValueDefinition(ValueType).GetDisplayName();
@@ -148,7 +162,7 @@ namespace UE::DynamicMaterialEditor::Private
 								Name,
 								FormattedTooltip,
 								FSlateIcon(),
-								FUIAction(FExecuteAction::CreateSP(MenuContext->GetSlotWidget().Pin().Get(), &SDMSlot::AddNewLayer_NewGlobalValue, ValueType)))
+								FUIAction(FExecuteAction::CreateSP(EditorWidget->GetActiveSlotWidget().Get(), &SDMSlot::AddNewLayer_NewGlobalValue, ValueType)))
 						);
 					}
 				})
@@ -180,9 +194,9 @@ namespace UE::DynamicMaterialEditor::Private
 			return;
 		}
 
-		const TSharedPtr<SDMSlot> SlotWidget = MenuContext->GetSlotWidget().Pin();
+		TSharedPtr<SDMEditor> EditorWidget = MenuContext->GetEditorWidget();
 
-		if (!SlotWidget.IsValid())
+		if (!EditorWidget.IsValid() || !EditorWidget->GetActiveSlotWidget().IsValid())
 		{
 			return;
 		}
@@ -210,7 +224,7 @@ namespace UE::DynamicMaterialEditor::Private
 			if (ensure(MaterialProperty))
 			{
 				UE::DynamicMaterialEditor::Private::AddSlotMenuEntry(
-					SlotWidget.Get(),
+					EditorWidget->GetActiveSlotWidget().Get(),
 					InMenu,
 					MaterialProperty->GetDescription(),
 					InSlot,
@@ -234,14 +248,14 @@ namespace UE::DynamicMaterialEditor::Private
 			return;
 		}
 
-		const TSharedPtr<SDMSlot> SlotWidget = MenuContext->GetSlotWidget().Pin();
+		TSharedPtr<SDMEditor> EditorWidget = MenuContext->GetEditorWidget();
 
-		if (!SlotWidget.IsValid())
+		if (!EditorWidget.IsValid() || !EditorWidget->GetActiveSlotWidget().IsValid())
 		{
 			return;
 		}
 
-		const UDMMaterialSlot* const Slot = SlotWidget->GetSlot();
+		const UDMMaterialSlot* const Slot = EditorWidget->GetActiveSlotWidget()->GetSlot();
 
 		if (!Slot)
 		{
@@ -285,7 +299,7 @@ namespace UE::DynamicMaterialEditor::Private
 				if (ensure(MaterialProperty))
 				{
 					UE::DynamicMaterialEditor::Private::AddSlotMenuEntry(
-						SlotWidget.Get(),
+						EditorWidget->GetActiveSlotWidget().Get(),
 						InMenu,
 						FText::Format(SlotNameFormatTemplate, SlotIter->GetDescription(), MaterialProperty->GetDescription()),
 						SlotIter,
@@ -319,9 +333,9 @@ namespace UE::DynamicMaterialEditor::Private
 			return;
 		}
 
-		const TSharedPtr<SDMSlot> SlotWidget = MenuContext->GetSlotWidget().Pin();
+		TSharedPtr<SDMEditor> EditorWidget = MenuContext->GetEditorWidget();
 
-		if (!SlotWidget.IsValid())
+		if (!EditorWidget.IsValid() || !EditorWidget->GetActiveSlotWidget().IsValid())
 		{
 			return;
 		}
@@ -345,7 +359,7 @@ namespace UE::DynamicMaterialEditor::Private
 					LOCTEXT("ChangeGradientSourceTooltip", "Change the source of this stage to a Material Gradient."),
 					FSlateIcon(),
 					FUIAction(FExecuteAction::CreateSP(
-						SlotWidget.Get(),
+						EditorWidget->GetActiveSlotWidget().Get(),
 						&SDMSlot::AddNewLayer_Gradient,
 						TSubclassOf<UDMMaterialStageGradient>(Gradient.Get()))
 					)
@@ -359,7 +373,7 @@ UToolMenu* FDMMaterialSlotLayerMenus::GenerateSlotLayerMenu(const TSharedPtr<SDM
 {
 	using namespace UE::DynamicMaterialEditor::Private;
 
-	UToolMenu* NewToolMenu = UDMMenuContext::GenerateContextMenuLayer(SlotLayerMenuName, InSlotWidget, InLayerObject);
+	UToolMenu* NewToolMenu = UDMMenuContext::GenerateContextMenuLayer(SlotLayerMenuName, InSlotWidget->GetEditorWidget(), InLayerObject);
 
 	if (!NewToolMenu)
 	{
@@ -396,14 +410,14 @@ void FDMMaterialSlotLayerMenus::AddAddLayerSection(UToolMenu* InMenu)
 		return;
 	}
 
-	const TSharedPtr<SDMSlot> SlotWidget = MenuContext->GetSlotWidget().Pin();
+	TSharedPtr<SDMEditor> EditorWidget = MenuContext->GetEditorWidget();
 
-	if (!SlotWidget.IsValid())
+	if (!EditorWidget.IsValid() || !EditorWidget->GetActiveSlotWidget().IsValid())
 	{
 		return;
 	}
 
-	const UDMMaterialSlot* const Slot = SlotWidget->GetSlot();
+	const UDMMaterialSlot* const Slot = EditorWidget->GetActiveSlotWidget()->GetSlot();
 
 	if (!Slot)
 	{
@@ -462,7 +476,7 @@ void FDMMaterialSlotLayerMenus::AddAddLayerSection(UToolMenu* InMenu)
 		LOCTEXT("AddTextureSampleTooltip", "Add a Material Stage based on a Texture."),
 		FSlateIcon(),
 		FUIAction(FExecuteAction::CreateSP(
-			SlotWidget.Get(),
+			EditorWidget->GetActiveSlotWidget().Get(),
 			&SDMSlot::AddNewLayer_Expression,
 			TSubclassOf<UDMMaterialStageExpression>(UDMMaterialStageExpressionTextureSample::StaticClass()),
 			EDMMaterialLayerStage::All
@@ -475,7 +489,7 @@ void FDMMaterialSlotLayerMenus::AddAddLayerSection(UToolMenu* InMenu)
 		LOCTEXT("AddTextureSampleBaseOnlyTooltip", "Add a Material Stage based on a Texture with the Alpha disabled."),
 		FSlateIcon(),
 		FUIAction(FExecuteAction::CreateSP(
-			SlotWidget.Get(),
+			EditorWidget->GetActiveSlotWidget().Get(),
 			&SDMSlot::AddNewLayer_Expression,
 			TSubclassOf<UDMMaterialStageExpression>(UDMMaterialStageExpressionTextureSample::StaticClass()),
 			EDMMaterialLayerStage::Base
@@ -490,7 +504,7 @@ void FDMMaterialSlotLayerMenus::AddAddLayerSection(UToolMenu* InMenu)
 			LOCTEXT("AddAlphaOnlyTooltip", "Add an Alpha-Only Material Layer.\n\nThe base layer will be disabled by default. It can still be re-enabled later."),
 			FSlateIcon(),
 			FUIAction(FExecuteAction::CreateSP(
-				SlotWidget.Get(),
+				EditorWidget->GetActiveSlotWidget().Get(),
 				&SDMSlot::AddNewLayer_Expression,
 				TSubclassOf<UDMMaterialStageExpression>(UDMMaterialStageExpressionTextureSample::StaticClass()),
 				EDMMaterialLayerStage::Mask
@@ -503,7 +517,7 @@ void FDMMaterialSlotLayerMenus::AddAddLayerSection(UToolMenu* InMenu)
 		LOCTEXT("AddColor", "Solid Color"),
 		LOCTEXT("AddColorTooltip", "Add a new Material Layer with a solid RGB color."),
 		FSlateIcon(),
-		FUIAction(FExecuteAction::CreateSP(SlotWidget.Get(), &SDMSlot::AddNewLayer_NewLocalValue, EDMValueType::VT_Float3_RGB))
+		FUIAction(FExecuteAction::CreateSP(EditorWidget->GetActiveSlotWidget().Get(), &SDMSlot::AddNewLayer_NewLocalValue, EDMValueType::VT_Float3_RGB))
 	);
 
 	NewSection.AddMenuEntry(
@@ -511,7 +525,7 @@ void FDMMaterialSlotLayerMenus::AddAddLayerSection(UToolMenu* InMenu)
 		LOCTEXT("AddColorAtlas", "Color Atlas"),
 		LOCTEXT("AddColorAtlasTooltip", "Add a new Material Layer with a Color Atlas."),
 		FSlateIcon(),
-		FUIAction(FExecuteAction::CreateSP(SlotWidget.Get(), &SDMSlot::AddNewLayer_NewLocalValue, EDMValueType::VT_ColorAtlas))
+		FUIAction(FExecuteAction::CreateSP(EditorWidget->GetActiveSlotWidget().Get(), &SDMSlot::AddNewLayer_NewLocalValue, EDMValueType::VT_ColorAtlas))
 	);
 
 	NewSection.AddMenuEntry(
@@ -520,7 +534,7 @@ void FDMMaterialSlotLayerMenus::AddAddLayerSection(UToolMenu* InMenu)
 		LOCTEXT("AddEdgeColorTooltip", "Add a new Material Layer with a solid color based on the edge color on a texture."),
 		FSlateIcon(),
 		FUIAction(FExecuteAction::CreateSP(
-			SlotWidget.Get(),
+			EditorWidget->GetActiveSlotWidget().Get(),
 			&SDMSlot::AddNewLayer_Expression,
 			TSubclassOf<UDMMaterialStageExpression>(UDMMaterialStageExpressionTextureSampleEdgeColor::StaticClass()),
 			EDMMaterialLayerStage::All
@@ -533,7 +547,7 @@ void FDMMaterialSlotLayerMenus::AddAddLayerSection(UToolMenu* InMenu)
 		LOCTEXT("AddSceneTextureTooltip", "Add a new Material Layer that represents the Scene Texture for a post process material."),
 		FSlateIcon(),
 		FUIAction(FExecuteAction::CreateSP(
-			SlotWidget.Get(),
+			EditorWidget->GetActiveSlotWidget().Get(),
 			&SDMSlot::AddNewLayer_SceneTexture
 		))
 	);
@@ -544,7 +558,7 @@ void FDMMaterialSlotLayerMenus::AddAddLayerSection(UToolMenu* InMenu)
 		LOCTEXT("AddTextTooltip", "Add a Material Stage based on a Text Renderer."),
 		FSlateIcon(),
 		FUIAction(FExecuteAction::CreateSP(
-			SlotWidget.Get(),
+			EditorWidget->GetActiveSlotWidget().Get(),
 			&SDMSlot::AddNewLayer_Renderer,
 			TSubclassOf<UDMRenderTargetRenderer>(UDMRenderTargetTextRenderer::StaticClass())
 		))
@@ -580,7 +594,7 @@ void FDMMaterialSlotLayerMenus::AddAddLayerSection(UToolMenu* InMenu)
 		LOCTEXT("AddMaterialFunction", "Material Function"),
 		LOCTEXT("AddMaterialFunctionTooltip", "Add a new Material Layer based on a Material Function."),
 		FSlateIcon(),
-		FUIAction(FExecuteAction::CreateSP(SlotWidget.Get(), &SDMSlot::AddNewLayer_MaterialFunction))
+		FUIAction(FExecuteAction::CreateSP(EditorWidget->GetActiveSlotWidget().Get(), &SDMSlot::AddNewLayer_MaterialFunction))
 	);
 
 	if constexpr (UE::DynamicMaterialEditor::bGlobalValuesEnabled)

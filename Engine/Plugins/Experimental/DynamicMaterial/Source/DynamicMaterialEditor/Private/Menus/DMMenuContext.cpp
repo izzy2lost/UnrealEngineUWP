@@ -7,22 +7,22 @@
 #include "Components/DMMaterialStageBlend.h"
 #include "Components/DMMaterialStageSource.h"
 #include "Model/DynamicMaterialModel.h"
-#include "Model/DynamicMaterialModelEditorOnlyData.h"
-#include "Slate/SDMSlot.h"
+#include "Slate/SDMEditor.h"
 #include "Slate/SDMStage.h"
 #include "ToolMenu.h"
 #include "ToolMenus.h"
+#include "Slate/SDMSlot.h"
 
-UDMMenuContext* UDMMenuContext::Create(const TWeakPtr<SDMSlot>& InSlotWidget, const TWeakPtr<SDMStage>& InStageWidget, UDMMaterialLayerObject* InLayerObject)
+UDMMenuContext* UDMMenuContext::Create(const TWeakPtr<SDMEditor>& InEditorWidget, const TWeakPtr<SDMStage>& InStageWidget, UDMMaterialLayerObject* InLayerObject)
 {
 	UDMMenuContext* Context = NewObject<UDMMenuContext>();
-	Context->SlotWidgetWeak = InSlotWidget;
+	Context->EditorWidgetWeak = InEditorWidget;
 	Context->StageWidgetWeak = InStageWidget;
 	Context->LayerObjectWeak = InLayerObject;
 	return Context;
 }
 
-UToolMenu* UDMMenuContext::GenerateContextMenu(const FName InMenuName, const TWeakPtr<SDMSlot>& InSlotWidget, const TWeakPtr<SDMStage>& InStageWidget, UDMMaterialLayerObject* InLayerObject)
+UToolMenu* UDMMenuContext::GenerateContextMenu(const FName InMenuName, const TWeakPtr<SDMEditor>& InEditorWidget, const TWeakPtr<SDMStage>& InStageWidget, UDMMaterialLayerObject* InLayerObject)
 {
 	UToolMenu* NewMenu = UToolMenus::Get()->RegisterMenu(InMenuName, NAME_None, EMultiBoxType::Menu, false);
 	if (!NewMenu)
@@ -47,15 +47,12 @@ UToolMenu* UDMMenuContext::GenerateContextMenu(const FName InMenuName, const TWe
 
 	TSharedPtr<FUICommandList> CommandList = nullptr;
 
-	if (TSharedPtr<SDMSlot> Slot = InSlotWidget.Pin())
+	if (TSharedPtr<SDMEditor> Editor = InEditorWidget.Pin())
 	{
-		if (TSharedPtr<SDMEditor> Editor = Slot->GetEditorWidget())
-		{
-			CommandList = Editor->GetCommandList();
-		}
+		CommandList = Editor->GetCommandList();
 	}
 
-	NewMenu->Context = FToolMenuContext(CommandList, TSharedPtr<FExtender>(), Create(InSlotWidget, InStageWidget, InLayerObject));
+	NewMenu->Context = FToolMenuContext(CommandList, TSharedPtr<FExtender>(), Create(InEditorWidget, InStageWidget, InLayerObject));
 
 	return NewMenu;
 }
@@ -65,19 +62,19 @@ UDMMenuContext* UDMMenuContext::CreateEmpty()
 	return Create(nullptr, nullptr, nullptr);
 }
 
-UDMMenuContext* UDMMenuContext::CreateSlot(const TWeakPtr<SDMSlot>& InSlotWidget)
+UDMMenuContext* UDMMenuContext::CreateEditor(const TWeakPtr<SDMEditor>& InEditorWidget)
 {
-	return Create(InSlotWidget, nullptr, nullptr);
+	return Create(InEditorWidget, nullptr, nullptr);
 }
 
-UDMMenuContext* UDMMenuContext::CreateLayer(const TWeakPtr<SDMSlot>& InSlotWidget, UDMMaterialLayerObject* InLayerObject)
+UDMMenuContext* UDMMenuContext::CreateLayer(const TWeakPtr<SDMEditor>& InEditorWidget, UDMMaterialLayerObject* InLayerObject)
 {
-	return Create(InSlotWidget, nullptr, InLayerObject);
+	return Create(InEditorWidget, nullptr, InLayerObject);
 }
 
-UDMMenuContext* UDMMenuContext::CreateStage(const TWeakPtr<SDMSlot>& InSlotWidget, const TWeakPtr<SDMStage>& InStageWidget)
+UDMMenuContext* UDMMenuContext::CreateStage(const TWeakPtr<SDMEditor>& InEditorWidget, const TWeakPtr<SDMStage>& InStageWidget)
 {
-	return Create(InSlotWidget, InStageWidget, nullptr);
+	return Create(InEditorWidget, InStageWidget, nullptr);
 }
 
 UToolMenu* UDMMenuContext::GenerateContextMenuDefault(const FName InMenuName)
@@ -85,39 +82,39 @@ UToolMenu* UDMMenuContext::GenerateContextMenuDefault(const FName InMenuName)
 	return GenerateContextMenu(InMenuName, nullptr, nullptr, nullptr);
 }
 
-UToolMenu* UDMMenuContext::GenerateContextMenuSlot(const FName InMenuName, const TWeakPtr<SDMSlot>& InSlotWidget)
+UToolMenu* UDMMenuContext::GenerateContextMenuEditor(const FName InMenuName, const TWeakPtr<SDMEditor>& InEditorWidget)
 {
-	return GenerateContextMenu(InMenuName, InSlotWidget, nullptr, nullptr);
+	return GenerateContextMenu(InMenuName, InEditorWidget, nullptr, nullptr);
 }
 
-UToolMenu* UDMMenuContext::GenerateContextMenuLayer(const FName InMenuName, const TWeakPtr<SDMSlot>& InSlotWidget, UDMMaterialLayerObject* InLayerObject)
+UToolMenu* UDMMenuContext::GenerateContextMenuLayer(const FName InMenuName, const TWeakPtr<SDMEditor>& InEditorWidget, UDMMaterialLayerObject* InLayerObject)
 {
-	return GenerateContextMenu(InMenuName, InSlotWidget, nullptr, InLayerObject);
+	return GenerateContextMenu(InMenuName, InEditorWidget, nullptr, InLayerObject);
 }
 
-UToolMenu* UDMMenuContext::GenerateContextMenuStage(const FName InMenuName, const TWeakPtr<SDMSlot>& InSlotWidget, const TWeakPtr<SDMStage>& InStageWidget)
+UToolMenu* UDMMenuContext::GenerateContextMenuStage(const FName InMenuName, const TWeakPtr<SDMEditor>& InEditorWidget, const TWeakPtr<SDMStage>& InStageWidget)
 {
-	return GenerateContextMenu(InMenuName, InSlotWidget, InStageWidget, nullptr);
+	return GenerateContextMenu(InMenuName, InEditorWidget, InStageWidget, nullptr);
 }
 
 UDMMaterialSlot* UDMMenuContext::GetSlot() const
 {
-	if (TSharedPtr<SDMSlot> SlotWidget = SlotWidgetWeak.Pin())
+	if (TSharedPtr<SDMEditor> EditorWidget = EditorWidgetWeak.Pin())
 	{
-		return SlotWidget->GetSlot();
+		if (TSharedPtr<SDMSlot> SlotWidget = EditorWidget->GetActiveSlotWidget())
+		{
+			return SlotWidget->GetSlot();
+		}
 	}
 
-	return nullptr;
+	return nullptr;;
 }
 
 UDynamicMaterialModel* UDMMenuContext::GetModel() const
 {
-	if (const UDMMaterialSlot* const Slot = GetSlot())
+	if (TSharedPtr<SDMEditor> EditorWidget = EditorWidgetWeak.Pin())
 	{
-		if (UDynamicMaterialModelEditorOnlyData* ModelEditorOnlyData = Slot->GetMaterialModelEditorOnlyData())
-		{
-			return ModelEditorOnlyData->GetMaterialModel();
-		}
+		return EditorWidget->GetMaterialModel();
 	}
 
 	return nullptr;

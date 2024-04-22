@@ -28,6 +28,7 @@ FDMMaterialBuildState::FDMMaterialBuildState(UMaterial* InDynamicMaterial, UDyna
 	, bIgnoreUVs(false)
 	, bIsPreviewMaterial(false)
 	, Utils(MakeShared<FDMMaterialBuildUtils>(*this))
+	, GlobalTilingExpression(nullptr)
 {
 	check(InDynamicMaterial);
 	check(InMaterialModel);

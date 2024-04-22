@@ -5,7 +5,7 @@
 #include "Templates/SharedPointer.h"
 #include "DMMenuContext.generated.h"
 
-class SDMSlot;
+class SDMEditor;
 class SDMStage;
 class UDMMaterialLayerObject;
 class UDMMaterialSlot;
@@ -22,17 +22,17 @@ class UDMMenuContext : public UObject
 
 public:
 	static UDMMenuContext* CreateEmpty();
-	static UDMMenuContext* CreateSlot(const TWeakPtr<SDMSlot>& InSlotWidget);
-	static UDMMenuContext* CreateLayer(const TWeakPtr<SDMSlot>& InSlotWidget, UDMMaterialLayerObject* InLayerObject);
-	static UDMMenuContext* CreateStage(const TWeakPtr<SDMSlot>& InSlotWidget, const TWeakPtr<SDMStage>& InStageWidget);
+	static UDMMenuContext* CreateEditor(const TWeakPtr<SDMEditor>& InEditorWidget);
+	static UDMMenuContext* CreateLayer(const TWeakPtr<SDMEditor>& InEditorWidget, UDMMaterialLayerObject* InLayerObject);
+	static UDMMenuContext* CreateStage(const TWeakPtr<SDMEditor>& InEditorWidget, const TWeakPtr<SDMStage>& InStageWidget);
 
 	static UToolMenu* GenerateContextMenuDefault(const FName InMenuName);
-	static UToolMenu* GenerateContextMenuSlot(const FName InMenuName, const TWeakPtr<SDMSlot>& InSlotWidget);
-	static UToolMenu* GenerateContextMenuLayer(const FName InMenuName, const TWeakPtr<SDMSlot>& InSlotWidget, UDMMaterialLayerObject* InLayerObject);
-	static UToolMenu* GenerateContextMenuStage(const FName InMenuName, const TWeakPtr<SDMSlot>& InSlotWidget, const TWeakPtr<SDMStage>& InStageWidget);
+	static UToolMenu* GenerateContextMenuEditor(const FName InMenuName, const TWeakPtr<SDMEditor>& InEditorWidget);
+	static UToolMenu* GenerateContextMenuLayer(const FName InMenuName, const TWeakPtr<SDMEditor>& InEditorWidget, UDMMaterialLayerObject* InLayerObject);
+	static UToolMenu* GenerateContextMenuStage(const FName InMenuName, const TWeakPtr<SDMEditor>& InEditorWidget, const TWeakPtr<SDMStage>& InStageWidget);
 
-	const TWeakPtr<SDMSlot>& GetSlotWidget() const { return SlotWidgetWeak; }
-	const TWeakPtr<SDMStage>& GetStageWidget() const { return StageWidgetWeak; }
+	const TSharedPtr<SDMEditor> GetEditorWidget() const { return EditorWidgetWeak.Pin(); }
+	const TSharedPtr<SDMStage> GetStageWidget() const { return StageWidgetWeak.Pin(); }
 
 	UDMMaterialSlot* GetSlot() const;
 
@@ -47,10 +47,10 @@ public:
 	const UDMMaterialLayerObject* GetLayer() const;
 
 protected:
-	TWeakPtr<SDMSlot> SlotWidgetWeak;
+	TWeakPtr<SDMEditor> EditorWidgetWeak;
 	TWeakPtr<SDMStage> StageWidgetWeak;
 	TWeakObjectPtr<UDMMaterialLayerObject> LayerObjectWeak;
 
-	static UDMMenuContext* Create(const TWeakPtr<SDMSlot>& InSlotWidget, const TWeakPtr<SDMStage>& InStageWidget, UDMMaterialLayerObject* InLayerObject);
-	static UToolMenu* GenerateContextMenu(const FName InMenuName, const TWeakPtr<SDMSlot>& InSlotWidget, const TWeakPtr<SDMStage>& InStageWidget, UDMMaterialLayerObject* InLayerObject);
+	static UDMMenuContext* Create(const TWeakPtr<SDMEditor>& InEditorWidget, const TWeakPtr<SDMStage>& InStageWidget, UDMMaterialLayerObject* InLayerObject);
+	static UToolMenu* GenerateContextMenu(const FName InMenuName, const TWeakPtr<SDMEditor>& InEditorWidget, const TWeakPtr<SDMStage>& InStageWidget, UDMMaterialLayerObject* InLayerObject);
 };

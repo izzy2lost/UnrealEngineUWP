@@ -17,12 +17,12 @@
 #include "Materials/Material.h"
 #endif
 
-const FString UDynamicMaterialModel::ValuesPathToken          = FString(TEXT("Values"));
-const FString UDynamicMaterialModel::ParametersPathToken      = FString(TEXT("Parameters"));
-const FName UDynamicMaterialModel::GlobalOpacityPropertyName  = FName("GlobalOpacityValue");
-const FName UDynamicMaterialModel::GlobalOpacityParameterName = FName("GlobalOpacity");
-const FName UDynamicMaterialModel::GlobalScalePropertyName    = FName("GlobalScaleValue");
-const FName UDynamicMaterialModel::GlobalScaleParameterName   = FName("GlobalScale");
+const FString UDynamicMaterialModel::ValuesPathToken           = FString(TEXT("Values"));
+const FString UDynamicMaterialModel::ParametersPathToken       = FString(TEXT("Parameters"));
+const FName UDynamicMaterialModel::GlobalOpacityPropertyName   = FName("GlobalOpacityValue");
+const FName UDynamicMaterialModel::GlobalOpacityParameterName  = FName("GlobalOpacity");
+const FName UDynamicMaterialModel::GlobalTilingPropertyName    = FName("GlobalTilingValue");
+const FName UDynamicMaterialModel::GlobalTilingParameterName   = FName("GlobalTiling");
 
 UDynamicMaterialModel::UDynamicMaterialModel()
 {
@@ -47,18 +47,18 @@ UDynamicMaterialModel::UDynamicMaterialModel()
 
 	ParameterMap.Add(GlobalOpacityParameterName, GlobalOpacityParameter);
 
-	GlobalScaleValue = CreateDefaultSubobject<UDMMaterialValueFloat2>(GlobalScaleParameterName);
+	GlobalTilingValue = CreateDefaultSubobject<UDMMaterialValueFloat2>(GlobalTilingParameterName);
 
 #if WITH_EDITOR
-	GlobalScaleValue->SetDefaultValue(FVector2D(1.0, 1.0));
-	GlobalScaleValue->ApplyDefaultValue();
+	GlobalTilingValue->SetDefaultValue(FVector2D(1.0, 1.0));
+	GlobalTilingValue->ApplyDefaultValue();
 #endif
 
-	GlobalScaleParameter = CreateDefaultSubobject<UDMMaterialParameter>("GlobalScaleParameter");
-	GlobalScaleParameter->ParameterName = GlobalScaleParameterName;
-	GlobalScaleValue->Parameter = GlobalScaleParameter;
+	GlobalTilingParameter = CreateDefaultSubobject<UDMMaterialParameter>("GlobalTilingParameter");
+	GlobalTilingParameter->ParameterName = GlobalTilingParameterName;
+	GlobalTilingValue->Parameter = GlobalTilingParameter;
 
-	ParameterMap.Add(GlobalScaleParameterName, GlobalScaleParameter);
+	ParameterMap.Add(GlobalTilingParameterName, GlobalTilingParameter);
 }
 
 void UDynamicMaterialModel::SetDynamicMaterialInstance(UDynamicMaterialInstance* InDynamicMaterialInstance)
@@ -543,34 +543,34 @@ void UDynamicMaterialModel::FixGlobalVars()
 		GlobalOpacityValue->Parameter = GlobalOpacityParameter;
 	}
 
-	if (const TWeakObjectPtr<UDMMaterialParameter>* ParameterPtr = ParameterMap.Find(GlobalScaleParameterName))
+	if (const TWeakObjectPtr<UDMMaterialParameter>* ParameterPtr = ParameterMap.Find(GlobalTilingParameterName))
 	{
 		UDMMaterialParameter* Parameter = ParameterPtr->Get();
 
 		if (!Parameter || Parameter->HasAnyFlags(RF_ArchetypeObject)
-			|| (GlobalScaleParameter && Parameter != GlobalScaleParameter))
+			|| (GlobalTilingParameter && Parameter != GlobalTilingParameter))
 		{
-			if (GlobalScaleParameter)
+			if (GlobalTilingParameter)
 			{
-				ParameterMap[GlobalScaleParameterName] = GlobalScaleParameter;
+				ParameterMap[GlobalTilingParameterName] = GlobalTilingParameter;
 			}
 			else
 			{
-				ParameterMap.Remove(GlobalScaleParameterName);
+				ParameterMap.Remove(GlobalTilingParameterName);
 			}
 		}
 	}
 
-	if (GlobalScaleValue && GlobalScaleParameter != GlobalScaleValue->Parameter)
+	if (GlobalTilingValue && GlobalTilingParameter != GlobalTilingValue->Parameter)
 	{
 		if (GUndo)
 		{
-			GlobalScaleParameter->Modify();
-			GlobalScaleValue->Modify();
+			GlobalTilingParameter->Modify();
+			GlobalTilingValue->Modify();
 		}
 
-		GlobalScaleParameter->ParameterName = GlobalScaleParameterName;
-		GlobalScaleValue->Parameter = GlobalScaleParameter;
+		GlobalTilingParameter->ParameterName = GlobalTilingParameterName;
+		GlobalTilingValue->Parameter = GlobalTilingParameter;
 	}
 }
 

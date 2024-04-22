@@ -24,7 +24,7 @@ FName FDMMaterialStageMenus::GetStageToggleSectionName()
 
 UToolMenu* FDMMaterialStageMenus::GenerateStageMenu(const TSharedPtr<SDMSlot>& InSlotWidget, const TSharedPtr<SDMStage>& InStageWidget)
 {
-	UToolMenu* NewToolMenu = UDMMenuContext::GenerateContextMenuStage(GetStageMenuName(), InSlotWidget, InStageWidget);
+	UToolMenu* NewToolMenu = UDMMenuContext::GenerateContextMenuStage(GetStageMenuName(), InSlotWidget->GetEditorWidget(), InStageWidget);
 	if (!NewToolMenu)
 	{
 		return nullptr;
@@ -139,21 +139,24 @@ void FDMMaterialStageMenus::AddStageSection(UToolMenu* InMenu)
 
 		if (bAllowRemoveLayer)
 		{
-			if (TSharedPtr<SDMSlot> SlotWidget = MenuContext->GetSlotWidget().Pin())
+			if (TSharedPtr<SDMEditor> EditorWidget = MenuContext->GetEditorWidget())
 			{
-				//FDMSlotLayerMenus::AddLayerSection
-				NewSection.AddMenuEntry(NAME_None,
-					LOCTEXT("RemoveLayer", "Remove"),
-					LOCTEXT("RemoveLayerTooltip", "Remove this layer from its Material Slot.\n\n"
-						"Warning: Removing a stage off may result in inputs being reset where incompatibilities are found."),
-					FSlateIcon(),
-					FUIAction(FExecuteAction::CreateSP(
-						SlotWidget.Get(),
-						&SDMSlot::RemoveLayerByStage,
-						Stage, 
-						false
-					))
-				);
+				if (EditorWidget->GetActiveSlotWidget())
+				{
+					//FDMSlotLayerMenus::AddLayerSection
+					NewSection.AddMenuEntry(NAME_None,
+						LOCTEXT("RemoveLayer", "Remove"),
+						LOCTEXT("RemoveLayerTooltip", "Remove this layer from its Material Slot.\n\n"
+							"Warning: Removing a stage off may result in inputs being reset where incompatibilities are found."),
+						FSlateIcon(),
+						FUIAction(FExecuteAction::CreateSP(
+							EditorWidget->GetActiveSlotWidget().Get(),
+							&SDMSlot::RemoveLayerByStage,
+							Stage,
+							false
+						))
+					);
+				}
 			}
 		}
 	}
