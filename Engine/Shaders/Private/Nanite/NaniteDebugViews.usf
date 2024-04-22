@@ -17,7 +17,7 @@ Texture2DMS<float, MSAA_SAMPLE_COUNT> SceneDepth;
 Texture2D<float> SceneDepth;
 #endif
 Texture2D<uint> ShadingMask;
-ByteAddressBuffer MaterialEditorTable;
+//ByteAddressBuffer MaterialEditorTable;
 ByteAddressBuffer MaterialHitProxyTable;
 
 ByteAddressBuffer ShadingBinData;
@@ -161,6 +161,13 @@ FNaniteMaterialDebugViewInfo ReadMaterialDebugViewInfo(uint ShadingBin)
 {
 	FNaniteMaterialDebugViewInfo Result;
 
+#if 1
+	// TODO: Reimplement
+	Result.InstructionCountVS = 0;
+	Result.InstructionCountPS = 0;
+	Result.LWCComplexityVS = 0;
+	Result.LWCComplexityPS = 0;
+#else
 	const uint Stride = MATERIAL_DEBUG_VIEW_INFO_STRIDE;
 	int2 Data = MaterialEditorTable.Load2(ShadingBin * Stride);
 
@@ -169,6 +176,7 @@ FNaniteMaterialDebugViewInfo ReadMaterialDebugViewInfo(uint ShadingBin)
 
 	Result.LWCComplexityVS = (Data.y & 0x0000FFFFu);
 	Result.LWCComplexityPS = (Data.y & 0xFFFF0000u) >> 16u;
+#endif
 
 	return Result;
 }
