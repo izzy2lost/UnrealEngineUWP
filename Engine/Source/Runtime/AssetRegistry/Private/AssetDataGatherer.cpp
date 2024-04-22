@@ -85,7 +85,7 @@ static FAutoConsoleVariableRef CVarIgnoreEmptyDirectories(
 	bIgnoreEmptyDirectories,
 	TEXT("If true, completely empty leaf directories are ignored by the asset registry while scanning"));
 
-bool bTickGatherOnGTOnly = true;
+bool bTickGatherOnGTOnly = false;
 static FAutoConsoleVariableRef CVarTickGatherOnGTOnly(
 	TEXT("AssetRegistry.TickGatherOnGTOnly"),
 	bTickGatherOnGTOnly,
