@@ -155,6 +155,11 @@ public:
 
 	void SetMIDParameters(UMaterialInstanceDynamic* InMID);
 
+#if WITH_EDITOR
+	bool CanResetToDefault(TSharedPtr<IPropertyHandle> InPropertyHandle) const;
+	void ResetToDefault(TSharedPtr<IPropertyHandle> InPropertyHandle);
+#endif
+
 	//~ Begin UObject
 #if WITH_EDITOR
 	virtual bool Modify(bool bInAlwaysMarkDirty = true) override;

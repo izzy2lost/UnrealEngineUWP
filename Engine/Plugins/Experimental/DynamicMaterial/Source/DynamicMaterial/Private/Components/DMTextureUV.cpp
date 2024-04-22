@@ -378,6 +378,72 @@ void UDMTextureUV::SetMIDParameters(UMaterialInstanceDynamic* InMID)
 }
 
 #if WITH_EDITOR
+bool UDMTextureUV::CanResetToDefault(TSharedPtr<IPropertyHandle> InPropertyHandle) const
+{
+	FProperty* Property = InPropertyHandle->GetProperty();
+
+	if (!Property)
+	{
+		return false;
+	}
+
+	FName PropertyName = Property->GetFName();
+
+	if (PropertyName == NAME_None)
+	{
+		return false;
+	}
+
+	UDMTextureUV* DefaultObject = Cast<UDMTextureUV>(GetClass()->GetDefaultObject());
+
+	if (!DefaultObject)
+	{
+		return false;
+	}
+
+	if (PropertyName == NAME_UVSource)
+	{
+		return DefaultObject->GetUVSource() != GetUVSource();
+	}
+
+	if (PropertyName == NAME_bMirrorOnX)
+	{
+		return DefaultObject->GetMirrorOnX() != GetMirrorOnX();
+	}
+
+	if (PropertyName == NAME_bMirrorOnY)
+	{
+		return DefaultObject->GetMirrorOnY() != GetMirrorOnY();
+	}
+
+	if (PropertyName == NAME_Offset)
+	{
+		return !DefaultObject->GetOffset().Equals(GetOffset());
+	}
+
+	if (PropertyName == NAME_Pivot)
+	{
+		return !DefaultObject->GetPivot().Equals(GetPivot());
+	}
+
+	if (PropertyName == NAME_Rotation)
+	{
+		return DefaultObject->GetRotation() != GetRotation();
+	}
+
+	if (PropertyName == NAME_Scale)
+	{
+		return !DefaultObject->GetScale().Equals(GetScale());
+	}
+
+	return false;
+}
+
+void UDMTextureUV::ResetToDefault(TSharedPtr<IPropertyHandle> InPropertyHandle)
+{
+	InPropertyHandle->ResetToDefault();
+}
+
 bool UDMTextureUV::Modify(bool bInAlwaysMarkDirty)
 {
 	const bool bSaved = Super::Modify(bInAlwaysMarkDirty);

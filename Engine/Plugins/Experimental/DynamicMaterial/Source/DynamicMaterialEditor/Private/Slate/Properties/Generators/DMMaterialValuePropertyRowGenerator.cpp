@@ -51,6 +51,7 @@ void FDMMaterialValuePropertyRowGenerator::AddComponentProperties(const TSharedR
 			FIsResetToDefaultVisible::CreateUObject(Value, &UDMMaterialValue::CanResetToDefault),
 			FResetToDefaultHandler::CreateUObject(Value, &UDMMaterialValue::ResetToDefault)
 		);
+
 		if (UDMMaterialValueFloat* FloatValue = Cast<UDMMaterialValueFloat>(Value))
 		{
 			if (FloatValue->HasValueRange())

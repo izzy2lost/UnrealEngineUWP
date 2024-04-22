@@ -103,7 +103,12 @@ bool FDMTextureUVPropertyRowGenerator::AllowKeyframeButton(UDMMaterialComponent*
 
 void UE::DynamicMaterialEditor::Private::AddPropertyRow(const TSharedRef<SWidget>& InComponentEditWidget, UDMTextureUV* InTextureUV, FName InProperty, TArray<FDMPropertyHandle>& InOutPropertyRows)
 {
-	InOutPropertyRows.Add(SDMEditor::GetPropertyHandle(&*InComponentEditWidget, InTextureUV, InProperty));
+	FDMPropertyHandle& NewHandle = InOutPropertyRows.Add_GetRef(SDMEditor::GetPropertyHandle(&*InComponentEditWidget, InTextureUV, InProperty));
+
+	NewHandle.ResetToDefaultOverride = FResetToDefaultOverride::Create(
+		FIsResetToDefaultVisible::CreateUObject(InTextureUV, &UDMTextureUV::CanResetToDefault),
+		FResetToDefaultHandler::CreateUObject(InTextureUV, &UDMTextureUV::ResetToDefault)
+	);
 }
 
 void UE::DynamicMaterialEditor::Private::AddVisualizerRow(const TSharedRef<SWidget>& InComponentEditWidget, UDMTextureUV* InTextureUV, TArray<FDMPropertyHandle>& InOutPropertyRows)
