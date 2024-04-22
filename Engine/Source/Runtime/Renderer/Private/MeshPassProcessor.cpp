@@ -1570,7 +1570,7 @@ void FMeshDrawCommand::SubmitDrawIndirectEnd(
 	}
 }
 
-void FMeshDrawCommand::SubmitDraw(
+bool FMeshDrawCommand::SubmitDraw(
 	const FMeshDrawCommand& RESTRICT MeshDrawCommand,
 	const FGraphicsMinimalPipelineStateSet& GraphicsMinimalPipelineStateSet,
 	const FMeshDrawCommandSceneArgs& SceneArgs,
@@ -1585,7 +1585,10 @@ void FMeshDrawCommand::SubmitDraw(
 	if (SubmitDrawBegin(MeshDrawCommand, GraphicsMinimalPipelineStateSet, SceneArgs, InstanceFactor, RHICmdList, StateCache, bAllowSkipDrawCommand))
 	{
 		SubmitDrawEnd(MeshDrawCommand, SceneArgs, InstanceFactor, RHICmdList);
+		return true;
 	}
+
+	return false;
 }
 
 void ApplyTargetsInfo(FGraphicsPipelineStateInitializer& GraphicsPSOInit, const FGraphicsPipelineRenderTargetsInfo& RenderTargetsInfo)

@@ -1283,7 +1283,7 @@ public:
 	static void SubmitDrawIndirectEnd(const FMeshDrawCommand& MeshDrawCommand, const FMeshDrawCommandSceneArgs& SceneArgs, uint32 InstanceFactor, FRHICommandList& RHICmdList);
 
 	/** Submits commands to the RHI Commandlist to draw the MeshDrawCommand. */
-	static void SubmitDraw(
+	static bool SubmitDraw(
 		const FMeshDrawCommand& RESTRICT MeshDrawCommand,
 		const FGraphicsMinimalPipelineStateSet& GraphicsMinimalPipelineStateSet,
 		const FMeshDrawCommandSceneArgs& SceneArgs,
