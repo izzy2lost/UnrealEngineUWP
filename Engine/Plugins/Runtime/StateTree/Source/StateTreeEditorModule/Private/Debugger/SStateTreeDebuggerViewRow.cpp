@@ -30,15 +30,15 @@ void SStateTreeDebuggerViewRow::Construct(const FArguments& InArgs,
 			.BaseIndentLevel(0)
 		];
 
-	const TSharedPtr<SWidget> EventWidget = GenerateEventWidget();
-	if (EventWidget.IsValid())
+	const TSharedPtr<SWidget> EventImage = CreateImageForEvent();
+	if (EventImage.IsValid())
 	{
 		HorizontalBox->AddSlot()
 		.VAlign(VAlign_Center)
 		.HAlign(HAlign_Left)
 		.AutoWidth()
 		[
-			EventWidget.ToSharedRef()
+			EventImage.ToSharedRef()
 		];
 	}
 
@@ -60,9 +60,11 @@ void SStateTreeDebuggerViewRow::Construct(const FArguments& InArgs,
 		];
 }
 
-TSharedPtr<SWidget> SStateTreeDebuggerViewRow::GenerateEventWidget() const
+TSharedPtr<SWidget> SStateTreeDebuggerViewRow::CreateImageForEvent() const
 {
 	const FStateTreeEditorStyle& StyleSet = FStateTreeEditorStyle::Get();
+
+	// Phase events
 	if (const FStateTreeTracePhaseEvent* PhaseEvent = Item->Event.TryGet<FStateTreeTracePhaseEvent>())
 	{
 		const FSlateBrush* Image = nullptr;
@@ -78,6 +80,23 @@ TSharedPtr<SWidget> SStateTreeDebuggerViewRow::GenerateEventWidget() const
 		return SNew(SImage).Image(Image);
 	}
 
+	// Log events
+	if (const FStateTreeTraceLogEvent* LogEvent = Item->Event.TryGet<FStateTreeTraceLogEvent>())
+	{
+		const FSlateBrush* Image = nullptr;
+		switch (LogEvent->Verbosity)
+		{
+		case ELogVerbosity::Fatal:
+		case ELogVerbosity::Error:		Image = StyleSet.GetBrush("StateTreeEditor.Debugger.Log.Error");	break;
+		case ELogVerbosity::Warning:	Image = StyleSet.GetBrush("StateTreeEditor.Debugger.Log.Warning");	break;
+		default:
+			return nullptr;
+		}
+
+		return SNew(SImage).Image(Image);
+	}
+
+	// State events
 	if (const FStateTreeTraceStateEvent* StateEvent = Item->Event.TryGet<FStateTreeTraceStateEvent>())
 	{
 		const FSlateBrush* Image = nullptr;
@@ -92,6 +111,7 @@ TSharedPtr<SWidget> SStateTreeDebuggerViewRow::GenerateEventWidget() const
 		return SNew(SImage).Image(Image);
 	}
 
+	// Task events
 	if (const FStateTreeTraceTaskEvent* TaskEvent = Item->Event.TryGet<FStateTreeTraceTaskEvent>())
 	{
 		const FSlateBrush* Image = nullptr;
@@ -117,6 +137,7 @@ TSharedPtr<SWidget> SStateTreeDebuggerViewRow::GenerateEventWidget() const
 		return SNew(SImage).Image(Image);
 	}
 
+	// Condition events
 	if (Item->Event.IsType<FStateTreeTraceConditionEvent>())
 	{
 		const FStateTreeTraceConditionEvent& ConditionEvent = Item->Event.Get<FStateTreeTraceConditionEvent>();

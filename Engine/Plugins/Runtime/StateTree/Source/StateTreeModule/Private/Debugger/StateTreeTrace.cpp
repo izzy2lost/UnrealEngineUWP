@@ -60,6 +60,7 @@ UE_TRACE_EVENT_BEGIN(StateTreeDebugger, LogEvent)
 	UE_TRACE_EVENT_FIELD(uint64, Cycle)
 	UE_TRACE_EVENT_FIELD(uint32, InstanceId)
 	UE_TRACE_EVENT_FIELD(uint32, InstanceSerial)
+	UE_TRACE_EVENT_FIELD(std::underlying_type_t<ELogVerbosity::Type>, Verbosity)
 	UE_TRACE_EVENT_FIELD(UE::Trace::WideString, Message)
 UE_TRACE_EVENT_END()
 
@@ -621,6 +622,7 @@ void OutputInstanceFrameEvent(
 
 void OutputLogEventTrace(
 	const FStateTreeInstanceDebugId InstanceId,
+	ELogVerbosity::Type Verbosity,
 	const TCHAR* Fmt, ...
 	)
 {
@@ -633,6 +635,7 @@ void OutputLogEventTrace(
 		<< LogEvent.Cycle(FPlatformTime::Cycles64())
 		<< LogEvent.InstanceId(InstanceId.Id)
 		<< LogEvent.InstanceSerial(InstanceId.SerialNumber)
+		<< LogEvent.Verbosity(Verbosity)
 		<< LogEvent.Message(TraceStaticBuffer);
 }
 

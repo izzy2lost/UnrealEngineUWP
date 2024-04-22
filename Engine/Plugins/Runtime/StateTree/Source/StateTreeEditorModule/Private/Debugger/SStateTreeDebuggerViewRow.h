@@ -40,7 +40,7 @@ public:
 				   const TSharedPtr<FStateTreeDebuggerEventTreeElement>& InElement);
 
 private:
-	TSharedPtr<SWidget> GenerateEventWidget() const;
+	TSharedPtr<SWidget> CreateImageForEvent() const;
 	const FTextBlockStyle& GetEventTextStyle() const;
 	FText GetEventDescription() const;
 	FText GetEventTooltip() const;

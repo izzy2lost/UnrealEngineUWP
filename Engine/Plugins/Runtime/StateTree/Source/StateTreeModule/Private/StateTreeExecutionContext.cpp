@@ -18,9 +18,9 @@
 #define STATETREE_LOG(Verbosity, Format, ...) UE_VLOG_UELOG(GetOwner(), LogStateTree, Verbosity, TEXT("%s: ") Format, *GetInstanceDescription(), ##__VA_ARGS__)
 #define STATETREE_CLOG(Condition, Verbosity, Format, ...) UE_CVLOG_UELOG((Condition), GetOwner(), LogStateTree, Verbosity, TEXT("%s: ") Format, *GetInstanceDescription(), ##__VA_ARGS__)
 
-#define STATETREE_LOG_AND_TRACE(Verbosity, Format, ...) \
-	UE_VLOG_UELOG(GetOwner(), LogStateTree, Verbosity, TEXT("%s: ") Format, *GetInstanceDescription(), ##__VA_ARGS__); \
-	STATETREE_TRACE_LOG_EVENT(Format, ##__VA_ARGS__)
+#define STATETREE_LOG_AND_TRACE(LogVerbosity, TraceVerbosity, Format, ...) \
+	UE_VLOG_UELOG(GetOwner(), LogStateTree, LogVerbosity, TEXT("%s: ") Format, *GetInstanceDescription(), ##__VA_ARGS__); \
+	STATETREE_TRACE_LOG_EVENT(TraceVerbosity, Format, ##__VA_ARGS__)
 
 #if WITH_STATETREE_DEBUGGER
 	#define ID_NAME PREPROCESSOR_JOIN(InstanceId,__LINE__) \
@@ -45,7 +45,7 @@
 	#define STATETREE_TRACE_PHASE_BEGIN(Phase)								TRACE_STATETREE_PHASE_EVENT(GetInstanceDebugId(), Phase, EStateTreeTraceEventType::Push, FStateTreeStateHandle::Invalid)
 	#define STATETREE_TRACE_PHASE_END(Phase)								TRACE_STATETREE_PHASE_EVENT(GetInstanceDebugId(), Phase, EStateTreeTraceEventType::Pop, FStateTreeStateHandle::Invalid)
 	#define STATETREE_TRACE_ACTIVE_STATES_EVENT(ActiveFrames)				TRACE_STATETREE_ACTIVE_STATES_EVENT(GetInstanceDebugId(), ActiveFrames);
-	#define STATETREE_TRACE_LOG_EVENT(Format, ...)							TRACE_STATETREE_LOG_EVENT(GetInstanceDebugId(), Format, ##__VA_ARGS__)
+	#define STATETREE_TRACE_LOG_EVENT(TraceVerbosity, Format, ...)			TRACE_STATETREE_LOG_EVENT(GetInstanceDebugId(), TraceVerbosity, Format, ##__VA_ARGS__)
 	#define STATETREE_TRACE_STATE_EVENT(StateHandle, EventType)				TRACE_STATETREE_STATE_EVENT(GetInstanceDebugId(), StateHandle, EventType);
 	#define STATETREE_TRACE_TASK_EVENT(Index, DataView, EventType, Status)	TRACE_STATETREE_TASK_EVENT(GetInstanceDebugId(), FStateTreeIndex16(Index), DataView, EventType, Status);
 	#define STATETREE_TRACE_EVALUATOR_EVENT(Index, DataView, EventType)		TRACE_STATETREE_EVALUATOR_EVENT(GetInstanceDebugId(), FStateTreeIndex16(Index), DataView, EventType);
@@ -60,7 +60,7 @@
 	#define STATETREE_TRACE_PHASE_BEGIN(Phase)
 	#define STATETREE_TRACE_PHASE_END(Phase)
 	#define STATETREE_TRACE_ACTIVE_STATES_EVENT(ActiveFrames)
-	#define STATETREE_TRACE_LOG_EVENT(Format, ...)
+	#define STATETREE_TRACE_LOG_EVENT(TraceVerbosity, Format, ...)
 	#define STATETREE_TRACE_STATE_EVENT(StateHandle, EventType)
 	#define STATETREE_TRACE_TASK_EVENT(Index, DataView, EventType, Status)
 	#define STATETREE_TRACE_EVALUATOR_EVENT(Index, DataView, EventType)
@@ -368,7 +368,7 @@ EStateTreeRunStatus FStateTreeExecutionContext::Start(const FInstancedPropertyBa
 	
 	if (Exec.RequestedStop != EStateTreeRunStatus::Unset)
 	{
-		STATETREE_LOG_AND_TRACE(VeryVerbose, TEXT("Processing Deferred Stop"));
+		STATETREE_LOG_AND_TRACE(VeryVerbose, Log, TEXT("Processing Deferred Stop"));
 		Result = Stop(Exec.RequestedStop);
 	}
 	
@@ -409,7 +409,7 @@ EStateTreeRunStatus FStateTreeExecutionContext::Stop(EStateTreeRunStatus Complet
 	// A reentrant call to Stop or a call from Start or Tick must be deferred.
 	if (Exec.CurrentPhase != EStateTreeUpdatePhase::Unset)
 	{
-		STATETREE_LOG_AND_TRACE(VeryVerbose, TEXT("Deferring Stop at end of %s"), *UEnum::GetDisplayValueAsText(Exec.CurrentPhase).ToString());
+		STATETREE_LOG_AND_TRACE(VeryVerbose, Log, TEXT("Deferring Stop at end of %s"), *UEnum::GetDisplayValueAsText(Exec.CurrentPhase).ToString());
 
 		Exec.RequestedStop = CompletionStatus;
 		return EStateTreeRunStatus::Running;
@@ -505,7 +505,7 @@ EStateTreeRunStatus FStateTreeExecutionContext::TickPostlude()
 	
 	if (Exec.RequestedStop != EStateTreeRunStatus::Unset)
 	{
-		STATETREE_LOG_AND_TRACE(VeryVerbose, TEXT("Processing Deferred Stop"));
+		STATETREE_LOG_AND_TRACE(VeryVerbose, Log, TEXT("Processing Deferred Stop"));
 		Result = Stop(Exec.RequestedStop);
 	}
 
@@ -586,7 +586,7 @@ void FStateTreeExecutionContext::TickUpdateTasksInternal(const float DeltaTime)
 	}
 	else
 	{
-		STATETREE_TRACE_LOG_EVENT(TEXT("Global tasks completed (%s), stopping the tree"), *UEnum::GetDisplayValueAsText(EvalAndGlobalTaskStatus).ToString());
+		STATETREE_TRACE_LOG_EVENT(Log, TEXT("Global tasks completed (%s), stopping the tree"), *UEnum::GetDisplayValueAsText(EvalAndGlobalTaskStatus).ToString());
 		Exec.RequestedStop = EvalAndGlobalTaskStatus;
 	}
 }
@@ -680,7 +680,7 @@ void FStateTreeExecutionContext::SendEvent(const FGameplayTag Tag, const FConstS
 		return;
 	}
 
-	STATETREE_LOG_AND_TRACE(Verbose, TEXT("Send Event '%s'"), *Tag.ToString());
+	STATETREE_LOG_AND_TRACE(Verbose, Log, TEXT("Send Event '%s'"), *Tag.ToString());
 
 	FStateTreeEventQueue& LocalEventQueue = InstanceData.GetMutableEventQueue();
 	LocalEventQueue.SendEvent(&Owner, Tag, Payload, Origin);
@@ -2542,7 +2542,7 @@ bool FStateTreeExecutionContext::TestAllConditions(const FStateTreeExecutionFram
 				{
 					// If the source data cannot be accessed, the whole expression evaluates to false.
 					STATETREE_TRACE_CONDITION_EVENT(ConditionIndex, ConditionInstanceView, EStateTreeTraceEventType::InternalForcedFailure);
-					STATETREE_TRACE_LOG_EVENT(TEXT("Evaluation forced to false: source data cannot be accessed (e.g. enter conditions trying to access inactive parent state)"));
+					STATETREE_TRACE_LOG_EVENT(Warning, TEXT("Evaluation forced to false: source data cannot be accessed (e.g. enter conditions trying to access inactive parent state)"));
 					Values[0] = false;
 					break;
 				}
@@ -2744,7 +2744,7 @@ bool FStateTreeExecutionContext::TriggerTransitions()
 
 	if (EventQueue && EventQueue->HasEvents())
 	{
-		STATETREE_LOG_AND_TRACE(Verbose, TEXT("Trigger transitions with events: %s"), *DebugGetEventsAsString());
+		STATETREE_LOG_AND_TRACE(Verbose, Log, TEXT("Trigger transitions with events: %s"), *DebugGetEventsAsString());
 	}
 
 	NextTransition.Reset();
@@ -3144,7 +3144,7 @@ bool FStateTreeExecutionContext::TriggerTransitions()
 		// Handle the case where no transition was found.
 		if (NextTransition.Priority == EStateTreeTransitionPriority::None) //-V547
 		{
-			STATETREE_LOG_AND_TRACE(Verbose, TEXT("Could not trigger completion transition, jump back to root state."));
+			STATETREE_LOG_AND_TRACE(Verbose, Warning, TEXT("Could not trigger completion transition, jump back to root state."));
 
 			check(!Exec.ActiveFrames.IsEmpty());
 			FStateTreeExecutionFrame& RootFrame = Exec.ActiveFrames[0];
@@ -3157,7 +3157,7 @@ bool FStateTreeExecutionContext::TriggerTransitions()
 			}
 			else
 			{
-				STATETREE_LOG_AND_TRACE(Warning, TEXT("Failed to select root state. Stopping the tree with failure."));
+				STATETREE_LOG_AND_TRACE(Warning, Error, TEXT("Failed to select root state. Stopping the tree with failure."));
 
 				SetupNextTransition(RootFrame, FStateTreeStateHandle::Failed, EStateTreeTransitionPriority::Critical);
 

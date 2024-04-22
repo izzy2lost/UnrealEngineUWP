@@ -76,8 +76,9 @@ struct FStateTreeTracePhaseEvent : FStateTreeTraceBaseEvent
 
 struct FStateTreeTraceLogEvent : FStateTreeTraceBaseEvent
 {
-	explicit FStateTreeTraceLogEvent(const double RecordingWorldTime, const FString& Message)
+	explicit FStateTreeTraceLogEvent(const double RecordingWorldTime, ELogVerbosity::Type Verbosity, const FString& Message)
 		: FStateTreeTraceBaseEvent(RecordingWorldTime, EStateTreeTraceEventType::Unset)
+		, Verbosity(Verbosity)
 		, Message(Message)
 	{
 	}
@@ -86,13 +87,14 @@ struct FStateTreeTraceLogEvent : FStateTreeTraceBaseEvent
 	STATETREEMODULE_API FString GetValueString(const UStateTree& StateTree) const;
 	STATETREEMODULE_API FString GetTypeString(const UStateTree& StateTree) const;
 
+	ELogVerbosity::Type Verbosity;
 	FString Message;
 };
 
 struct FStateTreeTracePropertyEvent : FStateTreeTraceLogEvent
 {
 	explicit FStateTreeTracePropertyEvent(const double RecordingWorldTime, const FString& Message)
-		: FStateTreeTraceLogEvent(RecordingWorldTime, Message)
+		: FStateTreeTraceLogEvent(RecordingWorldTime, ELogVerbosity::Verbose, Message)
 	{
 	}
 
