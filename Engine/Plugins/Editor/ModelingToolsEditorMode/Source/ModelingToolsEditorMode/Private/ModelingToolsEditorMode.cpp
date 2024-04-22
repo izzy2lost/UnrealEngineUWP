@@ -882,7 +882,6 @@ void UModelingToolsEditorMode::Enter()
 						ModelingEditorSettings->LastMeshSelectionTopologyMode = static_cast<int>(TopoMode);
 						ModelingEditorSettings->LastMeshSelectionElementType = static_cast<int>(ElementMode);
 						ModelingEditorSettings->SaveConfig();
-						SelectionManager->SetSelectionColors(ModelingEditorSettings->UnselectedColor, ModelingEditorSettings->HoverOverSelectedColor, ModelingEditorSettings->HoverOverUnselectedColor, ModelingEditorSettings->GeometrySelectedColor);
 					}
 				}
 			}),
@@ -901,6 +900,8 @@ void UModelingToolsEditorMode::Enter()
 		RegisterSelectionMode(UGeometrySelectionManager::EMeshTopologyMode::Polygroup, UGeometrySelectionManager::EGeometryElementType::Edge, ToolManagerCommands.MeshSelectionModeAction_GroupEdges);
 	}
 
+	// Colors initialized here any time Modeling mode is entered
+	SelectionManager->SetSelectionColors(ModelingEditorSettings->UnselectedColor, ModelingEditorSettings->HoverOverSelectedColor, ModelingEditorSettings->HoverOverUnselectedColor, ModelingEditorSettings->GeometrySelectedColor);
 
 	// this function registers and tracks an active UGeometrySelectionEditCommand and it's associated UICommand
 	auto RegisterSelectionCommand = [&](UGeometrySelectionEditCommand* Command, TSharedPtr<FUICommandInfo> UICommand, bool bAlwaysVisible)

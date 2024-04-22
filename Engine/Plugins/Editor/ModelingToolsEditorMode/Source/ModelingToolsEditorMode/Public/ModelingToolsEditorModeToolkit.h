@@ -203,6 +203,11 @@ private:
 	 */
 	void UpdateCategoryButtonLabelVisibility(UObject* Obj, FPropertyChangedEvent& ChangeEvent);
 
+	/**
+	 *  Updates the mesh element selection colors based off of the current editor preference for it
+	 */
+	void UpdateSelectionColors(UObject* Obj, FPropertyChangedEvent& ChangeEvent) const;
+
 	TArray<TSharedPtr<FString>> AssetLODModes;
 	TSharedPtr<STextBlock> AssetLODModeLabel;
 	TSharedPtr<STextComboBox> AssetLODMode;
