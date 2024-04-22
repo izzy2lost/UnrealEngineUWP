@@ -177,7 +177,7 @@ public:
 	~FPackageTracker();
 
 	/** Returns all packages that have been loaded since the last time GetNewPackages was called */
-	TMap<UPackage*, FInstigator> GetNewPackages();
+	TMap<FName, FInstigator> GetNewPackages();
 
 	/**
 	 * Copy all LoadedPackages into NewPackages. Called when reachability of all packages needs to be recalculated
@@ -240,7 +240,7 @@ private:
 	TSet<FName> ExpectedNeverLoadPackages;
 
 	// This list contains the UPackages loaded since last call to GetNewPackages
-	TMap<UPackage*, FInstigator> NewPackages;
+	TMap<FName, FInstigator> NewPackages;
 	bool bTrackingInitialized = false;
 };
 

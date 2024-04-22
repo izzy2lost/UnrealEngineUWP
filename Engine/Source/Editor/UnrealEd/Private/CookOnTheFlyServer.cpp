@@ -4335,15 +4335,14 @@ void UCookOnTheFlyServer::ProcessUnsolicitedPackages(TArray<FName>* OutDiscovere
 
 	using namespace UE::Cook;
 
-	TMap<UPackage*, UE::Cook::FInstigator> NewPackages = PackageTracker->GetNewPackages();
+	TMap<FName, UE::Cook::FInstigator> NewPackages = PackageTracker->GetNewPackages();
 
-	for (auto& PackageWithInstigator : NewPackages)
+	for (TPair<FName, UE::Cook::FInstigator>& PackageWithInstigator : NewPackages)
 	{
-		UPackage* Package = PackageWithInstigator.Key;
-		check(Package != nullptr);
+		FName PackageName = PackageWithInstigator.Key;
 		FInstigator& Instigator = PackageWithInstigator.Value;
 
-		UE::Cook::FPackageData* PackageData = PackageDatas->TryAddPackageDataByPackageName(Package->GetFName());
+		UE::Cook::FPackageData* PackageData = PackageDatas->TryAddPackageDataByPackageName(PackageName);
 		if (!PackageData)
 		{
 			continue; // Getting the PackageData will fail if e.g. it is a script package
