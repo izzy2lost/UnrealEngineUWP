@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "../Random.ush"
+#include "../RandomInterleavedGradientNoise.ush"
 
 // SVT_TODO: Unify with macros in SparseVolumeTexture.h
 #define SPARSE_VOLUME_TILE_RES 16
