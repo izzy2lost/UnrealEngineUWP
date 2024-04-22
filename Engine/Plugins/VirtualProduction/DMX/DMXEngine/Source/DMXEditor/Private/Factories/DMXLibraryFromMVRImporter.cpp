@@ -221,7 +221,7 @@ void FDMXLibraryFromMVRImporter::InitializeDMXLibrary(UDMXLibrary* DMXLibrary, c
 
 		UDMXEntityFixtureType* const* ExistingFixtureTypePtr = Algo::FindByPredicate(FixtureTypes, [GDTF](const UDMXEntityFixtureType* FixtureType)
 			{
-				return FixtureType->DMXImport == GDTF;
+				return FixtureType->GDTFSource == GDTF;
 			});
 		if (ExistingFixtureTypePtr)
 		{
@@ -237,10 +237,12 @@ void FDMXLibraryFromMVRImporter::InitializeDMXLibrary(UDMXLibrary* DMXLibrary, c
 			const bool bAdvancedImportSuccess = FDMXInitializeFixtureTypeFromGDTFHelper::GenerateModesFromGDTF(*NewFixtureType, *GDTF);
 			if (!bAdvancedImportSuccess)
 			{
+				PRAGMA_DISABLE_DEPRECATION_WARNINGS
 				UE_LOG(LogDMXEditor, Warning, TEXT("Failed to initialize Fixture Type '%s', falling back to legacy method that doesn't support matrix fixtures."), *NewFixtureType->GetName());
 				NewFixtureType->SetModesFromDMXImport(GDTF);
+				PRAGMA_ENABLE_DEPRECATION_WARNINGS
 			}
-			NewFixtureType->DMXImport = GDTF;
+			NewFixtureType->GDTFSource = GDTF;
 
 			GDTFSpecToFixtureTypeMap.Add(GDTFFilename, NewFixtureType);
 		}

@@ -2,8 +2,7 @@
 
 #include "DMXZipper.h"
 
-#include "DMXEditorLog.h"
-
+#include "DMXZipLog.h"
 #include "Misc/Compression.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
@@ -52,7 +51,7 @@ bool FDMXZipper::SaveToFile(const FString& Filename)
 		const bool bFileAdded = AddFileInternal(Writer, Pair.Key, Pair.Value.Key, Pair.Value.Value);
 		if (!bFileAdded)
 		{
-			UE_LOG(LogDMXEditor, Error, TEXT("Cannot save Zip. File '%s' added no longer exists on disk!"), *Pair.Key);
+			UE_LOG(LogDMXZip, Error, TEXT("Cannot save Zip. File '%s' added no longer exists on disk!"), *Pair.Key);
 			return false;
 		}
 	}
@@ -67,7 +66,7 @@ bool FDMXZipper::SaveToFile(const FString& Filename)
 		TArray64<uint8> Data;
 		if (!GetFileContent(Pair.Key, Data))
 		{
-			UE_LOG(LogDMXEditor, Error, TEXT("Cannot save Zip.Failed to read File '%s' from Zip when saving it."), *Pair.Key);
+			UE_LOG(LogDMXZip, Error, TEXT("Cannot save Zip.Failed to read File '%s' from Zip when saving it."), *Pair.Key);
 			return false;
 		}
 
@@ -162,7 +161,7 @@ FDMXZipper::FDMXScopedUnzipToTempFile::FDMXScopedUnzipToTempFile(const TSharedRe
 		return;
 	}
 
-	const FString Directory = FPaths::EngineSavedDir() / TEXT("DMX_Temp");
+	const FString Directory = FPaths::EngineIntermediateDir() / TEXT("DMX_Temp");
 	TempFilePathAndName = FPaths::ConvertRelativePathToFull(Directory / FilenameInZip);
 
 	FFileHelper::SaveArrayToFile(FileData, *TempFilePathAndName);

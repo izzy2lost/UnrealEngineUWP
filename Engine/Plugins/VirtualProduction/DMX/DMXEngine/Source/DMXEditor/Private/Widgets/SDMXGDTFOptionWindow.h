@@ -13,92 +13,52 @@ class SButton;
 class UDMXGDTFImportUI;
 class IDetailsView;
 
-class SDMXGDTFOptionWindow : public SCompoundWidget
+namespace UE::DMX
 {
-public:
-    SLATE_BEGIN_ARGS( SDMXGDTFOptionWindow )
-    : _ImportUI(nullptr)
-    , _WidgetWindow()
-    , _FullPath()
-    , _MaxWindowHeight(0.0f)
-    , _MaxWindowWidth(0.0f)
-    {}
 
-    SLATE_ARGUMENT( UDMXGDTFImportUI*, ImportUI )
-    SLATE_ARGUMENT( TSharedPtr<SWindow>, WidgetWindow )
-    SLATE_ARGUMENT( FText, FullPath )
-    SLATE_ARGUMENT( float, MaxWindowHeight)
-    SLATE_ARGUMENT(float, MaxWindowWidth)
-    SLATE_END_ARGS()
+	class SDMXGDTFOptionWindow : public SCompoundWidget
+	{
+	public:
+		SLATE_BEGIN_ARGS(SDMXGDTFOptionWindow)
+			: _ImportUI(nullptr)
+			, _WidgetWindow()
+			, _FullPath()
+			, _MaxWindowHeight(0.0f)
+			, _MaxWindowWidth(0.0f)
+			{}
 
-public:
-    void Construct(const FArguments& InArgs);
-    virtual bool SupportsKeyboardFocus() const override { return true; }
+			SLATE_ARGUMENT(UDMXGDTFImportUI*, ImportUI)
+			SLATE_ARGUMENT(TSharedPtr<SWindow>, WidgetWindow)
+			SLATE_ARGUMENT(FText, FullPath)
+			SLATE_ARGUMENT(float, MaxWindowHeight)
+			SLATE_ARGUMENT(float, MaxWindowWidth)
 
-    FReply OnImport()
-    {
-        bShouldImport = true;
-        if ( WidgetWindow.IsValid() )
-        {
-            WidgetWindow.Pin()->RequestDestroyWindow();
-        }
-        return FReply::Handled();
-    }
+		SLATE_END_ARGS()
 
-    FReply OnImportAll()
-    {
-        bShouldImportAll = true;
-        return OnImport();
-    }
+	public:
+		void Construct(const FArguments& InArgs);
 
-    FReply OnCancel()
-    {
-        bShouldImport = false;
-        bShouldImportAll = false;
-        if ( WidgetWindow.IsValid() )
-        {
-            WidgetWindow.Pin()->RequestDestroyWindow();
-        }
-        return FReply::Handled();
-    }
+		bool ShouldImport() const { return bShouldImport;  }
 
-    virtual FReply OnKeyDown( const FGeometry& MyGeometry, const FKeyEvent& InKeyEvent ) override
-    {
-        if( InKeyEvent.GetKey() == EKeys::Escape )
-        {
-            return OnCancel();
-        }
+		bool ShouldImportAll() const { return bShouldImportAll; }
 
-        return FReply::Unhandled();
-    }
+	private:
+		//~ Begin SWidget interface
+		virtual bool SupportsKeyboardFocus() const override { return true; }
+		virtual FReply OnKeyDown(const FGeometry& MyGeometry, const FKeyEvent& InKeyEvent) override;
+		//~ End SWidget interface
 
-    bool ShouldImport() const
-    {
-        return bShouldImport;
-    }
+		FReply OnImport();
+		FReply OnImportAll();
+		FReply OnCancel();
+		FReply OnResetToDefaultClick() const;
+		FText GetImportTypeDisplayText() const;
 
-    bool ShouldImportAll() const
-    {
-        return bShouldImportAll;
-    }
-
-    SDMXGDTFOptionWindow()
-        : ImportUI(nullptr)
-        , bShouldImport(false)
-        , bShouldImportAll(false)
-    {}
-
-private:
-
-    FReply OnResetToDefaultClick() const;
-    FText GetImportTypeDisplayText() const;
-
-
-private:
-    TWeakObjectPtr<UDMXGDTFImportUI> ImportUI;
-    TSharedPtr<IDetailsView> DetailsView;
-    TWeakPtr< SWindow > WidgetWindow;
-    TSharedPtr< SButton > ImportButton;
-    bool			bShouldImport;
-    bool			bShouldImportAll;
-};
+		TWeakObjectPtr<UDMXGDTFImportUI> ImportUI;
+		TSharedPtr<IDetailsView> DetailsView;
+		TWeakPtr< SWindow > WidgetWindow;
+		TSharedPtr< SButton > ImportButton;
+		bool bShouldImport = false;
+		bool bShouldImportAll = false;
+	};
+}

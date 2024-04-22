@@ -2,65 +2,54 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
+#include "Containers/UnrealString.h"
+#include "Templates/SharedPointer.h"
+#include "UObject/ObjectMacros.h"
 #include "UObject/WeakObjectPtr.h"
 
+class FDMXZipper;
 class UDMXImportGDTF;
-class UDMXGDTFImportUI;
-class FXmlFile;
-class UPackage;
+class UDMXGDTFFactory;
 
-struct FDMXGDTFImportArgs
+namespace UE::DMX
 {
-public:
-    FDMXGDTFImportArgs()
-        : Parent(nullptr)
-        , Name(NAME_None)
-        , Flags(RF_NoFlags)
-        , ImportUI(nullptr)
-        , bCancelOperation(false)
-    {}
+	struct FDMXGDTFImportArgs
+	{
+	public:
+		FDMXGDTFImportArgs()
+			: Parent(nullptr)
+			, Name(NAME_None)
+			, Flags(RF_NoFlags)
+		{}
 
-    TWeakObjectPtr<UObject> Parent;
-    FName Name;
-    FString CurrentFilename;
-    EObjectFlags Flags;
-    TWeakObjectPtr<UDMXGDTFImportUI> ImportUI;
-    bool bCancelOperation;
-};
+		TWeakObjectPtr<UObject> Parent;
+		FName Name;
+		FString Filename;
+		EObjectFlags Flags;
+	};
 
-/**
- * GDTF Importer is read and parse GDTF input file
- */
-class FDMXGDTFImporter
-{
-public:
-    FDMXGDTFImporter(const FDMXGDTFImportArgs& InImportArgs);
 
-    /** Try to load the file and parse the data */
-    bool AttemptImportFromFile();
+	/** Imports a GDTF asset. */
+	class FDMXGDTFImporter
+	{
+	public:
+		/** Tries to import a GDTF, using params from the import factory. Returns the resulting GDTF object or nullptr if no GDTF asset could be created. */
+		[[nodiscard]] static UDMXImportGDTF* Import(const UDMXGDTFFactory& InImportFactory, const FDMXGDTFImportArgs& InImportArgs, FText& OutErrorReason);
 
-    /** Create new GDTF UObject from imported file */
-    UDMXImportGDTF* Import();
+	private:
+		/** Private constructor */
+		FDMXGDTFImporter(const FDMXGDTFImportArgs& InImportArgs);
 
-private:
-    bool ParseXML();
+		/** Non-static implementation */
+		UDMXImportGDTF* ImportInternal(const UDMXGDTFFactory& InImportFactory, FText& OutErrorReason);
 
-    /** Create GDTF from imported xml */
-    UDMXImportGDTF* CreateGDTFDesctription();
+		/** Creates the GDTF asset */
+		UDMXImportGDTF* CreateGDTF(const UDMXGDTFFactory& InImportFactory, FText& OutErrorReason) const;
 
-    UPackage* GetPackage(const FString& InAssetName);
-public:
+		/** Args for this importer */
+		const FDMXGDTFImportArgs& ImportArgs;
 
-    static void GetImportOptions(const TUniquePtr<FDMXGDTFImporter>& Importer, UDMXGDTFImportUI* ImportUI, bool bShowOptionDialog, const FString& FullPath, bool& OutOperationCanceled, bool& bOutImportAll, const FString& InFilename);
-private:
-    TSharedPtr<FXmlFile> XMLFile;
-
-    FDMXGDTFImportArgs ImportArgs;
-
-    bool bIsXMLParsedSuccessfully;
-
-    FString LastPackageName;
-
-    FString ImportName;
-};
+		/** The GDTF File as zip */
+		TSharedPtr<FDMXZipper> Zip;
+	};
+}

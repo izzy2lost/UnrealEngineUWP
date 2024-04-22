@@ -6,21 +6,70 @@
 
 #include "DMXImportGDTF.generated.h"
 
+class UDMXGDTF;
 class UDMXGDTFAssetImportData;
-
 class UTexture2D;
+namespace UE::DMX::GDTF { class FDMXGDTFDescription; }
 
 
-UENUM(BlueprintType)
-enum class EDMXImportGDTFType : uint8
+/** 
+ * A GDTF imported into Unreal Engine. Note this object holds GDTF source data and may be memory heavy.
+ * 
+ * To access the GDTF description in lightweight fashion, please refer to UDMXGDTF (C++ only). 
+ */
+UCLASS(Blueprintable, BlueprintType)
+class DMXRUNTIME_API UDMXImportGDTF
+	: public UDMXImport
+{
+	GENERATED_BODY()
+
+public:
+	/** Constructor */
+	UDMXImportGDTF();
+
+	//~ Begin UObject interface
+	virtual void PostLoad() override;
+	//~ End UObject interface
+
+	/** Loads the GDTF stored in this object */
+	UDMXGDTF* LoadGDTF() const;
+
+	/** DEPRECATED 5.4 */
+	UE_DEPRECATED(5.5, "UDMXImportGDTF::GetDMXModes is deprecated in favor of UDMXGDTF. See also newly added UDMXImportGDTF::LoadGDTF to read out GDTF data of this asset.")
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS // Suppress deprecation warnings for the deprecated UDMXImportGDTFDMXModes return type
+	UFUNCTION(BlueprintPure, Category = "DMXGDTF|Import Data", Meta = (DeprecatedFunction, DeprecationMessage = "This member is deprecated in favor of a DMX Entity Fixture Type based workflow. Please refer to members of DMX Entity Fixture Type instead"))
+	class UDMXImportGDTFDMXModes* GetDMXModes() const { return Cast<UDMXImportGDTFDMXModes>(DMXModes_DEPRECATED); }
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+#if WITH_EDITORONLY_DATA
+	/** DEPRECATED 5.1 in favor of GDTFAssetImportData */
+	UPROPERTY(Meta = (DeprecatedProperty, DeprecationMessage = "Deprecated in favor of GDTFAssetImportData, see UDMXImportGDTF::GetGDTFAssetImportData."))
+	FString SourceFilename_DEPRECATED;
+#endif
+
+	/** Returns GDTF Asset Import Data for this GDTF */
+	FORCEINLINE UDMXGDTFAssetImportData* GetGDTFAssetImportData() const { return GDTFAssetImportData; }
+ 
+private:
+	/** The Asset Import Data used to generate the GDTF asset or nullptr, if not generated from a GDTF file */
+	UPROPERTY()
+	TObjectPtr<UDMXGDTFAssetImportData> GDTFAssetImportData;
+};
+
+
+///////////////////////////////
+//~ Begin Deprecated Members
+// 
+
+UENUM()
+enum class UE_DEPRECATED(5.5, "FDMXImportGDTFType is deprecated in favor of its corresponding type in the DMXGDTF module. See also UDMXImportGDTF::LoadGDTF.") EDMXImportGDTFType : uint8
 {
     Multiply,
     Override
 };
 
-
-UENUM(BlueprintType)
-enum class EDMXImportGDTFSnap : uint8
+UENUM()
+enum class UE_DEPRECATED(5.5, "FDMXImportGDTFSnap is deprecated in favor of its corresponding type in the DMXGDTF module. See also UDMXImportGDTF::LoadGDTF.") EDMXImportGDTFSnap : uint8
 {
     Yes,
     No,
@@ -28,23 +77,23 @@ enum class EDMXImportGDTFSnap : uint8
     Off
 };
 
-UENUM(BlueprintType)
-enum class EDMXImportGDTFMaster : uint8
+UENUM()
+enum class UE_DEPRECATED(5.5, "FDMXImportGDTFMaster is deprecated in favor of its corresponding type in the DMXGDTF module. See also UDMXImportGDTF::LoadGDTF.") EDMXImportGDTFMaster : uint8
 {
     None,
     Grand,
     Group
 };
 
-UENUM(BlueprintType)
-enum class EDMXImportGDTFDMXInvert : uint8
+UENUM()
+enum class UE_DEPRECATED(5.5, "FDMXImportGDTFDMXInvert is deprecated in favor of its corresponding type in the DMXGDTF module. See also UDMXImportGDTF::LoadGDTF.") EDMXImportGDTFDMXInvert : uint8
 {
     Yes,
     No
 };
 
-UENUM(BlueprintType)
-enum class EDMXImportGDTFLampType : uint8
+UENUM()
+enum class UE_DEPRECATED(5.5, "FDMXImportGDTFLampType is deprecated in favor of its corresponding type in the DMXGDTF module. See also UDMXImportGDTF::LoadGDTF.") EDMXImportGDTFLampType : uint8
 {
     Discharge,
     Tungsten,
@@ -52,16 +101,16 @@ enum class EDMXImportGDTFLampType : uint8
     LED
 };
 
-UENUM(BlueprintType)
-enum class EDMXImportGDTFBeamType : uint8
+UENUM()
+enum class UE_DEPRECATED(5.5, "FDMXImportGDTFBeamType is deprecated in favor of its corresponding type in the DMXGDTF module. See also UDMXImportGDTF::LoadGDTF.") EDMXImportGDTFBeamType : uint8
 {
     Wash,
     Spot,
     None
 };
 
-UENUM(BlueprintType)
-enum class EDMXImportGDTFPrimitiveType : uint8
+UENUM()
+enum class UE_DEPRECATED(5.5, "FDMXImportGDTFPrimitiveType is deprecated in favor of its corresponding type in the DMXGDTF module. See also UDMXImportGDTF::LoadGDTF.") EDMXImportGDTFPrimitiveType : uint8
 {
     Undefined,
     Cube,
@@ -75,8 +124,8 @@ enum class EDMXImportGDTFPrimitiveType : uint8
     Pigtail
 };
 
-UENUM(BlueprintType)
-enum class EDMXImportGDTFPhysicalUnit : uint8
+UENUM()
+enum class UE_DEPRECATED(5.5, "FDMXImportGDTFPhysicalUnit is deprecated in favor of its corresponding type in the DMXGDTF module. See also UDMXImportGDTF::LoadGDTF.") EDMXImportGDTFPhysicalUnit : uint8
 {
     None,
     Percent,
@@ -102,8 +151,8 @@ enum class EDMXImportGDTFPhysicalUnit : uint8
     ColorComponent
 };
 
-UENUM(BlueprintType)
-enum class EDMXImportGDTFMode : uint8
+UENUM()
+enum class UE_DEPRECATED(5.5, "FDMXImportGDTFMode is deprecated in favor of its corresponding type in the DMXGDTF module. See also UDMXImportGDTF::LoadGDTF.") EDMXImportGDTFMode : uint8
 {
     Custom,
     sRGB,
@@ -111,8 +160,8 @@ enum class EDMXImportGDTFMode : uint8
     ANSI
 };
 
-UENUM(BlueprintType)
-enum class EDMXImportGDTFInterpolationTo : uint8
+UENUM()
+enum class UE_DEPRECATED(5.5, "FDMXImportGDTFInterpolationTo is deprecated in favor of its corresponding type in the DMXGDTF module. See also UDMXImportGDTF::LoadGDTF.") EDMXImportGDTFInterpolationTo : uint8
 {
     Linear,
     Step,
@@ -120,7 +169,7 @@ enum class EDMXImportGDTFInterpolationTo : uint8
 };
 
 USTRUCT(BlueprintType)
-struct DMXRUNTIME_API FDMXImportGDTFActivationGroup
+struct UE_DEPRECATED(5.5, "FDMXImportGDTFActivationGroup is deprecated in favor of its corresponding type in the DMXGDTF module. See also UDMXImportGDTF::LoadGDTF.") DMXRUNTIME_API FDMXImportGDTFActivationGroup
 {
     GENERATED_BODY()
 
@@ -129,7 +178,7 @@ struct DMXRUNTIME_API FDMXImportGDTFActivationGroup
 };
 
 USTRUCT(BlueprintType)
-struct DMXRUNTIME_API FDMXImportGDTFFeature
+struct UE_DEPRECATED(5.5, "FDMXImportGDTFFeature is deprecated in favor of its corresponding type in the DMXGDTF module. See also UDMXImportGDTF::LoadGDTF.") DMXRUNTIME_API FDMXImportGDTFFeature
 {
     GENERATED_BODY()
 
@@ -138,7 +187,7 @@ struct DMXRUNTIME_API FDMXImportGDTFFeature
 };
 
 USTRUCT(BlueprintType)
-struct DMXRUNTIME_API FDMXImportGDTFFeatureGroup
+struct UE_DEPRECATED(5.5, "FDMXImportGDTFFeatureGroup is deprecated in favor of its corresponding type in the DMXGDTF module. See also UDMXImportGDTF::LoadGDTF.") DMXRUNTIME_API FDMXImportGDTFFeatureGroup
 {
     GENERATED_BODY()
 
@@ -148,12 +197,14 @@ struct DMXRUNTIME_API FDMXImportGDTFFeatureGroup
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "DMX")
     FString Pretty;
 
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "DMX")
     TArray<FDMXImportGDTFFeature> Features;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 };
 
 USTRUCT(BlueprintType)
-struct DMXRUNTIME_API FDMXImportGDTFAttribute
+struct UE_DEPRECATED(5.5, "FDMXImportGDTFAttribute is deprecated in favor of its corresponding type in the DMXGDTF module. See also UDMXImportGDTF::LoadGDTF.") DMXRUNTIME_API FDMXImportGDTFAttribute
 {
     GENERATED_BODY()
 
@@ -163,6 +214,7 @@ struct DMXRUNTIME_API FDMXImportGDTFAttribute
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "DMX")
     FString Pretty;
 
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "DMX")
     FDMXImportGDTFActivationGroup ActivationGroup;
 
@@ -177,53 +229,60 @@ struct DMXRUNTIME_API FDMXImportGDTFAttribute
 
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "DMX")
     FDMXColorCIE Color;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 };
 
 USTRUCT(BlueprintType)
-struct FDMXImportGDTFFilter
+struct UE_DEPRECATED(5.5, "FDMXImportGDTFFilter is deprecated in favor of its corresponding type in the DMXGDTF module. See also UDMXImportGDTF::LoadGDTF.") FDMXImportGDTFFilter
 {
     GENERATED_BODY()
 
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "DMX")
     FName Name;
 
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "DMX")
     FDMXColorCIE Color;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 };
 
 
 USTRUCT(BlueprintType)
-struct FDMXImportGDTFWheelSlot
+struct UE_DEPRECATED(5.5, "FDMXImportGDTFWheelSlot is deprecated in favor of its corresponding type in the DMXGDTF module. See also UDMXImportGDTF::LoadGDTF.") FDMXImportGDTFWheelSlot
 {
     GENERATED_BODY()
 
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "DMX")
     FName Name;
 
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "DMX")
     FDMXColorCIE Color;
 
-    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "DMX")
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "DMX")
     FDMXImportGDTFFilter Filter;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
     UPROPERTY(VisibleAnywhere, Category = "Fixture Type")
     TObjectPtr<UTexture2D> MediaFileName = nullptr;
 };
 
 USTRUCT(BlueprintType)
-struct FDMXImportGDTFWheel
+struct UE_DEPRECATED(5.5, "FDMXImportGDTFWheel is deprecated in favor of its corresponding type in the DMXGDTF module. See also UDMXImportGDTF::LoadGDTF.") FDMXImportGDTFWheel
 {
     GENERATED_BODY()
 
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "DMX")
     FName Name;
 
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "DMX")
     TArray<FDMXImportGDTFWheelSlot> Slots;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 };
 
 USTRUCT(BlueprintType)
-struct FDMXImportGDTFMeasurementPoint
+struct UE_DEPRECATED(5.5, "FDMXImportGDTFMeasurementPoint is deprecated in favor of its corresponding type in the DMXGDTF module. See also UDMXImportGDTF::LoadGDTF.") FDMXImportGDTFMeasurementPoint
 {
     GENERATED_BODY()
 
@@ -236,7 +295,7 @@ struct FDMXImportGDTFMeasurementPoint
 
 
 USTRUCT(BlueprintType)
-struct FDMXImportGDTFMeasurement
+struct UE_DEPRECATED(5.5, "FDMXImportGDTFMeasurement is deprecated in favor of its corresponding type in the DMXGDTF module. See also UDMXImportGDTF::LoadGDTF.") FDMXImportGDTFMeasurement
 {
     GENERATED_BODY()
 
@@ -249,23 +308,27 @@ struct FDMXImportGDTFMeasurement
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "DMX")
     float Transmission = 0.f;
 
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "DMX")
     EDMXImportGDTFInterpolationTo InterpolationTo = EDMXImportGDTFInterpolationTo::Linear;
 
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "DMX")
     TArray<FDMXImportGDTFMeasurementPoint> MeasurementPoints;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 };
 
 USTRUCT(BlueprintType)
-struct FDMXImportGDTFEmitter
+struct UE_DEPRECATED(5.5, "FDMXImportGDTFEmitter is deprecated in favor of its corresponding type in the DMXGDTF module. See also UDMXImportGDTF::LoadGDTF.") FDMXImportGDTFEmitter
 {
     GENERATED_BODY()
 
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "DMX")
     FName Name;
 
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "DMX")
     FDMXColorCIE Color;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "DMX")
     float DominantWaveLength = 0.f;
@@ -273,21 +336,26 @@ struct FDMXImportGDTFEmitter
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "DMX")
     FString DiodePart;
 
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "DMX")
     FDMXImportGDTFMeasurement Measurement;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 };
 
 USTRUCT(BlueprintType)
-struct FDMXImportGDTFColorSpace
+struct UE_DEPRECATED(5.5, "FDMXImportGDTFColorSpace is deprecated in favor of its corresponding type in the DMXGDTF module. See also UDMXImportGDTF::LoadGDTF.") FDMXImportGDTFColorSpace
 {
     GENERATED_BODY()
 
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "DMX")
     EDMXImportGDTFMode Mode = EDMXImportGDTFMode::sRGB;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "DMX")
     FString Description;
 
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "DMX")
     FDMXColorCIE Red;
 
@@ -299,23 +367,24 @@ struct FDMXImportGDTFColorSpace
 
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "DMX")
     FDMXColorCIE WhitePoint;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 };
 
 USTRUCT(BlueprintType)
-struct FDMXImportGDTFDMXProfiles
+struct UE_DEPRECATED(5.5, "FDMXImportGDTFDMXProfiles is deprecated in favor of its corresponding type in the DMXGDTF module. See also UDMXImportGDTF::LoadGDTF.") FDMXImportGDTFDMXProfiles
 {
     GENERATED_BODY()
 };
 
 USTRUCT(BlueprintType)
-struct FDMXImportGDTFCRIs
+struct UE_DEPRECATED(5.5, "FDMXImportGDTFCRIs is deprecated in favor of its corresponding type in the DMXGDTF module. See also UDMXImportGDTF::LoadGDTF.") FDMXImportGDTFCRIs
 {
     GENERATED_BODY()
 };
 
 
 USTRUCT(BlueprintType)
-struct FDMXImportGDTFModel
+struct UE_DEPRECATED(5.5, "FDMXImportGDTFModel is deprecated in favor of its corresponding type in the DMXGDTF module. See also UDMXImportGDTF::LoadGDTF.") FDMXImportGDTFModel
 {
     GENERATED_BODY()
 
@@ -331,17 +400,18 @@ struct FDMXImportGDTFModel
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "DMX")
     float Height = 0.f;
 
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "DMX")
     EDMXImportGDTFPrimitiveType PrimitiveType = EDMXImportGDTFPrimitiveType::Undefined;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 };
 
 USTRUCT(BlueprintType)
-struct FDMXImportGDTFGeometryBase
+struct UE_DEPRECATED(5.5, "FDMXImportGDTFGeometryBase is deprecated in favor of its corresponding type in the DMXGDTF module. See also UDMXImportGDTF::LoadGDTF.") FDMXImportGDTFGeometryBase
 {
 	GENERATED_BODY()
 
 	FDMXImportGDTFGeometryBase()
-		: Position(FMatrix::Identity)
 	{}
 
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "DMX")
@@ -351,17 +421,27 @@ struct FDMXImportGDTFGeometryBase
     FName Model;
 
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "DMX")
-    FMatrix Position;
+    FMatrix Position = FMatrix::Identity;
 };
 
 USTRUCT(BlueprintType)
-struct FDMXImportGDTFBeam
-    : public FDMXImportGDTFGeometryBase
+struct UE_DEPRECATED(5.5, "FDMXImportGDTFBeam is deprecated in favor of its corresponding type in the DMXGDTF module. See also UDMXImportGDTF::LoadGDTF.") FDMXImportGDTFBeam
 {
     GENERATED_BODY()
 
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "DMX")
+	FName Name;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "DMX")
+	FName Model;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "DMX")
+	FMatrix Position = FMatrix::Identity;
+
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "DMX")
     EDMXImportGDTFLampType LampType = EDMXImportGDTFLampType::Discharge;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "DMX")
     float PowerConsumption = 0.f;
@@ -381,70 +461,132 @@ struct FDMXImportGDTFBeam
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "DMX")
     float BeamRadius = 0.f;
 
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "DMX")
     EDMXImportGDTFBeamType BeamType = EDMXImportGDTFBeamType::Wash;
 
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "DMX")
     uint8 ColorRenderingIndex = 0;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 };
 
 USTRUCT(BlueprintType)
-struct FDMXImportGDTFTypeAxis
-    : public FDMXImportGDTFGeometryBase
+struct UE_DEPRECATED(5.5, "FDMXImportGDTFTypeAxis is deprecated in favor of its corresponding type in the DMXGDTF module. See also UDMXImportGDTF::LoadGDTF.") FDMXImportGDTFTypeAxis
 {
     GENERATED_BODY()
 
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "DMX")
+	FName Name;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "DMX")
+	FName Model;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "DMX")
+	FMatrix Position = FMatrix::Identity;
+
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "DMX")
     TArray<FDMXImportGDTFBeam> Beams;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 };
 
 USTRUCT(BlueprintType)
-struct FDMXImportGDTFGeneralAxis
-    : public FDMXImportGDTFGeometryBase
+struct UE_DEPRECATED(5.5, "FDMXImportGDTFGeneralAxis is deprecated in favor of its corresponding type in the DMXGDTF module. See also UDMXImportGDTF::LoadGDTF.") FDMXImportGDTFGeneralAxis
 {
     GENERATED_BODY()
 
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "DMX")
+	FName Name;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "DMX")
+	FName Model;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "DMX")
+	FMatrix Position = FMatrix::Identity;
+
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "DMX")
     TArray<FDMXImportGDTFTypeAxis> Axis;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 };
 
 USTRUCT(BlueprintType)
-struct FDMXImportGDTFTypeGeometry
-    : public FDMXImportGDTFGeometryBase
+struct UE_DEPRECATED(5.5, "FDMXImportGDTFTypeGeometry is deprecated in favor of its corresponding type in the DMXGDTF module. See also UDMXImportGDTF::LoadGDTF.") FDMXImportGDTFTypeGeometry
 {
     GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "DMX")
+	FName Name;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "DMX")
+	FName Model;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "DMX")
+	FMatrix Position = FMatrix::Identity;
 };
 
 USTRUCT(BlueprintType)
-struct FDMXImportGDTFFilterBeam
-    : public FDMXImportGDTFGeometryBase
+struct UE_DEPRECATED(5.5, "FDMXImportGDTFFilterBeam is deprecated in favor of its corresponding type in the DMXGDTF module. See also UDMXImportGDTF::LoadGDTF.") FDMXImportGDTFFilterBeam
 {
     GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "DMX")
+	FName Name;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "DMX")
+	FName Model;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "DMX")
+	FMatrix Position = FMatrix::Identity;
 };
 
 USTRUCT(BlueprintType)
-struct FDMXImportGDTFFilterColor
-    : public FDMXImportGDTFGeometryBase
+struct UE_DEPRECATED(5.5, "FDMXImportGDTFFilterColor is deprecated in favor of its corresponding type in the DMXGDTF module. See also UDMXImportGDTF::LoadGDTF.") FDMXImportGDTFFilterColor
 {
     GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "DMX")
+	FName Name;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "DMX")
+	FName Model;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "DMX")
+	FMatrix Position = FMatrix::Identity;
 };
 
 USTRUCT(BlueprintType)
-struct FDMXImportGDTFFilterGobo
-    : public FDMXImportGDTFGeometryBase
+struct UE_DEPRECATED(5.5, "FDMXImportGDTFFilterGobo is deprecated in favor of its corresponding type in the DMXGDTF module. See also UDMXImportGDTF::LoadGDTF.") FDMXImportGDTFFilterGobo
 {
     GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "DMX")
+	FName Name;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "DMX")
+	FName Model;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "DMX")
+	FMatrix Position = FMatrix::Identity;
 };
 
 USTRUCT(BlueprintType)
-struct FDMXImportGDTFFilterShaper
-    : public FDMXImportGDTFGeometryBase
+struct UE_DEPRECATED(5.5, "FDMXImportGDTFFilterShaper is deprecated in favor of its corresponding type in the DMXGDTF module. See also UDMXImportGDTF::LoadGDTF.") FDMXImportGDTFFilterShaper
 {
     GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "DMX")
+	FName Name;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "DMX")
+	FName Model;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "DMX")
+	FMatrix Position = FMatrix::Identity;
 };
 
 USTRUCT(BlueprintType)
-struct FDMXImportGDTFBreak
+struct UE_DEPRECATED(5.5, "FDMXImportGDTFBreak is deprecated in favor of its corresponding type in the DMXGDTF module. See also UDMXImportGDTF::LoadGDTF.") FDMXImportGDTFBreak
 {
     GENERATED_BODY()
 
@@ -456,21 +598,40 @@ struct FDMXImportGDTFBreak
 };
 
 USTRUCT(BlueprintType)
-struct FDMXImportGDTFGeometryReference
-    : public FDMXImportGDTFGeometryBase
+struct UE_DEPRECATED(5.5, "FDMXImportGDTFGeometryReference is deprecated in favor of its corresponding type in the DMXGDTF module. See also UDMXImportGDTF::LoadGDTF.") FDMXImportGDTFGeometryReference
 {
     GENERATED_BODY()
 
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "DMX")
+	FName Name;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "DMX")
+	FName Model;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "DMX")
+	FMatrix Position = FMatrix::Identity;
+
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "DMX")
     TArray<FDMXImportGDTFBreak> Breaks;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 };
 
 USTRUCT(BlueprintType)
-struct FDMXImportGDTFGeneralGeometry
-    : public FDMXImportGDTFGeometryBase
+struct UE_DEPRECATED(5.5, "FDMXImportGDTFGeneralGeometry is deprecated in favor of its corresponding type in the DMXGDTF module. See also UDMXImportGDTF::LoadGDTF.") FDMXImportGDTFGeneralGeometry
 {
     GENERATED_BODY()
 
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "DMX")
+	FName Name;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "DMX")
+	FName Model;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "DMX")
+	FMatrix Position = FMatrix::Identity;
+
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "DMX")
     FDMXImportGDTFGeneralAxis Axis;
 
@@ -491,10 +652,11 @@ struct FDMXImportGDTFGeneralGeometry
 
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "DMX")
     FDMXImportGDTFGeometryReference GeometryReference;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 };
 
 USTRUCT(BlueprintType)
-struct DMXRUNTIME_API FDMXImportGDTFDMXValue
+struct UE_DEPRECATED(5.5, "FDMXImportGDTFDMXValue is deprecated in favor of its corresponding type in the DMXGDTF module. See also UDMXImportGDTF::LoadGDTF.") DMXRUNTIME_API FDMXImportGDTFDMXValue
 {
     GENERATED_BODY()
 
@@ -514,15 +676,17 @@ struct DMXRUNTIME_API FDMXImportGDTFDMXValue
 };
 
 USTRUCT(BlueprintType)
-struct FDMXImportGDTFChannelSet
+struct UE_DEPRECATED(5.5, "FDMXImportGDTFChannelSet is deprecated in favor of its corresponding type in the DMXGDTF module. See also UDMXImportGDTF::LoadGDTF.") FDMXImportGDTFChannelSet
 {
     GENERATED_BODY()
 
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "DMX")
     FString Name;
 
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "DMX")
     FDMXImportGDTFDMXValue DMXFrom;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "DMX")
     float PhysicalFrom = 0.f;
@@ -535,24 +699,28 @@ struct FDMXImportGDTFChannelSet
 };
 
 USTRUCT(BlueprintType)
-struct FDMXImportGDTFChannelFunction
+struct UE_DEPRECATED(5.5, "FDMXImportGDTFChannelFunction is deprecated in favor of its corresponding type in the DMXGDTF module. See also UDMXImportGDTF::LoadGDTF.") FDMXImportGDTFChannelFunction
 {
     GENERATED_BODY()
 
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "DMX")
     FName Name;
 
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "DMX")
     FDMXImportGDTFAttribute Attribute;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "DMX")
     FString OriginalAttribute;
 
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "DMX")
     FDMXImportGDTFDMXValue DMXFrom;
 
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "DMX")
     FDMXImportGDTFDMXValue DMXValue;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "DMX")
     float PhysicalFrom = 0.f;
@@ -563,6 +731,7 @@ struct FDMXImportGDTFChannelFunction
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "DMX")
     float RealFade = 0.f;
 
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "DMX")
     FDMXImportGDTFWheel Wheel;
 
@@ -574,10 +743,12 @@ struct FDMXImportGDTFChannelFunction
 
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "DMX")
     EDMXImportGDTFDMXInvert DMXInvert = EDMXImportGDTFDMXInvert::No;
-
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+		
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "DMX")
     FString ModeMaster;
 
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "DMX")
     FDMXImportGDTFDMXValue ModeFrom;
 
@@ -586,13 +757,15 @@ struct FDMXImportGDTFChannelFunction
 
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "DMX")
     TArray<FDMXImportGDTFChannelSet> ChannelSets;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 };
 
 USTRUCT(BlueprintType)
-struct FDMXImportGDTFLogicalChannel
+struct UE_DEPRECATED(5.5, "FDMXImportGDTFLogicalChannel is deprecated in favor of its corresponding type in the DMXGDTF module. See also UDMXImportGDTF::LoadGDTF.") FDMXImportGDTFLogicalChannel
 {
     GENERATED_BODY()
 
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "DMX")
     FDMXImportGDTFAttribute Attribute;
 
@@ -601,6 +774,7 @@ struct FDMXImportGDTFLogicalChannel
 
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "DMX")
     EDMXImportGDTFMaster Master = EDMXImportGDTFMaster::None;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "DMX")
     float MibFade = 0.f;
@@ -608,12 +782,14 @@ struct FDMXImportGDTFLogicalChannel
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "DMX")
     float DMXChangeTimeLimit = 0.f;
 
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "DMX")
     FDMXImportGDTFChannelFunction ChannelFunction;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 };
 
 USTRUCT(BlueprintType)
-struct DMXRUNTIME_API FDMXImportGDTFDMXChannel
+struct UE_DEPRECATED(5.5, "FDMXImportGDTFDMXChannel is deprecated in favor of its corresponding type in the DMXGDTF module. See also UDMXImportGDTF::LoadGDTF.") DMXRUNTIME_API FDMXImportGDTFDMXChannel
 {
     GENERATED_BODY()
 
@@ -626,21 +802,25 @@ struct DMXRUNTIME_API FDMXImportGDTFDMXChannel
     UPROPERTY(EditAnywhere, BlueprintReadOnly, BlueprintReadOnly, Category = "DMX")
     TArray<int32> Offset;
 
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
     UPROPERTY(EditAnywhere, BlueprintReadOnly, BlueprintReadOnly, Category = "DMX")
     FDMXImportGDTFDMXValue Default;
 
     UPROPERTY(EditAnywhere, BlueprintReadOnly, BlueprintReadOnly, Category = "DMX")
     FDMXImportGDTFDMXValue Highlight;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
     UPROPERTY(EditAnywhere, BlueprintReadOnly, BlueprintReadOnly, Category = "DMX")
     FName Geometry;
 
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
     UPROPERTY(EditAnywhere, BlueprintReadOnly, BlueprintReadOnly, Category = "DMX")
     FDMXImportGDTFLogicalChannel LogicalChannel;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 };
 
 USTRUCT(BlueprintType)
-struct FDMXImportGDTFRelation
+struct UE_DEPRECATED(5.5, "FDMXImportGDTFRelation is deprecated in favor of its corresponding type in the DMXGDTF module. See also UDMXImportGDTF::LoadGDTF.") FDMXImportGDTFRelation
 {
     GENERATED_BODY()
 
@@ -653,12 +833,14 @@ struct FDMXImportGDTFRelation
     UPROPERTY(EditAnywhere, BlueprintReadOnly, BlueprintReadOnly, Category = "DMX")
     FString Follower;
 
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
     UPROPERTY(EditAnywhere, BlueprintReadOnly, BlueprintReadOnly, Category = "DMX")
     EDMXImportGDTFType Type = EDMXImportGDTFType::Multiply;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 };
 
 USTRUCT(BlueprintType)
-struct FDMXImportGDTFFTMacro
+struct UE_DEPRECATED(5.5, "FDMXImportGDTFFTMacro is deprecated in favor of its corresponding type in the DMXGDTF module. See also UDMXImportGDTF::LoadGDTF.") FDMXImportGDTFFTMacro
 {
     GENERATED_BODY()
 
@@ -667,7 +849,7 @@ struct FDMXImportGDTFFTMacro
 };
 
 USTRUCT(BlueprintType)
-struct FDMXImportGDTFDMXMode
+struct UE_DEPRECATED(5.5, "FDMXImportGDTFDMXMode is deprecated in favor of its corresponding type in the DMXGDTF module. See also UDMXImportGDTF::LoadGDTF.") FDMXImportGDTFDMXMode
 {
     GENERATED_BODY()
 
@@ -677,6 +859,7 @@ struct FDMXImportGDTFDMXMode
     UPROPERTY(EditAnywhere, BlueprintReadOnly, BlueprintReadOnly, Category = "DMX")
     FName Geometry;
 
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
     UPROPERTY(EditAnywhere, BlueprintReadOnly, BlueprintReadOnly, Category = "DMX")
     TArray<FDMXImportGDTFDMXChannel> DMXChannels;
 
@@ -685,13 +868,18 @@ struct FDMXImportGDTFDMXMode
 
     UPROPERTY(EditAnywhere, BlueprintReadOnly, BlueprintReadOnly, Category = "DMX")
     TArray<FDMXImportGDTFFTMacro> FTMacros;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 };
 
-UCLASS(BlueprintType, Blueprintable)
+class UE_DEPRECATED(5.5, "UDMXImportGDTFFixtureType is deprecated in favor of its corresponding type in the DMXGDTF module. See also UDMXImportGDTF::LoadGDTF.") UDMXImportGDTFFixtureType;
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+UCLASS(BlueprintType, Blueprintable, Meta = (DeprecatedNode, DeprecationMessage = "This class is now deprecated in favor of a DMXEntityFixtureType based workflow. Please refer to members of DMXEntityFixtureType instead."))
 class DMXRUNTIME_API UDMXImportGDTFFixtureType
     : public UDMXImportFixtureType
 {
     GENERATED_BODY()
+
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 public:
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Fixture Type")
@@ -719,7 +907,9 @@ public:
     FString RefFT;
 };
 
-UCLASS(BlueprintType, Blueprintable)
+class UE_DEPRECATED(5.5, "UDMXImportGDTFAttributeDefinitions is deprecated in favor of its corresponding type in the DMXGDTF module. See also UDMXImportGDTF::LoadGDTF.") UDMXImportGDTFAttributeDefinitions;
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+UCLASS(BlueprintType, Blueprintable, Meta = (DeprecatedNode, DeprecationMessage = "This class is now deprecated in favor of a DMXEntityFixtureType based workflow. Please refer to members of DMXEntityFixtureType instead."))
 class DMXRUNTIME_API UDMXImportGDTFAttributeDefinitions
     : public UDMXImportAttributeDefinitions
 {
@@ -739,9 +929,13 @@ public:
 
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "DMX")
     TArray<FDMXImportGDTFAttribute> Attributes;
+
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 };
 
-UCLASS(BlueprintType, Blueprintable)
+class UE_DEPRECATED(5.5, "UDMXImportGDTFWheels is deprecated in favor of its corresponding type in the DMXGDTF module. See also UDMXImportGDTF::LoadGDTF.") UDMXImportGDTFWheels;
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+UCLASS(BlueprintType, Blueprintable, Meta = (DeprecatedNode, DeprecationMessage = "This class is now deprecated in favor of a DMXEntityFixtureType based workflow. Please refer to members of DMXEntityFixtureType instead."))
 class DMXRUNTIME_API UDMXImportGDTFWheels
     : public UDMXImportWheels
 {
@@ -753,9 +947,13 @@ public:
 public:
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "DMX")
     TArray<FDMXImportGDTFWheel> Wheels;
+
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 };
 
-UCLASS(BlueprintType, Blueprintable)
+class UE_DEPRECATED(5.5, "UDMXImportGDTFPhysicalDescriptions is deprecated in favor of its corresponding type in the DMXGDTF module. See also UDMXImportGDTF::LoadGDTF.") UDMXImportGDTFPhysicalDescription;
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+UCLASS(BlueprintType, Blueprintable, Meta = (DeprecatedNode, DeprecationMessage = "This class is now deprecated in favor of a DMXEntityFixtureType based workflow. Please refer to members of DMXEntityFixtureType instead."))
 class DMXRUNTIME_API UDMXImportGDTFPhysicalDescriptions
     : public UDMXImportPhysicalDescriptions
 {
@@ -776,10 +974,13 @@ public:
 
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "DMX")
     FDMXImportGDTFCRIs CRIs;
+
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 };
 
-
-UCLASS(BlueprintType, Blueprintable)
+class UE_DEPRECATED(5.5, "UDMXImportGDTFModels is deprecated in favor of its corresponding type in the DMXGDTF module. See also UDMXImportGDTF::LoadGDTF.") UDMXImportGDTFModels;
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+UCLASS(BlueprintType, Blueprintable, Meta = (DeprecatedNode, DeprecationMessage = "This class is now deprecated in favor of a DMXEntityFixtureType based workflow. Please refer to members of DMXEntityFixtureType instead."))
 class DMXRUNTIME_API UDMXImportGDTFModels
     : public UDMXImportModels
 {
@@ -788,9 +989,13 @@ class DMXRUNTIME_API UDMXImportGDTFModels
 public:
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "DMX")
     TArray<FDMXImportGDTFModel> Models;
+
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 };
 
-UCLASS(BlueprintType, Blueprintable)
+class UE_DEPRECATED(5.5, "UDMXImportGDTFGeometries is deprecated in favor of its corresponding type in the DMXGDTF module. See also UDMXImportGDTF::LoadGDTF.") UDMXImportGDTFGeometries;
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+UCLASS(BlueprintType, Blueprintable, Meta = (DeprecatedNode, DeprecationMessage = "This class is now deprecated in favor of a DMXEntityFixtureType based workflow. Please refer to members of DMXEntityFixtureType instead."))
 class DMXRUNTIME_API UDMXImportGDTFGeometries
     : public UDMXImportGeometries
 {
@@ -799,9 +1004,13 @@ class DMXRUNTIME_API UDMXImportGDTFGeometries
 public:
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "DMX")
     TArray<FDMXImportGDTFGeneralGeometry> GeneralGeometry;
+
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 };
 
-UCLASS(BlueprintType, Blueprintable)
+class UE_DEPRECATED(5.5, "UDMXImportGDTFDMXModes is deprecated in favor of its corresponding type in the DMXGDTF module. See also UDMXImportGDTF::LoadGDTF.") UDMXImportGDTFDMXModes;
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+UCLASS(BlueprintType, Blueprintable, Meta = (DeprecatedNode, DeprecationMessage = "This class is now deprecated in favor of a DMXEntityFixtureType based workflow. Please refer to members of DMXEntityFixtureType instead."))
 class DMXRUNTIME_API UDMXImportGDTFDMXModes
     : public UDMXImportDMXModes
 {
@@ -811,52 +1020,27 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "DMX")
     TArray<FDMXImportGDTFDMXMode> DMXModes;
 
-public:
 	UFUNCTION(BlueprintPure, Category = "DMXGDTF|Import Data")
 	TArray<FDMXImportGDTFChannelFunction> GetDMXChannelFunctions(const FDMXImportGDTFDMXMode& InMode);
+
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 };
 
-UCLASS(BlueprintType, Blueprintable)
+class UE_DEPRECATED(5.5, "UDMXImportGDTFProtocols is deprecated in favor of its corresponding type in the DMXGDTF module. See also UDMXImportGDTF::LoadGDTF.") UDMXImportGDTFProtocols;
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+UCLASS(BlueprintType, Blueprintable, Meta = (DeprecatedNode, DeprecationMessage = "This class is now deprecated in favor of a DMXEntityFixtureType based workflow. Please refer to members of DMXEntityFixtureType instead."))
 class DMXRUNTIME_API UDMXImportGDTFProtocols
     : public UDMXImportProtocols
 {
     GENERATED_BODY()
+
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 public:
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "DMX")
     TArray<FName> Protocols;
 };
 
-UCLASS(BlueprintType, Blueprintable)
-class DMXRUNTIME_API UDMXImportGDTF
-	: public UDMXImport
-{
-    GENERATED_BODY()
+//~ End Deprecated Types
+///////////////////////////////
 
-public:
-	/** Constructor */
-	UDMXImportGDTF();
-
-	//~ Begin UObject interface
-	virtual void PostLoad() override;
-	//~ End UObject interface
-
-	UFUNCTION(BlueprintPure, Category = "DMXGDTF|Import Data")
-	UDMXImportGDTFDMXModes* GetDMXModes() const { return Cast<UDMXImportGDTFDMXModes>(DMXModes); }
-
-	/** DEPRECATED 5.1 in favor of AssetImportData */
-	UPROPERTY(Meta = (DeprecatedProperty, DeprecationMessage = "Deprecated in favor of GDTFAssetImportData, see UDMXImportGDTF::GetGDTFAssetImportData."))
-	FString SourceFilename_DEPRECATED;
-
-#if WITH_EDITORONLY_DATA
-	/** Returns GDTF Asset Import Data for this GDTF */
-	FORCEINLINE UDMXGDTFAssetImportData* GetGDTFAssetImportData() const { return GDTFAssetImportData; }
-#endif 
-
-private:
-#if WITH_EDITORONLY_DATA
-	/** The Asset Import Data used to generate the GDTF asset or nullptr, if not generated from a GDTF file */
-	UPROPERTY()
-	TObjectPtr<UDMXGDTFAssetImportData> GDTFAssetImportData;
-#endif
-};

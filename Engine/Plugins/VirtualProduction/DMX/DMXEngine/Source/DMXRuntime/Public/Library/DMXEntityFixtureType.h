@@ -10,6 +10,7 @@
 
 #include "DMXEntityFixtureType.generated.h"
 
+class UDMXGDTF;
 class UDMXImport;
 class UDMXImportGDTF;
 
@@ -293,6 +294,8 @@ class DMXRUNTIME_API UDMXEntityFixtureType
 	GENERATED_BODY()
 
 public:
+	UDMXEntityFixtureType();
+
 	/** Creates a new Fixture Type in the DMX Library */
 	UFUNCTION(BlueprintCallable, Category = "DMX")
 	static UDMXEntityFixtureType* CreateFixtureTypeInLibrary(FDMXEntityFixtureTypeConstructionParams ConstructionParams, const FString& DesiredName = TEXT(""), bool bMarkDMXLibraryDirty = true);
@@ -313,16 +316,13 @@ public:
 
 public:
 #if WITH_EDITOR
-	UFUNCTION(BlueprintCallable, Category = "Fixture Settings")
+	UE_DEPRECATED(5.5, "Setting GDTFs this way is not supported. Instead set the GDTFSource and generate the modes via UDMXGDTF.")
+	UFUNCTION(BlueprintCallable, Category = "Fixture Settings", Meta = (DeprecatedFunction, DeprecationMessage = "Setting GDTFs from blueprints was never fully supported and now deprecated. Instead please refer to the Create Fixture Type In DMX Library function."))
 	void SetModesFromDMXImport(UDMXImport* DMXImportAsset);
 #endif // WITH_EDITOR
 
 	/** Returns a delegate that is and should be broadcast whenever a Fixture Type changed */
 	static FDMXOnFixtureTypeChangedDelegate& GetOnFixtureTypeChanged();
-
-	/** The GDTF file from which the Fixture Type was setup */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Fixture Settings")
-	TObjectPtr<UDMXImport> DMXImport;
 
 	/** The Category of the Fixture, useful for Filtering */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Fixture Settings", meta = (DisplayName = "DMX Category"))
@@ -471,7 +471,7 @@ public:
 	/** Adds a new cell attribute to the Mode */
 	void AddCellAttribute(int32 ModeIndex);
 
-	/** Removes a cell attribute to the Mode */
+	/** Removes a cell attribute from the Mode */
 	void RemoveCellAttribute(int32 ModeIndex, int32 CellAttributeIndex);
 
 	/**
@@ -513,59 +513,22 @@ public:
 	static float BytesToFunctionNormalizedValue(const FDMXFixtureFunction& InFunction, const uint8* InBytes);
 	static float BytesToNormalizedValue(EDMXFixtureSignalFormat InSignalFormat, bool bUseLSB, const uint8* InBytes);
 
+	/** The GDTF that initializes this fixture type. When changed, reinitializes with data from the GDTF. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Fixture Settings", Meta = (DisplayName = "GDTF Source"))
+	TSoftObjectPtr<UDMXImportGDTF> GDTFSource;
 
 
 	//////////////////////////////////////////////////
 	// Deprecated Members
 	
 public:
-	UE_DEPRECATED(5.0, "Deprecated in favor of FDMXConversions::GetSignalFormatMaxValue.")
-	static uint32 GetDataTypeMaxValue(EDMXFixtureSignalFormat DataType);
-
-	UE_DEPRECATED(5.0, "Deprecated in favor of FDMXConversions::SizeOfSignalFormat.")
-	static uint8 NumChannelsToOccupy(EDMXFixtureSignalFormat DataType);
-
-	UE_DEPRECATED(5.0, "Deprecated in favor of FDMXFixtureFunction::GetLastChannel.")
-	static uint8 GetFunctionLastChannel(const FDMXFixtureFunction& Function);
-
-	UE_DEPRECATED(5.0, "Deprecated to reduce redundant code. Instead use FDMXFixtureFunction::GetNumChannels() and FDMXFixtureMode::ChannelSpan")
-	static bool IsFunctionInModeRange(const FDMXFixtureFunction& InFunction, const FDMXFixtureMode& InMode, int32 ChannelOffset = 0);
-
-	UE_DEPRECATED(5.0, "Deprecated since the use of the function and its name were not clear, leading to hard to read, complicated code.")
-	static bool IsFixtureMatrixInModeRange(const FDMXFixtureMatrix& InFixtureMatrix, const FDMXFixtureMode& InMode, int32 ChannelOffset = 0);
-
-	UE_DEPRECATED(5.0, "Deprecated to reduce redundant code. Use FDMXConversions::ClampValueBySignalFormat locally where clamping is required.")
-	static void ClampDefaultValue(FDMXFixtureFunction& InFunction);
-
-	UE_DEPRECATED(5.0, "Deprecated in favor of FDMXConversions now holding all conversions. Use FDMXConversions::ClampValueBySignalFormat instead.")
-	static uint32 ClampValueToDataType(EDMXFixtureSignalFormat DataType, uint32 InValue);
-
-#if WITH_EDITOR
-	UE_DEPRECATED(5.0, "Deprecated because of unclear use. Set via FDMXFixtureFunction::DataType directly instead.")
-	static void SetFunctionSize(FDMXFixtureFunction& InFunction, uint8 Size);
-
-	UE_DEPRECATED(5.0, "Deprecated in favor of the more generic GetOnFixtureTypeChanged which is supported in non-editor builds as well.")
-	static FDataTypeChangeDelegate& GetDataTypeChangeDelegate() { return DataTypeChangeDelegate_DEPRECATED; }
-
-	UE_DEPRECATED(4.27, "Use MakeValid instead.")
-	void UpdateModeChannelProperties(FDMXFixtureMode& Mode);
-
-	UE_DEPRECATED(5.0, "Deprecated in favor of UDMXEntityFixtureType::UpdateChannelSpan(int32 ModeIndex).")
-	void UpdateChannelSpan(FDMXFixtureMode& Mode);
-
-	UE_DEPRECATED(5.0, "Deprecated  in favor of UDMXEntityFixtureType::UpdateYCellsFromXCells(int32 ModeIndex).")
-	void UpdateYCellsFromXCells(FDMXFixtureMode& Mode);
-
-	UE_DEPRECATED(5.0, "Deprecated to in favor of UDMXEntityFixtureType::UpdateXCellsFromYCells(int32 ModeIndex).")
-	void UpdateXCellsFromYCells(FDMXFixtureMode& Mode);
-#endif // WITH_EDITOR
-
-	UPROPERTY(meta = (DeprecatedProperty, DeprecationMessage = "FixtureMatrixEnabled is deprecated. Instead now each Mode has a FixtureMatrixEnabled property."))
-	bool bFixtureMatrixEnabled = false;
-
-private:
-#if WITH_EDITOR
-	/** Editor only data type change delagate */
-	static FDataTypeChangeDelegate DataTypeChangeDelegate_DEPRECATED;
+#if WITH_EDITORONLY_DATA
+	/** DEPRECATED 5.5 - The GDTF from which this Fixture Type was setup. */
+	UE_DEPRECATED(5.5, "Changed to a soft object pointer to reduce the memory footprint of fixture types. Please refer to GDTFSource instead.")
+	UPROPERTY(BlueprintReadOnly, Category = "Fixture Settings", Meta = (DeprecatedProperty, DeprecationMessage = "Changed to a soft object pointer to reduce the memory footprint of fixture types. Please use GDTF Source instead."))
+	TObjectPtr<UDMXImport> DMXImport;
 #endif
+
+	UPROPERTY(Meta = (DeprecatedProperty, DeprecationMessage = "FixtureMatrixEnabled is deprecated. Instead now each Mode has a FixtureMatrixEnabled property."))
+	bool bFixtureMatrixEnabled_DEPRECATED = false;
 };

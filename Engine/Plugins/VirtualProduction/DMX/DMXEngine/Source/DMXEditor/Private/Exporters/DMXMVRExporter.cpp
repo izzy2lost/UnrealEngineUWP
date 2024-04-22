@@ -147,13 +147,13 @@ bool FDMXMVRExporter::ZipGDTFs(const TSharedRef<FDMXZipper>& Zip, UDMXLibrary* D
 	bool bAllZippedSuccessfully = true;
 	for (UDMXEntityFixtureType* FixtureType : FixtureTypesToExport)
 	{
-		if (!FixtureType->DMXImport)
+		if (FixtureType->GDTFSource.IsNull())
 		{
 			UE_LOG(LogDMXEditor, Warning, TEXT("Cannot export Fixture Type '%s' to MVR, but the Fixture Type has no GDTF set."), *FixtureType->Name);
 			continue;
 		}
 
-		UDMXImportGDTF* DMXImportGDTF = Cast<UDMXImportGDTF>(FixtureType->DMXImport);
+		UDMXImportGDTF* DMXImportGDTF = FixtureType->GDTFSource.LoadSynchronous();
 		if (!DMXImportGDTF)
 		{
 			UE_LOG(LogDMXEditor, Warning, TEXT("Cannot export Fixture Type '%s' to MVR, but the Fixture Type has a DMX Import Type which is not GDTF."), *FixtureType->Name);

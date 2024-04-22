@@ -21,15 +21,6 @@ class UDMXGDTFFactory
 public:
 	UDMXGDTFFactory();
 
-	/**  Set import batch **/
-	void EnableShowOption() { bShowOption = true; }
-
-	//~ Begin UObject Interface
-	virtual void CleanUp() override;
-	virtual bool ConfigureProperties() override;
-	virtual void PostInitProperties() override;
-	//~ End UObject Interface
-
 	//~ Begin UFactory Interface
 	virtual bool DoesSupportClass(UClass * Class) override;
 	virtual UClass* ResolveSupportedClass() override;
@@ -41,17 +32,20 @@ public:
 	virtual bool CanReimport(UObject* Obj, TArray<FString>& OutFilenames) override;
 	virtual void SetReimportPaths(UObject* Obj, const TArray<FString>& NewReimportPaths) override;
 	virtual EReimportResult::Type Reimport(UObject* Obj) override;
-	virtual int32 GetPriority() const override;
 	//~ End FReimportHandler Interface
 
-public:
-	static const TCHAR* Extension;
-
 private:
-	bool bShowOption;
+	/** Shows an options dialog that initializes members. If false is returned, the import should be canceled */
+	[[nodiscard]] bool GetOptionsFromDialog(UObject* Parent);
 
-	/** true if the import operation was canceled. */
-	bool bOperationCanceled;
+	/** If true, shows an options dialog. Can be false for example when reimporting */
+	bool bShowOptions = false;
+
+	/** If true, all content of the GDTF should be imported */
+	bool bImportAll = false;
+
+	/** If true, importing was canceled */
+	bool bOperationCanceled = false;
 
 	UPROPERTY(transient)
 	TObjectPtr<UDMXGDTFImportUI> ImportUI;

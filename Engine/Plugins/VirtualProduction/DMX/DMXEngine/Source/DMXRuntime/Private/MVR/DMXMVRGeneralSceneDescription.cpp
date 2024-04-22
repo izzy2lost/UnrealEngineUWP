@@ -200,7 +200,8 @@ void UDMXMVRGeneralSceneDescription::WriteFixturePatchToGeneralSceneDescription(
 	{
 		MVRFixtureNode->GDTFMode = FixtureType->Modes[ModeIndex].ModeName;
 
-		if (UDMXImportGDTF* GDTF = Cast<UDMXImportGDTF>(FixtureType->DMXImport))
+		UDMXImportGDTF* GDTF = FixtureType->GDTFSource.LoadSynchronous();
+		if (GDTF)
 		{
 			const FString SourceFilename = [GDTF]()
 			{
@@ -210,6 +211,7 @@ void UDMXMVRGeneralSceneDescription::WriteFixturePatchToGeneralSceneDescription(
 				}
 				return FString();
 			}();
+
 			MVRFixtureNode->GDTFSpec = FPaths::GetCleanFilename(SourceFilename);
 
 			bSetGDTFSpec = true;

@@ -30,6 +30,9 @@ struct FDMXRuntimeMainStreamObjectVersion
 		// Remove auto assign features from fixture patch (instead it's auto assigned via FDMXEditorUtils where required)
 		DMXFixturePatchNoLongerImplementsAutoAssign,
 
+		// Change the DMXImportGDTF asset reference in Fixture Type to a soft object ptr, to avoid loading the data
+		DMXImportGDTFIsASoftObjectPtr,
+
 		VersionPlusOne,
 		LatestVersion = VersionPlusOne - 1
 	};

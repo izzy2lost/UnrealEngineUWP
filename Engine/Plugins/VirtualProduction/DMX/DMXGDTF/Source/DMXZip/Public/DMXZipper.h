@@ -9,7 +9,7 @@
 
 /**
  * Zip reader/writer for DMX specific Zip Files such as MVR and GDTF.
- * 
+ *
  * Example of use:
  * bool DoStuffWithZip(const FString& ZipFileName)
  * {
@@ -34,7 +34,7 @@
  *		return true;
  * }
  */
-class FDMXZipper
+class DMXZIP_API FDMXZipper
 	: public TSharedFromThis<FDMXZipper>
 {
 public:
@@ -53,14 +53,14 @@ public:
 	/** Returns the File Names in the Zip. Note, may contain relative paths */
 	TArray<FString> GetFiles() const;
 
-	/** 
-	 * Adds a file to the Zip at its Relative File Path and Name. 
+	/**
+	 * Adds a file to the Zip at its Relative File Path and Name.
 	 * Note, files added this way need to exist on disk until SaveToFile is called.
 	 * 
 	 * Examples:
-	 * AddFile("hello/world", { 'A', 'B', 'C' });
-     * AddFile("test001", { '0', '1', '2', '3', 'X' }, false);
-     * AddFile("a/b/c/d/e/test002", { 80, 90, 100, 110, 111, 112, 113 });
+	 * AddFile("hello/world.txt", { 'A', 'B', 'C' });
+	 * AddFile("test001", { '0', '1', '2', '3', 'X' }, false);
+	 * AddFile("a/b/c/d/e/test002", { 80, 90, 100, 110, 111, 112, 113 });
 	 */
 	void AddFile(const FString& RelativeFilePathAndName, const TArray64<uint8>& Data, const bool bCompress = false);
 
@@ -68,7 +68,7 @@ public:
 	[[nodiscard]] bool GetFileContent(const FString& Filename, TArray64<uint8>& OutData);
 
 	/** Helper to unzip a file within the zip as temp file. Deletes the file when running out of scope. */
-	struct FDMXScopedUnzipToTempFile
+	struct DMXZIP_API FDMXScopedUnzipToTempFile
 	{
 		FDMXScopedUnzipToTempFile(const TSharedRef<FDMXZipper>& DMXZipper, const FString& FilenameInZip);
 		~FDMXScopedUnzipToTempFile();

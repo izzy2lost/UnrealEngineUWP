@@ -26,20 +26,14 @@ void FDMXEntityFixtureTypeDetails::CustomizeDetails(IDetailLayoutBuilder& Detail
 
 	DetailBuilder.HideProperty(GET_MEMBER_NAME_CHECKED(UDMXEntityFixtureType, Modes));
 
-	GDTFHandle = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UDMXEntityFixtureType, DMXImport));
-	GDTFHandle->SetOnPropertyValueChanged(FSimpleDelegate::CreateSP(this, &FDMXEntityFixtureTypeDetails::OnDMXImportChanged));
+	GDTFSourceHandle = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UDMXEntityFixtureType, GDTFSource));
+	GDTFSourceHandle->SetOnPropertyValueChanged(FSimpleDelegate::CreateSP(this, &FDMXEntityFixtureTypeDetails::OnGDTFSourceChanged));
 }
 
-void FDMXEntityFixtureTypeDetails::OnDMXImportChanged()
+void FDMXEntityFixtureTypeDetails::OnGDTFSourceChanged()
 {
-	UObject* DMXImportObject = nullptr;
-	if (GDTFHandle->GetValue(DMXImportObject) != FPropertyAccess::Success)
-	{
-		return;
-	}
-
-	UDMXImportGDTF* DMXImportGDTF = Cast<UDMXImportGDTF>(DMXImportObject);
 	const TArray<TWeakObjectPtr<UObject>>& SelectedObjects = PropertyUtilities->GetSelectedObjects();
+
 	for (TWeakObjectPtr<UObject> WeakFixtureTypeObject : SelectedObjects)
 	{
 		if (UDMXEntityFixtureType* FixtureType = Cast<UDMXEntityFixtureType>(WeakFixtureTypeObject.Get()))
@@ -47,19 +41,22 @@ void FDMXEntityFixtureTypeDetails::OnDMXImportChanged()
 			FixtureType->PreEditChange(nullptr);
 			FixtureType->Modes.Reset();
 			FixtureType->PostEditChange();
-			
-			if (!DMXImportGDTF)
+
+			if (FixtureType->GDTFSource.IsNull())
 			{
 				continue;
 			}
+			UDMXImportGDTF* GDTF = FixtureType->GDTFSource.LoadSynchronous();
 
 			// Try to use the work around that supports creation of matrices, otherwise setup the fixture type with the old implementation
 			FixtureType->PreEditChange(nullptr);
-			const bool bAdvancedImportSuccess = FDMXInitializeFixtureTypeFromGDTFHelper::GenerateModesFromGDTF(*FixtureType, *DMXImportGDTF);
+			const bool bAdvancedImportSuccess = FDMXInitializeFixtureTypeFromGDTFHelper::GenerateModesFromGDTF(*FixtureType, *GDTF);
 			if (!bAdvancedImportSuccess)
 			{
+				PRAGMA_DISABLE_DEPRECATION_WARNINGS
 				UE_LOG(LogDMXEditor, Warning, TEXT("Failed to initialize Fixture Type '%s', falling back to legacy method that doesn't support matrix fixtures."), *FixtureType->GetName());
-				FixtureType->SetModesFromDMXImport(DMXImportGDTF);
+				FixtureType->SetModesFromDMXImport(GDTF);
+				PRAGMA_ENABLE_DEPRECATION_WARNINGS
 			}
 			FixtureType->PostEditChange();
 		}
