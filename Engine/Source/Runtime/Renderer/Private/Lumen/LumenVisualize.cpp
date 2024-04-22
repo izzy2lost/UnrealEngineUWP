@@ -359,6 +359,57 @@ public:
 
 IMPLEMENT_GLOBAL_SHADER(FVisualizeLumenSceneCS, "/Engine/Private/Lumen/LumenVisualize.usf", "VisualizeQuadsCS", SF_Compute);
 
+
+class FVisualizeLumenSceneCursorDataCS : public FGlobalShader
+{
+	DECLARE_GLOBAL_SHADER(FVisualizeLumenSceneCursorDataCS)
+	SHADER_USE_PARAMETER_STRUCT(FVisualizeLumenSceneCursorDataCS, FGlobalShader)
+
+	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
+		SHADER_PARAMETER_STRUCT_INCLUDE(FSceneTextureShaderParameters, SceneTextures)
+		SHADER_PARAMETER_STRUCT_INCLUDE(FLumenCardTracingParameters, TracingParameters)
+		SHADER_PARAMETER_STRUCT_INCLUDE(FLumenVisualizeSceneSoftwareRayTracingParameters, VisualizeParameters)
+		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, DebugData)
+		SHADER_PARAMETER_STRUCT_INCLUDE(ShaderPrint::FShaderParameters, ShaderPrintUniformBuffer)
+		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D, RWSceneColor)
+	END_SHADER_PARAMETER_STRUCT()
+	using FPermutationDomain = TShaderPermutationDomain<>;
+
+public:
+	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
+	{
+		return DoesPlatformSupportLumenGI(Parameters.Platform);
+	}
+
+	static EShaderPermutationPrecacheRequest ShouldPrecachePermutation(const FGlobalShaderPermutationParameters& Parameters)
+	{
+		return EShaderPermutationPrecacheRequest::NotPrecached;
+	}
+
+	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
+	{
+		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
+
+		OutEnvironment.SetDefine(TEXT("THREADGROUP_SIZE"), GetGroupSize());
+		OutEnvironment.SetDefine(TEXT("ENABLE_VISUALIZE_MODE"), 1);
+		OutEnvironment.SetDefine(TEXT("SURFACE_CACHE_FEEDBACK"), 1);
+		OutEnvironment.SetDefine(TEXT("SURFACE_CACHE_HIGH_RES_PAGES"), 1);
+
+		// Workaround for an internal PC FXC compiler crash when compiling with disabled optimizations
+		if (Parameters.Platform == SP_PCD3D_SM5)
+		{
+			OutEnvironment.CompilerFlags.Add(CFLAG_ForceOptimization);
+		}
+	}
+
+	static int32 GetGroupSize()
+	{
+		return 8;
+	}
+};
+
+IMPLEMENT_GLOBAL_SHADER(FVisualizeLumenSceneCursorDataCS, "/Engine/Private/Lumen/LumenVisualize.usf", "VisualizeCursorDataCS", SF_Compute);
+
 class FVisualizeTracesVS : public FGlobalShader
 {
 	DECLARE_GLOBAL_SHADER(FVisualizeTracesVS)
@@ -811,28 +862,55 @@ void VisualizeLumenScene(
 			&& MeshSDFGridParameters.TracingParameters.DistanceFieldObjectBuffers.NumSceneObjects > 0
 			&& VisualizeParameters.MaxMeshSDFTraceDistance > VisualizeParameters.MinTraceDistance;
 
-		FVisualizeLumenSceneCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FVisualizeLumenSceneCS::FParameters>();
+		{
+			FVisualizeLumenSceneCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FVisualizeLumenSceneCS::FParameters>();
+			PassParameters->RWSceneColor = SceneColorUAV;
+			PassParameters->SceneTextures = SceneTextures;
+			PassParameters->MeshSDFGridParameters = MeshSDFGridParameters;
+			PassParameters->VisualizeParameters = VisualizeParameters;
+			LumenRadianceCache::GetInterpolationParameters(View, GraphBuilder, RadianceCacheState, RadianceCacheInputs, PassParameters->RadianceCacheParameters);
+			PassParameters->TracingParameters = TracingParameters;
+
+			FVisualizeLumenSceneCS::FPermutationDomain PermutationVector;
+			PermutationVector.Set<FVisualizeLumenSceneCS::FTraceMeshSDF>(bTraceMeshSDF);
+			PermutationVector.Set<FVisualizeLumenSceneCS::FTraceGlobalSDF>(bTraceGlobalSDF);
+			PermutationVector.Set<FVisualizeLumenSceneCS::FSimpleCoverageBasedExpand>(bTraceGlobalSDF && Lumen::UseGlobalSDFSimpleCoverageBasedExpand());
+			PermutationVector.Set<FVisualizeLumenSceneCS::FRadianceCache>(GVisualizeLumenSceneTraceRadianceCache != 0 && LumenScreenProbeGather::UseRadianceCache());
+			PermutationVector.Set<FVisualizeLumenSceneCS::FTraceHeightfields>(Lumen::UseHeightfieldTracing(*View.Family, *Scene->GetLumenSceneData(View)));
+			PermutationVector = FVisualizeLumenSceneCS::RemapPermutation(PermutationVector);
+
+			auto ComputeShader = View.ShaderMap->GetShader<FVisualizeLumenSceneCS>(PermutationVector);
+			FIntPoint GroupSize(FIntPoint::DivideAndRoundUp(VisualizeParameters.CommonParameters.OutputViewSize, FVisualizeLumenSceneCS::GetGroupSize()));
+
+			FComputeShaderUtils::AddPass(
+				GraphBuilder,
+				RDG_EVENT_NAME("LumenSceneVisualization"),
+				ComputeShader,
+				PassParameters,
+				FIntVector(GroupSize.X, GroupSize.Y, 1));
+		}
+
+	}
+
+	if (FrameTemporaries.DebugData != nullptr)
+	{
+		ShaderPrint::SetEnabled(true);
+
+		FVisualizeLumenSceneCursorDataCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FVisualizeLumenSceneCursorDataCS::FParameters>();
+		PassParameters->DebugData = FrameTemporaries.DebugData;
 		PassParameters->RWSceneColor = SceneColorUAV;
 		PassParameters->SceneTextures = SceneTextures;
-		PassParameters->MeshSDFGridParameters = MeshSDFGridParameters;
 		PassParameters->VisualizeParameters = VisualizeParameters;
-		LumenRadianceCache::GetInterpolationParameters(View, GraphBuilder, RadianceCacheState, RadianceCacheInputs, PassParameters->RadianceCacheParameters);
 		PassParameters->TracingParameters = TracingParameters;
+		ShaderPrint::SetParameters(GraphBuilder, View.ShaderPrintData, PassParameters->ShaderPrintUniformBuffer);
 
-		FVisualizeLumenSceneCS::FPermutationDomain PermutationVector;
-		PermutationVector.Set<FVisualizeLumenSceneCS::FTraceMeshSDF>(bTraceMeshSDF);
-		PermutationVector.Set<FVisualizeLumenSceneCS::FTraceGlobalSDF>(bTraceGlobalSDF);
-		PermutationVector.Set<FVisualizeLumenSceneCS::FSimpleCoverageBasedExpand>(bTraceGlobalSDF && Lumen::UseGlobalSDFSimpleCoverageBasedExpand());
-		PermutationVector.Set<FVisualizeLumenSceneCS::FRadianceCache>(GVisualizeLumenSceneTraceRadianceCache != 0 && LumenScreenProbeGather::UseRadianceCache());
-		PermutationVector.Set<FVisualizeLumenSceneCS::FTraceHeightfields>(Lumen::UseHeightfieldTracing(*View.Family, *Scene->GetLumenSceneData(View)));
-		PermutationVector = FVisualizeLumenSceneCS::RemapPermutation(PermutationVector);
-
-		auto ComputeShader = View.ShaderMap->GetShader<FVisualizeLumenSceneCS>(PermutationVector);
-		FIntPoint GroupSize(FIntPoint::DivideAndRoundUp(VisualizeParameters.CommonParameters.OutputViewSize, FVisualizeLumenSceneCS::GetGroupSize()));
+		FVisualizeLumenSceneCursorDataCS::FPermutationDomain PermutationVector;
+		auto ComputeShader = View.ShaderMap->GetShader<FVisualizeLumenSceneCursorDataCS>(PermutationVector);
+		FIntPoint GroupSize(FIntPoint::DivideAndRoundUp(VisualizeParameters.CommonParameters.OutputViewSize, FVisualizeLumenSceneCursorDataCS::GetGroupSize()));
 
 		FComputeShaderUtils::AddPass(
 			GraphBuilder,
-			RDG_EVENT_NAME("LumenSceneVisualization"),
+			RDG_EVENT_NAME("LumenSceneLightingCursorVisualization"),
 			ComputeShader,
 			PassParameters,
 			FIntVector(GroupSize.X, GroupSize.Y, 1));
@@ -980,6 +1058,54 @@ FScreenPassTexture AddVisualizeLumenScenePass(FRDGBuilder& GraphBuilder, const F
 				VisualizeLumenScene(Scene, GraphBuilder, ViewFamily.EngineShowFlags, View, FrameTemporaries, Output, Inputs.ColorGradingTexture, Inputs.EyeAdaptationBuffer, Inputs.SceneTextures, VisualizeMode, /*VisualizeTileIndex*/ -1, bLumenGIEnabled);
 			}
 		}
+	}
+
+	if (FrameTemporaries.DebugData != nullptr)
+	{
+		// Create a new output just to make sure the right flags are set
+		FRDGTextureDesc VisualizeOutputDesc = Inputs.SceneColor.Texture->Desc;
+		VisualizeOutputDesc.Flags |= TexCreate_UAV | TexCreate_RenderTargetable;
+		Output = FScreenPassTexture(GraphBuilder.CreateTexture(VisualizeOutputDesc, TEXT("VisualizeLumenScene")), Inputs.SceneColor.ViewRect);
+
+		// In the overview mode we don't fully overwrite, copy the old Scene Color
+		{
+			FRHICopyTextureInfo CopyInfo;
+
+			AddCopyTexturePass(
+				GraphBuilder,
+				Inputs.SceneColor.Texture,
+				Output.Texture,
+				CopyInfo);
+		}
+
+		ShaderPrint::SetEnabled(true);
+
+		FRDGTextureUAVRef SceneColorUAV = GraphBuilder.CreateUAV(FRDGTextureUAVDesc(Output.Texture));
+
+		FLumenVisualizeSceneSoftwareRayTracingParameters VisualizeParameters;
+		SetupVisualizeParameters(GraphBuilder, View, Output.ViewRect, Inputs.ColorGradingTexture, Inputs.EyeAdaptationBuffer, 0, 0, VisualizeParameters);
+
+		FLumenCardTracingParameters TracingParameters;
+		GetLumenCardTracingParameters(GraphBuilder, View, *Scene->GetLumenSceneData(View), FrameTemporaries, LumenVisualize::UseSurfaceCacheFeedback(ViewFamily.EngineShowFlags), TracingParameters);
+
+		FVisualizeLumenSceneCursorDataCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FVisualizeLumenSceneCursorDataCS::FParameters>();
+		PassParameters->DebugData = FrameTemporaries.DebugData;
+		PassParameters->RWSceneColor = SceneColorUAV;
+		PassParameters->SceneTextures = Inputs.SceneTextures;
+		PassParameters->VisualizeParameters = VisualizeParameters;
+		PassParameters->TracingParameters = TracingParameters;
+		ShaderPrint::SetParameters(GraphBuilder, View.ShaderPrintData, PassParameters->ShaderPrintUniformBuffer);
+
+		FVisualizeLumenSceneCursorDataCS::FPermutationDomain PermutationVector;
+		auto ComputeShader = View.ShaderMap->GetShader<FVisualizeLumenSceneCursorDataCS>(PermutationVector);
+		FIntPoint GroupSize(FIntPoint::DivideAndRoundUp(VisualizeParameters.CommonParameters.OutputViewSize, FVisualizeLumenSceneCursorDataCS::GetGroupSize()));
+
+		FComputeShaderUtils::AddPass(
+			GraphBuilder,
+			RDG_EVENT_NAME("LumenSceneLightingCursorVisualization"),
+			ComputeShader,
+			PassParameters,
+			FIntVector(GroupSize.X, GroupSize.Y, 1));
 	}
 
 	if (Inputs.OverrideOutput.IsValid())

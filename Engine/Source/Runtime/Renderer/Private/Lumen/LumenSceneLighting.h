@@ -165,6 +165,15 @@ void TraceLumenHardwareRayTracedDirectLightingShadows(
 	FRDGBufferUAVRef ShadowMaskTilesUAV,
 	ERDGPassFlags ComputePassFlags);
 
+// Return debug information of the cards pointing by the mouse cursor
+FRDGBufferSRVRef TraceLumenHardwareRayTracedDebug(
+	FRDGBuilder& GraphBuilder,
+	const FScene* Scene,
+	const FViewInfo& View,
+	int32 ViewIndex,
+	const FLumenSceneFrameTemporaries& FrameTemporaries,
+	ERDGPassFlags ComputePassFlags);
+
 enum class ELumenDispatchCardTilesIndirectArgsOffset
 {
 	OneThreadPerCardTile = 0 * sizeof(FRHIDispatchIndirectParameters),

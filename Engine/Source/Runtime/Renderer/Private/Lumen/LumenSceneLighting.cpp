@@ -59,6 +59,11 @@ static TAutoConsoleVariable<int32> CVarLumenSceneLightingAsyncCompute(
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
+uint32 GetLumenLightingStatMode()
+{
+	return FMath::Clamp(GLumenLightingStats, 0, 3);
+}
+
 namespace LumenSceneLighting
 {
 	bool UseFeedback(const FSceneViewFamily& ViewFamily)
@@ -252,6 +257,13 @@ void FDeferredShadingSceneRenderer::RenderLumenSceneLighting(
 				DirectLightingCardUpdateContext,
 				IndirectLightingCardUpdateContext,
 				ComputePassFlags);
+
+			// Pointing cards debug data
+			if (GetLumenLightingStatMode() > 2)
+			{
+				FLumenSceneFrameTemporaries* NonCstFrameTemporaries = const_cast<FLumenSceneFrameTemporaries*>(&FrameTemporaries);
+				NonCstFrameTemporaries->DebugData = TraceLumenHardwareRayTracedDebug(GraphBuilder, Scene, Views[0], 0 /*ViewIndex*/, FrameTemporaries, ComputePassFlags);
+			}
 
 			RenderDirectLightingForLumenScene(
 				GraphBuilder,
@@ -493,6 +505,7 @@ public:
 	{
 		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
 		OutEnvironment.SetDefine(TEXT("THREADGROUP_SIZE"), 1);
+		OutEnvironment.SetDefine(TEXT("SHADER_STATS"), 1);
 	}
 };
 
@@ -714,7 +727,8 @@ void Lumen::BuildCardUpdateContext(
 			FIntVector(1, 1, 1));
 	}
 
-	if (GLumenLightingStats != 0)
+	const uint32 StatMode = GetLumenLightingStatMode();
+	if (StatMode == 1 || StatMode == 2)
 	{
 		ShaderPrint::SetEnabled(true);
 
@@ -727,7 +741,7 @@ void Lumen::BuildCardUpdateContext(
 		PassParameters->MaxUpdateBucket = MaxUpdateBucketSRV;
 		PassParameters->CardPageTileAllocator = GraphBuilder.CreateSRV(CardPageTileAllocator);
 		PassParameters->CardPageNum = LumenSceneData.GetNumCardPages();
-		PassParameters->LightingStatMode = GLumenLightingStats;
+		PassParameters->LightingStatMode = StatMode;
 
 		auto ComputeShader = Views[0].ShaderMap->GetShader<FLumenSceneLightingStatsCS>();
 

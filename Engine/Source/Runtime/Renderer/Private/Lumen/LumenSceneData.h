@@ -704,6 +704,10 @@ struct FLumenSceneFrameTemporaries
 	FLumenSharedRT ReservoirWeights;
 	FLumenSharedRT DownsampledSceneDepth;
 	FLumenSharedRT DownsampledWorldNormal;
+
+	// Optional debug data enabled with stats visualization
+	// Contains cursor point cards information
+	FRDGBufferSRVRef DebugData = nullptr;
 };
 
 // Tracks scene-wide lighting state whose changes we should propagate quickly by flushing various lighting caches
