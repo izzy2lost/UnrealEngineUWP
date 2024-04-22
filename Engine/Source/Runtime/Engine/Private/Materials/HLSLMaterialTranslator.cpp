@@ -15420,7 +15420,7 @@ static const TCHAR* GetSparseVolumeTextureAddressMode(TextureAddress Address)
 	}
 }
 
-int32 FHLSLMaterialTranslator::SparseVolumeTextureSamplePageTable(int32 SparseVolumeTextureIndex, int32 UVWIndex, int32 MipLevelIndex, ESamplerSourceMode SamplerSource)
+int32 FHLSLMaterialTranslator::SparseVolumeTextureSamplePageTable(int32 SparseVolumeTextureIndex, int32 UVWIndex, int32 MipLevelIndex, ESamplerSourceMode SamplerSource, bool bIsManualLinearMipMapSecondSample)
 {
 	if (SparseVolumeTextureIndex == INDEX_NONE || UVWIndex == INDEX_NONE || MipLevelIndex == INDEX_NONE)
 	{
@@ -15487,7 +15487,9 @@ int32 FHLSLMaterialTranslator::SparseVolumeTextureSamplePageTable(int32 SparseVo
 	}
 
 	AddEstimatedTextureSample();
-	FString SampleCode = FString::Printf(TEXT("SparseVolumeTextureSamplePageTable(Material.SparseVolumeTexturePageTable_%d, %s, %s, %s, %s, %s, %s)"),
+	const TCHAR* FunctionPostfix = bIsManualLinearMipMapSecondSample ? TEXT("SecondMipWrapper") : TEXT("");
+	FString SampleCode = FString::Printf(TEXT("SparseVolumeTextureSamplePageTable%s(Material.SparseVolumeTexturePageTable_%d, %s, %s, %s, %s, %s, %s)"),
+		FunctionPostfix,
 		SVTReferenceIndex, 
 		*GetParameterCode(SparseVolumeTextureIndex), 
 		*GetParameterCode(UVWAsFloat3Index), 
@@ -15498,7 +15500,7 @@ int32 FHLSLMaterialTranslator::SparseVolumeTextureSamplePageTable(int32 SparseVo
 	return AddCodeChunk(MCT_Float3, *SampleCode);
 }
 
-int32 FHLSLMaterialTranslator::SparseVolumeTextureSamplePhysicalTileData(int32 SparseVolumeTextureIndex, int32 VoxelCoordIndex, int32 PhysicalTileDataIdxIndex)
+int32 FHLSLMaterialTranslator::SparseVolumeTextureSamplePhysicalTileData(int32 SparseVolumeTextureIndex, int32 VoxelCoordIndex, int32 PhysicalTileDataIdxIndex, bool bIsManualLinearMipMapSecondSample)
 {
 	if (SparseVolumeTextureIndex == INDEX_NONE || VoxelCoordIndex == INDEX_NONE || PhysicalTileDataIdxIndex == INDEX_NONE)
 	{
@@ -15532,9 +15534,14 @@ int32 FHLSLMaterialTranslator::SparseVolumeTextureSamplePhysicalTileData(int32 S
 	check(UniformTextureExpressions[(uint32)EMaterialTextureParameterType::SparseVolume].IsValidIndex(SVTReferenceIndex));
 
 	AddEstimatedTextureSample();
-	FString SampleCode = FString::Printf(TEXT("SparseVolumeTextureSamplePhysicalTileData(Material.SparseVolumeTexturePhysicalA_%d, Material.SparseVolumeTexturePhysicalB_%d, Material.SparseVolumeTexturePhysical_%dSampler, %s, %s)"),
-		SVTReferenceIndex, SVTReferenceIndex, SVTReferenceIndex, *GetParameterCode(VoxelCoordAsFloat3Index), *GetParameterCode(IndexAsFloatIndex));
-	return AddCodeChunk(MCT_Float4, *SampleCode);
+	const TCHAR* FunctionPostfix = bIsManualLinearMipMapSecondSample ? TEXT("SecondMipWrapper") : TEXT("");
+	return AddCodeChunk(MCT_Float4, TEXT("SparseVolumeTextureSamplePhysicalTileData%s(Material.SparseVolumeTexturePhysicalA_%d, Material.SparseVolumeTexturePhysicalB_%d, Material.SparseVolumeTexturePhysical_%dSampler, %s, %s)"),
+		FunctionPostfix,
+		SVTReferenceIndex,
+		SVTReferenceIndex,
+		SVTReferenceIndex,
+		*GetParameterCode(VoxelCoordAsFloat3Index),
+		*GetParameterCode(IndexAsFloatIndex));
 }
 
 int32 FHLSLMaterialTranslator::SparseVolumeTextureSample(int32 SparseVolumeTextureIndex, int32 UVWIndex, int32 MipValue0Index, int32 MipValue1Index, int32 PhysicalTileDataIdxIndex, ETextureMipValueMode MipValueMode, ESamplerSourceMode SamplerSource)
@@ -15595,26 +15602,27 @@ int32 FHLSLMaterialTranslator::SparseVolumeTextureSample(int32 SparseVolumeTextu
 
 	if (bDeriveMipLevel)
 	{
-		FString MipLevelCode = FString::Printf(TEXT("SparseVolumeTextureCalculateMipLevel(%s, %s, %s, %s)"), *GetParameterCode(SparseVolumeTextureIndex), *GetParameterCode(DDXIndex), *GetParameterCode(DDYIndex), *GetParameterCode(MipLevelBiasIndex));
-		MipLevelIndex = AddCodeChunk(MCT_Float1, *MipLevelCode);
+		MipLevelIndex = AddCodeChunk(MCT_Float1, TEXT("SparseVolumeTextureCalculateMipLevel(%s, %s, %s, %s, %s)"), 
+			*GetParameterCode(SparseVolumeTextureIndex), 
+			*GetParameterCode(DDXIndex), 
+			*GetParameterCode(DDYIndex), 
+			*GetParameterCode(MipLevelBiasIndex),
+			TEXT("Parameters.SvPosition.xy"));
 	}
 
 	// Sample the first mip
 	int32 MipLevel0Index = Floor(MipLevelIndex);
-	int32 VoxelCoordMip0Index = SparseVolumeTextureSamplePageTable(SparseVolumeTextureIndex, UVWIndex, MipLevel0Index, SamplerSource);
-	int32 Mip0SampleIndex = SparseVolumeTextureSamplePhysicalTileData(SparseVolumeTextureIndex, VoxelCoordMip0Index, PhysicalTileDataIdxIndex);
+	int32 VoxelCoordMip0Index = SparseVolumeTextureSamplePageTable(SparseVolumeTextureIndex, UVWIndex, MipLevel0Index, SamplerSource, false /*bIsManualLinearMipMapSecondSample*/);
+	int32 Mip0SampleIndex = SparseVolumeTextureSamplePhysicalTileData(SparseVolumeTextureIndex, VoxelCoordMip0Index, PhysicalTileDataIdxIndex, false /*bIsManualLinearMipMapSecondSample*/);
 
 	// Sample the second mip
-	// SVT_TODO: Try to optimize out this second sample if LerpAlpha == 0. Might need to do that in HLSL.
 	int32 MipLevel1Index = Ceil(MipLevelIndex);
-	int32 VoxelCoordMip1Index = SparseVolumeTextureSamplePageTable(SparseVolumeTextureIndex, UVWIndex, MipLevel1Index, SamplerSource);
-	int32 Mip1SampleIndex = SparseVolumeTextureSamplePhysicalTileData(SparseVolumeTextureIndex, VoxelCoordMip1Index, PhysicalTileDataIdxIndex);
+	int32 VoxelCoordMip1Index = SparseVolumeTextureSamplePageTable(SparseVolumeTextureIndex, UVWIndex, MipLevel1Index, SamplerSource, true /*bIsManualLinearMipMapSecondSample*/);
+	int32 Mip1SampleIndex = SparseVolumeTextureSamplePhysicalTileData(SparseVolumeTextureIndex, VoxelCoordMip1Index, PhysicalTileDataIdxIndex, true /*bIsManualLinearMipMapSecondSample*/);
 
 	// Lerp
 	int32 LerpAlphaIndex = Frac(MipLevelIndex);
-	int32 LerpedResultIndex = Lerp(Mip0SampleIndex, Mip1SampleIndex, LerpAlphaIndex);
-
-	return LerpedResultIndex;
+	return AddCodeChunk(MCT_Float4, TEXT("SparseVolumeTextureCombineMipSamples(%s, %s, %s)"), *GetParameterCode(Mip0SampleIndex), *GetParameterCode(Mip1SampleIndex), *GetParameterCode(LerpAlphaIndex));
 }
 
 #endif // WITH_EDITORONLY_DATA
