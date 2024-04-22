@@ -910,6 +910,31 @@ FRDGBufferRef CreateStructuredBuffer(
 	return Buffer;
 }
 
+FRDGBufferRef CreateByteAddressBuffer(
+	FRDGBuilder& GraphBuilder,
+	const TCHAR* Name,
+	uint32 NumBytes,
+	const void* InitialData,
+	uint64 InitialDataSize,
+	ERDGInitialDataFlags InitialDataFlags)
+{
+	FRDGBufferRef Buffer = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateByteAddressDesc(NumBytes), Name);
+	GraphBuilder.QueueBufferUpload(Buffer, InitialData, InitialDataSize, InitialDataFlags);
+	return Buffer;
+}
+
+FRDGBufferRef CreateByteAddressBuffer(
+	FRDGBuilder& GraphBuilder,
+	const TCHAR* Name,
+	FRDGBufferNumElementsCallback&& NumElementsCallback,
+	FRDGBufferInitialDataCallback&& InitialDataCallback,
+	FRDGBufferInitialDataSizeCallback&& InitialDataSizeCallback)
+{
+	FRDGBufferRef Buffer = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateByteAddressDesc(4), Name, MoveTemp(NumElementsCallback));
+	GraphBuilder.QueueBufferUpload(Buffer, MoveTemp(InitialDataCallback), MoveTemp(InitialDataSizeCallback));
+	return Buffer;
+}
+
 FRDGBufferRef CreateUploadBuffer(
 	FRDGBuilder& GraphBuilder,
 	const TCHAR* Name,
