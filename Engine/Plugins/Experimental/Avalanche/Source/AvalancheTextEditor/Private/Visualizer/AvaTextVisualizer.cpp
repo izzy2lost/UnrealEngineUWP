@@ -817,7 +817,7 @@ FVector FAvaTextVisualizer::GetHeightHandleLocation(const UText3DComponent* InTe
 		? BoundsMax.Min.Y - 10.f
 		: BoundsMax.Max.Y + 10.f;
 
-	FVector IconLocation;
+	FVector IconLocation = FVector::ZeroVector;
 
 	switch (InText3DComp->GetVerticalAlignment())
 	{

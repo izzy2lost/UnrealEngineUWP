@@ -388,7 +388,7 @@ EAxisList::Type FAvaVisualizerBase::GetViewportWidgetAxisList(FEditorViewportCli
 
 FVector FAvaVisualizerBase::GetLocalVector(FEditorViewportClient* InViewport, const FVector& InVector) const
 {
-	FVector OutVector;
+	FVector OutVector = FVector::ZeroVector;
 	FMatrix RotMatrix;
 
 	if (GetCustomInputCoordinateSystem(InViewport, RotMatrix))

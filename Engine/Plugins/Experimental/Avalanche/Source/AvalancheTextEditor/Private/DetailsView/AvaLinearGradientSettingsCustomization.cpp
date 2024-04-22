@@ -207,7 +207,7 @@ bool FAvaLinearGradientSettingsCustomization::IsCustomDirectionEnabled() const
 FLinearColor FAvaLinearGradientSettingsCustomization::GetLinearColorFromProperty(const TSharedPtr<IPropertyHandle>& InColorPropertyHandle)
 {
 	// Default to full alpha in case the alpha component is disabled.
-	FLinearColor OutColor;
+	FLinearColor OutColor = FLinearColor::Black;
 
 	FString StringValue;
 	const FPropertyAccess::Result Result = InColorPropertyHandle->GetValueAsFormattedString(StringValue);

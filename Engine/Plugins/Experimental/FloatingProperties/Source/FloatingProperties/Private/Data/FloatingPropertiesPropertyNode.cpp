@@ -504,7 +504,7 @@ EFloatingPropertiesUpdateResult FFloatingPropertiesPropertyNode::UpdatePropertyN
 
 FVector2f FFloatingPropertiesPropertyNode::CalculateAnchorMultiplier(const FFloatingPropertiesClassPropertyPosition& InPropertyPosition)
 {
-	FVector2f AnchorMultiplier;
+	FVector2f AnchorMultiplier = FVector2f::ZeroVector;
 
 	switch (InPropertyPosition.HorizontalAnchor.GetValue())
 	{

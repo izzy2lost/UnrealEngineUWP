@@ -868,7 +868,7 @@ void USoundscapeSubsystem::DrawDebugCell(FVector Location, bool bSuccess)
 TPair<FVector, FVector> USoundscapeSubsystem::CalculateDebugCellDimensions(FVector Location, ESoundscapeLOD SoundscapeLOD)
 {
 	USoundscapeColorPointHashMap* LODHashMap = nullptr;
-	TPair<FVector, FVector> BoxResults;
+	TPair<FVector, FVector> BoxResults = { FVector::ZeroVector, FVector::ZeroVector };
 
 	// If relative distance is less than LOD 1 cutoff distance, use LOD 1 Map
 	switch (SoundscapeLOD)
