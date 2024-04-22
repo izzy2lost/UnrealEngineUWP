@@ -1977,7 +1977,7 @@ UPackage* LoadPackageInternal(UPackage* InOuter, const FPackagePath& PackagePath
 		EndLoadAndCopyLocalizationGatherFlag();
 
 #if WITH_EDITOR
-		GIsEditorLoadingPackage = *IsEditorLoadingPackage;
+		GIsEditorLoadingPackage = IsEditorLoadingPackage.GetOriginalValue();
 #endif
 
 		// if we are calculating the script SHA for a package, do the comparison now

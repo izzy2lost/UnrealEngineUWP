@@ -1740,7 +1740,7 @@ static void ReportEvent(ECrashContextType InType, const TCHAR* ErrorMessage, uin
 
 	// Ignore any ensure that could be fired by the code reporting an ensure.
 	TGuardValue<bool> ReentranceGuard(bReentranceGuard, true);
-	if (*ReentranceGuard) // Read the old value.
+	if (ReentranceGuard.GetOriginalValue()) // Read the old value.
 	{
 		return; // Already handling an ensure.
 	}

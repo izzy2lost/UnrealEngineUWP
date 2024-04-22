@@ -345,13 +345,13 @@ template <typename RefType, typename AssignedType = RefType>
 struct TGuardValue : private FNoncopyable
 {
 	[[nodiscard]] TGuardValue(RefType& ReferenceValue, const AssignedType& NewValue)
-	: RefValue(ReferenceValue), OldValue(ReferenceValue)
+	: RefValue(ReferenceValue), OriginalValue(ReferenceValue)
 	{
 		RefValue = NewValue;
 	}
 	~TGuardValue()
 	{
-		RefValue = OldValue;
+		RefValue = OriginalValue;
 	}
 
 	/**
@@ -360,14 +360,25 @@ struct TGuardValue : private FNoncopyable
 	 *
 	 * @return	a const reference to the original data value
 	 */
+	UE_DEPRECATED(5.5, "Use GetOriginalValue() instead.")
 	FORCEINLINE const AssignedType& operator*() const
 	{
-		return OldValue;
+		return OriginalValue;
+	}
+
+	/**
+	 * Provides read-only access to the original value of the data being tracked by this struct
+	 *
+	 * @return	a const reference to the original data value
+	 */
+	FORCEINLINE const AssignedType& GetOriginalValue() const
+	{
+		return OriginalValue;
 	}
 
 private:
 	RefType& RefValue;
-	AssignedType OldValue;
+	AssignedType OriginalValue;
 };
 
 
@@ -382,7 +393,7 @@ template <typename RefType, typename AssignedType = RefType>
 struct TOptionalGuardValue : private FNoncopyable
 {
 	[[nodiscard]] TOptionalGuardValue(RefType& ReferenceValue, const AssignedType& NewValue)
-		: RefValue(ReferenceValue), OldValue(ReferenceValue)
+		: RefValue(ReferenceValue), OriginalValue(ReferenceValue)
 	{
 		if (RefValue != NewValue)
 		{
@@ -391,9 +402,9 @@ struct TOptionalGuardValue : private FNoncopyable
 	}
 	~TOptionalGuardValue()
 	{
-		if (RefValue != OldValue)
+		if (RefValue != OriginalValue)
 		{
-			RefValue = OldValue;
+			RefValue = OriginalValue;
 		}
 	}
 
@@ -403,14 +414,25 @@ struct TOptionalGuardValue : private FNoncopyable
 	 *
 	 * @return	a const reference to the original data value
 	 */
+	UE_DEPRECATED(5.5, "Use GetOriginalValue() instead.")
 	FORCEINLINE const AssignedType& operator*() const
 	{
-		return OldValue;
+		return OriginalValue;
+	}
+
+	/**
+	 * Provides read-only access to the original value of the data being tracked by this struct
+	 *
+	 * @return	a const reference to the original data value
+	 */
+	FORCEINLINE const AssignedType& GetOriginalValue() const
+	{
+		return OriginalValue;
 	}
 
 private:
 	RefType& RefValue;
-	AssignedType OldValue;
+	AssignedType OriginalValue;
 };
 
 template <typename FuncType>

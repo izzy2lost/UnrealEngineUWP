@@ -4824,7 +4824,7 @@ void FLinkerLoad::Preload( UObject* Object )
 #if USE_CIRCULAR_DEPENDENCY_LOAD_DEFERRING
 				{
 					SCOPE_CYCLE_COUNTER(STAT_LinkerLoadDeferred);
-					if ((LoadFlags & LOAD_DeferDependencyLoads) != (*LoadFlagsGuard & LOAD_DeferDependencyLoads))
+					if ((LoadFlags & LOAD_DeferDependencyLoads) != (LoadFlagsGuard.GetOriginalValue() & LOAD_DeferDependencyLoads))
 					{
 						if (bIsBlueprintStruct)
 						{
