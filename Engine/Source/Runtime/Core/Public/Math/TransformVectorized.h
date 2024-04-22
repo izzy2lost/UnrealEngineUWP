@@ -979,15 +979,8 @@ public:
 	*/
 	FORCEINLINE void Accumulate(const TTransform<T>& SourceAtom)
 	{
-		const TransformVectorRegister BlendedRotation = SourceAtom.Rotation;
-		const TransformVectorRegister RotationW = VectorReplicate(BlendedRotation, 3);
-
-		// if( Square(SourceAtom.Rotation.W) < 1.f - DELTA * DELTA )
-		if (VectorAnyGreaterThan(GlobalVectorConstants::RotationSignificantThreshold, VectorMultiply(RotationW, RotationW)))
-		{
-			// Rotation = SourceAtom.Rotation * Rotation;
-			Rotation = VectorQuaternionMultiply2(BlendedRotation, Rotation);
-		}
+		// Rotation = SourceAtom.Rotation * Rotation;
+		Rotation = VectorQuaternionMultiply2(SourceAtom.Rotation, Rotation);
 
 		// Translation += SourceAtom.Translation;
 		// Scale *= SourceAtom.Scale;
@@ -1019,15 +1012,8 @@ public:
 		const TransformVectorRegister BlendedRotation = VectorMultiply(Atom.Rotation, BlendWeight);
 		const TransformVectorRegister BlendedScale = VectorMultiply(Atom.Scale3D, BlendWeight);
 
-		const TransformVectorRegister RotationW = VectorReplicate(BlendedRotation, 3);
-
-		// Add ref pose relative animation to base animation, only if rotation is significant.
-		// if( Square(SourceAtom.Rotation.W) < 1.f - DELTA * DELTA )
-		if (VectorAnyGreaterThan(GlobalVectorConstants::RotationSignificantThreshold, VectorMultiply(RotationW, RotationW)))
-		{
-			// Rotation = SourceAtom.Rotation * Rotation;
-			Rotation = VectorQuaternionMultiply2(BlendedRotation, Rotation);
-		}
+		// Rotation = SourceAtom.Rotation * Rotation;
+		Rotation = VectorQuaternionMultiply2(BlendedRotation, Rotation);
 
 		// Translation += SourceAtom.Translation;
 		// Scale *= SourceAtom.Scale;
@@ -1085,15 +1071,8 @@ public:
 		// SourceAtom = Atom * BlendWeight;
 		const TransformVectorRegister BlendedRotation = VectorMultiply(Atom.Rotation, BlendWeight);
 
-		const TransformVectorRegister RotationW = VectorReplicate(BlendedRotation, 3);
-
-		// Add ref pose relative animation to base animation, only if rotation is significant.
-		// if( Square(SourceAtom.Rotation.W) < 1.f - DELTA * DELTA )
-		if (VectorAnyGreaterThan(GlobalVectorConstants::RotationSignificantThreshold, VectorMultiply(RotationW, RotationW)))
-		{
-			// Rotation = SourceAtom.Rotation * Rotation;
-			Rotation = VectorQuaternionMultiply2(BlendedRotation, Rotation);
-		}
+		// Rotation = SourceAtom.Rotation * Rotation;
+		Rotation = VectorQuaternionMultiply2(BlendedRotation, Rotation);
 
 		// Translation += SourceAtom.Translation;
 		// Scale *= SourceAtom.Scale;

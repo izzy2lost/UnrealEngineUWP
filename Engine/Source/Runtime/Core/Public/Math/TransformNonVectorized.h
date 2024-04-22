@@ -905,12 +905,7 @@ public:
 	*/
 	FORCEINLINE void Accumulate(const TTransform<T>& SourceAtom)
 	{
-		// Add ref pose relative animation to base animation, only if rotation is significant.
-		if (FMath::Square(SourceAtom.Rotation.W) < 1.f - UE_DELTA * UE_DELTA)
-		{
-			Rotation = SourceAtom.Rotation * Rotation;
-		}
-
+		Rotation = SourceAtom.Rotation * Rotation;
 		Translation += SourceAtom.Translation;
 		Scale3D *= SourceAtom.Scale3D;
 
@@ -935,12 +930,7 @@ public:
 	{
 		TTransform<T> SourceAtom(Atom * BlendWeight);
 
-		// Add ref pose relative animation to base animation, only if rotation is significant.
-		if (FMath::Square(SourceAtom.Rotation.W) < 1.f - UE_DELTA * UE_DELTA)
-		{
-			Rotation = SourceAtom.Rotation * Rotation;
-		}
-
+		Rotation = SourceAtom.Rotation * Rotation;
 		Translation += SourceAtom.Translation;
 		Scale3D *= SourceAtom.Scale3D;
 
@@ -1007,12 +997,7 @@ public:
 
 		TTransform<T> SourceAtom(Atom * BlendWeight);
 
-		// Add ref pose relative animation to base animation, only if rotation is significant.
-		if (FMath::Square(SourceAtom.Rotation.W) < 1.f - UE_DELTA * UE_DELTA)
-		{
-			Rotation = SourceAtom.Rotation * Rotation;
-		}
-
+		Rotation = SourceAtom.Rotation * Rotation;
 		Translation += SourceAtom.Translation;
 		Scale3D *= (DefaultScale + SourceAtom.Scale3D);
 
@@ -1080,12 +1065,7 @@ public:
 			DeltaAtom.Blend(AdditiveIdentity, DeltaAtom, BlendWeight);
 		}
 
-		// Add ref pose relative animation to base animation, only if rotation is significant.
-		if (FMath::Square(DeltaAtom.Rotation.W) < 1.f - UE_DELTA * UE_DELTA)
-		{
-			FinalAtom.Rotation = DeltaAtom.Rotation * FinalAtom.Rotation;
-		}
-
+		FinalAtom.Rotation = DeltaAtom.Rotation * FinalAtom.Rotation;
 		FinalAtom.Translation += DeltaAtom.Translation;
 		FinalAtom.Scale3D *= (DefaultScale + DeltaAtom.Scale3D);
 

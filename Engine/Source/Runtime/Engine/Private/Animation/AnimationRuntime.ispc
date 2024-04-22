@@ -120,14 +120,8 @@ export void AccumulateWithAdditiveScale(uniform FTransform BasePose[],
 		const uniform FVector4 TranslationResult = Base.Translation + (Atom.Translation * BlendWeight);
 		const uniform FVector4 Scale3DResult = Base.Scale3D * ((Atom.Scale3D * BlendWeight) + DefaultScale);
 
-		const uniform float SquareRotationW = BlendedRotation.V[3] * BlendedRotation.V[3];
-
-		// Add ref pose relative animation to base animation, only if rotation is significant.
-		if(SquareRotationW < 1.f - DELTA * DELTA)
-		{
-			// Rotation = SourceAtom.Rotation * Rotation;
-			BasePose[BoneIndex].Rotation = VectorQuaternionMultiply2(BlendedRotation, Base.Rotation);
-		}
+		// Rotation = SourceAtom.Rotation * Rotation;
+		BasePose[BoneIndex].Rotation = VectorQuaternionMultiply2(BlendedRotation, Base.Rotation);
 
 		BasePose[BoneIndex].Translation = TranslationResult;
 		BasePose[BoneIndex].Scale3D = Scale3DResult;
