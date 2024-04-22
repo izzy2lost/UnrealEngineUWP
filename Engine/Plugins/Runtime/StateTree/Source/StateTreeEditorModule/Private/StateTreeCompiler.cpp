@@ -857,26 +857,29 @@ bool FStateTreeCompiler::CreateStateTransitions()
 				return false;
 			}
 
-			// Linked asset must have same schema.
-			const UStateTreeSchema* LinkedAssetSchema = SourceState->LinkedAsset ? SourceState->LinkedAsset->GetSchema() : nullptr;
+			if (SourceState->LinkedAsset)
+			{
+				// Linked asset must have same schema.
+				const UStateTreeSchema* LinkedAssetSchema = SourceState->LinkedAsset->GetSchema();
 
-			if (!LinkedAssetSchema)
-			{
-				Log.Reportf(EMessageSeverity::Error,
-					TEXT("Linked State Tree asset must have valid schema."));
-				return false;
-			}
+				if (!LinkedAssetSchema)
+				{
+					Log.Reportf(EMessageSeverity::Error,
+						TEXT("Linked State Tree asset must have valid schema."));
+					return false;
+				}
 			
-			check(Schema);
-			if (LinkedAssetSchema->GetClass() != Schema->GetClass())
-			{
-				Log.Reportf(EMessageSeverity::Error,
-					TEXT("Linked State Tree asset '%s' must have same schema class as this asset. Linked asset has '%s', expected '%s'."),
-					*GetFullNameSafe(SourceState->LinkedAsset),
-					*LinkedAssetSchema->GetClass()->GetDisplayNameText().ToString(),
-					*Schema->GetClass()->GetDisplayNameText().ToString()
-				);
-				return false;
+				check(Schema);
+				if (LinkedAssetSchema->GetClass() != Schema->GetClass())
+				{
+					Log.Reportf(EMessageSeverity::Error,
+						TEXT("Linked State Tree asset '%s' must have same schema class as this asset. Linked asset has '%s', expected '%s'."),
+						*GetFullNameSafe(SourceState->LinkedAsset),
+						*LinkedAssetSchema->GetClass()->GetDisplayNameText().ToString(),
+						*Schema->GetClass()->GetDisplayNameText().ToString()
+					);
+					return false;
+				}
 			}
 			
 			CompactState.LinkedAsset = SourceState->LinkedAsset;
