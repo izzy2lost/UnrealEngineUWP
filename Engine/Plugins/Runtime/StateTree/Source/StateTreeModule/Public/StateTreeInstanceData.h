@@ -575,7 +575,7 @@ struct TStateTreeInstanceDataStructRef
 
 	bool IsValid() const { return WeakStateTree.IsValid() && RootState.IsValid() && DataHandle.IsValid(); }
 
-	T* GetPtr()
+	T* GetPtr() const
 	{
 		if (!WeakStorage.IsValid())
 		{
@@ -619,7 +619,7 @@ struct TStateTreeInstanceDataStructRef
 
 protected:
 
-	FStructView GetDataView(FStateTreeInstanceStorage& Storage, const FStateTreeExecutionFrame& CurrentFrame, const FStateTreeDataHandle Handle)
+	FStructView GetDataView(FStateTreeInstanceStorage& Storage, const FStateTreeExecutionFrame& CurrentFrame, const FStateTreeDataHandle Handle) const
 	{
 		switch (DataHandle.GetSource())
 		{
