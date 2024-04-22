@@ -375,9 +375,10 @@ public:
 	{
 	}
 
-	static bool IsVertexProgrammable(const FMaterialShaderParameters& MaterialParameters)
+	static bool IsVertexProgrammable(const FMaterialShaderParameters& MaterialParameters, bool bHWRasterShader)
 	{
-		return MaterialParameters.bHasVertexPositionOffsetConnected || MaterialParameters.bIsTessellationEnabled;
+		return MaterialParameters.bHasVertexPositionOffsetConnected ||
+			(!bHWRasterShader && MaterialParameters.bIsTessellationEnabled);
 	}
 
 	static bool IsVertexProgrammable(uint32 MaterialBitFlags)
@@ -395,7 +396,11 @@ public:
 		return (MaterialBitFlags & NANITE_MATERIAL_PIXEL_PROGRAMMABLE_FLAGS);
 	}
 
-	static bool ShouldCompileProgrammablePermutation(const FMaterialShaderParameters& MaterialParameters, bool bPermutationVertexProgrammable, bool bPermutationPixelProgrammable)
+	static bool ShouldCompileProgrammablePermutation(
+		const FMaterialShaderParameters& MaterialParameters,
+		bool bPermutationVertexProgrammable,
+		bool bPermutationPixelProgrammable,
+		bool bHWRasterShader)
 	{
 		if (MaterialParameters.bIsDefaultMaterial)
 		{
@@ -407,10 +412,9 @@ public:
 		// switches' values, and therefore when true could represent the set of materials that both enable them and do not. We could
 		// isolate a narrower set of required shaders if FMaterialShaderParameters reflected the status after static switches are
 		// applied.
-		// TODO #2: Tessellation enabled is currently causing FHWRasterizeVS programmable permutations to compile unnecessarily.
-		//return IsVertexProgrammable(MaterialParameters, bPermutationPrimitiveShader) == bPermutationVertexProgrammable &&	
+		//return IsVertexProgrammable(MaterialParameters, bHWRasterShader) == bPermutationVertexProgrammable &&	
 		//		IsPixelProgrammable(MaterialParameters) == bPermutationPixelProgrammable;
-		return	(IsVertexProgrammable(MaterialParameters) || !bPermutationVertexProgrammable) &&
+		return	(IsVertexProgrammable(MaterialParameters, bHWRasterShader) || !bPermutationVertexProgrammable) &&
 				(IsPixelProgrammable(MaterialParameters) || !bPermutationPixelProgrammable) &&
 				(bPermutationVertexProgrammable || bPermutationPixelProgrammable);
 	}
@@ -439,7 +443,9 @@ public:
 		bool bValidMaterial = Parameters.MaterialParameters.bIsDefaultMaterial;
 
 		// Compile this vertex shader if it requires programmable raster
-		if (Parameters.MaterialParameters.bIsUsedWithNanite && FNaniteMaterialShader::IsVertexProgrammable(Parameters.MaterialParameters))
+		static const bool bHWRasterShader = true; // all vertex permutations are HWRaster
+		if (Parameters.MaterialParameters.bIsUsedWithNanite &&
+			FNaniteMaterialShader::IsVertexProgrammable(Parameters.MaterialParameters, bHWRasterShader))
 		{
 			bValidMaterial = true;
 		}
@@ -456,7 +462,9 @@ public:
 		bool bValidMaterial = Parameters.MaterialParameters.bIsDefaultMaterial;
 
 		// Compile this compute shader if it requires programmable raster
-		if (Parameters.MaterialParameters.bIsUsedWithNanite && (IsVertexProgrammable(Parameters.MaterialParameters) || IsPixelProgrammable(Parameters.MaterialParameters)))
+		static const bool bHWRasterShader = false; // all compute permutations are SWRaster
+		if (Parameters.MaterialParameters.bIsUsedWithNanite &&
+			(IsVertexProgrammable(Parameters.MaterialParameters, bHWRasterShader) || IsPixelProgrammable(Parameters.MaterialParameters)))
 		{
 			bValidMaterial = true;
 		}

@@ -1523,7 +1523,12 @@ class FMicropolyRasterizeCS : public FNaniteMaterialShader
 			return false;
 		}
 
-		if (!ShouldCompileProgrammablePermutation(Parameters.MaterialParameters, PermutationVector.Get<FVertexProgrammableDim>(), PermutationVector.Get<FPixelProgrammableDim>()))
+		if (!ShouldCompileProgrammablePermutation(
+				Parameters.MaterialParameters,
+				PermutationVector.Get<FVertexProgrammableDim>(),
+				PermutationVector.Get<FPixelProgrammableDim>(),
+				/* bHWRasterShader */ false
+			))
 		{
 			return false;
 		}
@@ -1673,7 +1678,12 @@ class FHWRasterizeVS : public FNaniteMaterialShader
 			}
 		}
 
-		if (!ShouldCompileProgrammablePermutation(Parameters.MaterialParameters, PermutationVector.Get<FVertexProgrammableDim>(), PermutationVector.Get<FPixelProgrammableDim>()))
+		if (!ShouldCompileProgrammablePermutation(
+				Parameters.MaterialParameters,
+				PermutationVector.Get<FVertexProgrammableDim>(),
+				PermutationVector.Get<FPixelProgrammableDim>(),
+				/* bHWRasterShader */ true
+			))
 		{
 			return false;
 		}
@@ -1808,7 +1818,12 @@ class FHWRasterizeMS : public FNaniteMaterialShader
 			return false;
 		}
 
-		if (!ShouldCompileProgrammablePermutation(Parameters.MaterialParameters, PermutationVector.Get<FVertexProgrammableDim>(), PermutationVector.Get<FPixelProgrammableDim>()))
+		if (!ShouldCompileProgrammablePermutation(
+				Parameters.MaterialParameters,
+				PermutationVector.Get<FVertexProgrammableDim>(),
+				PermutationVector.Get<FPixelProgrammableDim>(),
+				/* bHWRasterShader */ true
+			))
 		{
 			return false;
 		}
@@ -1946,7 +1961,12 @@ public:
 			return false;
 		}
 
-		if (!ShouldCompileProgrammablePermutation(Parameters.MaterialParameters, PermutationVector.Get<FVertexProgrammableDim>(), PermutationVector.Get<FPixelProgrammableDim>()))
+		if (!ShouldCompileProgrammablePermutation(
+				Parameters.MaterialParameters,
+				PermutationVector.Get<FVertexProgrammableDim>(),
+				PermutationVector.Get<FPixelProgrammableDim>(),
+				/* bHWRasterShader */ true
+			))
 		{
 			return false;
 		}
@@ -2085,16 +2105,17 @@ static void GetMaterialShaderTypes(
 
 	const bool bMeshShaderRasterPath = IsMeshShaderRasterPath(HardwarePath);
 	const bool bUseBarycentricPermutation = ShouldUseSvBarycentricPermutation(ShaderPlatform, bPixelProgrammable, bMeshShaderRasterPath);
+	const bool bVertexProgrammableHW = !bDisplacement && bVertexProgrammable; // Displacement forces SW raster, so ensure we don't require programmable HW shaders
 
 	// Mesh shader
 	if (bMeshShaderRasterPath)
 	{
 		PermutationVectorMS.Set<FHWRasterizeMS::FSplineDeformDim>(bSplineMesh);
 		PermutationVectorMS.Set<FHWRasterizeMS::FSkinningDim>(bSkinnedMesh);
-		PermutationVectorMS.Set<FHWRasterizeMS::FVertexProgrammableDim>(bVertexProgrammable);
+		PermutationVectorMS.Set<FHWRasterizeMS::FVertexProgrammableDim>(bVertexProgrammableHW);
 		PermutationVectorMS.Set<FHWRasterizeMS::FPixelProgrammableDim>(bPixelProgrammable);
 		PermutationVectorMS.Set<FHWRasterizeMS::FAllowSvBarycentricsDim>(bUseBarycentricPermutation);
-		if (bVertexProgrammable)
+		if (bVertexProgrammableHW)
 		{
 			ProgrammableShaderTypes.AddShaderType<FHWRasterizeMS>(PermutationVectorMS.ToDimensionValueId());
 		}
@@ -2108,9 +2129,9 @@ static void GetMaterialShaderTypes(
 	{
 		PermutationVectorVS.Set<FHWRasterizeVS::FSplineDeformDim>(bSplineMesh);
 		PermutationVectorVS.Set<FHWRasterizeVS::FSkinningDim>(bSkinnedMesh);
-		PermutationVectorVS.Set<FHWRasterizeVS::FVertexProgrammableDim>(bVertexProgrammable);
+		PermutationVectorVS.Set<FHWRasterizeVS::FVertexProgrammableDim>(bVertexProgrammableHW);
 		PermutationVectorVS.Set<FHWRasterizeVS::FPixelProgrammableDim>(bPixelProgrammable);
-		if (bVertexProgrammable)
+		if (bVertexProgrammableHW)
 		{
 			ProgrammableShaderTypes.AddShaderType<FHWRasterizeVS>(PermutationVectorVS.ToDimensionValueId());
 		}
@@ -2121,7 +2142,7 @@ static void GetMaterialShaderTypes(
 	}
 
 	// Pixel Shader
-	PermutationVectorPS.Set<FHWRasterizePS::FVertexProgrammableDim>(bVertexProgrammable);
+	PermutationVectorPS.Set<FHWRasterizePS::FVertexProgrammableDim>(bVertexProgrammableHW);
 	PermutationVectorPS.Set<FHWRasterizePS::FPixelProgrammableDim>(bPixelProgrammable);
 	PermutationVectorPS.Set<FHWRasterizePS::FAllowSvBarycentricsDim>(bUseBarycentricPermutation);
 	if (bPixelProgrammable)
