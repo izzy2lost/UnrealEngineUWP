@@ -9,6 +9,7 @@
 #include "GPUScene.h"
 #include "Rendering/NaniteResources.h"
 #include "Nanite/Nanite.h"
+#include "Nanite/NaniteShading.h"
 #include "PixelShaderUtils.h"
 #include "Lumen.h"
 #include "LumenMeshCards.h"
@@ -2046,7 +2047,7 @@ void FDeferredShadingSceneRenderer::UpdateLumenScene(FRDGBuilder& GraphBuilder, 
 
 		// Init transient render targets for capturing cards
 		FCardCaptureAtlas CardCaptureAtlas;
-		LumenScene::AllocateCardCaptureAtlas(GraphBuilder, LumenSceneData.GetCardCaptureAtlasSize(), CardCaptureAtlas);
+		LumenScene::AllocateCardCaptureAtlas(GraphBuilder, LumenSceneData.GetCardCaptureAtlasSize(), CardCaptureAtlas, Scene->GetShaderPlatform());
 
 		if (CardPagesToRender.Num() > 0)
 		{
@@ -2259,7 +2260,7 @@ void FDeferredShadingSceneRenderer::UpdateLumenScene(FRDGBuilder& GraphBuilder, 
 
 			for (const FCardPageRenderData& CardPageRenderData : CardPagesToRender)
 			{
-				if (CardPageRenderData.NaniteCommandInfos.Num() > 0 && CardPageRenderData.NaniteInstanceIds.Num() > 0)
+				if (CardPageRenderData.HasNanite())
 				{
 					bAnyNaniteMeshes = true;
 					break;
@@ -2269,6 +2270,9 @@ void FDeferredShadingSceneRenderer::UpdateLumenScene(FRDGBuilder& GraphBuilder, 
 			if (UseNanite(ShaderPlatform) && ViewFamily.EngineShowFlags.NaniteMeshes && bAnyNaniteMeshes)
 			{
 				QUICK_SCOPE_CYCLE_COUNTER(NaniteMeshPass);
+
+				// Should have launched earlier in the frame, but ensure we have built Lumen commands here just in case (launched early will make this a no-op)
+				Nanite::BuildShadingCommands(GraphBuilder, *Scene, ENaniteMeshPass::LumenCardCapture, Scene->NaniteShadingCommands[ENaniteMeshPass::LumenCardCapture], false);
 
 				const FIntPoint DepthStencilAtlasSize = CardCaptureAtlas.Size;
 				const FIntRect DepthAtlasRect = FIntRect(0, 0, DepthStencilAtlasSize.X, DepthStencilAtlasSize.Y);
@@ -2400,7 +2404,7 @@ void FDeferredShadingSceneRenderer::UpdateLumenScene(FRDGBuilder& GraphBuilder, 
 					// Single capture per card. Slow path, only for debugging.
 					for (int32 PageIndex = 0; PageIndex < CardPagesToRender.Num(); ++PageIndex)
 					{
-						if (CardPagesToRender[PageIndex].NaniteCommandInfos.Num() > 0)
+						if (CardPagesToRender[PageIndex].HasNanite())
 						{
 							Nanite::DrawLumenMeshCapturePass(
 								GraphBuilder,

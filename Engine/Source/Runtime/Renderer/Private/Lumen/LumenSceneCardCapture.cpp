@@ -13,6 +13,7 @@
 #include "Materials/Material.h"
 #include "Materials/MaterialRenderProxy.h"
 #include "RenderUtils.h"
+#include "MeshPassUtils.h"
 
 static TAutoConsoleVariable<float> GLumenSceneSurfaceCacheMeshTargetScreenSize(
 	TEXT("r.LumenScene.SurfaceCache.MeshTargetScreenSize"),
@@ -116,8 +117,6 @@ class FLumenCardCS : public FMeshMaterialShader
 public:
 	static bool ShouldCompilePermutation(const FMeshMaterialShaderPermutationParameters& Parameters)
 	{
-		return false; // TODO: Work in progress
-#if 0
 		if (!Parameters.VertexFactoryType->SupportsNaniteRendering())
 		{
 			return false;
@@ -130,7 +129,6 @@ public:
 
 		return IsOpaqueOrMaskedBlendMode(Parameters.MaterialParameters.BlendMode)
 			&& ShouldCompileLumenMeshCardShaders(Parameters.MaterialParameters.MaterialDomain, Parameters.MaterialParameters.BlendMode, Parameters.VertexFactoryType, Parameters.Platform);
-#endif
 	}
 
 	FLumenCardCS(const ShaderMetaType::CompiledShaderInitializerType& Initializer)
@@ -155,9 +153,14 @@ public:
 		// Use fully simplified material for less complex shaders when multiple slabs are used.
 		OutEnvironment.SetDefine(TEXT("SUBSTRATE_USE_FULLYSIMPLIFIED_MATERIAL"), 1);
 
+		// Card should not be able to sample from the scene textures, this is needed for translucent materials card capture which can request the sampling of SceneTextures.
+		OutEnvironment.SetDefine(TEXT("SCENE_TEXTURES_DISABLED"), 1);
+
 		// Force shader model 6.0+
 		OutEnvironment.CompilerFlags.Add(CFLAG_ForceDXC);
 		OutEnvironment.CompilerFlags.Add(CFLAG_HLSL2021);
+		OutEnvironment.CompilerFlags.Add(CFLAG_RootConstants);
+		OutEnvironment.CompilerFlags.Add(CFLAG_CheckForDerivativeOps);
 	}
 
 	inline void SetPassParameters(
@@ -192,6 +195,34 @@ struct FNaniteLumenCardData
 namespace Nanite
 {
 
+void RecordLumenCardParameters(
+	FRHIBatchedShaderParameters& ShaderParameters,
+	FNaniteShadingCommand& ShadingCommand,
+	const TArray<FRHIUnorderedAccessView*, TInlineAllocator<3>>& OutputTargets
+)
+{
+	FRHIComputeShader* ComputeShaderRHI = ShadingCommand.Pipeline->ComputeShader;
+	const bool bNoDerivativeOps = !!ShadingCommand.Pipeline->bNoDerivativeOps;
+
+	ShadingCommand.PassData.X = ShadingCommand.ShadingBin; // Active Shading Bin
+	ShadingCommand.PassData.Y = bNoDerivativeOps ? 0 /* Pixel Binning */ : 1 /* Quad Binning */;
+	ShadingCommand.PassData.Z = uint32(ENaniteMeshPass::LumenCardCapture);
+	ShadingCommand.PassData.W = 0; // Unused
+
+	ShadingCommand.Pipeline->ShaderBindings->SetParameters(ShaderParameters, ComputeShaderRHI);
+
+	if (ComputeShaderRHI)
+	{
+		ShadingCommand.Pipeline->LumenCardData->TypedShader->SetPassParameters(
+			ShaderParameters,
+			ShadingCommand.PassData,
+			OutputTargets[0],
+			OutputTargets[1],
+			OutputTargets[2]
+		);
+	}
+}
+
 bool LoadLumenCardPipeline(
 	const FScene& Scene,
 	FSceneProxyBase* SceneProxy,
@@ -199,10 +230,6 @@ bool LoadLumenCardPipeline(
 	FNaniteShadingPipeline& ShadingPipeline
 )
 {
-	// TODO: WIP
-#if 1
-	return true;
-#else
 	const ERHIFeatureLevel::Type FeatureLevel = Scene.GetFeatureLevel();
 
 	FNaniteVertexFactory* NaniteVertexFactory = Nanite::GVertexFactoryResource.GetVertexFactory2();
@@ -274,7 +301,6 @@ bool LoadLumenCardPipeline(
 	}
 
 	return bLoaded;
-#endif // TODO
 }
 
 } // Nanite
@@ -388,7 +414,7 @@ void FLumenCardMeshProcessor::AddMeshBatch(const FMeshBatch& RESTRICT MeshBatch,
 	}
 }
 
-void SetupCardCaptureRenderTargetsInfo(FGraphicsPipelineRenderTargetsInfo& RenderTargetsInfo)
+void SetupCardCaptureRenderTargetsInfo(FGraphicsPipelineRenderTargetsInfo& RenderTargetsInfo, EShaderPlatform ShaderPlatform)
 {
 	RenderTargetsInfo.NumSamples = 1;
 	RenderTargetsInfo.RenderTargetsEnabled = 3;
@@ -405,6 +431,14 @@ void SetupCardCaptureRenderTargetsInfo(FGraphicsPipelineRenderTargetsInfo& Rende
 	RenderTargetsInfo.RenderTargetFormats[2] = PF_FloatR11G11B10;
 	RenderTargetsInfo.RenderTargetFlags[2] = TexCreate_ShaderResource | TexCreate_RenderTargetable | TexCreate_NoFastClear;
 
+	if (DoesPlatformSupportNanite(ShaderPlatform, true))
+	{
+		for (uint32 TargetIndex = 0; TargetIndex < RenderTargetsInfo.RenderTargetsEnabled; ++TargetIndex)
+		{
+			RenderTargetsInfo.RenderTargetFlags[TargetIndex] |= TexCreate_UAV;
+		}
+	}
+
 	// Setup depth stencil state
 	RenderTargetsInfo.DepthStencilTargetFormat = PF_DepthStencil;
 	RenderTargetsInfo.DepthStencilTargetFlag = TexCreate_ShaderResource | TexCreate_DepthStencilTargetable | TexCreate_NoFastClear;
@@ -420,11 +454,16 @@ void SetupCardCaptureRenderTargetsInfo(FGraphicsPipelineRenderTargetsInfo& Rende
 	RenderTargetsInfo.StencilTargetStoreAction = RenderTargetsInfo.DepthStencilAccess.IsUsingStencil() ? StoreAction : ERenderTargetStoreAction::ENoAction;
 }
 
-void LumenScene::AllocateCardCaptureAtlas(FRDGBuilder& GraphBuilder, FIntPoint CardCaptureAtlasSize, FCardCaptureAtlas& CardCaptureAtlas)
+void LumenScene::AllocateCardCaptureAtlas(
+	FRDGBuilder& GraphBuilder,
+	FIntPoint CardCaptureAtlasSize,
+	FCardCaptureAtlas& CardCaptureAtlas,
+	EShaderPlatform ShaderPlatform
+)
 {
 	// Collect info from SetupCardCaptureRenderTargetsInfo
 	FGraphicsPipelineRenderTargetsInfo RenderTargetsInfo;
-	SetupCardCaptureRenderTargetsInfo(RenderTargetsInfo);
+	SetupCardCaptureRenderTargetsInfo(RenderTargetsInfo, ShaderPlatform);
 	check(RenderTargetsInfo.RenderTargetsEnabled == 3);
 
 	CardCaptureAtlas.Size = CardCaptureAtlasSize;
@@ -497,7 +536,7 @@ void FLumenCardMeshProcessor::CollectPSOInitializers(const FSceneTexturesConfig&
 		}
 
 		FGraphicsPipelineRenderTargetsInfo RenderTargetsInfo;
-		SetupCardCaptureRenderTargetsInfo(RenderTargetsInfo);
+		SetupCardCaptureRenderTargetsInfo(RenderTargetsInfo, Platform);
 
 		AddGraphicsPipelineStateInitializer(
 			VertexFactoryData,
@@ -697,7 +736,7 @@ void FLumenCardNaniteMeshProcessor::CollectPSOInitializers(
 	Shaders.TryGetPixelShader(PassShaders.PixelShader);
 
 	FGraphicsPipelineRenderTargetsInfo RenderTargetsInfo;
-	SetupCardCaptureRenderTargetsInfo(RenderTargetsInfo);
+	SetupCardCaptureRenderTargetsInfo(RenderTargetsInfo, ShaderPlatform);
 
 	AddGraphicsPipelineStateInitializer(
 		NaniteVertexFactoryData,
@@ -877,6 +916,11 @@ void LumenScene::AddCardCaptureDraws(
 				for (const FNaniteCommandInfo& CommandInfo : PrimitiveSceneInfo->NaniteLumenCommands)
 				{
 					CardPageRenderData.NaniteCommandInfos.Add(CommandInfo);
+				}
+
+				for (const FNaniteShadingBin& ShadingBin : PrimitiveSceneInfo->NaniteShadingBins[ENaniteMeshPass::LumenCardCapture])
+				{
+					CardPageRenderData.NaniteShadingBins.Add(ShadingBin);
 				}
 			}
 			else

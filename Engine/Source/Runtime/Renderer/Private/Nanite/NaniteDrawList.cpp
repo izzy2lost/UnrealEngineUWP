@@ -100,6 +100,15 @@ void FNaniteDrawListContext::AddShadingCommand(FPrimitiveSceneInfo& PrimitiveSce
 	PrimitiveSceneInfo.NaniteLumenCommands.Add(ShadingCommand);
 }
 
+void FNaniteDrawListContext::AddShadingBin(FPrimitiveSceneInfo& PrimitiveSceneInfo, const FNaniteShadingBin& ShadingBin, ENaniteMeshPass::Type MeshPass, uint8 SectionIndex)
+{
+	FNaniteMaterialSlot& MaterialSlot = GetMaterialSlotForWrite(PrimitiveSceneInfo, MeshPass, SectionIndex);
+	check(MaterialSlot.ShadingBin == 0xFFFFu);
+	MaterialSlot.ShadingBin = ShadingBin.BinIndex;
+
+	PrimitiveSceneInfo.NaniteShadingBins[MeshPass].Add(ShadingBin);
+}
+
 void FNaniteDrawListContext::AddRasterBin(
 	FPrimitiveSceneInfo& PrimitiveSceneInfo,
 	const FNaniteRasterBin& PrimaryRasterBin,
@@ -239,6 +248,18 @@ void FNaniteDrawListContext::Apply(FScene& Scene)
 					if (RasterBins)
 					{
 						RasterBins->Add(FNaniteVisibility::FRasterBin{ PrimaryRasterBin.BinIndex, FallbackRasterBin.BinIndex });
+					}
+				}
+
+				// Register shading bin
+				{
+					const FNaniteShadingPipeline& ShadingPipeline = PipelinesCommand.ShadingPipelines[MaterialSectionIndex];
+					const FNaniteShadingBin ShadingBin = ShadingPipelines.Register(ShadingPipeline);
+					AddShadingBin(*PrimitiveSceneInfo, ShadingBin, ENaniteMeshPass::LumenCardCapture, uint8(MaterialSectionIndex));
+
+					if (ShadingBins)
+					{
+						ShadingBins->Add(FNaniteVisibility::FShadingBin{ ShadingBin.BinIndex });
 					}
 				}
 			}

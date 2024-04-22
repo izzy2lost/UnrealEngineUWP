@@ -819,7 +819,8 @@ void EmitMaterialDepthRects(
 	FIntPoint ViewportSize,
 	uint32 NumRects,
 	FRDGBufferSRVRef RectMinMaxBufferSRV,
-	FRDGTextureRef DepthAtlasTexture
+	FRDGTextureRef DepthAtlasTexture,
+	bool bLegacyCulling
 )
 {
 	FNaniteEmitDepthRectsParameters* PassParameters = GraphBuilder.AllocParameters<FNaniteEmitDepthRectsParameters>();
@@ -833,7 +834,7 @@ void EmitMaterialDepthRects(
 	);
 
 	FEmitSceneDepthPS::FPermutationDomain PermutationVectorPS;
-	PermutationVectorPS.Set<FEmitSceneDepthPS::FLegacyCullingDim>(true /* Always use legacy culling with Lumen - until refactor to CS */);
+	PermutationVectorPS.Set<FEmitSceneDepthPS::FLegacyCullingDim>(bLegacyCulling);
 	PermutationVectorPS.Set<FEmitSceneDepthPS::FVelocityExportDim>(false);
 	PermutationVectorPS.Set<FEmitSceneDepthPS::FShadingMaskExportDim>(false);
 	PermutationVectorPS.Set<FEmitSceneDepthPS::FSkinningDim>(false);

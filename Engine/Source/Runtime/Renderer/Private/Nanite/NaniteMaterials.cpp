@@ -40,11 +40,17 @@ static TAutoConsoleVariable<int32> CVarNaniteMultipleSceneViewsInOnePass(
 	ECVF_RenderThreadSafe
 	);
 
+static TAutoConsoleVariable<int32> CVarNaniteLumenCS(
+	TEXT("r.Nanite.LumenCS"),
+	1,
+	TEXT(""),
+	ECVF_RenderThreadSafe
+);
+
 extern int32 GNaniteShowStats;
 
 BEGIN_SHADER_PARAMETER_STRUCT(FNaniteMaterialPassParameters, )
 	RDG_BUFFER_ACCESS(MaterialIndirectArgs, ERHIAccess::IndirectArgs)
-	SHADER_PARAMETER(uint32, ActiveShadingBin)
 
 	SHADER_PARAMETER_STRUCT_INCLUDE(FViewShaderParameters, View)	// To access VTFeedbackBuffer
 	SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FSceneUniformParameters, Scene)
@@ -107,103 +113,26 @@ TRDGUniformBufferRef<FNaniteUniformParameters> CreateDebugNaniteUniformBuffer(FR
 	return GraphBuilder.CreateUniformBuffer(UniformParameters);
 }
 
+extern void DispatchLumenMeshCapturePass(
+	FRDGBuilder& GraphBuilder,
+	FScene& Scene,
+	FViewInfo* SharedView,
+	FNaniteShadingCommands& ShadingCommands,
+	TArrayView<const FCardPageRenderData> CardPagesToRender,
+	const Nanite::FRasterResults& RasterResults,
+	const Nanite::FRasterContext& RasterContext,
+	FLumenCardPassUniformParameters* PassUniformParameters,
+	FRDGBufferSRVRef RectMinMaxBufferSRV,
+	uint32 NumRects,
+	FIntPoint ViewportSize,
+	FRDGTextureRef AlbedoAtlasTexture,
+	FRDGTextureRef NormalAtlasTexture,
+	FRDGTextureRef EmissiveAtlasTexture,
+	FRDGTextureRef DepthAtlasTexture
+);
+
 namespace Nanite
 {
-
-FNaniteMaterialPassParameters CreateNaniteMaterialPassParams(
-	FRDGBuilder& GraphBuilder,
-	const FSceneRenderer& SceneRenderer,
-	const FSceneTextures& SceneTextures,
-	const FDBufferTextures& DBufferTextures,
-	const FViewInfo& View,
-	const FIntRect ViewRect,
-	const FRasterResults& RasterResults,
-	const FIntPoint& TileGridSize,
-	const uint32 TileRemaps,
-	const FNaniteMaterialCommands& MaterialCommands,
-	FRDGTextureRef ShadingMask,
-	FRDGTextureRef VisBuffer64,
-	FRDGTextureRef DbgBuffer64,
-	FRDGTextureRef DbgBuffer32,
-	FRDGBufferRef VisibleClustersSWHW,
-	FRDGBufferRef MaterialTileRemap,
-	FRDGBufferRef MaterialIndirectArgs,
-	FRDGBufferRef MultiViewIndices,
-	FRDGBufferRef MultiViewRectScaleOffsets,
-	FRDGBufferRef ViewsBuffer,
-	const FRenderTargetBindingSlots& BasePassRenderTargets,
-	const FShadeBinning& ShadeBinning
-)
-{
-	FNaniteMaterialPassParameters Result;
-
-	Result.MaterialIndirectArgs = MaterialIndirectArgs;
-
-	Result.RecordArgBuffer = nullptr;
-
-	{
-		const FIntPoint ScaledSize = TileGridSize * 64;
-		const FVector4f RectScaleOffset(
-			float(ScaledSize.X) / float(ViewRect.Max.X - ViewRect.Min.X),
-			float(ScaledSize.Y) / float(ViewRect.Max.Y - ViewRect.Min.Y),
-			0.0f,
-			0.0f
-		);
-
-		const FIntVector4 MaterialConfig(1 /* Indirect */, TileGridSize.X, TileGridSize.Y, TileRemaps);
-
-		FNaniteUniformParameters* UniformParameters = GraphBuilder.AllocParameters<FNaniteUniformParameters>();
-		UniformParameters->PageConstants = RasterResults.PageConstants;
-		UniformParameters->MaxNodes = RasterResults.MaxNodes;
-		UniformParameters->MaxVisibleClusters = RasterResults.MaxVisibleClusters;
-		UniformParameters->RenderFlags = RasterResults.RenderFlags;
-
-		UniformParameters->MaterialConfig = MaterialConfig;
-		UniformParameters->RectScaleOffset = RectScaleOffset;
-
-		UniformParameters->ClusterPageData = Nanite::GStreamingManager.GetClusterPageDataSRV(GraphBuilder);
-		UniformParameters->HierarchyBuffer = Nanite::GStreamingManager.GetHierarchySRV(GraphBuilder);
-		UniformParameters->VisibleClustersSWHW = GraphBuilder.CreateSRV(VisibleClustersSWHW);
-
-		UniformParameters->MaterialTileRemap = GraphBuilder.CreateSRV(MaterialTileRemap, PF_R32_UINT);
-
-	#if RHI_RAYTRACING
-		UniformParameters->RayTracingCutError = Nanite::GRayTracingManager.GetCutError();
-		UniformParameters->RayTracingDataBuffer = Nanite::GRayTracingManager.GetAuxiliaryDataSRV(GraphBuilder);
-	#else
-		UniformParameters->RayTracingCutError = 0.0f;
-		UniformParameters->RayTracingDataBuffer = GraphBuilder.CreateSRV(GSystemTextures.GetDefaultStructuredBuffer<uint32>(GraphBuilder));
-	#endif
-
-		UniformParameters->VisBuffer64 = VisBuffer64;
-		UniformParameters->DbgBuffer64 = DbgBuffer64;
-		UniformParameters->DbgBuffer32 = DbgBuffer32;
-
-		UniformParameters->ShadingMask = ShadingMask;
-		UniformParameters->MaterialDepthTable = MaterialCommands.GetMaterialDepthSRV();
-		if (UniformParameters->MaterialDepthTable == nullptr)
-		{
-			UniformParameters->MaterialDepthTable = GraphBuilder.GetPooledBuffer(GSystemTextures.GetDefaultBuffer(GraphBuilder, 4, 0u))->GetSRV(GraphBuilder.RHICmdList, FRHIBufferSRVCreateInfo(PF_R32_UINT));
-		}
-
-		UniformParameters->MultiViewEnabled = 0;
-		UniformParameters->MultiViewIndices = GraphBuilder.CreateSRV(MultiViewIndices);
-		UniformParameters->MultiViewRectScaleOffsets = GraphBuilder.CreateSRV(MultiViewRectScaleOffsets);
-		UniformParameters->InViews = GraphBuilder.CreateSRV(ViewsBuffer);
-
-		UniformParameters->ShadingBinData = GraphBuilder.CreateSRV(GSystemTextures.GetDefaultStructuredBuffer<uint32>(GraphBuilder), PF_R32_UINT);
-	
-		Result.Nanite = GraphBuilder.CreateUniformBuffer(UniformParameters);
-	}
-
-	Result.View = View.GetShaderParameters(); // To get VTFeedbackBuffer
-	Result.Scene = View.GetSceneUniforms().GetBuffer(GraphBuilder);
-	const bool bLumenGIEnabled = SceneRenderer.IsLumenGIEnabled(View);
-	Result.BasePass = CreateOpaqueBasePassUniformBuffer(GraphBuilder, View, 0, {}, DBufferTextures, bLumenGIEnabled);
-	Result.ActiveShadingBin = ~uint32(0);
-
-	return Result;
-}
 
 struct FLumenMeshCaptureMaterialPassIndex
 {
@@ -245,6 +174,7 @@ struct FLumenMeshCaptureMaterialPass
 	}
 };
 
+// TODO: Remove once Nanite PS materials are fully deleted
 void DrawLumenMeshCapturePass(
 	FRDGBuilder& GraphBuilder,
 	FScene& Scene,
@@ -262,29 +192,30 @@ void DrawLumenMeshCapturePass(
 	FRDGTextureRef DepthAtlasTexture
 )
 {
-// TODO: WIP
-#if 0
-	if (true)
+	if (CVarNaniteLumenCS.GetValueOnRenderThread() != 0)
 	{
+		FNaniteShadingCommands& ShadingCommands = Scene.NaniteShadingCommands[ENaniteMeshPass::LumenCardCapture];
+
 		DispatchLumenMeshCapturePass(
-			FRDGBuilder & GraphBuilder,
-			FScene & Scene,
-			FViewInfo * SharedView,
-			TArrayView<const FCardPageRenderData> CardPagesToRender,
-			const FRasterResults & RasterResults,
-			const FRasterContext & RasterContext,
-			FLumenCardPassUniformParameters * PassUniformParameters,
-			FRDGBufferSRVRef RectMinMaxBufferSRV,
-			uint32 NumRects,
-			FIntPoint ViewportSize,
-			FRDGTextureRef AlbedoAtlasTexture,
-			FRDGTextureRef NormalAtlasTexture,
-			FRDGTextureRef EmissiveAtlasTexture,
-			FRDGTextureRef DepthAtlasTexture
+			GraphBuilder,
+			Scene,
+			SharedView,
+			ShadingCommands,
+			CardPagesToRender,
+			RasterResults,
+			RasterContext,
+			PassUniformParameters,
+			RectMinMaxBufferSRV,
+			NumRects,
+			ViewportSize,
+			AlbedoAtlasTexture,
+			NormalAtlasTexture,
+			EmissiveAtlasTexture,
+			DepthAtlasTexture
 		);
+
 		return;
 	}
-#endif
 
 	checkSlow(DoesPlatformSupportNanite(GMaxRHIShaderPlatform));
 	checkSlow(DoesPlatformSupportLumenGI(GMaxRHIShaderPlatform));
@@ -559,7 +490,8 @@ void DrawLumenMeshCapturePass(
 			ViewportSize,
 			NumRects,
 			RectMinMaxBufferSRV,
-			DepthAtlasTexture
+			DepthAtlasTexture,
+			true /* legacy culling */
 		);
 	}
 }

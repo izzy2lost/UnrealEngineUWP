@@ -910,6 +910,13 @@ void BuildNaniteLumenBins(FScene* Scene, FPrimitiveSceneInfo* PrimitiveSceneInfo
 					RasterPipeline.bHasDisplacementFadeOut =
 						RasterPipeline.bDisplacementEnabled &&
 						NaniteProxy->GetMaterialDisplacementFadeOutSize() > 0.0f;
+
+					{
+						FNaniteShadingPipeline& ShadingPipeline = PipelinesCommand.ShadingPipelines.Emplace_GetRef();
+
+						bool bLoaded = LoadLumenCardPipeline(*Scene, NaniteProxy, MaterialSection, ShadingPipeline);
+						check(bLoaded);
+					}
 				}
 			}
 		}

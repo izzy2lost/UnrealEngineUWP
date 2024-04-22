@@ -88,7 +88,8 @@ void EmitMaterialDepthRects(
 	FIntPoint ViewportSize,
 	uint32 NumRects,
 	FRDGBufferSRVRef RectMinMaxBufferSRV,
-	FRDGTextureRef DepthAtlasTexture
+	FRDGTextureRef DepthAtlasTexture,
+	bool bLegacyCulling
 );
 
 }

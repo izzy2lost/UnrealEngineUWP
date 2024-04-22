@@ -1,11 +1,14 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "NaniteShading.h"
+#include "NaniteShared.h"
 #include "NaniteVertexFactory.h"
 #include "NaniteRayTracing.h"
 #include "NaniteVisualizationData.h"
+#include "NaniteComposition.h"
 #include "Rendering/NaniteResources.h"
 #include "Rendering/NaniteStreamingManager.h"
+#include "Lumen/LumenSceneCardCapture.h"
 #include "ComponentRecreateRenderStateContext.h"
 #include "VariableRateShadingImageManager.h"
 #include "SystemTextures.h"
@@ -41,14 +44,6 @@ static FORCEINLINE const FString& GetShadingMaterialName(const FMaterialRenderPr
 TAutoConsoleVariable<int32> CVarParallelBasePassBuild(
 	TEXT("r.Nanite.ParallelBasePassBuild"),
 	1,
-	TEXT(""),
-	ECVF_RenderThreadSafe
-);
-
-static int32 GNaniteBarrierTest = 1;
-static FAutoConsoleVariableRef CVarNaniteBarrierTest(
-	TEXT("r.Nanite.BarrierTest"),
-	GNaniteBarrierTest,
 	TEXT(""),
 	ECVF_RenderThreadSafe
 );
@@ -390,7 +385,6 @@ IMPLEMENT_GLOBAL_SHADER(FShadingBinValidateCS, "/Engine/Private/Nanite/NaniteSha
 
 BEGIN_SHADER_PARAMETER_STRUCT(FNaniteShadingPassParameters, )
 	RDG_BUFFER_ACCESS(MaterialIndirectArgs, ERHIAccess::IndirectArgs)
-	SHADER_PARAMETER(uint32, ActiveShadingBin)
 
 	SHADER_PARAMETER_STRUCT_INCLUDE(FViewShaderParameters, View)	// To access VTFeedbackBuffer
 	SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FSceneUniformParameters, Scene)
@@ -475,11 +469,13 @@ void BuildShadingCommands(FRDGBuilder& GraphBuilder, FScene& Scene, ENaniteMeshP
 			}
 		});
 
-		ShadingCommands.BuildCommandsTask = GraphBuilder.AddSetupTask([&Pipelines, &Commands = ShadingCommands.Commands]
+		ShadingCommands.BuildCommandsTask = GraphBuilder.AddSetupTask([&Pipelines, &Commands = ShadingCommands.Commands, &CommandLookup = ShadingCommands.CommandLookup]
 		{
 			TRACE_CPUPROFILER_EVENT_SCOPE(Nanite::BuildShadingCommandsTask);
 			Commands.Reset();
 			Commands.Reserve(Pipelines.Num());
+
+			uint32 MaxShadingBin = 0;
 
 			for (const auto& Iter : Pipelines)
 			{
@@ -487,7 +483,11 @@ void BuildShadingCommands(FRDGBuilder& GraphBuilder, FScene& Scene, ENaniteMeshP
 				const FNaniteShadingEntry& Entry = Iter.Value;
 				ShadingCommand.Pipeline = Entry.ShadingPipeline;
 				ShadingCommand.ShadingBin = Entry.BinIndex;
+
+				MaxShadingBin = FMath::Max<uint32>(MaxShadingBin, uint32(Entry.BinIndex));
 			}
+
+			CommandLookup.SetNumZeroed(MaxShadingBin + 1);
 
 			if (GNaniteComputeMaterialsSort != 0)
 			{
@@ -511,6 +511,12 @@ void BuildShadingCommands(FRDGBuilder& GraphBuilder, FScene& Scene, ENaniteMeshP
 					// Sort indirect arg memory location in ascending order to help minimize cache misses on the indirect args
 					return A.ShadingBin < B.ShadingBin;
 				});
+			}
+
+			for (int32 CommandIndex = 0; CommandIndex < Commands.Num(); ++CommandIndex)
+			{
+				const FNaniteShadingCommand& ShadingCommand = Commands[CommandIndex];
+				CommandLookup[ShadingCommand.ShadingBin] = CommandIndex;
 			}
 
 		}, ShadingCommands.SetupTask);
@@ -934,10 +940,9 @@ FNaniteShadingPassParameters CreateNaniteShadingPassParams(
 	Result.Scene = View.GetSceneUniforms().GetBuffer(GraphBuilder);
 	const bool bLumenGIEnabled = SceneRenderer.IsLumenGIEnabled(View);
 	Result.BasePass = CreateOpaqueBasePassUniformBuffer(GraphBuilder, View, 0, {}, DBufferTextures, bLumenGIEnabled);
-	Result.ActiveShadingBin = ~uint32(0);
 
 	// No possibility of read/write hazard due to fully resolved vbuffer/materials
-	const ERDGUnorderedAccessViewFlags OutTargetFlags = GNaniteBarrierTest != 0 ? ERDGUnorderedAccessViewFlags::SkipBarrier : ERDGUnorderedAccessViewFlags::None;
+	const ERDGUnorderedAccessViewFlags OutTargetFlags = ERDGUnorderedAccessViewFlags::SkipBarrier;
 
 	FRDGTextureUAVRef MaterialTextureArrayUAV = nullptr;
 	if (Substrate::IsSubstrateEnabled())
@@ -1129,7 +1134,6 @@ void DispatchBasePass(
 		Binning
 	);
 
-	const bool bSkipBarriers = GNaniteBarrierTest != 0;
 	const bool bBundleShading = ShaderBundle != nullptr && UseShaderBundle(Scene.GetShaderPlatform());
 	const bool bBundleEmulation = bBundleShading && GNaniteBundleEmulation != 0;
 
@@ -1145,7 +1149,6 @@ void DispatchBasePass(
 		FRHIComputeCommandList& RHICmdList,
 		const uint32 IndirectArgStride,
 		const uint32 DataByteOffset,
-		bool bSkipBarriers,
 		bool bBundleShading,
 		bool bBundleEmulation
 	)
@@ -1394,7 +1397,7 @@ void DispatchBasePass(
 			RDG_EVENT_NAME("ShadeGBufferCS"),
 			ShadingPassParameters,
 			ERDGPassFlags::Compute,
-			[&ShadePassWork, ShadingPassParameters, &ShadingCommands, IndirectArgStride, DataByteOffset = Binning.DataByteOffset, VisibilityQuery, &View, ViewRect, ViewIndex, bSkipBarriers]
+			[&ShadePassWork, ShadingPassParameters, &ShadingCommands, IndirectArgStride, DataByteOffset = Binning.DataByteOffset, VisibilityQuery, &View, ViewRect, ViewIndex]
 			(const FRDGPass* RDGPass, FRHICommandListImmediate& RHICmdList)
 			{
 				FParallelCommandListBindings CmdListBindings(ShadingPassParameters);
@@ -1417,7 +1420,6 @@ void DispatchBasePass(
 					RHICmdList,
 					IndirectArgStride,
 					DataByteOffset,
-					bSkipBarriers,
 					false /* bBundleShading   */,
 					false /* bBundleEmulation */
 				);
@@ -1435,7 +1437,7 @@ void DispatchBasePass(
 			RDG_EVENT_NAME("ShadeGBufferCS"),
 			ShadingPassParameters,
 			ERDGPassFlags::Compute,
-			[&ShadePassWork, ShadingPassParameters, &ShadingCommands, ShaderBundle, IndirectArgStride, DataByteOffset = Binning.DataByteOffset, VisibilityQuery, &View, ViewRect, ViewIndex, bSkipBarriers, bBundleShading, bBundleEmulation]
+			[&ShadePassWork, ShadingPassParameters, &ShadingCommands, ShaderBundle, IndirectArgStride, DataByteOffset = Binning.DataByteOffset, VisibilityQuery, &View, ViewRect, ViewIndex, bBundleShading, bBundleEmulation]
 			(const FRDGPass* RDGPass, FRHIComputeCommandList& RHICmdList)
 			{
 				if (bBundleShading)
@@ -1459,7 +1461,6 @@ void DispatchBasePass(
 					RHICmdList,
 					IndirectArgStride,
 					DataByteOffset,
-					bSkipBarriers,
 					bBundleShading,
 					bBundleEmulation
 				);
@@ -2255,14 +2256,36 @@ void FNaniteShadingPipelines::Unregister(const FNaniteShadingBin& InShadingBin)
 	}
 }
 
-#if 0
+struct FLumenShadingBinEntry
+{
+	FLumenShadingBinEntry(int32 InBuildIndex, const FNaniteShadingBin& InShadingBin)
+	: BuildIndex(InBuildIndex)
+	, ShadingBin(InShadingBin)
+	{
+	}
+
+	inline friend uint32 GetTypeHash(const FLumenShadingBinEntry& InEntry)
+	{
+		return uint32(InEntry.ShadingBin.BinId);
+	}
+
+	inline bool operator==(const FLumenShadingBinEntry& Other) const
+	{
+		return ShadingBin == Other.ShadingBin;
+	}
+
+	int32 BuildIndex = INDEX_NONE;
+	FNaniteShadingBin ShadingBin;
+};
+
 void DispatchLumenMeshCapturePass(
 	FRDGBuilder& GraphBuilder,
 	FScene& Scene,
 	FViewInfo* SharedView,
+	FNaniteShadingCommands& ShadingCommands,
 	TArrayView<const FCardPageRenderData> CardPagesToRender,
-	const FRasterResults& RasterResults,
-	const FRasterContext& RasterContext,
+	const Nanite::FRasterResults& RasterResults,
+	const Nanite::FRasterContext& RasterContext,
 	FLumenCardPassUniformParameters* PassUniformParameters,
 	FRDGBufferSRVRef RectMinMaxBufferSRV,
 	uint32 NumRects,
@@ -2282,6 +2305,325 @@ void DispatchLumenMeshCapturePass(
 
 	const FRDGSystemTextures& SystemTextures = FRDGSystemTextures::Get(GraphBuilder);
 
+	ShadingCommands.SetupTask.Wait();
 
+	struct FLumenCaptureTile
+	{
+		// Top Left X: 8 bits (tile x in card atlas) - multiplied by 8 and added to card view rect min.x in shader
+		// Top Left Y: 8 bits (tile y in card atlas) - multiplied by 8 and added to card view rect min.y in shader
+		// Card Index: 16 bits
+		uint32 Packed;
+	};
+
+	struct FLumenCapturePass
+	{
+		FNaniteShadingBin ShadingBin;
+		TArray<uint16, TInlineAllocator<64>> ViewIndices;
+		uint32 TotalTileCount = 0;
+
+		bool operator<(const FLumenCapturePass& Other) const
+		{
+			return ShadingBin.BinIndex < Other.ShadingBin.BinIndex;
+		}
+	};
+
+	struct FLumenShadingBinMeta
+	{
+		uint32 DataByteOffset;
+	};
+
+	struct FLumenCaptureContext
+	{
+		uint32 TotalPassCount = 0;
+		uint32 TotalTileCount = 0;
+
+		TArray<FLumenCapturePass, SceneRenderingAllocator> Passes;
+		TArray<uint32, SceneRenderingAllocator> ViewIndices;
+		TArray<Nanite::FPackedView, SceneRenderingAllocator> PackedViews;
+
+		uint32 ShadingBinCount = 0;
+
+		uint32 NumBytes_Meta = 0;
+		uint32 NumBytes_Data = 0;
+
+		uint32 MaxShadingBin = 0u;
+
+		TArray<uint32, SceneRenderingAllocator> ShadingBinData;
+	};
+
+	FLumenCaptureContext& CaptureContext = *GraphBuilder.AllocObject<FLumenCaptureContext>();
+
+	GraphBuilder.AddSetupTask([&CaptureContext, CardPagesToRender, &Scene, ViewportSize]
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(BuildLumenMeshCaptureMaterialPasses);
+
+		CaptureContext.Passes.Reserve(CardPagesToRender.Num());
+		CaptureContext.PackedViews.Reserve(CardPagesToRender.Num());
+		CaptureContext.MaxShadingBin = 0u;
+
+		CaptureContext.TotalTileCount = 0;
+
+		// Determine unique list of shading bins
+		Experimental::TRobinHoodHashSet<FLumenShadingBinEntry> CapturePassSet;
+
+		for (int32 CardPageIndex = 0; CardPageIndex < CardPagesToRender.Num(); ++CardPageIndex)
+		{
+			const FCardPageRenderData& CardPageRenderData = CardPagesToRender[CardPageIndex];
+			check((CardPageRenderData.CardCaptureAtlasRect.Min.X & 7u) == 0 &&
+				  (CardPageRenderData.CardCaptureAtlasRect.Min.Y & 7u) == 0);
+
+			const uint32 CardWidth  = CardPageRenderData.CardCaptureAtlasRect.Width();
+			const uint32 CardHeight = CardPageRenderData.CardCaptureAtlasRect.Height();
+			check((CardWidth & 7u) == 0 && (CardHeight & 7u) == 0);
+
+			const uint32 TilesWide = CardWidth  >> 3u;
+			const uint32 TilesTall = CardHeight >> 3u;
+			check(TilesWide <= 256 && TilesTall <= 256);
+
+			const uint32 TileCount = TilesWide * TilesTall;
+
+			for (const FNaniteShadingBin& ShadingBin : CardPageRenderData.NaniteShadingBins)
+			{
+				const FLumenShadingBinEntry& ShadingBinEntry = *CapturePassSet.FindOrAdd(FLumenShadingBinEntry(CaptureContext.Passes.Num(), ShadingBin));
+
+				if (ShadingBinEntry.BuildIndex >= CaptureContext.Passes.Num())
+				{
+					FLumenCapturePass CapturePass;
+					CapturePass.ShadingBin = ShadingBin;
+					CaptureContext.Passes.Emplace(CapturePass);
+					CaptureContext.MaxShadingBin = FMath::Max<uint32>(CaptureContext.MaxShadingBin, uint32(ShadingBin.BinIndex));
+				}
+
+				CaptureContext.Passes[ShadingBinEntry.BuildIndex].ViewIndices.Add(CardPageIndex);
+				CaptureContext.Passes[ShadingBinEntry.BuildIndex].TotalTileCount += TileCount;
+				
+				CaptureContext.TotalTileCount += TileCount;
+				++CaptureContext.TotalPassCount;
+			}
+
+			//check(CaptureContext.Passes.Num() > 0);
+		}
+
+		if (CaptureContext.Passes.Num() > 0)
+		{
+			TRACE_CPUPROFILER_EVENT_SCOPE(Sort);
+			CaptureContext.Passes.Sort();
+		}
+
+		CaptureContext.ShadingBinCount = CaptureContext.MaxShadingBin + 1u;
+
+		CaptureContext.NumBytes_Meta = CaptureContext.ShadingBinCount * sizeof(FLumenShadingBinMeta);
+		CaptureContext.NumBytes_Data = CaptureContext.TotalTileCount * sizeof(FLumenCaptureTile);
+
+		CaptureContext.ShadingBinData.SetNumUninitialized((CaptureContext.NumBytes_Meta + CaptureContext.NumBytes_Data) >> 2u);
+		uint8* ShadingBinDataPtr = reinterpret_cast<uint8*>(CaptureContext.ShadingBinData.GetData());
+
+		uint32 DataWriteOffset = CaptureContext.NumBytes_Meta;
+
+		// We only need to zero the shading bin meta data headers
+		FMemory::Memzero(ShadingBinDataPtr, CaptureContext.NumBytes_Meta);
+
+		for (FLumenCapturePass& CapturePass : CaptureContext.Passes)
+		{
+			FLumenShadingBinMeta& MetaEntry = reinterpret_cast<FLumenShadingBinMeta*>(ShadingBinDataPtr)[CapturePass.ShadingBin.BinIndex];
+			MetaEntry.DataByteOffset = DataWriteOffset;
+
+			DataWriteOffset += (sizeof(FLumenCaptureTile) * CapturePass.TotalTileCount);
+
+			FLumenCaptureTile* TileData = reinterpret_cast<FLumenCaptureTile*>(ShadingBinDataPtr + MetaEntry.DataByteOffset);
+
+			for (uint32 ViewIndex : CapturePass.ViewIndices)
+			{
+				const FCardPageRenderData& CardPageRenderData = CardPagesToRender[ViewIndex];
+				const uint32 TilesWide = CardPageRenderData.CardCaptureAtlasRect.Width()  >> 3u;
+				const uint32 TilesTall = CardPageRenderData.CardCaptureAtlasRect.Height() >> 3u;
+				for (uint32 TileX = 0; TileX < TilesWide; ++TileX)
+				{
+					for (uint32 TileY = 0; TileY < TilesTall; ++TileY)
+					{
+						FLumenCaptureTile* Tile = new(TileData) FLumenCaptureTile;
+						Tile->Packed = (TileX & 0xFFu) | ((TileY & 0xFFu) << 8u) | ((ViewIndex & 0xFFFFu) << 16u);
+						++TileData;
+					}
+				}
+			}
+		}
+
+		for (const FCardPageRenderData& CardPageRenderData : CardPagesToRender)
+		{
+			Nanite::FPackedViewParams Params;
+			Params.ViewMatrices = CardPageRenderData.ViewMatrices;
+			Params.PrevViewMatrices = CardPageRenderData.ViewMatrices;
+			Params.ViewRect = CardPageRenderData.CardCaptureAtlasRect;
+			Params.RasterContextSize = ViewportSize;
+			Params.MaxPixelsPerEdgeMultipler = 1.0f;
+
+			CaptureContext.PackedViews.Add(Nanite::CreatePackedView(Params));
+		}
+	});
+
+	FRDGBuffer* PackedViewBuffer = CreateStructuredBuffer(
+		GraphBuilder,
+		TEXT("Nanite.PackedViews"),
+		CaptureContext.PackedViews.GetTypeSize(),
+		[&PackedViews = CaptureContext.PackedViews] { return FMath::RoundUpToPowerOfTwo(PackedViews.Num()); },
+		[&PackedViews = CaptureContext.PackedViews] { return PackedViews.GetData(); },
+		[&PackedViews = CaptureContext.PackedViews] { return PackedViews.Num() * PackedViews.GetTypeSize(); }
+	);
+
+	FRDGBuffer* ShadingBinData = CreateByteAddressBuffer(
+		GraphBuilder,
+		TEXT("Nanite.ShadingBinData"),
+		[&BinData = CaptureContext.ShadingBinData]() -> auto& { return BinData; }
+	);
+
+	FNaniteShadingPassParameters* ShadingPassParameters = GraphBuilder.AllocParameters<FNaniteShadingPassParameters>();
+	{
+		FNaniteUniformParameters* UniformParameters		= GraphBuilder.AllocParameters<FNaniteUniformParameters>();
+		UniformParameters->PageConstants				= RasterResults.PageConstants;
+		UniformParameters->MaxNodes						= Nanite::FGlobalResources::GetMaxNodes();
+		UniformParameters->MaxVisibleClusters			= Nanite::FGlobalResources::GetMaxVisibleClusters();
+		UniformParameters->RenderFlags					= RasterResults.RenderFlags;
+		UniformParameters->MaterialConfig				= FIntVector4(0, 1, 1, 0); // Tile based material culling is not required for Lumen, as each card is rendered as a small rect
+		UniformParameters->RectScaleOffset				= FVector4f(1.0f, 1.0f, 0.0f, 0.0f); // This will be overridden in vertex shader
+
+		UniformParameters->ClusterPageData				= Nanite::GStreamingManager.GetClusterPageDataSRV(GraphBuilder);
+		UniformParameters->HierarchyBuffer				= Nanite::GStreamingManager.GetHierarchySRV(GraphBuilder);
+		UniformParameters->VisibleClustersSWHW			= GraphBuilder.CreateSRV(RasterResults.VisibleClustersSWHW);
+		UniformParameters->MaterialTileRemap			= GraphBuilder.CreateSRV(GSystemTextures.GetDefaultStructuredBuffer<uint32>(GraphBuilder), PF_R32_UINT); // TODO: Remove
+
+	#if RHI_RAYTRACING
+		UniformParameters->RayTracingCutError			= Nanite::GRayTracingManager.GetCutError();
+		UniformParameters->RayTracingDataBuffer			= Nanite::GRayTracingManager.GetAuxiliaryDataSRV(GraphBuilder);
+	#else
+		UniformParameters->RayTracingCutError			= 0.0f;
+		UniformParameters->RayTracingDataBuffer			= GraphBuilder.CreateSRV(GSystemTextures.GetDefaultStructuredBuffer<uint32>(GraphBuilder));
+	#endif
+
+		UniformParameters->VisBuffer64					= RasterContext.VisBuffer64;
+		UniformParameters->DbgBuffer64					= SystemTextures.Black;
+		UniformParameters->DbgBuffer32					= SystemTextures.Black;
+		UniformParameters->ShadingMask					= SystemTextures.Black;
+		UniformParameters->MaterialDepthTable			= GraphBuilder.GetPooledBuffer(GSystemTextures.GetDefaultBuffer(GraphBuilder, 4, 0u))->GetSRV(GraphBuilder.RHICmdList, FRHIBufferSRVCreateInfo(PF_R32_UINT));
+
+		UniformParameters->ShadingBinData				= GraphBuilder.CreateSRV(ShadingBinData);
+
+		UniformParameters->MaterialDepthTable			= GraphBuilder.GetPooledBuffer(GSystemTextures.GetDefaultStructuredBuffer<uint32>(GraphBuilder))->GetSRV(GraphBuilder.RHICmdList, FRHIBufferSRVCreateInfo(PF_R32_UINT));
+
+		UniformParameters->MultiViewEnabled				= 1;
+		UniformParameters->MultiViewIndices				= GraphBuilder.CreateSRV(GSystemTextures.GetDefaultStructuredBuffer<uint32>(GraphBuilder));
+		UniformParameters->MultiViewRectScaleOffsets	= GraphBuilder.CreateSRV(GSystemTextures.GetDefaultStructuredBuffer<FVector4>(GraphBuilder));
+		UniformParameters->InViews						= GraphBuilder.CreateSRV(PackedViewBuffer);
+
+		ShadingPassParameters->Nanite					= GraphBuilder.CreateUniformBuffer(UniformParameters);
+	}
+
+	CardPagesToRender[0].PatchView(&Scene, SharedView);
+	ShadingPassParameters->View = SharedView->GetShaderParameters();
+	ShadingPassParameters->Scene = SharedView->GetSceneUniforms().GetBuffer(GraphBuilder);
+	ShadingPassParameters->CardPass = GraphBuilder.CreateUniformBuffer(PassUniformParameters);
+
+	// No possibility of read/write hazard due to fully resolved vbuffer/materials
+	const ERDGUnorderedAccessViewFlags OutTargetFlags = ERDGUnorderedAccessViewFlags::SkipBarrier;
+
+	ShadingPassParameters->OutTarget0 = GraphBuilder.CreateUAV(AlbedoAtlasTexture, OutTargetFlags);
+	ShadingPassParameters->OutTarget1 = GraphBuilder.CreateUAV(NormalAtlasTexture, OutTargetFlags);
+	ShadingPassParameters->OutTarget2 = GraphBuilder.CreateUAV(EmissiveAtlasTexture, OutTargetFlags);
+
+	GraphBuilder.AddPass(
+		RDG_EVENT_NAME("LumenShadeCS"),
+		ShadingPassParameters,
+		ERDGPassFlags::Compute,
+		[ShadingPassParameters, SharedView, &ShadingCommands, &CapturePasses = CaptureContext.Passes]
+		(const FRDGPass* RDGPass, FRHIComputeCommandList& RHICmdList)
+		{
+			// This is processed within the RDG pass lambda, so the setup task should be complete by now.
+			check(ShadingCommands.BuildCommandsTask.IsCompleted());
+
+			TRACE_CPUPROFILER_EVENT_SCOPE(LumenEmitGBuffer);
+			SCOPED_DRAW_EVENTF(RHICmdList, LumenEmitGBuffer, TEXT("%d materials"), CapturePasses.Num());
+
+			TArray<FRHIUnorderedAccessView*, TInlineAllocator<3>> OutputTargets;
+			auto GetOutputTargetRHI = [](const FRDGTextureUAVRef OutputTarget)
+			{
+				FRHIUnorderedAccessView* OutputTargetRHI = nullptr;
+				if (OutputTarget != nullptr)
+				{
+					OutputTarget->MarkResourceAsUsed();
+					OutputTargetRHI = OutputTarget->GetRHI();
+				}
+				return OutputTargetRHI;
+			};
+
+			OutputTargets.Add(GetOutputTargetRHI(ShadingPassParameters->OutTarget0));
+			OutputTargets.Add(GetOutputTargetRHI(ShadingPassParameters->OutTarget1));
+			OutputTargets.Add(GetOutputTargetRHI(ShadingPassParameters->OutTarget2));
+
+			FRHIBatchedShaderParameters& BatchedParameters = RHICmdList.GetScratchShaderParameters();
+			check(!BatchedParameters.HasParameters());
+
+			for (const FLumenCapturePass& CapturePass : CapturePasses)
+			{
+				const int32 CommandIndex = ShadingCommands.CommandLookup[CapturePass.ShadingBin.BinIndex];
+				FNaniteShadingCommand& ShadingCommand = ShadingCommands.Commands[CommandIndex];
+				check(ShadingCommand.ShadingBin == CapturePass.ShadingBin.BinIndex);
+				
+				if (!Nanite::PrepareShadingCommand(ShadingCommand))
+				{
+					break;
+				}
+
+			#if WANTS_DRAW_MESH_EVENTS
+				SCOPED_CONDITIONAL_DRAW_EVENTF(RHICmdList, LumenCS, GShowMaterialDrawEvents != 0, TEXT("%s [%d tiles]"), GetShadingMaterialName(ShadingCommand.Pipeline->MaterialProxy), CapturePass.TotalTileCount);
+			#endif
+
+				// Record parameters
+				FRHIBatchedShaderParameters ShadingParameters;
+				Nanite::RecordLumenCardParameters(ShadingParameters, ShadingCommand, OutputTargets);
+
+				// Record dispatch
+				{
+					FRHIComputeShader* ComputeShaderRHI = ShadingCommand.Pipeline->ComputeShader;
+					SetComputePipelineState(RHICmdList, ComputeShaderRHI);
+
+					if (GRHISupportsShaderRootConstants)
+					{
+						RHICmdList.SetShaderRootConstants(ShadingCommand.PassData);
+					}
+
+					RHICmdList.SetBatchedShaderParameters(ComputeShaderRHI, ShadingParameters);
+					RHICmdList.DispatchComputeShader(CapturePass.TotalTileCount, 1, 1);
+				}
+			}
+		}
+	);
+
+	// Mark scene stencil for all Nanite pixels
+	{
+		MarkStencilRects(
+			GraphBuilder,
+			RasterContext,
+			Scene,
+			SharedView,
+			ViewportSize,
+			NumRects,
+			RectMinMaxBufferSRV,
+			DepthAtlasTexture
+		);
+	}
+
+	// Emit scene depth values for all Nanite pixels
+	{
+		EmitMaterialDepthRects(
+			GraphBuilder,
+			RasterContext,
+			Scene,
+			SharedView,
+			ViewportSize,
+			NumRects,
+			RectMinMaxBufferSRV,
+			DepthAtlasTexture,
+			false /* legacy culling */
+		);
+	}
 }
-#endif

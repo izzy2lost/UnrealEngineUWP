@@ -9,8 +9,10 @@
 
 class FScene;
 class FLumenPrimitiveGroup;
-class FNaniteCommandInfo;
 class FLumenCard;
+class FNaniteCommandInfo;
+struct FNaniteShadingBin;
+struct FNaniteShadingCommand;
 
 struct FCardCaptureAtlas
 {
@@ -32,11 +34,11 @@ struct FResampledCardCaptureAtlas
 class FCardPageRenderData
 {
 public:
-	int32 PrimitiveGroupIndex = -1;
+	int32 PrimitiveGroupIndex = INDEX_NONE;
 
 	// CardData
-	const int32 CardIndex = -1;
-	const int32 PageTableIndex = -1;
+	const int32 CardIndex = INDEX_NONE;
+	const int32 PageTableIndex = INDEX_NONE;
 	FVector4f CardUVRect;
 	FIntRect CardCaptureAtlasRect;
 	FIntRect SurfaceCacheAtlasRect;
@@ -50,7 +52,8 @@ public:
 	int32 NumMeshDrawCommands = 0;
 
 	TArray<uint32, SceneRenderingAllocator> NaniteInstanceIds;
-	TArray<FNaniteCommandInfo, SceneRenderingAllocator> NaniteCommandInfos;
+	TArray<FNaniteCommandInfo, SceneRenderingAllocator> NaniteCommandInfos; // Legacy
+	TArray<FNaniteShadingBin, SceneRenderingAllocator> NaniteShadingBins; // WIP
 	float NaniteLODScaleFactor = 1.0f;
 
 	bool bResampleLastLighting = false;
@@ -68,27 +71,52 @@ public:
 		int32 InCardIndex,
 		int32 InCardPageIndex,
 		bool bResampleLastLighting);
+
 	~FCardPageRenderData();
 
 	void UpdateViewMatrices(const FViewInfo& MainView);
-
 	void PatchView(const FScene* Scene, FViewInfo* View) const;
+
+	inline bool HasNanite() const
+	{
+		//return NaniteShadingBins.Num() > 0 && NaniteInstanceIds.Num() > 0;
+		return NaniteCommandInfos.Num() > 0 && NaniteInstanceIds.Num() > 0;
+	}
 };
 
 namespace LumenScene
 {
-	bool HasPrimitiveNaniteMeshBatches(const FPrimitiveSceneProxy* Proxy);
 
-	void AllocateCardCaptureAtlas(FRDGBuilder& GraphBuilder, FIntPoint CardCaptureAtlasSize, FCardCaptureAtlas& CardCaptureAtlas);
+bool HasPrimitiveNaniteMeshBatches(const FPrimitiveSceneProxy* Proxy);
 
-	void AddCardCaptureDraws(
-		const FScene* Scene,
-		FCardPageRenderData& CardPageRenderData,
-		const FLumenPrimitiveGroup& PrimitiveGroup,
-		TConstArrayView<const FPrimitiveSceneInfo*> SceneInfoPrimitives,
-		FMeshCommandOneFrameArray& VisibleMeshCommands,
-		TArray<int32, SceneRenderingAllocator>& PrimitiveIds);
-};
+void AllocateCardCaptureAtlas(
+	FRDGBuilder& GraphBuilder,
+	FIntPoint CardCaptureAtlasSize,
+	FCardCaptureAtlas& CardCaptureAtlas,
+	EShaderPlatform ShaderPlatform
+);
+
+void AddCardCaptureDraws(
+	const FScene* Scene,
+	FCardPageRenderData& CardPageRenderData,
+	const FLumenPrimitiveGroup& PrimitiveGroup,
+	TConstArrayView<const FPrimitiveSceneInfo*> SceneInfoPrimitives,
+	FMeshCommandOneFrameArray& VisibleMeshCommands,
+	TArray<int32, SceneRenderingAllocator>& PrimitiveIds
+);
+
+}
+
+namespace Nanite
+{
+
+void RecordLumenCardParameters(
+	FRHIBatchedShaderParameters& ShaderParameters,
+	FNaniteShadingCommand& ShadingCommand,
+	const TArray<FRHIUnorderedAccessView*, TInlineAllocator<3>>& OutputTargets
+);
+
+}
 
 FMeshPassProcessor* CreateLumenCardNaniteMeshProcessor(
 	ERHIFeatureLevel::Type FeatureLevel,

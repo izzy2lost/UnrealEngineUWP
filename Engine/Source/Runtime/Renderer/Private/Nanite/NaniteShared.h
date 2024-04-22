@@ -891,6 +891,7 @@ struct FNaniteShadingCommands
 	uint32 BoundTargetMask = 0x0u;
 	FShaderBundleRHIRef ShaderBundle;
 	TArray<FNaniteShadingCommand> Commands;
+	TArray<int32> CommandLookup;
 	FMetaBufferArray MetaBufferData;
 
 	UE::Tasks::FTask SetupTask;

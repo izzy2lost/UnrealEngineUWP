@@ -1793,6 +1793,7 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 		&& !bHasRayTracedOverlay;
 
 	bool bComputeLightGrid = false;
+	bool bAnyLumenEnabled = false;
 
 	if (RendererOutput == ERendererOutput::FinalSceneColor)
 	{
@@ -1817,8 +1818,6 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 			RayTracing::GatherWorldInstancesForView(GraphBuilder, *Scene, ReferenceView, RayTracingScene, DynamicReadBufferForRayTracing, Allocator, *InitViewTaskDatas.RayTracingRelevantPrimitives->List);
 		}
 #endif // RHI_RAYTRACING
-
-		bool bAnyLumenEnabled = false;
 
 		{
 			if (bUseGBuffer)
@@ -2068,6 +2067,10 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 	if (bNaniteEnabled && RendererOutput == ERendererOutput::FinalSceneColor && !bHasRayTracedOverlay)
 	{
 		Nanite::BuildShadingCommands(GraphBuilder, *Scene, ENaniteMeshPass::BasePass, Scene->NaniteShadingCommands[ENaniteMeshPass::BasePass], false);
+		if (bAnyLumenEnabled)
+		{
+			Nanite::BuildShadingCommands(GraphBuilder, *Scene, ENaniteMeshPass::LumenCardCapture, Scene->NaniteShadingCommands[ENaniteMeshPass::LumenCardCapture], false);
+		}
 	}
 
 	FComputeLightGridOutput ComputeLightGridOutput = {};
