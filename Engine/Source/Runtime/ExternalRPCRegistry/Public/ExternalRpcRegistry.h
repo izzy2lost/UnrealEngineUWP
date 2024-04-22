@@ -118,6 +118,23 @@ public:
 	}
 };
 
+USTRUCT()
+struct FRpcLedgerEntry
+{
+	GENERATED_BODY()
+public:
+	FString RpcName;
+	FString RequestBody;
+	FDateTime RequestTime;
+	FRpcLedgerEntry() = default;
+	FRpcLedgerEntry(FString InName, FString InBody)
+	{
+		RpcName = InName;
+		RequestBody = InBody;
+		RequestTime = FDateTime::UtcNow();
+	}
+};
+
 /**
  * This class is designed to be a singleton that handles registry, maintenance, and cleanup of any REST endpoints exposed on the process 
  * for use in communicating with the process externally. 
@@ -130,12 +147,15 @@ protected:
 	static EXTERNALRPCREGISTRY_API UExternalRpcRegistry * ObjectInstance;
 	TMap<FName, FExternalRouteDesc> RegisteredRoutes;
 	TArray<FString> ActiveRpcCategories;
+	TArray<FRpcLedgerEntry> RequestLedger;
 public:
 	static EXTERNALRPCREGISTRY_API UExternalRpcRegistry * GetInstance();
+	static EXTERNALRPCREGISTRY_API bool IsEnabled();
 
 	EXTERNALRPCREGISTRY_API ~UExternalRpcRegistry();
 
 	int PortToUse = 11223;
+	int RequestLedgerCapacity = 10;
 
 	/**
 	* Check if this Rpc is from a category that is meant to be enabled.
@@ -159,7 +179,6 @@ public:
 	* Deprecated way to register a new route.
 	* Will override existing routes if option is set, otherwise will error and fail to bind.
 	 */
-	UE_DEPRECATED(5.0, "RegisterNewRoute is deprecated when needing to add arguments, please use RegisterNewRouteWithArguments instead.")
 	EXTERNALRPCREGISTRY_API void RegisterNewRoute(FName RouteName, const FHttpPath& HttpPath, const EHttpServerRequestVerbs& RequestVerbs, const FHttpRequestHandler& Handler, bool bOverrideIfBound = false, bool bIsAlwaysOn = false, FString OptionalCategory = TEXT("Unknown"), FString OptionalContentType = {}, FString OptionalExpectedFormat = {});
 
 	/**
@@ -178,6 +197,16 @@ public:
 	 * Always registered at /listrpcs GET by default
 	 */
 	EXTERNALRPCREGISTRY_API bool HttpListOpenRoutes(const FHttpServerRequest& Request, const FHttpResultCallback& OnComplete);
+	/**
+	* Records an RPC call into the ledger, plus trims the ledger if it is too large.
+	 */
+	EXTERNALRPCREGISTRY_API void AddRequestToLedger(const FHttpServerRequest& Request);
+
+	/**
+	 * Default request history call. Lists all calls recorded in the ledger, showing RPC name, request time, request body
+	 * Always registered at /requesthistory GET by default
+	 */
+	EXTERNALRPCREGISTRY_API bool HttpPrintRequestLedger(const FHttpServerRequest& Request, const FHttpResultCallback& OnComplete);
 
 	/**
 	 * Route Listing http, formatted for Swagger OASv3. Spits out all registered routes and describes them via a REST API call.

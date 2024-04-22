@@ -72,6 +72,19 @@ UExternalRpcRegistry::~UExternalRpcRegistry()
 	CleanUpAllRoutes();
 }
 
+bool UExternalRpcRegistry::IsEnabled()
+{
+#if WITH_RPC_REGISTRY
+	int32 RpcPort = 0;
+	// Not just returning this if because it'll cause static analysis issues for unreachable code in non-shipping
+	if (FParse::Value(FCommandLine::Get(), TEXT("rpcport="), RpcPort))
+	{
+		return true;
+	}
+#endif
+	return false;
+}
+
 UExternalRpcRegistry* UExternalRpcRegistry::GetInstance()
 {
 #if WITH_RPC_REGISTRY
@@ -92,16 +105,23 @@ UExternalRpcRegistry* UExternalRpcRegistry::GetInstance()
 			}
 		}
 		FParse::Value(FCommandLine::Get(), TEXT("rpcport="), ObjectInstance->PortToUse);
-		
-		FHttpRequestHandler ListRoutesRequestHandler = FHttpRequestHandler::CreateUObject(ObjectInstance, &ThisClass::HttpListOpenRoutes);
-		FHttpRequestHandler ListOASv3RequestHandler = FHttpRequestHandler::CreateUObject(ObjectInstance, &ThisClass::HttpListOASv3JSONRoutes);
-		TArray<FExternalRpcArgumentDesc> ArgumentArray;
+		FParse::Value(FCommandLine::Get(), TEXT("rpcledgersize="), ObjectInstance->RequestLedgerCapacity);
+
 		// We always want the ListRegisteredRpcs route bound, no matter what.
-		ObjectInstance->RegisterNewRouteWithArguments(TEXT("ListRegisteredRpcs"), FHttpPath("/listrpcs"), EHttpServerRequestVerbs::VERB_GET,
-			ListRoutesRequestHandler, ArgumentArray, true, true);
+
+		FHttpRequestHandler ListRoutesRequestHandler = FHttpRequestHandler::CreateUObject(ObjectInstance, &ThisClass::HttpListOpenRoutes);
+		ObjectInstance->RegisterNewRoute(TEXT("ListRegisteredRpcs"), FHttpPath("/listrpcs"), EHttpServerRequestVerbs::VERB_GET,
+			ListRoutesRequestHandler, true, true);
+
+		FHttpRequestHandler PrintLedgerRequestHandler = FHttpRequestHandler::CreateUObject(ObjectInstance, &ThisClass::HttpPrintRequestLedger);
+		// We always want the ListRegisteredRpcs route bound, no matter what.
+		ObjectInstance->RegisterNewRoute(TEXT("GetRequestHistory"), FHttpPath("/requesthistory"), EHttpServerRequestVerbs::VERB_GET,
+			PrintLedgerRequestHandler, true, true);
+
+		FHttpRequestHandler ListOASv3RequestHandler = FHttpRequestHandler::CreateUObject(ObjectInstance, &ThisClass::HttpListOASv3JSONRoutes);
 		// /swagger.json escaped as %2e
-		ObjectInstance->RegisterNewRouteWithArguments(TEXT("ListSwaggerJson"), FHttpPath("/swagger.json"), EHttpServerRequestVerbs::VERB_GET,
-			ListOASv3RequestHandler, ArgumentArray, true, true);
+		ObjectInstance->RegisterNewRoute(TEXT("ListSwaggerJson"), FHttpPath("/swagger.json"), EHttpServerRequestVerbs::VERB_GET,
+			ListOASv3RequestHandler, true, true);
 
 		ObjectInstance->AddToRoot();
 	}
@@ -248,6 +268,48 @@ bool UExternalRpcRegistry::HttpListOpenRoutes(const FHttpServerRequest& Request,
 			}
 			JsonWriter->WriteArrayEnd();
 		}
+		JsonWriter->WriteObjectEnd();
+	}
+	JsonWriter->WriteArrayEnd();
+	JsonWriter->Close();
+	auto Response = FHttpServerResponse::Create(ResponseStr, TEXT("application/json"));
+	OnComplete(MoveTemp(Response));
+#endif
+	return true;
+}
+void UExternalRpcRegistry::AddRequestToLedger(const FHttpServerRequest& Request)
+{
+#if WITH_RPC_REGISTRY
+	if (Request.Headers.Find(TEXT("rpcname")))
+	{
+		FRpcLedgerEntry NewEntry;
+		NewEntry.RpcName = Request.Headers[TEXT("rpcname")][0];
+		FUTF8ToTCHAR WByteBuffer(reinterpret_cast<const ANSICHAR*>(Request.Body.GetData()), Request.Body.Num());
+		NewEntry.RequestBody = FString(WByteBuffer.Length(), WByteBuffer.Get());
+		NewEntry.RequestTime = FDateTime::UtcNow();
+		RequestLedger.Add(NewEntry);
+	}
+	// Reduce ledger to proper max size.
+	while (RequestLedger.Num() > RequestLedgerCapacity)
+	{
+		RequestLedger.RemoveAt(0);
+	}
+#endif
+}
+
+bool UExternalRpcRegistry::HttpPrintRequestLedger(const FHttpServerRequest& Request, const FHttpResultCallback& OnComplete)
+{
+#if WITH_RPC_REGISTRY
+	FString ResponseStr;
+	TSharedRef<TJsonWriter<>> JsonWriter = TJsonWriterFactory<>::Create(&ResponseStr);
+	JsonWriter->WriteArrayStart();
+	for (const FRpcLedgerEntry& LoggedRequest : RequestLedger)
+	{
+		JsonWriter->WriteObjectStart();
+		JsonWriter->WriteValue(TEXT("rpcname"), LoggedRequest.RpcName);
+		JsonWriter->WriteValue(TEXT("requesttimestamp"), LoggedRequest.RequestTime.ToString());
+		JsonWriter->WriteValue(TEXT("requestbody"), LoggedRequest.RequestBody);
+
 		JsonWriter->WriteObjectEnd();
 	}
 	JsonWriter->WriteArrayEnd();
