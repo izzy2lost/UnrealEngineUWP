@@ -613,7 +613,7 @@ void FSceneProxyBase::DrawStaticElementsInternal(FStaticPrimitiveDrawInterface* 
 	}
 }
 
-void FSceneProxyBase::OnMaterialsUpdated()
+void FSceneProxyBase::OnMaterialsUpdated(bool bOverrideMaterialRelevance)
 {
 	CombinedMaterialRelevance = FMaterialRelevance();
 	MaxWPOExtent = 0.0f;
@@ -635,7 +635,10 @@ void FSceneProxyBase::OnMaterialsUpdated()
 		const UMaterialInterface* ShadingMaterial = MaterialSection.ShadingMaterialProxy->GetMaterialInterface();
 
 		// Update section relevance and combined material relevance
-		MaterialSection.MaterialRelevance = ShadingMaterial->GetRelevance_Concurrent(GetScene().GetFeatureLevel());
+		if (!bOverrideMaterialRelevance)
+		{
+			MaterialSection.MaterialRelevance = ShadingMaterial->GetRelevance_Concurrent(GetScene().GetFeatureLevel());
+		}
 		CombinedMaterialRelevance |= MaterialSection.MaterialRelevance;
 
 		// Now that the material relevance is updated, determine if any material has programmable raster

@@ -369,7 +369,7 @@ public:
 
 protected:
 	ENGINE_API void DrawStaticElementsInternal(FStaticPrimitiveDrawInterface* PDI, const FLightCacheInterface* LCI);
-	ENGINE_API void OnMaterialsUpdated();
+	ENGINE_API void OnMaterialsUpdated(bool bOverrideMaterialRelevance = false);
 	ENGINE_API bool SupportsAlwaysVisible() const;
 
 protected:

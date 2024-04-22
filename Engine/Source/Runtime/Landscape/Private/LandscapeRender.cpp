@@ -4813,39 +4813,32 @@ public:
 			bAffectDistanceFieldLighting = false;
 		}
 
-		bool bAnySectionMasked = false;
-		bHasVertexProgrammableRaster = false;
-		bHasPixelProgrammableRaster = false;
-
+		// Remove masking for any materials that are only pixel programmable because of masking
+		bool bMaterialsNeedUpdate = false;
 		for (::Nanite::FSceneProxyBase::FMaterialSection& MaterialSection : MaterialSections)
 		{
 			const bool bWasMasked = MaterialSection.MaterialRelevance.bMasked;
 			MaterialSection.MaterialRelevance.bMasked = false;
 
-			bool bProgrammableRasterMaterial = false;
-			if (MaterialSection.IsVertexProgrammableRaster(bEvaluateWorldPositionOffset))
-			{
-				bHasVertexProgrammableRaster = true;
-				bProgrammableRasterMaterial = true;
-			}
 			if (MaterialSection.IsPixelProgrammableRaster())
 			{
 				// Don't change bMasked if it is not the sole factor that makes the material section programmable
 				MaterialSection.MaterialRelevance.bMasked = bWasMasked;
-				bAnySectionMasked |= bWasMasked;
-				bHasPixelProgrammableRaster = true;
-				bProgrammableRasterMaterial = true;
 			}
-			
-			if (!bProgrammableRasterMaterial)
+			else if (bWasMasked)
 			{
-				MaterialSection.ResetToDefaultMaterial(false, true);
+				bMaterialsNeedUpdate = true;
 			}
 		}
 
-		CombinedMaterialRelevance.bMasked = bAnySectionMasked;
+		if (bMaterialsNeedUpdate)
+		{
+			// Update our cumulative state based on new material settings and newly imposed material relevance
+			// NOTE: This will reset any previously masked materials that are now non-programmable to fixed function
+			OnMaterialsUpdated(/* bOverrideMaterialRelevance */ true);
+		}
 
-		// Check to disable per-cluster displacement fallback raster
+		// Check to disable per-cluster displacement fallback raster (must be done after updating materials)
 		if (GLandscapeAllowNanitePerClusterDisplacementDisable != 0 &&
 			MaterialDisplacementFadeOutSize > 0.0f)
 		{
