@@ -133,6 +133,18 @@ struct COREUOBJECT_API FOptionalPropertyLayout
 		checkSlow(Data);
 		return IsSet(Data) ? Data : nullptr;
 	}
+
+	FORCEINLINE int32 CalcSize() const
+	{
+		if (ValueProperty->HasIntrusiveUnsetOptionalState())
+		{
+			return ValueProperty->GetSize();
+		}
+		else
+		{
+			return Align(CalcIsSetOffset() + 1, ValueProperty->GetMinAlignment());
+		}
+	}
 	
 protected:
 
@@ -152,18 +164,6 @@ protected:
 			ValueProperty->GetMinAlignment());
 		return ValueProperty->GetSize();
 	}
-	FORCEINLINE int32 CalcSize() const
-	{
-		if (ValueProperty->HasIntrusiveUnsetOptionalState())
-		{
-			return ValueProperty->GetSize();
-		}
-		else
-		{
-			return Align(CalcIsSetOffset() + 1, ValueProperty->GetMinAlignment());
-		}
-	}
-
 
 	FORCEINLINE bool* GetIsSetPointer(void* Data) const
 	{

@@ -4045,6 +4045,14 @@ void FObjectInitializer::PostConstructInit()
 		Subobject->PostReinitProperties();
 	}
 
+	for (TFunction<void()>& Callback : PropertyPostInitCallbacks)
+	{
+		if (Callback)
+		{
+			Callback();
+		}
+	}
+
 	{
 		SCOPE_CYCLE_COUNTER(STAT_PostInitProperties);
 		Obj->PostInitProperties();

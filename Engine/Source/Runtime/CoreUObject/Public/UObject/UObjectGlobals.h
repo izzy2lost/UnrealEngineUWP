@@ -1241,6 +1241,11 @@ public:
 		return InstanceGraph;
 	}
 
+	FORCEINLINE void AddPropertyPostInitCallback(TFunction<void()>&& Callback)
+	{
+		PropertyPostInitCallbacks.Add(MoveTemp(Callback));
+	}
+
 	/**
 	* Return the class of the object that is being constructed
 	**/
@@ -1618,8 +1623,9 @@ private:
 	/**  Previously constructed object in the callstack */
 	UObject* LastConstructedObject = nullptr;
 
-	/** Callback for custom property initialization before PostInitProperties gets called */
+	/** Callbacks for custom property initialization before PostInitProperties gets called */
 	TFunction<void()> PropertyInitCallback;
+	TArray<TFunction<void()>> PropertyPostInitCallbacks;
 
 	friend struct FStaticConstructObjectParameters;
 
