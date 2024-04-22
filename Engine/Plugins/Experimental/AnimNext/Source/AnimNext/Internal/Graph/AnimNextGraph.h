@@ -111,6 +111,9 @@ protected:
 	// Set the default entry point name (unqualified)
 	void SetDefaultEntryPoint(FName InEntryPoint);
 
+	// Cache the default entry point
+	void CacheDefaultEntryPoint() const;
+
 	friend class UAnimNextGraphFactory;
 	friend class UAnimNextGraph_EditorData;
 	friend class UAnimNextGraph_Parameter;
@@ -160,9 +163,9 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "Graph")
 	FName DefaultEntryPoint = FRigUnit_AnimNextGraphRoot::DefaultEntryPoint;
 
-	// Cached fully-qualified entry point, set via by SetDefaultEntryPoint.
+	// Cached fully-qualified entry point, set via by SetDefaultEntryPoint/GetDefaultEntryPoint.
 	UPROPERTY(Transient)
-	FName CachedDefaultEntryPoint = NAME_None;
+	mutable FName CachedDefaultEntryPoint = NAME_None;
 
 	// Hash of required parameters
 	UPROPERTY()

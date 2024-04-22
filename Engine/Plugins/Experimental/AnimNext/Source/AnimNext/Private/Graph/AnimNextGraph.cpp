@@ -160,7 +160,7 @@ void UAnimNextGraph::Serialize(FArchive& Ar)
 			}
 		}
 
-		SetDefaultEntryPoint(DefaultEntryPoint);
+		CacheDefaultEntryPoint();
 	}
 	else if (Ar.IsSaving())
 	{
@@ -189,7 +189,7 @@ void UAnimNextGraph::PostEditChangeProperty(FPropertyChangedEvent& PropertyChang
 {
 	if(PropertyChangedEvent.Property && PropertyChangedEvent.Property->GetFName() == GET_MEMBER_NAME_CHECKED(UAnimNextGraph, DefaultEntryPoint))
 	{
-		SetDefaultEntryPoint(DefaultEntryPoint); 
+		CacheDefaultEntryPoint(); 
 	}
 }
 #endif
@@ -264,14 +264,24 @@ void UAnimNextGraph::SetDefaultEntryPoint(FName InEntryPoint)
 {
 	DefaultEntryPoint = InEntryPoint;
 
+	CacheDefaultEntryPoint();
+}
+
+FName UAnimNextGraph::GetDefaultEntryPoint() const
+{
+	if(CachedDefaultEntryPoint == NAME_None)
+	{
+		CacheDefaultEntryPoint();
+	}
+
+	return CachedDefaultEntryPoint;
+}
+
+void UAnimNextGraph::CacheDefaultEntryPoint() const
+{
 	TStringBuilder<256> StringBuilder;
 	StringBuilder.Append(GetPathName());
 	StringBuilder.Append(TEXT(":"));
 	DefaultEntryPoint.AppendString(StringBuilder);
 	CachedDefaultEntryPoint = FName(StringBuilder.ToView());
-}
-
-FName UAnimNextGraph::GetDefaultEntryPoint() const
-{
-	return CachedDefaultEntryPoint;
 }
