@@ -63,7 +63,7 @@ int32 FGeometryCollectionClusteringUtility::ClusterBonesUnderNewNodeWithParent(F
 	return NewBoneIndex;
 }
 
-void FGeometryCollectionClusteringUtility::ClusterAllBonesUnderNewRoot(FGeometryCollection* GeometryCollection)
+void FGeometryCollectionClusteringUtility::ClusterAllBonesUnderNewRoot(FGeometryCollection* GeometryCollection, FName RootName, bool bUpdateChildBoneNames)
 {
 	check(GeometryCollection);
 	bool CalcNewLocalTransform = true;
@@ -73,6 +73,7 @@ void FGeometryCollectionClusteringUtility::ClusterAllBonesUnderNewRoot(FGeometry
 	TManagedArray<int32>& Parents = GeometryCollection->Parent;
 	TManagedArray<TSet<int32>>& Children = GeometryCollection->Children;
 	TManagedArray<int32>& SimulationType = GeometryCollection->SimulationType;
+	TManagedArray<FLinearColor>& BoneColors = GeometryCollection->BoneColor;
 
 	TArray<int32> ChildBones;
 	int32 NumElements = GeometryCollection->NumElements(FGeometryCollection::TransformGroup);
@@ -98,7 +99,14 @@ void FGeometryCollectionClusteringUtility::ClusterAllBonesUnderNewRoot(FGeometry
 	}
 
 	// New Bone Setup takes level/parent from the first of the Selected Bones
-	BoneNames[RootNoneIndex] = "ClusterBone";
+	if (RootName.IsNone())
+	{
+		BoneNames[RootNoneIndex] = "ClusterBone";
+	}
+	else
+	{
+		BoneNames[RootNoneIndex] = RootName.ToString();
+	}
 	Parents[RootNoneIndex] = FGeometryCollection::Invalid;
 	Children[RootNoneIndex] = TSet<int32>(ChildBones);
 	SimulationType[RootNoneIndex] = FGeometryCollection::ESimulationTypes::FST_Clustered;
@@ -131,8 +139,13 @@ void FGeometryCollectionClusteringUtility::ClusterAllBonesUnderNewRoot(FGeometry
 
 	Transforms[RootNoneIndex] = FTransform3f::Identity;
 
+	if (bUpdateChildBoneNames)
+	{
+		RecursivelyUpdateChildBoneNames(RootNoneIndex, Children, BoneNames);
+	}
 
-	RecursivelyUpdateChildBoneNames(RootNoneIndex, Children, BoneNames);
+	const FColor RandBoneColor(FMath::Rand() % 100 + 5, FMath::Rand() % 100 + 5, FMath::Rand() % 100 + 5, 255);
+	BoneColors[RootNoneIndex] = FLinearColor(RandBoneColor);
 
 	ValidateResults(GeometryCollection);
 }

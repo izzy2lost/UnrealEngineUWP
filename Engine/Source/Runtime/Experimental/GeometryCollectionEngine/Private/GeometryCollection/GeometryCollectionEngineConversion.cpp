@@ -1158,6 +1158,7 @@ bool FGeometryCollectionEngineConversion::AppendSkeletalMesh(const USkeletalMesh
 	// Transform Attributes
 	TManagedArray<FTransform3f>& LocalSpaceTransform = GeometryCollection.ModifyAttribute<FTransform3f>(FTransformCollection::TransformAttribute, FTransformCollection::TransformGroup);
 	TManagedArray<int32>& Parent = GeometryCollection.ModifyAttribute<int32>(FTransformCollection::ParentAttribute, FTransformCollection::TransformGroup);
+	TManagedArray<TSet<int32>>& Children = GeometryCollection.ModifyAttribute<TSet<int32>>(FTransformCollection::ChildrenAttribute, FTransformCollection::TransformGroup);
 	TManagedArray<FLinearColor>& BoneColor = GeometryCollection.ModifyAttribute<FLinearColor>("BoneColor", FTransformCollection::TransformGroup);
 	TManagedArray<FString>& BoneName = GeometryCollection.ModifyAttribute<FString>("BoneName", FTransformCollection::TransformGroup);
 	TManagedArray<int32>& SimulationType = GeometryCollection.ModifyAttribute<int32>("SimulationType", FTransformCollection::TransformGroup);
@@ -1181,21 +1182,28 @@ bool FGeometryCollectionEngineConversion::AppendSkeletalMesh(const USkeletalMesh
 	int32 TransformBaseIndex = INDEX_NONE;
 	const USkeleton* Skeleton = InSkeletalMesh->GetSkeleton();
 	const TArray<FTransform>& RestArray = Skeleton->GetRefLocalPoses();
-	const FReferenceSkeleton& ReferenceSkeletion = Skeleton->GetReferenceSkeleton();
+	const FReferenceSkeleton& ReferenceSkeleton = Skeleton->GetReferenceSkeleton();
 
-	if (ReferenceSkeletion.GetNum())
+	if (ReferenceSkeleton.GetNum())
 	{
-		TransformBaseIndex = GeometryCollection.AddElements(ReferenceSkeletion.GetNum(), FGeometryCollection::TransformGroup);
+		TransformBaseIndex = GeometryCollection.AddElements(ReferenceSkeleton.GetNum(), FGeometryCollection::TransformGroup);
 		RootIndex = TransformBaseIndex;
 
-		for (int32 BoneIndex = 0; BoneIndex < ReferenceSkeletion.GetNum(); BoneIndex++)
+		for (int32 BoneIndex = 0; BoneIndex < ReferenceSkeleton.GetNum(); BoneIndex++)
 		{
 			// For validation against the component space position use
-			// FTransform ComponentSpaceTransform =FAnimationRuntime::GetComponentSpaceTransformRefPose(ReferenceSkeletion, SkeletalBoneMap[BoneIndex]);
+			// FTransform ComponentSpaceTransform =FAnimationRuntime::GetComponentSpaceTransformRefPose(ReferenceSkeleton, SkeletalBoneMap[BoneIndex]);
 
 			LocalSpaceTransform[TransformBaseIndex + BoneIndex] = FTransform3f(RestArray[BoneIndex]);
-			BoneName[TransformBaseIndex + BoneIndex] = ReferenceSkeletion.GetRefBoneInfo()[BoneIndex].Name.ToString();
-			Parent[TransformBaseIndex + BoneIndex] = ReferenceSkeletion.GetRefBoneInfo()[BoneIndex].ParentIndex;
+			BoneName[TransformBaseIndex + BoneIndex] = ReferenceSkeleton.GetRefBoneInfo()[BoneIndex].Name.ToString();
+			Parent[TransformBaseIndex + BoneIndex] = ReferenceSkeleton.GetRefBoneInfo()[BoneIndex].ParentIndex;
+
+			TArray<int32> ChildrenArr;
+			if (ReferenceSkeleton.GetDirectChildBones(BoneIndex, ChildrenArr))
+			{
+				Children[TransformBaseIndex + BoneIndex].Append(ChildrenArr);
+			}
+
 			SimulationType[TransformBaseIndex + BoneIndex] = FGeometryCollection::ESimulationTypes::FST_None;
 			BoneColor[TransformBaseIndex + BoneIndex] = FLinearColor::MakeRandomColor();
 
@@ -1570,7 +1578,7 @@ void FGeometryCollectionEngineConversion::ConvertGeometryCollectionToGeometryCol
 	}
 }
 
-void FGeometryCollectionEngineConversion::ConvertActorToGeometryCollection(const AActor* Actor, FManagedArrayCollection& OutCollection, TArray<TObjectPtr<UMaterial>>& OutMaterials, TArray<FGeometryCollectionAutoInstanceMesh>& OutInstancedMeshes, bool bSplitComponents)
+void FGeometryCollectionEngineConversion::ConvertActorToGeometryCollection(const AActor* Actor, FManagedArrayCollection& OutCollection, TArray<TObjectPtr<UMaterial>>& OutMaterials, TArray<FGeometryCollectionAutoInstanceMesh>& OutInstancedMeshes, const FSkeletalMeshToCollectionConversionParameters& ConversionParameters, bool bSplitComponents)
 {
 #if WITH_EDITORONLY_DATA
 	const FTransform ActorTransform(Actor->GetTransform());
@@ -1630,6 +1638,13 @@ void FGeometryCollectionEngineConversion::ConvertActorToGeometryCollection(const
 		}
 
 		NewGeometryCollection->InitializeMaterials();
+
+		if (ConversionParameters.bParentAllBonesUnderNewRoot && FGeometryCollectionClusteringUtility::ContainsMultipleRootBones(NewGeometryCollection->GetGeometryCollection().Get()))
+		{
+			UE_LOG(UGeometryCollectionConversionLogging, Log, TEXT("FGeometryCollectionEngineConversion::ConvertActorToGeometryCollection() - All bones were parented under new root."));
+
+			FGeometryCollectionClusteringUtility::ClusterAllBonesUnderNewRoot(NewGeometryCollection->GetGeometryCollection().Get(), FName("root"), false);
+		}
 
 		// InstanceMeshes
 		OutInstancedMeshes.Append(NewGeometryCollection->AutoInstanceMeshes);

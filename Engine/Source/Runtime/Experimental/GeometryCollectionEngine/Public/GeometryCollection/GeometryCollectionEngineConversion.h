@@ -27,6 +27,11 @@ class FGeometryCollectionEngineConversion
 {
 public:
 
+	struct FSkeletalMeshToCollectionConversionParameters
+	{
+		bool bParentAllBonesUnderNewRoot = true;
+	};
+
 	/**
 	 * Appends materials to a GeometryCollectionComponent.
 	 * @param Materials : Materials fetched from the StaticMeshComponent used to configure this geometry
@@ -203,6 +208,6 @@ public:
 	*  @param OutInstancedMeshes : InstancedMeshes
 	*  @param bSplitComponents : Split the components
 	*/
-	static GEOMETRYCOLLECTIONENGINE_API void ConvertActorToGeometryCollection(const AActor* Actor, FManagedArrayCollection& OutCollection, TArray<TObjectPtr<UMaterial>>& OutMaterials, TArray<FGeometryCollectionAutoInstanceMesh>& OutInstancedMeshes, bool bSplitComponents = false);
+	static GEOMETRYCOLLECTIONENGINE_API void ConvertActorToGeometryCollection(const AActor* Actor, FManagedArrayCollection& OutCollection, TArray<TObjectPtr<UMaterial>>& OutMaterials, TArray<FGeometryCollectionAutoInstanceMesh>& OutInstancedMeshes, const FSkeletalMeshToCollectionConversionParameters& ConversionParameters, bool bSplitComponents = false);
 
 };
