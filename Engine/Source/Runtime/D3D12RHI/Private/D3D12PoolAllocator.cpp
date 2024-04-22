@@ -88,8 +88,12 @@ void FD3D12MemoryPool::Init()
 		{
 			LLM_PLATFORM_SCOPE(ELLMTag::GraphicsPlatform);
 
-			// we are tracking allocations ourselves, so don't let XMemAlloc track these as well
+#if PLATFORM_WINDOWS
+			// we are tracking allocations ourselves
 			LLM_SCOPED_PAUSE_TRACKING_FOR_TRACKER(ELLMTracker::Default, ELLMAllocType::System);
+#else
+			LLM_SCOPE_BYTAG(D3D12AllocatorUnused);
+#endif
 			VERIFYD3D12RESULT(Adapter->GetD3DDevice()->CreateHeap(&Desc, IID_PPV_ARGS(&Heap)));
 		}
 
@@ -105,7 +109,11 @@ void FD3D12MemoryPool::Init()
 	else
 	{
 		{
+#if PLATFORM_WINDOWS
 			LLM_SCOPED_PAUSE_TRACKING_FOR_TRACKER(ELLMTracker::Default, ELLMAllocType::System);
+#else
+			LLM_SCOPE_BYTAG(D3D12AllocatorUnused);
+#endif
 			const D3D12_HEAP_PROPERTIES HeapProps = CD3DX12_HEAP_PROPERTIES(InitConfig.HeapType, GetGPUMask().GetNative(), GetVisibilityMask().GetNative());
 			VERIFYD3D12RESULT(Adapter->CreateBuffer(HeapProps, GetGPUMask(), InitConfig.InitialResourceState, ED3D12ResourceStateMode::SingleState, InitConfig.InitialResourceState, PoolSize, BackingResource.GetInitReference(), TEXT("Resource Allocator Underlying Buffer"), InitConfig.ResourceFlags));
 #if UE_MEMORY_TRACE_ENABLED
@@ -135,14 +143,18 @@ void FD3D12MemoryPool::Init()
 	}
 #endif // D3D12_RHI_RAYTRACING
 
+#if PLATFORM_WINDOWS
 	LLM_SCOPED_PAUSE_TRACKING_WITH_ENUM_AND_AMOUNT_BYTAG(D3D12AllocatorUnused, int64(PoolSize), ELLMTracker::Platform, ELLMAllocType::System);
+#endif
 	FRHIMemoryPool::Init();
 }
 
 
 void FD3D12MemoryPool::Destroy()
 {
+#if PLATFORM_WINDOWS
 	LLM_SCOPED_PAUSE_TRACKING_FOR_TRACKER(ELLMTracker::Default, ELLMAllocType::System);
+#endif
 
 	FRHIMemoryPool::Destroy();
 
@@ -695,7 +707,9 @@ void FD3D12PoolAllocator::CleanUpAllocations(uint64 InFrameLag, bool bForceFree)
 		FD3D12MemoryPool* MemoryPool = (FD3D12MemoryPool*) Pools[PoolIndex];
 		if (MemoryPool != nullptr && MemoryPool->IsEmpty() && (bForceFree || (MemoryPool->GetLastUsedFrameFence() + InFrameLag <= CompletedFence)))
 		{
+#if PLATFORM_WINDOWS
 			LLM_SCOPED_PAUSE_TRACKING_WITH_ENUM_AND_AMOUNT_BYTAG(D3D12AllocatorUnused, 0 - int64(MemoryPool->GetPoolSize()), ELLMTracker::Platform, ELLMAllocType::System);
+#endif
 			MemoryPool->Destroy();
 			delete(MemoryPool);
 			Pools[PoolIndex] = nullptr;
@@ -819,11 +833,21 @@ void FD3D12PoolAllocator::UpdateAllocationTracking(FD3D12ResourceLocation& InAll
 		
 		if (InAllocationType == EAllocationType::Allocate)
 		{
+#if PLATFORM_WINDOWS
 			LLM_SCOPED_PAUSE_TRACKING_WITH_ENUM_AND_AMOUNT_BYTAG(D3D12AllocatorUnused, 0 - AllocSize, ELLMTracker::Platform, ELLMAllocType::System);
+#else
+			LLM_IF_ENABLED(FLowLevelMemTracker::Get().OnLowLevelAlloc(ELLMTracker::Default, InAllocation.GetAddressForLLMTracking(), AllocSize));
+			LLM_SCOPED_PAUSE_TRACKING_WITH_ENUM_AND_AMOUNT_BYTAG(D3D12AllocatorUnused, 0 - AllocSize, ELLMTracker::Default, ELLMAllocType::System);
+#endif
 		}
 		else
 		{
+#if PLATFORM_WINDOWS
 			LLM_SCOPED_PAUSE_TRACKING_WITH_ENUM_AND_AMOUNT_BYTAG(D3D12AllocatorUnused, AllocSize, ELLMTracker::Platform, ELLMAllocType::System);
+#else
+			LLM_IF_ENABLED(FLowLevelMemTracker::Get().OnLowLevelFree(ELLMTracker::Default, InAllocation.GetAddressForLLMTracking()));
+			LLM_SCOPED_PAUSE_TRACKING_WITH_ENUM_AND_AMOUNT_BYTAG(D3D12AllocatorUnused, AllocSize, ELLMTracker::Default, ELLMAllocType::System);
+#endif
 		}
 	}
 #endif
