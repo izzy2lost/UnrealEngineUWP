@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "BlueprintActionFilter.h"
+#include "Algo/Unique.h"
 #include "UObject/Interface.h"
 #include "EdGraph/EdGraphPin.h"
 #include "Engine/Blueprint.h"
@@ -2264,6 +2265,8 @@ void FBlueprintActionFilter::Add(TArray<FTargetClassFilterData>& ToArray, UClass
 {
 	TArray<FString> ClassHideCategories;
 	FEditorCategoryUtils::GetClassHideCategories(TargetClass, ClassHideCategories);
+	ClassHideCategories.Sort();
+	ClassHideCategories.SetNum(Algo::Unique(ClassHideCategories));
 	FTargetClassFilterData Data = { TargetClass, MoveTemp(ClassHideCategories) };
 	ToArray.Add(MoveTemp(Data));
 }
