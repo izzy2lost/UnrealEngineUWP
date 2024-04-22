@@ -143,8 +143,8 @@ FSceneView* UWorldThumbnailRenderer::CreateView(UWorld* World, FSceneViewFamily*
 	}
 
 	const FVector Origin = WorldBox.GetCenter();
-	FMatrix ViewRotationMatrix;
-	FMatrix ProjectionMatrix;
+	FMatrix ViewRotationMatrix = FMatrix::Identity;
+	FMatrix ProjectionMatrix = FMatrix::Identity;
 	float FOVScreenSize = 0; // Screen size taking FOV into account
 	if (ThumbnailInfo->CameraMode == ECameraProjectionMode::Perspective)
 	{

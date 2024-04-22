@@ -138,7 +138,7 @@ namespace
 	template<typename T>
 	T GetPropertyValueByName(UObject* Object, FString PropertyName, int32 PropertyIndex)
 	{
-		T Value;
+		T Value = {};
 		FProperty* DummyProperty = NULL;
 		if (T* ValuePtr = GetPropertyValuePtrByName<T>(Object->GetClass(), Object, PropertyName, PropertyIndex, DummyProperty))
 		{

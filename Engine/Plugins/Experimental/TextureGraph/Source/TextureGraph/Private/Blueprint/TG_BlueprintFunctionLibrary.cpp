@@ -158,7 +158,7 @@ void UTG_BlueprintFunctionLibrary::SetVectorParameterValue(UObject* WorldContext
 
 FLinearColor UTG_BlueprintFunctionLibrary::GetVectorParameterValue(UObject* WorldContextObject, UTextureGraph* InTextureGraph, FName ParameterName)
 {
-	FLinearColor ParameterValue;
+	FLinearColor ParameterValue = FLinearColor::Black;
 
 	if (UWorld* World = GEngine->GetWorldFromContextObject(WorldContextObject, EGetWorldErrorMode::LogAndReturnNull))
 	{
@@ -210,7 +210,7 @@ void UTG_BlueprintFunctionLibrary::SetColorParameterValue(UObject* WorldContextO
 
 FLinearColor UTG_BlueprintFunctionLibrary::GetColorParameterValue(UObject* WorldContextObject, UTextureGraph* InTextureGraph, FName ParameterName)
 {
-	FLinearColor ParameterValue;
+	FLinearColor ParameterValue = FLinearColor::Black;
 
 	if (UWorld* World = GEngine->GetWorldFromContextObject(WorldContextObject, EGetWorldErrorMode::LogAndReturnNull))
 	{
