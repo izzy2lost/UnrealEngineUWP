@@ -84,7 +84,9 @@ IMPLEMENT_MODULE(FDefaultModuleImpl, IoStoreUtilities);
 #define IOSTORE_CPU_SCOPE(NAME) TRACE_CPUPROFILER_EVENT_SCOPE(IoStore##NAME);
 #define IOSTORE_CPU_SCOPE_DATA(NAME, DATA) TRACE_CPUPROFILER_EVENT_SCOPE(IoStore##NAME);
 
-TRACE_DECLARE_MEMORY_COUNTER(IoStoreUsedFileBufferMemory, TEXT("IoStore/UsedFileBufferMemory"));
+TRACE_DECLARE_MEMORY_COUNTER(IoStoreSourceReadsUsedBufferMemory, TEXT("IoStoreWriter/SourceReadsUsedBufferMemory"));
+TRACE_DECLARE_ATOMIC_INT_COUNTER(IoStoreSourceReadsInflight, TEXT("IoStoreWriter/SourceReadsInflight"));
+TRACE_DECLARE_ATOMIC_INT_COUNTER(IoStoreSourceReadsDone, TEXT("IoStoreWriter/SourceReadsDone"));
 
 // Helper to format numbers with comma separators to help readability: 1,234 vs 1234.
 static FString NumberString(uint64 N) { return FText::AsNumber(N).ToString(); }
@@ -3420,6 +3422,8 @@ private:
 
 		void OnSourceBufferLoaded()
 		{
+			TRACE_COUNTER_DECREMENT(IoStoreSourceReadsInflight);
+			TRACE_COUNTER_INCREMENT(IoStoreSourceReadsDone);
 			QueueEntry->ReleaseRef(Manager);
 			CompletionEvent->DispatchSubsequents();
 		}
@@ -3642,7 +3646,8 @@ private:
 		}
 
 		UsedBufferMemory.AddExchange(SourceBufferSize);
-		TRACE_COUNTER_ADD(IoStoreUsedFileBufferMemory, SourceBufferSize);
+		TRACE_COUNTER_INCREMENT(IoStoreSourceReadsInflight);
+		TRACE_COUNTER_ADD(IoStoreSourceReadsUsedBufferMemory, SourceBufferSize);
 		QueueEntry->WriteRequest->LoadSourceBufferAsync();
 	}
 
@@ -3657,11 +3662,11 @@ private:
 		delete QueueEntry;
 	}
 
-	void OnBufferMemoryFreed(uint64 Count)
+	void OnBufferMemoryFreed(uint64 Size)
 	{
-		uint64 OldValue = UsedBufferMemory.SubExchange(Count);
-		check(OldValue >= Count);
-		TRACE_COUNTER_SUBTRACT(IoStoreUsedFileBufferMemory, Count);
+		uint64 OldSize = UsedBufferMemory.SubExchange(Size);
+		check(OldSize >= Size);
+		TRACE_COUNTER_SUBTRACT(IoStoreSourceReadsUsedBufferMemory, Size);
 		MemoryAvailableEvent->Trigger();
 	}
 
@@ -5369,7 +5374,6 @@ int32 CreateTarget(const FIoStoreArguments& Arguments, const FIoStoreWriterSetti
 
 	FPackageStoreOptimizer PackageStoreOptimizer;
 	PackageStoreOptimizer.Initialize(*Arguments.ScriptObjects);
-	FIoStoreWriteRequestManager WriteRequestManager(PackageStoreOptimizer, Arguments.PackageStore.Get());
 
 	TArray<FContainerTargetSpec*> ContainerTargets;
 	UE_LOG(LogIoStore, Display, TEXT("Creating container targets..."));
@@ -5532,6 +5536,8 @@ int32 CreateTarget(const FIoStoreArguments& Arguments, const FIoStoreWriterSetti
 	TArray<FShaderInfo*> Shaders;
 	FShaderAssociationInfo ShaderAssocInfo;
 	ProcessShaderLibraries(Arguments, ContainerTargets, Shaders, ShaderAssocInfo);
+
+	FIoStoreWriteRequestManager WriteRequestManager(PackageStoreOptimizer, Arguments.PackageStore.Get());
 
 	auto AppendTargetFileChunk = [&WriteRequestManager](FContainerTargetSpec* ContainerTarget, const FContainerTargetFile& TargetFile)
 	{
