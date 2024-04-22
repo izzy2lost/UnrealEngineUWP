@@ -476,8 +476,6 @@ bool FConfigContext::PerformLoad()
 	if (IsInGameThread()) GPerformLoadTime -= FPlatformTime::Seconds();
 
 #if DISABLE_GENERATED_INI_WHEN_COOKED
-	UE_LOG(LogConfig, Display, TEXT("IniName = %s"), *BaseIniName);
-
 	if (BaseIniName == TEXT("GameUserSettings"))
 	{
 		bAllowGeneratedIniWhenCooked = true;
