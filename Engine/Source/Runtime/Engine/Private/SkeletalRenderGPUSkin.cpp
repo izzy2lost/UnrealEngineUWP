@@ -2484,10 +2484,13 @@ void FDynamicSkelMeshObjectDataGPUSkin::InitDynamicSkelMeshObjectDataGPUSkin(
 
 	GPUSkinTechnique = InMeshObject->GetGPUSkinTechnique(LODIndex);
 
-	checkf(GPUSkinTechnique == ESkeletalMeshGPUSkinTechnique::MeshDeformer || !InMeshComponent->GetMeshDeformerInstanceForLOD(LODIndex),
-		TEXT("Skeletal mesh %s, LOD %d is not set to use the mesh deformer skin technique, but the component deformer instance is valid. ")
-		TEXT("This means a mesh deformer was added but the skeletal mesh object was not recreated."),
-		*InMeshComponent->GetName(), LODIndex);
+	if (GPUSkinTechnique != ESkeletalMeshGPUSkinTechnique::MeshDeformer && InMeshComponent->GetMeshDeformerInstanceForLOD(LODIndex) != nullptr)
+	{
+		UE_LOG(LogSkeletalGPUSkinMesh, Fatal,
+			TEXT("Skeletal mesh %s, LOD %d is not set to use the mesh deformer skin technique, but the component deformer instance is valid. ")
+			TEXT("This means a mesh deformer was added but the skeletal mesh object was not recreated."),
+			*InMeshComponent->GetName(), LODIndex);
+	}
 
 	if (!IsSkeletalMeshClothBlendEnabled())
 	{
