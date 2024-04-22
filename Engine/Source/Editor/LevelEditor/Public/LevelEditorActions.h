@@ -25,23 +25,18 @@ class UTypedElementSelectionSet;
 /**
  * Unreal level editor actions
  */
-class LEVELEDITOR_API FLevelEditorCommands : public TCommands<FLevelEditorCommands>
+class FLevelEditorCommands : public TCommands<FLevelEditorCommands>
 {
 
 public:
 	FLevelEditorCommands();
 
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	FLevelEditorCommands(FLevelEditorCommands&&) = default;
-	FLevelEditorCommands(const FLevelEditorCommands&) = default;
-	FLevelEditorCommands& operator=(FLevelEditorCommands&&) = default;
-	FLevelEditorCommands& operator=(const FLevelEditorCommands&) = default;
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
-
 	/**
 	 * Initialize commands
 	 */
 	virtual void RegisterCommands() override;
+
+	LEVELEDITOR_API FORCENOINLINE static const FLevelEditorCommands& Get();
 
 public:
 	

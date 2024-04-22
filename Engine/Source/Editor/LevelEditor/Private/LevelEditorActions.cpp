@@ -4007,6 +4007,11 @@ void FLevelEditorCommands::RegisterCommands()
 	UI_COMMAND(OpenMergeActor, "Merge Actors", "Opens the Merge Actor panel", EUserInterfaceActionType::Button, FInputChord());
 }
 
+FORCENOINLINE const FLevelEditorCommands& FLevelEditorCommands::Get()
+{
+	return TCommands<FLevelEditorCommands>::Get();
+}
+
 UE_ENABLE_OPTIMIZATION_SHIP
 
 void FLevelEditorActionCallbacks::FixupGroupActor_Clicked()
