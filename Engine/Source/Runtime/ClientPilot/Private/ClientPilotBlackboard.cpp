@@ -21,7 +21,7 @@ FString UClientPilotBlackboard::GetStringValue(FString KeyName)
 
 FVector UClientPilotBlackboard::GetVectorValue(FString KeyName)
 {
-	FVector RetVal;
+	FVector RetVal = FVector::ZeroVector;
 	if (Blackboard.Contains(KeyName))
 	{
 		RetVal.InitFromString(*Blackboard[KeyName]);

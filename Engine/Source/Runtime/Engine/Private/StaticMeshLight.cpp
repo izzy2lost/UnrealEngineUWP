@@ -182,8 +182,8 @@ FLightRayIntersection FStaticMeshStaticLightingMesh::IntersectLightRay(const FVe
 	}
 	else
 	{
-		IntersectionVertex.WorldPosition.Set(0,0,0);
-		IntersectionVertex.WorldTangentZ.Set(0,0,1);
+		IntersectionVertex.WorldPosition = FVector(0,0,0);
+		IntersectionVertex.WorldTangentZ = FVector(0,0,1);
 	}
 	return FLightRayIntersection(bIntersects,IntersectionVertex);
 }

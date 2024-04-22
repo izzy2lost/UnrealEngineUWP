@@ -4395,7 +4395,7 @@ float AActor::GetInputAxisKeyValue(const FKey InputAxisKey) const
 
 FVector AActor::GetInputVectorAxisValue(const FKey InputAxisKey) const
 {
-	FVector Value;
+	FVector Value = FVector::ZeroVector;
 
 	if (InputComponent)
 	{

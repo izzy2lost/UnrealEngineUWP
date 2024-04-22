@@ -490,7 +490,7 @@ namespace Metasound::Engine
 				FOutputHandle RightOutputToReconnect = IOutputController::GetInvalidHandle();
 
 #if WITH_EDITOR
-				FVector2D StereoFormatLocation;
+				FVector2D StereoFormatLocation = FVector2D::ZeroVector;
 #endif // WITH_EDITOR
 
 				if (StereoFormatOutput->IsValid())

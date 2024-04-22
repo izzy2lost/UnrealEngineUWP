@@ -201,7 +201,7 @@ float UInputComponent::GetAxisKeyValue( const FKey AxisKey ) const
 
 FVector UInputComponent::GetVectorAxisValue( const FKey AxisKey ) const
 {
-	FVector AxisValue;
+	FVector AxisValue = FVector::ZeroVector;
 	bool bFound = false;
 
 	for (const FInputVectorAxisBinding& AxisBinding : VectorAxisBindings)

@@ -1407,7 +1407,7 @@ FVector2D SDesignerView::GetExtensionPosition(TSharedRef<FDesignerSurfaceElement
 			}
 			else
 			{
-				FVector2D WidgetPosition;
+				FVector2D WidgetPosition = FVector2D::ZeroVector;
 
 				// Get the initial offset based on the location around the selected object.
 				switch (ExtensionElement->GetLocation())

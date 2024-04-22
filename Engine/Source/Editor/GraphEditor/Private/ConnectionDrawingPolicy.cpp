@@ -64,7 +64,7 @@ FVector2D FGeometryHelper::FindClosestPointOnGeom(const FGeometry& Geom, const F
 	FGeometryHelper::ConvertToPoints(Geom, Points);
 
 	float BestDistanceSquared = MAX_FLT;
-	FVector2D BestPoint;
+	FVector2D BestPoint = FVector2D::ZeroVector;
 	for (int32 i = 0; i < Points.Num(); ++i)
 	{
 		const FVector2D Candidate = FindClosestPointOnLine(Points[i], Points[(i + 1) % Points.Num()], TestPoint);

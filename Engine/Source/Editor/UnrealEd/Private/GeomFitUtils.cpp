@@ -155,8 +155,8 @@ static void CalcBoundingSphere(const FMeshDescription* MeshDescription, FSphere&
 		return;
 
 	FBox Box;
-	FVector MinIx[3];
-	FVector MaxIx[3];
+	FVector MinIx[3] = { FVector::ZeroVector, FVector::ZeroVector, FVector::ZeroVector };
+	FVector MaxIx[3] = { FVector::ZeroVector, FVector::ZeroVector, FVector::ZeroVector };
 
 	FStaticMeshConstAttributes Attributes(*MeshDescription);
 

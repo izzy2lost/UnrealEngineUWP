@@ -1786,7 +1786,7 @@ void UControlRigSequencerEditorLibrary::SetLocalControlRigInts(ULevelSequence* L
 
 FVector2D UControlRigSequencerEditorLibrary::GetLocalControlRigVector2D(ULevelSequence* LevelSequence, UControlRig* ControlRig, FName ControlName, FFrameNumber Frame, EMovieSceneTimeUnit TimeUnit)
 {
-	FVector2D Value;
+	FVector2D Value = FVector2D::ZeroVector;
 	TWeakPtr<ISequencer> WeakSequencer = GetSequencerFromAsset();
 
 	if (WeakSequencer.IsValid() && ControlRig)
@@ -1904,7 +1904,7 @@ void UControlRigSequencerEditorLibrary::SetLocalControlRigVector2Ds(ULevelSequen
 
 FVector UControlRigSequencerEditorLibrary::GetLocalControlRigPosition(ULevelSequence* LevelSequence, UControlRig* ControlRig, FName ControlName, FFrameNumber Frame, EMovieSceneTimeUnit TimeUnit)
 {
-	FVector Value;
+	FVector Value = FVector::ZeroVector;
 	TWeakPtr<ISequencer> WeakSequencer = GetSequencerFromAsset();
 
 	if (WeakSequencer.IsValid() && ControlRig)
@@ -2020,7 +2020,7 @@ void UControlRigSequencerEditorLibrary::SetLocalControlRigPositions(ULevelSequen
 
 FRotator UControlRigSequencerEditorLibrary::GetLocalControlRigRotator(ULevelSequence* LevelSequence, UControlRig* ControlRig, FName ControlName, FFrameNumber Frame, EMovieSceneTimeUnit TimeUnit)
 {
-	FRotator Value;
+	FRotator Value = FRotator::ZeroRotator;
 	TWeakPtr<ISequencer> WeakSequencer = GetSequencerFromAsset();
 
 	if (WeakSequencer.IsValid() && ControlRig)
@@ -2136,7 +2136,7 @@ void UControlRigSequencerEditorLibrary::SetLocalControlRigRotators(ULevelSequenc
 
 FVector UControlRigSequencerEditorLibrary::GetLocalControlRigScale(ULevelSequence* LevelSequence, UControlRig* ControlRig, FName ControlName, FFrameNumber Frame,  EMovieSceneTimeUnit TimeUnit)
 {
-	FVector Value;
+	FVector Value = FVector::ZeroVector;
 	TWeakPtr<ISequencer> WeakSequencer = GetSequencerFromAsset();
 
 	if (WeakSequencer.IsValid() && ControlRig)

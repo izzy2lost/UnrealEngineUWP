@@ -662,7 +662,7 @@ FLightRayIntersection FLandscapeStaticLightingMesh::IntersectLightRay(const FVec
 	const bool bIntersects = LandscapeComponent->LineTraceComponent( Result, Start, End, NewTraceParams );
 
 	// Setup a vertex to represent the intersection.
-	FStaticLightingVertex IntersectionVertex;
+	FStaticLightingVertex IntersectionVertex = {};
 	if(bIntersects)
 	{
 		IntersectionVertex.WorldPosition = Result.Location;

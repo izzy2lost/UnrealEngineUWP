@@ -243,7 +243,7 @@ MaterialX::InputPtr FMaterialXBase::GetInput(MaterialX::NodePtr Node, const char
 FLinearColor FMaterialXBase::GetLinearColor(MaterialX::InputPtr Input)
 {
 	//we assume that the default color space is linear
-	FLinearColor LinearColor;
+	FLinearColor LinearColor = FLinearColor::Black;
 
 	if(Input->getType() == mx::Type::Color3)
 	{

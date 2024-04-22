@@ -286,7 +286,7 @@ void AGameplayDebuggerPlayerManager::GetViewPoint(const APlayerController& Owner
 {
 	UWorld* World = OwnerPC.GetWorld();
 	FVector CameraLocation = FVector::ZeroVector;
-	FRotator CameraRotation;
+	FRotator CameraRotation = FRotator::ZeroRotator;
 	if (OwnerPC.Player)
 	{
 		// normal game

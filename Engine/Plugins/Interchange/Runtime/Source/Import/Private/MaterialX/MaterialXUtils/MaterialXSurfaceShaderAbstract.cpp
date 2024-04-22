@@ -1354,7 +1354,7 @@ FString FMaterialXSurfaceShaderAbstract::GetFilePrefix(MaterialX::ElementPtr Ele
 
 FLinearColor FMaterialXSurfaceShaderAbstract::GetVector(MaterialX::InputPtr Input) const
 {
-	FLinearColor LinearColor;
+	FLinearColor LinearColor = FLinearColor::Black;
 
 	if(Input->getType() == mx::Type::Vector2)
 	{

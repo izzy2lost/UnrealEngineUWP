@@ -610,7 +610,7 @@ private:
 	 */
 	static FViewPoint GetViewPointFromStrings(const FString* Strings, int32 NumStrings)
 	{
-		FViewPoint ViewPoint;
+		FViewPoint ViewPoint = {};
 		if (NumStrings == 6)
 		{
 			ViewPoint.Location.X = FCString::Atof(*Strings[0]);

@@ -83,7 +83,7 @@ FString UGizmoHandleGroup::MakeHandleName( const FTransformGizmoHandlePlacement 
 
 FVector UGizmoHandleGroup::GetAxisVector( const int32 AxisIndex, const ETransformGizmoHandleDirection HandleDirection )
 {
-	FVector AxisVector;
+	FVector AxisVector = FVector::ZeroVector;
 
 	if (HandleDirection == ETransformGizmoHandleDirection::Center)
 	{

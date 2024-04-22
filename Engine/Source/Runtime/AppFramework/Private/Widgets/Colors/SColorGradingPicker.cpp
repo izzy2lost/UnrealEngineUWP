@@ -250,7 +250,7 @@ void SColorGradingPicker::TransformColorGradingRangeToLinearColorRange(float &Fl
 
 FLinearColor SColorGradingPicker::GetCurrentLinearColor()
 {
-	FLinearColor CurrentColor;
+	FLinearColor CurrentColor = FLinearColor::Black;
 	FVector4 CurrentValue;
 
 	if (OnQueryCurrentColor.IsBound())

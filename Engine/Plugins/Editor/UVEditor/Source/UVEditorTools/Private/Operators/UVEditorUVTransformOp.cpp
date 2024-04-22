@@ -267,7 +267,7 @@ void FUVEditorUVTransformBaseOp::CalculateResult(FProgressCancel* Progress)
 
 FVector2f FUVEditorUVTransformOp::GetPivotFromMode(int32 ElementID, EUVEditorPivotTypeBackend Mode)
 {
-	FVector2f Pivot;
+	FVector2f Pivot = FVector2f::ZeroVector;
 	const int32* Component;
 
 	switch (Mode)

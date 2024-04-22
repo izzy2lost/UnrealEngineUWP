@@ -85,7 +85,7 @@ FText FNiagaraScriptInputCollectionViewModel::GetDisplayName() const
 
 FVector2D GetNewNodeLocation(UNiagaraGraph* Graph, UNiagaraNode* NewInputNode, float VerticalNodeOffset, float HorizontalNodeOffset)
 {
-	FVector2D PlacementLocation;
+	FVector2D PlacementLocation = FVector2D::ZeroVector;
 	TArray<UNiagaraNodeInput*> InputNodes;
 	Graph->GetNodesOfClass(InputNodes);
 	if (InputNodes.Num() > 1)

@@ -1706,7 +1706,7 @@ void FInterchangeBaseNodeDetailsCustomization::BuildVectorValueContent(IDetailCa
 
 	auto GetValue = [](UInterchangeBaseNode* BaseNode, UE::Interchange::FAttributeKey& Key)->VectorType
 	{
-		VectorType VectorValue;
+		VectorType VectorValue = {};
 		const UE::Interchange::FAttributeStorage::TAttributeHandle<VectorType> AttributeHandle = BaseNode->GetAttributeHandle<VectorType>(Key);
 		if (AttributeHandle.IsValid())
 		{

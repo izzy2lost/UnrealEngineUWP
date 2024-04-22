@@ -1648,7 +1648,7 @@ UObject* UPolysFactory::FactoryCreateText
 	FFeedbackContext*	Warn
 )
 {
-	FVector3f PointPool[4096];
+	FVector3f PointPool[4096] = {};
 	int32 NumPoints = 0;
 
 	GEditor->GetEditorSubsystem<UImportSubsystem>()->BroadcastAssetPreImport(this, Class, InParent, Name, Type);
