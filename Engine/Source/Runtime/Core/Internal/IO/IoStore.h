@@ -92,7 +92,8 @@ struct FIoStoreTocEntryMeta
 {
 	// Source data hash (i.e. not the on disk data)
 	FIoHash ChunkHash;
-	FIoStoreTocEntryMetaFlags Flags;
+	FIoStoreTocEntryMetaFlags Flags = FIoStoreTocEntryMetaFlags::None;
+	uint8 Pad[3] = { 0 };
 };
 
 /**
