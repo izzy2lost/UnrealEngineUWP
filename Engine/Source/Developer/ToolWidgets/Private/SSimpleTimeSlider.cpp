@@ -87,7 +87,7 @@ static float GetNextSpacing( uint32 CurrentStep )
 */
 static double DetermineOptimalSpacing(float InPixelsPerInput, uint32 InMinTick, double InMinTickSpacing)
 {
-	if (InPixelsPerInput == 0.0f)
+	if (InPixelsPerInput <= 0.0f)
 		return InMinTickSpacing;
 
 	uint32 CurStep = 0;
