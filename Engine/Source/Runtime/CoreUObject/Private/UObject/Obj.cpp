@@ -223,19 +223,32 @@ bool UObject::Rename( const TCHAR* InName, UObject* NewOuter, ERenameFlags Flags
 	FMetaDataUtilities::FMoveMetadataHelperContext MoveMetaData(this, true);
 #endif //WITH_EDITOR
 
-	// Check that we are not renaming a within object into an Outer of the wrong type, unless we're renaming the CDO of a Blueprint.
-	// Moving objects to the transient package is commonly used halfway through destroying them so that is also fine
-	if( NewOuter && !NewOuter->IsA(GetClass()->ClassWithin) && !HasAnyFlags(RF_ClassDefaultObject|RF_ArchetypeObject) && NewOuter != GetTransientPackage())	
+	if(NewOuter)
 	{
-		if (Flags & REN_Test)
+		// Renaming the CDO of a Blueprint is a special case so we do not validate what would otherwise be incorrect use of Rename.
+		// Moving objects to the transient package is commonly used halfway through destroying them so that is also fine, otherwise
+		// proceed to check for incorrect use of Rename
+		if (!HasAnyFlags(RF_ClassDefaultObject | RF_ArchetypeObject) && NewOuter->GetPackage() != GetTransientPackage())
 		{
-			return false;
-		}
+			// Check that we are not renaming a within object into an Outer of the wrong type
+			if (!NewOuter->IsA(GetClass()->ClassWithin))
+			{
+				if (Flags & REN_Test)
+				{
+					return false;
+				}
 
-		UE_LOG(LogObj, Fatal, TEXT("Cannot rename %s into Outer %s as it is not of type %s"), 
-			*GetFullName(), 
-			*NewOuter->GetFullName(), 
-			*GetClass()->ClassWithin->GetName() );
+				UE_LOG(LogObj, Fatal, TEXT("Cannot rename %s into Outer %s as it is not of type %s"),
+					*GetFullName(),
+					*NewOuter->GetFullName(),
+					*GetClass()->ClassWithin->GetName());
+			}
+			// If moving the object to a new package, remove it's linker .
+			else if (GetLinker() && GetPackage() != NewOuter->GetPackage())
+			{
+				SetLinker(nullptr, INDEX_NONE);
+			}
+		}
 	}
 
 	// find an object with the same name and same class in the new outer
@@ -282,11 +295,6 @@ bool UObject::Rename( const TCHAR* InName, UObject* NewOuter, ERenameFlags Flags
 	if (Flags & REN_Test)
 	{
 		return true;
-	}
-
-	if (!(Flags & REN_ForceNoResetLoaders))
-	{
-		ResetLoaders(GetPackage());
 	}
 
 	FName OldName = GetFName();

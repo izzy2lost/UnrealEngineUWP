@@ -2140,7 +2140,7 @@ typedef uint32 ERenameFlags;
 
 /** Default rename behavior */
 #define REN_None					(0x0000)
-/** Rename won't call ResetLoaders or flush async loading. You should pass this if you are renaming a deep subobject and do not need to reset loading for the outer package */
+/** UE_DEPRECATED(5.5, "Rename will no longer call ResetLoaders making this flag no longer needed.") -  Rename won't call ResetLoaders or flush async loading. You should pass this if you are renaming a deep subobject and do not need to reset loading for the outer package */
 #define REN_ForceNoResetLoaders		(0x0001) 
 /** Just test to make sure that the rename is guaranteed to succeed if an non test rename immediately follows */
 #define REN_Test					(0x0002) 
