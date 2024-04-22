@@ -1170,6 +1170,8 @@ mu::MeshPtr ConvertSkeletalMeshToMutable(const USkeletalMesh* InSkeletalMesh, co
 
 		if (UsedMorphTargets.Num())
 		{
+			MUTABLE_CPUPROFILER_SCOPE(RealTimeMorphTargetProcessing);
+			
 			MutableMesh->GetVertexBuffers().SetBufferCount(NextBufferIndex + 2);
 			// MorphTarget vertex block offset.
 			{
@@ -1217,8 +1219,7 @@ mu::MeshPtr ConvertSkeletalMeshToMutable(const USkeletalMesh* InSkeletalMesh, co
 			{
 				Elem = InvalidResourceId;
 			}
-
-			MUTABLE_CPUPROFILER_SCOPE(RealTimeMorphTargetProcessing);
+			
 
 			TArray<FMorphTargetVertexData> MorphsMeshData;
 			MorphsMeshData.Reserve(32);
@@ -1383,53 +1384,43 @@ mu::MeshPtr ConvertSkeletalMeshToMutable(const USkeletalMesh* InSkeletalMesh, co
 	// Clothing vertex info.
 	if (GenerationContext.Options.bClothingEnabled)
 	{
-		{
-			using namespace mu;
-			const int32 ElementSize = sizeof(int32);
-			const int32 ChannelCount = 1;
-			const EMeshBufferSemantic Semantics[ChannelCount] = { MBS_OTHER };
-			const int32 SemanticIndices[ChannelCount] = { 2 };
-			const EMeshBufferFormat Formats[ChannelCount] = { MBF_INT32 };
-			int32 Components[ChannelCount] = { 1 };
-			const int32 Offsets[ChannelCount] = { 0 };
-
-			MutableMesh->GetVertexBuffers().SetBufferCount(NextBufferIndex + 1);
-			MutableMesh->GetVertexBuffers().SetBuffer(NextBufferIndex, ElementSize, ChannelCount, Semantics, SemanticIndices, Formats, Components, Offsets);
-		}
-
-		TArrayView<int32> ClothSectionBufferView(reinterpret_cast<int32*>(MutableMesh->GetVertexBuffers().GetBufferData(NextBufferIndex)), VertexCount);
-		for (int32& Elem : ClothSectionBufferView)
-		{
-			Elem = -1;
-		}
-
 		// Create new asset or find an already created one if the section has clothing assets.
 		// clothing assets are shared among all LODs in a section
-		const int32 ClothingAssetIndex = Invoke([&]() -> int32
+		int32 ClothingAssetIndex = INDEX_NONE;
+		int32 PhysicsAssetIndex = INDEX_NONE;
+
+		Invoke([&](int32& OutClothingAssetIndex, int32& OutPhysicsAssetIndex) -> void
 		{
 			const UClothingAssetBase* ClothingAssetBase = InSkeletalMesh->GetSectionClothingAsset(LODIndex, SectionIndex);
 
 			if (!ClothingAssetBase)
 			{
-				return INDEX_NONE;
-			}
-
-			int32 FoundIndex = GenerationContext.ContributingClothingAssetsData.IndexOfByPredicate(
-				[AssetGuid = ClothingAssetBase->GetAssetGuid()](const FCustomizableObjectClothingAssetData& Asset){ return Asset.OriginalAssetGuid == AssetGuid; });
-			
-			if (FoundIndex != INDEX_NONE)
-			{
-				return FoundIndex;
+				return;
 			}
 
 			const UClothingAssetCommon* Asset = Cast<UClothingAssetCommon>(ClothingAssetBase);
 			if (!Asset)
 			{
-				return INDEX_NONE;
+				return;
 			}
 
-			const int32 NewAssetIndex = GenerationContext.ContributingClothingAssetsData.AddDefaulted();
-			FCustomizableObjectClothingAssetData& AssetData = GenerationContext.ContributingClothingAssetsData[NewAssetIndex];
+			int32 FoundIndex = GenerationContext.ClothingAssetsData.IndexOfByPredicate(
+				[AssetGuid = ClothingAssetBase->GetAssetGuid()](const FCustomizableObjectClothingAssetData& Asset){ return Asset.OriginalAssetGuid == AssetGuid; });
+			
+			if (FoundIndex != INDEX_NONE)
+			{
+				OutClothingAssetIndex = FoundIndex;
+				OutPhysicsAssetIndex = GenerationContext.PhysicsAssets.IndexOfByPredicate(
+					[PhysicsAsset = Asset->PhysicsAsset](const TSoftObjectPtr<UPhysicsAsset>& OtherPhysicsAsset)
+					{
+						return TSoftObjectPtr<UPhysicsAsset>(PhysicsAsset) == OtherPhysicsAsset;
+					});
+
+				return;
+			}
+
+			OutClothingAssetIndex = GenerationContext.ClothingAssetsData.AddDefaulted();
+			FCustomizableObjectClothingAssetData& AssetData = GenerationContext.ClothingAssetsData[OutClothingAssetIndex];
 			
 			AssetData.LodData = Asset->LodData;
 			AssetData.LodMap = Asset->LodMap;
@@ -1439,8 +1430,11 @@ mu::MeshPtr ConvertSkeletalMeshToMutable(const USkeletalMesh* InSkeletalMesh, co
 			AssetData.OriginalAssetGuid = Asset->GetAssetGuid();
 			AssetData.Name = Asset->GetFName();
 
+			OutPhysicsAssetIndex = GenerationContext.PhysicsAssets.AddUnique(Asset->PhysicsAsset);
+			GenerationContext.AddParticipatingObject(*Asset->PhysicsAsset);
+			
 			// Store raw clothing config serialized raw data, and info to recreate it afterwards.
-			for ( const TPair<FName, TObjectPtr<UClothConfigBase>>& ClothConfig : Asset->ClothConfigs )
+			for (const TPair<FName, TObjectPtr<UClothConfigBase>>& ClothConfig : Asset->ClothConfigs)
 			{
 				FCustomizableObjectClothConfigData& ConfigData = AssetData.ConfigsData.AddDefaulted_GetRef();
 				ConfigData.ClassPath = ClothConfig.Value->GetClass()->GetPathName();
@@ -1449,21 +1443,53 @@ mu::MeshPtr ConvertSkeletalMeshToMutable(const USkeletalMesh* InSkeletalMesh, co
 				FMemoryWriter MemoryWriter(ConfigData.ConfigBytes);
                 ClothConfig.Value->Serialize(MemoryWriter);
 			}
-
-			return NewAssetIndex;
-		});
+		}, ClothingAssetIndex, PhysicsAssetIndex);
 
 		if (ClothingAssetIndex != INDEX_NONE)
 		{
-			// Reserve first element as a way to indicate invalid data. Currently not used.
-			if (GenerationContext.ClothMeshToMeshVertData.Num() == 0)
+			MutableMesh->GetVertexBuffers().SetBufferCount(NextBufferIndex + 2);
 			{
-				FCustomizableObjectMeshToMeshVertData& FirstElem = GenerationContext.ClothMeshToMeshVertData.AddZeroed_GetRef();
-				FirstElem.SourceAssetIndex = INDEX_NONE;
+				using namespace mu;
+				const int32 ElementSize = sizeof(int32);
+				const int32 ChannelCount = 1;
+				const EMeshBufferSemantic Semantics[ChannelCount] = { MBS_OTHER };
+				const int32 SemanticIndices[ChannelCount] = { 2 };
+				const EMeshBufferFormat Formats[ChannelCount] = { MBF_INT32 };
+				int32 Components[ChannelCount] = { 1 };
+				const int32 Offsets[ChannelCount] = { 0 };
+
+				MutableMesh->GetVertexBuffers().SetBuffer(NextBufferIndex, ElementSize, ChannelCount, Semantics, SemanticIndices, Formats, Components, Offsets);
+			}
+
+			{
+				using namespace mu;
+				const int32 ElementSize = sizeof(uint32);
+				const int32 ChannelCount = 1;
+				const EMeshBufferSemantic Semantics[ChannelCount] = { MBS_OTHER };
+				const int32 SemanticIndices[ChannelCount] = { 3 };
+				const EMeshBufferFormat Formats[ChannelCount] = { MBF_UINT32 };
+				int32 Components[ChannelCount] = { 1 };
+				const int32 Offsets[ChannelCount] = { 0 };
+
+				MutableMesh->GetVertexBuffers().SetBuffer(NextBufferIndex + 1, ElementSize, ChannelCount, Semantics, SemanticIndices, Formats, Components, Offsets);
+			}
+
+			TArrayView<int32> ClothSectionIndexView(reinterpret_cast<int32*>(
+						MutableMesh->GetVertexBuffers().GetBufferData(NextBufferIndex)), VertexCount);
+			for (int32& Elem : ClothSectionIndexView)
+			{
+				Elem = -1;
+			}
+
+			constexpr uint32 InvalidResourceId = 0;
+			TArrayView<uint32> ClothSectionResourceIdView(reinterpret_cast<uint32*>(
+						MutableMesh->GetVertexBuffers().GetBufferData(NextBufferIndex + 1)), VertexCount);
+			for (uint32& Elem : ClothSectionResourceIdView)
+			{
+				Elem = InvalidResourceId;
 			}
 
 			const TArray<FMeshToMeshVertData>& ClothMappingData = MeshSection.ClothMappingDataLODs[0];
-
 
 			// Similar test as the one used on FSkeletalMeshObjectGPUSkin::FVertexFactoryData::InitAPEXClothVertexFactories
 			// Here should work as expexted, but in the reference code I'm not sure it always works. It is worth investigate
@@ -1476,21 +1502,29 @@ mu::MeshPtr ConvertSkeletalMeshToMutable(const USkeletalMesh* InSkeletalMesh, co
 			// TODO: find a better place to keep this constant.
 			constexpr int32 NumInfluencesPerVertex = 5;
 
-			int32 MeshToMeshDataIndex = GenerationContext.ClothMeshToMeshVertData.Num();
+			int32 MeshToMeshDataIndex = 0; 
 
 			constexpr int32 MaxSupportedInfluences = 1;
-			for (int32& Elem : ClothSectionBufferView)
+			for (int32& Elem : ClothSectionIndexView)
 			{
 				Elem = MeshToMeshDataIndex;
 				MeshToMeshDataIndex += MaxSupportedInfluences;
 			}
 
-			const int32 ClothDataIndexBase = GenerationContext.ClothMeshToMeshVertData.Num();
+			const int32 ClothDataIndexBase = 0;
 
 			const int32 ClothDataStride = bUseMutlipleInfluences ? NumInfluencesPerVertex : 1;
 			const int32 NumClothMappingDataVerts = ClothMappingData.Num() / ClothDataStride;
 
-			GenerationContext.ClothMeshToMeshVertData.Reserve(NumClothMappingDataVerts);
+			FClothingMeshData ClothingMeshData;
+			
+			const FCustomizableObjectClothingAssetData& ClothingAssetData = GenerationContext.ClothingAssetsData[ClothingAssetIndex];
+			
+			ClothingMeshData.ClothingAssetIndex = ClothingAssetIndex;
+			ClothingMeshData.ClothingAssetLOD = ClothingAssetData.LodMap[LODIndex];
+			ClothingMeshData.PhysicsAssetIndex = PhysicsAssetIndex;
+			ClothingMeshData.Data.Reserve(NumClothMappingDataVerts * ClothDataStride);
+
 			for (int32 Idx = 0; Idx < NumClothMappingDataVerts * ClothDataStride; Idx += ClothDataStride)
 			{
 				// If bUseMutlipleInfluences we will only take the element with higher weight ignoring the other ones.
@@ -1498,28 +1532,102 @@ mu::MeshPtr ConvertSkeletalMeshToMutable(const USkeletalMesh* InSkeletalMesh, co
 				const FMeshToMeshVertData* MaxInfluence = MaxElement(Influences.begin(), Influences.end(),
 					[](const FMeshToMeshVertData& A, const FMeshToMeshVertData& B) { return A.Weight < B.Weight; });
 
-				GenerationContext.ClothMeshToMeshVertData.Emplace(*MaxInfluence);
+				ClothingMeshData.Data.Emplace(*MaxInfluence);
 			}
 
-			TArrayView<FCustomizableObjectMeshToMeshVertData> AppendedClothingDataView
-			(GenerationContext.ClothMeshToMeshVertData.GetData() + ClothDataIndexBase, NumClothMappingDataVerts);
-
-			const FCustomizableObjectClothingAssetData& ClothingAssetData = GenerationContext.ContributingClothingAssetsData[ClothingAssetIndex];
-			const int16 ClothingAssetLODIndex = static_cast<int16>(ClothingAssetData.LodMap[LODIndex]);
-
-			for (FCustomizableObjectMeshToMeshVertData& ClothingDataElem : AppendedClothingDataView)
+			for (FCustomizableObjectMeshToMeshVertData& ClothingDataElem : ClothingMeshData.Data)
 			{
-				ClothingDataElem.SourceAssetIndex = static_cast<int16>(ClothingAssetIndex);
-				ClothingDataElem.SourceAssetLodIndex = ClothingAssetLODIndex;
-
 				// Currently if the cloth mapping uses multiple influences, these are ignored and only 
 				// the one with the highest weight is used. We set the weight to 1.0, but
 				// this value will be ignored anyway.
 				ClothingDataElem.Weight = 1.0f;
 			}
+
+			const uint32 DataHash = CityHash32(
+					reinterpret_cast<const char*>(ClothingMeshData.Data.GetData()), 
+					ClothingMeshData.Data.Num()*sizeof(FCustomizableObjectMeshToMeshVertData));
+
+			uint32 UniqueHash = DataHash == InvalidResourceId ? DataHash + 1 : DataHash;
+
+			const FClothingMeshData* FoundHash = GenerationContext.ClothingPerMeshData.Find(UniqueHash);
+
+			bool bIsDataAlreadyCollected = false;
+			
+			auto CompareClothingData = [](const FClothingMeshData& A, const FClothingMeshData& B) -> bool
+			{
+				return A.ClothingAssetIndex == B.ClothingAssetIndex &&
+					   A.ClothingAssetLOD == B.ClothingAssetLOD &&
+					   A.PhysicsAssetIndex == B.PhysicsAssetIndex &&
+					   A.Data.Num() == B.Data.Num() &&
+					   FMemory::Memcmp(A.Data.GetData(), B.Data.GetData(), A.Data.Num()*sizeof(FCustomizableObjectMeshToMeshVertData)) == 0;
+			};
+
+			if (FoundHash)
+			{
+				bIsDataAlreadyCollected = CompareClothingData(*FoundHash, ClothingMeshData); 
+			}
+
+			// NOTE: This way of unique hash generation guarantees all valid values can be used but given its 
+			// sequential nature a cascade of changes can occur if new meshes are added. Not many hash collisions 
+			// are expected so it should not be problematic.
+			if (FoundHash && !bIsDataAlreadyCollected)
+			{
+				uint32 NumTries = 0;
+				for (; NumTries < TNumericLimits<uint32>::Max(); ++NumTries)
+				{
+					FoundHash = GenerationContext.ClothingPerMeshData.Find(UniqueHash);
+					
+					if (!FoundHash)
+					{
+						break;
+					}
+
+					bIsDataAlreadyCollected = CompareClothingData(*FoundHash, ClothingMeshData);
+
+					if (bIsDataAlreadyCollected)
+					{
+						break;
+					}
+
+					UniqueHash = UniqueHash + 1 == InvalidResourceId ? InvalidResourceId + 1 : UniqueHash + 1;
+				}
+
+				if (NumTries == TNumericLimits<uint32>::Max())
+				{
+					UE_LOG(LogMutable, Warning, TEXT("Maximum number of meshes with clothing reached, some cloth meshes may not work as expected."));
+					UniqueHash = InvalidResourceId;
+				}	
+			}
+			
+			// fill the resource buffer with the generated unique id.
+			for (uint32& Elem : ClothSectionResourceIdView)
+			{
+				Elem = UniqueHash;
+			}
+
+			FCustomizableObjectStreameableResourceId StreamedClothResource;
+			StreamedClothResource.Id = UniqueHash;
+			StreamedClothResource.Type = static_cast<uint8>(FCustomizableObjectStreameableResourceId::EType::Clothing);
+
+			MutableMesh->AddStreamedResource(BitCast<uint64>(StreamedClothResource));
+
+			if (!bIsDataAlreadyCollected)
+			{
+				FClothingMeshData& NewClothingMeshData = GenerationContext.ClothingPerMeshData.FindOrAdd(UniqueHash);
+
+				check(NewClothingMeshData.ClothingAssetIndex == INDEX_NONE);
+				check(NewClothingMeshData.Data.IsEmpty());
+
+				NewClothingMeshData.ClothingAssetIndex = ClothingMeshData.ClothingAssetIndex;
+				NewClothingMeshData.ClothingAssetLOD = ClothingMeshData.ClothingAssetLOD;
+				NewClothingMeshData.PhysicsAssetIndex = ClothingMeshData.PhysicsAssetIndex;
+
+				NewClothingMeshData.Data = MoveTemp(ClothingMeshData.Data);
+			}
+			
+			NextBufferIndex += 2;
 		}
 
-		NextBufferIndex += 1;
 	}
 
 
@@ -3092,29 +3200,6 @@ mu::NodeMeshPtr GenerateMutableSourceMesh(const UEdGraphPin* Pin,
 					AddTagToMutableMeshUnique(*MutableMesh, PhysicsAssetTag);
 				}
 
-				if (GenerationContext.Options.bClothingEnabled)
-				{
-					UClothingAssetBase* ClothingAssetBase = TypedNodeSkel->SkeletalMesh->GetSectionClothingAsset(LODIndex, SectionIndex);	
-					UClothingAssetCommon* ClothingAssetCommon = Cast<UClothingAssetCommon>(ClothingAssetBase);
-
-					if (ClothingAssetCommon && ClothingAssetCommon->PhysicsAsset)
-					{	
-						int32 AssetIndex = GenerationContext.ContributingClothingAssetsData.IndexOfByPredicate( 
-						[Guid = ClothingAssetBase->GetAssetGuid()](const FCustomizableObjectClothingAssetData& A)
-						{
-							return A.OriginalAssetGuid == Guid;
-						});
-
-						check(AssetIndex != INDEX_NONE);
-
-						GenerationContext.AddParticipatingObject(*ClothingAssetCommon->PhysicsAsset);
-						
-						const int32 PhysicsAssetIndex = GenerationContext.PhysicsAssets.AddUnique(ClothingAssetCommon->PhysicsAsset);
-						FString ClothPhysicsAssetTag = FString::Printf(TEXT("__ClothPA:%d_%d"), AssetIndex, PhysicsAssetIndex);
-						AddTagToMutableMeshUnique(*MutableMesh, ClothPhysicsAssetTag);
-					}
-				}
-
 				if (GenerationContext.Options.bSkinWeightProfilesEnabled && LODIndex>=0)
 				{
 					if (ImportedModel && ImportedModel->LODModels.IsValidIndex(LODIndex))
@@ -3155,14 +3240,36 @@ mu::NodeMeshPtr GenerateMutableSourceMesh(const UEdGraphPin* Pin,
 				if (ImportedModel->LODModels.IsValidIndex(LODIndex) &&
 					ImportedModel->LODModels[LODIndex].Sections.IsValidIndex(SectionIndex))
 				{
-					MeshData.bHasVertexColors = TypedNodeSkel->SkeletalMesh->GetHasVertexColors();
+					MeshData.bHasVertexColors = TypedNodeSkel->SkeletalMesh->GetHasVertexColors();	
 					MeshData.NumTexCoordChannels = ImportedModel->LODModels[LODIndex].NumTexCoords;
 					MeshData.MaxBoneIndexTypeSizeBytes = MutableMesh->GetBoneMap().Num() > 256 ? 2 : 1;
 					MeshData.MaxNumBonesPerVertex = ImportedModel->LODModels[LODIndex].GetMaxBoneInfluences();
 					
+
 					// When mesh data is combined we will get an upper and lower bound of the number of triangles.
 					MeshData.MaxNumTriangles = ImportedModel->LODModels[LODIndex].Sections[SectionIndex].NumTriangles;
 					MeshData.MinNumTriangles = ImportedModel->LODModels[LODIndex].Sections[SectionIndex].NumTriangles;
+				}
+
+				// Find if the mesh has realtime morphs and clothing looking at the generated mesh buffers.
+				{
+					const mu::FMeshBufferSet& MeshSet = MutableMesh->GetVertexBuffers();
+
+					int32 MorphIndexBuffer, MorphIndexChannel;
+					MeshSet.FindChannel(mu::MBS_OTHER, 0, &MorphIndexBuffer, &MorphIndexChannel);
+
+					int32 MorphResourceBuffer, MorphResourceChannel;
+					MeshSet.FindChannel(mu::MBS_OTHER, 1, &MorphResourceBuffer, &MorphResourceChannel);
+
+					MeshData.bHasRealTimeMorphs = MorphIndexBuffer >= 0 && MorphResourceBuffer >= 0; 
+
+					int32 ClothIndexBuffer, ClothIndexChannel;
+					MeshSet.FindChannel(mu::MBS_OTHER, 2, &ClothIndexBuffer, &ClothIndexChannel);
+
+					int32 ClothResourceBuffer, ClothResourceChannel;
+					MeshSet.FindChannel(mu::MBS_OTHER, 3, &ClothResourceBuffer, &ClothResourceChannel);
+
+					MeshData.bHasClothing = ClothIndexBuffer >= 0 && ClothResourceBuffer >= 0; 
 				}
 			}
 
@@ -3869,6 +3976,11 @@ mu::NodeMeshPtr GenerateMutableSourceMesh(const UEdGraphPin* Pin,
 								// When mesh data is combined we will get an upper and lower bound of the number of triangles.
 								MeshData.MaxNumTriangles = ImportedModel->LODModels[LODIndex].Sections[SectionIndex].NumTriangles;
 								MeshData.MinNumTriangles = ImportedModel->LODModels[LODIndex].Sections[SectionIndex].NumTriangles;
+
+								// With tables we have to use the default skeletal mesh to tell if the surface mesh needs morphs or clothing.
+								// For now tables will not have morphs as there isn't a way to select them.
+								MeshData.bHasRealTimeMorphs = false;
+								MeshData.bHasClothing = GenerationContext.Options.bClothingEnabled && ImportedModel->LODModels[LODIndex].HasClothData();
 							}
 						}
 

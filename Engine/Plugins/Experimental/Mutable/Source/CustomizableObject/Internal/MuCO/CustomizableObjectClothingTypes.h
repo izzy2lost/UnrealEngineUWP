@@ -59,9 +59,6 @@ struct FCustomizableObjectClothingAssetData
 	TArray<FCustomizableObjectClothConfigData> ConfigsData;
 	
 	UPROPERTY()
-	FString PhysicsAssetPath;
-
-	UPROPERTY()
 	FName Name;
 	
 	UPROPERTY()
@@ -87,7 +84,6 @@ struct FCustomizableObjectClothingAssetData
 		Ar << ClothData.UsedBoneIndices;
 		Ar << ClothData.ReferenceBoneIndex;
 		Ar << ClothData.ConfigsData;
-		Ar << ClothData.PhysicsAssetPath;
 		Ar << ClothData.Name;
 		Ar << ClothData.OriginalAssetGuid;
 		

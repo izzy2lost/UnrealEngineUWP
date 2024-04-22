@@ -430,6 +430,16 @@ struct FInstanceUpdateData
 
 	TArray<FRealTimeMorphsComponentData> RealTimeMorphTargets;
 
+	struct FClothingMeshData
+	{
+		int32 ClothingAssetIndex = INDEX_NONE;
+		int32 ClothingAssetLOD = INDEX_NONE;
+		int32 PhysicsAssetIndex = INDEX_NONE;
+		TArray<FCustomizableObjectMeshToMeshVertData> Data;
+	};
+
+	TMap<uint32, FClothingMeshData> ClothingMeshData;
+
 	struct FSkeletonData
 	{
 		TArray<uint16> SkeletonIds;

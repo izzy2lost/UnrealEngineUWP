@@ -362,10 +362,6 @@ void UCustomizableObjectPrivate::ClearCompiledData(bool bIsCooking)
 {
 	GetModelResources(bIsCooking) = FModelResources();
 
-	GetPublic()->ClothMeshToMeshVertData.Empty();
-	GetPublic()->ContributingClothingAssetsData.Empty();
-	GetPublic()->ClothSharedConfigsData.Empty();
-
 #if WITH_EDITORONLY_DATA
 	CustomizableObjectPathMap.Empty();
 	GroupNodeMap.Empty();
@@ -557,12 +553,12 @@ void UCustomizableObjectPrivate::SaveCompiledData(FArchive& MemoryWriter, bool b
 	MemoryWriter << LocalModelResources.StateUIDataMap;
 
 	MemoryWriter << LocalModelResources.RealTimeMorphStreamables;
+	
+	MemoryWriter << LocalModelResources.ClothingStreamables;
+	MemoryWriter << LocalModelResources.ClothingAssetsData; 	
+	MemoryWriter << LocalModelResources.ClothSharedConfigsData; 
 
 	MemoryWriter << LocalModelResources.HashToStreamableBlock;
-
-	MemoryWriter << GetPublic()->ClothMeshToMeshVertData;
-	MemoryWriter << GetPublic()->ContributingClothingAssetsData;
-	MemoryWriter << GetPublic()->ClothSharedConfigsData; 
 
 	MemoryWriter << LocalModelResources.NumComponents;
 	MemoryWriter << LocalModelResources.NumLODs;
@@ -579,6 +575,7 @@ void UCustomizableObjectPrivate::SaveCompiledData(FArchive& MemoryWriter, bool b
 	if (!bIsCooking)
 	{
 		MemoryWriter << LocalModelResources.EditorOnlyMorphTargetReconstructionData;
+		MemoryWriter << LocalModelResources.EditorOnlyClothingMeshToMeshVertData;
 	}
 }
 
@@ -677,12 +674,12 @@ void UCustomizableObjectPrivate::LoadCompiledData(FArchive& MemoryReader, const 
 		MemoryReader << LocalModelResource.StateUIDataMap;
 
 		MemoryReader << LocalModelResource.RealTimeMorphStreamables;
-
+		
+		MemoryReader << LocalModelResource.ClothingStreamables;
+		MemoryReader << LocalModelResource.ClothingAssetsData; 
+		MemoryReader << LocalModelResource.ClothSharedConfigsData; 
+		
 		MemoryReader << LocalModelResource.HashToStreamableBlock;
-
-		MemoryReader << GetPublic()->ClothMeshToMeshVertData;
-		MemoryReader << GetPublic()->ContributingClothingAssetsData;
-		MemoryReader << GetPublic()->ClothSharedConfigsData;
 
 		MemoryReader << LocalModelResource.NumComponents;
 		MemoryReader << LocalModelResource.NumLODs;
@@ -702,6 +699,7 @@ void UCustomizableObjectPrivate::LoadCompiledData(FArchive& MemoryReader, const 
 			if (!bIsCooking)
 			{
 				MemoryReader << LocalModelResource.EditorOnlyMorphTargetReconstructionData;
+				MemoryReader << LocalModelResource.EditorOnlyClothingMeshToMeshVertData;
 				
 				DirtyParticipatingObjects.Empty();
 
@@ -800,7 +798,12 @@ void UCustomizableObjectPrivate::LoadCompiledDataFromDisk()
 }
 
 
-void UCustomizableObjectPrivate::CachePlatformData(const ITargetPlatform* InTargetPlatform, TArray64<uint8>& InModelBytes, TArray64<uint8>& InBulkBytes, TArray64<uint8>& InMorphBytes)
+void UCustomizableObjectPrivate::CachePlatformData(
+		const ITargetPlatform* InTargetPlatform, 
+		TArray64<uint8>& InModelBytes, 
+		TArray64<uint8>& InBulkBytes, 
+		TArray64<uint8>& InMorphBytes, 
+		TArray64<uint8>& InClothingBytes)
 {
 	MUTABLE_CPUPROFILER_SCOPE(CachePlatformData)
 
@@ -818,6 +821,7 @@ void UCustomizableObjectPrivate::CachePlatformData(const ITargetPlatform* InTarg
 	// Cache streamable bulk data
 	Data.StreamableData = MoveTemp(InBulkBytes);
 	Data.MorphData = MoveTemp(InMorphBytes);
+	Data.ClothingData = MoveTemp(InClothingBytes);
 }
 
 
@@ -991,12 +995,6 @@ void UCustomizableObjectPrivate::SaveEmbeddedData(FArchive& Ar)
 
 	if (GetModel())
 	{	
-		{
-			Ar << GetPublic()->ClothMeshToMeshVertData;
-			Ar << GetPublic()->ContributingClothingAssetsData;
-			Ar << GetPublic()->ClothSharedConfigsData;
-		}
-
 		// Serialise the entire model, but unload the streamable data first.
 		{
 			GetModel()->UnloadExternalData();
@@ -1024,13 +1022,7 @@ void UCustomizableObjectPrivate::LoadEmbeddedData(FArchive& Ar)
 	check(CurrentSupportedVersion == InternalVersion);
 
 	if(CurrentSupportedVersion == InternalVersion)
-	{	
-		{
-			Ar << GetPublic()->ClothMeshToMeshVertData;
-			Ar << GetPublic()->ContributingClothingAssetsData;
-			Ar << GetPublic()->ClothSharedConfigsData;
-		}
-		
+	{		
 		// Load model
 		UnrealMutableInputStream Stream(Ar);
 		mu::InputArchive Arch(&Stream);
@@ -2076,6 +2068,10 @@ void UCustomizableObjectBulk::CookAdditionalFilesOverride(const TCHAR* PackageFi
 		{
 			SourceData = PlatformData->MorphData.GetData();
 		}
+		else if (CurrentFile.DataType == EDataType::Clothing)
+		{
+			SourceData = PlatformData->ClothingData.GetData();
+		}
 		else
 		{
 			checkf(false, TEXT("Unknown file DataType found."));
@@ -2203,6 +2199,42 @@ void UCustomizableObjectBulk::PrepareBulkData(UCustomizableObject* InOuter, cons
 		}
 	}
 
+	// TODO: This should create a new classification branch when the tree is implemented.
+	// For now append after Model roms. 
+	{
+		uint64 SourceOffset = 0;
+		
+		constexpr bool bGetCooked = false;
+
+		TArray<FMutableStreamableBlock> ClothingBlocks;
+		
+		const TMap<uint32, FClothingStreamable>& ClothingStreamables = 
+				CustomizableObject->GetPrivate()->GetModelResources(bGetCooked).ClothingStreamables;
+
+		const int32 NumBlocks = ClothingBlocks.Num();
+		for (const TPair<uint32, FClothingStreamable>& ClothStreamable : ClothingStreamables)
+		{
+			const uint32 BlockSize = ClothStreamable.Value.Block.Size;
+			
+			check(SourceOffset == ClothStreamable.Value.Block.Offset);
+			FBlock CurrentBlock = { EDataType::Clothing, ClothStreamable.Key, BlockSize, SourceOffset };
+			
+			if (BlockSize > TargetBulkDataFileBytes)
+			{
+				// It will go to its own file
+				BulkDataFiles.Add(FFile{ EDataType::Clothing, 0, {CurrentBlock} });
+			}
+			else
+			{
+				// It may merge with other small blocks
+				RootNode.Blocks.Add(CurrentBlock);
+			}
+
+			SourceOffset += BlockSize;
+		}
+	}
+
+
 	// Temp: Group by order in the array
 	for (int32 BlockIndex = 0; BlockIndex < RootNode.Blocks.Num(); )
 	{
@@ -2297,6 +2329,24 @@ void UCustomizableObjectBulk::PrepareBulkData(UCustomizableObject* InOuter, cons
 				FBlock ThisBlock = CurrentFile.Blocks[FileBlockIndex];
 
 				FMutableStreamableBlock& StreamableBlock = MorphBlocks[ThisBlock.Id].Block;
+				check(StreamableBlock.Size == ThisBlock.Size);
+				StreamableBlock.FileId = FileId;
+				StreamableBlock.Offset = OffsetInFile;
+				OffsetInFile += ThisBlock.Size;
+			}
+		}
+		else if (CurrentFile.DataType == EDataType::Clothing)
+		{
+			constexpr bool bGetCooked = true;
+			TMap<uint32, FClothingStreamable>& ClothBlocks = 
+					CustomizableObject->GetPrivate()->GetModelResources(bGetCooked).ClothingStreamables;
+			// Set it to all streamable blocks
+			uint32 OffsetInFile = 0;
+			for (int32 FileBlockIndex = 0; FileBlockIndex < CurrentFile.Blocks.Num(); ++FileBlockIndex)
+			{
+				FBlock ThisBlock = CurrentFile.Blocks[FileBlockIndex];
+
+				FMutableStreamableBlock& StreamableBlock = ClothBlocks[ThisBlock.Id].Block;
 				check(StreamableBlock.Size == ThisBlock.Size);
 				StreamableBlock.FileId = FileId;
 				StreamableBlock.Offset = OffsetInFile;

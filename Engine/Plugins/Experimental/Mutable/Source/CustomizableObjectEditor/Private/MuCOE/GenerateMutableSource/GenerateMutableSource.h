@@ -195,6 +195,8 @@ struct FMutableGraphMeshGenerationData
 {
 	// Did we find any mesh with vertex colours in the expression?
 	bool bHasVertexColors = false;
+	bool bHasRealTimeMorphs = false;
+	bool bHasClothing = false;
 
 	// Maximum number of texture channels found in the expression.
 	int NumTexCoordChannels = 0;
@@ -211,16 +213,18 @@ struct FMutableGraphMeshGenerationData
 	TArray<int32> SkinWeightProfilesSemanticIndices;
 
 	// Combine another generated data looking for the most general case.
-	void Combine(const FMutableGraphMeshGenerationData& other)
+	void Combine(const FMutableGraphMeshGenerationData& Other)
 	{
-		bHasVertexColors = bHasVertexColors || other.bHasVertexColors;
-		NumTexCoordChannels = FMath::Max(other.NumTexCoordChannels, NumTexCoordChannels);
-		MaxNumBonesPerVertex = FMath::Max(other.MaxNumBonesPerVertex, MaxNumBonesPerVertex);
-		MaxBoneIndexTypeSizeBytes = FMath::Max(other.MaxBoneIndexTypeSizeBytes, MaxBoneIndexTypeSizeBytes);
-		MaxNumTriangles = FMath::Max(other.MaxNumTriangles, MaxNumTriangles);
-		MinNumTriangles = FMath::Min(other.MinNumTriangles, MinNumTriangles);
+		bHasVertexColors = bHasVertexColors || Other.bHasVertexColors;
+		bHasRealTimeMorphs = bHasRealTimeMorphs || Other.bHasRealTimeMorphs;
+		bHasClothing = bHasClothing || Other.bHasClothing;
+		NumTexCoordChannels = FMath::Max(Other.NumTexCoordChannels, NumTexCoordChannels);
+		MaxNumBonesPerVertex = FMath::Max(Other.MaxNumBonesPerVertex, MaxNumBonesPerVertex);
+		MaxBoneIndexTypeSizeBytes = FMath::Max(Other.MaxBoneIndexTypeSizeBytes, MaxBoneIndexTypeSizeBytes);
+		MaxNumTriangles = FMath::Max(Other.MaxNumTriangles, MaxNumTriangles);
+		MinNumTriangles = FMath::Min(Other.MinNumTriangles, MinNumTriangles);
 
-		for (int32 SemanticIndex : other.SkinWeightProfilesSemanticIndices)
+		for (int32 SemanticIndex : Other.SkinWeightProfilesSemanticIndices)
 		{
 			SkinWeightProfilesSemanticIndices.AddUnique(SemanticIndex);
 		}
@@ -275,6 +279,14 @@ struct FRealTimeMorphMeshData
 {
 	TArray<FName> NameResolutionMap;
 	TArray<FMorphTargetVertexData> Data;
+};
+
+struct FClothingMeshData
+{
+	int32 ClothingAssetIndex = INDEX_NONE;
+	int32 ClothingAssetLOD = INDEX_NONE;
+	int32 PhysicsAssetIndex = INDEX_NONE;
+	TArray<FCustomizableObjectMeshToMeshVertData> Data;
 };
 
 struct FGroupProjectorTempData
@@ -718,8 +730,8 @@ struct FMutableGraphGenerationContext
 	TMap<uint32, FRealTimeMorphMeshData> RealTimeMorphTargetPerMeshData;
 
 	// Data used for Clothing reconstruction.
-	TArray<FCustomizableObjectMeshToMeshVertData> ClothMeshToMeshVertData;
-	TArray<FCustomizableObjectClothingAssetData> ContributingClothingAssetsData;
+	TArray<FCustomizableObjectClothingAssetData> ClothingAssetsData;
+	TMap<uint32, FClothingMeshData> ClothingPerMeshData;
 
 	// Data used for SkinWeightProfiles reconstruction
 	TArray<FMutableSkinWeightProfileInfo> SkinWeightProfilesInfo;

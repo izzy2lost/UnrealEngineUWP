@@ -58,7 +58,7 @@ namespace mu
 	static_assert(sizeof(TypeInfo::s_imageFormatName) / sizeof(void*) == int32(EImageFormat::IF_COUNT));
 
 
-	const char* TypeInfo::s_meshBufferSemanticName[MBS_COUNT] =
+	const char* TypeInfo::s_meshBufferSemanticName[] =
 	{
 		"None",
 
@@ -83,8 +83,9 @@ namespace mu
 
 		"TriangleIndex",
 		"BarycentricCoords",
-		"Distance"
+		"Distance",
 
+		"AltSkinWeight"
 	};
 
 	static_assert(sizeof(TypeInfo::s_meshBufferSemanticName) / sizeof(void*) == int32(MBS_COUNT));

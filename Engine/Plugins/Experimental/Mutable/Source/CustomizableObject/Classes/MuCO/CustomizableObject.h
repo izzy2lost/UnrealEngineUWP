@@ -213,7 +213,7 @@ struct FCustomizableObjectMeshToMeshVertData
 	explicit FCustomizableObjectMeshToMeshVertData(const FMeshToMeshVertData& Original)
 		: Weight(Original.Weight)
 	{
-		for (int i = 0; i < 4; ++i)
+		for (int32 i = 0; i < 4; ++i)
 		{
 			PositionBaryCoordsAndDist[i] = Original.PositionBaryCoordsAndDist[i];
 			NormalBaryCoordsAndDist[i] = Original.NormalBaryCoordsAndDist[i];
@@ -227,7 +227,7 @@ struct FCustomizableObjectMeshToMeshVertData
 	{
 		FMeshToMeshVertData ReturnValue;
 
-		for (int i = 0; i < 4; ++i)
+		for (int32 i = 0; i < 4; ++i)
 		{
 			ReturnValue.PositionBaryCoordsAndDist[i] = PositionBaryCoordsAndDist[i];
 			ReturnValue.NormalBaryCoordsAndDist[i] = NormalBaryCoordsAndDist[i];
@@ -235,6 +235,7 @@ struct FCustomizableObjectMeshToMeshVertData
 			ReturnValue.SourceMeshVertIndices[i] = SourceMeshVertIndices[i];
 		}
 		ReturnValue.Weight = Weight;
+		ReturnValue.Padding = 0;
 
 		return ReturnValue;
 	}
@@ -263,13 +264,8 @@ struct FCustomizableObjectMeshToMeshVertData
 	UPROPERTY()
 	float Weight = 0.0f;
 
-	// Dummy for alignment (8 bytes). Originally not used.
-	UPROPERTY()
-	int16 SourceAssetIndex = 0;
-	
-	//
-	UPROPERTY()
-	int16 SourceAssetLodIndex = 0;
+	// Non serialized, unused padding. This is present in the FMeshToMeshVertData struct as Padding for alignment.
+	uint32 UnusedPadding = 0;
 
 	/**
 	 * Serializer
@@ -300,11 +296,10 @@ struct FCustomizableObjectMeshToMeshVertData
 
 		Ar << V.Weight;
 
-		Ar << V.SourceAssetIndex;
-		Ar << V.SourceAssetLodIndex;
 		return Ar;
 	}
 };
+static_assert(sizeof(FCustomizableObjectMeshToMeshVertData) == sizeof(float)*4*3 + sizeof(uint16)*4 + sizeof(float) + sizeof(uint32));
 template<> struct TCanBulkSerialize<FCustomizableObjectMeshToMeshVertData> { enum { Value = true }; };
 
 USTRUCT()
@@ -403,7 +398,8 @@ private:
 	{
 		None = 0,
 		Model,
-		RealTimeMorph
+		RealTimeMorph,
+		Clothing,
 	};
 
 	struct FBlock
@@ -491,15 +487,6 @@ public:
 	UPROPERTY(EditAnywhere, Category = CustomizableObject, meta = (DisplayName = "LOD Settings"))
 	FMutableLODSettings LODSettings;
 	
-	UPROPERTY(Transient)
-	TArray<FCustomizableObjectClothConfigData> ClothSharedConfigsData;	
-
-	UPROPERTY(Transient)
-	TArray<FCustomizableObjectClothingAssetData> ContributingClothingAssetsData;
-	
-	UPROPERTY(Transient)
-	TArray<FCustomizableObjectMeshToMeshVertData> ClothMeshToMeshVertData;
-
 private:
 	// mu::ExtensionData::Index is an index into this array when mu::ExtensionData::Origin is ConstantAlwaysLoaded
 	UPROPERTY()

@@ -127,4 +127,6 @@ public:
 	// Bytes store streameable files coming form the CO itself.
 	TArray64<uint8> MorphDataBytes;
 
+	// Bytes store streameable files coming form the CO itself.
+	TArray64<uint8> ClothingDataBytes;
 };

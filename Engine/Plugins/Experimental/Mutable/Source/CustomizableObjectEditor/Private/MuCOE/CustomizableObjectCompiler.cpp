@@ -1057,11 +1057,37 @@ void FCustomizableObjectCompiler::CompileInternal(bool bAsync)
 			RealTimeMorphDataOffsetInBytes += DataSizeInBytes;
 			ModelResources.EditorOnlyMorphTargetReconstructionData.Append(MeshData.Value.Data);
 		}
+	
+		// Create the Clothing Blocks from the per mesh Morph data.
+		uint64 ClothingDataNum = 0;
+		for (const TPair<uint32, FClothingMeshData>& MeshData : GenerationContext.ClothingPerMeshData)
+		{
+			ClothingDataNum += MeshData.Value.Data.Num();
+		}
 		
-		// Clothing	
-		CurrentObject->ClothMeshToMeshVertData = MoveTemp(GenerationContext.ClothMeshToMeshVertData);
-		CurrentObject->ContributingClothingAssetsData = MoveTemp(GenerationContext.ContributingClothingAssetsData);
-		CurrentObject->ClothSharedConfigsData.Empty();
+		ModelResources.ClothingStreamables.Empty(32);
+		ModelResources.EditorOnlyClothingMeshToMeshVertData.Empty(ClothingDataNum);
+
+		uint64 ClothingDataOffsetInBytes = 0;
+		for (const TPair<uint32, FClothingMeshData>& MeshData : GenerationContext.ClothingPerMeshData)
+		{
+			const uint32 DataSizeInBytes = (uint32)MeshData.Value.Data.Num()*sizeof(FCustomizableObjectMeshToMeshVertData); 
+			FClothingStreamable& ResourceMeshData = ModelResources.ClothingStreamables.FindOrAdd(MeshData.Key);
+			
+			check(ResourceMeshData.ClothingAssetIndex == INDEX_NONE);
+			check(ResourceMeshData.ClothingAssetLOD == INDEX_NONE);
+			check(ResourceMeshData.Block.Size == 0);
+
+			ResourceMeshData.ClothingAssetIndex = MeshData.Value.ClothingAssetIndex;
+			ResourceMeshData.ClothingAssetLOD = MeshData.Value.ClothingAssetLOD;
+			ResourceMeshData.PhysicsAssetIndex = MeshData.Value.PhysicsAssetIndex;
+			ResourceMeshData.Block = FMutableStreamableBlock { uint32(0), DataSizeInBytes, ClothingDataOffsetInBytes };
+
+			ClothingDataOffsetInBytes += DataSizeInBytes;
+			ModelResources.EditorOnlyClothingMeshToMeshVertData.Append(MeshData.Value.Data);
+		}
+
+		ModelResources.ClothingAssetsData = MoveTemp(GenerationContext.ClothingAssetsData);
 
 		// A clothing backend, e.g. Chaos cloth, can use 2 config files, one owned by the asset, and another that is shared 
 		// among all assets in a SkeletalMesh. When merging different assets in a skeletalmesh we need to make sure only one of 
@@ -1075,13 +1101,13 @@ void FCustomizableObjectCompiler::CompileInternal(bool bAsync)
 		};
 		
 		// Find shared configs to be used (One of each type) 
-		for (FCustomizableObjectClothingAssetData& ClothingAssetData : CurrentObject->ContributingClothingAssetsData)
+		for (FCustomizableObjectClothingAssetData& ClothingAssetData : ModelResources.ClothingAssetsData)
 		{
 			 for (FCustomizableObjectClothConfigData& ClothConfigData : ClothingAssetData.ConfigsData)
 			 {
 				  if (IsSharedConfigData(ClothConfigData))
 				  {
-					  FCustomizableObjectClothConfigData* FoundConfig = CurrentObject->ClothSharedConfigsData.FindByPredicate(
+					  FCustomizableObjectClothConfigData* FoundConfig = ModelResources.ClothSharedConfigsData.FindByPredicate(
 						   [Name = ClothConfigData.ConfigName](const FCustomizableObjectClothConfigData& Other)
 						   {
 							   return Name == Other.ConfigName;
@@ -1089,14 +1115,14 @@ void FCustomizableObjectCompiler::CompileInternal(bool bAsync)
 
 					  if (!FoundConfig)
 					  {
-						   CurrentObject->ClothSharedConfigsData.AddDefaulted_GetRef() = ClothConfigData;
+						   ModelResources.ClothSharedConfigsData.AddDefaulted_GetRef() = ClothConfigData;
 					  }
 				  }
 			 }
 		}
 		
 		// Remove shared configs
-		for (FCustomizableObjectClothingAssetData& ClothingAssetData : CurrentObject->ContributingClothingAssetsData)
+		for (FCustomizableObjectClothingAssetData& ClothingAssetData : ModelResources.ClothingAssetsData)
 		{
 			 ClothingAssetData.ConfigsData.RemoveAllSwap(IsSharedConfigData);
 		}
@@ -1269,7 +1295,14 @@ mu::NodePtr FCustomizableObjectCompiler::Export(UCustomizableObject* Object, con
 
 	FCompilationOptions CompilerOptions = InCompilerOptions;
 	CompilerOptions.CustomizableObjectNumBoneInfluences = CustomizableObjectNumBoneInfluences;
-		
+
+	CompilerOptions.bRealTimeMorphTargetsEnabled = Object->bEnableRealTimeMorphTargets;
+	CompilerOptions.bClothingEnabled = Object->bEnableClothing;
+	CompilerOptions.b16BitBoneWeightsEnabled = Object->bEnable16BitBoneWeights;
+	CompilerOptions.bSkinWeightProfilesEnabled = Object->bEnableAltSkinWeightProfiles;
+	CompilerOptions.bPhysicsAssetMergeEnabled = Object->bEnablePhysicsAssetMerge;
+	CompilerOptions.bAnimBpPhysicsManipulationEnabled = Object->bEnableAnimBpPhysicsAssetsManipualtion;
+
 	FMutableGraphGenerationContext GenerationContext(Object, this, CompilerOptions);
 	GenerationContext.ParamNamesToSelectedOptions = ParamNamesToSelectedOptions;
 
@@ -1402,7 +1435,8 @@ void FCustomizableObjectCompiler::FinishSavingDerivedDataTask()
 				SaveDDTask->GetTargetPlatform(), 
 				SaveDDTask->Bytes, 
 				SaveDDTask->BulkDataBytes,
-				SaveDDTask->MorphDataBytes);
+				SaveDDTask->MorphDataBytes,
+				SaveDDTask->ClothingDataBytes);
 	}
 	
 

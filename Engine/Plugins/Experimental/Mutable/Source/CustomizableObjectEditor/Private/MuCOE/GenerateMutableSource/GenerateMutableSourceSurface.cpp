@@ -60,8 +60,7 @@
 
 void SetSurfaceFormat( FMutableGraphGenerationContext& GenerationContext,
 					   mu::FMeshBufferSet& OutVertexBufferFormat, mu::FMeshBufferSet& OutIndexBufferFormat, const FMutableGraphMeshGenerationData& MeshData, 
-					   ECustomizableObjectNumBoneInfluences ECustomizableObjectNumBoneInfluences, bool bWithRealTimeMorphs, 
-					   bool bWithClothing, bool bWith16BitWeights )
+					   ECustomizableObjectNumBoneInfluences ECustomizableObjectNumBoneInfluences, bool bWith16BitWeights)
 {
 	// Limit skinning weights if necessary
 	// \todo: make it more flexible to support 3 or 5 or 1 weight, since there is support for this in 4.25
@@ -88,14 +87,14 @@ void SetSurfaceFormat( FMutableGraphGenerationContext& GenerationContext,
 		++MutableBufferCount;
 	}
 
-	if (bWithRealTimeMorphs)
+	if (MeshData.bHasRealTimeMorphs)
 	{
-		MutableBufferCount += 3;
+		MutableBufferCount += 2;
 	}
 
-	if (bWithClothing)
+	if (MeshData.bHasClothing)
 	{
-		++MutableBufferCount;
+		MutableBufferCount += 2;
 	}
 
 	MutableBufferCount += MeshData.SkinWeightProfilesSemanticIndices.Num();
@@ -132,7 +131,7 @@ void SetSurfaceFormat( FMutableGraphGenerationContext& GenerationContext,
 	}
 
 	// MorphTarget vertex tracking info buffers
-	if (bWithRealTimeMorphs)
+	if (MeshData.bHasRealTimeMorphs)
 	{
 		using namespace mu;
 		{
@@ -163,19 +162,35 @@ void SetSurfaceFormat( FMutableGraphGenerationContext& GenerationContext,
 	}
 
 	//Clothing Data Buffer.
-	if (bWithClothing)
+	if (MeshData.bHasClothing)
 	{
-		using namespace mu;
-		const int32 ElementSize = sizeof(int32);
-		constexpr int32 ChannelCount = 1;
-		const EMeshBufferSemantic Semantics[ChannelCount] = { MBS_OTHER };
-		const int32 SemanticIndices[ChannelCount] = { 2 };
-		const EMeshBufferFormat Formats[ChannelCount] = { MBF_INT32 };
-		const int32 Components[ChannelCount] = { 1 };
-		const int32 Offsets[ChannelCount] = { 0 };
+		{
+			using namespace mu;
+			const int32 ElementSize = sizeof(int32);
+			constexpr int32 ChannelCount = 1;
+			const EMeshBufferSemantic Semantics[ChannelCount] = { MBS_OTHER };
+			const int32 SemanticIndices[ChannelCount] = { 2 };
+			const EMeshBufferFormat Formats[ChannelCount] = { MBF_INT32 };
+			const int32 Components[ChannelCount] = { 1 };
+			const int32 Offsets[ChannelCount] = { 0 };
 
-		OutVertexBufferFormat.SetBuffer(CurrentVertexBuffer, ElementSize, ChannelCount, Semantics, SemanticIndices, Formats, Components, Offsets);
-		++CurrentVertexBuffer;
+			OutVertexBufferFormat.SetBuffer(CurrentVertexBuffer, ElementSize, ChannelCount, Semantics, SemanticIndices, Formats, Components, Offsets);
+			++CurrentVertexBuffer;
+		}
+
+		{
+			using namespace mu;
+			const int32 ElementSize = sizeof(uint32);
+			constexpr int32 ChannelCount = 1;
+			const EMeshBufferSemantic Semantics[ChannelCount] = { MBS_OTHER };
+			const int32 SemanticIndices[ChannelCount] = { 3 };
+			const EMeshBufferFormat Formats[ChannelCount] = { MBF_UINT32 };
+			const int32 Components[ChannelCount] = { 1 };
+			const int32 Offsets[ChannelCount] = { 0 };
+
+			OutVertexBufferFormat.SetBuffer(CurrentVertexBuffer, ElementSize, ChannelCount, Semantics, SemanticIndices, Formats, Components, Offsets);
+			++CurrentVertexBuffer;
+		}
 	}
 
 	for (int32 ProfileSemanticIndex : MeshData.SkinWeightProfilesSemanticIndices)
@@ -363,11 +378,9 @@ mu::NodeSurfacePtr GenerateMutableSourceSurface(const UEdGraphPin * Pin, FMutabl
 
 				mu::Ptr<mu::NodeMeshFormat> MeshFormatNode = new mu::NodeMeshFormat();
 				MeshFormatNode->SetSource(MeshNode.get());
-				SetSurfaceFormat( GenerationContext,
+				SetSurfaceFormat(GenerationContext,
 						MeshFormatNode->GetVertexBuffers(), MeshFormatNode->GetIndexBuffers(), MeshData,
 						GenerationContext.Options.CustomizableObjectNumBoneInfluences,
-						GenerationContext.Options.bRealTimeMorphTargetsEnabled, 
-						GenerationContext.Options.bClothingEnabled,
 						GenerationContext.Options.b16BitBoneWeightsEnabled);
 
 				// \TODO: Make it an option?
@@ -1124,8 +1137,6 @@ mu::NodeSurfacePtr GenerateMutableSourceSurface(const UEdGraphPin * Pin, FMutabl
 				SetSurfaceFormat( GenerationContext,
 						MeshFormat->GetVertexBuffers(), MeshFormat->GetIndexBuffers(), MeshData,
 						GenerationContext.Options.CustomizableObjectNumBoneInfluences,
-						GenerationContext.Options.bRealTimeMorphTargetsEnabled, 
-						GenerationContext.Options.bClothingEnabled,
 						GenerationContext.Options.b16BitBoneWeightsEnabled);
 
 				MeshFormat->SetSource(MeshPtr.get());

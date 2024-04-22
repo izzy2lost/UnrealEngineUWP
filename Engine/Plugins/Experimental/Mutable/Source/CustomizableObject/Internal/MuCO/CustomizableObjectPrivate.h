@@ -81,6 +81,7 @@ struct FCustomizableObjectStreameableResourceId
 		None                  = 0,
 		AssetUserData         = 1,
 		RealTimeMorphTarget   = 2,
+		Clothing              = 3,
 	};
 
 	uint64 Id   : 64 - 8;
@@ -538,6 +539,35 @@ struct FRealTimeMorphStreamable
 	}
 };
 
+
+USTRUCT()
+struct FClothingStreamable
+{
+	GENERATED_USTRUCT_BODY()
+	
+	UPROPERTY()
+	int32 ClothingAssetIndex = INDEX_NONE;
+	
+	UPROPERTY()
+	int32 ClothingAssetLOD = INDEX_NONE;
+	
+	UPROPERTY()
+	int32 PhysicsAssetIndex = INDEX_NONE;
+
+	UPROPERTY()
+	FMutableStreamableBlock Block;
+
+	friend FArchive& operator<<(FArchive& Ar, FClothingStreamable& Elem)
+	{
+		Ar << Elem.ClothingAssetIndex;
+		Ar << Elem.ClothingAssetLOD;
+		Ar << Elem.PhysicsAssetIndex;
+		Ar << Elem.Block;
+
+		return Ar;
+	}
+};
+
 USTRUCT()
 struct FMorphTargetVertexData
 {
@@ -631,9 +661,25 @@ struct FModelResources
 	UPROPERTY()
 	TMap<uint32, FRealTimeMorphStreamable> RealTimeMorphStreamables;
 
+	UPROPERTY()
+	TArray<FCustomizableObjectClothConfigData> ClothSharedConfigsData;	
+
+	UPROPERTY()
+	TArray<FCustomizableObjectClothingAssetData> ClothingAssetsData;
+
+	UPROPERTY()
+	TMap<uint32, FClothingStreamable> ClothingStreamables;
+
+	/** Currently not used, this option should be selectable from editor maybe as a compilation flag */
+	UPROPERTY()
+	bool bAllowClothingPhysicsEditsPropagation = true;
+
 #if WITH_EDITORONLY_DATA
 	UPROPERTY()
 	TArray<FMorphTargetVertexData> EditorOnlyMorphTargetReconstructionData;
+
+	UPROPERTY()
+	TArray<FCustomizableObjectMeshToMeshVertData> EditorOnlyClothingMeshToMeshVertData;
 #endif
 	
 	/** Map of Hash to Streaming blocks, used to stream a block of data representing a resource from the BulkData */
@@ -655,7 +701,6 @@ struct FModelResources
 	/** First LOD available, some platforms may remove lower LODs when cooking, this MinLOD represents the first LOD we can generate */
 	UPROPERTY()
 	uint8 FirstLODAvailable = 0;
-
 };
 
 struct CUSTOMIZABLEOBJECT_API FMutableCachedPlatformData
@@ -668,6 +713,9 @@ struct CUSTOMIZABLEOBJECT_API FMutableCachedPlatformData
 
 	/** */
 	TArray64<uint8> MorphData;
+	
+	/** */
+	TArray64<uint8> ClothingData;
 };
 
 
@@ -772,7 +820,7 @@ public:
 	void LoadCompiledDataFromDisk();
 
 	/** Cache platform data for cook */
-	void CachePlatformData(const ITargetPlatform* InTargetPlatform, TArray64<uint8>& InObjectBytes, TArray64<uint8>& InBulkBytes, TArray64<uint8>& InMorphBytes);
+	void CachePlatformData(const ITargetPlatform* InTargetPlatform, TArray64<uint8>& InObjectBytes, TArray64<uint8>& InBulkBytes, TArray64<uint8>& InMorphBytes, TArray64<uint8>& InClothingBytes);
 	
 	/** Loads data previously compiled in BeginCacheForCookedPlatformData onto the UProperties in *this,
 	  * in preparation for saving the cooked package for *this or for a CustomizableObjectInstance using *this.
@@ -885,6 +933,6 @@ public:
 	// This is a manual version number for the binary blobs in this asset.
 	// Increasing it invalidates all the previously compiled models.
 	// Warning: If while merging code both versions have changed, take the highest+1.
-	static constexpr int32 CurrentSupportedVersion = 447;
+	static constexpr int32 CurrentSupportedVersion = 448;
 };
 

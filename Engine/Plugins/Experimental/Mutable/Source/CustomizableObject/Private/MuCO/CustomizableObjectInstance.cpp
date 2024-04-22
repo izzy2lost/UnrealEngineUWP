@@ -61,9 +61,20 @@
 #include "Misc/TransactionObjectEvent.h"
 #endif
 
+namespace
+{
 #ifndef REQUIRES_SINGLEUSE_FLAG_FOR_RUNTIME_TEXTURES
 	#define REQUIRES_SINGLEUSE_FLAG_FOR_RUNTIME_TEXTURES !PLATFORM_DESKTOP
 #endif
+
+bool bDisableClothingPhysicsEditsPropagation = false;
+static FAutoConsoleVariableRef CVarDisableClothingPhysicsEditsPropagation(
+	TEXT("mutable.DisableClothingPhysicsEditsPropagation"),
+	bDisableClothingPhysicsEditsPropagation,
+	TEXT("If set to true, disables clothing physics edits propagation from the render mesh."),
+	ECVF_Default);
+}
+
 
 
 // Struct used by BuildMaterials() to identify common materials between LODs
@@ -3539,7 +3550,6 @@ void UCustomizableInstancePrivate::BuildOrCopyElementData(const TSharedRef<FUpda
 	}
 }
 
-
 void UCustomizableInstancePrivate::BuildOrCopyMorphTargetsData(const TSharedRef<FUpdateContextPrivate>& OperationData, USkeletalMesh* SkeletalMesh, const USkeletalMesh* LastUpdateSkeletalMesh, UCustomizableObjectInstance* CustomizableObjectInstance, int32 ComponentIndex)
 {
 	MUTABLE_CPUPROFILER_SCOPE(UCustomizableInstancePrivate::BuildOrCopyMorphTargetsData);
@@ -3612,7 +3622,7 @@ namespace
 
 }
 
-void UCustomizableInstancePrivate::BuildOrCopyClothingData(const TSharedRef<FUpdateContextPrivate>&OperationData, USkeletalMesh * SkeletalMesh, const USkeletalMesh* LastUpdateSkeletalMesh, UCustomizableObjectInstance * CustomizableObjectInstance, int32 ComponentIndex)
+void UCustomizableInstancePrivate::BuildOrCopyClothingData(const TSharedRef<FUpdateContextPrivate>& OperationData, USkeletalMesh * SkeletalMesh, const USkeletalMesh* LastUpdateSkeletalMesh, UCustomizableObjectInstance* CustomizableObjectInstance, int32 ComponentIndex)
 {
 	MUTABLE_CPUPROFILER_SCOPE(UCustomizableInstancePrivate::BuildOrCopyClothingData);
 
@@ -3621,16 +3631,17 @@ void UCustomizableInstancePrivate::BuildOrCopyClothingData(const TSharedRef<FUpd
 		return;
 	}
 
-	const UCustomizableObject* CustomizableObject = CustomizableObjectInstance->GetCustomizableObject();
-	const TArray<FCustomizableObjectClothingAssetData>& ContributingClothingAssetsData = CustomizableObject->ContributingClothingAssetsData;
-	const TArray<FCustomizableObjectClothConfigData>& ClothSharedConfigsData = CustomizableObject->ClothSharedConfigsData;
-	const TArray<FCustomizableObjectMeshToMeshVertData>& ClothMeshToMeshVertData = CustomizableObject->ClothMeshToMeshVertData;
 
-	if (!(ContributingClothingAssetsData.Num() && ClothMeshToMeshVertData.Num()))
+	const FModelResources& ModelResources = CustomizableObjectInstance->GetCustomizableObject()->GetPrivate()->GetModelResources();
+	const TArray<FCustomizableObjectClothingAssetData>& ClothingAssetsData = ModelResources.ClothingAssetsData;
+	const TArray<FCustomizableObjectClothConfigData>& ClothSharedConfigsData = ModelResources.ClothSharedConfigsData;
+
+	if (!(ClothingAssetsData.Num() && OperationData->InstanceUpdateData.ClothingMeshData.Num()))
 	{
 		return;
 	}
 
+	const bool bAllowClothingPhysicsEdits = !bDisableClothingPhysicsEditsPropagation && ModelResources.bAllowClothingPhysicsEditsPropagation;
 	// First we need to discover if any clothing asset is used for the instance. 
 
 	struct FSectionWithClothData
@@ -3643,18 +3654,21 @@ void UCustomizableInstancePrivate::BuildOrCopyClothingData(const TSharedRef<FUpd
 		TArrayView<const uint16> SectionIndex16View;
 		TArrayView<const uint32> SectionIndex32View;
 		TArrayView<const int32> ClothingDataIndicesView;
+		TArrayView<FCustomizableObjectMeshToMeshVertData> ClothingDataView;
 		TArray<FMeshToMeshVertData> MappingData;
 	};
 
 	TArray<FSectionWithClothData> SectionsWithCloth;
 	SectionsWithCloth.Reserve(32);
 
+	int32 NumClothingDataNotFound = 0;
+
 	const int32 LODCount = OperationData->InstanceUpdateData.LODs.Num();
 
 	{
 		MUTABLE_CPUPROFILER_SCOPE(DiscoverSectionsWithCloth);
 
-		for (int32 LODIndex = OperationData->GetMinLOD(); LODIndex < OperationData->NumLODsAvailable; ++LODIndex)
+		for (int32 LODIndex = OperationData->FirstLODAvailable; LODIndex < OperationData->NumLODsAvailable; ++LODIndex)
 		{
 			const FInstanceUpdateData::FLOD& LOD = OperationData->InstanceUpdateData.LODs[LODIndex];
 			if (ComponentIndex >= LOD.ComponentCount)
@@ -3672,28 +3686,26 @@ void UCustomizableInstancePrivate::BuildOrCopyClothingData(const TSharedRef<FUpd
 			if (mu::MeshPtrConst MutableMesh = Component.Mesh)
 			{
 				const mu::FMeshBufferSet& MeshSet = MutableMesh->GetVertexBuffers();
-
 				const mu::FMeshBufferSet& IndicesSet = MutableMesh->GetIndexBuffers();
 
-				// Semantics index may vary depending on whether realtime morph targets are enabled.
-				const int32 ClothingDataBufferIndex = [&MeshSet]()
-				{
-					int32 BufferIndex, Channel;
-					MeshSet.FindChannel(mu::MBS_OTHER, 2, &BufferIndex, &Channel);
-					return BufferIndex;
-				}(); // lambda is invoked
+				int32 ClothingIndexBuffer, ClothingIndexChannel;
+				MeshSet.FindChannel(mu::MBS_OTHER, 2, &ClothingIndexBuffer, &ClothingIndexChannel);
 
-				if (ClothingDataBufferIndex < 0)
+				int32 ClothingResourceBuffer, ClothingResourceChannel;
+				MeshSet.FindChannel(mu::MBS_OTHER, 3, &ClothingResourceBuffer, &ClothingResourceChannel);
+
+				if (ClothingIndexBuffer < 0 || ClothingResourceBuffer < 0)
 				{
 					continue;
 				}
 
-				const int32* const ClothingDataBuffer = reinterpret_cast<const int32*>(MeshSet.GetBufferData(ClothingDataBufferIndex));
+				const int32* const ClothingDataBuffer = reinterpret_cast<const int32*>(MeshSet.GetBufferData(ClothingIndexBuffer));
+				const uint32* const ClothingDataResource = reinterpret_cast<const uint32*>(MeshSet.GetBufferData(ClothingResourceBuffer));
 
 				const int32 SurfaceCount = MutableMesh->GetSurfaceCount();
 				for (int32 Section = 0; Section < SurfaceCount; ++Section)
 				{
-					int FirstVertex, VerticesCount, FirstIndex, IndicesCount;
+					int32 FirstVertex, VerticesCount, FirstIndex, IndicesCount;
 					MutableMesh->GetSurface(Section, &FirstVertex, &VerticesCount, &FirstIndex, &IndicesCount, nullptr, nullptr, nullptr);
 
 					if (VerticesCount == 0 || IndicesCount == 0)
@@ -3705,6 +3717,7 @@ void UCustomizableInstancePrivate::BuildOrCopyClothingData(const TSharedRef<FUpd
 					// It can be determined if this section has clothing data just looking at the 
 					// first vertex of the section.
 					TArrayView<const int32> ClothingDataView(ClothingDataBuffer + FirstVertex, VerticesCount);
+					TArrayView<const uint32> ClothingResourceView(ClothingDataResource + FirstVertex, VerticesCount);
 
 					const int32 IndexCount = MutableMesh->GetIndexBuffers().GetElementCount();
 
@@ -3724,61 +3737,95 @@ void UCustomizableInstancePrivate::BuildOrCopyClothingData(const TSharedRef<FUpd
 							IndicesView32Bits = TArrayView<const uint32>(IndexPtr + FirstIndex, IndicesCount);
 						 }
 					}
-					
+				
 					if (!ClothingDataView.Num())
 					{
 						continue;
 					}
 
-					const int32 ClothDataIndex = ClothingDataView[0];
-					if (ClothDataIndex < 0)
+					const uint32 ClothResourceId = ClothingResourceView[0];
+					if (ClothResourceId == 0)
 					{
 						continue;
 					}
 
-					const int32 ClothAssetIndex = ClothMeshToMeshVertData[ClothDataIndex].SourceAssetIndex;
-					const int32 ClothAssetLodIndex = ClothMeshToMeshVertData[ClothDataIndex].SourceAssetLodIndex;
+					FInstanceUpdateData::FClothingMeshData* SectionClothingData = 
+							OperationData->InstanceUpdateData.ClothingMeshData.Find(ClothResourceId);
+	
+					if (!SectionClothingData)
+					{
+						++NumClothingDataNotFound;
+						continue;
+					}
+
+					check(SectionClothingData->Data.Num());
+					check(SectionClothingData->ClothingAssetIndex != INDEX_NONE);
+					check(SectionClothingData->ClothingAssetLOD != INDEX_NONE);
+
+					const int32 ClothAssetIndex = SectionClothingData->ClothingAssetIndex;
+					const int32 ClothAssetLodIndex = SectionClothingData->ClothingAssetLOD;
+
+					check(SectionClothingData->ClothingAssetIndex == ClothAssetIndex);
 
 					// Defensive check, this indicates the clothing data might be stale and needs to be recompiled.
 					// Should never happen.
-					if (!ensure(ClothAssetIndex >= 0 && ClothAssetIndex < ContributingClothingAssetsData.Num()
-						&& ContributingClothingAssetsData[ClothAssetIndex].LodData.Num()))
+					if (!ensure(ClothAssetIndex >= 0 && ClothAssetIndex < ClothingAssetsData.Num() && 
+								ClothingAssetsData[ClothAssetIndex].LodData.Num()))
 					{
 						continue;
 					}
 
-					SectionsWithCloth.Add
-							(FSectionWithClothData{ ClothAssetIndex, ClothAssetLodIndex, Section, LODIndex, FirstVertex, IndicesView16Bits, IndicesView32Bits, ClothingDataView, TArray<FMeshToMeshVertData>() });
+					SectionsWithCloth.Add(FSectionWithClothData
+							{
+							 	ClothAssetIndex, ClothAssetLodIndex, 
+								Section, LODIndex, FirstVertex, 
+								IndicesView16Bits, IndicesView32Bits, 
+								ClothingDataView, 
+								MakeArrayView(SectionClothingData->Data.GetData(), SectionClothingData->Data.Num()),
+								TArray<FMeshToMeshVertData>() 
+							});
 				}
 			}
 		}
+	}
+
+	if (NumClothingDataNotFound > 0)
+	{
+		UE_LOG(LogMutable, Error, TEXT("Some clothing data could not be loaded properly, clothing assets may not behave as expected."));
 	}
 
 	if (!SectionsWithCloth.Num())
 	{
 		return; // Nothing to do.
 	}
-	
+		
 	TArray<FCustomizableObjectClothingAssetData> NewClothingAssetsData;
-	NewClothingAssetsData.SetNum( ContributingClothingAssetsData.Num() );
+	NewClothingAssetsData.SetNum(ClothingAssetsData.Num());
 
 	{
-
 		for (FSectionWithClothData& SectionWithCloth : SectionsWithCloth)
 		{
-			const FCustomizableObjectClothingAssetData& SrcAssetData = ContributingClothingAssetsData[SectionWithCloth.ClothAssetIndex];
+			const FCustomizableObjectClothingAssetData& SrcAssetData = ClothingAssetsData[SectionWithCloth.ClothAssetIndex];
 			FCustomizableObjectClothingAssetData& DstAssetData = NewClothingAssetsData[SectionWithCloth.ClothAssetIndex];
 		
 			// Only initilialize once, multiple sections with cloth could point to the same cloth asset.
 			if (!DstAssetData.LodMap.Num())
 			{
-				DstAssetData.LodMap.Init( INDEX_NONE, OperationData->NumLODsAvailable);
+				DstAssetData.LodMap.Init(INDEX_NONE, OperationData->NumLODsAvailable);
 
-				DstAssetData.LodData.SetNum( SrcAssetData.LodData.Num() );
 				DstAssetData.UsedBoneNames = SrcAssetData.UsedBoneNames;
 				DstAssetData.UsedBoneIndices = SrcAssetData.UsedBoneIndices;
 				DstAssetData.ReferenceBoneIndex = SrcAssetData.ReferenceBoneIndex;
 				DstAssetData.Name = SrcAssetData.Name;
+
+				if (!bAllowClothingPhysicsEdits)
+				{
+					DstAssetData.LodData = SrcAssetData.LodData;
+				}
+				else
+				{
+					DstAssetData.LodData.SetNum(SrcAssetData.LodData.Num());
+				}
 			}
 
 			DstAssetData.LodMap[SectionWithCloth.Lod] = SectionWithCloth.ClothAssetLodIndex;
@@ -3808,9 +3855,9 @@ void UCustomizableInstancePrivate::BuildOrCopyClothingData(const TSharedRef<FUpd
 				static_assert(TIsTrivial<FMeshToMeshVertData>::Value, "");
 
 				const int32 VertexDataIndex = SectionWithCloth.ClothingDataIndicesView[VertexIdx];
-				check(VertexDataIndex > 0);
+				check(VertexDataIndex >= 0);
 
-				const FCustomizableObjectMeshToMeshVertData& SrcData = ClothMeshToMeshVertData[VertexDataIndex];
+				const FCustomizableObjectMeshToMeshVertData& SrcData = SectionWithCloth.ClothingDataView[VertexDataIndex];
 
 				FMeshToMeshVertData& DstData = ClothMappingData[VertexIdx];
 				FMemory::Memcpy(&DstData, &SrcData, sizeof(FMeshToMeshVertData));
@@ -3818,467 +3865,470 @@ void UCustomizableInstancePrivate::BuildOrCopyClothingData(const TSharedRef<FUpd
 		}
 	}
 
-	// Indices remaps for {Section, AssetLod}, needed to recreate the lod transition data.
-	TMap<int32, TArray<TArray<int32>>> PhysicsSectionLodsIndicesRemaps;
+	if (bAllowClothingPhysicsEdits)
+	{
+		// Indices remaps for {Section, AssetLod}, needed to recreate the lod transition data.
+		TMap<int32, TArray<TArray<int32>>> PhysicsSectionLodsIndicesRemaps;
 
-	check( SectionsWithCloth.Num() > 0 );
-	FSectionWithClothData* MaxSection = Algo::MaxElement(SectionsWithCloth, 
-			[](const FSectionWithClothData& A, const FSectionWithClothData& B) { return  A.ClothAssetIndex < B.ClothAssetIndex; } );
-	
-	PhysicsSectionLodsIndicesRemaps.Reserve(MaxSection->ClothAssetIndex + 1);
+		check( SectionsWithCloth.Num() > 0 );
+		FSectionWithClothData* MaxSection = Algo::MaxElement(SectionsWithCloth, 
+				[](const FSectionWithClothData& A, const FSectionWithClothData& B) { return  A.ClothAssetIndex < B.ClothAssetIndex; } );
 		
-	for (FSectionWithClothData& SectionLods : SectionsWithCloth)
-	{
-		TArray<TArray<int32>>& Value = PhysicsSectionLodsIndicesRemaps.FindOrAdd(SectionLods.ClothAssetIndex, {});
-		Value.SetNum(FMath::Max(Value.Num(), SectionLods.ClothAssetLodIndex + 1));
-	}
-
-	{
-		MUTABLE_CPUPROFILER_SCOPE(RemapPhysicsMesh)
-
-		for (FSectionWithClothData& SectionWithCloth : SectionsWithCloth)
+		PhysicsSectionLodsIndicesRemaps.Reserve(MaxSection->ClothAssetIndex + 1);
+			
+		for (FSectionWithClothData& SectionLods : SectionsWithCloth)
 		{
-			const FCustomizableObjectClothingAssetData& SrcClothingAssetData = ContributingClothingAssetsData[SectionWithCloth.ClothAssetIndex];
-			FCustomizableObjectClothingAssetData& NewClothingAssetData = NewClothingAssetsData[SectionWithCloth.ClothAssetIndex];
-					
-			const FClothLODDataCommon& SrcLodData = SrcClothingAssetData.LodData[SectionWithCloth.ClothAssetLodIndex];
-			FClothLODDataCommon& NewLodData = NewClothingAssetData.LodData[SectionWithCloth.ClothAssetLodIndex];
-			
-			const int32 PhysicalMeshVerticesNum = SrcLodData.PhysicalMeshData.Vertices.Num();
+			TArray<TArray<int32>>& Value = PhysicsSectionLodsIndicesRemaps.FindOrAdd(SectionLods.ClothAssetIndex, {});
+			Value.SetNum(FMath::Max(Value.Num(), SectionLods.ClothAssetLodIndex + 1));
+		}
 
-			if (!PhysicalMeshVerticesNum)
+		{
+			MUTABLE_CPUPROFILER_SCOPE(RemapPhysicsMesh)
+
+			for (FSectionWithClothData& SectionWithCloth : SectionsWithCloth)
 			{
-				// Nothing to do.
-				continue;
-			}
-			
-			// Vertices not indexed in the mesh to mesh data generated for this section need to be removed.
-			TArray<uint8> VertexUtilizationBuffer;
-			VertexUtilizationBuffer.Init(0, PhysicalMeshVerticesNum);
-		
-			// Discover used vertices.
-			const int32 SectionVerticesNum = SectionWithCloth.ClothingDataIndicesView.Num();
+				const FCustomizableObjectClothingAssetData& SrcClothingAssetData = ClothingAssetsData[SectionWithCloth.ClothAssetIndex];
+				FCustomizableObjectClothingAssetData& NewClothingAssetData = NewClothingAssetsData[SectionWithCloth.ClothAssetIndex];
+						
+				const FClothLODDataCommon& SrcLodData = SrcClothingAssetData.LodData[SectionWithCloth.ClothAssetLodIndex];
+				FClothLODDataCommon& NewLodData = NewClothingAssetData.LodData[SectionWithCloth.ClothAssetLodIndex];
+				
+				const int32 PhysicalMeshVerticesNum = SrcLodData.PhysicalMeshData.Vertices.Num();
 
-			TArray<uint8> RenderVertexUtilizationBuffer;
-			RenderVertexUtilizationBuffer.Init(0, SectionVerticesNum);
-
-			// Sometimes, at least when a clip morph is applied, vertices are not removed from the section
-			// and only the triangles (indices) that form the mesh are modified.
-
-			auto GenerateRenderUtilizationBuffer = [&RenderVertexUtilizationBuffer](const auto& IndicesView, int32 SectionBaseVertex )
-			{
-				const int32 IndicesCount = IndicesView.Num();
-				check(IndicesCount % 3 == 0);
-				for ( int32 I = 0; I < IndicesCount; I += 3 )
+				if (!PhysicalMeshVerticesNum)
 				{
-					RenderVertexUtilizationBuffer[int32(IndicesView[I + 0]) - SectionBaseVertex] = 1;
-					RenderVertexUtilizationBuffer[int32(IndicesView[I + 1]) - SectionBaseVertex] = 1;
-					RenderVertexUtilizationBuffer[int32(IndicesView[I + 2]) - SectionBaseVertex] = 1;
+					// Nothing to do.
+					continue;
 				}
-			};
+				
+				// Vertices not indexed in the mesh to mesh data generated for this section need to be removed.
+				TArray<uint8> VertexUtilizationBuffer;
+				VertexUtilizationBuffer.Init(0, PhysicalMeshVerticesNum);
 			
-			if (SectionWithCloth.SectionIndex16View.Num())
-			{
-				GenerateRenderUtilizationBuffer(SectionWithCloth.SectionIndex16View, SectionWithCloth.BaseVertex);
-			}
-			else
-			{
-				check(SectionWithCloth.SectionIndex32View.Num());
-				GenerateRenderUtilizationBuffer(SectionWithCloth.SectionIndex32View, SectionWithCloth.BaseVertex);
-			}
+				// Discover used vertices.
+				const int32 SectionVerticesNum = SectionWithCloth.ClothingDataIndicesView.Num();
 
-			const TArray<FMeshToMeshVertData>& SectionClothMappingData = SectionWithCloth.MappingData;
-			for (int32 Idx = 0; Idx < SectionVerticesNum; ++Idx)
-			{
-				if (RenderVertexUtilizationBuffer[Idx])
+				TArray<uint8> RenderVertexUtilizationBuffer;
+				RenderVertexUtilizationBuffer.Init(0, SectionVerticesNum);
+
+				// Sometimes, at least when a clip morph is applied, vertices are not removed from the section
+				// and only the triangles (indices) that form the mesh are modified.
+
+				auto GenerateRenderUtilizationBuffer = [&RenderVertexUtilizationBuffer](const auto& IndicesView, int32 SectionBaseVertex)
 				{
-					const uint16* Indices = SectionClothMappingData[Idx].SourceMeshVertIndices;
-
-					VertexUtilizationBuffer[Indices[0]] = 1;
-					VertexUtilizationBuffer[Indices[1]] = 1;
-					VertexUtilizationBuffer[Indices[2]] = 1;
+					const int32 IndicesCount = IndicesView.Num();
+					check(IndicesCount % 3 == 0);
+					for ( int32 I = 0; I < IndicesCount; I += 3 )
+					{
+						RenderVertexUtilizationBuffer[int32(IndicesView[I + 0]) - SectionBaseVertex] = 1;
+						RenderVertexUtilizationBuffer[int32(IndicesView[I + 1]) - SectionBaseVertex] = 1;
+						RenderVertexUtilizationBuffer[int32(IndicesView[I + 2]) - SectionBaseVertex] = 1;
+					}
+				};
+				
+				if (SectionWithCloth.SectionIndex16View.Num())
+				{
+					GenerateRenderUtilizationBuffer(SectionWithCloth.SectionIndex16View, SectionWithCloth.BaseVertex);
 				}
-			}
+				else
+				{
+					check(SectionWithCloth.SectionIndex32View.Num());
+					GenerateRenderUtilizationBuffer(SectionWithCloth.SectionIndex32View, SectionWithCloth.BaseVertex);
+				}
 
-			TArray<int32>& IndexMap = PhysicsSectionLodsIndicesRemaps[SectionWithCloth.ClothAssetIndex][SectionWithCloth.ClothAssetLodIndex];
-			IndexMap.SetNumUninitialized(PhysicalMeshVerticesNum);
+				const TArray<FMeshToMeshVertData>& SectionClothMappingData = SectionWithCloth.MappingData;
+				for (int32 Idx = 0; Idx < SectionVerticesNum; ++Idx)
+				{
+					if (RenderVertexUtilizationBuffer[Idx])
+					{
+						const uint16* Indices = SectionClothMappingData[Idx].SourceMeshVertIndices;
 
-			// Compute index remap and number of remaining physics vertices.
-			// -1 indicates the vertex has been removed.
-			int32 NewPhysicalMeshVerticesNum = 0;
-			for (int32 Idx = 0; Idx < PhysicalMeshVerticesNum; ++Idx)
-			{
-				IndexMap[Idx] = VertexUtilizationBuffer[Idx] ? NewPhysicalMeshVerticesNum++ : -1;
-			}
+						VertexUtilizationBuffer[Indices[0]] = 1;
+						VertexUtilizationBuffer[Indices[1]] = 1;
+						VertexUtilizationBuffer[Indices[2]] = 1;
+					}
+				}
 
-			const bool bHasVerticesRemoved = NewPhysicalMeshVerticesNum < PhysicalMeshVerticesNum;
-			if (!bHasVerticesRemoved)
-			{
-				// If no vertices are removed the IndexMap is no longer needed. The lack of data in the map 
-				// can indicates that no vertex has been removed to subsequent operations.
-				IndexMap.Reset();
-			}
-			
-			const auto CopyIfUsed = [&VertexUtilizationBuffer, bHasVerticesRemoved](auto& Dst, const auto& Src)
-			{	
-				const int32 SrcNumElems = Src.Num();
+				TArray<int32>& IndexMap = PhysicsSectionLodsIndicesRemaps[SectionWithCloth.ClothAssetIndex][SectionWithCloth.ClothAssetLodIndex];
+				IndexMap.SetNumUninitialized(PhysicalMeshVerticesNum);
 
+				// Compute index remap and number of remaining physics vertices.
+				// -1 indicates the vertex has been removed.
+				int32 NewPhysicalMeshVerticesNum = 0;
+				for (int32 Idx = 0; Idx < PhysicalMeshVerticesNum; ++Idx)
+				{
+					IndexMap[Idx] = VertexUtilizationBuffer[Idx] ? NewPhysicalMeshVerticesNum++ : -1;
+				}
+
+				const bool bHasVerticesRemoved = NewPhysicalMeshVerticesNum < PhysicalMeshVerticesNum;
 				if (!bHasVerticesRemoved)
 				{
-					for (int32 Idx = 0; Idx < SrcNumElems; ++Idx)
+					// If no vertices are removed the IndexMap is no longer needed. The lack of data in the map 
+					// can indicates that no vertex has been removed to subsequent operations.
+					IndexMap.Reset();
+				}
+				
+				const auto CopyIfUsed = [&VertexUtilizationBuffer, bHasVerticesRemoved](auto& Dst, const auto& Src)
+				{	
+					const int32 SrcNumElems = Src.Num();
+
+					if (!bHasVerticesRemoved)
 					{
-						Dst[Idx] = Src[Idx];
-					}
+						for (int32 Idx = 0; Idx < SrcNumElems; ++Idx)
+						{
+							Dst[Idx] = Src[Idx];
+						}
 
-					return;
-				}
-
-				for (int32 Idx = 0, DstNumElems = 0; Idx < SrcNumElems; ++Idx)
-				{
-					if (VertexUtilizationBuffer[Idx])
-					{
-						Dst[DstNumElems++] = Src[Idx];
-					}
-				}
-			};
-
-			NewLodData.PhysicalMeshData.MaxBoneWeights = SrcLodData.PhysicalMeshData.MaxBoneWeights;
-
-			NewLodData.PhysicalMeshData.Vertices.SetNum(NewPhysicalMeshVerticesNum);
-			NewLodData.PhysicalMeshData.Normals.SetNum(NewPhysicalMeshVerticesNum);
-			NewLodData.PhysicalMeshData.BoneData.SetNum(NewPhysicalMeshVerticesNum);
-			NewLodData.PhysicalMeshData.InverseMasses.SetNum(NewPhysicalMeshVerticesNum);
-
-			CopyIfUsed(NewLodData.PhysicalMeshData.Vertices, SrcLodData.PhysicalMeshData.Vertices);
-			CopyIfUsed(NewLodData.PhysicalMeshData.Normals, SrcLodData.PhysicalMeshData.Normals);
-			CopyIfUsed(NewLodData.PhysicalMeshData.BoneData, SrcLodData.PhysicalMeshData.BoneData);
-			CopyIfUsed(NewLodData.PhysicalMeshData.InverseMasses, SrcLodData.PhysicalMeshData.InverseMasses);
-
-			const int32 PrevIndex = SectionWithCloth.Lod - 1;
-			const bool bNeedsTransitionUpData = NewClothingAssetData.LodMap.IsValidIndex(PrevIndex) && NewClothingAssetData.LodMap[PrevIndex] != INDEX_NONE;
-			if (bNeedsTransitionUpData)
-			{
-				NewLodData.TransitionUpSkinData.SetNum(SrcLodData.TransitionUpSkinData.Num() ? NewPhysicalMeshVerticesNum : 0);	
-				CopyIfUsed(NewLodData.TransitionUpSkinData, SrcLodData.TransitionUpSkinData);
-			}
-
-			const int32 NextIndex = SectionWithCloth.Lod + 1;
-			const bool bNeedsTransitionDownData = NewClothingAssetData.LodMap.IsValidIndex(NextIndex) && NewClothingAssetData.LodMap[NextIndex] != INDEX_NONE;
-			if (bNeedsTransitionDownData)
-			{
-				NewLodData.TransitionDownSkinData.SetNum(SrcLodData.TransitionDownSkinData.Num() ? NewPhysicalMeshVerticesNum : 0);
-				CopyIfUsed(NewLodData.TransitionDownSkinData, SrcLodData.TransitionDownSkinData);
-			}
-			
-			const TMap<uint32, FPointWeightMap>& SrcPhysWeightMaps = SrcLodData.PhysicalMeshData.WeightMaps;
-			TMap<uint32, FPointWeightMap>& NewPhysWeightMaps = NewLodData.PhysicalMeshData.WeightMaps;
-
-			for (const TPair<uint32, FPointWeightMap>& WeightMap : SrcPhysWeightMaps)
-			{
-				if (WeightMap.Value.Values.Num() > 0)
-				{
-					FPointWeightMap& NewWeightMap = NewLodData.PhysicalMeshData.AddWeightMap(WeightMap.Key);
-					NewWeightMap.Values.SetNum(NewPhysicalMeshVerticesNum);
-
-					CopyIfUsed(NewWeightMap.Values, WeightMap.Value.Values);
-				}
-			}
-			// Remap render mesh to mesh indices.
-			if (bHasVerticesRemoved)
-			{
-				for (FMeshToMeshVertData& VertClothData : SectionWithCloth.MappingData)
-				{
-					uint16* Indices = VertClothData.SourceMeshVertIndices;
-					Indices[0] = (uint16)IndexMap[Indices[0]];
-					Indices[1] = (uint16)IndexMap[Indices[1]];
-					Indices[2] = (uint16)IndexMap[Indices[2]];
-				}
-			}
-
-			// Remap and trim physics mesh vertices and self collision indices. 
-			
-			// Returns the final size of Dst.
-			const auto TrimAndRemapTriangles = [&IndexMap](TArray<uint32>& Dst, const TArray<uint32>& Src) -> int32
-			{
-				check(Src.Num() % 3 == 0);
-
-				const int32 SrcNumElems = Src.Num();
-				if (!IndexMap.Num())
-				{
-					//for (int32 Idx = 0; Idx < SrcNumElems; ++Idx)
-					//{
-					//	Dst[Idx] = Src[Idx];
-					//}
-
-					FMemory::Memcpy( Dst.GetData(), Src.GetData(), SrcNumElems*sizeof(uint32) );
-					return SrcNumElems;
-				}
-
-				int32 DstNumElems = 0;
-				for (int32 Idx = 0; Idx < SrcNumElems; Idx += 3)
-				{
-					const int32 Idx0 = IndexMap[Src[Idx + 0]];
-					const int32 Idx1 = IndexMap[Src[Idx + 1]];
-					const int32 Idx2 = IndexMap[Src[Idx + 2]];
-
-					// triangles are only copied if all vertices are used.
-					if (!((Idx0 < 0) | (Idx1 < 0) | (Idx2 < 0)))
-					{
-						Dst[DstNumElems + 0] = Idx0;
-						Dst[DstNumElems + 1] = Idx1;
-						Dst[DstNumElems + 2] = Idx2;
-
-						DstNumElems += 3;
-					}
-				}
-
-				return DstNumElems;
-			};
-
-			const TArray<uint32>& SrcPhysicalMeshIndices = SrcLodData.PhysicalMeshData.Indices;
-			TArray<uint32>& NewPhysicalMeshIndices = NewLodData.PhysicalMeshData.Indices;
-			NewPhysicalMeshIndices.SetNum(SrcPhysicalMeshIndices.Num());
-			NewPhysicalMeshIndices.SetNum(TrimAndRemapTriangles(NewPhysicalMeshIndices, SrcPhysicalMeshIndices), EAllowShrinking::No);
-		
-			const auto TrimAndRemapVertexSet = [&IndexMap](TSet<int32>& Dst, const TSet<int32>& Src)
-			{	
-				if (!IndexMap.Num())
-				{
-					Dst = Src;
-					return;
-				}
-
-				Dst.Reserve(Src.Num());
-				for(const int32 SrcIdx : Src)
-				{
-					const int32 MappedIdx = IndexMap[SrcIdx];
-
-					if (MappedIdx >= 0)
-					{
-						Dst.Add(MappedIdx);
-					}
-				}
-			};
-
-			const TSet<int32>& SrcSelfCollisionVertexSet = SrcLodData.PhysicalMeshData.SelfCollisionVertexSet;
-			TSet<int32>& NewSelfCollisionVertexSet = NewLodData.PhysicalMeshData.SelfCollisionVertexSet;
-			TrimAndRemapVertexSet(NewSelfCollisionVertexSet, SrcSelfCollisionVertexSet);
-						
-			{
-				MUTABLE_CPUPROFILER_SCOPE(BuildClothTetherData)
-
-				auto TrimAndRemapTethers = [&IndexMap](FClothTetherData& Dst, const FClothTetherData& Src)
-				{
-					if (!IndexMap.Num())
-					{
-						Dst.Tethers = Src.Tethers;
 						return;
 					}
 
-					Dst.Tethers.Reserve(Src.Tethers.Num());
-					for ( const TArray<TTuple<int32, int32, float>>& SrcTetherCluster : Src.Tethers )
+					for (int32 Idx = 0, DstNumElems = 0; Idx < SrcNumElems; ++Idx)
 					{
-						TArray<TTuple<int32, int32, float>>& DstTetherCluster = Dst.Tethers.Emplace_GetRef();
-						DstTetherCluster.Reserve(SrcTetherCluster.Num());
-						for ( const TTuple<int32, int32, float>& Tether : SrcTetherCluster )
+						if (VertexUtilizationBuffer[Idx])
 						{
-							const int32 Index0 = IndexMap[Tether.Get<0>()];
-							const int32 Index1 = IndexMap[Tether.Get<1>()];
-							if ((Index0 >= 0) & (Index1 >= 0))
+							Dst[DstNumElems++] = Src[Idx];
+						}
+					}
+				};
+
+				NewLodData.PhysicalMeshData.MaxBoneWeights = SrcLodData.PhysicalMeshData.MaxBoneWeights;
+
+				NewLodData.PhysicalMeshData.Vertices.SetNum(NewPhysicalMeshVerticesNum);
+				NewLodData.PhysicalMeshData.Normals.SetNum(NewPhysicalMeshVerticesNum);
+				NewLodData.PhysicalMeshData.BoneData.SetNum(NewPhysicalMeshVerticesNum);
+				NewLodData.PhysicalMeshData.InverseMasses.SetNum(NewPhysicalMeshVerticesNum);
+
+				CopyIfUsed(NewLodData.PhysicalMeshData.Vertices, SrcLodData.PhysicalMeshData.Vertices);
+				CopyIfUsed(NewLodData.PhysicalMeshData.Normals, SrcLodData.PhysicalMeshData.Normals);
+				CopyIfUsed(NewLodData.PhysicalMeshData.BoneData, SrcLodData.PhysicalMeshData.BoneData);
+				CopyIfUsed(NewLodData.PhysicalMeshData.InverseMasses, SrcLodData.PhysicalMeshData.InverseMasses);
+
+				const int32 PrevIndex = SectionWithCloth.Lod - 1;
+				const bool bNeedsTransitionUpData = NewClothingAssetData.LodMap.IsValidIndex(PrevIndex) && NewClothingAssetData.LodMap[PrevIndex] != INDEX_NONE;
+				if (bNeedsTransitionUpData)
+				{
+					NewLodData.TransitionUpSkinData.SetNum(SrcLodData.TransitionUpSkinData.Num() ? NewPhysicalMeshVerticesNum : 0);	
+					CopyIfUsed(NewLodData.TransitionUpSkinData, SrcLodData.TransitionUpSkinData);
+				}
+
+				const int32 NextIndex = SectionWithCloth.Lod + 1;
+				const bool bNeedsTransitionDownData = NewClothingAssetData.LodMap.IsValidIndex(NextIndex) && NewClothingAssetData.LodMap[NextIndex] != INDEX_NONE;
+				if (bNeedsTransitionDownData)
+				{
+					NewLodData.TransitionDownSkinData.SetNum(SrcLodData.TransitionDownSkinData.Num() ? NewPhysicalMeshVerticesNum : 0);
+					CopyIfUsed(NewLodData.TransitionDownSkinData, SrcLodData.TransitionDownSkinData);
+				}
+				
+				const TMap<uint32, FPointWeightMap>& SrcPhysWeightMaps = SrcLodData.PhysicalMeshData.WeightMaps;
+				TMap<uint32, FPointWeightMap>& NewPhysWeightMaps = NewLodData.PhysicalMeshData.WeightMaps;
+
+				for (const TPair<uint32, FPointWeightMap>& WeightMap : SrcPhysWeightMaps)
+				{
+					if (WeightMap.Value.Values.Num() > 0)
+					{
+						FPointWeightMap& NewWeightMap = NewLodData.PhysicalMeshData.AddWeightMap(WeightMap.Key);
+						NewWeightMap.Values.SetNum(NewPhysicalMeshVerticesNum);
+
+						CopyIfUsed(NewWeightMap.Values, WeightMap.Value.Values);
+					}
+				}
+				// Remap render mesh to mesh indices.
+				if (bHasVerticesRemoved)
+				{
+					for (FMeshToMeshVertData& VertClothData : SectionWithCloth.MappingData)
+					{
+						uint16* Indices = VertClothData.SourceMeshVertIndices;
+						Indices[0] = (uint16)IndexMap[Indices[0]];
+						Indices[1] = (uint16)IndexMap[Indices[1]];
+						Indices[2] = (uint16)IndexMap[Indices[2]];
+					}
+				}
+
+				// Remap and trim physics mesh vertices and self collision indices. 
+				
+				// Returns the final size of Dst.
+				const auto TrimAndRemapTriangles = [&IndexMap](TArray<uint32>& Dst, const TArray<uint32>& Src) -> int32
+				{
+					check(Src.Num() % 3 == 0);
+
+					const int32 SrcNumElems = Src.Num();
+					if (!IndexMap.Num())
+					{
+						//for (int32 Idx = 0; Idx < SrcNumElems; ++Idx)
+						//{
+						//	Dst[Idx] = Src[Idx];
+						//}
+
+						FMemory::Memcpy( Dst.GetData(), Src.GetData(), SrcNumElems*sizeof(uint32) );
+						return SrcNumElems;
+					}
+
+					int32 DstNumElems = 0;
+					for (int32 Idx = 0; Idx < SrcNumElems; Idx += 3)
+					{
+						const int32 Idx0 = IndexMap[Src[Idx + 0]];
+						const int32 Idx1 = IndexMap[Src[Idx + 1]];
+						const int32 Idx2 = IndexMap[Src[Idx + 2]];
+
+						// triangles are only copied if all vertices are used.
+						if (!((Idx0 < 0) | (Idx1 < 0) | (Idx2 < 0)))
+						{
+							Dst[DstNumElems + 0] = Idx0;
+							Dst[DstNumElems + 1] = Idx1;
+							Dst[DstNumElems + 2] = Idx2;
+
+							DstNumElems += 3;
+						}
+					}
+
+					return DstNumElems;
+				};
+
+				const TArray<uint32>& SrcPhysicalMeshIndices = SrcLodData.PhysicalMeshData.Indices;
+				TArray<uint32>& NewPhysicalMeshIndices = NewLodData.PhysicalMeshData.Indices;
+				NewPhysicalMeshIndices.SetNum(SrcPhysicalMeshIndices.Num());
+				NewPhysicalMeshIndices.SetNum(TrimAndRemapTriangles(NewPhysicalMeshIndices, SrcPhysicalMeshIndices), EAllowShrinking::No);
+			
+				const auto TrimAndRemapVertexSet = [&IndexMap](TSet<int32>& Dst, const TSet<int32>& Src)
+				{	
+					if (!IndexMap.Num())
+					{
+						Dst = Src;
+						return;
+					}
+
+					Dst.Reserve(Src.Num());
+					for(const int32 SrcIdx : Src)
+					{
+						const int32 MappedIdx = IndexMap[SrcIdx];
+
+						if (MappedIdx >= 0)
+						{
+							Dst.Add(MappedIdx);
+						}
+					}
+				};
+
+				const TSet<int32>& SrcSelfCollisionVertexSet = SrcLodData.PhysicalMeshData.SelfCollisionVertexSet;
+				TSet<int32>& NewSelfCollisionVertexSet = NewLodData.PhysicalMeshData.SelfCollisionVertexSet;
+				TrimAndRemapVertexSet(NewSelfCollisionVertexSet, SrcSelfCollisionVertexSet);
+							
+				{
+					MUTABLE_CPUPROFILER_SCOPE(BuildClothTetherData)
+
+					auto TrimAndRemapTethers = [&IndexMap](FClothTetherData& Dst, const FClothTetherData& Src)
+					{
+						if (!IndexMap.Num())
+						{
+							Dst.Tethers = Src.Tethers;
+							return;
+						}
+
+						Dst.Tethers.Reserve(Src.Tethers.Num());
+						for ( const TArray<TTuple<int32, int32, float>>& SrcTetherCluster : Src.Tethers )
+						{
+							TArray<TTuple<int32, int32, float>>& DstTetherCluster = Dst.Tethers.Emplace_GetRef();
+							DstTetherCluster.Reserve(SrcTetherCluster.Num());
+							for ( const TTuple<int32, int32, float>& Tether : SrcTetherCluster )
 							{
-								DstTetherCluster.Emplace(Index0, Index1, Tether.Get<2>());
+								const int32 Index0 = IndexMap[Tether.Get<0>()];
+								const int32 Index1 = IndexMap[Tether.Get<1>()];
+								if ((Index0 >= 0) & (Index1 >= 0))
+								{
+									DstTetherCluster.Emplace(Index0, Index1, Tether.Get<2>());
+								}
+							}
+
+							if (!DstTetherCluster.Num())
+							{
+								Dst.Tethers.RemoveAt( Dst.Tethers.Num() - 1, 1, EAllowShrinking::No );
 							}
 						}
+					};
 
-						if (!DstTetherCluster.Num())
+					TrimAndRemapTethers(NewLodData.PhysicalMeshData.GeodesicTethers, SrcLodData.PhysicalMeshData.GeodesicTethers);
+					TrimAndRemapTethers(NewLodData.PhysicalMeshData.EuclideanTethers, SrcLodData.PhysicalMeshData.EuclideanTethers);
+				}
+			}
+		}
+
+		// Try to find plausible values for LodTransitionData vertices that have lost the triangle to which are attached.
+		{
+			MUTABLE_CPUPROFILER_SCOPE(BuildLodTransitionData)
+			
+			for (const FSectionWithClothData& SectionWithCloth : SectionsWithCloth)
+			{
+
+				FCustomizableObjectClothingAssetData& NewClothingAssetData = NewClothingAssetsData[SectionWithCloth.ClothAssetIndex];
+				FClothLODDataCommon& NewLodData = NewClothingAssetData.LodData[SectionWithCloth.ClothAssetLodIndex];
+
+				const int32 PhysicalMeshVerticesNum = NewLodData.PhysicalMeshData.Vertices.Num();
+
+				if (!PhysicalMeshVerticesNum)
+				{
+					// Nothing to do.
+					continue;
+				}
+			
+				auto RemapTransitionMeshToMeshVertData = []( TArray<FMeshToMeshVertData>& InOutVertData, TArray<int32>& IndexMap )
+				{
+					for (FMeshToMeshVertData& VertData : InOutVertData)
+					{
+						uint16* Indices = VertData.SourceMeshVertIndices;
+						Indices[0] = (uint16)IndexMap[Indices[0]];
+						Indices[1] = (uint16)IndexMap[Indices[1]];
+						Indices[2] = (uint16)IndexMap[Indices[2]];
+					}
+				};
+
+				if (NewLodData.TransitionDownSkinData.Num() > 0)
+				{	
+					TArray<int32>& IndexMap = PhysicsSectionLodsIndicesRemaps[SectionWithCloth.ClothAssetIndex][SectionWithCloth.ClothAssetLodIndex + 1];
+
+					if (IndexMap.Num())
+					{
+						RemapTransitionMeshToMeshVertData( NewLodData.TransitionDownSkinData, IndexMap );
+					}
+				}
+				
+				if (NewLodData.TransitionUpSkinData.Num() > 0)
+				{	
+					TArray<int32>& IndexMap = PhysicsSectionLodsIndicesRemaps[SectionWithCloth.ClothAssetIndex][SectionWithCloth.ClothAssetLodIndex - 1];
+					if (IndexMap.Num())
+					{
+						RemapTransitionMeshToMeshVertData( NewLodData.TransitionUpSkinData, IndexMap );
+					}
+				}
+
+				struct FMeshPhysicsDesc
+				{
+					const TArray<FVector3f>& Vertices;
+					const TArray<FVector3f>& Normals;
+					const TArray<uint32>& Indices;
+				};	
+			
+				auto RebindVertex = [](const FMeshPhysicsDesc& Mesh, const FVector3f& InPosition, const FVector3f& InNormal, FMeshToMeshVertData& Out)
+				{
+					const FVector3f Normal = InNormal;
+
+					// We don't have the mesh tangent, find something plausible.
+					FVector3f Tan0, Tan1;
+					Normal.FindBestAxisVectors(Tan0, Tan1);
+					const FVector3f Tangent = Tan0;
+					
+					// Some of the math functions take as argument FVector, we'd want to be FVector3f. 
+					// This should be changed once support for the single type in the FMath functions is added. 
+					const FVector Position = (FVector)InPosition;
+					int32 BestBaseTriangleIdx = INDEX_NONE;
+					FVector::FReal BestDistanceSq = TNumericLimits<FVector::FReal>::Max();
+					
+					const int32 NumIndices = Mesh.Indices.Num();
+					check(NumIndices % 3 == 0);
+
+					for (int32 I = 0; I < NumIndices; I += 3)
+					{
+						const FVector& A = (FVector)Mesh.Vertices[Mesh.Indices[I + 0]];
+						const FVector& B = (FVector)Mesh.Vertices[Mesh.Indices[I + 1]];
+						const FVector& C = (FVector)Mesh.Vertices[Mesh.Indices[I + 2]];
+
+						FVector ClosestTrianglePoint = FMath::ClosestPointOnTriangleToPoint(Position, (FVector)A, (FVector)B, (FVector)C);
+
+						const FVector::FReal CurrentDistSq = (ClosestTrianglePoint - Position).SizeSquared();
+						if (CurrentDistSq < BestDistanceSq)
 						{
-							Dst.Tethers.RemoveAt( Dst.Tethers.Num() - 1, EAllowShrinking::No );
+							BestDistanceSq = CurrentDistSq;
+							BestBaseTriangleIdx = I;
+						}
+					}
+
+					check(BestBaseTriangleIdx >= 0);
+
+					auto ComputeBaryCoordsAndDist = [](const FVector3f& A, const FVector3f& B, const FVector3f& C, const FVector3f& P) -> FVector4f
+					{
+						FPlane4f TrianglePlane(A, B, C);
+
+						const FVector3f PointOnTriPlane = FVector3f::PointPlaneProject(P, TrianglePlane);
+						const FVector3f BaryCoords = (FVector3f)FMath::ComputeBaryCentric2D((FVector)PointOnTriPlane, (FVector)A, (FVector)B, (FVector)C);
+
+						return FVector4f(BaryCoords, TrianglePlane.PlaneDot((FVector3f)P));
+					};
+
+					const FVector3f& A = Mesh.Vertices[Mesh.Indices[BestBaseTriangleIdx + 0]];
+					const FVector3f& B = Mesh.Vertices[Mesh.Indices[BestBaseTriangleIdx + 1]];
+					const FVector3f& C = Mesh.Vertices[Mesh.Indices[BestBaseTriangleIdx + 2]];
+
+					Out.PositionBaryCoordsAndDist = ComputeBaryCoordsAndDist(A, B, C, (FVector3f)Position );
+					Out.NormalBaryCoordsAndDist = ComputeBaryCoordsAndDist(A, B, C, (FVector3f)Position + Normal );
+					Out.TangentBaryCoordsAndDist = ComputeBaryCoordsAndDist(A, B, C, (FVector3f)Position + Tangent );
+					Out.SourceMeshVertIndices[0] = (uint16)Mesh.Indices[BestBaseTriangleIdx + 0];
+					Out.SourceMeshVertIndices[1] = (uint16)Mesh.Indices[BestBaseTriangleIdx + 1]; 
+					Out.SourceMeshVertIndices[2] = (uint16)Mesh.Indices[BestBaseTriangleIdx + 2];
+				};
+			
+				auto RecreateTransitionData = [&PhysicsSectionLodsIndicesRemaps, &RebindVertex]( 
+					const FMeshPhysicsDesc& ToMesh, const FMeshPhysicsDesc& FromMesh, const TArray<int32>& IndexMap, TArray<FMeshToMeshVertData>& InOutTransitionData )
+				{
+					if (!IndexMap.Num())
+					{
+						return;
+					}
+
+					if (!InOutTransitionData.Num())
+					{
+						return;
+					}
+
+					const int32 TransitionDataNum = InOutTransitionData.Num();
+					
+					for (int32 I = 0; I < TransitionDataNum; ++I)
+					{
+						FMeshToMeshVertData& VertData = InOutTransitionData[I];
+						uint16* Indices = VertData.SourceMeshVertIndices;
+
+						// If any original indices are missing but the vertex is still alive rebind the vertex.
+						// In general, the number of rebinds should be small.
+
+						// Currently, if any index is missing we rebind to the closest triangle but it could be nice to use the remaining indices, 
+						// if any, to find the most appropriate triangle to bind to. 
+						const bool bNeedsRebind = (Indices[0] == 0xFFFF) | (Indices[1] == 0xFFFF) | (Indices[2] == 0xFFFF);
+
+						if (bNeedsRebind)
+						{
+							RebindVertex( ToMesh, FromMesh.Vertices[I], FromMesh.Normals[I], VertData );
 						}
 					}
 				};
 
-				TrimAndRemapTethers(NewLodData.PhysicalMeshData.GeodesicTethers, SrcLodData.PhysicalMeshData.GeodesicTethers);
-				TrimAndRemapTethers(NewLodData.PhysicalMeshData.EuclideanTethers, SrcLodData.PhysicalMeshData.EuclideanTethers);
-			}
-		}
-	}
+				const FMeshPhysicsDesc CurrentPhysicsMesh {
+					NewClothingAssetData.LodData[SectionWithCloth.ClothAssetLodIndex].PhysicalMeshData.Vertices,
+					NewClothingAssetData.LodData[SectionWithCloth.ClothAssetLodIndex].PhysicalMeshData.Normals,
+					NewClothingAssetData.LodData[SectionWithCloth.ClothAssetLodIndex].PhysicalMeshData.Indices };
 
-	// Try to find plausible values for LodTransitionData vertices that have lost the triangle to which are attached.
-	{
-		MUTABLE_CPUPROFILER_SCOPE(BuildLodTransitionData)
-		
-		for (const FSectionWithClothData& SectionWithCloth : SectionsWithCloth)
-		{
-
-			FCustomizableObjectClothingAssetData& NewClothingAssetData = NewClothingAssetsData[SectionWithCloth.ClothAssetIndex];
-			FClothLODDataCommon& NewLodData = NewClothingAssetData.LodData[SectionWithCloth.ClothAssetLodIndex];
-
-			const int32 PhysicalMeshVerticesNum = NewLodData.PhysicalMeshData.Vertices.Num();
-
-			if (!PhysicalMeshVerticesNum)
-			{
-				// Nothing to do.
-				continue;
-			}
-		
-			auto RemapTransitionMeshToMeshVertData = []( TArray<FMeshToMeshVertData>& InOutVertData, TArray<int32>& IndexMap )
-			{
-				for (FMeshToMeshVertData& VertData : InOutVertData)
-				{
-					uint16* Indices = VertData.SourceMeshVertIndices;
-					Indices[0] = (uint16)IndexMap[Indices[0]];
-					Indices[1] = (uint16)IndexMap[Indices[1]];
-					Indices[2] = (uint16)IndexMap[Indices[2]];
-				}
-			};
-
-			if (NewLodData.TransitionDownSkinData.Num() > 0)
-			{	
-				TArray<int32>& IndexMap = PhysicsSectionLodsIndicesRemaps[SectionWithCloth.ClothAssetIndex][SectionWithCloth.ClothAssetLodIndex + 1];
-
-				if (IndexMap.Num())
-				{
-					RemapTransitionMeshToMeshVertData( NewLodData.TransitionDownSkinData, IndexMap );
-				}
-			}
-			
-			if (NewLodData.TransitionUpSkinData.Num() > 0)
-			{	
-				TArray<int32>& IndexMap = PhysicsSectionLodsIndicesRemaps[SectionWithCloth.ClothAssetIndex][SectionWithCloth.ClothAssetLodIndex - 1];
-				if (IndexMap.Num())
-				{
-					RemapTransitionMeshToMeshVertData( NewLodData.TransitionUpSkinData, IndexMap );
-				}
-			}
-
-			struct FMeshPhysicsDesc
-			{
-				const TArray<FVector3f>& Vertices;
-				const TArray<FVector3f>& Normals;
-				const TArray<uint32>& Indices;
-			};	
-		
-			auto RebindVertex = [](const FMeshPhysicsDesc& Mesh, const FVector3f& InPosition, const FVector3f& InNormal, FMeshToMeshVertData& Out)
-			{
-				const FVector3f Normal = InNormal;
-
-				// We don't have the mesh tangent, find something plausible.
-				FVector3f Tan0, Tan1;
-				Normal.FindBestAxisVectors(Tan0, Tan1);
-				const FVector3f Tangent = Tan0;
+				const TArray<TArray<int32>>& SectionIndexRemaps = PhysicsSectionLodsIndicesRemaps[SectionWithCloth.ClothAssetIndex];
 				
-				// Some of the math functions take as argument FVector, we'd want to be FVector3f. 
-				// This should be changed once support for the single type in the FMath functions is added. 
-				const FVector Position = (FVector)InPosition;
-				int32 BestBaseTriangleIdx = INDEX_NONE;
-				FVector::FReal BestDistanceSq = TNumericLimits<FVector::FReal>::Max();
-				
-				const int32 NumIndices = Mesh.Indices.Num();
-				check(NumIndices % 3 == 0);
-
-				for (int32 I = 0; I < NumIndices; I += 3)
+				if (SectionWithCloth.ClothAssetLodIndex < SectionIndexRemaps.Num() - 1)
 				{
-					const FVector& A = (FVector)Mesh.Vertices[Mesh.Indices[I + 0]];
-					const FVector& B = (FVector)Mesh.Vertices[Mesh.Indices[I + 1]];
-					const FVector& C = (FVector)Mesh.Vertices[Mesh.Indices[I + 2]];
-
-					FVector ClosestTrianglePoint = FMath::ClosestPointOnTriangleToPoint(Position, (FVector)A, (FVector)B, (FVector)C);
-
-					const FVector::FReal CurrentDistSq = (ClosestTrianglePoint - Position).SizeSquared();
-					if (CurrentDistSq < BestDistanceSq)
-					{
-						BestDistanceSq = CurrentDistSq;
-						BestBaseTriangleIdx = I;
-					}
-				}
-
-				check(BestBaseTriangleIdx >= 0);
-
-				auto ComputeBaryCoordsAndDist = [](const FVector3f& A, const FVector3f& B, const FVector3f& C, const FVector3f& P) -> FVector4f
-				{
-					FPlane4f TrianglePlane(A, B, C);
-
-					const FVector3f PointOnTriPlane = FVector3f::PointPlaneProject(P, TrianglePlane);
-					const FVector3f BaryCoords = (FVector3f)FMath::ComputeBaryCentric2D((FVector)PointOnTriPlane, (FVector)A, (FVector)B, (FVector)C);
-
-					return FVector4f(BaryCoords, TrianglePlane.PlaneDot((FVector3f)P));
-				};
-
-				const FVector3f& A = Mesh.Vertices[Mesh.Indices[BestBaseTriangleIdx + 0]];
-				const FVector3f& B = Mesh.Vertices[Mesh.Indices[BestBaseTriangleIdx + 1]];
-				const FVector3f& C = Mesh.Vertices[Mesh.Indices[BestBaseTriangleIdx + 2]];
-
-				Out.PositionBaryCoordsAndDist = ComputeBaryCoordsAndDist(A, B, C, (FVector3f)Position );
-				Out.NormalBaryCoordsAndDist = ComputeBaryCoordsAndDist(A, B, C, (FVector3f)Position + Normal );
-				Out.TangentBaryCoordsAndDist = ComputeBaryCoordsAndDist(A, B, C, (FVector3f)Position + Tangent );
-				Out.SourceMeshVertIndices[0] = (uint16)Mesh.Indices[BestBaseTriangleIdx + 0];
-				Out.SourceMeshVertIndices[1] = (uint16)Mesh.Indices[BestBaseTriangleIdx + 1]; 
-				Out.SourceMeshVertIndices[2] = (uint16)Mesh.Indices[BestBaseTriangleIdx + 2];
-			};
-		
-			auto RecreateTransitionData = [&PhysicsSectionLodsIndicesRemaps, &RebindVertex]( 
-				const FMeshPhysicsDesc& ToMesh, const FMeshPhysicsDesc& FromMesh, const TArray<int32>& IndexMap, TArray<FMeshToMeshVertData>& InOutTransitionData )
-			{
-				if (!IndexMap.Num())
-				{
-					return;
-				}
-
-				if (!InOutTransitionData.Num())
-				{
-					return;
-				}
-
-				const int32 TransitionDataNum = InOutTransitionData.Num();
-				
-				for (int32 I = 0; I < TransitionDataNum; ++I)
-				{
-					FMeshToMeshVertData& VertData = InOutTransitionData[I];
-					uint16* Indices = VertData.SourceMeshVertIndices;
-
-					// If any original indices are missing but the vertex is still alive rebind the vertex.
-					// In general, the number of rebinds should be small.
-
-					// Currently, if any index is missing we rebind to the closest triangle but it could be nice to use the remaining indices, 
-					// if any, to find the most appropriate triangle to bind to. 
-					const bool bNeedsRebind = (Indices[0] == 0xFFFF) | (Indices[1] == 0xFFFF) | (Indices[2] == 0xFFFF);
-
-					if (bNeedsRebind)
-					{
-						RebindVertex( ToMesh, FromMesh.Vertices[I], FromMesh.Normals[I], VertData );
-					}
-				}
-			};
-
-			const FMeshPhysicsDesc CurrentPhysicsMesh {
-				NewClothingAssetData.LodData[SectionWithCloth.ClothAssetLodIndex].PhysicalMeshData.Vertices,
-				NewClothingAssetData.LodData[SectionWithCloth.ClothAssetLodIndex].PhysicalMeshData.Normals,
-				NewClothingAssetData.LodData[SectionWithCloth.ClothAssetLodIndex].PhysicalMeshData.Indices };
-
-			const TArray<TArray<int32>>& SectionIndexRemaps = PhysicsSectionLodsIndicesRemaps[SectionWithCloth.ClothAssetIndex];
-			
-			if (SectionWithCloth.ClothAssetLodIndex < SectionIndexRemaps.Num() - 1)
-			{
-				const TArray<int32>& IndexMap = SectionIndexRemaps[SectionWithCloth.ClothAssetLodIndex + 1];
-				
-				const FMeshPhysicsDesc TransitionDownTarget {  
-					NewClothingAssetData.LodData[SectionWithCloth.ClothAssetLodIndex + 1].PhysicalMeshData.Vertices,
-					NewClothingAssetData.LodData[SectionWithCloth.ClothAssetLodIndex + 1].PhysicalMeshData.Normals,
-					NewClothingAssetData.LodData[SectionWithCloth.ClothAssetLodIndex + 1].PhysicalMeshData.Indices };
+					const TArray<int32>& IndexMap = SectionIndexRemaps[SectionWithCloth.ClothAssetLodIndex + 1];
 					
-				RecreateTransitionData( TransitionDownTarget, CurrentPhysicsMesh, IndexMap, NewLodData.TransitionDownSkinData );
-			}
-			
-			if (SectionWithCloth.ClothAssetLodIndex > 0)
-			{
-				const TArray<int32>& IndexMap = SectionIndexRemaps[SectionWithCloth.ClothAssetLodIndex - 1];
+					const FMeshPhysicsDesc TransitionDownTarget {  
+						NewClothingAssetData.LodData[SectionWithCloth.ClothAssetLodIndex + 1].PhysicalMeshData.Vertices,
+						NewClothingAssetData.LodData[SectionWithCloth.ClothAssetLodIndex + 1].PhysicalMeshData.Normals,
+						NewClothingAssetData.LodData[SectionWithCloth.ClothAssetLodIndex + 1].PhysicalMeshData.Indices };
+						
+					RecreateTransitionData( TransitionDownTarget, CurrentPhysicsMesh, IndexMap, NewLodData.TransitionDownSkinData );
+				}
 				
-				FMeshPhysicsDesc TransitionUpTarget{  
-					NewClothingAssetData.LodData[SectionWithCloth.ClothAssetLodIndex - 1].PhysicalMeshData.Vertices,
-					NewClothingAssetData.LodData[SectionWithCloth.ClothAssetLodIndex - 1].PhysicalMeshData.Normals,
-					NewClothingAssetData.LodData[SectionWithCloth.ClothAssetLodIndex - 1].PhysicalMeshData.Indices };
-		
-				RecreateTransitionData( TransitionUpTarget, CurrentPhysicsMesh, IndexMap, NewLodData.TransitionUpSkinData );
+				if (SectionWithCloth.ClothAssetLodIndex > 0)
+				{
+					const TArray<int32>& IndexMap = SectionIndexRemaps[SectionWithCloth.ClothAssetLodIndex - 1];
+					
+					FMeshPhysicsDesc TransitionUpTarget{  
+						NewClothingAssetData.LodData[SectionWithCloth.ClothAssetLodIndex - 1].PhysicalMeshData.Vertices,
+						NewClothingAssetData.LodData[SectionWithCloth.ClothAssetLodIndex - 1].PhysicalMeshData.Normals,
+						NewClothingAssetData.LodData[SectionWithCloth.ClothAssetLodIndex - 1].PhysicalMeshData.Indices };
+			
+					RecreateTransitionData( TransitionUpTarget, CurrentPhysicsMesh, IndexMap, NewLodData.TransitionUpSkinData );
+				}
 			}
 		}
 	}
@@ -4361,7 +4411,7 @@ void UCustomizableInstancePrivate::BuildOrCopyClothingData(const TSharedRef<FUpd
 	}
 
 	TArray<UCustomizableObjectClothingAsset*> NewClothingAssets;
-	NewClothingAssets.Init(nullptr, ContributingClothingAssetsData.Num());
+	NewClothingAssets.Init(nullptr, ClothingAssetsData.Num());
 
 	{ 
 		MUTABLE_CPUPROFILER_SCOPE(CreateClothingAssets)
@@ -4396,17 +4446,43 @@ void UCustomizableInstancePrivate::BuildOrCopyClothingData(const TSharedRef<FUpd
 			}
 		}
 
-		check(NewClothingAssets.Num() == ClothingPhysicsAssets.Num());
-		for (int32 I = 0; I < NewClothingAssetsData.Num(); ++I)
+		const int32 NumClothingAssets = NewClothingAssetsData.Num(); 
+		check(NumClothingAssets == ClothingPhysicsAssets.Num());
+	
+		bool bAllNamesUnique = true;
+		TArray<FName, TInlineAllocator<8>> UniqueAssetNames;
+
+		for (int32 I = 0; I < NumClothingAssets; ++I)
 		{
-			// skip assets not set.
+			// Skip assets not set.
 			if (!NewClothingAssetsData[I].LodData.Num())
 			{
 				continue;
 			}
-	
-			FName UniqueClothingAssetName = FName(FString::Printf(TEXT("%s_%d"), *NewClothingAssetsData[I].Name.ToString(), I));
-			NewClothingAssets[I] = NewObject<UCustomizableObjectClothingAsset>(SkeletalMesh, UniqueClothingAssetName);
+
+			const int32 PrevNumUniqueElems = UniqueAssetNames.Num();
+			const int32 ElemIndex = UniqueAssetNames.AddUnique(NewClothingAssetsData[I].Name);
+
+			if (ElemIndex < PrevNumUniqueElems)
+			{
+				bAllNamesUnique = false;
+				break;
+			}
+		}
+
+		for (int32 I = 0; I < NumClothingAssets; ++I)
+		{
+			// Skip assets not set.
+			if (!NewClothingAssetsData[I].LodData.Num())
+			{
+				continue;
+			}
+
+			FName ClothingAssetObjectName = bAllNamesUnique 
+					? NewClothingAssetsData[I].Name
+					: FName(FString::Printf(TEXT("%s_%d"), *NewClothingAssetsData[I].Name.ToString(), I));;
+
+			NewClothingAssets[I] = NewObject<UCustomizableObjectClothingAsset>(SkeletalMesh, ClothingAssetObjectName);
 			
 			// The data can be moved to the actual asset since it will not be used anymore.
 			NewClothingAssets[I]->LodMap = MoveTemp(NewClothingAssetsData[I].LodMap);
@@ -4419,7 +4495,7 @@ void UCustomizableInstancePrivate::BuildOrCopyClothingData(const TSharedRef<FUpd
 			NewClothingAssets[I]->CalculateReferenceBoneIndex();	
 			NewClothingAssets[I]->PhysicsAsset = ClothingPhysicsAssets[I];
 
-			for (const FCustomizableObjectClothConfigData& ConfigData : ContributingClothingAssetsData[I].ConfigsData)
+			for (const FCustomizableObjectClothConfigData& ConfigData : ClothingAssetsData[I].ConfigsData)
 			{
 				UClothConfigCommon* ClothConfig = CreateNewClothConfigFromData(NewClothingAssets[I], ConfigData);
 				if (ClothConfig)
@@ -4664,6 +4740,7 @@ FAutoConsoleVariableRef CVarMutableHighPriorityLoading(
 	bEnableHighPriorityLoading,
 	TEXT("If enabled, the request to load additional assets will have high priority."));
 
+
 UE::Tasks::FTask UCustomizableInstancePrivate::LoadAdditionalAssetsAndData(
 		const TSharedRef<FUpdateContextPrivate>& OperationData, FStreamableManager& StreamableManager, bool bAsync)
 {
@@ -4675,6 +4752,7 @@ UE::Tasks::FTask UCustomizableInstancePrivate::LoadAdditionalAssetsAndData(
 
 	TArray<FSoftObjectPath> AssetsToStream;
 	TArray<uint32> RealTimeMorphStreamableBlocksToStream;
+	TArray<uint32> ClothingStreamableBlocksToStream;
 
 	TArray<FInstanceUpdateData::FLOD>& LODs = OperationData->InstanceUpdateData.LODs;
 	TArray<FInstanceUpdateData::FComponent>& Components = OperationData->InstanceUpdateData.Components;
@@ -4682,7 +4760,7 @@ UE::Tasks::FTask UCustomizableInstancePrivate::LoadAdditionalAssetsAndData(
 	ObjectToInstanceIndexMap.Empty();
 	ReferencedMaterials.Empty();
 
-	const int32 NumClothingAssets = CustomizableObject->ContributingClothingAssetsData.Num();
+	const int32 NumClothingAssets = ModelResources.ClothingAssetsData.Num();
 	ClothingPhysicsAssets.Reset(NumClothingAssets);
 	ClothingPhysicsAssets.SetNum(NumClothingAssets);
 
@@ -4755,195 +4833,204 @@ UE::Tasks::FTask UCustomizableInstancePrivate::LoadAdditionalAssetsAndData(
 		}
 	}
 
-
 	// Load assets coming from SubMeshes of the newly generated Mesh
 	if (OperationData->InstanceUpdateData.LODs.Num())
 	{
-		const FInstanceUpdateData::FLOD& LOD = OperationData->InstanceUpdateData.LODs[OperationData->GetMinLOD()];
-		for (int32 ComponentIndex = 0; ComponentIndex < LOD.ComponentCount; ++ComponentIndex)
+		for (int32 LODIndex = OperationData->FirstLODAvailable; LODIndex < OperationData->NumLODsAvailable; ++LODIndex)
 		{
-			const FInstanceUpdateData::FComponent& Component = Components[LOD.FirstComponent + ComponentIndex];
-			mu::MeshPtrConst MutableMesh = Component.Mesh;
-
-			if (!MutableMesh)
+			const FInstanceUpdateData::FLOD& LOD = OperationData->InstanceUpdateData.LODs[LODIndex];
+			for (int32 ComponentIndex = 0; ComponentIndex < LOD.ComponentCount; ++ComponentIndex)
 			{
-				continue;
-			}
+				const FInstanceUpdateData::FComponent& Component = Components[LOD.FirstComponent + ComponentIndex];
+				mu::MeshPtrConst MutableMesh = Component.Mesh;
 
-			FCustomizableInstanceComponentData* ComponentData = GetComponentData(Component.Id);
-
-			const TArray<uint64>& StreamedResources = MutableMesh->GetStreamedResources();
-
-			for (uint64 ResourceId : StreamedResources)
-			{
-				const TArray<FCustomizableObjectStreamedResourceData>& StreamedResourcesData = CustomizableObject->GetPrivate()->GetStreamedResourceData();
-				FCustomizableObjectStreameableResourceId TypedResourceId = BitCast<FCustomizableObjectStreameableResourceId>(ResourceId);	
-	
-				if (TypedResourceId.Type == (uint8)FCustomizableObjectStreameableResourceId::EType::AssetUserData)
+				if (!MutableMesh)
 				{
-					const uint32 ResourceIndex = TypedResourceId.Id;
-					if (!StreamedResourcesData.IsValidIndex(ResourceIndex))
-					{
-						UE_LOG(LogMutable, Error, TEXT("Invalid streamed resource index. Max Index [%d]. Resource Index [%d]."), StreamedResourcesData.Num(), ResourceIndex);
-						continue; 
-					}
-
-					const FCustomizableObjectStreamedResourceData& StreamedResource = StreamedResourcesData[ResourceIndex];
-					if (!StreamedResource.IsLoaded())
-					{
-						AssetsToStream.AddUnique(StreamedResource.GetPath().ToSoftObjectPath());
-					}
-
-					ComponentData->StreamedResourceIndex.Add(ResourceIndex);
+					continue;
 				}
-				else if (TypedResourceId.Type == (uint8)FCustomizableObjectStreameableResourceId::EType::RealTimeMorphTarget)
+
+				FCustomizableInstanceComponentData* ComponentData = GetComponentData(Component.Id);
+
+				const TArray<uint64>& StreamedResources = MutableMesh->GetStreamedResources();
+
+				for (uint64 ResourceId : StreamedResources)
 				{
-					check(TypedResourceId.Id != 0 && TypedResourceId.Id <= TNumericLimits<uint32>::Max());
-
-					const TMap<uint32, FRealTimeMorphStreamable>& MorphsStreamables = ModelResources.RealTimeMorphStreamables;
-					if (MorphsStreamables.Contains((uint32)TypedResourceId.Id))
+					const TArray<FCustomizableObjectStreamedResourceData>& StreamedResourcesData = CustomizableObject->GetPrivate()->GetStreamedResourceData();
+					FCustomizableObjectStreameableResourceId TypedResourceId = BitCast<FCustomizableObjectStreameableResourceId>(ResourceId);	
+		
+					if (TypedResourceId.Type == (uint8)FCustomizableObjectStreameableResourceId::EType::AssetUserData)
 					{
-						RealTimeMorphStreamableBlocksToStream.AddUnique(TypedResourceId.Id);
-					}
-					else
-					{
-						UE_LOG(LogMutable, Error, TEXT("Invalid streamed real time morph target data block [%d] found."), TypedResourceId.Id);
-					}
-				}
-				else
-				{
-					UE_LOG(LogMutable, Error, TEXT("Unknown streamed resource type found."));
-					check(false);
-				}
-			}
-
-			const bool bReplacePhysicsAssets = HasCOInstanceFlags(ReplacePhysicsAssets);
-
-			for (int32 TagIndex = 0; TagIndex < MutableMesh->GetTagCount(); ++TagIndex)
-			{
-				FString Tag = MutableMesh->GetTag(TagIndex);
-				if (Tag.RemoveFromStart("__PA:"))
-				{
-					const int32 AssetIndex = FCString::Atoi(*Tag);
-					const TSoftObjectPtr<UPhysicsAsset>& PhysicsAsset = ModelResources.PhysicsAssets.IsValidIndex(AssetIndex) ? ModelResources.PhysicsAssets[AssetIndex] : nullptr;
-
-					if (!PhysicsAsset.IsNull())
-					{
-						if (PhysicsAsset.Get())
+						const uint32 ResourceIndex = TypedResourceId.Id;
+						if (!StreamedResourcesData.IsValidIndex(ResourceIndex))
 						{
-							ComponentData->PhysicsAssets.PhysicsAssetsToMerge.Add(PhysicsAsset.Get());
+							UE_LOG(LogMutable, Error, TEXT("Invalid streamed resource index. Max Index [%d]. Resource Index [%d]."), StreamedResourcesData.Num(), ResourceIndex);
+							continue; 
+						}
+
+						const FCustomizableObjectStreamedResourceData& StreamedResource = StreamedResourcesData[ResourceIndex];
+						if (!StreamedResource.IsLoaded())
+						{
+							AssetsToStream.AddUnique(StreamedResource.GetPath().ToSoftObjectPath());
+						}
+
+						ComponentData->StreamedResourceIndex.Add(ResourceIndex);
+					}
+					else if (TypedResourceId.Type == (uint8)FCustomizableObjectStreameableResourceId::EType::RealTimeMorphTarget)
+					{
+						check(TypedResourceId.Id != 0 && TypedResourceId.Id <= TNumericLimits<uint32>::Max());
+
+						const TMap<uint32, FRealTimeMorphStreamable>& MorphsStreamables = ModelResources.RealTimeMorphStreamables;
+						if (MorphsStreamables.Contains((uint32)TypedResourceId.Id))
+						{
+							RealTimeMorphStreamableBlocksToStream.AddUnique(TypedResourceId.Id);
 						}
 						else
 						{
-							ComponentData->PhysicsAssets.PhysicsAssetToLoad.Add(AssetIndex);
-							AssetsToStream.Add(PhysicsAsset.ToSoftObjectPath());
+							UE_LOG(LogMutable, Error, TEXT("Invalid streamed real time morph target data block [%d] found."), TypedResourceId.Id);
 						}
 					}
-				}
-				else if (Tag.RemoveFromStart("__ClothPA:"))
-				{
-					FString AssetIndexString, PhysicsAssetIndexString;
-
-					if (Tag.Split(TEXT("_"), &AssetIndexString, &PhysicsAssetIndexString))
+					else if (TypedResourceId.Type == (uint8)FCustomizableObjectStreameableResourceId::EType::Clothing)
 					{
-						if (AssetIndexString.IsNumeric() && PhysicsAssetIndexString.IsNumeric())
+						check(TypedResourceId.Id != 0 && TypedResourceId.Id <= TNumericLimits<uint32>::Max());
+						
+						const TMap<uint32, FClothingStreamable>& ClothingStreamables = ModelResources.ClothingStreamables;
+						if (const FClothingStreamable* ClothingStreamable = ClothingStreamables.Find(TypedResourceId.Id))
 						{
-							const int32 AssetIndex = FCString::Atoi(*AssetIndexString);
-							const int32 PhysicsAssetIndex = FCString::Atoi(*PhysicsAssetIndexString);
-
+							// TODO: Add async loading of ClothingAsset Data. This could be loaded as an streamead resource similar to and the asset user data.
+							int32 ClothingAssetIndex = ClothingStreamable->ClothingAssetIndex; 
+							int32 PhysicsAssetIndex = ClothingStreamable->PhysicsAssetIndex;					
 							const TSoftObjectPtr<UPhysicsAsset>& PhysicsAsset = ModelResources.PhysicsAssets.IsValidIndex(PhysicsAssetIndex) 
 									? ModelResources.PhysicsAssets[PhysicsAssetIndex] 
-									: nullptr;
+								    : nullptr;
 
 							// The entry should always be in the map
 							if (!PhysicsAsset.IsNull())
 							{
 								if (PhysicsAsset.Get())
 								{
-									if (ClothingPhysicsAssets.IsValidIndex(AssetIndex))
+									if (ClothingPhysicsAssets.IsValidIndex(ClothingAssetIndex))
 									{
-										ClothingPhysicsAssets[AssetIndex] = PhysicsAsset.Get();
+										ClothingPhysicsAssets[ClothingAssetIndex] = PhysicsAsset.Get();
 									}
 								}
 								else
 								{
-									ComponentData->ClothingPhysicsAssetsToStream.Emplace(AssetIndex, PhysicsAssetIndex);
-									AssetsToStream.Add(PhysicsAsset.ToSoftObjectPath());
+									ComponentData->ClothingPhysicsAssetsToStream.Emplace(ClothingAssetIndex, PhysicsAssetIndex);
+									AssetsToStream.AddUnique(PhysicsAsset.ToSoftObjectPath());
 								}
 							}
+
+							ClothingStreamableBlocksToStream.AddUnique(TypedResourceId.Id);
+						}
+						else
+						{
+							UE_LOG(LogMutable, Error, TEXT("Invalid streamed clothing data block [%d] found."), TypedResourceId.Id);
 						}
 					}
-				}
-				if (Tag.RemoveFromStart("__AnimBP:"))
-				{
-					FString SlotIndexString, AnimBpIndexString;
-
-					if (Tag.Split(TEXT("_Slot_"), &SlotIndexString, &AnimBpIndexString))
+					else
 					{
-						if (SlotIndexString.IsEmpty() || AnimBpIndexString.IsEmpty())
+						UE_LOG(LogMutable, Error, TEXT("Unknown streamed resource type found."));
+						check(false);
+					}
+				}
+
+				const bool bReplacePhysicsAssets = HasCOInstanceFlags(ReplacePhysicsAssets);
+
+				for (int32 TagIndex = 0; TagIndex < MutableMesh->GetTagCount(); ++TagIndex)
+				{
+					FString Tag = MutableMesh->GetTag(TagIndex);
+					if (Tag.RemoveFromStart("__PA:"))
+					{
+						const int32 AssetIndex = FCString::Atoi(*Tag);
+						const TSoftObjectPtr<UPhysicsAsset>& PhysicsAsset = ModelResources.PhysicsAssets.IsValidIndex(AssetIndex) ? ModelResources.PhysicsAssets[AssetIndex] : nullptr;
+
+						if (!PhysicsAsset.IsNull())
 						{
-							continue;
-						}
-
-						const int32 AnimBpIndex = FCString::Atoi(*AnimBpIndexString);
-						if (!ModelResources.AnimBPs.IsValidIndex(AnimBpIndex))
-						{
-							continue;
-						}
-
-						FName SlotIndex = *SlotIndexString;
-
-						const TSoftClassPtr<UAnimInstance>& AnimBPAsset = ModelResources.AnimBPs[AnimBpIndex];
-
-						if (!AnimBPAsset.IsNull())
-						{
-							if (!ComponentData->AnimSlotToBP.Contains(SlotIndex))
+							if (PhysicsAsset.Get())
 							{
-								ComponentData->AnimSlotToBP.Add(SlotIndex, AnimBPAsset);
-
-								if (AnimBPAsset.Get())
-								{
-									GatheredAnimBPs.Add(AnimBPAsset.Get());
-								}
-								else
-								{
-									AssetsToStream.Add(AnimBPAsset.ToSoftObjectPath());
-								}
+								ComponentData->PhysicsAssets.PhysicsAssetsToMerge.Add(PhysicsAsset.Get());
 							}
 							else
 							{
-								// Two submeshes should not have the same animation slot index
-								OperationData->UpdateResult = EUpdateResult::Warning;
-
-								FString WarningMessage = FString::Printf(TEXT("Two submeshes have the same anim slot index [%s] in a Mutable Instance."), *SlotIndex.ToString());
-								UE_LOG(LogMutable, Warning, TEXT("%s"), *WarningMessage);
-#if WITH_EDITOR
-								FMessageLog MessageLog("Mutable");
-								MessageLog.Notify(FText::FromString(WarningMessage), EMessageSeverity::Warning, true);
-#endif
+								ComponentData->PhysicsAssets.PhysicsAssetToLoad.Add(AssetIndex);
+								AssetsToStream.AddUnique(PhysicsAsset.ToSoftObjectPath());
 							}
 						}
 					}
-				}
-				else if (Tag.RemoveFromStart("__AnimBPTag:"))
-				{
-					AnimBPGameplayTags.AddTag(FGameplayTag::RequestGameplayTag(*Tag));
-				}
-#if WITH_EDITORONLY_DATA
-				else if (Tag.RemoveFromStart("__MeshPath:"))
-				{
-					ComponentData->MeshPartPaths.Add(Tag);
-				}
-#endif
-			}
+					
+					if (Tag.RemoveFromStart("__AnimBP:"))
+					{
+						FString SlotIndexString, AnimBpIndexString;
 
-			const int32 AdditionalPhysicsNum = MutableMesh->AdditionalPhysicsBodies.Num();
-			for (int32 I = 0; I < AdditionalPhysicsNum; ++I)
-			{
-				const int32 ExternalId = MutableMesh->AdditionalPhysicsBodies[I]->CustomId;
-				
-				ComponentData->PhysicsAssets.AdditionalPhysicsAssetsToLoad.Add(ExternalId);
-				AssetsToStream.Add(ModelResources.AnimBpOverridePhysiscAssetsInfo[ExternalId].SourceAsset.ToSoftObjectPath());
+						if (Tag.Split(TEXT("_Slot_"), &SlotIndexString, &AnimBpIndexString))
+						{
+							if (SlotIndexString.IsEmpty() || AnimBpIndexString.IsEmpty())
+							{
+								continue;
+							}
+
+							const int32 AnimBpIndex = FCString::Atoi(*AnimBpIndexString);
+							if (!ModelResources.AnimBPs.IsValidIndex(AnimBpIndex))
+							{
+								continue;
+							}
+
+							FName SlotIndex = *SlotIndexString;
+
+							const TSoftClassPtr<UAnimInstance>& AnimBPAsset = ModelResources.AnimBPs[AnimBpIndex];
+
+							if (!AnimBPAsset.IsNull())
+							{
+								const TSoftClassPtr<UAnimInstance>* FoundAnimBpSlot = ComponentData->AnimSlotToBP.Find(SlotIndex);
+								bool bIsSameAnimBp = FoundAnimBpSlot && AnimBPAsset == *FoundAnimBpSlot;
+								if (!FoundAnimBpSlot)
+								{
+									ComponentData->AnimSlotToBP.Add(SlotIndex, AnimBPAsset);
+
+									if (AnimBPAsset.Get())
+									{
+										GatheredAnimBPs.Add(AnimBPAsset.Get());
+									}
+									else
+									{
+										AssetsToStream.AddUnique(AnimBPAsset.ToSoftObjectPath());
+									}
+								}
+								else if (!bIsSameAnimBp)
+								{
+									// Two submeshes should not have the same animation slot index
+									OperationData->UpdateResult = EUpdateResult::Warning;
+
+									FString WarningMessage = FString::Printf(TEXT("Two submeshes have the same anim slot index [%s] in a Mutable Instance."), *SlotIndex.ToString());
+									UE_LOG(LogMutable, Warning, TEXT("%s"), *WarningMessage);
+	#if WITH_EDITOR
+									FMessageLog MessageLog("Mutable");
+									MessageLog.Notify(FText::FromString(WarningMessage), EMessageSeverity::Warning, true);
+	#endif
+								}
+							}
+						}
+					}
+					else if (Tag.RemoveFromStart("__AnimBPTag:"))
+					{
+						AnimBPGameplayTags.AddTag(FGameplayTag::RequestGameplayTag(*Tag));
+					}
+	#if WITH_EDITORONLY_DATA
+					else if (Tag.RemoveFromStart("__MeshPath:"))
+					{
+						ComponentData->MeshPartPaths.Add(Tag);
+					}
+	#endif
+				}
+
+				const int32 AdditionalPhysicsNum = MutableMesh->AdditionalPhysicsBodies.Num();
+				for (int32 I = 0; I < AdditionalPhysicsNum; ++I)
+				{
+					const int32 ExternalId = MutableMesh->AdditionalPhysicsBodies[I]->CustomId;
+					
+					ComponentData->PhysicsAssets.AdditionalPhysicsAssetsToLoad.Add(ExternalId);
+					AssetsToStream.Add(ModelResources.AnimBpOverridePhysiscAssetsInfo[ExternalId].SourceAsset.ToSoftObjectPath());
+				}
 			}
 		}
 	}
@@ -4981,30 +5068,57 @@ UE::Tasks::FTask UCustomizableInstancePrivate::LoadAdditionalAssetsAndData(
 	bool bHasInvalidMesh = false;
 	bool bUpdateMeshes = DoComponentsNeedUpdate(GetPublic(), OperationData, bHasInvalidMesh);
 
-	if (RealTimeMorphStreamableBlocksToStream.Num() && bUpdateMeshes)
+	bool bIsDataBlocksStreamNeeded = RealTimeMorphStreamableBlocksToStream.Num() || ClothingStreamableBlocksToStream.Num();
+
+	if (bIsDataBlocksStreamNeeded && bUpdateMeshes)
 	{
-		
 #if WITH_EDITOR
 		// On editor the data is always loaded, load directly form the ModelResources.
-		MUTABLE_CPUPROFILER_SCOPE(RealTimeMorphStreamingEditor);
-		for (uint32 BlockId : RealTimeMorphStreamableBlocksToStream)
-		{	
-			const FRealTimeMorphStreamable& RealTimeMorphStreamable = ModelResources.RealTimeMorphStreamables[BlockId]; 
-		
-			const FMutableStreamableBlock& Block = RealTimeMorphStreamable.Block;
-
-			FInstanceUpdateData::FMorphTargetMeshData& MeshData = 
-					OperationData->InstanceUpdateData.RealTimeMorphTargetMeshData.FindOrAdd(BlockId);
+		{
+			MUTABLE_CPUPROFILER_SCOPE(RealTimeMorphStreamingEditor);
+			for (uint32 BlockId : RealTimeMorphStreamableBlocksToStream)
+			{	
+				const FRealTimeMorphStreamable& RealTimeMorphStreamable = ModelResources.RealTimeMorphStreamables[BlockId]; 
 			
-			MeshData.NameResolutionMap = RealTimeMorphStreamable.NameResolutionMap;
+				const FMutableStreamableBlock& Block = RealTimeMorphStreamable.Block;
 
-			const TArray<FMorphTargetVertexData>& SourceData = ModelResources.EditorOnlyMorphTargetReconstructionData;	
-			const uint32 NumElems = Block.Size / sizeof(FMorphTargetVertexData);
-			const uint32 OffsetInElems = Block.Offset / sizeof(FMorphTargetVertexData);
-			MeshData.Data.SetNumUninitialized(NumElems);
+				FInstanceUpdateData::FMorphTargetMeshData& MeshData = 
+						OperationData->InstanceUpdateData.RealTimeMorphTargetMeshData.FindOrAdd(BlockId);
+				
+				MeshData.NameResolutionMap = RealTimeMorphStreamable.NameResolutionMap;
 
-			check(SourceData.Num()*sizeof(FMorphTargetVertexData) >= Block.Offset + Block.Size);
-			FMemory::Memcpy(MeshData.Data.GetData(), SourceData.GetData() + OffsetInElems, Block.Size);
+				const TArray<FMorphTargetVertexData>& SourceData = ModelResources.EditorOnlyMorphTargetReconstructionData;	
+				const uint32 NumElems = Block.Size / sizeof(FMorphTargetVertexData);
+				const uint32 OffsetInElems = Block.Offset / sizeof(FMorphTargetVertexData);
+				MeshData.Data.SetNumUninitialized(NumElems);
+
+				check(SourceData.Num()*sizeof(FMorphTargetVertexData) >= Block.Offset + Block.Size);
+				FMemory::Memcpy(MeshData.Data.GetData(), SourceData.GetData() + OffsetInElems, Block.Size);
+			}
+		}
+		{
+			MUTABLE_CPUPROFILER_SCOPE(ClothingStreamingEditor);
+			for (uint32 BlockId : ClothingStreamableBlocksToStream)
+			{	
+				const FClothingStreamable& ClothingStreamable = ModelResources.ClothingStreamables[BlockId]; 
+			
+				const FMutableStreamableBlock& Block = ClothingStreamable.Block;
+
+				FInstanceUpdateData::FClothingMeshData& MeshData = 
+						OperationData->InstanceUpdateData.ClothingMeshData.FindOrAdd(BlockId);
+				
+				MeshData.ClothingAssetIndex = ClothingStreamable.ClothingAssetIndex;
+				MeshData.ClothingAssetLOD = ClothingStreamable.ClothingAssetLOD;
+				MeshData.PhysicsAssetIndex = ClothingStreamable.PhysicsAssetIndex;
+
+				const TArray<FCustomizableObjectMeshToMeshVertData>& SourceData = ModelResources.EditorOnlyClothingMeshToMeshVertData;
+				const uint32 NumElems = Block.Size / sizeof(FCustomizableObjectMeshToMeshVertData);
+				const uint32 OffsetInElems = Block.Offset / sizeof(FCustomizableObjectMeshToMeshVertData);
+				MeshData.Data.SetNumUninitialized(NumElems);
+
+				check(SourceData.Num()*sizeof(FCustomizableObjectMeshToMeshVertData) >= Block.Offset + Block.Size);
+				FMemory::Memcpy(MeshData.Data.GetData(), SourceData.GetData() + OffsetInElems, Block.Size);
+			}
 		}
 #else	
 		MUTABLE_CPUPROFILER_SCOPE(RealTimeMorphStreaming);
@@ -5066,6 +5180,53 @@ UE::Tasks::FTask UCustomizableInstancePrivate::LoadAdditionalAssetsAndData(
 				Block.FileId
 			});
 		}
+
+		const int32 NumClothBlocks = ClothingStreamableBlocksToStream.Num();
+		for (int32 I = 0; I < NumClothBlocks; ++I)
+		{
+			MUTABLE_CPUPROFILER_SCOPE(ClothingStreamingRequest_Alloc);
+
+			const int32 BlockId = ClothingStreamableBlocksToStream[I];
+			const FMutableStreamableBlock& Block = ModelResources.ClothingStreamables[BlockId].Block; 
+		
+			FInstanceUpdateData::FClothingMeshData& ReadDestData = 
+					OperationData->InstanceUpdateData.ClothingMeshData.FindOrAdd(BlockId);
+
+			// Only request blocks once.
+			if (ReadDestData.Data.Num())
+			{
+				continue;
+			}
+
+			const FClothingStreamable& ClothingStreamable = ModelResources.ClothingStreamables[BlockId]; 
+
+			ReadDestData.ClothingAssetIndex = ClothingStreamable.ClothingAssetIndex;
+			ReadDestData.ClothingAssetLOD = ClothingStreamable.ClothingAssetLOD;
+			ReadDestData.PhysicsAssetIndex = ClothingStreamable.PhysicsAssetIndex;
+
+			check(Block.Size % sizeof(FCustomizableObjectMeshToMeshVertData) == 0);
+			const uint32 NumElems = Block.Size / sizeof(FCustomizableObjectMeshToMeshVertData);
+
+			ReadDestData.Data.SetNumUninitialized(NumElems);
+
+			int32 FileHandleIndex = OpenFilesIds.Find(Block.FileId);
+			if (FileHandleIndex == INDEX_NONE && BulkData)
+			{
+				TUniquePtr<IAsyncReadFileHandle> ReadFileHandle = BulkData->OpenFileAsyncRead(Block.FileId);
+
+				OpenFileHandles.Emplace(MoveTemp(ReadFileHandle));
+				FileHandleIndex = OpenFilesIds.Add(Block.FileId);
+			}	
+
+			BlockReadInfos.Emplace(FBlockReadInfo
+			{ 
+				Block.Offset,
+				OpenFileHandles[FileHandleIndex].Get(), 
+				MakeArrayView(reinterpret_cast<uint8*>(ReadDestData.Data.GetData()), ReadDestData.Data.Num()*sizeof(FCustomizableObjectMeshToMeshVertData)),
+				Block.FileId
+			});
+		}
+
 
 		for (const FBlockReadInfo& BlockReadInfo : BlockReadInfos)
 		{
