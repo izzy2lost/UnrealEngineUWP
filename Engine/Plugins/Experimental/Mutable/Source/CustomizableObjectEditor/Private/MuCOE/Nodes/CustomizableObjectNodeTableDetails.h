@@ -20,6 +20,14 @@ class UCustomizableObjectNodeTable;
 struct EVisibility;
 struct FSlateColor;
 
+enum class EAnimColumnType 
+{
+	EACT_BluePrintColumn,
+	EACT_SlotColumn,
+	EACT_TagsColumn
+};
+
+
 /** Copy Material node details panel. Hides all properties from the inheret Material node. */
 class FCustomizableObjectNodeTableDetails : public IDetailCustomization
 {
@@ -36,26 +44,20 @@ public:
 
 private:
 
+	// Details -------------
 	// Generates Mesh columns combobox options
 	void GenerateMeshColumnComboBoxOptions();
+	
+	// Function called when the table node has been refreshed
+	void OnNodePinValueChanged();
 
+
+	// Anim Category -------------
 	// Generates Animation Instance combobox options
 	void GenerateAnimInstanceComboBoxOptions();
 
-	// Generates Animation Slot combobox options
-	void GenerateAnimSlotComboBoxOptions();
-
-	// Generates Animation Tags combobox options
-	void GenerateAnimTagsComboBoxOptions();
-
-	// OnComboBoxSelectionChanged Callback for Column ComboBox
-	void OnColumnComboBoxSelectionChanged(TSharedPtr<FString> Selection, ESelectInfo::Type SelectInfo);
-
 	// OnComboBoxSelectionChanged Callback for Layout ComboBox
 	void OnAnimMeshColumnComboBoxSelectionChanged(TSharedPtr<FString> Selection, ESelectInfo::Type SelectInfo);
-
-	// OnComboBoxSelectionChanged Callback for Layout ComboBox
-	void OnLayoutMeshColumnComboBoxSelectionChanged(TSharedPtr<FString> Selection, ESelectInfo::Type SelectInfo);
 
 	// OnComboBoxSelectionChanged Callback for AnimInstance ComboBox
 	void OnAnimInstanceComboBoxSelectionChanged(TSharedPtr<FString> Selection, ESelectInfo::Type SelectInfo);
@@ -66,43 +68,22 @@ private:
 	// OnComboBoxSelectionChanged Callback for Anim Tags ComboBox
 	void OnAnimTagsComboBoxSelectionChanged(TSharedPtr<FString> Selection, ESelectInfo::Type SelectInfo);
 
-	// Function called when the table node has been refreshed
-	void OnNodePinValueChanged();
+	// Set the visibility of the animation column selector widgets
+	EVisibility AnimWidgetsVisibility() const;
+
+	// Callback to clear the mesh column to edit its animation properties
+	void OnAnimMeshCustomRowResetButtonClicked();
 
 	// Callback to clear the animation combobox selections
-	FReply OnClearButtonPressed();
+	void OnAnimCustomRowResetButtonClicked(EAnimColumnType ColumnType);
 
-	// Generates MutableMetadata columns combobox options
-	// Returns the current selected option or a null pointer
-	TSharedPtr<FString> GenerateMutableMetaDataColumnComboBoxOptions();
 
-	// Generates MutableMetadata columns combobox options
-	// Returns the current selected option or a null pointer
-	TSharedPtr<FString> GenerateVersionColumnComboBoxOptions();
-
-	// Callback to regenerate the combobox options
-	void OnOpenMutableMetadataComboBox();
-
+	// Layout Category -------------
 	// OnComboBoxSelectionChanged Callback for Layout ComboBox
-	void OnMutableMetaDataColumnComboBoxSelectionChanged(TSharedPtr<FString> Selection, ESelectInfo::Type SelectInfo);
+	void OnLayoutMeshColumnComboBoxSelectionChanged(TSharedPtr<FString> Selection, ESelectInfo::Type SelectInfo);
 
-	// Sets the combo box selection color
-	FSlateColor GetMetadataUIComboBoxTextColor(TArray<TSharedPtr<FString>>* CurrentOptions) const;
-
-	// OnComboBoxSelectionChanged Callback for Layout ComboBox
-	void OnMutableMetaDataColumnComboBoxSelectionReset();
-
-	// Callback to regenerate the combobox options
-	void OnOpenVersionColumnComboBox();
-	
-	// OnComboBoxSelectionChanged Callback for Layout ComboBox
-	void OnVersionColumnComboBoxSelectionChanged(TSharedPtr<FString> Selection, ESelectInfo::Type SelectInfo);
-	
-	// Sets the combo box selection color
-	FSlateColor GetVersionColumnComboBoxTextColor(TArray<TSharedPtr<FString>>* CurrentOptions) const;
-	
-	// OnComboBoxSelectionChanged Callback for Layout ComboBox
-	void OnVersionColumnComboBoxSelectionReset();
+	// Callback to clear the mesh column to edit its layout properties
+	void OnLayoutMeshCustomRowResetButtonClicked();
 
 	// Layout options visibility
 	EVisibility LayoutOptionsVisibility() const;
@@ -119,22 +100,60 @@ private:
 	void OnReductionMethodChanged(TSharedPtr<FString> NewSelection, ESelectInfo::Type SelectInfo);
 	void OnLayoutPackingStrategyChanged(TSharedPtr<FString> NewSelection, ESelectInfo::Type SelectInfo);
 
+
+	// Mutable UI Metadata Category -------------
+
+	// Generates MutableMetadata columns combobox options
+	// Returns the current selected option or a null pointer
+	TSharedPtr<FString> GenerateMutableMetaDataColumnComboBoxOptions();
+
+	// Callback to regenerate the combobox options
+	void OnOpenMutableMetadataComboBox();
+
+	// OnComboBoxSelectionChanged Callback for Layout ComboBox
+	void OnMutableMetaDataColumnComboBoxSelectionChanged(TSharedPtr<FString> Selection, ESelectInfo::Type SelectInfo);
+
+	// Sets the combo box selection color
+	FSlateColor GetMetadataUIComboBoxTextColor(TArray<TSharedPtr<FString>>* CurrentOptions) const;
+
+	// OnComboBoxSelectionChanged Callback for Layout ComboBox
+	void OnMutableMetaDataColumnComboBoxSelectionReset();
+
+
+	// Version Control Category -------------
+
+	// Generates MutableMetadata columns combobox options
+	// Returns the current selected option or a null pointer
+	TSharedPtr<FString> GenerateVersionColumnComboBoxOptions();
+
+	// Callback to regenerate the combobox options
+	void OnOpenVersionColumnComboBox();
+	
+	// OnComboBoxSelectionChanged Callback for Layout ComboBox
+	void OnVersionColumnComboBoxSelectionChanged(TSharedPtr<FString> Selection, ESelectInfo::Type SelectInfo);
+	
+	// Sets the combo box selection color
+	FSlateColor GetVersionColumnComboBoxTextColor(TArray<TSharedPtr<FString>>* CurrentOptions) const;
+	
+	// OnComboBoxSelectionChanged Callback for Layout ComboBox
+	void OnVersionColumnComboBoxSelectionReset();
+
 private:
 
+	// Details -------------
 	// Pointer to the node represented in this details
 	TWeakObjectPtr<UCustomizableObjectNodeTable> Node;
 
-	// ComboBox widget to select a column from the NodeTable
-	TSharedPtr<STextComboBox> LayoutMeshColumnComboBox;
+	// Pointer to the Detail Builder to force the refresh on recontruct the node
+	TWeakPtr<IDetailLayoutBuilder> DetailBuilderPtr = nullptr;
 
+
+	// Anim -------------
 	// ComboBox widget to select a column from the NodeTable
 	TSharedPtr<STextComboBox> AnimMeshColumnComboBox;
 
 	// Array with the name of the table columns as combobox options
 	TArray<TSharedPtr<FString>> AnimMeshColumnOptionNames;
-
-	// Array with the name of the table columns as combobox options
-	TArray<TSharedPtr<FString>> LayoutMeshColumnOptionNames;
 
 	// ComboBox widget to select an Animation Instance column from the NodeTable
 	TSharedPtr<STextComboBox> AnimComboBox;
@@ -153,29 +172,19 @@ private:
 
 	// Array with the name of the Animation Tags columns as combobox options
 	TArray<TSharedPtr<FString>> AnimTagsOptionNames;
-	
-	// Array with the name of the MutableMetaData columns
-	TArray<TSharedPtr<FString>> MutableMetaDataColumnsOptionNames;
 
-	// ComboBox widget to select a MutableMetaDatacolumn from the NodeTable
-	TSharedPtr<STextComboBox> MutableMetaDataComboBox;
-
-	// Array with the name of the Version columns
-	TArray<TSharedPtr<FString>> VersionColumnsOptionNames;
+	// Layout -------------
+	// ComboBox widget to select a column from the NodeTable
+	TSharedPtr<STextComboBox> LayoutMeshColumnComboBox;
 	
-	// ComboBox widget to select a VersionColumn from the NodeTable
-	TSharedPtr<STextComboBox> VersionColumnsComboBox;
+	// Array with the name of the table columns as combobox options
+	TArray<TSharedPtr<FString>> LayoutMeshColumnOptionNames;
 	
-	// Button to clear selections of the animation comboboxes
-	TSharedPtr<SButton> ClearButton;
-
 	// Layout block editor widget
 	TSharedPtr<SCustomizableObjectNodeLayoutBlocksEditor> LayoutBlocksEditor;
 
+	// Weakpointer to the selected layout objet
 	TWeakObjectPtr<UCustomizableObjectLayout> SelectedLayout;
-
-	// Pointer to the Detail Builder to force the refresh on recontruct the node
-	TWeakPtr<IDetailLayoutBuilder> DetailBuilderPtr = nullptr;
 
 	/** List of available layout grid sizes. */
 	TArray< TSharedPtr< FString > > LayoutGridSizes;
@@ -194,4 +203,21 @@ private:
 	TSharedPtr<STextComboBox> MaxGridSizeComboBox;
 	// ComboBox widget to select a Reduction Method from the Selected Layout
 	TSharedPtr<STextComboBox> ReductionMethodComboBox;
+
+
+	// Mutable UI Metadata -------------
+	// Array with the name of the MutableMetaData columns
+	TArray<TSharedPtr<FString>> MutableMetaDataColumnsOptionNames;
+
+	// ComboBox widget to select a MutableMetaDatacolumn from the NodeTable
+	TSharedPtr<STextComboBox> MutableMetaDataComboBox;
+
+
+	// Version Bridge -------------
+	// Array with the name of the Version columns
+	TArray<TSharedPtr<FString>> VersionColumnsOptionNames;
+	
+	// ComboBox widget to select a VersionColumn from the NodeTable
+	TSharedPtr<STextComboBox> VersionColumnsComboBox;
+
 };
