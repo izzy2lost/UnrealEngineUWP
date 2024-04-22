@@ -895,7 +895,7 @@ bool FDesktopPlatformBase::GetHordeAccessToken(const FString& HordeUrl, bool bUn
 	if (!Token.IsEmpty())
 	{
 		FString Url = FPlatformMisc::GetEnvironmentVariable(TEXT("UE_HORDE_URL"));
-		if (Url == HordeUrl)
+		if (Url / TEXT("") == HordeUrl / TEXT(""))
 		{
 			OutToken = Token;
 			OutTokenExpiresAt = FDateTime();
