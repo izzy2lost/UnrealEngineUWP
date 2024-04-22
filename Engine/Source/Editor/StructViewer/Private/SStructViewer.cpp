@@ -643,7 +643,7 @@ public:
 			else if (!AssociatedNode->GetStructPath().IsNull())
 			{
 				const UScriptStruct* Struct = AssociatedNode->GetStruct();
-				if (Struct != nullptr && Struct->GetBoolMetaData("ShowTooltip"))
+				if (Struct != nullptr && Struct->GetBoolMetaDataHierarchical("ShowTooltip"))
 				{
 					const FText ToolTipText = FText::Format(LOCTEXT("ToolTipFormat", "{0}\n\n{1}"), 
 						AssociatedNode->GetStruct()->GetToolTipText(), 

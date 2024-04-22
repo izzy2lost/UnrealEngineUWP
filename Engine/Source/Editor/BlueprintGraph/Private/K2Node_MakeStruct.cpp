@@ -242,7 +242,7 @@ FText UK2Node_MakeStruct::GetNodeTitle(ENodeTitleType::Type TitleType) const
 	else if (CachedNodeTitle.IsOutOfDate(this))
 	{
 		FFormatNamedArguments Args;
-		Args.Add(TEXT("StructName"), FText::FromName(StructType->GetFName()));
+		Args.Add(TEXT("StructName"), StructType->GetDisplayNameText());
 		// FText::Format() is slow, so we cache this to save on performance
 		CachedNodeTitle.SetCachedText(FText::Format(LOCTEXT("MakeNodeTitle", "Make {StructName}"), Args), this);
 	}
@@ -260,7 +260,7 @@ FText UK2Node_MakeStruct::GetTooltipText() const
 		// FText::Format() is slow, so we cache this to save on performance
 		CachedTooltip.SetCachedText(FText::Format(
 			LOCTEXT("MakeStruct_Tooltip", "Adds a node that create a '{0}' from its members"),
-			FText::FromName(StructType->GetFName())
+			StructType->GetDisplayNameText()
 		), this);
 	}
 	return CachedTooltip;
