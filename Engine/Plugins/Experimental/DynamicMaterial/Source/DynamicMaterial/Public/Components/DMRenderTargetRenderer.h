@@ -42,6 +42,10 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Material Designer")
 	bool IsUpdating() const { return bUpdating; }
 
+	//~ Begin UObject
+	virtual void PostLoad() override;
+	//~ End UObject
+
 protected:
 	bool bUpdating = false;
 

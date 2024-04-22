@@ -13,7 +13,9 @@ public class DynamicMaterial : ModuleRules
 			{
 				"Core",
 				"CoreUObject",
-				"Slate"
+				"Slate",
+				"SlateCore",
+				"UMG"
 			}
 		);
 

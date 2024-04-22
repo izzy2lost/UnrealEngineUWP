@@ -65,3 +65,13 @@ void UDMRenderTargetRenderer::FlushUpdateRenderTarget()
 		UpdateRenderTarget();
 	}
 }
+
+void UDMRenderTargetRenderer::PostLoad()
+{
+	Super::PostLoad();
+
+	if (UDMMaterialValueRenderTarget* RenderTargetValue = GetRenderTargetValue())
+	{
+		RenderTargetValue->EnsureRenderTarget();
+	}
+}

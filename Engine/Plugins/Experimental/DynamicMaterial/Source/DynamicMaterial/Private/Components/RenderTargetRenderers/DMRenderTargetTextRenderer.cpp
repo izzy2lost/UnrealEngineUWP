@@ -57,16 +57,6 @@ UDMRenderTargetTextRenderer::UDMRenderTargetTextRenderer()
 #endif
 }
 
-void UDMRenderTargetTextRenderer::PostLoad()
-{
-	Super::PostLoad();
-
-	if (UDMMaterialValueRenderTarget* RenderTargetValue = GetRenderTargetValue())
-	{
-		RenderTargetValue->EnsureRenderTarget();
-	}
-}
-
 #if WITH_EDITOR
 void UDMRenderTargetTextRenderer::PostEditChangeProperty(FPropertyChangedEvent& InPropertyChangedEvent)
 {

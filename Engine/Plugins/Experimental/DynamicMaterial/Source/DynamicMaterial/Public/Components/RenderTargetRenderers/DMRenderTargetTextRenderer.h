@@ -26,7 +26,7 @@ struct FDMTextLine
 	float Width = 0.f;
 };
 
-UCLASS(BlueprintType, ClassGroup = "Material Designer", meta = (DisplayName = "Material Designer Render Target Renderer"))
+UCLASS(BlueprintType, ClassGroup = "Material Designer", meta = (DisplayName = "Material Designer Render Target Text Renderer"))
 class DYNAMICMATERIAL_API UDMRenderTargetTextRenderer : public UDMRenderTargetRenderer
 {
 	GENERATED_BODY()
@@ -168,12 +168,11 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
 	void SetGlowOuterRadius(const FVector2D& InGlowOuterRadius);
 
-	//~ Begin UObject
-	virtual void PostLoad() override;
 #if WITH_EDITOR
+	//~ Begin UObject
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& InPropertyChangedEvent) override;
-#endif
 	//~ End UObject
+#endif
 
 protected:
 	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter = SetFont, BlueprintSetter = SetFont, Category = "Material Designer",

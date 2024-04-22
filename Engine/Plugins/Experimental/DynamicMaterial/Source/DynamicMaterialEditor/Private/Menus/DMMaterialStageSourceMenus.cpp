@@ -23,6 +23,7 @@
 #include "Components/MaterialStageInputs/DMMSISlot.h"
 #include "Components/MaterialStageInputs/DMMSIValue.h"
 #include "Components/RenderTargetRenderers/DMRenderTargetTextRenderer.h"
+#include "Components/RenderTargetRenderers/DMRenderTargetWidgetRenderer.h"
 #include "DMBlueprintFunctionLibrary.h"
 #include "DMDefs.h"
 #include "DMValueDefinition.h"
@@ -129,7 +130,7 @@ namespace UE::DynamicMaterialEditor::Private
 							}
 							else
 							{
-								ensure(false);
+								ensureMsgf(false, TEXT("Invalid stage type (%s)"), *StageSource->GetClass()->GetName());
 							}
 
 							if (TSharedPtr<SDMEditor> EditorWidget = MenuContext->GetEditorWidget())
@@ -231,7 +232,7 @@ namespace UE::DynamicMaterialEditor::Private
 						}
 						else
 						{
-							ensure(false);
+							ensureMsgf(false, TEXT("Invalid stage type (%s)"), *StageSource->GetClass()->GetName());
 						}
 
 						if (TSharedPtr<SDMEditor> EditorWidget = MenuContext->GetEditorWidget())
@@ -327,7 +328,7 @@ namespace UE::DynamicMaterialEditor::Private
 							}
 							else
 							{
-								ensure(false);
+								ensureMsgf(false, TEXT("Invalid stage type (%s)"), *StageSource->GetClass()->GetName());
 							}
 
 							if (TSharedPtr<SDMEditor> EditorWidget = MenuContext->GetEditorWidget())
@@ -452,7 +453,7 @@ namespace UE::DynamicMaterialEditor::Private
 							}
 							else
 							{
-								ensure(false);
+								ensureMsgf(false, TEXT("Invalid stage type (%s)"), *StageSource->GetClass()->GetName());
 							}
 
 							if (TSharedPtr<SDMEditor> EditorWidget = MenuContext->GetEditorWidget())
@@ -598,7 +599,7 @@ namespace UE::DynamicMaterialEditor::Private
 								}
 								else
 								{
-									ensure(false);
+									ensureMsgf(false, TEXT("Invalid stage type (%s)"), *StageSource->GetClass()->GetName());
 								}
 
 								if (TSharedPtr<SDMEditor> EditorWidget = MenuContext->GetEditorWidget())
@@ -701,7 +702,7 @@ namespace UE::DynamicMaterialEditor::Private
 							}
 							else
 							{
-								ensure(false);
+								ensureMsgf(false, TEXT("Invalid stage type (%s)"), *StageSource->GetClass()->GetName());
 							}
 
 							if (TSharedPtr<SDMEditor> EditorWidget = MenuContext->GetEditorWidget())
@@ -766,7 +767,7 @@ namespace UE::DynamicMaterialEditor::Private
 		}
 		else
 		{
-			ensure(false);
+			ensureMsgf(false, TEXT("Invalid stage type (%s)"), *StageSource->GetClass()->GetName());
 		}
 
 		if (TSharedPtr<SDMEditor> EditorWidget = InMenuContext->GetEditorWidget())
@@ -824,7 +825,7 @@ namespace UE::DynamicMaterialEditor::Private
 		}
 		else
 		{
-			ensure(false);
+			ensureMsgf(false, TEXT("Invalid stage type (%s)"), *StageSource->GetClass()->GetName());
 		}
 
 		if (TSharedPtr<SDMEditor> EditorWidget = InMenuContext->GetEditorWidget())
@@ -882,7 +883,7 @@ namespace UE::DynamicMaterialEditor::Private
 		}
 		else
 		{
-			ensure(false);
+			ensureMsgf(false, TEXT("Invalid stage type (%s)"), *StageSource->GetClass()->GetName());
 		}
 
 		if (TSharedPtr<SDMEditor> EditorWidget = InMenuContext->GetEditorWidget())
@@ -949,7 +950,7 @@ namespace UE::DynamicMaterialEditor::Private
 		}
 		else
 		{
-			ensure(false);
+			ensureMsgf(false, TEXT("Invalid stage type (%s)"), *StageSource->GetClass()->GetName());
 		}
 
 		if (UDMMaterialStage* MaskStage = Layer->GetStage(EDMMaterialLayerStage::Mask))
@@ -1038,7 +1039,7 @@ namespace UE::DynamicMaterialEditor::Private
 		}
 		else
 		{
-			ensure(false);
+			ensureMsgf(false, TEXT("Invalid stage type (%s)"), *StageSource->GetClass()->GetName());
 		}
 
 		if (TSharedPtr<SDMEditor> EditorWidget = InMenuContext->GetEditorWidget())
@@ -1123,7 +1124,7 @@ namespace UE::DynamicMaterialEditor::Private
 		}
 		else
 		{
-			ensure(false);
+			ensureMsgf(false, TEXT("Invalid stage type (%s)"), *StageSource->GetClass()->GetName());
 		}
 
 		if (TSharedPtr<SDMEditor> EditorWidget = InMenuContext->GetEditorWidget())
@@ -1176,7 +1177,60 @@ namespace UE::DynamicMaterialEditor::Private
 		}
 		else
 		{
-			ensure(false);
+			ensureMsgf(false, TEXT("Invalid stage type (%s)"), *StageSource->GetClass()->GetName());
+		}
+
+		if (TSharedPtr<SDMEditor> EditorWidget = InMenuContext->GetEditorWidget())
+		{
+			EditorWidget->InvalidateComponentEditWidget();
+		}
+	}
+
+	void ChangeSourceToWidgetFromContext(UDMMenuContext* InMenuContext)
+	{
+		if (!IsValid(InMenuContext))
+		{
+			return;
+		}
+
+		UDMMaterialStageSource* const StageSource = InMenuContext->GetStageSource();
+
+		if (!StageSource)
+		{
+			return;
+		}
+
+		UDMMaterialStage* const Stage = InMenuContext->GetStage();
+
+		if (!Stage)
+		{
+			return;
+		}
+
+		UDMMaterialLayerObject* const Layer = Stage->GetLayer();
+
+		if (!Layer)
+		{
+			return;
+		}
+
+		if (StageSource->IsA<UDMMaterialStageBlend>())
+		{
+			FScopedTransaction Transaction(LOCTEXT("SetStageInputBase", "Set Material Designer Base Source"));
+			Stage->Modify();
+
+			UDMBlueprintFunctionLibrary::SetStageInputToRenderer(Stage, UDMRenderTargetWidgetRenderer::StaticClass(), UDMMaterialStageBlend::InputB);
+		}
+		else if (StageSource->IsA<UDMMaterialStageThroughputLayerBlend>())
+		{
+			FScopedTransaction Transaction(LOCTEXT("SetStageInputMask", "Set Material Designer Mask Source"));
+			Stage->Modify();
+
+			UDMBlueprintFunctionLibrary::SetStageInputToRenderer(Stage, UDMRenderTargetWidgetRenderer::StaticClass(), UDMMaterialStageThroughputLayerBlend::InputMaskSource);
+		}
+		else
+		{
+			ensureMsgf(false, TEXT("Invalid stage type (%s)"), *StageSource->GetClass()->GetName());
 		}
 
 		if (TSharedPtr<SDMEditor> EditorWidget = InMenuContext->GetEditorWidget())
@@ -1306,6 +1360,18 @@ namespace UE::DynamicMaterialEditor::Private
 			FUIAction(
 				FExecuteAction::CreateStatic(
 					&ChangeSourceToTextFromContext,
+					MenuContext
+				)
+			)
+		);
+
+		InSection.AddMenuEntry("Widget",
+			LOCTEXT("ChangeSourceWidget", "Widget"),
+			LOCTEXT("ChangeSourceWidgetTooltip", "Change the source of this stage to a Widget Renderer."),
+			FSlateIcon(),
+			FUIAction(
+				FExecuteAction::CreateStatic(
+					&ChangeSourceToWidgetFromContext,
 					MenuContext
 				)
 			)
