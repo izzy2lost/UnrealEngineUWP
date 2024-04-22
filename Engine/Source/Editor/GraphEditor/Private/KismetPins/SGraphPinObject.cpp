@@ -244,6 +244,7 @@ TSharedRef<SWidget> SGraphPinObject::GenerateAssetPicker()
 	AssetPickerConfig.OnAssetEnterPressed = FOnAssetEnterPressed::CreateSP(this, &SGraphPinObject::OnAssetEnterPressedInPicker);
 	AssetPickerConfig.InitialAssetViewType = EAssetViewType::List;
 	AssetPickerConfig.bAllowDragging = false;
+	AssetPickerConfig.InitialAssetSelection = CachedAssetData.GetAsset();
 
 	UObject* OwningAsset = GraphPinObj->GetOwningNode();
 	while (OwningAsset && !OwningAsset->IsAsset())
