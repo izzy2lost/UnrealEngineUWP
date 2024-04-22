@@ -33,9 +33,15 @@ private:
 
 	bool ImportFromFile(const FString& UsdPath, const FString& AssetPath, class FText& OutErrorText);
 	bool ImportFromCache(const TSharedRef<FManagedArrayCollection>& ClothCollection, class FText& OutErrorText) const;
+	void UpdateImportedAssets();
 
+	/** Content folder where all the USD assets are imported. */
 	UPROPERTY(VisibleAnywhere, Category = "USD Import")
-	FString PackagePath;  // Content folder where all the USD asset are imported
+	FString PackagePath;
+
+	/** List of all the dependent assets created from the USD import process. */
+	UPROPERTY(VisibleAnywhere, Category = "USD Import")
+	TArray<TObjectPtr<UObject>> ImportedAssets;
 
 	FMD5Hash FileHash;
 	FManagedArrayCollection CollectionCache;  // Content cache for data that hasn't got a USD schema yet

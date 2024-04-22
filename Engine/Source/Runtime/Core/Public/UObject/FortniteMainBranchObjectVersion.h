@@ -447,6 +447,9 @@ struct FFortniteMainBranchObjectVersion
 		// Added support for to record sim and query data of Shape Instance data in CVD
 		SimAndQueryDataSupportInChaosVisualDebugger,
 
+		// Add the imported asset dependencies to the Cloth Asset USD Import node
+		ChaosClothAssetUSDImportNodeAddAssetDependencies,
+
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,
 		LatestVersion = VersionPlusOne - 1

@@ -520,6 +520,21 @@ void FChaosClothAssetEditorToolkit::GetSaveableObjects(TArray<UObject*>& OutObje
 	{
 		check(DataflowAsset->IsAsset());
 		OutObjects.Add(DataflowAsset);
+
+		if (DataflowAsset->Dataflow)
+		{
+			TArray<UObject*> References;
+			FReferenceFinder ReferenceFinder(References);
+			DataflowAsset->Dataflow->AddReferencedObjects(ReferenceFinder);
+
+			for (UObject* const Reference : References)
+			{
+				if (Reference->IsAsset())
+				{
+					OutObjects.Add(Reference);
+				}
+			}
+		}
 	}
 }
 

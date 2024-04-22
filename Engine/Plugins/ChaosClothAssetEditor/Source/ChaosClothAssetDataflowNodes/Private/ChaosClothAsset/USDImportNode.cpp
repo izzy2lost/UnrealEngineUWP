@@ -389,13 +389,18 @@ void FChaosClothAssetUSDImportNode::Evaluate(Dataflow::FContext& Context, const 
 	}
 }
 
-void FChaosClothAssetUSDImportNode::Serialize(FArchive& Archive)
+void FChaosClothAssetUSDImportNode::Serialize(FArchive& Ar)
 {
 	using namespace UE::Chaos::ClothAsset;
 
-	::Chaos::FChaosArchive ChaosArchive(Archive);
+	Ar.UsingCustomVersion(FFortniteMainBranchObjectVersion::GUID);
+
+	::Chaos::FChaosArchive ChaosArchive(Ar);
 	CollectionCache.Serialize(ChaosArchive);
-	if (Archive.IsLoading())
+
+	Ar << FileHash;
+
+	if (Ar.IsLoading())
 	{
 		// Make sure to always have a valid cloth collection on reload, some new attributes could be missing from the cached collection
 		const TSharedRef<FManagedArrayCollection> ClothCollection = MakeShared<FManagedArrayCollection>(MoveTemp(CollectionCache));
@@ -405,9 +410,12 @@ void FChaosClothAssetUSDImportNode::Serialize(FArchive& Archive)
 			ClothFacade.DefineSchema();
 		}
 		CollectionCache = MoveTemp(*ClothCollection);
-	}
 
-	Archive << FileHash;
+		if (Ar.CustomVer(FFortniteMainBranchObjectVersion::GUID) < FFortniteMainBranchObjectVersion::ChaosClothAssetUSDImportNodeAddAssetDependencies)
+		{
+			UpdateImportedAssets();
+		}
+	}
 }
 
 bool FChaosClothAssetUSDImportNode::ImportFromFile(const FString& UsdFilePath, const FString& AssetPath, FText& OutErrorText)
@@ -1121,6 +1129,10 @@ bool FChaosClothAssetUSDImportNode::ImportFromFile(const FString& UsdFilePath, c
 	
 	SlowTask.EnterProgressFrame(1.f);
 	SlowTask.ForceRefresh();
+
+	// Fill up the asset list from the imported USD assets
+	UpdateImportedAssets();
+
 	return true;
 
 #else  // #if USE_USD_SDK
@@ -1131,6 +1143,40 @@ bool FChaosClothAssetUSDImportNode::ImportFromFile(const FString& UsdFilePath, c
 #endif  // #else #if USE_USD_SDK
 }
 
+void FChaosClothAssetUSDImportNode::UpdateImportedAssets()
+{
+	ImportedAssets.Reset();
+
+	if (!PackagePath.IsEmpty())
+	{
+		TArray<FAssetData> AssetData;
+
+		const FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
+
+		const UClass* const Class = UStaticMesh::StaticClass();
+		constexpr bool bRecursive = true;
+		constexpr bool bIncludeOnlyOnDiskAssets = false;
+		AssetRegistryModule.Get().GetAssetsByPath(FName(*PackagePath), AssetData, bRecursive, bIncludeOnlyOnDiskAssets);
+
+		ImportedAssets.Reserve(AssetData.Num());
+
+		for (const FAssetData& AssetDatum : AssetData)
+		{
+			if (AssetDatum.IsUAsset() && AssetDatum.IsTopLevelAsset())  // IsUAsset returns false for redirects
+			{
+				ImportedAssets.Emplace(AssetDatum.GetAsset());  // GetAsset does not handle redirects
+
+				UE_LOG(LogChaosClothAssetDataflowNodes,
+					Verbose,
+					TEXT("Imported USD Object %s of type %s, path: %s"),
+					*AssetDatum.AssetName.ToString(),
+					*AssetDatum.AssetClassPath.ToString(),
+					*AssetDatum.GetFullName());
+			}
+		}
+	}
+}
+
 bool FChaosClothAssetUSDImportNode::ImportFromCache(const TSharedRef<FManagedArrayCollection>& OutClothCollection, FText& OutErrorText) const
 {
 	using namespace UE::Chaos::ClothAsset;
@@ -1139,37 +1185,10 @@ bool FChaosClothAssetUSDImportNode::ImportFromCache(const TSharedRef<FManagedArr
 	// TODO: Until we have a schema so that we can use the asset cache and remove the collection cache
 	*OutClothCollection = CollectionCache;
 
-	// Initialize from asset registry
-	TArray<FAssetData> AssetData;
-
-	if (!PackagePath.IsEmpty())
+	for (const UObject* const Asset : ImportedAssets)
 	{
-		const FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
-
-		const UClass* const Class = UStaticMesh::StaticClass();
-		constexpr bool bRecursive = true;
-		constexpr bool bIncludeOnlyOnDiskAssets = false;
-		AssetRegistryModule.Get().GetAssetsByPath(FName(*PackagePath), AssetData, bRecursive, bIncludeOnlyOnDiskAssets);
-	}
-
-	for (const FAssetData& AssetDatum : AssetData)
-	{
-		if (!(AssetDatum.IsUAsset() && AssetDatum.IsTopLevelAsset()))
+		if (const UStaticMesh* const StaticMesh = Cast<UStaticMesh>(Asset))
 		{
-			continue;
-		}
-
-		UE_LOG(LogChaosClothAssetDataflowNodes,
-			Verbose,
-			TEXT("Imported USD Object %s of type %s, path: %s"),
-			*AssetDatum.AssetName.ToString(),
-			*AssetDatum.AssetClassPath.ToString(),
-			*AssetDatum.GetFullName());
-
-		if (AssetDatum.GetClass() == UStaticMesh::StaticClass())
-		{
-			UStaticMesh* const StaticMesh = CastChecked<UStaticMesh>(AssetDatum.GetAsset());
-
 			if (StaticMesh->GetNumSourceModels() > 0)  // Only deals with LOD 0 for now
 			{
 				using namespace UE::Chaos::ClothAsset::Private;
