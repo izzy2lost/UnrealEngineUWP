@@ -193,6 +193,12 @@ void FTextureSourceData::InitAsPlaceholder()
 void FTextureSourceData::Init(UTexture& InTexture, TextureMipGenSettings InMipGenSettings, bool bInCubeMap, bool bInTextureArray, bool bInVolumeTexture, bool bAllowAsyncLoading)
 {
 	check( bValid == false ); // we set to true at the end, acts as our return value
+	
+	if ( ! InTexture.Source.IsValid() )
+	{
+		UE_LOG(LogTexture, Warning, TEXT("FTextureSourceData::Init on Invalid texture: %s"), *InTexture.GetPathName());
+		return;
+	}
 
 	const int32 NumBlocks = InTexture.Source.GetNumBlocks();
 	const int32 NumLayers = InTexture.Source.GetNumLayers();
@@ -724,7 +730,10 @@ static void DDC1_StoreClassicTextureInDerivedData(
 
 	// VT can be bigger than (1<<(MAX_TEXTURE_MIP_COUNT-1)) , but doesn't actually make all those mips
 	// bForVirtualTextureStreamingBuild is false in this branch
-	check(MipCount <= MAX_TEXTURE_MIP_COUNT);
+	// MipCount here can actually be more than MAX_TEXTURE_MIP_COUNT and that's okay if LODBias will drop those mips
+	//	because of the delightful way LODBias works, we have to actually build the too-big mips and they will be dropped later
+	//	(it's very unusual to reach this case, typically MaxTextureSize should have been set to 16384 preventing that)
+	//check(MipCount <= MAX_TEXTURE_MIP_COUNT);
 
 	for (int32 MipIndex = 0; MipIndex < MipCount; ++MipIndex)
 	{
@@ -1526,6 +1535,8 @@ FTextureCacheDerivedDataWorker::FTextureCacheDerivedDataWorker(
 {
 	check(DerivedData);
 	
+	// if ! InTexture->Source.IsValid() -> fail now ?
+
 	RequiredMemoryEstimate = GetBuildRequiredMemoryEstimate(InTexture,InSettingsPerLayerFetchOrBuild);
 
 	if (InSettingsPerLayerFetchFirst)

@@ -577,6 +577,12 @@ void UTexture::ValidateSettingsAfterImportOrEdit(bool * pRequiresNotifyMaterials
 		
 #if WITH_EDITORONLY_DATA
 
+	// GetMaximumDimension is virtual, for the current texture type, on the current (host) RHI
+	//	not really right to ever be using it, quereis should be about the target platform
+	const int32 RHIMaximumDimension = GetMaximumDimension();
+	check( RHIMaximumDimension > 0 );
+	check( RHIMaximumDimension <= GetMaximumDimensionOfNonVT() ); // GetMaximumDimensionOfNonVT is just a constant (16384)
+
 	if (Source.IsValid()) // we can have an empty source if the last source in a texture2d array is removed via the editor.
 	{
 		if ( MipGenSettings == TMGS_LeaveExistingMips && PowerOfTwoMode != ETexturePowerOfTwoSetting::None )
@@ -595,8 +601,8 @@ void UTexture::ValidateSettingsAfterImportOrEdit(bool * pRequiresNotifyMaterials
 			PowerOfTwoMode = ETexturePowerOfTwoSetting::None;
 		}
 
-		ResizeDuringBuildX = FMath::Max(0, FMath::Min((int32)GetMaximumDimension(), ResizeDuringBuildX));
-		ResizeDuringBuildY = FMath::Max(0, FMath::Min((int32)GetMaximumDimension(), ResizeDuringBuildY));
+		ResizeDuringBuildX = FMath::Max(0, FMath::Min(RHIMaximumDimension, ResizeDuringBuildX));
+		ResizeDuringBuildY = FMath::Max(0, FMath::Min(RHIMaximumDimension, ResizeDuringBuildY));
 
 		// IsPowerOfTwo only checks XY
 		bool bIsPowerOfTwo = Source.AreAllBlocksPowerOfTwo();
@@ -630,42 +636,50 @@ void UTexture::ValidateSettingsAfterImportOrEdit(bool * pRequiresNotifyMaterials
 			NeverStream = true;	
 		}
 	
-		int32 MaxDimension = FMath::Max( Source.GetSizeX() , Source.GetSizeY() );
-		bool bLargeTextureMustBeVT = MaxDimension > GetMaximumDimensionOfNonVT();
+		const int32 LargerSourceDimension = FMath::Max( Source.GetSizeX() , Source.GetSizeY() );
+		bool bLargeTextureMustBeVT = LargerSourceDimension > GetMaximumDimensionOfNonVT();
 
-		if ( bLargeTextureMustBeVT && ! VirtualTextureStreaming && MaxTextureSize == 0 )
+		// note : checking the VirtualTextureStreaming without checking the TargetPlatform is potentially buggy
+		//	if the VT-enabled-ness of the platforms is not all the same as the Editor host platform
+
+		if ( VirtualTextureStreaming && ! CVarVirtualTextures.GetValueOnAnyThread() )
 		{
-			// ?? why does this not just use CVarVirtualTextures ??
-			static const auto CVarVirtualTexturesEnabled = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.VirtualTextures"));
-			check( CVarVirtualTexturesEnabled != nullptr );
+			// VT was turned on for this texture, but off for the project
+			//	fix it now, turn off on the texture:
+			UE_LOG(LogTexture, Display, TEXT("Texture %s was VT, but VT is off on the project, turning off on texture."), *GetName());
+			VirtualTextureStreaming = false;
+			bRequiresNotifyMaterials = true;
+		}
 
-			if ( CVarVirtualTexturesEnabled->GetValueOnAnyThread() )
+		if ( bLargeTextureMustBeVT && ! VirtualTextureStreaming && ( MaxTextureSize == 0 || MaxTextureSize > RHIMaximumDimension ) )
+		{
+			if ( CVarVirtualTextures.GetValueOnAnyThread() )
 			{
 				if ( GetTextureClass() == ETextureClass::TwoD )
 				{
-					UE_LOG(LogTexture, Display, TEXT("Large Texture %s Dimension=%d changed to VT; to disable VT set MaxTextureSize first"), *GetName(),MaxDimension);
+					UE_LOG(LogTexture, Display, TEXT("Large Texture %s Dimension=%d changed to VT; to disable VT set MaxTextureSize first"), *GetName(), LargerSourceDimension);
 					VirtualTextureStreaming = true;
 					bRequiresNotifyMaterials = true;
 				}
 				else
 				{
-					UE_LOG(LogTexture, Warning, TEXT("Large Texture %s Dimension=%d needs to be VT but is not 2d, changing MaxTextureSize"), *GetName(),MaxDimension);
+					UE_LOG(LogTexture, Warning, TEXT("Large Texture %s Dimension=%d needs to be VT but is not 2d, changing MaxTextureSize"), *GetName(), LargerSourceDimension);
 				
-					// GetMaximumDimension is the max size for this texture type on the current RHI
-					MaxTextureSize = GetMaximumDimension();
+					MaxTextureSize = RHIMaximumDimension;
 				}
 			}
 			else
 			{
-				UE_LOG(LogTexture, Warning, TEXT("Large Texture %s Dimension=%d must be VT but VirtualTextures are disabled, changing MaxTextureSize"), *GetName(),MaxDimension);
+				UE_LOG(LogTexture, Warning, TEXT("Large Texture %s Dimension=%d must be VT but VirtualTextures are disabled, changing MaxTextureSize"), *GetName(), LargerSourceDimension);
 
-				// GetMaximumDimension is the max size for this texture type on the current RHI
-				MaxTextureSize = GetMaximumDimension();
+				MaxTextureSize = RHIMaximumDimension;
 			}
 		}
 	
 		if (VirtualTextureStreaming)
 		{
+			// note: does not check CVAR VT enabled! may not actually be VT
+
 			if (!bIsPowerOfTwo)
 			{
 				if ( bLargeTextureMustBeVT || Source.GetNumBlocks() > 1 )
@@ -684,13 +698,14 @@ void UTexture::ValidateSettingsAfterImportOrEdit(bool * pRequiresNotifyMaterials
 				}
 			}
 
-			// VTs require mips as VT memory management assumes 1:1 texel/pixel mapping, which requires mips to enforce.
 			if (LODGroup == TEXTUREGROUP_ColorLookupTable)
 			{
 				UE_LOG(LogTexture, Warning, TEXT("VirtualTextureStreaming is not compatible with ColorLookupTable LODGroup as virtual textures require mips (%s)"), *GetName());
 				VirtualTextureStreaming = false;
 				bRequiresNotifyMaterials = true;
 			}
+
+			// VTs require mips as VT memory management assumes 1:1 texel/pixel mapping, which requires mips to enforce.
 			if (MipGenSettings == TMGS_NoMipmaps)
 			{
 				UE_LOG(LogTexture, Display, TEXT("Virtual textures require mips and MipGenSettings is NoMipmaps: Forcing to SimpleAverage (%s)"), *GetName());
@@ -734,8 +749,7 @@ void UTexture::ValidateSettingsAfterImportOrEdit(bool * pRequiresNotifyMaterials
 	}
 	else
 	{
-		// note : GetMaximumDimension is the max dim for this texture type in the current RHI
-		MaxTextureSize = FMath::Min<int32>(FMath::RoundUpToPowerOfTwo(MaxTextureSize), GetMaximumDimension());
+		MaxTextureSize = FMath::Min<int32>(FMath::RoundUpToPowerOfTwo(MaxTextureSize), RHIMaximumDimension);
 	}
 #endif
 	
@@ -3542,7 +3556,6 @@ void FTextureSource::SetId(const FGuid& InId, bool bInGuidIsHash)
 
 // GetMaximumDimensionOfNonVT is static
 // not for current texture type, not for current RHI
-
 int32 UTexture::GetMaximumDimensionOfNonVT()
 {
 	// 16384 limit ; larger must be VT
@@ -3555,6 +3568,8 @@ int32 UTexture::GetMaximumDimensionOfNonVT()
 // and on the current RHI
 uint32 UTexture::GetMaximumDimension() const
 {
+	// the various virtual implementations of this wind up returning GRHIGlobals.MaxCubeTextureDimensions etc.
+
 	// just assume anyone who doesn't implement this virtual is 2d
 	return GetMax2DTextureDimension();
 }
@@ -3814,9 +3829,8 @@ void UTexture::GetBuiltTextureSize(const ITargetPlatformSettings* TargetPlatform
 		}
 	}
 	
-	// ?? why does this not just use CVarVirtualTextures ??
-	static const auto CVarVirtualTexturesEnabled = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.VirtualTextures")); check(CVarVirtualTexturesEnabled);
-	const bool bVirtualTextureStreaming = CVarVirtualTexturesEnabled->GetValueOnAnyThread() && TargetPlatformSettings->SupportsFeature(ETargetPlatformFeatures::VirtualTextureStreaming) && VirtualTextureStreaming;
+	// bug? this queries CVarVirtualTextures, but should be asking for that in the TargetPlatform config
+	const bool bVirtualTextureStreaming = CVarVirtualTextures.GetValueOnAnyThread() && TargetPlatformSettings->SupportsFeature(ETargetPlatformFeatures::VirtualTextureStreaming) && VirtualTextureStreaming;
 
 	const UTextureLODSettings& LODSettings = TargetPlatformSettings->GetTextureLODSettings();
  	const uint32 LODBiasNoCinematics = FMath::Max<int32>(LODSettings.CalculateLODBias(SizeX, SizeY, MaxTextureSize, LODGroup, LODBias, 0, MipGenSettings, bVirtualTextureStreaming), 0);

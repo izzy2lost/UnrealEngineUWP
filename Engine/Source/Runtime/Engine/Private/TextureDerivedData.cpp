@@ -657,46 +657,59 @@ static void GetBuiltTextureSizeBytesEstimate(
 	BuildSettings.GetEncodedTextureDescription(&TextureDescription, TextureFormat, TopMipSizeX, TopMipSizeY, TopMipSizeZ, NumMips, bHasAlpha);
 	check(TextureDescription.PixelFormat == PixelFormat);
 
-	uint64 TopMipSizeBytes = 0;
-	uint64 TotalImageSizeBytes = 0;
+	uint64 LinearTopMipSizeBytes = 0;
+	uint64 LinearTotalImageSizeBytes = 0;
 
-	int32 LODBias = 0;
-	FEncodedTextureExtendedData ExtendedData = TextureFormat->GetExtendedDataForTexture(TextureDescription, LODBias);
-	if ( ExtendedData.MipSizesInBytes.Num() > 0 )
+	// calculate bytes for linear unpadded/untiled layout :
+	for (int32 MipIndex = 0; MipIndex < TextureDescription.NumMips; MipIndex++)
 	{
-		// ExtendedData is only valid for platform/tiled images
+		if (MipIndex == 0)
+		{
+			LinearTopMipSizeBytes = TextureDescription.GetMipSizeInBytes(0);
+			LinearTotalImageSizeBytes = LinearTopMipSizeBytes;
+		}
+		else
+		{
+			LinearTotalImageSizeBytes += TextureDescription.GetMipSizeInBytes(MipIndex);
+		}
+	}
+	
+	check( LinearTotalImageSizeBytes > 0 );
 
-		TopMipSizeBytes = ExtendedData.MipSizesInBytes[0];
+	OutTopMipSizeBytes = LinearTopMipSizeBytes;
+	OutTotalImageSizeBytes = LinearTotalImageSizeBytes;
+
+	if ( LinearTotalImageSizeBytes < (2LL<<30) )
+	{
+		// only call GetExtendedDataForTexture if total size is under 2 GB
+		//	because it calls into platform texture lib functions that are not 64-bit math safe
+
+		int32 LODBias = 0;
+		FEncodedTextureExtendedData ExtendedData = TextureFormat->GetExtendedDataForTexture(TextureDescription, LODBias);
+		if ( ExtendedData.MipSizesInBytes.Num() > 0 )
+		{
+			// ExtendedData is only valid for platform/tiled images
 		
-		TotalImageSizeBytes = 0;
-		for(const uint64 & MipSize : ExtendedData.MipSizesInBytes )
-		{
-			TotalImageSizeBytes += MipSize;
-		}
+			uint64 TiledTopMipSizeBytes = 0;
+			uint64 TiledTotalImageSizeBytes = 0;
 
-	}
-	else
-	{
-		// calculate bytes for linear unpadded/untiled layout :
-		for (int32 MipIndex = 0; MipIndex < TextureDescription.NumMips; MipIndex++)
-		{
-			if (MipIndex == 0)
+			TiledTopMipSizeBytes = ExtendedData.MipSizesInBytes[0];
+		
+			TiledTotalImageSizeBytes = 0;
+			for(const uint64 & MipSize : ExtendedData.MipSizesInBytes )
 			{
-				TopMipSizeBytes = TextureDescription.GetMipSizeInBytes(0);
-				TotalImageSizeBytes = TopMipSizeBytes;
+				TiledTotalImageSizeBytes += MipSize;
 			}
-			else
-			{
-				TotalImageSizeBytes += TextureDescription.GetMipSizeInBytes(MipIndex);
-			}
+			
+			check( TiledTotalImageSizeBytes > 0 );
+			check( TiledTopMipSizeBytes >= LinearTopMipSizeBytes );
+			check( TiledTotalImageSizeBytes >= LinearTotalImageSizeBytes );
+
+			OutTopMipSizeBytes = TiledTopMipSizeBytes;
+			OutTotalImageSizeBytes = TiledTotalImageSizeBytes;
 		}
 	}
 
-	check(TotalImageSizeBytes > 0);
-
-
-	OutTopMipSizeBytes = TopMipSizeBytes;
-	OutTotalImageSizeBytes = TotalImageSizeBytes;
 }
 
 // may reduce OutSettings.MaxTextureResolution
@@ -717,7 +730,45 @@ static void ModifyMaxTextureResolutionBuildSettingsForPlatformLimit(
 	// GetBuiltTextureSize is the size after LODBias
 	int32 BuiltSizeX=0,BuiltSizeY=0,BuiltSizeZ=0;
 	Texture.GetBuiltTextureSize(TargetPlatform,BuiltSizeX,BuiltSizeY,BuiltSizeZ);
-		
+	
+	const int32 MaxDimension = UTexture::GetMaximumDimensionOfNonVT();
+	
+	// OriginalMaxTextureResolution is uint32_max if Texture did not have a max size set
+	uint32 OriginalMaxTextureResolution = OutSettings.MaxTextureResolution;
+	
+	OutSettings.MaxTextureResolution = FMath::Min<uint32>(MaxDimension,OutSettings.MaxTextureResolution);
+
+	if ( BuiltSizeX > MaxDimension || BuiltSizeY > MaxDimension || BuiltSizeZ > MaxDimension )
+	{
+		// this should have already happened in Texture.cpp ValidateSettingsAfterImportOrEdit
+		//	no harm in doing it again to make sure
+
+		if ( BuiltSizeZ > MaxDimension && ! OutSettings.bVolume )
+		{
+			UE_LOG(LogTexture, Error, TEXT("Texture %s non-volume has huge Z depth!"), 
+				*Texture.GetPathName());
+
+			OutSettings.MaxTextureResolution = 4;
+			return;
+		}
+		else
+		{
+			UE_LOG(LogTexture, Warning, TEXT("Texture %s exceeds maximum dimensions : %d x %d x %d > %d , shrinking..."), *Texture.GetPathName(),
+				BuiltSizeX, BuiltSizeY, BuiltSizeZ, MaxDimension
+				);
+		}
+
+		while ( BuiltSizeX > MaxDimension || BuiltSizeY > MaxDimension || BuiltSizeZ > MaxDimension )
+		{
+			BuiltSizeX = FMath::Max(1,BuiltSizeX>>1);
+			BuiltSizeY = FMath::Max(1,BuiltSizeY>>1);
+			if ( OutSettings.bVolume )
+			{
+				BuiltSizeZ = FMath::Max(1,BuiltSizeZ>>1);
+			}
+		}
+	}
+
 	uint64 MaxSurfaceBytes,MaxPackageBytes;
 	TargetPlatform->GetTextureSizeLimits(MaxSurfaceBytes,MaxPackageBytes);
 	
@@ -743,9 +794,6 @@ static void ModifyMaxTextureResolutionBuildSettingsForPlatformLimit(
 			MaxSurfaceBytes,MaxPackageBytes
 			);
 		
-		// OriginalMaxTextureResolution is uint32_max if Texture did not have a max size set
-		uint32 OriginalMaxTextureResolution = OutSettings.MaxTextureResolution;
-
 		do
 		{
 			// change MaxTextureResolution so that it causes us to do one mip step down
@@ -768,18 +816,19 @@ static void ModifyMaxTextureResolutionBuildSettingsForPlatformLimit(
 			GetBuiltTextureSizeBytesEstimate(OutSettings,TextureFormat, BuiltSizeX,BuiltSizeY,BuiltSizeZ,OutSettings.bVolume,PixelFormat,SurfaceBytes,TotalBytes);
 		}
 		while ( SurfaceBytes > MaxSurfaceBytes || TotalBytes > MaxPackageBytes );
-		
-		{
-			// compensate for LODBias that will be applied
-			// after scaling to MaxTextureResolution, LODBiasNoCinematics will be applied
+	}
+
+	if ( OutSettings.MaxTextureResolution != OriginalMaxTextureResolution )
+	{
+		// compensate for LODBias that will be applied
+		// after scaling to MaxTextureResolution, LODBiasNoCinematics will be applied
 			
-			const UTextureLODSettings& LODSettings = TargetPlatform->GetTextureLODSettings();
- 			const uint32 LODBiasNoCinematics = FMath::Max<int32>(LODSettings.CalculateLODBias(BuiltSizeX, BuiltSizeY, Texture.MaxTextureSize, Texture.LODGroup, Texture.LODBias, 0, Texture.MipGenSettings, OutSettings.bVirtualStreamable), 0);
+		const UTextureLODSettings& LODSettings = TargetPlatform->GetTextureLODSettings();
+ 		const uint32 LODBiasNoCinematics = FMath::Max<int32>(LODSettings.CalculateLODBias(BuiltSizeX, BuiltSizeY, Texture.MaxTextureSize, Texture.LODGroup, Texture.LODBias, 0, Texture.MipGenSettings, OutSettings.bVirtualStreamable), 0);
 
-			int64 MaxTextureResolutionUp = ((int64)OutSettings.MaxTextureResolution)<<LODBiasNoCinematics;
+		int64 MaxTextureResolutionUp = ((int64)OutSettings.MaxTextureResolution)<<LODBiasNoCinematics;
 
-			OutSettings.MaxTextureResolution = (uint32) FMath::Min<int64>((int64)OriginalMaxTextureResolution,MaxTextureResolutionUp);
-		}
+		OutSettings.MaxTextureResolution = (uint32) FMath::Min<int64>((int64)OriginalMaxTextureResolution,MaxTextureResolutionUp);
 
 		// ensure MaxTextureResolution never goes up :
 		OutSettings.MaxTextureResolution = FMath::Min(OriginalMaxTextureResolution,OutSettings.MaxTextureResolution);
