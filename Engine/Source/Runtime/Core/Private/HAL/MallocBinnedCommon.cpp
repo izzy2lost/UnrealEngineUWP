@@ -18,8 +18,8 @@ PRAGMA_DISABLE_UNSAFE_TYPECAST_WARNINGS
 // They must be 16-byte aligned as well.
 static uint32 BinnedCommonSmallBlockSizes4k[] = 
 {
-	16, 32, 48, 64, 80, 96, 112, 128, 160, // +16
-	192, 224, 256, 288, 320, // +32
+	16, 32, 48, 64, 80, 96, 112, 128, 144, 160, 176, 192, // +16
+	224, 256, 288, 320, // +32
 	368,  // /11 ish
 	400,  // /10 ish
 	448,  // /9 ish
