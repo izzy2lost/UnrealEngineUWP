@@ -2,8 +2,8 @@
 #include "GeometryCollection/GeometryCollectionRootProxyRenderer.h"
 
 #include "Components/StaticMeshComponent.h"
+#include "Engine/CollisionProfile.h"
 #include "Engine/StaticMesh.h"
-#include "Engine/World.h"
 #include "GeometryCollection/GeometryCollection.h"
 #include "GeometryCollection/GeometryCollectionComponent.h"
 #include "GeometryCollection/GeometryCollectionObject.h"
@@ -71,7 +71,7 @@ void UGeometryCollectionRootProxyRenderer::CreateRootProxyComponents(UGeometryCo
 		
 		if (ProxyMesh != nullptr)
 		{
-			MeshComponent = NewObject<UStaticMeshComponent>(InComponent.GetOwner(), NAME_None, RF_DuplicateTransient | RF_Transient);
+			MeshComponent = NewObject<UStaticMeshComponent>(this, NAME_None, RF_DuplicateTransient | RF_Transient);
 
 			MeshComponent->SetStaticMesh(ProxyMesh);
 			MeshComponent->SetCanEverAffectNavigation(false);

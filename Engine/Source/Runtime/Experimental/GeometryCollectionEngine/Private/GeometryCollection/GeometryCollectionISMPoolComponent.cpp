@@ -6,12 +6,14 @@
 #include "Components/InstancedStaticMeshComponent.h"
 #include "Engine/CollisionProfile.h"
 #include "Engine/StaticMesh.h"
+#include "Engine/World.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(GeometryCollectionISMPoolComponent)
 
 // Don't release ISM components when they empty, but keep them (and their scene proxy) alive.
 // This can remove the high cost associated with repeated registration, scene proxy creation and mesh draw command creation.
-static bool GComponentKeepAlive = false; // Disabled due to current OOM issues on certain platforms
+// But it can also have a high memory overhead since the ISMs retain hard references to their static meshes.
+static bool GComponentKeepAlive = false; 
 FAutoConsoleVariableRef CVarISMPoolComponentKeepAlive(
 	TEXT("r.ISMPool.ComponentKeepAlive"),
 	GComponentKeepAlive,
@@ -37,6 +39,7 @@ FAutoConsoleVariableRef CVarISMPoolComponentFreeListTargetSize(
 	GComponentFreeListTargetSize,
 	TEXT("Target size for number of ISM components in the recycling free list."));
 
+// Keep copies of all custom instance data for restoration on readding an instance.
 static bool GShadowCopyCustomData = false;
 FAutoConsoleVariableRef CVarShadowCopyCustomData(
 	TEXT("r.ISMPool.ShadowCopyCustomData"),
@@ -101,19 +104,29 @@ void FGeometryCollectionMeshGroup::RemoveAllMeshes(FGeometryCollectionISMPool& I
 	MeshInfos.Empty();
 }
 
-void FGeometryCollectionISM::CreateISM(AActor* InOwningActor)
+void FGeometryCollectionISM::CreateISM(USceneComponent* InOwningComponent)
 {
-	check(InOwningActor);
+	check(InOwningComponent);
 
-	ISMComponent = NewObject<UInstancedStaticMeshComponent>(InOwningActor, NAME_None, RF_Transient | RF_DuplicateTransient);
+	AActor* OwningActor = InOwningComponent->GetOwner();
+	USceneComponent* RootComponent = OwningActor->GetRootComponent();
+
+	ISMComponent = NewObject<UInstancedStaticMeshComponent>(InOwningComponent, NAME_None, RF_Transient | RF_DuplicateTransient);
 
 	ISMComponent->SetRemoveSwap();
 	ISMComponent->SetCanEverAffectNavigation(false);
 	ISMComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-	ISMComponent->SetupAttachment(InOwningActor->GetRootComponent());
-	
-	InOwningActor->AddInstanceComponent(ISMComponent);
+	ISMComponent->SetupAttachment(RootComponent);
 	ISMComponent->RegisterComponent();
+
+#if WITH_EDITOR
+	UWorld const* World = InOwningComponent->GetWorld();
+	const bool bShowInWorldOutliner = World && World->IsGameWorld();
+	if (bShowInWorldOutliner)
+	{
+		OwningActor->AddInstanceComponent(ISMComponent);
+	}
+#endif
 }
 
 void FGeometryCollectionISM::InitISM(const FGeometryCollectionStaticMeshInstance& InMeshInstance, bool bKeepAlive, bool bOverrideTransformUpdates)
@@ -266,12 +279,12 @@ FGeometryCollectionISMPool::FISMIndex FGeometryCollectionISMPool::GetOrAddISM(UG
 	{
 		ISMIndex = FreeList.Last();
 		FreeList.RemoveAt(FreeList.Num() - 1);
-		ISMs[ISMIndex].CreateISM(OwningComponent->GetOwner());
+		ISMs[ISMIndex].CreateISM(OwningComponent);
 	}
 	else
 	{
 		ISMIndex = ISMs.AddDefaulted();
-		ISMs[ISMIndex].CreateISM(OwningComponent->GetOwner());
+		ISMs[ISMIndex].CreateISM(OwningComponent);
 	}
 	
 	ISMs[ISMIndex].InitISM(MeshInstance, bCachedKeepAlive, bDisableBoundsAndTransformUpdate);
@@ -437,9 +450,7 @@ void FGeometryCollectionISMPool::RemoveISM(FISMIndex ISMIndex, bool bKeepAlive, 
 	else
 	{
 		// Completely unregister and destroy the component and mark the ISM slot as free.
-		ISM.ISMComponent->UnregisterComponent();
 		ISM.ISMComponent->DestroyComponent();
-		ISM.ISMComponent->GetOwner()->RemoveInstanceComponent(ISM.ISMComponent);
 		ISM.ISMComponent = nullptr;
 		
 		FreeList.Add(ISMIndex);
@@ -458,9 +469,7 @@ void FGeometryCollectionISMPool::Clear()
 		{
 			for(FGeometryCollectionISM& ISM : ISMs)
 			{
-				ISM.ISMComponent->UnregisterComponent();
 				ISM.ISMComponent->DestroyComponent();
-				OwningActor->RemoveInstanceComponent(ISM.ISMComponent);
 			}
 		}
 		ISMs.Reset();

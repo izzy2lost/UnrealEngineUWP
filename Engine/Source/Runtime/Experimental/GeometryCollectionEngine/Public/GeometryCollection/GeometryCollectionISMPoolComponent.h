@@ -256,7 +256,7 @@ struct FGeometryCollectionMeshGroup
 struct FGeometryCollectionISM
 {
 	/** Create the ISMComponent according to settings on the mesh instance. */
-	void CreateISM(AActor* InOwningActor);
+	void CreateISM(USceneComponent* InOwningComponent);
 	/** Initialize the ISMComponent according to settings on the mesh instance. */
 	void InitISM(const FGeometryCollectionStaticMeshInstance& InMeshInstance, bool bKeepAlive, bool bOverrideTransformUpdates = false);
 	/** Add a group to the ISM. Returns the group index. */

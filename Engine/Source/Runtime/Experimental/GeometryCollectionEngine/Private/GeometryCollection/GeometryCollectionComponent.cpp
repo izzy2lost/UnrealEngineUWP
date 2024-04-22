@@ -3563,7 +3563,7 @@ void UGeometryCollectionComponent::OnRegister()
 	{
 		if (!CustomRenderer || CustomRenderer.GetObject()->GetClass() != Type)
 		{
-			CustomRenderer = NewObject<UObject>(this, Type);
+			CustomRenderer = NewObject<UObject>(this, Type, NAME_None, RF_Transient | RF_DuplicateTransient);
 		}
 		RegisterCustomRenderer();
 	}

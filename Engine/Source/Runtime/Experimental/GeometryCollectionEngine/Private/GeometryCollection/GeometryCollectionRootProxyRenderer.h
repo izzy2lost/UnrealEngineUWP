@@ -14,6 +14,10 @@ class UGeometryCollectionRootProxyRenderer : public UObject, public IGeometryCol
 {
 	GENERATED_BODY()
 
+	/** Static mesh components for the root proxy meshes. */
+	UPROPERTY()
+	TArray<TObjectPtr<UStaticMeshComponent>> StaticMeshComponents;
+
 public:
 	//~ Begin IGeometryCollectionExternalRenderInterface Interface.
 	virtual void OnRegisterGeometryCollection(UGeometryCollectionComponent& InComponent) override;
@@ -29,9 +33,6 @@ public:
 protected:
 	/** Current visibility state. */
 	bool bIsVisible = true;
-	/** Static mesh components for the root proxy meshes. */
-	UPROPERTY(Transient)
-	TArray<TObjectPtr<UStaticMeshComponent>> StaticMeshComponents;
 
 private:
 	void CreateRootProxyComponents(UGeometryCollectionComponent& InComponent);

@@ -6,7 +6,6 @@
 
 #include "GeometryCollectionISMPoolRenderer.generated.h"
 
-class AGeometryCollectionISMPoolActor;
 class UGeometryCollectionISMPoolComponent;
 class UGeometryCollectionComponent;
 class ULevel;
@@ -16,6 +15,14 @@ UCLASS()
 class UGeometryCollectionISMPoolRenderer : public UObject, public IGeometryCollectionExternalRenderInterface
 {
 	GENERATED_BODY()
+
+	/** Instanced Static Mesh Pool component that is used to render our meshes. */
+	UPROPERTY(Transient)
+	TObjectPtr<UGeometryCollectionISMPoolComponent> CachedISMPoolComponent;
+
+	/** Set if we have an Instanced Static Mesh Pool component owned by this renderer (ie when in Editor mode). Non-transient to behave correctly under actor duplication. */
+	UPROPERTY()
+	TObjectPtr<UGeometryCollectionISMPoolComponent> LocalISMPoolComponent;
 
 public:
 	//~ Begin IGeometryCollectionExternalRenderInterface Interface.
@@ -27,6 +34,7 @@ public:
 	virtual void UpdateTransforms(UGeometryCollection const& InGeometryCollection, TArrayView<const FTransform3f> InTransforms) override;
 	//~ End IGeometryCollectionExternalRenderInterface Interface.
 
+protected:
 	/** Description for a group of meshes that are added/updated together. */
 	struct FISMPoolGroup
 	{
@@ -34,10 +42,8 @@ public:
 		TArray<int32> MeshIds;
 	};
 
-protected:
-	/** Instanced Static Mesh Pool component that is used to render our meshes. */
-	UPROPERTY(Transient)
-	TObjectPtr<UGeometryCollectionISMPoolComponent> CachedISMPoolComponent;
+	/** Registered flag set true in between calls to OnRegister() and OnUnregister(). */
+	bool bIsRegistered = false;
 
 	/** Cached component transform. */
 	FTransform ComponentTransform = FTransform::Identity;
@@ -46,15 +52,15 @@ protected:
 	FISMPoolGroup MergedMeshGroup;
 	FISMPoolGroup InstancesGroup;
 
-	/** level of the owning component of this renderer */
-	ULevel* OwningLevel = nullptr;
+	/** Level of the owning component of this renderer */
+	TWeakObjectPtr<ULevel> OwningLevel;
 
 private:
 	UGeometryCollectionISMPoolComponent* GetISMPoolComponent() const;
 	UGeometryCollectionISMPoolComponent* GetOrCreateISMPoolComponent();
 	void InitMergedMeshFromGeometryCollection(UGeometryCollection const& InGeometryCollection);
 	void InitInstancesFromGeometryCollection(UGeometryCollection const& InGeometryCollection);
-	void UpdateMergedMeshTransforms(FTransform const& InBaseTransform, TArrayView<const FTransform3f> LocalTransforms);
+	void UpdateMergedMeshTransforms(FTransform const& InBaseTransform, TArrayView<const FTransform3f> InLocalTransforms);
 	void UpdateInstanceTransforms(UGeometryCollection const& InGeometryCollection, FTransform const& InBaseTransform, TArrayView<const FTransform3f> InTransforms);
 	void ReleaseGroup(FISMPoolGroup& InOutGroup);
 };

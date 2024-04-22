@@ -1483,7 +1483,7 @@ protected:
 	uint8 bForceNativeRenderer : 1;
 
 	/** A custom renderer object created from CustomRenderType. */
-	UPROPERTY(Transient)
+	UPROPERTY(SkipSerialization)
 	TScriptInterface<IGeometryCollectionExternalRenderInterface> CustomRenderer;
 
 	/** Collect all the PSO precache data used by the geometry collection */
