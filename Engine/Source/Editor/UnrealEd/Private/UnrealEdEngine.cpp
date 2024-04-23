@@ -602,7 +602,7 @@ void UUnrealEdEngine::OnPackageDirtyStateUpdated( UPackage* Pkg)
 		const bool bIsAutoSaving = PackageAutoSaver.Get() && PackageAutoSaver->IsAutoSaving();
 
 		if( !bIsAutoSaving && 
-			!GIsEditorLoadingPackage && // Don't ask if the package was modified as a result of a load
+			!UE::GetIsEditorLoadingPackage() && // Don't ask if the package was modified as a result of a load
 			!GIsCookerLoadingPackage && // don't ask if the package was modified as a result of a cooker load
 			!(Package->GetPackageFlags() & PKG_CompiledIn)) // don't ask if the package is a script package (changes are saved elsewhere via config files)
 		{

@@ -99,6 +99,7 @@
 #include "UObject/ReferenceChainSearch.h"
 #include "UObject/ArchiveCookContext.h"
 #include "HAL/PlatformApplicationMisc.h"
+#include "Templates/GuardValueAccessors.h"
 #include "IMediaModule.h"
 #include "Scalability.h"
 #include "PlatformInfo.h"
@@ -7536,7 +7537,7 @@ void UEditorEngine::InitializeNewlyCreatedInactiveWorld(UWorld* World)
 	if (!World->bIsWorldInitialized && World->WorldType == EWorldType::Inactive && !World->IsInstanced())
 	{
 		// Guard against dirtying packages while initializing the map
-		TGuardValue<bool> IsEditorLoadingPackageGuard(GIsEditorLoadingPackage, true);
+		TGuardValueAccessors<bool> IsEditorLoadingPackageGuard(UE::GetIsEditorLoadingPackage, UE::SetIsEditorLoadingPackage, true);
 		// This is probably no longer needed with the EditorLoadingPackage guard but doesn't hurt to keep for safety.
 		const bool bOldDirtyState = World->GetOutermost()->IsDirty();
 

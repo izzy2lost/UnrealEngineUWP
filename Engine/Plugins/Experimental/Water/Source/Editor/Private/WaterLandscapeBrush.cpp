@@ -240,7 +240,7 @@ void AWaterLandscapeBrush::RegisterDelegates()
 				&& (Level != nullptr)
 				&& Algo::AnyOf(Level->Actors, [this](AActor* Actor) { return IsActorAffectingLandscape(Actor); })))
 			{
-				UpdateActors(!GIsEditorLoadingPackage);
+				UpdateActors(!UE::GetIsEditorLoadingPackage());
 			}
 		});
 
@@ -251,7 +251,7 @@ void AWaterLandscapeBrush::RegisterDelegates()
 				&& (Level != nullptr)
 				&& Algo::AnyOf(Level->Actors, [this](AActor* Actor) { return IsActorAffectingLandscape(Actor); })))
 			{
-				UpdateActors(!GIsEditorLoadingPackage);
+				UpdateActors(!UE::GetIsEditorLoadingPackage());
 			}
 		});
 

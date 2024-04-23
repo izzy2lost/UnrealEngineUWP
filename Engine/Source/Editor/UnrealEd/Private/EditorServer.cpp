@@ -25,6 +25,7 @@
 #include "UObject/UObjectAnnotation.h"
 #include "Serialization/ArchiveCountMem.h"
 #include "Misc/PackageName.h"
+#include "Templates/GuardValueAccessors.h"
 #include "UObject/PackageFileSummary.h"
 #include "UObject/ReferenceChainSearch.h"
 #include "Widgets/DeclarativeSyntaxSupport.h"
@@ -1093,7 +1094,7 @@ bool UEditorEngine::CanTransact()
 	// we can transact if we have a transaction buffer and aren't currently loading packages or  routing postload.
 	// No transaction should be created during loading
 	return Trans != nullptr &&
-		!GIsEditorLoadingPackage &&
+		!UE::GetIsEditorLoadingPackage() &&
 		!FUObjectThreadContext::Get().IsRoutingPostLoad;
 }
 
@@ -2347,7 +2348,7 @@ bool UEditorEngine::Map_Load(const TCHAR* Str, FOutputDevice& Ar)
 
 #define LOCTEXT_NAMESPACE "EditorEngine"
 	// We are beginning a map load
-	TGuardValue<bool> IsEditorLoadingPackageGuard(GIsEditorLoadingPackage, true);
+	TGuardValueAccessors<bool> IsEditorLoadingPackageGuard(UE::GetIsEditorLoadingPackage, UE::SetIsEditorLoadingPackage, true);
 
 	FWorldContext &Context = GetEditorWorldContext();
 	check(Context.World() == GWorld);

@@ -175,7 +175,7 @@ bool FLevelUtils::IsLevelLocked(ULevel* Level)
 {
 	//We should not check file status on disk if we are not running the editor
 	// Don't permit spawning in read only levels if they are locked
-	if ( GIsEditor && !GIsEditorLoadingPackage )
+	if ( GIsEditor && !UE::GetIsEditorLoadingPackage() )
 	{
 		if ( GEngine && GEngine->bLockReadOnlyLevels )
 		{

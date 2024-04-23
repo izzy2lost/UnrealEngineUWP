@@ -384,8 +384,10 @@ const TCHAR* LexToString(ELoaderType Type)
 	}
 }
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 /** Whether the editor is currently loading a package or not												*/
-bool					GIsEditorLoadingPackage			= false;
+FIsEditorLoadingPackage	GIsEditorLoadingPackage;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 /** Whether the cooker is currently loading a package or not												*/
 bool					GIsCookerLoadingPackage			= false;
 /** Whether GWorld points to the play in editor world														*/
@@ -887,6 +889,64 @@ FPlayInEditorID& FPlayInEditorID::operator= (int32 InOther)
 FPlayInEditorID::operator int32() const
 {
 	return UE::GetPlayInEditorID();
+}
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+bool PRIVATE_GIsEditorLoadingPackage = false;
+
+namespace UE
+{
+	bool GetIsEditorLoadingPackage()
+	{
+		if (IsInGameThread())
+		{
+			if (GIsEditor && IsInAsyncLoadingThread())
+			{
+				ensureMsgf(PRIVATE_GIsEditorLoadingPackage, TEXT("GIsEditorLoadingPackage should always be true during editor loading."));
+			}
+			return PRIVATE_GIsEditorLoadingPackage;
+		}
+		else if (IsInAsyncLoadingThread())
+		{
+			// Directly depends on GIsEditor on real async-loading thread
+			return GIsEditor;
+		}
+		else
+		{
+			ensureMsgf(false, TEXT("Querying GIsEditorLoadingPackage from any thread is not safe, you should capture the value instead if needed."));
+			return false;
+		}
+	}
+	void SetIsEditorLoadingPackage(bool InValue)
+	{
+		if (IsInGameThread())
+		{
+			if (GIsEditor && !InValue && IsInAsyncLoadingThread())
+			{
+				ensureMsgf(false, TEXT("Overriding GIsEditorLoadingPackage to false during editor loading is prohibited."));
+			}
+			else
+			{
+				PRIVATE_GIsEditorLoadingPackage = InValue;
+			}
+		}
+		else
+		{
+			ensureMsgf(false, TEXT("Overriding GIsEditorLoadingPackage only makes sense for the game thread."));
+		}
+	}
+}
+
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+FIsEditorLoadingPackage& FIsEditorLoadingPackage::operator= (bool InValue)
+{
+	UE::SetIsEditorLoadingPackage(InValue);
+	return *this;
+}
+
+FIsEditorLoadingPackage::operator bool() const
+{
+	return UE::GetIsEditorLoadingPackage();
 }
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
 

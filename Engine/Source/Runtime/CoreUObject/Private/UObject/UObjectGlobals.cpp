@@ -75,6 +75,7 @@
 #include "Misc/PackageAccessTracking.h"
 #include "UObject/PropertyWithSetterAndGetter.h"
 #include "UObject/AnyPackagePrivate.h"
+#include "Templates/GuardValueAccessors.h"
 #include "UObject/UObjectGlobalsInternal.h"
 #include "Serialization/AsyncPackageLoader.h"
 #include "Containers/VersePath.h"
@@ -1773,7 +1774,7 @@ UPackage* LoadPackageInternal(UPackage* InOuter, const FPackagePath& PackagePath
 #if WITH_EDITOR
 	// In the editor loading cannot be part of a transaction as it cannot be undone, and may result in recording half-loaded objects. So we suppress any active transaction while in this stack, and set the editor loading flag
 	TGuardValue<ITransaction*> SuppressTransaction(GUndo, nullptr);
-	TGuardValue<bool> IsEditorLoadingPackage(GIsEditorLoadingPackage, GIsEditor || GIsEditorLoadingPackage);
+	TGuardValueAccessors<bool> IsEditorLoadingPackage(UE::GetIsEditorLoadingPackage, UE::SetIsEditorLoadingPackage, GIsEditor || UE::GetIsEditorLoadingPackage());
 #endif
 
 	TOptional<FScopedSlowTask> SlowTask;
@@ -1977,7 +1978,7 @@ UPackage* LoadPackageInternal(UPackage* InOuter, const FPackagePath& PackagePath
 		EndLoadAndCopyLocalizationGatherFlag();
 
 #if WITH_EDITOR
-		GIsEditorLoadingPackage = IsEditorLoadingPackage.GetOriginalValue();
+		UE::SetIsEditorLoadingPackage(IsEditorLoadingPackage.GetOriginalValue());
 #endif
 
 		// if we are calculating the script SHA for a package, do the comparison now

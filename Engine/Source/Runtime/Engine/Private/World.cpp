@@ -118,6 +118,7 @@
 #include "Net/PerfCountersHelpers.h"
 #include "InGamePerformanceTracker.h"
 #include "Engine/AssetManager.h"
+#include "Templates/GuardValueAccessors.h"
 #include "Engine/HLODProxy.h"
 #include "MoviePlayerProxy.h"
 #include "ObjectTrace.h"
@@ -3313,7 +3314,7 @@ void UWorld::AddToWorld( ULevel* Level, const FTransform& LevelTransform, bool b
 
 #if WITH_EDITOR
 			// Pretend here that we are loading package to avoid package dirtying during components registration
-		TGuardValue<bool> IsEditorLoadingPackage(GIsEditorLoadingPackage, (GIsEditor ? true : GIsEditorLoadingPackage));
+		TGuardValueAccessors<bool> IsEditorLoadingPackage(UE::GetIsEditorLoadingPackage, UE::SetIsEditorLoadingPackage, (GIsEditor ? true : UE::GetIsEditorLoadingPackage()));
 #endif
 
 		// We don't need to rerun construction scripts if we have cooked data or we are playing in editor unless the PIE world was loaded

@@ -8762,7 +8762,7 @@ FStaticMeshCompilationContext::FStaticMeshCompilationContext()
 {
 	// Remember if the editor was loading a package when initiating the build so that we can temporarily restore that state when 
 	//  executing FinishBuildInternal on the game thread at the end of the build :
-	bIsEditorLoadingPackage = GIsEditorLoadingPackage;
+	bIsEditorLoadingPackage = UE::GetIsEditorLoadingPackage();
 }
 
 #undef LOCTEXT_NAMESPACE

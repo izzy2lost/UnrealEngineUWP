@@ -49,6 +49,7 @@
 #include "Engine/BlueprintGeneratedClass.h"
 #include "Engine/GameEngine.h"
 #include "Engine/LevelStreaming.h"
+#include "Templates/GuardValueAccessors.h"
 #include "Engine/Selection.h"
 #include "AssetRegistry/IAssetRegistry.h"
 #include "Logging/MessageLog.h"
@@ -842,7 +843,7 @@ UPackageTools::UPackageTools(const FObjectInitializer& ObjectInitializer)
 	{
 		bool bResult = false;
 
-		TGuardValue<bool> IsEditorLoadingPackageGuard(GIsEditorLoadingPackage, true);
+		TGuardValueAccessors<bool> IsEditorLoadingPackageGuard(UE::GetIsEditorLoadingPackage, UE::SetIsEditorLoadingPackage, true);
 
 		FTextBuilder ErrorMessageBuilder;
 

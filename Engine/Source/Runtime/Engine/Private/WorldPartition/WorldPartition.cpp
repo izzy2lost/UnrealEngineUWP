@@ -871,7 +871,7 @@ bool UWorldPartition::IsMainWorldPartition() const
 #if WITH_EDITOR
 void UWorldPartition::OnLevelActorDeleted(AActor* Actor)
 {
-	if (GIsEditorLoadingPackage)
+	if (UE::GetIsEditorLoadingPackage())
 	{
 		if (UActorDescContainerInstance* DescContainerInstance = GetActorDescContainerInstance())
 		{

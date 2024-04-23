@@ -22,6 +22,7 @@
 #include "Settings/EditorLoadingSavingSettings.h"
 #include "SourceControlOperations.h"
 #include "ISourceControlModule.h"
+#include "Templates/GuardValueAccessors.h"
 #include "SourceControlHelpers.h"
 #include "FileHelpers.h"
 #include "AssetRegistry/ARFilter.h"
@@ -245,7 +246,7 @@ AssetViewUtils::ELoadAssetsResult AssetViewUtils::LoadAssetsIfNeeded(TConstArray
 	bool bSomeObjectsFailedToLoad = false;
 	bool bCancelled = false;
 	{
-		TGuardValue<bool> IsEditorLoadingPackageGuard(GIsEditorLoadingPackage, true);
+		TGuardValueAccessors<bool> IsEditorLoadingPackageGuard(UE::GetIsEditorLoadingPackage, UE::SetIsEditorLoadingPackage, true);
 		const ELoadFlags LoadFlags = Settings.bFollowRedirectors ? LOAD_None : LOAD_NoRedirects;
 
 		for (const FSoftObjectPath& ObjectPath : UnloadedObjectPaths)

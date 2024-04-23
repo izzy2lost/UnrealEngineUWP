@@ -237,7 +237,7 @@ bool UObjectBaseUtility::MarkPackageDirty() const
 			// we explicitly disable the ability to dirty a package or map during load/undo/redo.  Commandlets can still
 			// set the dirty state on load.
 			if( IsRunningCommandlet() || 
-				(!IsInAsyncLoadingThread() && GIsEditor && !GIsEditorLoadingPackage && !GIsCookerLoadingPackage && !GIsPlayInEditorWorld && !IsReloadActive()
+				(!IsInAsyncLoadingThread() && GIsEditor && !UE::GetIsEditorLoadingPackage() && !GIsCookerLoadingPackage && !GIsPlayInEditorWorld && !IsReloadActive()
 #if WITH_EDITORONLY_DATA
 				&& !GIsTransacting
 				&& !Package->bIsCookedForEditor // Cooked packages can't be modified nor marked as dirty

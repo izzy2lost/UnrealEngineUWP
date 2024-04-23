@@ -1261,7 +1261,7 @@ void FUnrealEdMisc::CB_RedrawAllViewports()
 
 void FUnrealEdMisc::CB_LevelActorsAdded(AActor* InActor)
 {
-	if (!GIsEditorLoadingPackage &&
+	if (!UE::GetIsEditorLoadingPackage() &&
 		!GIsCookerLoadingPackage &&
 		FEngineAnalytics::IsAvailable() &&
 		InActor &&

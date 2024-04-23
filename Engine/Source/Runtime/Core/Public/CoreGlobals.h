@@ -479,8 +479,24 @@ extern CORE_API void (*SuspendTextureStreamingRenderTasks)();
 /** Resume texture updates caused by completed async IOs. */
 extern CORE_API void (*ResumeTextureStreamingRenderTasks)();
 
+class UE_DEPRECATED(5.5, "This will be removed.") FIsEditorLoadingPackage
+{
+public:
+	CORE_API FIsEditorLoadingPackage& operator= (bool InValue);
+	CORE_API operator bool() const;
+};
+
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 /** Whether the editor is currently loading a package or not */
-extern CORE_API bool GIsEditorLoadingPackage;
+UE_DEPRECATED(5.5, "Use UE::GetIsEditorLoadingPackage() and UE::SetIsEditorLoadingPackage() instead.")
+extern CORE_API FIsEditorLoadingPackage GIsEditorLoadingPackage;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+namespace UE
+{
+	CORE_API bool GetIsEditorLoadingPackage();
+	CORE_API void SetIsEditorLoadingPackage(bool InValue);
+}
 
 /** Whether the cooker is currently loading a package or not */
 extern CORE_API bool GIsCookerLoadingPackage;

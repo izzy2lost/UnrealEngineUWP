@@ -74,6 +74,7 @@
 #include "UObject/UnrealType.h"
 #include "UObject/WeakObjectPtr.h"
 #include "UObject/WeakObjectPtrTemplates.h"
+#include "Templates/GuardValueAccessors.h"
 #include "Widgets/Docking/SDockTab.h"
 #include "Widgets/Images/SImage.h"
 #include "Widgets/Images/SThrobber.h"
@@ -306,7 +307,7 @@ UBlueprint* FFindInBlueprintsResult::GetParentBlueprint() const
 	{
 		UObject* Object;
 		{
-			TGuardValue<bool> IsEditorLoadingPackageGuard(GIsEditorLoadingPackage, true);
+			TGuardValueAccessors<bool> IsEditorLoadingPackageGuard(UE::GetIsEditorLoadingPackage, UE::SetIsEditorLoadingPackage, true);
 			Object = LoadObject<UObject>(NULL, *DisplayText.ToString(), NULL, 0, NULL);
 		}
 
