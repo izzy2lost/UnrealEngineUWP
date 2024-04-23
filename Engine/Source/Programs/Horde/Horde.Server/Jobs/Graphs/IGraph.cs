@@ -14,6 +14,154 @@ using MongoDB.Bson.Serialization.Attributes;
 namespace Horde.Server.Jobs.Graphs
 {
 	/// <summary>
+	/// A unique dependency graph instance
+	/// </summary>
+	public interface IGraph
+	{
+		/// <summary>
+		/// Hash of this graph
+		/// </summary>
+		public ContentHash Id { get; }
+
+		/// <summary>
+		/// Schema version for this document
+		/// </summary>
+		public int Schema { get; }
+
+		/// <summary>
+		/// List of groups for this graph
+		/// </summary>
+		public IReadOnlyList<INodeGroup> Groups { get; }
+
+		/// <summary>
+		/// List of aggregates for this graph
+		/// </summary>
+		public IReadOnlyList<IAggregate> Aggregates { get; }
+
+		/// <summary>
+		/// Status labels for this graph
+		/// </summary>
+		public IReadOnlyList<ILabel> Labels { get; }
+
+		/// <summary>
+		/// Artifacts for this graph
+		/// </summary>
+		public IReadOnlyList<IGraphArtifact> Artifacts { get; }
+	}
+
+	/// <summary>
+	/// Extension methods for graphs
+	/// </summary>
+	public static class GraphExtensions
+	{
+		/// <summary>
+		/// Gets the node from a node reference
+		/// </summary>
+		/// <param name="graph">The graph instance</param>
+		/// <param name="nodeRef">The node reference</param>
+		/// <returns>The node for the given reference</returns>
+		public static INode GetNode(this IGraph graph, NodeRef nodeRef)
+		{
+			return graph.Groups[nodeRef.GroupIdx].Nodes[nodeRef.NodeIdx];
+		}
+
+		/// <summary>
+		/// Tries to find a node by name
+		/// </summary>
+		/// <param name="graph">The graph to search</param>
+		/// <param name="nodeName">Name of the node</param>
+		/// <param name="nodeRef">Receives the node reference</param>
+		/// <returns>True if the node was found, false otherwise</returns>
+		public static bool TryFindNode(this IGraph graph, string nodeName, out NodeRef nodeRef)
+		{
+			for (int groupIdx = 0; groupIdx < graph.Groups.Count; groupIdx++)
+			{
+				INodeGroup group = graph.Groups[groupIdx];
+				for (int nodeIdx = 0; nodeIdx < group.Nodes.Count; nodeIdx++)
+				{
+					INode node = group.Nodes[nodeIdx];
+					if (String.Equals(node.Name, nodeName, StringComparison.OrdinalIgnoreCase))
+					{
+						nodeRef = new NodeRef(groupIdx, nodeIdx);
+						return true;
+					}
+				}
+			}
+
+			nodeRef = new NodeRef(0, 0);
+			return false;
+		}
+
+		/// <summary>
+		/// Tries to find a node by name
+		/// </summary>
+		/// <param name="graph">The graph to search</param>
+		/// <param name="nodeName">Name of the node</param>
+		/// <param name="node">Receives the node</param>
+		/// <returns>True if the node was found, false otherwise</returns>
+		public static bool TryFindNode(this IGraph graph, string nodeName, [NotNullWhen(true)] out INode? node)
+		{
+			NodeRef nodeRef;
+			if (TryFindNode(graph, nodeName, out nodeRef))
+			{
+				node = graph.Groups[nodeRef.GroupIdx].Nodes[nodeRef.NodeIdx];
+				return true;
+			}
+			else
+			{
+				node = null;
+				return false;
+			}
+		}
+
+		/// <summary>
+		/// Tries to find a node by name
+		/// </summary>
+		/// <param name="graph">The graph to search</param>
+		/// <param name="name">Name of the node</param>
+		/// <param name="aggregateIdx">Receives the aggregate index</param>
+		/// <returns>True if the node was found, false otherwise</returns>
+		public static bool TryFindAggregate(this IGraph graph, string name, out int aggregateIdx)
+		{
+			aggregateIdx = graph.Aggregates.FindIndex(x => x.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
+			return aggregateIdx != -1;
+		}
+
+		/// <summary>
+		/// Tries to find a node by name
+		/// </summary>
+		/// <param name="graph">The graph to search</param>
+		/// <param name="name">Name of the node</param>
+		/// <param name="aggregate">Receives the aggregate</param>
+		/// <returns>True if the node was found, false otherwise</returns>
+		public static bool TryFindAggregate(this IGraph graph, string name, [NotNullWhen(true)] out IAggregate? aggregate)
+		{
+			int aggregateIdx;
+			if (TryFindAggregate(graph, name, out aggregateIdx))
+			{
+				aggregate = graph.Aggregates[aggregateIdx];
+				return true;
+			}
+			else
+			{
+				aggregate = null;
+				return false;
+			}
+		}
+
+		/// <summary>
+		/// Gets a list of dependencies for the given node
+		/// </summary>
+		/// <param name="graph">The graph instance</param>
+		/// <param name="node">The node to return dependencies for</param>
+		/// <returns>List of dependencies</returns>
+		public static IEnumerable<INode> GetDependencies(this IGraph graph, INode node)
+		{
+			return Enumerable.Concat(node.InputDependencies, node.OrderDependencies).Select(x => graph.GetNode(x));
+		}
+	}
+
+	/// <summary>
 	/// Represents a node in the graph
 	/// </summary>
 	public interface INode
@@ -308,154 +456,6 @@ namespace Horde.Server.Jobs.Graphs
 		/// Tag for the artifact files
 		/// </summary>
 		public string OutputName { get; }
-	}
-
-	/// <summary>
-	/// A unique dependency graph instance
-	/// </summary>
-	public interface IGraph
-	{
-		/// <summary>
-		/// Hash of this graph
-		/// </summary>
-		public ContentHash Id { get; }
-
-		/// <summary>
-		/// Schema version for this document
-		/// </summary>
-		public int Schema { get; }
-
-		/// <summary>
-		/// List of groups for this graph
-		/// </summary>
-		public IReadOnlyList<INodeGroup> Groups { get; }
-
-		/// <summary>
-		/// List of aggregates for this graph
-		/// </summary>
-		public IReadOnlyList<IAggregate> Aggregates { get; }
-
-		/// <summary>
-		/// Status labels for this graph
-		/// </summary>
-		public IReadOnlyList<ILabel> Labels { get; }
-
-		/// <summary>
-		/// Artifacts for this graph
-		/// </summary>
-		public IReadOnlyList<IGraphArtifact> Artifacts { get; }
-	}
-
-	/// <summary>
-	/// Extension methods for graphs
-	/// </summary>
-	public static class GraphExtensions
-	{
-		/// <summary>
-		/// Gets the node from a node reference
-		/// </summary>
-		/// <param name="graph">The graph instance</param>
-		/// <param name="nodeRef">The node reference</param>
-		/// <returns>The node for the given reference</returns>
-		public static INode GetNode(this IGraph graph, NodeRef nodeRef)
-		{
-			return graph.Groups[nodeRef.GroupIdx].Nodes[nodeRef.NodeIdx];
-		}
-
-		/// <summary>
-		/// Tries to find a node by name
-		/// </summary>
-		/// <param name="graph">The graph to search</param>
-		/// <param name="nodeName">Name of the node</param>
-		/// <param name="nodeRef">Receives the node reference</param>
-		/// <returns>True if the node was found, false otherwise</returns>
-		public static bool TryFindNode(this IGraph graph, string nodeName, out NodeRef nodeRef)
-		{
-			for (int groupIdx = 0; groupIdx < graph.Groups.Count; groupIdx++)
-			{
-				INodeGroup group = graph.Groups[groupIdx];
-				for (int nodeIdx = 0; nodeIdx < group.Nodes.Count; nodeIdx++)
-				{
-					INode node = group.Nodes[nodeIdx];
-					if (String.Equals(node.Name, nodeName, StringComparison.OrdinalIgnoreCase))
-					{
-						nodeRef = new NodeRef(groupIdx, nodeIdx);
-						return true;
-					}
-				}
-			}
-
-			nodeRef = new NodeRef(0, 0);
-			return false;
-		}
-
-		/// <summary>
-		/// Tries to find a node by name
-		/// </summary>
-		/// <param name="graph">The graph to search</param>
-		/// <param name="nodeName">Name of the node</param>
-		/// <param name="node">Receives the node</param>
-		/// <returns>True if the node was found, false otherwise</returns>
-		public static bool TryFindNode(this IGraph graph, string nodeName, [NotNullWhen(true)] out INode? node)
-		{
-			NodeRef nodeRef;
-			if (TryFindNode(graph, nodeName, out nodeRef))
-			{
-				node = graph.Groups[nodeRef.GroupIdx].Nodes[nodeRef.NodeIdx];
-				return true;
-			}
-			else
-			{
-				node = null;
-				return false;
-			}
-		}
-
-		/// <summary>
-		/// Tries to find a node by name
-		/// </summary>
-		/// <param name="graph">The graph to search</param>
-		/// <param name="name">Name of the node</param>
-		/// <param name="aggregateIdx">Receives the aggregate index</param>
-		/// <returns>True if the node was found, false otherwise</returns>
-		public static bool TryFindAggregate(this IGraph graph, string name, out int aggregateIdx)
-		{
-			aggregateIdx = graph.Aggregates.FindIndex(x => x.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
-			return aggregateIdx != -1;
-		}
-
-		/// <summary>
-		/// Tries to find a node by name
-		/// </summary>
-		/// <param name="graph">The graph to search</param>
-		/// <param name="name">Name of the node</param>
-		/// <param name="aggregate">Receives the aggregate</param>
-		/// <returns>True if the node was found, false otherwise</returns>
-		public static bool TryFindAggregate(this IGraph graph, string name, [NotNullWhen(true)] out IAggregate? aggregate)
-		{
-			int aggregateIdx;
-			if (TryFindAggregate(graph, name, out aggregateIdx))
-			{
-				aggregate = graph.Aggregates[aggregateIdx];
-				return true;
-			}
-			else
-			{
-				aggregate = null;
-				return false;
-			}
-		}
-
-		/// <summary>
-		/// Gets a list of dependencies for the given node
-		/// </summary>
-		/// <param name="graph">The graph instance</param>
-		/// <param name="node">The node to return dependencies for</param>
-		/// <returns>List of dependencies</returns>
-		public static IEnumerable<INode> GetDependencies(this IGraph graph, INode node)
-		{
-			return Enumerable.Concat(node.InputDependencies, node.OrderDependencies).Select(x => graph.GetNode(x));
-		}
 	}
 
 	/// <summary>

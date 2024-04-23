@@ -700,7 +700,7 @@ namespace Horde.Server.Jobs
 
 			if (step.Properties != null && step.Properties.Count > 0)
 			{
-				response.Properties = step.Properties;
+				response.Properties = step.Properties.ToDictionary();
 			}
 			return response;
 		}

@@ -1398,8 +1398,20 @@ namespace Horde.Server.Jobs
 		/// <returns>Set of nodes that must have completed for this batch to start</returns>
 		public static HashSet<INode> GetStartDependencies(this IJobStepBatch batch, IReadOnlyList<INodeGroup> groups)
 		{
+			List<INode> batchNodes = batch.Steps.ConvertAll(x => groups[batch.GroupIdx].Nodes[x.NodeIdx]);
+			return GetStartDependencies(batchNodes, groups);
+		}
+
+		/// <summary>
+		/// Get the dependencies required for this batch to start, taking run-early nodes into account
+		/// </summary>
+		/// <param name="batchNodes">Nodes in the batch to search</param>
+		/// <param name="groups">List of node groups</param>
+		/// <returns>Set of nodes that must have completed for this batch to start</returns>
+		public static HashSet<INode> GetStartDependencies(IEnumerable<INode> batchNodes, IReadOnlyList<INodeGroup> groups)
+		{
 			// Find all the nodes that this group will start with.
-			List<INode> nodes = batch.Steps.ConvertAll(x => groups[batch.GroupIdx].Nodes[x.NodeIdx]);
+			List<INode> nodes = new List<INode>(batchNodes);
 			if (nodes.Any(x => x.RunEarly))
 			{
 				nodes.RemoveAll(x => !x.RunEarly);
@@ -1414,7 +1426,7 @@ namespace Horde.Server.Jobs
 			}
 
 			// Exclude all the dependencies within the same group
-			dependencies.ExceptWith(groups[batch.GroupIdx].Nodes);
+			dependencies.ExceptWith(batchNodes);
 			return dependencies;
 		}
 	}
@@ -1502,7 +1514,7 @@ namespace Horde.Server.Jobs
 		/// <summary>
 		/// Reports for this jobstep.
 		/// </summary>
-		public Dictionary<string, string>? Properties { get; }
+		public IReadOnlyDictionary<string, string>? Properties { get; }
 	}
 
 	/// <summary>
@@ -1511,12 +1523,12 @@ namespace Horde.Server.Jobs
 	public static class JobStepExtensions
 	{
 		/// <summary>
-		/// Determines if a jobstep has failed or is skipped. Can be used to determine whether dependent steps will be able to run.
+		/// Determines if a jobstep state is completed, skipped, or aborted.
 		/// </summary>
-		/// <returns>True if the step is failed or skipped</returns>
-		public static bool IsFailedOrSkipped(this IJobStep step)
+		/// <returns>True if the step is completed, skipped, or aborted</returns>
+		public static bool IsPendingState(JobStepState state)
 		{
-			return step.State == JobStepState.Skipped || step.Outcome == JobStepOutcome.Failure;
+			return state != JobStepState.Aborted && state != JobStepState.Completed && state != JobStepState.Skipped;
 		}
 
 		/// <summary>
@@ -1524,9 +1536,7 @@ namespace Horde.Server.Jobs
 		/// </summary>
 		/// <returns>True if the step is completed, skipped, or aborted</returns>
 		public static bool IsPending(this IJobStep step)
-		{
-			return step.State != JobStepState.Aborted && step.State != JobStepState.Completed && step.State != JobStepState.Skipped;
-		}
+			=> IsPendingState(step.State);
 
 		/// <summary>
 		/// Determine if a step should be timed out
