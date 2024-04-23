@@ -100,6 +100,8 @@ SamplerState Input_Sampler;
 
 		#if (POST_PROCESS_ALPHA != 2)
 			OutColor.a = 1.0;
+		#else
+			OutColor.a = 1.0f - OutColor.a;	// 	r.PostProcessing.PropagateAlpha
 		#endif
 	}
 
