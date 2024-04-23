@@ -21,6 +21,7 @@ struct FActiveSkeletalAnimation
 {
 	const UMovieSceneSkeletalAnimationSection* AnimSection;
 	FMovieSceneContext Context;
+	FFrameTime EvalFrameTime;
 	FMovieSceneEntityID EntityID;
 	FRootInstanceHandle RootInstanceHandle;
 	double BlendWeight;
