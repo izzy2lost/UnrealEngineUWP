@@ -118,7 +118,7 @@ end {
         else {
             $clangFormatDiffPath = Join-Path $Root "clang-format-diff.py"
 
-            $diffOutput = p4 "diff" "-du" $LocalPath 
+            $diffOutput = p4 "diff" "-du0" $LocalPath 
         
             # Check output is what we expect and bail if not 
             if ($diffOutput.Length -lt 2) {
