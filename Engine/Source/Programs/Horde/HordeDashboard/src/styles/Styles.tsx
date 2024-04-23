@@ -423,17 +423,14 @@ export const getHordeStyling = () => {
                paddingTop: 0,
             },
             ".ms-TextField-fieldGroup,.ms-TextField-field,.ms-TextField-field::placeholder": {
-               height: "29px",
                fontSize: "12px",
                fontFamily: "Horde Open Sans Regular",
             },
             ".ms-Dropdown-title,.ms-Dropdown-titleIsPlaceHolder": {
                fontSize: "12px",
-               height: "29px"
             },
             ".ms-ComboBox": {
                fontSize: "12px",
-               height: "29px",
             },
             ".ms-Checkbox": {
                marginTop: 0,

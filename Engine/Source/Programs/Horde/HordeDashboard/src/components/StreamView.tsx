@@ -22,6 +22,8 @@ import { JobViewIncremental } from './JobViewIncremental';
 import { NewBuild } from './NewBuild';
 import { StreamSummary } from './StreamSummary';
 import { TopNav } from './TopNav';
+import { NewBuildV2 } from './build/NewBuildV2';
+import { getSiteConfig } from '../backend/Config';
 
 export const SummaryPage: React.FC = () => {
 
@@ -354,6 +356,11 @@ const StreamViewInner: React.FC = observer(() => {
    const stream = projectStore.streamById(streamId);
    const project = stream?.project;
 
+   let newBuildVersion: string = query.get("newbuildversion") ? query.get("newbuildversion") : "1";
+   if (getSiteConfig().environment === "dev") {
+      newBuildVersion = "2";
+   }
+
    if (!stream || !project) {
       console.error("Bad stream or project id in StreamView");
       return <Navigate to="/" replace={true} />
@@ -490,7 +497,7 @@ const StreamViewInner: React.FC = observer(() => {
       <Stack className={hordeClasses.horde}>
          <TopNav />
          <Breadcrumbs items={crumbItems} title={crumbTitle} />
-         <NewBuild streamId={streamId!} jobKey={newBuildTab!} show={shown} onClose={(newJobId) => {
+         {shown && newBuildVersion == "2" && <NewBuildV2 streamId={streamId!} jobKey={newBuildTab!} show={true} onClose={(newJobId) => {
             setShown(false);
             if (newJobId) {
                navigate(`/job/${newJobId}`);
@@ -499,7 +506,17 @@ const StreamViewInner: React.FC = observer(() => {
                   navigate(`/stream/${streamId}?tab=${queryTab}`, { replace: true });
                }
             }
-         }} />
+         }} />}         
+         {shown && newBuildVersion == "1" && <NewBuild streamId={streamId!} jobKey={newBuildTab!} show={true} onClose={(newJobId) => {
+            setShown(false);
+            if (newJobId) {
+               navigate(`/job/${newJobId}`);
+            } else {
+               if (query.get("newbuild")) {
+                  navigate(`/stream/${streamId}?tab=${queryTab}`, { replace: true });
+               }
+            }
+         }} />}
          {findJobsShown && <JobSearchSimpleModal onClose={() => { setFindJobsShown(false) }} streamId={stream.id} />}
          <Stack horizontal style={{ backgroundColor: hordeTheme.horde.neutralBackground }}>
             <div key={`windowsize_streamview_${windowSize.width}_${windowSize.height}`} style={{ width: (vw / 2 - (1440 / 2)) - 12, flexShrink: 0, backgroundColor: modeColors.background }} />

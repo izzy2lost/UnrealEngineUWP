@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import backend, { useBackend } from '../backend';
 import { useQuery } from './JobDetailCommon';
 import ErrorHandler from './ErrorHandler';
+import { GetJobsTabResponse, JobsTabData, TabType } from '../backend/Api';
 
 function setError(message: string) {
 
@@ -37,6 +38,16 @@ export const PreflightRedirector: React.FC = () => {
 
    // whether a template is specified
    const templateId = !query.get("templateId") ? "" : query.get("templateId")!;
+
+   const version = !query.get("version") ? "" : query.get("version")!;
+
+   const parameters:string[] = [];
+
+   query.forEach((value, key) => {
+      if (key.startsWith("id")) {
+         parameters.push(`${key}=${value}`);
+      }
+   })
 
    if (!change) {
       setError("No preflight change specified");
@@ -79,6 +90,17 @@ export const PreflightRedirector: React.FC = () => {
       return null;
    }
 
+   let tab = "summary";
+   stream.tabs.find(t => {
+      if (t.type !== TabType.Jobs) {
+         return false;
+      }
+
+      if (!!(t as GetJobsTabResponse).templates?.find(t => t === templateId)) {
+         tab = t.title;
+      }
+   })
+
    if (!state.preflightQueried) {
 
       console.log(`Redirecting preflight: ${window.location.href}`);
@@ -97,11 +119,19 @@ export const PreflightRedirector: React.FC = () => {
                url += `&templateId=${templateId}`;
             }
 
+            if (parameters.length) {
+               url += ("&" + parameters.join("&"));
+            }
+
+            if (version === "2") {
+               url += "&newbuildversion=2"
+            }
+
             navigate(url, { replace: true });
             return;
          }
 
-         let url = `/stream/${stream!.id}?tab=summary&newbuild=true&shelvedchange=${change}&p4v=true`;
+         let url = `/stream/${stream!.id}?tab=${tab}&newbuild=true&shelvedchange=${change}&p4v=true`;
 
          if (autosubmit === "true") {
             url += "&autosubmit=true";
@@ -109,6 +139,14 @@ export const PreflightRedirector: React.FC = () => {
 
          if (templateId) {
             url += `&templateId=${templateId}`;
+         }
+
+         if (parameters.length) {
+            url += ("&" + parameters.join("&"));
+         }
+
+         if (version === "2") {
+            url += "&newbuildversion=2"
          }
 
          navigate(url, { replace: true });

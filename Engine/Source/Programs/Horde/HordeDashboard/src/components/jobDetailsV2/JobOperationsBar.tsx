@@ -18,6 +18,7 @@ import { JobDetailsV2 } from './JobDetailsViewCommon';
 import { RetryStepsModal, StepRetryModal, StepRetryType } from './StepRetryModal';
 import { getSiteConfig } from '../../backend/Config';
 import { getHordeStyling } from '../../styles/Styles';
+import { NewBuildV2 } from '../build/NewBuildV2';
 
 enum ParameterState {
    Hidden,
@@ -39,6 +40,14 @@ export const JobOperations: React.FC<{ jobDetails: JobDetailsV2 }> = observer(({
 
    const stepId = query.get("step") ? query.get("step")! : undefined;
    const batchFilter = query.get("batch");
+   let newBuildVersion: string = query.get("newbuildversion") ? query.get("newbuildversion") : "1";
+
+   // show new build version 2 if we have new parameters store
+   const hasJobParameters = !!(Object.keys(jobDetails?.jobData?.parameters ?? {}).length)
+   if (hasJobParameters) {
+      newBuildVersion = "2";
+   }
+
 
    // subscribe
    if (dashboard.updated) { }
@@ -52,7 +61,7 @@ export const JobOperations: React.FC<{ jobDetails: JobDetailsV2 }> = observer(({
    }
 
    const abortDisabled = jobData.state === JobState.Complete;
-   const runAgainDisabled = false; /*jobDetails.jobdata?.state !== JobState.Complete*/
+   const runAgainDisabled = newBuildVersion === "2" && !hasJobParameters;
 
    const failedSteps = jobDetails.getSteps().filter(s => {
 
@@ -151,12 +160,15 @@ export const JobOperations: React.FC<{ jobDetails: JobDetailsV2 }> = observer(({
       return null;
    }
 
+   let showNewBuildV1 = newBuildVersion !== "2" && (parametersState === ParameterState.Parameters || parametersState === ParameterState.Clone);
+   let showNewBuildV2 = newBuildVersion === "2" && (parametersState === ParameterState.Parameters || parametersState === ParameterState.Clone);
+
    return <Stack>
       {retryStepsShown && <RetryStepsModal stepIds={failedSteps.map(s => s.id)} jobDetails={jobDetails} onClose={() => { setRetryStepsShown(false); }} />}
       <AbortJobModal jobDetails={jobDetails} show={abortShown} onClose={() => { setAbortShown(false); }} />
       <EditJobModal jobData={jobDetails.jobData} show={editShown} onClose={() => { setEditShown(false); }} />
-      <NewBuild streamId={jobDetails.stream!.id} jobDetails={jobDetails} readOnly={parametersState === ParameterState.Parameters}
-         show={parametersState === ParameterState.Parameters || parametersState === ParameterState.Clone}
+      {showNewBuildV1 && <NewBuild streamId={jobDetails.stream!.id} jobDetails={jobDetails} readOnly={parametersState === ParameterState.Parameters}
+         show={true}
          onClose={(newJobId) => {
             setParametersState(ParameterState.Hidden);
             if (newJobId) {
@@ -166,7 +178,20 @@ export const JobOperations: React.FC<{ jobDetails: JobDetailsV2 }> = observer(({
                   navigate(`/job/${jobId}`, { replace: true });
                }
             }
-         }} />
+         }} />}
+
+      {showNewBuildV2 && <NewBuildV2 streamId={jobDetails.stream!.id} jobDetails={jobDetails} readOnly={parametersState === ParameterState.Parameters}
+         show={true}
+         onClose={(newJobId) => {
+            setParametersState(ParameterState.Hidden);
+            if (newJobId) {
+               navigate(`/job/${newJobId}`);
+            } else {
+               if (query.get("newbuild")) {
+                  navigate(`/job/${jobId}`, { replace: true });
+               }
+            }
+         }} />}
 
       <Stack horizontal>
          <Stack grow />
@@ -209,7 +234,7 @@ export const JobOperations: React.FC<{ jobDetails: JobDetailsV2 }> = observer(({
 });
 
 const StepArtifactsOperations: React.FC<{ jobDetails: JobDetailsV2, stepId: string }> = observer(({ jobDetails, stepId }) => {
-   
+
    const { hordeClasses } = getHordeStyling();
 
    const navigate = useNavigate();
@@ -247,7 +272,7 @@ const StepArtifactsOperations: React.FC<{ jobDetails: JobDetailsV2, stepId: stri
    const opsList: IContextualMenuItem[] = [];
 
    const baseUrl = window.location.pathname + window.location.search;
-   
+
 
    opsList.push({
       key: 'stepops_artifacts_step',
@@ -280,7 +305,7 @@ const StepArtifactsOperations: React.FC<{ jobDetails: JobDetailsV2, stepId: stri
          text: c.description ?? c.name,
          iconProps: { iconName: "Clean" },
          onClick: () => { navigate(`${baseUrl}&artifactContext=${c.type}`, { replace: true }) }
-      });   
+      });
    })
 
    const opsItems: ICommandBarItemProps[] = [

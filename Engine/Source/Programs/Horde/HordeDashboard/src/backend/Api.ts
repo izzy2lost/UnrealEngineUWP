@@ -1144,6 +1144,9 @@ export type CreateJobRequest = {
 
 	/** Arguments for the job */
 	arguments?: string[];
+
+	/** Parameters for the job */
+	parameters?: Record<string, string>
 }
 
 /**Response from creating a new job */
@@ -1286,6 +1289,9 @@ export type GetJobResponse = {
 
 	/**  Parameters for the job */
 	arguments: string[];
+
+	/** Parameters for the job */
+	parameters: Record<string, string>;
 
 	/**The last update time for this job*/
 	updateTime: Date | string;
@@ -2399,6 +2405,9 @@ export type GroupParameterData = ParameterData & {
 /**Free-form text entry parameter */
 export type TextParameterData = ParameterData & {
 
+	// Unique id for this parameter
+	id: string;
+
 	/**Name of the parameter associated with this parameter. */
 	label: string;
 
@@ -2424,6 +2433,9 @@ export type TextParameterData = ParameterData & {
 
 /**Possible option for a list parameter */
 export type ListParameterItemData = ParameterData & {
+
+	// Unique id for this parameter
+	id: string;
 
 	/**Optional group heading to display this entry under, if the picker style supports it. */
 	group?: string;
@@ -2473,6 +2485,10 @@ export type ListParameterData = ParameterData & {
 
 /**Allows the user to toggle an option on or off */
 export type BoolParameterData = ParameterData & {
+
+	// Unique id for this parameter
+	id: string;
+
 	/**Name of the parameter associated with this parameter. */
 	label: string;
 
