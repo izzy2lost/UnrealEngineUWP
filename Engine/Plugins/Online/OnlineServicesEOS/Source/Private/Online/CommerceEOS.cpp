@@ -383,7 +383,7 @@ TOnlineAsyncOpHandle<FCommerceQueryEntitlements> FCommerceEOS::QueryEntitlements
 				}
 
 				// Parse the entitlement into the receipt format
-				FEntitlement Entitlement = Entitlements.Emplace_GetRef();
+				FEntitlement& Entitlement = Entitlements.Emplace_GetRef();
 				EOSEntitlementToOssEntitlement(Entitlement, EosEntitlement);
 
 				EOS_Ecom_Entitlement_Release(EosEntitlement);
