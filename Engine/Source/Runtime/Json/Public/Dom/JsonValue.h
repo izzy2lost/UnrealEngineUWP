@@ -452,7 +452,7 @@ static bool operator==(const JsonSimpleValueVariant& Lhs, const JsonSimpleValueV
 	{
 		if (Rhs.IsType<FString>())
 		{
-			return Lhs.Get<FString>() == Rhs.Get<FString>();
+			return Lhs.Get<FString>().Equals(Rhs.Get<FString>(), ESearchCase::CaseSensitive);
 		}
 		else if (Rhs.IsType<bool>())
 		{
