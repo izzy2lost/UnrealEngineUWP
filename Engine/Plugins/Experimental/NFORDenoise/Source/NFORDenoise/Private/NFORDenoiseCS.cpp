@@ -117,6 +117,24 @@ namespace NFORDenoise
 		TEXT("1: Solve Ax=B on GPU."),
 		ECVF_RenderThreadSafe);
 
+	TAutoConsoleVariable<int32> CVarNFORLinearSolverType(
+		TEXT("r.NFOR.LinearSolver.Type"),
+		2,
+		TEXT("The linear regression solver type implemented in GPU.\n")
+		TEXT("0: Newton Schulz iterative method (High quality but slow).\n")
+		TEXT("1: Cholesky decomposition (Fast but has too smoothed result or artifacts).\n")
+		TEXT("2: Fusion of Cholesky and Newton Schulz iterative method (High quality and fast).\n"),
+		ECVF_RenderThreadSafe);
+
+	TAutoConsoleVariable<float> CVarNFORLinearSolverCholeskyLambda(
+		TEXT("r.NFOR.LinearSolver.Cholesky.Lambda"),
+		1e-3,
+		TEXT("The parameter lambda for modified Cholesky decomposition to make it positive definite.\n")
+		TEXT("Large value yields bias with smoothed rendering, while small value leads to variance or artifacts.\n")
+		TEXT("Used when r.NFOR.LinearSolver.Type = 1 and 2. Selected to match the quality of r.NFOR.LinearSolver.Type = 2\n")
+		TEXT("to r.NFOR.LinearSolver.Type 0."),
+		ECVF_RenderThreadSafe);
+
 	TAutoConsoleVariable<int32> CVarNFORReconstructionType(
 		TEXT("r.NFOR.Reconstruction.Type"),
 		0,
@@ -344,6 +362,32 @@ namespace NFORDenoise
 		return static_cast<ELinearSolverDevice>(LinearSolverDevice);
 	}
 
+	RegressionKernel::FLinearSolverCS::ESolverType GetLinearSolverType()
+	{
+		const int32 LinearSolverType = FMath::Clamp(CVarNFORLinearSolverType.GetValueOnRenderThread(),
+			0,
+			static_cast<int32>(RegressionKernel::FLinearSolverCS::ESolverType::MAX));
+		// MAX indicates using fusion.
+		return static_cast<RegressionKernel::FLinearSolverCS::ESolverType>(LinearSolverType);
+	}
+
+	const TCHAR* GetLinearSolverTypeName(RegressionKernel::FLinearSolverCS::ESolverType& SolverType)
+	{
+		static const TCHAR* const kEventNames[] = {
+				TEXT("NewtonSchulz"),
+				TEXT("Cholesky"),
+				TEXT("NewtonCholesky"),
+				TEXT("Fusion")
+		};
+		static_assert(UE_ARRAY_COUNT(kEventNames) == (int32(RegressionKernel::FLinearSolverCS::ESolverType::MAX)+1), "Fix me");
+		return kEventNames[int32(SolverType)];
+	}
+
+	float GetLinearSolverCholeskyLambda()
+	{
+		return FMath::Max(CVarNFORLinearSolverCholeskyLambda.GetValueOnRenderThread(),0);
+	}
+
 	RegressionKernel::FReconstructSpatialTemporalImage::EReconstructionType 
 		GetReconstructionType( int32 CurrentFrameIndex, int32 DenoisingFrameIndex)
 	{
@@ -488,6 +532,12 @@ namespace NFORDenoise
 	//	2. Weighted Least-square solver
 	IMPLEMENT_GLOBAL_SHADER(RegressionKernel::FInPlaceBatchedMatrixMultiplicationCS, "/NFORDenoise/NFORDenoise.usf", "InPlaceBatchedMatrixMultiplicationCS", SF_Compute);
 	IMPLEMENT_GLOBAL_SHADER(RegressionKernel::FLinearSolverCS, "/NFORDenoise/NFORDenoise.usf", "LinearSolverCS", SF_Compute);
+	
+	//		Allow quality and speed balance
+	IMPLEMENT_GLOBAL_SHADER(RegressionKernel::FLinearSolverBuildIndirectDispatchArgsCS, "/NFORDenoise/NFORDenoise.usf", "LinearSolverBuildIndirectDispatchArgsCS", SF_Compute);
+	IMPLEMENT_GLOBAL_SHADER(RegressionKernel::FLinearSolverIndirectCS, "/NFORDenoise/NFORDenoise.usf", "LinearSolverIndirectCS", SF_Compute);
+
+	
 	IMPLEMENT_GLOBAL_SHADER(RegressionKernel::FReconstructSpatialTemporalImage, "/NFORDenoise/NFORDenoise.usf", "ReconstructSpatialTemporalImageCS", SF_Compute);
 	IMPLEMENT_GLOBAL_SHADER(FAccumulateBufferToTextureCS, "/NFORDenoise/NFORDenoise.usf", "AccumulateBufferToTextureCS", SF_Compute);
 
@@ -1495,6 +1545,311 @@ namespace NFORDenoise
 		}
 	}
 
+	void ApplyLinearSolverGPU(
+		FRDGBuilder& GraphBuilder,
+		FRDGBufferRef AMatrix,
+		FRDGBufferRef BMatrix,
+		FIntPoint BDim,
+		FRDGBufferRef ReconstructionWeights,
+		const FWeightedLSRDesc& WeightedLSRDesc,
+		int32 TotalNumOfFeaturesPerFrame,
+		int32 NumOfElements,
+		int32 NumOfElementsPerRow
+	)
+	{
+
+		RDG_EVENT_SCOPE(GraphBuilder, "BatchedLinearSolver");
+
+		// Summary of approximate ground truth solver
+		// 1. Apply Cholesky decomposition with lambda = 0. and output failed indices.
+		// 2. Apply Cholesky decomposition with lambda = 1e-6 on failed, and output both failed and succeeded indices.
+		// 3. For failed indices, fallback to newton iterative method.
+		// 4. For succeeded indices, iteratively refine with better lambda.
+		// Summary of NewtonCholesky
+		// 1. Apply Cholesky decomposition with lambda = 1e-3, fine tune with 3 iterations of Newton. If any inversion failed, output the failed indices.
+		// 2. For failed indices, apply the standard newton iteration method. 
+		// Other wise, solve based on the SolverType in a single pass.
+
+		RegressionKernel::FLinearSolverCS::ESolverType SolverType = GetLinearSolverType();
+		const bool bApproximateGroundTruthSolver = SolverType == RegressionKernel::FLinearSolverCS::ESolverType::MAX;
+		const bool bUseSuccessAndFailIndexBuffer = bApproximateGroundTruthSolver || SolverType == RegressionKernel::FLinearSolverCS::ESolverType::NewtonCholesky;
+		// Success count | Failed count | sidx... <--->     fidx|
+		// One for read, one for write
+		FRDGBufferRef SuccessAndFailIndexBuffer[2] = { nullptr, nullptr};
+		if (bUseSuccessAndFailIndexBuffer)
+		{
+			const int32 BytesPerElement = sizeof(uint32);
+			FRDGBufferDesc SuccessAndFailIndexBufferDesc = FRDGBufferDesc::CreateBufferDesc(BytesPerElement, NumOfElements + 2);
+			SuccessAndFailIndexBuffer[0] = GraphBuilder.CreateBuffer(SuccessAndFailIndexBufferDesc, TEXT("NFOR.LinearSolver.SuccessAndFailIndexBuffer0"));
+			
+			// Initialize the first two elements to 0 for SuccessAndFailIndexBuffer.
+			FRDGBufferDesc IndicesHeadBufferDesc =
+				FRDGBufferDesc::CreateBufferDesc(BytesPerElement, 2);
+			FRDGBufferRef IndicesHeadBuffer = GraphBuilder.CreateBuffer(IndicesHeadBufferDesc, TEXT("NFOR.LinearSolver.IndexHeadBuffer"));
+
+			AddClearUAVPass(GraphBuilder, GraphBuilder.CreateUAV(IndicesHeadBuffer, PF_R32_UINT), 0);
+			AddCopyBufferPass(GraphBuilder, SuccessAndFailIndexBuffer[0], 0, IndicesHeadBuffer, 0, BytesPerElement * 2);
+			
+			if (bApproximateGroundTruthSolver)
+			{
+				SuccessAndFailIndexBuffer[1] = GraphBuilder.CreateBuffer(SuccessAndFailIndexBufferDesc, TEXT("NFOR.LinearSolver.SuccessAndFailIndexBuffer1"));
+				AddCopyBufferPass(GraphBuilder, SuccessAndFailIndexBuffer[1], 0, IndicesHeadBuffer, 0, BytesPerElement * 2);
+			}
+		}
+
+		RegressionKernel::FLinearSolverCS::FParameters CommonPassParameters;
+		{
+			CommonPassParameters.A = GraphBuilder.CreateSRV(FRDGBufferSRVDesc(AMatrix, PF_R32_FLOAT));
+			CommonPassParameters.ADim = FIntPoint(TotalNumOfFeaturesPerFrame, TotalNumOfFeaturesPerFrame);
+			CommonPassParameters.B = GraphBuilder.CreateSRV(FRDGBufferSRVDesc(BMatrix, PF_R32_FLOAT));
+			CommonPassParameters.BDim = BDim;
+			CommonPassParameters.Result = GraphBuilder.CreateUAV(FRDGBufferUAVDesc(ReconstructionWeights, PF_R32_FLOAT));
+			CommonPassParameters.NumOfElements = NumOfElements;
+			CommonPassParameters.NumOfElementsPerRow = NumOfElementsPerRow;
+			CommonPassParameters.Lambda = 0.0f;
+		}
+
+		// First multi-pass or the single pass based on SolverType.
+		{
+			typedef RegressionKernel::FLinearSolverCS SHADER;
+			SHADER::ESolverType FirstPassSolverType = bApproximateGroundTruthSolver ? SHADER::ESolverType::Cholesky : SolverType;
+			SHADER::FParameters* PassParameters = GraphBuilder.AllocParameters<SHADER::FParameters>();
+			{
+				*PassParameters = CommonPassParameters;
+				//Magnitude of X^TWX element value increases with the number of frames, and the number of elements selected to 
+				// estimate the weights. GetLinearSolverCholeskyLambda() returns the lambda for a single frame.
+				PassParameters->Lambda = GetLinearSolverCholeskyLambda() * WeightedLSRDesc.NumOfFrames;
+				if (bApproximateGroundTruthSolver)
+				{
+					PassParameters->RWSuccessAndFailIndexBuffer = GraphBuilder.CreateUAV(FRDGBufferUAVDesc(SuccessAndFailIndexBuffer[0], PF_R32_UINT));
+					PassParameters->Lambda = 0.0f;
+				}
+			}
+
+			SHADER::FPermutationDomain ComputeShaderPermutationVector;
+			{
+				checkf(BDim.X >= 6 && BDim.X <= 8, TEXT("Number of features should be between 6 and 8"));
+				ComputeShaderPermutationVector.Set<SHADER::FDimNumFeature>(BDim.X);
+				ComputeShaderPermutationVector.Set<SHADER::FDimSolverType>(FirstPassSolverType);
+				ComputeShaderPermutationVector.Set<SHADER::FDimOutputIndices>(bApproximateGroundTruthSolver);
+			}
+
+			TShaderMapRef<SHADER> ComputeShader(GetGlobalShaderMap(GMaxRHIFeatureLevel), ComputeShaderPermutationVector);
+
+			FComputeShaderUtils::AddPass(
+				GraphBuilder,
+				RDG_EVENT_NAME("NFOR::BatchedLinearSolver(F=%d, C=%d, %s)", 
+					BDim.X, BDim.Y, 
+					GetLinearSolverTypeName(SolverType)),
+				ERDGPassFlags::Compute,
+				ComputeShader,
+				PassParameters,
+				FComputeShaderUtils::GetGroupCount(FIntPoint(WeightedLSRDesc.Width, WeightedLSRDesc.Height), NON_LOCAL_MEAN_THREAD_GROUP_SIZE));
+		}
+
+		// Early out for Newton or Cholesky method.
+		if (!bUseSuccessAndFailIndexBuffer)
+		{
+			return;
+		}
+
+		FRDGBufferRef IndirectDispatchArgsBuffer = 
+			GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateIndirectDesc<FRHIDispatchIndirectParameters>(1), TEXT("NFOR.LinearSolver.IndirectDispatchBuffer"));
+
+		{
+			{
+				// Build the indirect dispatch parameters on failed
+				typedef RegressionKernel::FLinearSolverBuildIndirectDispatchArgsCS SHADER;
+				SHADER::FParameters* PassParameters = GraphBuilder.AllocParameters<SHADER::FParameters>();
+				{
+					PassParameters->SuccessAndFailIndexBuffer = GraphBuilder.CreateSRV(FRDGBufferSRVDesc(SuccessAndFailIndexBuffer[0], PF_R32_UINT));
+					PassParameters->RWIndirectDispatchArgsBuffer = GraphBuilder.CreateUAV(FRDGBufferUAVDesc(IndirectDispatchArgsBuffer, PF_R32_UINT));
+				}
+
+				SHADER::FPermutationDomain ComputeShaderPermutationVector;
+				{
+					ComputeShaderPermutationVector.Set<SHADER::FDimInputMatrixType>(RegressionKernel::EInputMatrixType::Fail);
+				}
+
+				TShaderMapRef<SHADER> ComputeShader(GetGlobalShaderMap(GMaxRHIFeatureLevel), ComputeShaderPermutationVector);
+
+				FComputeShaderUtils::AddPass(
+					GraphBuilder,
+					RDG_EVENT_NAME("NFOR::BuildIndirectDispatchCS"),
+					ERDGPassFlags::Compute,
+					ComputeShader,
+					PassParameters,
+					FIntVector(1, 1, 1));
+			}
+
+			typedef RegressionKernel::FLinearSolverIndirectCS SHADER;
+			RegressionKernel::FLinearSolverCS::ESolverType PassSolverType = bApproximateGroundTruthSolver ?
+				RegressionKernel::FLinearSolverCS::ESolverType::Cholesky : RegressionKernel::FLinearSolverCS::ESolverType::NewtonSchulz;
+			const float LambdaExponent = -6.0f;
+			SHADER::FParameters* PassParameters = GraphBuilder.AllocParameters<SHADER::FParameters>();
+			{
+				PassParameters->CommonParameters = CommonPassParameters;
+				PassParameters->CommonParameters.Lambda = FMath::Pow(10, LambdaExponent);
+				if (bApproximateGroundTruthSolver)
+				{
+					PassParameters->CommonParameters.RWSuccessAndFailIndexBuffer = GraphBuilder.CreateUAV(FRDGBufferUAVDesc(SuccessAndFailIndexBuffer[1], PF_R32_UINT));
+				}
+				PassParameters->SuccessAndFailIndexBuffer = GraphBuilder.CreateSRV(FRDGBufferSRVDesc(SuccessAndFailIndexBuffer[0], PF_R32_UINT));
+
+				PassParameters->IndirectDispatchArgsBuffer = IndirectDispatchArgsBuffer;
+			}
+
+			SHADER::FPermutationDomain ComputeShaderPermutationVector;
+			{
+				checkf(BDim.X >= 6 && BDim.X <= 8, TEXT("Number of features should be between 6 and 8"));
+				ComputeShaderPermutationVector.Set<SHADER::FDimNumFeature>(BDim.X);
+				ComputeShaderPermutationVector.Set<SHADER::FDimSolverType>(PassSolverType);
+				ComputeShaderPermutationVector.Set<SHADER::FDimInputMatrixType>(RegressionKernel::EInputMatrixType::Fail);
+				ComputeShaderPermutationVector.Set<SHADER::FDimOutputIndices>(bApproximateGroundTruthSolver);
+			}
+
+			TShaderMapRef<SHADER> ComputeShader(GetGlobalShaderMap(GMaxRHIFeatureLevel), ComputeShaderPermutationVector);
+
+			FComputeShaderUtils::AddPass(
+				GraphBuilder,
+				RDG_EVENT_NAME("NFOR::BatchedLinearSolverIndirect(%s, Lambda=1e%.1f)", 
+					GetLinearSolverTypeName(PassSolverType),
+					LambdaExponent),
+				ERDGPassFlags::Compute,
+				ComputeShader,
+				PassParameters,
+				PassParameters->IndirectDispatchArgsBuffer, 0);
+
+		}
+
+		// Early out for Newton Cholesky method.
+		if (!bApproximateGroundTruthSolver)
+		{
+			return;
+		}
+
+		{
+			//For failed indices, fallback to newton iterative method.
+			{
+				// Build the indirect dispatch parameters on failed
+				typedef RegressionKernel::FLinearSolverBuildIndirectDispatchArgsCS SHADER;
+				SHADER::FParameters* PassParameters = GraphBuilder.AllocParameters<SHADER::FParameters>();
+				{
+					PassParameters->SuccessAndFailIndexBuffer = GraphBuilder.CreateSRV(FRDGBufferSRVDesc(SuccessAndFailIndexBuffer[1], PF_R32_UINT));
+					PassParameters->RWIndirectDispatchArgsBuffer = GraphBuilder.CreateUAV(FRDGBufferUAVDesc(IndirectDispatchArgsBuffer, PF_R32_UINT));
+				}
+
+				SHADER::FPermutationDomain ComputeShaderPermutationVector;
+				{
+					ComputeShaderPermutationVector.Set<SHADER::FDimInputMatrixType>(RegressionKernel::EInputMatrixType::Fail);
+				}
+
+				TShaderMapRef<SHADER> ComputeShader(GetGlobalShaderMap(GMaxRHIFeatureLevel), ComputeShaderPermutationVector);
+
+				FComputeShaderUtils::AddPass(
+					GraphBuilder,
+					RDG_EVENT_NAME("NFOR::BuildIndirectDispatchCS"),
+					ERDGPassFlags::Compute,
+					ComputeShader,
+					PassParameters,
+					FIntVector(1, 1, 1));
+			}
+
+			typedef RegressionKernel::FLinearSolverIndirectCS SHADER;
+			RegressionKernel::FLinearSolverCS::ESolverType PassSolverType = RegressionKernel::FLinearSolverCS::ESolverType::NewtonSchulz;
+			SHADER::FParameters* PassParameters = GraphBuilder.AllocParameters<SHADER::FParameters>();
+			{
+				PassParameters->CommonParameters = CommonPassParameters;
+				PassParameters->SuccessAndFailIndexBuffer = GraphBuilder.CreateSRV(FRDGBufferSRVDesc(SuccessAndFailIndexBuffer[1], PF_R32_UINT));
+
+				PassParameters->IndirectDispatchArgsBuffer = IndirectDispatchArgsBuffer;
+			}
+
+			SHADER::FPermutationDomain ComputeShaderPermutationVector;
+			{
+				checkf(BDim.X >= 6 && BDim.X <= 8, TEXT("Number of features should be between 6 and 8"));
+				ComputeShaderPermutationVector.Set<SHADER::FDimNumFeature>(BDim.X);
+				ComputeShaderPermutationVector.Set<SHADER::FDimSolverType>(PassSolverType);
+				ComputeShaderPermutationVector.Set<SHADER::FDimInputMatrixType>(RegressionKernel::EInputMatrixType::Fail);
+				ComputeShaderPermutationVector.Set<SHADER::FDimOutputIndices>(false);
+			}
+
+			TShaderMapRef<SHADER> ComputeShader(GetGlobalShaderMap(GMaxRHIFeatureLevel), ComputeShaderPermutationVector);
+
+			FComputeShaderUtils::AddPass(
+				GraphBuilder,
+				RDG_EVENT_NAME("NFOR::BatchedLinearSolverIndirect(%s on Failed)",
+					GetLinearSolverTypeName(PassSolverType)),
+				ERDGPassFlags::Compute,
+				ComputeShader,
+				PassParameters,
+				PassParameters->IndirectDispatchArgsBuffer, 0);
+		}
+
+		{
+			// For succeeded indices, iteratively refine with smaller lambda.
+			// Lambda = 10-7. TODO: ieratively refine.
+
+			{
+				// Build the indirect dispatch parameters on failed
+				typedef RegressionKernel::FLinearSolverBuildIndirectDispatchArgsCS SHADER;
+				SHADER::FParameters* PassParameters = GraphBuilder.AllocParameters<SHADER::FParameters>();
+				{
+					PassParameters->SuccessAndFailIndexBuffer = GraphBuilder.CreateSRV(FRDGBufferSRVDesc(SuccessAndFailIndexBuffer[1], PF_R32_UINT));
+					PassParameters->RWIndirectDispatchArgsBuffer = GraphBuilder.CreateUAV(FRDGBufferUAVDesc(IndirectDispatchArgsBuffer, PF_R32_UINT));
+				}
+
+				SHADER::FPermutationDomain ComputeShaderPermutationVector;
+				{
+					ComputeShaderPermutationVector.Set<SHADER::FDimInputMatrixType>(RegressionKernel::EInputMatrixType::Success);
+				}
+
+				TShaderMapRef<SHADER> ComputeShader(GetGlobalShaderMap(GMaxRHIFeatureLevel), ComputeShaderPermutationVector);
+
+				FComputeShaderUtils::AddPass(
+					GraphBuilder,
+					RDG_EVENT_NAME("NFOR::BuildIndirectDispatchCS"),
+					ERDGPassFlags::Compute,
+					ComputeShader,
+					PassParameters,
+					FIntVector(1, 1, 1));
+			}
+
+			const float LambdaExponent = -7.0f;
+			typedef RegressionKernel::FLinearSolverIndirectCS SHADER;
+			RegressionKernel::FLinearSolverCS::ESolverType PassSolverType = RegressionKernel::FLinearSolverCS::ESolverType::Cholesky;
+			SHADER::FParameters* PassParameters = GraphBuilder.AllocParameters<SHADER::FParameters>();
+			{
+				PassParameters->CommonParameters = CommonPassParameters;
+				PassParameters->SuccessAndFailIndexBuffer = GraphBuilder.CreateSRV(FRDGBufferSRVDesc(SuccessAndFailIndexBuffer[1], PF_R32_UINT));
+				PassParameters->IndirectDispatchArgsBuffer = IndirectDispatchArgsBuffer;
+				PassParameters->CommonParameters.Lambda = FMath::Pow(10, LambdaExponent);
+			}
+
+			SHADER::FPermutationDomain ComputeShaderPermutationVector;
+			{
+				checkf(BDim.X >= 6 && BDim.X <= 8, TEXT("Number of features should be between 6 and 8"));
+				ComputeShaderPermutationVector.Set<SHADER::FDimNumFeature>(BDim.X);
+				ComputeShaderPermutationVector.Set<SHADER::FDimSolverType>(PassSolverType);
+				ComputeShaderPermutationVector.Set<SHADER::FDimInputMatrixType>(RegressionKernel::EInputMatrixType::Success);
+				ComputeShaderPermutationVector.Set<SHADER::FDimOutputIndices>(false);
+			}
+
+			TShaderMapRef<SHADER> ComputeShader(GetGlobalShaderMap(GMaxRHIFeatureLevel), ComputeShaderPermutationVector);
+
+			FComputeShaderUtils::AddPass(
+				GraphBuilder,
+				RDG_EVENT_NAME("NFOR::BatchedLinearSolverIndirect(%s on Succeeded, Lambda=1e%.1f)",
+					GetLinearSolverTypeName(PassSolverType),
+					LambdaExponent),
+				ERDGPassFlags::Compute,
+				ComputeShader,
+				PassParameters,
+				PassParameters->IndirectDispatchArgsBuffer, 0);
+		}
+
+	}
+
 	void SolveWeightedLSR(
 		FRDGBuilder& GraphBuilder,
 		const FSceneView& View,
@@ -1502,7 +1857,7 @@ namespace NFORDenoise
 		const FRDGTextureRef& Radiance,
 		const FRDGBufferRef& NonLocalMeanWeightsBuffer,
 		const FRDGTextureRef& FilteredRadiance,
-		FWeightedLSRDesc WeightedLSRDesc,
+		const FWeightedLSRDesc& WeightedLSRDesc,
 		const FRDGBufferRef Radiances,
 		const FRDGTextureRef& SourceAlbedo
 	)
@@ -1586,31 +1941,16 @@ namespace NFORDenoise
 		}
 		else
 		{
-			typedef RegressionKernel::FLinearSolverCS SHADER;
-			SHADER::FParameters* PassParameters = GraphBuilder.AllocParameters<SHADER::FParameters>();
-			PassParameters->A = GraphBuilder.CreateSRV(FRDGBufferSRVDesc(AMatrix, PF_R32_FLOAT));
-			PassParameters->ADim = FIntPoint(TotalNumOfFeaturesPerFrame, TotalNumOfFeaturesPerFrame);
-			PassParameters->B = GraphBuilder.CreateSRV(FRDGBufferSRVDesc(BMatrix, PF_R32_FLOAT));
-			PassParameters->BDim = BDim;
-			PassParameters->Result = GraphBuilder.CreateUAV(FRDGBufferUAVDesc(ReconstructionWeights, PF_R32_FLOAT));
-
-			PassParameters->NumOfElements = NumOfElements;
-			PassParameters->NumOfElementsPerRow = NumOfElementsPerRow;
-
-			SHADER::FPermutationDomain ComputeShaderPermutationVector;
-
-			checkf(BDim.X >= 6 && BDim.X <= 8, TEXT("Number of features should be between 6 and 8"));
-			ComputeShaderPermutationVector.Set<SHADER::FDimNumFeature>(BDim.X);
-
-			TShaderMapRef<SHADER> ComputeShader(GetGlobalShaderMap(GMaxRHIFeatureLevel), ComputeShaderPermutationVector);
-
-			FComputeShaderUtils::AddPass(
+			ApplyLinearSolverGPU(
 				GraphBuilder,
-				RDG_EVENT_NAME("NFOR::BatchedLinearSolver(F=%d, C=%d)", BDim.X, BDim.Y),
-				ERDGPassFlags::Compute,
-				ComputeShader,
-				PassParameters,
-				FComputeShaderUtils::GetGroupCount(FIntPoint(WeightedLSRDesc.Width, WeightedLSRDesc.Height), NON_LOCAL_MEAN_THREAD_GROUP_SIZE));
+				AMatrix,
+				BMatrix,
+				BDim,
+				ReconstructionWeights,
+				WeightedLSRDesc,
+				TotalNumOfFeaturesPerFrame,
+				NumOfElements,
+				NumOfElementsPerRow);
 		}
 
 		// 3. Reconstruct 

@@ -605,6 +605,69 @@ namespace NFORDenoise
 
 				SHADER_PARAMETER(int, NumOfElements)
 				SHADER_PARAMETER(int, NumOfElementsPerRow)
+
+				SHADER_PARAMETER(float, Lambda)
+				SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<uint>, RWSuccessAndFailIndexBuffer)
+			END_SHADER_PARAMETER_STRUCT()
+
+			enum class ESolverType : uint32
+			{
+				NewtonSchulz,
+				Cholesky,
+				NewtonCholesky,  
+				MAX
+			};
+
+			static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& InParameters, FShaderCompilerEnvironment& OutEnvironment)
+			{
+				FGlobalShader::ModifyCompilationEnvironment(InParameters, OutEnvironment);
+				OutEnvironment.SetDefine(TEXT("THREAD_GROUP_SIZE"), NON_LOCAL_MEAN_THREAD_GROUP_SIZE);
+			}
+
+			class FDimNumFeature : SHADER_PERMUTATION_RANGE_INT("NUM_FEATURE", 6, 3);
+			class FDimSolverType : SHADER_PERMUTATION_ENUM_CLASS("LINEAR_SOLVER_TYPE", ESolverType);
+			class FDimOutputIndices : SHADER_PERMUTATION_BOOL("OUTPUT_INDICES");
+			using FPermutationDomain = TShaderPermutationDomain<FDimNumFeature, FDimSolverType, FDimOutputIndices>;
+		};
+
+		enum class EInputMatrixType : uint32
+		{
+			Success,
+			Fail,
+			MAX
+		};
+
+		class FLinearSolverBuildIndirectDispatchArgsCS : public FGlobalShader
+		{
+			DECLARE_GLOBAL_SHADER(FLinearSolverBuildIndirectDispatchArgsCS);
+			SHADER_USE_PARAMETER_STRUCT(FLinearSolverBuildIndirectDispatchArgsCS, FGlobalShader);
+		public:
+
+			BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
+				SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<uint>, SuccessAndFailIndexBuffer)
+				SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<uint>, RWIndirectDispatchArgsBuffer)
+			END_SHADER_PARAMETER_STRUCT()
+
+			static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& InParameters, FShaderCompilerEnvironment& OutEnvironment)
+			{
+				FGlobalShader::ModifyCompilationEnvironment(InParameters, OutEnvironment);
+				OutEnvironment.SetDefine(TEXT("THREAD_GROUP_SIZE"), NON_LOCAL_MEAN_THREAD_GROUP_SIZE);
+			}
+
+			class FDimInputMatrixType : SHADER_PERMUTATION_ENUM_CLASS("INPUT_MATRIX_TYPE", EInputMatrixType);
+			using FPermutationDomain = TShaderPermutationDomain <FDimInputMatrixType>;
+		};
+
+		class FLinearSolverIndirectCS : public FGlobalShader
+		{
+			DECLARE_GLOBAL_SHADER(FLinearSolverIndirectCS);
+			SHADER_USE_PARAMETER_STRUCT(FLinearSolverIndirectCS, FGlobalShader);
+
+		public:
+			BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
+				SHADER_PARAMETER_STRUCT_INCLUDE(FLinearSolverCS::FParameters, CommonParameters)
+				RDG_BUFFER_ACCESS(IndirectDispatchArgsBuffer, ERHIAccess::IndirectArgs)
+				SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<uint>, SuccessAndFailIndexBuffer)
 			END_SHADER_PARAMETER_STRUCT()
 
 			static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& InParameters, FShaderCompilerEnvironment& OutEnvironment)
@@ -614,7 +677,10 @@ namespace NFORDenoise
 			}
 
 			class FDimNumFeature : SHADER_PERMUTATION_RANGE_INT("NUM_FEATURE", 6, 3);
-			using FPermutationDomain = TShaderPermutationDomain<FDimNumFeature>;
+			class FDimSolverType : SHADER_PERMUTATION_ENUM_CLASS("LINEAR_SOLVER_TYPE", FLinearSolverCS::ESolverType);
+			class FDimInputMatrixType : SHADER_PERMUTATION_ENUM_CLASS("INPUT_MATRIX_TYPE", EInputMatrixType);
+			class FDimOutputIndices : SHADER_PERMUTATION_BOOL("OUTPUT_INDICES");
+			using FPermutationDomain = TShaderPermutationDomain<FDimNumFeature, FDimSolverType, FDimInputMatrixType, FDimOutputIndices>;
 		};
 
 		// reconstruct with the weights into an image

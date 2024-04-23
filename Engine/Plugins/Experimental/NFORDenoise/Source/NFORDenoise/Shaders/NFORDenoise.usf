@@ -3,6 +3,7 @@
 #include "/Engine/Public/Platform.ush"
 #include "/Engine/Private/Common.ush"
 #include "/Engine/Private/ScreenPass.ush"
+#include "NFORRegressionCommon.ush"
 
 #ifndef SOURCE_CHANNEL_COUNT
 #define SOURCE_CHANNEL_COUNT 4
@@ -94,6 +95,21 @@
 
 #ifndef WEIGHTED_MULTIPLICATION_TYPE
 #define WEIGHTED_MULTIPLICATION_TYPE WEIGHTED_MULTIPLICATION_QUADRATIC
+#endif
+
+// Linear equation system solver
+#define INPUT_MATRIX_TYPE_SUCCESS	0
+#define INPUT_MATRIX_TYPE_FAIL		1
+
+#ifndef INPUT_MATRIX_TYPE
+#define INPUT_MATRIX_TYPE	INPUT_MATRIX_TYPE_SUCCESS
+#endif
+
+#define OUTPUT_MATRIX_TYPE_SUCCESS	0
+#define OUTPUT_MATRIX_TYPE_FAIL		1
+
+#ifndef OUTPUT_INDICES
+#define OUTPUT_INDICES 0
 #endif
 
 // Reconstruction
@@ -1082,14 +1098,53 @@ void InPlaceBatchedMatrixMultiplicationCS(in const uint3 DispatchThreadID : SV_D
 #endif
 }
 
+#if LINEAR_SOLVER_TYPE == LINEAR_SOLVER_TYPE_NEWTON_SCHULZ
+
+#define NUM_NEWTON_SCHULTZ_ITERATIONS 20
+
+#define NEWTON_INITIAL_GUESS_TYPE INITIAL_GUESS_EUCLIDEAN_NORM
+
+#elif LINEAR_SOLVER_TYPE == LINEAR_SOLVER_TYPE_NEWTON_CHOLESKY
+
+// lambda = 2.5e-3, newton iteration count = 3, equivilent to 20 newton iterations.
+#define NUM_NEWTON_SCHULTZ_ITERATIONS 3
+
+#define NEWTON_INITIAL_GUESS_TYPE INITIAL_GUESS_INVERSE_CHOLESKY_DECOMPOSITION
+
+#endif
+
 #define MATRIX_DIM NUM_FEATURE
 #include "NFORRegression.ush"
+
+float Lambda;
+RWBuffer<uint> RWSuccessAndFailIndexBuffer;
+
+void LinearSolveEntry(uint AOffset, uint ASize, uint BOffset, uint MatrixIndex)
+{
+
+#if (LINEAR_SOLVER_TYPE == LINEAR_SOLVER_TYPE_NEWTON_SCHULZ || \
+	LINEAR_SOLVER_TYPE == LINEAR_SOLVER_TYPE_NEWTON_CHOLESKY)
+	bool bComplete = NewtonIterativeSolve(AOffset, ASize, BOffset, Lambda, Result);
+#elif LINEAR_SOLVER_TYPE == LINEAR_SOLVER_TYPE_CHOLESKY
+	bool bComplete = CholeskeySolve(AOffset, ASize, BOffset, Lambda, Result);
+#endif
+
+#if OUTPUT_INDICES
+	bool WriteCountIndexLocation = bComplete ? OUTPUT_MATRIX_TYPE_SUCCESS : OUTPUT_MATRIX_TYPE_FAIL;
+
+	uint IndexToStore = 0;
+	InterlockedAdd(RWSuccessAndFailIndexBuffer[WriteCountIndexLocation], 1, IndexToStore);
+	IndexToStore = lerp(IndexToStore, (NumOfElements - IndexToStore - 1), WriteCountIndexLocation);
+	RWSuccessAndFailIndexBuffer[IndexToStore + 2] = MatrixIndex;
+#endif
+
+}
 
 [numthreads(THREAD_GROUP_SIZE, THREAD_GROUP_SIZE, 1)]
 void LinearSolverCS(in const uint3 DispatchThreadID : SV_DispatchThreadID)
 {
 	const int MatrixIndex = DispatchThreadID.x + DispatchThreadID.y * NumOfElementsPerRow;
-	if (MatrixIndex >= NumOfElements)
+	if (MatrixIndex >= NumOfElements || DispatchThreadID.x >= NumOfElementsPerRow)
 	{
 		return;
 	}
@@ -1098,8 +1153,56 @@ void LinearSolverCS(in const uint3 DispatchThreadID : SV_DispatchThreadID)
 	const int ASize = ADim.x * ADim.y;
 	const int AOffset = MatrixIndex * ASize;
 
-	//QR_Solve(AOffset, ASize, BOffset);
-	NewtonSchulzIterationDouble(AOffset, ASize, BOffset);
+	LinearSolveEntry(AOffset, ASize, BOffset, MatrixIndex);
+}
+
+
+RWBuffer<uint> RWIndirectDispatchArgsBuffer;
+Buffer<uint> SuccessAndFailIndexBuffer;
+
+[numthreads(1, 1, 1)]
+void LinearSolverBuildIndirectDispatchArgsCS(in const uint3 DispatchThreadID : SV_DispatchThreadID)
+{
+	const uint NumOfIndices = SuccessAndFailIndexBuffer[INPUT_MATRIX_TYPE];
+
+	if (NumOfIndices > 0)
+	{
+		const uint NumOfGroupsX = (NumOfIndices + (THREAD_GROUP_SIZE * THREAD_GROUP_SIZE) - 1) / (THREAD_GROUP_SIZE * THREAD_GROUP_SIZE);
+		WriteDispatchIndirectArgs(RWIndirectDispatchArgsBuffer, 0, NumOfGroupsX, 1, 1);
+	}
+	else
+	{
+		WriteDispatchIndirectArgs(RWIndirectDispatchArgsBuffer, 0, 0, 0, 0);
+	}
+}
+
+groupshared uint CompactNumOfElements;
+
+[numthreads(THREAD_GROUP_SIZE*THREAD_GROUP_SIZE, 1, 1)]
+void LinearSolverIndirectCS(in const uint3 DispatchThreadID : SV_DispatchThreadID, uint GI : SV_GroupIndex)
+{
+	if (GI == 0)
+	{
+		CompactNumOfElements = SuccessAndFailIndexBuffer[INPUT_MATRIX_TYPE];
+	}
+
+	GroupMemoryBarrierWithGroupSync();
+
+	const uint ElementIndex = DispatchThreadID.x;
+	if (ElementIndex >= CompactNumOfElements)
+	{
+		return;
+	}
+
+	const uint ResolvedElementIndex = lerp(ElementIndex, NumOfElements - 1 - ElementIndex, INPUT_MATRIX_TYPE);
+	const uint MatrixIndex = SuccessAndFailIndexBuffer[2 + ResolvedElementIndex];
+
+	const int BSize = BDim.x * BDim.y;
+	const int BOffset = MatrixIndex * BSize;
+	const int ASize = ADim.x * ADim.y;
+	const int AOffset = MatrixIndex * ASize;
+
+	LinearSolveEntry(AOffset, ASize, BOffset, MatrixIndex);
 }
 
 //===============================================================================================
