@@ -195,6 +195,15 @@ public:
 	CORE_API int64 FileSize( const TCHAR* Filename ) override;
 
 	/**
+	 *	Returns the size of a file. (Thread-safe)
+	 *
+	 *	@param Filename		Platform-independent Unreal filename.
+	 *  @param PlatformFlag	Flags to control special behavior of some platforms files, if not implemented fallback to vanilla FileSize
+	 *	@return				File size in bytes or INDEX_NONE if the file didn't exist.
+	 **/
+	CORE_API int64 FileSize(const TCHAR* Filename, EPlatformFileFlags PlatformFlags) override;
+
+	/**
 	 * Sends a message to the file server, and will block until it's complete. Will return 
 	 * immediately if the file manager doesn't support talking to a server.
 	 *

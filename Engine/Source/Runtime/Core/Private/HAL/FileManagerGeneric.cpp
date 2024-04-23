@@ -133,6 +133,11 @@ int64 FFileManagerGeneric::FileSize( const TCHAR* Filename )
 	return GetLowLevel().FileSize( Filename );
 }
 
+int64 FFileManagerGeneric::FileSize(const TCHAR* Filename, EPlatformFileFlags PlatformFlags)
+{
+	return GetLowLevel().FileSize(Filename, PlatformFlags);
+}
+
 uint32 FFileManagerGeneric::Copy( const TCHAR* Dest, const TCHAR* Src, bool Replace, bool EvenIfReadOnly, bool Attributes, FCopyProgress* Progress, EFileRead ReadFlags, EFileWrite WriteFlags)
 {
 	uint32	Result = COPY_OK;

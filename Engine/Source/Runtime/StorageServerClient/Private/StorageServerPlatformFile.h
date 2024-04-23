@@ -80,6 +80,7 @@ public:
 
 	virtual bool FileExists(const TCHAR* Filename) override;
 	virtual int64 FileSize(const TCHAR* Filename) override;
+	virtual int64 FileSize(const TCHAR* Filename, EPlatformFileFlags PlatformFlags) override;
 	virtual bool IsReadOnly(const TCHAR* Filename) override;
 	virtual FDateTime GetTimeStamp(const TCHAR* Filename) override;
 	virtual FDateTime GetAccessTimeStamp(const TCHAR* Filename) override;

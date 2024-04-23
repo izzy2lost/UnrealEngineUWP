@@ -517,6 +517,28 @@ int64 FStorageServerPlatformFile::FileSize(const TCHAR* Filename)
 	return LowerLevel->FileSize(Filename);
 }
 
+int64 FStorageServerPlatformFile::FileSize(const TCHAR* Filename, EPlatformFileFlags PlatformFlags)
+{
+	TStringBuilder<1024> StorageServerFilename;
+	if (MakeStorageServerPath(Filename, StorageServerFilename))
+	{
+		if (const FIoChunkId* FileChunkId = ServerToc.GetFileChunkId(*StorageServerFilename))
+		{
+			const FFileStatData FileStatData = SendGetStatDataMessage(*FileChunkId);
+			check(FileStatData.bIsValid);
+			return FileStatData.FileSize;
+		}
+	}
+
+	if (PlatformFlags == EPlatformFileFlags::StorageServerOnly)
+	{
+		return -1;
+	}
+
+	return LowerLevel->FileSize(Filename);
+}
+
+
 bool FStorageServerPlatformFile::IsReadOnly(const TCHAR* Filename)
 {
 	TStringBuilder<1024> StorageServerFilename;

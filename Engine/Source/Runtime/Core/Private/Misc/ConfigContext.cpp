@@ -1000,7 +1000,7 @@ bool FConfigContext::GenerateDestIniFile()
 		{
 			static bool bDumpIniLoadInfo = FParse::Param(FCommandLine::Get(), TEXT("dumpiniloads"));
 			UE_CLOG(bDumpIniLoadInfo, LogConfig, Display, TEXT("Looking for saved user ini file: %s"), *DestIniFilename);
-			if (DoesConfigFileExistWrapper(*DestIniFilename))
+			if (DoesConfigFileExistWrapper(*DestIniFilename, nullptr, EPlatformFileFlags::Default))
 			{
 				UE_CLOG(bDumpIniLoadInfo, LogConfig, Display, TEXT("   Found!"));
 				Branch->SavedLayer.FillFileFromDisk(*DestIniFilename, false);
