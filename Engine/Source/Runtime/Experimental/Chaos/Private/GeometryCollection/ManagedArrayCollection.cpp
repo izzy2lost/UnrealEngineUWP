@@ -58,9 +58,9 @@ void FManagedArrayCollection::RemoveElements(const FName& Group, const TArray<in
 			//
 			// Reindex attributes dependent on the group being resized
 			//
-			if (Entry.Value.GroupIndexDependency == Group && Params.bReindexDependentAttibutes)
+			if (Entry.Value.GetGroupIndexDependency() == Group && Params.bReindexDependentAttibutes)
 			{
-				Entry.Value.Value->Reindex(Offsets, GroupSize - DelListNum, SortedDeletionList, DeletionSet);
+				Entry.Value.Modify().Reindex(Offsets, GroupSize - DelListNum, SortedDeletionList, DeletionSet);
 			}
 
 			//
@@ -68,7 +68,7 @@ void FManagedArrayCollection::RemoveElements(const FName& Group, const TArray<in
 			//
 			if (Entry.Key.Get<1>() == Group)
 			{
-				Entry.Value.Value->RemoveElements(SortedDeletionList);
+				Entry.Value.Modify().RemoveElements(SortedDeletionList);
 			}
 
 		}
@@ -107,12 +107,9 @@ bool FManagedArrayCollection::HasAttributes(const TArray<FManagedArrayCollection
 {
 	for (const FManagedType& ManagedType : Types)
 	{
-		FKeyType Key = FManagedArrayCollection::MakeMapKey(ManagedType.Name, ManagedType.Group);
-		if(Map.Contains(Key))
+		if(const FValueType* FoundValue = Map.Find({ ManagedType.Name, ManagedType.Group }))
 		{
-			const FValueType& FoundValue = Map[Key];
-
-			if (FoundValue.ArrayType != ManagedType.Type)
+			if (FoundValue->GetArrayType() != ManagedType.Type)
 			{
 				return false;
 			}
@@ -123,30 +120,27 @@ bool FManagedArrayCollection::HasAttributes(const TArray<FManagedArrayCollection
 
 FManagedArrayCollection::EArrayType FManagedArrayCollection::GetAttributeType(FName Name, FName Group) const
 {
-	const FKeyType Key = FManagedArrayCollection::MakeMapKey(Name, Group);
-	if (const FValueType* Attribute = Map.Find(Key))
+	if (const FValueType* Attribute = Map.Find({ Name, Group }))
 	{
-		return Attribute->ArrayType;
+		return Attribute->GetArrayType();
 	}
 	return EArrayType::FNoneType;
 }
 
 bool FManagedArrayCollection::IsAttributeDirty(FName Name, FName Group) const
 {
-	const FKeyType Key = FManagedArrayCollection::MakeMapKey(Name, Group);
-	if (const FValueType* Attribute = Map.Find(Key))
+	if (const FValueType* Attribute = Map.Find({ Name, Group }))
 	{
-		return (Attribute->Value)? Attribute->Value->IsDirty(): false;
+		return Attribute->IsDirty();
 	}
 	return false;
 }
 
 bool FManagedArrayCollection::IsAttributePersistent(FName Name, FName Group) const
 {
-	const FKeyType Key = FManagedArrayCollection::MakeMapKey(Name, Group);
-	if (const FValueType* Attribute = Map.Find(Key))
+	if (const FValueType* Attribute = Map.Find({ Name, Group }))
 	{
-		return Attribute->Saved;
+		return Attribute->IsPersistent();
 	}
 	return false;
 }
@@ -187,7 +181,7 @@ int32 FManagedArrayCollection::AddElements(int32 NumberElements, FName Group)
 	{
 		if (Entry.Key.Get<1>() == Group)
 		{
-			Entry.Value.Value->Resize(StartSize + NumberElements);
+			Entry.Value.Resize(StartSize + NumberElements);
 		}
 	}
 	GroupInfo[Group].Size += NumberElements;
@@ -237,7 +231,7 @@ void FManagedArrayCollection::Append(const FManagedArrayCollection& InCollection
 			const FValueType& DestValue = Map[Entry.Key];
 
 			// If we don't have a type match don't attempt the copy.
-			if (OriginalValue.ArrayType != DestValue.ArrayType)
+			if (OriginalValue.GetArrayType() != DestValue.GetArrayType())
 			{
 				bMatchingAttributes = false;
 				ensureMsgf(false, TEXT("Failed : Type error in FManagedArrayCollection::AppendCollection (%s:%s)"), 
@@ -264,35 +258,17 @@ void FManagedArrayCollection::Append(const FManagedArrayCollection& InCollection
 		// copy values
 		for (const TTuple<FKeyType, FValueType>& Entry : InCollection.Map)
 		{
-			FName AttributeName = Entry.Key.Get<0>();
-			FName GroupName = Entry.Key.Get<1>();
+			const FName AttributeName = Entry.Key.Get<0>();
+			const FName GroupName = Entry.Key.Get<1>();
 
 			if (HasAttribute(AttributeName, GroupName))
 			{
-				Map[Entry.Key].Value->CopyRange(*Entry.Value.Value, 0, Entry.Value.Value->Num());
+				Map[Entry.Key].CopyFrom(Entry.Value);
 			}
 			else
 			{
-				// Copied from FManagedArrayCollection::CopyAttribute, but this 
-				// does not manage destination size, as that is pre allocated above. 
-				FKeyType Key = FManagedArrayCollection::MakeMapKey(AttributeName, GroupName);
-
-				if (!HasAttribute(AttributeName, GroupName))
-				{
-					const FValueType& V = InCollection.Map[Key];
-					EArrayType Type = V.ArrayType;
-					FValueType Value(Type, *NewManagedTypedArray(Type));
-					Value.Value->Resize(NumElements(GroupName));
-					Value.GroupIndexDependency = V.GroupIndexDependency;
-					Value.Saved = V.Saved;
-					Value.bExternalValue = V.bExternalValue;
-					Map.Add(Key, MoveTemp(Value));
-				}
-
-				const FValueType& OriginalValue = InCollection.Map[Key];
-				const FValueType& DestValue = Map[Key];
-				check(OriginalValue.ArrayType == DestValue.ArrayType);
-				DestValue.Value->Init(*OriginalValue.Value);
+				FValueType NewAttribute(Entry.Value);
+				Map.Add(Entry.Key, MoveTemp(NewAttribute));
 			}
 		}
 	}
@@ -305,7 +281,9 @@ void FManagedArrayCollection::RemoveAttribute(FName Name, FName Group)
 	FValueType* FoundValue = Map.Find(Key);
 	if (FoundValue != nullptr)
 	{
-		FoundValue->Value->Empty();
+		// TODO : is that even just necessary only for external values ? 
+		// if so maybe we should have this logic inside the empty code of FValueType
+		FoundValue->Empty();
 	}
 	Map.Remove(Key);
 }
@@ -319,14 +297,11 @@ void FManagedArrayCollection::RemoveGroup(FName Group)
 		{
 			DelList.Add(Entry.Key.Get<0>());
 		}
-		if (Entry.Value.GroupIndexDependency == Group)
-		{
-			Entry.Value.GroupIndexDependency = "";
-		}
+		Entry.Value.RemoveGroupIndexDependency(Group);
 	}
 	for (const FName& AttrName : DelList)
 	{
-		Map.Remove(FManagedArrayCollection::MakeMapKey(AttrName, Group));
+		Map.Remove({ AttrName, Group });
 	}
 
 	GroupInfo.Remove(Group);
@@ -347,7 +322,7 @@ void FManagedArrayCollection::Resize(int32 Size, FName Group)
 	{
 		if (Entry.Key.Get<1>() == Group)
 		{
-			Entry.Value.Value->Resize(Size);
+			Entry.Value.Resize(Size);
 		}
 	}
 	GroupInfo[Group].Size = Size;
@@ -367,7 +342,7 @@ void FManagedArrayCollection::Reserve(int32 Size, FName Group)
 	{
 		if (Entry.Key.Get<1>() == Group)
 		{
-			Entry.Value.Value->Reserve(Size);
+			Entry.Value.Reserve(Size);
 		}
 	}
 }
@@ -380,7 +355,7 @@ void FManagedArrayCollection::EmptyGroup(FName Group)
 	{
 		if (Entry.Key.Get<1>() == Group)
 		{
-			Entry.Value.Value->Empty();
+			Entry.Value.Empty();
 		}
 	}
 
@@ -402,14 +377,14 @@ void FManagedArrayCollection::ReorderElements(FName Group, const TArray<int32>& 
 	for (TTuple<FKeyType, FValueType>& Entry : Map)
 	{
 		// Reindex attributes dependent on the group being reordered
-		if (Entry.Value.GroupIndexDependency == Group)
+		if (Entry.Value.GetGroupIndexDependency() == Group)
 		{
-			Entry.Value.Value->ReindexFromLookup(InverseNewOrder);
+			Entry.Value.Modify().ReindexFromLookup(InverseNewOrder);
 		}
 
 		if (Entry.Key.Get<1>() == Group)
 		{
-			Entry.Value.Value->Reorder(NewOrder);
+			Entry.Value.Modify().Reorder(NewOrder);
 		}
 	}
 }
@@ -420,7 +395,7 @@ void FManagedArrayCollection::SetDependency(FName Name, FName Group, FName Depen
 	FKeyType Key = FManagedArrayCollection::MakeMapKey(Name, Group);
 	if (ensure(bAllowCircularDependency || !IsConnected(DependencyGroup, Group)))
 	{
-		Map[Key].GroupIndexDependency = DependencyGroup;
+		Map[Key].SetGroupIndexDependency(DependencyGroup);
 	}
 }
 
@@ -428,7 +403,7 @@ FName FManagedArrayCollection::GetDependency(FName Name, FName Group) const
 {
 	check(HasAttribute(Name, Group));
 	const FKeyType Key = FManagedArrayCollection::MakeMapKey(Name, Group);
-	return Map[Key].GroupIndexDependency;
+	return Map[Key].GetGroupIndexDependency();
 }
 
 void FManagedArrayCollection::RemoveDependencyFor(FName Group)
@@ -436,10 +411,7 @@ void FManagedArrayCollection::RemoveDependencyFor(FName Group)
 	ensure(HasGroup(Group));
 	for (TTuple<FKeyType, FValueType>& Entry : Map)
 	{
-		if (Entry.Value.GroupIndexDependency == Group)
-		{
-			Entry.Value.GroupIndexDependency = "";
-		}
+		Entry.Value.RemoveGroupIndexDependency(Group);
 	}
 }
 
@@ -449,7 +421,7 @@ void FManagedArrayCollection::SetDefaults(FName Group, uint32 StartSize, uint32 
 	{
 		if (Entry.Key.Get<1>() == Group)
 		{
-			Entry.Value.Value->SetDefaults(StartSize, NumElements, Entry.Value.GroupIndexDependency != "");
+			Entry.Value.Modify().SetDefaults(StartSize, NumElements, !Entry.Value.GetGroupIndexDependency().IsNone());
 		}
 	}
 }
@@ -487,12 +459,12 @@ void FManagedArrayCollection::CopyMatchingAttributesFrom(const FManagedArrayColl
 		{
 			continue;
 		}
-		if (const FValueType* FromAttribute = FromCollection.Map.Find(MakeMapKey(AttributeName, GroupName)))
+		if (const FValueType* FromAttribute = FromCollection.Map.Find({ AttributeName, GroupName }))
 		{
 			FValueType& ToAttribute = Entry.Value;
-			if (ToAttribute.ArrayType == FromAttribute->ArrayType)
+			if (ToAttribute.GetArrayType() == FromAttribute->GetArrayType())
 			{
-				ToAttribute.Value->Init(*FromAttribute->Value);
+				ToAttribute.InitFrom(*FromAttribute);
 			}
 		}
 	}
@@ -526,7 +498,7 @@ void FManagedArrayCollection::CopyMatchingAttributesFrom(
 			const FValueType& DestValue = Map[Entry.Key];
 
 			// If we don't have a type match don't attempt the copy.
-			if(OriginalValue.ArrayType == DestValue.ArrayType)
+			if(OriginalValue.GetArrayType() == DestValue.GetArrayType())
 			{
 				CopyAttribute(InCollection, Entry.Key.Get<0>(), Entry.Key.Get<1>());
 			}
@@ -547,26 +519,12 @@ void FManagedArrayCollection::CopyAttribute(const FManagedArrayCollection& InCol
 
 	if (!HasAttribute(DestName, Group))
 	{
-		const FValueType& V = InCollection.Map[SrcKey];
-		EArrayType Type = V.ArrayType;
-		FValueType Value(Type, *NewManagedTypedArray(Type));
-		Value.Value->Resize(NumElements(Group));
-		Value.GroupIndexDependency = V.GroupIndexDependency;
-		Value.Saved = V.Saved;
-		Value.bExternalValue = V.bExternalValue;
-		Map.Add(DestKey, MoveTemp(Value));
+		FValueType NewAttribute(InCollection.Map[SrcKey]);
+		Map.Add(DestKey, MoveTemp(NewAttribute));
 	}
 
 	const FValueType& OriginalValue = InCollection.Map[SrcKey];
-	const FValueType& DestValue = Map[DestKey];
-	if (OriginalValue.ArrayType == DestValue.ArrayType)
-	{
-		DestValue.Value->Init(*OriginalValue.Value);
-	}
-	else
-	{
-		DestValue.Value->Convert(*OriginalValue.Value);
-	}
+	Map[DestKey].InitFrom(OriginalValue);
 }
 
 bool FManagedArrayCollection::IsConnected(FName StartingNode, FName TargetNode)
@@ -578,8 +536,8 @@ bool FManagedArrayCollection::IsConnected(FName StartingNode, FName TargetNode)
 		{
 			if (!DMap.Contains(Entry.Key.Get<1>()))
 				DMap.Add(Entry.Key.Get<1>(), TArray<FName>());
-			if (!Entry.Value.GroupIndexDependency.IsNone())
-				DMap[Entry.Key.Get<1>()].AddUnique(Entry.Value.GroupIndexDependency);
+			if (!Entry.Value.GetGroupIndexDependency().IsNone())
+				DMap[Entry.Key.Get<1>()].AddUnique(Entry.Value.GetGroupIndexDependency());
 		}
 
 		if (DMap.Contains(StartingNode))
@@ -625,7 +583,7 @@ FString FManagedArrayCollection::ToString() const
 			FKeyType Key = FManagedArrayCollection::MakeMapKey(AttributeName, GroupName);
 			const FValueType& Value = Map[Key];
 
-			const SIZE_T AttributeAllocatedSize = Value.Value? Value.Value->GetAllocatedSize() : 0;
+			const SIZE_T AttributeAllocatedSize = Value.Get().GetAllocatedSize();
 			const FString AttributeAllocatedSizeStr = FString::FormatAsNumber((int32)AttributeAllocatedSize);
 
 			const TArray<FStringFormatArg> AttributeInfos = { AttributeName.ToString(), AttributeAllocatedSizeStr };
@@ -640,10 +598,7 @@ SIZE_T FManagedArrayCollection::GetAllocatedSize() const
 	SIZE_T AllocatedSize = Map.GetAllocatedSize();
 	for (const TTuple<FKeyType, FValueType>& Entry : Map)
 	{
-		if (Entry.Value.Value)
-		{
-			AllocatedSize += Entry.Value.Value->GetAllocatedSize();
-		}
+		AllocatedSize += Entry.Value.Get().GetAllocatedSize();
 	}
 	return AllocatedSize;
 }
@@ -656,10 +611,7 @@ void FManagedArrayCollection::GetElementSizeInfoForGroups(TArray<TPair<FName, SI
 	for (const TPair<FKeyType, FValueType>& Attribute : Map)
 	{
 		SIZE_T& GroupSize = GroupToElementSizeMap.FindOrAdd(Attribute.Key.Get<1>());
-		if (FManagedArrayBase* Array = Attribute.Value.Value)
-		{
-			GroupSize += Array->GetTypeSize();
-		}
+		GroupSize += Attribute.Value.Get().GetTypeSize();
 	}
 
 	for (const TPair<FName, SIZE_T>& GroupAndElementSize : GroupToElementSizeMap)
@@ -717,14 +669,14 @@ void FManagedArrayCollection::Serialize(Chaos::FChaosArchive& Ar)
 		{
 			if (FValueType* Existing = Map.Find(Pair.Key))
 			{
-				if (Existing->ArrayType == Pair.Value.ArrayType)
+				if (Existing->GetArrayType() == Pair.Value.GetArrayType())
 				{
-					Existing->Value->ExchangeArrays(*Pair.Value.Value);	//if there is already an entry do an exchange. This way external arrays get correct serialization
+					Existing->Exchange(Pair.Value);	//if there is already an entry do an exchange. This way external arrays get correct serialization
 					//question: should we validate if group dependency has changed in some invalid way?
 				}
 				else
 				{
-					Existing->Value->Convert(*Pair.Value.Value);
+					Existing->Convert(Pair.Value);
 				}
 			}
 			else
@@ -738,7 +690,7 @@ void FManagedArrayCollection::Serialize(Chaos::FChaosArchive& Ar)
 		TArray<FKeyType> ToRemoveKeys;
 		for (const TTuple<FKeyType, FValueType>& Pair : Map)
 		{
-			if (!Pair.Value.bExternalValue && !TmpMap.Find(Pair.Key))
+			if (!Pair.Value.IsExternal() && !TmpMap.Find(Pair.Key))
 			{
 				ToRemoveKeys.Add(Pair.Key);
 			}
@@ -752,9 +704,9 @@ void FManagedArrayCollection::Serialize(Chaos::FChaosArchive& Ar)
 		for (TTuple<FKeyType, FValueType>& Pair : Map)
 		{
 			const int32 GroupSize = GroupInfo[Pair.Key.Get<1>()].Size;
-			if (GroupSize != Pair.Value.Value->Num())
+			if (GroupSize != Pair.Value.Get().Num())
 			{
-				Pair.Value.Value->Resize(GroupSize);
+				Pair.Value.Resize(GroupSize);
 			}
 		}
 
@@ -778,7 +730,7 @@ void FManagedArrayCollection::Serialize(Chaos::FChaosArchive& Ar)
 			TMap<FKeyType, FManagedArrayCollectionValueTypeWrapper> ToSaveMap;
 			for (TTuple<FKeyType, FValueType>& Pair : Map)
 			{
-				if (Pair.Value.Saved)
+				if (Pair.Value.IsPersistent())
 				{
 					ToSaveMap.Emplace(Pair.Key, FManagedArrayCollectionValueTypeWrapper(&Pair.Value));
 				}
@@ -800,39 +752,157 @@ FArchive& operator<<(FArchive& Ar, FManagedArrayCollection::FGroupInfo& GroupInf
 	return Ar;
 }
 
+/**
+*   operator<<(FValueType)
+*/
 FArchive& operator<<(FArchive& Ar, FManagedArrayCollection::FValueType& ValueIn)
 {
-	int Version = 4;	//todo: version per entry is really bloated
-	Ar << Version;
+	ValueIn.Serialize(Ar);
+	return Ar;
+}
 
-	int ArrayTypeAsInt = static_cast<int>(ValueIn.ArrayType);
+void FManagedArrayCollection::FValueType::Serialize(FArchive& Ar)
+{
+	int SerializationVersion = 4;	//todo: version per entry is really bloated
+	Ar << SerializationVersion;
+
+	int ArrayTypeAsInt = static_cast<int>(ArrayType);
 	Ar << ArrayTypeAsInt;
-	ValueIn.ArrayType = static_cast<FManagedArrayCollection::EArrayType>(ArrayTypeAsInt);
+	ArrayType = static_cast<FManagedArrayCollection::EArrayType>(ArrayTypeAsInt);
 
-	if (Version < 4)
+	if (SerializationVersion < 4)
 	{
 		int ArrayScopeAsInt;
 		Ar << ArrayScopeAsInt;	//assume all serialized old content was for rest collection
 	}
 
-	if (Version >= 2)
+	if (SerializationVersion >= 2)
 	{
-		Ar << ValueIn.GroupIndexDependency;
-		Ar << ValueIn.Saved;
+		Ar << GroupIndexDependency;
+		Ar << bPersistent;
 	}
 
-	if (ValueIn.Value == nullptr)
+	if (Value == nullptr)
 	{
-		ValueIn.Value = NewManagedTypedArray(ValueIn.ArrayType);
+		Value = NewManagedTypedArray(ArrayType);
 	}
 	
 	// Note: We switched to always saving the value here, and use the Saved flag
 	// to remove the property from the overall Map (see FManagedArrayCollection::Serialize above)
 	bool bNewSavedBehavior = Ar.CustomVer(FUE5MainStreamObjectVersion::GUID) >= FUE5MainStreamObjectVersion::ManagedArrayCollectionAlwaysSerializeValue;
-	if (bNewSavedBehavior || ValueIn.Saved)
+	if (bNewSavedBehavior || bPersistent)
 	{
-		ValueIn.Value->Serialize(static_cast<Chaos::FChaosArchive&>(Ar));
+		Value->Serialize(static_cast<Chaos::FChaosArchive&>(Ar));
 	}
+}
 
-	return Ar;
+FManagedArrayCollection::FValueType::FValueType()
+	: ArrayType(EArrayType::FNoneType)
+	, GroupIndexDependency(NAME_None)
+	, bPersistent(true)
+	, bExternalValue(false)
+	, Value(nullptr) 
+{};
+
+FManagedArrayCollection::FValueType::FValueType(const FValueType& Other)
+	: ArrayType(Other.ArrayType)
+	, GroupIndexDependency(Other.GroupIndexDependency)
+	, bPersistent(Other.bPersistent)
+	, bExternalValue(false)
+	, Value(nullptr)
+{
+	if (Other.Value)
+	{
+		this->Value = NewManagedTypedArray(this->ArrayType);
+		this->Value->Resize(Other.Value->Num());
+		this->Value->Init(*Other.Value);
+	}
+};
+
+FManagedArrayCollection::FValueType::FValueType(FValueType&& Other)
+	: ArrayType(Other.ArrayType)
+	, GroupIndexDependency(Other.GroupIndexDependency)
+	, bPersistent(Other.bPersistent)
+	, bExternalValue(Other.bExternalValue)
+	, Value(Other.Value)
+{
+	if (&Other != this)
+	{
+		Other.Value = nullptr;
+	}
+}
+
+FManagedArrayCollection::FValueType::~FValueType()
+{
+	if (Value && !bExternalValue)
+	{
+		delete Value;
+	}
+}
+
+FManagedArrayBase& FManagedArrayCollection::FValueType::Modify() const
+{
+	// todo : copy on write ?  ( use  NewManagedTypedArray )
+	Value->MarkDirty();
+	return *Value;
+}
+
+void FManagedArrayCollection::FValueType::Reserve(int32 ReservedSize)
+{
+	// todo : copy on write ? 
+	Value->Reserve(ReservedSize);
+}
+
+void FManagedArrayCollection::FValueType::Resize(int32 NewSize)
+{
+	// todo : copy on write ? 
+	Value->Resize(NewSize);
+}
+
+void FManagedArrayCollection::FValueType::InitFrom(const FManagedArrayCollection::FValueType& Other)
+{
+	// todo : copy on write ? 
+	if (ArrayType == Other.GetArrayType())
+	{
+		Value->Init(Other.Get());
+	}
+	else
+	{
+		Value->Convert(Other.Get());
+	}
+}
+
+void FManagedArrayCollection::FValueType::Exchange(FValueType& Other)
+{
+	// todo : copy on write ? 
+	check(ArrayType == Other.ArrayType);
+	Value->ExchangeArrays(*Other.Value);
+}
+
+void FManagedArrayCollection::FValueType::Convert(FValueType& Other)
+{
+	// todo : copy on write ? 
+	check(ArrayType != Other.ArrayType);
+	Value->Convert(*Other.Value);
+}
+
+void FManagedArrayCollection::FValueType::CopyFrom(const FValueType& Other)
+{
+	// todo : copy on write ? 
+	check(Other.Value->Num() <= Value->Num());
+	Value->CopyRange(*Other.Value, 0, Other.Value->Num());
+}
+
+void FManagedArrayCollection::FValueType::Empty()
+{
+	// todo : copy on write ? 
+	Value->Empty();
+}
+
+void FManagedArrayCollection::FValueType::RemoveGroupIndexDependency(FName Group)
+{
+	if (GroupIndexDependency == Group)
+	{
+		GroupIndexDependency = NAME_None;
+	}
 }

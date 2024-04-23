@@ -44,6 +44,7 @@ void FTransformDynamicCollection::Construct()
 
 	// Transform Group
 	AddExternalAttribute<bool>(FTransformCollection::ParentAttribute, FTransformCollection::TransformGroup, HasParent);
+	CopyAttribute(*RestCollectionShared, FTransformCollection::ParentAttribute, FTransformCollection::TransformGroup);
 }
 
 void FTransformDynamicCollection::InitializeTransforms()

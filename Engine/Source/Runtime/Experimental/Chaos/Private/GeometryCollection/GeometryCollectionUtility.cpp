@@ -297,7 +297,7 @@ namespace GeometryCollection
 				if (NumVertices)
 				{
 					// transforms group
-					TManagedArray<FTransform>& Transform = InCollection->ModifyAttribute<FTransform>(FTransformCollection::TransformAttribute, FTransformCollection::TransformGroup);
+					TManagedArray<FTransform3f>& Transform = InCollection->ModifyAttribute<FTransform3f>(FTransformCollection::TransformAttribute, FTransformCollection::TransformGroup);
 					TManagedArray<int32>& TransformToGeometryIndex = InCollection->ModifyAttribute<int32>("TransformToGeometryIndex", FTransformCollection::TransformGroup);
 					// vertices group
 					TManagedArray<int32>& BoneMap = InCollection->ModifyAttribute<int32>("BoneMap", FGeometryCollection::VerticesGroup);

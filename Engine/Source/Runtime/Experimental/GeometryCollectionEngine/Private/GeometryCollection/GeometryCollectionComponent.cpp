@@ -556,17 +556,6 @@ private:
 // Define the methods
 COPY_ON_WRITE_ATTRIBUTES
 
-TManagedArray<int32>& UGeometryCollectionComponent::GetParentArrayCopyOnWrite()
-{
-	if (!IndirectParentArray)
-	{
-		DynamicCollection->AddAttribute<int32>(FTransformCollection::ParentAttribute, FTransformCollection::TransformGroup);
-		DynamicCollection->CopyAttribute(*RestCollection->GetGeometryCollection(), FTransformCollection::ParentAttribute, FTransformCollection::TransformGroup);
-		IndirectParentArray = &DynamicCollection->ModifyAttribute<int32>(FTransformCollection::ParentAttribute, FTransformCollection::TransformGroup);
-	}
-	return *IndirectParentArray;
-}
-
 int32 UGeometryCollectionComponent::GetParent(int32 Index) const
 {
 	if (DynamicCollection)
@@ -584,7 +573,6 @@ const TManagedArray<int32>& UGeometryCollectionComponent::GetParentArrayRest() c
 UGeometryCollectionComponent::UGeometryCollectionComponent(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 	, ChaosSolverActor(nullptr)
-	, IndirectParentArray(nullptr)
 	, InitializationState(ESimulationInitializationState::Unintialized)
 	, ObjectType(EObjectStateTypeEnum::Chaos_Object_Dynamic)
 	, GravityGroupIndex(0)
@@ -3669,9 +3657,6 @@ void UGeometryCollectionComponent::ResetDynamicCollection()
 	if (bCreateDynamicCollection && RestCollection && RestCollection->GetGeometryCollection())
 	{
 		DynamicCollection = MakeUnique<FGeometryDynamicCollection>(RestCollection->GetGeometryCollection());
-
-		IndirectParentArray = nullptr;
-		GetParentArrayCopyOnWrite();
 
 		if (bStoreVelocities || bNotifyTrailing)
 		{
