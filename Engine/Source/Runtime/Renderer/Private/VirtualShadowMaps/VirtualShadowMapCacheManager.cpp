@@ -765,6 +765,8 @@ void FVirtualShadowMapArrayCacheManager::Invalidate(FRDGBuilder& GraphBuilder)
 	// Clear the cache
 	CacheEntries.Reset();
 
+	PrevBuffers = FVirtualShadowMapArrayFrameData();
+
 	//UE_LOG(LogRenderer, Display, TEXT("Virtual shadow map cache invalidated."));
 
 	// Clear the physical page metadata (on all GPUs)
