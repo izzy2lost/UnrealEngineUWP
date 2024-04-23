@@ -145,7 +145,17 @@ FReply SRewindDebugger::OnPreviewKeyDown(const FGeometry& MyGeometry, const FKey
 
 void SRewindDebugger::SetDebugTargetActor(AActor* Actor)
 {
-	DebugTargetActor.Set(Actor->GetName());
+	FString ActorLabel = Actor->GetActorLabel();
+	// Spawned actors have a "RewindDebugger: " prefix on their label
+	if (ActorLabel.StartsWith("RewindDebugger: "))
+	{
+		ActorLabel.RemoveFromStart("RewindDebugger: ");
+		DebugTargetActor.Set(ActorLabel);
+	}
+	else
+	{
+		DebugTargetActor.Set(Actor->GetName());
+	}
 }
 
 TSharedRef<SWidget> SRewindDebugger::MakeSelectActorMenu()
