@@ -177,7 +177,7 @@ void UInterchangeAssetImportData::SetTranslatorSettings(UInterchangeTranslatorSe
 	CachedTranslatorSettings = {};
 	if (TranslatorSettings)
 	{
-		FString TranslatorSettingsJSON = SerializePipeline(TranslatorSettings);
+		FString TranslatorSettingsJSON = SerializeTranslatorSettings(TranslatorSettings);
 
 		FString TranslatorSettingsClassFullName = TranslatorSettings->GetClass()->GetFullName();
 		CachedTranslatorSettings = TPair<FString, FString>(TranslatorSettingsClassFullName, TranslatorSettingsJSON);
