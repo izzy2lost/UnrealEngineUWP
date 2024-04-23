@@ -43,7 +43,7 @@ class UDisplayClusterStageGeometryComponent;
 class UDisplayClusterStageIsosphereComponent;
 class UDisplayClusterSyncTickComponent;
 class UProceduralMeshComponent;
-
+struct FDisplayClusterRootActorPropertyOverrides;
 
 /**
  * VR root. This contains nDisplay VR hierarchy in the game.
@@ -99,6 +99,8 @@ public:
 	/** Returns true if this RootActor is running in DC mode. */
 	bool IsRunningDisplayCluster() const;
 
+	/** Override properties of this root actor. */
+	void OverrideRootActorProperties(const FDisplayClusterRootActorPropertyOverrides& InPropertyOverrides);
 
 	UDisplayClusterConfigurationData* GetDefaultConfigDataFromAsset() const;
 	UDisplayClusterConfigurationData* GetConfigData() const;
@@ -623,13 +625,15 @@ public:
 	bool ShouldThisFrameOutputPreviewToPostProcessRenderTarget() const { return false; }
 
 	/** Force preview rendering to be enabled regardless of the user's setting until a matching RemovePreviewEnableOverride call is made. */
-	void AddPreviewEnableOverride(const uint8* Object);
+	UE_DEPRECATED(5.5, "This function has been deprecated.")
+	void AddPreviewEnableOverride(const uint8* Object) { };
 
 	/**
 	 * Stop forcing preview rendering to be enabled for this caller. If other objects have called AddPreviewEnableOverride, it will remain
 	 * forced until they have also removed their overrides.
 	 */
-	void RemovePreviewEnableOverride(const uint8* Object);
+	UE_DEPRECATED(5.5, "This function has been deprecated.")
+	void RemovePreviewEnableOverride(const uint8* Object) { };
 
 	UE_DEPRECATED(5.4, "This function has been deprecated.")
 	float GetPreviewRenderTargetRatioMult() const
@@ -681,9 +685,6 @@ private:
 	bool bRequiresComponentRefresh = false;
 
 	bool bIsSelectedInEditor = false;
-
-	/* Addresses of callers to AddPreviewEnableOverride that haven't removed their overrides yet. */
-	TSet<const uint8*> PreviewEnableOverriders;
 
 	TWeakPtr<IDisplayClusterConfiguratorBlueprintEditor> ToolkitPtr;
 

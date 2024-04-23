@@ -3,6 +3,8 @@
 #pragma once
 
 #include "IDisplayClusterScenePreview.h"
+#include "DisplayClusterScenePreviewProxyManager.h"
+#include "DisplayClusterRootActorContainers.h"
 
 #include "Containers/Ticker.h"
 #include "DisplayClusterMeshProjectionRenderer.h"
@@ -27,8 +29,8 @@ public:
 	//~ Begin IDisplayClusterScenePreview Interface
 	virtual int32 CreateRenderer() override;
 	virtual bool DestroyRenderer(int32 RendererId) override;
-	virtual bool SetRendererRootActorPath(int32 RendererId, const FString& ActorPath, bool bAutoUpdateLightcards = false) override;
-	virtual bool SetRendererRootActor(int32 RendererId, ADisplayClusterRootActor* Actor, bool bAutoUpdateLightcards = false) override;
+	virtual bool SetRendererRootActorPath(int32 RendererId, const FString& ActorPath, const FDisplayClusterRootActorPropertyOverrides& InPropertyOverrides, const EDisplayClusterScenePreviewFlags PreviewFlags = EDisplayClusterScenePreviewFlags::None) override;
+	virtual bool SetRendererRootActor(int32 RendererId, ADisplayClusterRootActor* Actor, const FDisplayClusterRootActorPropertyOverrides& InPropertyOverrides, const EDisplayClusterScenePreviewFlags PreviewFlags = EDisplayClusterScenePreviewFlags::None) override;
 	virtual ADisplayClusterRootActor* GetRendererRootActor(int32 RendererId) override;
 	virtual bool GetActorsInRendererScene(int32 RendererId, bool bIncludeRoot, TArray<AActor*>& OutActors) override;
 	virtual bool AddActorToRenderer(int32 RendererId, AActor* Actor) override;
@@ -37,7 +39,6 @@ public:
 	virtual bool ClearRendererScene(int32 RendererId) override;
 	virtual bool SetRendererActorSelectedDelegate(int32 RendererId, FDisplayClusterMeshProjectionRenderer::FSelection ActorSelectedDelegate) override;
 	virtual bool SetRendererRenderSimpleElementsDelegate(int32 RendererId, FDisplayClusterMeshProjectionRenderer::FSimpleElementPass RenderSimpleElementsDelegate) override;
-	virtual bool SetRendererUsePostProcessTexture(int32 RendererId, bool bUsePostProcessTexture) override;
 	virtual bool Render(int32 RendererId, FDisplayClusterMeshProjectionRenderSettings& RenderSettings, FCanvas& Canvas) override;
 	virtual bool RenderQueued(int32 RendererId, FDisplayClusterMeshProjectionRenderSettings& RenderSettings, const FIntPoint& Size, FRenderResultDelegate ResultDelegate) override;
 	virtual bool RenderQueued(int32 RendererId, FDisplayClusterMeshProjectionRenderSettings& RenderSettings, const TWeakPtr<FCanvas> Canvas, FRenderResultDelegate ResultDelegate) override;
@@ -63,14 +64,14 @@ private:
 		/** Actors that have been automatically added to the scene. */
 		TArray<TWeakObjectPtr<AActor>> AutoActors;
 
-		/** If true, automatically update the renderer with stage actors belonging to the root actor. */
-		bool bAutoUpdateLightcards = false;
+		/** Special flags that control the behavior of the renderer. */
+		EDisplayClusterScenePreviewFlags PreviewFlags = EDisplayClusterScenePreviewFlags::None;
 
-		/** If true, the scene needs to be updated before the next render. This is only relevant if bAutoUpdateLightcards is true. */
+		/** Container with properties to be overridden for the root actor used by this renderer. */
+		FDisplayClusterRootActorPropertyOverrides RootActorPropertyOverrides;
+
+		/** If true, the scene needs to be updated before the next render. This is only relevant if PreviewFlags.AutoUpdateLightcards is true. */
 		bool bIsSceneDirty = true;
-
-		/** If true, apply post-processing to the nDisplay preview texture and override the preview component with it before rendering. */
-		bool bUsePostProcessTexture = false;
 
 		/** The render target to use for queued renders. */
 		TStrongObjectPtr<UTextureRenderTarget2D> RenderTarget = nullptr;
@@ -107,26 +108,35 @@ private:
 	};
 
 	/** Get the root actor for a config. If the root actor pointer is invalid but we have a path to the actor, try to reacquire a pointer using the path first. */
-	ADisplayClusterRootActor* InternalGetRendererRootActor(FRendererConfig& RendererConfig);
+	ADisplayClusterRootActor* InternalGetRendererRootActor(int32 RendererId, FRendererConfig& RendererConfig);
+
+	/** Get the root actor or proxy. */
+	ADisplayClusterRootActor* InternalGetRendererRootActorOrProxy(int32 RendererId, FRendererConfig& RendererConfig);
 
 	/** Set the root actor for a config, update its scene, and register events accordingly. */
-	void InternalSetRendererRootActor(FRendererConfig& RendererConfig, ADisplayClusterRootActor* Actor, bool bAutoUpdateLightcards);
+	void InternalSetRendererRootActor(int32 RendererId, FRendererConfig& RendererConfig, ADisplayClusterRootActor* Actor, const EDisplayClusterScenePreviewFlags PreviewFlags);
+
+	/** Override properties for the renderer root actor. */
+	void InternalOverridePropertiesForRendererRootActor(int32 RendererId, FRendererConfig& RendererConfig);
 
 	/** Queue a preview to be rendered. */
 	bool InternalRenderQueued(int32 RendererId, FDisplayClusterMeshProjectionRenderSettings& RenderSettings, TWeakPtr<FCanvas> Canvas,
 		const FIntPoint& Size, FRenderResultDelegate ResultDelegate);
 
 	/** Immediately render with the given renderer config and settings to the given canvas. */
-	bool InternalRenderImmediate(FRendererConfig& RendererConfig, FDisplayClusterMeshProjectionRenderSettings& RenderSettings, FCanvas& Canvas);
+	bool InternalRenderImmediate(int32 RendererId, FRendererConfig& RendererConfig, FDisplayClusterMeshProjectionRenderSettings& RenderSettings, FCanvas& Canvas);
 
 	/** Check if any of the tracked root actors are set to auto-update their lightcards and register/unregister event listeners accordingly. */
 	void RegisterOrUnregisterGlobalActorEvents();
 
 	/** Register/unregister to events affecting a cluster root actor. */
-	void RegisterRootActorEvents(ADisplayClusterRootActor* Actor, bool bShouldRegister);
+	void RegisterRootActorEvents(int32 RendererId, FRendererConfig& RendererConfig, bool bShouldRegister);
+
+	/** Returns true if the Blueprint class matches the RootActor class used in the renderer configuration. */
+	bool IsBlueprintMatchesRendererRootActor(int32 RendererId, FRendererConfig& RendererConfig, UBlueprint* Blueprint);
 
 	/** Clear and re-populate a renderer's scene with the root actor and lightcards if applicable. */
-	void AutoPopulateScene(FRendererConfig& RendererConfig);
+	void AutoPopulateScene(int32 RendererId, FRendererConfig& RendererConfig);
 
 	/** Check whether nDisplay preview textures are being updated in real time. */
 	bool UpdateIsRealTimePreviewEnabled();
@@ -168,4 +178,7 @@ private:
 
 	/** Whether nDisplay preview textures are being updated in real time. */
 	bool bIsRealTimePreviewEnabled = false;
+
+	/** Manager for DCRA proxy objects. */
+	FDisplayClusterScenePreviewProxyManager ProxyManager;
 };

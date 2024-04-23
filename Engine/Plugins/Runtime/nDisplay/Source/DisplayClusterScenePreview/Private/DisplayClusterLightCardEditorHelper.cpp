@@ -9,6 +9,7 @@
 #include "DisplayClusterChromakeyCardActor.h"
 #include "DisplayClusterLightCardActor.h"
 #include "DisplayClusterRootActor.h"
+#include "DisplayClusterRootActorContainers.h"
 #include "Components/DisplayClusterCameraComponent.h"
 
 #include "StageActor/DisplayClusterStageActorTemplate.h"
@@ -230,7 +231,21 @@ void FDisplayClusterLightCardEditorHelper::SetRootActor(ADisplayClusterRootActor
 		return;
 	}
 
-	IDisplayClusterScenePreview::Get().SetRendererRootActor(RendererId, &NewRootActor, false);
+	// Use custom settings for root actor.
+	FDisplayClusterRootActorPropertyOverrides PropertyOverrides;
+	{
+		PropertyOverrides.bPreviewICVFXFrustums = false;
+		PropertyOverrides.bEnablePreviewTechvis = false;
+		PropertyOverrides.bPreviewEnableOverlayMaterial = false;
+		PropertyOverrides.bFreezePreviewRender = false;
+
+		PropertyOverrides.bPreviewEnablePostProcess = true;
+		PropertyOverrides.bPreviewEnable = true;
+
+		PropertyOverrides.PreviewSetttingsSource = EDisplayClusterConfigurationRootActorPreviewSettingsSource::RootActor;
+	}
+
+	IDisplayClusterScenePreview::Get().SetRendererRootActor(RendererId, &NewRootActor, PropertyOverrides);
 }
 
 void FDisplayClusterLightCardEditorHelper::SetLevelInstanceRootActor(ADisplayClusterRootActor& NewRootActor)

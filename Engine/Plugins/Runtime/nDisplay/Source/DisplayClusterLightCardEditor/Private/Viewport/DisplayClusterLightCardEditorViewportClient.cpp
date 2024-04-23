@@ -17,6 +17,7 @@
 #include "DisplayClusterLightCardEditorUtils.h"
 #include "DisplayClusterProjectionStrings.h"
 #include "DisplayClusterRootActor.h"
+#include "DisplayClusterRootActorContainers.h"
 #include "IDisplayClusterScenePreview.h"
 #include "SceneManagement.h"
 #include "Settings/DisplayClusterLightCardEditorSettings.h"
@@ -1639,14 +1640,6 @@ void FDisplayClusterLightCardEditorViewportClient::UpdatePreviewActor(ADisplayCl
 				ProjectionHelper->SetLevelInstanceRootActor(*RootActorLevelInstance);
 				ProjectionHelper->SetEditorViewportClient(AsShared());
 
-				// Setup custom preview settings for proxy DCRA:
-				RootActorProxy->bPreviewICVFXFrustums = false;
-				RootActorProxy->bEnablePreviewTechvis = false;
-				RootActorProxy->bPreviewEnablePostProcess = true;
-				RootActorProxy->bPreviewEnableOverlayMaterial = false;
-				RootActorProxy->bPreviewEnable = true;
-				RootActorProxy->bPreviewICVFXFrustums = false;
-
 				//@Todo: In the case when RootActorProxy is not recreated each time it is changed:
 				// the DCRA  Copy cfg from RootActorLevelInstance to RootActorProxy every tick (do not recreate local DCRA)
 				if (UDisplayClusterConfigurationData* ProxyConfig = RootActorProxy->GetConfigData())
@@ -1665,8 +1658,22 @@ void FDisplayClusterLightCardEditorViewportClient::UpdatePreviewActor(ADisplayCl
 				});
 			}
 
+			// Use custom settings for root actor.
+			FDisplayClusterRootActorPropertyOverrides PropertyOverrides;
+			{
+				PropertyOverrides.bPreviewICVFXFrustums = false;
+				PropertyOverrides.bEnablePreviewTechvis = false;
+				PropertyOverrides.bPreviewEnableOverlayMaterial = false;
+				PropertyOverrides.bFreezePreviewRender = false;
+
+				PropertyOverrides.bPreviewEnablePostProcess = true;
+				PropertyOverrides.bPreviewEnable = true;
+
+				PropertyOverrides.PreviewSetttingsSource = EDisplayClusterConfigurationRootActorPreviewSettingsSource::RootActor;
+			}
+
 			// Filter out any primitives hidden in game except screen components
-			IDisplayClusterScenePreview::Get().SetRendererRootActor(PreviewRendererId, RootActorProxy.Get());
+			IDisplayClusterScenePreview::Get().SetRendererRootActor(PreviewRendererId, RootActorProxy.Get(), PropertyOverrides);
 
 			if (ProxyType == EDisplayClusterLightCardEditorProxyType::All ||
 				ProxyType == EDisplayClusterLightCardEditorProxyType::StageActor)

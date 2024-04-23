@@ -164,14 +164,8 @@ private:
 	/** End a client's actor drag operation. */
 	void EndActorDrag(FPerRendererData& PreviewData, const FGuid& ClientId, int32 RendererId, bool bEndedByClient);
 
-	/**
-	 * If the preview renderer with the given ID has a root actor, force it to render previews until EndForceRootActorPreview is called
-	 * with the same ID.
-	 */
-	void BeginForceRootActorPreview(int32 RendererId);
-
-	/** If the preview renderer with the given ID has a root actor, stop forcing it to render previews. */
-	void EndForceRootActorPreview(int32 RendererId);
+	/** Set root actor via path. */
+	void SetRendererRootActorPath(const int32 RendererId, const FString& RootActorPath);
 
 private:
 	/** The module for the WebSocket server for which this is handling routes. */

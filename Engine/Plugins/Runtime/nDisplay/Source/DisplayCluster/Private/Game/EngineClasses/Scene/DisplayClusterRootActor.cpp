@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "DisplayClusterRootActor.h"
+#include "DisplayClusterRootActorContainers.h"
 
 #include "Async/ParallelFor.h"
 #include "Components/SceneComponent.h"
@@ -1125,15 +1126,6 @@ void ADisplayClusterRootActor::Tick(float DeltaSeconds)
 		NewPreviewSettings.bPreviewEnable = false;
 	}
 
-#if WITH_EDITOR
-	if (!PreviewEnableOverriders.IsEmpty())
-	{
-		// Preview rendering is overridden, so force it on
-		bEnablePreviewInScene = true;
-		NewPreviewSettings.bPreviewEnable = true;
-	}
-#endif
-
 	// Update entire cluster preview rendering
 	if (IDisplayClusterViewportManager* ViewportManager = bEnablePreviewInScene ? GetOrCreateViewportManager() : GetViewportManager())
 	{
@@ -1462,3 +1454,31 @@ void ADisplayClusterRootActor::AddReferencedObjects(UObject* InThis, FReferenceC
 
 	Super::AddReferencedObjects(InThis, Collector);
 }
+
+#define OVERRIDE_PROPERTY(PROPERTY_NAME)\
+	if (InPropertyOverrides.PROPERTY_NAME.IsSet())\
+	{\
+		PROPERTY_NAME = InPropertyOverrides.PROPERTY_NAME.GetValue();\
+	}
+
+void ADisplayClusterRootActor::OverrideRootActorProperties(const FDisplayClusterRootActorPropertyOverrides& InPropertyOverrides)
+{
+	OVERRIDE_PROPERTY(bPreviewInGameEnable);
+	OVERRIDE_PROPERTY(bPreviewInGameRenderFrustum);
+	OVERRIDE_PROPERTY(bPreviewEnable);
+	OVERRIDE_PROPERTY(PreviewRenderTargetRatioMult);
+	OVERRIDE_PROPERTY(bPreviewEnablePostProcess);
+	OVERRIDE_PROPERTY(bPreviewEnableOverlayMaterial);
+	OVERRIDE_PROPERTY(bEnablePreviewTechvis);
+	OVERRIDE_PROPERTY(bEnablePreviewMesh);
+	OVERRIDE_PROPERTY(bEnablePreviewEditableMesh);
+	OVERRIDE_PROPERTY(PreviewSetttingsSource);
+	OVERRIDE_PROPERTY(bFreezePreviewRender);
+	OVERRIDE_PROPERTY(bPreviewICVFXFrustums);
+	OVERRIDE_PROPERTY(PreviewICVFXFrustumsFarDistance);
+	OVERRIDE_PROPERTY(TickPerFrame);
+	OVERRIDE_PROPERTY(ViewportsPerFrame);
+	OVERRIDE_PROPERTY(PreviewMaxTextureDimension);
+}
+
+#undef OVERRIDE_PROPERTY

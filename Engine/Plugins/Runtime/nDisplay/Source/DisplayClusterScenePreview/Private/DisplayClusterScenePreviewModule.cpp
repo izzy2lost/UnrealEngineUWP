@@ -56,24 +56,32 @@ bool FDisplayClusterScenePreviewModule::DestroyRenderer(int32 RendererId)
 {
 	if (FRendererConfig* Config = RendererConfigs.Find(RendererId))
 	{
-		RegisterRootActorEvents(Config->RootActor.Get(), false);
+		// Release the proxy resources that were used by this renderer.
+		ProxyManager.SetSceneRootActorForRenderer(RendererId, nullptr);
+
+		RegisterRootActorEvents(RendererId, *Config, false);
 		RendererConfigs.Remove(RendererId);
 
 		RegisterOrUnregisterGlobalActorEvents();
+
 		return true;
 	}
 
 	return false;
 }
 
-bool FDisplayClusterScenePreviewModule::SetRendererRootActorPath(int32 RendererId, const FString& ActorPath, bool bAutoUpdateLightcards)
+bool FDisplayClusterScenePreviewModule::SetRendererRootActorPath(int32 RendererId, const FString& ActorPath, const FDisplayClusterRootActorPropertyOverrides& InPropertyOverrides, const EDisplayClusterScenePreviewFlags PreviewFlags)
 {
 	if (FRendererConfig* Config = RendererConfigs.Find(RendererId))
 	{
 		Config->RootActorPath = ActorPath;
 
 		ADisplayClusterRootActor* RootActor = FindObject<ADisplayClusterRootActor>(nullptr, *ActorPath);
-		InternalSetRendererRootActor(*Config, RootActor, bAutoUpdateLightcards);
+		InternalSetRendererRootActor(RendererId, *Config, RootActor, PreviewFlags);
+
+		// Use custom properties on root actor
+		Config->RootActorPropertyOverrides = InPropertyOverrides;
+		InternalOverridePropertiesForRendererRootActor(RendererId, *Config);
 
 		return true;
 	}
@@ -81,12 +89,18 @@ bool FDisplayClusterScenePreviewModule::SetRendererRootActorPath(int32 RendererI
 	return false;
 }
 
-bool FDisplayClusterScenePreviewModule::SetRendererRootActor(int32 RendererId, ADisplayClusterRootActor* Actor, bool bAutoUpdateLightcards)
+bool FDisplayClusterScenePreviewModule::SetRendererRootActor(int32 RendererId, ADisplayClusterRootActor* Actor, const FDisplayClusterRootActorPropertyOverrides& InPropertyOverrides, const EDisplayClusterScenePreviewFlags PreviewFlags)
 {
 	if (FRendererConfig* Config = RendererConfigs.Find(RendererId))
 	{
 		Config->RootActorPath.Empty();
-		InternalSetRendererRootActor(*Config, Actor, bAutoUpdateLightcards);
+		Config->RootActorPropertyOverrides = InPropertyOverrides;
+
+		InternalSetRendererRootActor(RendererId, *Config, Actor, PreviewFlags);
+
+		// Use custom properties on root actor
+		Config->RootActorPropertyOverrides = InPropertyOverrides;
+		InternalOverridePropertiesForRendererRootActor(RendererId, *Config);
 
 		return true;
 	}
@@ -98,7 +112,7 @@ ADisplayClusterRootActor* FDisplayClusterScenePreviewModule::GetRendererRootActo
 {
 	if (FRendererConfig* Config = RendererConfigs.Find(RendererId))
 	{
-		return InternalGetRendererRootActor(*Config);
+		return InternalGetRendererRootActorOrProxy(RendererId, *Config);
 	}
 
 	return nullptr;
@@ -198,22 +212,11 @@ bool FDisplayClusterScenePreviewModule::SetRendererRenderSimpleElementsDelegate(
 	return false;
 }
 
-bool FDisplayClusterScenePreviewModule::SetRendererUsePostProcessTexture(int32 RendererId, bool bUsePostProcessTexture)
-{
-	if (FRendererConfig* Config = RendererConfigs.Find(RendererId))
-	{
-		Config->bUsePostProcessTexture = bUsePostProcessTexture;
-		return true;
-	}
-
-	return false;
-}
-
 bool FDisplayClusterScenePreviewModule::Render(int32 RendererId, FDisplayClusterMeshProjectionRenderSettings& RenderSettings, FCanvas& Canvas)
 {
 	if (FRendererConfig* Config = RendererConfigs.Find(RendererId))
 	{
-		return InternalRenderImmediate(*Config, RenderSettings, Canvas);
+		return InternalRenderImmediate(RendererId, *Config, RenderSettings, Canvas);
 	}
 
 	return false;
@@ -245,7 +248,19 @@ bool FDisplayClusterScenePreviewModule::IsRealTimePreviewEnabled() const
 	return bIsRealTimePreviewEnabled;
 }
 
-ADisplayClusterRootActor* FDisplayClusterScenePreviewModule::InternalGetRendererRootActor(FRendererConfig& RendererConfig)
+bool FDisplayClusterScenePreviewModule::IsBlueprintMatchesRendererRootActor(int32 RendererId, FRendererConfig& RendererConfig, UBlueprint* Blueprint)
+{
+#if WITH_EDITOR
+	if (RendererConfig.RootActor.IsValid() && Blueprint == UBlueprint::GetBlueprintFromClass(RendererConfig.RootActor->GetClass()))
+	{
+		return true;
+	}
+#endif
+
+	return false;
+}
+
+ADisplayClusterRootActor* FDisplayClusterScenePreviewModule::InternalGetRendererRootActor(int32 RendererId, FRendererConfig& RendererConfig)
 {
 	if (!RendererConfig.RootActor.IsValid() && !RendererConfig.RootActorPath.IsEmpty())
 	{
@@ -253,11 +268,23 @@ ADisplayClusterRootActor* FDisplayClusterScenePreviewModule::InternalGetRenderer
 		ADisplayClusterRootActor* RootActor = FindObject<ADisplayClusterRootActor>(nullptr, *RendererConfig.RootActorPath);
 		if (RootActor)
 		{
-			InternalSetRendererRootActor(RendererConfig, RootActor, RendererConfig.bAutoUpdateLightcards);
+			InternalSetRendererRootActor(RendererId, RendererConfig, RootActor, RendererConfig.PreviewFlags);
+			InternalOverridePropertiesForRendererRootActor(RendererId, RendererConfig);
 		}
 	}
 
 	return RendererConfig.RootActor.Get();
+}
+
+ADisplayClusterRootActor* FDisplayClusterScenePreviewModule::InternalGetRendererRootActorOrProxy(int32 RendererId, FRendererConfig& RendererConfig)
+{
+	// Note: we call this function first because it can assign a new root actor and proxy.
+	ADisplayClusterRootActor* RootActor = InternalGetRendererRootActor(RendererId, RendererConfig);
+
+	// When proxy is required, get it from ProxyManager.
+	const bool bUseRootActorProxy = EnumHasAnyFlags(RendererConfig.PreviewFlags, EDisplayClusterScenePreviewFlags::UseRootActorProxy);
+
+	return bUseRootActorProxy ? ProxyManager.GetProxyRootActor(RendererId) : RootActor;
 }
 
 bool FDisplayClusterScenePreviewModule::InternalRenderQueued(int32 RendererId, FDisplayClusterMeshProjectionRenderSettings& RenderSettings, TWeakPtr<FCanvas> Canvas,
@@ -281,42 +308,61 @@ bool FDisplayClusterScenePreviewModule::InternalRenderQueued(int32 RendererId, F
 	return false;
 }
 
-void FDisplayClusterScenePreviewModule::InternalSetRendererRootActor(FRendererConfig& RendererConfig, ADisplayClusterRootActor* Actor, bool bAutoUpdateLightcards)
+
+void FDisplayClusterScenePreviewModule::InternalOverridePropertiesForRendererRootActor(int32 RendererId, FRendererConfig& RendererConfig)
+{
+	// Override root actor properties:
+	if (ADisplayClusterRootActor* RendererRootActor = InternalGetRendererRootActorOrProxy(RendererId, RendererConfig))
+	{
+		RendererRootActor->OverrideRootActorProperties(RendererConfig.RootActorPropertyOverrides);
+	}
+}
+
+void FDisplayClusterScenePreviewModule::InternalSetRendererRootActor(int32 RendererId, FRendererConfig& RendererConfig, ADisplayClusterRootActor* Actor, const EDisplayClusterScenePreviewFlags PreviewFlags)
 {
 	// Determine these values before we update the config's RootActor/bAutoUpdateLightcards
 	const bool bRootChanged = RendererConfig.RootActor != Actor;
 
-	if (bRootChanged)
+	if (bRootChanged || RendererConfig.PreviewFlags != PreviewFlags)
 	{
 		// Unregister events for the previous cluster
-		if (RendererConfig.bAutoUpdateLightcards && RendererConfig.RootActor.IsValid())
+		const bool bAutoUpdateLightcards = EnumHasAnyFlags(RendererConfig.PreviewFlags, EDisplayClusterScenePreviewFlags::AutoUpdateLightcards);
+		if (bAutoUpdateLightcards)
 		{
-			RegisterRootActorEvents(RendererConfig.RootActor.Get(), false);
+			RegisterRootActorEvents(RendererId, RendererConfig, false);
 		}
 
 		RendererConfig.RootActor = Actor;
-		RendererConfig.bAutoUpdateLightcards = bAutoUpdateLightcards;
-		AutoPopulateScene(RendererConfig);
+		RendererConfig.PreviewFlags = PreviewFlags;
+
+		// Updates the proxy for the new root actor.
+		const bool bUseRootActorProxy = EnumHasAnyFlags(RendererConfig.PreviewFlags, EDisplayClusterScenePreviewFlags::UseRootActorProxy);
+		ProxyManager.SetSceneRootActorForRenderer(RendererId, bUseRootActorProxy ? Actor : nullptr);
+
+		AutoPopulateScene(RendererId, RendererConfig);
 	}
 
-	RegisterRootActorEvents(Actor, true);
+	RegisterRootActorEvents(RendererId, RendererConfig, true);
 	RegisterOrUnregisterGlobalActorEvents();
 }
 
-bool FDisplayClusterScenePreviewModule::InternalRenderImmediate(FRendererConfig& RendererConfig, FDisplayClusterMeshProjectionRenderSettings& RenderSettings, FCanvas& Canvas)
+bool FDisplayClusterScenePreviewModule::InternalRenderImmediate(int32 RendererId, FRendererConfig& RendererConfig, FDisplayClusterMeshProjectionRenderSettings& RenderSettings, FCanvas& Canvas)
 {
 	// Update this so that whoever gets the callback can immediately check whether the nDisplay preview may be out of date
 	UpdateIsRealTimePreviewEnabled();
 
-	UWorld* World = RendererConfig.RootActor.IsValid() ? RendererConfig.RootActor->GetWorld() : nullptr;
+	// Get the Root Actor or proxy for rendering previews.
+	ADisplayClusterRootActor* RootActor = InternalGetRendererRootActorOrProxy(RendererId, RendererConfig);
+	UWorld* World = RootActor ? RootActor->GetWorld() : nullptr;
 	if (!World)
 	{
 		return false;
 	}
 
-	if (RendererConfig.bAutoUpdateLightcards && RendererConfig.bIsSceneDirty)
+	const bool bAutoUpdateLightcards = EnumHasAnyFlags(RendererConfig.PreviewFlags, EDisplayClusterScenePreviewFlags::AutoUpdateLightcards);
+	if (bAutoUpdateLightcards && RendererConfig.bIsSceneDirty)
 	{
-		AutoPopulateScene(RendererConfig);
+		AutoPopulateScene(RendererId, RendererConfig);
 	}
 
 	// Push any deferred render state updates to ensure that light card positions, preview meshes modified above, etc. are up to date
@@ -333,7 +379,8 @@ void FDisplayClusterScenePreviewModule::RegisterOrUnregisterGlobalActorEvents()
 	bool bShouldBeRegistered = false;
 	for (const TPair<int32, FRendererConfig>& ConfigPair : RendererConfigs)
 	{
-		if (ConfigPair.Value.bAutoUpdateLightcards)
+		const bool bAutoUpdateLightcards = EnumHasAnyFlags(ConfigPair.Value.PreviewFlags, EDisplayClusterScenePreviewFlags::AutoUpdateLightcards);
+		if (bAutoUpdateLightcards)
 		{
 			bShouldBeRegistered = true;
 			break;
@@ -368,9 +415,10 @@ void FDisplayClusterScenePreviewModule::RegisterOrUnregisterGlobalActorEvents()
 #endif
 }
 
-void FDisplayClusterScenePreviewModule::RegisterRootActorEvents(ADisplayClusterRootActor* Actor, bool bShouldRegister)
+void FDisplayClusterScenePreviewModule::RegisterRootActorEvents(int32 RendererId, FRendererConfig& RendererConfig, bool bShouldRegister)
 {
 #if WITH_EDITOR
+	ADisplayClusterRootActor* Actor = RendererConfig.RootActor.Get();
 	if (!Actor)
 	{
 		return;
@@ -391,16 +439,18 @@ void FDisplayClusterScenePreviewModule::RegisterRootActorEvents(ADisplayClusterR
 #endif
 }
 
-void FDisplayClusterScenePreviewModule::AutoPopulateScene(FRendererConfig& RendererConfig)
+void FDisplayClusterScenePreviewModule::AutoPopulateScene(int32 RendererId, FRendererConfig& RendererConfig)
 {
-	if (RendererConfig.bAutoUpdateLightcards)
+	const bool bAutoUpdateLightcards = EnumHasAnyFlags(RendererConfig.PreviewFlags, EDisplayClusterScenePreviewFlags::AutoUpdateLightcards);
+	if (bAutoUpdateLightcards)
 	{
 		RendererConfig.Renderer->ClearScene();
 		RendererConfig.AddedActors.Empty();
 		RendererConfig.AutoActors.Empty();
 	}
 	
-	if (ADisplayClusterRootActor* RootActor = InternalGetRendererRootActor(RendererConfig))
+	// The renderer can use a proxy.
+	if (ADisplayClusterRootActor* RootActor = InternalGetRendererRootActorOrProxy(RendererId, RendererConfig))
 	{
 		TArray<FString> ProjectionMeshNames;
 
@@ -417,7 +467,7 @@ void FDisplayClusterScenePreviewModule::AutoPopulateScene(FRendererConfig& Rende
 			return bIsProjectionMesh || bIsScreen;
 		});
 
-		if (RendererConfig.bAutoUpdateLightcards)
+		if (bAutoUpdateLightcards)
 		{
 			// Automatically add the lightcards found on this actor
 			TSet<ADisplayClusterLightCardActor*> LightCards;
@@ -490,6 +540,9 @@ bool FDisplayClusterScenePreviewModule::UpdateIsRealTimePreviewEnabled()
 
 bool FDisplayClusterScenePreviewModule::OnTick(float DeltaTime)
 {
+	// This function calls Tick() for a preview world with proxy root actors, which triggers rendering of previews for them.
+	ProxyManager.Tick(DeltaTime);
+
 	// This loop should break when we either run out of jobs or complete a single job
 	while (!RenderQueue.IsEmpty())
 	{
@@ -520,12 +573,13 @@ bool FDisplayClusterScenePreviewModule::OnTick(float DeltaTime)
 					continue;
 				}
 
-				InternalRenderImmediate(*Config, Job.Settings, *Canvas);
+				InternalRenderImmediate(Job.RendererId, *Config, Job.Settings, *Canvas);
 				Job.ResultDelegate.Execute(RenderTarget);
 				break;
 			}
 
-			if (UWorld* World = Config->RootActor.IsValid() ? Config->RootActor->GetWorld() : nullptr)
+			ADisplayClusterRootActor* RootActor = InternalGetRendererRootActorOrProxy(Job.RendererId, *Config);
+			if (UWorld* World = RootActor ? RootActor->GetWorld() : nullptr)
 			{
 				// We need to provide the render target for this job
 				UTextureRenderTarget2D* RenderTarget = Config->RenderTarget.Get();
@@ -550,7 +604,7 @@ bool FDisplayClusterScenePreviewModule::OnTick(float DeltaTime)
 				FTextureRenderTargetResource* RenderTargetResource = RenderTarget->GameThread_GetRenderTargetResource();
 				FCanvas Canvas(RenderTargetResource, nullptr, FGameTime::GetTimeSinceAppStart(), World->Scene->GetFeatureLevel());
 
-				InternalRenderImmediate(*Config, Job.Settings, Canvas);
+				InternalRenderImmediate(Job.RendererId, *Config, Job.Settings, Canvas);
 				Job.ResultDelegate.Execute(RenderTargetResource);
 				break;
 			}
@@ -576,7 +630,8 @@ void FDisplayClusterScenePreviewModule::OnActorPropertyChanged(UObject* ObjectBe
 	for (TPair<int32, FRendererConfig>& ConfigPair : RendererConfigs)
 	{
 		FRendererConfig& Config = ConfigPair.Value;
-		if (Config.bAutoUpdateLightcards)
+		const bool bAutoUpdateLightcards = EnumHasAnyFlags(Config.PreviewFlags, EDisplayClusterScenePreviewFlags::AutoUpdateLightcards);
+		if (bAutoUpdateLightcards)
 		{
 			if (Config.RootActor == ObjectBeingModified)
 			{
@@ -627,11 +682,13 @@ void FDisplayClusterScenePreviewModule::OnBlueprintCompiled(UBlueprint* Blueprin
 #if WITH_EDITOR
 	for (TPair<int32, FRendererConfig>& ConfigPair : RendererConfigs)
 	{
+		int32 RendererId = ConfigPair.Key;
 		FRendererConfig& Config = ConfigPair.Value;
-		if (Config.RootActor.IsValid() && Blueprint == UBlueprint::GetBlueprintFromClass(Config.RootActor->GetClass()))
+
+		if(IsBlueprintMatchesRendererRootActor(RendererId, Config, Blueprint))
 		{
 			Config.bIsSceneDirty = true;
-			RegisterRootActorEvents(Config.RootActor.Get(), true);
+			RegisterRootActorEvents(RendererId, Config, true);
 		}
 	}
 #endif

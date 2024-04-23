@@ -346,18 +346,6 @@ void ADisplayClusterRootActor::RerunConstructionScripts_Editor()
 	UpdateInnerFrustumPriority();
 }
 
-void ADisplayClusterRootActor::AddPreviewEnableOverride(const uint8* Object)
-{
-	check(Object);
-	PreviewEnableOverriders.Add(Object);
-}
-
-void ADisplayClusterRootActor::RemovePreviewEnableOverride(const uint8* Object)
-{
-	check(Object);
-	PreviewEnableOverriders.Remove(Object);
-}
-
 void ADisplayClusterRootActor::UpdateInnerFrustumPriority()
 {
 	if (InnerFrustumPriority.Num() == 0)
