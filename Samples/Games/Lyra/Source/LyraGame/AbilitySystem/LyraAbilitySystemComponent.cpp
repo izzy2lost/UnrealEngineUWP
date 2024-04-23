@@ -51,8 +51,10 @@ void ULyraAbilitySystemComponent::InitAbilityActorInfo(AActor* InOwnerActor, AAc
 		// Notify all abilities that a new pawn avatar has been set
 		for (const FGameplayAbilitySpec& AbilitySpec : ActivatableAbilities.Items)
 		{
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 			ensureMsgf(AbilitySpec.Ability && AbilitySpec.Ability->GetInstancingPolicy() != EGameplayAbilityInstancingPolicy::NonInstanced, TEXT("InitAbilityActorInfo: All Abilities should be Instanced (NonInstanced is being deprecated due to usability issues)."));
-			
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	
 			TArray<UGameplayAbility*> Instances = AbilitySpec.GetAbilityInstances();
 			for (UGameplayAbility* AbilityInstance : Instances)
 			{
@@ -109,7 +111,9 @@ void ULyraAbilitySystemComponent::CancelAbilitiesByFunc(TShouldCancelAbilityFunc
 			continue;
 		}
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		ensureMsgf(AbilitySpec.Ability->GetInstancingPolicy() != EGameplayAbilityInstancingPolicy::NonInstanced, TEXT("CancelAbilitiesByFunc: All Abilities should be Instanced (NonInstanced is being deprecated due to usability issues)."));
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 			
 		// Cancel all the spawned instances.
 		TArray<UGameplayAbility*> Instances = AbilitySpec.GetAbilityInstances();
