@@ -1260,9 +1260,19 @@ namespace Horde.Server.Jobs
 		public JobStepBatchId Id { get; }
 
 		/// <summary>
+		/// The type of agent to execute this group
+		/// </summary>
+		public string AgentType { get; }
+
+		/// <summary>
 		/// The log file id for this batch
 		/// </summary>
 		public LogId? LogId { get; }
+
+		/// <summary>
+		/// The node group for this batch
+		/// </summary>
+		public INodeGroup Group { get; }
 
 		/// <summary>
 		/// Index of the group being executed
@@ -1432,6 +1442,20 @@ namespace Horde.Server.Jobs
 	}
 
 	/// <summary>
+	/// Reference to another step in the job
+	/// </summary>
+	/// <param name="BatchIdx">Index of the batch</param>
+	/// <param name="StepIdx">Index of the step</param>
+	public record struct StepRef(int BatchIdx, int StepIdx);
+
+	/// <summary>
+	/// Reference to the output of a step within the job
+	/// </summary>
+	/// <param name="Step">Step producing the output</param>
+	/// <param name="OutputIdx">Index of the output from this step</param>
+	public record struct StepOutputRef(StepRef Step, int OutputIdx);
+
+	/// <summary>
 	/// Embedded jobstep document
 	/// </summary>
 	public interface IJobStep
@@ -1442,9 +1466,64 @@ namespace Horde.Server.Jobs
 		public JobStepId Id { get; }
 
 		/// <summary>
+		/// The node for this step
+		/// </summary>
+		public INode Node { get; }
+
+		/// <summary>
 		/// Index of the node which this jobstep is to execute
 		/// </summary>
 		public int NodeIdx { get; }
+
+		/// <summary>
+		/// The name of this node 
+		/// </summary>
+		public string Name { get; }
+
+		/// <summary>
+		/// References to inputs for this node
+		/// </summary>
+		public IReadOnlyList<StepOutputRef> Inputs { get; }
+
+		/// <summary>
+		/// List of output names
+		/// </summary>
+		public IReadOnlyList<string> OutputNames { get; }
+
+		/// <summary>
+		/// Indices of nodes which must have succeeded for this node to run
+		/// </summary>
+		public IReadOnlyList<StepRef> InputDependencies { get; }
+
+		/// <summary>
+		/// Indices of nodes which must have completed for this node to run
+		/// </summary>
+		public IReadOnlyList<StepRef> OrderDependencies { get; }
+
+		/// <summary>
+		/// Whether this node can be run multiple times
+		/// </summary>
+		public bool AllowRetry { get; }
+
+		/// <summary>
+		/// This node can start running early, before dependencies of other nodes in the same group are complete
+		/// </summary>
+		public bool RunEarly { get; }
+
+		/// <summary>
+		/// Whether to include warnings in the output (defaults to true)
+		/// </summary>
+		public bool Warnings { get; }
+
+		/// <summary>
+		/// List of credentials required for this node. Each entry maps an environment variable name to a credential in the form "CredentialName.PropertyName".
+		/// </summary>
+		public IReadOnlyDictionary<string, string>? Credentials { get; }
+
+		/// <summary>
+		/// Annotations for this node
+		/// </summary>
+		public IReadOnlyNodeAnnotations Annotations { get; }
 
 		/// <summary>
 		/// Current state of the job step. This is updated automatically when runs complete.

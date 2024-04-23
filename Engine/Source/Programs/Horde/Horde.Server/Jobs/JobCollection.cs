@@ -93,13 +93,35 @@ namespace Horde.Server.Jobs
 			DateTime IJob.UpdateTimeUtc => _document.UpdateTimeUtc ?? _document.UpdateTime?.UtcDateTime ?? DateTime.UnixEpoch;
 			int IJob.UpdateIndex => _document.UpdateIndex;
 
+			Dictionary<NodeRef, StepRef>? _cachedNodeRefToStepRef;
+			public IReadOnlyDictionary<NodeRef, StepRef> NodeRefToStepRef => _cachedNodeRefToStepRef ??= CreateNodeRefToStepRef();
+
+			Dictionary<NodeRef, StepRef> CreateNodeRefToStepRef()
+			{
+				Dictionary<NodeRef, StepRef> nodeRefToStepRef = new Dictionary<NodeRef, StepRef>();
+				for (int batchIdx = 0; batchIdx < Batches.Count; batchIdx++)
+				{
+					JobStepBatch batch = Batches[batchIdx];
+					for (int stepIdx = 0; stepIdx < batch.Steps.Count; stepIdx++)
+					{
+						JobStep step = batch.Steps[stepIdx];
+
+						NodeRef nodeRef = new NodeRef(batch.Document.GroupIdx, step.Document.NodeIdx);
+						nodeRefToStepRef[nodeRef] = new StepRef(batchIdx, stepIdx);
+					}
+				}
+				return nodeRefToStepRef;
+			}
+
 			public Job(JobCollection collection, JobDocument document, IGraph graph)
 			{
 				_collection = collection;
 				_document = document;
 				_graph = graph;
-				_batches = document.Batches.ConvertAll(x => new JobStepBatch(x));
+				_batches = document.Batches.ConvertAll(x => new JobStepBatch(this, x, graph.Groups[x.GroupIdx]));
 			}
+
+			public StepRef GetStepRef(NodeRef nodeRef) => NodeRefToStepRef[nodeRef];
 
 			public Task<IJob?> RefreshAsync(CancellationToken cancellationToken = default)
 				=> _collection.GetAsync(_document.Id, cancellationToken);
@@ -170,10 +192,17 @@ namespace Horde.Server.Jobs
 
 		class JobStepBatch : IJobStepBatch
 		{
+			public Job Job { get; }
 			public JobStepBatchDocument Document { get; }
+			public INodeGroup Group { get; }
 			public List<JobStep> Steps { get; }
 
 			JobStepBatchId IJobStepBatch.Id => Document.Id;
+
+			// Group properties
+			string IJobStepBatch.AgentType => Group.AgentType;
+
+			// Batch properties
 			LogId? IJobStepBatch.LogId => Document.LogId;
 			int IJobStepBatch.GroupIdx => Document.GroupIdx;
 			JobStepBatchState IJobStepBatch.State => Document.State;
@@ -188,37 +217,59 @@ namespace Horde.Server.Jobs
 			DateTime? IJobStepBatch.StartTimeUtc => Document.StartTime?.UtcDateTime;
 			DateTime? IJobStepBatch.FinishTimeUtc => Document.FinishTime?.UtcDateTime;
 
-			public JobStepBatch(JobStepBatchDocument document)
+			public JobStepBatch(Job job, JobStepBatchDocument document, INodeGroup group)
 			{
+				Job = job;
 				Document = document;
-				Steps = document.Steps.ConvertAll(x => new JobStep(x));
+				Group = group;
+				Steps = document.Steps.ConvertAll(x => new JobStep(this, x, group.Nodes[x.NodeIdx]));
 			}
 		}
 
 		class JobStep : IJobStep
 		{
-			readonly JobStepDocument _document;
+			public Job Job => Batch.Job;
+			public JobStepBatch Batch { get; }
+			public JobStepDocument Document { get; }
+			public INode Node { get; }
 
-			JobStepId IJobStep.Id => _document.Id;
-			int IJobStep.NodeIdx => _document.NodeIdx;
-			JobStepState IJobStep.State => _document.State;
-			JobStepOutcome IJobStep.Outcome => _document.Outcome;
-			JobStepError IJobStep.Error => _document.Error;
-			LogId? IJobStep.LogId => _document.LogId;
-			ObjectId? IJobStep.NotificationTriggerId => _document.NotificationTriggerId;
-			DateTime? IJobStep.ReadyTimeUtc => _document.ReadyTime?.UtcDateTime;
-			DateTime? IJobStep.StartTimeUtc => _document.StartTime?.UtcDateTime;
-			DateTime? IJobStep.FinishTimeUtc => _document.FinishTime?.UtcDateTime;
-			Priority? IJobStep.Priority => _document.Priority;
-			UserId? IJobStep.RetriedByUserId => _document.RetriedByUserId;
-			bool IJobStep.AbortRequested => _document.AbortRequested;
-			UserId? IJobStep.AbortedByUserId => _document.AbortedByUserId;
-			IReadOnlyList<IReport>? IJobStep.Reports => _document.Reports;
-			IReadOnlyDictionary<string, string>? IJobStep.Properties => _document.Properties;
+			JobStepId IJobStep.Id => Document.Id;
+			INode IJobStep.Node => Node;
+			int IJobStep.NodeIdx => Document.NodeIdx;
 
-			public JobStep(JobStepDocument document)
+			// Node properties
+			string IJobStep.Name => Node.Name;
+			IReadOnlyList<StepOutputRef> IJobStep.Inputs => Node.Inputs.ConvertAll(x => new StepOutputRef(Job.GetStepRef(x.NodeRef), x.OutputIdx));
+			IReadOnlyList<string> IJobStep.OutputNames => Node.OutputNames;
+			IReadOnlyList<StepRef> IJobStep.InputDependencies => Node.InputDependencies.ConvertAll(x => Job.GetStepRef(x));
+			IReadOnlyList<StepRef> IJobStep.OrderDependencies => Node.OrderDependencies.ConvertAll(x => Job.GetStepRef(x));
+			bool IJobStep.AllowRetry => Node.AllowRetry;
+			bool IJobStep.RunEarly => Node.RunEarly;
+			bool IJobStep.Warnings => Node.Warnings;
+			IReadOnlyDictionary<string, string>? IJobStep.Credentials => Node.Credentials;
+			IReadOnlyNodeAnnotations IJobStep.Annotations => Node.Annotations;
+
+			// Step properties
+			JobStepState IJobStep.State => Document.State;
+			JobStepOutcome IJobStep.Outcome => Document.Outcome;
+			JobStepError IJobStep.Error => Document.Error;
+			LogId? IJobStep.LogId => Document.LogId;
+			ObjectId? IJobStep.NotificationTriggerId => Document.NotificationTriggerId;
+			DateTime? IJobStep.ReadyTimeUtc => Document.ReadyTime?.UtcDateTime;
+			DateTime? IJobStep.StartTimeUtc => Document.StartTime?.UtcDateTime;
+			DateTime? IJobStep.FinishTimeUtc => Document.FinishTime?.UtcDateTime;
+			Priority? IJobStep.Priority => Document.Priority;
+			UserId? IJobStep.RetriedByUserId => Document.RetriedByUserId;
+			bool IJobStep.AbortRequested => Document.AbortRequested;
+			UserId? IJobStep.AbortedByUserId => Document.AbortedByUserId;
+			IReadOnlyList<IReport>? IJobStep.Reports => Document.Reports;
+			IReadOnlyDictionary<string, string>? IJobStep.Properties => Document.Properties;
+
+			public JobStep(JobStepBatch batch, JobStepDocument document, INode node)
 			{
-				_document = document;
+				Batch = batch;
+				Document = document;
+				Node = node;
 			}
 		}
 
