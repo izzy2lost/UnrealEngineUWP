@@ -131,6 +131,20 @@ enum class UE_DEPRECATED(5.0, "EActorGridPlacement is deprecated.") EActorGridPl
 };
 #endif
 
+/** Helper struct that allows UPrimitiveComponent and FPrimitiveSceneInfo write to the Actor's LastRenderTime member */
+struct FActorLastRenderTime
+{
+	float LastRenderTime;
+	std::atomic_int32_t NumAlwaysVisibleComponents = 0;
+
+private:
+	static void Set(AActor* InActor, float LastRenderTime);
+	static FActorLastRenderTime* GetPtr(AActor* InActor);
+
+	friend class UPrimitiveComponent;
+	friend struct FPrimitiveSceneInfoAdapter;
+};
+
 ENGINE_API DECLARE_LOG_CATEGORY_EXTERN(LogActor, Log, Warning);
 
 // Delegate signatures
@@ -857,7 +871,7 @@ private:
 	 * from the render thread, which is up to a frame behind the game thread, so you should allow this time to
 	 * be at least a frame behind the game thread's world time before you consider the actor non-visible.
 	 */
-	float LastRenderTime;
+	FActorLastRenderTime LastRenderTime;
 
 	friend struct FActorLastRenderTime;
 
@@ -3695,6 +3709,7 @@ public:
 	}
 
 private:
+
 	/**
 	 * Internal helper function to call a compile-time lambda on all components of a given type
 	 * Use template parameter bClassIsActorComponent to avoid doing unnecessary IsA checks when the ComponentClass is exactly UActorComponent
@@ -4488,23 +4503,16 @@ private:
 	friend UWorld;
 };
 
-/** Helper struct that allows UPrimitiveComponent and FPrimitiveSceneInfo write to the Actor's LastRenderTime member */
-struct FActorLastRenderTime
+
+inline void FActorLastRenderTime::Set(AActor* InActor, float LastRenderTime)
 {
-private:
-	static void Set(AActor* InActor, float LastRenderTime)
-	{
-		InActor->LastRenderTime = LastRenderTime;
-	}
+	InActor->LastRenderTime.LastRenderTime = LastRenderTime;
+}
 
-	static float* GetPtr(AActor* InActor)
-	{
-		return (InActor ? &InActor->LastRenderTime : nullptr);
-	}
-
-	friend class UPrimitiveComponent;
-	friend struct FPrimitiveSceneInfoAdapter;
-};
+inline FActorLastRenderTime* FActorLastRenderTime::GetPtr(AActor* InActor)
+{
+	return (InActor ? &InActor->LastRenderTime : nullptr);
+}
 
 #if WITH_EDITOR
 struct FSetActorHiddenInSceneOutliner

@@ -6,18 +6,19 @@
 #include "PrimitiveComponentId.h"
 
 class FPrimitiveSceneProxy;
+struct FActorLastRenderTime;
 
 /*
  * All the necessary information for scene primitive to component feedback 
  */
 struct FPrimitiveSceneInfoData
-{		
+{
 	/** The primitive's scene info. */
-	FPrimitiveSceneProxy* SceneProxy = nullptr;	
+	FPrimitiveSceneProxy* SceneProxy = nullptr;
 
 	/** Last time the component was submitted for rendering (called FScene::AddPrimitive). */
 	float LastSubmitTime = -1000;
-	
+
 	/**
 	 * The value of WorldSettings->TimeSeconds for the frame when this component was last rendered.  This is written
 	 * from the render thread, which is up to a frame behind the game thread, so you should allow this time to
@@ -27,7 +28,6 @@ struct FPrimitiveSceneInfoData
 
 	/** Same as LastRenderTime but only updated if the component is on screen. Used by the texture streamer. */
 	mutable float LastRenderTimeOnScreen = -1000.0f;
-	
 
 	/**
 	* Incremented by the main thread before being attached to the scene, decremented
@@ -54,13 +54,13 @@ struct FPrimitiveSceneInfoData
 	/** Used by the renderer, to identify a primitive across re-registers. */
 	FPrimitiveComponentId PrimitiveSceneId;
 
-	/**
-	* Identifier used to track the time that this component was registered with the world / renderer.
-	* Updated to unique incremental value each time OnRegister() is called. The value of 0 is unused.
-	* */
-	int32 RegistrationSerialNumber = -1;
+	UE_DEPRECATED(5.5, "RegistrationSerialNumber is no longer used")
+	int32 RegistrationSerialNumber : 31;
 
-	/** 
+	/** Whether the primitive is always visible. If true the last render time will be unset. */
+	int32 bAlwaysVisible : 1;
+
+	/**
 	 * Pointer to the last render time variable on the primitive's owning actor or other UObject (if owned), which is written to by the RT and read by the GT.
 	 * The value of LastRenderTime will therefore not be deterministic due to race conditions, but the GT uses it in a way that allows this.
 	 * Storing a pointer to the UObject member variable only works in the AActor/UPrimitiveComponent case because:
@@ -69,43 +69,30 @@ struct FPrimitiveSceneInfoData
 	 *	If the UPrimitiveComponent and the Actor are GC'd together, neither will be deleted until FinishDestroy has been executed on both.
 	 *	UPrimitiveComponent's FinishDestroy will not execute until the primitive has been detached from the Scene through it's DetachFence.
 	 * In general feedback from the renderer to the game thread like this should be avoided.
-	 * 
+	 *
 	 * Any other user of this struct that intends to add it's own primitives in the Scene must provide the same guarantees. 
-	 * 
+	 *
 	 */
-	float* OwnerLastRenderTimePtr = nullptr;
+	FActorLastRenderTime* OwnerLastRenderTimePtr = nullptr;
 
-
-	void SetLastRenderTime(float InLastRenderTime, bool bUpdateLastRenderTimeOnScreen) const
-	{
-		LastRenderTime = InLastRenderTime;
-		if (bUpdateLastRenderTimeOnScreen)
-			LastRenderTimeOnScreen = InLastRenderTime;
-
-		if (OwnerLastRenderTimePtr)
-		{
-			*OwnerLastRenderTimePtr = InLastRenderTime;
-		}
-	}	
+	ENGINE_API void SetLastRenderTime(float InLastRenderTime, bool bUpdateLastRenderTimeOnScreen) const;
 
 protected:
 
 	/** Next id to be used by a component. */
 	static ENGINE_API FThreadSafeCounter NextPrimitiveId;
 
-	/** Next registration serial number to be assigned to a component when it is registered. */
-	static ENGINE_API FThreadSafeCounter NextRegistrationSerialNumber;
-
 public:
 
-	static int32 GetNextRegistrationSerialNumber() { return NextRegistrationSerialNumber.Increment(); }
+	UE_DEPRECATED(5.5, "GetNextRegistrationSerialNumber is no longer used")
+	static int32 GetNextRegistrationSerialNumber() { return -1; }
 
 	FPrimitiveSceneInfoData()
+		: RegistrationSerialNumber(-1)
+		, bAlwaysVisible(false)
 	{
-		RegistrationSerialNumber = GetNextRegistrationSerialNumber();
 		PrimitiveSceneId.PrimIDValue = NextPrimitiveId.Increment();
 	}
-
 };
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5

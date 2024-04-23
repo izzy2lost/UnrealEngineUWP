@@ -622,10 +622,6 @@ void UPrimitiveComponent::CreateRenderState_Concurrent(FRegisterComponentContext
 		CachedMaxDrawDistance = bNeverCull ? 0.f : LDMaxDrawDistance;
 	}
 
-	// Always setup our ptr to the OwnerLastRenderTimer for rendering time feedback from the renderer
-	// The owner can change after calls to OnRegister so we must resynchronize this value
-	SceneData.OwnerLastRenderTimePtr = FActorLastRenderTime::GetPtr(GetOwner());
-
 	Super::CreateRenderState_Concurrent(Context);
 
 	UpdateBounds();
@@ -639,6 +635,8 @@ void UPrimitiveComponent::CreateRenderState_Concurrent(FRegisterComponentContext
 #endif
 	)
 	{
+		SceneData.OwnerLastRenderTimePtr = FActorLastRenderTime::GetPtr(GetOwner());
+
 		if (Context != nullptr)
 		{
 			Context->AddPrimitive(this);
@@ -669,15 +667,6 @@ void UPrimitiveComponent::SendRenderTransform_Concurrent()
 
 void UPrimitiveComponent::OnRegister()
 {
-	// Both those are initalized before call Super::OnRegister since the primitive can be added to the scene
-	// before this method completes, for example through FNiagaraSystem::PollForCompilationComplete()
-	 
-	// Setup our ptr to the OwnerLastRenderTimer for rendering time feedback from the renderer
-	SceneData.OwnerLastRenderTimePtr = FActorLastRenderTime::GetPtr(GetOwner());
-	
-	// Deterministically track primitives via registration sequence numbers.
- 	SceneData.RegistrationSerialNumber = FPrimitiveSceneInfoData::GetNextRegistrationSerialNumber(); 
-
 	Super::OnRegister();
 	
 	if (bCanEverAffectNavigation)
@@ -708,8 +697,6 @@ void UPrimitiveComponent::OnRegister()
 
 void UPrimitiveComponent::OnUnregister()
 {
-	SceneData.OwnerLastRenderTimePtr = nullptr;
-
 	// If this is being garbage collected we don't really need to worry about clearing this
 	if (!HasAnyFlags(RF_BeginDestroyed) && !IsUnreachable())
 	{
@@ -824,6 +811,8 @@ void UPrimitiveComponent::DestroyRenderState_Concurrent()
 	{
 		World->Scene->RemovePrimitive(this);
 	}
+
+	SceneData.OwnerLastRenderTimePtr = nullptr;
 
 	Super::DestroyRenderState_Concurrent();
 }
@@ -4694,6 +4683,24 @@ void UPrimitiveComponent::SetLastRenderTime(float InLastRenderTime)
 	}
 }
 
+float UPrimitiveComponent::GetLastRenderTime() const
+{
+	if (IsAlwaysVisible())
+	{
+		return GetWorld()->GetTimeSeconds();
+	}
+	return SceneData.LastRenderTime;
+}
+
+float UPrimitiveComponent::GetLastRenderTimeOnScreen() const
+{
+	if (IsAlwaysVisible())
+	{
+		return GetWorld()->GetTimeSeconds();
+	}
+	return SceneData.LastRenderTimeOnScreen;
+}
+
 #if MESH_DRAW_COMMAND_STATS
 void UPrimitiveComponent::SetMeshDrawCommandStatsCategory(FName StatsCategory)
 {
@@ -4955,6 +4962,34 @@ void UPrimitiveComponent::GetPrimitiveStats(FPrimitiveStats& PrimitiveStats) con
 	// no default values returned
 }
 
+void UPrimitiveComponent::AssignSceneProxy(FPrimitiveSceneProxy* InSceneProxy)
+{
+	check(SceneProxy == nullptr && SceneData.SceneProxy == nullptr);
+	SceneProxy = InSceneProxy;
+	SceneData.SceneProxy = InSceneProxy;
+	if (SceneProxy)
+	{
+		SceneData.bAlwaysVisible = SceneProxy->IsAlwaysVisible();
+		if (SceneData.bAlwaysVisible && SceneData.OwnerLastRenderTimePtr)
+		{
+			SceneData.OwnerLastRenderTimePtr->NumAlwaysVisibleComponents.fetch_add(1, std::memory_order_relaxed);
+		}
+	}
+}
+
+void UPrimitiveComponent::ReleaseSceneProxy()
+{
+	check(SceneProxy == SceneData.SceneProxy);
+	if (SceneData.bAlwaysVisible && SceneData.OwnerLastRenderTimePtr)
+	{
+		const uint32 NumRefs = SceneData.OwnerLastRenderTimePtr->NumAlwaysVisibleComponents.fetch_sub(1, std::memory_order_relaxed);
+		check(NumRefs > 0);
+	}
+	SceneProxy = nullptr;
+	SceneData.SceneProxy = nullptr;
+	SceneData.bAlwaysVisible = false;
+}
+
 bool FActorPrimitiveComponentInterface::IsRenderStateCreated() const 
 {
 	return UPrimitiveComponent::GetPrimitiveComponent(this)->IsRenderStateCreated();
@@ -5075,11 +5110,9 @@ FString FActorPrimitiveComponentInterface::GetOwnerName() const
 FPrimitiveSceneProxy* FActorPrimitiveComponentInterface::CreateSceneProxy() 
 {
 	UPrimitiveComponent* Component = UPrimitiveComponent::GetPrimitiveComponent(this);
-	check(Component->SceneProxy == nullptr && Component->SceneData.SceneProxy == nullptr);
-	FPrimitiveSceneProxy* Proxy = Component->CreateSceneProxy();
-	Component->SceneData.SceneProxy = Proxy;
-	Component->SceneProxy = Proxy;
-	return Proxy;
+	FPrimitiveSceneProxy* SceneProxy = Component->CreateSceneProxy();
+	Component->AssignSceneProxy(SceneProxy);
+	return SceneProxy;
 }
 
 #if WITH_EDITOR

@@ -294,7 +294,8 @@ public:
 	 * Number assigned to this component when it was registered with the world.
 	 * This will only ever be updated if the object is re-registered.
 	 */
-	int32 RegistrationSerialNumber;
+	UE_DEPRECATED(5.5, "RegistrationSerialNumber is no longer used")
+	int32 RegistrationSerialNumber = -1;
 
 	/** 
 	 * The root attachment component id for use with lighting, if valid.

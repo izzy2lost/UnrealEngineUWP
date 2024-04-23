@@ -900,8 +900,9 @@ public:
 	ENGINE_API bool WasRecentlyRendered(float Tolerance = 0.2f) const;
 
 	ENGINE_API void SetLastRenderTime(float InLastRenderTime);
-	float GetLastRenderTime() const { return SceneData.LastRenderTime; }
-	float GetLastRenderTimeOnScreen() const { return SceneData.LastRenderTimeOnScreen; }
+
+	ENGINE_API float GetLastRenderTime() const;
+	ENGINE_API float GetLastRenderTimeOnScreen() const;
 
 #if MESH_DRAW_COMMAND_STATS
 	ENGINE_API void SetMeshDrawCommandStatsCategory(FName StatsCategory);
@@ -1956,7 +1957,12 @@ public:
 	FPrimitiveSceneProxy* SceneProxy;
 
 	FPrimitiveSceneProxy* GetSceneProxy() const { check(SceneProxy == SceneData.SceneProxy); return SceneData.SceneProxy; }
-	void ReleaseSceneProxy() { check(SceneProxy == SceneData.SceneProxy); SceneProxy = nullptr;  SceneData.SceneProxy = nullptr; }
+
+	ENGINE_API void AssignSceneProxy(FPrimitiveSceneProxy* SceneProxy);
+	ENGINE_API void ReleaseSceneProxy();
+
+	/** Returns whether the primitive component's scene proxy is always visible. */
+	bool IsAlwaysVisible() const { return SceneData.bAlwaysVisible; }
 
 	/** A fence to track when the primitive is detached from the scene in the rendering thread. */
 	FRenderCommandFence DetachFence;

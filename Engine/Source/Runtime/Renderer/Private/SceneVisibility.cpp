@@ -667,12 +667,6 @@ static void UpdateAlwaysVisible(const FScene& Scene, FViewInfo& View, FFrustumCu
 				RayTracingBits |= Mask;
 			}
 		#endif
-
-			FPrimitiveSceneInfo* PrimitiveSceneInfo = Scene.Primitives[Index];
-			PrimitiveSceneInfo->LastRenderTime = CurrentWorldTime;
-
-			const bool bUpdateLastRenderTimeOnScreen = true;
-			PrimitiveSceneInfo->UpdateComponentLastRenderTime(CurrentWorldTime, bUpdateLastRenderTimeOnScreen);
 		}
 
 		VisWords[StartWord + WordIndex] = VisBits;

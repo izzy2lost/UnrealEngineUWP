@@ -2094,7 +2094,14 @@ bool AActor::WasRecentlyRendered(float Tolerance) const
 
 float AActor::GetLastRenderTime() const
 {
-	return LastRenderTime;
+	if (LastRenderTime.NumAlwaysVisibleComponents.load(std::memory_order_relaxed) > 0)
+	{
+		if (const UWorld* World = GetWorld())
+		{
+			return World->GetTimeSeconds();
+		}
+	}
+	return LastRenderTime.LastRenderTime;
 }
 
 void AActor::SetOwner(AActor* NewOwner)
@@ -6548,6 +6555,5 @@ void AActor::ForEachComponentOfActorClassDefault(const TSubclassOf<AActor>& Acto
 		});
 	}
 }
-
 
 #undef LOCTEXT_NAMESPACE

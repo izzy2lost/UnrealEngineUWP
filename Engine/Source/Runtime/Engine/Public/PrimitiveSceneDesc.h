@@ -23,39 +23,38 @@ class UPrimtiiveComponent;
 */
 
 struct FPrimitiveSceneDesc 
-{			
-	FPrimitiveSceneProxyDesc* ProxyDesc = nullptr;			
+{
+	FPrimitiveSceneProxyDesc* ProxyDesc = nullptr;
 	IPrimitiveComponent* PrimitiveComponentInterface = nullptr;
 	FPrimitiveSceneInfoData* PrimitiveSceneData = nullptr;
 	
 	FPrimitiveComponentId LightingAttachmentComponentId;
 	FPrimitiveComponentId LodParentComponentId;
-	
+
 	bool bShouldAddtoScene = true; // for UpdatePrimitiveAttachment
 	bool bRecreateProxyOnUpdateTransform = false; 
-	bool bIsUnreachable = false;	
+	bool bIsUnreachable = false;
 	bool bBulkReregister = false;
-		
-	EComponentMobility::Type Mobility = EComponentMobility::Movable;	
+
+	EComponentMobility::Type Mobility = EComponentMobility::Movable;
 	FBoxSphereBounds Bounds;
 	FBoxSphereBounds LocalBounds;
 
 	FMatrix RenderMatrix;
 	FVector AttachmentRootPosition;
-	
+
 	UWorld*  World = nullptr;
 	UObject* PrimitiveUObject = nullptr;
 	
 	// @todo: Possibly add uninitialized FStrings in this object to allow overriding the name without having a corresponding UObject
 	FString GetFullName() { return PrimitiveUObject->GetFullName(); }
-	FString GetName() { return PrimitiveUObject->GetName(); }	
+	FString GetName() { return PrimitiveUObject->GetName(); }
 
 	bool IsUnreachable() { return bIsUnreachable; }
 	bool ShouldRecreateProxyOnUpdateTransform() { return bRecreateProxyOnUpdateTransform; }
 
 	FThreadSafeCounter& GetAttachmentCounter() { return PrimitiveSceneData->AttachmentCounter; }
 	FPrimitiveComponentId GetPrimitiveSceneId() const { return PrimitiveSceneData->PrimitiveSceneId; }
-	int32 GetRegistrationSerialNumber() const { return PrimitiveSceneData->RegistrationSerialNumber; }
 	FPrimitiveComponentId GetLODParentId() const { return LodParentComponentId; }
 	FPrimitiveComponentId GetLightingAttachmentId() const { return LightingAttachmentComponentId; }
 
@@ -83,6 +82,9 @@ struct FPrimitiveSceneDesc
 	const IPrimitiveComponent* GetPrimitiveComponentInterface() const { return PrimitiveComponentInterface; }
 
 	UPackage* GetOutermost() const { return PrimitiveUObject->GetOutermost(); }
+
+	UE_DEPRECATED(5.5, "GetRegistrationSerialNumber is no longer used.")
+	int32 GetRegistrationSerialNumber() const { return -1; }
 };
 
 struct FInstancedStaticMeshSceneDesc

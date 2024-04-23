@@ -195,30 +195,28 @@ struct FPrimitiveSceneInfoAdapter
 		{
 			// Support for legacy path for proxy creation, if not handled it'll internally invoke the IPrimitiveComponentInterface path
 			if (UPrimitiveComponent* PrimitiveComponent =  PrimitiveComponentInterface->GetUObject<UPrimitiveComponent>())
-			{		
-				DefaultHitProxy = SceneProxy->CreateHitProxies(PrimitiveComponent, HitProxies);			
+			{
+				DefaultHitProxy = SceneProxy->CreateHitProxies(PrimitiveComponent, HitProxies);
 			}
 			else 
 			{
 				// For all other implementers
-				DefaultHitProxy = SceneProxy->CreateHitProxies(PrimitiveComponentInterface, HitProxies);			
+				DefaultHitProxy = SceneProxy->CreateHitProxies(PrimitiveComponentInterface, HitProxies);
 			}
 		}
 	}
 
-	FPrimitiveSceneInfoAdapter(UPrimitiveComponent* InComponent)		
-	{		
+	FPrimitiveSceneInfoAdapter(UPrimitiveComponent* InComponent)
+	{
 		SceneProxy = InComponent->SceneProxy;
 		SceneData = &InComponent->SceneData;
-		ComponentId = SceneData->PrimitiveSceneId;			
-		check(InComponent->GetSceneData().RegistrationSerialNumber != -1);
-		RegistrationSerialNumber = InComponent->GetSceneData().RegistrationSerialNumber;
+		ComponentId = SceneData->PrimitiveSceneId;
 		Component = InComponent;
 		PrimitiveComponentInterface = InComponent->GetPrimitiveComponentInterface();
-		PrimitiveDesc = nullptr;		
+		PrimitiveDesc = nullptr;
 		
 		// This validates the UPrimitiveComponent has properly initialized its OwnerLastRenderTimePtr
-		check(InComponent->SceneData.OwnerLastRenderTimePtr == FActorLastRenderTime::GetPtr(InComponent->GetOwner()));		
+		check(InComponent->SceneData.OwnerLastRenderTimePtr == FActorLastRenderTime::GetPtr(InComponent->GetOwner()));
 		Mobility = InComponent->Mobility;
 
 		const UPrimitiveComponent* SearchParentComponent = InComponent->GetLightingAttachmentRoot();
@@ -233,18 +231,17 @@ struct FPrimitiveSceneInfoAdapter
 		if (LODParent)
 		{
 			LODParentComponentId = LODParent->GetPrimitiveSceneId();
-		}		
+		}
 
 		if (GIsEditor)
 		{
 			CreateHitProxies();
 		}
-		
 	}
 	
 	FPrimitiveSceneInfoAdapter(FPrimitiveSceneDesc* InPrimitiveSceneDesc)
-	{		
-		check(InPrimitiveSceneDesc);		
+	{
+		check(InPrimitiveSceneDesc);
 
 		Component = nullptr;
 		PrimitiveComponentInterface = InPrimitiveSceneDesc->GetPrimitiveComponentInterface();
@@ -253,27 +250,24 @@ struct FPrimitiveSceneInfoAdapter
 		SceneProxy = InPrimitiveSceneDesc->GetSceneProxy();
 		check(SceneProxy);
 		ComponentId = InPrimitiveSceneDesc->GetPrimitiveSceneId();
-		RegistrationSerialNumber = InPrimitiveSceneDesc->GetRegistrationSerialNumber();
 		LODParentComponentId = InPrimitiveSceneDesc->GetLODParentId();
-		LightingAttachmentComponentId = InPrimitiveSceneDesc->GetLightingAttachmentId();			 		
-		Mobility = InPrimitiveSceneDesc->GetMobility();				
+		LightingAttachmentComponentId = InPrimitiveSceneDesc->GetLightingAttachmentId();
+		Mobility = InPrimitiveSceneDesc->GetMobility();
 		
 		if (GIsEditor && PrimitiveComponentInterface)
 		{
 			CreateHitProxies();
 		}
-
 	}
 	
 	FPrimitiveSceneProxy* SceneProxy;
 	FPrimitiveComponentId ComponentId;
-	int32 RegistrationSerialNumber;
 	FPrimitiveComponentId LODParentComponentId;
-	FPrimitiveComponentId LightingAttachmentComponentId;	
+	FPrimitiveComponentId LightingAttachmentComponentId;
 	EComponentMobility::Type Mobility;
 
 	// mutable so that hit proxies can be moved to final destination
-	mutable TArray<TRefCountPtr<HHitProxy> > HitProxies;
+	mutable TArray<TRefCountPtr<HHitProxy>> HitProxies;
 	HHitProxy* DefaultHitProxy = nullptr;
 
 	FPrimitiveSceneInfoData* SceneData;
@@ -285,7 +279,6 @@ struct FPrimitiveSceneInfoAdapter
 FPrimitiveSceneInfo::FPrimitiveSceneInfo(const FPrimitiveSceneInfoAdapter& InAdapter, FScene* InScene):
 	Proxy(InAdapter.SceneProxy),
 	PrimitiveComponentId(InAdapter.ComponentId),
-	RegistrationSerialNumber(InAdapter.RegistrationSerialNumber),
 	IndirectLightingCacheAllocation(NULL),
 	CachedPlanarReflectionProxy(NULL),
 	CachedReflectionCaptureProxy(NULL),
