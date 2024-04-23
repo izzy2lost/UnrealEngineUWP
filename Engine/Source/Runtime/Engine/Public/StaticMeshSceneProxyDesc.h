@@ -130,7 +130,7 @@ struct FStaticMeshSceneProxyDesc : public FPrimitiveSceneProxyDesc
 	UMaterialInterface* GetOverlayMaterial() const { return OverlayMaterial; }
 	float GetOverlayMaterialMaxDrawDistance() const { return OverlayMaterialMaxDrawDistance; }
 
-	UMaterialInterface* GetMaterial(int32 MaterialIndex, bool bDoingNaniteMaterialAudit = false ) const  
+	UMaterialInterface* GetMaterial(int32 MaterialIndex, bool bDoingNaniteMaterialAudit = false, bool bIgnoreNaniteOverrideMaterials = false) const
 	{ 
 		UMaterialInterface* OutMaterial = nullptr;
 
@@ -146,7 +146,7 @@ struct FStaticMeshSceneProxyDesc : public FPrimitiveSceneProxyDesc
 		}
 
 		// If we have a nanite override, use that		
-		if (OutMaterial != nullptr && UseNaniteOverrideMaterials(bDoingNaniteMaterialAudit))
+		if (OutMaterial != nullptr && !bIgnoreNaniteOverrideMaterials && UseNaniteOverrideMaterials(bDoingNaniteMaterialAudit))
 		{
 			UMaterialInterface* NaniteOverride = OutMaterial->GetNaniteOverride();
 			OutMaterial = NaniteOverride != nullptr ? NaniteOverride : OutMaterial;

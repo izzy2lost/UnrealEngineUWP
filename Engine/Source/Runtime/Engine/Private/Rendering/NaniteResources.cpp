@@ -1354,7 +1354,7 @@ FSceneProxy::FFallbackLODInfo::FFallbackLODInfo(
 		FSectionInfo SectionInfo;
 
 		// Determine the material applied to this element of the LOD.
-		UMaterialInterface* Material = InProxyDesc->GetMaterial(Section.MaterialIndex);
+		UMaterialInterface* Material = InProxyDesc->GetMaterial(Section.MaterialIndex, /*bDoingNaniteMaterialAudit*/ false, /*bIgnoreNaniteOverrideMaterials*/ true);
 #if WITH_EDITORONLY_DATA
 		SectionInfo.MaterialIndex = Section.MaterialIndex;
 #endif
