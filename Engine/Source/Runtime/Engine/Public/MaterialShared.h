@@ -753,6 +753,7 @@ public:
 #if WITH_EDITOR
 		FMemory::Memzero(EstimatedLWCFuncUsagesVS);
 		FMemory::Memzero(EstimatedLWCFuncUsagesPS);
+		FMemory::Memzero(EstimatedLWCFuncUsagesCS);
 #endif
 	}
 
@@ -812,6 +813,7 @@ public:
 	/** Estimate of the number of times each LWC operator occurs in the material shader code */
 	LAYOUT_ARRAY_EDITORONLY(uint16, EstimatedLWCFuncUsagesVS, (int)ELWCFunctionKind::Max)
 	LAYOUT_ARRAY_EDITORONLY(uint16, EstimatedLWCFuncUsagesPS, (int)ELWCFunctionKind::Max)
+	LAYOUT_ARRAY_EDITORONLY(uint16, EstimatedLWCFuncUsagesCS, (int)ELWCFunctionKind::Max)
 	
 	/** Number of virtual texture lookups performed, excludes direct invocation in shaders (for example VT lightmaps) */
 	LAYOUT_FIELD_EDITORONLY(uint16, EstimatedNumVirtualTextureLookups);
@@ -1564,7 +1566,7 @@ public:
 		CopyAssignItems(UsagesVS.GetData(), GetContent()->MaterialCompilationOutput.EstimatedLWCFuncUsagesVS, (int)ELWCFunctionKind::Max);
 		CopyAssignItems(UsagesPS.GetData(), GetContent()->MaterialCompilationOutput.EstimatedLWCFuncUsagesPS, (int)ELWCFunctionKind::Max);
 	}
-	ENGINE_API void GetEstimatedLWCFuncUsageComplexity(uint32& LWCComplexityVS, uint32& LWCComplexityPS) const;
+	ENGINE_API void GetEstimatedLWCFuncUsageComplexity(uint32& LWCComplexityVS, uint32& LWCComplexityPS, uint32& LWCComplexityCS) const;
 	uint32 GetNumPreshaders() const { return GetContent()->MaterialCompilationOutput.UniformExpressionSet.UniformPreshaders.Num(); }
 #endif
 	uint32 GetNumVirtualTextureStacks() const { return GetContent()->MaterialCompilationOutput.UniformExpressionSet.VTStacks.Num(); }

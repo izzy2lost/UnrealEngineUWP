@@ -3453,9 +3453,12 @@ void FHLSLMaterialTranslator::AddLWCFuncUsage(ELWCFunctionKind Kind, const uint3
 	{
 		MaterialCompilationOutput.EstimatedLWCFuncUsagesPS[(int)Kind] += Count;
 	}
+	else if (ShaderFrequency == SF_Compute)
+	{
+		MaterialCompilationOutput.EstimatedLWCFuncUsagesCS[(int)Kind] += Count;
+	}
 	else
 	{
-		// TODO: does this handle Nanite compute-based rasterization and shading correctly?
 		MaterialCompilationOutput.EstimatedLWCFuncUsagesVS[(int)Kind] += Count;
 	}
 }

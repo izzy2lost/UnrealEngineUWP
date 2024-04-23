@@ -70,8 +70,10 @@ public:
 		, ViewModeParamName(InViewModeParamName)
 		, NumVSInstructions(0)
 		, NumPSInstructions(0)
+		, NumCSInstructions(0)
 		, LWCComplexityVS(0)
 		, LWCComplexityPS(0)
+		, LWCComplexityCS(0)
 	{}
 
 	const FMaterialRenderProxy& MaterialRenderProxy;
@@ -86,9 +88,11 @@ public:
 
 	int32 NumVSInstructions;
 	int32 NumPSInstructions;
+	int32 NumCSInstructions;
 
 	uint32 LWCComplexityVS;
 	uint32 LWCComplexityPS;
+	uint32 LWCComplexityCS;
 };
 
 /**

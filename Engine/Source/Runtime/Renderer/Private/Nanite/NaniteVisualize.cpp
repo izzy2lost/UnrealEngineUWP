@@ -292,8 +292,7 @@ public:
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<UlongType>, VisBuffer64)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<float>, SceneDepth)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<uint>, ShadingMask)
-		//SHADER_PARAMETER_SRV(ByteAddressBuffer, MaterialDepthTable)
-		//SHADER_PARAMETER_SRV(ByteAddressBuffer, MaterialEditorTable)
+		SHADER_PARAMETER_RDG_BUFFER_SRV(ByteAddressBuffer, DebugViewData)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(ByteAddressBuffer, MaterialHitProxyTable)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<uint>, EditorSelectedHitProxyIds)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(ByteAddressBuffer, ShadingBinData)
@@ -947,10 +946,9 @@ void RenderDebugViewMode(
 	PassParameters->SceneDepth = InputDepthTexture;
 	PassParameters->ShadingMask = RasterResults.ShadingMask;
 	//PassParameters->MaterialDepthTable = GraphBuilder.CreateSRV(GSystemTextures.GetDefaultByteAddressBuffer(GraphBuilder, 4u)); // TODO: Remove
-	//PassParameters->MaterialEditorTable = GSystemTextures.GetDefaultByteAddressBuffer(GraphBuilder, 4u); // TODO: Fix (reimplement with CS materials)
+	PassParameters->DebugViewData = GraphBuilder.CreateSRV(Scene.GetExtension<Nanite::FMaterialsSceneExtension>().CreateDebugViewModeBuffer(GraphBuilder));
 	PassParameters->EditorSelectedHitProxyIds = GetEditorSelectedHitProxyIdsSRV(GraphBuilder, View);
 	PassParameters->ShadingBinData = GetShadingBinDataSRV(GraphBuilder);
-
 	PassParameters->MaterialHitProxyTable = GraphBuilder.CreateSRV(
 	#if WITH_EDITOR
 		Scene.GetExtension<Nanite::FMaterialsSceneExtension>().CreateHitProxyIDBuffer(GraphBuilder)

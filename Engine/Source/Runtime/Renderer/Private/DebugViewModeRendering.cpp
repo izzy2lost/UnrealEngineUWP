@@ -467,6 +467,7 @@ void FDebugViewModeMeshProcessor::UpdateInstructionCount(FDebugViewModeShaderEle
 
 				OutShaderElementData.NumVSInstructions = FMath::Max<int32>(0, OutShaderElementData.NumVSInstructions);
 				OutShaderElementData.NumPSInstructions = FMath::Max<int32>(0, OutShaderElementData.NumPSInstructions);
+				OutShaderElementData.NumCSInstructions = 0;
 			}
 		}
 		else // EShadingPath::Mobile
@@ -477,6 +478,7 @@ void FDebugViewModeMeshProcessor::UpdateInstructionCount(FDebugViewModeShaderEle
 			{
 				OutShaderElementData.NumVSInstructions = MobileVS.IsValid() ? MobileVS->GetNumInstructions() : 0;
 				OutShaderElementData.NumPSInstructions = MobilePS.IsValid() ? MobilePS->GetNumInstructions() : 0;
+				OutShaderElementData.NumCSInstructions = 0;
 			}
 
 			const EShaderPlatform ShaderPlatform = GetFeatureLevelShaderPlatform(InBatchMaterial->GetFeatureLevel());
@@ -488,7 +490,7 @@ void FDebugViewModeMeshProcessor::UpdateInstructionCount(FDebugViewModeShaderEle
 		
 #if WITH_EDITOR
 		InBatchMaterial->GetRenderingThreadShaderMap()->GetEstimatedLWCFuncUsageComplexity(
-			OutShaderElementData.LWCComplexityVS, OutShaderElementData.LWCComplexityPS);
+			OutShaderElementData.LWCComplexityVS, OutShaderElementData.LWCComplexityPS, OutShaderElementData.LWCComplexityCS);
 #endif
 	}
 }

@@ -68,6 +68,9 @@ public:
 #if WITH_EDITOR
 	FRDGBufferRef CreateHitProxyIDBuffer(FRDGBuilder& GraphBuilder) const;
 #endif
+#if WITH_DEBUG_VIEW_MODES
+	FRDGBufferRef CreateDebugViewModeBuffer(FRDGBuilder& GraphBuilder) const;
+#endif
 
 private:
 	enum ETask : uint32
@@ -79,6 +82,9 @@ private:
 		UploadMaterialDataTask,
 	#if WITH_EDITOR
 		UpdateHitProxyIDsTask,
+	#endif
+	#if WITH_DEBUG_VIEW_MODES
+		UpdateDebugViewModeTask,
 	#endif
 
 		NumTasks
@@ -156,6 +162,9 @@ private:
 #if WITH_EDITOR
 	FSpanAllocator HitProxyIDAllocator;
 	TArray<uint32> HitProxyIDs;
+#endif
+#if WITH_DEBUG_VIEW_MODES
+	TArray<FNaniteMaterialDebugViewInfo> DebugViewData;
 #endif
 	TStaticArray<UE::Tasks::FTask, NumTasks> TaskHandles;
 };

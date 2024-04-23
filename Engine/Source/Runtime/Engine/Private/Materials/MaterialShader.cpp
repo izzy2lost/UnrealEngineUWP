@@ -3613,7 +3613,7 @@ void FMaterialShaderMapContent::RemoveMeshShaderMap(const FHashedName& VertexFac
 }
 
 #if WITH_EDITOR
-void FMaterialShaderMap::GetEstimatedLWCFuncUsageComplexity(uint32& LWCComplexityVS, uint32& LWCComplexityPS) const
+void FMaterialShaderMap::GetEstimatedLWCFuncUsageComplexity(uint32& LWCComplexityVS, uint32& LWCComplexityPS, uint32& LWCComplexityCS) const
 {
 	auto GetLWCComplexity = [](const uint16 (&Usages)[(int)ELWCFunctionKind::Max]) {
 		int Complexity = 0;
@@ -3650,6 +3650,7 @@ void FMaterialShaderMap::GetEstimatedLWCFuncUsageComplexity(uint32& LWCComplexit
 	};
 	LWCComplexityVS = GetLWCComplexity(GetContent()->MaterialCompilationOutput.EstimatedLWCFuncUsagesVS);
 	LWCComplexityPS = GetLWCComplexity(GetContent()->MaterialCompilationOutput.EstimatedLWCFuncUsagesPS);
+	LWCComplexityCS = GetLWCComplexity(GetContent()->MaterialCompilationOutput.EstimatedLWCFuncUsagesCS);
 }
 #endif
 

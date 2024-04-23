@@ -171,6 +171,7 @@ void FNaniteDrawListContext::FinalizeCommand(
 		uint32 InstructionCountPS = ShadersForDebugging->PixelShader->GetNumInstructions();
 		MaterialDebugViewInfo.InstructionCountVS = static_cast<uint16>(FMath::Clamp(InstructionCountVS, 0, TNumericLimits<uint16>::Max()));
 		MaterialDebugViewInfo.InstructionCountPS = static_cast<uint16>(FMath::Clamp(InstructionCountPS, 0, TNumericLimits<uint16>::Max()));
+		MaterialDebugViewInfo.InstructionCountCS = 0;
 
 #if WITH_EDITOR
 		FMaterialShaderMap* MaterialShaderMap = MeshDrawCommand.GetDebugData().Material->GetRenderingThreadShaderMap();
@@ -178,8 +179,9 @@ void FNaniteDrawListContext::FinalizeCommand(
 		{
 			uint32 LWCComplexityVS = 0;
 			uint32 LWCComplexityPS = 0;
+			uint32 LWCComplexityCS = 0;
 
-			MaterialShaderMap->GetEstimatedLWCFuncUsageComplexity(LWCComplexityVS, LWCComplexityPS);
+			MaterialShaderMap->GetEstimatedLWCFuncUsageComplexity(LWCComplexityVS, LWCComplexityPS, LWCComplexityCS);
 
 			// Set minimum complexity to 1, to differentiate between 0 cost and missing data
 			MaterialDebugViewInfo.LWCComplexityVS = static_cast<uint16>(FMath::Clamp(LWCComplexityVS++, 1, TNumericLimits<uint16>::Max()));

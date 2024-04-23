@@ -773,6 +773,11 @@ struct FNaniteShadingPipeline
 	FRHIComputeShader* ComputeShader = nullptr;
 	FRHIWorkGraphShader* WorkGraphShader = nullptr;
 
+#if WITH_DEBUG_VIEW_MODES
+	uint32 InstructionCount = 0;
+	uint32 LWCComplexity = 0;
+#endif
+
 	uint32 BoundTargetMask = 0u;
 	uint32 ShaderBindingsHash = 0u;
 	uint32 MaterialBitFlags = 0x0u;

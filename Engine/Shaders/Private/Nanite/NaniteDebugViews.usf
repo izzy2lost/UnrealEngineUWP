@@ -17,7 +17,7 @@ Texture2DMS<float, MSAA_SAMPLE_COUNT> SceneDepth;
 Texture2D<float> SceneDepth;
 #endif
 Texture2D<uint> ShadingMask;
-//ByteAddressBuffer MaterialEditorTable;
+ByteAddressBuffer DebugViewData;
 ByteAddressBuffer MaterialHitProxyTable;
 
 ByteAddressBuffer ShadingBinData;
@@ -153,30 +153,27 @@ struct FNaniteMaterialDebugViewInfo
 {
 	uint InstructionCountVS;
 	uint InstructionCountPS;
+	uint InstructionCountCS;
 	uint LWCComplexityVS;
 	uint LWCComplexityPS;
+	uint LWCComplexityCS;
 };
 
 FNaniteMaterialDebugViewInfo ReadMaterialDebugViewInfo(uint ShadingBin)
 {
 	FNaniteMaterialDebugViewInfo Result;
 
-#if 1
-	// TODO: Reimplement
-	Result.InstructionCountVS = 0;
-	Result.InstructionCountPS = 0;
-	Result.LWCComplexityVS = 0;
-	Result.LWCComplexityPS = 0;
-#else
 	const uint Stride = MATERIAL_DEBUG_VIEW_INFO_STRIDE;
-	int2 Data = MaterialEditorTable.Load2(ShadingBin * Stride);
+	uint3 Data = DebugViewData.Load3(ShadingBin * Stride);
 
-	Result.InstructionCountVS = (Data.x & 0x0000FFFFu);
-	Result.InstructionCountPS = (Data.x & 0xFFFF0000u) >> 16u;
+	Result.InstructionCountVS	= BitFieldExtractU32(Data.x, 16, 0);
+	Result.InstructionCountPS	= BitFieldExtractU32(Data.x, 16, 16);
 
-	Result.LWCComplexityVS = (Data.y & 0x0000FFFFu);
-	Result.LWCComplexityPS = (Data.y & 0xFFFF0000u) >> 16u;
-#endif
+	Result.InstructionCountCS	= BitFieldExtractU32(Data.y, 16, 0);
+	Result.LWCComplexityVS		= BitFieldExtractU32(Data.y, 16, 16);
+
+	Result.LWCComplexityPS		= BitFieldExtractU32(Data.z, 16, 0);
+	Result.LWCComplexityCS		= BitFieldExtractU32(Data.z, 16, 16);
 
 	return Result;
 }
@@ -302,11 +299,23 @@ void ExportDebugViewPS(
 				// See: FComplexityAccumulateInterface::GetDebugViewModeShaderBindings()
 
 				// float3(PS/ShaderBudget, VS/ShaderBudget, overdraw)
-				float3 NormalizedComplexity = float3(
-					MaterialDebugViewInfo.InstructionCountPS * InvShaderBudget,
-					MaterialDebugViewInfo.InstructionCountVS * InvShaderBudget,
-					1.0 / 32.0f
-				);
+				float3 NormalizedComplexity;
+				if (MaterialDebugViewInfo.InstructionCountCS != 0u)
+				{
+					NormalizedComplexity = float3(
+						MaterialDebugViewInfo.InstructionCountCS * InvShaderBudget,
+						MaterialDebugViewInfo.InstructionCountCS * InvShaderBudget,
+						1.0 / 32.0f
+					);
+				}
+				else
+				{
+					NormalizedComplexity = float3(
+						MaterialDebugViewInfo.InstructionCountPS * InvShaderBudget,
+						MaterialDebugViewInfo.InstructionCountVS * InvShaderBudget,
+						1.0 / 32.0f
+					);
+				}
 
 				float3 FinalComplexity = NormalizedComplexity.xyz;
 
@@ -324,7 +333,15 @@ void ExportDebugViewPS(
 			}
 			else if (DebugViewMode == DEBUG_VIEW_LWC_COMPLEXITY)
 			{
-				float3 NormalizedComplexity = float3(MaterialDebugViewInfo.LWCComplexityPS, MaterialDebugViewInfo.LWCComplexityVS, 0) * InvShaderBudget;
+				float3 NormalizedComplexity;
+				if (MaterialDebugViewInfo.InstructionCountCS != 0u)
+				{
+					NormalizedComplexity = float3(MaterialDebugViewInfo.InstructionCountCS, MaterialDebugViewInfo.InstructionCountCS, 0) * InvShaderBudget;
+				}
+				else
+				{
+					NormalizedComplexity = float3(MaterialDebugViewInfo.LWCComplexityPS, MaterialDebugViewInfo.LWCComplexityVS, 0) * InvShaderBudget;
+				}
 
 				// Use the maximum range allowed for scene color
 				// Alpha channel needs to be 1 to have decals working where the framebuffer blend is setup to multiply with alpha

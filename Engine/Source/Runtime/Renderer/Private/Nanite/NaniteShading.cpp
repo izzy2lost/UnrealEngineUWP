@@ -650,6 +650,25 @@ bool LoadBasePassPipeline(
 
 		check(ShadingPipeline.ComputeShader);
 
+#if WITH_DEBUG_VIEW_MODES
+		ShadingPipeline.InstructionCount = BasePassComputeShader->GetNumInstructions();
+		ShadingPipeline.LWCComplexity = 0;
+#if WITH_EDITOR
+		FMaterialShaderMap* MaterialShaderMap = ShadingPipeline.Material->GetRenderingThreadShaderMap();
+		if (ensure(MaterialShaderMap))
+		{
+			uint32 LWCComplexityVS = 0;
+			uint32 LWCComplexityPS = 0;
+			uint32 LWCComplexityCS = 0;
+
+			MaterialShaderMap->GetEstimatedLWCFuncUsageComplexity(LWCComplexityVS, LWCComplexityPS, LWCComplexityCS);
+
+			// Set minimum complexity to 1, to differentiate between 0 cost and missing data
+			ShadingPipeline.LWCComplexity = static_cast<uint16>(FMath::Clamp(LWCComplexityCS++, 1, TNumericLimits<uint16>::Max()));
+		}
+#endif
+#endif
+
 		TBasePassShaderElementData<FUniformLightMapPolicy> ShaderElementData(LightCacheInterface);
 		ShaderElementData.InitializeMeshMaterialData();
 
