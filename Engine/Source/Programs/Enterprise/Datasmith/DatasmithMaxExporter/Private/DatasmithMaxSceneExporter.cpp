@@ -1410,7 +1410,7 @@ void FDatasmithMaxSceneExporter::ParseSun(INode* Node, TSharedRef<IDatasmithLigh
 	{
 		int32 CoronaSunColorMode = 0;
 		float CoronaSunTemperature = 0;
-		FLinearColor CoronaSunColor;
+		FLinearColor CoronaSunColor(ForceInitToZero);
 
 		const int NumParamBlocks = Light.NumParamBlocks();
 
