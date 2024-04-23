@@ -269,6 +269,12 @@ bool UCookCommandlet::CookByTheBook(const TArray<ITargetPlatform*>& Platforms)
 
 		bIterativeCooking = true;
 	}
+	if (Switches.Contains(TEXT("ODSC")))
+	{
+		// ODSC piggybacks on the cook commandlet but does not cook any packages. Turn -iterative on to prevent
+		// an unnecessary clearing of the cook results.
+		bIterativeCooking = true;
+	}
 
 	ECookInitializationFlags CookFlags = ECookInitializationFlags::IncludeServerMaps;
 	CookFlags |= bIterativeCooking ? IterateFlags : ECookInitializationFlags::None;

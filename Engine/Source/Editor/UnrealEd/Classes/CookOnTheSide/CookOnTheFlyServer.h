@@ -1533,8 +1533,11 @@ private:
 	bool bIterativeIgnoreExe = false;
 	/** Whether we should calculate the exe's hash; might be true even if bIterativeIgnoreExe is true. */
 	bool bIterativeCalculateExe = true;
-	/** If true this will ignore cooking unsolicited packages.  This is only useful if launching the COTF server to only process shader recompile requests. */
-	bool bIgnoreUnsolicitedPackages = false;
+	/**
+	 * When running as a shader server (-odsc) we avoid cooking packages; the cooker does not queue them and the game does not request them. 
+	 * This mode is used to respond to the shader requests and shares that implementation with cookonthefly.
+	 */
+	bool bRunningAsShaderServer = false;
 	/** Whether to skip saving packages that are cooked. When true, the cook will only load and process packages but not write them to disk */
 	bool bSkipSave = false;
 	/** Timers for tracking how long we have been busy, to manage retries and warnings of deadlock */

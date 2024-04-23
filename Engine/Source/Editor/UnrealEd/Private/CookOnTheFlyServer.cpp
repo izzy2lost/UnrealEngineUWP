@@ -4328,7 +4328,7 @@ void UCookOnTheFlyServer::DumpCrashContext(FCrashContextExtendedWriter& Writer)
 void UCookOnTheFlyServer::ProcessUnsolicitedPackages(TArray<FName>* OutDiscoveredPackageNames,
 	TMap<FName, UE::Cook::FInstigator>* OutInstigators)
 {
-	if (bIgnoreUnsolicitedPackages)
+	if (bRunningAsShaderServer)
 	{
 		return;
 	}
@@ -7198,7 +7198,7 @@ void UCookOnTheFlyServer::SetInitializeConfigSettings(UE::Cook::FInitializeConfi
 	// It would be better to always calculate it, but we want to avoid the performance cost until it becomes more widely used
 	bIterativeCalculateExe = !bIterativeIgnoreExe || !bConfigSettingSetIterativeIgnoreExe;
 
-	bIgnoreUnsolicitedPackages = FParse::Param(FCommandLine::Get(), TEXT("odsc"));
+	bRunningAsShaderServer = FParse::Param(FCommandLine::Get(), TEXT("odsc"));;
 	bSkipSave = FParse::Param(FCommandLine::Get(), TEXT("CookSkipSave"));
 
 	FString Severity;
@@ -11022,6 +11022,12 @@ void UCookOnTheFlyServer::LoadBeginCookIterativeFlagsLocal(FBeginCookContext& Be
 					TEXT("FULL COOK: Neither -iterative nor -cookincremental were specified. Deleting previously cooked packages for platform %s and executing a full cook."),
 					*TargetPlatform->PlatformName());
 				bIterativeAllowed = false;
+				if (bRunningAsShaderServer)
+				{
+					UE_LOG(LogCook, Display,
+						TEXT("'-odsc' was passed on commandline, but '-iterative' was not, so the cooker as a side effect is clearing cook results. The build will need to be recooked before it can be staged. Add the commandline argument '-iterative' to avoid this unnecessary clear.")
+					);
+				}
 			}
 			else if (!ArePreviousCookSettingsCompatible(PlatformContext.CurrentCookSettings, TargetPlatform))
 			{
@@ -11029,6 +11035,12 @@ void UCookOnTheFlyServer::LoadBeginCookIterativeFlagsLocal(FBeginCookContext& Be
 					TEXT("FULL COOK: %s was specified, but global settings have changed and all previously cook packages are invalidated. Deleting previously cooked packages for platform %s and executing a full cook."),
 					bHybridIterativeEnabled ? TEXT("-cookincremental") : TEXT("-iterative"),
 					*TargetPlatform->PlatformName());
+				if (bRunningAsShaderServer)
+				{
+					UE_LOG(LogCook, Display,
+						TEXT("'-odsc -iterative' was passed on commandline, but due to unrelated changes in global settings the cooker has to clear cook results. The build will need to be recooked before it can be staged.")
+					);
+				}
 				bIterativeAllowed = false;
 			}
 
