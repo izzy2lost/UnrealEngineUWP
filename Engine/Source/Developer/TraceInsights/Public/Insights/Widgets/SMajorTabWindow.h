@@ -25,7 +25,7 @@ namespace Insights
 {
 
 /** Implements the base class for a major tab window. */
-class SMajorTabWindow : public SCompoundWidget
+class TRACEINSIGHTS_API SMajorTabWindow : public SCompoundWidget
 {
 public:
 	/** Default constructor. */
