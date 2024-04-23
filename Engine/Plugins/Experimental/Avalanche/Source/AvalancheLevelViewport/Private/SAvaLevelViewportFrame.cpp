@@ -114,8 +114,6 @@ void SAvaLevelViewportFrame::Construct(const FArguments& InArgs, const FAssetEdi
 			]
 		]
 	];
-
-	ViewportClient->SetViewportWidget(ViewportWidget);
 }
 
 void SAvaLevelViewportFrame::Tick(const FGeometry& AllottedGeometry, const double InCurrentTime,

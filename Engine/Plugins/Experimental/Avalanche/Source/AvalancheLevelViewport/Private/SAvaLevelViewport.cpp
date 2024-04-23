@@ -59,6 +59,9 @@ void SAvaLevelViewport::Construct(const FArguments& InArgs, const FAssetEditorVi
 	VirtualSizeAspectRatio = 0.f;
 	VirtualSizeAspectRatioState = EAvaViewportVirtualSizeAspectRatioState::LockedToCamera;
 
+	TSharedPtr<FAvaLevelViewportClient> ViewportClient = InArgs._ViewportFrame->GetViewportClient();
+	ViewportClient->SetViewportWidget(SharedThis(this));
+
 	Super::Construct(Super::FArguments()
 			.ParentLevelEditor(InArgs._ParentLevelEditor)
 			.LevelEditorViewportClient(InArgs._ViewportFrame->GetViewportClient())
