@@ -108,6 +108,7 @@ private:
 		 * bActive=true for the ones that are present.
 		 */
 		bool bActive = false;
+		bool bIterativelyUnmodified = false;
 	};
 
 	/** Input/output data for an active query for a vertex's dependencies/previous incrementa results. */
@@ -239,15 +240,45 @@ private:
 			TBitArray<> HasPlatformByIndex;
 			EInstigator InstigatorType = EInstigator::SoftDependency;
 		};
-		struct FScratch
+		struct FExploreEdgesContext
 		{
+		public:
+			FExploreEdgesContext(FRequestCluster& InCluster, FGraphSearch& InGraphSearch);
+
+			/** Process the results from async edges fetch and queue the found dependencies-for-visiting. */
+			void Explore(FVertexData& InVertex);
+
+		private:
+			void Initialize(FVertexData& InVertex);
+			void CalculatePlatformsToExplore();
+			void CalculateIterativelyUnmodified();
+			void CalculatePackageDataDependenciesPlatformAgnostic();
+			void CalculateDependenciesAndIterativelySkippable();
+			void QueueVisitsOfDependencies();
+
+			void AddPlatformDependency(FName DependencyName, int32 PlatformIndex, EInstigator InstigatorType);
+			void AddPlatformDependencyRange(TConstArrayView<FName> Range, int32 PlatformIndex, EInstigator InstigatorType);
+			void ProcessPlatformAttachments(int32 PlatformIndex, const ITargetPlatform* TargetPlatform,
+				FFetchPlatformData& FetchPlatformData, FPackagePlatformData& PackagePlatformData,
+				UE::TargetDomain::FCookAttachments& PlatformAttachments, bool bExploreDependencies);
+
+		private:
+			FRequestCluster& Cluster;
+			FGraphSearch& GraphSearch;
+			FVertexData* Vertex = nullptr;
+			FPackageData* PackageData = nullptr;
+			TArray<FName>* DiscoveredDependencies = nullptr;
 			TArray<FName> HardGameDependencies;
 			TArray<FName> HardEditorDependencies;
 			TArray<FName> SoftGameDependencies;
 			TArray<FName> CookerLoadingDependencies;
+			TArray<int32, TInlineAllocator<10>> PlatformsToExplore;
 			TMap<FName, FScratchPlatformDependencyBits> PlatformDependencyMap;
 			TSet<FName> HardDependenciesSet;
 			TSet<FName> SkippedPackages;
+			FName PackageName;
+			int32 LocalNumFetchPlatforms = 0;
+			bool bFetchAnyTargetPlatform = false;
 		};
 		friend struct FQueryVertexBatch;
 		friend struct FVertexData;
@@ -263,8 +294,6 @@ private:
 		/** Calculate and store the vertex's PackageData's cookability for the platform. */
 		void VisitVertexForPlatform(FVertexData& VertexData, const ITargetPlatform* Platform,
 			FPackagePlatformData& PlatformData, ESuppressCookReason& AccumulatedSuppressCookReason);
-		 /** Process the results from async edges fetch and queue the found dependencies-for-visiting. */
-		void ExploreVertexEdges(FVertexData& VertexData);
 
 		/** Find or add a Vertex for PackageName. If PackageData is provided, use it, otherwise look it up. */
 		FVertexData& FindOrAddVertex(FName PackageName);
@@ -294,9 +323,9 @@ private:
 		void OnVertexCompleted();
 
 		/** Total number of platforms known to the cluster, including the special cases. */
-		int32 NumFetchPlatforms() const { return FetchPlatforms.Num(); }
+		int32 NumFetchPlatforms() const;
 		/** Total number of non-special-case platforms known to the cluster.Identical to COTFS's session platforms */
-		int32 NumSessionPlatforms() const { return FetchPlatforms.Num() - 2; }
+		int32 NumSessionPlatforms() const;
 
 	private:
 		// Variables that are read-only during multithreading
@@ -305,8 +334,8 @@ private:
 		ETraversalTier TraversalTier = ETraversalTier::All;
 
 		// Variables that are accessible only from the Process thread
-		/** Scratch-space variables that are reused to avoid allocations. */
-		FScratch Scratch;
+		/** A set of stack and scratch variables used when calculating and exploring the edges of a vertex. */
+		FExploreEdgesContext ExploreEdgesContext;
 		TMap<FPackageData*, TArray<FPackageData*>> GraphEdges;
 		TMap<FName, FVertexData*> Vertices;
 		TSet<FVertexData*> Frontier;
@@ -315,7 +344,7 @@ private:
 		/** Vertices queued for async processing that are not yet numerous enough to fill a batch. */
 		TRingBuffer<FVertexData*> PreAsyncQueue;
 		/** Time-tracker for timeout warnings in Poll */
-		double LastActivityTime;
+		double LastActivityTime = 0.;
 
 		// Variables that are accessible from multiple threads, guarded by Lock
 		FCriticalSection Lock;
@@ -439,6 +468,16 @@ inline void FRequestCluster::FProcessingFlags::SetSuppressReason(ESuppressCookRe
 inline void FRequestCluster::FProcessingFlags::SetWasMarkedCooked(bool bValue)
 {
 	bWasMarkedCooked = bValue;
+}
+
+inline int32 FRequestCluster::FGraphSearch::NumFetchPlatforms() const
+{
+	return FetchPlatforms.Num();
+}
+
+inline int32 FRequestCluster::FGraphSearch::NumSessionPlatforms() const
+{
+	return FetchPlatforms.Num() - 2;
 }
 
 }

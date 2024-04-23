@@ -625,6 +625,7 @@ void FRequestCluster::PumpExploration(const FCookerTimer& CookerTimer, bool& bOu
 FRequestCluster::FGraphSearch::FGraphSearch(FRequestCluster& InCluster, ETraversalTier InTraversalTier)
 	: Cluster(InCluster)
 	, TraversalTier(InTraversalTier)
+	, ExploreEdgesContext(InCluster, *this)
 	, AsyncResultsReadyEvent(EEventMode::ManualReset)
 {
 	AsyncResultsReadyEvent->Trigger();
@@ -799,14 +800,15 @@ void FRequestCluster::FGraphSearch::TickExploration(bool& bOutDone)
 	bool bHadActivity = false;
 	for (;;)
 	{
-		TOptional<FVertexData*> Vertex = AsyncQueueResults.Dequeue();
-		if (!Vertex.IsSet())
+		TOptional<FVertexData*> FrontVertex = AsyncQueueResults.Dequeue();
+		if (!FrontVertex.IsSet())
 		{
 			break;
 		}
-		ExploreVertexEdges(**Vertex);
-		FreeQueryData((**Vertex).QueryData);
-		(**Vertex).QueryData = nullptr;
+		FVertexData* Vertex = *FrontVertex;
+		ExploreEdgesContext.Explore(*Vertex);
+		FreeQueryData(Vertex->QueryData);
+		Vertex->QueryData = nullptr;
 		bHadActivity = true;
 	}
 
@@ -1032,205 +1034,185 @@ void FRequestCluster::FGraphSearch::VisitVertexForPlatform(FVertexData& Vertex, 
 	PlatformData.SetVisitedByCluster(true);
 }
 
-void FRequestCluster::FGraphSearch::ExploreVertexEdges(FVertexData& Vertex)
+FRequestCluster::FGraphSearch::FExploreEdgesContext::FExploreEdgesContext(FRequestCluster& InCluster,
+	FGraphSearch& InGraphSearch)
+	: Cluster(InCluster)
+	, GraphSearch(InGraphSearch)
 {
-	// Only called from PumpExploration thread
-	using namespace UE::AssetRegistry;
-	using namespace UE::TargetDomain;
+}
+
+void FRequestCluster::FGraphSearch::FExploreEdgesContext::Explore(FVertexData& InVertex)
+{
+	// Only called from scheduler thread
 
 	// The PackageData will not exist if the package does not exist on disk or
 	// the PackageData was removed from the FRequestCluster due to changes in the PackageData's
 	// state elsewhere in the cooker.
-	if (!Vertex.PackageData)
+	if (!InVertex.PackageData)
 	{
 		return;
 	}
 
-	TArray<FName>& HardGameDependencies(Scratch.HardGameDependencies);
-	TArray<FName>& HardEditorDependencies(Scratch.HardEditorDependencies);
-	TArray<FName>& SoftGameDependencies(Scratch.SoftGameDependencies);
-	TSet<FName>& HardDependenciesSet(Scratch.HardDependenciesSet);
+	Initialize(InVertex);
+	CalculatePlatformsToExplore();
+	if (PlatformsToExplore.IsEmpty())
+	{
+		return;
+	}
+
+	CalculatePackageDataDependenciesPlatformAgnostic();
+	CalculateDependenciesAndIterativelySkippable();
+	QueueVisitsOfDependencies();
+}
+
+void FRequestCluster::FGraphSearch::FExploreEdgesContext::Initialize(FVertexData& InVertex)
+{
+	Vertex = &InVertex;
+	check(Vertex->PackageData);
+	check(Vertex->QueryData);
+	PackageData = Vertex->PackageData;
+	PackageName = Vertex->QueryData->PackageName;
+
 	HardGameDependencies.Reset();
 	HardEditorDependencies.Reset();
 	SoftGameDependencies.Reset();
-	HardDependenciesSet.Reset();
-	FPackageData& PackageData = *Vertex.PackageData;
-	FName PackageName = PackageData.GetPackageName();
-	bool bFetchAnyTargetPlatform = Vertex.QueryData->Platforms[PlatformAgnosticPlatformIndex].bActive;
-	TArray<FName>* DiscoveredDependencies = Cluster.COTFS.DiscoveredDependencies.Find(PackageName);
-	if (bFetchAnyTargetPlatform)
-	{
-		EDependencyQuery FlagsForHardDependencyQuery;
-		if (Cluster.COTFS.bSkipOnlyEditorOnly)
-		{
-			Cluster.AssetRegistry.GetDependencies(PackageName, HardGameDependencies, EDependencyCategory::Package,
-				EDependencyQuery::Game | EDependencyQuery::Hard);
-			HardDependenciesSet.Append(HardGameDependencies);
-		}
-		else
-		{
-			// We're not allowed to skip editoronly imports, so include all hard dependencies
-			FlagsForHardDependencyQuery = EDependencyQuery::Hard;
-			Cluster.AssetRegistry.GetDependencies(PackageName, HardGameDependencies, EDependencyCategory::Package,
-				EDependencyQuery::Game | EDependencyQuery::Hard);
-			Cluster.AssetRegistry.GetDependencies(PackageName, HardEditorDependencies, EDependencyCategory::Package,
-				EDependencyQuery::EditorOnly | EDependencyQuery::Hard);
-			HardDependenciesSet.Append(HardGameDependencies);
-			HardDependenciesSet.Append(HardEditorDependencies);
-		}
-		if (DiscoveredDependencies)
-		{
-			HardDependenciesSet.Append(*DiscoveredDependencies);
-		}
-		if (Cluster.bAllowSoftDependencies)
-		{
-			// bSkipOnlyEditorOnly is always true for soft dependencies; skip editoronly soft dependencies
-			Cluster.AssetRegistry.GetDependencies(PackageName, SoftGameDependencies, EDependencyCategory::Package,
-				EDependencyQuery::Game | EDependencyQuery::Soft);
-
-			// Even if we're following soft references in general, we need to check with the SoftObjectPath registry
-			// for any startup packages that marked their softobjectpaths as excluded, and not follow those
-			TSet<FName>& SkippedPackages(Scratch.SkippedPackages);
-			if (GRedirectCollector.RemoveAndCopySoftObjectPathExclusions(PackageName, SkippedPackages))
-			{
-				SoftGameDependencies.RemoveAll([&SkippedPackages](FName SoftDependency)
-					{
-						return SkippedPackages.Contains(SoftDependency);
-					});
-			}
-
-			// LocalizationReferences are a source of SoftGameDependencies that are not present in the AssetRegistry
-			SoftGameDependencies.Append(GetLocalizationReferences(PackageName, Cluster.COTFS));
-
-			// The AssetManager can provide additional SoftGameDependencies
-			SoftGameDependencies.Append(GetAssetManagerReferences(PackageName));
-		}
-	}
-
-	int32 LocalNumFetchPlatforms = NumFetchPlatforms();
-	TMap<FName, FScratchPlatformDependencyBits>& PlatformDependencyMap(Scratch.PlatformDependencyMap);
+	CookerLoadingDependencies.Reset();
+	PlatformsToExplore.Reset();
 	PlatformDependencyMap.Reset();
-	auto AddPlatformDependency = [&PlatformDependencyMap, LocalNumFetchPlatforms]
-	(FName DependencyName, int32 PlatformIndex, EInstigator InstigatorType)
-	{
-		FScratchPlatformDependencyBits& PlatformDependencyBits = PlatformDependencyMap.FindOrAdd(DependencyName);
-		if (PlatformDependencyBits.HasPlatformByIndex.Num() != LocalNumFetchPlatforms)
-		{
-			PlatformDependencyBits.HasPlatformByIndex.Init(false, LocalNumFetchPlatforms);
-			PlatformDependencyBits.InstigatorType = EInstigator::SoftDependency;
-		}
-		PlatformDependencyBits.HasPlatformByIndex[PlatformIndex] = true;
+	HardDependenciesSet.Reset();
+	SkippedPackages.Reset();
 
-		// Calculate PlatformDependencyType.InstigatorType == 
-		// Max(InstigatorType, PlatformDependencyType.InstigatorType)
-		// based on the enum values, from least required to most: [ Soft, HardEditorOnly, Hard ]
-		switch (InstigatorType)
-		{
-		case EInstigator::HardDependency:
-			PlatformDependencyBits.InstigatorType = InstigatorType;
-			break;
-		case EInstigator::HardEditorOnlyDependency:
-			if (PlatformDependencyBits.InstigatorType != EInstigator::HardDependency)
-			{
-				PlatformDependencyBits.InstigatorType = InstigatorType;
-			}
-			break;
-		case EInstigator::SoftDependency:
-			// New value is minimum, so keep the old value
-			break;
-		case EInstigator::InvalidCategory:
-			// Caller indicated they do not want to set the InstigatorType
-			break;
-		default:
-			checkNoEntry();
-			break;
-		}
-	};
-	auto AddPlatformDependencyRange = [&AddPlatformDependency]
-	(TConstArrayView<FName> Range, int32 PlatformIndex, EInstigator InstigatorType)
-	{
-		for (FName DependencyName : Range)
-		{
-			AddPlatformDependency(DependencyName, PlatformIndex, InstigatorType);
-		}
-	};
+	LocalNumFetchPlatforms = GraphSearch.NumFetchPlatforms();
+	bFetchAnyTargetPlatform = false;
 
-	FQueryPlatformData& PlatformAgnosticQueryPlatformData = Vertex.QueryData->Platforms[PlatformAgnosticPlatformIndex];
+	DiscoveredDependencies = Cluster.COTFS.DiscoveredDependencies.Find(PackageName);
+}
 
-	auto ProcessPlatformAttachments =
-		[this, PackageName, &PackageData, &PlatformAgnosticQueryPlatformData, &AddPlatformDependencyRange]
-		(int32 PlatformIndex, const ITargetPlatform* TargetPlatform, FFetchPlatformData& FetchPlatformData,
-			FPackagePlatformData& PackagePlatformData, FCookAttachments& PlatformAttachments,
-			bool bExploreDependencies)
-	{
-		bool bFoundBuildDefinitions = false;
-		ICookedPackageWriter* PackageWriter = FetchPlatformData.Writer;
-
-		if (Cluster.IsIncrementalCook() && PackagePlatformData.IsCookable())
-		{
-			bool bIterativelyUnmodified = false;
-			UE::TargetDomain::FCookDependencies& CookDependencies = PlatformAttachments.Dependencies;
-			if (CookDependencies.HasKeyMatch())
-			{
-				if (IsIterativeEnabled(PackageName, Cluster.COTFS.bHybridIterativeAllowAllClasses))
-				{
-					bIterativelyUnmodified = true;
-					PackagePlatformData.SetIterativelyUnmodified(true);
-				}
-				if (bExploreDependencies && Cluster.bAllowSoftDependencies)
-				{
-					AddPlatformDependencyRange(CookDependencies.GetRuntimePackageDependencies(), PlatformIndex,
-						EInstigator::SoftDependency);
-				}
-
-				if (Cluster.bPreQueueBuildDefinitions)
-				{
-					bFoundBuildDefinitions = true;
-					Cluster.BuildDefinitions.AddBuildDefinitionList(PackageName, TargetPlatform,
-						PlatformAttachments.BuildDefinitions.Definitions);
-				}
-			}
-			bool bShouldIterativelySkip = bIterativelyUnmodified;
-			PackageWriter->UpdatePackageModificationStatus(PackageName, bIterativelyUnmodified,
-				bShouldIterativelySkip);
-			if (bShouldIterativelySkip)
-			{
-				// Call SetPlatformCooked instead of just PackagePlatformData.SetCookResults because we might also need
-				// to set OnFirstCookedPlatformAdded
-				PackageData.SetPlatformCooked(TargetPlatform, ECookResult::Succeeded);
-				Cluster.SetPackageDataWasMarkedCooked(PackageData, true);
-				if (PlatformIndex == FirstSessionPlatformIndex)
-				{
-					COOK_STAT(++DetailedCookStats::NumPackagesIterativelySkipped);
-				}
-				// Declare the package to the EDLCookInfo verification so we don't warn about missing exports from it
-				UE::SavePackageUtilities::EDLCookInfoAddIterativelySkippedPackage(PackageName);
-			}
-		}
-
-		if (Cluster.bPreQueueBuildDefinitions && !bFoundBuildDefinitions)
-		{
-			if (PlatformAgnosticQueryPlatformData.bActive &&
-				PlatformAgnosticQueryPlatformData.CookAttachments.Dependencies.HasKeyMatch())
-			{
-				Cluster.BuildDefinitions.AddBuildDefinitionList(PackageName, TargetPlatform,
-					PlatformAgnosticQueryPlatformData.CookAttachments.BuildDefinitions.Definitions);
-			}
-		}
-	};
-
+void FRequestCluster::FGraphSearch::FExploreEdgesContext::CalculatePlatformsToExplore()
+{
+	bFetchAnyTargetPlatform = Vertex->QueryData->Platforms[PlatformAgnosticPlatformIndex].bActive;
 	for (int32 PlatformIndex = 0; PlatformIndex < LocalNumFetchPlatforms; ++PlatformIndex)
 	{
-		FQueryPlatformData& QueryPlatformData = Vertex.QueryData->Platforms[PlatformIndex];
+		FQueryPlatformData& QueryPlatformData = Vertex->QueryData->Platforms[PlatformIndex];
 		if (!QueryPlatformData.bActive || PlatformIndex == PlatformAgnosticPlatformIndex)
 		{
 			continue;
 		}
+		PlatformsToExplore.Add(PlatformIndex);
+	}
+}
 
-		FFetchPlatformData& FetchPlatformData = FetchPlatforms[PlatformIndex];
+void FRequestCluster::FGraphSearch::FExploreEdgesContext::CalculateIterativelyUnmodified()
+{
+	using namespace UE::TargetDomain;
+
+	if (!Cluster.IsIncrementalCook())
+	{
+		return;
+	}
+
+	for (int32 PlatformIndex : PlatformsToExplore)
+	{
+		if (PlatformIndex == CookerLoadingPlatformIndex)
+		{
+			continue;
+		}
+
+		FQueryPlatformData& QueryPlatformData = Vertex->QueryData->Platforms[PlatformIndex];
+		FFetchPlatformData& FetchPlatformData = GraphSearch.FetchPlatforms[PlatformIndex];
 		const ITargetPlatform* TargetPlatform = FetchPlatformData.Platform;
-		FPackagePlatformData& PackagePlatformData = PackageData.FindOrAddPlatformData(TargetPlatform);
-		if ((TraversalTier < ETraversalTier::FollowDependencies) || !PackagePlatformData.IsExplorable())
+		FPackagePlatformData& PackagePlatformData = PackageData->FindOrAddPlatformData(TargetPlatform);
+
+		if (!PackagePlatformData.IsCookable())
+		{
+			QueryPlatformData.bIterativelyUnmodified = false;
+			continue;
+		}
+
+		UE::TargetDomain::FCookDependencies& CookDependencies = QueryPlatformData.CookAttachments.Dependencies;
+		if (!CookDependencies.HasKeyMatch())
+		{
+			QueryPlatformData.bIterativelyUnmodified = false;
+			continue;
+		}
+
+		if (!IsIterativeEnabled(PackageName, Cluster.COTFS.bHybridIterativeAllowAllClasses))
+		{
+			QueryPlatformData.bIterativelyUnmodified = false;
+			continue;
+		}
+
+		QueryPlatformData.bIterativelyUnmodified = true;
+		PackagePlatformData.SetIterativelyUnmodified(true);
+	}
+}
+
+void FRequestCluster::FGraphSearch::FExploreEdgesContext::CalculatePackageDataDependenciesPlatformAgnostic()
+{
+	using namespace UE::AssetRegistry;
+
+	if (!bFetchAnyTargetPlatform)
+	{
+		return;
+	}
+
+	EDependencyQuery FlagsForHardDependencyQuery;
+	if (Cluster.COTFS.bSkipOnlyEditorOnly)
+	{
+		Cluster.AssetRegistry.GetDependencies(PackageName, HardGameDependencies, EDependencyCategory::Package,
+			EDependencyQuery::Game | EDependencyQuery::Hard);
+		HardDependenciesSet.Append(HardGameDependencies);
+	}
+	else
+	{
+		// We're not allowed to skip editoronly imports, so include all hard dependencies
+		FlagsForHardDependencyQuery = EDependencyQuery::Hard;
+		Cluster.AssetRegistry.GetDependencies(PackageName, HardGameDependencies, EDependencyCategory::Package,
+			EDependencyQuery::Game | EDependencyQuery::Hard);
+		Cluster.AssetRegistry.GetDependencies(PackageName, HardEditorDependencies, EDependencyCategory::Package,
+			EDependencyQuery::EditorOnly | EDependencyQuery::Hard);
+		HardDependenciesSet.Append(HardGameDependencies);
+		HardDependenciesSet.Append(HardEditorDependencies);
+	}
+	if (DiscoveredDependencies)
+	{
+		HardDependenciesSet.Append(*DiscoveredDependencies);
+	}
+	if (Cluster.bAllowSoftDependencies)
+	{
+		// bSkipOnlyEditorOnly is always true for soft dependencies; skip editoronly soft dependencies
+		Cluster.AssetRegistry.GetDependencies(PackageName, SoftGameDependencies, EDependencyCategory::Package,
+			EDependencyQuery::Game | EDependencyQuery::Soft);
+
+		// Even if we're following soft references in general, we need to check with the SoftObjectPath registry
+		// for any startup packages that marked their softobjectpaths as excluded, and not follow those
+		if (GRedirectCollector.RemoveAndCopySoftObjectPathExclusions(PackageName, SkippedPackages))
+		{
+			SoftGameDependencies.RemoveAll([this](FName SoftDependency)
+				{
+					return SkippedPackages.Contains(SoftDependency);
+				});
+		}
+
+		// LocalizationReferences are a source of SoftGameDependencies that are not present in the AssetRegistry
+		SoftGameDependencies.Append(GetLocalizationReferences(PackageName, Cluster.COTFS));
+
+		// The AssetManager can provide additional SoftGameDependencies
+		SoftGameDependencies.Append(GetAssetManagerReferences(PackageName));
+	}
+}
+
+void FRequestCluster::FGraphSearch::FExploreEdgesContext::CalculateDependenciesAndIterativelySkippable()
+{
+	using namespace UE::AssetRegistry;
+
+	for (int32 PlatformIndex : PlatformsToExplore)
+	{
+		FQueryPlatformData& QueryPlatformData = Vertex->QueryData->Platforms[PlatformIndex];
+		FFetchPlatformData& FetchPlatformData = GraphSearch.FetchPlatforms[PlatformIndex];
+		const ITargetPlatform* TargetPlatform = FetchPlatformData.Platform;
+		FPackagePlatformData& PackagePlatformData = PackageData->FindOrAddPlatformData(TargetPlatform);
+		if ((GraphSearch.TraversalTier < ETraversalTier::FollowDependencies) || !PackagePlatformData.IsExplorable())
 		{
 			// ExploreVertexEdges is responsible for updating package modification status so we might
 			// have been called for this platform even if not explorable. If not explorable, just update
@@ -1246,9 +1228,6 @@ void FRequestCluster::FGraphSearch::ExploreVertexEdges(FVertexData& Vertex)
 
 		if (PlatformIndex == CookerLoadingPlatformIndex)
 		{
-			TArray<FName>& CookerLoadingDependencies(Scratch.CookerLoadingDependencies);
-			CookerLoadingDependencies.Reset();
-
 			Cluster.AssetRegistry.GetDependencies(PackageName, CookerLoadingDependencies, EDependencyCategory::Package,
 				EDependencyQuery::Hard);
 
@@ -1285,6 +1264,10 @@ void FRequestCluster::FGraphSearch::ExploreVertexEdges(FVertexData& Vertex)
 			AddPlatformDependencyRange(*DiscoveredDependencies, PlatformIndex, EInstigator::HardDependency);
 		}
 	}
+}
+
+void FRequestCluster::FGraphSearch::FExploreEdgesContext::QueueVisitsOfDependencies()
+{
 	if (PlatformDependencyMap.IsEmpty())
 	{
 		return;
@@ -1302,7 +1285,7 @@ void FRequestCluster::FGraphSearch::ExploreVertexEdges(FVertexData& Vertex)
 			FCoreRedirectObjectName(NAME_None, NAME_None, DependencyName)).PackageName;
 		DependencyName = Redirected;
 
-		FVertexData& DependencyVertex = FindOrAddVertex(DependencyName);
+		FVertexData& DependencyVertex = GraphSearch.FindOrAddVertex(DependencyName);
 		if (!DependencyVertex.PackageData)
 		{
 			continue;
@@ -1316,7 +1299,7 @@ void FRequestCluster::FGraphSearch::ExploreVertexEdges(FVertexData& Vertex)
 			{
 				continue;
 			}
-			FFetchPlatformData& FetchPlatformData = FetchPlatforms[PlatformIndex];
+			FFetchPlatformData& FetchPlatformData = GraphSearch.FetchPlatforms[PlatformIndex];
 			const ITargetPlatform* TargetPlatform = FetchPlatformData.Platform;
 			FPackagePlatformData& PlatformData = DependencyPackageData.FindOrAddPlatformData(TargetPlatform);
 
@@ -1324,7 +1307,7 @@ void FRequestCluster::FGraphSearch::ExploreVertexEdges(FVertexData& Vertex)
 			{
 				if (!Edges)
 				{
-					Edges = &GraphEdges.FindOrAdd(&PackageData);
+					Edges = &GraphSearch.GraphEdges.FindOrAdd(PackageData);
 					Edges->Reset(PlatformDependencyMap.Num());
 				}
 				Edges->Add(&DependencyPackageData);
@@ -1345,7 +1328,112 @@ void FRequestCluster::FGraphSearch::ExploreVertexEdges(FVertexData& Vertex)
 		}
 		if (bAddToFrontier)
 		{
-			AddToFrontier(DependencyVertex);
+			GraphSearch.AddToFrontier(DependencyVertex);
+		}
+	}
+}
+
+void FRequestCluster::FGraphSearch::FExploreEdgesContext::AddPlatformDependency(FName DependencyName,
+	int32 PlatformIndex, EInstigator InstigatorType)
+{
+	FScratchPlatformDependencyBits& PlatformDependencyBits = PlatformDependencyMap.FindOrAdd(DependencyName);
+	if (PlatformDependencyBits.HasPlatformByIndex.Num() != LocalNumFetchPlatforms)
+	{
+		PlatformDependencyBits.HasPlatformByIndex.Init(false, LocalNumFetchPlatforms);
+		PlatformDependencyBits.InstigatorType = EInstigator::SoftDependency;
+	}
+	PlatformDependencyBits.HasPlatformByIndex[PlatformIndex] = true;
+
+	// Calculate PlatformDependencyType.InstigatorType == 
+	// Max(InstigatorType, PlatformDependencyType.InstigatorType)
+	// based on the enum values, from least required to most: [ Soft, HardEditorOnly, Hard ]
+	switch (InstigatorType)
+	{
+	case EInstigator::HardDependency:
+		PlatformDependencyBits.InstigatorType = InstigatorType;
+		break;
+	case EInstigator::HardEditorOnlyDependency:
+		if (PlatformDependencyBits.InstigatorType != EInstigator::HardDependency)
+		{
+			PlatformDependencyBits.InstigatorType = InstigatorType;
+		}
+		break;
+	case EInstigator::SoftDependency:
+		// New value is minimum, so keep the old value
+		break;
+	case EInstigator::InvalidCategory:
+		// Caller indicated they do not want to set the InstigatorType
+		break;
+	default:
+		checkNoEntry();
+		break;
+	}
+}
+
+void FRequestCluster::FGraphSearch::FExploreEdgesContext::AddPlatformDependencyRange(TConstArrayView<FName> Range,
+	int32 PlatformIndex, EInstigator InstigatorType)
+{
+	for (FName DependencyName : Range)
+	{
+		AddPlatformDependency(DependencyName, PlatformIndex, InstigatorType);
+	}
+}
+
+void FRequestCluster::FGraphSearch::FExploreEdgesContext::ProcessPlatformAttachments(int32 PlatformIndex,
+	const ITargetPlatform* TargetPlatform, FFetchPlatformData& FetchPlatformData,
+	FPackagePlatformData& PackagePlatformData, UE::TargetDomain::FCookAttachments& PlatformAttachments,
+	bool bExploreDependencies)
+{
+	bool bFoundBuildDefinitions = false;
+	ICookedPackageWriter* PackageWriter = FetchPlatformData.Writer;
+	FQueryPlatformData& QueryPlatformData = Vertex->QueryData->Platforms[PlatformIndex];
+
+	if (Cluster.IsIncrementalCook() && PackagePlatformData.IsCookable())
+	{
+		bool bIterativelyUnmodified = QueryPlatformData.bIterativelyUnmodified;
+		if (bIterativelyUnmodified)
+		{
+			UE::TargetDomain::FCookDependencies& CookDependencies = PlatformAttachments.Dependencies;
+			if (bExploreDependencies && Cluster.bAllowSoftDependencies)
+			{
+				AddPlatformDependencyRange(CookDependencies.GetRuntimePackageDependencies(), PlatformIndex,
+					EInstigator::SoftDependency);
+			}
+
+			if (Cluster.bPreQueueBuildDefinitions)
+			{
+				bFoundBuildDefinitions = true;
+				Cluster.BuildDefinitions.AddBuildDefinitionList(PackageName, TargetPlatform,
+					PlatformAttachments.BuildDefinitions.Definitions);
+			}
+		}
+		bool bShouldIterativelySkip = bIterativelyUnmodified;
+		PackageWriter->UpdatePackageModificationStatus(PackageName, bIterativelyUnmodified,
+			bShouldIterativelySkip);
+		if (bShouldIterativelySkip)
+		{
+			// Call SetPlatformCooked instead of just PackagePlatformData.SetCookResults because we might also need
+			// to set OnFirstCookedPlatformAdded
+			PackageData->SetPlatformCooked(TargetPlatform, ECookResult::Succeeded);
+			Cluster.SetPackageDataWasMarkedCooked(*PackageData, true);
+			if (PlatformIndex == FirstSessionPlatformIndex)
+			{
+				COOK_STAT(++DetailedCookStats::NumPackagesIterativelySkipped);
+			}
+			// Declare the package to the EDLCookInfo verification so we don't warn about missing exports from it
+			UE::SavePackageUtilities::EDLCookInfoAddIterativelySkippedPackage(PackageName);
+		}
+	}
+
+	if (Cluster.bPreQueueBuildDefinitions && !bFoundBuildDefinitions)
+	{
+		FQueryPlatformData& PlatformAgnosticQueryData = Vertex->QueryData->Platforms[PlatformAgnosticPlatformIndex];
+
+		if (PlatformAgnosticQueryData.bActive &&
+			PlatformAgnosticQueryData.CookAttachments.Dependencies.HasKeyMatch())
+		{
+			Cluster.BuildDefinitions.AddBuildDefinitionList(PackageName, TargetPlatform,
+				PlatformAgnosticQueryData.CookAttachments.BuildDefinitions.Definitions);
 		}
 	}
 }
