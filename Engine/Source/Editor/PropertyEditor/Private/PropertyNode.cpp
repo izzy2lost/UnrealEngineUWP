@@ -645,16 +645,6 @@ bool FPropertyNode::DoesChildPropertyRequireValidation(FProperty* InChildProp)
 	return InChildProp != nullptr && (CastField<FObjectProperty>(InChildProp) != nullptr || CastField<FStructProperty>(InChildProp) != nullptr);
 }
 
-bool FPropertyNode::InternalGetReadAddressUncached(const FPropertyNode& InPropertyNode, FUncachedPropertyNodeAddresses& OutAddresses) const
-{
-	const TSharedPtr<FPropertyNode> ParentNode = ParentNodeWeakPtr.Pin();
-	if (ParentNode.IsValid())
-	{
-		return ParentNode->InternalGetReadAddressUncached( InPropertyNode, OutAddresses );
-	}
-	return false;
-}
-
 void FPropertyNode::MarkChildrenAsRebuilt()
 {
 	bChildrenRebuilt = false;
@@ -1627,18 +1617,7 @@ bool FPropertyNode::GetReadAddressUncached( const FPropertyNode& InPropertyNode,
 	const TSharedPtr<FPropertyNode> ParentNode = ParentNodeWeakPtr.Pin();
 	if (ParentNode.IsValid())
 	{
-		FUncachedPropertyNodeAddresses Addresses;
-		const bool bSuccess = ParentNode->InternalGetReadAddressUncached(InPropertyNode, Addresses);
-
-		for (int32 Index = 0, End = Addresses.Num(); Index < End; ++Index)
-		{
-			OutAddresses.Add(
-				Addresses[Index].Object.Get(),
-				Addresses[Index].ReadAddress,
-				Addresses[Index].bIsStruct);
-		}
-		
-		return bSuccess;
+		return ParentNode->GetReadAddressUncached( InPropertyNode, OutAddresses );
 	}
 	return false;
 }
@@ -1665,7 +1644,6 @@ bool FPropertyNode::GetReadAddress(bool InRequiresSingleSelection,
 	CachedReadAddresses.Reset();
 
 	bool bAllValuesTheSame = GetReadAddressUncached( *this, InRequiresSingleSelection, &CachedReadAddresses, bComparePropertyContents, bObjectForceCompare, bArrayPropertiesCanDifferInSize );
-
 	OutAddresses.ReadAddressListData = &CachedReadAddresses;
 	CachedReadAddresses.bAllValuesTheSame = bAllValuesTheSame;
 	CachedReadAddresses.bRequiresCache = false;
