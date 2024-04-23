@@ -788,16 +788,6 @@ namespace Horde.Storage.Utility
 				}
 			}
 
-			// Check all the local files are as expected
-			bool allMatch = true;
-			foreach (TempStorageFile file in manifest.Files)
-			{
-				allMatch &= file.Compare(rootDir, logger);
-			}
-			if (!allMatch)
-			{
-				throw new TempStorageException("Files have been modified");
-			}
 			return manifest;
 		}
 
