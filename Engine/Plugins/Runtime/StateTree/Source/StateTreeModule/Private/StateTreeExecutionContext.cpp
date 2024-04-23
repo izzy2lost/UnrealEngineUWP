@@ -902,11 +902,6 @@ void FStateTreeExecutionContext::UpdateInstanceData(TConstArrayView<FStateTreeEx
 			}
 			else
 			{
-				if (NextStateParameterDataHandle.IsValid())
-				{
-					UE_DEBUG_BREAK();
-				}
-				
 				if (State.ParameterTemplateIndex.IsValid())
 				{
 					// Linked state's instance data is the parameters.
