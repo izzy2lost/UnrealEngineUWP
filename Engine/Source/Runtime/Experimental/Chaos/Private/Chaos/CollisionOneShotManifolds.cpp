@@ -158,6 +158,10 @@ namespace Chaos
 	bool bChaos_Collision_UseConvexTriangleGJKSAT = true;
 	FAutoConsoleVariableRef CVarChaos_Collision_UseConvexTriangleSAT(TEXT("p.Chaos.Collision.UseConvexTriangleGJKSAT"), bChaos_Collision_UseConvexTriangleGJKSAT, TEXT(""));
 
+	// Whether to sort sphere/capsule vs mesh contacts by depth. Doing so leads to more consistent behaviour but is more expensive
+	bool bChaos_Collision_ConvexTriMeshSortByPhi = false;
+	FAutoConsoleVariableRef CVarChaos_Collision_ConvexTriMeshSortByPhi(TEXT("p.Chaos.Collision.ConvexTriMeshSortByPhi"), bChaos_Collision_ConvexTriMeshSortByPhi, TEXT(""));
+
 	namespace Collisions
 	{
 		// Forward delarations we need from CollisionRestitution.cpp

@@ -30,7 +30,8 @@ namespace Chaos::Private
 		MaxContactsBufferSize = 1000;
 		bCullBackFaces = true;
 		bFixNormals = true;
-		bSortForSolver = false;
+		bSortByPhi = false;
+		bSortForSolverConvergence = false;
 		bUseTwoPassLoop = true;
 	}
 
@@ -166,9 +167,14 @@ namespace Chaos::Private
 		// Visited triangles are white, ignored triangles are gray
 		DebugDrawTriangles(ConvexTransform, FColor::White, FColor::Silver);
 
-		if (!!Settings.bSortForSolver)
+		if (!!Settings.bSortByPhi)
 		{
-			SortContactsForSolver();
+			SortContactByPhi();
+		}
+
+		if (!!Settings.bSortForSolverConvergence)
+		{
+			SortContactsForSolverConvergence();
 		}
 
 		FinalizeContacts(MeshToConvexTransform);
@@ -562,9 +568,18 @@ namespace Chaos::Private
 		return false;
 	}
 
+	void FMeshContactGenerator::SortContactByPhi()
+	{
+		Algo::Sort(Contacts,
+			[](const FContactPoint& L, const FContactPoint& R)
+			{
+				return L.Phi < R.Phi;
+			});
+	}
+
 	// Sort contacts on a shape pair in the order we like to solve them.
 	// NOTE: This relies on the enum order of EContactPointType.
-	void FMeshContactGenerator::SortContactsForSolver()
+	void FMeshContactGenerator::SortContactsForSolverConvergence()
 	{
 		// Sort TriangleContactPoints in solver preferred order, but ignore TriangleContactPointDatas
 		// NOTE: This should only be called at the end of the pruning proxess when we no longer care 

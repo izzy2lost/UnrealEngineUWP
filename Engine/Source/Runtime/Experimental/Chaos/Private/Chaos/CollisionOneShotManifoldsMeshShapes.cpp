@@ -42,6 +42,8 @@ namespace Chaos
 	extern bool bChaos_Collision_ConvexTriMeshInsideCull;
 	extern bool bChaos_Collision_ConvexTriMeshBackFaceCull;
 
+	extern bool bChaos_Collision_ConvexTriMeshSortByPhi;
+
 	namespace CVars
 	{
 #if CHAOS_DEBUG_DRAW
@@ -759,24 +761,52 @@ namespace Chaos
 			check(Mesh != nullptr);
 
 			const FReal CullDistance = Constraint.GetCullDistance();
-			const FReal PhiTolerance = CalculateTriMeshPhiTolerance(CullDistance);
-			const FReal DistanceTolerance = Chaos_Collision_TriMeshDistanceTolerance;
-			FContactTriangleCollector MeshContacts(bChaos_Collision_OneSidedTriangleMesh, PhiTolerance, DistanceTolerance, QuadraticTransform);
 
-			if (const FImplicitSphere3* Sphere = Quadratic.template GetObject<FImplicitSphere3>())
+			if (bChaos_Collision_EnableMeshManifoldOptimizedLoop)
 			{
-				ConstructConvexMeshOneShotManifold(*Sphere, QuadraticTransform, *Mesh, MeshTransform, MeshScale, CullDistance, MeshContacts);
-			}
-			else if (const FImplicitCapsule3* Capsule = Quadratic.template GetObject<FImplicitCapsule3>())
-			{
-				ConstructConvexMeshOneShotManifold(*Capsule, QuadraticTransform, *Mesh, MeshTransform, MeshScale, CullDistance, MeshContacts);
+				// New version uses a two-pass loop over triangles to avoid visiting triangles whose vertices are all colliding as a result of checking adjacent triangles
+				Private::FMeshContactGeneratorSettings ContactGeneratorSettings;
+				ContactGeneratorSettings.FaceNormalDotThreshold = 0.9999;	// ~0.8deg Normals must be accurate or rolling will not work correctly
+				ContactGeneratorSettings.bUseTwoPassLoop = false;			// two-pass loop is not helpful for capsules and spheres
+				ContactGeneratorSettings.bSortByPhi = bChaos_Collision_ConvexTriMeshSortByPhi;
+				Private::FMeshContactGenerator ContactGenerator(ContactGeneratorSettings);
+
+				if (const FImplicitSphere3* Sphere = Quadratic.template GetObject<FImplicitSphere3>())
+				{
+					ConstructConvexMeshOneShotManifold2(*Sphere, QuadraticTransform, *Mesh, MeshTransform, MeshScale, CullDistance, ContactGenerator);
+				}
+				else if (const FImplicitCapsule3* Capsule = Quadratic.template GetObject<FImplicitCapsule3>())
+				{
+					ConstructConvexMeshOneShotManifold2(*Capsule, QuadraticTransform, *Mesh, MeshTransform, MeshScale, CullDistance, ContactGenerator);
+				}
+				else
+				{
+					check(false);
+				}
+
+				Constraint.SetOneShotManifoldContacts(ContactGenerator.GetContactPoints());
 			}
 			else
 			{
-				check(false);
-			}
+				const FReal PhiTolerance = CalculateTriMeshPhiTolerance(CullDistance);
+				const FReal DistanceTolerance = Chaos_Collision_TriMeshDistanceTolerance;
+				FContactTriangleCollector MeshContacts(bChaos_Collision_OneSidedTriangleMesh, PhiTolerance, DistanceTolerance, QuadraticTransform);
 
-			Constraint.SetOneShotManifoldContacts(MeshContacts.GetContactPoints());
+				if (const FImplicitSphere3* Sphere = Quadratic.template GetObject<FImplicitSphere3>())
+				{
+					ConstructConvexMeshOneShotManifold(*Sphere, QuadraticTransform, *Mesh, MeshTransform, MeshScale, CullDistance, MeshContacts);
+				}
+				else if (const FImplicitCapsule3* Capsule = Quadratic.template GetObject<FImplicitCapsule3>())
+				{
+					ConstructConvexMeshOneShotManifold(*Capsule, QuadraticTransform, *Mesh, MeshTransform, MeshScale, CullDistance, MeshContacts);
+				}
+				else
+				{
+					check(false);
+				}
+
+				Constraint.SetOneShotManifoldContacts(MeshContacts.GetContactPoints());
+			}
 		}
 
 		void ConstructQuadraticConvexHeightFieldOneShotManifold(const FImplicitObject& Quadratic, const FRigidTransform3& QuadraticTransform, const FHeightField& Mesh, const FRigidTransform3& MeshTransform, const FReal Dt, FPBDCollisionConstraint& Constraint)
@@ -788,8 +818,6 @@ namespace Chaos
 
 			const FVec3 MeshScale = FVec3(1);	// Scale is built into heightfield
 			const FReal CullDistance = Constraint.GetCullDistance();
-			const FReal PhiTolerance = CalculateTriMeshPhiTolerance(CullDistance);
-			const FReal DistanceTolerance = Chaos_Collision_TriMeshDistanceTolerance;
 
 			if (bChaos_Collision_EnableMeshManifoldOptimizedLoop)
 			{
@@ -797,6 +825,7 @@ namespace Chaos
 				Private::FMeshContactGeneratorSettings ContactGeneratorSettings;
 				ContactGeneratorSettings.FaceNormalDotThreshold = 0.9999;	// ~0.8deg Normals must be accurate or rolling will not work correctly
 				ContactGeneratorSettings.bUseTwoPassLoop = false;			// two-pass loop is not helpful for capsules and spheres
+				ContactGeneratorSettings.bSortByPhi = bChaos_Collision_ConvexTriMeshSortByPhi;
 				Private::FMeshContactGenerator ContactGenerator(ContactGeneratorSettings);
 
 				if (const FImplicitSphere3* Sphere = Quadratic.template GetObject<FImplicitSphere3>())
@@ -816,6 +845,8 @@ namespace Chaos
 			}
 			else
 			{
+				const FReal PhiTolerance = CalculateTriMeshPhiTolerance(CullDistance);
+				const FReal DistanceTolerance = Chaos_Collision_TriMeshDistanceTolerance;
 				FContactTriangleCollector MeshContacts(bChaos_Collision_OneSidedHeightField, PhiTolerance, DistanceTolerance, QuadraticTransform);
 
 				if (const FImplicitSphere3* Sphere = Quadratic.template GetObject<FImplicitSphere3>())
@@ -860,6 +891,7 @@ namespace Chaos
 			{
 				const FVec3 RelativeMovement = FVec3(Constraint.GetRelativeMovement());
 				Private::FMeshContactGeneratorSettings ContactGeneratorSettings;
+				ContactGeneratorSettings.bSortByPhi = bChaos_Collision_ConvexTriMeshSortByPhi;
 				Private::FMeshContactGenerator ContactGenerator(ContactGeneratorSettings);
 
 				if (const FImplicitBox3* RawBox = Convex.template GetObject<FImplicitBox3>())
@@ -933,6 +965,7 @@ namespace Chaos
 			{
 				// New version uses a two-pass loop over triangles to avoid visiting triangles whose vertices are all colliding as a result of checking adjacent triangles
 				Private::FMeshContactGeneratorSettings ContactGeneratorSettings;
+				ContactGeneratorSettings.bSortByPhi = bChaos_Collision_ConvexTriMeshSortByPhi;
 				Private::FMeshContactGenerator ContactGenerator(ContactGeneratorSettings);
 				const FVec3 RelativeMovement = FVec3(Constraint.GetRelativeMovement());
 

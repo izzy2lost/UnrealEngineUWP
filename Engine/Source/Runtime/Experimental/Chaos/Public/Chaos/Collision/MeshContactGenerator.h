@@ -41,8 +41,11 @@ namespace Chaos::Private
 		// Whether to auto-correct normals
 		uint32 bFixNormals : 1;
 
-		// Whether to sort the contacts to improve solver convergence
-		uint32 bSortForSolver : 1;
+		// Whether to sort the contacts by depth
+		uint32 bSortByPhi : 1;
+
+		// Whether to sort the contacts to improve solver convergence (distance from the center of mass)
+		uint32 bSortForSolverConvergence : 1;
 
 		// Whether to use the optimized two-pass loop over triangles in GenerateMeshContacts which skips triangles
 		// that have contacts on all vertices in the second pass. This is only useful when this case occurs a lot
@@ -469,7 +472,8 @@ namespace Chaos::Private
 		void PruneAndCorrectContacts();
 		void FixContactNormal(const int32 ContactIndex);
 		void RemoveDisabledContacts();
-		void SortContactsForSolver();
+		void SortContactByPhi();
+		void SortContactsForSolverConvergence();
 		void FinalizeContacts(const FRigidTransform3& MeshToConvexTransform);
 
 		void DebugDrawContacts(const FRigidTransform3& ConvexTransform, const FColor& Color, const FReal LineScale);
