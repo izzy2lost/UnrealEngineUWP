@@ -1127,6 +1127,8 @@ void FAndroidAppEntry::ReInitWindow(void* NewNativeWindowHandle)
 	// Window creation is now handled by BlockRendering, when it resumes after a new window is created.
 	FPlatformMisc::LowLevelOutputDebugString(TEXT("AndroidEGL::ReInitWindow()"));
 
+	GSystemResolution.bForceRefresh = true;
+
 	// It isn't safe to call ShouldUseVulkan if AndroidEGL is not initialized.
 	// However, since we don't need to ReInit the window in that case anyways we
 	// can return early.

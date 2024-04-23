@@ -144,6 +144,8 @@ FVulkanViewport::FVulkanViewport(FVulkanDevice* InDevice, void* InWindowHandle, 
 			RenderingDoneSemaphores[Index] = new VulkanRHI::FSemaphore(*InDevice);
 			RenderingDoneSemaphores[Index]->AddRef();
 		}
+
+		FCoreDelegates::OnSystemResolutionChanged.AddRaw(this, &FVulkanViewport::OnSystemResolutionChanged);
 	}
 }
 
@@ -173,6 +175,8 @@ FVulkanViewport::~FVulkanViewport()
 		SwapChain->Destroy(nullptr);
 		delete SwapChain;
 		SwapChain = nullptr;
+
+		FCoreDelegates::OnSystemResolutionChanged.RemoveAll(this);
 	}
 
 	FVulkanDynamicRHI::Get().Viewports.Remove(this);
@@ -1152,6 +1156,31 @@ EPixelFormat FVulkanViewport::GetPixelFormatForNonDefaultSwapchain()
 		checkf(0, TEXT("Platform Requires Standard Swapchain!"));
 		return PF_Unknown;
 	}
+}
+
+void FVulkanViewport::OnSystemResolutionChanged(uint32 ResX, uint32 ResY)
+{
+	EDeviceScreenOrientation CurrentOrientation = FPlatformMisc::GetDeviceOrientation();
+
+	// The swap chain needs to be recreated after a rotation
+	// Only 180-degree rotations need to be handled here because 90-degree rotations will resize the viewport and recreate the swap chain.
+	if ((CachedOrientation == EDeviceScreenOrientation::Portrait && CurrentOrientation == EDeviceScreenOrientation::PortraitUpsideDown)
+		|| (CachedOrientation == EDeviceScreenOrientation::PortraitUpsideDown && CurrentOrientation == EDeviceScreenOrientation::Portrait)
+		|| (CachedOrientation == EDeviceScreenOrientation::LandscapeRight && CurrentOrientation == EDeviceScreenOrientation::LandscapeLeft)
+		|| (CachedOrientation == EDeviceScreenOrientation::LandscapeLeft && CurrentOrientation == EDeviceScreenOrientation::LandscapeRight))
+	{
+		check(IsInGameThread());
+
+		FlushRenderingCommands();
+
+		ENQUEUE_RENDER_COMMAND(RecreateSwapchain)(
+			[this](FRHICommandListImmediate& RHICmdList)
+			{
+				RecreateSwapchainFromRT(PixelFormat);
+			});
+		FlushRenderingCommands();
+	}
+	CachedOrientation = CurrentOrientation;
 }
 
 /*=============================================================================

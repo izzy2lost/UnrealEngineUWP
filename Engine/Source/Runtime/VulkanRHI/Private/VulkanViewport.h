@@ -142,6 +142,9 @@ protected:
 	FVulkanCmdBuffer* LastFrameCommandBuffer = nullptr;
 	uint64 LastFrameFenceCounter = 0;
 
+	EDeviceScreenOrientation CachedOrientation = EDeviceScreenOrientation::Unknown;
+	void OnSystemResolutionChanged(uint32 ResX, uint32 ResY);
+
 	void CreateSwapchain(struct FVulkanSwapChainRecreateInfo* RecreateInfo);
 	void DestroySwapchain(struct FVulkanSwapChainRecreateInfo* RecreateInfo);
 	bool TryAcquireImageIndex();
