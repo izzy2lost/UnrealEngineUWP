@@ -7,6 +7,7 @@
 #include "UObject/RenderingObjectVersion.h"
 #include "UObject/ReleaseObjectVersion.h"
 #include "UObject/UE5ReleaseStreamObjectVersion.h"
+#include "UObject/FortniteMainBranchObjectVersion.h"
 #include "DataDrivenShaderPlatformInfo.h"
 #include "UObject/UnrealType.h"
 
@@ -916,6 +917,18 @@ void FPostProcessSettings::PostSerialize(const FArchive& Ar)
 			if (BloomMethod == BM_FFT && BloomIntensity > 0.0)
 			{
 				BloomIntensity = 1.0f;
+			}
+		}
+
+		// Changed HitLighting to HitLightingForReflections, and HitLighting now means hit lighting for entire Lumen
+		if (Ar.CustomVer(FFortniteMainBranchObjectVersion::GUID) < FFortniteMainBranchObjectVersion::LumenRayLightingModeOverrideEnum)
+		{
+			if (bOverride_LumenRayLightingMode)
+			{
+				if (LumenRayLightingMode == ELumenRayLightingModeOverride::HitLighting)
+				{
+					LumenRayLightingMode = ELumenRayLightingModeOverride::HitLightingForReflections;
+				}
 			}
 		}
 	}

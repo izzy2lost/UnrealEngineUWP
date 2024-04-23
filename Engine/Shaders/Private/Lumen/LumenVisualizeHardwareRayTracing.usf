@@ -448,8 +448,12 @@ RaytracingAccelerationStructure TLAS;
 
 uint ThreadCount;
 uint GroupCount;
-uint LightingMode;
+
+uint HitLightingDirectLighting;
+uint HitLightingSkylight;
 uint UseReflectionCaptures;
+
+uint VisualizeCullingMode;
 uint MaxTraversalIterations;
 uint MeshSectionVisibilityTest;
 float3 FarFieldReferencePos;
@@ -481,11 +485,6 @@ LUMEN_HARDWARE_RAY_TRACING_ENTRY(LumenVisualizeHardwareRayTracing)
 		float2 ViewportUV = (TraceCoord + 0.5f) / OutputViewSize;
 		float2 BufferUV = ViewportUV * View.ViewSizeAndInvSize.xy * View.BufferSizeAndInvSize.zw;
 
-		int HitLightingMode = EVALUATE_MATERIAL_AND_DIRECT_LIGHTING;
-#if DIM_HIT_LIGHTING
-		HitLightingMode = LightingMode;
-#endif // DIM_TRACE_MODE
-
 		// We are rendering after TAAU, remove jitter
 		BufferUV += View.TemporalAAJitter.xy * View.ScreenPositionScaleBias.xy;
 
@@ -502,10 +501,6 @@ LUMEN_HARDWARE_RAY_TRACING_ENTRY(LumenVisualizeHardwareRayTracing)
 		Ray.TMax = min(Ray.TMax, ClippedNearFieldMaxTraceDistance);
 #if DIM_HIT_LIGHTING
 		FTraceDataLocal TraceData = UnpackTraceData(TraceDataPacked[RayIndex]);
-		if (TraceData.bIsValidMeshCardIndex)
-		{
-			HitLightingMode = LightingMode;
-		}
 		const float Epsilon = 0.5;
 		Ray.TMin = max(TraceData.TraceDistance - Epsilon, 0);
 #endif // DIM_TRACE_MODE
@@ -514,11 +509,21 @@ LUMEN_HARDWARE_RAY_TRACING_ENTRY(LumenVisualizeHardwareRayTracing)
 		RayCone.SpreadAngle = View.EyeToPixelSpreadAngle;
 		int LinearCoord = TraceCoord.y * View.BufferSizeAndInvSize.x + TraceCoord.x;
 
+		uint CullingMode = RAY_FLAG_NONE;
+		if (VisualizeCullingMode == 1)
+		{
+			CullingMode = RAY_FLAG_CULL_BACK_FACING_TRIANGLES;
+		}
+		else if (VisualizeCullingMode == 2)
+		{
+			CullingMode = RAY_FLAG_CULL_FRONT_FACING_TRIANGLES;
+		}
+
 		FRayTracedLightingContext Context = CreateRayTracedLightingContext(
 			RayCone,
 			TraceCoord,
 			LinearCoord,
-			/*CullingMode*/ RAY_FLAG_NONE,
+			CullingMode,
 			MaxTraversalIterations,
 			MeshSectionVisibilityTest != 0);
 
@@ -541,7 +546,14 @@ LUMEN_HARDWARE_RAY_TRACING_ENTRY(LumenVisualizeHardwareRayTracing)
 				Ray.TMax = FarFieldMaxTraceDistance;
 			}
 
-			Result = TraceAndCalculateRayTracedLighting(TLAS, Ray, Context, HitLightingMode, UseReflectionCaptures != 0);
+			Result = TraceAndCalculateRayTracedLighting(
+				TLAS,
+				Ray,
+				Context,
+				MaxTraceDistance,
+				HitLightingDirectLighting != 0,
+				HitLightingSkylight != 0,
+				UseReflectionCaptures != 0);
 
 			#define DEBUG_VISUAL_ASSERT_ON_RETRACE_MISS 0
 			#if DEBUG_VISUAL_ASSERT_ON_RETRACE_MISS && DIM_HIT_LIGHTING

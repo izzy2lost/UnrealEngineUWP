@@ -8,6 +8,8 @@
 #include "ShaderParameterStruct.h"
 #include "ComponentRecreateRenderStateContext.h"
 #include "LumenReflections.h"
+#include "LumenScreenProbeGather.h"
+#include "LumenRadianceCache.h"
 #include "LumenVisualize.h"
 
 static TAutoConsoleVariable<int32> CVarLumenUseHardwareRayTracing(
@@ -29,11 +31,24 @@ static TAutoConsoleVariable<int32> CVarLumenUseHardwareRayTracing(
 static TAutoConsoleVariable<int32> CVarLumenHardwareRayTracingLightingMode(
 	TEXT("r.Lumen.HardwareRayTracing.LightingMode"),
 	0,
-	TEXT("Determines the lighting mode (Default = 0)\n")
-	TEXT("0: interpolate final lighting from the surface cache\n")
-	TEXT("1: evaluate material, and interpolate irradiance and indirect irradiance from the surface cache\n")
-	TEXT("2: evaluate material and direct lighting, and interpolate indirect irradiance from the surface cache\n")
-	TEXT("3: evaluate material, direct lighting, and unshadowed skylighting at the hit point"),
+	TEXT("Determines the ray hit lighting mode:\n")
+	TEXT("0 - Use Lumen Surface Cache for ray hit lighting. This method gives the best GI and reflection performance, but quality will be limited by how well surface cache represents given scene.\n")
+	TEXT("1 - Calculate lighting at a ray hit point for GI and reflections. This will improve both GI and reflection quality, but greatly increases GPU cost, as full material and lighting will be evaluated at every hit point. Lumen Surface Cache will still be used for secondary bounces.")
+	TEXT("2 - Calculate lighting at a ray hit point for reflections. This will improve reflection quality, but increases GPU cost, as full material needs to be evaluated and shadow rays traced. Lumen Surface Cache will still be used for GI and secondary bounces, including GI seen in reflections.\n"),
+	ECVF_RenderThreadSafe | ECVF_Scalability
+);
+
+static TAutoConsoleVariable<int32> CVarLumenHardwareRayTracingHitLightingDirectLighting(
+	TEXT("r.Lumen.HardwareRayTracing.HitLighting.DirectLighting"),
+	1,
+	TEXT("Whether to calculate direct lighting when doing Hit Lighting or sample it from the Surface Cache."),
+	ECVF_RenderThreadSafe | ECVF_Scalability
+);
+
+static TAutoConsoleVariable<int32> CVarLumenHardwareRayTracingHitLightingSkylight(
+	TEXT("r.Lumen.HardwareRayTracing.HitLighting.Skylight"),
+	0,
+	TEXT("Whether to calculate unshadowed skylight when doing Hit Lighting or sample shadowed skylight from the Surface Cache."),
 	ECVF_RenderThreadSafe | ECVF_Scalability
 );
 
@@ -149,10 +164,13 @@ bool LumenHardwareRayTracing::UseSurfaceCacheAlphaMasking()
 	return CVarLumenHardwareRayTracingSurfaceCacheAlphaMasking.GetValueOnRenderThread() != 0;
 }
 
-bool Lumen::IsUsingRayTracingLightingGrid(const FSceneViewFamily& ViewFamily, const FViewInfo& View, bool bLumenGIEnabled)
+bool Lumen::IsUsingRayTracingLightingGrid(const FSceneViewFamily& ViewFamily, const FViewInfo& View, EDiffuseIndirectMethod DiffuseIndirectMethod)
 {
 	if (UseHardwareRayTracing(ViewFamily) 
-		&& (LumenReflections::UseHitLighting(View, bLumenGIEnabled) || LumenVisualize::UseHitLighting(View, bLumenGIEnabled)))
+		&& (LumenReflections::UseHitLighting(View, DiffuseIndirectMethod)
+			|| LumenVisualize::UseHitLighting(View, DiffuseIndirectMethod)
+			|| LumenScreenProbeGather::UseHitLighting(View, DiffuseIndirectMethod)
+			|| LumenRadianceCache::UseHitLighting(View, DiffuseIndirectMethod)))
 	{
 		return true;
 	}
@@ -160,16 +178,19 @@ bool Lumen::IsUsingRayTracingLightingGrid(const FSceneViewFamily& ViewFamily, co
 	return false;
 }
 
-Lumen::EHardwareRayTracingLightingMode Lumen::GetHardwareRayTracingLightingMode(const FViewInfo& View, bool bLumenGIEnabled)
+LumenHardwareRayTracing::EHitLightingMode LumenHardwareRayTracing::GetHitLightingMode(const FViewInfo& View, EDiffuseIndirectMethod DiffuseIndirectMethod)
 {
 #if RHI_RAYTRACING
-	
-	if (!bLumenGIEnabled)
+	if (!LumenHardwareRayTracing::IsRayGenSupported())
 	{
-		// ShouldRenderLumenReflections should have prevented this
-		check(GRHISupportsRayTracingShaders);
-		// Force hit lighting and no surface cache when using standalone Lumen Reflections
-		return Lumen::EHardwareRayTracingLightingMode::EvaluateMaterialAndDirectLightingAndSkyLighting;
+		return LumenHardwareRayTracing::EHitLightingMode::SurfaceCache;
+	}
+	
+	if (DiffuseIndirectMethod != EDiffuseIndirectMethod::Lumen)
+	{
+		// Force HitLightingForReflections when using standalone Lumen Reflections
+		// #kris_todo: also needs to force bHitLightingSkylight
+		return LumenHardwareRayTracing::EHitLightingMode::HitLightingForReflections;
 	}
 
 	int32 LightingModeInt = CVarLumenHardwareRayTracingLightingMode.GetValueOnAnyThread();
@@ -177,21 +198,35 @@ Lumen::EHardwareRayTracingLightingMode Lumen::GetHardwareRayTracingLightingMode(
 	// Without ray tracing shaders (RayGen) support we can only use Surface Cache mode.
 	if (View.FinalPostProcessSettings.LumenRayLightingMode == ELumenRayLightingModeOverride::SurfaceCache || !LumenHardwareRayTracing::IsRayGenSupported())
 	{
-		LightingModeInt = static_cast<int32>(Lumen::EHardwareRayTracingLightingMode::LightingFromSurfaceCache);
+		LightingModeInt = static_cast<int32>(LumenHardwareRayTracing::EHitLightingMode::SurfaceCache);
+	}
+	else if (View.FinalPostProcessSettings.LumenRayLightingMode == ELumenRayLightingModeOverride::HitLightingForReflections)
+	{
+		LightingModeInt = static_cast<int32>(LumenHardwareRayTracing::EHitLightingMode::HitLightingForReflections);
 	}
 	else if (View.FinalPostProcessSettings.LumenRayLightingMode == ELumenRayLightingModeOverride::HitLighting)
 	{
-		LightingModeInt = static_cast<int32>(Lumen::EHardwareRayTracingLightingMode::EvaluateMaterialAndDirectLighting);
+		LightingModeInt = static_cast<int32>(LumenHardwareRayTracing::EHitLightingMode::HitLighting);
 	}
 
-	LightingModeInt = FMath::Clamp<int32>(LightingModeInt, 0, (int32)Lumen::EHardwareRayTracingLightingMode::MAX - 1);
-	return static_cast<Lumen::EHardwareRayTracingLightingMode>(LightingModeInt);
+	LightingModeInt = FMath::Clamp<int32>(LightingModeInt, 0, (int32)LumenHardwareRayTracing::EHitLightingMode::MAX - 1);
+	return static_cast<LumenHardwareRayTracing::EHitLightingMode>(LightingModeInt);
 #else
-	return Lumen::EHardwareRayTracingLightingMode::LightingFromSurfaceCache;
+	return LumenHardwareRayTracing::EHitLightingMode::SurfaceCache;
 #endif
 }
 
-bool Lumen::UseReflectionCapturesForHitLighting()
+bool LumenHardwareRayTracing::UseHitLightingDirectLighting()
+{
+	return CVarLumenHardwareRayTracingHitLightingDirectLighting.GetValueOnRenderThread() != 0;
+}
+
+bool LumenHardwareRayTracing::UseHitLightingSkylight()
+{
+	return CVarLumenHardwareRayTracingHitLightingSkylight.GetValueOnRenderThread() != 0;
+}
+
+bool LumenHardwareRayTracing::UseReflectionCapturesForHitLighting()
 {
 	int32 UseReflectionCaptures = CVarLumenHardwareRayTracingHitLightingReflectionCaptures.GetValueOnRenderThread();
 	return UseReflectionCaptures != 0;

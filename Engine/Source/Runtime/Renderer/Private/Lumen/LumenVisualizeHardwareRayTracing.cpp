@@ -13,15 +13,13 @@
 #include "IndirectLightRendering.h"
 #include "LumenReflections.h"
 #include "HairStrands/HairStrandsData.h"
-
-// Actual screen-probe requirements..
 #include "LumenRadianceCache.h"
 #include "LumenScreenProbeGather.h"
+#include "LumenHardwareRayTracingCommon.h"
 
 #if RHI_RAYTRACING
 #include "RayTracing/RaytracingOptions.h"
 #include "RayTracing/RayTracingLighting.h"
-#include "LumenHardwareRayTracingCommon.h"
 #endif // RHI_RAYTRACING
 
 static TAutoConsoleVariable<int32> CVarLumenVisualizeHardwareRayTracing(
@@ -104,17 +102,6 @@ namespace Lumen
 	{
 		return UseHardwareRayTracedVisualize(ViewFamily) && Lumen::ShouldVisualizeScene(ViewFamily.EngineShowFlags);
 	}
-
-#if RHI_RAYTRACING
-	FHardwareRayTracingPermutationSettings GetVisualizeHardwareRayTracingPermutationSettings(const FViewInfo& View, bool bLumenGIEnabled)
-	{
-		FHardwareRayTracingPermutationSettings ModesAndPermutationSettings;
-		ModesAndPermutationSettings.LightingMode = GetHardwareRayTracingLightingMode(View, bLumenGIEnabled);
-		ModesAndPermutationSettings.bUseMinimalPayload = (ModesAndPermutationSettings.LightingMode == Lumen::EHardwareRayTracingLightingMode::LightingFromSurfaceCache);
-		ModesAndPermutationSettings.bUseDeferredMaterial = (CVarLumenVisualizeHardwareRayTracingDeferredMaterial.GetValueOnRenderThread()) != 0 && !ModesAndPermutationSettings.bUseMinimalPayload;
-		return ModesAndPermutationSettings;
-	}
-#endif
 } // namespace Lumen
 
 namespace LumenVisualize
@@ -124,20 +111,18 @@ namespace LumenVisualize
 		return Lumen::UseFarField(ViewFamily) && CVarLumenVisualizeHardwareRayTracingRetraceFarField.GetValueOnRenderThread() != 0;
 	}
 
-	bool IsHitLightingForceEnabled(const FViewInfo& View, bool bLumenGIEnabled)
+	bool IsHitLightingForceEnabled(const FViewInfo& View, EDiffuseIndirectMethod DiffuseIndirectMethod)
 	{
-		return Lumen::GetHardwareRayTracingLightingMode(View, bLumenGIEnabled) != Lumen::EHardwareRayTracingLightingMode::LightingFromSurfaceCache;
+		return LumenHardwareRayTracing::GetHitLightingMode(View, DiffuseIndirectMethod) != LumenHardwareRayTracing::EHitLightingMode::SurfaceCache;
 	}
 
-	bool UseHitLighting(const FViewInfo& View, bool bLumenGIEnabled)
+	bool UseHitLighting(const FViewInfo& View, EDiffuseIndirectMethod DiffuseIndirectMethod)
 	{
-		#if RHI_RAYTRACING
 		if (LumenHardwareRayTracing::IsRayGenSupported())
 		{
-			return LumenVisualize::IsHitLightingForceEnabled(View, bLumenGIEnabled)
+			return LumenVisualize::IsHitLightingForceEnabled(View, DiffuseIndirectMethod)
 				|| CVarLumenVisualizeHardwareRayTracingRetraceHitLighting.GetValueOnRenderThread() != 0;
 		}
-		#endif
 
 		return false;
 	}
@@ -412,7 +397,8 @@ class FLumenVisualizeHardwareRayTracing : public FLumenHardwareRayTracingShaderB
 
 		SHADER_PARAMETER(int, ThreadCount)
 		SHADER_PARAMETER(int, GroupCount)
-		SHADER_PARAMETER(int, LightingMode)
+		SHADER_PARAMETER(uint32, HitLightingDirectLighting)
+		SHADER_PARAMETER(uint32, HitLightingSkylight)
 		SHADER_PARAMETER(uint32, UseReflectionCaptures)
 		SHADER_PARAMETER(int, MaxRayAllocationCount)
 		SHADER_PARAMETER(float, MaxTraceDistance)
@@ -486,10 +472,10 @@ IMPLEMENT_GLOBAL_SHADER(FLumenVisualizeHardwareRayTracingCS, "/Engine/Private/Lu
 
 void FDeferredShadingSceneRenderer::PrepareLumenHardwareRayTracingVisualize(const FViewInfo& View, TArray<FRHIRayTracingShader*>& OutRayGenShaders)
 {
-	const bool bLumenGIEnabled = GetViewPipelineState(View).DiffuseIndirectMethod == EDiffuseIndirectMethod::Lumen;
+	const EDiffuseIndirectMethod DiffuseIndirectMethod = GetViewPipelineState(View).DiffuseIndirectMethod;
 
 	if (Lumen::ShouldVisualizeHardwareRayTracing(*View.Family)
-		&& (LumenVisualize::UseHitLighting(View, bLumenGIEnabled) || LumenVisualize::UseFarField(*View.Family) || LumenReflections::UseHitLighting(View, bLumenGIEnabled) || LumenReflections::UseFarField(*View.Family)))
+		&& (LumenVisualize::UseHitLighting(View, DiffuseIndirectMethod) || LumenVisualize::UseFarField(*View.Family) || LumenReflections::UseHitLighting(View, DiffuseIndirectMethod) || LumenReflections::UseFarField(*View.Family)))
 	{
 		for (int32 HairOcclusion = 0; HairOcclusion < 2; HairOcclusion++)
 		{
@@ -512,10 +498,6 @@ void FDeferredShadingSceneRenderer::PrepareLumenHardwareRayTracingVisualize(cons
 
 void FDeferredShadingSceneRenderer::PrepareLumenHardwareRayTracingVisualizeLumenMaterial(const FViewInfo& View, TArray<FRHIRayTracingShader*>& OutRayGenShaders)
 {
-	// Fixed-function lighting version
-	const bool bLumenGIEnabled = GetViewPipelineState(View).DiffuseIndirectMethod == EDiffuseIndirectMethod::Lumen;
-	Lumen::FHardwareRayTracingPermutationSettings PermutationSettings = Lumen::GetVisualizeHardwareRayTracingPermutationSettings(View, bLumenGIEnabled);
-
 	if (Lumen::ShouldVisualizeHardwareRayTracing(*View.Family))
 	{
 		for (int32 FarField = 0; FarField < 2; FarField++)
@@ -555,12 +537,12 @@ void LumenVisualize::VisualizeHardwareRayTracing(
 	LumenVisualize::FSceneParameters& VisualizeParameters,
 	FRDGTextureRef SceneColor,
 	bool bVisualizeModeWithHitLighting,
-	bool bLumenGIEnabled)
+	EDiffuseIndirectMethod DiffuseIndirectMethod)
 #if RHI_RAYTRACING
 {
 	bool bTraceFarField = LumenVisualize::UseFarField(*View.Family);
-	bool bRetraceForHitLighting = LumenVisualize::UseHitLighting(View, bLumenGIEnabled) && bVisualizeModeWithHitLighting;
-	bool bForceHitLighting = LumenVisualize::IsHitLightingForceEnabled(View, bLumenGIEnabled);
+	bool bRetraceForHitLighting = LumenVisualize::UseHitLighting(View, DiffuseIndirectMethod) && bVisualizeModeWithHitLighting;
+	bool bForceHitLighting = LumenVisualize::IsHitLightingForceEnabled(View, DiffuseIndirectMethod);
 	bool bInlineRayTracing = Lumen::UseHardwareInlineRayTracing(*View.Family);
 	const bool bNeedTraceHairVoxel = HairStrands::HasViewHairStrandsVoxelData(View) && GLumenReflectionHairStrands_VoxelTrace > 0;
 	const bool bTraceTranslucent = LumenReflections::UseTranslucentRayTracing(View);
@@ -569,8 +551,8 @@ void LumenVisualize::VisualizeHardwareRayTracing(
 	if (VisualizeParameters.VisualizeMode == VISUALIZE_MODE_REFLECTION_VIEW)
 	{
 		bTraceFarField = LumenReflections::UseFarField(*View.Family);
-		bRetraceForHitLighting = LumenReflections::UseHitLighting(View, bLumenGIEnabled);
-		bForceHitLighting = LumenReflections::IsHitLightingForceEnabled(View, bLumenGIEnabled);
+		bRetraceForHitLighting = LumenReflections::UseHitLighting(View, DiffuseIndirectMethod);
+		bForceHitLighting = LumenReflections::IsHitLightingForceEnabled(View, DiffuseIndirectMethod);
 	}
 
 	// Disable modes that use hit-lighting when it's not available
@@ -854,8 +836,9 @@ void LumenVisualize::VisualizeHardwareRayTracing(
 
 			PassParameters->ThreadCount = RayGenThreadCount;
 			PassParameters->GroupCount = RayGenGroupCount;
-			PassParameters->LightingMode = (int32)Lumen::GetHardwareRayTracingLightingMode(View, bLumenGIEnabled);
-			PassParameters->UseReflectionCaptures = Lumen::UseReflectionCapturesForHitLighting();
+			PassParameters->HitLightingDirectLighting = LumenHardwareRayTracing::UseHitLightingDirectLighting() ? 1 : 0;
+			PassParameters->HitLightingSkylight = LumenHardwareRayTracing::UseHitLightingSkylight() ? 1 : 0;
+			PassParameters->UseReflectionCaptures = LumenHardwareRayTracing::UseReflectionCapturesForHitLighting();
 			PassParameters->MaxRayAllocationCount = RayCount;
 			PassParameters->MaxTraceDistance = MaxTraceDistance;
 			PassParameters->FarFieldMaxTraceDistance = FarFieldMaxTraceDistance;

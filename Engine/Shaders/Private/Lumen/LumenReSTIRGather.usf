@@ -323,10 +323,8 @@ RAY_TRACING_ENTRY_RAYGEN(LumenValidateReservoirsRGS)
 		FRayTracedLightingResult Result = CreateRayTracedLightingResult();
 
 #if HIT_LIGHTING
-		int LightingMode = EVALUATE_MATERIAL_AND_DIRECT_LIGHTING;
-		Result = TraceAndCalculateRayTracedLighting(TLAS, Ray, Context, LightingMode, false);
+		Result = TraceAndCalculateRayTracedLighting(TLAS, Ray, Context, MaxTraceDistance, /*bHitLightingDirectLighting*/ true, /*bHitLightingSkylight*/ false, false);
 #else
-		int LightingMode = LIGHTING_FROM_SURFACE_CACHE;
 		Result = TraceAndCalculateRayTracedLightingFromSurfaceCache(TLAS, Ray, Context);
 #endif
 		
@@ -434,10 +432,8 @@ RAY_TRACING_ENTRY_RAYGEN(LumenInitialSamplingRGS)
 		FRayTracedLightingResult Result = CreateRayTracedLightingResult();
 
 		#if HIT_LIGHTING
-			int LightingMode = EVALUATE_MATERIAL_AND_DIRECT_LIGHTING;
-			Result = TraceAndCalculateRayTracedLighting(TLAS, Ray, Context, LightingMode, false);
+			Result = TraceAndCalculateRayTracedLighting(TLAS, Ray, Context, MaxTraceDistance, /*bHitLightingDirectLighting*/ true, /*bHitLightingSkylight*/ false, false);
 		#else
-			int LightingMode = LIGHTING_FROM_SURFACE_CACHE;
 			Result = TraceAndCalculateRayTracedLightingFromSurfaceCache(TLAS, Ray, Context);
 		#endif
 		

@@ -19,6 +19,7 @@
 #include "MeshCardBuild.h"
 #include "LumenReflections.h"
 #include "InstanceDataSceneProxy.h"
+#include "LumenHardwareRayTracingCommon.h"
 
 // Must be in sync with VISUALIZE_MODE_* in LumenVisualize.h
 int32 GLumenVisualize = 0;
@@ -47,6 +48,16 @@ FAutoConsoleVariableRef CVarLumenVisualize(
 	TEXT("18 - Indirect lighting updates\n")
 	TEXT("19 - Last used pages\n")
 	TEXT("20 - Last used high res pages"),
+	ECVF_RenderThreadSafe
+);
+
+static TAutoConsoleVariable<int> CVarLumenVisualizeCullingMode(
+	TEXT("r.Lumen.Visualize.CullingMode"),
+	0,
+	TEXT("Visualize culling mode:\n")
+	TEXT("0 - none\n")
+	TEXT("1 - cull back facing triangles\n")
+	TEXT("2 - cull front facing triangles"),
 	ECVF_RenderThreadSafe
 );
 
@@ -708,6 +719,7 @@ void SetupVisualizeParameters(
 		CommonParameters.TonemappingParameters = LumenVisualize::GetTonemappingParameters(GraphBuilder, ColorGradingTexture, EyeAdaptationBuffer);
 		CommonParameters.VisualizeHiResSurface = GVisualizeLumenSceneHiResSurface ? 1 : 0;
 		CommonParameters.VisualizeMode = VisualizeMode;
+		CommonParameters.VisualizeCullingMode = CVarLumenVisualizeCullingMode.GetValueOnRenderThread();
 		CommonParameters.MaxReflectionBounces = MaxReflectionBounces;
 		CommonParameters.MaxRefractionBounces = MaxRefractionBounces;
 
@@ -795,7 +807,7 @@ void VisualizeLumenScene(
 	FSceneTextureShaderParameters SceneTextures,
 	int32 VisualizeMode,
 	int32 VisualizeTileIndex,
-	bool bLumenGIEnabled)
+	EDiffuseIndirectMethod DiffuseIndirectMethod)
 {
 	FRDGTextureUAVRef SceneColorUAV = GraphBuilder.CreateUAV(FRDGTextureUAVDesc(Output.Texture));
 
@@ -829,7 +841,7 @@ void VisualizeLumenScene(
 			VisualizeParameters.CommonParameters,
 			Output.Texture,
 			bVisualizeModeWithHitLighting,
-			bLumenGIEnabled);
+			DiffuseIndirectMethod);
 	}
 	else
 	{
@@ -924,7 +936,7 @@ int32 GetLumenVisualizeMode(const FViewInfo& View)
 	return VisualizeMode;
 }
 
-FScreenPassTexture AddVisualizeLumenScenePass(FRDGBuilder& GraphBuilder, const FViewInfo& View, bool bAnyLumenActive, bool bLumenGIEnabled, const FVisualizeLumenSceneInputs& Inputs, FLumenSceneFrameTemporaries& FrameTemporaries)
+FScreenPassTexture AddVisualizeLumenScenePass(FRDGBuilder& GraphBuilder, const FViewInfo& View, bool bAnyLumenActive, EDiffuseIndirectMethod DiffuseIndirectMethod, const FVisualizeLumenSceneInputs& Inputs, FLumenSceneFrameTemporaries& FrameTemporaries)
 {
 	check(Inputs.SceneColor.IsValid());
 
@@ -976,7 +988,21 @@ FScreenPassTexture AddVisualizeLumenScenePass(FRDGBuilder& GraphBuilder, const F
 				VisualizeTiles[1].Mode = VISUALIZE_MODE_REFLECTION_VIEW;
 				if (Lumen::UseHardwareRayTracing(ViewFamily))
 				{
-					VisualizeTiles[1].Name = LumenReflections::UseHitLighting(View, bLumenGIEnabled) ? TEXT("Reflection View, HWRT with hit lighting") : TEXT("Reflection View, HWRT");
+					LumenHardwareRayTracing::EHitLightingMode HitLightingMode = LumenHardwareRayTracing::GetHitLightingMode(View, DiffuseIndirectMethod);
+					switch (HitLightingMode)
+					{
+					 case LumenHardwareRayTracing::EHitLightingMode::HitLighting:
+						VisualizeTiles[1].Name = TEXT("Reflection View, HWRT, Hit Lighting");
+						break;
+
+					 case LumenHardwareRayTracing::EHitLightingMode::HitLightingForReflections:
+						VisualizeTiles[1].Name = TEXT("Reflection View, HWRT, Hit Lighting for Reflections");
+						break;
+
+					 default:
+						VisualizeTiles[1].Name = TEXT("Reflection View, HWRT");
+						break;
+					}
 				}
 				else
 				{
@@ -987,7 +1013,7 @@ FScreenPassTexture AddVisualizeLumenScenePass(FRDGBuilder& GraphBuilder, const F
 
 				for (int32 TileIndex = 0; TileIndex < LumenVisualize::NumOverviewTilesPerRow; ++TileIndex)
 				{
-					VisualizeLumenScene(Scene, GraphBuilder, ViewFamily.EngineShowFlags, View, FrameTemporaries, Output, Inputs.ColorGradingTexture, Inputs.EyeAdaptationBuffer, Inputs.SceneTextures, VisualizeTiles[TileIndex].Mode, TileIndex, bLumenGIEnabled);
+					VisualizeLumenScene(Scene, GraphBuilder, ViewFamily.EngineShowFlags, View, FrameTemporaries, Output, Inputs.ColorGradingTexture, Inputs.EyeAdaptationBuffer, Inputs.SceneTextures, VisualizeTiles[TileIndex].Mode, TileIndex, DiffuseIndirectMethod);
 				}
 
 				AddDrawCanvasPass(GraphBuilder, RDG_EVENT_NAME("LumenVisualizeLabels"), View, FScreenPassRenderTarget(Output, ERenderTargetLoadAction::ELoad),
@@ -1031,7 +1057,7 @@ FScreenPassTexture AddVisualizeLumenScenePass(FRDGBuilder& GraphBuilder, const F
 
 				for (int32 TileIndex = 0; TileIndex < UE_ARRAY_COUNT(VisualizeTiles); ++TileIndex)
 				{
-					VisualizeLumenScene(Scene, GraphBuilder, ViewFamily.EngineShowFlags, View, FrameTemporaries, Output, Inputs.ColorGradingTexture, Inputs.EyeAdaptationBuffer, Inputs.SceneTextures, VisualizeTiles[TileIndex].Mode, TileIndex, bLumenGIEnabled);
+					VisualizeLumenScene(Scene, GraphBuilder, ViewFamily.EngineShowFlags, View, FrameTemporaries, Output, Inputs.ColorGradingTexture, Inputs.EyeAdaptationBuffer, Inputs.SceneTextures, VisualizeTiles[TileIndex].Mode, TileIndex, DiffuseIndirectMethod);
 				}
 
 				AddDrawCanvasPass(GraphBuilder, RDG_EVENT_NAME("LumenVisualizeLabels"), View, FScreenPassRenderTarget(Output, ERenderTargetLoadAction::ELoad),
@@ -1055,7 +1081,7 @@ FScreenPassTexture AddVisualizeLumenScenePass(FRDGBuilder& GraphBuilder, const F
 			}
 			else
 			{
-				VisualizeLumenScene(Scene, GraphBuilder, ViewFamily.EngineShowFlags, View, FrameTemporaries, Output, Inputs.ColorGradingTexture, Inputs.EyeAdaptationBuffer, Inputs.SceneTextures, VisualizeMode, /*VisualizeTileIndex*/ -1, bLumenGIEnabled);
+				VisualizeLumenScene(Scene, GraphBuilder, ViewFamily.EngineShowFlags, View, FrameTemporaries, Output, Inputs.ColorGradingTexture, Inputs.EyeAdaptationBuffer, Inputs.SceneTextures, VisualizeMode, /*VisualizeTileIndex*/ -1, DiffuseIndirectMethod);
 			}
 		}
 	}

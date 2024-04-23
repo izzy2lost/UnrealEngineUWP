@@ -314,7 +314,8 @@ float3 ComputeDirectLighting(
 	inout FPackedMaterialClosestHitPayload Payload,
 	inout RandomSequence RandSequence,
 	in uint ReflectedShadowsType,
-	in float ShadowMaxNormalBias)
+	float ShadowMaxNormalBias,
+	float MaxTraceDistance)
 {
 	float3 DirectLighting = (float3)0;
 
@@ -346,7 +347,7 @@ float3 ComputeDirectLighting(
 		if (LightType == LIGHT_TYPE_DIRECTIONAL)
 		{
 			ShadowRayDirection = LightData.Direction;
-			ToLight = LightData.Direction * 100000.0f;
+			ToLight = LightData.Direction * MaxTraceDistance;
 		}
 		else
 		{
@@ -405,7 +406,7 @@ float3 ComputeDirectLighting(
 		Payload.SetIgnoreTranslucentMaterials();
 
 #if !ENABLE_TWO_SIDED_GEOMETRY
-		RayFlags |= RAY_FLAG_CULL_BACK_FACING_TRIANGLES;
+		RayFlags |= RAY_FLAG_CULL_FRONT_FACING_TRIANGLES;
 #endif // !ENABLE_TWO_SIDED_GEOMETRY
 
 		// Light index is packed into HitT as this component is only accessed by closest hit or miss shaders.
@@ -454,6 +455,7 @@ void AccumulateResults(
 	inout RandomSequence RandSequence,
 	in uint2 PixelCoord,
 	in float ShadowMaxNormalBias,
+	float MaxTraceDistance,
 	in uint ReflectedShadowsType,
 	in uint ShouldDoDirectLighting,
 	in uint ShouldDoEmissiveAndIndirectLighting,
@@ -474,7 +476,7 @@ void AccumulateResults(
 		// Save and restore original payload HitT, as it's modified during shadow ray tracing
 		float OldHitT = Payload.HitT;
 
-		DirectLighting = ComputeDirectLighting(TranslatedWorldPosition, ViewDirection, RayCone, TLAS, Payload, RandSequence, ReflectedShadowsType, ShadowMaxNormalBias);
+		DirectLighting = ComputeDirectLighting(TranslatedWorldPosition, ViewDirection, RayCone, TLAS, Payload, RandSequence, ReflectedShadowsType, ShadowMaxNormalBias, MaxTraceDistance);
 
 		Payload.HitT = OldHitT;
 	}
@@ -510,6 +512,7 @@ FMaterialClosestHitPayload TraceRayAndAccumulateResults(
 	inout RandomSequence RandSequence,
 	in uint2 PixelCoord,
 	in float ShadowMaxNormalBias,
+	float MaxTraceDistance,
 	in uint ReflectedShadowsType,
 	in uint ShouldDoDirectLighting,
 	in uint ShouldDoEmissiveAndIndirectLighting,
@@ -548,6 +551,7 @@ FMaterialClosestHitPayload TraceRayAndAccumulateResults(
 		RandSequence,
 		PixelCoord,
 		ShadowMaxNormalBias,
+		MaxTraceDistance,
 		ReflectedShadowsType,
 		ShouldDoDirectLighting,
 		ShouldDoEmissiveAndIndirectLighting,
@@ -557,65 +561,4 @@ FMaterialClosestHitPayload TraceRayAndAccumulateResults(
 		Radiance);
 
 	return UnpackRayTracingPayload(Payload, Ray);
-}
-
-FMaterialClosestHitPayload TraceRayAndAccumulateBottomLayerResults(
-	in FRayDesc Ray,
-	in RaytracingAccelerationStructure TLAS,
-	in uint RayFlags,
-	in uint InstanceInclusionMask,
-	inout RandomSequence RandSequence,
-	in uint2 PixelCoord,
-	in float ShadowMaxNormalBias,
-	in uint ReflectedShadowsType,
-	in uint ShouldDoDirectLighting,
-	in uint ShouldDoEmissiveAndIndirectLighting,
-	in bool bRayTraceSkyLightContribution,
-	in bool bDecoupleSampleGeneration,
-	inout FRayCone RayCone,
-	in bool bEnableSkyLightContribution,
-	in bool bIsCameraRay,
-	inout float3 Radiance)
-{
-	if (bRayTraceSkyLightContribution)
-	{
-		// Disable precomputed sky light contribution from hit shaders when ray tracing sky light contribution
-		bEnableSkyLightContribution = false;
-	}
-	
-	bool bIgnoreTranslucentMaterials = false;
-
-	FMaterialClosestHitPayload BottomLayerPayload = TraceMaterialRay(
-		TLAS,
-		RayFlags,
-		InstanceInclusionMask,
-		Ray,
-		RayCone,
-		bEnableSkyLightContribution,
-		bIgnoreTranslucentMaterials,
-		bIsCameraRay);
-
-	ComputeBottomLayerMaterialProperties(Ray, BottomLayerPayload);
-
-	float3 TranslatedWorldPosition = Ray.Origin + Ray.Direction * BottomLayerPayload.HitT;
-	float3 ViewDirection = Ray.Direction;
-
-	FPackedMaterialClosestHitPayload PackedBottomLayerPayload = PackRayTracingPayload(BottomLayerPayload, RayCone);
-	AccumulateResults(
-		PackedBottomLayerPayload,
-		TranslatedWorldPosition,
-		ViewDirection,
-		TLAS,
-		RandSequence,
-		PixelCoord,
-		ShadowMaxNormalBias,
-		ReflectedShadowsType,
-		ShouldDoDirectLighting,
-		ShouldDoEmissiveAndIndirectLighting,
-		bRayTraceSkyLightContribution,
-		bDecoupleSampleGeneration,
-		RayCone,
-		Radiance);
-
-	return UnpackRayTracingPayload(PackedBottomLayerPayload, Ray);
 }

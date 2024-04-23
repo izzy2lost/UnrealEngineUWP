@@ -20,27 +20,33 @@ namespace LumenHardwareRayTracing
 
 		MAX
 	};
+	
+	enum class EHitLightingMode
+	{
+		SurfaceCache,
+		HitLighting,
+		HitLightingForReflections,
+
+		MAX
+	};
 
 	bool IsInlineSupported();
 	bool IsRayGenSupported();
 	float GetFarFieldBias();
+	bool UseSurfaceCacheAlphaMasking();	
 	EAvoidSelfIntersectionsMode GetAvoidSelfIntersectionsMode();
-	bool UseSurfaceCacheAlphaMasking();
+	
+	// Hit Lighting
+	EHitLightingMode GetHitLightingMode(const FViewInfo& View, EDiffuseIndirectMethod DiffuseIndirectMethod);
+	bool UseHitLightingDirectLighting();
+	bool UseHitLightingSkylight();
+	bool UseReflectionCapturesForHitLighting();
 }
 
 #if RHI_RAYTRACING
 
 namespace Lumen
 {
-	enum class EHardwareRayTracingLightingMode;
-
-	struct FHardwareRayTracingPermutationSettings
-	{
-		EHardwareRayTracingLightingMode LightingMode;
-		bool bUseMinimalPayload;
-		bool bUseDeferredMaterial;
-	};
-
 	// Struct definitions much match those in LumenHardwareRayTracingCommon.ush 
 	struct FHitGroupRootConstants
 	{

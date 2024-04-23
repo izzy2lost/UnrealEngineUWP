@@ -19,6 +19,10 @@
 	#define THREADGROUP_SIZE_1D THREADGROUP_SIZE_2D * THREADGROUP_SIZE_2D
 #endif
 
+#define RAY_TRACING_PASS_DEFAULT		0
+#define RAY_TRACING_PASS_FAR_FIELD		1
+#define RAY_TRACING_PASS_HIT_LIGHTING	2
+
 RWBuffer<uint> RWHardwareRayTracingIndirectArgs;
 uint2 OutputThreadGroupSize;
 
@@ -51,6 +55,8 @@ RaytracingAccelerationStructure TLAS;
 	}
 #endif // LUMEN_HARDWARE_INLINE_RAYTRACING
 
+uint HitLightingDirectLighting;
+uint HitLightingSkylight;
 float MaxTraceDistance;
 float NearFieldSceneRadius;
 float NearFieldMaxTraceDistance;
@@ -156,7 +162,23 @@ LUMEN_HARDWARE_RAY_TRACING_ENTRY(LumenScreenProbeGatherHardwareRayTracing)
 		Context.FarFieldMaxTraceDistance = FarFieldMaxTraceDistance;
 		Context.FarFieldReferencePos = FarFieldReferencePos;
 		
-		FRayTracedLightingResult Result = TraceAndCalculateRayTracedLightingFromSurfaceCache(TLAS, Ray, Context);
+		FRayTracedLightingResult Result = CreateRayTracedLightingResult();
+		#if RAY_TRACING_PASS == RAY_TRACING_PASS_HIT_LIGHTING
+		{
+			Result = TraceAndCalculateRayTracedLighting(
+				TLAS,
+				Ray,
+				Context,
+				NearFieldMaxTraceDistance,
+				HitLightingDirectLighting != 0,
+				HitLightingSkylight != 0,
+				/*UseReflectionCaptures*/ false);
+		}
+		#else
+		{
+			Result = TraceAndCalculateRayTracedLightingFromSurfaceCache(TLAS, Ray, Context);
+		}
+		#endif
 
 		bool bMoving = false;
 		if (Result.bIsHit)

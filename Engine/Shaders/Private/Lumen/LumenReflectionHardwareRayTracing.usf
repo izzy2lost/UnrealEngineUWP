@@ -71,9 +71,11 @@ RaytracingAccelerationStructure TLAS;
 	}
 #endif // LUMEN_HARDWARE_INLINE_RAYTRACING
 
-int NearFieldLightingMode;
-float NearFieldMaxTraceDistance;
+uint HitLightingDirectLighting;
+uint HitLightingSkylight;
 uint UseReflectionCaptures;
+
+float NearFieldMaxTraceDistance;
 float FarFieldBias;
 float FarFieldMaxTraceDistance;
 float NearFieldMaxTraceDistanceDitherScale;
@@ -180,7 +182,15 @@ LUMEN_HARDWARE_RAY_TRACING_ENTRY(LumenReflectionHardwareRayTracing)
 			const float Epsilon = 0.5f;
 			Ray.TMin = max(TraceHitDistance - Epsilon, 0.0f);
 
-			Result = TraceAndCalculateRayTracedLighting(TLAS, Ray, Context, NearFieldLightingMode, UseReflectionCaptures != 0, RayHitBookmark);
+			Result = TraceAndCalculateRayTracedLighting(
+				TLAS,
+				Ray,
+				Context,
+				NearFieldMaxTraceDistance,
+				HitLightingDirectLighting != 0,
+				HitLightingSkylight != 0,
+				UseReflectionCaptures != 0,
+				RayHitBookmark);
 		}
 		#else
 		{

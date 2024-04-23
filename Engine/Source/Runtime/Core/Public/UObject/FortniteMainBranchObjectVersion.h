@@ -450,6 +450,9 @@ struct FFortniteMainBranchObjectVersion
 		// Add the imported asset dependencies to the Cloth Asset USD Import node
 		ChaosClothAssetUSDImportNodeAddAssetDependencies,
 
+		// Changed HitLighting to HitLightingForReflections, and HitLighting now means hit lighting for entire Lumen
+		LumenRayLightingModeOverrideEnum,
+
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,
 		LatestVersion = VersionPlusOne - 1

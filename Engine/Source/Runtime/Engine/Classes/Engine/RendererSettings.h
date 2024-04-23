@@ -270,10 +270,12 @@ namespace ELumenSoftwareTracingMode
 UENUM()
 enum class ELumenRayLightingMode : uint8
 {
-	/* Use the Lumen Surface Cache to light reflection rays.  This method gives the best reflection performance. */
-	SurfaceCache=0	UMETA(DisplayName = "Surface Cache"),
-	/* Calculate lighting at the ray hit point.  This method gives the highest reflection quality, but greatly increases GPU cost, as the material needs to be evaluated and shadow rays traced.  The Surface Cache will still be used for Diffuse Indirect lighting (GI seen in Reflections). */
-	HitLighting=2		UMETA(DisplayName = "Hit Lighting for Reflections"),
+	/* Use Lumen Surface Cache for ray hit lighting. This method gives the best GI and reflection performance, but quality will be limited by how well surface cache represents given scene. */
+	SurfaceCache = 0				UMETA(DisplayName = "Surface Cache"),
+	/* Calculate lighting at a hit point for reflections. This will improve reflection quality, but increases GPU cost, as full material needs to be evaluated and shadow rays traced. Lumen Surface Cache will still be used for GI and secondary bounces, including GI seen in reflections. */
+	HitLightingForReflections = 2 	UMETA(DisplayName = "Hit Lighting for Reflections"),
+	/* Calculate lighting at a hit point for GI and reflections. This will improve both GI and reflection quality, but greatly increases GPU cost, as full material and lighting will be evaluated at every hit point. Lumen Surface Cache will still be used for secondary bounces. */
+	HitLighting = 1 				UMETA(DisplayName = "Hit Lighting"),
 };
 
 UENUM()

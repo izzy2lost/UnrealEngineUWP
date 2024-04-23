@@ -9,6 +9,7 @@
 #include "PostProcess/PostProcessInputs.h"
 
 enum class EReflectionsMethod;
+enum class EDiffuseIndirectMethod;
 
 class FScreenPassVS;
 class FViewInfo;
@@ -35,7 +36,7 @@ void AddPostProcessingPasses(
 	const FViewInfo& View, int32 ViewIndex,
 	FSceneUniformBuffer& SceneUniformBuffer,
 	bool bAnyLumenActive,
-	bool bLumenGIEnabled,
+	EDiffuseIndirectMethod DiffuseIndirectMethod,
 	EReflectionsMethod ReflectionsMethod,
 	const FPostProcessingInputs& Inputs,
 	const Nanite::FRasterResults* NaniteRasterResults,

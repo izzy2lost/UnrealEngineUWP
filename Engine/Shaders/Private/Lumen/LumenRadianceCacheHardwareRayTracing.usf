@@ -189,6 +189,8 @@ RaytracingAccelerationStructure TLAS;
 	}
 #endif // LUMEN_HARDWARE_INLINE_RAYTRACING
 
+uint HitLightingDirectLighting;
+uint HitLightingSkylight;
 float NearFieldSceneRadius;
 float NearFieldMaxTraceDistance;
 float FarFieldBias;
@@ -265,7 +267,23 @@ void TraceRadianceCacheProbeTexel(
 		}
 		#endif
 
-		FRayTracedLightingResult Result = TraceAndCalculateRayTracedLightingFromSurfaceCache(TLAS, Ray, Context);
+		FRayTracedLightingResult Result = CreateRayTracedLightingResult();
+		#if RAY_TRACING_PASS == RAY_TRACING_PASS_HIT_LIGHTING
+		{
+			Result = TraceAndCalculateRayTracedLighting(
+				TLAS,
+				Ray,
+				Context,
+				NearFieldMaxTraceDistance,
+				HitLightingDirectLighting != 0,
+				HitLightingSkylight != 0,
+				/*UseReflectionCaptures*/ false);
+		}
+		#else
+		{
+			Result = TraceAndCalculateRayTracedLightingFromSurfaceCache(TLAS, Ray, Context);
+		}
+		#endif
 
 		if (!Result.bIsHit)
 		{
@@ -293,7 +311,7 @@ void TraceRadianceCacheProbeTexel(
 // RADIANCE_CACHE_TRACE_TILE_SIZE_1D thread groups
 void LumenRadianceCacheHardwareRayTracingCommon(uint GroupId, uint GroupThreadId)
 {
-	#if RAY_TRACING_PASS == RAY_TRACING_PASS_DEFAULT
+	#if RAY_TRACING_PASS == RAY_TRACING_PASS_DEFAULT || RAY_TRACING_PASS == RAY_TRACING_PASS_HIT_LIGHTING
 	{
 		// Loop over all trace tiles and trace a ray
 

@@ -51,6 +51,16 @@ namespace Lumen
 	}
 }
 
+bool LumenRadianceCache::UseHitLighting(const FViewInfo& View, EDiffuseIndirectMethod DiffuseIndirectMethod)
+{
+	if (LumenHardwareRayTracing::IsRayGenSupported())
+	{
+		return LumenHardwareRayTracing::GetHitLightingMode(View, DiffuseIndirectMethod) == LumenHardwareRayTracing::EHitLightingMode::HitLighting;
+	}
+
+	return false;
+}
+
 #if RHI_RAYTRACING
 
 namespace LumenRadianceCache
@@ -61,6 +71,8 @@ namespace LumenRadianceCache
 	{
 		Default,
 		FarField,
+		HitLighting,
+
 		MAX
 	};
 
@@ -100,6 +112,8 @@ class FLumenRadianceCacheHardwareRayTracing : public FLumenHardwareRayTracingSha
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float>, RWTraceHitTexture)
 		SHADER_PARAMETER_STRUCT_INCLUDE(FLumenHardwareRayTracingShaderBase::FSharedParameters, SharedParameters)
 		SHADER_PARAMETER_STRUCT_INCLUDE(LumenRadianceCache::FBatchRadianceCacheTracingParameters, BatchTracingParameters)
+		SHADER_PARAMETER(uint32, HitLightingDirectLighting)
+		SHADER_PARAMETER(uint32, HitLightingSkylight)
 		SHADER_PARAMETER(float, FarFieldBias)
 		SHADER_PARAMETER(float, NearFieldMaxTraceDistance)
 		SHADER_PARAMETER(float, NearFieldSceneRadius)
@@ -148,12 +162,25 @@ class FLumenRadianceCacheHardwareRayTracing : public FLumenHardwareRayTracingSha
 			return false;
 		}
 
+		if (ShaderDispatchType == Lumen::ERayTracingShaderDispatchType::Inline && PermutationVector.Get<FRayTracingPass>() == LumenRadianceCache::ERayTracingPass::HitLighting)
+		{
+			return false;
+		}
+
 		return FLumenHardwareRayTracingShaderBase::ShouldCompilePermutation(Parameters, ShaderDispatchType);
 	}
 
 	static ERayTracingPayloadType GetRayTracingPayloadType(const int32 PermutationId)
 	{
-		return ERayTracingPayloadType::LumenMinimal;
+		FPermutationDomain PermutationVector(PermutationId);
+		if (PermutationVector.Get<FRayTracingPass>() == LumenRadianceCache::ERayTracingPass::HitLighting)
+		{
+			return ERayTracingPayloadType::RayTracingMaterial;
+		}
+		else
+		{
+			return ERayTracingPayloadType::LumenMinimal;
+		}
 	}
 };
 
@@ -268,6 +295,20 @@ bool UseFarFieldForRadianceCache(const FSceneViewFamily& ViewFamily)
 
 void FDeferredShadingSceneRenderer::PrepareLumenHardwareRayTracingRadianceCache(const FViewInfo& View, TArray<FRHIRayTracingShader*>& OutRayGenShaders)
 {
+	if (Lumen::UseHardwareRayTracedRadianceCache(*View.Family) && LumenRadianceCache::UseHitLighting(View, GetViewPipelineState(View).DiffuseIndirectMethod))
+	{
+		for (int32 BatchSize = 1; BatchSize <= LumenRadianceCache::MaxBatchSize; ++BatchSize)
+		{
+			FLumenRadianceCacheHardwareRayTracingRGS::FPermutationDomain PermutationVector;
+			PermutationVector.Set<FLumenRadianceCacheHardwareRayTracingRGS::FRayTracingPass>(LumenRadianceCache::ERayTracingPass::HitLighting);
+			PermutationVector.Set<FLumenRadianceCacheHardwareRayTracingRGS::FSurfaceCacheAlphaMasking>(LumenHardwareRayTracing::UseSurfaceCacheAlphaMasking());
+			PermutationVector.Set<FLumenRadianceCacheHardwareRayTracingRGS::FRadianceCacheBatchSize>(BatchSize);
+			PermutationVector = FLumenRadianceCacheHardwareRayTracingRGS::RemapPermutation(PermutationVector);
+
+			TShaderRef<FLumenRadianceCacheHardwareRayTracingRGS> RayGenerationShader = View.ShaderMap->GetShader<FLumenRadianceCacheHardwareRayTracingRGS>(PermutationVector);
+			OutRayGenShaders.Add(RayGenerationShader.GetRayTracingShader());
+		}
+	}
 }
 
 void FDeferredShadingSceneRenderer::PrepareLumenHardwareRayTracingRadianceCacheLumenMaterial(const FViewInfo& View, TArray<FRHIRayTracingShader*>& OutRayGenShaders)
@@ -334,6 +375,8 @@ void DispatchRayGenOrComputeShader(
 
 	PassParameters->HardwareRayTracingIndirectArgs = HardwareRayTracingIndirectArgsBuffer;
 	PassParameters->BatchTracingParameters = BatchTracingParameters;
+	PassParameters->HitLightingDirectLighting = LumenHardwareRayTracing::UseHitLightingDirectLighting() ? 1 : 0;
+	PassParameters->HitLightingSkylight = LumenHardwareRayTracing::UseHitLightingSkylight() ? 1 : 0;
 	PassParameters->NearFieldMaxTraceDistance = PassParameters->BatchTracingParameters.IndirectTracingParameters.MaxTraceDistance;
 	PassParameters->NearFieldSceneRadius = Lumen::GetNearFieldSceneRadius(View, bUseFarField);
 	PassParameters->FarFieldBias = LumenHardwareRayTracing::GetFarFieldBias();
@@ -341,14 +384,16 @@ void DispatchRayGenOrComputeShader(
 	PassParameters->FarFieldReferencePos = (FVector3f)Lumen::GetFarFieldReferencePos();
 	PassParameters->PullbackBias = Lumen::GetHardwareRayTracingPullbackBias();
 
-	const FString RayTracingPassName = PermutationVector.Get<FLumenRadianceCacheHardwareRayTracingRGS::FRayTracingPass>() == LumenRadianceCache::ERayTracingPass::FarField ? TEXT("(far-field)") : TEXT("");
+	const LumenRadianceCache::ERayTracingPass RayTracingPass = PermutationVector.Get<FLumenRadianceCacheHardwareRayTracing::FRayTracingPass>();
+	const FString RayTracingPassName = RayTracingPass == LumenRadianceCache::ERayTracingPass::HitLighting ? TEXT("hit-lighting") : (RayTracingPass == LumenRadianceCache::ERayTracingPass::FarField ? TEXT("far-field") : TEXT("default"));
 
-	if (bInlineRayTracing)
+	const bool bUseMinimalPayload = RayTracingPass != LumenRadianceCache::ERayTracingPass::HitLighting;
+	if (bInlineRayTracing && bUseMinimalPayload)
 	{
 		// Inline always runs as an indirect compute shader
 		FLumenRadianceCacheHardwareRayTracingCS::AddLumenRayTracingDispatchIndirect(
 			GraphBuilder,
-			RDG_EVENT_NAME("HardwareRayTracingCS%s", *RayTracingPassName),
+			RDG_EVENT_NAME("HardwareRayTracingCS %s", *RayTracingPassName),
 			View,
 			PermutationVector,
 			PassParameters,
@@ -360,13 +405,13 @@ void DispatchRayGenOrComputeShader(
 	{
 		FLumenRadianceCacheHardwareRayTracingRGS::AddLumenRayTracingDispatchIndirect(
 			GraphBuilder,
-			RDG_EVENT_NAME("HardwareRayTracingRGS%s", *RayTracingPassName),
+			RDG_EVENT_NAME("HardwareRayTracingRGS %s", *RayTracingPassName),
 			View,
 			PermutationVector,
 			PassParameters,
 			PassParameters->HardwareRayTracingIndirectArgs,
 			0,
-			/*bUseMinimalPayload*/ true);
+			bUseMinimalPayload);
 	}	
 }
 
@@ -466,6 +511,7 @@ void LumenRadianceCache::RenderLumenHardwareRayTracingRadianceCache(
 			TEXT("Lumen.RadianceCache.TraceHit"));
 
 		const bool bInlineRayTracing = Lumen::UseHardwareInlineRayTracing(*View.Family);
+		const bool bUseHitLighting = LumenRadianceCache::UseHitLighting(View, EDiffuseIndirectMethod::Lumen);
 		checkf(ComputePassFlags != ERDGPassFlags::AsyncCompute || bInlineRayTracing, TEXT("Async Lumen HWRT is only supported for inline ray tracing"));
 
 		// Setup indirect parameters
@@ -495,10 +541,10 @@ void LumenRadianceCache::RenderLumenHardwareRayTracingRadianceCache(
 				FIntVector(1, 1, 1));
 		}
 
-		// Default tracing of near-field, extract surface cache and material-id
+		// Default tracing of near-field
 		{
 			FLumenRadianceCacheHardwareRayTracing::FPermutationDomain PermutationVector;
-			PermutationVector.Set<FLumenRadianceCacheHardwareRayTracing::FRayTracingPass>(ERayTracingPass::Default);
+			PermutationVector.Set<FLumenRadianceCacheHardwareRayTracing::FRayTracingPass>(bUseHitLighting ? ERayTracingPass::HitLighting : ERayTracingPass::Default);
 			PermutationVector.Set<FLumenRadianceCacheHardwareRayTracing::FSurfaceCacheAlphaMasking>(LumenHardwareRayTracing::UseSurfaceCacheAlphaMasking());
 			PermutationVector.Set<FLumenRadianceCacheHardwareRayTracing::FRadianceCacheBatchSize>(BatchSize);
 			PermutationVector = FLumenRadianceCacheHardwareRayTracing::RemapPermutation(PermutationVector);

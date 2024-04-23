@@ -44,6 +44,7 @@ namespace LumenVisualize
 		SHADER_PARAMETER(FIntPoint, OutputViewOffset)
 		SHADER_PARAMETER(int32, VisualizeHiResSurface)
 		SHADER_PARAMETER(int32, VisualizeMode)
+		SHADER_PARAMETER(uint32, VisualizeCullingMode)
 		SHADER_PARAMETER_STRUCT_INCLUDE(LumenReflections::FCompositeParameters, ReflectionsCompositeParameters)
 		SHADER_PARAMETER_TEXTURE(Texture2D, PreIntegratedGF)
 		SHADER_PARAMETER_SAMPLER(SamplerState, PreIntegratedGFSampler)
@@ -65,10 +66,10 @@ namespace LumenVisualize
 		LumenVisualize::FSceneParameters& VisualizeParameters,
 		FRDGTextureRef SceneColor,
 		bool bVisualizeModeWithHitLighting,
-		bool bLumenGIEnabled);
+		EDiffuseIndirectMethod DiffuseIndirectMethod);
 
-	bool IsHitLightingForceEnabled(const FViewInfo& View, bool bLumenGIEnabled);
-	bool UseHitLighting(const FViewInfo& View, bool bLumenGIEnabled);
+	bool IsHitLightingForceEnabled(const FViewInfo& View, EDiffuseIndirectMethod DiffuseIndirectMethod);
+	bool UseHitLighting(const FViewInfo& View, EDiffuseIndirectMethod DiffuseIndirectMethod);
 	bool UseSurfaceCacheFeedback(const FEngineShowFlags& ShowFlags);
 };
 
@@ -90,6 +91,6 @@ struct FVisualizeLumenSceneInputs
 	FSceneTextureShaderParameters SceneTextures;
 };
 
-extern FScreenPassTexture AddVisualizeLumenScenePass(FRDGBuilder& GraphBuilder, const FViewInfo& View, bool bAnyLumenActive, bool bLumenGIEnabled, const FVisualizeLumenSceneInputs& Inputs, FLumenSceneFrameTemporaries& FrameTemporaries);
+extern FScreenPassTexture AddVisualizeLumenScenePass(FRDGBuilder& GraphBuilder, const FViewInfo& View, bool bAnyLumenActive, EDiffuseIndirectMethod DiffuseIndirectMethod, const FVisualizeLumenSceneInputs& Inputs, FLumenSceneFrameTemporaries& FrameTemporaries);
 
 extern int32 GetLumenVisualizeMode(const FViewInfo& View);

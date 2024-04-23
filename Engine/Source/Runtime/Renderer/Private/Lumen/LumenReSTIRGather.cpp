@@ -414,8 +414,7 @@ void FDeferredShadingSceneRenderer::PrepareLumenHardwareRayTracingReSTIR(const F
 {
 	if (Lumen::UseReSTIRGather(*View.Family, ShaderPlatform))
 	{
-		const bool bLumenGIEnabled = GetViewPipelineState(View).DiffuseIndirectMethod == EDiffuseIndirectMethod::Lumen;
-		const bool bUseHitLighting = LumenReflections::UseHitLighting(View, bLumenGIEnabled);
+		const bool bUseHitLighting = LumenReflections::UseHitLighting(View, GetViewPipelineState(View).DiffuseIndirectMethod);
 
 		if (bUseHitLighting)
 		{
@@ -1013,7 +1012,7 @@ FSSDSignalTextures FDeferredShadingSceneRenderer::RenderLumenReSTIRGather(
 				Parameters->MaxRayIntensity = GLumenReSTIRMaxRayIntensity;
 			}
 
-			const bool bUseHitLighting = LumenReflections::UseHitLighting(View, true);
+			const bool bUseHitLighting = LumenReflections::UseHitLighting(View, EDiffuseIndirectMethod::Lumen);
 			const bool bUseMinimalPayload = !bUseHitLighting;
 
 			FLumenValidateReservoirsRGS::FPermutationDomain PermutationVector;
@@ -1052,7 +1051,7 @@ FSSDSignalTextures FDeferredShadingSceneRenderer::RenderLumenReSTIRGather(
 			Parameters->MaxRayIntensity = GLumenReSTIRMaxRayIntensity;
 		}
 
-		const bool bUseHitLighting = LumenReflections::UseHitLighting(View, true);
+		const bool bUseHitLighting = LumenReflections::UseHitLighting(View, EDiffuseIndirectMethod::Lumen);
 		const bool bUseMinimalPayload = !bUseHitLighting;
 
 		FLumenInitialSamplingRGS::FPermutationDomain PermutationVector;

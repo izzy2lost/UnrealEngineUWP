@@ -122,6 +122,7 @@ namespace LumenRadianceCache
 		ERDGPassFlags ComputePassFlags = ERDGPassFlags::Compute);
 
 	ERDGPassFlags GetLumenSceneLightingComputePassFlags(const FEngineShowFlags& EngineShowFlags);
+	bool UseHitLighting(const FViewInfo& View, EDiffuseIndirectMethod DiffuseIndirectMethod);
 }
 
 extern void MarkUsedProbesForVisualize(FRDGBuilder& GraphBuilder, const FViewInfo& View, const class LumenRadianceCache::FRadianceCacheMarkParameters& RadianceCacheMarkParameters, ERDGPassFlags ComputePassFlags = ERDGPassFlags::Compute);

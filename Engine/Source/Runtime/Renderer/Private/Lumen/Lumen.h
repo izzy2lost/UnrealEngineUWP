@@ -12,8 +12,8 @@ class FSceneView;
 class FSceneViewFamily;
 class FViewFamilyInfo;
 class FViewInfo;
-
 struct FEngineShowFlags;
+enum class EDiffuseIndirectMethod;
 
 extern bool ShouldRenderLumenDiffuseGI(const FScene* Scene, const FSceneView& View, bool bSkipTracingDataCheck = false, bool bSkipProjectCheck = false);
 extern bool ShouldRenderLumenReflections(const FSceneView& View, bool bSkipTracingDataCheck = false, bool bSkipProjectCheck = false, bool bIncludeStandalone = true);
@@ -102,7 +102,7 @@ namespace Lumen
 	bool UseHardwareRayTracedRadianceCache(const FSceneViewFamily& ViewFamily);
 	bool UseHardwareRayTracedRadiosity(const FSceneViewFamily& ViewFamily);
 	bool UseHardwareRayTracedVisualize(const FSceneViewFamily& ViewFamily);
-	bool IsUsingRayTracingLightingGrid(const FSceneViewFamily& ViewFamily, const FViewInfo& View, bool bLumenGIEnabled);
+	bool IsUsingRayTracingLightingGrid(const FSceneViewFamily& ViewFamily, const FViewInfo& View, EDiffuseIndirectMethod DiffuseIndirectMethod);
 
 	bool ShouldRenderRadiosityHardwareRayTracing(const FSceneViewFamily& ViewFamily);
 	bool ShouldVisualizeHardwareRayTracing(const FSceneViewFamily& ViewFamily);
@@ -110,17 +110,6 @@ namespace Lumen
 	bool ShouldPrecachePSOs(EShaderPlatform Platform);
 	
 	bool UseHardwareInlineRayTracing(const FSceneViewFamily& ViewFamily);
-
-	enum class EHardwareRayTracingLightingMode
-	{
-		LightingFromSurfaceCache = 0,
-		EvaluateMaterial,
-		EvaluateMaterialAndDirectLighting,
-		EvaluateMaterialAndDirectLightingAndSkyLighting,
-		MAX
-	};
-	EHardwareRayTracingLightingMode GetHardwareRayTracingLightingMode(const FViewInfo& View, bool bLumenGIEnabled);
-	bool UseReflectionCapturesForHitLighting();
 
 	enum class ESurfaceCacheSampling
 	{

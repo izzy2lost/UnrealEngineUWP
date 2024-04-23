@@ -1577,7 +1577,7 @@ void FDeferredShadingSceneRenderer::BeginUpdateLumenSceneTasks(FRDGBuilder& Grap
 			LumenSceneCameraOrigins.Add(Lumen::GetLumenSceneViewOrigin(View, Lumen::GetNumGlobalDFClipmaps(View) - 1));
 			MaxCardUpdateDistanceFromCamera = FMath::Max(MaxCardUpdateDistanceFromCamera, LumenScene::GetCardMaxDistance(View));
 			LumenSceneDetail = FMath::Max(LumenSceneDetail, FMath::Clamp<float>(View.FinalPostProcessSettings.LumenSceneDetail, .125f, 8.0f));
-			bAddTranslucentToCache |= LumenReflections::UseTranslucentRayTracing(View) && LumenReflections::UseHitLighting(View, GetViewPipelineState(View).DiffuseIndirectMethod == EDiffuseIndirectMethod::Lumen);
+			bAddTranslucentToCache |= LumenReflections::UseTranslucentRayTracing(View) && LumenReflections::UseHitLighting(View, GetViewPipelineState(View).DiffuseIndirectMethod);
 		}
 
 		// Add streaming view origins, only if there are futher apart than existing origins

@@ -6,8 +6,6 @@
 #include "BlueNoise.h"
 #include "ShaderParameterMacros.h"
 
-enum class ERDGPassFlags : uint16;
-
 class FLumenCardTracingInputs;
 class FLumenCardTracingParameters;
 class FLumenMeshSDFGridParameters;
@@ -18,9 +16,10 @@ class FSceneView;
 class FSceneViewFamily;
 class FViewFamilyInfo;
 class FViewInfo;
-
 struct FLumenSceneFrameTemporaries;
 struct FSceneTextures;
+enum class EDiffuseIndirectMethod;
+enum class ERDGPassFlags : uint16;
 
 namespace LumenRadianceCache
 { 
@@ -104,9 +103,9 @@ END_SHADER_PARAMETER_STRUCT()
 namespace LumenReflections
 {
 	bool UseFarField(const FSceneViewFamily& ViewFamily);
-	bool UseHitLighting(const FViewInfo& View, bool bLumenGIEnabled);
+	bool UseHitLighting(const FViewInfo& View, EDiffuseIndirectMethod DiffuseIndirectMethod);
 	bool UseTranslucentRayTracing(const FViewInfo& View);
-	bool IsHitLightingForceEnabled(const FViewInfo& View, bool bLumenGIEnabled);
+	bool IsHitLightingForceEnabled(const FViewInfo& View, EDiffuseIndirectMethod DiffuseIndirectMethod);
 	bool UseSurfaceCacheFeedback();
 	float GetSampleSceneColorNormalTreshold();
 	uint32 GetMaxReflectionBounces(const FViewInfo& View);
@@ -146,7 +145,7 @@ extern void TraceReflections(
 	const FLumenReflectionTileParameters& ReflectionTileParameters,
 	const FLumenMeshSDFGridParameters& InMeshSDFGridParameters,
 	bool bUseRadianceCache,
-	bool bLumenGIEnabled,
+	EDiffuseIndirectMethod DiffuseIndirectMethod,
 	const LumenRadianceCache::FRadianceCacheInterpolationParameters& RadianceCacheParameters,
 	ERDGPassFlags ComputePassFlags);
 
@@ -165,5 +164,5 @@ extern void RenderLumenHardwareRayTracingReflections(
 	bool bUseRadianceCache,
 	const LumenRadianceCache::FRadianceCacheInterpolationParameters& RadianceCacheParameters,
 	bool bSampleSceneColorAtHit,
-	bool bLumenGIEnabled,
+	EDiffuseIndirectMethod DiffuseIndirectMethod,
 	ERDGPassFlags ComputePassFlags);

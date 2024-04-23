@@ -38,6 +38,7 @@ namespace LumenScreenProbeGather
 	extern bool UseProbeTemporalFilter();
 	extern bool UseRadianceCache();
 	EScreenProbeIrradianceFormat GetScreenProbeIrradianceFormat(const FEngineShowFlags& ShowFlags);
+	bool UseHitLighting(const FViewInfo& View, EDiffuseIndirectMethod DiffuseIndirectMethod);
 
 	// Must match LumenScreenProbeCommon.ush
 	constexpr uint32 IrradianceProbeRes = 6;

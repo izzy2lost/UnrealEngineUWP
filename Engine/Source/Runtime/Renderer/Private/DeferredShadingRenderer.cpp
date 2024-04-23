@@ -744,9 +744,7 @@ void FDeferredShadingSceneRenderer::SetupRayTracingLightDataForViews(FRDGBuilder
 		// Path Tracing currently uses its own code to manage lights, so doesn't need to run this.
 		if (!bPathTracingEnabled)
 		{
-			const bool bLumenEnabled = GetViewPipelineState(View).DiffuseIndirectMethod == EDiffuseIndirectMethod::Lumen || GetViewPipelineState(View).ReflectionsMethod == EReflectionsMethod::Lumen;
-
-			if (Lumen::IsUsingRayTracingLightingGrid(ViewFamily, View, bLumenEnabled)
+			if (Lumen::IsUsingRayTracingLightingGrid(ViewFamily, View, GetViewPipelineState(View).DiffuseIndirectMethod)
 				|| GetRayTracingTranslucencyOptions(View).bEnabled
 				|| ViewFamily.EngineShowFlags.RayTracingDebug)
 			{
@@ -3255,7 +3253,6 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 					{
 						const FPerViewPipelineState& ViewPipelineState = GetViewPipelineState(View);
 						const bool bAnyLumenActive = ViewPipelineState.DiffuseIndirectMethod == EDiffuseIndirectMethod::Lumen || ViewPipelineState.ReflectionsMethod == EReflectionsMethod::Lumen;
-						const bool bLumenGIEnabled = ViewPipelineState.DiffuseIndirectMethod == EDiffuseIndirectMethod::Lumen;
 
 						FScreenPassTexture TSRFlickeringInput;
 						if (ViewIndex < TSRFlickeringInputTextures.Num())
@@ -3268,7 +3265,7 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 							View, ViewIndex,
 							GetSceneUniforms(),
 							bAnyLumenActive,
-							bLumenGIEnabled,
+							ViewPipelineState.DiffuseIndirectMethod,
 							ViewPipelineState.ReflectionsMethod,
 							PostProcessingInputs,
 							NaniteResults,

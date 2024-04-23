@@ -150,6 +150,7 @@ RAY_TRACING_ENTRY_RAYGEN(RayTracingPrimaryRaysRGS)
 		const bool bRefractionEnableSkyLightContribution = true;
 #endif
 		float3 PathVertexRadiance = float3(0, 0, 0);
+		float MaxTraceDistance = 100000.0f;
 
 		RandomSequence RandSequence;
 
@@ -163,6 +164,7 @@ RAY_TRACING_ENTRY_RAYGEN(RayTracingPrimaryRaysRGS)
 			RandSequence,
 			PixelCoord,
 			MaxNormalBias,
+			MaxTraceDistance,
 			ReflectedShadowsType,
 			ShouldDoDirectLighting,
 			ShouldDoEmissiveAndIndirectLighting,
@@ -267,6 +269,7 @@ RAY_TRACING_ENTRY_RAYGEN(RayTracingPrimaryRaysRGS)
 				RandSequence,
 				PixelCoord,
 				MaxNormalBias,
+				MaxTraceDistance,
 				ReflectedShadowsType,
 				ShouldDoDirectLighting,
 				ShouldDoEmissiveAndIndirectLighting,
