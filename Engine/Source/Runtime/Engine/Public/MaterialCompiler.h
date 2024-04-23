@@ -515,6 +515,9 @@ public:
 	virtual int32 VertexNormal() = 0;
 	virtual int32 VertexTangent() = 0;
 	virtual int32 PixelNormalWS() = 0;
+	
+	virtual int32 DisplacementCenter() = 0;
+	virtual int32 DisplacementMagnitude() = 0;
 
 	virtual int32 CustomExpression(class UMaterialExpressionCustom* Custom, int32 OutputIndex, TArray<int32>& CompiledInputs) = 0;
 	virtual int32 CustomOutput(class UMaterialExpressionCustomOutput* Custom, int32 OutputIndex, int32 OutputCode) = 0;
@@ -1065,6 +1068,9 @@ public:
 	virtual int32 VertexNormal() override { return Compiler->VertexNormal(); }
 	virtual int32 VertexTangent() override { return Compiler->VertexTangent(); }
 	virtual int32 PixelNormalWS() override { return Compiler->PixelNormalWS(); }
+
+	virtual int32 DisplacementCenter() override { return Compiler->DisplacementCenter(); }
+	virtual int32 DisplacementMagnitude() override { return Compiler->DisplacementMagnitude(); }
 
 	virtual int32 CustomExpression(class UMaterialExpressionCustom* Custom, int32 OutputIndex, TArray<int32>& CompiledInputs) override { return Compiler->CustomExpression(Custom, OutputIndex, CompiledInputs); }
 	virtual int32 CustomOutput(class UMaterialExpressionCustomOutput* Custom, int32 OutputIndex, int32 OutputCode) override { return Compiler->CustomOutput(Custom, OutputIndex, OutputCode); }

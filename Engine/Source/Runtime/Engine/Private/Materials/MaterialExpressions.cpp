@@ -95,6 +95,7 @@
 #include "Materials/MaterialExpressionDistance.h"
 #include "Materials/MaterialExpressionDistanceCullFade.h"
 #include "Materials/MaterialExpressionDistanceFieldsRenderingSwitch.h"
+#include "Materials/MaterialExpressionDisplacementScaling.h"
 #include "Materials/MaterialExpressionDivide.h"
 #include "Materials/MaterialExpressionDotProduct.h"
 #include "Materials/MaterialExpressionDynamicParameter.h"
@@ -29287,5 +29288,42 @@ uint32 UMaterialExpressionNeuralNetworkOutput::GetInputType(int32 InputIndex)
 	return MCT_Float2;
 }
 #endif // WITH_EDITOR
+
+///////////////////////////////////////////////////////////////////////////////
+// UMaterialExpressionActorPositionWS
+///////////////////////////////////////////////////////////////////////////////
+
+UMaterialExpressionDisplacementScaling::UMaterialExpressionDisplacementScaling(const FObjectInitializer& ObjectInitializer)
+	: Super(ObjectInitializer)
+{
+#if WITH_EDITOR
+	Outputs.Reset();
+	Outputs.Add(FExpressionOutput(TEXT("Center")));
+	Outputs.Add(FExpressionOutput(TEXT("Magnitude")));
+
+	bShowOutputNameOnPin = true;
+#endif
+}
+
+#if WITH_EDITOR
+int32 UMaterialExpressionDisplacementScaling::Compile(FMaterialCompiler* Compiler, int32 OutputIndex)
+{
+	switch (OutputIndex)
+	{
+	case 0:
+		return Compiler->DisplacementCenter();
+	case 1:
+		return Compiler->DisplacementMagnitude();
+	default:
+		return INDEX_NONE;
+	}
+}
+
+void UMaterialExpressionDisplacementScaling::GetCaption(TArray<FString>& OutCaptions) const
+{
+	OutCaptions.Add(TEXT("Displacement Scaling"));
+}
+#endif // WITH_EDITOR
+
 
 #undef LOCTEXT_NAMESPACE

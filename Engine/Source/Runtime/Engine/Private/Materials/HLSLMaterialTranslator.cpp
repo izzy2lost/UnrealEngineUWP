@@ -1700,9 +1700,11 @@ void FHLSLMaterialTranslator::DoTranslate()
 	bool bUsesWorldPositionOffsetPrevious = IsMaterialPropertyUsed(MP_WorldPositionOffset, Chunk[CompiledMP_PrevWorldPositionOffset], FLinearColor(0, 0, 0, 0), 3);
 	bUsesWorldPositionOffset = bUsesWorldPositionOffsetCurrent || bUsesWorldPositionOffsetPrevious;
 
+	const FDisplacementScaling DisplacementScaling = Material->GetDisplacementScaling();
 	bUsesDisplacement = DoesPlatformSupportNanite(Platform) &&
 		Material->IsTessellationEnabled() &&
-		!FMath::IsNearlyZero(Material->GetDisplacementScaling().Magnitude, UE_KINDA_SMALL_NUMBER);
+		!FMath::IsNearlyZero(DisplacementScaling.Magnitude, UE_KINDA_SMALL_NUMBER) &&
+		IsMaterialPropertyUsed(MP_Displacement, Chunk[MP_Displacement], FLinearColor(DisplacementScaling.Center, 0, 0, 0), 1);
 
 	MaterialCompilationOutput.bModifiesMeshPosition = bUsesPixelDepthOffset || bUsesWorldPositionOffset || bUsesDisplacement;
 	MaterialCompilationOutput.bUsesWorldPositionOffset = bUsesWorldPositionOffset;
@@ -11040,6 +11042,16 @@ int32 FHLSLMaterialTranslator::PixelNormalWS()
 		bUsesTransformVector = true;
 	}
 	return AddInlinedCodeChunk(MCT_Float3,TEXT("Parameters.WorldNormal"));	
+}
+
+int32 FHLSLMaterialTranslator::DisplacementCenter()
+{
+	return Constant(Material->GetDisplacementScaling().Center);
+}
+
+int32 FHLSLMaterialTranslator::DisplacementMagnitude()
+{
+	return Constant(Material->GetDisplacementScaling().Magnitude);
 }
 
 int32 FHLSLMaterialTranslator::Derivative(int32 A, EDervativeComponent Component)

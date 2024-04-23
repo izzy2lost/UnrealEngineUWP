@@ -65,6 +65,7 @@
 #include "Materials/MaterialExpressionDepthOfFieldFunction.h"
 #include "Materials/MaterialExpressionDeriveNormalZ.h"
 #include "Materials/MaterialExpressionDesaturation.h"
+#include "Materials/MaterialExpressionDisplacementScaling.h"
 #include "Materials/MaterialExpressionDistance.h"
 #include "Materials/MaterialExpressionDistanceCullFade.h"
 #include "Materials/MaterialExpressionDistanceFieldApproxAO.h"
@@ -5202,6 +5203,24 @@ bool UMaterialExpressionNeuralNetworkOutput::GenerateHLSLExpression(FMaterialHLS
 	}
 
 	return true;
+}
+
+bool UMaterialExpressionDisplacementScaling::GenerateHLSLExpression(FMaterialHLSLGenerator& Generator, UE::HLSLTree::FScope& Scope, int32 OutputIndex, UE::HLSLTree::FExpression const*& OutExpression) const
+{
+	const UMaterial* BaseMaterial = Generator.GetTargetMaterial();
+	const FDisplacementScaling Scaling = BaseMaterial->GetDisplacementScaling();
+	const UE::HLSLTree::FExpression* Expr = nullptr;
+
+	if (OutputIndex == 0)
+	{
+		Expr = Generator.NewConstant(Scaling.Center);
+	}
+	else if (OutputIndex == 1)
+	{
+		Expr = Generator.NewConstant(Scaling.Magnitude);
+	}
+
+	return Expr != nullptr;
 }
 
 #endif // WITH_EDITOR

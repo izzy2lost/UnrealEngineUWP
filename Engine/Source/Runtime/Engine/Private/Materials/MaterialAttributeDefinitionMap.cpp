@@ -71,6 +71,11 @@ int32 FMaterialAttributeDefintion::CompileDefaultValue(FMaterialCompiler* Compil
 		return Compiler->SubstrateCreateAndRegisterNullMaterial();
 	}
 
+	if (Property == MP_Displacement)
+	{
+		return Compiler->DisplacementCenter();
+	}
+
 	if (TexCoordIndex == INDEX_NONE)
 	{
 		// Standard value type

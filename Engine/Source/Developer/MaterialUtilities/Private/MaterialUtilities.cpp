@@ -289,6 +289,16 @@ struct FExportMaterialCompiler : public FProxyMaterialCompiler
 		// Current returning vertex normal since pixel normal will contain incorrect data (normal calculated from uv data used as vertex positions to render out the material)
 		return Compiler->VertexNormal();
 	}
+	
+	virtual int32 DisplacementCenter() override
+	{
+		return Compiler->DisplacementCenter();
+	}
+	
+	virtual int32 DisplacementMagnitude() override
+	{
+		return Compiler->DisplacementMagnitude();
+	}
 
 	virtual int32 ParticleRandom() override
 	{
