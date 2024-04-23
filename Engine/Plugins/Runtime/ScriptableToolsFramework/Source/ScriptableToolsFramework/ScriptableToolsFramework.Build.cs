@@ -30,6 +30,7 @@ public class ScriptableToolsFramework : ModuleRules
 				"PhysicsCore",
 				"RenderCore",
 				"GeometryCore",
+				"InputCore",
 				"InteractiveToolsFramework"
 			}
 			);
