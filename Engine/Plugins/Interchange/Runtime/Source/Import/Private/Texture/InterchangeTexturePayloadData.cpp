@@ -28,30 +28,6 @@ void UE::Interchange::FImportImage::Init2DWithParams(int32 InSizeX, int32 InSize
 	}
 }
 
-void UE::Interchange::FImportImage::Init2DWithOneMip(int32 InSizeX, int32 InSizeY, ETextureSourceFormat InFormat, const void* InData)
-{
-	Init2DWithParams(InSizeX, InSizeY, 1, InFormat, bSRGB);
-
-	if (InData)
-	{
-		// @@ dangerous: InData has no size
-		FMemory::Memcpy(RawData.GetData(), InData, RawData.GetSize());
-	}
-}
-
-void UE::Interchange::FImportImage::Init2DWithMips(int32 InSizeX, int32 InSizeY, int32 InNumMips, ETextureSourceFormat InFormat, const void* InData)
-{
-	// @@ not used, delete me
-	// this is not used; import with mips is via DDS which uses a different code path
-	Init2DWithParams(InSizeX, InSizeY, InNumMips, InFormat, bSRGB);
-
-	if (InData)
-	{
-		// @@ dangerous: InData has no size
-		FMemory::Memcpy(RawData.GetData(), InData, RawData.GetSize());
-	}
-}
-
 int64 UE::Interchange::FImportImage::GetMipSize(int32 InMipIndex) const
 {
 	check(InMipIndex >= 0);

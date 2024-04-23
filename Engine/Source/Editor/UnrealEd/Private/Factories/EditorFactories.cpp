@@ -2849,43 +2849,6 @@ void FImportImage::Init2DWithParams(int32 InSizeX, int32 InSizeY, ETextureSource
 	SRGB = InSRGB;
 }
 
-void FImportImage::Init2DWithOneMip(int32 InSizeX, int32 InSizeY, ETextureSourceFormat InFormat, const void* InData)
-{
-	SizeX = InSizeX;
-	SizeY = InSizeY;
-	NumMips = 1;
-	Format = InFormat;
-	RawData.AddUninitialized((int64)SizeX * SizeY * FTextureSource::GetBytesPerPixel(Format));
-	if (InData)
-	{
-		// @@ dangerous: InData has no size
-		FMemory::Memcpy(RawData.GetData(), InData, RawData.Num());
-	}
-}
-
-void FImportImage::Init2DWithMips(int32 InSizeX, int32 InSizeY, int32 InNumMips, ETextureSourceFormat InFormat, const void* InData)
-{
-	// @@ not used, delete me
-
-	SizeX = InSizeX;
-	SizeY = InSizeY;
-	NumMips = InNumMips;
-	Format = InFormat;
-
-	int64 TotalSize = 0;
-	for (int32 MipIndex = 0; MipIndex < InNumMips; ++MipIndex)
-	{
-		TotalSize += GetMipSize(MipIndex);
-	}
-	RawData.AddUninitialized(TotalSize);
-
-	if (InData)
-	{
-		// @@ dangerous: InData has no size
-		FMemory::Memcpy(RawData.GetData(), InData, RawData.Num());
-	}
-}
-
 int64 FImportImage::GetMipSize(int32 InMipIndex) const
 {
 	check(InMipIndex >= 0);
@@ -3106,12 +3069,20 @@ bool UTextureFactory::ImportImage(const uint8* Buffer, int64 Length, FFeedbackCo
 		}
 
 		// The psd is supported. Load it up.        
-		OutImage.Init2DWithOneMip(
+		bool bSRGB = true;
+		OutImage.Init2DWithParams(
 			psdhdr.Width,
 			psdhdr.Height,
-			TextureFormat
+			TextureFormat,
+			bSRGB
 		);
+		
+		OutImage.RawData.SetNumUninitialized((int64)psdhdr.Width * psdhdr.Height * FTextureSource::GetBytesPerPixel(TextureFormat));
+
 		uint8* Dst = (uint8*)OutImage.RawData.GetData();
+
+		// @todo : dangerous : psd_ReadData doesn't take Dst end, may overrun
+		//	-> just delete the PSD reader from here entirely, it should be in ImageWrapper instead
 
 		if (!psd_ReadData(Dst, Buffer, psdhdr))
 		{

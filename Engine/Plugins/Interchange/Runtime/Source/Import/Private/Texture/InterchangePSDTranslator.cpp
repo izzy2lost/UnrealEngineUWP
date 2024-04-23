@@ -451,10 +451,12 @@ TOptional<UE::Interchange::FImportImage> UInterchangePSDTranslator::GetTexturePa
 	UE::Interchange::FImportImage PayloadData;
 
 	// The PSD is supported. Load it up.        
-	PayloadData.Init2DWithOneMip(
+	PayloadData.Init2DWithParams(
 		PSDHeader.Width,
 		PSDHeader.Height,
-		TextureFormat
+		TextureFormat,
+		true,
+		true
 	);
 
 	FMutableMemoryView Output(PayloadData.RawData.GetData(), PayloadData.RawData.GetSize());
