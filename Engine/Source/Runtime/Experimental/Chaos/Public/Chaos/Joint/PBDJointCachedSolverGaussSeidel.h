@@ -674,7 +674,7 @@ struct FAxisConstraintDatas
 
 		void InitRotationConstraintsSimd(
 			const FPBDJointSettings& JointSettings,
-			const FReal Dt);
+			const FRealSingle Dt);
 
 		void CorrectAxisAngleConstraint(
 			const FPBDJointSettings& JointSettings,
@@ -822,7 +822,7 @@ struct FAxisConstraintDatas
 
 		void InitRotationConstraintDriveSimd(
 			FVec3 ConstraintAxes[3],
-			const FReal Dt,
+			const FRealSingle Dt,
 			const FVec3 DeltaAngles);
 		
 		void InitSwingTwistDrives(
