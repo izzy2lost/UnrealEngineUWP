@@ -20,6 +20,15 @@ arm64
 #undef arm
 arm
 
+#elif defined(__EMSCRIPTEN__)
+#ifdef __LP64__
+#undef wasm64
+wasm64
+#else
+#undef wasm
+wasm
+#endif
+
 #else
 unknown
 
