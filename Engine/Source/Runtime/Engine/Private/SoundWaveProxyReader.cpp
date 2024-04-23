@@ -72,6 +72,10 @@ FSoundWaveProxyReader::FSoundWaveProxyReader(FSoundWaveProxyRef InWaveProxy, con
 
 	// Prepare to read audio
 	bIsDecoderValid = InitializeDecoder(Settings.StartTimeInSeconds);
+	if (!bIsDecoderValid)
+	{
+		UE_LOG(LogAudio, Warning, TEXT("Failed to InitializeDecoder in FSoundWaveProxyReader(), Package: %s"), *WriteToString<64>(InWaveProxy->GetPackageName()));
+	}
 
 	// set the decoder to "Fail" if we're unable to create a decoder
 	DecodeResult = bIsDecoderValid ? DecodeResult : EDecodeResult::Fail;
