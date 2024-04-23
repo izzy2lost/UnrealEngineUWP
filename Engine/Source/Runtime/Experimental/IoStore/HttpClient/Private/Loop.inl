@@ -754,9 +754,7 @@ void FPeerGroup::TickSend(FTickState& State, FHost& Host)
 	if (!Peer.IsValid())
 	{
 		IsKeepAlive = 1;
-		Peer = Host.Connect();
-
-		FOutcome Outcome = FOutcome::Ok();
+		FOutcome Outcome = Host.Connect(Peer);
 
 		// We failed to connect, let's bail.
 		if (Outcome.IsError())
