@@ -41,12 +41,20 @@
 
 void FHordePlatform::NotImplemented()
 {
+#if PLATFORM_EXCEPTIONS_DISABLED
+	abort();
+#else
 	throw std::string("Not Implemented");
+#endif
 }
 
 void FHordePlatform::NotSupported(const char* Message)
 {
+#if PLATFORM_EXCEPTIONS_DISABLED
+	abort();
+#else
 	throw std::string(Message);
+#endif
 }
 
 bool FHordePlatform::GetEnvironmentVariable(const char* Name, char* Buffer, size_t BufferLen)
