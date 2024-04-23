@@ -70,46 +70,50 @@ namespace UnsyncUI
 			Config.proxyAddress = proxyAddress;
 		}
 
-		public List<UnsyncMirrorDesc> Mirrors()
+		private string RunCommand(string argsStr)
 		{
-			String argsStr = $"query mirrors --proxy {Config.proxyAddress}";
 			AsyncProcess proc = new AsyncProcess(Config.unsyncPath, argsStr);
 			CancellationToken cancellationToken = new CancellationToken();
 
-			var responseJson = "";
+			var response = "";
+			var diagnostics = "";
 
 			var QueryTask = Task.Run(async () => {
-				// TODO: read stderr stream and somehow report status/errors
-				await foreach (var str in proc.RunAsync(cancellationToken, false /*ReadStdErr*/))
+				await foreach (var (str, kind) in proc.RunAsyncStreams(cancellationToken))
 				{
-					responseJson += str;
+					if (kind == AsyncProcess.StreamKind.StdOut)
+					{
+						response += str;
+					}
+					else
+					{
+						diagnostics += str;
+					}
 				}
 			});
+
 			QueryTask.Wait();
 
+			if (proc.ExitCode == 0)
+			{
+				return response;
+			}
+			else
+			{
+				throw new Exception($"Exit code {proc.ExitCode}\n{diagnostics}");
+			}
+		}
+
+		public List<UnsyncMirrorDesc> Mirrors()
+		{
+			string responseJson = RunCommand($"query mirrors --proxy {Config.proxyAddress}");
 			return JsonSerializer.Deserialize<List<UnsyncMirrorDesc>>(responseJson);
 		}
 
 		public LoginQueryResult Login()
 		{
-			String argsStr = $"login --decode --proxy {Config.proxyAddress}";
-			AsyncProcess proc = new AsyncProcess(Config.unsyncPath, argsStr);
-			CancellationToken cancellationToken = new CancellationToken();
-
-			var responseJson = "";
-
-			var LoginTask = Task.Run(async () => {
-				// TODO: read stderr stream and somehow report status/errors
-				await foreach (var str in proc.RunAsync(cancellationToken, false /*ReadStdErr*/))
-				{
-					responseJson += str;
-				}
-			});
-			LoginTask.Wait();
-
-			LoginQueryResult queryResult = JsonSerializer.Deserialize<LoginQueryResult>(responseJson);
-
-			return queryResult;
+			string responseJson = RunCommand($"login --decode --proxy {Config.proxyAddress}");
+			return JsonSerializer.Deserialize<LoginQueryResult>(responseJson);
 		}
 	}
 
@@ -215,7 +219,7 @@ namespace UnsyncUI
 					}
 					catch (Exception ex)
 					{
-						App.Current.LogError("Exception while parsing unsync query JSON: " + ex.Message);
+						App.Current.LogError("Exception during unsync query: " + ex.Message);
 					}
 				}
 			}

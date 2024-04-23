@@ -243,16 +243,29 @@ namespace UnsyncUI
 
 			List<Proxy> ConfigProxies = new List<Proxy>();
 
-			ConfigProxies.AddRange(rootNode.Element("proxies").Elements("proxy").Select(p => new Proxy()
+			var proxiesConfigNode = rootNode.Element("proxies");
+			if (proxiesConfigNode != null)
 			{
-				Name = p.Attribute("name")?.Value,
-				Path = p.Attribute("path")?.Value
-			}));
+				ConfigProxies.AddRange(proxiesConfigNode.Elements("proxy").Select(p => new Proxy()
+				{
+					Name = p.Attribute("name")?.Value,
+					Path = p.Attribute("path")?.Value
+				}));
+			}
+
+			// Set a default root proxy
+			if (ConfigProxies.Count > 0)
+			{
+				RootProxy = ConfigProxies.First();
+			}
 
 			// Auto-discover proxies
 			(List<Proxy> DiscoveredProxies, Proxy DiscoveredRootProxy) = DiscoverProxies(ConfigProxies);
 
-			RootProxy = DiscoveredRootProxy;
+			if (DiscoveredRootProxy != null)
+			{
+				RootProxy = DiscoveredRootProxy;
+			}
 
 			if (DiscoveredProxies == null)
 			{
@@ -312,8 +325,9 @@ namespace UnsyncUI
 						return (ParsedProxies, SeedServer);
 					}
 				}
-				catch (Exception)
+				catch (Exception ex)
 				{
+					App.Current.LogError("Exception during unsync query: " + ex.Message);
 					continue;
 				}
 			}

@@ -16,6 +16,12 @@ namespace UnsyncUI
 	/// </summary>
 	public partial class App : Application
     {
+		public App() : base()
+		{
+			Dispatcher.UnhandledException += (sender, args) => UnhandledException(sender, args.Exception.ToString());
+			AppDomain.CurrentDomain.UnhandledException += (sender, args) => UnhandledException(sender, args.ExceptionObject.ToString());
+		}
+
 		public new static App Current => Application.Current as App;
 
 		public Config Config { get; private set; }
@@ -24,7 +30,7 @@ namespace UnsyncUI
 		public string DefaultSearchTerms { get; private set; } = "";
 
 		internal bool EnableExperimentalFeatures = false;
-		internal bool EnableUserAuthentication = true;
+		internal bool EnableUserAuthentication = false;
 
 		internal string ApplicationLog { get; private set; } = "";
 
@@ -135,6 +141,21 @@ namespace UnsyncUI
 
 			if (Config != null)
 			{
+				/*
+				if (Config.RootProxy != null)
+				{
+					App.Current.LogMessage($"Unsync server address: {Config.RootProxy.Path}");
+					EnableUserAuthentication = true;
+				}
+				else
+				{
+					App.Current.LogMessage($"Unsync server address is not configured");
+					EnableUserAuthentication = false;
+				}
+				*/
+
+				EnableUserAuthentication = true;
+
 				Config.UnsyncPath = UnsyncPath;
 				Config.EnableExperimentalFeatures = EnableExperimentalFeatures;
 				Config.EnableUserAuthentication = EnableUserAuthentication;
@@ -150,6 +171,12 @@ namespace UnsyncUI
 				UserConfig.Save();
 			}
 			base.OnExit(e);
+		}
+
+		static void UnhandledException(object sender, string e)
+		{
+			MessageBox.Show($"Unhandled exception:\n{e}", "Fatal error", MessageBoxButton.OK, MessageBoxImage.Error);
+			Environment.Exit(1);
 		}
 	}
 

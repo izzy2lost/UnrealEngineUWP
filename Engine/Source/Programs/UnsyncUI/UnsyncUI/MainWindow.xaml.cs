@@ -236,7 +236,6 @@ namespace UnsyncUI
 			}
 			catch (Exception ex)
 			{
-				// TODO: add global status/log window
 				App.Current.LogError($"Login failed with exception: {ex}");
 			}
 		}
