@@ -138,6 +138,14 @@ EVisibility SChaosVDPlaybackViewport::GetTransformToolbarVisibility() const
 	return EVisibility::Visible;
 }
 
+void SChaosVDPlaybackViewport::GoToLocation(const FVector& InLocation) const
+{
+	if (PlaybackViewportClient)
+	{
+		PlaybackViewportClient->GoToLocation(InLocation);
+	}
+}
+
 TSharedRef<FEditorViewportClient> SChaosVDPlaybackViewport::MakeEditorViewportClient()
 {
 	TSharedPtr<FChaosVDPlaybackViewportClient> NewViewport = MakeShared<FChaosVDPlaybackViewportClient>(EditorModeTools, GetViewportWidget());

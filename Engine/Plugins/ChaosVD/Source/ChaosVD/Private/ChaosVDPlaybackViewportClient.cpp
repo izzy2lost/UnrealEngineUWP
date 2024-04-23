@@ -241,6 +241,14 @@ void FChaosVDPlaybackViewportClient::ToggleObjectTrackingIfSelected()
 	}
 }
 
+void FChaosVDPlaybackViewportClient::GoToLocation(const FVector& InLocation)
+{
+	FViewportCameraTransform& ViewTransform = GetViewTransform();
+	ViewTransform.SetLocation(InLocation);
+
+	Invalidate();
+}
+
 void FChaosVDPlaybackViewportClient::Draw(const FSceneView* View, FPrimitiveDrawInterface* PDI)
 {
 	if (View)

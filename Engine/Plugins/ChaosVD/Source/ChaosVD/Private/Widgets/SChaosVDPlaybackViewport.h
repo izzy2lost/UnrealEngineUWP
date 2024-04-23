@@ -44,6 +44,8 @@ public:
 
 	virtual EVisibility GetTransformToolbarVisibility() const override;
 
+	void GoToLocation(const FVector& InLocation) const;
+
 protected:
 
 	virtual TSharedRef<FEditorViewportClient> MakeEditorViewportClient() override;

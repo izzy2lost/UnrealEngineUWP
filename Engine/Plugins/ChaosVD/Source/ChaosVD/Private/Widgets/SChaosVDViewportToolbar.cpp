@@ -2,6 +2,7 @@
 
 #include "Widgets/SChaosVDViewportToolbar.h"
 
+#include "ChaosVDCommands.h"
 #include "ChaosVDEditorSettings.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "PropertyEditorModule.h"
@@ -11,6 +12,10 @@
 #include "PropertyEditorModule.h"
 #include "SCommonEditorViewportToolbarBase.h"
 #include "SEditorViewport.h"
+#include "Styling/AppStyle.h"
+#include "Widgets/Input/SEditableText.h"
+#include "Widgets/Layout/SBorder.h"
+#include "Widgets/Layout/SBox.h"
 #include "Widgets/SChaosVDEditorViewportViewMenu.h"
 #include "Widgets/SChaosVDPlaybackViewport.h"
 #include "Widgets/SChaosVDVisualizationControls.h"
@@ -33,18 +38,34 @@ void SChaosVDViewportToolbar::ExtendOptionsMenu(FMenuBuilder& OptionsMenuBuilder
 	constexpr bool bInShouldCloseWindowAfterMenuSelection = true;
 	FMenuBuilder CVDOptionsMenuBuilder(bInShouldCloseWindowAfterMenuSelection, GetInfoProvider().GetViewportWidget()->GetCommandList());
 
-	TSharedRef<SVerticalBox> OptionsMenuWidget = SNew(SVerticalBox)
-													+SVerticalBox::Slot()
-													.Padding(5.0f)
-													[
-														SNew(STextBlock)
-														.Text(LOCTEXT("Default Options Message", "Nothing to see yet. An options menu will be implemented soon"))
-													];
-
-	// Intentionally leaving the label empty as we only want to show the temp message defined above
-	CVDOptionsMenuBuilder.AddWidget(OptionsMenuWidget, FText());
+	CVDOptionsMenuBuilder.BeginSection("CVDViewportViewportOptions", LOCTEXT("OptionsMenuHeader", "Utils"));
+	
+	CVDOptionsMenuBuilder.AddWidget(GenerateGoToLocationWidget(), LOCTEXT("GoToLocation", "Go to Location"));
+	CVDOptionsMenuBuilder.EndSection();
 
 	OptionsMenuBuilder = CVDOptionsMenuBuilder;
+}
+
+TSharedRef<SWidget> SChaosVDViewportToolbar::GenerateGoToLocationWidget() const
+{
+	return SNew(SBox)
+			.HAlign(HAlign_Right)
+			[
+				SNew(SBox)
+				.Padding(FMargin(4.0f, 0.0f, 0.0f, 0.0f))
+				.WidthOverride(100.0f)
+				[
+					SNew (SBorder)
+					.BorderImage(FAppStyle::Get().GetBrush("Menu.WidgetBorder"))
+					.Padding(FMargin(1.0f))
+					[
+						SNew(SEditableText)
+						.ToolTipText(LOCTEXT("GoToLocationTooltip", "Location to teleport to."))
+						.Font(FAppStyle::GetFontStyle(TEXT("MenuItem.Font")))
+						.OnTextCommitted(FOnTextCommitted::CreateSP(this, &SChaosVDViewportToolbar::HandleGoToLocationCommited))
+					]
+				]
+			];
 }
 
 TSharedRef<SWidget> SChaosVDViewportToolbar::GenerateShowMenu() const
@@ -61,5 +82,21 @@ TSharedRef<SWidget> SChaosVDViewportToolbar::GenerateShowMenu() const
 	TSharedRef<SChaosVDPlaybackViewport> ViewportRef = StaticCastSharedRef<SChaosVDPlaybackViewport>(GetInfoProvider().GetViewportWidget());
 
 	return SNew(SChaosVDVisualizationControls, ViewportRef->GetObservedController(), ViewportRef);
+}
+
+void SChaosVDViewportToolbar::HandleGoToLocationCommited(const FText& InLocationAsText, ETextCommit::Type Type) const
+{
+	if (Type != ETextCommit::OnEnter)
+	{
+		return;
+	}
+
+	FVector Location;
+	Location.InitFromString(InLocationAsText.ToString());
+
+	TSharedRef<SChaosVDPlaybackViewport> ViewportRef = StaticCastSharedRef<SChaosVDPlaybackViewport>(GetInfoProvider().GetViewportWidget());
+
+	ViewportRef->GoToLocation(Location);
+	
 }
 #undef LOCTEXT_NAMESPACE

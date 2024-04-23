@@ -27,7 +27,11 @@ protected:
 	virtual TSharedRef<SEditorViewportViewMenu> MakeViewMenu() override;
 	virtual void ExtendOptionsMenu(FMenuBuilder& OptionsMenuBuilder) const override;
 
+	TSharedRef<SWidget> GenerateGoToLocationWidget() const;
+
 private:
 	virtual TSharedRef<SWidget> GenerateShowMenu() const override;
+
+	void HandleGoToLocationCommited(const FText& InLocationAsText, ETextCommit::Type Type) const;
 
 };

@@ -31,6 +31,8 @@ public:
 
 	void ToggleObjectTrackingIfSelected();
 
+	void GoToLocation(const FVector& InLocation);
+
 private:
 
 	void TrackSelectedObject();
