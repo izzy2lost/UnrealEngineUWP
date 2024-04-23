@@ -3,6 +3,8 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Horde.Storage;
@@ -16,6 +18,7 @@ namespace Jupiter.Implementation.Objects
 	{
 		private readonly IReferencesStore _actualStore;
 		private readonly ConcurrentDictionary<NamespaceId, MemoryCache> _referenceCaches = new ConcurrentDictionary<NamespaceId, MemoryCache>();
+		private readonly ConcurrentDictionary<NamespaceId, MemoryCache> _bucketEnumerationCaches = new ConcurrentDictionary<NamespaceId, MemoryCache>();
 		private readonly IOptionsMonitor<MemoryCacheReferencesSettings> _options;
 		private readonly Tracer _tracer;
 
@@ -42,9 +45,23 @@ namespace Jupiter.Implementation.Objects
 			}
 		}
 
+		private void AddBucketCacheForNamespace(NamespaceId ns, BucketId bucket, List<(RefId, BlobId)> bucketContents)
+		{
+			MemoryCache cache = GetBucketCacheForNamespace(ns);
+
+			using ICacheEntry entry = cache.CreateEntry(bucket);
+			entry.Value = bucketContents;
+			entry.SlidingExpiration = TimeSpan.FromMinutes(10);
+		}
+
 		private MemoryCache GetCacheForNamespace(NamespaceId ns)
 		{
 			return _referenceCaches.GetOrAdd(ns, id => new MemoryCache(_options.CurrentValue));
+		}
+
+		private MemoryCache GetBucketCacheForNamespace(NamespaceId ns)
+		{
+			return _bucketEnumerationCaches.GetOrAdd(ns, id => new MemoryCache(Options.Create(new MemoryCacheOptions())));
 		}
 
 		public async Task<RefRecord> GetAsync(NamespaceId ns, BucketId bucket, RefId key, IReferencesStore.FieldFlags fieldFlags, IReferencesStore.OperationFlags opFlags, CancellationToken cancellationToken)
@@ -123,9 +140,32 @@ namespace Jupiter.Implementation.Objects
 			return _actualStore.GetRecordsWithoutAccessTimeAsync(cancellationToken);
 		}
 
-		public IAsyncEnumerable<(RefId, BlobId)> GetRecordsInBucketAsync(NamespaceId ns, BucketId bucket, CancellationToken cancellationToken)
+		public async IAsyncEnumerable<(RefId, BlobId)> GetRecordsInBucketAsync(NamespaceId ns, BucketId bucket, [EnumeratorCancellation] CancellationToken cancellationToken)
 		{
-			return _actualStore.GetRecordsInBucketAsync(ns, bucket, cancellationToken);
+			using TelemetrySpan scope = _tracer.StartActiveSpan("Ref.get_bucket")
+				.SetAttribute("operation.name", "Ref.get_bucket")
+				.SetAttribute("resource.name", $"{ns}.{bucket}");
+
+			MemoryCache cache = GetBucketCacheForNamespace(ns);
+
+			if (cache.TryGetValue(bucket, out List<(RefId, BlobId)>? cachedResult))
+			{
+				scope.SetAttribute("Found", true);
+				foreach ((RefId, BlobId) r in cachedResult!)
+				{
+					yield return r;
+				}
+			}
+			else
+			{
+				List<(RefId, BlobId)> bucketContents = await _actualStore.GetRecordsInBucketAsync(ns, bucket, cancellationToken).ToListAsync(cancellationToken: cancellationToken);
+				AddBucketCacheForNamespace(ns, bucket, bucketContents);
+
+				foreach ((RefId, BlobId) r in bucketContents)
+				{
+					yield return r;
+				}
+			}
 		}
 
 		public IAsyncEnumerable<NamespaceId> GetNamespacesAsync(CancellationToken cancellationToken)

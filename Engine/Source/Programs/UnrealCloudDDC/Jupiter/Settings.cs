@@ -116,6 +116,7 @@ namespace Jupiter
 
 		public bool EnableBucketStatsTracking { get; set; } = true;
 		public bool EnablePutRefBodyIntoBlobStore { get; set; } = true;
+		public bool RequirePrivatePortForEnumeration { get; set; } = true;
 	}
 
 	public class MongoSettings

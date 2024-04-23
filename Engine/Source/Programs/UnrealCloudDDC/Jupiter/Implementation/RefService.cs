@@ -274,6 +274,11 @@ namespace Jupiter.Implementation
 			return _referencesStore.GetNamespacesAsync(cancellationToken);
 		}
 
+		public IAsyncEnumerable<(RefId, BlobId)> GetRecordsInBucketAsync(NamespaceId ns, BucketId bucket, CancellationToken cancellationToken = default)
+		{
+			return _referencesStore.GetRecordsInBucketAsync(ns, bucket, cancellationToken);
+		}
+
 		public Task<bool> DeleteAsync(NamespaceId ns, BucketId bucket, RefId key, CancellationToken cancellationToken)
 		{
 			return _referencesStore.DeleteAsync(ns, bucket, key, cancellationToken);

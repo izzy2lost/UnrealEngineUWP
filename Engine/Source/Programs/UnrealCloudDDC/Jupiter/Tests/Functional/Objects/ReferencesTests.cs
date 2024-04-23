@@ -470,7 +470,6 @@ namespace Jupiter.FunctionalTests.References
 			}
 		}
 
-
 		[TestMethod]
 		public async Task PutGetCompactBinaryFilteringAsync()
 		{
@@ -1007,7 +1006,6 @@ namespace Jupiter.FunctionalTests.References
 			}
 		}
 
-
 		[TestMethod]
 		public async Task PutContentIdMissingBlobAsync()
 		{
@@ -1080,7 +1078,6 @@ namespace Jupiter.FunctionalTests.References
 				}
 			}
 		}
-
 
 		[TestMethod]
 		public async Task PutMissingAttachmentComplexAsync()
@@ -1550,6 +1547,62 @@ namespace Jupiter.FunctionalTests.References
 		}
 
 		[TestMethod]
+		public async Task EnumerateBucketAsync()
+		{
+			NamespaceId ns = new NamespaceId("test-namespace-enumeration");
+
+			{
+				const string contents = $"EnumerateBlobContents0";
+				byte[] data = Encoding.ASCII.GetBytes(contents);
+				BlobId hash = BlobId.FromBlob(data);
+
+				using HttpContent requestContent = new ByteArrayContent(data);
+				requestContent.Headers.ContentType = new MediaTypeHeaderValue(MediaTypeNames.Application.Octet);
+				requestContent.Headers.Add(CommonHeaders.HashHeaderName, hash.ToString());
+
+				RefId key = RefId.FromName("object0");
+
+				HttpResponseMessage result = await _httpClient!.PutAsync(new Uri($"api/v1/refs/{ns}/enumerationBucket/{key}", UriKind.Relative), requestContent);
+				result.EnsureSuccessStatusCode();
+			}
+
+			{
+				const string contents = $"EnumerateBlobContents1";
+				byte[] data = Encoding.ASCII.GetBytes(contents);
+				BlobId hash = BlobId.FromBlob(data);
+
+				using HttpContent requestContent = new ByteArrayContent(data);
+				requestContent.Headers.ContentType = new MediaTypeHeaderValue(MediaTypeNames.Application.Octet);
+				requestContent.Headers.Add(CommonHeaders.HashHeaderName, hash.ToString());
+
+				RefId key = RefId.FromName("object1");
+
+				HttpResponseMessage result = await _httpClient!.PutAsync(new Uri($"api/v1/refs/{ns}/enumerationBucket/{key}", UriKind.Relative), requestContent);
+				result.EnsureSuccessStatusCode();
+			}
+
+			{
+				// verify we can fetch the enumeration properly
+				HttpResponseMessage response = await _httpClient!.GetAsync(new Uri($"api/v1/refs/{ns}/enumerationBucket", UriKind.Relative));
+				response.EnsureSuccessStatusCode();
+				EnumerateBucketResponse? enumerateResponse = await response.Content.ReadFromJsonAsync<EnumerateBucketResponse>();
+
+				Assert.IsNotNull(enumerateResponse);
+				Assert.AreEqual(2, enumerateResponse.RefIds.Count);
+			}
+
+			{
+				// verify we can fetch the enumeration properly a second time (were it should be cached)
+				HttpResponseMessage response = await _httpClient!.GetAsync(new Uri($"api/v1/refs/{ns}/enumerationBucket", UriKind.Relative));
+				response.EnsureSuccessStatusCode();
+				EnumerateBucketResponse? enumerateResponse = await response.Content.ReadFromJsonAsync<EnumerateBucketResponse>();
+
+				Assert.IsNotNull(enumerateResponse);
+				Assert.AreEqual(2, enumerateResponse.RefIds.Count);
+			}
+		}
+
+		[TestMethod]
 		public async Task DeleteObjectAsync()
 		{
 			const string objectContents = $"This is treated as a opaque blob in {nameof(DeleteObjectAsync)}";
@@ -1591,7 +1644,6 @@ namespace Jupiter.FunctionalTests.References
 				result.EnsureSuccessStatusCode();
 			}
 		}
-
 
 		[TestMethod]
 		public async Task DropBucketAsync()
@@ -1649,7 +1701,6 @@ namespace Jupiter.FunctionalTests.References
 				Assert.AreEqual(HttpStatusCode.NotFound, result.StatusCode);
 			}
 		}
-
 
 		[TestMethod]
 		public async Task DeleteNamespaceAsync()
@@ -1714,7 +1765,6 @@ namespace Jupiter.FunctionalTests.References
 				CollectionAssert.DoesNotContain(response.Namespaces, NamespaceToBeDeleted);
 			}
 		}
-
 
 		[TestMethod]
 		public async Task ListNamespacesAsync()
@@ -1916,7 +1966,6 @@ namespace Jupiter.FunctionalTests.References
 			getObjectOp2.WriteString("bucket", bucket.ToString());
 			getObjectOp2.WriteString("key", newReferenceObjectKey.ToString());
 			getObjectOp2.EndObject();
-
 
 			CbWriter getObjectOp3 = new CbWriter();
 			getObjectOp3.BeginObject();

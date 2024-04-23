@@ -44,7 +44,12 @@ public enum JupiterAclAction
 	/// <summary>
 	/// Access to perform administrative task
 	/// </summary>
-	AdminAction
+	AdminAction,
+
+	/// <summary>
+	/// Access to enumerate all objects in a bucket
+	/// </summary>
+	EnumerateBucket
 }
 
 public class AclEntry

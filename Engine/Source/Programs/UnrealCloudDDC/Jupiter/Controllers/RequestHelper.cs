@@ -51,8 +51,37 @@ public class RequestHelper : IRequestHelper
 			return null;
 		}
 
-		// namespace is a restricted namespace
-		HttpContext context = request.HttpContext;
+		// namespace is a restricted namespace, check which port it is being accessed on
+		bool isPublicPort = IsPublicPort(request.HttpContext);
+
+		if (isPublicPort)
+		{
+			// trying to access restricted namespace on a public port, this is not allowed
+			return new ForbidResult();
+		}
+
+		// restricted namespace in corp or internal port, this is okay
+		return null;
+	}
+
+	public async Task<ActionResult?> HasAccessForGlobalOperationsAsync(ClaimsPrincipal user, JupiterAclAction[] aclActions)
+	{
+		using TelemetrySpan _ = _tracer.StartActiveSpan("authorize").SetAttribute("operation.name", "authorize");
+		AuthorizationResult authorizationResult = await _authorizationService.AuthorizeAsync(user, new GlobalAccessRequest
+		{
+			Actions = aclActions
+		}, GlobalAccessRequirement.Name);
+
+		if (!authorizationResult.Succeeded)
+		{
+			return new ForbidResult();
+		}
+
+		return null;
+	}
+
+	public bool IsPublicPort(HttpContext context)
+	{
 		string? portHeaderValue = null;
 		if (context.Request.Headers.TryGetValue("X-Jupiter-Port", out StringValues values))
 		{
@@ -82,29 +111,6 @@ public class RequestHelper : IRequestHelper
 			}
 		}
 
-		if (isPublicPort)
-		{
-			// trying to access restricted namespace on a public port, this is not allowed
-			return new ForbidResult();
-		}
-
-		// restricted namespace in corp or internal port, this is okay
-		return null;
-	}
-
-	public async Task<ActionResult?> HasAccessForGlobalOperationsAsync(ClaimsPrincipal user, JupiterAclAction[] aclActions)
-	{
-		using TelemetrySpan _ = _tracer.StartActiveSpan("authorize").SetAttribute("operation.name", "authorize");
-		AuthorizationResult authorizationResult = await _authorizationService.AuthorizeAsync(user, new GlobalAccessRequest
-		{
-			Actions = aclActions
-		}, GlobalAccessRequirement.Name);
-
-		if (!authorizationResult.Succeeded)
-		{
-			return new ForbidResult();
-		}
-
-		return null;
+		return isPublicPort;
 	}
 }

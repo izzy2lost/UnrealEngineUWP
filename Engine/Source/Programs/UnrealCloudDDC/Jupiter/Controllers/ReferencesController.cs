@@ -28,6 +28,7 @@ using Microsoft.AspNetCore.Http.Extensions;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Primitives;
 using OpenTelemetry.Trace;
 using ContentHash = Jupiter.Implementation.ContentHash;
@@ -54,10 +55,11 @@ namespace Jupiter.Controllers
 		private readonly Tracer _tracer;
 
 		private readonly ILogger _logger;
+		private readonly IOptionsMonitor<UnrealCloudDDCSettings> _settings;
 		private readonly IRefService _refService;
 		private readonly IBlobService _blobStore;
 
-		public ReferencesController(IRefService refService, IBlobService blobStore, IDiagnosticContext diagnosticContext, FormatResolver formatResolver, BufferedPayloadFactory bufferedPayloadFactory, IReferenceResolver referenceResolver, NginxRedirectHelper nginxRedirectHelper, IRequestHelper requestHelper, Tracer tracer, ILogger<ReferencesController> logger)
+		public ReferencesController(IRefService refService, IBlobService blobStore, IDiagnosticContext diagnosticContext, FormatResolver formatResolver, BufferedPayloadFactory bufferedPayloadFactory, IReferenceResolver referenceResolver, NginxRedirectHelper nginxRedirectHelper, IRequestHelper requestHelper, Tracer tracer, ILogger<ReferencesController> logger, IOptionsMonitor<UnrealCloudDDCSettings> settings)
 		{
 			_refService = refService;
 			_blobStore = blobStore;
@@ -69,6 +71,7 @@ namespace Jupiter.Controllers
 			_requestHelper = requestHelper;
 			_tracer = tracer;
 			_logger = logger;
+			_settings = settings;
 		}
 
 		/// <summary>
@@ -94,6 +97,32 @@ namespace Jupiter.Controllers
 			}
 
 			return Ok(new GetNamespacesResponse(namespacesWithAccess.ToArray()));
+		}
+
+		/// <summary>
+		/// Returns ref in a bucket
+		/// </summary>
+		/// <returns></returns>
+		[HttpGet("{ns}/{bucket}")]
+		[ProducesDefaultResponseType]
+		[ProducesResponseType(type: typeof(ProblemDetails), 400)]
+		public async Task<IActionResult> EnumerateBucketAsync(
+			[FromRoute][Required] NamespaceId ns,
+			[FromRoute][Required] BucketId bucket
+		)
+		{
+			ActionResult? accessResult = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new[] { JupiterAclAction.EnumerateBucket });
+			if (accessResult != null)
+			{
+				return accessResult;
+			}
+
+			if (_settings.CurrentValue.RequirePrivatePortForEnumeration && _requestHelper.IsPublicPort(Request.HttpContext))
+			{
+				return Forbid();
+			}
+			List<RefId> refIds = await _refService.GetRecordsInBucketAsync(ns, bucket).Select(tuple => tuple.Item1).ToListAsync();
+			return Ok(new EnumerateBucketResponse(refIds));
 		}
 
 		/// <summary>
@@ -1310,6 +1339,17 @@ namespace Jupiter.Controllers
 
 		[CbField("inlinePayload")]
 		public byte[]? InlinePayload { get; set; }
+	}
+
+	public class EnumerateBucketResponse
+	{
+		public EnumerateBucketResponse(List<RefId> refIds)
+		{
+			RefIds = refIds;
+		}
+
+		[CbField("refs")]
+		public List<RefId> RefIds { get; }
 	}
 
 	public class PutObjectResponse
