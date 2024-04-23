@@ -350,6 +350,9 @@ protected:
 	/** Called when "Save" is clicked for this asset */
 	UNREALED_API virtual void SaveAsset_Execute();
 
+	/** Called from SaveAsset_Execute when assets have been saved */
+	virtual void OnAssetsSaved(const TArray<UObject*>& SavedObjects) {}
+
 	/** Called to test if "Save As" should be enabled for this asset */
 	virtual bool CanSaveAssetAs() const { return true; }
 
@@ -363,7 +366,7 @@ protected:
 	virtual bool ShouldReopenEditorForSavedAsset(const UObject* Asset) const { return true; }
 
 	/** Called from SaveAssetAs_Execute when assets have been saved */
-	UNREALED_API virtual void OnAssetsSavedAs(const TArray<UObject*>& SavedObjects) {}
+	virtual void OnAssetsSavedAs(const TArray<UObject*>& SavedObjects) {}
 
 	/** Called to test if "Find in Content Browser" should be enabled for this asset */
 	virtual bool CanFindInContentBrowser() const { return true; }

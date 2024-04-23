@@ -520,7 +520,19 @@ void FChaosClothAssetEditorToolkit::GetSaveableObjects(TArray<UObject*>& OutObje
 	{
 		check(DataflowAsset->IsAsset());
 		OutObjects.Add(DataflowAsset);
+	}
+}
 
+void FChaosClothAssetEditorToolkit::OnAssetsSaved(const TArray<UObject*>& SavedObjects)
+{
+	// Also save the Dataflow asset's dependent objects if required
+	TArray<UPackage*> PackagesToSave;
+
+	const UChaosClothAsset* const ClothAsset = GetAsset();
+	check(ClothAsset);
+
+	if (UDataflow* const DataflowAsset = Private::GetDataflowFrom(ClothAsset))
+	{
 		if (DataflowAsset->Dataflow)
 		{
 			TArray<UObject*> References;
@@ -531,11 +543,15 @@ void FChaosClothAssetEditorToolkit::GetSaveableObjects(TArray<UObject*>& OutObje
 			{
 				if (Reference->IsAsset())
 				{
-					OutObjects.Add(Reference);
+					PackagesToSave.Add(Reference->GetOutermost());
 				}
 			}
 		}
 	}
+	constexpr bool bPromptToSave = true;
+	constexpr bool bCheckDirtyOnReferenceAssetSave = true;
+
+	FEditorFileUtils::PromptForCheckoutAndSave(PackagesToSave, bCheckDirtyOnReferenceAssetSave, bPromptToSave);
 }
 
 bool FChaosClothAssetEditorToolkit::ShouldReopenEditorForSavedAsset(const UObject* Asset) const

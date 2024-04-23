@@ -652,6 +652,9 @@ void FAssetEditorToolkit::SaveAsset_Execute()
 		return;
 	}
 
+	TArray<UObject*> SavedObjects;
+	SavedObjects.Reserve(ObjectsToSave.Num());
+
 	TArray<UPackage*> PackagesToSave;
 
 	for (UObject* Object : ObjectsToSave)
@@ -664,10 +667,13 @@ void FAssetEditorToolkit::SaveAsset_Execute()
 		else
 		{
 			PackagesToSave.Add(Object->GetOutermost());
+			SavedObjects.Add(Object);
 		}
 	}
 
 	FEditorFileUtils::PromptForCheckoutAndSave(PackagesToSave, bCheckDirtyOnAssetSave, /*bPromptToSave=*/ false);
+
+	OnAssetsSaved(SavedObjects);
 }
 
 bool FAssetEditorToolkit::CanSaveAssetAs_Internal() const
