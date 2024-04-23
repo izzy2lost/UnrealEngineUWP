@@ -12,6 +12,7 @@ using Cassandra.Mapping;
 using EpicGames.Horde.Storage;
 using Jupiter.Common;
 using Jupiter.Common.Utils;
+using Jupiter.Implementation.Blob;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using OpenTelemetry.Trace;
@@ -33,7 +34,6 @@ namespace Jupiter.Implementation
 		private readonly PreparedStatement _getNamespacesOldStatement;
 		private readonly PreparedStatement _getObjectsForPartitionRangeStatement;
 		private readonly PreparedStatement _getObjectsLastAccessForPartitionRangeStatement;
-		private readonly PreparedStatement _getObjectsInBucketPartitionRangeStatement;
 
 		private readonly ConcurrentDictionary<NamespaceId, ConcurrentBag<BucketId>> _addedBuckets = new ConcurrentDictionary<NamespaceId, ConcurrentBag<BucketId>>();
 
@@ -95,8 +95,6 @@ namespace Jupiter.Implementation
 
 			_getObjectsForPartitionRangeStatement = _session.Prepare($"SELECT namespace, bucket, name, last_access_time FROM objects WHERE token(namespace, bucket, name) >= ? AND token(namespace, bucket, name) <= ? {cqlOptions}");
 			_getObjectsLastAccessForPartitionRangeStatement = _session.Prepare($"SELECT namespace, bucket, name, last_access_time FROM object_last_access_v2 WHERE token(namespace, bucket, name) >= ? AND token(namespace, bucket, name) <= ? {cqlOptions}");
-
-			_getObjectsInBucketPartitionRangeStatement = _session.Prepare($"SELECT name, payload_hash FROM objects WHERE namespace = ? AND bucket = ? ALLOW FILTERING {cqlOptions}");
 		}
 
 		public async Task<RefRecord> GetAsync(NamespaceId ns, BucketId bucket, RefId name, IReferencesStore.FieldFlags fieldFlags, IReferencesStore.OperationFlags opFlags, CancellationToken cancellationToken)
@@ -355,33 +353,7 @@ namespace Jupiter.Implementation
 				} while (!rowSet.IsFullyFetched);
 			}
 		}
-
-		public async IAsyncEnumerable<(RefId, BlobId)> GetRecordsInBucketAsync(NamespaceId ns, BucketId bucket, [EnumeratorCancellation] CancellationToken cancellationToken)
-		{
-			using TelemetrySpan scope = _tracer.BuildScyllaSpan("scylla.get_records_in_bucket_per_shard");
-			PreparedStatement getObjectStatement = _getObjectsInBucketPartitionRangeStatement;
-
-			RowSet rowSet = await _session.ExecuteAsync(getObjectStatement.Bind(ns.ToString(), bucket.ToString()));
-			foreach (Row row in rowSet)
-			{
-				string name = row.GetValue<string>("name");
-				ScyllaBlobIdentifier? blobIdentifier = row.GetValue<ScyllaBlobIdentifier>("payload_hash");
-
-				// skip any names that are not conformant to io hash
-				if (name.Length != 40)
-				{
-					continue;
-				}
-
-				if (blobIdentifier == null)
-				{
-					continue;
-				}
-
-				yield return (new RefId(name), blobIdentifier.AsBlobIdentifier());
-			}
-		}
-
+		
 		/// <summary>
 		/// This implements a more efficient scanning where we fetch objects based on which shard it is in. It scans the entire database and thus returns all namespaces.
 		/// See https://www.scylladb.com/2017/03/28/parallel-efficient-full-table-scan-scylla/
@@ -595,6 +567,41 @@ namespace Jupiter.Implementation
 				Task addTask = _mapper.InsertAsync<ScyllaBucket>(new ScyllaBucket(ns, bucket));
 				addedBuckets.Add(bucket);
 				await addTask;
+			}
+		}
+
+		public async IAsyncEnumerable<RefId> GetRecordsInBucketAsync(NamespaceId ns, BucketId bucket, [EnumeratorCancellation] CancellationToken cancellationToken)
+		{
+			string nsAsString = ns.ToString();
+			string bucketAsString = bucket.ToString();
+
+			using TelemetrySpan scope = _tracer.BuildScyllaSpan("scylla.get_refs_in_bucket")
+				.SetAttribute("resource.name", $"{nsAsString}.{bucketAsString}");
+
+			string[] hashPrefixes = new string[65536];
+			int i = 0;
+			for (int a = 0; a <= byte.MaxValue; a++)
+			{
+				for (int b = 0; b <= byte.MaxValue; b++)
+				{
+					hashPrefixes[i] = StringUtils.FormatAsHexString(new byte[] { (byte)a, (byte)b }).ToLower();
+					i++;
+				}
+			}
+
+			Debug.Assert(i == 65536);
+
+			foreach (string hashPrefix in hashPrefixes)
+			{
+				if (cancellationToken.IsCancellationRequested)
+				{
+					yield break;
+				}
+
+				foreach (ScyllaBucketReferencedRef referencedRef in await _mapper.FetchAsync<ScyllaBucketReferencedRef>("WHERE namespace = ? AND bucket_id = ?  AND hash_prefix = ?", ns.ToString(), bucket.ToString(), hashPrefix))
+				{
+					yield return new RefId(referencedRef.ReferenceId);
+				}
 			}
 		}
 	}

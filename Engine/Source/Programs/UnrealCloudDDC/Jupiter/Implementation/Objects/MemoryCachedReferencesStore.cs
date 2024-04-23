@@ -45,7 +45,7 @@ namespace Jupiter.Implementation.Objects
 			}
 		}
 
-		private void AddBucketCacheForNamespace(NamespaceId ns, BucketId bucket, List<(RefId, BlobId)> bucketContents)
+		private void AddBucketCacheForNamespace(NamespaceId ns, BucketId bucket, List<RefId> bucketContents)
 		{
 			MemoryCache cache = GetBucketCacheForNamespace(ns);
 
@@ -140,7 +140,7 @@ namespace Jupiter.Implementation.Objects
 			return _actualStore.GetRecordsWithoutAccessTimeAsync(cancellationToken);
 		}
 
-		public async IAsyncEnumerable<(RefId, BlobId)> GetRecordsInBucketAsync(NamespaceId ns, BucketId bucket, [EnumeratorCancellation] CancellationToken cancellationToken)
+		public async IAsyncEnumerable<RefId> GetRecordsInBucketAsync(NamespaceId ns, BucketId bucket, [EnumeratorCancellation] CancellationToken cancellationToken)
 		{
 			using TelemetrySpan scope = _tracer.StartActiveSpan("Ref.get_bucket")
 				.SetAttribute("operation.name", "Ref.get_bucket")
@@ -148,20 +148,20 @@ namespace Jupiter.Implementation.Objects
 
 			MemoryCache cache = GetBucketCacheForNamespace(ns);
 
-			if (cache.TryGetValue(bucket, out List<(RefId, BlobId)>? cachedResult))
+			if (cache.TryGetValue(bucket, out List<RefId>? cachedResult))
 			{
 				scope.SetAttribute("Found", true);
-				foreach ((RefId, BlobId) r in cachedResult!)
+				foreach (RefId r in cachedResult!)
 				{
 					yield return r;
 				}
 			}
 			else
 			{
-				List<(RefId, BlobId)> bucketContents = await _actualStore.GetRecordsInBucketAsync(ns, bucket, cancellationToken).ToListAsync(cancellationToken: cancellationToken);
+				List<RefId> bucketContents = await _actualStore.GetRecordsInBucketAsync(ns, bucket, cancellationToken).ToListAsync(cancellationToken: cancellationToken);
 				AddBucketCacheForNamespace(ns, bucket, bucketContents);
 
-				foreach ((RefId, BlobId) r in bucketContents)
+				foreach (RefId r in bucketContents)
 				{
 					yield return r;
 				}

@@ -153,7 +153,7 @@ namespace Jupiter.Implementation
 			}
 		}
 
-		public async IAsyncEnumerable<(RefId, BlobId)> GetRecordsInBucketAsync(NamespaceId ns, BucketId bucket, [EnumeratorCancellation] CancellationToken cancellationToken)
+		public async IAsyncEnumerable<RefId> GetRecordsInBucketAsync(NamespaceId ns, BucketId bucket, [EnumeratorCancellation] CancellationToken cancellationToken)
 		{
 			IMongoCollection<MongoReferencesModelV0> collection = GetCollection<MongoReferencesModelV0>();
 			IAsyncCursor<MongoReferencesModelV0>? cursor = await collection.FindAsync(m => m.Ns == ns.ToString() && m.Bucket == bucket.ToString(), cancellationToken: cancellationToken);
@@ -162,7 +162,7 @@ namespace Jupiter.Implementation
 			{
 				foreach (MongoReferencesModelV0 model in cursor.Current)
 				{
-					yield return (new RefId(model.Key), new BlobId(model.BlobIdentifier));
+					yield return new RefId(model.Key);
 				}
 			}
 		}

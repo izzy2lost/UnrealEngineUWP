@@ -121,7 +121,7 @@ namespace Jupiter.Controllers
 			{
 				return Forbid();
 			}
-			List<RefId> refIds = await _refService.GetRecordsInBucketAsync(ns, bucket).Select(tuple => tuple.Item1).ToListAsync();
+			List<RefId> refIds = await _refService.GetRecordsInBucketAsync(ns, bucket).ToListAsync();
 			return Ok(new EnumerateBucketResponse(refIds));
 		}
 

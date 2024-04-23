@@ -103,7 +103,7 @@ namespace Jupiter.Implementation
 			throw new NotImplementedException("GetRecordsWithoutAccessTimeAsync not supported on a cached reference store");
 		}
 
-		public IAsyncEnumerable<(RefId, BlobId)> GetRecordsInBucketAsync(NamespaceId ns, BucketId bucket, CancellationToken cancellationToken)
+		public IAsyncEnumerable<RefId> GetRecordsInBucketAsync(NamespaceId ns, BucketId bucket, CancellationToken cancellationToken)
 		{
 			throw new NotImplementedException("GetRecordsInBucketAsync not supported on a cached reference store");
 		}
@@ -245,7 +245,7 @@ namespace Jupiter.Implementation
 			throw new NotImplementedException("GetRecordsWithoutAccessTimeAsync is not supported on a upstream reference store");
 		}
 
-		public IAsyncEnumerable<(RefId, BlobId)> GetRecordsInBucketAsync(NamespaceId ns, BucketId bucket, CancellationToken cancellationToken)
+		public IAsyncEnumerable<RefId> GetRecordsInBucketAsync(NamespaceId ns, BucketId bucket, CancellationToken cancellationToken)
 		{
 			throw new NotImplementedException("GetRecordsInBucketAsync is not supported on a upstream reference store");
 		}
