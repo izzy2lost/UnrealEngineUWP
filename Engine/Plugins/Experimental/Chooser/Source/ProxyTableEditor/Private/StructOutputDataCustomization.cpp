@@ -128,7 +128,7 @@ void FStructOutputDataCustomization::CustomizeHeader(TSharedRef<IPropertyHandle>
          	 				
 							// reset the type of the FInstancedStruct storing the value
 							ValueHandle->GetValueData(ValuePtr);
-							FInstancedStruct* ValueStruct = reinterpret_cast<FInstancedStruct*>(ValuePtr);
+							FInstancedStruct* ValueStruct = FInstancedStruct::CastFromVoid(ValuePtr);
 
          	 				// begin Temporary data conversion codepath
          	 				if (StructPropertyBinding->StructType == FChooserPlayerSettings::StaticStruct() &&

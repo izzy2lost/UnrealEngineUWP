@@ -26,6 +26,7 @@ public:
 	virtual const FObjectPropertyNode* AsObjectNode() const override { return this; }
 	virtual bool GetReadAddressUncached(const FPropertyNode& InNode, bool InRequiresSingleSelection, FReadAddressListData* OutAddresses, bool bComparePropertyContents = true, bool bObjectForceCompare = false, bool bArrayPropertiesCanDifferInSize = false) const override;
 	virtual bool GetReadAddressUncached(const FPropertyNode& InNode, FReadAddressListData& OutAddresses) const override;
+	virtual bool InternalGetReadAddressUncached(const FPropertyNode& InPropertyNode, FUncachedPropertyNodeAddresses& OutAddresses) const override;
 
 	/**
 	 * Returns the UObject at index "n" of the Objects Array
