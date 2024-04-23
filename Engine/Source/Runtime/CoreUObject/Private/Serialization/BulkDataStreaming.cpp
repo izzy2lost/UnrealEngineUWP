@@ -1083,12 +1083,7 @@ FBulkDataBatchRequest::FBatchBuilder& FBulkDataBatchRequest::FBatchBuilder::Read
 	FIoBuffer& Dst, 
 	FBulkDataBatchReadRequest* OutRequest)
 {
-	checkf(Size == MAX_uint64 || (Offset + Size) <= uint64(BulkData.GetBulkDataSize()),
-		TEXT("%s: Trying to read past the end of the payload, Offset: %llu, ReadSize: %llu, Payload Size: %lld"),
-		*BulkData.GetDebugName(),
-		Size,
-		Offset,
-		BulkData.GetBulkDataSize());
+	check(Size == MAX_uint64 || Size <= uint64(BulkData.GetBulkDataSize()));
 
 	const uint64 ReadOffset = BulkData.GetBulkDataOffsetInFile() + Offset;
 	const uint64 ReadSize	= FMath::Min(uint64(BulkData.GetBulkDataSize()), Size);
