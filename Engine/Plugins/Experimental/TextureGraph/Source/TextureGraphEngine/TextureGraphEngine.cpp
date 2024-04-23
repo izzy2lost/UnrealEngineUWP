@@ -35,7 +35,7 @@ void FTextureGraphEngineModule::StartupModule()
 bool FTextureGraphEngineModule::MapShaders()
 {
 	// This code will execute after your module is loaded into memory; the exact timing is specified in the .uplugin file per-module
-	FString fullModuleDir = MODULE_DIR;
+	FString fullModuleDir = FPaths::Combine(FPaths::EngineDir(), MODULE_DIR);
 	bool added = false;
 
 	FString rightSanitized;

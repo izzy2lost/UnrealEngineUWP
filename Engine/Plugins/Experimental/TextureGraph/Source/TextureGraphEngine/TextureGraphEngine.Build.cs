@@ -82,9 +82,14 @@ public class TextureGraphEngine : ModuleRules
 
 		AddDefaultIncludePaths();
 
-		string ModDirLiteral = ModuleDirectory.Replace('\\', '/');
+		if (!ModuleDirectory.StartsWith(EngineDirectory))
+			throw new BuildException("TextureGraphEngine module directory must be under engine");
+
+		string ModuleRelativeToEngineDir = ModuleDirectory.Substring(EngineDirectory.Length + 1);
+
+		string ModDirLiteral = ModuleRelativeToEngineDir.Replace('\\', '/');
 		string defModuleName = "MODULE_DIR \"" + ModDirLiteral + "\"=";
-		PublicDefinitions.Add(defModuleName);
+		PrivateDefinitions.Add(defModuleName);
 	}
 
 }
