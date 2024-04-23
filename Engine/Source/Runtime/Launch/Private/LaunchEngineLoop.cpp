@@ -300,14 +300,6 @@ UE_TRACE_EVENT_END()
 
 bool GIsConsoleExecutable = false;
 
-int32 GUseDisregardForGCOnDedicatedServers = 1;
-static FAutoConsoleVariableRef CVarUseDisregardForGCOnDedicatedServers(
-	TEXT("gc.UseDisregardForGCOnDedicatedServers"),
-	GUseDisregardForGCOnDedicatedServers,
-	TEXT("If false, DisregardForGC will be disabled for dedicated servers."),
-	ECVF_Default
-);
-
 static TAutoConsoleVariable<int32> CVarDoAsyncEndOfFrameTasksRandomize(
 	TEXT("tick.DoAsyncEndOfFrameTasks.Randomize"),
 	0,
@@ -3412,12 +3404,6 @@ int32 FEngineLoop::PreInitPreStartupScreen(const TCHAR* CmdLine)
 	PreInitContext.bWithConfigPatching = bWithConfigPatching;
 	PreInitContext.bHasEditorToken = bHasEditorToken;
 #if WITH_ENGINE
-	bool bDisableDisregardForGC = bHasEditorToken;
-	if (bIsRunningAsDedicatedServer)
-	{
-		bDisableDisregardForGC |= FPlatformProperties::RequiresCookedData() && (GUseDisregardForGCOnDedicatedServers == 0);
-	}
-	PreInitContext.bDisableDisregardForGC = bDisableDisregardForGC;
 	PreInitContext.bIsRegularClient = bIsRegularClient;
 #endif // WITH_ENGINE
 	PreInitContext.bIsPossiblyUnrecognizedCommandlet = bIsRegularClient && TokenToForward.Len() && !TokenToForward.Contains(TEXT("-"));
@@ -3483,7 +3469,6 @@ int32 FEngineLoop::PreInitPostStartupScreen(const TCHAR* CmdLine)
 	bool bWithConfigPatching = PreInitContext.bWithConfigPatching;
 	bool bHasEditorToken = PreInitContext.bHasEditorToken;
 #if WITH_ENGINE
-	bool bDisableDisregardForGC = PreInitContext.bDisableDisregardForGC;
 	bool bIsRegularClient = PreInitContext.bIsRegularClient;
 #endif // WITH_ENGINE
 	bool bIsPossiblyUnrecognizedCommandlet = PreInitContext.bIsPossiblyUnrecognizedCommandlet;
@@ -3750,13 +3735,6 @@ int32 FEngineLoop::PreInitPostStartupScreen(const TCHAR* CmdLine)
 	FModuleManager::Get().StartProcessingNewlyLoadedObjects();
 
 	FEmbeddedCommunication::ForceTick(7);
-
-	// Setup GC optimizations
-	if (bDisableDisregardForGC)
-	{
-		SCOPED_BOOT_TIMING("DisableDisregardForGC");
-		GUObjectArray.DisableDisregardForGC();
-	}
 
 	SlowTask.EnterProgressFrame(10);
 

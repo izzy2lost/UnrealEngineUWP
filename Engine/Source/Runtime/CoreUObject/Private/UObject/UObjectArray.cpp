@@ -178,12 +178,17 @@ void FUObjectArray::CloseDisregardForGC()
 
 	OpenForDisregardForGC = false;
 	GIsInitialLoad = false;
+
+	checkf(!DisregardForGCEnabled() || !GIsEditor, TEXT("Disregard For GC Set can't be enabled when running the editor"));
+	checkf(DisregardForGCEnabled() || (ObjFirstGCIndex == 0 && ObjLastNonGCIndex == -1), TEXT("Disregard for GC Set is not properly disabled (FirstGCIndex = %d, LastNonGCIndex = %d"), ObjFirstGCIndex, ObjLastNonGCIndex);
 }
 
 void FUObjectArray::DisableDisregardForGC()
 {
 	if (!GExitPurge && (ObjFirstGCIndex > 0 || DisregardForGCEnabled()))
 	{
+		checkf(!IsAsyncLoading(), TEXT("Disregard for GC Set can't be safely disabled while async loading. Consider calling FlushAsyncLoading() first or using gc.MaxObjectsNotConsideredByGC=0 ini setting instead."));
+
 		void OnDisregardForGCSetDisabled(int32 NumObjects);
 		// If disregard for GC was already closed then ObjFirstGCIndex is the number of objects we need to scan, otherwise disregard for GC is still open and we need to scan all objects
 		int32 NumDisregardForGCObjects = ObjFirstGCIndex > 0 ? ObjFirstGCIndex : GetObjectArrayNum();
@@ -195,6 +200,7 @@ void FUObjectArray::DisableDisregardForGC()
 
 	MaxObjectsNotConsideredByGC = 0;
 	ObjFirstGCIndex = 0;
+	ObjLastNonGCIndex = -1;
 	if (IsOpenForDisregardForGC())
 	{
 		CloseDisregardForGC();

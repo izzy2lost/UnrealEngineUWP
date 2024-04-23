@@ -21,6 +21,7 @@ struct FPreInitContext
 	bool bDumpEarlyPakFileReads = false;
 	bool bForceQuitAfterEarlyReads = false;
 	bool bWithConfigPatching = false;
+	UE_DEPRECATED(5.5, "Use gc.MaxObjectsNotConsideredByGC=0 ini setting instead")
 	bool bDisableDisregardForGC = false;
 	bool bHasEditorToken = false;
 	bool bIsRegularClient = false;

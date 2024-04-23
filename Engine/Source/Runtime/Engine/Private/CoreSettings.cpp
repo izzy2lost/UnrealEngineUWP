@@ -211,7 +211,6 @@ UGarbageCollectionSettings::UGarbageCollectionSettings()
 	MinGCClusterSize = 5;
 	AssetClusteringEnabled = true;
 	ActorClusteringEnabled = true;
-	UseDisregardForGCOnDedicatedServers = false;
 	VerifyUObjectsAreNotFGCObjects = true;
 	GarbageEliminationEnabled = false;
 	DumpObjectCountsToLogWhenMaxObjectLimitExceeded = false;

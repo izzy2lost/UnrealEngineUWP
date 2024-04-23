@@ -214,11 +214,6 @@ protected:
 		ToolTip = "Whether to allow levels to create actor clusters for GC."))
 	uint32 ActorClusteringEnabled : 1;
 
-	UPROPERTY(EditAnywhere, config, Category = Optimization, meta = (
-		ConsoleVariable = "gc.UseDisregardForGCOnDedicatedServers", DisplayName = "Use DisregardForGC On Dedicated Servers",
-		ToolTip = "If false, DisregardForGC will be disabled for dedicated servers."))
-	uint32 UseDisregardForGCOnDedicatedServers : 1;
-
 	UPROPERTY(EditAnywhere, config, Category = Debug, meta = (
 		ConsoleVariable = "gc.VerifyUObjectsAreNotFGCObjects", DisplayName = "Verify UObjects Are Not FGCObjects",
 		ToolTip = "If true, the engine will throw a warning when it detects a UObject-derived class which also derives from FGCObject or any of its members is derived from FGCObject."))
