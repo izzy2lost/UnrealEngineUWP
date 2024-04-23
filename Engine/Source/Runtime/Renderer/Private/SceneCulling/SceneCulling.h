@@ -25,7 +25,10 @@ struct FPrimitiveBounds;
  */
 struct FCullingVolume
 {
+	// Negative translation to add to the tested location prior to testing the ConvexVolume.
+	FVector3d WorldToVolumeTranslation; 
 	FConvexVolume ConvexVolume;
+	// Bounding sphere in world space, if radius is zero OR the footprint is <= r.SceneCulling.SmallFootprintSideThreshold, the ConvexVolume is used
 	FSphere3d Sphere = FSphere(ForceInit);
 };
 
@@ -83,7 +86,7 @@ public:
 
 	void PublishStats();
 
-	void TestConvexVolume(const FConvexVolume& ViewCullVolume, TArray<FCellDraw, SceneRenderingAllocator>& OutCellDraws, uint32 ViewGroupId, uint32 MaxNumViews, uint32& OutNumInstanceGroups);
+	void TestConvexVolume(const FConvexVolume& ViewCullVolume, const FVector3d &WorldToVolumeTranslation, TArray<FCellDraw, SceneRenderingAllocator>& OutCellDraws, uint32 ViewGroupId, uint32 MaxNumViews, uint32& OutNumInstanceGroups);
 
 	void TestSphere(const FSphere& Sphere, TArray<FCellDraw, SceneRenderingAllocator>& OutCellDraws, uint32 ViewGroupId, uint32 MaxNumViews, uint32& OutNumInstanceGroups);
 

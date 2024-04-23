@@ -496,7 +496,7 @@ inline FSceneCulling::FFootprint64 ToLevelRelative(const FSceneCulling::FFootpri
 	return Result;
 };
 
-void FSceneCulling::TestConvexVolume(const FConvexVolume& ViewCullVolume, TArray<FCellDraw, SceneRenderingAllocator>& OutCellDraws, uint32 ViewGroupId, uint32 MaxNumViews, uint32& OutNumInstanceGroups)
+void FSceneCulling::TestConvexVolume(const FConvexVolume& ViewCullVolume, const FVector3d &WorldToVolumeTranslation, TArray<FCellDraw, SceneRenderingAllocator>& OutCellDraws, uint32 ViewGroupId, uint32 MaxNumViews, uint32& OutNumInstanceGroups)
 {
 	LLM_SCOPE_BYTAG(SceneCulling);
 
@@ -523,7 +523,7 @@ void FSceneCulling::TestConvexVolume(const FConvexVolume& ViewCullVolume, TArray
 		const double LevelCellSize = SpatialHash.GetCellSize(BlockLoc.GetLevel() - FSpatialHash::CellBlockDimLog2);
 		// Extend extent by half a cell size in all directions
 		FVector3d BlockBoundsExtent = FVector((BlockLevelSize + LevelCellSize) * 0.5);
-		FOutcode BlockCullResult = ViewCullVolume.GetBoxIntersectionOutcode(BlockBoundsCenter, BlockBoundsExtent);
+		FOutcode BlockCullResult = ViewCullVolume.GetBoxIntersectionOutcode(BlockBoundsCenter + WorldToVolumeTranslation, BlockBoundsExtent);
 
 		if (BlockCullResult.GetInside())
 		{
@@ -563,7 +563,7 @@ void FSceneCulling::TestConvexVolume(const FConvexVolume& ViewCullVolume, TArray
 					FVector3d CellCenter = FVector3d(CellCoord) * LevelCellSize + MinCellCenter;
 
 					// emit for intersecting cells
-					bool bCellIntersects = ViewCullVolume.IntersectBox(CellCenter, CellBoundsExtent);
+					bool bCellIntersects = ViewCullVolume.IntersectBox(CellCenter, WorldToVolumeTranslation, CellBoundsExtent);
 					if (bCellIntersects)
 					{
 						FCellHeader CellHeader = UnpackCellHeader(CellHeaders[CellId]);
@@ -711,7 +711,7 @@ void FSceneCulling::Test(const FCullingVolume& CullingVolume, TArray<FCellDraw, 
 			return;
 		}
 	}
-	TestConvexVolume(CullingVolume.ConvexVolume, OutCellDraws, ViewGroupId, MaxNumViews, OutNumInstanceGroups);
+	TestConvexVolume(CullingVolume.ConvexVolume, CullingVolume.WorldToVolumeTranslation, OutCellDraws, ViewGroupId, MaxNumViews, OutNumInstanceGroups);
 }
 
 void FSceneCulling::Empty()

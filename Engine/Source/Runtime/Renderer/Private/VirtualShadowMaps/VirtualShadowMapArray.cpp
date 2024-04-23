@@ -2510,6 +2510,8 @@ static FCullingVolume GetCullingVolume(const FProjectedShadowInfo* ProjectedShad
 {
 	FCullingVolume CullingVolume;
 
+	CullingVolume.WorldToVolumeTranslation = ProjectedShadowInfo->PreShadowTranslation;
+
 	uint32 NumPrimaryViews = 0;
 	if (ProjectedShadowInfo->VirtualShadowMapClipmap)
 	{
@@ -2519,6 +2521,8 @@ static FCullingVolume GetCullingVolume(const FProjectedShadowInfo* ProjectedShad
 		if (!bIsCached && !ProjectedShadowInfo->CascadeSettings.ShadowBoundsAccurate.Planes.IsEmpty())
 		{
 			CullingVolume.ConvexVolume = ProjectedShadowInfo->CascadeSettings.ShadowBoundsAccurate;
+			// ShadowBoundsAccurate is in world-space
+			CullingVolume.WorldToVolumeTranslation = FVector3d::ZeroVector;
 		}
 		else
 		{

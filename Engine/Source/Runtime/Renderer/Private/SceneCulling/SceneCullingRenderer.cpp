@@ -66,6 +66,8 @@ FSceneInstanceCullingQuery* FSceneCullingRenderer::CullInstances(FRDGBuilder& Gr
 		for (int32 Index = 0; Index < ViewCullVolumes.Num(); ++Index)
 		{
 			FCullingVolume CullingVolume;
+			// Assume world-space
+			CullingVolume.WorldToVolumeTranslation = FVector3d::ZeroVector;
 			CullingVolume.ConvexVolume = ViewCullVolumes[Index];
 			Query->Add(Index, 1, 1, CullingVolume);
 		}
