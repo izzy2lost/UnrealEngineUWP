@@ -1181,14 +1181,13 @@ public:
 	virtual void GetShaderTypes(EShaderPlatform Platform, const ITargetPlatform* TargetPlatform, TArray<FDebugShaderTypeInfo>& OutShaderInfo) {};
 #endif // WITH_EDITOR
 
+	/** Filter out ShadingModels field to a shader platform settings */
+	static void FilterOutPlatformShadingModels(EShaderPlatform Platform, FMaterialShadingModelField& ShadingModels);
 protected:
 	/** Returns a bitfield indicating which feature levels should be compiled for rendering. GMaxRHIFeatureLevel is always present */
 	ENGINE_API uint32 GetFeatureLevelsToCompileForRendering() const;
 
 	void UpdateMaterialRenderProxy(FMaterialRenderProxy& Proxy);
-
-	/** Filter out ShadingModels field to a shader platform settings */
-	static void FilterOutPlatformShadingModels(EShaderPlatform Platform, FMaterialShadingModelField& ShadingModels);
 
 	/**
 	 * Cached data generated from the material's expressions, may be nullptr

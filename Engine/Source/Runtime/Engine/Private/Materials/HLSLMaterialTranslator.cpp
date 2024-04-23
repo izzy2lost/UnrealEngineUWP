@@ -4279,8 +4279,12 @@ FMaterialShadingModelField FHLSLMaterialTranslator::GetCompiledShadingModels() c
 	{
 		return ShadingModelsFromCompilation;
 	}
-
-	return Material->GetShadingModels();
+	else
+	{
+		FMaterialShadingModelField MaterialShadingModels = Material->GetShadingModels();
+		UMaterialInterface::FilterOutPlatformShadingModels(Platform, MaterialShadingModels);
+		return MaterialShadingModels;
+	}
 }
 
 int32 FHLSLMaterialTranslator::Error(const TCHAR* Text)
@@ -14751,16 +14755,10 @@ void FHLSLMaterialTranslator::PrepareEnvironmentDefines()
 	}
 
 	// Set all the shading models for this material here 
-	FMaterialShadingModelField ShadingModels = Material->GetShadingModels();
-
 	// If the material gets its shading model from the material expressions, then we use the result from the compilation (assuming it's valid).
 	// This result will potentially be tighter than what GetShadingModels() returns, because it only picks up the shading models from the expressions that get compiled for a specific feature level and quality level
 	// For example, the material might have shading models behind static switches. GetShadingModels() will return both the true and the false paths from that switch, whereas the shading model field from the compilation will only contain the actual shading model selected 
-	if (Material->IsShadingModelFromMaterialExpression() && ShadingModelsFromCompilation.IsValid())
-	{
-		// Shading models fetched from the compilation of the expression graph
-		ShadingModels = ShadingModelsFromCompilation;
-	}
+	FMaterialShadingModelField ShadingModels = GetCompiledShadingModels();
 
 	ensure(ShadingModels.IsValid());
 
