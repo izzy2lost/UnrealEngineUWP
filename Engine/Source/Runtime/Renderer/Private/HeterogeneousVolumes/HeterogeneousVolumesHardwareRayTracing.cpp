@@ -677,7 +677,7 @@ void RenderLightingCacheWithPreshadingHardwareRayTracing(
 			&RayTracingScene,
 			RayGenerationShader,
 			DispatchResolution
-		](FRHIRayTracingCommandList& RHICmdList)
+		](FRHICommandList& RHICmdList)
 		{
 			// Set ray-gen bindings
 			FRayTracingShaderBindingsWriter GlobalResources;
@@ -691,6 +691,7 @@ void RenderLightingCacheWithPreshadingHardwareRayTracing(
 			FRayTracingLocalShaderBindings* Bindings = BuildRayTracingMaterialBindings(RHICmdList, View, PassParameters->SparseVoxelUniformBuffer->GetRHI());
 			RHICmdList.SetRayTracingHitGroups(RayTracingScene.GetRHIRayTracingSceneChecked(), RayTracingPipelineState, NumBindings, Bindings);
 			RHICmdList.SetRayTracingMissShaders(RayTracingScene.GetRHIRayTracingSceneChecked(), RayTracingPipelineState, NumBindings, Bindings);
+			RHICmdList.CommitRayTracingBindings(RayTracingScene.GetRHIRayTracingSceneChecked());
 
 			// Dispatch
 			RHICmdList.RayTraceDispatch(
@@ -837,7 +838,7 @@ void RenderSingleScatteringWithPreshadingHardwareRayTracing(
 			&RayTracingScene,
 			RayGenerationShader,
 			DispatchResolution
-		](FRHIRayTracingCommandList& RHICmdList)
+		](FRHICommandList& RHICmdList)
 		{
 			// Set ray-gen bindings
 			FRayTracingShaderBindingsWriter GlobalResources;
@@ -851,6 +852,7 @@ void RenderSingleScatteringWithPreshadingHardwareRayTracing(
 			FRayTracingLocalShaderBindings* Bindings = BuildRayTracingMaterialBindings(RHICmdList, View, PassParameters->SparseVoxelUniformBuffer->GetRHI());
 			RHICmdList.SetRayTracingHitGroups(RayTracingScene.GetRHIRayTracingSceneChecked(), RayTracingPipelineState, NumBindings, Bindings);
 			RHICmdList.SetRayTracingMissShaders(RayTracingScene.GetRHIRayTracingSceneChecked(), RayTracingPipelineState, NumBindings, Bindings);
+			RHICmdList.CommitRayTracingBindings(RayTracingScene.GetRHIRayTracingSceneChecked());
 
 			// Dispatch
 			RHICmdList.RayTraceDispatch(

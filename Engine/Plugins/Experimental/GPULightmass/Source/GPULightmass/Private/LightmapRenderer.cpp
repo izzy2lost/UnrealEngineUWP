@@ -1367,6 +1367,7 @@ bool FSceneRenderState::SetupRayTracingScene(FRDGBuilder& GraphBuilder, FSceneUn
 
 				// there is only one miss shader, so it must be at index 0 by definition
 				RHICmdList.SetRayTracingMissShader(RayTracingScene, 0, RayTracingPipelineState, 0 /* ShaderIndexInPipeline */, 0, nullptr, 0);
+				RHICmdList.CommitRayTracingBindings(RayTracingScene);
 
 				// Move the ray tracing binding container ownership to the command list, so that memory will be
 				// released on the RHI thread timeline, after the commands that reference it are processed.
@@ -2447,7 +2448,7 @@ void FLightmapRenderer::Finalize(FRDGBuilder& GraphBuilder)
 										RDG_EVENT_NAME("LightmapPathTracing %dx%d", RayTracingResolution.X, RayTracingResolution.Y),
 										PassParameters,
 										ERDGPassFlags::Compute,
-										[PassParameters, this, RayTracingScene = Scene->RayTracingScene, PipelineState = Scene->RayTracingPipelineState, RayGenerationShader, RayTracingResolution, GPUIndex](FRHIRayTracingCommandList& RHICmdList)
+										[PassParameters, this, RayTracingScene = Scene->RayTracingScene, PipelineState = Scene->RayTracingPipelineState, RayGenerationShader, RayTracingResolution, GPUIndex](FRHICommandList& RHICmdList)
 									{
 										FRayTracingShaderBindingsWriter GlobalResources;
 										SetShaderParameters(GlobalResources, RayGenerationShader, *PassParameters);
@@ -2790,7 +2791,7 @@ void FLightmapRenderer::Finalize(FRDGBuilder& GraphBuilder)
 							RDG_EVENT_NAME("StationaryLightShadowTracing %dx%d", RayTracingResolution.X, RayTracingResolution.Y),
 							PassParameters,
 							ERDGPassFlags::Compute,
-							[PassParameters, this, RayTracingScene = Scene->RayTracingScene, PipelineState = Scene->RayTracingPipelineState, RayGenerationShader, RayTracingResolution](FRHIRayTracingCommandList& RHICmdList)
+							[PassParameters, this, RayTracingScene = Scene->RayTracingScene, PipelineState = Scene->RayTracingPipelineState, RayGenerationShader, RayTracingResolution](FRHICommandList& RHICmdList)
 						{
 							FRayTracingShaderBindingsWriter GlobalResources;
 							SetShaderParameters(GlobalResources, RayGenerationShader, *PassParameters);
@@ -2972,7 +2973,7 @@ void FLightmapRenderer::Finalize(FRDGBuilder& GraphBuilder)
 		}
 	}
 
-	AddPass(GraphBuilder, RDG_EVENT_NAME("DestroyRaytracingScene"), [this](FRHICommandListImmediate&)
+	GraphBuilder.AddPostExecuteCallback([this]
 	{
 		Scene->DestroyRayTracingScene();
 	});

@@ -1624,7 +1624,7 @@ FRHIRayTracingShader* GetGPULightmassDefaultMissShader(const FGlobalShaderMap* S
 	return ShaderMap->GetShader<FGPULightmassDefaultMS>().GetRayTracingShader();
 }
 
-void FDeferredShadingSceneRenderer::SetupPathTracingDefaultMissShader(FRHICommandListImmediate& RHICmdList, const FViewInfo& View)
+void FDeferredShadingSceneRenderer::SetupPathTracingDefaultMissShader(FRHICommandList& RHICmdList, const FViewInfo& View)
 {
 	int32 MissShaderPipelineIndex = FindRayTracingMissShaderIndex(View.RayTracingMaterialPipeline, GetPathTracingDefaultMissShader(View.ShaderMap), true);
 
@@ -3007,7 +3007,7 @@ void FDeferredShadingSceneRenderer::RenderPathTracing(
 			RDG_EVENT_NAME("Path Tracer Init Sigma"),
 			PassParameters,
 			ERDGPassFlags::Compute,
-			[PassParameters, RayGenShader, &View](FRHIRayTracingCommandList& RHICmdList)
+			[PassParameters, RayGenShader, &View](FRHICommandList& RHICmdList)
 			{
 				FRHIRayTracingScene* RayTracingSceneRHI = View.GetRayTracingSceneChecked();
 
@@ -3564,7 +3564,7 @@ void FDeferredShadingSceneRenderer::RenderPathTracing(
 								: RDG_EVENT_NAME("Path Tracer Sample=%d/%d NumLights=%d"              , PathTracingState->SampleIndex, MaxSPP, PassParameters->SceneLightCount),
 								PassParameters,
 								ERDGPassFlags::Compute,
-								[PassParameters, RayGenShader, DispatchSizeX, DispatchSizeYLocal, bUseIndirectDispatch, bFlushRenderingCommands, GPUIndex, &View](FRHIRayTracingCommandList& RHICmdList)
+								[PassParameters, RayGenShader, DispatchSizeX, DispatchSizeYLocal, bUseIndirectDispatch, bFlushRenderingCommands, GPUIndex, &View](FRHICommandList& RHICmdList)
 								{
 									FRHIRayTracingScene* RayTracingSceneRHI = View.GetRayTracingSceneChecked();
 

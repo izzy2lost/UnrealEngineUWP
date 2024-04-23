@@ -135,7 +135,6 @@ public:
 	// Used for transforming to translated world space in which TLAS was built.
 	FDFVector3 PreViewTranslation {};
 private:
-	void WaitForTasks() const;
 
 	FRDGBufferRef InstanceBuffer;
 	FRDGBufferRef BuildScratchBuffer;
@@ -161,8 +160,6 @@ private:
 	FShaderResourceViewRHIRef TransformUploadSRV;
 
 	FByteAddressBuffer AccelerationStructureAddressesBuffer;
-
-	mutable FGraphEventRef FillInstanceUploadBufferTask;
 
 	// Persistent storage for ray tracing instance descriptors.
 	// Cleared every frame without releasing memory to avoid large heap allocations.

@@ -652,7 +652,7 @@ static int32 BindParameters(const TShaderRef<ShaderClass>& Shader, typename Shad
 	return MaxUniformBufferUsed + 1;
 }
 
-void FDeferredShadingSceneRenderer::SetupRayTracingDefaultMissShader(FRHICommandListImmediate& RHICmdList, const FViewInfo& View)
+void FDeferredShadingSceneRenderer::SetupRayTracingDefaultMissShader(FRHICommandList& RHICmdList, const FViewInfo& View)
 {
 	int32 MissShaderPipelineIndex = FindRayTracingMissShaderIndex(View.RayTracingMaterialPipeline, GetRayTracingDefaultMissShader(View.ShaderMap), true);
 
@@ -663,7 +663,7 @@ void FDeferredShadingSceneRenderer::SetupRayTracingDefaultMissShader(FRHICommand
 		0, nullptr, 0);
 }
 
-void FDeferredShadingSceneRenderer::SetupRayTracingLightingMissShader(FRHICommandListImmediate& RHICmdList, const FViewInfo& View)
+void FDeferredShadingSceneRenderer::SetupRayTracingLightingMissShader(FRHICommandList& RHICmdList, const FViewInfo& View)
 {
 	FRayTracingLightingMS::FParameters MissParameters;
 	MissParameters.ViewUniformBuffer = View.ViewUniformBuffer;

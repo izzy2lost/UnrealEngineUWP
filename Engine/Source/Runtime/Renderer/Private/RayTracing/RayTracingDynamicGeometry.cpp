@@ -27,9 +27,6 @@ static FAutoConsoleVariableRef CVarRTDynGeomSharedVertexBufferGarbageCollectLate
 	ECVF_RenderThreadSafe
 );
 
-// Workaround for outstanding memory corruption on some platforms when parallel command list translation is used.
-#define USE_RAY_TRACING_DYNAMIC_GEOMETRY_PARALLEL_COMMAND_LISTS 0
-
 class FRayTracingDynamicGeometryConverterCS : public FMeshMaterialShader
 {
 	DECLARE_SHADER_TYPE(FRayTracingDynamicGeometryConverterCS, MeshMaterial);
@@ -388,185 +385,148 @@ void FRayTracingDynamicGeometryCollection::AddDynamicMeshBatchForGeometryUpdate(
 	}
 }
 
-void FRayTracingDynamicGeometryCollection::DispatchUpdates(FRHICommandListImmediate& ParentCmdList, FRHIBuffer* ScratchBuffer)
+void FRayTracingDynamicGeometryCollection::DispatchUpdates(FRHICommandList& RHICmdList, FRHIBuffer* ScratchBuffer)
 {
 	if (DispatchCommands.Num() > 0)
 	{
-		SCOPED_DRAW_EVENT(ParentCmdList, RayTracingDynamicGeometryUpdate);
+		SCOPED_DRAW_EVENT(RHICmdList, RayTracingDynamicGeometryUpdate);
+
 		{
-			{
-				TRACE_CPUPROFILER_EVENT_SCOPE(SortDispatchCommands);
+			TRACE_CPUPROFILER_EVENT_SCOPE(SortDispatchCommands);
 
-				// This can be optimized by using sorted insert or using map on shaders
-				// There are only a handful of unique shaders and a few target buffers so we want to swap state as little as possible
-				// to reduce RHI thread overhead
-				DispatchCommands.Sort([](const FMeshComputeDispatchCommand& InLHS, const FMeshComputeDispatchCommand& InRHS)
-					{
-						if (InLHS.MaterialShader.GetComputeShader() != InRHS.MaterialShader.GetComputeShader())
-							return InLHS.MaterialShader.GetComputeShader() < InRHS.MaterialShader.GetComputeShader();
-
-						return InLHS.TargetBuffer < InRHS.TargetBuffer;
-					});
-			}
-
-			{
-				TRACE_CPUPROFILER_EVENT_SCOPE(SetupSegmentData);
-
-				// Setup the array views on final allocated segments array
-				FRayTracingGeometrySegment* SegmentData = Segments.GetData();
-				for (FRayTracingGeometryBuildParams& Param : BuildParams)
+			// This can be optimized by using sorted insert or using map on shaders
+			// There are only a handful of unique shaders and a few target buffers so we want to swap state as little as possible
+			// to reduce RHI thread overhead
+			DispatchCommands.Sort([](const FMeshComputeDispatchCommand& InLHS, const FMeshComputeDispatchCommand& InRHS)
 				{
-					uint32 SegmentCount = Param.Segments.Num();
-					if (SegmentCount > 0)
-					{
-						Param.Segments = MakeArrayView(SegmentData, SegmentCount);
-						SegmentData += SegmentCount;
-					}
+					if (InLHS.MaterialShader.GetComputeShader() != InRHS.MaterialShader.GetComputeShader())
+						return InLHS.MaterialShader.GetComputeShader() < InRHS.MaterialShader.GetComputeShader();
+
+					return InLHS.TargetBuffer < InRHS.TargetBuffer;
+				});
+		}
+
+		{
+			TRACE_CPUPROFILER_EVENT_SCOPE(SetupSegmentData);
+
+			// Setup the array views on final allocated segments array
+			FRayTracingGeometrySegment* SegmentData = Segments.GetData();
+			for (FRayTracingGeometryBuildParams& Param : BuildParams)
+			{
+				uint32 SegmentCount = Param.Segments.Num();
+				if (SegmentCount > 0)
+				{
+					Param.Segments = MakeArrayView(SegmentData, SegmentCount);
+					SegmentData += SegmentCount;
 				}
 			}
+		}
 
-			FMemMark Mark(FMemStack::Get());
+		FMemMark Mark(FMemStack::Get());
 
-			TArray<FRHITransitionInfo, TMemStackAllocator<>> TransitionsBefore, TransitionsAfter;
-			TArray<FRHIUnorderedAccessView*, TMemStackAllocator<>> OverlapUAVs;
-			TransitionsBefore.Reserve(DispatchCommands.Num());
-			TransitionsAfter.Reserve(DispatchCommands.Num());
-			OverlapUAVs.Reserve(DispatchCommands.Num());
-			const FRWBuffer* LastBuffer = nullptr;
-			TSet<const FRWBuffer*> TransitionedBuffers;
+		TArray<FRHITransitionInfo, TMemStackAllocator<>> TransitionsBefore, TransitionsAfter;
+		TArray<FRHIUnorderedAccessView*, TMemStackAllocator<>> OverlapUAVs;
+		TransitionsBefore.Reserve(DispatchCommands.Num());
+		TransitionsAfter.Reserve(DispatchCommands.Num());
+		OverlapUAVs.Reserve(DispatchCommands.Num());
+		const FRWBuffer* LastBuffer = nullptr;
+		TSet<const FRWBuffer*> TransitionedBuffers;
+		for (FMeshComputeDispatchCommand& Cmd : DispatchCommands)
+		{
+			if (Cmd.TargetBuffer == nullptr)
+			{
+				continue;
+			}
+			FRHIUnorderedAccessView* UAV = Cmd.TargetBuffer->UAV.GetReference();
+
+			// The list is sorted by TargetBuffer, so we can remove duplicates by simply looking at the previous value we've processed.
+			if (LastBuffer == Cmd.TargetBuffer)
+			{
+				// This UAV is used by more than one dispatch, so tell the RHI it's OK to overlap the dispatches, because
+				// we're updating disjoint regions.
+				if (OverlapUAVs.Num() == 0 || OverlapUAVs.Last() != UAV)
+				{
+					OverlapUAVs.Add(UAV);
+				}
+				continue;
+			}
+
+			LastBuffer = Cmd.TargetBuffer;
+
+			// In case different shaders use different TargetBuffer we want to add transition only once
+			bool bAlreadyInSet = false;
+			TransitionedBuffers.FindOrAdd(LastBuffer, &bAlreadyInSet);
+			if (!bAlreadyInSet)
+			{
+				// Looks like the resource can get here in either UAVCompute or SRVMask mode, so we'll have to use Unknown until we can have better tracking.
+				TransitionsBefore.Add(FRHITransitionInfo(UAV, ERHIAccess::Unknown, ERHIAccess::UAVCompute));
+				TransitionsAfter.Add(FRHITransitionInfo(UAV, ERHIAccess::UAVCompute, ERHIAccess::SRVMask));
+			}
+		}
+
+		{
+			FRHIComputeShader* CurrentShader = nullptr;
+			FRWBuffer* CurrentBuffer = nullptr;
+
+			// Transition to writeable for each cmd list and enable UAV overlap, because several dispatches can update non-overlapping portions of the same buffer.
+			RHICmdList.Transition(TransitionsBefore);
+			RHICmdList.BeginUAVOverlap(OverlapUAVs);
+
+			// Cache the bound uniform buffers because a lot are the same between dispatches
+			FShaderBindingState ShaderBindingState;
+
 			for (FMeshComputeDispatchCommand& Cmd : DispatchCommands)
 			{
-				if (Cmd.TargetBuffer == nullptr)
+				const TShaderRef<FRayTracingDynamicGeometryConverterCS>& Shader = Cmd.MaterialShader;
+				FRHIComputeShader* ComputeShader = Shader.GetComputeShader();
+				if (CurrentShader != ComputeShader)
 				{
-					continue;
-				}
-				FRHIUnorderedAccessView* UAV = Cmd.TargetBuffer->UAV.GetReference();
+					SetComputePipelineState(RHICmdList, ComputeShader);
+					CurrentBuffer = nullptr;
+					CurrentShader = ComputeShader;
 
-				// The list is sorted by TargetBuffer, so we can remove duplicates by simply looking at the previous value we've processed.
-				if (LastBuffer == Cmd.TargetBuffer)
-				{
-					// This UAV is used by more than one dispatch, so tell the RHI it's OK to overlap the dispatches, because
-					// we're updating disjoint regions.
-					if (OverlapUAVs.Num() == 0 || OverlapUAVs.Last() != UAV)
-					{
-						OverlapUAVs.Add(UAV);
-					}
-					continue;
+					// Reset binding state
+					ShaderBindingState = FShaderBindingState();
 				}
 
-				LastBuffer = Cmd.TargetBuffer;
+				FRHIBatchedShaderParameters& BatchedParameters = RHICmdList.GetScratchShaderParameters();
 
-				// In case different shaders use different TargetBuffer we want to add transition only once
-				bool bAlreadyInSet = false;
-				TransitionedBuffers.FindOrAdd(LastBuffer, &bAlreadyInSet);
-				if (!bAlreadyInSet)
+				FRWBuffer* TargetBuffer = Cmd.TargetBuffer;
+				if (CurrentBuffer != TargetBuffer)
 				{
-					// Looks like the resource can get here in either UAVCompute or SRVMask mode, so we'll have to use Unknown until we can have better tracking.
-					TransitionsBefore.Add(FRHITransitionInfo(UAV, ERHIAccess::Unknown, ERHIAccess::UAVCompute));
-					TransitionsAfter.Add(FRHITransitionInfo(UAV, ERHIAccess::UAVCompute, ERHIAccess::SRVMask));
+					CurrentBuffer = TargetBuffer;
+
+					SetUAVParameter(BatchedParameters, Shader->RWVertexPositions, Cmd.TargetBuffer->UAV);
 				}
+
+				Cmd.ShaderBindings.SetParameters(BatchedParameters, ComputeShader, &ShaderBindingState);
+				RHICmdList.SetBatchedShaderParameters(CurrentShader, BatchedParameters);
+
+				RHICmdList.DispatchComputeShader(FMath::DivideAndRoundUp<uint32>(Cmd.NumMaxVertices, 64), 1, 1);
 			}
 
-			TArray<FRHICommandListImmediate::FQueuedCommandList, TInlineAllocator<1>> QueuedCommandLists;
-			auto AllocateCommandList = [&ParentCmdList, &QueuedCommandLists](uint32 ExpectedNumDraws) -> FRHIComputeCommandList&
-			{
-			#if USE_RAY_TRACING_DYNAMIC_GEOMETRY_PARALLEL_COMMAND_LISTS
-				if (ParentCmdList.Bypass())
-				{
-					return ParentCmdList;
-				}
-				else
-				{
-					FRHIComputeCommandList* RHICmdList = new FRHIComputeCommandList(ParentCmdList.GetGPUMask());
-					RHICmdList->SwitchPipeline(ERHIPipeline::Graphics);
+			// Make sure buffers are readable again and disable UAV overlap.
+			RHICmdList.EndUAVOverlap(OverlapUAVs);
+			RHICmdList.Transition(TransitionsAfter);
+		}
 
-					QueuedCommandLists.Emplace(RHICmdList, ExpectedNumDraws);
+		if (BuildParams.Num() > 0)
+		{
+			// Can't use parallel command list because we have to make sure we are not building BVH data
+			// on the same RTGeometry on multiple threads at the same time. Ideally move the build
+			// requests over to the RaytracingGeometry manager so they can be correctly scheduled
+			// with other build requests in the engine (see UE-106982)
+			SCOPED_DRAW_EVENT(RHICmdList, Build);
 
-					return *RHICmdList;
-				}
-			#else // USE_RAY_TRACING_DYNAMIC_GEOMETRY_PARALLEL_COMMAND_LISTS
-				return ParentCmdList;
-			#endif // USE_RAY_TRACING_DYNAMIC_GEOMETRY_PARALLEL_COMMAND_LISTS
-			};
-
-			{
-				FRHIComputeCommandList& RHICmdList = AllocateCommandList(DispatchCommands.Num());
-
-				FRHIComputeShader* CurrentShader = nullptr;
-				FRWBuffer* CurrentBuffer = nullptr;
-
-				// Transition to writeable for each cmd list and enable UAV overlap, because several dispatches can update non-overlapping portions of the same buffer.
-				RHICmdList.Transition(TransitionsBefore);
-				RHICmdList.BeginUAVOverlap(OverlapUAVs);
-
-				// Cache the bound uniform buffers because a lot are the same between dispatches
-				FShaderBindingState ShaderBindingState;
-
-				for (FMeshComputeDispatchCommand& Cmd : DispatchCommands)
-				{
-					const TShaderRef<FRayTracingDynamicGeometryConverterCS>& Shader = Cmd.MaterialShader;
-					FRHIComputeShader* ComputeShader = Shader.GetComputeShader();
-					if (CurrentShader != ComputeShader)
-					{
-						SetComputePipelineState(RHICmdList, ComputeShader);
-						CurrentBuffer = nullptr;
-						CurrentShader = ComputeShader;
-
-						// Reset binding state
-						ShaderBindingState = FShaderBindingState();
-					}
-
-					FRHIBatchedShaderParameters& BatchedParameters = RHICmdList.GetScratchShaderParameters();
-
-					FRWBuffer* TargetBuffer = Cmd.TargetBuffer;
-					if (CurrentBuffer != TargetBuffer)
-					{
-						CurrentBuffer = TargetBuffer;
-
-						SetUAVParameter(BatchedParameters, Shader->RWVertexPositions, Cmd.TargetBuffer->UAV);
-					}
-
-					Cmd.ShaderBindings.SetParameters(BatchedParameters, ComputeShader, &ShaderBindingState);
-					RHICmdList.SetBatchedShaderParameters(CurrentShader, BatchedParameters);
-
-					RHICmdList.DispatchComputeShader(FMath::DivideAndRoundUp<uint32>(Cmd.NumMaxVertices, 64), 1, 1);
-				}
-
-				// Make sure buffers are readable again and disable UAV overlap.
-				RHICmdList.EndUAVOverlap(OverlapUAVs);
-				RHICmdList.Transition(TransitionsAfter);
-
-				if (&RHICmdList != &ParentCmdList)
-				{
-					RHICmdList.FinishRecording();
-				}
-			}
-
-			// Need to kick parallel translate command lists?
-			if (QueuedCommandLists.Num() > 0)
-			{
-				ParentCmdList.QueueAsyncCommandListSubmit(QueuedCommandLists, FRHICommandListImmediate::ETranslatePriority::Normal);
-			}
-
-			if (BuildParams.Num() > 0)
-			{
-				// Can't use parallel command list because we have to make sure we are not building BVH data
-				// on the same RTGeometry on multiple threads at the same time. Ideally move the build
-				// requests over to the RaytracingGeometry manager so they can be correctly scheduled
-				// with other build requests in the engine (see UE-106982)
-				SCOPED_DRAW_EVENT(ParentCmdList, Build);
-
-				FRHIBufferRange ScratchBufferRange;
-				ScratchBufferRange.Buffer = ScratchBuffer;
-				ScratchBufferRange.Offset = 0;
-				ParentCmdList.BuildAccelerationStructures(BuildParams, ScratchBufferRange);
-			}
-
+			FRHIBufferRange ScratchBufferRange;
+			ScratchBufferRange.Buffer = ScratchBuffer;
+			ScratchBufferRange.Offset = 0;
+			RHICmdList.BuildAccelerationStructures(BuildParams, ScratchBufferRange);
 		}
 	}
 }
 
-void FRayTracingDynamicGeometryCollection::EndUpdate(FRHICommandListImmediate& RHICmdList)
+void FRayTracingDynamicGeometryCollection::EndUpdate()
 {
 	ReferencedUniformBuffers.Empty(ReferencedUniformBuffers.Max());
 

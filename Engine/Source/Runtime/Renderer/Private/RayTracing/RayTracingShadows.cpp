@@ -512,7 +512,7 @@ void FDeferredShadingSceneRenderer::RenderRayTracingShadows(
 				RDG_EVENT_NAME("RayTracedShadow (spp=%d) %dx%d", RayTracingConfig.RayCountPerPixel, Resolution.X, Resolution.Y),
 				CommonPassParameters,
 				ERDGPassFlags::Compute,
-				[this, &View, RayGenerationShader, CommonPassParameters, Resolution](FRHIRayTracingCommandList& RHICmdList)
+				[this, &View, RayGenerationShader, CommonPassParameters, Resolution](FRHICommandList& RHICmdList)
 				{
 					FRayTracingShaderBindingsWriter GlobalResources;
 					SetShaderParameters(GlobalResources, RayGenerationShader, *CommonPassParameters);
@@ -541,6 +541,7 @@ void FDeferredShadingSceneRenderer::RenderRayTracingShadows(
 
 						FRayTracingPipelineState* Pipeline = PipelineStateCache::GetAndOrCreateRayTracingPipelineState(RHICmdList, Initializer);
 						RHICmdList.SetRayTracingMissShader(RayTracingSceneRHI, 0, Pipeline, 0 /* ShaderIndexInPipeline */, 0, nullptr, 0);
+						RHICmdList.CommitRayTracingBindings(RayTracingSceneRHI);
 						RHICmdList.RayTraceDispatch(Pipeline, RayGenerationShader.GetRayTracingShader(), RayTracingSceneRHI, GlobalResources, Resolution.X, Resolution.Y);
 					}
 				}

@@ -851,32 +851,20 @@ bool FDeferredShadingSceneRenderer::DispatchRayTracingWorldUpdates(FRDGBuilder& 
 			PassParams->HierarchyBuffer = nullptr;
 			PassParams->RayTracingDataBuffer = nullptr;
 
-			// Use ERDGPassFlags::NeverParallel so the pass never runs off the render thread and we always get the following order of execution on the CPU:
-			// BuildTLASInstanceBuffer, RayTracingDynamicUpdate, RayTracingUpdate, RayTracingEndUpdate, ..., ReleaseRayTracingResources
-			GraphBuilder.AddPass(RDG_EVENT_NAME("RayTracingDynamicUpdate"), PassParams, ComputePassFlags | ERDGPassFlags::NeverCull | ERDGPassFlags::NeverParallel,
-				[this, PassParams, bRayTracingAsyncBuild](FRHICommandListImmediate& RHICmdList)
+			GraphBuilder.AddPass(RDG_EVENT_NAME("RayTracingDynamicUpdate"), PassParams, ComputePassFlags | ERDGPassFlags::NeverCull,
+				[this, PassParams, bRayTracingAsyncBuild](FRHICommandList& RHICmdList)
 			{
 				SCOPED_GPU_STAT(RHICmdList, RayTracingDynamicGeometry);
 				FRHIBuffer* DynamicGeometryScratchBuffer = PassParams->DynamicGeometryScratchBuffer ? PassParams->DynamicGeometryScratchBuffer->GetRHI() : nullptr;
 				Scene->GetRayTracingDynamicGeometryCollection()->DispatchUpdates(RHICmdList, DynamicGeometryScratchBuffer);
+				Scene->GetRayTracingDynamicGeometryCollection()->EndUpdate();
 			});
 		}
 
-		// Use ERDGPassFlags::NeverParallel here too -- see comment above on the previous pass
-		RayTracingScene.Build(GraphBuilder, ComputePassFlags | ERDGPassFlags::NeverCull | ERDGPassFlags::NeverParallel, OutDynamicGeometryScratchBuffer);
+		RayTracingScene.Build(GraphBuilder, ComputePassFlags | ERDGPassFlags::NeverCull, OutDynamicGeometryScratchBuffer);
 	}
 
-	AddPass(GraphBuilder, RDG_EVENT_NAME("RayTracingEndUpdate"), [this, bRayTracingAsyncBuild](FRHICommandListImmediate& RHICmdList)
-	{
-		if (!bRayTracingAsyncBuild)
-		{
-			// Submit potentially expensive BVH build commands to the GPU as soon as possible.
-			// Avoids a GPU bubble in some CPU-limited cases.
-			RHICmdList.SubmitCommandsHint();
-		}
-
-		Scene->GetRayTracingDynamicGeometryCollection()->EndUpdate(RHICmdList);
-	});
+	GraphBuilder.AddDispatchHint();
 
 	return true;
 }
@@ -884,21 +872,21 @@ bool FDeferredShadingSceneRenderer::DispatchRayTracingWorldUpdates(FRDGBuilder& 
 static void ReleaseRaytracingResources(FRDGBuilder& GraphBuilder, FRayTracingScene &RayTracingScene, bool bIsLastRenderer)
 {
 	// Keep mask the same as what's already set (which will be the view mask) if TLAS updates should be masked to the view
-	RDG_GPU_MASK_SCOPE(GraphBuilder, GRayTracingMultiGpuTLASMask ? GraphBuilder.RHICmdList.GetGPUMask() : FRHIGPUMask::All());
-	AddPass(GraphBuilder, RDG_EVENT_NAME("ReleaseRayTracingResources"), [&RayTracingScene, bIsLastRenderer](FRHICommandListImmediate& RHICmdList)
+	GraphBuilder.AddPostExecuteCallback([&RayTracingScene, bIsLastRenderer, &RHICmdList = GraphBuilder.RHICmdList]
 	{
 		if (RayTracingScene.IsCreated())
 		{
 			// Clear ray tracing bindings only on the last renderer, where multiple view families are rendered
 			if (bIsLastRenderer)
 			{
+				SCOPED_GPU_MASK(RHICmdList, GRayTracingMultiGpuTLASMask ? RHICmdList.GetGPUMask() : FRHIGPUMask::All());
 				RHICmdList.ClearRayTracingBindings(RayTracingScene.GetRHIRayTracingScene());
 			}
 		}
 	});
 }
 
-void FDeferredShadingSceneRenderer::WaitForRayTracingScene(FRDGBuilder& GraphBuilder, FRDGBufferRef DynamicGeometryScratchBuffer)
+void FDeferredShadingSceneRenderer::WaitForRayTracingScene(FRDGBuilder& GraphBuilder)
 {
 	check(bAnyRayTracingPassEnabled);
 
@@ -909,6 +897,17 @@ void FDeferredShadingSceneRenderer::WaitForRayTracingScene(FRDGBuilder& GraphBui
 
 	const int32 ReferenceViewIndex = 0;
 	FViewInfo& ReferenceView = Views[ReferenceViewIndex];
+	
+	// Send ray tracing resources from reference view to all others.
+	for (int32 ViewIndex = 0; ViewIndex < AllFamilyViews.Num(); ++ViewIndex)
+	{
+		// See comment above where we copy "RayTracingSubSurfaceProfileTexture" to each view...
+		FViewInfo* View = const_cast<FViewInfo*>(static_cast<const FViewInfo*>(AllFamilyViews[ViewIndex]));
+		if (View->bHasAnyRayTracingPass && View != &ReferenceView)
+		{
+			View->LumenHardwareRayTracingMaterialPipeline = ReferenceView.LumenHardwareRayTracingMaterialPipeline;
+		}
+	}
 
 	if (Lumen::UseHardwareRayTracing(ViewFamily)
 		|| ManyLights::UseHardwareRayTracing(ViewFamily))
@@ -956,7 +955,7 @@ void FDeferredShadingSceneRenderer::WaitForRayTracingScene(FRDGBuilder& GraphBui
 
 	const FRayTracingLightFunctionMap* RayTracingLightFunctionMap = GraphBuilder.Blackboard.Get<FRayTracingLightFunctionMap>();
 	GraphBuilder.AddPass(RDG_EVENT_NAME("SetRayTracingBindings"), PassParams, ERDGPassFlags::Copy | ERDGPassFlags::Compute | ERDGPassFlags::NeverCull,
-		[this, PassParams, bIsPathTracing, &ReferenceView, RayTracingLightFunctionMap](FRHICommandListImmediate& RHICmdList)
+		[this, PassParams, bIsPathTracing, &ReferenceView, RayTracingLightFunctionMap](FRHICommandList& RHICmdList)
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(SetRayTracingBindings);
 
@@ -1009,16 +1008,7 @@ void FDeferredShadingSceneRenderer::WaitForRayTracingScene(FRDGBuilder& GraphBui
 			}
 		}
 
-		// Send ray tracing resources from reference view to all others.
-		for (int32 ViewIndex = 0; ViewIndex < AllFamilyViews.Num(); ++ViewIndex)
-		{
-			// See comment above where we copy "RayTracingSubSurfaceProfileTexture" to each view...
-			FViewInfo* View = const_cast<FViewInfo*>(static_cast<const FViewInfo*>(AllFamilyViews[ViewIndex]));
-			if (View->bHasAnyRayTracingPass && View != &ReferenceView)
-			{
-				View->LumenHardwareRayTracingMaterialPipeline = ReferenceView.LumenHardwareRayTracingMaterialPipeline;
-			}
-		}
+		RHICmdList.CommitRayTracingBindings(ReferenceView.GetRayTracingSceneChecked());
 	});
 }
 
@@ -2324,7 +2314,7 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 			// Lumen scene lighting requires ray tracing scene to be ready if HWRT shadows are desired
 			if (bNeedToWaitForRayTracingScene && Lumen::UseHardwareRayTracedSceneLighting(ViewFamily))
 			{
-				WaitForRayTracingScene(GraphBuilder, DynamicGeometryScratchBuffer);
+				WaitForRayTracingScene(GraphBuilder);
 				bNeedToWaitForRayTracingScene = false;
 			}
 #endif
@@ -2495,7 +2485,7 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 			// When Lumen HWRT is running async we need to wait for ray tracing scene before dispatching the work
 			if (bNeedToWaitForRayTracingScene && Lumen::UseAsyncCompute(ViewFamily) && Lumen::UseHardwareInlineRayTracing(ViewFamily))
 			{
-				WaitForRayTracingScene(GraphBuilder, DynamicGeometryScratchBuffer);
+				WaitForRayTracingScene(GraphBuilder);
 				bNeedToWaitForRayTracingScene = false;
 			}
 #endif // RHI_RAYTRACING
@@ -2549,7 +2539,7 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 			// Lumen scene lighting requires ray tracing scene to be ready if HWRT shadows are desired
 			if (bNeedToWaitForRayTracingScene && Lumen::UseHardwareRayTracedSceneLighting(ViewFamily))
 			{
-				WaitForRayTracingScene(GraphBuilder, DynamicGeometryScratchBuffer);
+				WaitForRayTracingScene(GraphBuilder);
 				bNeedToWaitForRayTracingScene = false;
 			}
 #endif // RHI_RAYTRACING
@@ -2633,7 +2623,7 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 		// If Lumen did not force an earlier ray tracing scene sync, we must wait for it here.
 		if (bNeedToWaitForRayTracingScene)
 		{
-			WaitForRayTracingScene(GraphBuilder, DynamicGeometryScratchBuffer);
+			WaitForRayTracingScene(GraphBuilder);
 			bNeedToWaitForRayTracingScene = false;
 		}
 #endif // RHI_RAYTRACING

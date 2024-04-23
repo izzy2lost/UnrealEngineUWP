@@ -28,7 +28,6 @@ public:
 
 	virtual FRayTracingAccelerationStructureAddress GetAccelerationStructureAddress(uint64 GPUIndex) const final override
 	{
-		checkf(IsInRHIThread() || !IsRunningRHIInSeparateThread(), TEXT("Acceleration structure addresses can only be accessed on RHI timeline due to compaction and defragmentation."));
 		checkf(AccelerationStructureBuffers[GPUIndex], 
 			TEXT("Trying to get address of acceleration structure '%s' without allocated memory."), *DebugName.ToString());
 		return AccelerationStructureBuffers[GPUIndex]->ResourceLocation.GetGPUVirtualAddress();
@@ -136,7 +135,7 @@ public:
 	// they are resident when any ray tracing work is dispatched.
 	TArray<FD3D12ResidencyHandle*> GeometryResidencyHandles[MAX_NUM_GPUS];
 
-	void UpdateResidency(FD3D12CommandContext& CommandContext);
+	void UpdateResidency(FD3D12CommandContext& CommandContext) const;
 
 	uint32 GetHitRecordBaseIndex(uint32 InstanceIndex, uint32 SegmentIndex) const { return (Initializer.SegmentPrefixSum[InstanceIndex] + SegmentIndex) * Initializer.ShaderSlotsPerGeometrySegment; }
 
@@ -151,9 +150,10 @@ public:
 
 	TMap<const FD3D12RayTracingPipelineState*, FD3D12RayTracingShaderTable*> ShaderTables[MAX_NUM_GPUS];
 
-	uint64 LastCommandListID = 0;
-
 	bool bBuilt = false;
+
+private:
+	UE::FMutex Mutex;
 };
 
 // Manages all the pending BLAS compaction requests

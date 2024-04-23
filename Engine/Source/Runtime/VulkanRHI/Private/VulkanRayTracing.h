@@ -71,6 +71,8 @@ public:
 
 	void SetSlot(EShaderFrequency Frequency, uint32 DstSlot, uint32 SrcHandleIndex, TConstArrayView<uint8> SrcHandleData);
 
+	void CommitRayGenShader(FVulkanCommandListContext& Context, EShaderFrequency ShaderFrequency, uint32 SrcHandleIndex, TConstArrayView<uint8> SrcHandleData);
+
 	template <typename T>
 	void SetLocalShaderParameters(EShaderFrequency Frequency, uint32 RecordIndex, uint32 InOffsetWithinRootSignature, const T& Parameters)
 	{
@@ -117,6 +119,7 @@ private:
 	FVulkanShaderTableAllocation& GetAlloc(EShaderFrequency Frequency);
 	static void ReleaseLocalBuffer(FVulkanDevice* Device, FVulkanShaderTableAllocation& Alloc);
 
+	UE::FMutex RaygenMutex;
 	FVulkanShaderTableAllocation Raygen;
 	FVulkanShaderTableAllocation Miss;
 	FVulkanShaderTableAllocation HitGroup;
@@ -189,6 +192,14 @@ public:
 		FVulkanResourceMultiBuffer* InstanceBuffer, uint32 InstanceOffset,
 		EAccelerationStructureBuildMode BuildMode);
 
+	void CommitShaderTables(FVulkanCommandListContext& Context)
+	{
+		for (auto& Pair : ShaderTables)
+		{
+			Pair.Value->Commit(Context);
+		}
+	}
+
 	virtual FRHIShaderResourceView* GetOrCreateMetadataBufferSRV(FRHICommandListImmediate& RHICmdList) override final
 	{
 		if (!PerInstanceGeometryParameterSRV.IsValid())
@@ -243,6 +254,7 @@ private:
 
 	void BuildPerInstanceGeometryParameterBuffer(FVulkanCommandListContext& CommandContext);
 
+	UE::FMutex Mutex;
 	bool bBuilt = false;
 };
 

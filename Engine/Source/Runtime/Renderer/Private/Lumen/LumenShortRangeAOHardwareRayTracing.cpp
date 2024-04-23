@@ -153,7 +153,7 @@ void RenderHardwareRayTracingShortRangeAO(
 			RDG_EVENT_NAME("ShortRangeAO_HWRT(Rays=%u)", NumPixelRays),
 			PassParameters,
 			ERDGPassFlags::Compute,
-			[&View, RayGenerationShader, PassParameters, Resolution](FRHIRayTracingCommandList& RHICmdList)
+			[&View, RayGenerationShader, PassParameters, Resolution](FRHICommandList& RHICmdList)
 			{
 				FRayTracingShaderBindingsWriter GlobalResources;
 				SetShaderParameters(GlobalResources, RayGenerationShader, *PassParameters);
@@ -184,6 +184,7 @@ void RenderHardwareRayTracingShortRangeAO(
 
 					FRayTracingPipelineState* Pipeline = PipelineStateCache::GetAndOrCreateRayTracingPipelineState(RHICmdList, Initializer);
 					RHICmdList.SetRayTracingMissShader(RayTracingSceneRHI, 0, Pipeline, 0 /* ShaderIndexInPipeline */, 0, nullptr, 0);
+					RHICmdList.CommitRayTracingBindings(RayTracingSceneRHI);
 					RHICmdList.RayTraceDispatch(Pipeline, RayGenerationShader.GetRayTracingShader(), RayTracingSceneRHI, GlobalResources, Resolution.X, Resolution.Y);
 				}
 			});

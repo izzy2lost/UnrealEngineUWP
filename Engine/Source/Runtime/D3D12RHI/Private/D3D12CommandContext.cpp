@@ -410,6 +410,10 @@ void FD3D12CommandContext::CloseCommandList()
 	// Mark state as dirty now, because ApplyState may be called before OpenCommandList(), and it needs to know that the state has
 	// become invalid, so it can set it up again (which opens a new command list if necessary).
 	StateCache.DirtyStateForNewCommandList();
+
+#if RHI_RAYTRACING
+	RayTracingShaderTables.Empty();
+#endif
 }
 
 void FD3D12ContextCommon::Finalize(TArray<FD3D12Payload*>& OutPayloads)

@@ -848,13 +848,14 @@ static FRDGBufferRef RayTracingPerformPicking(FRDGBuilder& GraphBuilder, const F
 		RDG_EVENT_NAME("RayTracingPicking"),
 		RayGenParameters,
 		ERDGPassFlags::Compute,
-		[RayGenParameters, RayGenShader, &View, PickingPipeline](FRHIRayTracingCommandList& RHICmdList)
+		[RayGenParameters, RayGenShader, &View, PickingPipeline](FRHICommandList& RHICmdList)
 		{
 			FRayTracingShaderBindingsWriter GlobalResources;
 			SetShaderParameters(GlobalResources, RayGenShader, *RayGenParameters);
 
 			BindRayTracingDebugCHSMaterialBindings(RHICmdList, View, RayGenParameters->SceneUniformBuffer->GetRHI(), PickingPipeline);
 			RHICmdList.SetRayTracingMissShader(View.GetRayTracingSceneChecked(), 0, PickingPipeline, 0 /* ShaderIndexInPipeline */, 0, nullptr, 0);
+			RHICmdList.CommitRayTracingBindings(View.GetRayTracingSceneChecked());
 
 			RHICmdList.RayTraceDispatch(PickingPipeline, RayGenShader.GetRayTracingShader(), View.GetRayTracingSceneChecked(), GlobalResources, 1, 1);
 		});
@@ -1091,13 +1092,14 @@ static FRDGBufferRef RayTracingPerformHitStatsPerPrimitive(FRDGBuilder& GraphBui
 		RDG_EVENT_NAME("RayTracingHitStats"),
 		RayGenParameters,
 		ERDGPassFlags::Compute,
-		[RayGenParameters, RayGenShader, &View, HitStatsPerPrimitivePipeline, ViewRect](FRHIRayTracingCommandList& RHICmdList)
+		[RayGenParameters, RayGenShader, &View, HitStatsPerPrimitivePipeline, ViewRect](FRHICommandList& RHICmdList)
 		{
 			FRayTracingShaderBindingsWriter GlobalResources;
 			SetShaderParameters(GlobalResources, RayGenShader, *RayGenParameters);
 
 			BindRayTracingDebugHitStatsCHSMaterialBindings(RHICmdList, View, RayGenParameters->SceneUniformBuffer->GetRHI(), DebugHitStatsUniformBuffer->GetRHI(), HitStatsPerPrimitivePipeline);
 			RHICmdList.SetRayTracingMissShader(View.GetRayTracingSceneChecked(), 0, HitStatsPerPrimitivePipeline, 0 /* ShaderIndexInPipeline */, 0, nullptr, 0);
+			RHICmdList.CommitRayTracingBindings(View.GetRayTracingSceneChecked());
 
 			RHICmdList.RayTraceDispatch(HitStatsPerPrimitivePipeline, RayGenShader.GetRayTracingShader(), View.GetRayTracingSceneChecked(), GlobalResources, ViewRect.Size().X, ViewRect.Size().Y);
 		});
@@ -1561,7 +1563,7 @@ void FDeferredShadingSceneRenderer::RenderRayTracingDebug(FRDGBuilder& GraphBuil
 		RDG_EVENT_NAME("RayTracingDebug"),
 		RayGenParameters,
 		ERDGPassFlags::Compute,
-		[this, RayGenParameters, RayGenShader, &View, Pipeline, ViewRect, bRequiresBindings](FRHIRayTracingCommandList& RHICmdList)
+		[this, RayGenParameters, RayGenShader, &View, Pipeline, ViewRect, bRequiresBindings](FRHICommandList& RHICmdList)
 	{
 		FRayTracingShaderBindingsWriter GlobalResources;
 		SetShaderParameters(GlobalResources, RayGenShader, *RayGenParameters);
@@ -1570,6 +1572,7 @@ void FDeferredShadingSceneRenderer::RenderRayTracingDebug(FRDGBuilder& GraphBuil
 		{
 			BindRayTracingDebugCHSMaterialBindings(RHICmdList, View, RayGenParameters->SceneUniformBuffer->GetRHI(), Pipeline);
 			RHICmdList.SetRayTracingMissShader(View.GetRayTracingSceneChecked(), 0, Pipeline, 0 /* ShaderIndexInPipeline */, 0, nullptr, 0);
+			RHICmdList.CommitRayTracingBindings(View.GetRayTracingSceneChecked());
 		}
 
 		RHICmdList.RayTraceDispatch(Pipeline, RayGenShader.GetRayTracingShader(), View.GetRayTracingSceneChecked(), GlobalResources, ViewRect.Size().X, ViewRect.Size().Y);

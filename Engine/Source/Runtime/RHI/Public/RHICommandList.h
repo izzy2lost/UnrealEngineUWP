@@ -679,6 +679,30 @@ public:
 		GDynamicRHI->RHIUnlockBuffer(*this, Buffer);
 	}
 
+	// LockBufferMGPU / UnlockBufferMGPU may ONLY be called for buffers with the EBufferUsageFlags::MultiGPUAllocate flag set!
+	// And buffers with that flag set may not call the regular (single GPU) LockBuffer / UnlockBuffer.  The single GPU version
+	// of LockBuffer uses driver mirroring to propagate the updated buffer to other GPUs, while the MGPU / MultiGPUAllocate
+	// version requires the caller to manually lock and initialize the buffer separately on each GPU.  This can be done by
+	// iterating over FRHIGPUMask::All() and calling LockBufferMGPU / UnlockBufferMGPU for each version.
+	//
+	// EBufferUsageFlags::MultiGPUAllocate is only needed for cases where CPU initialized data needs to be different per GPU,
+	// which is a rare edge case.  Currently, this is only used for the ray tracing acceleration structure address buffer,
+	// which contains virtual address references to other GPU resources, which may be in a different location on each GPU.
+	//
+	FORCEINLINE void* LockBufferMGPU(FRHIBuffer* Buffer, uint32 GPUIndex, uint32 Offset, uint32 SizeRHI, EResourceLockMode LockMode)
+	{
+		checkf(IsTopOfPipe() || Bypass(), TEXT("Buffers may only be locked while recording RHI command lists, not during RHI command list execution."));
+
+		return GDynamicRHI->RHILockBufferMGPU(*this, Buffer, GPUIndex, Offset, SizeRHI, LockMode);
+	}
+
+	FORCEINLINE void UnlockBufferMGPU(FRHIBuffer* Buffer, uint32 GPUIndex)
+	{
+		checkf(IsTopOfPipe() || Bypass(), TEXT("Buffers may only be unlocked while recording RHI command lists, not during RHI command list execution."));
+
+		GDynamicRHI->RHIUnlockBufferMGPU(*this, Buffer, GPUIndex);
+	}
+	
 	FORCEINLINE FBufferRHIRef CreateBuffer(uint32 Size, EBufferUsageFlags Usage, uint32 Stride, ERHIAccess ResourceState, FRHIResourceCreateInfo& CreateInfo)
 	{
 		FRHIBufferDesc BufferDesc = CreateInfo.bWithoutNativeResource
@@ -2275,6 +2299,17 @@ FRHICOMMAND_UNNAMED(FRHICommandBuildAccelerationStructure)
 	RHI_API void Execute(FRHICommandListBase& CmdList);
 };
 
+FRHICOMMAND_MACRO(FRHICommandCommitRayTracingBindings)
+{
+	FRHIRayTracingScene* Scene;
+
+	explicit FRHICommandCommitRayTracingBindings(FRHIRayTracingScene* InScene)
+		: Scene(InScene)
+	{}
+
+	RHI_API void Execute(FRHICommandListBase& CmdList);
+};
+
 FRHICOMMAND_MACRO(FRHICommandClearRayTracingBindings)
 {
 	FRHIRayTracingScene* Scene;
@@ -3670,6 +3705,22 @@ public:
 
 #if RHI_RAYTRACING
 	// Ray tracing API
+	
+	FORCEINLINE_DEBUGGABLE void CommitRayTracingBindings(FRHIRayTracingScene* Scene)
+	{
+		if (Bypass())
+		{
+			GetContext().RHICommitRayTracingBindings(Scene);
+		}
+		else
+		{
+			ALLOC_COMMAND(FRHICommandCommitRayTracingBindings)(Scene);
+
+			// This RHI command modifies members of the FRHIRayTracingScene inside platform RHI implementations.
+			// It therefore needs the RHI lock fence to prevent races on those members.
+			RHIThreadFence(true);
+		}
+	}
 
 	FORCEINLINE_DEBUGGABLE void ClearRayTracingBindings(FRHIRayTracingScene* Scene)
 	{
@@ -4067,30 +4118,6 @@ public:
 		GDynamicRHI->RHICopyBuffer(SourceBuffer, DestBuffer);
 	}
 
-	// LockBufferMGPU / UnlockBufferMGPU may ONLY be called for buffers with the EBufferUsageFlags::MultiGPUAllocate flag set!
-	// And buffers with that flag set may not call the regular (single GPU) LockBuffer / UnlockBuffer.  The single GPU version
-	// of LockBuffer uses driver mirroring to propagate the updated buffer to other GPUs, while the MGPU / MultiGPUAllocate
-	// version requires the caller to manually lock and initialize the buffer separately on each GPU.  This can be done by
-	// iterating over FRHIGPUMask::All() and calling LockBufferMGPU / UnlockBufferMGPU for each version.
-	//
-	// EBufferUsageFlags::MultiGPUAllocate is only needed for cases where CPU initialized data needs to be different per GPU,
-	// which is a rare edge case.  Currently, this is only used for the ray tracing acceleration structure address buffer,
-	// which contains virtual address references to other GPU resources, which may be in a different location on each GPU.
-	//
-	FORCEINLINE void* LockBufferMGPU(FRHIBuffer* Buffer, uint32 GPUIndex, uint32 Offset, uint32 SizeRHI, EResourceLockMode LockMode)
-	{
-		checkf(IsTopOfPipe() || Bypass(), TEXT("Buffers may only be locked while recording RHI command lists, not during RHI command list execution."));
-
-		return GDynamicRHI->RHILockBufferMGPU(*this, Buffer, GPUIndex, Offset, SizeRHI, LockMode);
-	}
-
-	FORCEINLINE void UnlockBufferMGPU(FRHIBuffer* Buffer, uint32 GPUIndex)
-	{
-		checkf(IsTopOfPipe() || Bypass(), TEXT("Buffers may only be unlocked while recording RHI command lists, not during RHI command list execution."));
-
-		GDynamicRHI->RHIUnlockBufferMGPU(*this, Buffer, GPUIndex);
-	}
-	
 	FORCEINLINE bool GetTextureMemoryVisualizeData(FColor* TextureData,int32 SizeX,int32 SizeY,int32 Pitch,int32 PixelSize)
 	{
 		QUICK_SCOPE_CYCLE_COUNTER(STAT_RHIMETHOD_GetTextureMemoryVisualizeData_Flush);
@@ -4797,7 +4824,8 @@ extern RHI_API FRHICommandListExecutor GRHICommandList;
 extern RHI_API FAutoConsoleTaskPriority CPrio_SceneRenderingTask;
 
 /** Used to separate which command list is used for ray tracing operations. */
-using FRHIRayTracingCommandList = FRHICommandListImmediate;
+UE_DEPRECATED(5.5, "Use FRHICommandList instead.")
+typedef FRHICommandListImmediate FRHIRayTracingCommandList;
 
 class FRenderTask
 {

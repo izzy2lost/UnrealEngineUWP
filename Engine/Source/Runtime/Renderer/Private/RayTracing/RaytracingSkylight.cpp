@@ -468,7 +468,7 @@ void FDeferredShadingSceneRenderer::RenderRayTracingSkyLight(
 			RDG_EVENT_NAME("SkyLightRayTracing %dx%d", RayTracingResolution.X, RayTracingResolution.Y),
 			PassParameters,
 			ERDGPassFlags::Compute,
-			[PassParameters, this, &View, RayGenerationShader, RayTracingResolution](FRHIRayTracingCommandList& RHICmdList)
+			[PassParameters, this, &View, RayGenerationShader, RayTracingResolution](FRHICommandList& RHICmdList)
 		{
 			FRayTracingShaderBindingsWriter GlobalResources;
 			SetShaderParameters(GlobalResources, RayGenerationShader, *PassParameters);
@@ -492,6 +492,7 @@ void FDeferredShadingSceneRenderer::RenderRayTracingSkyLight(
 
 				Pipeline = PipelineStateCache::GetAndOrCreateRayTracingPipelineState(RHICmdList, Initializer);
 				RHICmdList.SetRayTracingMissShader(RayTracingSceneRHI, 0, Pipeline, 0 /* ShaderIndexInPipeline */, 0, nullptr, 0);
+				RHICmdList.CommitRayTracingBindings(RayTracingSceneRHI);
 			}
 
 			RHICmdList.RayTraceDispatch(Pipeline, RayGenerationShader.GetRayTracingShader(), RayTracingSceneRHI, GlobalResources, RayTracingResolution.X, RayTracingResolution.Y);
