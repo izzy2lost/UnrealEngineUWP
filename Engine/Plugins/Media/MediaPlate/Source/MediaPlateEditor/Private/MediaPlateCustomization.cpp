@@ -49,6 +49,8 @@ FMediaPlateCustomization::~FMediaPlateCustomization()
 
 void FMediaPlateCustomization::CustomizeDetails(IDetailLayoutBuilder& DetailBuilder)
 {
+	TWeakPtr<FMediaPlateCustomization> WeakSelf = StaticCastWeakPtr<FMediaPlateCustomization>(AsWeak());
+
 	// Is this the media plate editor window?
 	bool bIsMediaPlateWindow = false;
 
@@ -124,9 +126,10 @@ void FMediaPlateCustomization::CustomizeDetails(IDetailLayoutBuilder& DetailBuil
 		.ValueContent()
 		[
 			SNew(SSegmentedControl<bool>)
-				.Value_Lambda([this]()
+				.Value_Lambda([WeakSelf]()
 				{
-					return bIsMediaSourceAsset;
+					const TSharedPtr<FMediaPlateCustomization> Self = WeakSelf.Pin();
+					return Self.IsValid() ? Self->bIsMediaSourceAsset : false;
 				})
 				.OnValueChanged(this, &FMediaPlateCustomization::SetIsMediaSourceAsset)
 
@@ -208,21 +211,30 @@ void FMediaPlateCustomization::CustomizeDetails(IDetailLayoutBuilder& DetailBuil
 				[
 					SNew(SButton)
 						.VAlign(VAlign_Center)
-						.IsEnabled_Lambda([this]
+						.IsEnabled_Lambda([WeakSelf]
 						{
-							if (const UMediaPlayer* MediaPlayer = GetMediaPlayer())
+							const TSharedPtr<FMediaPlateCustomization> Self = WeakSelf.Pin();
+							if (Self.IsValid())
 							{
-								return MediaPlayer->IsReady() &&
-									MediaPlayer->SupportsSeeking() &&
-									MediaPlayer->GetTime() > FTimespan::Zero();
+								if (const UMediaPlayer* MediaPlayer = Self->GetMediaPlayer())
+								{
+									return MediaPlayer->IsReady() &&
+										MediaPlayer->SupportsSeeking() &&
+										MediaPlayer->GetTime() > FTimespan::Zero();
+								}
 							}
 
 							return false;
 						})
-						.OnClicked_Lambda([this]() -> FReply
+						.OnClicked_Lambda([WeakSelf]() -> FReply
 						{
-							OnButtonEvent(EMediaPlateEventState::Rewind);
-							return FReply::Handled();
+							const TSharedPtr<FMediaPlateCustomization> Self = WeakSelf.Pin();
+							if (Self.IsValid())
+							{
+								Self->OnButtonEvent(EMediaPlateEventState::Rewind);
+								return FReply::Handled();
+							}
+							return FReply::Unhandled();
 						})
 						[
 							SNew(SImage)
@@ -239,19 +251,28 @@ void FMediaPlateCustomization::CustomizeDetails(IDetailLayoutBuilder& DetailBuil
 				[
 					SNew(SButton)
 						.VAlign(VAlign_Center)
-						.IsEnabled_Lambda([this]
+						.IsEnabled_Lambda([WeakSelf]
 						{
-							if (UMediaPlayer* MediaPlayer = GetMediaPlayer())
+							const TSharedPtr<FMediaPlateCustomization> Self = WeakSelf.Pin();
+							if (Self.IsValid())
 							{
-								return MediaPlayer->IsReady() && MediaPlayer->SupportsRate(UMediaPlateComponent::GetReverseRate(MediaPlayer), false);
+								if (UMediaPlayer* MediaPlayer = Self->GetMediaPlayer())
+								{
+									return MediaPlayer->IsReady() && MediaPlayer->SupportsRate(UMediaPlateComponent::GetReverseRate(MediaPlayer), false);
+								}
 							}
 
 							return false;
 						})
-						.OnClicked_Lambda([this]() -> FReply
+						.OnClicked_Lambda([WeakSelf]() -> FReply
 						{
-							OnButtonEvent(EMediaPlateEventState::Reverse);
-							return FReply::Handled();
+							const TSharedPtr<FMediaPlateCustomization> Self = WeakSelf.Pin();
+							if (Self.IsValid())
+							{
+								Self->OnButtonEvent(EMediaPlateEventState::Reverse);
+								return FReply::Handled();
+							}
+							return FReply::Unhandled();
 						})
 						[
 							SNew(SImage)
@@ -268,30 +289,44 @@ void FMediaPlateCustomization::CustomizeDetails(IDetailLayoutBuilder& DetailBuil
 				[
 					SNew(SButton)
 						.VAlign(VAlign_Center)
-						.IsEnabled_Lambda([this]
+						.IsEnabled_Lambda([WeakSelf]
 						{
-							// Is the player paused or fast forwarding/rewinding?
-							if (const UMediaPlayer* MediaPlayer = GetMediaPlayer())
+							const TSharedPtr<FMediaPlateCustomization> Self = WeakSelf.Pin();
+							if (Self.IsValid())
 							{
-								return MediaPlayer->IsReady()
-									&& (!MediaPlayer->IsPlaying() || (MediaPlayer->GetRate() != 1.0f));
+								// Is the player paused or fast forwarding/rewinding?
+								if (const UMediaPlayer* MediaPlayer = Self->GetMediaPlayer())
+								{
+									return MediaPlayer->IsReady()
+										&& (!MediaPlayer->IsPlaying() || (MediaPlayer->GetRate() != 1.0f));
+								}
 							}
 
 							return false;
 						})
-						.Visibility_Lambda([this]
+						.Visibility_Lambda([WeakSelf]
 						{
-							if (const UMediaPlayer* MediaPlayer = GetMediaPlayer())
+							const TSharedPtr<FMediaPlateCustomization> Self = WeakSelf.Pin();
+							if (Self.IsValid())
 							{
-								return MediaPlayer->IsPlaying() ? EVisibility::Collapsed : EVisibility::Visible;
+								if (const UMediaPlayer* MediaPlayer = Self->GetMediaPlayer())
+								{
+									return MediaPlayer->IsPlaying() ? EVisibility::Collapsed : EVisibility::Visible;
+								}
 							}
 
 							return EVisibility::Visible;
 						})
-						.OnClicked_Lambda([this]() -> FReply
+						.OnClicked_Lambda([WeakSelf]() -> FReply
 						{
-							OnButtonEvent(EMediaPlateEventState::Play);
-							return FReply::Handled();
+							const TSharedPtr<FMediaPlateCustomization> Self = WeakSelf.Pin();
+							if (Self.IsValid())
+							{
+								Self->OnButtonEvent(EMediaPlateEventState::Play);
+								return FReply::Handled();
+							}
+
+							return FReply::Unhandled();
 						})
 						[
 							SNew(SImage)
@@ -308,29 +343,42 @@ void FMediaPlateCustomization::CustomizeDetails(IDetailLayoutBuilder& DetailBuil
 				[
 					SNew(SButton)
 						.VAlign(VAlign_Center)
-						.IsEnabled_Lambda([this]
+						.IsEnabled_Lambda([WeakSelf]
 						{
-							if (const UMediaPlayer* MediaPlayer = GetMediaPlayer())
+							const TSharedPtr<FMediaPlateCustomization> Self = WeakSelf.Pin();
+							if (Self.IsValid())
 							{
-								return MediaPlayer->CanPause() && !MediaPlayer->IsPaused();
+								if (const UMediaPlayer* MediaPlayer = Self->GetMediaPlayer())
+								{
+									return MediaPlayer->CanPause() && !MediaPlayer->IsPaused();
+								}
 							}
 
 							return false;
 						})
-						.Visibility_Lambda([this]
+						.Visibility_Lambda([WeakSelf]
 						{
-							if (const UMediaPlayer* MediaPlayer = GetMediaPlayer())
+							const TSharedPtr<FMediaPlateCustomization> Self = WeakSelf.Pin();
+							if (Self.IsValid())
 							{
-								const bool bIsVisible = MediaPlayer->CanPause() && !MediaPlayer->IsPaused();
-								return bIsVisible ? EVisibility::Visible : EVisibility::Collapsed;
+								if (const UMediaPlayer* MediaPlayer = Self->GetMediaPlayer())
+								{
+									const bool bIsVisible = MediaPlayer->CanPause() && !MediaPlayer->IsPaused();
+									return bIsVisible ? EVisibility::Visible : EVisibility::Collapsed;
+								}
 							}
 
 							return EVisibility::Collapsed;
 						})
-						.OnClicked_Lambda([this]() -> FReply
+						.OnClicked_Lambda([WeakSelf]() -> FReply
 						{
-							OnButtonEvent(EMediaPlateEventState::Pause);
-							return FReply::Handled();
+							const TSharedPtr<FMediaPlateCustomization> Self = WeakSelf.Pin();
+							if (Self.IsValid())
+							{
+								Self->OnButtonEvent(EMediaPlateEventState::Pause);
+								return FReply::Handled();
+							}
+							return FReply::Unhandled();
 						})
 						[
 							SNew(SImage)
@@ -347,19 +395,28 @@ void FMediaPlateCustomization::CustomizeDetails(IDetailLayoutBuilder& DetailBuil
 				[
 					SNew(SButton)
 					.VAlign(VAlign_Center)
-					.IsEnabled_Lambda([this]
+					.IsEnabled_Lambda([WeakSelf]
 					{
-						if (UMediaPlayer* MediaPlayer = GetMediaPlayer())
+						const TSharedPtr<FMediaPlateCustomization> Self = WeakSelf.Pin();
+						if (Self.IsValid())
 						{
-							return MediaPlayer->IsReady() && MediaPlayer->SupportsRate(UMediaPlateComponent::GetForwardRate(MediaPlayer), false);
+							if (UMediaPlayer* MediaPlayer = Self->GetMediaPlayer())
+							{
+								return MediaPlayer->IsReady() && MediaPlayer->SupportsRate(UMediaPlateComponent::GetForwardRate(MediaPlayer), false);
+							}
 						}
 
 						return false;
 					})
-					.OnClicked_Lambda([this]() -> FReply
+					.OnClicked_Lambda([WeakSelf]() -> FReply
 					{
-						OnButtonEvent(EMediaPlateEventState::Forward);
-						return FReply::Handled();
+						const TSharedPtr<FMediaPlateCustomization> Self = WeakSelf.Pin();
+						if (Self.IsValid())
+						{
+							Self->OnButtonEvent(EMediaPlateEventState::Forward);
+							return FReply::Handled();
+						}
+						return FReply::Unhandled();
 					})
 					[
 						SNew(SImage)
@@ -376,10 +433,15 @@ void FMediaPlateCustomization::CustomizeDetails(IDetailLayoutBuilder& DetailBuil
 				[
 					SNew(SButton)
 						.VAlign(VAlign_Center)
-						.OnClicked_Lambda([this]() -> FReply
+						.OnClicked_Lambda([WeakSelf]() -> FReply
 						{
-							OnButtonEvent(EMediaPlateEventState::Open);
-							return FReply::Handled();
+							const TSharedPtr<FMediaPlateCustomization> Self = WeakSelf.Pin();
+							if (Self.IsValid())
+							{
+								Self->OnButtonEvent(EMediaPlateEventState::Open);
+								return FReply::Handled();
+							}
+							return FReply::Unhandled();
 						})
 						[
 							SNew(SImage)
@@ -396,19 +458,28 @@ void FMediaPlateCustomization::CustomizeDetails(IDetailLayoutBuilder& DetailBuil
 				[
 					SNew(SButton)
 						.VAlign(VAlign_Center)
-						.IsEnabled_Lambda([this]
+						.IsEnabled_Lambda([WeakSelf]
 						{
-							if (UMediaPlayer* MediaPlayer = GetMediaPlayer())
+							const TSharedPtr<FMediaPlateCustomization> Self = WeakSelf.Pin();
+							if (Self.IsValid())
 							{
-								return !MediaPlayer->GetUrl().IsEmpty();
+								if (UMediaPlayer* MediaPlayer = Self->GetMediaPlayer())
+								{
+									return !MediaPlayer->GetUrl().IsEmpty();
+								}
 							}
 
 							return false;
 						})
-						.OnClicked_Lambda([this]() -> FReply
+						.OnClicked_Lambda([WeakSelf]() -> FReply
 						{
-							OnButtonEvent(EMediaPlateEventState::Close);
-							return FReply::Handled();
+							const TSharedPtr<FMediaPlateCustomization> Self = WeakSelf.Pin();
+							if (Self.IsValid())
+							{
+								Self->OnButtonEvent(EMediaPlateEventState::Close);
+								return FReply::Handled();
+							}
+							return FReply::Unhandled();
 						})
 						[
 							SNew(SImage)
@@ -463,13 +534,16 @@ void FMediaPlateCustomization::CustomizeDetails(IDetailLayoutBuilder& DetailBuil
 
 void FMediaPlateCustomization::AddMeshCustomization(IDetailCategoryBuilder& InParentCategory)
 {
+	TWeakPtr<FMediaPlateCustomization> WeakSelf = StaticCastWeakPtr<FMediaPlateCustomization>(AsWeak());
+
 	// Add radio buttons for mesh type.
 	InParentCategory.AddCustomRow(FText::FromString("Mesh Selection"))
 	[
 		SNew(SSegmentedControl<EMediaTextureVisibleMipsTiles>)
-			.Value_Lambda([this]()
+			.Value_Lambda([WeakSelf]()
 			{
-				return MeshMode;
+				const TSharedPtr<FMediaPlateCustomization> Self = WeakSelf.Pin();
+				return Self.IsValid() ? Self->MeshMode : EMediaTextureVisibleMipsTiles::None;
 			})
 			.OnValueChanged(this, &FMediaPlateCustomization::SetMeshMode)
 
