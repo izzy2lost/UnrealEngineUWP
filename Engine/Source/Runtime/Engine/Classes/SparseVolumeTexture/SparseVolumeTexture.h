@@ -569,7 +569,9 @@ public:
 	//~ End USparseVolumeTexture Interface.
 
 #if WITH_EDITOR
+	UE_DEPRECATED(5.5, "OnAssetsAddExtraObjectsToDelete signature has been deprecated please use OnAddExtraObjectsToDelete instead")
 	ENGINE_API void OnAssetsAddExtraObjectsToDelete(TArray<UObject*>& ObjectsToDelete);
+	ENGINE_API void OnAddExtraObjectsToDelete(const TArray<UObject*>& InObjectsToDelete, TSet<UObject*>& OutSecondaryObjects);
 #endif
 
 protected:

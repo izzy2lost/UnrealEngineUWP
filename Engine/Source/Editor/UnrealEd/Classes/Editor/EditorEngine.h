@@ -3079,6 +3079,8 @@ protected:
 	TObjectPtr<class UActorGroupingUtils> ActorGroupingUtils;
 private:
 	FTimerHandle CleanupPIEOnlineSessionsTimerHandle;
+	
+	FDelegateHandle WorldAddExtraDeletionObjectsHandle;
 
 	/** Delegate handle for game viewport close requests in PIE sessions. */
 	FDelegateHandle ViewportCloseRequestedDelegateHandle;

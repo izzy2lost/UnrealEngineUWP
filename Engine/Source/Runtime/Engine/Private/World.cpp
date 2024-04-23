@@ -9179,6 +9179,21 @@ void UWorld::RestoreScene()
 	}
 }
 
+void UWorld::OnAddExtraObjectsToDelete(const TArray<UObject*>& InObjectsToDelete, TSet<UObject*>& OutSecondaryObjects)
+{	
+	for (const UObject* Object : InObjectsToDelete)
+	{
+		if (const UWorld* World = Cast<UWorld>(Object))
+		{
+			if (World->PersistentLevel && World->PersistentLevel->MapBuildData)
+			{
+				// Delete MapBuildData together with maps
+				OutSecondaryObjects.Add(World->PersistentLevel->MapBuildData);
+			}
+		}
+	}
+}
+
 void UWorld::GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const
 {
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS;

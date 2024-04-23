@@ -1389,6 +1389,8 @@ public:
 	/** Restore the purged editor world FScene back to the proper GPU representation */
 	void RestoreScene();
 
+	static void OnAddExtraObjectsToDelete(const TArray<UObject*>& InObjectsToDelete, TSet<UObject*>& OutSecondaryObjects);
+
 #endif // WITH_EDITOR
 
 	/**

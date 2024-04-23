@@ -1074,6 +1074,8 @@ void UEditorEngine::InitEditor(IEngineLoop* InEngineLoop)
 	}
 
 	FAssetCompilingManager::Get().OnAssetPostCompileEvent().AddUObject(this, &UEditorEngine::OnAssetPostCompile);
+
+	WorldAddExtraDeletionObjectsHandle = FEditorDelegates::OnAddExtraObjectsToDelete.AddStatic(&UWorld::OnAddExtraObjectsToDelete);
 }
 
 bool UEditorEngine::HandleOpenAsset(UObject* Asset)
@@ -1525,6 +1527,7 @@ void UEditorEngine::FinishDestroy()
 		}
 		FAssetCompilingManager::Get().OnAssetPostCompileEvent().RemoveAll(this);
 
+		FEditorDelegates::OnAddExtraObjectsToDelete.Remove(WorldAddExtraDeletionObjectsHandle);
 
 		// Shut down transaction tracking system.
 		if( Trans )

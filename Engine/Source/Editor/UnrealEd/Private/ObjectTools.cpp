@@ -2703,20 +2703,24 @@ namespace ObjectTools
 
 	void AddExtraObjectsToDelete(TArray< UObject* >& ObjectsToDelete)
 	{
-		const int32 OriginalNum = ObjectsToDelete.Num();
-		for (int32 i=0; i < OriginalNum; ++i)
+		// Allows to inject extra assets to delete without modifying the engine source.
+		TSet<UObject*> SecondaryObjects;
+		FEditorDelegates::OnAddExtraObjectsToDelete.Broadcast(ObjectsToDelete, SecondaryObjects);
+		for (UObject* Object : SecondaryObjects)
 		{
-			UObject* ObjectToDelete = ObjectsToDelete[i];
+			ObjectsToDelete.AddUnique(Object);
+		}
 
-			// Delete MapBuildData with maps & owned packages for map
-			if (UWorld* World = Cast<UWorld>(ObjectToDelete))
+		// Recursively include external packages
+		const int32 OriginalNum = ObjectsToDelete.Num();
+		TSet<const UPackage*> ProcessedOuterPackages;
+		for (int32 Index=0; Index < OriginalNum; ++Index)
+		{
+			const UObject* ObjectToDelete = ObjectsToDelete[Index];
+			const UPackage* OuterPackage = ObjectToDelete->GetPackage();
+			if (!ProcessedOuterPackages.Contains(OuterPackage))
 			{
-				if (World->PersistentLevel && World->PersistentLevel->MapBuildData)
-				{
-					ObjectsToDelete.AddUnique(World->PersistentLevel->MapBuildData);
-				}
-
-				for (UPackage* Package : World->GetOutermost()->GetExternalPackages())
+				for (UPackage* Package : OuterPackage->GetExternalPackages())
 				{
 					// Don't include newly created packages
 					if (!Package->HasAnyPackageFlags(PKG_NewlyCreated))
@@ -2724,16 +2728,11 @@ namespace ObjectTools
 						ObjectsToDelete.AddUnique(Package);
 					}
 				}
+				
+				ProcessedOuterPackages.Add(OuterPackage);
 			}
+			
 		}
-
-		// Allows to inject extra assets to delete without modifying the engine source.
-		FEditorDelegates::OnAssetsAddExtraObjectsToDelete.Broadcast(ObjectsToDelete);
-
-		//This method is called 2x in the deletion flow. Make sure there is no duplicates in the array as we can't rely on the methods registered to the delegate to uniquely add.
-		TSet<UObject*> CleanupDuplicatesSet(MoveTemp(ObjectsToDelete)); // Move items into the set to remove duplicate pointers.
-		ObjectsToDelete = CleanupDuplicatesSet.Array(); // Copy elements back again
-
 	}
 
 	bool ContainsWorldInUse(const TArray< UObject* >& ObjectsToDelete)

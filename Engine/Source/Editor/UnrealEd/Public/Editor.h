@@ -135,7 +135,11 @@ struct FEditorDelegates
 	/** delegate type for when a user requests to delete certain package */
 	DECLARE_MULTICAST_DELEGATE_OneParam(FOnPackageDeleted, UPackage*);
 	/** delegate type for when a user requests to delete certain assets... It allows the addition of secondary assets that should also be deleted */
+	UE_DEPRECATED(5.5, "FOnAssetsAddExtraObjectsToDelete has been deprecated, please use FOnAddExtraObjectsToDelete instead")
 	DECLARE_MULTICAST_DELEGATE_OneParam(FOnAssetsAddExtraObjectsToDelete, TArray<UObject*>&);
+	/** delegate type for when a user requests to delete certain assets... It allows the addition of secondary assets that should also be deleted */
+	DECLARE_MULTICAST_DELEGATE_TwoParams(FOnAddExtraObjectsToDelete, const TArray<UObject*>&, TSet<UObject*>&);
+	
 	/** delegate type for when a user requests to delete certain assets... DOES NOT mean the asset(s) will be deleted (the user could cancel) */
 	DECLARE_MULTICAST_DELEGATE_OneParam(FOnAssetsPreDelete, const TArray<UObject*>&);
 	/** delegate type for when a user requested force deleting objects. The objects(s) will be deleted (no possibility to cancel), so implementations should delete references */
@@ -323,7 +327,11 @@ struct FEditorDelegates
 	/** Called when the user requests assets to be deleted to determine if the operation is available.  */
 	static UNREALED_API FOnAssetsCanDelete OnAssetsCanDelete;
 	/** Called when the user requests certain assets be deletedand  allows the addition of secondary assets that should also be deleted */
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	UE_DEPRECATED(5.5, "Delegate signature for OnAssetsAddExtraObjectsToDelete has been deprecated please use new version OnAddExtraObjectsToDelete")
 	static UNREALED_API FOnAssetsAddExtraObjectsToDelete OnAssetsAddExtraObjectsToDelete;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS	
+	static UNREALED_API FOnAddExtraObjectsToDelete OnAddExtraObjectsToDelete;	
 	/** Called when the user requests certain assets be deleted (DOES NOT imply that the asset will be deleted... the user could cancel) */
 	static UNREALED_API FOnAssetsPreDelete OnAssetsPreDelete;
 	/** Called when one or more assets have been deleted */

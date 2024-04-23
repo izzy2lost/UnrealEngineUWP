@@ -1686,6 +1686,22 @@ void UStreamableSparseVolumeTexture::OnAssetsAddExtraObjectsToDelete(TArray<UObj
 		}
 	}
 }
+
+void UStreamableSparseVolumeTexture::OnAddExtraObjectsToDelete(const TArray<UObject*>& InObjectsToDelete, TSet<UObject*>& OutSecondaryObjects)
+{
+	if (InObjectsToDelete.Contains(this))
+	{
+		// When UStreamableSparseVolumeTexture is deleted, we also want all owned USparseVolumeTextureFrame objects to be deleted.
+		for (USparseVolumeTextureFrame* Frame : Frames)
+		{
+			if (Frame)
+			{
+				OutSecondaryObjects.Add(Frame);
+			}
+		}
+	}
+	
+}
 #endif
 
 #if WITH_EDITORONLY_DATA
@@ -1755,14 +1771,14 @@ void UStreamableSparseVolumeTexture::RegisterEditorDelegates()
 	if (ShouldRegisterDelegates())
 	{
 		UnregisterEditorDelegates();
-		FEditorDelegates::OnAssetsAddExtraObjectsToDelete.AddUObject(this, &UStreamableSparseVolumeTexture::OnAssetsAddExtraObjectsToDelete);
+		FEditorDelegates::OnAddExtraObjectsToDelete.AddUObject(this, &UStreamableSparseVolumeTexture::OnAddExtraObjectsToDelete);
 	}
 }
 void UStreamableSparseVolumeTexture::UnregisterEditorDelegates()
 {
 	if (ShouldRegisterDelegates())
 	{
-		FEditorDelegates::OnAssetsAddExtraObjectsToDelete.RemoveAll(this);
+		FEditorDelegates::OnAddExtraObjectsToDelete.RemoveAll(this);
 	}
 }
 #endif // WITH_EDITOR

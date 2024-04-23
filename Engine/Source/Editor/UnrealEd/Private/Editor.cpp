@@ -154,6 +154,7 @@ FSimpleMulticastDelegate								FEditorDelegates::OnShutdownPostPackagesSaved;
 FEditorDelegates::FOnPackageDeleted						FEditorDelegates::OnPackageDeleted;
 FEditorDelegates::FOnAssetsCanDelete					FEditorDelegates::OnAssetsCanDelete;
 FEditorDelegates::FOnAssetsAddExtraObjectsToDelete		FEditorDelegates::OnAssetsAddExtraObjectsToDelete;
+FEditorDelegates::FOnAddExtraObjectsToDelete			FEditorDelegates::OnAddExtraObjectsToDelete;
 FEditorDelegates::FOnAssetsPreDelete					FEditorDelegates::OnAssetsPreDelete;
 FEditorDelegates::FOnAssetsDeleted						FEditorDelegates::OnAssetsDeleted;
 FEditorDelegates::FOnAssetDragStarted					FEditorDelegates::OnAssetDragStarted;
