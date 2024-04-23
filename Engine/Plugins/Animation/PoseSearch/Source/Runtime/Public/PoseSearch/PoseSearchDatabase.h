@@ -409,6 +409,12 @@ public:
 
 	bool Contains(const UObject* Object) const;
 
+	UFUNCTION(BlueprintPure, Category = "Animation|Pose Search|Experimental", meta = (BlueprintThreadSafe))
+	int32 GetNumAnimationAssets() const;
+
+	UFUNCTION(BlueprintPure, Category = "Animation|Pose Search|Experimental", meta = (BlueprintThreadSafe))
+	UObject* GetAnimationAsset(int32 Index) const;
+
 #if WITH_EDITOR
 	int32 GetNumberOfPrincipalComponents() const;
 

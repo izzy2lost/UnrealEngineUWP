@@ -796,6 +796,23 @@ bool UPoseSearchDatabase::Contains(const UObject* Object) const
 	return false;
 }
 
+int32 UPoseSearchDatabase::GetNumAnimationAssets() const
+{
+	return AnimationAssets.Num();
+}
+
+UObject* UPoseSearchDatabase::GetAnimationAsset(int32 Index) const
+{
+	if (AnimationAssets.IsValidIndex(Index))
+	{
+		if (const FPoseSearchDatabaseAnimationAssetBase* AnimationAssetBase = AnimationAssets[Index].GetPtr<FPoseSearchDatabaseAnimationAssetBase>())
+		{
+			return AnimationAssetBase->GetAnimationAsset();
+		}
+	}
+	return nullptr;
+}
+
 #if WITH_EDITOR
 void UPoseSearchDatabase::SynchronizeWithExternalDependencies()
 {
