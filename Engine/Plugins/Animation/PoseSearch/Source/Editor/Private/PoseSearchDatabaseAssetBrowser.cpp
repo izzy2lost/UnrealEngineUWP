@@ -16,6 +16,10 @@
 #include "PoseSearch/PoseSearchSchema.h"
 #include "Subsystems/AssetEditorSubsystem.h"
 #include "Editor.h"
+#include "PoseSearchDatabaseEditorUtils.h"
+#include "Filters/SBasicFilterBar.h"
+
+#define LOCTEXT_NAMESPACE "PoseSearchDatabaseAssetBrowser"
 
 namespace UE::PoseSearch
 {
@@ -58,6 +62,8 @@ void SPoseSearchDatabaseAssetBrowser::RefreshView()
 	AssetPickerConfig.RefreshAssetViewDelegates.Add(&RefreshAssetViewDelegate);
 	AssetPickerConfig.OnShouldFilterAsset = FOnShouldFilterAsset::CreateSP(this, &SPoseSearchDatabaseAssetBrowser::OnShouldFilterAsset);
 	AssetPickerConfig.OnAssetDoubleClicked = FOnAssetSelected::CreateSP(this, &SPoseSearchDatabaseAssetBrowser::OnAssetDoubleClicked);
+	AssetPickerConfig.AssetShowWarningText = LOCTEXT("NoAssets_Warning", "No Assets found. No compatible assets with the database's schema where found. Ensure your assets' skeleton matches a skeleton from the database's schema.");
+	AssetPickerConfig.bCanShowDevelopersFolder = true;
 
 	// Hide all asset registry columns by default (we only really want the name and path)
 	const UObject* AnimSequenceDefaultObject = UAnimSequence::StaticClass()->GetDefaultObject();
@@ -106,22 +112,7 @@ bool SPoseSearchDatabaseAssetBrowser::OnShouldFilterAsset(const FAssetData& Asse
 
 	if (DatabaseViewModel)
 	{
-		if (const UPoseSearchDatabase* Database = DatabaseViewModel->GetPoseSearchDatabase())
-		{
-			if (Database->Schema)
-			{
-				TArray<FPoseSearchRoledSkeleton> RoledSkeletons = Database->Schema->GetRoledSkeletons();
-
-				for (const FPoseSearchRoledSkeleton& RoledSkeleton : RoledSkeletons)
-				{
-					if (RoledSkeleton.Skeleton && RoledSkeleton.Skeleton->IsCompatibleForEditor(AssetData))
-					{
-						// We found a compatible skeleton in the schema.
-						bAssetHasCompatibleSkeleton = true;
-					}
-				}
-			}
-		}
+		bAssetHasCompatibleSkeleton = FPoseSearchEditorUtils::IsAssetCompatibleWithDatabase(DatabaseViewModel->GetPoseSearchDatabase(), AssetData);
 	}
 	
 	if (AssetData.GetClass()->IsChildOf(UAnimSequence::StaticClass()) && bAssetHasCompatibleSkeleton)
@@ -146,7 +137,7 @@ bool SPoseSearchDatabaseAssetBrowser::OnShouldFilterAsset(const FAssetData& Asse
 	
 	return true;
 }
-
+	
 void SPoseSearchDatabaseAssetBrowser::OnObjectPropertyChanged(UObject* InObject, FPropertyChangedEvent& InPropertyChangedEvent) const
 {
 	if (DatabaseViewModel)
@@ -162,3 +153,5 @@ void SPoseSearchDatabaseAssetBrowser::OnObjectPropertyChanged(UObject* InObject,
 	}
 }
 }
+
+#undef LOCTEXT_NAMESPACE

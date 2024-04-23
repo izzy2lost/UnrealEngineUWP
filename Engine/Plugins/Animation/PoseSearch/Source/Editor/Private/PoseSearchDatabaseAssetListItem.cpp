@@ -21,10 +21,12 @@
 #include "Misc/TransactionObjectEvent.h"
 #include "PoseSearch/PoseSearchDatabase.h"
 #include "PoseSearchDatabaseAssetTree.h"
+#include "PoseSearchDatabaseEditorUtils.h"
 #include "PoseSearchDatabaseViewModel.h"
 #include "PropertyCustomizationHelpers.h"
 #include "ScopedTransaction.h"
 #include "SPositiveActionButton.h"
+#include "PoseSearch/PoseSearchSchema.h"
 #include "Styling/AppStyle.h"
 #include "Styling/StyleColors.h"
 #include "Subsystems/AssetEditorSubsystem.h"
@@ -449,6 +451,15 @@ namespace UE::PoseSearch
 					.IsEnabled(this, &SDatabaseAssetListItem::GetAssetPickerIsEnabled)
 					.ObjectPath(this, &SDatabaseAssetListItem::GetAssetPickerObjectPath)
 					.OnObjectChanged(this, &SDatabaseAssetListItem::OnAssetPickerObjectChanged)
+					.OnShouldFilterAsset_Lambda([this](const FAssetData& InAssetData)
+					{
+						if (EditorViewModel.IsValid())
+						{
+							return !FPoseSearchEditorUtils::IsAssetCompatibleWithDatabase(EditorViewModel.Pin()->GetPoseSearchDatabase(), InAssetData);
+						}
+						
+						return true;
+					})
 					.CustomContentSlot()
 					[
 						// Display warning below picked asset.
