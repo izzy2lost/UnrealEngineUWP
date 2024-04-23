@@ -6,6 +6,18 @@
 
 #include "ShaderParameterStruct.h"
 
+FRDGTextureAccess::FRDGTextureAccess(FRDGTexture* InTexture, ERHIAccess InAccess)
+	: FRDGTextureAccess(InTexture, InTexture->GetSubresourceRange(), InAccess)
+{}
+
+FRDGTextureAccess::FRDGTextureAccess(FRDGTextureSRV* InTextureSRV, ERHIAccess InAccess)
+	: FRDGTextureAccess(InTextureSRV->GetParent(), InTextureSRV->GetSubresourceRange(), InAccess)
+{}
+
+FRDGTextureAccess::FRDGTextureAccess(FRDGTextureUAV* InTextureUAV, ERHIAccess InAccess)
+	: FRDGTextureAccess(InTextureUAV->GetParent(), InTextureUAV->GetSubresourceRange(), InAccess)
+{}
+
 /** Context of binding a map. */
 struct FShaderParameterStructBindingContext
 {
@@ -533,6 +545,7 @@ void ValidateShaderParameters(const TShaderRef<FShader>& Shader, const FShaderPa
 				break;
 			}
 			case UBMT_RDG_TEXTURE_SRV:
+			case UBMT_RDG_TEXTURE_NON_PIXEL_SRV:
 			case UBMT_RDG_BUFFER_SRV:
 			case UBMT_RDG_TEXTURE_UAV:
 			case UBMT_RDG_BUFFER_UAV:
@@ -582,6 +595,7 @@ void ValidateShaderParameterResourcesRHI(const void* Contents, const FRHIUniform
 		const bool bSRV =
 			Parameter.MemberType == UBMT_SRV ||
 			Parameter.MemberType == UBMT_RDG_TEXTURE_SRV ||
+			Parameter.MemberType == UBMT_RDG_TEXTURE_NON_PIXEL_SRV ||
 			Parameter.MemberType == UBMT_RDG_BUFFER_SRV;
 
 		// Allow null SRV's in uniform buffers for feature levels that don't support SRV's in shaders
@@ -661,6 +675,7 @@ FRHIShaderParameterResource ExtractShaderParameterResource(FShaderParameterReade
 		return FRHIShaderParameterResource(RDGTexture->GetRHI(), GetParameterIndex(Parameter));
 	}
 	case UBMT_RDG_TEXTURE_SRV:
+	case UBMT_RDG_TEXTURE_NON_PIXEL_SRV:
 	case UBMT_RDG_BUFFER_SRV:
 	{
 		FRDGShaderResourceView* RDGShaderResourceView = Reader.Read<FRDGShaderResourceView*>(Parameter);
@@ -858,6 +873,7 @@ void SetShaderParameters(
 		}
 		break;
 		case UBMT_RDG_TEXTURE_SRV:
+		case UBMT_RDG_TEXTURE_NON_PIXEL_SRV:
 		case UBMT_RDG_BUFFER_SRV:
 		{
 			FRDGShaderResourceView* RDGShaderResourceView = Reader.Read<FRDGShaderResourceView*>(Parameter);

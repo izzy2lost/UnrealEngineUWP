@@ -868,6 +868,7 @@ static FShaderResourceTable BuildSRTFromHeader(const FVulkanShaderHeader& NEWHea
 					break;
 				case UBMT_SRV:
 				case UBMT_RDG_TEXTURE_SRV:
+				case UBMT_RDG_TEXTURE_NON_PIXEL_SRV:
 				case UBMT_RDG_BUFFER_SRV:
 					GenericSRT.ShaderResourceViewMap.Add(ResourceMap);
 					break;

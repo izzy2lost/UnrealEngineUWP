@@ -116,7 +116,7 @@ void EnumerateTextureAccess(FRDGParameterStruct PassParameters, ERDGPassFlags Pa
 		{
 			if (FRDGTextureAccess TextureAccess = Parameter.GetAsTextureAccess())
 			{
-				AccessFunction(nullptr, TextureAccess.GetTexture(), TextureAccess.GetAccess(), NoneFlags, TextureAccess->GetSubresourceRange());
+				AccessFunction(nullptr, TextureAccess.GetTexture(), TextureAccess.GetAccess(), NoneFlags, TextureAccess.GetSubresourceRange());
 			}
 		}
 		break;
@@ -126,14 +126,16 @@ void EnumerateTextureAccess(FRDGParameterStruct PassParameters, ERDGPassFlags Pa
 
 			for (FRDGTextureAccess TextureAccess : TextureAccessArray)
 			{
-				AccessFunction(nullptr, TextureAccess.GetTexture(), TextureAccess.GetAccess(), NoneFlags, TextureAccess->GetSubresourceRange());
+				AccessFunction(nullptr, TextureAccess.GetTexture(), TextureAccess.GetAccess(), NoneFlags, TextureAccess.GetSubresourceRange());
 			}
 		}
 		break;
 		case UBMT_RDG_TEXTURE_SRV:
+		case UBMT_RDG_TEXTURE_NON_PIXEL_SRV:
 			if (FRDGTextureSRVRef SRV = Parameter.GetAsTextureSRV())
 			{
-				AccessFunction(SRV, SRV->GetParent(), SRVAccess, NoneFlags, SRV->GetSubresourceRange());
+				const ERHIAccess SRVGraphicsNonPixel = Parameter.GetType() == UBMT_RDG_TEXTURE_NON_PIXEL_SRV ? ERHIAccess::SRVGraphicsNonPixel : ERHIAccess::None;
+				AccessFunction(SRV, SRV->GetParent(), SRVAccess | SRVGraphicsNonPixel, NoneFlags, SRV->GetSubresourceRange());
 			}
 		break;
 		case UBMT_RDG_TEXTURE_UAV:
@@ -681,6 +683,7 @@ FRHIUniformBuffer* FRDGBuilder::ConvertToExternalUniformBuffer(FRDGUniformBuffer
 			}
 			break;
 			case UBMT_RDG_TEXTURE_SRV:
+			case UBMT_RDG_TEXTURE_NON_PIXEL_SRV:
 			{
 				ConvertTexture(this, Param.GetAsTextureSRV()->Desc.Texture);
 				ConvertView(Param.GetAsView());
@@ -4342,7 +4345,7 @@ void FRDGBuilder::VisualizePassOutputs(const FRDGPass* Pass)
 			{
 				if (IsWritableAccess(TextureAccess.GetAccess()))
 				{
-					if (TOptional<uint32> CaptureId = GVisualizeTexture.ShouldCapture(TextureAccess->Name, /* MipIndex = */ 0))
+					if (TOptional<uint32> CaptureId = GVisualizeTexture.ShouldCapture(TextureAccess->Name, TextureAccess.GetSubresourceRange().MipIndex))
 					{
 						GVisualizeTexture.CreateContentCapturePass(*this, TextureAccess.GetTexture(), *CaptureId);
 					}
@@ -4358,7 +4361,7 @@ void FRDGBuilder::VisualizePassOutputs(const FRDGPass* Pass)
 			{
 				if (IsWritableAccess(TextureAccess.GetAccess()))
 				{
-					if (TOptional<uint32> CaptureId = GVisualizeTexture.ShouldCapture(TextureAccess->Name, /* MipIndex = */ 0))
+					if (TOptional<uint32> CaptureId = GVisualizeTexture.ShouldCapture(TextureAccess->Name, TextureAccess.GetSubresourceRange().MipIndex))
 					{
 						GVisualizeTexture.CreateContentCapturePass(*this, TextureAccess.GetTexture(), *CaptureId);
 					}

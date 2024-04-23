@@ -15,6 +15,7 @@
 #include "Traits/IsCharEncodingCompatibleWith.h"
 #include "Misc/AssertionMacros.h"
 #include "RHICommandList.h"
+#include "RenderGraphTextureSubresource.h"
 
 PRAGMA_DISABLE_BUFFER_OVERRUN_WARNING
 
@@ -422,13 +423,20 @@ class alignas(SHADER_PARAMETER_POINTER_ALIGNMENT) FRDGTextureAccess
 {
 public:
 	FRDGTextureAccess() = default;
-	FRDGTextureAccess(FRDGTexture* InTexture, ERHIAccess InAccess)
+
+	FRDGTextureAccess(FRDGTexture* InTexture, FRDGTextureSubresourceRange InSubresourceRange, ERHIAccess InAccess)
 		: Texture(InTexture)
+		, SubresourceRange(InSubresourceRange)
 		, Access(InAccess)
 	{}
 
+	RENDERCORE_API FRDGTextureAccess(FRDGTexture* InTexture, ERHIAccess InAccess);
+	RENDERCORE_API FRDGTextureAccess(FRDGTextureSRV* InTextureSRV, ERHIAccess InAccess);
+	RENDERCORE_API FRDGTextureAccess(FRDGTextureUAV* InTextureUAV, ERHIAccess InAccess);
+
 	FORCEINLINE FRDGTexture* GetTexture() const { return Texture; }
-	FORCEINLINE ERHIAccess   GetAccess() const  { return Access; }
+	FORCEINLINE FRDGTextureSubresourceRange GetSubresourceRange() const { return SubresourceRange; }
+	FORCEINLINE ERHIAccess GetAccess() const  { return Access; }
 
 	FORCEINLINE operator bool() const
 	{
@@ -458,7 +466,8 @@ public:
 
 private:
 	TAlignedShaderParameterPtr<FRDGTexture*> Texture = nullptr;
-	ERHIAccess   Access  = ERHIAccess::Unknown;
+	FRDGTextureSubresourceRange SubresourceRange;
+	ERHIAccess Access = ERHIAccess::Unknown;
 };
 
 template <ERHIAccess InAccess>
@@ -468,12 +477,22 @@ class alignas(SHADER_PARAMETER_POINTER_ALIGNMENT) TRDGTextureAccess
 public:
 	static_assert(IsValidAccess(InAccess), "Texture access is invalid.");
 
-	TRDGTextureAccess()
-		: FRDGTextureAccess(nullptr, InAccess)
+	TRDGTextureAccess() = default;
+
+	TRDGTextureAccess(FRDGTexture* InTexture, FRDGTextureSubresourceRange InSubresourceRange)
+		: FRDGTextureAccess(InTexture, InSubresourceRange, InAccess)
 	{}
 
 	TRDGTextureAccess(FRDGTexture* InTexture)
 		: FRDGTextureAccess(InTexture, InAccess)
+	{}
+
+	TRDGTextureAccess(FRDGTextureSRV* InTextureSRV)
+		: FRDGTextureAccess(InTextureSRV, InAccess)
+	{}
+
+	TRDGTextureAccess(FRDGTextureUAV* InTextureUAV)
+		: FRDGTextureAccess(InTextureUAV, InAccess)
 	{}
 };
 
@@ -1130,7 +1149,7 @@ struct TShaderParameterTypeInfo<FMatrix44f>
 	static const FShaderParametersMetadata* GetStructMetadata() { return nullptr; }
 };
 
-template <typename ResourceAccessType>
+template <typename BufferAccessType>
 struct TRDGResourceAccessTypeInfo
 {
 	static constexpr int32 NumRows = 1;
@@ -1139,12 +1158,29 @@ struct TRDGResourceAccessTypeInfo
 	static constexpr int32 Alignment = SHADER_PARAMETER_POINTER_ALIGNMENT;
 	static constexpr bool bIsStoredInConstantBuffer = false;
 
-	using TAlignedType = ResourceAccessType;
+	using TAlignedType = BufferAccessType;
 
 	static const FShaderParametersMetadata* GetStructMetadata() { return nullptr; }
 
 	static_assert(sizeof(TAlignedType) == SHADER_PARAMETER_POINTER_ALIGNMENT * 2, "Uniform buffer layout must not be platform dependent.");
 };
+
+template <typename TextureAccessType>
+struct TRDGTextureAccessTypeInfo
+{
+	static constexpr int32 NumRows = 1;
+	static constexpr int32 NumColumns = 1;
+	static constexpr int32 NumElements = 0;
+	static constexpr int32 Alignment = SHADER_PARAMETER_POINTER_ALIGNMENT;
+	static constexpr bool bIsStoredInConstantBuffer = false;
+
+	using TAlignedType = TextureAccessType;
+
+	static const FShaderParametersMetadata* GetStructMetadata() { return nullptr; }
+
+	static_assert(sizeof(TAlignedType) == SHADER_PARAMETER_POINTER_ALIGNMENT * 3, "Uniform buffer layout must not be platform dependent.");
+};
+
 
 template<typename T, size_t InNumElements>
 struct TShaderParameterTypeInfo<T[InNumElements]>
@@ -1673,6 +1709,18 @@ private:
 #define SHADER_PARAMETER_RDG_TEXTURE_SRV_ARRAY(ShaderType,MemberName, ArrayDecl) \
 	INTERNAL_SHADER_PARAMETER_EXPLICIT(UBMT_RDG_TEXTURE_SRV, TShaderResourceParameterTypeInfo<FRDGTextureSRV* ArrayDecl>, FRDGTextureSRV*,MemberName,ArrayDecl,,EShaderPrecisionModifier::Float,TEXT(#ShaderType),false)
 
+/** Adds a non-pixel shader resource view for a render graph tracked texture.
+ *
+ * Example:
+ *	SHADER_PARAMETER_RDG_TEXTURE_NON_PIXEL_SRV(Texture2D, MySRV)
+ *	SHADER_PARAMETER_RDG_TEXTURE_NON_PIXEL_SRV_ARRAY(Texture2D, MyArrayOfSRVs, [4])
+ */
+#define SHADER_PARAMETER_RDG_TEXTURE_NON_PIXEL_SRV(ShaderType,MemberName) \
+	INTERNAL_SHADER_PARAMETER_EXPLICIT(UBMT_RDG_TEXTURE_NON_PIXEL_SRV, TShaderResourceParameterTypeInfo<FRDGTextureSRV*>, FRDGTextureSRV*,MemberName,, = nullptr,EShaderPrecisionModifier::Float,TEXT(#ShaderType),false)
+
+#define SHADER_PARAMETER_RDG_TEXTURE_NON_PIXEL_SRV_ARRAY(ShaderType,MemberName, ArrayDecl) \
+	INTERNAL_SHADER_PARAMETER_EXPLICIT(UBMT_RDG_TEXTURE_NON_PIXEL_SRV, TShaderResourceParameterTypeInfo<FRDGTextureSRV* ArrayDecl>, FRDGTextureSRV*,MemberName,ArrayDecl,,EShaderPrecisionModifier::Float,TEXT(#ShaderType),false)
+
 /** Adds a unordered access view for a render graph tracked texture.
  *
  * Example:
@@ -1825,10 +1873,10 @@ private:
 
 /** Informs the RDG pass to transition the texture into the requested state. */
 #define RDG_TEXTURE_ACCESS(MemberName, Access) \
-	INTERNAL_SHADER_PARAMETER_EXPLICIT(UBMT_RDG_TEXTURE_ACCESS, TRDGResourceAccessTypeInfo<TRDGTextureAccess<Access>>, TRDGTextureAccess<Access>,MemberName,,,EShaderPrecisionModifier::Float,TEXT(""),false)
+	INTERNAL_SHADER_PARAMETER_EXPLICIT(UBMT_RDG_TEXTURE_ACCESS, TRDGTextureAccessTypeInfo<TRDGTextureAccess<Access>>, TRDGTextureAccess<Access>,MemberName,,,EShaderPrecisionModifier::Float,TEXT(""),false)
 
 #define RDG_TEXTURE_ACCESS_DYNAMIC(MemberName) \
-	INTERNAL_SHADER_PARAMETER_EXPLICIT(UBMT_RDG_TEXTURE_ACCESS, TRDGResourceAccessTypeInfo<FRDGTextureAccess>, FRDGTextureAccess,MemberName,,,EShaderPrecisionModifier::Float,TEXT(""),false)
+	INTERNAL_SHADER_PARAMETER_EXPLICIT(UBMT_RDG_TEXTURE_ACCESS, TRDGTextureAccessTypeInfo<FRDGTextureAccess>, FRDGTextureAccess,MemberName,,,EShaderPrecisionModifier::Float,TEXT(""),false)
 
 #define RDG_TEXTURE_ACCESS_ARRAY(MemberName) \
 	INTERNAL_SHADER_PARAMETER_EXPLICIT(UBMT_RDG_TEXTURE_ACCESS_ARRAY, TRDGResourceAccessTypeInfo<FRDGTextureAccessArray>, FRDGTextureAccessArray,MemberName,,,EShaderPrecisionModifier::Float,TEXT(""),false)

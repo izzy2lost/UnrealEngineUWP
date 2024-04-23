@@ -195,6 +195,7 @@ const TCHAR* const kShaderParameterMacroNames[] = {
 	TEXT("RDG_TEXTURE_ACCESS"), // UBMT_RDG_TEXTURE_ACCESS,
 	TEXT("RDG_TEXTURE_ACCESS_ARRAY"), // UBMT_RDG_TEXTURE_ACCESS,
 	TEXT("SHADER_PARAMETER_RDG_TEXTURE_SRV"), // UBMT_RDG_TEXTURE_SRV,
+	TEXT("SHADER_PARAMETER_RDG_TEXTURE_NON_PIXEL_SRV"), // UBMT_RDG_TEXTURE_NON_PIXEL_SRV,
 	TEXT("SHADER_PARAMETER_RDG_TEXTURE_UAV"), // UBMT_RDG_TEXTURE_UAV,
 	TEXT("RDG_BUFFER_ACCESS"), // UBMT_RDG_BUFFER_ACCESS,
 	TEXT("RDG_BUFFER_ACCESS_ARRAY"), // UBMT_RDG_BUFFER_ACCESS_ARRAY,
@@ -664,13 +665,15 @@ void FShaderParametersMetadata::InitializeLayout(FRHIUniformBufferLayoutInitiali
 						BaseType == UBMT_TEXTURE ||
 						BaseType == UBMT_SRV ||
 						BaseType == UBMT_RDG_TEXTURE ||
-						BaseType == UBMT_RDG_TEXTURE_SRV);
+						BaseType == UBMT_RDG_TEXTURE_SRV ||
+						BaseType == UBMT_RDG_TEXTURE_NON_PIXEL_SRV);
 				}
 				else if (BindingType == EShaderCodeResourceBindingType::TextureMetadata)
 				{
 					bIsValidBindingType = (
 						BaseType == UBMT_SRV ||
-						BaseType == UBMT_RDG_TEXTURE_SRV);
+						BaseType == UBMT_RDG_TEXTURE_SRV ||
+						BaseType == UBMT_RDG_TEXTURE_NON_PIXEL_SRV);
 				}
 				else if (
 					BindingType == EShaderCodeResourceBindingType::Buffer ||

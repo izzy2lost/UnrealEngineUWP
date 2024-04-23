@@ -32,6 +32,7 @@ void ClearUnusedGraphResourcesImpl(
 
 		if (Type == UBMT_RDG_TEXTURE ||
 			Type == UBMT_RDG_TEXTURE_SRV ||
+			Type == UBMT_RDG_TEXTURE_NON_PIXEL_SRV ||
 			Type == UBMT_RDG_TEXTURE_UAV ||
 			Type == UBMT_RDG_BUFFER_SRV ||
 			Type == UBMT_RDG_BUFFER_UAV)
@@ -116,6 +117,7 @@ void ClearUnusedGraphResourcesImpl(
 
 		if (Type == UBMT_RDG_TEXTURE ||
 			Type == UBMT_RDG_TEXTURE_SRV ||
+			Type == UBMT_RDG_TEXTURE_NON_PIXEL_SRV ||
 			Type == UBMT_RDG_TEXTURE_UAV ||
 			Type == UBMT_RDG_BUFFER_SRV ||
 			Type == UBMT_RDG_BUFFER_UAV)

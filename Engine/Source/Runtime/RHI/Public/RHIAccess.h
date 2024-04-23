@@ -14,40 +14,44 @@ enum class ERHIAccess : uint32
 	Unknown = 0,
 
 	// Read states
-	CPURead             	= 1 <<  0,
-	Present             	= 1 <<  1,
-	IndirectArgs        	= 1 <<  2,
-	VertexOrIndexBuffer 	= 1 <<  3,
-	SRVCompute          	= 1 <<  4,
-	SRVGraphics         	= 1 <<  5,
-	CopySrc             	= 1 <<  6,
-	ResolveSrc          	= 1 <<  7,
-	DSVRead					= 1 <<  8,
+	CPURead                 = 1 <<  0,
+	Present                 = 1 <<  1,
+	IndirectArgs            = 1 <<  2,
+	VertexOrIndexBuffer     = 1 <<  3,
+	SRVCompute              = 1 <<  4,
+	SRVGraphicsPixel        = 1 <<  5,
+	SRVGraphicsNonPixel     = 1 <<  6,
+	CopySrc                 = 1 <<  7,
+	ResolveSrc              = 1 <<  8,
+	DSVRead                 = 1 <<  9,
 
 	// Read-write states
-	UAVCompute          	= 1 <<  9,
-	UAVGraphics         	= 1 << 10,
-	RTV                 	= 1 << 11,
-	CopyDest            	= 1 << 12,
-	ResolveDst          	= 1 << 13,
-	DSVWrite            	= 1 << 14,
+	UAVCompute              = 1 << 10,
+	UAVGraphics             = 1 << 11,
+	RTV                     = 1 << 12,
+	CopyDest                = 1 << 13,
+	ResolveDst              = 1 << 14,
+	DSVWrite                = 1 << 15,
 
 	// Ray tracing acceleration structure states.
 	// Buffer that contains an AS must always be in either of these states.
 	// BVHRead -- required for AS inputs to build/update/copy/trace commands.
 	// BVHWrite -- required for AS outputs of build/update/copy commands.
-	BVHRead                  = 1 << 15,
-	BVHWrite                 = 1 << 16,
+	BVHRead                  = 1 << 16,
+	BVHWrite                 = 1 << 17,
 
 	// Invalid released state (transient resources)
-	Discard					= 1 << 17,
+	Discard					= 1 << 18,
 
 	// Shading Rate Source
-	ShadingRateSource	= 1 << 18,
+	ShadingRateSource	= 1 << 19,
 
 	Last = ShadingRateSource,
 	None = Unknown,
 	Mask = (Last << 1) - 1,
+
+	// Graphics is a combination of pixel and non-pixel
+	SRVGraphics = SRVGraphicsPixel | SRVGraphicsNonPixel,
 
 	// A mask of the two possible SRV states
 	SRVMask = SRVCompute | SRVGraphics,

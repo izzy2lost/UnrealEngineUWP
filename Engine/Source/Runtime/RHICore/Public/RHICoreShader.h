@@ -209,7 +209,9 @@ void SetResourcesFromTables(TBinder&& Binder, FRHIShader const& Shader, TBitMask
 				{
 					ERHIAccess Access = IsComputeShaderFrequency(Shader.GetFrequency())
 						? ERHIAccess::SRVCompute
-						: ERHIAccess::SRVGraphics;
+						: Shader.GetFrequency() == SF_Pixel
+							? ERHIAccess::SRVGraphicsPixel
+							: ERHIAccess::SRVGraphicsNonPixel;
 
 					// Textures bound here only have their "common" plane accessible. Stencil etc is ignored.
 					// (i.e. only access the color plane of a color texture, or depth plane of a depth texture)
@@ -229,7 +231,9 @@ void SetResourcesFromTables(TBinder&& Binder, FRHIShader const& Shader, TBitMask
 				{
 					ERHIAccess Access = IsComputeShaderFrequency(Shader.GetFrequency())
 						? ERHIAccess::SRVCompute
-						: ERHIAccess::SRVGraphics;
+						: Shader.GetFrequency() == SF_Pixel
+							? ERHIAccess::SRVGraphicsPixel
+							: ERHIAccess::SRVGraphicsNonPixel;
 
 					Tracker->Assert(SRV->GetViewIdentity(), Access);
 				}
@@ -268,7 +272,9 @@ void SetResourcesFromTables(TBinder&& Binder, FRHIShader const& Shader, TBitMask
 				{
 					ERHIAccess Access = IsComputeShaderFrequency(Shader.GetFrequency())
 						? ERHIAccess::UAVCompute
-						: ERHIAccess::UAVGraphics;
+						: Shader.GetFrequency() == SF_Pixel
+							? ERHIAccess::SRVGraphicsPixel
+							: ERHIAccess::SRVGraphicsNonPixel;
 
 					Tracker->AssertUAV(UAV, Access, Index);
 				}

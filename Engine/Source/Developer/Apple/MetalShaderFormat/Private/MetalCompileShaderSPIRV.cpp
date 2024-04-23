@@ -1108,6 +1108,7 @@ void FMetalCompileShaderSPIRV::DoCompileMetalShader(
 							case UBMT_TEXTURE:
 							case UBMT_RDG_TEXTURE:
 							case UBMT_RDG_TEXTURE_SRV:
+							case UBMT_RDG_TEXTURE_NON_PIXEL_SRV:
 							case UBMT_SRV:
 							case UBMT_SAMPLER:
 							case UBMT_RDG_BUFFER_SRV:
@@ -1132,6 +1133,7 @@ void FMetalCompileShaderSPIRV::DoCompileMetalShader(
 										case UBMT_TEXTURE:
 										case UBMT_RDG_TEXTURE:
 										case UBMT_RDG_TEXTURE_SRV:
+										case UBMT_RDG_TEXTURE_NON_PIXEL_SRV:
 										case UBMT_SRV:
 										{
 											std::string typeName = "texture_buffer<float, access::read>";

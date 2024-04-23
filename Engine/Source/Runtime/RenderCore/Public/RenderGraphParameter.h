@@ -18,7 +18,7 @@ public:
 
 	bool IsSRV() const
 	{
-		return MemberType == UBMT_RDG_TEXTURE_SRV || MemberType == UBMT_RDG_BUFFER_SRV;
+		return MemberType == UBMT_RDG_TEXTURE_SRV || MemberType == UBMT_RDG_TEXTURE_NON_PIXEL_SRV || MemberType == UBMT_RDG_BUFFER_SRV;
 	}
 
 	bool IsUAV() const
@@ -162,7 +162,7 @@ public:
 
 	FRDGTextureSRVRef GetAsTextureSRV() const
 	{
-		check(MemberType == UBMT_RDG_TEXTURE_SRV);
+		check(MemberType == UBMT_RDG_TEXTURE_SRV || MemberType == UBMT_RDG_TEXTURE_NON_PIXEL_SRV);
 		return *GetAs<FRDGTextureSRVRef>();
 	}
 
