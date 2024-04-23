@@ -583,6 +583,17 @@ public:
 	INTERCHANGEENGINE_API bool ImportAsset(const FString& ContentPath, const UInterchangeSourceData* SourceData, const FImportAssetParameters& ImportAssetParameters);
 
 	/**
+	 * Call this to start a synchronous asset import process.
+	 * This process can import many different assets into the game content.
+	 *
+	 * @Param ContentPath - The path where the imported assets will be created.
+	 * @Param SourceData - The source data input to translate.
+	 * @param ImportAssetParameters - All parameters that need to be passed to the import asset function.
+	 * @return return an import result which can be use to know when the asynchronous import is terminate.
+	 */
+	INTERCHANGEENGINE_API UE::Interchange::FAssetImportResultRef ImportAssetWithResult(const FString& ContentPath, const UInterchangeSourceData* SourceData, const FImportAssetParameters& ImportAssetParameters);
+
+	/**
 	 * Call this to start an asynchronous asset import process.
 	 * This process can import many different assets into the game content.
 	 *

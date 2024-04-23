@@ -3771,6 +3771,14 @@ TArray<UObject*> UAssetToolsImpl::ImportAssetsInternal(const TArray<FString>& Fi
 									}
 								}
 							}
+							for (UObject* Object : MainAssets)
+							{
+								if (Object->IsAsset())
+								{
+									FAssetRegistryModule::AssetCreated(Object);
+									GEditor->BroadcastObjectReimported(Object);
+								}
+							}
 
 							//Force browser to sync to the import asset if there is only one asset imported
 							if (bSyncToBrowser || (bForceContentBrowserSyncIfOnlyOneMainAsset && MainAssets.Num() == 1))
@@ -3817,19 +3825,16 @@ TArray<UObject*> UAssetToolsImpl::ImportAssetsInternal(const TArray<FString>& Fi
 							InterchangeManager.ConvertImportData(Params.AssetImportTask->Options, ImportAssetParameters);
 						}
 					}
-					UE::Interchange::FAssetImportResultRef InterchangeResult = (InterchangeManager.ImportAssetAsync(DestinationPath, ScopedSourceData.GetSourceData(), ImportAssetParameters));
+					UE::Interchange::FAssetImportResultRef InterchangeResult = Params.bAllowAsyncImport
+						? (InterchangeManager.ImportAssetAsync(DestinationPath, ScopedSourceData.GetSourceData(), ImportAssetParameters))
+						: (InterchangeManager.ImportAssetWithResult(DestinationPath, ScopedSourceData.GetSourceData(), ImportAssetParameters));
+
+					InterchangeResult->OnDone(AppendAndBroadcastImportResultIfNeeded);
 
 					// If we have an ImportTask, fill out the asynchronous results object here so the caller can see when the results are ready
 					if ( Params.AssetImportTask)
 					{
 						 Params.AssetImportTask->AsyncResults = InterchangeResult;
-					}
-
-					InterchangeResult->OnDone(AppendAndBroadcastImportResultIfNeeded);
-
-					if (!Params.bAllowAsyncImport)
-					{
-						InterchangeResult->WaitUntilDone();
 					}
 				}
 
