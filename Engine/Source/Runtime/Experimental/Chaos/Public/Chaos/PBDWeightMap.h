@@ -93,6 +93,15 @@ public:
 	/** Return the exponential stiffness value when the weight map is not used. */
 	explicit operator FSolverReal() const { return GetLow(); }
 
+	FSolverReal GetValue(int32 Index) const
+	{
+		if (HasWeightMap())
+		{
+			return (*this)[Index];
+		}
+		return GetLow();
+	}
+
 	/** Return the particles/constraints indices to the stiffness table as a read only array. */
 	TConstArrayView<uint8> GetIndices() const { return TConstArrayView<uint8>(Indices); }
 

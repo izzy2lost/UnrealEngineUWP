@@ -100,8 +100,9 @@ private:
 	UPROPERTY()
 	float SelfCollisionKinematicColliderFriction_DEPRECATED = FrictionDeprecatedValue;
 
+	static constexpr float SelfFrictionDeprecatedValue = 0.0f;
 	UPROPERTY()
-	float SelfCollisionFriction_DEPRECATED = UE::Chaos::ClothAsset::FDefaultFabric::SelfFriction;
+	float SelfCollisionFriction_DEPRECATED = SelfFrictionDeprecatedValue;
 
 	static constexpr float SelfCollisionThicknessDeprecatedValue = -1.f;
 	UPROPERTY()

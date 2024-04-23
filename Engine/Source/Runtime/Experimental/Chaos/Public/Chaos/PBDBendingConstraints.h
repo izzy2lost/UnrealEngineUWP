@@ -26,10 +26,11 @@ public:
 			InParticles,
 			MoveTemp(InConstraints),
 			WeightMaps.FindRef(GetBendingElementStiffnessString(PropertyCollection, BendingElementStiffnessName.ToString())),
+			WeightMaps.FindRef(GetBucklingRatioString(PropertyCollection, BucklingRatioName.ToString())),
 			WeightMaps.FindRef(GetBucklingStiffnessString(PropertyCollection, BucklingStiffnessName.ToString())),
 			GetRestAngleMapFromCollection(WeightMaps, PropertyCollection),
 			FSolverVec2(GetWeightedFloatBendingElementStiffness(PropertyCollection, 1.f)),
-			(FSolverReal)GetBucklingRatio(PropertyCollection, 0.f),  // BucklingRatio is clamped in base class
+			FSolverVec2(GetWeightedFloatBucklingRatio(PropertyCollection, 0.f)),  // BucklingRatio is clamped in base class
 			FSolverVec2(GetWeightedFloatBucklingStiffness(PropertyCollection, 1.f)),
 			GetRestAngleValueFromCollection(PropertyCollection),
 			(ERestAngleConstructionType)GetRestAngleType(PropertyCollection, (int32)ERestAngleConstructionType::Use3DRestAngles),
@@ -57,10 +58,11 @@ public:
 			InParticleCount,
 			MoveTemp(InConstraints),
 			WeightMaps.FindRef(GetBendingElementStiffnessString(PropertyCollection, BendingElementStiffnessName.ToString())),
+			WeightMaps.FindRef(GetBucklingRatioString(PropertyCollection, BucklingRatioName.ToString())),
 			WeightMaps.FindRef(GetBucklingStiffnessString(PropertyCollection, BucklingStiffnessName.ToString())),
 			GetRestAngleMapFromCollection(WeightMaps, PropertyCollection),
 			FSolverVec2(GetWeightedFloatBendingElementStiffness(PropertyCollection, 1.f)),
-			(FSolverReal)GetBucklingRatio(PropertyCollection, 0.f),  // BucklingRatio is clamped in base class
+			FSolverVec2(GetWeightedFloatBucklingRatio(PropertyCollection, 0.f)),  // BucklingRatio is clamped in base class
 			FSolverVec2(GetWeightedFloatBucklingStiffness(PropertyCollection, 1.f)),
 			GetRestAngleValueFromCollection(PropertyCollection),
 			(ERestAngleConstructionType)GetRestAngleType(PropertyCollection, (int32)ERestAngleConstructionType::Use3DRestAngles),
@@ -90,10 +92,14 @@ public:
 			InParticleCount,
 			MoveTemp(InConstraints),
 			StiffnessMultipliers,
+			TConstArrayView<FRealSingle>(),
 			BucklingStiffnessMultipliers,
+			TConstArrayView<FRealSingle>(),
 			FSolverVec2(GetWeightedFloatBendingElementStiffness(PropertyCollection, 1.f)),
-			(FSolverReal)GetBucklingRatio(PropertyCollection, 0.f),  // BucklingRatio is clamped in base class
+			FSolverVec2(GetWeightedFloatBucklingRatio(PropertyCollection, 0.f)),  // BucklingRatio is clamped in base class
 			FSolverVec2(GetWeightedFloatBucklingStiffness(PropertyCollection, 1.f)),
+			FSolverVec2((FSolverReal)0.f),
+			ERestAngleConstructionType::Use3DRestAngles,
 			bTrimKinematicConstraints) 
 		, BendingElementStiffnessIndex(PropertyCollection)
 		, BucklingRatioIndex(PropertyCollection)
@@ -110,10 +116,14 @@ public:
 		int32 ParticleCount,
 		TArray<TVec4<int32>>&& InConstraints,
 		const TConstArrayView<FRealSingle>& StiffnessMultipliers,
+		const TConstArrayView<FRealSingle>& BucklingRatioMultipliers,
 		const TConstArrayView<FRealSingle>& BucklingStiffnessMultipliers,
+		const TConstArrayView<FRealSingle>& RestAngleMap,
 		const FSolverVec2& InStiffness,
-		const FSolverReal InBucklingRatio,
+		const FSolverVec2& InBucklingRatio,
 		const FSolverVec2& InBucklingStiffness,
+		const FSolverVec2& RestAngleValue,
+		ERestAngleConstructionType RestAngleConstructionType,
 		bool bTrimKinematicConstraints = false)
 		: Base(
 			InParticles,
@@ -121,10 +131,14 @@ public:
 			ParticleCount,
 			MoveTemp(InConstraints),
 			StiffnessMultipliers,
+			BucklingRatioMultipliers,
 			BucklingStiffnessMultipliers,
+			RestAngleMap,
 			InStiffness,
 			InBucklingRatio,
 			InBucklingStiffness,
+			RestAngleValue,
+			RestAngleConstructionType,
 			bTrimKinematicConstraints)
 		, BendingElementStiffnessIndex(ForceInit)
 		, BucklingRatioIndex(ForceInit)
@@ -135,6 +149,34 @@ public:
 	{
 		InitColor(InParticles);
 	}
+
+	UE_DEPRECATED(5.5, "Use constructor with BucklingRatioMultipliers")
+	FPBDBendingConstraints(const FSolverParticles& InParticles,
+		int32 ParticleOffset,
+		int32 ParticleCount,
+		TArray<TVec4<int32>>&& InConstraints,
+		const TConstArrayView<FRealSingle>& StiffnessMultipliers,
+		const TConstArrayView<FRealSingle>& BucklingStiffnessMultipliers,
+		const FSolverVec2& InStiffness,
+		const FSolverReal InBucklingRatio,
+		const FSolverVec2& InBucklingStiffness,
+		bool bTrimKinematicConstraints = false)
+		: FPBDBendingConstraints(
+			InParticles, 
+			ParticleOffset, 
+			ParticleCount, 
+			MoveTemp(InConstraints), 
+			StiffnessMultipliers, 
+			TConstArrayView<FRealSingle>(), 
+			BucklingStiffnessMultipliers,
+			TConstArrayView<FRealSingle>(),
+			InStiffness, 
+			FSolverVec2(InBucklingRatio), 
+			InBucklingStiffness,
+			FSolverVec2((FSolverReal)0.f),
+			ERestAngleConstructionType::Use3DRestAngles,
+			bTrimKinematicConstraints)
+	{}
 
 	virtual ~FPBDBendingConstraints() override {}
 
@@ -199,7 +241,7 @@ private:
 	using Base::ParticleOffset;
 	using Base::ParticleCount;
 	using Base::Stiffness;
-	using Base::BucklingRatio;
+	using Base::BucklingRatioWeighted;
 	using Base::BucklingStiffness;
 
 	TArray<int32> ConstraintsPerColorStartIndex; // Constraints are ordered so each batch is contiguous. This is ColorNum + 1 length so it can be used as start and end.

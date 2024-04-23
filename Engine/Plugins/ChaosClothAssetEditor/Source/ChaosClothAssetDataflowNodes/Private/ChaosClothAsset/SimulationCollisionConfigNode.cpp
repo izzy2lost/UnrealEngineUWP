@@ -35,15 +35,15 @@ void FChaosClothAssetSimulationCollisionConfigNode::Serialize(FArchive& Ar)
 	if (Ar.IsLoading())
 	{
 #if WITH_EDITORONLY_DATA
-		if (FrictionCoefficient_DEPRECATED != UE::Chaos::ClothAsset::FDefaultFabric::Friction)
+		if (FrictionCoefficient_DEPRECATED != FrictionCoefficientDeprecatedDefault)
 		{
 			FrictionCoefficientImported.ImportedValue = FrictionCoefficient_DEPRECATED;
-			FrictionCoefficient_DEPRECATED = UE::Chaos::ClothAsset::FDefaultFabric::Friction;
+			FrictionCoefficient_DEPRECATED = FrictionCoefficientDeprecatedDefault;
 		}
-		if (CollisionThickness_DEPRECATED != UE::Chaos::ClothAsset::FDefaultFabric::CollisionThickness)
+		if (CollisionThickness_DEPRECATED != CollisionThicknessDeprecatedDefault)
 		{
 			CollisionThicknessImported.ImportedValue = CollisionThickness_DEPRECATED;
-			CollisionThickness_DEPRECATED = UE::Chaos::ClothAsset::FDefaultFabric::CollisionThickness;
+			CollisionThickness_DEPRECATED = CollisionThicknessDeprecatedDefault;
 		}
 #endif
 	}

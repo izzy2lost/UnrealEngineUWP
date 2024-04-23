@@ -17,10 +17,12 @@ FChaosClothAssetSimulationBendingConfigNode::FChaosClothAssetSimulationBendingCo
 	RegisterInputConnection(&BendingStiffnessBias.WeightMap);
 	RegisterInputConnection(&BendingDamping.WeightMap);
 	RegisterInputConnection(&BendingAnisoDamping.WeightMap);
+	RegisterInputConnection(&AnisoBucklingRatio.WeightMap);
 	RegisterInputConnection(&BucklingStiffness.WeightMap);
 	RegisterInputConnection(&BucklingStiffnessWarp.WeightMap);
 	RegisterInputConnection(&BucklingStiffnessWeft.WeightMap);
 	RegisterInputConnection(&BucklingStiffnessBias.WeightMap);
+	RegisterInputConnection(&BucklingRatioWeighted.WeightMap);
 }
 
 void FChaosClothAssetSimulationBendingConfigNode::AddProperties(FPropertyHelper& PropertyHelper) const
@@ -57,7 +59,7 @@ void FChaosClothAssetSimulationBendingConfigNode::AddProperties(FPropertyHelper&
 					FName(TEXT("XPBDAnisoBucklingStiffnessWarp")),
 					FName(TEXT("BucklingStiffness"))});
 				
-				PropertyHelper.SetProperty(FName(TEXT("XPBDBucklingRatio")), BucklingRatio, {
+				PropertyHelper.SetPropertyWeighted(FName(TEXT("XPBDBucklingRatio")), BucklingRatioWeighted, {
 					FName(TEXT("XPBDAnisoBucklingRatio")),
 					FName(TEXT("BucklingRatios"))});
 			}
@@ -128,7 +130,11 @@ void FChaosClothAssetSimulationBendingConfigNode::AddProperties(FPropertyHelper&
 				FName(TEXT("XPBDBendingSpringDamping")),  
 				FName(TEXT("XPBDBendingElementDamping"))});
 
-			PropertyHelper.SetProperty(FName(TEXT("XPBDAnisoBucklingRatio")), BucklingRatio, {
+			PropertyHelper.SetFabricPropertyWeighted(FName(TEXT("XPBDAnisoBucklingRatio")), AnisoBucklingRatio, [](
+				const UE::Chaos::ClothAsset::FCollectionClothFabricFacade& FabricFacade)-> float
+			{
+				return FabricFacade.GetBucklingRatio();
+			}, {
 				FName(TEXT("BucklingRatio")),
 				FName(TEXT("XPBDBucklingRatio"))});
 
@@ -170,7 +176,7 @@ void FChaosClothAssetSimulationBendingConfigNode::AddProperties(FPropertyHelper&
 				FName(TEXT("XPBDBucklingStiffness")),
 				FName(TEXT("XPBDAnisoBucklingStiffnessWarp"))});
 			
-			PropertyHelper.SetProperty(FName(TEXT("BucklingRatios")), BucklingRatio, {
+			PropertyHelper.SetPropertyWeighted(FName(TEXT("BucklingRatio")), BucklingRatioWeighted, {
 				FName(TEXT("XPBDBucklingRatio")),
 				FName(TEXT("XPBDAnisoBucklingRatio"))});
 		}
@@ -188,5 +194,21 @@ void FChaosClothAssetSimulationBendingConfigNode::AddProperties(FPropertyHelper&
 			FName(TEXT("XPBDAnisoRestAngle")), 
 			FName(TEXT("XPBDRestAngle"))       
 		});
+	}
+}
+
+void FChaosClothAssetSimulationBendingConfigNode::Serialize(FArchive& Ar)
+{
+	Super::Serialize(Ar);
+	if (Ar.IsLoading())
+	{
+#if WITH_EDITORONLY_DATA
+		if (BucklingRatio_DEPRECATED != BucklingRatioDeprecatedDefault)
+		{
+			BucklingRatioWeighted.Low = BucklingRatioWeighted.High = BucklingRatio_DEPRECATED;
+			AnisoBucklingRatio.Low = AnisoBucklingRatio.High = BucklingRatio_DEPRECATED;
+			BucklingRatio_DEPRECATED = BucklingRatioDeprecatedDefault;
+		}
+#endif
 	}
 }

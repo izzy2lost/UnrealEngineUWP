@@ -24,10 +24,11 @@ public:
 	FPBDBendingConstraintsBase(const FSolverParticlesRange& InParticles,
 		TArray<TVec4<int32>>&& InConstraints,
 		const TConstArrayView<FRealSingle>& StiffnessMultipliers,
+		const TConstArrayView<FRealSingle>& BucklingRatioMultipliers,
 		const TConstArrayView<FRealSingle>& BucklingStiffnessMultipliers,
 		const TConstArrayView<FRealSingle>& RestAngleMap,
 		const FSolverVec2& InStiffness,
-		const FSolverReal InBucklingRatio,
+		const FSolverVec2& InBucklingRatio,
 		const FSolverVec2& InBucklingStiffness,
 		const FSolverVec2& RestAngleValue,
 		ERestAngleConstructionType RestAngleConstructionType,
@@ -46,7 +47,12 @@ public:
 			FPBDStiffness::DefaultTableSize,
 			FPBDStiffness::DefaultParameterFitBase,
 			MaxStiffness)
-		, BucklingRatio(FMath::Clamp(InBucklingRatio, (FSolverReal)0., (FSolverReal)1.))
+		, BucklingRatioWeighted(
+			InBucklingRatio.ClampAxes((FSolverReal)0., (FSolverReal)1.),
+			BucklingRatioMultipliers,
+			TConstArrayView<TVec2<int32>>(ConstraintSharedEdges),
+			ParticleOffset,
+			ParticleCount)
 		, BucklingStiffness(
 			InBucklingStiffness,
 			BucklingStiffnessMultipliers,
@@ -56,19 +62,52 @@ public:
 			FPBDStiffness::DefaultTableSize,
 			FPBDStiffness::DefaultParameterFitBase,
 			MaxStiffness)
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		, BucklingRatio((FSolverReal)BucklingRatioWeighted)
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	{
 		CalculateRestAngles(InParticles, ParticleOffset, ParticleCount, RestAngleMap, RestAngleValue, RestAngleConstructionType);
 	}
 
-	FPBDBendingConstraintsBase(const FSolverParticles& InParticles,
-		int32 InParticleOffset,
-		int32 InParticleCount,
+	UE_DEPRECATED(5.5, "Use a constructor with BucklingRatioMultipliers.")
+	FPBDBendingConstraintsBase(const FSolverParticlesRange& InParticles,
 		TArray<TVec4<int32>>&& InConstraints,
 		const TConstArrayView<FRealSingle>& StiffnessMultipliers,
 		const TConstArrayView<FRealSingle>& BucklingStiffnessMultipliers,
 		const TConstArrayView<FRealSingle>& RestAngleMap,
 		const FSolverVec2& InStiffness,
 		const FSolverReal InBucklingRatio,
+		const FSolverVec2& InBucklingStiffness,
+		const FSolverVec2& RestAngleValue,
+		ERestAngleConstructionType RestAngleConstructionType,
+		bool bTrimKinematicConstraints = false,
+		FSolverReal MaxStiffness = FPBDStiffness::DefaultPBDMaxStiffness)
+		: FPBDBendingConstraintsBase(
+			InParticles,
+			MoveTemp(InConstraints),
+			StiffnessMultipliers,
+			TConstArrayView<float>(),
+			BucklingStiffnessMultipliers,
+			RestAngleMap,
+			InStiffness,
+			FSolverVec2(InBucklingRatio),
+			InBucklingStiffness,
+			RestAngleValue,
+			RestAngleConstructionType,
+			bTrimKinematicConstraints,
+			MaxStiffness)
+	{}
+
+	FPBDBendingConstraintsBase(const FSolverParticles& InParticles,
+		int32 InParticleOffset,
+		int32 InParticleCount,
+		TArray<TVec4<int32>>&& InConstraints,
+		const TConstArrayView<FRealSingle>& StiffnessMultipliers,
+		const TConstArrayView<FRealSingle>& BucklingRatioMultipliers,
+		const TConstArrayView<FRealSingle>& BucklingStiffnessMultipliers,
+		const TConstArrayView<FRealSingle>& RestAngleMap,
+		const FSolverVec2& InStiffness,
+		const FSolverVec2& InBucklingRatio,
 		const FSolverVec2& InBucklingStiffness,
 		const FSolverVec2& RestAngleValue,
 		ERestAngleConstructionType RestAngleConstructionType,
@@ -87,7 +126,12 @@ public:
 			FPBDStiffness::DefaultTableSize,
 			FPBDStiffness::DefaultParameterFitBase,
 			MaxStiffness)
-		, BucklingRatio(FMath::Clamp(InBucklingRatio, (FSolverReal)0., (FSolverReal)1.))
+		, BucklingRatioWeighted(
+			InBucklingRatio.ClampAxes((FSolverReal)0., (FSolverReal)1.),
+			BucklingRatioMultipliers,
+			TConstArrayView<TVec2<int32>>(ConstraintSharedEdges),
+			ParticleOffset,
+			ParticleCount)
 		, BucklingStiffness(
 			InBucklingStiffness,
 			BucklingStiffnessMultipliers,
@@ -97,10 +141,48 @@ public:
 			FPBDStiffness::DefaultTableSize,
 			FPBDStiffness::DefaultParameterFitBase,
 			MaxStiffness)
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		, BucklingRatio((FSolverReal)BucklingRatioWeighted)
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	{
 		CalculateRestAngles(InParticles, ParticleOffset, ParticleCount, RestAngleMap, RestAngleValue, RestAngleConstructionType);
 	}
 
+	UE_DEPRECATED(5.5, "Use a constructor with BucklingRatioMultipliers.")
+	FPBDBendingConstraintsBase(const FSolverParticles& InParticles,
+		int32 InParticleOffset,
+		int32 InParticleCount,
+		TArray<TVec4<int32>>&& InConstraints,
+		const TConstArrayView<FRealSingle>& StiffnessMultipliers,
+		const TConstArrayView<FRealSingle>& BucklingStiffnessMultipliers,
+		const TConstArrayView<FRealSingle>& RestAngleMap,
+		const FSolverVec2& InStiffness,
+		const FSolverReal InBucklingRatio,
+		const FSolverVec2& InBucklingStiffness,
+		const FSolverVec2& RestAngleValue,
+		ERestAngleConstructionType RestAngleConstructionType,
+		bool bTrimKinematicConstraints = false,
+		FSolverReal MaxStiffness = FPBDStiffness::DefaultPBDMaxStiffness)
+		: FPBDBendingConstraintsBase(
+			InParticles,
+			InParticleOffset,
+			InParticleCount,
+			MoveTemp(InConstraints),
+			StiffnessMultipliers,
+			TConstArrayView<FRealSingle>(),
+			BucklingStiffnessMultipliers,
+			RestAngleMap,
+			InStiffness,
+			FSolverVec2(InBucklingRatio),
+			InBucklingStiffness,
+			RestAngleValue,
+			RestAngleConstructionType,
+			bTrimKinematicConstraints,
+			MaxStiffness)
+	{
+	}
+
+	UE_DEPRECATED(5.5, "Use a constructor with BucklingRatioMultipliers.")
 	FPBDBendingConstraintsBase(const FSolverParticles& InParticles,
 		int32 InParticleOffset,
 		int32 InParticleCount,
@@ -113,43 +195,56 @@ public:
 		bool bTrimKinematicConstraints = false,
 		FSolverReal MaxStiffness = FPBDStiffness::DefaultPBDMaxStiffness)
 		:FPBDBendingConstraintsBase(InParticles, InParticleOffset, InParticleCount, MoveTemp(InConstraints),
-			StiffnessMultipliers, BucklingStiffnessMultipliers, TConstArrayView<FRealSingle>(),
-			InStiffness, InBucklingRatio, InBucklingStiffness, FSolverVec2((FSolverReal)0.f),
+			StiffnessMultipliers, TConstArrayView<FRealSingle>(), BucklingStiffnessMultipliers, TConstArrayView<FRealSingle>(),
+			InStiffness, FSolverVec2(InBucklingRatio), InBucklingStiffness, FSolverVec2((FSolverReal)0.f),
 			ERestAngleConstructionType::Use3DRestAngles, bTrimKinematicConstraints, MaxStiffness)
 	{}
 
 	UE_DEPRECATED(5.2, "Use one of the other constructors instead.")
 	FPBDBendingConstraintsBase(const FSolverParticles& InParticles, TArray<TVec4<int32>>&& InConstraints, const FSolverReal InStiffness = (FSolverReal)1.)
-		: Constraints(MoveTemp(InConstraints))
-		, ConstraintSharedEdges(ExtractConstraintSharedEdges(Constraints))
-		, ParticleOffset(0)
-		, ParticleCount(InParticles.Size())
-		, Stiffness(FSolverVec2(InStiffness))
-		, BucklingRatio(0.f)
-		, BucklingStiffness(FSolverVec2(InStiffness))
+		: FPBDBendingConstraintsBase(
+			InParticles,
+			0, 
+			InParticles.Size(),
+			MoveTemp(InConstraints),
+			TConstArrayView<FRealSingle>(),
+			TConstArrayView<FRealSingle>(),
+			TConstArrayView<FRealSingle>(),
+			TConstArrayView<FRealSingle>(),
+			FSolverVec2(InStiffness),
+			FSolverVec2((FSolverReal)0.f),
+			FSolverVec2(InStiffness),
+			FSolverVec2((FSolverReal)0.f),
+			ERestAngleConstructionType::Use3DRestAngles)
 	{
-		CalculateRestAngles(InParticles, ParticleOffset, ParticleCount, TConstArrayView<FRealSingle>(), FSolverVec2(0.f), ERestAngleConstructionType::Use3DRestAngles);
 	}
 
 	virtual ~FPBDBendingConstraintsBase() {}
 
 	// Update stiffness values
-	void SetProperties(const FSolverVec2& InStiffness, const FSolverReal InBucklingRatio, const FSolverVec2& InBucklingStiffness)
+	void SetProperties(const FSolverVec2& InStiffness, const FSolverVec2& InBucklingRatio, const FSolverVec2& InBucklingStiffness)
 	{ 
 		Stiffness.SetWeightedValue(InStiffness);
-		BucklingRatio = FMath::Clamp(InBucklingRatio, (FSolverReal)0., (FSolverReal)1.);
+		BucklingRatioWeighted.SetWeightedValue(InBucklingRatio.ClampAxes((FSolverReal)0., (FSolverReal)1.));
 		BucklingStiffness.SetWeightedValue(InBucklingStiffness);
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		BucklingRatio = (FSolverReal)BucklingRatioWeighted;
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	}
+
+	UE_DEPRECATED(5.5, "Use version with FSolverVec2 InBucklingRatio.")
+	void SetProperties(const FSolverVec2& InStiffness, const FSolverReal InBucklingRatio, const FSolverVec2& InBucklingStiffness)
+	{
+		SetProperties(InStiffness, FSolverVec2(InBucklingRatio), InBucklingStiffness);
 	}
 
 	// Update stiffness table, as well as the simulation stiffness exponent
 	void ApplyProperties(const FSolverReal Dt, const int32 NumIterations)
 	{
 		Stiffness.ApplyPBDValues(Dt, NumIterations);
+		BucklingRatioWeighted.ApplyValues();
 		BucklingStiffness.ApplyPBDValues(Dt, NumIterations);
 	}
-
-	UE_DEPRECATED(5.1, "Use SetProperties instead.")
-	void SetStiffness(FSolverReal InStiffness) { SetProperties(FSolverVec2(InStiffness), 0.f, 1.f); }
 
 	template<typename SolverParticlesOrRange>
 	TStaticArray<FSolverVec3, 4> GetGradients(const SolverParticlesOrRange& InParticles, const int32 i) const
@@ -212,11 +307,19 @@ public:
 		return FMath::Atan2(SinPhi, CosPhi);
 	}
 
+	UE_DEPRECATED(5.5, "This version is deprecated and will produce the incorrect result if BucklingRatio is weighted. Use version that takes a ConstraintIndex instead.")
 	bool AngleIsBuckled(const FSolverReal Angle, const FSolverReal RestAngle) const
 	{
 		// Angle is 0 when completely flat. This is easier to think of in terms of Angle' = (PI - |Angle|), which is 0 when completely folded.
 		// Consider buckled when Angle' <= BucklingRatio * RestAngle', and use buckling stiffness instead of stiffness.
-		return UE_PI - FMath::Abs(Angle) < BucklingRatio * (UE_PI - FMath::Abs(RestAngle));
+		return UE_PI - FMath::Abs(Angle) < (FSolverReal)BucklingRatioWeighted * (UE_PI - FMath::Abs(RestAngle));
+	}
+
+	bool AngleIsBuckled(const FSolverReal Angle, const int32 ConstraintIndex) const
+	{
+		// Angle is 0 when completely flat. This is easier to think of in terms of Angle' = (PI - |Angle|), which is 0 when completely folded.
+		// Consider buckled when Angle' <= BucklingRatio * RestAngle', and use buckling stiffness instead of stiffness.
+		return UE_PI - FMath::Abs(Angle) < BucklingRatioWeighted.GetValue(ConstraintIndex) * (UE_PI - FMath::Abs(RestAngles[ConstraintIndex]));
 	}
 
 	template<typename SolverParticlesOrRange>
@@ -319,11 +422,14 @@ protected:
 	const int32 ParticleCount;
 
 	FPBDStiffness Stiffness;
-	FSolverReal BucklingRatio;
+	FPBDWeightMap BucklingRatioWeighted;
 	FPBDStiffness BucklingStiffness;
 
 	TArray<FSolverReal> RestAngles;
 	TArray<bool> IsBuckled;
+
+	UE_DEPRECATED(5.5, "Scalar Buckling Ratio has been deprecated. Use BucklingRatioWeighted instead.")
+	FSolverReal BucklingRatio;
 };
 
 }  // End namespace Chaos::Softs

@@ -63,10 +63,10 @@ void FChaosClothAssetSimulationSelfCollisionConfigNode::Serialize(FArchive& Ar)
 	if (Ar.IsLoading())
 	{
 #if WITH_EDITORONLY_DATA
-		if (SelfCollisionFriction_DEPRECATED != UE::Chaos::ClothAsset::FDefaultFabric::SelfFriction)
+		if (SelfCollisionFriction_DEPRECATED != SelfFrictionDeprecatedValue)
 		{
 			SelfCollisionFrictionImported.ImportedValue = SelfCollisionFriction_DEPRECATED;
-			SelfCollisionFriction_DEPRECATED = UE::Chaos::ClothAsset::FDefaultFabric::SelfFriction;
+			SelfCollisionFriction_DEPRECATED = SelfFrictionDeprecatedValue;
 		}
 		if (SelfCollisionKinematicColliderFriction_DEPRECATED != FrictionDeprecatedValue)
 		{

@@ -41,11 +41,12 @@ private:
 
 	// Deprecated properties
 #if WITH_EDITORONLY_DATA
-
+	static constexpr float CollisionThicknessDeprecatedDefault = 1.0f;
 	UPROPERTY()
-	float CollisionThickness_DEPRECATED = UE::Chaos::ClothAsset::FDefaultFabric::CollisionThickness;
+	float CollisionThickness_DEPRECATED = CollisionThicknessDeprecatedDefault;
 
+	static constexpr float FrictionCoefficientDeprecatedDefault = 0.8f;
 	UPROPERTY()
-	float FrictionCoefficient_DEPRECATED  = UE::Chaos::ClothAsset::FDefaultFabric::Friction;
+	float FrictionCoefficient_DEPRECATED  = FrictionCoefficientDeprecatedDefault;
 #endif
 };

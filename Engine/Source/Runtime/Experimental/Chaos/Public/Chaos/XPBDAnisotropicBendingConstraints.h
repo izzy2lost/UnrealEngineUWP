@@ -66,7 +66,33 @@ public:
 		: FXPBDAnisotropicBendingConstraints(InParticles, InParticleOffset, InParticleCount, TriangleMesh, FaceVertexPatternPositions, WeightMaps, PropertyCollection)
 	{}
 
-	CHAOS_API FXPBDAnisotropicBendingConstraints(const FSolverParticles& InParticles,
+	CHAOS_API FXPBDAnisotropicBendingConstraints(const FSolverParticles & InParticles,
+		int32 InParticleOffset,
+		int32 InParticleCount,
+		const FTriangleMesh& TriangleMesh,
+		const TArray<TVec3<FVec2f>>& FaceVertexPatternPositions,
+		const TConstArrayView<FRealSingle>& StiffnessWarpMultipliers,
+		const TConstArrayView<FRealSingle>& StiffnessWeftMultipliers,
+		const TConstArrayView<FRealSingle>& StiffnessBiasMultipliers,
+		const TConstArrayView<FRealSingle>& BucklingRatioMultipliers,
+		const TConstArrayView<FRealSingle>& BucklingStiffnessWarpMultipliers,
+		const TConstArrayView<FRealSingle>& BucklingStiffnessWeftMultipliers,
+		const TConstArrayView<FRealSingle>& BucklingStiffnessBiasMultipliers,
+		const TConstArrayView<FRealSingle>& DampingMultipliers,
+		const TConstArrayView<FRealSingle>& RestAngleMap,
+		const FSolverVec2& InStiffnessWarp,
+		const FSolverVec2& InStiffnessWeft,
+		const FSolverVec2& InStiffnessBias,
+		const FSolverVec2& InBucklingRatio,
+		const FSolverVec2& InBucklingStiffnessWarp,
+		const FSolverVec2& InBucklingStiffnessWeft,
+		const FSolverVec2& InBucklingStiffnessBias,
+		const FSolverVec2& InDampingRatio,
+		const FSolverVec2& RestAngleValue,
+		ERestAngleConstructionType RestAngleConstructionType);
+
+	UE_DEPRECATED(5.5, "Use constructor with BucklingRatioMultipliers")
+	FXPBDAnisotropicBendingConstraints(const FSolverParticles& InParticles,
 		int32 InParticleOffset,
 		int32 InParticleCount,
 		const FTriangleMesh& TriangleMesh,
@@ -85,7 +111,33 @@ public:
 		const FSolverVec2& InBucklingStiffnessWarp,
 		const FSolverVec2& InBucklingStiffnessWeft,
 		const FSolverVec2& InBucklingStiffnessBias,
-		const FSolverVec2& InDampingRatio);
+		const FSolverVec2& InDampingRatio)
+		:FXPBDAnisotropicBendingConstraints(
+			InParticles,
+			InParticleOffset,
+			InParticleCount,
+			TriangleMesh,
+			FaceVertexPatternPositions,
+			StiffnessWarpMultipliers,
+			StiffnessWeftMultipliers,
+			StiffnessBiasMultipliers,
+			TConstArrayView<FRealSingle>(),
+			BucklingStiffnessWarpMultipliers,
+			BucklingStiffnessWeftMultipliers,
+			BucklingStiffnessBiasMultipliers,
+			DampingMultipliers,
+			TConstArrayView<FRealSingle>(),
+			InStiffnessWarp,
+			InStiffnessWeft,
+			InStiffnessBias,
+			FSolverVec2(InBucklingRatio),
+			InBucklingStiffnessWarp,
+			InBucklingStiffnessWeft,
+			InBucklingStiffnessBias,
+			InDampingRatio,
+			FSolverVec2((FSolverReal)0.f),
+			ERestAngleConstructionType::Use3DRestAngles)
+	{}
 
 	UE_DEPRECATED(5.4, "XPBD Constraints must always trim kinematic constraints")
 	FXPBDAnisotropicBendingConstraints(const FSolverParticles& InParticles,
@@ -109,9 +161,31 @@ public:
 		const FSolverVec2& InBucklingStiffnessBias,
 		const FSolverVec2& InDampingRatio,
 		bool bTrimKinematicConstraints)
-		: FXPBDAnisotropicBendingConstraints(InParticles, InParticleOffset, InParticleCount, TriangleMesh, FaceVertexPatternPositions, StiffnessWarpMultipliers, StiffnessWeftMultipliers,
-			StiffnessBiasMultipliers, BucklingStiffnessWarpMultipliers, BucklingStiffnessWeftMultipliers, BucklingStiffnessBiasMultipliers, DampingMultipliers, InStiffnessWarp,
-			InStiffnessWeft, InStiffnessBias, InBucklingRatio, InBucklingStiffnessWarp, InBucklingStiffnessWeft, InBucklingStiffnessBias, InDampingRatio)
+		: FXPBDAnisotropicBendingConstraints(
+			InParticles,
+			InParticleOffset,
+			InParticleCount,
+			TriangleMesh,
+			FaceVertexPatternPositions,
+			StiffnessWarpMultipliers,
+			StiffnessWeftMultipliers,
+			StiffnessBiasMultipliers,
+			TConstArrayView<FRealSingle>(),
+			BucklingStiffnessWarpMultipliers,
+			BucklingStiffnessWeftMultipliers,
+			BucklingStiffnessBiasMultipliers,
+			DampingMultipliers,
+			TConstArrayView<FRealSingle>(),
+			InStiffnessWarp,
+			InStiffnessWeft,
+			InStiffnessBias,
+			FSolverVec2(InBucklingRatio),
+			InBucklingStiffnessWarp,
+			InBucklingStiffnessWeft,
+			InBucklingStiffnessBias,
+			InDampingRatio,
+			FSolverVec2((FSolverReal)0.f),
+			ERestAngleConstructionType::Use3DRestAngles)
 	{}
 
 	virtual ~FXPBDAnisotropicBendingConstraints() override {}
@@ -131,7 +205,7 @@ public:
 
 	void ApplyProperties(const FSolverReal /*Dt*/, const int32 /*NumIterations*/)
 	{
-		// Nothing to be done here for flat weight maps. Want to avoid base class from being called instead.
+		BucklingRatioWeighted.ApplyValues();
 	}
 
 	template<typename SolverParticlesOrRange>
