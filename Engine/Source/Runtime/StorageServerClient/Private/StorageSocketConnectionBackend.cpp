@@ -24,7 +24,21 @@ static TArray<TSharedPtr<FInternetAddr>> GetAddressFromString(ISocketSubsystem& 
 		const FString* EffectiveHostAddr = &HostAddr;
 		if (!HostAddr.IsEmpty() && HostAddr[0] == TEXT('[') && HostAddr[HostAddr.Len() - 1] == TEXT(']'))
 		{
+#if PLATFORM_HAS_BSD_SOCKETS && !PLATFORM_HAS_BSD_IPV6_SOCKETS
+			// If the platform doesn't have IPV6 BSD Sockets, then handle an attempt at conversion of loopback addresses, and skip and warn about other addresses
+			if (HostAddr == TEXT("[::1]"))
+			{
+				// Substitute IPV4 loopback for IPV6 loopback
+				ModifiedHostAddr = TEXT("127.0.0.1");
+			}
+			else
+			{
+				UE_LOG(LogStorageSocketBackend, Warning, TEXT("Ignoring storage server host IPV6 address on platform that doesn't support IPV6: %s"), *HostAddr);
+				continue;
+			}
+#else
 			ModifiedHostAddr = FStringView(HostAddr).Mid(1, HostAddr.Len() - 2);
+#endif
 			EffectiveHostAddr = &ModifiedHostAddr;
 		}
 		TSharedPtr<FInternetAddr> Addr = SocketSubsystem.GetAddressFromString(*EffectiveHostAddr);
