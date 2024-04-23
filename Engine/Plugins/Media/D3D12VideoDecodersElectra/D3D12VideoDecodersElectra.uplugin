@@ -9,7 +9,7 @@
   "Category": "Media Players",
   "EnabledByDefault": false,
   "CanContainContent": false,
-  "IsBetaVersion": true,
+  "IsBetaVersion": false,
   "IsExperimentalVersion": false,
   "Installed": false,
   "Modules": [

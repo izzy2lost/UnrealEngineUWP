@@ -18,7 +18,13 @@ static TAutoConsoleVariable<int32> CVarElectraABRVODCycle(
 	TEXT("Electra.ABR.VoD.CycleQualities"),
 	0,
 	TEXT("Cycles through all quality levels even if not sustainable.\n")
-	TEXT(" 0: do not cycle; 1-n: cycle up to quality level n."),
+	TEXT(" 0: do not cycle; 1 to n: cycle up to quality level n."),
+	ECVF_Default);
+static TAutoConsoleVariable<int32> CVarElectraABRVODFixedStream(
+	TEXT("Electra.ABR.VoD.FixedStream"),
+	0,
+	TEXT("Forces use of a particular quality even if not sustainable.\n")
+	TEXT(" 0: do not lock; 1 to n: lock to quality level n-1."),
 	ECVF_Default);
 #endif
 
@@ -71,14 +77,14 @@ private:
 		};
 
 		FStreamWorkVars()
-		{ 
+		{
 			const int32 HistorySize = 5;
 			AverageBandwidth.Resize(HistorySize);
 			const int32 LatencyHistorySize = 5;
 			AverageLatency.Resize(LatencyHistorySize);
-			Reset(); 
+			Reset();
 		}
-		
+
 		void ClearForNextDownload()
 		{
 			QualityIndexDownloading = 0;
@@ -152,7 +158,7 @@ private:
 		const TSharedPtrTS<FABRStreamInformation>* Stream = StreamInfos.FindByPredicate([InQualityIndex](const TSharedPtrTS<FABRStreamInformation>& InInfo) { return InQualityIndex == InInfo->QualityIndex;} );
 		return Stream ? (*Stream) : nullptr;
 	}
-	
+
 	double GetPlayablePlayerDuration(bool& bEOS, EStreamType InStreamType)
 	{
 		IAdaptiveStreamSelector::IPlayerLiveControl::FABRBufferStats bs;
@@ -242,7 +248,7 @@ private:
 
 	// Initially assumed network latency.
 	const double DefaultNetworkLatency = 0.4;
-	
+
 	// Scale of highest stream bitrate to clamp bandwidth to so it does not get ridiculously large.
 	const double ClampBandwidthToMaxStreamBitrateScaleFactor = 2.0;
 	// Clamp to this rate unless the max stream bitrate after applying the scaling factor is already higher.
@@ -252,6 +258,8 @@ private:
 	bool bForceQualityCycling = false;
 	int32 QualityCyclingIndex = 0;
 	int32 QualityCyclingLimit = 0;
+	bool bForceQualityLock = false;
+	int32 QualityLockIndex = 0;
 #endif
 };
 
@@ -926,6 +934,15 @@ IAdaptiveStreamSelector::ESegmentAction FABROnDemandPlus::PerformSelection(const
 					Info->LogMessage(IInfoLog::ELevel::Info, FString::Printf(TEXT("Cycling to quality index %d (%d*%d @ %d bps)"), NewQualityIndex, Cnd->Resolution.Width, Cnd->Resolution.Height, Cnd->Bitrate));
 				}
 			}
+			if (bForceQualityLock)
+			{
+				NewQualityIndex = Utils::Min(InCandidates.Num(), QualityLockIndex) - 1;
+				TSharedPtrTS<FABRStreamInformation> Cnd = GetStreamInfoForQualityIndex(StreamType, NewQualityIndex);
+				if (Cnd.IsValid())
+				{
+					Info->LogMessage(IInfoLog::ELevel::Info, FString::Printf(TEXT("Forcing quality index %d (%d*%d @ %d bps)"), NewQualityIndex, Cnd->Resolution.Width, Cnd->Resolution.Height, Cnd->Bitrate));
+				}
+			}
 #endif
 		}
 		else
@@ -974,7 +991,7 @@ IAdaptiveStreamSelector::ESegmentAction FABROnDemandPlus::PerformSelection(const
 
 
 FTimeValue FABROnDemandPlus::GetMinBufferTimeForPlayback(IAdaptiveStreamSelector::EMinBufferType InBufferingType, FTimeValue InDefaultMBT)
-{ 
+{
 	return FTimeValue();
 }
 
@@ -1031,6 +1048,20 @@ IAdaptiveStreamSelector::EHandlingAction FABROnDemandPlus::PeriodicHandle()
 		bForceQualityCycling = false;
 		QualityCyclingLimit = 0;
 		Info->LogMessage(IInfoLog::ELevel::Info, FString::Printf(TEXT("Diable quality cycling")));
+	}
+
+	int32 LockQuality = CVarElectraABRVODFixedStream.GetValueOnAnyThread();
+	if (LockQuality && LockQuality!=QualityLockIndex)
+	{
+		bForceQualityLock = true;
+		QualityLockIndex = LockQuality;
+		Info->LogMessage(IInfoLog::ELevel::Info, FString::Printf(TEXT("Locking quality to index %d"), LockQuality));
+	}
+	else if (LockQuality == 0 && bForceQualityLock)
+	{
+		bForceQualityLock = false;
+		QualityLockIndex = 0;
+		Info->LogMessage(IInfoLog::ELevel::Info, FString::Printf(TEXT("Diable quality locking")));
 	}
 #endif
 

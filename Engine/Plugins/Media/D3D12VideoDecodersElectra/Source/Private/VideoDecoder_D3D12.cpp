@@ -7,6 +7,8 @@
 #include "Features/IModularFeature.h"
 #include "RHI.h"
 
+#include "HAL/IConsoleManager.h"
+
 #include "IElectraCodecFactory.h"
 #include "IElectraCodecFactoryModule.h"
 #include "IElectraCodecRegistry.h"
@@ -20,6 +22,36 @@
 
 namespace ElectraVideoDecodersD3D12Video
 {
+#ifndef ELECTRA_DECODERS_D3D12VIDEO_DISABLED_ON_PLATFORM
+#error "C"
+#define ELECTRA_DECODERS_D3D12VIDEO_DISABLED_ON_PLATFORM 1
+#endif
+#ifndef ELECTRA_DECODERS_D3D12VIDEO_IGNORED_ON_PLATFORM
+#error "B"
+#define ELECTRA_DECODERS_D3D12VIDEO_IGNORED_ON_PLATFORM 1
+#endif
+
+#if ELECTRA_DECODERS_D3D12VIDEO_DISABLED_ON_PLATFORM
+static bool bDisableThisDecoder = true;
+#else
+static bool bDisableThisDecoder = false;
+#endif
+
+#if ELECTRA_DECODERS_D3D12VIDEO_IGNORED_ON_PLATFORM
+static bool bDoNotUseThisDecoder = true;
+#else
+static bool bDoNotUseThisDecoder = false;
+#endif
+
+FAutoConsoleVariableRef CVarElectraDecoderD3D12VideoDisable(
+	TEXT("ElectraDecoders.bDisableD3D12Video"),
+	bDisableThisDecoder,
+	TEXT("Globally disable the use of the D3D12 native video decoder"));
+
+FAutoConsoleVariableRef CVarElectraDecoderD3D12DoNotUse(
+	TEXT("ElectraDecoders.bDoNotUseD3D12Video"),
+	bDoNotUseThisDecoder,
+	TEXT("Do not use the D3D12 native video decoder on this platform"));
 
 int32 FCodecFormatHelper::FindSupportedFormats(ID3D12Device* InD3D12Device)
 {
@@ -187,7 +219,7 @@ const FCodecFormatHelper::FCodecInfo* FCodecFormatHelper::HaveFormat(ECodecType 
 	for(int32 i=0, iMax=CodecInfos.Num(); i<iMax; ++i)
 	{
 		if (CodecInfos[i].CodecType == InType &&
-		   ((InNumBits == 8 && CodecInfos[i].b10Bit == false) || (InNumBits == 10 && CodecInfos[i].b10Bit == true)))
+			((InNumBits == 8 && CodecInfos[i].b10Bit == false) || (InNumBits == 10 && CodecInfos[i].b10Bit == true)))
 		{
 			return &CodecInfos[i];
 		}
@@ -385,6 +417,13 @@ public:
 					UE_LOG(LogD3D12VideoDecodersElectra, Log, TEXT("Decode tier 2 is needed, but tier %d was returned."), (int)OutSupport.DecodeTier);
 					Codec = nullptr;
 				}
+
+				// Do a custom platform capability check.
+				if (!FD3D12VideoDecoder::CheckPlatformDecodeCapabilities(OutSupport, ci, InOptions))
+				{
+					UE_LOG(LogD3D12VideoDecodersElectra, Log, TEXT("Platform rejected decoding of %d*%d @ %d/%d fps"), (int)Width, (int)Height, (int)fps_n, (int)fps_d);
+					Codec = nullptr;
+				}
 			}
 			else
 			{
@@ -397,6 +436,11 @@ public:
 
 	int32 SupportsFormat(const FString& InCodecFormat, bool bInEncoder, const TMap<FString, FVariant>& InOptions) const override
 	{
+		if (bDoNotUseThisDecoder)
+		{
+			return 0;
+		}
+
 		// Encoder? Not supported here!
 		if (bInEncoder)
 		{
@@ -429,6 +473,11 @@ public:
 
 	TSharedPtr<IElectraDecoder, ESPMode::ThreadSafe> CreateDecoderForFormat(const FString& InCodecFormat, const TMap<FString, FVariant>& InOptions, TSharedPtr<IElectraDecoderResourceDelegate, ESPMode::ThreadSafe> InResourceDelegate) override
 	{
+		if (bDoNotUseThisDecoder)
+		{
+			return nullptr;
+		}
+
 		HRESULT Result;
 
 		// Do this under lock as it may be possible that the D3D device changed and we have to rebuild the codec list.
@@ -506,6 +555,10 @@ public:
 				New = MakeShared<FD3D12VideoDecoder_H265>(*Codec, DecodeSupport, InOptions, InResourceDelegate, D3DDevice, CurrentFormats->GetVideoDevice(), CurrentFormats->GetVideoDeviceNodeIndex());
 				break;
 			}
+		}
+		if (New.IsValid())
+		{
+			UE_LOG(LogD3D12VideoDecodersElectra, Verbose, TEXT("Created a D3D12 video decoder."));
 		}
 		return New;
 	}
@@ -587,7 +640,7 @@ bool FD3D12VideoDecoder::ResetToCleanStart()
 	VideoDecoderCommandQueue.SafeRelease();
 	VideoDecoderSync.Reset();
 
-	CurrentConfig.VideoDecoderHeap.SafeRelease();
+	CurrentConfig.Reset();
 	StatusReportFeedbackNumber = 0;
 	return true;
 }
@@ -839,15 +892,11 @@ bool FD3D12VideoDecoder::InternalDecoderCreate()
 	return true;
 }
 
-bool FD3D12VideoDecoder::CreateDecoderHeapAndDPB(int32 InDPBSize, int32 InNumFrames, int32 InImageSizeAlignment)
+bool FD3D12VideoDecoder::CreateDecoderHeap(int32 InDPBSize, int32 InMaxWidth, int32 InMaxHeight, int32 InImageSizeAlignment)
 {
-	if (InDPBSize <= 0 || InNumFrames <= 0 || InNumFrames < InDPBSize)
+	if (InDPBSize <= 0)
 	{
 		return PostError(0, TEXT("DPB size is invalid"), ERRCODE_INTERNAL_FAILED_TO_CREATE_DECODER);
-	}
-	if (InNumFrames > FFrameDecodeResource::kMaxRefFrames)
-	{
-		return PostError(0, TEXT("Too many frames requested than fit into managing structure."), ERRCODE_INTERNAL_FAILED_TO_CREATE_DECODER);
 	}
 
 	HRESULT Result;
@@ -855,9 +904,16 @@ bool FD3D12VideoDecoder::CreateDecoderHeapAndDPB(int32 InDPBSize, int32 InNumFra
 	D3D12_VIDEO_DECODER_HEAP_DESC HeapDesc {};
 	HeapDesc.NodeMask = GetNodeMask();
 	HeapDesc.Configuration = DecodeSupport.Configuration;
-	const uint64 Alignment = (uint64) InImageSizeAlignment;
-	HeapDesc.DecodeWidth = Align(DecodeSupport.Width, Alignment);
-	HeapDesc.DecodeHeight = Align(DecodeSupport.Height, Alignment);
+	const uint32 Alignment = (uint32) InImageSizeAlignment;
+	const uint32 AlignedWidth = Align(InMaxWidth, Alignment);
+	const uint32 AlignedHeight = Align(InMaxHeight, Alignment);
+#if 1
+	HeapDesc.DecodeWidth = AlignedWidth;
+	HeapDesc.DecodeHeight = AlignedHeight;
+#else
+	HeapDesc.DecodeWidth = DecodeSupport.Width;
+	HeapDesc.DecodeHeight = DecodeSupport.Height;
+#endif
 	check(!CodecInfo.PixelFormats.IsEmpty());
 	HeapDesc.Format = CodecInfo.PixelFormats[0];
 	// best not to set those
@@ -868,22 +924,25 @@ bool FD3D12VideoDecoder::CreateDecoderHeapAndDPB(int32 InDPBSize, int32 InNumFra
 	{
 		return PostError(Result, TEXT("CreateVideoDecoderHeap() failed"), ERRCODE_INTERNAL_FAILED_TO_CREATE_BUFFER);
 	}
-
-	if (!CreateDPB(DPB, HeapDesc.DecodeWidth, HeapDesc.DecodeHeight, InNumFrames, HeapDesc.Format))
-	{
-		return false;
-	}
-
 	CurrentConfig.VideoDecoderHeap = NewHeap;
+	CurrentConfig.VideoDecoderDPBWidth = InMaxWidth;
+	CurrentConfig.VideoDecoderDPBHeight = InMaxHeight;
 	CurrentConfig.MaxNumInDPB = InDPBSize;
-	CurrentConfig.MaxDecodedWidth = HeapDesc.DecodeWidth;
-	CurrentConfig.MaxDecodedHeight = HeapDesc.DecodeHeight;
 	return true;
 }
 
 
-bool FD3D12VideoDecoder::CreateDPB(TSharedPtr<FDecodedPictureBuffer, ESPMode::ThreadSafe>& OutDPB, int32 InMaxWidth, int32 InMaxHeight, int32 InNumFrames, DXGI_FORMAT InFormat)
+bool FD3D12VideoDecoder::CreateDPB(TSharedPtr<FDecodedPictureBuffer, ESPMode::ThreadSafe>& OutDPB, int32 InMaxWidth, int32 InMaxHeight, int32 InImageSizeAlignment, int32 InNumFrames)
 {
+	if (InNumFrames <= 0)
+	{
+		return PostError(0, TEXT("Bad number of frames"), ERRCODE_INTERNAL_FAILED_TO_CREATE_DECODER);
+	}
+	if (InNumFrames > FFrameDecodeResource::kMaxRefFrames)
+	{
+		return PostError(0, TEXT("Too many frames requested than fit into managing structure."), ERRCODE_INTERNAL_FAILED_TO_CREATE_DECODER);
+	}
+
 	TSharedPtr<FDecodedPictureBuffer, ESPMode::ThreadSafe> newdpb = MakeShared<FDecodedPictureBuffer, ESPMode::ThreadSafe>();
 	newdpb->Frames.SetNum(InNumFrames);
 	D3D12_HEAP_PROPERTIES heapProps {};
@@ -893,14 +952,19 @@ bool FD3D12VideoDecoder::CreateDPB(TSharedPtr<FDecodedPictureBuffer, ESPMode::Th
 	heapProps.CreationNodeMask =
 	heapProps.VisibleNodeMask = GetNodeMask();
 
+	const uint32 Alignment = (uint32) InImageSizeAlignment;
+	const uint32 AlignedWidth = Align(InMaxWidth, Alignment);
+	const uint32 AlignedHeight = Align(InMaxHeight, Alignment);
+
+	check(!CodecInfo.PixelFormats.IsEmpty());
 	D3D12_RESOURCE_DESC desc {};
 	desc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
 	desc.Alignment = 0;
-	desc.Width = InMaxWidth;
-	desc.Height = InMaxHeight;
+	desc.Width = AlignedWidth;
+	desc.Height = AlignedHeight;
 	desc.DepthOrArraySize = 1;
 	desc.MipLevels = 1;
-	desc.Format = InFormat;
+	desc.Format = CodecInfo.PixelFormats[0];
 	desc.SampleDesc.Count = 1;
 	desc.SampleDesc.Quality = 0;
 	desc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
@@ -926,6 +990,8 @@ bool FD3D12VideoDecoder::CreateDPB(TSharedPtr<FDecodedPictureBuffer, ESPMode::Th
 		newdpb->AvailableQueue.Push(it);
 	}
 	OutDPB = MoveTemp(newdpb);
+	CurrentConfig.MaxDecodedWidth = InMaxWidth;
+	CurrentConfig.MaxDecodedHeight = InMaxHeight;
 	return true;
 }
 
@@ -983,17 +1049,28 @@ static TSharedPtr<FD3D12VideoDecoderFactory, ESPMode::ThreadSafe> Self;
 /*********************************************************************************************************************/
 void FD3D12VideoDecoder::Startup()
 {
-	// Make sure the codec factory module has been loaded.
-	FModuleManager::Get().LoadModule(TEXT("ElectraCodecFactory"));
-
-	TUniquePtr<ElectraVideoDecodersD3D12Video::FCodecFormatHelper> FormatHelper(new ElectraVideoDecodersD3D12Video::FCodecFormatHelper);
-	// Not a single supported format?
-	if (FormatHelper->FindSupportedFormats(nullptr) != 0)
+	if (!ElectraVideoDecodersD3D12Video::bDisableThisDecoder)
 	{
-		// Create a factory with the current formats.
-		ElectraVideoDecodersD3D12Video::Self = MakeShared<ElectraVideoDecodersD3D12Video::FD3D12VideoDecoderFactory, ESPMode::ThreadSafe>(MoveTemp(FormatHelper));
-		// Register as modular feature.
-		IModularFeatures::Get().RegisterModularFeature(IElectraCodecFactoryModule::GetModularFeatureName(), ElectraVideoDecodersD3D12Video::Self.Get());
+		// Make sure the codec factory module has been loaded.
+		FModuleManager::Get().LoadModule(TEXT("ElectraCodecFactory"));
+
+		TUniquePtr<ElectraVideoDecodersD3D12Video::FCodecFormatHelper> FormatHelper(new ElectraVideoDecodersD3D12Video::FCodecFormatHelper);
+		// Not a single supported format?
+		if (FormatHelper->FindSupportedFormats(nullptr) != 0)
+		{
+			// Create a factory with the current formats.
+			ElectraVideoDecodersD3D12Video::Self = MakeShared<ElectraVideoDecodersD3D12Video::FD3D12VideoDecoderFactory, ESPMode::ThreadSafe>(MoveTemp(FormatHelper));
+			// Register as modular feature.
+			IModularFeatures::Get().RegisterModularFeature(IElectraCodecFactoryModule::GetModularFeatureName(), ElectraVideoDecodersD3D12Video::Self.Get());
+		}
+		else
+		{
+			UE_LOG(LogD3D12VideoDecodersElectra, Log, TEXT("D3D12 video decoding will not be used since no supported format was found."));
+		}
+	}
+	else
+	{
+		UE_LOG(LogD3D12VideoDecodersElectra, Log, TEXT("D3D12 video decoding will not be used since it is disabled."));
 	}
 }
 

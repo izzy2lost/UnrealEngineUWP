@@ -340,6 +340,7 @@ public:
 class FD3D12VideoDecoder : public IElectraDecoder
 {
 public:
+	static bool D3D12VIDEODECODERSELECTRA_API CheckPlatformDecodeCapabilities(D3D12_FEATURE_DATA_VIDEO_DECODE_SUPPORT& InOutDecodeSupport, const ElectraDecodersUtil::FMimeTypeVideoCodecInfo& InCodecInfo, const TMap<FString, FVariant>& InOptions);
 	FD3D12VideoDecoder(const FCodecFormatHelper::FCodecInfo& InCodecInfo, const D3D12_FEATURE_DATA_VIDEO_DECODE_SUPPORT& InDecodeSupport, const TMap<FString, FVariant>& InOptions, TSharedPtr<IElectraDecoderResourceDelegate, ESPMode::ThreadSafe> InResourceDelegate, const TRefCountPtr<ID3D12Device>& InD3D12Device, const TRefCountPtr<ID3D12VideoDevice>& InVideoDevice, uint32 InVideoDeviceNodeIndex);
 	virtual ~FD3D12VideoDecoder();
 protected:
@@ -434,17 +435,28 @@ protected:
 
 	struct FDecoderConfiguration
 	{
+		void Reset()
+		{
+			MaxDecodedWidth = 0;
+			MaxDecodedHeight = 0;
+			MaxNumInDPB = 0;
+			VideoDecoderHeap.SafeRelease();
+			VideoDecoderDPBWidth = 0;
+			VideoDecoderDPBHeight = 0;
+		}
 		int32 MaxDecodedWidth = 0;
 		int32 MaxDecodedHeight = 0;
 		int32 MaxNumInDPB = 0;
 		TRefCountPtr<ID3D12VideoDecoderHeap> VideoDecoderHeap;
+		int32 VideoDecoderDPBWidth = 0;
+		int32 VideoDecoderDPBHeight = 0;
 	};
 
 	bool InternalDecoderCreate();
 	void ReturnAllFrames();
 
-	bool CreateDecoderHeapAndDPB(int32 InDPBSize, int32 InNumFrames, int32 InImageSizeAlignment);
-	bool CreateDPB(TSharedPtr<FDecodedPictureBuffer, ESPMode::ThreadSafe>& OutDPB, int32 InMaxWidth, int32 InMaxHeight, int32 InNumFrames, DXGI_FORMAT InFormat);
+	bool CreateDecoderHeap(int32 InDPBSize, int32 InMaxWidth, int32 InMaxHeight, int32 InImageSizeAlignment);
+	bool CreateDPB(TSharedPtr<FDecodedPictureBuffer, ESPMode::ThreadSafe>& OutDPB, int32 InMaxWidth, int32 InMaxHeight, int32 InImageSizeAlignment, int32 InNumFrames);
 
 	constexpr uint32 GetNodeMask() const
 	{ return VideoDeviceNodeIndex; }

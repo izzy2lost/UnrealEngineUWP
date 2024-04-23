@@ -50,9 +50,9 @@ IElectraDecoder::ECSDCompatibility FD3D12VideoDecoder_H265::IsCompatibleWith(con
 	{
 		return IElectraDecoder::ECSDCompatibility::DrainAndReset;
 	}
-	int32 NewDPBSize = sps.GetDPBSize();
-	int32 NewWidth = sps.GetWidth();
-	int32 NewHeight = sps.GetHeight();
+	int32 NewWidth, NewHeight, NewDPBSize;
+	NewDPBSize = sps.GetDPBSize();
+	sps.GetDisplaySize(NewWidth, NewHeight);
 	if (NewDPBSize > CurrentConfig.MaxNumInDPB ||
 		NewWidth > CurrentConfig.MaxDecodedWidth ||
 		NewHeight > CurrentConfig.MaxDecodedHeight)
@@ -252,14 +252,35 @@ IElectraDecoder::EDecoderError FD3D12VideoDecoder_H265::DecodeAccessUnit(const F
 		// decoding parameters changed.
 		if (SliceInfos[0].Header.bIsIRAP)
 		{
-			// Note: Should we add a check if resolution, DPB or other relevant values have changed?
-			//       This should not actually happen given that the upper layer decoder
-			//       handles stream switches.
+			const int32 DPBSize = spsPtr->GetDPBSize();
+			int32 dw, dh;
+			spsPtr->GetDisplaySize(dw, dh);
+
+			// Check if the decoder heap parameters have changed such that we have to create a new one.
+			if (DPBSize != CurrentConfig.MaxNumInDPB || dw != CurrentConfig.VideoDecoderDPBWidth || dh != CurrentConfig.VideoDecoderDPBHeight)
+			{
+				CurrentConfig.VideoDecoderHeap.SafeRelease();
+			}
 			if (!CurrentConfig.VideoDecoderHeap.IsValid())
 			{
-				int32 DPBSize = spsPtr->GetDPBSize();
-				int32 NumFrames = spsPtr->GetDPBSize() + 2;	// 1 extra for the current frame that's not in the DPB yet, and 1 extra that acts as a 'missing' frame.
-				if (!CreateDecoderHeapAndDPB(DPBSize, NumFrames, 64))
+				const int32 Alignment = spsPtr->GetMinCbSizeY();
+				if (!CreateDecoderHeap(DPBSize, dw, dh, Alignment))
+				{
+					return IElectraDecoder::EDecoderError::Error;
+				}
+			}
+
+			if (!DPB.IsValid())
+			{
+				// Use the maximum MinCbSizeY value for image alignment as stipulated in the DXVA HEVC documentation.
+				const int32 Alignment = 64;
+
+				// As far as the decoded frames go, their size can be the maximum that is required
+				// for this stream (the largest resolution).
+				const int32 Width = (int32) DecodeSupport.Width;
+				const int32 Height = (int32) DecodeSupport.Height;
+				const int32 NumFrames = spsPtr->GetDPBSize() + 2;	// 1 extra for the current frame that's not in the DPB yet, and 1 extra that acts as a 'missing' frame.
+				if (!CreateDPB(DPB, Width, Height, Alignment, NumFrames))
 				{
 					return IElectraDecoder::EDecoderError::Error;
 				}
@@ -270,7 +291,6 @@ IElectraDecoder::EDecoderError FD3D12VideoDecoder_H265::DecodeAccessUnit(const F
 					return IElectraDecoder::EDecoderError::Error;
 				}
 			}
-
 		}
 		IElectraDecoder::EDecoderError Error = DecodeSlicesH265(InInputAccessUnit, SliceInfos, *spsPtr, *ppsPtr);
 		// When the frame was decoded and there is an EOS/EOB NALU present we need to apply it now.
@@ -701,7 +721,9 @@ IElectraDecoder::EDecoderError FD3D12VideoDecoder_H265::DecodeSlicesH265(const F
 	isa.ReferenceFrames.NumTexture2Ds = FFrameDecodeResource::kMaxRefFrames;
 	isa.ReferenceFrames.ppTexture2Ds = fdr->ReferenceFrameList;
 	isa.ReferenceFrames.pSubresources = fdr->ReferenceFrameListSubRes;
+#if PLATFORM_WINDOWS
 	isa.ReferenceFrames.ppHeaps = nullptr;
+#endif
 
 	IElectraDecoder::EDecoderError decres = ExecuteCommonDecode(isa, osa);
 	if (decres != IElectraDecoder::EDecoderError::None)
@@ -748,15 +770,15 @@ IElectraDecoder::EDecoderError FD3D12VideoDecoder_H265::DecodeSlicesH265(const F
 	{
 		InDec->BufferFormat = EElectraDecoderPlatformPixelFormat::NV12;
 		InDec->BufferEncoding = EElectraDecoderPlatformPixelEncoding::Native;
-		//InDec->ExtraValues.Emplace(TEXT("pixfmt"), FVariant((int64)EElectraDecoderPlatformPixelFormat::NV12));
-		//InDec->ExtraValues.Emplace(TEXT("pixenc"), FVariant((int64)EElectraDecoderPlatformPixelEncoding::Native));
+		InDec->ExtraValues.Emplace(TEXT("pixfmt"), FVariant((int64)EElectraDecoderPlatformPixelFormat::NV12));
+		InDec->ExtraValues.Emplace(TEXT("pixenc"), FVariant((int64)EElectraDecoderPlatformPixelEncoding::Native));
 	}
 	else
 	{
 		InDec->BufferFormat = EElectraDecoderPlatformPixelFormat::P010;
 		InDec->BufferEncoding = EElectraDecoderPlatformPixelEncoding::Native;
-		//InDec->ExtraValues.Emplace(TEXT("pixfmt"), FVariant((int64)EElectraDecoderPlatformPixelFormat::P010));
-		//InDec->ExtraValues.Emplace(TEXT("pixenc"), FVariant((int64)EElectraDecoderPlatformPixelEncoding::Native));
+		InDec->ExtraValues.Emplace(TEXT("pixfmt"), FVariant((int64)EElectraDecoderPlatformPixelFormat::P010));
+		InDec->ExtraValues.Emplace(TEXT("pixenc"), FVariant((int64)EElectraDecoderPlatformPixelEncoding::Native));
 	}
 	InSequenceParameterSet.GetAspect(InDec->AspectW, InDec->AspectH);
 	auto FrameRate = InSequenceParameterSet.GetTiming();

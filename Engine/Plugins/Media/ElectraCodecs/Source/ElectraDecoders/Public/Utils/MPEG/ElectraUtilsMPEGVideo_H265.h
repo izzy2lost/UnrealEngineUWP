@@ -614,8 +614,10 @@ namespace ElectraDecodersUtil
 				}
 				int32 GetMaxDPBSize() const;
 				int32 GetDPBSize() const;
+				int32 GetMinCbSizeY() const;
 				int32 GetWidth() const;
 				int32 GetHeight() const;
+				void GetDisplaySize(int32& OutWidth, int32& OutHeight) const;
 				void GetCrop(int32& OutLeft, int32& OutRight, int32& OutTop, int32& OutBottom) const;
 				void GetAspect(int32& OutSarW, int32& OutSarH) const;
 				FFractionalValue GetTiming() const;

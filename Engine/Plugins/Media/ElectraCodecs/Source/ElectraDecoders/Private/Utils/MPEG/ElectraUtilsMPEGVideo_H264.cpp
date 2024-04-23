@@ -286,11 +286,15 @@ namespace ElectraDecodersUtil
 				}
 				if (vui_parameters_present_flag != 0 && bitstream_restriction_flag != 0)
 				{
+				/*
+					Removed for now as this can happen despite it being invalid.
+
 					if ((int32)max_dec_frame_buffering > MaxSize)
 					{
 						UE_LOG(LogElectraDecoders, Error, TEXT("max_dec_frame_buffering in vui is larger than max dpb size for this level"));
 						return -1;
 					}
+				*/
 					uint32 SizeFromVUI = Max(1U, max_dec_frame_buffering);
 					MaxSize = (int32)SizeFromVUI;
 				}
@@ -303,6 +307,13 @@ namespace ElectraDecodersUtil
 			int32 FSequenceParameterSet::GetHeight() const
 			{
 				return (pic_height_in_map_units_minus1 + 1) * 16;
+			}
+			void FSequenceParameterSet::GetDisplaySize(int32& OutWidth, int32& OutHeight) const
+			{
+				int32 cl,cr,ct,cb;
+				GetCrop(cl,cr,ct,cb);
+				OutWidth = GetWidth() - cl - cr;
+				OutHeight = GetHeight() - ct - cb;
 			}
 			void FSequenceParameterSet::GetCrop(int32& OutLeft, int32& OutRight, int32& OutTop, int32& OutBottom) const
 			{
@@ -490,8 +501,8 @@ namespace ElectraDecodersUtil
 					sps.frame_crop_bottom_offset = br.ue_v();
 				}
 				uint32 MaxDpbFrames = sps.GetMaxDPBSize();
-				RANGE_CHECK_FAILURE(sps.max_num_ref_frames <= MaxDpbFrames, TEXT("max_num_ref_frames"));
-
+				// Removed for now as this can happen despite it being invalid.
+					// RANGE_CHECK_FAILURE(sps.max_num_ref_frames <= MaxDpbFrames, TEXT("max_num_ref_frames"));
 				bool bIsExt = (sps.profile_idc == 44 || sps.profile_idc == 86 || sps.profile_idc == 100 || sps.profile_idc == 110 || sps.profile_idc == 122 || sps.profile_idc == 244) && sps.constraint_set3_flag!=0;
 				sps.max_num_reorder_frames = sps.max_dec_frame_buffering = bIsExt ? 0 : MaxDpbFrames;
 				sps.vui_parameters_present_flag = br.GetBits(1);

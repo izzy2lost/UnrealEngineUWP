@@ -199,6 +199,10 @@ namespace ElectraDecodersUtil
 				check((int32)max_dec_buffering <= MaxDPB);
 				return (int32)max_dec_buffering;
 			}
+			int32 FSequenceParameterSet::GetMinCbSizeY() const
+			{
+				return MinCbSizeY;
+			}
 			int32 FSequenceParameterSet::GetWidth() const
 			{
 				return (int32) pic_width_in_luma_samples;
@@ -206,6 +210,13 @@ namespace ElectraDecodersUtil
 			int32 FSequenceParameterSet::GetHeight() const
 			{
 				return (int32) pic_height_in_luma_samples;
+			}
+			void FSequenceParameterSet::GetDisplaySize(int32& OutWidth, int32& OutHeight) const
+			{
+				int32 cl,cr,ct,cb;
+				GetCrop(cl,cr,ct,cb);
+				OutWidth = GetWidth() - cl - cr;
+				OutHeight = GetHeight() - ct - cb;
 			}
 			void FSequenceParameterSet::GetCrop(int32& OutLeft, int32& OutRight, int32& OutTop, int32& OutBottom) const
 			{
