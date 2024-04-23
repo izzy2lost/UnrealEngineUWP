@@ -4,6 +4,7 @@
 #include "ToolSetupUtil.h"
 #include "ModelingComponentsSettings.h"
 #include "Curves/CurveFloat.h"
+#include "FrameTypes.h"
 #include "InteractiveTool.h"
 #include "InteractiveToolManager.h"
 #include "MaterialDomain.h"
@@ -13,6 +14,10 @@
 #include "Components/BaseDynamicMeshComponent.h"
 #include "PreviewMesh.h"
 
+#include "SceneQueries/SceneSnappingManager.h"
+#include "Selection/StoredMeshSelectionUtil.h"
+#include "ToolContextInterfaces.h"
+#include "ToolSceneQueriesUtil.h"
 
 UMaterialInterface* ToolSetupUtil::GetDefaultMaterial()
 {
@@ -390,4 +395,41 @@ void ToolSetupUtil::ApplyRenderingConfigurationToPreview(UPreviewMesh* PreviewMe
 		return;
 	}
 	ApplyRenderingConfigurationToPreview(Component, SourceTarget);
+}
+
+UE::Geometry::FFrame3d ToolSetupUtil::GetDefaultWorldReferenceFrame(UInteractiveToolManager* ToolManager, UE::Geometry::FQuaterniond DefaultOrientation, double DefaultPlacementDistance)
+{
+	using namespace UE::Geometry;
+
+	FFrame3d Frame;
+	FAxisAlignedBox3d Bounds;
+	bool bIsElementSelection;
+	FToolBuilderState SceneState;
+	ToolManager->GetContextQueriesAPI()->GetCurrentSelectionState(SceneState);
+	if (GetCurrentSelectionWorldFrameBounds(SceneState, Frame, Bounds, bIsElementSelection))
+	{
+		if (bIsElementSelection)
+		{
+			return Frame;
+		}
+		else
+		{
+			Frame.Rotation = DefaultOrientation;
+			return Frame;
+		}
+	}
+	else
+	{
+		FViewCameraState CameraState;
+		ToolManager->GetContextQueriesAPI()->GetCurrentViewState(CameraState);
+		FHitResult WorldHitResult;
+		FRay Ray(CameraState.Position, CameraState.Forward(), true);
+		double HitParam = DefaultPlacementDistance;
+		if (ToolSceneQueriesUtil::FindNearestVisibleObjectHit(USceneSnappingManager::Find(ToolManager), WorldHitResult, Ray))
+		{
+			HitParam = (double)Ray.GetParameter(WorldHitResult.ImpactPoint);
+		}
+
+		return FFrame3d(CameraState.Position + CameraState.Forward() * HitParam, DefaultOrientation);
+	}
 }

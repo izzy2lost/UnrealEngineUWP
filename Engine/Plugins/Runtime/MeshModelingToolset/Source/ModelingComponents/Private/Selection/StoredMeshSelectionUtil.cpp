@@ -42,6 +42,43 @@ bool UE::Geometry::GetCurrentGeometrySelectionForTarget(UInteractiveToolManager*
 	return bHaveSelection;
 }
 
+bool UE::Geometry::GetCurrentSelectionWorldFrameBounds(const FToolBuilderState& SceneState, FFrame3d& OutWorldFrame, FAxisAlignedBox3d& OutWorldBounds, bool& bOutIsElementSelection)
+{
+	UGeometrySelectionManager* SelectionManager = SceneState.ToolManager->GetContextObjectStore()->FindContext<UGeometrySelectionManager>();
+	if (SelectionManager && SelectionManager->HasSelection()) 
+	{
+		bOutIsElementSelection = true;
+		FGeometrySelectionBounds Bounds;
+		SelectionManager->GetSelectionBounds(Bounds);
+		OutWorldBounds = Bounds.WorldBounds;
+		SelectionManager->GetSelectionWorldFrame(OutWorldFrame);
+		return true;
+	}
+	else // use the selected actor/components
+	{
+		bOutIsElementSelection = false;
+		FBox Bounds;
+		for (AActor* Actor : SceneState.SelectedActors)
+		{
+			Bounds += Actor->GetComponentsBoundingBox(true);
+		}
+		for (UActorComponent* Component : SceneState.SelectedComponents)
+		{
+			if (UPrimitiveComponent* PrimComponent = Cast<UPrimitiveComponent>(Component))
+			{
+				Bounds += PrimComponent->Bounds.GetBox();
+			}
+		}
+		if (Bounds.IsValid)
+		{
+			OutWorldBounds = (FAxisAlignedBox3d)Bounds;
+			OutWorldFrame = FFrame3d(Bounds.GetCenter());
+			return true;
+		}
+	}
+	return false;
+}
+
 
 bool UE::Geometry::SetToolOutputGeometrySelectionForTarget(UInteractiveTool* Tool, UToolTarget* Target, const FGeometrySelection& OutputSelection)
 {

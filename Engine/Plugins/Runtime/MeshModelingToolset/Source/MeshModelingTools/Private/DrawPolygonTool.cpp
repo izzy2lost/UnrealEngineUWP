@@ -33,6 +33,7 @@
 #include "Drawing/MeshDebugDrawing.h"
 
 #include "Selection/SelectClickedAction.h"
+#include "Selection/StoredMeshSelectionUtil.h"
 #include "Selection/ToolSelectionUtil.h"
 #include "ModelingObjectsCreationAPI.h"
 #include "Mechanics/ConstructionPlaneMechanic.h"
@@ -61,6 +62,7 @@ UInteractiveTool* UDrawPolygonToolBuilder::BuildTool(const FToolBuilderState& Sc
 {
 	UDrawPolygonTool* NewTool = NewObject<UDrawPolygonTool>(SceneState.ToolManager);
 	NewTool->SetWorld(SceneState.World);
+	NewTool->SetInitialDrawFrame(ToolSetupUtil::GetDefaultWorldReferenceFrame(SceneState.ToolManager));
 	return NewTool;
 }
 
@@ -109,7 +111,7 @@ void UDrawPolygonTool::Setup()
 	PlaneMechanic->Setup(this);
 	PlaneMechanic->CanUpdatePlaneFunc = [this]() { return AllowDrawPlaneUpdates(); };
 	PlaneMechanic->OnPlaneChanged.AddLambda([this]() { SnapEngine.Plane = PlaneMechanic->Plane; });	// Keep SnapEngine plane up to date with PlaneMechanic's plane
-	PlaneMechanic->Initialize(TargetWorld, FFrame3d());
+	PlaneMechanic->Initialize(TargetWorld, InitialDrawFrame);
 	
 	DragAlignmentMechanic = NewObject<UDragAlignmentMechanic>(this);
 	DragAlignmentMechanic->Setup(this);

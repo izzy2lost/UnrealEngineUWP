@@ -108,6 +108,11 @@ public:
 
 	virtual void OnPropertyModified(UObject* PropertySet, FProperty* Property) override;
 
+	void SetInitialDrawFrame(UE::Geometry::FFrame3d InFrame)
+	{
+		InitialDrawFrame = InFrame;
+	}
+
 protected:
 
 	UWorld* TargetWorld;
@@ -118,6 +123,9 @@ protected:
 	// plane, but the tool turned out to be much easier to write and edit with this decoupling.
 	FVector3d RevolutionAxisOrigin;
 	FVector3d RevolutionAxisDirection;
+
+	// The initial frame, used in tool setup to place the axis
+	UE::Geometry::FFrame3d InitialDrawFrame;
 
 	bool bProfileCurveComplete = false;
 
@@ -147,8 +155,4 @@ protected:
 	void GenerateAsset(const FDynamicMeshOpResult& Result);
 
 	friend class URevolveOperatorFactory;
-
-private:
-	constexpr static double FarDrawPlaneThreshold = 100 * 100;
-	bool bHasFarPlaneWarning = false;
 };
