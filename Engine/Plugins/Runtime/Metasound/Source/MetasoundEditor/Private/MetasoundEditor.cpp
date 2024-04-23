@@ -95,17 +95,6 @@ namespace Metasound
 {
 	namespace Editor
 	{
-		namespace EditorPrivate
-		{
-			int32 UseAudioMaterialWidgets = 0;
-			FAutoConsoleVariableRef CVarUseAudioMaterialWidgets(
-				TEXT("au.MetaSound.Editor.EnableAudioMaterialAnalyzers"),
-				UseAudioMaterialWidgets,
-				TEXT("Are new AudioMaterialWidgets used for visualization for the Metasound Analyzers, if implemented.\n")
-				TEXT("0: Disabled (default), !0: Enabled"),
-				ECVF_Default);
-		}//Metasound::Editor::EditorPrivate
-
 		static const TArray<FText> NodeSectionNames
 		{
 			LOCTEXT("NodeSectionName_Invalid", "INVALID"),
@@ -1267,8 +1256,12 @@ namespace Metasound
 
 					if (!OutputMeter.IsValid())
 					{
+						bool bUseAudioMaterialWidgets = false;
+						if (const UMetasoundEditorSettings* EditorSettings = GetDefault<UMetasoundEditorSettings>())
+						{
+							bUseAudioMaterialWidgets = EditorSettings->bUseAudioMaterialWidgets;
+						}
 
-						bool bUseAudioMaterialWidgets = EditorPrivate::UseAudioMaterialWidgets == 0 ? false : true;
 						OutputMeter = MakeShared<AudioWidgets::FAudioMeter>(MetaSoundSource->NumChannels, AudioDeviceId, nullptr, bUseAudioMaterialWidgets);
 					}
 					else if (OutputMeter->GetAudioBus()->GetNumChannels() != MetaSoundSource->NumChannels)

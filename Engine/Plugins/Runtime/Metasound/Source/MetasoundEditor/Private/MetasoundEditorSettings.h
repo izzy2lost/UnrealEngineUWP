@@ -175,8 +175,13 @@ public:
 	/** Determines which details view to show in Metasounds Editor */
 	UPROPERTY(Transient)
 	EMetasoundActiveDetailView DetailView = EMetasoundActiveDetailView::General;
+
+	/** Whether the AudioMaterialWidgets are used when possible in Metasound Editor*/
+	UPROPERTY(EditAnywhere, config, DisplayName = "Use Audio Material Widgets", Category = MetasoundStyling)
+	bool bUseAudioMaterialWidgets = false;
 	
-	UPROPERTY(EditAnywhere, config, Category = MetasoundStyling, meta = (AllowedClasses = "/Script/SlateCore.SlateWidgetStyleAsset", DisplayName = "Knob Style"))
+	/**Override the Knob Style used in the Metasound Editor.*/
+	UPROPERTY(EditAnywhere, config, Category = MetasoundStyling, meta = (AllowedClasses = "/Script/SlateCore.SlateWidgetStyleAsset", EditCondition = "bUseAudioMaterialWidgets", DisplayName = "Knob Style"))
 	FSoftObjectPath KnobStyleOverride;
 	
 	/** Get the AudioMaterialKnob Style. if KnobStyleOverride is not set, returns default style.*/
