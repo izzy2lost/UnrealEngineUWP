@@ -1273,6 +1273,11 @@ bool FGeometryCollectionEngineConversion::AppendSkeletalMesh(const USkeletalMesh
 	{
 		int32 ComponentTransformIndex = ComponentTransformBaseIndex + ComponentIndex;
 		Parent[ComponentTransformIndex] = RootIndex;
+		if (RootIndex != INDEX_NONE)
+		{
+			Children[RootIndex].Add(ComponentTransformIndex);
+		}
+
 		BoneName[ComponentTransformIndex] = FString::Printf(TEXT("%s_Mesh%d"), *BoneName[RootIndex], ComponentTransformIndex);
 		LocalSpaceTransform[ComponentTransformIndex] = FTransform3f::Identity;
 		SimulationType[ComponentTransformIndex] = FGeometryCollection::ESimulationTypes::FST_None;

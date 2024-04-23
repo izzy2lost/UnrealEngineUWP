@@ -40,41 +40,70 @@ void FCreateTetrahedronDataflowNode::Evaluate(Dataflow::FContext& Context, const
 {
 	if (Out->IsA<DataType>(&Collection))
 	{
-		FFleshCollection GeneratedTetrahedron;
 		TUniquePtr<FFleshCollection> InCollection(GetValue<DataType>(Context, &Collection).NewCopy<FFleshCollection>());
+		TUniquePtr<FFleshCollection> InSourceCollection(GetValue<DataType>(Context, &SourceCollection).NewCopy<FFleshCollection>());
 
 		// TransformGroup
-		int32 NumTransforms = InCollection->NumElements(FTransformCollection::TransformGroup);
-		TManagedArray<FString>* TransformName = InCollection->FindAttribute<FString>("BoneName", FTransformCollection::TransformGroup);
-		TManagedArray<int32>* TransformToGeometryIndex = InCollection->FindAttribute<int32>("TransformToGeometryIndex", FTransformCollection::TransformGroup);
-		const TManagedArray<int32>* Parent = InCollection->FindAttribute<int32>(FTransformCollection::ParentAttribute, FTransformCollection::TransformGroup);
-		const TManagedArray<FTransform3f>* LocalSpaceTransform = InCollection->FindAttribute<FTransform3f>(FTransformCollection::TransformAttribute, FTransformCollection::TransformGroup);
+		int32 NumTransforms = InSourceCollection->NumElements(FTransformCollection::TransformGroup);
+		TManagedArray<FString>* TransformName = InSourceCollection->FindAttribute<FString>("BoneName", FTransformCollection::TransformGroup);
+		TManagedArray<int32>* TransformToGeometryIndex = InSourceCollection->FindAttribute<int32>("TransformToGeometryIndex", FTransformCollection::TransformGroup);
+		const TManagedArray<int32>* Parent = InSourceCollection->FindAttribute<int32>(FTransformCollection::ParentAttribute, FTransformCollection::TransformGroup);
+		const TManagedArray<FTransform3f>* LocalSpaceTransform = InSourceCollection->FindAttribute<FTransform3f>(FTransformCollection::TransformAttribute, FTransformCollection::TransformGroup);
 		// Geometry Group
-		int32 NumGeometry = InCollection->NumElements(FGeometryCollection::GeometryGroup);
-		TManagedArray<int32>* GroupToTransformIndex = InCollection->FindAttribute<int32>("TransformIndex", FGeometryCollection::GeometryGroup);
-		TManagedArray<int32>* VertexCount = InCollection->FindAttribute<int32>("VertexCount", FGeometryCollection::GeometryGroup);
-		TManagedArray<int32>* VertexStart = InCollection->FindAttribute<int32>("VertexStart", FGeometryCollection::GeometryGroup);
-		TManagedArray<int32>* FaceCount = InCollection->FindAttribute<int32>("FaceCount", FGeometryCollection::GeometryGroup);
-		TManagedArray<int32>* FaceStart = InCollection->FindAttribute<int32>("FaceStart", FGeometryCollection::GeometryGroup);
+		int32 NumGeometry = InSourceCollection->NumElements(FGeometryCollection::GeometryGroup);
+		TManagedArray<int32>* GroupToTransformIndex = InSourceCollection->FindAttribute<int32>("TransformIndex", FGeometryCollection::GeometryGroup);
+		TManagedArray<int32>* VertexCount = InSourceCollection->FindAttribute<int32>("VertexCount", FGeometryCollection::GeometryGroup);
+		TManagedArray<int32>* VertexStart = InSourceCollection->FindAttribute<int32>("VertexStart", FGeometryCollection::GeometryGroup);
+		TManagedArray<int32>* FaceCount = InSourceCollection->FindAttribute<int32>("FaceCount", FGeometryCollection::GeometryGroup);
+		TManagedArray<int32>* FaceStart = InSourceCollection->FindAttribute<int32>("FaceStart", FGeometryCollection::GeometryGroup);
 
 		// Vertices Group
-		int32 NumVertices = InCollection->NumElements(FGeometryCollection::VerticesGroup);
-		const TManagedArray<FVector3f>* Vertex = InCollection->FindAttribute<FVector3f>("Vertex", FGeometryCollection::VerticesGroup);
+		int32 NumVertices = InSourceCollection->NumElements(FGeometryCollection::VerticesGroup);
+		const TManagedArray<FVector3f>* Vertex = InSourceCollection->FindAttribute<FVector3f>("Vertex", FGeometryCollection::VerticesGroup);
 		// Faces Group
-		int32 NumTriangles = InCollection->NumElements(FGeometryCollection::FacesGroup);
-		const TManagedArray<FIntVector>* Faces = InCollection->FindAttribute<FIntVector>("Indices", FGeometryCollection::FacesGroup);
+		int32 NumTriangles = InSourceCollection->NumElements(FGeometryCollection::FacesGroup);
+		const TManagedArray<FIntVector>* Faces = InSourceCollection->FindAttribute<FIntVector>("Indices", FGeometryCollection::FacesGroup);
 
 		if (TransformName && TransformToGeometryIndex && Parent && LocalSpaceTransform &&
 			GroupToTransformIndex && VertexCount && VertexStart && FaceCount && FaceStart
 			&& Vertex && Faces)
 		{
-			TArray<int32> ProcessGeometryIndices = Dataflow::GetMatchingMeshIndices(MeshNames, InCollection.Get());
+			auto GetParentIndex = [&InCollection, &InSourceCollection](int32 Gdx)
+			{
+				if (Gdx >= 0)
+				{
+					TManagedArray<FString>* SourceTransformName = InSourceCollection->FindAttribute<FString>("BoneName", FTransformCollection::TransformGroup);
+					TManagedArray<FString>* TransformName = InCollection->FindAttribute<FString>("BoneName", FTransformCollection::TransformGroup);
+					TManagedArray<int32>* SourceGroupToTransformIndex = InSourceCollection->FindAttribute<int32>("TransformIndex", FGeometryCollection::GeometryGroup);
+					TManagedArray<int32>* GroupToTransformIndex = InCollection->FindAttribute<int32>("TransformIndex", FGeometryCollection::GeometryGroup);
+					TManagedArray<int32>* ParentIndex = InCollection->FindAttribute<int32>("Parent", FGeometryCollection::TransformGroup);
+					if (SourceTransformName && TransformName && SourceGroupToTransformIndex && GroupToTransformIndex && ParentIndex)
+					{
+						if (Gdx < SourceGroupToTransformIndex->Num() && Gdx < GroupToTransformIndex->Num())
+						{
+							int32 SrcTdx = (*SourceGroupToTransformIndex)[Gdx], Tdx = (*GroupToTransformIndex)[Gdx];
+							if (0 <= SrcTdx && SrcTdx < SourceTransformName->Num() && 0 <= Tdx && Tdx < TransformName->Num())
+							{
+								if ((*SourceTransformName)[SrcTdx].Equals((*TransformName)[Tdx]))
+								{
+									return (*ParentIndex)[Tdx];
+								}
+							}
+						}
+					}
+				}
+				return (int32)INDEX_NONE;
+			};
+
+			TArray<int32> ProcessGeometryIndices = Dataflow::GetMatchingMeshIndices(Selection, InSourceCollection.Get());
 
 			TArray<TUniquePtr<FFleshCollection>> CollectionBuffer;
 			for (int32 Gdx = 0; Gdx < NumGeometry; Gdx++)
 			{
-				if (ProcessGeometryIndices.Contains(Gdx)) 
-					CollectionBuffer.Add(TUniquePtr<FFleshCollection>( new FFleshCollection()));
+				if (ProcessGeometryIndices.Contains(Gdx))
+				{
+					CollectionBuffer.Add(TUniquePtr<FFleshCollection>(new FFleshCollection()));
+				}
 				else 
 					CollectionBuffer.Add(nullptr);
 			}
@@ -113,14 +142,29 @@ void FCreateTetrahedronDataflowNode::Evaluate(Dataflow::FContext& Context, const
 				}
 			});
 
-			auto AppendProcessedGeometry = [&ProcessGeometryIndices, &CollectionBuffer, &InCollection](FFleshCollection& ToCollection)
+			auto AppendProcessedGeometry = [&ProcessGeometryIndices, &CollectionBuffer, &InSourceCollection](FFleshCollection& ToCollection)
 			{
-				TManagedArray<int32>* SourceGroupToTransformIndex = InCollection->FindAttribute<int32>("TransformIndex", FGeometryCollection::GeometryGroup);
-				TManagedArray<FString>* SourceTransformName = InCollection->FindAttribute<FString>("BoneName", FTransformCollection::TransformGroup);
-				TManagedArray<int32>* ToGroupToTransformIndex = ToCollection.FindAttribute<int32>("TransformIndex", FGeometryCollection::GeometryGroup);
-				TManagedArray<FString>* ToTransformName = ToCollection.FindAttribute<FString>("BoneName", FTransformCollection::TransformGroup);
+				// find the index in the to transform group based on name
+				auto FindParentIndexFromName = [](FFleshCollection& fpColllection, FString fpName) 
+				{
+					if (!fpName.IsEmpty())
+					{
+						const TManagedArray<FString>& Names = fpColllection.GetAttribute<FString>("BoneName", FTransformCollection::TransformGroup);
+						for (int32 i = 0; i < Names.Num(); i++) if (Names[i].Equals(fpName)) return i;
+					}
+					return (int32)INDEX_NONE;
+				};
 
-				if (SourceGroupToTransformIndex && SourceTransformName && ToGroupToTransformIndex && ToTransformName)
+				TManagedArray<int32>* SourceGroupToTransformIndex = InSourceCollection->FindAttribute<int32>("TransformIndex", FGeometryCollection::GeometryGroup);
+				TManagedArray<FString>* SourceTransformName = InSourceCollection->FindAttribute<FString>("BoneName", FTransformCollection::TransformGroup);
+				TManagedArray<int32>* SourceParentIndex = InSourceCollection->FindAttribute<int32>("Parent", FTransformCollection::TransformGroup);
+				TManagedArray<int32>* ToGroupToTransformIndex = ToCollection.FindAttribute<int32>("TransformIndex", FGeometryCollection::GeometryGroup);
+				TManagedArray<int32>* TransformToGroupIndex = ToCollection.FindAttribute<int32>("TransformToGeometryIndex", FTransformCollection::TransformGroup);
+				TManagedArray<FString>* ToTransformName = ToCollection.FindAttribute<FString>("BoneName", FTransformCollection::TransformGroup);
+				TManagedArray<int32>* ToParentIndex = ToCollection.FindAttribute<int32>("Parent", FTransformCollection::TransformGroup);
+				TManagedArray<TSet<int32> >* ToChildIndex = ToCollection.FindAttribute< TSet<int32> >(FTransformCollection::ChildrenAttribute, FTransformCollection::TransformGroup);
+
+				if (SourceGroupToTransformIndex && SourceTransformName && ToGroupToTransformIndex && ToTransformName && ToParentIndex && SourceParentIndex && ToChildIndex)
 				{
 					for (int32 Sdx = 0; Sdx < ProcessGeometryIndices.Num(); Sdx++)
 					{
@@ -130,8 +174,10 @@ void FCreateTetrahedronDataflowNode::Evaluate(Dataflow::FContext& Context, const
 							int32 GeomIndex = ToCollection.NumElements(FGeometryCollection::GeometryGroup);
 							ToCollection.AppendGeometry(*CollectionBuffer[Gdx]);
 							// source data
-							int32 SourceNumTransforms = InCollection->NumElements(FGeometryCollection::TransformGroup);
+							int32 SourceNumTransforms = InSourceCollection->NumElements(FGeometryCollection::TransformGroup);
 							int32 SourceTransformIndex = (*SourceGroupToTransformIndex)[Gdx];
+							int32 SourceTransformParent = (0 <= SourceTransformIndex && SourceTransformIndex < SourceNumTransforms) ? (*SourceParentIndex)[SourceTransformIndex] : INDEX_NONE;
+							FString SourceParentName = (0 <= SourceTransformParent && SourceTransformParent < SourceNumTransforms) ? (*SourceTransformName)[SourceTransformParent] : FString("");
 							// target data
 							int32 ToNumTransforms = ToCollection.NumElements(FGeometryCollection::TransformGroup);
 							int32 ToGeomTransformIndex = (*ToGroupToTransformIndex)[GeomIndex];
@@ -146,15 +192,25 @@ void FCreateTetrahedronDataflowNode::Evaluate(Dataflow::FContext& Context, const
 							}
 							if (0 <= ToGeomTransformIndex && ToGeomTransformIndex < ToNumTransforms)
 							{
+								// set the name
 								(*ToTransformName)[ToGeomTransformIndex] = TetName;
+								// set transform to geometry and geometry to transform mappings
+								(*TransformToGroupIndex)[ToGeomTransformIndex] = GeomIndex;
+								(*ToGroupToTransformIndex)[GeomIndex] = ToGeomTransformIndex;
+								// set the parent and child mappings
+								(*ToParentIndex)[ToGeomTransformIndex] = FindParentIndexFromName(ToCollection, SourceParentName);
+								if ((*ToParentIndex)[ToGeomTransformIndex] != INDEX_NONE)
+								{
+									(*ToChildIndex)[(*ToParentIndex)[ToGeomTransformIndex]].Add(ToGeomTransformIndex);
+								}
 							}
 						}
 					}
 				}
 			};
-			AppendProcessedGeometry(GeneratedTetrahedron);
+			AppendProcessedGeometry(*InCollection);
 		}
-		SetValue<const DataType&>(Context, MoveTemp(GeneratedTetrahedron), &Collection);
+		SetValue<const DataType&>(Context, *InCollection, &Collection);
 	}
 }
 

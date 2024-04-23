@@ -27,19 +27,24 @@ struct FCreateTetrahedronDataflowNode : public FDataflowNode
 public:
 	typedef FManagedArrayCollection DataType;
 
+	// Tetrahedral meshing method (TetWild or ISO-stuffing)
 	UPROPERTY(EditAnywhere, Category = "Dataflow")
 	TEnumAsByte<TetMeshingMethod> Method = TetMeshingMethod::IsoStuffing;
 
+	// Name of the mesh in the collection. This is defined from the name of the mesh's
+	// parent transform. CollectionKey("BoneName","Vertices") 
 	UPROPERTY(EditAnywhere, Category = "Dataflow")
-	TArray<FString> MeshNames;
+	TArray<FString> Selection;
 
 	//
 	// IsoStuffing
 	//
 
+	// General control for density for the tetrahedron. 
 	UPROPERTY(EditAnywhere, Category = "Dataflow", meta = (ClampMin = "1", EditCondition = "Method == TetMeshingMethod::IsoStuffing", EditConditionHides))
 	int32 NumCells = 32;
 
+	// Surface offset percentage to increase or decrease the surface alignment. 
 	UPROPERTY(EditAnywhere, Category = "Dataflow", meta = (ClampMin = "-0.5", ClampMax = "0.5", EditCondition = "Method == TetMeshingMethod::IsoStuffing", EditConditionHides))
 	double OffsetPercent = 0.05;
 
@@ -85,14 +90,22 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Dataflow")
 	bool bDiscardInteriorTriangles = true;
 
+	// Input pass-through collection. When connected, the generated tetrahedron will be nested into
+	// its associated parents transform.
 	UPROPERTY(meta = (DataflowInput, DataflowOutput, DisplayName = "Collection"))
 	FManagedArrayCollection Collection;
+
+	// Source collection used to generate the tetrahedron from. Closed geometry within the collections geometry group will be used to 
+	// generate tetrahedron.
+	UPROPERTY(meta = (DataflowInput, DisplayName = "SourceCollection"))
+	FManagedArrayCollection SourceCollection;
 
 	FCreateTetrahedronDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&Collection);
 		RegisterOutputConnection(&Collection);
+		RegisterInputConnection(&SourceCollection);
 	}
 
 	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
