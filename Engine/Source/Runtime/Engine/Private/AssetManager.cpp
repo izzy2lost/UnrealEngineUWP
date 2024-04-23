@@ -1758,7 +1758,7 @@ TSharedPtr<FStreamableHandle> UAssetManager::ChangeBundleStateForPrimaryAssets(c
 				continue;
 			}
 
-			TSet<FSoftObjectPath> PathsToLoad;
+			TArray<FSoftObjectPath> PathsToLoad;
 
 			// Gather asset refs
 			const FSoftObjectPath& AssetPath = NameData->GetAssetPtr().ToSoftObjectPath();
@@ -1777,7 +1777,7 @@ TSharedPtr<FStreamableHandle> UAssetManager::ChangeBundleStateForPrimaryAssets(c
 				{
 					for (const FTopLevelAssetPath & Path : Entry.AssetPaths)
 					{
-						PathsToLoad.Emplace(FSoftObjectPath(Path));
+						PathsToLoad.AddUnique(FSoftObjectPath(Path));
 					}
 				}
 				else
@@ -1815,7 +1815,7 @@ TSharedPtr<FStreamableHandle> UAssetManager::ChangeBundleStateForPrimaryAssets(c
 				DebugName << TEXT(")");
 			}
 
-			NewHandle = LoadAssetList(PathsToLoad.Array(), FStreamableDelegate(), Priority, FString(DebugName.Len(), DebugName.ToString()));
+			NewHandle = LoadAssetList(MoveTemp(PathsToLoad), FStreamableDelegate(), Priority, FString(DebugName.Len(), DebugName.ToString()));
 
 			if (!NewHandle.IsValid())
 			{
@@ -1905,7 +1905,7 @@ TSharedPtr<FStreamableHandle> UAssetManager::ChangeBundleStateForMatchingPrimary
 	return nullptr;
 }
 
-bool UAssetManager::GetPrimaryAssetLoadSet(TSet<FSoftObjectPath>& OutAssetLoadSet, const FPrimaryAssetId& PrimaryAssetId, const TArray<FName>& LoadBundles, bool bLoadRecursive) const
+bool UAssetManager::GetPrimaryAssetLoadSet(TArray<FSoftObjectPath>& OutAssetLoadSet, const FPrimaryAssetId& PrimaryAssetId, const TArray<FName>& LoadBundles, bool bLoadRecursive) const
 {
 	const FPrimaryAssetData* NameData = GetNameData(PrimaryAssetId);
 	if (NameData)
@@ -1915,7 +1915,7 @@ bool UAssetManager::GetPrimaryAssetLoadSet(TSet<FSoftObjectPath>& OutAssetLoadSe
 		if (!AssetPath.IsNull())
 		{
 			// Dynamic types can have no base asset path
-			OutAssetLoadSet.Add(AssetPath);
+			OutAssetLoadSet.AddUnique(AssetPath);
 		}
 
 		// Construct a temporary bundle data with the bundles specified
@@ -1939,7 +1939,7 @@ bool UAssetManager::GetPrimaryAssetLoadSet(TSet<FSoftObjectPath>& OutAssetLoadSe
 		{
 			for (const FTopLevelAssetPath& Path : Entry.AssetPaths)
 			{
-				OutAssetLoadSet.Emplace(FSoftObjectPath(Path));
+				OutAssetLoadSet.AddUnique(FSoftObjectPath(Path));
 			}
 		}
 	}
@@ -1952,7 +1952,7 @@ bool UAssetManager::GetPrimaryAssetLoadSet(TSet<FSoftObjectPath>& OutAssetLoadSe
 
 TSharedPtr<FStreamableHandle> UAssetManager::PreloadPrimaryAssets(const TArray<FPrimaryAssetId>& AssetsToLoad, const TArray<FName>& LoadBundles, bool bLoadRecursive, FStreamableDelegate DelegateToCall, TAsyncLoadPriority Priority)
 {
-	TSet<FSoftObjectPath> PathsToLoad;
+	TArray<FSoftObjectPath> PathsToLoad;
 	TStringBuilder<256> DebugValid;
 	TStringBuilder<256> DebugInvalid;
 	TSharedPtr<FStreamableHandle> ReturnHandle;
@@ -1986,7 +1986,7 @@ TSharedPtr<FStreamableHandle> UAssetManager::PreloadPrimaryAssets(const TArray<F
 		}
 	}
 
-	ReturnHandle = LoadAssetList(PathsToLoad.Array(), MoveTemp(DelegateToCall), Priority, FString(*DebugValid));
+	ReturnHandle = LoadAssetList(MoveTemp(PathsToLoad), MoveTemp(DelegateToCall), Priority, FString(*DebugValid));
 
 	if (DebugInvalid.Len() > 0)
 	{
@@ -2198,7 +2198,7 @@ int32 UAssetManager::UnloadPrimaryAssetsWithType(FPrimaryAssetType PrimaryAssetT
 	return UnloadPrimaryAssets(Assets);
 }
 
-TSharedPtr<FStreamableHandle> UAssetManager::LoadAssetList(const TArray<FSoftObjectPath>& AssetList, FStreamableDelegate DelegateToCall, TAsyncLoadPriority Priority, const FString& DebugName)
+TSharedPtr<FStreamableHandle> UAssetManager::LoadAssetList(TArray<FSoftObjectPath> AssetList, FStreamableDelegate DelegateToCall, TAsyncLoadPriority Priority, const FString& DebugName)
 {
 	TSharedPtr<FStreamableHandle> NewHandle;
 	TArray<int32> MissingChunks, ErrorChunks;
@@ -2218,12 +2218,12 @@ TSharedPtr<FStreamableHandle> UAssetManager::LoadAssetList(const TArray<FSoftObj
 	// SynchronousLoad doesn't make sense if chunks are missing
 	if (bShouldUseSynchronousLoad && MissingChunks.Num() == 0)
 	{
-		NewHandle = StreamableManager.RequestSyncLoad(AssetList, false, DebugName);
+		NewHandle = StreamableManager.RequestSyncLoad(MoveTemp(AssetList), false, DebugName);
 		FStreamableHandle::ExecuteDelegate(MoveTemp(DelegateToCall));
 	}
 	else
 	{
-		NewHandle = StreamableManager.RequestAsyncLoad(AssetList, MoveTemp(DelegateToCall), Priority, false, MissingChunks.Num() > 0, DebugName);
+		NewHandle = StreamableManager.RequestAsyncLoad(MoveTemp(AssetList), MoveTemp(DelegateToCall), Priority, false, MissingChunks.Num() > 0, DebugName);
 
 		if (MissingChunks.Num() > 0 && NewHandle.IsValid())
 		{

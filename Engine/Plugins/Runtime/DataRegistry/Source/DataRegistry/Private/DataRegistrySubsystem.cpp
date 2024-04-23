@@ -318,13 +318,13 @@ void UDataRegistrySubsystem::LoadAllRegistries()
 	// Now add to map or update as needed
 	for (FAssetData& Data : AssetDataList)
 	{
-		PathsToLoad.Add(AssetManager.GetAssetPathForData(Data));
+		PathsToLoad.AddUnique(AssetManager.GetAssetPathForData(Data));
 	}
 
 	if (PathsToLoad.Num() > 0)
 	{
 		// Do as one async bulk load, faster in cooked builds
-		TSharedPtr<FStreamableHandle> LoadHandle = AssetManager.LoadAssetList(PathsToLoad);
+		TSharedPtr<FStreamableHandle> LoadHandle = AssetManager.LoadAssetList(MoveTemp(PathsToLoad));
 
 		if (LoadHandle.IsValid())
 		{
