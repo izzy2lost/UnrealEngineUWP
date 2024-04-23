@@ -58,7 +58,7 @@ struct dtTileCacheLayer
 
 struct dtTileCacheContour
 {
-	unsigned short* verts;
+	unsigned short* verts;	///< x, y, z, portal direction.
 	int nverts;
 	unsigned short reg;
 	unsigned char area;
@@ -277,7 +277,8 @@ NAVMESH_API dtStatus dtBuildTileCacheContours(dtTileCacheAlloc* alloc,
 NAVMESH_API dtStatus dtBuildTileCachePolyMesh(dtTileCacheAlloc* alloc,
 								dtTileCacheLogContext* ctx,
 								dtTileCacheContourSet& lcset,
-								dtTileCachePolyMesh& mesh);
+								dtTileCachePolyMesh& mesh,
+								const int walkableClimb);
 
 //@UE BEGIN
 NAVMESH_API dtStatus dtBuildTileCachePolyMeshDetail(dtTileCacheAlloc* alloc,

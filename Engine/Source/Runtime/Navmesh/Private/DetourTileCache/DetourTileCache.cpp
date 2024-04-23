@@ -718,7 +718,7 @@ dtStatus dtTileCache::buildNavMeshTile(const dtCompressedTileRef ref, dtNavMesh*
 	bc.lmesh = dtAllocTileCachePolyMesh(m_talloc);
 	if (!bc.lmesh)
 		return status;
-	status = dtBuildTileCachePolyMesh(m_talloc, 0, *bc.lcset, *bc.lmesh);
+	status = dtBuildTileCachePolyMesh(m_talloc, 0, *bc.lcset, *bc.lmesh, m_params.walkableClimb);
 	if (dtStatusFailed(status))
 		return status;
 	
