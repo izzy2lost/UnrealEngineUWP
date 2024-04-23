@@ -359,34 +359,17 @@ public:
 			return Allocation ? Allocation->GetIntermediateAccumulatedTangentBuffer() : nullptr;
 		}
 
-		FSkinCacheRWBuffer* Advance(const FVertexBufferAndSRV& BoneBuffer1, uint32 Revision1, const FVertexBufferAndSRV& BoneBuffer2, uint32 Revision2)
+		// Allocates an element that's not the "Used" element passed in (or if Used is NULL, allocates any element).  Optionally adds element to "AllocatedItems" if non-null.
+		FSkinCacheRWBuffer* AllocateUnused(const FVertexBufferAndSRV& BoneBuffer, uint32 Revision, const FSkinCacheRWBuffer* Used, TArray<FSkinCacheRWBuffer*>* AllocatedItems)
 		{
-			FSkinCacheRWBuffer* Result = nullptr;
-			const FVertexBufferAndSRV* InBoneBuffers[2] = { &BoneBuffer1 , &BoneBuffer2 };
-			uint32 InRevisions[2] = { Revision1 , Revision2 };
+			int32 UnusedIndex = Used == &Allocation->PositionBuffers[0] ? 1 : 0;
+			Revisions[UnusedIndex] = Revision;
+			BoneBuffers[UnusedIndex] = &BoneBuffer;
 
-			for (int32 Index = 0; Index < NUM_BUFFERS; ++Index)
+			FSkinCacheRWBuffer* Result = &Allocation->PositionBuffers[UnusedIndex];
+			if (AllocatedItems)
 			{
-				bool Needed = false;
-				for (int32 i = 0; i < 2; ++i)
-				{
-					if (Revisions[Index] == InRevisions[i] && BoneBuffers[Index] == InBoneBuffers[i])
-					{
-						if (i == 0)
-						{
-							Result = &Allocation->PositionBuffers[Index];
-						}
-						Needed = true;
-					}
-				}
-
-				if (!Needed)
-				{
-					Revisions[Index] = Revision1;
-					BoneBuffers[Index] = &BoneBuffer1;
-					Result = &Allocation->PositionBuffers[Index];
-					break;
-				}
+				AllocatedItems->Add(Result);
 			}
 			return Result;
 		}

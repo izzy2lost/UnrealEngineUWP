@@ -1999,47 +1999,21 @@ void FGPUSkinCache::PrepareUpdateSkinning(FGPUSkinCacheEntry* Entry, int32 Secti
 
 	DispatchData.DispatchFlags = 0;
 
-	auto BufferUpdate = [&DispatchData, OverlappedUAVs](
-		FSkinCacheRWBuffer*& PositionBuffer,
-		const FVertexBufferAndSRV& BoneBuffer, 
-		uint32 Revision,
-		const FVertexBufferAndSRV& PrevBoneBuffer,
-		uint32 PrevRevision,
-		uint32 UpdateFlag
-		)
+	// Find existing buffers
+	DispatchData.PositionBuffer = DispatchData.PositionTracker.Find(BoneBuffer, CurrentRevision);
+	DispatchData.PreviousPositionBuffer = DispatchData.PositionTracker.Find(PrevBoneBuffer, PreviousRevision);
+
+	// Allocate buffers if not found, excluding buffers already in use.  Or make the current buffer distinct if it happens to equal previous.
+	if (!DispatchData.PositionBuffer || DispatchData.PositionBuffer == DispatchData.PreviousPositionBuffer)
 	{
-		PositionBuffer = DispatchData.PositionTracker.Find(BoneBuffer, Revision);
-		if (!PositionBuffer)
-		{
-			PositionBuffer = DispatchData.PositionTracker.Advance(BoneBuffer, Revision, PrevBoneBuffer, PrevRevision);
-			check(PositionBuffer);
-
-			DispatchData.DispatchFlags |= UpdateFlag;
-
-			if (OverlappedUAVs)
-			{
-				(*OverlappedUAVs).Add(PositionBuffer);
-			}
-		}
-	};
-
-	BufferUpdate(
-		DispatchData.PreviousPositionBuffer,
-		PrevBoneBuffer,
-		PreviousRevision,
-		BoneBuffer,
-		CurrentRevision,
-		(uint32)EGPUSkinCacheDispatchFlags::DispatchPrevPosition
-		);
-
-	BufferUpdate(
-		DispatchData.PositionBuffer, 
-		BoneBuffer, 
-		CurrentRevision, 
-		PrevBoneBuffer, 
-		PreviousRevision, 
-		(uint32)EGPUSkinCacheDispatchFlags::DispatchPosition
-		);
+		DispatchData.PositionBuffer = DispatchData.PositionTracker.AllocateUnused(BoneBuffer, CurrentRevision, DispatchData.PreviousPositionBuffer, OverlappedUAVs);
+		DispatchData.DispatchFlags |= (uint32)EGPUSkinCacheDispatchFlags::DispatchPosition;
+	}
+	if (!DispatchData.PreviousPositionBuffer)
+	{
+		DispatchData.PreviousPositionBuffer = DispatchData.PositionTracker.AllocateUnused(PrevBoneBuffer, PreviousRevision, DispatchData.PositionBuffer, OverlappedUAVs);
+		DispatchData.DispatchFlags |= (uint32)EGPUSkinCacheDispatchFlags::DispatchPrevPosition;
+	}
 
 	DispatchData.TangentBuffer = DispatchData.PositionTracker.GetTangentBuffer();
 	DispatchData.IntermediateTangentBuffer = DispatchData.PositionTracker.GetIntermediateTangentBuffer();
