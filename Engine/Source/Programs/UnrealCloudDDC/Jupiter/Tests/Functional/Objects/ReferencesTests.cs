@@ -98,6 +98,7 @@ namespace Jupiter.FunctionalTests.References
 			{
 				new KeyValuePair<string, string?>("UnrealCloudDDC:ReferencesDbImplementation", UnrealCloudDDCSettings.ReferencesDbImplementations.Scylla.ToString()),
 				new KeyValuePair<string, string?>("UnrealCloudDDC:ContentIdStoreImplementation", UnrealCloudDDCSettings.ContentIdStoreImplementations.Scylla.ToString()),
+				new KeyValuePair<string, string?>("UnrealCloudDDC:BlobIndexImplementation", UnrealCloudDDCSettings.BlobIndexImplementations.Scylla.ToString()),
 				new KeyValuePair<string, string?>("UnrealCloudDDC:ReplicationLogWriterImplementation", UnrealCloudDDCSettings.ReplicationLogWriterImplementations.Scylla.ToString()),
 				new KeyValuePair<string, string?>("Scylla:ConnectionString", "Contact Points=localhost,scylla;Default Keyspace=jupiter_cassandra"),
 				new KeyValuePair<string, string?>("Scylla:UseAzureCosmosDB", "true"),
