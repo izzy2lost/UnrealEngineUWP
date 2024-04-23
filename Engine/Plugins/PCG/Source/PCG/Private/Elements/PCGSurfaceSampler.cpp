@@ -466,12 +466,8 @@ bool FPCGSurfaceSamplerElement::PrepareDataInternal(FPCGContext* InContext) cons
 			// If local bounds exists, apply the transform without rotation to get into grid sampling space
 			if (EffectiveGridBounds.IsValid)
 			{
-				// Remove rotation as we don't want to shear an AABB.
-				FTransform NoRotTransform(GeneratingShape->GetTransform());
-				NoRotTransform.SetRotation(FQuat::Identity);
-
 				// Transport the box into semi-local 2D space, where we can get the deterministic grid samples
-				EffectiveGridBounds = EffectiveGridBounds.TransformBy(NoRotTransform);
+				EffectiveGridBounds = PCGHelpers::OverlapBounds(EffectiveGridBounds.TransformBy(GeneratingShape->GetTransform()), BoundingShapeBounds);
 			}
 			else // If no local bounds, try to use the generating shape's bounds
 			{

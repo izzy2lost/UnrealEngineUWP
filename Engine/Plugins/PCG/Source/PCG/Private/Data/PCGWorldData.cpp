@@ -373,7 +373,7 @@ bool UPCGWorldRayHitData::SamplePoint(const FTransform& InTransform, const FBox&
 		if (QueryParams.bIgnoreBackfaceHits)
 		{
 			// If its a landscape, we cull if the normal is negative in Z direction (landscape normal is always the +Z axis). If not, then we cull if the impact normal and the ray are headed in the same direction
-			if ((bHitOnLandscape && Hit.ImpactNormal.Z < 0) || (QueryParams.RayDirection).Dot(Hit.ImpactNormal) > 0)
+			if (Hit.bStartPenetrating || (bHitOnLandscape && Hit.ImpactNormal.Z < 0) || (QueryParams.RayDirection).Dot(Hit.ImpactNormal) > 0)
 			{
 				continue;
 			}
