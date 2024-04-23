@@ -28,6 +28,11 @@ namespace Chaos
 			{
 			}
 
+			~FScratchBuffer()
+			{
+				DestroyBuffer();
+			}
+
 			size_t BufferSize() const
 			{
 				// NOTE: this size does not include the sentinel
