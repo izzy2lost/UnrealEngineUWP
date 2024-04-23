@@ -234,7 +234,7 @@ bool FStateTreeExecutionContext::SetContextDataByName(const FName Name, FStateTr
 	return false;
 }
 
-EStateTreeRunStatus FStateTreeExecutionContext::Start(const FInstancedPropertyBag* InitialParameters)
+EStateTreeRunStatus FStateTreeExecutionContext::Start(const FInstancedPropertyBag* InitialParameters, int32 RandomSeed)
 {
 	CSV_SCOPED_TIMING_STAT_EXCLUSIVE(StateTree_Start);
 
@@ -274,6 +274,7 @@ EStateTreeRunStatus FStateTreeExecutionContext::Start(const FInstancedPropertyBa
 	InitFrame.bIsGlobalFrame = true;
 	
 	UpdateInstanceData({}, Exec.ActiveFrames);
+	Exec.RandomStream.Initialize(RandomSeed == -1 ? FPlatformTime::Cycles() : RandomSeed);
 
 	if (!CollectActiveExternalData())
 	{
@@ -3858,7 +3859,7 @@ bool FStateTreeExecutionContext::SelectStateInternal(
 				for (uint32 Index = 0; Index < LastIndex; ++Index)
 				{
 					// Get a random integer in [Index, Num)
-					const uint32 IndexToSwap = InstanceDataStorage->GetRandomStream().RandRange(Index, LastIndex);
+					const uint32 IndexToSwap = Exec.RandomStream.RandRange(Index, LastIndex);
 					RandomChildStates.Swap(Index, IndexToSwap);
 				}
 

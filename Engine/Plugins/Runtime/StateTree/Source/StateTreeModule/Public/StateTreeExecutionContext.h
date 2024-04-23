@@ -142,9 +142,10 @@ public:
 	/**
 	 * Start executing.
 	 * @param InitialParameters Optional override of parameters initial values
+	 * @param RandomSeed Optional override of initial seed for RandomStream. By default FPlatformTime::Cycles() will be used.
 	 * @return Tree execution status after the start.
 	 */
-	EStateTreeRunStatus Start(const FInstancedPropertyBag* InitialParameters = nullptr);
+	EStateTreeRunStatus Start(const FInstancedPropertyBag* InitialParameters = nullptr, int32 RandomSeed = -1);
 	
 	/**
 	 * Stop executing if the tree is running.

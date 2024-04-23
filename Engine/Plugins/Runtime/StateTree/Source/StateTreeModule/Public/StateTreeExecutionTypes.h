@@ -626,6 +626,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		CurrentPhase = EStateTreeUpdatePhase::Unset;
 		CompletedStateHandle = FStateTreeStateHandle::Invalid;
 		StateChangeCount = 0;
+		RandomStream.Reset();
 	}
 
 	UE_DEPRECATED(5.5, "Use FindAndRemoveExpiredDelayedTransitions() instead or search through DelayedTransitions directly.")
@@ -694,6 +695,10 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	/** Number of times a new state has been changed. */
 	UPROPERTY()
 	uint16 StateChangeCount = 0;
+
+	/** Used by state tree random-based operations. */
+	UPROPERTY()
+	FRandomStream RandomStream;
 
 #if WITH_EDITORONLY_DATA
 	UE_DEPRECATED(5.3, "Use DataHandle instead.")

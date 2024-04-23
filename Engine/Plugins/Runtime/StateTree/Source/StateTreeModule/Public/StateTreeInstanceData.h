@@ -239,15 +239,6 @@ struct STATETREEMODULE_API FStateTreeInstanceStorage
 	/** Resets the storage to initial state. */
 	void Reset();
 	
-	/** Update seed for the RandomStream used by state tree random-based operations. */
-	void SetRandomSeed(int32 Seed);
-
-	/** @return RandomStream used by state tree random-based operations. */
-	const FRandomStream& GetRandomStream() const
-	{
-		return RandomStream;
-	}
-
 	UE_DEPRECATED(5.4, "Use Num() instead.")
 	int32 NumStructs() const { return 0; }
 
@@ -286,10 +277,6 @@ protected:
 	/** Global parameters */
 	UPROPERTY(Transient)
 	FInstancedPropertyBag GlobalParameters;
-
-	/** Used by state tree random-based operations. By Default it is initialized with seed 0 */
-	UPROPERTY()
-	FRandomStream RandomStream;
 
 	friend struct FStateTreeInstanceData;
 };
@@ -425,15 +412,6 @@ struct STATETREEMODULE_API FStateTreeInstanceData
 
 	int32 GetEstimatedMemoryUsage() const;
 	
-	/** @return RandomStream used by state tree random-based operations. */
-	const FRandomStream& GetRandomStream() const
-	{
-		return GetStorage().GetRandomStream();
-	}
-
-	/** Update seed for the RandomStream used by state tree random-based operations. */
-	void SetRandomSeed(int32 Seed);
-
 	/** Type traits */
 	bool Identical(const FStateTreeInstanceData* Other, uint32 PortFlags) const;
 	void AddStructReferencedObjects(FReferenceCollector& Collector);
