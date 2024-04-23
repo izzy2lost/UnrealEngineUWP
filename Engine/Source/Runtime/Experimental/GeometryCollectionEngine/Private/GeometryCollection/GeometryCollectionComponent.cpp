@@ -4959,6 +4959,7 @@ void UGeometryCollectionComponent::SetRestCollection(const UGeometryCollection* 
 		{
 			UnregisterCustomRenderer();
 			RegisterCustomRenderer();
+			RefreshCustomRenderer();
 		}
 
 		ClearRootProxyLocalTransforms();
