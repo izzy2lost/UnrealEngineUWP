@@ -3243,7 +3243,20 @@ bool UGameplayStatics::DeprojectScreenToWorld(APlayerController const* Player, c
 
 bool UGameplayStatics::DeprojectSceneCaptureToWorld(ASceneCapture2D const* SceneCapture2D, const FVector2D& TargetUV, FVector& WorldPosition, FVector& WorldDirection)
 {
-	if (USceneCaptureComponent2D* SceneCaptureComponent2D = SceneCapture2D->GetCaptureComponent2D())
+	if (SceneCapture2D)
+	{
+		return DeprojectSceneCaptureComponentToWorld(SceneCapture2D->GetCaptureComponent2D(), TargetUV, WorldPosition, WorldDirection);
+	}
+
+	// something went wrong, zero things and return false
+	WorldPosition = FVector::ZeroVector;
+	WorldDirection = FVector::ZeroVector;
+	return false;
+}
+
+bool UGameplayStatics::DeprojectSceneCaptureComponentToWorld(USceneCaptureComponent2D* SceneCaptureComponent2D, const FVector2D& TargetUV, FVector& WorldPosition, FVector& WorldDirection)
+{
+	if (SceneCaptureComponent2D)
 	{
 		if (SceneCaptureComponent2D->TextureTarget)
 		{

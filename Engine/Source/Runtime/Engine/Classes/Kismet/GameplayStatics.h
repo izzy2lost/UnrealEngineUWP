@@ -28,6 +28,7 @@ class UDialogueWave;
 class UParticleSystem;
 class UParticleSystemComponent;
 class USaveGame;
+class USceneCaptureComponent2D;
 class USceneComponent;
 class USoundAttenuation;
 class USoundBase;
@@ -1444,6 +1445,16 @@ public:
 	 */
 	UFUNCTION(BlueprintPure, Category = "Camera", meta = (Keywords = "unproject"))
 	static ENGINE_API bool DeprojectSceneCaptureToWorld(ASceneCapture2D const* SceneCapture2D, const FVector2D& TargetUV, FVector& WorldPosition, FVector& WorldDirection);
+
+	/**
+	 * Transforms the given 2D UV coordinate into a 3D world-space point and direction.
+	 * @param SceneCaptureComponent2D	Deproject using this scene capture component's view.
+	 * @param ScreenPosition			UV in scene capture render target to deproject.
+	 * @param WorldPosition				(out) Corresponding 3D position on camera near plane, in world space.
+	 * @param WorldDirection			(out) World space direction vector away from the camera at the given 2d point.
+	 */
+	UFUNCTION(BlueprintPure, Category = "Camera", meta = (Keywords = "unproject"))
+	static ENGINE_API bool DeprojectSceneCaptureComponentToWorld(USceneCaptureComponent2D* SceneCaptureComponent2D, const FVector2D& TargetUV, FVector& WorldPosition, FVector& WorldDirection);
 
 	/** 
 	 * Transforms the given 3D world-space point into a its 2D screen space coordinate. 
