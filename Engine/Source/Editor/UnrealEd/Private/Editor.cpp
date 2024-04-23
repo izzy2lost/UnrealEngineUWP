@@ -279,9 +279,9 @@ void FReimportManager::UpdateReimportPath(UObject* Obj, const FString& Filename,
 }
 
 
-bool FReimportManager::Reimport(UObject* Obj, bool bAskForNewFileIfMissing, bool bShowNotification, FString PreferredReimportFile, FReimportHandler* SpecifiedReimportHandler, int32 SourceFileIndex, bool bForceNewFile /*= false*/, bool bAutomated /*= false*/)
+bool FReimportManager::Reimport(UObject* Obj, bool bAskForNewFileIfMissing, bool bShowNotification, FString PreferredReimportFile, FReimportHandler* SpecifiedReimportHandler, int32 SourceFileIndex, bool bForceNewFile /*= false*/, bool bAutomated /*= false*/, bool bInForceShowDialog /*= false*/)
 {
-	UE::Interchange::FAssetImportResultRef ImportResult = ReimportAsync(Obj, bAskForNewFileIfMissing, bShowNotification, PreferredReimportFile, SpecifiedReimportHandler, SourceFileIndex, bForceNewFile, bAutomated);
+	UE::Interchange::FAssetImportResultRef ImportResult = ReimportAsync(Obj, bAskForNewFileIfMissing, bShowNotification, PreferredReimportFile, SpecifiedReimportHandler, SourceFileIndex, bForceNewFile, bAutomated, bInForceShowDialog);
 	ImportResult->WaitUntilDone();
 	const TArray<UInterchangeResult*>& Results = ImportResult->GetResults()->GetResults();
 	for (const UInterchangeResult* InterchangeResult : Results)
@@ -294,7 +294,7 @@ bool FReimportManager::Reimport(UObject* Obj, bool bAskForNewFileIfMissing, bool
 	return true;
 }
 
-UE::Interchange::FAssetImportResultRef FReimportManager::ReimportAsync(UObject* Obj, bool bAskForNewFileIfMissing, bool bShowNotification, FString PreferredReimportFile, FReimportHandler* SpecifiedReimportHandler, int32 SourceFileIndex, bool bForceNewFile /*= false*/, bool bAutomated /*= false*/)
+UE::Interchange::FAssetImportResultRef FReimportManager::ReimportAsync(UObject* Obj, bool bAskForNewFileIfMissing, bool bShowNotification, FString PreferredReimportFile, FReimportHandler* SpecifiedReimportHandler, int32 SourceFileIndex, bool bForceNewFile /*= false*/, bool bAutomated /*= false*/, bool bInForceShowDialog /*= false*/)
 {
 	UE::Interchange::FAssetImportResultRef ImportResultSynchronous = MakeShared< UE::Interchange::FImportResult, ESPMode::ThreadSafe >();
 	// Warn that were about to reimport, so prep for it
@@ -470,6 +470,7 @@ UE::Interchange::FAssetImportResultRef FReimportManager::ReimportAsync(UObject* 
 							ImportAssetParameters.bIsAutomated = GIsAutomationTesting || FApp::IsUnattended() || IsRunningCommandlet() || GIsRunningUnattendedScript;
 							ImportAssetParameters.ReimportAsset = Obj;
 							ImportAssetParameters.ReimportSourceIndex = SourceFileIndex;
+							ImportAssetParameters.bForceShowDialog = bInForceShowDialog;
 							UE::Interchange::FAssetImportResultRef ImportResult = InterchangeManager.ImportAssetAsync(FString(), ScopedSourceData.GetSourceData(), ImportAssetParameters);
 
 							TFunction<void(UE::Interchange::FImportResult&)> AppendAndBroadcastImportResultIfNeeded =
@@ -492,7 +493,13 @@ UE::Interchange::FAssetImportResultRef FReimportManager::ReimportAsync(UObject* 
 				// Do the reimport
 				const bool bOriginalAutomated = CanReimportHandler->IsAutomatedReimport();
 				CanReimportHandler->SetAutomatedReimport(bAutomated);
+				const bool bOriginalForceShowDialog = CanReimportHandler->IsForceShowDialog();
+				CanReimportHandler->SetForceShowDialog(bInForceShowDialog);
+				
+				//Reimport the asset
 				EReimportResult::Type Result = CanReimportHandler->Reimport( Obj, SourceFileIndex );
+				
+				CanReimportHandler->SetForceShowDialog(bOriginalForceShowDialog);
 				CanReimportHandler->SetAutomatedReimport(bOriginalAutomated);
 				// Even if the reimport has been successful, check that the originating object is still valid
 				// The reimport might be a reimport to level which triggered the deletion of the object

@@ -363,11 +363,22 @@ private:
 	/** A general callback for the combo boxes in the Static Mesh Editor to force a viewport refresh when a selection changes. */
 	void ComboBoxSelectionChanged(TSharedPtr<FString> NewSelection, ESelectInfo::Type SelectInfo);
 
+	struct FReimportParameters
+	{
+		FReimportParameters(bool bInWithNewFile, bool bInWithDialog)
+			: bWithNewFile(bInWithNewFile)
+			, bWithDialog(bInWithDialog)
+		{}
+
+		bool bWithNewFile = false;
+		bool bWithDialog = false;
+	};
+
 	/* Callback to reimport the base mesh*/
-	void HandleReimportMesh();
+	void HandleReimportMesh(const FReimportParameters ReimportParameters);
 	
 	/* Callback to reimport the base mesh and also all custom LODs*/
-	void HandleReimportAllMesh();
+	void HandleReimportAllMesh(const FReimportParameters ReimportParameters);
 
 	/**
 	 *	Sets the editor's current mesh and refreshes various settings to correspond with the new data.

@@ -843,13 +843,43 @@ void FStaticMeshEditor::BindCommands()
 		Commands.SaveGeneratedLODs,
 		FExecuteAction::CreateSP(this, &FStaticMeshEditor::OnSaveGeneratedLODs));
 
-	UICommandList->MapAction(
-		Commands.ReimportMesh,
-		FExecuteAction::CreateSP(this, &FStaticMeshEditor::HandleReimportMesh));
+	{
+		constexpr bool bWithNewFileTrue = true;
+		constexpr bool bWithNewFileFalse = false;
+		constexpr bool bWithDialogTrue = true;
+		constexpr bool bWithDialogFalse = false;
+		UICommandList->MapAction(
+			Commands.ReimportMesh,
+			FExecuteAction::CreateSP(this, &FStaticMeshEditor::HandleReimportMesh, FReimportParameters(bWithNewFileFalse, bWithDialogFalse)));
 
-	UICommandList->MapAction(
-		Commands.ReimportAllMesh,
-		FExecuteAction::CreateSP(this, &FStaticMeshEditor::HandleReimportAllMesh));
+		UICommandList->MapAction(
+			Commands.ReimportAllMesh,
+			FExecuteAction::CreateSP(this, &FStaticMeshEditor::HandleReimportAllMesh, FReimportParameters(bWithNewFileFalse, bWithDialogFalse)));
+
+		UICommandList->MapAction(
+			Commands.ReimportMeshWithNewFile,
+			FExecuteAction::CreateSP(this, &FStaticMeshEditor::HandleReimportMesh, FReimportParameters(bWithNewFileTrue, bWithDialogFalse)));
+
+		UICommandList->MapAction(
+			Commands.ReimportAllMeshWithNewFile,
+			FExecuteAction::CreateSP(this, &FStaticMeshEditor::HandleReimportAllMesh, FReimportParameters(bWithNewFileTrue, bWithDialogFalse)));
+
+		UICommandList->MapAction(
+			Commands.ReimportMeshWithDialog,
+			FExecuteAction::CreateSP(this, &FStaticMeshEditor::HandleReimportMesh, FReimportParameters(bWithNewFileFalse, bWithDialogTrue)));
+
+		UICommandList->MapAction(
+			Commands.ReimportAllMeshWithDialog,
+			FExecuteAction::CreateSP(this, &FStaticMeshEditor::HandleReimportAllMesh, FReimportParameters(bWithNewFileFalse, bWithDialogTrue)));
+
+		UICommandList->MapAction(
+			Commands.ReimportMeshWithNewFileWithDialog,
+			FExecuteAction::CreateSP(this, &FStaticMeshEditor::HandleReimportMesh, FReimportParameters(bWithNewFileTrue, bWithDialogTrue)));
+
+		UICommandList->MapAction(
+			Commands.ReimportAllMeshWithNewFileWithDialog,
+			FExecuteAction::CreateSP(this, &FStaticMeshEditor::HandleReimportAllMesh, FReimportParameters(bWithNewFileTrue, bWithDialogTrue)));
+	}
 
 	// Collision Menu
 	UICommandList->MapAction(
@@ -898,26 +928,56 @@ void FStaticMeshEditor::ExtendToolBar()
 			{
 				if (TSharedPtr<FStaticMeshEditor> StaticMeshEditor = StaticMeshEditor::GetStaticMeshEditorFromMenuContext(InSection))
 				{
-					auto ConstructReimportContextMenu = [](UToolMenu* InMenu)
+					//Reimport without dialog
 					{
-						FToolMenuSection& Section = InMenu->AddSection("Reimport");
-						Section.AddMenuEntry(FStaticMeshEditorCommands::Get().ReimportMesh);
-						Section.AddMenuEntry(FStaticMeshEditorCommands::Get().ReimportAllMesh);
-					};
-					
-					FToolMenuEntry& ReimportMeshEntry = InSection.AddEntry(FToolMenuEntry::InitToolBarButton(FStaticMeshEditorCommands::Get().ReimportMesh));
-					ReimportMeshEntry.StyleNameOverride = "CalloutToolbar";
-								
-					FToolMenuEntry& ReimportContextMenuEntry = InSection.AddEntry(FToolMenuEntry::InitComboButton(
-						"ReimportContextMenu",
-						FUIAction(),
-						FNewToolMenuDelegate::CreateLambda(ConstructReimportContextMenu),
-						TAttribute<FText>(),
-						TAttribute<FText>(),
-						TAttribute<FSlateIcon>(),
-						true
-					));
-					ReimportContextMenuEntry.StyleNameOverride = "CalloutToolbar";
+						auto ConstructReimportContextMenu = [](UToolMenu* InMenu)
+							{
+								FToolMenuSection& Section = InMenu->AddSection("Reimport");
+								Section.AddMenuEntry(FStaticMeshEditorCommands::Get().ReimportMesh);
+								Section.AddMenuEntry(FStaticMeshEditorCommands::Get().ReimportMeshWithNewFile);
+								Section.AddMenuEntry(FStaticMeshEditorCommands::Get().ReimportAllMesh);
+								Section.AddMenuEntry(FStaticMeshEditorCommands::Get().ReimportAllMeshWithNewFile);
+							};
+
+						FToolMenuEntry& ReimportMeshEntry = InSection.AddEntry(FToolMenuEntry::InitToolBarButton(FStaticMeshEditorCommands::Get().ReimportMesh));
+						ReimportMeshEntry.StyleNameOverride = "CalloutToolbar";
+
+						FToolMenuEntry& ReimportContextMenuEntry = InSection.AddEntry(FToolMenuEntry::InitComboButton(
+							"ReimportContextMenu",
+							FUIAction(),
+							FNewToolMenuDelegate::CreateLambda(ConstructReimportContextMenu),
+							TAttribute<FText>(),
+							TAttribute<FText>(),
+							TAttribute<FSlateIcon>(),
+							true
+						));
+						ReimportContextMenuEntry.StyleNameOverride = "CalloutToolbar";
+					}
+
+					//Reimport force dialog
+					{
+						auto ConstructReimportWithDialogContextMenu = [](UToolMenu* InMenu)
+							{
+								FToolMenuSection& Section = InMenu->AddSection("Reimport");
+								Section.AddMenuEntry(FStaticMeshEditorCommands::Get().ReimportMeshWithDialog);
+								Section.AddMenuEntry(FStaticMeshEditorCommands::Get().ReimportMeshWithNewFileWithDialog);
+								Section.AddMenuEntry(FStaticMeshEditorCommands::Get().ReimportAllMeshWithDialog);
+								Section.AddMenuEntry(FStaticMeshEditorCommands::Get().ReimportAllMeshWithNewFileWithDialog);
+							};
+						FToolMenuEntry& ReimportMeshWithDialogEntry = InSection.AddEntry(FToolMenuEntry::InitToolBarButton(FStaticMeshEditorCommands::Get().ReimportMeshWithDialog));
+						ReimportMeshWithDialogEntry.StyleNameOverride = "CalloutToolbar";
+
+						FToolMenuEntry& ReimportWithDialogContextMenuEntry = InSection.AddEntry(FToolMenuEntry::InitComboButton(
+							"ReimportWithDialogContextMenu",
+							FUIAction(),
+							FNewToolMenuDelegate::CreateLambda(ConstructReimportWithDialogContextMenu),
+							TAttribute<FText>(),
+							TAttribute<FText>(),
+							TAttribute<FSlateIcon>(),
+							true
+						));
+						ReimportWithDialogContextMenuEntry.StyleNameOverride = "CalloutToolbar";
+					}
 
 				}
 			}));
@@ -1755,22 +1815,50 @@ void FStaticMeshEditor::ComboBoxSelectionChanged( TSharedPtr<FString> NewSelecti
 	GetStaticMeshViewport()->RefreshViewport();
 }
 
-void FStaticMeshEditor::HandleReimportMesh()
+void FStaticMeshEditor::HandleReimportMesh(const FReimportParameters ReimportParameters)
 {
 	// Reimport the asset
 	if (StaticMesh)
 	{
-		FReimportManager::Instance()->ReimportAsync(StaticMesh, true);
+		constexpr bool bAskForNewFileIfMissingTrue = true;
+		constexpr bool bShowNotificationTrue = true;
+		const FString PreferredReimportFileEmpty = TEXT("");
+		constexpr FReimportHandler* SpecifiedReimportHandlerNull = nullptr;
+		constexpr int32 SourceFileIndex = INDEX_NONE;
+		constexpr bool bAutomatedFalse = false;
+		FReimportManager::Instance()->ReimportAsync(StaticMesh
+			, bAskForNewFileIfMissingTrue
+			, bShowNotificationTrue
+			, PreferredReimportFileEmpty
+			, SpecifiedReimportHandlerNull
+			, SourceFileIndex
+			, ReimportParameters.bWithNewFile
+			, bAutomatedFalse
+			, ReimportParameters.bWithDialog);
 	}
 }
 
-void FStaticMeshEditor::HandleReimportAllMesh()
+void FStaticMeshEditor::HandleReimportAllMesh(const FReimportParameters ReimportParameters)
 {
 	// Reimport the asset
 	if (StaticMesh)
 	{
+		constexpr bool bAskForNewFileIfMissingTrue = true;
+		constexpr bool bShowNotificationTrue = true;
+		const FString PreferredReimportFileEmpty = TEXT("");
+		constexpr FReimportHandler* SpecifiedReimportHandlerNull = nullptr;
+		constexpr int32 SourceFileIndex = INDEX_NONE;
+		constexpr bool bAutomatedFalse = false;
 		//Reimport base LOD, generated mesh will be rebuild here, the static mesh is always using the base mesh to reduce LOD
-		if (FReimportManager::Instance()->Reimport(StaticMesh, true))
+		if (FReimportManager::Instance()->Reimport(StaticMesh
+			, bAskForNewFileIfMissingTrue
+			, bShowNotificationTrue
+			, PreferredReimportFileEmpty
+			, SpecifiedReimportHandlerNull
+			, SourceFileIndex
+			, ReimportParameters.bWithNewFile
+			, bAutomatedFalse
+			, ReimportParameters.bWithDialog))
 		{
 			//Reimport all custom LODs
 			for (int32 LodIndex = 1; LodIndex < StaticMesh->GetNumLODs(); ++LodIndex)

@@ -23,15 +23,15 @@ public:
 	virtual void RegisterCommands() override;
 
 public:
-
-	// reimport current mesh
+	// reimport
 	TSharedPtr<FUICommandInfo> ReimportMesh;
 	TSharedPtr<FUICommandInfo> ReimportMeshWithNewFile;
-
-	// reimport current mesh
 	TSharedPtr<FUICommandInfo> ReimportAllMesh;
 	TSharedPtr<FUICommandInfo> ReimportAllMeshWithNewFile;
 
+	// reimport with dialog
+	TSharedPtr<FUICommandInfo> ReimportWithDialog;
+	
 	// bake materials for this skeletal mesh
 	TSharedPtr<FUICommandInfo> BakeMaterials;
 };

@@ -244,7 +244,11 @@ void FAnimationEditor::BindCommands()
 		FCanExecuteAction::CreateSP(this, &FAnimationEditor::CanSetKey));
 
 	ToolkitCommands->MapAction(FAnimationEditorCommands::Get().ReimportAnimation,
-		FExecuteAction::CreateSP(this, &FAnimationEditor::OnReimportAnimation),
+		FExecuteAction::CreateSP(this, &FAnimationEditor::OnReimportAnimation, false),
+		FCanExecuteAction::CreateSP(this, &FAnimationEditor::HasValidAnimationSequence));
+
+	ToolkitCommands->MapAction(FAnimationEditorCommands::Get().ReimportAnimationWithDialog,
+		FExecuteAction::CreateSP(this, &FAnimationEditor::OnReimportAnimation, true),
 		FCanExecuteAction::CreateSP(this, &FAnimationEditor::HasValidAnimationSequence));
 
 	ToolkitCommands->MapAction(FAnimationEditorCommands::Get().ExportToFBX_AnimData,
@@ -314,6 +318,7 @@ void FAnimationEditor::ExtendToolbar()
 	{
 		FToolMenuSection& AnimationSection = ToolMenu->AddSection("Animation", LOCTEXT("ToolbarAnimationSectionLabel", "Animation"), SectionInsertLocation);
 		AnimationSection.AddEntry(FToolMenuEntry::InitToolBarButton(FAnimationEditorCommands::Get().ReimportAnimation));
+		AnimationSection.AddEntry(FToolMenuEntry::InitToolBarButton(FAnimationEditorCommands::Get().ReimportAnimationWithDialog));
 		AnimationSection.AddEntry(FToolMenuEntry::InitToolBarButton(FAnimationEditorCommands::Get().ApplyCompression, LOCTEXT("Toolbar_ApplyCompression", "Apply Compression")));
 		AnimationSection.AddEntry(FToolMenuEntry::InitComboButton(
 			"ExportAsset",
@@ -639,12 +644,28 @@ void FAnimationEditor::OnSetKey()
 	}
 }
 
-void FAnimationEditor::OnReimportAnimation()
+void FAnimationEditor::OnReimportAnimation(bool bWithDialog)
 {
 	UAnimSequence* AnimSequence = Cast<UAnimSequence>(AnimationAsset);
 	if (AnimSequence)
 	{
-		FReimportManager::Instance()->ReimportAsync(AnimSequence, true);
+		constexpr bool bAskForNewFileIfMissingTrue = true;
+		constexpr bool bShowNotificationTrue = true;
+		const FString PreferredReimportFileEmpty = TEXT("");
+		constexpr FReimportHandler* SpecifiedReimportHandlerNull = nullptr;
+		constexpr bool bForceNewFileFalse = false;
+		constexpr int32 SourceFileIndex = INDEX_NONE;
+		constexpr bool bAutomatedFalse = false;
+
+		FReimportManager::Instance()->ReimportAsync(AnimSequence
+			, bAskForNewFileIfMissingTrue
+			, bShowNotificationTrue
+			, PreferredReimportFileEmpty
+			, SpecifiedReimportHandlerNull
+			, SourceFileIndex
+			, bForceNewFileFalse
+			, bAutomatedFalse
+			, bWithDialog);
 	}
 }
 

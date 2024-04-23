@@ -1483,7 +1483,7 @@ void UInterchangeManager::StartQueuedTasks(bool bCancelAllTasks /*= false*/)
 				for (int32 SourceDataIndex = 0; SourceDataIndex < QueuedTaskData.AsyncHelper->SourceDatas.Num(); ++SourceDataIndex)
 				{
 					//Log the source we begin importing
-					UE_LOG(LogInterchangeEngine, Display, TEXT("Interchange start importing source [%s]"), *QueuedTaskData.AsyncHelper->SourceDatas[SourceDataIndex]->ToDisplayString());
+					UE_LOG(LogInterchangeEngine, Display, TEXT("Interchange start importing source [%s]"), *QueuedTaskData.AsyncHelper->SourceDatas[SourceDataIndex]->GetFilename());
 					int32 TranslatorTaskIndex = QueuedTaskData.AsyncHelper->TranslatorTasks.Add(TGraphTask<UE::Interchange::FTaskTranslator>::CreateTask().ConstructAndDispatchWhenReady(SourceDataIndex, WeakAsyncHelper));
 					PipelinePrerequistes.Add(QueuedTaskData.AsyncHelper->TranslatorTasks[TranslatorTaskIndex]);
 				}
@@ -1885,7 +1885,7 @@ UInterchangeManager::ImportInternal(const FString& ContentPath, const UInterchan
 	{
 #if WITH_EDITORONLY_DATA
 		bool bShowPipelineStacksConfigurationDialog = !bIsUnattended
-			&& FInterchangeProjectSettingsUtils::ShouldShowPipelineStacksConfigurationDialog(bImportScene, bIsReimport, *SourceData)
+			&& (FInterchangeProjectSettingsUtils::ShouldShowPipelineStacksConfigurationDialog(bImportScene, bIsReimport, *SourceData) || ImportAssetParameters.bForceShowDialog)
 			&& !bImportCanceled
 			&& !IsRunningCommandlet();
 #else
@@ -1927,7 +1927,7 @@ UInterchangeManager::ImportInternal(const FString& ContentPath, const UInterchan
 				for (int32 SourceDataIndex = 0; SourceDataIndex < AsyncHelper->SourceDatas.Num(); ++SourceDataIndex)
 				{
 					//Log the source we begin importing
-					UE_LOG(LogInterchangeEngine, Display, TEXT("Interchange start importing source [%s]"), *AsyncHelper->SourceDatas[SourceDataIndex]->ToDisplayString());
+					UE_LOG(LogInterchangeEngine, Display, TEXT("Interchange start importing source [%s]"), *AsyncHelper->SourceDatas[SourceDataIndex]->GetFilename());
 					int32 TranslatorTaskIndex = AsyncHelper->TranslatorTasks.Add(TGraphTask<UE::Interchange::FTaskTranslator>::CreateTask(nullptr, ENamedThreads::GameThread_Local).ConstructAndDispatchWhenReady(SourceDataIndex, AsyncHelper));
 					AsyncHelper->TranslatorTasks[TranslatorTaskIndex]->Wait();
 				}

@@ -27,6 +27,7 @@ public:
 	TSharedPtr<FUICommandInfo> ImportAnimation;
 	// reimport animation
 	TSharedPtr<FUICommandInfo> ReimportAnimation;
+	TSharedPtr<FUICommandInfo> ReimportAnimationWithDialog;
 	// apply compression
 	TSharedPtr<FUICommandInfo> ApplyCompression;
 	// export to FBX

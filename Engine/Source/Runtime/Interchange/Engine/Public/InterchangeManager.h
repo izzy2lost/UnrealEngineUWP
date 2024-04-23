@@ -386,6 +386,10 @@ struct FImportAssetParameters
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interchange|ImportAsset")
 	bool bReplaceExisting = true;
 
+	/** If true this import must show the import dialog and ignore the show dialog settings. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interchange|ImportAsset")
+	bool bForceShowDialog = false;
+
 	/* Delegates used to track the imported objects. */
 
 	// This is called each time an asset is imported or reimported from the import call.

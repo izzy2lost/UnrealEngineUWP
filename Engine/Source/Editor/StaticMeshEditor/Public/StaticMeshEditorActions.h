@@ -53,6 +53,10 @@ public:
 	TSharedPtr<FUICommandInfo> ReimportMeshWithNewFile;
 	TSharedPtr<FUICommandInfo> ReimportAllMesh;
 	TSharedPtr<FUICommandInfo> ReimportAllMeshWithNewFile;
+	TSharedPtr<FUICommandInfo> ReimportMeshWithDialog;
+	TSharedPtr<FUICommandInfo> ReimportMeshWithNewFileWithDialog;
+	TSharedPtr<FUICommandInfo> ReimportAllMeshWithDialog;
+	TSharedPtr<FUICommandInfo> ReimportAllMeshWithNewFileWithDialog;
 
 	// toolbar commands
 	TSharedPtr<FUICommandInfo> ToggleShowNormals;

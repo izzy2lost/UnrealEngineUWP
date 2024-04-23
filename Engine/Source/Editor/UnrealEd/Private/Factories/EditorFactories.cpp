@@ -5850,7 +5850,7 @@ EReimportResult::Type UReimportFbxStaticMeshFactory::Reimport( UObject* Obj )
 	}
 	//Prevent any UI for automation, unattended and commandlet
 	const bool IsUnattended = IsAutomatedImport() || FApp::IsUnattended() || IsRunningCommandlet() || GIsRunningUnattendedScript;
-	const bool ShowImportDialogAtReimport = GetDefault<UEditorPerProjectUserSettings>()->bShowImportDialogAtReimport && !IsUnattended;
+	const bool ShowImportDialogAtReimport = (GetDefault<UEditorPerProjectUserSettings>()->bShowImportDialogAtReimport || bForceShowDialog) && !IsUnattended;
 
 	if (ImportData == nullptr)
 	{
@@ -6229,7 +6229,7 @@ EReimportResult::Type UReimportFbxSkeletalMeshFactory::Reimport( UObject* Obj, i
 	bool bSuccess = false;
 	//Prevent any UI for automation, unattended and commandlet
 	const bool IsUnattended = IsAutomatedImport() || FApp::IsUnattended() || IsRunningCommandlet() || GIsRunningUnattendedScript;
-	const bool ShowImportDialogAtReimport = GetDefault<UEditorPerProjectUserSettings>()->bShowImportDialogAtReimport && !IsUnattended;
+	const bool ShowImportDialogAtReimport = (GetDefault<UEditorPerProjectUserSettings>()->bShowImportDialogAtReimport || bForceShowDialog) && !IsUnattended;
 
 	if (ImportData == nullptr)
 	{
@@ -6712,7 +6712,7 @@ EReimportResult::Type UReimportFbxAnimSequenceFactory::Reimport( UObject* Obj )
 	}
 
 	bool bOutImportAll = false;
-	if ( UEditorEngine::ReimportFbxAnimation(Skeleton, AnimSequence, ImportData, *Filename, bOutImportAll, bShowOption && !IsAutomatedImport(), OverrideImportUI) )
+	if ( UEditorEngine::ReimportFbxAnimation(Skeleton, AnimSequence, ImportData, *Filename, bOutImportAll, (bShowOption || bForceShowDialog) && !IsAutomatedImport(), OverrideImportUI) )
 	{
 		if (bOutImportAll)
 		{

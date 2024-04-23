@@ -139,7 +139,7 @@ private:
 
 	void OnSetKey();
 
-	void OnReimportAnimation();
+	void OnReimportAnimation(bool bWithDialog);
 
 	void OnApplyCompression();
 
