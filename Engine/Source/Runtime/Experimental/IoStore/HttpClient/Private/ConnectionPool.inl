@@ -162,11 +162,6 @@ FOutcome FHost::Connect(FTlsPeer& Peer)
 
 	FSslContext SslContext(HostName, VerifyCert);
 	Peer = FTlsPeer(MoveTemp(Socket), &SslContext);
-
-	while ((Outcome = Peer.Handshake()).IsWaiting())
-		/*pass*/;
-	check(Outcome.IsOk());
-
 	return Outcome;
 }
 
