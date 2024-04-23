@@ -16,6 +16,7 @@
 #include "UObject/GarbageCollection.h"
 #include "Android/AndroidPlatformFramePacer.h"
 #include <dlfcn.h>
+#include "UnrealEngine.h"
 
 
 AndroidEGL* AndroidEGL::Singleton = NULL;
