@@ -532,6 +532,8 @@ private:
 
 	void MarkResourcesAsTransientOnLoad();
 	bool DeletePreviewResources();
+
+	static TArray<TSoftObjectPtr<AActor>> GetManagedActorPaths(AActor* InActor);
 #endif
 
 	FBox GetGridBounds(const AActor* InActor) const;

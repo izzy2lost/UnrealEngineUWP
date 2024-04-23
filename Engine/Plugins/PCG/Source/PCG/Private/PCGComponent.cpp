@@ -3504,6 +3504,24 @@ bool UPCGComponent::GetStackContext(FPCGStackContext& OutStackContext) const
 
 	return false;
 }
+
+TArray<TSoftObjectPtr<AActor>> UPCGComponent::GetManagedActorPaths(AActor* InActor)
+{
+	TSet<TSoftObjectPtr<AActor>> ManagedActorPaths;
+	InActor->ForEachComponent<UPCGComponent>(/*bIncludeFromChildActors=*/true, [&ManagedActorPaths](UPCGComponent* Component)
+	{
+		for (UPCGManagedResource* ManagedResource : Component->GeneratedResources)
+		{
+			if (UPCGManagedActors* ManagedActors = Cast<UPCGManagedActors>(ManagedResource))
+			{
+				ManagedActorPaths.Append(ManagedActors->GeneratedActors);
+			}
+		}
+	});
+
+	return ManagedActorPaths.Array();
+}
+
 #endif // WITH_EDITOR
 
 FPCGComponentInstanceData::FPCGComponentInstanceData(const UPCGComponent* InSourceComponent)
