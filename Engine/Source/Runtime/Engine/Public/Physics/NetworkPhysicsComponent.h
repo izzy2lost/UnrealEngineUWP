@@ -56,19 +56,19 @@ struct TNetRewindHistory : public Chaos::TDataRewindHistory<DataType>
 	virtual TUniquePtr<Chaos::FBaseRewindHistory> CopyFramesWithOffset(const uint32 StartFrame, const uint32 EndFrame, const int32 FrameOffset) override
 	{
 		uint32 FramesCount = (uint32)Super::NumValidData(StartFrame, EndFrame);
-			
+
 		TUniquePtr<TNetRewindHistory> Copy = MakeUnique<TNetRewindHistory>(FramesCount, Super::bIsLocalHistory);
 
 		DataType FrameData;
-		for (uint32 FrameIndex = StartFrame; FrameIndex < EndFrame; ++FrameIndex)
+		for (uint32 CopyFrame = StartFrame; CopyFrame < EndFrame; ++CopyFrame)
 		{
-			const int32 LocalFrame = FrameIndex % Super::NumFrames;
-			if (FrameIndex == Super::DataHistory[LocalFrame].LocalFrame)
+			const int32 CopyIndex = Super::GetFrameIndex(CopyFrame);
+			if (CopyFrame == Super::DataHistory[CopyIndex].LocalFrame)
 			{
-				FrameData = Super::DataHistory[LocalFrame];
+				FrameData = Super::DataHistory[CopyIndex];
 				FrameData.ServerFrame = FrameData.LocalFrame + FrameOffset;
 				PRAGMA_DISABLE_DEPRECATION_WARNINGS // TODO: Change to RecordData() in UE 5.6 and remove deprecation pragma
-				Copy->RecordDatas(LocalFrame, &FrameData);
+				Copy->RecordDatas(CopyFrame, &FrameData);
 				PRAGMA_ENABLE_DEPRECATION_WARNINGS
 			}
 		}
@@ -88,7 +88,8 @@ struct TNetRewindHistory : public Chaos::TDataRewindHistory<DataType>
 				DataType& FrameData = NetNewData.DataHistory[FrameIndex];
 
 				FrameData.LocalFrame = FrameData.ServerFrame - FrameOffset;
-				if (FrameData.LocalFrame >= 0)
+
+				if (Super::ShouldRecordReceivedDataOnFrame(FrameData.LocalFrame))
 				{
 					FrameData.bReceivedData = true; // Received data is marked to differentiate from locally predicted data
 
@@ -668,10 +669,10 @@ FORCEINLINE void UNetworkPhysicsComponent::CreateDataHistory(UActorComponent* Hi
 	InputData = MakeUnique<typename PhysicsTraits::InputsType>();
 	StateData = MakeUnique<typename PhysicsTraits::StatesType>();
 
-	ReplicatedInputs.History = MakeUnique<TNetRewindHistory<typename PhysicsTraits::InputsType>>(NumFrames, bIsLocalHistory);
+	ReplicatedInputs.History = MakeUnique<TNetRewindHistory<typename PhysicsTraits::InputsType>>(InputRedundancy, bIsLocalHistory);
 	ReplicatedInputs.Owner = this;
 
-	ReplicatedStates.History = MakeUnique<TNetRewindHistory<typename PhysicsTraits::StatesType>>(NumFrames, bIsLocalHistory);
+	ReplicatedStates.History = MakeUnique<TNetRewindHistory<typename PhysicsTraits::StatesType>>(StateRedundancy, bIsLocalHistory);
 	ReplicatedStates.Owner = this;
 	
 	ActorComponent = HistoryComponent;
@@ -691,7 +692,7 @@ FORCEINLINE void UNetworkPhysicsComponent::CreateInputHistory(UActorComponent* H
 
 	InputData = MakeUnique<InputsType>();
 
-	ReplicatedInputs.History = MakeUnique<TNetRewindHistory<InputsType>>(NumFrames, bIsLocalHistory);
+	ReplicatedInputs.History = MakeUnique<TNetRewindHistory<InputsType>>(InputRedundancy, bIsLocalHistory);
 	ReplicatedInputs.Owner = this;
 
 	ActorComponent = HistoryComponent;

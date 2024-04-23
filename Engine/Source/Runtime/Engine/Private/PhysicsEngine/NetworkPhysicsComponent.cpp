@@ -809,6 +809,7 @@ void UNetworkPhysicsComponent::ServerReceiveInputData_Implementation(const FNetw
 					PRAGMA_DISABLE_DEPRECATION_WARNINGS // TODO: Change to ReceiveNewData() in UE 5.6 and remove deprecation pragma
 					InputHistory->ReceiveNewDatas(*ReceivedInputs, 0);
 					PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
 	#if DEBUG_NETWORK_PHYSICS
 					{
 						TArray<int32> LocalFrames, ServerFrames, InputFrames;
@@ -835,8 +836,10 @@ void UNetworkPhysicsComponent::ServerReceiveInputData_Implementation(const FNetw
 
 void UNetworkPhysicsComponent::OnPreProcessInputsInternal(const int32 PhysicsStep)
 {
+	const bool bIsServer = HasServerWorld();
+
 #if DEBUG_NETWORK_PHYSICS
-	if (HasServerWorld())
+	if (bIsServer)
 	{
 		UE_LOG(LogChaos, Log, TEXT("SERVER | PT | OnPreProcessInputsInternal | At Frame %d | Component = %s"), PhysicsStep, *GetFullName());
 	}
@@ -861,7 +864,7 @@ void UNetworkPhysicsComponent::OnPreProcessInputsInternal(const int32 PhysicsSte
 		}
 
 		// Apply replicated state on clients if we are resimulating
-		if (StateHistory && !HasServerWorld() && bIsSolverResim)
+		if (bIsSolverResim && StateHistory)
 		{
 			FNetworkPhysicsData* PhysicsData = StateData.Get();
 			PhysicsData->LocalFrame = PhysicsStep;
@@ -907,6 +910,14 @@ void UNetworkPhysicsComponent::OnPreProcessInputsInternal(const int32 PhysicsSte
 					InputHistory->MergeData(NextExpectedLocalFrame, PhysicsData);
 				}
 
+				// If the extracted input data was altered (interpolated, merged, extrapolated/predicted) on the server, record it into the history for it to get replicated to clients
+				if (bIsServer && !bIsSolverResim && PhysicsData->InputFrame == INDEX_NONE)
+				{
+					PhysicsData->bReceivedData = true; // Mark the input data as received so that it doesn't get overwritten by incoming client inputs
+					PhysicsData->LocalFrame = PhysicsStep;
+					InputHistory->RecordData(PhysicsStep, PhysicsData);
+				}
+
 				PhysicsData->ApplyData(ActorComponent);
 			}
 		}
@@ -915,10 +926,12 @@ void UNetworkPhysicsComponent::OnPreProcessInputsInternal(const int32 PhysicsSte
 
 void UNetworkPhysicsComponent::OnPostProcessInputsInternal(const int32 PhysicsStep)
 {
+	const bool bIsServer = HasServerWorld();
+
 	bool bIsSolverReset = false;
 	bool bIsSolverResim = false;
 #if DEBUG_NETWORK_PHYSICS
-	if (HasServerWorld())
+	if (bIsServer)
 	{
 		UE_LOG(LogChaos, Log, TEXT("SERVER | PT | OnPostProcessInputsInternal | At Frame %d | Component = %s"), PhysicsStep, *GetFullName());
 	}
@@ -928,7 +941,7 @@ void UNetworkPhysicsComponent::OnPostProcessInputsInternal(const int32 PhysicsSt
 	}
 #endif
 
-	if (InputHistory && ActorComponent)
+	if (ActorComponent)
 	{
 		if (FPhysScene* PhysScene = GetWorld()->GetPhysicsScene())
 		{
@@ -951,7 +964,7 @@ void UNetworkPhysicsComponent::OnPostProcessInputsInternal(const int32 PhysicsSt
 		{
 			FNetworkPhysicsData* PhysicsData = InputData.Get();
 			PhysicsData->LocalFrame = PhysicsStep;
-			PhysicsData->ServerFrame = HasServerWorld() ? PhysicsStep : PhysicsStep + PlayerController->GetNetworkPhysicsTickOffset();
+			PhysicsData->ServerFrame = bIsServer ? PhysicsStep : PhysicsStep + PlayerController->GetNetworkPhysicsTickOffset();
 			PhysicsData->InputFrame = PhysicsStep;
 			PhysicsData->bReceivedData = false;
 
@@ -966,7 +979,6 @@ void UNetworkPhysicsComponent::OnPostProcessInputsInternal(const int32 PhysicsSt
 #endif
 		}
 
-		const bool bIsServer = HasServerWorld();
 		const bool bShouldCacheStateHistory = bIsServer || (bCompareStateToTriggerRewind && bShouldCacheInputHistory);
 		if (StateHistory && bShouldCacheStateHistory)
 		{
@@ -975,7 +987,7 @@ void UNetworkPhysicsComponent::OnPostProcessInputsInternal(const int32 PhysicsSt
 			{
 				FNetworkPhysicsData* PhysicsData = InputData.Get();
 				PRAGMA_DISABLE_DEPRECATION_WARNINGS // TODO: Change to ExtractData() in UE 5.6 and remove deprecation pragma
-				if (InputHistory->ExtractDatas(PhysicsStep, false, PhysicsData, true))
+				if (InputHistory && InputHistory->ExtractDatas(PhysicsStep, false, PhysicsData, true))
 				PRAGMA_ENABLE_DEPRECATION_WARNINGS
 				{
 					InputFrame = PhysicsData->InputFrame;
