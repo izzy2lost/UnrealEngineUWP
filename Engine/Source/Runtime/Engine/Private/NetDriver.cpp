@@ -6335,8 +6335,7 @@ void UNetDriver::AddClientConnection(UNetConnection* NewConnection)
 
 	SCOPE_CYCLE_COUNTER(Stat_NetDriverAddClientConnection);
 
-	UE_CLOG(!DDoS.CheckLogRestrictions(), LogNet, Log, TEXT("AddClientConnection: Added client connection: %s"),
-		*NewConnection->Describe());
+	UE_CLOG(!DDoS.CheckLogRestrictions(), LogNet, Log, TEXT("AddClientConnection: Added client connection: %s"), *NewConnection->Describe());
 
 	ClientConnections.Add(NewConnection);
 
@@ -6556,29 +6555,35 @@ void UNetDriver::NotifyActorFullyDormantForConnection(AActor* Actor, UNetConnect
 
 void UNetDriver::RemoveClientConnection(UNetConnection* ClientConnectionToRemove)
 {
+	check(ClientConnectionToRemove);
 	verify(ClientConnections.Remove(ClientConnectionToRemove) == 1);
 
 	TSharedPtr<const FInternetAddr> AddrToRemove = ClientConnectionToRemove->GetRemoteAddr();
 
 	if (AddrToRemove.IsValid())
 	{
+		constexpr bool bPrintPort = true;
+
 		TSharedRef<const FInternetAddr> ConstAddrRef = AddrToRemove.ToSharedRef();
 
 		if (RecentlyDisconnectedTrackingTime > 0)
 		{
-			auto* FoundVal = MappedClientConnections.Find(ConstAddrRef);
+			const bool bIsAddressTracked = MappedClientConnections.Find(ConstAddrRef) != nullptr;
 
-			// Mark recently disconnected clients as nullptr (don't wait for GC), and keep the MappedClientConections entry for a while.
-			// Required for identifying/ignoring packets from recently disconnected clients, with the same performance as for NetConnection's (important for DDoS detection)
-			if (ensure(FoundVal != nullptr))
+			if (ensureMsgf(bIsAddressTracked, TEXT("RemoveClientConnection for %s was not in MappedClientConnections list"), *(ConstAddrRef->ToString(bPrintPort))))
 			{
+				UE_LOG(LogNet, Log, TEXT("UNetDriver::RemoveClientConnection - Removed address %s from MappedClientConnections for: %s"), *(ConstAddrRef->ToString(bPrintPort)), *ClientConnectionToRemove->Describe());
+
 				RecentlyDisconnectedClients.Add(FDisconnectedClient(ConstAddrRef, FPlatformTime::Seconds()));
 
-				*FoundVal = nullptr;
+				// Mark recently disconnected clients as nullptr (don't wait for GC), and keep the MappedClientConections entry for a while.
+				// Required for identifying/ignoring packets from recently disconnected clients, with the same performance as for NetConnection's (important for DDoS detection)
+				MappedClientConnections.Emplace(ConstAddrRef, nullptr);
 			}
 		}
 		else
 		{
+			UE_LOG(LogNet, Log, TEXT("UNetDriver::RemoveClientConnection - Removed address %s from MappedClientConnections for: %s"), *(ConstAddrRef->ToString(bPrintPort)), *ClientConnectionToRemove->Describe());
 			verify(MappedClientConnections.Remove(ConstAddrRef) == 1);
 		}
 	}

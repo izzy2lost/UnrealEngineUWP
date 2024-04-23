@@ -109,6 +109,9 @@ static int32 GNetCloseTimingDebug = 0;
 static FAutoConsoleVariableRef CVarCloseTimingDebug(TEXT("net.CloseTimingDebug"), GNetCloseTimingDebug,
 	TEXT("Logs the last packet send/receive and TickFlush/TickDispatch times, on connection close - for debugging blocked send/recv paths."));
 
+static bool GCVarLogAllConnectionCleanup = false;
+static FAutoConsoleVariableRef CVarLogAllConnectionCleanup(TEXT("net.Connection.LogAllCleanup"), GCVarLogAllConnectionCleanup, TEXT("When true log every connection CleanUp even when it was a normal socket closure."));
+
 extern int32 GNetDormancyValidate;
 extern bool GbNetReuseReplicatorsForDormantObjects;
 
@@ -1257,10 +1260,9 @@ void UNetConnection::CleanUp()
 	}
 	Children.Empty();
 
-	if ( GetConnectionState() != USOCK_Closed )
-	{
-		UE_LOG( LogNet, Log, TEXT( "UNetConnection::Cleanup: Closing open connection. %s" ), *Describe() );
-	}
+	const bool bWasSocketClosed = GetConnectionState() == USOCK_Closed;
+
+	UE_CLOG((GCVarLogAllConnectionCleanup || !bWasSocketClosed), LogNet, Log, TEXT("UNetConnection::Cleanup: Closing open connection. %s"), *Describe());
 
 	Close(ENetCloseResult::Cleanup);
 
