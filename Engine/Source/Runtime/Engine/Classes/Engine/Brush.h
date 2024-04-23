@@ -189,6 +189,9 @@ public:
 	ENGINE_API virtual void InitPosRotScale();
 	ENGINE_API virtual void CopyPosRotScaleFrom( ABrush* Other );
 
+	/** @return true if its Brush Component is static and should affect navmesh based on user settings*/
+	bool ENGINE_API ShouldExportStaticNavigableGeometry() const;
+	
 	static void SetSuppressBSPRegeneration(bool bSuppress) { bSuppressBSPRegeneration = bSuppress; }
 	static bool GetSuppressBSPRegeneration() { return bSuppressBSPRegeneration; }
 private:

@@ -2322,8 +2322,7 @@ void UEditorEngine::RebuildStaticNavigableGeometry(ULevel* Level)
 				FBspNode* Node = &Model->Nodes[i];
 				FBspSurf& Surf = Model->Surfs[Node->iSurf];
 				
-				const bool bIsNavRelevant = Surf.Actor && Surf.Actor->GetBrushComponent() && Surf.Actor->GetBrushComponent()->IsNavigationRelevant();
-				if (!bIsNavRelevant)
+				if (!(Surf.Actor && Surf.Actor->ShouldExportStaticNavigableGeometry()))
 				{
 					continue;
 				}

@@ -49,6 +49,15 @@ namespace BrushUtils
 	}
 }
 
+namespace BrushNavmeshGenerationCVars
+{
+	static bool bForceNavmeshGenerationOnStaticBrush = true;
+	static FAutoConsoleVariableRef CVarForceNavmeshGenerationOnStaticBrush(
+		TEXT("brush.ForceNavmeshGenerationOnStaticBrush"), 
+		bForceNavmeshGenerationOnStaticBrush, 
+		TEXT("Force exporting static brush's geometry data to Navigation System regardless of CanEverAffectNavigation and CollisionPreset values. Enabled by default to be backward compatible with brushes on legacy maps."), 
+		ECVF_Default);
+}
 #endif
 
 DEFINE_LOG_CATEGORY_STATIC(LogBrush, Log, All);
@@ -182,6 +191,18 @@ void ABrush::SetNeedRebuild(ULevel* InLevel)
 	{
 		LevelsToRebuild.AddUnique(InLevel);
 	}
+}
+
+bool ABrush::ShouldExportStaticNavigableGeometry() const
+{
+	if (BrushComponent)
+	{
+		const bool bNavRelevant = BrushComponent->IsNavigationRelevant();
+
+		return IsStaticBrush() && (BrushNavmeshGenerationCVars::bForceNavmeshGenerationOnStaticBrush || bNavRelevant);
+	}
+
+	return false;
 }
 
 void ABrush::InitPosRotScale()
