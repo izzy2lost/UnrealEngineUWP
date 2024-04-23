@@ -312,5 +312,5 @@ protected:
 	const bool bShouldBroadcastLegacyDelegates = true;
 
 	/** Additional functionality that specializations can customize */
-	bool bUnpairInputDevicesWhenLoggingOut = true;
+	bool bUnpairInputDevicesWhenLoggingOut = false;
 };
