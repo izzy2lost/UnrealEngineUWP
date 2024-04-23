@@ -186,7 +186,7 @@ int32 SAvaEaseCurveEditor::OnPaint(const FPaintArgs& InArgs, const FGeometry& In
 		if (StartText.IsSet() || EndText.IsSet())
 		{
 			const FSlateFontInfo FontInfo = FAvaEaseCurveStyle::Get().GetFontStyle(TEXT("Editor.LabelFont"));
-			const FLinearColor TextColor = FLinearColor(0.1f, 0.1f, 0.1f, 1.f);
+			constexpr FLinearColor TextColor = FLinearColor(0.1f, 0.1f, 0.1f, 1.f);
 			const FVector2D TextOffset = FVector2D(4.f);
 
 			if (StartText.IsSet())
@@ -454,21 +454,21 @@ void SAvaEaseCurveEditor::CreateLinesForSegment(const ERichCurveInterpMode InInt
 			const float CurveOut = EaseCurve->FloatCurve.Eval(CurveIn);
 			OutLinePoints.Add(FVector2D(CurveIn, CurveOut));
 			
-			switch (Operation.Get(FAvaEaseCurveTool::EOperation::InOut))
+			switch (Operation.Get(EAvaEaseCurveToolOperation::InOut))
 			{
-			case FAvaEaseCurveTool::EOperation::Out:
+			case EAvaEaseCurveToolOperation::Out:
 			{
 				const float Alpha = CurrentX / CurveLengthX;
 				OutLineColors.Add(FLinearColor::LerpUsingHSV(FadedCurveColor, CurveColor,  1.f - Alpha));
 				break;
 			}
-			case FAvaEaseCurveTool::EOperation::In:
+			case EAvaEaseCurveToolOperation::In:
 			{
 				const float Alpha = CurrentX / CurveLengthX;
 				OutLineColors.Add(FLinearColor::LerpUsingHSV(FadedCurveColor, CurveColor, Alpha));
 				break;
 			}
-			case FAvaEaseCurveTool::EOperation::InOut:
+			case EAvaEaseCurveToolOperation::InOut:
 			default:
 			{
 				OutLineColors.Add(CurveColor);

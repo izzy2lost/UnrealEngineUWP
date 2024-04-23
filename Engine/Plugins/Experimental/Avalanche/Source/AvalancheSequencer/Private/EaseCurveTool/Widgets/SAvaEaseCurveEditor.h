@@ -66,7 +66,7 @@ public:
 		SLATE_ARGUMENT(FLinearColor, ExtendedGridColor)
 		SLATE_ARGUMENT(float, CurveThickness)
 		SLATE_ARGUMENT(FLinearColor, CurveColor)
-		SLATE_ATTRIBUTE(FAvaEaseCurveTool::EOperation, Operation)
+		SLATE_ATTRIBUTE(EAvaEaseCurveToolOperation, Operation)
 		SLATE_ATTRIBUTE(bool, ShowEqualValueKeyError)
 
 		SLATE_ATTRIBUTE(FText, StartText)
@@ -246,7 +246,7 @@ protected:
 	FLinearColor ExtendedGridColor;
 	float CurveThickness = 1.f;
 	FLinearColor CurveColor;
-	TAttribute<FAvaEaseCurveTool::EOperation> Operation;
+	TAttribute<EAvaEaseCurveToolOperation> Operation;
 	TAttribute<bool> ShowEqualValueKeyError;
 
 	TAttribute<FText> StartText;

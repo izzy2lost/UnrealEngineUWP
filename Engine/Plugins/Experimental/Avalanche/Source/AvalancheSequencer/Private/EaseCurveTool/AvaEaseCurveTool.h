@@ -3,10 +3,10 @@
 #pragma once
 
 #include "EaseCurveTool/AvaEaseCurve.h"
+#include "EaseCurveTool/AvaEaseCurveKeySelection.h"
 #include "Curves/RichCurve.h"
 #include "Curves/KeyHandle.h"
 #include "EaseCurveTool/Widgets/SAvaEaseCurvePreset.h"
-#include "Editor/Transactor.h"
 #include "EditorUndoClient.h"
 #include "ScopedTransaction.h"
 #include "Templates/SharedPointer.h"
@@ -26,7 +26,7 @@ class UAvaEaseCurve;
 class UCurveFloat;
 class UMovieSceneSection;
 struct FAvaEaseCurveTangents;
-struct FMovieSceneDoubleChannel;
+struct FGuid;
 
 namespace UE::Sequencer
 {
@@ -34,36 +34,38 @@ namespace UE::Sequencer
 	class FSequencerSelection;
 }
 
+/** Current default and only implemented is DualKeyEdit. */
+enum class EAvaEaseCurveToolMode : uint8
+{
+	/** Edits the selected key's leave tangent and the next key's arrive tangent in the curve editor graph. */
+	DualKeyEdit,
+	/** Edits only the selected key.
+	 * The leave tangent in the curve editor graph will set the sequence key arrive tangent.
+	 * The arrive tangent in the curve editor graph will set the sequence key leave tangent. */
+	SingleKeyEdit
+};
+
+enum class EAvaEaseCurveToolOperation : uint8
+{
+	InOut,
+	In,
+	Out
+};
+
 class FAvaEaseCurveTool
 	: public TSharedFromThis<FAvaEaseCurveTool>
 	, public FGCObject
 	, public FSelfRegisteringEditorUndoClient
 {
 public:
-	/** Current default and only implemented is DualKeyEdit. */
-	enum class EMode : uint8
-	{
-		/** Edits the selected key's leave tangent and the next key's arrive tangent in the curve editor graph. */
-		DualKeyEdit,
-		/** Edits only the selected key.
-		 * The leave tangent in the curve editor graph will set the sequence key arrive tangent.
-		 * The arrive tangent in the curve editor graph will set the sequence key leave tangent. */
-		SingleKeyEdit
-	};
-
-	enum class EOperation : uint8
-	{
-		InOut,
-		In,
-		Out
-	};
-
 	static void ShowNotificationMessage(const FText& InMessageText);
 
 	/** Returns true if the clipboard paste data contains tangent information. */
 	static bool TangentsFromClipboardPaste(FAvaEaseCurveTangents& OutTangents);
 
 	FAvaEaseCurveTool(const TSharedRef<FAvaSequencer>& InSequencer);
+
+	virtual ~FAvaEaseCurveTool() override;
 
 	TSharedRef<SWidget> GenerateWidget();
 
@@ -79,33 +81,33 @@ public:
 	 * This is different from SetEaseCurveTangents_Internal in that it performs undo/redo transactions and
 	 * optionally sets the selected tangents in the actual sequence.
 	 */
-	void SetEaseCurveTangents(const FAvaEaseCurveTangents& InTangents, const EOperation InOperation, const bool bInBroadcastUpdate, const bool bInSetSequencerTangents);
+	void SetEaseCurveTangents(const FAvaEaseCurveTangents& InTangents, const EAvaEaseCurveToolOperation InOperation, const bool bInBroadcastUpdate, const bool bInSetSequencerTangents);
 
-	void ResetEaseCurveTangents(const EOperation InOperation);
+	void ResetEaseCurveTangents(const EAvaEaseCurveToolOperation InOperation);
 
-	void FlattenOrStraightenTangents(const EOperation InOperation, const bool bInFlattenTangents) const;
+	void FlattenOrStraightenTangents(const EAvaEaseCurveToolOperation InOperation, const bool bInFlattenTangents) const;
 
 	/** Creates a new external float curve from the internet curve editor curve. */
 	UCurveBase* CreateCurveAsset() const;
 
-	void SetSequencerKeySelectionTangents(const FAvaEaseCurveTangents& InTangents, const EOperation InOperation = EOperation::InOut);
+	void SetSequencerKeySelectionTangents(const FAvaEaseCurveTangents& InTangents, const EAvaEaseCurveToolOperation InOperation = EAvaEaseCurveToolOperation::InOut);
 
-	void ApplyQuickEaseToSequencerKeySelections(const EOperation InOperation = EOperation::InOut);
+	void ApplyQuickEaseToSequencerKeySelections(const EAvaEaseCurveToolOperation InOperation = EAvaEaseCurveToolOperation::InOut);
 
 	/** Updates the ease curve graph view based on the active sequencer key selection. */
 	void UpdateEaseCurveFromSequencerKeySelections();
 
-	EOperation GetToolOperation() const;
-	void SetToolOperation(const EOperation InNewOperation);
-	bool IsToolOperation(const EOperation InNewOperation) const;
+	EAvaEaseCurveToolOperation GetToolOperation() const;
+	void SetToolOperation(const EAvaEaseCurveToolOperation InNewOperation);
+	bool IsToolOperation(const EAvaEaseCurveToolOperation InNewOperation) const;
 
 	bool CanCopyTangentsToClipboard() const;
-	void CopyTangentsToClipboard();
+	void CopyTangentsToClipboard() const;
 	bool CanPasteTangentsFromClipboard() const;
-	void PasteTangentsFromClipboard();
+	void PasteTangentsFromClipboard() const;
 
-	bool IsKeyInterpMode(const ERichCurveInterpMode InInterpMode, const ERichCurveTangentMode InTangentMode);
-	void SetKeyInterpMode(const ERichCurveInterpMode InInterpMode, const ERichCurveTangentMode InTangentMode);
+	bool IsKeyInterpMode(const ERichCurveInterpMode InInterpMode, const ERichCurveTangentMode InTangentMode) const;
+	void SetKeyInterpMode(const ERichCurveInterpMode InInterpMode, const ERichCurveTangentMode InTangentMode) const;
 
 	void BeginTransaction(const FText& InDescription) const;
 	void EndTransaction() const;
@@ -118,9 +120,6 @@ public:
 	FFrameRate GetTickResolution() const;
 	FFrameRate GetDisplayRate() const;
 
-	void SelectNextChannelKey();
-	void SelectPreviousChannelKey();
-
 	bool HasCachedKeysToEase();
 
 	//~ Begin FGCObject
@@ -129,8 +128,8 @@ public:
 	//~ End FGCObject
 
 	//~ Begin FEditorUndoClient
-	virtual void PostUndo(bool bInSuccess);
-	virtual void PostRedo(bool bInSuccess);
+	virtual void PostUndo(bool bInSuccess) override;
+	virtual void PostRedo(bool bInSuccess) override;
 	//~ End FEditorUndoClient
 
 protected:
@@ -138,44 +137,21 @@ protected:
 	 * Sets the internal ease curve tangents and optionally broadcasts a change event for the curve object.
 	 * Changing the internal ease curve tangents will be directly reflected in the ease curve editor graph.
 	 */
-	void SetEaseCurveTangents_Internal(const FAvaEaseCurveTangents& InTangents, const EOperation InOperation, const bool bInBroadcastUpdate);
+	void SetEaseCurveTangents_Internal(const FAvaEaseCurveTangents& InTangents, const EAvaEaseCurveToolOperation InOperation, const bool bInBroadcastUpdate) const;
 
 	TWeakPtr<FAvaSequencer> AvaSequencerWeak;
 	TWeakPtr<UE::Sequencer::FSequencerSelection> SequencerSelectionWeak;
 
 	TObjectPtr<UAvaEaseCurve> EaseCurve;
 
-	EMode ToolMode = EMode::DualKeyEdit;
-	EOperation OperationMode = EOperation::InOut;
+	EAvaEaseCurveToolMode ToolMode = EAvaEaseCurveToolMode::DualKeyEdit;
+	EAvaEaseCurveToolOperation OperationMode = EAvaEaseCurveToolOperation::InOut;
 
 	TSharedPtr<SAvaEaseCurveTool> ToolWidget;
 	
 	/** Cached data set when a new sequencer selection is made. */
-	struct FKeyDataCache
-	{
-		struct FChannelData
-		{
-			TSharedPtr<UE::Sequencer::FChannelModel> ChannelModel;
-			UMovieSceneSection* Section = nullptr;
-			FMovieSceneDoubleChannel* DoubleChannel = nullptr;
-			TArray<FKeyHandle> KeyHandles;
-		};
-
-		void ForEachEaseableKey(const bool bInIncludeEqualValueKeys
-			, TFunctionRef<bool(const FKeyHandle& /*InKeyHandle*/, const FKeyHandle& /*InNextKeyHandle*/, const FChannelData&)> InCallable);
-
-		TMap<FName, FChannelData> ChannelKeyData;
-
-		int32 TotalSelectedKeys = 0;
-
-		/** Indicates only one selected key on each of the selected channels. */
-		bool bAllChannelSingleKeySelections = true;
-
-		/** Indicates only one key selected and it is the last key of the channel. */
-		bool bIsLastOnlySelectedKey = false;
-	};
-	FKeyDataCache KeyCache;
+	FAvaEaseCurveKeySelection KeyCache;
 
 private:
-	void CacheSelectionData();
+	void OnSequencerSelectionChanged(TArray<FGuid> InObjectGuids);
 };

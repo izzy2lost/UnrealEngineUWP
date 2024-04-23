@@ -36,8 +36,8 @@ FAvaEaseCurveStyle::FAvaEaseCurveStyle()
 	Set("ToolButton.ImageSize", ToolButtonImageSize);
 
 	const FButtonStyle ToolButtonStyle = FButtonStyle(SimpleButtonStyle)
-		.SetHovered(FSlateRoundedBoxBrush(FStyleColors::Hover, 4.0f))
-		.SetPressed(FSlateRoundedBoxBrush(FStyleColors::Hover, 4.0f))
+		.SetHovered(FSlateRoundedBoxBrush(FStyleColors::Hover, 4.f))
+		.SetPressed(FSlateRoundedBoxBrush(FStyleColors::Hover, 4.f))
 		.SetNormalPadding(FMargin(ToolButtonPadding))
 		.SetPressedPadding(FMargin(ToolButtonPadding, ToolButtonPadding + (ToolButtonPadding * 0.5f), ToolButtonPadding, ToolButtonPadding - (ToolButtonPadding * 0.5f)));
 	Set("ToolButton", ToolButtonStyle);
@@ -47,13 +47,15 @@ FAvaEaseCurveStyle::FAvaEaseCurveStyle()
 		.SetPressedPadding(FMargin(0.f));
 	Set("ToolButton.NoPad", ToolButtonNoPadStyle);
 
+	Set("ToolButton.Opaque", new FSlateRoundedBoxBrush(FStyleColors::Dropdown, 4.f));
+
 	const FCheckBoxStyle& ToggleButtonCheckboxStyle = FAppStyle::GetWidgetStyle<FCheckBoxStyle>(TEXT("ToggleButtonCheckbox"));
 
 	const FCheckBoxStyle ToolToggleButtonStyle = FCheckBoxStyle(ToggleButtonCheckboxStyle)
-		.SetUncheckedHoveredImage(FSlateRoundedBoxBrush(FStyleColors::Hover, 4.0f))
-		.SetUncheckedPressedImage(FSlateRoundedBoxBrush(FStyleColors::Hover, 4.0f))
-		.SetCheckedHoveredImage(FSlateRoundedBoxBrush(FStyleColors::PrimaryHover, 4.0f))
-		.SetCheckedPressedImage(FSlateRoundedBoxBrush(FStyleColors::PrimaryPress, 4.0f))
+		.SetUncheckedHoveredImage(FSlateRoundedBoxBrush(FStyleColors::Hover, 4.f))
+		.SetUncheckedPressedImage(FSlateRoundedBoxBrush(FStyleColors::Hover, 4.f))
+		.SetCheckedHoveredImage(FSlateRoundedBoxBrush(FStyleColors::PrimaryHover, 4.f))
+		.SetCheckedPressedImage(FSlateRoundedBoxBrush(FStyleColors::PrimaryPress, 4.f))
 		.SetPadding(ToolButtonPadding);
 	Set("ToolToggleButton", ToolToggleButtonStyle);
 

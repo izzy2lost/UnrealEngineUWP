@@ -62,9 +62,6 @@ public:
 	TSharedPtr<FUICommandInfo> SetKeyInterpCubicBreak;
 	TSharedPtr<FUICommandInfo> SetKeyInterpToggleWeighted;
 
-	TSharedPtr<FUICommandInfo> SelectNextChannelKey;
-	TSharedPtr<FUICommandInfo> SelectPreviousChannelKey;
-
 	TSharedPtr<FUICommandInfo> QuickEase;
 	TSharedPtr<FUICommandInfo> QuickEaseIn;
 	TSharedPtr<FUICommandInfo> QuickEaseOut;

@@ -28,11 +28,12 @@ void SAvaEaseCurvePresetGroupItem::Construct(const FArguments& InArgs, const TSh
 	Preset = InArgs._Preset;
 	bIsEditMode = InArgs._IsEditMode;
 	IsSelected = InArgs._IsSelected;
-	OnClick = InArgs._OnClick;
 	OnDelete = InArgs._OnDelete;
 	OnRename = InArgs._OnRename;
 	OnBeginMove = InArgs._OnBeginMove;
 	OnEndMove = InArgs._OnEndMove;
+	OnClick = InArgs._OnClick;
+	OnSetQuickEase = InArgs._OnSetQuickEase;
 
 	const FText ItemTooltipText = FText::Format(LOCTEXT("ItemTooltip", "{0}\n\nShift + Click to set as active quick preset"), FText::FromString(Preset->Name));
 
@@ -63,33 +64,17 @@ void SAvaEaseCurvePresetGroupItem::Construct(const FArguments& InArgs, const TSh
 							{
 								return IsEditMode() ? 1 : 0;
 							})
+						// Normal mode
 						+ SWidgetSwitcher::Slot()
 						[
-							SNew(SHorizontalBox)
-							+ SHorizontalBox::Slot()
-							.AutoWidth()
-							.VAlign(VAlign_Center)
-							[
-								SNew(SBox)
-								.Padding(0.f, 0.f, 3.f, 0.f)
-								.Visibility(this, &SAvaEaseCurvePresetGroupItem::GetQuickPresetIconVisibility)
-								[
-									SNew(SImage)
-									.DesiredSizeOverride(FVector2D(10.f))
-									.Image(FAppStyle::GetBrush(TEXT("Icons.Adjust")))
-									.ToolTipText(this, &SAvaEaseCurvePresetGroupItem::GetQuickPresetIconToolTip)
-								]
-							]
-							+ SHorizontalBox::Slot()
-							[
-								SNew(STextBlock)
-								.TextStyle(FAppStyle::Get(), TEXT("Menu.Label"))
-								.OverflowPolicy(ETextOverflowPolicy::Ellipsis)
-								.ColorAndOpacity(FStyleColors::White)
-								.Text(FText::FromString(Preset->Name))
-								.ToolTipText(ItemTooltipText)
-							]
+							SNew(STextBlock)
+							.TextStyle(FAppStyle::Get(), TEXT("Menu.Label"))
+							.OverflowPolicy(ETextOverflowPolicy::Ellipsis)
+							.ColorAndOpacity(FStyleColors::White)
+							.Text(FText::FromString(Preset->Name))
+							.ToolTipText(ItemTooltipText)
 						]
+						// Edit mode
 						+ SWidgetSwitcher::Slot()
 						[
 							SNew(SHorizontalBox)
@@ -121,6 +106,32 @@ void SAvaEaseCurvePresetGroupItem::Construct(const FArguments& InArgs, const TSh
 						]
 					]
 				]
+				// Quick Ease Button
+				+ SHorizontalBox::Slot()
+				.AutoWidth()
+				.HAlign(HAlign_Right)
+				.VAlign(VAlign_Center)
+				.Padding(8.f, 0.f, 0.f, 0.f)
+				[
+					SNew(SBorder)
+					.Padding(0.f)
+					.BorderImage(FAvaEaseCurveStyle::Get().GetBrush(TEXT("ToolButton.Opaque")))
+					[
+						SNew(SButton)
+						.VAlign(VAlign_Center)
+						.ButtonStyle(FAvaEaseCurveStyle::Get(), TEXT("ToolButton.NoPad"))
+						.ToolTipText(this, &SAvaEaseCurvePresetGroupItem::GetQuickPresetIconToolTip)
+						.Visibility(this, &SAvaEaseCurvePresetGroupItem::GetQuickPresetIconVisibility)
+						.OnClicked(this, &SAvaEaseCurvePresetGroupItem::HandleSetQuickEase)
+						[
+							SNew(SImage)
+							.DesiredSizeOverride(FVector2D(10.f))
+							.Image(FAppStyle::GetBrush(TEXT("Icons.Adjust")))
+							.ColorAndOpacity(this, &SAvaEaseCurvePresetGroupItem::GetQuickPresetIconColor)
+						]
+					]
+				]
+				// Preview Image
 				+ SHorizontalBox::Slot()
 				.AutoWidth()
 				.HAlign(HAlign_Right)
@@ -224,7 +235,7 @@ FReply SAvaEaseCurvePresetGroupItem::OnMouseButtonDown(const FGeometry& InGeomet
 
 	if (OnClick.IsBound())
 	{
-		OnClick.Execute(Preset, InMouseEvent.GetModifierKeys());
+		OnClick.Execute(Preset);
 	}
 
 	return FReply::Handled();
@@ -234,7 +245,7 @@ FReply SAvaEaseCurvePresetGroupItem::OnMouseButtonUp(const FGeometry& InGeometry
 {
 	TriggerEndMove();
 
-	return STableRow<TSharedPtr<FAvaEaseCurvePreset>>::OnMouseButtonUp(InGeometry, InMouseEvent);
+	return STableRow::OnMouseButtonUp(InGeometry, InMouseEvent);
 }
 
 FReply SAvaEaseCurvePresetGroupItem::OnDragDetected(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent)
@@ -254,7 +265,7 @@ FReply SAvaEaseCurvePresetGroupItem::OnDrop(const FGeometry& InGeometry, const F
 {
 	bIsDragging = false;
 
-	return STableRow<TSharedPtr<FAvaEaseCurvePreset>>::OnDrop(InGeometry, InDragDropEvent);
+	return STableRow::OnDrop(InGeometry, InDragDropEvent);
 }
 
 void SAvaEaseCurvePresetGroupItem::TriggerBeginMove()
@@ -277,22 +288,21 @@ void SAvaEaseCurvePresetGroupItem::TriggerEndMove()
 	bIsDragging = false;
 }
 
+FSlateColor SAvaEaseCurvePresetGroupItem::GetQuickPresetIconColor() const
+{
+	return (IsHovered() && IsQuickEasePreset()) ? FStyleColors::Select : FSlateColor::UseStyle();
+}
+
 EVisibility SAvaEaseCurvePresetGroupItem::GetQuickPresetIconVisibility() const
 {
-	const UAvaEaseCurveToolSettings* const Settings = GetDefault<UAvaEaseCurveToolSettings>();
-
-	FAvaEaseCurveTangents Tangents;
-	if (!FAvaEaseCurveTangents::FromString(Settings->GetQuickEaseTangents(), Tangents))
-	{
-		return EVisibility::Hidden;
-	}
-
-	return (Preset->Tangents == Tangents) ? EVisibility::Visible : EVisibility::Collapsed;
+	return (IsHovered() || IsQuickEasePreset()) ? EVisibility::Visible : EVisibility::Collapsed;
 }
 
 FText SAvaEaseCurvePresetGroupItem::GetQuickPresetIconToolTip() const
 {
-	static const FText QuickEaseText = LOCTEXT("QuickEaseIconTooltip", "Active Quick Ease Preset");
+	static const FText QuickEaseText = IsQuickEasePreset()
+		? LOCTEXT("ActiveQuickEaseIconTooltip", "Active Quick Ease Preset")
+		: LOCTEXT("QuickEaseIconTooltip", "Set to Active Quick Ease Preset");
 
 	const FAvaEaseCurveToolCommands& EaseCurveToolCommands = FAvaEaseCurveToolCommands::Get();
 
@@ -317,6 +327,36 @@ FText SAvaEaseCurvePresetGroupItem::GetQuickPresetIconToolTip() const
 	}
 
 	return CommandText.IsEmpty() ? QuickEaseText : FText::Format(LOCTEXT("QuickEasePresetIconTooltip", "{0}\n\n{1}"), QuickEaseText, CommandText);
+}
+
+FReply SAvaEaseCurvePresetGroupItem::HandleSetQuickEase()
+{
+	if (OnSetQuickEase.IsBound())
+	{
+		OnSetQuickEase.Execute(Preset);
+	}
+
+	return FReply::Handled();
+}
+
+bool SAvaEaseCurvePresetGroupItem::IsQuickEasePreset() const
+{
+	if (!Preset.IsValid())
+	{
+		return false;
+	}
+	
+	const UAvaEaseCurveToolSettings* const Settings = GetDefault<UAvaEaseCurveToolSettings>();
+	check(IsValid(Settings));
+	
+	FAvaEaseCurveTangents Tangents;
+	
+	if (!FAvaEaseCurveTangents::FromString(Settings->GetQuickEaseTangents(), Tangents))
+	{
+		return false;
+	}
+
+	return Tangents.IsNearlyEqual(Preset->Tangents);
 }
 
 #undef LOCTEXT_NAMESPACE

@@ -34,6 +34,7 @@ void SAvaEaseCurvePresetGroup::Construct(const FArguments& InArgs)
 	OnBeginPresetMove = InArgs._OnBeginPresetMove;
 	OnEndPresetMove = InArgs._OnEndPresetMove;
 	OnPresetClick = InArgs._OnPresetClick;
+	OnSetQuickEase = InArgs._OnSetQuickEase;
 
 	ChildSlot
 		[
@@ -145,11 +146,12 @@ TSharedRef<ITableRow> SAvaEaseCurvePresetGroup::GeneratePresetWidget(const TShar
 		.IsEditMode(bIsEditMode)
 		.DisplayRate(DisplayRate)
 		.IsSelected(this, &SAvaEaseCurvePresetGroup::IsSelected, InPreset)
-		.OnClick(this, &SAvaEaseCurvePresetGroup::HandlePresetClick)
 		.OnDelete(this, &SAvaEaseCurvePresetGroup::HandlePresetDelete)
 		.OnRename(this, &SAvaEaseCurvePresetGroup::HandlePresetRename)
 		.OnBeginMove(this, &SAvaEaseCurvePresetGroup::HandlePresetBeginMove)
-		.OnEndMove(this, &SAvaEaseCurvePresetGroup::HandlePresetEndMove);
+		.OnEndMove(this, &SAvaEaseCurvePresetGroup::HandlePresetEndMove)
+		.OnClick(this, &SAvaEaseCurvePresetGroup::HandlePresetClick)
+		.OnSetQuickEase(this, &SAvaEaseCurvePresetGroup::HandleSetQuickEase);
 	PresetWidgetsMap.Add(InPreset, NewPresetWidget);
 
 	return NewPresetWidget;
@@ -287,11 +289,23 @@ bool SAvaEaseCurvePresetGroup::HandlePresetEndMove(const TSharedPtr<FAvaEaseCurv
 	return false;
 }
 
-bool SAvaEaseCurvePresetGroup::HandlePresetClick(const TSharedPtr<FAvaEaseCurvePreset>& InPreset, const FModifierKeysState& InModifierKeys) const
+bool SAvaEaseCurvePresetGroup::HandlePresetClick(const TSharedPtr<FAvaEaseCurvePreset>& InPreset) const
 {
 	if (OnPresetClick.IsBound())
 	{
-		OnPresetClick.Execute(InPreset, InModifierKeys);
+		OnPresetClick.Execute(InPreset);
+
+		return true;
+	}
+
+	return false;
+}
+
+bool SAvaEaseCurvePresetGroup::HandleSetQuickEase(const TSharedPtr<FAvaEaseCurvePreset>& InPreset) const
+{
+	if (OnSetQuickEase.IsBound())
+	{
+		OnSetQuickEase.Execute(InPreset);
 
 		return true;
 	}

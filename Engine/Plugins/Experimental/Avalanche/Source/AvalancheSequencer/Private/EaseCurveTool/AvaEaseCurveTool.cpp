@@ -4,22 +4,18 @@
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "AssetToolsModule.h"
 #include "AvaSequencer.h"
-#include "CurveEditor.h"
 #include "Dialogs/DlgPickAssetPath.h"
-#include "EaseCurveTool/AvaEaseCurveToolCommands.h"
+#include "EaseCurveTool/AvaEaseCurveKeySelection.h"
 #include "EaseCurveTool/AvaEaseCurveToolSettings.h"
 #include "EaseCurveTool/Widgets/SAvaEaseCurveTool.h"
 #include "EngineAnalytics.h"
 #include "Factories/CurveFactory.h"
 #include "Framework/Notifications/NotificationManager.h"
 #include "HAL/PlatformApplicationMisc.h"
-#include "IKeyArea.h"
 #include "ISequencer.h"
 #include "ISettingsModule.h"
 #include "Math/UnrealMathUtility.h"
-#include "MVVM/CurveEditorExtension.h"
 #include "MVVM/Selection/Selection.h"
-#include "MVVM/ViewModels/ChannelModel.h"
 #include "MVVM/ViewModels/SequencerEditorViewModel.h"
 #include "Settings/AvaSequencerSettings.h"
 #include "Widgets/Notifications/SNotificationList.h"
@@ -40,72 +36,22 @@ FAvaEaseCurveTool::FAvaEaseCurveTool(const TSharedRef<FAvaSequencer>& InSequence
 		SequencerSelectionWeak = SequencerViewModel->GetSelection();
 	}
 
+	Sequencer->GetSelectionChangedObjectGuids().AddRaw(this, &FAvaEaseCurveTool::OnSequencerSelectionChanged);
+
 	UpdateEaseCurveFromSequencerKeySelections();
 }
 
-void FAvaEaseCurveTool::CacheSelectionData()
+FAvaEaseCurveTool::~FAvaEaseCurveTool()
 {
-	if (!SequencerSelectionWeak.IsValid())
+	if (const TSharedPtr<FAvaSequencer> AvaSequencer = AvaSequencerWeak.Pin())
 	{
-		return;
+		AvaSequencer->GetSequencer()->GetSelectionChangedObjectGuids().RemoveAll(this);
 	}
+}
 
-	const TSharedPtr<FSequencerSelection> SequencerSelection = SequencerSelectionWeak.Pin();
-
-	FKeyDataCache NewKeyCache;
-
-	for (const FKeyHandle Key : SequencerSelection->KeySelection)
-	{
-		if (Key == FKeyHandle::Invalid())
-		{
-			continue;
-		}
-
-		TViewModelPtr<FChannelModel> ChannelModel = SequencerSelection->KeySelection.GetModelForKey(Key);
-		if (!ChannelModel.IsValid())
-		{
-			continue;
-		}
-
-		TSharedPtr<IKeyArea> KeyArea = ChannelModel->GetKeyArea();
-		if (!KeyArea.IsValid())
-		{
-			continue;
-		}
-
-		FMovieSceneDoubleChannel* const DoubleChannel = KeyArea->GetChannel().Cast<FMovieSceneDoubleChannel>().Get();
-		if (!DoubleChannel)
-		{
-			continue;
-		}
-
-		FKeyDataCache::FChannelData& Entry = NewKeyCache.ChannelKeyData.FindOrAdd(ChannelModel->GetChannelName());
-		Entry.ChannelModel = ChannelModel;
-		Entry.DoubleChannel = DoubleChannel;
-		Entry.Section = ChannelModel->GetSection();
-		Entry.KeyHandles.Add(Key);
-
-		NewKeyCache.TotalSelectedKeys++;
-
-		const TArrayView<const FFrameNumber> ChannelTimes = DoubleChannel->GetTimes();
-		const int32 AllKeyCount = ChannelTimes.Num();
-		const int32 SelectedKeyCount = Entry.KeyHandles.Num();
-
-		if (SelectedKeyCount == 1 && NewKeyCache.TotalSelectedKeys == 1)
-		{
-			const int32 KeyIndex = DoubleChannel->GetIndex(Entry.KeyHandles[0]);
-			if (KeyIndex == AllKeyCount - 1)
-			{
-				NewKeyCache.bIsLastOnlySelectedKey = true;
-			}
-		}
-		else if (SelectedKeyCount > 1)
-		{
-			NewKeyCache.bAllChannelSingleKeySelections = false;
-		}
-	}
-
-	KeyCache = NewKeyCache;
+void FAvaEaseCurveTool::OnSequencerSelectionChanged(TArray<FGuid> InObjectGuids)
+{
+	UpdateEaseCurveFromSequencerKeySelections();
 }
 
 void FAvaEaseCurveTool::AddReferencedObjects(FReferenceCollector& Collector)
@@ -153,17 +99,17 @@ FAvaEaseCurveTangents FAvaEaseCurveTool::GetEaseCurveTangents() const
 	return EaseCurve->GetTangents();
 }
 
-void FAvaEaseCurveTool::SetEaseCurveTangents_Internal(const FAvaEaseCurveTangents& InTangents, const EOperation InOperation, const bool bInBroadcastUpdate)
+void FAvaEaseCurveTool::SetEaseCurveTangents_Internal(const FAvaEaseCurveTangents& InTangents, const EAvaEaseCurveToolOperation InOperation, const bool bInBroadcastUpdate) const
 {
 	switch (InOperation)
 	{
-	case EOperation::InOut:
+	case EAvaEaseCurveToolOperation::InOut:
 		EaseCurve->SetTangents(InTangents);
 		break;
-	case EOperation::In:
+	case EAvaEaseCurveToolOperation::In:
 		EaseCurve->SetEndTangent(InTangents.End, InTangents.EndWeight);
 		break;
-	case EOperation::Out:
+	case EAvaEaseCurveToolOperation::Out:
 		EaseCurve->SetStartTangent(InTangents.Start, InTangents.StartWeight);
 		break;
 	}
@@ -174,7 +120,7 @@ void FAvaEaseCurveTool::SetEaseCurveTangents_Internal(const FAvaEaseCurveTangent
 	}
 }
 
-void FAvaEaseCurveTool::SetEaseCurveTangents(const FAvaEaseCurveTangents& InTangents, const EOperation InOperation
+void FAvaEaseCurveTool::SetEaseCurveTangents(const FAvaEaseCurveTangents& InTangents, const EAvaEaseCurveToolOperation InOperation
 	, const bool bInBroadcastUpdate, const bool bInSetSequencerTangents)
 {
 	const FScopedTransaction Transaction(LOCTEXT("SetEaseCurveTangents", "Set Ease Curve Tangents"));
@@ -188,19 +134,19 @@ void FAvaEaseCurveTool::SetEaseCurveTangents(const FAvaEaseCurveTangents& InTang
 	}
 }
 
-void FAvaEaseCurveTool::ResetEaseCurveTangents(const EOperation InOperation)
+void FAvaEaseCurveTool::ResetEaseCurveTangents(const EAvaEaseCurveToolOperation InOperation)
 {
 	FText TransactionText;
 
 	switch (InOperation)
 	{
-	case EOperation::InOut:
+	case EAvaEaseCurveToolOperation::InOut:
 		TransactionText = LOCTEXT("ResetTangents", "Reset Tangents");
 		break;
-	case EOperation::In:
+	case EAvaEaseCurveToolOperation::In:
 		TransactionText = LOCTEXT("ResetEndTangents", "Reset End Tangents");
 		break;
-	case EOperation::Out:
+	case EAvaEaseCurveToolOperation::Out:
 		TransactionText = LOCTEXT("ResetStartTangents", "Reset Start Tangents");
 		break;
 	}
@@ -213,20 +159,20 @@ void FAvaEaseCurveTool::ResetEaseCurveTangents(const EOperation InOperation)
 	SetSequencerKeySelectionTangents(ZeroTangents, InOperation);
 }
 
-void FAvaEaseCurveTool::FlattenOrStraightenTangents(const EOperation InOperation, const bool bInFlattenTangents) const
+void FAvaEaseCurveTool::FlattenOrStraightenTangents(const EAvaEaseCurveToolOperation InOperation, const bool bInFlattenTangents) const
 {
 	FText TransactionText;
 	if (bInFlattenTangents)
 	{
 		switch (InOperation)
 		{
-		case EOperation::InOut:
+		case EAvaEaseCurveToolOperation::InOut:
 			TransactionText = LOCTEXT("FlattenTangents", "Flatten Tangents");
 			break;
-		case EOperation::In:
+		case EAvaEaseCurveToolOperation::In:
 			TransactionText = LOCTEXT("FlattenEndTangents", "Flatten End Tangents");
 			break;
-		case EOperation::Out:
+		case EAvaEaseCurveToolOperation::Out:
 			TransactionText = LOCTEXT("FlattenStartTangents", "Flatten Start Tangents");
 			break;
 		}
@@ -235,13 +181,13 @@ void FAvaEaseCurveTool::FlattenOrStraightenTangents(const EOperation InOperation
 	{
 		switch (InOperation)
 		{
-		case EOperation::InOut:
+		case EAvaEaseCurveToolOperation::InOut:
 			TransactionText = LOCTEXT("StraightenTangents", "Straighten Tangents");
 			break;
-		case EOperation::In:
+		case EAvaEaseCurveToolOperation::In:
 			TransactionText = LOCTEXT("StraightenEndTangents", "Straighten End Tangents");
 			break;
-		case EOperation::Out:
+		case EAvaEaseCurveToolOperation::Out:
 			TransactionText = LOCTEXT("StraightenStartTangents", "Straighten Start Tangents");
 			break;
 		}
@@ -249,11 +195,11 @@ void FAvaEaseCurveTool::FlattenOrStraightenTangents(const EOperation InOperation
 	const FScopedTransaction Transaction(TransactionText);
 	EaseCurve->ModifyOwner();
 
-	if (InOperation == EOperation::Out || InOperation == EOperation::InOut)
+	if (InOperation == EAvaEaseCurveToolOperation::Out || InOperation == EAvaEaseCurveToolOperation::InOut)
 	{
 		EaseCurve->FlattenOrStraightenTangents(EaseCurve->GetStartKeyHandle(), bInFlattenTangents);
 	}
-	if (InOperation == EOperation::In || InOperation == EOperation::InOut)
+	if (InOperation == EAvaEaseCurveToolOperation::In || InOperation == EAvaEaseCurveToolOperation::InOut)
 	{
 		EaseCurve->FlattenOrStraightenTangents(EaseCurve->GetEndKeyHandle(), bInFlattenTangents);
 	}
@@ -261,7 +207,7 @@ void FAvaEaseCurveTool::FlattenOrStraightenTangents(const EOperation InOperation
 	EaseCurve->BroadcastUpdate();
 }
 
-void FAvaEaseCurveTool::ApplyQuickEaseToSequencerKeySelections(const EOperation InOperation)
+void FAvaEaseCurveTool::ApplyQuickEaseToSequencerKeySelections(const EAvaEaseCurveToolOperation InOperation)
 {
 	const UAvaEaseCurveToolSettings* const Settings = GetDefault<UAvaEaseCurveToolSettings>();
 
@@ -286,13 +232,13 @@ void FAvaEaseCurveTool::ApplyQuickEaseToSequencerKeySelections(const EOperation 
 		FString ParamValue;
 		switch (InOperation)
 		{
-		case EOperation::InOut:
+		case EAvaEaseCurveToolOperation::InOut:
 			ParamValue = TEXT("InOut");
 			break;
-		case EOperation::In:
+		case EAvaEaseCurveToolOperation::In:
 			ParamValue = TEXT("In");
 			break;
-		case EOperation::Out:
+		case EAvaEaseCurveToolOperation::Out:
 			ParamValue = TEXT("Out");
 			break;
 		}
@@ -300,139 +246,38 @@ void FAvaEaseCurveTool::ApplyQuickEaseToSequencerKeySelections(const EOperation 
 	}
 }
 
-void FAvaEaseCurveTool::SetSequencerKeySelectionTangents(const FAvaEaseCurveTangents& InTangents, const EOperation InOperation)
+void FAvaEaseCurveTool::SetSequencerKeySelectionTangents(const FAvaEaseCurveTangents& InTangents, const EAvaEaseCurveToolOperation InOperation)
 {
-	CacheSelectionData();
+	KeyCache = FAvaEaseCurveKeySelection(SequencerSelectionWeak);
 
 	if (KeyCache.TotalSelectedKeys == 0)
 	{
 		return;
 	}
-
-	const FFrameRate DisplayRate = GetDisplayRate();
-	const FFrameRate TickResolution = GetTickResolution();
+	
 	const UAvaEaseCurveToolSettings* const EaseCurveToolSettings = GetDefault<UAvaEaseCurveToolSettings>();
 	check(EaseCurveToolSettings);
 	const bool bAutoFlipTangents = EaseCurveToolSettings->GetAutoFlipTangents();
 
-	KeyCache.ForEachEaseableKey(/*bInIncludeEqualValueKeys=*/true, [&DisplayRate, &TickResolution, &InTangents, InOperation, bAutoFlipTangents](const FKeyHandle& InKeyHandle
-		, const FKeyHandle& InNextKeyHandle, const FKeyDataCache::FChannelData& InChannelData)
-		{
-			TMovieSceneChannelData<FMovieSceneDoubleValue> ChannelData = InChannelData.DoubleChannel->GetData();
-
-			TArrayView<FMovieSceneDoubleValue> ChannelValues = ChannelData.GetValues();
-			const TArrayView<FFrameNumber> ChannelTimes = ChannelData.GetTimes();
-			const int32 KeyCount = ChannelValues.Num();
-
-			const int32 KeyIndex = ChannelData.GetIndex(InKeyHandle);
-			const int32 NextKeyIndex = ChannelData.GetIndex(InNextKeyHandle);
-
-			FAvaEaseCurveTangents ScaledTangents = InTangents;
-
-			// If there is a key frame after this key frame that we are editing, we check if the that key frame value is less
-			// than or greater than this key frame value. If less, flip the tangent (if option is set).
-			const bool bIncreasingValue = ChannelValues[NextKeyIndex].Value >= ChannelValues[KeyIndex].Value;
-
-			if (bAutoFlipTangents && !bIncreasingValue)
-			{
-				ScaledTangents.Start *= -1.f;
-				ScaledTangents.End *= -1.f;
-			}
-
-			// Scale normalized tangents to time/value range
-			ScaledTangents.ScaleUp(ChannelTimes[KeyIndex], ChannelValues[KeyIndex].Value
-				, ChannelTimes[NextKeyIndex], ChannelValues[NextKeyIndex].Value
-				, DisplayRate, TickResolution);
-
-			const FScopedTransaction Transaction(LOCTEXT("SetSequencerCurveTangents", "Set Sequencer Curve Tangents"));
-			InChannelData.Section->Modify();
-			InChannelData.Section->MarkAsChanged();
-
-			// Set this keys leave tangent
-			if (InOperation == EOperation::Out || InOperation == EOperation::InOut)
-			{
-				ChannelValues[KeyIndex].InterpMode = ERichCurveInterpMode::RCIM_Cubic;
-				ChannelValues[KeyIndex].Tangent.TangentWeightMode = ERichCurveTangentWeightMode::RCTWM_WeightedBoth;
-				ChannelValues[KeyIndex].TangentMode = ERichCurveTangentMode::RCTM_Break;
-				ChannelValues[KeyIndex].Tangent.LeaveTangent = ScaledTangents.Start;
-				ChannelValues[KeyIndex].Tangent.LeaveTangentWeight = ScaledTangents.StartWeight;
-			}
-
-			// Set the next keys arrive tangent
-			if (NextKeyIndex != INDEX_NONE && (InOperation == EOperation::In || InOperation == EOperation::InOut))
-			{
-				ChannelValues[NextKeyIndex].InterpMode = ERichCurveInterpMode::RCIM_Cubic;
-				ChannelValues[NextKeyIndex].Tangent.TangentWeightMode = ERichCurveTangentWeightMode::RCTWM_WeightedBoth;
-				ChannelValues[NextKeyIndex].TangentMode = ERichCurveTangentMode::RCTM_Break;
-				ChannelValues[NextKeyIndex].Tangent.ArriveTangent = ScaledTangents.End;
-				ChannelValues[NextKeyIndex].Tangent.ArriveTangentWeight = ScaledTangents.EndWeight;
-			}
-
-			return true;
-		});
+	KeyCache.SetTangents(InTangents, InOperation, GetDisplayRate(), GetTickResolution(), bAutoFlipTangents);
 }
 
 void FAvaEaseCurveTool::UpdateEaseCurveFromSequencerKeySelections()
 {
-	CacheSelectionData();
+	KeyCache = FAvaEaseCurveKeySelection(SequencerSelectionWeak);
 	
-	const FFrameRate DisplayRate = GetDisplayRate();
-	const FFrameRate TickResolution = GetTickResolution();
 	const UAvaEaseCurveToolSettings* const EaseCurveToolSettings = GetDefault<UAvaEaseCurveToolSettings>();
 	check(EaseCurveToolSettings);
 	const bool bAutoFlipTangents = EaseCurveToolSettings->GetAutoFlipTangents();
+	
+	const FAvaEaseCurveTangents AverageTangents = KeyCache.AverageTangents(GetDisplayRate(), GetTickResolution(), bAutoFlipTangents);
 
-	TArray<FAvaEaseCurveTangents> KeySetTangents;
-	TArray<FAvaEaseCurveTangents> ChangingTangents;
-
-	KeyCache.ForEachEaseableKey(/*bInIncludeEqualValueKeys=*/true, [&DisplayRate, &TickResolution, bAutoFlipTangents, &KeySetTangents, &ChangingTangents]
-		(const FKeyHandle& InKeyHandle, const FKeyHandle& InNextKeyHandle, const FKeyDataCache::FChannelData& InChannelData)
-		{
-			TMovieSceneChannelData<FMovieSceneDoubleValue> ChannelData = InChannelData.DoubleChannel->GetData();
-
-			const TArrayView<FMovieSceneDoubleValue> ChannelValues = ChannelData.GetValues();
-			const TArrayView<FFrameNumber> ChannelTimes = ChannelData.GetTimes();
-			const int32 KeyCount = ChannelValues.Num();
-
-			const int32 KeyIndex = ChannelData.GetIndex(InKeyHandle);
-			const int32 NextKeyIndex = ChannelData.GetIndex(InNextKeyHandle);
-
-			// If there is a key frame after this key frame that we are editing, we check if the that key frame value is less
-			// than or greater than this key frame value. If less, flip the tangent (if option is set).
-			const bool bIncreasingValue = ChannelValues[NextKeyIndex].Value >= ChannelValues[KeyIndex].Value;
-
-			FAvaEaseCurveTangents Tangents = FAvaEaseCurveTangents(ChannelValues[KeyIndex], ChannelValues[NextKeyIndex]);
-
-			if (bAutoFlipTangents && !bIncreasingValue)
-			{
-				Tangents.Start *= -1.f;
-				Tangents.End *= -1.f;
-			}
-
-			// Scale time/value to normalized tangent range
-			FAvaEaseCurveTangents ScaledTangents = Tangents;
-			ScaledTangents.Normalize(ChannelTimes[KeyIndex], ChannelValues[KeyIndex].Value
-				, ChannelTimes[NextKeyIndex], ChannelValues[NextKeyIndex].Value
-				, DisplayRate, TickResolution);
-
-			KeySetTangents.Add(ScaledTangents);
-			if (ChannelValues[KeyIndex].Value != ChannelValues[NextKeyIndex].Value)
-			{
-				ChangingTangents.Add(ScaledTangents);
-			}
-
-			return true;
-		});
-
-	const FAvaEaseCurveTangents AverageTangents = FAvaEaseCurveTangents::Average(KeySetTangents);
-	const FAvaEaseCurveTangents AverageChangingTangents = FAvaEaseCurveTangents::Average(ChangingTangents);
-
-	SetEaseCurveTangents(AverageChangingTangents, EOperation::InOut, /*bInBroadcastUpdate=*/true, false);
+	SetEaseCurveTangents(AverageTangents, EAvaEaseCurveToolOperation::InOut, /*bInBroadcastUpdate=*/true, false);
 
 	// Update the preset combobox widget
 	if (ToolWidget.IsValid())
 	{
-		ToolWidget->SetTangents(AverageChangingTangents, EOperation::InOut
+		ToolWidget->SetTangents(AverageTangents, EAvaEaseCurveToolOperation::InOut
 			, /*bInSetEaseCurve=*/false, /*bInBroadcastUpdate=*/false, /*bInSetSequencerTangents*/false);
 	}
 }
@@ -497,17 +342,17 @@ UCurveBase* FAvaEaseCurveTool::CreateCurveAsset() const
 	return nullptr;
 }
 
-FAvaEaseCurveTool::EOperation FAvaEaseCurveTool::GetToolOperation() const
+EAvaEaseCurveToolOperation FAvaEaseCurveTool::GetToolOperation() const
 {
 	return OperationMode;
 }
 
-void FAvaEaseCurveTool::SetToolOperation(const FAvaEaseCurveTool::EOperation InNewOperation)
+void FAvaEaseCurveTool::SetToolOperation(const EAvaEaseCurveToolOperation InNewOperation)
 {
 	OperationMode = InNewOperation;
 }
 
-bool FAvaEaseCurveTool::IsToolOperation(const FAvaEaseCurveTool::EOperation InNewOperation) const
+bool FAvaEaseCurveTool::IsToolOperation(const EAvaEaseCurveToolOperation InNewOperation) const
 {
 	return OperationMode == InNewOperation;
 }
@@ -517,7 +362,7 @@ bool FAvaEaseCurveTool::CanCopyTangentsToClipboard() const
 	return true;
 }
 
-void FAvaEaseCurveTool::CopyTangentsToClipboard()
+void FAvaEaseCurveTool::CopyTangentsToClipboard() const
 {
 	FPlatformApplicationMisc::ClipboardCopy(*EaseCurve->GetTangents().ToJson());
 
@@ -530,7 +375,7 @@ bool FAvaEaseCurveTool::CanPasteTangentsFromClipboard() const
 	return TangentsFromClipboardPaste(Tangents);
 }
 
-void FAvaEaseCurveTool::PasteTangentsFromClipboard()
+void FAvaEaseCurveTool::PasteTangentsFromClipboard() const
 {
 	FAvaEaseCurveTangents Tangents;
 	if (TangentsFromClipboardPaste(Tangents))
@@ -548,14 +393,14 @@ bool FAvaEaseCurveTool::TangentsFromClipboardPaste(FAvaEaseCurveTangents& OutTan
 	return FAvaEaseCurveTangents::FromString(ClipboardString, OutTangents);
 }
 
-bool FAvaEaseCurveTool::IsKeyInterpMode(const ERichCurveInterpMode InInterpMode, const ERichCurveTangentMode InTangentMode)
+bool FAvaEaseCurveTool::IsKeyInterpMode(const ERichCurveInterpMode InInterpMode, const ERichCurveTangentMode InTangentMode) const
 {
 	const FKeyHandle StartKeyHandle = EaseCurve->GetStartKeyHandle();
 	return (EaseCurve->FloatCurve.GetKeyInterpMode(StartKeyHandle) == InInterpMode
 		&& EaseCurve->FloatCurve.GetKeyTangentMode(StartKeyHandle) == InTangentMode);
 }
 
-void FAvaEaseCurveTool::SetKeyInterpMode(const ERichCurveInterpMode InInterpMode, const ERichCurveTangentMode InTangentMode)
+void FAvaEaseCurveTool::SetKeyInterpMode(const ERichCurveInterpMode InInterpMode, const ERichCurveTangentMode InTangentMode) const
 {
 	const FKeyHandle StartKeyHandle = EaseCurve->GetStartKeyHandle();
 
@@ -625,7 +470,7 @@ void FAvaEaseCurveTool::PostRedo(bool bInSuccess)
 
 void FAvaEaseCurveTool::OpenToolSettings() const
 {
-	if (ISettingsModule* SettingsModule = FModuleManager::GetModulePtr<ISettingsModule>("Settings"))
+	if (ISettingsModule* SettingsModule = FModuleManager::GetModulePtr<ISettingsModule>(TEXT("Settings")))
 	{
 		SettingsModule->ShowViewer(TEXT("Editor"), TEXT("Motion Design"), TEXT("Ease Curve Tool"));
 	}
@@ -633,7 +478,7 @@ void FAvaEaseCurveTool::OpenToolSettings() const
 
 FFrameRate FAvaEaseCurveTool::GetTickResolution() const
 {
-	if (TSharedPtr<FAvaSequencer> AvaSequencer = AvaSequencerWeak.Pin())
+	if (const TSharedPtr<FAvaSequencer> AvaSequencer = AvaSequencerWeak.Pin())
 	{
 		return AvaSequencer->GetSequencer()->GetFocusedTickResolution();
 	}
@@ -643,7 +488,7 @@ FFrameRate FAvaEaseCurveTool::GetTickResolution() const
 
 FFrameRate FAvaEaseCurveTool::GetDisplayRate() const
 {
-	if (TSharedPtr<FAvaSequencer> AvaSequencer = AvaSequencerWeak.Pin())
+	if (const TSharedPtr<FAvaSequencer> AvaSequencer = AvaSequencerWeak.Pin())
 	{
 		return AvaSequencer->GetSequencer()->GetFocusedDisplayRate();
 	}
@@ -659,167 +504,18 @@ void FAvaEaseCurveTool::ShowNotificationMessage(const FText& InMessageText)
 	FSlateNotificationManager::Get().AddNotification(Info);
 }
 
-void FAvaEaseCurveTool::SelectNextChannelKey()
-{
-	// This command is only available for single key selections
-	if (KeyCache.TotalSelectedKeys != 1 || !SequencerSelectionWeak.IsValid())
-	{
-		return;
-	}
-
-	const TSharedPtr<FSequencerSelection> SequencerSelection = SequencerSelectionWeak.Pin();
-
-	int32 SelectedKeyIndex = INDEX_NONE;
-	FKeyHandle SelectedKeyHandle;
-	FKeyHandle NextKeyHandle;
-	TViewModelPtr<FChannelModel> ChannelModel;
-
-	for (const TPair<FName, FKeyDataCache::FChannelData>& ChannelEntry : KeyCache.ChannelKeyData)
-	{
-		if (ChannelEntry.Value.KeyHandles.Num() == 1)
-		{
-			SelectedKeyHandle = ChannelEntry.Value.KeyHandles[0];
-
-			TMovieSceneChannelData<FMovieSceneDoubleValue> ChannelData = ChannelEntry.Value.DoubleChannel->GetData();
-			const TArrayView<const FFrameNumber> KeyTimes = ChannelData.GetTimes();
-
-			SelectedKeyIndex = ChannelData.GetIndex(SelectedKeyHandle);
-			if (KeyTimes.IsValidIndex(SelectedKeyIndex + 1))
-			{
-				NextKeyHandle = ChannelData.GetHandle(SelectedKeyIndex + 1);
-
-				ChannelModel = ChannelEntry.Value.ChannelModel;
-			}
-		}
-		break;
-	}
-
-	if (SelectedKeyIndex == INDEX_NONE
-		|| SelectedKeyHandle == FKeyHandle::Invalid()
-		|| NextKeyHandle == FKeyHandle::Invalid()
-		|| !ChannelModel.IsValid())
-	{
-		return;
-	}
-	
-	SequencerSelection->KeySelection.Deselect(SelectedKeyHandle);
-	SequencerSelection->KeySelection.Select(ChannelModel, NextKeyHandle);
-
-	UpdateEaseCurveFromSequencerKeySelections();
-}
-
-void FAvaEaseCurveTool::SelectPreviousChannelKey()
-{
-	// This command is only available for single key selections
-	if (KeyCache.TotalSelectedKeys != 1 || !SequencerSelectionWeak.IsValid())
-	{
-		return;
-	}
-
-	const TSharedPtr<FSequencerSelection> SequencerSelection = SequencerSelectionWeak.Pin();
-
-	int32 SelectedKeyIndex = INDEX_NONE;
-	FKeyHandle SelectedKeyHandle;
-	FKeyHandle PreviousKeyHandle;
-	TViewModelPtr<FChannelModel> ChannelModel;
-
-	for (const TPair<FName, FKeyDataCache::FChannelData>& ChannelEntry : KeyCache.ChannelKeyData)
-	{
-		if (ChannelEntry.Value.KeyHandles.Num() == 1)
-		{
-			SelectedKeyHandle = ChannelEntry.Value.KeyHandles[0];
-
-			TMovieSceneChannelData<FMovieSceneDoubleValue> ChannelData = ChannelEntry.Value.DoubleChannel->GetData();
-			const TArrayView<const FFrameNumber> KeyTimes = ChannelData.GetTimes();
-
-			SelectedKeyIndex = ChannelData.GetIndex(SelectedKeyHandle);
-			if (KeyTimes.IsValidIndex(SelectedKeyIndex - 1))
-			{
-				PreviousKeyHandle = ChannelData.GetHandle(SelectedKeyIndex - 1);
-
-				ChannelModel = ChannelEntry.Value.ChannelModel;
-			}
-		}
-		break;
-	}
-
-	if (SelectedKeyIndex == INDEX_NONE
-		|| SelectedKeyHandle == FKeyHandle::Invalid()
-		|| PreviousKeyHandle == FKeyHandle::Invalid()
-		|| !ChannelModel.IsValid())
-	{
-		return;
-	}
-
-	SequencerSelection->KeySelection.Deselect(SelectedKeyHandle);
-	SequencerSelection->KeySelection.Select(ChannelModel, PreviousKeyHandle);
-
-	UpdateEaseCurveFromSequencerKeySelections();
-}
-
 bool FAvaEaseCurveTool::HasCachedKeysToEase()
 {
 	bool bEaseableKeys = false;
 
 	KeyCache.ForEachEaseableKey(/*bInIncludeEqualValueKeys=*/false, [&bEaseableKeys](const FKeyHandle& InKeyHandle
-		, const FKeyHandle& InNextKeyHandle, const FKeyDataCache::FChannelData& InChannelData)
+		, const FKeyHandle& InNextKeyHandle, const FAvaEaseCurveKeySelection::FChannelData& InChannelData)
 		{
 			bEaseableKeys = true;
 			return false;
 		});
 
 	return bEaseableKeys;
-}
-
-void FAvaEaseCurveTool::FKeyDataCache::ForEachEaseableKey(const bool bInIncludeEqualValueKeys
-	, TFunctionRef<bool(const FKeyHandle& /*InKeyHandle*/, const FKeyHandle& /*InNextKeyHandle*/, const FChannelData&)> InCallable)
-{
-	for (const TPair<FName, FKeyDataCache::FChannelData>& ChannelEntry : ChannelKeyData)
-	{
-		TMovieSceneChannelData<FMovieSceneDoubleValue> ChannelData = ChannelEntry.Value.DoubleChannel->GetData();
-		const TArrayView<const FMovieSceneDoubleValue> ChannelValues = ChannelData.GetValues();
-		const int32 KeyCount = ChannelValues.Num();
-		
-		for (const FKeyHandle& KeyHandle : ChannelEntry.Value.KeyHandles)
-		{
-			if (KeyHandle == FKeyHandle::Invalid())
-			{
-				continue;
-			}
-
-			const int32 KeyIndex = ChannelData.GetIndex(KeyHandle);
-			if (KeyIndex == INDEX_NONE)
-			{
-				continue;
-			}
-			
-			// If there is no key after the selected key, we don't need to process.
-			// The arrive tangents of this key will be set by the previous key's processing.
-			int32 NextKeyIndex = KeyIndex + 1;
-			NextKeyIndex = (NextKeyIndex < KeyCount) ? NextKeyIndex : INDEX_NONE;
-			if (NextKeyIndex == INDEX_NONE)
-			{
-				continue;
-			}
-
-			// Need to check if the next key index is valid, otherwise GetHandle() will fail.
-			const FKeyHandle NextKeyHandle = ChannelData.GetHandle(NextKeyIndex);
-			if (NextKeyHandle == FKeyHandle::Invalid())
-			{
-				continue;
-			}
-
-			if (!bInIncludeEqualValueKeys && ChannelValues[KeyIndex].Value == ChannelValues[NextKeyIndex].Value)
-			{
-				continue;
-			}
-			
-			if (!InCallable(KeyHandle, NextKeyHandle, ChannelEntry.Value))
-			{
-				return;
-			}
-		}
-	}
 }
 
 #undef LOCTEXT_NAMESPACE

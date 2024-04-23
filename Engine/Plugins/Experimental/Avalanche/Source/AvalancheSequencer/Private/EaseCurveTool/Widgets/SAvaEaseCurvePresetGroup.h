@@ -32,6 +32,7 @@ public:
 		SLATE_EVENT(FAvaEaseCurvePresetMoveDelegate, OnBeginPresetMove)
 		SLATE_EVENT(FAvaEaseCurvePresetMoveDelegate, OnEndPresetMove)
 		SLATE_EVENT(FAvaEaseCurvePresetClickDelegate, OnPresetClick)
+		SLATE_EVENT(FAvaEaseCurvePresetDelegate, OnSetQuickEase)
 	SLATE_END_ARGS()
 
 	void Construct(const FArguments& InArgs);
@@ -63,13 +64,14 @@ protected:
 
 	void HandleCategoryRenameCommitted(const FText& InNewText, ETextCommit::Type InCommitType);
 	FReply HandleCategoryDelete() const;
-
-	bool HandlePresetClick(const TSharedPtr<FAvaEaseCurvePreset>& InPreset, const FModifierKeysState& InModifierKeys) const;
+	
 	bool HandlePresetDelete(const TSharedPtr<FAvaEaseCurvePreset>& InPreset);
 	bool HandlePresetRename(const TSharedPtr<FAvaEaseCurvePreset>& InPreset, const FString& InNewName);
 	bool HandlePresetBeginMove(const TSharedPtr<FAvaEaseCurvePreset>& InPreset, const FString& InNewCategoryName) const;
 	bool HandlePresetEndMove(const TSharedPtr<FAvaEaseCurvePreset>& InPreset, const FString& InNewCategoryName) const;
-
+	bool HandlePresetClick(const TSharedPtr<FAvaEaseCurvePreset>& InPreset) const;
+	bool HandleSetQuickEase(const TSharedPtr<FAvaEaseCurvePreset>& InPreset) const;
+	
 	//~ Begin SWidget
 	virtual void OnDragEnter(const FGeometry& InGeometry, const FDragDropEvent& InDragDropEvent) override;
 	virtual void OnDragLeave(const FDragDropEvent& InDragDropEvent) override;
@@ -90,6 +92,7 @@ protected:
 	FAvaEaseCurvePresetMoveDelegate OnBeginPresetMove;
 	FAvaEaseCurvePresetMoveDelegate OnEndPresetMove;
 	FAvaEaseCurvePresetClickDelegate OnPresetClick;
+	FAvaEaseCurvePresetDelegate OnSetQuickEase;
 
 	TArray<TSharedPtr<FAvaEaseCurvePreset>> VisiblePresets;
 

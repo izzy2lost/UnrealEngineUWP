@@ -6,11 +6,12 @@
 #include "EditorUndoClient.h"
 #include "Templates/SharedPointer.h"
 #include "Widgets/DeclarativeSyntaxSupport.h"
-#include "Widgets/Input/SNumericEntryBox.h"
 #include "Widgets/SCompoundWidget.h"
 
+class FAvaEaseCurveToolContextMenu;
 class FCurveEditor;
 class FText;
+class FUICommandList;
 class SAvaEaseCurveEditor;
 class SAvaEaseCurvePreset;
 class UCurveBase;
@@ -23,24 +24,23 @@ class SAvaEaseCurveTool
 	, public FEditorUndoClient
 {
 public:
+	static constexpr int32 DefaultGraphSize = 200;
+	
 	SLATE_BEGIN_ARGS(SAvaEaseCurveTool)
-		: _ToolMode(FAvaEaseCurveTool::EMode::DualKeyEdit)
-		, _ToolOperation(FAvaEaseCurveTool::EOperation::InOut)
+		: _ToolMode(EAvaEaseCurveToolMode::DualKeyEdit)
+		, _ToolOperation(EAvaEaseCurveToolOperation::InOut)
 	{}
-		SLATE_ATTRIBUTE(FAvaEaseCurveTool::EMode, ToolMode)
-		SLATE_ATTRIBUTE(FAvaEaseCurveTool::EOperation, ToolOperation)
+		SLATE_ATTRIBUTE(EAvaEaseCurveToolMode, ToolMode)
+		SLATE_ATTRIBUTE(EAvaEaseCurveToolOperation, ToolOperation)
 		SLATE_ARGUMENT(FAvaEaseCurveTangents, InitialTangents)
 	SLATE_END_ARGS()
 
 	void Construct(const FArguments& InArgs, const TSharedRef<FAvaEaseCurveTool>& InEaseCurveTool);
 	
-	void SetTangents(const FAvaEaseCurveTangents& InTangents, FAvaEaseCurveTool::EOperation InOperation,
+	void SetTangents(const FAvaEaseCurveTangents& InTangents, EAvaEaseCurveToolOperation InOperation,
 		const bool bInSetEaseCurve, const bool bInBroadcastUpdate, const bool bInSetSequencerTangents) const;
 
-	float GetStartTangent() const;
-	float GetStartTangentWeight() const;
-	float GetEndTangent() const;
-	float GetEndTangentWeight() const;
+	FAvaEaseCurveTangents GetTangents() const;
 
 	FKeyHandle GetSelectedKeyHandle() const;
 
@@ -48,28 +48,18 @@ public:
 
 protected:
 	TSharedRef<SWidget> ConstructCurveEditorPanel();
-	TSharedRef<SWidget> ConstructInputBoxes();
-	TSharedRef<SWidget> ConstructTangentNumBox(const FText& InLabel
-		, const FText& InToolTip
-		, const TAttribute<float>& InValue
-		, const SNumericEntryBox<float>::FOnValueChanged& InOnValueChanged
-		, const TOptional<float>& InMinSliderValue
-		, const TOptional<float>& InMaxSliderValue) const;
 
 	void HandleEditorTangentsChanged(const FAvaEaseCurveTangents& InTangents) const;
 
-	void OnStartTangentSpinBoxChanged(const float InNewValue) const;
-	void OnStartTangentWeightSpinBoxChanged(const float InNewValue) const;
-	void OnEndTangentSpinBoxChanged(const float InNewValue) const;
-	void OnEndTangentWeightSpinBoxChanged(const float InNewValue) const;
+	void OnStartTangentSpinBoxChanged(const double InNewValue) const;
+	void OnStartTangentWeightSpinBoxChanged(const double InNewValue) const;
+	void OnEndTangentSpinBoxChanged(const double InNewValue) const;
+	void OnEndTangentWeightSpinBoxChanged(const double InNewValue) const;
 
 	void OnPresetChanged(const TSharedPtr<FAvaEaseCurvePreset>& InPreset) const;
 	void OnQuickPresetChanged(const TSharedPtr<FAvaEaseCurvePreset>& InPreset) const;
 
 	void BindCommands();
-
-	TSharedRef<SWidget> CreateContextMenuContent();
-	void MakeContextMenuSettings(UToolMenu* const InToolMenu);
 
 	void UndoAction();
 	void RedoAction();
@@ -96,11 +86,11 @@ protected:
 
 	TSharedPtr<FAvaEaseCurveTool> EaseCurveTool;
 
-	TAttribute<FAvaEaseCurveTool::EMode> ToolMode;
-	TAttribute<FAvaEaseCurveTool::EOperation> ToolOperation;
+	TAttribute<EAvaEaseCurveToolMode> ToolMode;
+	TAttribute<EAvaEaseCurveToolOperation> ToolOperation;
 
 	TSharedPtr<SAvaEaseCurveEditor> CurveEaseEditorWidget;
 	TSharedPtr<SAvaEaseCurvePreset> CurvePresetWidget;
 
-	float CurrentGraphSize = 200.f;
+	int32 CurrentGraphSize = DefaultGraphSize;
 };
