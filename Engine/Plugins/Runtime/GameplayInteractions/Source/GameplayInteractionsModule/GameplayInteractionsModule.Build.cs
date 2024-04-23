@@ -7,7 +7,7 @@ namespace UnrealBuildTool.Rules
 		public GameplayInteractionsModule(ReadOnlyTargetRules Target) : base(Target)
 		{
 			ShortName = "GameplayInteractions";
-			
+
 			PublicDependencyModuleNames.AddRange(
 				new string[] {
 					"AIModule",
@@ -15,6 +15,7 @@ namespace UnrealBuildTool.Rules
 					"Core",
 					"CoreUObject",
 					"Engine",
+					"GameplayStateTreeModule",
 					"GameplayTags",
 					"GameplayTasks",
 					"NavCorridor",
