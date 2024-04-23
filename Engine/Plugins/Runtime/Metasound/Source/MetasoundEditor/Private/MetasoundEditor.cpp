@@ -964,6 +964,8 @@ namespace Metasound
 			{
 				Play();
 			}
+
+			FSlateApplication::Get().SetUserFocus(0, MetasoundGraphEditor);
 		}
 
 		UObject* FEditor::GetMetasoundObject() const
