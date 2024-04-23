@@ -505,7 +505,11 @@ void FSyncData::FLayer::Process(FProcessInfo* /* IOProcessInfo */)
 		API_Attribute attribute;
 		Zap(&attribute);
 		attribute.header.typeID = API_LayerID;
+#if AC_VERSION > 26
+		attribute.header.index = ACAPI_CreateAttributeIndex(LayerIndex);
+#else
 		attribute.header.index = short(LayerIndex);
+#endif
 		attribute.header.uniStringNamePtr = &LayerName;
 		GSErrCode error = ACAPI_Attribute_Get(&attribute);
 		if (error != NoError)
@@ -807,8 +811,12 @@ void FSyncData::FElement::Process(FProcessInfo* IOProcessInfo)
 			ActorElement->SetRotation(FGeometryUtil::GetRotationQuat(LocalToWorld.matrix));
 
 			// Set actor layer
-			ActorElement->SetLayer(
-				*IOProcessInfo->SyncContext.GetSyncDatabase().GetLayerName(IOProcessInfo->ElementID.GetHeader().layer));
+#if AC_VERSION > 26
+			const short Index = short(IOProcessInfo->ElementID.GetHeader().layer.ToInt32_Deprecated());
+			ActorElement->SetLayer(*IOProcessInfo->SyncContext.GetSyncDatabase().GetLayerName(Index));
+#else
+			ActorElement->SetLayer(*IOProcessInfo->SyncContext.GetSyncDatabase().GetLayerName(IOProcessInfo->ElementID.GetHeader().layer));
+#endif
 
 			bMetadataProcessed = false;
 			if (IOProcessInfo->bProcessMetaData)
@@ -818,8 +826,11 @@ void FSyncData::FElement::Process(FProcessInfo* IOProcessInfo)
 
 			FMeshClass* MeshClass = IOProcessInfo->ElementID.GetMeshClass();
 			UE_AC_Assert(MeshClass != nullptr);
+			constexpr short IsRelative = short(TR_DET_1 | TR_TRANSL_ONLY);
 			if (MeshClass->AddInstance(this, &IOProcessInfo->SyncContext.GetSyncDatabase()) == FMeshClass::kBuild)
 			{
+				MeshClass->Translation = ActorElement->GetTranslation();
+				MeshClass->Rotation = ActorElement->GetRotation();
 				FConvertGeometry2MeshElement* ConvertGeometry2MeshElement =
 					new FConvertGeometry2MeshElement(IOProcessInfo->SyncContext, this, MeshClass);
 				ConvertGeometry2MeshElement->AddElementGeometry(&IOProcessInfo->ElementID, WorldToLocal);
@@ -835,6 +846,43 @@ void FSyncData::FElement::Process(FProcessInfo* IOProcessInfo)
 				// ConvertGeometry2MeshElement->Run();
 				// delete ConvertGeometry2MeshElement;
 				FTaskMgr::GetMgr()->AddTask(ConvertGeometry2MeshElement, FTaskMgr::kSchedule);
+			}
+			else if(TypeID == API_MorphID && ((LocalToWorld.status & IsRelative) == IsRelative))
+			{
+				FTransform Parent(MeshClass->Rotation, MeshClass->Translation);
+				FTransform Child =  Parent * ActorElement->GetRelativeTransform();
+				ActorElement->SetTranslation(Child.GetTranslation());
+				ActorElement->SetRotation(Child.GetRotation());
+
+				//API_Element APIElement;
+				//Zap(&APIElement);
+				//APIElement.header.guid = GSGuid2APIGuid(ElementId);
+				//GSErrCode GSErr = ACAPI_Element_Get(&APIElement, 0);
+				//UE_AC_Assert(GSErr == NoError);
+				//UE_AC_Assert(APIElement.header.typeID == TypeID);
+
+				{
+					//API_Elem_Head	elemHead;
+					//BNZeroMemory(&elemHead, sizeof(API_Elem_Head));
+					//elemHead.guid = GSGuid2APIGuid(ElementId);
+
+					API_ElemInfo3D info3D;
+					BNZeroMemory(&info3D, sizeof(API_ElemInfo3D));
+
+					GSErrCode err = ACAPI_Element_Get3DInfo(IOProcessInfo->ElementID.GetHeader(), &info3D);
+					if (err == NoError)
+					{
+						//API_Component3D component;
+						//BNZeroMemory(&component, sizeof(component));
+						//component.header.typeID = API_BodyID;
+						//component.header.index = info3D.fbody;
+						//err = ACAPI_3D_GetComponent(&component);
+						//if (err == NoError) {
+						//	API_Tranmat			tm;
+						//	tm = component.body.tranmat;
+						//}
+					}
+				}
 			}
 		}
 	}
@@ -1447,8 +1495,12 @@ void FSyncData::FHotLinkNode::Process(FProcessInfo* IOProcessInfo)
 	{
 		SetActorElement(FDatasmithSceneFactory::CreateActor(GSStringToUE(ElementId.ToUniString())));
 
+#if AC_VERSION < 26
 		API_HotlinkNode hotlinkNode;
 		Zap(&hotlinkNode);
+#else
+		API_HotlinkNode hotlinkNode = {0};
+#endif
 		hotlinkNode.guid = GSGuid2APIGuid(ElementId);
 		GSErrCode err = ACAPI_Database(APIDb_GetHotlinkNodeID, &hotlinkNode);
 		if (err == NoError)
@@ -1666,7 +1718,7 @@ FSyncData* FSyncData::FInterator::Next()
 		}
 		else
 		{
-			Stack.Pop(false);
+			Stack.Pop(EAllowShrinking::No);
 		}
 	}
 	return Current;

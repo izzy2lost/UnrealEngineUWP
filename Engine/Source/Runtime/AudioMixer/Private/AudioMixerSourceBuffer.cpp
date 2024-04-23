@@ -5,6 +5,7 @@
 #include "ContentStreaming.h"
 #include "AudioDecompress.h"
 #include "Misc/ScopeTryLock.h"
+#include "DSP/FloatArrayMath.h"
 
 namespace Audio
 {
@@ -39,17 +40,11 @@ namespace Audio
 			}
 
 			// Zero out the rest of the buffer
-			while (Sample < NumSampleToGet)
-			{
-				OutBufferPtr[Sample++] = 0.0f;
-			}
+			FMemory::Memzero(&OutBufferPtr[Sample], (NumSampleToGet - Sample) * sizeof(float));
 		}
 		else
 		{
-			for (uint32 Sample = 0; Sample < NumSampleToGet; ++Sample)
-			{
-				OutBufferPtr[Sample] = 0.0f;
-			}
+			FMemory::Memzero(OutBufferPtr, NumSampleToGet * sizeof(float));
 		}
 
 		// If the current sample is greater or equal to num samples we hit the end of the buffer
@@ -294,15 +289,9 @@ namespace Audio
 				int16* CachedBufferPtr1 = (int16*)(CachedRealtimeFirstBuffer.GetData() + BufferSize);
 				float* AudioData0 = SourceVoiceBuffers[0]->AudioData.GetData();
 				float* AudioData1 = SourceVoiceBuffers[1]->AudioData.GetData();
-				for (uint32 Sample = 0; Sample < NumSamples; ++Sample)
-				{
-					AudioData0[Sample] = CachedBufferPtr0[Sample] / 32768.0f;
-				}
 
-				for (uint32 Sample = 0; Sample < NumSamples; ++Sample)
-				{
-					AudioData1[Sample] = CachedBufferPtr1[Sample] / 32768.0f;
-				}
+				Audio::ArrayPcm16ToFloat(MakeArrayView(CachedBufferPtr0, NumSamples), MakeArrayView(AudioData0, NumSamples));
+				Audio::ArrayPcm16ToFloat(MakeArrayView(CachedBufferPtr1, NumSamples), MakeArrayView(AudioData1, NumSamples));
 
 				// Submit the already decoded and cached audio buffers
 				SubmitBuffer(SourceVoiceBuffers[0]);
@@ -316,12 +305,8 @@ namespace Audio
 				SourceVoiceBuffers[0]->AudioData.AddZeroed(NumSamples);
 
 				int16* CachedBufferPtr0 = (int16*)CachedRealtimeFirstBuffer.GetData();
-
 				float* AudioData0 = SourceVoiceBuffers[0]->AudioData.GetData();
-				for (uint32 Sample = 0; Sample < NumSamples; ++Sample)
-				{
-					AudioData0[Sample] = CachedBufferPtr0[Sample] / 32768.0f;
-				}
+				Audio::ArrayPcm16ToFloat(MakeArrayView(CachedBufferPtr0, NumSamples), MakeArrayView(AudioData0, NumSamples));
 
 				// Submit the already decoded and cached audio buffers
 				SubmitBuffer(SourceVoiceBuffers[0]);
@@ -341,7 +326,7 @@ namespace Audio
 		const int32 MaxSamples = MONO_PCM_BUFFER_SAMPLES * NumChannels;
 
 		SourceVoiceBuffers[BufferIndex]->AudioData.Reset();
-		SourceVoiceBuffers[BufferIndex]->AudioData.AddZeroed(MaxSamples);
+		SourceVoiceBuffers[BufferIndex]->AudioData.AddUninitialized(MaxSamples);
 
 		if (bProcedural)
 		{
@@ -384,6 +369,8 @@ namespace Audio
 		// Handle the case that the decoder has an error and can't continue.
 		if (InDecoder && InDecoder->HasError())
 		{
+			FMemory::Memzero(SourceVoiceBuffers[BufferIndex]->AudioData.GetData(), MaxSamples * sizeof(float));
+
 			FScopeTryLock Lock(&SoundWaveCritSec);
 			if (Lock.IsLocked() && SoundWave)
 			{

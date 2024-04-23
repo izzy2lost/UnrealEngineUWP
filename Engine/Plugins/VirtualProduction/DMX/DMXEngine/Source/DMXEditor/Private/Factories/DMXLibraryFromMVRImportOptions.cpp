@@ -55,7 +55,7 @@ void UDMXLibraryFromMVRImportOptions::ApplyOptions(UDMXLibrary* DMXLibrary)
 				{
 					return InputPortConfig.GetPortGuid() == InputPort->GetPortGuid();
 				});
-			if (ensureAlwaysMsgf(InputPortConfigPtr, TEXT("Cannot find config of Input Port '%' in Project Settings."), *InputPort->GetPortName()))
+			if (ensureAlwaysMsgf(InputPortConfigPtr, TEXT("Cannot find config of Input Port '%s' in Project Settings."), *InputPort->GetPortName()))
 			{
 				FDMXInputPortConfig& PortConfig = *InputPortConfigPtr;
 
@@ -92,7 +92,7 @@ void UDMXLibraryFromMVRImportOptions::ApplyOptions(UDMXLibrary* DMXLibrary)
 				{
 					return OutputPortConfig.GetPortGuid() == OutputPort->GetPortGuid();
 				});
-			if (ensureAlwaysMsgf(OutputPortConfigPtr, TEXT("Cannot find config of Output Port '%' in Project Settings."), *OutputPort->GetPortName()))
+			if (ensureAlwaysMsgf(OutputPortConfigPtr, TEXT("Cannot find config of Output Port '%s' in Project Settings."), *OutputPort->GetPortName()))
 			{
 				FDMXOutputPortConfig& PortConfig = *OutputPortConfigPtr;
 

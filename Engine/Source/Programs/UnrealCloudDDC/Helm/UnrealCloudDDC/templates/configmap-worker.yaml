@@ -20,7 +20,8 @@ data:
 {{- $filesystem := $config.Filesystem | default dict -}}
 
 UnrealCloudDDC:
-  LeaderElectionImplementation: "Kubernetes"
+  # always assume you are the leader when you are the worker
+  LeaderElectionImplementation: "Static"
 
   ReferencesDbImplementation:  {{ default "Scylla" $config.ReferencesDbImplementation }}
   ReplicationLogWriterImplementation:  {{ default "Scylla" $config.ReplicationLogWriterImplementation }}
@@ -66,6 +67,7 @@ Replication:
     ConnectionString: {{ required "replication remote connection string has to be specified" .ConnectionString }}
     MaxParallelReplications: {{ default 128  .MaxParallelReplications }} 
     SkipSnapshot: {{ default true  .SkipSnapshot }}
+    PageSize: {{ default 1000  .PageSize }}
 {{- end -}}
 {{- end }}
 
@@ -84,6 +86,11 @@ FileSystem:
 {{- if $config.Scylla }}
 Scylla: 
 {{ $config.Scylla | toYaml | nindent 2 }}
+{{- end }}
+
+{{- if $config.Metrics }}
+Metrics: 
+{{ $config.Metrics | toYaml | nindent 2 }}
 {{- end }}
 
 {{- if $config.Serilog }}

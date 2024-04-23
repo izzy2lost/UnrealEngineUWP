@@ -364,9 +364,8 @@ void UMeshAttributePaintTool::OnEndDrag(const FRay& Ray)
 	TUniquePtr<FMeshAttributePaintChange> Change = EndChange();
 	if (Change)
 	{
-		GetToolManager()->BeginUndoTransaction(LOCTEXT("AttributeValuesChange", "Paint"));
 		GetToolManager()->EmitObjectChange(this, MoveTemp(Change), LOCTEXT("AttributeValuesChange", "Paint"));
-		GetToolManager()->EndUndoTransaction();
+		LongTransactions.Close(GetToolManager());
 	}
 }
 
@@ -656,11 +655,8 @@ void UMeshAttributePaintTool::ApplyStamp_FloodFill(const FBrushStampData& Stamp,
 		QueueTempBuffer.Reset();
 		DoneTempBuffer.Reset();
 		InputTriROI.Reset();
-		for (int32 tid : RemainingTriangles)
-		{
-			InputTriROI.Add(tid);		// stupid way to get first set element
-			break;
-		}
+		// get a single set element via an iterator
+		InputTriROI.Add(*RemainingTriangles.CreateConstIterator());
 		FMeshConnectedComponents::GrowToConnectedTriangles(CurrentMesh, InputTriROI, OutputTriROI, &QueueTempBuffer, &DoneTempBuffer);
 		for (int32 tid : OutputTriROI)
 		{
@@ -741,6 +737,8 @@ void UMeshAttributePaintTool::BeginChange()
 	}
 	ActiveChangeBuilder->BeginNewChange();
 	ActiveChangeBuilder->Change->CustomData = CurrentAttributeIndex;
+
+	LongTransactions.Open(LOCTEXT("AttributeValuesChange", "Paint"), GetToolManager());
 }
 
 

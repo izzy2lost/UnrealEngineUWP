@@ -3,10 +3,12 @@
 #include "ShaderPreprocessTypes.h"
 
 #include "ShaderCompilerCore.h"
+#include "Containers/AnsiString.h"
+#include "Templates/UnrealTemplate.h"
 
-const TCHAR* FilenameSentinel = TEXT("__UE_FILENAME_SENTINEL__");
-static const int FilenameSentinelLen = FCString::Strlen(FilenameSentinel);
-static const FString LineDirectiveSentinel = FString::Printf(TEXT("#line 1 \"%s\"\n"), FilenameSentinel);
+const FShaderSource::CharType* FilenameSentinel = SHADER_SOURCE_LITERAL("__UE_FILENAME_SENTINEL__");
+static const int FilenameSentinelLen = FShaderSource::FCStringType::Strlen(FilenameSentinel);
+static const FShaderSource::FStringType LineDirectiveSentinel = FShaderSource::FStringType::Printf(SHADER_SOURCE_LITERAL("#line 1 \"%s\"\n"), FilenameSentinel);
 
 void FShaderDiagnosticRemapper::Remap(FShaderCompilerError& Diagnostic) const
 {
@@ -21,7 +23,7 @@ void FShaderDiagnosticRemapper::Remap(FShaderCompilerError& Diagnostic) const
 		const FString& ErrorLineStr = Diagnostic.ErrorLineString;
 		check(FChar::IsDigit(ErrorLineStr[0]));
 		int32 StrippedLineNum = 0, LineNumberEnd = 0;
-		while (FChar::IsDigit(ErrorLineStr[LineNumberEnd]))
+		while (LineNumberEnd < ErrorLineStr.Len() && FChar::IsDigit(ErrorLineStr[LineNumberEnd]))
 		{
 			StrippedLineNum = StrippedLineNum * 10 + ErrorLineStr[LineNumberEnd++] - TEXT('0');
 		}
@@ -52,7 +54,7 @@ void FShaderDiagnosticRemapper::Remap(FShaderCompilerError& Diagnostic) const
 		}
 		int32 LineNumberEnd = LineNumberStart;
 		int32 StrippedLineNum = 0;
-		while (FChar::IsDigit(OriginalMessage[LineNumberEnd]) && LineNumberEnd < OriginalMessage.Len())
+		while (LineNumberEnd < OriginalMessage.Len() && FChar::IsDigit(OriginalMessage[LineNumberEnd]))
 		{
 			StrippedLineNum = StrippedLineNum * 10 + (OriginalMessage[LineNumberEnd++] - TEXT('0'));
 		}
@@ -131,69 +133,71 @@ FShaderDiagnosticRemapper::FRemapData FShaderDiagnosticRemapper::GetRemapData(in
 	return FRemapData{ FoundBlock.OriginalPath, FoundBlock.OriginalLineNum + StrippedLineOffsets[StrippedLineNum - 1] };
 }
 
-inline bool IsEndOfLine(TCHAR C)
+inline bool IsEndOfTheLine(FShaderSource::CharType C)
 {
-	return C == TEXT('\r') || C == TEXT('\n');
+	return C == '\r' || C == '\n';
 }
 
-inline bool StripNeedsHandling(TCHAR C)
+inline bool StripNeedsHandling(FShaderSource::CharType C)
 {
-	return IsEndOfLine(C) || C == TEXT('/') || C == 0 || C == TEXT('#');
+	return IsEndOfTheLine(C) || C == '/' || C == 0 || C == '#';
 }
 
-inline void SkipNewLine(const TCHAR*& Current, const TCHAR* End)
+inline void SkipNewLine(const FShaderSource::CharType*& Current, const FShaderSource::CharType* End)
 {
-	TCHAR First = Current < End ? Current[0] : 0;
-	TCHAR Second = Current + 1 < End ? Current[1] : 0;
-	Current += ((First + Second) == TEXT('\r') + TEXT('\n')) ? 2 : 1;
+	FShaderSource::CharType First = Current < End ? Current[0] : 0;
+	FShaderSource::CharType Second = Current + 1 < End ? Current[1] : 0;
+	Current += ((First + Second) == '\r' + '\n') ? 2 : 1;
 }
 
-void FShaderPreprocessOutput::StripCode()
+void FShaderPreprocessOutput::StripCode(bool bCopyOriginalPreprocessdSource)
 {
 	// Reserve worst case slack (i.e. assuming there is nothing to strip) to avoid reallocation
-	FString PreprocessedSourceStripped(LineDirectiveSentinel, PreprocessedSource.Len() + 1);
+	FShaderSource PreprocessedSourceStripped(LineDirectiveSentinel.GetCharArray().GetData(), PreprocessedSource.Len());
+	FShaderSource::CharType* OutStrippedData = PreprocessedSourceStripped.GetData();
+	FShaderSource::CharType* OutStripped = OutStrippedData + LineDirectiveSentinel.Len();
 
-	const TCHAR* Begin = PreprocessedSource.GetCharArray().GetData(), *Current = Begin;
-	const TCHAR* End = Current + PreprocessedSource.Len();
+	const FShaderSource::CharType* Begin = PreprocessedSource.GetData(), * Current = Begin;
+	const FShaderSource::CharType* End = Current + PreprocessedSource.Len();
 	int32 CurrentBlockUnstrippedLineOffset = 0;
 	int32 CurrentStrippedLineNum = 1;
 	while (Current < End)
 	{
 		while (!StripNeedsHandling(*Current))
 		{
-			PreprocessedSourceStripped.AppendChar(*Current++);
+			*OutStripped++ = *Current++;
 		}
 
-		if (IsEndOfLine(*Current))
+		if (IsEndOfTheLine(*Current))
 		{
 			// only emit \n if it wasn't preceded immediately by another linebreak 
 			// (i.e. skip empty lines)
-			if (PreprocessedSourceStripped.Len() && !IsEndOfLine(PreprocessedSourceStripped[PreprocessedSourceStripped.Len() - 1]))
+			if (!IsEndOfTheLine(*(OutStripped - 1)))
 			{
 				// Record the offset from the start of the block given by the last line directive for each line
 				// output in the stripped code. 
 				Remapper.AddStrippedLine(CurrentStrippedLineNum, CurrentBlockUnstrippedLineOffset);
 
 				// normalize line endings
-				PreprocessedSourceStripped.AppendChar(TEXT('\n'));
+				*OutStripped++ = '\n';
 				CurrentStrippedLineNum++;
 			}
 			CurrentBlockUnstrippedLineOffset++;
 			SkipNewLine(Current, End);
 		}
-		else if (Current[0] == TEXT('/'))
+		else if (Current[0] == '/')
 		{
-			if (Current[1] == TEXT('/'))
+			if (Current[1] == '/')
 			{
-				while (!IsEndOfLine(*Current) && Current < End)
+				while (!IsEndOfTheLine(*Current) && Current < End)
 				{
 					++Current;
 				}
 			}
-			else if (Current[1] == TEXT('*'))
+			else if (Current[1] == '*')
 			{
 				Current += 2;
-				while (Current < End && !(Current[0] == TEXT('*') && Current[1] == TEXT('/')))
+				while (Current < End && !(Current[0] == '*' && Current[1] == '/'))
 				{
 					++Current;
 				}
@@ -201,16 +205,16 @@ void FShaderPreprocessOutput::StripCode()
 			}
 			else
 			{
-				PreprocessedSourceStripped.AppendChar(*Current++);
+				*OutStripped++ = *Current++;
 			}
 		}
-		else if (Current[0] == TEXT('#'))
+		else if (Current[0] == '#')
 		{
 			if (Current + 4 < End
-				&& Current[1] == TEXT('l')
-				&& Current[2] == TEXT('i')
-				&& Current[3] == TEXT('n')
-				&& Current[4] == TEXT('e'))
+				&& Current[1] == 'l'
+				&& Current[2] == 'i'
+				&& Current[3] == 'n'
+				&& Current[4] == 'e')
 			{
 				Current += 4;
 
@@ -222,12 +226,12 @@ void FShaderPreprocessOutput::StripCode()
 				int32 DirectiveLineNumber = 0;
 				while (FChar::IsDigit(*Current) && Current < End)
 				{
-					DirectiveLineNumber = 10 * DirectiveLineNumber + (*Current - TEXT('0'));
+					DirectiveLineNumber = 10 * DirectiveLineNumber + (*Current - '0');
 					++Current;
 				}
 
 				// scan past open quote
-				while (*Current != '\"' && Current < End && !IsEndOfLine(*Current))
+				while (*Current != '\"' && Current < End && !IsEndOfTheLine(*Current))
 				{
 					++Current;
 				}
@@ -236,7 +240,7 @@ void FShaderPreprocessOutput::StripCode()
 				{
 					++Current;
 
-					const TCHAR* DirectiveFileNameStart = Current;
+					const FShaderSource::CharType* DirectiveFileNameStart = Current;
 					int32 DirectiveFileNameLen = 0;
 
 					// count chars in directive filename
@@ -251,7 +255,7 @@ void FShaderPreprocessOutput::StripCode()
 					// scan to end-of-line and skip past the newline; this would be handled by the newline case above as well,
 					// but we don't want the newline at the end of the line directive to count in our calculated offsets for
 					// emitted stripped code
-					while (!IsEndOfLine(*Current) && Current < End)
+					while (!IsEndOfTheLine(*Current) && Current < End)
 					{
 						++Current;
 					}
@@ -268,14 +272,18 @@ void FShaderPreprocessOutput::StripCode()
 			}
 			else
 			{
-				PreprocessedSourceStripped.AppendChar(*Current++);
+				*OutStripped++ = *Current++;
 			}
 		}
 	}
-	// Null terminate after stripped copy
-	PreprocessedSourceStripped.AppendChar(0);
+	check(OutStripped <= OutStrippedData + PreprocessedSourceStripped.Len());
+	// ShrinkToLen null terminates for us by virtue of adding zero'd SIMD padding
+	PreprocessedSourceStripped.ShrinkToLen((int32)(OutStripped - OutStrippedData));
 
-	OriginalPreprocessedSource = MoveTemp(PreprocessedSource);
+	if (bCopyOriginalPreprocessdSource)
+	{
+		OriginalPreprocessedSource = MoveTemp(PreprocessedSource);
+	}
 	PreprocessedSource = MoveTemp(PreprocessedSourceStripped);
 }
 
@@ -294,6 +302,6 @@ FArchive& operator<<(FArchive& Ar, FShaderPreprocessOutput& PreprocessOutput)
 	Ar << PreprocessOutput.Errors;
 	Ar << PreprocessOutput.PragmaDirectives;
 	Ar << PreprocessOutput.PreprocessedSource;
-	Ar << PreprocessOutput.ParameterParser;
+	Ar << PreprocessOutput.ShaderDiagnosticDatas;
 	return Ar;
 }

@@ -156,6 +156,7 @@ void USeamSculptTool::OnBeginDrag(const FRay& Ray)
 		CaptureState = EActiveCaptureState::DrawNewPath;
 		DrawPathStartVertex = CurrentSnapVertex;
 		DrawPathStartPositionLocal = CurrentSnapPositionLocal;
+		LongTransactions.Open(LOCTEXT("CreateSeamChange", "Add UV Seam"), GetToolManager());
 
 		CurDrawPath.Reset();
 	}
@@ -193,6 +194,7 @@ void USeamSculptTool::OnEndDrag(const FRay& Ray)
 	{
 		CreateSeamAlongPath();
 		CurDrawPath.Reset();
+		LongTransactions.Close(GetToolManager());
 	}
 
 	CaptureState = EActiveCaptureState::NoState;

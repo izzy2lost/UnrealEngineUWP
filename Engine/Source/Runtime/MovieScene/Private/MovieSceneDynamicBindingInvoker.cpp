@@ -4,13 +4,57 @@
 
 #include "CoreMinimal.h"
 #include "Engine/World.h"
+#include "EntitySystem/MovieSceneSharedPlaybackState.h"
 #include "Evaluation/MovieSceneEvaluationTemplateInstance.h"
-#include "IMovieScenePlayer.h"
+#include "Evaluation/SequenceDirectorPlaybackCapability.h"
 #include "MovieSceneDynamicBinding.h"
+#include "MovieScenePossessable.h"
+#include "MovieSceneSequence.h"
+#include "MovieSceneSpawnable.h"
 #include "UObject/UnrealType.h"
 
-FMovieSceneDynamicBindingResolveResult FMovieSceneDynamicBindingInvoker::ResolveDynamicBinding(IMovieScenePlayer& Player, UMovieSceneSequence* Sequence, const FMovieSceneSequenceID& SequenceID, const FGuid& InGuid, const FMovieSceneDynamicBinding& DynamicBinding)
+FMovieSceneDynamicBindingResolveResult FMovieSceneDynamicBindingInvoker::ResolveDynamicBinding(TSharedRef<const FSharedPlaybackState> SharedPlaybackState, UMovieSceneSequence* Sequence, const FMovieSceneSequenceID& SequenceID, const FMovieScenePossessable& Possessable)
 {
+	FMovieSceneDynamicBindingResolveResult Result = ResolveDynamicBinding(SharedPlaybackState, Sequence, SequenceID, Possessable.GetGuid(), Possessable.DynamicBinding);
+	// Top-level possessables must be actors. Children possessables must be components.
+	if (Result.Object && !Possessable.GetParent().IsValid() && !Result.Object.IsA<AActor>())
+	{
+		UE_LOG(
+			LogMovieScene, Error, 
+			TEXT("Possessable '%s' ('%s') must be bound to an actor, but its dynamic binding resolved it to '%s' which is a '%s'. Aborting dynamic binding and falling back to defaults."),
+			*Possessable.GetName(), *LexToString(Possessable.GetGuid()), *Result.Object->GetName(), *Result.Object->GetClass()->GetName());
+		return FMovieSceneDynamicBindingResolveResult();
+	}
+	else if (Result.Object && Possessable.GetParent().IsValid() && !Result.Object.IsA<UActorComponent>())
+	{
+		UE_LOG(
+			LogMovieScene, Error, 
+			TEXT("Possessable '%s' ('%s') must be bound to a component, but its dynamic binding resolved it to '%s' which is a '%s'. Aborting dynamic binding and falling back to defaults."),
+			*Possessable.GetName(), *LexToString(Possessable.GetGuid()), *Result.Object->GetName(), *Result.Object->GetClass()->GetName());
+		return FMovieSceneDynamicBindingResolveResult();
+	}
+	return Result;
+}
+
+FMovieSceneDynamicBindingResolveResult FMovieSceneDynamicBindingInvoker::ResolveDynamicBinding(TSharedRef<const FSharedPlaybackState> SharedPlaybackState, UMovieSceneSequence* Sequence, const FMovieSceneSequenceID& SequenceID, const FMovieSceneSpawnable& Spawnable)
+{
+	FMovieSceneDynamicBindingResolveResult Result = ResolveDynamicBinding(SharedPlaybackState, Sequence, SequenceID, Spawnable.GetGuid(), Spawnable.DynamicBinding);
+	// Spawnables must be actors.
+	if (Result.Object && !Result.Object.IsA<AActor>())
+	{
+		UE_LOG(
+			LogMovieScene, Error, 
+			TEXT("Spawnable '%s' ('%s') must be bound to an actor, but its dynamic binding resolved it to '%s' which is a '%s'. Aborting dynamic binding and falling back to defaults."),
+			*Spawnable.GetName(), *LexToString(Spawnable.GetGuid()), *Result.Object->GetName(), *Result.Object->GetClass()->GetName());
+		return FMovieSceneDynamicBindingResolveResult();
+	}
+	return Result;
+}
+
+FMovieSceneDynamicBindingResolveResult FMovieSceneDynamicBindingInvoker::ResolveDynamicBinding(TSharedRef<const FSharedPlaybackState> SharedPlaybackState, UMovieSceneSequence* Sequence, const FMovieSceneSequenceID& SequenceID, const FGuid& InGuid, const FMovieSceneDynamicBinding& DynamicBinding)
+{
+	using namespace UE::MovieScene;
+
 	if (!ensure(Sequence))
 	{
 		// Sequence is somehow null... fallback to default behavior.
@@ -24,7 +68,16 @@ FMovieSceneDynamicBindingResolveResult FMovieSceneDynamicBindingInvoker::Resolve
 		return FMovieSceneDynamicBindingResolveResult();
 	}
 
-	UObject* DirectorInstance = Player.GetEvaluationTemplate().GetOrCreateDirectorInstance(SequenceID, Player);
+	// Auto-add the director playback capability, which is just really a cache for director instances after
+	// they've been created by the sequences in the hierarchy.
+	FSequenceDirectorPlaybackCapability* DirectorCapability = SharedPlaybackState->FindCapability<FSequenceDirectorPlaybackCapability>();
+	if (!DirectorCapability)
+	{
+		TSharedRef<FSharedPlaybackState> MutableState = ConstCastSharedRef<FSharedPlaybackState>(SharedPlaybackState);
+		DirectorCapability = &MutableState->AddCapability<FSequenceDirectorPlaybackCapability>();
+	}
+
+	UObject* DirectorInstance = DirectorCapability->GetOrCreateDirectorInstance(SharedPlaybackState, SequenceID);
 	if (!DirectorInstance)
 	{
 #if !NO_LOGGING
@@ -59,7 +112,7 @@ FMovieSceneDynamicBindingResolveResult FMovieSceneDynamicBindingInvoker::Resolve
 	FMovieSceneDynamicBindingResolveParams ResolveParams;
 	ResolveParams.ObjectBindingID = InGuid;
 	ResolveParams.Sequence = Sequence;
-	ResolveParams.RootSequence = Player.GetEvaluationTemplate().GetRootSequence();
+	ResolveParams.RootSequence = SharedPlaybackState->GetRootSequence();
 	FMovieSceneDynamicBindingResolveResult Result = InvokeDynamicBinding(DirectorInstance, DynamicBinding, ResolveParams);
 
 	return Result;
@@ -67,9 +120,16 @@ FMovieSceneDynamicBindingResolveResult FMovieSceneDynamicBindingInvoker::Resolve
 
 FMovieSceneDynamicBindingResolveResult FMovieSceneDynamicBindingInvoker::InvokeDynamicBinding(UObject* DirectorInstance, const FMovieSceneDynamicBinding& DynamicBinding, const FMovieSceneDynamicBindingResolveParams& ResolveParams)
 {
-	// Parse all function parameters.
+	FMovieSceneDynamicBindingResolveResult Result;
+
+	// Do some basic checks.
 	UFunction* DynamicBindingFunc = DynamicBinding.Function.Get();
-	check(DynamicBindingFunc);
+	if (!ensure(DynamicBindingFunc))
+	{ 
+		return Result;
+	}
+
+	// Parse all function parameters.
 	uint8* Parameters = (uint8*)FMemory_Alloca(DynamicBindingFunc->ParmsSize + DynamicBindingFunc->MinAlignment);
 	Parameters = Align(Parameters, DynamicBindingFunc->MinAlignment);
 
@@ -100,14 +160,19 @@ FMovieSceneDynamicBindingResolveResult FMovieSceneDynamicBindingInvoker::InvokeD
 		ResolveParamsProp->SetValue_InContainer(Parameters, &ResolveParams);
 	}
 
-	// Invoke the function.
-	DirectorInstance->ProcessEvent(DynamicBindingFunc, Parameters);
-
-	// Grab the result value.
-	FMovieSceneDynamicBindingResolveResult Result;
+#if WITH_EDITOR
+	// In the editor we need to be more forgiving, because we might have temporarily invalid states, such as
+	// when undo-ing operations.
+	if (ReturnProp != nullptr && ReturnProp->Struct == FMovieSceneDynamicBindingResolveResult::StaticStruct())
+#else
 	if (ensureMsgf(ReturnProp != nullptr && ReturnProp->Struct == FMovieSceneDynamicBindingResolveResult::StaticStruct(),
-			TEXT("The dynamic binding resolver function has no return value of type FMovieSceneDynamicBindingResolveResult")))
+		TEXT("The dynamic binding resolver function has no return value of type FMovieSceneDynamicBindingResolveResult")))
+#endif
 	{
+		// Invoke the function.
+		DirectorInstance->ProcessEvent(DynamicBindingFunc, Parameters);
+
+		// Grab the result value.
 		ReturnProp->GetValue_InContainer(Parameters, static_cast<void*>(&Result));
 	}
 

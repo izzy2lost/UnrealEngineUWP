@@ -16,6 +16,8 @@ spec:
       app.kubernetes.io/name: {{ include "common.names.name" . }}-worker
       app.kubernetes.io/instance: {{ .Release.Name }}
   replicas: {{ $worker.replicaCount }}
+  strategy:
+   type: Recreate
   template:
     metadata:
       labels: 

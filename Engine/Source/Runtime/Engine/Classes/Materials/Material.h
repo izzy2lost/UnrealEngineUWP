@@ -147,11 +147,11 @@ enum EMaterialDecalResponse : int
 UENUM()
 enum EMaterialTranslucencyPass : int
 {
-	/** Render after depth of field. */
+	/** Render before depth of field. */
 	MTP_BeforeDOF UMETA(DisplayName="Before DOF"),
 	/** Render after depth of field. */
 	MTP_AfterDOF UMETA(DisplayName="After DOF"),
-	/** Render after motion blur. */
+	/** Render after motion blur. Disables depth test (the reconstruction post MB and TSR would otherwise flicker due to the TSR camera jittering making the depth buffer unstable). Because of that Lumen high quality reflections is also disabled to avoid visual discrepancy at depth intersection. */
 	MTP_AfterMotionBlur UMETA(DisplayName="After Motion Blur"),
 	MTP_MAX
 };
@@ -234,7 +234,7 @@ struct FShadingModelMaterialInput : public FMaterialInput
 
 #if !CPP      //noexport struct
 USTRUCT(noexport)
-struct FStrataMaterialInput : public FMaterialInput
+struct FSubstrateMaterialInput : public FMaterialInput
 {
 	// No support for constant
 };
@@ -395,7 +395,7 @@ public:
 	FScalarMaterialInput SurfaceThickness;
 
 	UPROPERTY()
-	FStrataMaterialInput FrontMaterial;
+	FSubstrateMaterialInput FrontMaterial;
 
 	UPROPERTY()
 	FMaterialExpressionCollection ExpressionCollection;
@@ -411,7 +411,7 @@ public:
  *
  * Warning: Creating new materials directly increases shader compile times!  Consider creating a Material Instance off of an existing material instead.
  */
-UCLASS(hidecategories=Object, MinimalAPI, BlueprintType)
+UCLASS(hidecategories=Object, MinimalAPI, BlueprintType, PrioritizeCategories = ("Material", "Nanite", "Translucency", "TranslucencySelfShadowing", "Refraction", "WorldPositionOffset", "PostProcessMaterial",  "Mobile", "ForwardShading", "PhysicalMaterial", "PhysicalMaterialMask", "Usage", "Lightmass", "Previewing", "ImportSettings"))
 class UMaterial : public UMaterialInterface
 {
 	GENERATED_UCLASS_BODY()
@@ -466,7 +466,7 @@ class UMaterial : public UMaterialInterface
 	UPROPERTY(EditAnywhere, Category=Nanite, meta = (EditInline, ShowOnlyInnerProperties))
 	FMaterialOverrideNanite NaniteOverrideMaterial;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Nanite, meta = (DisplayName = "Displacement"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Nanite, meta = (DisplayName = "Displacement", EditCondition="bEnableTessellation"))
 	FDisplacementScaling DisplacementScaling;
 
 private:
@@ -539,6 +539,16 @@ public:
 	/** Whether the material should allow outputting negative emissive color values.  Only allowed on unlit materials. */
 	UPROPERTY(EditAnywhere, Category=Material, AdvancedDisplay)
 	uint8 bAllowNegativeEmissiveColor : 1;
+	
+	/** Whether the opaque material has any pixel animations happening, that isn't included in the geometric velocities.
+	 * This allows to disable renderer's heuristics that assumes animation is fully described with motion vector, such as TSR's anti-flickering heuristic.
+	 */
+	UPROPERTY(EditAnywhere, Category=Material, meta=(DisplayName = "Has Pixel Animation"), AdvancedDisplay)
+	uint8 bHasPixelAnimation : 1;
+	
+	/** Whether tessellation is enabled on the material. NOTE: Required for displacement to work. */
+	UPROPERTY(EditAnywhere, Category=Nanite)
+	uint8 bEnableTessellation : 1;
 
 	/**
 	 * Specifies the separate pass in which to render translucency.
@@ -886,6 +896,10 @@ public:
 	UPROPERTY(EditAnywhere, Category = Material, AdvancedDisplay)
 	TEnumAsByte<EMaterialShadingRate> ShadingRate;
 
+	/** Allows the use of variable rate shading when evaluating this material. This will only apply to the base/translucency pass. */
+	UPROPERTY(EditAnywhere, Category = Material, AdvancedDisplay)
+	uint8 bAllowVariableRateShading : 1;
+
 #if WITH_EDITORONLY_DATA
 	UPROPERTY()
 	int32 EditorX;
@@ -966,6 +980,15 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = PostProcessMaterial, meta = (DisplayName = "Output Alpha"))
 	uint8 BlendableOutputAlpha : 1;
 
+	/**
+	* Indicates that the material and its instances can be used with neural network engine.
+	* This will result in the shaders required to support neural network engine being compiled which will increase shader compile time and memory usage.
+	* In addition, an additional pass will run before the postprocess pass for neural network engine, which will increase the rendering cost due to
+	* buffer copy and inference.
+	*/
+	UPROPERTY(EditAnywhere, Category = PostProcessMaterial)
+	uint8 bUsedWithNeuralNetworks : 1;
+
 	/** 
 	 * Selectively execute post process material only for pixels that pass the stencil test against the Custom Depth/Stencil buffer. 
 	 * Pixels that fail the stencil test are filled with the previous post process material output or scene color.
@@ -978,6 +1001,12 @@ public:
 
 	UPROPERTY(EditAnywhere, Category = PostProcessMaterial, AdvancedDisplay, meta = (EditCondition = "bEnableStencilTest"))
 	uint8 StencilRefValue = 0;
+
+	/**
+	* Set by reference object cannot be modified.
+	*/
+	UPROPERTY(EditAnywhere, Category = PostProcessMaterial, AdvancedDisplay, meta = (EditCondition = "false"))
+	int8 NeuralProfileId = INDEX_NONE;
 
 	UPROPERTY()
 	TEnumAsByte<ERefractionMode> RefractionMode_DEPRECATED;
@@ -997,6 +1026,10 @@ public:
 	/** Allows blendability to be turned off, only used if domain is PostProcess */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = PostProcessMaterial, meta = (DisplayName = "Is Blendable"))
 	uint8 bIsBlendable : 1;
+
+	/** If non-zero, overrides r.Material.PreshaderGapInterval for this material.  Workaround for a platform specific register overflow bug. */
+	UPROPERTY(EditAnywhere, Category = Material, AdvancedDisplay)
+	uint16 PreshaderGap;
 
 	/** true if we have printed a warning about material usage for a given usage flag. */
 	UPROPERTY(transient, duplicatetransient)
@@ -1023,8 +1056,8 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = WorldPositionOffset)
 	bool bAlwaysEvaluateWorldPositionOffset;
 
-	/** Not a UPROPERTY, used to propagate editor only strata material simplification options for preview. */
-	FStrataCompilationConfig StrataCompilationConfig;
+	/** Not a UPROPERTY, used to propagate editor only Substrate material simplification options for preview. */
+	FSubstrateCompilationConfig SubstrateCompilationConfig;
 
 	/** 
 	 * Guid that uniquely identifies this material. 
@@ -1131,13 +1164,17 @@ public:
 	ENGINE_API virtual bool IsDeferredDecal() const override;
 	ENGINE_API virtual bool IsUIMaterial() const;
 	ENGINE_API virtual bool IsPostProcessMaterial() const;
+	ENGINE_API bool IsPostProcessMaterialOutputingAlpha() const;
 	ENGINE_API virtual USubsurfaceProfile* GetSubsurfaceProfile_Internal() const override;
 	ENGINE_API virtual uint32 NumSpecularProfile_Internal() const override;
 	ENGINE_API virtual USpecularProfile* GetSpecularProfile_Internal(uint32 Index) const override;
+	ENGINE_API virtual UNeuralProfile* GetNeuralProfile_Internal() const override;
 	ENGINE_API virtual bool CastsRayTracedShadows() const override;
+	ENGINE_API virtual bool IsTessellationEnabled() const override;
 	ENGINE_API virtual FDisplacementScaling GetDisplacementScaling() const override;
 	ENGINE_API virtual float GetMaxWorldPositionOffsetDisplacement() const override;
 	ENGINE_API virtual bool ShouldAlwaysEvaluateWorldPositionOffset() const override;
+	ENGINE_API virtual bool HasPixelAnimation() const override;
 	ENGINE_API virtual bool WritesToRuntimeVirtualTexture() const override;
 
 	ENGINE_API virtual FGraphEventArray PrecachePSOs(const FPSOPrecacheVertexFactoryDataList& VertexFactoryDataList, const FPSOPrecacheParams& PreCacheParams, EPSOPrecachePriority Priority, TArray<FMaterialPSOPrecacheRequestID>& OutMaterialPSORequestIDs) override;
@@ -1164,7 +1201,7 @@ public:
 	/** Allows material properties to be compiled with the option of being overridden by the material attributes input. */
 	ENGINE_API virtual int32 CompilePropertyEx( class FMaterialCompiler* Compiler, const FGuid& AttributeID ) override;
 	ENGINE_API virtual bool ShouldForcePlanePreview() override;
-	ENGINE_API virtual void ForceRecompileForRendering() override;
+	ENGINE_API virtual void ForceRecompileForRendering(EMaterialShaderPrecompileMode CompileMode = EMaterialShaderPrecompileMode::Default) override;
 #endif // WITH_EDITOR
 	//~ End UMaterialInterface Interface.
 
@@ -1199,6 +1236,8 @@ public:
 	ENGINE_API virtual void GetResourceSizeEx(FResourceSizeEx& CumulativeResourceSize) override;
 	ENGINE_API static void AddReferencedObjects(UObject* InThis, FReferenceCollector& Collector);
 	ENGINE_API virtual bool CanBeClusterRoot() const override;
+	ENGINE_API virtual void GetAssetRegistryTags(FAssetRegistryTagsContext Context) const override;
+	UE_DEPRECATED(5.4, "Implement the version that takes FAssetRegistryTagsContext instead.")
 	ENGINE_API virtual void GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const override;
 	//~ End UObject Interface
 
@@ -1300,7 +1339,7 @@ private:
 	void BackwardsCompatibilityInputConversion();
 	void BackwardsCompatibilityVirtualTextureOutputConversion();
 	void BackwardsCompatibilityDecalConversion();
-	void ConvertMaterialToStrataMaterial();
+	void ConvertMaterialToSubstrateMaterial();
 
 	/** Handles setting up an annotation for this object if a flag has changed value */
 	void MarkUsageFlagDirty(EMaterialUsage Usage, bool CurrentValue, bool NewValue);
@@ -1352,6 +1391,10 @@ public:
 	ENGINE_API virtual void CacheGivenTypesForCooking(EShaderPlatform ShaderPlatform, ERHIFeatureLevel::Type FeatureLevel, EMaterialQualityLevel::Type QualityLevel, const TArray<const FVertexFactoryType*>& VFTypes, const TArray<const FShaderPipelineType*> PipelineTypes, const TArray<const FShaderType*>& ShaderTypes) override;
 #endif
 	ENGINE_API virtual bool IsComplete() const override;
+
+#if WITH_EDITOR
+	ENGINE_API virtual bool IsCompiling() const override;
+#endif
 
 #if WITH_EDITORONLY_DATA
 	ENGINE_API virtual bool IterateDependentFunctions(TFunctionRef<bool(UMaterialFunctionInterface*)> Predicate) const override;
@@ -1688,11 +1731,12 @@ public:
 	 *	@Param	InQuality							Optional quality switch - if supplied, only walk QualitySwitch branches according to it.
 	 *	@Param	InShadingPath						Optional shading path switch - if supplied, only walk ShadingPathSwitch branches according to it.
 	 *  @Param	bInRecurseIntoMaterialFunctions		Optional enable recursion into Material Functions - if true, will also return expressions from inside of MaterialFunctions.
+	 *  @Param	InMobileCustomOutputExpressionTypesToQuery	Optional a list of material expression custom output types to include in the query on mobile devices.  On non-mobile devices, all custom output types are queried.
 	 *
 	 *	@return	bool					true if successful, false if not.
 	 */
 	ENGINE_API virtual bool GetAllReferencedExpressions(TArray<UMaterialExpression*>& OutExpressions, struct FStaticParameterSet* InStaticParameterSet,
-		ERHIFeatureLevel::Type InFeatureLevel = ERHIFeatureLevel::Num, EMaterialQualityLevel::Type InQuality = EMaterialQualityLevel::Num, ERHIShadingPath::Type InShadingPath = ERHIShadingPath::Num, const bool bInRecurseIntoMaterialFunctions = false);
+		ERHIFeatureLevel::Type InFeatureLevel = ERHIFeatureLevel::Num, EMaterialQualityLevel::Type InQuality = EMaterialQualityLevel::Num, ERHIShadingPath::Type InShadingPath = ERHIShadingPath::Num, const bool bInRecurseIntoMaterialFunctions = false, TSet<UClass*>* InMobileCustomOutputExpressionTypesToQuery = nullptr);
 
 
 	/**
@@ -1771,7 +1815,7 @@ public:
 	ENGINE_API bool HasEmissiveColorConnected() const;
 	ENGINE_API bool HasAnisotropyConnected() const;
 	ENGINE_API bool HasSurfaceThicknessConnected() const;
-	ENGINE_API bool HasStrataFrontMaterialConnected() const;
+	ENGINE_API bool HasSubstrateFrontMaterialConnected() const;
 	ENGINE_API bool HasVertexPositionOffsetConnected() const;
 	ENGINE_API bool HasDisplacementConnected() const;
 	ENGINE_API bool HasPixelDepthOffsetConnected() const;
@@ -1981,7 +2025,7 @@ private:
 	FShadingModelMaterialInput ShadingModelFromMaterialExpression_DEPRECATED;
 
 	UPROPERTY()
-	FStrataMaterialInput FrontMaterial_DEPRECATED;
+	FSubstrateMaterialInput FrontMaterial_DEPRECATED;
 #endif // WITH_EDITORONLY_DATA
 };
 

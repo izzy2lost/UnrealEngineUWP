@@ -18,7 +18,7 @@ data:
 UnrealCloudDDC:
 {{ if .Values.worker.enabled }}
   # if using the workers we do not attempt to participate in the leader election as a normal deployment
-  LeaderElectionImplementation: "Static"
+  LeaderElectionImplementation: "Disabled"
 {{ else }}
   LeaderElectionImplementation: "Kubernetes"
 {{ end }}
@@ -29,13 +29,21 @@ UnrealCloudDDC:
   ContentIdStoreImplementation :  {{ default "Scylla" $config.ContentIdStoreImplementation }}
   BlobIndexImplementation :  {{ default "Scylla" $config.BlobIndexImplementation }}
 
-{{- if $config.EnableOnDemandReplication -}}
+{{- if hasKey $config "EnableOnDemandReplication" }}
   EnableOnDemandReplication :  {{ $config.EnableOnDemandReplication }}
-{{- end -}}
+{{- end }}
 
-{{- if $config.EnableLastAccessTracking -}}
+{{- if hasKey $config "EnableLastAccessTracking" }}
   EnableLastAccessTracking: {{ $config.EnableLastAccessTracking }}
-{{- end -}}
+{{- end }}
+
+{{- if hasKey $config "EnableBucketStatsTracking" }}
+  EnableBucketStatsTracking: {{ $config.EnableBucketStatsTracking }}
+{{- end }}
+
+{{- if hasKey $config "EnablePutRefBodyIntoBlobStore" }}
+  EnablePutRefBodyIntoBlobStore: {{ $config.EnablePutRefBodyIntoBlobStore }}
+{{- end }}
 
 {{ if $config.StorageImplementations }}
   StorageImplementations:
@@ -86,12 +94,23 @@ Replication:
     ConnectionString: {{ required "replication remote connection string has to be specified" .ConnectionString }}
     MaxParallelReplications: {{ default 64  .MaxParallelReplications }}
     SkipSnapshot: {{ default true  .SkipSnapshot }}
+    PageSize: {{ default 1000  .PageSize }}
 {{- end -}}
 {{- end }}
 
 {{- if $config.ConsistencyCheck }}
 ConsistencyCheck: 
 {{ $config.ConsistencyCheck | toYaml | nindent 2 }}
+{{- end }}
+
+{{- if $config.PayloadBuffering }}
+PayloadBuffering:
+{{ $config.PayloadBuffering | toYaml | nindent 2 }}
+{{- end }}
+
+{{- if $config.ServiceAccounts }}
+ServiceAccounts: 
+{{ $config.ServiceAccounts | toYaml | nindent 2 }}
 {{- end }}
 
 {{- if $config.GC }}
@@ -118,6 +137,11 @@ FileSystem:
 {{- if $config.Scylla }}
 Scylla: 
 {{ $config.Scylla | toYaml | nindent 2 }}
+{{- end }}
+
+{{- if $config.Metrics }}
+Metrics: 
+{{ $config.Metrics | toYaml | nindent 2 }}
 {{- end }}
 
 {{- if $config.Serilog }}
@@ -151,7 +175,7 @@ Azure:
 {{- $config := .config -}}
 {{- $s3 := default dict $config.S3 -}}
 S3:
-  ConnectionString: "AWS"
+  ConnectionString: {{ default "AWS" $s3.ConnectionString }} 
   BucketName: {{ required "The name of the S3 bucket to use has to be specified (.config.S3.BucketName)" $s3.BucketName }}
   # We assume that you are creating your buckets yourself for production deployments like this 
   CreateBucketIfMissing: {{ default  false $s3.CreateBucketIfMissing }}
@@ -159,12 +183,21 @@ S3:
 
   UseBlobIndexForExistsCheck: {{ default false $s3.UseBlobIndexForExistsCheck }}
 
-  {{- if $s3.UseArnRegion }}
+  {{- if hasKey $s3 "UseArnRegion" }}
   UseArnRegion: {{ $s3.UseArnRegion }}
   {{- end }}
 
   {{- if $s3.StoragePoolBucketOverride }}
   StoragePoolBucketOverride: {{ $s3.StoragePoolBucketOverride | toYaml | nindent 4  }}
   {{- end }}
+
+  {{- if hasKey $s3 "UseMultiPartUpload" }}
+  UseMultiPartUpload: {{ $s3.UseMultiPartUpload }}
+  {{- end }}
+
+  {{- if hasKey $s3 "UseChunkEncoding" }}
+  UseChunkEncoding: {{ $s3.UseChunkEncoding }}
+  {{- end }}
+  
 {{ end }}
 

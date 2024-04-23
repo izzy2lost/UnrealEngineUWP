@@ -13,7 +13,7 @@ replicaCount: 2
 
 ## Docker image configuration
 image:
-  repository: "ghcr.io/epicgames/unreal-cloud-ddc:latest"
+  repository: "ghcr.io/epicgames/unreal-cloud-ddc"
   pullPolicy: IfNotPresent
 
 ## Force target Kubernetes version (using Helm capabilites if not set)
@@ -120,15 +120,15 @@ resources:
 livenessProbe:
   enabled: true
   initialDelaySeconds: 5
-  periodSeconds: 5
+  periodSeconds: 10
   timeoutSeconds: 5
   successThreshold: 1
   failureThreshold: 5
 readinessProbe:
   enabled: true
   initialDelaySeconds: 5
-  periodSeconds: 5
-  timeoutSeconds: 1
+  periodSeconds: 10
+  timeoutSeconds: 3
   successThreshold: 1
   failureThreshold: 5
 
@@ -325,20 +325,26 @@ nginx:
   ## Control the number of worker connections used for nginx
   workerConnections: 1024
 
+  ## Number of connections to keep alive between nginx and Jupiter
+  keepAliveConnections: 2048
+
+  ## The length of the nginx backlog, bump this if you increase `net.core.somaxconn` beyond 4096
+  backlog: 4096
+
   ## Liveness and readiness probes, defaults to corresponding endpoints
   ##
   livenessProbe:
     enabled: true
     initialDelaySeconds: 5
-    periodSeconds: 5
+    periodSeconds: 10
     timeoutSeconds: 5
     successThreshold: 1
     failureThreshold: 5
   readinessProbe:
     enabled: true
     initialDelaySeconds: 5
-    periodSeconds: 5
-    timeoutSeconds: 1
+    periodSeconds: 10
+    timeoutSeconds: 3
     successThreshold: 1
     failureThreshold: 5
 
@@ -353,7 +359,7 @@ worker:
 
   ## Docker image configuration
   image:
-    repository: "ghcr.io/epicgames/unreal-cloud-ddc:latest"
+    repository: "ghcr.io/epicgames/unreal-cloud-ddc"
     pullPolicy: IfNotPresent
   
   ## Disable storage by default as this is normally used for cache volumes which we do not need for the worker deployment
@@ -365,15 +371,15 @@ worker:
   livenessProbe:
     enabled: true
     initialDelaySeconds: 5
-    periodSeconds: 5
+    periodSeconds: 10
     timeoutSeconds: 5
     successThreshold: 1
     failureThreshold: 5
   readinessProbe:
     enabled: true
     initialDelaySeconds: 5
-    periodSeconds: 5
-    timeoutSeconds: 1
+    periodSeconds: 10
+    timeoutSeconds: 3
     successThreshold: 1
     failureThreshold: 5
     
@@ -410,3 +416,13 @@ worker:
     ##   - e2e-az2
     ##
     values: []
+
+
+## Prepare Nvme filesystem configuration
+## Optional feature that can be enabled to run a initContainer that prepares a already attached nvme drive
+## This works well with VMs with locally attached nvme drives
+## If you enable it you should set the list of drives that you expect to be enabled
+## if more then 1 drive is specified we raid0 these together into a single drive
+prepareNvmeFilesystem:
+  enabled: false
+  drives: []

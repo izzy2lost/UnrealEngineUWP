@@ -12,13 +12,15 @@
 #include "Utils.h"
 #include "ToStringExtensions.h"
 #include "GenericPlatform/GenericPlatformHttp.h"
+#include "PixelStreamingModule.h"
 
 DECLARE_LOG_CATEGORY_EXTERN(LogPixelStreamingSS, Log, VeryVerbose);
 DEFINE_LOG_CATEGORY(LogPixelStreamingSS);
 
-FPixelStreamingSignallingConnection::FPixelStreamingSignallingConnection(TSharedPtr<IPixelStreamingSignallingConnectionObserver> InObserver, FString InStreamerId)
+FPixelStreamingSignallingConnection::FPixelStreamingSignallingConnection(TSharedPtr<IPixelStreamingSignallingConnectionObserver> InObserver, FString InStreamerId, TSharedPtr<IWebSocket> InWebSocket)
 	: Observer(InObserver)
 	, StreamerId(InStreamerId)
+	, WebSocket(InWebSocket)
 {
 	RegisterHandler("identify", [this](FJsonObjectPtr JsonMsg) { OnIdRequested(); });
 	RegisterHandler("config", [this](FJsonObjectPtr JsonMsg) { OnConfig(JsonMsg); });
@@ -37,7 +39,10 @@ FPixelStreamingSignallingConnection::FPixelStreamingSignallingConnection(TShared
 
 FPixelStreamingSignallingConnection::~FPixelStreamingSignallingConnection()
 {
-	Disconnect();
+	Disconnect(TEXT("Streamer destroying websocket connection"));
+
+	WebSocket.Reset();
+	Observer.Reset();
 }
 
 void FPixelStreamingSignallingConnection::Connect(FString InUrl, bool bIsReconnect)
@@ -55,7 +60,7 @@ void FPixelStreamingSignallingConnection::Connect(FString InUrl, bool bIsReconne
 
 	// Reconnecting on an existing websocket can be problematic depending what state it was
 	// left in. Easier and safer to disconnect any existing socket/delegates and start fresh.
-	Disconnect();
+	Disconnect(TEXT("Streamer cleaning up old connection"));
 
 	Url = InUrl;
 
@@ -71,8 +76,11 @@ void FPixelStreamingSignallingConnection::Connect(FString InUrl, bool bIsReconne
 		Url = Final;
 	}
 
-	WebSocket = FWebSocketsModule::Get().CreateWebSocket(Url, TEXT(""));
-	verifyf(WebSocket, TEXT("Web Socket Factory failed to return a valid Web Socket."));
+	if(!WebSocket.IsValid())
+	{	
+		WebSocket = FWebSocketsModule::Get().CreateWebSocket(Url, TEXT(""));
+		verifyf(WebSocket, TEXT("Web Socket Factory failed to return a valid Web Socket."));
+	}
 
 	OnConnectedHandle = WebSocket->OnConnected().AddLambda([this]() { OnConnected(); });
 	OnConnectionErrorHandle = WebSocket->OnConnectionError().AddLambda([this](const FString& Error) { OnConnectionError(Error); });
@@ -90,6 +98,7 @@ void FPixelStreamingSignallingConnection::Connect(FString InUrl, bool bIsReconne
 	}
 
 	WebSocket->Connect();
+	bIsConnected = true;
 }
 
 void FPixelStreamingSignallingConnection::TryConnect(FString InUrl)
@@ -99,13 +108,23 @@ void FPixelStreamingSignallingConnection::TryConnect(FString InUrl)
 
 void FPixelStreamingSignallingConnection::Disconnect()
 {
+	// Do not call this deprecated method, please call FPixelStreamingSignallingConnection::Disconnect(FString Reason)
+	Disconnect(TEXT("Unknown reason"));
+}
+
+void FPixelStreamingSignallingConnection::Disconnect(FString Reason)
+{
 	if (!IsEngineExitRequested())
 	{
 		StopKeepAliveTimer();
 		StopReconnectTimer();
 	}
+	else
+	{
+		Reason = TEXT("Streamed application is shutting down");
+	}
 
-	if (!WebSocket)
+	if (!WebSocket || !bIsConnected)
 	{
 		return;
 	}
@@ -116,9 +135,10 @@ void FPixelStreamingSignallingConnection::Disconnect()
 	WebSocket->OnMessage().Remove(OnMessageHandle);
 	WebSocket->OnBinaryMessage().Remove(OnBinaryMessageHandle);
 
-	WebSocket->Close();
-	WebSocket = nullptr;
+	WebSocket->Close(1000, Reason);
 	UE_LOG(LogPixelStreamingSS, Log, TEXT("Closing websocket to SS %s"), *Url);
+
+	bIsConnected = false;
 }
 
 bool FPixelStreamingSignallingConnection::IsConnected() const
@@ -519,6 +539,42 @@ void FPixelStreamingSignallingConnection::OnConfig(const FJsonObjectPtr& Json)
 	// force `UnifiedPlan` as we control both ends of WebRTC streaming
 	RTCConfig.sdp_semantics = webrtc::SdpSemantics::kUnifiedPlan;
 
+#if WEBRTC_5414
+	int MinPort, MaxPort;
+	MinPort = UE::PixelStreaming::Settings::CVarPixelStreamingWebRTCMinPort.GetValueOnAnyThread();
+	MaxPort = UE::PixelStreaming::Settings::CVarPixelStreamingWebRTCMaxPort.GetValueOnAnyThread();
+
+	if(MinPort < 0 || MinPort > 65535)
+	{
+		UE_LOG(LogPixelStreamingSS, Warning, TEXT("Invalid PixelStreaming.WebRTC.MinPort specified. Value must be within 0 to 65535 inclusive"));
+		MinPort = 49152;
+		UE::PixelStreaming::Settings::CVarPixelStreamingWebRTCMinPort->Set(MinPort, ECVF_SetByCode);
+	}
+
+	if(MaxPort < 0 || MaxPort > 65535)
+	{
+		UE_LOG(LogPixelStreamingSS, Warning, TEXT("Invalid PixelStreaming.WebRTC.MaxPort specified. Value must be within 0 to 65535 inclusive"));
+		MaxPort = 65535;
+		UE::PixelStreaming::Settings::CVarPixelStreamingWebRTCMaxPort->Set(MaxPort, ECVF_SetByCode);
+	}
+
+	if (MinPort > MaxPort)
+	{
+		int OldMax = MaxPort;
+		MaxPort = MinPort;
+		MinPort = OldMax;
+
+		// To try to not be misleading with debug texts etc, we reset these sanitised settings here
+		UE::PixelStreaming::Settings::CVarPixelStreamingWebRTCMinPort->Set(MinPort, ECVF_SetByCode);
+		UE::PixelStreaming::Settings::CVarPixelStreamingWebRTCMaxPort->Set(MaxPort, ECVF_SetByCode);
+	}
+
+	RTCConfig.set_min_port(MinPort);
+	RTCConfig.set_max_port(MaxPort);
+
+	RTCConfig.set_port_allocator_flags(UE::PixelStreaming::Settings::PortAllocatorParameters);
+#endif
+
 	Observer->OnSignallingConfig(RTCConfig);
 }
 
@@ -535,13 +591,26 @@ void FPixelStreamingSignallingConnection::OnSessionDescription(const FJsonObject
 
 	FPixelStreamingPlayerId PlayerId;
 	bool bGotPlayerId = GetPlayerIdJson(Json, PlayerId);
-	if (!bGotPlayerId)
+	if (bGotPlayerId)
 	{
-		Observer->OnSignallingSessionDescription(Type, Sdp);
+		int MinBitrate;
+		int MaxBitrate;
+		bool bGotMinBitrate;
+		bool bGotMaxBitrate;
+
+		bGotMinBitrate = Json->TryGetNumberField(TEXT("minBitrate"), MinBitrate);
+		bGotMaxBitrate = Json->TryGetNumberField(TEXT("maxBitrate"), MaxBitrate);
+
+		if (bGotMinBitrate && bGotMaxBitrate && MinBitrate > 0 && MaxBitrate > 0)
+		{
+			Observer->OnPlayerRequestsBitrate(PlayerId, MinBitrate, MaxBitrate);
+		}
+
+		Observer->OnSignallingSessionDescription(PlayerId, Type, Sdp);
 	}
 	else
 	{
-		Observer->OnSignallingSessionDescription(PlayerId, Type, Sdp);
+		Observer->OnSignallingSessionDescription(Type, Sdp);
 	}
 }
 
@@ -694,7 +763,7 @@ void FPixelStreamingSignallingConnection::OnStreamerList(const FJsonObjectPtr& J
 {
 	TArray<FString> ResultList;
 	const TArray<TSharedPtr<FJsonValue>>* JsonStreamerIds = nullptr;
-	if (Json->TryGetArrayField("ids", JsonStreamerIds))
+	if (Json->TryGetArrayField(TEXT("ids"), JsonStreamerIds))
 	{
 		for (auto& JsonId : *JsonStreamerIds)
 		{

@@ -4,6 +4,7 @@
 #include "Customizations/StateTreeEditorNodeUtils.h"
 #include "DetailLayoutBuilder.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
+#include "IPropertyUtilities.h"
 #include "PropertyHandle.h"
 #include "ScopedTransaction.h"
 #include "StateTreeConditionBase.h"
@@ -390,6 +391,7 @@ TSharedRef<SWidget> CreateStateWidget(const IDetailLayoutBuilder& DetailBuilder,
 	DebuggingActions.EndSection();
 
 	const TSharedRef<SHorizontalBox> HeaderContentWidget = SNew(SHorizontalBox)
+		.IsEnabled(DetailBuilder.GetPropertyUtilities(), &IPropertyUtilities::IsPropertyEditingEnabled)
 		+ SHorizontalBox::Slot()
 		.FillWidth(1.0f)
 		.HAlign(HAlign_Right)
