@@ -3617,19 +3617,6 @@ void UGroomComponent::TickComponent(float DeltaTime, enum ELevelTick TickType, F
 	}
 }
 
-void UGroomComponent::SendRenderTransform_Concurrent()
-{
-	if (RegisteredMeshComponent)
-	{
-		if (ShouldComponentAddToScene() && ShouldRender())
-		{
-			GetWorld()->Scene->UpdatePrimitiveTransform(this);
-		}
-	}
-
-	Super::SendRenderTransform_Concurrent();
-}
-
 void UGroomComponent::SendRenderDynamicData_Concurrent()
 {
 	Super::SendRenderDynamicData_Concurrent();
