@@ -114,6 +114,14 @@ void UFusionPatchCreateOptions::UpdateKeyzonesWithSettings()
 		}
 	}
 
+	// apply the octave offset after applying the initial values
+	for (FKeyzoneSettings& Keyzone : Keyzones)
+	{
+		Keyzone.RootNote = FMath::Clamp(Keyzone.RootNote + OctaveAdjust * 12, 0, 127);
+		Keyzone.MinNote = FMath::Clamp(Keyzone.MinNote + OctaveAdjust * 12, 0, 127);
+		Keyzone.MaxNote = FMath::Clamp(Keyzone.MaxNote + OctaveAdjust * 12, 0, 127);
+	}
+
 	// if the min and max notes haven't already been determined from the file names, lay them out
 	if (ELockedNoteFlag::None ==  (LockedNotesMask & ELockedNoteFlag::MinMax))
 	{
