@@ -3101,6 +3101,18 @@ public:
 	/** A list of Iris NetDriverConfigs */
 	UPROPERTY(Config, transient)
 	TArray<FIrisNetDriverConfig> IrisNetDriverConfigs;
+
+	/** 
+	 * Returns the Iris config for the corresponding NetDriver 
+	 * Priority order for the IrisNetDriverConfigs are:
+	 *		1. NetDriverName exact match
+	 *		2. NetDriverName wildcard match
+	 *		3. NetDriverDefinition match
+	 */
+	ENGINE_API const FIrisNetDriverConfig* GetIrisNetDriverConfig(FName InNetDriverDefinition, FName InNetDriverName) const;
+
+	/** Returns true if the netdriver will run with Iris enable. */
+	ENGINE_API bool WillNetDriverUseIris(const FWorldContext& Context, FName InNetDriverDefinition, FName InNetDriverName) const;
 	
 	/** A configurable list of actors that are automatically spawned upon server startup (just prior to InitGame) */
 	UPROPERTY(config)

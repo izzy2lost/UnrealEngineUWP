@@ -6061,6 +6061,11 @@ void UNetDriver::SetNetDriverDefinition(FName NewNetDriverDefinition)
 	InitPacketSimulationSettings();
 }
 
+void UNetDriver::ReinitBase()
+{
+	UE_LOG(LogNet, Log, TEXT("Re-InitBase %s (NetDriverDefinition %s) using replication model %s"), *NetDriverName.ToString(), *NetDriverDefinition.ToString(), *GetReplicationModelName());
+}
+
 void UNetDriver::PostCreation(bool bInitializeWithIris)
 {
 #if UE_WITH_IRIS
@@ -6072,7 +6077,6 @@ void UNetDriver::PostCreation(bool bInitializeWithIris)
 		//Add to CSV whether we're using Iris on the GameNetDriver or not
 		CSV_METADATA(TEXT("Iris"), IsUsingIrisReplication() ? TEXT("1") : TEXT("0"));
 	}
-
 }
 
 #if NET_DEBUG_RELEVANT_ACTORS
@@ -6895,36 +6899,6 @@ void UNetDriver::SetReplicationSystem(UReplicationSystem* InReplicationSystem)
 	}
 }
 
-void UNetDriver::ClearIrisSystem()
-{
-	if (ReplicationSystem)
-	{
-		UReplicationBridge* Bridge = ReplicationSystem->GetReplicationBridge();
-		if (ensureAlways(Bridge))
-		{
-			Bridge->SetNetDriver(nullptr);
-		}
-	}
-
-	ReplicationSystem = nullptr;
-}
-
-void UNetDriver::RestoreIrisSystem(UReplicationSystem* InReplicationSystem)
-{
-	check(InReplicationSystem != nullptr);
-	check(InReplicationSystem->GetReplicationBridge() != nullptr);
-	checkf(ReplicationSystem == nullptr, TEXT("Cannot restore IrisSystem in %s since one system is already initialized."), *GetName());
-
-	ReplicationSystem = InReplicationSystem;
-	ReplicationSystem->GetReplicationBridge()->SetNetDriver(this);
-
-	// When we run using Iris, we use ReplicationSystemId as our unique identifier
-	NetTraceId = ReplicationSystem->GetId();
-	
-	// World Actors have already been registered in this IrisSystem, prevent adding them twice when the World gets set.
-	bSkipBeginReplicationForWorld = true;
-}
-
 void UNetDriver::RestartIrisSystem()
 {
 	if (ReplicationSystem == nullptr)
@@ -6939,17 +6913,40 @@ void UNetDriver::RestartIrisSystem()
 		return;
 	}
 
-	QUICK_SCOPE_CYCLE_COUNTER(STAT_NetDriver_RestartIrisSystem);
+	DestroyIrisSystem();
+
+	CreateReplicationSystem(!IsServer());
+}
+
+void UNetDriver::DestroyIrisSystem()
+{
+	if (ReplicationSystem == nullptr)
+	{
+		ensureMsgf(false, TEXT("DestroyIrisSystem called while no system existed."));
+		return;
+	}
+
+	if (ClientConnections.Num() > 0)
+	{
+		ensureMsgf(false, TEXT("DestroyIrisSystem called while there were active connections."));
+		return;
+	}
+
+	QUICK_SCOPE_CYCLE_COUNTER(STAT_NetDriver_DestroyIrisSystem);
 
 	UE::Net::FReplicationSystemFactory::DestroyReplicationSystem(ReplicationSystem);
 	ReplicationSystem = nullptr;
+}
 
+void UNetDriver::RecreateIrisSystem()
+{
 	CreateReplicationSystem(!IsServer());
 }
 
 void UNetDriver::CreateReplicationSystem(bool bInitAsClient)
 {
 	LLM_SCOPE_BYTAG(Iris);
+	QUICK_SCOPE_CYCLE_COUNTER(STAT_NetDriver_CreateReplicationSystem);
 
 	const bool bBridgeClassExists = InitReplicationBridgeClass();
 

@@ -1050,8 +1050,10 @@ public:
 	FName GetNetDriverDefinition() const { return NetDriverDefinition; }
 
 	/** Callback after the engine created the NetDriver and set our name for the first time */
-	void PostCreation(bool bInitializeWithIris);
+	ENGINE_API void PostCreation(bool bInitializeWithIris);
 
+	/** Reset some NetDriver settings after destroying and recreating a replication system or replication driver */
+	ENGINE_API void ReinitBase();
 
 	void InitPacketSimulationSettings();
 
@@ -1850,18 +1852,18 @@ public:
 	ENGINE_API EEngineNetworkRuntimeFeatures GetNetworkRuntimeFeatures() const;
 	
 #if UE_WITH_IRIS
-	/** Remove references to the Iris bridge and system without deleting it */
-	ENGINE_API void ClearIrisSystem();
-
-	/** Set a previously initialized IrisSystem into this NetDriver */
-	ENGINE_API void RestoreIrisSystem(UReplicationSystem* InReplicationSystem);
-
 	/**
-	 * Destroy and recreate the iris replication system for an active netdrive.
+	 * Destroy and recreate the iris replication system for an active netdriver.
 	 * This will re-add all existing replicated actors back in the system.
 	 * Useful if you need to reapply hotfix configs downloaded post-initialization.
 	 */
 	ENGINE_API void RestartIrisSystem();
+
+	/** Destroy the Iris replication system before it gets recreated. */
+	ENGINE_API void DestroyIrisSystem();
+
+	/** Create the Iris replication system after it got destroyed. */
+	ENGINE_API void RecreateIrisSystem();
 #endif // UE_WITH_IRIS
 
 	template<class T>
