@@ -96,7 +96,7 @@ public:
 	FPCGAttributePropertyInputSelector MaxDistanceInputAttribute;
 
 	/** Controls whether we will use the attribute provided in the Input Weight Attribute to perform entry selection. */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable, InlineEditConditionToggle))
 	bool bUseInputWeightAttribute = false;
 
 	/** Input weight from the points, assumed to be in the [0, 1] range. */

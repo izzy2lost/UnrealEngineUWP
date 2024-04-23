@@ -32,7 +32,7 @@ FPCGElementPtr UPCGPointFromMeshSettings::CreateElement() const
 
 bool FPCGPointFromMeshElement::PrepareDataInternal(FPCGContext* Context) const
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGPointFromMeshElement::Execute);
+	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGPointFromMeshElement::PrepareData);
 
 	check(Context);
 

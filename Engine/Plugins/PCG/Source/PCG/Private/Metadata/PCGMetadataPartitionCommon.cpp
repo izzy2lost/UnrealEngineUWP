@@ -293,6 +293,14 @@ namespace PCGMetadataPartitionCommon
 	}
 
 	/**
+	* Dispatch the partition according to the data and selector.
+	*/
+	TArray<TArray<int32>> AttributeGenericPartition(const UPCGData* InData, const FPCGAttributePropertySelector& InSelector, FPCGContext* InOptionalContext, bool bSilenceMissingAttributeErrors)
+	{
+		return AttributeGenericPartition<TArray<int32>>(InData, InSelector, InOptionalContext, bSilenceMissingAttributeErrors);
+	}
+
+	/**
 	 * Partition on multiple attributes by first partitioning on the attributes independently. Then take the resultant
 	 * partition and convert them to a BitArray representation of each element's partition. Once in BitArray form,
 	 * combine the results with a logical AND operation to filter them into final partition groupings.
