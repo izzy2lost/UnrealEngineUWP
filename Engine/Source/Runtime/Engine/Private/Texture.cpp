@@ -3132,7 +3132,11 @@ FSharedBuffer FTextureSource::TryDecompressData() const
 			{
 				// this is most likely from the bug where data is marked TSCF_PNG but is actually uncompressed
 				// fix CompressionFormat for the future :
-				check( CompressionFormat == TSCF_PNG );
+				checkf( CompressionFormat == TSCF_PNG ,
+					TEXT("expected CompressionFormat PNG, got %d=%s on [%s]"), 
+					(int)CompressionFormat,
+					*GetSourceCompressionAsString(),
+					Owner ? *Owner->GetFullName() : *TornOffOwnerName);
 				const_cast<FTextureSource *>(this)->CompressionFormat = TSCF_None;
 
 				UE_LOG(LogTexture, Warning, TEXT("TryDecompressData data marked compressed appears to be uncompressed?"));
@@ -3554,16 +3558,6 @@ void FTextureSource::SetId(const FGuid& InId, bool bInGuidIsHash)
 	bGuidIsHash = bInGuidIsHash;
 }
 
-// GetMaximumDimensionOfNonVT is static
-// not for current texture type, not for current RHI
-int32 UTexture::GetMaximumDimensionOfNonVT()
-{
-	// 16384 limit ; larger must be VT
-	check( MAX_TEXTURE_MIP_COUNT == 15 );
-	// GMaxTextureMipCount is for the current RHI and GMaxTextureMipCount <= MAX_TEXTURE_MIP_COUNT
-	return 16384;
-}
-
 // GetMaximumDimension is for current texture type (cube/2d/vol)
 // and on the current RHI
 uint32 UTexture::GetMaximumDimension() const
@@ -3644,6 +3638,16 @@ int64 UTexture::GetBuildRequiredMemory() const
 }
 
 #endif // #if WITH_EDITOR
+
+// GetMaximumDimensionOfNonVT is static
+// not for current texture type, not for current RHI
+int32 UTexture::GetMaximumDimensionOfNonVT()
+{
+	// 16384 limit ; larger must be VT
+	check( MAX_TEXTURE_MIP_COUNT == 15 );
+	// GMaxTextureMipCount is for the current RHI and GMaxTextureMipCount <= MAX_TEXTURE_MIP_COUNT
+	return 16384;
+}
 
 extern FName GetLatestOodleTextureSdkVersion();
 FName GetLatestOodleTextureSdkVersion()

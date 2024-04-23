@@ -4,6 +4,9 @@
 
 #include "ImageCore.h"
 #include "Async/ParallelFor.h"
+#include "Misc/MessageDialog.h"
+#include "Engine/Texture.h"
+#include "ImageCoreUtils.h"
 
 namespace UE
 {
@@ -571,4 +574,75 @@ namespace UE
 			}
 		}
 	}
+}
+
+
+bool UE::TextureUtilitiesCommon::IsImportResolutionValid(int64 Width, int64 Height, bool bAllowNonPowerOfTwo, FText* OutErrorMessage)
+{
+	// code dupe from: UTextureFactory::IsImportResolutionValid
+
+	// MaximumSupportedResolutionNonVT is only a popup/warning , not a hard limit
+	// Get the non-VT size limit :
+	int64 MaximumSupportedResolutionNonVT = (int64)UTexture::GetMaximumDimensionOfNonVT();
+
+	// limit on current rendering RHI : == GetMax2DTextureDimension()
+	//const int64 CurrentRHIMaxResolution = int64(1) << (GMaxTextureMipCount - 1);
+	//MaximumSupportedResolutionNonVT = FMath::Min(MaximumSupportedResolutionNonVT, CurrentRHIMaxResolution);
+
+	// No zero-size textures :
+	if (Width == 0 || Height == 0)
+	{
+		if (OutErrorMessage)
+		{
+			*OutErrorMessage = NSLOCTEXT("Interchange", "Warning_TextureSizeZero", "Texture has zero width or height");
+		}
+
+		return false;
+	}
+
+	// Dimensions must fit in signed int32
+	//  could be negative here if it was over 2G and int32 was used earlier
+	if ( ! FImageCoreUtils::IsImageImportPossible(Width,Height) )
+	{
+		if (OutErrorMessage)
+		{
+			*OutErrorMessage = NSLOCTEXT("Interchange", "Warning_TextureSizeTooLargeOrInvalid", "Texture is too large to import or it has an invalid resolution.");
+		}
+
+		return false;
+	}
+
+	if (Width > MaximumSupportedResolutionNonVT || Height > MaximumSupportedResolutionNonVT)
+	{
+		const TConsoleVariableData<int32>* CVarVirtualTexturesEnabled = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.VirtualTextures")); check(CVarVirtualTexturesEnabled);
+		check(CVarVirtualTexturesEnabled != nullptr);
+
+		if (!CVarVirtualTexturesEnabled->GetValueOnAnyThread())
+		{
+			const FText VTMessage = NSLOCTEXT("Interchange", "Warning_LargeTextureVTDisabled", "\nWarning: Virtual Textures are disabled in this project.");
+
+			if (EAppReturnType::Yes != FMessageDialog::Open(EAppMsgType::YesNo, EAppReturnType::Yes, FText::Format(
+				NSLOCTEXT("Interchange", "Warning_LargeTextureImport", "Attempting to import {0} x {1} texture, proceed?\nLargest supported non-VT texture size: {2} x {3}{4}"),
+				FText::AsNumber(Width), FText::AsNumber(Height), FText::AsNumber(MaximumSupportedResolutionNonVT), FText::AsNumber(MaximumSupportedResolutionNonVT), VTMessage)))
+			{
+				return false;
+			}
+		}
+	}
+
+	// Check if the texture dimensions are powers of two
+	if (!bAllowNonPowerOfTwo)
+	{
+		const bool bIsPowerOfTwo = FMath::IsPowerOfTwo(Width) && FMath::IsPowerOfTwo(Height);
+		if (!bIsPowerOfTwo)
+		{
+			if ( OutErrorMessage )
+			{
+				*OutErrorMessage = NSLOCTEXT("Interchange", "Warning_TextureNotAPowerOfTwo", "Cannot import texture with non-power of two dimensions");
+			}
+			return false;
+		}
+	}
+
+	return true;
 }

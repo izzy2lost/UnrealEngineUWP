@@ -2858,12 +2858,15 @@ void FImportImage::Init2DWithOneMip(int32 InSizeX, int32 InSizeY, ETextureSource
 	RawData.AddUninitialized((int64)SizeX * SizeY * FTextureSource::GetBytesPerPixel(Format));
 	if (InData)
 	{
+		// @@ dangerous: InData has no size
 		FMemory::Memcpy(RawData.GetData(), InData, RawData.Num());
 	}
 }
 
 void FImportImage::Init2DWithMips(int32 InSizeX, int32 InSizeY, int32 InNumMips, ETextureSourceFormat InFormat, const void* InData)
 {
+	// @@ not used, delete me
+
 	SizeX = InSizeX;
 	SizeY = InSizeY;
 	NumMips = InNumMips;
@@ -2878,6 +2881,7 @@ void FImportImage::Init2DWithMips(int32 InSizeX, int32 InSizeY, int32 InNumMips,
 
 	if (InData)
 	{
+		// @@ dangerous: InData has no size
 		FMemory::Memcpy(RawData.GetData(), InData, RawData.Num());
 	}
 }
@@ -4385,67 +4389,19 @@ void UTextureFactory::ApplyAutoImportSettings(UTexture* Texture)
 
 bool UTextureFactory::IsImportResolutionValid(int64 Width, int64 Height, bool bAllowNonPowerOfTwo, FFeedbackContext* Warn)
 {
-	// code dupe to:
-	//UE::Interchange::FImportImageHelper::IsImportResolutionValid
-
-	static const auto CVarVirtualTexturesEnabled = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.VirtualTextures")); check(CVarVirtualTexturesEnabled);
-
-	// Get the non-VT size limit :
-	int64 MaximumSupportedResolutionNonVT = (int64)UTexture::GetMaximumDimensionOfNonVT();
+	FText ErrorMessage;
 	
-	// limit on current rendering RHI : == GetMax2DTextureDimension()
-	const int64 CurrentRHIMaxResolution = int64(1)<<(GMaxTextureMipCount-1);
-
-	// MaximumSupportedResolutionNonVT is only a popup/warning , not a hard limit
-	MaximumSupportedResolutionNonVT = FMath::Min(MaximumSupportedResolutionNonVT,CurrentRHIMaxResolution);
-
-	// No zero-size textures :
-	if (Width == 0 || Height == 0 )
+	if ( UE::TextureUtilitiesCommon::IsImportResolutionValid(Width,Height,bAllowNonPowerOfTwo,&ErrorMessage) )
 	{
-		Warn->Log(ELogVerbosity::Error, NSLOCTEXT("UnrealEd", "Warning_TextureSizeZero", "Texture has zero width or height").ToString());
-
-		return false;
+		return true;
 	}
 
-	// Dimensions must fit in signed int32
-	//  could be negative here if it was over 2G and int32 was used earlier
-	if ( ! FImageCoreUtils::IsImageImportPossible(Width,Height) )
+	if ( ! ErrorMessage.IsEmpty() )
 	{
-		Warn->Log(ELogVerbosity::Error, NSLOCTEXT("UnrealEd", "Warning_TextureSizeTooLargeOrInvalid", "Texture is has an invalid resolution.").ToString());
-
-		return false;
-	}
-		
-	if ( Width > MaximumSupportedResolutionNonVT || Height > MaximumSupportedResolutionNonVT )
-	{
-
-		// we're larger than MaximumSupportedResolution
-		// so this texture can still work, but only as VT
-		// prompt about this :
-
-		// check if VT is allowed & show extra message if not :
-
-		check(CVarVirtualTexturesEnabled != nullptr );
-		const FText VTMessage = CVarVirtualTexturesEnabled->GetValueOnAnyThread() ? FText() :
-			NSLOCTEXT("UnrealEd","Warning_LargeTextureVTDisabled", "\nWarning: Virtual Textures are disabled in this project.");
-
-		if ( EAppReturnType::Yes != FMessageDialog::Open( EAppMsgType::YesNo, EAppReturnType::Yes, FText::Format(
-				NSLOCTEXT("UnrealEd", "Warning_LargeTextureImport", "Attempting to import {0} x {1} texture, proceed?\nLargest supported non-VT texture size: {2} x {3}{4}"),
-				FText::AsNumber(Width), FText::AsNumber(Height), FText::AsNumber(MaximumSupportedResolutionNonVT), FText::AsNumber(MaximumSupportedResolutionNonVT), VTMessage) ) )
-		{
-			return false;
-		}
+		Warn->Log(ELogVerbosity::Error, ErrorMessage.ToString());
 	}
 
-	const bool bIsPowerOfTwo = FMath::IsPowerOfTwo( Width ) && FMath::IsPowerOfTwo( Height );
-	// Check if the texture dimensions are powers of two
-	if ( !bAllowNonPowerOfTwo && !bIsPowerOfTwo )
-	{
-		Warn->Log(ELogVerbosity::Error, *NSLOCTEXT("UnrealEd", "Warning_TextureNotAPowerOfTwo", "Cannot import texture with non-power of two dimensions").ToString() );
-		return false;
-	}
-	
-	return true;
+	return false;
 }
 
 IImportSettingsParser* UTextureFactory::GetImportSettingsParser()

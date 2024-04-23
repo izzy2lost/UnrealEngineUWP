@@ -2094,11 +2094,6 @@ public:
 	* Return false for VT. */
 	bool IsCandidateForTextureStreamingOnPlatformDuringCook(const ITargetPlatform* InTargetPlatform) const;
 
-	/** Get the largest allowed dimension of non-VT texture
-	* this is not for the current RHI (which may have a lower limit), this is for a Texture in general
-	*/
-	ENGINE_API static int32 GetMaximumDimensionOfNonVT();
-
 	/*
 	 * Downsize the 2D Image with the build settings for the texture until all dimensions are <= TargetSize.
 	 * This downsizes using the mip generation system and so will only cut sizes in half. Return false
@@ -2111,6 +2106,11 @@ public:
 	ENGINE_API void GetTargetPlatformBuildSettings(const ITargetPlatform* TargetPlatform, TArray<TArray<FTextureBuildSettings>>& OutSettingsPerFormatPerLayer) const;
 
 #endif
+
+	/** Get the largest allowed dimension of non-VT texture
+	* this is not for the current RHI (which may have a lower limit), this is for a Texture in general
+	*/
+	ENGINE_API static int32 GetMaximumDimensionOfNonVT();
 
 protected:
 

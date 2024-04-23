@@ -47,6 +47,7 @@
 #include "Texture/InterchangeTexturePayloadInterface.h"
 #include "TextureCompiler.h"
 #include "TextureImportSettings.h"
+#include "TextureImportUtils.h"
 #include "TextureResource.h"
 #include "UDIMUtilities.h"
 #include "UObject/ObjectMacros.h"
@@ -1940,7 +1941,7 @@ void UInterchangeTextureFactory::CheckForInvalidResolutions(UE::Interchange::Pri
 			for (int32 Index = 0; Index < BlockedImage.BlocksData.Num(); ++Index)
 			{
 				const FTextureSourceBlock& Block = BlockedImage.BlocksData[Index];
-				if (!FImportImageHelper::IsImportResolutionValid(Block.SizeX, Block.SizeY, bAllowNonPowerOfTwo, &ErrorMessage))
+				if (!UE::TextureUtilitiesCommon::IsImportResolutionValid(Block.SizeX, Block.SizeY, bAllowNonPowerOfTwo, &ErrorMessage))
 				{
 					FString SourceFile;
 					if (const UInterchangeTexture2DFactoryNode* Texture2DFactoryNode = Cast<UInterchangeTexture2DFactoryNode>(TextureFactoryNode))
@@ -1975,7 +1976,7 @@ void UInterchangeTextureFactory::CheckForInvalidResolutions(UE::Interchange::Pri
 		if (ImagePtr->IsSet())
 		{
 			const FImportImage& Image = ImagePtr->GetValue();
-			if (UTextureCube::StaticClass() != TextureFactoryNode->GetObjectClass() && !FImportImageHelper::IsImportResolutionValid(Image.SizeX, Image.SizeY, bAllowNonPowerOfTwo, &ErrorMessage))
+			if (UTextureCube::StaticClass() != TextureFactoryNode->GetObjectClass() && !UE::TextureUtilitiesCommon::IsImportResolutionValid(Image.SizeX, Image.SizeY, bAllowNonPowerOfTwo, &ErrorMessage))
 			{
 				AddErrorMessage(SourceData->GetFilename(), ErrorMessage);
 
@@ -1989,7 +1990,7 @@ void UInterchangeTextureFactory::CheckForInvalidResolutions(UE::Interchange::Pri
 		if (LightProfilePtr->IsSet())
 		{
 			const FImportLightProfile& LightProfile = LightProfilePtr->GetValue();
-			if (!FImportImageHelper::IsImportResolutionValid(LightProfile.SizeX, LightProfile.SizeY, bAllowNonPowerOfTwo, &ErrorMessage))
+			if (!UE::TextureUtilitiesCommon::IsImportResolutionValid(LightProfile.SizeX, LightProfile.SizeY, bAllowNonPowerOfTwo, &ErrorMessage))
 			{
 				AddErrorMessage(SourceData->GetFilename(), ErrorMessage);
 
@@ -2004,7 +2005,7 @@ void UInterchangeTextureFactory::CheckForInvalidResolutions(UE::Interchange::Pri
 		{
 			const FImportSlicedImage& SlicedImage = SlicedImagePtr->GetValue();
 
-			if (!FImportImageHelper::IsImportResolutionValid(SlicedImage.SizeX, SlicedImage.SizeY, bAllowNonPowerOfTwo, &ErrorMessage))
+			if (!UE::TextureUtilitiesCommon::IsImportResolutionValid(SlicedImage.SizeX, SlicedImage.SizeY, bAllowNonPowerOfTwo, &ErrorMessage))
 			{
 				AddErrorMessage(SourceData->GetFilename(), ErrorMessage);
 
