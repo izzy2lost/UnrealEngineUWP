@@ -64,6 +64,7 @@ void FDataLayerInstanceDetails::CustomizeDetails(IDetailLayoutBuilder& DetailBui
 			[
 				SNew(SObjectPropertyEntryBox)
 				.AllowClear(false)
+				.AllowCreate(true)
 				.AllowedClass(UDataLayerAsset::StaticClass())
 				.PropertyHandle(DataLayerAssetProperty)
 				.DisplayThumbnail(true)
