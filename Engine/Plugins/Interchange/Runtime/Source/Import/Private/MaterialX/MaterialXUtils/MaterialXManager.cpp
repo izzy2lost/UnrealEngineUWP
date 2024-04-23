@@ -83,6 +83,8 @@ FMaterialXManager::FMaterialXManager()
 		{{MaterialX::Category::Noise3D,        TEXT("amplitude")},   TEXT("B")},            // The amplitude of the noise is connected to a multiply node
 		{{MaterialX::Category::Noise3D,        TEXT("pivot")},       TEXT("B")},            // The pivot of the noise is connected to a add node
 		{{MaterialX::Category::Normalize,      TEXT("in")},          TEXT("VectorInput")},
+		{{MaterialX::Category::NormalMap,      TEXT("in")},          TEXT("Normal")},
+		{{MaterialX::Category::NormalMap,      TEXT("scale")},       TEXT("Flatness")},
 		{{MaterialX::Category::Outside,        TEXT("in")},          TEXT("A")},				// Outside is treated as Multiply node
 		{{MaterialX::Category::Outside,        TEXT("mask")},        TEXT("B")},				// Outside is treated as Multiply node
 		{{MaterialX::Category::Power,          TEXT("in1")},         TEXT("Base")},

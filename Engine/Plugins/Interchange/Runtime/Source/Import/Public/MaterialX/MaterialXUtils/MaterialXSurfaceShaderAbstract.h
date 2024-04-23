@@ -278,6 +278,9 @@ protected:
 	/** <swizzle> */
 	void ConnectSwizzleInputToOutput(const FConnectNode& Connect);
 
+	/** <normalmap> */
+	void ConnectNormalMapInputToOutput(const FConnectNode& Connect);
+
 	/** End Connect MaterialX nodes*/
 
 	/**
