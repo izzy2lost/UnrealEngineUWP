@@ -483,11 +483,9 @@ void DrawBonesInternal(
 	}
 }
 
-FLinearColor GetSemiRandomColorForBone(const int32 BoneIndex)
+FLinearColor GetSemiRandomColorForBone(const int32 BoneIndex, float Value, float Saturation)
 {
 	// uses deterministic, semi-random desaturated color unique to the bone index
-	constexpr float Saturation = 0.5f;
-	constexpr float Value = 1.0f;
 	constexpr float Rotation = 90.f;
 	return FLinearColor::IntToDistinctColor(BoneIndex, Saturation, Value, Rotation);
 }

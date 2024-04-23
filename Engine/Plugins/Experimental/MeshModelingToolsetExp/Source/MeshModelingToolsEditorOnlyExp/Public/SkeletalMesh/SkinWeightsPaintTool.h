@@ -48,6 +48,7 @@ enum class EWeightColorMode : uint8
 {
 	MinMax,
 	Ramp,
+	MultiColor,
 };
 
 // brush falloff mode
@@ -480,7 +481,7 @@ protected:
 
 	// vertex colors updated when switching current bone or editing weights
 	void UpdateCurrentBoneVertexColors();
-	FVector4f WeightToColor(float Value) const;
+	FVector4f GetColorOfVertex(VertexIndex InVertexIndex, BoneIndex InBoneIndex) const;
 	bool bVisibleWeightsValid = false;
 
 	// which bone are we currently painting?

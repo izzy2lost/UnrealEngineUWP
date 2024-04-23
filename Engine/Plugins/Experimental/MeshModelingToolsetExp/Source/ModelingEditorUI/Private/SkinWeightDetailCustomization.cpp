@@ -116,7 +116,9 @@ void FSkinWeightDetailCustomization::CustomizeDetails(IDetailLayoutBuilder& Deta
 				+ SSegmentedControl<EWeightColorMode>::Slot(EWeightColorMode::MinMax)
 				.Text(LOCTEXT("MinMaxMode", "Min / Max"))
 				+SSegmentedControl<EWeightColorMode>::Slot(EWeightColorMode::Ramp)
-				.Text(LOCTEXT("RampMode", "Color Ramp"))
+				.Text(LOCTEXT("RampMode", "Ramp"))
+				+SSegmentedControl<EWeightColorMode>::Slot(EWeightColorMode::MultiColor)
+				.Text(LOCTEXT("MultiColorMode", "Multi Color"))
 			]
 		]
 	];

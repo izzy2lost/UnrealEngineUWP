@@ -153,6 +153,6 @@ void DrawBonesInternal(
 	const TArray<TRefCountPtr<HHitProxy>>& HitProxies,
 	const FSkelDebugDrawConfig& DrawConfig);
 
-ENGINE_API FLinearColor GetSemiRandomColorForBone(const int32 BoneIndex);
+ENGINE_API FLinearColor GetSemiRandomColorForBone(const int32 BoneIndex, float Value=1.0f, float Saturation=0.5f);
 ENGINE_API void FillWithMultiColors(TArray<FLinearColor>& BoneColors, const int32 NumBones);
 }
