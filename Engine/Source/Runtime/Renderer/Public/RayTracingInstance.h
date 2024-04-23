@@ -59,7 +59,7 @@ struct FRayTracingInstance
 	TArray<FMeshBatch> Materials;
 
 	/** Similar to Materials, but memory is owned by someone else (i.g. FPrimitiveSceneProxy). */
-	TArrayView<const FMeshBatch> MaterialsView;
+	TConstArrayView<FMeshBatch> MaterialsView;
 
 	bool OwnsMaterials() const
 	{
@@ -104,23 +104,48 @@ struct FRayTracingInstance
 	*/
 	uint32 NumTransforms = 0;
 
+	// Indices of primitive instances to be included in ray tracing scene
+	TArray<uint32> PrimitiveInstanceIndices;
+
+	/** Similar to PrimitiveInstanceIndices, but memory is owned by someone else (i.g. FPrimitiveSceneProxy). */
+	TConstArrayView<uint32> PrimitiveInstanceIndicesView;
+
+	bool OwnsPrimitiveInstanceIndices() const
+	{
+		return PrimitiveInstanceIndices.Num() != 0;
+	}
+
+	TConstArrayView<uint32> GetPrimitiveInstanceIndices() const
+	{
+		if (OwnsPrimitiveInstanceIndices())
+		{
+			check(PrimitiveInstanceIndicesView.Num() == 0);
+			return TConstArrayView<uint32>(PrimitiveInstanceIndices);
+		}
+		else
+		{
+			check(PrimitiveInstanceIndices.Num() == 0);
+			return PrimitiveInstanceIndicesView;
+		}
+	}
+
 	/** Instance transforms. */
 	TArray<FMatrix> InstanceTransforms;
 
 	/** Similar to InstanceTransforms, but memory is owned by someone else (i.g. FPrimitiveSceneProxy). */
-	TArrayView<const FMatrix> InstanceTransformsView;
+	TConstArrayView<FMatrix> InstanceTransformsView;
 
 	bool OwnsTransforms() const
 	{
 		return InstanceTransforms.Num() != 0;
 	}
 
-	TArrayView<const FMatrix> GetTransforms() const
+	TConstArrayView<FMatrix> GetTransforms() const
 	{
 		if (OwnsTransforms())
 		{
 			check(InstanceTransformsView.Num() == 0);
-			return TArrayView<const FMatrix>(InstanceTransforms);
+			return TConstArrayView<FMatrix>(InstanceTransforms);
 		}
 		else
 		{

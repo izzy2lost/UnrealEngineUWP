@@ -1864,7 +1864,7 @@ void FInstancedStaticMeshSceneProxy::GetDynamicRayTracingInstances(struct FRayTr
 
 	//preallocate the worst-case to prevent an explosion of reallocs
 	//#dxr_todo: possibly track used instances and reserve based on previous behavior
-	RayTracingInstanceTemplate.InstanceTransforms.Reserve(InstanceCount);
+	RayTracingInstanceTemplate.PrimitiveInstanceIndices.Reserve(InstanceCount);
 
 	// Add all visible instances
 	for (FVisibleInstance VisibleInstance : VisibleInstances)
@@ -1888,7 +1888,7 @@ void FInstancedStaticMeshSceneProxy::GetDynamicRayTracingInstances(struct FRayTr
 				ActiveInstances[DynamicInstanceIdx] = OutRayTracingInstances.Num();
 				FRayTracingInstance& RayTracingInstance = OutRayTracingInstances.Add_GetRef(RayTracingWPOInstanceTemplate);
 				RayTracingInstance.Geometry = &DynamicData.DynamicGeometry;
-				RayTracingInstance.InstanceTransforms.Reserve(InstanceCount);
+				RayTracingInstance.PrimitiveInstanceIndices.Reserve(InstanceCount);
 
 				DynamicInstance = &RayTracingInstance;
 
@@ -1913,16 +1913,16 @@ void FInstancedStaticMeshSceneProxy::GetDynamicRayTracingInstances(struct FRayTr
 				DynamicInstance = &OutRayTracingInstances[ActiveInstances[DynamicInstanceIdx]];
 			}
 
-			DynamicInstance->InstanceTransforms.Add(InstanceToWorld);
+			DynamicInstance->PrimitiveInstanceIndices.Add(InstanceIndex);
 
 		}
 		else
 		{
-			RayTracingInstanceTemplate.InstanceTransforms.Emplace(InstanceToWorld);
+			RayTracingInstanceTemplate.PrimitiveInstanceIndices.Add(InstanceIndex);
 		}
 	}
 
-	if (RayTracingInstanceTemplate.InstanceTransforms.Num() > 0)
+	if (RayTracingInstanceTemplate.PrimitiveInstanceIndices.Num() > 0)
 	{
 		int32 SectionCount = InstancedRenderData.LODModels[LODIndex].Sections.Num();
 

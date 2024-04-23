@@ -961,8 +961,24 @@ namespace RayTracing
 						RayTracingInstance.Flags = SceneInfo->CachedRayTracingInstance.Flags;
 						AddDebugRayTracingInstanceFlags(RayTracingInstance.Flags);
 
-						if(!Instance.GetTransforms().IsEmpty())
+						if (!Instance.GetPrimitiveInstanceIndices().IsEmpty())
 						{
+							TConstArrayView<uint32> PrimitiveInstanceIndices = Instance.GetPrimitiveInstanceIndices();
+
+							// Convert from instance indices to InstanceSceneDataOffsets
+							TArrayView<uint32> InstanceSceneDataOffsets = RayTracingScene.Allocate<uint32>(PrimitiveInstanceIndices.Num());
+							for (int32 InstanceIndex = 0; InstanceIndex < PrimitiveInstanceIndices.Num(); ++InstanceIndex)
+							{
+								InstanceSceneDataOffsets[InstanceIndex] = SceneInfo->GetInstanceSceneDataOffset() + PrimitiveInstanceIndices[InstanceIndex];
+							}
+
+							RayTracingInstance.InstanceSceneDataOffsets = InstanceSceneDataOffsets;
+							RayTracingInstance.UserData = InstanceSceneDataOffsets;
+							RayTracingInstance.NumTransforms = PrimitiveInstanceIndices.Num();
+						}
+						else if(!Instance.GetTransforms().IsEmpty())
+						{
+							TConstArrayView<FMatrix> TransformsView;
 							if (Instance.OwnsTransforms())
 							{
 								// Slow path: copy transforms to the owned storage
@@ -971,16 +987,17 @@ namespace RayTracing
 								FMemory::Memcpy(SceneOwnedTransforms.GetData(), Instance.InstanceTransforms.GetData(), Instance.InstanceTransforms.Num() * sizeof(RayTracingInstance.Transforms[0]));
 								static_assert(std::is_same_v<decltype(SceneOwnedTransforms[0]), decltype(Instance.InstanceTransforms[0])>, "Unexpected transform type");
 
-								RayTracingInstance.NumTransforms = SceneOwnedTransforms.Num();
-								RayTracingInstance.Transforms = SceneOwnedTransforms;
+								TransformsView = SceneOwnedTransforms;
 							}
 							else
 							{
 								// Fast path: just reference persistently-allocated transforms and avoid a copy
 								checkf(Instance.InstanceTransforms.Num() == 0, TEXT("InstanceTransforms is expected to be empty if using InstanceTransformsView"));
-								RayTracingInstance.NumTransforms = Instance.InstanceTransformsView.Num();
-								RayTracingInstance.Transforms = Instance.InstanceTransformsView;
+								TransformsView = Instance.InstanceTransformsView;
 							}
+
+							RayTracingInstance.NumTransforms = TransformsView.Num();
+							RayTracingInstance.Transforms = TransformsView;
 						}
 						else
 						{
