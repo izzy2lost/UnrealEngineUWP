@@ -5,6 +5,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
+using System.Linq;
 using EpicGames.Core;
 
 namespace UnrealBuildBase
@@ -316,6 +317,16 @@ namespace UnrealBuildBase
 		{
 			CacheFiles();
 			return Files!.Values;
+		}
+
+		/// <summary>
+		/// Check if this directory contains any files
+		/// </summary>
+		/// <param name="searchOption">Directory search options</param>
+		/// <returns>True if this directory has files</returns>
+		public bool ContainsFiles(SearchOption searchOption = SearchOption.TopDirectoryOnly)
+		{
+			return searchOption == SearchOption.TopDirectoryOnly ? EnumerateFiles().Any(x => x.Exists) : (EnumerateFiles().Any(x => x.Exists) || EnumerateDirectories().Any(x => x.ContainsFiles(searchOption)));
 		}
 
 		/// <summary>
