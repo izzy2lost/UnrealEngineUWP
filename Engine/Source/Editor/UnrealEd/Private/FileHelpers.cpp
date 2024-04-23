@@ -3316,6 +3316,12 @@ static void PrepareWorldsForExplicitSave(const TArray<UPackage*>& PackagesToPrep
 
 static void PrepareSavePackages(const TArray<UPackage*>& PackagesToSave)
 {
+	// Load existing thumbnails to be able to resave them properly
+	for (UPackage* PackageToSave : PackagesToSave)
+	{
+		EnsureLoadingComplete(PackageToSave);
+	}
+
 	// Don't call ResetLoaders on newly created world packages as this will prevent future loading of external actor packages to work propertly
 	// Linker will fail to resolve SourceLinker of external actor's world package import (see GetPackageLinker test for PKG_InMemoryOnly on TargetPackage's Package Flag)
 	TArray<UPackage*> PackagesToResetLoaders;

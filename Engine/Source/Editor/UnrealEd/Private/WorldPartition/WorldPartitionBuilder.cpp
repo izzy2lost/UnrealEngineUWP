@@ -373,6 +373,12 @@ bool UWorldPartitionBuilder::SavePackages(const TArray<UPackage*>& Packages, FPa
 		}
 	}
 
+	// Load existing thumbnails to be able to resave them properly
+	for (UPackage* PackageToSave : Packages)
+	{
+		EnsureLoadingComplete(PackageToSave);
+	}
+
 	ResetLoaders(TArray<UObject*>(Packages));
 
 	for (int PackageIndex = 0; PackageIndex < Packages.Num(); ++PackageIndex)
